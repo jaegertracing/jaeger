@@ -1,0 +1,6 @@
+*.out
+*.test
+*.xml
+*.swp
+.idea/
+.tmp/

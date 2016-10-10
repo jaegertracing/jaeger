@@ -1,0 +1,3 @@
+package: github.com/uber/jaeger
+import:
+- package: github.com/codahale/hdrhistogram
