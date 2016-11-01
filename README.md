@@ -1,1 +1,1 @@
-# Jaeger - Distributed Tracing System
+# Jaeger - Uber's Distributed Tracing System
