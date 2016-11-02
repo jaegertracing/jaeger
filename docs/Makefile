@@ -44,6 +44,11 @@ help:
 	@echo "  coverage   to run coverage check of the documentation (if enabled)"
 	@echo "  dummy      to check syntax errors of document sources"
 
+.PHONY: bootstrap
+bootstrap:
+	[ "$$VIRTUAL_ENV" != "" ]
+	pip install sphinx sphinx-autobuild recommonmark sphinx_rtd_theme
+
 .PHONY: clean
 clean:
 	rm -rf $(BUILDDIR)/*

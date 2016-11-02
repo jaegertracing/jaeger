@@ -1,3 +1,0 @@
-# Getting Started with Jaeger
-
-Coming soon...

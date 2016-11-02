@@ -4,3 +4,6 @@
 *.swp
 .idea/
 .tmp/
+_site/
+env/
+Gemfile.lock
