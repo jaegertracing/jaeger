@@ -6,7 +6,7 @@ About Jaeger
 Jaeger is Uber's Distributed Tracing System.
 
 * Built in the style of Google's Dapper
-* Fully `OpenTracing <http://opentracing.io>`_ compatible instrumentation libraries
+* Provides `OpenTracing <http://opentracing.io>`_ compatible instrumentation libraries
 
   - https://github.com/uber/jaeger-client-go
   - https://github.com/uber/jaeger-client-java
@@ -14,7 +14,7 @@ Jaeger is Uber's Distributed Tracing System.
   - https://github.com/uber/jaeger-client-python
 
 * Backend components are implemented in Go
-* Using Cassandra as the storage layer
+* Uses Cassandra as the storage layer
 
 Coming soon:
 
