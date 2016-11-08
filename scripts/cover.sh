@@ -47,14 +47,13 @@ for pkg in "$@"; do
 		coverpkg="$extracoverpkg$coverpkg"
 	fi
 
-	if [[ -z "$coverpkg" ]]; then
-		continue
+	args=""
+	if [[ -n "$coverpkg" ]]; then
+		args="-coverprofile $COVER/cover.${i}.out" # -coverpkg $coverpkg
 	fi
 
-	args="-coverprofile $COVER/cover.${i}.out" # -coverpkg $coverpkg
-
-	echo go test -race "$pkg"
-	go test $args -race "$pkg"
+	echo go test -v -race "$pkg"
+	go test $args -v -race "$pkg"
 done
 
 gocovmerge "$COVER"/*.out > cover.out

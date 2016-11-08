@@ -2,7 +2,17 @@
 
 # Jaeger - Uber's Distributed Tracing System
 
-Website: http://uber.github.io/jaeger/
+## Documentation
+
+http://uber.github.io/jaeger/
+
+## Contributing
+
+See [CONTRIBUTING.md](./CONTRIBUTING.md).
+
+## License
+
+[MIT](./LICENSE)
 
 [doc-img]: https://readthedocs.org/projects/jaeger/badge/?version=latest
 [doc]: http://jaeger.readthedocs.org/en/latest/
