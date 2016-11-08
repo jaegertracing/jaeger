@@ -10,6 +10,6 @@ Website: http://uber.github.io/jaeger/
 [godoc]: https://godoc.org/github.com/uber/jaeger
 [ci-img]: https://travis-ci.org/uber/jaeger.svg?branch=master
 [ci]: https://travis-ci.org/uber/jaeger
-[cov-img]: https://coveralls.io/repos/uber/jaeger/badge.svg?branch=master&service=github
+[cov-img]: https://coveralls.io/repos/uber/jaeger/badge.svg?branch=master
 [cov]: https://coveralls.io/github/uber/jaeger?branch=master
 
