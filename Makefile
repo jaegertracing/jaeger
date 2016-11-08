@@ -26,8 +26,12 @@ COLORIZE=sed ''/PASS/s//$(PASS)/'' | sed ''/FAIL/s//$(FAIL)/''
 .PHONY: test-and-lint
 test-and-lint: test fmt lint
 
+.PHONY: go-gen
+go-gen:
+	go generate ./...
+
 .PHONY: test
-test:
+test: go-gen
 	$(GOTEST) $(PACKAGES) | $(COLORIZE)
 
 .PHONY: fmt
@@ -61,6 +65,7 @@ install_ci: install
 	go get github.com/mattn/goveralls
 	go get golang.org/x/tools/cmd/cover
 	go get github.com/golang/lint/golint
+	go get github.com/sectioneight/md-to-godoc
 
 
 .PHONY: test_ci

@@ -6,13 +6,17 @@
 
 http://uber.github.io/jaeger/
 
+## Status
+
+We are in the process of moving Jaeger backend code from internal repositories to GitHub.
+
 ## Contributing
 
-See [CONTRIBUTING.md](./CONTRIBUTING.md).
+See [CONTRIBUTING](./CONTRIBUTING.md).
 
 ## License
 
-[The MIT License](./LICENSE)
+[The MIT License](./LICENSE).
 
 [doc-img]: https://readthedocs.org/projects/jaeger/badge/?version=latest
 [doc]: http://jaeger.readthedocs.org/en/latest/
