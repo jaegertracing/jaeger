@@ -1,4 +1,4 @@
-PROJECT_ROOT=github.com/ubar/jaeger
+PROJECT_ROOT=github.com/uber/jaeger
 PACKAGES := $(shell glide novendor | grep -v ./thrift-gen/...)
 
 # all .go files that don't exist in hidden directories
