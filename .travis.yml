@@ -7,7 +7,7 @@ go:
 
 before_install:
   - sudo apt-get -qq update
-  - sudo apt-get upgrade -y jq
+  - sudo apt-get install -y jq=1.5
   - jq --version
 
 install:
