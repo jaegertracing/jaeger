@@ -35,9 +35,10 @@ pull request is most likely to be accepted if it:
 ## License
 
 By contributing your code, you agree to license your contribution under the terms
-of the MIT License: https://github.com/uber/jaeger/blob/master/LICENSE
+of the (MIT License)[./LICENSE].
 
-If you are adding a new file it should have a header like below.
+If you are adding a new file it should have a header like below.  The easiest
+way to add such header is to run `make fmt`.
 
 ```
 // Copyright (c) 2016 Uber Technologies, Inc.
