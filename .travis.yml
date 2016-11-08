@@ -1,0 +1,17 @@
+sudo: required
+
+language: go
+
+go:
+  - 1.7
+
+services:
+  - docker
+
+install:
+  - make install_ci
+
+script:
+  - make test_ci
+  - travis_retry goveralls -coverprofile=cover.out -service=travis-ci || true
+

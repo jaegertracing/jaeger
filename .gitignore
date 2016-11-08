@@ -2,8 +2,12 @@
 *.test
 *.xml
 *.swp
+fmt.log
+lint.log
+cover.html
 .idea/
 .tmp/
 _site/
 env/
 Gemfile.lock
+vendor/
