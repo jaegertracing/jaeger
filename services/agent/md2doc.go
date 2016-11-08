@@ -18,12 +18,9 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 // THE SOFTWARE.
 
-/*
-Package agent is the jaeger-agent sidecar service.
+// This file only exists to generate doc.go from README.md
 
-Agent is meant to run on each host that runs the services instrumented with Jaeger.
-Jaeger client libraries send tracing spans to jaeger-agent. The agent
-forwards the spans to jaeger-collector services for storing in the DB.
+//go:generate md-to-godoc
+//go:generate python ../../scripts/updateLicense.py doc.go
 
-*/
 package agent
