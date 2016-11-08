@@ -5,10 +5,13 @@ language: go
 go:
   - 1.7
 
-before_install:
-  - sudo apt-get -qq update
-  - sudo apt-get install -y jq=1.5
-  - jq --version
+services:
+  - docker
+
+#before_install:
+#  - sudo apt-get -qq update
+#  - sudo apt-get install -y jq-1.5
+#  - jq --version
 
 install:
   - make install_ci
