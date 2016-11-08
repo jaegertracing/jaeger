@@ -1,0 +1,10 @@
+hash: 4991ad16cc808453448bce6a0bababfb7fb73627d4cb4416187f80b33fce9c83
+updated: 2016-11-07T19:46:26.519447717-05:00
+imports:
+- name: github.com/uber-go/atomic
+  version: 0c9e689d64f004564b79d9a663634756df322902
+- name: github.com/uber-go/zap
+  version: c4939d1166b2220bb45338e21506623b4bbdec50
+- name: github.com/uber/jaeger-lib
+  version: 7b113fceac673e60e5b10dff7039787bab5c5ed7
+testImports: []

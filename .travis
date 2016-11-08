@@ -1,0 +1,13 @@
+sudo: required
+
+language: go
+
+go:
+  - 1.7
+
+install:
+  - make install_ci
+
+script:
+  - make test_ci
+
