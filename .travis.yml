@@ -8,14 +8,10 @@ go:
 services:
   - docker
 
-#before_install:
-#  - sudo apt-get -qq update
-#  - sudo apt-get install -y jq-1.5
-#  - jq --version
-
 install:
   - make install_ci
 
 script:
   - make test_ci
+  - travis_retry goveralls -coverprofile=cover.out -service=travis-ci || true
 
