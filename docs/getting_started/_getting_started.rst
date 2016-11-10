@@ -1,5 +1,3 @@
-.. getting_started:
-
 Getting Started with Jaeger
 ===========================
 
@@ -10,10 +8,9 @@ Jaeger client libraries are already open source and for now can be used with Zip
 You can see a HOW-TO example in the blog post `Tracing HTTP request latency in Go with OpenTracing
 <https://medium.com/@YuriShkuro/tracing-http-request-latency-in-go-with-opentracing-7cc1282a100a>`_.
 
-Starting Jaeger Backend in Docker Container
--------------------------------------------
-Coming soon...
+.. toctree::
+   :maxdepth: 2
 
-Tracing a Sample Application
-----------------------------
-Coming soon...
+   backend_in_docker
+   tracing_sample_app
+

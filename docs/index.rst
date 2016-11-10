@@ -9,6 +9,6 @@ Welcome to Jaeger's documentation!
 .. toctree::
    :maxdepth: 2
 
-   about
-   getting_started
+   about/_about
+   getting_started/_getting_started
 
