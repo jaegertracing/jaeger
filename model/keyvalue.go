@@ -38,7 +38,11 @@ const (
 	BinaryType
 )
 
-// KeyValue describes a tag or a log field that consists of a key and a value
+// KeyValue describes a tag or a log field that consists of a key and a typed value.
+// Before accessing a value, the caller must check the type. Boolean and numeric
+// values should be accessed via accessor methods Bool(), Int64(), and Float64().
+//
+// This struct is designed to minimize heap allocations.
 type KeyValue struct {
 	Key   string    `json:"key"`
 	VType ValueType `json:"vType"`
@@ -77,6 +81,7 @@ func Binary(key string, value []byte) KeyValue {
 }
 
 // Bool returns the Boolean value stored in this KeyValue or false if it stores a different type.
+// The caller must check VType before using this method.
 func (kv *KeyValue) Bool() bool {
 	if kv.VType == BoolType {
 		return kv.VNum == 1
@@ -85,6 +90,7 @@ func (kv *KeyValue) Bool() bool {
 }
 
 // Int64 returns the Int64 value stored in this KeyValue or 0 if it stores a different type.
+// The caller must check VType before using this method.
 func (kv *KeyValue) Int64() int64 {
 	if kv.VType == Int64Type {
 		return kv.VNum
@@ -93,6 +99,7 @@ func (kv *KeyValue) Int64() int64 {
 }
 
 // Float64 returns the Float64 value stored in this KeyValue or 0 if it stores a different type.
+// The caller must check VType before using this method.
 func (kv *KeyValue) Float64() float64 {
 	if kv.VType == Float64Type {
 		return math.Float64frombits(uint64(kv.VNum))
@@ -101,6 +108,7 @@ func (kv *KeyValue) Float64() float64 {
 }
 
 // Binary returns the blob ([]byte) value stored in this KeyValue or nil if it stores a different type.
+// The caller must check VType before using this method.
 func (kv *KeyValue) Binary() []byte {
 	if kv.VType == BinaryType {
 		return kv.VBlob

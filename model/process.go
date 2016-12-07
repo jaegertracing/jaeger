@@ -27,7 +27,9 @@ type Process struct {
 }
 
 // NewProcess creates a new Process for given serviceName and tags.
-// The tags are sorted in place and kept in the the same array/slice.
+// The tags are sorted in place and kept in the the same array/slice,
+// in order to store the Process in a canonical form that can be
+// useful when comparing or generating a stable hash code.
 func NewProcess(serviceName string, tags []Tag) *Process {
 	SortTags(tags)
 	return &Process{ServiceName: serviceName, Tags: tags}
