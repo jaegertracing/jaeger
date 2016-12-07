@@ -108,7 +108,7 @@ func (kv *KeyValue) Binary() []byte {
 	return nil
 }
 
-// IsLess compares two KeyValue objects. The order is based first on the keys, then on type, and finally no the value.
+// IsLess compares two KeyValue objects. The order is based first on the keys, then on type, and finally on the value.
 func IsLess(one *KeyValue, two *KeyValue) bool {
 	if one.Key != two.Key {
 		return one.Key < two.Key
@@ -119,9 +119,7 @@ func IsLess(one *KeyValue, two *KeyValue) bool {
 	switch one.VType {
 	case StringType:
 		return one.VStr < two.VStr
-	case BoolType:
-		return one.VNum < two.VNum
-	case Int64Type:
+	case BoolType, Int64Type:
 		return one.VNum < two.VNum
 	case Float64Type:
 		return one.Float64() < two.Float64()

@@ -28,7 +28,7 @@ test-and-lint: test fmt lint
 
 .PHONY: go-gen
 go-gen:
-	go generate ./...
+	go generate $(PACKAGES)
 
 .PHONY: clean
 clean:
