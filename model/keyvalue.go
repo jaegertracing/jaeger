@@ -1,3 +1,23 @@
+// Copyright (c) 2016 Uber Technologies, Inc.
+//
+// Permission is hereby granted, free of charge, to any person obtaining a copy
+// of this software and associated documentation files (the "Software"), to deal
+// in the Software without restriction, including without limitation the rights
+// to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+// copies of the Software, and to permit persons to whom the Software is
+// furnished to do so, subject to the following conditions:
+//
+// The above copyright notice and this permission notice shall be included in
+// all copies or substantial portions of the Software.
+//
+// THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+// IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+// FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+// AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+// LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+// OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
+// THE SOFTWARE.
+
 package model
 
 import "math"
@@ -27,10 +47,12 @@ type KeyValue struct {
 	VBlob []byte    `json:"vBlob,omitempty"`
 }
 
+// String creates a String-typed KeyValue
 func String(key string, value string) KeyValue {
 	return KeyValue{Key: key, VType: StringType, VStr: value}
 }
 
+// Bool creates a Bool-typed KeyValue
 func Bool(key string, value bool) KeyValue {
 	var val int64
 	if value {
@@ -39,18 +61,22 @@ func Bool(key string, value bool) KeyValue {
 	return KeyValue{Key: key, VType: BoolType, VNum: val}
 }
 
+// Int64 creates a Int64-typed KeyValue
 func Int64(key string, value int64) KeyValue {
 	return KeyValue{Key: key, VType: Int64Type, VNum: value}
 }
 
+// Float64 creates a Float64-typed KeyValue
 func Float64(key string, value float64) KeyValue {
 	return KeyValue{Key: key, VType: Float64Type, VNum: int64(math.Float64bits(value))}
 }
 
+// Binary creates a Binary-typed KeyValue
 func Binary(key string, value []byte) KeyValue {
 	return KeyValue{Key: key, VType: BinaryType, VBlob: value}
 }
 
+// Bool returns the Boolean value stored in this KeyValue or false if it stores a different type.
 func (kv *KeyValue) Bool() bool {
 	if kv.VType == BoolType {
 		return kv.VNum == 1
@@ -58,6 +84,7 @@ func (kv *KeyValue) Bool() bool {
 	return false
 }
 
+// Int64 returns the Int64 value stored in this KeyValue or 0 if it stores a different type.
 func (kv *KeyValue) Int64() int64 {
 	if kv.VType == Int64Type {
 		return kv.VNum
@@ -65,6 +92,7 @@ func (kv *KeyValue) Int64() int64 {
 	return 0
 }
 
+// Float64 returns the Float64 value stored in this KeyValue or 0 if it stores a different type.
 func (kv *KeyValue) Float64() float64 {
 	if kv.VType == Float64Type {
 		return math.Float64frombits(uint64(kv.VNum))
@@ -72,6 +100,7 @@ func (kv *KeyValue) Float64() float64 {
 	return 0
 }
 
+// Binary returns the blob ([]byte) value stored in this KeyValue or nil if it stores a different type.
 func (kv *KeyValue) Binary() []byte {
 	if kv.VType == BinaryType {
 		return kv.VBlob
