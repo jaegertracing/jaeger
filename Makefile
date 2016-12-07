@@ -30,6 +30,10 @@ test-and-lint: test fmt lint
 go-gen:
 	go generate ./...
 
+.PHONY: clean
+clean:
+	rm -rf cover.out cover.html lint.log fmt.log
+
 .PHONY: test
 test: go-gen
 	$(GOTEST) $(PACKAGES) | $(COLORIZE)
