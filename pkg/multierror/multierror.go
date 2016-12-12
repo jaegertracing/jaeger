@@ -25,20 +25,21 @@ import (
 	"strings"
 )
 
-// Wrap takes an array of errors and returns a single error that encapsulates
-// those underlying errors. If the array is nil or empty it returns nil.
-// If the array only contains a single element, that error is returned directly.
+// Wrap takes a slice of errors and returns a single error that encapsulates
+// those underlying errors. If the slice is nil or empty it returns nil.
+// If the slice only contains a single element, that error is returned directly.
+// When more than one error is wrapped, the Error() string is a concatenation
+// of the Error() values of all underlying errors.
 func Wrap(errs []error) error {
-	return multiError(errs).AsError()
+	return multiError(errs).flatten()
 }
 
-// Errors bundles more than one error together into a single error.
+// multiError bundles several errors together into a single error.
 type multiError []error
 
-// AsError returns either: nil, the only error, or the Error instance itself
-// if there are 0, 1, or more errors in the slice respectively.  This method is
-// useful for contexts that want to do a simple return Errors(errors).AsError().
-func (errors multiError) AsError() error {
+// flatten returns either: nil, the only error, or the multiError instance itself
+// if there are 0, 1, or more errors in the slice respectively.
+func (errors multiError) flatten() error {
 	switch len(errors) {
 	case 0:
 		return nil
