@@ -21,6 +21,7 @@
 package model_test
 
 import (
+	"fmt"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -28,8 +29,8 @@ import (
 	"github.com/uber/jaeger/model"
 )
 
-func TestSortTags(t *testing.T) {
-	input := []model.Tag{
+func TestSort(t *testing.T) {
+	input := model.Tags{
 		model.Tag(model.String("x", "z")),
 		model.Tag(model.String("x", "y")),
 		model.Tag(model.Int64("a", 2)),
@@ -39,7 +40,7 @@ func TestSortTags(t *testing.T) {
 		model.Tag(model.Bool("x", true)),
 		model.Tag(model.Bool("x", false)),
 	}
-	expected := []model.Tag{
+	expected := model.Tags{
 		model.Tag(model.Int64("a", 1)),
 		model.Tag(model.Int64("a", 2)),
 		model.Tag(model.String("x", "y")),
@@ -49,6 +50,32 @@ func TestSortTags(t *testing.T) {
 		model.Tag(model.Float64("x", 1)),
 		model.Tag(model.Float64("x", 2)),
 	}
-	model.SortTags(input)
+	input.Sort()
 	assert.Equal(t, expected, input)
+}
+
+func TestFindByKey(t *testing.T) {
+	input := model.Tags{
+		model.Tag(model.String("x", "z")),
+		model.Tag(model.String("x", "y")),
+		model.Tag(model.Int64("a", 2)),
+	}
+
+	testCases := []struct {
+		key   string
+		found bool
+		tag   model.Tag
+	}{
+		{"b", false, model.Tag{}},
+		{"a", true, model.Tag(model.Int64("a", 2))},
+		{"x", true, model.Tag(model.String("x", "z"))},
+	}
+
+	for _, test := range testCases {
+		t.Run(fmt.Sprintf("%+v", test), func(t *testing.T) {
+			tag, found := input.FindByKey(test.key)
+			assert.Equal(t, test.found, found)
+			assert.Equal(t, test.tag, tag)
+		})
+	}
 }

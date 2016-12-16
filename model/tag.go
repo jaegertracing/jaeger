@@ -25,17 +25,29 @@ import "sort"
 // Tag is a key-value attribute associated with a Span
 type Tag KeyValue
 
-type tagsByKeyThenTypeThenValue []Tag
+// Tags is a type alias that exposes convenience functions like Sort, FindByKey.
+type Tags []Tag
 
-func (t tagsByKeyThenTypeThenValue) Len() int      { return len(t) }
-func (t tagsByKeyThenTypeThenValue) Swap(i, j int) { t[i], t[j] = t[j], t[i] }
-func (t tagsByKeyThenTypeThenValue) Less(i, j int) bool {
-	one := KeyValue(t[i])
-	two := KeyValue(t[j])
+func (tags Tags) Len() int      { return len(tags) }
+func (tags Tags) Swap(i, j int) { tags[i], tags[j] = tags[j], tags[i] }
+func (tags Tags) Less(i, j int) bool {
+	one := KeyValue(tags[i])
+	two := KeyValue(tags[j])
 	return IsLess(&one, &two)
 }
 
-// SortTags sorts a slice of tags in-place by key, then by value type, then by value.
-func SortTags(tags []Tag) {
-	sort.Sort(tagsByKeyThenTypeThenValue(tags))
+// Sort does in-place sorting of tags by key, then by value type, then by value.
+func (tags Tags) Sort() {
+	sort.Sort(tags)
+}
+
+// FindByKey scans the list of tags searching for the first one with the given key.
+// Returns found tag and a boolean flag indicating if the search was successful.
+func (tags Tags) FindByKey(key string) (Tag, bool) {
+	for _, tag := range tags {
+		if tag.Key == key {
+			return tag, true
+		}
+	}
+	return Tag{}, false
 }
