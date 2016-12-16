@@ -21,6 +21,8 @@
 package adjuster_test
 
 import (
+	"errors"
+	"fmt"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -30,16 +32,26 @@ import (
 )
 
 func TestSequence(t *testing.T) {
-	span := model.Span{SpanID: 123}
+	span := model.Span{}
 	trace := model.Trace{Spans: []*model.Span{&span}}
 
-	adj := adjuster.Func(func(trace model.Trace) (model.Trace, error) {
+	// mock adjuster that increments span ID
+	adj := adjuster.Func(func(trace *model.Trace) (*model.Trace, error) {
 		trace.Spans[0].SpanID++
 		return trace, nil
 	})
 
-	seq := adjuster.Sequence(adj, adj)
-	adjTrace, err := seq.Adjust(trace)
-	assert.NoError(t, err)
-	assert.EqualValues(t, 125, adjTrace.Spans[0].SpanID)
+	adjErr := errors.New("mock adjuster error")
+	failingAdj := adjuster.Func(func(trace *model.Trace) (*model.Trace, error) {
+		return trace, adjErr
+	})
+
+	seq := adjuster.Sequence(adj, failingAdj, adj, failingAdj)
+	adjTrace, err := seq.Adjust(&trace)
+
+	assert.EqualValues(t, 2, adjTrace.Spans[0].SpanID, "expect span ID to be incremented twice")
+	assert.EqualError(t, err, fmt.Sprintf("[%s, %s]", adjErr, adjErr))
+}
+
+func TestSequenceError(t *testing.T) {
 }

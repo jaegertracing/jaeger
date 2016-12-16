@@ -27,15 +27,17 @@ import (
 
 // Adjuster applies certain modifications to a Trace object.
 // It returns adjusted Trace, which can be the same Trace updated in place.
+// If it detects a problem with the trace that prevents it from applying
+// adjustments, it must still return the original trace, and the error.
 type Adjuster interface {
-	Adjust(trace model.Trace) (model.Trace, error)
+	Adjust(trace *model.Trace) (*model.Trace, error)
 }
 
 // Func wraps a function of appropriate signature and makes an Adjuster from it.
-type Func func(trace model.Trace) (model.Trace, error)
+type Func func(trace *model.Trace) (*model.Trace, error)
 
 // Adjust implements Adjuster interface.
-func (f Func) Adjust(trace model.Trace) (model.Trace, error) {
+func (f Func) Adjust(trace *model.Trace) (*model.Trace, error) {
 	return f(trace)
 }
 
@@ -47,7 +49,7 @@ func Sequence(adjusters ...Adjuster) Adjuster {
 
 type sequence []Adjuster
 
-func (c sequence) Adjust(trace model.Trace) (model.Trace, error) {
+func (c sequence) Adjust(trace *model.Trace) (*model.Trace, error) {
 	var errors []error
 	for _, adjuster := range c {
 		var err error
