@@ -52,6 +52,3 @@ func TestSequence(t *testing.T) {
 	assert.EqualValues(t, 2, adjTrace.Spans[0].SpanID, "expect span ID to be incremented twice")
 	assert.EqualError(t, err, fmt.Sprintf("[%s, %s]", adjErr, adjErr))
 }
-
-func TestSequenceError(t *testing.T) {
-}
