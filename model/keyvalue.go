@@ -20,7 +20,12 @@
 
 package model
 
-import "math"
+import (
+	"encoding/hex"
+	"fmt"
+	"math"
+	"strconv"
+)
 
 // ValueType describes the type of value contained in a KeyValue struct
 type ValueType int
@@ -114,6 +119,30 @@ func (kv *KeyValue) Binary() []byte {
 		return kv.VBlob
 	}
 	return nil
+}
+
+// AsString returns a potentially lossy string representation of the value.
+func (kv *KeyValue) AsString() string {
+	switch kv.VType {
+	case StringType:
+		return kv.VStr
+	case BoolType:
+		if kv.VNum == 0 {
+			return "false"
+		}
+		return "true"
+	case Int64Type:
+		return strconv.FormatInt(kv.VNum, 10)
+	case Float64Type:
+		return strconv.FormatFloat(kv.Float64(), 'g', 10, 64)
+	case BinaryType:
+		if len(kv.VBlob) > 16 {
+			return hex.EncodeToString(kv.VBlob[0:16]) + "..."
+		}
+		return hex.EncodeToString(kv.VBlob)
+	default:
+		return fmt.Sprintf("unknown type %d", kv.VType)
+	}
 }
 
 // IsLess compares two KeyValue objects. The order is based first on the keys, then on type, and finally on the value.

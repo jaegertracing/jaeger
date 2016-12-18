@@ -103,3 +103,29 @@ func TestKeyValueIsLess(t *testing.T) {
 		assert.False(t, model.IsLess(&v2, &v1))
 	})
 }
+
+func TestKeyValueAsString(t *testing.T) {
+	testCases := []struct {
+		kv  model.KeyValue
+		str string
+	}{
+		{kv: model.String("x", "Bender is great!"), str: "Bender is great!"},
+		{kv: model.Bool("x", false), str: "false"},
+		{kv: model.Bool("x", true), str: "true"},
+		{kv: model.Int64("x", 3000), str: "3000"},
+		{kv: model.Int64("x", -1947), str: "-1947"},
+		{kv: model.Float64("x", 3.14159265359), str: "3.141592654"},
+		{kv: model.Binary("x", []byte("Bender")), str: "42656e646572"},
+		{kv: model.Binary("x", []byte("Bender Bending Rodrigues")), str: "42656e6465722042656e64696e672052..."},
+	}
+	for _, tt := range testCases {
+		testCase := tt // capture loop var
+		t.Run(testCase.str, func(t *testing.T) {
+			assert.Equal(t, testCase.str, testCase.kv.AsString())
+		})
+	}
+	t.Run("invalid type", func(t *testing.T) {
+		kv := model.KeyValue{Key: "x", VType: model.ValueType(-1)}
+		assert.Equal(t, "unknown type -1", kv.AsString())
+	})
+}
