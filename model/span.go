@@ -39,7 +39,7 @@ type Span struct {
 	Flags         uint32    `json:"flags"`
 	StartTime     uint64    `json:"startTime"`
 	Duration      uint64    `json:"duration"`
-	Tags          Tags      `json:"tags,omitempty"`
+	Tags          KeyValues `json:"tags,omitempty"`
 	Logs          []Log     `json:"logs,omitempty"`
 	Process       *Process  `json:"process"`
 }

@@ -21,6 +21,7 @@
 package model_test
 
 import (
+	"fmt"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -128,4 +129,55 @@ func TestKeyValueAsString(t *testing.T) {
 		kv := model.KeyValue{Key: "x", VType: model.ValueType(-1)}
 		assert.Equal(t, "unknown type -1", kv.AsString())
 	})
+}
+
+func TestSort(t *testing.T) {
+	input := model.KeyValues{
+		model.String("x", "z"),
+		model.String("x", "y"),
+		model.Int64("a", 2),
+		model.Int64("a", 1),
+		model.Float64("x", 2),
+		model.Float64("x", 1),
+		model.Bool("x", true),
+		model.Bool("x", false),
+	}
+	expected := model.KeyValues{
+		model.Int64("a", 1),
+		model.Int64("a", 2),
+		model.String("x", "y"),
+		model.String("x", "z"),
+		model.Bool("x", false),
+		model.Bool("x", true),
+		model.Float64("x", 1),
+		model.Float64("x", 2),
+	}
+	input.Sort()
+	assert.Equal(t, expected, input)
+}
+
+func TestFindByKey(t *testing.T) {
+	input := model.KeyValues{
+		model.String("x", "z"),
+		model.String("x", "y"),
+		model.Int64("a", 2),
+	}
+
+	testCases := []struct {
+		key   string
+		found bool
+		kv    model.KeyValue
+	}{
+		{"b", false, model.KeyValue{}},
+		{"a", true, model.Int64("a", 2)},
+		{"x", true, model.String("x", "z")},
+	}
+
+	for _, test := range testCases {
+		t.Run(fmt.Sprintf("%+v", test), func(t *testing.T) {
+			kv, found := input.FindByKey(test.key)
+			assert.Equal(t, test.found, found)
+			assert.Equal(t, test.kv, kv)
+		})
+	}
 }

@@ -24,6 +24,7 @@ import (
 	"encoding/hex"
 	"fmt"
 	"math"
+	"sort"
 	"strconv"
 )
 
@@ -55,6 +56,9 @@ type KeyValue struct {
 	VNum  int64     `json:"vNum,omitempty"`
 	VBlob []byte    `json:"vBlob,omitempty"`
 }
+
+// KeyValues is a type alias that exposes convenience functions like Sort, FindByKey.
+type KeyValues []KeyValue
 
 // String creates a String-typed KeyValue
 func String(key string, value string) KeyValue {
@@ -178,4 +182,28 @@ func IsLess(one *KeyValue, two *KeyValue) bool {
 	default:
 		return false
 	}
+}
+
+func (kvs KeyValues) Len() int      { return len(kvs) }
+func (kvs KeyValues) Swap(i, j int) { kvs[i], kvs[j] = kvs[j], kvs[i] }
+func (kvs KeyValues) Less(i, j int) bool {
+	one := kvs[i]
+	two := kvs[j]
+	return IsLess(&one, &two)
+}
+
+// Sort does in-place sorting of KeyValues, then by value type, then by value.
+func (kvs KeyValues) Sort() {
+	sort.Sort(kvs)
+}
+
+// FindByKey scans the list of key-values searching for the first one with the given key.
+// Returns found tag and a boolean flag indicating if the search was successful.
+func (kvs KeyValues) FindByKey(key string) (KeyValue, bool) {
+	for _, kv := range kvs {
+		if kv.Key == key {
+			return kv, true
+		}
+	}
+	return KeyValue{}, false
 }
