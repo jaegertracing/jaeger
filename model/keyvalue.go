@@ -127,12 +127,12 @@ func (kv *KeyValue) AsString() string {
 	case StringType:
 		return kv.VStr
 	case BoolType:
-		if kv.VNum == 0 {
-			return "false"
+		if kv.Bool() {
+			return "true"
 		}
-		return "true"
+		return "false"
 	case Int64Type:
-		return strconv.FormatInt(kv.VNum, 10)
+		return strconv.FormatInt(kv.Int64(), 10)
 	case Float64Type:
 		return strconv.FormatFloat(kv.Float64(), 'g', 10, 64)
 	case BinaryType:
