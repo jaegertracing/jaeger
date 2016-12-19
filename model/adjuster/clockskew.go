@@ -69,20 +69,14 @@ func hostKey(span *model.Span) string {
 			return tag.VStr
 		}
 		if tag.VType == model.Int64Type {
-			var buf [4]byte
-			ip := buf[0:4]
+			var buf [4]byte // avoid heap allocation
+			ip := buf[0:4]  // utils require a slice, not an array
 			binary.BigEndian.PutUint32(ip, uint32(tag.Int64()))
 			return net.IP(ip).String()
 		}
 		if tag.VType == model.BinaryType {
-			if l := len(tag.Binary()); l == 4 {
+			if l := len(tag.Binary()); l == 4 || l == 16 {
 				return net.IP(tag.Binary()).String()
-			} else if l == 16 {
-				ip := net.IP(tag.Binary())
-				if ipv4 := ip.To4(); ipv4 != nil {
-					return ipv4.String()
-				}
-				return ip.String()
 			}
 		}
 	}
@@ -141,6 +135,8 @@ func (a *clockSkewAdjuster) adjustNode(n *node, parent *node, skew clockSkew) {
 	if n.hostKey != skew.hostKey || n.hostKey == "" {
 		// Node n is from a differnt host. The parent has already been adjusted,
 		// so we can compare this node's timestamps against the parent.
+		// Note that (n.hostKey != skew.hostKey) is not possible for the root
+		// span, and therefore parent is never nil at this point.
 		skew = clockSkew{
 			hostKey: n.hostKey,
 			delta:   a.calculateSkew(n, parent),
