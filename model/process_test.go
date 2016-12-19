@@ -29,13 +29,13 @@ import (
 )
 
 func TestNewProcess(t *testing.T) {
-	p1 := model.NewProcess("s1", []model.Tag{
-		model.Tag(model.String("x", "y")),
-		model.Tag(model.Int64("a", 1)),
+	p1 := model.NewProcess("s1", []model.KeyValue{
+		model.String("x", "y"),
+		model.Int64("a", 1),
 	})
-	p2 := model.NewProcess("s1", []model.Tag{
-		model.Tag(model.Int64("a", 1)),
-		model.Tag(model.String("x", "y")),
+	p2 := model.NewProcess("s1", []model.KeyValue{
+		model.Int64("a", 1),
+		model.String("x", "y"),
 	})
 	assert.Equal(t, p1, p2)
 }
