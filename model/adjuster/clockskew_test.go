@@ -83,6 +83,12 @@ func TestClockSkewAdjuster(t *testing.T) {
 			err: "invalid parent span ID=63 in the span with ID=1", // 99 == 0x63
 		},
 		{
+			description: "single span with empty host key",
+			trace: []spanProto{
+				{id: 1, parent: 0, startTime: 0, duration: 100, adjusted: 0},
+			},
+		},
+		{
 			description: "two span with the same ID",
 			trace: []spanProto{
 				{id: 1, parent: 0, startTime: 0, duration: 100, host: "a", adjusted: 0},
