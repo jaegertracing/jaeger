@@ -24,3 +24,14 @@ package model
 type Trace struct {
 	Spans []*Span
 }
+
+// FindSpanByID looks for a span with given span ID and returns the first one
+// it finds (search order is unspecified), or nil if no spans have that ID.
+func (t *Trace) FindSpanByID(id SpanID) *Span {
+	for _, span := range t.Spans {
+		if id == span.SpanID {
+			return span
+		}
+	}
+	return nil
+}
