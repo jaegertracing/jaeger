@@ -42,6 +42,8 @@ func SpanIDDeduper() Adjuster {
 
 var errTooManySpans = errors.New("cannot assign unique span ID, too many spans in the trace")
 
+const maxSpanID = model.SpanID(0xffffffffffffffff)
+
 type spanIDDeduper struct {
 	trace     *model.Trace
 	spansByID map[model.SpanID][]*model.Span
@@ -76,7 +78,7 @@ func (d *spanIDDeduper) dedupeSpanIDs() error {
 	for _, span := range d.trace.Spans {
 		// only replace span IDs for server-side spans that share the ID with something else
 		if span.IsRPCServer() && d.isSharedWithClientSpan(span.SpanID) {
-			newID, err := d.makeUniqueSpanID(span)
+			newID, err := d.makeUniqueSpanID()
 			if err != nil {
 				return err
 			}
@@ -89,6 +91,8 @@ func (d *spanIDDeduper) dedupeSpanIDs() error {
 	return nil
 }
 
+// swapParentIDs corrects ParentSpanID of all spans that are children of the server
+// spans whose IDs we deduped.
 func (d *spanIDDeduper) swapParentIDs(oldToNewSpanIDs map[model.SpanID]model.SpanID) {
 	for _, span := range d.trace.Spans {
 		if parentID, ok := oldToNewSpanIDs[span.ParentSpanID]; ok {
@@ -102,8 +106,8 @@ func (d *spanIDDeduper) swapParentIDs(oldToNewSpanIDs map[model.SpanID]model.Spa
 // makeUniqueSpanID returns a new ID that is not used in the trace,
 // or an error if such ID cannot be generated, which is unlikely,
 // given that the whole space of span IDs is 2^64.
-func (d *spanIDDeduper) makeUniqueSpanID(unused *model.Span) (model.SpanID, error) {
-	for id := d.maxUsedID + 1; id < 0xffffffffffffffff; id++ {
+func (d *spanIDDeduper) makeUniqueSpanID() (model.SpanID, error) {
+	for id := d.maxUsedID + 1; id < maxSpanID; id++ {
 		if _, ok := d.spansByID[id]; !ok {
 			d.maxUsedID = id
 			return id, nil
