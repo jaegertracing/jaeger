@@ -1,22 +1,19 @@
-hash: 4991ad16cc808453448bce6a0bababfb7fb73627d4cb4416187f80b33fce9c83
-updated: 2016-12-06T22:34:25.572302368-05:00
+hash: dfedacb958ff6fc3a755965edb4eb50f75b51ad18b535d7f1c61a689651db93d
+updated: 2016-12-21T00:40:08.386863617-05:00
 imports:
+- name: github.com/apache/thrift
+  version: 53dd39833a08ce33582e5ff31fa18bb4735d6731
+  subpackages:
+  - lib/go/thrift
 - name: github.com/uber-go/atomic
   version: 9e99152552a6ce13fa3b2ce4a9c4fb117cca4506
 - name: github.com/uber-go/zap
-  version: 35cd7966cc81adc0449c91b3f6b1939812be73aa
+  version: c4939d1166b2220bb45338e21506623b4bbdec50
 - name: github.com/uber/jaeger-lib
   version: 7b113fceac673e60e5b10dff7039787bab5c5ed7
 testImports:
-- name: github.com/davecgh/go-spew
-  version: 346938d642f2ec3594ed81d874461961cd0faa76
-  subpackages:
-  - spew
-- name: github.com/pmezard/go-difflib
-  version: 792786c7400a136282c1664665ae0a8db921c6c2
-  subpackages:
-  - difflib
 - name: github.com/stretchr/testify
-  version: 18a02ba4a312f95da08ff4cfc0055750ce50ae9e
+  version: 089c7181b8c728499929ff09b62d3fdd8df8adff
   subpackages:
   - assert
+  - require

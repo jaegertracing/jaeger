@@ -2,3 +2,8 @@ package: github.com/uber/jaeger
 import:
 - package: github.com/uber/jaeger-lib
 - package: github.com/uber-go/zap
+- package: github.com/apache/thrift
+  version: 0.9.3
+  subpackages:
+  - lib/go/thrift
+
