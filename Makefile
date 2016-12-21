@@ -17,6 +17,12 @@ GOFMT=gofmt
 FMT_LOG=fmt.log
 LINT_LOG=lint.log
 
+THRIFT_VER=0.9.2
+THRIFT_IMG=thrift:$(THRIFT_VER)
+THRIFT=docker run -v "${PWD}:/data" $(THRIFT_IMG) thrift
+THRIFT_GO_ARGS=thrift_import="github.com/apache/thrift/lib/go/thrift"
+THRIFT_GEN_DIR=thrift-gen
+
 PASS=$(shell printf "\033[32mPASS\033[0m")
 FAIL=$(shell printf "\033[31mFAIL\033[0m")
 COLORIZE=sed ''/PASS/s//$(PASS)/'' | sed ''/FAIL/s//$(FAIL)/''
@@ -71,9 +77,24 @@ install_ci: install
 	go get github.com/golang/lint/golint
 	go get github.com/sectioneight/md-to-godoc
 
-
 .PHONY: test_ci
 test_ci:
 	@./scripts/cover.sh $(shell go list $(PACKAGES))
 	make lint
 
+# TODO at the moment we're not generating tchan_*.go files
+thrift: idl-submodule thrift-image
+	[ -d $(THRIFT_GEN_DIR) ] || mkdir $(THRIFT_GEN_DIR)
+	$(THRIFT) -o /data --gen go:$(THRIFT_GO_ARGS) --out /data/$(THRIFT_GEN_DIR) /data/idl/thrift/agent.thrift
+	sed -i '' 's|"zipkincore"|"$(PROJECT_ROOT)/thrift-gen/zipkincore"|g' $(THRIFT_GEN_DIR)/agent/*.go
+	$(THRIFT) -o /data --gen go:$(THRIFT_GO_ARGS) --out /data/$(THRIFT_GEN_DIR) /data/idl/thrift/jaeger.thrift
+	$(THRIFT) -o /data --gen go:$(THRIFT_GO_ARGS) --out /data/$(THRIFT_GEN_DIR) /data/idl/thrift/sampling.thrift
+	$(THRIFT) -o /data --gen go:$(THRIFT_GO_ARGS) --out /data/$(THRIFT_GEN_DIR) /data/idl/thrift/zipkincore.thrift
+	rm -rf thrift-gen/*/*-remote
+
+idl-submodule:
+	git submodule init
+	git submodule update
+
+thrift-image:
+	$(THRIFT) -version
