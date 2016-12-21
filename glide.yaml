@@ -2,3 +2,6 @@ package: github.com/uber/jaeger
 import:
 - package: github.com/uber/jaeger-lib
 - package: github.com/uber-go/zap
+- package: github.com/opentracing/opentracing-go
+  subpackages:
+  - ext
