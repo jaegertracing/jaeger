@@ -5,3 +5,7 @@ import:
 - package: github.com/opentracing/opentracing-go
   subpackages:
   - ext
+- package: github.com/apache/thrift
+  version: 0.9.3
+  subpackages:
+  - lib/go/thrift

@@ -1,6 +1,10 @@
-hash: bb8a134f3bdd840833cdeb74dc689cf210968325912a18d3ce793de74f184135
-updated: 2016-12-20T22:55:07.564958904-05:00
+hash: b4b0a15636fd38bab4f6137b3871e956a866c8d40f5aadd51da1d071724a2319
+updated: 2016-12-21T11:28:53.912923989-05:00
 imports:
+- name: github.com/apache/thrift
+  version: 53dd39833a08ce33582e5ff31fa18bb4735d6731
+  subpackages:
+  - lib/go/thrift
 - name: github.com/opentracing/opentracing-go
   version: 0c3154a3c2ce79d3271985848659870599dfb77c
   subpackages:

@@ -2,4 +2,4 @@
 
 set -e
 
-python scripts/updateLicense.py $(git ls-files "*\.go")
+python scripts/updateLicense.py $(git ls-files "*\.go" | grep -v thrift-gen)
