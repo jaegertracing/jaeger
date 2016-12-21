@@ -20,6 +20,8 @@
 
 package model
 
+import "github.com/opentracing/opentracing-go/ext"
+
 // TraceID is a random 128bit identifier for a trace
 type TraceID struct {
 	Low  uint64 `json:"lo"`
@@ -42,4 +44,24 @@ type Span struct {
 	Tags          KeyValues `json:"tags,omitempty"`
 	Logs          []Log     `json:"logs,omitempty"`
 	Process       *Process  `json:"process"`
+}
+
+// HasSpanKind returns true if the span has a `span.kind` tag set to `kind`.
+func (s *Span) HasSpanKind(kind ext.SpanKindEnum) bool {
+	if tag, ok := s.Tags.FindByKey(string(ext.SpanKind)); ok {
+		return tag.AsString() == string(kind)
+	}
+	return false
+}
+
+// IsRPCClient returns true if the span represents a client side of an RPC,
+// as indicated by the `span.kind` tag set to `client`.
+func (s *Span) IsRPCClient() bool {
+	return s.HasSpanKind(ext.SpanKindRPCClientEnum)
+}
+
+// IsRPCServer returns true if the span represents a server side of an RPC,
+// as indicated by the `span.kind` tag set to `server`.
+func (s *Span) IsRPCServer() bool {
+	return s.HasSpanKind(ext.SpanKindRPCServerEnum)
 }

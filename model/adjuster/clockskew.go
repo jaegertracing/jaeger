@@ -37,20 +37,30 @@ import (
 // The algorithm assumes that all spans have unique IDs, otherwise it returns
 // an error, so the trace may need to go through another adjuster first.
 func ClockSkew() Adjuster {
-	return Func(adjustClockSkew)
+	return Func(func(trace *model.Trace) (*model.Trace, error) {
+		adjuster := &clockSkewAdjuster{
+			trace: trace,
+		}
+		adjuster.buildNodesMap()
+		adjuster.buildSubGraphs()
+		for _, n := range adjuster.roots {
+			skew := clockSkew{hostKey: n.hostKey}
+			adjuster.adjustNode(n, nil, skew)
+		}
+		return adjuster.trace, multierror.Wrap(adjuster.errors)
+	})
 }
 
-func adjustClockSkew(trace *model.Trace) (*model.Trace, error) {
-	adjuster := &clockSkewAdjuster{
-		trace: trace,
-	}
-	adjuster.mapIDsToSpans()
-	adjuster.buildSubGraphs()
-	for _, n := range adjuster.roots {
-		skew := clockSkew{hostKey: n.hostKey}
-		adjuster.adjustNode(n, nil, skew)
-	}
-	return adjuster.trace, multierror.Wrap(adjuster.errors)
+type clockSkewAdjuster struct {
+	trace  *model.Trace
+	spans  map[model.SpanID]*node
+	roots  map[model.SpanID]*node
+	errors []error
+}
+
+type clockSkew struct {
+	delta   int64
+	hostKey string
 }
 
 type node struct {
@@ -83,20 +93,8 @@ func hostKey(span *model.Span) string {
 	return ""
 }
 
-type clockSkewAdjuster struct {
-	trace  *model.Trace
-	spans  map[model.SpanID]*node
-	roots  map[model.SpanID]*node
-	errors []error
-}
-
-type clockSkew struct {
-	delta   int64
-	hostKey string
-}
-
-// mapIDsToSpans builds a map of span IDs -> node{}.
-func (a *clockSkewAdjuster) mapIDsToSpans() {
+// buildNodesMap builds a map of span IDs -> node{}.
+func (a *clockSkewAdjuster) buildNodesMap() {
 	a.spans = make(map[model.SpanID]*node)
 	for _, span := range a.trace.Spans {
 		if _, ok := a.spans[span.SpanID]; ok {

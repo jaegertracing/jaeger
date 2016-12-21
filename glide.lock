@@ -1,16 +1,25 @@
-hash: dfedacb958ff6fc3a755965edb4eb50f75b51ad18b535d7f1c61a689651db93d
-updated: 2016-12-21T00:40:08.386863617-05:00
+hash: b4b0a15636fd38bab4f6137b3871e956a866c8d40f5aadd51da1d071724a2319
+updated: 2016-12-21T11:28:53.912923989-05:00
 imports:
 - name: github.com/apache/thrift
   version: 53dd39833a08ce33582e5ff31fa18bb4735d6731
   subpackages:
   - lib/go/thrift
+- name: github.com/opentracing/opentracing-go
+  version: 0c3154a3c2ce79d3271985848659870599dfb77c
+  subpackages:
+  - ext
+  - log
 - name: github.com/uber-go/atomic
   version: 9e99152552a6ce13fa3b2ce4a9c4fb117cca4506
 - name: github.com/uber-go/zap
   version: c4939d1166b2220bb45338e21506623b4bbdec50
 - name: github.com/uber/jaeger-lib
   version: 7b113fceac673e60e5b10dff7039787bab5c5ed7
+- name: golang.org/x/net
+  version: 45e771701b814666a7eb299e6c7a57d0b1799e91
+  subpackages:
+  - context
 testImports:
 - name: github.com/stretchr/testify
   version: 089c7181b8c728499929ff09b62d3fdd8df8adff
