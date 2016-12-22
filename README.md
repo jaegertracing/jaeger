@@ -2,9 +2,11 @@
 
 # Jaeger - Uber's Distributed Tracing System
 
+http://uber.github.io/jaeger/
+
 ## Documentation
 
-http://uber.github.io/jaeger/
+http://jaeger.readthedocs.io/
 
 ## Status
 
