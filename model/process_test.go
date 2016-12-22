@@ -28,7 +28,7 @@ import (
 	"github.com/uber/jaeger/model"
 )
 
-func TestNewProcess(t *testing.T) {
+func TestProcessEqual(t *testing.T) {
 	p1 := model.NewProcess("s1", []model.KeyValue{
 		model.String("x", "y"),
 		model.Int64("a", 1),
@@ -37,5 +37,22 @@ func TestNewProcess(t *testing.T) {
 		model.Int64("a", 1),
 		model.String("x", "y"),
 	})
+	p3 := model.NewProcess("S2", []model.KeyValue{
+		model.Int64("a", 1),
+		model.String("x", "y"),
+	})
+	p4 := model.NewProcess("s1", []model.KeyValue{
+		model.Int64("a", 1),
+		model.Float64("a", 1.1),
+		model.String("x", "y"),
+	})
+	p5 := model.NewProcess("s1", []model.KeyValue{
+		model.Float64("a", 1.1),
+		model.String("x", "y"),
+	})
 	assert.Equal(t, p1, p2)
+	assert.True(t, p1.Equal(p2))
+	assert.False(t, p1.Equal(p3))
+	assert.False(t, p1.Equal(p4))
+	assert.False(t, p1.Equal(p5))
 }
