@@ -9,3 +9,7 @@ import:
   version: 0.9.3
   subpackages:
   - lib/go/thrift
+- package: github.com/uber/tchannel-go
+  version: v1.1.0
+  subpackages:
+  - thrift
