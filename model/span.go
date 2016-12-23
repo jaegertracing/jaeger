@@ -20,7 +20,12 @@
 
 package model
 
-import "github.com/opentracing/opentracing-go/ext"
+import (
+	"fmt"
+	"strconv"
+
+	"github.com/opentracing/opentracing-go/ext"
+)
 
 // TraceID is a random 128bit identifier for a trace
 type TraceID struct {
@@ -64,4 +69,46 @@ func (s *Span) IsRPCClient() bool {
 // as indicated by the `span.kind` tag set to `server`.
 func (s *Span) IsRPCServer() bool {
 	return s.HasSpanKind(ext.SpanKindRPCServerEnum)
+}
+
+func (t TraceID) String() string {
+	if t.High == 0 {
+		return fmt.Sprintf("%x", t.Low)
+	}
+	return fmt.Sprintf("%x%016x", t.High, t.Low)
+}
+
+// TraceIDFromString creates a TraceID from a hexadecimal string
+func TraceIDFromString(s string) (TraceID, error) {
+	var hi, lo uint64
+	var err error
+	if len(s) > 16 {
+		chars := len(s) - 16
+		if hi, err = strconv.ParseUint(s[0:chars], 16, 64); err != nil {
+			return TraceID{}, err
+		}
+		if lo, err = strconv.ParseUint(s[chars:], 16, 64); err != nil {
+			return TraceID{}, err
+		}
+	} else {
+		if lo, err = strconv.ParseUint(s, 16, 64); err != nil {
+			return TraceID{}, err
+		}
+	}
+	return TraceID{High: hi, Low: lo}, nil
+}
+
+// MarshalText allows TraceID to serialize itself in JSON as a string.
+func (t TraceID) MarshalText() ([]byte, error) {
+	return []byte(t.String()), nil
+}
+
+// UnmarshalText allows TraceID to deserialize itself from a JSON string.
+func (t *TraceID) UnmarshalText(text []byte) error {
+	q, err := TraceIDFromString(string(text))
+	if err != nil {
+		return err
+	}
+	*t = q
+	return nil
 }
