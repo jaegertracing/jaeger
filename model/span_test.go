@@ -21,12 +21,11 @@
 package model_test
 
 import (
+	"encoding/json"
 	"testing"
 
 	"github.com/opentracing/opentracing-go/ext"
 	"github.com/stretchr/testify/assert"
-
-	"encoding/json"
 
 	"github.com/uber/jaeger/model"
 )
