@@ -26,8 +26,49 @@ import (
 
 	"github.com/stretchr/testify/assert"
 
+	"encoding/json"
+
 	"github.com/uber/jaeger/model"
 )
+
+func TestValueTypeToFromString(t *testing.T) {
+	badValueType := model.ValueType(-1)
+	testCases := []struct {
+		v model.ValueType
+		s string
+	}{
+		{model.StringType, "string"},
+		{model.BoolType, "bool"},
+		{model.Int64Type, "int64"},
+		{model.Float64Type, "float64"},
+		{model.BinaryType, "binary"},
+		{badValueType, "<invalid>"},
+	}
+	for _, testCase := range testCases {
+		assert.Equal(t, testCase.s, testCase.v.String(), testCase.s)
+		v2, err := model.ValueTypeFromString(testCase.s)
+		if testCase.v == badValueType {
+			assert.Error(t, err)
+		} else {
+			assert.NoError(t, err, testCase.s)
+			assert.Equal(t, testCase.v, v2, testCase.s)
+		}
+	}
+}
+
+func TestValueTypeToFromJSON(t *testing.T) {
+	kv := model.Int64("x", 123)
+	out, err := json.Marshal(kv)
+	assert.NoError(t, err)
+	assert.Equal(t, `{"key":"x","vType":"int64","vNum":123}`, string(out))
+	var kv2, kv3 model.KeyValue
+	if assert.NoError(t, json.Unmarshal(out, &kv2)) {
+		assert.True(t, kv.Equal(&kv2))
+		assert.Equal(t, kv, kv2)
+	}
+	err = json.Unmarshal([]byte(`{"key":"x","vType":"BAD","vNum":123}`), &kv3)
+	assert.EqualError(t, err, "not a valid ValueType string BAD")
+}
 
 func TestKeyValueString(t *testing.T) {
 	kv := model.String("x", "y")

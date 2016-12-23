@@ -42,7 +42,61 @@ const (
 	Float64Type
 	// BinaryType indicates the value is binary blob stored as a byte array
 	BinaryType
+
+	stringTypeStr  = "string"
+	boolTypeStr    = "bool"
+	int64TypeStr   = "int64"
+	float64TypeStr = "float64"
+	binaryTypeStr  = "binary"
 )
+
+func (p ValueType) String() string {
+	switch p {
+	case StringType:
+		return stringTypeStr
+	case BoolType:
+		return boolTypeStr
+	case Int64Type:
+		return int64TypeStr
+	case Float64Type:
+		return float64TypeStr
+	case BinaryType:
+		return binaryTypeStr
+	}
+	return "<invalid>"
+}
+
+// ValueTypeFromString converts a string into ValueType enum.
+func ValueTypeFromString(s string) (ValueType, error) {
+	switch s {
+	case stringTypeStr:
+		return StringType, nil
+	case boolTypeStr:
+		return BoolType, nil
+	case int64TypeStr:
+		return Int64Type, nil
+	case float64TypeStr:
+		return Float64Type, nil
+	case binaryTypeStr:
+		return BinaryType, nil
+	}
+	return ValueType(0), fmt.Errorf("not a valid ValueType string %s", s)
+}
+
+// MarshalText allows ValueType to serialize itself in JSON as a string.
+func (p ValueType) MarshalText() ([]byte, error) {
+	return []byte(p.String()), nil
+}
+
+// UnmarshalText allows ValueType to deserialize itself from a JSON string.
+func (p *ValueType) UnmarshalText(text []byte) error {
+	q, err := ValueTypeFromString(string(text))
+	if err != nil {
+		return err
+	}
+	*p = q
+	return nil
+}
 
 // KeyValue describes a tag or a log field that consists of a key and a typed value.
 // Before accessing a value, the caller must check the type. Boolean and numeric
