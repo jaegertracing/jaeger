@@ -83,11 +83,11 @@ func TraceIDFromString(s string) (TraceID, error) {
 	var hi, lo uint64
 	var err error
 	if len(s) > 16 {
-		chars := len(s) - 16
-		if hi, err = strconv.ParseUint(s[0:chars], 16, 64); err != nil {
+		hiLen := len(s) - 16
+		if hi, err = strconv.ParseUint(s[0:hiLen], 16, 64); err != nil {
 			return TraceID{}, err
 		}
-		if lo, err = strconv.ParseUint(s[chars:], 16, 64); err != nil {
+		if lo, err = strconv.ParseUint(s[hiLen:], 16, 64); err != nil {
 			return TraceID{}, err
 		}
 	} else {
