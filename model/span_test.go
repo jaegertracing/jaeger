@@ -72,6 +72,7 @@ func TestTraceIDUnmarshalText(t *testing.T) {
 		{err: true, in: `{"id":"x"}`},
 		{err: true, in: `{"id":"x0000000000000001"}`},
 		{err: true, in: `{"id":"1x000000000000001"}`},
+		{err: true, in: `{"id":"10123456789abcdef0123456789abcdef"}`},
 	}
 	for _, testCase := range testCases {
 		var c TraceIDContainer
@@ -82,6 +83,59 @@ func TestTraceIDUnmarshalText(t *testing.T) {
 			if assert.NoError(t, err) {
 				assert.Equal(t, testCase.hi, c.TraceID.High)
 				assert.Equal(t, testCase.lo, c.TraceID.Low)
+			}
+		}
+	}
+}
+
+type SpanIDContainer struct {
+	SpanID model.SpanID `json:"id"`
+}
+
+func TestSpanIDMarshalText(t *testing.T) {
+	max := int64(-1)
+	testCases := []struct {
+		id  uint64
+		out string
+	}{
+		{id: 1, out: `{"id":"1"}`},
+		{id: 15, out: `{"id":"f"}`},
+		{id: 31, out: `{"id":"1f"}`},
+		{id: 257, out: `{"id":"101"}`},
+		{id: uint64(max), out: `{"id":"ffffffffffffffff"}`},
+	}
+	for _, testCase := range testCases {
+		c := SpanIDContainer{SpanID: model.SpanID(testCase.id)}
+		out, err := json.Marshal(&c)
+		if assert.NoError(t, err) {
+			assert.Equal(t, testCase.out, string(out))
+		}
+	}
+}
+
+func TestSpanIDUnmarshalText(t *testing.T) {
+	testCases := []struct {
+		in  string
+		id  uint64
+		err bool
+	}{
+		{id: 1, in: `{"id":"1"}`},
+		{id: 15, in: `{"id":"f"}`},
+		{id: 31, in: `{"id":"1f"}`},
+		{id: 257, in: `{"id":"101"}`},
+		{err: true, in: `{"id":""}`},
+		{err: true, in: `{"id":"x"}`},
+		{err: true, in: `{"id":"x123"}`},
+		{err: true, in: `{"id":"10123456789abcdef"}`},
+	}
+	for _, testCase := range testCases {
+		var c SpanIDContainer
+		err := json.Unmarshal([]byte(testCase.in), &c)
+		if testCase.err {
+			assert.Error(t, err)
+		} else {
+			if assert.NoError(t, err) {
+				assert.Equal(t, testCase.id, uint64(c.SpanID))
 			}
 		}
 	}
