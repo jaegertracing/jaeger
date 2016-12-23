@@ -41,14 +41,5 @@ func (p *Process) Equal(other *Process) bool {
 	if p.ServiceName != other.ServiceName {
 		return false
 	}
-	l1, l2 := len(p.Tags), len(other.Tags)
-	if l1 != l2 {
-		return false
-	}
-	for i := 0; i < l1; i++ {
-		if !p.Tags[i].Equal(&other.Tags[i]) {
-			return false
-		}
-	}
-	return true
+	return p.Tags.Equal(other.Tags)
 }

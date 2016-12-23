@@ -212,3 +212,15 @@ func TestFindByKey(t *testing.T) {
 		})
 	}
 }
+
+func TestKeyValuesEqual(t *testing.T) {
+	v1 := model.String("s", "abc")
+	v2 := model.Int64("i", 123)
+	v3 := model.Float64("f", 123.4)
+	assert.True(t, model.KeyValues{}.Equal(model.KeyValues{}))
+	assert.True(t, model.KeyValues{v1}.Equal(model.KeyValues{v1}))
+	assert.True(t, model.KeyValues{v1, v2}.Equal(model.KeyValues{v1, v2}))
+	assert.False(t, model.KeyValues{v1, v2}.Equal(model.KeyValues{v2, v1}))
+	assert.False(t, model.KeyValues{v1, v2}.Equal(model.KeyValues{v1, v3}))
+	assert.False(t, model.KeyValues{v1, v2}.Equal(model.KeyValues{v1, v2, v3}))
+}
