@@ -20,7 +20,12 @@
 
 package model
 
-import "github.com/opentracing/opentracing-go/ext"
+import (
+	"fmt"
+	"strconv"
+
+	"github.com/opentracing/opentracing-go/ext"
+)
 
 // TraceID is a random 128bit identifier for a trace
 type TraceID struct {
@@ -64,4 +69,83 @@ func (s *Span) IsRPCClient() bool {
 // as indicated by the `span.kind` tag set to `server`.
 func (s *Span) IsRPCServer() bool {
 	return s.HasSpanKind(ext.SpanKindRPCServerEnum)
+}
+
+// ------- TraceID -------
+
+func (t TraceID) String() string {
+	if t.High == 0 {
+		return fmt.Sprintf("%x", t.Low)
+	}
+	return fmt.Sprintf("%x%016x", t.High, t.Low)
+}
+
+// TraceIDFromString creates a TraceID from a hexadecimal string
+func TraceIDFromString(s string) (TraceID, error) {
+	var hi, lo uint64
+	var err error
+	if len(s) > 32 {
+		return TraceID{}, fmt.Errorf("TraceID cannot be longer than 32 hex characters: %s", s)
+	} else if len(s) > 16 {
+		hiLen := len(s) - 16
+		if hi, err = strconv.ParseUint(s[0:hiLen], 16, 64); err != nil {
+			return TraceID{}, err
+		}
+		if lo, err = strconv.ParseUint(s[hiLen:], 16, 64); err != nil {
+			return TraceID{}, err
+		}
+	} else {
+		if lo, err = strconv.ParseUint(s, 16, 64); err != nil {
+			return TraceID{}, err
+		}
+	}
+	return TraceID{High: hi, Low: lo}, nil
+}
+
+// MarshalText allows TraceID to serialize itself in JSON as a string.
+func (t TraceID) MarshalText() ([]byte, error) {
+	return []byte(t.String()), nil
+}
+
+// UnmarshalText allows TraceID to deserialize itself from a JSON string.
+func (t *TraceID) UnmarshalText(text []byte) error {
+	q, err := TraceIDFromString(string(text))
+	if err != nil {
+		return err
+	}
+	*t = q
+	return nil
+}
+
+// ------- SpanID -------
+
+func (s SpanID) String() string {
+	return fmt.Sprintf("%x", uint64(s))
+}
+
+// SpanIDFromString creates a SpanID from a hexadecimal string
+func SpanIDFromString(s string) (SpanID, error) {
+	if len(s) > 16 {
+		return SpanID(0), fmt.Errorf("SpanID cannot be longer than 16 hex characters: %s", s)
+	}
+	id, err := strconv.ParseUint(s, 16, 64)
+	if err != nil {
+		return SpanID(0), err
+	}
+	return SpanID(id), nil
+}
+
+// MarshalText allows SpanID to serialize itself in JSON as a string.
+func (s SpanID) MarshalText() ([]byte, error) {
+	return []byte(s.String()), nil
+}
+
+// UnmarshalText allows SpanID to deserialize itself from a JSON string.
+func (s *SpanID) UnmarshalText(text []byte) error {
+	q, err := SpanIDFromString(string(text))
+	if err != nil {
+		return err
+	}
+	*s = q
+	return nil
 }

@@ -98,7 +98,7 @@ func (a *clockSkewAdjuster) buildNodesMap() {
 	a.spans = make(map[model.SpanID]*node)
 	for _, span := range a.trace.Spans {
 		if _, ok := a.spans[span.SpanID]; ok {
-			a.errors = append(a.errors, fmt.Errorf("found more than one span with ID=%x", span.SpanID))
+			a.errors = append(a.errors, fmt.Errorf("found more than one span with ID=%s", span.SpanID))
 		} else {
 			a.spans[span.SpanID] = &node{
 				span:    span,
@@ -121,7 +121,7 @@ func (a *clockSkewAdjuster) buildSubGraphs() {
 		if p, ok := a.spans[n.span.ParentSpanID]; ok {
 			p.children = append(p.children, n)
 		} else {
-			err := fmt.Errorf("invalid parent span ID=%x in the span with ID=%x", n.span.ParentSpanID, n.span.SpanID)
+			err := fmt.Errorf("invalid parent span ID=%s in the span with ID=%s", n.span.ParentSpanID, n.span.SpanID)
 			a.errors = append(a.errors, err)
 			// Treat spans with invalid parent ID as root spans
 			a.roots[n.span.SpanID] = n
