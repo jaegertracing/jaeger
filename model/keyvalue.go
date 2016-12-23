@@ -149,29 +149,61 @@ func (kv *KeyValue) AsString() string {
 	}
 }
 
-// IsLess compares two KeyValue objects. The order is based first on the keys, then on type, and finally on the value.
-func IsLess(one *KeyValue, two *KeyValue) bool {
-	if one.Key != two.Key {
-		return one.Key < two.Key
+// Equal compares KeyValue object with another KeyValue.
+func (kv *KeyValue) Equal(other *KeyValue) bool {
+	if kv.Key != other.Key {
+		return false
 	}
-	if one.VType != two.VType {
-		return one.VType < two.VType
+	if kv.VType != other.VType {
+		return false
 	}
-	switch one.VType {
+	switch kv.VType {
 	case StringType:
-		return one.VStr < two.VStr
+		return kv.VStr == other.VStr
 	case BoolType, Int64Type:
-		return one.VNum < two.VNum
+		return kv.VNum == other.VNum
 	case Float64Type:
-		return one.Float64() < two.Float64()
+		return kv.Float64() == other.Float64()
 	case BinaryType:
-		l1, l2 := len(one.VBlob), len(two.VBlob)
+		l1, l2 := len(kv.VBlob), len(other.VBlob)
+		if l1 != l2 {
+			return false
+		}
+		for i := 0; i < l1; i++ {
+			if kv.VBlob[i] != other.VBlob[i] {
+				return false
+			}
+		}
+		return true
+	default:
+		return false
+	}
+}
+
+// IsLess compares KeyValue object with another KeyValue.
+// The order is based first on the keys, then on type, and finally on the value.
+func (kv *KeyValue) IsLess(two *KeyValue) bool {
+	if kv.Key != two.Key {
+		return kv.Key < two.Key
+	}
+	if kv.VType != two.VType {
+		return kv.VType < two.VType
+	}
+	switch kv.VType {
+	case StringType:
+		return kv.VStr < two.VStr
+	case BoolType, Int64Type:
+		return kv.VNum < two.VNum
+	case Float64Type:
+		return kv.Float64() < two.Float64()
+	case BinaryType:
+		l1, l2 := len(kv.VBlob), len(two.VBlob)
 		minLen := l1
 		if l2 < minLen {
 			minLen = l2
 		}
 		for i := 0; i < minLen; i++ {
-			if d := int(one.VBlob[i]) - int(two.VBlob[i]); d != 0 {
+			if d := int(kv.VBlob[i]) - int(two.VBlob[i]); d != 0 {
 				return d < 0
 			}
 		}
@@ -187,9 +219,7 @@ func IsLess(one *KeyValue, two *KeyValue) bool {
 func (kvs KeyValues) Len() int      { return len(kvs) }
 func (kvs KeyValues) Swap(i, j int) { kvs[i], kvs[j] = kvs[j], kvs[i] }
 func (kvs KeyValues) Less(i, j int) bool {
-	one := kvs[i]
-	two := kvs[j]
-	return IsLess(&one, &two)
+	return kvs[i].IsLess(&kvs[j])
 }
 
 // Sort does in-place sorting of KeyValues, then by value type, then by value.

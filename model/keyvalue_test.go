@@ -68,7 +68,7 @@ func TestKeyValueBinary(t *testing.T) {
 	assert.Equal(t, []byte{123, 45}, kv.Binary())
 }
 
-func TestKeyValueIsLess(t *testing.T) {
+func TestKeyValueIsLessAndEqual(t *testing.T) {
 	testCases := []struct {
 		name  string
 		kv1   model.KeyValue
@@ -90,19 +90,50 @@ func TestKeyValueIsLess(t *testing.T) {
 		testCase := tt // capture loop var
 		t.Run(testCase.name, func(t *testing.T) {
 			if testCase.equal {
-				assert.False(t, model.IsLess(&testCase.kv1, &testCase.kv2))
+				assert.False(t, testCase.kv1.IsLess(&testCase.kv2))
+				assert.True(t, testCase.kv1.Equal(&testCase.kv2))
+				assert.True(t, testCase.kv2.Equal(&testCase.kv1))
 			} else {
-				assert.True(t, model.IsLess(&testCase.kv1, &testCase.kv2))
+				assert.True(t, testCase.kv1.IsLess(&testCase.kv2))
+				assert.False(t, testCase.kv1.Equal(&testCase.kv2))
+				assert.False(t, testCase.kv2.Equal(&testCase.kv1))
 			}
-			assert.False(t, model.IsLess(&testCase.kv2, &testCase.kv1))
+			assert.False(t, testCase.kv2.IsLess(&testCase.kv1))
 		})
 	}
 	t.Run("invalid type", func(t *testing.T) {
 		v1 := model.KeyValue{Key: "x", VType: model.ValueType(-1)}
 		v2 := model.KeyValue{Key: "x", VType: model.ValueType(-1)}
-		assert.False(t, model.IsLess(&v1, &v2))
-		assert.False(t, model.IsLess(&v2, &v1))
+		assert.False(t, v1.IsLess(&v2))
+		assert.False(t, v2.IsLess(&v1))
+		assert.False(t, v1.Equal(&v2))
+		assert.False(t, v2.Equal(&v1))
 	})
+}
+
+// No memory allocations for IsLess and Equal
+// 18.6 ns/op	       0 B/op	       0 allocs/op
+func BenchmarkKeyValueIsLessAndEquals(b *testing.B) {
+	v1 := model.KeyValue{Key: "x", VType: model.ValueType(-1)}
+	v2 := model.KeyValue{Key: "x", VType: model.ValueType(-1)}
+	for i := 0; i < b.N; i++ {
+		v1.IsLess(&v2)
+		v2.IsLess(&v1)
+		v1.Equal(&v2)
+		v2.Equal(&v1)
+	}
+}
+
+// No memory allocations for Sort (1 alloc comes from the algorithm, not from comparisons)
+// 107 ns/op	      32 B/op	       1 allocs/op
+func BenchmarkKeyValuesSort(b *testing.B) {
+	v1 := model.KeyValue{Key: "x", VType: model.ValueType(-1)}
+	v2 := model.KeyValue{Key: "x", VType: model.ValueType(-1)}
+	list := model.KeyValues(make([]model.KeyValue, 5))
+	for i := 0; i < b.N; i++ {
+		list[0], list[1], list[2], list[3], list[4] = v2, v1, v2, v1, v2
+		list.Sort()
+	}
 }
 
 func TestKeyValueAsString(t *testing.T) {
