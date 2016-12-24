@@ -38,9 +38,9 @@ type SpanID uint64
 
 // Span represents a unit of work in an application, such as an RPC, a database call, etc.
 type Span struct {
-	TraceID       TraceID   `json:"traceId"`
-	SpanID        SpanID    `json:"spanId"`
-	ParentSpanID  SpanID    `json:"parentSpanId"`
+	TraceID       TraceID   `json:"traceID"`
+	SpanID        SpanID    `json:"spanID"`
+	ParentSpanID  SpanID    `json:"parentSpanID"`
 	OperationName string    `json:"operationName"`
 	References    []SpanRef `json:"references,omitempty"`
 	Flags         uint32    `json:"flags"`
