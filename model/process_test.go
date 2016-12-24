@@ -56,3 +56,23 @@ func TestProcessEqual(t *testing.T) {
 	assert.False(t, p1.Equal(p4))
 	assert.False(t, p1.Equal(p5))
 }
+
+func TestProcessHash(t *testing.T) {
+	p1 := model.NewProcess("s1", []model.KeyValue{
+		model.String("x", "y"),
+		model.Int64("y", 1),
+		model.Binary("z", []byte{1}),
+	})
+	p1copy := model.NewProcess("s1", []model.KeyValue{
+		model.String("x", "y"),
+		model.Int64("y", 1),
+		model.Binary("z", []byte{1}),
+	})
+	p2 := model.NewProcess("s2", []model.KeyValue{
+		model.String("x", "y"),
+		model.Int64("y", 1),
+		model.Binary("z", []byte{1}),
+	})
+	assert.Equal(t, p1.Hash(), p1copy.Hash())
+	assert.NotEqual(t, p1.Hash(), p2.Hash())
+}

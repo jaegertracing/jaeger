@@ -20,6 +20,11 @@
 
 package model
 
+import (
+	"encoding/binary"
+	"hash/fnv"
+)
+
 // Process describes an instance of an application or service that emits tracing data.
 type Process struct {
 	ServiceName string    `json:"serviceName"`
@@ -28,8 +33,8 @@ type Process struct {
 
 // NewProcess creates a new Process for given serviceName and tags.
 // The tags are sorted in place and kept in the the same array/slice,
-// in order to store the Process in a canonical form that can be
-// useful when comparing or generating a stable hash code.
+// in order to store the Process in a canonical form that is relied
+// upon by the Equal and Hash functions.
 func NewProcess(serviceName string, tags []KeyValue) *Process {
 	typedTags := KeyValues(tags)
 	typedTags.Sort()
@@ -42,4 +47,20 @@ func (p *Process) Equal(other *Process) bool {
 		return false
 	}
 	return p.Tags.Equal(other.Tags)
+}
+
+// Hash computes a hash code for the process.
+func (p *Process) Hash() uint64 {
+	h := fnv.New64a()
+	// ignore errors because FNV-1a never returns any
+	_, _ = h.Write([]byte(p.ServiceName))
+	for i := range p.Tags {
+		tag := &p.Tags[i]
+		h.Write([]byte(tag.Key))
+		binary.Write(h, binary.BigEndian, uint16(tag.VType))
+		h.Write([]byte(tag.VStr))
+		h.Write(tag.VBlob)
+		binary.Write(h, binary.BigEndian, uint64(tag.VNum))
+	}
+	return h.Sum64()
 }
