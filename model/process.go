@@ -41,7 +41,7 @@ func NewProcess(serviceName string, tags []KeyValue) *Process {
 	return &Process{ServiceName: serviceName, Tags: typedTags}
 }
 
-// Equal compares KeyValue object with another KeyValue.
+// Equal compares Process object with another Process.
 func (p *Process) Equal(other *Process) bool {
 	if p.ServiceName != other.ServiceName {
 		return false
