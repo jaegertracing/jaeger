@@ -22,7 +22,10 @@ package model
 
 import (
 	"fmt"
+	"io"
 	"strconv"
+
+	"encoding/gob"
 
 	"github.com/opentracing/opentracing-go/ext"
 )
@@ -49,6 +52,14 @@ type Span struct {
 	Tags          KeyValues `json:"tags,omitempty"`
 	Logs          []Log     `json:"logs,omitempty"`
 	Process       *Process  `json:"process"`
+}
+
+// Hash implements Hash from Hashable.
+func (s *Span) Hash(w io.Writer) (err error) {
+	// gob is not the most efficient way, but it ensures we don't miss any fields.
+	// See BenchmarkSpanHash in span_test.go
+	enc := gob.NewEncoder(w)
+	return enc.Encode(s)
 }
 
 // HasSpanKind returns true if the span has a `span.kind` tag set to `kind`.
