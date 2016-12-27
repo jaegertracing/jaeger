@@ -20,6 +20,8 @@
 
 package model
 
+import "fmt"
+
 // SpanRefType describes the type of a span reference
 type SpanRefType int
 
@@ -31,11 +33,50 @@ const (
 	// FollowsFrom span reference type describes a reference to a "parent" span
 	// that does not depend on the response from the current (child) span
 	FollowsFrom
+
+	childOfStr     = "child-of"
+	followsFromStr = "follows-from"
 )
 
 // SpanRef describes a reference from one span to another
 type SpanRef struct {
 	RefType SpanRefType `json:"refType"`
-	TraceID TraceID     `json:"traceId"`
-	SpanID  SpanID      `json:"spanId"`
+	TraceID TraceID     `json:"traceID"`
+	SpanID  SpanID      `json:"spanID"`
+}
+
+func (p SpanRefType) String() string {
+	switch p {
+	case ChildOf:
+		return childOfStr
+	case FollowsFrom:
+		return followsFromStr
+	}
+	return "<invalid>"
+}
+
+// SpanRefTypeFromString converts a string into SpanRefType enum.
+func SpanRefTypeFromString(s string) (SpanRefType, error) {
+	switch s {
+	case childOfStr:
+		return ChildOf, nil
+	case followsFromStr:
+		return FollowsFrom, nil
+	}
+	return SpanRefType(0), fmt.Errorf("not a valid SpanRefType string %s", s)
+}
+
+// MarshalText allows SpanRefType to serialize itself in JSON as a string.
+func (p SpanRefType) MarshalText() ([]byte, error) {
+	return []byte(p.String()), nil
+}
+
+// UnmarshalText allows SpanRefType to deserialize itself from a JSON string.
+func (p *SpanRefType) UnmarshalText(text []byte) error {
+	q, err := SpanRefTypeFromString(string(text))
+	if err != nil {
+		return err
+	}
+	*p = q
+	return nil
 }
