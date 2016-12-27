@@ -21,10 +21,15 @@
 package model_test
 
 import (
+	"hash/fnv"
+	"io"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
 
+	"errors"
+
+	"github.com/stretchr/testify/require"
 	"github.com/uber/jaeger/model"
 )
 
@@ -57,6 +62,15 @@ func TestProcessEqual(t *testing.T) {
 	assert.False(t, p1.Equal(p5))
 }
 
+func Hash(w io.Writer) {
+	w.Write([]byte("hello"))
+}
+
+func TestX(t *testing.T) {
+	h := fnv.New64a()
+	Hash(h)
+}
+
 func TestProcessHash(t *testing.T) {
 	p1 := model.NewProcess("s1", []model.KeyValue{
 		model.String("x", "y"),
@@ -73,6 +87,25 @@ func TestProcessHash(t *testing.T) {
 		model.Int64("y", 1),
 		model.Binary("z", []byte{1}),
 	})
-	assert.Equal(t, p1.Hash(), p1copy.Hash())
-	assert.NotEqual(t, p1.Hash(), p2.Hash())
+	p1h, err := model.HashCode(p1)
+	require.NoError(t, err)
+	p1ch, err := model.HashCode(p1copy)
+	require.NoError(t, err)
+	p2h, err := model.HashCode(p2)
+	require.NoError(t, err)
+	assert.Equal(t, p1h, p1ch)
+	assert.NotEqual(t, p1h, p2h)
+}
+
+func TestProcessHashError(t *testing.T) {
+	p1 := model.NewProcess("s1", []model.KeyValue{
+		model.String("x", "y"),
+	})
+	someErr := errors.New("some error")
+	w := &mockHashWwiter{
+		answers: []mockHashWwiterAnswer{
+			{1, someErr},
+		},
+	}
+	assert.Equal(t, someErr, p1.Hash(w))
 }

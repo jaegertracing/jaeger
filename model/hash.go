@@ -20,36 +20,23 @@
 
 package model
 
-import "io"
+import (
+	"hash/fnv"
+	"io"
+)
 
-// Process describes an instance of an application or service that emits tracing data.
-type Process struct {
-	ServiceName string    `json:"serviceName"`
-	Tags        KeyValues `json:"tags,omitempty"`
+// Hashable interface is for type that can participate in a hash computation
+// by writing their data into io.Writer, which is usually an instance of hash.Hash.
+//
+type Hashable interface {
+	Hash(w io.Writer) error
 }
 
-// NewProcess creates a new Process for given serviceName and tags.
-// The tags are sorted in place and kept in the the same array/slice,
-// in order to store the Process in a canonical form that is relied
-// upon by the Equal and Hash functions.
-func NewProcess(serviceName string, tags []KeyValue) *Process {
-	typedTags := KeyValues(tags)
-	typedTags.Sort()
-	return &Process{ServiceName: serviceName, Tags: typedTags}
-}
-
-// Equal compares Process object with another Process.
-func (p *Process) Equal(other *Process) bool {
-	if p.ServiceName != other.ServiceName {
-		return false
+// HashCode calcualtes a FNV-1a hash code for a Hashable object.
+func HashCode(o Hashable) (uint64, error) {
+	h := fnv.New64a()
+	if err := o.Hash(h); err != nil {
+		return 0, err
 	}
-	return p.Tags.Equal(other.Tags)
-}
-
-// Hash implements Hash from Hashable.
-func (p *Process) Hash(w io.Writer) (err error) {
-	if _, err := w.Write([]byte(p.ServiceName)); err != nil {
-		return err
-	}
-	return p.Tags.Hash(w)
+	return h.Sum64(), nil
 }

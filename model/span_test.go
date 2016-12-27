@@ -27,6 +27,9 @@ import (
 	"github.com/opentracing/opentracing-go/ext"
 	"github.com/stretchr/testify/assert"
 
+	"bytes"
+
+	"github.com/stretchr/testify/require"
 	"github.com/uber/jaeger/model"
 )
 
@@ -151,4 +154,61 @@ func TestIsRPCClientServer(t *testing.T) {
 	span2 := &model.Span{}
 	assert.False(t, span2.IsRPCClient())
 	assert.False(t, span2.IsRPCServer())
+}
+
+func TestSpanHash(t *testing.T) {
+	kvs := model.KeyValues{
+		model.String("x", "y"),
+		model.String("x", "y"),
+		model.String("x", "z"),
+	}
+	spans := make([]*model.Span, len(kvs))
+	codes := make([]uint64, len(kvs))
+	// create 3 spans that are only different in some KeyValues
+	for i := range kvs {
+		spans[i] = makeSpan(kvs[i])
+		hc, err := model.HashCode(spans[i])
+		require.NoError(t, err)
+		codes[i] = hc
+	}
+	assert.Equal(t, codes[0], codes[1])
+	assert.NotEqual(t, codes[0], codes[2])
+}
+
+func makeSpan(someKV model.KeyValue) *model.Span {
+	return &model.Span{
+		TraceID:       model.TraceID{Low: 123},
+		SpanID:        model.SpanID(567),
+		OperationName: "hi",
+		References: []model.SpanRef{
+			{
+				RefType: model.ChildOf,
+				TraceID: model.TraceID{Low: 123},
+				SpanID:  model.SpanID(123),
+			},
+		},
+		StartTime: 1000,
+		Duration:  500,
+		Tags:      model.KeyValues{someKV},
+		Logs: []model.Log{
+			{
+				Timestamp: 1000,
+				Fields:    model.KeyValues{someKV},
+			},
+		},
+		Process: &model.Process{
+			ServiceName: "xyz",
+			Tags:        model.KeyValues{someKV},
+		},
+	}
+}
+
+// BenchmarkSpanHash-8   	   50000	     26977 ns/op	    2203 B/op	      68 allocs/op
+func BenchmarkSpanHash(b *testing.B) {
+	span := makeSpan(model.String("x", "y"))
+	buf := &bytes.Buffer{}
+	for i := 0; i < b.N; i++ {
+		buf.Reset()
+		span.Hash(buf)
+	}
 }

@@ -18,38 +18,48 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 // THE SOFTWARE.
 
-package model
+package model_test
 
-import "io"
+import (
+	"errors"
+	"fmt"
+	"io"
+	"testing"
 
-// Process describes an instance of an application or service that emits tracing data.
-type Process struct {
-	ServiceName string    `json:"serviceName"`
-	Tags        KeyValues `json:"tags,omitempty"`
+	"github.com/stretchr/testify/assert"
+	"github.com/uber/jaeger/model"
+)
+
+type mockHashWwiterAnswer struct {
+	n   int
+	err error
 }
 
-// NewProcess creates a new Process for given serviceName and tags.
-// The tags are sorted in place and kept in the the same array/slice,
-// in order to store the Process in a canonical form that is relied
-// upon by the Equal and Hash functions.
-func NewProcess(serviceName string, tags []KeyValue) *Process {
-	typedTags := KeyValues(tags)
-	typedTags.Sort()
-	return &Process{ServiceName: serviceName, Tags: typedTags}
+type mockHashWwiter struct {
+	answers []mockHashWwiterAnswer
 }
 
-// Equal compares Process object with another Process.
-func (p *Process) Equal(other *Process) bool {
-	if p.ServiceName != other.ServiceName {
-		return false
+func (w *mockHashWwiter) Write(data []byte) (int, error) {
+	if len(w.answers) == 0 {
+		return 0, fmt.Errorf("no answer registered for call with data=%+v", data)
 	}
-	return p.Tags.Equal(other.Tags)
+	answer := w.answers[0]
+	w.answers = w.answers[1:]
+	return answer.n, answer.err
 }
 
-// Hash implements Hash from Hashable.
-func (p *Process) Hash(w io.Writer) (err error) {
-	if _, err := w.Write([]byte(p.ServiceName)); err != nil {
-		return err
-	}
-	return p.Tags.Hash(w)
+type errHashable struct {
+	err error
+}
+
+func (e *errHashable) Hash(w io.Writer) error {
+	return e.err
+}
+
+func TestHasCodeError(t *testing.T) {
+	someErr := errors.New("some error")
+	h := &errHashable{err: someErr}
+	n, err := model.HashCode(h)
+	assert.Equal(t, uint64(0), n)
+	assert.Equal(t, someErr, err)
 }

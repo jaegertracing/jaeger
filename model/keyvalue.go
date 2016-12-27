@@ -21,8 +21,10 @@
 package model
 
 import (
+	"encoding/binary"
 	"encoding/hex"
 	"fmt"
+	"io"
 	"math"
 	"sort"
 	"strconv"
@@ -129,6 +131,24 @@ func (kv *KeyValue) Binary() []byte {
 		return kv.VBlob
 	}
 	return nil
+}
+
+// Value returns typed values stored in KeyValue as interface{}.
+func (kv *KeyValue) Value() interface{} {
+	switch kv.VType {
+	case StringType:
+		return kv.VStr
+	case BoolType:
+		return kv.Bool()
+	case Int64Type:
+		return kv.Int64()
+	case Float64Type:
+		return kv.Float64()
+	case BinaryType:
+		return kv.VBlob
+	default:
+		return fmt.Errorf("unknown type %d", kv.VType)
+	}
 }
 
 // AsString returns a potentially lossy string representation of the value.
@@ -258,6 +278,16 @@ func (kvs KeyValues) Equal(other KeyValues) bool {
 	return true
 }
 
+// Hash implements Hash from Hashable.
+func (kvs KeyValues) Hash(w io.Writer) error {
+	for i := range kvs {
+		if err := kvs[i].Hash(w); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
 func (p ValueType) String() string {
 	switch p {
 	case StringType:
@@ -304,4 +334,26 @@ func (p *ValueType) UnmarshalText(text []byte) error {
 	}
 	*p = q
 	return nil
+}
+
+// Hash implements Hash from Hashable.
+func (kv KeyValue) Hash(w io.Writer) error {
+	if _, err := w.Write([]byte(kv.Key)); err != nil {
+		return err
+	}
+	if err := binary.Write(w, binary.BigEndian, uint16(kv.VType)); err != nil {
+		return err
+	}
+	var err error
+	switch kv.VType {
+	case StringType:
+		_, err = w.Write([]byte(kv.VStr))
+	case BoolType, Int64Type, Float64Type:
+		err = binary.Write(w, binary.BigEndian, kv.VNum)
+	case BinaryType:
+		_, err = w.Write(kv.VBlob)
+	default:
+		err = fmt.Errorf("unknown type %d", kv.VType)
+	}
+	return err
 }
