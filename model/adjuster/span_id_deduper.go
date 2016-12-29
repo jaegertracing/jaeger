@@ -31,18 +31,22 @@ import (
 // client span that shares the same span ID. This is needed to deal with
 // Zipkin-style clients that reuse the same span ID for both client and server
 // side of an RPC call. Jaeger UI expects all spans to have unique IDs.
+//
+// This adjuster never returns any errors. Instead it records any issues
+// it encounters in Span.Warnings.
 func SpanIDDeduper() Adjuster {
 	return Func(func(trace *model.Trace) (*model.Trace, error) {
 		deduper := &spanIDDeduper{trace: trace}
-		deduper.groupByID()
-		err := deduper.dedupeSpanIDs()
-		return deduper.trace, err
+		deduper.groupSpansByID()
+		deduper.dedupeSpanIDs()
+		return deduper.trace, nil
 	})
 }
 
-var errTooManySpans = errors.New("cannot assign unique span ID, too many spans in the trace")
-
-const maxSpanID = model.SpanID(0xffffffffffffffff)
+const (
+	warningTooManySpans = "cannot assign unique span ID, too many spans in the trace"
+	maxSpanID           = model.SpanID(0xffffffffffffffff)
+)
 
 type spanIDDeduper struct {
 	trace     *model.Trace
@@ -50,8 +54,8 @@ type spanIDDeduper struct {
 	maxUsedID model.SpanID
 }
 
-// groupByID groups spans with the same ID returning a map id -> []Span
-func (d *spanIDDeduper) groupByID() {
+// groupSpansByID groups spans with the same ID returning a map id -> []Span
+func (d *spanIDDeduper) groupSpansByID() {
 	spansByID := make(map[model.SpanID][]*model.Span)
 	for _, span := range d.trace.Spans {
 		if spans, ok := spansByID[span.SpanID]; ok {
@@ -73,14 +77,15 @@ func (d *spanIDDeduper) isSharedWithClientSpan(spanID model.SpanID) bool {
 	return false
 }
 
-func (d *spanIDDeduper) dedupeSpanIDs() error {
+func (d *spanIDDeduper) dedupeSpanIDs() {
 	oldToNewSpanIDs := make(map[model.SpanID]model.SpanID)
 	for _, span := range d.trace.Spans {
 		// only replace span IDs for server-side spans that share the ID with something else
 		if span.IsRPCServer() && d.isSharedWithClientSpan(span.SpanID) {
 			newID, err := d.makeUniqueSpanID()
 			if err != nil {
-				return err
+				span.Warnings = append(span.Warnings, err.Error())
+				continue
 			}
 			oldToNewSpanIDs[span.SpanID] = newID
 			span.ParentSpanID = span.SpanID // previously shared ID is the new parent
@@ -88,7 +93,6 @@ func (d *spanIDDeduper) dedupeSpanIDs() error {
 		}
 	}
 	d.swapParentIDs(oldToNewSpanIDs)
-	return nil
 }
 
 // swapParentIDs corrects ParentSpanID of all spans that are children of the server
@@ -113,5 +117,5 @@ func (d *spanIDDeduper) makeUniqueSpanID() (model.SpanID, error) {
 			return id, nil
 		}
 	}
-	return 0, errTooManySpans
+	return 0, errors.New(warningTooManySpans)
 }

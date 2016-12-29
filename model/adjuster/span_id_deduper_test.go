@@ -104,8 +104,10 @@ func TestSpanIDDeduperError(t *testing.T) {
 	assert.Equal(t, maxSpanID, model.SpanID(maxID), "maxSpanID must be 2^64-1")
 
 	deduper := &spanIDDeduper{trace: trace}
-	deduper.groupByID()
+	deduper.groupSpansByID()
 	deduper.maxUsedID = maxSpanID - 1
-	err := deduper.dedupeSpanIDs()
-	assert.Equal(t, err, errTooManySpans)
+	deduper.dedupeSpanIDs()
+	if assert.Len(t, trace.Spans[1].Warnings, 1) {
+		assert.Equal(t, trace.Spans[1].Warnings[0], "cannot assign unique span ID, too many spans in the trace")
+	}
 }

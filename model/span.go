@@ -52,6 +52,7 @@ type Span struct {
 	Tags          KeyValues `json:"tags,omitempty"`
 	Logs          []Log     `json:"logs,omitempty"`
 	Process       *Process  `json:"process"`
+	Warnings      []string  `json:"warnings,omitempty"`
 }
 
 // Hash implements Hash from Hashable.
