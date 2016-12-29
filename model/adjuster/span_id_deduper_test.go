@@ -104,7 +104,7 @@ func TestSpanIDDeduperError(t *testing.T) {
 	assert.Equal(t, maxSpanID, model.SpanID(maxID), "maxSpanID must be 2^64-1")
 
 	deduper := &spanIDDeduper{trace: trace}
-	deduper.groupByID()
+	deduper.groupSpansByID()
 	deduper.maxUsedID = maxSpanID - 1
 	deduper.dedupeSpanIDs()
 	if assert.Len(t, trace.Spans[1].Warnings, 1) {
