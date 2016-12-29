@@ -33,11 +33,11 @@ import (
 // side of an RPC call. Jaeger UI expects all spans to have unique IDs.
 //
 // This adjuster never returns any errors. Instead it records any issues
-// it encounters in Span.Problems.
+// it encounters in Span.Warnings.
 func SpanIDDeduper() Adjuster {
 	return Func(func(trace *model.Trace) (*model.Trace, error) {
 		deduper := &spanIDDeduper{trace: trace}
-		deduper.groupByID()
+		deduper.groupSpansByID()
 		deduper.dedupeSpanIDs()
 		return deduper.trace, nil
 	})
@@ -54,8 +54,8 @@ type spanIDDeduper struct {
 	maxUsedID model.SpanID
 }
 
-// groupByID groups spans with the same ID returning a map id -> []Span
-func (d *spanIDDeduper) groupByID() {
+// groupSpansByID groups spans with the same ID returning a map id -> []Span
+func (d *spanIDDeduper) groupSpansByID() {
 	spansByID := make(map[model.SpanID][]*model.Span)
 	for _, span := range d.trace.Spans {
 		if spans, ok := spansByID[span.SpanID]; ok {

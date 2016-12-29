@@ -37,7 +37,7 @@ import (
 // to go through another adjuster first, such as SpanIDDeduper.
 //
 // This adjuster never returns any errors. Instead it records any issues
-// it encounters in Span.Problems.
+// it encounters in Span.Warnings.
 func ClockSkew() Adjuster {
 	return Func(func(trace *model.Trace) (*model.Trace, error) {
 		adjuster := &clockSkewAdjuster{
