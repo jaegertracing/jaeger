@@ -22,7 +22,8 @@ package model
 
 // Trace is a directed acyclic graph of Spans
 type Trace struct {
-	Spans []*Span
+	Spans    []*Span  `json:"spans,omitempty"`
+	Warnings []string `json:"warnings,omitempty"`
 }
 
 // FindSpanByID looks for a span with given span ID and returns the first one

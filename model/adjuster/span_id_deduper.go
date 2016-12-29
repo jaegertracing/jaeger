@@ -20,8 +20,11 @@
 
 package adjuster
 
-import "github.com/uber/jaeger/model"
-import "errors"
+import (
+	"errors"
+
+	"github.com/uber/jaeger/model"
+)
 
 // SpanIDDeduper returns an adjuster that changes span ids for server
 // spans (i.e. spans with tag: span.kind == server) if there is another
@@ -41,7 +44,7 @@ func SpanIDDeduper() Adjuster {
 }
 
 const (
-	problemTooManySpans = "cannot assign unique span ID, too many spans in the trace"
+	warningTooManySpans = "cannot assign unique span ID, too many spans in the trace"
 	maxSpanID           = model.SpanID(0xffffffffffffffff)
 )
 
@@ -81,7 +84,7 @@ func (d *spanIDDeduper) dedupeSpanIDs() {
 		if span.IsRPCServer() && d.isSharedWithClientSpan(span.SpanID) {
 			newID, err := d.makeUniqueSpanID()
 			if err != nil {
-				span.Problems = append(span.Problems, err.Error())
+				span.Warnings = append(span.Warnings, err.Error())
 				continue
 			}
 			oldToNewSpanIDs[span.SpanID] = newID
@@ -114,5 +117,5 @@ func (d *spanIDDeduper) makeUniqueSpanID() (model.SpanID, error) {
 			return id, nil
 		}
 	}
-	return 0, errors.New(problemTooManySpans)
+	return 0, errors.New(warningTooManySpans)
 }

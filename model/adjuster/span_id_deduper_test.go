@@ -107,7 +107,7 @@ func TestSpanIDDeduperError(t *testing.T) {
 	deduper.groupByID()
 	deduper.maxUsedID = maxSpanID - 1
 	deduper.dedupeSpanIDs()
-	if assert.Len(t, trace.Spans[1].Problems, 1) {
-		assert.Equal(t, trace.Spans[1].Problems[0], problemTooManySpans)
+	if assert.Len(t, trace.Spans[1].Warnings, 1) {
+		assert.Equal(t, trace.Spans[1].Warnings[0], "cannot assign unique span ID, too many spans in the trace")
 	}
 }

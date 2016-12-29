@@ -53,6 +53,11 @@ func ClockSkew() Adjuster {
 	})
 }
 
+const (
+	warningDuplicateSpanID       = "duplicate span IDs; skipping clock skew adjustment"
+	warningFormatInvalidParentID = "invalid parent span IDs=%s; skipping clock skew adjustment"
+)
+
 type clockSkewAdjuster struct {
 	trace *model.Trace
 	spans map[model.SpanID]*node
@@ -99,8 +104,7 @@ func (a *clockSkewAdjuster) buildNodesMap() {
 	a.spans = make(map[model.SpanID]*node)
 	for _, span := range a.trace.Spans {
 		if _, ok := a.spans[span.SpanID]; ok {
-			problem := "duplicate span IDs; skipping clock skew adjustment"
-			span.Problems = append(span.Problems, problem)
+			span.Warnings = append(span.Warnings, warningDuplicateSpanID)
 		} else {
 			a.spans[span.SpanID] = &node{
 				span:    span,
@@ -123,8 +127,8 @@ func (a *clockSkewAdjuster) buildSubGraphs() {
 		if p, ok := a.spans[n.span.ParentSpanID]; ok {
 			p.children = append(p.children, n)
 		} else {
-			problem := fmt.Sprintf("invalid parent span IDs=%s; skipping clock skew adjustment", n.span.ParentSpanID)
-			n.span.Problems = append(n.span.Problems, problem)
+			warning := fmt.Sprintf(warningFormatInvalidParentID, n.span.ParentSpanID)
+			n.span.Warnings = append(n.span.Warnings, warning)
 			// Treat spans with invalid parent ID as root spans
 			a.roots[n.span.SpanID] = n
 		}

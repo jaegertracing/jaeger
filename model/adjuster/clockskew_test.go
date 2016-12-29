@@ -165,14 +165,14 @@ func TestClockSkewAdjuster(t *testing.T) {
 			if testCase.err != "" {
 				var err string
 				for _, span := range trace.Spans {
-					for _, problem := range span.Problems {
-						err = problem
+					for _, warning := range span.Warnings {
+						err = warning
 					}
 				}
 				assert.Equal(t, err, testCase.err)
 			} else {
 				for _, span := range trace.Spans {
-					assert.Len(t, span.Problems, 0, "no problems in span %s", span.SpanID)
+					assert.Len(t, span.Warnings, 0, "no warnings in span %s", span.SpanID)
 				}
 			}
 			for _, proto := range testCase.trace {
