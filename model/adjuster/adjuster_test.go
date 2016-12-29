@@ -61,12 +61,13 @@ func TestSequences(t *testing.T) {
 	}
 
 	for _, testCase := range testCases {
-		span := model.Span{}
-		trace := model.Trace{Spans: []*model.Span{&span}}
+		span := &model.Span{}
+		trace := model.Trace{Spans: []*model.Span{span}}
 
 		adjTrace, err := testCase.adjuster.Adjust(&trace)
 
-		assert.EqualValues(t, testCase.lastSpanID, adjTrace.Spans[0].SpanID, "expect span ID to be incremented")
+		assert.True(t, span == adjTrace.Spans[0], "same trace & span returned")
+		assert.EqualValues(t, testCase.lastSpanID, span.SpanID, "expect span ID to be incremented")
 		assert.EqualError(t, err, testCase.err)
 	}
 }
