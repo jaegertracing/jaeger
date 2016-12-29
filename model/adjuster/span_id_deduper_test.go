@@ -106,6 +106,8 @@ func TestSpanIDDeduperError(t *testing.T) {
 	deduper := &spanIDDeduper{trace: trace}
 	deduper.groupByID()
 	deduper.maxUsedID = maxSpanID - 1
-	err := deduper.dedupeSpanIDs()
-	assert.Equal(t, err, errTooManySpans)
+	deduper.dedupeSpanIDs()
+	if assert.Len(t, trace.Spans[1].Problems, 1) {
+		assert.Equal(t, trace.Spans[1].Problems[0], problemTooManySpans)
+	}
 }

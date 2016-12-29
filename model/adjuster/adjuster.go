@@ -42,19 +42,33 @@ func (f Func) Adjust(trace *model.Trace) (*model.Trace, error) {
 }
 
 // Sequence creates an adjuster that combines a series of adjusters
-// applied in order.
+// applied in order. Errors from each step are accumulated and returned
+// in the end as a single wrapper error. Errors do not interrupt the
+// sequence of adapters.
 func Sequence(adjusters ...Adjuster) Adjuster {
-	return sequence(adjusters)
+	return sequence{adjusters: adjusters}
 }
 
-type sequence []Adjuster
+// FailFastSequence is similar to Sequence() but returns immediately
+// if any adjuster returns an error.
+func FailFastSequence(adjusters ...Adjuster) Adjuster {
+	return sequence{adjusters: adjusters, failFast: true}
+}
+
+type sequence struct {
+	adjusters []Adjuster
+	failFast  bool
+}
 
 func (c sequence) Adjust(trace *model.Trace) (*model.Trace, error) {
 	var errors []error
-	for _, adjuster := range c {
+	for _, adjuster := range c.adjusters {
 		var err error
 		trace, err = adjuster.Adjust(trace)
 		if err != nil {
+			if c.failFast {
+				return trace, err
+			}
 			errors = append(errors, err)
 		}
 	}

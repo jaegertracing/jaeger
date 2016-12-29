@@ -26,7 +26,6 @@ import (
 	"net"
 
 	"github.com/uber/jaeger/model"
-	"github.com/uber/jaeger/pkg/multierror"
 )
 
 // ClockSkew returns an adjuster that modifies start time and log timestamps
@@ -34,8 +33,11 @@ import (
 // clock skew on different servers. The main condition that it checks is that
 // child spans do not start before or end after their parent spans.
 //
-// The algorithm assumes that all spans have unique IDs, otherwise it returns
-// an error, so the trace may need to go through another adjuster first.
+// The algorithm assumes that all spans have unique IDs, so the trace may need
+// to go through another adjuster first, such as SpanIDDeduper.
+//
+// This adjuster never returns any errors. Instead it records any issues
+// it encounters in Span.Problems.
 func ClockSkew() Adjuster {
 	return Func(func(trace *model.Trace) (*model.Trace, error) {
 		adjuster := &clockSkewAdjuster{
@@ -47,15 +49,14 @@ func ClockSkew() Adjuster {
 			skew := clockSkew{hostKey: n.hostKey}
 			adjuster.adjustNode(n, nil, skew)
 		}
-		return adjuster.trace, multierror.Wrap(adjuster.errors)
+		return adjuster.trace, nil
 	})
 }
 
 type clockSkewAdjuster struct {
-	trace  *model.Trace
-	spans  map[model.SpanID]*node
-	roots  map[model.SpanID]*node
-	errors []error
+	trace *model.Trace
+	spans map[model.SpanID]*node
+	roots map[model.SpanID]*node
 }
 
 type clockSkew struct {
@@ -98,7 +99,8 @@ func (a *clockSkewAdjuster) buildNodesMap() {
 	a.spans = make(map[model.SpanID]*node)
 	for _, span := range a.trace.Spans {
 		if _, ok := a.spans[span.SpanID]; ok {
-			a.errors = append(a.errors, fmt.Errorf("found more than one span with ID=%s", span.SpanID))
+			problem := "duplicate span IDs; skipping clock skew adjustment"
+			span.Problems = append(span.Problems, problem)
 		} else {
 			a.spans[span.SpanID] = &node{
 				span:    span,
@@ -121,8 +123,8 @@ func (a *clockSkewAdjuster) buildSubGraphs() {
 		if p, ok := a.spans[n.span.ParentSpanID]; ok {
 			p.children = append(p.children, n)
 		} else {
-			err := fmt.Errorf("invalid parent span ID=%s in the span with ID=%s", n.span.ParentSpanID, n.span.SpanID)
-			a.errors = append(a.errors, err)
+			problem := fmt.Sprintf("invalid parent span IDs=%s; skipping clock skew adjustment", n.span.ParentSpanID)
+			n.span.Problems = append(n.span.Problems, problem)
 			// Treat spans with invalid parent ID as root spans
 			a.roots[n.span.SpanID] = n
 		}

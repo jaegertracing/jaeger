@@ -80,7 +80,7 @@ func TestClockSkewAdjuster(t *testing.T) {
 			trace: []spanProto{
 				{id: 1, parent: 99, startTime: 0, duration: 100, host: "a", adjusted: 0},
 			},
-			err: "invalid parent span ID=63 in the span with ID=1", // 99 == 0x63
+			err: "invalid parent span IDs=63; skipping clock skew adjustment", // 99 == 0x63
 		},
 		{
 			description: "single span with empty host key",
@@ -89,12 +89,12 @@ func TestClockSkewAdjuster(t *testing.T) {
 			},
 		},
 		{
-			description: "two span with the same ID",
+			description: "two spans with the same ID",
 			trace: []spanProto{
 				{id: 1, parent: 0, startTime: 0, duration: 100, host: "a", adjusted: 0},
 				{id: 1, parent: 0, startTime: 0, duration: 100, host: "a", adjusted: 0},
 			},
-			err: "found more than one span with ID=1",
+			err: "duplicate span IDs; skipping clock skew adjustment",
 		},
 		{
 			description: "parent-child on the same host",
@@ -161,10 +161,19 @@ func TestClockSkewAdjuster(t *testing.T) {
 		t.Run(testCase.description, func(t *testing.T) {
 			adjuster := ClockSkew()
 			trace, err := adjuster.Adjust(makeTrace(testCase.trace))
+			assert.NoError(t, err)
 			if testCase.err != "" {
-				assert.EqualError(t, err, testCase.err)
+				var err string
+				for _, span := range trace.Spans {
+					for _, problem := range span.Problems {
+						err = problem
+					}
+				}
+				assert.Equal(t, err, testCase.err)
 			} else {
-				assert.NoError(t, err)
+				for _, span := range trace.Spans {
+					assert.Len(t, span.Problems, 0, "no problems in span %s", span.SpanID)
+				}
 			}
 			for _, proto := range testCase.trace {
 				id := proto.id
