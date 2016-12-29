@@ -31,10 +31,7 @@ import (
 	"github.com/uber/jaeger/model/adjuster"
 )
 
-func TestSequence(t *testing.T) {
-	span := model.Span{}
-	trace := model.Trace{Spans: []*model.Span{&span}}
-
+func TestSequences(t *testing.T) {
 	// mock adjuster that increments span ID
 	adj := adjuster.Func(func(trace *model.Trace) (*model.Trace, error) {
 		trace.Spans[0].SpanID++
@@ -46,33 +43,30 @@ func TestSequence(t *testing.T) {
 		return trace, adjErr
 	})
 
-	// Sequence accumulates errors
-	seq := adjuster.Sequence(adj, failingAdj, adj, failingAdj)
-	adjTrace, err := seq.Adjust(&trace)
+	testCases := []struct {
+		adjuster   adjuster.Adjuster
+		err        string
+		lastSpanID int
+	}{
+		{
+			adjuster:   adjuster.Sequence(adj, failingAdj, adj, failingAdj),
+			err:        fmt.Sprintf("[%s, %s]", adjErr, adjErr),
+			lastSpanID: 2,
+		},
+		{
+			adjuster:   adjuster.FailFastSequence(adj, failingAdj, adj, failingAdj),
+			err:        adjErr.Error(),
+			lastSpanID: 1,
+		},
+	}
 
-	assert.EqualValues(t, 2, adjTrace.Spans[0].SpanID, "expect span ID to be incremented twice")
-	assert.EqualError(t, err, fmt.Sprintf("[%s, %s]", adjErr, adjErr))
-}
+	for _, testCase := range testCases {
+		span := model.Span{}
+		trace := model.Trace{Spans: []*model.Span{&span}}
 
-func TestFailFastSequence(t *testing.T) {
-	span := model.Span{}
-	trace := model.Trace{Spans: []*model.Span{&span}}
+		adjTrace, err := testCase.adjuster.Adjust(&trace)
 
-	// mock adjuster that increments span ID
-	adj := adjuster.Func(func(trace *model.Trace) (*model.Trace, error) {
-		trace.Spans[0].SpanID++
-		return trace, nil
-	})
-
-	adjErr := errors.New("mock adjuster error")
-	failingAdj := adjuster.Func(func(trace *model.Trace) (*model.Trace, error) {
-		return trace, adjErr
-	})
-
-	// FailFastSequence exits on the first error
-	seq := adjuster.FailFastSequence(adj, failingAdj, adj, failingAdj)
-	adjTrace, err := seq.Adjust(&trace)
-
-	assert.EqualValues(t, 1, adjTrace.Spans[0].SpanID, "expect span ID to be incremented only once")
-	assert.Equal(t, err, adjErr)
+		assert.EqualValues(t, testCase.lastSpanID, adjTrace.Spans[0].SpanID, "expect span ID to be incremented")
+		assert.EqualError(t, err, testCase.err)
+	}
 }
