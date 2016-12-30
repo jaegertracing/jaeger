@@ -1,0 +1,68 @@
+{
+  "Spans": [
+    {
+      "traceID": "1",
+      "spanID": "2",
+      "operationName": "test-custom-tags",
+      "process": {
+        "serviceName": "service-x"
+      },
+      "tags": [
+          {
+            "key": "bool",
+            "vNum": 1,
+            "vType": "bool"
+          },
+          {
+            "key": "bytes",
+            "vBlob": "c29tZS1ob3N0LmNvbQ==",
+            "vType": "binary"
+          },
+          {
+            "key": "i16",
+            "vNum": 12345,
+            "vType": "int64"
+          },
+          {
+            "key": "i16_bad_value",
+            "vStr": "Cannot parse Zipkin value AQ==: unexpected EOF"
+          },
+          {
+            "key": "i32",
+            "vNum": 12345,
+            "vType": "int64"
+          },
+          {
+            "key": "i32_bad_value",
+            "vStr": "Cannot parse Zipkin value AQ==: unexpected EOF"
+          },
+          {
+            "key": "i64",
+            "vNum": 12345,
+            "vType": "int64"
+          },
+          {
+            "key": "i64_bad_value",
+            "vStr": "Cannot parse Zipkin value AQ==: unexpected EOF"
+          },
+          {
+            "key": "double",
+            "vNum": 4668012349850910720,
+            "vType": "float64"
+          },
+          {
+            "key": "double_bad_value",
+            "vStr": "Cannot parse Zipkin value AQ==: unexpected EOF"
+          },
+          {
+            "key": "string",
+            "vStr": "some-host.com"
+          },
+          {
+            "key": "span.kind",
+            "vStr": "server"
+          }
+      ]
+    }
+  ]
+}

@@ -1,0 +1,87 @@
+{
+  "Spans": [
+    {
+      "traceID": "1",
+      "spanID": "2",
+      "operationName": "test-general-conversion",
+      "process": {
+        "serviceName": "service-x"
+      },
+      "logs": [
+        {
+          "fields": [
+            {
+              "key": "event",
+              "vStr": "some-event"
+            }
+          ]
+        },
+        {
+          "timestamp": 12345,
+          "fields": [
+            {
+              "key": "x",
+              "vStr": "y"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "traceID": "1",
+      "spanID": "2",
+      "operationName": "some-operation",
+      "tags": [
+        {
+          "key": "peer.service",
+          "vType": "string",
+          "vStr": "service-y"
+        },
+        {
+          "key": "peer.ipv4",
+          "vType": "int64",
+          "vNum": 23456
+        },
+        {
+          "key": "peer.port",
+          "vType": "int64",
+          "vNum": 80
+        },
+        {
+          "key": "span.kind",
+          "vType": "string",
+          "vStr": "client"
+        }
+      ],
+      "process": {
+        "serviceName": "service-x"
+      }
+    },
+    {
+      "traceID": "1",
+      "spanID": "3",
+      "parentSpanID": "2",
+      "operationName": "some-operation",
+      "tags": [
+        {
+          "key": "peer.service",
+          "vType": "string",
+          "vStr": "service-x"
+        },
+        {
+          "key": "peer.ipv4",
+          "vType": "int64",
+          "vNum": 23456
+        },
+        {
+          "key": "span.kind",
+          "vType": "string",
+          "vStr": "server"
+        }
+      ],
+      "process": {
+        "serviceName": "service-y"
+      }
+    }
+  ]
+}

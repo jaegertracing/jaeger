@@ -1,0 +1,73 @@
+[
+  {
+    "trace_id": 1,
+    "id": 2,
+    "name": "test-general-conversion",
+    "annotations": [
+      {
+        "value": "some-event",
+        "host": {
+          "service_name": "service-x"
+        }
+      },
+      {
+        "value": ""
+      },
+      {
+        "timestamp": 12345,
+        "value": "{\"x\":\"y\"}"
+      }
+    ],
+    "binary_annotations": [
+        {
+            "key": "ca"
+        }
+    ]
+  },
+  {
+    "trace_id": 1,
+    "id": 2,
+    "name": "some-operation",
+    "annotations": [
+      {
+        "value": "cs",
+        "host": {
+          "service_name": "service-x"
+        }
+      }
+    ],
+    "binary_annotations": [
+        {
+            "key": "sa",
+            "host": {
+                "service_name": "service-y",
+                "ipv4": 23456,
+                "port": 80
+            }
+        }
+    ]
+  },
+  {
+    "trace_id": 1,
+    "id": 3,
+    "parent_id": 2,
+    "name": "some-operation",
+    "annotations": [
+      {
+        "value": "sr",
+        "host": {
+          "service_name": "service-y"
+        }
+      }
+    ],
+    "binary_annotations": [
+        {
+            "key": "ca",
+            "host": {
+                "service_name": "service-x",
+                "ipv4": 23456
+            }
+        }
+    ]
+  }
+]
