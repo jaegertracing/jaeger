@@ -30,7 +30,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	. "code.uber.internal/infra/jaeger/oss/model/json"
+	. "github.com/uber/jaeger/model/json"
 )
 
 func TestModel(t *testing.T) {
