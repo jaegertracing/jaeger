@@ -1,0 +1,115 @@
+{
+  "Spans": [
+    {
+      "traceID": "1",
+      "spanID": "2",
+      "operationName": "test-general-conversion",
+      "startTime": 1000,
+      "duration": 500,
+      "process": {
+        "serviceName": "service-x"
+      },
+      "logs": [
+        {
+          "timestamp": 12345,
+          "fields": [
+            {
+              "key": "event",
+              "vStr": "some-event"
+            }
+          ]
+        },
+        {
+          "timestamp": 12345,
+          "fields": [
+            {
+              "key": "x",
+              "vStr": "y"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "traceID": "1",
+      "spanID": "2",
+      "operationName": "some-operation",
+      "startTime": 1000,
+      "duration": 500,
+      "tags": [
+        {
+          "key": "peer.service",
+          "vType": "string",
+          "vStr": "service-y"
+        },
+        {
+          "key": "peer.ipv4",
+          "vType": "int64",
+          "vNum": 23456
+        },
+        {
+          "key": "error",
+          "vType": "bool",
+          "vNum": 1
+        },
+        {
+          "key": "temperature",
+          "vType": "float64",
+          "vNum": 4634802150889750528
+        },
+        {
+          "key": "blob",
+          "vType": "binary",
+          "vBlob": "AAAwOQ=="
+        }
+      ],
+      "process": {
+        "serviceName": "service-x"
+      }
+    },
+    {
+      "traceID": "1",
+      "spanID": "3",
+      "parentSpanID": "2",
+      "operationName": "some-operation",
+      "startTime": 1000,
+      "duration": 500,
+      "process": {
+        "serviceName": "service-y"
+      }
+    },
+    {
+      "traceID": "1",
+      "spanID": "4",
+      "operationName": "reference-test",
+      "references": [
+          {
+              "refType": "child-of",
+              "traceID": "ff",
+              "spanID": "ff"
+          },
+          {
+              "refType": "child-of",
+              "traceID": "1",
+              "spanID": "2"
+          },
+          {
+              "refType": "follows-from",
+              "traceID": "1",
+              "spanID": "2"
+          }
+      ],
+      "startTime": 1000,
+      "duration": 500,
+      "process": {
+        "serviceName": "service-y"
+      },
+      "warnings": [
+        "some span warning"
+      ]
+    }
+  ],
+  "warnings": [
+    "some trace warning"
+  ]
+}
