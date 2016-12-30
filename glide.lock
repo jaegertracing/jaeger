@@ -1,12 +1,10 @@
-hash: 1471102da80974db06e8f88597d3f418d82f14b866f8ddfa9c5f6f63c39578cc
-updated: 2016-12-30T17:23:57.383631215-05:00
+hash: 12c9f4fae728a86baf23effc169c66f5fbf8520880f91bd553de516ced0c0568
+updated: 2016-12-30T17:37:59.673516549-05:00
 imports:
 - name: github.com/apache/thrift
   version: 53dd39833a08ce33582e5ff31fa18bb4735d6731
   subpackages:
   - lib/go/thrift
-- name: github.com/kr/pretty
-  version: cfb55aafdaf3ec08f0db22699ab822c50091b1c4
 - name: github.com/opentracing/opentracing-go
   version: ac5446f53f2c0fc68dc16dc5f426eae1cd288b34
   subpackages:
@@ -36,6 +34,8 @@ testImports:
   version: 346938d642f2ec3594ed81d874461961cd0faa76
   subpackages:
   - spew
+- name: github.com/kr/pretty
+  version: cfb55aafdaf3ec08f0db22699ab822c50091b1c4
 - name: github.com/kr/text
   version: 7cafcd837844e784b526369c9bce262804aebc60
 - name: github.com/pmezard/go-difflib
@@ -46,5 +46,4 @@ testImports:
   version: 2402e8e7a02fc811447d11f881aa9746cdc57983
   subpackages:
   - assert
-  - mock
   - require
