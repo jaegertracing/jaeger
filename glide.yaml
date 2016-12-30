@@ -13,3 +13,4 @@ import:
   version: v1.1.0
   subpackages:
   - thrift
+- package: github.com/kr/pretty
