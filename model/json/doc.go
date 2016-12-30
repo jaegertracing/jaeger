@@ -18,5 +18,5 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 // THE SOFTWARE.
 
-// Package ui allows converting model.Trace to UI data model.
-package ui
+// Package json defines the external JSON representation for Jaeger traces.
+package json
