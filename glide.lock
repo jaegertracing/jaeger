@@ -1,5 +1,5 @@
 hash: 12c9f4fae728a86baf23effc169c66f5fbf8520880f91bd553de516ced0c0568
-updated: 2016-12-22T15:15:58.577076675-05:00
+updated: 2016-12-30T17:37:59.673516549-05:00
 imports:
 - name: github.com/apache/thrift
   version: 53dd39833a08ce33582e5ff31fa18bb4735d6731
@@ -11,9 +11,9 @@ imports:
   - ext
   - log
 - name: github.com/uber-go/atomic
-  version: 0c9e689d64f004564b79d9a663634756df322902
+  version: 3b8db5e93c4c02efbc313e17b2e796b0914a01fb
 - name: github.com/uber-go/zap
-  version: c4939d1166b2220bb45338e21506623b4bbdec50
+  version: a5783ee4b216a927da8f839c45cfbf9d694e1467
 - name: github.com/uber/jaeger-lib
   version: 7b113fceac673e60e5b10dff7039787bab5c5ed7
 - name: github.com/uber/tchannel-go
@@ -26,12 +26,24 @@ imports:
   - trand
   - typed
 - name: golang.org/x/net
-  version: 3b993948b6f0e651ffb58ba135d8538a68b1cddf
+  version: 8fd7f25955530b92e73e9e1932a41b522b22ccd9
   subpackages:
   - context
 testImports:
+- name: github.com/davecgh/go-spew
+  version: 346938d642f2ec3594ed81d874461961cd0faa76
+  subpackages:
+  - spew
+- name: github.com/kr/pretty
+  version: cfb55aafdaf3ec08f0db22699ab822c50091b1c4
+- name: github.com/kr/text
+  version: 7cafcd837844e784b526369c9bce262804aebc60
+- name: github.com/pmezard/go-difflib
+  version: 792786c7400a136282c1664665ae0a8db921c6c2
+  subpackages:
+  - difflib
 - name: github.com/stretchr/testify
-  version: 089c7181b8c728499929ff09b62d3fdd8df8adff
+  version: 2402e8e7a02fc811447d11f881aa9746cdc57983
   subpackages:
   - assert
   - require

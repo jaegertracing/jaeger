@@ -1,0 +1,28 @@
+[
+  {
+    "trace_id": 1,
+    "id": 2,
+    "name": "test-process-tags",
+    "binary_annotations": [
+      {
+        "key": "lc",
+        "value": "c29tZS1jb21wb25lbnQ=",
+        "annotation_type": "STRING",
+        "host": {
+          "service_name": "service-x",
+          "ipv4": 12345
+        }
+      },
+      {
+        "key": "jaegerClient",
+        "value": "R28tMS4x",
+        "annotation_type": "STRING"
+      },
+      {
+        "key": "jaeger.hostname",
+        "value": "c29tZS1ob3N0LmNvbQ==",
+        "annotation_type": "STRING"
+      }
+    ]
+  }
+]

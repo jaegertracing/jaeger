@@ -1,0 +1,33 @@
+{
+  "Spans": [
+    {
+      "traceID": "1",
+      "spanID": "2",
+      "operationName": "test-process-tags",
+      "process": {
+        "serviceName": "service-x",
+        "tags": [
+          {
+            "key": "hostname",
+            "vStr": "some-host.com"
+          },
+          {
+            "key": "ip",
+            "vNum": 12345,
+            "vType": "int64"
+          },
+          {
+            "key": "jaeger.version",
+            "vStr": "Go-1.1"
+          }
+        ]
+      },
+      "tags": [
+        {
+          "key": "component",
+          "vStr": "some-component"
+        }
+      ]
+    }
+  ]
+}

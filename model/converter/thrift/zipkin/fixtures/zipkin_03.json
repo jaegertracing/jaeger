@@ -1,0 +1,72 @@
+[
+  {
+    "trace_id": 1,
+    "id": 2,
+    "name": "test-custom-tags",
+    "annotations": [
+      {
+        "value": "sr",
+        "host": {
+          "service_name": "service-x"
+        }
+      }
+    ],
+    "binary_annotations": [
+      {
+        "key": "bool",
+        "value": "AQ==",
+        "annotation_type": "BOOL"
+      },
+      {
+        "key": "bytes",
+        "value": "c29tZS1ob3N0LmNvbQ==",
+        "annotation_type": "BYTES"
+      },
+      {
+        "key": "i16",
+        "value": "MDk=",
+        "annotation_type": "I16"
+      },
+      {
+        "key": "i16_bad_value",
+        "value": "AQ==",
+        "annotation_type": "I16"
+      },
+      {
+        "key": "i32",
+        "value": "AAAwOQ==",
+        "annotation_type": "I32"
+      },
+      {
+        "key": "i32_bad_value",
+        "value": "AQ==",
+        "annotation_type": "I32"
+      },
+      {
+        "key": "i64",
+        "value": "AAAAAAAAMDk=",
+        "annotation_type": "I64"
+      },
+      {
+        "key": "i64_bad_value",
+        "value": "AQ==",
+        "annotation_type": "I64"
+      },
+      {
+        "key": "double",
+        "value": "QMgcgAAAAAA=",
+        "annotation_type": "DOUBLE"
+      },
+      {
+        "key": "double_bad_value",
+        "value": "AQ==",
+        "annotation_type": "DOUBLE"
+      },
+      {
+        "key": "string",
+        "value": "c29tZS1ob3N0LmNvbQ==",
+        "annotation_type": "STRING"
+      }
+    ]
+  }
+]
