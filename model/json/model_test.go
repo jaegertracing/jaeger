@@ -18,13 +18,52 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 // THE SOFTWARE.
 
-// Package agent is the jaeger-agent sidecar service.
-//
-// Agent is meant to run on each host that runs the services instrumented with Jaeger.
-// Jaeger client libraries send tracing spans to
-// jaeger-agent. The agent
-// forwards the spans to
-// jaeger-collector services for storing in the DB.
-//
-//
-package agent
+package json_test
+
+import (
+	"bytes"
+	"encoding/json"
+	"io/ioutil"
+	"os"
+	"testing"
+
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
+
+	. "code.uber.internal/infra/jaeger/oss/model/json"
+)
+
+func TestModel(t *testing.T) {
+	in, err := ioutil.ReadFile("fixture.json")
+	require.NoError(t, err)
+
+	trace, err := FromFile("fixture.json")
+	require.NoError(t, err)
+
+	out := &bytes.Buffer{}
+	encoder := json.NewEncoder(out)
+	encoder.SetIndent("", "  ")
+	err = encoder.Encode(&trace)
+	require.NoError(t, err)
+
+	assert.Equal(t, string(in), string(out.Bytes()))
+}
+
+func TestFromFileErrors(t *testing.T) {
+	_, err := FromFile("invalid-file-name")
+	assert.Error(t, err)
+
+	tmpfile, err := ioutil.TempFile("", "invalid.json")
+	require.NoError(t, err)
+
+	defer os.Remove(tmpfile.Name()) // clean up
+
+	content := `{bad json}`
+	_, err = tmpfile.Write([]byte(content))
+	require.NoError(t, err)
+	err = tmpfile.Close()
+	require.NoError(t, err)
+
+	_, err = FromFile(tmpfile.Name())
+	assert.Error(t, err)
+}
