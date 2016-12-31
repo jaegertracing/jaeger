@@ -72,7 +72,3 @@ const (
 	// AnonymizedOperation anonymizes the operation in spans
 	AnonymizedOperation
 )
-
-type anonymizerAdjuster struct {
-	mapping AnonymizerMapping
-}
