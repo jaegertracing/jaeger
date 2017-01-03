@@ -31,6 +31,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/uber/jaeger/model"
+	jModel "github.com/uber/jaeger/model/json"
 
 	. "github.com/uber/jaeger/model/converter/json"
 )
@@ -64,4 +65,39 @@ func TestFromDomain(t *testing.T) {
 	}
 	// this is just to confirm the uint64 representation of float64(72.5) used as a "temperature" tag
 	assert.Equal(t, int64(4634802150889750528), model.Float64("x", 72.5).VNum)
+}
+
+func TestDependenciesFromDomain(t *testing.T) {
+	someParent := "someParent"
+	someChild := "someChild"
+	someCallCount := uint64(123)
+	anotherParent := "anotherParent"
+	anotherChild := "anotherChild"
+	anotherCallCount := uint64(456)
+	expected := []jModel.DependencyLink{
+		{
+			Parent:    someParent,
+			Child:     someChild,
+			CallCount: someCallCount,
+		},
+		{
+			Parent:    anotherParent,
+			Child:     anotherChild,
+			CallCount: anotherCallCount,
+		},
+	}
+	input := []model.DependencyLink{
+		{
+			Parent:    someParent,
+			Child:     someChild,
+			CallCount: someCallCount,
+		},
+		{
+			Parent:    anotherParent,
+			Child:     anotherChild,
+			CallCount: anotherCallCount,
+		},
+	}
+	actual := DependenciesFromDomain(input)
+	assert.EqualValues(t, expected, actual)
 }

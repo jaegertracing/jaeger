@@ -151,3 +151,21 @@ func (fd fromDomain) convertProcess(process *model.Process) json.Process {
 		Tags:        fd.convertKeyValues(process.Tags),
 	}
 }
+
+// DependenciesFromDomain converts []model.DependencyLink into []json.DependencyLink format.
+// It assumes that the domain model is valid, namely that all enums
+// have valid values, so that it does not need to check for errors.
+func DependenciesFromDomain(dependencyLinks []model.DependencyLink) []json.DependencyLink {
+	retMe := make([]json.DependencyLink, 0, len(dependencyLinks))
+	for _, dependencyLink := range dependencyLinks {
+		retMe = append(
+			retMe,
+			json.DependencyLink{
+				Parent:    dependencyLink.Parent,
+				Child:     dependencyLink.Child,
+				CallCount: dependencyLink.CallCount,
+			},
+		)
+	}
+	return retMe
+}
