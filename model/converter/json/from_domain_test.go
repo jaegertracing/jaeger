@@ -67,20 +67,37 @@ func TestFromDomain(t *testing.T) {
 	assert.Equal(t, int64(4634802150889750528), model.Float64("x", 72.5).VNum)
 }
 
-func TestDependencyFromDomain(t *testing.T) {
-	parent := "someParent"
-	child := "someChild"
-	callCount := uint64(123)
-	expected := &jModel.DependencyLink{
-		Parent: parent,
-		Child: child,
-		CallCount: callCount,
+func TestDependenciesFromDomain(t *testing.T) {
+	someParent := "someParent"
+	someChild := "someChild"
+	someCallCount := uint64(123)
+	anotherParent := "anotherParent"
+	anotherChild := "anotherChild"
+	anotherCallCount := uint64(456)
+	expected := []jModel.DependencyLink{
+		{
+			Parent:    someParent,
+			Child:     someChild,
+			CallCount: someCallCount,
+		},
+		{
+			Parent:    anotherParent,
+			Child:     anotherChild,
+			CallCount: anotherCallCount,
+		},
 	}
-	input := model.DependencyLink{
-		Parent: parent,
-		Child: child,
-		CallCount: callCount,
+	input := []model.DependencyLink{
+		{
+			Parent:    someParent,
+			Child:     someChild,
+			CallCount: someCallCount,
+		},
+		{
+			Parent:    anotherParent,
+			Child:     anotherChild,
+			CallCount: anotherCallCount,
+		},
 	}
-	actual := DependencyFromDomain(&input)
+	actual := DependenciesFromDomain(input)
 	assert.EqualValues(t, expected, actual)
 }
