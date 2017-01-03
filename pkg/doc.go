@@ -1,3 +1,5 @@
+// The MIT License (MIT)
+//
 // Copyright (c) 2017 Uber Technologies, Inc.
 //
 // Permission is hereby granted, free of charge, to any person obtaining a copy
@@ -18,9 +20,9 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 // THE SOFTWARE.
 
-// This file only exists to generate doc.go from README.md
-
-//go:generate md-to-godoc
-//go:generate python ../../scripts/updateLicense.py doc.go
-
-package agent
+// Package pkg is the Collection of utility packages used by the Jaeger components without being specific to its internals.
+//
+// Utility packages are kept separate from the Jaeger core codebase to keep it as small and concise as possible. If some utilities grow larger and their APIs stabilize, they may be moved to their own repository, to facilitate re-use by other projects. However that is not the priority.
+//
+//
+package pkg

@@ -1,3 +1,5 @@
+// The MIT License (MIT)
+//
 // Copyright (c) 2017 Uber Technologies, Inc.
 //
 // Permission is hereby granted, free of charge, to any person obtaining a copy
@@ -20,11 +22,7 @@
 
 // Package agent is the jaeger-agent sidecar service.
 //
-// Agent is meant to run on each host that runs the services instrumented with Jaeger.
-// Jaeger client libraries send tracing spans to
-// jaeger-agent. The agent
-// forwards the spans to
-// jaeger-collector services for storing in the DB.
+// Agent is meant to run on each host that runs the services instrumented with Jaeger. Jaeger client libraries send tracing spans to jaeger-agent. The agent forwards the spans to jaeger-collector services for storing in the DB.
 //
 //
 package agent
