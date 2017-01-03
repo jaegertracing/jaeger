@@ -111,7 +111,7 @@ type KeyValue struct {
 type DependencyLink struct {
 	Parent    string `json:"parent"`
 	Child     string `json:"child"`
-	CallCount int64  `json:"callCount"`
+	CallCount uint64 `json:"callCount"`
 }
 
 // FromFile reads a Trace from a JSON file.
