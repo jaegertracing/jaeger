@@ -37,6 +37,12 @@ test-and-lint: test fmt lint
 go-gen:
 	go generate $(PACKAGES)
 
+.PHONY: md-to-godoc-gen
+md-to-godoc-gen:
+	find . -name README.md -not -path "./vendor/*" -not -path "./_site/*" -not -path "./idl/*" \
+		| grep -v '^./README.md' \
+		| xargs -I% md-to-godoc -license -licenseFile LICENSE -input=%
+
 .PHONY: clean
 clean:
 	rm -rf cover.out cover.html lint.log fmt.log

@@ -28,4 +28,5 @@ See [CONTRIBUTING](./CONTRIBUTING.md).
 [ci]: https://travis-ci.org/uber/jaeger
 [cov-img]: https://coveralls.io/repos/uber/jaeger/badge.svg?branch=master
 [cov]: https://coveralls.io/github/uber/jaeger?branch=master
+[//]: # (md-to-godoc-ignore)
 
