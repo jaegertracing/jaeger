@@ -156,12 +156,6 @@ func (fd fromDomain) convertProcess(process *model.Process) json.Process {
 // It assumes that the domain model is valid, namely that all enums
 // have valid values, so that it does not need to check for errors.
 func DependenciesFromDomain(dependencyLinks []model.DependencyLink) []json.DependencyLink {
-	return dependencyFromDomain{}.fromDomain(dependencyLinks)
-}
-
-type dependencyFromDomain struct{}
-
-func (fd dependencyFromDomain) fromDomain(dependencyLinks []model.DependencyLink) []json.DependencyLink {
 	retMe := make([]json.DependencyLink, 0, len(dependencyLinks))
 	for _, dependencyLink := range dependencyLinks {
 		retMe = append(
