@@ -151,3 +151,20 @@ func (fd fromDomain) convertProcess(process *model.Process) json.Process {
 		Tags:        fd.convertKeyValues(process.Tags),
 	}
 }
+
+// FromDomain converts model.Trace into json.Trace format.
+// It assumes that the domain model is valid, namely that all enums
+// have valid values, so that it does not need to check for errors.
+func DependencyFromDomain(dependencyLink *model.DependencyLink) *json.DependencyLink {
+	return dependencyFromDomain{}.fromDomain(dependencyLink)
+}
+
+type dependencyFromDomain struct{}
+
+func (fd dependencyFromDomain) fromDomain(dependencyLink *model.DependencyLink) *json.DependencyLink {
+	return &json.DependencyLink{
+		Parent: dependencyLink.Parent,
+		Child: dependencyLink.Child,
+		CallCount: dependencyLink.CallCount,
+	}
+}
