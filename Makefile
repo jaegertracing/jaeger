@@ -99,14 +99,12 @@ thrift: idl-submodule thrift-image
 	$(THRIFT) -o /data --gen go:$(THRIFT_GO_ARGS) --out /data/$(THRIFT_GEN_DIR) /data/idl/thrift/zipkincore.thrift
 	@echo Generate TChannel-Thrift bindings
 	# tchan doesn't support oneway, so to get collector signature, we need to modify the jaeger.thrift file
-	cp idl/thrift/jaeger.thrift jaeger.thrift
-	sed -i.bak 's/oneway//g' jaeger.thrift
-	$(THRIFT_GEN) --inputFile jaeger.thrift --outputDir $(THRIFT_GEN_DIR)
+	[ -d .tmp ] || mkdir .tmp
+	sed 's/oneway//g' idl/thrift/jaeger.thrift > .tmp/jaeger.thrift
+	$(THRIFT_GEN) --inputFile .tmp/jaeger.thrift --outputDir $(THRIFT_GEN_DIR)
 	$(THRIFT_GEN) --inputFile idl/thrift/sampling.thrift --outputDir $(THRIFT_GEN_DIR)
 	$(THRIFT_GEN) --inputFile idl/thrift/zipkincore.thrift --outputDir $(THRIFT_GEN_DIR)
 	@echo cleaning up unnecessary files
-	rm jaeger.thrift.bak
-	rm jaeger.thrift
 	rm -rf thrift-gen/*/*-remote
 
 idl-submodule:
