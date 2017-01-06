@@ -7,6 +7,7 @@ import (
 	"bytes"
 	"fmt"
 	"github.com/apache/thrift/lib/go/thrift"
+	"github.com/uber/jaeger/thrift-gen/jaeger"
 	"github.com/uber/jaeger/thrift-gen/zipkincore"
 )
 
@@ -15,12 +16,16 @@ var _ = thrift.ZERO
 var _ = fmt.Printf
 var _ = bytes.Equal
 
+var _ = jaeger.GoUnusedProtection__
 var _ = zipkincore.GoUnusedProtection__
 
 type Agent interface {
 	// Parameters:
 	//  - Spans
 	EmitZipkinBatch(spans []*zipkincore.Span) (err error)
+	// Parameters:
+	//  - Batch
+	EmitBatch(batch *jaeger.Batch) (err error)
 }
 
 type AgentClient struct {
@@ -80,6 +85,37 @@ func (p *AgentClient) sendEmitZipkinBatch(spans []*zipkincore.Span) (err error) 
 	return oprot.Flush()
 }
 
+// Parameters:
+//  - Batch
+func (p *AgentClient) EmitBatch(batch *jaeger.Batch) (err error) {
+	if err = p.sendEmitBatch(batch); err != nil {
+		return
+	}
+	return
+}
+
+func (p *AgentClient) sendEmitBatch(batch *jaeger.Batch) (err error) {
+	oprot := p.OutputProtocol
+	if oprot == nil {
+		oprot = p.ProtocolFactory.GetProtocol(p.Transport)
+		p.OutputProtocol = oprot
+	}
+	p.SeqId++
+	if err = oprot.WriteMessageBegin("emitBatch", thrift.ONEWAY, p.SeqId); err != nil {
+		return
+	}
+	args := AgentEmitBatchArgs{
+		Batch: batch,
+	}
+	if err = args.Write(oprot); err != nil {
+		return
+	}
+	if err = oprot.WriteMessageEnd(); err != nil {
+		return
+	}
+	return oprot.Flush()
+}
+
 type AgentProcessor struct {
 	processorMap map[string]thrift.TProcessorFunction
 	handler      Agent
@@ -102,6 +138,7 @@ func NewAgentProcessor(handler Agent) *AgentProcessor {
 
 	self0 := &AgentProcessor{handler: handler, processorMap: make(map[string]thrift.TProcessorFunction)}
 	self0.processorMap["emitZipkinBatch"] = &agentProcessorEmitZipkinBatch{handler: handler}
+	self0.processorMap["emitBatch"] = &agentProcessorEmitBatch{handler: handler}
 	return self0
 }
 
@@ -138,6 +175,25 @@ func (p *agentProcessorEmitZipkinBatch) Process(seqId int32, iprot, oprot thrift
 	iprot.ReadMessageEnd()
 	var err2 error
 	if err2 = p.handler.EmitZipkinBatch(args.Spans); err2 != nil {
+		return true, err2
+	}
+	return true, nil
+}
+
+type agentProcessorEmitBatch struct {
+	handler Agent
+}
+
+func (p *agentProcessorEmitBatch) Process(seqId int32, iprot, oprot thrift.TProtocol) (success bool, err thrift.TException) {
+	args := AgentEmitBatchArgs{}
+	if err = args.Read(iprot); err != nil {
+		iprot.ReadMessageEnd()
+		return false, err
+	}
+
+	iprot.ReadMessageEnd()
+	var err2 error
+	if err2 = p.handler.EmitBatch(args.Batch); err2 != nil {
 		return true, err2
 	}
 	return true, nil
@@ -253,4 +309,103 @@ func (p *AgentEmitZipkinBatchArgs) String() string {
 		return "<nil>"
 	}
 	return fmt.Sprintf("AgentEmitZipkinBatchArgs(%+v)", *p)
+}
+
+// Attributes:
+//  - Batch
+type AgentEmitBatchArgs struct {
+	Batch *jaeger.Batch `thrift:"batch,1" json:"batch"`
+}
+
+func NewAgentEmitBatchArgs() *AgentEmitBatchArgs {
+	return &AgentEmitBatchArgs{}
+}
+
+var AgentEmitBatchArgs_Batch_DEFAULT *jaeger.Batch
+
+func (p *AgentEmitBatchArgs) GetBatch() *jaeger.Batch {
+	if !p.IsSetBatch() {
+		return AgentEmitBatchArgs_Batch_DEFAULT
+	}
+	return p.Batch
+}
+func (p *AgentEmitBatchArgs) IsSetBatch() bool {
+	return p.Batch != nil
+}
+
+func (p *AgentEmitBatchArgs) Read(iprot thrift.TProtocol) error {
+	if _, err := iprot.ReadStructBegin(); err != nil {
+		return thrift.PrependError(fmt.Sprintf("%T read error: ", p), err)
+	}
+
+	for {
+		_, fieldTypeId, fieldId, err := iprot.ReadFieldBegin()
+		if err != nil {
+			return thrift.PrependError(fmt.Sprintf("%T field %d read error: ", p, fieldId), err)
+		}
+		if fieldTypeId == thrift.STOP {
+			break
+		}
+		switch fieldId {
+		case 1:
+			if err := p.readField1(iprot); err != nil {
+				return err
+			}
+		default:
+			if err := iprot.Skip(fieldTypeId); err != nil {
+				return err
+			}
+		}
+		if err := iprot.ReadFieldEnd(); err != nil {
+			return err
+		}
+	}
+	if err := iprot.ReadStructEnd(); err != nil {
+		return thrift.PrependError(fmt.Sprintf("%T read struct end error: ", p), err)
+	}
+	return nil
+}
+
+func (p *AgentEmitBatchArgs) readField1(iprot thrift.TProtocol) error {
+	p.Batch = &jaeger.Batch{}
+	if err := p.Batch.Read(iprot); err != nil {
+		return thrift.PrependError(fmt.Sprintf("%T error reading struct: ", p.Batch), err)
+	}
+	return nil
+}
+
+func (p *AgentEmitBatchArgs) Write(oprot thrift.TProtocol) error {
+	if err := oprot.WriteStructBegin("emitBatch_args"); err != nil {
+		return thrift.PrependError(fmt.Sprintf("%T write struct begin error: ", p), err)
+	}
+	if err := p.writeField1(oprot); err != nil {
+		return err
+	}
+	if err := oprot.WriteFieldStop(); err != nil {
+		return thrift.PrependError("write field stop error: ", err)
+	}
+	if err := oprot.WriteStructEnd(); err != nil {
+		return thrift.PrependError("write struct stop error: ", err)
+	}
+	return nil
+}
+
+func (p *AgentEmitBatchArgs) writeField1(oprot thrift.TProtocol) (err error) {
+	if err := oprot.WriteFieldBegin("batch", thrift.STRUCT, 1); err != nil {
+		return thrift.PrependError(fmt.Sprintf("%T write field begin error 1:batch: ", p), err)
+	}
+	if err := p.Batch.Write(oprot); err != nil {
+		return thrift.PrependError(fmt.Sprintf("%T error writing struct: ", p.Batch), err)
+	}
+	if err := oprot.WriteFieldEnd(); err != nil {
+		return thrift.PrependError(fmt.Sprintf("%T write field end error 1:batch: ", p), err)
+	}
+	return err
+}
+
+func (p *AgentEmitBatchArgs) String() string {
+	if p == nil {
+		return "<nil>"
+	}
+	return fmt.Sprintf("AgentEmitBatchArgs(%+v)", *p)
 }
