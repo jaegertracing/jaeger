@@ -104,7 +104,6 @@ thrift: idl-submodule thrift-image
 	$(THRIFT_GEN) --inputFile .tmp/jaeger.thrift --outputDir $(THRIFT_GEN_DIR)
 	$(THRIFT_GEN) --inputFile idl/thrift/sampling.thrift --outputDir $(THRIFT_GEN_DIR)
 	$(THRIFT_GEN) --inputFile idl/thrift/zipkincore.thrift --outputDir $(THRIFT_GEN_DIR)
-	@echo cleaning up unnecessary files
 	rm -rf thrift-gen/*/*-remote
 
 idl-submodule:
