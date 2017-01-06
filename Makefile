@@ -90,7 +90,7 @@ test_ci:
 	make lint
 
 # TODO at the moment we're not generating tchan_*.go files
-thrift: idl-submodule thrift-image
+thrift: idl/thrift/jaeger.thrift thrift-image
 	[ -d $(THRIFT_GEN_DIR) ] || mkdir $(THRIFT_GEN_DIR)
 	$(THRIFT) -o /data --gen go:$(THRIFT_GO_ARGS) --out /data/$(THRIFT_GEN_DIR) /data/idl/thrift/agent.thrift
 	sed -i '' 's|"zipkincore"|"$(PROJECT_ROOT)/thrift-gen/zipkincore"|g' $(THRIFT_GEN_DIR)/agent/*.go
@@ -103,6 +103,9 @@ thrift: idl-submodule thrift-image
 	$(THRIFT_GEN) --inputFile idl/thrift/sampling.thrift --outputDir $(THRIFT_GEN_DIR)
 	$(THRIFT_GEN) --inputFile idl/thrift/zipkincore.thrift --outputDir $(THRIFT_GEN_DIR)
 	rm -rf thrift-gen/*/*-remote
+
+idl/thrift/jaeger.thrift:
+	$(MAKE) idl-submodule
 
 idl-submodule:
 	git submodule init
