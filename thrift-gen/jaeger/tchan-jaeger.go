@@ -12,97 +12,12 @@ import (
 
 // Interfaces for the service and client for the services defined in the IDL.
 
-// TChanAgent is the interface that defines the server handler and client interface.
-type TChanAgent interface {
-	EmitBatch(ctx thrift.Context, batch *Batch) error
-}
-
 // TChanCollector is the interface that defines the server handler and client interface.
 type TChanCollector interface {
 	SubmitBatches(ctx thrift.Context, batches []*Batch) ([]*BatchSubmitResponse, error)
 }
 
 // Implementation of a client and service handler.
-
-type tchanAgentClient struct {
-	thriftService string
-	client        thrift.TChanClient
-}
-
-func NewTChanAgentInheritedClient(thriftService string, client thrift.TChanClient) *tchanAgentClient {
-	return &tchanAgentClient{
-		thriftService,
-		client,
-	}
-}
-
-// NewTChanAgentClient creates a client that can be used to make remote calls.
-func NewTChanAgentClient(client thrift.TChanClient) TChanAgent {
-	return NewTChanAgentInheritedClient("Agent", client)
-}
-
-func (c *tchanAgentClient) EmitBatch(ctx thrift.Context, batch *Batch) error {
-	var resp AgentEmitBatchResult
-	args := AgentEmitBatchArgs{
-		Batch: batch,
-	}
-	success, err := c.client.Call(ctx, c.thriftService, "emitBatch", &args, &resp)
-	if err == nil && !success {
-	}
-
-	return err
-}
-
-type tchanAgentServer struct {
-	handler TChanAgent
-}
-
-// NewTChanAgentServer wraps a handler for TChanAgent so it can be
-// registered with a thrift.Server.
-func NewTChanAgentServer(handler TChanAgent) thrift.TChanServer {
-	return &tchanAgentServer{
-		handler,
-	}
-}
-
-func (s *tchanAgentServer) Service() string {
-	return "Agent"
-}
-
-func (s *tchanAgentServer) Methods() []string {
-	return []string{
-		"emitBatch",
-	}
-}
-
-func (s *tchanAgentServer) Handle(ctx thrift.Context, methodName string, protocol athrift.TProtocol) (bool, athrift.TStruct, error) {
-	switch methodName {
-	case "emitBatch":
-		return s.handleEmitBatch(ctx, protocol)
-
-	default:
-		return false, nil, fmt.Errorf("method %v not found in service %v", methodName, s.Service())
-	}
-}
-
-func (s *tchanAgentServer) handleEmitBatch(ctx thrift.Context, protocol athrift.TProtocol) (bool, athrift.TStruct, error) {
-	var req AgentEmitBatchArgs
-	var res AgentEmitBatchResult
-
-	if err := req.Read(protocol); err != nil {
-		return false, nil, err
-	}
-
-	err :=
-		s.handler.EmitBatch(ctx, req.Batch)
-
-	if err != nil {
-		return false, nil, err
-	} else {
-	}
-
-	return err == nil, &res, nil
-}
 
 type tchanCollectorClient struct {
 	thriftService string
