@@ -1,4 +1,4 @@
 package model
 
-// ProcessSpan simply processes a domain span
+// ProcessSpan processes a domain model Span
 type ProcessSpan func(span *Span)
