@@ -34,8 +34,12 @@ import (
 	"github.com/uber/jaeger/thrift-gen/zipkincore"
 )
 
-// UnknownServiceName is serviceName we give to model.Proces if we cannot find it anywhere in a Zipkin span
-const UnknownServiceName = "unknown-service-name"
+const (
+	// UnknownServiceName is serviceName we give to model.Proces if we cannot find it anywhere in a Zipkin span
+	UnknownServiceName = "unknown-service-name"
+
+	flagDebug = 2
+)
 
 var (
 	coreAnnotations = map[string]string{
@@ -124,12 +128,20 @@ func (td toDomain) transformSpan(zSpan *zipkincore.Span) *model.Span {
 		SpanID:        model.SpanID(zSpan.ID),
 		OperationName: zSpan.Name,
 		ParentSpanID:  model.SpanID(parentID),
-		Flags:         0,
+		Flags:         td.getFlags(zSpan),
 		StartTime:     uint64(zSpan.GetTimestamp()),
 		Duration:      uint64(zSpan.GetDuration()),
 		Tags:          tags,
 		Logs:          td.getLogs(zSpan.Annotations),
 	}
+}
+
+// getFlags takes a Zipkin Span and deduces the proper flags settings
+func (td toDomain) getFlags(zSpan *zipkincore.Span) uint32 {
+	if zSpan.Debug {
+		return flagDebug
+	}
+	return 0
 }
 
 // generateProcess takes a Zipkin Span and produces a model.Process.

@@ -2,6 +2,7 @@
   {
     "trace_id": 1,
     "id": 2,
+    "debug": true,
     "name": "test-custom-tags",
     "annotations": [
       {
