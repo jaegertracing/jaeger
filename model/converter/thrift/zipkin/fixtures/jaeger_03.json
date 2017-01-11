@@ -3,7 +3,7 @@
     {
       "traceID": "1",
       "spanID": "2",
-      "flags": 1,
+      "flags": 2,
       "operationName": "test-custom-tags",
       "process": {
         "serviceName": "service-x"
