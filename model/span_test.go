@@ -162,6 +162,11 @@ func TestIsDebug(t *testing.T) {
 	assert.True(t, flags.IsDebug())
 	flags = model.Flags(0)
 	assert.False(t, flags.IsDebug())
+
+	flags = model.Flags(32)
+	assert.False(t, flags.IsDebug())
+	flags.SetDebug()
+	assert.True(t, flags.IsDebug())
 }
 
 func TestIsSampled(t *testing.T) {

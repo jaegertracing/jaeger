@@ -97,12 +97,16 @@ func (s *Span) IsRPCServer() bool {
 
 // SetSampled sets the Flags as sampled
 func (f *Flags) SetSampled() {
-	*f = *f | sampledFlag
+	f.setFlags(sampledFlag)
 }
 
 // SetDebug set the Flags as sampled
 func (f *Flags) SetDebug() {
-	*f = *f | debugFlag
+	f.setFlags(debugFlag)
+}
+
+func (f *Flags) setFlags(bit Flags) {
+	*f = *f | bit
 }
 
 // IsSampled returns true if the Flags denote sampling
