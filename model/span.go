@@ -30,6 +30,9 @@ import (
 	"github.com/opentracing/opentracing-go/ext"
 )
 
+// FlagDebug is the value Flags will be set to in order define a span as a debug span
+const FlagDebug = 2
+
 // TraceID is a random 128bit identifier for a trace
 type TraceID struct {
 	Low  uint64 `json:"lo"`

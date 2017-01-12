@@ -37,8 +37,6 @@ import (
 const (
 	// UnknownServiceName is serviceName we give to model.Proces if we cannot find it anywhere in a Zipkin span
 	UnknownServiceName = "unknown-service-name"
-
-	flagDebug = 2
 )
 
 var (
@@ -139,7 +137,7 @@ func (td toDomain) transformSpan(zSpan *zipkincore.Span) *model.Span {
 // getFlags takes a Zipkin Span and deduces the proper flags settings
 func (td toDomain) getFlags(zSpan *zipkincore.Span) uint32 {
 	if zSpan.Debug {
-		return flagDebug
+		return model.FlagDebug
 	}
 	return 0
 }
