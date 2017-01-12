@@ -137,7 +137,7 @@ func (td toDomain) transformSpan(zSpan *zipkincore.Span) *model.Span {
 // getFlags takes a Zipkin Span and deduces the proper flags settings
 func (td toDomain) getFlags(zSpan *zipkincore.Span) uint32 {
 	if zSpan.Debug {
-		return model.FlagDebug
+		return model.DebugFlag
 	}
 	return 0
 }

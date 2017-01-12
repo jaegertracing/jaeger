@@ -30,8 +30,12 @@ import (
 	"github.com/opentracing/opentracing-go/ext"
 )
 
-// FlagDebug is one of the bits set in Flags in order define a span as a debug span
-const FlagDebug = 2
+const (
+	// SampledFlag is the bit set in Flags in order to define a span as a sampled span
+	SampledFlag = 1
+	// DebugFlag is the bit set in Flags in order to define a span as a debug span
+	DebugFlag = 2
+)
 
 // TraceID is a random 128bit identifier for a trace
 type TraceID struct {
@@ -86,10 +90,19 @@ func (s *Span) IsRPCServer() bool {
 	return s.HasSpanKind(ext.SpanKindRPCServerEnum)
 }
 
+// IsSampled returns true if the span is considered a sampled span
+func (s *Span) IsSampled() bool {
+	return s.checkFlags(SampledFlag)
+}
+
 // IsDebug returns true if the span is considered a debug span
 // Debug spans can be useful in testing tracing availability or correctness
 func (s *Span) IsDebug() bool {
-	return s.Flags == FlagDebug
+	return s.checkFlags(DebugFlag)
+}
+
+func (s *Span) checkFlags(bit uint32) bool {
+	return s.Flags&bit == bit
 }
 
 // ------- TraceID -------

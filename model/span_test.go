@@ -158,9 +158,18 @@ func TestIsRPCClientServer(t *testing.T) {
 
 func TestIsDebug(t *testing.T) {
 	span1 := &model.Span{
-		Flags: model.FlagDebug,
+		Flags: model.DebugFlag,
 	}
 	assert.True(t, span1.IsDebug())
+	span2 := &model.Span{}
+	assert.False(t, span2.IsDebug())
+}
+
+func TestIsSampled(t *testing.T) {
+	span1 := &model.Span{
+		Flags: model.SampledFlag,
+	}
+	assert.True(t, span1.IsSampled())
 	span2 := &model.Span{}
 	assert.False(t, span2.IsDebug())
 }
