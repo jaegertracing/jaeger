@@ -158,10 +158,10 @@ func TestIsRPCClientServer(t *testing.T) {
 
 func TestIsDebug(t *testing.T) {
 	span1 := &model.Span{
-		Flags: model.DebugFlag,
+		Flags: model.DebugFlag | model.SampledFlag,
 	}
 	assert.True(t, span1.IsDebug())
-	span2 := &model.Span{}
+	span2 := &model.Span{Flags: model.SampledFlag}
 	assert.False(t, span2.IsDebug())
 }
 
