@@ -157,21 +157,20 @@ func TestIsRPCClientServer(t *testing.T) {
 }
 
 func TestIsDebug(t *testing.T) {
-	span1 := &model.Span{
-		Flags: model.DebugFlag | model.SampledFlag,
-	}
-	assert.True(t, span1.IsDebug())
-	span2 := &model.Span{Flags: model.SampledFlag}
-	assert.False(t, span2.IsDebug())
+	flags := model.Flags(0)
+	flags.SetDebug()
+	assert.True(t, flags.IsDebug())
+	flags = model.Flags(0)
+	assert.False(t, flags.IsDebug())
 }
 
 func TestIsSampled(t *testing.T) {
-	span1 := &model.Span{
-		Flags: model.SampledFlag,
-	}
-	assert.True(t, span1.IsSampled())
-	span2 := &model.Span{}
-	assert.False(t, span2.IsDebug())
+	flags := model.Flags(0)
+	flags.SetSampled()
+	assert.True(t, flags.IsSampled())
+	flags = model.Flags(0)
+	flags.SetDebug()
+	assert.False(t, flags.IsSampled())
 }
 
 func TestSpanHash(t *testing.T) {

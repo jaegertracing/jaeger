@@ -135,11 +135,12 @@ func (td toDomain) transformSpan(zSpan *zipkincore.Span) *model.Span {
 }
 
 // getFlags takes a Zipkin Span and deduces the proper flags settings
-func (td toDomain) getFlags(zSpan *zipkincore.Span) uint32 {
+func (td toDomain) getFlags(zSpan *zipkincore.Span) model.Flags {
+	f := model.Flags(0)
 	if zSpan.Debug {
-		return model.DebugFlag
+		f.SetDebug()
 	}
-	return 0
+	return f
 }
 
 // generateProcess takes a Zipkin Span and produces a model.Process.
