@@ -59,7 +59,7 @@ func (fd fromDomain) convertSpan(span *model.Span, processID json.ProcessID) jso
 	return json.Span{
 		TraceID:       json.TraceID(span.TraceID.String()),
 		SpanID:        json.SpanID(span.SpanID.String()),
-		Flags:         span.Flags,
+		Flags:         uint32(span.Flags),
 		OperationName: span.OperationName,
 		References:    fd.convertReferences(span),
 		StartTime:     span.StartTime,

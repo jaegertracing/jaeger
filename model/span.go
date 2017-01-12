@@ -30,11 +30,21 @@ import (
 	"github.com/opentracing/opentracing-go/ext"
 )
 
+const (
+	// sampledFlag is the bit set in Flags in order to define a span as a sampled span
+	sampledFlag = Flags(1)
+	// debugFlag is the bit set in Flags in order to define a span as a debug span
+	debugFlag = Flags(2)
+)
+
 // TraceID is a random 128bit identifier for a trace
 type TraceID struct {
 	Low  uint64 `json:"lo"`
 	High uint64 `json:"hi"`
 }
+
+// Flags is a bit map of flags for a span
+type Flags uint32
 
 // SpanID is a random 64bit identifier for a span
 type SpanID uint64
@@ -46,7 +56,7 @@ type Span struct {
 	ParentSpanID  SpanID    `json:"parentSpanID"`
 	OperationName string    `json:"operationName"`
 	References    []SpanRef `json:"references,omitempty"`
-	Flags         uint32    `json:"flags"`
+	Flags         Flags     `json:"flags,omitempty"`
 	StartTime     uint64    `json:"startTime"`
 	Duration      uint64    `json:"duration"`
 	Tags          KeyValues `json:"tags,omitempty"`
@@ -81,6 +91,37 @@ func (s *Span) IsRPCClient() bool {
 // as indicated by the `span.kind` tag set to `server`.
 func (s *Span) IsRPCServer() bool {
 	return s.HasSpanKind(ext.SpanKindRPCServerEnum)
+}
+
+// ------- Flags -------
+
+// SetSampled sets the Flags as sampled
+func (f *Flags) SetSampled() {
+	f.setFlags(sampledFlag)
+}
+
+// SetDebug set the Flags as sampled
+func (f *Flags) SetDebug() {
+	f.setFlags(debugFlag)
+}
+
+func (f *Flags) setFlags(bit Flags) {
+	*f = *f | bit
+}
+
+// IsSampled returns true if the Flags denote sampling
+func (f Flags) IsSampled() bool {
+	return f.checkFlags(sampledFlag)
+}
+
+// IsDebug returns true if the Flags denote debugging
+// Debugging can be useful in testing tracing availability or correctness
+func (f Flags) IsDebug() bool {
+	return f.checkFlags(debugFlag)
+}
+
+func (f Flags) checkFlags(bit Flags) bool {
+	return f&bit == bit
 }
 
 // ------- TraceID -------
