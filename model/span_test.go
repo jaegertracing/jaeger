@@ -156,6 +156,15 @@ func TestIsRPCClientServer(t *testing.T) {
 	assert.False(t, span2.IsRPCServer())
 }
 
+func TestIsDebug(t *testing.T) {
+	span1 := &model.Span{
+		Flags: model.FlagDebug,
+	}
+	assert.True(t, span1.IsDebug())
+	span2 := &model.Span{}
+	assert.False(t, span2.IsDebug())
+}
+
 func TestSpanHash(t *testing.T) {
 	kvs := model.KeyValues{
 		model.String("x", "y"),

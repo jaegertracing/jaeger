@@ -30,7 +30,7 @@ import (
 	"github.com/opentracing/opentracing-go/ext"
 )
 
-// FlagDebug is the value Flags will be set to in order define a span as a debug span
+// FlagDebug is one of the bits set in Flags in order define a span as a debug span
 const FlagDebug = 2
 
 // TraceID is a random 128bit identifier for a trace
@@ -84,6 +84,12 @@ func (s *Span) IsRPCClient() bool {
 // as indicated by the `span.kind` tag set to `server`.
 func (s *Span) IsRPCServer() bool {
 	return s.HasSpanKind(ext.SpanKindRPCServerEnum)
+}
+
+// IsDebug returns true if the span is considered a debug span
+// Debug spans can be useful in testing tracing availability or correctness
+func (s *Span) IsDebug() bool {
+	return s.Flags == FlagDebug
 }
 
 // ------- TraceID -------
