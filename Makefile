@@ -72,8 +72,8 @@ install:
 	glide install
 
 install_examples:
-	cd examples/hotrod/
-	glide install
+	glide --version || go get github.com/Masterminds/glide
+	(cd examples/hotrod/; glide install)
 
 build_examples:
 	go build -o ./examples/hotrod/hotrod-demo ./examples/hotrod/main.go
