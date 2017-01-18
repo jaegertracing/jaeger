@@ -39,8 +39,8 @@ var (
 // RootCmd represents the base command when called without any subcommands
 var RootCmd = &cobra.Command{
 	Use:   "jaeger-demo",
-	Short: "A tracing demo application",
-	Long:  `A tracing demo application.`,
+	Short: "HotR.O.D. - A tracing demo application",
+	Long:  `HotR.O.D. - A tracing demo application.`,
 }
 
 // Execute adds all child commands to the root command sets flags appropriately.
@@ -54,18 +54,7 @@ func Execute() {
 
 func init() {
 	cobra.OnInitialize(initConfig)
-
 	logger = zap.New(zap.NewTextEncoder())
-
-	// Here you will define your flags and configuration settings.
-	// Cobra supports Persistent Flags, which, if defined here,
-	// will be global for your application.
-
-	// RootCmd.PersistentFlags().StringVar(&cfgFile, "config", "", "config file (default is $HOME/.jaeger-demo.yaml)")
-
-	// Cobra also supports local flags, which will only run
-	// when this action is called directly.
-	RootCmd.Flags().BoolP("toggle", "t", false, "Help message for toggle")
 }
 
 // initConfig reads in config file and ENV variables if set.
