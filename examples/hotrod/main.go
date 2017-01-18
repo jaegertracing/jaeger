@@ -5,7 +5,7 @@ package main
 import (
 	"runtime"
 
-	"code.uber.internal/infra/jaeger-demo/cmd"
+	"github.com/uber/jaeger/examples/hotrod/cmd"
 )
 
 func main() {

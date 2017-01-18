@@ -9,8 +9,8 @@ import (
 	"github.com/opentracing/opentracing-go"
 	"github.com/uber-go/zap"
 
-	"code.uber.internal/infra/jaeger-demo/pkg/log"
-	"code.uber.internal/infra/jaeger-demo/pkg/tracing"
+	"github.com/uber/jaeger/examples/hotrod/pkg/log"
+	"github.com/uber/jaeger/examples/hotrod/pkg/tracing"
 )
 
 // Client is a remote client that implements customer.Interface

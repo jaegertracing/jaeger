@@ -7,9 +7,9 @@ import (
 	"github.com/opentracing/opentracing-go"
 	"github.com/uber-go/zap"
 
-	"code.uber.internal/infra/jaeger-demo/pkg/httperr"
-	"code.uber.internal/infra/jaeger-demo/pkg/log"
-	"code.uber.internal/infra/jaeger-demo/pkg/tracing"
+	"github.com/uber/jaeger/examples/hotrod/pkg/httperr"
+	"github.com/uber/jaeger/examples/hotrod/pkg/log"
+	"github.com/uber/jaeger/examples/hotrod/pkg/tracing"
 )
 
 // Server implements jaeger-demo-frontend service

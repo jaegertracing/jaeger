@@ -9,7 +9,7 @@ import (
 	jaeger "github.com/uber/jaeger-client-go"
 	"github.com/uber/jaeger-client-go/config"
 
-	"code.uber.internal/infra/jaeger-demo/pkg/log"
+	"github.com/uber/jaeger/examples/hotrod/pkg/log"
 )
 
 // Init creates a new instance of Jaeger tracer.

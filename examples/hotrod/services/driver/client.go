@@ -9,8 +9,8 @@ import (
 	"github.com/uber/tchannel-go"
 	"github.com/uber/tchannel-go/thrift"
 
-	"code.uber.internal/infra/jaeger-demo/pkg/log"
-	"code.uber.internal/infra/jaeger-demo/services/driver/thrift-gen/driver"
+	"github.com/uber/jaeger/examples/hotrod/pkg/log"
+	"github.com/uber/jaeger/examples/hotrod/services/driver/thrift-gen/driver"
 )
 
 // Client is a remote client that implements driver.Interface

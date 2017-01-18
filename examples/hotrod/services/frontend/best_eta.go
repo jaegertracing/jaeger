@@ -10,11 +10,11 @@ import (
 	"github.com/opentracing/opentracing-go"
 	"github.com/uber-go/zap"
 
-	"code.uber.internal/infra/jaeger-demo/pkg/log"
-	"code.uber.internal/infra/jaeger-demo/pkg/pool"
-	"code.uber.internal/infra/jaeger-demo/services/customer"
-	"code.uber.internal/infra/jaeger-demo/services/driver"
-	"code.uber.internal/infra/jaeger-demo/services/route"
+	"github.com/uber/jaeger/examples/hotrod/pkg/log"
+	"github.com/uber/jaeger/examples/hotrod/pkg/pool"
+	"github.com/uber/jaeger/examples/hotrod/services/customer"
+	"github.com/uber/jaeger/examples/hotrod/services/driver"
+	"github.com/uber/jaeger/examples/hotrod/services/route"
 )
 
 const (
