@@ -2,9 +2,13 @@ from __future__ import (
     absolute_import, print_function, division, unicode_literals
 )
 
+import logging
 import re
 import sys
 from datetime import datetime
+
+logging.basicConfig(level=logging.DEBUG)
+logger = logging.getLogger(__name__)
 
 CURRENT_YEAR = datetime.today().year
 
@@ -79,7 +83,12 @@ def main():
 
     for name in sys.argv[1:]:
         if name.endswith('.go'):
-            update_go_license(name)
+            try:
+                update_go_license(name)
+            except Exception as error:
+                logger.error('Failed to process file %s', name)
+                logger.exception(error)
+                raise error
         else:
             raise NotImplementedError('Unsupported file type: %s' % name)
 

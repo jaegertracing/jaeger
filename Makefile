@@ -1,5 +1,5 @@
 PROJECT_ROOT=github.com/uber/jaeger
-PACKAGES := $(shell glide novendor | grep -v ./thrift-gen/...)
+PACKAGES := $(shell glide novendor | grep -v ./thrift-gen/... | grep -v ./examples/...)
 
 # all .go files that don't exist in hidden directories
 ALL_SRC := $(shell find . -name "*.go" | grep -v -e vendor -e thrift-gen \
@@ -71,13 +71,20 @@ install:
 	glide --version || go get github.com/Masterminds/glide
 	glide install
 
+install_examples:
+	glide --version || go get github.com/Masterminds/glide
+	(cd examples/hotrod/; glide install)
+
+build_examples:
+	go build -o ./examples/hotrod/hotrod-demo ./examples/hotrod/main.go
+
 .PHONY: cover
 cover:
 	./scripts/cover.sh $(shell go list $(PACKAGES))
 	go tool cover -html=cover.out -o cover.html
 
 .PHONY: install_ci
-install_ci: install
+install_ci: install install_examples
 	go get github.com/wadey/gocovmerge
 	go get github.com/mattn/goveralls
 	go get golang.org/x/tools/cmd/cover
@@ -85,7 +92,7 @@ install_ci: install
 	go get github.com/sectioneight/md-to-godoc
 
 .PHONY: test_ci
-test_ci:
+test_ci: build_examples
 	@./scripts/cover.sh $(shell go list $(PACKAGES))
 	make lint
 
