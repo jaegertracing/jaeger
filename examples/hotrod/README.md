@@ -8,7 +8,8 @@ It can be run standalone, but requires Jaeger backend to view the traces.
 
 ```
 $ make install_examples
-$ go run ./examples/hotrod/main.go all
+$ cd examples/hotrod
+$ go run ./main.go all
 ```
 
 Then open http://127.0.0.1:8080
