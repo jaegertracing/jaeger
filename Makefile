@@ -75,6 +75,9 @@ install_examples:
 	cd examples/hotrod/
 	glide install
 
+build_examples:
+	go build -o ./examples/hotrod/hotrod-demo ./examples/hotrod/main.go
+
 .PHONY: cover
 cover:
 	./scripts/cover.sh $(shell go list $(PACKAGES))
@@ -89,7 +92,7 @@ install_ci: install install_examples
 	go get github.com/sectioneight/md-to-godoc
 
 .PHONY: test_ci
-test_ci:
+test_ci: build_examples
 	@./scripts/cover.sh $(shell go list $(PACKAGES))
 	make lint
 
