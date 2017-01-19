@@ -48,7 +48,7 @@ func newDatabase(tracer opentracing.Tracer, logger log.Factory) *database {
 		tracer: tracer,
 		logger: logger,
 		lock: &tracing.Mutex{
-			SessionBaggageKey: "session",
+			SessionBaggageKey: "request",
 		},
 		customers: map[string]*Customer{
 			"123": {

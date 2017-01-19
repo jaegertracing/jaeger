@@ -32,11 +32,15 @@ var (
 
 	// 'customer' service
 
-	// MySQLGetDelay is how long retrieving a customer record takes
-	MySQLGetDelay = 200 * time.Millisecond
+	// MySQLGetDelay is how long retrieving a customer record takes.
+	// Using large value mostly because I cannot click the button fast enough to cause a queue.
+	MySQLGetDelay = 300 * time.Millisecond
 
 	// MySQLGetDelayStdDev is standard deviation
-	MySQLGetDelayStdDev = MySQLGetDelay / 4
+	MySQLGetDelayStdDev = MySQLGetDelay / 10
+
+	// RouteWorkerPoolSize is the size of the worker pool used to query `route` service
+	RouteWorkerPoolSize = 3
 
 	// 'driver' service
 

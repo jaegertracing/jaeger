@@ -32,13 +32,10 @@ import (
 
 	"github.com/uber/jaeger/examples/hotrod/pkg/log"
 	"github.com/uber/jaeger/examples/hotrod/pkg/pool"
+	"github.com/uber/jaeger/examples/hotrod/services/config"
 	"github.com/uber/jaeger/examples/hotrod/services/customer"
 	"github.com/uber/jaeger/examples/hotrod/services/driver"
 	"github.com/uber/jaeger/examples/hotrod/services/route"
-)
-
-const (
-	workerPoolSize = 2
 )
 
 type bestETA struct {
@@ -69,7 +66,7 @@ func newBestETA(tracer opentracing.Tracer, logger log.Factory) *bestETA {
 			tracer,
 			logger.With(zap.String("component", "route_client")),
 		),
-		pool:   pool.New(workerPoolSize),
+		pool:   pool.New(config.RouteWorkerPoolSize),
 		logger: logger,
 	}
 }
