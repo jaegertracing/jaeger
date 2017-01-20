@@ -4,6 +4,17 @@ This is a demo application that consists of several microservices and illustrate
 
 It can be run standalone, but requires Jaeger backend to view the traces.
 
+## Features
+
+* Discover architecture of the whole system via data-driven dependency diagram
+* View request timeline & errors, understand how the app works
+* Find sources of latency, lack of concurrency
+* Highly contextualized logging
+* Use baggage propagation to
+  * Diagnose inter-request contention (queueing)
+  * Attribute time spent in a service
+* Use open source libraries with OpenTracing integration to get vendor-neutral instrumentation for free
+
 ## Running
 
 ```
