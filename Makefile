@@ -77,7 +77,6 @@ install: install-glide
 	glide install
 
 install_examples: install-glide
-	glide --version || go get github.com/Masterminds/glide
 	(cd examples/hotrod/; glide install)
 
 build_examples:
