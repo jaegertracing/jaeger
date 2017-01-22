@@ -1,4 +1,4 @@
-package: code.uber.internal/infra/jaeger-demo
+package: github.com/uber/jaeger/examples/hotrod
 import:
 - package: github.com/uber-go/zap
 - package: github.com/opentracing/opentracing-go

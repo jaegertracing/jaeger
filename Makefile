@@ -66,13 +66,17 @@ lint:
 	@./scripts/updateLicenses.sh >> $(FMT_LOG)
 	@[ ! -s "$(FMT_LOG)" ] || (echo "Go Fmt Failures, run 'make fmt'" | cat - $(FMT_LOG) && false)
 
+.PHONY: install-glide
+install-glide:
+	# all we want is: glide --version || go get github.com/Masterminds/glide
+	# but have to pin to 0.12.3 due to https://github.com/Masterminds/glide/issues/745
+	@which glide > /dev/null || mkdir -p $(GOPATH)/src/github.com/Masterminds && cd $(GOPATH)/src/github.com/Masterminds && git clone https://github.com/Masterminds/glide.git && cd glide && git checkout v0.12.3 && go install
+
 .PHONY: install
-install:
-	glide --version || go get github.com/Masterminds/glide
+install: install-glide
 	glide install
 
-install_examples:
-	glide --version || go get github.com/Masterminds/glide
+install_examples: install-glide
 	(cd examples/hotrod/; glide install)
 
 build_examples:
