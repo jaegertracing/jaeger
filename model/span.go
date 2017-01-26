@@ -24,6 +24,7 @@ import (
 	"fmt"
 	"io"
 	"strconv"
+	"time"
 
 	"encoding/gob"
 
@@ -91,6 +92,30 @@ func (s *Span) IsRPCClient() bool {
 // as indicated by the `span.kind` tag set to `server`.
 func (s *Span) IsRPCServer() bool {
 	return s.HasSpanKind(ext.SpanKindRPCServerEnum)
+}
+
+// GetStartTime returns the span's StartTime as time.Time value.
+func (s *Span) GetStartTime() time.Time {
+	seconds := s.StartTime / 1000000
+	nanos := 1000 * (s.StartTime % 1000000)
+	return time.Unix(int64(seconds), int64(nanos))
+}
+
+// GetDuration returns the span's duration as time.Duration value.
+func (s *Span) GetDuration() time.Duration {
+	return time.Duration(s.Duration * 1000)
+}
+
+// TimeAsEpochMicroseconds converts time.Time to microseconds since epoch,
+// which is the format the StartTime field is stored in the Span.
+func TimeAsEpochMicroseconds(t time.Time) uint64 {
+	return uint64(t.UnixNano() / 1000)
+}
+
+// DurationAsMicroseconds converts time.Duration to microseconds,
+// which is the format the Duration field is stored in the Span.
+func DurationAsMicroseconds(d time.Duration) uint64 {
+	return uint64(d.Nanoseconds() / 1000)
 }
 
 // ------- Flags -------

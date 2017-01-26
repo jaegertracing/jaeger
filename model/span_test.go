@@ -23,6 +23,7 @@ package model_test
 import (
 	"encoding/json"
 	"testing"
+	"time"
 
 	"github.com/opentracing/opentracing-go/ext"
 	"github.com/stretchr/testify/assert"
@@ -195,6 +196,22 @@ func TestSpanHash(t *testing.T) {
 	}
 	assert.Equal(t, codes[0], codes[1])
 	assert.NotEqual(t, codes[0], codes[2])
+}
+
+func TestStartTimeConversion(t *testing.T) {
+	s := &model.Span{
+		StartTime: model.TimeAsEpochMicroseconds(time.Unix(100, 2000)),
+	}
+	assert.Equal(t, uint64(100000002), s.StartTime)
+	assert.Equal(t, time.Unix(100, 2000), s.GetStartTime())
+}
+
+func TestDurationConversion(t *testing.T) {
+	s := &model.Span{
+		Duration: model.DurationAsMicroseconds(12345 * time.Microsecond),
+	}
+	assert.Equal(t, 12345*time.Microsecond, s.GetDuration())
+	assert.Equal(t, uint64(12345), s.Duration)
 }
 
 func makeSpan(someKV model.KeyValue) *model.Span {
