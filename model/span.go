@@ -57,8 +57,8 @@ type Span struct {
 	OperationName string    `json:"operationName"`
 	References    []SpanRef `json:"references,omitempty"`
 	Flags         Flags     `json:"flags,omitempty"`
-	StartTime     uint64    `json:"startTime"`
-	Duration      uint64    `json:"duration"`
+	StartTime     uint64    `json:"startTime"` // microseconds since Unix epoch
+	Duration      uint64    `json:"duration"`  // microseconds since Unix epoch
 	Tags          KeyValues `json:"tags,omitempty"`
 	Logs          []Log     `json:"logs,omitempty"`
 	Process       *Process  `json:"process"`
