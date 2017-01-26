@@ -52,18 +52,18 @@ type SpanID uint64
 
 // Span represents a unit of work in an application, such as an RPC, a database call, etc.
 type Span struct {
-	TraceID       TraceID   `json:"traceID"`
-	SpanID        SpanID    `json:"spanID"`
-	ParentSpanID  SpanID    `json:"parentSpanID"`
-	OperationName string    `json:"operationName"`
-	References    []SpanRef `json:"references,omitempty"`
-	Flags         Flags     `json:"flags,omitempty"`
-	StartTime     uint64    `json:"startTime"` // microseconds since Unix epoch
-	Duration      uint64    `json:"duration"`  // microseconds since Unix epoch
-	Tags          KeyValues `json:"tags,omitempty"`
-	Logs          []Log     `json:"logs,omitempty"`
-	Process       *Process  `json:"process"`
-	Warnings      []string  `json:"warnings,omitempty"`
+	TraceID       TraceID       `json:"traceID"`
+	SpanID        SpanID        `json:"spanID"`
+	ParentSpanID  SpanID        `json:"parentSpanID"`
+	OperationName string        `json:"operationName"`
+	References    []SpanRef     `json:"references,omitempty"`
+	Flags         Flags         `json:"flags,omitempty"`
+	StartTime     time.Time     `json:"startTime"`
+	Duration      time.Duration `json:"duration"`
+	Tags          KeyValues     `json:"tags,omitempty"`
+	Logs          []Log         `json:"logs,omitempty"`
+	Process       *Process      `json:"process"`
+	Warnings      []string      `json:"warnings,omitempty"`
 }
 
 // Hash implements Hash from Hashable.
@@ -94,28 +94,12 @@ func (s *Span) IsRPCServer() bool {
 	return s.HasSpanKind(ext.SpanKindRPCServerEnum)
 }
 
-// GetStartTime returns the span's StartTime as time.Time value.
-func (s *Span) GetStartTime() time.Time {
-	seconds := s.StartTime / 1000000
-	nanos := 1000 * (s.StartTime % 1000000)
-	return time.Unix(int64(seconds), int64(nanos))
-}
-
-// GetDuration returns the span's duration as time.Duration value.
-func (s *Span) GetDuration() time.Duration {
-	return time.Duration(s.Duration * 1000)
-}
-
-// TimeAsEpochMicroseconds converts time.Time to microseconds since epoch,
-// which is the format the StartTime field is stored in the Span.
-func TimeAsEpochMicroseconds(t time.Time) uint64 {
-	return uint64(t.UnixNano() / 1000)
-}
-
-// DurationAsMicroseconds converts time.Duration to microseconds,
-// which is the format the Duration field is stored in the Span.
-func DurationAsMicroseconds(d time.Duration) uint64 {
-	return uint64(d.Nanoseconds() / 1000)
+// NormalizeTimestamps changes all timestamps in this span to UTC.
+func (s *Span) NormalizeTimestamps() {
+	s.StartTime = s.StartTime.UTC()
+	for i := range s.Logs {
+		s.Logs[i].Timestamp = s.Logs[i].Timestamp.UTC()
+	}
 }
 
 // ------- Flags -------

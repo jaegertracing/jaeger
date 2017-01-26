@@ -198,22 +198,6 @@ func TestSpanHash(t *testing.T) {
 	assert.NotEqual(t, codes[0], codes[2])
 }
 
-func TestStartTimeConversion(t *testing.T) {
-	s := &model.Span{
-		StartTime: model.TimeAsEpochMicroseconds(time.Unix(100, 2000)),
-	}
-	assert.Equal(t, uint64(100000002), s.StartTime)
-	assert.Equal(t, time.Unix(100, 2000), s.GetStartTime())
-}
-
-func TestDurationConversion(t *testing.T) {
-	s := &model.Span{
-		Duration: model.DurationAsMicroseconds(12345 * time.Microsecond),
-	}
-	assert.Equal(t, 12345*time.Microsecond, s.GetDuration())
-	assert.Equal(t, uint64(12345), s.Duration)
-}
-
 func makeSpan(someKV model.KeyValue) *model.Span {
 	return &model.Span{
 		TraceID:       model.TraceID{Low: 123},
@@ -226,12 +210,12 @@ func makeSpan(someKV model.KeyValue) *model.Span {
 				SpanID:  model.SpanID(123),
 			},
 		},
-		StartTime: 1000,
-		Duration:  500,
+		StartTime: time.Unix(0, 1000),
+		Duration:  5000,
 		Tags:      model.KeyValues{someKV},
 		Logs: []model.Log{
 			{
-				Timestamp: 1000,
+				Timestamp: time.Unix(0, 1000),
 				Fields:    model.KeyValues{someKV},
 			},
 		},

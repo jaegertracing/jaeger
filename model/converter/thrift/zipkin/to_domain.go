@@ -127,8 +127,8 @@ func (td toDomain) transformSpan(zSpan *zipkincore.Span) *model.Span {
 		OperationName: zSpan.Name,
 		ParentSpanID:  model.SpanID(parentID),
 		Flags:         td.getFlags(zSpan),
-		StartTime:     uint64(zSpan.GetTimestamp()),
-		Duration:      uint64(zSpan.GetDuration()),
+		StartTime:     model.EpochMicrosecondsAsTime(uint64(zSpan.GetTimestamp())),
+		Duration:      model.MicrosecondsAsDuration(uint64(zSpan.GetDuration())),
 		Tags:          tags,
 		Logs:          td.getLogs(zSpan.Annotations),
 	}
@@ -283,7 +283,7 @@ func (td toDomain) getLogs(annotations []*zipkincore.Annotation) []model.Log {
 		}
 		logFields := td.getLogFields(a)
 		jLog := model.Log{
-			Timestamp: uint64(a.Timestamp),
+			Timestamp: model.EpochMicrosecondsAsTime(uint64(a.Timestamp)),
 			Fields:    logFields,
 		}
 		retMe = append(retMe, jLog)

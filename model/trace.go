@@ -36,3 +36,10 @@ func (t *Trace) FindSpanByID(id SpanID) *Span {
 	}
 	return nil
 }
+
+// NormalizeTimestamps changes all timestamps in this trace to UTC.
+func (t *Trace) NormalizeTimestamps() {
+	for _, span := range t.Spans {
+		span.NormalizeTimestamps()
+	}
+}

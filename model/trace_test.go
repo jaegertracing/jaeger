@@ -22,6 +22,7 @@ package model_test
 
 import (
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/assert"
 
@@ -44,4 +45,29 @@ func TestTraceFindSpanByID(t *testing.T) {
 	assert.Equal(t, "y", s2.OperationName)
 	s3 := trace.FindSpanByID(model.SpanID(3))
 	assert.Nil(t, s3)
+}
+
+func TestTraceNormalizeTimestamps(t *testing.T) {
+	s1 := "2017-01-26T16:46:31.639875-05:00"
+	s2 := "2017-01-26T21:46:31.639875-04:00"
+	var tt1, tt2 time.Time
+	assert.NoError(t, tt1.UnmarshalText([]byte(s1)))
+	assert.NoError(t, tt2.UnmarshalText([]byte(s2)))
+
+	trace := &model.Trace{
+		Spans: []*model.Span{
+			{
+				StartTime: tt1,
+				Logs: []model.Log{
+					{
+						Timestamp: tt2,
+					},
+				},
+			},
+		},
+	}
+	trace.NormalizeTimestamps()
+	span := trace.Spans[0]
+	assert.Equal(t, span.StartTime, tt1.UTC())
+	assert.Equal(t, span.Logs[0].Timestamp, tt2.UTC())
 }

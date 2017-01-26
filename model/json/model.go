@@ -73,8 +73,8 @@ type Span struct {
 	Flags         uint32      `json:"flags,omitempty"`
 	OperationName string      `json:"operationName"`
 	References    []Reference `json:"references,omitempty"`
-	StartTime     uint64      `json:"startTime"`
-	Duration      uint64      `json:"duration"`
+	StartTime     uint64      `json:"startTime"` // microseconds since Unix epoch
+	Duration      uint64      `json:"duration"`  // microseconds
 	Tags          []KeyValue  `json:"tags,omitempty"`
 	Logs          []Log       `json:"logs,omitempty"`
 	ProcessID     ProcessID   `json:"processID"`

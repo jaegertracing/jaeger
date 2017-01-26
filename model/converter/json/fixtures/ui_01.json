@@ -5,11 +5,11 @@
       "traceID": "1",
       "spanID": "2",
       "operationName": "test-general-conversion",
-      "startTime": 1000,
-      "duration": 500,
+      "startTime": 1485467191639875,
+      "duration": 5,
       "logs": [
         {
-          "timestamp": 12345,
+          "timestamp": 1485467191639875,
           "fields": [
             {
               "key": "event",
@@ -19,7 +19,7 @@
           ]
         },
         {
-          "timestamp": 12345,
+          "timestamp": 1485467191639875,
           "fields": [
             {
               "key": "x",
@@ -35,8 +35,8 @@
       "traceID": "1",
       "spanID": "2",
       "operationName": "some-operation",
-      "startTime": 1000,
-      "duration": 500,
+      "startTime": 1485467191639875,
+      "duration": 5,
       "tags": [
         {
           "key": "peer.service",
@@ -77,8 +77,8 @@
           "spanID": "2"
         }
       ],
-      "startTime": 1000,
-      "duration": 500,
+      "startTime": 1485467191639875,
+      "duration": 5,
       "processID": "p2"
     },
     {
@@ -102,8 +102,8 @@
           "spanID": "2"
         }
       ],
-      "startTime": 1000,
-      "duration": 500,
+      "startTime": 1485467191639875,
+      "duration": 5,
       "processID": "p2",
       "warnings": [
         "some span warning"

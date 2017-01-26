@@ -24,6 +24,7 @@ import (
 	"encoding/binary"
 	"fmt"
 	"net"
+	"time"
 
 	"github.com/uber/jaeger/model"
 )
@@ -65,7 +66,7 @@ type clockSkewAdjuster struct {
 }
 
 type clockSkew struct {
-	delta   int64
+	delta   time.Duration
 	hostKey string
 }
 
@@ -150,45 +151,35 @@ func (a *clockSkewAdjuster) adjustNode(n *node, parent *node, skew clockSkew) {
 	}
 }
 
-func (a *clockSkewAdjuster) calculateSkew(child *node, parent *node) int64 {
+func (a *clockSkewAdjuster) calculateSkew(child *node, parent *node) time.Duration {
 	parentDuration := parent.span.Duration
 	childDuration := child.span.Duration
-	parentEndTime := parent.span.StartTime + parent.span.Duration
-	childEndTime := child.span.StartTime + child.span.Duration
+	parentEndTime := parent.span.StartTime.Add(parent.span.Duration)
+	childEndTime := child.span.StartTime.Add(child.span.Duration)
 
 	if childDuration > parentDuration {
 		// When the child lasted longer than the parent, it was either
 		// async or the parent may have timed out before child responded.
 		// The only reasonable adjustment we can do in this case is to make
 		// sure the child does not start before parent.
-		if child.span.StartTime < parent.span.StartTime {
-			return int64(parent.span.StartTime - child.span.StartTime)
+		if child.span.StartTime.Before(parent.span.StartTime) {
+			return parent.span.StartTime.Sub(child.span.StartTime)
 		}
 		return 0
 	}
-	if child.span.StartTime >= parent.span.StartTime && childEndTime <= parentEndTime {
+	if !child.span.StartTime.Before(parent.span.StartTime) && !childEndTime.After(parentEndTime) {
 		// child already fits within the parent span, do not adjust
 		return 0
 	}
 	// Assume that network latency is equally split between req and res.
 	latency := (parentDuration - childDuration) / 2
 	// Goal: parentStartTime + latency = childStartTime + adjustment
-	return int64(parent.span.StartTime) + int64(latency) - int64(child.span.StartTime)
+	return parent.span.StartTime.Add(latency).Sub(child.span.StartTime)
 }
 
 func (a *clockSkewAdjuster) adjustTimestamps(n *node, skew clockSkew) {
-	// because timestamps are unsigned int64, treat negative delta separately
-	if skew.delta > 0 {
-		delta := uint64(skew.delta)
-		n.span.StartTime += delta
-		for i := range n.span.Logs {
-			n.span.Logs[i].Timestamp += delta
-		}
-	} else if skew.delta < 0 {
-		delta := uint64(-skew.delta)
-		n.span.StartTime -= delta
-		for i := range n.span.Logs {
-			n.span.Logs[i].Timestamp -= delta
-		}
+	n.span.StartTime = n.span.StartTime.Add(skew.delta)
+	for i := range n.span.Logs {
+		n.span.Logs[i].Timestamp = n.span.Logs[i].Timestamp.Add(skew.delta)
 	}
 }

@@ -20,8 +20,10 @@
 
 package model
 
+import "time"
+
 // Log describes a micro-log entry that consists of a timestamp and one or more key-value fields
 type Log struct {
-	Timestamp uint64     `json:"timestamp"`
+	Timestamp time.Time  `json:"timestamp"`
 	Fields    []KeyValue `json:"fields"`
 }
