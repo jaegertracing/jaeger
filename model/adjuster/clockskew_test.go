@@ -34,12 +34,11 @@ import (
 func TestClockSkewAdjuster(t *testing.T) {
 	// spanProto is a simple descriptor of complete model.Span
 	type spanProto struct {
-		id, parent          int
-		startTime, duration int
-		logs                []int // timestamps for logs
-		host                string
-		adjusted            int   // start time after adjustment
-		adjustedLogs        []int // adjusted log timestamps
+		id, parent, startTime, duration int
+		logs                            []int // timestamps for logs
+		host                            string
+		adjusted                        int   // start time after adjustment
+		adjustedLogs                    []int // adjusted log timestamps
 	}
 
 	toTime := func(t int) time.Time {
