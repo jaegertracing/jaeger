@@ -45,10 +45,12 @@ func TestToDomain(t *testing.T) {
 		out := fmt.Sprintf("fixtures/jaeger_%02d.json", i)
 		zSpans := loadZipkinSpans(t, in)
 		expectedTrace := loadJaegerTrace(t, out)
+		expectedTrace.NormalizeTimestamps()
 		name := in + " -> " + out + " : " + zSpans[0].Name
 		t.Run(name, func(t *testing.T) {
 			trace, err := ToDomain(zSpans)
 			assert.NoError(t, err)
+			trace.NormalizeTimestamps()
 			if !assert.Equal(t, expectedTrace, trace) {
 				for _, err := range pretty.Diff(expectedTrace, trace) {
 					t.Log(err)
@@ -63,6 +65,7 @@ func TestToDomain(t *testing.T) {
 				zSpan := zSpans[0]
 				jSpan, err := ToDomainSpan(zSpan)
 				assert.NoError(t, err)
+				jSpan.NormalizeTimestamps()
 				assert.Equal(t, expectedTrace.Spans[0], jSpan)
 			})
 		}

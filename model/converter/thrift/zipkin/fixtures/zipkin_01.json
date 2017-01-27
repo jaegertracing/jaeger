@@ -3,6 +3,7 @@
     "trace_id": 1,
     "id": 2,
     "name": "test-general-conversion",
+    "timestamp": 1485467191639875,
     "annotations": [
       {
         "value": "some-event",
@@ -14,7 +15,7 @@
         "value": ""
       },
       {
-        "timestamp": 12345,
+        "timestamp": 1485467191639875,
         "value": "{\"x\":\"y\"}"
       }
     ],

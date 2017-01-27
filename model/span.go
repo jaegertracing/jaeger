@@ -24,6 +24,7 @@ import (
 	"fmt"
 	"io"
 	"strconv"
+	"time"
 
 	"encoding/gob"
 
@@ -51,18 +52,18 @@ type SpanID uint64
 
 // Span represents a unit of work in an application, such as an RPC, a database call, etc.
 type Span struct {
-	TraceID       TraceID   `json:"traceID"`
-	SpanID        SpanID    `json:"spanID"`
-	ParentSpanID  SpanID    `json:"parentSpanID"`
-	OperationName string    `json:"operationName"`
-	References    []SpanRef `json:"references,omitempty"`
-	Flags         Flags     `json:"flags,omitempty"`
-	StartTime     uint64    `json:"startTime"` // microseconds since Unix epoch
-	Duration      uint64    `json:"duration"`  // microseconds since Unix epoch
-	Tags          KeyValues `json:"tags,omitempty"`
-	Logs          []Log     `json:"logs,omitempty"`
-	Process       *Process  `json:"process"`
-	Warnings      []string  `json:"warnings,omitempty"`
+	TraceID       TraceID       `json:"traceID"`
+	SpanID        SpanID        `json:"spanID"`
+	ParentSpanID  SpanID        `json:"parentSpanID"`
+	OperationName string        `json:"operationName"`
+	References    []SpanRef     `json:"references,omitempty"`
+	Flags         Flags         `json:"flags,omitempty"`
+	StartTime     time.Time     `json:"startTime"`
+	Duration      time.Duration `json:"duration"`
+	Tags          KeyValues     `json:"tags,omitempty"`
+	Logs          []Log         `json:"logs,omitempty"`
+	Process       *Process      `json:"process"`
+	Warnings      []string      `json:"warnings,omitempty"`
 }
 
 // Hash implements Hash from Hashable.
@@ -91,6 +92,14 @@ func (s *Span) IsRPCClient() bool {
 // as indicated by the `span.kind` tag set to `server`.
 func (s *Span) IsRPCServer() bool {
 	return s.HasSpanKind(ext.SpanKindRPCServerEnum)
+}
+
+// NormalizeTimestamps changes all timestamps in this span to UTC.
+func (s *Span) NormalizeTimestamps() {
+	s.StartTime = s.StartTime.UTC()
+	for i := range s.Logs {
+		s.Logs[i].Timestamp = s.Logs[i].Timestamp.UTC()
+	}
 }
 
 // ------- Flags -------

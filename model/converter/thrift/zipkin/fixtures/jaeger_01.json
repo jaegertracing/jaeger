@@ -4,11 +4,13 @@
       "traceID": "1",
       "spanID": "2",
       "operationName": "test-general-conversion",
+      "startTime": "2017-01-26T16:46:31.639875-05:00",
       "process": {
         "serviceName": "service-x"
       },
       "logs": [
         {
+          "timestamp": "1970-01-01T00:00:00-00:00",
           "fields": [
             {
               "key": "event",
@@ -17,7 +19,7 @@
           ]
         },
         {
-          "timestamp": 12345,
+          "timestamp": "2017-01-26T16:46:31.639875-05:00",
           "fields": [
             {
               "key": "x",
@@ -31,6 +33,7 @@
       "traceID": "1",
       "spanID": "2",
       "operationName": "some-operation",
+      "startTime": "1970-01-01T00:00:00-00:00",
       "tags": [
         {
           "key": "peer.service",
@@ -62,6 +65,7 @@
       "spanID": "3",
       "parentSpanID": "2",
       "operationName": "some-operation",
+      "startTime": "1970-01-01T00:00:00-00:00",
       "tags": [
         {
           "key": "peer.service",

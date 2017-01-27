@@ -29,45 +29,14 @@ import (
 	"github.com/uber/jaeger/model"
 )
 
-func TestTraceFindSpanByID(t *testing.T) {
-	trace := &model.Trace{
-		Spans: []*model.Span{
-			{SpanID: model.SpanID(1), OperationName: "x"},
-			{SpanID: model.SpanID(2), OperationName: "y"},
-			{SpanID: model.SpanID(1), OperationName: "z"}, // same span ID
-		},
-	}
-	s1 := trace.FindSpanByID(model.SpanID(1))
-	assert.NotNil(t, s1)
-	assert.Equal(t, "x", s1.OperationName)
-	s2 := trace.FindSpanByID(model.SpanID(2))
-	assert.NotNil(t, s2)
-	assert.Equal(t, "y", s2.OperationName)
-	s3 := trace.FindSpanByID(model.SpanID(3))
-	assert.Nil(t, s3)
+func TestTimeConversion(t *testing.T) {
+	s := model.TimeAsEpochMicroseconds(time.Unix(100, 2000))
+	assert.Equal(t, uint64(100000002), s)
+	assert.Equal(t, time.Unix(100, 2000), model.EpochMicrosecondsAsTime(s))
 }
 
-func TestTraceNormalizeTimestamps(t *testing.T) {
-	s1 := "2017-01-26T16:46:31.639875-05:00"
-	s2 := "2017-01-26T21:46:31.639875-04:00"
-	var tt1, tt2 time.Time
-	assert.NoError(t, tt1.UnmarshalText([]byte(s1)))
-	assert.NoError(t, tt2.UnmarshalText([]byte(s2)))
-
-	trace := &model.Trace{
-		Spans: []*model.Span{
-			{
-				StartTime: tt1,
-				Logs: []model.Log{
-					{
-						Timestamp: tt2,
-					},
-				},
-			},
-		},
-	}
-	trace.NormalizeTimestamps()
-	span := trace.Spans[0]
-	assert.Equal(t, span.StartTime, tt1.UTC())
-	assert.Equal(t, span.Logs[0].Timestamp, tt2.UTC())
+func TestDurationConversion(t *testing.T) {
+	d := model.DurationAsMicroseconds(12345 * time.Microsecond)
+	assert.Equal(t, 12345*time.Microsecond, model.MicrosecondsAsDuration(d))
+	assert.Equal(t, uint64(12345), d)
 }

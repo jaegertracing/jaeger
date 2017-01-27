@@ -62,8 +62,8 @@ func (fd fromDomain) convertSpan(span *model.Span, processID json.ProcessID) jso
 		Flags:         uint32(span.Flags),
 		OperationName: span.OperationName,
 		References:    fd.convertReferences(span),
-		StartTime:     span.StartTime,
-		Duration:      span.Duration,
+		StartTime:     model.TimeAsEpochMicroseconds(span.StartTime),
+		Duration:      model.DurationAsMicroseconds(span.Duration),
 		Tags:          fd.convertKeyValues(span.Tags),
 		Logs:          fd.convertLogs(span.Logs),
 		ProcessID:     processID,
@@ -130,7 +130,7 @@ func (fd fromDomain) convertLogs(logs []model.Log) []json.Log {
 	out := make([]json.Log, len(logs))
 	for i, log := range logs {
 		out[i] = json.Log{
-			Timestamp: log.Timestamp,
+			Timestamp: model.TimeAsEpochMicroseconds(log.Timestamp),
 			Fields:    fd.convertKeyValues(log.Fields),
 		}
 	}

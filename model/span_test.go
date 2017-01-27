@@ -23,6 +23,7 @@ package model_test
 import (
 	"encoding/json"
 	"testing"
+	"time"
 
 	"github.com/opentracing/opentracing-go/ext"
 	"github.com/stretchr/testify/assert"
@@ -209,12 +210,12 @@ func makeSpan(someKV model.KeyValue) *model.Span {
 				SpanID:  model.SpanID(123),
 			},
 		},
-		StartTime: 1000,
-		Duration:  500,
+		StartTime: time.Unix(0, 1000),
+		Duration:  5000,
 		Tags:      model.KeyValues{someKV},
 		Logs: []model.Log{
 			{
-				Timestamp: 1000,
+				Timestamp: time.Unix(0, 1000),
 				Fields:    model.KeyValues{someKV},
 			},
 		},

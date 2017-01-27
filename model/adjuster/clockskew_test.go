@@ -23,6 +23,7 @@ package adjuster
 import (
 	"fmt"
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -40,6 +41,13 @@ func TestClockSkewAdjuster(t *testing.T) {
 		adjustedLogs                    []int // adjusted log timestamps
 	}
 
+	toTime := func(t int) time.Time {
+		return time.Unix(0, (time.Duration(t) * time.Millisecond).Nanoseconds())
+	}
+	toDuration := func(d int) time.Duration {
+		return time.Duration(d) * time.Millisecond
+	}
+
 	// helper function that constructs a trace from a list of span prototypes
 	makeTrace := func(spanPrototypes []spanProto) *model.Trace {
 		trace := &model.Trace{}
@@ -47,7 +55,7 @@ func TestClockSkewAdjuster(t *testing.T) {
 			var logs []model.Log
 			for _, log := range spanProto.logs {
 				logs = append(logs, model.Log{
-					Timestamp: uint64(log),
+					Timestamp: toTime(log),
 					Fields:    []model.KeyValue{model.String("event", "some event")},
 				})
 			}
@@ -55,8 +63,8 @@ func TestClockSkewAdjuster(t *testing.T) {
 				TraceID:      model.TraceID{Low: 1},
 				SpanID:       model.SpanID(spanProto.id),
 				ParentSpanID: model.SpanID(spanProto.parent),
-				StartTime:    uint64(spanProto.startTime),
-				Duration:     uint64(spanProto.duration),
+				StartTime:    toTime(spanProto.startTime),
+				Duration:     toDuration(spanProto.duration),
 				Logs:         logs,
 				Process: &model.Process{
 					ServiceName: spanProto.host,
@@ -181,11 +189,11 @@ func TestClockSkewAdjuster(t *testing.T) {
 				require.NotNil(t, span, "expecting span with span ID = %d", id)
 				// compare values as int because assert.Equal prints uint64 as hex
 				assert.Equal(
-					t, int(proto.adjusted), int(span.StartTime),
+					t, toTime(proto.adjusted), span.StartTime,
 					"adjusted start time of span[ID = %d]", id)
 				for i, logTs := range proto.adjustedLogs {
 					assert.Equal(
-						t, int(logTs), int(span.Logs[i].Timestamp),
+						t, toTime(logTs), span.Logs[i].Timestamp,
 						"adjusted log timestamp of span[ID = %d], log[%d]", id, i)
 				}
 			}
