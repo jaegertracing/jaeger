@@ -6,6 +6,8 @@ Welcome to Jaeger's documentation!
 
 `Jaeger <http://uber.github.io/jaeger/>`_ is Uber's distributed tracing system.
 
+Read `UberEng <https://eng.uber.com/>`_ blog post on `Evolving Distributed Tracing at Uber <https://eng.uber.com/distributed-tracing/>`_.
+
 .. toctree::
    :maxdepth: 2
 
