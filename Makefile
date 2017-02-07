@@ -70,7 +70,7 @@ lint:
 install-glide:
 	# all we want is: glide --version || go get github.com/Masterminds/glide
 	# but have to pin to 0.12.3 due to https://github.com/Masterminds/glide/issues/745
-	@which glide > /dev/null || mkdir -p $(GOPATH)/src/github.com/Masterminds && cd $(GOPATH)/src/github.com/Masterminds && git clone https://github.com/Masterminds/glide.git && cd glide && git checkout v0.12.3 && go install
+	@which glide > /dev/null || (mkdir -p $(GOPATH)/src/github.com/Masterminds && cd $(GOPATH)/src/github.com/Masterminds && git clone https://github.com/Masterminds/glide.git && cd glide && git checkout v0.12.3 && go install)
 
 .PHONY: install
 install: install-glide
