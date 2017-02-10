@@ -28,13 +28,22 @@ import (
 	"github.com/uber/jaeger/model"
 )
 
+var ipTagsToCorrect = map[string]bool{
+	"ip":        true,
+	"peer.ipv4": true,
+}
+
 // IPTagAdjuster returns an adjuster that replaces numeric "ip" tags,
 // which usually contain IPv4 packed into uint32, with their string
 // representation (e.g. "8.8.8.8"").
 func IPTagAdjuster() Adjuster {
+
 	adjustTags := func(tags model.KeyValues) {
 		for i, tag := range tags {
-			if tag.Key != "ip" || tag.VType != model.Int64Type {
+			if tag.VType != model.Int64Type {
+				continue
+			}
+			if _, ok := ipTagsToCorrect[tag.Key]; !ok {
 				continue
 			}
 			var buf [4]byte
@@ -46,7 +55,7 @@ func IPTagAdjuster() Adjuster {
 				}
 				sBuf.WriteString(strconv.FormatUint(uint64(b), 10))
 			}
-			tags[i] = model.String("ip", sBuf.String())
+			tags[i] = model.String(tag.Key, sBuf.String())
 		}
 	}
 
