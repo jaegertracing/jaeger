@@ -15,6 +15,39 @@ glide install
 make test
 ```
 
+## Project Structure
+
+These are general guidelines on how to organize source code in this repository.
+
+```
+github.com/uber/jaeger
+  cmd/                      - All binaries go here
+    agent/
+      app/                  - The actual code for the binary
+      main.go
+    collector/
+      app/                  - The actual code for the binary
+      main.go
+  pkg/                      - Various utilities not specific to Jaeger.
+  plugin/                   - Swappable implementations of various components
+    storage/
+      cassandra/            - Cassandra implemeentations of storage APIs
+        .                   - Shared Cassandra stuff
+        spanstore/          - SpanReader / SpanWriter implementations
+        dependencystore/
+      elasticsearch/        - Cassandra implemeentations of storage APIs
+  storage/
+    spanstore/              - SpanReader / SpanWriter interfaces
+    dependencystore/
+  idl/                      - (submodule)
+  jaeger-ui/                - (submodule)
+  thrift-gen/               - Generated Thrift types
+    agent/
+    jaeger/
+    sampling/
+    zipkincore/
+```
+
 ## Making A Change
 
 *Before making any significant changes, please [open an
