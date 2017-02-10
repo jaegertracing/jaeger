@@ -28,14 +28,14 @@ github.com/uber/jaeger
     collector/
       app/                  - The actual code for the binary
       main.go
-  pkg/                      - Various utilities not specific to Jaeger.
+  pkg/                      - See Note 1
   plugin/                   - Swappable implementations of various components
     storage/
-      cassandra/            - Cassandra implemeentations of storage APIs
+      cassandra/            - Cassandra implementations of storage APIs
         .                   - Shared Cassandra stuff
         spanstore/          - SpanReader / SpanWriter implementations
         dependencystore/
-      elasticsearch/        - Cassandra implemeentations of storage APIs
+      elasticsearch/        - ES implementations of storage APIs
   storage/
     spanstore/              - SpanReader / SpanWriter interfaces
     dependencystore/
@@ -47,6 +47,13 @@ github.com/uber/jaeger
     sampling/
     zipkincore/
 ```
+
+  * Note 1: `pkg` is a collection of utility packages used by the Jaeger components
+    without being specific to its internals. Utility packages are kept separate from
+    the Jaeger core codebase to keep it as small and concise as possible. If some
+    utilities grow larger and their APIs stabilize, they may be moved to their own
+    repository, to facilitate re-use by other projects.
+
 
 ## Making A Change
 
