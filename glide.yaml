@@ -4,6 +4,7 @@ import:
   version: 0.9.3
   subpackages:
   - lib/go/thrift
+- package: github.com/codahale/hdrhistogram
 - package: github.com/gocql/gocql
   version: 4d2d1ac71932f7c4a6c7feb0d654462e4116c58b
 - package: github.com/opentracing/opentracing-go
