@@ -1,21 +1,49 @@
-hash: 12c9f4fae728a86baf23effc169c66f5fbf8520880f91bd553de516ced0c0568
-updated: 2016-12-30T17:37:59.673516549-05:00
+hash: 8863f8e3c1040c064b03f408daed498a509b96fcc1792539e7fe1c456aec8f1d
+updated: 2017-02-11T15:52:51.572027936-05:00
 imports:
 - name: github.com/apache/thrift
   version: 53dd39833a08ce33582e5ff31fa18bb4735d6731
   subpackages:
   - lib/go/thrift
+- name: github.com/davecgh/go-spew
+  version: 346938d642f2ec3594ed81d874461961cd0faa76
+  subpackages:
+  - spew
+- name: github.com/gocql/gocql
+  version: 4d2d1ac71932f7c4a6c7feb0d654462e4116c58b
+  subpackages:
+  - internal/lru
+  - internal/murmur
+  - internal/streams
+- name: github.com/golang/snappy
+  version: d7b1e156f50d3c4664f683603af70e3e47fa0aa2
+- name: github.com/hailocab/go-hostpool
+  version: e80d13ce29ede4452c43dea11e79b9bc8a15b478
 - name: github.com/opentracing/opentracing-go
   version: ac5446f53f2c0fc68dc16dc5f426eae1cd288b34
   subpackages:
   - ext
   - log
+- name: github.com/pkg/errors
+  version: 248dadf4e9068a0b3e79f02ed0a610d935de5302
+- name: github.com/pmezard/go-difflib
+  version: 792786c7400a136282c1664665ae0a8db921c6c2
+  subpackages:
+  - difflib
+- name: github.com/stretchr/objx
+  version: 1a9d0bb9f541897e62256577b352fdbc1fb4fd94
+- name: github.com/stretchr/testify
+  version: 2402e8e7a02fc811447d11f881aa9746cdc57983
+  subpackages:
+  - assert
+  - mock
+  - require
 - name: github.com/uber-go/atomic
   version: 3b8db5e93c4c02efbc313e17b2e796b0914a01fb
 - name: github.com/uber-go/zap
   version: a5783ee4b216a927da8f839c45cfbf9d694e1467
 - name: github.com/uber/jaeger-lib
-  version: 7b113fceac673e60e5b10dff7039787bab5c5ed7
+  version: b9556711760c45a30bd79c31c8f041d0d9aba997
 - name: github.com/uber/tchannel-go
   version: 1a0e35378f6f721bc07f6c4466bc9701ed70b506
   subpackages:
@@ -26,24 +54,13 @@ imports:
   - trand
   - typed
 - name: golang.org/x/net
-  version: 8fd7f25955530b92e73e9e1932a41b522b22ccd9
+  version: 61557ac0112b576429a0df080e1c2cef5dfbb642
   subpackages:
   - context
+- name: gopkg.in/inf.v0
+  version: 3887ee99ecf07df5b447e9b00d9c0b2adaa9f3e4
 testImports:
-- name: github.com/davecgh/go-spew
-  version: 346938d642f2ec3594ed81d874461961cd0faa76
-  subpackages:
-  - spew
 - name: github.com/kr/pretty
   version: cfb55aafdaf3ec08f0db22699ab822c50091b1c4
 - name: github.com/kr/text
   version: 7cafcd837844e784b526369c9bce262804aebc60
-- name: github.com/pmezard/go-difflib
-  version: 792786c7400a136282c1664665ae0a8db921c6c2
-  subpackages:
-  - difflib
-- name: github.com/stretchr/testify
-  version: 2402e8e7a02fc811447d11f881aa9746cdc57983
-  subpackages:
-  - assert
-  - require
