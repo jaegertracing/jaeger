@@ -28,9 +28,9 @@ import (
 	"github.com/uber/jaeger/model"
 )
 
-var ipTagsToCorrect = map[string]bool{
-	"ip":        true,
-	"peer.ipv4": true,
+var ipTagsToCorrect = map[string]struct{}{
+	"ip":        struct{}{},
+	"peer.ipv4": struct{}{},
 }
 
 // IPTagAdjuster returns an adjuster that replaces numeric "ip" tags,
