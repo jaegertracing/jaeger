@@ -1,17 +1,26 @@
 package: github.com/uber/jaeger
 import:
-- package: github.com/uber/jaeger-lib
-- package: github.com/uber-go/zap
-- package: github.com/opentracing/opentracing-go
-  subpackages:
-  - ext
 - package: github.com/apache/thrift
   version: 0.9.3
   subpackages:
   - lib/go/thrift
+- package: github.com/codahale/hdrhistogram
+- package: github.com/gocql/gocql
+  version: 4d2d1ac71932f7c4a6c7feb0d654462e4116c58b
+- package: github.com/opentracing/opentracing-go
+  subpackages:
+  - ext
+- package: github.com/pkg/errors
+- package: github.com/uber-go/zap
+- package: github.com/uber/jaeger-lib
+  version: b9556711760c45a30bd79c31c8f041d0d9aba997
 - package: github.com/uber/tchannel-go
   version: v1.1.0
   subpackages:
   - thrift
-testImports:
+testImport:
 - package: github.com/kr/pretty
+- package: github.com/stretchr/testify
+  subpackages:
+  - assert
+  - mock
