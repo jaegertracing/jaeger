@@ -29,8 +29,8 @@ import (
 )
 
 var ipTagsToCorrect = map[string]struct{}{
-	"ip":        struct{}{},
-	"peer.ipv4": struct{}{},
+	"ip":        {},
+	"peer.ipv4": {},
 }
 
 // IPTagAdjuster returns an adjuster that replaces numeric "ip" tags,
