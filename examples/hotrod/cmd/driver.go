@@ -41,7 +41,8 @@ var driverCmd = &cobra.Command{
 		logger := log.NewFactory(logger.With(zap.String("service", "driver")))
 		server := driver.NewServer(
 			net.JoinHostPort(driverOptions.serverInterface, strconv.Itoa(driverOptions.serverPort)),
-			tracing.Init("driver", logger),
+			tracing.Init("driver", metricsFactory.Namespace("driver", nil), logger),
+			metricsFactory,
 			logger,
 		)
 		return server.Run()

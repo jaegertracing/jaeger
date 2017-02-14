@@ -23,6 +23,7 @@ package driver
 import (
 	"github.com/opentracing/opentracing-go"
 	"github.com/uber-go/zap"
+	"github.com/uber/jaeger-lib/metrics"
 	"github.com/uber/tchannel-go"
 	"github.com/uber/tchannel-go/thrift"
 
@@ -41,7 +42,7 @@ type Server struct {
 }
 
 // NewServer creates a new driver.Server
-func NewServer(hostPort string, tracer opentracing.Tracer, logger log.Factory) *Server {
+func NewServer(hostPort string, tracer opentracing.Tracer, metricsFactory metrics.Factory, logger log.Factory) *Server {
 	channelOpts := &tchannel.ChannelOptions{
 		Tracer: tracer,
 	}
@@ -57,7 +58,7 @@ func NewServer(hostPort string, tracer opentracing.Tracer, logger log.Factory) *
 		logger:   logger,
 		ch:       ch,
 		server:   server,
-		redis:    newRedis(logger),
+		redis:    newRedis(metricsFactory, logger),
 	}
 }
 
