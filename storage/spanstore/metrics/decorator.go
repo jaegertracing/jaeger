@@ -24,8 +24,8 @@ import (
 	"time"
 
 	"github.com/uber/jaeger-lib/metrics"
-	"github.com/uber/jaeger/model"
 
+	"github.com/uber/jaeger/model"
 	"github.com/uber/jaeger/storage/spanstore"
 )
 
