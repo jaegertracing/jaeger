@@ -1,5 +1,3 @@
-// The MIT License (MIT)
-//
 // Copyright (c) 2017 Uber Technologies, Inc.
 //
 // Permission is hereby granted, free of charge, to any person obtaining a copy
@@ -20,9 +18,35 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 // THE SOFTWARE.
 
-// Package pkg is the collection of utility packages used by the Jaeger components without being specific to its internals.
-//
-// Utility packages are kept separate from the Jaeger core codebase to keep it as small and concise as possible. If some utilities grow larger and their APIs stabilize, they may be moved to their own repository, to facilitate re-use by other projects. However that is not the priority.
-//
-//
-package pkg
+package spanstore
+
+import (
+	"time"
+
+	"github.com/uber/jaeger/model"
+)
+
+// Writer writes spans to storage.
+type Writer interface {
+	WriteSpan(span *model.Span) error
+}
+
+// Reader finds and loads traces and other data from storage.
+type Reader interface {
+	GetTrace(traceID model.TraceID) (*model.Trace, error)
+	GetServices() ([]string, error)
+	GetOperations(service string) ([]string, error)
+	FindTraces(query *TraceQueryParameters) ([]*model.Trace, error)
+}
+
+// TraceQueryParameters contains parameters of a trace query.
+type TraceQueryParameters struct {
+	ServiceName   string
+	OperationName string
+	Tags          map[string]string
+	StartTimeMin  time.Time
+	StartTimeMax  time.Time
+	DurationMin   time.Duration
+	DurationMax   time.Duration
+	NumTraces     int
+}

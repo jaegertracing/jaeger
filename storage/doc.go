@@ -1,5 +1,3 @@
-// The MIT License (MIT)
-//
 // Copyright (c) 2017 Uber Technologies, Inc.
 //
 // Permission is hereby granted, free of charge, to any person obtaining a copy
@@ -20,9 +18,9 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 // THE SOFTWARE.
 
-// Package pkg is the collection of utility packages used by the Jaeger components without being specific to its internals.
+// Package storage is the collection of different storage interfaces that are shared by two or more components.
 //
-// Utility packages are kept separate from the Jaeger core codebase to keep it as small and concise as possible. If some utilities grow larger and their APIs stabilize, they may be moved to their own repository, to facilitate re-use by other projects. However that is not the priority.
+// If a storage is used by only one component, its interface should be defined in the component package, and implementations under ./plugin/storage/{db_name}/{store_type}/....
 //
 //
-package pkg
+package storage
