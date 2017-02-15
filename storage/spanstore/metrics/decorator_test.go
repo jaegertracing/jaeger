@@ -47,7 +47,7 @@ func TestSuccessfulUnderlyingCalls(t *testing.T) {
 	mockReader.On("FindTraces", &spanstore.TraceQueryParameters{}).Return([]*model.Trace{}, nil)
 	mrs.FindTraces(&spanstore.TraceQueryParameters{})
 	counters, gauges := mf.Snapshot()
-	expecteds := map[string]int{
+	expecteds := map[string]int64{
 		"GetOperations.attempts":  1,
 		"GetOperations.successes": 1,
 		"GetOperations.errors":    0,
@@ -62,10 +62,6 @@ func TestSuccessfulUnderlyingCalls(t *testing.T) {
 		"GetServices.errors":      0,
 	}
 
-	for k, v := range expecteds {
-		assert.EqualValues(t, v, counters[k], k)
-	}
-
 	existingKeys := []string{
 		"GetOperations.okLatency.P50",
 		"GetTrace.responses.P50",
@@ -74,13 +70,22 @@ func TestSuccessfulUnderlyingCalls(t *testing.T) {
 	nonExistentKeys := []string{
 		"GetOperations.errLatency.P50",
 	}
+
+	checkExpectedExistingAndNonExistentCounters(t, counters, expecteds, gauges, existingKeys, nonExistentKeys)
+}
+
+func checkExpectedExistingAndNonExistentCounters(t *testing.T, actualCounters, expectedCounters, actualGauges map[string]int64, existingKeys, nonExistentKeys []string) {
+	for k, v := range expectedCounters {
+		assert.EqualValues(t, v, actualCounters[k], k)
+	}
+
 	for _, k := range existingKeys {
-		_, ok := gauges[k]
+		_, ok := actualGauges[k]
 		assert.True(t, ok)
 	}
 
 	for _, k := range nonExistentKeys {
-		_, ok := gauges[k]
+		_, ok := actualGauges[k]
 		assert.False(t, ok)
 	}
 }
@@ -99,7 +104,7 @@ func TestFailingUnderlyingCalls(t *testing.T) {
 	mockReader.On("FindTraces", &spanstore.TraceQueryParameters{}).Return(nil, errors.New("Failure"))
 	mrs.FindTraces(&spanstore.TraceQueryParameters{})
 	counters, gauges := mf.Snapshot()
-	expecteds := map[string]int{
+	expecteds := map[string]int64{
 		"GetOperations.attempts":  1,
 		"GetOperations.successes": 0,
 		"GetOperations.errors":    1,
@@ -114,10 +119,6 @@ func TestFailingUnderlyingCalls(t *testing.T) {
 		"GetServices.errors":      1,
 	}
 
-	for k, v := range expecteds {
-		assert.EqualValues(t, v, counters[k], k)
-	}
-
 	existingKeys := []string{
 		"GetOperations.errLatency.P50",
 	}
@@ -128,13 +129,5 @@ func TestFailingUnderlyingCalls(t *testing.T) {
 		"Query.okLatency.P50", // this is not exhaustive
 	}
 
-	for _, k := range existingKeys {
-		_, ok := gauges[k]
-		assert.True(t, ok, k)
-	}
-
-	for _, k := range nonExistentKeys {
-		_, ok := gauges[k]
-		assert.False(t, ok)
-	}
+	checkExpectedExistingAndNonExistentCounters(t, counters, expecteds, gauges, existingKeys, nonExistentKeys)
 }
