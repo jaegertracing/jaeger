@@ -29,7 +29,7 @@ import (
 
 	"github.com/uber/jaeger/model"
 
-	. "code.uber.internal/infra/jaeger/oss/storage/spanstore"
+	. "github.com/uber/jaeger/storage/spanstore"
 )
 
 var errIWillAlwaysFail = errors.New("ErrProneWriteSpanStore will always fail")
