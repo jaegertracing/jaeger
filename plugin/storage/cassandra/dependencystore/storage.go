@@ -34,7 +34,7 @@ import (
 
 const (
 	depsInsertStmt = "INSERT INTO dependencies(ts, ts_index, dependencies) VALUES (?, ?, ?)"
-	depsSelectStmt = "SELECT ts, dependencies FROM dependencies where ts_index >= ? AND ts_index < ?"
+	depsSelectStmt = "SELECT ts, dependencies FROM dependencies WHERE ts_index >= ? AND ts_index < ?"
 )
 
 // DependencyStore handles all queries and insertions to Cassandra dependencies
@@ -62,7 +62,6 @@ func NewDependencyStore(
 
 // WriteDependencies implements dependencystore.Writer#WriteDependencies.
 func (s *DependencyStore) WriteDependencies(ts time.Time, dependencies []model.DependencyLink) error {
-	s.logger.Info("Saving dependencies", zap.Time("timestamp", ts))
 	deps := make([]Dependency, len(dependencies))
 	for i, d := range dependencies {
 		deps[i] = Dependency{

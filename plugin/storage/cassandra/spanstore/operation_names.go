@@ -27,6 +27,7 @@ import (
 	"github.com/pkg/errors"
 	"github.com/uber-go/zap"
 	"github.com/uber/jaeger-lib/metrics"
+
 	"github.com/uber/jaeger/pkg/cache"
 	"github.com/uber/jaeger/pkg/cassandra"
 	casMetrics "github.com/uber/jaeger/pkg/cassandra/metrics"

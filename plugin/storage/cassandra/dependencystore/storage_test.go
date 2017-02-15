@@ -31,6 +31,7 @@ import (
 	"github.com/stretchr/testify/mock"
 	"github.com/uber-go/zap"
 	"github.com/uber/jaeger-lib/metrics"
+
 	"github.com/uber/jaeger/model"
 	"github.com/uber/jaeger/pkg/cassandra"
 	"github.com/uber/jaeger/pkg/cassandra/mocks"
