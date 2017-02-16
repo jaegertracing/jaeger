@@ -1,0 +1,20 @@
+[
+  {
+    "traceID":"52969a8955571a3f",
+    "spanID":"647d98",
+    "parentSpanID":"68c4e3",
+    "operationName":"get",
+    "startTime":"2017-01-26T16:46:31.639875-05:00",
+    "duration":22938000,
+    "tags":[
+      {
+        "key":"peer.service",
+        "vType":"binary",
+        "vBlob":"AAAAAAAAMDk="
+      }
+    ],
+    "process":{
+      "serviceName":"api"
+    }
+  }
+]
