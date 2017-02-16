@@ -1,0 +1,23 @@
+{
+  "process": {
+    "serviceName": "api",
+    "tags": []
+  },
+  "spans": [
+    {
+      "traceIdLow": 5951113872249657919,
+      "spanId": 6585752,
+      "parentSpanId": 6866147,
+      "operationName": "get",
+      "startTime": 1485467191639875,
+      "duration": 22938,
+      "tags": [
+        {
+          "key": "peer.service",
+          "vType": "BINARY",
+          "vBinary": "AAAAAAAAMDk="
+        }
+      ]
+    }
+  ]
+}
