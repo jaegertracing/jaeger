@@ -1,5 +1,5 @@
-hash: c65619ffcf820683c94ecaf4a5cb4ba010de094fae5b23d047af621f81860bc8
-updated: 2017-02-11T16:55:33.404156511-05:00
+hash: 35bbf06daec5ef20d2f5cf83ab41020bf29c6a0a4ce045e25f755933e8169646
+updated: 2017-02-27T14:28:37.546764236-05:00
 imports:
 - name: github.com/apache/thrift
   version: 53dd39833a08ce33582e5ff31fa18bb4735d6731
@@ -8,9 +8,11 @@ imports:
 - name: github.com/codahale/hdrhistogram
   version: f8ad88b59a584afeee9d334eff879b104439117b
 - name: github.com/davecgh/go-spew
-  version: 5215b55f46b2b919f50a1df0eaa5886afe4e3b3d
+  version: 346938d642f2ec3594ed81d874461961cd0faa76
   subpackages:
   - spew
+- name: github.com/fsnotify/fsnotify
+  version: 30411dbcefb7a1da7e84f75530ad3abe4011b4f8
 - name: github.com/gocql/gocql
   version: 4d2d1ac71932f7c4a6c7feb0d654462e4116c58b
   subpackages:
@@ -19,19 +21,64 @@ imports:
   - internal/streams
 - name: github.com/golang/snappy
   version: d7b1e156f50d3c4664f683603af70e3e47fa0aa2
+- name: github.com/gorilla/context
+  version: 08b5f424b9271eedf6f9f0ce86cb9396ed337a42
+- name: github.com/gorilla/handlers
+  version: 3a5767ca75ece5f7f1440b1d16975247f8d8b221
+- name: github.com/gorilla/mux
+  version: 392c28fe23e1c45ddba891b0320b3b5df220beea
 - name: github.com/hailocab/go-hostpool
   version: e80d13ce29ede4452c43dea11e79b9bc8a15b478
+- name: github.com/hashicorp/hcl
+  version: 630949a3c5fa3c613328e1b8256052cbc2327c9b
+  subpackages:
+  - hcl/ast
+  - hcl/parser
+  - hcl/scanner
+  - hcl/strconv
+  - hcl/token
+  - json/parser
+  - json/scanner
+  - json/token
+- name: github.com/inconshreveable/mousetrap
+  version: 76626ae9c91c4f2a10f34cad8ce83ea42c93bb75
+- name: github.com/magiconair/properties
+  version: b3b15ef068fd0b17ddf408a23669f20811d194d2
+- name: github.com/mitchellh/mapstructure
+  version: db1efb556f84b25a0a13a04aad883943538ad2e0
+- name: github.com/opentracing-contrib/go-stdlib
+  version: 1de4cc2120e71f745a5810488bf64b29b6d7d9f6
+  subpackages:
+  - nethttp
 - name: github.com/opentracing/opentracing-go
   version: 0c3154a3c2ce79d3271985848659870599dfb77c
   subpackages:
   - ext
   - log
+- name: github.com/pelletier/go-buffruneio
+  version: df1e16fde7fc330a0ca68167c23bf7ed6ac31d6d
+- name: github.com/pelletier/go-toml
+  version: 22139eb5469018e7374b3e7ef653de37ffb44f72
 - name: github.com/pkg/errors
   version: 248dadf4e9068a0b3e79f02ed0a610d935de5302
 - name: github.com/pmezard/go-difflib
   version: 792786c7400a136282c1664665ae0a8db921c6c2
   subpackages:
   - difflib
+- name: github.com/spf13/afero
+  version: 9be650865eab0c12963d8753212f4f9c66cdcf12
+  subpackages:
+  - mem
+- name: github.com/spf13/cast
+  version: f820543c3592e283e311a60d2a600a664e39f6f7
+- name: github.com/spf13/cobra
+  version: 92ea23a837e66f46ac9e7d04fa826602b7b0a42d
+- name: github.com/spf13/jwalterweatherman
+  version: fa7ca7e836cf3a8bb4ebf799f472c12d7e903d66
+- name: github.com/spf13/pflag
+  version: 9ff6c6923cfffbcd502984b8e0c80539a94968b7
+- name: github.com/spf13/viper
+  version: 7538d73b4eb9511d85a9f1dfef202eeb8ac260f4
 - name: github.com/stretchr/objx
   version: 1a9d0bb9f541897e62256577b352fdbc1fb4fd94
 - name: github.com/stretchr/testify
@@ -61,8 +108,19 @@ imports:
   version: 3b993948b6f0e651ffb58ba135d8538a68b1cddf
   subpackages:
   - context
+- name: golang.org/x/sys
+  version: d4feaf1a7e61e1d9e79e6c4e76c6349e9cab0a03
+  subpackages:
+  - unix
+- name: golang.org/x/text
+  version: 0ad425fe45e885577bef05dc1c50f72e33188b16
+  subpackages:
+  - transform
+  - unicode/norm
 - name: gopkg.in/inf.v0
   version: 3887ee99ecf07df5b447e9b00d9c0b2adaa9f3e4
+- name: gopkg.in/yaml.v2
+  version: a83829b6f1293c91addabc89d0571c246397bbf4
 testImports:
 - name: github.com/kr/pretty
   version: cfb55aafdaf3ec08f0db22699ab822c50091b1c4
