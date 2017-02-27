@@ -154,3 +154,7 @@ func (q insertQuery) Exec() error {
 func (q insertQuery) String() string {
 	return q.str
 }
+
+func (q insertQuery) ScanCAS(dest ...interface{}) (bool, error) {
+	return true, nil
+}

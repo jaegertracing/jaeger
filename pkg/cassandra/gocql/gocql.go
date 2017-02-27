@@ -63,6 +63,11 @@ func (q CQLQuery) Exec() error {
 	return q.query.Exec()
 }
 
+// ScanCAS delegates to gocql.Query#ScanCAS.
+func (q CQLQuery) ScanCAS(dest ...interface{}) (bool, error) {
+	return q.query.ScanCAS(dest...)
+}
+
 // Iter delegates to gocql.Query#Iter and wraps the result as Iterator.
 func (q CQLQuery) Iter() cassandra.Iterator {
 	return WrapCQLIterator(q.query.Iter())
@@ -103,9 +108,4 @@ func (i CQLIterator) Scan(dest ...interface{}) bool {
 // Close delegates to gocql.Iter#Close.
 func (i CQLIterator) Close() error {
 	return i.iter.Close()
-}
-
-// Columns delegates to gocql.Iter#Columns.
-func (i CQLIterator) Columns() []gocql.ColumnInfo {
-	return i.iter.Columns()
 }

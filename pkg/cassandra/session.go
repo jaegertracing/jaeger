@@ -20,10 +20,6 @@
 
 package cassandra
 
-import (
-	"github.com/gocql/gocql"
-)
-
 // Consistency is Cassandra's consistency level for queries.
 type Consistency uint16
 
@@ -58,6 +54,7 @@ type Session interface {
 type UpdateQuery interface {
 	Exec() error
 	String() string
+	ScanCAS(dest ...interface{}) (bool, error)
 }
 
 // Query is an abstraction of gocql.Query
@@ -72,5 +69,4 @@ type Query interface {
 type Iterator interface {
 	Scan(dest ...interface{}) bool
 	Close() error
-	Columns() []gocql.ColumnInfo
 }
