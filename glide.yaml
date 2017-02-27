@@ -18,6 +18,10 @@ import:
   version: v1.1.0
   subpackages:
   - thrift
+- package: github.com/gorilla/mux
+  version: v1.3.0
+- package: github.com/gorilla/handlers
+  version: v1.2
 testImport:
 - package: github.com/kr/pretty
 - package: github.com/stretchr/testify
