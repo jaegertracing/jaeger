@@ -99,8 +99,8 @@ func (aH *APIHandler) RegisterRoutes(router *mux.Router) {
 	router.HandleFunc(fmt.Sprintf("/%s/traces/{%s}", aH.httpPrefix, traceIDParam), aH.getTrace).Methods(http.MethodPost, http.MethodGet)
 	router.HandleFunc(fmt.Sprintf(`/%s/traces`, aH.httpPrefix), aH.search).Methods(http.MethodGet)
 	router.HandleFunc(fmt.Sprintf(`/%s/services`, aH.httpPrefix), aH.getServices).Methods(http.MethodGet)
-	// TOOD - remove this when UI catches up
 	router.HandleFunc(fmt.Sprintf("/%s/services/operations", aH.httpPrefix), aH.getOperations).Methods(http.MethodGet)
+	// TOOD - remove this when UI catches up
 	router.HandleFunc(fmt.Sprintf("/api/services/{%s}/operations", serviceParam), aH.getOperationsLegacy).Methods(http.MethodGet)
 	router.HandleFunc(fmt.Sprintf("/%s/dependencies", aH.httpPrefix), aH.dependencies).Methods(http.MethodGet)
 }
