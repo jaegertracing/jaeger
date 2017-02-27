@@ -54,6 +54,12 @@ type Session interface {
 type UpdateQuery interface {
 	Exec() error
 	String() string
+
+	// ScanCAS executes a lightweight transaction (i.e. an UPDATE or INSERT
+	// statement containing an IF clause). If the transaction fails because
+	// the existing values did not match, the previous values will be stored
+	// in dest.
+	ScanCAS(dest ...interface{}) (bool, error)
 }
 
 // Query is an abstraction of gocql.Query

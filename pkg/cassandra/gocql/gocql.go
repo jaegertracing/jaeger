@@ -36,12 +36,12 @@ func WrapCQLSession(session *gocql.Session) CQLSession {
 	return CQLSession{session: session}
 }
 
-// Query delegates to gosql.Session#Query and wraps the result as Query.
+// Query delegates to gocql.Session#Query and wraps the result as Query.
 func (s CQLSession) Query(stmt string, values ...interface{}) cassandra.Query {
 	return WrapCQLQuery(s.session.Query(stmt, values...))
 }
 
-// Close delegates to gosql.Session#Close.
+// Close delegates to gocql.Session#Close.
 func (s CQLSession) Close() {
 	s.session.Close()
 }
@@ -58,22 +58,27 @@ func WrapCQLQuery(query *gocql.Query) CQLQuery {
 	return CQLQuery{query: query}
 }
 
-// Exec delegates to gosql.Query#Exec.
+// Exec delegates to gocql.Query#Exec.
 func (q CQLQuery) Exec() error {
 	return q.query.Exec()
 }
 
-// Iter delegates to gosql.Query#Iter and wraps the result as Iterator.
+// ScanCAS delegates to gocql.Query#ScanCAS.
+func (q CQLQuery) ScanCAS(dest ...interface{}) (bool, error) {
+	return q.query.ScanCAS(dest...)
+}
+
+// Iter delegates to gocql.Query#Iter and wraps the result as Iterator.
 func (q CQLQuery) Iter() cassandra.Iterator {
 	return WrapCQLIterator(q.query.Iter())
 }
 
-// Bind delegates to gosql.Query#Bind and wraps the result as Query.
+// Bind delegates to gocql.Query#Bind and wraps the result as Query.
 func (q CQLQuery) Bind(v ...interface{}) cassandra.Query {
 	return WrapCQLQuery(q.query.Bind(v...))
 }
 
-// Consistency delegates to gosql.Query#Consistency and wraps the result as Query.
+// Consistency delegates to gocql.Query#Consistency and wraps the result as Query.
 func (q CQLQuery) Consistency(level cassandra.Consistency) cassandra.Query {
 	return WrapCQLQuery(q.query.Consistency(gocql.Consistency(level)))
 }
@@ -95,12 +100,12 @@ func WrapCQLIterator(iter *gocql.Iter) CQLIterator {
 	return CQLIterator{iter: iter}
 }
 
-// Scan delegates to gosql.Iter#Scan.
+// Scan delegates to gocql.Iter#Scan.
 func (i CQLIterator) Scan(dest ...interface{}) bool {
 	return i.iter.Scan(dest...)
 }
 
-// Close delegates to gosql.Iter#Close.
+// Close delegates to gocql.Iter#Close.
 func (i CQLIterator) Close() error {
 	return i.iter.Close()
 }
