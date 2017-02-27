@@ -119,7 +119,7 @@ func (aH *APIHandler) getServices(w http.ResponseWriter, r *http.Request) {
 
 func (aH *APIHandler) getOperationsLegacy(w http.ResponseWriter, r *http.Request) {
 	vars := mux.Vars(r)
-	service := vars[serviceParam] //given how getOperationsLegacy is used, this will never work never be empty
+	service := vars[serviceParam] //given how getOperationsLegacy is used, service will always be a non-empty string
 	operations, err := aH.spanReader.GetOperations(service)
 	if aH.handleError(w, err, http.StatusInternalServerError) {
 		return
