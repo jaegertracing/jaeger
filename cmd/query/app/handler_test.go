@@ -59,8 +59,8 @@ var (
 func initializeTestServerWitHandler() (*httptest.Server, *spanstoremocks.Reader, *depsmocks.Reader, *APIHandler) {
 	return initializeTestServerWithOptions(
 		HandlerOptions.Logger(zap.New(zap.NullEncoder())),
-		HandlerOptions.Prefix(DefaultHTTPPrefix),
-		HandlerOptions.QueryLookbackDuration(DefaultTraceQueryLookbackDuration),
+		HandlerOptions.Prefix(defaultHTTPPrefix),
+		HandlerOptions.QueryLookbackDuration(defaultTraceQueryLookbackDuration),
 	)
 }
 
