@@ -48,7 +48,7 @@ func Init(serviceName string, metricsFactory metrics.Factory, logger log.Factory
 	tracer, _, err := cfg.New(
 		serviceName,
 		config.Logger(jaegerLoggerAdapter{logger.Bg()}),
-		config.Observer(rpcmetrics.NewObserver(metricsFactory)),
+		config.Observer(rpcmetrics.NewObserver(metricsFactory, rpcmetrics.DefaultNameNormalizer)),
 	)
 	if err != nil {
 		logger.Bg().Fatal("cannot initialize Jaeger Tracer", zap.Error(err))
