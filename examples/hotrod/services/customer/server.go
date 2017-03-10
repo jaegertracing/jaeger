@@ -26,6 +26,7 @@ import (
 
 	"github.com/opentracing/opentracing-go"
 	"github.com/uber-go/zap"
+	"github.com/uber/jaeger-lib/metrics"
 
 	"github.com/uber/jaeger/examples/hotrod/pkg/httperr"
 	"github.com/uber/jaeger/examples/hotrod/pkg/log"
@@ -41,13 +42,13 @@ type Server struct {
 }
 
 // NewServer creates a new customer.Server
-func NewServer(hostPort string, tracer opentracing.Tracer, logger log.Factory) *Server {
+func NewServer(hostPort string, tracer opentracing.Tracer, metricsFactory metrics.Factory, logger log.Factory) *Server {
 	return &Server{
 		hostPort: hostPort,
 		tracer:   tracer,
 		logger:   logger,
 		database: newDatabase(
-			tracing.Init("mysql", logger),
+			tracing.Init("mysql", metricsFactory.Namespace("mysql", nil), logger),
 			logger.With(zap.String("component", "mysql")),
 		),
 	}

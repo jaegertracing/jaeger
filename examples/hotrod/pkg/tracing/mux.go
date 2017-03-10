@@ -47,7 +47,7 @@ func (tm *TracedServeMux) Handle(pattern string, handler http.Handler) {
 		tm.tracer,
 		handler,
 		nethttp.OperationNameFunc(func(r *http.Request) string {
-			return "HTTP " + r.Method + ": " + pattern
+			return "HTTP " + r.Method + " " + pattern
 		}))
 	tm.mux.Handle(pattern, middleware)
 }

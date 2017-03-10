@@ -26,14 +26,15 @@ import (
 
 	"github.com/opentracing/opentracing-go"
 	"github.com/uber-go/zap"
-	jaeger "github.com/uber/jaeger-client-go"
 	"github.com/uber/jaeger-client-go/config"
+	"github.com/uber/jaeger-client-go/rpcmetrics"
+	"github.com/uber/jaeger-lib/metrics"
 
 	"github.com/uber/jaeger/examples/hotrod/pkg/log"
 )
 
 // Init creates a new instance of Jaeger tracer.
-func Init(serviceName string, logger log.Factory) opentracing.Tracer {
+func Init(serviceName string, metricsFactory metrics.Factory, logger log.Factory) opentracing.Tracer {
 	cfg := config.Configuration{
 		Sampler: &config.SamplerConfig{
 			Type:  "const",
@@ -43,9 +44,12 @@ func Init(serviceName string, logger log.Factory) opentracing.Tracer {
 			LogSpans:            false,
 			BufferFlushInterval: 1 * time.Second,
 		},
-		Logger: jaegerLoggerAdapter{logger.Bg()},
 	}
-	tracer, _, err := cfg.New(serviceName, jaeger.NullStatsReporter)
+	tracer, _, err := cfg.New(
+		serviceName,
+		config.Logger(jaegerLoggerAdapter{logger.Bg()}),
+		config.Observer(rpcmetrics.NewObserver(metricsFactory, rpcmetrics.DefaultNameNormalizer)),
+	)
 	if err != nil {
 		logger.Bg().Fatal("cannot initialize Jaeger Tracer", zap.Error(err))
 	}

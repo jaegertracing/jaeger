@@ -29,11 +29,15 @@ import (
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
 	"github.com/uber-go/zap"
+	"github.com/uber/jaeger-lib/metrics"
+	"github.com/uber/jaeger-lib/metrics/go-kit"
+	"github.com/uber/jaeger-lib/metrics/go-kit/expvar"
 )
 
 var (
-	cfgFile string
-	logger  zap.Logger
+	cfgFile        string
+	logger         zap.Logger
+	metricsFactory metrics.Factory
 )
 
 // RootCmd represents the base command when called without any subcommands
@@ -55,6 +59,7 @@ func Execute() {
 func init() {
 	cobra.OnInitialize(initConfig)
 	logger = zap.New(zap.NewTextEncoder())
+	metricsFactory = xkit.Wrap("", expvar.NewFactory(10)) // 10 buckets for histograms
 }
 
 // initConfig reads in config file and ENV variables if set.

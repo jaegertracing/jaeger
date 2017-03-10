@@ -41,7 +41,7 @@ var frontendCmd = &cobra.Command{
 		logger := log.NewFactory(logger.With(zap.String("service", "frontend")))
 		server := frontend.NewServer(
 			net.JoinHostPort(frontendOptions.serverInterface, strconv.Itoa(frontendOptions.serverPort)),
-			tracing.Init("frontend", logger),
+			tracing.Init("frontend", metricsFactory.Namespace("frontend", nil), logger),
 			logger,
 		)
 		return server.Run()
