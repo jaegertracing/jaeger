@@ -22,7 +22,7 @@ package app
 
 import (
 	"time"
-	
+
 	"github.com/uber-go/zap"
 	"github.com/uber/jaeger/model/adjuster"
 )
