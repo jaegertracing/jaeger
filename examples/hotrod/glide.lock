@@ -1,5 +1,5 @@
-hash: 947cfc463793486d2722a966857dda756d9ad17b2286415a5c5fc82a66f35dce
-updated: 2017-02-13T21:43:34.261634332-05:00
+hash: 8d5465d5f01ce4159736a8b8ff32f089db64a1860c1118d02e11bcdc3e1cd632
+updated: 2017-03-10T16:25:59.401413075-05:00
 imports:
 - name: github.com/apache/thrift
   version: 53dd39833a08ce33582e5ff31fa18bb4735d6731
@@ -38,7 +38,7 @@ imports:
   subpackages:
   - nethttp
 - name: github.com/opentracing/opentracing-go
-  version: 0c3154a3c2ce79d3271985848659870599dfb77c
+  version: 6edb48674bd9467b8e91fda004f2bd7202d60ce4
   subpackages:
   - ext
   - log
@@ -65,10 +65,11 @@ imports:
 - name: github.com/uber-go/zap
   version: c4939d1166b2220bb45338e21506623b4bbdec50
 - name: github.com/uber/jaeger-client-go
-  version: 5d01926de3e629b33d75e88e29f065305a56e7b1
+  version: cd3a36113b13b96d1640ff113e1ea096af856a2f
   subpackages:
   - config
   - internal/spanlog
+  - log
   - rpcmetrics
   - thrift-gen/agent
   - thrift-gen/sampling
@@ -94,7 +95,7 @@ imports:
 - name: github.com/VividCortex/gohistogram
   version: 51564d9861991fb0ad0f531c99ef602d0f9866e6
 - name: golang.org/x/net
-  version: 61557ac0112b576429a0df080e1c2cef5dfbb642
+  version: 10c134ea0df15f7e34d789338c7a2d76cc7a3ab9
   subpackages:
   - context
 - name: golang.org/x/sys

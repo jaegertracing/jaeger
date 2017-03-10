@@ -15,6 +15,6 @@ import:
 - package: github.com/spf13/cobra
 - package: github.com/spf13/viper
 - package: github.com/uber/jaeger-client-go
-  version: rpc-metrics
+  version: ^2.2.0
 - package: github.com/uber/jaeger-lib
 - package: github.com/opentracing-contrib/go-stdlib

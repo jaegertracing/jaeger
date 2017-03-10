@@ -55,7 +55,7 @@ func newRedis(metricsFactory metrics.Factory, logger log.Factory) *Redis {
 // FindDriverIDs finds IDs of drivers who are near the location.
 func (r *Redis) FindDriverIDs(ctx context.Context, location string) []string {
 	if span := opentracing.SpanFromContext(ctx); span != nil {
-		span := r.tracer.StartSpan("redis::FindDriverIDs", opentracing.ChildOf(span.Context()))
+		span := r.tracer.StartSpan("FindDriverIDs", ext.RPCServerOption(span.Context()))
 		span.SetTag("param.location", location)
 		defer span.Finish()
 		ctx = opentracing.ContextWithSpan(ctx, span)
@@ -73,7 +73,7 @@ func (r *Redis) FindDriverIDs(ctx context.Context, location string) []string {
 // GetDriver returns driver and the current car location
 func (r *Redis) GetDriver(ctx context.Context, driverID string) (Driver, error) {
 	if span := opentracing.SpanFromContext(ctx); span != nil {
-		span := r.tracer.StartSpan("redis::GetDriver", opentracing.ChildOf(span.Context()))
+		span := r.tracer.StartSpan("GetDriver", ext.RPCServerOption(span.Context()))
 		span.SetTag("param.driverID", driverID)
 		defer span.Finish()
 		ctx = opentracing.ContextWithSpan(ctx, span)
