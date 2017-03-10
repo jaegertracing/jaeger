@@ -21,6 +21,8 @@
 package app
 
 import (
+	"time"
+	
 	"github.com/uber-go/zap"
 	"github.com/uber/jaeger/model/adjuster"
 )
@@ -52,5 +54,12 @@ func (handlerOptions) Adjusters(adjusters []adjuster.Adjuster) HandlerOption {
 func (handlerOptions) Prefix(prefix string) HandlerOption {
 	return func(apiHandler *APIHandler) {
 		apiHandler.httpPrefix = prefix
+	}
+}
+
+// Prefix creates a HandlerOption that initializes lookback duration
+func (handlerOptions) QueryLookbackDuration(queryLookbackDuration time.Duration) HandlerOption {
+	return func(apiHandler *APIHandler) {
+		apiHandler.queryParser.traceQueryLookbackDuration = queryLookbackDuration
 	}
 }

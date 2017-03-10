@@ -46,8 +46,9 @@ const (
 	lookbackParam = "lookback"
 
 	defaultDependencyLookbackDuration = time.Hour * 24
-	defaultTraceQueryLookbackDuration = time.Hour * 24 * 2
 
+	// DefaultTraceQueryLookbackDuration is the default lookback time of a query if none is provided
+	DefaultTraceQueryLookbackDuration = time.Hour * 24 * 2
 	// DefaultHTTPPrefix is the prefix for the API if no prefix is provided
 	DefaultHTTPPrefix = "api"
 )
@@ -86,9 +87,6 @@ func NewAPIHandler(spanReader spanstore.Reader, dependencyReader dependencystore
 	aH := &APIHandler{
 		spanReader:       spanReader,
 		dependencyReader: dependencyReader,
-		queryParser: queryParser{
-			traceQueryLookbackDuration: defaultTraceQueryLookbackDuration,
-		},
 	}
 
 	for _, option := range options {
@@ -98,14 +96,16 @@ func NewAPIHandler(spanReader spanstore.Reader, dependencyReader dependencystore
 		aH.httpPrefix = DefaultHTTPPrefix
 	}
 	if aH.adjuster == nil {
-		aH.adjuster = adjuster.Sequence([]adjuster.Adjuster{
+		aH.adjuster = adjuster.Sequence(
 			adjuster.SpanIDDeduper(),
 			adjuster.ClockSkew(),
-			adjuster.IPTagAdjuster(),
-		}...)
+			adjuster.IPTagAdjuster())
 	}
 	if aH.logger == nil {
 		aH.logger = zap.New(zap.NullEncoder())
+	}
+	if aH.queryParser.traceQueryLookbackDuration == 0 {
+		aH.queryParser.traceQueryLookbackDuration = DefaultTraceQueryLookbackDuration
 	}
 	return aH
 }
