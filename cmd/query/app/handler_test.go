@@ -57,12 +57,18 @@ var (
 )
 
 func initializeTestServerWitHandler() (*httptest.Server, *spanstoremocks.Reader, *depsmocks.Reader, *APIHandler) {
+	return initializeTestServerWithOptions(
+		HandlerOptions.Logger(zap.New(zap.NullEncoder())),
+		HandlerOptions.Prefix(defaultHTTPPrefix),
+		HandlerOptions.QueryLookbackDuration(defaultTraceQueryLookbackDuration),
+	)
+}
+
+func initializeTestServerWithOptions(options ...HandlerOption) (*httptest.Server, *spanstoremocks.Reader, *depsmocks.Reader, *APIHandler) {
 	readStorage := &spanstoremocks.Reader{}
 	dependencyStorage := &depsmocks.Reader{}
 	r := mux.NewRouter()
-	logger := zap.New(zap.NewJSONEncoder())
-	adjusters := []adjuster.Adjuster{}
-	handler := NewAPIHandler(readStorage, dependencyStorage, logger, "api", adjusters)
+	handler := NewAPIHandler(readStorage, dependencyStorage, options...)
 	handler.RegisterRoutes(r)
 	return httptest.NewServer(r), readStorage, dependencyStorage, handler
 }
@@ -140,10 +146,11 @@ func TestSearchSuccess(t *testing.T) {
 }
 
 func TestSearchModelConversionFailure(t *testing.T) {
-	server, readMock, _, handler := initializeTestServerWitHandler()
-	handler.adjuster = adjuster.Func(func(trace *model.Trace) (*model.Trace, error) {
-		return trace, errAdjustment
-	})
+	server, readMock, _, _ := initializeTestServerWithOptions(HandlerOptions.Adjusters([]adjuster.Adjuster{
+		adjuster.Func(func(trace *model.Trace) (*model.Trace, error) {
+			return trace, errAdjustment
+		})}),
+	)
 	defer server.Close()
 	readMock.On("FindTraces", mock.AnythingOfType("*spanstore.TraceQueryParameters")).Return([]*model.Trace{
 		{

@@ -47,6 +47,7 @@ const (
 
 	defaultDependencyLookbackDuration = time.Hour * 24
 	defaultTraceQueryLookbackDuration = time.Hour * 24 * 2
+	defaultHTTPPrefix                 = "api"
 )
 
 // HTTPHandler handles http requests
@@ -79,18 +80,31 @@ type APIHandler struct {
 }
 
 // NewAPIHandler returns an APIHandler
-// TODO use Builder to allow this package to move to github while accepting custom components like HAProxyMerge()
-func NewAPIHandler(spanReader spanstore.Reader, dependencyReader dependencystore.Reader, logger zap.Logger, httpPrefix string, adjusters []adjuster.Adjuster) *APIHandler {
-	return &APIHandler{
+func NewAPIHandler(spanReader spanstore.Reader, dependencyReader dependencystore.Reader, options ...HandlerOption) *APIHandler {
+	aH := &APIHandler{
 		spanReader:       spanReader,
 		dependencyReader: dependencyReader,
-		logger:           logger,
-		queryParser: queryParser{
-			traceQueryLookbackDuration: defaultTraceQueryLookbackDuration,
-		},
-		adjuster:   adjuster.Sequence(adjusters...),
-		httpPrefix: httpPrefix,
 	}
+
+	for _, option := range options {
+		option(aH)
+	}
+	if aH.httpPrefix == "" {
+		aH.httpPrefix = defaultHTTPPrefix
+	}
+	if aH.adjuster == nil {
+		aH.adjuster = adjuster.Sequence(
+			adjuster.SpanIDDeduper(),
+			adjuster.ClockSkew(),
+			adjuster.IPTagAdjuster())
+	}
+	if aH.logger == nil {
+		aH.logger = zap.New(zap.NullEncoder())
+	}
+	if aH.queryParser.traceQueryLookbackDuration == 0 {
+		aH.queryParser.traceQueryLookbackDuration = defaultTraceQueryLookbackDuration
+	}
+	return aH
 }
 
 // RegisterRoutes registers routes for this handler on the given router
