@@ -21,6 +21,7 @@
 package spanstore
 
 import (
+	"errors"
 	"time"
 
 	"github.com/uber/jaeger/model"
@@ -30,6 +31,11 @@ import (
 type Writer interface {
 	WriteSpan(span *model.Span) error
 }
+
+var (
+	// ErrTraceNotFound is returned by Reader's GetTrace if no data is found for given trace ID.
+	ErrTraceNotFound = errors.New("trace not found")
+)
 
 // Reader finds and loads traces and other data from storage.
 type Reader interface {

@@ -129,8 +129,10 @@ func (s *SpanReader) readTrace(traceID dbmodel.TraceID) (*model.Trace, error) {
 	err := i.Close()
 	s.readTracesTableMetrics.Emit(err, time.Since(start))
 	if err != nil {
-		err = errors.Wrap(err, "Error reading traces from storage")
-		return nil, err
+		return nil, errors.Wrap(err, "Error reading traces from storage")
+	}
+	if len(retMe.Spans) == 0 {
+		return nil, spanstore.ErrTraceNotFound
 	}
 	return retMe, nil
 }
