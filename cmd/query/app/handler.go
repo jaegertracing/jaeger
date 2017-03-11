@@ -109,14 +109,19 @@ func NewAPIHandler(spanReader spanstore.Reader, dependencyReader dependencystore
 
 // RegisterRoutes registers routes for this handler on the given router
 func (aH *APIHandler) RegisterRoutes(router *mux.Router) {
-	// TODO why single-trace resource below accept POST method?
-	router.HandleFunc(fmt.Sprintf("/%s/traces/{%s}", aH.httpPrefix, traceIDParam), aH.getTrace).Methods(http.MethodPost, http.MethodGet)
-	router.HandleFunc(fmt.Sprintf(`/%s/traces`, aH.httpPrefix), aH.search).Methods(http.MethodGet)
-	router.HandleFunc(fmt.Sprintf(`/%s/services`, aH.httpPrefix), aH.getServices).Methods(http.MethodGet)
-	router.HandleFunc(fmt.Sprintf("/%s/services/operations", aH.httpPrefix), aH.getOperations).Methods(http.MethodGet)
+	router.HandleFunc(aH.route("/traces/{%s}", traceIDParam), aH.getTrace).Methods(http.MethodGet)
+	router.HandleFunc(aH.route(`/traces`), aH.search).Methods(http.MethodGet)
+	router.HandleFunc(aH.route(`/services`), aH.getServices).Methods(http.MethodGet)
+	// TODO change the UI to use this endpoint. Requires ?service= parameter.
+	router.HandleFunc(aH.route("/operations"), aH.getOperations).Methods(http.MethodGet)
 	// TOOD - remove this when UI catches up
-	router.HandleFunc(fmt.Sprintf("/api/services/{%s}/operations", serviceParam), aH.getOperationsLegacy).Methods(http.MethodGet)
-	router.HandleFunc(fmt.Sprintf("/%s/dependencies", aH.httpPrefix), aH.dependencies).Methods(http.MethodGet)
+	router.HandleFunc(aH.route("/services/{%s}/operations", serviceParam), aH.getOperationsLegacy).Methods(http.MethodGet)
+	router.HandleFunc(aH.route("/dependencies"), aH.dependencies).Methods(http.MethodGet)
+}
+
+func (aH *APIHandler) route(route string, args ...interface{}) string {
+	args = append([]interface{}{aH.httpPrefix}, args...)
+	return fmt.Sprintf("/%s"+route, args...)
 }
 
 func (aH *APIHandler) getServices(w http.ResponseWriter, r *http.Request) {
@@ -173,7 +178,6 @@ func (aH *APIHandler) search(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// TODO: parallelize transformations
 	uiTraces := make([]*ui.Trace, len(tracesFromStorage))
 	var uiErrors []structuredError
 	for i, v := range tracesFromStorage {
