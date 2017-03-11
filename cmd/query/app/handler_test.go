@@ -21,6 +21,7 @@
 package app
 
 import (
+	"bytes"
 	"encoding/json"
 	"errors"
 	"fmt"
@@ -28,22 +29,18 @@ import (
 	"io/ioutil"
 	"net/http"
 	"net/http/httptest"
+	"strings"
 	"testing"
 	"time"
-
-	"code.uber.internal/infra/jaeger/model/ui"
 
 	"github.com/gorilla/mux"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
 
-	"strings"
-
-	"bytes"
-
 	"github.com/uber-go/zap"
 	"github.com/uber/jaeger/model"
 	"github.com/uber/jaeger/model/adjuster"
+	ui "github.com/uber/jaeger/model/json"
 	depsmocks "github.com/uber/jaeger/storage/dependencystore/mocks"
 	"github.com/uber/jaeger/storage/spanstore"
 	spanstoremocks "github.com/uber/jaeger/storage/spanstore/mocks"
