@@ -25,6 +25,7 @@ import (
 
 	"github.com/uber-go/zap"
 	"github.com/uber/jaeger/model/adjuster"
+	"github.com/uber/jaeger/storage/spanstore"
 )
 
 // HandlerOption is a function that sets some option on the APIHandler
@@ -57,9 +58,23 @@ func (handlerOptions) Prefix(prefix string) HandlerOption {
 	}
 }
 
-// Prefix creates a HandlerOption that initializes lookback duration
+// QueryLookbackDuration creates a HandlerOption that initializes lookback duration
 func (handlerOptions) QueryLookbackDuration(queryLookbackDuration time.Duration) HandlerOption {
 	return func(apiHandler *APIHandler) {
 		apiHandler.queryParser.traceQueryLookbackDuration = queryLookbackDuration
+	}
+}
+
+// ArchiveSpanReader creates a HandlerOption that initializes lookback duration
+func (handlerOptions) ArchiveSpanReader(reader spanstore.Reader) HandlerOption {
+	return func(apiHandler *APIHandler) {
+		apiHandler.archiveSpanReader = reader
+	}
+}
+
+// ArchiveSpanWriter creates a HandlerOption that initializes lookback duration
+func (handlerOptions) ArchiveSpanWriter(writer spanstore.Writer) HandlerOption {
+	return func(apiHandler *APIHandler) {
+		apiHandler.archiveSpanWriter = writer
 	}
 }
