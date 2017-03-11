@@ -50,6 +50,10 @@ const (
 	defaultHTTPPrefix                 = "api"
 )
 
+var (
+	errNoArchiveSpanStorage = errors.New("archive span storage was not configured")
+)
+
 // HTTPHandler handles http requests
 type HTTPHandler interface {
 	RegisterRoutes(router *mux.Router)
@@ -71,12 +75,14 @@ type structuredError struct {
 
 // APIHandler implements the query service public API by registering routes at httpPrefix
 type APIHandler struct {
-	spanReader       spanstore.Reader
-	dependencyReader dependencystore.Reader
-	adjuster         adjuster.Adjuster
-	logger           zap.Logger
-	queryParser      queryParser
-	httpPrefix       string
+	spanReader        spanstore.Reader
+	archiveSpanReader spanstore.Reader
+	archiveSpanWriter spanstore.Writer
+	dependencyReader  dependencystore.Reader
+	adjuster          adjuster.Adjuster
+	logger            zap.Logger
+	queryParser       queryParser
+	httpPrefix        string
 }
 
 // NewAPIHandler returns an APIHandler
@@ -110,6 +116,8 @@ func NewAPIHandler(spanReader spanstore.Reader, dependencyReader dependencystore
 // RegisterRoutes registers routes for this handler on the given router
 func (aH *APIHandler) RegisterRoutes(router *mux.Router) {
 	router.HandleFunc(aH.route("/traces/{%s}", traceIDParam), aH.getTrace).Methods(http.MethodGet)
+	router.HandleFunc(aH.route("/archive/{%s}", traceIDParam), aH.getArchivedTrace).Methods(http.MethodGet)
+	router.HandleFunc(aH.route("/archive/{%s}", traceIDParam), aH.archiveTrace).Methods(http.MethodPut)
 	router.HandleFunc(aH.route(`/traces`), aH.search).Methods(http.MethodGet)
 	router.HandleFunc(aH.route(`/services`), aH.getServices).Methods(http.MethodGet)
 	// TODO change the UI to use this endpoint. Requires ?service= parameter.
@@ -279,20 +287,36 @@ func (aH *APIHandler) filterDependenciesByService(
 	return filteredDependencies
 }
 
-func (aH *APIHandler) getTrace(w http.ResponseWriter, r *http.Request) {
+func (aH *APIHandler) parseTraceID(w http.ResponseWriter, r *http.Request) (model.TraceID, bool) {
 	vars := mux.Vars(r)
 	traceIDVar := vars[traceIDParam]
 	traceID, err := model.TraceIDFromString(traceIDVar)
 	if aH.handleError(w, err, http.StatusBadRequest) {
+		return traceID, false
+	}
+	return traceID, true
+}
+
+func (aH *APIHandler) getTrace(w http.ResponseWriter, r *http.Request) {
+	aH.getTraceFromReader(w, r, aH.spanReader)
+}
+
+func (aH *APIHandler) getTraceFromReader(w http.ResponseWriter, r *http.Request, reader spanstore.Reader) {
+	traceID, ok := aH.parseTraceID(w, r)
+	if !ok {
 		return
 	}
 
-	zTrace, err := aH.spanReader.GetTrace(traceID)
+	trace, err := reader.GetTrace(traceID)
+	if err == spanstore.ErrTraceNotFound {
+		aH.handleError(w, err, http.StatusBadRequest)
+		return
+	}
 	if aH.handleError(w, err, http.StatusInternalServerError) {
 		return
 	}
 	var uiErrors []structuredError
-	uiTrace, uiErr := aH.convertModelToUI(zTrace)
+	uiTrace, uiErr := aH.convertModelToUI(trace)
 	if uiErr != nil {
 		uiErrors = append(uiErrors, *uiErr)
 	}
@@ -302,6 +326,49 @@ func (aH *APIHandler) getTrace(w http.ResponseWriter, r *http.Request) {
 			uiTrace,
 		},
 		Errors: uiErrors,
+	}
+	aH.writeJSON(w, &structuredRes)
+}
+
+func (aH *APIHandler) getArchivedTrace(w http.ResponseWriter, r *http.Request) {
+	if aH.archiveSpanReader == nil {
+		aH.handleError(w, errNoArchiveSpanStorage, http.StatusInternalServerError)
+		return
+	}
+	aH.getTraceFromReader(w, r, aH.spanReader)
+}
+
+func (aH *APIHandler) archiveTrace(w http.ResponseWriter, r *http.Request) {
+	if aH.archiveSpanWriter == nil {
+		aH.handleError(w, errNoArchiveSpanStorage, http.StatusInternalServerError)
+		return
+	}
+	traceID, ok := aH.parseTraceID(w, r)
+	if !ok {
+		return
+	}
+	trace, err := aH.spanReader.GetTrace(traceID)
+	if err == spanstore.ErrTraceNotFound {
+		aH.handleError(w, err, http.StatusBadRequest)
+		return
+	}
+	if aH.handleError(w, err, http.StatusInternalServerError) {
+		return
+	}
+	var writeErrors []error
+	for _, span := range trace.Spans {
+		err := aH.archiveSpanWriter.WriteSpan(span)
+		if err != nil {
+			writeErrors = append(writeErrors, err)
+		}
+	}
+	err = multierror.Wrap(writeErrors)
+	if aH.handleError(w, err, http.StatusInternalServerError) {
+		return
+	}
+	structuredRes := structuredResponse{
+		Data:   []*ui.Trace{},
+		Errors: []structuredError{},
 	}
 	aH.writeJSON(w, &structuredRes)
 }

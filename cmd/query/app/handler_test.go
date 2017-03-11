@@ -36,11 +36,14 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
 
+	"strings"
+
 	"github.com/uber-go/zap"
 	"github.com/uber/jaeger/model"
 	"github.com/uber/jaeger/model/adjuster"
 	ui "github.com/uber/jaeger/model/json"
 	depsmocks "github.com/uber/jaeger/storage/dependencystore/mocks"
+	"github.com/uber/jaeger/storage/spanstore"
 	spanstoremocks "github.com/uber/jaeger/storage/spanstore/mocks"
 )
 
@@ -100,6 +103,17 @@ func TestGetTraceDBFailure(t *testing.T) {
 	var response structuredResponse
 	err := getJSON(server.URL+`/api/traces/123456`, &response)
 	assert.Error(t, err)
+}
+
+func TestGetTraceNotFound(t *testing.T) {
+	server, readMock, _ := initializeTestServer()
+	defer server.Close()
+	readMock.On("GetTrace", mock.AnythingOfType("model.TraceID")).Return(nil, spanstore.ErrTraceNotFound).Times(1)
+
+	var response structuredResponse
+	err := getJSON(server.URL+`/api/traces/123456`, &response)
+	assert.Error(t, err)
+	assert.True(t, strings.Contains(err.Error(), "trace not found"))
 }
 
 func TestGetTraceAdjustmentFailure(t *testing.T) {
