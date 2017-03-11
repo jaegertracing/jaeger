@@ -140,6 +140,24 @@ func TestSpanReaderGetTrace(t *testing.T) {
 	}
 }
 
+func TestSpanReaderGetTrace_TraceNotFound(t *testing.T) {
+	withSpanReader(func(r *spanReaderTest) {
+		iter := &mocks.Iterator{}
+		iter.On("Scan", matchEverything()).Return(false)
+		iter.On("Close").Return(nil)
+
+		query := &mocks.Query{}
+		query.On("Consistency", cassandra.One).Return(query)
+		query.On("Iter").Return(iter)
+
+		r.session.On("Query", mock.AnythingOfType("string"), matchEverything()).Return(query)
+
+		trace, err := r.reader.GetTrace(model.TraceID{})
+		assert.Nil(t, trace)
+		assert.EqualError(t, err, "trace not found")
+	})
+}
+
 func TestSpanReaderFindTracesBadRequest(t *testing.T) {
 	withSpanReader(func(r *spanReaderTest) {
 		_, err := r.reader.FindTraces(nil)
@@ -205,7 +223,7 @@ func TestSpanReaderFindTraces(t *testing.T) {
 		t.Run(testCase.caption, func(t *testing.T) {
 			withSpanReader(func(r *spanReaderTest) {
 				// scanMatcher can match Iter.Scan() parameters and set trace ID fields
-				scanMatcher := func() interface{} {
+				scanMatcher := func(name string) interface{} {
 					traceIDs := []dbmodel.TraceID{
 						dbmodel.TraceIDFromDomain(model.TraceID{Low: 1}),
 						dbmodel.TraceIDFromDomain(model.TraceID{Low: 2}),
@@ -228,7 +246,7 @@ func TestSpanReaderFindTraces(t *testing.T) {
 
 				mockQuery := func(queryErr error) *mocks.Query {
 					iter := &mocks.Iterator{}
-					iter.On("Scan", scanMatcher()).Return(true)
+					iter.On("Scan", scanMatcher("queryIter")).Return(true)
 					iter.On("Scan", matchEverything()).Return(false)
 					iter.On("Close").Return(queryErr)
 
@@ -243,18 +261,22 @@ func TestSpanReaderFindTraces(t *testing.T) {
 				mainQuery := mockQuery(testCase.mainQueryError)
 				tagsQuery := mockQuery(testCase.tagsQueryError)
 
-				loadQueryIter := &mocks.Iterator{}
-				loadQueryIter.On("Scan", scanMatcher()).Return(true)
-				loadQueryIter.On("Scan", matchEverything()).Return(false)
-				loadQueryIter.On("Close").Return(testCase.loadQueryError)
+				makeLoadQuery := func() *mocks.Query {
+					loadQueryIter := &mocks.Iterator{}
+					loadQueryIter.On("Scan", scanMatcher("loadIter")).Return(true)
+					loadQueryIter.On("Scan", matchEverything()).Return(false)
+					loadQueryIter.On("Close").Return(testCase.loadQueryError)
 
-				loadQuery := &mocks.Query{}
-				loadQuery.On("Consistency", cassandra.One).Return(loadQuery)
-				loadQuery.On("Iter").Return(loadQueryIter)
+					loadQuery := &mocks.Query{}
+					loadQuery.On("Consistency", cassandra.One).Return(loadQuery)
+					loadQuery.On("Iter").Return(loadQueryIter)
+					return loadQuery
+				}
 
 				r.session.On("Query", stringMatcher("SELECT trace_id, span_id FROM traces"), matchEverything()).Return(mainQuery)
 				r.session.On("Query", stringMatcher("SELECT trace_id, span_id FROM tag_index"), matchEverything()).Return(tagsQuery)
-				r.session.On("Query", stringMatcher("SELECT trace_id, span_id, "), matchEverything()).Return(loadQuery)
+				r.session.On("Query", stringMatcher("SELECT trace_id, span_id, "), matchOnce()).Return(makeLoadQuery())
+				r.session.On("Query", stringMatcher("SELECT trace_id, span_id, "), matchEverything()).Return(makeLoadQuery())
 
 				queryParams := &spanstore.TraceQueryParameters{ServiceName: "service-a", NumTraces: 100}
 				if testCase.numTraces != 0 {
@@ -267,7 +289,7 @@ func TestSpanReaderFindTraces(t *testing.T) {
 				res, err := r.reader.FindTraces(queryParams)
 				if testCase.expectedError == "" {
 					assert.NoError(t, err)
-					assert.Len(t, res, testCase.expectedCount)
+					assert.Len(t, res, testCase.expectedCount, "expecting certain number of traces")
 				} else {
 					assert.EqualError(t, err, testCase.expectedError)
 				}
