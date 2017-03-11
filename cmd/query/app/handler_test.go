@@ -239,7 +239,7 @@ func TestGetOperationsSuccess(t *testing.T) {
 	mock.On("GetOperations", "trifle").Return(expectedOperations, nil).Times(1)
 
 	var response structuredResponse
-	err := getJSON(server.URL+"/api/services/operations?service=trifle", &response)
+	err := getJSON(server.URL+"/api/operations?service=trifle", &response)
 	assert.NoError(t, err)
 	actualOperations := make([]string, len(expectedOperations))
 	for i, s := range response.Data.([]interface{}) {
@@ -253,7 +253,7 @@ func TestGetOperationsNoServiceName(t *testing.T) {
 	defer server.Close()
 
 	var response structuredResponse
-	err := getJSON(server.URL+"/api/services/operations", &response)
+	err := getJSON(server.URL+"/api/operations", &response)
 	assert.Error(t, err)
 }
 
@@ -263,7 +263,7 @@ func TestGetOperationsStorageFailure(t *testing.T) {
 	mock.On("GetOperations", "trifle").Return(nil, errStorage).Times(1)
 
 	var response structuredResponse
-	err := getJSON(server.URL+"/api/services/operations?service=trifle", &response)
+	err := getJSON(server.URL+"/api/operations?service=trifle", &response)
 	assert.Error(t, err)
 }
 
