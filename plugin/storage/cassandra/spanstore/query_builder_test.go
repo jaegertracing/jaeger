@@ -26,6 +26,7 @@ import (
 	"time"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 
 	"github.com/uber/jaeger/storage/spanstore"
 )
@@ -64,93 +65,93 @@ func TestGoodQueryScenarios(t *testing.T) {
 		{
 			&spanstore.TraceQueryParameters{NumTraces: 25},
 			expectedQueries{
-				mainQuery:       "SELECT trace_id, span_id FROM traces ALLOW FILTERING",
-				mainQueryParams: nil,
+				mainQuery:       "SELECT trace_id, span_id FROM traces LIMIT ? ALLOW FILTERING",
+				mainQueryParams: []interface{}{25},
 			},
 		},
 		{
-			&spanstore.TraceQueryParameters{OperationName: testOperationName},
+			&spanstore.TraceQueryParameters{OperationName: testOperationName, NumTraces: 25},
 			expectedQueries{
-				mainQuery:       "SELECT trace_id, span_id FROM traces WHERE operation_name = ? ALLOW FILTERING",
-				mainQueryParams: []interface{}{"someOperationName"},
+				mainQuery:       "SELECT trace_id, span_id FROM traces WHERE operation_name = ? LIMIT ? ALLOW FILTERING",
+				mainQueryParams: []interface{}{"someOperationName", 25},
 			},
 		},
 		{
 			&spanstore.TraceQueryParameters{ServiceName: testServiceName, NumTraces: 25},
 			expectedQueries{
-				mainQuery:       "SELECT trace_id, span_id FROM traces WHERE service_name = ? ALLOW FILTERING",
-				mainQueryParams: []interface{}{"someServiceName"},
+				mainQuery:       "SELECT trace_id, span_id FROM traces WHERE service_name = ? LIMIT ? ALLOW FILTERING",
+				mainQueryParams: []interface{}{"someServiceName", 25},
 			},
 		},
 		{
-			&spanstore.TraceQueryParameters{ServiceName: testServiceName, OperationName: testOperationName},
+			&spanstore.TraceQueryParameters{ServiceName: testServiceName, OperationName: testOperationName, NumTraces: 25},
 			expectedQueries{
-				mainQuery:       "SELECT trace_id, span_id FROM traces WHERE service_name = ? AND operation_name = ? ALLOW FILTERING",
-				mainQueryParams: []interface{}{"someServiceName", "someOperationName"},
+				mainQuery:       "SELECT trace_id, span_id FROM traces WHERE service_name = ? AND operation_name = ? LIMIT ? ALLOW FILTERING",
+				mainQueryParams: []interface{}{"someServiceName", "someOperationName", 25},
 			},
 		},
 		{
 			&spanstore.TraceQueryParameters{ServiceName: testServiceName, Tags: map[string]string{"someTagKey": "someTagValue"}, NumTraces: 25},
 			expectedQueries{
-				mainQuery:       "SELECT trace_id, span_id FROM traces WHERE service_name = ? ALLOW FILTERING",
-				mainQueryParams: []interface{}{"someServiceName"},
+				mainQuery:       "SELECT trace_id, span_id FROM traces WHERE service_name = ? LIMIT ? ALLOW FILTERING",
+				mainQueryParams: []interface{}{"someServiceName", 25},
 				tagQueries:      []string{"SELECT trace_id, span_id FROM tag_index WHERE service_name = ? AND tag_key = ? AND tag_value = ?"},
 				tagQueryParams:  [][]interface{}{{"someServiceName", "someTagKey", "someTagValue"}},
 			},
 		},
 		{
-			&spanstore.TraceQueryParameters{ServiceName: testServiceName, StartTimeMin: someMinStartTime},
+			&spanstore.TraceQueryParameters{ServiceName: testServiceName, StartTimeMin: someMinStartTime, NumTraces: 25},
 			expectedQueries{
-				mainQuery:       "SELECT trace_id, span_id FROM traces WHERE service_name = ? AND start_time >= ? ALLOW FILTERING",
-				mainQueryParams: []interface{}{"someServiceName", int64(5)},
+				mainQuery:       "SELECT trace_id, span_id FROM traces WHERE service_name = ? AND start_time >= ? LIMIT ? ALLOW FILTERING",
+				mainQueryParams: []interface{}{"someServiceName", int64(5), 25},
 			},
 		},
 		{
-			&spanstore.TraceQueryParameters{ServiceName: testServiceName, StartTimeMax: someMaxStartTime},
+			&spanstore.TraceQueryParameters{ServiceName: testServiceName, StartTimeMax: someMaxStartTime, NumTraces: 25},
 			expectedQueries{
-				mainQuery:       "SELECT trace_id, span_id FROM traces WHERE service_name = ? AND start_time <= ? ALLOW FILTERING",
-				mainQueryParams: []interface{}{"someServiceName", int64(10)},
+				mainQuery:       "SELECT trace_id, span_id FROM traces WHERE service_name = ? AND start_time <= ? LIMIT ? ALLOW FILTERING",
+				mainQueryParams: []interface{}{"someServiceName", int64(10), 25},
 			},
 		},
 		{
-			&spanstore.TraceQueryParameters{ServiceName: testServiceName, StartTimeMin: someMinStartTime, StartTimeMax: someMaxStartTime},
+			&spanstore.TraceQueryParameters{ServiceName: testServiceName, StartTimeMin: someMinStartTime, StartTimeMax: someMaxStartTime, NumTraces: 25},
 			expectedQueries{
-				mainQuery:       "SELECT trace_id, span_id FROM traces WHERE service_name = ? AND start_time >= ? AND start_time <= ? ALLOW FILTERING",
-				mainQueryParams: []interface{}{"someServiceName", int64(5), int64(10)},
-			},
-		},
-		{
-			&spanstore.TraceQueryParameters{
-				ServiceName: testServiceName, StartTimeMin: someMinStartTime, StartTimeMax: someMaxStartTime, DurationMin: someMinDuration,
-			},
-			expectedQueries{
-				mainQuery:       "SELECT trace_id, span_id FROM traces WHERE service_name = ? AND start_time >= ? AND start_time <= ? AND duration >= ? ALLOW FILTERING",
-				mainQueryParams: []interface{}{"someServiceName", int64(5), int64(10), uint64(15)},
+				mainQuery:       "SELECT trace_id, span_id FROM traces WHERE service_name = ? AND start_time >= ? AND start_time <= ? LIMIT ? ALLOW FILTERING",
+				mainQueryParams: []interface{}{"someServiceName", int64(5), int64(10), 25},
 			},
 		},
 		{
 			&spanstore.TraceQueryParameters{
-				ServiceName: testServiceName, StartTimeMin: someMinStartTime, StartTimeMax: someMaxStartTime, DurationMax: someMaxDuration,
+				ServiceName: testServiceName, StartTimeMin: someMinStartTime, StartTimeMax: someMaxStartTime, DurationMin: someMinDuration, NumTraces: 25,
 			},
 			expectedQueries{
-				mainQuery:       "SELECT trace_id, span_id FROM traces WHERE service_name = ? AND start_time >= ? AND start_time <= ? AND duration <= ? ALLOW FILTERING",
-				mainQueryParams: []interface{}{"someServiceName", int64(5), int64(10), uint64(20)},
+				mainQuery:       "SELECT trace_id, span_id FROM traces WHERE service_name = ? AND start_time >= ? AND start_time <= ? AND duration >= ? LIMIT ? ALLOW FILTERING",
+				mainQueryParams: []interface{}{"someServiceName", int64(5), int64(10), uint64(15), 25},
 			},
 		},
 		{
 			&spanstore.TraceQueryParameters{
-				ServiceName: testServiceName, StartTimeMin: someMinStartTime, StartTimeMax: someMaxStartTime, DurationMin: someMinDuration, DurationMax: someMaxDuration,
+				ServiceName: testServiceName, StartTimeMin: someMinStartTime, StartTimeMax: someMaxStartTime, DurationMax: someMaxDuration, NumTraces: 25,
 			},
 			expectedQueries{
-				mainQuery:       "SELECT trace_id, span_id FROM traces WHERE service_name = ? AND start_time >= ? AND start_time <= ? AND duration >= ? AND duration <= ? ALLOW FILTERING",
-				mainQueryParams: []interface{}{"someServiceName", int64(5), int64(10), uint64(15), uint64(20)},
+				mainQuery:       "SELECT trace_id, span_id FROM traces WHERE service_name = ? AND start_time >= ? AND start_time <= ? AND duration <= ? LIMIT ? ALLOW FILTERING",
+				mainQueryParams: []interface{}{"someServiceName", int64(5), int64(10), uint64(20), 25},
 			},
 		},
 		{
-			&spanstore.TraceQueryParameters{ServiceName: testServiceName, OperationName: testOperationName, StartTimeMin: someMinStartTime, StartTimeMax: someMaxStartTime, DurationMin: someMinDuration, DurationMax: someMaxDuration},
+			&spanstore.TraceQueryParameters{
+				ServiceName: testServiceName, StartTimeMin: someMinStartTime, StartTimeMax: someMaxStartTime, DurationMin: someMinDuration, DurationMax: someMaxDuration, NumTraces: 25,
+			},
 			expectedQueries{
-				mainQuery:       "SELECT trace_id, span_id FROM traces WHERE service_name = ? AND operation_name = ? AND start_time >= ? AND start_time <= ? AND duration >= ? AND duration <= ? ALLOW FILTERING",
-				mainQueryParams: []interface{}{"someServiceName", "someOperationName", int64(5), int64(10), uint64(15), uint64(20)},
+				mainQuery:       "SELECT trace_id, span_id FROM traces WHERE service_name = ? AND start_time >= ? AND start_time <= ? AND duration >= ? AND duration <= ? LIMIT ? ALLOW FILTERING",
+				mainQueryParams: []interface{}{"someServiceName", int64(5), int64(10), uint64(15), uint64(20), 25},
+			},
+		},
+		{
+			&spanstore.TraceQueryParameters{ServiceName: testServiceName, OperationName: testOperationName, StartTimeMin: someMinStartTime, StartTimeMax: someMaxStartTime, DurationMin: someMinDuration, DurationMax: someMaxDuration, NumTraces: 25},
+			expectedQueries{
+				mainQuery:       "SELECT trace_id, span_id FROM traces WHERE service_name = ? AND operation_name = ? AND start_time >= ? AND start_time <= ? AND duration >= ? AND duration <= ? LIMIT ? ALLOW FILTERING",
+				mainQueryParams: []interface{}{"someServiceName", "someOperationName", int64(5), int64(10), uint64(15), uint64(20), 25},
 			},
 		},
 	}
@@ -158,7 +159,7 @@ func TestGoodQueryScenarios(t *testing.T) {
 		testCase := tt // capture loop var
 		t.Run(fmt.Sprintf("Test #%d", testNo), func(t *testing.T) {
 			query, err := BuildQueries(testCase.queryParams)
-			assert.NoError(t, err)
+			require.NoError(t, err)
 			assert.Equal(t, testCase.expectedQueries.mainQuery, query.MainQuery.QueryString())
 			if testCase.expectedQueries.mainQueryParams != nil {
 				assert.EqualValues(t, testCase.expectedQueries.mainQueryParams, query.MainQuery.Parameters)
@@ -189,6 +190,10 @@ func TestErrorScenarios(t *testing.T) {
 		{
 			&spanstore.TraceQueryParameters{Tags: map[string]string{"someTagKey": "someTagValue"}},
 			ErrServiceNameNotSet,
+		},
+		{
+			&spanstore.TraceQueryParameters{ServiceName: testServiceName},
+			ErrNumTracesNotSet,
 		},
 	}
 	for _, testCase := range testCases {

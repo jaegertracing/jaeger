@@ -36,6 +36,7 @@ const (
 	startTimeMaxClause = `start_time <= ?`
 	durationMinClause  = `duration >= ?`
 	durationMaxClause  = `duration <= ?`
+	limitClause        = ` LIMIT ?`
 	allowFiltering     = ` ALLOW FILTERING`
 
 	tagQuery = `SELECT trace_id, span_id FROM tag_index WHERE service_name = ? AND tag_key = ? AND tag_value = ?`
@@ -50,6 +51,9 @@ var (
 
 	// ErrDurationMinGreaterThanMax occurs when duration min is above duration max
 	ErrDurationMinGreaterThanMax = errors.New("Duration Minimum is above Maximum")
+
+	// ErrNumTracesNotSet occurs when num traces is not set
+	ErrNumTracesNotSet = errors.New("Num Traces must be set")
 
 	// ErrMalformedRequestObject occurs when a request object is nil
 	ErrMalformedRequestObject = errors.New("Malformed request object")
@@ -74,7 +78,7 @@ func (q *Query) QueryString() string {
 //
 // It is stateful and works in a state-machine fashion. The first call to append() just adds
 // a string and parameters, the second call adds " WHERE " plus a clause, and
-// futher calls add " AND " plus another clause.
+// further calls add " AND " plus another clause.
 //
 // append should be used to add anything to a Query to avoid breaking the state machine
 func (q *Query) append(queryString string, parameters ...interface{}) {
@@ -111,6 +115,11 @@ func (q *Query) appendDurationIfNotZero(queryString string, value time.Duration)
 	}
 }
 
+func (q *Query) appendLimit(value int) {
+	q.buffer.WriteString(limitClause)
+	q.Parameters = append(q.Parameters, value)
+}
+
 // Queries is a construct that provides the main query against cassandra and any optional tag queries
 type Queries struct {
 	spanstore.TraceQueryParameters
@@ -132,6 +141,9 @@ func BuildQueries(p *spanstore.TraceQueryParameters) (*Queries, error) {
 	if p.DurationMin != 0 && p.DurationMax != 0 && p.DurationMin > p.DurationMax {
 		return nil, ErrDurationMinGreaterThanMax
 	}
+	if p.NumTraces == 0 {
+		return nil, ErrNumTracesNotSet
+	}
 	q := &Queries{TraceQueryParameters: *p}
 	q.buildTagQueries()
 	q.buildMainQuery()
@@ -146,6 +158,7 @@ func (q *Queries) buildMainQuery() {
 	q.MainQuery.appendTimeIfNotZero(startTimeMaxClause, q.StartTimeMax)
 	q.MainQuery.appendDurationIfNotZero(durationMinClause, q.DurationMin)
 	q.MainQuery.appendDurationIfNotZero(durationMaxClause, q.DurationMax)
+	q.MainQuery.appendLimit(q.NumTraces)
 
 	// The one exception to the append() pattern, since ALLOW FILTERING doesn't use an AND prefix
 	q.MainQuery.buffer.WriteString(allowFiltering)
