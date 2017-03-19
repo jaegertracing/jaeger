@@ -58,7 +58,7 @@ var (
 )
 
 func createProcessor(t *testing.T, mFactory metrics.Factory, tFactory thrift.TProtocolFactory, handler AgentProcessor) (string, Processor) {
-	transport, err := thriftudp.NewTUDPServerTransport(":9000")
+	transport, err := thriftudp.NewTUDPServerTransport("127.0.0.1:9000")
 	require.NoError(t, err)
 
 	queueSize := 10
