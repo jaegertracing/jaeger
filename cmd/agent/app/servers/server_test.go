@@ -18,40 +18,27 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 // THE SOFTWARE.
 
-package main
+package servers
 
 import (
-	"flag"
-	"runtime"
+	"io"
+	"testing"
 
-	"github.com/uber-go/zap"
-	"github.com/uber/jaeger-lib/metrics/go-kit"
-	"github.com/uber/jaeger-lib/metrics/go-kit/expvar"
-
-	"github.com/uber/jaeger/cmd/agent/app"
+	"github.com/stretchr/testify/assert"
 )
 
-func main() {
-	builder := app.NewBuilder()
-	builder.Bind(flag.CommandLine)
-	flag.Parse()
+func TestReadBuf_EOF(t *testing.T) {
+	b := ReadBuf{}
+	n, err := b.Read(nil)
+	assert.Equal(t, 0, n)
+	assert.Equal(t, io.EOF, err)
+}
 
-	runtime.GOMAXPROCS(runtime.NumCPU())
-
-	logger := zap.New(zap.NewJSONEncoder())
-	metricsFactory := xkit.Wrap("jaeger-agent", expvar.NewFactory(10))
-
-	// TODO illustrate discovery service wiring
-	// TODO illustrate additional reporter
-
-	agent, err := builder.CreateAgent(metricsFactory, logger)
-	if err != nil {
-		logger.Fatal("Unable to initialize Jaeger Agent", zap.Error(err))
-	}
-
-	logger.Info("Starting agent")
-	if err := agent.Run(); err != nil {
-		logger.Fatal("Failed to run the agent", zap.Error(err))
-	}
-	select {}
+func TestReadBuf_Read(t *testing.T) {
+	b := &ReadBuf{bytes: []byte("hello"), n: 5}
+	r := make([]byte, 5)
+	n, err := b.Read(r)
+	assert.NoError(t, err)
+	assert.Equal(t, 5, n)
+	assert.Equal(t, "hello", string(r))
 }

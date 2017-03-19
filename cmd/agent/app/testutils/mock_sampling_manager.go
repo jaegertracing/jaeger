@@ -18,40 +18,47 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 // THE SOFTWARE.
 
-package main
+package testutils
 
 import (
-	"flag"
-	"runtime"
+	"sync"
 
-	"github.com/uber-go/zap"
-	"github.com/uber/jaeger-lib/metrics/go-kit"
-	"github.com/uber/jaeger-lib/metrics/go-kit/expvar"
-
-	"github.com/uber/jaeger/cmd/agent/app"
+	"github.com/uber/jaeger/thrift-gen/sampling"
 )
 
-func main() {
-	builder := app.NewBuilder()
-	builder.Bind(flag.CommandLine)
-	flag.Parse()
-
-	runtime.GOMAXPROCS(runtime.NumCPU())
-
-	logger := zap.New(zap.NewJSONEncoder())
-	metricsFactory := xkit.Wrap("jaeger-agent", expvar.NewFactory(10))
-
-	// TODO illustrate discovery service wiring
-	// TODO illustrate additional reporter
-
-	agent, err := builder.CreateAgent(metricsFactory, logger)
-	if err != nil {
-		logger.Fatal("Unable to initialize Jaeger Agent", zap.Error(err))
+func newSamplingManager() *samplingManager {
+	return &samplingManager{
+		sampling: make(map[string]*sampling.SamplingStrategyResponse),
 	}
+}
 
-	logger.Info("Starting agent")
-	if err := agent.Run(); err != nil {
-		logger.Fatal("Failed to run the agent", zap.Error(err))
+type samplingManager struct {
+	sampling map[string]*sampling.SamplingStrategyResponse
+	mutex    sync.Mutex
+}
+
+// GetSamplingStrategy implements handler method of sampling.SamplingManager
+func (s *samplingManager) GetSamplingStrategy(
+	serviceName string,
+) (*sampling.SamplingStrategyResponse, error) {
+	s.mutex.Lock()
+	defer s.mutex.Unlock()
+	if strategy, ok := s.sampling[serviceName]; ok {
+		return strategy, nil
 	}
-	select {}
+	return &sampling.SamplingStrategyResponse{
+		StrategyType: sampling.SamplingStrategyType_PROBABILISTIC,
+		ProbabilisticSampling: &sampling.ProbabilisticSamplingStrategy{
+			SamplingRate: 0.01,
+		}}, nil
+}
+
+// AddSamplingStrategy registers a sampling strategy for a service
+func (s *samplingManager) AddSamplingStrategy(
+	service string,
+	strategy *sampling.SamplingStrategyResponse,
+) {
+	s.mutex.Lock()
+	defer s.mutex.Unlock()
+	s.sampling[service] = strategy
 }

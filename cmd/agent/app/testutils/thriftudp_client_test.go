@@ -18,40 +18,32 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 // THE SOFTWARE.
 
-package main
+package testutils
 
 import (
-	"flag"
-	"runtime"
+	"testing"
 
-	"github.com/uber-go/zap"
-	"github.com/uber/jaeger-lib/metrics/go-kit"
-	"github.com/uber/jaeger-lib/metrics/go-kit/expvar"
-
-	"github.com/uber/jaeger/cmd/agent/app"
+	"github.com/apache/thrift/lib/go/thrift"
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
-func main() {
-	builder := app.NewBuilder()
-	builder.Bind(flag.CommandLine)
-	flag.Parse()
+func TestNewZipkinThriftUDPClient(t *testing.T) {
+	_, _, err := NewZipkinThriftUDPClient("1.2.3:0")
+	assert.Error(t, err)
 
-	runtime.GOMAXPROCS(runtime.NumCPU())
+	_, cl, err := NewZipkinThriftUDPClient("127.0.0.1:12345")
+	require.NoError(t, err)
+	cl.Close()
+}
 
-	logger := zap.New(zap.NewJSONEncoder())
-	metricsFactory := xkit.Wrap("jaeger-agent", expvar.NewFactory(10))
+func TestNewJaegerThriftUDPClient(t *testing.T) {
+	compactFactory := thrift.NewTCompactProtocolFactory()
 
-	// TODO illustrate discovery service wiring
-	// TODO illustrate additional reporter
+	_, _, err := NewJaegerThriftUDPClient("1.2.3:0", compactFactory)
+	assert.Error(t, err)
 
-	agent, err := builder.CreateAgent(metricsFactory, logger)
-	if err != nil {
-		logger.Fatal("Unable to initialize Jaeger Agent", zap.Error(err))
-	}
-
-	logger.Info("Starting agent")
-	if err := agent.Run(); err != nil {
-		logger.Fatal("Failed to run the agent", zap.Error(err))
-	}
-	select {}
+	_, cl, err := NewJaegerThriftUDPClient("127.0.0.1:12345", compactFactory)
+	require.NoError(t, err)
+	cl.Close()
 }

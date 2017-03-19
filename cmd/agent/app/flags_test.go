@@ -18,40 +18,34 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 // THE SOFTWARE.
 
-package main
+package app
 
 import (
 	"flag"
-	"runtime"
+	"testing"
 
-	"github.com/uber-go/zap"
-	"github.com/uber/jaeger-lib/metrics/go-kit"
-	"github.com/uber/jaeger-lib/metrics/go-kit/expvar"
-
-	"github.com/uber/jaeger/cmd/agent/app"
+	"github.com/stretchr/testify/assert"
 )
 
-func main() {
-	builder := app.NewBuilder()
-	builder.Bind(flag.CommandLine)
-	flag.Parse()
-
-	runtime.GOMAXPROCS(runtime.NumCPU())
-
-	logger := zap.New(zap.NewJSONEncoder())
-	metricsFactory := xkit.Wrap("jaeger-agent", expvar.NewFactory(10))
-
-	// TODO illustrate discovery service wiring
-	// TODO illustrate additional reporter
-
-	agent, err := builder.CreateAgent(metricsFactory, logger)
-	if err != nil {
-		logger.Fatal("Unable to initialize Jaeger Agent", zap.Error(err))
-	}
-
-	logger.Info("Starting agent")
-	if err := agent.Run(); err != nil {
-		logger.Fatal("Failed to run the agent", zap.Error(err))
-	}
-	select {}
+func TestBingFlags(t *testing.T) {
+	cfg := NewBuilder()
+	flags := flag.NewFlagSet("test", flag.ExitOnError)
+	cfg.Bind(flags)
+	flags.Parse([]string{
+		"-collector.host-port=1.2.3.4:555",
+		"-discovery.min-peers=42",
+		"-http-server.host-port=:8080",
+		"-processor.jaeger-binary.server-host-port=:1111",
+		"-processor.jaeger-binary.server-max-packet-size=4242",
+		"-processor.jaeger-binary.server-queue-size=42",
+		"-processor.jaeger-binary.workers=42",
+	})
+	assert.Equal(t, 3, len(cfg.Processors))
+	assert.Equal(t, "1.2.3.4:555", cfg.CollectorHostPort)
+	assert.Equal(t, 42, cfg.DiscoveryMinPeers)
+	assert.Equal(t, ":8080", cfg.SamplingServer.HostPort)
+	assert.Equal(t, ":1111", cfg.Processors[2].Server.HostPort)
+	assert.Equal(t, 4242, cfg.Processors[2].Server.MaxPacketSize)
+	assert.Equal(t, 42, cfg.Processors[2].Server.QueueSize)
+	assert.Equal(t, 42, cfg.Processors[2].Workers)
 }

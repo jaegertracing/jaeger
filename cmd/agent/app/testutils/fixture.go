@@ -18,40 +18,20 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 // THE SOFTWARE.
 
-package main
+package testutils
 
 import (
-	"flag"
-	"runtime"
+	"testing"
 
-	"github.com/uber-go/zap"
-	"github.com/uber/jaeger-lib/metrics/go-kit"
-	"github.com/uber/jaeger-lib/metrics/go-kit/expvar"
-
-	"github.com/uber/jaeger/cmd/agent/app"
+	"github.com/stretchr/testify/require"
+	"github.com/uber/jaeger-lib/metrics"
 )
 
-func main() {
-	builder := app.NewBuilder()
-	builder.Bind(flag.CommandLine)
-	flag.Parse()
+// InitMockCollector initializes a MockTCollector fixture
+func InitMockCollector(t *testing.T) (*metrics.LocalFactory, *MockTCollector) {
+	factory := metrics.NewLocalFactory(0)
+	collector, err := StartMockTCollector()
+	require.NoError(t, err)
 
-	runtime.GOMAXPROCS(runtime.NumCPU())
-
-	logger := zap.New(zap.NewJSONEncoder())
-	metricsFactory := xkit.Wrap("jaeger-agent", expvar.NewFactory(10))
-
-	// TODO illustrate discovery service wiring
-	// TODO illustrate additional reporter
-
-	agent, err := builder.CreateAgent(metricsFactory, logger)
-	if err != nil {
-		logger.Fatal("Unable to initialize Jaeger Agent", zap.Error(err))
-	}
-
-	logger.Info("Starting agent")
-	if err := agent.Run(); err != nil {
-		logger.Fatal("Failed to run the agent", zap.Error(err))
-	}
-	select {}
+	return factory, collector
 }

@@ -18,40 +18,37 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 // THE SOFTWARE.
 
-package main
+package testutils
 
 import (
-	"flag"
-	"runtime"
+	"io"
 
-	"github.com/uber-go/zap"
-	"github.com/uber/jaeger-lib/metrics/go-kit"
-	"github.com/uber/jaeger-lib/metrics/go-kit/expvar"
+	"github.com/apache/thrift/lib/go/thrift"
 
-	"github.com/uber/jaeger/cmd/agent/app"
+	"github.com/uber/jaeger/cmd/agent/app/servers/thriftudp"
+	"github.com/uber/jaeger/thrift-gen/agent"
+	"github.com/uber/jaeger/thrift-gen/jaeger"
 )
 
-func main() {
-	builder := app.NewBuilder()
-	builder.Bind(flag.CommandLine)
-	flag.Parse()
-
-	runtime.GOMAXPROCS(runtime.NumCPU())
-
-	logger := zap.New(zap.NewJSONEncoder())
-	metricsFactory := xkit.Wrap("jaeger-agent", expvar.NewFactory(10))
-
-	// TODO illustrate discovery service wiring
-	// TODO illustrate additional reporter
-
-	agent, err := builder.CreateAgent(metricsFactory, logger)
+// NewZipkinThriftUDPClient creates a new zipking agent client that works like Jaeger client
+func NewZipkinThriftUDPClient(hostPort string) (*agent.AgentClient, io.Closer, error) {
+	clientTransport, err := thriftudp.NewTUDPClientTransport(hostPort, "")
 	if err != nil {
-		logger.Fatal("Unable to initialize Jaeger Agent", zap.Error(err))
+		return nil, nil, err
 	}
 
-	logger.Info("Starting agent")
-	if err := agent.Run(); err != nil {
-		logger.Fatal("Failed to run the agent", zap.Error(err))
+	protocolFactory := thrift.NewTCompactProtocolFactory()
+	client := agent.NewAgentClientFactory(clientTransport, protocolFactory)
+	return client, clientTransport, nil
+}
+
+// NewJaegerThriftUDPClient creates a new jaeger agent client that works like Jaeger client
+func NewJaegerThriftUDPClient(hostPort string, protocolFactory thrift.TProtocolFactory) (*jaeger.AgentClient, io.Closer, error) {
+	clientTransport, err := thriftudp.NewTUDPClientTransport(hostPort, "")
+	if err != nil {
+		return nil, nil, err
 	}
-	select {}
+
+	client := jaeger.NewAgentClientFactory(clientTransport, protocolFactory)
+	return client, clientTransport, nil
 }

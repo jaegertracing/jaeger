@@ -22,7 +22,6 @@ import:
   version: v1.3.0
 - package: github.com/gorilla/handlers
   version: v1.2
-testImport:
 - package: github.com/kr/pretty
 - package: github.com/stretchr/testify
   subpackages:

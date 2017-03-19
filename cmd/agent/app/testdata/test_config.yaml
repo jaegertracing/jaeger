@@ -1,0 +1,25 @@
+metrics:
+    statsd:
+        hostPort: 127.0.0.1:4744
+        prefix: jaeger-agent.tcollector21-sjc1
+
+processors:
+    - model: zipkin
+      protocol: compact
+      server:
+        hostPort: 1.1.1.1:5775
+    - model: jaeger
+      protocol: compact
+      server:
+        hostPort: 2.2.2.2:6831
+    - model: jaeger
+      protocol: binary
+      workers: 20
+      server:
+        queueSize: 2000
+        maxPacketSize: 65001
+        hostPort: 3.3.3.3:6832
+
+samplingServer:
+    hostPort: 4.4.4.4:5778
+

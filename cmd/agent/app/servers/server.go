@@ -18,40 +18,38 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 // THE SOFTWARE.
 
-package main
+package servers
 
-import (
-	"flag"
-	"runtime"
+import "io"
 
-	"github.com/uber-go/zap"
-	"github.com/uber/jaeger-lib/metrics/go-kit"
-	"github.com/uber/jaeger-lib/metrics/go-kit/expvar"
+// Server is the interface for servers that receive inbound span submissions from client.
+type Server interface {
+	Serve()
+	IsServing() bool
+	Stop()
+	DataChan() chan *ReadBuf
+	DataRecd(*ReadBuf) // must be called by consumer after reading data from the ReadBuf
+}
 
-	"github.com/uber/jaeger/cmd/agent/app"
-)
+// ReadBuf is a structure that holds the bytes to read into as well as the number of bytes
+// that was read. The slice is typically pre-allocated to the max packet size and the buffers
+// themselves are polled to avoid memory allocations for every new inbound message.
+type ReadBuf struct {
+	bytes []byte
+	n     int
+}
 
-func main() {
-	builder := app.NewBuilder()
-	builder.Bind(flag.CommandLine)
-	flag.Parse()
+// GetBytes returns the contents of the Readbuf as bytes
+func (r *ReadBuf) GetBytes() []byte {
+	return r.bytes[:r.n]
+}
 
-	runtime.GOMAXPROCS(runtime.NumCPU())
-
-	logger := zap.New(zap.NewJSONEncoder())
-	metricsFactory := xkit.Wrap("jaeger-agent", expvar.NewFactory(10))
-
-	// TODO illustrate discovery service wiring
-	// TODO illustrate additional reporter
-
-	agent, err := builder.CreateAgent(metricsFactory, logger)
-	if err != nil {
-		logger.Fatal("Unable to initialize Jaeger Agent", zap.Error(err))
+func (r *ReadBuf) Read(p []byte) (int, error) {
+	if r.n == 0 {
+		return 0, io.EOF
 	}
-
-	logger.Info("Starting agent")
-	if err := agent.Run(); err != nil {
-		logger.Fatal("Failed to run the agent", zap.Error(err))
-	}
-	select {}
+	n := r.n
+	copied := copy(p, r.bytes[:n])
+	r.n -= copied
+	return n, nil
 }
