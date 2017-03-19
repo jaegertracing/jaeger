@@ -34,13 +34,13 @@ import (
 	zipkinThrift "github.com/uber/jaeger/thrift-gen/agent"
 	jaegerThrift "github.com/uber/jaeger/thrift-gen/jaeger"
 
-	"github.com/uber/jaeger/pkg/discovery"
-	"github.com/uber/jaeger/pkg/discovery/peerlistmgr"
 	"github.com/uber/jaeger/cmd/agent/app/processors"
 	"github.com/uber/jaeger/cmd/agent/app/reporter"
 	"github.com/uber/jaeger/cmd/agent/app/sampling"
 	"github.com/uber/jaeger/cmd/agent/app/servers"
 	"github.com/uber/jaeger/cmd/agent/app/servers/thriftudp"
+	"github.com/uber/jaeger/pkg/discovery"
+	"github.com/uber/jaeger/pkg/discovery/peerlistmgr"
 )
 
 const (
