@@ -11,3 +11,4 @@ _site/
 env/
 Gemfile.lock
 vendor/
+examples/hotrod/hotrod
