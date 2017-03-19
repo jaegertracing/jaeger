@@ -28,6 +28,8 @@ import (
 	"time"
 
 	"github.com/gorilla/mux"
+	"github.com/opentracing-contrib/go-stdlib/nethttp"
+	opentracing "github.com/opentracing/opentracing-go"
 	"github.com/pkg/errors"
 	"github.com/uber-go/zap"
 
@@ -125,6 +127,22 @@ func (aH *APIHandler) RegisterRoutes(router *mux.Router) {
 	// TOOD - remove this when UI catches up
 	router.HandleFunc(aH.route("/services/{%s}/operations", serviceParam), aH.getOperationsLegacy).Methods(http.MethodGet)
 	router.HandleFunc(aH.route("/dependencies"), aH.dependencies).Methods(http.MethodGet)
+}
+
+func (aH *APIHandler) handleFunc(
+	router *mux.Router,
+	f func(http.ResponseWriter, *http.Request),
+	route string,
+	args ...interface{},
+) *mux.Route {
+	route = aH.route(route, args...)
+	traceMiddleware := nethttp.Middleware(
+		opentracing.GlobalTracer(),
+		http.HandlerFunc(f),
+		nethttp.OperationNameFunc(func(r *http.Request) string {
+			return route
+		}))
+	return router.HandleFunc(route, traceMiddleware.ServeHTTP)
 }
 
 func (aH *APIHandler) route(route string, args ...interface{}) string {
