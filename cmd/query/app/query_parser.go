@@ -29,6 +29,7 @@ import (
 
 	"github.com/pkg/errors"
 
+	"github.com/uber/jaeger/model"
 	"github.com/uber/jaeger/storage/spanstore"
 )
 
@@ -46,16 +47,22 @@ const (
 )
 
 var (
-	errCannotQueryTagAndDuration = errors.Errorf("Cannot query for tags when '%s' is specified", minDurationParam)
-	errMaxDurationGreaterThanMin = errors.Errorf("'%s' should be greater than '%s'", maxDurationParam, minDurationParam)
+	errCannotQueryTagAndDuration = fmt.Errorf("Cannot query for tags when '%s' is specified", minDurationParam)
+	errMaxDurationGreaterThanMin = fmt.Errorf("'%s' should be greater than '%s'", maxDurationParam, minDurationParam)
 
 	// ErrServiceParameterRequired occurs when no service name is defined
-	ErrServiceParameterRequired = errors.Errorf("Parameter '%s' is required", serviceParam)
+	ErrServiceParameterRequired = fmt.Errorf("Parameter '%s' is required", serviceParam)
 )
 
 // queryParser handles the parsing of query parameters for traces
 type queryParser struct {
 	traceQueryLookbackDuration time.Duration
+	timeNow                    func() time.Time
+}
+
+type traceQueryParameters struct {
+	spanstore.TraceQueryParameters
+	traceIDs []model.TraceID
 }
 
 // parse takes a request and constructs a model of parameters
@@ -67,11 +74,8 @@ type queryParser struct {
 //     tag ::= 'tag=' key | 'tag=' keyvalue
 //     key := strValue
 //     keyValue := strValue ':' strValue
-func (p *queryParser) parse(r *http.Request) (*spanstore.TraceQueryParameters, error) {
+func (p *queryParser) parse(r *http.Request) (*traceQueryParameters, error) {
 	service := r.FormValue(serviceParam)
-	if service == "" {
-		return nil, ErrServiceParameterRequired
-	}
 	operation := r.FormValue(operationParam)
 
 	startTime, err := p.parseTime(startTimeParam, r)
@@ -113,15 +117,27 @@ func (p *queryParser) parse(r *http.Request) (*spanstore.TraceQueryParameters, e
 		return nil, err
 	}
 
-	traceQuery := &spanstore.TraceQueryParameters{
-		ServiceName:   service,
-		OperationName: operation,
-		StartTimeMin:  startTime,
-		StartTimeMax:  endTime,
-		Tags:          tags,
-		NumTraces:     limit,
-		DurationMin:   minDuration,
-		DurationMax:   maxDuration,
+	var traceIDs []model.TraceID
+	for _, id := range r.Form[traceIDParam] {
+		if traceID, err := model.TraceIDFromString(id); err == nil {
+			traceIDs = append(traceIDs, traceID)
+		} else {
+			return nil, errors.Wrap(err, "cannot parse traceID param")
+		}
+	}
+
+	traceQuery := &traceQueryParameters{
+		TraceQueryParameters: spanstore.TraceQueryParameters{
+			ServiceName:   service,
+			OperationName: operation,
+			StartTimeMin:  startTime,
+			StartTimeMax:  endTime,
+			Tags:          tags,
+			NumTraces:     limit,
+			DurationMin:   minDuration,
+			DurationMax:   maxDuration,
+		},
+		traceIDs: traceIDs,
 	}
 
 	if err := p.validateQuery(traceQuery); err != nil {
@@ -134,9 +150,9 @@ func (p *queryParser) parseTime(param string, r *http.Request) (time.Time, error
 	value := r.FormValue(param)
 	if value == "" {
 		if param == startTimeParam {
-			return time.Now().Add(-1 * p.traceQueryLookbackDuration), nil
+			return p.timeNow().Add(-1 * p.traceQueryLookbackDuration), nil
 		}
-		return time.Now(), nil
+		return p.timeNow(), nil
 	}
 	micros, err := strconv.ParseInt(value, 10, 64)
 	if err != nil {
@@ -157,7 +173,10 @@ func (p *queryParser) parseDuration(durationParam string, r *http.Request) (time
 	return 0, nil
 }
 
-func (p *queryParser) validateQuery(traceQuery *spanstore.TraceQueryParameters) error {
+func (p *queryParser) validateQuery(traceQuery *traceQueryParameters) error {
+	if len(traceQuery.traceIDs) == 0 && traceQuery.ServiceName == "" {
+		return ErrServiceParameterRequired
+	}
 	if traceQuery.DurationMin != 0 && traceQuery.DurationMax != 0 {
 		if traceQuery.DurationMax < traceQuery.DurationMin {
 			return errMaxDurationGreaterThanMin
