@@ -145,9 +145,9 @@ func TestTracing(t *testing.T) {
 	defer opentracing.InitGlobalTracer(globalTracer)
 
 	reporter := jaeger.NewInMemoryReporter()
-	jaeger, jaegerCloser := jaeger.NewTracer("test", jaeger.NewConstSampler(true), reporter)
+	jaegerTracer, jaegerCloser := jaeger.NewTracer("test", jaeger.NewConstSampler(true), reporter)
 	defer jaegerCloser.Close()
-	opentracing.InitGlobalTracer(jaeger)
+	opentracing.InitGlobalTracer(jaegerTracer)
 
 	server, readMock, _ := initializeTestServer()
 	defer server.Close()
@@ -160,7 +160,7 @@ func TestTracing(t *testing.T) {
 	assert.Len(t, response.Errors, 0)
 
 	assert.Len(t, reporter.GetSpans(), 1)
-	// assert.Equal(t, "/traces/{traceID}", reporter.GetSpans()[0])
+	assert.Equal(t, "/api/traces/{traceID}", reporter.GetSpans()[0].(*jaeger.Span).OperationName())
 }
 
 func TestGetTraceDBFailure(t *testing.T) {
