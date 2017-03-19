@@ -34,10 +34,12 @@ import (
 	"time"
 
 	"github.com/gorilla/mux"
+	"github.com/opentracing/opentracing-go"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
 
 	"github.com/uber-go/zap"
+	jaeger "github.com/uber/jaeger-client-go"
 	"github.com/uber/jaeger/model"
 	"github.com/uber/jaeger/model/adjuster"
 	ui "github.com/uber/jaeger/model/json"
@@ -136,6 +138,29 @@ func TestGetTraceSuccess(t *testing.T) {
 	err := getJSON(server.URL+`/api/traces/123456`, &response)
 	assert.NoError(t, err)
 	assert.Len(t, response.Errors, 0)
+}
+
+func TestTracing(t *testing.T) {
+	globalTracer := opentracing.GlobalTracer()
+	defer opentracing.InitGlobalTracer(globalTracer)
+
+	reporter := jaeger.NewInMemoryReporter()
+	jaeger, jaegerCloser := jaeger.NewTracer("test", jaeger.NewConstSampler(true), reporter)
+	defer jaegerCloser.Close()
+	opentracing.InitGlobalTracer(jaeger)
+
+	server, readMock, _ := initializeTestServer()
+	defer server.Close()
+	readMock.On("GetTrace", mock.AnythingOfType("model.TraceID")).
+		Return(mockTrace, nil).Once()
+
+	var response structuredResponse
+	err := getJSON(server.URL+`/api/traces/123456`, &response)
+	assert.NoError(t, err)
+	assert.Len(t, response.Errors, 0)
+
+	assert.Len(t, reporter.GetSpans(), 1)
+	// assert.Equal(t, "/traces/{traceID}", reporter.GetSpans()[0])
 }
 
 func TestGetTraceDBFailure(t *testing.T) {

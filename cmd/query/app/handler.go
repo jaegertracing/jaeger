@@ -29,7 +29,7 @@ import (
 
 	"github.com/gorilla/mux"
 	"github.com/opentracing-contrib/go-stdlib/nethttp"
-	opentracing "github.com/opentracing/opentracing-go"
+	"github.com/opentracing/opentracing-go"
 	"github.com/pkg/errors"
 	"github.com/uber-go/zap"
 
@@ -117,16 +117,16 @@ func NewAPIHandler(spanReader spanstore.Reader, dependencyReader dependencystore
 
 // RegisterRoutes registers routes for this handler on the given router
 func (aH *APIHandler) RegisterRoutes(router *mux.Router) {
-	router.HandleFunc(aH.route("/traces/{%s}", traceIDParam), aH.getTrace).Methods(http.MethodGet)
-	router.HandleFunc(aH.route("/archive/{%s}", traceIDParam), aH.getArchivedTrace).Methods(http.MethodGet)
-	router.HandleFunc(aH.route("/archive/{%s}", traceIDParam), aH.archiveTrace).Methods(http.MethodPost)
-	router.HandleFunc(aH.route(`/traces`), aH.search).Methods(http.MethodGet)
-	router.HandleFunc(aH.route(`/services`), aH.getServices).Methods(http.MethodGet)
+	aH.handleFunc(router, aH.getTrace, "/traces/{%s}", traceIDParam).Methods(http.MethodGet)
+	aH.handleFunc(router, aH.getArchivedTrace, "/archive/{%s}", traceIDParam).Methods(http.MethodGet)
+	aH.handleFunc(router, aH.archiveTrace, "/archive/{%s}", traceIDParam).Methods(http.MethodPost)
+	aH.handleFunc(router, aH.search, "/traces").Methods(http.MethodGet)
+	aH.handleFunc(router, aH.getServices, "/services").Methods(http.MethodGet)
 	// TODO change the UI to use this endpoint. Requires ?service= parameter.
-	router.HandleFunc(aH.route("/operations"), aH.getOperations).Methods(http.MethodGet)
+	aH.handleFunc(router, aH.getOperations, "/operations").Methods(http.MethodGet)
 	// TOOD - remove this when UI catches up
-	router.HandleFunc(aH.route("/services/{%s}/operations", serviceParam), aH.getOperationsLegacy).Methods(http.MethodGet)
-	router.HandleFunc(aH.route("/dependencies"), aH.dependencies).Methods(http.MethodGet)
+	aH.handleFunc(router, aH.getOperationsLegacy, "/services/{%s}/operations", serviceParam).Methods(http.MethodGet)
+	aH.handleFunc(router, aH.dependencies, "/dependencies").Methods(http.MethodGet)
 }
 
 func (aH *APIHandler) handleFunc(
