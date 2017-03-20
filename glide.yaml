@@ -27,3 +27,8 @@ import:
   subpackages:
   - assert
   - mock
+- package: github.com/opentracing-contrib/go-stdlib
+  subpackages:
+  - nethttp
+- package: github.com/uber/jaeger-client-go
+  version: ^2.2.1

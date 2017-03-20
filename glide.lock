@@ -1,5 +1,5 @@
-hash: 58c57d356d0af8d48c3a75adb711d86239720fc846a4e26fee2e6304f7408328
-updated: 2017-03-18T20:52:33.113387-04:00
+hash: bde020ba2adb372666e31edaa6527e35f4c9264db484280dc80201058468fc8d
+updated: 2017-03-19T14:13:43.080135494-04:00
 imports:
 - name: github.com/apache/thrift
   version: 53dd39833a08ce33582e5ff31fa18bb4735d6731
@@ -36,6 +36,10 @@ imports:
   version: e80d13ce29ede4452c43dea11e79b9bc8a15b478
 - name: github.com/kr/pretty
   version: cfb55aafdaf3ec08f0db22699ab822c50091b1c4
+- name: github.com/opentracing-contrib/go-stdlib
+  version: 1de4cc2120e71f745a5810488bf64b29b6d7d9f6
+  subpackages:
+  - nethttp
 - name: github.com/opentracing/opentracing-go
   version: 0c3154a3c2ce79d3271985848659870599dfb77c
   subpackages:
@@ -59,6 +63,8 @@ imports:
   version: 0c9e689d64f004564b79d9a663634756df322902
 - name: github.com/uber-go/zap
   version: c4939d1166b2220bb45338e21506623b4bbdec50
+- name: github.com/uber/jaeger-client-go
+  version: 6897a8cdc88b22a5bdecf563c246a6275b44c92a
 - name: github.com/uber/jaeger-lib
   version: b9556711760c45a30bd79c31c8f041d0d9aba997
   subpackages:
