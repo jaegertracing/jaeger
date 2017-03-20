@@ -5,6 +5,7 @@
 fmt.log
 lint.log
 cover.html
+.envrc
 .idea/
 .tmp/
 _site/
