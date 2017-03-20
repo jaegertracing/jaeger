@@ -31,4 +31,4 @@ import:
   subpackages:
   - nethttp
 - package: github.com/uber/jaeger-client-go
-  version: ^2.2.1
+  version: ^2.3.0

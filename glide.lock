@@ -1,5 +1,5 @@
-hash: bde020ba2adb372666e31edaa6527e35f4c9264db484280dc80201058468fc8d
-updated: 2017-03-19T14:13:43.080135494-04:00
+hash: b79af98919c7aeea4c6e2d1ef80be1e97ceb464b73950972962fdddca48f4144
+updated: 2017-03-20T15:40:57.784987227-04:00
 imports:
 - name: github.com/apache/thrift
   version: 53dd39833a08ce33582e5ff31fa18bb4735d6731
@@ -64,7 +64,15 @@ imports:
 - name: github.com/uber-go/zap
   version: c4939d1166b2220bb45338e21506623b4bbdec50
 - name: github.com/uber/jaeger-client-go
-  version: 6897a8cdc88b22a5bdecf563c246a6275b44c92a
+  version: bcc801808ce11db4f05a09e2af61698ffe3f5f38
+  subpackages:
+  - internal/spanlog
+  - log
+  - thrift-gen/agent
+  - thrift-gen/sampling
+  - thrift-gen/zipkincore
+  - transport
+  - utils
 - name: github.com/uber/jaeger-lib
   version: b9556711760c45a30bd79c31c8f041d0d9aba997
   subpackages:
