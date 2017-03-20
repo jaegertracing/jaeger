@@ -219,8 +219,8 @@ func (aH *APIHandler) search(w http.ResponseWriter, r *http.Request) {
 
 func (aH *APIHandler) tracesByIDs(traceIDs []model.TraceID) ([]*model.Trace, error) {
 	retMe := make([]*model.Trace, 0, len(traceIDs))
-	for i := range traceIDs {
-		trace, err := aH.spanReader.GetTrace(traceIDs[i])
+	for _, traceID := range traceIDs {
+		trace, err := aH.spanReader.GetTrace(traceID)
 		if err != nil {
 			return nil, err
 		}
