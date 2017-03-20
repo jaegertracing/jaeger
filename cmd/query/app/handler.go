@@ -92,6 +92,10 @@ func NewAPIHandler(spanReader spanstore.Reader, dependencyReader dependencystore
 	aH := &APIHandler{
 		spanReader:       spanReader,
 		dependencyReader: dependencyReader,
+		queryParser: queryParser{
+			traceQueryLookbackDuration: defaultTraceQueryLookbackDuration,
+			timeNow:                    time.Now,
+		},
 	}
 
 	for _, option := range options {
@@ -108,9 +112,6 @@ func NewAPIHandler(spanReader spanstore.Reader, dependencyReader dependencystore
 	}
 	if aH.logger == nil {
 		aH.logger = zap.New(zap.NullEncoder())
-	}
-	if aH.queryParser.traceQueryLookbackDuration == 0 {
-		aH.queryParser.traceQueryLookbackDuration = defaultTraceQueryLookbackDuration
 	}
 	return aH
 }
@@ -199,9 +200,22 @@ func (aH *APIHandler) search(w http.ResponseWriter, r *http.Request) {
 	if aH.handleError(w, err, http.StatusBadRequest) {
 		return
 	}
-	tracesFromStorage, err := aH.spanReader.FindTraces(tQuery)
-	if aH.handleError(w, err, http.StatusInternalServerError) {
-		return
+
+	var tracesFromStorage []*model.Trace
+	if len(tQuery.traceIDs) > 0 {
+		tracesFromStorage, err = aH.tracesByIDs(tQuery.traceIDs)
+		if err == spanstore.ErrTraceNotFound {
+			aH.handleError(w, err, http.StatusNotFound)
+			return
+		}
+		if aH.handleError(w, err, http.StatusInternalServerError) {
+			return
+		}
+	} else {
+		tracesFromStorage, err = aH.spanReader.FindTraces(&tQuery.TraceQueryParameters)
+		if aH.handleError(w, err, http.StatusInternalServerError) {
+			return
+		}
 	}
 
 	uiTraces := make([]*ui.Trace, len(tracesFromStorage))
@@ -219,6 +233,18 @@ func (aH *APIHandler) search(w http.ResponseWriter, r *http.Request) {
 		Errors: uiErrors,
 	}
 	aH.writeJSON(w, &structuredRes)
+}
+
+func (aH *APIHandler) tracesByIDs(traceIDs []model.TraceID) ([]*model.Trace, error) {
+	retMe := make([]*model.Trace, 0, len(traceIDs))
+	for _, traceID := range traceIDs {
+		trace, err := aH.spanReader.GetTrace(traceID)
+		if err != nil {
+			return nil, err
+		}
+		retMe = append(retMe, trace)
+	}
+	return retMe, nil
 }
 
 func (aH *APIHandler) dependencies(w http.ResponseWriter, r *http.Request) {
@@ -355,7 +381,7 @@ func (aH *APIHandler) withTraceFromReader(
 	}
 	trace, err := reader.GetTrace(traceID)
 	if err == spanstore.ErrTraceNotFound {
-		aH.handleError(w, err, http.StatusBadRequest)
+		aH.handleError(w, err, http.StatusNotFound)
 		return
 	}
 	if aH.handleError(w, err, http.StatusInternalServerError) {

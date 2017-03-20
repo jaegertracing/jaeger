@@ -29,7 +29,6 @@ import (
 	"io/ioutil"
 	"net/http"
 	"net/http/httptest"
-	"strings"
 	"testing"
 	"time"
 
@@ -182,8 +181,7 @@ func TestGetTraceNotFound(t *testing.T) {
 
 	var response structuredResponse
 	err := getJSON(server.URL+`/api/traces/123456`, &response)
-	assert.Error(t, err)
-	assert.True(t, strings.Contains(err.Error(), "trace not found"))
+	assert.EqualError(t, err, parsedError(404, "trace not found"))
 }
 
 func TestGetTraceAdjustmentFailure(t *testing.T) {
@@ -223,6 +221,42 @@ func TestSearchSuccess(t *testing.T) {
 	assert.Len(t, response.Errors, 0)
 }
 
+func TestSearchByTraceIDSuccess(t *testing.T) {
+	server, readMock, _ := initializeTestServer()
+	defer server.Close()
+	readMock.On("GetTrace", mock.AnythingOfType("model.TraceID")).
+		Return(mockTrace, nil).Twice()
+
+	var response structuredResponse
+	err := getJSON(server.URL+`/api/traces?traceID=1&traceID=2`, &response)
+	assert.NoError(t, err)
+	assert.Len(t, response.Errors, 0)
+	assert.Len(t, response.Data, 2)
+}
+
+func TestSearchByTraceIDNotFound(t *testing.T) {
+	server, readMock, _ := initializeTestServer()
+	defer server.Close()
+	readMock.On("GetTrace", mock.AnythingOfType("model.TraceID")).
+		Return(nil, spanstore.ErrTraceNotFound).Once()
+
+	var response structuredResponse
+	err := getJSON(server.URL+`/api/traces?traceID=1`, &response)
+	assert.EqualError(t, err, parsedError(404, "trace not found"))
+}
+
+func TestSearchByTraceIDFailure(t *testing.T) {
+	server, readMock, _ := initializeTestServer()
+	defer server.Close()
+	whatsamattayou := "https://youtu.be/WrKFOCg13QQ"
+	readMock.On("GetTrace", mock.AnythingOfType("model.TraceID")).
+		Return(nil, fmt.Errorf(whatsamattayou)).Once()
+
+	var response structuredResponse
+	err := getJSON(server.URL+`/api/traces?traceID=1`, &response)
+	assert.EqualError(t, err, parsedError(500, whatsamattayou))
+}
+
 func TestSearchModelConversionFailure(t *testing.T) {
 	server, readMock, _, _ := initializeTestServerWithOptions(
 		HandlerOptions.Adjusters([]adjuster.Adjuster{
@@ -248,9 +282,7 @@ func TestSearchDBFailure(t *testing.T) {
 
 	var response structuredResponse
 	err := getJSON(server.URL+`/api/traces?service=service&start=0&end=0&operation=operation&limit=200&minDuration=20ms`, &response)
-	assert.EqualError(
-		t, err,
-		`500 error from server: {"data":null,"total":0,"limit":0,"offset":0,"errors":[{"code":500,"msg":"whatsamattayou"}]}`+"\n")
+	assert.EqualError(t, err, parsedError(500, "whatsamattayou"))
 }
 
 func TestSearchFailures(t *testing.T) {
@@ -260,11 +292,11 @@ func TestSearchFailures(t *testing.T) {
 	}{
 		{
 			`/api/traces?start=0&end=0&operation=operation&limit=200&minDuration=20ms`,
-			`400 error from server: {"data":null,"total":0,"limit":0,"offset":0,"errors":[{"code":400,"msg":"Parameter 'service' is required"}]}`,
+			parsedError(400, "Parameter 'service' is required"),
 		},
 		{
 			`/api/traces?service=service&start=0&end=0&operation=operation&maxDuration=10ms&limit=200&minDuration=20ms`,
-			`400 error from server: {"data":null,"total":0,"limit":0,"offset":0,"errors":[{"code":400,"msg":"'maxDuration' should be greater than 'minDuration'"}]}`,
+			parsedError(400, "'maxDuration' should be greater than 'minDuration'"),
 		},
 	}
 	for _, test := range tests {
@@ -280,7 +312,7 @@ func testIndividualSearchFailures(t *testing.T, urlStr, errMsg string) {
 
 	var response structuredResponse
 	err := getJSON(server.URL+urlStr, &response)
-	assert.EqualError(t, err, errMsg+"\n")
+	assert.EqualError(t, err, errMsg)
 }
 
 func TestGetServicesSuccess(t *testing.T) {
@@ -419,4 +451,9 @@ func execJSON(req *http.Request, out interface{}) error {
 
 	decoder := json.NewDecoder(resp.Body)
 	return decoder.Decode(out)
+}
+
+// Generates a JSON response that the server should produce given a certain error code and error.
+func parsedError(code int, err string) string {
+	return fmt.Sprintf(`%d error from server: {"data":null,"total":0,"limit":0,"offset":0,"errors":[{"code":%d,"msg":"%s"}]}`+"\n", code, code, err)
 }
