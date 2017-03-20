@@ -29,7 +29,6 @@ import (
 	"io/ioutil"
 	"net/http"
 	"net/http/httptest"
-	"strings"
 	"testing"
 	"time"
 
@@ -157,8 +156,7 @@ func TestGetTraceNotFound(t *testing.T) {
 
 	var response structuredResponse
 	err := getJSON(server.URL+`/api/traces/123456`, &response)
-	assert.Error(t, err)
-	assert.True(t, strings.Contains(err.Error(), "trace not found"))
+	assert.EqualError(t, err, parsedError(404, "trace not found"))
 }
 
 func TestGetTraceAdjustmentFailure(t *testing.T) {
@@ -219,7 +217,7 @@ func TestSearchByTraceIDNotFound(t *testing.T) {
 
 	var response structuredResponse
 	err := getJSON(server.URL+`/api/traces?traceID=1`, &response)
-	assert.EqualError(t, err, parsedError(400, "trace not found"))
+	assert.EqualError(t, err, parsedError(404, "trace not found"))
 }
 
 func TestSearchByTraceIDFailure(t *testing.T) {

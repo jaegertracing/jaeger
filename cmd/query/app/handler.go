@@ -187,7 +187,7 @@ func (aH *APIHandler) search(w http.ResponseWriter, r *http.Request) {
 	if len(tQuery.traceIDs) > 0 {
 		tracesFromStorage, err = aH.tracesByIDs(tQuery.traceIDs)
 		if err == spanstore.ErrTraceNotFound {
-			aH.handleError(w, err, http.StatusBadRequest)
+			aH.handleError(w, err, http.StatusNotFound)
 			return
 		}
 		if aH.handleError(w, err, http.StatusInternalServerError) {
@@ -363,7 +363,7 @@ func (aH *APIHandler) withTraceFromReader(
 	}
 	trace, err := reader.GetTrace(traceID)
 	if err == spanstore.ErrTraceNotFound {
-		aH.handleError(w, err, http.StatusBadRequest)
+		aH.handleError(w, err, http.StatusNotFound)
 		return
 	}
 	if aH.handleError(w, err, http.StatusInternalServerError) {
