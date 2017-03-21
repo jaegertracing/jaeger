@@ -21,13 +21,15 @@
 package jaeger
 
 import (
+	"fmt"
+
 	"github.com/uber/jaeger/model"
 	"github.com/uber/jaeger/thrift-gen/jaeger"
 )
 
 func FromDomain(spans []*model.Span) []*jaeger.Span {
 	jSpans := make([]*jaeger.Span, len(spans))
-	dToJ := &domainToJaegerTransformer{}
+	dToJ := domainToJaegerTransformer{}
 	for idx, span := range spans {
 		jSpans[idx] = dToJ.transformSpan(span)
 	}
@@ -39,24 +41,76 @@ func FromDomainSpan(span *model.Span) *jaeger.Span {
 	return dToJ.transformSpan(span)
 }
 
-type domainToJaegerTransformer struct {
+type domainToJaegerTransformer struct{}
+
+func (d domainToJaegerTransformer) keyValueToTag(kv *model.KeyValue) *jaeger.Tag {
+	if kv.VType == model.StringType {
+		stringValue := string(kv.VStr)
+		return &jaeger.Tag{
+			Key:   kv.Key,
+			VType: jaeger.TagType_STRING,
+			VStr:  &stringValue,
+		}
+	}
+
+	if kv.VType == model.Int64Type {
+		intValue := kv.Int64()
+		return &jaeger.Tag{
+			Key:   kv.Key,
+			VType: jaeger.TagType_LONG,
+			VLong: &intValue,
+		}
+	}
+
+	if kv.VType == model.BinaryType {
+		binaryValue := kv.Binary()
+		return &jaeger.Tag{
+			Key:     kv.Key,
+			VType:   jaeger.TagType_BINARY,
+			VBinary: binaryValue,
+		}
+	}
+
+	if kv.VType == model.BoolType {
+		boolValue := false
+		if kv.VNum > 0 {
+			boolValue = true
+		}
+		return &jaeger.Tag{
+			Key:   kv.Key,
+			VType: jaeger.TagType_BOOL,
+			VBool: &boolValue,
+		}
+	}
+
+	if kv.VType == model.Float64Type {
+		floatValue := kv.Float64()
+		return &jaeger.Tag{
+			Key:     kv.Key,
+			VType:   jaeger.TagType_DOUBLE,
+			VDouble: &floatValue,
+		}
+	}
+
+	errString := fmt.Sprintf("No suitable tag type found for: %#v", kv.VType)
+	errTag := &jaeger.Tag{
+		Key:   "Error",
+		VType: jaeger.TagType_STRING,
+		VStr:  &errString,
+	}
+
+	return errTag
 }
 
-func (d *domainToJaegerTransformer) convertKeyValuesToTags(kvs model.KeyValues) []*jaeger.Tag {
+func (d domainToJaegerTransformer) convertKeyValuesToTags(kvs model.KeyValues) []*jaeger.Tag {
 	jaegerTags := make([]*jaeger.Tag, len(kvs))
 	for idx, kv := range kvs {
-		jaegerTags[idx] = &jaeger.Tag{
-			Key:     kv.Key,
-			VType:   jaeger.TagType(kv.VType),
-			VStr:    &kv.VStr,
-			VLong:   &kv.VNum,
-			VBinary: kv.VBlob,
-		}
+		jaegerTags[idx] = d.keyValueToTag(&kv)
 	}
 	return jaegerTags
 }
 
-func (d *domainToJaegerTransformer) convertLogs(logs []model.Log) []*jaeger.Log {
+func (d domainToJaegerTransformer) convertLogs(logs []model.Log) []*jaeger.Log {
 	jaegerLogs := make([]*jaeger.Log, len(logs))
 	for idx, log := range logs {
 		jaegerLogs[idx] = &jaeger.Log{
@@ -67,7 +121,7 @@ func (d *domainToJaegerTransformer) convertLogs(logs []model.Log) []*jaeger.Log 
 	return jaegerLogs
 }
 
-func (d *domainToJaegerTransformer) convertSpanRefs(refs []model.SpanRef) []*jaeger.SpanRef {
+func (d domainToJaegerTransformer) convertSpanRefs(refs []model.SpanRef) []*jaeger.SpanRef {
 	jaegerSpanRefs := make([]*jaeger.SpanRef, len(refs))
 	for idx, ref := range refs {
 		jaegerSpanRefs[idx] = &jaeger.SpanRef{
@@ -80,7 +134,7 @@ func (d *domainToJaegerTransformer) convertSpanRefs(refs []model.SpanRef) []*jae
 	return jaegerSpanRefs
 }
 
-func (d *domainToJaegerTransformer) transformSpan(span *model.Span) *jaeger.Span {
+func (d domainToJaegerTransformer) transformSpan(span *model.Span) *jaeger.Span {
 	tags := d.convertKeyValuesToTags(span.Tags)
 	logs := d.convertLogs(span.Logs)
 	refs := d.convertSpanRefs(span.References)

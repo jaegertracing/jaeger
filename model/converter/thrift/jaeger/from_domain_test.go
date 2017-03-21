@@ -1,13 +1,35 @@
+// Copyright (c) 2017 Uber Technologies, Inc.
+//
+// Permission is hereby granted, free of charge, to any person obtaining a copy
+// of this software and associated documentation files (the "Software"), to deal
+// in the Software without restriction, including without limitation the rights
+// to use, copy, modify, merge, publish, distribute, sublicense, and/or sell
+// copies of the Software, and to permit persons to whom the Software is
+// furnished to do so, subject to the following conditions:
+//
+// The above copyright notice and this permission notice shall be included in
+// all copies or substantial portions of the Software.
+//
+// THE SOFTWARE IS PROVIDED "AS IS", WITHOUT WARRANTY OF ANY KIND, EXPRESS OR
+// IMPLIED, INCLUDING BUT NOT LIMITED TO THE WARRANTIES OF MERCHANTABILITY,
+// FITNESS FOR A PARTICULAR PURPOSE AND NONINFRINGEMENT. IN NO EVENT SHALL THE
+// AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
+// LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
+// OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
+// THE SOFTWARE.
+
 package jaeger
 
 import (
-	"math/rand"
 	"testing"
-	"time"
 
 	"github.com/stretchr/testify/assert"
-	"github.com/uber/jaeger/model"
+
 	j "github.com/uber/jaeger/thrift-gen/jaeger"
+)
+
+const (
+	millisecondsConversion = 1000
 )
 
 func spanRefsEqual(refs []*j.SpanRef, otherRefs []*j.SpanRef) bool {
@@ -23,125 +45,28 @@ func spanRefsEqual(refs []*j.SpanRef, otherRefs []*j.SpanRef) bool {
 	return true
 }
 
-type spanOptions struct {
-	TraceIDLow    uint64
-	TraceIDHigh   uint64
-	SpanID        uint64
-	ParentSpanID  uint64
-	OperationName string
-	References    []model.SpanRef
-	Flags         int32
-	StartTime     time.Time
-	Duration      time.Duration
-	Tags          model.KeyValues
-	Logs          []model.Log
-	Process       model.Process
-}
-
-func generateRandomSpan(options *spanOptions) *model.Span {
-	if options == nil {
-		options = &spanOptions{}
-	}
-
-	zeroTime := time.Time{}
-	zeroDuration, _ := time.ParseDuration("")
-
-	if options.TraceIDHigh == 0 {
-		options.TraceIDHigh = rand.Uint64()
-	}
-
-	if options.TraceIDLow == 0 {
-		options.TraceIDLow = rand.Uint64()
-	}
-
-	if options.SpanID == 0 {
-		options.SpanID = rand.Uint64()
-	}
-
-	if options.ParentSpanID == 0 {
-		options.ParentSpanID = rand.Uint64()
-	}
-
-	if options.OperationName == "" {
-		options.OperationName = "someOperationName"
-	}
-
-	if options.StartTime == zeroTime {
-		options.StartTime = model.EpochMicrosecondsAsTime(12345)
-	}
-
-	if options.Duration == zeroDuration {
-		options.Duration = time.Duration(32) * time.Microsecond
-	}
-
-	if options.Process.ServiceName == "" {
-		options.Process.ServiceName = "someServiceName"
-	}
-
-	if options.Process.Tags == nil {
-		options.Process.Tags = []model.KeyValue{
-			{Key: "client-version", VType: model.StringType, VStr: "golang-test"},
-		}
-	}
-
-	return &model.Span{
-		TraceID:       model.TraceID{High: options.TraceIDHigh, Low: options.TraceIDLow},
-		SpanID:        model.SpanID(options.SpanID),
-		ParentSpanID:  model.SpanID(options.ParentSpanID),
-		OperationName: options.OperationName,
-		References: []model.SpanRef{
-			{
-				TraceID: model.TraceID{High: options.TraceIDHigh, Low: options.TraceIDLow},
-				SpanID:  model.SpanID(options.SpanID),
-				RefType: model.ChildOf,
-			},
-		},
-		Flags:     model.Flags(0),
-		StartTime: options.StartTime,
-		Duration:  options.Duration,
-		Process: &model.Process{
-			ServiceName: options.Process.ServiceName,
-			Tags:        options.Process.Tags,
-		},
-	}
-}
-
-func generateRandomSpans(numSpans int) []*model.Span {
-	spans := make([]*model.Span, numSpans)
-	for i := 0; i < numSpans; i++ {
-		spans[i] = generateRandomSpan(nil)
-	}
-	return spans
-}
-
 func TestFromDomainSpan(t *testing.T) {
-	modelSpan := generateRandomSpan(nil)
-	jaegerSpan := FromDomainSpan(modelSpan)
+	spanFile := "fixtures/model_01.json"
+	mSpans := loadSpans(t, spanFile)
 
-	assert.Equal(t, jaegerSpan.GetTraceIdLow(), int64(modelSpan.TraceID.Low))
-	assert.Equal(t, jaegerSpan.GetTraceIdHigh(), int64(modelSpan.TraceID.High))
-	assert.Equal(t, jaegerSpan.GetSpanId(), int64(modelSpan.SpanID))
-	assert.Equal(t, jaegerSpan.GetParentSpanId(), int64(modelSpan.ParentSpanID))
-	assert.Equal(t, jaegerSpan.GetOperationName(), modelSpan.OperationName)
-	assert.Equal(t, uint64(jaegerSpan.StartTime), uint64(modelSpan.StartTime.Nanosecond()/1e3))
-	assert.Equal(t, jaegerSpan.Duration, modelSpan.Duration.Nanoseconds()/1e3)
+	batchFile := "fixtures/thrift_batch_01.json"
+	jaegerBatch := loadBatch(t, batchFile)
+
+	modelSpan := mSpans[0]
+	jaegerSpan := FromDomainSpan(modelSpan)
+	newModelSpan := ToDomainSpan(jaegerSpan, jaegerBatch.Process)
+
+	assert.Equal(t, modelSpan, newModelSpan)
 }
 
 func TestFromDomain(t *testing.T) {
-	numSpans := 2
-	modelSpans := generateRandomSpans(numSpans)
-	jaegerSpans := FromDomain(modelSpans)
+	file := "fixtures/model_03.json"
+	mSpans := loadSpans(t, file)
 
-	for i := 0; i < numSpans; i++ {
-		modelSpan := modelSpans[i]
-		jaegerSpan := jaegerSpans[i]
+	batchFile := "fixtures/thrift_batch_01.json"
+	jaegerBatch := loadBatch(t, batchFile)
 
-		assert.Equal(t, jaegerSpan.GetTraceIdLow(), int64(modelSpan.TraceID.Low))
-		assert.Equal(t, jaegerSpan.GetTraceIdHigh(), int64(modelSpan.TraceID.High))
-		assert.Equal(t, jaegerSpan.GetSpanId(), int64(modelSpan.SpanID))
-		assert.Equal(t, jaegerSpan.GetParentSpanId(), int64(modelSpan.ParentSpanID))
-		assert.Equal(t, jaegerSpan.GetOperationName(), modelSpan.OperationName)
-		assert.Equal(t, uint64(jaegerSpan.StartTime), uint64(modelSpan.StartTime.Nanosecond()/1e3))
-		assert.Equal(t, jaegerSpan.Duration, modelSpan.Duration.Nanoseconds()/1e3)
-	}
+	jaegerSpans := FromDomain(mSpans)
+	newModelSpans := ToDomain(jaegerSpans, jaegerBatch.Process)
+	assert.Equal(t, mSpans, newModelSpans)
 }
