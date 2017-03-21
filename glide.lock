@@ -1,12 +1,12 @@
-hash: b79af98919c7aeea4c6e2d1ef80be1e97ceb464b73950972962fdddca48f4144
-updated: 2017-03-20T15:40:57.784987227-04:00
+hash: 3719ef24cbf19e7a2cf5047c5ab0c6cf337cb3268b849f7b0ce0e44bfb2d3955
+updated: 2017-03-21T17:32:18.349733166-04:00
 imports:
 - name: github.com/apache/thrift
   version: 53dd39833a08ce33582e5ff31fa18bb4735d6731
   subpackages:
   - lib/go/thrift
 - name: github.com/codahale/hdrhistogram
-  version: f8ad88b59a584afeee9d334eff879b104439117b
+  version: 3a0bb77429bd3a61596f5e8a3172445844342120
 - name: github.com/davecgh/go-spew
   version: 346938d642f2ec3594ed81d874461961cd0faa76
   subpackages:
@@ -25,7 +25,7 @@ imports:
   - internal/murmur
   - internal/streams
 - name: github.com/golang/snappy
-  version: d7b1e156f50d3c4664f683603af70e3e47fa0aa2
+  version: 553a641470496b2327abcac10b36396bd98e45c9
 - name: github.com/gorilla/context
   version: 08b5f424b9271eedf6f9f0ce86cb9396ed337a42
 - name: github.com/gorilla/handlers
@@ -46,7 +46,7 @@ imports:
   - ext
   - log
 - name: github.com/pkg/errors
-  version: 248dadf4e9068a0b3e79f02ed0a610d935de5302
+  version: ff09b135c25aae272398c51a07235b90a75aa4f0
 - name: github.com/pmezard/go-difflib
   version: 792786c7400a136282c1664665ae0a8db921c6c2
   subpackages:
@@ -60,11 +60,11 @@ imports:
   - mock
   - require
 - name: github.com/uber-go/atomic
-  version: 0c9e689d64f004564b79d9a663634756df322902
+  version: 3b8db5e93c4c02efbc313e17b2e796b0914a01fb
 - name: github.com/uber-go/zap
   version: c4939d1166b2220bb45338e21506623b4bbdec50
 - name: github.com/uber/jaeger-client-go
-  version: bcc801808ce11db4f05a09e2af61698ffe3f5f38
+  version: cbd3b6fe50f6d077951da8aabb06374f0ccf3181
   subpackages:
   - internal/spanlog
   - log
@@ -74,7 +74,7 @@ imports:
   - transport
   - utils
 - name: github.com/uber/jaeger-lib
-  version: b9556711760c45a30bd79c31c8f041d0d9aba997
+  version: ffca3143c929e9b97325e6bebcc380e8c6e5fa0d
   subpackages:
   - metrics
   - metrics/go-kit

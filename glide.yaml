@@ -13,7 +13,7 @@ import:
 - package: github.com/pkg/errors
 - package: github.com/uber-go/zap
 - package: github.com/uber/jaeger-lib
-  version: b9556711760c45a30bd79c31c8f041d0d9aba997
+  version: ffca3143c929e9b97325e6bebcc380e8c6e5fa0d
 - package: github.com/uber/tchannel-go
   version: v1.1.0
   subpackages:
