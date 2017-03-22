@@ -27,6 +27,9 @@ import (
 	"github.com/uber/jaeger/thrift-gen/jaeger"
 )
 
+// FromDomain takes an arrya of model.Span and returns
+// an array of jaeger.Span.  If errors are found during
+// conversion of tags, then error tags are appended.
 func FromDomain(spans []*model.Span) []*jaeger.Span {
 	jSpans := make([]*jaeger.Span, len(spans))
 	dToJ := domainToJaegerTransformer{}
@@ -36,6 +39,9 @@ func FromDomain(spans []*model.Span) []*jaeger.Span {
 	return jSpans
 }
 
+// FromDomainSpan takes a single model.Span and
+// converts it into a jaeger.Span.  If errors are found
+// during conversion of tags, then error tags are appended.
 func FromDomainSpan(span *model.Span) *jaeger.Span {
 	dToJ := &domainToJaegerTransformer{}
 	return dToJ.transformSpan(span)

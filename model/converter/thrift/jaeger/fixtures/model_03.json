@@ -97,6 +97,13 @@
     "operationName":"get",
     "startTime":"2017-01-26T16:46:31.639875-05:00",
     "duration":22938000,
+    "references": [
+      {
+        "refType": "child-of",
+        "traceID": "52969a8955571a3f",
+        "spanID":"52947b"
+      }
+    ],
     "tags":[
       {
         "key":"http.url",
@@ -132,6 +139,11 @@
         "key":"peer.ipv4",
         "vType":"int64",
         "vNum":3224716605
+      },
+      {
+        "key":"some.binary.data",
+        "vType":"binary",
+        "vBlob":"c29tZS1iaW5hcnktZGF0YQ=="
       }
     ],
     "process":{

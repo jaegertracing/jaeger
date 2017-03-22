@@ -25,6 +25,7 @@ import (
 
 	"github.com/stretchr/testify/assert"
 
+	"github.com/uber/jaeger/model"
 	j "github.com/uber/jaeger/thrift-gen/jaeger"
 )
 
@@ -77,4 +78,15 @@ func TestFromDomain(t *testing.T) {
 		newModelSpan.NormalizeTimestamps()
 	}
 	assert.Equal(t, modelSpans, newModelSpans)
+}
+
+func TestKeyValueToTag(t *testing.T) {
+	dToJ := domainToJaegerTransformer{}
+	jaegerTag := dToJ.keyValueToTag(&model.KeyValue{
+		Key:   "some-error",
+		VType: model.ValueType(-1),
+	})
+
+	assert.Equal(t, "Error", jaegerTag.Key)
+	assert.Equal(t, "No suitable tag type found for: -1", *jaegerTag.VStr)
 }

@@ -60,6 +60,7 @@ func (td toDomain) ToDomainSpan(jSpan *jaeger.Span, jProcess *jaeger.Process) *m
 
 func (td toDomain) transformSpan(jSpan *jaeger.Span, mProcess *model.Process) *model.Span {
 	tags := td.getTags(jSpan.Tags)
+	refs := td.getReferences(jSpan.References)
 	return &model.Span{
 		TraceID: model.TraceID{
 			High: uint64(jSpan.TraceIdHigh),
@@ -67,6 +68,7 @@ func (td toDomain) transformSpan(jSpan *jaeger.Span, mProcess *model.Process) *m
 		},
 		SpanID:        model.SpanID(jSpan.SpanId),
 		OperationName: jSpan.OperationName,
+		References:    refs,
 		ParentSpanID:  model.SpanID(jSpan.GetParentSpanId()),
 		Flags:         model.Flags(jSpan.Flags),
 		StartTime:     model.EpochMicrosecondsAsTime(uint64(jSpan.StartTime)),
@@ -75,6 +77,23 @@ func (td toDomain) transformSpan(jSpan *jaeger.Span, mProcess *model.Process) *m
 		Logs:          td.getLogs(jSpan.Logs),
 		Process:       mProcess,
 	}
+}
+
+func (td toDomain) getReferences(jRefs []*jaeger.SpanRef) []model.SpanRef {
+	if len(jRefs) == 0 {
+		return nil
+	}
+
+	mRefs := make([]model.SpanRef, len(jRefs))
+	for idx, jRef := range jRefs {
+		mRefs[idx] = model.SpanRef{
+			RefType: model.SpanRefType(int(jRef.RefType)),
+			TraceID: model.TraceID{High: uint64(jRef.TraceIdHigh), Low: uint64(jRef.TraceIdLow)},
+			SpanID:  model.SpanID(uint64(jRef.SpanId)),
+		}
+	}
+
+	return mRefs
 }
 
 // getProcess takes a jaeger.thrift process and produces a model.Process.
