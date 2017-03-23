@@ -24,7 +24,7 @@ import (
 	"flag"
 	"time"
 
-	"code.uber.internal/infra/jaeger/oss/cmd/collector/app"
+	"github.com/uber/jaeger/cmd/collector/app"
 )
 
 var (
