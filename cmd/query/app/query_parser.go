@@ -34,7 +34,7 @@ import (
 )
 
 const (
-	defaultQueryLimit = 20
+	defaultQueryLimit = 100
 
 	operationParam   = "operation"
 	tagParam         = "tag"
