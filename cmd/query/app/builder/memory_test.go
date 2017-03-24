@@ -24,25 +24,18 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/assert"
-	"github.com/uber-go/zap"
 
-	"github.com/uber/jaeger-lib/metrics"
 	"github.com/uber/jaeger/storage/spanstore/memory"
 )
 
-func TestApplyOptions(t *testing.T) {
-	opts := ApplyOptions(
-		Options.CassandraOption(nil),
-		Options.LoggerOption(zap.New(zap.NullEncoder())),
-		Options.MetricsFactoryOption(metrics.NullFactory),
-		Options.MemoryStoreOption(memory.NewStore()),
-	)
-	assert.NotNil(t, opts.Logger)
-	assert.NotNil(t, opts.MetricsFactory)
-}
+func TestMemoryStoreBuilder(t *testing.T) {
+	memStore := memory.NewStore()
+	memBuilder := newMemoryStoreBuilder(memStore)
+	spanReader, err := memBuilder.NewSpanReader()
+	assert.NoError(t, err)
+	assert.Equal(t, memStore, spanReader)
 
-func TestApplyNoOptions(t *testing.T) {
-	opts := ApplyOptions()
-	assert.NotNil(t, opts.Logger)
-	assert.NotNil(t, opts.MetricsFactory)
+	depReader, err := memBuilder.NewDependencyReader()
+	assert.NoError(t, err)
+	assert.Equal(t, memStore, depReader)
 }

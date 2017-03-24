@@ -104,7 +104,7 @@ func (m *Store) GetOperations(service string) ([]string, error) {
 		}
 		return retMe, nil
 	}
-	return nil, nil
+	return []string{}, nil
 }
 
 // FindTraces returns all traces in the query parameters are satisfied by a trace's span
