@@ -80,7 +80,7 @@ func startAgent(logger zap.Logger, baseFactory metrics.Factory, builder *agentAp
 }
 
 func startCollector(logger zap.Logger, baseFactory metrics.Factory, memoryStore *memory.Store) {
-	metricsFactory := baseFactory.Namespace("jaeger-agent", nil)
+	metricsFactory := baseFactory.Namespace("jaeger-collector", nil)
 
 	spanBuilder, err := collector.NewSpanHandlerBuilder(
 		basic.Options.LoggerOption(logger),
@@ -95,7 +95,7 @@ func startCollector(logger zap.Logger, baseFactory metrics.Factory, memoryStore 
 		logger.Fatal("Unable to build span handlers", zap.Error(err))
 	}
 
-	ch, err := tchannel.NewChannel("driver", &tchannel.ChannelOptions{})
+	ch, err := tchannel.NewChannel("jaeger-collector", &tchannel.ChannelOptions{})
 	if err != nil {
 		logger.Fatal("Unable to create new New TChannel Channel", zap.Error(err))
 	}
