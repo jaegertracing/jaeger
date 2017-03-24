@@ -35,10 +35,12 @@ import (
 	"github.com/uber/jaeger/pkg/cassandra"
 	cascfg "github.com/uber/jaeger/pkg/cassandra/config"
 	"github.com/uber/jaeger/plugin/storage/cassandra/spanstore"
+	"github.com/uber/jaeger/storage/spanstore/memory"
 )
 
 var (
 	errMissingCassandraConfig = errors.New("Cassandra not configured")
+	errMissingMemoryStore     = errors.New("MemoryStore is not provided")
 )
 
 // SpanHandlerBuilder builds span (Jaeger and zipkin) handlers
@@ -54,8 +56,51 @@ func NewSpanHandlerBuilder(opts ...basicB.Option) (SpanHandlerBuilder, error) {
 			return nil, errMissingCassandraConfig
 		}
 		return newCassandraBuilder(options.Cassandra, options.Logger, options.MetricsFactory), nil
+	} else if flags.SpanStorage.Type == flags.MemoryStorageType {
+		if options.MemoryStore == nil {
+			return nil, errMissingMemoryStore
+		}
+		return newMemoryBuilder(options.MemoryStore, options.Logger, options.MetricsFactory), nil
 	}
 	return nil, flags.ErrUnsupportedStorageType
+}
+
+type memoryBuilder struct {
+	logger         zap.Logger
+	metricsFactory metrics.Factory
+	memStore       *memory.Store
+}
+
+func newMemoryBuilder(memStore *memory.Store, logger zap.Logger, metricsFactory metrics.Factory) *memoryBuilder {
+	return &memoryBuilder{
+		logger:         logger,
+		metricsFactory: metricsFactory,
+		memStore:       memStore,
+	}
+}
+
+func (m *memoryBuilder) BuildHandlers() (app.ZipkinSpansHandler, app.JaegerBatchesHandler, error) {
+	hostname, _ := os.Hostname()
+	hostMetrics := m.metricsFactory.Namespace(hostname, nil)
+
+	zSanitizer := zs.NewChainedSanitizer(
+		zs.NewSpanDurationSanitizer(m.logger),
+		zs.NewParentIDSanitizer(m.logger),
+	)
+
+	spanProcessor := app.NewSpanProcessor(
+		m.memStore,
+		app.Options.ServiceMetrics(m.metricsFactory),
+		app.Options.HostMetrics(hostMetrics),
+		app.Options.Logger(m.logger),
+		app.Options.SpanFilter(defaultSpanFilter),
+		app.Options.NumWorkers(*NumWorkers),
+		app.Options.QueueSize(*QueueSize),
+	)
+
+	return app.NewZipkinSpanHandler(m.logger, spanProcessor, zSanitizer),
+		app.NewJaegerSpanHandler(m.logger, spanProcessor),
+		nil
 }
 
 type cassandraSpanHandlerBuilder struct {
