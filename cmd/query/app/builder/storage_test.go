@@ -30,9 +30,10 @@ import (
 	"github.com/uber/jaeger-lib/metrics"
 	basicB "github.com/uber/jaeger/cmd/builder"
 	cascfg "github.com/uber/jaeger/pkg/cassandra/config"
+	"github.com/uber/jaeger/storage/spanstore/memory"
 )
 
-func TestNewSuccess(t *testing.T) {
+func TestNewCassandraSuccess(t *testing.T) {
 	sBuilder, err := NewStorageBuilder(
 		basicB.Options.LoggerOption(zap.New(zap.NullEncoder())),
 		basicB.Options.MetricsFactoryOption(metrics.NullFactory),
@@ -44,7 +45,7 @@ func TestNewSuccess(t *testing.T) {
 	assert.NotNil(t, sBuilder)
 }
 
-func TestNewFailure(t *testing.T) {
+func TestNewCassandraFailure(t *testing.T) {
 	originalArgs := os.Args
 	defer func() {
 		os.Args = originalArgs
@@ -57,5 +58,27 @@ func TestNewFailure(t *testing.T) {
 	os.Args = []string{"test", "--span-storage.type=cassandra"}
 	sBuilder, err = NewStorageBuilder()
 	assert.EqualError(t, err, "Cassandra not configured")
+	assert.Nil(t, sBuilder)
+}
+
+func TestNewMemorySuccess(t *testing.T) {
+	originalArgs := os.Args
+	defer func() {
+		os.Args = originalArgs
+	}()
+	os.Args = []string{"test", "--span-storage.type=memory"}
+	sBuilder, err := NewStorageBuilder(basicB.Options.MemoryStoreOption(memory.NewStore()))
+	assert.NoError(t, err)
+	assert.NotNil(t, sBuilder)
+}
+
+func TestNewMemoryFailure(t *testing.T) {
+	originalArgs := os.Args
+	defer func() {
+		os.Args = originalArgs
+	}()
+	os.Args = []string{"test", "--span-storage.type=memory"}
+	sBuilder, err := NewStorageBuilder()
+	assert.Error(t, err)
 	assert.Nil(t, sBuilder)
 }

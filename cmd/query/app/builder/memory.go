@@ -21,41 +21,25 @@
 package builder
 
 import (
-	"errors"
-	"flag"
-
-	basicB "github.com/uber/jaeger/cmd/builder"
-	"github.com/uber/jaeger/cmd/flags"
 	"github.com/uber/jaeger/storage/dependencystore"
 	"github.com/uber/jaeger/storage/spanstore"
+	"github.com/uber/jaeger/storage/spanstore/memory"
 )
 
-// StorageBuilder is the interface that provides the necessary store readers
-type StorageBuilder interface {
-	NewSpanReader() (spanstore.Reader, error)
-	NewDependencyReader() (dependencystore.Reader, error)
+type memoryStoreBuilder struct {
+	memStore *memory.Store
 }
 
-var (
-	errMissingCassandraConfig = errors.New("Cassandra not configured")
-	errMissingMemoryStore     = errors.New("Memory Reader was not provided")
-)
-
-// NewStorageBuilder creates a StorageBuilder based off the flags that have been set
-func NewStorageBuilder(opts ...basicB.Option) (StorageBuilder, error) {
-	flag.Parse()
-	options := basicB.ApplyOptions(opts...)
-	if flags.SpanStorage.Type == flags.CassandraStorageType {
-		if options.Cassandra == nil {
-			return nil, errMissingCassandraConfig
-		}
-		// TODO technically span and dependency storage might be separate
-		return newCassandraBuilder(options.Cassandra, options.Logger, options.MetricsFactory), nil
-	} else if flags.SpanStorage.Type == flags.MemoryStorageType {
-		if options.MemoryStore == nil {
-			return nil, errMissingMemoryStore
-		}
-		return newMemoryStoreBuilder(options.MemoryStore), nil
+func newMemoryStoreBuilder(memStore *memory.Store) *memoryStoreBuilder {
+	return &memoryStoreBuilder{
+		memStore: memStore,
 	}
-	return nil, flags.ErrUnsupportedStorageType
+}
+
+func (c *memoryStoreBuilder) NewSpanReader() (spanstore.Reader, error) {
+	return c.memStore, nil
+}
+
+func (c *memoryStoreBuilder) NewDependencyReader() (dependencystore.Reader, error) {
+	return c.memStore, nil
 }

@@ -24,6 +24,7 @@ import (
 	"github.com/uber-go/zap"
 	"github.com/uber/jaeger-lib/metrics"
 	"github.com/uber/jaeger/pkg/cassandra/config"
+	"github.com/uber/jaeger/storage/spanstore/memory"
 )
 
 // BasicOptions is a set of basic building blocks for most Jaeger executables
@@ -34,6 +35,8 @@ type BasicOptions struct {
 	MetricsFactory metrics.Factory
 	// Cassandra is the cassandra configuration used by most executables (if applicable)
 	Cassandra *config.Configuration
+	// MemoryStore is the memory store (as reader and writer) that will be used if required
+	MemoryStore *memory.Store
 }
 
 // Option is a function that sets some option on StorageBuilder.
@@ -60,6 +63,13 @@ func (BasicOptions) MetricsFactoryOption(metricsFactory metrics.Factory) Option 
 func (BasicOptions) CassandraOption(cassandra *config.Configuration) Option {
 	return func(b *BasicOptions) {
 		b.Cassandra = cassandra
+	}
+}
+
+// MemoryStoreOption creates an Option that adds a memory store
+func (BasicOptions) MemoryStoreOption(memoryStore *memory.Store) Option {
+	return func(b *BasicOptions) {
+		b.MemoryStore = memoryStore
 	}
 }
 

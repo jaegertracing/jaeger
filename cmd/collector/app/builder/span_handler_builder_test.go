@@ -32,6 +32,7 @@ import (
 	"github.com/uber/jaeger/cmd/builder"
 	cascfg "github.com/uber/jaeger/pkg/cassandra/config"
 	"github.com/uber/jaeger/pkg/cassandra/mocks"
+	"github.com/uber/jaeger/storage/spanstore/memory"
 )
 
 func TestNewSpanHandlerBuilder(t *testing.T) {
@@ -66,7 +67,35 @@ func TestNewSpanHandlerBuilderBadStorageTypeFailure(t *testing.T) {
 	assert.Nil(t, handler)
 }
 
-func withBuilder(f func(builder *cassandraSpanHandlerBuilder)) {
+func TestNewSpanHandlerBuilderMemoryNotSet(t *testing.T) {
+	originalArgs := os.Args
+	defer func() {
+		os.Args = originalArgs
+	}()
+	os.Args = []string{"test", "--span-storage.type=memory"}
+	flag.Parse()
+	handler, err := NewSpanHandlerBuilder()
+	assert.Error(t, err)
+	assert.Nil(t, handler)
+}
+
+func TestNewSpanHandlerBuilderMemorySet(t *testing.T) {
+	originalArgs := os.Args
+	defer func() {
+		os.Args = originalArgs
+	}()
+	os.Args = []string{"test", "--span-storage.type=memory"}
+	flag.Parse()
+	handler, err := NewSpanHandlerBuilder(builder.Options.MemoryStoreOption(memory.NewStore()))
+	assert.NoError(t, err)
+	assert.NotNil(t, handler)
+	jHandler, zHandler, err := handler.BuildHandlers()
+	assert.NoError(t, err)
+	assert.NotNil(t, jHandler)
+	assert.NotNil(t, zHandler)
+}
+
+func withCassandraBuilder(f func(builder *cassandraSpanHandlerBuilder)) {
 	cfg := &cascfg.Configuration{
 		Servers: []string{"127.0.0.1"},
 	}
@@ -75,7 +104,7 @@ func withBuilder(f func(builder *cassandraSpanHandlerBuilder)) {
 }
 
 func TestBuildHandlers(t *testing.T) {
-	withBuilder(func(cBuilder *cassandraSpanHandlerBuilder) {
+	withCassandraBuilder(func(cBuilder *cassandraSpanHandlerBuilder) {
 		mockSession := mocks.Session{}
 		cBuilder.session = &mockSession
 		zHandler, jHandler, err := cBuilder.BuildHandlers()
@@ -86,7 +115,7 @@ func TestBuildHandlers(t *testing.T) {
 }
 
 func TestBuildHandlersFailure(t *testing.T) {
-	withBuilder(func(cBuilder *cassandraSpanHandlerBuilder) {
+	withCassandraBuilder(func(cBuilder *cassandraSpanHandlerBuilder) {
 		cBuilder.configuration.Servers = []string{"badhostname"}
 		zHandler, jHandler, err := cBuilder.BuildHandlers()
 		assert.Error(t, err)
