@@ -21,15 +21,19 @@
 package memory
 
 import (
+	"errors"
 	"sync"
+	"time"
 
 	"github.com/uber/jaeger/model"
 	"github.com/uber/jaeger/storage/spanstore"
-	"time"
 )
 
-// Store is an in-memory store of traces
+var errTraceNotFound = errors.New("Trace was not found")
+
+// Store is an unbounded in-memory store of traces
 type Store struct {
+	// TODO: make this a bounded memory store
 	sync.RWMutex
 	traces     map[model.TraceID]*model.Trace
 	services   map[string]struct{}
@@ -48,7 +52,7 @@ func NewStore() *Store {
 // GetDependencies returns dependencies between services
 func (m *Store) GetDependencies(endTs time.Time, lookback time.Duration) ([]model.DependencyLink, error) {
 	// TODO - go through all traces and build dependencies between start and end time
-	return nil, nil
+	return []model.DependencyLink{}, nil
 }
 
 // WriteSpan writes the given span
@@ -71,7 +75,11 @@ func (m *Store) WriteSpan(span *model.Span) error {
 func (m *Store) GetTrace(traceID model.TraceID) (*model.Trace, error) {
 	m.RLock()
 	defer m.RUnlock()
-	return m.traces[traceID], nil
+	retMe := m.traces[traceID]
+	if retMe == nil {
+		return nil, errTraceNotFound
+	}
+	return retMe, nil
 }
 
 // GetServices returns a list of all known services
@@ -126,7 +134,7 @@ func (m *Store) validSpan(span *model.Span, query *spanstore.TraceQueryParameter
 	if query.ServiceName != span.Process.ServiceName {
 		return false
 	}
-	if query.OperationName != span.OperationName {
+	if query.OperationName != "" && query.OperationName != span.OperationName {
 		return false
 	}
 	if query.DurationMin != 0 && span.Duration < query.DurationMin {
@@ -141,13 +149,12 @@ func (m *Store) validSpan(span *model.Span, query *spanstore.TraceQueryParameter
 	if !query.StartTimeMax.IsZero() && span.StartTime.After(query.StartTimeMax) {
 		return false
 	}
+	spanKVs := m.flattenTags(span)
 	for queryK, queryV := range query.Tags {
 		keyValueFoundAndMatches := false
-		for _, keyValue := range span.Tags {
-			if keyValue.Key == queryK {
-				if keyValue.AsString() != queryV {
-					return false
-				}
+		// (NB): we cannot find the KeyValue.Find function because there can be multiple tags with the same key
+		for _, keyValue := range spanKVs {
+			if keyValue.Key == queryK && keyValue.AsString() == queryV {
 				keyValueFoundAndMatches = true
 				break
 			}
@@ -157,4 +164,14 @@ func (m *Store) validSpan(span *model.Span, query *spanstore.TraceQueryParameter
 		}
 	}
 	return true
+}
+
+// TODO: this is a good candidate function to have on a span
+func (m *Store) flattenTags(span *model.Span) model.KeyValues {
+	retMe := span.Tags
+	retMe = append(retMe, span.Process.Tags...)
+	for _, l := range span.Logs {
+		retMe = append(retMe, l.Fields...)
+	}
+	return retMe
 }

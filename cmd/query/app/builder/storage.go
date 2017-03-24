@@ -55,7 +55,7 @@ func NewStorageBuilder(opts ...basicB.Option) (StorageBuilder, error) {
 		if options.MemoryStore == nil {
 			return nil, errMissingMemoryStore
 		}
-		return newMemoryBuilder(options.Logger, options.MetricsFactory, options.MemoryStore), nil
+		return newMemoryStoreBuilder(options.MemoryStore), nil
 	}
 	return nil, flags.ErrUnsupportedStorageType
 }

@@ -21,32 +21,25 @@
 package builder
 
 import (
-	"github.com/uber-go/zap"
-
-	"github.com/uber/jaeger-lib/metrics"
 	"github.com/uber/jaeger/storage/dependencystore"
 	"github.com/uber/jaeger/storage/spanstore"
 	"github.com/uber/jaeger/storage/spanstore/memory"
 )
 
-type memoryBuilder struct {
-	logger         zap.Logger
-	metricsFactory metrics.Factory
-	memStore       *memory.Store
+type memoryStoreBuilder struct {
+	memStore *memory.Store
 }
 
-func newMemoryBuilder(logger zap.Logger, metricsFactory metrics.Factory, memStore *memory.Store) *memoryBuilder {
-	return &memoryBuilder{
-		logger:         logger,
-		metricsFactory: metricsFactory,
-		memStore:       memStore,
+func newMemoryStoreBuilder(memStore *memory.Store) *memoryStoreBuilder {
+	return &memoryStoreBuilder{
+		memStore: memStore,
 	}
 }
 
-func (c *memoryBuilder) NewSpanReader() (spanstore.Reader, error) {
+func (c *memoryStoreBuilder) NewSpanReader() (spanstore.Reader, error) {
 	return c.memStore, nil
 }
 
-func (c *memoryBuilder) NewDependencyReader() (dependencystore.Reader, error) {
+func (c *memoryStoreBuilder) NewDependencyReader() (dependencystore.Reader, error) {
 	return c.memStore, nil
 }

@@ -60,26 +60,26 @@ func NewSpanHandlerBuilder(opts ...basicB.Option) (SpanHandlerBuilder, error) {
 		if options.MemoryStore == nil {
 			return nil, errMissingMemoryStore
 		}
-		return newMemoryBuilder(options.MemoryStore, options.Logger, options.MetricsFactory), nil
+		return newMemoryStoreBuilder(options.MemoryStore, options.Logger, options.MetricsFactory), nil
 	}
 	return nil, flags.ErrUnsupportedStorageType
 }
 
-type memoryBuilder struct {
+type memoryStoreBuilder struct {
 	logger         zap.Logger
 	metricsFactory metrics.Factory
 	memStore       *memory.Store
 }
 
-func newMemoryBuilder(memStore *memory.Store, logger zap.Logger, metricsFactory metrics.Factory) *memoryBuilder {
-	return &memoryBuilder{
+func newMemoryStoreBuilder(memStore *memory.Store, logger zap.Logger, metricsFactory metrics.Factory) *memoryStoreBuilder {
+	return &memoryStoreBuilder{
 		logger:         logger,
 		metricsFactory: metricsFactory,
 		memStore:       memStore,
 	}
 }
 
-func (m *memoryBuilder) BuildHandlers() (app.ZipkinSpansHandler, app.JaegerBatchesHandler, error) {
+func (m *memoryStoreBuilder) BuildHandlers() (app.ZipkinSpansHandler, app.JaegerBatchesHandler, error) {
 	hostname, _ := os.Hostname()
 	hostMetrics := m.metricsFactory.Namespace(hostname, nil)
 
