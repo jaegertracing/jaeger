@@ -9,6 +9,8 @@ services:
   - docker
 
 install:
+  - nvm version
+  - node -v
   - make install_ci
 
 script:
