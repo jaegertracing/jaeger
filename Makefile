@@ -48,7 +48,7 @@ clean:
 	rm -rf cover.out cover.html lint.log fmt.log
 
 .PHONY: test
-test: go-gen
+test: 
 	$(GOTEST) $(PACKAGES) | $(COLORIZE)
 
 .PHONY: fmt
