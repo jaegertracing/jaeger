@@ -26,11 +26,11 @@ import (
 
 // SortLogFields returns an Adjuster that sorts the fields in the span logs.
 // It puts the `event` field in the first position (if present), and sorts
-// all other fields lexigraphically.
+// all other fields lexicographically.
 //
-// TODO it should also do something about the "msg" field, maybe replace it
+// TODO: it should also do something about the "msg" field, maybe replace it
 // with "event" field.
-// TODO we may also want to move "level" field (as in logging level) to an earlier
+// TODO: we may also want to move "level" field (as in logging level) to an earlier
 // place in the list. This adjuster needs some sort of config describing predefined
 // field names/types and their relative order.
 func SortLogFields() Adjuster {
