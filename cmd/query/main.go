@@ -65,6 +65,7 @@ func main() {
 	rHandler := app.NewAPIHandler(
 		spanReader,
 		dependencyReader,
+		app.HandlerOptions.Adjusters(app.StandardAdjusters),
 		app.HandlerOptions.Prefix(*builder.QueryPrefix),
 		app.HandlerOptions.Logger(logger))
 	r := mux.NewRouter()
