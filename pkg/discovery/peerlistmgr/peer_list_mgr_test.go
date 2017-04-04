@@ -21,6 +21,7 @@
 package peerlistmgr
 
 import (
+	"bytes"
 	"errors"
 	"fmt"
 	"testing"
@@ -33,8 +34,6 @@ import (
 	"github.com/uber/tchannel-go/testutils"
 	"go.uber.org/zap"
 	"golang.org/x/net/context"
-
-	"bytes"
 
 	"github.com/uber/jaeger/pkg/discovery"
 )
