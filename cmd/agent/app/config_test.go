@@ -95,6 +95,14 @@ func TestConfigWithDiscovery(t *testing.T) {
 	assert.NotNil(t, agent)
 }
 
+func TestConfigWithCollectorServiceName(t *testing.T) {
+	cfg := &Builder{}
+	cfg.WithCollectorServiceName("svc")
+	agent, err := cfg.CreateAgent(metrics.NullFactory, zap.NewNop())
+	assert.NoError(t, err)
+	assert.NotNil(t, agent)
+}
+
 func TestConfigWithSingleCollector(t *testing.T) {
 	cfg := &Builder{
 		CollectorHostPort: "127.0.0.1:9876",

@@ -38,7 +38,7 @@ import (
 //
 // TODO we should refactor normal collector so it can be used in tests, with in-memory storage
 func StartMockTCollector() (*MockTCollector, error) {
-	return startMockTCollector("tcollector", "127.0.0.1:0")
+	return startMockTCollector("jaeger-collector", "127.0.0.1:0")
 }
 
 // extracted to separate function to be able to test error cases
@@ -67,7 +67,7 @@ func startMockTCollector(name string, addr string) (*MockTCollector, error) {
 		return nil, err
 	}
 
-	subchannel := ch.GetSubChannel("tcollector", tchannel.Isolated)
+	subchannel := ch.GetSubChannel("jaeger-collector", tchannel.Isolated)
 	subchannel.Peers().Add(ch.PeerInfo().HostPort)
 
 	return collector, nil

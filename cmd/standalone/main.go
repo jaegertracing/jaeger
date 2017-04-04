@@ -22,6 +22,7 @@ package main
 
 import (
 	"flag"
+	"fmt"
 	"net"
 	"net/http"
 	"runtime"
@@ -68,6 +69,9 @@ func main() {
 func startAgent(logger *zap.Logger, baseFactory metrics.Factory, builder *agentApp.Builder) {
 	metricsFactory := baseFactory.Namespace("jaeger-agent", nil)
 
+	if builder.CollectorHostPort == "" {
+		builder.CollectorHostPort = fmt.Sprintf("127.0.0.1:%d", *collector.CollectorPort)
+	}
 	agent, err := builder.CreateAgent(metricsFactory, logger)
 	if err != nil {
 		logger.Fatal("Unable to initialize Jaeger Agent", zap.Error(err))
@@ -95,7 +99,7 @@ func startCollector(logger *zap.Logger, baseFactory metrics.Factory, memoryStore
 		logger.Fatal("Unable to build span handlers", zap.Error(err))
 	}
 
-	ch, err := tchannel.NewChannel("tcollector", &tchannel.ChannelOptions{})
+	ch, err := tchannel.NewChannel("jaeger-collector", &tchannel.ChannelOptions{})
 	if err != nil {
 		logger.Fatal("Unable to create new New TChannel Channel", zap.Error(err))
 	}
