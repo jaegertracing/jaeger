@@ -26,7 +26,7 @@ import (
 	"strconv"
 
 	"github.com/gorilla/mux"
-	"github.com/uber-go/zap"
+	"go.uber.org/zap"
 
 	"github.com/uber/jaeger-lib/metrics/go-kit"
 	"github.com/uber/jaeger-lib/metrics/go-kit/expvar"
@@ -43,7 +43,7 @@ func main() {
 	casOptions.Bind(flag.CommandLine, "cassandra", "cassandra.archive")
 	flag.Parse()
 
-	logger := zap.New(zap.NewJSONEncoder())
+	logger, _ := zap.NewProduction()
 	metricsFactory := xkit.Wrap("jaeger-query", expvar.NewFactory(10))
 
 	storageBuild, err := builder.NewStorageBuilder(

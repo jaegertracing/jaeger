@@ -27,10 +27,10 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-	"github.com/uber-go/zap"
 	"github.com/uber/jaeger-lib/metrics"
 	"github.com/uber/jaeger/thrift-gen/jaeger"
 	"github.com/uber/jaeger/thrift-gen/zipkincore"
+	"go.uber.org/zap"
 	"gopkg.in/yaml.v2"
 
 	"github.com/uber/jaeger/pkg/discovery"
@@ -84,13 +84,13 @@ func TestConfigWithDiscovery(t *testing.T) {
 	cfg := &Builder{}
 	discoverer := discovery.FixedDiscoverer([]string{"1.1.1.1:80"})
 	cfg.WithDiscoverer(discoverer)
-	_, err := cfg.CreateAgent(metrics.NullFactory, zap.New(zap.NullEncoder()))
+	_, err := cfg.CreateAgent(metrics.NullFactory, zap.NewNop())
 	assert.EqualError(t, err, "cannot enable service discovery: both discovery.Discoverer and discovery.Notifier must be specified")
 
 	cfg = &Builder{}
 	notifier := &discovery.Dispatcher{}
 	cfg.WithDiscoverer(discoverer).WithDiscoveryNotifier(notifier)
-	agent, err := cfg.CreateAgent(metrics.NullFactory, zap.New(zap.NullEncoder()))
+	agent, err := cfg.CreateAgent(metrics.NullFactory, zap.NewNop())
 	assert.NoError(t, err)
 	assert.NotNil(t, agent)
 }
@@ -99,7 +99,7 @@ func TestConfigWithSingleCollector(t *testing.T) {
 	cfg := &Builder{
 		CollectorHostPort: "127.0.0.1:9876",
 	}
-	agent, err := cfg.CreateAgent(metrics.NullFactory, zap.New(zap.NullEncoder()))
+	agent, err := cfg.CreateAgent(metrics.NullFactory, zap.NewNop())
 	assert.NoError(t, err)
 	assert.NotNil(t, agent)
 }
@@ -117,7 +117,7 @@ func (fr fakeReporter) EmitBatch(batch *jaeger.Batch) (err error) {
 func TestConfigWithExtraReporter(t *testing.T) {
 	cfg := &Builder{}
 	cfg.WithReporter(fakeReporter{})
-	agent, err := cfg.CreateAgent(metrics.NullFactory, zap.New(zap.NullEncoder()))
+	agent, err := cfg.CreateAgent(metrics.NullFactory, zap.NewNop())
 	assert.NoError(t, err)
 	assert.NotNil(t, agent)
 }
@@ -148,7 +148,7 @@ func TestConfigWithProcessorErrors(t *testing.T) {
 				},
 			},
 		}
-		_, err := cfg.CreateAgent(metrics.NullFactory, zap.New(zap.NullEncoder()))
+		_, err := cfg.CreateAgent(metrics.NullFactory, zap.NewNop())
 		assert.Error(t, err)
 		if testCase.err != "" {
 			assert.EqualError(t, err, testCase.err)

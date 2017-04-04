@@ -25,11 +25,11 @@ import (
 	"time"
 
 	"github.com/stretchr/testify/assert"
-	"github.com/uber-go/zap"
+	"go.uber.org/zap"
 )
 
 func TestOptions(t *testing.T) {
-	logger := zap.New(zap.NullEncoder())
+	logger := zap.NewNop()
 	minPeers := 42
 	connCheck := 42 * time.Millisecond
 	connTimeout := 42 * time.Millisecond

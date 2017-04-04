@@ -25,8 +25,8 @@ import (
 	"net/http"
 
 	"github.com/opentracing/opentracing-go"
-	"github.com/uber-go/zap"
 	"github.com/uber/jaeger-lib/metrics"
+	"go.uber.org/zap"
 
 	"github.com/uber/jaeger/examples/hotrod/pkg/httperr"
 	"github.com/uber/jaeger/examples/hotrod/pkg/log"
@@ -69,7 +69,7 @@ func (s *Server) createServeMux() http.Handler {
 
 func (s *Server) customer(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
-	s.logger.For(ctx).Info("HTTP request received", zap.String("method", r.Method), zap.Object("url", r.URL))
+	s.logger.For(ctx).Info("HTTP request received", zap.String("method", r.Method), zap.Stringer("url", r.URL))
 	if err := r.ParseForm(); httperr.HandleError(w, err, http.StatusBadRequest) {
 		s.logger.For(ctx).Error("bad request", zap.Error(err))
 		return

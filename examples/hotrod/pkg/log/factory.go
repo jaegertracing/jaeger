@@ -24,17 +24,18 @@ import (
 	"context"
 
 	"github.com/opentracing/opentracing-go"
-	"github.com/uber-go/zap"
+	"go.uber.org/zap"
+	"go.uber.org/zap/zapcore"
 )
 
 // Factory is the default logging wrapper that can create
 // logger instances either for a given Context or context-less.
 type Factory struct {
-	logger zap.Logger
+	logger *zap.Logger
 }
 
 // NewFactory creates a new Factory.
-func NewFactory(logger zap.Logger) Factory {
+func NewFactory(logger *zap.Logger) Factory {
 	return Factory{logger: logger}
 }
 
@@ -55,6 +56,6 @@ func (b Factory) For(ctx context.Context) Logger {
 }
 
 // With creates a child logger, and optionally adds some context fields to that logger.
-func (b Factory) With(fields ...zap.Field) Factory {
+func (b Factory) With(fields ...zapcore.Field) Factory {
 	return Factory{logger: b.logger.With(fields...)}
 }

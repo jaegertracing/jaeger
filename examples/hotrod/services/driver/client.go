@@ -25,9 +25,9 @@ import (
 	"time"
 
 	"github.com/opentracing/opentracing-go"
-	"github.com/uber-go/zap"
 	"github.com/uber/tchannel-go"
 	"github.com/uber/tchannel-go/thrift"
+	"go.uber.org/zap"
 
 	"github.com/uber/jaeger/examples/hotrod/pkg/log"
 	"github.com/uber/jaeger/examples/hotrod/services/driver/thrift-gen/driver"

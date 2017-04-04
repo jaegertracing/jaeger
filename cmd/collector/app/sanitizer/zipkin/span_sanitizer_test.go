@@ -26,7 +26,7 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-	"github.com/uber-go/zap"
+	"go.uber.org/zap"
 
 	"github.com/uber/jaeger/pkg/testutils"
 	"github.com/uber/jaeger/thrift-gen/zipkincore"
@@ -38,7 +38,7 @@ var (
 )
 
 func TestChainedSanitizer(t *testing.T) {
-	sanitizer := NewChainedSanitizer(NewSpanDurationSanitizer(zap.New(zap.NullEncoder())))
+	sanitizer := NewChainedSanitizer(NewSpanDurationSanitizer(zap.NewNop()))
 
 	span := &zipkincore.Span{Duration: &negativeDuration}
 	actual := sanitizer.Sanitize(span)
@@ -46,7 +46,7 @@ func TestChainedSanitizer(t *testing.T) {
 }
 
 func TestSpanDurationSanitizer(t *testing.T) {
-	logger, log := testutils.NewLogger(false)
+	logger, log := testutils.NewLogger()
 
 	sanitizer := NewSpanDurationSanitizer(logger)
 
@@ -57,7 +57,7 @@ func TestSpanDurationSanitizer(t *testing.T) {
 	assert.Equal(t, "-1", string(actual.BinaryAnnotations[0].Value))
 	assert.NotEmpty(t, log.Bytes())
 
-	logger, log = testutils.NewLogger(false)
+	logger, log = testutils.NewLogger()
 	sanitizer = NewSpanDurationSanitizer(logger)
 	span = &zipkincore.Span{Duration: &positiveDuration}
 	actual = sanitizer.Sanitize(span)
@@ -65,7 +65,7 @@ func TestSpanDurationSanitizer(t *testing.T) {
 	assert.Len(t, actual.BinaryAnnotations, 0)
 	assert.Empty(t, log.Bytes())
 
-	logger, log = testutils.NewLogger(false)
+	logger, log = testutils.NewLogger()
 	sanitizer = NewSpanDurationSanitizer(logger)
 	nilDurationSpan := &zipkincore.Span{}
 	actual = sanitizer.Sanitize(nilDurationSpan)
@@ -92,7 +92,7 @@ func TestSpanParentIDSanitizer(t *testing.T) {
 		span := &zipkincore.Span{
 			ParentID: test.parentID,
 		}
-		logger, log := testutils.NewLogger(false)
+		logger, log := testutils.NewLogger()
 		sanitizer := NewParentIDSanitizer(logger)
 		actual := sanitizer.Sanitize(span)
 		assert.Equal(t, test.expected, actual.ParentID)
@@ -109,7 +109,7 @@ func TestSpanParentIDSanitizer(t *testing.T) {
 }
 
 func TestSpanLogger(t *testing.T) {
-	logger, log := testutils.NewLogger(true)
+	logger, log := testutils.NewLogger()
 	span := &zipkincore.Span{
 		TraceID: 123,
 		ID:      567,

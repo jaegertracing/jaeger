@@ -23,9 +23,9 @@ package reporter
 import (
 	"time"
 
-	"github.com/uber-go/zap"
 	"github.com/uber/tchannel-go"
 	"github.com/uber/tchannel-go/thrift"
+	"go.uber.org/zap"
 
 	"github.com/uber/jaeger-lib/metrics"
 	"github.com/uber/jaeger/thrift-gen/jaeger"
@@ -59,11 +59,11 @@ type tcollectorReporter struct {
 	zClient        zipkincore.TChanZipkinCollector
 	jClient        jaeger.TChanCollector
 	batchesMetrics map[string]batchMetrics
-	logger         zap.Logger
+	logger         *zap.Logger
 }
 
 // NewTCollectorReporter creates new tcollectorReporter
-func NewTCollectorReporter(channel *tchannel.Channel, mFactory metrics.Factory, zlogger zap.Logger, clientOpts *thrift.ClientOptions) Reporter {
+func NewTCollectorReporter(channel *tchannel.Channel, mFactory metrics.Factory, zlogger *zap.Logger, clientOpts *thrift.ClientOptions) Reporter {
 	thriftClient := thrift.NewClient(channel, "tcollector", clientOpts)
 	zClient := zipkincore.NewTChanZipkinCollectorClient(thriftClient)
 	jClient := jaeger.NewTChanCollectorClient(thriftClient)

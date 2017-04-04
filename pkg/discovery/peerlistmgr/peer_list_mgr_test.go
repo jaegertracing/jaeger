@@ -28,11 +28,11 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-	"github.com/uber-go/zap"
 	testlog "github.com/uber/jaeger/pkg/testutils"
 	tchannel "github.com/uber/tchannel-go"
 	"github.com/uber/tchannel-go/raw"
 	"github.com/uber/tchannel-go/testutils"
+	"go.uber.org/zap"
 	"golang.org/x/net/context"
 
 	"github.com/uber/jaeger/pkg/discovery"
@@ -155,7 +155,7 @@ func TestPeerListManager_getMinPeers(t *testing.T) {
 }
 
 func TestPeerListManager_ensureConnection(t *testing.T) {
-	logger, log := testlog.NewLogger(false)
+	logger, log := testlog.NewLogger()
 
 	testCases := []struct {
 		numServers    int // how many instances of the service to stand up

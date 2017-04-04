@@ -26,9 +26,9 @@ import (
 
 	"github.com/apache/thrift/lib/go/thrift"
 	"github.com/pkg/errors"
-	"github.com/uber-go/zap"
 	"github.com/uber/tchannel-go"
 	tchannelThrift "github.com/uber/tchannel-go/thrift"
+	"go.uber.org/zap"
 
 	"github.com/uber/jaeger-lib/metrics"
 	zipkinThrift "github.com/uber/jaeger/thrift-gen/agent"
@@ -168,7 +168,7 @@ func (b *Builder) WithDiscoveryNotifier(n discovery.Notifier) *Builder {
 	return b
 }
 
-func (b *Builder) enableDiscovery(channel *tchannel.Channel, logger zap.Logger) (interface{}, error) {
+func (b *Builder) enableDiscovery(channel *tchannel.Channel, logger *zap.Logger) (interface{}, error) {
 	if b.discoverer == nil && b.notifier == nil {
 		return nil, nil
 	}
@@ -186,7 +186,7 @@ func (b *Builder) enableDiscovery(channel *tchannel.Channel, logger zap.Logger) 
 }
 
 // CreateAgent creates the Agent
-func (b *Builder) CreateAgent(mFactory metrics.Factory, logger zap.Logger) (*Agent, error) {
+func (b *Builder) CreateAgent(mFactory metrics.Factory, logger *zap.Logger) (*Agent, error) {
 	// ignore errors since it only happens on empty service name
 	channel, _ := tchannel.NewChannel(agentServiceName, nil)
 

@@ -23,9 +23,9 @@ package app
 import (
 	"time"
 
-	"github.com/uber-go/zap"
 	"github.com/uber/jaeger/model/adjuster"
 	"github.com/uber/jaeger/storage/spanstore"
+	"go.uber.org/zap"
 )
 
 // HandlerOption is a function that sets some option on the APIHandler
@@ -38,7 +38,7 @@ type handlerOptions struct{}
 
 // Logger creates a HandlerOption that initializes Logger on the APIHandler,
 // which is used to emit logs.
-func (handlerOptions) Logger(logger zap.Logger) HandlerOption {
+func (handlerOptions) Logger(logger *zap.Logger) HandlerOption {
 	return func(apiHandler *APIHandler) {
 		apiHandler.logger = logger
 	}

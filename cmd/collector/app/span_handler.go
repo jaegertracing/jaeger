@@ -21,8 +21,8 @@
 package app
 
 import (
-	"github.com/uber-go/zap"
 	"github.com/uber/tchannel-go/thrift"
+	"go.uber.org/zap"
 
 	zipkinS "github.com/uber/jaeger/cmd/collector/app/sanitizer/zipkin"
 	"github.com/uber/jaeger/model"
@@ -61,12 +61,12 @@ type SpanProcessor interface {
 }
 
 type jaegerBatchesHandler struct {
-	logger         zap.Logger
+	logger         *zap.Logger
 	modelProcessor SpanProcessor
 }
 
 // NewJaegerSpanHandler returns a JaegerBatchesHandler
-func NewJaegerSpanHandler(logger zap.Logger, modelProcessor SpanProcessor) JaegerBatchesHandler {
+func NewJaegerSpanHandler(logger *zap.Logger, modelProcessor SpanProcessor) JaegerBatchesHandler {
 	return &jaegerBatchesHandler{
 		logger:         logger,
 		modelProcessor: modelProcessor,
@@ -98,13 +98,13 @@ func (jbh *jaegerBatchesHandler) SubmitBatches(ctx thrift.Context, batches []*ja
 }
 
 type zipkinSpanHandler struct {
-	logger         zap.Logger
+	logger         *zap.Logger
 	sanitizer      zipkinS.Sanitizer
 	modelProcessor SpanProcessor
 }
 
 // NewZipkinSpanHandler returns a ZipkinSpansHandler
-func NewZipkinSpanHandler(logger zap.Logger, modelHandler SpanProcessor, sanitizer zipkinS.Sanitizer) ZipkinSpansHandler {
+func NewZipkinSpanHandler(logger *zap.Logger, modelHandler SpanProcessor, sanitizer zipkinS.Sanitizer) ZipkinSpansHandler {
 	return &zipkinSpanHandler{
 		logger:         logger,
 		modelProcessor: modelHandler,
@@ -133,7 +133,7 @@ func (h *zipkinSpanHandler) SubmitZipkinBatch(ctx thrift.Context, spans []*zipki
 }
 
 // ConvertZipkinToModel is a helper function that logs warnings during conversion
-func ConvertZipkinToModel(zSpan *zipkincore.Span, logger zap.Logger) *model.Span {
+func ConvertZipkinToModel(zSpan *zipkincore.Span, logger *zap.Logger) *model.Span {
 	mSpan, err := zipkin.ToDomainSpan(zSpan)
 	if err != nil {
 		logger.Warn("Warning while converting zipkin to domain span", zap.Error(err))

@@ -31,7 +31,7 @@ import (
 	"github.com/opentracing-contrib/go-stdlib/nethttp"
 	"github.com/opentracing/opentracing-go"
 	"github.com/pkg/errors"
-	"github.com/uber-go/zap"
+	"go.uber.org/zap"
 
 	"github.com/uber/jaeger/model"
 	"github.com/uber/jaeger/model/adjuster"
@@ -82,7 +82,7 @@ type APIHandler struct {
 	archiveSpanWriter spanstore.Writer
 	dependencyReader  dependencystore.Reader
 	adjuster          adjuster.Adjuster
-	logger            zap.Logger
+	logger            *zap.Logger
 	queryParser       queryParser
 	httpPrefix        string
 }
@@ -111,7 +111,7 @@ func NewAPIHandler(spanReader spanstore.Reader, dependencyReader dependencystore
 			adjuster.IPTagAdjuster())
 	}
 	if aH.logger == nil {
-		aH.logger = zap.New(zap.NullEncoder())
+		aH.logger = zap.NewNop()
 	}
 	return aH
 }

@@ -23,7 +23,7 @@ package zipkin
 import (
 	"strconv"
 
-	"github.com/uber-go/zap"
+	"go.uber.org/zap"
 
 	zc "github.com/uber/jaeger/thrift-gen/zipkincore"
 )
@@ -61,17 +61,17 @@ func (cs ChainedSanitizer) Sanitize(span *zc.Span) *zc.Span {
 }
 
 type spanLogger struct {
-	logger zap.Logger
+	logger *zap.Logger
 }
 
-func (s spanLogger) ForSpan(span *zc.Span) zap.Logger {
+func (s spanLogger) ForSpan(span *zc.Span) *zap.Logger {
 	return s.logger.
 		With(zap.String("traceID", strconv.FormatUint(uint64(span.TraceID), 16))).
 		With(zap.String("spanID", strconv.FormatUint(uint64(span.ID), 16)))
 }
 
 // NewSpanDurationSanitizer returns a sanitizer that deals with nil or 0 span duration.
-func NewSpanDurationSanitizer(logger zap.Logger) Sanitizer {
+func NewSpanDurationSanitizer(logger *zap.Logger) Sanitizer {
 	return &spanDurationSanitizer{log: spanLogger{logger}}
 }
 
@@ -102,7 +102,7 @@ func (s *spanDurationSanitizer) Sanitize(span *zc.Span) *zc.Span {
 
 // NewParentIDSanitizer returns a sanitizer that deals parentID == 0
 // by replacing with nil, per Zipkin convention.
-func NewParentIDSanitizer(logger zap.Logger) Sanitizer {
+func NewParentIDSanitizer(logger *zap.Logger) Sanitizer {
 	return &parentIDSanitizer{log: spanLogger{logger}}
 }
 

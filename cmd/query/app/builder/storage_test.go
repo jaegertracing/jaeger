@@ -25,7 +25,7 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/assert"
-	"github.com/uber-go/zap"
+	"go.uber.org/zap"
 
 	"github.com/uber/jaeger-lib/metrics"
 	basicB "github.com/uber/jaeger/cmd/builder"
@@ -35,7 +35,7 @@ import (
 
 func TestNewCassandraSuccess(t *testing.T) {
 	sBuilder, err := NewStorageBuilder(
-		basicB.Options.LoggerOption(zap.New(zap.NullEncoder())),
+		basicB.Options.LoggerOption(zap.NewNop()),
 		basicB.Options.MetricsFactoryOption(metrics.NullFactory),
 		basicB.Options.CassandraOption(&cascfg.Configuration{
 			Servers: []string{"127.0.0.1"},

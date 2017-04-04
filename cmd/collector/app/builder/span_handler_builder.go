@@ -24,7 +24,7 @@ import (
 	"errors"
 	"os"
 
-	"github.com/uber-go/zap"
+	"go.uber.org/zap"
 
 	"github.com/uber/jaeger-lib/metrics"
 	basicB "github.com/uber/jaeger/cmd/builder"
@@ -66,12 +66,12 @@ func NewSpanHandlerBuilder(opts ...basicB.Option) (SpanHandlerBuilder, error) {
 }
 
 type memoryStoreBuilder struct {
-	logger         zap.Logger
+	logger         *zap.Logger
 	metricsFactory metrics.Factory
 	memStore       *memory.Store
 }
 
-func newMemoryStoreBuilder(memStore *memory.Store, logger zap.Logger, metricsFactory metrics.Factory) *memoryStoreBuilder {
+func newMemoryStoreBuilder(memStore *memory.Store, logger *zap.Logger, metricsFactory metrics.Factory) *memoryStoreBuilder {
 	return &memoryStoreBuilder{
 		logger:         logger,
 		metricsFactory: metricsFactory,
@@ -104,13 +104,13 @@ func (m *memoryStoreBuilder) BuildHandlers() (app.ZipkinSpansHandler, app.Jaeger
 }
 
 type cassandraSpanHandlerBuilder struct {
-	logger         zap.Logger
+	logger         *zap.Logger
 	metricsFactory metrics.Factory
 	configuration  cascfg.Configuration
 	session        cassandra.Session
 }
 
-func newCassandraBuilder(config *cascfg.Configuration, logger zap.Logger, metricsFactory metrics.Factory) *cassandraSpanHandlerBuilder {
+func newCassandraBuilder(config *cascfg.Configuration, logger *zap.Logger, metricsFactory metrics.Factory) *cassandraSpanHandlerBuilder {
 	return &cassandraSpanHandlerBuilder{
 		logger:         logger,
 		metricsFactory: metricsFactory,

@@ -24,8 +24,8 @@ import (
 	"sync"
 	"time"
 
-	"github.com/uber-go/zap"
 	"github.com/uber/tchannel-go"
+	"go.uber.org/zap"
 
 	"github.com/uber/jaeger/model"
 	"github.com/uber/jaeger/storage/spanstore"
@@ -45,7 +45,7 @@ type spanProcessor struct {
 	filterSpan      FilterSpan             // filter is called before the sanitizer but after preProcessSpans
 	sanitizer       sanitizer.SanitizeSpan // sanitizer is called before processSpan
 	processSpan     ProcessSpan
-	logger          zap.Logger
+	logger          *zap.Logger
 	spanWriter      spanstore.Writer
 	blockingSubmit  bool
 	reportBusy      bool

@@ -24,7 +24,7 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/assert"
-	"github.com/uber-go/zap"
+	"go.uber.org/zap"
 
 	"github.com/uber/jaeger-lib/metrics"
 	"github.com/uber/jaeger/storage/spanstore/memory"
@@ -33,7 +33,7 @@ import (
 func TestApplyOptions(t *testing.T) {
 	opts := ApplyOptions(
 		Options.CassandraOption(nil),
-		Options.LoggerOption(zap.New(zap.NullEncoder())),
+		Options.LoggerOption(zap.NewNop()),
 		Options.MetricsFactoryOption(metrics.NullFactory),
 		Options.MemoryStoreOption(memory.NewStore()),
 	)

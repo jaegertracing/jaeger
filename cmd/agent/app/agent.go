@@ -25,7 +25,7 @@ import (
 	"net"
 	"net/http"
 
-	"github.com/uber-go/zap"
+	"go.uber.org/zap"
 
 	"github.com/uber/jaeger/cmd/agent/app/processors"
 )
@@ -35,7 +35,7 @@ type Agent struct {
 	processors      []processors.Processor
 	samplingServer  *http.Server
 	discoveryClient interface{}
-	logger          zap.Logger
+	logger          *zap.Logger
 	closer          io.Closer
 }
 
@@ -44,7 +44,7 @@ func NewAgent(
 	processors []processors.Processor,
 	samplingServer *http.Server,
 	discoveryClient interface{},
-	logger zap.Logger,
+	logger *zap.Logger,
 ) *Agent {
 	return &Agent{
 		processors:      processors,

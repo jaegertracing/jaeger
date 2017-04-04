@@ -28,15 +28,15 @@ import (
 
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
-	"github.com/uber-go/zap"
 	"github.com/uber/jaeger-lib/metrics"
 	"github.com/uber/jaeger-lib/metrics/go-kit"
 	"github.com/uber/jaeger-lib/metrics/go-kit/expvar"
+	"go.uber.org/zap"
 )
 
 var (
 	cfgFile        string
-	logger         zap.Logger
+	logger         *zap.Logger
 	metricsFactory metrics.Factory
 )
 
@@ -58,7 +58,7 @@ func Execute() {
 
 func init() {
 	cobra.OnInitialize(initConfig)
-	logger = zap.New(zap.NewTextEncoder())
+	logger, _ = zap.NewDevelopment()
 	metricsFactory = xkit.Wrap("", expvar.NewFactory(10)) // 10 buckets for histograms
 }
 

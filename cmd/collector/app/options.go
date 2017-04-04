@@ -21,7 +21,7 @@
 package app
 
 import (
-	"github.com/uber-go/zap"
+	"go.uber.org/zap"
 
 	"github.com/uber/jaeger-lib/metrics"
 	"github.com/uber/jaeger/model"
@@ -37,7 +37,7 @@ const (
 )
 
 type options struct {
-	logger           zap.Logger
+	logger           *zap.Logger
 	serviceMetrics   metrics.Factory
 	hostMetrics      metrics.Factory
 	preProcessSpans  ProcessSpans
@@ -58,7 +58,7 @@ type Option func(c *options)
 var Options options
 
 // Logger creates a Option that initializes the logger
-func (options) Logger(logger zap.Logger) Option {
+func (options) Logger(logger *zap.Logger) Option {
 	return func(b *options) {
 		b.logger = logger
 	}
@@ -147,7 +147,7 @@ func (o options) apply(opts ...Option) options {
 		opt(&ret)
 	}
 	if ret.logger == nil {
-		ret.logger = zap.New(zap.NullEncoder())
+		ret.logger = zap.NewNop()
 	}
 	if ret.serviceMetrics == nil {
 		ret.serviceMetrics = metrics.NullFactory

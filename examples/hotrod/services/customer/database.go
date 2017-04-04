@@ -24,7 +24,7 @@ import (
 	"context"
 	"errors"
 
-	"github.com/uber-go/zap"
+	"go.uber.org/zap"
 
 	"github.com/opentracing/opentracing-go"
 	tags "github.com/opentracing/opentracing-go/ext"

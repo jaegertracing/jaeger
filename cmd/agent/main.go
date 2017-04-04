@@ -24,9 +24,9 @@ import (
 	"flag"
 	"runtime"
 
-	"github.com/uber-go/zap"
 	"github.com/uber/jaeger-lib/metrics/go-kit"
 	"github.com/uber/jaeger-lib/metrics/go-kit/expvar"
+	"go.uber.org/zap"
 
 	"github.com/uber/jaeger/cmd/agent/app"
 )
@@ -38,7 +38,7 @@ func main() {
 
 	runtime.GOMAXPROCS(runtime.NumCPU())
 
-	logger := zap.New(zap.NewJSONEncoder())
+	logger, _ := zap.NewProduction()
 	metricsFactory := xkit.Wrap("jaeger-agent", expvar.NewFactory(10))
 
 	// TODO illustrate discovery service wiring

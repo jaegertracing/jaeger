@@ -27,8 +27,8 @@ import (
 	"time"
 
 	"github.com/pkg/errors"
-	"github.com/uber-go/zap"
 	"github.com/uber/tchannel-go"
+	"go.uber.org/zap"
 
 	"github.com/uber/jaeger/pkg/discovery"
 )

@@ -24,8 +24,9 @@ import (
 	"fmt"
 	"unicode/utf8"
 
-	"github.com/uber-go/zap"
 	"github.com/uber/jaeger/model"
+	"go.uber.org/zap"
+	"go.uber.org/zap/zapcore"
 )
 
 const (
@@ -36,11 +37,11 @@ const (
 
 // utf8Sanitizer sanitizes all strings in spans
 type utf8Sanitizer struct {
-	logger zap.Logger
+	logger *zap.Logger
 }
 
 // NewUTF8Sanitizer creates a UTF8 sanitizer.
-func NewUTF8Sanitizer(logger zap.Logger) SanitizeSpan {
+func NewUTF8Sanitizer(logger *zap.Logger) SanitizeSpan {
 	utf8Sanitizer := utf8Sanitizer{logger: logger}
 	return utf8Sanitizer.Sanitize
 }
@@ -65,7 +66,7 @@ func (s *utf8Sanitizer) Sanitize(span *model.Span) *model.Span {
 	return span
 }
 
-func (s *utf8Sanitizer) logSpan(span *model.Span, message string, field zap.Field) {
+func (s *utf8Sanitizer) logSpan(span *model.Span, message string, field zapcore.Field) {
 	s.logger.Info(
 		message,
 		zap.String("traceId", span.TraceID.String()),

@@ -21,15 +21,14 @@
 package spanstore
 
 import (
-	"bytes"
 	"errors"
 	"strings"
 	"testing"
 	"time"
 
 	"github.com/stretchr/testify/assert"
-	"github.com/uber-go/zap"
 	"github.com/uber/jaeger-lib/metrics"
+	"go.uber.org/zap"
 
 	"github.com/uber/jaeger/model"
 	"github.com/uber/jaeger/pkg/cassandra/mocks"
@@ -40,14 +39,14 @@ import (
 
 type spanWriterTest struct {
 	session   *mocks.Session
-	logger    zap.Logger
-	logBuffer *bytes.Buffer
+	logger    *zap.Logger
+	logBuffer *testutils.Buffer
 	writer    *SpanWriter
 }
 
 func withSpanWriter(writeCacheTTL time.Duration, fn func(w *spanWriterTest)) {
 	session := &mocks.Session{}
-	logger, logBuffer := testutils.NewLogger(false)
+	logger, logBuffer := testutils.NewLogger()
 	metricsFactory := metrics.NewLocalFactory(0)
 	w := &spanWriterTest{
 		session:   session,
@@ -82,8 +81,12 @@ func TestSpanWriter(t *testing.T) {
 			mainQueryError: errors.New("main query error"),
 			expectedError:  "Failed to insert span: failed to Exec query 'select from traces': main query error",
 			expectedLogs: []string{
-				"[E] Failed to exec query query=select from traces error=main query error",
-				"[E] Failed to insert span trace_id=1 span_id=0",
+				`"msg":"Failed to exec query"`,
+				`"query":"select from traces"`,
+				`"error":"main query error"`,
+				"Failed to insert span",
+				`"trace_id":"1"`,
+				`"span_id":0`,
 			},
 		},
 		{
@@ -91,8 +94,12 @@ func TestSpanWriter(t *testing.T) {
 			tagsQueryError: errors.New("tags query error"),
 			expectedError:  "Failed to insert tag: failed to Exec query 'select from tags': tags query error",
 			expectedLogs: []string{
-				"[E] Failed to exec query query=select from tags error=tags query error",
-				"[E] Failed to insert tag tag_key=x tag_value=y",
+				`"msg":"Failed to exec query"`,
+				`"query":"select from tags"`,
+				`"error":"tags query error"`,
+				"Failed to insert tag",
+				`"tag_key":"x"`,
+				`"tag_value":"y"`,
 			},
 		},
 		{
@@ -100,7 +107,7 @@ func TestSpanWriter(t *testing.T) {
 			serviceNameError: errors.New("serviceNameError"),
 			expectedError:    "Failed to insert service name and operation name: serviceNameError",
 			expectedLogs: []string{
-				"[E] Failed to insert service name and operation name",
+				"Failed to insert service name and operation name",
 			},
 		},
 	}

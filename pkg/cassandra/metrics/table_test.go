@@ -117,7 +117,7 @@ func TestTableExec(t *testing.T) {
 	for _, tc := range testCases {
 		mf := metrics.NewLocalFactory(0)
 		tm := NewTable(mf, "a_table")
-		logger, logBuf := testutils.NewLogger(false)
+		logger, logBuf := testutils.NewLogger()
 
 		useLogger := logger
 		if !tc.log {
@@ -130,9 +130,12 @@ func TestTableExec(t *testing.T) {
 		} else {
 			assert.Error(t, err, tc.q.err.Error())
 			if tc.log {
-				assert.Equal(t,
-					"[E] Failed to exec query query=SELECT * FROM something error=failed\n",
-					logBuf.String())
+				assert.Equal(t, map[string]string{
+					"level": "error",
+					"msg":   "Failed to exec query",
+					"query": "SELECT * FROM something",
+					"error": "failed",
+				}, logBuf.JSONLine(0))
 			} else {
 				assert.Len(t, logBuf.Bytes(), 0)
 			}

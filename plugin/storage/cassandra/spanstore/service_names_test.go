@@ -21,7 +21,6 @@
 package spanstore
 
 import (
-	"bytes"
 	"errors"
 	"fmt"
 	"testing"
@@ -29,8 +28,8 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
-	"github.com/uber-go/zap"
 	"github.com/uber/jaeger-lib/metrics"
+	"go.uber.org/zap"
 
 	"github.com/uber/jaeger/pkg/cassandra/mocks"
 	"github.com/uber/jaeger/pkg/testutils"
@@ -40,14 +39,14 @@ type serviceNameStorageTest struct {
 	session        *mocks.Session
 	writeCacheTTL  time.Duration
 	metricsFactory *metrics.LocalFactory
-	logger         zap.Logger
-	logBuffer      *bytes.Buffer
+	logger         *zap.Logger
+	logBuffer      *testutils.Buffer
 	storage        *ServiceNamesStorage
 }
 
 func withServiceNamesStorage(writeCacheTTL time.Duration, fn func(s *serviceNameStorageTest)) {
 	session := &mocks.Session{}
-	logger, logBuffer := testutils.NewLogger(false)
+	logger, logBuffer := testutils.NewLogger()
 	metricsFactory := metrics.NewLocalFactory(time.Second)
 	defer metricsFactory.Stop()
 	s := &serviceNameStorageTest{
@@ -83,7 +82,12 @@ func TestServiceNamesStorageWrite(t *testing.T) {
 				assert.NoError(t, err)
 				err = s.storage.Write("service-b")
 				assert.EqualError(t, err, "failed to Exec query 'select from service_names': exec error")
-				assert.Equal(t, "[E] Failed to exec query query=select from service_names error=exec error\n", s.logBuffer.String())
+				assert.Equal(t, map[string]string{
+					"level": "error",
+					"msg":   "Failed to exec query",
+					"query": "select from service_names",
+					"error": "exec error",
+				}, s.logBuffer.JSONLine(0))
 
 				counts, _ := s.metricsFactory.Snapshot()
 				assert.Equal(t, map[string]int64{

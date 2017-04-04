@@ -32,9 +32,11 @@ import (
 func NewLogger() (*zap.Logger, *Buffer) {
 	zap.NewDevelopment()
 	encoder := zapcore.NewJSONEncoder(zapcore.EncoderConfig{
-		MessageKey:  "msg",
-		LevelKey:    "level",
-		EncodeLevel: zapcore.LowercaseLevelEncoder,
+		MessageKey:     "msg",
+		LevelKey:       "level",
+		EncodeLevel:    zapcore.LowercaseLevelEncoder,
+		EncodeTime:     zapcore.ISO8601TimeEncoder,
+		EncodeDuration: zapcore.StringDurationEncoder,
 	})
 	buf := &Buffer{}
 	logger := zap.New(

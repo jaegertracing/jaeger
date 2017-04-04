@@ -44,7 +44,7 @@ var (
 func getCache(t *testing.T) (*autoRefreshCache, *mocks.ServiceAliasMappingExternalSource, *mocks.ServiceAliasMappingStorage) {
 	mockExtSource := &mocks.ServiceAliasMappingExternalSource{}
 	mockStorage := &mocks.ServiceAliasMappingStorage{}
-	logger, _ := testutils.NewLogger(false)
+	logger, _ := testutils.NewLogger()
 
 	return &autoRefreshCache{
 		cache:               make(map[string]string, 0),
