@@ -51,8 +51,8 @@ const (
 
 	defaultSamplingServerHostPort = "localhost:5778"
 
-	agentServiceName     = "jaeger-agent"
-	collectorServiceName = "jaeger-collector"
+	agentServiceName            = "jaeger-agent"
+	defaultCollectorServiceName = "jaeger-collector"
 
 	jaegerModel model = "jaeger"
 	zipkinModel       = "zipkin"
@@ -85,7 +85,7 @@ type Builder struct {
 	DiscoveryMinPeers int `yaml:"minPeers"`
 
 	// CollectorServiceName is the name that Jaeger Collector's TChannel server
-	// broadcasts.
+	// responds to.
 	CollectorServiceName string `yaml:"collectorServiceName"`
 
 	discoverer     discovery.Discoverer
@@ -201,7 +201,7 @@ func (b *Builder) CreateAgent(mFactory metrics.Factory, logger *zap.Logger) (*Ag
 	channel, _ := tchannel.NewChannel(agentServiceName, nil)
 
 	if b.CollectorServiceName == "" {
-		b.CollectorServiceName = collectorServiceName
+		b.CollectorServiceName = defaultCollectorServiceName
 	}
 
 	discoveryMgr, err := b.enableDiscovery(channel, logger)
@@ -212,7 +212,7 @@ func (b *Builder) CreateAgent(mFactory metrics.Factory, logger *zap.Logger) (*Ag
 	if discoveryMgr == nil && b.CollectorHostPort != "" {
 		clientOpts = &tchannelThrift.ClientOptions{HostPort: b.CollectorHostPort}
 	}
-	rep := reporter.NewTCollectorReporter(b.CollectorServiceName, channel, mFactory, logger, clientOpts)
+	rep := reporter.NewTChannelReporter(b.CollectorServiceName, channel, mFactory, logger, clientOpts)
 	if b.otherReporters != nil {
 		reps := append([]reporter.Reporter{}, b.otherReporters...)
 		reps = append(reps, rep)
@@ -258,7 +258,7 @@ func (b *Builder) GetProcessors(rep reporter.Reporter, mFactory metrics.Factory)
 
 // GetSamplingServer creates an HTTP server that provides sampling strategies to client libraries.
 func (c SamplingServerConfiguration) GetSamplingServer(svc string, channel *tchannel.Channel, mFactory metrics.Factory, clientOpts *tchannelThrift.ClientOptions) *http.Server {
-	samplingMgr := sampling.NewTCollectorSamplingManagerProxy(svc, channel, mFactory, clientOpts)
+	samplingMgr := sampling.NewCollectorProxy(svc, channel, mFactory, clientOpts)
 	if c.HostPort == "" {
 		c.HostPort = defaultSamplingServerHostPort
 	}

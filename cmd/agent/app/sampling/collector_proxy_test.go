@@ -35,7 +35,7 @@ import (
 	"github.com/uber/jaeger/cmd/agent/app/testutils"
 )
 
-func TestTCollectorProxy(t *testing.T) {
+func TestCollectorProxy(t *testing.T) {
 	metricsFactory, collector := testutils.InitMockCollector(t)
 	defer collector.Close()
 
@@ -45,7 +45,7 @@ func TestTCollectorProxy(t *testing.T) {
 			MaxTracesPerSecond: 10,
 		}})
 
-	mgr := NewTCollectorSamplingManagerProxy("jaeger-collector", collector.Channel, metricsFactory, nil)
+	mgr := NewCollectorProxy("jaeger-collector", collector.Channel, metricsFactory, nil)
 
 	resp, err := mgr.GetSamplingStrategy("service1")
 	require.NoError(t, err)
@@ -64,7 +64,7 @@ func TestTCollectorProxy(t *testing.T) {
 func TestTCollectorProxyClientErrorPropagates(t *testing.T) {
 	mFactory := metrics.NewLocalFactory(time.Minute)
 	client := &failingClient{}
-	proxy := &tcollectorSamplingProxy{client: client}
+	proxy := &collectorProxy{client: client}
 	metrics.Init(&proxy.metrics, mFactory, nil)
 	_, err := proxy.GetSamplingStrategy("test")
 	assert.EqualError(t, err, "error")

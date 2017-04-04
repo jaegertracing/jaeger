@@ -30,7 +30,7 @@ import (
 	"github.com/uber/jaeger/thrift-gen/sampling"
 )
 
-type tcollectorSamplingProxy struct {
+type collectorProxy struct {
 	client  sampling.TChanSamplingManager
 	metrics struct {
 		// Number of successful sampling rate responses from collector
@@ -41,16 +41,16 @@ type tcollectorSamplingProxy struct {
 	}
 }
 
-// NewTCollectorSamplingManagerProxy implements Manager by proxying the requests to tcollector.
-func NewTCollectorSamplingManagerProxy(svc string, channel *tchannel.Channel, mFactory metrics.Factory, clientOpts *thrift.ClientOptions) Manager {
+// NewCollectorProxy implements Manager by proxying the requests to collector.
+func NewCollectorProxy(svc string, channel *tchannel.Channel, mFactory metrics.Factory, clientOpts *thrift.ClientOptions) Manager {
 	thriftClient := thrift.NewClient(channel, svc, clientOpts)
 	client := sampling.NewTChanSamplingManagerClient(thriftClient)
-	res := &tcollectorSamplingProxy{client: client}
+	res := &collectorProxy{client: client}
 	metrics.Init(&res.metrics, mFactory, nil)
 	return res
 }
 
-func (c *tcollectorSamplingProxy) GetSamplingStrategy(serviceName string) (*sampling.SamplingStrategyResponse, error) {
+func (c *collectorProxy) GetSamplingStrategy(serviceName string) (*sampling.SamplingStrategyResponse, error) {
 	ctx, cancel := tchannel.NewContextBuilder(time.Second).DisableTracing().Build()
 	defer cancel()
 
