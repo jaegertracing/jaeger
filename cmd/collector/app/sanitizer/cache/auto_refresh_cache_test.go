@@ -25,10 +25,11 @@ import (
 	"testing"
 	"time"
 
+	"go.uber.org/zap"
+
 	"github.com/stretchr/testify/assert"
 
 	"github.com/uber/jaeger/cmd/collector/app/sanitizer/cache/mocks"
-	"github.com/uber/jaeger/pkg/testutils"
 )
 
 var (
@@ -44,7 +45,7 @@ var (
 func getCache(t *testing.T) (*autoRefreshCache, *mocks.ServiceAliasMappingExternalSource, *mocks.ServiceAliasMappingStorage) {
 	mockExtSource := &mocks.ServiceAliasMappingExternalSource{}
 	mockStorage := &mocks.ServiceAliasMappingStorage{}
-	logger, _ := testutils.NewLogger()
+	logger := zap.NewNop()
 
 	return &autoRefreshCache{
 		cache:               make(map[string]string, 0),
