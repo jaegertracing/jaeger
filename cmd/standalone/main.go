@@ -95,7 +95,7 @@ func startCollector(logger *zap.Logger, baseFactory metrics.Factory, memoryStore
 		logger.Fatal("Unable to build span handlers", zap.Error(err))
 	}
 
-	ch, err := tchannel.NewChannel("jaeger-collector", &tchannel.ChannelOptions{})
+	ch, err := tchannel.NewChannel("tcollector", &tchannel.ChannelOptions{})
 	if err != nil {
 		logger.Fatal("Unable to create new New TChannel Channel", zap.Error(err))
 	}
