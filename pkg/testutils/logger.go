@@ -30,7 +30,6 @@ import (
 
 // NewLogger creates a new zap.Logger backed by a zaptest.Buffer, which is also returned.
 func NewLogger() (*zap.Logger, *Buffer) {
-	zap.NewDevelopment()
 	encoder := zapcore.NewJSONEncoder(zapcore.EncoderConfig{
 		MessageKey:     "msg",
 		LevelKey:       "level",

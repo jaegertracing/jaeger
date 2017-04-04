@@ -1,5 +1,5 @@
-hash: 36c1f2f3738acbeeb72d784cf32959dc432b762ffd77dda9b1901a779b71c4ef
-updated: 2017-04-03T13:12:38.068061648-04:00
+hash: 295a8525c9e6c3768118244cd0abcc6ac27254cd22f0be075670e7dd4b8a8a8a
+updated: 2017-04-03T21:34:01.916270947-04:00
 imports:
 - name: github.com/apache/thrift
   version: 53dd39833a08ce33582e5ff31fa18bb4735d6731
@@ -98,8 +98,6 @@ imports:
   - require
 - name: github.com/uber-go/atomic
   version: 0c9e689d64f004564b79d9a663634756df322902
-- name: github.com/uber-go/zap
-  version: a2773be06b9ac7c318a3a105b5c310af5730c6b4
 - name: github.com/uber/jaeger-client-go
   version: 465529424ed6b04a7fd2fcab6a9d6e96ea807fda
   subpackages:
@@ -146,6 +144,7 @@ imports:
   - internal/exit
   - internal/multierror
   - zapcore
+  - zaptest
 - name: golang.org/x/net
   version: ffcf1bedda3b04ebb15a168a59800a73d6dc0f4d
   subpackages:
