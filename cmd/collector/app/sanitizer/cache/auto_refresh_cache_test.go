@@ -38,8 +38,8 @@ var (
 )
 
 // Generate the serviceAliasMapping mocks using go generate. Run "make build-mocks" to regenerate mocks
-//go:generate mockery -name=ServiceAliasMappingStorage
-//go:generate mockery -name=ServiceAliasMappingExternalSource
+// dont_go:generate mockery -name=ServiceAliasMappingStorage
+// dont_go:generate mockery -name=ServiceAliasMappingExternalSource
 
 func getCache(t *testing.T) (*autoRefreshCache, *mocks.ServiceAliasMappingExternalSource, *mocks.ServiceAliasMappingStorage) {
 	mockExtSource := &mocks.ServiceAliasMappingExternalSource{}

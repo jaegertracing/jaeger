@@ -21,23 +21,41 @@
 package testutils
 
 import (
-	"bytes"
+	"encoding/json"
 
-	"github.com/uber-go/zap"
+	"go.uber.org/zap"
+	"go.uber.org/zap/zapcore"
+	"go.uber.org/zap/zaptest"
 )
 
-// NewLogger creates a new zap.Logger backed by a bytes.Buffer, which is also returned.
-func NewLogger(json bool) (zap.Logger, *bytes.Buffer) {
-	var encoder zap.Encoder
-	if json {
-		encoder = zap.NewJSONEncoder(zap.NoTime())
-	} else {
-		encoder = zap.NewTextEncoder(zap.TextNoTime())
+// NewLogger creates a new zap.Logger backed by a zaptest.Buffer, which is also returned.
+func NewLogger() (*zap.Logger, *Buffer) {
+	zap.NewDevelopment()
+	encoder := zapcore.NewJSONEncoder(zapcore.EncoderConfig{
+		MessageKey:  "msg",
+		LevelKey:    "level",
+		EncodeLevel: zapcore.LowercaseLevelEncoder,
+	})
+	buf := &Buffer{}
+	logger := zap.New(
+		zapcore.NewCore(encoder, buf, zapcore.DebugLevel),
+	)
+	return logger, buf
+}
+
+// Buffer wraps zaptest.Buffer and provides convenience method JSONLine(n)
+type Buffer struct {
+	zaptest.Buffer
+}
+
+// JSONLine reads n-th line from the buffer and converts it to JSON.
+func (b *Buffer) JSONLine(n int) map[string]string {
+	data := make(map[string]string)
+	line := b.Lines()[n]
+	if err := json.Unmarshal([]byte(line), &data); err != nil {
+		return map[string]string{
+			"error": err.Error(),
+		}
 	}
-	buf := &bytes.Buffer{}
-	return zap.New(
-		encoder,
-		zap.Output(zap.AddSync(buf)),
-		zap.DebugLevel,
-	), buf
+	return data
 }

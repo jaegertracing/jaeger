@@ -26,18 +26,26 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/assert"
-	"github.com/uber-go/zap"
+
+	"github.com/uber/jaeger/pkg/testutils"
 )
 
 func TestNewRecoveryHandler(t *testing.T) {
-	handler := NewRecoveryHandler(zap.New(zap.NullEncoder()), false)
+	logger, log := testutils.NewLogger()
 
 	handlerFunc := http.HandlerFunc(func(w http.ResponseWriter, req *http.Request) {
 		panic("Unexpected error!")
 	})
 
-	recovery := handler(handlerFunc)
+	recovery := NewRecoveryHandler(logger, false)(handlerFunc)
 	req, err := http.NewRequest("GET", "/subdir/asdf", nil)
 	assert.NoError(t, err)
-	recovery.ServeHTTP(httptest.NewRecorder(), req)
+
+	res := httptest.NewRecorder()
+	recovery.ServeHTTP(res, req)
+	assert.Equal(t, http.StatusInternalServerError, res.Code)
+	assert.Equal(t, map[string]string{
+		"level": "error",
+		"msg":   "[Unexpected error!]\n",
+	}, log.JSONLine(0))
 }

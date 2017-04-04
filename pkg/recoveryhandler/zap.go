@@ -25,12 +25,12 @@ import (
 	"net/http"
 
 	"github.com/gorilla/handlers"
-	"github.com/uber-go/zap"
+	"go.uber.org/zap"
 )
 
 // zapRecoveryWrapper wraps a zap logger into a gorilla RecoveryLogger
 type zapRecoveryWrapper struct {
-	logger zap.Logger
+	logger *zap.Logger
 }
 
 // Println logs an error message with the given fields
@@ -40,7 +40,7 @@ func (z zapRecoveryWrapper) Println(fields ...interface{}) {
 }
 
 // NewRecoveryHandler returns an http.Handler that recovers on panics
-func NewRecoveryHandler(logger zap.Logger, printStack bool) func(h http.Handler) http.Handler {
+func NewRecoveryHandler(logger *zap.Logger, printStack bool) func(h http.Handler) http.Handler {
 	zWrapper := zapRecoveryWrapper{logger}
 	return handlers.RecoveryHandler(handlers.RecoveryLogger(zWrapper), handlers.PrintRecoveryStack(printStack))
 }
