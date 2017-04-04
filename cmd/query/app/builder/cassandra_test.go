@@ -24,7 +24,7 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/assert"
-	"github.com/uber-go/zap"
+	"go.uber.org/zap"
 
 	"github.com/uber/jaeger-lib/metrics"
 	"github.com/uber/jaeger/pkg/cassandra/config"
@@ -35,7 +35,7 @@ func withBuilder(f func(builder *cassandraBuilder)) {
 	cfg := &config.Configuration{
 		Servers: []string{"127.0.0.1"},
 	}
-	cBuilder := newCassandraBuilder(cfg, zap.New(zap.NullEncoder()), metrics.NullFactory)
+	cBuilder := newCassandraBuilder(cfg, zap.NewNop(), metrics.NullFactory)
 	f(cBuilder)
 }
 

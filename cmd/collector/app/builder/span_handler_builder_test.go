@@ -26,7 +26,7 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/assert"
-	"github.com/uber-go/zap"
+	"go.uber.org/zap"
 
 	"github.com/uber/jaeger-lib/metrics"
 	"github.com/uber/jaeger/cmd/builder"
@@ -38,7 +38,7 @@ import (
 func TestNewSpanHandlerBuilder(t *testing.T) {
 	flag.Parse()
 	handler, err := NewSpanHandlerBuilder(
-		builder.Options.LoggerOption(zap.New(zap.NullEncoder())),
+		builder.Options.LoggerOption(zap.NewNop()),
 		builder.Options.MetricsFactoryOption(metrics.NullFactory),
 		builder.Options.CassandraOption(&cascfg.Configuration{
 			Servers: []string{"127.0.0.1"},
@@ -99,7 +99,7 @@ func withCassandraBuilder(f func(builder *cassandraSpanHandlerBuilder)) {
 	cfg := &cascfg.Configuration{
 		Servers: []string{"127.0.0.1"},
 	}
-	cBuilder := newCassandraBuilder(cfg, zap.New(zap.NullEncoder()), metrics.NullFactory)
+	cBuilder := newCassandraBuilder(cfg, zap.NewNop(), metrics.NullFactory)
 	f(cBuilder)
 }
 

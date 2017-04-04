@@ -21,7 +21,7 @@
 package agent
 
 import (
-	"github.com/uber-go/zap"
+	"go.uber.org/zap"
 )
 
 // Agent is a composition of all services / components
@@ -31,12 +31,12 @@ type Agent interface {
 }
 
 type agent struct {
-	logger zap.Logger
+	logger *zap.Logger
 }
 
 // New creates a new Jaeger Agent
 func New(
-	logger zap.Logger,
+	logger *zap.Logger,
 ) Agent {
 	return &agent{
 		logger: logger,

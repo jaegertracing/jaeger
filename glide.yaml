@@ -11,7 +11,8 @@ import:
   subpackages:
   - ext
 - package: github.com/pkg/errors
-- package: github.com/uber-go/zap
+- package: go.uber.org/zap
+  version: ^1
 - package: github.com/uber/jaeger-lib
   version: ffca3143c929e9b97325e6bebcc380e8c6e5fa0d
 - package: github.com/uber/tchannel-go

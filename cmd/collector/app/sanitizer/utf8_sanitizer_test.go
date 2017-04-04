@@ -25,8 +25,8 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/assert"
-	"github.com/uber-go/zap"
 	"github.com/uber/jaeger/model"
+	"go.uber.org/zap"
 )
 
 func invalidUTF8() string {
@@ -42,7 +42,7 @@ var (
 			VStr:  "value",
 		},
 	}
-	undertest = NewUTF8Sanitizer(zap.New(zap.NullEncoder()))
+	undertest = NewUTF8Sanitizer(zap.NewNop())
 )
 
 func TestUTF8Sanitizer_SanitizeKV(t *testing.T) {

@@ -27,8 +27,8 @@ import (
 	"unicode/utf8"
 
 	"github.com/pkg/errors"
-	"github.com/uber-go/zap"
 	"github.com/uber/jaeger-lib/metrics"
+	"go.uber.org/zap"
 
 	"github.com/uber/jaeger/model"
 	"github.com/uber/jaeger/pkg/cassandra"
@@ -57,7 +57,7 @@ type SpanWriter struct {
 	operationNamesWriter operationNamesWriter
 	tracesTableMetrics   *casMetrics.Table
 	tagIndexTableMetrics *casMetrics.Table
-	logger               zap.Logger
+	logger               *zap.Logger
 	tagIndexSkipped      metrics.Counter
 }
 
@@ -66,7 +66,7 @@ func NewSpanWriter(
 	session cassandra.Session,
 	writeCacheTTL time.Duration,
 	metricsFactory metrics.Factory,
-	logger zap.Logger,
+	logger *zap.Logger,
 ) *SpanWriter {
 	serviceNamesStorage := NewServiceNamesStorage(session, writeCacheTTL, metricsFactory, logger)
 	operationNamesStorage := NewOperationNamesStorage(session, writeCacheTTL, metricsFactory, logger)
@@ -144,7 +144,7 @@ func (s *SpanWriter) shouldIndexTag(tag dbmodel.TagInsertion) bool {
 		!isJSON(tag.TagValue)
 }
 
-func (s *SpanWriter) logError(span *dbmodel.Span, err error, msg string, logger zap.Logger) error {
+func (s *SpanWriter) logError(span *dbmodel.Span, err error, msg string, logger *zap.Logger) error {
 	logger.
 		With(zap.String("trace_id", span.TraceID.String())).
 		With(zap.Int64("span_id", span.SpanID)).

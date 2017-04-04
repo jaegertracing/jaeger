@@ -25,7 +25,7 @@ import (
 	"strconv"
 
 	"github.com/spf13/cobra"
-	"github.com/uber-go/zap"
+	"go.uber.org/zap"
 
 	"github.com/uber/jaeger/examples/hotrod/pkg/log"
 	"github.com/uber/jaeger/examples/hotrod/pkg/tracing"

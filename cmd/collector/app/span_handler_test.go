@@ -26,8 +26,8 @@ import (
 	"time"
 
 	"github.com/stretchr/testify/assert"
-	"github.com/uber-go/zap"
 	"github.com/uber/tchannel-go/thrift"
+	"go.uber.org/zap"
 
 	"github.com/uber/jaeger/cmd/collector/app/sanitizer/zipkin"
 	"github.com/uber/jaeger/model"
@@ -47,7 +47,7 @@ func TestJaegerSpanHandler(t *testing.T) {
 		},
 	}
 	for _, tc := range testChunks {
-		logger := zap.New(zap.NullEncoder())
+		logger := zap.NewNop()
 		h := NewJaegerSpanHandler(logger, &shouldIErrorProcessor{tc.expectedErr != nil})
 		ctx, cancel := thrift.NewContext(time.Minute)
 		defer cancel()
@@ -97,7 +97,7 @@ func TestZipkinSpanHandler(t *testing.T) {
 		},
 	}
 	for _, tc := range testChunks {
-		logger := zap.New(zap.NullEncoder())
+		logger := zap.NewNop()
 		h := NewZipkinSpanHandler(logger, &shouldIErrorProcessor{tc.expectedErr != nil}, zipkin.NewParentIDSanitizer(logger))
 		ctx, cancel := thrift.NewContext(time.Minute)
 		defer cancel()

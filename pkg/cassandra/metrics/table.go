@@ -24,8 +24,8 @@ import (
 	"time"
 
 	"github.com/pkg/errors"
-	"github.com/uber-go/zap"
 	"github.com/uber/jaeger-lib/metrics"
+	"go.uber.org/zap"
 
 	"github.com/uber/jaeger/pkg/cassandra"
 )
@@ -47,7 +47,7 @@ func NewTable(factory metrics.Factory, tableName string) *Table {
 }
 
 // Exec executes an update query and reports metrics/logs about it.
-func (t *Table) Exec(query cassandra.UpdateQuery, logger zap.Logger) error {
+func (t *Table) Exec(query cassandra.UpdateQuery, logger *zap.Logger) error {
 	start := time.Now()
 	err := query.Exec()
 	t.Emit(err, time.Since(start))

@@ -29,8 +29,8 @@ import (
 
 	"github.com/opentracing/opentracing-go"
 	"github.com/opentracing/opentracing-go/ext"
-	"github.com/uber-go/zap"
 	"github.com/uber/jaeger-lib/metrics"
+	"go.uber.org/zap"
 
 	"github.com/uber/jaeger/examples/hotrod/pkg/delay"
 	"github.com/uber/jaeger/examples/hotrod/pkg/log"

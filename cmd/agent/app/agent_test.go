@@ -29,13 +29,13 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-	"github.com/uber-go/zap"
 	"github.com/uber/jaeger-lib/metrics"
+	"go.uber.org/zap"
 )
 
 func TestAgentStartError(t *testing.T) {
 	cfg := &Builder{}
-	agent, err := cfg.CreateAgent(metrics.NullFactory, zap.New(zap.NullEncoder()))
+	agent, err := cfg.CreateAgent(metrics.NullFactory, zap.NewNop())
 	require.NoError(t, err)
 	agent.samplingServer.Addr = "bad-address"
 	assert.Error(t, agent.Run())
@@ -53,7 +53,7 @@ func TestAgentStartStop(t *testing.T) {
 			},
 		},
 	}
-	agent, err := cfg.CreateAgent(metrics.NullFactory, zap.New(zap.NullEncoder()))
+	agent, err := cfg.CreateAgent(metrics.NullFactory, zap.NewNop())
 	require.NoError(t, err)
 	ch := make(chan error, 2)
 	go func() {

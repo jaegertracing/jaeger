@@ -24,7 +24,7 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/assert"
-	"github.com/uber-go/zap"
+	"go.uber.org/zap"
 
 	"github.com/uber/jaeger-lib/metrics"
 	"github.com/uber/jaeger/model"
@@ -39,7 +39,7 @@ func TestAllOptionSet(t *testing.T) {
 		Options.SpanFilter(func(span *model.Span) bool { return true }),
 		Options.HostMetrics(metrics.NullFactory),
 		Options.ServiceMetrics(metrics.NullFactory),
-		Options.Logger(zap.New(zap.NullEncoder())),
+		Options.Logger(zap.NewNop()),
 		Options.NumWorkers(5),
 		Options.PreProcessSpans(func(spans []*model.Span) {}),
 		Options.Sanitizer(func(span *model.Span) *model.Span { return span }),

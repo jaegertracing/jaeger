@@ -21,7 +21,6 @@
 package dependencystore
 
 import (
-	"bytes"
 	"errors"
 	"strings"
 	"testing"
@@ -29,8 +28,8 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
-	"github.com/uber-go/zap"
 	"github.com/uber/jaeger-lib/metrics"
+	"go.uber.org/zap"
 
 	"github.com/uber/jaeger/model"
 	"github.com/uber/jaeger/pkg/cassandra"
@@ -41,14 +40,14 @@ import (
 
 type depStorageTest struct {
 	session   *mocks.Session
-	logger    zap.Logger
-	logBuffer *bytes.Buffer
+	logger    *zap.Logger
+	logBuffer *testutils.Buffer
 	storage   *DependencyStore
 }
 
 func withDepStore(fn func(s *depStorageTest)) {
 	session := &mocks.Session{}
-	logger, logBuffer := testutils.NewLogger(false)
+	logger, logBuffer := testutils.NewLogger()
 	metricsFactory := metrics.NewLocalFactory(time.Second)
 	defer metricsFactory.Stop()
 	s := &depStorageTest{
@@ -133,7 +132,7 @@ func TestDependencyStoreGetDependencies(t *testing.T) {
 			queryError:    errors.New("query error"),
 			expectedError: "Error reading dependencies from storage: query error",
 			expectedLogs: []string{
-				"[E] Failure to read Dependencies",
+				"Failure to read Dependencies",
 			},
 		},
 	}

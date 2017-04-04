@@ -27,7 +27,7 @@ import (
 
 	"github.com/opentracing-contrib/go-stdlib/nethttp"
 	"github.com/opentracing/opentracing-go"
-	"github.com/uber-go/zap"
+	"go.uber.org/zap"
 
 	"github.com/uber/jaeger/examples/hotrod/pkg/log"
 	"github.com/uber/jaeger/examples/hotrod/pkg/tracing"

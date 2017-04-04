@@ -27,9 +27,9 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-	"github.com/uber-go/zap"
 	"github.com/uber/jaeger-lib/metrics"
 	mTestutils "github.com/uber/jaeger-lib/metrics/testutils"
+	"go.uber.org/zap"
 
 	"github.com/uber/jaeger/thrift-gen/jaeger"
 	"github.com/uber/jaeger/thrift-gen/zipkincore"
@@ -40,7 +40,7 @@ import (
 func initRequirements(t *testing.T) (*metrics.LocalFactory, *testutils.MockTCollector, Reporter) {
 	metricsFactory, collector := testutils.InitMockCollector(t)
 
-	reporter := NewTCollectorReporter(collector.Channel, metricsFactory, zap.New(zap.NullEncoder()), nil)
+	reporter := NewTCollectorReporter(collector.Channel, metricsFactory, zap.NewNop(), nil)
 
 	return metricsFactory, collector, reporter
 }

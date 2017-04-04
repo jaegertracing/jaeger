@@ -1,5 +1,5 @@
-hash: a90985e7b1a0c2b6714ab336bf7bb99b66658b7f754c7e0e15df75257d8c0ebb
-updated: 2017-03-23T18:42:08.273194512-04:00
+hash: 295a8525c9e6c3768118244cd0abcc6ac27254cd22f0be075670e7dd4b8a8a8a
+updated: 2017-04-03T21:34:01.916270947-04:00
 imports:
 - name: github.com/apache/thrift
   version: 53dd39833a08ce33582e5ff31fa18bb4735d6731
@@ -37,7 +37,7 @@ imports:
 - name: github.com/hailocab/go-hostpool
   version: e80d13ce29ede4452c43dea11e79b9bc8a15b478
 - name: github.com/hashicorp/hcl
-  version: 630949a3c5fa3c613328e1b8256052cbc2327c9b
+  version: 80e628d796135357b3d2e33a985c666b9f35eee1
   subpackages:
   - hcl/ast
   - hcl/parser
@@ -52,42 +52,42 @@ imports:
 - name: github.com/kr/pretty
   version: cfb55aafdaf3ec08f0db22699ab822c50091b1c4
 - name: github.com/magiconair/properties
-  version: 51463bfca2576e06c62a8504b5c0f06d61312647
+  version: 9c47895dc1ce54302908ab8a43385d1f5df2c11c
 - name: github.com/mitchellh/mapstructure
-  version: 53818660ed4955e899c0bcafa97299a388bd7c8e
+  version: bfdb1a85537d60bc7e954e600c250219ea497417
 - name: github.com/opentracing-contrib/go-stdlib
   version: 1de4cc2120e71f745a5810488bf64b29b6d7d9f6
   subpackages:
   - nethttp
 - name: github.com/opentracing/opentracing-go
-  version: 0c3154a3c2ce79d3271985848659870599dfb77c
+  version: 6edb48674bd9467b8e91fda004f2bd7202d60ce4
   subpackages:
   - ext
   - log
 - name: github.com/pelletier/go-buffruneio
-  version: c37440a7cf42ac63b919c752ca73a85067e05992
+  version: df1e16fde7fc330a0ca68167c23bf7ed6ac31d6d
 - name: github.com/pelletier/go-toml
-  version: f6e7596e8daafd44dc9e5c208dc73035020c8481
+  version: 439fbba1f887c286024370cb4f281ba815c4c7d7
 - name: github.com/pkg/errors
-  version: 248dadf4e9068a0b3e79f02ed0a610d935de5302
+  version: 17b591df37844cde689f4d5813e5cea0927d8dd2
 - name: github.com/pmezard/go-difflib
   version: 792786c7400a136282c1664665ae0a8db921c6c2
   subpackages:
   - difflib
 - name: github.com/spf13/afero
-  version: 9be650865eab0c12963d8753212f4f9c66cdcf12
+  version: 90dd71edc4d0a8b3511dc12ea15d617d03be09e0
   subpackages:
   - mem
 - name: github.com/spf13/cast
-  version: ce135a4ebeee6cfe9a26c93ee0d37825f26113c7
+  version: 56a7ecbeb18dde53c6db4bd96b541fd9741b8d44
 - name: github.com/spf13/cobra
-  version: 7be4beda01ec05d0b93d80b3facd2b6f44080d94
+  version: 1dd5ff2e11b6dca62fdcb275eb804b94607d8b06
 - name: github.com/spf13/jwalterweatherman
-  version: fa7ca7e836cf3a8bb4ebf799f472c12d7e903d66
+  version: bccdd23ae5e51bd2b081814db093646c7af3d34d
 - name: github.com/spf13/pflag
-  version: 9ff6c6923cfffbcd502984b8e0c80539a94968b7
+  version: 25f8b5b07aece3207895bf19f7ab517eb3b22a40
 - name: github.com/spf13/viper
-  version: 84f94806c67f59dd7ae87bc5351f7a9c94a4558d
+  version: 5ed0fc31f7f453625df314d8e66b9791e8d13003
 - name: github.com/stretchr/objx
   version: 1a9d0bb9f541897e62256577b352fdbc1fb4fd94
 - name: github.com/stretchr/testify
@@ -98,11 +98,10 @@ imports:
   - require
 - name: github.com/uber-go/atomic
   version: 0c9e689d64f004564b79d9a663634756df322902
-- name: github.com/uber-go/zap
-  version: c4939d1166b2220bb45338e21506623b4bbdec50
 - name: github.com/uber/jaeger-client-go
-  version: 153cc21d199f5a4b65d0d7219c1f423ea58cfab5
+  version: 465529424ed6b04a7fd2fcab6a9d6e96ea807fda
   subpackages:
+  - config
   - internal/spanlog
   - log
   - rpcmetrics
@@ -110,6 +109,7 @@ imports:
   - thrift-gen/sampling
   - thrift-gen/zipkincore
   - transport
+  - transport/udp
   - utils
 - name: github.com/uber/jaeger-lib
   version: ffca3143c929e9b97325e6bebcc380e8c6e5fa0d
@@ -133,8 +133,20 @@ imports:
   - typed
 - name: github.com/VividCortex/gohistogram
   version: 51564d9861991fb0ad0f531c99ef602d0f9866e6
+- name: go.uber.org/atomic
+  version: 3b8db5e93c4c02efbc313e17b2e796b0914a01fb
+- name: go.uber.org/zap
+  version: a2773be06b9ac7c318a3a105b5c310af5730c6b4
+  subpackages:
+  - buffer
+  - internal/bufferpool
+  - internal/color
+  - internal/exit
+  - internal/multierror
+  - zapcore
+  - zaptest
 - name: golang.org/x/net
-  version: 3e967e1d28d2c9c06e749dc2bdc14b04df89e689
+  version: ffcf1bedda3b04ebb15a168a59800a73d6dc0f4d
   subpackages:
   - context
 - name: golang.org/x/sys
@@ -142,7 +154,7 @@ imports:
   subpackages:
   - unix
 - name: golang.org/x/text
-  version: fc7fa097411d30e6708badff276c4c164425590c
+  version: 44f4f658a783b0cee41fe0a23b8fc91d9c120558
   subpackages:
   - transform
   - unicode/norm

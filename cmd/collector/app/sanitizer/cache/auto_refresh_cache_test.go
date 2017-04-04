@@ -25,10 +25,11 @@ import (
 	"testing"
 	"time"
 
+	"go.uber.org/zap"
+
 	"github.com/stretchr/testify/assert"
 
 	"github.com/uber/jaeger/cmd/collector/app/sanitizer/cache/mocks"
-	"github.com/uber/jaeger/pkg/testutils"
 )
 
 var (
@@ -38,13 +39,13 @@ var (
 )
 
 // Generate the serviceAliasMapping mocks using go generate. Run "make build-mocks" to regenerate mocks
-//go:generate mockery -name=ServiceAliasMappingStorage
-//go:generate mockery -name=ServiceAliasMappingExternalSource
+// dont_go:generate mockery -name=ServiceAliasMappingStorage
+// dont_go:generate mockery -name=ServiceAliasMappingExternalSource
 
 func getCache(t *testing.T) (*autoRefreshCache, *mocks.ServiceAliasMappingExternalSource, *mocks.ServiceAliasMappingStorage) {
 	mockExtSource := &mocks.ServiceAliasMappingExternalSource{}
 	mockStorage := &mocks.ServiceAliasMappingStorage{}
-	logger, _ := testutils.NewLogger(false)
+	logger := zap.NewNop()
 
 	return &autoRefreshCache{
 		cache:               make(map[string]string, 0),

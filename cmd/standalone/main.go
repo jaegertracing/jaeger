@@ -28,9 +28,9 @@ import (
 	"strconv"
 
 	"github.com/gorilla/mux"
-	"github.com/uber-go/zap"
 	"github.com/uber/tchannel-go"
 	"github.com/uber/tchannel-go/thrift"
+	"go.uber.org/zap"
 
 	"github.com/uber/jaeger-lib/metrics"
 	"github.com/uber/jaeger-lib/metrics/go-kit"
@@ -48,7 +48,7 @@ import (
 
 // standalone/main is a standalone full-stack jaeger backend, backed by a memory store
 func main() {
-	logger := zap.New(zap.NewJSONEncoder())
+	logger, _ := zap.NewProduction()
 	metricsFactory := xkit.Wrap("jaeger-standalone", expvar.NewFactory(10))
 	memStore := memory.NewStore()
 
@@ -65,7 +65,7 @@ func main() {
 	select {}
 }
 
-func startAgent(logger zap.Logger, baseFactory metrics.Factory, builder *agentApp.Builder) {
+func startAgent(logger *zap.Logger, baseFactory metrics.Factory, builder *agentApp.Builder) {
 	metricsFactory := baseFactory.Namespace("jaeger-agent", nil)
 
 	agent, err := builder.CreateAgent(metricsFactory, logger)
@@ -79,7 +79,7 @@ func startAgent(logger zap.Logger, baseFactory metrics.Factory, builder *agentAp
 	}
 }
 
-func startCollector(logger zap.Logger, baseFactory metrics.Factory, memoryStore *memory.Store) {
+func startCollector(logger *zap.Logger, baseFactory metrics.Factory, memoryStore *memory.Store) {
 	metricsFactory := baseFactory.Namespace("jaeger-collector", nil)
 
 	spanBuilder, err := collector.NewSpanHandlerBuilder(
@@ -111,7 +111,7 @@ func startCollector(logger zap.Logger, baseFactory metrics.Factory, memoryStore 
 	logger.Info("Starting jaeger-collector TChannel server", zap.Int("port", *collector.CollectorPort))
 }
 
-func startQuery(logger zap.Logger, baseFactory metrics.Factory, memoryStore *memory.Store) {
+func startQuery(logger *zap.Logger, baseFactory metrics.Factory, memoryStore *memory.Store) {
 	metricsFactory := baseFactory.Namespace("jaeger-query", nil)
 
 	storageBuild, err := query.NewStorageBuilder(

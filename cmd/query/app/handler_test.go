@@ -37,7 +37,6 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
 
-	"github.com/uber-go/zap"
 	jaeger "github.com/uber/jaeger-client-go"
 	"github.com/uber/jaeger/model"
 	"github.com/uber/jaeger/model/adjuster"
@@ -45,6 +44,7 @@ import (
 	depsmocks "github.com/uber/jaeger/storage/dependencystore/mocks"
 	"github.com/uber/jaeger/storage/spanstore"
 	spanstoremocks "github.com/uber/jaeger/storage/spanstore/mocks"
+	"go.uber.org/zap"
 )
 
 const millisToNanosMultiplier = int64(time.Millisecond / time.Nanosecond)
@@ -88,7 +88,7 @@ type structuredTraceResponse struct {
 
 func initializeTestServerWitHandler() (*httptest.Server, *spanstoremocks.Reader, *depsmocks.Reader, *APIHandler) {
 	return initializeTestServerWithOptions(
-		HandlerOptions.Logger(zap.New(zap.NullEncoder())),
+		HandlerOptions.Logger(zap.NewNop()),
 		HandlerOptions.Prefix(defaultHTTPPrefix),
 		HandlerOptions.QueryLookbackDuration(defaultTraceQueryLookbackDuration),
 	)

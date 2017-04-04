@@ -21,16 +21,16 @@
 package builder
 
 import (
-	"github.com/uber-go/zap"
 	"github.com/uber/jaeger-lib/metrics"
 	"github.com/uber/jaeger/pkg/cassandra/config"
 	"github.com/uber/jaeger/storage/spanstore/memory"
+	"go.uber.org/zap"
 )
 
 // BasicOptions is a set of basic building blocks for most Jaeger executables
 type BasicOptions struct {
 	// Logger is a generic logger used by most executables
-	Logger zap.Logger
+	Logger *zap.Logger
 	// MetricsFactory is the basic metrics factory used by most executables
 	MetricsFactory metrics.Factory
 	// Cassandra is the cassandra configuration used by most executables (if applicable)
@@ -46,7 +46,7 @@ type Option func(c *BasicOptions)
 var Options BasicOptions
 
 // LoggerOption creates an Option that initializes the logger
-func (BasicOptions) LoggerOption(logger zap.Logger) Option {
+func (BasicOptions) LoggerOption(logger *zap.Logger) Option {
 	return func(b *BasicOptions) {
 		b.Logger = logger
 	}
@@ -80,7 +80,7 @@ func ApplyOptions(opts ...Option) BasicOptions {
 		opt(&o)
 	}
 	if o.Logger == nil {
-		o.Logger = zap.New(zap.NullEncoder())
+		o.Logger = zap.NewNop()
 	}
 	if o.MetricsFactory == nil {
 		o.MetricsFactory = metrics.NullFactory

@@ -21,31 +21,27 @@
 package testutils
 
 import (
-	"encoding/json"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/require"
-	"github.com/uber-go/zap"
+	"go.uber.org/zap"
 )
 
-func TestNewTextLogger(t *testing.T) {
-	logger, log := NewLogger(false)
-	logger.Warn("hello", zap.String("x", "y"))
-	v := string(log.Bytes())
-	assert.Equal(t, "[W] hello x=y\n", v)
-}
-
-func TestNewJSONLogger(t *testing.T) {
-	logger, log := NewLogger(true)
+func TestNewLogger(t *testing.T) {
+	logger, log := NewLogger()
 	logger.Warn("hello", zap.String("x", "y"))
 
-	data := make(map[string]string)
-	require.NoError(t, json.Unmarshal(log.Bytes(), &data))
-	delete(data, "time")
+	assert.Equal(t, `{"level":"warn","msg":"hello","x":"y"}`, log.Lines()[0])
 	assert.Equal(t, map[string]string{
 		"level": "warn",
 		"msg":   "hello",
 		"x":     "y",
-	}, data)
+	}, log.JSONLine(0))
+}
+
+func TestJSONLineError(t *testing.T) {
+	log := &Buffer{}
+	log.WriteString("bad-json\n")
+	_, ok := log.JSONLine(0)["error"]
+	assert.True(t, ok, "must have 'error' key")
 }

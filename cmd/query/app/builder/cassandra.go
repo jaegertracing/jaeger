@@ -23,7 +23,7 @@ package builder
 import (
 	"time"
 
-	"github.com/uber-go/zap"
+	"go.uber.org/zap"
 
 	"github.com/uber/jaeger-lib/metrics"
 	"github.com/uber/jaeger/cmd/flags"
@@ -36,14 +36,14 @@ import (
 )
 
 type cassandraBuilder struct {
-	logger                  zap.Logger
+	logger                  *zap.Logger
 	metricsFactory          metrics.Factory
 	configuration           cascfg.Configuration
 	session                 cassandra.Session
 	dependencyDataFrequency time.Duration
 }
 
-func newCassandraBuilder(config *cascfg.Configuration, logger zap.Logger, metricsFactory metrics.Factory) *cassandraBuilder {
+func newCassandraBuilder(config *cascfg.Configuration, logger *zap.Logger, metricsFactory metrics.Factory) *cassandraBuilder {
 	cBuilder := &cassandraBuilder{
 		logger:                  logger,
 		metricsFactory:          metricsFactory,

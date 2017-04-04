@@ -25,10 +25,10 @@ import (
 	"time"
 
 	"github.com/opentracing/opentracing-go"
-	"github.com/uber-go/zap"
 	"github.com/uber/jaeger-client-go/config"
 	"github.com/uber/jaeger-client-go/rpcmetrics"
 	"github.com/uber/jaeger-lib/metrics"
+	"go.uber.org/zap"
 
 	"github.com/uber/jaeger/examples/hotrod/pkg/log"
 )

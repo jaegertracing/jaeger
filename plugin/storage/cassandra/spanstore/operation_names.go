@@ -25,8 +25,8 @@ import (
 	"time"
 
 	"github.com/pkg/errors"
-	"github.com/uber-go/zap"
 	"github.com/uber/jaeger-lib/metrics"
+	"go.uber.org/zap"
 
 	"github.com/uber/jaeger/pkg/cache"
 	"github.com/uber/jaeger/pkg/cassandra"
@@ -47,7 +47,7 @@ type OperationNamesStorage struct {
 	writeCacheTTL  time.Duration
 	metrics        *casMetrics.Table
 	operationNames cache.Cache
-	logger         zap.Logger
+	logger         *zap.Logger
 }
 
 // NewOperationNamesStorage returns a new OperationNamesStorage
@@ -55,7 +55,7 @@ func NewOperationNamesStorage(
 	session cassandra.Session,
 	writeCacheTTL time.Duration,
 	metricsFactory metrics.Factory,
-	logger zap.Logger,
+	logger *zap.Logger,
 ) *OperationNamesStorage {
 	return &OperationNamesStorage{
 		session:       session,

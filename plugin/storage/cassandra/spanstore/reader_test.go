@@ -21,15 +21,14 @@
 package spanstore
 
 import (
-	"bytes"
 	"errors"
 	"strings"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
-	"github.com/uber-go/zap"
 	"github.com/uber/jaeger-lib/metrics"
+	"go.uber.org/zap"
 
 	"github.com/uber/jaeger/model"
 	"github.com/uber/jaeger/pkg/cassandra"
@@ -41,14 +40,14 @@ import (
 
 type spanReaderTest struct {
 	session   *mocks.Session
-	logger    zap.Logger
-	logBuffer *bytes.Buffer
+	logger    *zap.Logger
+	logBuffer *testutils.Buffer
 	reader    *SpanReader
 }
 
 func withSpanReader(fn func(r *spanReaderTest)) {
 	session := &mocks.Session{}
-	logger, logBuffer := testutils.NewLogger(false)
+	logger, logBuffer := testutils.NewLogger()
 	metricsFactory := metrics.NewLocalFactory(0)
 	r := &spanReaderTest{
 		session:   session,
@@ -196,7 +195,8 @@ func TestSpanReaderFindTraces(t *testing.T) {
 			mainQueryError: errors.New("main query error"),
 			expectedError:  "main query error",
 			expectedLogs: []string{
-				"[E] Failed to exec query query=SELECT trace_id, span_id FROM traces",
+				"Failed to exec query",
+				"SELECT trace_id, span_id FROM traces",
 			},
 		},
 		{
@@ -205,7 +205,8 @@ func TestSpanReaderFindTraces(t *testing.T) {
 			tagsQueryError: errors.New("tags query error"),
 			expectedError:  "tags query error",
 			expectedLogs: []string{
-				"[E] Failed to exec query query=SELECT trace_id, span_id FROM tag_index",
+				"Failed to exec query",
+				"SELECT trace_id, span_id FROM tag_index",
 			},
 		},
 		{
@@ -213,8 +214,10 @@ func TestSpanReaderFindTraces(t *testing.T) {
 			loadQueryError: errors.New("load query error"),
 			expectedCount:  0,
 			expectedLogs: []string{
-				"[E] Failure to read trace trace_id=1 error=Error reading traces from storage: load query error",
-				"[E] Failure to read trace trace_id=2 error=Error reading traces from storage: load query error",
+				"Failure to read trace",
+				"Error reading traces from storage: load query error",
+				`"trace_id":"1"`,
+				`"trace_id":"2"`,
 			},
 		},
 	}

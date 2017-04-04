@@ -25,9 +25,9 @@ import (
 	"net"
 	"strconv"
 
-	"github.com/uber-go/zap"
 	"github.com/uber/tchannel-go"
 	"github.com/uber/tchannel-go/thrift"
+	"go.uber.org/zap"
 
 	"github.com/uber/jaeger-lib/metrics/go-kit"
 	"github.com/uber/jaeger-lib/metrics/go-kit/expvar"
@@ -43,7 +43,7 @@ func main() {
 	casOptions := casFlags.NewOptions()
 	casOptions.Bind(flag.CommandLine, "cassandra")
 	flag.Parse()
-	logger := zap.New(zap.NewJSONEncoder())
+	logger, _ := zap.NewProduction()
 	baseMetrics := xkit.Wrap("jaeger-agent", expvar.NewFactory(10))
 
 	spanBuilder, err := builder.NewSpanHandlerBuilder(

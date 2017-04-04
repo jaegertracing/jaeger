@@ -28,7 +28,7 @@ import (
 	"time"
 
 	"github.com/opentracing/opentracing-go"
-	"github.com/uber-go/zap"
+	"go.uber.org/zap"
 
 	"github.com/uber/jaeger/examples/hotrod/pkg/log"
 	"github.com/uber/jaeger/examples/hotrod/pkg/pool"
@@ -76,7 +76,7 @@ func (eta *bestETA) Get(ctx context.Context, customerID string) (*Response, erro
 	if err != nil {
 		return nil, err
 	}
-	eta.logger.For(ctx).Info("Found customer", zap.Object("customer", customer))
+	eta.logger.For(ctx).Info("Found customer", zap.Any("customer", customer))
 
 	if span := opentracing.SpanFromContext(ctx); span != nil {
 		span.SetBaggageItem("customer", customer.Name)
@@ -86,10 +86,10 @@ func (eta *bestETA) Get(ctx context.Context, customerID string) (*Response, erro
 	if err != nil {
 		return nil, err
 	}
-	eta.logger.For(ctx).Info("Found drivers", zap.Object("drivers", drivers))
+	eta.logger.For(ctx).Info("Found drivers", zap.Any("drivers", drivers))
 
 	results := eta.getRoutes(ctx, customer, drivers)
-	eta.logger.For(ctx).Info("Found routes", zap.Object("routes", results))
+	eta.logger.For(ctx).Info("Found routes", zap.Any("routes", results))
 
 	resp := &Response{ETA: math.MaxInt64}
 	for _, result := range results {

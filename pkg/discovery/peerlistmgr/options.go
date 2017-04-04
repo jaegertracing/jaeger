@@ -23,7 +23,7 @@ package peerlistmgr
 import (
 	"time"
 
-	"github.com/uber-go/zap"
+	"go.uber.org/zap"
 )
 
 const (
@@ -34,7 +34,7 @@ const (
 
 type options struct {
 	minPeers           int
-	logger             zap.Logger
+	logger             *zap.Logger
 	connCheckFrequency time.Duration
 	connCheckTimeout   time.Duration
 }
@@ -46,7 +46,7 @@ type Option func(*options)
 var Options = options{}
 
 // Logger creates an Option that assigns the logger.
-func (o options) Logger(logger zap.Logger) Option {
+func (o options) Logger(logger *zap.Logger) Option {
 	return func(o *options) {
 		o.logger = logger
 	}
@@ -79,7 +79,7 @@ func (o options) apply(opts ...Option) options {
 		opt(&ret)
 	}
 	if ret.logger == nil {
-		ret.logger = zap.New(zap.NullEncoder())
+		ret.logger = zap.NewNop()
 	}
 	if ret.minPeers <= 0 {
 		ret.minPeers = defaultMinPeers

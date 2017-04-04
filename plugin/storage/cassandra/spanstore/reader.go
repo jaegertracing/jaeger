@@ -24,8 +24,8 @@ import (
 	"time"
 
 	"github.com/pkg/errors"
-	"github.com/uber-go/zap"
 	"github.com/uber/jaeger-lib/metrics"
+	"go.uber.org/zap"
 
 	"github.com/uber/jaeger/model"
 	"github.com/uber/jaeger/pkg/cassandra"
@@ -54,14 +54,14 @@ type SpanReader struct {
 	readTracesTableMetrics    *casMetrics.Table
 	queryTraceTableMetrics    *casMetrics.Table
 	queryTagIndexTableMetrics *casMetrics.Table
-	logger                    zap.Logger
+	logger                    *zap.Logger
 }
 
 // NewSpanReader returns a new SpanReader.
 func NewSpanReader(
 	session cassandra.Session,
 	metricsFactory metrics.Factory,
-	logger zap.Logger,
+	logger *zap.Logger,
 ) *SpanReader {
 	readFactory := metricsFactory.Namespace("Read", nil)
 	serviceNamesStorage := NewServiceNamesStorage(session, 0, metricsFactory, logger)
@@ -195,7 +195,7 @@ func (s *SpanReader) executeQuery(query Query, tableMetrics *casMetrics.Table) (
 	err := i.Close()
 	tableMetrics.Emit(err, time.Since(start))
 	if err != nil {
-		s.logger.Error("Failed to exec query", zap.String("query", query.QueryString()), zap.Object("params", query.Parameters), zap.Error(err))
+		s.logger.Error("Failed to exec query", zap.String("query", query.QueryString()), zap.Any("params", query.Parameters), zap.Error(err))
 		return nil, err
 	}
 	return dbmodel.GetUniqueTraceIDs(spans), nil

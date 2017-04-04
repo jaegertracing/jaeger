@@ -24,8 +24,8 @@ import (
 	"time"
 
 	"github.com/pkg/errors"
-	"github.com/uber-go/zap"
 	"github.com/uber/jaeger-lib/metrics"
+	"go.uber.org/zap"
 
 	"github.com/uber/jaeger/model"
 	"github.com/uber/jaeger/pkg/cassandra"
@@ -42,7 +42,7 @@ type DependencyStore struct {
 	session                  cassandra.Session
 	dependencyDataFrequency  time.Duration
 	dependenciesTableMetrics *casMetrics.Table
-	logger                   zap.Logger
+	logger                   *zap.Logger
 }
 
 // NewDependencyStore returns a DependencyStore
@@ -50,7 +50,7 @@ func NewDependencyStore(
 	session cassandra.Session,
 	dependencyDataFrequency time.Duration,
 	metricsFactory metrics.Factory,
-	logger zap.Logger,
+	logger *zap.Logger,
 ) *DependencyStore {
 	return &DependencyStore{
 		session:                  session,

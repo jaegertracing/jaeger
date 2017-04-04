@@ -25,8 +25,8 @@ import (
 	"time"
 
 	"github.com/stretchr/testify/assert"
-	"github.com/uber-go/zap"
 	"github.com/uber/tchannel-go/thrift"
+	"go.uber.org/zap"
 	"golang.org/x/net/context"
 
 	"github.com/uber/jaeger-lib/metrics"
@@ -71,7 +71,7 @@ func TestBySvcMetrics(t *testing.T) {
 
 	for _, test := range tests {
 		mb := metrics.NewLocalFactory(time.Hour)
-		logger := zap.New(zap.NewJSONEncoder())
+		logger := zap.NewNop()
 		serviceMetrics := mb.Namespace("service", nil)
 		hostMetrics := mb.Namespace("host", nil)
 		processor := newSpanProcessor(

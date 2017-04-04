@@ -21,6 +21,7 @@
 package peerlistmgr
 
 import (
+	"bytes"
 	"errors"
 	"fmt"
 	"testing"
@@ -28,11 +29,10 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-	"github.com/uber-go/zap"
-	testlog "github.com/uber/jaeger/pkg/testutils"
 	tchannel "github.com/uber/tchannel-go"
 	"github.com/uber/tchannel-go/raw"
 	"github.com/uber/tchannel-go/testutils"
+	"go.uber.org/zap"
 	"golang.org/x/net/context"
 
 	"github.com/uber/jaeger/pkg/discovery"
@@ -155,8 +155,6 @@ func TestPeerListManager_getMinPeers(t *testing.T) {
 }
 
 func TestPeerListManager_ensureConnection(t *testing.T) {
-	logger, log := testlog.NewLogger(false)
-
 	testCases := []struct {
 		numServers    int // how many instances of the service to stand up
 		numSeeds      int // how many of them to tell the peer manager about
@@ -171,7 +169,10 @@ func TestPeerListManager_ensureConnection(t *testing.T) {
 	for _, tc := range testCases {
 		testCase := tc // capture loop var
 		t.Run(fmt.Sprintf("%+v", testCase), func(t *testing.T) {
-			log.Reset()
+			// TODO zaptest.Buffer appears to be not thread-safe https://github.com/uber-go/zap/issues/399
+			//logger, log := testlog.NewLogger()
+			logger := zap.NewNop()
+			log := &bytes.Buffer{}
 
 			var servers []*tchannel.Channel
 			for i := 0; i < testCase.numServers; i++ {

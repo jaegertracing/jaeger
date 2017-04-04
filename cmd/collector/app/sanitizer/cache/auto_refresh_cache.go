@@ -26,7 +26,7 @@ import (
 	"sync"
 	"time"
 
-	"github.com/uber-go/zap"
+	"go.uber.org/zap"
 )
 
 // autoRefreshCache cache that automatically refreshes itself
@@ -36,7 +36,7 @@ type autoRefreshCache struct {
 	cache               map[string]string
 	extSource           ServiceAliasMappingExternalSource
 	storage             ServiceAliasMappingStorage
-	logger              zap.Logger
+	logger              *zap.Logger
 	readRefreshInterval time.Duration
 	saveRefreshInterval time.Duration
 	stopSaveChan        chan struct{}
@@ -47,7 +47,7 @@ type autoRefreshCache struct {
 func NewAutoRefreshCache(
 	extSource ServiceAliasMappingExternalSource,
 	storage ServiceAliasMappingStorage,
-	logger zap.Logger,
+	logger *zap.Logger,
 	readRefreshInterval, saveRefreshInterval time.Duration,
 ) Cache {
 	return &autoRefreshCache{
