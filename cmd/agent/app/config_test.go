@@ -101,6 +101,13 @@ func TestConfigWithCollectorServiceName(t *testing.T) {
 	agent, err := cfg.CreateAgent(metrics.NullFactory, zap.NewNop())
 	assert.NoError(t, err)
 	assert.NotNil(t, agent)
+	assert.Equal(t, cfg.CollectorServiceName, "svc")
+
+	cfg = &Builder{}
+	agent, err = cfg.CreateAgent(metrics.NullFactory, zap.NewNop())
+	assert.NoError(t, err)
+	assert.NotNil(t, agent)
+	assert.Equal(t, cfg.CollectorServiceName, "jaeger-collector")
 }
 
 func TestConfigWithSingleCollector(t *testing.T) {
