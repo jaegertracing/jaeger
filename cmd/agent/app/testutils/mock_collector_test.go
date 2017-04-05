@@ -47,7 +47,7 @@ func withTCollector(t *testing.T, fn func(collector *MockTCollector, ctx thrift.
 
 func withSamplingClient(t *testing.T, fn func(collector *MockTCollector, ctx thrift.Context, client sampling.TChanSamplingManager)) {
 	withTCollector(t, func(collector *MockTCollector, ctx thrift.Context) {
-		thriftClient := thrift.NewClient(collector.Channel, "tcollector", nil)
+		thriftClient := thrift.NewClient(collector.Channel, "jaeger-collector", nil)
 		client := sampling.NewTChanSamplingManagerClient(thriftClient)
 
 		fn(collector, ctx, client)
@@ -56,7 +56,7 @@ func withSamplingClient(t *testing.T, fn func(collector *MockTCollector, ctx thr
 
 func withZipkinClient(t *testing.T, fn func(collector *MockTCollector, ctx thrift.Context, client zipkincore.TChanZipkinCollector)) {
 	withTCollector(t, func(collector *MockTCollector, ctx thrift.Context) {
-		thriftClient := thrift.NewClient(collector.Channel, "tcollector", nil)
+		thriftClient := thrift.NewClient(collector.Channel, "jaeger-collector", nil)
 		client := zipkincore.NewTChanZipkinCollectorClient(thriftClient)
 
 		fn(collector, ctx, client)
@@ -65,7 +65,7 @@ func withZipkinClient(t *testing.T, fn func(collector *MockTCollector, ctx thrif
 
 func withJaegerClient(t *testing.T, fn func(collector *MockTCollector, ctx thrift.Context, client jaeger.TChanCollector)) {
 	withTCollector(t, func(collector *MockTCollector, ctx thrift.Context) {
-		thriftClient := thrift.NewClient(collector.Channel, "tcollector", nil)
+		thriftClient := thrift.NewClient(collector.Channel, "jaeger-collector", nil)
 		client := jaeger.NewTChanCollectorClient(thriftClient)
 
 		fn(collector, ctx, client)

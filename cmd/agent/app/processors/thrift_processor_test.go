@@ -29,18 +29,17 @@ import (
 	"github.com/apache/thrift/lib/go/thrift"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-	"go.uber.org/zap"
-
 	"github.com/uber/jaeger-lib/metrics"
 	mTestutils "github.com/uber/jaeger-lib/metrics/testutils"
-	"github.com/uber/jaeger/thrift-gen/agent"
-	"github.com/uber/jaeger/thrift-gen/jaeger"
-	"github.com/uber/jaeger/thrift-gen/zipkincore"
+	"go.uber.org/zap"
 
 	"github.com/uber/jaeger/cmd/agent/app/reporter"
 	"github.com/uber/jaeger/cmd/agent/app/servers"
 	"github.com/uber/jaeger/cmd/agent/app/servers/thriftudp"
 	"github.com/uber/jaeger/cmd/agent/app/testutils"
+	"github.com/uber/jaeger/thrift-gen/agent"
+	"github.com/uber/jaeger/thrift-gen/jaeger"
+	"github.com/uber/jaeger/thrift-gen/zipkincore"
 )
 
 // TODO make these tests faster, they take almost 4 seconds
@@ -84,9 +83,7 @@ func createProcessor(t *testing.T, mFactory metrics.Factory, tFactory thrift.TPr
 
 func initCollectorAndReporter(t *testing.T) (*metrics.LocalFactory, *testutils.MockTCollector, reporter.Reporter) {
 	metricsFactory, collector := testutils.InitMockCollector(t)
-
-	reporter := reporter.NewTCollectorReporter(collector.Channel, metricsFactory, zap.NewNop(), nil)
-
+	reporter := reporter.NewTChannelReporter("jaeger-collector", collector.Channel, metricsFactory, zap.NewNop(), nil)
 	return metricsFactory, collector, reporter
 }
 

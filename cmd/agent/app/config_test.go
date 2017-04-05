@@ -28,12 +28,12 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"github.com/uber/jaeger-lib/metrics"
-	"github.com/uber/jaeger/thrift-gen/jaeger"
-	"github.com/uber/jaeger/thrift-gen/zipkincore"
 	"go.uber.org/zap"
 	"gopkg.in/yaml.v2"
 
 	"github.com/uber/jaeger/pkg/discovery"
+	"github.com/uber/jaeger/thrift-gen/jaeger"
+	"github.com/uber/jaeger/thrift-gen/zipkincore"
 )
 
 func TestConfigFile(t *testing.T) {
@@ -93,6 +93,21 @@ func TestConfigWithDiscovery(t *testing.T) {
 	agent, err := cfg.CreateAgent(metrics.NullFactory, zap.NewNop())
 	assert.NoError(t, err)
 	assert.NotNil(t, agent)
+}
+
+func TestConfigWithCollectorServiceName(t *testing.T) {
+	cfg := &Builder{}
+	cfg.WithCollectorServiceName("svc")
+	agent, err := cfg.CreateAgent(metrics.NullFactory, zap.NewNop())
+	assert.NoError(t, err)
+	assert.NotNil(t, agent)
+	assert.Equal(t, cfg.CollectorServiceName, "svc")
+
+	cfg = &Builder{}
+	agent, err = cfg.CreateAgent(metrics.NullFactory, zap.NewNop())
+	assert.NoError(t, err)
+	assert.NotNil(t, agent)
+	assert.Equal(t, cfg.CollectorServiceName, "jaeger-collector")
 }
 
 func TestConfigWithSingleCollector(t *testing.T) {

@@ -31,21 +31,18 @@ import (
 	mTestutils "github.com/uber/jaeger-lib/metrics/testutils"
 	"go.uber.org/zap"
 
+	"github.com/uber/jaeger/cmd/agent/app/testutils"
 	"github.com/uber/jaeger/thrift-gen/jaeger"
 	"github.com/uber/jaeger/thrift-gen/zipkincore"
-
-	"github.com/uber/jaeger/cmd/agent/app/testutils"
 )
 
 func initRequirements(t *testing.T) (*metrics.LocalFactory, *testutils.MockTCollector, Reporter) {
 	metricsFactory, collector := testutils.InitMockCollector(t)
-
-	reporter := NewTCollectorReporter(collector.Channel, metricsFactory, zap.NewNop(), nil)
-
+	reporter := NewTChannelReporter("jaeger-collector", collector.Channel, metricsFactory, zap.NewNop(), nil)
 	return metricsFactory, collector, reporter
 }
 
-func TestZipkinTCollectorReporterSuccess(t *testing.T) {
+func TestZipkinTChannelReporterSuccess(t *testing.T) {
 	metricsFactory, collector, reporter := initRequirements(t)
 	defer collector.Close()
 
@@ -60,7 +57,7 @@ func TestZipkinTCollectorReporterSuccess(t *testing.T) {
 	checkCounters(t, metricsFactory, 1, 1, 0, 0, "zipkin")
 }
 
-func TestZipkinTCollectorReporterFailure(t *testing.T) {
+func TestZipkinTChannelReporterFailure(t *testing.T) {
 	metricsFactory, collector, reporter := initRequirements(t)
 	defer collector.Close()
 
@@ -78,7 +75,7 @@ func submitTestZipkinBatch(reporter Reporter) error {
 	return reporter.EmitZipkinBatch([]*zipkincore.Span{span})
 }
 
-func TestJaegerTCollectorReporterSuccess(t *testing.T) {
+func TestJaegerTChannelReporterSuccess(t *testing.T) {
 	metricsFactory, collector, reporter := initRequirements(t)
 	defer collector.Close()
 
@@ -93,7 +90,7 @@ func TestJaegerTCollectorReporterSuccess(t *testing.T) {
 	checkCounters(t, metricsFactory, 1, 1, 0, 0, "jaeger")
 }
 
-func TestJaegerTCollectorReporterFailure(t *testing.T) {
+func TestJaegerTChannelReporterFailure(t *testing.T) {
 	metricsFactory, collector, reporter := initRequirements(t)
 	defer collector.Close()
 

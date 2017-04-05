@@ -26,13 +26,10 @@ import (
 
 	"github.com/apache/thrift/lib/go/thrift"
 	"github.com/pkg/errors"
+	"github.com/uber/jaeger-lib/metrics"
 	"github.com/uber/tchannel-go"
 	tchannelThrift "github.com/uber/tchannel-go/thrift"
 	"go.uber.org/zap"
-
-	"github.com/uber/jaeger-lib/metrics"
-	zipkinThrift "github.com/uber/jaeger/thrift-gen/agent"
-	jaegerThrift "github.com/uber/jaeger/thrift-gen/jaeger"
 
 	"github.com/uber/jaeger/cmd/agent/app/processors"
 	"github.com/uber/jaeger/cmd/agent/app/reporter"
@@ -41,6 +38,8 @@ import (
 	"github.com/uber/jaeger/cmd/agent/app/servers/thriftudp"
 	"github.com/uber/jaeger/pkg/discovery"
 	"github.com/uber/jaeger/pkg/discovery/peerlistmgr"
+	zipkinThrift "github.com/uber/jaeger/thrift-gen/agent"
+	jaegerThrift "github.com/uber/jaeger/thrift-gen/jaeger"
 )
 
 const (
@@ -51,8 +50,8 @@ const (
 
 	defaultSamplingServerHostPort = "localhost:5778"
 
-	agentServiceName     = "jaeger-agent"
-	collectorServiceName = "tcollector" // for legacy reasons
+	agentServiceName            = "jaeger-agent"
+	defaultCollectorServiceName = "jaeger-collector"
 
 	jaegerModel model = "jaeger"
 	zipkinModel       = "zipkin"
@@ -83,6 +82,10 @@ type Builder struct {
 	// MinPeers is the min number of servers we want the agent to connect to.
 	// If zero, defaults to min(3, number of peers returned by service discovery)
 	DiscoveryMinPeers int `yaml:"minPeers"`
+
+	// CollectorServiceName is the name that Jaeger Collector's TChannel server
+	// responds to.
+	CollectorServiceName string `yaml:"collectorServiceName"`
 
 	discoverer     discovery.Discoverer
 	notifier       discovery.Notifier
@@ -168,6 +171,12 @@ func (b *Builder) WithDiscoveryNotifier(n discovery.Notifier) *Builder {
 	return b
 }
 
+// WithCollectorServiceName sets collector service name
+func (b *Builder) WithCollectorServiceName(s string) *Builder {
+	b.CollectorServiceName = s
+	return b
+}
+
 func (b *Builder) enableDiscovery(channel *tchannel.Channel, logger *zap.Logger) (interface{}, error) {
 	if b.discoverer == nil && b.notifier == nil {
 		return nil, nil
@@ -176,9 +185,9 @@ func (b *Builder) enableDiscovery(channel *tchannel.Channel, logger *zap.Logger)
 		return nil, errors.New("both discovery.Discoverer and discovery.Notifier must be specified")
 	}
 
-	logger.Info("Enabling service discovery", zap.String("service", collectorServiceName))
+	logger.Info("Enabling service discovery", zap.String("service", b.CollectorServiceName))
 
-	subCh := channel.GetSubChannel(collectorServiceName, tchannel.Isolated)
+	subCh := channel.GetSubChannel(b.CollectorServiceName, tchannel.Isolated)
 	peers := subCh.Peers()
 	return peerlistmgr.New(peers, b.discoverer, b.notifier,
 		peerlistmgr.Options.MinPeers(defaultInt(b.DiscoveryMinPeers, defaultMinPeers)),
@@ -190,6 +199,10 @@ func (b *Builder) CreateAgent(mFactory metrics.Factory, logger *zap.Logger) (*Ag
 	// ignore errors since it only happens on empty service name
 	channel, _ := tchannel.NewChannel(agentServiceName, nil)
 
+	if b.CollectorServiceName == "" {
+		b.CollectorServiceName = defaultCollectorServiceName
+	}
+
 	discoveryMgr, err := b.enableDiscovery(channel, logger)
 	if err != nil {
 		return nil, errors.Wrap(err, "cannot enable service discovery")
@@ -198,7 +211,7 @@ func (b *Builder) CreateAgent(mFactory metrics.Factory, logger *zap.Logger) (*Ag
 	if discoveryMgr == nil && b.CollectorHostPort != "" {
 		clientOpts = &tchannelThrift.ClientOptions{HostPort: b.CollectorHostPort}
 	}
-	rep := reporter.NewTCollectorReporter(channel, mFactory, logger, clientOpts)
+	rep := reporter.NewTChannelReporter(b.CollectorServiceName, channel, mFactory, logger, clientOpts)
 	if b.otherReporters != nil {
 		reps := append([]reporter.Reporter{}, b.otherReporters...)
 		reps = append(reps, rep)
@@ -208,7 +221,7 @@ func (b *Builder) CreateAgent(mFactory metrics.Factory, logger *zap.Logger) (*Ag
 	if err != nil {
 		return nil, err
 	}
-	samplingServer := b.SamplingServer.GetSamplingServer(channel, mFactory, clientOpts)
+	samplingServer := b.SamplingServer.GetSamplingServer(b.CollectorServiceName, channel, mFactory, clientOpts)
 	return NewAgent(processors, samplingServer, discoveryMgr, logger), nil
 }
 
@@ -243,8 +256,8 @@ func (b *Builder) GetProcessors(rep reporter.Reporter, mFactory metrics.Factory)
 }
 
 // GetSamplingServer creates an HTTP server that provides sampling strategies to client libraries.
-func (c SamplingServerConfiguration) GetSamplingServer(channel *tchannel.Channel, mFactory metrics.Factory, clientOpts *tchannelThrift.ClientOptions) *http.Server {
-	samplingMgr := sampling.NewTCollectorSamplingManagerProxy(channel, mFactory, clientOpts)
+func (c SamplingServerConfiguration) GetSamplingServer(svc string, channel *tchannel.Channel, mFactory metrics.Factory, clientOpts *tchannelThrift.ClientOptions) *http.Server {
+	samplingMgr := sampling.NewCollectorProxy(svc, channel, mFactory, clientOpts)
 	if c.HostPort == "" {
 		c.HostPort = defaultSamplingServerHostPort
 	}
