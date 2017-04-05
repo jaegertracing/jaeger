@@ -28,12 +28,12 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"github.com/uber/jaeger-lib/metrics"
-	"github.com/uber/jaeger/thrift-gen/jaeger"
-	"github.com/uber/jaeger/thrift-gen/zipkincore"
 	"go.uber.org/zap"
 	"gopkg.in/yaml.v2"
 
 	"github.com/uber/jaeger/pkg/discovery"
+	"github.com/uber/jaeger/thrift-gen/jaeger"
+	"github.com/uber/jaeger/thrift-gen/zipkincore"
 )
 
 func TestConfigFile(t *testing.T) {

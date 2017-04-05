@@ -31,10 +31,9 @@ import (
 	mTestutils "github.com/uber/jaeger-lib/metrics/testutils"
 	"go.uber.org/zap"
 
+	"github.com/uber/jaeger/cmd/agent/app/testutils"
 	"github.com/uber/jaeger/thrift-gen/jaeger"
 	"github.com/uber/jaeger/thrift-gen/zipkincore"
-
-	"github.com/uber/jaeger/cmd/agent/app/testutils"
 )
 
 func initRequirements(t *testing.T) (*metrics.LocalFactory, *testutils.MockTCollector, Reporter) {

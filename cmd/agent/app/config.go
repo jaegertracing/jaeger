@@ -26,13 +26,10 @@ import (
 
 	"github.com/apache/thrift/lib/go/thrift"
 	"github.com/pkg/errors"
+	"github.com/uber/jaeger-lib/metrics"
 	"github.com/uber/tchannel-go"
 	tchannelThrift "github.com/uber/tchannel-go/thrift"
 	"go.uber.org/zap"
-
-	"github.com/uber/jaeger-lib/metrics"
-	zipkinThrift "github.com/uber/jaeger/thrift-gen/agent"
-	jaegerThrift "github.com/uber/jaeger/thrift-gen/jaeger"
 
 	"github.com/uber/jaeger/cmd/agent/app/processors"
 	"github.com/uber/jaeger/cmd/agent/app/reporter"
@@ -41,6 +38,8 @@ import (
 	"github.com/uber/jaeger/cmd/agent/app/servers/thriftudp"
 	"github.com/uber/jaeger/pkg/discovery"
 	"github.com/uber/jaeger/pkg/discovery/peerlistmgr"
+	zipkinThrift "github.com/uber/jaeger/thrift-gen/agent"
+	jaegerThrift "github.com/uber/jaeger/thrift-gen/jaeger"
 )
 
 const (
