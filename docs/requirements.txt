@@ -1,2 +1,2 @@
-mkdocs-material >= 1.52
+mkdocs-material >= 1.5.2
 pymdown-extensions >= 2.0
