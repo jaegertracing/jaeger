@@ -1,0 +1,2 @@
+mkdocs-material >= 1.52
+pymdown-extensions >= 2.0

@@ -22,8 +22,8 @@ traces.
 -   Use baggage propagation to
 
     -   Diagnose inter-request contention (queueing)
+    -   Attribute time spent in a service
 
-    \* Attribute time spent in a service
 -   Use open source libraries with OpenTracing integration to get
     vendor-neutral instrumentation for free
 
@@ -31,7 +31,7 @@ traces.
 
 -   You need Go 1.7 or higher installed on your machine.
 -   Requires a running Jaeger backend to view the traces.
-    -   See backend\_in\_docker
+    -   See [Running Jaeger backend in docker](backend_in_docker.md)
 
 ### Installation
 
