@@ -23,8 +23,8 @@ before_script:
   - make build_standalone_linux
   - make build_examples_linux
   - export REPO=jaegertracing/all-in-one
-#  - export BRANCH=$(if [ "$TRAVIS_PULL_REQUEST" == "false" ]; then echo $TRAVIS_BRANCH; else echo $TRAVIS_PULL_REQUEST_BRANCH; fi)
-#  - export TAG=`if [ "$BRANCH" == "master" ]; then echo "latest"; else echo $BRANCH; fi`
+  - export BRANCH=$(if [ "$TRAVIS_PULL_REQUEST" == "false" ]; then echo $TRAVIS_BRANCH; else echo $TRAVIS_PULL_REQUEST_BRANCH; fi)
+  - export TAG=`if [ "$BRANCH" == "master" ]; then echo "latest"; else echo $BRANCH; fi`
   - echo "TRAVIS_BRANCH=$TRAVIS_BRANCH, REPO=$REPO, PR=$PR, BRANCH=$BRANCH, TAG=$TAG"
   - docker login -u $DOCKER_USER -p $DOCKER_PASS
   - docker build -f cmd/standalone/Dockerfile -t $REPO:$COMMIT .
