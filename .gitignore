@@ -12,5 +12,6 @@ _site/
 env/
 Gemfile.lock
 vendor/
-examples/hotrod/hotrod
 jaeger-ui-build/
+examples/hotrod/hotrod*
+cmd/standalone/standalone*
