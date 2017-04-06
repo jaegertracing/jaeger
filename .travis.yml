@@ -10,27 +10,40 @@ services:
 
 global:
   - COMMIT=${TRAVIS_COMMIT::8}
-  - secure: cnVh5hOEa/UIBP1dJlZGpY7yyQlV+X3dXDuC7atePUVUTRNiRXtG96BGkz3l1mOb6R2s1We1e4SDoADP8NQfsn0TABXrAUu2ZuDW7NwMT5xoJ53aehpmXfRqO55Wau2m8X/kHl3V7eECsdekCXWua8ijmMfqYySUXwIZvuyT1tObqEpv4aItDIUFuv8app30dIZF1cE9hM91gl+0gu5N+FuwO7AAVt+Q0a3B1Ntv8mTb/rmz/lYkBBSaClgrBMQ2sjAuDDPOWfZla0SVMrymCI/F4JtR2eo82Enn6Z+JBwHRFZgMyc05EDoNh9m7hvQCqDVsvMExuf/qSVXTAlL1Tqzk6uOCyLoB1XM6SydEUIMukiNFN3h+v0WVczK9MyRaFuhN3CS6BAn1jwW9BAQKAXC4DZ8bQTCKzWT1Jd8+9x32HJrhB8ylBXA/ER8xghiIMv/Wk8bFW6tfnTYU/uiCtoFfSk5PI9cLLVhuSUxgyX/9KWBPGnA1/PhC2W3H4vs+uVHTisE5+LPBTWoSII7Z82u+UZTLH/wmAgOroNEHCULdSd82Efn8El9e4ebl6zR5MWOtgsK1zKd4wdq00oc19x0vLgAUeznTc+XwhLfSN7WwpR0mYEiZnOubvscc/rTo01FnPlIbn1vKdwUKw2GfXafqq2Vsa0p/q1Eo4pZfOzE=
-  - secure: BMpuCCm+z/sOAMZ5BDX7BDzI5y/H32KpwfJaVNL7womV5Mzxz9yPe1muQG+Z9cL6aCBQwToRTbvuFLdSzjPT9A+EBQuDuWUfVC3vkpbkXk1vdN73D1LeWkAsjI7OZ32fim3+xksHnGMs6VsWsObZrmq6QXeHl50MmXeeYqMnc+4g3TkhIyFnYeVCHUuiidMmVqikJm7ujLvoN89tXP3QZ4khw74nHd3IiT45h06GPkoYRs8euT9x8wNBkhm2RVNBkTeClbiqlhfywDbU2/O6otQ5+6A21QNBAk0rKH4OCc+lJ39hRV2bmPnqbw0vFhGk9YdIN3JmydpmOQW3vWr7eiBOrI8eMBXbsNzddYCISOzEtgApJnaK8tQIeEY8QvoqdgVwk2mEXUKn9EJii0BhkAwv3KF5Obi3x5jZcEo8YP5dn05gXzpjk2cFJB8npBlSSlkKcKYQKX605UYwEbs3XxOU90Mg03nwxNKwk26aFx0T1mUIzYcx0h/a99OLMFr/mK5BKRLQaFh03kp6HCS0q5j/fotN4ZW41QYPKIjvv+FyuMcGNtx5C5qTlEWZcECVJoM4dKxMa/z3REeKVqtQYq0azCSjG5Tje8cslUbLNF4N7NvNOJux6GHVGtmE29atzrw3Wsra4hARFm+kOAE9b/1Qfjnz3C3XDmFe07Sxntg=
-  - secure: tlWX/wnfuyvTTEBG6UwIrAugCLKKYuEZvcwrOYgaO27Q0SQmHOevGhsCOVDDJ2e01no60IR6Cu67O+JlRrZqOuZIkl9uvnf60SZWDbqCMhZraVh5b0iZD1li0XHXo56zj+ptDXc3fOmnUTT2PYnZ+4+sR76jBw2PnZKE/u6NNSm3KkKvEQGfFkFdId/17z6Lob++BwXqmIw1n2DG7Ts+VxyCVf5HBfe8RfDPWDlXfqQUE5x9hbl+VbwCR+4LDAAJmh9h7JTItX7nvNG91EzEGedKea8IWn7fkLcQSZWuMalpGADqMx0nsPyJk8fzc0X17w595P54ktatwcWWgVv+ZhzozoO3FPWOom7c35gx+WAlMeIBtpxYQtixP2xPpK1i4HJXjW4KS+zjTEkoqeGQrFXcIKHUM0YXQvRIp5rfRky/INDzm2AYTReGoLX+ZQ7O/tSVDaBfdvTd96hRP6M1t4zCGULaglQGdE7/RLQrz7S6j2ys0fhF5gFBmOSodGt5gG+YFjzKiu+5FYMICwpUaOO+h4mLTsP0t63vFKGfXt79eWFJ+pRaMyWb68geZqB5u+P64sTnEIa8LjP/Lhrgnh0vab0O0m2KgnRMKBVlc4modKLiTXbYn1KZUyk0dfKYR2lCQHxAZW94nBOXzynDu8qZE0nXemVokFkEETm1FB0=
-  - secure: aR7jrdGh3cXncHlIJ6FgVf5jqMiUHSWiGON3tocCUIAB3GyRoT4lFsHg4y86c4qDkpiTrFZT2mY7Iyqs/Y+Hi64V2pGP2FouN9cZK8b5IuBDboa//9nebAvTVuzsuUBLmRwtaQ2qvpS+Jg7ApXyLjF+Cdvfh4WRm4IcwxbvmMr/+zVxkPbEBNnnALx7h1kNiAtQVrCjiHJ1Q+p2RzER+OSTtdvJRqMzkwI741ttj7pvxElbexdPwiU+9lLC9IoW/lSOSwx29Ph8WAK2aF2VrxxrUbNiTd8o2U11Zc2ic44FhOadTrGk6bJBLHOerFnDt9ieoGpbocinviZJ2OGvSoXWaI9XNPaxCNSuA3woRRX4+j9SK/AFunSxUtC2gyUhCvMKLcz1WbVtto9kAXZKq+N1zBrA5zeFCArbKCLOidTdrv1iY5eC/mV6RPhvy2knpDRzFtk6UP/7oiTiUu1yI1CGDRrWRQaaguRcLdhSKFKfgjfRNksfO1QQ6rokZWZdc5kUchLEcb2QtCRWOAShfuvyr+j38l8Rgx5DwBAnd7zov0H4cXUZ1oBOzbHmejHQF7KMs6cnGgCvDT2mQYEwvMc9cueD8S3qWrkaLIm78pQesKLuKarYHeAF8pWivQPr9hwSSPnY944E9YT0odMbNmNrWruwF2YuyFKTMdIVhy3Q=
+  # DOCKER_USER
+  - secure: UhNyDZRHLBHr67xZmmkf3kv5dLbN1ikeOoPeBxL3cELQlNTJQGXR2tJydoZPh3j0MtDCgL5yWU8YlTzOzK8YBAlRQEHHHZzxfE/FNGfQn2qoNnesdmOV5IUieH4voLLOGdvDTZZ2jNlVkkz188lGxa64bhc7SFL2YM0idmdzQPst7Newf0Ouu429YUnFwf0yedU7/M9mQnUnrj+5WLx0SNIIkdQ49aPP9ja1uve8vCefzq4poIq1Wk3G1kXgprP3kNnwHToaTL6HpZR4KJpCLIC8fwJNjd+yBipCGT0jHqKhiFiU4GQ0jSvft24ujhZbaJOxKb57XKQWtzEwtj1soQ98ayeC9ECgNoWYgs+xWijHh3h9xWRO0XkDH0qrKYMv0f7RGTIz8HxkFXbkGtDg/Sak2MZ5oY3/FzxPlFTs6OADbz37QOWHtWt5L5RvuIY7D5O8yLPuRW2ybZTKE3Bou0ANWioywy/WL+a+OgTq4a5e+dsZA6XOVDUQaRG/Yl262rSDhZxOoyVFgBOBXEGSMAI01SEExcUXx6zl5owvWV74ntLkspWa179tvxPVTxafgzDkw/lFBBwaZ3bSyPae6vqA+7NI0JHlCADtTMx9AeYriywBA/1Oixu7hHN8Ze0srMEnMn2pJpY8P6kX/vmlYhLNkUCD59vRf/zpDv/49ZQ=
+  # DOCKER_PASS
+  - secure: PeXPN7OhXBLlnGXcUTph/xq8UGqFz3WTrPEv1CnudCV8gVjppXPbWn76TWnhJ2ztcYRaaFsdBoPfYrkzKj0IkFDtlT4w19stZQSBC3Q+DEABjwbiOGsoPUTESmDELQIi7g7MylBQFlDyT1umEXwfteSzKnx929DACGOmF4S6FMOttkNgqyQm6Pyrj6Dk6bjrrylisGL4H50QCsX2j5gjDgHc2xMYYSXRFolb7lNkJ17HSZ/tD4PGhVLeeRPoCygzx0BbsIpZVyvrZHPQrCo9adfF04kCWvWMtNs01XjduAnMQGEgG7LFbMKHs1lmWB2w5LIdxzqsRv/h5DLmHEIutU5qWOQpXr7pC6V/8axOF+aNbqa365iG+F3i8wvYsMQydEv5tY3DVenoJwI5drXda2Bg9oE1SN22Khr2NOs0Oho1T5tQyvhMfJ50Dr+SY67FUKfYtk+RE/bCqPy3PrG+8wUXDIxP3cPWyIAxFeFAqLsdXEhtqL9WyJmX4ZXzvzr8/XZqfCPpek4ly3eMsrbZ+wW5F1xnYQ3z5todKXfHIj0lXcnNDcD7xzITM1GeAi4BUSNzTnk5erR3KRq+R4LZZ6K2lypKidmaRrLP+Z1PpPKnPJ75nenZD6rozn4owZF9NMooLl3W/diYQRY+XpfswYhE2eILfxUofXsrGsCBniY=
 
 install:
   - make install_ci
 
-script:
-  - make test_ci
-  - travis_retry goveralls -coverprofile=cover.out -service=travis-ci || true
-
-after_success:
+before_install:
   - make build_standalone_linux
   - make build_examples_linux
   - export REPO=jaegertracing/all-in-one
-  - export BRANCH=$(if [ "$TRAVIS_PULL_REQUEST" == "false" ]; then echo $TRAVIS_BRANCH; else echo $TRAVIS_PULL_REQUEST_BRANCH; fi)
-  - export TAG=`if [ "$BRANCH" == "master" ]; then echo "latest"; else echo $BRANCH; fi`
+#  - export BRANCH=$(if [ "$TRAVIS_PULL_REQUEST" == "false" ]; then echo $TRAVIS_BRANCH; else echo $TRAVIS_PULL_REQUEST_BRANCH; fi)
+#  - export TAG=`if [ "$BRANCH" == "master" ]; then echo "latest"; else echo $BRANCH; fi`
   - echo "TRAVIS_BRANCH=$TRAVIS_BRANCH, REPO=$REPO, PR=$PR, BRANCH=$BRANCH, TAG=$TAG"
   - docker login -e $DOCKER_EMAIL -u $DOCKER_USER -p $DOCKER_PASS
   - docker build -f cmd/standalone/Dockerfile -t $REPO:$COMMIT .
   - docker tag $REPO:$COMMIT $REPO:$TAG
   - docker tag $REPO:$COMMIT $REPO:travis-$TRAVIS_BUILD_NUMBER
   - docker push $REPO
+
+script:
+  - make test_ci
+  - travis_retry goveralls -coverprofile=cover.out -service=travis-ci || true
+
+#after_success:
+#  - make build_standalone_linux
+#  - make build_examples_linux
+#  - export REPO=jaegertracing/all-in-one
+#  - export BRANCH=$(if [ "$TRAVIS_PULL_REQUEST" == "false" ]; then echo $TRAVIS_BRANCH; else echo $TRAVIS_PULL_REQUEST_BRANCH; fi)
+#  - export TAG=`if [ "$BRANCH" == "master" ]; then echo "latest"; else echo $BRANCH; fi`
+#  - echo "TRAVIS_BRANCH=$TRAVIS_BRANCH, REPO=$REPO, PR=$PR, BRANCH=$BRANCH, TAG=$TAG"
+#  - docker login -e $DOCKER_EMAIL -u $DOCKER_USER -p $DOCKER_PASS
+#  - docker build -f cmd/standalone/Dockerfile -t $REPO:$COMMIT .
+#  - docker tag $REPO:$COMMIT $REPO:$TAG
+#  - docker tag $REPO:$COMMIT $REPO:travis-$TRAVIS_BUILD_NUMBER
+#  - docker push $REPO
