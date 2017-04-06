@@ -35,14 +35,14 @@ traces.
 
 ### Installation
 
-``` {.sourceCode .shell}
+```shell 
 go get github.com/uber/jaeger
 make install_examples
 ```
 
 ### Running
 
-``` {.sourceCode .shell}
+```shell
 cd examples/hotrod
 go run ./main.go all
 ```
