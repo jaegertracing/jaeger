@@ -6,8 +6,6 @@ markdown_extensions:
   - pymdownx.betterem(smart_enable=all)
   - pymdownx.caret
   - pymdownx.critic
-  - pymdownx.emoji:
-      emoji_generator: !!python/name:pymdownx.emoji.to_svg
   - pymdownx.inlinehilite
   - pymdownx.mark
   - pymdownx.smartsymbols
