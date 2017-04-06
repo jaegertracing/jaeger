@@ -18,7 +18,7 @@ global:
 install:
   - make install_ci
 
-before_install:
+before_script:
   - make build_standalone_linux
   - make build_examples_linux
   - export REPO=jaegertracing/all-in-one
