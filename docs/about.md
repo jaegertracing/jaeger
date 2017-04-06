@@ -1,5 +1,11 @@
-Features
-========
+#About
+
+##Architecture
+
+Read [UberEng](https://eng.uber.com/) blog post on [Evolving Distributed
+Tracing at Uber](https://eng.uber.com/distributed-tracing/).
+
+##Features
 
 -   Built in the style of Google's Dapper
 -   Provides [OpenTracing](http://opentracing.io) compatible
@@ -11,3 +17,11 @@ Features
 -   Backend components are implemented in Go
 -   Uses Cassandra as the storage layer
 
+##History
+
+Read [UberEng](https://eng.uber.com/) blog post on [Evolving Distributed
+Tracing at Uber](https://eng.uber.com/distributed-tracing/).
+
+##Roadmap
+
+Coming soon...
