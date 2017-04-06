@@ -1,5 +1,5 @@
 site_name: Jaeger Documentation
-theme: 'material'
+theme_dir: docs/theme
 markdown_extensions:
   - codehilite
   - toc(permalink=true)
