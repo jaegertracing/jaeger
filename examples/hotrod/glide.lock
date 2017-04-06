@@ -1,5 +1,5 @@
 hash: 8d5465d5f01ce4159736a8b8ff32f089db64a1860c1118d02e11bcdc3e1cd632
-updated: 2017-03-10T16:25:59.401413075-05:00
+updated: 2017-04-05T23:02:17.876415056-04:00
 imports:
 - name: github.com/apache/thrift
   version: 53dd39833a08ce33582e5ff31fa18bb4735d6731
@@ -65,7 +65,7 @@ imports:
 - name: github.com/uber-go/zap
   version: c4939d1166b2220bb45338e21506623b4bbdec50
 - name: github.com/uber/jaeger-client-go
-  version: cd3a36113b13b96d1640ff113e1ea096af856a2f
+  version: 465529424ed6b04a7fd2fcab6a9d6e96ea807fda
   subpackages:
   - config
   - internal/spanlog
@@ -94,8 +94,19 @@ imports:
   - typed
 - name: github.com/VividCortex/gohistogram
   version: 51564d9861991fb0ad0f531c99ef602d0f9866e6
+- name: go.uber.org/atomic
+  version: 3b8db5e93c4c02efbc313e17b2e796b0914a01fb
+- name: go.uber.org/zap
+  version: a2773be06b9ac7c318a3a105b5c310af5730c6b4
+  subpackages:
+  - buffer
+  - internal/bufferpool
+  - internal/color
+  - internal/exit
+  - internal/multierror
+  - zapcore
 - name: golang.org/x/net
-  version: 10c134ea0df15f7e34d789338c7a2d76cc7a3ab9
+  version: ffcf1bedda3b04ebb15a168a59800a73d6dc0f4d
   subpackages:
   - context
 - name: golang.org/x/sys
