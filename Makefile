@@ -76,7 +76,7 @@ install-glide:
 install: install-glide
 	glide install
 
-install_examples: install-glide
+install_examples: install
 	(cd examples/hotrod/; glide install)
 
 build_examples:
