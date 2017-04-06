@@ -17,6 +17,8 @@ env:
     - secure: mX3/Gwv5esCjU9GfqDaXbTslA0UOY9q45+rnW58X6z1tY2pFOts5uhtLve3YneGn3IN0n+m5mcljim72vKNQaPJCSodYfcfrqth2YqkYTXNWykOIdlLs1u58pYYGRXJaAlD4EgQysB/nAaQYO00/n2tBq4vEmu0dikbJer97smStkokLBiz42tJbvY6mikqnHHbRAA4dw5MHwYikDkI82oKxUsB8horetMmXgwTkT3AiE5UufXm3iYxpZ48KTYBW8WbQSQV1T1nriisZVErbYh69QLaLrEK3/WYiN3r4fOag4JvMA5GuPpuVGQfKzXUuFptG54VBbPKCgmcXA/DlaEQ6HILsfHdl29/AXHa59dVjWGfQ5f/N4VWaIVXhE0qWo+/WIoyr7SaLybyGVe3gf1vDaDFlfVlrE7j13H+XKiwzfOeaqnTrcNc/MSCFCtnUbjvX4UlXCbE4gVbCuEsjAPQ8mI/MMaCWLxhaYTW/cSyGRTGMLwe4Q8uAPd3BQat63byLo3BfK+icyw24RbSGBDRu5FZORK164MMjr0+UKVT3gh5/JdFxLkdOGjJL/9QuppNShI5GBIctIg15AQJNkhSLm8DxUTNHhjjBgXzqNhDVmUQLQVgqCWlHh1HVF5eiIQXBNGBE1Lw9v9dGTUHlPUUqeJKsxEyYWfZuY4tNhzU=
 
 install:
+  - nvm version
+  - node -v
   - make install_ci
 
 before_script:
@@ -31,6 +33,8 @@ before_script:
 #  - docker tag $REPO:$COMMIT $REPO:$TAG
   - docker tag $REPO:$COMMIT $REPO:travis-$TRAVIS_BUILD_NUMBER
   - docker push $REPO
+  - git clone https://github.com/uber/jaeger-ui
+  - cd jaeger-ui && npm install
 
 script:
   - make test_ci
