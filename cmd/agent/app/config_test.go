@@ -34,8 +34,8 @@ import (
 	"github.com/uber/jaeger/thrift-gen/jaeger"
 	"github.com/uber/jaeger/thrift-gen/zipkincore"
 
-	"gopkg.in/yaml.v2"
 	"go.uber.org/zap"
+	"gopkg.in/yaml.v2"
 )
 
 func TestConfigFile(t *testing.T) {
@@ -116,7 +116,7 @@ func TestConfigWithChannel(t *testing.T) {
 	cfg := &Builder{}
 	channel, _ := tchannel.NewChannel(agentServiceName, nil)
 	cfg.WithChannel(channel)
-	agent, err := cfg.CreateAgent(metrics.NullFactory, zap.New(zap.NewNop()))
+	agent, err := cfg.CreateAgent(metrics.NullFactory, zap.NewNop())
 	assert.NoError(t, err)
 	assert.NotNil(t, agent)
 }
