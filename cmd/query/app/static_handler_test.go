@@ -46,3 +46,8 @@ func TestStaticAssetsHandler(t *testing.T) {
 	defer resp.Body.Close()
 	assert.Equal(t, http.StatusOK, resp.StatusCode)
 }
+
+func TestDefaultStaticAssetsRoot(t *testing.T) {
+	handler := NewStaticAssetsHandler("")
+	assert.Equal(t, "jaeger-ui-build/build/", handler.staticAssetsRoot)
+}
