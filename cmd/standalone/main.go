@@ -139,8 +139,10 @@ func startQuery(logger *zap.Logger, baseFactory metrics.Factory, memoryStore *me
 		dependencyReader,
 		queryApp.HandlerOptions.Prefix(*query.QueryPrefix),
 		queryApp.HandlerOptions.Logger(logger))
+	sHandler := queryApp.NewStaticAssetsHandler()
 	r := mux.NewRouter()
 	rHandler.RegisterRoutes(r)
+	sHandler.RegisterRoutes(r)
 	portStr := ":" + strconv.Itoa(*query.QueryPort)
 	recoveryHandler := recoveryhandler.NewRecoveryHandler(logger, true)
 	logger.Info("Starting jaeger-query HTTP server", zap.Int("port", *query.QueryPort))
