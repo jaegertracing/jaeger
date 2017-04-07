@@ -57,7 +57,6 @@ func TestAgentStartStop(t *testing.T) {
 	require.NoError(t, err)
 	ch := make(chan error, 2)
 	go func() {
-		time.Sleep(time.Second * 2)
 		if err := agent.Run(); err != nil {
 			t.Errorf("error from agent.Run(): %s", err)
 			ch <- err
