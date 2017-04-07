@@ -21,21 +21,32 @@ install:
   - node -v
   - make install_ci
 
-script:
-  - make test_ci
-  - travis_retry goveralls -coverprofile=cover.out -service=travis-ci || true
-
-after_success:
-  - git clone https://github.com/uber/jaeger-ui
-  - cd jaeger-ui && npm install && npm run build && cd ..
-  - mkdir jaeger-ui-build && cp -r jaeger-ui/build jaeger-ui-build/
-  - make build_standalone_linux
+before_script:
+  - nvm use 6
+  - make build-all-in-one-linux
   - export REPO=jaegertracing/all-in-one
   - export BRANCH=$(if [ "$TRAVIS_PULL_REQUEST" == "false" ]; then echo $TRAVIS_BRANCH; else echo $TRAVIS_PULL_REQUEST_BRANCH; fi)
   - export TAG=`if [ "$BRANCH" == "master" ]; then echo "latest"; else echo $BRANCH; fi`
   - echo "TRAVIS_BRANCH=$TRAVIS_BRANCH, REPO=$REPO, PR=$PR, BRANCH=$BRANCH, TAG=$TAG"
   - docker login -u $DOCKER_USER -p $DOCKER_PASS
   - docker build -f cmd/standalone/Dockerfile -t $REPO:$COMMIT .
-#  - docker tag $REPO:$COMMIT $REPO:$TAG TODO docker doesn't like tags with \ need to omit them
+  - docker tag $REPO:$COMMIT "$REPO:$TAG"
   - docker tag $REPO:$COMMIT $REPO:travis-$TRAVIS_BUILD_NUMBER
   - docker push $REPO
+
+script:
+  - make test_ci
+  - travis_retry goveralls -coverprofile=cover.out -service=travis-ci || true
+
+#after_success:
+#  - nvm use 6
+#  - make build-all-in-one-linux
+#  - export REPO=jaegertracing/all-in-one
+#  - export BRANCH=$(if [ "$TRAVIS_PULL_REQUEST" == "false" ]; then echo $TRAVIS_BRANCH; else echo $TRAVIS_PULL_REQUEST_BRANCH; fi)
+#  - export TAG=`if [ "$BRANCH" == "master" ]; then echo "latest"; else echo $BRANCH; fi`
+#  - echo "TRAVIS_BRANCH=$TRAVIS_BRANCH, REPO=$REPO, PR=$PR, BRANCH=$BRANCH, TAG=$TAG"
+#  - docker login -u $DOCKER_USER -p $DOCKER_PASS
+#  - docker build -f cmd/standalone/Dockerfile -t $REPO:$COMMIT .
+##  - docker tag $REPO:$COMMIT $REPO:$TAG TODO docker doesn't like tags with \ need to omit them
+#  - docker tag $REPO:$COMMIT $REPO:travis-$TRAVIS_BUILD_NUMBER
+#  - docker push $REPO

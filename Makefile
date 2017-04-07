@@ -82,10 +82,10 @@ install_examples: install
 build_examples:
 	go build -o ./examples/hotrod/hotrod-demo ./examples/hotrod/main.go
 
-build_standalone:
-	go build -o ./cmd/standalone/standalone ./cmd/standalone/main.go
-
-build_standalone_linux:
+build-all-in-one-linux:
+	cd jaeger-ui && npm install && npm run build
+	rm -rf jaeger-ui-build && mkdir jaeger-ui-build
+	cp -r jaeger-ui/build jaeger-ui-build/
 	CGO_ENABLED=0 GOOS=linux installsuffix=cgo go build -o ./cmd/standalone/standalone-linux ./cmd/standalone/main.go
 
 .PHONY: cover
