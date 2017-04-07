@@ -22,7 +22,7 @@ install:
   - make install_ci
 
 before_script:
-  - nvm use 6
+  - nvm use 4
   - make build-all-in-one-linux
   - export REPO=jaegertracing/all-in-one
   - export BRANCH=$(if [ "$TRAVIS_PULL_REQUEST" == "false" ]; then echo $TRAVIS_BRANCH; else echo $TRAVIS_PULL_REQUEST_BRANCH; fi)
