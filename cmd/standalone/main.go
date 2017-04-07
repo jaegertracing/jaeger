@@ -139,7 +139,7 @@ func startQuery(logger *zap.Logger, baseFactory metrics.Factory, memoryStore *me
 		dependencyReader,
 		queryApp.HandlerOptions.Prefix(*query.QueryPrefix),
 		queryApp.HandlerOptions.Logger(logger))
-	sHandler := queryApp.NewStaticAssetsHandler()
+	sHandler := queryApp.NewStaticAssetsHandler(*query.QueryStaticAssets)
 	r := mux.NewRouter()
 	rHandler.RegisterRoutes(r)
 	sHandler.RegisterRoutes(r)

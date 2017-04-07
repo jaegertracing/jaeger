@@ -82,9 +82,6 @@ install_examples: install
 build_examples:
 	go build -o ./examples/hotrod/hotrod-demo ./examples/hotrod/main.go
 
-build_examples_linux:
-	CGO_ENABLED=0 GOOS=linux installsuffix=cgo go build -o ./examples/hotrod/hotrod-demo-linux ./examples/hotrod/main.go
-
 build_standalone:
 	go build -o ./cmd/standalone/standalone ./cmd/standalone/main.go
 

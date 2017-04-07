@@ -27,4 +27,6 @@ var (
 	QueryPort = flag.Int("query.port", 16686, "The port for the query service")
 	// QueryPrefix is the prefix of the query service api
 	QueryPrefix = flag.String("query.prefix", "api", "The prefix for the url of the query service")
+	// QueryStaticAssets is the path for the static assets for the UI (https://github.com/uber/jaeger-ui)
+	QueryStaticAssets = flag.String("query.static-files", "jaeger-ui-build/build/", "The path for the static assets for the UI")
 )
