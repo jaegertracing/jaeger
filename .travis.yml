@@ -34,7 +34,8 @@ before_script:
   - docker tag $REPO:$COMMIT $REPO:travis-$TRAVIS_BUILD_NUMBER
   - docker push $REPO
   - git clone https://github.com/uber/jaeger-ui
-  - cd jaeger-ui && npm install
+  - cd jaeger-ui && npm install && npm run build
+  - cd ..
 
 script:
   - make test_ci
