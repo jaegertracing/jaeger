@@ -1,4 +1,4 @@
-FROM golang:1.7-alpine
+FROM golang:1.7
 EXPOSE 5775 6831 6832 14267 16686
 
 COPY ./jaeger-ui-build /go/src/jaeger-ui-build
