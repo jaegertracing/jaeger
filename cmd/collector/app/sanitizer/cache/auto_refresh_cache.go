@@ -85,6 +85,7 @@ func (c *autoRefreshCache) IsEmpty() bool {
 func (c *autoRefreshCache) Initialize() error {
 	if err := c.warmCache(); err != nil {
 		c.logger.Error("Cannot warm cache from storage or external source", zap.Error(err))
+		// TODO (wjang) was this intentional? should this not return an error here?
 	}
 	c.initializeCacheRefresh()
 	return nil
