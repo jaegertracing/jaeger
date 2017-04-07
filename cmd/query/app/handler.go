@@ -50,14 +50,10 @@ const (
 	defaultDependencyLookbackDuration = time.Hour * 24
 	defaultTraceQueryLookbackDuration = time.Hour * 24 * 2
 	defaultHTTPPrefix                 = "api"
-
-	staticAssetsRoot = "jaeger-ui-build/build/"
 )
 
 var (
 	errNoArchiveSpanStorage = errors.New("archive span storage was not configured")
-
-	staticRootFiles = []string{"favicon.ico"}
 )
 
 // HTTPHandler handles http requests
@@ -132,21 +128,6 @@ func (aH *APIHandler) RegisterRoutes(router *mux.Router) {
 	// TOOD - remove this when UI catches up
 	aH.handleFunc(router, aH.getOperationsLegacy, "/services/{%s}/operations", serviceParam).Methods(http.MethodGet)
 	aH.handleFunc(router, aH.dependencies, "/dependencies").Methods(http.MethodGet)
-
-	router.PathPrefix("/static").Handler(http.FileServer(http.Dir(staticAssetsRoot)))
-	for _, file := range staticRootFiles {
-		router.Path("/" + file).HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-			http.ServeFile(w, r, staticAssetsRoot+file)
-		})
-	}
-	router.NotFoundHandler = http.HandlerFunc(notFound)
-}
-
-func notFound(w http.ResponseWriter, r *http.Request) {
-	// don't allow returning "304 Not Modified" for index.html because
-	// the cached versions might have the wrong filenames for javascript assets
-	delete(r.Header, "If-Modified-Since")
-	http.ServeFile(w, r, staticAssetsRoot+"index.html")
 }
 
 func (aH *APIHandler) handleFunc(
