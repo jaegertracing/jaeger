@@ -68,8 +68,10 @@ func main() {
 		app.HandlerOptions.Adjusters(app.StandardAdjusters),
 		app.HandlerOptions.Prefix(*builder.QueryPrefix),
 		app.HandlerOptions.Logger(logger))
+	sHandler := app.NewStaticAssetsHandler()
 	r := mux.NewRouter()
 	rHandler.RegisterRoutes(r)
+	sHandler.RegisterRoutes(r)
 	portStr := ":" + strconv.Itoa(*builder.QueryPort)
 	recoveryHandler := recoveryhandler.NewRecoveryHandler(logger, true)
 	logger.Info("Starting jaeger-query HTTP server", zap.Int("port", *builder.QueryPort))
