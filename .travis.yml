@@ -22,6 +22,9 @@ install:
   - make install_ci
 
 before_script:
+  - git clone https://github.com/uber/jaeger-ui
+  - cd jaeger-ui && npm install && npm run build && cd ..
+  - mkdir jaeger-ui-build && cp -r jaeger-ui/build jaeger-ui-build/
   - make build_standalone_linux
   - make build_examples_linux
   - export REPO=jaegertracing/all-in-one
@@ -33,9 +36,6 @@ before_script:
 #  - docker tag $REPO:$COMMIT $REPO:$TAG
   - docker tag $REPO:$COMMIT $REPO:travis-$TRAVIS_BUILD_NUMBER
   - docker push $REPO
-  - git clone https://github.com/uber/jaeger-ui
-  - cd jaeger-ui && npm install && npm run build
-  - cd ..
 
 script:
   - make test_ci
