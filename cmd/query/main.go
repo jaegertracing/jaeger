@@ -68,7 +68,7 @@ func main() {
 		app.HandlerOptions.Adjusters(app.StandardAdjusters),
 		app.HandlerOptions.Prefix(*builder.QueryPrefix),
 		app.HandlerOptions.Logger(logger))
-	sHandler := app.NewStaticAssetsHandler()
+	sHandler := app.NewStaticAssetsHandler(*builder.QueryStaticAssets)
 	r := mux.NewRouter()
 	rHandler.RegisterRoutes(r)
 	sHandler.RegisterRoutes(r)

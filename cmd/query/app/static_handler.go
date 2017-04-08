@@ -27,7 +27,7 @@ import (
 )
 
 const (
-	staticAssetsRoot = "jaeger-ui-build/build/"
+	defaultStaticAssetsRoot = "jaeger-ui-build/build/"
 )
 
 var (
@@ -35,27 +35,32 @@ var (
 )
 
 // StaticAssetsHandler handles static assets
-type StaticAssetsHandler struct{}
+type StaticAssetsHandler struct {
+	staticAssetsRoot string
+}
 
 // NewStaticAssetsHandler returns a StaticAssetsHandler
-func NewStaticAssetsHandler() *StaticAssetsHandler {
-	return &StaticAssetsHandler{}
+func NewStaticAssetsHandler(staticAssetsRoot string) *StaticAssetsHandler {
+	if staticAssetsRoot == "" {
+		staticAssetsRoot = defaultStaticAssetsRoot
+	}
+	return &StaticAssetsHandler{staticAssetsRoot: staticAssetsRoot}
 }
 
 // RegisterRoutes registers routes for this handler on the given router
 func (sH *StaticAssetsHandler) RegisterRoutes(router *mux.Router) {
-	router.PathPrefix("/static").Handler(http.FileServer(http.Dir(staticAssetsRoot)))
+	router.PathPrefix("/static").Handler(http.FileServer(http.Dir(sH.staticAssetsRoot)))
 	for _, file := range staticRootFiles {
 		router.Path("/" + file).HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-			http.ServeFile(w, r, staticAssetsRoot+file)
+			http.ServeFile(w, r, sH.staticAssetsRoot+file)
 		})
 	}
-	router.NotFoundHandler = http.HandlerFunc(notFound)
+	router.NotFoundHandler = http.HandlerFunc(sH.notFound)
 }
 
-func notFound(w http.ResponseWriter, r *http.Request) {
+func (sH *StaticAssetsHandler) notFound(w http.ResponseWriter, r *http.Request) {
 	// don't allow returning "304 Not Modified" for index.html because
 	// the cached versions might have the wrong filenames for javascript assets
 	delete(r.Header, "If-Modified-Since")
-	http.ServeFile(w, r, staticAssetsRoot+"index.html")
+	http.ServeFile(w, r, sH.staticAssetsRoot+"index.html")
 }
