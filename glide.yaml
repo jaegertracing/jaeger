@@ -37,3 +37,4 @@ import:
   version: v0.4.0
   subpackages:
   - metrics
+- package: github.com/dgryski/go-farm
