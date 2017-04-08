@@ -60,11 +60,11 @@ type serviceNamesWriter func(serviceName string) error
 type operationNamesWriter func(serviceName, operationName string) error
 
 type spanWriterMetrics struct {
-	tracesTableMetrics      *casMetrics.Table
-	tagIndexTableMetrics    *casMetrics.Table
-	serviceNameIndexMetrics *casMetrics.Table
-	serviceOperationIndex   *casMetrics.Table
-	durationIndex           *casMetrics.Table
+	traces                *casMetrics.Table
+	tagIndex              *casMetrics.Table
+	serviceNameIndex      *casMetrics.Table
+	serviceOperationIndex *casMetrics.Table
+	durationIndex         *casMetrics.Table
 }
 
 // SpanWriter handles all writes to Cassandra for the Jaeger data model
@@ -92,11 +92,11 @@ func NewSpanWriter(
 		serviceNamesWriter:   serviceNamesStorage.Write,
 		operationNamesWriter: operationNamesStorage.Write,
 		writerMetrics: spanWriterMetrics{
-			tracesTableMetrics:      casMetrics.NewTable(metricsFactory, "Traces"),
-			tagIndexTableMetrics:    casMetrics.NewTable(metricsFactory, "TagIndex"),
-			serviceNameIndexMetrics: casMetrics.NewTable(metricsFactory, "ServiceNameIndex"),
-			serviceOperationIndex:   casMetrics.NewTable(metricsFactory, "ServiceOperationIndex"),
-			durationIndex:           casMetrics.NewTable(metricsFactory, "DurationIndex"),
+			traces:                casMetrics.NewTable(metricsFactory, "Traces"),
+			tagIndex:              casMetrics.NewTable(metricsFactory, "TagIndex"),
+			serviceNameIndex:      casMetrics.NewTable(metricsFactory, "ServiceNameIndex"),
+			serviceOperationIndex: casMetrics.NewTable(metricsFactory, "ServiceOperationIndex"),
+			durationIndex:         casMetrics.NewTable(metricsFactory, "DurationIndex"),
 		},
 		logger:          logger,
 		tagIndexSkipped: tagIndexSkipped,
@@ -122,7 +122,7 @@ func (s *SpanWriter) WriteSpan(span *model.Span) error {
 		ds.Process,
 	)
 
-	if err := s.writerMetrics.tracesTableMetrics.Exec(mainQuery, s.logger); err != nil {
+	if err := s.writerMetrics.traces.Exec(mainQuery, s.logger); err != nil {
 		return s.logError(ds, err, "Failed to insert span", s.logger)
 	}
 	if err := s.saveServiceNameAndOperationName(ds.ServiceName, ds.OperationName); err != nil {
@@ -150,7 +150,7 @@ func (s *SpanWriter) indexByTags(span *model.Span, ds *dbmodel.Span) error {
 		// we should consider bucketing.
 		if s.shouldIndexTag(v) {
 			insertTagQuery := s.session.Query(insertTag, ds.TraceID, ds.SpanID, v.ServiceName, ds.StartTime, v.TagKey, v.TagValue)
-			if err := s.writerMetrics.tagIndexTableMetrics.Exec(insertTagQuery, s.logger); err != nil {
+			if err := s.writerMetrics.tagIndex.Exec(insertTagQuery, s.logger); err != nil {
 				withTagInfo := s.logger.
 					With(zap.String("tag_key", v.TagKey)).
 					With(zap.String("tag_value", v.TagValue)).
@@ -186,7 +186,7 @@ func (s *SpanWriter) indexBySericeAndOperation(traceID model.TraceID, span *dbmo
 	query2 := s.session.Query(serviceOperationIndex)
 	var err error
 	q1 := query1.Bind(span.Process.ServiceName, bucketNo, startTime, span.TraceID)
-	err2 := s.writerMetrics.serviceNameIndexMetrics.Exec(q1, s.logger)
+	err2 := s.writerMetrics.serviceNameIndex.Exec(q1, s.logger)
 	if err2 != nil {
 		err = err2
 	}

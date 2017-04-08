@@ -79,3 +79,19 @@ func TestGetIntersectedTraceIDs(t *testing.T) {
 	actual := IntersectTraceIDs(listOfUniqueTraceIDs)
 	assert.EqualValues(t, expected, actual)
 }
+
+func TestAdd(t *testing.T) {
+	u := UniqueTraceIDs{}
+	someID := TraceIDFromDomain(model.TraceID{High: 1, Low: 1})
+	u.Add(someID)
+	assert.Contains(t, u, someID)
+}
+
+func TestToList(t *testing.T) {
+	u := UniqueTraceIDs{}
+	someID := TraceIDFromDomain(model.TraceID{High: 1, Low: 1})
+	u.Add(someID)
+	l := u.ToList()
+	assert.Len(t, l, 1)
+	assert.Equal(t, someID, l[0])
+}
