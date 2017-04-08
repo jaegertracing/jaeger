@@ -24,6 +24,7 @@ import (
 	"errors"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
@@ -166,15 +167,19 @@ func TestSpanReaderFindTracesBadRequest(t *testing.T) {
 
 func TestSpanReaderFindTraces(t *testing.T) {
 	testCases := []struct {
-		caption        string
-		numTraces      int
-		queryTags      bool
-		mainQueryError error
-		tagsQueryError error
-		loadQueryError error
-		expectedCount  int
-		expectedError  string
-		expectedLogs   []string
+		caption                           string
+		numTraces                         int
+		queryTags                         bool
+		queryOperation                    bool
+		queryDuration                     bool
+		mainQueryError                    error
+		tagsQueryError                    error
+		serviceNameAndOperationQueryError error
+		durationQueryError                error
+		loadQueryError                    error
+		expectedCount                     int
+		expectedError                     string
+		expectedLogs                      []string
 	}{
 		{
 			caption:       "main query",
@@ -196,7 +201,7 @@ func TestSpanReaderFindTraces(t *testing.T) {
 			expectedError:  "main query error",
 			expectedLogs: []string{
 				"Failed to exec query",
-				"SELECT trace_id, span_id FROM traces",
+				"main query error",
 			},
 		},
 		{
@@ -206,7 +211,57 @@ func TestSpanReaderFindTraces(t *testing.T) {
 			expectedError:  "tags query error",
 			expectedLogs: []string{
 				"Failed to exec query",
-				"SELECT trace_id, span_id FROM tag_index",
+				"tags query error",
+			},
+		},
+		{
+			caption:        "operation name query",
+			queryOperation: true,
+			numTraces:      0,
+			expectedCount:  2,
+		},
+		{
+			caption:        "operation name and tag query",
+			queryTags:      true,
+			queryOperation: true,
+			expectedCount:  2,
+		},
+		{
+			caption:                           "operation name and tag error on operation query",
+			queryTags:                         true,
+			queryOperation:                    true,
+			serviceNameAndOperationQueryError: errors.New("operation query error"),
+			expectedError:                     "operation query error",
+			expectedLogs: []string{
+				"Failed to exec query",
+				"operation query error",
+			},
+		},
+		{
+			caption:        "operation name and tag error on tag query",
+			queryTags:      true,
+			queryOperation: true,
+			tagsQueryError: errors.New("tags query error"),
+			expectedError:  "tags query error",
+			expectedLogs: []string{
+				"Failed to exec query",
+				"tags query error",
+			},
+		},
+		{
+			caption:       "duration query",
+			queryDuration: true,
+			numTraces:     1,
+			expectedCount: 1,
+		},
+		{
+			caption:            "duration query error",
+			queryDuration:      true,
+			durationQueryError: errors.New("duration query error"),
+			expectedError:      "duration query error",
+			expectedLogs: []string{
+				"Failed to exec query",
+				"duration query error",
 			},
 		},
 		{
@@ -263,6 +318,8 @@ func TestSpanReaderFindTraces(t *testing.T) {
 
 				mainQuery := mockQuery(testCase.mainQueryError)
 				tagsQuery := mockQuery(testCase.tagsQueryError)
+				operationQuery := mockQuery(testCase.serviceNameAndOperationQueryError)
+				durationQuery := mockQuery(testCase.durationQueryError)
 
 				makeLoadQuery := func() *mocks.Query {
 					loadQueryIter := &mocks.Iterator{}
@@ -276,18 +333,28 @@ func TestSpanReaderFindTraces(t *testing.T) {
 					return loadQuery
 				}
 
-				r.session.On("Query", stringMatcher("SELECT trace_id, span_id FROM traces"), matchEverything()).Return(mainQuery)
-				r.session.On("Query", stringMatcher("SELECT trace_id, span_id FROM tag_index"), matchEverything()).Return(tagsQuery)
-				r.session.On("Query", stringMatcher("SELECT trace_id, span_id, "), matchOnce()).Return(makeLoadQuery())
-				r.session.On("Query", stringMatcher("SELECT trace_id, span_id, "), matchEverything()).Return(makeLoadQuery())
+				r.session.On("Query", stringMatcher(queryByServiceName), matchEverything()).Return(mainQuery)
+				r.session.On("Query", stringMatcher(queryByTag), matchEverything()).Return(tagsQuery)
+				r.session.On("Query", stringMatcher(queryByServiceAndOperationName), matchEverything()).Return(operationQuery)
+				r.session.On("Query", stringMatcher(queryByDuration), matchEverything()).Return(durationQuery)
+				r.session.On("Query", stringMatcher("SELECT trace_id"), matchOnce()).Return(makeLoadQuery())
+				r.session.On("Query", stringMatcher("SELECT trace_id"), matchEverything()).Return(makeLoadQuery())
 
 				queryParams := &spanstore.TraceQueryParameters{ServiceName: "service-a", NumTraces: 100}
-				if testCase.numTraces != 0 {
-					queryParams.NumTraces = testCase.numTraces
-				}
+
+				queryParams.NumTraces = testCase.numTraces
 				if testCase.queryTags {
 					queryParams.Tags = make(map[string]string)
 					queryParams.Tags["x"] = "y"
+				}
+				if testCase.queryOperation {
+					queryParams.OperationName = "operation-b"
+				}
+				if testCase.queryDuration {
+					queryParams.DurationMin = time.Minute
+					queryParams.DurationMax = time.Minute * 3
+					queryParams.StartTimeMax = time.Now()
+					queryParams.StartTimeMin = time.Now().Add(-1 * time.Minute * 30)
 				}
 				res, err := r.reader.FindTraces(queryParams)
 				if testCase.expectedError == "" {

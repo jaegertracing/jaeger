@@ -35,10 +35,23 @@ import (
 )
 
 const (
+	bucketRange        = `(0,1,2,3,4,5,6,7,8,9)`
 	querySpanByTraceID = `
-		SELECT trace_id, span_id, parent_id, operation_name, flags, start_time, duration, tags, logs, refs, process 
-		FROM traces 
+		SELECT trace_id, span_id, parent_id, operation_name, flags, start_time, duration, tags, logs, refs, process
+		FROM traces
 		WHERE trace_id = ?`
+
+	queryByTag                     = `SELECT trace_id FROM tag_index WHERE service_name = ? AND tag_key = ? AND tag_value = ? and start_time > ? and start_time < ? limit ?`
+	queryByServiceName             = `select trace_id from service_name_index where bucket in ` + bucketRange + ` and service_name = ? and start_time > ? and start_time < ? limit ?`
+	queryByServiceAndOperationName = `select trace_id from service_operation_index where service_name = ? and operation_name = ? and start_time > ? and start_time < ? limit ?`
+	queryByDuration                = `select trace_id from span_duration_index where bucket = ? and service_name = ? and span_name = ? and duration > ? and duration < ? limit ?`
+
+	defaultNumTraces = 20
+)
+
+var (
+	// ErrMalformedRequestObject occurs when a request object is nil
+	ErrMalformedRequestObject = errors.New("Malformed request object")
 )
 
 type serviceNamesReader func() ([]string, error)
@@ -47,14 +60,17 @@ type operationNamesReader func(service string) ([]string, error)
 
 // SpanReader can query for and load traces from Cassandra.
 type SpanReader struct {
-	session                   cassandra.Session
-	consistency               cassandra.Consistency
-	serviceNamesReader        serviceNamesReader
-	operationNamesReader      operationNamesReader
-	readTracesTableMetrics    *casMetrics.Table
-	queryTraceTableMetrics    *casMetrics.Table
-	queryTagIndexTableMetrics *casMetrics.Table
-	logger                    *zap.Logger
+	session                           cassandra.Session
+	consistency                       cassandra.Consistency
+	serviceNamesReader                serviceNamesReader
+	operationNamesReader              operationNamesReader
+	readTracesTableMetrics            *casMetrics.Table
+	queryTraceTableMetrics            *casMetrics.Table
+	queryTagIndexTableMetrics         *casMetrics.Table
+	queryDurationIndexTableMetrics    *casMetrics.Table
+	serviceOperationIndexTableMetrics *casMetrics.Table
+	serviceNameIndexTableMetrics      *casMetrics.Table
+	logger                            *zap.Logger
 }
 
 // NewSpanReader returns a new SpanReader.
@@ -67,13 +83,16 @@ func NewSpanReader(
 	serviceNamesStorage := NewServiceNamesStorage(session, 0, metricsFactory, logger)
 	operationNamesStorage := NewOperationNamesStorage(session, 0, metricsFactory, logger)
 	return &SpanReader{
-		session:                   session,
-		consistency:               cassandra.One,
-		serviceNamesReader:        serviceNamesStorage.GetServices,
-		operationNamesReader:      operationNamesStorage.GetOperations,
-		readTracesTableMetrics:    casMetrics.NewTable(readFactory, "ReadTraces"),
-		queryTraceTableMetrics:    casMetrics.NewTable(readFactory, "QueryTraces"),
-		queryTagIndexTableMetrics: casMetrics.NewTable(readFactory, "TagIndex"),
+		session:                           session,
+		consistency:                       cassandra.One,
+		serviceNamesReader:                serviceNamesStorage.GetServices,
+		operationNamesReader:              operationNamesStorage.GetOperations,
+		readTracesTableMetrics:            casMetrics.NewTable(readFactory, "ReadTraces"),
+		queryTraceTableMetrics:            casMetrics.NewTable(readFactory, "QueryTraces"),
+		queryTagIndexTableMetrics:         casMetrics.NewTable(readFactory, "TagIndex"),
+		queryDurationIndexTableMetrics:    casMetrics.NewTable(readFactory, "DurationIndex"),
+		serviceOperationIndexTableMetrics: casMetrics.NewTable(readFactory, "ServiceOperationIndex"),
+		serviceNameIndexTableMetrics:      casMetrics.NewTable(readFactory, "ServiceNameIndex"),
 		logger: logger,
 	}
 }
@@ -143,28 +162,24 @@ func (s *SpanReader) GetTrace(traceID model.TraceID) (*model.Trace, error) {
 }
 
 // FindTraces queries for traces.
-func (s *SpanReader) FindTraces(queryParams *spanstore.TraceQueryParameters) ([]*model.Trace, error) {
-	queries, err := BuildQueries(queryParams)
+func (s *SpanReader) FindTraces(traceQuery *spanstore.TraceQueryParameters) ([]*model.Trace, error) {
+	if traceQuery == nil {
+		return nil, ErrMalformedRequestObject
+	}
+	if traceQuery.NumTraces == 0 {
+		traceQuery.NumTraces = defaultNumTraces
+	}
+	traceIDs, err := s.getTraceIDs(traceQuery)
 	if err != nil {
 		return nil, err
 	}
-	mainQueryTraceIDs, err := s.executeQuery(queries.MainQuery, s.queryTraceTableMetrics)
-	if err != nil {
-		return nil, err
+	uniqueTraceIDs := map[dbmodel.TraceID]struct{}{}
+	for _, traceID := range traceIDs {
+		uniqueTraceIDs[traceID] = struct{}{}
 	}
-	allTraceIDsFromQueries := make([]dbmodel.UniqueTraceIDs, 0, len(queries.TagQueries)+1)
-	allTraceIDsFromQueries = append(allTraceIDsFromQueries, mainQueryTraceIDs)
-	for _, tagQueryStmt := range queries.TagQueries {
-		tagTraceIds, err := s.executeQuery(tagQueryStmt, s.queryTagIndexTableMetrics)
-		if err != nil {
-			return nil, err
-		}
-		allTraceIDsFromQueries = append(allTraceIDsFromQueries, tagTraceIds)
-	}
-	traceIDs := dbmodel.IntersectTraceIDs(allTraceIDsFromQueries)
 	var retMe []*model.Trace
-	for traceID := range traceIDs {
-		if len(retMe) >= queries.NumTraces {
+	for traceID := range uniqueTraceIDs {
+		if len(retMe) >= traceQuery.NumTraces {
 			break
 		}
 		jTrace, err := s.readTrace(traceID)
@@ -177,26 +192,147 @@ func (s *SpanReader) FindTraces(queryParams *spanstore.TraceQueryParameters) ([]
 	return retMe, nil
 }
 
-// executeQuery returns UniqueTraceIDs
-func (s *SpanReader) executeQuery(query Query, tableMetrics *casMetrics.Table) (dbmodel.UniqueTraceIDs, error) {
-	start := time.Now()
-	q := s.session.Query(query.QueryString()).Bind(query.Parameters...)
-	i := q.Consistency(s.consistency).Iter()
-	var spans []dbmodel.Span
-	var traceID dbmodel.TraceID
-	var spanID int64
-	for i.Scan(&traceID, &spanID) {
-		traceAndSpanID := dbmodel.Span{
-			TraceID: traceID,
-			SpanID:  spanID,
+// FindTraces queries for traces.
+func (s *SpanReader) getTraceIDs(traceQuery *spanstore.TraceQueryParameters) ([]dbmodel.TraceID, error) {
+	if traceQuery.DurationMin != 0 {
+		return s.queryTraceIdsByDuration(traceQuery)
+	}
+
+	// NB(rooz): consider refactoring the query... methods where they take in traceQuery instead of a breakdown of its values
+	if traceQuery.OperationName != "" {
+		traceIds, err := s.queryByServiceNameAndOperation(traceQuery.ServiceName, traceQuery.OperationName, traceQuery.StartTimeMin, traceQuery.StartTimeMax, traceQuery.NumTraces)
+		if err != nil {
+			return nil, err
 		}
-		spans = append(spans, traceAndSpanID)
+		if len(traceQuery.Tags) > 0 {
+			tagTraceIds, err := s.queryByTagsAndLogs(traceQuery.ServiceName, traceQuery.StartTimeMin, traceQuery.StartTimeMax, traceQuery.Tags, traceQuery.NumTraces)
+			if err != nil {
+				return nil, err
+			}
+			return s.intersectTraceIDSlices(traceIds, tagTraceIds), nil
+		}
+		return traceIds, err
+	}
+	if len(traceQuery.Tags) > 0 {
+		return s.queryByTagsAndLogs(traceQuery.ServiceName, traceQuery.StartTimeMin, traceQuery.StartTimeMax, traceQuery.Tags, traceQuery.NumTraces)
+	}
+	return s.queryTraceIdsByService(traceQuery.ServiceName, traceQuery.StartTimeMin, traceQuery.StartTimeMax, traceQuery.NumTraces)
+}
+
+func (s *SpanReader) intersectTraceIDSlices(one, other []dbmodel.TraceID) []dbmodel.TraceID {
+	oneAsMap := dbmodel.UniqueTraceIDs{}
+	for _, i := range one {
+		oneAsMap[i] = struct{}{}
+	}
+	var retMe []dbmodel.TraceID
+	for _, i := range other {
+		if _, ok := oneAsMap[i]; ok {
+			retMe = append(retMe, i)
+		}
+	}
+	return retMe
+}
+
+type traceIDResult struct {
+	traceIDs []dbmodel.TraceID
+	err      error
+}
+
+func (s *SpanReader) queryByTagsAndLogs(serviceName string, startTime, endTime time.Time, tags map[string]string, limit int) ([]dbmodel.TraceID, error) {
+	var results []traceIDResult
+	for k, v := range tags {
+		// service_name = ? AND tag_key = ? AND tag_value = ? and start_time > ? and start_time < ? limit ?`
+		query := s.session.Query(
+			queryByTag,
+			serviceName,
+			k,
+			v,
+			model.TimeAsEpochMicroseconds(startTime),
+			model.TimeAsEpochMicroseconds(endTime),
+			limit,
+		)
+		t, err := s.executeQuery(query, s.queryTagIndexTableMetrics)
+		results = append(results, traceIDResult{err: err, traceIDs: t})
+	}
+	unionedTraceIDs := map[dbmodel.TraceID]bool{}
+	for _, result := range results {
+		if result.err != nil {
+			return nil, result.err
+		}
+		for _, traceID := range result.traceIDs {
+			unionedTraceIDs[traceID] = true
+		}
+	}
+	var retMe []dbmodel.TraceID
+	for k := range unionedTraceIDs {
+		retMe = append(retMe, k)
+	}
+	return retMe, nil
+}
+
+func (s *SpanReader) queryTraceIdsByDuration(traceQuery *spanstore.TraceQueryParameters) ([]dbmodel.TraceID, error) {
+	var traceIds []dbmodel.TraceID
+
+	minDurationMicros := (traceQuery.DurationMin.Nanoseconds() / int64(time.Microsecond/time.Nanosecond))
+	maxDurationMicros := (traceQuery.DurationMax.Nanoseconds() / int64(time.Microsecond/time.Nanosecond))
+
+	// See writer.go:indexSpanDuration  for how this is indexed
+	// This is indexed in hours since epoch, converted to seconds
+	// TODO encapsulate this calculation
+	startTimeSeconds := (traceQuery.StartTimeMin.UnixNano() / int64(time.Hour))
+	endTimeSeconds := (traceQuery.StartTimeMax.UnixNano() / int64(time.Hour))
+
+	for timeBucket := startTimeSeconds; timeBucket <= endTimeSeconds; timeBucket++ {
+		query := s.session.Query(
+			queryByDuration,
+			timeBucket,
+			traceQuery.ServiceName,
+			traceQuery.OperationName,
+			minDurationMicros,
+			maxDurationMicros,
+			traceQuery.NumTraces)
+		t, err := s.executeQuery(query, s.queryDurationIndexTableMetrics)
+		if err != nil {
+			return nil, err
+		}
+
+		traceIds = append(traceIds, t...)
+		if len(traceIds) > traceQuery.NumTraces {
+			traceIds = traceIds[:traceQuery.NumTraces]
+			break
+		}
+	}
+	return traceIds, nil
+}
+
+func (s *SpanReader) queryByServiceNameAndOperation(serviceName string, operation string, startTime, endTime time.Time, limit int) ([]dbmodel.TraceID, error) {
+	query := s.session.Query(queryByServiceAndOperationName, serviceName, operation, model.TimeAsEpochMicroseconds(startTime), model.TimeAsEpochMicroseconds(endTime), limit)
+	return s.executeQuery(query, s.serviceOperationIndexTableMetrics)
+}
+
+func (s *SpanReader) queryTraceIdsByService(serviceName string, startTime, endTime time.Time, limit int) ([]dbmodel.TraceID, error) {
+	query := s.session.Query(queryByServiceName, serviceName, model.TimeAsEpochMicroseconds(startTime), model.TimeAsEpochMicroseconds(endTime), limit)
+	return s.executeQuery(query, s.serviceNameIndexTableMetrics)
+}
+
+// executeQuery returns UniqueTraceIDs
+func (s *SpanReader) executeQuery(query cassandra.Query, tableMetrics *casMetrics.Table) ([]dbmodel.TraceID, error) {
+	start := time.Now()
+	i := query.Consistency(s.consistency).Iter()
+	traceIDs := map[dbmodel.TraceID]struct{}{}
+	var traceID dbmodel.TraceID
+	for i.Scan(&traceID) {
+		traceIDs[traceID] = struct{}{}
 	}
 	err := i.Close()
 	tableMetrics.Emit(err, time.Since(start))
 	if err != nil {
-		s.logger.Error("Failed to exec query", zap.String("query", query.QueryString()), zap.Any("params", query.Parameters), zap.Error(err))
+		s.logger.Error("Failed to exec query", zap.Error(err))
 		return nil, err
 	}
-	return dbmodel.GetUniqueTraceIDs(spans), nil
+	var retMe []dbmodel.TraceID
+	for traceID := range traceIDs {
+		retMe = append(retMe, traceID)
+	}
+	return retMe, nil
 }
