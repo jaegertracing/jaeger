@@ -312,8 +312,8 @@ func (s *SpanReader) queryByDuration(traceQuery *spanstore.TraceQueryParameters)
 	// See writer.go:indexByDuration  for how this is indexed
 	// This is indexed in hours since epoch, converted to seconds
 	// TODO encapsulate this calculation
-	startTimeSeconds := (traceQuery.StartTimeMin / int64(time.Hour / time.Nanosecond))
-	endTimeSeconds := (traceQuery.StartTimeMax / int64(time.Hour / time.Nanosecond))
+	startTimeSeconds := (traceQuery.StartTimeMin.UnixNano() / int64(time.Hour))
+	endTimeSeconds := (traceQuery.StartTimeMax.UnixNano() / int64(time.Hour))
 
 	for timeBucket := endTimeSeconds; timeBucket >= startTimeSeconds; timeBucket-- {
 		query := s.session.Query(
