@@ -23,6 +23,15 @@ package dbmodel
 // UniqueTraceIDs is a set of unique dbmodel TraceIDs, implemented via map.
 type UniqueTraceIDs map[TraceID]struct{}
 
+// UniqueTraceIDsFromList Takes a list of traceIDs and returns the unique set
+func UniqueTraceIDsFromList(traceIDs []TraceID) UniqueTraceIDs {
+	uniqueTraceIDs := UniqueTraceIDs{}
+	for _, traceID := range traceIDs {
+		uniqueTraceIDs[traceID] = struct{}{}
+	}
+	return uniqueTraceIDs
+}
+
 // Add adds a traceID to the existing map
 func (u UniqueTraceIDs) Add(traceID TraceID) {
 	u[traceID] = struct{}{}
@@ -30,9 +39,11 @@ func (u UniqueTraceIDs) Add(traceID TraceID) {
 
 // ToList takes the TraceID keys and returns a slice of type TraceID
 func (u UniqueTraceIDs) ToList() []TraceID {
-	var retMe []TraceID
+	retMe := make([]TraceID, len(u))
+	i := 0
 	for k := range u {
-		retMe = append(retMe, k)
+		retMe[i] = k
+		i++
 	}
 	return retMe
 }

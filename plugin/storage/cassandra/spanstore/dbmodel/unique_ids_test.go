@@ -95,3 +95,13 @@ func TestToList(t *testing.T) {
 	assert.Len(t, l, 1)
 	assert.Equal(t, someID, l[0])
 }
+
+func TestFromList(t *testing.T) {
+	someID := TraceIDFromDomain(model.TraceID{High: 1, Low: 1})
+	traceIDList := []TraceID{
+		someID,
+	}
+	uniqueTraceIDs := UniqueTraceIDsFromList(traceIDList)
+	assert.Len(t, uniqueTraceIDs, 1)
+	assert.Contains(t, uniqueTraceIDs, someID)
+}

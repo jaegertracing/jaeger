@@ -34,6 +34,7 @@ import (
 	"github.com/uber/jaeger/pkg/cassandra"
 	casMetrics "github.com/uber/jaeger/pkg/cassandra/metrics"
 	"github.com/uber/jaeger/plugin/storage/cassandra/spanstore/dbmodel"
+	"sync/atomic"
 )
 
 const (
@@ -42,13 +43,26 @@ const (
 		INTO traces(trace_id, span_id, span_hash, parent_id, operation_name, flags,
 				    start_time, duration, tags, logs, refs, process)
 		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
-	insertTag = `INSERT INTO tag_index(trace_id, span_id, service_name, start_time, tag_key, tag_value) VALUES (?, ?, ?, ?, ?, ?)`
+	insertTag = `
+		INSERT
+		INTO tag_index(trace_id, span_id, service_name, start_time, tag_key, tag_value)
+		VALUES (?, ?, ?, ?, ?, ?)`
 
-	serviceNameIndex = `INSERT INTO service_name_index(service_name, bucket, start_time, trace_id) VALUES (?, ?, ?, ?)`
+	serviceNameIndex = `
+		INSERT
+		INTO service_name_index(service_name, bucket, start_time, trace_id)
+		VALUES (?, ?, ?, ?)`
 
-	serviceOperationIndex = `INSERT INTO service_operation_index(service_name, operation_name, start_time, trace_id) VALUES (?, ?, ?, ?)`
+	serviceOperationIndex = `
+		INSERT
+		INTO
+		service_operation_index(service_name, operation_name, start_time, trace_id)
+		VALUES (?, ?, ?, ?)`
 
-	durationIndex = `INSERT INTO duration_index(service_name, operation_name, bucket, duration, start_time, trace_id) VALUES (?, ?, ?, ?, ?, ?)`
+	durationIndex = `
+		INSERT
+		INTO duration_index(service_name, operation_name, bucket, duration, start_time, trace_id)
+		VALUES (?, ?, ?, ?, ?, ?)`
 
 	maximumTagKeyOrValueSize = 256
 
@@ -134,8 +148,12 @@ func (s *SpanWriter) WriteSpan(span *model.Span) error {
 		return s.logError(ds, err, "Failed to index tags", s.logger)
 	}
 
-	if err := s.indexBySericeAndOperation(span.TraceID, ds); err != nil {
-		return s.logError(ds, err, "Failed to index service and operation name", s.logger)
+	if err := s.indexBySerice(span.TraceID, ds); err != nil {
+		return s.logError(ds, err, "Failed to index service name", s.logger)
+	}
+
+	if err := s.indexByOperation(span.TraceID, ds); err != nil {
+		return s.logError(ds, err, "Failed to index operation name", s.logger)
 	}
 
 	if err := s.indexByDuration(ds); err != nil {
@@ -179,23 +197,17 @@ func (s *SpanWriter) indexByDuration(span *dbmodel.Span) error {
 	return err
 }
 
-func (s *SpanWriter) indexBySericeAndOperation(traceID model.TraceID, span *dbmodel.Span) error {
-	startTime := span.StartTime
-	bucketNo := traceID.Low % defaultNumBuckets
-	query1 := s.session.Query(serviceNameIndex)
-	query2 := s.session.Query(serviceOperationIndex)
-	var err error
-	q1 := query1.Bind(span.Process.ServiceName, bucketNo, startTime, span.TraceID)
-	err2 := s.writerMetrics.serviceNameIndex.Exec(q1, s.logger)
-	if err2 != nil {
-		err = err2
-	}
-	q2 := query2.Bind(span.Process.ServiceName, span.OperationName, startTime, span.TraceID)
-	err2 = s.writerMetrics.serviceOperationIndex.Exec(q2, s.logger)
-	if err2 != nil {
-		err = err2
-	}
-	return err
+func (s *SpanWriter) indexBySerice(traceID model.TraceID, span *dbmodel.Span) error {
+	bucketNo := atomic.AddUint64(&traceID.Low, 1) % defaultNumBuckets
+	query := s.session.Query(serviceNameIndex)
+	q := query.Bind(span.Process.ServiceName, bucketNo, span.StartTime, span.TraceID)
+	return s.writerMetrics.serviceNameIndex.Exec(q, s.logger)
+}
+
+func (s *SpanWriter) indexByOperation(traceID model.TraceID, span *dbmodel.Span) error {
+	query := s.session.Query(serviceOperationIndex)
+	q := query.Bind(span.Process.ServiceName, span.OperationName, span.StartTime, span.TraceID)
+	return s.writerMetrics.serviceOperationIndex.Exec(q, s.logger)
 }
 
 // shouldIndexTag checks to see if the tag is json or not, if it's UTF8 valid and it's not too large
@@ -209,6 +221,7 @@ func (s *SpanWriter) shouldIndexTag(tag dbmodel.TagInsertion) bool {
 	return len(tag.TagKey) < maximumTagKeyOrValueSize &&
 		len(tag.TagValue) < maximumTagKeyOrValueSize &&
 		utf8.ValidString(tag.TagValue) &&
+		utf8.ValidString(tag.TagKey) &&
 		!isJSON(tag.TagValue)
 }
 

@@ -76,6 +76,9 @@ var (
 
 	// ErrMalformedRequestObject occurs when a request object is nil
 	ErrMalformedRequestObject = errors.New("Malformed request object")
+
+	// ErrDurationAndTagQueryNotSupported when duration and tags are both set
+	ErrDurationAndTagQueryNotSupported = errors.New("Cannot query for duration and tags simultaneously")
 )
 
 type serviceNamesReader func() ([]string, error)
@@ -97,7 +100,7 @@ type SpanReader struct {
 	consistency          cassandra.Consistency
 	serviceNamesReader   serviceNamesReader
 	operationNamesReader operationNamesReader
-	readerMetrics        spanReaderMetrics
+	metrics              spanReaderMetrics
 	logger               *zap.Logger
 }
 
@@ -115,7 +118,7 @@ func NewSpanReader(
 		consistency:          cassandra.One,
 		serviceNamesReader:   serviceNamesStorage.GetServices,
 		operationNamesReader: operationNamesStorage.GetOperations,
-		readerMetrics: spanReaderMetrics{
+		metrics: spanReaderMetrics{
 			readTraces:                 casMetrics.NewTable(readFactory, "ReadTraces"),
 			queryTrace:                 casMetrics.NewTable(readFactory, "QueryTraces"),
 			queryTagIndex:              casMetrics.NewTable(readFactory, "TagIndex"),
@@ -169,14 +172,14 @@ func (s *SpanReader) readTrace(traceID dbmodel.TraceID) (*model.Trace, error) {
 		span, err := dbmodel.ToDomain(&dbSpan)
 		if err != nil {
 			//do we consider conversion failure to cause such metrics to be emitted? for now i'm assuming yes.
-			s.readerMetrics.readTraces.Emit(err, time.Since(start))
+			s.metrics.readTraces.Emit(err, time.Since(start))
 			return nil, err
 		}
 		retMe.Spans = append(retMe.Spans, span)
 	}
 
 	err := i.Close()
-	s.readerMetrics.readTraces.Emit(err, time.Since(start))
+	s.metrics.readTraces.Emit(err, time.Since(start))
 	if err != nil {
 		return nil, errors.Wrap(err, "Error reading traces from storage")
 	}
@@ -204,10 +207,13 @@ func validateQuery(p *spanstore.TraceQueryParameters) error {
 	if p.DurationMin != 0 && p.DurationMax != 0 && p.DurationMin > p.DurationMax {
 		return ErrDurationMinGreaterThanMax
 	}
+	if p.DurationMin != 0 && len(p.Tags) > 0 {
+		return ErrDurationAndTagQueryNotSupported
+	}
 	return nil
 }
 
-// FindTraces consumes query parameters and finds Traces that fit those parameters
+// FindTraces retrieves traces that match the traceQuery
 func (s *SpanReader) FindTraces(traceQuery *spanstore.TraceQueryParameters) ([]*model.Trace, error) {
 	if err := validateQuery(traceQuery); err != nil {
 		return nil, err
@@ -215,13 +221,9 @@ func (s *SpanReader) FindTraces(traceQuery *spanstore.TraceQueryParameters) ([]*
 	if traceQuery.NumTraces == 0 {
 		traceQuery.NumTraces = defaultNumTraces
 	}
-	traceIDs, err := s.getTraceIDs(traceQuery)
+	uniqueTraceIDs, err := s.findTraceIDs(traceQuery)
 	if err != nil {
 		return nil, err
-	}
-	uniqueTraceIDs := map[dbmodel.TraceID]struct{}{}
-	for _, traceID := range traceIDs {
-		uniqueTraceIDs[traceID] = struct{}{}
 	}
 	var retMe []*model.Trace
 	for traceID := range uniqueTraceIDs {
@@ -238,72 +240,60 @@ func (s *SpanReader) FindTraces(traceQuery *spanstore.TraceQueryParameters) ([]*
 	return retMe, nil
 }
 
-// FindTraces queries for traces.
-func (s *SpanReader) getTraceIDs(traceQuery *spanstore.TraceQueryParameters) ([]dbmodel.TraceID, error) {
+func (s *SpanReader) findTraceIDs(traceQuery *spanstore.TraceQueryParameters) (dbmodel.UniqueTraceIDs, error) {
 	if traceQuery.DurationMin != 0 {
 		return s.queryByDuration(traceQuery)
 	}
 
 	// NB(rooz): consider refactoring the query... methods where they take in traceQuery instead of a breakdown of its values
 	if traceQuery.OperationName != "" {
-		traceIds, err := s.queryByServiceNameAndOperation(traceQuery.ServiceName, traceQuery.OperationName, traceQuery.StartTimeMin, traceQuery.StartTimeMax, traceQuery.NumTraces)
+		traceIds, err := s.queryByServiceNameAndOperation(traceQuery)
 		if err != nil {
 			return nil, err
 		}
 		if len(traceQuery.Tags) > 0 {
-			tagTraceIds, err := s.queryByTagsAndLogs(traceQuery.ServiceName, traceQuery.StartTimeMin, traceQuery.StartTimeMax, traceQuery.Tags, traceQuery.NumTraces)
+			tagTraceIds, err := s.queryByTagsAndLogs(traceQuery)
 			if err != nil {
 				return nil, err
 			}
-			return s.intersectTraceIDSlices(traceIds, tagTraceIds), nil
+			return dbmodel.IntersectTraceIDs([]dbmodel.UniqueTraceIDs{
+				traceIds,
+				tagTraceIds,
+			}), nil
 		}
 		return traceIds, err
 	}
 	if len(traceQuery.Tags) > 0 {
-		return s.queryByTagsAndLogs(traceQuery.ServiceName, traceQuery.StartTimeMin, traceQuery.StartTimeMax, traceQuery.Tags, traceQuery.NumTraces)
+		return s.queryByTagsAndLogs(traceQuery)
 	}
-	return s.queryByService(traceQuery.ServiceName, traceQuery.StartTimeMin, traceQuery.StartTimeMax, traceQuery.NumTraces)
+	return s.queryByService(traceQuery)
 }
 
-func (s *SpanReader) intersectTraceIDSlices(one, other []dbmodel.TraceID) []dbmodel.TraceID {
-	oneAsMap := dbmodel.UniqueTraceIDs{}
-	for _, i := range one {
-		oneAsMap[i] = struct{}{}
-	}
-	var retMe []dbmodel.TraceID
-	for _, i := range other {
-		if _, ok := oneAsMap[i]; ok {
-			retMe = append(retMe, i)
-		}
-	}
-	return retMe
-}
-
-func (s *SpanReader) queryByTagsAndLogs(serviceName string, startTime, endTime time.Time, tags map[string]string, limit int) ([]dbmodel.TraceID, error) {
+func (s *SpanReader) queryByTagsAndLogs(tq *spanstore.TraceQueryParameters) (dbmodel.UniqueTraceIDs, error) {
 	results := dbmodel.UniqueTraceIDs{}
-	for k, v := range tags {
-		// service_name = ? AND tag_key = ? AND tag_value = ? and start_time > ? and start_time < ? limit ?`
+	for k, v := range tq.Tags {
 		query := s.session.Query(
 			queryByTag,
-			serviceName,
+			tq.ServiceName,
 			k,
 			v,
-			model.TimeAsEpochMicroseconds(startTime),
-			model.TimeAsEpochMicroseconds(endTime),
-			limit,
+			model.TimeAsEpochMicroseconds(tq.StartTimeMin),
+			model.TimeAsEpochMicroseconds(tq.StartTimeMax),
+			tq.NumTraces,
 		)
-		t, err := s.executeQuery(query, s.readerMetrics.queryTagIndex)
+		t, err := s.executeQuery(query, s.metrics.queryTagIndex)
 		if err != nil {
 			return nil, err
 		}
-		for _, tID := range t {
-			results.Add(tID)
+		// (NB)rooz: I don't think this is the behavior we actually want. This is OR over queried tags, do we want that or AND behavior?
+		for tID := range t {
+			results[tID] = struct{}{}
 		}
 	}
-	return results.ToList(), nil
+	return results, nil
 }
 
-func (s *SpanReader) queryByDuration(traceQuery *spanstore.TraceQueryParameters) ([]dbmodel.TraceID, error) {
+func (s *SpanReader) queryByDuration(traceQuery *spanstore.TraceQueryParameters) (dbmodel.UniqueTraceIDs, error) {
 	results := dbmodel.UniqueTraceIDs{}
 
 	minDurationMicros := (traceQuery.DurationMin.Nanoseconds() / int64(time.Microsecond/time.Nanosecond))
@@ -324,49 +314,45 @@ func (s *SpanReader) queryByDuration(traceQuery *spanstore.TraceQueryParameters)
 			minDurationMicros,
 			maxDurationMicros,
 			traceQuery.NumTraces)
-		t, err := s.executeQuery(query, s.readerMetrics.queryDurationIndex)
+		t, err := s.executeQuery(query, s.metrics.queryDurationIndex)
 		if err != nil {
 			return nil, err
 		}
 
-		for _, traceID := range t {
-			results.Add(traceID)
+		for traceID := range t {
+			results[traceID] = struct{}{}
 			if len(results) == traceQuery.NumTraces {
 				break
 			}
 		}
 	}
-	return results.ToList(), nil
+	return results, nil
 }
 
-func (s *SpanReader) queryByServiceNameAndOperation(serviceName string, operation string, startTime, endTime time.Time, limit int) ([]dbmodel.TraceID, error) {
-	query := s.session.Query(queryByServiceAndOperationName, serviceName, operation, model.TimeAsEpochMicroseconds(startTime), model.TimeAsEpochMicroseconds(endTime), limit)
-	return s.executeQuery(query, s.readerMetrics.queryServiceOperationIndex)
+func (s *SpanReader) queryByServiceNameAndOperation(tq *spanstore.TraceQueryParameters) (dbmodel.UniqueTraceIDs, error) {
+	query := s.session.Query(queryByServiceAndOperationName, tq.ServiceName, tq.OperationName, model.TimeAsEpochMicroseconds(tq.StartTimeMin), model.TimeAsEpochMicroseconds(tq.StartTimeMax), tq.NumTraces)
+	return s.executeQuery(query, s.metrics.queryServiceOperationIndex)
 }
 
-func (s *SpanReader) queryByService(serviceName string, startTime, endTime time.Time, limit int) ([]dbmodel.TraceID, error) {
-	query := s.session.Query(queryByServiceName, serviceName, model.TimeAsEpochMicroseconds(startTime), model.TimeAsEpochMicroseconds(endTime), limit)
-	return s.executeQuery(query, s.readerMetrics.queryServiceNameIndex)
+func (s *SpanReader) queryByService(tq *spanstore.TraceQueryParameters) (dbmodel.UniqueTraceIDs, error) {
+	query := s.session.Query(queryByServiceName, tq.ServiceName, model.TimeAsEpochMicroseconds(tq.StartTimeMin), model.TimeAsEpochMicroseconds(tq.StartTimeMax), tq.NumTraces)
+	return s.executeQuery(query, s.metrics.queryServiceNameIndex)
 }
 
 // executeQuery returns a list of type TraceID
-func (s *SpanReader) executeQuery(query cassandra.Query, tableMetrics *casMetrics.Table) ([]dbmodel.TraceID, error) {
+func (s *SpanReader) executeQuery(query cassandra.Query, tableMetrics *casMetrics.Table) (dbmodel.UniqueTraceIDs, error) {
 	start := time.Now()
 	i := query.Consistency(s.consistency).Iter()
-	traceIDs := map[dbmodel.TraceID]struct{}{}
+	retMe := dbmodel.UniqueTraceIDs{}
 	var traceID dbmodel.TraceID
 	for i.Scan(&traceID) {
-		traceIDs[traceID] = struct{}{}
+		retMe[traceID] = struct{}{}
 	}
 	err := i.Close()
 	tableMetrics.Emit(err, time.Since(start))
 	if err != nil {
 		s.logger.Error("Failed to exec query", zap.Error(err))
 		return nil, err
-	}
-	var retMe []dbmodel.TraceID
-	for traceID := range traceIDs {
-		retMe = append(retMe, traceID)
 	}
 	return retMe, nil
 }

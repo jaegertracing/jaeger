@@ -114,9 +114,9 @@ func TestSpanWriter(t *testing.T) {
 			},
 		},
 		{
-			caption:               "add span to service name and operation index",
+			caption:               "add span to service name index",
 			serviceNameQueryError: errors.New("serviceNameQueryError"),
-			expectedError:         "Failed to index service and operation name: failed to Exec query 'select from service_name_index': serviceNameQueryError",
+			expectedError:         "Failed to index service name: failed to Exec query 'select from service_name_index': serviceNameQueryError",
 			expectedLogs: []string{
 				`"msg":"Failed to exec query"`,
 				`"query":"select from service_name_index"`,
@@ -124,9 +124,9 @@ func TestSpanWriter(t *testing.T) {
 			},
 		},
 		{
-			caption: "add span to service name and operation index",
+			caption: "add span to operation name index",
 			serviceOperationNameQueryError: errors.New("serviceOperationNameQueryError"),
-			expectedError:                  "Failed to index service and operation name: failed to Exec query 'select from service_operation_index': serviceOperationNameQueryError",
+			expectedError:                  "Failed to index operation name: failed to Exec query 'select from service_operation_index': serviceOperationNameQueryError",
 			expectedLogs: []string{
 				`"msg":"Failed to exec query"`,
 				`"query":"select from service_operation_index"`,

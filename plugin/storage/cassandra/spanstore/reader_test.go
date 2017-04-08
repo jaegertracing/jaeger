@@ -396,4 +396,9 @@ func TestTraceQueryParameterValidation(t *testing.T) {
 	tsp.DurationMax = time.Minute
 	err = validateQuery(tsp)
 	assert.EqualError(t, err, ErrDurationMinGreaterThanMax.Error())
+
+	tsp.DurationMin = time.Minute
+	tsp.DurationMax = time.Hour
+	err = validateQuery(tsp)
+	assert.EqualError(t, err, ErrDurationAndTagQueryNotSupported.Error())
 }
