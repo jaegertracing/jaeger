@@ -95,12 +95,12 @@ func TestSpanWriter(t *testing.T) {
 		{
 			caption:        "tags query error",
 			tagsQueryError: errors.New("tags query error"),
-			expectedError:  "Failed to insert tag: failed to Exec query 'select from tags': tags query error",
+			expectedError:  "Failed to index tags: Failed to index tag: failed to Exec query 'select from tags': tags query error",
 			expectedLogs: []string{
 				`"msg":"Failed to exec query"`,
 				`"query":"select from tags"`,
 				`"error":"tags query error"`,
-				"Failed to insert tag",
+				"Failed to index tags",
 				`"tag_key":"x"`,
 				`"tag_value":"y"`,
 			},
@@ -116,7 +116,7 @@ func TestSpanWriter(t *testing.T) {
 		{
 			caption:               "add span to service name and operation index",
 			serviceNameQueryError: errors.New("serviceNameQueryError"),
-			expectedError:         "Failed to insert service and operation name into index: failed to Exec query 'select from service_name_index': serviceNameQueryError",
+			expectedError:         "Failed to index service and operation name: failed to Exec query 'select from service_name_index': serviceNameQueryError",
 			expectedLogs: []string{
 				`"msg":"Failed to exec query"`,
 				`"query":"select from service_name_index"`,
@@ -126,7 +126,7 @@ func TestSpanWriter(t *testing.T) {
 		{
 			caption: "add span to service name and operation index",
 			serviceOperationNameQueryError: errors.New("serviceOperationNameQueryError"),
-			expectedError:                  "Failed to insert service and operation name into index: failed to Exec query 'select from service_operation_index': serviceOperationNameQueryError",
+			expectedError:                  "Failed to index service and operation name: failed to Exec query 'select from service_operation_index': serviceOperationNameQueryError",
 			expectedLogs: []string{
 				`"msg":"Failed to exec query"`,
 				`"query":"select from service_operation_index"`,
@@ -136,7 +136,7 @@ func TestSpanWriter(t *testing.T) {
 		{
 			caption: "add duration with no operation name",
 			durationNoOperationQueryError: errors.New("durationNoOperationError"),
-			expectedError:                 "Failed to insert duration into index: failed to Exec query 'select from duration_index': durationNoOperationError",
+			expectedError:                 "Failed to index duration: failed to Exec query 'select from duration_index': durationNoOperationError",
 			expectedLogs: []string{
 				`"msg":"Failed to exec query"`,
 				`"query":"select from duration_index"`,

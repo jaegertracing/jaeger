@@ -11,8 +11,6 @@ imports:
   version: 346938d642f2ec3594ed81d874461961cd0faa76
   subpackages:
   - spew
-- name: github.com/dgryski/go-farm
-  version: 83948bc0eb076b6b72c28abe5282fa8cf5240db6
 - name: github.com/fsnotify/fsnotify
   version: 30411dbcefb7a1da7e84f75530ad3abe4011b4f8
 - name: github.com/go-kit/kit

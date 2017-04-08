@@ -40,11 +40,26 @@ const (
 		SELECT trace_id, span_id, parent_id, operation_name, flags, start_time, duration, tags, logs, refs, process
 		FROM traces
 		WHERE trace_id = ?`
-
-	queryByTag                     = `SELECT trace_id FROM tag_index WHERE service_name = ? AND tag_key = ? AND tag_value = ? and start_time > ? and start_time < ? limit ?`
-	queryByServiceName             = `select trace_id from service_name_index where bucket in ` + bucketRange + ` and service_name = ? and start_time > ? and start_time < ? limit ?`
-	queryByServiceAndOperationName = `select trace_id from service_operation_index where service_name = ? and operation_name = ? and start_time > ? and start_time < ? limit ?`
-	queryByDuration                = `select trace_id from span_duration_index where bucket = ? and service_name = ? and span_name = ? and duration > ? and duration < ? limit ?`
+	queryByTag = `
+		SELECT trace_id
+		FROM tag_index
+		WHERE service_name = ? AND tag_key = ? AND tag_value = ? and start_time > ? and start_time < ?
+		LIMIT ?`
+	queryByServiceName = `
+		SELECT trace_id
+		FROM service_name_index
+		WHERE bucket IN ` + bucketRange + ` AND service_name = ? AND start_time > ? AND start_time < ?
+		LIMIT ?`
+	queryByServiceAndOperationName = `
+		SELECT trace_id
+		FROM service_operation_index
+		WHERE service_name = ? AND operation_name = ? AND start_time > ? AND start_time < ?
+		LIMIT ?`
+	queryByDuration = `
+		SELECT trace_id
+		FROM span_duration_index
+		WHERE bucket = ? AND service_name = ? AND span_name = ? AND duration > ? AND duration < ?
+		LIMIT ?`
 
 	defaultNumTraces = 100
 )
@@ -58,19 +73,23 @@ type serviceNamesReader func() ([]string, error)
 
 type operationNamesReader func(service string) ([]string, error)
 
-// SpanReader can query for and load traces from Cassandra.
-type SpanReader struct {
-	session                           cassandra.Session
-	consistency                       cassandra.Consistency
-	serviceNamesReader                serviceNamesReader
-	operationNamesReader              operationNamesReader
+type spanReaderMetrics struct {
 	readTracesTableMetrics            *casMetrics.Table
 	queryTraceTableMetrics            *casMetrics.Table
 	queryTagIndexTableMetrics         *casMetrics.Table
 	queryDurationIndexTableMetrics    *casMetrics.Table
 	serviceOperationIndexTableMetrics *casMetrics.Table
 	serviceNameIndexTableMetrics      *casMetrics.Table
-	logger                            *zap.Logger
+}
+
+// SpanReader can query for and load traces from Cassandra.
+type SpanReader struct {
+	session              cassandra.Session
+	consistency          cassandra.Consistency
+	serviceNamesReader   serviceNamesReader
+	operationNamesReader operationNamesReader
+	readerMetrics        spanReaderMetrics
+	logger               *zap.Logger
 }
 
 // NewSpanReader returns a new SpanReader.
@@ -83,16 +102,18 @@ func NewSpanReader(
 	serviceNamesStorage := NewServiceNamesStorage(session, 0, metricsFactory, logger)
 	operationNamesStorage := NewOperationNamesStorage(session, 0, metricsFactory, logger)
 	return &SpanReader{
-		session:                           session,
-		consistency:                       cassandra.One,
-		serviceNamesReader:                serviceNamesStorage.GetServices,
-		operationNamesReader:              operationNamesStorage.GetOperations,
-		readTracesTableMetrics:            casMetrics.NewTable(readFactory, "ReadTraces"),
-		queryTraceTableMetrics:            casMetrics.NewTable(readFactory, "QueryTraces"),
-		queryTagIndexTableMetrics:         casMetrics.NewTable(readFactory, "TagIndex"),
-		queryDurationIndexTableMetrics:    casMetrics.NewTable(readFactory, "DurationIndex"),
-		serviceOperationIndexTableMetrics: casMetrics.NewTable(readFactory, "ServiceOperationIndex"),
-		serviceNameIndexTableMetrics:      casMetrics.NewTable(readFactory, "ServiceNameIndex"),
+		session:              session,
+		consistency:          cassandra.One,
+		serviceNamesReader:   serviceNamesStorage.GetServices,
+		operationNamesReader: operationNamesStorage.GetOperations,
+		readerMetrics: spanReaderMetrics{
+			readTracesTableMetrics:            casMetrics.NewTable(readFactory, "ReadTraces"),
+			queryTraceTableMetrics:            casMetrics.NewTable(readFactory, "QueryTraces"),
+			queryTagIndexTableMetrics:         casMetrics.NewTable(readFactory, "TagIndex"),
+			queryDurationIndexTableMetrics:    casMetrics.NewTable(readFactory, "DurationIndex"),
+			serviceOperationIndexTableMetrics: casMetrics.NewTable(readFactory, "ServiceOperationIndex"),
+			serviceNameIndexTableMetrics:      casMetrics.NewTable(readFactory, "ServiceNameIndex"),
+		},
 		logger: logger,
 	}
 }
@@ -139,14 +160,14 @@ func (s *SpanReader) readTrace(traceID dbmodel.TraceID) (*model.Trace, error) {
 		span, err := dbmodel.ToDomain(&dbSpan)
 		if err != nil {
 			//do we consider conversion failure to cause such metrics to be emitted? for now i'm assuming yes.
-			s.readTracesTableMetrics.Emit(err, time.Since(start))
+			s.readerMetrics.readTracesTableMetrics.Emit(err, time.Since(start))
 			return nil, err
 		}
 		retMe.Spans = append(retMe.Spans, span)
 	}
 
 	err := i.Close()
-	s.readTracesTableMetrics.Emit(err, time.Since(start))
+	s.readerMetrics.readTracesTableMetrics.Emit(err, time.Since(start))
 	if err != nil {
 		return nil, errors.Wrap(err, "Error reading traces from storage")
 	}
@@ -161,7 +182,7 @@ func (s *SpanReader) GetTrace(traceID model.TraceID) (*model.Trace, error) {
 	return s.readTrace(dbmodel.TraceIDFromDomain(traceID))
 }
 
-// FindTraces queries for traces.
+// FindTraces consumes query parameters and finds Traces that fit those parameters
 func (s *SpanReader) FindTraces(traceQuery *spanstore.TraceQueryParameters) ([]*model.Trace, error) {
 	if traceQuery == nil {
 		return nil, ErrMalformedRequestObject
@@ -195,7 +216,7 @@ func (s *SpanReader) FindTraces(traceQuery *spanstore.TraceQueryParameters) ([]*
 // FindTraces queries for traces.
 func (s *SpanReader) getTraceIDs(traceQuery *spanstore.TraceQueryParameters) ([]dbmodel.TraceID, error) {
 	if traceQuery.DurationMin != 0 {
-		return s.queryTraceIdsByDuration(traceQuery)
+		return s.queryByDuration(traceQuery)
 	}
 
 	// NB(rooz): consider refactoring the query... methods where they take in traceQuery instead of a breakdown of its values
@@ -216,7 +237,7 @@ func (s *SpanReader) getTraceIDs(traceQuery *spanstore.TraceQueryParameters) ([]
 	if len(traceQuery.Tags) > 0 {
 		return s.queryByTagsAndLogs(traceQuery.ServiceName, traceQuery.StartTimeMin, traceQuery.StartTimeMax, traceQuery.Tags, traceQuery.NumTraces)
 	}
-	return s.queryTraceIdsByService(traceQuery.ServiceName, traceQuery.StartTimeMin, traceQuery.StartTimeMax, traceQuery.NumTraces)
+	return s.queryByService(traceQuery.ServiceName, traceQuery.StartTimeMin, traceQuery.StartTimeMax, traceQuery.NumTraces)
 }
 
 func (s *SpanReader) intersectTraceIDSlices(one, other []dbmodel.TraceID) []dbmodel.TraceID {
@@ -251,7 +272,7 @@ func (s *SpanReader) queryByTagsAndLogs(serviceName string, startTime, endTime t
 			model.TimeAsEpochMicroseconds(endTime),
 			limit,
 		)
-		t, err := s.executeQuery(query, s.queryTagIndexTableMetrics)
+		t, err := s.executeQuery(query, s.readerMetrics.queryTagIndexTableMetrics)
 		results = append(results, traceIDResult{err: err, traceIDs: t})
 	}
 	unionedTraceIDs := map[dbmodel.TraceID]bool{}
@@ -270,7 +291,7 @@ func (s *SpanReader) queryByTagsAndLogs(serviceName string, startTime, endTime t
 	return retMe, nil
 }
 
-func (s *SpanReader) queryTraceIdsByDuration(traceQuery *spanstore.TraceQueryParameters) ([]dbmodel.TraceID, error) {
+func (s *SpanReader) queryByDuration(traceQuery *spanstore.TraceQueryParameters) ([]dbmodel.TraceID, error) {
 	var traceIds []dbmodel.TraceID
 
 	minDurationMicros := (traceQuery.DurationMin.Nanoseconds() / int64(time.Microsecond/time.Nanosecond))
@@ -291,7 +312,7 @@ func (s *SpanReader) queryTraceIdsByDuration(traceQuery *spanstore.TraceQueryPar
 			minDurationMicros,
 			maxDurationMicros,
 			traceQuery.NumTraces)
-		t, err := s.executeQuery(query, s.queryDurationIndexTableMetrics)
+		t, err := s.executeQuery(query, s.readerMetrics.queryDurationIndexTableMetrics)
 		if err != nil {
 			return nil, err
 		}
@@ -307,12 +328,12 @@ func (s *SpanReader) queryTraceIdsByDuration(traceQuery *spanstore.TraceQueryPar
 
 func (s *SpanReader) queryByServiceNameAndOperation(serviceName string, operation string, startTime, endTime time.Time, limit int) ([]dbmodel.TraceID, error) {
 	query := s.session.Query(queryByServiceAndOperationName, serviceName, operation, model.TimeAsEpochMicroseconds(startTime), model.TimeAsEpochMicroseconds(endTime), limit)
-	return s.executeQuery(query, s.serviceOperationIndexTableMetrics)
+	return s.executeQuery(query, s.readerMetrics.serviceOperationIndexTableMetrics)
 }
 
-func (s *SpanReader) queryTraceIdsByService(serviceName string, startTime, endTime time.Time, limit int) ([]dbmodel.TraceID, error) {
+func (s *SpanReader) queryByService(serviceName string, startTime, endTime time.Time, limit int) ([]dbmodel.TraceID, error) {
 	query := s.session.Query(queryByServiceName, serviceName, model.TimeAsEpochMicroseconds(startTime), model.TimeAsEpochMicroseconds(endTime), limit)
-	return s.executeQuery(query, s.serviceNameIndexTableMetrics)
+	return s.executeQuery(query, s.readerMetrics.serviceNameIndexTableMetrics)
 }
 
 // executeQuery returns UniqueTraceIDs
