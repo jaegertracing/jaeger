@@ -21,7 +21,11 @@ install:
   - node -v
   - make install_ci
 
-before_script:
+script:
+  - make test_ci
+  - travis_retry goveralls -coverprofile=cover.out -service=travis-ci || true
+
+after_success:
   - nvm use 4
   - make build-all-in-one-linux || { echo 'failed build-all-in-one-linux' ; exit 0; }
   - export REPO=jaegertracing/all-in-one
@@ -33,20 +37,3 @@ before_script:
   - docker tag $REPO:$COMMIT $REPO:$TAG
   - docker tag $REPO:$COMMIT $REPO:travis-$TRAVIS_BUILD_NUMBER
   - docker push $REPO
-
-script:
-  - make test_ci
-  - travis_retry goveralls -coverprofile=cover.out -service=travis-ci || true
-
-#after_success:
-#  - nvm use 6
-#  - make build-all-in-one-linux
-#  - export REPO=jaegertracing/all-in-one
-#  - export BRANCH=$(if [ "$TRAVIS_PULL_REQUEST" == "false" ]; then echo $TRAVIS_BRANCH; else echo $TRAVIS_PULL_REQUEST_BRANCH; fi)
-#  - export TAG=`if [ "$BRANCH" == "master" ]; then echo "latest"; else echo $BRANCH; fi`
-#  - echo "TRAVIS_BRANCH=$TRAVIS_BRANCH, REPO=$REPO, PR=$PR, BRANCH=$BRANCH, TAG=$TAG"
-#  - docker login -u $DOCKER_USER -p $DOCKER_PASS
-#  - docker build -f cmd/standalone/Dockerfile -t $REPO:$COMMIT .
-##  - docker tag $REPO:$COMMIT $REPO:$TAG TODO docker doesn't like tags with \ need to omit them
-#  - docker tag $REPO:$COMMIT $REPO:travis-$TRAVIS_BUILD_NUMBER
-#  - docker push $REPO
