@@ -46,7 +46,7 @@ const (
 	queryByServiceAndOperationName = `select trace_id from service_operation_index where service_name = ? and operation_name = ? and start_time > ? and start_time < ? limit ?`
 	queryByDuration                = `select trace_id from span_duration_index where bucket = ? and service_name = ? and span_name = ? and duration > ? and duration < ? limit ?`
 
-	defaultNumTraces = 20
+	defaultNumTraces = 100
 )
 
 var (
