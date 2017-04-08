@@ -375,6 +375,25 @@ func TestSpanReaderFindTraces(t *testing.T) {
 	}
 }
 
-func TestBucketRange(t *testing.T) {
-	assert.EqualValues(t, `(0,1,2,3,4,5,6,7,8,9)`, bucketRange)
+func TestTraceQueryParameterValidation(t *testing.T) {
+	tsp := &spanstore.TraceQueryParameters{
+		ServiceName: "",
+		Tags: map[string]string{
+			"michael": "jackson",
+		},
+	}
+	err := validateQuery(tsp)
+	assert.EqualError(t, err, ErrServiceNameNotSet.Error())
+
+	tsp.ServiceName = "serviceName"
+	tsp.StartTimeMin = time.Now()
+	tsp.StartTimeMax = time.Now().Add(-1 * time.Hour)
+	err = validateQuery(tsp)
+	assert.EqualError(t, err, ErrStartTimeMinGreaterThanMax.Error())
+
+	tsp.StartTimeMin = time.Now().Add(-12 * time.Hour)
+	tsp.DurationMin = time.Hour
+	tsp.DurationMax = time.Minute
+	err = validateQuery(tsp)
+	assert.EqualError(t, err, ErrDurationMinGreaterThanMax.Error())
 }

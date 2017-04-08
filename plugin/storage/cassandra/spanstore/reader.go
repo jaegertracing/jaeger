@@ -65,6 +65,15 @@ const (
 )
 
 var (
+	// ErrServiceNameNotSet occurs when attempting to query with an empty service name
+	ErrServiceNameNotSet = errors.New("Service Name must be set")
+
+	// ErrStartTimeMinGreaterThanMax occurs when start time min is above start time max
+	ErrStartTimeMinGreaterThanMax = errors.New("Start Time Minimum is above Maximum")
+
+	// ErrDurationMinGreaterThanMax occurs when duration min is above duration max
+	ErrDurationMinGreaterThanMax = errors.New("Duration Minimum is above Maximum")
+
 	// ErrMalformedRequestObject occurs when a request object is nil
 	ErrMalformedRequestObject = errors.New("Malformed request object")
 )
@@ -182,10 +191,26 @@ func (s *SpanReader) GetTrace(traceID model.TraceID) (*model.Trace, error) {
 	return s.readTrace(dbmodel.TraceIDFromDomain(traceID))
 }
 
+func validateQuery(p *spanstore.TraceQueryParameters) error {
+	if p == nil {
+		return ErrMalformedRequestObject
+	}
+	if p.ServiceName == "" && len(p.Tags) > 0 {
+		return ErrServiceNameNotSet
+	}
+	if !p.StartTimeMin.IsZero() && !p.StartTimeMax.IsZero() && p.StartTimeMax.Before(p.StartTimeMin) {
+		return ErrStartTimeMinGreaterThanMax
+	}
+	if p.DurationMin != 0 && p.DurationMax != 0 && p.DurationMin > p.DurationMax {
+		return ErrDurationMinGreaterThanMax
+	}
+	return nil
+}
+
 // FindTraces consumes query parameters and finds Traces that fit those parameters
 func (s *SpanReader) FindTraces(traceQuery *spanstore.TraceQueryParameters) ([]*model.Trace, error) {
-	if traceQuery == nil {
-		return nil, ErrMalformedRequestObject
+	if err := validateQuery(traceQuery); err != nil {
+		return nil, err
 	}
 	if traceQuery.NumTraces == 0 {
 		traceQuery.NumTraces = defaultNumTraces
@@ -284,11 +309,11 @@ func (s *SpanReader) queryByDuration(traceQuery *spanstore.TraceQueryParameters)
 	minDurationMicros := (traceQuery.DurationMin.Nanoseconds() / int64(time.Microsecond/time.Nanosecond))
 	maxDurationMicros := (traceQuery.DurationMax.Nanoseconds() / int64(time.Microsecond/time.Nanosecond))
 
-	// See writer.go:indexSpanDuration  for how this is indexed
+	// See writer.go:indexByDuration  for how this is indexed
 	// This is indexed in hours since epoch, converted to seconds
 	// TODO encapsulate this calculation
-	startTimeSeconds := (traceQuery.StartTimeMin.UnixNano() / int64(time.Hour))
-	endTimeSeconds := (traceQuery.StartTimeMax.UnixNano() / int64(time.Hour))
+	startTimeSeconds := (traceQuery.StartTimeMin / int64(time.Hour / time.Nanosecond))
+	endTimeSeconds := (traceQuery.StartTimeMax / int64(time.Hour / time.Nanosecond))
 
 	for timeBucket := endTimeSeconds; timeBucket >= startTimeSeconds; timeBucket-- {
 		query := s.session.Query(
