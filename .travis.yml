@@ -23,6 +23,7 @@ install:
   - make install_ci
 
 before_script:
+  - echo "GO_VERSION=$TRAVIS_GO_VERSION"
   - if [ "$TRAVIS_GO_VERSION" == "1.8" ]; then { echo 'go version 1.8' ; exit 0; }
 
 script:
