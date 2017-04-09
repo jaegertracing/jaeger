@@ -22,16 +22,12 @@ install:
   - node -v
   - make install_ci
 
-before_script:
-  - echo "GO_VERSION=$TRAVIS_GO_VERSION"
-  - if [ "$TRAVIS_GO_VERSION" == "1.8" ]; then echo 'go version 1.8' ; exit 0; fi
-  - exit 0
-
 script:
   - make test_ci
   - travis_retry goveralls -coverprofile=cover.out -service=travis-ci || true
 
 after_success:
+  - if [ "$TRAVIS_GO_VERSION" == "1.8" ]; then echo 'only build all-in-one docker image for go 1.7' ; exit 0; fi
   - nvm use 4
   - make build-all-in-one-linux || { echo 'failed build-all-in-one-linux' ; exit 0; }
   - export REPO=jaegertracing/all-in-one
