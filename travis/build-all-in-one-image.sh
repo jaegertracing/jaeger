@@ -9,7 +9,7 @@ echo "TRAVIS_BRANCH=$TRAVIS_BRANCH, REPO=$REPO, PR=$PR, BRANCH=$BRANCH, TAG=$TAG
 
 make build-all-in-one-linux
 
-# Only build push the docker container to Docker Hub for master branch
+# Only push the docker container to Docker Hub for master branch
 if [[ "$TRAVIS_PULL_REQUEST" == "false"  || "$BRANCH" == "master" ]]; then echo 'upload to Docker Hub'; else echo 'skip docker upload for PR'; exit 0; fi
 
 docker login -u $DOCKER_USER -p $DOCKER_PASS
