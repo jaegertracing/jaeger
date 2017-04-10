@@ -66,12 +66,15 @@ func TestNewSpanWriter(t *testing.T) {
 
 func TestSpanWriter(t *testing.T) {
 	testCases := []struct {
-		caption          string
-		mainQueryError   error
-		tagsQueryError   error
-		serviceNameError error
-		expectedError    string
-		expectedLogs     []string
+		caption                        string
+		mainQueryError                 error
+		tagsQueryError                 error
+		serviceNameQueryError          error
+		serviceOperationNameQueryError error
+		durationNoOperationQueryError  error
+		serviceNameError               error
+		expectedError                  string
+		expectedLogs                   []string
 	}{
 		{
 			caption: "main query",
@@ -92,12 +95,12 @@ func TestSpanWriter(t *testing.T) {
 		{
 			caption:        "tags query error",
 			tagsQueryError: errors.New("tags query error"),
-			expectedError:  "Failed to insert tag: failed to Exec query 'select from tags': tags query error",
+			expectedError:  "Failed to index tags: Failed to index tag: failed to Exec query 'select from tags': tags query error",
 			expectedLogs: []string{
 				`"msg":"Failed to exec query"`,
 				`"query":"select from tags"`,
 				`"error":"tags query error"`,
-				"Failed to insert tag",
+				"Failed to index tags",
 				`"tag_key":"x"`,
 				`"tag_value":"y"`,
 			},
@@ -110,13 +113,44 @@ func TestSpanWriter(t *testing.T) {
 				"Failed to insert service name and operation name",
 			},
 		},
+		{
+			caption:               "add span to service name index",
+			serviceNameQueryError: errors.New("serviceNameQueryError"),
+			expectedError:         "Failed to index service name: failed to Exec query 'select from service_name_index': serviceNameQueryError",
+			expectedLogs: []string{
+				`"msg":"Failed to exec query"`,
+				`"query":"select from service_name_index"`,
+				`"error":"serviceNameQueryError"`,
+			},
+		},
+		{
+			caption: "add span to operation name index",
+			serviceOperationNameQueryError: errors.New("serviceOperationNameQueryError"),
+			expectedError:                  "Failed to index operation name: failed to Exec query 'select from service_operation_index': serviceOperationNameQueryError",
+			expectedLogs: []string{
+				`"msg":"Failed to exec query"`,
+				`"query":"select from service_operation_index"`,
+				`"error":"serviceOperationNameQueryError"`,
+			},
+		},
+		{
+			caption: "add duration with no operation name",
+			durationNoOperationQueryError: errors.New("durationNoOperationError"),
+			expectedError:                 "Failed to index duration: failed to Exec query 'select from duration_index': durationNoOperationError",
+			expectedLogs: []string{
+				`"msg":"Failed to exec query"`,
+				`"query":"select from duration_index"`,
+				`"error":"durationNoOperationError"`,
+			},
+		},
 	}
 	for _, tc := range testCases {
 		testCase := tc // capture loop var
 		t.Run(testCase.caption, func(t *testing.T) {
 			withSpanWriter(0, func(w *spanWriterTest) {
 				span := &model.Span{
-					TraceID: model.TraceID{Low: 1},
+					TraceID:       model.TraceID{Low: 1},
+					OperationName: "operation-a",
 					Tags: model.KeyValues{
 						model.String("x", "y"),
 						model.String("json", `{"x":"y"}`), // string tag with json value will not be inserted
@@ -135,9 +169,29 @@ func TestSpanWriter(t *testing.T) {
 				tagsQuery.On("Exec").Return(testCase.tagsQueryError)
 				tagsQuery.On("String").Return("select from tags")
 
+				serviceNameQuery := &mocks.Query{}
+				serviceNameQuery.On("Bind", matchEverything()).Return(serviceNameQuery)
+				serviceNameQuery.On("Exec").Return(testCase.serviceNameQueryError)
+				serviceNameQuery.On("String").Return("select from service_name_index")
+
+				serviceOperationNameQuery := &mocks.Query{}
+				serviceOperationNameQuery.On("Bind", matchEverything()).Return(serviceOperationNameQuery)
+				serviceOperationNameQuery.On("Exec").Return(testCase.serviceOperationNameQueryError)
+				serviceOperationNameQuery.On("String").Return("select from service_operation_index")
+
+				durationNoOperationQuery := &mocks.Query{}
+				durationNoOperationQuery.On("Bind", matchEverything()).Return(durationNoOperationQuery)
+				durationNoOperationQuery.On("Exec").Return(testCase.durationNoOperationQueryError)
+				durationNoOperationQuery.On("String").Return("select from duration_index")
+
 				w.session.On("Query", stringMatcher(insertSpan), matchEverything()).Return(spanQuery)
 				// note: using matchOnce below because we only want one tag to be inserted
 				w.session.On("Query", stringMatcher(insertTag), matchOnce()).Return(tagsQuery)
+
+				w.session.On("Query", stringMatcher(serviceNameIndex), matchEverything()).Return(serviceNameQuery)
+				w.session.On("Query", stringMatcher(serviceOperationIndex), matchEverything()).Return(serviceOperationNameQuery)
+
+				w.session.On("Query", stringMatcher(durationIndex), matchOnce()).Return(durationNoOperationQuery)
 
 				w.writer.serviceNamesWriter = func(serviceName string) error { return testCase.serviceNameError }
 				w.writer.operationNamesWriter = func(serviceName, operationName string) error { return testCase.serviceNameError }

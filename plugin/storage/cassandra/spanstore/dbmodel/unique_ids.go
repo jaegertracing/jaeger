@@ -23,14 +23,18 @@ package dbmodel
 // UniqueTraceIDs is a set of unique dbmodel TraceIDs, implemented via map.
 type UniqueTraceIDs map[TraceID]struct{}
 
-// GetUniqueTraceIDs takes a list of spans and returns a map of traceID as string to traceID as byte
-// The only reason here we return such a map is because []byte cannot be a key.
-func GetUniqueTraceIDs(dbSpans []Span) UniqueTraceIDs {
-	retMe := UniqueTraceIDs{}
-	for _, v := range dbSpans {
-		retMe[v.TraceID] = struct{}{}
+// UniqueTraceIDsFromList Takes a list of traceIDs and returns the unique set
+func UniqueTraceIDsFromList(traceIDs []TraceID) UniqueTraceIDs {
+	uniqueTraceIDs := UniqueTraceIDs{}
+	for _, traceID := range traceIDs {
+		uniqueTraceIDs[traceID] = struct{}{}
 	}
-	return retMe
+	return uniqueTraceIDs
+}
+
+// Add adds a traceID to the existing map
+func (u UniqueTraceIDs) Add(traceID TraceID) {
+	u[traceID] = struct{}{}
 }
 
 // IntersectTraceIDs takes a list of UniqueTraceIDs and intersects them.

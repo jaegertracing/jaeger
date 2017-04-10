@@ -32,7 +32,7 @@ import (
 
 func TestStaticAssetsHandler(t *testing.T) {
 	r := mux.NewRouter()
-	handler := NewStaticAssetsHandler()
+	handler := NewStaticAssetsHandler("fixture/")
 	handler.RegisterRoutes(r)
 	server := httptest.NewServer(r)
 	defer server.Close()
@@ -44,5 +44,10 @@ func TestStaticAssetsHandler(t *testing.T) {
 	resp, err := httpClient.Get(server.URL)
 	assert.NoError(t, err)
 	defer resp.Body.Close()
-	assert.Equal(t, http.StatusNotFound, resp.StatusCode)
+	assert.Equal(t, http.StatusOK, resp.StatusCode)
+}
+
+func TestDefaultStaticAssetsRoot(t *testing.T) {
+	handler := NewStaticAssetsHandler("")
+	assert.Equal(t, "jaeger-ui-build/build/", handler.staticAssetsRoot)
 }
