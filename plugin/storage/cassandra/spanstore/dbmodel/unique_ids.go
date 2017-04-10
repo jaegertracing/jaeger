@@ -37,27 +37,6 @@ func (u UniqueTraceIDs) Add(traceID TraceID) {
 	u[traceID] = struct{}{}
 }
 
-// ToList takes the TraceID keys and returns a slice of type TraceID
-func (u UniqueTraceIDs) ToList() []TraceID {
-	retMe := make([]TraceID, len(u))
-	i := 0
-	for k := range u {
-		retMe[i] = k
-		i++
-	}
-	return retMe
-}
-
-// GetUniqueTraceIDs takes a list of spans and returns a map of traceID as string to traceID as byte
-// The only reason here we return such a map is because []byte cannot be a key.
-func GetUniqueTraceIDs(dbSpans []Span) UniqueTraceIDs {
-	retMe := UniqueTraceIDs{}
-	for _, v := range dbSpans {
-		retMe[v.TraceID] = struct{}{}
-	}
-	return retMe
-}
-
 // IntersectTraceIDs takes a list of UniqueTraceIDs and intersects them.
 func IntersectTraceIDs(uniqueTraceIdsList []UniqueTraceIDs) UniqueTraceIDs {
 	retMe := UniqueTraceIDs{}

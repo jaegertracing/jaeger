@@ -44,16 +44,19 @@ const (
 		SELECT trace_id
 		FROM tag_index
 		WHERE service_name = ? AND tag_key = ? AND tag_value = ? and start_time > ? and start_time < ?
+		ORDER BY start_time DESC
 		LIMIT ?`
 	queryByServiceName = `
 		SELECT trace_id
 		FROM service_name_index
 		WHERE bucket IN ` + bucketRange + ` AND service_name = ? AND start_time > ? AND start_time < ?
+		ORDER BY start_time DESC
 		LIMIT ?`
 	queryByServiceAndOperationName = `
 		SELECT trace_id
 		FROM service_operation_index
 		WHERE service_name = ? AND operation_name = ? AND start_time > ? AND start_time < ?
+		ORDER BY start_time DESC
 		LIMIT ?`
 	queryByDuration = `
 		SELECT trace_id
@@ -77,8 +80,11 @@ var (
 	// ErrMalformedRequestObject occurs when a request object is nil
 	ErrMalformedRequestObject = errors.New("Malformed request object")
 
-	// ErrDurationAndTagQueryNotSupported when duration and tags are both set
+	// ErrDurationAndTagQueryNotSupported occurs when duration and tags are both set
 	ErrDurationAndTagQueryNotSupported = errors.New("Cannot query for duration and tags simultaneously")
+
+	// ErrStartAndEndTimeNotSet occurs when start time and end time are not set
+	ErrStartAndEndTimeNotSet = errors.New("Start and End Time must be set")
 )
 
 type serviceNamesReader func() ([]string, error)
@@ -201,13 +207,16 @@ func validateQuery(p *spanstore.TraceQueryParameters) error {
 	if p.ServiceName == "" && len(p.Tags) > 0 {
 		return ErrServiceNameNotSet
 	}
+	if p.StartTimeMin.IsZero() || p.StartTimeMax.IsZero() {
+		return ErrStartAndEndTimeNotSet
+	}
 	if !p.StartTimeMin.IsZero() && !p.StartTimeMax.IsZero() && p.StartTimeMax.Before(p.StartTimeMin) {
 		return ErrStartTimeMinGreaterThanMax
 	}
 	if p.DurationMin != 0 && p.DurationMax != 0 && p.DurationMin > p.DurationMax {
 		return ErrDurationMinGreaterThanMax
 	}
-	if p.DurationMin != 0 && len(p.Tags) > 0 {
+	if (p.DurationMin != 0 || p.DurationMax != 0) && len(p.Tags) > 0 {
 		return ErrDurationAndTagQueryNotSupported
 	}
 	return nil
@@ -241,11 +250,10 @@ func (s *SpanReader) FindTraces(traceQuery *spanstore.TraceQueryParameters) ([]*
 }
 
 func (s *SpanReader) findTraceIDs(traceQuery *spanstore.TraceQueryParameters) (dbmodel.UniqueTraceIDs, error) {
-	if traceQuery.DurationMin != 0 {
+	if traceQuery.DurationMin != 0 || traceQuery.DurationMax != 0 {
 		return s.queryByDuration(traceQuery)
 	}
 
-	// NB(rooz): consider refactoring the query... methods where they take in traceQuery instead of a breakdown of its values
 	if traceQuery.OperationName != "" {
 		traceIds, err := s.queryByServiceNameAndOperation(traceQuery)
 		if err != nil {
@@ -261,7 +269,7 @@ func (s *SpanReader) findTraceIDs(traceQuery *spanstore.TraceQueryParameters) (d
 				tagTraceIds,
 			}), nil
 		}
-		return traceIds, err
+		return traceIds, nil
 	}
 	if len(traceQuery.Tags) > 0 {
 		return s.queryByTagsAndLogs(traceQuery)
@@ -270,7 +278,7 @@ func (s *SpanReader) findTraceIDs(traceQuery *spanstore.TraceQueryParameters) (d
 }
 
 func (s *SpanReader) queryByTagsAndLogs(tq *spanstore.TraceQueryParameters) (dbmodel.UniqueTraceIDs, error) {
-	results := dbmodel.UniqueTraceIDs{}
+	results := make([]dbmodel.UniqueTraceIDs, 0, len(tq.Tags))
 	for k, v := range tq.Tags {
 		query := s.session.Query(
 			queryByTag,
@@ -285,22 +293,22 @@ func (s *SpanReader) queryByTagsAndLogs(tq *spanstore.TraceQueryParameters) (dbm
 		if err != nil {
 			return nil, err
 		}
-		// (NB)rooz: I don't think this is the behavior we actually want. This is OR over queried tags, do we want that or AND behavior?
-		for tID := range t {
-			results[tID] = struct{}{}
-		}
+		results = append(results, t)
 	}
-	return results, nil
+	return dbmodel.IntersectTraceIDs(results), nil
 }
 
 func (s *SpanReader) queryByDuration(traceQuery *spanstore.TraceQueryParameters) (dbmodel.UniqueTraceIDs, error) {
 	results := dbmodel.UniqueTraceIDs{}
 
-	minDurationMicros := (traceQuery.DurationMin.Nanoseconds() / int64(time.Microsecond/time.Nanosecond))
-	maxDurationMicros := (traceQuery.DurationMax.Nanoseconds() / int64(time.Microsecond/time.Nanosecond))
+	minDurationMicros := traceQuery.DurationMin.Nanoseconds() / int64(time.Microsecond/time.Nanosecond)
+	maxDurationMicros := (time.Hour * 24).Nanoseconds() / int64(time.Microsecond/time.Nanosecond)
+	if traceQuery.DurationMax != 0 {
+		maxDurationMicros = traceQuery.DurationMax.Nanoseconds() / int64(time.Microsecond/time.Nanosecond)
+	}
 
 	// See writer.go:indexByDuration  for how this is indexed
-	// This is indexed in hours since epoch, converted to seconds
+	// This is indexed in hours since epoch, converted to hours
 	// TODO encapsulate this calculation
 	startTimeSeconds := (traceQuery.StartTimeMin.UnixNano() / int64(time.Hour))
 	endTimeSeconds := (traceQuery.StartTimeMax.UnixNano() / int64(time.Hour))
@@ -320,7 +328,7 @@ func (s *SpanReader) queryByDuration(traceQuery *spanstore.TraceQueryParameters)
 		}
 
 		for traceID := range t {
-			results[traceID] = struct{}{}
+			results.Add(traceID)
 			if len(results) == traceQuery.NumTraces {
 				break
 			}
@@ -339,14 +347,13 @@ func (s *SpanReader) queryByService(tq *spanstore.TraceQueryParameters) (dbmodel
 	return s.executeQuery(query, s.metrics.queryServiceNameIndex)
 }
 
-// executeQuery returns a list of type TraceID
 func (s *SpanReader) executeQuery(query cassandra.Query, tableMetrics *casMetrics.Table) (dbmodel.UniqueTraceIDs, error) {
 	start := time.Now()
 	i := query.Consistency(s.consistency).Iter()
 	retMe := dbmodel.UniqueTraceIDs{}
 	var traceID dbmodel.TraceID
 	for i.Scan(&traceID) {
-		retMe[traceID] = struct{}{}
+		retMe.Add(traceID)
 	}
 	err := i.Close()
 	tableMetrics.Emit(err, time.Since(start))

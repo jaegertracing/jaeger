@@ -28,35 +28,6 @@ import (
 	"github.com/uber/jaeger/model"
 )
 
-func TestGetUniqueTraceIDs(t *testing.T) {
-	const someOperationName = "operation-name"
-	firstTraceID := TraceIDFromDomain(model.TraceID{High: 1, Low: 1})
-	secondTraceID := TraceIDFromDomain(model.TraceID{High: 2, Low: 2})
-	testInput := []Span{
-		{
-			TraceID:       firstTraceID,
-			SpanID:        1,
-			OperationName: someOperationName,
-		},
-		{
-			TraceID:       firstTraceID,
-			SpanID:        2,
-			OperationName: someOperationName,
-		},
-		{
-			TraceID:       secondTraceID,
-			SpanID:        3,
-			OperationName: someOperationName,
-		},
-	}
-	uniqueTraces := GetUniqueTraceIDs(testInput)
-	assert.Len(t, uniqueTraces, 2)
-	_, ok := uniqueTraces[firstTraceID]
-	assert.True(t, ok)
-	_, ok = uniqueTraces[secondTraceID]
-	assert.True(t, ok)
-}
-
 func TestGetIntersectedTraceIDs(t *testing.T) {
 	firstTraceID := TraceIDFromDomain(model.TraceID{High: 1, Low: 1})
 	secondTraceID := TraceIDFromDomain(model.TraceID{High: 2, Low: 2})
@@ -85,15 +56,6 @@ func TestAdd(t *testing.T) {
 	someID := TraceIDFromDomain(model.TraceID{High: 1, Low: 1})
 	u.Add(someID)
 	assert.Contains(t, u, someID)
-}
-
-func TestToList(t *testing.T) {
-	u := UniqueTraceIDs{}
-	someID := TraceIDFromDomain(model.TraceID{High: 1, Low: 1})
-	u.Add(someID)
-	l := u.ToList()
-	assert.Len(t, l, 1)
-	assert.Equal(t, someID, l[0])
 }
 
 func TestFromList(t *testing.T) {

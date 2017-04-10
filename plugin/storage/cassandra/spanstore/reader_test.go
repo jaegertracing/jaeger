@@ -340,7 +340,12 @@ func TestSpanReaderFindTraces(t *testing.T) {
 				r.session.On("Query", stringMatcher("SELECT trace_id"), matchOnce()).Return(makeLoadQuery())
 				r.session.On("Query", stringMatcher("SELECT trace_id"), matchEverything()).Return(makeLoadQuery())
 
-				queryParams := &spanstore.TraceQueryParameters{ServiceName: "service-a", NumTraces: 100}
+				queryParams := &spanstore.TraceQueryParameters{
+					ServiceName:  "service-a",
+					NumTraces:    100,
+					StartTimeMax: time.Now(),
+					StartTimeMin: time.Now().Add(-1 * time.Minute * 30),
+				}
 
 				queryParams.NumTraces = testCase.numTraces
 				if testCase.queryTags {
@@ -353,8 +358,7 @@ func TestSpanReaderFindTraces(t *testing.T) {
 				if testCase.queryDuration {
 					queryParams.DurationMin = time.Minute
 					queryParams.DurationMax = time.Minute * 3
-					queryParams.StartTimeMax = time.Now()
-					queryParams.StartTimeMin = time.Now().Add(-1 * time.Minute * 30)
+
 				}
 				res, err := r.reader.FindTraces(queryParams)
 				if testCase.expectedError == "" {
@@ -401,4 +405,9 @@ func TestTraceQueryParameterValidation(t *testing.T) {
 	tsp.DurationMax = time.Hour
 	err = validateQuery(tsp)
 	assert.EqualError(t, err, ErrDurationAndTagQueryNotSupported.Error())
+
+	tsp.StartTimeMin = time.Time{} //time.Unix(0,0) doesn't work because timezones
+	tsp.StartTimeMax = time.Time{}
+	err = validateQuery(tsp)
+	assert.EqualError(t, err, ErrStartAndEndTimeNotSet.Error())
 }
