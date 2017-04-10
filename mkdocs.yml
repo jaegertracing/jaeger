@@ -12,3 +12,8 @@ markdown_extensions:
   - pymdownx.superfences
   - pymdownx.tasklist(custom_checkbox=true)
   - pymdownx.tilde
+site_favicon: 'images/favicon.ico'
+repo_name: 'uber/jaeger'
+repo_url: 'https://github.com/uber/jaeger'
+extra:
+  logo: 'images/jaeger-logo.png'
