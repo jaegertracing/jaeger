@@ -12,6 +12,7 @@ matrix:
   - go: 1.7
     env:
     - ALL_IN_ONE=true
+    sudo: required
     dist: trusty
   - go: 1.8
     env:
