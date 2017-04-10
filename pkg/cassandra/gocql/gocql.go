@@ -38,7 +38,11 @@ func WrapCQLSession(session *gocql.Session) CQLSession {
 
 // Query delegates to gocql.Session#Query and wraps the result as Query.
 func (s CQLSession) Query(stmt string, values ...interface{}) cassandra.Query {
-	return WrapCQLQuery(s.session.Query(stmt, values...))
+	q := s.session.Query(stmt, values...)
+	// https://github.com/gocql/gocql/issues/522
+	// we use IN and ORDER BY in multiple queries.
+	q.PageSize(0)
+	return WrapCQLQuery(q)
 }
 
 // Close delegates to gocql.Session#Close.

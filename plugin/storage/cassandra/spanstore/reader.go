@@ -60,8 +60,8 @@ const (
 		LIMIT ?`
 	queryByDuration = `
 		SELECT trace_id
-		FROM span_duration_index
-		WHERE bucket = ? AND service_name = ? AND span_name = ? AND duration > ? AND duration < ?
+		FROM duration_index
+		WHERE bucket = ? AND service_name = ? AND operation_name = ? AND duration > ? AND duration < ?
 		LIMIT ?`
 
 	defaultNumTraces = 100
@@ -308,12 +308,11 @@ func (s *SpanReader) queryByDuration(traceQuery *spanstore.TraceQueryParameters)
 	}
 
 	// See writer.go:indexByDuration  for how this is indexed
-	// This is indexed in hours since epoch, converted to hours
-	// TODO encapsulate this calculation
-	startTimeSeconds := (traceQuery.StartTimeMin.UnixNano() / int64(time.Hour))
-	endTimeSeconds := (traceQuery.StartTimeMax.UnixNano() / int64(time.Hour))
+	// This is indexed in hours since epoch
+	startTimeByHour := traceQuery.StartTimeMin.Round(durationBucketSize)
+	endTimeByHour := traceQuery.StartTimeMax.Round(durationBucketSize)
 
-	for timeBucket := endTimeSeconds; timeBucket >= startTimeSeconds; timeBucket-- {
+	for timeBucket := endTimeByHour; timeBucket.After(startTimeByHour) || timeBucket.Equal(startTimeByHour); timeBucket = timeBucket.Add(-1 * durationBucketSize) {
 		query := s.session.Query(
 			queryByDuration,
 			timeBucket,
