@@ -1,5 +1,5 @@
-hash: 295a8525c9e6c3768118244cd0abcc6ac27254cd22f0be075670e7dd4b8a8a8a
-updated: 2017-04-03T21:34:01.916270947-04:00
+hash: cd1f57261c1a360ba5e13c82584120ede2bf116e959cdb41517bb7c4ce6f87b0
+updated: 2017-04-07T23:09:53.293179616-04:00
 imports:
 - name: github.com/apache/thrift
   version: 53dd39833a08ce33582e5ff31fa18bb4735d6731
@@ -146,7 +146,7 @@ imports:
   - zapcore
   - zaptest
 - name: golang.org/x/net
-  version: ffcf1bedda3b04ebb15a168a59800a73d6dc0f4d
+  version: d1e1b351919c6738fdeb9893d5c998b161464f0c
   subpackages:
   - context
 - name: golang.org/x/sys
@@ -161,7 +161,7 @@ imports:
 - name: gopkg.in/inf.v0
   version: 3887ee99ecf07df5b447e9b00d9c0b2adaa9f3e4
 - name: gopkg.in/yaml.v2
-  version: a3f3340b5840cee44f372bddb5880fcbc419b46a
+  version: cd8b52f8269e0feb286dfeef29f8fe4d5b397e0b
 testImports:
 - name: github.com/kr/text
   version: 7cafcd837844e784b526369c9bce262804aebc60
