@@ -38,8 +38,7 @@ func WrapCQLSession(session *gocql.Session) CQLSession {
 
 // Query delegates to gocql.Session#Query and wraps the result as Query.
 func (s CQLSession) Query(stmt string, values ...interface{}) cassandra.Query {
-	q := s.session.Query(stmt, values...)
-	return WrapCQLQuery(q)
+	return WrapCQLQuery(s.session.Query(stmt, values...))
 }
 
 // Close delegates to gocql.Session#Close.
