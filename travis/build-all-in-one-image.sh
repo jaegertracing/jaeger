@@ -1,7 +1,7 @@
 #!/bin/bash
 
 # Only build docker container for master branch
-#if [ "$TRAVIS_PULL_REQUEST" == "false" ]; then echo 'upload to Docker Hub'; else echo 'skip docker upload for PR'; exit 0; fi
+if [ "$TRAVIS_PULL_REQUEST" == "false" ]; then echo 'upload to Docker Hub'; else echo 'skip docker upload for PR'; exit 0; fi
 
 export REPO=jaegertracing/all-in-one
 export BRANCH=$(if [ "$TRAVIS_PULL_REQUEST" == "false" ]; then echo $TRAVIS_BRANCH; else echo $TRAVIS_PULL_REQUEST_BRANCH; fi)
