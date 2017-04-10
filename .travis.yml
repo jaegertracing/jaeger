@@ -36,6 +36,7 @@ install:
   - node -v
   - make install_ci
   - chmod +x ./travis/build-all-in-one-image.sh
+  - nvm use 4
 
 script:
   - if [ "$TESTS" == true ]; then make test_ci ; else echo 'skipping tests'; fi
