@@ -17,9 +17,6 @@ matrix:
 #  - go: 1.8
 #    env:
 #    - TESTS=true
-  allow_failures:
-  - env:
-    - ALL_IN_ONE=true
 
 services:
   - docker
