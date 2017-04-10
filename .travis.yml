@@ -2,10 +2,6 @@ sudo: required
 
 language: go
 
-go:
-  - 1.7
-  - 1.8
-
 matrix:
   include:
   - go: 1.7
@@ -18,6 +14,9 @@ matrix:
   - go: 1.8
     env:
     - TESTS=true
+  allow_failures:
+  - env:
+    - ALL_IN_ONE=true
 
 services:
   - docker
