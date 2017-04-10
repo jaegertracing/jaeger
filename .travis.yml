@@ -13,9 +13,10 @@ matrix:
   - go: 1.7
     env:
     - ALL_IN_ONE=true
-  - go: 1.8
-    env:
-    - TESTS=true
+# TODO 1.8 tests take way too long to run 900s vs 250s for 1.7
+#  - go: 1.8
+#    env:
+#    - TESTS=true
   allow_failures:
   - env:
     - ALL_IN_ONE=true
