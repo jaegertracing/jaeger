@@ -28,6 +28,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"github.com/uber/jaeger-lib/metrics"
+	"github.com/uber/tchannel-go"
 	"go.uber.org/zap"
 	"gopkg.in/yaml.v2"
 
@@ -108,6 +109,15 @@ func TestConfigWithCollectorServiceName(t *testing.T) {
 	assert.NoError(t, err)
 	assert.NotNil(t, agent)
 	assert.Equal(t, cfg.CollectorServiceName, "jaeger-collector")
+}
+
+func TestConfigWithChannel(t *testing.T) {
+	cfg := &Builder{}
+	channel, _ := tchannel.NewChannel(agentServiceName, nil)
+	cfg.WithChannel(channel)
+	agent, err := cfg.CreateAgent(metrics.NullFactory, zap.NewNop())
+	assert.NoError(t, err)
+	assert.NotNil(t, agent)
 }
 
 func TestConfigWithSingleCollector(t *testing.T) {
