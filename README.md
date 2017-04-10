@@ -6,8 +6,8 @@ http://uber.github.io/jaeger/
 
 ## Documentation
 
-  * http://jaeger.readthedocs.io/
-  * Read [UberEng](https://eng.uber.com/) blog post on [Evolving Distributed Tracing at Uber](https://eng.uber.com/distributed-tracing/).
+See [Jaeger Read the Docs](http://jaeger.readthedocs.io/en/latest/) for full documentation, operational details and other information.
+Documentation is built on [Read the Docs](readthedocs.io), and a build of the documentation can be triggered [here](https://readthedocs.org/projects/jaeger/).
 
 ## Status
 
