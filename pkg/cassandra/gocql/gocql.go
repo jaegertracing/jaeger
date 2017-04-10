@@ -39,9 +39,6 @@ func WrapCQLSession(session *gocql.Session) CQLSession {
 // Query delegates to gocql.Session#Query and wraps the result as Query.
 func (s CQLSession) Query(stmt string, values ...interface{}) cassandra.Query {
 	q := s.session.Query(stmt, values...)
-	// https://github.com/gocql/gocql/issues/522
-	// we use IN and ORDER BY in multiple queries.
-	q.PageSize(0)
 	return WrapCQLQuery(q)
 }
 
@@ -90,6 +87,11 @@ func (q CQLQuery) Consistency(level cassandra.Consistency) cassandra.Query {
 // String returns string representation of this query.
 func (q CQLQuery) String() string {
 	return q.query.String()
+}
+
+// PageSize delegates to gocql.Query#PageSize and wraps the result as Query.
+func (q CQLQuery) PageSize(n int) cassandra.Query {
+	return WrapCQLQuery(q.query.PageSize(n))
 }
 
 // ---
