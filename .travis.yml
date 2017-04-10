@@ -2,21 +2,20 @@ sudo: required
 
 language: go
 
+dist: trusty
+
 matrix:
   include:
   - go: 1.7
     env:
     - TESTS=true
     - COVERAGE=true
-    dist: trusty
   - go: 1.7
     env:
     - ALL_IN_ONE=true
-    dist: trusty
   - go: 1.8
     env:
     - TESTS=true
-    dist: trusty
   allow_failures:
   - env:
     - ALL_IN_ONE=true
