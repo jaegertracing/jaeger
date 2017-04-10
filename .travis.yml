@@ -12,7 +12,6 @@ matrix:
   - go: 1.7
     env:
     - ALL_IN_ONE=true
-    sudo: required
     dist: trusty
   - go: 1.8
     env:
@@ -37,6 +36,7 @@ install:
   - nvm version
   - node -v
   - make install_ci
+  - chmod +x ./travis/build-all-in-one-image.sh
 
 script:
   - if [ "$TESTS" == true ]; then make test_ci ; else echo 'skipping tests'; fi
