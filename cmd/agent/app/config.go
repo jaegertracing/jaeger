@@ -48,7 +48,7 @@ const (
 	defaultServerWorkers = 10
 	defaultMinPeers      = 3
 
-	defaultSamplingServerHostPort = "localhost:5778"
+	defaultSamplingServerHostPort = ":5778"
 
 	agentServiceName            = "jaeger-agent"
 	defaultCollectorServiceName = "jaeger-collector"
@@ -104,7 +104,7 @@ func NewBuilder() *Builder {
 				Server: ServerConfiguration{
 					QueueSize:     defaultQueueSize,
 					MaxPacketSize: defaultMaxPacketSize,
-					HostPort:      "127.0.0.1:5775",
+					HostPort:      ":5775",
 				},
 			},
 			{
@@ -114,7 +114,7 @@ func NewBuilder() *Builder {
 				Server: ServerConfiguration{
 					QueueSize:     defaultQueueSize,
 					MaxPacketSize: defaultMaxPacketSize,
-					HostPort:      "127.0.0.1:6831",
+					HostPort:      ":6831",
 				},
 			},
 			{
@@ -124,12 +124,12 @@ func NewBuilder() *Builder {
 				Server: ServerConfiguration{
 					QueueSize:     defaultQueueSize,
 					MaxPacketSize: defaultMaxPacketSize,
-					HostPort:      "127.0.0.1:6832",
+					HostPort:      ":6832",
 				},
 			},
 		},
 		SamplingServer: SamplingServerConfiguration{
-			HostPort: "127.0.0.1:5778",
+			HostPort: ":5778",
 		},
 	}
 }
