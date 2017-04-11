@@ -61,25 +61,6 @@ CREATE TYPE IF NOT EXISTS ${keyspace}.process (
     tags            list<frozen<keyvalue>>,
 );
 
-CREATE TABLE IF NOT EXISTS ${keyspace}.service_names (
-    service_name text,
-    PRIMARY KEY (service_name)
-) WITH compaction = {'min_threshold': '4', 'class': 'org.apache.cassandra.db.compaction.SizeTieredCompactionStrategy', 'max_threshold': '32'}
-    AND dclocal_read_repair_chance = 0.0
-    AND default_time_to_live = ${default_time_to_live}
-    AND speculative_retry = 'NONE'
-    AND gc_grace_seconds = 10800; -- 3 hours of downtime acceptable on nodes
-
-CREATE TABLE IF NOT EXISTS ${keyspace}.operation_names (
-    service_name        text,
-    operation_name      text,
-    PRIMARY KEY ((service_name), operation_name)
-) WITH compaction = {'min_threshold': '4', 'class': 'org.apache.cassandra.db.compaction.SizeTieredCompactionStrategy', 'max_threshold': '32'}
-    AND dclocal_read_repair_chance = 0.0
-    AND default_time_to_live = ${default_time_to_live}
-    AND speculative_retry = 'NONE'
-    AND gc_grace_seconds = 10800; -- 3 hours of downtime acceptable on nodes
-
  -- Notice we have span_hash. This exists only for zipkin backwards compat. Zipkin allows spans with the same ID.
  -- Note: Cassandra re-orders non-PK columns alphabetically, so the table looks differently in CQLSH "describe table".
  -- start_time is bigint instead of timestamp as we require microsecond precision
@@ -99,6 +80,25 @@ CREATE TABLE IF NOT EXISTS ${keyspace}.traces (
     PRIMARY KEY (trace_id, span_id, span_hash)
 )
     WITH compaction = {'compaction_window_size': '1', 'compaction_window_unit': 'HOURS', 'class': 'org.apache.cassandra.db.compaction.TimeWindowCompactionStrategy'}
+    AND dclocal_read_repair_chance = 0.0
+    AND default_time_to_live = ${default_time_to_live}
+    AND speculative_retry = 'NONE'
+    AND gc_grace_seconds = 10800; -- 3 hours of downtime acceptable on nodes
+
+CREATE TABLE IF NOT EXISTS ${keyspace}.service_names (
+    service_name text,
+    PRIMARY KEY (service_name)
+) WITH compaction = {'min_threshold': '4', 'class': 'org.apache.cassandra.db.compaction.SizeTieredCompactionStrategy', 'max_threshold': '32'}
+    AND dclocal_read_repair_chance = 0.0
+    AND default_time_to_live = ${default_time_to_live}
+    AND speculative_retry = 'NONE'
+    AND gc_grace_seconds = 10800; -- 3 hours of downtime acceptable on nodes
+
+CREATE TABLE IF NOT EXISTS ${keyspace}.operation_names (
+    service_name        text,
+    operation_name      text,
+    PRIMARY KEY ((service_name), operation_name)
+) WITH compaction = {'min_threshold': '4', 'class': 'org.apache.cassandra.db.compaction.SizeTieredCompactionStrategy', 'max_threshold': '32'}
     AND dclocal_read_repair_chance = 0.0
     AND default_time_to_live = ${default_time_to_live}
     AND speculative_retry = 'NONE'
