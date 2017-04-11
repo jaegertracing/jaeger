@@ -1,5 +1,6 @@
 FROM golang:1.7
-EXPOSE 5775 6831 6832 14267 16686
+# expose agent UDP ports and query port
+EXPOSE 5775/udp 6831/udp 6832/udp 16686
 
 COPY ./jaeger-ui-build /go/src/jaeger-ui-build
 COPY ./cmd/standalone/standalone-linux /go/bin/
