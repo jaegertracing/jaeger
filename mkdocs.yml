@@ -1,0 +1,19 @@
+site_name: Jaeger Documentation
+theme_dir: docs/theme
+markdown_extensions:
+  - codehilite
+  - toc(permalink=true)
+  - pymdownx.betterem(smart_enable=all)
+  - pymdownx.caret
+  - pymdownx.critic
+  - pymdownx.inlinehilite
+  - pymdownx.mark
+  - pymdownx.smartsymbols
+  - pymdownx.superfences
+  - pymdownx.tasklist(custom_checkbox=true)
+  - pymdownx.tilde
+site_favicon: 'images/favicon.ico'
+repo_name: 'uber/jaeger'
+repo_url: 'https://github.com/uber/jaeger'
+extra:
+  logo: 'images/jaeger-logo.png'

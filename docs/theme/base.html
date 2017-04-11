@@ -1,0 +1,165 @@
+{% import "partials/language.html" as lang %}
+<!DOCTYPE html>
+<html class="no-js">
+  <head>
+    {% block site_meta %}
+      <meta charset="utf-8">
+      <meta name="viewport" content="width=device-width,initial-scale=1">
+      {% if page and page.meta.description %}
+        <meta name="description" content="{{ page.meta.description | first }}">
+      {% elif config.site_description %}
+        <meta name="description" content="{{ config.site_description }}">
+      {% endif %}
+      {% if page.canonical_url %}
+        <link rel="canonical" href="{{ page.canonical_url }}">
+      {% endif %}
+      {% if page and page.meta.author %}
+        <meta name="author" content="{{ page.meta.author | first }}">
+      {% elif config.site_author %}
+        <meta name="author" content="{{ config.site_author }}">
+      {% endif %}
+      {% if config.site_favicon %}
+        <link rel="shortcut icon" href="{{ base_url }}/{{ config.site_favicon }}">
+      {% else %}
+        <link rel="shortcut icon" href="{{ base_url }}/assets/images/favicon.png">
+      {% endif %}
+      <meta name="generator" content="mkdocs-{{ mkdocs_version }}, mkdocs-material-1.5.2">
+    {% endblock %}
+    {% block htmltitle %}
+      {% if page and page.meta.title %}
+        <title>{{ page.meta.title | first }}</title>
+      {% elif page and page.title and not page.is_homepage %}
+        <title>{{ page.title }} - {{ config.site_name }}</title>
+      {% else %}
+        <title>{{ config.site_name }}</title>
+      {% endif %}
+    {% endblock %}
+    {% block libs %}
+      <script src="{{ base_url }}/assets/javascripts/modernizr-56ade86843.js"></script>
+    {% endblock %}
+    {% block styles %}
+      <link rel="stylesheet" href="{{ base_url }}/assets/stylesheets/application-a9490fa5b9.css">
+      {% if config.extra.palette %}
+        <link rel="stylesheet" href="{{ base_url }}/assets/stylesheets/application-f78e5cb881.palette.css">
+      {% endif %}
+    {% endblock %}
+    {% block fonts %}
+      {% if config.extra.font != false and config.extra.font != "none" %}
+        {% set text = config.extra.get("font", {}).text | default("Roboto") %}
+        {% set code = config.extra.get("font", {}).code
+                    | default("Roboto Mono") %}
+        {% set font = text + ':300,400,400i,700|' + code | replace(' ', '+') %}
+        <link rel="stylesheet" href="https://fonts.googleapis.com/css?family={{ font }}">
+        <style>body,input{font-family:"{{ text }}","Helvetica Neue",Helvetica,Arial,sans-serif}code,kbd,pre{font-family:"{{ code }}","Courier New",Courier,monospace}</style>
+      {% endif %}
+      <link rel="stylesheet" href="https://fonts.googleapis.com/icon?family=Material+Icons">
+    {% endblock %}
+    {% for path in extra_css %}
+      <link rel="stylesheet" href="{{ path }}">
+    {% endfor %}
+    {% block extrahead %}{% endblock %}
+  </head>
+  {% set palette = config.extra.get("palette", {}) %}
+  {% set primary = palette.primary | replace(" ", "-") | lower %}
+  {% set accent  = palette.accent  | replace(" ", "-") | lower %}
+  {% if primary or accent %}
+    <body data-md-color-primary="{{ primary }}" data-md-color-accent="{{ accent }}">
+  {% else %}
+    <body>
+  {% endif %}
+    <svg class="md-svg">
+      <defs>
+        {% set platform = config.extra.repo_icon or config.repo_url %}
+        {% if "github" in platform %}
+          {% include "assets/images/icons/github-1da075986e.svg" %}
+        {% elif "gitlab" in platform %}
+          {% include "assets/images/icons/gitlab-5ad3f9f9e5.svg" %}
+        {% elif "bitbucket" in platform %}
+          {% include "assets/images/icons/bitbucket-670608a71a.svg" %}
+        {% endif %}
+      </defs>
+    </svg>
+    <input class="md-toggle" data-md-toggle="drawer" type="checkbox" id="drawer">
+    <input class="md-toggle" data-md-toggle="search" type="checkbox" id="search">
+    <label class="md-overlay" data-md-component="overlay" for="drawer"></label>
+    {% block header %}
+      {% include "partials/header.html" %}
+    {% endblock %}
+    <div class="md-container">
+      {% set feature = config.extra.get("feature", {}) %}
+      {% if feature.tabs %}
+        {% include "partials/tabs.html" %}
+      {% endif %}
+      <main class="md-main">
+        <div class="md-main__inner md-grid" data-md-component="container">
+          {% block site_nav %}
+            {% if nav %}
+              <div class="md-sidebar md-sidebar--primary" data-md-component="navigation">
+                <div class="md-sidebar__scrollwrap">
+                  <div class="md-sidebar__inner">
+                    {% include "partials/nav.html" %}
+                  </div>
+                </div>
+              </div>
+            {% endif %}
+            {% if page.toc %}
+              <div class="md-sidebar md-sidebar--secondary" data-md-component="toc">
+                <div class="md-sidebar__scrollwrap">
+                  <div class="md-sidebar__inner">
+                    {% include "partials/toc.html" %}
+                  </div>
+                </div>
+              </div>
+            {% endif %}
+          {% endblock %}
+          <div class="md-content">
+            <article class="md-content__inner md-typeset">
+              {% block content %}
+                {% if config.edit_uri %}
+                  <a href="{{ page.edit_url }}" title="{{ lang.t('edit.link.title') }}" class="md-icon md-content__icon">edit</a>
+                {% endif %}
+                {% if not "\x3ch1" in page.content %}
+                  <h1>{{ page.title | default(config.site_name, true)}}</h1>
+                {% endif %}
+                {{ page.content }}
+                {% block source %}
+                  {% if page.meta.source %}
+                    <h2 id="__source">{{ lang.t('meta.source') }}</h2>
+                    {% set path = (page.meta.path | default([""]) | first) %}
+                    {% for file in page.meta.source %}
+                      <a href="{{ [config.repo_url, path, file] |
+                            join('/') | replace('//', '/') }}" title="{{ file }}" class="md-source-file">
+                        {{ file }}
+                      </a>
+                    {% endfor %}
+                  {% endif %}
+                {% endblock %}
+              {% endblock %}
+              {% block disqus %}
+                {% if config.extra.disqus and not page.is_homepage %}
+                  <h2 id="__comments">{{ lang.t('meta.comments') }}</h2>
+                  {% include "partials/disqus.html" %}
+                {% endif %}
+              {% endblock %}
+            </article>
+          </div>
+        </div>
+      </main>
+      {% block footer %}
+        {% include "partials/footer.html" %}
+      {% endblock %}
+    </div>
+    {% block scripts %}
+      <script src="{{ base_url }}/assets/javascripts/application-ae2e7c9801.js"></script>
+      <script>app.initialize({url:{base:"{{ base_url }}"}})</script>
+      {% for path in extra_javascript %}
+        <script src="{{ path }}"></script>
+      {% endfor %}
+    {% endblock %}
+    {% block analytics %}
+      {% if config.google_analytics %}
+      <script>!function(e,t,a,n,o,c,i){e.GoogleAnalyticsObject=o,e[o]=e[o]||function(){(e[o].q=e[o].q||[]).push(arguments)},e[o].l=1*new Date,c=t.createElement(a),i=t.getElementsByTagName(a)[0],c.async=1,c.src=n,i.parentNode.insertBefore(c,i)}(window,document,"script","https://www.google-analytics.com/analytics.js","ga"),ga("create","{{ config.google_analytics[0] }}","{{ config.google_analytics[1] }}"),ga("set","anonymizeIp",!0),ga("send","pageview");var links=document.getElementsByTagName("a");Array.prototype.map.call(links,function(e){e.host!=document.location.host&&e.addEventListener("click",function(){var t=e.getAttribute("data-md-action")||"follow";ga("send","event","outbound",t,e.href)})});var query=document.forms.search.query;query.addEventListener("blur",function(){if(this.value){var e=document.location.pathname;ga("send","pageview",e+"?q="+this.value)}})</script>
+      {% endif %}
+    {% endblock %}
+  </body>
+</html>
