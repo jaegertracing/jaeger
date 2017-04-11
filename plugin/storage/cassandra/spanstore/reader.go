@@ -65,6 +65,9 @@ const (
 		LIMIT ?`
 
 	defaultNumTraces = 100
+	// limitMultiple exists because many spans that are returned from indices can have the same trace, limitMultiple increases
+	// the number of responses from the index, so we can respect the user's limit value they provided.
+	limitMultiple = 3
 )
 
 var (
@@ -287,7 +290,7 @@ func (s *SpanReader) queryByTagsAndLogs(tq *spanstore.TraceQueryParameters) (dbm
 			v,
 			model.TimeAsEpochMicroseconds(tq.StartTimeMin),
 			model.TimeAsEpochMicroseconds(tq.StartTimeMax),
-			tq.NumTraces,
+			tq.NumTraces*limitMultiple,
 		).PageSize(0)
 		t, err := s.executeQuery(query, s.metrics.queryTagIndex)
 		if err != nil {
@@ -320,7 +323,7 @@ func (s *SpanReader) queryByDuration(traceQuery *spanstore.TraceQueryParameters)
 			traceQuery.OperationName,
 			minDurationMicros,
 			maxDurationMicros,
-			traceQuery.NumTraces)
+			traceQuery.NumTraces*limitMultiple)
 		t, err := s.executeQuery(query, s.metrics.queryDurationIndex)
 		if err != nil {
 			return nil, err
@@ -337,12 +340,25 @@ func (s *SpanReader) queryByDuration(traceQuery *spanstore.TraceQueryParameters)
 }
 
 func (s *SpanReader) queryByServiceNameAndOperation(tq *spanstore.TraceQueryParameters) (dbmodel.UniqueTraceIDs, error) {
-	query := s.session.Query(queryByServiceAndOperationName, tq.ServiceName, tq.OperationName, model.TimeAsEpochMicroseconds(tq.StartTimeMin), model.TimeAsEpochMicroseconds(tq.StartTimeMax), tq.NumTraces).PageSize(0)
+	query := s.session.Query(
+		queryByServiceAndOperationName,
+		tq.ServiceName,
+		tq.OperationName,
+		model.TimeAsEpochMicroseconds(tq.StartTimeMin),
+		model.TimeAsEpochMicroseconds(tq.StartTimeMax),
+		tq.NumTraces*limitMultiple,
+	).PageSize(0)
 	return s.executeQuery(query, s.metrics.queryServiceOperationIndex)
 }
 
 func (s *SpanReader) queryByService(tq *spanstore.TraceQueryParameters) (dbmodel.UniqueTraceIDs, error) {
-	query := s.session.Query(queryByServiceName, tq.ServiceName, model.TimeAsEpochMicroseconds(tq.StartTimeMin), model.TimeAsEpochMicroseconds(tq.StartTimeMax), tq.NumTraces).PageSize(0)
+	query := s.session.Query(
+		queryByServiceName,
+		tq.ServiceName,
+		model.TimeAsEpochMicroseconds(tq.StartTimeMin),
+		model.TimeAsEpochMicroseconds(tq.StartTimeMax),
+		tq.NumTraces*limitMultiple,
+	).PageSize(0)
 	return s.executeQuery(query, s.metrics.queryServiceNameIndex)
 }
 
