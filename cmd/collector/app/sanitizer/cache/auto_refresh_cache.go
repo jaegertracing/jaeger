@@ -85,7 +85,6 @@ func (c *autoRefreshCache) IsEmpty() bool {
 func (c *autoRefreshCache) Initialize() error {
 	if err := c.warmCache(); err != nil {
 		c.logger.Error("Cannot warm cache from storage or external source", zap.Error(err))
-		// TODO (wjang) was this intentional? should this not return an error here?
 	}
 	c.initializeCacheRefresh()
 	return nil
@@ -107,12 +106,12 @@ func (c *autoRefreshCache) refreshFromExternalSource(refreshInterval time.Durati
 	time.Sleep(getRandomSleepTime(refreshInterval))
 	c.updateAndSaveToStorage()
 	ticker := time.NewTicker(refreshInterval)
+	defer ticker.Stop()
 	for {
 		select {
 		case <-ticker.C:
 			c.updateAndSaveToStorage()
 		case <-c.stopSaveChan:
-			ticker.Stop()
 			return
 		}
 	}
@@ -128,8 +127,7 @@ func (c *autoRefreshCache) updateAndSaveToStorage() {
 	// Get read lock so that the cache isn't modified while the cache is dumped to storage
 	c.RLock()
 	defer c.RUnlock()
-	eq := mapEqual(c.cache, cache)
-	if !eq {
+	if !mapEqual(c.cache, cache) {
 		c.logger.Info("Dumping cache to storage")
 		c.storage.Save(cache)
 	}
@@ -147,6 +145,7 @@ func getRandomSleepTime(interval time.Duration) time.Duration {
 // changed the content in storage
 func (c *autoRefreshCache) refreshFromStorage(refreshInterval time.Duration) {
 	ticker := time.NewTicker(refreshInterval)
+	defer ticker.Stop()
 	for {
 		select {
 		case <-ticker.C:
