@@ -17,9 +17,9 @@ import (
 const (
 	queryService = "Query"
 
-	queryServiceURL = "http://127.0.0.1:6686"
+	queryServiceURL = "http://127.0.0.1:16686"
 
-	queryCmd = "/go/cmd/jaeger-query -config %s &"
+	queryCmd = "/go/cmd/jaeger-query %s &"
 )
 
 // QueryService is the service used to query cassandra tables for traces
@@ -30,9 +30,9 @@ type QueryService struct {
 
 // NewQueryService initiates the query service
 func NewQueryService(url string, logger *zap.Logger) *QueryService {
-	cmd := exec.Command("/bin/bash", "-c", fmt.Sprintf(queryCmd, queryConfig))
-	err := cmd.Run()
-	if err != nil {
+	cmd := exec.Command("/bin/bash", "-c", fmt.Sprintf(queryCmd,
+		"-cassandra.keyspace=jaeger -cassandra.servers=cassandra -cassandra.connections-per-host=1"))
+	if err := cmd.Run(); err != nil {
 		logger.Fatal("Failed to initialize query service", zap.Error(err))
 	}
 	if url == "" {

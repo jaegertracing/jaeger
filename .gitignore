@@ -20,3 +20,5 @@ cmd/collector/collector*
 cmd/query/query*
 crossdock/crossdock
 crossdock/cmd/
+crossdock/scripts/
+run-crossdock.log

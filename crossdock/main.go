@@ -45,6 +45,8 @@ func main() {
 }
 
 func (h *clientHandler) initialize() {
+	services.InitializeStorage(logger)
+	logger.Info("Cassandra started")
 	services.InitializeCollector(logger)
 	logger.Info("Collector started")
 	agentService := services.InitializeAgent("", logger)

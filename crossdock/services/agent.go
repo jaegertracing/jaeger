@@ -18,7 +18,7 @@ const (
 
 	agentURL = "http://test_driver:5778"
 
-	agentCmd = "/go/cmd/jaeger-agent -f %s &"
+	agentCmd = "/go/cmd/jaeger-agent %s &"
 )
 
 var (
@@ -33,9 +33,10 @@ type AgentService struct {
 
 // InitializeAgent initializes the jaeger agent.
 func InitializeAgent(url string, logger *zap.Logger) *AgentService {
-	cmd := exec.Command("/bin/bash", "-c", fmt.Sprintf(agentCmd, agentConfig))
-	err := cmd.Run()
-	if err != nil {
+	cmd := exec.Command("/bin/bash", "-c", fmt.Sprintf(agentCmd,
+		"-collector.host-port=localhost:14267 -processor.zipkin-compact.server-host-port=test_driver:5775 " +
+			"-processor.jaeger-compact.server-host-port=test_driver:6831 -processor.jaeger-binary.server-host-port=test_driver:6832"))
+	if err := cmd.Run(); err != nil {
 		logger.Fatal("Failed to initialize agent service", zap.Error(err))
 	}
 	if url == "" {

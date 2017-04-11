@@ -6,45 +6,49 @@ services:
         links:
             - test_driver
             - go
-#            - node
-#            - java
-#            - python
+            - node
+            - java
+            - python
 
         environment:
-#            - WAIT_FOR=test_driver,go,node,java,python
-            - WAIT_FOR=test_driver,go
+            - WAIT_FOR=test_driver,go,node,java,python
             - WAIT_FOR_TIMEOUT=60s
 
             - CALL_TIMEOUT=60s
 
             - AXIS_CLIENT=test_driver
-#            - AXIS_SERVICES=go,node,java,python
-            - AXIS_SERVICES=go
+            - AXIS_SERVICES=go,node,java,python
 
             - BEHAVIOR_ENDTOEND=client,services
-            - BEHAVIOR_ADAPTIVESAMPLING=client,services
 
     go:
         image: jaegertracing/xdock-go
         ports:
             - "8080-8082"
 
-#    node:
-#        image: jaegertracing/xdock-node
-#        ports:
-#            - "8080-8082"
-#
-#    java:
-#        image: jaegertracing/xdock-java
-#        ports:
-#            - "8080-8082"
-#
-#    python:
-#        image: jaegertracing/xdock-py
-#        ports:
-#            - "8080-8082"
+    node:
+        image: jaegertracing/xdock-node
+        ports:
+            - "8080-8082"
+
+    java:
+        image: jaegertracing/xdock-java
+        ports:
+            - "8080-8082"
+
+    python:
+        image: jaegertracing/xdock-py
+        ports:
+            - "8080-8082"
+
+    cassandra:
+        image: "cassandra:3.9"
 
     test_driver:
         build: .
+        links:
+            - cassandra
+        depends_on:
+            - cassandra
         ports:
             - "8080"
