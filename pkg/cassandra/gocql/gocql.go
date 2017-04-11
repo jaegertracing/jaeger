@@ -88,6 +88,11 @@ func (q CQLQuery) String() string {
 	return q.query.String()
 }
 
+// PageSize delegates to gocql.Query#PageSize and wraps the result as Query.
+func (q CQLQuery) PageSize(n int) cassandra.Query {
+	return WrapCQLQuery(q.query.PageSize(n))
+}
+
 // ---
 
 // CQLIterator is a wrapper around gocql.Iter.

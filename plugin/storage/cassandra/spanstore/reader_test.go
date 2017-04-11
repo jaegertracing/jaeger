@@ -311,6 +311,7 @@ func TestSpanReaderFindTraces(t *testing.T) {
 					query := &mocks.Query{}
 					query.On("Bind", matchEverything()).Return(query)
 					query.On("Consistency", cassandra.One).Return(query)
+					query.On("PageSize", 0).Return(query)
 					query.On("Iter").Return(iter)
 
 					return query
@@ -330,6 +331,7 @@ func TestSpanReaderFindTraces(t *testing.T) {
 					loadQuery := &mocks.Query{}
 					loadQuery.On("Consistency", cassandra.One).Return(loadQuery)
 					loadQuery.On("Iter").Return(loadQueryIter)
+					loadQuery.On("PageSize", matchEverything()).Return(loadQuery)
 					return loadQuery
 				}
 

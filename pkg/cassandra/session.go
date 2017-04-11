@@ -68,6 +68,7 @@ type Query interface {
 	Iter() Iterator
 	Bind(v ...interface{}) Query
 	Consistency(level Consistency) Query
+	PageSize(int) Query
 }
 
 // Iterator is an abstraction of gocql.Iter

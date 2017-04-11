@@ -68,6 +68,8 @@ const (
 
 	// DefaultNumBuckets Number of buckets for bucketed keys
 	defaultNumBuckets = 10
+
+	durationBucketSize = time.Hour
 )
 
 type serviceNamesWriter func(serviceName string) error
@@ -157,7 +159,7 @@ func (s *SpanWriter) WriteSpan(span *model.Span) error {
 		return s.logError(ds, err, "Failed to index operation name", s.logger)
 	}
 
-	if err := s.indexByDuration(ds); err != nil {
+	if err := s.indexByDuration(ds, span.StartTime); err != nil {
 		return s.logError(ds, err, "Failed to index duration", s.logger)
 	}
 	return nil
@@ -183,9 +185,9 @@ func (s *SpanWriter) indexByTags(span *model.Span, ds *dbmodel.Span) error {
 	return nil
 }
 
-func (s *SpanWriter) indexByDuration(span *dbmodel.Span) error {
+func (s *SpanWriter) indexByDuration(span *dbmodel.Span, startTime time.Time) error {
 	query := s.session.Query(durationIndex)
-	timeBucket := int((span.StartTime / (60 * 60)) / 1000000) // 1hr in microseconds TODO use config
+	timeBucket := startTime.Round(durationBucketSize)
 	var err error
 	indexByOperationName := func(operationName string) {
 		q1 := query.Bind(span.Process.ServiceName, operationName, timeBucket, span.Duration, span.StartTime, span.TraceID)
