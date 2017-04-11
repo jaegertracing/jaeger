@@ -34,7 +34,7 @@ func TestQueue(t *testing.T) {
 	var wg sync.WaitGroup
 	var startLock sync.Mutex
 
-	// Make sure that at least one consumer consumes and element before we produce them
+	// Make sure that at least one consumer consumes an element before we produce them
 	// all. If all 5 go out before an consumers, we'll have 1 reaped, 1 in reaper channel,
 	// and 2 in the items channel, and we'll deadlock.
 	consumerConsumed := sync.NewCond(&sync.Mutex{})
@@ -66,7 +66,7 @@ func TestQueue(t *testing.T) {
 		q.Produce(val) // goes to consumer 1 and blocks it on startLock
 		t.Logf("produced %s, queue size %d\n", val, q.Size())
 	}
-	// With queue capacity of 3, and two consumers, we can product at most 5 items without blocking,
+	// With queue capacity of 3, and two consumers, we can produce at most 5 items without blocking,
 	// assuming that both consumers read one value and block
 	// If they don't read, then main will block while producing 5 items, thus allowing consumers to read
 	// and block.

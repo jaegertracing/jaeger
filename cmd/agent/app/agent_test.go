@@ -88,6 +88,6 @@ func TestAgentStartStop(t *testing.T) {
 	body, err := ioutil.ReadAll(resp.Body)
 	assert.NoError(t, err)
 	assert.Equal(t, "tcollector error: no peers available\n", string(body))
-	agent.Stop()
 	assert.NoError(t, <-ch)
+	agent.Stop()
 }
