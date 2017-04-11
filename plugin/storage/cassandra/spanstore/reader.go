@@ -65,7 +65,7 @@ const (
 		LIMIT ?`
 
 	defaultNumTraces = 100
-	limitMultiple = 3
+	limitMultiple    = 3
 )
 
 var (
@@ -288,7 +288,7 @@ func (s *SpanReader) queryByTagsAndLogs(tq *spanstore.TraceQueryParameters) (dbm
 			v,
 			model.TimeAsEpochMicroseconds(tq.StartTimeMin),
 			model.TimeAsEpochMicroseconds(tq.StartTimeMax),
-			tq.NumTraces * limitMultiple,
+			tq.NumTraces*limitMultiple,
 		).PageSize(0)
 		t, err := s.executeQuery(query, s.metrics.queryTagIndex)
 		if err != nil {
@@ -321,7 +321,7 @@ func (s *SpanReader) queryByDuration(traceQuery *spanstore.TraceQueryParameters)
 			traceQuery.OperationName,
 			minDurationMicros,
 			maxDurationMicros,
-			traceQuery.NumTraces * limitMultiple)
+			traceQuery.NumTraces*limitMultiple)
 		t, err := s.executeQuery(query, s.metrics.queryDurationIndex)
 		if err != nil {
 			return nil, err
@@ -344,7 +344,7 @@ func (s *SpanReader) queryByServiceNameAndOperation(tq *spanstore.TraceQueryPara
 		tq.OperationName,
 		model.TimeAsEpochMicroseconds(tq.StartTimeMin),
 		model.TimeAsEpochMicroseconds(tq.StartTimeMax),
-		tq.NumTraces * limitMultiple).
+		tq.NumTraces*limitMultiple).
 		PageSize(0)
 	return s.executeQuery(query, s.metrics.queryServiceOperationIndex)
 }
@@ -355,7 +355,7 @@ func (s *SpanReader) queryByService(tq *spanstore.TraceQueryParameters) (dbmodel
 		tq.ServiceName,
 		model.TimeAsEpochMicroseconds(tq.StartTimeMin),
 		model.TimeAsEpochMicroseconds(tq.StartTimeMax),
-		tq.NumTraces * limitMultiple).
+		tq.NumTraces*limitMultiple).
 		PageSize(0)
 	return s.executeQuery(query, s.metrics.queryServiceNameIndex)
 }
