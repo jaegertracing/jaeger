@@ -107,7 +107,7 @@ func TestInitialize_error(t *testing.T) {
 	c, mE, mS := getCache(t)
 	defer c.StopRefresh()
 
-	mS.On("Load").Return(nil, errDefault).Times(1)
+	mS.On("Load").Return(nil, errDefault)
 	mE.On("Load").Return(nil, errDefault)
 	assert.NoError(t, c.Initialize())
 	assert.True(t, c.IsEmpty())
@@ -154,9 +154,9 @@ func TestRefreshFromStorage_error(t *testing.T) {
 func TestInitializeCacheRefresh(t *testing.T) {
 	c, mE, mS := getCache(t)
 	c.cache = testCache2
-	mS.On("Load").Return(testCache1, nil).Times(2)
-	mE.On("Load").Return(testCache1, nil).Times(2)
-	mS.On("Save", testCache1).Return(nil).Times(2)
+	mS.On("Load").Return(testCache1, nil)
+	mE.On("Load").Return(testCache1, nil)
+	mS.On("Save", testCache1).Return(nil)
 
 	assert.Equal(t, "rt-demand", c.Get("demand"))
 
