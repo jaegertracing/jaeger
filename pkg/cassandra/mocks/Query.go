@@ -60,6 +60,22 @@ func (_m *Query) Consistency(level cassandra.Consistency) cassandra.Query {
 	return r0
 }
 
+// PageSize provides a mock function with given fields: n
+func (_m *Query) PageSize(n int) cassandra.Query {
+	ret := _m.Called(n)
+
+	var r0 cassandra.Query
+	if rf, ok := ret.Get(0).(func(int) cassandra.Query); ok {
+		r0 = rf(n)
+	} else {
+		if ret.Get(0) != nil {
+			r0 = ret.Get(0).(cassandra.Query)
+		}
+	}
+
+	return r0
+}
+
 // Exec provides a mock function with given fields:
 func (_m *Query) Exec() error {
 	ret := _m.Called()
