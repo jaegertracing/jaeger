@@ -34,6 +34,7 @@ install:
   - nvm version
   - node -v
   - make install_ci
+  - chmod +x ./travis/build-all-in-one-image.sh # TODO exec mode set on the file in git doesn't work as intended
 
 script:
   - if [ "$TESTS" == true ]; then make test_ci ; else echo 'skipping tests'; fi
