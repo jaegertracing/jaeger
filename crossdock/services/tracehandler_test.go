@@ -21,24 +21,26 @@
 package services
 
 import (
+	"encoding/json"
 	"errors"
+	"io/ioutil"
 	"net/http"
 	"net/http/httptest"
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
 	"github.com/uber/jaeger-client-go"
 	"go.uber.org/zap"
 
-	"encoding/json"
 	"github.com/uber/jaeger/crossdock/services/mocks"
 	ui "github.com/uber/jaeger/model/json"
-	"io/ioutil"
 )
 
 func TestCreateTraceRequest(t *testing.T) {
-	req := createTraceRequest(jaeger.SamplerTypeConst, "op", 23)
+	handler := NewTraceHandler(nil, nil, zap.NewNop())
+	req := handler.createTraceRequest(jaeger.SamplerTypeConst, "op", 23)
 	assert.Equal(t, "op", req.Operation)
 	assert.Equal(t, 23, req.Count)
 	assert.Equal(t, jaeger.SamplerTypeConst, req.Type)
@@ -188,7 +190,17 @@ func TestCreateTrace(t *testing.T) {
 }
 
 func TestTraceHandlerGetTraces(t *testing.T) {
+	query := &mocks.QueryService{}
+	handler := NewTraceHandler(query, nil, zap.NewNop())
+	handler.sleepDuration = time.Millisecond
 
+	query.On("GetTraces", "crossdock-go", "op", mock.Anything).Return(nil, errors.New("queryError")).Times(10)
+	traces := handler.getTraces("go", "op", nil)
+	assert.Nil(t, traces)
+
+	query.On("GetTraces", "crossdock-go", "op", mock.Anything).Return([]*ui.Trace{{TraceID: ui.TraceID(0)}}, nil)
+	traces = handler.getTraces("go", "op", nil)
+	assert.Len(t, traces, 1)
 }
 
 func TestEndToEndTest(t *testing.T) {
@@ -196,6 +208,15 @@ func TestEndToEndTest(t *testing.T) {
 	agent := &mocks.AgentService{}
 	cT := &mocks.T{}
 	handler := NewTraceHandler(query, agent, zap.NewNop())
+	handler.sleepDuration = time.Millisecond
+
+	cT.On("Param", "services").Return("go")
+	cT.On("Errorf", mock.AnythingOfType("string"), mock.Anything)
+	cT.On("Successf", mock.AnythingOfType("string"), mock.Anything)
+
+	// Test with no http server
+	handler.EndToEndTest(cT)
+	cT.AssertNumberOfCalls(t, "Errorf", 1)
 
 	server := httptest.NewServer(testClientHandler{})
 	defer server.Close()
@@ -203,8 +224,22 @@ func TestEndToEndTest(t *testing.T) {
 		return server.URL
 	}
 
-	cT.On("Param", "services").Return("testSvc")
-	cT.On("Errorf", mock.AnythingOfType("string"), mock.Anything)
+	// The query service fails to fetch traces
+	query.On("GetTraces", "crossdock-go", mock.AnythingOfType("string"), mock.Anything).Return(nil, errors.New("queryError")).Times(10)
 
 	handler.EndToEndTest(cT)
+	cT.AssertNumberOfCalls(t, "Errorf", 2)
+
+	trace := ui.Trace{
+		TraceID: ui.TraceID(0),
+		Spans:   []ui.Span{{Tags: []ui.KeyValue{{Key: "k", Value: "v", Type: ui.StringType}}}},
+	}
+
+	// The query service returns a trace
+	query.On("GetTraces", "crossdock-go", mock.AnythingOfType("string"), mock.Anything).Return([]*ui.Trace{&trace}, nil)
+	handler.getTags = func() map[string]string {
+		return map[string]string{"k": "v"}
+	}
+	handler.EndToEndTest(cT)
+	cT.AssertNumberOfCalls(t, "Successf", 1)
 }

@@ -97,6 +97,7 @@ func TestGetSamplingRate(t *testing.T) {
 	server := httptest.NewServer(handler)
 	defer server.Close()
 
+	// Test with no http server
 	agent := NewAgentService("", zap.NewNop())
 	rate, err := agent.GetSamplingRate("svc", "op")
 	assert.Error(t, err)

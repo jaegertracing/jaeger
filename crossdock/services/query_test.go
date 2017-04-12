@@ -53,7 +53,8 @@ func TestGetTraces(t *testing.T) {
 	server := httptest.NewServer(handler)
 	defer server.Close()
 
-	query := NewQueryService(server.URL, zap.NewNop())
+	// Test with no http server
+	query := NewQueryService("", zap.NewNop())
 	traces, err := query.GetTraces("svc", "op", map[string]string{"key": "value"})
 	assert.Error(t, err)
 

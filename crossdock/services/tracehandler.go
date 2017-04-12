@@ -54,10 +54,12 @@ type testFunc func(service string, request *traceRequest) ([]*ui.Trace, error)
 
 // TraceHandler handles creating traces and verifying them
 type TraceHandler struct {
-	query        QueryService
-	agent        AgentService
-	logger       *zap.Logger
-	getClientURL func(service string) string
+	query         QueryService
+	agent         AgentService
+	logger        *zap.Logger
+	getClientURL  func(service string) string
+	getTags       func() map[string]string
+	sleepDuration time.Duration
 }
 
 // NewTraceHandler returns a TraceHandler that can create traces and verify them
@@ -69,17 +71,22 @@ func NewTraceHandler(query QueryService, agent AgentService, logger *zap.Logger)
 		getClientURL: func(service string) string {
 			return fmt.Sprintf("http://%s:8081", service)
 		},
+		getTags: func() map[string]string {
+			return map[string]string{generateRandomString(): generateRandomString()}
+		},
+		sleepDuration: time.Second,
 	}
 }
 
 // EndToEndTest creates a trace by hitting a client service and validates the trace
 func (h *TraceHandler) EndToEndTest(t crossdock.T) {
 	operation := generateRandomString()
-	request := createTraceRequest(jaeger.SamplerTypeConst, operation, 1)
+	request := h.createTraceRequest(jaeger.SamplerTypeConst, operation, 1)
 	service := t.Param(servicesParam)
 	h.logger.Info("Starting EndToEnd test", zap.String("service", service))
 
 	if err := h.runTest(service, request, h.createAndRetrieveTraces, validateTracesWithCount); err != nil {
+		h.logger.Error(err.Error())
 		t.Errorf("Fail: %s", err.Error())
 	} else {
 		t.Successf("Pass")
@@ -117,7 +124,7 @@ func (h *TraceHandler) getTraces(service, operation string, tags map[string]stri
 			return traces
 		}
 		h.logger.Info("Could not retrieve trace from query service")
-		time.Sleep(time.Second)
+		time.Sleep(h.sleepDuration)
 	}
 	return nil
 }
@@ -139,6 +146,15 @@ func (h *TraceHandler) createTrace(service string, request *traceRequest) error 
 		return fmt.Errorf("retrieved %d status code from client service", resp.StatusCode)
 	}
 	return nil
+}
+
+func (h *TraceHandler) createTraceRequest(samplerType string, operation string, count int) *traceRequest {
+	return &traceRequest{
+		Type:      samplerType,
+		Operation: operation,
+		Tags:      h.getTags(),
+		Count:     count,
+	}
 }
 
 func validateTracesWithCount(expected *traceRequest, actual []*ui.Trace) error {
@@ -182,15 +198,6 @@ func convertTagsIntoMap(tags []ui.KeyValue) map[string]string {
 		}
 	}
 	return ret
-}
-
-func createTraceRequest(samplerType string, operation string, count int) *traceRequest {
-	return &traceRequest{
-		Type:      samplerType,
-		Operation: operation,
-		Tags:      map[string]string{generateRandomString(): generateRandomString()},
-		Count:     count,
-	}
 }
 
 func generateRandomString() string {
