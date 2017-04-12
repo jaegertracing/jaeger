@@ -32,12 +32,16 @@ var (
 		"rt-supply": "rt-supply",
 		"supply":    "rt-supply",
 	}
+
+	emptyCache = map[string]string{}
 )
 
-type fixedMappingCache struct{}
+type fixedMappingCache struct{
+	Cache map[string]string
+}
 
 func (d *fixedMappingCache) Get(key string) string {
-	k, ok := testCache[key]
+	k, ok := d.Cache[key]
 	if !ok {
 		return ""
 	}
@@ -53,15 +57,17 @@ func (d *fixedMappingCache) Initialize() error {
 }
 
 func (d *fixedMappingCache) IsEmpty() bool {
-	return len(testCache) == 0
+	return len(d.Cache) == 0
 }
 
-func getImpl() SanitizeSpan {
-	return NewChainedSanitizer(NewServiceNameSanitizer(&fixedMappingCache{}))
+func getImpl(c map[string]string) SanitizeSpan {
+	return NewChainedSanitizer(NewServiceNameSanitizer(&fixedMappingCache{
+		Cache: c,
+	}))
 }
 
 func TestSanitize(t *testing.T) {
-	i := getImpl()
+	i := getImpl(testCache)
 
 	tests := []struct {
 		incomingName string
@@ -89,4 +95,20 @@ func TestSanitize(t *testing.T) {
 		span := i(rawSpan)
 		assert.Equal(t, test.expectedName, span.Process.ServiceName)
 	}
+}
+
+func TestSanitizeEmptyCache(t *testing.T) {
+	i := getImpl(emptyCache)
+
+	incomingName := "supply"
+	expectedName := incomingName
+	
+	rawSpan := &model.Span{
+		Process: &model.Process{
+			ServiceName: incomingName,
+		},
+	}
+
+	span := i(rawSpan)
+	assert.Equal(t, expectedName, span.Process.ServiceName)
 }

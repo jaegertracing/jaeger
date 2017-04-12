@@ -1,5 +1,5 @@
-hash: cd1f57261c1a360ba5e13c82584120ede2bf116e959cdb41517bb7c4ce6f87b0
-updated: 2017-04-07T23:09:53.293179616-04:00
+hash: 295a8525c9e6c3768118244cd0abcc6ac27254cd22f0be075670e7dd4b8a8a8a
+updated: 2017-04-12T12:19:21.422143533-04:00
 imports:
 - name: github.com/apache/thrift
   version: 53dd39833a08ce33582e5ff31fa18bb4735d6731
@@ -37,7 +37,7 @@ imports:
 - name: github.com/hailocab/go-hostpool
   version: e80d13ce29ede4452c43dea11e79b9bc8a15b478
 - name: github.com/hashicorp/hcl
-  version: 80e628d796135357b3d2e33a985c666b9f35eee1
+  version: 630949a3c5fa3c613328e1b8256052cbc2327c9b
   subpackages:
   - hcl/ast
   - hcl/parser
@@ -52,46 +52,46 @@ imports:
 - name: github.com/kr/pretty
   version: cfb55aafdaf3ec08f0db22699ab822c50091b1c4
 - name: github.com/magiconair/properties
-  version: 9c47895dc1ce54302908ab8a43385d1f5df2c11c
+  version: 51463bfca2576e06c62a8504b5c0f06d61312647
 - name: github.com/mitchellh/mapstructure
-  version: bfdb1a85537d60bc7e954e600c250219ea497417
+  version: 53818660ed4955e899c0bcafa97299a388bd7c8e
 - name: github.com/opentracing-contrib/go-stdlib
   version: 1de4cc2120e71f745a5810488bf64b29b6d7d9f6
   subpackages:
   - nethttp
 - name: github.com/opentracing/opentracing-go
-  version: 6edb48674bd9467b8e91fda004f2bd7202d60ce4
+  version: 0c3154a3c2ce79d3271985848659870599dfb77c
   subpackages:
   - ext
   - log
 - name: github.com/pelletier/go-buffruneio
-  version: df1e16fde7fc330a0ca68167c23bf7ed6ac31d6d
+  version: c37440a7cf42ac63b919c752ca73a85067e05992
 - name: github.com/pelletier/go-toml
-  version: 439fbba1f887c286024370cb4f281ba815c4c7d7
+  version: fe206efb84b2bc8e8cfafe6b4c1826622be969e3
 - name: github.com/pkg/errors
-  version: 17b591df37844cde689f4d5813e5cea0927d8dd2
+  version: 248dadf4e9068a0b3e79f02ed0a610d935de5302
 - name: github.com/pmezard/go-difflib
   version: 792786c7400a136282c1664665ae0a8db921c6c2
   subpackages:
   - difflib
 - name: github.com/spf13/afero
-  version: 90dd71edc4d0a8b3511dc12ea15d617d03be09e0
+  version: 9be650865eab0c12963d8753212f4f9c66cdcf12
   subpackages:
   - mem
 - name: github.com/spf13/cast
-  version: 56a7ecbeb18dde53c6db4bd96b541fd9741b8d44
+  version: ce135a4ebeee6cfe9a26c93ee0d37825f26113c7
 - name: github.com/spf13/cobra
-  version: 1dd5ff2e11b6dca62fdcb275eb804b94607d8b06
+  version: 5deb57bbca49eb370538fc295ba4b2988f9f5e09
 - name: github.com/spf13/jwalterweatherman
-  version: bccdd23ae5e51bd2b081814db093646c7af3d34d
+  version: fa7ca7e836cf3a8bb4ebf799f472c12d7e903d66
 - name: github.com/spf13/pflag
-  version: 25f8b5b07aece3207895bf19f7ab517eb3b22a40
+  version: e453343e6260b4a3a89f1f0e10a2fbb07f8d9750
 - name: github.com/spf13/viper
-  version: 5ed0fc31f7f453625df314d8e66b9791e8d13003
+  version: 5d46e70da8c0b6f812e0b170b7a985753b5c63cb
 - name: github.com/stretchr/objx
   version: 1a9d0bb9f541897e62256577b352fdbc1fb4fd94
 - name: github.com/stretchr/testify
-  version: 4d4bfba8f1d1027c4fdbe371823030df51419987
+  version: 2402e8e7a02fc811447d11f881aa9746cdc57983
   subpackages:
   - assert
   - mock
@@ -146,7 +146,7 @@ imports:
   - zapcore
   - zaptest
 - name: golang.org/x/net
-  version: d1e1b351919c6738fdeb9893d5c998b161464f0c
+  version: b4690f45fa1cafc47b1c280c2e75116efe40cc13
   subpackages:
   - context
 - name: golang.org/x/sys
@@ -154,7 +154,7 @@ imports:
   subpackages:
   - unix
 - name: golang.org/x/text
-  version: 44f4f658a783b0cee41fe0a23b8fc91d9c120558
+  version: a7c023693a94aedd6b6df43ae7526bfe9d2b7d22
   subpackages:
   - transform
   - unicode/norm
