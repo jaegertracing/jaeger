@@ -32,11 +32,9 @@ var (
 		"rt-supply": "rt-supply",
 		"supply":    "rt-supply",
 	}
-
-	emptyCache = map[string]string{}
 )
 
-type fixedMappingCache struct{
+type fixedMappingCache struct {
 	Cache map[string]string
 }
 
@@ -98,11 +96,11 @@ func TestSanitize(t *testing.T) {
 }
 
 func TestSanitizeEmptyCache(t *testing.T) {
-	i := getImpl(emptyCache)
+	i := getImpl(make(map[string]string))
 
 	incomingName := "supply"
 	expectedName := incomingName
-	
+
 	rawSpan := &model.Span{
 		Process: &model.Process{
 			ServiceName: incomingName,
