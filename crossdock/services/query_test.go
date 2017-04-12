@@ -55,6 +55,10 @@ func TestGetTraces(t *testing.T) {
 
 	query := NewQueryService(server.URL, zap.NewNop())
 	traces, err := query.GetTraces("svc", "op", map[string]string{"key": "value"})
+	assert.Error(t, err)
+
+	query = NewQueryService(server.URL, zap.NewNop())
+	traces, err = query.GetTraces("svc", "op", map[string]string{"key": "value"})
 	assert.NoError(t, err)
 	assert.Len(t, traces, 1)
 	assert.EqualValues(t, "traceid", traces[0].TraceID)

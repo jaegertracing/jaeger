@@ -174,7 +174,7 @@ func TestCreateTrace(t *testing.T) {
 	}
 
 	err := handler.createTrace("svc", &traceRequest{Operation: "op"})
-	assert.EqualError(t, err, "")
+	assert.Error(t, err)
 
 	handler.getClientURL = func(service string) string {
 		return server.URL
@@ -185,6 +185,10 @@ func TestCreateTrace(t *testing.T) {
 
 	err = handler.createTrace("svc", &traceRequest{Operation: "op"})
 	assert.NoError(t, err)
+}
+
+func TestTraceHandlerGetTraces(t *testing.T) {
+
 }
 
 func TestEndToEndTest(t *testing.T) {
