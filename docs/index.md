@@ -17,10 +17,10 @@ See [Getting Started](getting_started.md#docker) for instructions on how to run 
 
 ##Screenshots
 ###Traces View
-![Traces View](images/traces-ss.png)
+[![Traces View](images/traces-ss.png)](images/traces-ss.png)
 
 ###Trace Detail View
-![Detail View](images/trace-detail-ss.png)
+[![Detail View](images/trace-detail-ss.png)](images/trace-detail-ss.png)
 
 ##Related links
 - [Evolving Distributed tracing At Uber Engineering](https://eng.uber.com/distributed-tracing/)
