@@ -26,19 +26,10 @@ import (
 	"fmt"
 	"io/ioutil"
 	"net/http"
-	"os/exec"
 
 	"go.uber.org/zap"
 
 	"github.com/uber/jaeger/thrift-gen/sampling"
-)
-
-const (
-	agentService = "Agent"
-
-	agentURL = "http://test_driver:5778"
-
-	agentCmd = "/go/cmd/jaeger-agent %s &"
 )
 
 var (
@@ -51,19 +42,12 @@ type AgentService struct {
 	logger *zap.Logger
 }
 
-// InitializeAgent initializes the jaeger agent.
-func InitializeAgent(url string, logger *zap.Logger) *AgentService {
-	cmd := exec.Command("/bin/bash", "-c", fmt.Sprintf(agentCmd,
-		"-collector.host-port=localhost:14267 -processor.zipkin-compact.server-host-port=test_driver:5775 "+
-			"-processor.jaeger-compact.server-host-port=test_driver:6831 -processor.jaeger-binary.server-host-port=test_driver:6832"))
-	if err := cmd.Run(); err != nil {
-		logger.Fatal("Failed to initialize agent service", zap.Error(err))
+// NewAgentService returns an instance of AgentService.
+func NewAgentService(url string, logger *zap.Logger) *AgentService {
+	return &AgentService{
+		url:    url,
+		logger: logger,
 	}
-	if url == "" {
-		url = agentURL
-	}
-	healthCheck(logger, agentService, agentURL)
-	return &AgentService{url: url, logger: logger}
 }
 
 func getSamplingURL(url string) string {

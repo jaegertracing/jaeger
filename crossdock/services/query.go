@@ -26,20 +26,11 @@ import (
 	"io/ioutil"
 	"net/http"
 	"net/url"
-	"os/exec"
 	"strconv"
 	"time"
 
 	ui "github.com/uber/jaeger/model/json"
 	"go.uber.org/zap"
-)
-
-const (
-	queryService = "Query"
-
-	queryServiceURL = "http://127.0.0.1:16686"
-
-	queryCmd = "/go/cmd/jaeger-query %s &"
 )
 
 // QueryService is the service used to query cassandra tables for traces
@@ -48,18 +39,12 @@ type QueryService struct {
 	logger *zap.Logger
 }
 
-// NewQueryService initiates the query service
+// NewQueryService returns an instance of QueryService.
 func NewQueryService(url string, logger *zap.Logger) *QueryService {
-	cmd := exec.Command("/bin/bash", "-c", fmt.Sprintf(queryCmd,
-		"-cassandra.keyspace=jaeger -cassandra.servers=cassandra -cassandra.connections-per-host=1"))
-	if err := cmd.Run(); err != nil {
-		logger.Fatal("Failed to initialize query service", zap.Error(err))
+	return &QueryService{
+		url:    url,
+		logger: logger,
 	}
-	if url == "" {
-		url = queryServiceURL
-	}
-	healthCheck(logger, queryService, url)
-	return &QueryService{url: url, logger: logger}
 }
 
 func getTraceURL(url string) string {
