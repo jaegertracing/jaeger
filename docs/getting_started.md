@@ -1,7 +1,7 @@
 #Getting Started
 
 ##All in one Docker image 
-This image combines all the components of Jaeger with an in memory storage component, and is designed for quick local testing.
+This image, design for quick local testing, launches the Jaeger ui, collector, query, and agent, with an in memory storage component. 
 
 The simplest way to start the all in one docker image is to use the pre-built image published to docker hub.
 
