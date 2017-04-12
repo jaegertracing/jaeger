@@ -28,12 +28,16 @@ import (
 	"time"
 
 	"github.com/crossdock/crossdock-go"
+	"github.com/gocql/gocql"
 	"github.com/uber/tchannel-go"
 	"go.uber.org/zap"
 
 	"github.com/uber/jaeger/crossdock/services"
 
 	"golang.org/x/net/context"
+
+	"github.com/uber/jaeger/pkg/cassandra"
+	gocqlw "github.com/uber/jaeger/pkg/cassandra/gocql"
 )
 
 const (
@@ -51,6 +55,13 @@ const (
 	collectorHostPort = "localhost:14267"
 	agentURL          = "http://test_driver:5778"
 	queryServiceURL   = "http://127.0.0.1:16686"
+
+	scriptsDir = "/go/scripts/"
+	schema     = scriptsDir + "schema.cql"
+
+	jaegerKeyspace = "jaeger"
+
+	cassandraHost = "cassandra"
 )
 
 var (
@@ -84,7 +95,7 @@ func main() {
 }
 
 func (h *clientHandler) initialize() {
-	services.InitializeStorage(logger)
+	InitializeStorage(logger)
 	logger.Info("Cassandra started")
 	InitializeCollector(logger)
 	logger.Info("Collector started")
@@ -146,6 +157,44 @@ func InitializeAgent(url string, logger *zap.Logger) services.AgentService {
 	}
 	healthCheck(logger, agentService, agentURL)
 	return services.NewAgentService(url, logger)
+}
+
+// InitializeStorage initializes cassandra instances.
+func InitializeStorage(logger *zap.Logger) {
+	session := initializeCassandra(logger, cassandraHost, 4)
+	if session == nil {
+		logger.Fatal("Failed to initialize cassandra session")
+	}
+	logger.Info("Initialized cassandra session")
+	err := services.InitializeCassandraSchema(session, schema, jaegerKeyspace)
+	if err != nil {
+		logger.Fatal("Could not initialize cassandra schema", zap.Error(err))
+	}
+}
+
+func newCassandraCluster(host string, protoVersion int) (cassandra.Session, error) {
+	cluster := gocql.NewCluster(host)
+	cluster.ProtoVersion = protoVersion
+	cluster.Timeout = 30 * time.Second
+	session, err := cluster.CreateSession()
+	if err != nil {
+		return nil, err
+	}
+	return gocqlw.WrapCQLSession(session), nil
+}
+
+func initializeCassandra(logger *zap.Logger, host string, protoVersion int) cassandra.Session {
+	var session cassandra.Session
+	var err error
+	for i := 0; i < 30; i++ {
+		session, err = newCassandraCluster(host, protoVersion)
+		if err == nil {
+			break
+		}
+		logger.Warn("Failed to initialize cassandra session", zap.String("host", host), zap.Error(err))
+		time.Sleep(1 * time.Second)
+	}
+	return session
 }
 
 func healthCheck(logger *zap.Logger, service, healthURL string) {

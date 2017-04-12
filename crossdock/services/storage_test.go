@@ -26,47 +26,44 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
-	"go.uber.org/zap"
 
 	"github.com/uber/jaeger/pkg/cassandra/mocks"
-	"github.com/uber/jaeger/pkg/testutils"
 )
 
-func TestNewCassandraCluster(t *testing.T) {
-	_, err := newCassandraCluster("localhost:8080", 4)
-	assert.Error(t, err)
-}
-
 type storageTest struct {
-	session   *mocks.Session
-	logger    *zap.Logger
-	logBuffer *testutils.Buffer
+	session *mocks.Session
 }
 
 func withStorage(fn func(s *storageTest)) {
 	session := &mocks.Session{}
-	logger, logBuffer := testutils.NewLogger()
 	s := &storageTest{
-		session:   session,
-		logger:    logger,
-		logBuffer: logBuffer,
+		session: session,
 	}
 	fn(s)
 }
 
 func TestInitializeCassandraSchema(t *testing.T) {
+	schemaFile := "fixtures/test-schema.cql"
+
 	testCases := []struct {
 		caption       string
+		schemaFile    string
 		queryError    error
 		expectedError string
 	}{
 		{
-			caption: "success",
+			caption:    "success",
+			schemaFile: schemaFile,
 		},
 		{
-			caption:       "failure",
+			caption:       "query error",
+			schemaFile:    schemaFile,
 			queryError:    errors.New("query error"),
-			expectedError: "Error reading throughput from storage: query error",
+			expectedError: "Failed to apply a schema query: DROP KEYSPACE IF EXISTS : query error",
+		},
+		{
+			caption:       "schema error",
+			expectedError: "open : no such file or directory",
 		},
 	}
 	for _, tc := range testCases {
@@ -76,13 +73,13 @@ func TestInitializeCassandraSchema(t *testing.T) {
 				query := &mocks.Query{}
 				query.On("Exec").Return(testCase.queryError)
 				session := &mocks.Session{}
-				session.On("Query", mock.AnythingOfType("string"), matchEverything()).Return(query).Times(2)
+				session.On("Query", mock.AnythingOfType("string"), matchEverything()).Return(query)
 
-				initializeCassandraSchema(s.logger, "fixtures/test-schema.cql", "", session)
+				err := InitializeCassandraSchema(session, testCase.schemaFile, "")
 				if testCase.expectedError == "" {
-					assert.Equal(t, "", s.logBuffer.String())
+					assert.NoError(t, err)
 				} else {
-					assert.Contains(t, s.logBuffer.String(), "CREATE KEYSPACE IF NOT EXISTS jaeger;")
+					assert.EqualError(t, err, testCase.expectedError)
 				}
 			})
 		})
