@@ -21,6 +21,8 @@
 package app
 
 import (
+	"bytes"
+	"fmt"
 	"net/http"
 	"net/http/httptest"
 	"testing"
@@ -50,4 +52,29 @@ func TestStaticAssetsHandler(t *testing.T) {
 func TestDefaultStaticAssetsRoot(t *testing.T) {
 	handler := NewStaticAssetsHandler("")
 	assert.Equal(t, "jaeger-ui-build/build/", handler.staticAssetsRoot)
+}
+
+func TestRegisterRoutesHandler(t *testing.T) {
+	r := mux.NewRouter()
+	handler := NewStaticAssetsHandler("fixture/")
+	handler.RegisterRoutes(r)
+	server := httptest.NewServer(r)
+	expectedRespString := "Test Favicon\n"
+	defer server.Close()
+
+	httpClient = &http.Client{
+		Timeout: 2 * time.Second,
+	}
+
+	url := fmt.Sprintf("%s/favicon.ico", server.URL)
+	resp, err := httpClient.Get(url)
+
+	buf := new(bytes.Buffer)
+	buf.ReadFrom(resp.Body)
+	respString := buf.String()
+
+	assert.NoError(t, err)
+	defer resp.Body.Close()
+	assert.Equal(t, http.StatusOK, resp.StatusCode)
+	assert.Equal(t, expectedRespString, respString)
 }
