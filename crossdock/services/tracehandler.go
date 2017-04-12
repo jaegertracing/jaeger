@@ -32,8 +32,9 @@ import (
 	"github.com/crossdock/crossdock-go"
 	"github.com/pkg/errors"
 	"github.com/uber/jaeger-client-go"
-	ui "github.com/uber/jaeger/model/json"
 	"go.uber.org/zap"
+
+	ui "github.com/uber/jaeger/model/json"
 )
 
 const (
@@ -53,13 +54,13 @@ type testFunc func(service string, request *traceRequest) ([]*ui.Trace, error)
 
 // TraceHandler handles creating traces and verifying them
 type TraceHandler struct {
-	query  *QueryService
-	agent  *AgentService
+	query  QueryService
+	agent  AgentService
 	logger *zap.Logger
 }
 
 // NewTraceHandler returns a TraceHandler that can create traces and verify them
-func NewTraceHandler(query *QueryService, agent *AgentService, logger *zap.Logger) *TraceHandler {
+func NewTraceHandler(query QueryService, agent AgentService, logger *zap.Logger) *TraceHandler {
 	return &TraceHandler{query: query, agent: agent, logger: logger}
 }
 

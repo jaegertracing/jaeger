@@ -26,11 +26,10 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
-
-	"github.com/uber/jaeger/pkg/testutils"
 	"go.uber.org/zap"
 
 	"github.com/uber/jaeger/pkg/cassandra/mocks"
+	"github.com/uber/jaeger/pkg/testutils"
 )
 
 func TestNewCassandraCluster(t *testing.T) {

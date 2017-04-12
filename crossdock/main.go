@@ -120,7 +120,7 @@ func InitializeCollector(logger *zap.Logger) {
 }
 
 // NewQueryService initiates the query service
-func NewQueryService(url string, logger *zap.Logger) *services.QueryService {
+func NewQueryService(url string, logger *zap.Logger) services.QueryService {
 	cmd := exec.Command("/bin/bash", "-c", fmt.Sprintf(queryCmd,
 		"-cassandra.keyspace=jaeger -cassandra.servers=cassandra -cassandra.connections-per-host=1"))
 	if err := cmd.Run(); err != nil {
@@ -134,7 +134,7 @@ func NewQueryService(url string, logger *zap.Logger) *services.QueryService {
 }
 
 // InitializeAgent initializes the jaeger agent.
-func InitializeAgent(url string, logger *zap.Logger) *services.AgentService {
+func InitializeAgent(url string, logger *zap.Logger) services.AgentService {
 	cmd := exec.Command("/bin/bash", "-c", fmt.Sprintf(agentCmd,
 		"-collector.host-port=localhost:14267 -processor.zipkin-compact.server-host-port=test_driver:5775 "+
 			"-processor.jaeger-compact.server-host-port=test_driver:6831 -processor.jaeger-binary.server-host-port=test_driver:6832"))

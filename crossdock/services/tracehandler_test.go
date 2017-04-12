@@ -25,7 +25,11 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/mock"
 	"github.com/uber/jaeger-client-go"
+	"go.uber.org/zap"
+
+	"github.com/uber/jaeger/crossdock/services/mocks"
 	ui "github.com/uber/jaeger/model/json"
 )
 
@@ -132,4 +136,16 @@ func TestValidateTracesWithCount(t *testing.T) {
 			assert.EqualError(t, err, test.errMsg)
 		}
 	}
+}
+
+func TestEndToEndTest(t *testing.T) {
+	query := &mocks.QueryService{}
+	agent := &mocks.AgentService{}
+	cT := &mocks.T{}
+	handler := NewTraceHandler(query, agent, zap.NewNop())
+
+	cT.On("Param", "services").Return("testSvc")
+	cT.On("Errorf", mock.AnythingOfType("string"), mock.Anything)
+
+	handler.EndToEndTest(cT)
 }

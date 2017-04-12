@@ -37,14 +37,18 @@ var (
 )
 
 // AgentService is the service used to report traces to the collector.
-type AgentService struct {
+type AgentService interface {
+	GetSamplingRate(service, operation string) (float64, error)
+}
+
+type agentService struct {
 	url    string
 	logger *zap.Logger
 }
 
 // NewAgentService returns an instance of AgentService.
-func NewAgentService(url string, logger *zap.Logger) *AgentService {
-	return &AgentService{
+func NewAgentService(url string, logger *zap.Logger) AgentService {
+	return &agentService{
 		url:    url,
 		logger: logger,
 	}
@@ -55,7 +59,7 @@ func getSamplingURL(url string) string {
 }
 
 // GetSamplingRate returns the sampling rate for the service-operation from the agent service.
-func (s AgentService) GetSamplingRate(service, operation string) (float64, error) {
+func (s *agentService) GetSamplingRate(service, operation string) (float64, error) {
 	url := fmt.Sprintf(getSamplingURL(s.url), getTracerServiceName(service))
 	resp, err := http.Get(url)
 	if err != nil {

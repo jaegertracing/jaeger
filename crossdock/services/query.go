@@ -29,19 +29,24 @@ import (
 	"strconv"
 	"time"
 
-	ui "github.com/uber/jaeger/model/json"
 	"go.uber.org/zap"
+
+	ui "github.com/uber/jaeger/model/json"
 )
 
 // QueryService is the service used to query cassandra tables for traces
-type QueryService struct {
+type QueryService interface {
+	GetTraces(serviceName, operation string, tags map[string]string) ([]*ui.Trace, error)
+}
+
+type queryService struct {
 	url    string
 	logger *zap.Logger
 }
 
 // NewQueryService returns an instance of QueryService.
-func NewQueryService(url string, logger *zap.Logger) *QueryService {
-	return &QueryService{
+func NewQueryService(url string, logger *zap.Logger) QueryService {
+	return &queryService{
 		url:    url,
 		logger: logger,
 	}
@@ -56,7 +61,7 @@ type response struct {
 }
 
 // GetTraces retrieves traces from the query service
-func (s QueryService) GetTraces(serviceName, operation string, tags map[string]string) ([]*ui.Trace, error) {
+func (s *queryService) GetTraces(serviceName, operation string, tags map[string]string) ([]*ui.Trace, error) {
 	endTimeMicros := time.Now().Unix() * int64(time.Second/time.Microsecond)
 	values := url.Values{}
 	values.Add("service", serviceName)
