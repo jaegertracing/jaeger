@@ -40,6 +40,7 @@ before_install:
 
 install:
   - yarn --version
+  - nvm use 6
   - node -v
   - make install_ci
   - chmod +x ./travis/build-all-in-one-image.sh # TODO exec mode set on the file in git doesn't work as intended
