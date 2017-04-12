@@ -54,14 +54,22 @@ type testFunc func(service string, request *traceRequest) ([]*ui.Trace, error)
 
 // TraceHandler handles creating traces and verifying them
 type TraceHandler struct {
-	query  QueryService
-	agent  AgentService
-	logger *zap.Logger
+	query        QueryService
+	agent        AgentService
+	logger       *zap.Logger
+	getClientURL func(service string) string
 }
 
 // NewTraceHandler returns a TraceHandler that can create traces and verify them
 func NewTraceHandler(query QueryService, agent AgentService, logger *zap.Logger) *TraceHandler {
-	return &TraceHandler{query: query, agent: agent, logger: logger}
+	return &TraceHandler{
+		query:  query,
+		agent:  agent,
+		logger: logger,
+		getClientURL: func(service string) string {
+			return fmt.Sprintf("http://%s:8081", service)
+		},
+	}
 }
 
 // EndToEndTest creates a trace by hitting a client service and validates the trace
@@ -90,7 +98,7 @@ func (h *TraceHandler) runTest(service string, request *traceRequest, tFunc test
 }
 
 func (h *TraceHandler) createAndRetrieveTraces(service string, request *traceRequest) ([]*ui.Trace, error) {
-	if err := createTrace(service, request); err != nil {
+	if err := h.createTrace(service, request); err != nil {
 		return nil, errors.Wrap(err, "failed to create trace")
 	}
 	traces := h.getTraces(service, request.Operation, request.Tags)
@@ -114,8 +122,8 @@ func (h *TraceHandler) getTraces(service, operation string, tags map[string]stri
 	return nil
 }
 
-func createTrace(service string, request *traceRequest) error {
-	url := fmt.Sprintf("http://%s:8081/create_traces", service)
+func (h *TraceHandler) createTrace(service string, request *traceRequest) error {
+	url := h.getClientURL(service) + "/create_traces"
 
 	b, err := json.Marshal(request)
 	if err != nil {
@@ -126,6 +134,7 @@ func createTrace(service string, request *traceRequest) error {
 	if err != nil {
 		return err
 	}
+	defer resp.Body.Close()
 	if resp.StatusCode != http.StatusOK {
 		return fmt.Errorf("retrieved %d status code from client service", resp.StatusCode)
 	}

@@ -22,6 +22,8 @@ package services
 
 import (
 	"errors"
+	"net/http"
+	"net/http/httptest"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -29,8 +31,10 @@ import (
 	"github.com/uber/jaeger-client-go"
 	"go.uber.org/zap"
 
+	"encoding/json"
 	"github.com/uber/jaeger/crossdock/services/mocks"
 	ui "github.com/uber/jaeger/model/json"
+	"io/ioutil"
 )
 
 func TestCreateTraceRequest(t *testing.T) {
@@ -138,11 +142,62 @@ func TestValidateTracesWithCount(t *testing.T) {
 	}
 }
 
+const (
+	badOperation = "bad_op"
+)
+
+type testClientHandler struct{}
+
+func (h testClientHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
+	defer r.Body.Close()
+	body, _ := ioutil.ReadAll(r.Body)
+
+	var request traceRequest
+	json.Unmarshal(body, &request)
+
+	if request.Operation == badOperation {
+		w.WriteHeader(http.StatusBadRequest)
+	} else {
+		w.WriteHeader(http.StatusOK)
+	}
+}
+
+func TestCreateTrace(t *testing.T) {
+	server := httptest.NewServer(testClientHandler{})
+	defer server.Close()
+
+	handler := &TraceHandler{
+		logger: zap.NewNop(),
+		getClientURL: func(service string) string {
+			return ""
+		},
+	}
+
+	err := handler.createTrace("svc", &traceRequest{Operation: "op"})
+	assert.EqualError(t, err, "")
+
+	handler.getClientURL = func(service string) string {
+		return server.URL
+	}
+
+	err = handler.createTrace("svc", &traceRequest{Operation: badOperation})
+	assert.EqualError(t, err, "retrieved 400 status code from client service")
+
+	err = handler.createTrace("svc", &traceRequest{Operation: "op"})
+	assert.NoError(t, err)
+}
+
 func TestEndToEndTest(t *testing.T) {
 	query := &mocks.QueryService{}
 	agent := &mocks.AgentService{}
 	cT := &mocks.T{}
 	handler := NewTraceHandler(query, agent, zap.NewNop())
+
+	server := httptest.NewServer(testClientHandler{})
+	defer server.Close()
+	handler.getClientURL = func(service string) string {
+		return server.URL
+	}
 
 	cT.On("Param", "services").Return("testSvc")
 	cT.On("Errorf", mock.AnythingOfType("string"), mock.Anything)
