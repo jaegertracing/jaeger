@@ -39,8 +39,7 @@ before_install:
   - sudo apt-get install -y -qq yarn
 
 install:
-  - yarn version
-  - nvm version
+  - yarn --version
   - node -v
   - make install_ci
   - chmod +x ./travis/build-all-in-one-image.sh # TODO exec mode set on the file in git doesn't work as intended
