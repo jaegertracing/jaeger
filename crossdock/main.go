@@ -186,7 +186,7 @@ func newCassandraCluster(host string, protoVersion int) (cassandra.Session, erro
 func initializeCassandra(logger *zap.Logger, host string, protoVersion int) cassandra.Session {
 	var session cassandra.Session
 	var err error
-	for i := 0; i < 30; i++ {
+	for i := 0; i < 60; i++ {
 		session, err = newCassandraCluster(host, protoVersion)
 		if err == nil {
 			break
