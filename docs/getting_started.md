@@ -20,7 +20,7 @@ illustrates the use of the [OpenTracing API](http://opentracing.io). It's source
 It can be run standalone, but requires Jaeger backend to view the
 traces.
 
-### Features
+###Features
 
 -   Discover architecture of the whole system via data-driven dependency
     diagram
@@ -35,13 +35,13 @@ traces.
 -   Use open source libraries with OpenTracing integration to get
     vendor-neutral instrumentation for free
 
-### Prerequisites
+###Prerequisites
 
 -   You need Go 1.7 or higher installed on your machine.
 -   Requires a running Jaeger backend to view the traces.
     -   See [Running Jaeger backend in docker](#docker)
 
-### Running 
+###Running 
 
 ```bash
 go get github.com/uber/jaeger
@@ -54,8 +54,16 @@ go run ./main.go all
 Then navigate to `http://localhost:8080`
 
 ##Client Libraries
-Jaeger client libraries are already open source and for now can be used
-with Zipkin backend. You can see a HOW-TO example in the blog post
-[Tracing HTTP request latency in Go with
-OpenTracing](https://medium.com/@YuriShkuro/tracing-http-request-latency-in-go-with-opentracing-7cc1282a100a).
 
+| Language | Library                                                      | 
+| ---------|--------------------------------------------------------------|
+| go       | [jaeger-go](https://github.com/uber/jaeger-client-go)        |
+| java     | [jaeger-java](https://github.com/uber/jaeger-client-java)    |
+| node     | [jaeger-node](https://github.com/uber/jaeger-client-node)    |
+| python   | [jaeger-python](https://github.com/uber/jaeger-client-python)|
+
+
+For a deeper dive into how to instrument a Go service, look at [Tracing HTTP request latency](https://medium.com/@YuriShkuro/tracing-http-request-latency-in-go-with-opentracing-7cc1282a100a).
+
+##Running individual components
+Individual components have their `main.go` in the `cmd` folder. 

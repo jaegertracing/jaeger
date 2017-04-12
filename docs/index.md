@@ -1,3 +1,4 @@
+<img align="right" src="images/jaeger-vector.svg" width=400>
 #Jaeger Documentation
 
 Welcome to Jaeger's documentation portal! Below, you'll find information for beginners and experienced Jaeger users. 
@@ -7,7 +8,7 @@ If you can't find what you are looking for, or have an issue not covered here, w
 ##About
 Jaeger, inspired by Google's [Dapper](https://research.google.com/pubs/pub36356.html), is Uber's distributed tracing system which captures timing information on microservice architectures. Currently, this information is used for realtime profiling, and empirically determining service dependencies.
 
-Jaeger is an implementation of the [Opentracing](http://opentracing.io/) standard written in Go; with client libraries available in Go, Java, Node and Python. It uses Cassandra for storage.
+Jaeger is an implementation of the [Opentracing](http://opentracing.io/) standard written in Go; with client libraries available in [Go](https://github.com/uber/jaeger-client-go), [Java](https://github.com/uber/jaeger-client-java), [Node](https://github.com/uber/jaeger-client-node) and [Python](https://github.com/uber/jaeger-client-python). It uses Cassandra for storage.
 
 ##Quick Start
 Jaeger provides an all in one image through docker hub to check it out quickly. 
@@ -21,6 +22,6 @@ See [Getting Started](getting_started.md#docker) for instructions on how to run 
 ###Trace Detail View
 ![Detail View](images/trace-detail-ss.png)
 
-##History
-Read about the evolution of distributed tracing at Uber on the engineering [blog](https://eng.uber.com/distributed-tracing/). 
-
+##Related links
+- [Evolving Distributed tracing At Uber Engineering](https://eng.uber.com/distributed-tracing/)
+- [Tracing HTTP request latency in Go with OpenTracing](https://medium.com/opentracing/tracing-http-request-latency-in-go-with-opentracing-7cc1282a100a)

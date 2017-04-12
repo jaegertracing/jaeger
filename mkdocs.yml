@@ -10,6 +10,7 @@ markdown_extensions:
   - pymdownx.critic
   - pymdownx.inlinehilite
   - pymdownx.mark
+  - pymdownx.magiclink
   - pymdownx.smartsymbols
   - pymdownx.superfences
   - pymdownx.tasklist(custom_checkbox=true)
