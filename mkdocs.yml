@@ -3,7 +3,7 @@ edit_uri: edit/master/docs/
 theme_dir: docs/theme
 markdown_extensions:
   - admonition
-  - codehilite(linenums=true)
+  - codehilite
   - toc(permalink=true)
   - pymdownx.betterem(smart_enable=all)
   - pymdownx.caret
@@ -19,7 +19,10 @@ repo_name: 'uber/jaeger'
 repo_url: 'https://github.com/uber/jaeger'
 extra:
   logo: 'images/jaeger-logo.png'
+google_analytics:
+  - 'UA-97254222-1'
+  - 'auto'
 pages: 
-  - 'index.md'
+  -  'Welcome': 'index.md'
   - 'Getting Started' : 'getting_started.md'
   - 'Architecture' : 'architecture.md'

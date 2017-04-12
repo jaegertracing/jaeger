@@ -1,20 +1,17 @@
 #Getting Started
 
-##Local Installation
-#All in one images
-These images combine all the components of Jaeger with an in memory storage component, and are designed for quick local testing.
+##All in one Docker image 
+This image combines all the components of Jaeger with an in memory storage component, and is designed for quick local testing.
 
-####Docker
 The simplest way to start the all in one docker image is to use the pre-built image published to docker hub.
 
 ```bash
-docker run jaegertracing/all-in-one -p <ui_port>:16686 -p <agent_port>:5775/udp
+docker run -d -p5775:5775/udp -p16686:16686 jaegertracing/all-in-one:latest
 ```
 
-You can then navigate to `localhost:<local_port>` to access the Jaeger UI. 
+You can then navigate to `http://localhost:16686` to access the Jaeger UI. 
 
-##Tracing a Sample Application
-####Hot R.O.D. - Rides on Demand
+##Sample Application HotROD (Rides on Demand)
 
 This is a demo application that consists of several microservices and
 illustrates the use of the [OpenTracing API](http://opentracing.io). It's source is at the 
@@ -54,7 +51,7 @@ cd examples/hotrod
 go run ./main.go all
 ```
 
-Then open `http://127.0.0.1:8080`
+Then navigate to `http://localhost:8080`
 
 ##Client Libraries
 Jaeger client libraries are already open source and for now can be used
