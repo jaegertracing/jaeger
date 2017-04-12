@@ -1,5 +1,5 @@
-hash: cd1f57261c1a360ba5e13c82584120ede2bf116e959cdb41517bb7c4ce6f87b0
-updated: 2017-04-07T23:09:53.293179616-04:00
+hash: 295a8525c9e6c3768118244cd0abcc6ac27254cd22f0be075670e7dd4b8a8a8a
+updated: 2017-04-11T20:27:56.369015767-04:00
 imports:
 - name: github.com/apache/thrift
   version: 53dd39833a08ce33582e5ff31fa18bb4735d6731
@@ -7,6 +7,11 @@ imports:
   - lib/go/thrift
 - name: github.com/codahale/hdrhistogram
   version: f8ad88b59a584afeee9d334eff879b104439117b
+- name: github.com/crossdock/crossdock-go
+  version: 049aabb0122b03bc9bd30cab8f3f91fb60166361
+  subpackages:
+  - assert
+  - require
 - name: github.com/davecgh/go-spew
   version: 346938d642f2ec3594ed81d874461961cd0faa76
   subpackages:
@@ -146,9 +151,10 @@ imports:
   - zapcore
   - zaptest
 - name: golang.org/x/net
-  version: d1e1b351919c6738fdeb9893d5c998b161464f0c
+  version: ffcf1bedda3b04ebb15a168a59800a73d6dc0f4d
   subpackages:
   - context
+  - context/ctxhttp
 - name: golang.org/x/sys
   version: d4feaf1a7e61e1d9e79e6c4e76c6349e9cab0a03
   subpackages:
