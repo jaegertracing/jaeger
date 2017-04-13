@@ -88,6 +88,16 @@ func TestAgentStartStop(t *testing.T) {
 	body, err := ioutil.ReadAll(resp.Body)
 	assert.NoError(t, err)
 	assert.Equal(t, "tcollector error: no peers available\n", string(body))
-	assert.NoError(t, <-ch)
+
+	// TODO (wjang) We sleep because the processors in the agent might not have had time to
+	// start up yet. If we were to call Stop() before the processors have time to startup,
+	// it'll panic because of a DATA RACE between wg.Add() and wg.Wait() in thrift_processor.
+	// A real fix for this issue would be to add semaphores to tbuffered_server, thrift_processor,
+	// and agent itself. Given all this extra overhead and testing required to get this to work
+	// "elegantly", I opted to just sleep here given how unlikely this situation will occur in
+	// production.
+	time.Sleep(2 * time.Second)
+
 	agent.Stop()
+	assert.NoError(t, <-ch)
 }
