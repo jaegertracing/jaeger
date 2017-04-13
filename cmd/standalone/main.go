@@ -92,7 +92,7 @@ func startCollector(logger *zap.Logger, baseFactory metrics.Factory, memoryStore
 		basic.Options.MemoryStoreOption(memoryStore),
 	)
 	if err != nil {
-		logger.Fatal("Unabled to set up builder", zap.Error(err))
+		logger.Fatal("Unable to set up builder", zap.Error(err))
 	}
 	zipkinSpansHandler, jaegerBatchesHandler, err := spanBuilder.BuildHandlers()
 	if err != nil {
@@ -101,7 +101,7 @@ func startCollector(logger *zap.Logger, baseFactory metrics.Factory, memoryStore
 
 	ch, err := tchannel.NewChannel("jaeger-collector", &tchannel.ChannelOptions{})
 	if err != nil {
-		logger.Fatal("Unable to create new New TChannel Channel", zap.Error(err))
+		logger.Fatal("Unable to create new TChannel channel", zap.Error(err))
 	}
 	server := thrift.NewServer(ch)
 	server.Register(jc.NewTChanCollectorServer(jaegerBatchesHandler))
@@ -109,7 +109,7 @@ func startCollector(logger *zap.Logger, baseFactory metrics.Factory, memoryStore
 	portStr := ":" + strconv.Itoa(*collector.CollectorPort)
 	listener, err := net.Listen("tcp", portStr)
 	if err != nil {
-		logger.Fatal("Unabled to listen start listening on channel", zap.Error(err))
+		logger.Fatal("Unable to start listening on channel", zap.Error(err))
 	}
 	ch.Serve(listener)
 	logger.Info("Starting jaeger-collector TChannel server", zap.Int("port", *collector.CollectorPort))
@@ -147,6 +147,6 @@ func startQuery(logger *zap.Logger, baseFactory metrics.Factory, memoryStore *me
 	recoveryHandler := recoveryhandler.NewRecoveryHandler(logger, true)
 	logger.Info("Starting jaeger-query HTTP server", zap.Int("port", *query.QueryPort))
 	if err := http.ListenAndServe(portStr, recoveryHandler(r)); err != nil {
-		logger.Fatal("Could not launch service", zap.Error(err))
+		logger.Fatal("Could not launch jaeger-query service", zap.Error(err))
 	}
 }
