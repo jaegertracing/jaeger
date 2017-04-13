@@ -21,15 +21,16 @@
 package app
 
 import (
-	"bytes"
 	"fmt"
 	"net/http"
 	"net/http/httptest"
 	"testing"
+	"io/ioutil"
 	"time"
 
 	"github.com/gorilla/mux"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 func TestStaticAssetsHandler(t *testing.T) {
@@ -59,22 +60,21 @@ func TestRegisterRoutesHandler(t *testing.T) {
 	handler := NewStaticAssetsHandler("fixture/")
 	handler.RegisterRoutes(r)
 	server := httptest.NewServer(r)
-	expectedRespString := "Test Favicon\n"
 	defer server.Close()
+	expectedRespString := "Test Favicon\n"
 
 	httpClient = &http.Client{
 		Timeout: 2 * time.Second,
 	}
 
-	url := fmt.Sprintf("%s/favicon.ico", server.URL)
-	resp, err := httpClient.Get(url)
+	resp, err := httpClient.Get(fmt.Sprintf("%s/favicon.ico", server.URL))
+	require.NoError(t, err)
+	defer resp.Body.Close()
 
-	buf := new(bytes.Buffer)
-	buf.ReadFrom(resp.Body)
-	respString := buf.String()
+	respByteArray, _ := ioutil.ReadAll(resp.Body)
+	respString := string(respByteArray)
 
 	assert.NoError(t, err)
-	defer resp.Body.Close()
 	assert.Equal(t, http.StatusOK, resp.StatusCode)
 	assert.Equal(t, expectedRespString, respString)
 }
