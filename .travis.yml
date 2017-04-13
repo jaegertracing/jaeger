@@ -13,6 +13,9 @@ matrix:
   - go: 1.7
     env:
     - ALL_IN_ONE=true
+  - go: 1.7
+    env:
+    - CROSSDOCK=true
 # TODO 1.8 tests take way too long to run 900s vs 250s for 1.7
 #  - go: 1.8
 #    env:
@@ -23,6 +26,7 @@ services:
 
 env:
   global:
+    - DOCKER_COMPOSE_VERSION=1.8.0
     - COMMIT=${TRAVIS_COMMIT::8}
     # DOCKER_USER
     - secure: TNvbr5/d7raSovEtttxdrZl8tP7vCCzL56gKKhr2wF4ET5/iRbcfSP9zoFPEOlIdgmCHZhGTh+fED1Eqgyswv6HPOAfEuov5vtzNB9fkcI46/nRk7KbiDlcEuE2IFtwkijFDz6YdJlbPCozHa81/Ih6G20H61tgv6f0AsGGT9MR7DQ71cCu8xZykNDjEKTo7RF6GiqG2VYa+S1P3vCOKRv31ouo/a5SPP+1AIvAg8u++qWVC8WJixmkXnw2OplvCFgHS0dlT3FvUPjYtUtLens5gpBDo7kn7+Ba27m2D0IzkzDPW5sK0YMMZW61LLn8GLPiJtLqzUHovaJ2NcFfi07RQ4GSMnwnjP0nLQbgd0CzM2zJGJRcOTkYe7IEDrdcTBcljZdZAJdoJEzrGYYWRQcX0Kyjc83ghX3A5s+CQWlPElQrkBB7KhNZ+w2Cn4+Mr6zOiRnBYg1NIUV2eGHMNnC4HI9RqgvA1QqcT5YHWqpz20sddHx1kgzgh8vOW8csiFon/Wrvyb2TaemzsKxIlT/UZZfDuyWG/Lvm4oxmTp1GrgQsC2iJjox4z6VIxbhykZEqNU1dhY6KuvgjEGetxk2j/NVfI8Qb4tvWqKoXq5Buap/J0AWjxWjGbrIGZbz5FgzfEP33WR8X2Oh5Cy+TMl1v0+YBAB3OaMpe/Qe2rGlk=  # DOCKER_PASS
@@ -38,6 +42,7 @@ before_install:
   - sudo apt-get update -qq
   - sudo apt-get install -y -qq yarn
   - nvm install 6
+  - if [ "$CROSSDOCK" == true ]; then bash ./travis/install-crossdock-deps.sh ; fi
 
 install:
   - yarn --version
@@ -50,3 +55,4 @@ script:
   - if [ "$TESTS" == true ]; then make test_ci ; else echo 'skipping tests'; fi
   - if [ "$COVERAGE" == true ]; then travis_retry goveralls -coverprofile=cover.out -service=travis-ci || true ; else echo 'skipping coverage'; fi
   - if [ "$ALL_IN_ONE" == true ]; then ./travis/build-all-in-one-image.sh ; else echo 'skipping all_in_one'; fi
+  - if [ "$CROSSDOCK" == true ]; then make build-crossdock ; else echo 'skipping crossdock'; fi
