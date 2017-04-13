@@ -26,32 +26,27 @@ import (
 
 	"github.com/uber/jaeger-lib/metrics/go-kit"
 	"github.com/uber/jaeger-lib/metrics/go-kit/expvar"
+	agentApp "github.com/uber/jaeger/cmd/agent/app"
+	agentStarter "github.com/uber/jaeger/cmd/agent/starter"
 	"go.uber.org/zap"
-
-	"github.com/uber/jaeger/cmd/agent/app"
 )
 
+const (
+	serviceName = "jaeger-agent"
+)
+
+// agent/main starts the agent on the host
 func main() {
-	builder := app.NewBuilder()
+	logger, _ := zap.NewProduction()
+	metricsFactory := xkit.Wrap(serviceName, expvar.NewFactory(10))
+
+	builder := agentApp.NewBuilder()
 	builder.Bind(flag.CommandLine)
 	flag.Parse()
 
 	runtime.GOMAXPROCS(runtime.NumCPU())
 
-	logger, _ := zap.NewProduction()
-	metricsFactory := xkit.Wrap("jaeger-agent", expvar.NewFactory(10))
+	agentStarter.StartAgent(logger, metricsFactory, builder)
 
-	// TODO illustrate discovery service wiring
-	// TODO illustrate additional reporter
-
-	agent, err := builder.CreateAgent(metricsFactory, logger)
-	if err != nil {
-		logger.Fatal("Unable to initialize Jaeger Agent", zap.Error(err))
-	}
-
-	logger.Info("Starting agent")
-	if err := agent.Run(); err != nil {
-		logger.Fatal("Failed to run the agent", zap.Error(err))
-	}
 	select {}
 }

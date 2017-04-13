@@ -18,38 +18,31 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 // THE SOFTWARE.
 
-package main
+package starter
 
 import (
-	"flag"
 	"go.uber.org/zap"
 
-	"github.com/uber/jaeger-lib/metrics/go-kit"
-	"github.com/uber/jaeger-lib/metrics/go-kit/expvar"
-	"github.com/uber/jaeger/storage/spanstore/memory"
-	"runtime"
-
+	"fmt"
+	"github.com/uber/jaeger-lib/metrics"
 	agentApp "github.com/uber/jaeger/cmd/agent/app"
-	queryStarter "github.com/uber/jaeger/cmd/query/starter"
+	collector "github.com/uber/jaeger/cmd/collector/app/builder"
 )
 
-const (
-	serviceName = "jaeger-query"
-)
+// StartAgent starts a new agent daemon to run on the host, based on the given parameters.
+func StartAgent(logger *zap.Logger, baseFactory metrics.Factory, builder *agentApp.Builder) {
+	metricsFactory := baseFactory.Namespace("jaeger-agent", nil)
 
-// collector/main starts the query service on the host
-func main() {
-	logger, _ := zap.NewProduction()
-	metricsFactory := xkit.Wrap(serviceName, expvar.NewFactory(10))
-	memStore := memory.NewStore()
+	if builder.CollectorHostPort == "" {
+		builder.CollectorHostPort = fmt.Sprintf("127.0.0.1:%d", *collector.CollectorPort)
+	}
+	agent, err := builder.CreateAgent(metricsFactory, logger)
+	if err != nil {
+		logger.Fatal("Unable to initialize Jaeger Agent", zap.Error(err))
+	}
 
-	builder := agentApp.NewBuilder()
-	builder.Bind(flag.CommandLine)
-	flag.Parse()
-
-	runtime.GOMAXPROCS(runtime.NumCPU())
-
-	queryStarter.StartQuery(logger, metricsFactory, memStore)
-
-	select {}
+	logger.Info("Starting agent")
+	if err := agent.Run(); err != nil {
+		logger.Fatal("Failed to run the agent", zap.Error(err))
+	}
 }
