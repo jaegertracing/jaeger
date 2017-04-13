@@ -4,15 +4,12 @@
 
 # Jaeger - a Distributed Tracing System
 
-http://uber.github.io/jaeger/
-
-## Documentation
-
-See [documentation](http://jaeger.readthedocs.io/en/latest/) for getting started, operational details, and other information.
+  * See [documentation](http://jaeger.readthedocs.io/en/latest/) for getting started, operational details, and other information.
+  * Read a blog post [Evolving Distributed Tracing at Uber](https://eng.uber.com/distributed-tracing/).
 
 ## Status
 
-Beta
+Most of the code here is used in production at Uber, but the open source version is currently in **Public Beta** until the first official release.
 
 ## Contributing
 
