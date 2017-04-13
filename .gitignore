@@ -14,4 +14,8 @@ Gemfile.lock
 vendor/
 jaeger-ui-build/
 examples/hotrod/hotrod*
+cmd/agent/jaeger-agent*
+cmd/collector/jaeger-collector*
+cmd/query/jaeger-query*
+cmd/standalone/jaeger-standalone*
 cmd/standalone/standalone*

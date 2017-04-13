@@ -90,6 +90,11 @@ build_ui:
 build-all-in-one-linux: build_ui
 	CGO_ENABLED=0 GOOS=linux installsuffix=cgo go build -o ./cmd/standalone/standalone-linux ./cmd/standalone/main.go
 
+build-single-modules:
+	CGO_ENABLED=0 GOOS=linux installsuffix=cgo go build -o ./cmd/agent/jaeger-agent-linux ./cmd/agent/main.go
+	CGO_ENABLED=0 GOOS=linux installsuffix=cgo go build -o ./cmd/collector/jaeger-collector-linux ./cmd/collector/main.go
+	CGO_ENABLED=0 GOOS=linux installsuffix=cgo go build -o ./cmd/query/jaeger-query-linux ./cmd/query/main.go
+
 .PHONY: cover
 cover:
 	./scripts/cover.sh $(shell go list $(PACKAGES))

@@ -22,55 +22,33 @@ package main
 
 import (
 	"flag"
-	"net"
-	"strconv"
-
-	"github.com/uber/tchannel-go"
-	"github.com/uber/tchannel-go/thrift"
 	"go.uber.org/zap"
+	"runtime"
 
 	"github.com/uber/jaeger-lib/metrics/go-kit"
 	"github.com/uber/jaeger-lib/metrics/go-kit/expvar"
-	jc "github.com/uber/jaeger/thrift-gen/jaeger"
-	zc "github.com/uber/jaeger/thrift-gen/zipkincore"
-
-	basicB "github.com/uber/jaeger/cmd/builder"
-	"github.com/uber/jaeger/cmd/collector/app/builder"
-	casFlags "github.com/uber/jaeger/cmd/flags/cassandra"
+	agentApp "github.com/uber/jaeger/cmd/agent/app"
+	collectorStarter "github.com/uber/jaeger/cmd/collector/starter"
+	"github.com/uber/jaeger/storage/spanstore/memory"
 )
 
+const (
+	serviceName = "jaeger-collector"
+)
+
+// collector/main starts the collector on the host
 func main() {
-	casOptions := casFlags.NewOptions()
-	casOptions.Bind(flag.CommandLine, "cassandra")
-	flag.Parse()
 	logger, _ := zap.NewProduction()
-	baseMetrics := xkit.Wrap("jaeger-agent", expvar.NewFactory(10))
+	metricsFactory := xkit.Wrap(serviceName, expvar.NewFactory(10))
+	memStore := memory.NewStore()
 
-	spanBuilder, err := builder.NewSpanHandlerBuilder(
-		basicB.Options.CassandraOption(casOptions.GetPrimary()),
-		basicB.Options.LoggerOption(logger),
-		basicB.Options.MetricsFactoryOption(baseMetrics),
-	)
-	if err != nil {
-		logger.Fatal("Unabled to set up builder", zap.Error(err))
-	}
-	zipkinSpansHandler, jaegerBatchesHandler, err := spanBuilder.BuildHandlers()
-	if err != nil {
-		logger.Fatal("Unable to build span handlers", zap.Error(err))
-	}
+	builder := agentApp.NewBuilder()
+	builder.Bind(flag.CommandLine)
+	flag.Parse()
 
-	ch, err := tchannel.NewChannel("driver", &tchannel.ChannelOptions{})
-	if err != nil {
-		logger.Fatal("Unable to create new New TChannel Channel", zap.Error(err))
-	}
-	server := thrift.NewServer(ch)
-	server.Register(jc.NewTChanCollectorServer(jaegerBatchesHandler))
-	server.Register(zc.NewTChanZipkinCollectorServer(zipkinSpansHandler))
-	portStr := ":" + strconv.Itoa(*builder.CollectorPort)
-	listener, err := net.Listen("tcp", portStr)
-	if err != nil {
-		logger.Fatal("Unabled to listen start listening on channel", zap.Error(err))
-	}
-	ch.Serve(listener)
+	runtime.GOMAXPROCS(runtime.NumCPU())
+
+	collectorStarter.StartCollector(logger, metricsFactory, memStore)
+
 	select {}
 }
