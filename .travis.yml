@@ -42,8 +42,7 @@ before_install:
   - sudo apt-get update -qq
   - sudo apt-get install -y -qq yarn
   - nvm install 6
-  - chmod +x ./travis/install-crossdock-deps.sh # TODO exec mode set on the file in git doesn't work as intended
-  - if [ "$CROSSDOCK" == true ]; then ./travis/install-crossdock-deps.sh ; fi
+  - if [ "$CROSSDOCK" == true ]; then bash ./travis/install-crossdock-deps.sh ; fi
 
 install:
   - yarn --version
