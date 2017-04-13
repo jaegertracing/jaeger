@@ -65,7 +65,7 @@ func main() {
 
 	ch, err := tchannel.NewChannel(serviceName, &tchannel.ChannelOptions{})
 	if err != nil {
-		logger.Fatal("Unable to create new TChannel channel", zap.Error(err))
+		logger.Fatal("Unable to create new TChannel", zap.Error(err))
 	}
 	server := thrift.NewServer(ch)
 	server.Register(jc.NewTChanCollectorServer(jaegerBatchesHandler))

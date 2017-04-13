@@ -101,7 +101,7 @@ func startCollector(logger *zap.Logger, baseFactory metrics.Factory, memoryStore
 
 	ch, err := tchannel.NewChannel("jaeger-collector", &tchannel.ChannelOptions{})
 	if err != nil {
-		logger.Fatal("Unable to create new TChannel channel", zap.Error(err))
+		logger.Fatal("Unable to create new TChannel", zap.Error(err))
 	}
 	server := thrift.NewServer(ch)
 	server.Register(jc.NewTChanCollectorServer(jaegerBatchesHandler))
