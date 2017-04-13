@@ -54,6 +54,26 @@ github.com/uber/jaeger
     utilities grow larger and their APIs stabilize, they may be moved to their own
     repository, to facilitate re-use by other projects.
 
+## Imports grouping
+
+This projects follows the following pattern for grouping imports in Go files:
+  * imports from standard library
+  * imports from other projects
+  * imports from `jaeger` project
+  
+For example:
+
+```go
+import (
+	"fmt"
+ 
+	"github.com/uber/jaeger-lib/metrics"
+	"go.uber.org/zap"
+
+	"github.com/uber/jaeger/cmd/agent/app"
+	"github.com/uber/jaeger/cmd/collector/app/builder"
+)
+```
 
 ## Making A Change
 
