@@ -132,10 +132,8 @@ func (h *TraceHandler) getTraces(service, operation string, tags map[string]stri
 func (h *TraceHandler) createTrace(service string, request *traceRequest) error {
 	url := h.getClientURL(service) + "/create_traces"
 
-	b, err := json.Marshal(request)
-	if err != nil {
-		return err
-	}
+	// NB. json.Marshal cannot error no matter what traceRequest we give it
+	b, _ := json.Marshal(request)
 
 	resp, err := http.Post(url, "application/json", bytes.NewBuffer(b))
 	if err != nil {
