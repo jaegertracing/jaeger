@@ -83,7 +83,7 @@ build_examples:
 	go build -o ./examples/hotrod/hotrod-demo ./examples/hotrod/main.go
 
 build_ui:
-	cd jaeger-ui && npm install && npm run build
+	cd jaeger-ui && yarn install && npm run build
 	rm -rf jaeger-ui-build && mkdir jaeger-ui-build
 	cp -r jaeger-ui/build jaeger-ui-build/
 

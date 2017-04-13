@@ -21,6 +21,8 @@
 package app
 
 import (
+	"fmt"
+	"io/ioutil"
 	"net/http"
 	"net/http/httptest"
 	"testing"
@@ -28,6 +30,7 @@ import (
 
 	"github.com/gorilla/mux"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 func TestStaticAssetsHandler(t *testing.T) {
@@ -50,4 +53,28 @@ func TestStaticAssetsHandler(t *testing.T) {
 func TestDefaultStaticAssetsRoot(t *testing.T) {
 	handler := NewStaticAssetsHandler("")
 	assert.Equal(t, "jaeger-ui-build/build/", handler.staticAssetsRoot)
+}
+
+func TestRegisterRoutesHandler(t *testing.T) {
+	r := mux.NewRouter()
+	handler := NewStaticAssetsHandler("fixture/")
+	handler.RegisterRoutes(r)
+	server := httptest.NewServer(r)
+	defer server.Close()
+	expectedRespString := "Test Favicon\n"
+
+	httpClient = &http.Client{
+		Timeout: 2 * time.Second,
+	}
+
+	resp, err := httpClient.Get(fmt.Sprintf("%s/favicon.ico", server.URL))
+	require.NoError(t, err)
+	defer resp.Body.Close()
+
+	respByteArray, _ := ioutil.ReadAll(resp.Body)
+	respString := string(respByteArray)
+
+	assert.NoError(t, err)
+	assert.Equal(t, http.StatusOK, resp.StatusCode)
+	assert.Equal(t, expectedRespString, respString)
 }

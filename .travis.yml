@@ -29,9 +29,19 @@ env:
     # DOCKER_PASS
     - secure: XNFxKWRKZLqcM7cceyN3jGZmaisdwNCSG+9b4eq3h022llrRd11Zaxp3JDbVqXtsHDiC9lzuI41dyiRphO4KwXKysawpJicNS1ZymkiITaF/blNAcncIS5NMsEbszDbwiP+FjqHdnMloGpSa3aEz2ehVEBaW7kiH49ayRWVs7GKV2OeH7V16B1116y5KvFiniDY/m/ycBd3K7HqKRuGx4EvlMIUbq0IFpl2N1dcrOFTDGTm8qzGTOwGqCQc/1NfllB7Iv2mkdu6dWhEyhRVOdXEWbwqU4Hjn/ugnAKQ1NnukaYmwgKM1WUba5cu1nFpCyMwp5tiGSef1UqXM380wrQkUvPNyiM4MD4hX0ab3bZxtd8TmlTLyDBE4Q+CaJoZzcbqRwi0B4CSFCLvm17GRmjB9iY8w/ig3bEndDFzLua7tx0MMPQVHOG0fjB1chCdOOfzcmdvIiCpVmmVKfuodulHN/6yWCi8XHWLee8L20zNxyVPbPT0XOnlkQZrnjZMyYvrpFaw3J6EKCnduk3GhHYI5RigJk2xorRiXgeN9DkFw/TuBIV3CMHi6sbgiNIv15CLO0ZGlUJnF+q4u5o9qUT/XSykNn0+Z/2ABMIJvS496gU3OT7RbjmuZforqyvCniMow4hDiE8MtZMBYOSmM1CiHQb413/kPgUjYQ2ajnuU=
 
+before_install:
+  # Repo for newer Node.js versions
+  - curl -sL https://deb.nodesource.com/setup_6.x | sudo -E bash -
+  # Repo for Yarn (https://yarnpkg.com/en/docs/install-ci#travis-tab)
+  - sudo apt-key adv --keyserver pgp.mit.edu --recv D101F7899D41F3C3
+  - echo "deb http://dl.yarnpkg.com/debian/ stable main" | sudo tee /etc/apt/sources.list.d/yarn.list
+  - sudo apt-get update -qq
+  - sudo apt-get install -y -qq yarn
+  - nvm install 6
+
 install:
-  - nvm use 4
-  - nvm version
+  - yarn --version
+  - nvm use 6
   - node -v
   - make install_ci
   - chmod +x ./travis/build-all-in-one-image.sh # TODO exec mode set on the file in git doesn't work as intended

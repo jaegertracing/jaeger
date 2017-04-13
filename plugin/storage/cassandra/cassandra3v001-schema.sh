@@ -141,7 +141,7 @@ CREATE TABLE IF NOT EXISTS ${keyspace}.service_name_index (
 CREATE TABLE IF NOT EXISTS ${keyspace}.duration_index (
     service_name    text,      // service name
     operation_name  text,      // operation name, or blank for queries without span name
-    bucket          int,       // time bucket, calculated as ts/interval (in microseconds), for some pre-configured interval like 1h.
+    bucket          timestamp, // time bucket, - the start_time of the given span rounded to an hour
     duration        bigint,    // span duration, in microseconds
     start_time      bigint,
     trace_id        blob,
