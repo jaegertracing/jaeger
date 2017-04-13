@@ -39,12 +39,16 @@ import (
 	casFlags "github.com/uber/jaeger/cmd/flags/cassandra"
 )
 
+const (
+	serviceName = "jaeger-collector"
+)
+
 func main() {
 	casOptions := casFlags.NewOptions()
 	casOptions.Bind(flag.CommandLine, "cassandra")
 	flag.Parse()
 	logger, _ := zap.NewProduction()
-	baseMetrics := xkit.Wrap("jaeger-agent", expvar.NewFactory(10))
+	baseMetrics := xkit.Wrap(serviceName, expvar.NewFactory(10))
 
 	spanBuilder, err := builder.NewSpanHandlerBuilder(
 		basicB.Options.CassandraOption(casOptions.GetPrimary()),
@@ -59,7 +63,7 @@ func main() {
 		logger.Fatal("Unable to build span handlers", zap.Error(err))
 	}
 
-	ch, err := tchannel.NewChannel("driver", &tchannel.ChannelOptions{})
+	ch, err := tchannel.NewChannel(serviceName, &tchannel.ChannelOptions{})
 	if err != nil {
 		logger.Fatal("Unable to create new New TChannel Channel", zap.Error(err))
 	}
