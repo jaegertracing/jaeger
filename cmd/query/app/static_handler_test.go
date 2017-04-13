@@ -22,10 +22,10 @@ package app
 
 import (
 	"fmt"
+	"io/ioutil"
 	"net/http"
 	"net/http/httptest"
 	"testing"
-	"io/ioutil"
 	"time"
 
 	"github.com/gorilla/mux"
