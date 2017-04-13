@@ -56,7 +56,7 @@ func main() {
 		basicB.Options.MetricsFactoryOption(baseMetrics),
 	)
 	if err != nil {
-		logger.Fatal("Unabled to set up builder", zap.Error(err))
+		logger.Fatal("Unable to set up builder", zap.Error(err))
 	}
 	zipkinSpansHandler, jaegerBatchesHandler, err := spanBuilder.BuildHandlers()
 	if err != nil {
@@ -65,7 +65,7 @@ func main() {
 
 	ch, err := tchannel.NewChannel(serviceName, &tchannel.ChannelOptions{})
 	if err != nil {
-		logger.Fatal("Unable to create new New TChannel Channel", zap.Error(err))
+		logger.Fatal("Unable to create new TChannel channel", zap.Error(err))
 	}
 	server := thrift.NewServer(ch)
 	server.Register(jc.NewTChanCollectorServer(jaegerBatchesHandler))
@@ -73,7 +73,7 @@ func main() {
 	portStr := ":" + strconv.Itoa(*builder.CollectorPort)
 	listener, err := net.Listen("tcp", portStr)
 	if err != nil {
-		logger.Fatal("Unabled to listen start listening on channel", zap.Error(err))
+		logger.Fatal("Unable to start listening on channel", zap.Error(err))
 	}
 	ch.Serve(listener)
 	select {}
