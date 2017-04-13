@@ -23,7 +23,6 @@ package app
 import (
 	"fmt"
 	"io/ioutil"
-	"net"
 	"net/http"
 	"testing"
 	"time"
@@ -49,7 +48,7 @@ func TestAgentStartStop(t *testing.T) {
 				Model:    jaegerModel,
 				Protocol: compactProtocol,
 				Server: ServerConfiguration{
-					HostPort: "127.0.0.1:5776",
+					HostPort: "127.0.0.1:0",
 				},
 			},
 		},
@@ -89,23 +88,6 @@ func TestAgentStartStop(t *testing.T) {
 	body, err := ioutil.ReadAll(resp.Body)
 	assert.NoError(t, err)
 	assert.Equal(t, "tcollector error: no peers available\n", string(body))
-
-	for i := 0; i < 1000; i++ {
-		destAddr, err := net.ResolveUDPAddr("udp", "127.0.0.1:5776")
-		t.Log(destAddr.String())
-		if err == nil {
-			_, err = net.DialUDP(destAddr.Network(), nil, destAddr)
-			if err == nil {
-				break
-			} else {
-				t.Log(err.Error())
-			}
-		} else {
-			t.Log(err.Error())
-		}
-		time.Sleep(time.Millisecond)
-	}
-
-	agent.Stop()
 	assert.NoError(t, <-ch)
+	agent.Stop()
 }
