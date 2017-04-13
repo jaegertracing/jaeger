@@ -6,14 +6,12 @@ Welcome to Jaeger's documentation portal! Below, you'll find information for beg
 If you can't find what you are looking for, or have an issue not covered here, we'd love to hear from you either on [Github](https://github.com/uber/jaeger/issues), or on our [Mailing List](https://groups.google.com/forum/#!forum/jaeger-tracing). 
 
 ##About
-Jaeger, inspired by Google's [Dapper](https://research.google.com/pubs/pub36356.html), is Uber's distributed tracing system which captures timing information on microservice architectures. Currently, this information is used for realtime profiling, and empirically determining service dependencies.
+Jaeger, inspired by Google's [Dapper](https://research.google.com/pubs/pub36356.html), is a distributed tracing system which captures timing information on microservice architectures. Currently, this information is used for realtime profiling, and empirically determining service dependencies.
 
-Jaeger is an implementation of the [Opentracing](http://opentracing.io/) standard written in Go; with client libraries available in [Go](https://github.com/uber/jaeger-client-go), [Java](https://github.com/uber/jaeger-client-java), [Node](https://github.com/uber/jaeger-client-node) and [Python](https://github.com/uber/jaeger-client-python). It uses Cassandra for storage.
+Jaeger is written in Go, with [OpenTracing](http://opentracing.io/) compatible client libraries available in [Go](https://github.com/uber/jaeger-client-go), [Java](https://github.com/uber/jaeger-client-java), [Node](https://github.com/uber/jaeger-client-node) and [Python](https://github.com/uber/jaeger-client-python). It uses Cassandra for storage.
 
 ##Quick Start
-Jaeger provides an all in one image through docker hub to check it out quickly. 
-
-See [Getting Started](getting_started.md#docker) for instructions on how to run this image, and the [Hotrod example](getting_started.md#tracing-a-sample-application) for instructions on creating sample traces. 
+See [running a docker all in one image](getting_started.md#all-in-one-docker-image).
 
 ##Screenshots
 ###Traces View

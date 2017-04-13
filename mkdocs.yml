@@ -10,7 +10,6 @@ markdown_extensions:
   - pymdownx.critic
   - pymdownx.inlinehilite
   - pymdownx.mark
-  - pymdownx.magiclink
   - pymdownx.smartsymbols
   - pymdownx.superfences
   - pymdownx.tasklist(custom_checkbox=true)
@@ -24,6 +23,7 @@ google_analytics:
   - 'UA-97254222-1'
   - 'auto'
 pages: 
-  -  'Welcome': 'index.md'
+  - 'Welcome': 'index.md'
   - 'Getting Started' : 'getting_started.md'
+  - 'Client Libraries' : 'client_libraries.md'
   - 'Architecture' : 'architecture.md'
