@@ -65,8 +65,7 @@ For e.g., to run the agent, you'll have to do the following
 go get github.com/uber/jaeger
 cd $GOPATH/src/github.com/uber/jaeger
 make install
-cd agent
-go run ./main.go 
+go run ./cmd/agent/main.go
 ```
 
 ##Migrating from Zipkin
