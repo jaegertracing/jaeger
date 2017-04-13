@@ -1,30 +1,26 @@
-#Welcome to Jaeger's documentation!
+#Jaeger Documentation
 
-[Jaeger](http://uber.github.io/jaeger/) is Uber's distributed tracing
-system.
+Welcome to Jaeger's documentation portal! Below, you'll find information for beginners and experienced Jaeger users. 
 
-##Architecture
+If you can't find what you are looking for, or have an issue not covered here, we'd love to hear from you either on [Github](https://github.com/uber/jaeger/issues), or on our [Mailing List](https://groups.google.com/forum/#!forum/jaeger-tracing). 
 
-Read [UberEng](https://eng.uber.com/) blog post on [Evolving Distributed
-Tracing at Uber](https://eng.uber.com/distributed-tracing/).
+##About
+Jaeger, inspired by Google's [Dapper](https://research.google.com/pubs/pub36356.html), is Uber's distributed tracing system which captures timing information on microservice architectures. Currently, this information is used for realtime profiling, and empirically determining service dependencies.
 
-##Features
+Jaeger is an implementation of the [Opentracing](http://opentracing.io/) standard written in Go; with client libraries available in Go, Java, Node and Python. It uses Cassandra for storage.
 
--   Built in the style of Google's Dapper
--   Provides [OpenTracing](http://opentracing.io) compatible
-    instrumentation libraries
-    -   <https://github.com/uber/jaeger-client-go>
-    -   <https://github.com/uber/jaeger-client-java>
-    -   <https://github.com/uber/jaeger-client-node>
-    -   <https://github.com/uber/jaeger-client-python>
--   Backend components are implemented in Go
--   Uses Cassandra as the storage layer
+##Quick Start
+Jaeger provides an all in one image through docker hub to check it out quickly. 
+
+See [Getting Started](getting_started.md#docker) for instructions on how to run this image, and the [Hotrod example](getting_started.md#tracing-a-sample-application) for instructions on creating sample traces. 
+
+##Screenshots
+###Traces View
+![Traces View](images/traces-ss.png)
+
+###Trace Detail View
+![Detail View](images/trace-detail-ss.png)
 
 ##History
+Read about the evolution of distributed tracing at Uber on the engineering [blog](https://eng.uber.com/distributed-tracing/). 
 
-Read [UberEng](https://eng.uber.com/) blog post on [Evolving Distributed
-Tracing at Uber](https://eng.uber.com/distributed-tracing/).
-
-##Roadmap
-
-Coming soon...

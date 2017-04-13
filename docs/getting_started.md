@@ -1,25 +1,24 @@
-#Getting Started with Jaeger
+#Getting Started
 
-We're working hard on making all backend components of Jaeger open
-source. Please watch the GitHub repository
-<https://github.com/uber/jaeger> for updates.
+##Local Installation
+#All in one images
+These images combine all the components of Jaeger with an in memory storage component, and are designed for quick local testing.
 
-Jaeger client libraries are already open source and for now can be used
-with Zipkin backend. You can see a HOW-TO example in the blog post
-[Tracing HTTP request latency in Go with
-OpenTracing](https://medium.com/@YuriShkuro/tracing-http-request-latency-in-go-with-opentracing-7cc1282a100a).
+####Docker
+The simplest way to start the all in one docker image is to use the pre-built image published to docker hub.
 
-##Running Jaeger in Docker Container
+```bash
+docker run jaegertracing/all-in-one -p <ui_port>:16686 -p <agent_port>:5775/udp
+```
 
-Coming soon...
+You can then navigate to `localhost:<local_port>` to access the Jaeger UI. 
 
 ##Tracing a Sample Application
-**Hot R.O.D. - Rides on Demand**
-
-<https://github.com/uber/jaeger/tree/master/examples/hotrod>
+####Hot R.O.D. - Rides on Demand
 
 This is a demo application that consists of several microservices and
-illustrates the use of the [OpenTracing API](http://opentracing.io).
+illustrates the use of the [OpenTracing API](http://opentracing.io). It's source is at the 
+[examples](https://github.com/uber/jaeger/tree/master/examples/hotrod) folder. 
 
 It can be run standalone, but requires Jaeger backend to view the
 traces.
@@ -28,7 +27,7 @@ traces.
 
 -   Discover architecture of the whole system via data-driven dependency
     diagram
--   View request timeline & errors, understand how the app works
+-   View request time line & errors, understand how the app works
 -   Find sources of latency, lack of concurrency
 -   Highly contextualized logging
 -   Use baggage propagation to
@@ -43,21 +42,23 @@ traces.
 
 -   You need Go 1.7 or higher installed on your machine.
 -   Requires a running Jaeger backend to view the traces.
-    -   See [Running Jaeger backend in docker](#running-jaeger-in-docker-container)
+    -   See [Running Jaeger backend in docker](#docker)
 
-### Installation
+### Running 
 
-```shell 
+```bash
 go get github.com/uber/jaeger
+cd $GOPATH/src/github.com/uber/jaeger
 make install_examples
-```
-
-### Running
-
-```shell
 cd examples/hotrod
 go run ./main.go all
 ```
 
-Then open <http://127.0.0.1:8080>
+Then open `http://127.0.0.1:8080`
+
+##Client Libraries
+Jaeger client libraries are already open source and for now can be used
+with Zipkin backend. You can see a HOW-TO example in the blog post
+[Tracing HTTP request latency in Go with
+OpenTracing](https://medium.com/@YuriShkuro/tracing-http-request-latency-in-go-with-opentracing-7cc1282a100a).
 
