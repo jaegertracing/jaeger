@@ -20,7 +20,7 @@ illustrates the use of the [OpenTracing API](http://opentracing.io).
 It can be run standalone, but requires Jaeger backend to view the
 traces.
 
-###Features
+####Features
 
 -   Discover architecture of the whole system via data-driven dependency
     diagram.
@@ -35,12 +35,12 @@ traces.
 -   Use open source libraries with OpenTracing integration to get
     vendor-neutral instrumentation for free.
 
-###Prerequisites
+####Prerequisites
 
 -   You need Go 1.7 or higher installed on your machine.
 -   Requires a [running Jaeger backend](#all-in-one-docker-image) to view the traces.
 
-###Running 
+####Running 
 
 ```bash
 go get github.com/uber/jaeger
