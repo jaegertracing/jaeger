@@ -14,8 +14,8 @@ matrix:
     env:
     - ALL_IN_ONE=true
   - go: 1.7
-      env:
-      - CROSSDOCK=true
+    env:
+    - CROSSDOCK=true
 # TODO 1.8 tests take way too long to run 900s vs 250s for 1.7
 #  - go: 1.8
 #    env:
