@@ -20,6 +20,19 @@ illustrates the use of the [OpenTracing API](http://opentracing.io).
 It can be run standalone, but requires Jaeger backend to view the
 traces.
 
+####Running
+
+```bash
+go get github.com/uber/jaeger
+cd $GOPATH/src/github.com/uber/jaeger
+make install_examples
+cd examples/hotrod
+go run ./main.go all
+```
+
+Then navigate to `http://localhost:8080`.
+
+
 ####Features
 
 -   Discover architecture of the whole system via data-driven dependency
@@ -40,26 +53,13 @@ traces.
 -   You need Go 1.7 or higher installed on your machine.
 -   Requires a [running Jaeger backend](#all-in-one-docker-image) to view the traces.
 
-####Running 
-
-```bash
-go get github.com/uber/jaeger
-cd $GOPATH/src/github.com/uber/jaeger
-make install_examples
-cd examples/hotrod
-go run ./main.go all
-```
-
-Then navigate to `http://localhost:8080`.
-
 ##Client Libraries
 
 Look [here](client_libraries.md).
 
 ##Running individual components
-Individual components can be run from source. They have their `main.go` in the `cmd` folder. 
-
-For e.g., to run the agent, you'll have to do the following
+Individual Jaeger backend components can be run from source.
+They all have their `main.go` in the `cmd` folder. For example, to run the `jaeger-agent`:
 
 ```bash
 go get github.com/uber/jaeger
@@ -67,6 +67,9 @@ cd $GOPATH/src/github.com/uber/jaeger
 make install
 go run ./cmd/agent/main.go
 ```
+
+In the near future we will provide individual Docker images for each component,
+as well as the Kubernetes templates.
 
 ##Migrating from Zipkin
 Jaeger's agent and collector can also accept [Zipkin](http://zipkin.io/) [Spans](https://github.com/openzipkin/zipkin-api/blob/master/thrift/zipkinCore.thrift#L381), and transform them to Jaeger's data model before storage. 
