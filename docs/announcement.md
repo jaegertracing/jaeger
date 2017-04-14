@@ -1,3 +1,4 @@
+<img align="right" src="../images/jaeger-vector.svg" width=400>
 #Introducing Jaeger
 
 Uber is pleased to announce the open source release of Jaeger, a distributed tracing system, used to monitor, profile, and troubleshoot microservices.
