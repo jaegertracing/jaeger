@@ -1,4 +1,4 @@
-site_name: Jaeger
+site_name: Jaeger Documentation
 edit_uri: edit/master/docs/
 theme_dir: docs/theme
 markdown_extensions:
@@ -23,7 +23,7 @@ google_analytics:
   - 'UA-97254222-1'
   - 'auto'
 pages: 
-  - 'Welcome': 'index.md'
+  - 'Introduction': 'index.md'
   - 'Getting Started' : 'getting_started.md'
   - 'Client Libraries' : 'client_libraries.md'
   - 'Architecture' : 'architecture.md'
