@@ -6,7 +6,7 @@ Uber is pleased to announce the open source release of Jaeger, a distributed tra
 
 Jaeger is written in Go, with OpenTracing compatible client libraries in [Go](https://github.com/uber/jaeger-client-go), [Java](https://github.com/uber/jaeger-client-java), [Node](https://github.com/uber/jaeger-client-node), and [Python](https://github.com/uber/jaeger-client-python). It allows service owners to instrument their services to get insights into what their architecture is doing. 
 
-Jaeger is available now on [Github](github.com/uber/jaeger). Try it out by running the complete backend using the [Docker image](http://jaeger.readthedocs.io/en/latest/getting_started/#all-in-one-docker-image) along with a sample application, [HotROD](http://jaeger.readthedocs.io/en/latest/getting_started/#sample-application) to generate interesting traces.
+Jaeger is available now on [Github](github.com/uber/jaeger). Try it out by running the complete backend using the [Docker image](http://jaeger.readthedocs.io/en/latest/getting_started/#all-in-one-docker-image) along with a sample application, [HotROD](http://jaeger.readthedocs.io/en/latest/getting_started/#sample-application), to generate interesting traces.
 
 We hope that other organizations find Jaeger to be a useful tool, and we welcome contributions. 
 Keep up to date by subscribing to our [mailing list](https://groups.google.com/forum/#!forum/jaeger-tracing).
