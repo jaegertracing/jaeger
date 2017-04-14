@@ -15,5 +15,3 @@ source ~/.nvm/nvm.sh
 nvm install 6
 
 yarn --version
-nvm use 6
-node -v
