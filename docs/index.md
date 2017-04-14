@@ -1,5 +1,5 @@
 <img align="right" src="images/jaeger-vector.svg" width=400>
-#Jaeger Documentation
+#Jaeger, a distributed tracing system
 
 Welcome to Jaeger's documentation portal! Below, you'll find information for beginners and experienced Jaeger users. 
 
