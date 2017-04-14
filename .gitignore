@@ -15,7 +15,6 @@ vendor/
 jaeger-ui-build/
 examples/hotrod/hotrod*
 cmd/standalone/standalone*
-<<<<<<< HEAD
 cmd/agent/agent*
 cmd/collector/collector*
 cmd/query/query*
