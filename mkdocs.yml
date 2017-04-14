@@ -1,6 +1,8 @@
-site_name: Jaeger Documentation
+site_name: Jaeger
+edit_uri: edit/master/docs/
 theme_dir: docs/theme
 markdown_extensions:
+  - admonition
   - codehilite
   - toc(permalink=true)
   - pymdownx.betterem(smart_enable=all)
@@ -17,3 +19,12 @@ repo_name: 'uber/jaeger'
 repo_url: 'https://github.com/uber/jaeger'
 extra:
   logo: 'images/jaeger-logo.png'
+google_analytics:
+  - 'UA-97254222-1'
+  - 'auto'
+pages: 
+  - 'Welcome': 'index.md'
+  - 'Getting Started' : 'getting_started.md'
+  - 'Client Libraries' : 'client_libraries.md'
+  - 'Architecture' : 'architecture.md'
+  - 'Contributing' : 'contributing.md'

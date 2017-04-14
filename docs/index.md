@@ -1,30 +1,25 @@
-#Welcome to Jaeger's documentation!
+<img align="right" src="images/jaeger-vector.svg" width=400>
+#Jaeger Documentation
 
-[Jaeger](http://uber.github.io/jaeger/) is Uber's distributed tracing
-system.
+Welcome to Jaeger's documentation portal! Below, you'll find information for beginners and experienced Jaeger users. 
 
-##Architecture
+If you can't find what you are looking for, or have an issue not covered here, we'd love to hear from you either on [Github](https://github.com/uber/jaeger/issues), or on our [Mailing List](https://groups.google.com/forum/#!forum/jaeger-tracing). 
 
-Read [UberEng](https://eng.uber.com/) blog post on [Evolving Distributed
-Tracing at Uber](https://eng.uber.com/distributed-tracing/).
+##About
+Jaeger, inspired by Google's [Dapper](https://research.google.com/pubs/pub36356.html), is a distributed tracing system used to monitor, profile, and troubleshoot microservices.
 
-##Features
+Jaeger is written in Go, with [OpenTracing](http://opentracing.io/) compatible client libraries available in [Go](https://github.com/uber/jaeger-client-go), [Java](https://github.com/uber/jaeger-client-java), [Node](https://github.com/uber/jaeger-client-node) and [Python](https://github.com/uber/jaeger-client-python). It uses Cassandra for storage.
 
--   Built in the style of Google's Dapper
--   Provides [OpenTracing](http://opentracing.io) compatible
-    instrumentation libraries
-    -   <https://github.com/uber/jaeger-client-go>
-    -   <https://github.com/uber/jaeger-client-java>
-    -   <https://github.com/uber/jaeger-client-node>
-    -   <https://github.com/uber/jaeger-client-python>
--   Backend components are implemented in Go
--   Uses Cassandra as the storage layer
+##Quick Start
+See [running a docker all in one image](getting_started.md#all-in-one-docker-image).
 
-##History
+##Screenshots
+###Traces View
+[![Traces View](images/traces-ss.png)](images/traces-ss.png)
 
-Read [UberEng](https://eng.uber.com/) blog post on [Evolving Distributed
-Tracing at Uber](https://eng.uber.com/distributed-tracing/).
+###Trace Detail View
+[![Detail View](images/trace-detail-ss.png)](images/trace-detail-ss.png)
 
-##Roadmap
-
-Coming soon...
+##Related links
+- [Evolving Distributed tracing At Uber Engineering](https://eng.uber.com/distributed-tracing/)
+- [Tracing HTTP request latency in Go with OpenTracing](https://medium.com/opentracing/tracing-http-request-latency-in-go-with-opentracing-7cc1282a100a)
