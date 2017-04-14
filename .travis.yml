@@ -41,5 +41,5 @@ install:
 script:
   - if [ "$TESTS" == true ]; then make test_ci ; else echo 'skipping tests'; fi
   - if [ "$COVERAGE" == true ]; then travis_retry goveralls -coverprofile=cover.out -service=travis-ci || true ; else echo 'skipping coverage'; fi
-  - if [ "$ALL_IN_ONE" == true ]; then nvm use 6 ; bash ./travis/build-all-in-one-image.sh ; else echo 'skipping all_in_one'; fi
+  - if [ "$ALL_IN_ONE" == true ]; then bash ./travis/build-all-in-one-image.sh ; else echo 'skipping all_in_one'; fi
   - if [ "$CROSSDOCK" == true ]; then make build-crossdock ; else echo 'skipping crossdock'; fi
