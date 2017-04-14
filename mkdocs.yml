@@ -28,3 +28,4 @@ pages:
   - 'Client Libraries' : 'client_libraries.md'
   - 'Architecture' : 'architecture.md'
   - 'Contributing' : 'contributing.md'
+  - ' ' : 'announcement.md'
