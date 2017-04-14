@@ -20,7 +20,7 @@ A **Trace** is a data/execution path through the system, and can be thought of a
 This section details the constituents of Jaeger and how they relate to each other. It is arranged by the order in which spans from your application interact with them. 
 
 ###Jaeger client libraries
-Jaeger clients are language specific implementations of the OpenTracing API. They contain a Tracer, which is an interface for Span creation, and a mechanism for context propagation. 
+Jaeger clients are language specific implementations of the OpenTracing API. They can be used to manually instrument applications for distributed tracing, or with a variety of existing open source frameworks, such as Flask, Dropwizard, gRPC, and many more, that are already integrated with OpenTracing.
 Some common frameworks (e.g. dropwizard) are instrumented out of the box, making it easy to get started. 
 
 An instrumented service creates spans when receiving new requests and attaches context information (trace id, span id, and baggage) to outgoing requests. Only ids and baggage are propagated with requests; all other information that compose a span like operation name, logs, etc. is not propagated. Instead sampled spans are transmitted out of process asynchronously, in the background, to Jaeger Agents.
