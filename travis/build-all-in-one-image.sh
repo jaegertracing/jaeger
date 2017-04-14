@@ -7,6 +7,8 @@ export BRANCH=$(if [ "$TRAVIS_PULL_REQUEST" == "false" ]; then echo $TRAVIS_BRAN
 export TAG=`if [ "$BRANCH" == "master" ]; then echo "latest"; else echo "${BRANCH///}"; fi`
 echo "TRAVIS_BRANCH=$TRAVIS_BRANCH, REPO=$REPO, PR=$PR, BRANCH=$BRANCH, TAG=$TAG"
 
+source ~/.nvm/nvm.sh
+nvm use 6
 make build-all-in-one-linux
 
 # Only push the docker container to Docker Hub for master branch
