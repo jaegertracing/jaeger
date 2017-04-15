@@ -1,6 +1,6 @@
 FROM scratch
-# expose agent UDP ports and query port
-EXPOSE 5775/udp 6831/udp 6832/udp 16686
+# expose agent UDP and sampling ports and query port
+EXPOSE 5775/udp 6831/udp 6832/udp 5778 16686
 
 COPY ./jaeger-ui-build /go/src/jaeger-ui-build
 COPY ./cmd/standalone/standalone-linux /go/bin/
