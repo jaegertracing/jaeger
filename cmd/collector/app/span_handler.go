@@ -87,7 +87,10 @@ func (jbh *jaegerBatchesHandler) SubmitBatches(ctx thrift.Context, batches []*ja
 		}
 		batchOk := true
 		for _, ok := range oks {
-			batchOk = batchOk && ok
+			if !ok {
+				batchOk = false
+				break
+			}
 		}
 		res := &jaeger.BatchSubmitResponse{
 			Ok: batchOk,
@@ -114,10 +117,10 @@ func NewZipkinSpanHandler(logger *zap.Logger, modelHandler SpanProcessor, saniti
 
 // SubmitZipkinBatch records a batch of spans already in Zipkin Thrift format.
 func (h *zipkinSpanHandler) SubmitZipkinBatch(ctx thrift.Context, spans []*zipkincore.Span) ([]*zipkincore.Response, error) {
-	var mSpans []*model.Span
-	for _, span := range spans {
+	mSpans := make([]*model.Span, len(spans))
+	for i, span := range spans {
 		sanitized := h.sanitizer.Sanitize(span)
-		mSpans = append(mSpans, ConvertZipkinToModel(sanitized, h.logger))
+		mSpans[i] = ConvertZipkinToModel(sanitized, h.logger)
 	}
 	bools, err := h.modelProcessor.ProcessSpans(mSpans, ZipkinFormatType)
 	if err != nil {
