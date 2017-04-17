@@ -104,7 +104,6 @@ type errorSimulator struct {
 func (es *errorSimulator) checkError() error {
 	es.Lock()
 	es.countTillError--
-	println("count till error", es.countTillError)
 	if es.countTillError > 0 {
 		es.Unlock()
 		return nil
