@@ -35,9 +35,9 @@ var errTraceNotFound = errors.New("Trace was not found")
 type Store struct {
 	// TODO: make this a bounded memory store
 	sync.RWMutex
-	traces       map[model.TraceID]*model.Trace
-	services     map[string]struct{}
-	operations   map[string]map[string]struct{}
+	traces     map[model.TraceID]*model.Trace
+	services   map[string]struct{}
+	operations map[string]map[string]struct{}
 }
 
 // NewStore creates an in-memory store
