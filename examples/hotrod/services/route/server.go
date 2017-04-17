@@ -111,7 +111,6 @@ func computeRoute(ctx context.Context, pickup, dropoff string) *Route {
 	delay.Sleep(config.RouteCalcDelay, config.RouteCalcDelayStdDev)
 
 	eta := math.Max(2, rand.NormFloat64()*3+5)
-	println(eta)
 	return &Route{
 		Pickup:  pickup,
 		Dropoff: dropoff,
