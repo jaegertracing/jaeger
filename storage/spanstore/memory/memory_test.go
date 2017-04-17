@@ -35,11 +35,66 @@ var testingSpan = &model.Span{
 		Low:  1,
 		High: 2,
 	},
+	SpanID: model.SpanID(1),
 	Process: &model.Process{
 		ServiceName: "serviceName",
 		Tags:        model.KeyValues{},
 	},
 	OperationName: "operationName",
+	Tags: model.KeyValues{
+		model.String("tagKey", "tagValue"),
+	},
+	Logs: []model.Log{
+		{
+			Timestamp: time.Now(),
+			Fields: []model.KeyValue{
+				model.String("logKey", "logValue"),
+			},
+		},
+	},
+	Duration:  time.Second * 5,
+	StartTime: time.Unix(300, 0),
+}
+
+var childSpan1 = &model.Span{
+	TraceID: model.TraceID{
+		Low:  1,
+		High: 2,
+	},
+	SpanID:       model.SpanID(2),
+	ParentSpanID: model.SpanID(1),
+	Process: &model.Process{
+		ServiceName: "childService",
+		Tags:        model.KeyValues{},
+	},
+	OperationName: "childOperationName",
+	Tags: model.KeyValues{
+		model.String("tagKey", "tagValue"),
+	},
+	Logs: []model.Log{
+		{
+			Timestamp: time.Now(),
+			Fields: []model.KeyValue{
+				model.String("logKey", "logValue"),
+			},
+		},
+	},
+	Duration:  time.Second * 5,
+	StartTime: time.Unix(300, 0),
+}
+
+var childSpan2 = &model.Span{
+	TraceID: model.TraceID{
+		Low:  1,
+		High: 2,
+	},
+	SpanID:       model.SpanID(3),
+	ParentSpanID: model.SpanID(1),
+	Process: &model.Process{
+		ServiceName: "childService",
+		Tags:        model.KeyValues{},
+	},
+	OperationName: "childOperationName",
 	Tags: model.KeyValues{
 		model.String("tagKey", "tagValue"),
 	},
@@ -64,11 +119,29 @@ func withMemoryStore(f func(store *Store)) {
 	f(NewStore())
 }
 
-func TestStoreGetDependencies(t *testing.T) {
+func TestStoreGetEmptyDependencies(t *testing.T) {
 	withMemoryStore(func(store *Store) {
 		links, err := store.GetDependencies(time.Now(), time.Hour)
 		assert.NoError(t, err)
 		assert.Empty(t, links)
+	})
+}
+
+func TestStoreGetDependencies(t *testing.T) {
+	withMemoryStore(func(store *Store) {
+		assert.NoError(t, store.WriteSpan(testingSpan))
+		assert.NoError(t, store.WriteSpan(childSpan1))
+		assert.NoError(t, store.WriteSpan(childSpan2))
+		links, err := store.GetDependencies(time.Now(), time.Hour)
+		assert.NoError(t, err)
+		assert.Empty(t, links)
+
+		links, err = store.GetDependencies(time.Unix(0, 0).Add(time.Hour), time.Hour)
+		assert.NoError(t, err)
+		assert.Len(t, links, 1)
+		assert.EqualValues(t, "serviceName", links[0].Parent)
+		assert.EqualValues(t, "childService", links[0].Child)
+		assert.EqualValues(t, 2, links[0].CallCount)
 	})
 }
 
