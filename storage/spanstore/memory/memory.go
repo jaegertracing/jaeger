@@ -35,9 +35,9 @@ var errTraceNotFound = errors.New("Trace was not found")
 type Store struct {
 	// TODO: make this a bounded memory store
 	sync.RWMutex
-	traces     map[model.TraceID]*model.Trace
-	services   map[string]struct{}
-	operations map[string]map[string]struct{}
+	traces       map[model.TraceID]*model.Trace
+	services     map[string]struct{}
+	operations   map[string]map[string]struct{}
 }
 
 // NewStore creates an in-memory store
@@ -51,8 +51,52 @@ func NewStore() *Store {
 
 // GetDependencies returns dependencies between services
 func (m *Store) GetDependencies(endTs time.Time, lookback time.Duration) ([]model.DependencyLink, error) {
-	// TODO - go through all traces and build dependencies between start and end time
-	return []model.DependencyLink{}, nil
+	deps := map[string]*model.DependencyLink{}
+	m.Lock()
+	defer m.Unlock()
+	startTs := endTs.Add(-1 * lookback)
+	for _, trace := range m.traces {
+		if m.traceIsBetweenStartAndEnd(startTs, endTs, trace) {
+			for _, s := range trace.Spans {
+				parentSpan := m.findSpan(trace, s.ParentSpanID)
+				if parentSpan != nil {
+					depKey := parentSpan.Process.ServiceName + "&&&" + s.Process.ServiceName
+					if _, ok := deps[depKey]; !ok {
+						deps[depKey] = &model.DependencyLink{
+							Parent:    parentSpan.Process.ServiceName,
+							Child:     s.Process.ServiceName,
+							CallCount: 1,
+						}
+					} else {
+						deps[depKey].CallCount++
+					}
+				}
+			}
+		}
+	}
+	retMe := make([]model.DependencyLink, 0, len(deps))
+	for _, dep := range deps {
+		retMe = append(retMe, *dep)
+	}
+	return retMe, nil
+}
+
+func (m *Store) findSpan(trace *model.Trace, spanID model.SpanID) *model.Span {
+	for _, s := range trace.Spans {
+		if s.SpanID == spanID {
+			return s
+		}
+	}
+	return nil
+}
+
+func (m *Store) traceIsBetweenStartAndEnd(startTs, endTs time.Time, trace *model.Trace) bool {
+	for _, s := range trace.Spans {
+		if s.StartTime.After(startTs) && endTs.After(s.StartTime) {
+			return true
+		}
+	}
+	return false
 }
 
 // WriteSpan writes the given span
@@ -68,6 +112,7 @@ func (m *Store) WriteSpan(span *model.Span) error {
 		m.traces[span.TraceID] = &model.Trace{}
 	}
 	m.traces[span.TraceID].Spans = append(m.traces[span.TraceID].Spans, span)
+
 	return nil
 }
 
