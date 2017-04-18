@@ -29,8 +29,7 @@ crossdock-copy-bin:
 
 .PHONY: crossdock
 crossdock: $(SCHEMA) crossdock-copy-bin
-	#docker-compose -f $(XDOCK_YAML) kill test_driver go node java python
-	docker-compose -f $(XDOCK_YAML) kill test_driver go
+	docker-compose -f $(XDOCK_YAML) kill test_driver go node java python
 	docker-compose -f $(XDOCK_YAML) rm -f test_driver
 	docker-compose -f $(XDOCK_YAML) build test_driver
 	docker-compose -f $(XDOCK_YAML) run crossdock 2>&1 | tee run-crossdock.log
