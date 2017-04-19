@@ -47,7 +47,7 @@ const (
 	agentService     = "Agent"
 	queryService     = "Query"
 
-	cmdDir       = "/go/cmd/"
+	cmdDir       = "/cmd/"
 	collectorCmd = cmdDir + "jaeger-collector %s &"
 	agentCmd     = cmdDir + "jaeger-agent %s &"
 	queryCmd     = cmdDir + "jaeger-query %s &"
@@ -56,8 +56,7 @@ const (
 	agentURL          = "http://test_driver:5778"
 	queryServiceURL   = "http://127.0.0.1:16686"
 
-	scriptsDir = "/go/scripts/"
-	schema     = scriptsDir + "schema.cql"
+	schema     = "/scripts/schema.cql"
 
 	jaegerKeyspace = "jaeger"
 
@@ -122,7 +121,7 @@ func (h *clientHandler) isInitialized() bool {
 
 // InitializeCollector initializes the jaeger collector
 func InitializeCollector(logger *zap.Logger) {
-	cmd := exec.Command("/bin/bash", "-c",
+	cmd := exec.Command("/bin/sh", "-c",
 		fmt.Sprintf(collectorCmd, "-cassandra.keyspace=jaeger -cassandra.servers=cassandra -cassandra.connections-per-host=1"))
 	if err := cmd.Run(); err != nil {
 		logger.Fatal("Failed to initialize collector service", zap.Error(err))
@@ -132,7 +131,7 @@ func InitializeCollector(logger *zap.Logger) {
 
 // NewQueryService initiates the query service
 func NewQueryService(url string, logger *zap.Logger) services.QueryService {
-	cmd := exec.Command("/bin/bash", "-c", fmt.Sprintf(queryCmd,
+	cmd := exec.Command("/bin/sh", "-c", fmt.Sprintf(queryCmd,
 		"-cassandra.keyspace=jaeger -cassandra.servers=cassandra -cassandra.connections-per-host=1"))
 	if err := cmd.Run(); err != nil {
 		logger.Fatal("Failed to initialize query service", zap.Error(err))
@@ -146,7 +145,7 @@ func NewQueryService(url string, logger *zap.Logger) services.QueryService {
 
 // InitializeAgent initializes the jaeger agent.
 func InitializeAgent(url string, logger *zap.Logger) services.AgentService {
-	cmd := exec.Command("/bin/bash", "-c", fmt.Sprintf(agentCmd,
+	cmd := exec.Command("/bin/sh", "-c", fmt.Sprintf(agentCmd,
 		"-collector.host-port=localhost:14267 -processor.zipkin-compact.server-host-port=test_driver:5775 "+
 			"-processor.jaeger-compact.server-host-port=test_driver:6831 -processor.jaeger-binary.server-host-port=test_driver:6832"))
 	if err := cmd.Run(); err != nil {
