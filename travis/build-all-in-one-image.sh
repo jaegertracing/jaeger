@@ -14,4 +14,4 @@ export BRANCH=$(if [ "$TRAVIS_PULL_REQUEST" == "false" ]; then echo $TRAVIS_BRAN
 
 docker build -f cmd/standalone/Dockerfile -t $REPO:$COMMIT .
 
-./travis/upload-to-docker.sh
+bash ./travis/upload-to-docker.sh
