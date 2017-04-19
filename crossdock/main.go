@@ -56,7 +56,7 @@ const (
 	agentURL          = "http://test_driver:5778"
 	queryServiceURL   = "http://127.0.0.1:16686"
 
-	schema     = "/scripts/schema.cql"
+	schema = "/scripts/schema.cql"
 
 	jaegerKeyspace = "jaeger"
 
