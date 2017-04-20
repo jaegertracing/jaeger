@@ -140,8 +140,7 @@ func getAPITrace(t *testing.T) {
 
 func healthCheck() error {
 	for i := 0; i < 100; i++ {
-		_, err := http.Get(queryURL)
-		if err == nil {
+		if _, err := http.Get(queryURL); err == nil {
 			return nil
 		}
 		time.Sleep(100 * time.Millisecond)
