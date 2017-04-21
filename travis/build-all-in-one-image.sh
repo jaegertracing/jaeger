@@ -10,8 +10,9 @@ export REPO=jaegertracing/all-in-one
 export BRANCH=$(if [ "$TRAVIS_PULL_REQUEST" == "false" ]; then echo $TRAVIS_BRANCH; else echo $TRAVIS_PULL_REQUEST_BRANCH; fi)
 
 docker build -f cmd/standalone/Dockerfile -t $REPO:$COMMIT .
-docker run -p 16686:16686 --name standalone --rm $REPO:$COMMIT
+export CID=$(docker run -d -p 16686:16686 --rm $REPO:$COMMIT)
 make integration-test
+docker kill $CID
 
 # Only push the docker container to Docker Hub for master branch
 if [ "$BRANCH" == "master" ]; then echo 'upload to Docker Hub'; else echo 'skip docker upload for PR'; exit 0; fi
