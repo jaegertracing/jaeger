@@ -32,7 +32,7 @@ import (
 
 	"github.com/stretchr/testify/require"
 
-	"code.uber.internal/infra/jaeger/model/ui"
+	ui "github.com/uber/jaeger/model/json"
 )
 
 const (
