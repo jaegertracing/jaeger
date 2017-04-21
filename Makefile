@@ -51,9 +51,9 @@ clean:
 test: go-gen
 	$(GOTEST) $(PACKAGES) | $(COLORIZE)
 
-.PHONY: test-v2
-test: go-gen
-	$(GOTEST) $(PACKAGES) | $(COLORIZE)
+.PHONY: integration-test
+integration-test: go-gen
+	go test -v -tags integration ./cmd/standalone/... | $(COLORIZE)
 
 .PHONY: fmt
 fmt:
