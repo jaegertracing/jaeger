@@ -29,6 +29,7 @@ import (
 	"strconv"
 
 	"github.com/gorilla/mux"
+	jaegerClientConfig "github.com/uber/jaeger-client-go/config"
 	"github.com/uber/jaeger-lib/metrics"
 	"github.com/uber/jaeger-lib/metrics/go-kit"
 	"github.com/uber/jaeger-lib/metrics/go-kit/expvar"
@@ -36,7 +37,6 @@ import (
 	"github.com/uber/tchannel-go/thrift"
 	"go.uber.org/zap"
 
-	jaegerClientConfig "github.com/uber/jaeger-client-go/config"
 	agentApp "github.com/uber/jaeger/cmd/agent/app"
 	basic "github.com/uber/jaeger/cmd/builder"
 	collector "github.com/uber/jaeger/cmd/collector/app/builder"

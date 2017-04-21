@@ -51,6 +51,10 @@ clean:
 test: go-gen
 	$(GOTEST) $(PACKAGES) | $(COLORIZE)
 
+.PHONY: integration-test
+integration-test: go-gen
+	$(GOTEST) -tags=integration ./cmd/standalone/...
+
 .PHONY: fmt
 fmt:
 	$(GOFMT) -e -s -l -w $(ALL_SRC)
