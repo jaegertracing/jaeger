@@ -53,7 +53,7 @@ test: go-gen
 
 .PHONY: integration-test
 integration-test: go-gen
-	$(GOTEST) -tags=integration ./cmd/standalone/... | $(COLORIZE)
+	$(GOTEST) -tags=integration ./cmd/standalone/...
 
 .PHONY: fmt
 fmt:
