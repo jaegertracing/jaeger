@@ -57,8 +57,6 @@ func TestStandalone(t *testing.T) {
 		t.Fatal(err)
 	}
 
-	t.Fatal("testing fail")
-
 	createTrace(t)
 	getAPITrace(t)
 }
