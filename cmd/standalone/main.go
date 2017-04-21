@@ -29,13 +29,14 @@ import (
 	"strconv"
 
 	"github.com/gorilla/mux"
+	"github.com/uber/jaeger-lib/metrics"
+	"github.com/uber/jaeger-lib/metrics/go-kit"
+	"github.com/uber/jaeger-lib/metrics/go-kit/expvar"
 	"github.com/uber/tchannel-go"
 	"github.com/uber/tchannel-go/thrift"
 	"go.uber.org/zap"
 
-	"github.com/uber/jaeger-lib/metrics"
-	"github.com/uber/jaeger-lib/metrics/go-kit"
-	"github.com/uber/jaeger-lib/metrics/go-kit/expvar"
+	jaegerClientConfig "github.com/uber/jaeger-client-go/config"
 	agentApp "github.com/uber/jaeger/cmd/agent/app"
 	basic "github.com/uber/jaeger/cmd/builder"
 	collector "github.com/uber/jaeger/cmd/collector/app/builder"
@@ -134,11 +135,23 @@ func startQuery(logger *zap.Logger, baseFactory metrics.Factory, memoryStore *me
 	if err != nil {
 		logger.Fatal("Failed to get dependency reader", zap.Error(err))
 	}
+	tracer, closer, err := jaegerClientConfig.Configuration{
+		Sampler: &jaegerClientConfig.SamplerConfig{
+			Type:  "probabilistic",
+			Param: 0.001,
+		},
+		RPCMetrics: true,
+	}.New("jaeger-query", jaegerClientConfig.Metrics(baseFactory))
+	if err != nil {
+		logger.Fatal("Failed to initialize tracer", zap.Error(err))
+	}
+	defer closer.Close()
 	rHandler := queryApp.NewAPIHandler(
 		spanReader,
 		dependencyReader,
 		queryApp.HandlerOptions.Prefix(*query.QueryPrefix),
-		queryApp.HandlerOptions.Logger(logger))
+		queryApp.HandlerOptions.Logger(logger),
+		queryApp.HandlerOptions.Tracer(tracer))
 	sHandler := queryApp.NewStaticAssetsHandler(*query.QueryStaticAssets)
 	r := mux.NewRouter()
 	rHandler.RegisterRoutes(r)

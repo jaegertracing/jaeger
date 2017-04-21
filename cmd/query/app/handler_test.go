@@ -86,11 +86,12 @@ type structuredTraceResponse struct {
 	Errors []structuredError `json:"errors"`
 }
 
-func initializeTestServerWitHandler() (*httptest.Server, *spanstoremocks.Reader, *depsmocks.Reader, *APIHandler) {
+func initializeTestServerWithHandler() (*httptest.Server, *spanstoremocks.Reader, *depsmocks.Reader, *APIHandler) {
 	return initializeTestServerWithOptions(
 		HandlerOptions.Logger(zap.NewNop()),
 		HandlerOptions.Prefix(defaultHTTPPrefix),
 		HandlerOptions.QueryLookbackDuration(defaultTraceQueryLookbackDuration),
+		HandlerOptions.Tracer(nil),
 	)
 }
 
@@ -104,7 +105,7 @@ func initializeTestServerWithOptions(options ...HandlerOption) (*httptest.Server
 }
 
 func initializeTestServer() (*httptest.Server, *spanstoremocks.Reader, *depsmocks.Reader) {
-	https, sr, dr, _ := initializeTestServerWitHandler()
+	https, sr, dr, _ := initializeTestServerWithHandler()
 	return https, sr, dr
 }
 
@@ -185,7 +186,7 @@ func TestGetTraceNotFound(t *testing.T) {
 }
 
 func TestGetTraceAdjustmentFailure(t *testing.T) {
-	server, readMock, _, handler := initializeTestServerWitHandler()
+	server, readMock, _, handler := initializeTestServerWithHandler()
 	handler.adjuster = adjuster.Func(func(trace *model.Trace) (*model.Trace, error) {
 		return trace, errAdjustment
 	})
