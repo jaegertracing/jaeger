@@ -33,9 +33,9 @@ import (
 	"time"
 
 	"github.com/gorilla/mux"
-	"github.com/opentracing/opentracing-go"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
+	"go.uber.org/zap"
 
 	jaeger "github.com/uber/jaeger-client-go"
 	"github.com/uber/jaeger/model"
@@ -44,7 +44,6 @@ import (
 	depsmocks "github.com/uber/jaeger/storage/dependencystore/mocks"
 	"github.com/uber/jaeger/storage/spanstore"
 	spanstoremocks "github.com/uber/jaeger/storage/spanstore/mocks"
-	"go.uber.org/zap"
 )
 
 const millisToNanosMultiplier = int64(time.Millisecond / time.Nanosecond)
@@ -86,11 +85,16 @@ type structuredTraceResponse struct {
 	Errors []structuredError `json:"errors"`
 }
 
-func initializeTestServerWitHandler() (*httptest.Server, *spanstoremocks.Reader, *depsmocks.Reader, *APIHandler) {
+func initializeTestServerWithHandler(options ...HandlerOption) (*httptest.Server, *spanstoremocks.Reader, *depsmocks.Reader, *APIHandler) {
 	return initializeTestServerWithOptions(
-		HandlerOptions.Logger(zap.NewNop()),
-		HandlerOptions.Prefix(defaultHTTPPrefix),
-		HandlerOptions.QueryLookbackDuration(defaultTraceQueryLookbackDuration),
+		append(
+			[]HandlerOption{
+				HandlerOptions.Logger(zap.NewNop()),
+				HandlerOptions.Prefix(defaultHTTPPrefix),
+				HandlerOptions.QueryLookbackDuration(defaultTraceQueryLookbackDuration),
+			},
+			options...,
+		)...,
 	)
 }
 
@@ -103,8 +107,8 @@ func initializeTestServerWithOptions(options ...HandlerOption) (*httptest.Server
 	return httptest.NewServer(r), readStorage, dependencyStorage, handler
 }
 
-func initializeTestServer() (*httptest.Server, *spanstoremocks.Reader, *depsmocks.Reader) {
-	https, sr, dr, _ := initializeTestServerWitHandler()
+func initializeTestServer(options ...HandlerOption) (*httptest.Server, *spanstoremocks.Reader, *depsmocks.Reader) {
+	https, sr, dr, _ := initializeTestServerWithHandler(options...)
 	return https, sr, dr
 }
 
@@ -140,15 +144,11 @@ func TestGetTraceSuccess(t *testing.T) {
 }
 
 func TestTracing(t *testing.T) {
-	globalTracer := opentracing.GlobalTracer()
-	defer opentracing.InitGlobalTracer(globalTracer)
-
 	reporter := jaeger.NewInMemoryReporter()
 	jaegerTracer, jaegerCloser := jaeger.NewTracer("test", jaeger.NewConstSampler(true), reporter)
 	defer jaegerCloser.Close()
-	opentracing.InitGlobalTracer(jaegerTracer)
 
-	server, readMock, _ := initializeTestServer()
+	server, readMock, _ := initializeTestServer(HandlerOptions.Tracer(jaegerTracer))
 	defer server.Close()
 	readMock.On("GetTrace", mock.AnythingOfType("model.TraceID")).
 		Return(mockTrace, nil).Once()
@@ -185,7 +185,7 @@ func TestGetTraceNotFound(t *testing.T) {
 }
 
 func TestGetTraceAdjustmentFailure(t *testing.T) {
-	server, readMock, _, handler := initializeTestServerWitHandler()
+	server, readMock, _, handler := initializeTestServerWithHandler()
 	handler.adjuster = adjuster.Func(func(trace *model.Trace) (*model.Trace, error) {
 		return trace, errAdjustment
 	})

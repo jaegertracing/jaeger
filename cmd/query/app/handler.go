@@ -85,6 +85,7 @@ type APIHandler struct {
 	logger            *zap.Logger
 	queryParser       queryParser
 	httpPrefix        string
+	tracer            opentracing.Tracer
 }
 
 // NewAPIHandler returns an APIHandler
@@ -113,6 +114,9 @@ func NewAPIHandler(spanReader spanstore.Reader, dependencyReader dependencystore
 	if aH.logger == nil {
 		aH.logger = zap.NewNop()
 	}
+	if aH.tracer == nil {
+		aH.tracer = opentracing.NoopTracer{}
+	}
 	return aH
 }
 
@@ -138,7 +142,7 @@ func (aH *APIHandler) handleFunc(
 ) *mux.Route {
 	route = aH.route(route, args...)
 	traceMiddleware := nethttp.Middleware(
-		opentracing.GlobalTracer(),
+		aH.tracer,
 		http.HandlerFunc(f),
 		nethttp.OperationNameFunc(func(r *http.Request) string {
 			return route
