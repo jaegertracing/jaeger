@@ -18,8 +18,6 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 // THE SOFTWARE.
 
-// +build integration
-
 package main
 
 import (
@@ -30,20 +28,12 @@ import (
 	"testing"
 	"time"
 
-	"github.com/docker/docker/api/types"
-	"github.com/docker/docker/api/types/container"
-	"github.com/docker/docker/client"
-	"github.com/docker/go-connections/nat"
 	"github.com/stretchr/testify/require"
 
 	"code.uber.internal/infra/jaeger/model/ui"
-
-	"golang.org/x/net/context"
 )
 
 const (
-	imageName = "standalone"
-
 	host          = "0.0.0.0"
 	queryPort     = "16686"
 	queryHostPort = host + ":" + queryPort
@@ -60,36 +50,6 @@ var (
 )
 
 func TestStandalone(t *testing.T) {
-	ctx := context.Background()
-	cli, err := client.NewEnvClient()
-	if err != nil {
-		t.Fatal(err)
-	}
-
-	exposedPorts, portBindings, _ := nat.ParsePortSpecs([]string{
-		fmt.Sprintf("%s:%s", queryHostPort, queryPort),
-	})
-
-	resp, err := cli.ContainerCreate(
-		ctx,
-		&container.Config{Image: imageName, ExposedPorts: exposedPorts},
-		&container.HostConfig{PortBindings: portBindings},
-		nil,
-		"",
-	)
-	if err != nil {
-		t.Fatal(err)
-	}
-
-	if err := cli.ContainerStart(ctx, resp.ID, types.ContainerStartOptions{}); err != nil {
-		t.Fatal(err)
-	}
-	defer func() {
-		if err := cli.ContainerRemove(ctx, resp.ID, types.ContainerRemoveOptions{Force: true}); err != nil {
-			t.Fatalf("cannot remove container: %s", err)
-		}
-	}()
-
 	// Check if the query service is available
 	if err := healthCheck(); err != nil {
 		t.Fatal(err)

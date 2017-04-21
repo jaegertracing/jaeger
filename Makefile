@@ -51,6 +51,10 @@ clean:
 test: go-gen
 	$(GOTEST) $(PACKAGES) | $(COLORIZE)
 
+.PHONY: test-v2
+test: go-gen
+	$(GOTEST) $(PACKAGES) | $(COLORIZE)
+
 .PHONY: fmt
 fmt:
 	$(GOFMT) -e -s -l -w $(ALL_SRC)
