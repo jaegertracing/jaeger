@@ -115,7 +115,7 @@ func NewAPIHandler(spanReader spanstore.Reader, dependencyReader dependencystore
 		aH.logger = zap.NewNop()
 	}
 	if aH.tracer == nil {
-		aH.tracer = opentracing.GlobalTracer()
+		aH.tracer = opentracing.NoopTracer{}
 	}
 	return aH
 }
