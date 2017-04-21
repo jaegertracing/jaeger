@@ -86,12 +86,12 @@ type structuredTraceResponse struct {
 	Errors []structuredError `json:"errors"`
 }
 
-func initializeTestServerWithHandler() (*httptest.Server, *spanstoremocks.Reader, *depsmocks.Reader, *APIHandler) {
+func initializeTestServerWithHandler(tracer opentracing.Tracer) (*httptest.Server, *spanstoremocks.Reader, *depsmocks.Reader, *APIHandler) {
 	return initializeTestServerWithOptions(
 		HandlerOptions.Logger(zap.NewNop()),
 		HandlerOptions.Prefix(defaultHTTPPrefix),
 		HandlerOptions.QueryLookbackDuration(defaultTraceQueryLookbackDuration),
-		HandlerOptions.Tracer(nil),
+		HandlerOptions.Tracer(tracer),
 	)
 }
 
@@ -105,7 +105,12 @@ func initializeTestServerWithOptions(options ...HandlerOption) (*httptest.Server
 }
 
 func initializeTestServer() (*httptest.Server, *spanstoremocks.Reader, *depsmocks.Reader) {
-	https, sr, dr, _ := initializeTestServerWithHandler()
+	https, sr, dr, _ := initializeTestServerWithHandler(nil)
+	return https, sr, dr
+}
+
+func initializeTestServerWithTracer(tracer opentracing.Tracer) (*httptest.Server, *spanstoremocks.Reader, *depsmocks.Reader) {
+	https, sr, dr, _ := initializeTestServerWithHandler(tracer)
 	return https, sr, dr
 }
 
@@ -141,15 +146,11 @@ func TestGetTraceSuccess(t *testing.T) {
 }
 
 func TestTracing(t *testing.T) {
-	globalTracer := opentracing.GlobalTracer()
-	defer opentracing.InitGlobalTracer(globalTracer)
-
 	reporter := jaeger.NewInMemoryReporter()
 	jaegerTracer, jaegerCloser := jaeger.NewTracer("test", jaeger.NewConstSampler(true), reporter)
 	defer jaegerCloser.Close()
-	opentracing.InitGlobalTracer(jaegerTracer)
 
-	server, readMock, _ := initializeTestServer()
+	server, readMock, _ := initializeTestServerWithTracer(jaegerTracer)
 	defer server.Close()
 	readMock.On("GetTrace", mock.AnythingOfType("model.TraceID")).
 		Return(mockTrace, nil).Once()
@@ -186,7 +187,7 @@ func TestGetTraceNotFound(t *testing.T) {
 }
 
 func TestGetTraceAdjustmentFailure(t *testing.T) {
-	server, readMock, _, handler := initializeTestServerWithHandler()
+	server, readMock, _, handler := initializeTestServerWithHandler(nil)
 	handler.adjuster = adjuster.Func(func(trace *model.Trace) (*model.Trace, error) {
 		return trace, errAdjustment
 	})
