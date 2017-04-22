@@ -106,10 +106,7 @@ func NewAPIHandler(spanReader spanstore.Reader, dependencyReader dependencystore
 		aH.httpPrefix = defaultHTTPPrefix
 	}
 	if aH.adjuster == nil {
-		aH.adjuster = adjuster.Sequence(
-			adjuster.SpanIDDeduper(),
-			adjuster.ClockSkew(),
-			adjuster.IPTagAdjuster())
+		aH.adjuster = adjuster.Sequence(StandardAdjusters...)
 	}
 	if aH.logger == nil {
 		aH.logger = zap.NewNop()

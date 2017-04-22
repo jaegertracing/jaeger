@@ -47,7 +47,7 @@ func (handlerOptions) Logger(logger *zap.Logger) HandlerOption {
 }
 
 // Adjusters creates a HandlerOption that initializes the sequence of Adjusters on the APIHandler,
-func (handlerOptions) Adjusters(adjusters []adjuster.Adjuster) HandlerOption {
+func (handlerOptions) Adjusters(adjusters ...adjuster.Adjuster) HandlerOption {
 	return func(apiHandler *APIHandler) {
 		apiHandler.adjuster = adjuster.Sequence(adjusters...)
 	}
