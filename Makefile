@@ -49,7 +49,7 @@ clean:
 
 .PHONY: test
 test: go-gen
-	$(GOTEST) $(PACKAGES) | $(COLORIZE)
+	bash -c "set -e; set -o pipefail; $(GOTEST) $(PACKAGES) | $(COLORIZE)"
 
 .PHONY: integration-test
 integration-test: go-gen

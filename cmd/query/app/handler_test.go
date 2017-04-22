@@ -185,7 +185,7 @@ func TestGetTraceNotFound(t *testing.T) {
 }
 
 func TestGetTraceAdjustmentFailure(t *testing.T) {
-	server, readMock, _, handler := initializeTestServerWithHandler(
+	server, readMock, _, _ := initializeTestServerWithHandler(
 		HandlerOptions.Adjusters(
 			adjuster.Func(func(trace *model.Trace) (*model.Trace, error) {
 				return trace, errAdjustment
