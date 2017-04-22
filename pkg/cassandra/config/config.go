@@ -43,6 +43,31 @@ type Configuration struct {
 	Port               int           `yaml:"port"`
 }
 
+// ApplyDefaults copies settings from source unless its own value is non-zero.
+func (c *Configuration) ApplyDefaults(source *Configuration) {
+	if c.ConnectionsPerHost == 0 {
+		c.ConnectionsPerHost = source.ConnectionsPerHost
+	}
+	if c.MaxRetryAttempts == 0 {
+		c.MaxRetryAttempts = source.MaxRetryAttempts
+	}
+	if c.Timeout == 0 {
+		c.Timeout = source.Timeout
+	}
+	if c.Port == 0 {
+		c.Port = source.Port
+	}
+	if c.Keyspace == "" {
+		c.Keyspace = source.Keyspace
+	}
+	if c.ProtoVersion == 0 {
+		c.ProtoVersion = source.ProtoVersion
+	}
+	if c.SocketKeepAlive == 0 {
+		c.SocketKeepAlive = source.SocketKeepAlive
+	}
+}
+
 // NewSession creates a new Cassandra session
 func (c *Configuration) NewSession() (cassandra.Session, error) {
 	cluster := c.NewCluster()
