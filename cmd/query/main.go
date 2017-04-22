@@ -52,7 +52,7 @@ func main() {
 		basicB.Options.CassandraOption(casOptions.GetPrimary()),
 	)
 	if err != nil {
-		logger.Fatal("Failed to wire up service", zap.Error(err))
+		logger.Fatal("Failed to init storage builder", zap.Error(err))
 	}
 	spanReader, err := storageBuild.NewSpanReader()
 	if err != nil {
