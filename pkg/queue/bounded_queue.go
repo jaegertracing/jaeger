@@ -54,12 +54,15 @@ func NewBoundedQueue(capacity int, onDroppedItem func(item interface{})) *Bounde
 	}
 }
 
-// StartConsumers starts a given number of goroutines consuming items from the queue and passing them into
-// the consumer callback. Also starts the Reaper goroutine.
+// StartConsumers starts a given number of goroutines consuming items from the queue
+// and passing them into the consumer callback.
 func (q *BoundedQueue) StartConsumers(num int, consumer func(item interface{})) {
+	var startWG sync.WaitGroup
 	for i := 0; i < num; i++ {
 		q.stopWG.Add(1)
+		startWG.Add(1)
 		go func() {
+			startWG.Done()
 			defer q.stopWG.Done()
 			for {
 				select {
@@ -72,6 +75,7 @@ func (q *BoundedQueue) StartConsumers(num int, consumer func(item interface{})) 
 			}
 		}()
 	}
+	startWG.Wait()
 }
 
 // Produce is used by the producer to submit new item to the queue. Returns false in case of queue overflow.
