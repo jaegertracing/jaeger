@@ -185,10 +185,13 @@ func TestGetTraceNotFound(t *testing.T) {
 }
 
 func TestGetTraceAdjustmentFailure(t *testing.T) {
-	server, readMock, _, handler := initializeTestServerWithHandler()
-	handler.adjuster = adjuster.Func(func(trace *model.Trace) (*model.Trace, error) {
-		return trace, errAdjustment
-	})
+	server, readMock, _, _ := initializeTestServerWithHandler(
+		HandlerOptions.Adjusters(
+			adjuster.Func(func(trace *model.Trace) (*model.Trace, error) {
+				return trace, errAdjustment
+			}),
+		),
+	)
 	defer server.Close()
 	readMock.On("GetTrace", mock.AnythingOfType("model.TraceID")).
 		Return(mockTrace, nil).Once()
@@ -259,10 +262,11 @@ func TestSearchByTraceIDFailure(t *testing.T) {
 
 func TestSearchModelConversionFailure(t *testing.T) {
 	server, readMock, _, _ := initializeTestServerWithOptions(
-		HandlerOptions.Adjusters([]adjuster.Adjuster{
+		HandlerOptions.Adjusters(
 			adjuster.Func(func(trace *model.Trace) (*model.Trace, error) {
 				return trace, errAdjustment
-			})}),
+			}),
+		),
 	)
 	defer server.Close()
 	readMock.On("FindTraces", mock.AnythingOfType("*spanstore.TraceQueryParameters")).
