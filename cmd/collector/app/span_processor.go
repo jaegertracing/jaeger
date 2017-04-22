@@ -21,7 +21,6 @@
 package app
 
 import (
-	"sync"
 	"time"
 
 	"github.com/uber/tchannel-go"
@@ -34,12 +33,8 @@ import (
 	"github.com/uber/jaeger/pkg/queue"
 )
 
-const (
-	queueOverflow = 500
-)
-
 type spanProcessor struct {
-	queue           *queue.BoundedDropOldestQueue
+	queue           *queue.BoundedQueue
 	metrics         *SpanProcessorMetrics
 	preProcessSpans ProcessSpans
 	filterSpan      FilterSpan             // filter is called before the sanitizer but after preProcessSpans
@@ -47,15 +42,13 @@ type spanProcessor struct {
 	processSpan     ProcessSpan
 	logger          *zap.Logger
 	spanWriter      spanstore.Writer
-	blockingSubmit  bool
 	reportBusy      bool
 	numWorkers      int
 }
 
 type queueItem struct {
-	queuedTime  time.Time
-	span        *model.Span
-	synchronous *sync.WaitGroup
+	queuedTime time.Time
+	span       *model.Span
 }
 
 // NewSpanProcessor returns a SpanProcessor that preProcesses, filters, queues, sanitizes, and processes spans
@@ -68,10 +61,6 @@ func NewSpanProcessor(
 	sp.queue.StartConsumers(sp.numWorkers, func(item interface{}) {
 		value := item.(*queueItem)
 		sp.processItemFromQueue(value)
-
-		if sp.blockingSubmit {
-			value.synchronous.Done()
-		}
 	})
 
 	sp.queue.StartLengthReporting(1*time.Second, sp.metrics.QueueLength)
@@ -88,7 +77,7 @@ func newSpanProcessor(spanWriter spanstore.Writer, opts ...Option) *spanProcesso
 	droppedItemHandler := func(item interface{}) {
 		handlerMetrics.SpansDropped.Inc(1)
 	}
-	boundedQueue := queue.MakeBoundedDropOldestQueue(options.queueSize, queueOverflow, droppedItemHandler)
+	boundedQueue := queue.NewBoundedQueue(options.queueSize, droppedItemHandler)
 
 	sp := spanProcessor{
 		queue:           boundedQueue,
@@ -97,7 +86,6 @@ func newSpanProcessor(spanWriter spanstore.Writer, opts ...Option) *spanProcesso
 		preProcessSpans: options.preProcessSpans,
 		filterSpan:      options.spanFilter,
 		sanitizer:       options.sanitizer,
-		blockingSubmit:  options.blockingSubmit,
 		reportBusy:      options.reportBusy,
 		numWorkers:      options.numWorkers,
 		spanWriter:      spanWriter,
@@ -108,6 +96,11 @@ func newSpanProcessor(spanWriter spanstore.Writer, opts ...Option) *spanProcesso
 	)
 
 	return &sp
+}
+
+// Stop halts the span processor and all its go-routines.
+func (sp *spanProcessor) Stop() {
+	sp.queue.Stop()
 }
 
 func (sp *spanProcessor) saveSpan(span *model.Span) {
@@ -152,14 +145,7 @@ func (sp *spanProcessor) enqueueSpan(span *model.Span, originalFormat string) bo
 		queuedTime: time.Now(),
 		span:       span,
 	}
-	if sp.blockingSubmit {
-		item.synchronous = &sync.WaitGroup{}
-		item.synchronous.Add(1)
-	}
 	addedToQueue := sp.queue.Produce(item)
-	if item.synchronous != nil {
-		item.synchronous.Wait()
-	}
 	if !addedToQueue {
 		sp.metrics.ErrorBusy.Inc(1)
 	}

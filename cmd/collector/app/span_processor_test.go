@@ -21,17 +21,21 @@
 package app
 
 import (
+	"fmt"
+	"sync"
 	"testing"
 	"time"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/uber/jaeger-lib/metrics"
+	metricsTest "github.com/uber/jaeger-lib/metrics/testutils"
 	"github.com/uber/tchannel-go/thrift"
 	"go.uber.org/zap"
 	"golang.org/x/net/context"
 
-	"github.com/uber/jaeger-lib/metrics"
-	zipkinS "github.com/uber/jaeger/cmd/collector/app/sanitizer/zipkin"
+	zipkinSanitizer "github.com/uber/jaeger/cmd/collector/app/sanitizer/zipkin"
 	"github.com/uber/jaeger/model"
+	"github.com/uber/jaeger/pkg/testutils"
 	"github.com/uber/jaeger/thrift-gen/jaeger"
 	zc "github.com/uber/jaeger/thrift-gen/zipkincore"
 )
@@ -47,13 +51,14 @@ func TestBySvcMetrics(t *testing.T) {
 		rootSpan    bool
 		debug       bool
 	}
-	tests := []TestCase{}
 
 	spanFormat := [2]string{ZipkinFormatType, JaegerFormatType}
 	serviceNames := [2]string{allowedService, blackListedService}
 	rootSpanEnabled := [2]bool{true, false}
 	debugEnabled := [2]bool{true, false}
 
+	// generate test cases as permutations of above parameters
+	var tests []TestCase
 	for _, format := range spanFormat {
 		for _, serviceName := range serviceNames {
 			for _, rootSpan := range rootSpanEnabled {
@@ -75,7 +80,7 @@ func TestBySvcMetrics(t *testing.T) {
 		serviceMetrics := mb.Namespace("service", nil)
 		hostMetrics := mb.Namespace("host", nil)
 		processor := newSpanProcessor(
-			&noopSpanWriter{},
+			&fakeSpanWriter{},
 			Options.ServiceMetrics(serviceMetrics),
 			Options.HostMetrics(hostMetrics),
 			Options.Logger(logger),
@@ -89,7 +94,7 @@ func TestBySvcMetrics(t *testing.T) {
 		var metricPrefix string
 		if test.format == ZipkinFormatType {
 			span := makeZipkinSpan(test.serviceName, test.rootSpan, test.debug)
-			zHandler := NewZipkinSpanHandler(logger, processor, zipkinS.NewParentIDSanitizer(logger))
+			zHandler := NewZipkinSpanHandler(logger, processor, zipkinSanitizer.NewParentIDSanitizer(logger))
 			zHandler.SubmitZipkinBatch(tctx, []*zc.Span{span, span})
 			metricPrefix = "service.zipkin"
 		} else if test.format == JaegerFormatType {
@@ -108,27 +113,36 @@ func TestBySvcMetrics(t *testing.T) {
 		} else {
 			panic("Unknown format")
 		}
-		expected := make(map[string]int64)
-		expected[metricPrefix+".spans.recd"] = 2
-		expected[metricPrefix+".spans.by-svc."+test.serviceName] = 2
+		expected := []metricsTest.ExpectedMetric{
+			{Name: metricPrefix + ".spans.recd", Value: 2},
+			{Name: metricPrefix + ".spans.by-svc." + test.serviceName, Value: 2},
+		}
 		if test.debug {
-			expected[metricPrefix+".debug-spans.by-svc."+test.serviceName] = 2
+			expected = append(expected, metricsTest.ExpectedMetric{
+				Name: metricPrefix + ".debug-spans.by-svc." + test.serviceName, Value: 2,
+			})
 		}
 		if test.rootSpan {
-			expected[metricPrefix+".traces.by-svc."+test.serviceName] = 2
+			expected = append(expected, metricsTest.ExpectedMetric{
+				Name: metricPrefix + ".traces.by-svc." + test.serviceName, Value: 2,
+			})
 		}
-		// Check span processed or blacklisted metric.
-		// "error.busy" is equivalent to span being accepted, because it's emitted
-		// when attempting to add span to the queue (and we don't run consumers)
-		// debug spans emit "error.busy" because they are accepted
-		if test.serviceName == blackListedService && !test.debug {
-			expected[metricPrefix+".spans.rejected"] = 2
+		if test.serviceName != blackListedService || test.debug {
+			// "error.busy" and "spans.dropped" are both equivalent to a span being accepted,
+			// because both are emitted when attempting to add span to the queue, and since
+			// we defined the queue capacity as 0, all submitted items are dropped.
+			// The debug spans are always accepted.
+			expected = append(expected, metricsTest.ExpectedMetric{
+				Name: "host.error.busy", Value: 2,
+			}, metricsTest.ExpectedMetric{
+				Name: "host.spans.dropped", Value: 2,
+			})
 		} else {
-			expected["host.error.busy"] = 2
+			expected = append(expected, metricsTest.ExpectedMetric{
+				Name: metricPrefix + ".spans.rejected", Value: 2,
+			})
 		}
-
-		counts, _ := mb.Snapshot()
-		assert.Equal(t, expected, counts, "For test %+v", test)
+		metricsTest.AssertCounterMetrics(t, mb, expected...)
 	}
 }
 
@@ -144,10 +158,12 @@ func isSpanAllowed(span *model.Span) bool {
 	return true
 }
 
-type noopSpanWriter struct{}
+type fakeSpanWriter struct {
+	err error
+}
 
-func (n *noopSpanWriter) WriteSpan(span *model.Span) error {
-	return nil
+func (n *fakeSpanWriter) WriteSpan(span *model.Span) error {
+	return n.err
 }
 
 func makeZipkinSpan(service string, rootSpan bool, debugEnabled bool) *zc.Span {
@@ -190,4 +206,95 @@ func makeJaegerSpan(service string, rootSpan bool, debugEnabled bool) (*jaeger.S
 		}, &jaeger.Process{
 			ServiceName: service,
 		}
+}
+
+func TestSpanProcessor(t *testing.T) {
+	w := &fakeSpanWriter{}
+	p := NewSpanProcessor(w).(*spanProcessor)
+	defer p.Stop()
+
+	res, err := p.ProcessSpans([]*model.Span{
+		&model.Span{
+			Process: &model.Process{
+				ServiceName: "x",
+			},
+		},
+	}, JaegerFormatType)
+	assert.NoError(t, err)
+	assert.Equal(t, []bool{true}, res)
+}
+
+func TestSpanProcessorErrors(t *testing.T) {
+	logger, logBuf := testutils.NewLogger()
+	w := &fakeSpanWriter{
+		err: fmt.Errorf("some-error"),
+	}
+	p := NewSpanProcessor(w,
+		Options.Logger(logger),
+	).(*spanProcessor)
+
+	res, err := p.ProcessSpans([]*model.Span{
+		&model.Span{
+			Process: &model.Process{
+				ServiceName: "x",
+			},
+		},
+	}, JaegerFormatType)
+
+	assert.NoError(t, err)
+	assert.Equal(t, []bool{true}, res)
+
+	p.Stop()
+
+	assert.Equal(t, map[string]string{
+		"level": "error",
+		"msg":   "Failed to save span",
+		"error": "some-error",
+	}, logBuf.JSONLine(0))
+}
+
+type blockingWriter struct {
+	sync.Mutex
+}
+
+func (w *blockingWriter) WriteSpan(span *model.Span) error {
+	w.Lock()
+	defer w.Unlock()
+	return nil
+}
+
+func TestSpanProcessorBusy(t *testing.T) {
+	w := &blockingWriter{}
+	p := NewSpanProcessor(w,
+		Options.NumWorkers(1),
+		Options.QueueSize(1),
+		Options.ReportBusy(true),
+	).(*spanProcessor)
+	defer p.Stop()
+
+	// block the writer so that the first span is read from the queue and blocks the processor,
+	// and eiher the second or the third span is rejected since the queue capacity is just 1.
+	w.Lock()
+	defer w.Unlock()
+
+	res, err := p.ProcessSpans([]*model.Span{
+		&model.Span{
+			Process: &model.Process{
+				ServiceName: "x",
+			},
+		},
+		&model.Span{
+			Process: &model.Process{
+				ServiceName: "x",
+			},
+		},
+		&model.Span{
+			Process: &model.Process{
+				ServiceName: "x",
+			},
+		},
+	}, JaegerFormatType)
+
+	assert.Error(t, err, "expcting busy error")
+	assert.Nil(t, res)
 }
