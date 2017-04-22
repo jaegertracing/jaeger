@@ -36,9 +36,6 @@ import (
 // In this test we run a queue with capacity 1 and a single consumer.
 // We want to test the overflow behavior, so we block the consumer
 // by holding a startLock before submitting items to the queue.
-// However, because we only control the code in the consumer callback,
-// the first item may or may not be already received from the queue.
-// To ensure that it is received, we
 func TestBoundedQueue(t *testing.T) {
 	mFact := metrics.NewLocalFactory(0)
 	counter := mFact.Counter("dropped", nil)
@@ -66,7 +63,7 @@ func TestBoundedQueue(t *testing.T) {
 
 	// at this point "a" may or may not have been received by the consumer go-routine
 	// so let's make sure it has been
-	consumerState.waitToConsumerOnce()
+	consumerState.waitToConsumeOnce()
 
 	// at this point the item must have been read off the queue, but the consumer is blocked
 	assert.Equal(t, 0, q.Size())
@@ -146,7 +143,7 @@ func (s *consumerState) snapshot() map[string]bool {
 	return out
 }
 
-func (s *consumerState) waitToConsumerOnce() {
+func (s *consumerState) waitToConsumeOnce() {
 	for i := 0; i < 1000; i++ {
 		if atomic.LoadInt32(&s.consumedOnce) == 0 {
 			time.Sleep(time.Millisecond)
