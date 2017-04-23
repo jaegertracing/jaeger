@@ -214,7 +214,7 @@ func TestSpanProcessor(t *testing.T) {
 	defer p.Stop()
 
 	res, err := p.ProcessSpans([]*model.Span{
-		&model.Span{
+		{
 			Process: &model.Process{
 				ServiceName: "x",
 			},
@@ -234,7 +234,7 @@ func TestSpanProcessorErrors(t *testing.T) {
 	).(*spanProcessor)
 
 	res, err := p.ProcessSpans([]*model.Span{
-		&model.Span{
+		{
 			Process: &model.Process{
 				ServiceName: "x",
 			},
@@ -278,17 +278,17 @@ func TestSpanProcessorBusy(t *testing.T) {
 	defer w.Unlock()
 
 	res, err := p.ProcessSpans([]*model.Span{
-		&model.Span{
+		{
 			Process: &model.Process{
 				ServiceName: "x",
 			},
 		},
-		&model.Span{
+		{
 			Process: &model.Process{
 				ServiceName: "x",
 			},
 		},
-		&model.Span{
+		{
 			Process: &model.Process{
 				ServiceName: "x",
 			},
