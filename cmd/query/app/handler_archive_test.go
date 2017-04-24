@@ -22,6 +22,7 @@ package app
 
 import (
 	"errors"
+	"fmt"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -32,16 +33,24 @@ import (
 	spanstoremocks "github.com/uber/jaeger/storage/spanstore/mocks"
 )
 
-func TestGetArchivedTrace_NoStorage(t *testing.T) {
-	withTestServer(t, func(ts *testServer) {
-		ts.spanReader.On("GetTrace", mock.AnythingOfType("model.TraceID")).
-			Return(nil, spanstore.ErrTraceNotFound).Once()
-		var response structuredResponse
-		err := getJSON(ts.server.URL+"/api/traces/"+mockTraceID.String(), &response)
-		assert.EqualError(t, err,
-			`404 error from server: {"data":null,"total":0,"limit":0,"offset":0,"errors":[{"code":404,"msg":"trace not found"}]}`+"\n",
-		)
-	})
+func TestGetArchivedTrace_NotFound(t *testing.T) {
+	mockReader := &spanstoremocks.Reader{}
+	mockReader.On("GetTrace", mock.AnythingOfType("model.TraceID")).
+		Return(nil, spanstore.ErrTraceNotFound).Once()
+	for _, tc := range []spanstore.Reader{nil, mockReader} {
+		archiveReader := tc // capture loop var
+		t.Run(fmt.Sprint(archiveReader), func(t *testing.T) {
+			withTestServer(t, func(ts *testServer) {
+				ts.spanReader.On("GetTrace", mock.AnythingOfType("model.TraceID")).
+					Return(nil, spanstore.ErrTraceNotFound).Once()
+				var response structuredResponse
+				err := getJSON(ts.server.URL+"/api/traces/"+mockTraceID.String(), &response)
+				assert.EqualError(t, err,
+					`404 error from server: {"data":null,"total":0,"limit":0,"offset":0,"errors":[{"code":404,"msg":"trace not found"}]}`+"\n",
+				)
+			}, HandlerOptions.ArchiveSpanReader(archiveReader)) // nil is ok
+		})
+	}
 }
 
 func TestGetArchivedTraceSuccess(t *testing.T) {
