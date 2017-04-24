@@ -120,7 +120,6 @@ func NewAPIHandler(spanReader spanstore.Reader, dependencyReader dependencystore
 // RegisterRoutes registers routes for this handler on the given router
 func (aH *APIHandler) RegisterRoutes(router *mux.Router) {
 	aH.handleFunc(router, aH.getTrace, "/traces/{%s}", traceIDParam).Methods(http.MethodGet)
-	aH.handleFunc(router, aH.getArchivedTrace, "/archive/{%s}", traceIDParam).Methods(http.MethodGet)
 	aH.handleFunc(router, aH.archiveTrace, "/archive/{%s}", traceIDParam).Methods(http.MethodPost)
 	aH.handleFunc(router, aH.search, "/traces").Methods(http.MethodGet)
 	aH.handleFunc(router, aH.getServices, "/services").Methods(http.MethodGet)
@@ -345,13 +344,18 @@ func (aH *APIHandler) parseTraceID(w http.ResponseWriter, r *http.Request) (mode
 
 // getTrace implements the REST API /traces/{trace-id}
 func (aH *APIHandler) getTrace(w http.ResponseWriter, r *http.Request) {
-	aH.getTraceFromReader(w, r, aH.spanReader)
+	aH.getTraceFromReaders(w, r, aH.spanReader, aH.archiveSpanReader)
 }
 
 // getTraceFromReader parses trace ID from the path, loads the trace from specified Reader,
 // formats it in the UI JSON format, and responds to the client.
-func (aH *APIHandler) getTraceFromReader(w http.ResponseWriter, r *http.Request, reader spanstore.Reader) {
-	aH.withTraceFromReader(w, r, reader, func(trace *model.Trace) {
+func (aH *APIHandler) getTraceFromReaders(
+	w http.ResponseWriter,
+	r *http.Request,
+	reader spanstore.Reader,
+	backupReader spanstore.Reader,
+) {
+	aH.withTraceFromReader(w, r, reader, backupReader, func(trace *model.Trace) {
 		var uiErrors []structuredError
 		uiTrace, uiErr := aH.convertModelToUI(trace)
 		if uiErr != nil {
@@ -374,6 +378,7 @@ func (aH *APIHandler) withTraceFromReader(
 	w http.ResponseWriter,
 	r *http.Request,
 	reader spanstore.Reader,
+	backupReader spanstore.Reader,
 	process func(trace *model.Trace),
 ) {
 	traceID, ok := aH.parseTraceID(w, r)
@@ -382,22 +387,20 @@ func (aH *APIHandler) withTraceFromReader(
 	}
 	trace, err := reader.GetTrace(traceID)
 	if err == spanstore.ErrTraceNotFound {
-		aH.handleError(w, err, http.StatusNotFound)
-		return
+		if backupReader == nil {
+			aH.handleError(w, err, http.StatusNotFound)
+			return
+		}
+		trace, err = backupReader.GetTrace(traceID)
+		if err == spanstore.ErrTraceNotFound {
+			aH.handleError(w, err, http.StatusNotFound)
+			return
+		}
 	}
 	if aH.handleError(w, err, http.StatusInternalServerError) {
 		return
 	}
 	process(trace)
-}
-
-// getArchivedTrace implements the REST API GET:/archive/{trace-id}
-func (aH *APIHandler) getArchivedTrace(w http.ResponseWriter, r *http.Request) {
-	if aH.archiveSpanReader == nil {
-		aH.handleError(w, errNoArchiveSpanStorage, http.StatusInternalServerError)
-		return
-	}
-	aH.getTraceFromReader(w, r, aH.archiveSpanReader)
 }
 
 // archiveTrace implements the REST API POST:/archive/{trace-id}.
@@ -407,7 +410,7 @@ func (aH *APIHandler) archiveTrace(w http.ResponseWriter, r *http.Request) {
 		aH.handleError(w, errNoArchiveSpanStorage, http.StatusInternalServerError)
 		return
 	}
-	aH.withTraceFromReader(w, r, aH.spanReader, func(trace *model.Trace) {
+	aH.withTraceFromReader(w, r, aH.spanReader, nil, func(trace *model.Trace) {
 		var writeErrors []error
 		for _, span := range trace.Spans {
 			err := aH.archiveSpanWriter.WriteSpan(span)
