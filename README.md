@@ -4,8 +4,20 @@
 
 # Jaeger - a Distributed Tracing System
 
-  * See [documentation](http://jaeger.readthedocs.io/en/latest/) for getting started, operational details, and other information.
-  * Read a blog post [Evolving Distributed Tracing at Uber](https://eng.uber.com/distributed-tracing/).
+Jaeger, inspired by [Dapper][dapper] and [OpenZipkin](http://zipkin.io),
+is a distributed tracing system released as open source by [Uber Technologies][ubeross].
+It can be used for monitoring microservice-based architectures:
+
+  * Distributed context propagation
+  * Distributed transaction monitoring
+  * Root cause analysis
+  * Service dependency analysis
+  * Performance / latency optimization
+
+See also:
+
+  * Jaeger [documentation][doc] for getting started, operational details, and other information.
+  * Blog post [Evolving Distributed Tracing at Uber](https://eng.uber.com/distributed-tracing/).
 
 ## Status
 
@@ -27,5 +39,6 @@ See [CONTRIBUTING](./CONTRIBUTING.md).
 [ci]: https://travis-ci.org/uber/jaeger
 [cov-img]: https://coveralls.io/repos/uber/jaeger/badge.svg?branch=master
 [cov]: https://coveralls.io/github/uber/jaeger?branch=master
+[dapper]: https://research.google.com/pubs/pub36356.html
+[ubeross]: http://uber.github.io
 [//]: # (md-to-godoc-ignore)
-
