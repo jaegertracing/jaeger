@@ -1,6 +1,6 @@
 # Deployment
 
-*This section is under construction*
+*This section is under construction.*
 
 We will soon provide Docker images for individual Jaeger components,
 as well as orchestration configurations, for example to run them on Kubernetes.
@@ -35,7 +35,8 @@ Many instances of collectors can be run in parallel.
 ## Cassandra
 
 Currently Cassandra 3.x is the only storage supported by Jaeger backend.
-Before running collectors, the keyspace must be initialized using a script we provide:
+Before running collectors, the keyspace must be initialized using a script
+we provide and Cassandra's interactive shell [`cqlsh`][cqlsh]:
 
 ```sh
 sh ./plugin/storage/cassandra/cassandra3v001-schema.sh test | cqlsh
@@ -54,3 +55,11 @@ The script accepts additional parameters as environment variables:
 
 Query service requires the location of Cassandra cluster, similar to collectors.
 At Uber we run several `jaeger-query` instances behind a single domain managed by nginx.
+
+## Aggregation Jobs for Service Depepdencies
+
+At the moment this is work in progress. We're working on a post-processing data pipeline
+that will include aggregating data to present service dependency diagram.
+
+
+[cqlsh]: http://cassandra.apache.org/doc/latest/tools/cqlsh.html
