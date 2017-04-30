@@ -7,7 +7,6 @@ Jaeger's clients adhere to the data model described in the OpenTracing standard.
 A **Span** represents a logical unit of work in the system that has an operation name, the start time of the operation, and the duration. Spans may be nested and ordered to model causal relationships. An RPC call is an example of a span.  
 
 ![Traces And Spans](images/spans-traces.png)
-*Traces and Spans*
 
 ###Trace
 A **Trace** is a data/execution path through the system, and can be thought of as a directed acyclic graph of spans
@@ -15,7 +14,6 @@ A **Trace** is a data/execution path through the system, and can be thought of a
 
 ##Components
 ![Architecture](images/architecture.png)
-*The current Jaeger architecture*
 
 This section details the constituents of Jaeger and how they relate to each other. It is arranged by the order in which spans from your application interact with them. 
 
@@ -30,7 +28,7 @@ Note that while all traces are generated, only few are sampled. Sampling a trace
 By default, Jaeger client samples 0.1% of traces (1 in 1000), and has the ability to retrieve sampling strategies from the agent. 
 
 ![Context propagation explained](images/context-prop.png)
-*Context propagation*
+*Illustration of context propagation*
 
 ###Agent
 A network daemon that listens for spans sent over UDP, which it batches and sends to the collector. It is designed to be deployed to all hosts as an infrastructure component.  The agent abstracts the routing and discovery of the collectors away from the client. 
