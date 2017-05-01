@@ -8,9 +8,7 @@ cover.html
 .envrc
 .idea/
 .tmp/
-_site/
-env/
-Gemfile.lock
+.mkdocs-virtual-env/
 vendor/
 jaeger-ui-build/
 examples/hotrod/hotrod*
@@ -22,4 +20,3 @@ crossdock/crossdock
 crossdock/cmd/
 crossdock/scripts/
 run-crossdock.log
-site/
