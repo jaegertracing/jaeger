@@ -122,7 +122,7 @@ func (h *clientHandler) isInitialized() bool {
 // InitializeCollector initializes the jaeger collector
 func InitializeCollector(logger *zap.Logger) {
 	cmd := exec.Command("/bin/sh", "-c",
-		fmt.Sprintf(collectorCmd, "-cassandra.keyspace=jaeger -cassandra.servers=cassandra -cassandra.connections-per-host=1"))
+		fmt.Sprintf(collectorCmd, "-cassandra.keyspace=jaeger -cassandra.servers=cassandra"))
 	if err := cmd.Run(); err != nil {
 		logger.Fatal("Failed to initialize collector service", zap.Error(err))
 	}
@@ -132,7 +132,7 @@ func InitializeCollector(logger *zap.Logger) {
 // NewQueryService initiates the query service
 func NewQueryService(url string, logger *zap.Logger) services.QueryService {
 	cmd := exec.Command("/bin/sh", "-c", fmt.Sprintf(queryCmd,
-		"-cassandra.keyspace=jaeger -cassandra.servers=cassandra -cassandra.connections-per-host=1"))
+		"-cassandra.keyspace=jaeger -cassandra.servers=cassandra"))
 	if err := cmd.Run(); err != nil {
 		logger.Fatal("Failed to initialize query service", zap.Error(err))
 	}

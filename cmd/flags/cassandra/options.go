@@ -51,9 +51,10 @@ func NewOptions() *Options {
 	return &Options{
 		primary: &namespaceConfig{
 			Configuration: config.Configuration{
-				MaxRetryAttempts: 3,
-				Keyspace:         "jaeger_v1_local",
-				ProtoVersion:     4,
+				MaxRetryAttempts:   3,
+				Keyspace:           "jaeger_v1_local",
+				ProtoVersion:       4,
+				ConnectionsPerHost: 2,
 			},
 			servers: "127.0.0.1",
 		},
