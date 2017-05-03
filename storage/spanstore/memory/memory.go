@@ -65,6 +65,9 @@ func (m *Store) GetDependencies(endTs time.Time, lookback time.Duration) ([]mode
 			for _, s := range trace.Spans {
 				parentSpan := m.findSpan(trace, s.ParentSpanID)
 				if parentSpan != nil {
+					if parentSpan.Process.ServiceName == s.Process.ServiceName {
+						continue
+					}
 					depKey := parentSpan.Process.ServiceName + "&&&" + s.Process.ServiceName
 					if _, ok := deps[depKey]; !ok {
 						deps[depKey] = &model.DependencyLink{
