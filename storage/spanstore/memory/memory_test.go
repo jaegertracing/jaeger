@@ -110,6 +110,33 @@ var childSpan2 = &model.Span{
 	StartTime: time.Unix(300, 0),
 }
 
+var childSpan2_1 = &model.Span{
+	TraceID: model.TraceID{
+		Low:  1,
+		High: 2,
+	},
+	SpanID:       model.SpanID(4),
+	ParentSpanID: model.SpanID(3), // child of childSpan2, but with the same service name
+	Process: &model.Process{
+		ServiceName: "childService",
+		Tags:        model.KeyValues{},
+	},
+	OperationName: "childOperationName",
+	Tags: model.KeyValues{
+		model.String("tagKey", "tagValue"),
+	},
+	Logs: []model.Log{
+		{
+			Timestamp: time.Now(),
+			Fields: []model.KeyValue{
+				model.String("logKey", "logValue"),
+			},
+		},
+	},
+	Duration:  time.Second * 5,
+	StartTime: time.Unix(300, 0),
+}
+
 func withPopulatedMemoryStore(f func(store *Store)) {
 	memStore := NewStore()
 	memStore.WriteSpan(testingSpan)
@@ -132,16 +159,18 @@ func TestStoreGetDependencies(t *testing.T) {
 		assert.NoError(t, store.WriteSpan(testingSpan))
 		assert.NoError(t, store.WriteSpan(childSpan1))
 		assert.NoError(t, store.WriteSpan(childSpan2))
+		assert.NoError(t, store.WriteSpan(childSpan2_1))
 		links, err := store.GetDependencies(time.Now(), time.Hour)
 		assert.NoError(t, err)
 		assert.Empty(t, links)
 
 		links, err = store.GetDependencies(time.Unix(0, 0).Add(time.Hour), time.Hour)
 		assert.NoError(t, err)
-		assert.Len(t, links, 1)
-		assert.EqualValues(t, "serviceName", links[0].Parent)
-		assert.EqualValues(t, "childService", links[0].Child)
-		assert.EqualValues(t, 2, links[0].CallCount)
+		assert.Equal(t, []model.DependencyLink{{
+			Parent:    "serviceName",
+			Child:     "childService",
+			CallCount: 2,
+		}}, links)
 	})
 }
 
