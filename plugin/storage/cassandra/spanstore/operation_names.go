@@ -21,7 +21,6 @@
 package spanstore
 
 import (
-	"strings"
 	"time"
 
 	"github.com/pkg/errors"
@@ -75,7 +74,6 @@ func NewOperationNamesStorage(
 
 // Write saves Operation and Service name tuples
 func (s *OperationNamesStorage) Write(serviceName string, operationName string) error {
-	operationName = strings.ToLower(operationName)
 	var err error
 	query := s.session.Query(s.InsertStmt)
 	if inCache := checkWriteCache(serviceName+"|"+operationName, s.operationNames, s.writeCacheTTL); !inCache {

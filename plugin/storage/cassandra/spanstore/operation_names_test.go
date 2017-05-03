@@ -68,7 +68,7 @@ func TestOperationNamesStorageWrite(t *testing.T) {
 				query := &mocks.Query{}
 				query1 := &mocks.Query{}
 				query2 := &mocks.Query{}
-				query.On("Bind", []interface{}{"service-a", "operation-b"}).Return(query1)
+				query.On("Bind", []interface{}{"service-a", "Operation-b"}).Return(query1)
 				query.On("Bind", []interface{}{"service-c", "operation-d"}).Return(query2)
 				query1.On("Exec").Return(nil)
 				query2.On("Exec").Return(execError)
@@ -77,7 +77,7 @@ func TestOperationNamesStorageWrite(t *testing.T) {
 				var emptyArgs []interface{}
 				s.session.On("Query", mock.AnythingOfType("string"), emptyArgs).Return(query)
 
-				err := s.storage.Write("service-a", "operation-b")
+				err := s.storage.Write("service-a", "Operation-b")
 				assert.NoError(t, err)
 
 				err = s.storage.Write("service-c", "operation-d")
@@ -95,7 +95,7 @@ func TestOperationNamesStorageWrite(t *testing.T) {
 				}, counts, "after first two writes")
 
 				// write again
-				err = s.storage.Write("service-a", "operation-b")
+				err = s.storage.Write("service-a", "Operation-b")
 				assert.NoError(t, err)
 
 				counts2, _ := s.metricsFactory.Snapshot()
