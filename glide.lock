@@ -1,5 +1,5 @@
 hash: 295a8525c9e6c3768118244cd0abcc6ac27254cd22f0be075670e7dd4b8a8a8a
-updated: 2017-04-11T20:27:56.369015767-04:00
+updated: 2017-04-21T13:57:57.01483041-04:00
 imports:
 - name: github.com/apache/thrift
   version: 53dd39833a08ce33582e5ff31fa18bb4735d6731
@@ -139,9 +139,9 @@ imports:
 - name: github.com/VividCortex/gohistogram
   version: 51564d9861991fb0ad0f531c99ef602d0f9866e6
 - name: go.uber.org/atomic
-  version: 3b8db5e93c4c02efbc313e17b2e796b0914a01fb
+  version: 4e336646b2ef9fc6e47be8e21594178f98e5ebcf
 - name: go.uber.org/zap
-  version: a2773be06b9ac7c318a3a105b5c310af5730c6b4
+  version: 1550bc05539134bbf8612a35f34a79ab8bf34ee3
   subpackages:
   - buffer
   - internal/bufferpool
@@ -151,7 +151,7 @@ imports:
   - zapcore
   - zaptest
 - name: golang.org/x/net
-  version: ffcf1bedda3b04ebb15a168a59800a73d6dc0f4d
+  version: 0b588ed7a0cd59c271d128ec8c429c1c1607e8ab
   subpackages:
   - context
   - context/ctxhttp

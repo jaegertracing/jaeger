@@ -401,10 +401,12 @@ func (p *OperationSamplingStrategy) String() string {
 //  - DefaultSamplingProbability
 //  - DefaultLowerBoundTracesPerSecond
 //  - PerOperationStrategies
+//  - DefaultUpperBoundTracesPerSecond
 type PerOperationSamplingStrategies struct {
 	DefaultSamplingProbability       float64                      `thrift:"defaultSamplingProbability,1,required" json:"defaultSamplingProbability"`
 	DefaultLowerBoundTracesPerSecond float64                      `thrift:"defaultLowerBoundTracesPerSecond,2,required" json:"defaultLowerBoundTracesPerSecond"`
 	PerOperationStrategies           []*OperationSamplingStrategy `thrift:"perOperationStrategies,3,required" json:"perOperationStrategies"`
+	DefaultUpperBoundTracesPerSecond *float64                     `thrift:"defaultUpperBoundTracesPerSecond,4" json:"defaultUpperBoundTracesPerSecond,omitempty"`
 }
 
 func NewPerOperationSamplingStrategies() *PerOperationSamplingStrategies {
@@ -422,6 +424,19 @@ func (p *PerOperationSamplingStrategies) GetDefaultLowerBoundTracesPerSecond() f
 func (p *PerOperationSamplingStrategies) GetPerOperationStrategies() []*OperationSamplingStrategy {
 	return p.PerOperationStrategies
 }
+
+var PerOperationSamplingStrategies_DefaultUpperBoundTracesPerSecond_DEFAULT float64
+
+func (p *PerOperationSamplingStrategies) GetDefaultUpperBoundTracesPerSecond() float64 {
+	if !p.IsSetDefaultUpperBoundTracesPerSecond() {
+		return PerOperationSamplingStrategies_DefaultUpperBoundTracesPerSecond_DEFAULT
+	}
+	return *p.DefaultUpperBoundTracesPerSecond
+}
+func (p *PerOperationSamplingStrategies) IsSetDefaultUpperBoundTracesPerSecond() bool {
+	return p.DefaultUpperBoundTracesPerSecond != nil
+}
+
 func (p *PerOperationSamplingStrategies) Read(iprot thrift.TProtocol) error {
 	if _, err := iprot.ReadStructBegin(); err != nil {
 		return thrift.PrependError(fmt.Sprintf("%T read error: ", p), err)
@@ -455,6 +470,10 @@ func (p *PerOperationSamplingStrategies) Read(iprot thrift.TProtocol) error {
 				return err
 			}
 			issetPerOperationStrategies = true
+		case 4:
+			if err := p.readField4(iprot); err != nil {
+				return err
+			}
 		default:
 			if err := iprot.Skip(fieldTypeId); err != nil {
 				return err
@@ -517,6 +536,15 @@ func (p *PerOperationSamplingStrategies) readField3(iprot thrift.TProtocol) erro
 	return nil
 }
 
+func (p *PerOperationSamplingStrategies) readField4(iprot thrift.TProtocol) error {
+	if v, err := iprot.ReadDouble(); err != nil {
+		return thrift.PrependError("error reading field 4: ", err)
+	} else {
+		p.DefaultUpperBoundTracesPerSecond = &v
+	}
+	return nil
+}
+
 func (p *PerOperationSamplingStrategies) Write(oprot thrift.TProtocol) error {
 	if err := oprot.WriteStructBegin("PerOperationSamplingStrategies"); err != nil {
 		return thrift.PrependError(fmt.Sprintf("%T write struct begin error: ", p), err)
@@ -528,6 +556,9 @@ func (p *PerOperationSamplingStrategies) Write(oprot thrift.TProtocol) error {
 		return err
 	}
 	if err := p.writeField3(oprot); err != nil {
+		return err
+	}
+	if err := p.writeField4(oprot); err != nil {
 		return err
 	}
 	if err := oprot.WriteFieldStop(); err != nil {
@@ -582,6 +613,21 @@ func (p *PerOperationSamplingStrategies) writeField3(oprot thrift.TProtocol) (er
 	}
 	if err := oprot.WriteFieldEnd(); err != nil {
 		return thrift.PrependError(fmt.Sprintf("%T write field end error 3:perOperationStrategies: ", p), err)
+	}
+	return err
+}
+
+func (p *PerOperationSamplingStrategies) writeField4(oprot thrift.TProtocol) (err error) {
+	if p.IsSetDefaultUpperBoundTracesPerSecond() {
+		if err := oprot.WriteFieldBegin("defaultUpperBoundTracesPerSecond", thrift.DOUBLE, 4); err != nil {
+			return thrift.PrependError(fmt.Sprintf("%T write field begin error 4:defaultUpperBoundTracesPerSecond: ", p), err)
+		}
+		if err := oprot.WriteDouble(float64(*p.DefaultUpperBoundTracesPerSecond)); err != nil {
+			return thrift.PrependError(fmt.Sprintf("%T.defaultUpperBoundTracesPerSecond (4) field write error: ", p), err)
+		}
+		if err := oprot.WriteFieldEnd(); err != nil {
+			return thrift.PrependError(fmt.Sprintf("%T write field end error 4:defaultUpperBoundTracesPerSecond: ", p), err)
+		}
 	}
 	return err
 }

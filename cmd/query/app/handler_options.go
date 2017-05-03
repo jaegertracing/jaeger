@@ -23,9 +23,11 @@ package app
 import (
 	"time"
 
+	"github.com/opentracing/opentracing-go"
+	"go.uber.org/zap"
+
 	"github.com/uber/jaeger/model/adjuster"
 	"github.com/uber/jaeger/storage/spanstore"
-	"go.uber.org/zap"
 )
 
 // HandlerOption is a function that sets some option on the APIHandler
@@ -45,7 +47,7 @@ func (handlerOptions) Logger(logger *zap.Logger) HandlerOption {
 }
 
 // Adjusters creates a HandlerOption that initializes the sequence of Adjusters on the APIHandler,
-func (handlerOptions) Adjusters(adjusters []adjuster.Adjuster) HandlerOption {
+func (handlerOptions) Adjusters(adjusters ...adjuster.Adjuster) HandlerOption {
 	return func(apiHandler *APIHandler) {
 		apiHandler.adjuster = adjuster.Sequence(adjusters...)
 	}
@@ -76,5 +78,12 @@ func (handlerOptions) ArchiveSpanReader(reader spanstore.Reader) HandlerOption {
 func (handlerOptions) ArchiveSpanWriter(writer spanstore.Writer) HandlerOption {
 	return func(apiHandler *APIHandler) {
 		apiHandler.archiveSpanWriter = writer
+	}
+}
+
+// Tracer creates a HandlerOption that initializes OpenTracing tracer
+func (handlerOptions) Tracer(tracer opentracing.Tracer) HandlerOption {
+	return func(apiHandler *APIHandler) {
+		apiHandler.tracer = tracer
 	}
 }

@@ -33,10 +33,12 @@ func TestOptions(t *testing.T) {
 	primary := opts.GetPrimary()
 	assert.NotEmpty(t, primary.Keyspace)
 	assert.NotEmpty(t, primary.Servers)
+	assert.Equal(t, 2, primary.ConnectionsPerHost)
 
 	aux := opts.Get("archive")
 	assert.Equal(t, primary.Keyspace, aux.Keyspace)
 	assert.Equal(t, primary.Servers, aux.Servers)
+	assert.Equal(t, primary.ConnectionsPerHost, aux.ConnectionsPerHost)
 }
 
 func TestOptionsWithFlags(t *testing.T) {

@@ -27,4 +27,5 @@ pages:
   - 'Getting Started' : 'getting_started.md'
   - 'Client Libraries' : 'client_libraries.md'
   - 'Architecture' : 'architecture.md'
+  - 'Deployment' : 'deployment.md'
   - 'News' : 'news.md'

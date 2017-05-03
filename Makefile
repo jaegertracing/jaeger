@@ -16,6 +16,7 @@ GOVET=go vet
 GOFMT=gofmt
 FMT_LOG=fmt.log
 LINT_LOG=lint.log
+MKDOCS_VIRTUAL_ENV=.mkdocs-virtual-env
 
 THRIFT_VER=0.9.3
 THRIFT_IMG=thrift:$(THRIFT_VER)
@@ -49,7 +50,11 @@ clean:
 
 .PHONY: test
 test: go-gen
-	$(GOTEST) $(PACKAGES) | $(COLORIZE)
+	bash -c "set -e; set -o pipefail; $(GOTEST) $(PACKAGES) | $(COLORIZE)"
+
+.PHONY: integration-test
+integration-test: go-gen
+	$(GOTEST) -tags=integration ./cmd/standalone/...
 
 .PHONY: fmt
 fmt:
@@ -76,29 +81,37 @@ install-glide:
 install: install-glide
 	glide install
 
+.PHONY: install_examples
 install_examples: install
 	(cd examples/hotrod/; glide install)
 
+.PHONY: build_examples
 build_examples:
 	go build -o ./examples/hotrod/hotrod-demo ./examples/hotrod/main.go
 
+.PHONY: build_ui
 build_ui:
 	cd jaeger-ui && yarn install && npm run build
 	rm -rf jaeger-ui-build && mkdir jaeger-ui-build
 	cp -r jaeger-ui/build jaeger-ui-build/
 
+.PHONY: build-all-in-one-linux
 build-all-in-one-linux: build_ui
 	CGO_ENABLED=0 GOOS=linux installsuffix=cgo go build -o ./cmd/standalone/standalone-linux ./cmd/standalone/main.go
 
+.PHONY: build-agent-linux
 build-agent-linux:
 	CGO_ENABLED=0 GOOS=linux installsuffix=cgo go build -o ./cmd/agent/agent-linux ./cmd/agent/main.go
 
+.PHONY: build-query-linux
 build-query-linux:
 	CGO_ENABLED=0 GOOS=linux installsuffix=cgo go build -o ./cmd/query/query-linux ./cmd/query/main.go
 
+.PHONY: build-collector-linux
 build-collector-linux:
 	CGO_ENABLED=0 GOOS=linux installsuffix=cgo go build -o ./cmd/collector/collector-linux ./cmd/collector/main.go
 
+.PHONY: build-crossdock-linux
 build-crossdock-linux:
 	CGO_ENABLED=0 GOOS=linux installsuffix=cgo go build -o ./crossdock/crossdock ./crossdock/main.go
 
@@ -138,6 +151,7 @@ test_ci: build_examples
 	make lint
 
 # TODO at the moment we're not generating tchan_*.go files
+.PHONY: thrift
 thrift: idl/thrift/jaeger.thrift thrift-image
 	[ -d $(THRIFT_GEN_DIR) ] || mkdir $(THRIFT_GEN_DIR)
 	$(THRIFT) -o /data --gen go:$(THRIFT_GO_ARGS) --out /data/$(THRIFT_GEN_DIR) /data/idl/thrift/agent.thrift
@@ -155,9 +169,19 @@ thrift: idl/thrift/jaeger.thrift thrift-image
 idl/thrift/jaeger.thrift:
 	$(MAKE) idl-submodule
 
+.PHONY: idl-submodule
 idl-submodule:
 	git submodule init
 	git submodule update
 
+.PHONY: thrift-image
 thrift-image:
 	$(THRIFT) -version
+
+.PHONY: docs
+docs: $(MKDOCS_VIRTUAL_ENV)
+	bash -c 'source $(MKDOCS_VIRTUAL_ENV)/bin/activate; mkdocs serve'
+
+$(MKDOCS_VIRTUAL_ENV):
+	virtualenv $(MKDOCS_VIRTUAL_ENV)
+	bash -c 'source $(MKDOCS_VIRTUAL_ENV)/bin/activate; pip install -r docs/requirements.txt'

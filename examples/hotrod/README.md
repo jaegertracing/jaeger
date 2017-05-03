@@ -17,10 +17,24 @@ It can be run standalone, but requires Jaeger backend to view the traces.
 
 ## Running
 
+### Run Jaeger Backend
+
+An all-in-one Jaeger backend is packaged as a Docker container with in-memory storage.
+
 ```
-$ make install_examples
-$ cd examples/hotrod
-$ go run ./main.go all
+docker run -d -p5775:5775/udp -p16686:16686 jaegertracing/all-in-one:latest
+```
+
+Jaeger UI can be accessed at http://localhost:16686.
+
+### Run HotROD Application
+
+```
+go get github.com/uber/jaeger
+cd $GOPATH/src/github.com/uber/jaeger
+make install_examples
+cd examples/hotrod
+go run ./main.go all
 ```
 
 Then open http://127.0.0.1:8080

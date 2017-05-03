@@ -31,7 +31,7 @@ import (
 
 // Options contains various type of Cassandra configs and provides the ability
 // to bind them to command line flag and apply overlays, so that some configurations
-// (e.g. archive) may be underspecified and infer the rest of the parameters from primary.
+// (e.g. archive) may be underspecified and infer the rest of its parameters from primary.
 type Options struct {
 	primary *namespaceConfig
 
@@ -51,9 +51,10 @@ func NewOptions() *Options {
 	return &Options{
 		primary: &namespaceConfig{
 			Configuration: config.Configuration{
-				MaxRetryAttempts: 3,
-				Keyspace:         "jaeger_v1_local",
-				ProtoVersion:     4,
+				MaxRetryAttempts:   3,
+				Keyspace:           "jaeger_v1_local",
+				ProtoVersion:       4,
+				ConnectionsPerHost: 2,
 			},
 			servers: "127.0.0.1",
 		},
@@ -87,37 +88,12 @@ func (opt *Options) Get(namespace string) *config.Configuration {
 		nsCfg = &namespaceConfig{}
 		opt.others[namespace] = nsCfg
 	}
-	applyDefaults(&nsCfg.Configuration, &opt.primary.Configuration)
+	nsCfg.Configuration.ApplyDefaults(&opt.primary.Configuration)
 	if nsCfg.servers == "" {
 		nsCfg.servers = opt.primary.servers
 	}
 	nsCfg.Servers = strings.Split(nsCfg.servers, ",")
 	return &nsCfg.Configuration
-}
-
-// TODO move this to a method on Configuration
-func applyDefaults(target *config.Configuration, source *config.Configuration) {
-	if target.ConnectionsPerHost == 0 {
-		target.ConnectionsPerHost = source.ConnectionsPerHost
-	}
-	if target.MaxRetryAttempts == 0 {
-		target.MaxRetryAttempts = source.MaxRetryAttempts
-	}
-	if target.Timeout == 0 {
-		target.Timeout = source.Timeout
-	}
-	if target.Port == 0 {
-		target.Port = source.Port
-	}
-	if target.Keyspace == "" {
-		target.Keyspace = source.Keyspace
-	}
-	if target.ProtoVersion == 0 {
-		target.ProtoVersion = source.ProtoVersion
-	}
-	if target.SocketKeepAlive == 0 {
-		target.SocketKeepAlive = source.SocketKeepAlive
-	}
 }
 
 // bind defines a set of flags prefixed with the namespace and binds them to cassandra
