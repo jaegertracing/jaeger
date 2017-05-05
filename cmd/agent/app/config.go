@@ -75,9 +75,8 @@ type Builder struct {
 	Processors     []ProcessorConfiguration    `yaml:"processors"`
 	SamplingServer SamplingServerConfiguration `yaml:"samplingServer"`
 
-	// CollectorHostPort is the hostPort for Jaeger Collector.
-	// Set this to communicate with Collector directly, without routing layer.
-	CollectorHostPort string `yaml:"collectorHostPort"`
+	// CollectorHostPorts are host:ports of a static list of Jaeger Collectors.
+	CollectorHostPorts []string `yaml:"collectorHostPorts"`
 
 	// MinPeers is the min number of servers we want the agent to connect to.
 	// If zero, defaults to min(3, number of peers returned by service discovery)
@@ -212,14 +211,18 @@ func (b *Builder) CreateAgent(mFactory metrics.Factory, logger *zap.Logger) (*Ag
 		b.CollectorServiceName = defaultCollectorServiceName
 	}
 
+	// Use static collectors if specified.
+	if len(b.CollectorHostPorts) != 0 {
+		d := discovery.FixedDiscoverer(b.CollectorHostPorts)
+		notifier := &discovery.Dispatcher{}
+		b = b.WithDiscoverer(d).WithDiscoveryNotifier(notifier)
+	}
+
 	discoveryMgr, err := b.enableDiscovery(b.channel, logger)
 	if err != nil {
 		return nil, errors.Wrap(err, "cannot enable service discovery")
 	}
 	var clientOpts *tchannelThrift.ClientOptions
-	if discoveryMgr == nil && b.CollectorHostPort != "" {
-		clientOpts = &tchannelThrift.ClientOptions{HostPort: b.CollectorHostPort}
-	}
 	rep := reporter.NewTChannelReporter(b.CollectorServiceName, b.channel, mFactory, logger, clientOpts)
 	if b.otherReporters != nil {
 		reps := append([]reporter.Reporter{}, b.otherReporters...)

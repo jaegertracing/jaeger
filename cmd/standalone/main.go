@@ -70,8 +70,8 @@ func main() {
 func startAgent(logger *zap.Logger, baseFactory metrics.Factory, builder *agentApp.Builder) {
 	metricsFactory := baseFactory.Namespace("jaeger-agent", nil)
 
-	if builder.CollectorHostPort == "" {
-		builder.CollectorHostPort = fmt.Sprintf("127.0.0.1:%d", *collector.CollectorPort)
+	if len(builder.CollectorHostPorts) == 0 {
+		builder.CollectorHostPorts = append(builder.CollectorHostPorts, fmt.Sprintf("127.0.0.1:%d", *collector.CollectorPort))
 	}
 	agent, err := builder.CreateAgent(metricsFactory, logger)
 	if err != nil {

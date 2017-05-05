@@ -20,7 +20,12 @@
 
 package app
 
-import "flag"
+import (
+	"errors"
+	"flag"
+	"fmt"
+	"strings"
+)
 
 // Bind binds the agent builder to command line options
 func (b *Builder) Bind(flags *flag.FlagSet) {
@@ -48,11 +53,10 @@ func (b *Builder) Bind(flags *flag.FlagSet) {
 			p.Server.HostPort,
 			"host:port for the UDP server")
 	}
-	flags.StringVar(
-		&b.CollectorHostPort,
+	flags.Var(
+		&stringSliceFlag{slice: &b.CollectorHostPorts},
 		"collector.host-port",
-		"",
-		"host:port of a single collector to connect to directly (e.g. when not using service discovery)")
+		"comma-separated string representing host:ports of a static list of collectors to connect to directly (e.g. when not using service discovery)")
 	flags.StringVar(
 		&b.SamplingServer.HostPort,
 		"http-server.host-port",
@@ -63,4 +67,25 @@ func (b *Builder) Bind(flags *flag.FlagSet) {
 		"discovery.min-peers",
 		3,
 		"if using service discovery, the min number of connections to maintain to the backend")
+}
+
+type stringSliceFlag struct {
+	slice *[]string
+}
+
+// String formats the flag's value, part of the flag.Value interface.
+func (c *stringSliceFlag) String() string {
+	return fmt.Sprint(c.slice)
+}
+
+// Set sets the flag value, part of the flag.Value interface.
+func (c *stringSliceFlag) Set(value string) error {
+	if len(*(c.slice)) > 0 {
+		return errors.New("comma-separated flag already set")
+	}
+
+	hostPorts := strings.Split(value, ",")
+	*(c.slice) = append(*(c.slice), hostPorts...)
+
+	return nil
 }

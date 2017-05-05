@@ -79,6 +79,11 @@ func TestConfigFile(t *testing.T) {
 		},
 	}, cfg.Processors[2])
 	assert.Equal(t, "4.4.4.4:5778", cfg.SamplingServer.HostPort)
+
+	assert.Equal(
+		t,
+		[]string{"127.0.0.1:14267", "127.0.0.1:14268", "127.0.0.1:14269"},
+		cfg.CollectorHostPorts)
 }
 
 func TestConfigWithDiscovery(t *testing.T) {
@@ -120,13 +125,18 @@ func TestConfigWithChannel(t *testing.T) {
 	assert.NotNil(t, agent)
 }
 
-func TestConfigWithSingleCollector(t *testing.T) {
+func TestConfigWithCollectors(t *testing.T) {
+	hostPorts := []string{"127.0.0.1:9876", "127.0.0.1:9877", "127.0.0.1:9878"}
 	cfg := &Builder{
-		CollectorHostPort: "127.0.0.1:9876",
+		CollectorHostPorts: hostPorts,
 	}
 	agent, err := cfg.CreateAgent(metrics.NullFactory, zap.NewNop())
 	assert.NoError(t, err)
 	assert.NotNil(t, agent)
+
+	c, err := cfg.discoverer.Instances()
+	assert.NoError(t, err)
+	assert.Equal(t, c, hostPorts)
 }
 
 type fakeReporter struct{}
