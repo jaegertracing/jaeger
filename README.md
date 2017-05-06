@@ -42,6 +42,6 @@ See [CONTRIBUTING](./CONTRIBUTING.md).
 [cov]: https://coveralls.io/github/uber/jaeger?branch=master
 [dapper]: https://research.google.com/pubs/pub36356.html
 [ubeross]: http://uber.github.io
-[ot-badge]: https://img.shields.io/badge/OpenTracing--1.0-enabled-blue.svg
+[ot-badge]: https://img.shields.io/badge/OpenTracing--1.x-inside-blue.svg
 [hotrod-tutorial]: https://medium.com/@YuriShkuro/take-opentracing-for-a-hotrod-ride-f6e3141f7941
 [//]: # (md-to-godoc-ignore)
