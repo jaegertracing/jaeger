@@ -22,11 +22,15 @@ See also:
 
 ## Status
 
-Most of the code here is used in production at Uber, but the open source version is currently in **Public Beta** until the first official release.
+Most of the code here is used in production at Uber, but the open source version is currently in **Public Beta**.
 
 ## Contributing
 
 See [CONTRIBUTING](./CONTRIBUTING.md).
+
+## Questions
+
+Open an issue in this or other Jaeger repositories, or join the [jaeger-tracing forum](https://groups.google.com/forum/#!forum/jaeger-tracing).
 
 ## License
 
