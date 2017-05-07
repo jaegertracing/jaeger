@@ -1,4 +1,4 @@
-<img align="right" width="290" height="210" src="http://jaeger.readthedocs.io/en/latest/images/jaeger_vector.svg">
+<img align="right" width="290" height="210" src="http://jaeger.readthedocs.io/en/latest/images/jaeger-vector.svg">
 
 [![ReadTheDocs][doc-img]][doc] [![GoDoc][godoc-img]][godoc] [![Build Status][ci-img]][ci] [![Coverage Status][cov-img]][cov] [![OpenTracing-1.0][ot-badge]](http://opentracing.io)
 
