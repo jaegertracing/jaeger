@@ -1,6 +1,8 @@
 # Hot R.O.D. - Rides on Demand
 
-This is a demo application that consists of several microservices and illustrates the use of the OpenTracing API.
+This is a demo application that consists of several microservices and illustrates
+the use of the OpenTracing API.
+A tutorial / walkthough is available: [Take OpenTracing for a HotROD ride][hotrod-tutorial].
 
 It can be run standalone, but requires Jaeger backend to view the traces.
 
@@ -38,3 +40,6 @@ go run ./main.go all
 ```
 
 Then open http://127.0.0.1:8080
+
+
+[hotrod-tutorial]: https://medium.com/@YuriShkuro/take-opentracing-for-a-hotrod-ride-f6e3141f7941
