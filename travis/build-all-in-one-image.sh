@@ -15,6 +15,6 @@ make integration-test
 docker kill $CID
 
 # Only push the docker container to Docker Hub for master branch
-if [ "$BRANCH" == "master" ]; then echo 'upload to Docker Hub'; else echo 'skip docker upload for PR'; exit 0; fi
+if [[ "$BRANCH" == "master" && "$TRAVIS_SECURE_ENV_VARS" == "true" ]]; then echo 'upload to Docker Hub'; else echo 'skip docker upload for PR'; exit 0; fi
 
 bash ./travis/upload-to-docker.sh
