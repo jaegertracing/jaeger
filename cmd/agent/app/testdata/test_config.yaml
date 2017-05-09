@@ -23,3 +23,7 @@ processors:
 samplingServer:
     hostPort: 4.4.4.4:5778
 
+collectorHostPorts:
+    - 127.0.0.1:14267
+    - 127.0.0.1:14268
+    - 127.0.0.1:14269
