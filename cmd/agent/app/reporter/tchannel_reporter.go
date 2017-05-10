@@ -63,8 +63,8 @@ type tchannelReporter struct {
 }
 
 // NewTChannelReporter creates new tchannelReporter
-func NewTChannelReporter(svc string, channel *tchannel.Channel, mFactory metrics.Factory, zlogger *zap.Logger, clientOpts *thrift.ClientOptions) Reporter {
-	thriftClient := thrift.NewClient(channel, svc, clientOpts)
+func NewTChannelReporter(svc string, channel *tchannel.Channel, mFactory metrics.Factory, zlogger *zap.Logger) Reporter {
+	thriftClient := thrift.NewClient(channel, svc, nil)
 	zClient := zipkincore.NewTChanZipkinCollectorClient(thriftClient)
 	jClient := jaeger.NewTChanCollectorClient(thriftClient)
 	batchesMetrics := map[string]batchMetrics{}

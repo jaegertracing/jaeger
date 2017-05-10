@@ -42,8 +42,8 @@ type collectorProxy struct {
 }
 
 // NewCollectorProxy implements Manager by proxying the requests to collector.
-func NewCollectorProxy(svc string, channel *tchannel.Channel, mFactory metrics.Factory, clientOpts *thrift.ClientOptions) Manager {
-	thriftClient := thrift.NewClient(channel, svc, clientOpts)
+func NewCollectorProxy(svc string, channel *tchannel.Channel, mFactory metrics.Factory) Manager {
+	thriftClient := thrift.NewClient(channel, svc, nil)
 	client := sampling.NewTChanSamplingManagerClient(thriftClient)
 	res := &collectorProxy{client: client}
 	metrics.Init(&res.metrics, mFactory, nil)

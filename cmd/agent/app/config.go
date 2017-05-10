@@ -28,7 +28,6 @@ import (
 	"github.com/pkg/errors"
 	"github.com/uber/jaeger-lib/metrics"
 	"github.com/uber/tchannel-go"
-	tchannelThrift "github.com/uber/tchannel-go/thrift"
 	"go.uber.org/zap"
 
 	"github.com/uber/jaeger/cmd/agent/app/processors"
@@ -214,16 +213,14 @@ func (b *Builder) CreateAgent(mFactory metrics.Factory, logger *zap.Logger) (*Ag
 	// Use static collectors if specified.
 	if len(b.CollectorHostPorts) != 0 {
 		d := discovery.FixedDiscoverer(b.CollectorHostPorts)
-		notifier := &discovery.Dispatcher{}
-		b = b.WithDiscoverer(d).WithDiscoveryNotifier(notifier)
+		b = b.WithDiscoverer(d).WithDiscoveryNotifier(&discovery.Dispatcher{})
 	}
 
 	discoveryMgr, err := b.enableDiscovery(b.channel, logger)
 	if err != nil {
 		return nil, errors.Wrap(err, "cannot enable service discovery")
 	}
-	var clientOpts *tchannelThrift.ClientOptions
-	rep := reporter.NewTChannelReporter(b.CollectorServiceName, b.channel, mFactory, logger, clientOpts)
+	rep := reporter.NewTChannelReporter(b.CollectorServiceName, b.channel, mFactory, logger)
 	if b.otherReporters != nil {
 		reps := append([]reporter.Reporter{}, b.otherReporters...)
 		reps = append(reps, rep)
@@ -233,7 +230,7 @@ func (b *Builder) CreateAgent(mFactory metrics.Factory, logger *zap.Logger) (*Ag
 	if err != nil {
 		return nil, err
 	}
-	samplingServer := b.SamplingServer.GetSamplingServer(b.CollectorServiceName, b.channel, mFactory, clientOpts)
+	samplingServer := b.SamplingServer.GetSamplingServer(b.CollectorServiceName, b.channel, mFactory)
 	return NewAgent(processors, samplingServer, discoveryMgr, logger), nil
 }
 
@@ -268,8 +265,8 @@ func (b *Builder) GetProcessors(rep reporter.Reporter, mFactory metrics.Factory)
 }
 
 // GetSamplingServer creates an HTTP server that provides sampling strategies to client libraries.
-func (c SamplingServerConfiguration) GetSamplingServer(svc string, channel *tchannel.Channel, mFactory metrics.Factory, clientOpts *tchannelThrift.ClientOptions) *http.Server {
-	samplingMgr := sampling.NewCollectorProxy(svc, channel, mFactory, clientOpts)
+func (c SamplingServerConfiguration) GetSamplingServer(svc string, channel *tchannel.Channel, mFactory metrics.Factory) *http.Server {
+	samplingMgr := sampling.NewCollectorProxy(svc, channel, mFactory)
 	if c.HostPort == "" {
 		c.HostPort = defaultSamplingServerHostPort
 	}
