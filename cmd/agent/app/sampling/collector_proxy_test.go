@@ -45,7 +45,7 @@ func TestCollectorProxy(t *testing.T) {
 			MaxTracesPerSecond: 10,
 		}})
 
-	mgr := NewCollectorProxy("jaeger-collector", collector.Channel, metricsFactory, nil)
+	mgr := NewCollectorProxy("jaeger-collector", collector.Channel, metricsFactory)
 
 	resp, err := mgr.GetSamplingStrategy("service1")
 	require.NoError(t, err)
