@@ -23,8 +23,11 @@ package main
 import (
 	"flag"
 	"net"
+	"net/http"
 	"strconv"
 
+	"github.com/gorilla/mux"
+	"github.com/uber/jaeger/pkg/recoveryhandler"
 	"github.com/uber/tchannel-go"
 	"github.com/uber/tchannel-go/thrift"
 	"go.uber.org/zap"
@@ -35,6 +38,7 @@ import (
 	zc "github.com/uber/jaeger/thrift-gen/zipkincore"
 
 	basicB "github.com/uber/jaeger/cmd/builder"
+	"github.com/uber/jaeger/cmd/collector/app"
 	"github.com/uber/jaeger/cmd/collector/app/builder"
 	casFlags "github.com/uber/jaeger/cmd/flags/cassandra"
 )
@@ -70,11 +74,21 @@ func main() {
 	server := thrift.NewServer(ch)
 	server.Register(jc.NewTChanCollectorServer(jaegerBatchesHandler))
 	server.Register(zc.NewTChanZipkinCollectorServer(zipkinSpansHandler))
+
 	portStr := ":" + strconv.Itoa(*builder.CollectorPort)
 	listener, err := net.Listen("tcp", portStr)
 	if err != nil {
 		logger.Fatal("Unable to start listening on channel", zap.Error(err))
 	}
 	ch.Serve(listener)
-	select {}
+
+	r := mux.NewRouter()
+	apiHandler := app.NewAPIHandler(jaegerBatchesHandler)
+	apiHandler.RegisterRoutes(r)
+	httpPortStr := ":" + strconv.Itoa(*builder.CollectorHTTPPort)
+	recoveryHandler := recoveryhandler.NewRecoveryHandler(logger, true)
+	logger.Info("Listening for HTTP traffic", zap.Int("http-port", *builder.CollectorHTTPPort))
+	if err := http.ListenAndServe(httpPortStr, recoveryHandler(r)); err != nil {
+		logger.Fatal("Could not launch service", zap.Error(err))
+	}
 }
