@@ -114,14 +114,14 @@ func TestCannotReadBodyFromRequest(t *testing.T) {
 	assert.EqualValues(t, "Unable to read from body due to error: Simulated error reading body\n", rw.myBody)
 }
 
-type errReader struct {}
+type errReader struct{}
 
 func (e *errReader) Read(p []byte) (int, error) {
 	return 0, fmt.Errorf("Simulated error reading body")
 }
 
-type dummyResponseWriter struct{
-	myBody string
+type dummyResponseWriter struct {
+	myBody       string
 	myStatusCode int
 }
 
