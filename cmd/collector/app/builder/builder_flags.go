@@ -34,6 +34,8 @@ var (
 	NumWorkers = flag.Int("collector.num-workers", app.DefaultNumWorkers, "The number of workers pulling items from the queue")
 	// WriteCacheTTL denotes how often to check and re-write a service or operation name
 	WriteCacheTTL = flag.Duration("collector.write-cache-ttl", time.Hour*12, "The duration to wait before rewriting an existing service or operation name")
-	// CollectorPort is the port that the collector service listens in on
-	CollectorPort = flag.Int("collector.port", 14267, "The port for the collector service")
+	// CollectorPort is the port that the collector service listens in on for tchannel requests
+	CollectorPort = flag.Int("collector.port", 14267, "The tchannel port for the collector service")
+	// CollectorHTTPPort is the port that the collector service listens in on for http requests
+	CollectorHTTPPort = flag.Int("collector.http-port", 14268, "The http port for the collector service")
 )
