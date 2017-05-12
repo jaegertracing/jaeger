@@ -37,5 +37,5 @@ var (
 	// CollectorPort is the port that the collector service listens in on for tchannel requests
 	CollectorPort = flag.Int("collector.port", 14267, "The tchannel port for the collector service")
 	// CollectorHTTPPort is the port that the collector service listens in on for http requests
-	CollectorHTTPPort = flag.Int("collector.http-port", 14270, "The http port for the collector service")
+	CollectorHTTPPort = flag.Int("collector.http-port", 14268, "The http port for the collector service")
 )

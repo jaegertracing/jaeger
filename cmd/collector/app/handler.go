@@ -65,7 +65,7 @@ func (aH *APIHandler) saveSpan(w http.ResponseWriter, r *http.Request) {
 			http.Error(w, fmt.Sprintf("Unable to read from body due to error: %v", err), http.StatusBadRequest)
 			return
 		}
-		// TODO - can we get away with just having one on the struct?
+
 		tdes := thrift.NewTDeserializer()
 		// (NB): We decided to use this struct instead of straight batches to be as consistent with tchannel intake as possible.
 		var req tJaeger.CollectorSubmitBatchesArgs
