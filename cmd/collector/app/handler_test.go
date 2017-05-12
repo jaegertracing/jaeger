@@ -81,7 +81,7 @@ func TestJaegerFormat(t *testing.T) {
 	handler.jaegerBatchesHandler.(*possiblyErroringJaegerBatchesHandler).err = fmt.Errorf("Bad times ahead")
 	statusCode, resBodyStr, err = postJSON(server.URL+`/api/traces?format=jaeger.thrift`, someBytes)
 	assert.NoError(t, err)
-	assert.EqualValues(t, http.StatusBadRequest, statusCode)
+	assert.EqualValues(t, http.StatusInternalServerError, statusCode)
 	assert.EqualValues(t, "Cannot submit Jaeger batch due to error: Bad times ahead\n", resBodyStr)
 }
 

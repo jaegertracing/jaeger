@@ -65,22 +65,18 @@ func (aH *APIHandler) saveSpan(w http.ResponseWriter, r *http.Request) {
 			http.Error(w, fmt.Sprintf("Unable to read from body due to error: %v", err), http.StatusBadRequest)
 			return
 		}
-
+		// TODO - can we get away with just having one on the struct?
 		tdes := thrift.NewTDeserializer()
-
+		// (NB): We decided to use this struct instead of straight batches to be as consistent with tchannel intake as possible.
 		var req tJaeger.CollectorSubmitBatchesArgs
-
-		err = tdes.Read(&req, bodyBytes)
-		if err != nil {
+		if err = tdes.Read(&req, bodyBytes); err != nil {
 			http.Error(w, fmt.Sprintf("Cannot deserialize body due to error: %v", err), http.StatusBadRequest)
 			return
 		}
-
 		ctx, cancel := tchanThrift.NewContext(time.Minute)
 		defer cancel()
-		_, err = aH.jaegerBatchesHandler.SubmitBatches(ctx, req.Batches)
-		if err != nil {
-			http.Error(w, fmt.Sprintf("Cannot submit Jaeger batch due to error: %v", err), http.StatusBadRequest)
+		if _, err = aH.jaegerBatchesHandler.SubmitBatches(ctx, req.Batches); err != nil {
+			http.Error(w, fmt.Sprintf("Cannot submit Jaeger batch due to error: %v", err), http.StatusInternalServerError)
 		} else {
 			w.WriteHeader(http.StatusOK)
 		}
