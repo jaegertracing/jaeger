@@ -56,7 +56,7 @@ The script accepts additional parameters as environment variables:
 Query service requires the location of Cassandra cluster, similar to collectors.
 At Uber we run several `jaeger-query` instances behind a single domain managed by nginx.
 
-## Aggregation Jobs for Service Depepdencies
+## Aggregation Jobs for Service Dependencies
 
 At the moment this is work in progress. We're working on a post-processing data pipeline
 that will include aggregating data to present service dependency diagram.
