@@ -28,7 +28,7 @@ import (
 
 // Writer stores service dependencies into storage.
 type Writer interface {
-	WriteDependencies(ts time.Time, dependencies []model.DependencyLink) error
+	WriteDependencies(dependencies []model.DependencyLink) error
 }
 
 // Reader can load service dependencies from storage.

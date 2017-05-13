@@ -33,7 +33,7 @@ import (
 )
 
 const (
-	depsInsertStmt = "INSERT INTO dependencies(ts, ts_index, dependencies) VALUES (?, ?, ?)"
+	depsInsertStmt = "INSERT INTO dependencies(dependencies) VALUES (?)"
 	depsSelectStmt = "SELECT ts, dependencies FROM dependencies WHERE ts_index >= ? AND ts_index < ?"
 )
 
@@ -61,7 +61,7 @@ func NewDependencyStore(
 }
 
 // WriteDependencies implements dependencystore.Writer#WriteDependencies.
-func (s *DependencyStore) WriteDependencies(ts time.Time, dependencies []model.DependencyLink) error {
+func (s *DependencyStore) WriteDependencies(dependencies []model.DependencyLink) error {
 	deps := make([]Dependency, len(dependencies))
 	for i, d := range dependencies {
 		deps[i] = Dependency{
@@ -70,7 +70,7 @@ func (s *DependencyStore) WriteDependencies(ts time.Time, dependencies []model.D
 			CallCount: int64(d.CallCount),
 		}
 	}
-	query := s.session.Query(depsInsertStmt, ts, ts, deps)
+	query := s.session.Query(depsInsertStmt, deps)
 	return s.dependenciesTableMetrics.Exec(query, s.logger)
 }
 
@@ -97,13 +97,4 @@ func (s *DependencyStore) GetDependencies(endTs time.Time, lookback time.Duratio
 		return nil, errors.Wrap(err, "Error reading dependencies from storage")
 	}
 	return mDependency, nil
-}
-
-func (s *DependencyStore) timeIntervalToPoints(endTs time.Time, lookback time.Duration) []time.Time {
-	startTs := endTs.Add(-lookback)
-	var days []time.Time
-	for day := endTs; startTs.Before(day); day = day.Add(-s.dependencyDataFrequency) {
-		days = append(days, day.Truncate(s.dependencyDataFrequency))
-	}
-	return days
 }
