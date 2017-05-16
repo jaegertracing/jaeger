@@ -2,8 +2,11 @@
 
 *This section is under construction.*
 
-We will soon provide Docker images for individual Jaeger components,
-as well as orchestration configurations, for example to run them on Kubernetes.
+We will soon provide Docker images for individual Jaeger components
+[Issue #157](https://github.com/uber/jaeger/pull/157),
+as well as orchestration templates, for example to run Jaeger on
+[Kubernetes](https://github.com/jaegertracing/jaeger-kubernetes)
+and [OpenShift](https://github.com/jaegertracing/jaeger-openshift).
 
 ## Agent
 
@@ -12,12 +15,13 @@ The agent exposes the following ports: `5775/udp 6831/udp 6832/udp 5778`.
 
 ### Discovery System Integration
 
-The agents can connect point to point to a single collector,
-or use a discovery system to load balance across several collectors.
-We use [go-kit](https://github.com/go-kit/kit) to support a number of different
-discovery systems, but currently blocked by [Issue 492](https://github.com/go-kit/kit/pull/492).
+The agents can connect point to point to a single collector address, which could be
+load balanced by another infrastructure component across multilpe collectors. The agent
+can also be configured with a static list of collector addresses.
 
-TODO: [#134: allow agents to connect to multiple collectors via static list](https://github.com/uber/jaeger/issues/134)
+In the future we will support using a discovery system to dynamically load balance
+across several collectors. We use [go-kit](https://github.com/go-kit/kit) to support
+a number of different discovery systems, but currently blocked by [Issue 492](https://github.com/go-kit/kit/pull/492).
 
 ## Collectors
 
@@ -57,7 +61,7 @@ The script accepts additional parameters as environment variables:
 
 Query service requires the location of Cassandra cluster, similar to collectors.
 At Uber we run several `jaeger-query` instances behind a single domain managed by nginx.
-At default settings Query service exposes the following port(s): `16686`.
+At default settings the query service exposes the following port(s): `16686`.
 
 ## Aggregation Jobs for Service Dependencies
 
