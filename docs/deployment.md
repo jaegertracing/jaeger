@@ -8,6 +8,7 @@ as well as orchestration configurations, for example to run them on Kubernetes.
 ## Agent
 
 Jaeger client libraries expect `jaeger-agent` process to run locally on each host.
+The agent exposes the following ports: `5775/udp 6831/udp 6832/udp 5778`.
 
 ### Discovery System Integration
 
@@ -22,6 +23,7 @@ TODO: [#134: allow agents to connect to multiple collectors via static list](htt
 
 Collectors require almost no configuration except for the location of Cassandra cluster.
 All configuration parameters can be provided via command line options.
+At default settings the collector exposes the following ports: `14267 14268`.
 
 ```go
 go run ./cmd/collector/main.go -h
@@ -55,6 +57,7 @@ The script accepts additional parameters as environment variables:
 
 Query service requires the location of Cassandra cluster, similar to collectors.
 At Uber we run several `jaeger-query` instances behind a single domain managed by nginx.
+At default settings Query service exposes the following port(s): `16686`.
 
 ## Aggregation Jobs for Service Dependencies
 
