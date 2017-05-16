@@ -22,8 +22,8 @@ TODO: [#134: allow agents to connect to multiple collectors via static list](htt
 ## Collectors
 
 Collectors require almost no configuration except for the location of Cassandra cluster.
-All configuration parameters can be provided via command line options. At default settings
-collector exposes the following port(s): `14267`.
+All configuration parameters can be provided via command line options.
+At default settings the collector exposes the following ports: `14267 14268`.
 
 ```go
 go run ./cmd/collector/main.go -h
