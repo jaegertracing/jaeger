@@ -24,6 +24,20 @@ See also:
 
 Most of the code here is used in production at Uber, but the open source version is currently in **Public Beta**.
 
+## Related Repositories
+Clients:
+ * [Go client](https://github.com/uber/jaeger-client-go)
+ * [Java client](https://github.com/uber/jaeger-client-java)
+ * [Python client](https://github.com/uber/jaeger-client-python)
+ * [Node.js client](https://github.com/uber/jaeger-client-node)
+
+Contributions:
+ * [Jaeger contributions](https://github.com/jaegertracing) organization
+
+Components:
+ * [UI](https://github.com/uber/jaeger-ui)
+ * [Data model](https://github.com/uber/jaeger-idl)
+
 ## Contributing
 
 See [CONTRIBUTING](./CONTRIBUTING.md).

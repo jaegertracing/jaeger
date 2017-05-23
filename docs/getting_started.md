@@ -12,6 +12,10 @@ docker run -d -p5775:5775/udp -p16686:16686 jaegertracing/all-in-one:latest
 
 You can then navigate to `http://localhost:16686` to access the Jaeger UI. 
 
+## Kubernetes and OpenShift
+Kubernetes and OpenShift templates can be found in [Jaegertracing](https://github.com/jaegertracing/) organization on
+Github.
+
 ## Sample Application
 
 ### HotROD (Rides on Demand)
