@@ -28,6 +28,7 @@ THRIFT_GEN_DIR=thrift-gen
 PASS=$(shell printf "\033[32mPASS\033[0m")
 FAIL=$(shell printf "\033[31mFAIL\033[0m")
 COLORIZE=sed ''/PASS/s//$(PASS)/'' | sed ''/FAIL/s//$(FAIL)/''
+DOCKER_NAMESPACE?=$(USER)
 
 .DEFAULT_GOAL := test-and-lint
 
@@ -46,7 +47,7 @@ md-to-godoc-gen:
 
 .PHONY: clean
 clean:
-	rm -rf cover.out cover.html lint.log fmt.log
+	rm -rf cover.out cover.html lint.log fmt.log jaeger-ui-build
 
 .PHONY: test
 test: go-gen
@@ -110,6 +111,21 @@ build-query-linux:
 .PHONY: build-collector-linux
 build-collector-linux:
 	CGO_ENABLED=0 GOOS=linux installsuffix=cgo go build -o ./cmd/collector/collector-linux ./cmd/collector/main.go
+
+.PHONY: docker
+docker: build_ui build-agent-linux build-collector-linux build-query-linux
+	cp -r jaeger-ui-build/build/ cmd/query/jaeger-ui-build
+	docker build -t $(DOCKER_NAMESPACE)/jaeger-cassandra-schema plugin/storage/cassandra/ ; \
+	for component in agent collector query ; do \
+		docker build -t $(DOCKER_NAMESPACE)/jaeger-$$component cmd/$$component ; \
+	done
+	rm -rf cmd/query/jaeger-ui-build
+
+.PHONY: docker-push
+docker-push:
+	for component in agent cassandra-schema collector query ; do \
+		docker push $(DOCKER_NAMESPACE)/jaeger-$$component ; \
+	done
 
 .PHONY: build-crossdock-linux
 build-crossdock-linux:

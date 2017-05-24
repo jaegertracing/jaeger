@@ -16,6 +16,7 @@ cmd/standalone/standalone-linux
 cmd/agent/agent*
 cmd/collector/collector*
 cmd/query/query*
+cmd/query/jaeger-ui-build/
 crossdock/crossdock
 crossdock/cmd/
 crossdock/scripts/
