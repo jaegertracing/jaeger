@@ -215,7 +215,7 @@ func TestZipkinFormatBadBody(t *testing.T) {
 	assert.EqualValues(t, "Unable to read from body due to error: *zipkincore.Span field 0 read error: EOF\n", resBodyStr)
 }
 
-func TestDeserializeZipkinWithBadListStart(t *testing.T){
+func TestDeserializeZipkinWithBadListStart(t *testing.T) {
 	span := &zipkincore.Span{TraceID: 12, Name: "test"}
 	spans := []*zipkincore.Span{}
 	spans = append(spans, span)
