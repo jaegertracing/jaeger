@@ -47,8 +47,10 @@ type APIHandler struct {
 }
 
 // NewAPIHandler returns a new APIHandler
-func NewAPIHandler(jaegerBatchesHandler JaegerBatchesHandler,
-	zipkinSpansHandler ZipkinSpansHandler) *APIHandler {
+func NewAPIHandler(
+	jaegerBatchesHandler JaegerBatchesHandler,
+	zipkinSpansHandler ZipkinSpansHandler,
+) *APIHandler {
 	return &APIHandler{
 		jaegerBatchesHandler: jaegerBatchesHandler,
 		zipkinSpansHandler:   zipkinSpansHandler,
@@ -61,16 +63,16 @@ func (aH *APIHandler) RegisterRoutes(router *mux.Router) {
 }
 
 func (aH *APIHandler) saveSpan(w http.ResponseWriter, r *http.Request) {
+	bodyBytes, err := ioutil.ReadAll(r.Body)
+	r.Body.Close()
+	if err != nil {
+		http.Error(w, fmt.Sprintf(unableToReadBodyErrFormat, err), http.StatusBadRequest)
+		return
+	}
+
 	format := r.FormValue(formatParam)
 	switch strings.ToLower(format) {
 	case "jaeger.thrift":
-		bodyBytes, err := ioutil.ReadAll(r.Body)
-		r.Body.Close()
-		if err != nil {
-			http.Error(w, fmt.Sprintf(unableToReadBodyErrFormat, err), http.StatusBadRequest)
-			return
-		}
-
 		tdes := thrift.NewTDeserializer()
 		// (NB): We decided to use this struct instead of straight batches to be as consistent with tchannel intake as possible.
 		var req tJaeger.CollectorSubmitBatchesArgs
@@ -87,37 +89,8 @@ func (aH *APIHandler) saveSpan(w http.ResponseWriter, r *http.Request) {
 		}
 
 	case "zipkin.thrift":
-		bodyBytes, err := ioutil.ReadAll(r.Body)
-		r.Body.Close()
+		spans, err := deserializeZipkin(bodyBytes)
 		if err != nil {
-			http.Error(w, fmt.Sprintf(unableToReadBodyErrFormat, err), http.StatusBadRequest)
-			return
-		}
-
-		buffer := thrift.NewTMemoryBuffer()
-		if _, err = buffer.Write(bodyBytes); err != nil {
-			http.Error(w, fmt.Sprintf(unableToReadBodyErrFormat, err), http.StatusBadRequest)
-			return
-		}
-
-		transport := thrift.NewTBinaryProtocolTransport(buffer)
-		_, size, err := transport.ReadListBegin()
-		if err != nil {
-			http.Error(w, fmt.Sprintf(unableToReadBodyErrFormat, err), http.StatusBadRequest)
-			return
-		}
-
-		var spans []*zipkincore.Span
-		for i := 0; i < size; i++ {
-			zs := &zipkincore.Span{}
-			if err = zs.Read(transport); err != nil {
-				http.Error(w, fmt.Sprintf(unableToReadBodyErrFormat, err), http.StatusBadRequest)
-				return
-			}
-			spans = append(spans, zs)
-		}
-
-		if err := transport.ReadListEnd(); err != nil {
 			http.Error(w, fmt.Sprintf(unableToReadBodyErrFormat, err), http.StatusBadRequest)
 			return
 		}
@@ -133,4 +106,31 @@ func (aH *APIHandler) saveSpan(w http.ResponseWriter, r *http.Request) {
 	default:
 		http.Error(w, fmt.Sprintf("Unsupported format type: %v", format), http.StatusBadRequest)
 	}
+}
+
+func deserializeZipkin(b []byte) ([]*zipkincore.Span, error) {
+	buffer := thrift.NewTMemoryBuffer()
+	if _, err := buffer.Write(b); err != nil {
+		return nil, err
+	}
+
+	transport := thrift.NewTBinaryProtocolTransport(buffer)
+	_, size, err := transport.ReadListBegin()
+	if err != nil {
+		return nil, err
+	}
+
+	var spans []*zipkincore.Span
+	for i := 0; i < size; i++ {
+		zs := &zipkincore.Span{}
+		if err = zs.Read(transport); err != nil {
+			return nil, err
+		}
+		spans = append(spans, zs)
+	}
+
+	if err := transport.ReadListEnd(); err != nil {
+		return nil, err
+	}
+	return spans, nil
 }
