@@ -7,7 +7,7 @@ This image, designed for quick local testing, launches the Jaeger UI, collector,
 The simplest way to start the all in one docker image is to use the pre-built image published to DockerHub.
 
 ```bash
-docker run -d -p5775:5775/udp -p6831:6831/udp -p6832:6832 -p5778:5778 -p16686:16686 jaegertracing/all-in-one:latest
+docker run -d -p5775:5775/udp -p6831:6831/udp -p6832:6832/udp -p5778:5778 -p16686:16686 jaegertracing/all-in-one:latest
 ```
 
 You can then navigate to `http://localhost:16686` to access the Jaeger UI. 
