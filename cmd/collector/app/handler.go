@@ -66,7 +66,7 @@ func (aH *APIHandler) saveSpan(w http.ResponseWriter, r *http.Request) {
 	bodyBytes, err := ioutil.ReadAll(r.Body)
 	r.Body.Close()
 	if err != nil {
-		http.Error(w, fmt.Sprintf(unableToReadBodyErrFormat, err), http.StatusBadRequest)
+		http.Error(w, fmt.Sprintf("Unable to process request: %v", err), http.StatusInternalServerError)
 		return
 	}
 
