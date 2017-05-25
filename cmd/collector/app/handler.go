@@ -110,9 +110,7 @@ func (aH *APIHandler) saveSpan(w http.ResponseWriter, r *http.Request) {
 
 func deserializeZipkin(b []byte) ([]*zipkincore.Span, error) {
 	buffer := thrift.NewTMemoryBuffer()
-	if _, err := buffer.Write(b); err != nil {
-		return nil, err
-	}
+	buffer.Write(b)
 
 	transport := thrift.NewTBinaryProtocolTransport(buffer)
 	_, size, err := transport.ReadListBegin()
@@ -129,8 +127,5 @@ func deserializeZipkin(b []byte) ([]*zipkincore.Span, error) {
 		spans = append(spans, zs)
 	}
 
-	if err := transport.ReadListEnd(); err != nil {
-		return nil, err
-	}
 	return spans, nil
 }
