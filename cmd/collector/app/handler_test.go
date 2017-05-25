@@ -36,6 +36,7 @@ import (
 
 	"github.com/uber/jaeger/thrift-gen/jaeger"
 	tJaeger "github.com/uber/jaeger/thrift-gen/jaeger"
+	"github.com/uber/jaeger/thrift-gen/zipkincore"
 )
 
 var httpClient = &http.Client{Timeout: 2 * time.Second}
@@ -48,9 +49,17 @@ func (p *possiblyErroringJaegerBatchesHandler) SubmitBatches(ctx tchanThrift.Con
 	return nil, p.err
 }
 
+type possiblyErroringZipkinBatchesHandler struct {
+	err error
+}
+
+func (p *possiblyErroringZipkinBatchesHandler) SubmitZipkinBatch(ctx tchanThrift.Context, batches []*zipkincore.Span) ([]*zipkincore.Response, error) {
+	return nil, p.err
+}
+
 func initializeTestServer(err error) (*httptest.Server, *APIHandler) {
 	r := mux.NewRouter()
-	handler := NewAPIHandler(&possiblyErroringJaegerBatchesHandler{err})
+	handler := NewAPIHandler(&possiblyErroringJaegerBatchesHandler{err}, &possiblyErroringZipkinBatchesHandler{err})
 	handler.RegisterRoutes(r)
 	return httptest.NewServer(r), handler
 }
@@ -105,13 +114,22 @@ func TestWrongFormat(t *testing.T) {
 }
 
 func TestCannotReadBodyFromRequest(t *testing.T) {
-	handler := NewAPIHandler(&possiblyErroringJaegerBatchesHandler{nil})
-	req, err := http.NewRequest(http.MethodPost, `/api/traces?format=jaeger.thrift`, &errReader{})
-	assert.NoError(t, err)
-	rw := dummyResponseWriter{}
-	handler.saveSpan(&rw, req)
-	assert.EqualValues(t, http.StatusBadRequest, rw.myStatusCode)
-	assert.EqualValues(t, "Unable to read from body due to error: Simulated error reading body\n", rw.myBody)
+	handler := NewAPIHandler(&possiblyErroringJaegerBatchesHandler{nil}, &possiblyErroringZipkinBatchesHandler{nil})
+
+	testCases := []struct {
+		url string
+	}{
+		{`/api/traces?format=jaeger.thrift`},
+		{`/api/traces?format=zipkin.thrift`},
+	}
+	for _, testCase := range testCases {
+		req, err := http.NewRequest(http.MethodPost, testCase.url, &errReader{})
+		assert.NoError(t, err)
+		rw := dummyResponseWriter{}
+		handler.saveSpan(&rw, req)
+		assert.EqualValues(t, http.StatusBadRequest, rw.myStatusCode)
+		assert.EqualValues(t, "Unable to read from body due to error: Simulated error reading body\n", rw.myBody)
+	}
 }
 
 type errReader struct{}
@@ -154,4 +172,45 @@ func postJSON(urlStr string, bodyBytes []byte) (int, string, error) {
 		return 0, "", err
 	}
 	return res.StatusCode, string(body), nil
+}
+
+func TestZipkinFormat(t *testing.T) {
+	span := &zipkincore.Span{}
+	spans := []*zipkincore.Span{}
+	spans = append(spans, span)
+	server, handler := initializeTestServer(nil)
+	defer server.Close()
+
+	bodyBytes := zipkinSerialize(spans)
+	statusCode, resBodyStr, err := postJSON(server.URL+`/api/traces?format=zipkin.thrift`, bodyBytes)
+	assert.NoError(t, err)
+	assert.EqualValues(t, http.StatusOK, statusCode)
+	assert.EqualValues(t, "", resBodyStr)
+
+	handler.zipkinSpansHandler.(*possiblyErroringZipkinBatchesHandler).err = fmt.Errorf("Bad times ahead")
+	statusCode, resBodyStr, err = postJSON(server.URL+`/api/traces?format=zipkin.thrift`, bodyBytes)
+	assert.NoError(t, err)
+	assert.EqualValues(t, http.StatusInternalServerError, statusCode)
+	assert.EqualValues(t, "Cannot submit Zipkin batch due to error: Bad times ahead\n", resBodyStr)
+}
+
+func zipkinSerialize(spans []*zipkincore.Span) []byte {
+	t := thrift.NewTMemoryBuffer()
+	p := thrift.NewTBinaryProtocolTransport(t)
+	p.WriteListBegin(thrift.STRUCT, len(spans))
+	for _, s := range spans {
+		s.Write(p)
+	}
+	p.WriteListEnd()
+	return t.Buffer.Bytes()
+}
+
+func TestZipkinFormatBadBody(t *testing.T) {
+	server, _ := initializeTestServer(nil)
+	defer server.Close()
+	bodyBytes := []byte("not good")
+	statusCode, resBodyStr, err := postJSON(server.URL+`/api/traces?format=zipkin.thrift`, bodyBytes)
+	assert.NoError(t, err)
+	assert.EqualValues(t, http.StatusBadRequest, statusCode)
+	assert.EqualValues(t, "Unable to read from body due to error: *zipkincore.Span field 0 read error: EOF\n", resBodyStr)
 }

@@ -83,7 +83,7 @@ func main() {
 	ch.Serve(listener)
 
 	r := mux.NewRouter()
-	apiHandler := app.NewAPIHandler(jaegerBatchesHandler)
+	apiHandler := app.NewAPIHandler(jaegerBatchesHandler, zipkinSpansHandler)
 	apiHandler.RegisterRoutes(r)
 	httpPortStr := ":" + strconv.Itoa(*builder.CollectorHTTPPort)
 	recoveryHandler := recoveryhandler.NewRecoveryHandler(logger, true)
