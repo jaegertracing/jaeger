@@ -48,6 +48,10 @@ import (
 	zc "github.com/uber/jaeger/thrift-gen/zipkincore"
 )
 
+const(
+	dependenciesTable = "dependencies"
+)
+
 // standalone/main is a standalone full-stack jaeger backend, backed by a memory store
 func main() {
 	logger, _ := zap.NewProduction()
@@ -131,7 +135,7 @@ func startQuery(logger *zap.Logger, baseFactory metrics.Factory, memoryStore *me
 	if err != nil {
 		logger.Fatal("Failed to get span reader", zap.Error(err))
 	}
-	dependencyReader, err := storageBuild.NewDependencyReader()
+	dependencyReader, err := storageBuild.NewDependencyReader(dependenciesTable)
 	if err != nil {
 		logger.Fatal("Failed to get dependency reader", zap.Error(err))
 	}

@@ -33,8 +33,8 @@ import (
 )
 
 const (
-	depsInsertStmt = "INSERT INTO dependencies(ts, ts_index, dependencies) VALUES (?, ?, ?)"
-	depsSelectStmt = "SELECT ts, dependencies FROM dependencies WHERE ts_index >= ? AND ts_index < ?"
+	depsInsertStmt = "INSERT INTO ?(ts, ts_index, dependencies) VALUES (?, ?, ?)"
+	depsSelectStmt = "SELECT ts, ? FROM dependencies WHERE ts_index >= ? AND ts_index < ?"
 )
 
 // DependencyStore handles all queries and insertions to Cassandra dependencies
@@ -43,6 +43,7 @@ type DependencyStore struct {
 	dependencyDataFrequency  time.Duration
 	dependenciesTableMetrics *casMetrics.Table
 	logger                   *zap.Logger
+	tableName                string
 }
 
 // NewDependencyStore returns a DependencyStore
@@ -51,12 +52,14 @@ func NewDependencyStore(
 	dependencyDataFrequency time.Duration,
 	metricsFactory metrics.Factory,
 	logger *zap.Logger,
+	tableName string,
 ) *DependencyStore {
 	return &DependencyStore{
 		session:                  session,
 		dependencyDataFrequency:  dependencyDataFrequency,
 		dependenciesTableMetrics: casMetrics.NewTable(metricsFactory, "Dependencies"),
-		logger: logger,
+		logger:    logger,
+		tableName: tableName,
 	}
 }
 
@@ -70,13 +73,13 @@ func (s *DependencyStore) WriteDependencies(ts time.Time, dependencies []model.D
 			CallCount: int64(d.CallCount),
 		}
 	}
-	query := s.session.Query(depsInsertStmt, ts, ts, deps)
+	query := s.session.Query(depsInsertStmt, s.tableName, ts, ts, deps)
 	return s.dependenciesTableMetrics.Exec(query, s.logger)
 }
 
 // GetDependencies returns all interservice dependencies
 func (s *DependencyStore) GetDependencies(endTs time.Time, lookback time.Duration) ([]model.DependencyLink, error) {
-	query := s.session.Query(depsSelectStmt, endTs.Add(-1*lookback), endTs)
+	query := s.session.Query(depsSelectStmt, s.tableName, endTs.Add(-1*lookback), endTs)
 	iter := query.Consistency(cassandra.One).Iter()
 
 	var mDependency []model.DependencyLink

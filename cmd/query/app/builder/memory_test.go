@@ -29,13 +29,14 @@ import (
 )
 
 func TestMemoryStoreBuilder(t *testing.T) {
+	tableName := "dependencies"
 	memStore := memory.NewStore()
 	memBuilder := newMemoryStoreBuilder(memStore)
 	spanReader, err := memBuilder.NewSpanReader()
 	assert.NoError(t, err)
 	assert.Equal(t, memStore, spanReader)
 
-	depReader, err := memBuilder.NewDependencyReader()
+	depReader, err := memBuilder.NewDependencyReader(tableName)
 	assert.NoError(t, err)
 	assert.Equal(t, memStore, depReader)
 }

@@ -75,10 +75,10 @@ func (c *cassandraBuilder) NewSpanReader() (spanstore.Reader, error) {
 	return cSpanStore.NewSpanReader(session, c.metricsFactory, c.logger), nil
 }
 
-func (c *cassandraBuilder) NewDependencyReader() (dependencystore.Reader, error) {
+func (c *cassandraBuilder) NewDependencyReader(tableName string) (dependencystore.Reader, error) {
 	session, err := c.getSession()
 	if err != nil {
 		return nil, err
 	}
-	return cDependencyStore.NewDependencyStore(session, c.dependencyDataFrequency, c.metricsFactory, c.logger), nil
+	return cDependencyStore.NewDependencyStore(session, c.dependencyDataFrequency, c.metricsFactory, c.logger, tableName), nil
 }
