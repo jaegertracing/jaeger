@@ -48,7 +48,7 @@ import (
 	zc "github.com/uber/jaeger/thrift-gen/zipkincore"
 )
 
-const(
+const (
 	dependenciesTable = "dependencies"
 )
 
