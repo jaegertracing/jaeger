@@ -29,6 +29,7 @@ PASS=$(shell printf "\033[32mPASS\033[0m")
 FAIL=$(shell printf "\033[31mFAIL\033[0m")
 COLORIZE=sed ''/PASS/s//$(PASS)/'' | sed ''/FAIL/s//$(FAIL)/''
 DOCKER_NAMESPACE?=$(USER)
+DOCKER_TAG?=local
 
 .DEFAULT_GOAL := test-and-lint
 
@@ -115,9 +116,9 @@ build-collector-linux:
 .PHONY: docker
 docker: build_ui build-agent-linux build-collector-linux build-query-linux
 	cp -r jaeger-ui-build/build/ cmd/query/jaeger-ui-build
-	docker build -t $(DOCKER_NAMESPACE)/jaeger-cassandra-schema plugin/storage/cassandra/ ; \
+	docker build -t $(DOCKER_NAMESPACE)/jaeger-cassandra-schema:${DOCKER_TAG} plugin/storage/cassandra/ ; \
 	for component in agent collector query ; do \
-		docker build -t $(DOCKER_NAMESPACE)/jaeger-$$component cmd/$$component ; \
+		docker build -t $(DOCKER_NAMESPACE)/jaeger-$$component:${DOCKER_TAG} cmd/$$component ; \
 	done
 	rm -rf cmd/query/jaeger-ui-build
 

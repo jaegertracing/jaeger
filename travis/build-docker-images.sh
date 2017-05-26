@@ -8,7 +8,7 @@ if [[ "$BRANCH" == "master" && "$TRAVIS_SECURE_ENV_VARS" == "true" ]]; then echo
 
 source ~/.nvm/nvm.sh
 nvm use 6
-DOCKER_NAMESPACE=jaegertracing make docker
+DOCKER_NAMESPACE=jaegertracing DOCKER_TAG=${COMMIT} make docker
 
 for component in agent cassandra-schema collector query
 do
