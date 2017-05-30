@@ -118,13 +118,15 @@ func deserializeZipkin(b []byte) ([]*zipkincore.Span, error) {
 		return nil, err
 	}
 
-	spans := make([]*zipkincore.Span, size)
+	// We don't depend on the size returned by ReadListBegin to preallocate the array because it
+	// sometimes returns a nil error on bad input and provides an unreasonably large int for size
+	var spans []*zipkincore.Span
 	for i := 0; i < size; i++ {
 		zs := &zipkincore.Span{}
 		if err = zs.Read(transport); err != nil {
 			return nil, err
 		}
-		spans[i] = zs
+		spans = append(spans, zs)
 	}
 
 	return spans, nil
