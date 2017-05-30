@@ -41,25 +41,25 @@ import (
 
 var httpClient = &http.Client{Timeout: 2 * time.Second}
 
-type possiblyErroringJaegerBatchesHandler struct {
+type mockJaegerHandler struct {
 	err error
 }
 
-func (p *possiblyErroringJaegerBatchesHandler) SubmitBatches(ctx tchanThrift.Context, batches []*jaeger.Batch) ([]*jaeger.BatchSubmitResponse, error) {
+func (p *mockJaegerHandler) SubmitBatches(ctx tchanThrift.Context, batches []*jaeger.Batch) ([]*jaeger.BatchSubmitResponse, error) {
 	return nil, p.err
 }
 
-type possiblyErroringZipkinBatchesHandler struct {
+type mockZipkinHandler struct {
 	err error
 }
 
-func (p *possiblyErroringZipkinBatchesHandler) SubmitZipkinBatch(ctx tchanThrift.Context, batches []*zipkincore.Span) ([]*zipkincore.Response, error) {
+func (p *mockZipkinHandler) SubmitZipkinBatch(ctx tchanThrift.Context, batches []*zipkincore.Span) ([]*zipkincore.Response, error) {
 	return nil, p.err
 }
 
 func initializeTestServer(err error) (*httptest.Server, *APIHandler) {
 	r := mux.NewRouter()
-	handler := NewAPIHandler(&possiblyErroringJaegerBatchesHandler{err}, &possiblyErroringZipkinBatchesHandler{err})
+	handler := NewAPIHandler(&mockJaegerHandler{err}, &mockZipkinHandler{err})
 	handler.RegisterRoutes(r)
 	return httptest.NewServer(r), handler
 }
@@ -87,11 +87,11 @@ func TestJaegerFormat(t *testing.T) {
 	assert.EqualValues(t, http.StatusOK, statusCode)
 	assert.EqualValues(t, "", resBodyStr)
 
-	handler.jaegerBatchesHandler.(*possiblyErroringJaegerBatchesHandler).err = fmt.Errorf("Bad times ahead")
+	handler.jaegerBatchesHandler.(*mockJaegerHandler).err = fmt.Errorf("Bad times ahead")
 	statusCode, resBodyStr, err = postJSON(server.URL+`/api/traces?format=jaeger.thrift`, someBytes)
 	assert.NoError(t, err)
 	assert.EqualValues(t, http.StatusInternalServerError, statusCode)
-	assert.EqualValues(t, "Cannot submit Jaeger batch due to error: Bad times ahead\n", resBodyStr)
+	assert.EqualValues(t, "Cannot submit Jaeger batch: Bad times ahead\n", resBodyStr)
 }
 
 func TestJaegerFormatBadBody(t *testing.T) {
@@ -101,7 +101,7 @@ func TestJaegerFormatBadBody(t *testing.T) {
 	statusCode, resBodyStr, err := postJSON(server.URL+`/api/traces?format=jaeger.thrift`, bodyBytes)
 	assert.NoError(t, err)
 	assert.EqualValues(t, http.StatusBadRequest, statusCode)
-	assert.EqualValues(t, "Cannot deserialize body due to error: *jaeger.CollectorSubmitBatchesArgs field 25711 read error: unexpected EOF\n", resBodyStr)
+	assert.EqualValues(t, "Cannot deserialize body: *jaeger.CollectorSubmitBatchesArgs field 25711 read error: unexpected EOF\n", resBodyStr)
 }
 
 func TestWrongFormat(t *testing.T) {
@@ -114,7 +114,7 @@ func TestWrongFormat(t *testing.T) {
 }
 
 func TestCannotReadBodyFromRequest(t *testing.T) {
-	handler := NewAPIHandler(&possiblyErroringJaegerBatchesHandler{nil}, &possiblyErroringZipkinBatchesHandler{nil})
+	handler := NewAPIHandler(&mockJaegerHandler{nil}, &mockZipkinHandler{nil})
 
 	testCases := []struct {
 		url string
@@ -128,7 +128,7 @@ func TestCannotReadBodyFromRequest(t *testing.T) {
 		rw := dummyResponseWriter{}
 		handler.saveSpan(&rw, req)
 		assert.EqualValues(t, http.StatusInternalServerError, rw.myStatusCode)
-		assert.EqualValues(t, "Unable to process request: Simulated error reading body\n", rw.myBody)
+		assert.EqualValues(t, "Unable to process request body: Simulated error reading body\n", rw.myBody)
 	}
 }
 
@@ -187,11 +187,11 @@ func TestZipkinFormat(t *testing.T) {
 	assert.EqualValues(t, http.StatusOK, statusCode)
 	assert.EqualValues(t, "", resBodyStr)
 
-	handler.zipkinSpansHandler.(*possiblyErroringZipkinBatchesHandler).err = fmt.Errorf("Bad times ahead")
+	handler.zipkinSpansHandler.(*mockZipkinHandler).err = fmt.Errorf("Bad times ahead")
 	statusCode, resBodyStr, err = postJSON(server.URL+`/api/traces?format=zipkin.thrift`, bodyBytes)
 	assert.NoError(t, err)
 	assert.EqualValues(t, http.StatusInternalServerError, statusCode)
-	assert.EqualValues(t, "Cannot submit Zipkin batch due to error: Bad times ahead\n", resBodyStr)
+	assert.EqualValues(t, "Cannot submit Zipkin batch: Bad times ahead\n", resBodyStr)
 }
 
 func zipkinSerialize(spans []*zipkincore.Span) []byte {
