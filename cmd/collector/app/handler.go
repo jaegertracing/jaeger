@@ -37,7 +37,7 @@ import (
 
 const (
 	formatParam               = "format"
-	unableToReadBodyErrFormat = "Unable to read from body due to error: %v"
+	unableToReadBodyErrFormat = "Unable to process request body: %v"
 )
 
 // APIHandler handles all HTTP calls to the collector
@@ -66,7 +66,7 @@ func (aH *APIHandler) saveSpan(w http.ResponseWriter, r *http.Request) {
 	bodyBytes, err := ioutil.ReadAll(r.Body)
 	r.Body.Close()
 	if err != nil {
-		http.Error(w, fmt.Sprintf("Unable to process request body: %v", err), http.StatusInternalServerError)
+		http.Error(w, fmt.Sprintf(unableToReadBodyErrFormat, err), http.StatusInternalServerError)
 		return
 	}
 
@@ -77,7 +77,7 @@ func (aH *APIHandler) saveSpan(w http.ResponseWriter, r *http.Request) {
 		// (NB): We decided to use this struct instead of straight batches to be as consistent with tchannel intake as possible.
 		var req tJaeger.CollectorSubmitBatchesArgs
 		if err = tdes.Read(&req, bodyBytes); err != nil {
-			http.Error(w, fmt.Sprintf("Cannot deserialize body: %v", err), http.StatusBadRequest)
+			http.Error(w, fmt.Sprintf(unableToReadBodyErrFormat, err), http.StatusBadRequest)
 			return
 		}
 		ctx, cancel := tchanThrift.NewContext(time.Minute)

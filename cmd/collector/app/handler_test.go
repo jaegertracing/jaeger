@@ -101,7 +101,7 @@ func TestJaegerFormatBadBody(t *testing.T) {
 	statusCode, resBodyStr, err := postJSON(server.URL+`/api/traces?format=jaeger.thrift`, bodyBytes)
 	assert.NoError(t, err)
 	assert.EqualValues(t, http.StatusBadRequest, statusCode)
-	assert.EqualValues(t, "Cannot deserialize body: *jaeger.CollectorSubmitBatchesArgs field 25711 read error: unexpected EOF\n", resBodyStr)
+	assert.EqualValues(t, "Unable to process request body: *jaeger.CollectorSubmitBatchesArgs field 25711 read error: unexpected EOF\n", resBodyStr)
 }
 
 func TestWrongFormat(t *testing.T) {
@@ -212,7 +212,7 @@ func TestZipkinFormatBadBody(t *testing.T) {
 	statusCode, resBodyStr, err := postJSON(server.URL+`/api/traces?format=zipkin.thrift`, bodyBytes)
 	assert.NoError(t, err)
 	assert.EqualValues(t, http.StatusBadRequest, statusCode)
-	assert.EqualValues(t, "Unable to read from body due to error: *zipkincore.Span field 0 read error: EOF\n", resBodyStr)
+	assert.EqualValues(t, "Unable to process request body: *zipkincore.Span field 0 read error: EOF\n", resBodyStr)
 }
 
 func TestDeserializeZipkinWithBadListStart(t *testing.T) {
