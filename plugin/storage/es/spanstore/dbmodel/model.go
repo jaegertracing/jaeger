@@ -21,19 +21,14 @@ const (
 	FollowsFrom ReferenceType = "FOLLOWS_FROM"
 )
 
-// Trace is a list of spans
-type Trace struct {
-	Spans []Span `json:"spans"`
-}
-
 // Span is a span denoting a piece of work in some infrastructure
 type Span struct {
 	TraceID       TraceID     `json:"traceID"`
-	ParentSpanID  SpanID	  `json:"parentSpanID"`
 	SpanID        SpanID      `json:"spanID"`
-	Flags         uint32      `json:"flags"`
+	ParentSpanID  SpanID	  `json:"parentSpanID"`
 	OperationName string      `json:"operationName"`
 	References    []Reference `json:"references"`
+	Flags         uint32      `json:"flags"`
 	Timestamp     uint64      `json:"timestamp"`
 	Duration      uint64      `json:"duration"`
 	Tags          []Tag   	  `json:"tags"`
