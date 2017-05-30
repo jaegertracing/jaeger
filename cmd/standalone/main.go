@@ -39,8 +39,8 @@ import (
 
 	agentApp "github.com/uber/jaeger/cmd/agent/app"
 	basic "github.com/uber/jaeger/cmd/builder"
-	collector "github.com/uber/jaeger/cmd/collector/app/builder"
 	collectorApp "github.com/uber/jaeger/cmd/collector/app"
+	collector "github.com/uber/jaeger/cmd/collector/app/builder"
 	queryApp "github.com/uber/jaeger/cmd/query/app"
 	query "github.com/uber/jaeger/cmd/query/app/builder"
 	"github.com/uber/jaeger/pkg/recoveryhandler"
