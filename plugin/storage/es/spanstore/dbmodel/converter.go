@@ -1,10 +1,11 @@
 package dbmodel
 
 import (
-	"github.com/uber/jaeger/model"
 	"strconv"
 	"errors"
 	"encoding/hex"
+
+	"github.com/uber/jaeger/model"
 )
 
 var ErrUnknownKeyValueTypeFromES = errors.New("Unknown tag type found in ES")

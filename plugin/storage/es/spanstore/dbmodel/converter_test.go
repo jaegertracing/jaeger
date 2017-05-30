@@ -2,10 +2,12 @@ package dbmodel
 
 import (
 	"testing"
-	"github.com/uber/jaeger/model"
+	"encoding/hex"
+
 	"github.com/kr/pretty"
 	"github.com/stretchr/testify/assert"
-	"encoding/hex"
+
+	"github.com/uber/jaeger/model"
 )
 
 var (

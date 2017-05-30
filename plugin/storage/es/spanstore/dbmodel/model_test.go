@@ -2,8 +2,10 @@ package dbmodel
 
 import (
 	"testing"
-	"github.com/uber/jaeger/model"
+
 	"github.com/stretchr/testify/assert"
+
+	"github.com/uber/jaeger/model"
 )
 
 func TestTagIDString(t *testing.T) {
