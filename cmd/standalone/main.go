@@ -40,6 +40,7 @@ import (
 	agentApp "github.com/uber/jaeger/cmd/agent/app"
 	basic "github.com/uber/jaeger/cmd/builder"
 	collector "github.com/uber/jaeger/cmd/collector/app/builder"
+	collectorApp "github.com/uber/jaeger/cmd/collector/app"
 	queryApp "github.com/uber/jaeger/cmd/query/app"
 	query "github.com/uber/jaeger/cmd/query/app/builder"
 	"github.com/uber/jaeger/pkg/recoveryhandler"
@@ -114,6 +115,18 @@ func startCollector(logger *zap.Logger, baseFactory metrics.Factory, memoryStore
 	}
 	ch.Serve(listener)
 	logger.Info("Starting jaeger-collector TChannel server", zap.Int("port", *collector.CollectorPort))
+
+	r := mux.NewRouter()
+	apiHandler := collectorApp.NewAPIHandler(jaegerBatchesHandler, zipkinSpansHandler)
+	apiHandler.RegisterRoutes(r)
+	httpPortStr := ":" + strconv.Itoa(*collector.CollectorHTTPPort)
+	recoveryHandler := recoveryhandler.NewRecoveryHandler(logger, true)
+	logger.Info("Starting jaeger-collector HTTP server", zap.Int("http-port", *collector.CollectorHTTPPort))
+	go func() {
+		if err := http.ListenAndServe(httpPortStr, recoveryHandler(r)); err != nil {
+			logger.Fatal("Could not launch jaeger-collector HTTP server", zap.Error(err))
+		}
+	}()
 }
 
 func startQuery(logger *zap.Logger, baseFactory metrics.Factory, memoryStore *memory.Store) {
