@@ -16,6 +16,9 @@ matrix:
   - go: 1.7
     env:
     - CROSSDOCK=true
+  - go: 1.7
+    env:
+    - DOCKER=true
 # TODO 1.8 tests take way too long to run 900s vs 250s for 1.7
 #  - go: 1.8
 #    env:
@@ -36,6 +39,7 @@ env:
 install:
   - make install_ci
   - if [ "$ALL_IN_ONE" == true ]; then bash ./travis/install-ui-deps.sh ; fi
+  - if [ "$DOCKER" == true ]; then bash ./travis/install-ui-deps.sh ; fi
   - if [ "$CROSSDOCK" == true ]; then bash ./travis/install-crossdock-deps.sh ; fi
 
 script:
@@ -43,3 +47,4 @@ script:
   - if [ "$COVERAGE" == true ]; then travis_retry goveralls -coverprofile=cover.out -service=travis-ci || true ; else echo 'skipping coverage'; fi
   - if [ "$ALL_IN_ONE" == true ]; then bash ./travis/build-all-in-one-image.sh ; else echo 'skipping all_in_one'; fi
   - if [ "$CROSSDOCK" == true ]; then bash ./travis/build-crossdock.sh ; else echo 'skipping crossdock'; fi
+  - if [ "$DOCKER" == true ]; then bash ./travis/build-docker-images.sh ; else echo 'skipping docker images'; fi
