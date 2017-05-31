@@ -101,3 +101,32 @@ func TestDependenciesFromDomain(t *testing.T) {
 	actual := DependenciesFromDomain(input)
 	assert.EqualValues(t, expected, actual)
 }
+
+func TestFromDomainES(t *testing.T) {
+	for i := 1; i <= NumberOfFixtures; i++ {
+		in := fmt.Sprintf("fixtures/domain_es_%02d.json", i)
+		inStr, err := ioutil.ReadFile(in)
+		require.NoError(t, err)
+		var span model.Span
+		require.NoError(t, json.Unmarshal(inStr, &span))
+
+		out := fmt.Sprintf("fixtures/es_%02d.json", i)
+		outStr, err := ioutil.ReadFile(out)
+		require.NoError(t, err)
+
+		uiTrace := FromDomainES(&span)
+
+		buf := &bytes.Buffer{}
+		enc := json.NewEncoder(buf)
+		enc.SetIndent("", "  ")
+		require.NoError(t, enc.Encode(uiTrace))
+		actual := string(buf.Bytes())
+
+		if !assert.Equal(t, string(outStr), actual) {
+			err := ioutil.WriteFile(out+"-actual", buf.Bytes(), 0644)
+			assert.NoError(t, err)
+		}
+	}
+	// this is just to confirm the uint64 representation of float64(72.5) used as a "temperature" tag
+	assert.Equal(t, int64(4634802150889750528), model.Float64("x", 72.5).VNum)
+}

@@ -1,0 +1,90 @@
+{
+  "traceID": "1",
+  "spanID": "2",
+  "parentSpanID": "3",
+  "operationName": "test-general-conversion",
+  "references": [
+    {
+      "refType": "child-of",
+      "traceID": "ff",
+      "spanID": "ff"
+    },
+    {
+      "refType": "child-of",
+      "traceID": "1",
+      "spanID": "2"
+    },
+    {
+      "refType": "follows-from",
+      "traceID": "1",
+      "spanID": "2"
+    }
+  ],
+  "flags": 1,
+  "startTime": "2017-01-26T16:46:31.639875139-05:00",
+  "duration": 5000,
+  "tags": [
+    {
+      "key": "peer.service",
+      "vType": "string",
+      "vStr": "service-y"
+    },
+    {
+      "key": "peer.ipv4",
+      "vType": "int64",
+      "vNum": 23456
+    },
+    {
+      "key": "error",
+      "vType": "bool",
+      "vNum": 1
+    },
+    {
+      "key": "temperature",
+      "vType": "float64",
+      "vNum": 4634802150889750528
+    },
+    {
+      "key": "blob",
+      "vType": "binary",
+      "vBlob": "AAAwOQ=="
+    }
+  ],
+  "logs": [
+    {
+      "timestamp": "2017-01-26T16:46:31.639875139-05:00",
+      "fields": [
+        {
+          "key": "event",
+          "vType": "int64",
+          "vNum": 123415
+        }
+      ]
+    },
+    {
+      "timestamp": "2017-01-26T16:46:31.639875139-05:00",
+      "fields": [
+        {
+          "key": "x",
+          "vType": "string",
+          "vStr": "y"
+        }
+      ]
+    }
+  ],
+  "process": {
+    "serviceName": "service-x",
+    "tags": [
+      {
+        "key": "peer.ipv4",
+        "vType": "int64",
+        "vNum": 23456
+      },
+      {
+        "key": "error",
+        "vType": "bool",
+        "vNum": 1
+      }
+    ]
+  }
+}

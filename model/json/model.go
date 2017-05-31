@@ -81,6 +81,13 @@ type Span struct {
 	Warnings      []string    `json:"warnings"`
 }
 
+// ESSpan is a span denoting a Span document in Elastic Search
+type ESSpan struct {
+	Span				// nanoseconds for StartTime and Duration
+	Process       Process 	  `json:"process"`
+	ParentSpanID  SpanID	  `json:"parentSpanID"`
+}
+
 // Reference is a reference from one span to another
 type Reference struct {
 	RefType ReferenceType `json:"refType"`

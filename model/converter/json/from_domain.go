@@ -33,6 +33,13 @@ func FromDomain(trace *model.Trace) *json.Trace {
 	return fromDomain{}.fromDomain(trace)
 }
 
+// FromDomainES converts model.Span into json.ESSpan format.
+// This is separate from the FromDomain above, because we do not store
+// Traces in Elastic Search -- only Spans.
+func FromDomainES(span *model.Span) *json.ESSpan {
+	return fromDomain{}.convertESSpan(span)
+}
+
 type fromDomain struct{}
 
 func (fd fromDomain) fromDomain(trace *model.Trace) *json.Trace {
@@ -49,7 +56,7 @@ func (fd fromDomain) fromDomain(trace *model.Trace) *json.Trace {
 	jTrace := &json.Trace{
 		TraceID:   traceID,
 		Spans:     jSpans,
-		Processes: fd.convertProcesses(processes.getMapping()),
+		Processes: fd.convertProcesses(processes.getMapping(), false),
 		Warnings:  trace.Warnings,
 	}
 	return jTrace
@@ -61,23 +68,43 @@ func (fd fromDomain) convertSpan(span *model.Span, processID json.ProcessID) jso
 		SpanID:        json.SpanID(span.SpanID.String()),
 		Flags:         uint32(span.Flags),
 		OperationName: span.OperationName,
-		References:    fd.convertReferences(span),
+		References:    fd.convertReferences(span, false),
 		StartTime:     model.TimeAsEpochMicroseconds(span.StartTime),
 		Duration:      model.DurationAsMicroseconds(span.Duration),
 		Tags:          fd.convertKeyValues(span.Tags),
-		Logs:          fd.convertLogs(span.Logs),
+		Logs:          fd.convertLogs(span.Logs, false),
 		ProcessID:     processID,
 		Warnings:      span.Warnings,
 	}
 }
 
-func (fd fromDomain) convertReferences(span *model.Span) []json.Reference {
+func (fd fromDomain) convertESSpan(span *model.Span) *json.ESSpan {
+	s := &json.Span{
+		TraceID:       json.TraceID(span.TraceID.String()),
+		SpanID:        json.SpanID(span.SpanID.String()),
+		Flags:         uint32(span.Flags),
+		OperationName: span.OperationName,
+		References:    fd.convertReferences(span, true),
+		StartTime:     uint64(span.StartTime.UnixNano()),
+		Duration:      uint64(span.Duration.Nanoseconds()),
+		Tags:          fd.convertESKeyValues(span.Tags),
+		Logs:          fd.convertLogs(span.Logs, true),
+	}
+	esspan := &json.ESSpan{
+		Span: *s,
+		Process: fd.convertProcess(span.Process, true),
+		ParentSpanID: json.SpanID(span.ParentSpanID.String()),
+	}
+	return esspan
+}
+
+func (fd fromDomain) convertReferences(span *model.Span, es bool) []json.Reference {
 	length := len(span.References)
-	if span.ParentSpanID != 0 {
+	if span.ParentSpanID != 0 && !es {
 		length++
 	}
 	out := make([]json.Reference, 0, length)
-	if span.ParentSpanID != 0 {
+	if span.ParentSpanID != 0 && !es {
 		out = append(out, json.Reference{
 			RefType: json.ChildOf,
 			TraceID: json.TraceID(span.TraceID.String()),
@@ -126,29 +153,57 @@ func (fd fromDomain) convertKeyValues(keyValues model.KeyValues) []json.KeyValue
 	return out
 }
 
-func (fd fromDomain) convertLogs(logs []model.Log) []json.Log {
-	out := make([]json.Log, len(logs))
-	for i, log := range logs {
-		out[i] = json.Log{
-			Timestamp: model.TimeAsEpochMicroseconds(log.Timestamp),
-			Fields:    fd.convertKeyValues(log.Fields),
+func (fd fromDomain) convertESKeyValues(keyValues model.KeyValues) []json.KeyValue {
+	out := make([]json.KeyValue, len(keyValues))
+	for i, kv := range keyValues {
+		out[i] = json.KeyValue{
+			Key:   kv.Key,
+			Type:  json.ValueType(kv.VType.String()),
+			Value: kv.AsString(),
 		}
 	}
 	return out
 }
 
-func (fd fromDomain) convertProcesses(processes map[string]*model.Process) map[json.ProcessID]json.Process {
-	out := make(map[json.ProcessID]json.Process)
-	for key, process := range processes {
-		out[json.ProcessID(key)] = fd.convertProcess(process)
+func (fd fromDomain) convertLogs(logs []model.Log, es bool) []json.Log {
+	out := make([]json.Log, len(logs))
+	for i, log := range logs {
+		var fields []json.KeyValue
+		var timestamp uint64
+		if es {
+			fields = fd.convertESKeyValues(log.Fields)
+			timestamp = uint64(log.Timestamp.UnixNano())
+		} else {
+			fields = fd.convertKeyValues(log.Fields)
+			timestamp = model.TimeAsEpochMicroseconds(log.Timestamp)
+		}
+		out[i] = json.Log{
+			Timestamp: timestamp,
+			Fields:    fields,
+		}
 	}
 	return out
 }
 
-func (fd fromDomain) convertProcess(process *model.Process) json.Process {
+func (fd fromDomain) convertProcesses(processes map[string]*model.Process, es bool) map[json.ProcessID]json.Process {
+	out := make(map[json.ProcessID]json.Process)
+	for key, process := range processes {
+		out[json.ProcessID(key)] = fd.convertProcess(process, es)
+	}
+	return out
+}
+
+func (fd fromDomain) convertProcess(process *model.Process, es bool) json.Process {
+	var tags []json.KeyValue
+	if es {
+		tags = fd.convertESKeyValues(process.Tags)
+	} else {
+		tags = fd.convertKeyValues(process.Tags)
+	}
+
 	return json.Process{
 		ServiceName: process.ServiceName,
-		Tags:        fd.convertKeyValues(process.Tags),
+		Tags:        tags,
 	}
 }
 
