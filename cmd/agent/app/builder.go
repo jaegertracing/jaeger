@@ -48,7 +48,7 @@ const (
 	defaultServerWorkers = 10
 	defaultMinPeers      = 3
 
-	defaultSamplingServerHostPort = ":5778"
+	defaultHTTPServerHostPort = ":5778"
 
 	agentServiceName            = "jaeger-agent"
 	defaultCollectorServiceName = "jaeger-collector"
@@ -220,7 +220,7 @@ func (b *Builder) GetProcessors(rep reporter.Reporter, mFactory metrics.Factory)
 func (c HTTPServerConfiguration) GetHTTPServer(svc string, channel *tchannel.Channel, mFactory metrics.Factory) *http.Server {
 	mgr := httpserver.NewCollectorProxy(svc, channel, mFactory)
 	if c.HostPort == "" {
-		c.HostPort = defaultSamplingServerHostPort
+		c.HostPort = defaultHTTPServerHostPort
 	}
 	return httpserver.NewHTTPServer(c.HostPort, mgr, mFactory)
 }
