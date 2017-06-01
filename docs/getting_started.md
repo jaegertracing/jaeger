@@ -7,10 +7,20 @@ This image, designed for quick local testing, launches the Jaeger UI, collector,
 The simplest way to start the all in one docker image is to use the pre-built image published to DockerHub.
 
 ```bash
-docker run -d -p5775:5775/udp -p6831:6831/udp -p6832:6832/udp -p5778:5778 -p16686:16686 jaegertracing/all-in-one:latest
+docker run -d -p5775:5775/udp -p6831:6831/udp -p6832:6832/udp -p5778:5778 -p16686:16686 -p14268:14268 jaegertracing/all-in-one:latest
 ```
 
-You can then navigate to `http://localhost:16686` to access the Jaeger UI. 
+You can then navigate to `http://localhost:16686` to access the Jaeger UI.
+
+Port | Protocol | Function
+---- | -------  | ---
+5775 | UDP      | zipkin.thrift agent using compact thrift protocol
+6831 | UDP      | jaeger.thrift agent using compact thrift protocol
+6832 | UDP      | jaeger.thrift agent using binary thrift protocol
+5778 | HTTP     | sampling service
+16686| HTTP     | web service
+14268| HTTP     | collector port
+
 
 ## Kubernetes and OpenShift
 Kubernetes and OpenShift templates can be found in [Jaegertracing](https://github.com/jaegertracing/) organization on
