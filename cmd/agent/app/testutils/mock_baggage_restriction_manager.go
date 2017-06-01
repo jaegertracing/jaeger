@@ -23,43 +23,34 @@ package testutils
 import (
 	"sync"
 
-	"github.com/uber/jaeger/thrift-gen/sampling"
+	"github.com/uber/jaeger/thrift-gen/baggage"
 )
 
-func newSamplingManager() *samplingManager {
-	return &samplingManager{
-		sampling: make(map[string]*sampling.SamplingStrategyResponse),
+func newBaggageRestrictionManager() *baggageRestrictionManager {
+	return &baggageRestrictionManager{
+		restrictions: make(map[string][]*baggage.BaggageRestriction),
 	}
 }
 
-type samplingManager struct {
+type baggageRestrictionManager struct {
 	sync.Mutex
 
-	sampling map[string]*sampling.SamplingStrategyResponse
+	restrictions map[string][]*baggage.BaggageRestriction
 }
 
-// GetSamplingStrategy implements handler method of sampling.SamplingManager
-func (s *samplingManager) GetSamplingStrategy(
-	serviceName string,
-) (*sampling.SamplingStrategyResponse, error) {
-	s.Lock()
-	defer s.Unlock()
-	if strategy, ok := s.sampling[serviceName]; ok {
-		return strategy, nil
+// GetBaggageRestrictions implements handler method of baggage.BaggageRestrictionManager
+func (m *baggageRestrictionManager) GetBaggageRestrictions(serviceName string) ([]*baggage.BaggageRestriction, error) {
+	m.Lock()
+	defer m.Unlock()
+	if restrictions, ok := m.restrictions[serviceName]; ok {
+		return restrictions, nil
 	}
-	return &sampling.SamplingStrategyResponse{
-		StrategyType: sampling.SamplingStrategyType_PROBABILISTIC,
-		ProbabilisticSampling: &sampling.ProbabilisticSamplingStrategy{
-			SamplingRate: 0.01,
-		}}, nil
+	return nil, nil
 }
 
-// AddSamplingStrategy registers a sampling strategy for a service
-func (s *samplingManager) AddSamplingStrategy(
-	service string,
-	strategy *sampling.SamplingStrategyResponse,
-) {
-	s.Lock()
-	defer s.Unlock()
-	s.sampling[service] = strategy
+// AddBaggageRestrictions registers baggage restrictions for a service
+func (m *baggageRestrictionManager) AddBaggageRestrictions(service string, restrictions []*baggage.BaggageRestriction) {
+	m.Lock()
+	defer m.Unlock()
+	m.restrictions[service] = restrictions
 }

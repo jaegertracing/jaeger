@@ -30,10 +30,12 @@ import (
 	"github.com/uber/tchannel-go"
 	"go.uber.org/zap"
 
+	"github.com/uber/jaeger/cmd/agent/app/httpserver"
 	"github.com/uber/jaeger/cmd/agent/app/processors"
 	"github.com/uber/jaeger/cmd/agent/app/reporter"
+
 	tchreporter "github.com/uber/jaeger/cmd/agent/app/reporter/tchannel"
-	"github.com/uber/jaeger/cmd/agent/app/sampling"
+
 	"github.com/uber/jaeger/cmd/agent/app/servers"
 	"github.com/uber/jaeger/cmd/agent/app/servers/thriftudp"
 	zipkinThrift "github.com/uber/jaeger/thrift-gen/agent"
@@ -72,8 +74,8 @@ var (
 
 // Builder Struct to hold configurations
 type Builder struct {
-	Processors     []ProcessorConfiguration    `yaml:"processors"`
-	SamplingServer SamplingServerConfiguration `yaml:"samplingServer"`
+	Processors []ProcessorConfiguration `yaml:"processors"`
+	HTTPServer HTTPServerConfiguration  `yaml:"httpServer"`
 
 	// These 3 fields are copied from reporter.Builder because yaml does not parse embedded structs
 	CollectorHostPorts   []string `yaml:"collectorHostPorts"`
@@ -120,7 +122,7 @@ func NewBuilder() *Builder {
 				},
 			},
 		},
-		SamplingServer: SamplingServerConfiguration{
+		HTTPServer: HTTPServerConfiguration{
 			HostPort: ":5778",
 		},
 	}
@@ -141,8 +143,8 @@ type ServerConfiguration struct {
 	HostPort      string `yaml:"hostPort" validate:"nonzero"`
 }
 
-// SamplingServerConfiguration holds config for a server providing sampling strategies to clients
-type SamplingServerConfiguration struct {
+// HTTPServerConfiguration holds config for a server providing sampling strategies and baggage restrictions to clients
+type HTTPServerConfiguration struct {
 	HostPort string `yaml:"hostPort" validate:"nonzero"`
 }
 
@@ -180,12 +182,8 @@ func (b *Builder) CreateAgent(mFactory metrics.Factory, logger *zap.Logger) (*Ag
 	if err != nil {
 		return nil, err
 	}
-	samplingServer := b.SamplingServer.GetSamplingServer(
-		b.CollectorServiceName,
-		mainReporter.Channel(),
-		mFactory,
-	)
-	return NewAgent(processors, samplingServer, logger), nil
+	httpServer := b.HTTPServer.GetHTTPServer(b.CollectorServiceName, mainReporter.Channel(), mFactory)
+	return NewAgent(processors, httpServer, nil, logger), nil
 }
 
 // GetProcessors creates Processors with attached Reporter
@@ -218,13 +216,13 @@ func (b *Builder) GetProcessors(rep reporter.Reporter, mFactory metrics.Factory)
 	return retMe, nil
 }
 
-// GetSamplingServer creates an HTTP server that provides sampling strategies to client libraries.
-func (c SamplingServerConfiguration) GetSamplingServer(svc string, channel *tchannel.Channel, mFactory metrics.Factory) *http.Server {
-	samplingMgr := sampling.NewCollectorProxy(svc, channel, mFactory)
+// GetHTTPServer creates an HTTP server that provides sampling strategies and baggage restrictions to client libraries.
+func (c HTTPServerConfiguration) GetHTTPServer(svc string, channel *tchannel.Channel, mFactory metrics.Factory) *http.Server {
+	mgr := httpserver.NewCollectorProxy(svc, channel, mFactory)
 	if c.HostPort == "" {
 		c.HostPort = defaultSamplingServerHostPort
 	}
-	return sampling.NewSamplingServer(c.HostPort, samplingMgr, mFactory)
+	return httpserver.NewHTTPServer(c.HostPort, mgr, mFactory)
 }
 
 // GetThriftProcessor gets a TBufferedServer backed Processor using the collector configuration

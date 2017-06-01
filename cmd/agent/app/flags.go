@@ -57,10 +57,10 @@ func (b *Builder) Bind(flags *flag.FlagSet) {
 		"collector.host-port",
 		"comma-separated string representing host:ports of a static list of collectors to connect to directly (e.g. when not using service discovery)")
 	flags.StringVar(
-		&b.SamplingServer.HostPort,
+		&b.HTTPServer.HostPort,
 		"http-server.host-port",
-		b.SamplingServer.HostPort,
-		"host:port of the http server (e.g. for /sampling point)")
+		b.HTTPServer.HostPort,
+		"host:port of the http server (e.g. for /sampling and /baggage endpoint)")
 	flags.IntVar(
 		&b.DiscoveryMinPeers,
 		"discovery.min-peers",
