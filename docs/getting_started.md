@@ -12,14 +12,14 @@ docker run -d -p5775:5775/udp -p6831:6831/udp -p6832:6832/udp -p5778:5778 -p1668
 
 You can then navigate to `http://localhost:16686` to access the Jaeger UI.
 
-Port | Protocol | Function
----- | -------  | ---
-5775 | UDP      | zipkin.thrift agent using compact thrift protocol
-6831 | UDP      | jaeger.thrift agent using compact thrift protocol
-6832 | UDP      | jaeger.thrift agent using binary thrift protocol
-5778 | HTTP     | sampling service
-16686| HTTP     | web service
-14268| HTTP     | collector port
+Port | Protocol | Component | Function
+---- | -------  | --------- | ---
+5775 | UDP      | agent     | accept zipkin.thrift over compact thrift protocol
+6831 | UDP      | agent     | accept jaeger.thrift over compact thrift protocol
+6832 | UDP      | agent     | accept jaeger.thrift over binary thrift protocol
+5778 | HTTP     | agent     | serve configs
+16686| HTTP     | web       | serve frontend
+14268| HTTP     | collector | accept zipkin.thrift from zipkin senders
 
 
 ## Kubernetes and OpenShift

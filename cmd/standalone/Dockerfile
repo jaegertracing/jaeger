@@ -1,6 +1,6 @@
 FROM scratch
 
-# Agent zipkin.thrift
+# Agent zipkin.thrift compact
 EXPOSE 5775/udp
 
 # Agent jaeger.thrift compact
@@ -9,7 +9,7 @@ EXPOSE 6831/udp
 # Agent jaeger.thrift binary
 EXPOSE 6832/udp
 
-# Sampling processor
+# Agent config HTTP
 EXPOSE 5778
 
 # Collector HTTP
