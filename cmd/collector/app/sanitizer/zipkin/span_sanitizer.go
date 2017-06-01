@@ -82,14 +82,12 @@ type spanDurationSanitizer struct {
 func (s *spanDurationSanitizer) Sanitize(span *zc.Span) *zc.Span {
 	if span.Duration == nil {
 		span.Duration = &defaultDuration
-		s.log.ForSpan(span).Warn("Span did not have duration")
 		return span
 	}
 	duration := *span.Duration
 	if duration >= 0 {
 		return span
 	}
-	s.log.ForSpan(span).Error("Span had negative duration")
 	span.Duration = &defaultDuration
 	annotation := zc.BinaryAnnotation{
 		Key:            negativeDurationTag,
