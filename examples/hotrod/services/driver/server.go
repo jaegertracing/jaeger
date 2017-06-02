@@ -74,7 +74,7 @@ func (s *Server) Run() error {
 	peerInfo := s.ch.PeerInfo()
 	s.logger.Bg().Info("TChannel listening", zap.String("hostPort", peerInfo.HostPort))
 
-	// Run must block, but TChannel's ListenAndServer runs in the background, so block indefinitely
+	// Run must block, but TChannel's ListenAndServe runs in the background, so block indefinitely
 	select {}
 }
 
