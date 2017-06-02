@@ -18,7 +18,7 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 // THE SOFTWARE.
 
-package json_test
+package json
 
 import (
 	"bytes"
@@ -32,8 +32,6 @@ import (
 
 	"github.com/uber/jaeger/model"
 	jModel "github.com/uber/jaeger/model/json"
-
-	. "github.com/uber/jaeger/model/converter/json"
 )
 
 const NumberOfFixtures = 1

@@ -23,14 +23,11 @@ package json
 import (
 	"encoding/hex"
 	"strconv"
-	"errors"
 	"fmt"
 
 	"github.com/uber/jaeger/model"
 	"github.com/uber/jaeger/model/json"
 )
-
-var ErrUnknownKeyValueTypeFromES = errors.New("Unknown tag type found in ES")
 
 // ToDomainES converts model.Span into json.ESSpan format.
 func ToDomainES(span *json.Span) (*model.Span, error) {
@@ -150,29 +147,29 @@ func (td toDomain) revertKeyValueOfType(tag *json.KeyValue, vType model.ValueTyp
 	case model.BoolType:
 		value, err := strconv.ParseBool(tagValue)
 		if err != nil {
-			return model.KeyValue{}, ErrUnknownKeyValueTypeFromES
+			return model.KeyValue{}, err
 		}
 		return model.Bool(tag.Key, value), nil
 	case model.Int64Type:
 		value, err := strconv.ParseInt(tagValue, 10, 64)
 		if err != nil {
-			return model.KeyValue{}, ErrUnknownKeyValueTypeFromES
+			return model.KeyValue{}, err
 		}
 		return model.Int64(tag.Key, value), nil
 	case model.Float64Type:
 		value, err := strconv.ParseFloat(tagValue, 64)
 		if err != nil {
-			return model.KeyValue{}, ErrUnknownKeyValueTypeFromES
+			return model.KeyValue{}, err
 		}
 		return model.Float64(tag.Key, value), nil
 	case model.BinaryType:
 		value, err := hex.DecodeString(tagValue)
 		if err != nil {
-			return model.KeyValue{}, ErrUnknownKeyValueTypeFromES
+			return model.KeyValue{}, err
 		}
 		return model.Binary(tag.Key, value), nil
 	}
-	return model.KeyValue{}, ErrUnknownKeyValueTypeFromES
+	return model.KeyValue{}, fmt.Errorf("not a valid ValueType string %s", vType.String())
 }
 
 func (td toDomain) revertLogs(logs []json.Log) ([]model.Log, error) {
