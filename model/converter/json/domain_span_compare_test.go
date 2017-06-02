@@ -5,6 +5,7 @@ import (
 	"sort"
 
 	"github.com/stretchr/testify/assert"
+
 	"github.com/uber/jaeger/model"
 )
 

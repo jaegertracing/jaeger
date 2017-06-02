@@ -58,7 +58,10 @@ func TestFromDomainES(t *testing.T) {
 		require.NoError(t, json.Unmarshal(inStr, &span))
 		esSpan := FromDomainES(&span)
 
-		testOutput(t, i, outStr, esSpan, true)
+		var expectedSpan jModel.Span
+		require.NoError(t, json.Unmarshal(outStr, &expectedSpan))
+
+		CompareESSpans(t, &expectedSpan, esSpan)
 	}
 }
 

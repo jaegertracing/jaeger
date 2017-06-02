@@ -22,7 +22,6 @@ package json
 
 import (
 	"github.com/uber/jaeger/model"
-
 	"github.com/uber/jaeger/model/json"
 )
 
