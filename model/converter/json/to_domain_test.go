@@ -5,7 +5,6 @@ import (
 	"fmt"
 	"io/ioutil"
 	"encoding/json"
-	"bytes"
 
 	"github.com/stretchr/testify/require"
 	"github.com/stretchr/testify/assert"
@@ -28,16 +27,7 @@ func TestToDomainES(t *testing.T) {
 		var expectedSpan model.Span
 		require.NoError(t, json.Unmarshal(outStr, &expectedSpan))
 
-		buf := &bytes.Buffer{}
-		enc := json.NewEncoder(buf)
-		enc.SetIndent("", "  ")
-		require.NoError(t, enc.Encode(actualSpan))
-		actual := string(buf.Bytes())
-
-		if !assert.Equal(t, string(outStr), actual) {
-			err := ioutil.WriteFile(out+"-actual", buf.Bytes(), 0644)
-			assert.NoError(t, err)
-		}
+		CompareModelSpans(t, &expectedSpan, actualSpan)
 	}
 	// this is just to confirm the uint64 representation of float64(72.5) used as a "temperature" tag
 	assert.Equal(t, int64(4634802150889750528), model.Float64("x", 72.5).VNum)
