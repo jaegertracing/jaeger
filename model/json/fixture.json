@@ -5,9 +5,13 @@
       "traceID": "abc0",
       "spanID": "abc0",
       "operationName": "root-span",
+      "references": null,
       "startTime": 1000,
       "duration": 500,
-      "processID": "p1"
+      "tags": null,
+      "logs": null,
+      "processID": "p1",
+      "warnings": null
     },
     {
       "traceID": "abc0",
@@ -56,7 +60,8 @@
           ]
         }
       ],
-      "processID": "p2"
+      "processID": "p2",
+      "warnings": null
     },
     {
       "traceID": "abc0",
@@ -71,12 +76,16 @@
       ],
       "startTime": 1000,
       "duration": 500,
-      "processID": "p2"
+      "tags": null,
+      "logs": null,
+      "processID": "p2",
+      "warnings": null
     }
   ],
   "processes": {
     "p1": {
-      "serviceName": "service_1"
+      "serviceName": "service_1",
+      "tags": null
     },
     "p2": {
       "serviceName": "service_2",
@@ -88,5 +97,6 @@
         }
       ]
     }
-  }
+  },
+  "warnings": null
 }

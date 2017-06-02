@@ -63,7 +63,7 @@ type Trace struct {
 	TraceID   TraceID               `json:"traceID"`
 	Spans     []Span                `json:"spans"`
 	Processes map[ProcessID]Process `json:"processes"`
-	Warnings  []string              `json:"warnings,omitempty"`
+	Warnings  []string              `json:"warnings"`
 }
 
 // Span is a span denoting a piece of work in some infrastructure
@@ -72,13 +72,13 @@ type Span struct {
 	SpanID        SpanID      `json:"spanID"`
 	Flags         uint32      `json:"flags,omitempty"`
 	OperationName string      `json:"operationName"`
-	References    []Reference `json:"references,omitempty"`
+	References    []Reference `json:"references"`
 	StartTime     uint64      `json:"startTime"` // microseconds since Unix epoch
 	Duration      uint64      `json:"duration"`  // microseconds
-	Tags          []KeyValue  `json:"tags,omitempty"`
-	Logs          []Log       `json:"logs,omitempty"`
+	Tags          []KeyValue  `json:"tags"`
+	Logs          []Log       `json:"logs"`
 	ProcessID     ProcessID   `json:"processID"`
-	Warnings      []string    `json:"warnings,omitempty"`
+	Warnings      []string    `json:"warnings"`
 }
 
 // Reference is a reference from one span to another
@@ -91,13 +91,13 @@ type Reference struct {
 // Process is the process emitting a set of spans
 type Process struct {
 	ServiceName string     `json:"serviceName"`
-	Tags        []KeyValue `json:"tags,omitempty"`
+	Tags        []KeyValue `json:"tags"`
 }
 
 // Log is a log emitted in a span
 type Log struct {
 	Timestamp uint64     `json:"timestamp"`
-	Fields    []KeyValue `json:"fields,omitempty"`
+	Fields    []KeyValue `json:"fields"`
 }
 
 // KeyValue is a a key-value pair with typed value.
