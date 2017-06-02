@@ -16,7 +16,7 @@ func CompareModelSpans(t *testing.T, expected *model.Span, actual *model.Span) {
 	assert.Equal(t, expected.OperationName, actual.OperationName)
 	assert.Equal(t, expected.References, actual.References)
 	assert.Equal(t, expected.Flags, actual.Flags)
-	assert.Equal(t, expected.StartTime, actual.StartTime)
+	assert.Equal(t, expected.StartTime.UnixNano(), actual.StartTime.UnixNano())
 	assert.Equal(t, expected.Duration, actual.Duration)
 	compareModelTags(t, expected.Tags, actual.Tags)
 	compareModelLogs(t, expected.Logs, actual.Logs)
@@ -56,7 +56,7 @@ func compareModelLogs(t *testing.T, expected []model.Log, actual []model.Log) {
 	sort.Sort(LogByTimestamp(actual))
 	assert.Equal(t, len(expected), len(actual))
 	for i := range expected {
-		assert.Equal(t, expected[i].Timestamp, actual[i].Timestamp)
+		assert.Equal(t, expected[i].Timestamp.UnixNano(), actual[i].Timestamp.UnixNano())
 		compareModelTags(t, expected[i].Fields, actual[i].Fields)
 	}
 }
