@@ -34,7 +34,7 @@ func FromDomain(trace *model.Trace) *json.Trace {
 	return fd.fromDomain(trace)
 }
 
-// FromDomainES converts model.Span into json.ESSpan format.
+// FromDomainES converts model.Span into json.Span format.
 // This is separate from the FromDomain above, because we do not store
 // Traces in Elastic Search -- only Spans.
 func FromDomainES(span *model.Span) *json.Span {
@@ -67,7 +67,7 @@ func (fd fromDomain) fromDomain(trace *model.Trace) *json.Trace {
 	return jTrace
 }
 
-func (fd fromDomain) convertBasicSpan(span *model.Span) json.Span {
+func (fd fromDomain) convertSpanInternal(span *model.Span) json.Span {
 	return json.Span{
 		TraceID:       json.TraceID(span.TraceID.String()),
 		SpanID:        json.SpanID(span.SpanID.String()),
@@ -82,7 +82,7 @@ func (fd fromDomain) convertBasicSpan(span *model.Span) json.Span {
 }
 
 func (fd fromDomain) convertSpan(span *model.Span, processID json.ProcessID) json.Span {
-	s := fd.convertBasicSpan(span)
+	s := fd.convertSpanInternal(span)
 	s.ProcessID = processID
 	s.Warnings = span.Warnings
 	s.References = fd.convertReferences(span, false)
@@ -90,7 +90,7 @@ func (fd fromDomain) convertSpan(span *model.Span, processID json.ProcessID) jso
 }
 
 func (fd fromDomain) convertESSpan(span *model.Span) *json.Span {
-	s := fd.convertBasicSpan(span)
+	s := fd.convertSpanInternal(span)
 	s.Process = fd.convertProcess(span.Process)
 	s.ParentSpanID = json.SpanID(span.ParentSpanID.String())
 	s.References = fd.convertReferences(span, true)

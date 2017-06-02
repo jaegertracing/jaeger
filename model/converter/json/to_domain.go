@@ -29,7 +29,7 @@ import (
 	"github.com/uber/jaeger/model/json"
 )
 
-// ToDomainES converts model.Span into json.ESSpan format.
+// ToDomainES converts json.Span into model.Span format for ES.
 func ToDomainES(span *json.Span) (*model.Span, error) {
 	retSpan, err := toDomain{}.revertESSpan(span)
 	if err != nil {
