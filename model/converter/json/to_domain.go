@@ -24,20 +24,16 @@ import (
 	"encoding/hex"
 	"strconv"
 	"errors"
+	"fmt"
 
 	"github.com/uber/jaeger/model"
 	"github.com/uber/jaeger/model/json"
-
-	"fmt"
-	"time"
 )
 
 var ErrUnknownKeyValueTypeFromES = errors.New("Unknown tag type found in ES")
 
-// FromDomainES converts model.Span into json.ESSpan format.
-// This is separate from the FromDomain above, because we do not store
-// Traces in Elastic Search -- only Spans.
-func ToDomainES(span *json.ESSpan) (*model.Span, error) {
+// ToDomainES converts model.Span into json.ESSpan format.
+func ToDomainES(span *json.Span) (*model.Span, error) {
 	retSpan, err := toDomain{}.revertESSpan(span)
 	if err != nil {
 		return nil, err
@@ -47,7 +43,7 @@ func ToDomainES(span *json.ESSpan) (*model.Span, error) {
 
 type toDomain struct{}
 
-func (td toDomain) revertESSpan(dbSpan *json.ESSpan) (*model.Span, error) {
+func (td toDomain) revertESSpan(dbSpan *json.Span) (*model.Span, error) {
 	tags, err := td.revertKeyValues(dbSpan.Tags)
 	if err != nil {
 		return nil, err
@@ -64,7 +60,7 @@ func (td toDomain) revertESSpan(dbSpan *json.ESSpan) (*model.Span, error) {
 	if err != nil {
 		return nil, err
 	}
-	traceID, err := td.TraceIDToDomain(dbSpan.TraceID)
+	traceID, err := model.TraceIDFromString(string(dbSpan.TraceID))
 	if err != nil {
 		return nil, err
 	}
@@ -78,10 +74,6 @@ func (td toDomain) revertESSpan(dbSpan *json.ESSpan) (*model.Span, error) {
 		return nil, err
 	}
 
-	timestamp := int64(dbSpan.StartTime)
-	timeSec := timestamp/(1e9)
-	timeNano := timestamp%(1e9)
-
 	span := &model.Span{
 		TraceID:       traceID,
 		SpanID:        model.SpanID(spanIDInt),
@@ -89,8 +81,8 @@ func (td toDomain) revertESSpan(dbSpan *json.ESSpan) (*model.Span, error) {
 		OperationName: dbSpan.OperationName,
 		References:    refs,
 		Flags:         model.Flags(uint32(dbSpan.Flags)),
-		StartTime:     time.Unix(timeSec, timeNano),
-		Duration:      time.Duration(uint64(dbSpan.Duration)),
+		StartTime:     model.EpochMicrosecondsAsTime(dbSpan.StartTime),
+		Duration:      model.MicrosecondsAsDuration(dbSpan.Duration),
 		Tags:          tags,
 		Logs:          logs,
 		Process:       process,
@@ -111,7 +103,7 @@ func (td toDomain) revertRefs(refs []json.Reference) ([]model.SpanRef, error) {
 			return nil, fmt.Errorf("not a valid SpanRefType string %s", string(r.RefType))
 		}
 
-		traceID, err := td.TraceIDToDomain(r.TraceID)
+		traceID, err := model.TraceIDFromString(string(r.TraceID))
 		if err != nil {
 			return nil, err
 		}
@@ -183,7 +175,6 @@ func (td toDomain) revertKeyValueOfType(tag *json.KeyValue, vType model.ValueTyp
 	return model.KeyValue{}, ErrUnknownKeyValueTypeFromES
 }
 
-
 func (td toDomain) revertLogs(logs []json.Log) ([]model.Log, error) {
 	retMe := make([]model.Log, len(logs))
 	for i, l := range logs {
@@ -191,18 +182,15 @@ func (td toDomain) revertLogs(logs []json.Log) ([]model.Log, error) {
 		if err != nil {
 			return nil, err
 		}
-		timestamp := l.Timestamp
-		timeSec := timestamp/(1e9)
-		timeNano := timestamp%(1e9)
 		retMe[i] = model.Log{
-			Timestamp: time.Unix(int64(timeSec), int64(timeNano)),
+			Timestamp: model.EpochMicrosecondsAsTime(l.Timestamp),
 			Fields:    fields,
 		}
 	}
 	return retMe, nil
 }
 
-func (td toDomain) revertProcess(process json.Process) (*model.Process, error) {
+func (td toDomain) revertProcess(process *json.Process) (*model.Process, error) {
 	tags, err := td.revertKeyValues(process.Tags)
 	if err != nil {
 		return nil, err
@@ -211,9 +199,4 @@ func (td toDomain) revertProcess(process json.Process) (*model.Process, error) {
 		Tags:        tags,
 		ServiceName: process.ServiceName,
 	}, nil
-}
-
-func (fd toDomain) TraceIDToDomain(dbTraceID json.TraceID) (model.TraceID, error) {
-	traceIDstr, err := model.TraceIDFromString(string(dbTraceID))
-	return traceIDstr, err
 }

@@ -1,6 +1,7 @@
 {
   "traceID": "1",
   "spanID": "2",
+  "parentSpanID": "3",
   "flags": 1,
   "operationName": "test-general-conversion",
   "references": [
@@ -20,8 +21,8 @@
       "spanID": "2"
     }
   ],
-  "startTime": 1485467191639875139,
-  "duration": 5000,
+  "startTime": 1485467191639875,
+  "duration": 5,
   "tags": [
     {
       "key": "peer.service",
@@ -51,7 +52,7 @@
   ],
   "logs": [
     {
-      "timestamp": 1485467191639875139,
+      "timestamp": 1485467191639875,
       "fields": [
         {
           "key": "event",
@@ -61,7 +62,7 @@
       ]
     },
     {
-      "timestamp": 1485467191639875139,
+      "timestamp": 1485467191639875,
       "fields": [
         {
           "key": "x",
@@ -85,6 +86,5 @@
         "value": "true"
       }
     ]
-  },
-  "parentSpanID": "3"
+  }
 }

@@ -67,9 +67,14 @@ type Trace struct {
 }
 
 // Span is a span denoting a piece of work in some infrastructure
+// When converting to UI model, ParentSpanID and Process should be dereferenced into
+// References and ProcessID, respectively.
+// When converting to ES model, ProcessID and Warnings should be omitted. Even if
+// included, ES with dynamic settings off will automatically ignore unneeded fields.
 type Span struct {
 	TraceID       TraceID     `json:"traceID"`
 	SpanID        SpanID      `json:"spanID"`
+	ParentSpanID  SpanID	  `json:"parentSpanID,omitempty"`
 	Flags         uint32      `json:"flags,omitempty"`
 	OperationName string      `json:"operationName"`
 	References    []Reference `json:"references"`
@@ -82,11 +87,11 @@ type Span struct {
 }
 
 // ESSpan is a span denoting a Span document in Elastic Search
-type ESSpan struct {
-	Span				// nanoseconds for StartTime and Duration
-	Process       Process 	  `json:"process"`
-	ParentSpanID  SpanID	  `json:"parentSpanID"`
-}
+//type ESSpan struct {
+//	Span				// nanoseconds for StartTime and Duration
+//	Process       Process 	  `json:"process"`
+//	ParentSpanID  SpanID	  `json:"parentSpanID"`
+//}
 
 // Reference is a reference from one span to another
 type Reference struct {
