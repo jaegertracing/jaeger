@@ -83,7 +83,7 @@ type Span struct {
 	Tags          []KeyValue  `json:"tags"`
 	Logs          []Log       `json:"logs"`
 	ProcessID     ProcessID   `json:"processID"`
-	Process	      Process 	  `json:"process"`
+	Process	      *Process 	  `json:"process,omitempty"`
 	Warnings      []string    `json:"warnings"`
 }
 
