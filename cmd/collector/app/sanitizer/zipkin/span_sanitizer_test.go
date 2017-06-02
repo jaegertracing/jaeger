@@ -46,7 +46,7 @@ func TestChainedSanitizer(t *testing.T) {
 }
 
 func TestSpanDurationSanitizer(t *testing.T) {
-	logger, log := testutils.NewLogger()
+	logger, _ := testutils.NewLogger()
 
 	sanitizer := NewSpanDurationSanitizer(logger)
 
@@ -55,22 +55,19 @@ func TestSpanDurationSanitizer(t *testing.T) {
 	assert.Equal(t, positiveDuration, *actual.Duration)
 	assert.Len(t, actual.BinaryAnnotations, 1)
 	assert.Equal(t, "-1", string(actual.BinaryAnnotations[0].Value))
-	assert.NotEmpty(t, log.Bytes())
 
-	logger, log = testutils.NewLogger()
+	logger, _ = testutils.NewLogger()
 	sanitizer = NewSpanDurationSanitizer(logger)
 	span = &zipkincore.Span{Duration: &positiveDuration}
 	actual = sanitizer.Sanitize(span)
 	assert.Equal(t, positiveDuration, *actual.Duration)
 	assert.Len(t, actual.BinaryAnnotations, 0)
-	assert.Empty(t, log.Bytes())
 
-	logger, log = testutils.NewLogger()
+	logger, _ = testutils.NewLogger()
 	sanitizer = NewSpanDurationSanitizer(logger)
 	nilDurationSpan := &zipkincore.Span{}
 	actual = sanitizer.Sanitize(nilDurationSpan)
 	assert.Equal(t, int64(1), *actual.Duration)
-	assert.NotEmpty(t, log.Bytes())
 }
 
 func TestSpanParentIDSanitizer(t *testing.T) {
