@@ -5,8 +5,10 @@
       "traceID": "1",
       "spanID": "2",
       "operationName": "test-general-conversion",
+      "references": [],
       "startTime": 1485467191639875,
       "duration": 5,
+      "tags": [],
       "logs": [
         {
           "timestamp": 1485467191639875,
@@ -29,12 +31,14 @@
           ]
         }
       ],
-      "processID": "p1"
+      "processID": "p1",
+      "warnings": null
     },
     {
       "traceID": "1",
       "spanID": "2",
       "operationName": "some-operation",
+      "references": [],
       "startTime": 1485467191639875,
       "duration": 5,
       "tags": [
@@ -64,7 +68,9 @@
           "value": "AAAwOQ=="
         }
       ],
-      "processID": "p1"
+      "logs": [],
+      "processID": "p1",
+      "warnings": null
     },
     {
       "traceID": "1",
@@ -79,7 +85,10 @@
       ],
       "startTime": 1485467191639875,
       "duration": 5,
-      "processID": "p2"
+      "tags": [],
+      "logs": [],
+      "processID": "p2",
+      "warnings": null
     },
     {
       "traceID": "1",
@@ -104,6 +113,8 @@
       ],
       "startTime": 1485467191639875,
       "duration": 5,
+      "tags": [],
+      "logs": [],
       "processID": "p2",
       "warnings": [
         "some span warning"
@@ -112,10 +123,12 @@
   ],
   "processes": {
     "p1": {
-      "serviceName": "service-x"
+      "serviceName": "service-x",
+      "tags": []
     },
     "p2": {
-      "serviceName": "service-y"
+      "serviceName": "service-y",
+      "tags": []
     }
   },
   "warnings": [

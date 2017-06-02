@@ -46,7 +46,10 @@ func TestModel(t *testing.T) {
 	err = encoder.Encode(&trace)
 	require.NoError(t, err)
 
-	assert.Equal(t, string(in), string(out.Bytes()))
+	if !assert.Equal(t, string(in), string(out.Bytes())) {
+		err := ioutil.WriteFile("fixture-actual.json", out.Bytes(), 0644)
+		assert.NoError(t, err)
+	}
 }
 
 func TestFromFileErrors(t *testing.T) {
