@@ -38,6 +38,10 @@ import (
 	"github.com/uber/jaeger/pkg/recoveryhandler"
 )
 
+const (
+	dependenciesTable = "dependencies"
+)
+
 func main() {
 	casOptions := casFlags.NewOptions()
 	casOptions.Bind(flag.CommandLine, "cassandra", "cassandra.archive")
@@ -58,7 +62,7 @@ func main() {
 	if err != nil {
 		logger.Fatal("Failed to get span reader", zap.Error(err))
 	}
-	dependencyReader, err := storageBuild.NewDependencyReader()
+	dependencyReader, err := storageBuild.NewDependencyReader(dependenciesTable)
 	if err != nil {
 		logger.Fatal("Failed to get dependency reader", zap.Error(err))
 	}

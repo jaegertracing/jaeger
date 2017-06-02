@@ -51,11 +51,12 @@ func TestNewCassandraBuild(t *testing.T) {
 
 func TestNewReaderFailures(t *testing.T) {
 	withBuilder(func(cBuilder *cassandraBuilder) {
+		tableName := "dependencies"
 		cBuilder.configuration.Servers = []string{"invalidhostname"}
 		spanReader, err := cBuilder.NewSpanReader()
 		assert.Error(t, err)
 		assert.Nil(t, spanReader)
-		depReader, err := cBuilder.NewDependencyReader()
+		depReader, err := cBuilder.NewDependencyReader(tableName)
 		assert.Error(t, err)
 		assert.Nil(t, depReader)
 	})
@@ -63,12 +64,13 @@ func TestNewReaderFailures(t *testing.T) {
 
 func TestNewReaderSuccesses(t *testing.T) {
 	withBuilder(func(cBuilder *cassandraBuilder) {
+		tableName := "dependencies"
 		mockSession := mocks.Session{}
 		cBuilder.session = &mockSession
 		spanReader, err := cBuilder.NewSpanReader()
 		assert.NoError(t, err)
 		assert.NotNil(t, spanReader)
-		depReader, err := cBuilder.NewDependencyReader()
+		depReader, err := cBuilder.NewDependencyReader(tableName)
 		assert.NoError(t, err)
 		assert.NotNil(t, depReader)
 	})

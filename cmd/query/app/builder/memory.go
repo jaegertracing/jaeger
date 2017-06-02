@@ -40,6 +40,6 @@ func (c *memoryStoreBuilder) NewSpanReader() (spanstore.Reader, error) {
 	return c.memStore, nil
 }
 
-func (c *memoryStoreBuilder) NewDependencyReader() (dependencystore.Reader, error) {
+func (c *memoryStoreBuilder) NewDependencyReader(tableName string) (dependencystore.Reader, error) {
 	return c.memStore, nil
 }

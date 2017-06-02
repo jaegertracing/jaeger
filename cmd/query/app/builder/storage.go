@@ -33,7 +33,7 @@ import (
 // StorageBuilder is the interface that provides the necessary store readers
 type StorageBuilder interface {
 	NewSpanReader() (spanstore.Reader, error)
-	NewDependencyReader() (dependencystore.Reader, error)
+	NewDependencyReader(tableName string) (dependencystore.Reader, error)
 }
 
 var (

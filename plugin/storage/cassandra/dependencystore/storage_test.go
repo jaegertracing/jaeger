@@ -38,6 +38,10 @@ import (
 	"github.com/uber/jaeger/storage/dependencystore"
 )
 
+const (
+	tableName = "dependencies"
+)
+
 type depStorageTest struct {
 	session   *mocks.Session
 	logger    *zap.Logger
@@ -54,7 +58,7 @@ func withDepStore(fn func(s *depStorageTest)) {
 		session:   session,
 		logger:    logger,
 		logBuffer: logBuffer,
-		storage:   NewDependencyStore(session, 24*time.Hour, metricsFactory, logger),
+		storage:   NewDependencyStore(session, 24*time.Hour, metricsFactory, logger, tableName),
 	}
 	fn(s)
 }
@@ -92,18 +96,23 @@ func TestDependencyStoreWrite(t *testing.T) {
 		err := s.storage.WriteDependencies(ts, dependencies)
 		assert.NoError(t, err)
 
-		assert.Len(t, args, 3)
-		if d, ok := args[0].(time.Time); ok {
-			assert.Equal(t, ts, d)
+		assert.Len(t, args, 4)
+		if d, ok := args[0].(string); ok {
+			assert.Equal(t, d, "dependencies")
 		} else {
-			assert.Fail(t, "expecting first arg as time.Time", "received: %+v", args)
+			assert.Fail(t, "expecting first arg as table name 'dependencies'", args)
 		}
 		if d, ok := args[1].(time.Time); ok {
 			assert.Equal(t, ts, d)
 		} else {
 			assert.Fail(t, "expecting second arg as time.Time", "received: %+v", args)
 		}
-		if d, ok := args[2].([]Dependency); ok {
+		if d, ok := args[2].(time.Time); ok {
+			assert.Equal(t, ts, d)
+		} else {
+			assert.Fail(t, "expecting third arg as time.Time", "received: %+v", args)
+		}
+		if d, ok := args[3].([]Dependency); ok {
 			assert.Equal(t, []Dependency{
 				{
 					Parent:    "a",
@@ -112,7 +121,7 @@ func TestDependencyStoreWrite(t *testing.T) {
 				},
 			}, d)
 		} else {
-			assert.Fail(t, "expecting third arg as []Dependency", "received: %+v", args)
+			assert.Fail(t, "expecting fourth arg as []Dependency", "received: %+v", args)
 		}
 	})
 }
