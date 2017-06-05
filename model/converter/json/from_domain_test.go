@@ -61,7 +61,7 @@ func TestFromDomainEmbedProcess(t *testing.T) {
 		var expectedSpan jModel.Span
 		require.NoError(t, json.Unmarshal(outStr, &expectedSpan))
 
-		CompareJsonSpans(t, &expectedSpan, esSpan)
+		CompareJSONSpans(t, &expectedSpan, esSpan)
 	}
 }
 

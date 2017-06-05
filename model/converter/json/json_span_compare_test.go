@@ -29,7 +29,7 @@ import (
 	"github.com/uber/jaeger/model/json"
 )
 
-func CompareJsonSpans(t *testing.T, expected *json.Span, actual *json.Span) {
+func CompareJSONSpans(t *testing.T, expected *json.Span, actual *json.Span) {
 	assert.Equal(t, expected.TraceID, actual.TraceID)
 	assert.Equal(t, expected.SpanID, actual.SpanID)
 	assert.Equal(t, expected.OperationName, actual.OperationName)
@@ -37,20 +37,20 @@ func CompareJsonSpans(t *testing.T, expected *json.Span, actual *json.Span) {
 	assert.Equal(t, expected.Flags, actual.Flags)
 	assert.Equal(t, expected.StartTime, actual.StartTime)
 	assert.Equal(t, expected.Duration, actual.Duration)
-	compareJsonTags(t, expected.Tags, actual.Tags)
-	compareJsonLogs(t, expected.Logs, actual.Logs)
-	compareJsonProcess(t, expected.Process, actual.Process)
+	compareJSONTags(t, expected.Tags, actual.Tags)
+	compareJSONLogs(t, expected.Logs, actual.Logs)
+	compareJSONProcess(t, expected.Process, actual.Process)
 }
 
-type JsonTagByKey []json.KeyValue
+type JSONTagByKey []json.KeyValue
 
-func (t JsonTagByKey) Len() int           { return len(t) }
-func (t JsonTagByKey) Swap(i, j int)      { t[i], t[j] = t[j], t[i] }
-func (t JsonTagByKey) Less(i, j int) bool { return t[i].Key < t[j].Key }
+func (t JSONTagByKey) Len() int           { return len(t) }
+func (t JSONTagByKey) Swap(i, j int)      { t[i], t[j] = t[j], t[i] }
+func (t JSONTagByKey) Less(i, j int) bool { return t[i].Key < t[j].Key }
 
-func compareJsonTags(t *testing.T, expected []json.KeyValue, actual []json.KeyValue) {
-	sort.Sort(JsonTagByKey(expected))
-	sort.Sort(JsonTagByKey(actual))
+func compareJSONTags(t *testing.T, expected []json.KeyValue, actual []json.KeyValue) {
+	sort.Sort(JSONTagByKey(expected))
+	sort.Sort(JSONTagByKey(actual))
 	assert.Equal(t, expected, actual)
 	assert.Equal(t, len(expected), len(actual))
 	for i := range expected {
@@ -60,24 +60,24 @@ func compareJsonTags(t *testing.T, expected []json.KeyValue, actual []json.KeyVa
 	}
 }
 
-type JsonLogByTimestamp []json.Log
+type JSONLogByTimestamp []json.Log
 
-func (t JsonLogByTimestamp) Len() int           { return len(t) }
-func (t JsonLogByTimestamp) Swap(i, j int)      { t[i], t[j] = t[j], t[i] }
-func (t JsonLogByTimestamp) Less(i, j int) bool { return t[i].Timestamp < t[j].Timestamp }
+func (t JSONLogByTimestamp) Len() int           { return len(t) }
+func (t JSONLogByTimestamp) Swap(i, j int)      { t[i], t[j] = t[j], t[i] }
+func (t JSONLogByTimestamp) Less(i, j int) bool { return t[i].Timestamp < t[j].Timestamp }
 
 // this function exists solely to make it easier for developer to find out where the difference is
-func compareJsonLogs(t *testing.T, expected []json.Log, actual []json.Log) {
-	sort.Sort(JsonLogByTimestamp(expected))
-	sort.Sort(JsonLogByTimestamp(actual))
+func compareJSONLogs(t *testing.T, expected []json.Log, actual []json.Log) {
+	sort.Sort(JSONLogByTimestamp(expected))
+	sort.Sort(JSONLogByTimestamp(actual))
 	assert.Equal(t, len(expected), len(actual))
 	for i := range expected {
 		assert.Equal(t, expected[i].Timestamp, actual[i].Timestamp)
-		compareJsonTags(t, expected[i].Fields, actual[i].Fields)
+		compareJSONTags(t, expected[i].Fields, actual[i].Fields)
 	}
 }
 
-func compareJsonProcess(t *testing.T, expected *json.Process, actual *json.Process) {
+func compareJSONProcess(t *testing.T, expected *json.Process, actual *json.Process) {
 	assert.Equal(t, expected.ServiceName, actual.ServiceName)
-	compareJsonTags(t, expected.Tags, actual.Tags)
+	compareJSONTags(t, expected.Tags, actual.Tags)
 }
