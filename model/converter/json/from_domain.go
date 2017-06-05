@@ -72,11 +72,10 @@ func (fd fromDomain) convertSpanInternal(span *model.Span) json.Span {
 		SpanID:        json.SpanID(span.SpanID.String()),
 		Flags:         uint32(span.Flags),
 		OperationName: span.OperationName,
-
-		StartTime: model.TimeAsEpochMicroseconds(span.StartTime),
-		Duration:  model.DurationAsMicroseconds(span.Duration),
-		Tags:      fd.convertKeyValuesFunc(span.Tags),
-		Logs:      fd.convertLogs(span.Logs),
+		StartTime:     model.TimeAsEpochMicroseconds(span.StartTime),
+		Duration:      model.DurationAsMicroseconds(span.Duration),
+		Tags:          fd.convertKeyValuesFunc(span.Tags),
+		Logs:          fd.convertLogs(span.Logs),
 	}
 }
 
@@ -90,19 +89,21 @@ func (fd fromDomain) convertSpan(span *model.Span, processID json.ProcessID) jso
 
 func (fd fromDomain) convertSpanEmbedProcess(span *model.Span) *json.Span {
 	s := fd.convertSpanInternal(span)
-	s.Process = fd.convertProcess(span.Process)
+	process := fd.convertProcess(span.Process)
+	s.Process = &process
 	s.ParentSpanID = json.SpanID(span.ParentSpanID.String())
 	s.References = fd.convertReferences(span, true)
 	return &s
 }
 
-func (fd fromDomain) convertReferences(span *model.Span, es bool) []json.Reference {
+// when preserveParentID==false the parent ID is converted to a CHILD_OF reference
+func (fd fromDomain) convertReferences(span *model.Span, preserveParentID bool) []json.Reference {
 	length := len(span.References)
-	if span.ParentSpanID != 0 && !es {
+	if span.ParentSpanID != 0 && !preserveParentID {
 		length++
 	}
 	out := make([]json.Reference, 0, length)
-	if span.ParentSpanID != 0 && !es {
+	if span.ParentSpanID != 0 && !preserveParentID {
 		out = append(out, json.Reference{
 			RefType: json.ChildOf,
 			TraceID: json.TraceID(span.TraceID.String()),
@@ -177,13 +178,13 @@ func (fd fromDomain) convertLogs(logs []model.Log) []json.Log {
 func (fd fromDomain) convertProcesses(processes map[string]*model.Process) map[json.ProcessID]json.Process {
 	out := make(map[json.ProcessID]json.Process)
 	for key, process := range processes {
-		out[json.ProcessID(key)] = *fd.convertProcess(process)
+		out[json.ProcessID(key)] = fd.convertProcess(process)
 	}
 	return out
 }
 
-func (fd fromDomain) convertProcess(process *model.Process) *json.Process {
-	return &json.Process{
+func (fd fromDomain) convertProcess(process *model.Process) json.Process {
+	return json.Process{
 		ServiceName: process.ServiceName,
 		Tags:        fd.convertKeyValuesFunc(process.Tags),
 	}

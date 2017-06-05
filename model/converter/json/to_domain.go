@@ -29,27 +29,27 @@ import (
 	"github.com/uber/jaeger/model/json"
 )
 
-// ToDomainEmbeddedProcess converts json.Span with embedded Process into model.Span format.
-func ToDomainEmbeddedProcess(span *json.Span) (*model.Span, error) {
-	return toDomain{}.revertSpanEmbeddedProcess(span)
+// SpanToDomain converts json.Span with embedded Process into model.Span format.
+func SpanToDomain(span *json.Span) (*model.Span, error) {
+	return toDomain{}.spanToDomain(span)
 }
 
 type toDomain struct{}
 
-func (td toDomain) revertSpanEmbeddedProcess(dbSpan *json.Span) (*model.Span, error) {
-	tags, err := td.revertKeyValues(dbSpan.Tags)
+func (td toDomain) spanToDomain(dbSpan *json.Span) (*model.Span, error) {
+	tags, err := td.convertKeyValues(dbSpan.Tags)
 	if err != nil {
 		return nil, err
 	}
-	logs, err := td.revertLogs(dbSpan.Logs)
+	logs, err := td.convertLogs(dbSpan.Logs)
 	if err != nil {
 		return nil, err
 	}
-	refs, err := td.revertRefs(dbSpan.References)
+	refs, err := td.convertRefs(dbSpan.References)
 	if err != nil {
 		return nil, err
 	}
-	process, err := td.revertProcess(dbSpan.Process)
+	process, err := td.convertProcess(dbSpan.Process)
 	if err != nil {
 		return nil, err
 	}
@@ -83,7 +83,7 @@ func (td toDomain) revertSpanEmbeddedProcess(dbSpan *json.Span) (*model.Span, er
 	return span, nil
 }
 
-func (td toDomain) revertRefs(refs []json.Reference) ([]model.SpanRef, error) {
+func (td toDomain) convertRefs(refs []json.Reference) ([]model.SpanRef, error) {
 	retMe := make([]model.SpanRef, len(refs))
 	for i, r := range refs {
 		// There are some inconsistencies with ReferenceTypes, hence the hacky fix.
@@ -115,10 +115,10 @@ func (td toDomain) revertRefs(refs []json.Reference) ([]model.SpanRef, error) {
 	return retMe, nil
 }
 
-func (td toDomain) revertKeyValues(tags []json.KeyValue) ([]model.KeyValue, error) {
+func (td toDomain) convertKeyValues(tags []json.KeyValue) ([]model.KeyValue, error) {
 	retMe := make([]model.KeyValue, len(tags))
 	for i := range tags {
-		kv, err := td.revertKeyValue(&tags[i])
+		kv, err := td.convertKeyValue(&tags[i])
 		if err != nil {
 			return nil, err
 		}
@@ -127,15 +127,15 @@ func (td toDomain) revertKeyValues(tags []json.KeyValue) ([]model.KeyValue, erro
 	return retMe, nil
 }
 
-func (td toDomain) revertKeyValue(tag *json.KeyValue) (model.KeyValue, error) {
+func (td toDomain) convertKeyValue(tag *json.KeyValue) (model.KeyValue, error) {
 	vType, err := model.ValueTypeFromString(string(tag.Type))
 	if err != nil {
 		return model.KeyValue{}, err
 	}
-	return td.revertKeyValueOfType(tag, vType)
+	return td.convertKeyValueOfType(tag, vType)
 }
 
-func (td toDomain) revertKeyValueOfType(tag *json.KeyValue, vType model.ValueType) (model.KeyValue, error) {
+func (td toDomain) convertKeyValueOfType(tag *json.KeyValue, vType model.ValueType) (model.KeyValue, error) {
 	tagValue := tag.Value.(string)
 	switch vType {
 	case model.StringType:
@@ -168,10 +168,10 @@ func (td toDomain) revertKeyValueOfType(tag *json.KeyValue, vType model.ValueTyp
 	return model.KeyValue{}, fmt.Errorf("not a valid ValueType string %s", vType.String())
 }
 
-func (td toDomain) revertLogs(logs []json.Log) ([]model.Log, error) {
+func (td toDomain) convertLogs(logs []json.Log) ([]model.Log, error) {
 	retMe := make([]model.Log, len(logs))
 	for i, l := range logs {
-		fields, err := td.revertKeyValues(l.Fields)
+		fields, err := td.convertKeyValues(l.Fields)
 		if err != nil {
 			return nil, err
 		}
@@ -183,8 +183,8 @@ func (td toDomain) revertLogs(logs []json.Log) ([]model.Log, error) {
 	return retMe, nil
 }
 
-func (td toDomain) revertProcess(process *json.Process) (*model.Process, error) {
-	tags, err := td.revertKeyValues(process.Tags)
+func (td toDomain) convertProcess(process *json.Process) (*model.Process, error) {
+	tags, err := td.convertKeyValues(process.Tags)
 	if err != nil {
 		return nil, err
 	}

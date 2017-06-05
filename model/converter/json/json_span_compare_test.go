@@ -30,6 +30,7 @@ import (
 )
 
 func CompareJSONSpans(t *testing.T, expected *json.Span, actual *json.Span) {
+	// TODO: Don't manually enumerate, because if we add a new field, this test would still pass.
 	assert.Equal(t, expected.TraceID, actual.TraceID)
 	assert.Equal(t, expected.SpanID, actual.SpanID)
 	assert.Equal(t, expected.OperationName, actual.OperationName)

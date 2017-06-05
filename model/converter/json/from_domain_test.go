@@ -56,18 +56,18 @@ func TestFromDomainEmbedProcess(t *testing.T) {
 
 		var span model.Span
 		require.NoError(t, json.Unmarshal(inStr, &span))
-		esSpan := FromDomainEmbedProcess(&span)
+		embeddedSpan := FromDomainEmbedProcess(&span)
 
 		var expectedSpan jModel.Span
 		require.NoError(t, json.Unmarshal(outStr, &expectedSpan))
 
-		CompareJSONSpans(t, &expectedSpan, esSpan)
+		CompareJSONSpans(t, &expectedSpan, embeddedSpan)
 	}
 }
 
-func testReadFixtures(t *testing.T, i int, es bool) ([]byte, []byte) {
+func testReadFixtures(t *testing.T, i int, processEmbedded bool) ([]byte, []byte) {
 	var in string
-	if es {
+	if processEmbedded {
 		in = fmt.Sprintf("fixtures/domain_es_%02d.json", i)
 	} else {
 		in = fmt.Sprintf("fixtures/domain_%02d.json", i)
@@ -75,7 +75,7 @@ func testReadFixtures(t *testing.T, i int, es bool) ([]byte, []byte) {
 	inStr, err := ioutil.ReadFile(in)
 	require.NoError(t, err)
 	var out string
-	if es {
+	if processEmbedded {
 		out = fmt.Sprintf("fixtures/es_%02d.json", i)
 	} else {
 		out = fmt.Sprintf("fixtures/ui_%02d.json", i)
@@ -85,13 +85,13 @@ func testReadFixtures(t *testing.T, i int, es bool) ([]byte, []byte) {
 	return inStr, outStr
 }
 
-func testOutput(t *testing.T, i int, outStr []byte, object interface{}, es bool) {
+func testOutput(t *testing.T, i int, outStr []byte, object interface{}, processEmbedded bool) {
 	buf := &bytes.Buffer{}
 	enc := json.NewEncoder(buf)
 	enc.SetIndent("", "  ")
 
 	var outFile string
-	if es {
+	if processEmbedded {
 		outFile = fmt.Sprintf("fixtures/es_%02d", i)
 		require.NoError(t, enc.Encode(object.(*jModel.Span)))
 	} else {

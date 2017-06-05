@@ -30,6 +30,7 @@ import (
 )
 
 func CompareModelSpans(t *testing.T, expected *model.Span, actual *model.Span) {
+	// TODO: Don't manually enumerate, because if we add a new field, this test would still pass.
 	assert.Equal(t, expected.TraceID.Low, actual.TraceID.Low)
 	assert.Equal(t, expected.TraceID.High, actual.TraceID.High)
 	assert.Equal(t, expected.SpanID, actual.SpanID)

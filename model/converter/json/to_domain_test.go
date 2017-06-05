@@ -38,7 +38,7 @@ func TestToDomainEmbeddedProcess(t *testing.T) {
 		span, err := createGoodSpan(i)
 		require.NoError(t, err)
 
-		actualSpan, err := ToDomainEmbeddedProcess(&span)
+		actualSpan, err := SpanToDomain(&span)
 		require.NoError(t, err)
 
 		out := fmt.Sprintf("fixtures/domain_es_%02d.json", i)
@@ -64,14 +64,14 @@ func createGoodSpan(i int) (jModel.Span, error) {
 	return span, err
 }
 
-func failingSpanTransform(t *testing.T, esSpan *jModel.Span, errMsg string) {
-	domainSpan, err := ToDomainEmbeddedProcess(esSpan)
+func failingSpanTransform(t *testing.T, embeddedSpan *jModel.Span, errMsg string) {
+	domainSpan, err := SpanToDomain(embeddedSpan)
 	assert.Nil(t, domainSpan)
 	assert.EqualError(t, err, errMsg)
 }
 
-func failingSpanTransformAnyMsg(t *testing.T, esSpan *jModel.Span) {
-	domainSpan, err := ToDomainEmbeddedProcess(esSpan)
+func failingSpanTransformAnyMsg(t *testing.T, embeddedSpan *jModel.Span) {
+	domainSpan, err := SpanToDomain(embeddedSpan)
 	assert.Nil(t, domainSpan)
 	assert.Error(t, err)
 }
@@ -169,7 +169,7 @@ func TestRevertKeyValueOfType(t *testing.T) {
 		Type:  "badType",
 		Value: "someString",
 	}
-	_, err := td.revertKeyValueOfType(tag, model.ValueType(7))
+	_, err := td.convertKeyValueOfType(tag, model.ValueType(7))
 	assert.EqualError(t, err, "not a valid ValueType string <invalid>")
 }
 
