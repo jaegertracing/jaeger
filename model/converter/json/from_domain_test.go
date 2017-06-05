@@ -65,7 +65,7 @@ func TestFromDomainES(t *testing.T) {
 	}
 }
 
-func testReadFixtures(t *testing.T, i int, es bool) ([]byte, []byte){
+func testReadFixtures(t *testing.T, i int, es bool) ([]byte, []byte) {
 	var in string
 	if es {
 		in = fmt.Sprintf("fixtures/domain_es_%02d.json", i)

@@ -22,20 +22,16 @@ package json
 
 import (
 	"encoding/hex"
-	"strconv"
 	"fmt"
+	"strconv"
 
 	"github.com/uber/jaeger/model"
 	"github.com/uber/jaeger/model/json"
 )
 
-// ToDomainES converts json.Span into model.Span format for ES.
+// ToDomainES converts ES json.Span into model.Span format.
 func ToDomainES(span *json.Span) (*model.Span, error) {
-	retSpan, err := toDomain{}.revertESSpan(span)
-	if err != nil {
-		return nil, err
-	}
-	return retSpan, nil
+	return toDomain{}.revertESSpan(span)
 }
 
 type toDomain struct{}

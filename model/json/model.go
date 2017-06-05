@@ -74,7 +74,7 @@ type Trace struct {
 type Span struct {
 	TraceID       TraceID     `json:"traceID"`
 	SpanID        SpanID      `json:"spanID"`
-	ParentSpanID  SpanID	  `json:"parentSpanID,omitempty"`
+	ParentSpanID  SpanID      `json:"parentSpanID,omitempty"`
 	Flags         uint32      `json:"flags,omitempty"`
 	OperationName string      `json:"operationName"`
 	References    []Reference `json:"references"`
@@ -83,7 +83,7 @@ type Span struct {
 	Tags          []KeyValue  `json:"tags"`
 	Logs          []Log       `json:"logs"`
 	ProcessID     ProcessID   `json:"processID"`
-	Process	      *Process 	  `json:"process,omitempty"`
+	Process       *Process    `json:"process,omitempty"`
 	Warnings      []string    `json:"warnings"`
 }
 

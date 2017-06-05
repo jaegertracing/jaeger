@@ -43,8 +43,8 @@ func FromDomainES(span *model.Span) *json.Span {
 	return fd.convertESSpan(span)
 }
 
-type fromDomain struct{
-	convertKeyValuesFunc func (keyValues model.KeyValues) []json.KeyValue
+type fromDomain struct {
+	convertKeyValuesFunc func(keyValues model.KeyValues) []json.KeyValue
 }
 
 func (fd fromDomain) fromDomain(trace *model.Trace) *json.Trace {
@@ -74,10 +74,10 @@ func (fd fromDomain) convertSpanInternal(span *model.Span) json.Span {
 		Flags:         uint32(span.Flags),
 		OperationName: span.OperationName,
 
-		StartTime:     model.TimeAsEpochMicroseconds(span.StartTime),
-		Duration:      model.DurationAsMicroseconds(span.Duration),
-		Tags:          fd.convertKeyValuesFunc(span.Tags),
-		Logs:          fd.convertLogs(span.Logs),
+		StartTime: model.TimeAsEpochMicroseconds(span.StartTime),
+		Duration:  model.DurationAsMicroseconds(span.Duration),
+		Tags:      fd.convertKeyValuesFunc(span.Tags),
+		Logs:      fd.convertLogs(span.Logs),
 	}
 }
 
