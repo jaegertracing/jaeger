@@ -34,13 +34,12 @@ func FromDomain(trace *model.Trace) *json.Trace {
 	return fd.fromDomain(trace)
 }
 
-// FromDomainES converts model.Span into json.Span format.
-// This is separate from the FromDomain above, because we do not store
-// Traces in Elastic Search -- only Spans.
-func FromDomainES(span *model.Span) *json.Span {
+// FromDomainEmbedProcess converts model.Span into json.Span format.
+// This format includes a ParentSpanID and an embedded Process.
+func FromDomainEmbedProcess(span *model.Span) *json.Span {
 	fd := fromDomain{}
-	fd.convertKeyValuesFunc = fd.convertESKeyValues
-	return fd.convertESSpan(span)
+	fd.convertKeyValuesFunc = fd.convertKeyValuesString
+	return fd.convertSpanEmbedProcess(span)
 }
 
 type fromDomain struct {
@@ -89,7 +88,7 @@ func (fd fromDomain) convertSpan(span *model.Span, processID json.ProcessID) jso
 	return s
 }
 
-func (fd fromDomain) convertESSpan(span *model.Span) *json.Span {
+func (fd fromDomain) convertSpanEmbedProcess(span *model.Span) *json.Span {
 	s := fd.convertSpanInternal(span)
 	s.Process = fd.convertProcess(span.Process)
 	s.ParentSpanID = json.SpanID(span.ParentSpanID.String())
@@ -152,7 +151,7 @@ func (fd fromDomain) convertKeyValues(keyValues model.KeyValues) []json.KeyValue
 	return out
 }
 
-func (fd fromDomain) convertESKeyValues(keyValues model.KeyValues) []json.KeyValue {
+func (fd fromDomain) convertKeyValuesString(keyValues model.KeyValues) []json.KeyValue {
 	out := make([]json.KeyValue, len(keyValues))
 	for i, kv := range keyValues {
 		out[i] = json.KeyValue{

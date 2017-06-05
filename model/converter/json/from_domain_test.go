@@ -50,18 +50,18 @@ func TestFromDomain(t *testing.T) {
 	assert.Equal(t, int64(4634802150889750528), model.Float64("x", 72.5).VNum)
 }
 
-func TestFromDomainES(t *testing.T) {
+func TestFromDomainEmbedProcess(t *testing.T) {
 	for i := 1; i <= NumberOfFixtures; i++ {
 		inStr, outStr := testReadFixtures(t, i, true)
 
 		var span model.Span
 		require.NoError(t, json.Unmarshal(inStr, &span))
-		esSpan := FromDomainES(&span)
+		esSpan := FromDomainEmbedProcess(&span)
 
 		var expectedSpan jModel.Span
 		require.NoError(t, json.Unmarshal(outStr, &expectedSpan))
 
-		CompareESSpans(t, &expectedSpan, esSpan)
+		CompareJsonSpans(t, &expectedSpan, esSpan)
 	}
 }
 

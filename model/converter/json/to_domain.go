@@ -29,14 +29,14 @@ import (
 	"github.com/uber/jaeger/model/json"
 )
 
-// ToDomainES converts ES json.Span into model.Span format.
-func ToDomainES(span *json.Span) (*model.Span, error) {
-	return toDomain{}.revertESSpan(span)
+// ToDomainEmbeddedProcess converts json.Span with embedded Process into model.Span format.
+func ToDomainEmbeddedProcess(span *json.Span) (*model.Span, error) {
+	return toDomain{}.revertSpanEmbeddedProcess(span)
 }
 
 type toDomain struct{}
 
-func (td toDomain) revertESSpan(dbSpan *json.Span) (*model.Span, error) {
+func (td toDomain) revertSpanEmbeddedProcess(dbSpan *json.Span) (*model.Span, error) {
 	tags, err := td.revertKeyValues(dbSpan.Tags)
 	if err != nil {
 		return nil, err

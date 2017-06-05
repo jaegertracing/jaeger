@@ -33,12 +33,12 @@ import (
 	jModel "github.com/uber/jaeger/model/json"
 )
 
-func TestToDomainES(t *testing.T) {
+func TestToDomainEmbeddedProcess(t *testing.T) {
 	for i := 1; i <= NumberOfFixtures; i++ {
 		span, err := createGoodSpan(i)
 		require.NoError(t, err)
 
-		actualSpan, err := ToDomainES(&span)
+		actualSpan, err := ToDomainEmbeddedProcess(&span)
 		require.NoError(t, err)
 
 		out := fmt.Sprintf("fixtures/domain_es_%02d.json", i)
@@ -65,13 +65,13 @@ func createGoodSpan(i int) (jModel.Span, error) {
 }
 
 func failingSpanTransform(t *testing.T, esSpan *jModel.Span, errMsg string) {
-	domainSpan, err := ToDomainES(esSpan)
+	domainSpan, err := ToDomainEmbeddedProcess(esSpan)
 	assert.Nil(t, domainSpan)
 	assert.EqualError(t, err, errMsg)
 }
 
 func failingSpanTransformAnyMsg(t *testing.T, esSpan *jModel.Span) {
-	domainSpan, err := ToDomainES(esSpan)
+	domainSpan, err := ToDomainEmbeddedProcess(esSpan)
 	assert.Nil(t, domainSpan)
 	assert.Error(t, err)
 }
