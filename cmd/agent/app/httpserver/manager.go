@@ -25,10 +25,10 @@ import (
 	"github.com/uber/jaeger/thrift-gen/sampling"
 )
 
-// Manager decides:
+// ClientConfigManager decides:
 // 1) which sampling strategy a given service should be using
 // 2) which baggage restrictions a given service should be using.
-type Manager interface {
+type ClientConfigManager interface {
 	GetSamplingStrategy(serviceName string) (*sampling.SamplingStrategyResponse, error)
 	GetBaggageRestrictions(serviceName string) ([]*baggage.BaggageRestriction, error)
 }

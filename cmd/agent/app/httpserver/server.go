@@ -40,7 +40,7 @@ var (
 
 // NewHTTPServer creates a new server that hosts an HTTP/JSON endpoint for clients
 // to query for sampling strategies and baggage restrictions.
-func NewHTTPServer(hostPort string, manager Manager, mFactory metrics.Factory) *http.Server {
+func NewHTTPServer(hostPort string, manager ClientConfigManager, mFactory metrics.Factory) *http.Server {
 	handler := newHTTPHandler(manager, mFactory)
 	mux := http.NewServeMux()
 	mux.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
@@ -55,14 +55,14 @@ func NewHTTPServer(hostPort string, manager Manager, mFactory metrics.Factory) *
 	return &http.Server{Addr: hostPort, Handler: mux}
 }
 
-func newHTTPHandler(manager Manager, mFactory metrics.Factory) *httpHandler {
+func newHTTPHandler(manager ClientConfigManager, mFactory metrics.Factory) *httpHandler {
 	handler := &httpHandler{manager: manager}
 	metrics.Init(&handler.metrics, mFactory, nil)
 	return handler
 }
 
 type httpHandler struct {
-	manager Manager
+	manager ClientConfigManager
 	metrics struct {
 		// Number of good sampling requests
 		SamplingRequestSuccess metrics.Counter `metric:"http-server.requests" tags:"result=ok,type=sampling"`

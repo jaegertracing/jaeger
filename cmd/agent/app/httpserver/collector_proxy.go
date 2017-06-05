@@ -36,21 +36,21 @@ type collectorProxy struct {
 	baggageClient  baggage.TChanBaggageRestrictionManager
 	metrics        struct {
 		// Number of successful sampling rate responses from collector
-		SamplingSuccess metrics.Counter `metric:"tc-sampling-proxy" tags:"result=ok,type=sampling"`
+		SamplingSuccess metrics.Counter `metric:"collector-proxy" tags:"result=ok,type=sampling"`
 
 		// Number of failed sampling rate responses from collector
-		SamplingFailures metrics.Counter `metric:"tc-sampling-proxy" tags:"result=err,type=sampling"`
+		SamplingFailures metrics.Counter `metric:"collector-proxy" tags:"result=err,type=sampling"`
 
 		// Number of successful baggage restriction responses from collector
-		BaggageSuccess metrics.Counter `metric:"tc-sampling-proxy" tags:"result=ok,type=baggage"`
+		BaggageSuccess metrics.Counter `metric:"collector-proxy" tags:"result=ok,type=baggage"`
 
 		// Number of failed baggage restriction responses from collector
-		BaggageFailures metrics.Counter `metric:"tc-sampling-proxy" tags:"result=err,type=baggage"`
+		BaggageFailures metrics.Counter `metric:"collector-proxy" tags:"result=err,type=baggage"`
 	}
 }
 
 // NewCollectorProxy implements Manager by proxying the requests to collector.
-func NewCollectorProxy(svc string, channel *tchannel.Channel, mFactory metrics.Factory) Manager {
+func NewCollectorProxy(svc string, channel *tchannel.Channel, mFactory metrics.Factory) ClientConfigManager {
 	thriftClient := thrift.NewClient(channel, svc, nil)
 	res := &collectorProxy{
 		samplingClient: sampling.NewTChanSamplingManagerClient(thriftClient),

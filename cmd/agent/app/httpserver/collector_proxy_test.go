@@ -46,7 +46,7 @@ func TestCollectorProxy(t *testing.T) {
 			MaxTracesPerSecond: 10,
 		}})
 	collector.AddBaggageRestrictions("service1", []*baggage.BaggageRestriction{
-		{BaggageKey: "key", MaxValueLength: 10},
+		{BaggageKey: "luggage", MaxValueLength: 10},
 	})
 
 	mgr := NewCollectorProxy("jaeger-collector", collector.Channel, metricsFactory)
@@ -61,15 +61,15 @@ func TestCollectorProxy(t *testing.T) {
 	bResp, err := mgr.GetBaggageRestrictions("service1")
 	require.NoError(t, err)
 	require.Len(t, bResp, 1)
-	assert.Equal(t, "key", bResp[0].BaggageKey)
+	assert.Equal(t, "luggage", bResp[0].BaggageKey)
 	assert.EqualValues(t, 10, bResp[0].MaxValueLength)
 
 	// must emit metrics
 	mTestutils.AssertCounterMetrics(t, metricsFactory, []mTestutils.ExpectedMetric{
-		{Name: "tc-sampling-proxy", Tags: map[string]string{"result": "ok", "type": "sampling"}, Value: 1},
-		{Name: "tc-sampling-proxy", Tags: map[string]string{"result": "err", "type": "sampling"}, Value: 0},
-		{Name: "tc-sampling-proxy", Tags: map[string]string{"result": "ok", "type": "baggage"}, Value: 1},
-		{Name: "tc-sampling-proxy", Tags: map[string]string{"result": "err", "type": "baggage"}, Value: 0},
+		{Name: "collector-proxy", Tags: map[string]string{"result": "ok", "type": "sampling"}, Value: 1},
+		{Name: "collector-proxy", Tags: map[string]string{"result": "err", "type": "sampling"}, Value: 0},
+		{Name: "collector-proxy", Tags: map[string]string{"result": "ok", "type": "baggage"}, Value: 1},
+		{Name: "collector-proxy", Tags: map[string]string{"result": "err", "type": "baggage"}, Value: 0},
 	}...)
 }
 
@@ -82,8 +82,8 @@ func TestTCollectorProxyClientErrorPropagates(t *testing.T) {
 	_, err = proxy.GetBaggageRestrictions("test")
 	require.EqualError(t, err, "error")
 	mTestutils.AssertCounterMetrics(t, mFactory, []mTestutils.ExpectedMetric{
-		{Name: "tc-sampling-proxy", Tags: map[string]string{"result": "err", "type": "sampling"}, Value: 1},
-		{Name: "tc-sampling-proxy", Tags: map[string]string{"result": "err", "type": "baggage"}, Value: 1},
+		{Name: "collector-proxy", Tags: map[string]string{"result": "err", "type": "sampling"}, Value: 1},
+		{Name: "collector-proxy", Tags: map[string]string{"result": "err", "type": "baggage"}, Value: 1},
 	}...)
 }
 

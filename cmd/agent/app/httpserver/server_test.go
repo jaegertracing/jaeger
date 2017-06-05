@@ -67,7 +67,7 @@ func withServer(
 }
 
 func TestHTTPHandler(t *testing.T) {
-	withServer(probabilistic(0.001), restrictions("key", 10), func(ts *testServer) {
+	withServer(probabilistic(0.001), restrictions("luggage", 10), func(ts *testServer) {
 		for _, endpoint := range []string{"/", "/sampling"} {
 			t.Run("request against endpoint "+endpoint, func(t *testing.T) {
 				resp, err := http.Get(ts.server.URL + endpoint + "?service=Y")
@@ -201,7 +201,7 @@ func TestHTTPHandlerErrors(t *testing.T) {
 	}
 
 	t.Run("failure to write a response", func(t *testing.T) {
-		withServer(probabilistic(0.001), restrictions("key", 10), func(ts *testServer) {
+		withServer(probabilistic(0.001), restrictions("luggage", 10), func(ts *testServer) {
 			handler := newHTTPHandler(ts.mgr, ts.metricsFactory)
 
 			req := httptest.NewRequest("GET", "http://localhost:80/?service=X", nil)
