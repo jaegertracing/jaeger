@@ -37,3 +37,5 @@ import:
   version: v0.4.0
   subpackages:
   - metrics
+- package: github.com/olivere/elastic
+  version: v5.0.39

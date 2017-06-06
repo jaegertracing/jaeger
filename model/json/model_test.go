@@ -33,7 +33,7 @@ import (
 	. "github.com/uber/jaeger/model/json"
 )
 
-func TestModel(t *testing.T) {
+func TestFromFile(t *testing.T) {
 	in, err := ioutil.ReadFile("fixture.json")
 	require.NoError(t, err)
 

@@ -1,5 +1,5 @@
-hash: 295a8525c9e6c3768118244cd0abcc6ac27254cd22f0be075670e7dd4b8a8a8a
-updated: 2017-04-21T13:57:57.01483041-04:00
+hash: 1af4328012d376acb832e5721b7708f1b727cdcad7cae4deabfe7ea0d8c5cb1f
+updated: 2017-06-05T17:23:15.086853092-04:00
 imports:
 - name: github.com/apache/thrift
   version: 53dd39833a08ce33582e5ff31fa18bb4735d6731
@@ -60,6 +60,8 @@ imports:
   version: 9c47895dc1ce54302908ab8a43385d1f5df2c11c
 - name: github.com/mitchellh/mapstructure
   version: bfdb1a85537d60bc7e954e600c250219ea497417
+- name: github.com/olivere/elastic
+  version: f1fd7305d0b6270192b27010fe1193568b18e4b6
 - name: github.com/opentracing-contrib/go-stdlib
   version: 1de4cc2120e71f745a5810488bf64b29b6d7d9f6
   subpackages:
@@ -141,7 +143,7 @@ imports:
 - name: go.uber.org/atomic
   version: 4e336646b2ef9fc6e47be8e21594178f98e5ebcf
 - name: go.uber.org/zap
-  version: 1550bc05539134bbf8612a35f34a79ab8bf34ee3
+  version: fab453050a7a08c35f31fc5fff6f2dbd962285ab
   subpackages:
   - buffer
   - internal/bufferpool
@@ -151,7 +153,7 @@ imports:
   - zapcore
   - zaptest
 - name: golang.org/x/net
-  version: 0b588ed7a0cd59c271d128ec8c429c1c1607e8ab
+  version: 5b58a9c3e1690d33a592e5b791638e25eb9b3f70
   subpackages:
   - context
   - context/ctxhttp
@@ -166,6 +168,10 @@ imports:
   - unicode/norm
 - name: gopkg.in/inf.v0
   version: 3887ee99ecf07df5b447e9b00d9c0b2adaa9f3e4
+- name: gopkg.in/olivere/elastic.v5
+  version: f1fd7305d0b6270192b27010fe1193568b18e4b6
+  subpackages:
+  - uritemplates
 - name: gopkg.in/yaml.v2
   version: cd8b52f8269e0feb286dfeef29f8fe4d5b397e0b
 testImports:

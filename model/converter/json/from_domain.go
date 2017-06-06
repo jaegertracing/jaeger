@@ -22,7 +22,6 @@ package json
 
 import (
 	"github.com/uber/jaeger/model"
-
 	"github.com/uber/jaeger/model/json"
 )
 
@@ -30,10 +29,22 @@ import (
 // It assumes that the domain model is valid, namely that all enums
 // have valid values, so that it does not need to check for errors.
 func FromDomain(trace *model.Trace) *json.Trace {
-	return fromDomain{}.fromDomain(trace)
+	fd := fromDomain{}
+	fd.convertKeyValuesFunc = fd.convertKeyValues
+	return fd.fromDomain(trace)
 }
 
-type fromDomain struct{}
+// FromDomainEmbedProcess converts model.Span into json.Span format.
+// This format includes a ParentSpanID and an embedded Process.
+func FromDomainEmbedProcess(span *model.Span) *json.Span {
+	fd := fromDomain{}
+	fd.convertKeyValuesFunc = fd.convertKeyValuesString
+	return fd.convertSpanEmbedProcess(span)
+}
+
+type fromDomain struct {
+	convertKeyValuesFunc func(keyValues model.KeyValues) []json.KeyValue
+}
 
 func (fd fromDomain) fromDomain(trace *model.Trace) *json.Trace {
 	jSpans := make([]json.Span, len(trace.Spans))
@@ -55,29 +66,44 @@ func (fd fromDomain) fromDomain(trace *model.Trace) *json.Trace {
 	return jTrace
 }
 
-func (fd fromDomain) convertSpan(span *model.Span, processID json.ProcessID) json.Span {
+func (fd fromDomain) convertSpanInternal(span *model.Span) json.Span {
 	return json.Span{
 		TraceID:       json.TraceID(span.TraceID.String()),
 		SpanID:        json.SpanID(span.SpanID.String()),
 		Flags:         uint32(span.Flags),
 		OperationName: span.OperationName,
-		References:    fd.convertReferences(span),
 		StartTime:     model.TimeAsEpochMicroseconds(span.StartTime),
 		Duration:      model.DurationAsMicroseconds(span.Duration),
-		Tags:          fd.convertKeyValues(span.Tags),
+		Tags:          fd.convertKeyValuesFunc(span.Tags),
 		Logs:          fd.convertLogs(span.Logs),
-		ProcessID:     processID,
-		Warnings:      span.Warnings,
 	}
 }
 
-func (fd fromDomain) convertReferences(span *model.Span) []json.Reference {
+func (fd fromDomain) convertSpan(span *model.Span, processID json.ProcessID) json.Span {
+	s := fd.convertSpanInternal(span)
+	s.ProcessID = processID
+	s.Warnings = span.Warnings
+	s.References = fd.convertReferences(span, false)
+	return s
+}
+
+func (fd fromDomain) convertSpanEmbedProcess(span *model.Span) *json.Span {
+	s := fd.convertSpanInternal(span)
+	process := fd.convertProcess(span.Process)
+	s.Process = &process
+	s.ParentSpanID = json.SpanID(span.ParentSpanID.String())
+	s.References = fd.convertReferences(span, true)
+	return &s
+}
+
+// when preserveParentID==false the parent ID is converted to a CHILD_OF reference
+func (fd fromDomain) convertReferences(span *model.Span, preserveParentID bool) []json.Reference {
 	length := len(span.References)
-	if span.ParentSpanID != 0 {
+	if span.ParentSpanID != 0 && !preserveParentID {
 		length++
 	}
 	out := make([]json.Reference, 0, length)
-	if span.ParentSpanID != 0 {
+	if span.ParentSpanID != 0 && !preserveParentID {
 		out = append(out, json.Reference{
 			RefType: json.ChildOf,
 			TraceID: json.TraceID(span.TraceID.String()),
@@ -126,12 +152,24 @@ func (fd fromDomain) convertKeyValues(keyValues model.KeyValues) []json.KeyValue
 	return out
 }
 
+func (fd fromDomain) convertKeyValuesString(keyValues model.KeyValues) []json.KeyValue {
+	out := make([]json.KeyValue, len(keyValues))
+	for i, kv := range keyValues {
+		out[i] = json.KeyValue{
+			Key:   kv.Key,
+			Type:  json.ValueType(kv.VType.String()),
+			Value: kv.AsString(),
+		}
+	}
+	return out
+}
+
 func (fd fromDomain) convertLogs(logs []model.Log) []json.Log {
 	out := make([]json.Log, len(logs))
 	for i, log := range logs {
 		out[i] = json.Log{
 			Timestamp: model.TimeAsEpochMicroseconds(log.Timestamp),
-			Fields:    fd.convertKeyValues(log.Fields),
+			Fields:    fd.convertKeyValuesFunc(log.Fields),
 		}
 	}
 	return out
@@ -148,7 +186,7 @@ func (fd fromDomain) convertProcesses(processes map[string]*model.Process) map[j
 func (fd fromDomain) convertProcess(process *model.Process) json.Process {
 	return json.Process{
 		ServiceName: process.ServiceName,
-		Tags:        fd.convertKeyValues(process.Tags),
+		Tags:        fd.convertKeyValuesFunc(process.Tags),
 	}
 }
 
