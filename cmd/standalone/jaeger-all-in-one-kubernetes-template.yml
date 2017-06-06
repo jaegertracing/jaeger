@@ -1,0 +1,80 @@
+# This template uses Jaeger with in-memory storage with limited functionality
+# Do not use this in production environment!
+#
+# kubectl create -f jaeger-all-in-one-kubernetes-template.yml
+# kubectl delete pod,service,deployment -l jaeger-infra 
+apiVersion: v1
+kind: List
+items:
+- apiVersion: extensions/v1beta1
+  kind: Deployment
+  metadata:
+    name: jaeger-all-in-one
+  spec:
+    replicas: 1
+    selector:
+      name: jaeger-all-in-one
+    strategy:
+      type: Recreate
+    selector:
+      matchLabels:
+          name: jaeger-all-in-one
+    template:
+      metadata:
+        labels:
+          name: jaeger-all-in-one
+          jaeger-infra: all-in-one
+      spec:
+          containers:
+            - name: jaeger-all-in-one
+              image: jaegertracing/all-in-one
+              ports:
+                - containerPort: 5775
+                  protocol: UDP
+                - containerPort: 6831
+                  protocol: UDP
+                - containerPort: 6832
+                  protocol: UDP
+                - containerPort: 16686
+                  protocol: TCP
+              resources: {}
+              imagePullPolicy: Always
+          securityContext: {}
+- apiVersion: v1
+  kind: Service
+  metadata:
+    name: jaeger-all-in-one
+    labels:
+      jaeger-infra: all-in-one
+  spec:
+    ports:
+      - name: query-http
+        port: 80
+        protocol: TCP
+        targetPort: 16686
+    selector:
+        name: jaeger-all-in-one
+    type: LoadBalancer
+- apiVersion: v1
+  kind: Service
+  metadata:
+    name: jaeger-all-in-one-agent
+    labels:
+      jaeger-infra: all-in-one
+  spec:
+    ports:
+      - name: agent-zipkin-thrift
+        port: 5775
+        protocol: UDP
+        targetPort: 5775
+      - name: agent-compact
+        port: 6831
+        protocol: UDP
+        targetPort: 6831
+      - name: agent-binary
+        port: 6832
+        protocol: UDP
+        targetPort: 6832
+    selector:
+        name: jaeger-all-in-one
+    type: LoadBalancer

@@ -1,0 +1,96 @@
+# This template uses Jaeger with in-memory storage with limited functionality
+# Do not use this in production environment!
+#
+# oc create -f jaeger-all-in-one-openshift-template.yml
+# oc process -f jaeger-all-in-one-openshift-template.yml | oc create -f -
+# oc delete all,template -l jaeger-infra
+parameters:
+- description: The name of the Jaeger
+  displayName: Jaeger service name
+  name: JAEGER_NAME
+  required: true
+  value: jaeger-all-in-one
+
+apiVersion: v1
+kind: Template
+metadata:
+  name: jaeger-all-in-one
+  annotations:
+    description: Jaeger distributed tracing system, all-in-one distribution
+    iconClass: icon-go-gopher
+    tags: tracing,opentracing,jaeger,zipkin
+  labels:
+      jaeger-infra: all-in-one
+objects:
+- apiVersion: v1
+  kind: DeploymentConfig
+  metadata:
+    name: ${JAEGER_NAME}
+    labels:
+        jaeger-infra: all-in-one
+  spec:
+    replicas: 1
+    selector:
+      name: ${JAEGER_NAME}
+    strategy:
+      type: Recreate
+    template:
+      metadata:
+        labels:
+          name: ${JAEGER_NAME}
+      spec:
+          containers:
+            - name: ${JAEGER_NAME}
+              image: jaegertracing/all-in-one
+              ports:
+                - containerPort: 5775
+                  protocol: UDP
+                - containerPort: 6831
+                  protocol: UDP
+                - containerPort: 6832
+                  protocol: UDP
+                - containerPort: 16686
+                  protocol: TCP
+              resources: {}
+              imagePullPolicy: Always
+          securityContext: {}
+- apiVersion: v1
+  kind: Service
+  metadata:
+    name: ${JAEGER_NAME}
+    labels:
+      jaeger-infra: all-in-one
+  spec:
+    ports:
+      - name: query-http
+        port: 80
+        protocol: TCP
+        targetPort: 16686
+      - name: agent-zipkin-thrift
+        port: 5775
+        protocol: UDP
+        targetPort: 5775
+      - name: agent-compact
+        port: 6831
+        protocol: UDP
+        targetPort: 6831
+      - name: agent-binary
+        port: 6832
+        protocol: UDP
+        targetPort: 6832
+    selector:
+        name: ${JAEGER_NAME}
+    type: ClusterIP
+- apiVersion: v1
+  kind: Route
+  metadata:
+    name: jaeger
+    labels:
+      jaeger-infra: all-in-one
+  spec:
+    to:
+      kind: Service
+      name: ${JAEGER_NAME}
+      port:
+    port:
+      targetPort: query-http
