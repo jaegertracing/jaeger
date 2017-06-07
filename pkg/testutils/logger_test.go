@@ -22,6 +22,7 @@ package testutils
 
 import (
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/assert"
 	"go.uber.org/zap"
@@ -44,4 +45,40 @@ func TestJSONLineError(t *testing.T) {
 	log.WriteString("bad-json\n")
 	_, ok := log.JSONLine(0)["error"]
 	assert.True(t, ok, "must have 'error' key")
+}
+
+var keepLogging = func(logger *zap.Logger, quit chan struct{}) {
+	for {
+		select {
+		case <-quit:
+			return
+		default:
+			logger.Info("string")
+		}
+	}
+}
+
+var keepReading = func(buffer *Buffer, quit chan struct{}) {
+	for {
+		select {
+		case <-quit:
+			return
+		default:
+			buffer.Lines()
+		}
+	}
+}
+
+// This test should complete without any panic
+func TestRaceCondition(t *testing.T) {
+	logger, buffer := NewLogger()
+	logQuit := make(chan struct{})
+	readQuit := make(chan struct{})
+	defer close(logQuit)
+	defer close(readQuit)
+
+	go keepLogging(logger, logQuit)
+	go keepReading(buffer, readQuit)
+
+	time.Sleep(time.Second)
 }

@@ -22,6 +22,7 @@ package testutils
 
 import (
 	"encoding/json"
+	"sync"
 
 	"go.uber.org/zap"
 	"go.uber.org/zap/zapcore"
@@ -46,6 +47,7 @@ func NewLogger() (*zap.Logger, *Buffer) {
 
 // Buffer wraps zaptest.Buffer and provides convenience method JSONLine(n)
 type Buffer struct {
+	sync.RWMutex
 	zaptest.Buffer
 }
 
@@ -59,4 +61,29 @@ func (b *Buffer) JSONLine(n int) map[string]string {
 		}
 	}
 	return data
+}
+
+// NB. the below functions overwrite the existing functions so that logger is threadsafe.
+// This is not that fragile given how if the API were to change underneath in zap, the overwritten
+// function will fail to compile.
+
+// Lines overwrites zaptest.Buffer.Lines() to make it thread safe
+func (b *Buffer) Lines() []string {
+	b.RLock()
+	defer b.RUnlock()
+	return b.Buffer.Lines()
+}
+
+// Stripped overwrites zaptest.Buffer.Stripped() to make it thread safe
+func (b *Buffer) Stripped() string {
+	b.RLock()
+	defer b.RUnlock()
+	return b.Buffer.Stripped()
+}
+
+// Write overwrites zaptest.Buffer.bytes.Buffer.Write() to make it thread safe
+func (b *Buffer) Write(p []byte) (int, error) {
+	b.Lock()
+	defer b.Unlock()
+	return b.Buffer.Write(p)
 }
