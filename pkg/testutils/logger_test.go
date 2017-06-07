@@ -65,6 +65,7 @@ var keepReading = func(buffer *Buffer, quit chan struct{}) {
 			return
 		default:
 			buffer.Lines()
+			buffer.Stripped()
 		}
 	}
 }
