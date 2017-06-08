@@ -21,6 +21,7 @@
 package testutils
 
 import (
+	"sync"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -44,4 +45,29 @@ func TestJSONLineError(t *testing.T) {
 	log.WriteString("bad-json\n")
 	_, ok := log.JSONLine(0)["error"]
 	assert.True(t, ok, "must have 'error' key")
+}
+
+// NB. Run with -race to ensure no race condition
+func TestRaceCondition(t *testing.T) {
+	logger, buffer := NewLogger()
+
+	start := make(chan struct{})
+	finish := sync.WaitGroup{}
+	finish.Add(2)
+
+	go func() {
+		_ = <-start
+		logger.Info("test")
+		finish.Done()
+	}()
+
+	go func() {
+		_ = <-start
+		buffer.Lines()
+		buffer.Stripped()
+		finish.Done()
+	}()
+
+	close(start)
+	finish.Wait()
 }
