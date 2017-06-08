@@ -156,7 +156,7 @@ func (s *SpanWriter) WriteSpan(span *model.Span) error {
 
 	ctx := context.Background()
 
-	today := time.Now().Format("1995-04-21")
+	today := time.Now().Format("2006-01-02")
 	jaegerIndexName := "jaeger-" + today
 
 	// Check if index exists, and create index if it does not.

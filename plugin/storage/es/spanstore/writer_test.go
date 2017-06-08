@@ -87,7 +87,7 @@ func TestSpanWriter_WriteSpan(t *testing.T) {
 			createResult: &elastic.IndicesCreateResult{},
 			putResult: &elastic.IndexResponse{},
 
-			indexName: "jaeger-" + time.Now().Format("1995-04-21"),
+			indexName: "jaeger-" + time.Now().Format("2006-01-02"),
 			serviceName: "service",
 			operationName: "operation",
 
@@ -101,7 +101,7 @@ func TestSpanWriter_WriteSpan(t *testing.T) {
 			createResult: &elastic.IndicesCreateResult{},
 			putResult: &elastic.IndexResponse{},
 
-			indexName: "jaeger-" + time.Now().Format("1995-04-21"),
+			indexName: "jaeger-" + time.Now().Format("2006-01-02"),
 			serviceName: "service",
 			operationName: "operation",
 
@@ -114,7 +114,7 @@ func TestSpanWriter_WriteSpan(t *testing.T) {
 			createResult: &elastic.IndicesCreateResult{},
 			putResult: &elastic.IndexResponse{},
 
-			indexName: "jaeger-" + time.Now().Format("1995-04-21"),
+			indexName: "jaeger-" + time.Now().Format("2006-01-02"),
 			serviceName: "service",
 			operationName: "operation",
 
@@ -134,7 +134,7 @@ func TestSpanWriter_WriteSpan(t *testing.T) {
 			createResult: nil,
 			putResult: &elastic.IndexResponse{},
 
-			indexName: "jaeger-" + time.Now().Format("1995-04-21"),
+			indexName: "jaeger-" + time.Now().Format("2006-01-02"),
 			serviceName: "service",
 			operationName: "operation",
 
@@ -154,7 +154,7 @@ func TestSpanWriter_WriteSpan(t *testing.T) {
 			createResult: &elastic.IndicesCreateResult{},
 			putResult: nil,
 
-			indexName: "jaeger-" + time.Now().Format("1995-04-21"),
+			indexName: "jaeger-" + time.Now().Format("2006-01-02"),
 			serviceName: "service",
 			operationName: "operation",
 
@@ -173,7 +173,7 @@ func TestSpanWriter_WriteSpan(t *testing.T) {
 			createResult: &elastic.IndicesCreateResult{},
 			putResult: nil,
 
-			indexName: "jaeger-" + time.Now().Format("1995-04-21"),
+			indexName: "jaeger-" + time.Now().Format("2006-01-02"),
 			serviceName: "service",
 			operationName: "operation",
 
