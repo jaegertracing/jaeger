@@ -172,7 +172,7 @@ func TestSpanWriter_WriteSpan(t *testing.T) {
 					Process: &model.Process{
 						ServiceName: "service",
 					},
-					StartTime:     date,
+					StartTime: date,
 				}
 
 				indexName := "jaeger-1995-04-21"
@@ -200,7 +200,6 @@ func TestSpanWriter_WriteSpan(t *testing.T) {
 				indexSpanPut.On("Id", mock.AnythingOfType("string")).Return(indexSpanPut)
 				indexSpanPut.On("BodyJson", mock.AnythingOfType("*json.Span")).Return(indexSpanPut)
 				indexSpanPut.On("Do", mock.AnythingOfType("*context.emptyCtx")).Return(testCase.putResult, testCase.spanPutError)
-
 
 				w.client.On("IndexExists", stringMatcher(indexName)).Return(existsService)
 				w.client.On("CreateIndex", stringMatcher(indexName)).Return(createService)
