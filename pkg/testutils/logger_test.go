@@ -21,8 +21,8 @@
 package testutils
 
 import (
+	"sync"
 	"testing"
-	"time"
 
 	"github.com/stretchr/testify/assert"
 	"go.uber.org/zap"
@@ -47,39 +47,27 @@ func TestJSONLineError(t *testing.T) {
 	assert.True(t, ok, "must have 'error' key")
 }
 
-var keepLogging = func(logger *zap.Logger, quit chan struct{}) {
-	for {
-		select {
-		case <-quit:
-			return
-		default:
-			logger.Info("string")
-		}
-	}
-}
-
-var keepReading = func(buffer *Buffer, quit chan struct{}) {
-	for {
-		select {
-		case <-quit:
-			return
-		default:
-			buffer.Lines()
-			buffer.Stripped()
-		}
-	}
-}
-
-// This test should complete without any panic
+// NB. Run with -race to ensure no race condition
 func TestRaceCondition(t *testing.T) {
 	logger, buffer := NewLogger()
-	logQuit := make(chan struct{})
-	readQuit := make(chan struct{})
-	defer close(logQuit)
-	defer close(readQuit)
 
-	go keepLogging(logger, logQuit)
-	go keepReading(buffer, readQuit)
+	start := make(chan struct{})
+	finish := sync.WaitGroup{}
+	finish.Add(2)
 
-	time.Sleep(time.Second)
+	go func() {
+		_ = <-start
+		logger.Info("test")
+		finish.Done()
+	}()
+
+	go func() {
+		_ = <-start
+		buffer.Lines()
+		buffer.Stripped()
+		finish.Done()
+	}()
+
+	close(start)
+	finish.Wait()
 }
