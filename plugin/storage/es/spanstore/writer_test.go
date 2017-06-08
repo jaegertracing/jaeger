@@ -75,7 +75,8 @@ func TestSpanWriter_WriteSpan(t *testing.T) {
 		serviceName      string
 		operationName    string
 		putResult        *elastic.IndexResponse
-		putError         error
+		servicePutError         error
+		spanPutError         error
 		expectedError    string
 		expectedLogs     []string
 	}{
@@ -90,9 +91,6 @@ func TestSpanWriter_WriteSpan(t *testing.T) {
 			serviceName: "service",
 			operationName: "operation",
 
-			indexExistsError: nil,
-			createError: nil,
-			putError: nil,
 			expectedError: "",
 			expectedLogs: []string{},
 		},
@@ -107,9 +105,6 @@ func TestSpanWriter_WriteSpan(t *testing.T) {
 			serviceName: "service",
 			operationName: "operation",
 
-			indexExistsError: nil,
-			createError: nil,
-			putError: nil,
 			expectedError: "",
 			expectedLogs: []string{},
 		},
@@ -124,8 +119,6 @@ func TestSpanWriter_WriteSpan(t *testing.T) {
 			operationName: "operation",
 
 			indexExistsError: errors.New("index dne error"),
-			createError: nil,
-			putError: nil,
 			expectedError: "Failed to find index: index dne error",
 			expectedLogs: []string{
 				`"msg":"Failed to find index"`,
@@ -147,7 +140,6 @@ func TestSpanWriter_WriteSpan(t *testing.T) {
 
 			indexExistsError: nil,
 			createError: errors.New("index creation error"),
-			putError: nil,
 			expectedError: "Failed to create index: index creation error",
 			expectedLogs: []string{
 				`"msg":"Failed to create index"`,
@@ -166,9 +158,7 @@ func TestSpanWriter_WriteSpan(t *testing.T) {
 			serviceName: "service",
 			operationName: "operation",
 
-			indexExistsError: nil,
-			createError: nil,
-			putError: errors.New("service insertion error"),
+			servicePutError: errors.New("service insertion error"),
 			expectedError: "Failed to insert service:operation: service insertion error",
 			expectedLogs: []string{
 				`"msg":"Failed to insert service:operation"`,
@@ -187,12 +177,10 @@ func TestSpanWriter_WriteSpan(t *testing.T) {
 			serviceName: "service",
 			operationName: "operation",
 
-			indexExistsError: nil,
-			createError: nil,
-			putError: errors.New("span insertion error"),
-			expectedError: "Failed to insert service:operation: span insertion error",
+			spanPutError: errors.New("span insertion error"),
+			expectedError: "Failed to insert span: span insertion error",
 			expectedLogs: []string{
-				`"msg":"Failed to insert service:operation"`,
+				`"msg":"Failed to insert span"`,
 				`"trace_id":"1"`,
 				`"span_id":"0"`,
 				`"error":"span insertion error"`,
@@ -232,11 +220,11 @@ func TestSpanWriter_WriteSpan(t *testing.T) {
 				serviceID := fmt.Sprintf("%s|%s", testCase.serviceName, testCase.operationName)
 				indexServicePut.On("Id", stringMatcher(serviceID)).Return(indexServicePut)
 				indexServicePut.On("BodyJson", mock.AnythingOfType("Service")).Return(indexServicePut)
-				indexServicePut.On("Do", mock.AnythingOfType("*context.emptyCtx")).Return(testCase.putResult, testCase.putError)
+				indexServicePut.On("Do", mock.AnythingOfType("*context.emptyCtx")).Return(testCase.putResult, testCase.servicePutError)
 
 				indexSpanPut.On("Id", mock.AnythingOfType("string")).Return(indexSpanPut)
 				indexSpanPut.On("BodyJson", mock.AnythingOfType("*json.Span")).Return(indexSpanPut)
-				indexSpanPut.On("Do", mock.AnythingOfType("*context.emptyCtx")).Return(testCase.putResult, testCase.putError)
+				indexSpanPut.On("Do", mock.AnythingOfType("*context.emptyCtx")).Return(testCase.putResult, testCase.spanPutError)
 
 				w.client.On("IndexExists", stringMatcher(testCase.indexName)).Return(existsService)
 				w.client.On("CreateIndex", stringMatcher(testCase.indexName)).Return(createService)
