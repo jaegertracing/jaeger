@@ -114,7 +114,7 @@ func newCassandraBuilder(config *cascfg.Configuration, logger *zap.Logger, metri
 	return &cassandraSpanHandlerBuilder{
 		logger:         logger,
 		metricsFactory: metricsFactory,
-		configuration:  fixConfiguration(*config),
+		configuration:  *config,
 	}
 }
 
@@ -164,9 +164,4 @@ func (c *cassandraSpanHandlerBuilder) getSession() (cassandra.Session, error) {
 		return c.session, err
 	}
 	return c.session, nil
-}
-
-func fixConfiguration(config cascfg.Configuration) cascfg.Configuration {
-	config.ProtoVersion = 4
-	return config
 }

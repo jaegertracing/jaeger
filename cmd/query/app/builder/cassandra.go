@@ -47,7 +47,7 @@ func newCassandraBuilder(config *cascfg.Configuration, logger *zap.Logger, metri
 	cBuilder := &cassandraBuilder{
 		logger:                  logger,
 		metricsFactory:          metricsFactory,
-		configuration:           fixConfiguration(*config),
+		configuration:           *config,
 		dependencyDataFrequency: flags.DependencyStorage.DataFrequency,
 	}
 	return cBuilder
