@@ -21,20 +21,20 @@
 package spanstore
 
 import (
-	"testing"
-	"strings"
-	"fmt"
-	"time"
 	"errors"
+	"fmt"
+	"strings"
+	"testing"
+	"time"
 
-	"go.uber.org/zap"
 	"github.com/olivere/elastic"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
+	"go.uber.org/zap"
 
-	"github.com/uber/jaeger/pkg/testutils"
-	"github.com/uber/jaeger/pkg/es/mocks"
 	"github.com/uber/jaeger/model"
+	"github.com/uber/jaeger/pkg/es/mocks"
+	"github.com/uber/jaeger/pkg/testutils"
 	"github.com/uber/jaeger/storage/spanstore"
 )
 
@@ -65,8 +65,8 @@ func TestNewSpanWriter(t *testing.T) {
 }
 
 func TestSpanWriter_WriteSpan(t *testing.T) {
-	testCases := []struct{
-		caption 	 string
+	testCases := []struct {
+		caption          string
 		indexExists      bool
 		indexExistsError error
 		createResult     *elastic.IndicesCreateResult
@@ -75,72 +75,71 @@ func TestSpanWriter_WriteSpan(t *testing.T) {
 		serviceName      string
 		operationName    string
 		putResult        *elastic.IndexResponse
-		servicePutError         error
-		spanPutError         error
+		servicePutError  error
+		spanPutError     error
 		expectedError    string
 		expectedLogs     []string
 	}{
 		{
 			caption: "main exists query",
 
-			indexExists: true,
+			indexExists:  true,
 			createResult: &elastic.IndicesCreateResult{},
-			putResult: &elastic.IndexResponse{},
+			putResult:    &elastic.IndexResponse{},
 
-			indexName: "jaeger-" + time.Now().Format("2006-01-02"),
-			serviceName: "service",
+			indexName:     "jaeger-" + time.Now().Format("2006-01-02"),
+			serviceName:   "service",
 			operationName: "operation",
 
 			expectedError: "",
-			expectedLogs: []string{},
+			expectedLogs:  []string{},
 		},
 		{
 			caption: "main dne/creation query",
 
-			indexExists: false,
+			indexExists:  false,
 			createResult: &elastic.IndicesCreateResult{},
-			putResult: &elastic.IndexResponse{},
+			putResult:    &elastic.IndexResponse{},
 
-			indexName: "jaeger-" + time.Now().Format("2006-01-02"),
-			serviceName: "service",
+			indexName:     "jaeger-" + time.Now().Format("2006-01-02"),
+			serviceName:   "service",
 			operationName: "operation",
 
 			expectedError: "",
-			expectedLogs: []string{},
+			expectedLogs:  []string{},
 		},
 		{
-			caption: "index dne error",
-			indexExists: false,
+			caption:      "index dne error",
+			indexExists:  false,
 			createResult: &elastic.IndicesCreateResult{},
-			putResult: &elastic.IndexResponse{},
+			putResult:    &elastic.IndexResponse{},
 
-			indexName: "jaeger-" + time.Now().Format("2006-01-02"),
-			serviceName: "service",
+			indexName:     "jaeger-" + time.Now().Format("2006-01-02"),
+			serviceName:   "service",
 			operationName: "operation",
 
 			indexExistsError: errors.New("index dne error"),
-			expectedError: "Failed to find index: index dne error",
+			expectedError:    "Failed to find index: index dne error",
 			expectedLogs: []string{
 				`"msg":"Failed to find index"`,
 				`"trace_id":"1"`,
 				`"span_id":"0"`,
 				`"error":"index dne error"`,
 			},
-
 		},
 		{
-			caption: "index creation error",
-			indexExists: false,
+			caption:      "index creation error",
+			indexExists:  false,
 			createResult: nil,
-			putResult: &elastic.IndexResponse{},
+			putResult:    &elastic.IndexResponse{},
 
-			indexName: "jaeger-" + time.Now().Format("2006-01-02"),
-			serviceName: "service",
+			indexName:     "jaeger-" + time.Now().Format("2006-01-02"),
+			serviceName:   "service",
 			operationName: "operation",
 
 			indexExistsError: nil,
-			createError: errors.New("index creation error"),
-			expectedError: "Failed to create index: index creation error",
+			createError:      errors.New("index creation error"),
+			expectedError:    "Failed to create index: index creation error",
 			expectedLogs: []string{
 				`"msg":"Failed to create index"`,
 				`"trace_id":"1"`,
@@ -149,17 +148,17 @@ func TestSpanWriter_WriteSpan(t *testing.T) {
 			},
 		},
 		{
-			caption: "service insertion error",
-			indexExists: false,
+			caption:      "service insertion error",
+			indexExists:  false,
 			createResult: &elastic.IndicesCreateResult{},
-			putResult: nil,
+			putResult:    nil,
 
-			indexName: "jaeger-" + time.Now().Format("2006-01-02"),
-			serviceName: "service",
+			indexName:     "jaeger-" + time.Now().Format("2006-01-02"),
+			serviceName:   "service",
 			operationName: "operation",
 
 			servicePutError: errors.New("service insertion error"),
-			expectedError: "Failed to insert service:operation: service insertion error",
+			expectedError:   "Failed to insert service:operation: service insertion error",
 			expectedLogs: []string{
 				`"msg":"Failed to insert service:operation"`,
 				`"trace_id":"1"`,
@@ -168,16 +167,16 @@ func TestSpanWriter_WriteSpan(t *testing.T) {
 			},
 		},
 		{
-			caption: "span insertion error",
-			indexExists: false,
+			caption:      "span insertion error",
+			indexExists:  false,
 			createResult: &elastic.IndicesCreateResult{},
-			putResult: nil,
+			putResult:    nil,
 
-			indexName: "jaeger-" + time.Now().Format("2006-01-02"),
-			serviceName: "service",
+			indexName:     "jaeger-" + time.Now().Format("2006-01-02"),
+			serviceName:   "service",
 			operationName: "operation",
 
-			spanPutError: errors.New("span insertion error"),
+			spanPutError:  errors.New("span insertion error"),
 			expectedError: "Failed to insert span: span insertion error",
 			expectedLogs: []string{
 				`"msg":"Failed to insert span"`,
@@ -191,9 +190,9 @@ func TestSpanWriter_WriteSpan(t *testing.T) {
 		testCase := tc
 		t.Run(testCase.caption, func(t *testing.T) {
 			withSpanWriter(func(w *spanWriterTest) {
-				span := &model.Span {
+				span := &model.Span{
 					TraceID:       model.TraceID{Low: 1},
-					SpanID:	       model.SpanID(0),
+					SpanID:        model.SpanID(0),
 					OperationName: "operation",
 					Process: &model.Process{
 						ServiceName: "service",
@@ -263,4 +262,3 @@ func stringMatcher(q string) interface{} {
 	}
 	return mock.MatchedBy(matchFunc)
 }
-

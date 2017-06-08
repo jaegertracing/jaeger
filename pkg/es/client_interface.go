@@ -26,25 +26,29 @@ import (
 	"github.com/olivere/elastic"
 )
 
+// Client is an abstraction for elastic.Client
 type Client interface {
-	IndexExists(index string) 	IndicesExistsService
-	CreateIndex(index string) 	IndicesCreateService
-	Index() 			IndexService
+	IndexExists(index string) IndicesExistsService
+	CreateIndex(index string) IndicesCreateService
+	Index() IndexService
 }
 
+// IndicesExistsService is an abstraction for elastic.IndicesExistsService
 type IndicesExistsService interface {
-	Do(ctx context.Context) 	(bool, error)
+	Do(ctx context.Context) (bool, error)
 }
 
+// IndicesCreateService is an abstraction for elastic.IndicesCreateService
 type IndicesCreateService interface {
-	Body(mapping string) 		IndicesCreateService
-	Do(ctx context.Context) 	(*elastic.IndicesCreateResult, error)
+	Body(mapping string) IndicesCreateService
+	Do(ctx context.Context) (*elastic.IndicesCreateResult, error)
 }
 
+// IndexService is an abstraction for elastic.IndexService
 type IndexService interface {
-	Index(index string) 		IndexService
-	Type(typ string) 		IndexService
-	Id(id string) 			IndexService
-	BodyJson(body interface{}) 	IndexService
-	Do(ctx context.Context) 	(*elastic.IndexResponse, error)
+	Index(index string) IndexService
+	Type(typ string) IndexService
+	Id(id string) IndexService
+	BodyJson(body interface{}) IndexService
+	Do(ctx context.Context) (*elastic.IndexResponse, error)
 }

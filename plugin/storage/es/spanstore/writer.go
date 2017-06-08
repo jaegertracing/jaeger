@@ -25,8 +25,8 @@ import (
 	"fmt"
 	"time"
 
-	"go.uber.org/zap"
 	"github.com/pkg/errors"
+	"go.uber.org/zap"
 
 	"github.com/uber/jaeger/model"
 	"github.com/uber/jaeger/model/converter/json"
@@ -130,16 +130,19 @@ const spanMapping = `{
   }
 }`
 
+// SpanWriter is a wrapper around elastic.Client
 type SpanWriter struct {
 	client es.Client
 	logger *zap.Logger
 }
 
+// Service is the JSON struct for service:operation documents in ElasticSearch
 type Service struct {
 	serviceName   string
 	operationName string
 }
 
+// NewSpanWriter creates a new SpanWriter for use
 func NewSpanWriter(
 	client es.Client,
 	logger *zap.Logger,
@@ -150,6 +153,7 @@ func NewSpanWriter(
 	}
 }
 
+// WriteSpan writes a span and its corresponding service:operation in ElasticSearch
 func (s *SpanWriter) WriteSpan(span *model.Span) error {
 	// Convert model.Span into json.Span
 	jsonSpan := json.FromDomainEmbedProcess(span)
@@ -193,7 +197,7 @@ func (s *SpanWriter) WriteSpan(span *model.Span) error {
 
 func (s *SpanWriter) logError(span *jModel.Span, err error, msg string, logger *zap.Logger) error {
 	logger.
-	With(zap.String("trace_id", string(span.TraceID))).
+		With(zap.String("trace_id", string(span.TraceID))).
 		With(zap.String("span_id", string(span.SpanID))).
 		With(zap.Error(err)).
 		Error(msg)
