@@ -23,7 +23,6 @@ package spanstore
 import (
 	"context"
 	"fmt"
-	"time"
 
 	"github.com/pkg/errors"
 	"go.uber.org/zap"
@@ -37,98 +36,6 @@ import (
 const spanType = "span"
 const serviceType = "service"
 const hostPort = "http://localhost:9200"
-const spanMapping = `{
-  "settings": {
-    "index.mapping.nested_fields.limit": 	50,
-    "index.requests.cache.enable": 		true,
-    "index.mapper.dynamic":           false,
-    "analysis": {
-      "analyzer": {
-        "traceId_analyzer": {
-          "type": 	"custom",
-          "tokenizer":	"keyword",
-          "filter":	"traceId_filter"
-        }
-      },
-      "filter": {
-        "traceId_filter": {
-          "type":		"pattern_capture",
-          "patterns": 		["([0-9a-f]{1,16})$"],
-          "preserve_original": 	true
-        }
-      }
-    }
-  },
-
-  "mappings": {
-    "_default_": {
-      "_all": 	{ "enabled" : false }
-    },
-    "span": {
-      "properties": {
-        "traceID": 		{ "type": "string", "analyzer": "traceId_analyzer", "fielddata": "true" },
-        "parentSpanID": 	{ "type": "keyword", "ignore_above": 256 },
-        "spanID": 		{ "type": "keyword", "ignore_above": 256 },
-        "operationName": 	{ "type": "keyword", "ignore_above": 256 },
-        "startTime": 		{ "type": "long" },
-        "duration": 		{ "type": "long" },
-        "flags": 		{ "type": "integer" },
-        "logs": {
-          "properties": {
-            "timestamp": 	{ "type": "long" },
-            "tags": {
-              "type": 		"nested",
-              "dynamic":  	false,
-              "properties": {
-                "key": 		{ "type": "keyword", "ignore_above": 256 },
-                "value": 	{ "type": "keyword", "ignore_above": 256 },
-                "tagType": 	{ "type": "keyword", "ignore_above": 256 }
-              }
-            }
-          }
-        },
-        "process": {
-          "properties": {
-            "serviceName": 	{ "type": "keyword", "ignore_above": 256 },
-            "tags": {
-              "type": 		"nested",
-              "dynamic":  	false,
-              "properties": {
-                "key": 		{ "type": "keyword", "ignore_above": 256 },
-                "value": 	{ "type": "keyword", "ignore_above": 256 },
-                "tagType": 	{ "type": "keyword", "ignore_above": 256 }
-              }
-            }
-          }
-        },
-        "references": {
-          "type":   		"nested",
-          "dynamic": 		false,
-          "properties": {
-            "refType": 		{ "type": "keyword", "ignore_above": 256 },
-            "traceID": 		{ "type": "keyword", "ignore_above": 256 },
-            "spanID": 		{ "type": "keyword", "ignore_above": 256 },
-          }
-        },
-        "tags": {
-          "type": 		"nested",
-          "dynamic": false,
-          "properties": {
-            "key": 		{ "type": "keyword", "ignore_above": 256 },
-            "value": 		{ "type": "keyword", "ignore_above": 256 },
-            "tagType": 		{ "type": "keyword", "ignore_above": 256 }
-          }
-        }
-      }
-    },
-    "service": {
-      "properties": {
-        "serviceName": 		{ "type": "keyword", "ignore_above": 256 },
-        "operationName": 	{ "type": "keyword", "ignore_above": 256 }
-      }
-    }
-  }
-}`
 
 // SpanWriter is a wrapper around elastic.Client
 type SpanWriter struct {
@@ -143,10 +50,7 @@ type Service struct {
 }
 
 // NewSpanWriter creates a new SpanWriter for use
-func NewSpanWriter(
-	client es.Client,
-	logger *zap.Logger,
-) *SpanWriter {
+func NewSpanWriter(client es.Client, logger *zap.Logger) *SpanWriter {
 	return &SpanWriter{
 		client: client,
 		logger: logger,
@@ -155,40 +59,60 @@ func NewSpanWriter(
 
 // WriteSpan writes a span and its corresponding service:operation in ElasticSearch
 func (s *SpanWriter) WriteSpan(span *model.Span) error {
+	ctx := context.Background()
+	jaegerIndexName := spanIndexName(span)
 	// Convert model.Span into json.Span
 	jsonSpan := json.FromDomainEmbedProcess(span)
 
-	ctx := context.Background()
+	if err := s.checkAndCreateIndex(ctx, jaegerIndexName, jsonSpan); err != nil {
+		return err
+	}
+	if err := s.writeService(ctx, jaegerIndexName, jsonSpan); err != nil {
+		return err
+	}
+	if err := s.writeSpan(ctx, jaegerIndexName, jsonSpan); err != nil {
+		return err
+	}
+	return nil
+}
 
-	today := time.Now().Format("2006-01-02")
-	jaegerIndexName := "jaeger-" + today
+func spanIndexName(span *model.Span) string {
+	spanDate := span.StartTime.Format("2006-01-02")
+	return "jaeger-" + spanDate
+}
 
-	// Check if index exists, and create index if it does not.
+// Check if index exists, and create index if it does not.
+func (s *SpanWriter) checkAndCreateIndex(ctx context.Context, indexName string, jsonSpan *jModel.Span) error {
 	// TODO: We don't need to check every write. Try to pull this out of WriteSpan.
-	exists, err := s.client.IndexExists(jaegerIndexName).Do(ctx)
+	exists, err := s.client.IndexExists(indexName).Do(ctx)
 	if err != nil {
 		return s.logError(jsonSpan, err, "Failed to find index", s.logger)
 	}
 	if !exists {
-		_, err = s.client.CreateIndex(jaegerIndexName).Body(spanMapping).Do(ctx)
+		_, err = s.client.CreateIndex(indexName).Body(spanMapping).Do(ctx)
 		if err != nil {
 			return s.logError(jsonSpan, err, "Failed to create index", s.logger)
 		}
 	}
+	return nil
+}
 
+func (s *SpanWriter) writeService(ctx context.Context, indexName string, jsonSpan *jModel.Span) error {
 	// Insert serviceName:operationName document
 	service := Service{
-		serviceName:   span.Process.ServiceName,
-		operationName: span.OperationName,
+		serviceName:   jsonSpan.Process.ServiceName,
+		operationName: jsonSpan.OperationName,
 	}
 	serviceID := fmt.Sprintf("%s|%s", service.serviceName, service.operationName)
-	_, err = s.client.Index().Index(jaegerIndexName).Type(serviceType).Id(serviceID).BodyJson(service).Do(ctx)
+	_, err := s.client.Index().Index(indexName).Type(serviceType).Id(serviceID).BodyJson(service).Do(ctx)
 	if err != nil {
 		return s.logError(jsonSpan, err, "Failed to insert service:operation", s.logger)
 	}
+	return nil
+}
 
-	// Insert json.Span document
-	_, err = s.client.Index().Index(jaegerIndexName).Type(spanType).BodyJson(jsonSpan).Do(ctx)
+func (s *SpanWriter) writeSpan(ctx context.Context, indexName string, jsonSpan *jModel.Span) error {
+	_, err := s.client.Index().Index(indexName).Type(spanType).BodyJson(jsonSpan).Do(ctx)
 	if err != nil {
 		return s.logError(jsonSpan, err, "Failed to insert span", s.logger)
 	}
