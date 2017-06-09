@@ -32,14 +32,22 @@ options.
 
 Many instances of collectors can be run in parallel.
 
-## Cassandra
+## Cassandra and ScyllaDB
 
-Currently Cassandra 3.x is the only storage supported by Jaeger backend.
+Currently Cassandra 3.x and ScyllaDB are the only storages supported by Jaeger backend.
 Before running collectors, the keyspace must be initialized using a script
-we provide and Cassandra's interactive shell [`cqlsh`][cqlsh]:
+we provide and Cassandra's interactive shell [`cqlsh`][cqlsh].
+
+For Cassandra 3.x:
 
 ```sh
 sh ./plugin/storage/cassandra/cassandra3v001-schema.sh test | cqlsh
+```
+
+And ScyllaDB:
+
+```sh
+sh ./plugin/storage/cassandra/scylladbv001-schema.sh test | cqlsh
 ```
 
 For production deployment, pass `prod {datacenter}` arguments to the script,
