@@ -35,6 +35,7 @@ import (
 	"github.com/uber/jaeger/pkg/es/mocks"
 	"github.com/uber/jaeger/pkg/testutils"
 	"github.com/uber/jaeger/storage/spanstore"
+	"github.com/stretchr/testify/require"
 )
 
 type spanWriterTest struct {
@@ -163,7 +164,8 @@ func TestSpanWriter_WriteSpan(t *testing.T) {
 		t.Run(testCase.caption, func(t *testing.T) {
 			withSpanWriter(func(w *spanWriterTest) {
 				date, err := time.Parse(time.RFC3339, "1995-04-21T22:08:41+00:00")
-				assert.NoError(t, err)
+				require.NoError(t, err)
+
 
 				span := &model.Span{
 					TraceID:       model.TraceID{Low: 1},
@@ -227,6 +229,20 @@ func TestSpanWriter_WriteSpan(t *testing.T) {
 			})
 		})
 	}
+}
+
+func TestSpanIndexName(t *testing.T) {
+	date, err := time.Parse(time.RFC3339, "1995-04-21T22:08:41+00:00")
+	require.NoError(t, err)
+	span := &model.Span{
+		StartTime: date,
+	}
+	indexName := spanIndexName(span)
+	assert.Equal(t, "jaeger-1995-04-21", indexName)
+}
+
+func TestCheckAndCreateIndex(t *testing.T) {
+
 }
 
 // stringMatcher can match a string argument when it contains a specific substring q
