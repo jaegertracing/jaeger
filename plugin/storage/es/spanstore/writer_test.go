@@ -29,13 +29,13 @@ import (
 	"github.com/olivere/elastic"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
+	"github.com/stretchr/testify/require"
 	"go.uber.org/zap"
 
 	"github.com/uber/jaeger/model"
 	"github.com/uber/jaeger/pkg/es/mocks"
 	"github.com/uber/jaeger/pkg/testutils"
 	"github.com/uber/jaeger/storage/spanstore"
-	"github.com/stretchr/testify/require"
 )
 
 type spanWriterTest struct {
@@ -166,7 +166,6 @@ func TestSpanWriter_WriteSpan(t *testing.T) {
 				date, err := time.Parse(time.RFC3339, "1995-04-21T22:08:41+00:00")
 				require.NoError(t, err)
 
-
 				span := &model.Span{
 					TraceID:       model.TraceID{Low: 1},
 					SpanID:        model.SpanID(0),
@@ -242,7 +241,15 @@ func TestSpanIndexName(t *testing.T) {
 }
 
 func TestCheckAndCreateIndex(t *testing.T) {
+	// TODO: finish this test
+}
 
+func TestWriteService(t *testing.T) {
+	// TODO: finish this test
+}
+
+func TestWriteSpanInternal(t *testing.T) {
+	// TODO: finish this test
 }
 
 // stringMatcher can match a string argument when it contains a specific substring q

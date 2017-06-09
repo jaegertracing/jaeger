@@ -34,7 +34,7 @@ import (
 )
 
 const (
-	spanType = "span"
+	spanType    = "span"
 	serviceType = "service"
 )
 
@@ -55,7 +55,7 @@ type Service struct {
 func NewSpanWriter(client es.Client, logger *zap.Logger) *SpanWriter {
 	ctx := context.Background()
 	return &SpanWriter{
-		ctx:	ctx,
+		ctx:    ctx,
 		client: client,
 		logger: logger,
 	}
