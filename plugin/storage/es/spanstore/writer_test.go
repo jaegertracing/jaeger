@@ -65,6 +65,8 @@ func TestNewSpanWriter(t *testing.T) {
 	})
 }
 
+// This test behaves as a large test that checks WriteSpan's behavior as a whole.
+// Extra tests for individual functions are below.
 func TestSpanWriter_WriteSpan(t *testing.T) {
 	testCases := []struct {
 		caption          string
