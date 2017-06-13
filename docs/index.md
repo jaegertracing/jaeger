@@ -4,7 +4,7 @@
 
 Welcome to Jaeger's documentation portal! Below, you'll find information for beginners and experienced Jaeger users. 
 
-If you can't find what you are looking for, or have an issue not covered here, we'd love to hear from you either on [Github](https://github.com/uber/jaeger/issues), or on our [Mailing List](https://groups.google.com/forum/#!forum/jaeger-tracing). 
+If you can't find what you are looking for, or have an issue not covered here, we'd love to hear from you either on [Github](https://github.com/uber/jaeger/issues), [Mailing List](https://groups.google.com/forum/#!forum/jaeger-tracing) or on [Gitter Channel](https://gitter.im/jaegertracing/Lobby).
 
 ## About
 Jaeger, inspired by [Dapper][dapper] and [OpenZipkin](http://zipkin.io),
