@@ -1,6 +1,6 @@
 <img align="right" width="290" height="290" src="http://jaeger.readthedocs.io/en/latest/images/jaeger-vector.svg">
 
-[![ReadTheDocs][doc-img]][doc] [![GoDoc][godoc-img]][godoc] [![Build Status][ci-img]][ci] [![Coverage Status][cov-img]][cov] [![OpenTracing-1.0][ot-badge]](http://opentracing.io)
+[![Build Status][ci-img]][ci] [![Coverage Status][cov-img]][cov] [![ReadTheDocs][doc-img]][doc] [![GoDoc][godoc-img]][godoc] [![Gitter chat][gitter-img]][gitter] [![OpenTracing-1.0][ot-badge]](http://opentracing.io)
 
 # Jaeger - a Distributed Tracing System
 
@@ -62,4 +62,7 @@ Open an issue in this or other Jaeger repositories, or join the [jaeger-tracing 
 [ubeross]: http://uber.github.io
 [ot-badge]: https://img.shields.io/badge/OpenTracing--1.x-inside-blue.svg
 [hotrod-tutorial]: https://medium.com/@YuriShkuro/take-opentracing-for-a-hotrod-ride-f6e3141f7941
+[gitter]: [https://gitter.im/jaegertracing/Lobby]
+[gitter-img]: [http://img.shields.io/badge/gitter-join%20chat%20%E2%86%92-brightgreen.svg]
+
 [//]: # (md-to-godoc-ignore)
