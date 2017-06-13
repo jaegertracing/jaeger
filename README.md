@@ -1,6 +1,7 @@
 <img align="right" width="290" height="290" src="http://jaeger.readthedocs.io/en/latest/images/jaeger-vector.svg">
 
-[![ReadTheDocs][doc-img]][doc] [![GoDoc][godoc-img]][godoc] [![Build Status][ci-img]][ci] [![Coverage Status][cov-img]][cov] [![OpenTracing-1.0][ot-badge]](http://opentracing.io)
+[![Gitter][gitter-img]][gitter] [![ReadTheDocs][doc-img]][doc] [![GoDoc][godoc-img]][godoc] [![Build Status][ci-img]][ci] [![Coverage Status][cov-img]][cov] [![OpenTracing-1.0][ot-badge]](http://opentracing.io)
+
 
 # Jaeger - a Distributed Tracing System
 
@@ -50,6 +51,8 @@ Open an issue in this or other Jaeger repositories, or join the [jaeger-tracing 
 
 [The MIT License](./LICENSE).
 
+[gitter-img]:http://img.shields.io/badge/gitter-join%20chat%20%E2%86%92-brightgreen.svg
+[gitter]: https://gitter.im/jaegertracing/Lobby
 [doc-img]: https://readthedocs.org/projects/jaeger/badge/?version=latest
 [doc]: http://jaeger.readthedocs.org/en/latest/
 [godoc-img]: https://godoc.org/github.com/uber/jaeger?status.svg
