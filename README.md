@@ -62,7 +62,7 @@ Open an issue in this or other Jaeger repositories, or join the [jaeger-tracing 
 [ubeross]: http://uber.github.io
 [ot-badge]: https://img.shields.io/badge/OpenTracing--1.x-inside-blue.svg
 [hotrod-tutorial]: https://medium.com/@YuriShkuro/take-opentracing-for-a-hotrod-ride-f6e3141f7941
-[gitter]: [https://gitter.im/jaegertracing/Lobby]
-[gitter-img]: [http://img.shields.io/badge/gitter-join%20chat%20%E2%86%92-brightgreen.svg]
+[gitter]: https://gitter.im/jaegertracing/Lobby
+[gitter-img]: http://img.shields.io/badge/gitter-join%20chat%20%E2%86%92-brightgreen.svg
 
 [//]: # (md-to-godoc-ignore)
