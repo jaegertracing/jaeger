@@ -26,27 +26,41 @@ import (
 	"io/ioutil"
 	"net/http"
 	"net/http/httptest"
+	"sync"
 	"testing"
 	"time"
 
 	"github.com/apache/thrift/lib/go/thrift"
 	"github.com/gorilla/mux"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
+	jaegerClient "github.com/uber/jaeger-client-go"
+	"github.com/uber/jaeger-client-go/transport"
 	tchanThrift "github.com/uber/tchannel-go/thrift"
 
 	"github.com/uber/jaeger/thrift-gen/jaeger"
-	tJaeger "github.com/uber/jaeger/thrift-gen/jaeger"
 	"github.com/uber/jaeger/thrift-gen/zipkincore"
 )
 
 var httpClient = &http.Client{Timeout: 2 * time.Second}
 
 type mockJaegerHandler struct {
-	err error
+	err     error
+	mux     sync.Mutex
+	batches []*jaeger.Batch
 }
 
 func (p *mockJaegerHandler) SubmitBatches(ctx tchanThrift.Context, batches []*jaeger.Batch) ([]*jaeger.BatchSubmitResponse, error) {
+	p.mux.Lock()
+	defer p.mux.Unlock()
+	p.batches = append(p.batches, batches...)
 	return nil, p.err
+}
+
+func (p *mockJaegerHandler) getBatches() []*jaeger.Batch {
+	p.mux.Lock()
+	defer p.mux.Unlock()
+	return p.batches
 }
 
 type mockZipkinHandler struct {
@@ -59,7 +73,7 @@ func (p *mockZipkinHandler) SubmitZipkinBatch(ctx tchanThrift.Context, batches [
 
 func initializeTestServer(err error) (*httptest.Server, *APIHandler) {
 	r := mux.NewRouter()
-	handler := NewAPIHandler(&mockJaegerHandler{err}, &mockZipkinHandler{err})
+	handler := NewAPIHandler(&mockJaegerHandler{err: err}, &mockZipkinHandler{err})
 	handler.RegisterRoutes(r)
 	return httptest.NewServer(r), handler
 }
@@ -71,50 +85,85 @@ func TestJaegerFormat(t *testing.T) {
 	span := &jaeger.Span{
 		OperationName: "opName",
 	}
-	spans := []*jaeger.Span{}
-	spans = append(spans, span)
+	spans := []*jaeger.Span{span}
 	batch := jaeger.Batch{Process: process, Spans: spans}
 	tser := thrift.NewTSerializer()
-	req := tJaeger.CollectorSubmitBatchesArgs{Batches: []*jaeger.Batch{&batch}}
-	someBytes, err := tser.Write(&req)
+	someBytes, err := tser.Write(&batch)
 	assert.NoError(t, err)
 	assert.NotEmpty(t, someBytes)
 	server, handler := initializeTestServer(nil)
 	defer server.Close()
 
-	statusCode, resBodyStr, err := postJSON(server.URL+`/api/traces?format=jaeger.thrift`, someBytes)
+	statusCode, resBodyStr, err := postBytes(server.URL+`/api/traces?format=jaeger.thrift`, someBytes)
 	assert.NoError(t, err)
 	assert.EqualValues(t, http.StatusOK, statusCode)
 	assert.EqualValues(t, "", resBodyStr)
 
 	handler.jaegerBatchesHandler.(*mockJaegerHandler).err = fmt.Errorf("Bad times ahead")
-	statusCode, resBodyStr, err = postJSON(server.URL+`/api/traces?format=jaeger.thrift`, someBytes)
+	statusCode, resBodyStr, err = postBytes(server.URL+`/api/traces?format=jaeger.thrift`, someBytes)
 	assert.NoError(t, err)
 	assert.EqualValues(t, http.StatusInternalServerError, statusCode)
 	assert.EqualValues(t, "Cannot submit Jaeger batch: Bad times ahead\n", resBodyStr)
+}
+
+func TestJaegerFormatViaClient(t *testing.T) {
+	server, handler := initializeTestServer(nil)
+	defer server.Close()
+	jaegerHandler := handler.jaegerBatchesHandler.(*mockJaegerHandler)
+
+	sender, err := transport.NewHTTPTransport(
+		server.URL+`/api/traces?format=jaeger.thrift`,
+		transport.HTTPBatchSize(1),
+	)
+	require.NoError(t, err)
+
+	tracer, closer := jaegerClient.NewTracer(
+		"test",
+		jaegerClient.NewConstSampler(true),
+		jaegerClient.NewRemoteReporter(sender),
+	)
+	defer closer.Close()
+
+	span := tracer.StartSpan("root")
+	span.Finish()
+
+	deadline := time.Now().Add(2 * time.Second)
+	for {
+		if time.Now().After(deadline) {
+			t.Fatal("never received a span")
+		}
+		if want, have := 1, len(jaegerHandler.getBatches()); want != have {
+			time.Sleep(time.Millisecond)
+			continue
+		}
+		break
+	}
+
+	batches := jaegerHandler.getBatches()
+	assert.Len(t, batches, 1)
 }
 
 func TestJaegerFormatBadBody(t *testing.T) {
 	server, _ := initializeTestServer(nil)
 	defer server.Close()
 	bodyBytes := []byte("not good")
-	statusCode, resBodyStr, err := postJSON(server.URL+`/api/traces?format=jaeger.thrift`, bodyBytes)
+	statusCode, resBodyStr, err := postBytes(server.URL+`/api/traces?format=jaeger.thrift`, bodyBytes)
 	assert.NoError(t, err)
 	assert.EqualValues(t, http.StatusBadRequest, statusCode)
-	assert.EqualValues(t, "Unable to process request body: *jaeger.CollectorSubmitBatchesArgs field 25711 read error: unexpected EOF\n", resBodyStr)
+	assert.EqualValues(t, "Unable to process request body: *jaeger.Batch field 25711 read error: unexpected EOF\n", resBodyStr)
 }
 
 func TestWrongFormat(t *testing.T) {
 	server, _ := initializeTestServer(nil)
 	defer server.Close()
-	statusCode, resBodyStr, err := postJSON(server.URL+`/api/traces?format=nosoupforyou`, []byte{})
+	statusCode, resBodyStr, err := postBytes(server.URL+`/api/traces?format=nosoupforyou`, []byte{})
 	assert.NoError(t, err)
 	assert.EqualValues(t, http.StatusBadRequest, statusCode)
 	assert.EqualValues(t, "Unsupported format type: nosoupforyou\n", resBodyStr)
 }
 
 func TestCannotReadBodyFromRequest(t *testing.T) {
-	handler := NewAPIHandler(&mockJaegerHandler{nil}, &mockZipkinHandler{nil})
+	handler := NewAPIHandler(&mockJaegerHandler{}, &mockZipkinHandler{nil})
 
 	testCases := []struct {
 		url string
@@ -156,7 +205,7 @@ func (d *dummyResponseWriter) WriteHeader(statusCode int) {
 	d.myStatusCode = statusCode
 }
 
-func postJSON(urlStr string, bodyBytes []byte) (int, string, error) {
+func postBytes(urlStr string, bodyBytes []byte) (int, string, error) {
 	req, err := http.NewRequest(http.MethodPost, urlStr, bytes.NewBuffer([]byte(bodyBytes)))
 	if err != nil {
 		return 0, "", err
@@ -182,13 +231,13 @@ func TestZipkinFormat(t *testing.T) {
 	defer server.Close()
 
 	bodyBytes := zipkinSerialize(spans)
-	statusCode, resBodyStr, err := postJSON(server.URL+`/api/traces?format=zipkin.thrift`, bodyBytes)
+	statusCode, resBodyStr, err := postBytes(server.URL+`/api/traces?format=zipkin.thrift`, bodyBytes)
 	assert.NoError(t, err)
 	assert.EqualValues(t, http.StatusOK, statusCode)
 	assert.EqualValues(t, "", resBodyStr)
 
 	handler.zipkinSpansHandler.(*mockZipkinHandler).err = fmt.Errorf("Bad times ahead")
-	statusCode, resBodyStr, err = postJSON(server.URL+`/api/traces?format=zipkin.thrift`, bodyBytes)
+	statusCode, resBodyStr, err = postBytes(server.URL+`/api/traces?format=zipkin.thrift`, bodyBytes)
 	assert.NoError(t, err)
 	assert.EqualValues(t, http.StatusInternalServerError, statusCode)
 	assert.EqualValues(t, "Cannot submit Zipkin batch: Bad times ahead\n", resBodyStr)
@@ -209,7 +258,7 @@ func TestZipkinFormatBadBody(t *testing.T) {
 	server, _ := initializeTestServer(nil)
 	defer server.Close()
 	bodyBytes := []byte("not good")
-	statusCode, resBodyStr, err := postJSON(server.URL+`/api/traces?format=zipkin.thrift`, bodyBytes)
+	statusCode, resBodyStr, err := postBytes(server.URL+`/api/traces?format=zipkin.thrift`, bodyBytes)
 	assert.NoError(t, err)
 	assert.EqualValues(t, http.StatusBadRequest, statusCode)
 	assert.EqualValues(t, "Unable to process request body: *zipkincore.Span field 0 read error: EOF\n", resBodyStr)
