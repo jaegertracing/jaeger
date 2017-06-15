@@ -1,0 +1,28 @@
+name: jaeger
+version: master
+summary: Distributed Tracing System
+description: |
+  Jaeger can be used for monitoring microservice-based architectures:
+
+  Distributed context propagation
+  Distributed transaction monitoring
+  Root cause analysis
+  Service dependency analysis
+  Performance / latency optimization
+
+grade: devel # must be 'stable' to release into candidate/stable channels
+confinement: strict
+
+apps:
+  agent:
+    command: agent
+    plugs: [network, network-bind]
+
+parts:
+  jaeger:
+    source: .
+    plugin: go
+    go-importpath: github.com/uber/jaeger
+    after: [go]
+  go:
+    source-tag: go1.7.5
