@@ -1,17 +1,17 @@
 # Deployment
 
-The main Jaeger backend components are released as Docker images on Docket Hub:
+The main Jaeger backend components are released as Docker images on Docker Hub:
 
 Component             | Repository
 --------------------- | ---
-**jaeger-agent**      | [https://hub.docker.com/r/jaegertracing/jaeger-agent/](https://hub.docker.com/r/jaegertracing/jaeger-agent/)
-**jaeger-collector**  | [https://hub.docker.com/r/jaegertracing/jaeger-collector/](https://hub.docker.com/r/jaegertracing/jaeger-collector/)
-**jaeger-query**      | [https://hub.docker.com/r/jaegertracing/jaeger-query/](https://hub.docker.com/r/jaegertracing/jaeger-query/)
+**jaeger-agent**      | [hub.docker.com/r/jaegertracing/jaeger-agent/](https://hub.docker.com/r/jaegertracing/jaeger-agent/)
+**jaeger-collector**  | [hub.docker.com/r/jaegertracing/jaeger-collector/](https://hub.docker.com/r/jaegertracing/jaeger-collector/)
+**jaeger-query**      | [hub.docker.com/r/jaegertracing/jaeger-query/](https://hub.docker.com/r/jaegertracing/jaeger-query/)
 
 There are orchestration templates for running Jaeger with:
 
-  * Kubernetes: [https://github.com/jaegertracing/jaeger-kubernetes](https://github.com/jaegertracing/jaeger-kubernetes),
-  * OpenShift: [https://github.com/jaegertracing/jaeger-openshift](https://github.com/jaegertracing/jaeger-openshift).
+  * Kubernetes: [github.com/jaegertracing/jaeger-kubernetes](https://github.com/jaegertracing/jaeger-kubernetes),
+  * OpenShift: [github.com/jaegertracing/jaeger-openshift](https://github.com/jaegertracing/jaeger-openshift).
 
 ## Agent
 
@@ -56,7 +56,7 @@ Port  | Protocol | Function
 ## Storage Backend
 
 Collectors require a persistent storage backend. Cassandra 3.x is the primary supported storage.
-There is ongoing work to add support for ElasticSearch, MySQL, and ScyllaDB.
+There is ongoing work to add support for Elasticsearch, MySQL, and ScyllaDB.
 
 ### Cassandra
 
