@@ -17,23 +17,28 @@ It can be used for monitoring microservice-based architectures:
 * Service dependency analysis
 * Performance / latency optimization
 
-Jaeger is written in Go, with [OpenTracing](http://opentracing.io/) compatible client libraries available in [Go](https://github.com/uber/jaeger-client-go), [Java](https://github.com/uber/jaeger-client-java), [Node](https://github.com/uber/jaeger-client-node) and [Python](https://github.com/uber/jaeger-client-python). It uses Cassandra for storage.
-
-See also: [Evolving Distributed Tracing at Uber](https://eng.uber.com/distributed-tracing/) blog post.
+We published a blog post, [Evolving Distributed Tracing at Uber](https://eng.uber.com/distributed-tracing/), where we explain the history and reasons
+for the architectural choices made in Jaeger.
 
 ## Features
 
   * [OpenTracing](http://opentracing.io/) compatible data model and instrumentation libraries 
     * in [Go](https://github.com/uber/jaeger-client-go), [Java](https://github.com/uber/jaeger-client-java), [Node](https://github.com/uber/jaeger-client-node) and [Python](https://github.com/uber/jaeger-client-python)
-  * Backend components implemened in Go
-  * React-based UI
-  * Cassandra as persistent storage
   * Uses consistent upfront sampling with individual per service/endpoint probabilities
+  * Adaptive sampling (coming soon)
+  * Post-collection data processing pipeline (coming soon)
+
+## Technical Specs
+
+  * Backend components implemented in Go
+  * React/Javascript UI
+  * Cassandra 3.x as persistent storage (more storage backends coming soon)
 
 ## Quick Start
 See [running a docker all in one image](getting_started.md#all-in-one-docker-image).
 
 ## Screenshots
+
 ### Traces View
 [![Traces View](images/traces-ss.png)](images/traces-ss.png)
 
