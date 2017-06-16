@@ -38,11 +38,16 @@ across several collectors ([issue 213](https://github.com/uber/jaeger/issues/213
 
 Many instances of **jaeger-collector** can be run in parallel.
 Collectors require almost no configuration, except for the location of Cassandra cluster,
-via `-cassandra.keyspace` and `-cassandra.servers` options.
-All configuration parameters can be provided via command line options.
+via `-cassandra.keyspace` and `-cassandra.servers` options. To see all command line options run
 
-```go
+```
 go run ./cmd/collector/main.go -h
+```
+
+or, if you don't have the source code
+
+```
+docker run -it --rm jaegertracing/jaeger-collector /go/bin/collector-linux -h
 ```
 
 At default settings the collector exposes the following ports: 
