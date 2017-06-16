@@ -75,14 +75,15 @@ func (aH *APIHandler) saveSpan(w http.ResponseWriter, r *http.Request) {
 	case "jaeger.thrift":
 		tdes := thrift.NewTDeserializer()
 		// (NB): We decided to use this struct instead of straight batches to be as consistent with tchannel intake as possible.
-		var req tJaeger.CollectorSubmitBatchesArgs
-		if err = tdes.Read(&req, bodyBytes); err != nil {
+		batch := &tJaeger.Batch{}
+		if err = tdes.Read(batch, bodyBytes); err != nil {
 			http.Error(w, fmt.Sprintf(unableToReadBodyErrFormat, err), http.StatusBadRequest)
 			return
 		}
 		ctx, cancel := tchanThrift.NewContext(time.Minute)
 		defer cancel()
-		if _, err = aH.jaegerBatchesHandler.SubmitBatches(ctx, req.Batches); err != nil {
+		batches := []*tJaeger.Batch{batch}
+		if _, err = aH.jaegerBatchesHandler.SubmitBatches(ctx, batches); err != nil {
 			http.Error(w, fmt.Sprintf("Cannot submit Jaeger batch: %v", err), http.StatusInternalServerError)
 			return
 		}
