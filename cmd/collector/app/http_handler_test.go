@@ -33,9 +33,6 @@ import (
 	"github.com/apache/thrift/lib/go/thrift"
 	"github.com/gorilla/mux"
 	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/require"
-	jaegerClient "github.com/uber/jaeger-client-go"
-	"github.com/uber/jaeger-client-go/transport"
 	tchanThrift "github.com/uber/tchannel-go/thrift"
 
 	"github.com/uber/jaeger/thrift-gen/jaeger"
@@ -106,42 +103,42 @@ func TestJaegerFormat(t *testing.T) {
 	assert.EqualValues(t, "Cannot submit Jaeger batch: Bad times ahead\n", resBodyStr)
 }
 
-func TestJaegerFormatViaClient(t *testing.T) {
-	server, handler := initializeTestServer(nil)
-	defer server.Close()
-	jaegerHandler := handler.jaegerBatchesHandler.(*mockJaegerHandler)
+// func TestJaegerFormatViaClient(t *testing.T) {
+// 	server, handler := initializeTestServer(nil)
+// 	defer server.Close()
+// 	jaegerHandler := handler.jaegerBatchesHandler.(*mockJaegerHandler)
 
-	sender, err := transport.NewHTTPTransport(
-		server.URL+`/api/traces?format=jaeger.thrift`,
-		transport.HTTPBatchSize(1),
-	)
-	require.NoError(t, err)
+// 	sender, err := transport.NewHTTPTransport(
+// 		server.URL+`/api/traces?format=jaeger.thrift`,
+// 		transport.HTTPBatchSize(1),
+// 	)
+// 	require.NoError(t, err)
 
-	tracer, closer := jaegerClient.NewTracer(
-		"test",
-		jaegerClient.NewConstSampler(true),
-		jaegerClient.NewRemoteReporter(sender),
-	)
-	defer closer.Close()
+// 	tracer, closer := jaegerClient.NewTracer(
+// 		"test",
+// 		jaegerClient.NewConstSampler(true),
+// 		jaegerClient.NewRemoteReporter(sender),
+// 	)
+// 	defer closer.Close()
 
-	span := tracer.StartSpan("root")
-	span.Finish()
+// 	span := tracer.StartSpan("root")
+// 	span.Finish()
 
-	deadline := time.Now().Add(2 * time.Second)
-	for {
-		if time.Now().After(deadline) {
-			t.Fatal("never received a span")
-		}
-		if want, have := 1, len(jaegerHandler.getBatches()); want != have {
-			time.Sleep(time.Millisecond)
-			continue
-		}
-		break
-	}
+// 	deadline := time.Now().Add(2 * time.Second)
+// 	for {
+// 		if time.Now().After(deadline) {
+// 			t.Fatal("never received a span")
+// 		}
+// 		if want, have := 1, len(jaegerHandler.getBatches()); want != have {
+// 			time.Sleep(time.Millisecond)
+// 			continue
+// 		}
+// 		break
+// 	}
 
-	batches := jaegerHandler.getBatches()
-	assert.Len(t, batches, 1)
-}
+// 	batches := jaegerHandler.getBatches()
+// 	assert.Len(t, batches, 1)
+// }
 
 func TestJaegerFormatBadBody(t *testing.T) {
 	server, _ := initializeTestServer(nil)
