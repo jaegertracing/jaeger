@@ -111,7 +111,7 @@ func TestPeerListManager_updatePeers(t *testing.T) {
 				countBefore := countPeers()
 				tm.notifier.Notify(testCase.instances)
 
-				// the peer manager receives notifications via channel, so yield to let it proces
+				// the peer manager receives notifications via channel, so yield to let it process
 				for i := 0; i < 1000; i++ {
 					if countPeers() != countBefore {
 						break

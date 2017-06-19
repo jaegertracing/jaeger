@@ -81,7 +81,7 @@ func (opt *Options) GetPrimary() *config.Configuration {
 	return &opt.primary.Configuration
 }
 
-// Get returns auxilary named configuration.
+// Get returns auxiliary named configuration.
 func (opt *Options) Get(namespace string) *config.Configuration {
 	nsCfg, ok := opt.others[namespace]
 	if !ok {
