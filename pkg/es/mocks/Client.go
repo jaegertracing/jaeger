@@ -19,7 +19,6 @@
 // LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 // THE SOFTWARE.
-
 package mocks
 
 import es "github.com/uber/jaeger/pkg/es"
@@ -72,6 +71,28 @@ func (_m *Client) IndexExists(index string) es.IndicesExistsService {
 	} else {
 		if ret.Get(0) != nil {
 			r0 = ret.Get(0).(es.IndicesExistsService)
+		}
+	}
+
+	return r0
+}
+
+// Search provides a mock function with given fields: indices
+func (_m *Client) Search(indices ...string) es.SearchService {
+	_va := make([]interface{}, len(indices))
+	for _i := range indices {
+		_va[_i] = indices[_i]
+	}
+	var _ca []interface{}
+	_ca = append(_ca, _va...)
+	ret := _m.Called(_ca...)
+
+	var r0 es.SearchService
+	if rf, ok := ret.Get(0).(func(...string) es.SearchService); ok {
+		r0 = rf(indices...)
+	} else {
+		if ret.Get(0) != nil {
+			r0 = ret.Get(0).(es.SearchService)
 		}
 	}
 

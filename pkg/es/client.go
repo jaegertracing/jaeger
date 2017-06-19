@@ -31,6 +31,7 @@ type Client interface {
 	IndexExists(index string) IndicesExistsService
 	CreateIndex(index string) IndicesCreateService
 	Index() IndexService
+	Search(indices ...string) SearchService
 }
 
 // IndicesExistsService is an abstraction for elastic.IndicesExistsService
@@ -51,4 +52,13 @@ type IndexService interface {
 	Id(id string) IndexService
 	BodyJson(body interface{}) IndexService
 	Do(ctx context.Context) (*elastic.IndexResponse, error)
+}
+
+// SearchService is an abstraction for elastic.SearchService
+type SearchService interface {
+	Type(typ string) SearchService
+	Size(size int) SearchService
+	Aggregation(name string, aggregation elastic.Aggregation) SearchService
+	Query(query elastic.Query) SearchService
+	Do(ctx context.Context) (*elastic.SearchResult, error)
 }
