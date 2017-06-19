@@ -121,7 +121,7 @@ type DependencyLink struct {
 }
 
 // FromFile reads a Trace from a JSON file.
-// Mostly this exists to have some code aside from struct delcaration,
+// Mostly this exists to have some code aside from struct declaration,
 // as otherwise code coverate is reported as 0%.
 func FromFile(filename string) (*Trace, error) {
 	in, err := ioutil.ReadFile(filename)

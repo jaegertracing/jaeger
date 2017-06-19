@@ -49,7 +49,7 @@ var (
 
 	// Some tags on Zipkin spans really describe the process emitting them rather than an individual span.
 	// Once all clients are upgraded to use native Jaeger model, this won't be happenning, but for now
-	// we remove these tags from the span and store them in the Processs.
+	// we remove these tags from the span and store them in the Process.
 	processTagAnnotations = map[string]string{
 		"jaegerClient":    "jaeger.version", // transform this tag name to client.version
 		"jaeger.hostname": "hostname",       // transform this tag name to hostname

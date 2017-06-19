@@ -152,7 +152,7 @@ type SamplingServerConfiguration struct {
 	HostPort string `yaml:"hostPort" validate:"nonzero"`
 }
 
-// WithReporter adds auxilary reporters
+// WithReporter adds auxiliary reporters
 func (b *Builder) WithReporter(r reporter.Reporter) *Builder {
 	b.otherReporters = append(b.otherReporters, r)
 	return b
