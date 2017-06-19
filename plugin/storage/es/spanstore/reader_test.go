@@ -28,14 +28,14 @@ import (
 	"github.com/stretchr/testify/require"
 	"go.uber.org/zap"
 
+	"encoding/json"
+	"errors"
+	"github.com/stretchr/testify/mock"
+	"github.com/uber/jaeger/model"
 	"github.com/uber/jaeger/pkg/es/mocks"
 	"github.com/uber/jaeger/pkg/testutils"
 	"github.com/uber/jaeger/storage/spanstore"
-	"github.com/uber/jaeger/model"
 	"time"
-	"github.com/stretchr/testify/mock"
-	"encoding/json"
-	"errors"
 )
 
 type spanReaderTest struct {
@@ -67,7 +67,7 @@ func TestNewSpanReader(t *testing.T) {
 func TestSpanReader_GetTrace(t *testing.T) {
 	// TODO: write test once done with function
 	// currently not doing anything, only for code coverage, ignore for code review
-	withSpanReader(func (r *spanReaderTest) {
+	withSpanReader(func(r *spanReaderTest) {
 		s, e := r.reader.GetTrace(model.TraceID{})
 		assert.Nil(t, s)
 		assert.Nil(t, e)
@@ -75,7 +75,7 @@ func TestSpanReader_GetTrace(t *testing.T) {
 }
 
 func TestSpanReader_findIndicesEmptyQuery(t *testing.T) {
-	withSpanReader(func (r *spanReaderTest) {
+	withSpanReader(func(r *spanReaderTest) {
 		existsService := &mocks.IndicesExistsService{}
 		existsService.On("Do", mock.AnythingOfType("*context.emptyCtx")).Return(true, nil)
 		r.client.On("IndexExists", mock.AnythingOfType("string")).Return(existsService)
@@ -97,7 +97,7 @@ func TestSpanReader_findIndicesEmptyQuery(t *testing.T) {
 }
 
 func TestSpanReader_findIndices(t *testing.T) {
-	withSpanReader(func (r *spanReaderTest) {
+	withSpanReader(func(r *spanReaderTest) {
 		existsService := &mocks.IndicesExistsService{}
 		existsService.On("Do", mock.AnythingOfType("*context.emptyCtx")).Return(true, nil)
 		r.client.On("IndexExists", mock.AnythingOfType("string")).Return(existsService)
@@ -114,14 +114,14 @@ func TestSpanReader_findIndices(t *testing.T) {
 }
 
 func TestSpanReader_findIndices2(t *testing.T) {
-	withSpanReader(func (r *spanReaderTest) {
+	withSpanReader(func(r *spanReaderTest) {
 		existsService := &mocks.IndicesExistsService{}
 		existsService.On("Do", mock.AnythingOfType("*context.emptyCtx")).Return(true, nil)
 		r.client.On("IndexExists", mock.AnythingOfType("string")).Return(existsService)
 
 		actual := r.reader.findIndices(spanstore.TraceQueryParameters{
-			StartTimeMin: time.Now().AddDate(0,0,-7),
-			StartTimeMax: time.Now().AddDate(0,0,-1),
+			StartTimeMin: time.Now().AddDate(0, 0, -7),
+			StartTimeMax: time.Now().AddDate(0, 0, -1),
 		})
 
 		yesterday := time.Now().AddDate(0, 0, -1).Format("2006-01-02")
@@ -144,7 +144,7 @@ func TestSpanReader_GetServices(t *testing.T) {
 
 	testCase := struct {
 		searchResult *elastic.SearchResult
-		searchError error
+		searchError  error
 	}{
 		searchResult: &elastic.SearchResult{
 			Aggregations: elastic.Aggregations(aggregations),
@@ -183,7 +183,7 @@ func TestSpanReader_GetServicesSearchError(t *testing.T) {
 
 	testCase := struct {
 		searchResult *elastic.SearchResult
-		searchError error
+		searchError  error
 	}{
 		searchError: errors.New("Search failure"),
 	}
@@ -219,7 +219,7 @@ func TestSpanReader_GetServicesAggregationError(t *testing.T) {
 
 	testCase := struct {
 		searchResult *elastic.SearchResult
-		searchError error
+		searchError  error
 	}{
 		searchResult: &elastic.SearchResult{
 			Aggregations: elastic.Aggregations(aggregations),
@@ -276,7 +276,7 @@ func TestSpanReader_GetOperations(t *testing.T) {
 
 	testCase := struct {
 		searchResult *elastic.SearchResult
-		searchError error
+		searchError  error
 	}{
 		searchResult: &elastic.SearchResult{
 			Aggregations: elastic.Aggregations(aggregations),
@@ -315,7 +315,7 @@ func TestSpanReader_GetOperationsSearchError(t *testing.T) {
 
 	testCase := struct {
 		searchResult *elastic.SearchResult
-		searchError error
+		searchError  error
 	}{
 		searchError: errors.New("Search failure"),
 	}
@@ -351,7 +351,7 @@ func TestSpanReader_GetOperationsAggregationError(t *testing.T) {
 
 	testCase := struct {
 		searchResult *elastic.SearchResult
-		searchError error
+		searchError  error
 	}{
 		searchResult: &elastic.SearchResult{
 			Aggregations: elastic.Aggregations(aggregations),
@@ -382,7 +382,7 @@ func TestSpanReader_GetOperationsAggregationError(t *testing.T) {
 }
 
 func TestSpanReader_bucketToStringArray(t *testing.T) {
-	withSpanReader(func (r *spanReaderTest) {
+	withSpanReader(func(r *spanReaderTest) {
 		buckets := make([]*elastic.AggregationBucketKeyItem, 3)
 		buckets[0] = &elastic.AggregationBucketKeyItem{Key: "hello"}
 		buckets[1] = &elastic.AggregationBucketKeyItem{Key: "world"}
@@ -398,7 +398,7 @@ func TestSpanReader_bucketToStringArray(t *testing.T) {
 }
 
 func TestSpanReader_bucketToStringArrayError(t *testing.T) {
-	withSpanReader(func (r *spanReaderTest) {
+	withSpanReader(func(r *spanReaderTest) {
 		buckets := make([]*elastic.AggregationBucketKeyItem, 3)
 		buckets[0] = &elastic.AggregationBucketKeyItem{Key: "hello"}
 		buckets[1] = &elastic.AggregationBucketKeyItem{Key: "world"}
@@ -412,7 +412,7 @@ func TestSpanReader_bucketToStringArrayError(t *testing.T) {
 func TestSpanReader_FindTraces(t *testing.T) {
 	// TODO: write test once done with function
 	// currently not doing anything, only for code coverage, ignore for code review
-	withSpanReader(func (r *spanReaderTest) {
+	withSpanReader(func(r *spanReaderTest) {
 		s, e := r.reader.FindTraces(nil)
 		assert.Nil(t, s)
 		assert.Nil(t, e)
