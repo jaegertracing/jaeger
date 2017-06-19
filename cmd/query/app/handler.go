@@ -125,7 +125,7 @@ func (aH *APIHandler) RegisterRoutes(router *mux.Router) {
 	aH.handleFunc(router, aH.getServices, "/services").Methods(http.MethodGet)
 	// TODO change the UI to use this endpoint. Requires ?service= parameter.
 	aH.handleFunc(router, aH.getOperations, "/operations").Methods(http.MethodGet)
-	// TOOD - remove this when UI catches up
+	// TODO - remove this when UI catches up
 	aH.handleFunc(router, aH.getOperationsLegacy, "/services/{%s}/operations", serviceParam).Methods(http.MethodGet)
 	aH.handleFunc(router, aH.dependencies, "/dependencies").Methods(http.MethodGet)
 }

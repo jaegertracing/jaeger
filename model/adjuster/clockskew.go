@@ -138,7 +138,7 @@ func (a *clockSkewAdjuster) buildSubGraphs() {
 
 func (a *clockSkewAdjuster) adjustNode(n *node, parent *node, skew clockSkew) {
 	if (n.hostKey != skew.hostKey || n.hostKey == "") && parent != nil {
-		// Node n is from a differnt host. The parent has already been adjusted,
+		// Node n is from a different host. The parent has already been adjusted,
 		// so we can compare this node's timestamps against the parent.
 		skew = clockSkew{
 			hostKey: n.hostKey,
