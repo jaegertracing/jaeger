@@ -67,7 +67,7 @@ fmt:
 lint:
 	$(GOVET) $(PACKAGES)
 	@cat /dev/null > $(LINT_LOG)
-	@$(foreach pkg, $(PACKAGES), $(GOLINT) $(pkg) | grep -v -e thrift-gen -e thrift-0.9.2 >> $(LINT_LOG) || true;)
+	@$(foreach pkg, $(PACKAGES), $(GOLINT) $(pkg) | grep -v -e /mocks/ -e thrift-gen -e thrift-0.9.2 >> $(LINT_LOG) || true;)
 	@[ ! -s "$(LINT_LOG)" ] || (echo "Lint Failures" | cat - $(LINT_LOG) && false)
 	@$(GOFMT) -e -s -l $(ALL_SRC) > $(FMT_LOG)
 	@./scripts/updateLicenses.sh >> $(FMT_LOG)
