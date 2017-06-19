@@ -20,29 +20,13 @@
 
 package spanstore
 
+// TODO: divide the span and service type into separate indices
+// TODO: resolve traceID concerns (may not require any changes here)
 const spanMapping = `{
    "settings":{
       "index.mapping.nested_fields.limit":50,
       "index.requests.cache.enable":true,
-      "index.mapper.dynamic":false,
-      "analysis":{
-         "analyzer":{
-            "traceId_analyzer":{
-               "type":"custom",
-               "tokenizer":"keyword",
-               "filter":"traceId_filter"
-            }
-         },
-         "filter":{
-            "traceId_filter":{
-               "type":"pattern_capture",
-               "patterns":[
-                  "([0-9a-f]{1,16})$"
-               ],
-               "preserve_original":true
-            }
-         }
-      }
+      "index.mapper.dynamic":false
    },
    "mappings":{
       "_default_":{
@@ -53,9 +37,8 @@ const spanMapping = `{
       "span":{
          "properties":{
             "traceID":{
-               "type":"string",
-               "analyzer":"traceId_analyzer",
-               "fielddata":"true"
+               "type":"keyword",
+               "ignore_above":256
             },
             "parentSpanID":{
                "type":"keyword",
