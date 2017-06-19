@@ -4,13 +4,16 @@
 
 This image, designed for quick local testing, launches the Jaeger UI, collector, query, and agent, with an in memory storage component. 
 
-The simplest way to start the all in one docker image is to use the pre-built image published to DockerHub.
+The simplest way to start the all in one docker image is to use the pre-built image published to DockerHub (a single command line).
 
 ```bash
-docker run -d -p5775:5775/udp -p6831:6831/udp -p6832:6832/udp -p5778:5778 -p16686:16686 -p14268:14268 jaegertracing/all-in-one:latest
+docker run -d -p5775:5775/udp -p6831:6831/udp -p6832:6832/udp \
+  -p5778:5778 -p16686:16686 -p14268:14268 jaegertracing/all-in-one:latest
 ```
 
 You can then navigate to `http://localhost:16686` to access the Jaeger UI.
+
+The container exposes the following ports:
 
 Port | Protocol | Component | Function
 ---- | -------  | --------- | ---
@@ -32,7 +35,8 @@ Github.
 
 This is a demo application that consists of several microservices and
 illustrates the use of the [OpenTracing API](http://opentracing.io).
-A tutorial / walkthough is available: [Take OpenTracing for a HotROD ride][hotrod-tutorial].
+A tutorial / walkthough is available in the blog post:
+[Take OpenTracing for a HotROD ride][hotrod-tutorial].
 
 It can be run standalone, but requires Jaeger backend to view the
 traces.
