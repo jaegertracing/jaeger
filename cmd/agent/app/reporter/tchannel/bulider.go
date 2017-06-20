@@ -55,7 +55,7 @@ type Builder struct {
 	channel    *tchannel.Channel
 }
 
-// NewBuilder creates a default builder with three processors.
+// NewBuilder creates a new reporter builder.
 func NewBuilder() *Builder {
 	return &Builder{}
 }

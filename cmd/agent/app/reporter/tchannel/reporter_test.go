@@ -46,10 +46,9 @@ func TestZipkinTChannelReporterSuccess(t *testing.T) {
 	metricsFactory, collector, reporter := initRequirements(t)
 	defer collector.Close()
 
-	assert.NotNil(t, reporter.Channel())
-
 	require.NoError(t, submitTestZipkinBatch(reporter))
 
+	// TODO potentially flaky test
 	time.Sleep(100 * time.Millisecond) // wait for server to receive
 
 	require.Equal(t, 1, len(collector.GetZipkinSpans()))
