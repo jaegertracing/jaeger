@@ -122,7 +122,7 @@ func (b *Builder) CreateReporter(mFactory metrics.Factory, logger *zap.Logger) (
 	if err != nil {
 		return nil, errors.Wrap(err, "cannot enable service discovery")
 	}
-	return NewReporter(b.CollectorServiceName, b.channel, peerListMgr, mFactory, logger), nil
+	return New(b.CollectorServiceName, b.channel, peerListMgr, mFactory, logger), nil
 }
 
 func defaultInt(value int, defaultVal int) int {

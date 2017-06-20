@@ -38,7 +38,7 @@ import (
 
 func initRequirements(t *testing.T) (*metrics.LocalFactory, *testutils.MockTCollector, *Reporter) {
 	metricsFactory, collector := testutils.InitMockCollector(t)
-	reporter := NewReporter("jaeger-collector", collector.Channel, nil, metricsFactory, zap.NewNop())
+	reporter := New("jaeger-collector", collector.Channel, nil, metricsFactory, zap.NewNop())
 	return metricsFactory, collector, reporter
 }
 

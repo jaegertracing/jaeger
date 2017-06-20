@@ -65,8 +65,8 @@ type Reporter struct {
 	logger         *zap.Logger
 }
 
-// NewReporter creates new TChannel-based Reporter.
-func NewReporter(
+// New creates new TChannel-based Reporter.
+func New(
 	collectorServiceName string,
 	channel *tchannel.Channel,
 	peerListMgr *peerlistmgr.PeerListManager,
