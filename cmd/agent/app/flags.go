@@ -21,7 +21,6 @@
 package app
 
 import (
-	"errors"
 	"flag"
 	"fmt"
 	"strings"
@@ -81,7 +80,7 @@ func (c *stringSliceFlag) String() string {
 // Set sets the flag value, part of the flag.Value interface.
 func (c *stringSliceFlag) Set(value string) error {
 	if len(*(c.slice)) > 0 {
-		return errors.New("comma-separated flag already set")
+		return fmt.Errorf("comma-separated flag already set: %v", *(c.slice))
 	}
 
 	hostPorts := strings.Split(value, ",")

@@ -18,7 +18,7 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 // THE SOFTWARE.
 
-package reporter
+package tchannel
 
 import (
 	"time"
@@ -28,6 +28,7 @@ import (
 	"github.com/uber/tchannel-go/thrift"
 	"go.uber.org/zap"
 
+	"github.com/uber/jaeger/pkg/discovery/peerlistmgr"
 	"github.com/uber/jaeger/thrift-gen/jaeger"
 	"github.com/uber/jaeger/thrift-gen/zipkincore"
 )
@@ -54,17 +55,25 @@ type batchMetrics struct {
 	SpansFailures metrics.Counter `metric:"spans.failures"`
 }
 
-// tchannelReporter forwards received spans to central collector tier
-type tchannelReporter struct {
+// Reporter forwards received spans to central collector tier over TChannel.
+type Reporter struct {
+	channel        *tchannel.Channel
 	zClient        zipkincore.TChanZipkinCollector
 	jClient        jaeger.TChanCollector
+	peerListMgr    *peerlistmgr.PeerListManager
 	batchesMetrics map[string]batchMetrics
 	logger         *zap.Logger
 }
 
-// NewTChannelReporter creates new tchannelReporter
-func NewTChannelReporter(svc string, channel *tchannel.Channel, mFactory metrics.Factory, zlogger *zap.Logger) Reporter {
-	thriftClient := thrift.NewClient(channel, svc, nil)
+// NewReporter creates new TChannel-based Reporter.
+func NewReporter(
+	collectorServiceName string,
+	channel *tchannel.Channel,
+	peerListMgr *peerlistmgr.PeerListManager,
+	mFactory metrics.Factory,
+	zlogger *zap.Logger,
+) *Reporter {
+	thriftClient := thrift.NewClient(channel, collectorServiceName, nil)
 	zClient := zipkincore.NewTChanZipkinCollectorClient(thriftClient)
 	jClient := jaeger.NewTChanCollectorClient(thriftClient)
 	batchesMetrics := map[string]batchMetrics{}
@@ -75,13 +84,23 @@ func NewTChannelReporter(svc string, channel *tchannel.Channel, mFactory metrics
 		metrics.Init(&bm, nsByType, nil)
 		batchesMetrics[s] = bm
 	}
-	rep := &tchannelReporter{zClient: zClient, jClient: jClient, logger: zlogger, batchesMetrics: batchesMetrics}
+	return &Reporter{
+		channel:        channel,
+		zClient:        zClient,
+		jClient:        jClient,
+		peerListMgr:    peerListMgr,
+		logger:         zlogger,
+		batchesMetrics: batchesMetrics,
+	}
+}
 
-	return rep
+// Channel returns the TChannel used by the reporter.
+func (r *Reporter) Channel() *tchannel.Channel {
+	return r.channel
 }
 
 // EmitZipkinBatch implements EmitZipkinBatch() of Reporter
-func (r *tchannelReporter) EmitZipkinBatch(spans []*zipkincore.Span) error {
+func (r *Reporter) EmitZipkinBatch(spans []*zipkincore.Span) error {
 	submissionFunc := func(ctx thrift.Context) error {
 		_, err := r.zClient.SubmitZipkinBatch(ctx, spans)
 		return err
@@ -95,7 +114,7 @@ func (r *tchannelReporter) EmitZipkinBatch(spans []*zipkincore.Span) error {
 }
 
 // EmitBatch implements EmitBatch() of Reporter
-func (r *tchannelReporter) EmitBatch(batch *jaeger.Batch) error {
+func (r *Reporter) EmitBatch(batch *jaeger.Batch) error {
 	submissionFunc := func(ctx thrift.Context) error {
 		_, err := r.jClient.SubmitBatches(ctx, []*jaeger.Batch{batch})
 		return err
@@ -108,7 +127,7 @@ func (r *tchannelReporter) EmitBatch(batch *jaeger.Batch) error {
 	)
 }
 
-func (r *tchannelReporter) submitAndReport(submissionFunc func(ctx thrift.Context) error, errMsg string, size int64, batchMetrics batchMetrics) error {
+func (r *Reporter) submitAndReport(submissionFunc func(ctx thrift.Context) error, errMsg string, size int64, batchMetrics batchMetrics) error {
 	ctx, cancel := tchannel.NewContextBuilder(time.Second).DisableTracing().Build()
 	defer cancel()
 

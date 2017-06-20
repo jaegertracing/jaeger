@@ -18,7 +18,7 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 // THE SOFTWARE.
 
-package reporter
+package tchannel
 
 import (
 	"fmt"
@@ -36,15 +36,17 @@ import (
 	"github.com/uber/jaeger/thrift-gen/zipkincore"
 )
 
-func initRequirements(t *testing.T) (*metrics.LocalFactory, *testutils.MockTCollector, Reporter) {
+func initRequirements(t *testing.T) (*metrics.LocalFactory, *testutils.MockTCollector, *Reporter) {
 	metricsFactory, collector := testutils.InitMockCollector(t)
-	reporter := NewTChannelReporter("jaeger-collector", collector.Channel, metricsFactory, zap.NewNop())
+	reporter := NewReporter("jaeger-collector", collector.Channel, nil, metricsFactory, zap.NewNop())
 	return metricsFactory, collector, reporter
 }
 
 func TestZipkinTChannelReporterSuccess(t *testing.T) {
 	metricsFactory, collector, reporter := initRequirements(t)
 	defer collector.Close()
+
+	assert.NotNil(t, reporter.Channel())
 
 	require.NoError(t, submitTestZipkinBatch(reporter))
 
@@ -68,7 +70,7 @@ func TestZipkinTChannelReporterFailure(t *testing.T) {
 	checkCounters(t, metricsFactory, 0, 0, 1, 1, "zipkin")
 }
 
-func submitTestZipkinBatch(reporter Reporter) error {
+func submitTestZipkinBatch(reporter *Reporter) error {
 	span := zipkincore.NewSpan()
 	span.Name = "span1"
 
@@ -102,7 +104,7 @@ func TestJaegerTChannelReporterFailure(t *testing.T) {
 	checkCounters(t, metricsFactory, 0, 0, 1, 1, "jaeger")
 }
 
-func submitTestJaegerBatch(reporter Reporter) error {
+func submitTestJaegerBatch(reporter *Reporter) error {
 	batch := jaeger.NewBatch()
 	batch.Process = jaeger.NewProcess()
 	batch.Spans = []*jaeger.Span{{OperationName: "span1"}}
