@@ -32,25 +32,22 @@ import (
 
 // Agent is a composition of all services / components
 type Agent struct {
-	processors      []processors.Processor
-	samplingServer  *http.Server
-	discoveryClient interface{}
-	logger          *zap.Logger
-	closer          io.Closer
+	processors     []processors.Processor
+	samplingServer *http.Server
+	logger         *zap.Logger
+	closer         io.Closer
 }
 
 // NewAgent creates the new Agent.
 func NewAgent(
 	processors []processors.Processor,
 	samplingServer *http.Server,
-	discoveryClient interface{},
 	logger *zap.Logger,
 ) *Agent {
 	return &Agent{
-		processors:      processors,
-		samplingServer:  samplingServer,
-		discoveryClient: discoveryClient,
-		logger:          logger,
+		processors:     processors,
+		samplingServer: samplingServer,
+		logger:         logger,
 	}
 }
 

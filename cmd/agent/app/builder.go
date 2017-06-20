@@ -32,11 +32,10 @@ import (
 
 	"github.com/uber/jaeger/cmd/agent/app/processors"
 	"github.com/uber/jaeger/cmd/agent/app/reporter"
+	tchreporter "github.com/uber/jaeger/cmd/agent/app/reporter/tchannel"
 	"github.com/uber/jaeger/cmd/agent/app/sampling"
 	"github.com/uber/jaeger/cmd/agent/app/servers"
 	"github.com/uber/jaeger/cmd/agent/app/servers/thriftudp"
-	"github.com/uber/jaeger/pkg/discovery"
-	"github.com/uber/jaeger/pkg/discovery/peerlistmgr"
 	zipkinThrift "github.com/uber/jaeger/thrift-gen/agent"
 	jaegerThrift "github.com/uber/jaeger/thrift-gen/jaeger"
 )
@@ -63,6 +62,8 @@ type model string
 type protocol string
 
 var (
+	errNoReporters = errors.New("agent requires at least one Reporter")
+
 	protocolFactoryMap = map[protocol]thrift.TProtocolFactory{
 		compactProtocol: thrift.NewTCompactProtocolFactory(),
 		binaryProtocol:  thrift.NewTBinaryProtocolFactoryDefault(),
@@ -74,20 +75,13 @@ type Builder struct {
 	Processors     []ProcessorConfiguration    `yaml:"processors"`
 	SamplingServer SamplingServerConfiguration `yaml:"samplingServer"`
 
-	// CollectorHostPorts are host:ports of a static list of Jaeger Collectors.
-	CollectorHostPorts []string `yaml:"collectorHostPorts"`
+	// These 3 fields are copied from reporter.Builder because yaml does not parse embedded structs
+	CollectorHostPorts   []string `yaml:"collectorHostPorts"`
+	DiscoveryMinPeers    int      `yaml:"minPeers"`
+	CollectorServiceName string   `yaml:"collectorServiceName"`
 
-	// MinPeers is the min number of servers we want the agent to connect to.
-	// If zero, defaults to min(3, number of peers returned by service discovery)
-	DiscoveryMinPeers int `yaml:"minPeers"`
+	tchreporter.Builder
 
-	// CollectorServiceName is the name that Jaeger Collector's TChannel server
-	// responds to.
-	CollectorServiceName string `yaml:"collectorServiceName"`
-
-	discoverer     discovery.Discoverer
-	notifier       discovery.Notifier
-	channel        *tchannel.Channel
 	otherReporters []reporter.Reporter
 }
 
@@ -152,86 +146,46 @@ type SamplingServerConfiguration struct {
 	HostPort string `yaml:"hostPort" validate:"nonzero"`
 }
 
-// WithReporter adds auxiliary reporters
+// WithReporter adds auxiliary reporters.
 func (b *Builder) WithReporter(r reporter.Reporter) *Builder {
 	b.otherReporters = append(b.otherReporters, r)
 	return b
 }
 
-// WithDiscoverer sets service discovery
-func (b *Builder) WithDiscoverer(d discovery.Discoverer) *Builder {
-	b.discoverer = d
-	return b
-}
-
-// WithDiscoveryNotifier sets service discovery notifier
-func (b *Builder) WithDiscoveryNotifier(n discovery.Notifier) *Builder {
-	b.notifier = n
-	return b
-}
-
-// WithCollectorServiceName sets collector service name
-func (b *Builder) WithCollectorServiceName(s string) *Builder {
-	b.CollectorServiceName = s
-	return b
-}
-
-// WithChannel sets tchannel channel
-func (b *Builder) WithChannel(c *tchannel.Channel) *Builder {
-	b.channel = c
-	return b
-}
-
-func (b *Builder) enableDiscovery(channel *tchannel.Channel, logger *zap.Logger) (interface{}, error) {
-	if b.discoverer == nil && b.notifier == nil {
-		return nil, nil
+func (b *Builder) createMainReporter(mFactory metrics.Factory, logger *zap.Logger) (*tchreporter.Reporter, error) {
+	if len(b.Builder.CollectorHostPorts) == 0 {
+		b.Builder.CollectorHostPorts = b.CollectorHostPorts
 	}
-	if b.discoverer == nil || b.notifier == nil {
-		return nil, errors.New("both discovery.Discoverer and discovery.Notifier must be specified")
+	if b.Builder.CollectorServiceName == "" {
+		b.Builder.CollectorServiceName = b.CollectorServiceName
 	}
-
-	logger.Info("Enabling service discovery", zap.String("service", b.CollectorServiceName))
-
-	subCh := channel.GetSubChannel(b.CollectorServiceName, tchannel.Isolated)
-	peers := subCh.Peers()
-	return peerlistmgr.New(peers, b.discoverer, b.notifier,
-		peerlistmgr.Options.MinPeers(defaultInt(b.DiscoveryMinPeers, defaultMinPeers)),
-		peerlistmgr.Options.Logger(logger))
+	if b.Builder.DiscoveryMinPeers == 0 {
+		b.Builder.DiscoveryMinPeers = b.DiscoveryMinPeers
+	}
+	return b.Builder.CreateReporter(mFactory, logger)
 }
 
 // CreateAgent creates the Agent
 func (b *Builder) CreateAgent(mFactory metrics.Factory, logger *zap.Logger) (*Agent, error) {
-	if b.channel == nil {
-		// ignore errors since it only happens on empty service name
-		b.channel, _ = tchannel.NewChannel(agentServiceName, nil)
-	}
-
-	if b.CollectorServiceName == "" {
-		b.CollectorServiceName = defaultCollectorServiceName
-	}
-
-	// Use static collectors if specified.
-	if len(b.CollectorHostPorts) != 0 {
-		d := discovery.FixedDiscoverer(b.CollectorHostPorts)
-		b = b.WithDiscoverer(d).WithDiscoveryNotifier(&discovery.Dispatcher{})
-	}
-
-	discoveryMgr, err := b.enableDiscovery(b.channel, logger)
+	mainReporter, err := b.createMainReporter(mFactory, logger)
 	if err != nil {
-		return nil, errors.Wrap(err, "cannot enable service discovery")
+		return nil, errors.Wrap(err, "cannot create main Reporter")
 	}
-	rep := reporter.NewTChannelReporter(b.CollectorServiceName, b.channel, mFactory, logger)
-	if b.otherReporters != nil {
-		reps := append([]reporter.Reporter{}, b.otherReporters...)
-		reps = append(reps, rep)
+	var rep reporter.Reporter = mainReporter
+	if len(b.otherReporters) > 0 {
+		reps := append([]reporter.Reporter{mainReporter}, b.otherReporters...)
 		rep = reporter.NewMultiReporter(reps...)
 	}
 	processors, err := b.GetProcessors(rep, mFactory)
 	if err != nil {
 		return nil, err
 	}
-	samplingServer := b.SamplingServer.GetSamplingServer(b.CollectorServiceName, b.channel, mFactory)
-	return NewAgent(processors, samplingServer, discoveryMgr, logger), nil
+	samplingServer := b.SamplingServer.GetSamplingServer(
+		b.CollectorServiceName,
+		mainReporter.Channel(),
+		mFactory,
+	)
+	return NewAgent(processors, samplingServer, logger), nil
 }
 
 // GetProcessors creates Processors with attached Reporter

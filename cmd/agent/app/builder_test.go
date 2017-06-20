@@ -21,27 +21,55 @@
 package app
 
 import (
-	"io/ioutil"
+	"errors"
 	"strings"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"github.com/uber/jaeger-lib/metrics"
-	"github.com/uber/tchannel-go"
 	"go.uber.org/zap"
 	"gopkg.in/yaml.v2"
 
-	"github.com/uber/jaeger/pkg/discovery"
 	"github.com/uber/jaeger/thrift-gen/jaeger"
 	"github.com/uber/jaeger/thrift-gen/zipkincore"
 )
 
-func TestConfigFile(t *testing.T) {
+var yamlConfig = `
+ignored: abcd
+
+processors:
+    - model: zipkin
+      protocol: compact
+      server:
+        hostPort: 1.1.1.1:5775
+    - model: jaeger
+      protocol: compact
+      server:
+        hostPort: 2.2.2.2:6831
+    - model: jaeger
+      protocol: binary
+      workers: 20
+      server:
+        queueSize: 2000
+        maxPacketSize: 65001
+        hostPort: 3.3.3.3:6832
+
+samplingServer:
+    hostPort: 4.4.4.4:5778
+
+collectorHostPorts:
+    - 127.0.0.1:14267
+    - 127.0.0.1:14268
+    - 127.0.0.1:14269
+
+collectorServiceName: some-collector-service
+minPeers: 4
+`
+
+func TestBuilderFromConfig(t *testing.T) {
 	cfg := Builder{}
-	data, err := ioutil.ReadFile("testdata/test_config.yaml")
-	require.NoError(t, err)
-	err = yaml.Unmarshal(data, &cfg)
+	err := yaml.Unmarshal([]byte(yamlConfig), &cfg)
 	require.NoError(t, err)
 	assert.Len(t, cfg.Processors, 3)
 	for i := range cfg.Processors {
@@ -80,76 +108,15 @@ func TestConfigFile(t *testing.T) {
 	}, cfg.Processors[2])
 	assert.Equal(t, "4.4.4.4:5778", cfg.SamplingServer.HostPort)
 
+	assert.Equal(t, 4, cfg.DiscoveryMinPeers)
+	assert.Equal(t, "some-collector-service", cfg.CollectorServiceName)
 	assert.Equal(
 		t,
 		[]string{"127.0.0.1:14267", "127.0.0.1:14268", "127.0.0.1:14269"},
 		cfg.CollectorHostPorts)
 }
 
-func TestConfigWithDiscovery(t *testing.T) {
-	cfg := &Builder{}
-	discoverer := discovery.FixedDiscoverer([]string{"1.1.1.1:80"})
-	cfg.WithDiscoverer(discoverer)
-	_, err := cfg.CreateAgent(metrics.NullFactory, zap.NewNop())
-	assert.EqualError(t, err, "cannot enable service discovery: both discovery.Discoverer and discovery.Notifier must be specified")
-
-	cfg = &Builder{}
-	notifier := &discovery.Dispatcher{}
-	cfg.WithDiscoverer(discoverer).WithDiscoveryNotifier(notifier)
-	agent, err := cfg.CreateAgent(metrics.NullFactory, zap.NewNop())
-	assert.NoError(t, err)
-	assert.NotNil(t, agent)
-}
-
-func TestConfigWithCollectorServiceName(t *testing.T) {
-	cfg := &Builder{}
-	cfg.WithCollectorServiceName("svc")
-	agent, err := cfg.CreateAgent(metrics.NullFactory, zap.NewNop())
-	assert.NoError(t, err)
-	assert.NotNil(t, agent)
-	assert.Equal(t, cfg.CollectorServiceName, "svc")
-
-	cfg = &Builder{}
-	agent, err = cfg.CreateAgent(metrics.NullFactory, zap.NewNop())
-	assert.NoError(t, err)
-	assert.NotNil(t, agent)
-	assert.Equal(t, cfg.CollectorServiceName, "jaeger-collector")
-}
-
-func TestConfigWithChannel(t *testing.T) {
-	cfg := &Builder{}
-	channel, _ := tchannel.NewChannel(agentServiceName, nil)
-	cfg.WithChannel(channel)
-	agent, err := cfg.CreateAgent(metrics.NullFactory, zap.NewNop())
-	assert.NoError(t, err)
-	assert.NotNil(t, agent)
-}
-
-func TestConfigWithCollectors(t *testing.T) {
-	hostPorts := []string{"127.0.0.1:9876", "127.0.0.1:9877", "127.0.0.1:9878"}
-	cfg := &Builder{
-		CollectorHostPorts: hostPorts,
-	}
-	agent, err := cfg.CreateAgent(metrics.NullFactory, zap.NewNop())
-	assert.NoError(t, err)
-	assert.NotNil(t, agent)
-
-	c, err := cfg.discoverer.Instances()
-	assert.NoError(t, err)
-	assert.Equal(t, c, hostPorts)
-}
-
-type fakeReporter struct{}
-
-func (fr fakeReporter) EmitZipkinBatch(spans []*zipkincore.Span) (err error) {
-	return nil
-}
-
-func (fr fakeReporter) EmitBatch(batch *jaeger.Batch) (err error) {
-	return nil
-}
-
-func TestConfigWithExtraReporter(t *testing.T) {
+func TestBuilderWithExtraReporter(t *testing.T) {
 	cfg := &Builder{}
 	cfg.WithReporter(fakeReporter{})
 	agent, err := cfg.CreateAgent(metrics.NullFactory, zap.NewNop())
@@ -157,7 +124,15 @@ func TestConfigWithExtraReporter(t *testing.T) {
 	assert.NotNil(t, agent)
 }
 
-func TestConfigWithProcessorErrors(t *testing.T) {
+func TestBuilderWithError(t *testing.T) {
+	cfg := &Builder{}
+	cfg.WithDiscoverer(fakeDiscoverer{})
+	agent, err := cfg.CreateAgent(metrics.NullFactory, zap.NewNop())
+	assert.Error(t, err)
+	assert.Nil(t, agent)
+}
+
+func TestBuilderWithProcessorErrors(t *testing.T) {
 	testCases := []struct {
 		model       model
 		protocol    protocol
@@ -191,4 +166,20 @@ func TestConfigWithProcessorErrors(t *testing.T) {
 			assert.True(t, strings.Contains(err.Error(), testCase.errContains), "error must contain %s", testCase.errContains)
 		}
 	}
+}
+
+type fakeReporter struct{}
+
+func (fr fakeReporter) EmitZipkinBatch(spans []*zipkincore.Span) (err error) {
+	return nil
+}
+
+func (fr fakeReporter) EmitBatch(batch *jaeger.Batch) (err error) {
+	return nil
+}
+
+type fakeDiscoverer struct{}
+
+func (fd fakeDiscoverer) Instances() ([]string, error) {
+	return nil, errors.New("discoverer error")
 }
