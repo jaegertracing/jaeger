@@ -228,6 +228,14 @@ func TestFailureBadProcess(t *testing.T) {
 	failingSpanTransform(t, &badProcessESSpan, "not a valid ValueType string badType")
 }
 
+func TestProcessPointer(t *testing.T) {
+	badProcessESSpan, err := createGoodSpan(1)
+	require.NoError(t, err)
+
+	badProcessESSpan.Process = nil
+	failingSpanTransform(t, &badProcessESSpan, "Process is nil")
+}
+
 func TestFailureBadTraceID(t *testing.T) {
 	badTraceIDESSpan, err := createGoodSpan(1)
 	require.NoError(t, err)
