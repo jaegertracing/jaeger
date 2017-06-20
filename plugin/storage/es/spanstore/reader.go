@@ -25,9 +25,9 @@ import (
 	"time"
 
 	"github.com/olivere/elastic"
+	"github.com/pkg/errors"
 	"go.uber.org/zap"
 
-	"github.com/pkg/errors"
 	"github.com/uber/jaeger/model"
 	"github.com/uber/jaeger/pkg/es"
 	"github.com/uber/jaeger/storage/spanstore"
@@ -138,8 +138,7 @@ func (s *SpanReader) GetOperations(service string) ([]string, error) {
 	}
 	bucket, found := searchResult.Aggregations.Terms(operationsAggregation)
 	if !found {
-		err = errors.New("Could not find aggregation of operations")
-		return nil, err
+		return nil, errors.New("Could not find aggregation of operations")
 	}
 	operationNamesBucket := bucket.Buckets
 	return s.bucketToStringArray(operationNamesBucket)

@@ -95,7 +95,7 @@ func TestSpanReader_findIndicesEmptyQuery(t *testing.T) {
 }
 
 // TODO: Dry the below two separate findIndices test
-func TestSpanReader_findIndices(t *testing.T) {
+func TestSpanReader_findIndicesNoIndices(t *testing.T) {
 	withSpanReader(func(r *spanReaderTest) {
 		mockExistsService(r)
 
@@ -110,7 +110,7 @@ func TestSpanReader_findIndices(t *testing.T) {
 	})
 }
 
-func TestSpanReader_findIndices2(t *testing.T) {
+func TestSpanReader_findIndicesOnlyRecent(t *testing.T) {
 	withSpanReader(func(r *spanReaderTest) {
 		mockExistsService(r)
 
