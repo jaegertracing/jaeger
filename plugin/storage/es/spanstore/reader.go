@@ -72,29 +72,34 @@ func (s *SpanReader) readTrace(traceID string, traceQuery spanstore.TraceQueryPa
 	indices := s.findIndices(traceQuery)
 	esSpansRaw, err := s.executeQuery(query, indices...)
 	if err != nil {
-		return nil, err
+		return nil, errors.Wrap(err, "Query execution failed")
 	}
 	if len(esSpansRaw) == 0 {
 		return nil, spanstore.ErrTraceNotFound
 	}
 
+	spans, err := s.collectSpans(esSpansRaw)
+	if err != nil {
+		return nil, errors.Wrap(err, "Span collection failed")
+	}
+	return &model.Trace{Spans: spans}, nil
+}
+
+func (s *SpanReader) collectSpans(esSpansRaw []*elastic.SearchHit) ([]*model.Span, error) {
 	spans := make([]*model.Span, len(esSpansRaw))
 
 	for i, esSpanRaw := range esSpansRaw {
-		jsonSpan, err := s.esJSONtoJSONSpanModel(esSpanRaw)
+		jsonSpan, err := s.unmarshallJSONSpan(esSpanRaw)
 		if err != nil {
-			return nil, err
+			return nil, errors.Wrap(err, "Marshalling JSON to span object failed")
 		}
 		span, err := jConverter.SpanToDomain(jsonSpan)
 		if err != nil {
-			return nil, err
+			return nil, errors.Wrap(err, "Converting JSONSpan to domain Span failed")
 		}
 		spans[i] = span
 	}
-
-	trace := &model.Trace{}
-	trace.Spans = spans
-	return trace, nil
+	return spans, nil
 }
 
 func (s *SpanReader) executeQuery(query elastic.Query, indices ...string) ([]*elastic.SearchHit, error) {
@@ -108,12 +113,11 @@ func (s *SpanReader) executeQuery(query elastic.Query, indices ...string) ([]*el
 	return searchService.Hits.Hits, nil
 }
 
-func (s *SpanReader) esJSONtoJSONSpanModel(esSpanRaw *elastic.SearchHit) (*jModel.Span, error) {
+func (s *SpanReader) unmarshallJSONSpan(esSpanRaw *elastic.SearchHit) (*jModel.Span, error) {
 	esSpanInByteArray := esSpanRaw.Source
 
 	var jsonSpan jModel.Span
-	err := json.Unmarshal(*esSpanInByteArray, &jsonSpan)
-	if err != nil {
+	if err := json.Unmarshal(*esSpanInByteArray, &jsonSpan); err != nil {
 		return nil, err
 	}
 	return &jsonSpan, nil

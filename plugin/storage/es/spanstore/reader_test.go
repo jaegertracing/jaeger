@@ -38,44 +38,46 @@ import (
 	"github.com/uber/jaeger/storage/spanstore"
 )
 
-var exampleESSpan = []byte(`{      "traceID": "1",
-				   "parentSpanID": "2",
-				   "spanID": "3",
-				   "flags": 0,
-				   "operationName": "op",
-				   "references": [],
-				   "startTime": 812965625,
-				   "duration": 3290114992,
-				   "tags": [
-				      {
-					 "key": "tag",
-					 "value": "1965806585",
-					 "type": "int64"
-				      }
-				   ],
-				   "logs": [
-				      {
-					 "timestamp": 812966073,
-					 "fields": [
-					    {
-					       "key": "logtag",
-					       "value": "helloworld",
-					       "type": "string"
-					    }
-					 ]
-				      }
-				   ],
-				   "process": {
-				      "serviceName": "serv",
-				      "tags": [
-					 {
-					    "key": "processtag",
-					    "value": "false",
-					    "type": "bool"
-					 }
-				      ]
-				   }
-				}`)
+var exampleESSpan = []byte(
+	`{
+	   "traceID": "1",
+	   "parentSpanID": "2",
+	   "spanID": "3",
+	   "flags": 0,
+	   "operationName": "op",
+	   "references": [],
+	   "startTime": 812965625,
+	   "duration": 3290114992,
+	   "tags": [
+	      {
+		 "key": "tag",
+		 "value": "1965806585",
+		 "type": "int64"
+	      }
+	   ],
+	   "logs": [
+	      {
+		 "timestamp": 812966073,
+		 "fields": [
+		    {
+		       "key": "logtag",
+		       "value": "helloworld",
+		       "type": "string"
+		    }
+		 ]
+	      }
+	   ],
+	   "process": {
+	      "serviceName": "serv",
+	      "tags": [
+		 {
+		    "key": "processtag",
+		    "value": "false",
+		    "type": "bool"
+		 }
+	      ]
+	   }
+	}`)
 
 type spanReaderTest struct {
 	client    *mocks.Client
@@ -115,8 +117,8 @@ func TestSpanReader_GetTrace(t *testing.T) {
 
 		mockSearchService("", r).On("Do", mock.AnythingOfType("*context.emptyCtx")).
 			Return(&elastic.SearchResult{
-			Hits: searchHits,
-		}, nil)
+				Hits: searchHits,
+			}, nil)
 
 		trace, err := r.reader.GetTrace(model.TraceID{Low: 1})
 		require.NoError(t, err)
@@ -150,7 +152,7 @@ func TestSpanReader_GetTraceQueryError(t *testing.T) {
 		mockSearchService("", r).On("Do", mock.AnythingOfType("*context.emptyCtx")).
 			Return(nil, errors.New("query error occurred"))
 		trace, err := r.reader.GetTrace(model.TraceID{Low: 1})
-		require.EqualError(t, err, "query error occurred")
+		require.EqualError(t, err, "Query execution failed: query error occurred")
 		require.Nil(t, trace)
 	})
 }
@@ -164,8 +166,8 @@ func TestSpanReader_GetTraceNoSpansError(t *testing.T) {
 
 		mockSearchService("", r).On("Do", mock.AnythingOfType("*context.emptyCtx")).
 			Return(&elastic.SearchResult{
-			Hits: searchHits,
-		}, nil)
+				Hits: searchHits,
+			}, nil)
 
 		trace, err := r.reader.GetTrace(model.TraceID{Low: 1})
 		require.EqualError(t, err, "trace not found")
@@ -186,8 +188,8 @@ func TestSpanReader_GetTraceInvalidSpanError(t *testing.T) {
 
 		mockSearchService("", r).On("Do", mock.AnythingOfType("*context.emptyCtx")).
 			Return(&elastic.SearchResult{
-			Hits: searchHits,
-		}, nil)
+				Hits: searchHits,
+			}, nil)
 
 		trace, err := r.reader.GetTrace(model.TraceID{Low: 1})
 		require.Error(t, err, "invalid span")
@@ -209,8 +211,8 @@ func TestSpanReader_GetTraceSpanConversionError(t *testing.T) {
 
 		mockSearchService("", r).On("Do", mock.AnythingOfType("*context.emptyCtx")).
 			Return(&elastic.SearchResult{
-			Hits: searchHits,
-		}, nil)
+				Hits: searchHits,
+			}, nil)
 
 		trace, err := r.reader.GetTrace(model.TraceID{Low: 1})
 		require.Error(t, err, "span conversion error, because lacks elements")
@@ -225,8 +227,8 @@ func TestSpanReader_executeQuery(t *testing.T) {
 
 		mockSearchService("", r).On("Do", mock.AnythingOfType("*context.emptyCtx")).
 			Return(&elastic.SearchResult{
-			Hits: searchHits,
-		}, nil)
+				Hits: searchHits,
+			}, nil)
 
 		query := elastic.NewTermQuery("traceID", "helloo")
 		hits, err := r.reader.executeQuery(query, "hello", "world", "index")
@@ -257,7 +259,7 @@ func TestSpanReader_esJSONtoJSONSpanModel(t *testing.T) {
 			Source: jsonPayload,
 		}
 
-		span, err := r.reader.esJSONtoJSONSpanModel(esSpanRaw)
+		span, err := r.reader.unmarshallJSONSpan(esSpanRaw)
 		require.NoError(t, err)
 
 		// TODO: This is not a deep equal; does not check every element.
@@ -284,7 +286,7 @@ func TestSpanReader_esJSONtoJSONSpanModelError(t *testing.T) {
 			Source: jsonPayload,
 		}
 
-		span, err := r.reader.esJSONtoJSONSpanModel(esSpanRaw)
+		span, err := r.reader.unmarshallJSONSpan(esSpanRaw)
 		require.Error(t, err)
 		assert.Nil(t, span)
 	})
