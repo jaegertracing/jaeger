@@ -26,19 +26,19 @@ type Lock struct {
 	mock.Mock
 }
 
-func (_m *Lock) Acquire(resource string) (bool, error) {
-	ret := _m.Called(resource)
+func (_m *Lock) Acquire(resource string, ttlInSeconds int64) (bool, error) {
+	ret := _m.Called(resource, ttlInSeconds)
 
 	var r0 bool
-	if rf, ok := ret.Get(0).(func(string) bool); ok {
-		r0 = rf(resource)
+	if rf, ok := ret.Get(0).(func(string, int64) bool); ok {
+		r0 = rf(resource, ttlInSeconds)
 	} else {
 		r0 = ret.Get(0).(bool)
 	}
 
 	var r1 error
-	if rf, ok := ret.Get(1).(func(string) error); ok {
-		r1 = rf(resource)
+	if rf, ok := ret.Get(1).(func(string, int64) error); ok {
+		r1 = rf(resource, ttlInSeconds)
 	} else {
 		r1 = ret.Error(1)
 	}

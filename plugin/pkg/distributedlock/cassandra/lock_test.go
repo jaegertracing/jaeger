@@ -38,14 +38,14 @@ var (
 
 type cqlLockTest struct {
 	session *mocks.Session
-	lock    *CQLLock
+	lock    *Lock
 }
 
 func withCQLLock(fn func(r *cqlLockTest)) {
 	session := &mocks.Session{}
 	r := &cqlLockTest{
 		session: session,
-		lock:    NewCQLLock(session, localhost),
+		lock:    NewLock(session, localhost),
 	}
 	fn(r)
 }
@@ -90,25 +90,30 @@ func TestExtendLease(t *testing.T) {
 				})
 
 				s.session.On("Query", mock.AnythingOfType("string"), captureArgs).Return(query)
-				err := s.lock.extendLease(samplingLock)
+				err := s.lock.extendLease(samplingLock, 60)
 				if testCase.expectedErrMsg == "" {
 					assert.NoError(t, err)
 				} else {
 					assert.EqualError(t, err, testCase.expectedErrMsg)
 				}
 
-				assert.Len(t, args, 3)
-				if d, ok := args[0].(string); ok {
+				assert.Len(t, args, 4)
+				if d, ok := args[0].(int64); ok {
+					assert.EqualValues(t, 60, d)
+				} else {
+					assert.Fail(t, "expecting first arg as int64", "received: %+v", args)
+				}
+				if d, ok := args[1].(string); ok {
 					assert.Equal(t, localhost, d)
 				} else {
 					assert.Fail(t, "expecting first arg as string", "received: %+v", args)
 				}
-				if d, ok := args[1].(string); ok {
+				if d, ok := args[2].(string); ok {
 					assert.Equal(t, samplingLock, d)
 				} else {
 					assert.Fail(t, "expecting second arg as string", "received: %+v", args)
 				}
-				if d, ok := args[2].(string); ok {
+				if d, ok := args[3].(string); ok {
 					assert.Equal(t, localhost, d)
 				} else {
 					assert.Fail(t, "expecting third arg as string", "received: %+v", args)
@@ -194,7 +199,7 @@ func TestAcquire(t *testing.T) {
 
 				s.session.On("Query", stringMatcher("INSERT INTO leases"), matchEverything()).Return(firstQuery)
 				s.session.On("Query", stringMatcher("UPDATE leases"), matchEverything()).Return(secondQuery)
-				acquired, err := s.lock.Acquire(samplingLock)
+				acquired, err := s.lock.Acquire(samplingLock, 0)
 				if testCase.expectedErrMsg == "" {
 					assert.NoError(t, err)
 				} else {

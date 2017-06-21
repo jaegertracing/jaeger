@@ -26,34 +26,39 @@ import (
 	"github.com/uber/jaeger/pkg/cassandra"
 )
 
-// CQLLock is a distributed lock based off Cassandra.
-type CQLLock struct {
+// Lock is a distributed lock based off Cassandra.
+type Lock struct {
 	session  cassandra.Session
 	tenantID string
 }
 
 const (
+	defaultTTLInSeconds = 60
+
 	leasesTable   = `leases`
-	cqlInsertLock = `INSERT INTO ` + leasesTable + ` (name, owner) VALUES (?,?) IF NOT EXISTS;`
-	cqlUpdateLock = `UPDATE ` + leasesTable + ` set owner = ? where name = ? IF owner = ?;`
+	cqlInsertLock = `INSERT INTO ` + leasesTable + ` (name, owner) VALUES (?,?) IF NOT EXISTS USING TTL ?;`
+	cqlUpdateLock = `UPDATE ` + leasesTable + ` USING TTL ? SET owner = ? WHERE name = ? IF owner = ?;`
 )
 
 var (
 	errLockOwnership = errors.New("This host does not own the resource lock")
 )
 
-// NewCQLLock creates a new instance of a distributed locking mechanism based off Cassandra.
-func NewCQLLock(session cassandra.Session, tenantID string) *CQLLock {
-	return &CQLLock{
+// NewLock creates a new instance of a distributed locking mechanism based off Cassandra.
+func NewLock(session cassandra.Session, tenantID string) *Lock {
+	return &Lock{
 		session:  session,
 		tenantID: tenantID,
 	}
 }
 
-// Acquire acquires a lock around a given resource.
-func (l *CQLLock) Acquire(resource string) (bool, error) {
+// Acquire acquires a lease around a given resource.
+func (l *Lock) Acquire(resource string, ttlInSeconds int64) (bool, error) {
+	if ttlInSeconds == 0 {
+		ttlInSeconds = defaultTTLInSeconds
+	}
 	var name, owner string
-	applied, err := l.session.Query(cqlInsertLock, resource, l.tenantID).ScanCAS(&name, &owner)
+	applied, err := l.session.Query(cqlInsertLock, resource, l.tenantID, ttlInSeconds).ScanCAS(&name, &owner)
 	if err != nil {
 		return false, errors.Wrap(err, "Failed to acquire resource lock due to cassandra error")
 	}
@@ -63,7 +68,7 @@ func (l *CQLLock) Acquire(resource string) (bool, error) {
 	}
 	if owner == l.tenantID {
 		// This host already owns the lock, extend the lease
-		if err = l.extendLease(resource); err != nil {
+		if err = l.extendLease(resource, ttlInSeconds); err != nil {
 			return false, errors.Wrap(err, "Failed to extend lease on resource lock")
 		}
 		return true, nil
@@ -72,9 +77,9 @@ func (l *CQLLock) Acquire(resource string) (bool, error) {
 }
 
 // extendLease will attempt to extend the lease of an existing lock on a given resource.
-func (l *CQLLock) extendLease(resource string) error {
+func (l *Lock) extendLease(resource string, ttlInSeconds int64) error {
 	var owner string
-	applied, err := l.session.Query(cqlUpdateLock, l.tenantID, resource, l.tenantID).ScanCAS(&owner)
+	applied, err := l.session.Query(cqlUpdateLock, ttlInSeconds, l.tenantID, resource, l.tenantID).ScanCAS(&owner)
 	if err != nil {
 		return err
 	}
