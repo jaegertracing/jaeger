@@ -24,6 +24,7 @@ import (
 	"errors"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
@@ -90,7 +91,7 @@ func TestExtendLease(t *testing.T) {
 				})
 
 				s.session.On("Query", mock.AnythingOfType("string"), captureArgs).Return(query)
-				err := s.lock.extendLease(samplingLock, 60)
+				err := s.lock.extendLease(samplingLock, time.Second*60)
 				if testCase.expectedErrMsg == "" {
 					assert.NoError(t, err)
 				} else {
@@ -98,7 +99,7 @@ func TestExtendLease(t *testing.T) {
 				}
 
 				assert.Len(t, args, 4)
-				if d, ok := args[0].(int64); ok {
+				if d, ok := args[0].(float64); ok {
 					assert.EqualValues(t, 60, d)
 				} else {
 					assert.Fail(t, "expecting first arg as int64", "received: %+v", args)

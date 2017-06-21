@@ -20,25 +20,29 @@
 
 package mocks
 
-import "github.com/stretchr/testify/mock"
+import (
+	"time"
+
+	"github.com/stretchr/testify/mock"
+)
 
 type Lock struct {
 	mock.Mock
 }
 
-func (_m *Lock) Acquire(resource string, ttlInSeconds int64) (bool, error) {
-	ret := _m.Called(resource, ttlInSeconds)
+func (_m *Lock) Acquire(resource string, ttl time.Duration) (bool, error) {
+	ret := _m.Called(resource, ttl)
 
 	var r0 bool
-	if rf, ok := ret.Get(0).(func(string, int64) bool); ok {
-		r0 = rf(resource, ttlInSeconds)
+	if rf, ok := ret.Get(0).(func(string, time.Duration) bool); ok {
+		r0 = rf(resource, ttl)
 	} else {
 		r0 = ret.Get(0).(bool)
 	}
 
 	var r1 error
-	if rf, ok := ret.Get(1).(func(string, int64) error); ok {
-		r1 = rf(resource, ttlInSeconds)
+	if rf, ok := ret.Get(1).(func(string, time.Duration) error); ok {
+		r1 = rf(resource, ttl)
 	} else {
 		r1 = ret.Error(1)
 	}

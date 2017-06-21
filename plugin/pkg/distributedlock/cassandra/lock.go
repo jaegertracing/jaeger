@@ -21,6 +21,8 @@
 package cassandra
 
 import (
+	"time"
+
 	"github.com/pkg/errors"
 
 	"github.com/uber/jaeger/pkg/cassandra"
@@ -33,7 +35,7 @@ type Lock struct {
 }
 
 const (
-	defaultTTLInSeconds = 60
+	defaultTTL = 60 * time.Second
 
 	leasesTable   = `leases`
 	cqlInsertLock = `INSERT INTO ` + leasesTable + ` (name, owner) VALUES (?,?) IF NOT EXISTS USING TTL ?;`
@@ -52,13 +54,13 @@ func NewLock(session cassandra.Session, tenantID string) *Lock {
 	}
 }
 
-// Acquire acquires a lease around a given resource.
-func (l *Lock) Acquire(resource string, ttlInSeconds int64) (bool, error) {
-	if ttlInSeconds == 0 {
-		ttlInSeconds = defaultTTLInSeconds
+// Acquire acquires a lease around a given resource. NB. Cassandra only allows ttl of seconds granularity
+func (l *Lock) Acquire(resource string, ttl time.Duration) (bool, error) {
+	if ttl == 0 {
+		ttl = defaultTTL
 	}
 	var name, owner string
-	applied, err := l.session.Query(cqlInsertLock, resource, l.tenantID, ttlInSeconds).ScanCAS(&name, &owner)
+	applied, err := l.session.Query(cqlInsertLock, resource, l.tenantID, ttl.Seconds()).ScanCAS(&name, &owner)
 	if err != nil {
 		return false, errors.Wrap(err, "Failed to acquire resource lock due to cassandra error")
 	}
@@ -68,7 +70,7 @@ func (l *Lock) Acquire(resource string, ttlInSeconds int64) (bool, error) {
 	}
 	if owner == l.tenantID {
 		// This host already owns the lock, extend the lease
-		if err = l.extendLease(resource, ttlInSeconds); err != nil {
+		if err = l.extendLease(resource, ttl); err != nil {
 			return false, errors.Wrap(err, "Failed to extend lease on resource lock")
 		}
 		return true, nil
@@ -77,9 +79,9 @@ func (l *Lock) Acquire(resource string, ttlInSeconds int64) (bool, error) {
 }
 
 // extendLease will attempt to extend the lease of an existing lock on a given resource.
-func (l *Lock) extendLease(resource string, ttlInSeconds int64) error {
+func (l *Lock) extendLease(resource string, ttl time.Duration) error {
 	var owner string
-	applied, err := l.session.Query(cqlUpdateLock, ttlInSeconds, l.tenantID, resource, l.tenantID).ScanCAS(&owner)
+	applied, err := l.session.Query(cqlUpdateLock, ttl.Seconds(), l.tenantID, resource, l.tenantID).ScanCAS(&owner)
 	if err != nil {
 		return err
 	}

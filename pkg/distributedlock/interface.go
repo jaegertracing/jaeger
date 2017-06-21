@@ -20,11 +20,13 @@
 
 package distributedlock
 
+import "time"
+
 // Lock uses distributed lock for control of a resource.
 type Lock interface {
-	// Acquire acquires a lease of duration ttlInSeconds around a given resource. In case of an error,
+	// Acquire acquires a lease of duration ttl around a given resource. In case of an error,
 	// acquired is meaningless.
-	Acquire(resource string, ttlInSeconds int64) (acquired bool, err error)
+	Acquire(resource string, ttl time.Duration) (acquired bool, err error)
 
 	// TODO add Forfeit to voluntarily give up the resource
 }
