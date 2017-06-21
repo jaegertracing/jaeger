@@ -115,10 +115,7 @@ func TestSpanReader_GetTrace(t *testing.T) {
 		}
 		searchHits := &elastic.SearchHits{Hits: hits}
 
-		mockSearchService("", r).On("Do", mock.AnythingOfType("*context.emptyCtx")).
-			Return(&elastic.SearchResult{
-				Hits: searchHits,
-			}, nil)
+		mockSearchService(r).Return(&elastic.SearchResult{Hits: searchHits}, nil)
 
 		trace, err := r.reader.GetTrace(model.TraceID{Low: 1})
 		require.NoError(t, err)
@@ -149,10 +146,10 @@ func TestSpanReader_GetTrace(t *testing.T) {
 func TestSpanReader_GetTraceQueryError(t *testing.T) {
 	withSpanReader(func(r *spanReaderTest) {
 		mockExistsService(r)
-		mockSearchService("", r).On("Do", mock.AnythingOfType("*context.emptyCtx")).
+		mockSearchService(r).
 			Return(nil, errors.New("query error occurred"))
 		trace, err := r.reader.GetTrace(model.TraceID{Low: 1})
-		require.EqualError(t, err, "Query execution failed: query error occurred")
+		require.EqualError(t, err, "query error occurred")
 		require.Nil(t, trace)
 	})
 }
@@ -164,10 +161,7 @@ func TestSpanReader_GetTraceNoSpansError(t *testing.T) {
 		hits := make([]*elastic.SearchHit, 0)
 		searchHits := &elastic.SearchHits{Hits: hits}
 
-		mockSearchService("", r).On("Do", mock.AnythingOfType("*context.emptyCtx")).
-			Return(&elastic.SearchResult{
-				Hits: searchHits,
-			}, nil)
+		mockSearchService(r).Return(&elastic.SearchResult{Hits: searchHits}, nil)
 
 		trace, err := r.reader.GetTrace(model.TraceID{Low: 1})
 		require.EqualError(t, err, "trace not found")
@@ -186,10 +180,7 @@ func TestSpanReader_GetTraceInvalidSpanError(t *testing.T) {
 		}
 		searchHits := &elastic.SearchHits{Hits: hits}
 
-		mockSearchService("", r).On("Do", mock.AnythingOfType("*context.emptyCtx")).
-			Return(&elastic.SearchResult{
-				Hits: searchHits,
-			}, nil)
+		mockSearchService(r).Return(&elastic.SearchResult{Hits: searchHits}, nil)
 
 		trace, err := r.reader.GetTrace(model.TraceID{Low: 1})
 		require.Error(t, err, "invalid span")
@@ -209,10 +200,7 @@ func TestSpanReader_GetTraceSpanConversionError(t *testing.T) {
 		}
 		searchHits := &elastic.SearchHits{Hits: hits}
 
-		mockSearchService("", r).On("Do", mock.AnythingOfType("*context.emptyCtx")).
-			Return(&elastic.SearchResult{
-				Hits: searchHits,
-			}, nil)
+		mockSearchService(r).Return(&elastic.SearchResult{Hits: searchHits}, nil)
 
 		trace, err := r.reader.GetTrace(model.TraceID{Low: 1})
 		require.Error(t, err, "span conversion error, because lacks elements")
@@ -225,12 +213,9 @@ func TestSpanReader_executeQuery(t *testing.T) {
 		hits := make([]*elastic.SearchHit, 7)
 		searchHits := &elastic.SearchHits{Hits: hits}
 
-		mockSearchService("", r).On("Do", mock.AnythingOfType("*context.emptyCtx")).
-			Return(&elastic.SearchResult{
-				Hits: searchHits,
-			}, nil)
+		mockSearchService(r).Return(&elastic.SearchResult{Hits: searchHits}, nil)
 
-		query := elastic.NewTermQuery("traceID", "helloo")
+		query := elastic.NewTermQuery(traceIDField, "helloo")
 		hits, err := r.reader.executeQuery(query, "hello", "world", "index")
 
 		require.NoError(t, err)
@@ -240,10 +225,9 @@ func TestSpanReader_executeQuery(t *testing.T) {
 
 func TestSpanReader_executeQueryError(t *testing.T) {
 	withSpanReader(func(r *spanReaderTest) {
-		mockSearchService("", r).On("Do", mock.AnythingOfType("*context.emptyCtx")).
-			Return(nil, errors.New("query error"))
+		mockSearchService(r).Return(nil, errors.New("query error"))
 
-		query := elastic.NewTermQuery("traceID", "helloo")
+		query := elastic.NewTermQuery(traceIDField, "helloo")
 		hits, err := r.reader.executeQuery(query, "hello", "world", "index")
 
 		require.Error(t, err, "query error")
@@ -296,16 +280,16 @@ func TestSpanReader_findIndicesEmptyQuery(t *testing.T) {
 	withSpanReader(func(r *spanReaderTest) {
 		mockExistsService(r)
 
-		actual := r.reader.findIndices(spanstore.TraceQueryParameters{})
+		actual := r.reader.findIndices(&spanstore.TraceQueryParameters{})
 
 		today := time.Now()
 		yesterday := today.AddDate(0, 0, -1)
 		twoDaysAgo := today.AddDate(0, 0, -2)
 
 		expected := []string{
-			r.reader.indexWithDate(today),
-			r.reader.indexWithDate(yesterday),
-			r.reader.indexWithDate(twoDaysAgo),
+			indexWithDate(today),
+			indexWithDate(yesterday),
+			indexWithDate(twoDaysAgo),
 		}
 
 		assert.EqualValues(t, expected, actual)
@@ -317,7 +301,7 @@ func TestSpanReader_findIndicesNoIndices(t *testing.T) {
 	withSpanReader(func(r *spanReaderTest) {
 		mockExistsService(r)
 
-		actual := r.reader.findIndices(spanstore.TraceQueryParameters{
+		actual := r.reader.findIndices(&spanstore.TraceQueryParameters{
 			StartTimeMin: time.Date(1995, time.April, 21, 4, 21, 19, 95, time.UTC),
 			StartTimeMax: time.Date(2017, time.April, 21, 4, 21, 19, 95, time.UTC),
 		})
@@ -334,7 +318,7 @@ func TestSpanReader_findIndicesOnlyRecent(t *testing.T) {
 
 		today := time.Now()
 
-		actual := r.reader.findIndices(spanstore.TraceQueryParameters{
+		actual := r.reader.findIndices(&spanstore.TraceQueryParameters{
 			StartTimeMin: today.AddDate(0, 0, -7),
 			StartTimeMax: today.AddDate(0, 0, -1),
 		})
@@ -343,8 +327,8 @@ func TestSpanReader_findIndicesOnlyRecent(t *testing.T) {
 		twoDaysAgo := today.AddDate(0, 0, -2)
 
 		expected := []string{
-			r.reader.indexWithDate(yesterday),
-			r.reader.indexWithDate(twoDaysAgo),
+			indexWithDate(yesterday),
+			indexWithDate(twoDaysAgo),
 		}
 
 		assert.EqualValues(t, expected, actual)
@@ -353,13 +337,13 @@ func TestSpanReader_findIndicesOnlyRecent(t *testing.T) {
 
 func TestSpanReader_indexWithDate(t *testing.T) {
 	withSpanReader(func(r *spanReaderTest) {
-		actual := r.reader.indexWithDate(time.Date(1995, time.April, 21, 4, 21, 19, 95, time.UTC))
+		actual := indexWithDate(time.Date(1995, time.April, 21, 4, 21, 19, 95, time.UTC))
 		assert.Equal(t, "jaeger-1995-04-21", actual)
 	})
 }
 
 func TestSpanReader_GetServices(t *testing.T) {
-	testGet("services", t)
+	testGet(servicesAggregation, t)
 }
 
 func TestSpanReader_getServicesAggregation(t *testing.T) {
@@ -384,23 +368,17 @@ func TestSpanReader_getServicesAggregation(t *testing.T) {
 }
 
 func TestSpanReader_GetOperations(t *testing.T) {
-	testGet("operations", t)
+	testGet(operationsAggregation, t)
 }
 
 func testGet(typ string, t *testing.T) {
-	var aggregationType string
-	if typ == "services" {
-		aggregationType = servicesAggregation
-	} else if typ == "operations" {
-		aggregationType = operationsAggregation
-	}
 	goodAggregations := make(map[string]*json.RawMessage)
-	rawMessage := []byte(`{"buckets": [{"key": "hello","doc_count": 16}]}`)
-	goodAggregations[aggregationType] = (*json.RawMessage)(&rawMessage)
+	rawMessage := []byte(`{"buckets": [{"key": "123","doc_count": 16}]}`)
+	goodAggregations[typ] = (*json.RawMessage)(&rawMessage)
 
 	badAggregations := make(map[string]*json.RawMessage)
 	badRawMessage := []byte(`{"buckets": [{bad json]}asdf`)
-	badAggregations[aggregationType] = (*json.RawMessage)(&badRawMessage)
+	badAggregations[typ] = (*json.RawMessage)(&badRawMessage)
 
 	testCases := []struct {
 		caption        string
@@ -412,7 +390,7 @@ func testGet(typ string, t *testing.T) {
 		{
 			caption:        typ + " full behavior",
 			searchResult:   &elastic.SearchResult{Aggregations: elastic.Aggregations(goodAggregations)},
-			expectedOutput: []string{"hello"},
+			expectedOutput: []string{"123"},
 		},
 		{
 			caption:       typ + " search error",
@@ -431,9 +409,7 @@ func testGet(typ string, t *testing.T) {
 			withSpanReader(func(r *spanReaderTest) {
 				mockExistsService(r)
 
-				mockSearchService(typ, r).
-					On("Do", mock.AnythingOfType("*context.emptyCtx")).
-					Return(testCase.searchResult, testCase.searchError)
+				mockSearchService(r).Return(testCase.searchResult, testCase.searchError)
 
 				actual, err := returnSearchFunc(typ, r)
 				if testCase.expectedError != "" {
@@ -449,13 +425,14 @@ func testGet(typ string, t *testing.T) {
 }
 
 func returnSearchFunc(typ string, r *spanReaderTest) ([]string, error) {
-	if typ == "services" {
+	if typ == servicesAggregation {
 		return r.reader.GetServices()
-	} else if typ == "operations" {
+	} else if typ == operationsAggregation {
 		return r.reader.GetOperations("someService")
-	} else {
-		return nil, errors.New("Specify services or operations only")
+	} else if typ == traceIDAggregation {
+		return r.reader.findTraceIDs(&spanstore.TraceQueryParameters{})
 	}
+	return nil, errors.New("Specify services, operations, traceIDs only")
 }
 func TestSpanReader_bucketToStringArray(t *testing.T) {
 	withSpanReader(func(r *spanReaderTest) {
@@ -484,13 +461,148 @@ func TestSpanReader_bucketToStringArrayError(t *testing.T) {
 }
 
 func TestSpanReader_FindTraces(t *testing.T) {
-	// TODO: write test once done with function
-	// currently not doing anything, only for code coverage, ignore for code review
+	goodAggregations := make(map[string]*json.RawMessage)
+	rawMessage := []byte(`{"buckets": [{"key": "1","doc_count": 16},{"key": "2","doc_count": 16},{"key": "3","doc_count": 16}]}`)
+	goodAggregations[traceIDAggregation] = (*json.RawMessage)(&rawMessage)
+
+	hits := make([]*elastic.SearchHit, 1)
+	hits[0] = &elastic.SearchHit{
+		Source: (*json.RawMessage)(&exampleESSpan),
+	}
+	searchHits := &elastic.SearchHits{Hits: hits}
+
 	withSpanReader(func(r *spanReaderTest) {
-		s, e := r.reader.FindTraces(nil)
-		assert.Nil(t, s)
-		assert.Nil(t, e)
+		mockExistsService(r)
+		mockSearchService(r).
+			Return(&elastic.SearchResult{Aggregations: elastic.Aggregations(goodAggregations), Hits: searchHits}, nil)
+		traceQuery := &spanstore.TraceQueryParameters{
+			ServiceName: "serviceName",
+			Tags: map[string]string{
+				"michael": "jackson",
+			},
+			StartTimeMin: time.Now().Add(-1 * time.Hour),
+			StartTimeMax: time.Now(),
+			NumTraces:    2,
+		}
+
+		traces, err := r.reader.FindTraces(traceQuery)
+		require.NoError(t, err)
+		assert.Len(t, traces, 2)
+
+		trace := traces[0]
+		// TODO: This is not a deep equal; does not check every element.
+		require.Len(t, trace.Spans, 1)
+		testSpan := trace.Spans[0]
+		assert.Equal(t, uint64(1), testSpan.TraceID.Low)
+		assert.Equal(t, model.SpanID(2), testSpan.ParentSpanID)
+		assert.Equal(t, model.SpanID(3), testSpan.SpanID)
+		assert.Equal(t, model.Flags(0), testSpan.Flags)
+		assert.Equal(t, "op", testSpan.OperationName)
+		assert.Equal(t, "serv", testSpan.Process.ServiceName)
+		require.Len(t, testSpan.Process.Tags, 1)
+		assert.Equal(t, "processtag", testSpan.Process.Tags[0].Key)
+		assert.Equal(t, false, testSpan.Process.Tags[0].Value())
+		require.Len(t, testSpan.Tags, 1)
+		assert.Equal(t, "tag", testSpan.Tags[0].Key)
+		assert.Equal(t, int64(1965806585), testSpan.Tags[0].Value())
+		require.Len(t, testSpan.Logs, 1)
+		require.Len(t, testSpan.Logs[0].Fields, 1)
+		assert.Equal(t, "logtag", testSpan.Logs[0].Fields[0].Key)
+		assert.Equal(t, "helloworld", testSpan.Logs[0].Fields[0].Value())
 	})
+}
+
+func TestSpanReader_FindTracesInvalidQuery(t *testing.T) {
+	goodAggregations := make(map[string]*json.RawMessage)
+	rawMessage := []byte(`{"buckets": [{"key": "1","doc_count": 16},{"key": "2","doc_count": 16},{"key": "3","doc_count": 16}]}`)
+	goodAggregations[traceIDAggregation] = (*json.RawMessage)(&rawMessage)
+
+	hits := make([]*elastic.SearchHit, 1)
+	hits[0] = &elastic.SearchHit{
+		Source: (*json.RawMessage)(&exampleESSpan),
+	}
+	searchHits := &elastic.SearchHits{Hits: hits}
+
+	withSpanReader(func(r *spanReaderTest) {
+		mockExistsService(r)
+		mockSearchService(r).
+			Return(&elastic.SearchResult{Aggregations: elastic.Aggregations(goodAggregations), Hits: searchHits}, nil)
+		traceQuery := &spanstore.TraceQueryParameters{
+			ServiceName: "",
+			Tags: map[string]string{
+				"michael": "jackson",
+			},
+			StartTimeMin: time.Now().Add(-1 * time.Hour),
+			StartTimeMax: time.Now(),
+		}
+
+		traces, err := r.reader.FindTraces(traceQuery)
+		require.Error(t, err)
+		assert.Nil(t, traces)
+	})
+}
+
+func TestSpanReader_FindTracesNoTraceIDs(t *testing.T) {
+	goodAggregations := make(map[string]*json.RawMessage)
+
+	hits := make([]*elastic.SearchHit, 1)
+	hits[0] = &elastic.SearchHit{
+		Source: (*json.RawMessage)(&exampleESSpan),
+	}
+	searchHits := &elastic.SearchHits{Hits: hits}
+
+	withSpanReader(func(r *spanReaderTest) {
+		mockExistsService(r)
+		mockSearchService(r).
+			Return(&elastic.SearchResult{Aggregations: elastic.Aggregations(goodAggregations), Hits: searchHits}, nil)
+		traceQuery := &spanstore.TraceQueryParameters{
+			ServiceName: "serviceName",
+			Tags: map[string]string{
+				"michael": "jackson",
+			},
+			StartTimeMin: time.Now().Add(-1 * time.Hour),
+			StartTimeMax: time.Now(),
+		}
+
+		traces, err := r.reader.FindTraces(traceQuery)
+		require.Error(t, err)
+		assert.Nil(t, traces)
+	})
+}
+
+func TestSpanReader_FindTracesReadTraceFailure(t *testing.T) {
+	goodAggregations := make(map[string]*json.RawMessage)
+	rawMessage := []byte(`{"buckets": [{"key": "1","doc_count": 16},{"key": "2","doc_count": 16}]}`)
+	goodAggregations[traceIDAggregation] = (*json.RawMessage)(&rawMessage)
+
+	badSpan := []byte(`{"TraceID": "123"asjlgajdfhilqghi[adfvca} bad json`)
+	hits := make([]*elastic.SearchHit, 1)
+	hits[0] = &elastic.SearchHit{
+		Source: (*json.RawMessage)(&badSpan),
+	}
+	searchHits := &elastic.SearchHits{Hits: hits}
+
+	withSpanReader(func(r *spanReaderTest) {
+		mockExistsService(r)
+		mockSearchService(r).
+			Return(&elastic.SearchResult{Aggregations: elastic.Aggregations(goodAggregations), Hits: searchHits}, nil)
+		traceQuery := &spanstore.TraceQueryParameters{
+			ServiceName: "serviceName",
+			Tags: map[string]string{
+				"michael": "jackson",
+			},
+			StartTimeMin: time.Now().Add(-1 * time.Hour),
+			StartTimeMax: time.Now(),
+		}
+
+		traces, err := r.reader.FindTraces(traceQuery)
+		require.NoError(t, err)
+		assert.Len(t, traces, 0)
+	})
+}
+
+func TestFindTraceIDs(t *testing.T) {
+	testGet(traceIDAggregation, t)
 }
 
 func mockExistsService(r *spanReaderTest) {
@@ -499,7 +611,7 @@ func mockExistsService(r *spanReaderTest) {
 	r.client.On("IndexExists", mock.AnythingOfType("string")).Return(existsService)
 }
 
-func mockSearchService(servicesOrOperations string, r *spanReaderTest) *mocks.SearchService {
+func mockSearchService(r *spanReaderTest) *mock.Call {
 	searchService := &mocks.SearchService{}
 	searchService.On("Type", stringMatcher(serviceType)).Return(searchService)
 	searchService.On("Type", stringMatcher(spanType)).Return(searchService)
@@ -507,15 +619,247 @@ func mockSearchService(servicesOrOperations string, r *spanReaderTest) *mocks.Se
 	searchService.On("Size", mock.MatchedBy(func(i int) bool {
 		return i == 0
 	})).Return(searchService)
-	if servicesOrOperations == "services" {
-		searchService.On("Aggregation",
-			stringMatcher(servicesAggregation),
-			mock.AnythingOfType("*elastic.TermsAggregation")).Return(searchService)
-	} else if servicesOrOperations == "operations" {
-		searchService.On("Aggregation",
-			stringMatcher(operationsAggregation),
-			mock.AnythingOfType("*elastic.FilterAggregation")).Return(searchService)
-	}
+	searchService.On("Aggregation", stringMatcher(servicesAggregation), mock.AnythingOfType("*elastic.TermsAggregation")).Return(searchService)
+	searchService.On("Aggregation", stringMatcher(operationsAggregation), mock.AnythingOfType("*elastic.FilterAggregation")).Return(searchService)
+	searchService.On("Aggregation", stringMatcher(traceIDAggregation), mock.AnythingOfType("*elastic.TermsAggregation")).Return(searchService)
 	r.client.On("Search", mock.AnythingOfType("string"), mock.AnythingOfType("string"), mock.AnythingOfType("string")).Return(searchService)
-	return searchService
+	return searchService.On("Do", mock.AnythingOfType("*context.emptyCtx"))
+}
+
+func TestTraceQueryParameterValidation(t *testing.T) {
+	var malformedtsp *spanstore.TraceQueryParameters
+	err := validateQuery(malformedtsp)
+	assert.EqualError(t, err, ErrMalformedRequestObject.Error())
+
+	tsp := &spanstore.TraceQueryParameters{
+		ServiceName: "",
+		Tags: map[string]string{
+			"michael": "jackson",
+		},
+	}
+	err = validateQuery(tsp)
+	assert.EqualError(t, err, ErrServiceNameNotSet.Error())
+
+	tsp.ServiceName = "serviceName"
+
+	tsp.StartTimeMin = time.Time{} //time.Unix(0,0) doesn't work because timezones
+	tsp.StartTimeMax = time.Time{}
+	err = validateQuery(tsp)
+	assert.EqualError(t, err, ErrStartAndEndTimeNotSet.Error())
+
+	tsp.StartTimeMin = time.Now()
+	tsp.StartTimeMax = time.Now().Add(-1 * time.Hour)
+	err = validateQuery(tsp)
+	assert.EqualError(t, err, ErrStartTimeMinGreaterThanMax.Error())
+
+	tsp.StartTimeMin = time.Now().Add(-1 * time.Hour)
+	tsp.StartTimeMax = time.Now()
+	err = validateQuery(tsp)
+	assert.Nil(t, err)
+
+	tsp.DurationMin = time.Hour
+	tsp.DurationMax = time.Minute
+	err = validateQuery(tsp)
+	assert.EqualError(t, err, ErrDurationMinGreaterThanMax.Error())
+
+	tsp.DurationMin = time.Minute
+	tsp.DurationMax = time.Hour
+	err = validateQuery(tsp)
+	assert.EqualError(t, err, ErrDurationAndTagQueryNotSupported.Error())
+}
+
+func TestSpanReader_buildTraceIDAggregation(t *testing.T) {
+	// "terms":{
+	//    "size":numOfTraces,
+	//    "field":"traceID"
+	// }
+	withSpanReader(func(r *spanReaderTest) {
+		traceIDAggregation := r.reader.buildTraceIDAggregation(123)
+		actual, err := traceIDAggregation.Source()
+		require.NoError(t, err)
+
+		expected := make(map[string]interface{})
+		terms := make(map[string]interface{})
+		expected["terms"] = terms
+		terms["size"] = 123
+		terms["field"] = traceIDField
+
+		assert.EqualValues(t, expected, actual)
+	})
+}
+
+func TestSpanReader_buildFindTraceIDsQuery(t *testing.T) {
+	withSpanReader(func(r *spanReaderTest) {
+		traceQuery := &spanstore.TraceQueryParameters{
+			DurationMin:   time.Second,
+			DurationMax:   time.Second * 2,
+			StartTimeMin:  time.Time{},
+			StartTimeMax:  time.Time{}.Add(time.Second),
+			ServiceName:   "s",
+			OperationName: "o",
+			Tags: map[string]string{
+				"michael": "jackson",
+			},
+		}
+
+		actualQuery := r.reader.buildFindTraceIDsQuery(traceQuery)
+		actual, err := actualQuery.Source()
+		require.NoError(t, err)
+		expectedQuery := elastic.NewBoolQuery().
+			Must(
+				r.reader.buildDurationQuery(time.Second, time.Second*2),
+				r.reader.buildStartTimeQuery(time.Time{}, time.Time{}.Add(time.Second)),
+				r.reader.buildServiceNameQuery("s"),
+				r.reader.buildOperationNameQuery("o"),
+				r.reader.buildTagQuery("michael", "jackson"),
+			)
+		expected, err := expectedQuery.Source()
+		require.NoError(t, err)
+		assert.Equal(t, expected, actual)
+	})
+}
+
+func TestSpanReader_buildDurationQuery(t *testing.T) {
+	// { "range":  { "duration": { "gte": 1000000, "lte": 2000000 }}}
+	withSpanReader(func(r *spanReaderTest) {
+		durationMin := time.Second
+		durationMax := time.Second * 2
+		durationQuery := r.reader.buildDurationQuery(durationMin, durationMax)
+		actual, err := durationQuery.Source()
+		require.NoError(t, err)
+
+		expected := make(map[string]interface{})
+		ranges := make(map[string]interface{})
+		expected["range"] = ranges
+		duration := make(map[string]interface{})
+		ranges[durationField] = duration
+		duration["include_lower"] = true
+		duration["include_upper"] = true
+		duration["from"] = int64(1000000)
+		duration["to"] = int64(2000000)
+
+		assert.EqualValues(t, expected, actual)
+	})
+}
+
+func TestSpanReader_buildStartTimeQuery(t *testing.T) {
+	// { "range":  { "timestamp": { "gte": 0, "lte": 1000000 }}}
+	withSpanReader(func(r *spanReaderTest) {
+		startTimeMin := time.Time{}
+		startTimeMax := time.Time{}.Add(time.Second)
+		durationQuery := r.reader.buildStartTimeQuery(startTimeMin, startTimeMax)
+		actual, err := durationQuery.Source()
+		require.NoError(t, err)
+
+		expected := make(map[string]interface{})
+		ranges := make(map[string]interface{})
+		expected["range"] = ranges
+		duration := make(map[string]interface{})
+		ranges[startTimeField] = duration
+		duration["include_lower"] = true
+		duration["include_upper"] = true
+		duration["from"] = 0
+		duration["to"] = 1000000
+
+		assert.EqualValues(t, expected, actual)
+	})
+}
+
+func TestSpanReader_buildServiceNameQuery(t *testing.T) {
+	// { "match": { "process.serviceName": {"query": "bat"}}}
+	withSpanReader(func(r *spanReaderTest) {
+		serviceNameQuery := r.reader.buildServiceNameQuery("bat")
+		actual, err := serviceNameQuery.Source()
+		require.NoError(t, err)
+
+		expected := make(map[string]interface{})
+		match := make(map[string]interface{})
+		expected["match"] = match
+		query := make(map[string]interface{})
+		match[serviceNameField] = query
+		query["query"] = "bat"
+
+		assert.EqualValues(t, expected, actual)
+	})
+}
+
+func TestSpanReader_buildOperationNameQuery(t *testing.T) {
+	// { "match": { "operationName": {"query": "spook"} }}
+	withSpanReader(func(r *spanReaderTest) {
+		serviceNameQuery := r.reader.buildOperationNameQuery("spook")
+		actual, err := serviceNameQuery.Source()
+		require.NoError(t, err)
+
+		expected := make(map[string]interface{})
+		match := make(map[string]interface{})
+		expected["match"] = match
+		query := make(map[string]interface{})
+		match[operationNameField] = query
+		query["query"] = "spook"
+
+		assert.EqualValues(t, expected, actual)
+	})
+}
+
+func TestSpanReader_buildTagQuery(t *testing.T) {
+	// {
+	//    "nested":{
+	//       "path":"tags",
+	//       "query":{
+	//          "bool":{
+	//             "must":[
+	//                {
+	//                   "match":{
+	//                      "tags.key": {"query": "bat"}
+	//                   }
+	//                },
+	//                {
+	//                   "match":{
+	//                      "tags.value": {"query": "spook"}
+	//                   }
+	//                }
+	//             ]
+	//          }
+	//       }
+	//    }
+	// }
+	withSpanReader(func(r *spanReaderTest) {
+		tagQuery := r.reader.buildTagQuery("bat", "spook")
+		actual, err := tagQuery.Source()
+		require.NoError(t, err)
+
+		expected := make(map[string]interface{})
+		nested := make(map[string]interface{})
+		expected["nested"] = nested
+
+		nested["path"] = tagsField
+		query := make(map[string]interface{})
+		nested["query"] = query
+
+		boole := make(map[string]interface{})
+		query["bool"] = boole
+
+		must := make([]interface{}, 2)
+		boole["must"] = must
+
+		match1 := make(map[string]interface{})
+		match2 := make(map[string]interface{})
+		must[0] = match1
+		must[1] = match2
+
+		key := make(map[string]interface{})
+		value := make(map[string]interface{})
+		match1["match"] = key
+		match2["match"] = value
+
+		keyQuery := make(map[string]interface{})
+		valueQuery := make(map[string]interface{})
+		key[tagKeyField] = keyQuery
+		value[tagValueField] = valueQuery
+
+		keyQuery["query"] = "bat"
+		valueQuery["query"] = "spook"
+
+		assert.EqualValues(t, expected, actual)
+	})
 }

@@ -47,8 +47,8 @@ type SpanWriter struct {
 
 // Service is the JSON struct for service:operation documents in ElasticSearch
 type Service struct {
-	serviceName   string
-	operationName string
+	ServiceName   string `json:"serviceName"`
+	OperationName string `json:"operationName"`
 }
 
 // NewSpanWriter creates a new SpanWriter for use
@@ -102,11 +102,11 @@ func (s *SpanWriter) checkAndCreateIndex(indexName string, jsonSpan *jModel.Span
 
 func (s *SpanWriter) writeService(indexName string, jsonSpan *jModel.Span) error {
 	// Insert serviceName:operationName document
-	service := Service{
-		serviceName:   jsonSpan.Process.ServiceName,
-		operationName: jsonSpan.OperationName,
+	service := &Service{
+		ServiceName:   jsonSpan.Process.ServiceName,
+		OperationName: jsonSpan.OperationName,
 	}
-	serviceID := fmt.Sprintf("%s|%s", service.serviceName, service.operationName)
+	serviceID := fmt.Sprintf("%s|%s", service.ServiceName, service.OperationName)
 	_, err := s.client.Index().Index(indexName).Type(serviceType).Id(serviceID).BodyJson(service).Do(s.ctx)
 	if err != nil {
 		return s.logError(jsonSpan, err, "Failed to insert service:operation", s.logger)
