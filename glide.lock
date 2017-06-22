@@ -1,5 +1,5 @@
-hash: 1af4328012d376acb832e5721b7708f1b727cdcad7cae4deabfe7ea0d8c5cb1f
-updated: 2017-06-05T17:23:15.086853092-04:00
+hash: 84da4d5dfad787c610afb31cf486aa1f586dfeffc121ad8b4346fd5f0b82f6d1
+updated: 2017-06-21T20:04:38.596739754-04:00
 imports:
 - name: github.com/apache/thrift
   version: 53dd39833a08ce33582e5ff31fa18bb4735d6731
@@ -34,7 +34,7 @@ imports:
 - name: github.com/golang/snappy
   version: d7b1e156f50d3c4664f683603af70e3e47fa0aa2
 - name: github.com/gorilla/context
-  version: 08b5f424b9271eedf6f9f0ce86cb9396ed337a42
+  version: 1ea25387ff6f684839d82767c1733ff4d4d15d0a
 - name: github.com/gorilla/handlers
   version: 3a5767ca75ece5f7f1440b1d16975247f8d8b221
 - name: github.com/gorilla/mux
@@ -67,7 +67,7 @@ imports:
   subpackages:
   - nethttp
 - name: github.com/opentracing/opentracing-go
-  version: 6edb48674bd9467b8e91fda004f2bd7202d60ce4
+  version: 0c3154a3c2ce79d3271985848659870599dfb77c
   subpackages:
   - ext
   - log
@@ -76,7 +76,7 @@ imports:
 - name: github.com/pelletier/go-toml
   version: 439fbba1f887c286024370cb4f281ba815c4c7d7
 - name: github.com/pkg/errors
-  version: 17b591df37844cde689f4d5813e5cea0927d8dd2
+  version: 645ef00459ed84a119197bfb8d8205042c6df63d
 - name: github.com/pmezard/go-difflib
   version: 792786c7400a136282c1664665ae0a8db921c6c2
   subpackages:
@@ -98,7 +98,7 @@ imports:
 - name: github.com/stretchr/objx
   version: 1a9d0bb9f541897e62256577b352fdbc1fb4fd94
 - name: github.com/stretchr/testify
-  version: 4d4bfba8f1d1027c4fdbe371823030df51419987
+  version: f6abca593680b2315d2075e0f5e2a9751e3f431a
   subpackages:
   - assert
   - mock
@@ -106,17 +106,17 @@ imports:
 - name: github.com/uber-go/atomic
   version: 0c9e689d64f004564b79d9a663634756df322902
 - name: github.com/uber/jaeger-client-go
-  version: 465529424ed6b04a7fd2fcab6a9d6e96ea807fda
+  version: 921405f1ad4348f04735f9cc7dd6cc46483daeda
   subpackages:
   - config
   - internal/spanlog
   - log
   - rpcmetrics
   - thrift-gen/agent
+  - thrift-gen/jaeger
   - thrift-gen/sampling
   - thrift-gen/zipkincore
   - transport
-  - transport/udp
   - utils
 - name: github.com/uber/jaeger-lib
   version: ffca3143c929e9b97325e6bebcc380e8c6e5fa0d
@@ -143,7 +143,7 @@ imports:
 - name: go.uber.org/atomic
   version: 4e336646b2ef9fc6e47be8e21594178f98e5ebcf
 - name: go.uber.org/zap
-  version: fab453050a7a08c35f31fc5fff6f2dbd962285ab
+  version: 9cabc84638b70e564c3dab2766efcb1ded2aac9f
   subpackages:
   - buffer
   - internal/bufferpool
@@ -153,7 +153,7 @@ imports:
   - zapcore
   - zaptest
 - name: golang.org/x/net
-  version: 5b58a9c3e1690d33a592e5b791638e25eb9b3f70
+  version: 057a25b06247e0c51ba15d8ae475feb2fcb72164
   subpackages:
   - context
   - context/ctxhttp
