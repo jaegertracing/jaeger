@@ -31,8 +31,8 @@ import (
 	"github.com/uber/jaeger-lib/metrics"
 	"go.uber.org/zap"
 
+	"github.com/uber/jaeger/cmd/collector/app/sampling/model"
 	"github.com/uber/jaeger/pkg/cassandra/mocks"
-	"github.com/uber/jaeger/pkg/sampling"
 	"github.com/uber/jaeger/pkg/testutils"
 	"github.com/uber/jaeger/storage/samplingstore"
 )
@@ -81,7 +81,7 @@ func TestInsertThroughput(t *testing.T) {
 
 		s.session.On("Query", mock.AnythingOfType("string"), captureArgs).Return(query)
 
-		throughput := []*sampling.Throughput{
+		throughput := []*model.Throughput{
 			{
 				Service:   "svc,withcomma",
 				Operation: "op,withcomma",
@@ -120,12 +120,12 @@ func TestInsertProbabilitiesAndQPS(t *testing.T) {
 		s.session.On("Query", mock.AnythingOfType("string"), captureArgs).Return(query)
 
 		hostname := "hostname"
-		probabilities := sampling.ServiceOperationProbabilities{
+		probabilities := model.ServiceOperationProbabilities{
 			"svc": map[string]float64{
 				"op": 0.84,
 			},
 		}
-		qps := sampling.ServiceOperationQPS{
+		qps := model.ServiceOperationQPS{
 			"svc": map[string]float64{
 				"op": 40,
 			},
@@ -212,7 +212,7 @@ func TestGetThroughput(t *testing.T) {
 					assert.NoError(t, err)
 					assert.Len(t, throughput, 2)
 					assert.Equal(t,
-						sampling.Throughput{
+						model.Throughput{
 							Service:       "svc,withcomma",
 							Operation:     "op,withcomma",
 							Count:         40,
@@ -220,7 +220,7 @@ func TestGetThroughput(t *testing.T) {
 						*throughput[0],
 					)
 					assert.Equal(t,
-						sampling.Throughput{
+						model.Throughput{
 							Service:       "svc",
 							Operation:     "op",
 							Count:         50,
@@ -372,14 +372,14 @@ func TestGenerateRandomBucket(t *testing.T) {
 }
 
 func TestThroughputToString(t *testing.T) {
-	throughput := []*sampling.Throughput{
+	throughput := []*model.Throughput{
 		{Service: "svc1", Operation: "op,1", Count: 1, Probabilities: map[string]struct{}{"1": {}}},
 		{Service: "svc2", Operation: "op2", Count: 2, Probabilities: map[string]struct{}{}},
 	}
 	str := throughputToString(throughput)
 	assert.True(t, "svc1,\"op,1\",1,1\nsvc2,op2,2,\n" == str || "svc2,op2,2,\nsvc1,1\"op,1\",1,1\n" == str)
 
-	throughput = []*sampling.Throughput{
+	throughput = []*model.Throughput{
 		{Service: "svc1", Operation: "op,1", Count: 1, Probabilities: map[string]struct{}{"1": {}, "2": {}}},
 	}
 	str = throughputToString(throughput)
@@ -393,7 +393,7 @@ func TestStringToThroughput(t *testing.T) {
 
 	assert.Len(t, throughput, 2)
 	assert.Equal(t,
-		sampling.Throughput{
+		model.Throughput{
 			Service:       "svc1",
 			Operation:     "op,1",
 			Count:         1,
@@ -401,7 +401,7 @@ func TestStringToThroughput(t *testing.T) {
 		*throughput[0],
 	)
 	assert.Equal(t,
-		sampling.Throughput{
+		model.Throughput{
 			Service:       "svc2",
 			Operation:     "op2",
 			Count:         2,
@@ -411,12 +411,12 @@ func TestStringToThroughput(t *testing.T) {
 }
 
 func TestProbabilitiesAndQPSToString(t *testing.T) {
-	probabilities := sampling.ServiceOperationProbabilities{
+	probabilities := model.ServiceOperationProbabilities{
 		"svc,1": map[string]float64{
 			"GET": 0.001,
 		},
 	}
-	qps := sampling.ServiceOperationQPS{
+	qps := model.ServiceOperationQPS{
 		"svc,1": map[string]float64{
 			"GET": 62.3,
 		},
@@ -431,8 +431,8 @@ func TestStringToProbabilitiesAndQPS(t *testing.T) {
 	probabilities := s.stringToProbabilitiesAndQPS(testStr)
 
 	assert.Len(t, probabilities, 2)
-	assert.Equal(t, map[string]*sampling.ProbabilityAndQPS{"GET": {0.001, 63.2}, "PUT": {0.002, 0.0}}, probabilities["svc1"])
-	assert.Equal(t, map[string]*sampling.ProbabilityAndQPS{"GET": {0.5, 34.2}}, probabilities["svc2"])
+	assert.Equal(t, map[string]*model.ProbabilityAndQPS{"GET": {0.001, 63.2}, "PUT": {0.002, 0.0}}, probabilities["svc1"])
+	assert.Equal(t, map[string]*model.ProbabilityAndQPS{"GET": {0.5, 34.2}}, probabilities["svc2"])
 }
 
 func TestStringToProbabilities(t *testing.T) {
