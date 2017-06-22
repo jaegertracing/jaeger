@@ -31,8 +31,8 @@ import (
 	"github.com/uber/jaeger-lib/metrics"
 	"go.uber.org/zap"
 
-	"github.com/uber/jaeger/model/sampling"
 	"github.com/uber/jaeger/pkg/cassandra/mocks"
+	"github.com/uber/jaeger/pkg/sampling"
 	"github.com/uber/jaeger/pkg/testutils"
 	"github.com/uber/jaeger/storage/samplingstore"
 )

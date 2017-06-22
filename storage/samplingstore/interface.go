@@ -23,7 +23,7 @@ package samplingstore
 import (
 	"time"
 
-	"github.com/uber/jaeger/model/sampling"
+	"github.com/uber/jaeger/pkg/sampling"
 )
 
 // Store writes and retrieves sampling data to and from storage.

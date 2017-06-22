@@ -20,7 +20,7 @@
 
 package mocks
 
-import "github.com/uber/jaeger/model/sampling"
+import "github.com/uber/jaeger/pkg/sampling"
 import "github.com/stretchr/testify/mock"
 
 import "time"
