@@ -33,12 +33,12 @@ import (
 	"github.com/apache/thrift/lib/go/thrift"
 	"github.com/gorilla/mux"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 	jaegerClient "github.com/uber/jaeger-client-go"
 	"github.com/uber/jaeger-client-go/transport"
 	zipkinTransport "github.com/uber/jaeger-client-go/transport/zipkin"
 	tchanThrift "github.com/uber/tchannel-go/thrift"
 
-	"github.com/stretchr/testify/require"
 	"github.com/uber/jaeger/thrift-gen/jaeger"
 	"github.com/uber/jaeger/thrift-gen/zipkincore"
 )
