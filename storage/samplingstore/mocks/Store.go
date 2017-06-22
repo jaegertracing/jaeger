@@ -20,7 +20,7 @@
 
 package mocks
 
-import "github.com/uber/jaeger/model"
+import "github.com/uber/jaeger/model/sampling"
 import "github.com/stretchr/testify/mock"
 
 import "time"
@@ -29,11 +29,11 @@ type Store struct {
 	mock.Mock
 }
 
-func (_m *Store) InsertThroughput(throughput []*model.Throughput) error {
+func (_m *Store) InsertThroughput(throughput []*sampling.Throughput) error {
 	ret := _m.Called(throughput)
 
 	var r0 error
-	if rf, ok := ret.Get(0).(func([]*model.Throughput) error); ok {
+	if rf, ok := ret.Get(0).(func([]*sampling.Throughput) error); ok {
 		r0 = rf(throughput)
 	} else {
 		r0 = ret.Error(0)
@@ -41,11 +41,11 @@ func (_m *Store) InsertThroughput(throughput []*model.Throughput) error {
 
 	return r0
 }
-func (_m *Store) InsertProbabilitiesAndQPS(hostname string, probabilities model.ServiceOperationProbabilities, qps model.ServiceOperationQPS) error {
+func (_m *Store) InsertProbabilitiesAndQPS(hostname string, probabilities sampling.ServiceOperationProbabilities, qps sampling.ServiceOperationQPS) error {
 	ret := _m.Called(hostname, probabilities, qps)
 
 	var r0 error
-	if rf, ok := ret.Get(0).(func(string, model.ServiceOperationProbabilities, model.ServiceOperationQPS) error); ok {
+	if rf, ok := ret.Get(0).(func(string, sampling.ServiceOperationProbabilities, sampling.ServiceOperationQPS) error); ok {
 		r0 = rf(hostname, probabilities, qps)
 	} else {
 		r0 = ret.Error(0)
@@ -53,15 +53,15 @@ func (_m *Store) InsertProbabilitiesAndQPS(hostname string, probabilities model.
 
 	return r0
 }
-func (_m *Store) GetThroughput(start time.Time, end time.Time) ([]*model.Throughput, error) {
+func (_m *Store) GetThroughput(start time.Time, end time.Time) ([]*sampling.Throughput, error) {
 	ret := _m.Called(start, end)
 
-	var r0 []*model.Throughput
-	if rf, ok := ret.Get(0).(func(time.Time, time.Time) []*model.Throughput); ok {
+	var r0 []*sampling.Throughput
+	if rf, ok := ret.Get(0).(func(time.Time, time.Time) []*sampling.Throughput); ok {
 		r0 = rf(start, end)
 	} else {
 		if ret.Get(0) != nil {
-			r0 = ret.Get(0).([]*model.Throughput)
+			r0 = ret.Get(0).([]*sampling.Throughput)
 		}
 	}
 
@@ -74,15 +74,15 @@ func (_m *Store) GetThroughput(start time.Time, end time.Time) ([]*model.Through
 
 	return r0, r1
 }
-func (_m *Store) GetProbabilitiesAndQPS(start time.Time, end time.Time) (map[string][]model.ServiceOperationData, error) {
+func (_m *Store) GetProbabilitiesAndQPS(start time.Time, end time.Time) (map[string][]sampling.ServiceOperationData, error) {
 	ret := _m.Called(start, end)
 
-	var r0 map[string][]model.ServiceOperationData
-	if rf, ok := ret.Get(0).(func(time.Time, time.Time) map[string][]model.ServiceOperationData); ok {
+	var r0 map[string][]sampling.ServiceOperationData
+	if rf, ok := ret.Get(0).(func(time.Time, time.Time) map[string][]sampling.ServiceOperationData); ok {
 		r0 = rf(start, end)
 	} else {
 		if ret.Get(0) != nil {
-			r0 = ret.Get(0).(map[string][]model.ServiceOperationData)
+			r0 = ret.Get(0).(map[string][]sampling.ServiceOperationData)
 		}
 	}
 
@@ -95,14 +95,14 @@ func (_m *Store) GetProbabilitiesAndQPS(start time.Time, end time.Time) (map[str
 
 	return r0, r1
 }
-func (_m *Store) GetLatestProbabilities() (model.ServiceOperationProbabilities, error) {
+func (_m *Store) GetLatestProbabilities() (sampling.ServiceOperationProbabilities, error) {
 	ret := _m.Called()
 
-	var r0 model.ServiceOperationProbabilities
-	if rf, ok := ret.Get(0).(func() model.ServiceOperationProbabilities); ok {
+	var r0 sampling.ServiceOperationProbabilities
+	if rf, ok := ret.Get(0).(func() sampling.ServiceOperationProbabilities); ok {
 		r0 = rf()
 	} else {
-		r0 = ret.Get(0).(model.ServiceOperationProbabilities)
+		r0 = ret.Get(0).(sampling.ServiceOperationProbabilities)
 	}
 
 	var r1 error

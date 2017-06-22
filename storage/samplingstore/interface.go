@@ -23,23 +23,23 @@ package samplingstore
 import (
 	"time"
 
-	"github.com/uber/jaeger/model"
+	"github.com/uber/jaeger/model/sampling"
 )
 
 // Store writes and retrieves sampling data to and from storage.
 type Store interface {
 	// InsertThroughput inserts aggregated throughput for operations into storage.
-	InsertThroughput(throughput []*model.Throughput) error
+	InsertThroughput(throughput []*sampling.Throughput) error
 
 	// InsertProbabilitiesAndQPS inserts calculated sampling probabilities and measured qps into storage.
-	InsertProbabilitiesAndQPS(hostname string, probabilities model.ServiceOperationProbabilities, qps model.ServiceOperationQPS) error
+	InsertProbabilitiesAndQPS(hostname string, probabilities sampling.ServiceOperationProbabilities, qps sampling.ServiceOperationQPS) error
 
 	// GetThroughput retrieves aggregated throughput for operations within a time range.
-	GetThroughput(start, end time.Time) ([]*model.Throughput, error)
+	GetThroughput(start, end time.Time) ([]*sampling.Throughput, error)
 
 	// GetProbabilitiesAndQPS retrieves the sampling probabilities and measured qps per host within a time range.
-	GetProbabilitiesAndQPS(start, end time.Time) (map[string][]model.ServiceOperationData, error)
+	GetProbabilitiesAndQPS(start, end time.Time) (map[string][]sampling.ServiceOperationData, error)
 
 	// GetLatestProbabilities retrieves the latest sampling probabilities.
-	GetLatestProbabilities() (model.ServiceOperationProbabilities, error)
+	GetLatestProbabilities() (sampling.ServiceOperationProbabilities, error)
 }
