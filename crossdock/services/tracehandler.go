@@ -71,7 +71,7 @@ type TraceHandler struct {
 	createTracesLoopInterval              time.Duration
 	getSamplingRateInterval               time.Duration
 	clientSamplingStrategyRefreshInterval time.Duration
-	sleepDuration                         time.Duration
+	getTracesSleepDuration                time.Duration
 }
 
 // NewTraceHandler returns a TraceHandler that can create traces and verify them
@@ -89,7 +89,7 @@ func NewTraceHandler(query QueryService, agent AgentService, logger *zap.Logger)
 		createTracesLoopInterval:              2 * time.Second,
 		getSamplingRateInterval:               500 * time.Millisecond,
 		clientSamplingStrategyRefreshInterval: 7 * time.Second,
-		sleepDuration:                         time.Second,
+		getTracesSleepDuration:                time.Second,
 	}
 }
 
@@ -233,7 +233,7 @@ func (h *TraceHandler) getTraces(service, operation string, tags map[string]stri
 			return traces
 		}
 		h.logger.Info("Could not retrieve trace from query service")
-		time.Sleep(h.sleepDuration)
+		time.Sleep(h.getTracesSleepDuration)
 	}
 	return nil
 }

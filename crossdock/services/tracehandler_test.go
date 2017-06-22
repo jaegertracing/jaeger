@@ -213,7 +213,7 @@ func TestCreateTrace(t *testing.T) {
 func TestTraceHandlerGetTraces(t *testing.T) {
 	query := &mocks.QueryService{}
 	handler := NewTraceHandler(query, nil, zap.NewNop())
-	handler.sleepDuration = time.Millisecond
+	handler.getTracesSleepDuration = time.Millisecond
 
 	query.On("GetTraces", "crossdock-go", "op", mock.Anything).Return(nil, errors.New("queryError")).Times(10)
 	traces := handler.getTraces("go", "op", nil)
@@ -365,7 +365,7 @@ func TestAdaptiveSamplingTestInternal(t *testing.T) {
 				createTracesLoopInterval:              time.Second,
 				getSamplingRateInterval:               time.Millisecond,
 				clientSamplingStrategyRefreshInterval: time.Millisecond,
-				sleepDuration:                         time.Millisecond,
+				getTracesSleepDuration:                time.Millisecond,
 			}
 
 			agent.On("GetSamplingRate", "svc", "op").Return(test.samplingRate, nil)
@@ -390,7 +390,7 @@ func TestEndToEndTest(t *testing.T) {
 	agent := &mocks.AgentService{}
 	cT := &mocks.T{}
 	handler := NewTraceHandler(query, agent, zap.NewNop())
-	handler.sleepDuration = time.Millisecond
+	handler.getTracesSleepDuration = time.Millisecond
 
 	cT.On("Param", "services").Return("go")
 	cT.On("Errorf", mock.AnythingOfType("string"), mock.Anything)
@@ -441,7 +441,7 @@ func TestAdaptiveSamplingTest(t *testing.T) {
 		createTracesLoopInterval:              time.Second,
 		getSamplingRateInterval:               time.Millisecond,
 		clientSamplingStrategyRefreshInterval: time.Millisecond,
-		sleepDuration:                         time.Millisecond,
+		getTracesSleepDuration:                time.Millisecond,
 	}
 
 	cT.On("Param", "services").Return("go")
