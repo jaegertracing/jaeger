@@ -33,6 +33,10 @@ import (
 	"github.com/apache/thrift/lib/go/thrift"
 	"github.com/gorilla/mux"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
+	jaegerClient "github.com/uber/jaeger-client-go"
+	"github.com/uber/jaeger-client-go/transport"
+	zipkinTransport "github.com/uber/jaeger-client-go/transport/zipkin"
 	tchanThrift "github.com/uber/tchannel-go/thrift"
 
 	"github.com/uber/jaeger/thrift-gen/jaeger"
@@ -61,16 +65,27 @@ func (p *mockJaegerHandler) getBatches() []*jaeger.Batch {
 }
 
 type mockZipkinHandler struct {
-	err error
+	err   error
+	mux   sync.Mutex
+	spans []*zipkincore.Span
 }
 
-func (p *mockZipkinHandler) SubmitZipkinBatch(ctx tchanThrift.Context, batches []*zipkincore.Span) ([]*zipkincore.Response, error) {
+func (p *mockZipkinHandler) SubmitZipkinBatch(ctx tchanThrift.Context, spans []*zipkincore.Span) ([]*zipkincore.Response, error) {
+	p.mux.Lock()
+	defer p.mux.Unlock()
+	p.spans = append(p.spans, spans...)
 	return nil, p.err
+}
+
+func (p *mockZipkinHandler) getSpans() []*zipkincore.Span {
+	p.mux.Lock()
+	defer p.mux.Unlock()
+	return p.spans
 }
 
 func initializeTestServer(err error) (*httptest.Server, *APIHandler) {
 	r := mux.NewRouter()
-	handler := NewAPIHandler(&mockJaegerHandler{err: err}, &mockZipkinHandler{err})
+	handler := NewAPIHandler(&mockJaegerHandler{err: err}, &mockZipkinHandler{err: err})
 	handler.RegisterRoutes(r)
 	return httptest.NewServer(r), handler
 }
@@ -103,42 +118,70 @@ func TestJaegerFormat(t *testing.T) {
 	assert.EqualValues(t, "Cannot submit Jaeger batch: Bad times ahead\n", resBodyStr)
 }
 
-// func TestJaegerFormatViaClient(t *testing.T) {
-// 	server, handler := initializeTestServer(nil)
-// 	defer server.Close()
-// 	jaegerHandler := handler.jaegerBatchesHandler.(*mockJaegerHandler)
+func TestFormatsViaClient(t *testing.T) {
+	server, handler := initializeTestServer(nil)
+	defer server.Close()
 
-// 	sender, err := transport.NewHTTPTransport(
-// 		server.URL+`/api/traces?format=jaeger.thrift`,
-// 		transport.HTTPBatchSize(1),
-// 	)
-// 	require.NoError(t, err)
+	jaegerSender := transport.NewHTTPTransport(
+		server.URL+`/api/traces?format=jaeger.thrift`,
+		transport.HTTPBatchSize(1),
+	)
+	zipkinSender, err := zipkinTransport.NewHTTPTransport(
+		server.URL+`/api/traces?format=zipkin.thrift`,
+		zipkinTransport.HTTPBatchSize(1),
+	)
+	require.NoError(t, err)
 
-// 	tracer, closer := jaegerClient.NewTracer(
-// 		"test",
-// 		jaegerClient.NewConstSampler(true),
-// 		jaegerClient.NewRemoteReporter(sender),
-// 	)
-// 	defer closer.Close()
+	testCases := []struct {
+		name     string
+		sender   jaegerClient.Transport
+		received func() int
+	}{
+		{
+			name:   "jaeger.thrift",
+			sender: jaegerSender,
+			received: func() int {
+				return len(handler.jaegerBatchesHandler.(*mockJaegerHandler).getBatches())
+			},
+		},
+		{
+			name:   "zipkin.thrift",
+			sender: zipkinSender,
+			received: func() int {
+				return len(handler.zipkinSpansHandler.(*mockZipkinHandler).getSpans())
+			},
+		},
+	}
 
-// 	span := tracer.StartSpan("root")
-// 	span.Finish()
+	for _, tc := range testCases {
+		testCase := tc // capture loop var
+		t.Run(testCase.name, func(t *testing.T) {
+			tracer, closer := jaegerClient.NewTracer(
+				"test",
+				jaegerClient.NewConstSampler(true),
+				jaegerClient.NewRemoteReporter(testCase.sender),
+			)
+			defer closer.Close()
 
-// 	deadline := time.Now().Add(2 * time.Second)
-// 	for {
-// 		if time.Now().After(deadline) {
-// 			t.Fatal("never received a span")
-// 		}
-// 		if want, have := 1, len(jaegerHandler.getBatches()); want != have {
-// 			time.Sleep(time.Millisecond)
-// 			continue
-// 		}
-// 		break
-// 	}
+			tracer.StartSpan("root").Finish()
 
-// 	batches := jaegerHandler.getBatches()
-// 	assert.Len(t, batches, 1)
-// }
+			deadline := time.Now().Add(2 * time.Second)
+			for {
+				if time.Now().After(deadline) {
+					t.Error("never received a span")
+					return
+				}
+				if want, have := 1, testCase.received(); want != have {
+					time.Sleep(time.Millisecond)
+					continue
+				}
+				break
+			}
+
+			assert.Equal(t, 1, testCase.received())
+		})
+	}
+}
 
 func TestJaegerFormatBadBody(t *testing.T) {
 	server, _ := initializeTestServer(nil)
@@ -160,7 +203,7 @@ func TestWrongFormat(t *testing.T) {
 }
 
 func TestCannotReadBodyFromRequest(t *testing.T) {
-	handler := NewAPIHandler(&mockJaegerHandler{}, &mockZipkinHandler{nil})
+	handler := NewAPIHandler(&mockJaegerHandler{}, &mockZipkinHandler{})
 
 	testCases := []struct {
 		url string
