@@ -152,12 +152,15 @@ func (h *TraceHandler) adaptiveSamplingTest(service string, request *traceReques
 		// Keep checking to see if the sampling rate has been calculated
 		h.logger.Info(fmt.Sprintf("Waiting for adaptive sampling probabilities, iteration %d out of 20", i+1))
 		rate, err = h.agent.GetSamplingRate(service, request.Operation)
-		if err == nil && !isDefaultProbability(rate) {
+		if err != nil {
+			return nil, errors.Wrap(err, "could not retrieve sampling rate from agent")
+		}
+		if !isDefaultProbability(rate) {
 			break
 		}
 		time.Sleep(h.getSamplingRateInterval)
 	}
-	if err != nil || isDefaultProbability(rate) {
+	if isDefaultProbability(rate) {
 		return nil, errors.New("failed to retrieve adaptive sampling rate")
 	}
 

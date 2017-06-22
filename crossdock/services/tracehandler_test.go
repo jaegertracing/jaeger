@@ -87,17 +87,29 @@ func TestRunTest(t *testing.T) {
 	}
 
 	tests := []struct {
-		request   *traceRequest
+		request   traceRequest
 		f         testFunc
 		shouldErr bool
 	}{
-		{&traceRequest{}, errFunc, true},
-		{&traceRequest{Count: 1}, successFunc, true},
-		{&traceRequest{Count: 0}, successFunc, false},
+		{
+			request:   traceRequest{},
+			f:         errFunc,
+			shouldErr: true,
+		},
+		{
+			request:   traceRequest{Count: 1},
+			f:         successFunc,
+			shouldErr: true,
+		},
+		{
+			request:   traceRequest{Count: 0},
+			f:         successFunc,
+			shouldErr: false,
+		},
 	}
 	handler := &TraceHandler{}
 	for _, test := range tests {
-		err := handler.runTest("service", test.request, test.f, validateTracesWithCount)
+		err := handler.runTest("service", &test.request, test.f, validateTracesWithCount)
 		if test.shouldErr {
 			assert.Error(t, err)
 		} else {
@@ -108,43 +120,66 @@ func TestRunTest(t *testing.T) {
 
 func TestValidateTracesWithCount(t *testing.T) {
 	tests := []struct {
-		expected *traceRequest
+		expected traceRequest
 		actual   []*ui.Trace
 		errMsg   string
 	}{
-		{&traceRequest{Count: 1}, nil, "expected 1 trace(s), got 0"},
-		{&traceRequest{Count: 1}, []*ui.Trace{{}}, "expected 1 span, got 0"},
-		{&traceRequest{Count: 1},
-			[]*ui.Trace{
-				{Spans: []ui.Span{
-					{Tags: []ui.KeyValue{
-						{Key: "key", Type: ui.BoolType, Value: true},
-					}},
+		{
+			expected: traceRequest{Count: 1},
+			errMsg:   "expected 1 trace(s), got 0",
+		},
+		{
+			expected: traceRequest{Count: 1},
+			actual:   []*ui.Trace{{}},
+			errMsg:   "expected 1 span, got 0",
+		},
+		{
+			expected: traceRequest{Count: 1},
+			actual: []*ui.Trace{
+				{
+					Spans: []ui.Span{
+						{
+							Tags: []ui.KeyValue{
+								{Key: "key", Type: ui.BoolType, Value: true},
+							},
+						},
+					},
 				},
+			},
+		},
+		{
+			expected: traceRequest{Tags: map[string]string{"k": "v"}, Count: 1},
+			actual: []*ui.Trace{
+				{
+					Spans: []ui.Span{
+						{
+							Tags: []ui.KeyValue{
+								{Key: "key", Type: ui.StringType, Value: "value"},
+							},
+						},
+					},
 				},
-			}, ""},
-		{&traceRequest{Tags: map[string]string{"k": "v"}, Count: 1},
-			[]*ui.Trace{
-				{Spans: []ui.Span{
-					{Tags: []ui.KeyValue{
-						{Key: "key", Type: ui.StringType, Value: "value"},
-					}},
+			},
+			errMsg: "expected tags not found",
+		},
+		{
+			expected: traceRequest{Tags: map[string]string{"key": "value"}, Count: 1},
+			actual: []*ui.Trace{
+				{
+					Spans: []ui.Span{
+						{
+							Tags: []ui.KeyValue{
+								{Key: "key", Type: ui.StringType, Value: "value"},
+							},
+						},
+					},
 				},
-				},
-			}, "expected tags not found"},
-		{&traceRequest{Tags: map[string]string{"key": "value"}, Count: 1},
-			[]*ui.Trace{
-				{Spans: []ui.Span{
-					{Tags: []ui.KeyValue{
-						{Key: "key", Type: ui.StringType, Value: "value"},
-					}},
-				},
-				},
-			}, ""},
+			},
+		},
 	}
 
 	for _, test := range tests {
-		err := validateTracesWithCount(test.expected, test.actual)
+		err := validateTracesWithCount(&test.expected, test.actual)
 		if test.errMsg == "" {
 			assert.NoError(t, err)
 		} else {
@@ -252,72 +287,112 @@ func TestCreateTracesLoop(t *testing.T) {
 
 func TestValidateAdaptiveSamplingTraces(t *testing.T) {
 	tests := []struct {
-		expected *traceRequest
+		expected traceRequest
 		actual   []*ui.Trace
 		errMsg   string
 	}{
-		{&traceRequest{Count: 1}, []*ui.Trace{{}}, "expected 1 span, got 0"},
-		{&traceRequest{Count: 1},
-			[]*ui.Trace{
-				{Spans: []ui.Span{
-					{Tags: []ui.KeyValue{
-						{Key: "key", Type: ui.BoolType, Value: true},
-					}},
+		{
+			expected: traceRequest{Count: 1},
+			actual:   []*ui.Trace{{}},
+			errMsg:   "expected 1 span, got 0",
+		},
+		{
+			expected: traceRequest{Count: 1},
+			actual: []*ui.Trace{
+				{
+					Spans: []ui.Span{
+						{
+							Tags: []ui.KeyValue{
+								{Key: "key", Type: ui.BoolType, Value: true},
+							},
+						},
+					},
 				},
+			},
+			errMsg: "sampler.param and sampler.type tags not found",
+		},
+		{
+			expected: traceRequest{Count: 1},
+			actual: []*ui.Trace{
+				{
+					Spans: []ui.Span{
+						{
+							Tags: []ui.KeyValue{
+								{Key: "sampler.param", Type: ui.StringType, Value: "0.0203"},
+							},
+						},
+					},
 				},
-			}, "sampler.param and sampler.type tags not found"},
-		{&traceRequest{Count: 1},
-			[]*ui.Trace{
-				{Spans: []ui.Span{
-					{Tags: []ui.KeyValue{
-						{Key: "sampler.param", Type: ui.StringType, Value: "0.0203"},
-					}},
+			},
+			errMsg: "sampler.param and sampler.type tags not found",
+		},
+		{
+			expected: traceRequest{Count: 1},
+			actual: []*ui.Trace{
+				{
+					Spans: []ui.Span{
+						{
+							Tags: []ui.KeyValue{
+								{Key: "sampler.param", Type: ui.StringType, Value: "not_float"},
+								{Key: "sampler.type", Type: ui.StringType, Value: "probabilistic"},
+							},
+						},
+					},
 				},
+			},
+			errMsg: "sampler.param tag value is not a float: not_float",
+		},
+		{
+			expected: traceRequest{Count: 1},
+			actual: []*ui.Trace{
+				{
+					Spans: []ui.Span{
+						{
+							Tags: []ui.KeyValue{
+								{Key: "sampler.param", Type: ui.StringType, Value: "0.003"},
+								{Key: "sampler.type", Type: ui.StringType, Value: "const"},
+							},
+						},
+					},
 				},
-			}, "sampler.param and sampler.type tags not found"},
-		{&traceRequest{Count: 1},
-			[]*ui.Trace{
-				{Spans: []ui.Span{
-					{Tags: []ui.KeyValue{
-						{Key: "sampler.param", Type: ui.StringType, Value: "not_float"},
-						{Key: "sampler.type", Type: ui.StringType, Value: "probabilistic"},
-					}},
+			},
+			errMsg: "sampler.type tag value should be 'probabilistic'",
+		},
+		{
+			expected: traceRequest{Count: 1},
+			actual: []*ui.Trace{
+				{
+					Spans: []ui.Span{
+						{
+							Tags: []ui.KeyValue{
+								{Key: "sampler.param", Type: ui.StringType, Value: "0.001"},
+								{Key: "sampler.type", Type: ui.StringType, Value: "probabilistic"},
+							},
+						},
+					},
 				},
+			},
+			errMsg: "adaptive sampling probability not used",
+		},
+		{
+			expected: traceRequest{Count: 1},
+			actual: []*ui.Trace{
+				{
+					Spans: []ui.Span{
+						{
+							Tags: []ui.KeyValue{
+								{Key: "sampler.param", Type: ui.StringType, Value: "0.02314"},
+								{Key: "sampler.type", Type: ui.StringType, Value: "probabilistic"},
+							},
+						},
+					},
 				},
-			}, "sampler.param tag value is not a float: not_float"},
-		{&traceRequest{Count: 1},
-			[]*ui.Trace{
-				{Spans: []ui.Span{
-					{Tags: []ui.KeyValue{
-						{Key: "sampler.param", Type: ui.StringType, Value: "0.003"},
-						{Key: "sampler.type", Type: ui.StringType, Value: "const"},
-					}},
-				},
-				},
-			}, "sampler.type tag value should be 'probabilistic'"},
-		{&traceRequest{Count: 1},
-			[]*ui.Trace{
-				{Spans: []ui.Span{
-					{Tags: []ui.KeyValue{
-						{Key: "sampler.param", Type: ui.StringType, Value: "0.001"},
-						{Key: "sampler.type", Type: ui.StringType, Value: "probabilistic"},
-					}},
-				},
-				},
-			}, "adaptive sampling probability not used"},
-		{&traceRequest{Count: 1},
-			[]*ui.Trace{
-				{Spans: []ui.Span{
-					{Tags: []ui.KeyValue{
-						{Key: "sampler.param", Type: ui.StringType, Value: "0.02314"},
-						{Key: "sampler.type", Type: ui.StringType, Value: "probabilistic"},
-					}},
-				},
-				},
-			}, ""},
+			},
+			errMsg: "",
+		},
 	}
 	for _, test := range tests {
-		err := validateAdaptiveSamplingTraces(test.expected, test.actual)
+		err := validateAdaptiveSamplingTraces(&test.expected, test.actual)
 		if test.errMsg == "" {
 			assert.NoError(t, err)
 		} else {
@@ -332,9 +407,14 @@ func TestAdaptiveSamplingTestInternal(t *testing.T) {
 
 	tests := []struct {
 		samplingRate       float64
+		getSamplingRateErr error
 		shouldGetTracesErr bool
 		errMsg             string
 	}{
+		{
+			getSamplingRateErr: errors.New("http error"),
+			errMsg:             "could not retrieve sampling rate from agent: http error",
+		},
 		{
 			samplingRate: defaultProbabilities[0],
 			errMsg:       "failed to retrieve adaptive sampling rate",
@@ -368,7 +448,7 @@ func TestAdaptiveSamplingTestInternal(t *testing.T) {
 				getTracesSleepDuration:                time.Millisecond,
 			}
 
-			agent.On("GetSamplingRate", "svc", "op").Return(test.samplingRate, nil)
+			agent.On("GetSamplingRate", "svc", "op").Return(test.samplingRate, test.getSamplingRateErr)
 			if test.shouldGetTracesErr {
 				query.On("GetTraces", "crossdock-svc", "op", mock.Anything).Return(nil, errors.New("queryError")).Times(10)
 			} else {
