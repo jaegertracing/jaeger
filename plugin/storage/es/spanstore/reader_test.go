@@ -149,7 +149,7 @@ func TestSpanReader_GetTraceQueryError(t *testing.T) {
 		mockSearchService(r).
 			Return(nil, errors.New("query error occurred"))
 		trace, err := r.reader.GetTrace(model.TraceID{Low: 1})
-		require.EqualError(t, err, "query error occurred")
+		require.EqualError(t, err, "Query execution failed: query error occurred")
 		require.Nil(t, trace)
 	})
 }
@@ -620,7 +620,7 @@ func mockSearchService(r *spanReaderTest) *mock.Call {
 		return i == 0
 	})).Return(searchService)
 	searchService.On("Aggregation", stringMatcher(servicesAggregation), mock.AnythingOfType("*elastic.TermsAggregation")).Return(searchService)
-	searchService.On("Aggregation", stringMatcher(operationsAggregation), mock.AnythingOfType("*elastic.FilterAggregation")).Return(searchService)
+	searchService.On("Aggregation", stringMatcher(operationsAggregation), mock.AnythingOfType("*elastic.TermsAggregation")).Return(searchService)
 	searchService.On("Aggregation", stringMatcher(traceIDAggregation), mock.AnythingOfType("*elastic.TermsAggregation")).Return(searchService)
 	r.client.On("Search", mock.AnythingOfType("string"), mock.AnythingOfType("string"), mock.AnythingOfType("string")).Return(searchService)
 	return searchService.On("Do", mock.AnythingOfType("*context.emptyCtx"))
