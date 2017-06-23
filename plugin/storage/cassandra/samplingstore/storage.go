@@ -33,7 +33,7 @@ import (
 	"github.com/uber/jaeger-lib/metrics"
 	"go.uber.org/zap"
 
-	"github.com/uber/jaeger/model"
+	"github.com/uber/jaeger/cmd/collector/app/sampling/model"
 	"github.com/uber/jaeger/pkg/cassandra"
 	casMetrics "github.com/uber/jaeger/pkg/cassandra/metrics"
 )
