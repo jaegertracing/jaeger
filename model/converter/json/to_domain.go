@@ -25,6 +25,7 @@ import (
 	"fmt"
 	"strconv"
 
+	"github.com/pkg/errors"
 	"github.com/uber/jaeger/model"
 	"github.com/uber/jaeger/model/json"
 )
@@ -184,6 +185,9 @@ func (td toDomain) convertLogs(logs []json.Log) ([]model.Log, error) {
 }
 
 func (td toDomain) convertProcess(process *json.Process) (*model.Process, error) {
+	if process == nil {
+		return nil, errors.New("Process is nil")
+	}
 	tags, err := td.convertKeyValues(process.Tags)
 	if err != nil {
 		return nil, err
