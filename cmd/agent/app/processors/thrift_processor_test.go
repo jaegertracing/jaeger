@@ -34,6 +34,7 @@ import (
 	"go.uber.org/zap"
 
 	"github.com/uber/jaeger/cmd/agent/app/reporter"
+	tchreporter "github.com/uber/jaeger/cmd/agent/app/reporter/tchannel"
 	"github.com/uber/jaeger/cmd/agent/app/servers"
 	"github.com/uber/jaeger/cmd/agent/app/servers/thriftudp"
 	"github.com/uber/jaeger/cmd/agent/app/testutils"
@@ -83,7 +84,7 @@ func createProcessor(t *testing.T, mFactory metrics.Factory, tFactory thrift.TPr
 
 func initCollectorAndReporter(t *testing.T) (*metrics.LocalFactory, *testutils.MockTCollector, reporter.Reporter) {
 	metricsFactory, collector := testutils.InitMockCollector(t)
-	reporter := reporter.NewTChannelReporter("jaeger-collector", collector.Channel, metricsFactory, zap.NewNop())
+	reporter := tchreporter.New("jaeger-collector", collector.Channel, nil, metricsFactory, zap.NewNop())
 	return metricsFactory, collector, reporter
 }
 
