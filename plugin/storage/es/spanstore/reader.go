@@ -403,10 +403,10 @@ func (s *SpanReader) buildDurationQuery(durationMin time.Duration, durationMax t
 }
 
 func (s *SpanReader) buildStartTimeQuery(startTimeMin time.Time, startTimeMax time.Time) elastic.Query {
-	minStartTimeMicros := startTimeMin.Second()*1000000 + startTimeMin.Nanosecond()/1000
-	maxStartTimeMicros := startTimeMin.Add(time.Hour*24).Second()*1000000 + startTimeMin.Add(time.Hour*24).Nanosecond()/1000
+	minStartTimeMicros := model.TimeAsEpochMicroseconds(startTimeMin)
+	maxStartTimeMicros := model.TimeAsEpochMicroseconds(startTimeMin.Add(24 * time.Hour))
 	if !startTimeMax.IsZero() {
-		maxStartTimeMicros = startTimeMax.Second()*1000000 + startTimeMax.Nanosecond()/1000
+		maxStartTimeMicros = model.TimeAsEpochMicroseconds(startTimeMax)
 	}
 	return elastic.NewRangeQuery(startTimeField).Gte(minStartTimeMicros).Lte(maxStartTimeMicros)
 }
