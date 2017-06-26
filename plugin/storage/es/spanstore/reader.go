@@ -42,6 +42,7 @@ const (
 	operationsAggregation = "distinct_operations"
 	servicesAggregation   = "distinct_services"
 	traceIDAggregation    = "traceIDs"
+
 	traceIDField          = "traceID"
 	durationField         = "duration"
 	startTimeField        = "startTime"
@@ -68,11 +69,10 @@ var (
 	// ErrMalformedRequestObject occurs when a request object is nil
 	ErrMalformedRequestObject = errors.New("Malformed request object")
 
-	// ErrDurationAndTagQueryNotSupported occurs when duration and tags are both set
-	ErrDurationAndTagQueryNotSupported = errors.New("Cannot query for duration and tags simultaneously")
-
 	// ErrStartAndEndTimeNotSet occurs when start time and end time are not set
 	ErrStartAndEndTimeNotSet = errors.New("Start and End Time must be set")
+
+	defaultMaxDuration = model.DurationAsMicroseconds(time.Hour * 24)
 )
 
 // SpanReader can query for and load traces from ElasticSearch
@@ -266,11 +266,11 @@ func (s *SpanReader) FindTraces(traceQuery *spanstore.TraceQueryParameters) ([]*
 		return nil, err
 	}
 	var retMe []*model.Trace
-	for traceID := range uniqueTraceIDs {
+	for _, traceID := range uniqueTraceIDs {
 		if len(retMe) >= traceQuery.NumTraces {
 			break
 		}
-		trace, err := s.readTrace(string(traceID), traceQuery)
+		trace, err := s.readTrace(traceID, traceQuery)
 		if err != nil {
 			s.logger.Error("Failure to read trace", zap.String("trace_id", string(traceID)), zap.Error(err))
 			continue
@@ -290,14 +290,11 @@ func validateQuery(p *spanstore.TraceQueryParameters) error {
 	if p.StartTimeMin.IsZero() || p.StartTimeMax.IsZero() {
 		return ErrStartAndEndTimeNotSet
 	}
-	if !p.StartTimeMin.IsZero() && !p.StartTimeMax.IsZero() && p.StartTimeMax.Before(p.StartTimeMin) {
+	if p.StartTimeMax.Before(p.StartTimeMin) {
 		return ErrStartTimeMinGreaterThanMax
 	}
 	if p.DurationMin != 0 && p.DurationMax != 0 && p.DurationMin > p.DurationMax {
 		return ErrDurationMinGreaterThanMax
-	}
-	if (p.DurationMin != 0 || p.DurationMax != 0) && len(p.Tags) > 0 {
-		return ErrDurationAndTagQueryNotSupported
 	}
 	return nil
 }
@@ -394,20 +391,17 @@ func (s *SpanReader) buildFindTraceIDsQuery(traceQuery *spanstore.TraceQueryPara
 }
 
 func (s *SpanReader) buildDurationQuery(durationMin time.Duration, durationMax time.Duration) elastic.Query {
-	minDurationMicros := durationMin.Nanoseconds() / int64(time.Microsecond/time.Nanosecond)
-	maxDurationMicros := (time.Hour * 24).Nanoseconds() / int64(time.Microsecond/time.Nanosecond)
+	minDurationMicros := model.DurationAsMicroseconds(durationMin)
+	maxDurationMicros := defaultMaxDuration
 	if durationMax != 0 {
-		maxDurationMicros = durationMax.Nanoseconds() / int64(time.Microsecond/time.Nanosecond)
+		maxDurationMicros = model.DurationAsMicroseconds(durationMax)
 	}
 	return elastic.NewRangeQuery(durationField).Gte(minDurationMicros).Lte(maxDurationMicros)
 }
 
 func (s *SpanReader) buildStartTimeQuery(startTimeMin time.Time, startTimeMax time.Time) elastic.Query {
 	minStartTimeMicros := model.TimeAsEpochMicroseconds(startTimeMin)
-	maxStartTimeMicros := model.TimeAsEpochMicroseconds(startTimeMin.Add(24 * time.Hour))
-	if !startTimeMax.IsZero() {
-		maxStartTimeMicros = model.TimeAsEpochMicroseconds(startTimeMax)
-	}
+	maxStartTimeMicros := model.TimeAsEpochMicroseconds(startTimeMax)
 	return elastic.NewRangeQuery(startTimeField).Gte(minStartTimeMicros).Lte(maxStartTimeMicros)
 }
 
@@ -419,6 +413,7 @@ func (s *SpanReader) buildOperationNameQuery(operationName string) elastic.Query
 	return elastic.NewMatchQuery(operationNameField, operationName)
 }
 
+// TODO: currently only checks tags, but not process tags / log tags.
 func (s *SpanReader) buildTagQuery(k string, v string) elastic.Query {
 	keyQuery := elastic.NewMatchQuery(tagKeyField, k)
 	valueQuery := elastic.NewMatchQuery(tagValueField, v)

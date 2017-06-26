@@ -22,6 +22,7 @@ package es
 
 import (
 	"context"
+
 	"github.com/olivere/elastic"
 )
 

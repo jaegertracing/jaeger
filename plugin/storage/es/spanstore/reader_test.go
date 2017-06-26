@@ -661,11 +661,6 @@ func TestTraceQueryParameterValidation(t *testing.T) {
 	tsp.DurationMax = time.Minute
 	err = validateQuery(tsp)
 	assert.EqualError(t, err, ErrDurationMinGreaterThanMax.Error())
-
-	tsp.DurationMin = time.Minute
-	tsp.DurationMax = time.Hour
-	err = validateQuery(tsp)
-	assert.EqualError(t, err, ErrDurationAndTagQueryNotSupported.Error())
 }
 
 func TestSpanReader_buildTraceIDAggregation(t *testing.T) {
@@ -735,8 +730,8 @@ func TestSpanReader_buildDurationQuery(t *testing.T) {
 		ranges[durationField] = duration
 		duration["include_lower"] = true
 		duration["include_upper"] = true
-		duration["from"] = int64(1000000)
-		duration["to"] = int64(2000000)
+		duration["from"] = model.DurationAsMicroseconds(durationMin)
+		duration["to"] = model.DurationAsMicroseconds(durationMax)
 
 		assert.EqualValues(t, expected, actual)
 	})

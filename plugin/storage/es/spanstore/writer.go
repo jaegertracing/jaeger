@@ -102,7 +102,7 @@ func (s *SpanWriter) checkAndCreateIndex(indexName string, jsonSpan *jModel.Span
 
 func (s *SpanWriter) writeService(indexName string, jsonSpan *jModel.Span) error {
 	// Insert serviceName:operationName document
-	service := &Service{
+	service := Service{
 		ServiceName:   jsonSpan.Process.ServiceName,
 		OperationName: jsonSpan.OperationName,
 	}
