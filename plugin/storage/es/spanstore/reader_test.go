@@ -471,7 +471,7 @@ func TestSpanReader_FindTraces(t *testing.T) {
 		traceQuery := &spanstore.TraceQueryParameters{
 			ServiceName: serviceName,
 			Tags: map[string]string{
-				"michael": "jackson",
+				"hello": "world",
 			},
 			StartTimeMin: time.Now().Add(-1 * time.Hour),
 			StartTimeMax: time.Now(),
@@ -523,7 +523,7 @@ func TestSpanReader_FindTracesInvalidQuery(t *testing.T) {
 		traceQuery := &spanstore.TraceQueryParameters{
 			ServiceName: "",
 			Tags: map[string]string{
-				"michael": "jackson",
+				"hello": "world",
 			},
 			StartTimeMin: time.Now().Add(-1 * time.Hour),
 			StartTimeMax: time.Now(),
@@ -551,7 +551,7 @@ func TestSpanReader_FindTracesNoTraceIDs(t *testing.T) {
 		traceQuery := &spanstore.TraceQueryParameters{
 			ServiceName: serviceName,
 			Tags: map[string]string{
-				"michael": "jackson",
+				"hello": "world",
 			},
 			StartTimeMin: time.Now().Add(-1 * time.Hour),
 			StartTimeMax: time.Now(),
@@ -582,7 +582,7 @@ func TestSpanReader_FindTracesReadTraceFailure(t *testing.T) {
 		traceQuery := &spanstore.TraceQueryParameters{
 			ServiceName: serviceName,
 			Tags: map[string]string{
-				"michael": "jackson",
+				"hello": "world",
 			},
 			StartTimeMin: time.Now().Add(-1 * time.Hour),
 			StartTimeMax: time.Now(),
@@ -620,14 +620,14 @@ func mockSearchService(r *spanReaderTest) *mock.Call {
 }
 
 func TestTraceQueryParameterValidation(t *testing.T) {
-	var malformedtsp *spanstore.TraceQueryParameters
-	err := validateQuery(malformedtsp)
+	var malformedtqp *spanstore.TraceQueryParameters
+	err := validateQuery(malformedtqp)
 	assert.EqualError(t, err, ErrMalformedRequestObject.Error())
 
 	tsp := &spanstore.TraceQueryParameters{
 		ServiceName: "",
 		Tags: map[string]string{
-			"michael": "jackson",
+			"hello": "world",
 		},
 	}
 	err = validateQuery(tsp)
@@ -680,7 +680,7 @@ func TestSpanReader_buildFindTraceIDsQuery(t *testing.T) {
 			ServiceName:   "s",
 			OperationName: "o",
 			Tags: map[string]string{
-				"michael": "jackson",
+				"hello": "world",
 			},
 		}
 
@@ -693,7 +693,7 @@ func TestSpanReader_buildFindTraceIDsQuery(t *testing.T) {
 				r.reader.buildStartTimeQuery(time.Time{}, time.Time{}.Add(time.Second)),
 				r.reader.buildServiceNameQuery("s"),
 				r.reader.buildOperationNameQuery("o"),
-				r.reader.buildTagQuery("michael", "jackson"),
+				r.reader.buildTagQuery("hello", "world"),
 			)
 		expected, err := expectedQuery.Source()
 		require.NoError(t, err)
@@ -702,11 +702,14 @@ func TestSpanReader_buildFindTraceIDsQuery(t *testing.T) {
 }
 
 func TestSpanReader_buildDurationQuery(t *testing.T) {
-	// { "range":  { "duration": { "gte": 1000000, "lte": 2000000 }}}
-	expectedStr := `{ "range":  { "duration": { "include_lower": true,
-						    "include_upper": true,
-						    "from": 1000000,
-						    "to": 2000000 }}}`
+	expectedStr :=
+		`{ "range":
+			{ "duration": { "include_lower": true,
+				        "include_upper": true,
+				        "from": 1000000,
+				        "to": 2000000 }
+			}
+		}`
 	withSpanReader(func(r *spanReaderTest) {
 		durationMin := time.Second
 		durationMax := time.Second * 2
@@ -725,10 +728,14 @@ func TestSpanReader_buildDurationQuery(t *testing.T) {
 }
 
 func TestSpanReader_buildStartTimeQuery(t *testing.T) {
-	expectedStr := `{ "range":  { "startTime": { "include_lower": true,
-						    "include_upper": true,
-						    "from": 1000000,
-						    "to": 2000000 }}}`
+	expectedStr :=
+		`{ "range":
+			{ "startTime": { "include_lower": true,
+				         "include_upper": true,
+				         "from": 1000000,
+				         "to": 2000000 }
+			}
+		}`
 	withSpanReader(func(r *spanReaderTest) {
 		startTimeMin := time.Time{}.Add(time.Second)
 		startTimeMax := time.Time{}.Add(2 * time.Second)
@@ -763,8 +770,8 @@ func TestSpanReader_buildServiceNameQuery(t *testing.T) {
 func TestSpanReader_buildOperationNameQuery(t *testing.T) {
 	expectedStr := `{ "match": { "operationName": { "query": "spook" }}}`
 	withSpanReader(func(r *spanReaderTest) {
-		serviceNameQuery := r.reader.buildOperationNameQuery("spook")
-		actual, err := serviceNameQuery.Source()
+		operationNameQuery := r.reader.buildOperationNameQuery("spook")
+		actual, err := operationNameQuery.Source()
 		require.NoError(t, err)
 
 		expected := make(map[string]interface{})
@@ -776,7 +783,7 @@ func TestSpanReader_buildOperationNameQuery(t *testing.T) {
 
 func TestSpanReader_buildTagQuery(t *testing.T) {
 	expectedStr :=
-	`{ "bool": {
+		`{ "bool": {
 	   "should": [
 	      { "nested" : {
 		 "path" : "tags",

@@ -52,7 +52,7 @@ const (
 	tagValueField      = "tags.value"
 	tagsField          = "tags"
 	processTagsField   = "process.tags"
-	logTagsField       = "logs.fields"
+	logFieldsField     = "logs.fields"
 
 	defaultDocCount  = 3000
 	defaultNumTraces = 100
@@ -74,9 +74,12 @@ var (
 	// ErrStartAndEndTimeNotSet occurs when start time and end time are not set
 	ErrStartAndEndTimeNotSet = errors.New("Start and End Time must be set")
 
+	// ErrUnableToFindTraceIDAggregation occurs when an aggregation query for TraceIDs fail.
+	ErrUnableToFindTraceIDAggregation = errors.New("Could not find aggregation of traceIDs")
+
 	defaultMaxDuration = model.DurationAsMicroseconds(time.Hour * 24)
 
-	tagFieldList = []string{tagsField, processTagsField, logTagsField}
+	tagFieldList = []string{tagsField, processTagsField, logFieldsField}
 )
 
 // SpanReader can query for and load traces from ElasticSearch
@@ -305,30 +308,50 @@ func validateQuery(p *spanstore.TraceQueryParameters) error {
 
 func (s *SpanReader) findTraceIDs(traceQuery *spanstore.TraceQueryParameters) ([]string, error) {
 	//  Below is the JSON body to our HTTP GET request to ElasticSearch. This function creates this.
-	//
 	// {
-	//     "size": 0,
-	//     "query": {
-	//       "bool": {
-	//         "must": [
-	//           { "match": { "operationName":   "traceQuery.OperationName"      }},
-	//           { "match": { "process.serviceName": "traceQuery.ServiceName" }},
-	//           { "range":  { "timestamp": { "gte": traceQuery.StartTimeMin, "lte": traceQuery.StartTimeMax }}},
-	//           { "range":  { "duration": { "gte": traceQuery.DurationMin, "lte": traceQuery.DurationMax }}},
-	//           { "nested" : {
-	//             "path" : "tags",
-	//             "query" : {
-	//                 "bool" : {
-	//                     "must" : [
-	//                     { "match" : {"tags.key" : "traceQuery.Tags.key"} },
-	//                     { "match" : {"tags.value" : "traceQuery.Tags.value"} }
-	//                     ]
-	//                 }}}}
-	//         ]
-	//       }
-	//     },
-	//     "aggs": { "traceIDs" : { "terms" : {"size": numOfTraces,"field": "traceID" }}}
-	// }
+	//      "size": 0,
+	//      "query": {
+	//        "bool": {
+	//          "must": [
+	//            { "match": { "operationName":   "op1"      }},
+	//            { "match": { "process.serviceName": "service1" }},
+	//            { "range":  { "startTime": { "gte": 0, "lte": 90000000000000000 }}},
+	//            { "range":  { "duration": { "gte": 0, "lte": 90000000000000000 }}},
+	//            { "should": [
+	//                   { "nested" : {
+	//                      "path" : "tags",
+	//                      "query" : {
+	//                          "bool" : {
+	//                              "must" : [
+	//                              { "match" : {"tags.key" : "tag3"} },
+	//                              { "match" : {"tags.value" : "xyz"} }
+	//                              ]
+	//                          }}}},
+	//                   { "nested" : {
+	//                          "path" : "process.tags",
+	//                          "query" : {
+	//                              "bool" : {
+	//                                  "must" : [
+	//                                  { "match" : {"tags.key" : "tag3"} },
+	//                                  { "match" : {"tags.value" : "xyz"} }
+	//                                  ]
+	//                              }}}},
+	//                   { "nested" : {
+	//                          "path" : "logs.tags",
+	//                          "query" : {
+	//                              "bool" : {
+	//                                  "must" : [
+	//                                  { "match" : {"tags.key" : "tag3"} },
+	//                                  { "match" : {"tags.value" : "xyz"} }
+	//                                  ]
+	//                              }}}}
+	//                ]
+	//              }
+	//          ]
+	//        }
+	//      },
+	//      "aggs": { "traceIDs" : { "terms" : {"size": 100,"field": "traceID" }}}
+	//  }
 	aggregation := s.buildTraceIDAggregation(traceQuery.NumTraces)
 	boolQuery := s.buildFindTraceIDsQuery(traceQuery)
 
@@ -347,8 +370,7 @@ func (s *SpanReader) findTraceIDs(traceQuery *spanstore.TraceQueryParameters) ([
 
 	bucket, found := searchResult.Aggregations.Terms(traceIDAggregation)
 	if !found {
-		err = errors.New("Could not find aggregation of traceIDs")
-		return nil, err
+		return nil, ErrUnableToFindTraceIDAggregation
 	}
 
 	traceIDBuckets := bucket.Buckets
@@ -419,8 +441,7 @@ func (s *SpanReader) buildOperationNameQuery(operationName string) elastic.Query
 func (s *SpanReader) buildTagQuery(k string, v string) elastic.Query {
 	queries := make([]elastic.Query, len(tagFieldList))
 	for i := range queries {
-		field := tagFieldList[i]
-		queries[i] = s.buildNestedQuery(field, k, v)
+		queries[i] = s.buildNestedQuery(tagFieldList[i], k, v)
 	}
 	return elastic.NewBoolQuery().Should(queries...)
 }
