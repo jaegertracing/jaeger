@@ -745,8 +745,8 @@ func TestSpanReader_buildDurationQuery(t *testing.T) {
 func TestSpanReader_buildStartTimeQuery(t *testing.T) {
 	// { "range":  { "timestamp": { "gte": 0, "lte": 1000000 }}}
 	withSpanReader(func(r *spanReaderTest) {
-		startTimeMin := time.Time{}
-		startTimeMax := time.Time{}.Add(time.Second)
+		startTimeMin := time.Time{}.Add(time.Second)
+		startTimeMax := time.Time{}.Add(2 * time.Second)
 		durationQuery := r.reader.buildStartTimeQuery(startTimeMin, startTimeMax)
 		actual, err := durationQuery.Source()
 		require.NoError(t, err)
@@ -758,8 +758,8 @@ func TestSpanReader_buildStartTimeQuery(t *testing.T) {
 		ranges[startTimeField] = duration
 		duration["include_lower"] = true
 		duration["include_upper"] = true
-		duration["from"] = 0
-		duration["to"] = 1000000
+		duration["from"] = model.TimeAsEpochMicroseconds(startTimeMin)
+		duration["to"] = model.TimeAsEpochMicroseconds(startTimeMax)
 
 		assert.EqualValues(t, expected, actual)
 	})
