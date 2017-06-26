@@ -51,6 +51,8 @@ const (
 	tagKeyField        = "tags.key"
 	tagValueField      = "tags.value"
 	tagsField          = "tags"
+	processTagsField   = "process.tags"
+	logTagsField       = "logs.fields"
 
 	defaultDocCount  = 3000
 	defaultNumTraces = 100
@@ -73,6 +75,8 @@ var (
 	ErrStartAndEndTimeNotSet = errors.New("Start and End Time must be set")
 
 	defaultMaxDuration = model.DurationAsMicroseconds(time.Hour * 24)
+
+	tagFieldList = []string{tagsField, processTagsField, logTagsField}
 )
 
 // SpanReader can query for and load traces from ElasticSearch
@@ -382,7 +386,6 @@ func (s *SpanReader) buildFindTraceIDsQuery(traceQuery *spanstore.TraceQueryPara
 		boolQuery.Must(operationNameQuery)
 	}
 
-	//add tags query (must be nested) TODO: add log tags query
 	for k, v := range traceQuery.Tags {
 		tagQuery := s.buildTagQuery(k, v)
 		boolQuery.Must(tagQuery)
@@ -413,10 +416,18 @@ func (s *SpanReader) buildOperationNameQuery(operationName string) elastic.Query
 	return elastic.NewMatchQuery(operationNameField, operationName)
 }
 
-// TODO: currently only checks tags, but not process tags / log tags.
 func (s *SpanReader) buildTagQuery(k string, v string) elastic.Query {
+	queries := make([]elastic.Query, len(tagFieldList))
+	for i := range queries {
+		field := tagFieldList[i]
+		queries[i] = s.buildNestedQuery(field, k, v)
+	}
+	return elastic.NewBoolQuery().Should(queries...)
+}
+
+func (s *SpanReader) buildNestedQuery(field string, k string, v string) elastic.Query {
 	keyQuery := elastic.NewMatchQuery(tagKeyField, k)
 	valueQuery := elastic.NewMatchQuery(tagValueField, v)
 	tagBoolQuery := elastic.NewBoolQuery().Must(keyQuery, valueQuery)
-	return elastic.NewNestedQuery(tagsField, tagBoolQuery)
+	return elastic.NewNestedQuery(field, tagBoolQuery)
 }

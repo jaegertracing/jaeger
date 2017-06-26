@@ -347,21 +347,14 @@ func TestSpanReader_GetServices(t *testing.T) {
 }
 
 func TestSpanReader_getServicesAggregation(t *testing.T) {
-	// this aggregation marshalled should look like this:
-	//
-	// "terms":{
-	//    "size":3000,
-	//    "field":"serviceName"
-	// }
+	expectedStr := `{ "terms": { "size": 3000, "field": "` + serviceName + `"}}`
 	withSpanReader(func(r *spanReaderTest) {
 		serviceAggregation := r.reader.getServicesAggregation()
 		actual, err := serviceAggregation.Source()
 		require.NoError(t, err)
 		expected := make(map[string]interface{})
-		terms := make(map[string]interface{})
-		expected["terms"] = terms
-		terms["size"] = defaultDocCount
-		terms["field"] = "serviceName"
+		json.Unmarshal([]byte(expectedStr), &expected)
+		expected["terms"].(map[string]interface{})["size"] = defaultDocCount
 
 		assert.EqualValues(t, expected, actual)
 	})
@@ -476,7 +469,7 @@ func TestSpanReader_FindTraces(t *testing.T) {
 		mockSearchService(r).
 			Return(&elastic.SearchResult{Aggregations: elastic.Aggregations(goodAggregations), Hits: searchHits}, nil)
 		traceQuery := &spanstore.TraceQueryParameters{
-			ServiceName: "serviceName",
+			ServiceName: serviceName,
 			Tags: map[string]string{
 				"michael": "jackson",
 			},
@@ -556,7 +549,7 @@ func TestSpanReader_FindTracesNoTraceIDs(t *testing.T) {
 		mockSearchService(r).
 			Return(&elastic.SearchResult{Aggregations: elastic.Aggregations(goodAggregations), Hits: searchHits}, nil)
 		traceQuery := &spanstore.TraceQueryParameters{
-			ServiceName: "serviceName",
+			ServiceName: serviceName,
 			Tags: map[string]string{
 				"michael": "jackson",
 			},
@@ -587,7 +580,7 @@ func TestSpanReader_FindTracesReadTraceFailure(t *testing.T) {
 		mockSearchService(r).
 			Return(&elastic.SearchResult{Aggregations: elastic.Aggregations(goodAggregations), Hits: searchHits}, nil)
 		traceQuery := &spanstore.TraceQueryParameters{
-			ServiceName: "serviceName",
+			ServiceName: serviceName,
 			Tags: map[string]string{
 				"michael": "jackson",
 			},
@@ -640,7 +633,7 @@ func TestTraceQueryParameterValidation(t *testing.T) {
 	err = validateQuery(tsp)
 	assert.EqualError(t, err, ErrServiceNameNotSet.Error())
 
-	tsp.ServiceName = "serviceName"
+	tsp.ServiceName = serviceName
 
 	tsp.StartTimeMin = time.Time{} //time.Unix(0,0) doesn't work because timezones
 	tsp.StartTimeMax = time.Time{}
@@ -664,21 +657,15 @@ func TestTraceQueryParameterValidation(t *testing.T) {
 }
 
 func TestSpanReader_buildTraceIDAggregation(t *testing.T) {
-	// "terms":{
-	//    "size":numOfTraces,
-	//    "field":"traceID"
-	// }
+	expectedStr := `{ "terms": { "size": 123, "field": "` + traceIDField + `" }}`
 	withSpanReader(func(r *spanReaderTest) {
 		traceIDAggregation := r.reader.buildTraceIDAggregation(123)
 		actual, err := traceIDAggregation.Source()
 		require.NoError(t, err)
 
 		expected := make(map[string]interface{})
-		terms := make(map[string]interface{})
-		expected["terms"] = terms
-		terms["size"] = 123
-		terms["field"] = traceIDField
-
+		json.Unmarshal([]byte(expectedStr), &expected)
+		expected["terms"].(map[string]interface{})["size"] = 123
 		assert.EqualValues(t, expected, actual)
 	})
 }
@@ -716,6 +703,10 @@ func TestSpanReader_buildFindTraceIDsQuery(t *testing.T) {
 
 func TestSpanReader_buildDurationQuery(t *testing.T) {
 	// { "range":  { "duration": { "gte": 1000000, "lte": 2000000 }}}
+	expectedStr := `{ "range":  { "duration": { "include_lower": true,
+						    "include_upper": true,
+						    "from": 1000000,
+						    "to": 2000000 }}}`
 	withSpanReader(func(r *spanReaderTest) {
 		durationMin := time.Second
 		durationMax := time.Second * 2
@@ -724,21 +715,20 @@ func TestSpanReader_buildDurationQuery(t *testing.T) {
 		require.NoError(t, err)
 
 		expected := make(map[string]interface{})
-		ranges := make(map[string]interface{})
-		expected["range"] = ranges
-		duration := make(map[string]interface{})
-		ranges[durationField] = duration
-		duration["include_lower"] = true
-		duration["include_upper"] = true
-		duration["from"] = model.DurationAsMicroseconds(durationMin)
-		duration["to"] = model.DurationAsMicroseconds(durationMax)
+		json.Unmarshal([]byte(expectedStr), &expected)
+		// This below is ugly, but wanted to keep the framework for testing these queries consistent.
+		expected["range"].(map[string]interface{})["duration"].(map[string]interface{})["from"] = model.DurationAsMicroseconds(durationMin)
+		expected["range"].(map[string]interface{})["duration"].(map[string]interface{})["to"] = model.DurationAsMicroseconds(durationMax)
 
 		assert.EqualValues(t, expected, actual)
 	})
 }
 
 func TestSpanReader_buildStartTimeQuery(t *testing.T) {
-	// { "range":  { "timestamp": { "gte": 0, "lte": 1000000 }}}
+	expectedStr := `{ "range":  { "startTime": { "include_lower": true,
+						    "include_upper": true,
+						    "from": 1000000,
+						    "to": 2000000 }}}`
 	withSpanReader(func(r *spanReaderTest) {
 		startTimeMin := time.Time{}.Add(time.Second)
 		startTimeMax := time.Time{}.Add(2 * time.Second)
@@ -747,113 +737,83 @@ func TestSpanReader_buildStartTimeQuery(t *testing.T) {
 		require.NoError(t, err)
 
 		expected := make(map[string]interface{})
-		ranges := make(map[string]interface{})
-		expected["range"] = ranges
-		duration := make(map[string]interface{})
-		ranges[startTimeField] = duration
-		duration["include_lower"] = true
-		duration["include_upper"] = true
-		duration["from"] = model.TimeAsEpochMicroseconds(startTimeMin)
-		duration["to"] = model.TimeAsEpochMicroseconds(startTimeMax)
+		json.Unmarshal([]byte(expectedStr), &expected)
+		// This below is ugly, but wanted to keep the framework for testing these queries consistent.
+		expected["range"].(map[string]interface{})["startTime"].(map[string]interface{})["from"] = model.TimeAsEpochMicroseconds(startTimeMin)
+		expected["range"].(map[string]interface{})["startTime"].(map[string]interface{})["to"] = model.TimeAsEpochMicroseconds(startTimeMax)
 
 		assert.EqualValues(t, expected, actual)
 	})
 }
 
 func TestSpanReader_buildServiceNameQuery(t *testing.T) {
-	// { "match": { "process.serviceName": {"query": "bat"}}}
+	expectedStr := `{ "match": { "process.serviceName": { "query": "bat" }}}`
 	withSpanReader(func(r *spanReaderTest) {
 		serviceNameQuery := r.reader.buildServiceNameQuery("bat")
 		actual, err := serviceNameQuery.Source()
 		require.NoError(t, err)
 
 		expected := make(map[string]interface{})
-		match := make(map[string]interface{})
-		expected["match"] = match
-		query := make(map[string]interface{})
-		match[serviceNameField] = query
-		query["query"] = "bat"
+		json.Unmarshal([]byte(expectedStr), &expected)
 
 		assert.EqualValues(t, expected, actual)
 	})
 }
 
 func TestSpanReader_buildOperationNameQuery(t *testing.T) {
-	// { "match": { "operationName": {"query": "spook"} }}
+	expectedStr := `{ "match": { "operationName": { "query": "spook" }}}`
 	withSpanReader(func(r *spanReaderTest) {
 		serviceNameQuery := r.reader.buildOperationNameQuery("spook")
 		actual, err := serviceNameQuery.Source()
 		require.NoError(t, err)
 
 		expected := make(map[string]interface{})
-		match := make(map[string]interface{})
-		expected["match"] = match
-		query := make(map[string]interface{})
-		match[operationNameField] = query
-		query["query"] = "spook"
+		json.Unmarshal([]byte(expectedStr), &expected)
 
 		assert.EqualValues(t, expected, actual)
 	})
 }
 
 func TestSpanReader_buildTagQuery(t *testing.T) {
-	// {
-	//    "nested":{
-	//       "path":"tags",
-	//       "query":{
-	//          "bool":{
-	//             "must":[
-	//                {
-	//                   "match":{
-	//                      "tags.key": {"query": "bat"}
-	//                   }
-	//                },
-	//                {
-	//                   "match":{
-	//                      "tags.value": {"query": "spook"}
-	//                   }
-	//                }
-	//             ]
-	//          }
-	//       }
-	//    }
-	// }
+	expectedStr :=
+	`{ "bool": {
+	   "should": [
+	      { "nested" : {
+		 "path" : "tags",
+		 "query" : {
+		    "bool" : {
+			 "must" : [
+			 { "match" : {"tags.key" : {"query":"bat"}} },
+			 { "match" : {"tags.value" : {"query":"spook"}} }
+			 ]
+		     }}}},
+	      { "nested" : {
+		     "path" : "process.tags",
+		     "query" : {
+			 "bool" : {
+			     "must" : [
+			     { "match" : {"tags.key" : {"query":"bat"}} },
+			     { "match" : {"tags.value" : {"query":"spook"}} }
+			     ]
+			 }}}},
+	      { "nested" : {
+		     "path" : "logs.fields",
+		     "query" : {
+			 "bool" : {
+			     "must" : [
+			     { "match" : {"tags.key" : {"query":"bat"}} },
+			     { "match" : {"tags.value" : {"query":"spook"}} }
+			     ]
+			 }}}}
+	   ]
+	 }}`
 	withSpanReader(func(r *spanReaderTest) {
 		tagQuery := r.reader.buildTagQuery("bat", "spook")
 		actual, err := tagQuery.Source()
 		require.NoError(t, err)
 
 		expected := make(map[string]interface{})
-		nested := make(map[string]interface{})
-		expected["nested"] = nested
-
-		nested["path"] = tagsField
-		query := make(map[string]interface{})
-		nested["query"] = query
-
-		boole := make(map[string]interface{})
-		query["bool"] = boole
-
-		must := make([]interface{}, 2)
-		boole["must"] = must
-
-		match1 := make(map[string]interface{})
-		match2 := make(map[string]interface{})
-		must[0] = match1
-		must[1] = match2
-
-		key := make(map[string]interface{})
-		value := make(map[string]interface{})
-		match1["match"] = key
-		match2["match"] = value
-
-		keyQuery := make(map[string]interface{})
-		valueQuery := make(map[string]interface{})
-		key[tagKeyField] = keyQuery
-		value[tagValueField] = valueQuery
-
-		keyQuery["query"] = "bat"
-		valueQuery["query"] = "spook"
+		json.Unmarshal([]byte(expectedStr), &expected)
 
 		assert.EqualValues(t, expected, actual)
 	})

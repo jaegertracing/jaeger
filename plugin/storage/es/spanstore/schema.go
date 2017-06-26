@@ -66,7 +66,7 @@ const spanMapping = `{
                   "timestamp":{
                      "type":"long"
                   },
-                  "tags":{
+                  "fields":{
                      "type":"nested",
                      "dynamic":false,
                      "properties":{
