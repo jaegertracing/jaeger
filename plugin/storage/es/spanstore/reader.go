@@ -43,14 +43,14 @@ const (
 	servicesAggregation   = "distinct_services"
 	traceIDAggregation    = "traceIDs"
 
-	traceIDField          = "traceID"
-	durationField         = "duration"
-	startTimeField        = "startTime"
-	serviceNameField      = "process.serviceName"
-	operationNameField    = "operationName"
-	tagKeyField           = "tags.key"
-	tagValueField         = "tags.value"
-	tagsField             = "tags"
+	traceIDField       = "traceID"
+	durationField      = "duration"
+	startTimeField     = "startTime"
+	serviceNameField   = "process.serviceName"
+	operationNameField = "operationName"
+	tagKeyField        = "tags.key"
+	tagValueField      = "tags.value"
+	tagsField          = "tags"
 
 	defaultDocCount  = 3000
 	defaultNumTraces = 100
