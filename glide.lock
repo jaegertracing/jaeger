@@ -1,5 +1,5 @@
 hash: 84da4d5dfad787c610afb31cf486aa1f586dfeffc121ad8b4346fd5f0b82f6d1
-updated: 2017-06-21T20:04:38.596739754-04:00
+updated: 2017-06-23T17:48:26.722215035-04:00
 imports:
 - name: github.com/apache/thrift
   version: 53dd39833a08ce33582e5ff31fa18bb4735d6731
@@ -98,7 +98,7 @@ imports:
 - name: github.com/stretchr/objx
   version: 1a9d0bb9f541897e62256577b352fdbc1fb4fd94
 - name: github.com/stretchr/testify
-  version: f6abca593680b2315d2075e0f5e2a9751e3f431a
+  version: 4d4bfba8f1d1027c4fdbe371823030df51419987
   subpackages:
   - assert
   - mock
@@ -117,6 +117,7 @@ imports:
   - thrift-gen/sampling
   - thrift-gen/zipkincore
   - transport
+  - transport/zipkin
   - utils
 - name: github.com/uber/jaeger-lib
   version: ffca3143c929e9b97325e6bebcc380e8c6e5fa0d
@@ -153,7 +154,7 @@ imports:
   - zapcore
   - zaptest
 - name: golang.org/x/net
-  version: 057a25b06247e0c51ba15d8ae475feb2fcb72164
+  version: 5b58a9c3e1690d33a592e5b791638e25eb9b3f70
   subpackages:
   - context
   - context/ctxhttp

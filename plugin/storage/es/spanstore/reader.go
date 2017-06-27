@@ -23,6 +23,7 @@ package spanstore
 import (
 	"context"
 	"encoding/json"
+	"fmt"
 	"time"
 
 	"github.com/olivere/elastic"
@@ -41,7 +42,45 @@ const (
 	indexPrefix           = "jaeger-"
 	operationsAggregation = "distinct_operations"
 	servicesAggregation   = "distinct_services"
-	defaultDocCount       = 3000
+	traceIDAggregation    = "traceIDs"
+
+	traceIDField       = "traceID"
+	durationField      = "duration"
+	startTimeField     = "startTime"
+	serviceNameField   = "process.serviceName"
+	operationNameField = "operationName"
+	tagsField          = "tags"
+	processTagsField   = "process.tags"
+	logFieldsField     = "logs.fields"
+	tagKeyField        = "key"
+	tagValueField      = "value"
+
+	defaultDocCount  = 3000
+	defaultNumTraces = 100
+)
+
+var (
+	// ErrServiceNameNotSet occurs when attempting to query with an empty service name
+	ErrServiceNameNotSet = errors.New("Service Name must be set")
+
+	// ErrStartTimeMinGreaterThanMax occurs when start time min is above start time max
+	ErrStartTimeMinGreaterThanMax = errors.New("Start Time Minimum is above Maximum")
+
+	// ErrDurationMinGreaterThanMax occurs when duration min is above duration max
+	ErrDurationMinGreaterThanMax = errors.New("Duration Minimum is above Maximum")
+
+	// ErrMalformedRequestObject occurs when a request object is nil
+	ErrMalformedRequestObject = errors.New("Malformed request object")
+
+	// ErrStartAndEndTimeNotSet occurs when start time and end time are not set
+	ErrStartAndEndTimeNotSet = errors.New("Start and End Time must be set")
+
+	// ErrUnableToFindTraceIDAggregation occurs when an aggregation query for TraceIDs fail.
+	ErrUnableToFindTraceIDAggregation = errors.New("Could not find aggregation of traceIDs")
+
+	defaultMaxDuration = model.DurationAsMicroseconds(time.Hour * 24)
+
+	tagFieldList = []string{tagsField, processTagsField, logFieldsField}
 )
 
 // SpanReader can query for and load traces from ElasticSearch
@@ -63,12 +102,14 @@ func NewSpanReader(client es.Client, logger *zap.Logger) *SpanReader {
 
 // GetTrace takes a traceID and returns a Trace associated with that traceID
 func (s *SpanReader) GetTrace(traceID model.TraceID) (*model.Trace, error) {
-	return s.readTrace(traceID.String(), spanstore.TraceQueryParameters{})
+	return s.readTrace(traceID.String(), &spanstore.TraceQueryParameters{})
 }
 
-func (s *SpanReader) readTrace(traceID string, traceQuery spanstore.TraceQueryParameters) (*model.Trace, error) {
-	query := elastic.NewTermQuery("traceID", traceID)
+func (s *SpanReader) readTrace(traceID string, traceQuery *spanstore.TraceQueryParameters) (*model.Trace, error) {
+	query := elastic.NewTermQuery(traceIDField, traceID)
 
+	traceQuery.StartTimeMax = traceQuery.StartTimeMax.Add(time.Hour)
+	traceQuery.StartTimeMin = traceQuery.StartTimeMin.Add(-time.Hour)
 	indices := s.findIndices(traceQuery)
 	esSpansRaw, err := s.executeQuery(query, indices...)
 	if err != nil {
@@ -124,7 +165,7 @@ func (s *SpanReader) unmarshallJSONSpan(esSpanRaw *elastic.SearchHit) (*jModel.S
 }
 
 // Returns the array of indices that we need to query, based on query params
-func (s *SpanReader) findIndices(traceQuery spanstore.TraceQueryParameters) []string {
+func (s *SpanReader) findIndices(traceQuery *spanstore.TraceQueryParameters) []string {
 	today := time.Now()
 	threeDaysAgo := today.AddDate(0, 0, -3) // TODO: make this configurable
 
@@ -136,7 +177,7 @@ func (s *SpanReader) findIndices(traceQuery spanstore.TraceQueryParameters) []st
 	var indices []string
 	current := traceQuery.StartTimeMax
 	for current.After(traceQuery.StartTimeMin) && current.After(threeDaysAgo) {
-		index := s.indexWithDate(current)
+		index := indexWithDate(current)
 		exists, _ := s.client.IndexExists(index).Do(s.ctx) // Don't care about error, if it's an error, exists will be false anyway
 		if exists {
 			indices = append(indices, index)
@@ -146,7 +187,7 @@ func (s *SpanReader) findIndices(traceQuery spanstore.TraceQueryParameters) []st
 	return indices
 }
 
-func (s *SpanReader) indexWithDate(date time.Time) string {
+func indexWithDate(date time.Time) string {
 	return indexPrefix + date.Format("2006-01-02")
 }
 
@@ -154,7 +195,7 @@ func (s *SpanReader) indexWithDate(date time.Time) string {
 func (s *SpanReader) GetServices() ([]string, error) {
 	serviceAggregation := s.getServicesAggregation()
 
-	jaegerIndices := s.findIndices(spanstore.TraceQueryParameters{})
+	jaegerIndices := s.findIndices(&spanstore.TraceQueryParameters{})
 
 	searchService := s.client.Search(jaegerIndices...).
 		Type(serviceType).
@@ -168,7 +209,7 @@ func (s *SpanReader) GetServices() ([]string, error) {
 
 	bucket, found := searchResult.Aggregations.Terms(servicesAggregation)
 	if !found {
-		return nil, errors.New("Could not find aggregation of services")
+		return nil, errors.New("Could not find aggregation of " + servicesAggregation)
 	}
 	serviceNamesBucket := bucket.Buckets
 	return s.bucketToStringArray(serviceNamesBucket)
@@ -183,12 +224,13 @@ func (s *SpanReader) getServicesAggregation() elastic.Query {
 // GetOperations returns all operations for a specific service traced by Jaeger
 func (s *SpanReader) GetOperations(service string) ([]string, error) {
 	serviceQuery := elastic.NewTermQuery(serviceName, service)
-	serviceFilter := elastic.NewFilterAggregation().Filter(serviceQuery)
-	jaegerIndices := s.findIndices(spanstore.TraceQueryParameters{})
+	serviceFilter := s.getOperationsAggregation()
+	jaegerIndices := s.findIndices(&spanstore.TraceQueryParameters{})
 
 	searchService := s.client.Search(jaegerIndices...).
 		Type(serviceType).
 		Size(0).
+		Query(serviceQuery).
 		Aggregation(operationsAggregation, serviceFilter)
 
 	searchResult, err := searchService.Do(s.ctx)
@@ -197,10 +239,16 @@ func (s *SpanReader) GetOperations(service string) ([]string, error) {
 	}
 	bucket, found := searchResult.Aggregations.Terms(operationsAggregation)
 	if !found {
-		return nil, errors.New("Could not find aggregation of operations")
+		return nil, errors.New("Could not find aggregation of " + operationsAggregation)
 	}
 	operationNamesBucket := bucket.Buckets
 	return s.bucketToStringArray(operationNamesBucket)
+}
+
+func (s *SpanReader) getOperationsAggregation() elastic.Query {
+	return elastic.NewTermsAggregation().
+		Field(operationNameField).
+		Size(defaultDocCount) // Must set to some large number. ES deprecated size omission for aggregating all. https://github.com/elastic/elasticsearch/issues/18838
 }
 
 func (s *SpanReader) bucketToStringArray(buckets []*elastic.AggregationBucketKeyItem) ([]string, error) {
@@ -217,6 +265,195 @@ func (s *SpanReader) bucketToStringArray(buckets []*elastic.AggregationBucketKey
 
 // FindTraces retrieves traces that match the traceQuery
 func (s *SpanReader) FindTraces(traceQuery *spanstore.TraceQueryParameters) ([]*model.Trace, error) {
-	// TODO
-	return nil, nil
+	if err := validateQuery(traceQuery); err != nil {
+		return nil, err
+	}
+	if traceQuery.NumTraces == 0 {
+		traceQuery.NumTraces = defaultNumTraces
+	}
+	uniqueTraceIDs, err := s.findTraceIDs(traceQuery)
+	if err != nil {
+		return nil, err
+	}
+	var retMe []*model.Trace
+	for _, traceID := range uniqueTraceIDs {
+		if len(retMe) >= traceQuery.NumTraces {
+			break
+		}
+		trace, err := s.readTrace(traceID, traceQuery)
+		if err != nil {
+			s.logger.Error("Failure to read trace", zap.String("trace_id", string(traceID)), zap.Error(err))
+			continue
+		}
+		retMe = append(retMe, trace)
+	}
+	return retMe, nil
+}
+
+func validateQuery(p *spanstore.TraceQueryParameters) error {
+	if p == nil {
+		return ErrMalformedRequestObject
+	}
+	if p.ServiceName == "" && len(p.Tags) > 0 {
+		return ErrServiceNameNotSet
+	}
+	if p.StartTimeMin.IsZero() || p.StartTimeMax.IsZero() {
+		return ErrStartAndEndTimeNotSet
+	}
+	if p.StartTimeMax.Before(p.StartTimeMin) {
+		return ErrStartTimeMinGreaterThanMax
+	}
+	if p.DurationMin != 0 && p.DurationMax != 0 && p.DurationMin > p.DurationMax {
+		return ErrDurationMinGreaterThanMax
+	}
+	return nil
+}
+
+func (s *SpanReader) findTraceIDs(traceQuery *spanstore.TraceQueryParameters) ([]string, error) {
+	//  Below is the JSON body to our HTTP GET request to ElasticSearch. This function creates this.
+	// {
+	//      "size": 0,
+	//      "query": {
+	//        "bool": {
+	//          "must": [
+	//            { "match": { "operationName":   "op1"      }},
+	//            { "match": { "process.serviceName": "service1" }},
+	//            { "range":  { "startTime": { "gte": 0, "lte": 90000000000000000 }}},
+	//            { "range":  { "duration": { "gte": 0, "lte": 90000000000000000 }}},
+	//            { "should": [
+	//                   { "nested" : {
+	//                      "path" : "tags",
+	//                      "query" : {
+	//                          "bool" : {
+	//                              "must" : [
+	//                              { "match" : {"tags.key" : "tag3"} },
+	//                              { "match" : {"tags.value" : "xyz"} }
+	//                              ]
+	//                          }}}},
+	//                   { "nested" : {
+	//                          "path" : "process.tags",
+	//                          "query" : {
+	//                              "bool" : {
+	//                                  "must" : [
+	//                                  { "match" : {"tags.key" : "tag3"} },
+	//                                  { "match" : {"tags.value" : "xyz"} }
+	//                                  ]
+	//                              }}}},
+	//                   { "nested" : {
+	//                          "path" : "logs.fields",
+	//                          "query" : {
+	//                              "bool" : {
+	//                                  "must" : [
+	//                                  { "match" : {"tags.key" : "tag3"} },
+	//                                  { "match" : {"tags.value" : "xyz"} }
+	//                                  ]
+	//                              }}}}
+	//                ]
+	//              }
+	//          ]
+	//        }
+	//      },
+	//      "aggs": { "traceIDs" : { "terms" : {"size": 100,"field": "traceID" }}}
+	//  }
+	aggregation := s.buildTraceIDAggregation(traceQuery.NumTraces)
+	boolQuery := s.buildFindTraceIDsQuery(traceQuery)
+
+	jaegerIndices := s.findIndices(traceQuery)
+
+	searchService := s.client.Search(jaegerIndices...).
+		Type(spanType).
+		Size(0). // set to 0 because we don't want actual documents.
+		Aggregation(traceIDAggregation, aggregation).
+		Query(boolQuery)
+
+	searchResult, err := searchService.Do(s.ctx)
+	if err != nil {
+		return nil, errors.Wrap(err, "Search service failed")
+	}
+
+	bucket, found := searchResult.Aggregations.Terms(traceIDAggregation)
+	if !found {
+		return nil, ErrUnableToFindTraceIDAggregation
+	}
+
+	traceIDBuckets := bucket.Buckets
+	return s.bucketToStringArray(traceIDBuckets)
+}
+
+func (s *SpanReader) buildTraceIDAggregation(numOfTraces int) elastic.Aggregation {
+	return elastic.NewTermsAggregation().
+		Size(numOfTraces).
+		Field(traceIDField)
+}
+
+func (s *SpanReader) buildFindTraceIDsQuery(traceQuery *spanstore.TraceQueryParameters) elastic.Query {
+	boolQuery := elastic.NewBoolQuery()
+
+	//add duration query
+	if traceQuery.DurationMax != 0 || traceQuery.DurationMin != 0 {
+		durationQuery := s.buildDurationQuery(traceQuery.DurationMin, traceQuery.DurationMax)
+		boolQuery.Must(durationQuery)
+	}
+
+	//add startTime query
+	startTimeQuery := s.buildStartTimeQuery(traceQuery.StartTimeMin, traceQuery.StartTimeMax)
+	boolQuery.Must(startTimeQuery)
+
+	//add process.serviceName query
+	if traceQuery.ServiceName != "" {
+		serviceNameQuery := s.buildServiceNameQuery(traceQuery.ServiceName)
+		boolQuery.Must(serviceNameQuery)
+	}
+
+	//add operationName query
+	if traceQuery.OperationName != "" {
+		operationNameQuery := s.buildOperationNameQuery(traceQuery.OperationName)
+		boolQuery.Must(operationNameQuery)
+	}
+
+	for k, v := range traceQuery.Tags {
+		tagQuery := s.buildTagQuery(k, v)
+		boolQuery.Must(tagQuery)
+	}
+	return boolQuery
+}
+
+func (s *SpanReader) buildDurationQuery(durationMin time.Duration, durationMax time.Duration) elastic.Query {
+	minDurationMicros := model.DurationAsMicroseconds(durationMin)
+	maxDurationMicros := defaultMaxDuration
+	if durationMax != 0 {
+		maxDurationMicros = model.DurationAsMicroseconds(durationMax)
+	}
+	return elastic.NewRangeQuery(durationField).Gte(minDurationMicros).Lte(maxDurationMicros)
+}
+
+func (s *SpanReader) buildStartTimeQuery(startTimeMin time.Time, startTimeMax time.Time) elastic.Query {
+	minStartTimeMicros := model.TimeAsEpochMicroseconds(startTimeMin)
+	maxStartTimeMicros := model.TimeAsEpochMicroseconds(startTimeMax)
+	return elastic.NewRangeQuery(startTimeField).Gte(minStartTimeMicros).Lte(maxStartTimeMicros)
+}
+
+func (s *SpanReader) buildServiceNameQuery(serviceName string) elastic.Query {
+	return elastic.NewMatchQuery(serviceNameField, serviceName)
+}
+
+func (s *SpanReader) buildOperationNameQuery(operationName string) elastic.Query {
+	return elastic.NewMatchQuery(operationNameField, operationName)
+}
+
+func (s *SpanReader) buildTagQuery(k string, v string) elastic.Query {
+	queries := make([]elastic.Query, len(tagFieldList))
+	for i := range queries {
+		queries[i] = s.buildNestedQuery(tagFieldList[i], k, v)
+	}
+	return elastic.NewBoolQuery().Should(queries...)
+}
+
+func (s *SpanReader) buildNestedQuery(field string, k string, v string) elastic.Query {
+	keyField := fmt.Sprintf("%s.%s", field, tagKeyField)
+	valueField := fmt.Sprintf("%s.%s", field, tagValueField)
+	keyQuery := elastic.NewMatchQuery(keyField, k)
+	valueQuery := elastic.NewMatchQuery(valueField, v)
+	tagBoolQuery := elastic.NewBoolQuery().Must(keyQuery, valueQuery)
+	return elastic.NewNestedQuery(field, tagBoolQuery)
 }

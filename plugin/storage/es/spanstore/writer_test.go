@@ -201,7 +201,7 @@ func TestSpanWriter_WriteSpan(t *testing.T) {
 				indexService.On("Type", stringMatcher(spanType)).Return(indexSpanPut)
 
 				indexServicePut.On("Id", stringMatcher("service|operation")).Return(indexServicePut)
-				indexServicePut.On("BodyJson", mock.AnythingOfType("Service")).Return(indexServicePut)
+				indexServicePut.On("BodyJson", mock.AnythingOfType("spanstore.Service")).Return(indexServicePut)
 				indexServicePut.On("Do", mock.AnythingOfType("*context.emptyCtx")).Return(testCase.putResult, testCase.servicePutError)
 
 				indexSpanPut.On("Id", mock.AnythingOfType("string")).Return(indexSpanPut)
@@ -332,7 +332,7 @@ func TestWriteService(t *testing.T) {
 		indexService.On("Index", stringMatcher(indexName)).Return(indexService)
 		indexService.On("Type", stringMatcher(serviceType)).Return(indexService)
 		indexService.On("Id", stringMatcher("service|operation")).Return(indexService)
-		indexService.On("BodyJson", mock.AnythingOfType("Service")).Return(indexService)
+		indexService.On("BodyJson", mock.AnythingOfType("spanstore.Service")).Return(indexService)
 		indexService.On("Do", mock.AnythingOfType("*context.emptyCtx")).Return(&elastic.IndexResponse{}, nil)
 
 		w.client.On("Index").Return(indexService)
@@ -362,7 +362,7 @@ func TestWriteServiceError(t *testing.T) {
 		indexService.On("Index", stringMatcher(indexName)).Return(indexService)
 		indexService.On("Type", stringMatcher(serviceType)).Return(indexService)
 		indexService.On("Id", stringMatcher("service|operation")).Return(indexService)
-		indexService.On("BodyJson", mock.AnythingOfType("Service")).Return(indexService)
+		indexService.On("BodyJson", mock.AnythingOfType("spanstore.Service")).Return(indexService)
 		indexService.On("Do", mock.AnythingOfType("*context.emptyCtx")).Return(nil, errors.New("service insertion error"))
 
 		w.client.On("Index").Return(indexService)
