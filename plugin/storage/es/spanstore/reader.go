@@ -23,6 +23,7 @@ package spanstore
 import (
 	"context"
 	"encoding/json"
+	"fmt"
 	"time"
 
 	"github.com/olivere/elastic"
@@ -34,7 +35,6 @@ import (
 	jModel "github.com/uber/jaeger/model/json"
 	"github.com/uber/jaeger/pkg/es"
 	"github.com/uber/jaeger/storage/spanstore"
-	"fmt"
 )
 
 const (
