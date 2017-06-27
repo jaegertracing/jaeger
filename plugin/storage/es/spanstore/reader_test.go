@@ -784,36 +784,36 @@ func TestSpanReader_buildOperationNameQuery(t *testing.T) {
 func TestSpanReader_buildTagQuery(t *testing.T) {
 	expectedStr :=
 		`{ "bool": {
-	   "should": [
-	      { "nested" : {
-		 "path" : "tags",
-		 "query" : {
-		    "bool" : {
-			 "must" : [
-			 { "match" : {"tags.key" : {"query":"bat"}} },
-			 { "match" : {"tags.value" : {"query":"spook"}} }
-			 ]
-		     }}}},
-	      { "nested" : {
-		     "path" : "process.tags",
-		     "query" : {
-			 "bool" : {
-			     "must" : [
-			     { "match" : {"tags.key" : {"query":"bat"}} },
-			     { "match" : {"tags.value" : {"query":"spook"}} }
-			     ]
-			 }}}},
-	      { "nested" : {
-		     "path" : "logs.fields",
-		     "query" : {
-			 "bool" : {
-			     "must" : [
-			     { "match" : {"tags.key" : {"query":"bat"}} },
-			     { "match" : {"tags.value" : {"query":"spook"}} }
-			     ]
-			 }}}}
-	   ]
-	 }}`
+		   "should": [
+		      { "nested" : {
+			 "path" : "tags",
+			 "query" : {
+			    "bool" : {
+			      "must" : [
+				 { "match" : {"tags.key" : {"query":"bat"}} },
+				 { "match" : {"tags.value" : {"query":"spook"}} }
+			      ]
+		      }}}},
+		      { "nested" : {
+			 "path" : "process.tags",
+			 "query" : {
+			    "bool" : {
+			      "must" : [
+				 { "match" : {"tags.key" : {"query":"bat"}} },
+				 { "match" : {"tags.value" : {"query":"spook"}} }
+			      ]
+		      }}}},
+		      { "nested" : {
+			 "path" : "logs.fields",
+			 "query" : {
+		            "bool" : {
+			       "must" : [
+			         { "match" : {"tags.key" : {"query":"bat"}} },
+			         { "match" : {"tags.value" : {"query":"spook"}} }
+			       ]
+		      }}}}
+		   ]
+		}}`
 	withSpanReader(func(r *spanReaderTest) {
 		tagQuery := r.reader.buildTagQuery("bat", "spook")
 		actual, err := tagQuery.Source()

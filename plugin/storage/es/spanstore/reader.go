@@ -337,7 +337,7 @@ func (s *SpanReader) findTraceIDs(traceQuery *spanstore.TraceQueryParameters) ([
 	//                                  ]
 	//                              }}}},
 	//                   { "nested" : {
-	//                          "path" : "logs.tags",
+	//                          "path" : "logs.fields",
 	//                          "query" : {
 	//                              "bool" : {
 	//                                  "must" : [
