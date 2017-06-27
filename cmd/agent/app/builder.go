@@ -33,9 +33,7 @@ import (
 	"github.com/uber/jaeger/cmd/agent/app/httpserver"
 	"github.com/uber/jaeger/cmd/agent/app/processors"
 	"github.com/uber/jaeger/cmd/agent/app/reporter"
-
 	tchreporter "github.com/uber/jaeger/cmd/agent/app/reporter/tchannel"
-
 	"github.com/uber/jaeger/cmd/agent/app/servers"
 	"github.com/uber/jaeger/cmd/agent/app/servers/thriftudp"
 	zipkinThrift "github.com/uber/jaeger/thrift-gen/agent"
@@ -183,7 +181,7 @@ func (b *Builder) CreateAgent(mFactory metrics.Factory, logger *zap.Logger) (*Ag
 		return nil, err
 	}
 	httpServer := b.HTTPServer.GetHTTPServer(b.CollectorServiceName, mainReporter.Channel(), mFactory)
-	return NewAgent(processors, httpServer, nil, logger), nil
+	return NewAgent(processors, httpServer, logger), nil
 }
 
 // GetProcessors creates Processors with attached Reporter

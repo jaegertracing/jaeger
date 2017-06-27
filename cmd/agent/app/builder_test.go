@@ -55,7 +55,7 @@ processors:
         maxPacketSize: 65001
         hostPort: 3.3.3.3:6832
 
-samplingServer:
+httpServer:
     hostPort: 4.4.4.4:5778
 
 collectorHostPorts:

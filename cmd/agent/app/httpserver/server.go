@@ -49,7 +49,7 @@ func NewHTTPServer(hostPort string, manager ClientConfigManager, mFactory metric
 	mux.HandleFunc("/sampling", func(w http.ResponseWriter, r *http.Request) {
 		handler.serveSamplingHTTP(w, r, false /* thriftEnums092 */)
 	})
-	mux.HandleFunc("/baggage", func(w http.ResponseWriter, r *http.Request) {
+	mux.HandleFunc("/baggageRestrictions", func(w http.ResponseWriter, r *http.Request) {
 		handler.serveBaggageHTTP(w, r)
 	})
 	return &http.Server{Addr: hostPort, Handler: mux}

@@ -32,25 +32,22 @@ import (
 
 // Agent is a composition of all services / components
 type Agent struct {
-	processors     []processors.Processor
-	httpServer      *http.Server
-	discoveryClient interface{}
-	logger          *zap.Logger
-	closer          io.Closer
+	processors []processors.Processor
+	httpServer *http.Server
+	logger     *zap.Logger
+	closer     io.Closer
 }
 
 // NewAgent creates the new Agent.
 func NewAgent(
 	processors []processors.Processor,
 	httpServer *http.Server,
-	discoveryClient interface{},
 	logger *zap.Logger,
 ) *Agent {
 	return &Agent{
-		processors:      processors,
-		httpServer:      httpServer,
-		discoveryClient: discoveryClient,
-		logger:          logger,
+		processors: processors,
+		httpServer: httpServer,
+		logger:     logger,
 	}
 }
 
@@ -65,7 +62,7 @@ func (a *Agent) Run() error {
 	a.closer = listener
 	go func() {
 		if err := a.httpServer.Serve(listener); err != nil {
-			a.logger.Error("sampling server failure", zap.Error(err))
+			a.logger.Error("http server failure", zap.Error(err))
 		}
 	}()
 	for _, processor := range a.processors {

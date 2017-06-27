@@ -94,7 +94,7 @@ func TestHTTPHandler(t *testing.T) {
 		}
 
 		t.Run("request against endpoint /baggage", func(t *testing.T) {
-			resp, err := http.Get(ts.server.URL + "/baggage?service=Y")
+			resp, err := http.Get(ts.server.URL + "/baggageRestrictions?service=Y")
 			require.NoError(t, err)
 			assert.Equal(t, http.StatusOK, resp.StatusCode)
 			body, err := ioutil.ReadAll(resp.Body)
@@ -144,7 +144,7 @@ func TestHTTPHandlerErrors(t *testing.T) {
 		},
 		{
 			description: "baggage endpoint too many service names",
-			url:         "/baggage?service=Y&service=Y",
+			url:         "/baggageRestrictions?service=Y&service=Y",
 			statusCode:  http.StatusBadRequest,
 			body:        "'service' parameter must be provided once\n",
 			metrics: []mTestutils.ExpectedMetric{
@@ -162,7 +162,7 @@ func TestHTTPHandlerErrors(t *testing.T) {
 		},
 		{
 			description: "baggage tcollector error",
-			url:         "/baggage?service=Y",
+			url:         "/baggageRestrictions?service=Y",
 			statusCode:  http.StatusInternalServerError,
 			body:        "tcollector error: no mock response provided\n",
 			metrics: []mTestutils.ExpectedMetric{
@@ -211,7 +211,7 @@ func TestHTTPHandlerErrors(t *testing.T) {
 			mTestutils.AssertCounterMetrics(t, ts.metricsFactory,
 				mTestutils.ExpectedMetric{Name: "http-server.requests", Tags: map[string]string{"result": "err", "status": "5xx", "type": "write"}, Value: 1})
 
-			req = httptest.NewRequest("GET", "http://localhost:80/baggage?service=X", nil)
+			req = httptest.NewRequest("GET", "http://localhost:80/baggageRestrictions?service=X", nil)
 			handler.serveBaggageHTTP(w, req)
 
 			mTestutils.AssertCounterMetrics(t, ts.metricsFactory,
