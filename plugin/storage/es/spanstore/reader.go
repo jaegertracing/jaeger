@@ -34,6 +34,7 @@ import (
 	jModel "github.com/uber/jaeger/model/json"
 	"github.com/uber/jaeger/pkg/es"
 	"github.com/uber/jaeger/storage/spanstore"
+	"fmt"
 )
 
 const (
@@ -48,11 +49,11 @@ const (
 	startTimeField     = "startTime"
 	serviceNameField   = "process.serviceName"
 	operationNameField = "operationName"
-	tagKeyField        = "tags.key"
-	tagValueField      = "tags.value"
 	tagsField          = "tags"
 	processTagsField   = "process.tags"
 	logFieldsField     = "logs.fields"
+	tagKeyField        = "key"
+	tagValueField      = "value"
 
 	defaultDocCount  = 3000
 	defaultNumTraces = 100
@@ -107,6 +108,8 @@ func (s *SpanReader) GetTrace(traceID model.TraceID) (*model.Trace, error) {
 func (s *SpanReader) readTrace(traceID string, traceQuery *spanstore.TraceQueryParameters) (*model.Trace, error) {
 	query := elastic.NewTermQuery(traceIDField, traceID)
 
+	traceQuery.StartTimeMax = traceQuery.StartTimeMax.Add(time.Hour)
+	traceQuery.StartTimeMin = traceQuery.StartTimeMin.Add(-time.Hour)
 	indices := s.findIndices(traceQuery)
 	esSpansRaw, err := s.executeQuery(query, indices...)
 	if err != nil {
@@ -447,8 +450,10 @@ func (s *SpanReader) buildTagQuery(k string, v string) elastic.Query {
 }
 
 func (s *SpanReader) buildNestedQuery(field string, k string, v string) elastic.Query {
-	keyQuery := elastic.NewMatchQuery(tagKeyField, k)
-	valueQuery := elastic.NewMatchQuery(tagValueField, v)
+	keyField := fmt.Sprintf("%s.%s", field, tagKeyField)
+	valueField := fmt.Sprintf("%s.%s", field, tagValueField)
+	keyQuery := elastic.NewMatchQuery(keyField, k)
+	valueQuery := elastic.NewMatchQuery(valueField, v)
 	tagBoolQuery := elastic.NewBoolQuery().Must(keyQuery, valueQuery)
 	return elastic.NewNestedQuery(field, tagBoolQuery)
 }

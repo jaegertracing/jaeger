@@ -799,8 +799,8 @@ func TestSpanReader_buildTagQuery(t *testing.T) {
 			 "query" : {
 			    "bool" : {
 			      "must" : [
-				 { "match" : {"tags.key" : {"query":"bat"}} },
-				 { "match" : {"tags.value" : {"query":"spook"}} }
+				 { "match" : {"process.tags.key" : {"query":"bat"}} },
+				 { "match" : {"process.tags.value" : {"query":"spook"}} }
 			      ]
 		      }}}},
 		      { "nested" : {
@@ -808,8 +808,8 @@ func TestSpanReader_buildTagQuery(t *testing.T) {
 			 "query" : {
 		            "bool" : {
 			       "must" : [
-			         { "match" : {"tags.key" : {"query":"bat"}} },
-			         { "match" : {"tags.value" : {"query":"spook"}} }
+			         { "match" : {"logs.fields.key" : {"query":"bat"}} },
+			         { "match" : {"logs.fields.value" : {"query":"spook"}} }
 			       ]
 		      }}}}
 		   ]
