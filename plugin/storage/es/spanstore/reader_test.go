@@ -624,35 +624,35 @@ func TestTraceQueryParameterValidation(t *testing.T) {
 	err := validateQuery(malformedtqp)
 	assert.EqualError(t, err, ErrMalformedRequestObject.Error())
 
-	tsp := &spanstore.TraceQueryParameters{
+	tqp := &spanstore.TraceQueryParameters{
 		ServiceName: "",
 		Tags: map[string]string{
 			"hello": "world",
 		},
 	}
-	err = validateQuery(tsp)
+	err = validateQuery(tqp)
 	assert.EqualError(t, err, ErrServiceNameNotSet.Error())
 
-	tsp.ServiceName = serviceName
+	tqp.ServiceName = serviceName
 
-	tsp.StartTimeMin = time.Time{} //time.Unix(0,0) doesn't work because timezones
-	tsp.StartTimeMax = time.Time{}
-	err = validateQuery(tsp)
+	tqp.StartTimeMin = time.Time{} //time.Unix(0,0) doesn't work because timezones
+	tqp.StartTimeMax = time.Time{}
+	err = validateQuery(tqp)
 	assert.EqualError(t, err, ErrStartAndEndTimeNotSet.Error())
 
-	tsp.StartTimeMin = time.Now()
-	tsp.StartTimeMax = time.Now().Add(-1 * time.Hour)
-	err = validateQuery(tsp)
+	tqp.StartTimeMin = time.Now()
+	tqp.StartTimeMax = time.Now().Add(-1 * time.Hour)
+	err = validateQuery(tqp)
 	assert.EqualError(t, err, ErrStartTimeMinGreaterThanMax.Error())
 
-	tsp.StartTimeMin = time.Now().Add(-1 * time.Hour)
-	tsp.StartTimeMax = time.Now()
-	err = validateQuery(tsp)
+	tqp.StartTimeMin = time.Now().Add(-1 * time.Hour)
+	tqp.StartTimeMax = time.Now()
+	err = validateQuery(tqp)
 	assert.Nil(t, err)
 
-	tsp.DurationMin = time.Hour
-	tsp.DurationMax = time.Minute
-	err = validateQuery(tsp)
+	tqp.DurationMin = time.Hour
+	tqp.DurationMax = time.Minute
+	err = validateQuery(tqp)
 	assert.EqualError(t, err, ErrDurationMinGreaterThanMax.Error())
 }
 
@@ -719,7 +719,7 @@ func TestSpanReader_buildDurationQuery(t *testing.T) {
 
 		expected := make(map[string]interface{})
 		json.Unmarshal([]byte(expectedStr), &expected)
-		// This below is ugly, but wanted to keep the framework for testing these queries consistent.
+		// We need to do this because we cannot process a json into uin64. TODO: find cleaner alternative
 		expected["range"].(map[string]interface{})["duration"].(map[string]interface{})["from"] = model.DurationAsMicroseconds(durationMin)
 		expected["range"].(map[string]interface{})["duration"].(map[string]interface{})["to"] = model.DurationAsMicroseconds(durationMax)
 
@@ -745,7 +745,7 @@ func TestSpanReader_buildStartTimeQuery(t *testing.T) {
 
 		expected := make(map[string]interface{})
 		json.Unmarshal([]byte(expectedStr), &expected)
-		// This below is ugly, but wanted to keep the framework for testing these queries consistent.
+		// We need to do this because we cannot process a json into uin64. TODO: find cleaner alternative
 		expected["range"].(map[string]interface{})["startTime"].(map[string]interface{})["from"] = model.TimeAsEpochMicroseconds(startTimeMin)
 		expected["range"].(map[string]interface{})["startTime"].(map[string]interface{})["to"] = model.TimeAsEpochMicroseconds(startTimeMax)
 
