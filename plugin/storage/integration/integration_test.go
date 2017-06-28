@@ -59,6 +59,18 @@ const (
 )
 
 var (
+	randomTags = map[string]string{
+		"tag1": intTagVal,
+		"tag2": floatTagVal,
+		"tag3": stringTagVal,
+		"tag4": boolTagVal,
+		"tag5": intTagVal,
+		"tag6": stringTagVal,
+		"tag7": stringTagVal,
+	}
+	randomServices   = []string{"service1", "service2", "service3", "service4"}
+	randomOperations = []string{"op1", "op2", "op3", "op4"}
+
 	// To add more various queries, add more TraceQueryParameters in differentQueries.
 	// This should be sufficient; no need for extra code below.
 	// Be sure to make the query large enough to capture some traces.
@@ -102,28 +114,17 @@ var (
 			NumTraces:    2,
 		},
 	}
-	randomTags = map[string]string{
-		"tag1": intTagVal,
-		"tag2": floatTagVal,
-		"tag3": stringTagVal,
-		"tag4": boolTagVal,
-		"tag5": intTagVal,
-		"tag6": stringTagVal,
-		"tag7": stringTagVal,
-	}
-	randomServices   = []string{"service1", "service2", "service3", "service4"}
-	randomOperations = []string{"op1", "op2", "op3", "op4"}
 )
 
 func randomTimeAndDuration() (time.Time, time.Duration) {
-	randomStartTime := time.Now().Add(time.Duration(-1*rand.Intn(80000)) * time.Second) // randomizing the startTime
+	randomStartTime := time.Now().Add(time.Duration(-1*rand.Intn(80000)) * time.Second).Round(time.Millisecond) // randomizing the startTime
 	randomDuration := 200*time.Millisecond + time.Duration(rand.Intn(800))*time.Millisecond
 	return randomStartTime, randomDuration
 }
 
 func randomTimeAndDurationBetween(startTime time.Time, duration time.Duration) (time.Time, time.Duration) {
-	randomStartDuration := rand.Intn(int(duration))
-	randomDuration := rand.Intn(int(duration) - randomStartDuration)
+	randomStartDuration := rand.Intn(int(duration)) / 1000 * 1000
+	randomDuration := rand.Intn(int(duration) - randomStartDuration) / 1000 * 1000
 	return startTime.Add(time.Duration(randomStartDuration)), time.Duration(randomDuration)
 }
 
@@ -239,7 +240,7 @@ func (s *StorageIntegration) initializeTraces(t *testing.T, numOfTraces int, num
 
 	for _, trace := range traces {
 		for i, query := range differentQueries {
-			if checkTraceWithQuery(trace, query) {
+			if CheckTraceWithQuery(trace, query) {
 				tracesBuckets[i] = append(tracesBuckets[i], trace)
 			}
 		}
@@ -257,81 +258,6 @@ func (s *StorageIntegration) initializeTraces(t *testing.T, numOfTraces int, num
 func (s *StorageIntegration) createRandomTrace(t *testing.T, numOfSpans int) *model.Trace {
 	randomStartTime, randomDuration := randomTimeAndDuration()
 	return s.createTrace(t, model.TraceID{Low: uint64(rand.Uint32())}, numOfSpans, randomStartTime, randomDuration)
-}
-
-func checkTraceWithQuery(trace *model.Trace, traceQuery *spanstore.TraceQueryParameters) bool {
-	for _, span := range trace.Spans {
-		if checkSpanWithQuery(span, traceQuery) {
-			return true
-		}
-	}
-	return false
-}
-
-func checkSpanWithQuery(span *model.Span, traceQuery *spanstore.TraceQueryParameters) bool {
-	return matchDurationQueryWithSpan(span, traceQuery) &&
-		matchServiceNameQueryWithSpan(span, traceQuery) &&
-		matchOperationNameQueryWithSpan(span, traceQuery) &&
-		matchStartTimeQueryWithSpan(span, traceQuery) &&
-		matchTagsQueryWithSpan(span, traceQuery)
-}
-
-func matchServiceNameQueryWithSpan(span *model.Span, traceQuery *spanstore.TraceQueryParameters) bool {
-	return span.Process.ServiceName == traceQuery.ServiceName
-}
-
-func matchOperationNameQueryWithSpan(span *model.Span, traceQuery *spanstore.TraceQueryParameters) bool {
-	return traceQuery.OperationName == "" || span.OperationName == traceQuery.OperationName
-}
-
-func matchStartTimeQueryWithSpan(span *model.Span, traceQuery *spanstore.TraceQueryParameters) bool {
-	return traceQuery.StartTimeMin.Before(span.StartTime) && span.StartTime.Before(traceQuery.StartTimeMax)
-}
-
-func matchDurationQueryWithSpan(span *model.Span, traceQuery *spanstore.TraceQueryParameters) bool {
-	if traceQuery.DurationMin == 0 && traceQuery.DurationMax == 0 {
-		return true
-	}
-	return traceQuery.DurationMin <= span.Duration && span.Duration <= traceQuery.DurationMax
-}
-
-func matchTagsQueryWithSpan(span *model.Span, traceQuery *spanstore.TraceQueryParameters) bool {
-	if len(traceQuery.Tags) == 0 {
-		return true
-	}
-	return spanHasAllTags(span, traceQuery.Tags)
-}
-
-func spanHasAllTags(span *model.Span, tags map[string]string) bool {
-	for key, val := range tags {
-		if !checkAllSpots(span, key, val) {
-			return false
-		}
-	}
-	return true
-}
-
-func checkAllSpots(span *model.Span, key string, val string) bool {
-	tag, found := span.Tags.FindByKey(key)
-	if found && tag.AsString() == val {
-		return true
-	}
-	if span.Process != nil {
-		tag, found = span.Process.Tags.FindByKey(key)
-		if found && tag.AsString() == val {
-			return true
-		}
-	}
-	for _, log := range span.Logs {
-		if len(log.Fields) == 0 {
-			continue
-		}
-		tag, found = model.KeyValues(log.Fields).FindByKey(key)
-		if found && tag.AsString() == val {
-			return true
-		}
-	}
-	return false
 }
 
 func (s *StorageIntegration) ITestGetServices(t *testing.T) {

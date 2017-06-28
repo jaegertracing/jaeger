@@ -48,8 +48,9 @@ func CompareListOfModelTraces(t *testing.T, expected []*model.Trace, actual []*m
 	sort.Sort(TraceByTraceID(actual))
 	assert.Equal(t, len(expected), len(actual))
 	for i := range expected {
-		CompareModelTraces(t, expected[i], actual[i])
+		sortModelTraces(expected[i], actual[i])
 	}
+	assert.EqualValues(t, expected, actual)
 }
 
 type SpanBySpanID []*model.Span
@@ -63,37 +64,25 @@ func CompareModelTraces(t *testing.T, expected *model.Trace, actual *model.Trace
 		require.Nil(t, actual.Spans)
 		return
 	}
-	checkTraceID(t, expected)
-	checkTraceID(t, actual)
+	sortModelTraces(expected, actual)
+	assert.EqualValues(t, expected, actual)
+}
+
+func sortModelTraces(expected *model.Trace, actual *model.Trace) {
 	expectedSpans := expected.Spans
 	actualSpans := actual.Spans
 	sort.Sort(SpanBySpanID(expectedSpans))
 	sort.Sort(SpanBySpanID(actualSpans))
-	assert.Equal(t, len(expectedSpans), len(actualSpans))
 	for i := range expectedSpans {
-		compareModelSpans(t, expectedSpans[i], actualSpans[i])
+		sortModelSpans(expectedSpans[i], actualSpans[i])
 	}
 }
 
-func checkTraceID(t *testing.T, trace *model.Trace) {
-	traceID := trace.Spans[0].TraceID.String()
-	for _, span := range trace.Spans {
-		assert.Equal(t, traceID, span.TraceID.String())
-	}
-}
 
-func compareModelSpans(t *testing.T, expected *model.Span, actual *model.Span) {
-	// TODO: Don't manually enumerate, because if we add a new field, this test would still pass.
-	assert.Equal(t, expected.TraceID.Low, actual.TraceID.Low)
-	assert.Equal(t, expected.TraceID.High, actual.TraceID.High)
-	assert.Equal(t, expected.SpanID, actual.SpanID)
-	assert.Equal(t, expected.OperationName, actual.OperationName)
-	assert.Equal(t, expected.Flags, actual.Flags)
-	assert.Equal(t, expected.StartTime.UnixNano()/1000, actual.StartTime.UnixNano()/1000)
-	assert.Equal(t, expected.Duration/1000, actual.Duration/1000)
-	compareModelTags(t, expected.Tags, actual.Tags)
-	compareModelLogs(t, expected.Logs, actual.Logs)
-	compareModelProcess(t, expected.Process, actual.Process)
+func sortModelSpans(expected *model.Span, actual *model.Span) {
+	sortModelTags(expected.Tags, actual.Tags)
+	sortModelLogs(expected.Logs, actual.Logs)
+	sortModelProcess(expected.Process, actual.Process)
 }
 
 type TagByKey []model.KeyValue
@@ -102,17 +91,9 @@ func (t TagByKey) Len() int           { return len(t) }
 func (t TagByKey) Swap(i, j int)      { t[i], t[j] = t[j], t[i] }
 func (t TagByKey) Less(i, j int) bool { return t[i].Key < t[j].Key }
 
-func compareModelTags(t *testing.T, expected []model.KeyValue, actual []model.KeyValue) {
+func sortModelTags(expected []model.KeyValue, actual []model.KeyValue) {
 	sort.Sort(TagByKey(expected))
 	sort.Sort(TagByKey(actual))
-	assert.Equal(t, len(expected), len(actual))
-	for i := range expected {
-		assert.Equal(t, expected[i].Key, actual[i].Key)
-		assert.Equal(t, expected[i].VType, actual[i].VType)
-		assert.Equal(t, expected[i].VStr, actual[i].VStr)
-		assert.Equal(t, expected[i].VBlob, actual[i].VBlob)
-		assert.Equal(t, expected[i].VNum, actual[i].VNum)
-	}
 }
 
 type LogByTimestamp []model.Log
@@ -122,17 +103,14 @@ func (t LogByTimestamp) Swap(i, j int)      { t[i], t[j] = t[j], t[i] }
 func (t LogByTimestamp) Less(i, j int) bool { return t[i].Timestamp.Before(t[j].Timestamp) }
 
 // this function exists solely to make it easier for developer to find out where the difference is
-func compareModelLogs(t *testing.T, expected []model.Log, actual []model.Log) {
+func sortModelLogs(expected []model.Log, actual []model.Log) {
 	sort.Sort(LogByTimestamp(expected))
 	sort.Sort(LogByTimestamp(actual))
-	assert.Equal(t, len(expected), len(actual))
 	for i := range expected {
-		assert.Equal(t, expected[i].Timestamp.UnixNano()/1000, actual[i].Timestamp.UnixNano()/1000)
-		compareModelTags(t, expected[i].Fields, actual[i].Fields)
+		sortModelTags(expected[i].Fields, actual[i].Fields)
 	}
 }
 
-func compareModelProcess(t *testing.T, expected *model.Process, actual *model.Process) {
-	assert.Equal(t, expected.ServiceName, actual.ServiceName)
-	compareModelTags(t, expected.Tags, actual.Tags)
+func sortModelProcess(expected *model.Process, actual *model.Process) {
+	sortModelTags(expected.Tags, actual.Tags)
 }

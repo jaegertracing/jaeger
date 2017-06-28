@@ -55,7 +55,7 @@ const (
 	tagKeyField        = "key"
 	tagValueField      = "value"
 
-	defaultDocCount  = 3000
+	defaultDocCount  = 10000 // the default elasticsearch allowed limit
 	defaultNumTraces = 100
 )
 
