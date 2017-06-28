@@ -18,7 +18,7 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 // THE SOFTWARE.
 
-package sampling
+package httpserver
 
 import (
 	"errors"
@@ -29,10 +29,11 @@ import (
 	"github.com/stretchr/testify/require"
 	"github.com/uber/jaeger-lib/metrics"
 	mTestutils "github.com/uber/jaeger-lib/metrics/testutils"
-	"github.com/uber/jaeger/thrift-gen/sampling"
 	"github.com/uber/tchannel-go/thrift"
 
 	"github.com/uber/jaeger/cmd/agent/app/testutils"
+	"github.com/uber/jaeger/thrift-gen/baggage"
+	"github.com/uber/jaeger/thrift-gen/sampling"
 )
 
 func TestCollectorProxy(t *testing.T) {
@@ -44,36 +45,54 @@ func TestCollectorProxy(t *testing.T) {
 		RateLimitingSampling: &sampling.RateLimitingSamplingStrategy{
 			MaxTracesPerSecond: 10,
 		}})
+	collector.AddBaggageRestrictions("service1", []*baggage.BaggageRestriction{
+		{BaggageKey: "luggage", MaxValueLength: 10},
+	})
 
 	mgr := NewCollectorProxy("jaeger-collector", collector.Channel, metricsFactory)
 
-	resp, err := mgr.GetSamplingStrategy("service1")
+	sResp, err := mgr.GetSamplingStrategy("service1")
 	require.NoError(t, err)
-	require.NotNil(t, resp)
-	require.EqualValues(t, resp.StrategyType, sampling.SamplingStrategyType_RATE_LIMITING)
-	require.NotNil(t, resp.RateLimitingSampling)
-	require.EqualValues(t, 10, resp.RateLimitingSampling.MaxTracesPerSecond)
+	require.NotNil(t, sResp)
+	assert.EqualValues(t, sResp.StrategyType, sampling.SamplingStrategyType_RATE_LIMITING)
+	require.NotNil(t, sResp.RateLimitingSampling)
+	assert.EqualValues(t, 10, sResp.RateLimitingSampling.MaxTracesPerSecond)
+
+	bResp, err := mgr.GetBaggageRestrictions("service1")
+	require.NoError(t, err)
+	require.Len(t, bResp, 1)
+	assert.Equal(t, "luggage", bResp[0].BaggageKey)
+	assert.EqualValues(t, 10, bResp[0].MaxValueLength)
 
 	// must emit metrics
 	mTestutils.AssertCounterMetrics(t, metricsFactory, []mTestutils.ExpectedMetric{
-		{Name: "tc-sampling-proxy.sampling.responses", Value: 1},
-		{Name: "tc-sampling-proxy.sampling.errors", Value: 0},
+		{Name: "collector-proxy", Tags: map[string]string{"result": "ok", "endpoint": "sampling"}, Value: 1},
+		{Name: "collector-proxy", Tags: map[string]string{"result": "err", "endpoint": "sampling"}, Value: 0},
+		{Name: "collector-proxy", Tags: map[string]string{"result": "ok", "endpoint": "baggage"}, Value: 1},
+		{Name: "collector-proxy", Tags: map[string]string{"result": "err", "endpoint": "baggage"}, Value: 0},
 	}...)
 }
 
 func TestTCollectorProxyClientErrorPropagates(t *testing.T) {
 	mFactory := metrics.NewLocalFactory(time.Minute)
-	client := &failingClient{}
-	proxy := &collectorProxy{client: client}
+	proxy := &collectorProxy{samplingClient: &failingClient{}, baggageClient: &failingClient{}}
 	metrics.Init(&proxy.metrics, mFactory, nil)
 	_, err := proxy.GetSamplingStrategy("test")
-	assert.EqualError(t, err, "error")
-	mTestutils.AssertCounterMetrics(t, mFactory,
-		mTestutils.ExpectedMetric{Name: "tc-sampling-proxy.sampling.errors", Value: 1})
+	require.EqualError(t, err, "error")
+	_, err = proxy.GetBaggageRestrictions("test")
+	require.EqualError(t, err, "error")
+	mTestutils.AssertCounterMetrics(t, mFactory, []mTestutils.ExpectedMetric{
+		{Name: "collector-proxy", Tags: map[string]string{"result": "err", "endpoint": "sampling"}, Value: 1},
+		{Name: "collector-proxy", Tags: map[string]string{"result": "err", "endpoint": "baggage"}, Value: 1},
+	}...)
 }
 
 type failingClient struct{}
 
 func (c *failingClient) GetSamplingStrategy(ctx thrift.Context, serviceName string) (*sampling.SamplingStrategyResponse, error) {
+	return nil, errors.New("error")
+}
+
+func (c *failingClient) GetBaggageRestrictions(ctx thrift.Context, serviceName string) ([]*baggage.BaggageRestriction, error) {
 	return nil, errors.New("error")
 }

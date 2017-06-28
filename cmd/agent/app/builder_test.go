@@ -55,7 +55,7 @@ processors:
         maxPacketSize: 65001
         hostPort: 3.3.3.3:6832
 
-samplingServer:
+httpServer:
     hostPort: 4.4.4.4:5778
 
 collectorHostPorts:
@@ -106,7 +106,7 @@ func TestBuilderFromConfig(t *testing.T) {
 			HostPort:      "3.3.3.3:6832",
 		},
 	}, cfg.Processors[2])
-	assert.Equal(t, "4.4.4.4:5778", cfg.SamplingServer.HostPort)
+	assert.Equal(t, "4.4.4.4:5778", cfg.HTTPServer.HostPort)
 
 	assert.Equal(t, 4, cfg.DiscoveryMinPeers)
 	assert.Equal(t, "some-collector-service", cfg.CollectorServiceName)

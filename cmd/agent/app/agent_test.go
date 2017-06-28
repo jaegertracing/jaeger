@@ -37,7 +37,7 @@ func TestAgentStartError(t *testing.T) {
 	cfg := &Builder{}
 	agent, err := cfg.CreateAgent(metrics.NullFactory, zap.NewNop())
 	require.NoError(t, err)
-	agent.samplingServer.Addr = "bad-address"
+	agent.httpServer.Addr = "bad-address"
 	assert.Error(t, agent.Run())
 }
 
@@ -64,7 +64,7 @@ func TestAgentStartStop(t *testing.T) {
 		close(ch)
 	}()
 
-	url := fmt.Sprintf("http://%s/sampling?service=abc", agent.samplingServer.Addr)
+	url := fmt.Sprintf("http://%s/sampling?service=abc", agent.httpServer.Addr)
 	httpClient := &http.Client{
 		Timeout: 100 * time.Millisecond,
 	}

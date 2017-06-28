@@ -28,6 +28,7 @@ import (
 	"github.com/stretchr/testify/require"
 	"github.com/uber/tchannel-go/thrift"
 
+	"github.com/uber/jaeger/thrift-gen/baggage"
 	"github.com/uber/jaeger/thrift-gen/jaeger"
 	"github.com/uber/jaeger/thrift-gen/sampling"
 	"github.com/uber/jaeger/thrift-gen/zipkincore"
@@ -49,6 +50,15 @@ func withSamplingClient(t *testing.T, fn func(collector *MockTCollector, ctx thr
 	withTCollector(t, func(collector *MockTCollector, ctx thrift.Context) {
 		thriftClient := thrift.NewClient(collector.Channel, "jaeger-collector", nil)
 		client := sampling.NewTChanSamplingManagerClient(thriftClient)
+
+		fn(collector, ctx, client)
+	})
+}
+
+func withBaggageRestrictionClient(t *testing.T, fn func(collector *MockTCollector, ctx thrift.Context, client baggage.TChanBaggageRestrictionManager)) {
+	withTCollector(t, func(collector *MockTCollector, ctx thrift.Context) {
+		thriftClient := thrift.NewClient(collector.Channel, "jaeger-collector", nil)
+		client := baggage.NewTChanBaggageRestrictionManagerClient(thriftClient)
 
 		fn(collector, ctx, client)
 	})
@@ -91,6 +101,24 @@ func TestMockTCollectorSampling(t *testing.T) {
 		require.Equal(t, sampling.SamplingStrategyType_RATE_LIMITING, s.StrategyType)
 		require.NotNil(t, s.RateLimitingSampling)
 		assert.EqualValues(t, 10, s.RateLimitingSampling.MaxTracesPerSecond)
+	})
+}
+
+func TestMockTCollectorBaggage(t *testing.T) {
+	withBaggageRestrictionClient(t, func(collector *MockTCollector, ctx thrift.Context, client baggage.TChanBaggageRestrictionManager) {
+		resp, err := client.GetBaggageRestrictions(ctx, "default-service")
+		require.NoError(t, err)
+		assert.Nil(t, resp)
+
+		collector.AddBaggageRestrictions("service1", []*baggage.BaggageRestriction{
+			{BaggageKey: "key", MaxValueLength: 10},
+		})
+
+		resp, err = client.GetBaggageRestrictions(ctx, "service1")
+		require.NoError(t, err)
+		require.Len(t, resp, 1)
+		assert.EqualValues(t, "key", resp[0].BaggageKey)
+		assert.EqualValues(t, 10, resp[0].MaxValueLength)
 	})
 }
 
