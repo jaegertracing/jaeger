@@ -155,8 +155,8 @@ func createSpanWithParams(traceID model.TraceID, service string, operation strin
 
 	return &model.Span{
 		TraceID:       traceID,
-		SpanID:        model.SpanID(rand.Uint64()),
-		ParentSpanID:  model.SpanID(rand.Uint64()),
+		SpanID:        model.SpanID(uint64(rand.Uint32())),
+		ParentSpanID:  model.SpanID(uint64(rand.Uint32())),
 		OperationName: operation,
 		StartTime:     randomTime,
 		Duration:      randomDuration,
@@ -256,7 +256,7 @@ func (s *StorageIntegration) initializeTraces(t *testing.T, numOfTraces int, num
 
 func (s *StorageIntegration) createRandomTrace(t *testing.T, numOfSpans int) *model.Trace {
 	randomStartTime, randomDuration := randomTimeAndDuration()
-	return s.createTrace(t, model.TraceID{Low: rand.Uint64()}, numOfSpans, randomStartTime, randomDuration)
+	return s.createTrace(t, model.TraceID{Low: uint64(rand.Uint32())}, numOfSpans, randomStartTime, randomDuration)
 }
 
 func checkTraceWithQuery(trace *model.Trace, traceQuery *spanstore.TraceQueryParameters) bool {
@@ -336,7 +336,7 @@ func checkAllSpots(span *model.Span, key string, val string) bool {
 
 func (s *StorageIntegration) ITestGetServices(t *testing.T) {
 	services := []string{"service1", "service2", "service3", "service4", "service5"}
-	traceID := model.TraceID{Low: rand.Uint64()}
+	traceID := model.TraceID{Low: uint64(rand.Uint32())}
 	for _, service := range services {
 		randomStartTime, randomDuration := randomTimeAndDuration()
 		span := createSpanWithParams(traceID, service, "op", randomStartTime, randomDuration)
@@ -366,7 +366,7 @@ func (s *StorageIntegration) ITestGetOperations(t *testing.T) {
 	numOfServices := int64(3)
 	numOfOperations := int64(5)
 
-	traceID := model.TraceID{Low: rand.Uint64()}
+	traceID := model.TraceID{Low: uint64(rand.Uint32())}
 	for i := int64(0); i < numOfServices; i++ {
 		service := "service" + strconv.FormatInt(i, 10)
 		for j := int64(0); j < numOfOperations; j++ {
@@ -401,7 +401,7 @@ func (s *StorageIntegration) ITestGetOperations(t *testing.T) {
 }
 
 func (s *StorageIntegration) ITestGetTrace(t *testing.T) {
-	traceID := model.TraceID{Low: rand.Uint64()}
+	traceID := model.TraceID{Low: uint64(rand.Uint32())}
 
 	randomStartTime, randomDuration := randomTimeAndDuration()
 	expected := s.createTrace(t, traceID, defaultNumSpans, randomStartTime, randomDuration)
