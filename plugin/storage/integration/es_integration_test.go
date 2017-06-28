@@ -81,7 +81,7 @@ func eSRefresh() error {
 }
 
 func TestAll(t *testing.T) {
-	if os.Getenv("ESINTEGRATIONTEST") != "" {
+	if os.Getenv("ESINTEGRATIONTEST") == "" {
 		t.Log("Set ESINTEGRATIONTEST env variable to run an integration test on ElasticSearch backend")
 		return
 	}
