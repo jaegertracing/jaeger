@@ -48,13 +48,6 @@ type StorageIntegration struct {
 }
 
 const (
-	byService QueryType = iota
-	bysNoN
-	bysNTags
-	bysNDuration
-	byNumOfTraces
-	// Add more queryTypes here
-
 	floatTagVal  = "95.0421"
 	intTagVal    = "950421"
 	stringTagVal = "xyz"
@@ -66,25 +59,25 @@ const (
 )
 
 var (
-	// To add more various queries, add a QueryType above and add the corresponding TraceQueryParameters below.
+	// To add more various queries, add more TraceQueryParameters in differentQueries.
 	// This should be sufficient; no need for extra code below.
 	// Be sure to make the query large enough to capture some traces.
-	// The below initializeTraces fn will fail if a query cannot capture traces for more than a few attempts.
-	differentQueries = map[QueryType]*spanstore.TraceQueryParameters{
-		byService: {
+	// The below initializeTraces fn will fail if a query cannot capture traces.
+	differentQueries = []*spanstore.TraceQueryParameters{
+		{
 			ServiceName:  randomService(),
 			StartTimeMin: time.Now().Add(-3 * time.Hour),
 			StartTimeMax: time.Now(),
 			NumTraces:    numOfInitTraces, //set to numOfInitTraces if you don't care about number of traces retrieved, and you want all
 		},
-		bysNoN: {
+		{
 			ServiceName:   randomService(),
 			OperationName: randomOperation(),
 			StartTimeMin:  time.Now().Add(-3 * time.Hour),
 			StartTimeMax:  time.Now(),
 			NumTraces:     numOfInitTraces,
 		},
-		bysNTags: {
+		{
 			ServiceName: randomService(),
 			Tags: map[string]string{
 				"tag1": intTagVal,
@@ -94,7 +87,7 @@ var (
 			StartTimeMax: time.Now(),
 			NumTraces:    numOfInitTraces,
 		},
-		bysNDuration: {
+		{
 			ServiceName:  randomService(),
 			StartTimeMin: time.Now().Add(-3 * time.Hour),
 			StartTimeMax: time.Now(),
@@ -102,7 +95,7 @@ var (
 			DurationMax:  400 * time.Millisecond,
 			NumTraces:    numOfInitTraces,
 		},
-		byNumOfTraces: {
+		{
 			ServiceName:  randomService(),
 			StartTimeMin: time.Now().Add(-3 * time.Hour),
 			StartTimeMax: time.Now(),
@@ -237,17 +230,17 @@ func tracesMatch(traces []*model.Trace, numOfTraces int, numOfSpans int) bool {
 	return true
 }
 
-func (s *StorageIntegration) initializeTraces(t *testing.T, numOfTraces int, numOfSpans int) map[QueryType][]*model.Trace {
-	tracesBuckets := make(map[QueryType][]*model.Trace)
+func (s *StorageIntegration) initializeTraces(t *testing.T, numOfTraces int, numOfSpans int) [][]*model.Trace {
+	tracesBuckets := make([][]*model.Trace, len(differentQueries))
 	traces := make([]*model.Trace, numOfTraces)
 	for i := 0; i < numOfTraces; i++ {
 		traces[i] = s.createRandomTrace(t, numOfSpans)
 	}
 
 	for _, trace := range traces {
-		for queryType, query := range differentQueries {
+		for i, query := range differentQueries {
 			if checkTraceWithQuery(trace, query) {
-				tracesBuckets[queryType] = append(tracesBuckets[queryType], trace)
+				tracesBuckets[i] = append(tracesBuckets[i], trace)
 			}
 		}
 	}
