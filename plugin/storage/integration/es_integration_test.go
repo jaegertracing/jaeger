@@ -22,7 +22,6 @@ package integration
 
 import (
 	"context"
-	"math/rand"
 	"os"
 	"testing"
 	"time"
@@ -36,7 +35,6 @@ import (
 )
 
 func initializeES(s *StorageIntegration) error {
-	rand.Seed(time.Now().UnixNano())
 	if s.reader != nil || s.writer != nil {
 		return nil
 	}

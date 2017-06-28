@@ -30,11 +30,11 @@ import (
 	"github.com/uber/jaeger/model"
 )
 
-type TraceByKey []*model.Trace
+type TraceByTraceID []*model.Trace
 
-func (s TraceByKey) Len() int      { return len(s) }
-func (s TraceByKey) Swap(i, j int) { s[i], s[j] = s[j], s[i] }
-func (s TraceByKey) Less(i, j int) bool {
+func (s TraceByTraceID) Len() int      { return len(s) }
+func (s TraceByTraceID) Swap(i, j int) { s[i], s[j] = s[j], s[i] }
+func (s TraceByTraceID) Less(i, j int) bool {
 	if len(s[i].Spans) != len(s[j].Spans) {
 		return len(s[i].Spans) < len(s[j].Spans)
 	} else if len(s[i].Spans) == 0 {
@@ -44,19 +44,19 @@ func (s TraceByKey) Less(i, j int) bool {
 }
 
 func CompareListOfModelTraces(t *testing.T, expected []*model.Trace, actual []*model.Trace) {
-	sort.Sort(TraceByKey(expected))
-	sort.Sort(TraceByKey(actual))
+	sort.Sort(TraceByTraceID(expected))
+	sort.Sort(TraceByTraceID(actual))
 	assert.Equal(t, len(expected), len(actual))
 	for i := range expected {
 		CompareModelTraces(t, expected[i], actual[i])
 	}
 }
 
-type SpanByKey []*model.Span
+type SpanBySpanID []*model.Span
 
-func (s SpanByKey) Len() int           { return len(s) }
-func (s SpanByKey) Swap(i, j int)      { s[i], s[j] = s[j], s[i] }
-func (s SpanByKey) Less(i, j int) bool { return s[i].SpanID < s[j].SpanID }
+func (s SpanBySpanID) Len() int           { return len(s) }
+func (s SpanBySpanID) Swap(i, j int)      { s[i], s[j] = s[j], s[i] }
+func (s SpanBySpanID) Less(i, j int) bool { return s[i].SpanID < s[j].SpanID }
 
 func CompareModelTraces(t *testing.T, expected *model.Trace, actual *model.Trace) {
 	if expected.Spans == nil {
@@ -67,8 +67,8 @@ func CompareModelTraces(t *testing.T, expected *model.Trace, actual *model.Trace
 	checkTraceID(t, actual)
 	expectedSpans := expected.Spans
 	actualSpans := actual.Spans
-	sort.Sort(SpanByKey(expectedSpans))
-	sort.Sort(SpanByKey(actualSpans))
+	sort.Sort(SpanBySpanID(expectedSpans))
+	sort.Sort(SpanBySpanID(actualSpans))
 	assert.Equal(t, len(expectedSpans), len(actualSpans))
 	for i := range expectedSpans {
 		compareModelSpans(t, expectedSpans[i], actualSpans[i])
