@@ -36,16 +36,16 @@ type collectorProxy struct {
 	baggageClient  baggage.TChanBaggageRestrictionManager
 	metrics        struct {
 		// Number of successful sampling rate responses from collector
-		SamplingSuccess metrics.Counter `metric:"collector-proxy" tags:"result=ok,type=sampling"`
+		SamplingSuccess metrics.Counter `metric:"collector-proxy" tags:"result=ok,endpoint=sampling"`
 
 		// Number of failed sampling rate responses from collector
-		SamplingFailures metrics.Counter `metric:"collector-proxy" tags:"result=err,type=sampling"`
+		SamplingFailures metrics.Counter `metric:"collector-proxy" tags:"result=err,endpoint=sampling"`
 
 		// Number of successful baggage restriction responses from collector
-		BaggageSuccess metrics.Counter `metric:"collector-proxy" tags:"result=ok,type=baggage"`
+		BaggageSuccess metrics.Counter `metric:"collector-proxy" tags:"result=ok,endpoint=baggage"`
 
 		// Number of failed baggage restriction responses from collector
-		BaggageFailures metrics.Counter `metric:"collector-proxy" tags:"result=err,type=baggage"`
+		BaggageFailures metrics.Counter `metric:"collector-proxy" tags:"result=err,endpoint=baggage"`
 	}
 }
 
@@ -64,6 +64,7 @@ func (c *collectorProxy) GetSamplingStrategy(serviceName string) (*sampling.Samp
 	ctx, cancel := tchannel.NewContextBuilder(time.Second).DisableTracing().Build()
 	defer cancel()
 
+	// TODO: enable tracer on the tchannel and get metrics for free (sampler can be off)
 	resp, err := c.samplingClient.GetSamplingStrategy(ctx, serviceName)
 	if err != nil {
 		c.metrics.SamplingFailures.Inc(1)

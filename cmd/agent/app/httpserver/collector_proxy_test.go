@@ -66,10 +66,10 @@ func TestCollectorProxy(t *testing.T) {
 
 	// must emit metrics
 	mTestutils.AssertCounterMetrics(t, metricsFactory, []mTestutils.ExpectedMetric{
-		{Name: "collector-proxy", Tags: map[string]string{"result": "ok", "type": "sampling"}, Value: 1},
-		{Name: "collector-proxy", Tags: map[string]string{"result": "err", "type": "sampling"}, Value: 0},
-		{Name: "collector-proxy", Tags: map[string]string{"result": "ok", "type": "baggage"}, Value: 1},
-		{Name: "collector-proxy", Tags: map[string]string{"result": "err", "type": "baggage"}, Value: 0},
+		{Name: "collector-proxy", Tags: map[string]string{"result": "ok", "endpoint": "sampling"}, Value: 1},
+		{Name: "collector-proxy", Tags: map[string]string{"result": "err", "endpoint": "sampling"}, Value: 0},
+		{Name: "collector-proxy", Tags: map[string]string{"result": "ok", "endpoint": "baggage"}, Value: 1},
+		{Name: "collector-proxy", Tags: map[string]string{"result": "err", "endpoint": "baggage"}, Value: 0},
 	}...)
 }
 
@@ -82,8 +82,8 @@ func TestTCollectorProxyClientErrorPropagates(t *testing.T) {
 	_, err = proxy.GetBaggageRestrictions("test")
 	require.EqualError(t, err, "error")
 	mTestutils.AssertCounterMetrics(t, mFactory, []mTestutils.ExpectedMetric{
-		{Name: "collector-proxy", Tags: map[string]string{"result": "err", "type": "sampling"}, Value: 1},
-		{Name: "collector-proxy", Tags: map[string]string{"result": "err", "type": "baggage"}, Value: 1},
+		{Name: "collector-proxy", Tags: map[string]string{"result": "err", "endpoint": "sampling"}, Value: 1},
+		{Name: "collector-proxy", Tags: map[string]string{"result": "err", "endpoint": "baggage"}, Value: 1},
 	}...)
 }
 
