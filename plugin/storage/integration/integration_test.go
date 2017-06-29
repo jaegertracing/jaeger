@@ -27,6 +27,10 @@ import (
 	"strconv"
 	"testing"
 	"time"
+	"bytes"
+	"io/ioutil"
+	"encoding/json"
+	"strings"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -34,9 +38,6 @@ import (
 
 	"github.com/uber/jaeger/model"
 	"github.com/uber/jaeger/storage/spanstore"
-	"bytes"
-	"io/ioutil"
-	"encoding/json"
 )
 
 type StorageIntegration struct {
@@ -48,7 +49,7 @@ type StorageIntegration struct {
 	refresh func() error // function called between set-up and queries in each test
 }
 
-type QueryToExpected struct {
+type QueryFixtures struct {
 	Caption string
 	Query *spanstore.TraceQueryParameters
 	ExpectedTraces []int
@@ -60,7 +61,6 @@ const (
 	stringTagVal = "xyz"
 	boolTagVal   = "true"
 
-	numOfQueries = 5
 	numOfTraceFixtures = 5
 
 	defaultNumSpans = 5
@@ -79,50 +79,6 @@ var (
 	}
 	randomServices   = []string{"service1", "service2", "service3", "service4"}
 	randomOperations = []string{"op1", "op2", "op3", "op4"}
-
-	// To add more various queries, add more TraceQueryParameters in differentQueries.
-	// This should be sufficient; no need for extra code below.
-	// Be sure to make the query large enough to capture some traces.
-	// The below initializeTraces fn will fail if a query cannot capture traces.
-	differentQueries = []*spanstore.TraceQueryParameters{
-		{
-			ServiceName:  randomService(),
-			StartTimeMin: time.Now().Add(-3 * time.Hour),
-			StartTimeMax: time.Now(),
-			NumTraces:    numOfTraceFixtures, //set to numOfInitTraces if you don't care about number of traces retrieved, and you want all
-		},
-		{
-			ServiceName:   randomService(),
-			OperationName: randomOperation(),
-			StartTimeMin:  time.Now().Add(-3 * time.Hour),
-			StartTimeMax:  time.Now(),
-			NumTraces:     numOfTraceFixtures,
-		},
-		{
-			ServiceName: randomService(),
-			Tags: map[string]string{
-				"tag1": intTagVal,
-				"tag3": stringTagVal,
-			},
-			StartTimeMin: time.Now().Add(-3 * time.Hour),
-			StartTimeMax: time.Now(),
-			NumTraces:    numOfTraceFixtures,
-		},
-		{
-			ServiceName:  randomService(),
-			StartTimeMin: time.Now().Add(-3 * time.Hour),
-			StartTimeMax: time.Now(),
-			DurationMin:  100 * time.Millisecond,
-			DurationMax:  400 * time.Millisecond,
-			NumTraces:    numOfTraceFixtures,
-		},
-		{
-			ServiceName:  randomService(),
-			StartTimeMin: time.Now().Add(-3 * time.Hour),
-			StartTimeMax: time.Now(),
-			NumTraces:    2,
-		},
-	}
 )
 
 func randomTimeAndDuration() (time.Time, time.Duration) {
@@ -240,36 +196,13 @@ func tracesMatch(traces []*model.Trace, numOfTraces int, numOfSpans int) bool {
 	return true
 }
 
-func (s *StorageIntegration) initializeTraces(t *testing.T, numOfTraces int, numOfSpans int) [][]*model.Trace {
-	tracesBuckets := make([][]*model.Trace, len(differentQueries))
-	traces := make([]*model.Trace, numOfTraces)
-	for i := 0; i < numOfTraces; i++ {
-		traces[i] = s.createRandomTrace(t, numOfSpans)
-	}
-
-	for _, trace := range traces {
-		for i, query := range differentQueries {
-			if CheckTraceWithQuery(trace, query) {
-				tracesBuckets[i] = append(tracesBuckets[i], trace)
-			}
-		}
-	}
-
-	for _, traces := range tracesBuckets {
-		if len(traces) == 0 {
-			assert.FailNow(t, "A query is too limited to capture any traces, failing initialization...")
-			return nil
-		}
-	}
-	return tracesBuckets
-}
-
 func (s *StorageIntegration) createRandomTrace(t *testing.T, numOfSpans int) *model.Trace {
 	randomStartTime, randomDuration := randomTimeAndDuration()
 	return s.createTrace(t, model.TraceID{Low: uint64(rand.Uint32())}, numOfSpans, randomStartTime, randomDuration)
 }
 
 func (s *StorageIntegration) IntegrationTestGetServices(t *testing.T) {
+	t.Log("Testing GetServices ...")
 	services := []string{"service1", "service2", "service3", "service4", "service5"}
 	traceID := model.TraceID{Low: uint64(rand.Uint32())}
 	for _, service := range services {
@@ -298,6 +231,7 @@ func (s *StorageIntegration) IntegrationTestGetServices(t *testing.T) {
 }
 
 func (s *StorageIntegration) IntegrationTestGetOperations(t *testing.T) {
+	t.Log("Testing GetOperations ...")
 	numOfServices := int64(3)
 	numOfOperations := int64(5)
 
@@ -336,6 +270,7 @@ func (s *StorageIntegration) IntegrationTestGetOperations(t *testing.T) {
 }
 
 func (s *StorageIntegration) IntegrationTestGetTrace(t *testing.T) {
+	t.Log("Testing GetTrace ...")
 	traceID := model.TraceID{Low: uint64(rand.Uint32())}
 
 	randomStartTime, randomDuration := randomTimeAndDuration()
@@ -361,10 +296,12 @@ func (s *StorageIntegration) IntegrationTestGetTrace(t *testing.T) {
 }
 
 func (s *StorageIntegration) IntegrationTestFindTraces(t *testing.T) {
-	for i := 1 ; i <= numOfQueries ; i++ {
-		query, err := getQuery(i)
-		require.NoError(t, err)
-		t.Logf("Testing query case: %s ...", query.Caption)
+	t.Log("Testing FindTraces ...")
+	t.Log("\t(Note: all cases include ServiceName + StartTime range)")
+	queries, err := getQueries()
+	require.NoError(t, err)
+	for _, query := range queries {
+		t.Logf("\t\t* Query case: + %s", query.Caption)
 		s.integrationTestFindTracesByQuery(t, query.Query, query.ExpectedTraces)
 	}
 }
@@ -394,6 +331,7 @@ func (s *StorageIntegration) integrationTestFindTracesByQuery(t *testing.T, quer
 		time.Sleep(100 * time.Millisecond)
 	}
 	assert.True(t, found)
+	assert.NoError(t, s.cleanUp())
 }
 
 func (s *StorageIntegration) writeTraces(traces []*model.Trace) error {
@@ -411,7 +349,7 @@ func (s *StorageIntegration) writeTraces(traces []*model.Trace) error {
 func getSubsetOfTraces(traces []*model.Trace, expectedTraces []int) []*model.Trace {
 	retTraces := make([]*model.Trace, len(expectedTraces))
 	for i, traceNum := range expectedTraces {
-		retTraces[i] = traces[traceNum+1]
+		retTraces[i] = traces[traceNum-1]
 	}
 	return retTraces
 }
@@ -429,31 +367,40 @@ func getTraceFixtures() ([]*model.Trace, error) {
 }
 
 func getTraceFixture(i int) (*model.Trace, error) {
-	fileName := fmt.Sprintf("fixtures/traces/trace_%02d.json", i)
-	inStr, err := ioutil.ReadFile(fileName)
-	if err != nil {
-		return nil, err
-	}
 	var trace model.Trace
-	err = json.Unmarshal(inStr, &trace)
+	fileName := fmt.Sprintf("fixtures/traces/trace_%02d.json", i)
+	err := getFixture(fileName, &trace)
 	if err != nil {
 		return nil, err
 	}
 	return &trace, nil
 }
 
-func getQuery(i int) (*QueryToExpected, error) {
-	fileName := fmt.Sprintf("fixtures/queries/query_%02d.json", i)
-	inStr, err := ioutil.ReadFile(fileName)
+func getQueries() ([]*QueryFixtures, error) {
+	var queries []*QueryFixtures
+	err := getFixture("fixtures/queries.json", &queries)
 	if err != nil {
 		return nil, err
 	}
-	var queryToExpected QueryToExpected
-	err = json.Unmarshal(inStr, &queryToExpected)
+	return queries, nil
+}
+
+func getFixture(path string, object interface{}) error {
+	inStr, err := ioutil.ReadFile(path)
 	if err != nil {
-		return nil, err
+		return err
 	}
-	return &queryToExpected, nil
+	err = json.Unmarshal(normalizeTime(inStr), object)
+	return err
+}
+
+func normalizeTime(json []byte) []byte {
+	jsonString := string(json)
+	today := time.Now().Format("2006-01-02")
+	yesterday := time.Now().AddDate(0, 0, -1).Format("2006-01-02")
+	retString := strings.Replace(jsonString, "2017-01-26", today, -1)
+	retString = strings.Replace(retString, "2017-01-25", yesterday, -1)
+	return []byte(retString)
 }
 
 // DO NOT RUN IF YOU HAVE IMPORTANT SPANS IN ELASTICSEARCH
@@ -463,25 +410,4 @@ func (s *StorageIntegration) IntegrationTestAll(t *testing.T) {
 	s.IntegrationTestGetOperations(t)
 	s.IntegrationTestGetTrace(t)
 	s.IntegrationTestFindTraces(t)
-}
-
-
-
-
-
-
-
-
-
-
-
-
-func Test_createstuff(t *testing.T) {
-	buf := &bytes.Buffer{}
-	enc := json.NewEncoder(buf)
-	enc.SetIndent("", "  ")
-
-	enc.Encode(&QueryToExpected{Query: &spanstore.TraceQueryParameters{},ExpectedTraces:[]int{1,2,3}})
-
-	ioutil.WriteFile("fixtures/queries/query_01.json", buf.Bytes(), 0644)
 }

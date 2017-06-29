@@ -28,6 +28,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/uber/jaeger/model"
+	"errors"
 )
 
 type TraceByTraceID []*model.Trace
@@ -48,7 +49,7 @@ func CompareListOfModelTraces(t *testing.T, expected []*model.Trace, actual []*m
 	sort.Sort(TraceByTraceID(actual))
 	assert.Equal(t, len(expected), len(actual))
 	for i := range expected {
-		sortModelTraces(expected[i], actual[i])
+		assert.NoError(t, sortModelTraces(expected[i], actual[i]))
 	}
 	assert.EqualValues(t, expected, actual)
 }
@@ -64,25 +65,38 @@ func CompareModelTraces(t *testing.T, expected *model.Trace, actual *model.Trace
 		require.Nil(t, actual.Spans)
 		return
 	}
-	sortModelTraces(expected, actual)
+	assert.NoError(t, sortModelTraces(expected, actual))
 	assert.EqualValues(t, expected, actual)
 }
 
-func sortModelTraces(expected *model.Trace, actual *model.Trace) {
+func sortModelTraces(expected *model.Trace, actual *model.Trace) error {
 	expectedSpans := expected.Spans
 	actualSpans := actual.Spans
+	if len(expectedSpans) != len(actualSpans) {
+		return errors.New("traces have different number of spans")
+	}
 	sort.Sort(SpanBySpanID(expectedSpans))
 	sort.Sort(SpanBySpanID(actualSpans))
 	for i := range expectedSpans {
 		sortModelSpans(expectedSpans[i], actualSpans[i])
 	}
+	return nil
 }
 
 
-func sortModelSpans(expected *model.Span, actual *model.Span) {
-	sortModelTags(expected.Tags, actual.Tags)
-	sortModelLogs(expected.Logs, actual.Logs)
-	sortModelProcess(expected.Process, actual.Process)
+func sortModelSpans(expected *model.Span, actual *model.Span) error {
+	expected.NormalizeTimestamps()
+	actual.NormalizeTimestamps()
+	if err := sortModelTags(expected.Tags, actual.Tags); err != nil {
+		return err
+	}
+	if err := sortModelLogs(expected.Logs, actual.Logs); err != nil {
+		return err
+	}
+	if err := sortModelProcess(expected.Process, actual.Process); err != nil {
+		return err
+	}
+	return nil
 }
 
 type TagByKey []model.KeyValue
@@ -91,9 +105,13 @@ func (t TagByKey) Len() int           { return len(t) }
 func (t TagByKey) Swap(i, j int)      { t[i], t[j] = t[j], t[i] }
 func (t TagByKey) Less(i, j int) bool { return t[i].Key < t[j].Key }
 
-func sortModelTags(expected []model.KeyValue, actual []model.KeyValue) {
+func sortModelTags(expected []model.KeyValue, actual []model.KeyValue) error {
+	if len(expected) != len(actual) {
+		return errors.New("tags have different length")
+	}
 	sort.Sort(TagByKey(expected))
 	sort.Sort(TagByKey(actual))
+	return nil
 }
 
 type LogByTimestamp []model.Log
@@ -102,15 +120,18 @@ func (t LogByTimestamp) Len() int           { return len(t) }
 func (t LogByTimestamp) Swap(i, j int)      { t[i], t[j] = t[j], t[i] }
 func (t LogByTimestamp) Less(i, j int) bool { return t[i].Timestamp.Before(t[j].Timestamp) }
 
-// this function exists solely to make it easier for developer to find out where the difference is
-func sortModelLogs(expected []model.Log, actual []model.Log) {
+func sortModelLogs(expected []model.Log, actual []model.Log) error {
+	if len(expected) != len(actual) {
+		return errors.New("logs have different length")
+	}
 	sort.Sort(LogByTimestamp(expected))
 	sort.Sort(LogByTimestamp(actual))
 	for i := range expected {
 		sortModelTags(expected[i].Fields, actual[i].Fields)
 	}
+	return nil
 }
 
-func sortModelProcess(expected *model.Process, actual *model.Process) {
-	sortModelTags(expected.Tags, actual.Tags)
+func sortModelProcess(expected *model.Process, actual *model.Process) error {
+	return sortModelTags(expected.Tags, actual.Tags)
 }

@@ -2,26 +2,24 @@
   "Spans": [
     {
       "traceID": "1",
-      "spanID": "2",
-      "operationName": "test-general-conversion",
-      "startTime": "2017-01-26T16:46:31.639875139-05:00",
+      "spanID": "1",
+      "operationName": "query6-operation",
+      "references": [],
+      "startTime": "2017-01-26T16:46:31.639875Z",
       "duration": 5000,
+      "tags": [],
       "process": {
-        "serviceName": "service-x"
+        "serviceName": "query6-service",
+        "tags": []
       },
       "logs": [
         {
-          "timestamp": "2017-01-26T16:46:31.639875139-05:00",
-          "fields": [
-            {
-              "key": "event",
-              "vType": "string",
-              "vStr": "some-event"
-            }
-          ]
+          "timestamp": "2017-01-26T16:46:31.639875Z",
+          "fields": []
         },
         {
-          "timestamp": "2017-01-26T16:46:31.639875139-05:00"
+          "timestamp": "2017-01-26T16:46:31.639875Z",
+          "fields": []
         }
       ]
     },
@@ -29,26 +27,27 @@
       "traceID": "1",
       "spanID": "2",
       "operationName": "some-operation",
-      "startTime": "2017-01-26T16:46:31.639875139-05:00",
+      "references": [],
+      "startTime": "2017-01-26T16:46:31.639875Z",
       "duration": 7000,
       "tags": [
         {
-          "key": "peer.service",
+          "key": "sameplacetag1",
           "vType": "string",
-          "vStr": "service-y"
+          "vStr": "sameplacevalue"
         },
         {
-          "key": "peer.ipv4",
+          "key": "sameplacetag2",
           "vType": "int64",
-          "vNum": 23456
+          "vNum": 123
         },
         {
-          "key": "error",
+          "key": "sameplacetag4",
           "vType": "bool",
           "vNum": 1
         },
         {
-          "key": "temperature",
+          "key": "sameplacetag3",
           "vType": "float64",
           "vNum": 4634802150889750528
         },
@@ -59,24 +58,30 @@
         }
       ],
       "process": {
-        "serviceName": "service-x"
-      }
+        "serviceName": "query1-service",
+        "tags": []
+      },
+      "logs": []
     },
     {
       "traceID": "1",
       "spanID": "3",
       "parentSpanID": "2",
-      "operationName": "some-operation",
-      "startTime": "2017-01-26T16:46:31.639875139-05:00",
-      "duration": 3000,
+      "operationName": "query7-operation",
+      "tags": [],
+      "references": [],
+      "startTime": "2017-01-26T16:46:31.639875Z",
+      "duration": 1000,
       "process": {
-        "serviceName": "service-y"
-      }
+        "serviceName": "query7-service",
+        "tags": []
+      },
+      "logs": []
     },
     {
       "traceID": "1",
       "spanID": "4",
-      "operationName": "reference-test",
+      "operationName": "query12-operation",
       "references": [
         {
           "refType": "child-of",
@@ -94,20 +99,47 @@
           "spanID": "2"
         }
       ],
-      "startTime": "2017-01-26T16:46:31.639875139-05:00",
+      "tags": [
+        {
+          "key": "sameplacetag1",
+          "vType": "string",
+          "vStr": "sameplacevalue"
+        },
+        {
+          "key": "sameplacetag2",
+          "vType": "int64",
+          "vNum": 123
+        },
+        {
+          "key": "sameplacetag4",
+          "vType": "bool",
+          "vNum": 1
+        },
+        {
+          "key": "sameplacetag3",
+          "vType": "float64",
+          "vNum": 4634802150889750528
+        },
+        {
+          "key": "blob",
+          "vType": "binary",
+          "vBlob": "AAAwOQ=="
+        }
+      ],
+      "startTime": "2017-01-26T16:46:31.639875Z",
       "duration": 2000,
       "process": {
-        "serviceName": "service-y"
+        "serviceName": "query12-service",
+        "tags": []
       },
-      "warnings": [
-        "some span warning"
-      ]
+      "logs": []
     },
     {
       "traceID": "1",
-      "spanID": "2",
-      "operationName": "some-operation",
-      "startTime": "2017-01-26T16:46:31.639875139-05:00",
+      "spanID": "7",
+      "operationName": "query13-operation",
+      "references": [],
+      "startTime": "2017-01-26T16:46:31.639875Z",
       "duration": 1000,
       "tags": [
         {
@@ -117,18 +149,38 @@
         }
       ],
       "process": {
-        "serviceName": "service-x",
+        "serviceName": "query13-service",
         "tags": [
           {
-            "key": "tag2",
+            "key": "sameplacetag1",
             "vType": "string",
-            "vStr": "value2"
+            "vStr": "sameplacevalue"
+          },
+          {
+            "key": "sameplacetag2",
+            "vType": "int64",
+            "vNum": 123
+          },
+          {
+            "key": "sameplacetag4",
+            "vType": "bool",
+            "vNum": 1
+          },
+          {
+            "key": "sameplacetag3",
+            "vType": "float64",
+            "vNum": 4634802150889750528
+          },
+          {
+            "key": "blob",
+            "vType": "binary",
+            "vBlob": "AAAwOQ=="
           }
         ]
       },
       "logs": [
         {
-          "timestamp": "2017-01-26T16:46:31.639875139-05:00",
+          "timestamp": "2017-01-26T16:46:31.639875Z",
           "fields": [
             {
               "key": "tag3",
@@ -138,7 +190,7 @@
           ]
         },
         {
-          "timestamp": "2017-01-26T16:46:31.639875139-05:00",
+          "timestamp": "2017-01-26T16:46:31.639875Z",
           "fields": [
             {
               "key": "something",
@@ -149,8 +201,5 @@
         }
       ]
     }
-  ],
-  "warnings": [
-    "some trace warning"
   ]
 }
