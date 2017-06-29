@@ -210,7 +210,7 @@ func TestCheckTraceWithQuery_fixedTrace(t *testing.T) {
 			expected: false,
 		},
 		{
-			caption: "service + operation match, but bad duration range",
+			caption: "service + operation match, but bad duration rmakeange",
 			query: &spanstore.TraceQueryParameters{
 				ServiceName:   "service-x",
 				StartTimeMin:  time.Date(2017, 1, 26, 21, 0, 0, 0, time.UTC),

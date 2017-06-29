@@ -21,9 +21,9 @@
 package integration
 
 import (
+	"errors"
 	"sort"
 	"testing"
-	"errors"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
