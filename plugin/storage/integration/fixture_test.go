@@ -2,13 +2,15 @@ package integration
 
 import (
 	"testing"
-	"github.com/uber/jaeger/model"
-	"github.com/uber/jaeger/storage/spanstore"
-	"github.com/stretchr/testify/assert"
 	"io/ioutil"
-	"github.com/stretchr/testify/require"
 	"encoding/json"
 	"time"
+
+	"github.com/uber/jaeger/model"
+	"github.com/uber/jaeger/storage/spanstore"
+
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 func TestCheckTraceWithQuery_fixedTrace(t *testing.T) {
