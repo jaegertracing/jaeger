@@ -22,15 +22,14 @@ package integration
 
 import (
 	"context"
+	"encoding/json"
 	"fmt"
+	"io/ioutil"
 	"math/rand"
 	"strconv"
+	"strings"
 	"testing"
 	"time"
-	"bytes"
-	"io/ioutil"
-	"encoding/json"
-	"strings"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -50,8 +49,8 @@ type StorageIntegration struct {
 }
 
 type QueryFixtures struct {
-	Caption string
-	Query *spanstore.TraceQueryParameters
+	Caption        string
+	Query          *spanstore.TraceQueryParameters
 	ExpectedTraces []int
 }
 
@@ -89,7 +88,7 @@ func randomTimeAndDuration() (time.Time, time.Duration) {
 
 func randomTimeAndDurationBetween(startTime time.Time, duration time.Duration) (time.Time, time.Duration) {
 	randomStartDuration := rand.Intn(int(duration)) / 1000 * 1000
-	randomDuration := rand.Intn(int(duration) - randomStartDuration) / 1000 * 1000
+	randomDuration := rand.Intn(int(duration)-randomStartDuration) / 1000 * 1000
 	return startTime.Add(time.Duration(randomStartDuration)), time.Duration(randomDuration)
 }
 
@@ -357,7 +356,7 @@ func getSubsetOfTraces(traces []*model.Trace, expectedTraces []int) []*model.Tra
 func getTraceFixtures() ([]*model.Trace, error) {
 	traces := make([]*model.Trace, numOfTraceFixtures)
 	for i := 0; i < numOfTraceFixtures; i++ {
-		trace, err := getTraceFixture(i+1)
+		trace, err := getTraceFixture(i + 1)
 		if err != nil {
 			return nil, err
 		}

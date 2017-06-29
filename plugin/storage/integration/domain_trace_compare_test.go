@@ -23,12 +23,12 @@ package integration
 import (
 	"sort"
 	"testing"
+	"errors"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
 	"github.com/uber/jaeger/model"
-	"errors"
 )
 
 type TraceByTraceID []*model.Trace
@@ -82,7 +82,6 @@ func sortModelTraces(expected *model.Trace, actual *model.Trace) error {
 	}
 	return nil
 }
-
 
 func sortModelSpans(expected *model.Span, actual *model.Span) error {
 	expected.NormalizeTimestamps()
