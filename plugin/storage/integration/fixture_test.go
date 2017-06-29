@@ -14,7 +14,7 @@ import (
 )
 
 func TestCheckTraceWithQuery_fixedTrace(t *testing.T) {
-	inStr, err := ioutil.ReadFile("fixtures/trace.json")
+	inStr, err := ioutil.ReadFile("fixtures/traces/fixture_trace.json")
 	require.NoError(t, err)
 	var trace model.Trace
 	require.NoError(t, json.Unmarshal(inStr, &trace))

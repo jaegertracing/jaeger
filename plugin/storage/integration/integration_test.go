@@ -34,9 +34,10 @@ import (
 
 	"github.com/uber/jaeger/model"
 	"github.com/uber/jaeger/storage/spanstore"
+	"bytes"
+	"io/ioutil"
+	"encoding/json"
 )
-
-type QueryType int
 
 type StorageIntegration struct {
 	ctx     context.Context
@@ -47,13 +48,21 @@ type StorageIntegration struct {
 	refresh func() error // function called between set-up and queries in each test
 }
 
+type QueryToExpected struct {
+	Caption string
+	Query *spanstore.TraceQueryParameters
+	ExpectedTraces []int
+}
+
 const (
 	floatTagVal  = "95.0421"
 	intTagVal    = "950421"
 	stringTagVal = "xyz"
 	boolTagVal   = "true"
 
-	numOfInitTraces = 300
+	numOfQueries = 5
+	numOfTraceFixtures = 5
+
 	defaultNumSpans = 5
 	timeOut         = 3 // in seconds
 )
@@ -80,14 +89,14 @@ var (
 			ServiceName:  randomService(),
 			StartTimeMin: time.Now().Add(-3 * time.Hour),
 			StartTimeMax: time.Now(),
-			NumTraces:    numOfInitTraces, //set to numOfInitTraces if you don't care about number of traces retrieved, and you want all
+			NumTraces:    numOfTraceFixtures, //set to numOfInitTraces if you don't care about number of traces retrieved, and you want all
 		},
 		{
 			ServiceName:   randomService(),
 			OperationName: randomOperation(),
 			StartTimeMin:  time.Now().Add(-3 * time.Hour),
 			StartTimeMax:  time.Now(),
-			NumTraces:     numOfInitTraces,
+			NumTraces:     numOfTraceFixtures,
 		},
 		{
 			ServiceName: randomService(),
@@ -97,7 +106,7 @@ var (
 			},
 			StartTimeMin: time.Now().Add(-3 * time.Hour),
 			StartTimeMax: time.Now(),
-			NumTraces:    numOfInitTraces,
+			NumTraces:    numOfTraceFixtures,
 		},
 		{
 			ServiceName:  randomService(),
@@ -105,7 +114,7 @@ var (
 			StartTimeMax: time.Now(),
 			DurationMin:  100 * time.Millisecond,
 			DurationMax:  400 * time.Millisecond,
-			NumTraces:    numOfInitTraces,
+			NumTraces:    numOfTraceFixtures,
 		},
 		{
 			ServiceName:  randomService(),
@@ -260,7 +269,7 @@ func (s *StorageIntegration) createRandomTrace(t *testing.T, numOfSpans int) *mo
 	return s.createTrace(t, model.TraceID{Low: uint64(rand.Uint32())}, numOfSpans, randomStartTime, randomDuration)
 }
 
-func (s *StorageIntegration) ITestGetServices(t *testing.T) {
+func (s *StorageIntegration) IntegrationTestGetServices(t *testing.T) {
 	services := []string{"service1", "service2", "service3", "service4", "service5"}
 	traceID := model.TraceID{Low: uint64(rand.Uint32())}
 	for _, service := range services {
@@ -288,7 +297,7 @@ func (s *StorageIntegration) ITestGetServices(t *testing.T) {
 	assert.NoError(t, s.cleanUp())
 }
 
-func (s *StorageIntegration) ITestGetOperations(t *testing.T) {
+func (s *StorageIntegration) IntegrationTestGetOperations(t *testing.T) {
 	numOfServices := int64(3)
 	numOfOperations := int64(5)
 
@@ -326,7 +335,7 @@ func (s *StorageIntegration) ITestGetOperations(t *testing.T) {
 	assert.NoError(t, s.cleanUp())
 }
 
-func (s *StorageIntegration) ITestGetTrace(t *testing.T) {
+func (s *StorageIntegration) IntegrationTestGetTrace(t *testing.T) {
 	traceID := model.TraceID{Low: uint64(rand.Uint32())}
 
 	randomStartTime, randomDuration := randomTimeAndDuration()
@@ -351,43 +360,128 @@ func (s *StorageIntegration) ITestGetTrace(t *testing.T) {
 	assert.NoError(t, s.cleanUp())
 }
 
-func (s *StorageIntegration) ITestFindTraces(t *testing.T) {
-	queryTypeToExpectedOutput := s.initializeTraces(t, numOfInitTraces, defaultNumSpans)
+func (s *StorageIntegration) IntegrationTestFindTraces(t *testing.T) {
+	for i := 1 ; i <= numOfQueries ; i++ {
+		query, err := getQuery(i)
+		require.NoError(t, err)
+		t.Logf("Testing query case: %s ...", query.Caption)
+		s.integrationTestFindTracesByQuery(t, query.Query, query.ExpectedTraces)
+	}
+}
 
-	s.refresh()
+func (s *StorageIntegration) integrationTestFindTracesByQuery(t *testing.T, query *spanstore.TraceQueryParameters, expectedTraces []int) {
+	traces, err := getTraceFixtures()
+	require.NoError(t, err)
+	expected := getSubsetOfTraces(traces, expectedTraces)
+	require.NoError(t, s.writeTraces(expected))
+	require.NoError(t, s.refresh())
 
 	iterations := 10 * timeOut
-	for queryType, expected := range queryTypeToExpectedOutput {
-		var found bool
-		for i := 0; i < iterations; i++ {
-			s.logger.Info(fmt.Sprintf("Waiting for ES to update documents, iteration %d out of %d", i+1, iterations))
-			traceQuery := differentQueries[queryType]
-			actual, err := s.reader.FindTraces(traceQuery)
+	var found bool
+	for i := 0; i < iterations; i++ {
+		s.logger.Info(fmt.Sprintf("Waiting for ES to update documents, iteration %d out of %d", i+1, iterations))
+		actual, err := s.reader.FindTraces(query)
+		require.NoError(t, err)
 
-			require.NoError(t, err)
-			if len(actual) == traceQuery.NumTraces {
-				found = true
-				break
-			}
-			if found = err == nil && tracesMatch(actual, len(expected), defaultNumSpans); found {
-				CompareListOfModelTraces(t, expected, actual)
-				break
-			}
-			time.Sleep(100 * time.Millisecond)
+		if len(actual) == query.NumTraces {
+			found = true
+			break
 		}
-		assert.True(t, found)
-		if !found {
-			t.Log(queryType, "is weird")
+		if found = err == nil && tracesMatch(actual, len(expected), defaultNumSpans); found {
+			CompareListOfModelTraces(t, expected, actual)
+			break
+		}
+		time.Sleep(100 * time.Millisecond)
+	}
+	assert.True(t, found)
+}
+
+func (s *StorageIntegration) writeTraces(traces []*model.Trace) error {
+	for _, trace := range traces {
+		for _, span := range trace.Spans {
+			err := s.writer.WriteSpan(span)
+			if err != nil {
+				return err
+			}
 		}
 	}
-	assert.NoError(t, s.cleanUp())
+	return nil
+}
+
+func getSubsetOfTraces(traces []*model.Trace, expectedTraces []int) []*model.Trace {
+	retTraces := make([]*model.Trace, len(expectedTraces))
+	for i, traceNum := range expectedTraces {
+		retTraces[i] = traces[traceNum+1]
+	}
+	return retTraces
+}
+
+func getTraceFixtures() ([]*model.Trace, error) {
+	traces := make([]*model.Trace, numOfTraceFixtures)
+	for i := 0; i < numOfTraceFixtures; i++ {
+		trace, err := getTraceFixture(i+1)
+		if err != nil {
+			return nil, err
+		}
+		traces[i] = trace
+	}
+	return traces, nil
+}
+
+func getTraceFixture(i int) (*model.Trace, error) {
+	fileName := fmt.Sprintf("fixtures/traces/trace_%02d.json", i)
+	inStr, err := ioutil.ReadFile(fileName)
+	if err != nil {
+		return nil, err
+	}
+	var trace model.Trace
+	err = json.Unmarshal(inStr, &trace)
+	if err != nil {
+		return nil, err
+	}
+	return &trace, nil
+}
+
+func getQuery(i int) (*QueryToExpected, error) {
+	fileName := fmt.Sprintf("fixtures/queries/query_%02d.json", i)
+	inStr, err := ioutil.ReadFile(fileName)
+	if err != nil {
+		return nil, err
+	}
+	var queryToExpected QueryToExpected
+	err = json.Unmarshal(inStr, &queryToExpected)
+	if err != nil {
+		return nil, err
+	}
+	return &queryToExpected, nil
 }
 
 // DO NOT RUN IF YOU HAVE IMPORTANT SPANS IN ELASTICSEARCH
-func (s *StorageIntegration) ITestAll(t *testing.T) {
+func (s *StorageIntegration) IntegrationTestAll(t *testing.T) {
 	rand.Seed(time.Now().UnixNano())
-	s.ITestGetServices(t)
-	s.ITestGetOperations(t)
-	s.ITestGetTrace(t)
-	s.ITestFindTraces(t)
+	s.IntegrationTestGetServices(t)
+	s.IntegrationTestGetOperations(t)
+	s.IntegrationTestGetTrace(t)
+	s.IntegrationTestFindTraces(t)
+}
+
+
+
+
+
+
+
+
+
+
+
+
+func Test_createstuff(t *testing.T) {
+	buf := &bytes.Buffer{}
+	enc := json.NewEncoder(buf)
+	enc.SetIndent("", "  ")
+
+	enc.Encode(&QueryToExpected{Query: &spanstore.TraceQueryParameters{},ExpectedTraces:[]int{1,2,3}})
+
+	ioutil.WriteFile("fixtures/queries/query_01.json", buf.Bytes(), 0644)
 }

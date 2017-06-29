@@ -1,0 +1,18 @@
+{
+  "Caption": "",
+  "Query": {
+    "ServiceName": "",
+    "OperationName": "",
+    "Tags": null,
+    "StartTimeMin": "0001-01-01T00:00:00Z",
+    "StartTimeMax": "0001-01-01T00:00:00Z",
+    "DurationMin": 0,
+    "DurationMax": 0,
+    "NumTraces": 0
+  },
+  "ExpectedTraces": [
+    1,
+    2,
+    3
+  ]
+}

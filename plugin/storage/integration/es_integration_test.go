@@ -87,5 +87,5 @@ func TestAll(t *testing.T) {
 	}
 	s := &StorageIntegration{}
 	require.NoError(t, initializeES(s))
-	s.ITestAll(t)
+	s.IntegrationTestAll(t)
 }

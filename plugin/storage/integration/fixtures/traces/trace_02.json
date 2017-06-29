@@ -1,0 +1,156 @@
+{
+  "Spans": [
+    {
+      "traceID": "1",
+      "spanID": "2",
+      "operationName": "test-general-conversion",
+      "startTime": "2017-01-26T16:46:31.639875139-05:00",
+      "duration": 5000,
+      "process": {
+        "serviceName": "service-x"
+      },
+      "logs": [
+        {
+          "timestamp": "2017-01-26T16:46:31.639875139-05:00",
+          "fields": [
+            {
+              "key": "event",
+              "vType": "string",
+              "vStr": "some-event"
+            }
+          ]
+        },
+        {
+          "timestamp": "2017-01-26T16:46:31.639875139-05:00"
+        }
+      ]
+    },
+    {
+      "traceID": "1",
+      "spanID": "2",
+      "operationName": "some-operation",
+      "startTime": "2017-01-26T16:46:31.639875139-05:00",
+      "duration": 7000,
+      "tags": [
+        {
+          "key": "peer.service",
+          "vType": "string",
+          "vStr": "service-y"
+        },
+        {
+          "key": "peer.ipv4",
+          "vType": "int64",
+          "vNum": 23456
+        },
+        {
+          "key": "error",
+          "vType": "bool",
+          "vNum": 1
+        },
+        {
+          "key": "temperature",
+          "vType": "float64",
+          "vNum": 4634802150889750528
+        },
+        {
+          "key": "blob",
+          "vType": "binary",
+          "vBlob": "AAAwOQ=="
+        }
+      ],
+      "process": {
+        "serviceName": "service-x"
+      }
+    },
+    {
+      "traceID": "1",
+      "spanID": "3",
+      "parentSpanID": "2",
+      "operationName": "some-operation",
+      "startTime": "2017-01-26T16:46:31.639875139-05:00",
+      "duration": 3000,
+      "process": {
+        "serviceName": "service-y"
+      }
+    },
+    {
+      "traceID": "1",
+      "spanID": "4",
+      "operationName": "reference-test",
+      "references": [
+        {
+          "refType": "child-of",
+          "traceID": "ff",
+          "spanID": "ff"
+        },
+        {
+          "refType": "child-of",
+          "traceID": "1",
+          "spanID": "2"
+        },
+        {
+          "refType": "follows-from",
+          "traceID": "1",
+          "spanID": "2"
+        }
+      ],
+      "startTime": "2017-01-26T16:46:31.639875139-05:00",
+      "duration": 2000,
+      "process": {
+        "serviceName": "service-y"
+      },
+      "warnings": [
+        "some span warning"
+      ]
+    },
+    {
+      "traceID": "1",
+      "spanID": "2",
+      "operationName": "some-operation",
+      "startTime": "2017-01-26T16:46:31.639875139-05:00",
+      "duration": 1000,
+      "tags": [
+        {
+          "key": "tag1",
+          "vType": "string",
+          "vStr": "value1"
+        }
+      ],
+      "process": {
+        "serviceName": "service-x",
+        "tags": [
+          {
+            "key": "tag2",
+            "vType": "string",
+            "vStr": "value2"
+          }
+        ]
+      },
+      "logs": [
+        {
+          "timestamp": "2017-01-26T16:46:31.639875139-05:00",
+          "fields": [
+            {
+              "key": "tag3",
+              "vType": "string",
+              "vStr": "value3"
+            }
+          ]
+        },
+        {
+          "timestamp": "2017-01-26T16:46:31.639875139-05:00",
+          "fields": [
+            {
+              "key": "something",
+              "vType": "string",
+              "vStr": "blah"
+            }
+          ]
+        }
+      ]
+    }
+  ],
+  "warnings": [
+    "some trace warning"
+  ]
+}
