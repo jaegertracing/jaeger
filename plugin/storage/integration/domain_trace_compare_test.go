@@ -24,9 +24,11 @@ import (
 	"errors"
 	"sort"
 	"testing"
+	"encoding/json"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"github.com/kr/pretty"
 
 	"github.com/uber/jaeger/model"
 )
@@ -51,7 +53,14 @@ func CompareListOfModelTraces(t *testing.T, expected []*model.Trace, actual []*m
 	for i := range expected {
 		assert.NoError(t, sortModelTraces(expected[i], actual[i]))
 	}
-	assert.EqualValues(t, expected, actual)
+	if !assert.EqualValues(t, expected, actual) {
+		for _, err := range pretty.Diff(expected, actual) {
+			t.Log(err)
+		}
+		out, err := json.Marshal(actual)
+		assert.NoError(t, err)
+		t.Logf("Actual traces: %s", string(out))
+	}
 }
 
 type SpanBySpanID []*model.Span
@@ -66,7 +75,14 @@ func CompareModelTraces(t *testing.T, expected *model.Trace, actual *model.Trace
 		return
 	}
 	assert.NoError(t, sortModelTraces(expected, actual))
-	assert.EqualValues(t, expected, actual)
+	if !assert.EqualValues(t, expected, actual) {
+		for _, err := range pretty.Diff(expected, actual) {
+			t.Log(err)
+		}
+		out, err := json.Marshal(actual)
+		assert.NoError(t, err)
+		t.Logf("Actual trace: %s", string(out))
+	}
 }
 
 func sortModelTraces(expected *model.Trace, actual *model.Trace) error {
