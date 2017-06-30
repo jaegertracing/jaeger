@@ -44,7 +44,6 @@ install:
   - if [ "$ALL_IN_ONE" == true ]; then bash ./travis/install-ui-deps.sh ; fi
   - if [ "$DOCKER" == true ]; then bash ./travis/install-ui-deps.sh ; fi
   - if [ "$CROSSDOCK" == true ]; then bash ./travis/install-crossdock-deps.sh ; fi
-  - if [ "$ES_INTEGRATION_TEST" == true ]; then bash ./travis/es-integration-test.sh ; fi
 
 script:
   - if [ "$TESTS" == true ]; then make test_ci ; else echo 'skipping tests'; fi
