@@ -16,7 +16,7 @@
       "DurationMax": 0,
       "NumTraces": 1000
     },
-    "ExpectedTraces": [
+    "ExpectedFixtures": [
       1
     ]
   },
@@ -37,7 +37,7 @@
       "DurationMax": 0,
       "NumTraces": 1000
     },
-    "ExpectedTraces": [
+    "ExpectedFixtures": [
       2
     ]
   },
@@ -58,7 +58,7 @@
       "DurationMax": 0,
       "NumTraces": 1000
     },
-    "ExpectedTraces": [
+    "ExpectedFixtures": [
       3
     ]
   },
@@ -79,7 +79,7 @@
       "DurationMax": 0,
       "NumTraces": 1000
     },
-    "ExpectedTraces": [
+    "ExpectedFixtures": [
       4
     ]
   },
@@ -95,7 +95,7 @@
       "DurationMax": 0,
       "NumTraces": 1000
     },
-    "ExpectedTraces": [
+    "ExpectedFixtures": [
       5
     ]
   },
@@ -111,7 +111,7 @@
       "DurationMax": 0,
       "NumTraces": 1000
     },
-    "ExpectedTraces": [
+    "ExpectedFixtures": [
       1
     ]
   },
@@ -127,7 +127,7 @@
       "DurationMax": 2000,
       "NumTraces": 1000
     },
-    "ExpectedTraces": [
+    "ExpectedFixtures": [
       1,
       2
     ]
@@ -144,7 +144,7 @@
       "DurationMax": 5500,
       "NumTraces": 1000
     },
-    "ExpectedTraces": [
+    "ExpectedFixtures": [
       3
     ]
   },
@@ -160,7 +160,7 @@
       "DurationMax": 5500,
       "NumTraces": 1000
     },
-    "ExpectedTraces": [
+    "ExpectedFixtures": [
       5
     ]
   },
@@ -176,7 +176,7 @@
       "DurationMax": 1000,
       "NumTraces": 1000
     },
-    "ExpectedTraces": [
+    "ExpectedFixtures": [
       4
     ]
   },
@@ -192,7 +192,7 @@
       "DurationMax": 0,
       "NumTraces": 1000
     },
-    "ExpectedTraces": [
+    "ExpectedFixtures": [
       4
     ]
   },
@@ -213,7 +213,7 @@
       "DurationMax": 0,
       "NumTraces": 1000
     },
-    "ExpectedTraces": [
+    "ExpectedFixtures": [
       1
     ]
   },
@@ -234,7 +234,7 @@
       "DurationMax": 2000,
       "NumTraces": 1000
     },
-    "ExpectedTraces": [
+    "ExpectedFixtures": [
       1
     ]
   },
@@ -255,7 +255,7 @@
       "DurationMax": 5500,
       "NumTraces": 1000
     },
-    "ExpectedTraces": [
+    "ExpectedFixtures": [
       2
     ]
   },
@@ -276,7 +276,7 @@
       "DurationMax": 5500,
       "NumTraces": 1000
     },
-    "ExpectedTraces": [
+    "ExpectedFixtures": [
       2
     ]
   },
@@ -297,7 +297,7 @@
       "DurationMax": 1000,
       "NumTraces": 1000
     },
-    "ExpectedTraces": [
+    "ExpectedFixtures": [
       2
     ]
   },
@@ -318,7 +318,7 @@
       "DurationMax": 0,
       "NumTraces": 1000
     },
-    "ExpectedTraces": [
+    "ExpectedFixtures": [
       4
     ]
   },
@@ -339,7 +339,7 @@
       "DurationMax": 2000,
       "NumTraces": 1000
     },
-    "ExpectedTraces": [
+    "ExpectedFixtures": [
       5
     ]
   },
@@ -360,7 +360,7 @@
       "DurationMax": 5500,
       "NumTraces": 1000
     },
-    "ExpectedTraces": [
+    "ExpectedFixtures": [
       5
     ]
   },
@@ -381,7 +381,7 @@
       "DurationMax": 5500,
       "NumTraces": 1000
     },
-    "ExpectedTraces": [
+    "ExpectedFixtures": [
       3
     ]
   },
@@ -402,7 +402,7 @@
       "DurationMax": 1000,
       "NumTraces": 1000
     },
-    "ExpectedTraces": [
+    "ExpectedFixtures": [
       3
     ]
   }

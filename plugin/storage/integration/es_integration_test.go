@@ -22,14 +22,14 @@ package integration
 
 import (
 	"context"
+	"net/http"
 	"os"
 	"testing"
 	"time"
-	"net/http"
 
 	"github.com/olivere/elastic"
-	"github.com/stretchr/testify/require"
 	"github.com/pkg/errors"
+	"github.com/stretchr/testify/require"
 
 	"github.com/uber/jaeger/pkg/es"
 	"github.com/uber/jaeger/pkg/testutils"
@@ -41,8 +41,8 @@ const (
 	queryPort     = "9200"
 	queryHostPort = host + ":" + queryPort
 	queryURL      = "http://" + queryHostPort
-	username = "elastic" // the elasticsearch default username
-	password = "changeme" // the elasticsearch default password
+	username      = "elastic"  // the elasticsearch default username
+	password      = "changeme" // the elasticsearch default password
 )
 
 func initializeES(s *StorageIntegration) error {
@@ -61,8 +61,8 @@ func initializeES(s *StorageIntegration) error {
 	writer := spanstore.NewSpanWriter(client, logger)
 	reader := spanstore.NewSpanReader(client, logger)
 
-	s.cleanUp = eSCleanUp
-	s.refresh = eSRefresh
+	s.cleanUp = esCleanUp
+	s.refresh = esRefresh
 	s.cleanUp()
 	s.writer = writer
 	s.reader = reader
@@ -70,7 +70,7 @@ func initializeES(s *StorageIntegration) error {
 	return nil
 }
 
-func eSCleanUp() error {
+func esCleanUp() error {
 	simpleClient, err := elastic.NewSimpleClient(
 		elastic.SetURL(queryURL),
 		elastic.SetBasicAuth(username, password),
@@ -79,13 +79,11 @@ func eSCleanUp() error {
 	if err != nil {
 		return err
 	}
-	simpleClient.DeleteIndex(spanstore.IndexWithDate(time.Now())).Do(ctx)
-	simpleClient.DeleteIndex(spanstore.IndexWithDate(time.Now().AddDate(0, 0, -1))).Do(ctx)
-	simpleClient.DeleteIndex(spanstore.IndexWithDate(time.Now().AddDate(0, 0, -2))).Do(ctx)
+	simpleClient.DeleteIndex("*").Do(ctx)
 	return nil
 }
 
-func eSRefresh() error {
+func esRefresh() error {
 	simpleClient, err := elastic.NewSimpleClient(
 		elastic.SetURL(queryURL),
 		elastic.SetBasicAuth(username, password),
@@ -110,9 +108,8 @@ func healthCheck() error {
 
 // DO NOT RUN IF YOU HAVE IMPORTANT SPANS IN ELASTICSEARCH
 func TestAll(t *testing.T) {
-	if os.Getenv("ESINTEGRATIONTEST") == "" {
-		t.Log("Set ESINTEGRATIONTEST env variable to run an integration test on ElasticSearch backend")
-		return
+	if os.Getenv("ES_INTEGRATION_TEST") == "" {
+		t.Skip("Set ES_INTEGRATION_TEST env variable to run an integration test on ElasticSearch backend")
 	}
 	if err := healthCheck(); err != nil {
 		t.Fatal(err)

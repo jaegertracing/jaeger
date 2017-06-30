@@ -42,18 +42,18 @@ type StorageIntegration struct {
 	writer  spanstore.Writer
 	reader  spanstore.Reader
 	cleanUp func() error
-	refresh func() error // function called between set-up and queries in each test
+	refresh func() error // this function should ensure that the storage backend is up to date before being queried.
+	// called between set-up and queries in each test
 }
 
 type QueryFixtures struct {
-	Caption        string
-	Query          *spanstore.TraceQueryParameters
-	ExpectedTraces []int
+	Caption          string
+	Query            *spanstore.TraceQueryParameters
+	ExpectedFixtures []int
 }
 
 const (
 	numOfTraceFixtures = 5
-	timeOut            = 3 // in seconds
 )
 
 func (s *StorageIntegration) IntegrationTestGetServices(t *testing.T) {
@@ -66,10 +66,10 @@ func (s *StorageIntegration) IntegrationTestGetServices(t *testing.T) {
 	s.refresh()
 
 	var found bool
-	iterations := 10 * timeOut
+
 	var actual []string
-	for i := 0; i < iterations; i++ {
-		s.logger.Info(fmt.Sprintf("Waiting for ES to update documents, iteration %d out of %d", i+1, iterations))
+	for i := 0; i < 30; i++ {
+		s.logger.Info(fmt.Sprintf("Waiting for storage backend to update documents, iteration %d out of %d", i+1, 30))
 		actual, err = s.reader.GetServices()
 		require.NoError(t, err)
 		if found = assert.ObjectsAreEqualValues(expected, actual); found {
@@ -96,10 +96,9 @@ func (s *StorageIntegration) IntegrationTestGetOperations(t *testing.T) {
 	s.refresh()
 
 	var found bool
-	iterations := 10 * timeOut
 	var actual []string
-	for i := 0; i < iterations; i++ {
-		s.logger.Info(fmt.Sprintf("Waiting for ES to update documents, iteration %d out of %d", i+1, iterations))
+	for i := 0; i < 30; i++ {
+		s.logger.Info(fmt.Sprintf("Waiting for storage backend to update documents, iteration %d out of %d", i+1, 30))
 		actual, err = s.reader.GetOperations("query05-service")
 		require.NoError(t, err)
 		if found = assert.ObjectsAreEqualValues(expected, actual); found {
@@ -126,14 +125,16 @@ func (s *StorageIntegration) IntegrationTestGetTrace(t *testing.T) {
 	s.refresh()
 
 	var found bool
-	iterations := 10 * timeOut
 	var actual *model.Trace
-	for i := 0; i < iterations; i++ {
-		s.logger.Info(fmt.Sprintf("Waiting for ES to update documents, iteration %d out of %d", i+1, iterations))
+	for i := 0; i < 30; i++ {
+		s.logger.Info(fmt.Sprintf("Waiting for storage backend to update documents, iteration %d out of %d", i+1, 30))
 		actual, err = s.reader.GetTrace(traceID)
-		if found = err == nil && len(actual.Spans) == len(expected.Spans); found {
-			CompareModelTraces(t, expected, actual)
-			break
+		if err != nil {
+			found = len(actual.Spans) == len(expected.Spans)
+			if found {
+				CompareTraces(t, expected, actual)
+				break
+			}
 		}
 		time.Sleep(100 * time.Millisecond) // Will wait up to 3 seconds at worst.
 	}
@@ -141,9 +142,6 @@ func (s *StorageIntegration) IntegrationTestGetTrace(t *testing.T) {
 	if !assert.True(t, found) {
 		t.Log("\t Expected:", expected)
 		t.Log("\t Actual  :", actual)
-		for _, span := range actual.Spans {
-			t.Log(span.TraceID, span.Process.ServiceName)
-		}
 	}
 	assert.NoError(t, s.cleanUp())
 }
@@ -166,20 +164,20 @@ func (s *StorageIntegration) integrationTestFindTracesByQuery(t *testing.T, quer
 	require.NoError(t, s.writeTraces(expected))
 	require.NoError(t, s.refresh())
 
-	iterations := 10 * timeOut
 	var found bool
-	for i := 0; i < iterations; i++ {
-		s.logger.Info(fmt.Sprintf("Waiting for ES to update documents, iteration %d out of %d", i+1, iterations))
+	for i := 0; i < 30; i++ {
+		s.logger.Info(fmt.Sprintf("Waiting for storage backend to update documents, iteration %d out of %d", i+1, 30))
 		actual, err := s.reader.FindTraces(query)
-		require.NoError(t, err)
-
-		if len(actual) == query.NumTraces {
-			found = true
-			break
-		}
-		if found = err == nil && tracesMatch(actual, expected); found {
-			CompareListOfModelTraces(t, expected, actual)
-			break
+		if err != nil {
+			if len(actual) == query.NumTraces {
+				found = true
+				break
+			}
+			found = tracesMatch(actual, expected)
+			if found {
+				CompareListOfTraces(t, expected, actual)
+				break
+			}
 		}
 		time.Sleep(100 * time.Millisecond)
 	}
@@ -228,8 +226,7 @@ func getTraceFixtures() ([]*model.Trace, error) {
 func getTraceFixture(i int) (*model.Trace, error) {
 	var trace model.Trace
 	fileName := fmt.Sprintf("fixtures/traces/trace_%02d.json", i)
-	err := getFixture(fileName, &trace)
-	if err != nil {
+	if err := getFixture(fileName, &trace); err != nil {
 		return nil, err
 	}
 	return &trace, nil
@@ -237,8 +234,7 @@ func getTraceFixture(i int) (*model.Trace, error) {
 
 func getQueries() ([]*QueryFixtures, error) {
 	var queries []*QueryFixtures
-	err := getFixture("fixtures/queries.json", &queries)
-	if err != nil {
+	if err := getFixture("fixtures/queries.json", &queries); err != nil {
 		return nil, err
 	}
 	return queries, nil
@@ -249,11 +245,11 @@ func getFixture(path string, object interface{}) error {
 	if err != nil {
 		return err
 	}
-	err = json.Unmarshal(normalizeTime(inStr), object)
-	return err
+	return json.Unmarshal(correctTime(inStr), object)
 }
 
-func normalizeTime(json []byte) []byte {
+// required, because we want to only query on recent traces, so we replace all the dates with recent dates.
+func correctTime(json []byte) []byte {
 	jsonString := string(json)
 	today := time.Now().Format("2006-01-02")
 	yesterday := time.Now().AddDate(0, 0, -1).Format("2006-01-02")

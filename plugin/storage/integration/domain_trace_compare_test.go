@@ -46,12 +46,12 @@ func (s TraceByTraceID) Less(i, j int) bool {
 	return s[i].Spans[0].TraceID.Low < s[j].Spans[0].TraceID.Low
 }
 
-func CompareListOfModelTraces(t *testing.T, expected []*model.Trace, actual []*model.Trace) {
+func CompareListOfTraces(t *testing.T, expected []*model.Trace, actual []*model.Trace) {
 	sort.Sort(TraceByTraceID(expected))
 	sort.Sort(TraceByTraceID(actual))
-	assert.Equal(t, len(expected), len(actual))
+	require.Equal(t, len(expected), len(actual))
 	for i := range expected {
-		assert.NoError(t, sortModelTraces(expected[i], actual[i]))
+		require.NoError(t, sortTraces(expected[i], actual[i]))
 	}
 	if !assert.EqualValues(t, expected, actual) {
 		for _, err := range pretty.Diff(expected, actual) {
@@ -69,12 +69,12 @@ func (s SpanBySpanID) Len() int           { return len(s) }
 func (s SpanBySpanID) Swap(i, j int)      { s[i], s[j] = s[j], s[i] }
 func (s SpanBySpanID) Less(i, j int) bool { return s[i].SpanID < s[j].SpanID }
 
-func CompareModelTraces(t *testing.T, expected *model.Trace, actual *model.Trace) {
+func CompareTraces(t *testing.T, expected *model.Trace, actual *model.Trace) {
 	if expected.Spans == nil {
 		require.Nil(t, actual.Spans)
 		return
 	}
-	assert.NoError(t, sortModelTraces(expected, actual))
+	require.NoError(t, sortTraces(expected, actual))
 	if !assert.EqualValues(t, expected, actual) {
 		for _, err := range pretty.Diff(expected, actual) {
 			t.Log(err)
@@ -85,7 +85,7 @@ func CompareModelTraces(t *testing.T, expected *model.Trace, actual *model.Trace
 	}
 }
 
-func sortModelTraces(expected *model.Trace, actual *model.Trace) error {
+func sortTraces(expected *model.Trace, actual *model.Trace) error {
 	expectedSpans := expected.Spans
 	actualSpans := actual.Spans
 	if len(expectedSpans) != len(actualSpans) {
@@ -94,21 +94,23 @@ func sortModelTraces(expected *model.Trace, actual *model.Trace) error {
 	sort.Sort(SpanBySpanID(expectedSpans))
 	sort.Sort(SpanBySpanID(actualSpans))
 	for i := range expectedSpans {
-		sortModelSpans(expectedSpans[i], actualSpans[i])
+		if err := sortSpans(expectedSpans[i], actualSpans[i]); err != nil {
+			return err
+		}
 	}
 	return nil
 }
 
-func sortModelSpans(expected *model.Span, actual *model.Span) error {
+func sortSpans(expected *model.Span, actual *model.Span) error {
 	expected.NormalizeTimestamps()
 	actual.NormalizeTimestamps()
-	if err := sortModelTags(expected.Tags, actual.Tags); err != nil {
+	if err := sortTags(expected.Tags, actual.Tags); err != nil {
 		return err
 	}
-	if err := sortModelLogs(expected.Logs, actual.Logs); err != nil {
+	if err := sortLogs(expected.Logs, actual.Logs); err != nil {
 		return err
 	}
-	if err := sortModelProcess(expected.Process, actual.Process); err != nil {
+	if err := sortProcess(expected.Process, actual.Process); err != nil {
 		return err
 	}
 	return nil
@@ -120,7 +122,7 @@ func (t TagByKey) Len() int           { return len(t) }
 func (t TagByKey) Swap(i, j int)      { t[i], t[j] = t[j], t[i] }
 func (t TagByKey) Less(i, j int) bool { return t[i].Key < t[j].Key }
 
-func sortModelTags(expected []model.KeyValue, actual []model.KeyValue) error {
+func sortTags(expected []model.KeyValue, actual []model.KeyValue) error {
 	if len(expected) != len(actual) {
 		return errors.New("tags have different length")
 	}
@@ -135,18 +137,18 @@ func (t LogByTimestamp) Len() int           { return len(t) }
 func (t LogByTimestamp) Swap(i, j int)      { t[i], t[j] = t[j], t[i] }
 func (t LogByTimestamp) Less(i, j int) bool { return t[i].Timestamp.Before(t[j].Timestamp) }
 
-func sortModelLogs(expected []model.Log, actual []model.Log) error {
+func sortLogs(expected []model.Log, actual []model.Log) error {
 	if len(expected) != len(actual) {
 		return errors.New("logs have different length")
 	}
 	sort.Sort(LogByTimestamp(expected))
 	sort.Sort(LogByTimestamp(actual))
 	for i := range expected {
-		sortModelTags(expected[i].Fields, actual[i].Fields)
+		sortTags(expected[i].Fields, actual[i].Fields)
 	}
 	return nil
 }
 
-func sortModelProcess(expected *model.Process, actual *model.Process) error {
-	return sortModelTags(expected.Tags, actual.Tags)
+func sortProcess(expected *model.Process, actual *model.Process) error {
+	return sortTags(expected.Tags, actual.Tags)
 }
