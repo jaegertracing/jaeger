@@ -25,21 +25,34 @@ import (
 	"os"
 	"testing"
 	"time"
+	"net/http"
 
 	"github.com/olivere/elastic"
 	"github.com/stretchr/testify/require"
+	"github.com/pkg/errors"
 
 	"github.com/uber/jaeger/pkg/es"
 	"github.com/uber/jaeger/pkg/testutils"
 	"github.com/uber/jaeger/plugin/storage/es/spanstore"
 )
 
+const (
+	host          = "0.0.0.0"
+	queryPort     = "9200"
+	queryHostPort = host + ":" + queryPort
+	queryURL      = "http://" + queryHostPort
+	username = "elastic" // the elasticsearch default username
+	password = "changeme" // the elasticsearch default password
+)
+
 func initializeES(s *StorageIntegration) error {
 	if s.reader != nil || s.writer != nil {
 		return nil
 	}
-	ctx := context.Background()
-	rawClient, err := elastic.NewClient()
+	rawClient, err := elastic.NewClient(
+		elastic.SetURL(queryURL),
+		elastic.SetBasicAuth(username, password),
+		elastic.SetSniff(false))
 	if err != nil {
 		return err
 	}
@@ -48,7 +61,6 @@ func initializeES(s *StorageIntegration) error {
 	writer := spanstore.NewSpanWriter(client, logger)
 	reader := spanstore.NewSpanReader(client, logger)
 
-	s.ctx = ctx
 	s.cleanUp = eSCleanUp
 	s.refresh = eSRefresh
 	s.cleanUp()
@@ -59,7 +71,10 @@ func initializeES(s *StorageIntegration) error {
 }
 
 func eSCleanUp() error {
-	simpleClient, err := elastic.NewSimpleClient()
+	simpleClient, err := elastic.NewSimpleClient(
+		elastic.SetURL(queryURL),
+		elastic.SetBasicAuth(username, password),
+		elastic.SetSniff(false))
 	ctx := context.Background()
 	if err != nil {
 		return err
@@ -71,7 +86,10 @@ func eSCleanUp() error {
 }
 
 func eSRefresh() error {
-	simpleClient, err := elastic.NewSimpleClient()
+	simpleClient, err := elastic.NewSimpleClient(
+		elastic.SetURL(queryURL),
+		elastic.SetBasicAuth(username, password),
+		elastic.SetSniff(false))
 	ctx := context.Background()
 	if err != nil {
 		return err
@@ -80,11 +98,24 @@ func eSRefresh() error {
 	return nil
 }
 
+func healthCheck() error {
+	for i := 0; i < 100; i++ {
+		if _, err := http.Get(queryURL); err == nil {
+			return nil
+		}
+		time.Sleep(100 * time.Millisecond)
+	}
+	return errors.New("query service is not ready")
+}
+
 // DO NOT RUN IF YOU HAVE IMPORTANT SPANS IN ELASTICSEARCH
 func TestAll(t *testing.T) {
 	if os.Getenv("ESINTEGRATIONTEST") == "" {
 		t.Log("Set ESINTEGRATIONTEST env variable to run an integration test on ElasticSearch backend")
 		return
+	}
+	if err := healthCheck(); err != nil {
+		t.Fatal(err)
 	}
 	s := &StorageIntegration{}
 	require.NoError(t, initializeES(s))

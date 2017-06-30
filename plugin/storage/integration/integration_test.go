@@ -21,7 +21,6 @@
 package integration
 
 import (
-	"context"
 	"encoding/json"
 	"fmt"
 	"io/ioutil"
@@ -39,7 +38,6 @@ import (
 )
 
 type StorageIntegration struct {
-	ctx     context.Context
 	logger  *zap.Logger
 	writer  spanstore.Writer
 	reader  spanstore.Reader
