@@ -46,6 +46,14 @@ type StorageIntegration struct {
 	// called between set-up and queries in each test
 }
 
+// QueryFixtures and TraceFixtures are under ./fixtures/queries.json and ./fixtures/traces/*.json respectively.
+// Each query fixture includes:
+// 	Caption: describes the query we are testing
+// 	Query: the query we are testing
+//	ExpectedFixtures: the trace fixtures that we want back from these queries.
+// The traces are numbered from 1.
+// Queries are not necessarily numbered, but since each query requires a service name,
+// the service name is formatted "query#-service".
 type QueryFixtures struct {
 	Caption          string
 	Query            *spanstore.TraceQueryParameters
