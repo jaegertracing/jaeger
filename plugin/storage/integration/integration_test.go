@@ -26,7 +26,6 @@ import (
 	"fmt"
 	"io/ioutil"
 	"math/rand"
-	"strconv"
 	"strings"
 	"testing"
 	"time"
@@ -55,208 +54,25 @@ type QueryFixtures struct {
 }
 
 const (
-	floatTagVal  = "95.0421"
-	intTagVal    = "950421"
-	stringTagVal = "xyz"
-	boolTagVal   = "true"
-
 	numOfTraceFixtures = 5
-
-	defaultNumSpans = 5
-	timeOut         = 3 // in seconds
+	timeOut            = 3 // in seconds
 )
-
-var (
-	randomTags = map[string]string{
-		"tag1": intTagVal,
-		"tag2": floatTagVal,
-		"tag3": stringTagVal,
-		"tag4": boolTagVal,
-		"tag5": intTagVal,
-		"tag6": stringTagVal,
-		"tag7": stringTagVal,
-	}
-	randomServices   = []string{"service1", "service2", "service3", "service4"}
-	randomOperations = []string{"op1", "op2", "op3", "op4"}
-)
-
-func randomTimeAndDuration() (time.Time, time.Duration) {
-	randomStartTime := time.Now().Add(time.Duration(-1*rand.Intn(80000)) * time.Second).Round(time.Millisecond) // randomizing the startTime
-	randomDuration := 200*time.Millisecond + time.Duration(rand.Intn(800))*time.Millisecond
-	return randomStartTime, randomDuration
-}
-
-func randomTimeAndDurationBetween(startTime time.Time, duration time.Duration) (time.Time, time.Duration) {
-	randomStartDuration := rand.Intn(int(duration)) / 1000 * 1000
-	randomDuration := rand.Intn(int(duration)-randomStartDuration) / 1000 * 1000
-	return startTime.Add(time.Duration(randomStartDuration)), time.Duration(randomDuration)
-}
-
-func randomOperation() string {
-	return randomOperations[rand.Intn(len(randomOperations))]
-}
-
-func randomService() string {
-	return randomServices[rand.Intn(len(randomServices))]
-}
-
-func someRandomTags() model.KeyValues {
-	subsetOfTags := make(map[string]string)
-
-	for key, val := range randomTags {
-		if rand.Intn(3) == 0 {
-			subsetOfTags[key] = val
-		}
-	}
-	return getTagsFromMap(subsetOfTags)
-}
-
-func createRandomSpan(traceID model.TraceID, startTime time.Time, duration time.Duration) *model.Span {
-	return createSpanWithParams(traceID, randomService(), randomOperation(), startTime, duration)
-}
-
-func createSpanWithParams(traceID model.TraceID, service string, operation string, startTime time.Time, duration time.Duration) *model.Span {
-	randomTime, randomDuration := randomTimeAndDurationBetween(startTime, duration)
-
-	return &model.Span{
-		TraceID:       traceID,
-		SpanID:        model.SpanID(uint64(rand.Uint32())),
-		ParentSpanID:  model.SpanID(uint64(rand.Uint32())),
-		OperationName: operation,
-		StartTime:     randomTime,
-		Duration:      randomDuration,
-		Tags:          someRandomTags(),
-		Process: &model.Process{
-			ServiceName: service,
-			Tags:        someRandomTags(),
-		},
-		Logs: []model.Log{
-			{Fields: []model.KeyValue(someRandomTags()), Timestamp: randomTime},
-			{Fields: []model.KeyValue(someRandomTags()), Timestamp: randomTime},
-		},
-		References: []model.SpanRef{},
-	}
-}
-
-func (s *StorageIntegration) createRandomSpansAndWrite(t *testing.T, traceID model.TraceID, numOfSpans int, startTime time.Time, duration time.Duration) []*model.Span {
-	require.True(t, numOfSpans > 0)
-	retSpans := make([]*model.Span, numOfSpans)
-	for i := range retSpans {
-		span := createRandomSpan(traceID, startTime, duration)
-		err := s.writer.WriteSpan(span)
-		require.NoError(t, err)
-		retSpans[i] = span
-	}
-	return retSpans
-}
-
-func getTagsFromMap(tags map[string]string) model.KeyValues {
-	if len(tags) == 0 {
-		return model.KeyValues([]model.KeyValue{})
-	}
-	var retTags []model.KeyValue
-	for key, value := range tags {
-		retTags = append(retTags, tag(key, value))
-	}
-	return retTags
-}
-
-func tag(key string, value string) model.KeyValue {
-	if value == "true" || value == "false" {
-		return model.Bool(key, value == "true")
-	}
-	intVal, err := strconv.ParseInt(value, 10, 64)
-	if err == nil {
-		return model.Int64(key, intVal)
-	}
-	floatVal, err := strconv.ParseFloat(value, 64)
-	if err == nil {
-		return model.Float64(key, floatVal)
-	}
-	return model.String(key, value)
-}
-
-func (s *StorageIntegration) createTrace(t *testing.T, traceID model.TraceID, numOfSpans int, startTime time.Time, duration time.Duration) *model.Trace {
-	assert.True(t, numOfSpans > 0)
-	return &model.Trace{
-		Spans: s.createRandomSpansAndWrite(t, traceID, numOfSpans, startTime, duration),
-	}
-}
-
-func tracesMatch(traces []*model.Trace, numOfTraces int, numOfSpans int) bool {
-	if len(traces) != numOfTraces {
-		return false
-	}
-	for _, trace := range traces {
-		if len(trace.Spans) != numOfSpans {
-			return false
-		}
-	}
-	return true
-}
-
-func (s *StorageIntegration) createRandomTrace(t *testing.T, numOfSpans int) *model.Trace {
-	randomStartTime, randomDuration := randomTimeAndDuration()
-	return s.createTrace(t, model.TraceID{Low: uint64(rand.Uint32())}, numOfSpans, randomStartTime, randomDuration)
-}
 
 func (s *StorageIntegration) IntegrationTestGetServices(t *testing.T) {
 	t.Log("Testing GetServices ...")
-	services := []string{"service1", "service2", "service3", "service4", "service5"}
-	traceID := model.TraceID{Low: uint64(rand.Uint32())}
-	for _, service := range services {
-		randomStartTime, randomDuration := randomTimeAndDuration()
-		span := createSpanWithParams(traceID, service, "op", randomStartTime, randomDuration)
-		err := s.writer.WriteSpan(span)
-		require.NoError(t, err)
-	}
+	expected := []string{"query01-service", "query06-service", "query07-service", "query12-service", "query13-service"}
+	trace, err := getTraceFixture(1)
+	require.NoError(t, err)
+	require.NoError(t, s.writeTrace(trace))
 
 	s.refresh()
 
 	var found bool
 	iterations := 10 * timeOut
+	var actual []string
 	for i := 0; i < iterations; i++ {
 		s.logger.Info(fmt.Sprintf("Waiting for ES to update documents, iteration %d out of %d", i+1, iterations))
-		actual, err := s.reader.GetServices()
-		require.NoError(t, err)
-		if found = assert.ObjectsAreEqualValues(services, actual); found {
-			break
-		}
-		time.Sleep(100 * time.Millisecond) // Will wait up to 3 seconds at worst.
-	}
-
-	assert.True(t, found)
-	assert.NoError(t, s.cleanUp())
-}
-
-func (s *StorageIntegration) IntegrationTestGetOperations(t *testing.T) {
-	t.Log("Testing GetOperations ...")
-	numOfServices := int64(3)
-	numOfOperations := int64(5)
-
-	traceID := model.TraceID{Low: uint64(rand.Uint32())}
-	for i := int64(0); i < numOfServices; i++ {
-		service := "service" + strconv.FormatInt(i, 10)
-		for j := int64(0); j < numOfOperations; j++ {
-			operation := "op" + strconv.FormatInt(i, 10) + strconv.FormatInt(j, 10)
-			randomStartTime, randomDuration := randomTimeAndDuration()
-			span := createSpanWithParams(traceID, service, operation, randomStartTime, randomDuration)
-			err := s.writer.WriteSpan(span)
-			require.NoError(t, err)
-		}
-	}
-
-	s.refresh()
-
-	var found bool
-	iterations := 10 * timeOut
-	expected := make([]string, numOfOperations)
-	for i := range expected {
-		expected[i] = "op0" + strconv.FormatInt(int64(i), 10)
-	}
-	for i := 0; i < iterations; i++ {
-		s.logger.Info(fmt.Sprintf("Waiting for ES to update documents, iteration %d out of %d", i+1, iterations))
-		actual, err := s.reader.GetOperations("service0")
+		actual, err = s.reader.GetServices()
 		require.NoError(t, err)
 		if found = assert.ObjectsAreEqualValues(expected, actual); found {
 			break
@@ -264,33 +80,73 @@ func (s *StorageIntegration) IntegrationTestGetOperations(t *testing.T) {
 		time.Sleep(100 * time.Millisecond) // Will wait up to 3 seconds at worst.
 	}
 
-	assert.True(t, found)
+	if !assert.True(t, found) {
+		t.Log("\t Expected:", expected)
+		t.Log("\t Actual  :", actual)
+	}
 	assert.NoError(t, s.cleanUp())
 }
 
-func (s *StorageIntegration) IntegrationTestGetTrace(t *testing.T) {
-	t.Log("Testing GetTrace ...")
-	traceID := model.TraceID{Low: uint64(rand.Uint32())}
+func (s *StorageIntegration) IntegrationTestGetOperations(t *testing.T) {
+	t.Log("Testing GetOperations ...")
 
-	randomStartTime, randomDuration := randomTimeAndDuration()
-	expected := s.createTrace(t, traceID, defaultNumSpans, randomStartTime, randomDuration)
-	s.createRandomTrace(t, defaultNumSpans)
+	expected := []string{"operation-list-test1", "operation-list-test2", "operation-list-test3"}
+	traces, err := getTraceFixtures()
+	require.NoError(t, err)
+	require.NoError(t, s.writeTraces(traces))
 
 	s.refresh()
 
 	var found bool
 	iterations := 10 * timeOut
+	var actual []string
 	for i := 0; i < iterations; i++ {
 		s.logger.Info(fmt.Sprintf("Waiting for ES to update documents, iteration %d out of %d", i+1, iterations))
-		actual, err := s.reader.GetTrace(traceID)
-		if found = err == nil && len(actual.Spans) == defaultNumSpans; found {
+		actual, err = s.reader.GetOperations("query05-service")
+		require.NoError(t, err)
+		if found = assert.ObjectsAreEqualValues(expected, actual); found {
+			break
+		}
+		time.Sleep(100 * time.Millisecond) // Will wait up to 3 seconds at worst.
+	}
+
+	if !assert.True(t, found) {
+		t.Log("\t Expected:", expected)
+		t.Log("\t Actual  :", actual)
+	}
+	assert.NoError(t, s.cleanUp())
+}
+
+func (s *StorageIntegration) IntegrationTestGetTrace(t *testing.T) {
+	t.Log("Testing GetTrace ...")
+
+	expected, err := getTraceFixture(1)
+	require.NoError(t, err)
+	require.NoError(t, s.writeTrace(expected))
+	traceID := model.TraceID{Low: 1}
+
+	s.refresh()
+
+	var found bool
+	iterations := 10 * timeOut
+	var actual *model.Trace
+	for i := 0; i < iterations; i++ {
+		s.logger.Info(fmt.Sprintf("Waiting for ES to update documents, iteration %d out of %d", i+1, iterations))
+		actual, err = s.reader.GetTrace(traceID)
+		if found = err == nil && len(actual.Spans) == len(expected.Spans); found {
 			CompareModelTraces(t, expected, actual)
 			break
 		}
 		time.Sleep(100 * time.Millisecond) // Will wait up to 3 seconds at worst.
 	}
 
-	assert.True(t, found)
+	if !assert.True(t, found) {
+		t.Log("\t Expected:", expected)
+		t.Log("\t Actual  :", actual)
+		for _, span := range actual.Spans {
+			t.Log(span.TraceID, span.Process.ServiceName)
+		}
+	}
 	assert.NoError(t, s.cleanUp())
 }
 
@@ -323,7 +179,7 @@ func (s *StorageIntegration) integrationTestFindTracesByQuery(t *testing.T, quer
 			found = true
 			break
 		}
-		if found = err == nil && tracesMatch(actual, len(expected), defaultNumSpans); found {
+		if found = err == nil && tracesMatch(actual, expected); found {
 			CompareListOfModelTraces(t, expected, actual)
 			break
 		}
@@ -335,11 +191,17 @@ func (s *StorageIntegration) integrationTestFindTracesByQuery(t *testing.T, quer
 
 func (s *StorageIntegration) writeTraces(traces []*model.Trace) error {
 	for _, trace := range traces {
-		for _, span := range trace.Spans {
-			err := s.writer.WriteSpan(span)
-			if err != nil {
-				return err
-			}
+		if err := s.writeTrace(trace); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
+func (s *StorageIntegration) writeTrace(trace *model.Trace) error {
+	for _, span := range trace.Spans {
+		if err := s.writer.WriteSpan(span); err != nil {
+			return err
 		}
 	}
 	return nil
@@ -402,7 +264,21 @@ func normalizeTime(json []byte) []byte {
 	return []byte(retString)
 }
 
-// DO NOT RUN IF YOU HAVE IMPORTANT SPANS IN ELASTICSEARCH
+func tracesMatch(actual []*model.Trace, expected []*model.Trace) bool {
+	if len(actual) != len(expected) {
+		return false
+	}
+	return countOfSpans(actual) == countOfSpans(expected)
+}
+
+func countOfSpans(traces []*model.Trace) int {
+	var count int
+	for _, trace := range traces {
+		count += len(trace.Spans)
+	}
+	return count
+}
+
 func (s *StorageIntegration) IntegrationTestAll(t *testing.T) {
 	rand.Seed(time.Now().UnixNano())
 	s.IntegrationTestGetServices(t)

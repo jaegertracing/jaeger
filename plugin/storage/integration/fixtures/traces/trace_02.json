@@ -9,7 +9,7 @@
       "duration": 5000,
       "tags": [],
       "process": {
-        "serviceName": "query2-service",
+        "serviceName": "query02-service",
         "tags": []
       },
       "logs": [
@@ -52,13 +52,13 @@
     {
       "traceID": "2",
       "spanID": "2",
-      "operationName": "query7-operation",
+      "operationName": "query07-operation",
       "references": [],
       "startTime": "2017-01-26T16:46:31.639875Z",
       "duration": 2000,
       "tags": [],
       "process": {
-        "serviceName": "query7-service",
+        "serviceName": "query07-service",
         "tags": []
       },
       "logs": [

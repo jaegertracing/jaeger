@@ -20,7 +20,7 @@
         }
       ],
       "process": {
-        "serviceName": "query4-service",
+        "serviceName": "query04-service",
         "tags": [
           {
             "key": "sameplacetag1",
@@ -142,13 +142,13 @@
     {
       "traceID": "4",
       "spanID": "5",
-      "operationName": "",
+      "operationName": "operation-list-test1",
       "references": [],
       "startTime": "2017-01-26T16:46:31.639875Z",
       "duration": 5000,
       "tags": [],
       "process": {
-        "serviceName": "",
+        "serviceName": "query05-service",
         "tags": []
       },
       "logs": [

@@ -2,7 +2,7 @@
   {
     "Caption": "Tags in one spot - Tags",
     "Query": {
-      "ServiceName": "query1-service",
+      "ServiceName": "query01-service",
       "OperationName": "",
       "Tags": {
         "sameplacetag1":"sameplacevalue",
@@ -23,7 +23,7 @@
   {
     "Caption": "Tags in one spot - Logs",
     "Query": {
-      "ServiceName": "query2-service",
+      "ServiceName": "query02-service",
       "OperationName": "",
       "Tags": {
         "sameplacetag1":"sameplacevalue",
@@ -44,7 +44,7 @@
   {
     "Caption": "Tags in one spot - Process",
     "Query": {
-      "ServiceName": "query3-service",
+      "ServiceName": "query03-service",
       "OperationName": "",
       "Tags": {
         "sameplacetag1":"sameplacevalue",
@@ -65,7 +65,7 @@
   {
     "Caption": "Tags in different spots",
     "Query": {
-      "ServiceName": "query4-service",
+      "ServiceName": "query04-service",
       "OperationName": "",
       "Tags": {
         "sameplacetag1":"sameplacevalue",
@@ -86,7 +86,7 @@
   {
     "Caption": "Trace spans over multiple indices",
     "Query": {
-      "ServiceName": "query5-service",
+      "ServiceName": "query05-service",
       "OperationName": "",
       "Tags": null,
       "StartTimeMin": "2017-01-26T15:46:31.639875Z",
@@ -102,8 +102,8 @@
   {
     "Caption": "Operation name",
     "Query": {
-      "ServiceName": "query6-service",
-      "OperationName": "query6-operation",
+      "ServiceName": "query06-service",
+      "OperationName": "query06-operation",
       "Tags": null,
       "StartTimeMin": "2017-01-26T15:46:31.639875Z",
       "StartTimeMax": "2017-01-26T17:46:31.639875Z",
@@ -118,8 +118,8 @@
   {
     "Caption": "Operation name + max Duration",
     "Query": {
-      "ServiceName": "query7-service",
-      "OperationName": "query7-operation",
+      "ServiceName": "query07-service",
+      "OperationName": "query07-operation",
       "Tags": null,
       "StartTimeMin": "2017-01-26T15:46:31.639875Z",
       "StartTimeMax": "2017-01-26T17:46:31.639875Z",
@@ -135,8 +135,8 @@
   {
     "Caption": "Operation name + Duration range",
     "Query": {
-      "ServiceName": "query8-service",
-      "OperationName": "query8-operation",
+      "ServiceName": "query08-service",
+      "OperationName": "query08-operation",
       "Tags": null,
       "StartTimeMin": "2017-01-26T15:46:31.639875Z",
       "StartTimeMax": "2017-01-26T17:46:31.639875Z",
@@ -151,7 +151,7 @@
   {
     "Caption": "Duration range",
     "Query": {
-      "ServiceName": "query9-service",
+      "ServiceName": "query09-service",
       "OperationName": "",
       "Tags": null,
       "StartTimeMin": "2017-01-26T15:46:31.639875Z",

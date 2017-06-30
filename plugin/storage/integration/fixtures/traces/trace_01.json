@@ -3,13 +3,13 @@
     {
       "traceID": "1",
       "spanID": "1",
-      "operationName": "query6-operation",
+      "operationName": "query06-operation",
       "references": [],
       "startTime": "2017-01-26T16:46:31.639875Z",
       "duration": 5000,
       "tags": [],
       "process": {
-        "serviceName": "query6-service",
+        "serviceName": "query06-service",
         "tags": []
       },
       "logs": [
@@ -58,7 +58,7 @@
         }
       ],
       "process": {
-        "serviceName": "query1-service",
+        "serviceName": "query01-service",
         "tags": []
       },
       "logs": []
@@ -67,13 +67,13 @@
       "traceID": "1",
       "spanID": "3",
       "parentSpanID": "2",
-      "operationName": "query7-operation",
+      "operationName": "query07-operation",
       "tags": [],
       "references": [],
       "startTime": "2017-01-26T16:46:31.639875Z",
       "duration": 1000,
       "process": {
-        "serviceName": "query7-service",
+        "serviceName": "query07-service",
         "tags": []
       },
       "logs": []
