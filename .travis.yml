@@ -19,6 +19,9 @@ matrix:
   - go: 1.7
     env:
     - DOCKER=true
+  - go: 1.7
+    env:
+    - ES_INTEGRATION_TEST=true
 # TODO 1.8 tests take way too long to run 900s vs 250s for 1.7
 #  - go: 1.8
 #    env:
@@ -41,6 +44,7 @@ install:
   - if [ "$ALL_IN_ONE" == true ]; then bash ./travis/install-ui-deps.sh ; fi
   - if [ "$DOCKER" == true ]; then bash ./travis/install-ui-deps.sh ; fi
   - if [ "$CROSSDOCK" == true ]; then bash ./travis/install-crossdock-deps.sh ; fi
+  - if [ "$ES_INTEGRATION_TEST" == true ]; then bash ./travis/es-integration-test.sh ; fi
 
 script:
   - if [ "$TESTS" == true ]; then make test_ci ; else echo 'skipping tests'; fi
@@ -48,3 +52,4 @@ script:
   - if [ "$ALL_IN_ONE" == true ]; then bash ./travis/build-all-in-one-image.sh ; else echo 'skipping all_in_one'; fi
   - if [ "$CROSSDOCK" == true ]; then bash ./travis/build-crossdock.sh ; else echo 'skipping crossdock'; fi
   - if [ "$DOCKER" == true ]; then bash ./travis/build-docker-images.sh ; else echo 'skipping docker images'; fi
+  - if [ "$ES_INTEGRATION_TEST" == true ]; then bash ./travis/es-integration-test.sh ; else echo 'skipping elastic search integration test'; fi
