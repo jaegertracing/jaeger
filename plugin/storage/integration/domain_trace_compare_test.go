@@ -21,14 +21,14 @@
 package integration
 
 import (
+	"encoding/json"
 	"errors"
 	"sort"
 	"testing"
-	"encoding/json"
 
+	"github.com/kr/pretty"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-	"github.com/kr/pretty"
 
 	"github.com/uber/jaeger/model"
 )
