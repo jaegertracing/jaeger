@@ -161,7 +161,7 @@ func (s *StorageIntegration) IntegrationTestFindTraces(t *testing.T) {
 	require.NoError(t, err)
 	for _, query := range queries {
 		t.Logf("\t\t* Query case: + %s", query.Caption)
-		s.integrationTestFindTracesByQuery(t, query.Query, query.ExpectedTraces)
+		s.integrationTestFindTracesByQuery(t, query.Query, query.ExpectedFixtures)
 	}
 }
 
