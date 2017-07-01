@@ -41,9 +41,6 @@ var ErrUnsupportedStorageType = errors.New("Storage Type is not supported")
 // Logging defines common setting for controlling logs
 var Logging = logging{}
 
-// RuntimeMetricsFrequency specifies how often Go runtime stats should be reported.
-var RuntimeMetricsFrequency time.Duration
-
 // SpanStorage defines common settings for Span Storage.
 var SpanStorage = spanStorage{}
 
@@ -77,8 +74,6 @@ func (co cassandraOptions) ServerList() []string {
 }
 
 func init() {
-	flag.StringVar(&Logging.Level, "log-level", "info", "Minimal allowed log level")
-	flag.DurationVar(&RuntimeMetricsFrequency, "runtime-metrics-frequency", 1*time.Second, "The frequency of reporting Go runtime metrics")
 	flag.StringVar(&SpanStorage.Type, "span-storage.type", CassandraStorageType, fmt.Sprintf("The type of span storage backend to use, options are currently [%v,%v]", CassandraStorageType, MemoryStorageType))
 
 	flag.StringVar(&DependencyStorage.Type, "dependency-storage.type", CassandraStorageType, fmt.Sprintf("The type of dependency storage backend to use, options are currently [%v,%v]", CassandraStorageType, MemoryStorageType))
