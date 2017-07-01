@@ -56,18 +56,21 @@ func main() {
 	}
 	spanReader, err := storageBuild.NewSpanReader()
 	if err != nil {
-		logger.Fatal("Failed to get span reader", zap.Error(err))
+		logger.Fatal("Failed to create span reader", zap.Error(err))
 	}
 	dependencyReader, err := storageBuild.NewDependencyReader()
 	if err != nil {
-		logger.Fatal("Failed to get dependency reader", zap.Error(err))
+		logger.Fatal("Failed to create dependency reader", zap.Error(err))
 	}
 	rHandler := app.NewAPIHandler(
 		spanReader,
 		dependencyReader,
 		app.HandlerOptions.Prefix(*builder.QueryPrefix),
 		app.HandlerOptions.Logger(logger))
-	sHandler := app.NewStaticAssetsHandler(*builder.QueryStaticAssets)
+	sHandler, err := app.NewStaticAssetsHandler(*builder.QueryStaticAssets)
+	if err != nil {
+		logger.Fatal("Failed to create static assets handler", zap.Error(err))
+	}
 	r := mux.NewRouter()
 	rHandler.RegisterRoutes(r)
 	sHandler.RegisterRoutes(r)

@@ -35,7 +35,8 @@ import (
 
 func TestStaticAssetsHandler(t *testing.T) {
 	r := mux.NewRouter()
-	handler := NewStaticAssetsHandler("fixture/")
+	handler, err := NewStaticAssetsHandler("fixture")
+	require.NoError(t, err)
 	handler.RegisterRoutes(r)
 	server := httptest.NewServer(r)
 	defer server.Close()
@@ -51,13 +52,20 @@ func TestStaticAssetsHandler(t *testing.T) {
 }
 
 func TestDefaultStaticAssetsRoot(t *testing.T) {
-	handler := NewStaticAssetsHandler("")
-	assert.Equal(t, "jaeger-ui-build/build/", handler.staticAssetsRoot)
+	handler, err := newStaticAssetsHandler("", "fixture/")
+	require.NoError(t, err)
+	assert.Equal(t, "fixture/", handler.staticAssetsRoot)
+}
+
+func TestInvalieStaticAssetsRoot(t *testing.T) {
+	_, err := NewStaticAssetsHandler("bad-fixture/")
+	assert.Error(t, err)
 }
 
 func TestRegisterRoutesHandler(t *testing.T) {
 	r := mux.NewRouter()
-	handler := NewStaticAssetsHandler("fixture/")
+	handler, err := NewStaticAssetsHandler("fixture/")
+	require.NoError(t, err)
 	handler.RegisterRoutes(r)
 	server := httptest.NewServer(r)
 	defer server.Close()

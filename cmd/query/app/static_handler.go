@@ -21,9 +21,12 @@
 package app
 
 import (
+	"io/ioutil"
 	"net/http"
+	"strings"
 
 	"github.com/gorilla/mux"
+	"github.com/pkg/errors"
 )
 
 const (
@@ -40,11 +43,21 @@ type StaticAssetsHandler struct {
 }
 
 // NewStaticAssetsHandler returns a StaticAssetsHandler
-func NewStaticAssetsHandler(staticAssetsRoot string) *StaticAssetsHandler {
+func NewStaticAssetsHandler(staticAssetsRoot string) (*StaticAssetsHandler, error) {
+	return newStaticAssetsHandler(staticAssetsRoot, defaultStaticAssetsRoot)
+}
+
+func newStaticAssetsHandler(staticAssetsRoot, defaultStaticAssetsRoot string) (*StaticAssetsHandler, error) {
 	if staticAssetsRoot == "" {
 		staticAssetsRoot = defaultStaticAssetsRoot
 	}
-	return &StaticAssetsHandler{staticAssetsRoot: staticAssetsRoot}
+	if !strings.HasSuffix(staticAssetsRoot, "/") {
+		staticAssetsRoot = staticAssetsRoot + "/"
+	}
+	if _, err := ioutil.ReadFile(staticAssetsRoot + "index.html"); err != nil {
+		return nil, errors.Wrap(err, "Cannot read index.html, static-files argument may be incorrect")
+	}
+	return &StaticAssetsHandler{staticAssetsRoot: staticAssetsRoot}, nil
 }
 
 // RegisterRoutes registers routes for this handler on the given router
