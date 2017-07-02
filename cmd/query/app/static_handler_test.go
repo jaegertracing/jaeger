@@ -52,7 +52,7 @@ func TestStaticAssetsHandler(t *testing.T) {
 
 func TestDefaultStaticAssetsRoot(t *testing.T) {
 	handler := NewStaticAssetsHandler("")
-	assert.Equal(t, "fixture/", handler.staticAssetsRoot)
+	assert.Equal(t, "jaeger-ui-build/build/", handler.staticAssetsRoot)
 }
 
 func TestRegisterRoutesHandler(t *testing.T) {
