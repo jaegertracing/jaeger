@@ -51,7 +51,7 @@ const (
 	cmdDir       = "/cmd/"
 	collectorCmd = cmdDir + "jaeger-collector %s &"
 	agentCmd     = cmdDir + "jaeger-agent %s &"
-	queryCmd     = cmdDir + "jaeger-query %s &"
+	queryCmd     = cmdDir + "jaeger-query"
 
 	collectorHostPort = "localhost:14267"
 	agentURL          = "http://test_driver:5778"
@@ -134,7 +134,7 @@ func InitializeCollector(logger *zap.Logger) {
 func NewQueryService(url string, logger *zap.Logger) services.QueryService {
 	forkCmd(
 		logger,
-		"/cmd/jaeger-query",
+		queryCmd,
 		"-cassandra.keyspace=jaeger",
 		"-cassandra.servers=cassandra",
 	)
