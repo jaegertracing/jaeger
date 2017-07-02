@@ -21,8 +21,11 @@
 package main
 
 import (
+	"bufio"
 	"fmt"
+	"io"
 	"net/http"
+	"os"
 	"os/exec"
 	"sync"
 	"time"
@@ -31,11 +34,9 @@ import (
 	"github.com/gocql/gocql"
 	"github.com/uber/tchannel-go"
 	"go.uber.org/zap"
-
-	"github.com/uber/jaeger/crossdock/services"
-
 	"golang.org/x/net/context"
 
+	"github.com/uber/jaeger/crossdock/services"
 	"github.com/uber/jaeger/pkg/cassandra"
 	gocqlw "github.com/uber/jaeger/pkg/cassandra/gocql"
 )
@@ -50,7 +51,7 @@ const (
 	cmdDir       = "/cmd/"
 	collectorCmd = cmdDir + "jaeger-collector %s &"
 	agentCmd     = cmdDir + "jaeger-agent %s &"
-	queryCmd     = cmdDir + "jaeger-query %s &"
+	queryCmd     = cmdDir + "jaeger-query"
 
 	collectorHostPort = "localhost:14267"
 	agentURL          = "http://test_driver:5778"
@@ -131,16 +132,42 @@ func InitializeCollector(logger *zap.Logger) {
 
 // NewQueryService initiates the query service
 func NewQueryService(url string, logger *zap.Logger) services.QueryService {
-	cmd := exec.Command("/bin/sh", "-c", fmt.Sprintf(queryCmd,
-		"-cassandra.keyspace=jaeger -cassandra.servers=cassandra"))
-	if err := cmd.Run(); err != nil {
-		logger.Fatal("Failed to initialize query service", zap.Error(err))
-	}
+	forkCmd(
+		logger,
+		queryCmd,
+		"-cassandra.keyspace=jaeger",
+		"-cassandra.servers=cassandra",
+	)
 	if url == "" {
 		url = queryServiceURL
 	}
 	healthCheck(logger, queryService, url)
 	return services.NewQueryService(url, logger)
+}
+
+func forkCmd(logger *zap.Logger, cmd string, args ...string) {
+	c := exec.Command(cmd, args...)
+
+	fwdStream := func(name string, pipe func() (io.ReadCloser, error), dest *os.File) {
+		stream, err := pipe()
+		if err != nil {
+			logger.Fatal("Error creating pipe for "+name, zap.String("cmd", cmd), zap.Error(err))
+		}
+		go func() {
+			scanner := bufio.NewScanner(stream)
+			for scanner.Scan() {
+				fmt.Fprintf(dest, "%s[%s] => %s\n", cmd, name, scanner.Text())
+			}
+		}()
+	}
+
+	fwdStream("stdout", c.StdoutPipe, os.Stdout)
+	fwdStream("stderr", c.StderrPipe, os.Stderr)
+
+	logger.Info("starting child process", zap.String("cmd", cmd))
+	if err := c.Start(); err != nil {
+		logger.Fatal("Failed to fork sub-command", zap.String("cmd", cmd), zap.Error(err))
+	}
 }
 
 // InitializeAgent initializes the jaeger agent.
