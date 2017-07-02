@@ -57,11 +57,6 @@ func TestDefaultStaticAssetsRoot(t *testing.T) {
 	assert.Equal(t, "fixture/", handler.staticAssetsRoot)
 }
 
-func TestInvalieStaticAssetsRoot(t *testing.T) {
-	_, err := NewStaticAssetsHandler("bad-fixture/")
-	assert.Error(t, err)
-}
-
 func TestRegisterRoutesHandler(t *testing.T) {
 	r := mux.NewRouter()
 	handler, err := NewStaticAssetsHandler("fixture/")
