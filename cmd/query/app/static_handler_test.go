@@ -51,14 +51,13 @@ func TestStaticAssetsHandler(t *testing.T) {
 }
 
 func TestDefaultStaticAssetsRoot(t *testing.T) {
-	handler := NewStaticAssetsHandler("", "fixture/")
+	handler := NewStaticAssetsHandler("")
 	assert.Equal(t, "fixture/", handler.staticAssetsRoot)
 }
 
 func TestRegisterRoutesHandler(t *testing.T) {
 	r := mux.NewRouter()
-	handler, err := NewStaticAssetsHandler("fixture/")
-	require.NoError(t, err)
+	handler := NewStaticAssetsHandler("fixture/")
 	handler.RegisterRoutes(r)
 	server := httptest.NewServer(r)
 	defer server.Close()
