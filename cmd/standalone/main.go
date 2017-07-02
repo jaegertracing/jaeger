@@ -165,10 +165,7 @@ func startQuery(logger *zap.Logger, baseFactory metrics.Factory, memoryStore *me
 		queryApp.HandlerOptions.Prefix(*query.QueryPrefix),
 		queryApp.HandlerOptions.Logger(logger),
 		queryApp.HandlerOptions.Tracer(tracer))
-	sHandler, err := queryApp.NewStaticAssetsHandler(*query.QueryStaticAssets)
-	if err != nil {
-		logger.Fatal("Failed to create static assets handler", zap.Error(err))
-	}
+	sHandler := queryApp.NewStaticAssetsHandler(*query.QueryStaticAssets)
 	r := mux.NewRouter()
 	rHandler.RegisterRoutes(r)
 	sHandler.RegisterRoutes(r)

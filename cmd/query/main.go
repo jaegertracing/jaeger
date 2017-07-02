@@ -67,10 +67,7 @@ func main() {
 		dependencyReader,
 		app.HandlerOptions.Prefix(*builder.QueryPrefix),
 		app.HandlerOptions.Logger(logger))
-	sHandler, err := app.NewStaticAssetsHandler(*builder.QueryStaticAssets)
-	if err != nil {
-		logger.Fatal("Failed to create static assets handler", zap.Error(err))
-	}
+	sHandler := app.NewStaticAssetsHandler(*builder.QueryStaticAssets)
 	r := mux.NewRouter()
 	rHandler.RegisterRoutes(r)
 	sHandler.RegisterRoutes(r)

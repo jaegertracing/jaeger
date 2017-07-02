@@ -41,18 +41,14 @@ type StaticAssetsHandler struct {
 }
 
 // NewStaticAssetsHandler returns a StaticAssetsHandler
-func NewStaticAssetsHandler(staticAssetsRoot string) (*StaticAssetsHandler, error) {
-	return newStaticAssetsHandler(staticAssetsRoot, defaultStaticAssetsRoot)
-}
-
-func newStaticAssetsHandler(staticAssetsRoot, defaultStaticAssetsRoot string) (*StaticAssetsHandler, error) {
+func NewStaticAssetsHandler(staticAssetsRoot string) *StaticAssetsHandler {
 	if staticAssetsRoot == "" {
 		staticAssetsRoot = defaultStaticAssetsRoot
 	}
 	if !strings.HasSuffix(staticAssetsRoot, "/") {
 		staticAssetsRoot = staticAssetsRoot + "/"
 	}
-	return &StaticAssetsHandler{staticAssetsRoot: staticAssetsRoot}, nil
+	return &StaticAssetsHandler{staticAssetsRoot: staticAssetsRoot}
 }
 
 // RegisterRoutes registers routes for this handler on the given router
