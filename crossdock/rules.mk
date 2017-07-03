@@ -26,7 +26,6 @@ $(SCRIPTS_DIR): $(BUILD_DIR)
 	mkdir -p $(SCRIPTS_DIR)
 
 $(SCHEMA): $(SCRIPTS_DIR) $(SCHEMA_SRC)
-	[ -d $(SCRIPTS_DIR) ] || mkdir -p $(SCRIPTS_DIR)
 	MODE=test KEYSPACE=jaeger $(SCHEMA_SRC) | cat -s > $(SCHEMA)
 
 .PHONY: crossdock-copy-bin
