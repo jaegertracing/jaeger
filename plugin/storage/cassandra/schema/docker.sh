@@ -13,7 +13,7 @@ MODE=${MODE:-"test"}
 total_wait=0
 while true
 do
-  ${CQLSH} -e "describe keyspaces" > /dev/null 2>&1
+  ${CQLSH} -e "describe keyspaces"
   if (( $? == 0 )); then
     break
   else
