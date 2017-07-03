@@ -1,28 +1,36 @@
 XDOCK_YAML=crossdock/docker-compose.yml
 
-SCHEMA = crossdock/scripts/schema.cql
-SCHEMA_SRC = plugin/storage/cassandra/cassandra3v001-schema.sh
+BUILD_DIR = crossdock/.build
+CMD_DIR = $(BUILD_DIR)/cmd
+SCRIPTS_DIR = $(BUILD_DIR)/scripts
+
+SCHEMA = $(SCRIPTS_DIR)/schema.cql
+SCHEMA_SRC = plugin/storage/cassandra/schema/create.sh
 
 QUERY_SRC = cmd/query/query-linux
-QUERY_DST = crossdock/cmd/jaeger-query
+QUERY_DST = $(CMD_DIR)/jaeger-query
 
 AGENT_SRC = cmd/agent/agent-linux
-AGENT_DST = crossdock/cmd/jaeger-agent
+AGENT_DST = $(CMD_DIR)/jaeger-agent
 
 COLLECTOR_SRC = cmd/collector/collector-linux
-COLLECTOR_DST = crossdock/cmd/jaeger-collector
+COLLECTOR_DST = $(CMD_DIR)/jaeger-collector
 
-SCRIPTS_DIR = crossdock/scripts
-CMD_DIR = crossdock/cmd
+$(BUILD_DIR):
+	mkdir -p $(BUILD_DIR)
 
-$(SCHEMA): $(SCHEMA_SRC)
+$(CMD_DIR): $(BUILD_DIR)
+	mkdir -p $(CMD_DIR)
+
+$(SCRIPTS_DIR): $(BUILD_DIR)
+	mkdir -p $(SCRIPTS_DIR)
+
+$(SCHEMA): $(SCRIPTS_DIR) $(SCHEMA_SRC)
 	[ -d $(SCRIPTS_DIR) ] || mkdir -p $(SCRIPTS_DIR)
-	# Remove all comments and multiple new lines and replace keyspace with jaeger from cql file
-	$(SCHEMA_SRC) test | sed -E 's/ ?--.*//g' | sed 's/jaeger_v1_test/jaeger/g' | cat -s > $(SCHEMA)
+	MODE=test KEYSPACE=jaeger $(SCHEMA_SRC) | cat -s > $(SCHEMA)
 
 .PHONY: crossdock-copy-bin
-crossdock-copy-bin:
-	[ -d $(CMD_DIR) ] || mkdir -p $(CMD_DIR)
+crossdock-copy-bin: $(CMD_DIR)
 	cp $(QUERY_SRC) $(QUERY_DST)
 	cp $(AGENT_SRC) $(AGENT_DST)
 	cp $(COLLECTOR_SRC) $(COLLECTOR_DST)

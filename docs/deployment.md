@@ -69,17 +69,14 @@ A script is provided to initialize Cassandra keyspace and schema
 using Cassandra's interactive shell [`cqlsh`][cqlsh]:
 
 ```sh
-sh ./plugin/storage/cassandra/cassandra3v001-schema.sh test | cqlsh
+MODE=test sh ./plugin/storage/cassandra/schema/create.sh | cqlsh
 ```
 
-For production deployment, pass `prod {datacenter}` arguments to the script,
-where `{datacenter}` is the name used in the Cassandra configuration.
+For production deployment, pass `MODE=prod DATACENTER={datacenter}` arguments to the script,
+where `{datacenter}` is the name used in the Cassandra configuration / network topology.
 
-The script accepts additional parameters as environment variables:
-
-  * `TTL` - default time to live for all data, in seconds (default: 172800, 2 days)
-  * `KEYSPACE` - keyspace (default: `jaeger_v1_{datacenter}`)
-  * `REPLICATION_FACTOR` - replication factor for prod (default: 2)
+The script also allows overriding TTL, keyspace name, replication factor, etc.
+Run the script without arguments to see the full list of recognized parameters.
 
 ## Query Service & UI
 

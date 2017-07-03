@@ -1,14 +1,19 @@
 #!/bin/bash
+#
+# This script is used in the Docker image jaegertracing/jaeger-cassandra-schema
+# that allows installing Jaeger keyspace and schema without installing cqlsh.
 
+CQLSH=/opt/apache-cassandra-3.0.12/bin/cqlsh
 CQLSH_HOST=${CQLSH_HOST:-"cassandra"}
 CASSANDRA_WAIT_TIMEOUT=${CASSANDRA_WAIT_TIMEOUT:-"60"}
 DATACENTER=${DATACENTER:-"dc1"}
 KEYSPACE=${KEYSPACE:-"jaeger_v1_${DATACENTER}"}
+MODE=${MODE:-"test"}
 
 total_wait=0
 while true
 do
-  /opt/apache-cassandra-3.0.12/bin/cqlsh -e "describe keyspaces" > /dev/null 2>&1
+  ${CQLSH} -e "describe keyspaces" > /dev/null 2>&1
   if (( $? == 0 )); then
     break
   else
@@ -23,9 +28,5 @@ do
 done
 
 echo "Generating the schema for the keyspace ${KEYSPACE} and datacenter ${DATACENTER}"
-export KEYSPACE
 
-# the `test` parameter is to force the script to use a SimpleStrategy instead of
-# NetworkTopologyStrategy .
-/cassandra-schema/cassandra3v001-schema.sh test "${DATACENTER}" | \
-  /opt/apache-cassandra-3.0.12/bin/cqlsh
+MODE="${MODE}" DATACENTER="${DATACENTER}" KEYSPACE="${KEYSPACE}" /cassandra-schema/create.sh | ${CQLSH}
