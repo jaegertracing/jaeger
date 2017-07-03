@@ -2,13 +2,31 @@
 
 set -e
 
-export BRANCH=$(if [ "$TRAVIS_PULL_REQUEST" == "false" ]; then echo $TRAVIS_BRANCH; else echo $TRAVIS_PULL_REQUEST_BRANCH; fi)
-# Only push the docker container to Docker Hub for master branch
-if [[ "$BRANCH" == "master" && "$TRAVIS_SECURE_ENV_VARS" == "true" ]]; then echo 'upload to Docker Hub'; else echo 'skip docker upload for PR'; exit 0; fi
+if [[ "$TRAVIS_SECURE_ENV_VARS" == "false" ]]; then
+  echo "skip docker upload, TRAVIS_SECURE_ENV_VARS=$TRAVIS_SECURE_ENV_VARS"
+  exit 0
+fi
+
+if [[ "$TRAVIS_PULL_REQUEST" == "false" ]]; then
+  BRANCH=$TRAVIS_BRANCH
+else
+  BRANCH=$TRAVIS_PULL_REQUEST_BRANCH
+fi
+
+# Only push images to Docker Hub for master branch or for release tags vM.N.P
+if [[ "$BRANCH" == "master" || $BRANCH =~ ^v[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+  echo "upload to Docker Hub, BRANCH=$BRANCH"
+else
+  echo 'skip docker upload for PR'
+  exit 0
+fi
 
 source ~/.nvm/nvm.sh
 nvm use 6
-DOCKER_NAMESPACE=jaegertracing DOCKER_TAG=${COMMIT} make docker
+
+export DOCKER_NAMESPACE=jaegertracing
+export DOCKER_TAG=${COMMIT:?'missing COMMIT env var'}
+make docker
 
 for component in agent cassandra-schema collector query
 do
