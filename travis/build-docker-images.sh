@@ -8,9 +8,9 @@ if [[ "$TRAVIS_SECURE_ENV_VARS" == "false" ]]; then
 fi
 
 if [[ "$TRAVIS_PULL_REQUEST" == "false" ]]; then
-  BRANCH=$TRAVIS_BRANCH
+  export BRANCH=$TRAVIS_BRANCH
 else
-  BRANCH=$TRAVIS_PULL_REQUEST_BRANCH
+  export BRANCH=$TRAVIS_PULL_REQUEST_BRANCH
 fi
 
 # Only push images to Docker Hub for master branch or for release tags vM.N.P
