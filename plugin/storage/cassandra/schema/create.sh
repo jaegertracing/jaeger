@@ -52,11 +52,11 @@ Using template file $template with parameters:
     dependencies_ttl = ${dependencies_ttl}
 EOF
 
+# strip out comments, collapse multiple adjacent empty lines (cat -s), substitute variables
 cat $template | sed \
     -e 's/--.*$//g'                                 \
-    -e '/^\s*$/d'                                   \
-    -e '/^$/d'                                      \
+    -e 's/^\s*$//g'                                 \
     -e "s/\${keyspace}/${keyspace}/g"               \
     -e "s/\${replication}/${replication}/g"         \
     -e "s/\${trace_ttl}/${trace_ttl}/g"             \
-    -e "s/\${dependencies_ttl}/${dependencies_ttl}/g"
+    -e "s/\${dependencies_ttl}/${dependencies_ttl}/g" | cat -s

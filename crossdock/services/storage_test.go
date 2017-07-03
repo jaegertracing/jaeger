@@ -26,6 +26,7 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
+	"go.uber.org/zap"
 
 	"github.com/uber/jaeger/pkg/cassandra/mocks"
 )
@@ -59,7 +60,7 @@ func TestInitializeCassandraSchema(t *testing.T) {
 			caption:       "query error",
 			schemaFile:    schemaFile,
 			queryError:    errors.New("query error"),
-			expectedError: "Failed to apply a schema query: DROP KEYSPACE IF EXISTS : query error",
+			expectedError: "Failed to apply a schema query: DROP KEYSPACE IF EXISTS: query error",
 		},
 		{
 			caption:       "schema error",
@@ -75,7 +76,7 @@ func TestInitializeCassandraSchema(t *testing.T) {
 				session := &mocks.Session{}
 				session.On("Query", mock.AnythingOfType("string"), matchEverything()).Return(query)
 
-				err := InitializeCassandraSchema(session, testCase.schemaFile, "")
+				err := InitializeCassandraSchema(session, testCase.schemaFile, "", zap.NewNop())
 				if testCase.expectedError == "" {
 					assert.NoError(t, err)
 				} else {

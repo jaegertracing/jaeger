@@ -192,7 +192,7 @@ func InitializeStorage(logger *zap.Logger) {
 		logger.Fatal("Failed to initialize cassandra session")
 	}
 	logger.Info("Initialized cassandra session")
-	err := services.InitializeCassandraSchema(session, schema, jaegerKeyspace)
+	err := services.InitializeCassandraSchema(session, schema, jaegerKeyspace, logger)
 	if err != nil {
 		logger.Fatal("Could not initialize cassandra schema", zap.Error(err))
 	}
