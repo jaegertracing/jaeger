@@ -49,8 +49,8 @@ const (
 	queryService     = "Query"
 
 	cmdDir       = "/cmd/"
-	collectorCmd = cmdDir + "jaeger-collector %s &"
-	agentCmd     = cmdDir + "jaeger-agent %s &"
+	collectorCmd = cmdDir + "jaeger-collector"
+	agentCmd     = cmdDir + "jaeger-agent"
 	queryCmd     = cmdDir + "jaeger-query"
 
 	collectorHostPort = "localhost:14267"
@@ -97,11 +97,11 @@ func main() {
 func (h *clientHandler) initialize() {
 	InitializeStorage(logger)
 	logger.Info("Cassandra started")
-	InitializeCollector(logger)
+	startCollector(logger)
 	logger.Info("Collector started")
-	agentService := InitializeAgent("", logger)
+	agentService := startAgent("", logger)
 	logger.Info("Agent started")
-	queryService := NewQueryService("", logger)
+	queryService := startQueryService("", logger)
 	logger.Info("Query started")
 	traceHandler := services.NewTraceHandler(queryService, agentService, logger)
 	h.Lock()
@@ -120,18 +120,19 @@ func (h *clientHandler) isInitialized() bool {
 	return h.initialized
 }
 
-// InitializeCollector initializes the jaeger collector
-func InitializeCollector(logger *zap.Logger) {
-	cmd := exec.Command("/bin/sh", "-c",
-		fmt.Sprintf(collectorCmd, "-cassandra.keyspace=jaeger -cassandra.servers=cassandra"))
-	if err := cmd.Run(); err != nil {
-		logger.Fatal("Failed to initialize collector service", zap.Error(err))
-	}
+// startCollector starts the jaeger collector as a background process.
+func startCollector(logger *zap.Logger) {
+	forkCmd(
+		logger,
+		collectorCmd,
+		"-cassandra.keyspace=jaeger",
+		"-cassandra.servers=cassandra",
+	)
 	tChannelHealthCheck(logger, collectorService, collectorHostPort)
 }
 
-// NewQueryService initiates the query service
-func NewQueryService(url string, logger *zap.Logger) services.QueryService {
+// startQueryService initiates the query service as a background process.
+func startQueryService(url string, logger *zap.Logger) services.QueryService {
 	forkCmd(
 		logger,
 		queryCmd,
@@ -143,6 +144,23 @@ func NewQueryService(url string, logger *zap.Logger) services.QueryService {
 	}
 	healthCheck(logger, queryService, url)
 	return services.NewQueryService(url, logger)
+}
+
+// startAgent initializes the jaeger agent as a background process.
+func startAgent(url string, logger *zap.Logger) services.AgentService {
+	forkCmd(
+		logger,
+		agentCmd,
+		"-collector.host-port=localhost:14267",
+		"-processor.zipkin-compact.server-host-port=test_driver:5775",
+		"-processor.jaeger-compact.server-host-port=test_driver:6831",
+		"-processor.jaeger-binary.server-host-port=test_driver:6832",
+	)
+	if url == "" {
+		url = agentURL
+	}
+	healthCheck(logger, agentService, agentURL)
+	return services.NewAgentService(url, logger)
 }
 
 func forkCmd(logger *zap.Logger, cmd string, args ...string) {
@@ -168,21 +186,6 @@ func forkCmd(logger *zap.Logger, cmd string, args ...string) {
 	if err := c.Start(); err != nil {
 		logger.Fatal("Failed to fork sub-command", zap.String("cmd", cmd), zap.Error(err))
 	}
-}
-
-// InitializeAgent initializes the jaeger agent.
-func InitializeAgent(url string, logger *zap.Logger) services.AgentService {
-	cmd := exec.Command("/bin/sh", "-c", fmt.Sprintf(agentCmd,
-		"-collector.host-port=localhost:14267 -processor.zipkin-compact.server-host-port=test_driver:5775 "+
-			"-processor.jaeger-compact.server-host-port=test_driver:6831 -processor.jaeger-binary.server-host-port=test_driver:6832"))
-	if err := cmd.Run(); err != nil {
-		logger.Fatal("Failed to initialize agent service", zap.Error(err))
-	}
-	if url == "" {
-		url = agentURL
-	}
-	healthCheck(logger, agentService, agentURL)
-	return services.NewAgentService(url, logger)
 }
 
 // InitializeStorage initializes cassandra instances.

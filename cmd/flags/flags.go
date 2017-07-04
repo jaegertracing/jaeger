@@ -38,9 +38,6 @@ const (
 // ErrUnsupportedStorageType is the error when dealing with an unsupported storage type
 var ErrUnsupportedStorageType = errors.New("Storage Type is not supported")
 
-// Logging defines common setting for controlling logs
-var Logging = logging{}
-
 // SpanStorage defines common settings for Span Storage.
 var SpanStorage = spanStorage{}
 
