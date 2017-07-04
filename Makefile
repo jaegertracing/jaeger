@@ -114,11 +114,16 @@ build-collector-linux:
 	CGO_ENABLED=0 GOOS=linux installsuffix=cgo go build -o ./cmd/collector/collector-linux ./cmd/collector/main.go
 
 .PHONY: docker
-docker: build_ui build-agent-linux build-collector-linux build-query-linux
+docker: build_ui build-agent-linux build-collector-linux build-query-linux docker-images-only
+
+.PHONY: docker-images-only
+docker-images-only:
 	cp -r jaeger-ui-build/build/ cmd/query/jaeger-ui-build
-	docker build -t $(DOCKER_NAMESPACE)/jaeger-cassandra-schema:${DOCKER_TAG} plugin/storage/cassandra/ ; \
+	docker build -t $(DOCKER_NAMESPACE)/jaeger-cassandra-schema:${DOCKER_TAG} plugin/storage/cassandra/
+	@echo "Finished building jaeger-cassandra-schema =============="
 	for component in agent collector query ; do \
 		docker build -t $(DOCKER_NAMESPACE)/jaeger-$$component:${DOCKER_TAG} cmd/$$component ; \
+		echo "Finished building $$component ==============" ; \
 	done
 	rm -rf cmd/query/jaeger-ui-build
 
