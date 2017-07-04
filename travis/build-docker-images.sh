@@ -7,17 +7,13 @@ if [[ "$TRAVIS_SECURE_ENV_VARS" == "false" ]]; then
   exit 0
 fi
 
-if [[ "$TRAVIS_PULL_REQUEST" == "false" ]]; then
-  export BRANCH=$TRAVIS_BRANCH
-else
-  export BRANCH=$TRAVIS_PULL_REQUEST_BRANCH
-fi
+BRANCH=${BRANCH:?'missing BRANCH env var'}
 
 # Only push images to Docker Hub for master branch or for release tags vM.N.P
-if [[ "$BRANCH" == "master" || $BRANCH =~ ^v[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+if [[ $BRANCH =~ ^v[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
   echo "upload to Docker Hub, BRANCH=$BRANCH"
 else
-  echo 'skip docker upload for PR'
+  echo 'skip Docker upload, only allowed for tagged releases'
   exit 0
 fi
 
