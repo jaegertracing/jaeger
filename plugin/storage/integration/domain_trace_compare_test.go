@@ -22,7 +22,6 @@ package integration
 
 import (
 	"encoding/json"
-	"errors"
 	"sort"
 	"testing"
 

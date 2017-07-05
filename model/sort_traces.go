@@ -21,8 +21,9 @@
 package model
 
 import (
-	"github.com/pkg/errors"
 	"sort"
+
+	"github.com/pkg/errors"
 )
 
 type spanBySpanID []*Span
