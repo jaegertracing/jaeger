@@ -1,0 +1,60 @@
+{
+  "Spans": [
+    {
+      "traceID": "12",
+      "spanID": "4",
+      "operationName": "query12-operation",
+      "references": [
+        {
+          "refType": "child-of",
+          "traceID": "ff",
+          "spanID": "ff"
+        },
+        {
+          "refType": "child-of",
+          "traceID": "1",
+          "spanID": "2"
+        },
+        {
+          "refType": "follows-from",
+          "traceID": "1",
+          "spanID": "2"
+        }
+      ],
+      "tags": [
+        {
+          "key": "sameplacetag1",
+          "vType": "string",
+          "vStr": "sameplacevalue"
+        },
+        {
+          "key": "sameplacetag2",
+          "vType": "int64",
+          "vNum": 123
+        },
+        {
+          "key": "sameplacetag4",
+          "vType": "bool",
+          "vNum": 1
+        },
+        {
+          "key": "sameplacetag3",
+          "vType": "float64",
+          "vNum": 4634802150889750528
+        },
+        {
+          "key": "blob",
+          "vType": "binary",
+          "vBlob": "AAAwOQ=="
+        }
+      ],
+      "startTime": "2017-01-26T16:46:31.639875Z",
+      "duration": 2000,
+      "process": {
+        "serviceName": "query12-service",
+        "tags": []
+      },
+      "logs": []
+    }
+  ]
+}

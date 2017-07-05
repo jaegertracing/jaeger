@@ -55,24 +55,21 @@ type StorageIntegration struct {
 // Each query fixture includes:
 // 	Caption: describes the query we are testing
 // 	Query: the query we are testing
-//	ExpectedFixtures: the trace fixtures that we want back from these queries.
-// The traces are numbered from 1.
+//	ExpectedFixture: the trace fixture that we want back from these queries.
 // Queries are not necessarily numbered, but since each query requires a service name,
 // the service name is formatted "query##-service".
 type QueryFixtures struct {
-	Caption          string
-	Query            *spanstore.TraceQueryParameters
-	ExpectedFixtures []int
+	Caption         string
+	Query           *spanstore.TraceQueryParameters
+	ExpectedFixture string
 }
-
-const (
-	numOfTraceFixtures = 5
-)
 
 func (s *StorageIntegration) IntegrationTestGetServices(t *testing.T) {
 	t.Log("Testing GetServices ...")
-	expected := []string{"query01-service", "query06-service", "query07-service", "query12-service", "query13-service"}
-	trace, err := getTraceFixture(1)
+
+	// TODO
+	expected := []string{"example-service-1", "example-service-2", "example-service-3"}
+	trace, err := getTraceFixture("example_trace")
 	require.NoError(t, err)
 	require.NoError(t, s.writeTrace(trace))
 
@@ -101,10 +98,11 @@ func (s *StorageIntegration) IntegrationTestGetServices(t *testing.T) {
 func (s *StorageIntegration) IntegrationTestGetOperations(t *testing.T) {
 	t.Log("Testing GetOperations ...")
 
-	expected := []string{"operation-list-test1", "operation-list-test2", "operation-list-test3"}
-	traces, err := getTraceFixtures()
+	// TODO
+	expected := []string{"example-operation-1", "example-operation-3", "example-operation-4"}
+	trace, err := getTraceFixture("example_trace")
 	require.NoError(t, err)
-	require.NoError(t, s.writeTraces(traces))
+	require.NoError(t, s.writeTrace(trace))
 
 	s.refresh()
 
@@ -112,7 +110,7 @@ func (s *StorageIntegration) IntegrationTestGetOperations(t *testing.T) {
 	var actual []string
 	for i := 0; i < 30; i++ {
 		s.logger.Info(fmt.Sprintf("Waiting for storage backend to update documents, iteration %d out of %d", i+1, 30))
-		actual, err = s.reader.GetOperations("query05-service")
+		actual, err = s.reader.GetOperations("example-service-1")
 		require.NoError(t, err)
 		if found = assert.ObjectsAreEqualValues(expected, actual); found {
 			break
@@ -130,10 +128,11 @@ func (s *StorageIntegration) IntegrationTestGetOperations(t *testing.T) {
 func (s *StorageIntegration) IntegrationTestGetTrace(t *testing.T) {
 	t.Log("Testing GetTrace ...")
 
-	expected, err := getTraceFixture(1)
+	// TODO
+	expected, err := getTraceFixture("example_trace")
 	require.NoError(t, err)
 	require.NoError(t, s.writeTrace(expected))
-	traceID := model.TraceID{Low: 1}
+	traceID := model.TraceID{Low: 17}
 
 	s.refresh()
 
@@ -163,15 +162,15 @@ func (s *StorageIntegration) IntegrationTestFindTraces(t *testing.T) {
 	require.NoError(t, err)
 	for _, query := range queries {
 		t.Logf("\t\t* Query case: + %s", query.Caption)
-		s.integrationTestFindTracesByQuery(t, query.Query, query.ExpectedFixtures)
+		s.integrationTestFindTracesByQuery(t, query.Query, query.ExpectedFixture)
 	}
 }
 
-func (s *StorageIntegration) integrationTestFindTracesByQuery(t *testing.T, query *spanstore.TraceQueryParameters, expectedTraces []int) {
-	traces, err := getTraceFixtures()
+func (s *StorageIntegration) integrationTestFindTracesByQuery(t *testing.T, query *spanstore.TraceQueryParameters, expectedFixture string) {
+	expectedTrace, err := getTraceFixture(expectedFixture)
 	require.NoError(t, err)
-	expected := getSubsetOfTraces(traces, expectedTraces)
-	require.NoError(t, s.writeTraces(expected))
+	require.NoError(t, s.writeTrace(expectedTrace))
+	expected := []*model.Trace{expectedTrace}
 	require.NoError(t, s.refresh())
 
 	var found bool
@@ -216,29 +215,9 @@ func (s *StorageIntegration) writeTrace(trace *model.Trace) error {
 	return nil
 }
 
-func getSubsetOfTraces(traces []*model.Trace, expectedTraces []int) []*model.Trace {
-	retTraces := make([]*model.Trace, len(expectedTraces))
-	for i, traceNum := range expectedTraces {
-		retTraces[i] = traces[traceNum-1]
-	}
-	return retTraces
-}
-
-func getTraceFixtures() ([]*model.Trace, error) {
-	traces := make([]*model.Trace, numOfTraceFixtures)
-	for i := 0; i < numOfTraceFixtures; i++ {
-		trace, err := getTraceFixture(i + 1)
-		if err != nil {
-			return nil, err
-		}
-		traces[i] = trace
-	}
-	return traces, nil
-}
-
-func getTraceFixture(i int) (*model.Trace, error) {
+func getTraceFixture(fixture string) (*model.Trace, error) {
 	var trace model.Trace
-	fileName := fmt.Sprintf("fixtures/traces/trace_%02d.json", i)
+	fileName := fmt.Sprintf("fixtures/traces/%s.json", fixture)
 	if err := getFixture(fileName, &trace); err != nil {
 		return nil, err
 	}
