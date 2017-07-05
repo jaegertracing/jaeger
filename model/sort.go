@@ -22,8 +22,6 @@ package model
 
 import (
 	"sort"
-
-	"github.com/pkg/errors"
 )
 
 type spanBySpanID []*Span
@@ -33,35 +31,18 @@ func (s spanBySpanID) Swap(i, j int)      { s[i], s[j] = s[j], s[i] }
 func (s spanBySpanID) Less(i, j int) bool { return s[i].SpanID < s[j].SpanID }
 
 // SortTraces checks two traces' length and sorts their spans.
-func SortTraces(expected *Trace, actual *Trace) error {
-	expectedSpans := expected.Spans
-	actualSpans := actual.Spans
-	if len(expectedSpans) != len(actualSpans) {
-		return errors.New("traces have different number of spans")
+func SortTrace(trace *Trace) {
+	sort.Sort(spanBySpanID(trace.Spans))
+	for _, span := range trace.Spans {
+		sortSpan(span)
 	}
-	sort.Sort(spanBySpanID(expectedSpans))
-	sort.Sort(spanBySpanID(actualSpans))
-	for i := range expectedSpans {
-		if err := sortSpans(expectedSpans[i], actualSpans[i]); err != nil {
-			return err
-		}
-	}
-	return nil
 }
 
-func sortSpans(expected *Span, actual *Span) error {
-	expected.NormalizeTimestamps()
-	actual.NormalizeTimestamps()
-	if err := sortTags(expected.Tags, actual.Tags); err != nil {
-		return err
-	}
-	if err := sortLogs(expected.Logs, actual.Logs); err != nil {
-		return err
-	}
-	if err := sortProcess(expected.Process, actual.Process); err != nil {
-		return err
-	}
-	return nil
+func sortSpan(span *Span) {
+	span.NormalizeTimestamps()
+	sortTags(span.Tags)
+	sortLogs(span.Logs)
+	sortProcess(span.Process)
 }
 
 type tagByKey []KeyValue
@@ -70,13 +51,8 @@ func (t tagByKey) Len() int           { return len(t) }
 func (t tagByKey) Swap(i, j int)      { t[i], t[j] = t[j], t[i] }
 func (t tagByKey) Less(i, j int) bool { return t[i].Key < t[j].Key }
 
-func sortTags(expected []KeyValue, actual []KeyValue) error {
-	if len(expected) != len(actual) {
-		return errors.New("tags have different length")
-	}
-	sort.Sort(tagByKey(expected))
-	sort.Sort(tagByKey(actual))
-	return nil
+func sortTags(tags []KeyValue) {
+	sort.Sort(tagByKey(tags))
 }
 
 type logByTimestamp []Log
@@ -85,24 +61,15 @@ func (t logByTimestamp) Len() int           { return len(t) }
 func (t logByTimestamp) Swap(i, j int)      { t[i], t[j] = t[j], t[i] }
 func (t logByTimestamp) Less(i, j int) bool { return t[i].Timestamp.Before(t[j].Timestamp) }
 
-func sortLogs(expected []Log, actual []Log) error {
-	if len(expected) != len(actual) {
-		return errors.New("logs have different length")
+func sortLogs(logs []Log) {
+	sort.Sort(logByTimestamp(logs))
+	for _, log := range logs {
+		sortTags(log.Fields)
 	}
-	sort.Sort(logByTimestamp(expected))
-	sort.Sort(logByTimestamp(actual))
-	for i := range expected {
-		sortTags(expected[i].Fields, actual[i].Fields)
-	}
-	return nil
 }
 
-func sortProcess(expected *Process, actual *Process) error {
-	if expected == nil || actual == nil {
-		if expected == nil && actual == nil {
-			return nil
-		}
-		return errors.New("process does not match")
+func sortProcess(process *Process) {
+	if process != nil {
+		sortTags(process.Tags)
 	}
-	return sortTags(expected.Tags, actual.Tags)
 }
