@@ -30,6 +30,7 @@ import (
 	"github.com/uber/jaeger-lib/metrics"
 	basicB "github.com/uber/jaeger/cmd/builder"
 	cascfg "github.com/uber/jaeger/pkg/cassandra/config"
+	escfg "github.com/uber/jaeger/pkg/es/config"
 	"github.com/uber/jaeger/storage/spanstore/memory"
 )
 
@@ -80,5 +81,34 @@ func TestNewMemoryFailure(t *testing.T) {
 	os.Args = []string{"test", "--span-storage.type=memory"}
 	sBuilder, err := NewStorageBuilder()
 	assert.Error(t, err)
+	assert.Nil(t, sBuilder)
+}
+
+func TestNewElasticSuccess(t *testing.T) {
+	originalArgs := os.Args
+	defer func() {
+		os.Args = originalArgs
+	}()
+
+	os.Args = []string{"test", "--span-storage.type=elasticsearch"}
+	sBuilder, err := NewStorageBuilder(
+		basicB.Options.LoggerOption(zap.NewNop()),
+		basicB.Options.ElasticOption(&escfg.Configuration{
+			Servers: []string{"127.0.0.1"},
+		}),
+	)
+	assert.NoError(t, err)
+	assert.NotNil(t, sBuilder)
+}
+
+func TestNewElasticFailure(t *testing.T) {
+	originalArgs := os.Args
+	defer func() {
+		os.Args = originalArgs
+	}()
+
+	os.Args = []string{"test", "--span-storage.type=elasticsearch"}
+	sBuilder, err := NewStorageBuilder()
+	assert.EqualError(t, err, "ElasticSearch not configured")
 	assert.Nil(t, sBuilder)
 }

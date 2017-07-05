@@ -21,29 +21,45 @@
 package builder
 
 import (
+	"github.com/uber/jaeger/pkg/es"
+	escfg "github.com/uber/jaeger/pkg/es/config"
+	esDependencyStore "github.com/uber/jaeger/plugin/storage/es/dependencystore"
+	esSpanstore "github.com/uber/jaeger/plugin/storage/es/spanstore"
 	"github.com/uber/jaeger/storage/dependencystore"
 	"github.com/uber/jaeger/storage/spanstore"
-	"github.com/uber/jaeger/pkg/es"
+	"go.uber.org/zap"
 )
 
 type esBuilder struct {
-	client es.Client
+	logger        *zap.Logger
+	client        es.Client
+	configuration escfg.Configuration
 }
 
-func newESBuilder() *esBuilder {
-	return
+func newESBuilder(config *escfg.Configuration, logger *zap.Logger) *esBuilder {
+	return &esBuilder{
+		logger:        logger,
+		configuration: *config,
+	}
 }
 
 func (e *esBuilder) getClient() (es.Client, error) {
 	if e.client == nil {
-
+		client, err := e.configuration.NewClient()
+		e.client = client
+		return e.client, err
 	}
+	return e.client, nil
 }
 
 func (e *esBuilder) NewSpanReader() (spanstore.Reader, error) {
-	return c.memStore, nil
+	client, err := e.getClient()
+	if err != nil {
+		return nil, err
+	}
+	return esSpanstore.NewSpanReader(client, e.logger), nil
 }
 
 func (e *esBuilder) NewDependencyReader() (dependencystore.Reader, error) {
-	return c.memStore, nil
+	return esDependencyStore.NewDependencyStore(), nil
 }

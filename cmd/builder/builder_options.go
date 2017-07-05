@@ -22,8 +22,8 @@ package builder
 
 import (
 	"go.uber.org/zap"
-
 	"github.com/uber/jaeger-lib/metrics"
+
 	cascfg "github.com/uber/jaeger/pkg/cassandra/config"
 	escfg "github.com/uber/jaeger/pkg/es/config"
 	"github.com/uber/jaeger/storage/spanstore/memory"

@@ -37,8 +37,9 @@ type StorageBuilder interface {
 }
 
 var (
-	errMissingCassandraConfig = errors.New("Cassandra not configured")
-	errMissingMemoryStore     = errors.New("Memory Reader was not provided")
+	errMissingCassandraConfig     = errors.New("Cassandra not configured")
+	errMissingMemoryStore         = errors.New("Memory Reader was not provided")
+	errMissingElasticSearchConfig = errors.New("ElasticSearch not configured")
 )
 
 // NewStorageBuilder creates a StorageBuilder based off the flags that have been set
@@ -56,6 +57,11 @@ func NewStorageBuilder(opts ...basicB.Option) (StorageBuilder, error) {
 			return nil, errMissingMemoryStore
 		}
 		return newMemoryStoreBuilder(options.MemoryStore), nil
+	} else if flags.SpanStorage.Type == flags.ESStorageType {
+		if options.Elastic == nil {
+			return nil, errMissingElasticSearchConfig
+		}
+		return newESBuilder(options.Elastic, options.Logger), nil
 	}
 	return nil, flags.ErrUnsupportedStorageType
 }
