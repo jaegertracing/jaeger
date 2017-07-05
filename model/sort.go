@@ -30,7 +30,7 @@ func (s spanBySpanID) Len() int           { return len(s) }
 func (s spanBySpanID) Swap(i, j int)      { s[i], s[j] = s[j], s[i] }
 func (s spanBySpanID) Less(i, j int) bool { return s[i].SpanID < s[j].SpanID }
 
-// SortTraces checks two traces' length and sorts their spans.
+// SortTrace checks two traces' length and sorts their spans.
 func SortTrace(trace *Trace) {
 	sort.Sort(spanBySpanID(trace.Spans))
 	for _, span := range trace.Spans {

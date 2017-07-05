@@ -50,15 +50,7 @@ func CompareListOfTraces(t *testing.T, expected []*model.Trace, actual []*model.
 	sort.Sort(TraceByTraceID(actual))
 	require.Equal(t, len(expected), len(actual))
 	for i := range expected {
-		require.NoError(t, model.SortTraces(expected[i], actual[i]))
-	}
-	if !assert.EqualValues(t, expected, actual) {
-		for _, err := range pretty.Diff(expected, actual) {
-			t.Log(err)
-		}
-		out, err := json.Marshal(actual)
-		assert.NoError(t, err)
-		t.Logf("Actual traces: %s", string(out))
+		CompareTraces(t, expected[i], actual[i])
 	}
 }
 
@@ -67,7 +59,9 @@ func CompareTraces(t *testing.T, expected *model.Trace, actual *model.Trace) {
 		require.Nil(t, actual.Spans)
 		return
 	}
-	require.NoError(t, model.SortTraces(expected, actual))
+	model.SortTrace(expected)
+	model.SortTrace(actual)
+	checkSize(t, expected, actual)
 	if !assert.EqualValues(t, expected, actual) {
 		for _, err := range pretty.Diff(expected, actual) {
 			t.Log(err)
@@ -75,5 +69,15 @@ func CompareTraces(t *testing.T, expected *model.Trace, actual *model.Trace) {
 		out, err := json.Marshal(actual)
 		assert.NoError(t, err)
 		t.Logf("Actual trace: %s", string(out))
+	}
+}
+
+func checkSize(t *testing.T, expected *model.Trace, actual *model.Trace) {
+	require.True(t, len(expected.Spans) == len(actual.Spans))
+	for i := range expected.Spans {
+		expectedSpan := expected.Spans[i]
+		actualSpan := actual.Spans[i]
+		require.True(t, len(expectedSpan.Tags) == len(actualSpan.Tags))
+		require.True(t, len(expectedSpan.Logs) == len(actualSpan.Logs))
 	}
 }

@@ -37,23 +37,23 @@ func TestSortTraces(t *testing.T) {
 			{
 				TraceID: TraceID{Low: 1},
 				SpanID:  SpanID(2),
-				Tags:    []KeyValue{ { Key: "world" } , { Key: "hello" } },
+				Tags:    []KeyValue{{Key: "world"}, {Key: "hello"}},
 				Process: &Process{
 					ServiceName: "hello",
-					Tags:        []KeyValue{ { Key: "hello" } , { Key: "world" } },
+					Tags:        []KeyValue{{Key: "hello"}, {Key: "world"}},
 				},
 			},
 			{
 				TraceID: TraceID{Low: 1},
 				SpanID:  SpanID(1),
-				Logs:    []Log{
+				Logs: []Log{
 					{
 						Timestamp: currTime,
-						Fields:    []KeyValue{ { Key: "world" } , { Key: "hello" } },
+						Fields:    []KeyValue{{Key: "world"}, {Key: "hello"}},
 					},
 					{
 						Timestamp: currTime.Add(-time.Hour),
-						Fields:    []KeyValue{ { Key: "hello" } , { Key: "world" } },
+						Fields:    []KeyValue{{Key: "hello"}, {Key: "world"}},
 					},
 				},
 			},
@@ -64,23 +64,23 @@ func TestSortTraces(t *testing.T) {
 			{
 				TraceID: TraceID{Low: 1},
 				SpanID:  SpanID(2),
-				Tags:    []KeyValue{ { Key: "world" } , { Key: "hello" } },
+				Tags:    []KeyValue{{Key: "world"}, {Key: "hello"}},
 				Process: &Process{
 					ServiceName: "hello",
-					Tags:        []KeyValue{ { Key: "hello" } , { Key: "world" } },
+					Tags:        []KeyValue{{Key: "hello"}, {Key: "world"}},
 				},
 			},
 			{
 				TraceID: TraceID{Low: 1},
 				SpanID:  SpanID(1),
-				Logs:    []Log{
+				Logs: []Log{
 					{
 						Timestamp: currTime.Add(-time.Hour),
-						Fields:    []KeyValue{ { Key: "world" } , { Key: "hello" } },
+						Fields:    []KeyValue{{Key: "world"}, {Key: "hello"}},
 					},
 					{
 						Timestamp: currTime,
-						Fields:    []KeyValue{ { Key: "hello" } , { Key: "world" } },
+						Fields:    []KeyValue{{Key: "hello"}, {Key: "world"}},
 					},
 				},
 			},

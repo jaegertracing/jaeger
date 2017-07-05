@@ -84,7 +84,7 @@ func (s *ESStorageIntegration) esRefresh() error {
 }
 
 func healthCheck() error {
-	for i := 0; i < 100; i++ {
+	for i := 0; i < 200; i++ {
 		if _, err := http.Get(queryURL); err == nil {
 			return nil
 		}
