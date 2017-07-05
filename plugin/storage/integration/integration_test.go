@@ -145,16 +145,14 @@ func (s *StorageIntegration) IntegrationTestGetTrace(t *testing.T) {
 		if err == nil {
 			found = len(actual.Spans) == len(expected.Spans)
 			if found {
-				CompareTraces(t, expected, actual)
 				break
 			}
 		}
 		time.Sleep(100 * time.Millisecond) // Will wait up to 3 seconds at worst.
 	}
 
-	if !assert.True(t, found) {
-		CompareTraces(t, expected, actual)
-	}
+	assert.True(t, found)
+	CompareTraces(t, expected, actual)
 	assert.NoError(t, s.cleanUp())
 }
 

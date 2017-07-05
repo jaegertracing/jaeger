@@ -45,10 +45,12 @@ const (
 	password      = "changeme" // the elasticsearch default password
 )
 
-func initializeES(s *StorageIntegration) error {
-	if s.reader != nil || s.writer != nil {
-		return nil
-	}
+type ESStorageIntegration struct {
+	client *elastic.Client
+	StorageIntegration
+}
+
+func (s *ESStorageIntegration) initializeES() error {
 	rawClient, err := elastic.NewClient(
 		elastic.SetURL(queryURL),
 		elastic.SetBasicAuth(username, password),
@@ -61,39 +63,24 @@ func initializeES(s *StorageIntegration) error {
 	writer := spanstore.NewSpanWriter(client, logger)
 	reader := spanstore.NewSpanReader(client, logger)
 
-	s.cleanUp = esCleanUp
-	s.refresh = esRefresh
-	s.cleanUp()
+	s.client = rawClient
 	s.writer = writer
 	s.reader = reader
 	s.logger = logger
+	s.cleanUp = s.esCleanUp
+	s.refresh = s.esRefresh
+	s.cleanUp()
 	return nil
 }
 
-func esCleanUp() error {
-	simpleClient, err := elastic.NewSimpleClient(
-		elastic.SetURL(queryURL),
-		elastic.SetBasicAuth(username, password),
-		elastic.SetSniff(false))
-	ctx := context.Background()
-	if err != nil {
-		return err
-	}
-	simpleClient.DeleteIndex("*").Do(ctx)
-	return nil
+func (s *ESStorageIntegration) esCleanUp() error {
+	_, err := s.client.DeleteIndex("*").Do(context.Background())
+	return err
 }
 
-func esRefresh() error {
-	simpleClient, err := elastic.NewSimpleClient(
-		elastic.SetURL(queryURL),
-		elastic.SetBasicAuth(username, password),
-		elastic.SetSniff(false))
-	ctx := context.Background()
-	if err != nil {
-		return err
-	}
-	simpleClient.Refresh().Do(ctx)
-	return nil
+func (s *ESStorageIntegration) esRefresh() error {
+	_, err := s.client.Refresh().Do(context.Background())
+	return err
 }
 
 func healthCheck() error {
@@ -103,7 +90,7 @@ func healthCheck() error {
 		}
 		time.Sleep(100 * time.Millisecond)
 	}
-	return errors.New("query service is not ready")
+	return errors.New("elastic search is not ready")
 }
 
 // DO NOT RUN IF YOU HAVE IMPORTANT SPANS IN ELASTICSEARCH
@@ -114,7 +101,7 @@ func TestAll(t *testing.T) {
 	if err := healthCheck(); err != nil {
 		t.Fatal(err)
 	}
-	s := &StorageIntegration{}
-	require.NoError(t, initializeES(s))
+	s := &ESStorageIntegration{}
+	require.NoError(t, s.initializeES())
 	s.IntegrationTestAll(t)
 }
