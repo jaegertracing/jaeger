@@ -38,9 +38,9 @@ import (
 )
 
 type StorageIntegration struct {
-	logger  *zap.Logger
-	writer  spanstore.Writer
-	reader  spanstore.Reader
+	logger *zap.Logger
+	writer spanstore.Writer
+	reader spanstore.Reader
 
 	// cleanUp() should ensure that the storage backend is clean before another test.
 	// called either before or after each test, and should be idempotent
