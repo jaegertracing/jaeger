@@ -41,9 +41,14 @@ type StorageIntegration struct {
 	logger  *zap.Logger
 	writer  spanstore.Writer
 	reader  spanstore.Reader
+
+	// cleanUp() should ensure that the storage backend is clean before another test.
+	// called either before or after each test, and should be idempotent
 	cleanUp func() error
-	refresh func() error // this function should ensure that the storage backend is up to date before being queried.
+
+	// refresh() should ensure that the storage backend is up to date before being queried.
 	// called between set-up and queries in each test
+	refresh func() error
 }
 
 // QueryFixtures and TraceFixtures are under ./fixtures/queries.json and ./fixtures/traces/*.json respectively.
@@ -53,7 +58,7 @@ type StorageIntegration struct {
 //	ExpectedFixtures: the trace fixtures that we want back from these queries.
 // The traces are numbered from 1.
 // Queries are not necessarily numbered, but since each query requires a service name,
-// the service name is formatted "query#-service".
+// the service name is formatted "query##-service".
 type QueryFixtures struct {
 	Caption          string
 	Query            *spanstore.TraceQueryParameters
@@ -137,7 +142,7 @@ func (s *StorageIntegration) IntegrationTestGetTrace(t *testing.T) {
 	for i := 0; i < 30; i++ {
 		s.logger.Info(fmt.Sprintf("Waiting for storage backend to update documents, iteration %d out of %d", i+1, 30))
 		actual, err = s.reader.GetTrace(traceID)
-		if err != nil {
+		if err == nil {
 			found = len(actual.Spans) == len(expected.Spans)
 			if found {
 				CompareTraces(t, expected, actual)
@@ -148,8 +153,7 @@ func (s *StorageIntegration) IntegrationTestGetTrace(t *testing.T) {
 	}
 
 	if !assert.True(t, found) {
-		t.Log("\t Expected:", expected)
-		t.Log("\t Actual  :", actual)
+		CompareTraces(t, expected, actual)
 	}
 	assert.NoError(t, s.cleanUp())
 }
@@ -173,10 +177,11 @@ func (s *StorageIntegration) integrationTestFindTracesByQuery(t *testing.T, quer
 	require.NoError(t, s.refresh())
 
 	var found bool
+	var actual []*model.Trace
 	for i := 0; i < 30; i++ {
 		s.logger.Info(fmt.Sprintf("Waiting for storage backend to update documents, iteration %d out of %d", i+1, 30))
-		actual, err := s.reader.FindTraces(query)
-		if err != nil {
+		actual, err = s.reader.FindTraces(query)
+		if err == nil {
 			if len(actual) == query.NumTraces {
 				found = true
 				break
@@ -189,7 +194,9 @@ func (s *StorageIntegration) integrationTestFindTracesByQuery(t *testing.T, quer
 		}
 		time.Sleep(100 * time.Millisecond)
 	}
-	assert.True(t, found)
+	if !assert.True(t, found) {
+		CompareListOfTraces(t, expected, actual)
+	}
 	assert.NoError(t, s.cleanUp())
 }
 
