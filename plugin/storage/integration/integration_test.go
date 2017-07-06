@@ -74,8 +74,7 @@ func (s *StorageIntegration) IntegrationTestGetServices(t *testing.T) {
 
 	expected := []string{"example-service-1", "example-service-2", "example-service-3"}
 	s.getBasicFixture(t)
-
-	s.refresh()
+	require.NoError(t, s.refresh())
 
 	var found bool
 
@@ -102,8 +101,7 @@ func (s *StorageIntegration) IntegrationTestGetOperations(t *testing.T) {
 
 	expected := []string{"example-operation-1", "example-operation-3", "example-operation-4"}
 	s.getBasicFixture(t)
-
-	s.refresh()
+	require.NoError(t, s.refresh())
 
 	var found bool
 	var actual []string
@@ -129,18 +127,15 @@ func (s *StorageIntegration) IntegrationTestGetTrace(t *testing.T) {
 
 	expected := s.getBasicFixture(t)
 	expectedTraceID := expected.Spans[0].TraceID
-
-	s.refresh()
+	require.NoError(t, s.refresh())
 
 	var actual *model.Trace
 	for i := 0; i < iterations; i++ {
 		s.logger.Info(fmt.Sprintf(waitForBackendComment, i+1, iterations))
 		var err error
 		actual, err = s.reader.GetTrace(expectedTraceID)
-		if err == nil {
-			if len(actual.Spans) == len(expected.Spans) {
-				break
-			}
+		if err == nil && len(actual.Spans) == len(expected.Spans) {
+			break
 		}
 		time.Sleep(100 * time.Millisecond) // Will wait up to 3 seconds at worst.
 	}
