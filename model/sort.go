@@ -29,12 +29,13 @@ type traceByTraceID []*Trace
 func (s traceByTraceID) Len() int      { return len(s) }
 func (s traceByTraceID) Swap(i, j int) { s[i], s[j] = s[j], s[i] }
 func (s traceByTraceID) Less(i, j int) bool {
-	if len(s[i].Spans) != len(s[j].Spans) {
-		return len(s[i].Spans) < len(s[j].Spans)
-	} else if len(s[i].Spans) == 0 {
+	if len(s[i].Spans) == 0 {
 		return true
+	} else if len(s[j].Spans) == 0 {
+		return false
+	} else {
+		return s[i].Spans[0].TraceID.Low < s[j].Spans[0].TraceID.Low
 	}
-	return s[i].Spans[0].TraceID.Low < s[j].Spans[0].TraceID.Low
 }
 
 // SortTraces deep sorts a list of traces by TraceID.

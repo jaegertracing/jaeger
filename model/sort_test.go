@@ -117,10 +117,9 @@ func TestSortListOfTraces(t *testing.T) {
 		},
 	}
 	t4 := &Trace{}
-	t5 := &Trace{}
 
-	list1 := []*Trace{t1, t4, t2, t3, t5}
-	list2 := []*Trace{t4, t2, t1, t5, t3}
+	list1 := []*Trace{t1, t4, t2, t3}
+	list2 := []*Trace{t4, t2, t1, t3}
 	SortTraces(list1)
 	SortTraces(list2)
 	assert.EqualValues(t, list1, list2)

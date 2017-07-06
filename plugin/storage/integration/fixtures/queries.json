@@ -16,7 +16,7 @@
       "DurationMax": 0,
       "NumTraces": 1000
     },
-    "ExpectedFixture": "span_tags_trace"
+    "ExpectedFixtures": ["span_tags_trace"]
   },
   {
     "Caption": "Tags in one spot - Logs",
@@ -35,7 +35,7 @@
       "DurationMax": 0,
       "NumTraces": 1000
     },
-    "ExpectedFixture": "log_tags_trace"
+    "ExpectedFixtures": ["log_tags_trace"]
   },
   {
     "Caption": "Tags in one spot - Process",
@@ -54,7 +54,7 @@
       "DurationMax": 0,
       "NumTraces": 1000
     },
-    "ExpectedFixture": "process_tags_trace"
+    "ExpectedFixtures": ["process_tags_trace"]
   },
   {
     "Caption": "Tags in different spots",
@@ -73,7 +73,7 @@
       "DurationMax": 0,
       "NumTraces": 1000
     },
-    "ExpectedFixture": "multi_spot_tags_trace"
+    "ExpectedFixtures": ["multi_spot_tags_trace"]
   },
   {
     "Caption": "Trace spans over multiple indices",
@@ -87,7 +87,7 @@
       "DurationMax": 0,
       "NumTraces": 1000
     },
-    "ExpectedFixture": "multi_index_trace"
+    "ExpectedFixtures": ["multi_index_trace"]
   },
   {
     "Caption": "Operation name",
@@ -101,7 +101,7 @@
       "DurationMax": 0,
       "NumTraces": 1000
     },
-    "ExpectedFixture": "opname_trace"
+    "ExpectedFixtures": ["opname_trace"]
   },
   {
     "Caption": "Operation name + max Duration",
@@ -115,7 +115,7 @@
       "DurationMax": 2000,
       "NumTraces": 1000
     },
-    "ExpectedFixture": "opname_maxdur_trace"
+    "ExpectedFixtures": ["opname_maxdur_trace"]
   },
   {
     "Caption": "Operation name + Duration range",
@@ -129,7 +129,7 @@
       "DurationMax": 5500,
       "NumTraces": 1000
     },
-    "ExpectedFixture": "opname_dur_trace"
+    "ExpectedFixtures": ["opname_dur_trace"]
   },
   {
     "Caption": "Duration range",
@@ -143,7 +143,7 @@
       "DurationMax": 5500,
       "NumTraces": 1000
     },
-    "ExpectedFixture": "dur_trace"
+    "ExpectedFixtures": ["dur_trace"]
   },
   {
     "Caption": "max Duration",
@@ -157,7 +157,7 @@
       "DurationMax": 1000,
       "NumTraces": 1000
     },
-    "ExpectedFixture": "max_dur_trace"
+    "ExpectedFixtures": ["max_dur_trace"]
   },
   {
     "Caption": "default",
@@ -171,7 +171,7 @@
       "DurationMax": 0,
       "NumTraces": 1000
     },
-    "ExpectedFixture": "default"
+    "ExpectedFixtures": ["default"]
   },
   {
     "Caption": "Tags + Operation name",
@@ -190,7 +190,7 @@
       "DurationMax": 0,
       "NumTraces": 1000
     },
-    "ExpectedFixture": "tags_opname_trace"
+    "ExpectedFixtures": ["tags_opname_trace"]
   },
   {
     "Caption": "Tags + Operation name + max Duration",
@@ -209,7 +209,7 @@
       "DurationMax": 2000,
       "NumTraces": 1000
     },
-    "ExpectedFixture": "tags_opname_maxdur_trace"
+    "ExpectedFixtures": ["tags_opname_maxdur_trace"]
   },
   {
     "Caption": "Tags + Operation name + Duration range",
@@ -228,7 +228,7 @@
       "DurationMax": 5500,
       "NumTraces": 1000
     },
-    "ExpectedFixture": "tags_opname_dur_trace"
+    "ExpectedFixtures": ["tags_opname_dur_trace"]
   },
   {
     "Caption": "Tags + Duration range",
@@ -247,7 +247,7 @@
       "DurationMax": 5500,
       "NumTraces": 1000
     },
-    "ExpectedFixture": "tags_dur_trace"
+    "ExpectedFixtures": ["tags_dur_trace"]
   },
   {
     "Caption": "Tags + max Duration",
@@ -266,7 +266,7 @@
       "DurationMax": 1000,
       "NumTraces": 1000
     },
-    "ExpectedFixture": "tags_maxdur_trace"
+    "ExpectedFixtures": ["tags_maxdur_trace"]
   },
   {
     "Caption": "Multi-spot Tags + Operation name",
@@ -285,7 +285,7 @@
       "DurationMax": 0,
       "NumTraces": 1000
     },
-    "ExpectedFixture": "multispottag_opname_trace"
+    "ExpectedFixtures": ["multispottag_opname_trace"]
   },
   {
     "Caption": "Multi-spot Tags + Operation name + max Duration",
@@ -304,7 +304,7 @@
       "DurationMax": 2000,
       "NumTraces": 1000
     },
-    "ExpectedFixture": "multispottag_opname_maxdur_trace"
+    "ExpectedFixtures": ["multispottag_opname_maxdur_trace"]
   },
   {
     "Caption": "Multi-spot Tags + Operation name + Duration range",
@@ -323,7 +323,7 @@
       "DurationMax": 5500,
       "NumTraces": 1000
     },
-    "ExpectedFixture": "multispottag_opname_dur_trace"
+    "ExpectedFixtures": ["multispottag_opname_dur_trace"]
   },
   {
     "Caption": "Multi-spot Tags + Duration range",
@@ -342,7 +342,7 @@
       "DurationMax": 5500,
       "NumTraces": 1000
     },
-    "ExpectedFixture": "multispottag_dur_trace"
+    "ExpectedFixtures": ["multispottag_dur_trace"]
   },
   {
     "Caption": "Multi-spot Tags + max Duration",
@@ -361,6 +361,20 @@
       "DurationMax": 1000,
       "NumTraces": 1000
     },
-    "ExpectedFixture": "multispottag_maxdur_trace"
+    "ExpectedFixtures": ["multispottag_maxdur_trace"]
+  },
+  {
+    "Caption": "Multiple Traces",
+    "Query": {
+      "ServiceName": "query22-service",
+      "OperationName": "",
+      "Tags": null,
+      "StartTimeMin": "2017-01-26T15:46:31.639875Z",
+      "StartTimeMax": "2017-01-26T17:46:31.639875Z",
+      "DurationMin": 0,
+      "DurationMax": 0,
+      "NumTraces": 1000
+    },
+    "ExpectedFixtures": ["multiple1_trace", "multiple2_trace", "multiple3_trace"]
   }
 ]

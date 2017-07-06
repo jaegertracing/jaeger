@@ -64,9 +64,9 @@ type StorageIntegration struct {
 // Queries are not necessarily numbered, but since each query requires a service name,
 // the service name is formatted "query##-service".
 type QueryFixtures struct {
-	Caption         string
-	Query           *spanstore.TraceQueryParameters
-	ExpectedFixture string
+	Caption          string
+	Query            *spanstore.TraceQueryParameters
+	ExpectedFixtures []string
 }
 
 func (s *StorageIntegration) IntegrationTestGetServices(t *testing.T) {
@@ -128,24 +128,23 @@ func (s *StorageIntegration) IntegrationTestGetTrace(t *testing.T) {
 	t.Log("Testing GetTrace ...")
 
 	expected := s.getBasicFixture(t)
-	expectedTraceID := model.TraceID{Low: 17}
+	expectedTraceID := expected.Spans[0].TraceID
 
 	s.refresh()
 
-	var found bool
 	var actual *model.Trace
 	for i := 0; i < iterations; i++ {
 		s.logger.Info(fmt.Sprintf(waitForBackendComment, i+1, iterations))
-		actual, err := s.reader.GetTrace(expectedTraceID)
+		var err error
+		actual, err = s.reader.GetTrace(expectedTraceID)
 		if err == nil {
-			if found = len(actual.Spans) == len(expected.Spans); found {
+			if len(actual.Spans) == len(expected.Spans) {
 				break
 			}
 		}
 		time.Sleep(100 * time.Millisecond) // Will wait up to 3 seconds at worst.
 	}
 
-	assert.True(t, found)
 	CompareTraces(t, expected, actual)
 	assert.NoError(t, s.cleanUp())
 }
@@ -157,15 +156,14 @@ func (s *StorageIntegration) IntegrationTestFindTraces(t *testing.T) {
 	require.NoError(t, err)
 	for _, query := range queries {
 		t.Logf("\t\t* Query case: + %s", query.Caption)
-		s.integrationTestFindTracesByQuery(t, query.Query, query.ExpectedFixture)
+		s.integrationTestFindTracesByQuery(t, query.Query, query.ExpectedFixtures)
 	}
 }
 
-func (s *StorageIntegration) integrationTestFindTracesByQuery(t *testing.T, query *spanstore.TraceQueryParameters, expectedFixture string) {
-	expectedTrace, err := getTraceFixture(expectedFixture)
+func (s *StorageIntegration) integrationTestFindTracesByQuery(t *testing.T, query *spanstore.TraceQueryParameters, expectedFixtures []string) {
+	expected, err := getTraceFixtures(expectedFixtures)
 	require.NoError(t, err)
-	require.NoError(t, s.writeTrace(expectedTrace))
-	expected := []*model.Trace{expectedTrace}
+	require.NoError(t, s.writeTraces(expected))
 	require.NoError(t, s.refresh())
 
 	var found bool
@@ -219,6 +217,18 @@ func getTraceFixture(fixture string) (*model.Trace, error) {
 		return nil, err
 	}
 	return &trace, nil
+}
+
+func getTraceFixtures(fixtures []string) ([]*model.Trace, error) {
+	traces := make([]*model.Trace, len(fixtures))
+	for i, fixture := range fixtures {
+		trace, err := getTraceFixture(fixture)
+		if err != nil {
+			return nil, err
+		}
+		traces[i] = trace
+	}
+	return traces, nil
 }
 
 func getQueries() ([]*QueryFixtures, error) {
