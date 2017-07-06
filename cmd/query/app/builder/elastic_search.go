@@ -21,13 +21,14 @@
 package builder
 
 import (
+	"go.uber.org/zap"
+
 	"github.com/uber/jaeger/pkg/es"
 	escfg "github.com/uber/jaeger/pkg/es/config"
 	esDependencyStore "github.com/uber/jaeger/plugin/storage/es/dependencystore"
 	esSpanstore "github.com/uber/jaeger/plugin/storage/es/spanstore"
 	"github.com/uber/jaeger/storage/dependencystore"
 	"github.com/uber/jaeger/storage/spanstore"
-	"go.uber.org/zap"
 )
 
 type esBuilder struct {
