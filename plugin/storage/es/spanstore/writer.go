@@ -111,10 +111,9 @@ func (s *SpanWriter) checkAndCreateIndex(indexName string, jsonSpan *jModel.Span
 		return s.logError(jsonSpan, err, "Failed to find index", s.logger)
 	}
 	if !exists {
-		err = s.writerMetrics.indexCreate.Exec(
-			"index creation",
-			s.client.CreateIndex(indexName).Body(spanMapping).Do,
-			s.logger )
+		start := time.Now()
+		_, err = s.client.CreateIndex(indexName).Body(spanMapping).Do(s.ctx)
+		s.writerMetrics.indexCreate.Emit(err, time.Since(start))
 		if err != nil {
 			return s.logError(jsonSpan, err, "Failed to create index", s.logger)
 		}
@@ -123,15 +122,15 @@ func (s *SpanWriter) checkAndCreateIndex(indexName string, jsonSpan *jModel.Span
 }
 
 func (s *SpanWriter) writeService(indexName string, jsonSpan *jModel.Span) error {
+	start := time.Now()
 	// Insert serviceName:operationName document
 	service := Service{
 		ServiceName:   jsonSpan.Process.ServiceName,
 		OperationName: jsonSpan.OperationName,
 	}
 	serviceID := fmt.Sprintf("%s|%s", service.ServiceName, service.OperationName)
-	err := s.writerMetrics.serviceOperation.Exec("service operation write",
-		s.client.Index().Index(indexName).Type(serviceType).Id(serviceID).BodyJson(service).Do,
-		s.logger)
+	_, err := s.client.Index().Index(indexName).Type(serviceType).Id(serviceID).BodyJson(service).Do(s.ctx)
+	s.writerMetrics.serviceOperation.Emit(err, time.Since(start))
 	if err != nil {
 		return s.logError(jsonSpan, err, "Failed to insert service:operation", s.logger)
 	}
@@ -139,9 +138,9 @@ func (s *SpanWriter) writeService(indexName string, jsonSpan *jModel.Span) error
 }
 
 func (s *SpanWriter) writeSpan(indexName string, jsonSpan *jModel.Span) error {
-	err := s.writerMetrics.spans.Exec("span write",
-		s.client.Index().Index(indexName).Type(spanType).BodyJson(jsonSpan).Do,
-		s.logger)
+	start := time.Now()
+	_, err := s.client.Index().Index(indexName).Type(spanType).BodyJson(jsonSpan).Do(s.ctx)
+	s.writerMetrics.spans.Emit(err, time.Since(start))
 	if err != nil {
 		return s.logError(jsonSpan, err, "Failed to insert span", s.logger)
 	}

@@ -31,6 +31,7 @@ import (
 	"github.com/stretchr/testify/mock"
 	"github.com/stretchr/testify/require"
 	"go.uber.org/zap"
+	"github.com/uber/jaeger-lib/metrics"
 
 	"github.com/uber/jaeger/model"
 	"github.com/uber/jaeger/model/json"
@@ -49,11 +50,12 @@ type spanWriterTest struct {
 func withSpanWriter(fn func(w *spanWriterTest)) {
 	client := &mocks.Client{}
 	logger, logBuffer := testutils.NewLogger()
+	metricsFactory := metrics.NewLocalFactory(0)
 	w := &spanWriterTest{
 		client:    client,
 		logger:    logger,
 		logBuffer: logBuffer,
-		writer:    NewSpanWriter(client, logger),
+		writer:    NewSpanWriter(client, logger, metricsFactory),
 	}
 	fn(w)
 }

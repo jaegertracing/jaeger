@@ -22,11 +22,8 @@ package metrics
 
 import (
 	"time"
-	"context"
 
-	"github.com/pkg/errors"
 	"github.com/uber/jaeger-lib/metrics"
-	"go.uber.org/zap"
 )
 
 // Table is a collection of metrics about Cassandra write operations.
@@ -43,20 +40,6 @@ func NewTable(factory metrics.Factory, tableName string) *Table {
 	t := &Table{}
 	metrics.Init(t, factory.Namespace(tableName, nil), nil)
 	return t
-}
-
-// Exec executes an update query and reports metrics/logs about it.
-func (t *Table) Exec(queryString string, Do func (ctx context.Context) (interface{}, error), logger *zap.Logger) error {
-	start := time.Now()
-	_, err := Do(context.Background())
-	t.Emit(err, time.Since(start))
-	if err != nil {
-		if logger != nil {
-			logger.Error("Failed to exec query", zap.String("query", queryString), zap.Error(err))
-		}
-		return errors.Wrapf(err, "failed to Exec query '%s'", queryString)
-	}
-	return nil
 }
 
 // Emit will record success or failure counts and latency metrics depending on the passed error.
