@@ -24,7 +24,7 @@ import (
 	"go.uber.org/zap"
 
 	"github.com/uber/jaeger-lib/metrics"
-	"github.com/uber/jaeger/pkg/cassandra/config"
+	cascfg "github.com/uber/jaeger/pkg/cassandra/config"
 	escfg "github.com/uber/jaeger/pkg/es/config"
 	"github.com/uber/jaeger/storage/spanstore/memory"
 )
@@ -36,10 +36,10 @@ type BasicOptions struct {
 	// MetricsFactory is the basic metrics factory used by most executables
 	MetricsFactory metrics.Factory
 	// Cassandra is the cassandra configuration used by most executables (if applicable)
-	Cassandra *config.Configuration
+	Cassandra *cascfg.Configuration
 	// MemoryStore is the memory store (as reader and writer) that will be used if required
 	MemoryStore *memory.Store
-	// Elastic is the elasticsearch configuration used
+	// ElasticSearch is the elasticsearch configuration used
 	ElasticSearch *escfg.Configuration
 }
 
@@ -64,7 +64,7 @@ func (BasicOptions) MetricsFactoryOption(metricsFactory metrics.Factory) Option 
 }
 
 // CassandraOption creates an Option that adds Cassandra configuration.
-func (BasicOptions) CassandraOption(cassandra *config.Configuration) Option {
+func (BasicOptions) CassandraOption(cassandra *cascfg.Configuration) Option {
 	return func(b *BasicOptions) {
 		b.Cassandra = cassandra
 	}

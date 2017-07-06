@@ -122,7 +122,7 @@ func TestNewSpanHandlerBuilderElasticSearchFailure(t *testing.T) {
 	os.Args = []string{"test", "--span-storage.type=elasticsearch"}
 	flag.Parse()
 	handler, err := NewSpanHandlerBuilder()
-	assert.Error(t, err)
+	assert.EqualError(t, err, "ElasticSearch not configured")
 	assert.Nil(t, handler)
 }
 

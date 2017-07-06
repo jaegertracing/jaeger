@@ -32,7 +32,7 @@ type Configuration struct {
 	Servers  []string
 	username string
 	password string
-	sniffer  bool
+	sniffer  bool // https://github.com/olivere/elastic/wiki/Sniffing
 }
 
 // NewClient creates a new ElasticSearch client
@@ -54,4 +54,9 @@ func (c *Configuration) GetConfigs() []elastic.ClientOptionFunc {
 	options = append(options, elastic.SetBasicAuth(c.username, c.password))
 	options = append(options, elastic.SetSniff(c.sniffer))
 	return options
+}
+
+// SetSniffer sets the config's sniffer to true.
+func (c *Configuration) SetSniffer() {
+	c.sniffer = true
 }

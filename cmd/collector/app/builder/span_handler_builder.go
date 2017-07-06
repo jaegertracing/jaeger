@@ -36,7 +36,8 @@ import (
 	cascfg "github.com/uber/jaeger/pkg/cassandra/config"
 	"github.com/uber/jaeger/pkg/es"
 	escfg "github.com/uber/jaeger/pkg/es/config"
-	"github.com/uber/jaeger/plugin/storage/cassandra/spanstore"
+	"github.com/uber/jaeger/storage/spanstore"
+	casSpanstore "github.com/uber/jaeger/plugin/storage/cassandra/spanstore"
 	esSpanstore "github.com/uber/jaeger/plugin/storage/es/spanstore"
 	"github.com/uber/jaeger/storage/spanstore/memory"
 )
@@ -89,27 +90,7 @@ func newMemoryStoreBuilder(memStore *memory.Store, logger *zap.Logger, metricsFa
 }
 
 func (m *memoryStoreBuilder) BuildHandlers() (app.ZipkinSpansHandler, app.JaegerBatchesHandler, error) {
-	hostname, _ := os.Hostname()
-	hostMetrics := m.metricsFactory.Namespace(hostname, nil)
-
-	zSanitizer := zs.NewChainedSanitizer(
-		zs.NewSpanDurationSanitizer(m.logger),
-		zs.NewParentIDSanitizer(m.logger),
-	)
-
-	spanProcessor := app.NewSpanProcessor(
-		m.memStore,
-		app.Options.ServiceMetrics(m.metricsFactory),
-		app.Options.HostMetrics(hostMetrics),
-		app.Options.Logger(m.logger),
-		app.Options.SpanFilter(defaultSpanFilter),
-		app.Options.NumWorkers(*NumWorkers),
-		app.Options.QueueSize(*QueueSize),
-	)
-
-	return app.NewZipkinSpanHandler(m.logger, spanProcessor, zSanitizer),
-		app.NewJaegerSpanHandler(m.logger, spanProcessor),
-		nil
+	return buildHandlers(m.memStore, m.logger, m.metricsFactory)
 }
 
 type cassandraSpanHandlerBuilder struct {
@@ -128,38 +109,18 @@ func newCassandraBuilder(config *cascfg.Configuration, logger *zap.Logger, metri
 }
 
 func (c *cassandraSpanHandlerBuilder) BuildHandlers() (app.ZipkinSpansHandler, app.JaegerBatchesHandler, error) {
-	hostname, _ := os.Hostname()
-	hostMetrics := c.metricsFactory.Namespace(hostname, nil)
-
-	zSanitizer := zs.NewChainedSanitizer(
-		zs.NewSpanDurationSanitizer(c.logger),
-		zs.NewParentIDSanitizer(c.logger),
-	)
-
 	session, err := c.getSession()
 	if err != nil {
 		return nil, nil, err
 	}
-	spanStore := spanstore.NewSpanWriter(
+	spanStore := casSpanstore.NewSpanWriter(
 		session,
 		*WriteCacheTTL,
 		c.metricsFactory,
 		c.logger,
 	)
 
-	spanProcessor := app.NewSpanProcessor(
-		spanStore,
-		app.Options.ServiceMetrics(c.metricsFactory),
-		app.Options.HostMetrics(hostMetrics),
-		app.Options.Logger(c.logger),
-		app.Options.SpanFilter(defaultSpanFilter),
-		app.Options.NumWorkers(*NumWorkers),
-		app.Options.QueueSize(*QueueSize),
-	)
-
-	return app.NewZipkinSpanHandler(c.logger, spanProcessor, zSanitizer),
-		app.NewJaegerSpanHandler(c.logger, spanProcessor),
-		nil
+	return buildHandlers(spanStore, c.logger, c.metricsFactory)
 }
 
 func defaultSpanFilter(*model.Span) bool {
@@ -194,33 +155,44 @@ func newESBuilder(config *escfg.Configuration, logger *zap.Logger) *esSpanHandle
 }
 
 func (e *esSpanHandlerBuilder) BuildHandlers() (app.ZipkinSpansHandler, app.JaegerBatchesHandler, error) {
-	// TODO: keep these commented, add later when metrics are added to ES.
-	//hostname, _ := os.Hostname()
-	//hostMetrics := e.metricsFactory.Namespace(hostname, nil)
-
-	zSanitizer := zs.NewChainedSanitizer(
-		zs.NewSpanDurationSanitizer(e.logger),
-		zs.NewParentIDSanitizer(e.logger),
-	)
-
 	client, err := e.getClient()
 	if err != nil {
 		return nil, nil, err
 	}
 	spanStore := esSpanstore.NewSpanWriter(client, e.logger)
 
+	return buildHandlers(spanStore, e.logger, nil)
+}
+
+func buildHandlers(
+	spanStore spanstore.Writer,
+	logger *zap.Logger,
+	metricsFactory metrics.Factory,
+) (app.ZipkinSpansHandler, app.JaegerBatchesHandler, error) {
+	// TODO: currently ES has no metricsFactory, hence the workaround. Once ES adds a metricsFactory, this nullpointer check should be unnecessary.
+	var hostMetrics metrics.Factory
+	if metricsFactory != nil {
+		hostname, _ := os.Hostname()
+		hostMetrics = metricsFactory.Namespace(hostname, nil)
+	}
+
+	zSanitizer := zs.NewChainedSanitizer(
+		zs.NewSpanDurationSanitizer(logger),
+		zs.NewParentIDSanitizer(logger),
+	)
+
 	spanProcessor := app.NewSpanProcessor(
 		spanStore,
-		//app.Options.ServiceMetrics(e.metricsFactory),
-		//app.Options.HostMetrics(hostMetrics),
-		app.Options.Logger(e.logger),
+		app.Options.ServiceMetrics(metricsFactory),
+		app.Options.HostMetrics(hostMetrics),
+		app.Options.Logger(logger),
 		app.Options.SpanFilter(defaultSpanFilter),
 		app.Options.NumWorkers(*NumWorkers),
 		app.Options.QueueSize(*QueueSize),
 	)
 
-	return app.NewZipkinSpanHandler(e.logger, spanProcessor, zSanitizer),
-		app.NewJaegerSpanHandler(e.logger, spanProcessor),
+	return app.NewZipkinSpanHandler(logger, spanProcessor, zSanitizer),
+		app.NewJaegerSpanHandler(logger, spanProcessor),
 		nil
 }
 

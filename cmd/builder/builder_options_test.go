@@ -27,6 +27,7 @@ import (
 	"go.uber.org/zap"
 
 	"github.com/uber/jaeger-lib/metrics"
+	escfg "github.com/uber/jaeger/pkg/es/config"
 	"github.com/uber/jaeger/storage/spanstore/memory"
 )
 
@@ -36,8 +37,12 @@ func TestApplyOptions(t *testing.T) {
 		Options.LoggerOption(zap.NewNop()),
 		Options.MetricsFactoryOption(metrics.NullFactory),
 		Options.MemoryStoreOption(memory.NewStore()),
-		Options.ElasticSearchOption(nil),
+		Options.ElasticSearchOption(escfg.Configuration{
+			Servers: []string{"127.0.0.1"},
+		}),
 	)
+	assert.NotNil(t, opts.ElasticSearch)
+	assert.NotNil(t, opts.ElasticSearch.Servers)
 	assert.NotNil(t, opts.Logger)
 	assert.NotNil(t, opts.MetricsFactory)
 }
