@@ -34,13 +34,17 @@ import (
 	"github.com/uber/jaeger/model"
 	"github.com/uber/jaeger/pkg/cassandra"
 	cascfg "github.com/uber/jaeger/pkg/cassandra/config"
+	"github.com/uber/jaeger/pkg/es"
+	escfg "github.com/uber/jaeger/pkg/es/config"
 	"github.com/uber/jaeger/plugin/storage/cassandra/spanstore"
+	esSpanstore "github.com/uber/jaeger/plugin/storage/es/spanstore"
 	"github.com/uber/jaeger/storage/spanstore/memory"
 )
 
 var (
-	errMissingCassandraConfig = errors.New("Cassandra not configured")
-	errMissingMemoryStore     = errors.New("MemoryStore is not provided")
+	errMissingCassandraConfig     = errors.New("Cassandra not configured")
+	errMissingMemoryStore         = errors.New("MemoryStore is not provided")
+	errMissingElasticSearchConfig = errors.New("ElasticSearch not configured")
 )
 
 // SpanHandlerBuilder builds span (Jaeger and zipkin) handlers
@@ -61,6 +65,11 @@ func NewSpanHandlerBuilder(opts ...basicB.Option) (SpanHandlerBuilder, error) {
 			return nil, errMissingMemoryStore
 		}
 		return newMemoryStoreBuilder(options.MemoryStore, options.Logger, options.MetricsFactory), nil
+	} else if flags.SpanStorage.Type == flags.ESStorageType {
+		if options.ElasticSearch == nil {
+			return nil, errMissingElasticSearchConfig
+		}
+		return newESBuilder(options.ElasticSearch, options.Logger), nil
 	}
 	return nil, flags.ErrUnsupportedStorageType
 }
@@ -169,4 +178,57 @@ func (c *cassandraSpanHandlerBuilder) getSession() (cassandra.Session, error) {
 func fixConfiguration(config cascfg.Configuration) cascfg.Configuration {
 	config.ProtoVersion = 4
 	return config
+}
+
+type esSpanHandlerBuilder struct {
+	logger        *zap.Logger
+	client        es.Client
+	configuration escfg.Configuration
+}
+
+func newESBuilder(config *escfg.Configuration, logger *zap.Logger) *esSpanHandlerBuilder {
+	return &esSpanHandlerBuilder{
+		configuration: *config,
+		logger:        logger,
+	}
+}
+
+func (e *esSpanHandlerBuilder) BuildHandlers() (app.ZipkinSpansHandler, app.JaegerBatchesHandler, error) {
+	// TODO: keep these commented, add later when metrics are added to ES.
+	//hostname, _ := os.Hostname()
+	//hostMetrics := e.metricsFactory.Namespace(hostname, nil)
+
+	zSanitizer := zs.NewChainedSanitizer(
+		zs.NewSpanDurationSanitizer(e.logger),
+		zs.NewParentIDSanitizer(e.logger),
+	)
+
+	client, err := e.getClient()
+	if err != nil {
+		return nil, nil, err
+	}
+	spanStore := esSpanstore.NewSpanWriter(client, e.logger)
+
+	spanProcessor := app.NewSpanProcessor(
+		spanStore,
+		//app.Options.ServiceMetrics(e.metricsFactory),
+		//app.Options.HostMetrics(hostMetrics),
+		app.Options.Logger(e.logger),
+		app.Options.SpanFilter(defaultSpanFilter),
+		app.Options.NumWorkers(*NumWorkers),
+		app.Options.QueueSize(*QueueSize),
+	)
+
+	return app.NewZipkinSpanHandler(e.logger, spanProcessor, zSanitizer),
+		app.NewJaegerSpanHandler(e.logger, spanProcessor),
+		nil
+}
+
+func (e *esSpanHandlerBuilder) getClient() (es.Client, error) {
+	if e.client == nil {
+		client, err := e.configuration.NewClient()
+		e.client = client
+		return e.client, err
+	}
+	return e.client, nil
 }

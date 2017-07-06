@@ -18,32 +18,40 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 // THE SOFTWARE.
 
-package builder
+package config
 
 import (
-	"testing"
+	"github.com/olivere/elastic"
+	"github.com/pkg/errors"
 
-	"github.com/stretchr/testify/assert"
-	"go.uber.org/zap"
-
-	"github.com/uber/jaeger-lib/metrics"
-	"github.com/uber/jaeger/storage/spanstore/memory"
+	"github.com/uber/jaeger/pkg/es"
 )
 
-func TestApplyOptions(t *testing.T) {
-	opts := ApplyOptions(
-		Options.CassandraOption(nil),
-		Options.LoggerOption(zap.NewNop()),
-		Options.MetricsFactoryOption(metrics.NullFactory),
-		Options.MemoryStoreOption(memory.NewStore()),
-		Options.ElasticSearchOption(nil),
-	)
-	assert.NotNil(t, opts.Logger)
-	assert.NotNil(t, opts.MetricsFactory)
+// Configuration describes the configuration properties needed to connect to a ElasticSearch cluster
+type Configuration struct {
+	Servers  []string
+	username string
+	password string
+	sniffer  bool
 }
 
-func TestApplyNoOptions(t *testing.T) {
-	opts := ApplyOptions()
-	assert.NotNil(t, opts.Logger)
-	assert.NotNil(t, opts.MetricsFactory)
+// NewClient creates a new ElasticSearch client
+func (c *Configuration) NewClient() (es.Client, error) {
+	if len(c.Servers) < 1 {
+		return nil, errors.New("No servers specified")
+	}
+	rawClient, err := elastic.NewClient(c.GetConfigs()...)
+	if err != nil {
+		return nil, err
+	}
+	return es.WrapESClient(rawClient), nil
+}
+
+// GetConfigs wraps the configs to feed to the ElasticSearch client init
+func (c *Configuration) GetConfigs() []elastic.ClientOptionFunc {
+	options := make([]elastic.ClientOptionFunc, 3)
+	options = append(options, elastic.SetURL(c.Servers...))
+	options = append(options, elastic.SetBasicAuth(c.username, c.password))
+	options = append(options, elastic.SetSniff(c.sniffer))
+	return options
 }
