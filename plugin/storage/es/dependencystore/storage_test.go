@@ -21,9 +21,10 @@
 package dependencystore
 
 import (
-	"github.com/stretchr/testify/assert"
 	"testing"
 	"time"
+
+	"github.com/stretchr/testify/assert"
 )
 
 type depStorageTest struct {

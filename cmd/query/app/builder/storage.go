@@ -58,10 +58,10 @@ func NewStorageBuilder(opts ...basicB.Option) (StorageBuilder, error) {
 		}
 		return newMemoryStoreBuilder(options.MemoryStore), nil
 	} else if flags.SpanStorage.Type == flags.ESStorageType {
-		if options.Elastic == nil {
+		if options.ElasticSearch == nil {
 			return nil, errMissingElasticSearchConfig
 		}
-		return newESBuilder(options.Elastic, options.Logger), nil
+		return newESBuilder(options.ElasticSearch, options.Logger), nil
 	}
 	return nil, flags.ErrUnsupportedStorageType
 }

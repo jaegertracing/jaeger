@@ -93,7 +93,7 @@ func TestNewElasticSuccess(t *testing.T) {
 	os.Args = []string{"test", "--span-storage.type=elasticsearch"}
 	sBuilder, err := NewStorageBuilder(
 		basicB.Options.LoggerOption(zap.NewNop()),
-		basicB.Options.ElasticOption(&escfg.Configuration{
+		basicB.Options.ElasticSearchOption(&escfg.Configuration{
 			Servers: []string{"127.0.0.1"},
 		}),
 	)
