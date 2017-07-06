@@ -22,7 +22,6 @@ package integration
 
 import (
 	"encoding/json"
-	"sort"
 	"testing"
 
 	"github.com/kr/pretty"
@@ -32,25 +31,20 @@ import (
 	"github.com/uber/jaeger/model"
 )
 
-type TraceByTraceID []*model.Trace
-
-func (s TraceByTraceID) Len() int      { return len(s) }
-func (s TraceByTraceID) Swap(i, j int) { s[i], s[j] = s[j], s[i] }
-func (s TraceByTraceID) Less(i, j int) bool {
-	if len(s[i].Spans) != len(s[j].Spans) {
-		return len(s[i].Spans) < len(s[j].Spans)
-	} else if len(s[i].Spans) == 0 {
-		return true
-	}
-	return s[i].Spans[0].TraceID.Low < s[j].Spans[0].TraceID.Low
-}
-
-func CompareListOfTraces(t *testing.T, expected []*model.Trace, actual []*model.Trace) {
-	sort.Sort(TraceByTraceID(expected))
-	sort.Sort(TraceByTraceID(actual))
+func CompareSliceOfTraces(t *testing.T, expected []*model.Trace, actual []*model.Trace) {
 	require.Equal(t, len(expected), len(actual))
+	model.SortTraces(expected)
+	model.SortTraces(actual)
 	for i := range expected {
-		CompareTraces(t, expected[i], actual[i])
+		checkSize(t, expected[i], actual[i])
+	}
+	if !assert.EqualValues(t, expected, actual) {
+		for _, err := range pretty.Diff(expected, actual) {
+			t.Log(err)
+		}
+		out, err := json.Marshal(actual)
+		assert.NoError(t, err)
+		t.Logf("Actual traces: %s", string(out))
 	}
 }
 
@@ -79,5 +73,8 @@ func checkSize(t *testing.T, expected *model.Trace, actual *model.Trace) {
 		actualSpan := actual.Spans[i]
 		require.True(t, len(expectedSpan.Tags) == len(actualSpan.Tags))
 		require.True(t, len(expectedSpan.Logs) == len(actualSpan.Logs))
+		if expectedSpan.Process != nil && actualSpan.Process != nil {
+			require.True(t, len(expectedSpan.Process.Tags) == len(actualSpan.Process.Tags))
+		}
 	}
 }

@@ -90,3 +90,38 @@ func TestSortTraces(t *testing.T) {
 	SortTrace(t2)
 	assert.EqualValues(t, t1, t2)
 }
+
+func TestSortListOfTraces(t *testing.T) {
+	t1 := &Trace{
+		Spans: []*Span{
+			{
+				TraceID: TraceID{Low: 1},
+			},
+			{
+				TraceID: TraceID{Low: 1},
+			},
+		},
+	}
+	t2 := &Trace{
+		Spans: []*Span{
+			{
+				TraceID: TraceID{Low: 2},
+			},
+		},
+	}
+	t3 := &Trace{
+		Spans: []*Span{
+			{
+				TraceID: TraceID{Low: 3},
+			},
+		},
+	}
+	t4 := &Trace{}
+	t5 := &Trace{}
+
+	list1 := []*Trace{t1, t4, t2, t3, t5}
+	list2 := []*Trace{t4, t2, t1, t5, t3}
+	SortTraces(list1)
+	SortTraces(list2)
+	assert.EqualValues(t, list1, list2)
+}

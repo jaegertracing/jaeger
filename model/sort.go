@@ -24,13 +24,34 @@ import (
 	"sort"
 )
 
+type traceByTraceID []*Trace
+
+func (s traceByTraceID) Len() int      { return len(s) }
+func (s traceByTraceID) Swap(i, j int) { s[i], s[j] = s[j], s[i] }
+func (s traceByTraceID) Less(i, j int) bool {
+	if len(s[i].Spans) != len(s[j].Spans) {
+		return len(s[i].Spans) < len(s[j].Spans)
+	} else if len(s[i].Spans) == 0 {
+		return true
+	}
+	return s[i].Spans[0].TraceID.Low < s[j].Spans[0].TraceID.Low
+}
+
+// SortTraces deep sorts a list of traces by TraceID.
+func SortTraces(traces []*Trace) {
+	sort.Sort(traceByTraceID(traces))
+	for _, trace := range traces {
+		SortTrace(trace)
+	}
+}
+
 type spanBySpanID []*Span
 
 func (s spanBySpanID) Len() int           { return len(s) }
 func (s spanBySpanID) Swap(i, j int)      { s[i], s[j] = s[j], s[i] }
 func (s spanBySpanID) Less(i, j int) bool { return s[i].SpanID < s[j].SpanID }
 
-// SortTrace checks two traces' length and sorts their spans.
+// SortTrace deep sorts a trace's spans by SpanID.
 func SortTrace(trace *Trace) {
 	sort.Sort(spanBySpanID(trace.Spans))
 	for _, span := range trace.Spans {

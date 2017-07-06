@@ -37,6 +37,11 @@ import (
 	"github.com/uber/jaeger/storage/spanstore"
 )
 
+const (
+	iterations            = 30
+	waitForBackendComment = "Waiting for storage backend to update documents, iteration %d out of %d"
+)
+
 type StorageIntegration struct {
 	logger *zap.Logger
 	writer spanstore.Writer
@@ -67,20 +72,17 @@ type QueryFixtures struct {
 func (s *StorageIntegration) IntegrationTestGetServices(t *testing.T) {
 	t.Log("Testing GetServices ...")
 
-	// TODO
 	expected := []string{"example-service-1", "example-service-2", "example-service-3"}
-	trace, err := getTraceFixture("example_trace")
-	require.NoError(t, err)
-	require.NoError(t, s.writeTrace(trace))
+	s.getBasicFixture(t)
 
 	s.refresh()
 
 	var found bool
 
 	var actual []string
-	for i := 0; i < 30; i++ {
-		s.logger.Info(fmt.Sprintf("Waiting for storage backend to update documents, iteration %d out of %d", i+1, 30))
-		actual, err = s.reader.GetServices()
+	for i := 0; i < iterations; i++ {
+		s.logger.Info(fmt.Sprintf(waitForBackendComment, i+1, iterations))
+		actual, err := s.reader.GetServices()
 		require.NoError(t, err)
 		if found = assert.ObjectsAreEqualValues(expected, actual); found {
 			break
@@ -98,19 +100,16 @@ func (s *StorageIntegration) IntegrationTestGetServices(t *testing.T) {
 func (s *StorageIntegration) IntegrationTestGetOperations(t *testing.T) {
 	t.Log("Testing GetOperations ...")
 
-	// TODO
 	expected := []string{"example-operation-1", "example-operation-3", "example-operation-4"}
-	trace, err := getTraceFixture("example_trace")
-	require.NoError(t, err)
-	require.NoError(t, s.writeTrace(trace))
+	s.getBasicFixture(t)
 
 	s.refresh()
 
 	var found bool
 	var actual []string
-	for i := 0; i < 30; i++ {
-		s.logger.Info(fmt.Sprintf("Waiting for storage backend to update documents, iteration %d out of %d", i+1, 30))
-		actual, err = s.reader.GetOperations("example-service-1")
+	for i := 0; i < iterations; i++ {
+		s.logger.Info(fmt.Sprintf(waitForBackendComment, i+1, iterations))
+		actual, err := s.reader.GetOperations("example-service-1")
 		require.NoError(t, err)
 		if found = assert.ObjectsAreEqualValues(expected, actual); found {
 			break
@@ -128,22 +127,18 @@ func (s *StorageIntegration) IntegrationTestGetOperations(t *testing.T) {
 func (s *StorageIntegration) IntegrationTestGetTrace(t *testing.T) {
 	t.Log("Testing GetTrace ...")
 
-	// TODO
-	expected, err := getTraceFixture("example_trace")
-	require.NoError(t, err)
-	require.NoError(t, s.writeTrace(expected))
-	traceID := model.TraceID{Low: 17}
+	expected := s.getBasicFixture(t)
+	expectedTraceID := model.TraceID{Low: 17}
 
 	s.refresh()
 
 	var found bool
 	var actual *model.Trace
-	for i := 0; i < 30; i++ {
-		s.logger.Info(fmt.Sprintf("Waiting for storage backend to update documents, iteration %d out of %d", i+1, 30))
-		actual, err = s.reader.GetTrace(traceID)
+	for i := 0; i < iterations; i++ {
+		s.logger.Info(fmt.Sprintf(waitForBackendComment, i+1, iterations))
+		actual, err := s.reader.GetTrace(expectedTraceID)
 		if err == nil {
-			found = len(actual.Spans) == len(expected.Spans)
-			if found {
+			if found = len(actual.Spans) == len(expected.Spans); found {
 				break
 			}
 		}
@@ -175,8 +170,8 @@ func (s *StorageIntegration) integrationTestFindTracesByQuery(t *testing.T, quer
 
 	var found bool
 	var actual []*model.Trace
-	for i := 0; i < 30; i++ {
-		s.logger.Info(fmt.Sprintf("Waiting for storage backend to update documents, iteration %d out of %d", i+1, 30))
+	for i := 0; i < iterations; i++ {
+		s.logger.Info(fmt.Sprintf(waitForBackendComment, i+1, iterations))
 		actual, err = s.reader.FindTraces(query)
 		if err == nil {
 			if len(actual) == query.NumTraces {
@@ -185,14 +180,14 @@ func (s *StorageIntegration) integrationTestFindTracesByQuery(t *testing.T, quer
 			}
 			found = tracesMatch(actual, expected)
 			if found {
-				CompareListOfTraces(t, expected, actual)
+				CompareSliceOfTraces(t, expected, actual)
 				break
 			}
 		}
 		time.Sleep(100 * time.Millisecond)
 	}
 	if !assert.True(t, found) {
-		CompareListOfTraces(t, expected, actual)
+		CompareSliceOfTraces(t, expected, actual)
 	}
 	assert.NoError(t, s.cleanUp())
 }
@@ -213,6 +208,13 @@ func (s *StorageIntegration) writeTrace(trace *model.Trace) error {
 		}
 	}
 	return nil
+}
+
+func (s *StorageIntegration) getBasicFixture(t *testing.T) *model.Trace {
+	trace, err := getTraceFixture("example_trace")
+	require.NoError(t, err)
+	require.NoError(t, s.writeTrace(trace))
+	return trace
 }
 
 func getTraceFixture(fixture string) (*model.Trace, error) {
@@ -254,10 +256,10 @@ func tracesMatch(actual []*model.Trace, expected []*model.Trace) bool {
 	if len(actual) != len(expected) {
 		return false
 	}
-	return countOfSpans(actual) == countOfSpans(expected)
+	return spanCount(actual) == spanCount(expected)
 }
 
-func countOfSpans(traces []*model.Trace) int {
+func spanCount(traces []*model.Trace) int {
 	var count int
 	for _, trace := range traces {
 		count += len(trace.Spans)
