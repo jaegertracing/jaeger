@@ -37,7 +37,7 @@ func TestApplyOptions(t *testing.T) {
 		Options.LoggerOption(zap.NewNop()),
 		Options.MetricsFactoryOption(metrics.NullFactory),
 		Options.MemoryStoreOption(memory.NewStore()),
-		Options.ElasticSearchOption(escfg.Configuration{
+		Options.ElasticSearchOption(&escfg.Configuration{
 			Servers: []string{"127.0.0.1"},
 		}),
 	)
