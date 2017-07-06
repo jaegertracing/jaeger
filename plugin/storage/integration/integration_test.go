@@ -174,12 +174,7 @@ func (s *StorageIntegration) integrationTestFindTracesByQuery(t *testing.T, quer
 		s.logger.Info(fmt.Sprintf(waitForBackendComment, i+1, iterations))
 		actual, err = s.reader.FindTraces(query)
 		if err == nil {
-			if len(actual) == query.NumTraces {
-				found = true
-				break
-			}
-			found = tracesMatch(actual, expected)
-			if found {
+			if found = tracesMatch(actual, expected); found {
 				CompareSliceOfTraces(t, expected, actual)
 				break
 			}
