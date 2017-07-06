@@ -36,9 +36,9 @@ import (
 	cascfg "github.com/uber/jaeger/pkg/cassandra/config"
 	"github.com/uber/jaeger/pkg/es"
 	escfg "github.com/uber/jaeger/pkg/es/config"
-	"github.com/uber/jaeger/storage/spanstore"
 	casSpanstore "github.com/uber/jaeger/plugin/storage/cassandra/spanstore"
 	esSpanstore "github.com/uber/jaeger/plugin/storage/es/spanstore"
+	"github.com/uber/jaeger/storage/spanstore"
 	"github.com/uber/jaeger/storage/spanstore/memory"
 )
 
