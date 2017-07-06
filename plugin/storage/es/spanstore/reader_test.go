@@ -31,6 +31,7 @@ import (
 	"github.com/stretchr/testify/mock"
 	"github.com/stretchr/testify/require"
 	"go.uber.org/zap"
+	"github.com/uber/jaeger-lib/metrics"
 
 	"github.com/uber/jaeger/model"
 	"github.com/uber/jaeger/pkg/es/mocks"
@@ -89,11 +90,12 @@ type spanReaderTest struct {
 func withSpanReader(fn func(r *spanReaderTest)) {
 	client := &mocks.Client{}
 	logger, logBuffer := testutils.NewLogger()
+	metricsFactory := metrics.NewLocalFactory(0)
 	r := &spanReaderTest{
 		client:    client,
 		logger:    logger,
 		logBuffer: logBuffer,
-		reader:    NewSpanReader(client, logger),
+		reader:    NewSpanReader(client, logger, metricsFactory),
 	}
 	fn(r)
 }
