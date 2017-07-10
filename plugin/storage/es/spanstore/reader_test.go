@@ -90,14 +90,21 @@ type spanReaderTest struct {
 func withSpanReader(fn func(r *spanReaderTest)) {
 	client := &mocks.Client{}
 	logger, logBuffer := testutils.NewLogger()
-	metricsFactory := metrics.NewLocalFactory(0)
 	r := &spanReaderTest{
 		client:    client,
 		logger:    logger,
 		logBuffer: logBuffer,
-		reader:    NewSpanReader(client, logger, metricsFactory),
+		reader:    newSpanReader(client, logger),
 	}
 	fn(r)
+}
+
+func TestNewSpanReaderWithMetrics(t *testing.T) {
+	client := &mocks.Client{}
+	logger, _ := testutils.NewLogger() // logBuffer unneeded
+	metricsFactory := metrics.NewLocalFactory(0)
+	var reader spanstore.Reader = NewSpanReader(client, logger, metricsFactory)
+	assert.NotNil(t, reader)
 }
 
 func TestNewSpanReader(t *testing.T) {

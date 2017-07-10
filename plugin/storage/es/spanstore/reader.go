@@ -85,33 +85,24 @@ var (
 	tagFieldList = []string{tagsField, processTagsField, logFieldsField}
 )
 
-type spanReaderMetrics struct {
-	readTraces      *storageMetrics.Table
-	queryServices   *storageMetrics.Table
-	queryOperations *storageMetrics.Table
-}
-
 // SpanReader can query for and load traces from ElasticSearch
 type SpanReader struct {
-	ctx     context.Context
-	client  es.Client
-	logger  *zap.Logger
-	metrics spanReaderMetrics
+	ctx    context.Context
+	client es.Client
+	logger *zap.Logger
 }
 
-// NewSpanReader returns a new SpanReader.
-func NewSpanReader(client es.Client, logger *zap.Logger, metricsFactory metrics.Factory) *SpanReader {
-	readFactory := metricsFactory.Namespace("Read", nil)
+// NewSpanReader returns a new SpanReader with a metrics.
+func NewSpanReader(client es.Client, logger *zap.Logger, metricsFactory metrics.Factory) spanstore.Reader {
+	return storageMetrics.NewReadMetricsDecorator(newSpanReader(client, logger), metricsFactory)
+}
+
+func newSpanReader(client es.Client, logger *zap.Logger) *SpanReader {
 	ctx := context.Background()
 	return &SpanReader{
 		ctx:    ctx,
 		client: client,
 		logger: logger,
-		metrics: spanReaderMetrics{
-			readTraces:      storageMetrics.NewTable(readFactory, "ReadTraces"),
-			queryServices:   storageMetrics.NewTable(readFactory, "QueryServices"),
-			queryOperations: storageMetrics.NewTable(readFactory, "QueryOperations"),
-		},
 	}
 }
 
@@ -121,7 +112,6 @@ func (s *SpanReader) GetTrace(traceID model.TraceID) (*model.Trace, error) {
 }
 
 func (s *SpanReader) readTrace(traceID string, traceQuery *spanstore.TraceQueryParameters) (*model.Trace, error) {
-	start := time.Now()
 	query := elastic.NewTermQuery(traceIDField, traceID)
 
 	traceQuery.StartTimeMax = traceQuery.StartTimeMax.Add(time.Hour)
@@ -129,7 +119,6 @@ func (s *SpanReader) readTrace(traceID string, traceQuery *spanstore.TraceQueryP
 	indices := s.findIndices(traceQuery)
 	esSpansRaw, err := s.executeQuery(query, indices...)
 	if err != nil {
-		s.metrics.readTraces.Emit(err, time.Since(start))
 		return nil, errors.Wrap(err, "Query execution failed")
 	}
 	if len(esSpansRaw) == 0 {
@@ -138,10 +127,8 @@ func (s *SpanReader) readTrace(traceID string, traceQuery *spanstore.TraceQueryP
 
 	spans, err := s.collectSpans(esSpansRaw)
 	if err != nil {
-		s.metrics.readTraces.Emit(err, time.Since(start))
 		return nil, errors.Wrap(err, "Span collection failed")
 	}
-	s.metrics.readTraces.Emit(err, time.Since(start))
 	return &model.Trace{Spans: spans}, nil
 }
 
@@ -212,7 +199,6 @@ func indexWithDate(date time.Time) string {
 
 // GetServices returns all services traced by Jaeger, ordered by frequency
 func (s *SpanReader) GetServices() ([]string, error) {
-	start := time.Now()
 	serviceAggregation := s.getServicesAggregation()
 
 	jaegerIndices := s.findIndices(&spanstore.TraceQueryParameters{})
@@ -224,17 +210,13 @@ func (s *SpanReader) GetServices() ([]string, error) {
 
 	searchResult, err := searchService.Do(s.ctx)
 	if err != nil {
-		s.metrics.queryServices.Emit(err, time.Since(start))
 		return nil, errors.Wrap(err, "Search service failed")
 	}
 
 	bucket, found := searchResult.Aggregations.Terms(servicesAggregation)
 	if !found {
-		err := errors.New("Could not find aggregation of " + servicesAggregation)
-		s.metrics.queryServices.Emit(err, time.Since(start))
-		return nil, err
+		return nil, errors.New("Could not find aggregation of " + servicesAggregation)
 	}
-	s.metrics.queryServices.Emit(err, time.Since(start))
 	serviceNamesBucket := bucket.Buckets
 	return s.bucketToStringArray(serviceNamesBucket)
 }
@@ -247,7 +229,6 @@ func (s *SpanReader) getServicesAggregation() elastic.Query {
 
 // GetOperations returns all operations for a specific service traced by Jaeger
 func (s *SpanReader) GetOperations(service string) ([]string, error) {
-	start := time.Now()
 	serviceQuery := elastic.NewTermQuery(serviceName, service)
 	serviceFilter := s.getOperationsAggregation()
 	jaegerIndices := s.findIndices(&spanstore.TraceQueryParameters{})
@@ -260,16 +241,12 @@ func (s *SpanReader) GetOperations(service string) ([]string, error) {
 
 	searchResult, err := searchService.Do(s.ctx)
 	if err != nil {
-		s.metrics.queryOperations.Emit(err, time.Since(start))
 		return nil, errors.Wrap(err, "Search service failed")
 	}
 	bucket, found := searchResult.Aggregations.Terms(operationsAggregation)
 	if !found {
-		err := errors.New("Could not find aggregation of " + operationsAggregation)
-		s.metrics.queryOperations.Emit(err, time.Since(start))
-		return nil, err
+		return nil, errors.New("Could not find aggregation of " + operationsAggregation)
 	}
-	s.metrics.queryOperations.Emit(err, time.Since(start))
 	operationNamesBucket := bucket.Buckets
 	return s.bucketToStringArray(operationNamesBucket)
 }
