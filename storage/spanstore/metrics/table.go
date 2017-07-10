@@ -26,7 +26,7 @@ import (
 	"github.com/uber/jaeger-lib/metrics"
 )
 
-// Table is a collection of metrics about Cassandra write operations.
+// Table is a collection of metrics about write operations.
 type Table struct {
 	Attempts   metrics.Counter `metric:"attempts"`
 	Inserts    metrics.Counter `metric:"inserts"`

@@ -35,8 +35,8 @@ import (
 	jConverter "github.com/uber/jaeger/model/converter/json"
 	jModel "github.com/uber/jaeger/model/json"
 	"github.com/uber/jaeger/pkg/es"
-	esMetrics "github.com/uber/jaeger/pkg/es/metrics"
 	"github.com/uber/jaeger/storage/spanstore"
+	storageMetrics "github.com/uber/jaeger/storage/spanstore/metrics"
 )
 
 const (
@@ -86,9 +86,9 @@ var (
 )
 
 type spanReaderMetrics struct {
-	readTraces      *esMetrics.Table
-	queryServices   *esMetrics.Table
-	queryOperations *esMetrics.Table
+	readTraces      *storageMetrics.Table
+	queryServices   *storageMetrics.Table
+	queryOperations *storageMetrics.Table
 }
 
 // SpanReader can query for and load traces from ElasticSearch
@@ -108,9 +108,9 @@ func NewSpanReader(client es.Client, logger *zap.Logger, metricsFactory metrics.
 		client: client,
 		logger: logger,
 		metrics: spanReaderMetrics{
-			readTraces:      esMetrics.NewTable(readFactory, "ReadTraces"),
-			queryServices:   esMetrics.NewTable(readFactory, "QueryServices"),
-			queryOperations: esMetrics.NewTable(readFactory, "QueryOperations"),
+			readTraces:      storageMetrics.NewTable(readFactory, "ReadTraces"),
+			queryServices:   storageMetrics.NewTable(readFactory, "QueryServices"),
+			queryOperations: storageMetrics.NewTable(readFactory, "QueryOperations"),
 		},
 	}
 }
