@@ -287,9 +287,9 @@ func TestSpanReader_findIndicesEmptyQuery(t *testing.T) {
 		twoDaysAgo := today.AddDate(0, 0, -2)
 
 		expected := []string{
-			indexWithDate(today),
-			indexWithDate(yesterday),
-			indexWithDate(twoDaysAgo),
+			IndexWithDate(today),
+			IndexWithDate(yesterday),
+			IndexWithDate(twoDaysAgo),
 		}
 
 		assert.EqualValues(t, expected, actual)
@@ -327,8 +327,8 @@ func TestSpanReader_findIndicesOnlyRecent(t *testing.T) {
 		twoDaysAgo := today.AddDate(0, 0, -2)
 
 		expected := []string{
-			indexWithDate(yesterday),
-			indexWithDate(twoDaysAgo),
+			IndexWithDate(yesterday),
+			IndexWithDate(twoDaysAgo),
 		}
 
 		assert.EqualValues(t, expected, actual)
@@ -337,7 +337,7 @@ func TestSpanReader_findIndicesOnlyRecent(t *testing.T) {
 
 func TestSpanReader_indexWithDate(t *testing.T) {
 	withSpanReader(func(r *spanReaderTest) {
-		actual := indexWithDate(time.Date(1995, time.April, 21, 4, 21, 19, 95, time.UTC))
+		actual := IndexWithDate(time.Date(1995, time.April, 21, 4, 21, 19, 95, time.UTC))
 		assert.Equal(t, "jaeger-1995-04-21", actual)
 	})
 }

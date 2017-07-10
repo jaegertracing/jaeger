@@ -55,7 +55,7 @@ const (
 	tagKeyField        = "key"
 	tagValueField      = "value"
 
-	defaultDocCount  = 3000
+	defaultDocCount  = 10000 // the default elasticsearch allowed limit
 	defaultNumTraces = 100
 )
 
@@ -177,7 +177,7 @@ func (s *SpanReader) findIndices(traceQuery *spanstore.TraceQueryParameters) []s
 	var indices []string
 	current := traceQuery.StartTimeMax
 	for current.After(traceQuery.StartTimeMin) && current.After(threeDaysAgo) {
-		index := indexWithDate(current)
+		index := IndexWithDate(current)
 		exists, _ := s.client.IndexExists(index).Do(s.ctx) // Don't care about error, if it's an error, exists will be false anyway
 		if exists {
 			indices = append(indices, index)
@@ -187,7 +187,8 @@ func (s *SpanReader) findIndices(traceQuery *spanstore.TraceQueryParameters) []s
 	return indices
 }
 
-func indexWithDate(date time.Time) string {
+// IndexWithDate returns the index name formatted to date.
+func IndexWithDate(date time.Time) string {
 	return indexPrefix + date.Format("2006-01-02")
 }
 
