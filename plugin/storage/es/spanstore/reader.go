@@ -130,7 +130,7 @@ func (s *SpanReader) collectSpans(esSpansRaw []*elastic.SearchHit) ([]*model.Spa
 	spans := make([]*model.Span, len(esSpansRaw))
 
 	for i, esSpanRaw := range esSpansRaw {
-		jsonSpan, err := s.unmarshallJSONSpan(esSpanRaw)
+		jsonSpan, err := s.unmarshalJSONSpan(esSpanRaw)
 		if err != nil {
 			return nil, errors.Wrap(err, "Marshalling JSON to span object failed")
 		}
@@ -154,7 +154,7 @@ func (s *SpanReader) executeQuery(query elastic.Query, indices ...string) ([]*el
 	return searchService.Hits.Hits, nil
 }
 
-func (s *SpanReader) unmarshallJSONSpan(esSpanRaw *elastic.SearchHit) (*jModel.Span, error) {
+func (s *SpanReader) unmarshalJSONSpan(esSpanRaw *elastic.SearchHit) (*jModel.Span, error) {
 	esSpanInByteArray := esSpanRaw.Source
 
 	var jsonSpan jModel.Span
