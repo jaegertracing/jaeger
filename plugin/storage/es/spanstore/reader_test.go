@@ -667,7 +667,7 @@ func TestSpanReader_buildDurationQuery(t *testing.T) {
 
 		expected := make(map[string]interface{})
 		json.Unmarshal([]byte(expectedStr), &expected)
-		// We need to do this because we cannot process a json into uin64. TODO: find cleaner alternative
+		// We need to do this because we cannot process a json into uint64.
 		expected["range"].(map[string]interface{})["duration"].(map[string]interface{})["from"] = model.DurationAsMicroseconds(durationMin)
 		expected["range"].(map[string]interface{})["duration"].(map[string]interface{})["to"] = model.DurationAsMicroseconds(durationMax)
 
@@ -693,7 +693,7 @@ func TestSpanReader_buildStartTimeQuery(t *testing.T) {
 
 		expected := make(map[string]interface{})
 		json.Unmarshal([]byte(expectedStr), &expected)
-		// We need to do this because we cannot process a json into uin64. TODO: find cleaner alternative
+		// We need to do this because we cannot process a json into uint64.
 		expected["range"].(map[string]interface{})["startTime"].(map[string]interface{})["from"] = model.TimeAsEpochMicroseconds(startTimeMin)
 		expected["range"].(map[string]interface{})["startTime"].(map[string]interface{})["to"] = model.TimeAsEpochMicroseconds(startTimeMax)
 
