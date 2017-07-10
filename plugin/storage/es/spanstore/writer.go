@@ -23,6 +23,7 @@ package spanstore
 import (
 	"context"
 	"fmt"
+	"time"
 
 	"github.com/pkg/errors"
 	"go.uber.org/zap"
@@ -30,6 +31,7 @@ import (
 	"github.com/uber/jaeger/model"
 	"github.com/uber/jaeger/model/converter/json"
 	jModel "github.com/uber/jaeger/model/json"
+	"github.com/uber/jaeger/pkg/cache"
 	"github.com/uber/jaeger/pkg/es"
 )
 
@@ -40,9 +42,10 @@ const (
 
 // SpanWriter is a wrapper around elastic.Client
 type SpanWriter struct {
-	ctx    context.Context
-	client es.Client
-	logger *zap.Logger
+	ctx        context.Context
+	client     es.Client
+	logger     *zap.Logger
+	indexCache cache.Cache
 }
 
 // Service is the JSON struct for service:operation documents in ElasticSearch
@@ -58,6 +61,12 @@ func NewSpanWriter(client es.Client, logger *zap.Logger) *SpanWriter {
 		ctx:    ctx,
 		client: client,
 		logger: logger,
+		indexCache: cache.NewLRUWithOptions(
+			5,
+			&cache.Options{
+				TTL: 48 * time.Hour,
+			},
+		),
 	}
 }
 
@@ -86,18 +95,24 @@ func spanIndexName(span *model.Span) string {
 
 // Check if index exists, and create index if it does not.
 func (s *SpanWriter) checkAndCreateIndex(indexName string, jsonSpan *jModel.Span) error {
-	// TODO: We don't need to check every write. Try to pull this out of WriteSpan.
-	exists, err := s.client.IndexExists(indexName).Do(s.ctx)
-	if err != nil {
-		return s.logError(jsonSpan, err, "Failed to find index", s.logger)
-	}
-	if !exists {
-		_, err = s.client.CreateIndex(indexName).Body(spanMapping).Do(s.ctx)
+	if !checkWriteCache(indexName, s.indexCache) {
+		_, err := s.client.CreateIndex(indexName).Body(spanMapping).Do(s.ctx)
 		if err != nil {
 			return s.logError(jsonSpan, err, "Failed to create index", s.logger)
 		}
 	}
 	return nil
+}
+
+// checks if the key is in cache; returns true if it is, otherwise puts it there and returns false
+func checkWriteCache(key string, c cache.Cache) bool {
+	// even though there is a race condition between Get and Put, it's not a problem for storage,
+	// index creation is idempotent.
+	inCache := c.Get(key)
+	if inCache == nil {
+		c.Put(key, key)
+	}
+	return inCache != nil
 }
 
 func (s *SpanWriter) writeService(indexName string, jsonSpan *jModel.Span) error {

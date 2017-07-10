@@ -101,22 +101,6 @@ func TestSpanWriter_WriteSpan(t *testing.T) {
 			expectedLogs:  []string{},
 		},
 		{
-			caption: "index dne error",
-
-			indexExists:  false,
-			createResult: &elastic.IndicesCreateResult{},
-			putResult:    &elastic.IndexResponse{},
-
-			indexExistsError: errors.New("index dne error"),
-			expectedError:    "Failed to find index: index dne error",
-			expectedLogs: []string{
-				`"msg":"Failed to find index"`,
-				`"trace_id":"1"`,
-				`"span_id":"0"`,
-				`"error":"index dne error"`,
-			},
-		},
-		{
 			caption: "index creation error",
 
 			indexExists:  false,
@@ -216,11 +200,6 @@ func TestSpanWriter_WriteSpan(t *testing.T) {
 
 				if testCase.expectedError == "" {
 					assert.NoError(t, err)
-					if testCase.indexExists || testCase.indexExistsError != nil {
-						createService.AssertNumberOfCalls(t, "Do", 0)
-					} else {
-						createService.AssertNumberOfCalls(t, "Do", 1)
-					}
 					indexServicePut.AssertNumberOfCalls(t, "Do", 1)
 					indexSpanPut.AssertNumberOfCalls(t, "Do", 1)
 				} else {
@@ -262,16 +241,6 @@ func TestCheckAndCreateIndex(t *testing.T) {
 			createResult: &elastic.IndicesCreateResult{},
 		},
 		{
-			indexExistsError: errors.New("index dne error"),
-			expectedError:    "Failed to find index: index dne error",
-			expectedLogs: []string{
-				`"msg":"Failed to find index"`,
-				`"trace_id":"1"`,
-				`"span_id":"0"`,
-				`"error":"index dne error"`,
-			},
-		},
-		{
 			createError:   errors.New("index creation error"),
 			expectedError: "Failed to create index: index creation error",
 			expectedLogs: []string{
@@ -305,11 +274,6 @@ func TestCheckAndCreateIndex(t *testing.T) {
 
 			if testCase.expectedError == "" {
 				assert.NoError(t, err)
-				if testCase.indexExists || testCase.indexExistsError != nil {
-					createService.AssertNumberOfCalls(t, "Do", 0)
-				} else {
-					createService.AssertNumberOfCalls(t, "Do", 1)
-				}
 			} else {
 				assert.EqualError(t, err, testCase.expectedError)
 			}
