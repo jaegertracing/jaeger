@@ -54,9 +54,10 @@ func NewStore() *Store {
 
 // GetDependencies returns dependencies between services
 func (m *Store) GetDependencies(endTs time.Time, lookback time.Duration) ([]model.DependencyLink, error) {
-	deps := map[string]*model.DependencyLink{}
+	// deduper used below can modify the spans, so we take an exclusive lock
 	m.Lock()
 	defer m.Unlock()
+	deps := map[string]*model.DependencyLink{}
 	startTs := endTs.Add(-1 * lookback)
 	for _, orig := range m.traces {
 		// SpanIDDeduper never returns an err
@@ -162,6 +163,8 @@ func (m *Store) GetOperations(service string) ([]string, error) {
 
 // FindTraces returns all traces in the query parameters are satisfied by a trace's span
 func (m *Store) FindTraces(query *spanstore.TraceQueryParameters) ([]*model.Trace, error) {
+	m.RLock()
+	defer m.RUnlock()
 	var retMe []*model.Trace
 	for _, trace := range m.traces {
 		if len(retMe) >= query.NumTraces {

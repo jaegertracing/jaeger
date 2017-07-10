@@ -35,7 +35,7 @@ import (
 
 func TestStaticAssetsHandler(t *testing.T) {
 	r := mux.NewRouter()
-	handler := NewStaticAssetsHandler("fixture/")
+	handler := NewStaticAssetsHandler("fixture")
 	handler.RegisterRoutes(r)
 	server := httptest.NewServer(r)
 	defer server.Close()

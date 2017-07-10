@@ -45,7 +45,7 @@ func TestBingFlags(t *testing.T) {
 	assert.Equal(t, 3, len(cfg.Processors))
 	assert.Equal(t, []string{"1.2.3.4:555", "1.2.3.4:666"}, cfg.CollectorHostPorts)
 	assert.Equal(t, 42, cfg.DiscoveryMinPeers)
-	assert.Equal(t, ":8080", cfg.SamplingServer.HostPort)
+	assert.Equal(t, ":8080", cfg.HTTPServer.HostPort)
 	assert.Equal(t, ":1111", cfg.Processors[2].Server.HostPort)
 	assert.Equal(t, 4242, cfg.Processors[2].Server.MaxPacketSize)
 	assert.Equal(t, 42, cfg.Processors[2].Server.QueueSize)

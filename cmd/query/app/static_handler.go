@@ -22,6 +22,7 @@ package app
 
 import (
 	"net/http"
+	"strings"
 
 	"github.com/gorilla/mux"
 )
@@ -43,6 +44,9 @@ type StaticAssetsHandler struct {
 func NewStaticAssetsHandler(staticAssetsRoot string) *StaticAssetsHandler {
 	if staticAssetsRoot == "" {
 		staticAssetsRoot = defaultStaticAssetsRoot
+	}
+	if !strings.HasSuffix(staticAssetsRoot, "/") {
+		staticAssetsRoot = staticAssetsRoot + "/"
 	}
 	return &StaticAssetsHandler{staticAssetsRoot: staticAssetsRoot}
 }

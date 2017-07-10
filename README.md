@@ -20,21 +20,24 @@ See also:
   * Blog post [Evolving Distributed Tracing at Uber](https://eng.uber.com/distributed-tracing/).
   * Tutorial / walkthrough [Take OpenTracing for a HotROD ride][hotrod-tutorial].
 
-## Status
-
-Most of the code here is used in production at Uber, but the open source version is currently in **Public Beta**.
-
 ## Related Repositories
-Clients:
+
+### Instrumentation Libraries
+
  * [Go client](https://github.com/uber/jaeger-client-go)
  * [Java client](https://github.com/uber/jaeger-client-java)
  * [Python client](https://github.com/uber/jaeger-client-python)
  * [Node.js client](https://github.com/uber/jaeger-client-node)
 
-Contributions:
- * [Jaeger contributions](https://github.com/jaegertracing) organization
+### Contributions
 
-Components:
+[Jaeger contributions](https://github.com/jaegertracing) organization, including:
+
+  * [Kubernetes templates](https://github.com/jaegertracing/jaeger-kubernetes)
+  * [OpenShift templates](https://github.com/jaegertracing/jaeger-openshift)
+
+### Components
+
  * [UI](https://github.com/uber/jaeger-ui)
  * [Data model](https://github.com/uber/jaeger-idl)
 
@@ -42,13 +45,19 @@ Components:
 
 See [CONTRIBUTING](./CONTRIBUTING.md).
 
-## Questions
+## Questions, Discussions, Bug Reports
 
-Open an issue in this or other Jaeger repositories, or join the [jaeger-tracing forum](https://groups.google.com/forum/#!forum/jaeger-tracing).
+Reach project contributors via these channels:
+
+ * [jaeger-tracing mail group](https://groups.google.com/forum/#!forum/jaeger-tracing)
+ * [Gitter chat room](https://gitter.im/jaegertracing/Lobby)
+ * [Github issues](https://github.com/uber/jaeger/issues)
 
 ## License
 
 [The MIT License](./LICENSE).
+
+Note: we are planning to switch to Apache License v2.0
 
 [doc-img]: https://readthedocs.org/projects/jaeger/badge/?version=latest
 [doc]: http://jaeger.readthedocs.org/en/latest/

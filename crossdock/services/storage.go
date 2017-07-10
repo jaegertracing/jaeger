@@ -26,26 +26,30 @@ import (
 	"strings"
 
 	"github.com/pkg/errors"
+	"go.uber.org/zap"
 
 	"github.com/uber/jaeger/pkg/cassandra"
 )
 
-const (
-	dropKeyspaceQuery = "DROP KEYSPACE IF EXISTS %s"
-)
-
 // InitializeCassandraSchema applies a schema to the cassandra keyspace
-func InitializeCassandraSchema(session cassandra.Session, schemaFile, keyspace string) error {
+func InitializeCassandraSchema(session cassandra.Session, schemaFile, keyspace string, logger *zap.Logger) error {
+	logger.Info("Creating Cassandra schema", zap.String("keyspace", keyspace), zap.String("file", schemaFile))
 	buf, err := ioutil.ReadFile(schemaFile)
 	if err != nil {
 		return err
 	}
 	file := string(buf)
-	// (NB). Queries are split by 2 newlines, not an exact science
-	schemaQueries := strings.Split(file, "\n\n")
-	schemaQueries = append([]string{fmt.Sprintf(dropKeyspaceQuery, keyspace)}, schemaQueries...)
+	// Split file into individual queries.
+	schemaQueries := strings.Split(file, ";")
+	dropKeyspaceQuery := fmt.Sprintf("DROP KEYSPACE IF EXISTS %s", keyspace)
+	schemaQueries = append([]string{dropKeyspaceQuery}, schemaQueries...)
 	for _, schemaQuery := range schemaQueries {
-		if err := session.Query(schemaQuery).Exec(); err != nil {
+		schemaQuery = strings.TrimSpace(schemaQuery)
+		if schemaQuery == "" {
+			continue
+		}
+		logger.Info("Executing", zap.String("query", schemaQuery))
+		if err := session.Query(schemaQuery + ";").Exec(); err != nil {
 			return errors.Wrap(err, fmt.Sprintf("Failed to apply a schema query: %s", schemaQuery))
 		}
 	}

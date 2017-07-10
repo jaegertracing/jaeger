@@ -27,6 +27,7 @@ import (
 	"github.com/uber/tchannel-go"
 	"github.com/uber/tchannel-go/thrift"
 
+	"github.com/uber/jaeger/thrift-gen/baggage"
 	"github.com/uber/jaeger/thrift-gen/jaeger"
 	"github.com/uber/jaeger/thrift-gen/sampling"
 	"github.com/uber/jaeger/thrift-gen/zipkincore"
@@ -51,17 +52,19 @@ func startMockTCollector(name string, addr string) (*MockTCollector, error) {
 	server := thrift.NewServer(ch)
 
 	collector := &MockTCollector{
-		Channel:       ch,
-		server:        server,
-		zipkinSpans:   make([]*zipkincore.Span, 0, 10),
-		jaegerBatches: make([]*jaeger.Batch, 0, 10),
-		samplingMgr:   newSamplingManager(),
-		ReturnErr:     false,
+		Channel:               ch,
+		server:                server,
+		zipkinSpans:           make([]*zipkincore.Span, 0, 10),
+		jaegerBatches:         make([]*jaeger.Batch, 0, 10),
+		samplingMgr:           newSamplingManager(),
+		baggageRestrictionMgr: newBaggageRestrictionManager(),
+		ReturnErr:             false,
 	}
 
 	server.Register(zipkincore.NewTChanZipkinCollectorServer(collector))
 	server.Register(jaeger.NewTChanCollectorServer(collector))
 	server.Register(sampling.NewTChanSamplingManagerServer(&tchanSamplingManager{collector.samplingMgr}))
+	server.Register(baggage.NewTChanBaggageRestrictionManagerServer(&tchanBaggageRestrictionManager{collector.baggageRestrictionMgr}))
 
 	if err := ch.ListenAndServe(addr); err != nil {
 		return nil, err
@@ -75,13 +78,14 @@ func startMockTCollector(name string, addr string) (*MockTCollector, error) {
 
 // MockTCollector is a mock representation of Jaeger Collector.
 type MockTCollector struct {
-	Channel       *tchannel.Channel
-	server        *thrift.Server
-	zipkinSpans   []*zipkincore.Span
-	jaegerBatches []*jaeger.Batch
-	mutex         sync.Mutex
-	samplingMgr   *samplingManager
-	ReturnErr     bool
+	Channel               *tchannel.Channel
+	server                *thrift.Server
+	zipkinSpans           []*zipkincore.Span
+	jaegerBatches         []*jaeger.Batch
+	mutex                 sync.Mutex
+	samplingMgr           *samplingManager
+	baggageRestrictionMgr *baggageRestrictionManager
+	ReturnErr             bool
 }
 
 // AddSamplingStrategy registers a sampling strategy for a service
@@ -90,6 +94,14 @@ func (s *MockTCollector) AddSamplingStrategy(
 	strategy *sampling.SamplingStrategyResponse,
 ) {
 	s.samplingMgr.AddSamplingStrategy(service, strategy)
+}
+
+// AddBaggageRestrictions registers baggage restrictions for a service
+func (s *MockTCollector) AddBaggageRestrictions(
+	service string,
+	restrictions []*baggage.BaggageRestriction,
+) {
+	s.baggageRestrictionMgr.AddBaggageRestrictions(service, restrictions)
 }
 
 // GetZipkinSpans returns accumulated Zipkin spans
@@ -149,4 +161,16 @@ func (s *tchanSamplingManager) GetSamplingStrategy(
 	serviceName string,
 ) (*sampling.SamplingStrategyResponse, error) {
 	return s.samplingMgr.GetSamplingStrategy(serviceName)
+}
+
+type tchanBaggageRestrictionManager struct {
+	baggageRestrictionManager *baggageRestrictionManager
+}
+
+// GetBaggageRestrictions implements GetBaggageRestrictions of TChanBaggageRestrictionManager
+func (m *tchanBaggageRestrictionManager) GetBaggageRestrictions(
+	ctx thrift.Context,
+	serviceName string,
+) ([]*baggage.BaggageRestriction, error) {
+	return m.baggageRestrictionManager.GetBaggageRestrictions(serviceName)
 }
