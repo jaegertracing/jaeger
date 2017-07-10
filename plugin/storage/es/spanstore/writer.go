@@ -22,7 +22,6 @@ package spanstore
 
 import (
 	"context"
-	"fmt"
 	"time"
 
 	"github.com/pkg/errors"
@@ -40,12 +39,15 @@ const (
 	serviceType = "service"
 )
 
+type serviceWriter func(string, *jModel.Span) error
+
 // SpanWriter is a wrapper around elastic.Client
 type SpanWriter struct {
-	ctx        context.Context
-	client     es.Client
-	logger     *zap.Logger
-	indexCache cache.Cache
+	ctx           context.Context
+	client        es.Client
+	logger        *zap.Logger
+	indexCache    cache.Cache
+	serviceWriter serviceWriter
 }
 
 // Service is the JSON struct for service:operation documents in ElasticSearch
@@ -57,10 +59,12 @@ type Service struct {
 // NewSpanWriter creates a new SpanWriter for use
 func NewSpanWriter(client es.Client, logger *zap.Logger) *SpanWriter {
 	ctx := context.Background()
+	serviceOperationStorage := NewServiceOperationStorage(ctx, client, logger, time.Hour*12)
 	return &SpanWriter{
-		ctx:    ctx,
-		client: client,
-		logger: logger,
+		ctx:           ctx,
+		client:        client,
+		logger:        logger,
+		serviceWriter: serviceOperationStorage.Write,
 		indexCache: cache.NewLRUWithOptions(
 			5,
 			&cache.Options{
@@ -116,17 +120,7 @@ func checkWriteCache(key string, c cache.Cache) bool {
 }
 
 func (s *SpanWriter) writeService(indexName string, jsonSpan *jModel.Span) error {
-	// Insert serviceName:operationName document
-	service := Service{
-		ServiceName:   jsonSpan.Process.ServiceName,
-		OperationName: jsonSpan.OperationName,
-	}
-	serviceID := fmt.Sprintf("%s|%s", service.ServiceName, service.OperationName)
-	_, err := s.client.Index().Index(indexName).Type(serviceType).Id(serviceID).BodyJson(service).Do(s.ctx)
-	if err != nil {
-		return s.logError(jsonSpan, err, "Failed to insert service:operation", s.logger)
-	}
-	return nil
+	return s.serviceWriter(indexName, jsonSpan)
 }
 
 func (s *SpanWriter) writeSpan(indexName string, jsonSpan *jModel.Span) error {
