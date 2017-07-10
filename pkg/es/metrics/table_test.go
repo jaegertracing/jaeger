@@ -27,8 +27,6 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"github.com/uber/jaeger-lib/metrics"
-	"github.com/uber/jaeger/pkg/testutils"
-	"context"
 )
 
 func TestTableEmit(t *testing.T) {
@@ -76,69 +74,5 @@ func TestTableEmit(t *testing.T) {
 		assert.Equal(t, tc.counts, counts)
 		assert.Equal(t, tc.gauges, gauges)
 		mf.Stop()
-	}
-}
-
-func TestTableExec(t *testing.T) {
-	testCases := []struct {
-		q      func (ctx context.Context) (interface{}, error)
-		err    error
-		log    bool
-		counts map[string]int64
-	}{
-		{
-			q: func(ctx context.Context) (interface{}, error) {return nil, nil},
-			counts: map[string]int64{
-				"a_table.attempts": 1,
-				"a_table.inserts":  1,
-			},
-		},
-		{
-			q: func(ctx context.Context) (interface{}, error) {return nil, errors.New("failed")},
-			err: errors.New("failed"),
-			counts: map[string]int64{
-				"a_table.attempts": 1,
-				"a_table.errors":   1,
-			},
-		},
-		{
-			q: func(ctx context.Context) (interface{}, error) {return nil, errors.New("failed")},
-			err: errors.New("failed"),
-			log: true,
-			counts: map[string]int64{
-				"a_table.attempts": 1,
-				"a_table.errors":   1,
-			},
-		},
-	}
-
-	for _, tc := range testCases {
-		mf := metrics.NewLocalFactory(0)
-		tm := NewTable(mf, "a_table")
-		logger, logBuf := testutils.NewLogger()
-
-		useLogger := logger
-		if !tc.log {
-			useLogger = nil
-		}
-		err := tm.Exec("query test", tc.q, useLogger)
-		if tc.err == nil {
-			assert.NoError(t, err)
-			assert.Len(t, logBuf.Bytes(), 0)
-		} else {
-			assert.Error(t, err, tc.err.Error())
-			if tc.log {
-				assert.Equal(t, map[string]string{
-					"level": "error",
-					"msg":   "Failed to exec query",
-					"query": "query test",
-					"error": "failed",
-				}, logBuf.JSONLine(0))
-			} else {
-				assert.Len(t, logBuf.Bytes(), 0)
-			}
-		}
-		counts, _ := mf.Snapshot()
-		assert.Equal(t, tc.counts, counts)
 	}
 }

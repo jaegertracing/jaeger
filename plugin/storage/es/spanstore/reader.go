@@ -28,15 +28,15 @@ import (
 
 	"github.com/olivere/elastic"
 	"github.com/pkg/errors"
+	"github.com/uber/jaeger-lib/metrics"
 	"go.uber.org/zap"
 
 	"github.com/uber/jaeger/model"
 	jConverter "github.com/uber/jaeger/model/converter/json"
 	jModel "github.com/uber/jaeger/model/json"
 	"github.com/uber/jaeger/pkg/es"
-	"github.com/uber/jaeger/storage/spanstore"
 	esMetrics "github.com/uber/jaeger/pkg/es/metrics"
-	"github.com/uber/jaeger-lib/metrics"
+	"github.com/uber/jaeger/storage/spanstore"
 )
 
 const (
@@ -86,16 +86,16 @@ var (
 )
 
 type spanReaderMetrics struct {
-	readTraces                 *esMetrics.Table
-	queryServices		*esMetrics.Table
-	queryOperations		*esMetrics.Table
+	readTraces      *esMetrics.Table
+	queryServices   *esMetrics.Table
+	queryOperations *esMetrics.Table
 }
 
 // SpanReader can query for and load traces from ElasticSearch
 type SpanReader struct {
-	ctx    context.Context
-	client es.Client
-	logger *zap.Logger
+	ctx     context.Context
+	client  es.Client
+	logger  *zap.Logger
 	metrics spanReaderMetrics
 }
 
@@ -108,9 +108,9 @@ func NewSpanReader(client es.Client, logger *zap.Logger, metricsFactory metrics.
 		client: client,
 		logger: logger,
 		metrics: spanReaderMetrics{
-			readTraces:                 esMetrics.NewTable(readFactory, "ReadTraces"),
-			queryServices:                 esMetrics.NewTable(readFactory, "QueryServices"),
-			queryOperations:              esMetrics.NewTable(readFactory, "QueryOperations"),
+			readTraces:      esMetrics.NewTable(readFactory, "ReadTraces"),
+			queryServices:   esMetrics.NewTable(readFactory, "QueryServices"),
+			queryOperations: esMetrics.NewTable(readFactory, "QueryOperations"),
 		},
 	}
 }

@@ -23,17 +23,17 @@ package spanstore
 import (
 	"context"
 	"fmt"
+	"time"
 
 	"github.com/pkg/errors"
 	"go.uber.org/zap"
 
+	"github.com/uber/jaeger-lib/metrics"
 	"github.com/uber/jaeger/model"
 	"github.com/uber/jaeger/model/converter/json"
 	jModel "github.com/uber/jaeger/model/json"
 	"github.com/uber/jaeger/pkg/es"
 	esMetrics "github.com/uber/jaeger/pkg/es/metrics"
-	"github.com/uber/jaeger-lib/metrics"
-	"time"
 )
 
 const (
@@ -42,17 +42,17 @@ const (
 )
 
 type spanWriterMetrics struct {
-	exists *esMetrics.Table
-	indexCreate *esMetrics.Table
-	spans *esMetrics.Table
+	exists           *esMetrics.Table
+	indexCreate      *esMetrics.Table
+	spans            *esMetrics.Table
 	serviceOperation *esMetrics.Table
 }
 
 // SpanWriter is a wrapper around elastic.Client
 type SpanWriter struct {
-	ctx    context.Context
-	client es.Client
-	logger *zap.Logger
+	ctx           context.Context
+	client        es.Client
+	logger        *zap.Logger
 	writerMetrics spanWriterMetrics
 }
 
@@ -70,9 +70,9 @@ func NewSpanWriter(client es.Client, logger *zap.Logger, metricsFactory metrics.
 		client: client,
 		logger: logger,
 		writerMetrics: spanWriterMetrics{
-			exists: esMetrics.NewTable(metricsFactory, "Exists"),
-			indexCreate: esMetrics.NewTable(metricsFactory, "IndexCreate"),
-			spans: esMetrics.NewTable(metricsFactory, "Spans"),
+			exists:           esMetrics.NewTable(metricsFactory, "Exists"),
+			indexCreate:      esMetrics.NewTable(metricsFactory, "IndexCreate"),
+			spans:            esMetrics.NewTable(metricsFactory, "Spans"),
 			serviceOperation: esMetrics.NewTable(metricsFactory, "ServiceOperation"),
 		},
 	}
