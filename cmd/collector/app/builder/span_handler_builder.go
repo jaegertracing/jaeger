@@ -164,6 +164,15 @@ func (e *esSpanHandlerBuilder) BuildHandlers() (app.ZipkinSpansHandler, app.Jaeg
 	return buildHandlers(spanStore, e.logger, nil)
 }
 
+func (e *esSpanHandlerBuilder) getClient() (es.Client, error) {
+	if e.client == nil {
+		client, err := e.configuration.NewClient()
+		e.client = client
+		return e.client, err
+	}
+	return e.client, nil
+}
+
 func buildHandlers(
 	spanStore spanstore.Writer,
 	logger *zap.Logger,
@@ -194,13 +203,4 @@ func buildHandlers(
 	return app.NewZipkinSpanHandler(logger, spanProcessor, zSanitizer),
 		app.NewJaegerSpanHandler(logger, spanProcessor),
 		nil
-}
-
-func (e *esSpanHandlerBuilder) getClient() (es.Client, error) {
-	if e.client == nil {
-		client, err := e.configuration.NewClient()
-		e.client = client
-		return e.client, err
-	}
-	return e.client, nil
 }
