@@ -63,38 +63,42 @@ func NewSpanWriter(client es.Client, logger *zap.Logger) *SpanWriter {
 
 // WriteSpan writes a span and its corresponding service:operation in ElasticSearch
 func (s *SpanWriter) WriteSpan(span *model.Span) error {
-	jaegerIndexName := spanIndexName(span)
+	spanIndexName, serviceIndexName := indexNames(span)
 	// Convert model.Span into json.Span
 	jsonSpan := json.FromDomainEmbedProcess(span)
 
-	if err := s.checkAndCreateIndex(jaegerIndexName, jsonSpan); err != nil {
+	if err := s.checkAndCreateIndex(spanIndexName, serviceIndexName, jsonSpan); err != nil {
 		return err
 	}
-	if err := s.writeService(jaegerIndexName, jsonSpan); err != nil {
+	if err := s.writeService(serviceIndexName, jsonSpan); err != nil {
 		return err
 	}
-	if err := s.writeSpan(jaegerIndexName, jsonSpan); err != nil {
+	if err := s.writeSpan(spanIndexName, jsonSpan); err != nil {
 		return err
 	}
 	return nil
 }
 
-func spanIndexName(span *model.Span) string {
+func indexNames(span *model.Span) (string, string) {
 	spanDate := span.StartTime.Format("2006-01-02")
-	return "jaeger-" + spanDate
+	return "jaeger-span-" + spanDate, "jaeger-service-" + spanDate
 }
 
 // Check if index exists, and create index if it does not.
-func (s *SpanWriter) checkAndCreateIndex(indexName string, jsonSpan *jModel.Span) error {
+func (s *SpanWriter) checkAndCreateIndex(spanIndexName string, serviceIndexName string, jsonSpan *jModel.Span) error {
 	// TODO: We don't need to check every write. Try to pull this out of WriteSpan.
-	exists, err := s.client.IndexExists(indexName).Do(s.ctx)
+	exists, err := s.client.IndexExists(spanIndexName).Do(s.ctx)
 	if err != nil {
 		return s.logError(jsonSpan, err, "Failed to find index", s.logger)
 	}
 	if !exists {
-		_, err = s.client.CreateIndex(indexName).Body(spanMapping).Do(s.ctx)
+		_, err = s.client.CreateIndex(spanIndexName).Body(spanMapping).Do(s.ctx)
 		if err != nil {
-			return s.logError(jsonSpan, err, "Failed to create index", s.logger)
+			return s.logError(jsonSpan, err, "Failed to create span index", s.logger)
+		}
+		_, err = s.client.CreateIndex(serviceIndexName).Body(serviceMapping).Do(s.ctx)
+		if err != nil {
+			return s.logError(jsonSpan, err, "Failed to create service:operation index", s.logger)
 		}
 	}
 	return nil
