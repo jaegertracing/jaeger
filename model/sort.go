@@ -56,11 +56,12 @@ func (s spanBySpanID) Less(i, j int) bool { return s[i].SpanID < s[j].SpanID }
 func SortTrace(trace *Trace) {
 	sort.Sort(spanBySpanID(trace.Spans))
 	for _, span := range trace.Spans {
-		sortSpan(span)
+		SortSpan(span)
 	}
 }
 
-func sortSpan(span *Span) {
+// SortSpan deep sorts a span: this sorts its tags, logs by timestamp, tags in logs, and tags in process.
+func SortSpan(span *Span) {
 	span.NormalizeTimestamps()
 	sortTags(span.Tags)
 	sortLogs(span.Logs)

@@ -22,7 +22,7 @@ package spanstore
 
 import (
 	"context"
-	"fmt"
+	"time"
 
 	"github.com/pkg/errors"
 	"go.uber.org/zap"
@@ -30,6 +30,7 @@ import (
 	"github.com/uber/jaeger/model"
 	"github.com/uber/jaeger/model/converter/json"
 	jModel "github.com/uber/jaeger/model/json"
+	"github.com/uber/jaeger/pkg/cache"
 	"github.com/uber/jaeger/pkg/es"
 )
 
@@ -38,11 +39,15 @@ const (
 	serviceType = "service"
 )
 
+type serviceWriter func(string, *jModel.Span) error
+
 // SpanWriter is a wrapper around elastic.Client
 type SpanWriter struct {
-	ctx    context.Context
-	client es.Client
-	logger *zap.Logger
+	ctx           context.Context
+	client        es.Client
+	logger        *zap.Logger
+	indexCache    cache.Cache
+	serviceWriter serviceWriter
 }
 
 // Service is the JSON struct for service:operation documents in ElasticSearch
@@ -54,10 +59,19 @@ type Service struct {
 // NewSpanWriter creates a new SpanWriter for use
 func NewSpanWriter(client es.Client, logger *zap.Logger) *SpanWriter {
 	ctx := context.Background()
+	// TODO: Configurable TTL
+	serviceOperationStorage := NewServiceOperationStorage(ctx, client, logger, time.Hour*12)
 	return &SpanWriter{
-		ctx:    ctx,
-		client: client,
-		logger: logger,
+		ctx:           ctx,
+		client:        client,
+		logger:        logger,
+		serviceWriter: serviceOperationStorage.Write,
+		indexCache: cache.NewLRUWithOptions(
+			5,
+			&cache.Options{
+				TTL: 48 * time.Hour,
+			},
+		),
 	}
 }
 
@@ -67,7 +81,7 @@ func (s *SpanWriter) WriteSpan(span *model.Span) error {
 	// Convert model.Span into json.Span
 	jsonSpan := json.FromDomainEmbedProcess(span)
 
-	if err := s.checkAndCreateIndex(jaegerIndexName, jsonSpan); err != nil {
+	if err := s.createIndex(jaegerIndexName, jsonSpan); err != nil {
 		return err
 	}
 	if err := s.writeService(jaegerIndexName, jsonSpan); err != nil {
@@ -84,34 +98,27 @@ func spanIndexName(span *model.Span) string {
 	return "jaeger-" + spanDate
 }
 
-// Check if index exists, and create index if it does not.
-func (s *SpanWriter) checkAndCreateIndex(indexName string, jsonSpan *jModel.Span) error {
-	// TODO: We don't need to check every write. Try to pull this out of WriteSpan.
-	exists, err := s.client.IndexExists(indexName).Do(s.ctx)
-	if err != nil {
-		return s.logError(jsonSpan, err, "Failed to find index", s.logger)
-	}
-	if !exists {
-		_, err = s.client.CreateIndex(indexName).Body(spanMapping).Do(s.ctx)
+func (s *SpanWriter) createIndex(indexName string, jsonSpan *jModel.Span) error {
+	if !keyInCache(indexName, s.indexCache) {
+		_, err := s.client.CreateIndex(indexName).Body(spanMapping).Do(s.ctx)
 		if err != nil {
 			return s.logError(jsonSpan, err, "Failed to create index", s.logger)
 		}
+		writeCache(indexName, s.indexCache)
 	}
 	return nil
 }
 
+func keyInCache(key string, c cache.Cache) bool {
+	return c.Get(key) != nil
+}
+
+func writeCache(key string, c cache.Cache) {
+	c.Put(key, key)
+}
+
 func (s *SpanWriter) writeService(indexName string, jsonSpan *jModel.Span) error {
-	// Insert serviceName:operationName document
-	service := Service{
-		ServiceName:   jsonSpan.Process.ServiceName,
-		OperationName: jsonSpan.OperationName,
-	}
-	serviceID := fmt.Sprintf("%s|%s", service.ServiceName, service.OperationName)
-	_, err := s.client.Index().Index(indexName).Type(serviceType).Id(serviceID).BodyJson(service).Do(s.ctx)
-	if err != nil {
-		return s.logError(jsonSpan, err, "Failed to insert service:operation", s.logger)
-	}
-	return nil
+	return s.serviceWriter(indexName, jsonSpan)
 }
 
 func (s *SpanWriter) writeSpan(indexName string, jsonSpan *jModel.Span) error {
