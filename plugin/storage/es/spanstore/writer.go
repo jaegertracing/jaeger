@@ -81,7 +81,7 @@ func (s *SpanWriter) WriteSpan(span *model.Span) error {
 	// Convert model.Span into json.Span
 	jsonSpan := json.FromDomainEmbedProcess(span)
 
-	if err := s.checkAndCreateIndex(jaegerIndexName, jsonSpan); err != nil {
+	if err := s.createIndex(jaegerIndexName, jsonSpan); err != nil {
 		return err
 	}
 	if err := s.writeService(jaegerIndexName, jsonSpan); err != nil {
@@ -98,8 +98,7 @@ func spanIndexName(span *model.Span) string {
 	return "jaeger-" + spanDate
 }
 
-// Check if index exists, and create index if it does not.
-func (s *SpanWriter) checkAndCreateIndex(indexName string, jsonSpan *jModel.Span) error {
+func (s *SpanWriter) createIndex(indexName string, jsonSpan *jModel.Span) error {
 	if !checkCache(indexName, s.indexCache) {
 		_, err := s.client.CreateIndex(indexName).Body(spanMapping).Do(s.ctx)
 		if err != nil {
@@ -110,13 +109,13 @@ func (s *SpanWriter) checkAndCreateIndex(indexName string, jsonSpan *jModel.Span
 	return nil
 }
 
-// checks if the key is in cache; returns true if it is, otherwise puts it there and returns false
-func checkCache(key string, c cache.Cache) bool {
-	return c.Get(key) != nil
+// checks if the key is in cache; returns true if it is, otherwise returns false
+func checkCache(keyInCache string, c cache.Cache) bool {
+	return c.Get(keyInCache) != nil
 }
 
-func writeCache(key string, c cache.Cache) {
-	c.Put(key, key)
+func writeCache(keyInCache string, c cache.Cache) {
+	c.Put(keyInCache, keyInCache)
 }
 
 func (s *SpanWriter) writeService(indexName string, jsonSpan *jModel.Span) error {
