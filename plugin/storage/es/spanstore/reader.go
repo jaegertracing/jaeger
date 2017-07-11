@@ -85,20 +85,22 @@ var (
 
 // SpanReader can query for and load traces from ElasticSearch
 type SpanReader struct {
-	ctx          context.Context
-	client       es.Client
-	logger       *zap.Logger
-	spanLookback int // Number of previous days to lookback for spans.
+	ctx        context.Context
+	client     es.Client
+	logger     *zap.Logger
+	// The age of the oldest trace we will look for. Because indices in ElasticSearch are by day,
+	// this will be rounded down to UTC 00:00 of that day.
+	maxSpanAge time.Duration
 }
 
 // NewSpanReader returns a new SpanReader.
-func NewSpanReader(client es.Client, logger *zap.Logger, spanTTL int) *SpanReader {
+func NewSpanReader(client es.Client, logger *zap.Logger, maxSpanAge time.Duration) *SpanReader {
 	ctx := context.Background()
 	return &SpanReader{
 		ctx:          ctx,
 		client:       client,
 		logger:       logger,
-		spanLookback: spanTTL,
+		maxSpanAge: maxSpanAge,
 	}
 }
 
@@ -169,16 +171,16 @@ func (s *SpanReader) unmarshalJSONSpan(esSpanRaw *elastic.SearchHit) (*jModel.Sp
 // Returns the array of indices that we need to query, based on query params
 func (s *SpanReader) findIndices(traceQuery *spanstore.TraceQueryParameters) []string {
 	today := time.Now()
-	threeDaysAgo := today.AddDate(0, 0, -1*s.spanLookback)
+	oldestDay := today.Add(-s.maxSpanAge)
 
 	if traceQuery.StartTimeMax.IsZero() || traceQuery.StartTimeMin.IsZero() {
 		traceQuery.StartTimeMax = today
-		traceQuery.StartTimeMin = threeDaysAgo
+		traceQuery.StartTimeMin = oldestDay
 	}
 
 	var indices []string
 	current := traceQuery.StartTimeMax
-	for current.After(traceQuery.StartTimeMin) && current.After(threeDaysAgo) {
+	for current.After(traceQuery.StartTimeMin) && current.After(oldestDay) {
 		index := IndexWithDate(current)
 		exists, _ := s.client.IndexExists(index).Do(s.ctx) // Don't care about error, if it's an error, exists will be false anyway
 		if exists {

@@ -79,10 +79,7 @@ func (s *ServiceOperationStorage) Write(indexName string, jsonSpan *jModel.Span)
 }
 
 func (s *ServiceOperationStorage) logError(span *jModel.Span, err error, msg string, logger *zap.Logger) error {
-	logger.
-		With(zap.String("trace_id", string(span.TraceID))).
-		With(zap.String("span_id", string(span.SpanID))).
-		With(zap.Error(err)).
-		Error(msg)
+	logger.Debug("trace info:", zap.String("trace_id", string(span.TraceID)), zap.String("span_id", string(span.SpanID)))
+	logger.Error(msg, zap.Error(err))
 	return errors.Wrap(err, msg)
 }

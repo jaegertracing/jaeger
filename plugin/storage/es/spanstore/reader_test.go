@@ -94,7 +94,7 @@ func withSpanReader(fn func(r *spanReaderTest)) {
 		client:    client,
 		logger:    logger,
 		logBuffer: logBuffer,
-		reader:    NewSpanReader(client, logger, 3),
+		reader:    NewSpanReader(client, logger, 72*time.Hour),
 	}
 	fn(r)
 }
