@@ -19,3 +19,40 @@
 // THE SOFTWARE.
 
 package dependencystore
+
+import (
+	"go.uber.org/zap"
+	"time"
+	"github.com/uber/jaeger/pkg/es"
+	"context"
+	"github.com/uber/jaeger/model"
+)
+
+// DependencyStore handles all queries and insertions to ElasticSearch dependencies
+type DependencyStore struct {
+	ctx    context.Context
+	client es.Client
+	dependencyDataFrequency time.Duration
+	logger                  *zap.Logger
+}
+
+// NewDependencyStore returns a DependencyStore
+func NewDependencyStore(client es.Client, dependencyDataFrequency time.Duration, logger *zap.Logger) *DependencyStore {
+	ctx := context.Background()
+	return &DependencyStore{
+		ctx: ctx,
+		client: client,
+		dependencyDataFrequency: dependencyDataFrequency,
+		logger:                  logger,
+	}
+}
+
+// WriteDependencies implements dependencystore.Writer#WriteDependencies.
+func (s *DependencyStore) WriteDependencies(ts time.Time, dependencies []model.DependencyLink) error {
+	return nil
+}
+
+// GetDependencies returns all interservice dependencies
+func (s *DependencyStore) GetDependencies(endTs time.Time, lookback time.Duration) ([]model.DependencyLink, error) {
+	return nil
+}
