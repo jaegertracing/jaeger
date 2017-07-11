@@ -60,7 +60,7 @@ func SortTrace(trace *Trace) {
 	}
 }
 
-// SortSpan deep sorts a span.
+// SortSpan deep sorts a span: this sorts its tags, logs by timestamp, tags in logs, and tags in process.
 func SortSpan(span *Span) {
 	span.NormalizeTimestamps()
 	sortTags(span.Tags)
