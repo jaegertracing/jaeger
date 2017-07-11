@@ -67,13 +67,13 @@ func (t JSONLogByTimestamp) Len() int           { return len(t) }
 func (t JSONLogByTimestamp) Swap(i, j int)      { t[i], t[j] = t[j], t[i] }
 func (t JSONLogByTimestamp) Less(i, j int) bool { return t[i].Timestamp < t[j].Timestamp }
 
-func sortJSONLogs(expected []esJson.Log) {
-	sort.Sort(JSONLogByTimestamp(expected))
-	for i := range expected {
-		sortJSONTags(expected[i].Fields)
+func sortJSONLogs(logs []esJson.Log) {
+	sort.Sort(JSONLogByTimestamp(logs))
+	for i := range logs {
+		sortJSONTags(logs[i].Fields)
 	}
 }
 
-func sortJSONProcess(expected *esJson.Process) {
-	sortJSONTags(expected.Tags)
+func sortJSONProcess(process *esJson.Process) {
+	sortJSONTags(process.Tags)
 }

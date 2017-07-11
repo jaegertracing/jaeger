@@ -59,6 +59,7 @@ type Service struct {
 // NewSpanWriter creates a new SpanWriter for use
 func NewSpanWriter(client es.Client, logger *zap.Logger) *SpanWriter {
 	ctx := context.Background()
+	// TODO: Configurable TTL
 	serviceOperationStorage := NewServiceOperationStorage(ctx, client, logger, time.Hour*12)
 	return &SpanWriter{
 		ctx:           ctx,
@@ -99,24 +100,23 @@ func spanIndexName(span *model.Span) string {
 
 // Check if index exists, and create index if it does not.
 func (s *SpanWriter) checkAndCreateIndex(indexName string, jsonSpan *jModel.Span) error {
-	if !checkWriteCache(indexName, s.indexCache) {
+	if !checkCache(indexName, s.indexCache) {
 		_, err := s.client.CreateIndex(indexName).Body(spanMapping).Do(s.ctx)
 		if err != nil {
 			return s.logError(jsonSpan, err, "Failed to create index", s.logger)
 		}
+		writeCache(indexName, s.indexCache)
 	}
 	return nil
 }
 
 // checks if the key is in cache; returns true if it is, otherwise puts it there and returns false
-func checkWriteCache(key string, c cache.Cache) bool {
-	// even though there is a race condition between Get and Put, it's not a problem for storage,
-	// index creation is idempotent.
-	inCache := c.Get(key)
-	if inCache == nil {
-		c.Put(key, key)
-	}
-	return inCache != nil
+func checkCache(key string, c cache.Cache) bool {
+	return c.Get(key) != nil
+}
+
+func writeCache(key string, c cache.Cache) {
+	c.Put(key, key)
 }
 
 func (s *SpanWriter) writeService(indexName string, jsonSpan *jModel.Span) error {

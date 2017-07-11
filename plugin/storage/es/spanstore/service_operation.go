@@ -69,11 +69,14 @@ func (s *ServiceOperationStorage) Write(indexName string, jsonSpan *jModel.Span)
 		OperationName: jsonSpan.OperationName,
 	}
 	serviceID := fmt.Sprintf("%s|%s", service.ServiceName, service.OperationName)
-	if !checkWriteCache(serviceID, s.serviceCache) {
+	cacheKey := fmt.Sprintf("%s:%s", indexName, serviceID)
+	if !checkCache(cacheKey, s.serviceCache) {
+		// TODO: emit metric
 		_, err := s.client.Index().Index(indexName).Type(serviceType).Id(serviceID).BodyJson(service).Do(s.ctx)
 		if err != nil {
 			return s.logError(jsonSpan, err, "Failed to insert service:operation", s.logger)
 		}
+		writeCache(cacheKey, s.serviceCache)
 	}
 	return nil
 }

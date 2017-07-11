@@ -271,9 +271,13 @@ func TestCheckAndCreateIndex(t *testing.T) {
 			}
 
 			err := w.writer.checkAndCreateIndex(indexName, jsonSpan)
+			createService.AssertNumberOfCalls(t, "Do", 1)
 
 			if testCase.expectedError == "" {
 				assert.NoError(t, err)
+				// makes sure that the cache works
+				_ = w.writer.checkAndCreateIndex(indexName, jsonSpan)
+				createService.AssertNumberOfCalls(t, "Do", 1)
 			} else {
 				assert.EqualError(t, err, testCase.expectedError)
 			}
