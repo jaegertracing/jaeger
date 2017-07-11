@@ -99,7 +99,7 @@ func spanIndexName(span *model.Span) string {
 }
 
 func (s *SpanWriter) createIndex(indexName string, jsonSpan *jModel.Span) error {
-	if !checkCache(indexName, s.indexCache) {
+	if !keyInCache(indexName, s.indexCache) {
 		_, err := s.client.CreateIndex(indexName).Body(spanMapping).Do(s.ctx)
 		if err != nil {
 			return s.logError(jsonSpan, err, "Failed to create index", s.logger)
@@ -109,13 +109,12 @@ func (s *SpanWriter) createIndex(indexName string, jsonSpan *jModel.Span) error 
 	return nil
 }
 
-// checks if the key is in cache; returns true if it is, otherwise returns false
-func checkCache(keyInCache string, c cache.Cache) bool {
-	return c.Get(keyInCache) != nil
+func keyInCache(key string, c cache.Cache) bool {
+	return c.Get(key) != nil
 }
 
-func writeCache(keyInCache string, c cache.Cache) {
-	c.Put(keyInCache, keyInCache)
+func writeCache(key string, c cache.Cache) {
+	c.Put(key, key)
 }
 
 func (s *SpanWriter) writeService(indexName string, jsonSpan *jModel.Span) error {

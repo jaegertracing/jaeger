@@ -70,7 +70,7 @@ func (s *ServiceOperationStorage) Write(indexName string, jsonSpan *jModel.Span)
 	}
 	serviceID := fmt.Sprintf("%s|%s", service.ServiceName, service.OperationName)
 	cacheKey := fmt.Sprintf("%s:%s", indexName, serviceID)
-	if !checkCache(cacheKey, s.serviceCache) {
+	if !keyInCache(cacheKey, s.serviceCache) {
 		// TODO: emit metric
 		_, err := s.client.Index().Index(indexName).Type(serviceType).Id(serviceID).BodyJson(service).Do(s.ctx)
 		if err != nil {
