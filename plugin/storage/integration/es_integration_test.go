@@ -61,7 +61,7 @@ func (s *ESStorageIntegration) initializeES() error {
 	client := es.WrapESClient(rawClient)
 	logger, _ := testutils.NewLogger()
 	writer := spanstore.NewSpanWriter(client, logger)
-	reader := spanstore.NewSpanReader(client, logger)
+	reader := spanstore.NewSpanReader(client, logger, 3)
 
 	s.client = rawClient
 	s.writer = writer

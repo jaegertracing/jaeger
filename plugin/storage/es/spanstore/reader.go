@@ -85,18 +85,20 @@ var (
 
 // SpanReader can query for and load traces from ElasticSearch
 type SpanReader struct {
-	ctx    context.Context
-	client es.Client
-	logger *zap.Logger
+	ctx          context.Context
+	client       es.Client
+	logger       *zap.Logger
+	spanLookback int // Number of previous days to lookback for spans.
 }
 
 // NewSpanReader returns a new SpanReader.
-func NewSpanReader(client es.Client, logger *zap.Logger) *SpanReader {
+func NewSpanReader(client es.Client, logger *zap.Logger, spanTTL int) *SpanReader {
 	ctx := context.Background()
 	return &SpanReader{
-		ctx:    ctx,
-		client: client,
-		logger: logger,
+		ctx:     ctx,
+		client:  client,
+		logger:  logger,
+		spanLookback: spanTTL,
 	}
 }
 
@@ -167,7 +169,7 @@ func (s *SpanReader) unmarshalJSONSpan(esSpanRaw *elastic.SearchHit) (*jModel.Sp
 // Returns the array of indices that we need to query, based on query params
 func (s *SpanReader) findIndices(traceQuery *spanstore.TraceQueryParameters) []string {
 	today := time.Now()
-	threeDaysAgo := today.AddDate(0, 0, -3) // TODO: make this configurable
+	threeDaysAgo := today.AddDate(0, 0, -1*s.spanLookback)
 
 	if traceQuery.StartTimeMax.IsZero() || traceQuery.StartTimeMin.IsZero() {
 		traceQuery.StartTimeMax = today

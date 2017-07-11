@@ -94,7 +94,7 @@ func withSpanReader(fn func(r *spanReaderTest)) {
 		client:    client,
 		logger:    logger,
 		logBuffer: logBuffer,
-		reader:    NewSpanReader(client, logger),
+		reader:    NewSpanReader(client, logger, 3),
 	}
 	fn(r)
 }
