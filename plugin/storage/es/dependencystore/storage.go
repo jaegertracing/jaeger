@@ -26,33 +26,83 @@ import (
 	"github.com/uber/jaeger/pkg/es"
 	"context"
 	"github.com/uber/jaeger/model"
+	"github.com/olivere/elastic"
+	"encoding/json"
 )
+
+type TimeToDependencies struct {
+	Ts uint64 `json:"ts"`
+	Dependencies []model.DependencyLink `json:"dependencies"`
+}
 
 // DependencyStore handles all queries and insertions to ElasticSearch dependencies
 type DependencyStore struct {
 	ctx    context.Context
 	client es.Client
-	dependencyDataFrequency time.Duration
 	logger                  *zap.Logger
 }
 
 // NewDependencyStore returns a DependencyStore
-func NewDependencyStore(client es.Client, dependencyDataFrequency time.Duration, logger *zap.Logger) *DependencyStore {
+func NewDependencyStore(client es.Client, logger *zap.Logger) *DependencyStore {
 	ctx := context.Background()
 	return &DependencyStore{
 		ctx: ctx,
 		client: client,
-		dependencyDataFrequency: dependencyDataFrequency,
 		logger:                  logger,
 	}
 }
 
 // WriteDependencies implements dependencystore.Writer#WriteDependencies.
 func (s *DependencyStore) WriteDependencies(ts time.Time, dependencies []model.DependencyLink) error {
+	indexName := indexName(ts)
+
+	s.client.CreateIndex(indexName).Body(dependenciesMapping).Do(s.ctx)
+	s.client.Index().Index(indexName).
+		Type("dependencies").
+		BodyJson(&TimeToDependencies{model.TimeAsEpochMicroseconds(ts), dependencies}).
+		Do(s.ctx)
+
 	return nil
 }
 
 // GetDependencies returns all interservice dependencies
 func (s *DependencyStore) GetDependencies(endTs time.Time, lookback time.Duration) ([]model.DependencyLink, error) {
-	return nil
+	searchResult, err := s.client.Search(getIndices(endTs, lookback)...).
+		Type("dependencies").
+		Query(buildTSQuery(endTs, lookback)).
+		Do(s.ctx)
+	if err != nil {
+		return nil, err
+	}
+	var retDependencies []model.DependencyLink
+	hits := searchResult.Hits.Hits
+	for _, hit := range hits {
+		source := hit.Source
+		var timeToDependencies TimeToDependencies
+		if err := json.Unmarshal(*source, &timeToDependencies); err != nil {
+			return nil, err
+		}
+		retDependencies = append(retDependencies, timeToDependencies.Dependencies...)
+	}
+	return retDependencies, nil
+}
+
+func buildTSQuery(endTs time.Time, lookback time.Duration) elastic.Query {
+	minStartTimeMicros := model.TimeAsEpochMicroseconds(endTs.Add(-lookback))
+	maxStartTimeMicros := model.TimeAsEpochMicroseconds(endTs)
+	return elastic.NewRangeQuery("ts").Gte(minStartTimeMicros).Lte(maxStartTimeMicros)
+}
+
+func getIndices(ts time.Time, lookback time.Duration) []string {
+	var indices []string
+	for lookback > 0 {
+		indices = append(indices, indexName(ts))
+		ts = ts.Add(-24*time.Hour)
+		lookback -= 24*time.Hour
+	}
+	return indices
+}
+
+func indexName(date time.Time) string {
+	return "jaeger-dependencies-" + date.Format("2006-01-02")
 }

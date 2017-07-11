@@ -34,6 +34,7 @@ import (
 	"github.com/uber/jaeger/pkg/es"
 	"github.com/uber/jaeger/pkg/testutils"
 	"github.com/uber/jaeger/plugin/storage/es/spanstore"
+	"github.com/uber/jaeger/plugin/storage/es/dependencystore"
 )
 
 const (
@@ -60,7 +61,13 @@ func (s *ESStorageIntegration) initializeES() error {
 	}
 	logger, _ := testutils.NewLogger()
 
+	client := es.WrapESClient(s.client)
+	dependencyStore := dependencystore.NewDependencyStore(client, logger)
+
 	s.client = rawClient
+	s.initSpanstore()
+	s.dependencyReader = dependencyStore
+	s.dependencyWriter = dependencyStore
 	s.logger = logger
 	s.initSpanstore()
 	s.cleanUp = s.esCleanUp
@@ -77,8 +84,8 @@ func (s *ESStorageIntegration) esCleanUp() error {
 
 func (s *ESStorageIntegration) initSpanstore() {
 	client := es.WrapESClient(s.client)
-	s.writer = spanstore.NewSpanWriter(client, s.logger)
-	s.reader = spanstore.NewSpanReader(client, s.logger, 72*time.Hour)
+	s.spanWriter = spanstore.NewSpanWriter(client, s.logger)
+	s.spanReader = spanstore.NewSpanReader(client, s.logger, 72*time.Hour)
 }
 
 func (s *ESStorageIntegration) esRefresh() error {
