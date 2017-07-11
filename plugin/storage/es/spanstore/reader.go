@@ -95,9 +95,9 @@ type SpanReader struct {
 func NewSpanReader(client es.Client, logger *zap.Logger, spanTTL int) *SpanReader {
 	ctx := context.Background()
 	return &SpanReader{
-		ctx:     ctx,
-		client:  client,
-		logger:  logger,
+		ctx:          ctx,
+		client:       client,
+		logger:       logger,
 		spanLookback: spanTTL,
 	}
 }
