@@ -30,8 +30,8 @@ import (
 // Configuration describes the configuration properties needed to connect to a ElasticSearch cluster
 type Configuration struct {
 	Servers  []string
-	username string
-	password string
+	Username string
+	Password string
 	Sniffer  bool // https://github.com/olivere/elastic/wiki/Sniffing
 }
 
@@ -51,13 +51,7 @@ func (c *Configuration) NewClient() (es.Client, error) {
 func (c *Configuration) GetConfigs() []elastic.ClientOptionFunc {
 	options := make([]elastic.ClientOptionFunc, 3)
 	options = append(options, elastic.SetURL(c.Servers...))
-	options = append(options, elastic.SetBasicAuth(c.username, c.password))
+	options = append(options, elastic.SetBasicAuth(c.Username, c.Password))
 	options = append(options, elastic.SetSniff(c.Sniffer))
 	return options
-}
-
-// SetAuth sets the username and password in configs
-func (c *Configuration) SetAuth(username string, password string) {
-	c.username = username
-	c.password = password
 }
