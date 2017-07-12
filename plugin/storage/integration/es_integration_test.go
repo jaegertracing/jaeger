@@ -58,15 +58,11 @@ func (s *ESStorageIntegration) initializeES() error {
 	if err != nil {
 		return err
 	}
-	client := es.WrapESClient(rawClient)
 	logger, _ := testutils.NewLogger()
-	writer := spanstore.NewSpanWriter(client, logger)
-	reader := spanstore.NewSpanReader(client, logger, 72*time.Hour)
 
 	s.client = rawClient
-	s.writer = writer
-	s.reader = reader
 	s.logger = logger
+	s.initSpanstore()
 	s.cleanUp = s.esCleanUp
 	s.refresh = s.esRefresh
 	s.cleanUp()
@@ -75,10 +71,14 @@ func (s *ESStorageIntegration) initializeES() error {
 
 func (s *ESStorageIntegration) esCleanUp() error {
 	_, err := s.client.DeleteIndex("*").Do(context.Background())
+	s.initSpanstore()
+	return err
+}
+
+func (s *ESStorageIntegration) initSpanstore() {
 	client := es.WrapESClient(s.client)
 	s.writer = spanstore.NewSpanWriter(client, s.logger)
 	s.reader = spanstore.NewSpanReader(client, s.logger, 72*time.Hour)
-	return err
 }
 
 func (s *ESStorageIntegration) esRefresh() error {
