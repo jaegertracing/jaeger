@@ -62,5 +62,9 @@ func (e *esBuilder) NewSpanReader() (spanstore.Reader, error) {
 }
 
 func (e *esBuilder) NewDependencyReader() (dependencystore.Reader, error) {
-	return esDependencyStore.NewDependencyStore(), nil
+	client, err := e.getClient()
+	if err != nil {
+		return nil, err
+	}
+	return esDependencyStore.NewDependencyStore(client, e.logger), nil
 }

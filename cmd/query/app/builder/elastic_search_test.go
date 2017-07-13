@@ -53,6 +53,9 @@ func TestESBuilderFailure(t *testing.T) {
 		spanReader, err := esBuilder.NewSpanReader()
 		assert.Error(t, err)
 		assert.Nil(t, spanReader)
+		dependencyReader, err := esBuilder.NewDependencyReader()
+		assert.Error(t, err)
+		assert.Nil(t, dependencyReader)
 	})
 }
 
