@@ -25,6 +25,6 @@ const dependenciesMapping = `{
       "index.requests.cache.enable":true
    },
    "mappings":{
-      ` + dependencyType + `:{}
+      "` + dependencyType + `":{}
    }
 }`
