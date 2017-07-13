@@ -21,8 +21,8 @@
 package builder
 
 import (
-	"go.uber.org/zap"
 	"github.com/uber/jaeger-lib/metrics"
+	"go.uber.org/zap"
 
 	cascfg "github.com/uber/jaeger/pkg/cassandra/config"
 	escfg "github.com/uber/jaeger/pkg/es/config"
@@ -32,7 +32,7 @@ import (
 // BasicOptions is a set of basic building blocks for most Jaeger executables
 type BasicOptions struct {
 	// Logger is a generic logger used by most executables
-	Logger         *zap.Logger
+	Logger *zap.Logger
 	// MetricsFactory is the basic metrics factory used by most executables
 	MetricsFactory metrics.Factory
 	// Cassandra is the cassandra configuration used by most executables (if applicable)
