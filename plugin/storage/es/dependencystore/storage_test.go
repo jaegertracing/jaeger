@@ -22,18 +22,20 @@ package dependencystore
 
 import (
 	"encoding/json"
+	"strings"
+	"testing"
+	"time"
+
 	"github.com/olivere/elastic"
 	"github.com/pkg/errors"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
+	"go.uber.org/zap"
+
 	"github.com/uber/jaeger/model"
 	"github.com/uber/jaeger/pkg/es/mocks"
 	"github.com/uber/jaeger/pkg/testutils"
 	"github.com/uber/jaeger/storage/dependencystore"
-	"go.uber.org/zap"
-	"strings"
-	"testing"
-	"time"
 )
 
 type depStorageTest struct {

@@ -23,12 +23,14 @@ package dependencystore
 import (
 	"context"
 	"encoding/json"
+	"time"
+
 	"github.com/olivere/elastic"
 	"github.com/pkg/errors"
+	"go.uber.org/zap"
+
 	"github.com/uber/jaeger/model"
 	"github.com/uber/jaeger/pkg/es"
-	"go.uber.org/zap"
-	"time"
 )
 
 const (
