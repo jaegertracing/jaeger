@@ -57,7 +57,7 @@ func withDepStorage(fn func(r *depStorageTest)) {
 	fn(r)
 }
 
-func TestNewStorage(t *testing.T) {
+func TestAPIConformance(t *testing.T) {
 	withDepStorage(func(r *depStorageTest) {
 		var reader dependencystore.Reader = r.storage // check API conformance
 		var writer dependencystore.Writer = r.storage // check API conformance
@@ -164,11 +164,11 @@ func TestGetDependencies(t *testing.T) {
 
 			actual, err := r.storage.GetDependencies(fixedTime, 24*time.Hour)
 			if testCase.expectedError != "" {
-				assert.Nil(t, actual)
 				assert.EqualError(t, err, testCase.expectedError)
+				assert.Nil(t, actual)
 			} else {
-				assert.EqualValues(t, testCase.expectedOutput, actual)
 				assert.NoError(t, err)
+				assert.EqualValues(t, testCase.expectedOutput, actual)
 			}
 		})
 	}
@@ -180,9 +180,14 @@ func createSearchResult(dependencyLink string) *elastic.SearchResult {
 	hits[0] = &elastic.SearchHit{
 		Source: (*json.RawMessage)(&dependencyLinkRaw),
 	}
-	searchHits := &elastic.SearchHits{Hits: hits}
-	searchResult := &elastic.SearchResult{Hits: searchHits}
+	searchResult := &elastic.SearchResult{Hits: &elastic.SearchHits{Hits: hits}}
 	return searchResult
+}
+
+func TestGetIndices(t *testing.T) {
+	fixedTime := time.Date(1995, time.April, 21, 4, 12, 19, 95, time.Local)
+	expected := []string{indexName(fixedTime), indexName(fixedTime.Add(-24*time.Hour))}
+	assert.EqualValues(t, expected, getIndices(fixedTime, 24*time.Hour))
 }
 
 // stringMatcher can match a string argument when it contains a specific substring q

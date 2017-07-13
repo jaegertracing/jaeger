@@ -193,7 +193,7 @@ func (s *SpanReader) findIndices(traceQuery *spanstore.TraceQueryParameters) []s
 
 // IndexWithDate returns the index name formatted to date.
 func IndexWithDate(date time.Time) string {
-	return indexPrefix + date.Format("2006-01-02")
+	return indexPrefix + date.UTC().Format("2006-01-02")
 }
 
 // GetServices returns all services traced by Jaeger, ordered by frequency

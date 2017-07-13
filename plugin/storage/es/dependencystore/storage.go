@@ -39,7 +39,7 @@ const (
 )
 
 type timeToDependencies struct {
-	Ts           uint64                 `json:"ts"`
+	Timestamp    time.Time                 `json:"timestamp"`
 	Dependencies []model.DependencyLink `json:"dependencies"`
 }
 
@@ -52,9 +52,8 @@ type DependencyStore struct {
 
 // NewDependencyStore returns a DependencyStore
 func NewDependencyStore(client es.Client, logger *zap.Logger) *DependencyStore {
-	ctx := context.Background()
 	return &DependencyStore{
-		ctx:    ctx,
+		ctx:    context.Background(),
 		client: client,
 		logger: logger,
 	}
@@ -83,7 +82,10 @@ func (s *DependencyStore) createIndex(indexName string) error {
 func (s *DependencyStore) writeDependencies(indexName string, ts time.Time, dependencies []model.DependencyLink) error {
 	_, err := s.client.Index().Index(indexName).
 		Type(dependencyType).
-		BodyJson(&timeToDependencies{model.TimeAsEpochMicroseconds(ts), dependencies}).
+		BodyJson(&timeToDependencies{
+			Timestamp: ts,
+			Dependencies: dependencies,
+		}).
 		Do(s.ctx)
 	if err != nil {
 		return errors.Wrap(err, "Failed to write dependencies")
@@ -106,31 +108,36 @@ func (s *DependencyStore) GetDependencies(endTs time.Time, lookback time.Duratio
 	hits := searchResult.Hits.Hits
 	for _, hit := range hits {
 		source := hit.Source
-		var timeToDependencies timeToDependencies
-		if err := json.Unmarshal(*source, &timeToDependencies); err != nil {
+		var tToD timeToDependencies
+		if err := json.Unmarshal(*source, &tToD); err != nil {
 			return nil, errors.New("Unmarshalling ElasticSearch documents failed")
 		}
-		retDependencies = append(retDependencies, timeToDependencies.Dependencies...)
+		retDependencies = append(retDependencies, tToD.Dependencies...)
 	}
 	return retDependencies, nil
 }
 
 func buildTSQuery(endTs time.Time, lookback time.Duration) elastic.Query {
-	minStartTimeMicros := model.TimeAsEpochMicroseconds(endTs.Add(-lookback))
-	maxStartTimeMicros := model.TimeAsEpochMicroseconds(endTs)
-	return elastic.NewRangeQuery("ts").Gte(minStartTimeMicros).Lte(maxStartTimeMicros)
+	return elastic.NewRangeQuery("timestamp").Gte(endTs.Add(-lookback)).Lte(endTs)
 }
 
 func getIndices(ts time.Time, lookback time.Duration) []string {
 	var indices []string
+
+	// first add current date to indices, then round down to midnight
+	indices = append(indices, indexName(ts))
+	tsRoundedDown := ts.UTC().Truncate(24*time.Hour)
+	lookback = lookback - ts.Sub(tsRoundedDown)
+
+	// then add any dates previous that fit into the lookback scope
 	for lookback >= 0 {
-		indices = append(indices, indexName(ts))
-		ts = ts.Add(-24 * time.Hour)
+		tsRoundedDown = tsRoundedDown.Add(-24 * time.Hour)
+		indices = append(indices, indexName(tsRoundedDown))
 		lookback -= 24 * time.Hour
 	}
 	return indices
 }
 
 func indexName(date time.Time) string {
-	return dependencyIndexPrefix + date.Format("2006-01-02")
+	return dependencyIndexPrefix + date.UTC().Format("2006-01-02")
 }
