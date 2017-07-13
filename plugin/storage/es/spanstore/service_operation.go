@@ -25,9 +25,9 @@ import (
 	"fmt"
 	"time"
 
+	"github.com/olivere/elastic"
 	"github.com/pkg/errors"
 	"go.uber.org/zap"
-	"github.com/olivere/elastic"
 
 	jModel "github.com/uber/jaeger/model/json"
 	"github.com/uber/jaeger/pkg/cache"
@@ -35,7 +35,7 @@ import (
 )
 
 const (
-	serviceName           = "serviceName"
+	serviceName = "serviceName"
 
 	operationsAggregation = "distinct_operations"
 	servicesAggregation   = "distinct_services"

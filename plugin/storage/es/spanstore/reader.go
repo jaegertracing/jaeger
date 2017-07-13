@@ -38,8 +38,8 @@ import (
 )
 
 const (
-	indexPrefix           = "jaeger-"
-	traceIDAggregation    = "traceIDs"
+	indexPrefix        = "jaeger-"
+	traceIDAggregation = "traceIDs"
 
 	traceIDField       = "traceID"
 	durationField      = "duration"
