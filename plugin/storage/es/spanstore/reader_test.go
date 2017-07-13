@@ -103,7 +103,7 @@ func TestNewSpanReaderWithMetrics(t *testing.T) {
 	client := &mocks.Client{}
 	logger, _ := testutils.NewLogger() // logBuffer unneeded
 	metricsFactory := metrics.NewLocalFactory(0)
-	var reader spanstore.Reader = NewSpanReader(client, logger, metricsFactory)
+	var reader spanstore.Reader = NewSpanReader(client, logger, metricsFactory) // check API conformance
 	assert.NotNil(t, reader)
 }
 
