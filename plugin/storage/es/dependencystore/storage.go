@@ -31,6 +31,11 @@ import (
 	"time"
 )
 
+const (
+	dependencyType = "dependencies"
+
+)
+
 type timeToDependencies struct {
 	Ts           uint64                 `json:"ts"`
 	Dependencies []model.DependencyLink `json:"dependencies"`
@@ -56,20 +61,38 @@ func NewDependencyStore(client es.Client, logger *zap.Logger) *DependencyStore {
 // WriteDependencies implements dependencystore.Writer#WriteDependencies.
 func (s *DependencyStore) WriteDependencies(ts time.Time, dependencies []model.DependencyLink) error {
 	indexName := indexName(ts)
+	if err := s.createIndex(indexName); err != nil {
+		return err
+	}
+	if err := s.writeDependencies(indexName, ts, dependencies); err != nil {
+		return err
+	}
+	return nil
+}
 
-	s.client.CreateIndex(indexName).Body(dependenciesMapping).Do(s.ctx)
-	s.client.Index().Index(indexName).
-		Type("dependencies").
+func (s *DependencyStore) createIndex(indexName string) error {
+	_, err := s.client.CreateIndex(indexName).Body(dependenciesMapping).Do(s.ctx)
+	if err != nil {
+		return errors.Wrap(err, "Failed to create index")
+	}
+	return nil
+}
+
+func (s *DependencyStore) writeDependencies(indexName string, ts time.Time, dependencies []model.DependencyLink) error {
+	_, err := s.client.Index().Index(indexName).
+		Type(dependencyType).
 		BodyJson(&timeToDependencies{model.TimeAsEpochMicroseconds(ts), dependencies}).
 		Do(s.ctx)
-
+	if err != nil {
+		return errors.Wrap(err, "Failed to write dependencies")
+	}
 	return nil
 }
 
 // GetDependencies returns all interservice dependencies
 func (s *DependencyStore) GetDependencies(endTs time.Time, lookback time.Duration) ([]model.DependencyLink, error) {
 	searchResult, err := s.client.Search(getIndices(endTs, lookback)...).
-		Type("dependencies").
+		Type(dependencyType).
 		Size(10000).
 		Query(buildTSQuery(endTs, lookback)).
 		Do(s.ctx)
@@ -79,9 +102,6 @@ func (s *DependencyStore) GetDependencies(endTs time.Time, lookback time.Duratio
 
 	var retDependencies []model.DependencyLink
 	hits := searchResult.Hits.Hits
-	if len(hits) == 0 {
-		return nil, errors.New("wtf man")
-	}
 	for _, hit := range hits {
 		source := hit.Source
 		var timeToDependencies timeToDependencies
