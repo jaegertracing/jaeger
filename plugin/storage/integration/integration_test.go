@@ -275,6 +275,7 @@ func spanCount(traces []*model.Trace) int {
 // === DependencyStore Integration Tests ===
 
 func (s *StorageIntegration) IntegrationTestGetDependencies(t *testing.T) {
+	t.Log("Testing DependencyStore ...")
 	expected := []model.DependencyLink{
 		{
 			Parent:    "hello",
