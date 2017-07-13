@@ -18,43 +18,49 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 // THE SOFTWARE.
 
-package config
+package builder
 
 import (
-	"time"
-
-	"github.com/olivere/elastic"
-	"github.com/pkg/errors"
+	"go.uber.org/zap"
 
 	"github.com/uber/jaeger/pkg/es"
+	escfg "github.com/uber/jaeger/pkg/es/config"
+	esDependencyStore "github.com/uber/jaeger/plugin/storage/es/dependencystore"
+	esSpanstore "github.com/uber/jaeger/plugin/storage/es/spanstore"
+	"github.com/uber/jaeger/storage/dependencystore"
+	"github.com/uber/jaeger/storage/spanstore"
 )
 
-// Configuration describes the configuration properties needed to connect to a ElasticSearch cluster
-type Configuration struct {
-	Servers    []string
-	Username   string
-	Password   string
-	Sniffer    bool          // https://github.com/olivere/elastic/wiki/Sniffing
-	MaxSpanAge time.Duration // configures the maximum lookback on span reads
+type esBuilder struct {
+	logger        *zap.Logger
+	client        es.Client
+	configuration escfg.Configuration
 }
 
-// NewClient creates a new ElasticSearch client
-func (c *Configuration) NewClient() (es.Client, error) {
-	if len(c.Servers) < 1 {
-		return nil, errors.New("No servers specified")
+func newESBuilder(config *escfg.Configuration, logger *zap.Logger) *esBuilder {
+	return &esBuilder{
+		logger:        logger,
+		configuration: *config,
 	}
-	rawClient, err := elastic.NewClient(c.GetConfigs()...)
+}
+
+func (e *esBuilder) getClient() (es.Client, error) {
+	if e.client == nil {
+		client, err := e.configuration.NewClient()
+		e.client = client
+		return e.client, err
+	}
+	return e.client, nil
+}
+
+func (e *esBuilder) NewSpanReader() (spanstore.Reader, error) {
+	client, err := e.getClient()
 	if err != nil {
 		return nil, err
 	}
-	return es.WrapESClient(rawClient), nil
+	return esSpanstore.NewSpanReader(client, e.logger, e.configuration.MaxSpanAge), nil
 }
 
-// GetConfigs wraps the configs to feed to the ElasticSearch client init
-func (c *Configuration) GetConfigs() []elastic.ClientOptionFunc {
-	options := make([]elastic.ClientOptionFunc, 3)
-	options[0] = elastic.SetURL(c.Servers...)
-	options[1] = elastic.SetBasicAuth(c.Username, c.Password)
-	options[2] = elastic.SetSniff(c.Sniffer)
-	return options
+func (e *esBuilder) NewDependencyReader() (dependencystore.Reader, error) {
+	return esDependencyStore.NewDependencyStore(), nil
 }

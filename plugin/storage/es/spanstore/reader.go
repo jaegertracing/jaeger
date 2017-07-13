@@ -38,11 +38,8 @@ import (
 )
 
 const (
-	serviceName           = "serviceName"
-	indexPrefix           = "jaeger-"
-	operationsAggregation = "distinct_operations"
-	servicesAggregation   = "distinct_services"
-	traceIDAggregation    = "traceIDs"
+	indexPrefix        = "jaeger-"
+	traceIDAggregation = "traceIDs"
 
 	traceIDField       = "traceID"
 	durationField      = "duration"
@@ -90,17 +87,19 @@ type SpanReader struct {
 	logger *zap.Logger
 	// The age of the oldest trace we will look for. Because indices in ElasticSearch are by day,
 	// this will be rounded down to UTC 00:00 of that day.
-	maxSpanAge time.Duration
+	maxSpanAge              time.Duration
+	serviceOperationStorage *ServiceOperationStorage
 }
 
 // NewSpanReader returns a new SpanReader.
 func NewSpanReader(client es.Client, logger *zap.Logger, maxSpanAge time.Duration) *SpanReader {
 	ctx := context.Background()
 	return &SpanReader{
-		ctx:        ctx,
-		client:     client,
-		logger:     logger,
-		maxSpanAge: maxSpanAge,
+		ctx:                     ctx,
+		client:                  client,
+		logger:                  logger,
+		maxSpanAge:              maxSpanAge,
+		serviceOperationStorage: NewServiceOperationStorage(ctx, client, logger, 0),
 	}
 }
 
@@ -198,65 +197,17 @@ func IndexWithDate(date time.Time) string {
 
 // GetServices returns all services traced by Jaeger, ordered by frequency
 func (s *SpanReader) GetServices() ([]string, error) {
-	serviceAggregation := s.getServicesAggregation()
-
 	jaegerIndices := s.findIndices(&spanstore.TraceQueryParameters{})
-
-	searchService := s.client.Search(jaegerIndices...).
-		Type(serviceType).
-		Size(0). // set to 0 because we don't want actual documents.
-		Aggregation(servicesAggregation, serviceAggregation)
-
-	searchResult, err := searchService.Do(s.ctx)
-	if err != nil {
-		return nil, errors.Wrap(err, "Search service failed")
-	}
-
-	bucket, found := searchResult.Aggregations.Terms(servicesAggregation)
-	if !found {
-		return nil, errors.New("Could not find aggregation of " + servicesAggregation)
-	}
-	serviceNamesBucket := bucket.Buckets
-	return s.bucketToStringArray(serviceNamesBucket)
-}
-
-func (s *SpanReader) getServicesAggregation() elastic.Query {
-	return elastic.NewTermsAggregation().
-		Field(serviceName).
-		Size(defaultDocCount) // Must set to some large number. ES deprecated size omission for aggregating all. https://github.com/elastic/elasticsearch/issues/18838
+	return s.serviceOperationStorage.getServices(jaegerIndices)
 }
 
 // GetOperations returns all operations for a specific service traced by Jaeger
 func (s *SpanReader) GetOperations(service string) ([]string, error) {
-	serviceQuery := elastic.NewTermQuery(serviceName, service)
-	serviceFilter := s.getOperationsAggregation()
 	jaegerIndices := s.findIndices(&spanstore.TraceQueryParameters{})
-
-	searchService := s.client.Search(jaegerIndices...).
-		Type(serviceType).
-		Size(0).
-		Query(serviceQuery).
-		Aggregation(operationsAggregation, serviceFilter)
-
-	searchResult, err := searchService.Do(s.ctx)
-	if err != nil {
-		return nil, errors.Wrap(err, "Search service failed")
-	}
-	bucket, found := searchResult.Aggregations.Terms(operationsAggregation)
-	if !found {
-		return nil, errors.New("Could not find aggregation of " + operationsAggregation)
-	}
-	operationNamesBucket := bucket.Buckets
-	return s.bucketToStringArray(operationNamesBucket)
+	return s.serviceOperationStorage.getOperations(jaegerIndices, service)
 }
 
-func (s *SpanReader) getOperationsAggregation() elastic.Query {
-	return elastic.NewTermsAggregation().
-		Field(operationNameField).
-		Size(defaultDocCount) // Must set to some large number. ES deprecated size omission for aggregating all. https://github.com/elastic/elasticsearch/issues/18838
-}
-
-func (s *SpanReader) bucketToStringArray(buckets []*elastic.AggregationBucketKeyItem) ([]string, error) {
+func bucketToStringArray(buckets []*elastic.AggregationBucketKeyItem) ([]string, error) {
 	strings := make([]string, len(buckets))
 	for i, keyitem := range buckets {
 		str, ok := keyitem.Key.(string)
@@ -382,7 +333,7 @@ func (s *SpanReader) findTraceIDs(traceQuery *spanstore.TraceQueryParameters) ([
 	}
 
 	traceIDBuckets := bucket.Buckets
-	return s.bucketToStringArray(traceIDBuckets)
+	return bucketToStringArray(traceIDBuckets)
 }
 
 func (s *SpanReader) buildTraceIDAggregation(numOfTraces int) elastic.Aggregation {

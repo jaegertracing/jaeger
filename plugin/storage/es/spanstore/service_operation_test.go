@@ -30,7 +30,7 @@ import (
 	"github.com/stretchr/testify/mock"
 	"github.com/stretchr/testify/require"
 
-	"github.com/uber/jaeger/model/json"
+	jModel "github.com/uber/jaeger/model/json"
 	"github.com/uber/jaeger/pkg/es/mocks"
 )
 
@@ -47,11 +47,11 @@ func TestWriteService(t *testing.T) {
 
 		w.client.On("Index").Return(indexService)
 
-		jsonSpan := &json.Span{
-			TraceID:       json.TraceID("1"),
-			SpanID:        json.SpanID("0"),
+		jsonSpan := &jModel.Span{
+			TraceID:       jModel.TraceID("1"),
+			SpanID:        jModel.SpanID("0"),
 			OperationName: "operation",
-			Process: &json.Process{
+			Process: &jModel.Process{
 				ServiceName: "service",
 			},
 		}
@@ -83,11 +83,11 @@ func TestWriteServiceError(t *testing.T) {
 
 		w.client.On("Index").Return(indexService)
 
-		jsonSpan := &json.Span{
-			TraceID:       json.TraceID("1"),
-			SpanID:        json.SpanID("0"),
+		jsonSpan := &jModel.Span{
+			TraceID:       jModel.TraceID("1"),
+			SpanID:        jModel.SpanID("0"),
 			OperationName: "operation",
-			Process: &json.Process{
+			Process: &jModel.Process{
 				ServiceName: "service",
 			},
 		}
@@ -108,4 +108,12 @@ func TestWriteServiceError(t *testing.T) {
 			assert.True(t, strings.Contains(w.logBuffer.String(), expectedLog), "Log must contain %s, but was %s", expectedLog, w.logBuffer.String())
 		}
 	})
+}
+
+func TestSpanReader_GetServices(t *testing.T) {
+	testGet(servicesAggregation, t)
+}
+
+func TestSpanReader_GetOperations(t *testing.T) {
+	testGet(operationsAggregation, t)
 }
