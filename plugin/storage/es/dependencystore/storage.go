@@ -123,16 +123,10 @@ func buildTSQuery(endTs time.Time, lookback time.Duration) elastic.Query {
 
 func getIndices(ts time.Time, lookback time.Duration) []string {
 	var indices []string
-
-	// first add current date to indices, then round down to midnight
 	indices = append(indices, indexName(ts))
-	tsRoundedDown := ts.UTC().Truncate(24 * time.Hour)
-	lookback = lookback - ts.Sub(tsRoundedDown)
-
-	// then add any dates previous that fit into the lookback scope
-	for lookback >= 0 {
-		tsRoundedDown = tsRoundedDown.Add(-24 * time.Hour)
-		indices = append(indices, indexName(tsRoundedDown))
+	for lookback > 0 {
+		ts = ts.Add(-24 * time.Hour)
+		indices = append(indices, indexName(ts))
 		lookback -= 24 * time.Hour
 	}
 	return indices
