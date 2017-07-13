@@ -38,10 +38,7 @@ import (
 )
 
 const (
-	serviceName           = "serviceName"
 	indexPrefix           = "jaeger-"
-	operationsAggregation = "distinct_operations"
-	servicesAggregation   = "distinct_services"
 	traceIDAggregation    = "traceIDs"
 
 	traceIDField       = "traceID"

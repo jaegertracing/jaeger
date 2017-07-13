@@ -27,11 +27,18 @@ import (
 
 	"github.com/pkg/errors"
 	"go.uber.org/zap"
-
 	"github.com/olivere/elastic"
+
 	jModel "github.com/uber/jaeger/model/json"
 	"github.com/uber/jaeger/pkg/cache"
 	"github.com/uber/jaeger/pkg/es"
+)
+
+const (
+	serviceName           = "serviceName"
+
+	operationsAggregation = "distinct_operations"
+	servicesAggregation   = "distinct_services"
 )
 
 // ServiceOperationStorage stores service to operation pairs.
