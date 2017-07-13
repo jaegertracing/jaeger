@@ -32,6 +32,8 @@ import (
 	"github.com/uber/jaeger/cmd/builder"
 	cascfg "github.com/uber/jaeger/pkg/cassandra/config"
 	"github.com/uber/jaeger/pkg/cassandra/mocks"
+	escfg "github.com/uber/jaeger/pkg/es/config"
+	esMocks "github.com/uber/jaeger/pkg/es/mocks"
 	"github.com/uber/jaeger/storage/spanstore/memory"
 )
 
@@ -95,6 +97,35 @@ func TestNewSpanHandlerBuilderMemorySet(t *testing.T) {
 	assert.NotNil(t, zHandler)
 }
 
+func TestNewSpanHandlerBuilderElasticSearch(t *testing.T) {
+	originalArgs := os.Args
+	defer func() {
+		os.Args = originalArgs
+	}()
+	os.Args = []string{"test", "--span-storage.type=elasticsearch"}
+	flag.Parse()
+	handler, err := NewSpanHandlerBuilder(
+		builder.Options.LoggerOption(zap.NewNop()),
+		builder.Options.ElasticSearchOption(&escfg.Configuration{
+			Servers: []string{"127.0.0.1"},
+		}),
+	)
+	assert.NoError(t, err)
+	assert.NotNil(t, handler)
+}
+
+func TestNewSpanHandlerBuilderElasticSearchFailure(t *testing.T) {
+	originalArgs := os.Args
+	defer func() {
+		os.Args = originalArgs
+	}()
+	os.Args = []string{"test", "--span-storage.type=elasticsearch"}
+	flag.Parse()
+	handler, err := NewSpanHandlerBuilder()
+	assert.EqualError(t, err, "ElasticSearch not configured")
+	assert.Nil(t, handler)
+}
+
 func withCassandraBuilder(f func(builder *cassandraSpanHandlerBuilder)) {
 	cfg := &cascfg.Configuration{
 		Servers: []string{"127.0.0.1"},
@@ -103,7 +134,7 @@ func withCassandraBuilder(f func(builder *cassandraSpanHandlerBuilder)) {
 	f(cBuilder)
 }
 
-func TestBuildHandlers(t *testing.T) {
+func TestBuildHandlersCassandra(t *testing.T) {
 	withCassandraBuilder(func(cBuilder *cassandraSpanHandlerBuilder) {
 		mockSession := mocks.Session{}
 		cBuilder.session = &mockSession
@@ -114,7 +145,7 @@ func TestBuildHandlers(t *testing.T) {
 	})
 }
 
-func TestBuildHandlersFailure(t *testing.T) {
+func TestBuildHandlersCassandraFailure(t *testing.T) {
 	withCassandraBuilder(func(cBuilder *cassandraSpanHandlerBuilder) {
 		cBuilder.configuration.Servers = []string{"badhostname"}
 		zHandler, jHandler, err := cBuilder.BuildHandlers()
@@ -126,4 +157,33 @@ func TestBuildHandlersFailure(t *testing.T) {
 
 func TestDefaultSpanFilter(t *testing.T) {
 	assert.True(t, defaultSpanFilter(nil))
+}
+
+func withElasticSearchBuilder(f func(builder *esSpanHandlerBuilder)) {
+	cfg := &escfg.Configuration{
+		Servers: []string{"127.0.0.1"},
+	}
+	cBuilder := newESBuilder(cfg, zap.NewNop())
+	f(cBuilder)
+}
+
+func TestBuildHandlersElasticSearch(t *testing.T) {
+	withElasticSearchBuilder(func(builder *esSpanHandlerBuilder) {
+		mockClient := esMocks.Client{}
+		builder.client = &mockClient
+		zHandler, jHandler, err := builder.BuildHandlers()
+		assert.NoError(t, err)
+		assert.NotNil(t, zHandler)
+		assert.NotNil(t, jHandler)
+	})
+}
+
+func TestBuildHandlersElasticSearchFailure(t *testing.T) {
+	withElasticSearchBuilder(func(builder *esSpanHandlerBuilder) {
+		builder.configuration.Servers = []string{}
+		zHandler, jHandler, err := builder.BuildHandlers()
+		assert.Error(t, err)
+		assert.Nil(t, zHandler)
+		assert.Nil(t, jHandler)
+	})
 }

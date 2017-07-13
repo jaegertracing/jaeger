@@ -33,6 +33,8 @@ const (
 	CassandraStorageType = "cassandra"
 	// MemoryStorageType is the storage type flag denoting an in-memory store
 	MemoryStorageType = "memory"
+	// ESStorageType is the storage type flag denoting an ElasticSearch backing store
+	ESStorageType = "elasticsearch"
 )
 
 // ErrUnsupportedStorageType is the error when dealing with an unsupported storage type
