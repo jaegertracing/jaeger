@@ -24,22 +24,21 @@ import (
 	"time"
 
 	"github.com/pkg/errors"
+	"github.com/uber/jaeger-lib/metrics"
 	"go.uber.org/zap"
 
 	"github.com/uber/jaeger/pkg/cassandra"
-
-	"github.com/uber/jaeger-lib/metrics"
 	storageMetrics "github.com/uber/jaeger/storage/spanstore/metrics"
 )
 
 // Table is a collection of metrics about Cassandra write operations.
 type Table struct {
-	storageMetrics.Table
+	storageMetrics.WriteMetrics
 }
 
 // NewTable takes a metrics scope and creates a table metrics struct
 func NewTable(factory metrics.Factory, tableName string) *Table {
-	t := storageMetrics.Table{}
+	t := storageMetrics.WriteMetrics{}
 	metrics.Init(&t, factory.Namespace(tableName, nil), nil)
 	return &Table{t}
 }

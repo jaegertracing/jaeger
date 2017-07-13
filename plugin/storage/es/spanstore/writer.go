@@ -42,10 +42,10 @@ const (
 )
 
 type spanWriterMetrics struct {
-	exists           *storageMetrics.Table
-	indexCreate      *storageMetrics.Table
-	spans            *storageMetrics.Table
-	serviceOperation *storageMetrics.Table
+	exists           *storageMetrics.WriteMetrics
+	indexCreate      *storageMetrics.WriteMetrics
+	spans            *storageMetrics.WriteMetrics
+	serviceOperation *storageMetrics.WriteMetrics
 }
 
 // SpanWriter is a wrapper around elastic.Client
@@ -53,7 +53,7 @@ type SpanWriter struct {
 	ctx           context.Context
 	client        es.Client
 	logger        *zap.Logger
-	writerMetrics spanWriterMetrics
+	writerMetrics spanWriterMetrics // TODO: build functions to wrap around each Do fn
 }
 
 // Service is the JSON struct for service:operation documents in ElasticSearch
@@ -70,10 +70,10 @@ func NewSpanWriter(client es.Client, logger *zap.Logger, metricsFactory metrics.
 		client: client,
 		logger: logger,
 		writerMetrics: spanWriterMetrics{
-			exists:           storageMetrics.NewTable(metricsFactory, "Exists"),
-			indexCreate:      storageMetrics.NewTable(metricsFactory, "IndexCreate"),
-			spans:            storageMetrics.NewTable(metricsFactory, "Spans"),
-			serviceOperation: storageMetrics.NewTable(metricsFactory, "ServiceOperation"),
+			exists:           storageMetrics.NewWriteMetrics(metricsFactory, "Exists"),
+			indexCreate:      storageMetrics.NewWriteMetrics(metricsFactory, "IndexCreate"),
+			spans:            storageMetrics.NewWriteMetrics(metricsFactory, "Spans"),
+			serviceOperation: storageMetrics.NewWriteMetrics(metricsFactory, "ServiceOperation"),
 		},
 	}
 }
