@@ -39,7 +39,7 @@ const (
 )
 
 type timeToDependencies struct {
-	Timestamp    time.Time                 `json:"timestamp"`
+	Timestamp    time.Time              `json:"timestamp"`
 	Dependencies []model.DependencyLink `json:"dependencies"`
 }
 
@@ -83,7 +83,7 @@ func (s *DependencyStore) writeDependencies(indexName string, ts time.Time, depe
 	_, err := s.client.Index().Index(indexName).
 		Type(dependencyType).
 		BodyJson(&timeToDependencies{
-			Timestamp: ts,
+			Timestamp:    ts,
 			Dependencies: dependencies,
 		}).
 		Do(s.ctx)
@@ -126,7 +126,7 @@ func getIndices(ts time.Time, lookback time.Duration) []string {
 
 	// first add current date to indices, then round down to midnight
 	indices = append(indices, indexName(ts))
-	tsRoundedDown := ts.UTC().Truncate(24*time.Hour)
+	tsRoundedDown := ts.UTC().Truncate(24 * time.Hour)
 	lookback = lookback - ts.Sub(tsRoundedDown)
 
 	// then add any dates previous that fit into the lookback scope

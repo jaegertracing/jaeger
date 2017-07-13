@@ -186,7 +186,7 @@ func createSearchResult(dependencyLink string) *elastic.SearchResult {
 
 func TestGetIndices(t *testing.T) {
 	fixedTime := time.Date(1995, time.April, 21, 4, 12, 19, 95, time.Local)
-	expected := []string{indexName(fixedTime), indexName(fixedTime.Add(-24*time.Hour))}
+	expected := []string{indexName(fixedTime), indexName(fixedTime.Add(-24 * time.Hour))}
 	assert.EqualValues(t, expected, getIndices(fixedTime, 24*time.Hour))
 }
 
