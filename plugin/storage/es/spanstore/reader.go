@@ -87,7 +87,7 @@ type SpanReader struct {
 	logger *zap.Logger
 	// The age of the oldest trace we will look for. Because indices in ElasticSearch are by day,
 	// this will be rounded down to UTC 00:00 of that day.
-	maxSpanAge time.Duration
+	maxSpanAge              time.Duration
 	serviceOperationStorage *ServiceOperationStorage
 }
 
@@ -95,10 +95,10 @@ type SpanReader struct {
 func NewSpanReader(client es.Client, logger *zap.Logger, maxSpanAge time.Duration) *SpanReader {
 	ctx := context.Background()
 	return &SpanReader{
-		ctx:                  ctx,
-		client:               client,
-		logger:               logger,
-		maxSpanAge:           maxSpanAge,
+		ctx:                     ctx,
+		client:                  client,
+		logger:                  logger,
+		maxSpanAge:              maxSpanAge,
 		serviceOperationStorage: NewServiceOperationStorage(ctx, client, logger, 0),
 	}
 }
