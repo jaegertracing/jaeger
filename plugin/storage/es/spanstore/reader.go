@@ -80,10 +80,6 @@ var (
 	tagFieldList = []string{tagsField, processTagsField, logFieldsField}
 )
 
-type serviceNamesReader func(indices []string) ([]string, error)
-
-type operationNamesReader func(indices []string, service string) ([]string, error)
-
 // SpanReader can query for and load traces from ElasticSearch
 type SpanReader struct {
 	ctx    context.Context
@@ -92,22 +88,18 @@ type SpanReader struct {
 	// The age of the oldest trace we will look for. Because indices in ElasticSearch are by day,
 	// this will be rounded down to UTC 00:00 of that day.
 	maxSpanAge time.Duration
-
-	serviceNamesReader   serviceNamesReader
-	operationNamesReader operationNamesReader
+	serviceOperationStorage *ServiceOperationStorage
 }
 
 // NewSpanReader returns a new SpanReader.
 func NewSpanReader(client es.Client, logger *zap.Logger, maxSpanAge time.Duration) *SpanReader {
 	ctx := context.Background()
-	serviceOperationStorage := NewServiceOperationStorage(ctx, client, logger, 0)
 	return &SpanReader{
 		ctx:                  ctx,
 		client:               client,
 		logger:               logger,
 		maxSpanAge:           maxSpanAge,
-		serviceNamesReader:   serviceOperationStorage.getServices,
-		operationNamesReader: serviceOperationStorage.getOperations,
+		serviceOperationStorage: NewServiceOperationStorage(ctx, client, logger, 0),
 	}
 }
 
@@ -206,13 +198,13 @@ func IndexWithDate(date time.Time) string {
 // GetServices returns all services traced by Jaeger, ordered by frequency
 func (s *SpanReader) GetServices() ([]string, error) {
 	jaegerIndices := s.findIndices(&spanstore.TraceQueryParameters{})
-	return s.serviceNamesReader(jaegerIndices)
+	return s.serviceOperationStorage.getServices(jaegerIndices)
 }
 
 // GetOperations returns all operations for a specific service traced by Jaeger
 func (s *SpanReader) GetOperations(service string) ([]string, error) {
 	jaegerIndices := s.findIndices(&spanstore.TraceQueryParameters{})
-	return s.operationNamesReader(jaegerIndices, service)
+	return s.serviceOperationStorage.getOperations(jaegerIndices, service)
 }
 
 func bucketToStringArray(buckets []*elastic.AggregationBucketKeyItem) ([]string, error) {
