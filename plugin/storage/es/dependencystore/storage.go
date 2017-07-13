@@ -32,8 +32,8 @@ import (
 )
 
 const (
-	dependencyType = "dependencies"
-
+	dependencyType        = "dependencies"
+	dependencyIndexPrefix = "jaeger-dependencies-"
 )
 
 type timeToDependencies struct {
@@ -93,11 +93,11 @@ func (s *DependencyStore) writeDependencies(indexName string, ts time.Time, depe
 func (s *DependencyStore) GetDependencies(endTs time.Time, lookback time.Duration) ([]model.DependencyLink, error) {
 	searchResult, err := s.client.Search(getIndices(endTs, lookback)...).
 		Type(dependencyType).
-		Size(10000).
+		Size(10000). // the default elasticsearch allowed limit
 		Query(buildTSQuery(endTs, lookback)).
 		Do(s.ctx)
 	if err != nil {
-		return nil, err
+		return nil, errors.Wrap(err, "Failed to search for dependencies")
 	}
 
 	var retDependencies []model.DependencyLink
@@ -106,7 +106,7 @@ func (s *DependencyStore) GetDependencies(endTs time.Time, lookback time.Duratio
 		source := hit.Source
 		var timeToDependencies timeToDependencies
 		if err := json.Unmarshal(*source, &timeToDependencies); err != nil {
-			return nil, err
+			return nil, errors.New("Unmarshalling ElasticSearch documents failed")
 		}
 		retDependencies = append(retDependencies, timeToDependencies.Dependencies...)
 	}
@@ -121,7 +121,7 @@ func buildTSQuery(endTs time.Time, lookback time.Duration) elastic.Query {
 
 func getIndices(ts time.Time, lookback time.Duration) []string {
 	var indices []string
-	for int(lookback) > 0 {
+	for lookback >= 0 {
 		indices = append(indices, indexName(ts))
 		ts = ts.Add(-24 * time.Hour)
 		lookback -= 24 * time.Hour
@@ -130,5 +130,5 @@ func getIndices(ts time.Time, lookback time.Duration) []string {
 }
 
 func indexName(date time.Time) string {
-	return "jaeger-dependencies-" + date.Format("2006-01-02")
+	return dependencyIndexPrefix + date.Format("2006-01-02")
 }
