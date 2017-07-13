@@ -34,8 +34,8 @@ import (
 	"go.uber.org/zap"
 
 	"github.com/uber/jaeger/model"
-	"github.com/uber/jaeger/storage/spanstore"
 	"github.com/uber/jaeger/storage/dependencystore"
+	"github.com/uber/jaeger/storage/spanstore"
 )
 
 const (
@@ -44,19 +44,19 @@ const (
 )
 
 type StorageIntegration struct {
-	logger     *zap.Logger
-	spanWriter spanstore.Writer
-	spanReader spanstore.Reader
+	logger           *zap.Logger
+	spanWriter       spanstore.Writer
+	spanReader       spanstore.Reader
 	dependencyWriter dependencystore.Writer
 	dependencyReader dependencystore.Reader
 
 	// cleanUp() should ensure that the storage backend is clean before another test.
 	// called either before or after each test, and should be idempotent
-	cleanUp    func() error
+	cleanUp func() error
 
 	// refresh() should ensure that the storage backend is up to date before being queried.
 	// called between set-up and queries in each test
-	refresh    func() error
+	refresh func() error
 }
 
 // === SpanStore Integration Tests ===
@@ -277,19 +277,19 @@ func spanCount(traces []*model.Trace) int {
 func (s *StorageIntegration) IntegrationTestGetDependencies(t *testing.T) {
 	expected := []model.DependencyLink{
 		{
-			Parent: "hello",
-			Child: "world",
+			Parent:    "hello",
+			Child:     "world",
 			CallCount: uint64(1),
 		},
 		{
-			Parent: "world",
-			Child: "hello",
+			Parent:    "world",
+			Child:     "hello",
 			CallCount: uint64(3),
 		},
 	}
 	require.NoError(t, s.dependencyWriter.WriteDependencies(time.Now(), expected))
 	require.NoError(t, s.refresh())
-	actual, err := s.dependencyReader.GetDependencies(time.Now(), -5*time.Minute)
+	actual, err := s.dependencyReader.GetDependencies(time.Now(), 5*time.Minute)
 	assert.NoError(t, err)
 	assert.EqualValues(t, expected, actual)
 	assert.NoError(t, s.cleanUp())
@@ -301,6 +301,5 @@ func (s *StorageIntegration) IntegrationTestAll(t *testing.T) {
 	s.IntegrationTestGetOperations(t)
 	s.IntegrationTestGetTrace(t)
 	s.IntegrationTestFindTraces(t)
-
-	//s.IntegrationTestGetDependencies(t)
+	s.IntegrationTestGetDependencies(t)
 }
