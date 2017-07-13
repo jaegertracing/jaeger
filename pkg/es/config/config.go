@@ -50,8 +50,8 @@ func (c *Configuration) NewClient() (es.Client, error) {
 // GetConfigs wraps the configs to feed to the ElasticSearch client init
 func (c *Configuration) GetConfigs() []elastic.ClientOptionFunc {
 	options := make([]elastic.ClientOptionFunc, 3)
-	options = append(options, elastic.SetURL(c.Servers...))
-	options = append(options, elastic.SetBasicAuth(c.Username, c.Password))
-	options = append(options, elastic.SetSniff(c.Sniffer))
+	options[0] = elastic.SetURL(c.Servers...)
+	options[1] = elastic.SetBasicAuth(c.Username, c.Password)
+	options[2] = elastic.SetSniff(c.Sniffer)
 	return options
 }
