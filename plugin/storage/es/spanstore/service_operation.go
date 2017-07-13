@@ -25,12 +25,20 @@ import (
 	"fmt"
 	"time"
 
+	"github.com/olivere/elastic"
 	"github.com/pkg/errors"
 	"go.uber.org/zap"
 
 	jModel "github.com/uber/jaeger/model/json"
 	"github.com/uber/jaeger/pkg/cache"
 	"github.com/uber/jaeger/pkg/es"
+)
+
+const (
+	serviceName = "serviceName"
+
+	operationsAggregation = "distinct_operations"
+	servicesAggregation   = "distinct_services"
 )
 
 // ServiceOperationStorage stores service to operation pairs.
@@ -79,6 +87,61 @@ func (s *ServiceOperationStorage) Write(indexName string, jsonSpan *jModel.Span)
 		writeCache(cacheKey, s.serviceCache)
 	}
 	return nil
+}
+
+func (s *ServiceOperationStorage) getServices(indices []string) ([]string, error) {
+	serviceAggregation := getServicesAggregation()
+
+	searchService := s.client.Search(indices...).
+		Type(serviceType).
+		Size(0). // set to 0 because we don't want actual documents.
+		Aggregation(servicesAggregation, serviceAggregation)
+
+	searchResult, err := searchService.Do(s.ctx)
+	if err != nil {
+		return nil, errors.Wrap(err, "Search service failed")
+	}
+
+	bucket, found := searchResult.Aggregations.Terms(servicesAggregation)
+	if !found {
+		return nil, errors.New("Could not find aggregation of " + servicesAggregation)
+	}
+	serviceNamesBucket := bucket.Buckets
+	return bucketToStringArray(serviceNamesBucket)
+}
+
+func getServicesAggregation() elastic.Query {
+	return elastic.NewTermsAggregation().
+		Field(serviceName).
+		Size(defaultDocCount) // Must set to some large number. ES deprecated size omission for aggregating all. https://github.com/elastic/elasticsearch/issues/18838
+}
+
+func (s *ServiceOperationStorage) getOperations(indices []string, service string) ([]string, error) {
+	serviceQuery := elastic.NewTermQuery(serviceName, service)
+	serviceFilter := getOperationsAggregation()
+
+	searchService := s.client.Search(indices...).
+		Type(serviceType).
+		Size(0).
+		Query(serviceQuery).
+		Aggregation(operationsAggregation, serviceFilter)
+
+	searchResult, err := searchService.Do(s.ctx)
+	if err != nil {
+		return nil, errors.Wrap(err, "Search service failed")
+	}
+	bucket, found := searchResult.Aggregations.Terms(operationsAggregation)
+	if !found {
+		return nil, errors.New("Could not find aggregation of " + operationsAggregation)
+	}
+	operationNamesBucket := bucket.Buckets
+	return bucketToStringArray(operationNamesBucket)
+}
+
+func getOperationsAggregation() elastic.Query {
+	return elastic.NewTermsAggregation().
+		Field(operationNameField).
+		Size(defaultDocCount) // Must set to some large number. ES deprecated size omission for aggregating all. https://github.com/elastic/elasticsearch/issues/18838
 }
 
 func (s *ServiceOperationStorage) logError(span *jModel.Span, err error, msg string, logger *zap.Logger) error {

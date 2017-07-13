@@ -304,28 +304,6 @@ func TestSpanReader_indexWithDate(t *testing.T) {
 	})
 }
 
-func TestSpanReader_GetServices(t *testing.T) {
-	testGet(servicesAggregation, t)
-}
-
-func TestSpanReader_getServicesAggregation(t *testing.T) {
-	expectedStr := `{ "terms": { "size": 3000, "field": "` + serviceName + `"}}`
-	withSpanReader(func(r *spanReaderTest) {
-		serviceAggregation := r.reader.getServicesAggregation()
-		actual, err := serviceAggregation.Source()
-		require.NoError(t, err)
-		expected := make(map[string]interface{})
-		json.Unmarshal([]byte(expectedStr), &expected)
-		expected["terms"].(map[string]interface{})["size"] = defaultDocCount
-
-		assert.EqualValues(t, expected, actual)
-	})
-}
-
-func TestSpanReader_GetOperations(t *testing.T) {
-	testGet(operationsAggregation, t)
-}
-
 func testGet(typ string, t *testing.T) {
 	goodAggregations := make(map[string]*json.RawMessage)
 	rawMessage := []byte(`{"buckets": [{"key": "123","doc_count": 16}]}`)
@@ -396,7 +374,7 @@ func TestSpanReader_bucketToStringArray(t *testing.T) {
 		buckets[1] = &elastic.AggregationBucketKeyItem{Key: "world"}
 		buckets[2] = &elastic.AggregationBucketKeyItem{Key: "2"}
 
-		actual, err := r.reader.bucketToStringArray(buckets)
+		actual, err := bucketToStringArray(buckets)
 		require.NoError(t, err)
 
 		assert.EqualValues(t, []string{"hello", "world", "2"}, actual)
@@ -410,7 +388,7 @@ func TestSpanReader_bucketToStringArrayError(t *testing.T) {
 		buckets[1] = &elastic.AggregationBucketKeyItem{Key: "world"}
 		buckets[2] = &elastic.AggregationBucketKeyItem{Key: 2}
 
-		_, err := r.reader.bucketToStringArray(buckets)
+		_, err := bucketToStringArray(buckets)
 		assert.EqualError(t, err, "Non-string key found in aggregation")
 	})
 }
