@@ -55,7 +55,7 @@ const (
 	tagKeyField        = "key"
 	tagValueField      = "value"
 
-	defaultDocCount  = 3000
+	defaultDocCount  = 10000 // the default elasticsearch allowed limit
 	defaultNumTraces = 100
 )
 
@@ -88,15 +88,19 @@ type SpanReader struct {
 	ctx    context.Context
 	client es.Client
 	logger *zap.Logger
+	// The age of the oldest trace we will look for. Because indices in ElasticSearch are by day,
+	// this will be rounded down to UTC 00:00 of that day.
+	maxSpanAge time.Duration
 }
 
 // NewSpanReader returns a new SpanReader.
-func NewSpanReader(client es.Client, logger *zap.Logger) *SpanReader {
+func NewSpanReader(client es.Client, logger *zap.Logger, maxSpanAge time.Duration) *SpanReader {
 	ctx := context.Background()
 	return &SpanReader{
-		ctx:    ctx,
-		client: client,
-		logger: logger,
+		ctx:        ctx,
+		client:     client,
+		logger:     logger,
+		maxSpanAge: maxSpanAge,
 	}
 }
 
@@ -130,7 +134,7 @@ func (s *SpanReader) collectSpans(esSpansRaw []*elastic.SearchHit) ([]*model.Spa
 	spans := make([]*model.Span, len(esSpansRaw))
 
 	for i, esSpanRaw := range esSpansRaw {
-		jsonSpan, err := s.unmarshallJSONSpan(esSpanRaw)
+		jsonSpan, err := s.unmarshalJSONSpan(esSpanRaw)
 		if err != nil {
 			return nil, errors.Wrap(err, "Marshalling JSON to span object failed")
 		}
@@ -154,7 +158,7 @@ func (s *SpanReader) executeQuery(query elastic.Query, indices ...string) ([]*el
 	return searchService.Hits.Hits, nil
 }
 
-func (s *SpanReader) unmarshallJSONSpan(esSpanRaw *elastic.SearchHit) (*jModel.Span, error) {
+func (s *SpanReader) unmarshalJSONSpan(esSpanRaw *elastic.SearchHit) (*jModel.Span, error) {
 	esSpanInByteArray := esSpanRaw.Source
 
 	var jsonSpan jModel.Span
@@ -167,17 +171,17 @@ func (s *SpanReader) unmarshallJSONSpan(esSpanRaw *elastic.SearchHit) (*jModel.S
 // Returns the array of indices that we need to query, based on query params
 func (s *SpanReader) findIndices(traceQuery *spanstore.TraceQueryParameters) []string {
 	today := time.Now()
-	threeDaysAgo := today.AddDate(0, 0, -3) // TODO: make this configurable
+	oldestDay := today.Add(-s.maxSpanAge)
 
 	if traceQuery.StartTimeMax.IsZero() || traceQuery.StartTimeMin.IsZero() {
 		traceQuery.StartTimeMax = today
-		traceQuery.StartTimeMin = threeDaysAgo
+		traceQuery.StartTimeMin = oldestDay
 	}
 
 	var indices []string
 	current := traceQuery.StartTimeMax
-	for current.After(traceQuery.StartTimeMin) && current.After(threeDaysAgo) {
-		index := indexWithDate(current)
+	for current.After(traceQuery.StartTimeMin) && current.After(oldestDay) {
+		index := IndexWithDate(current)
 		exists, _ := s.client.IndexExists(index).Do(s.ctx) // Don't care about error, if it's an error, exists will be false anyway
 		if exists {
 			indices = append(indices, index)
@@ -187,7 +191,8 @@ func (s *SpanReader) findIndices(traceQuery *spanstore.TraceQueryParameters) []s
 	return indices
 }
 
-func indexWithDate(date time.Time) string {
+// IndexWithDate returns the index name formatted to date.
+func IndexWithDate(date time.Time) string {
 	return indexPrefix + date.Format("2006-01-02")
 }
 

@@ -18,23 +18,44 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 // THE SOFTWARE.
 
-package json
+package integration
 
 import (
 	"encoding/json"
-	"sort"
 	"testing"
 
 	"github.com/kr/pretty"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 
-	esJson "github.com/uber/jaeger/model/json"
+	"github.com/uber/jaeger/model"
 )
 
-func CompareJSONSpans(t *testing.T, expected *esJson.Span, actual *esJson.Span) {
-	sortJSONSpan(expected)
-	sortJSONSpan(actual)
+func CompareSliceOfTraces(t *testing.T, expected []*model.Trace, actual []*model.Trace) {
+	require.Equal(t, len(expected), len(actual))
+	model.SortTraces(expected)
+	model.SortTraces(actual)
+	for i := range expected {
+		checkSize(t, expected[i], actual[i])
+	}
+	if !assert.EqualValues(t, expected, actual) {
+		for _, err := range pretty.Diff(expected, actual) {
+			t.Log(err)
+		}
+		out, err := json.Marshal(actual)
+		assert.NoError(t, err)
+		t.Logf("Actual traces: %s", string(out))
+	}
+}
 
+func CompareTraces(t *testing.T, expected *model.Trace, actual *model.Trace) {
+	if expected.Spans == nil {
+		require.Nil(t, actual.Spans)
+		return
+	}
+	model.SortTrace(expected)
+	model.SortTrace(actual)
+	checkSize(t, expected, actual)
 	if !assert.EqualValues(t, expected, actual) {
 		for _, err := range pretty.Diff(expected, actual) {
 			t.Log(err)
@@ -45,35 +66,15 @@ func CompareJSONSpans(t *testing.T, expected *esJson.Span, actual *esJson.Span) 
 	}
 }
 
-func sortJSONSpan(span *esJson.Span) {
-	sortJSONTags(span.Tags)
-	sortJSONLogs(span.Logs)
-	sortJSONProcess(span.Process)
-}
-
-type JSONTagByKey []esJson.KeyValue
-
-func (t JSONTagByKey) Len() int           { return len(t) }
-func (t JSONTagByKey) Swap(i, j int)      { t[i], t[j] = t[j], t[i] }
-func (t JSONTagByKey) Less(i, j int) bool { return t[i].Key < t[j].Key }
-
-func sortJSONTags(tags []esJson.KeyValue) {
-	sort.Sort(JSONTagByKey(tags))
-}
-
-type JSONLogByTimestamp []esJson.Log
-
-func (t JSONLogByTimestamp) Len() int           { return len(t) }
-func (t JSONLogByTimestamp) Swap(i, j int)      { t[i], t[j] = t[j], t[i] }
-func (t JSONLogByTimestamp) Less(i, j int) bool { return t[i].Timestamp < t[j].Timestamp }
-
-func sortJSONLogs(logs []esJson.Log) {
-	sort.Sort(JSONLogByTimestamp(logs))
-	for i := range logs {
-		sortJSONTags(logs[i].Fields)
+func checkSize(t *testing.T, expected *model.Trace, actual *model.Trace) {
+	require.True(t, len(expected.Spans) == len(actual.Spans))
+	for i := range expected.Spans {
+		expectedSpan := expected.Spans[i]
+		actualSpan := actual.Spans[i]
+		require.True(t, len(expectedSpan.Tags) == len(actualSpan.Tags))
+		require.True(t, len(expectedSpan.Logs) == len(actualSpan.Logs))
+		if expectedSpan.Process != nil && actualSpan.Process != nil {
+			require.True(t, len(expectedSpan.Process.Tags) == len(actualSpan.Process.Tags))
+		}
 	}
-}
-
-func sortJSONProcess(process *esJson.Process) {
-	sortJSONTags(process.Tags)
 }

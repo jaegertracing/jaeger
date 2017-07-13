@@ -1,0 +1,50 @@
+{
+  "Spans": [
+    {
+      "traceID": "4",
+      "spanID": "1",
+      "operationName": "placeholder",
+      "references": [],
+      "startTime": "2017-01-26T16:46:31.639875Z",
+      "duration": 5000,
+      "tags": [
+        {
+          "key": "sameplacetag4",
+          "vType": "bool",
+          "vNum": 1
+        },
+        {
+          "key": "sameplacetag3",
+          "vType": "float64",
+          "vNum": 4634802150889750528
+        }
+      ],
+      "process": {
+        "serviceName": "query04-service",
+        "tags": [
+          {
+            "key": "sameplacetag1",
+            "vType": "string",
+            "vStr": "sameplacevalue"
+          }
+        ]
+      },
+      "logs": [
+        {
+          "timestamp": "2017-01-26T16:46:31.639875Z",
+          "fields": [
+            {
+              "key": "sameplacetag2",
+              "vType": "int64",
+              "vNum": 123
+            }
+          ]
+        },
+        {
+          "timestamp": "2017-01-26T16:46:31.639875Z",
+          "fields": []
+        }
+      ]
+    }
+  ]
+}
