@@ -46,6 +46,7 @@ var (
 func NewStorageBuilder(opts ...basicB.Option) (StorageBuilder, error) {
 	flag.Parse()
 	options := basicB.ApplyOptions(opts...)
+	// TODO clean up below
 	if flags.SpanStorage.Type == flags.CassandraStorageType {
 		if options.Cassandra == nil {
 			return nil, errMissingCassandraConfig
