@@ -58,7 +58,7 @@ func (e *esBuilder) NewSpanReader() (spanstore.Reader, error) {
 	if err != nil {
 		return nil, err
 	}
-	return esSpanstore.NewSpanReader(client, e.logger), nil
+	return esSpanstore.NewSpanReader(client, e.logger, e.configuration.MaxSpanAge), nil
 }
 
 func (e *esBuilder) NewDependencyReader() (dependencystore.Reader, error) {

@@ -21,6 +21,8 @@
 package config
 
 import (
+	"time"
+
 	"github.com/olivere/elastic"
 	"github.com/pkg/errors"
 
@@ -29,10 +31,11 @@ import (
 
 // Configuration describes the configuration properties needed to connect to a ElasticSearch cluster
 type Configuration struct {
-	Servers  []string
-	Username string
-	Password string
-	Sniffer  bool // https://github.com/olivere/elastic/wiki/Sniffing
+	Servers    []string
+	Username   string
+	Password   string
+	Sniffer    bool // https://github.com/olivere/elastic/wiki/Sniffing
+	MaxSpanAge time.Duration
 }
 
 // NewClient creates a new ElasticSearch client
