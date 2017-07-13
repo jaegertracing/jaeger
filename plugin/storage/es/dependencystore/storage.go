@@ -18,43 +18,30 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 // THE SOFTWARE.
 
-package config
+package dependencystore
 
 import (
 	"time"
 
-	"github.com/olivere/elastic"
-	"github.com/pkg/errors"
-
-	"github.com/uber/jaeger/pkg/es"
+	"github.com/uber/jaeger/model"
 )
 
-// Configuration describes the configuration properties needed to connect to a ElasticSearch cluster
-type Configuration struct {
-	Servers    []string
-	Username   string
-	Password   string
-	Sniffer    bool          // https://github.com/olivere/elastic/wiki/Sniffing
-	MaxSpanAge time.Duration // configures the maximum lookback on span reads
+// TODO: currently not implemented
+
+// DependencyStore handles all queries and insertions to ElasticSearch dependencies
+type DependencyStore struct{}
+
+// NewDependencyStore returns a DependencyStore
+func NewDependencyStore() *DependencyStore {
+	return &DependencyStore{}
 }
 
-// NewClient creates a new ElasticSearch client
-func (c *Configuration) NewClient() (es.Client, error) {
-	if len(c.Servers) < 1 {
-		return nil, errors.New("No servers specified")
-	}
-	rawClient, err := elastic.NewClient(c.GetConfigs()...)
-	if err != nil {
-		return nil, err
-	}
-	return es.WrapESClient(rawClient), nil
+// WriteDependencies implements dependencystore.Writer#WriteDependencies.
+func (s *DependencyStore) WriteDependencies(ts time.Time, dependencies []model.DependencyLink) error {
+	return nil
 }
 
-// GetConfigs wraps the configs to feed to the ElasticSearch client init
-func (c *Configuration) GetConfigs() []elastic.ClientOptionFunc {
-	options := make([]elastic.ClientOptionFunc, 3)
-	options[0] = elastic.SetURL(c.Servers...)
-	options[1] = elastic.SetBasicAuth(c.Username, c.Password)
-	options[2] = elastic.SetSniff(c.Sniffer)
-	return options
+// GetDependencies returns all interservice dependencies
+func (s *DependencyStore) GetDependencies(endTs time.Time, lookback time.Duration) ([]model.DependencyLink, error) {
+	return nil, nil
 }

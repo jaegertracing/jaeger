@@ -18,43 +18,42 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 // THE SOFTWARE.
 
-package config
+package dependencystore
 
 import (
+	"testing"
 	"time"
 
-	"github.com/olivere/elastic"
-	"github.com/pkg/errors"
-
-	"github.com/uber/jaeger/pkg/es"
+	"github.com/stretchr/testify/assert"
 )
 
-// Configuration describes the configuration properties needed to connect to a ElasticSearch cluster
-type Configuration struct {
-	Servers    []string
-	Username   string
-	Password   string
-	Sniffer    bool          // https://github.com/olivere/elastic/wiki/Sniffing
-	MaxSpanAge time.Duration // configures the maximum lookback on span reads
+type depStorageTest struct {
+	storage *DependencyStore
 }
 
-// NewClient creates a new ElasticSearch client
-func (c *Configuration) NewClient() (es.Client, error) {
-	if len(c.Servers) < 1 {
-		return nil, errors.New("No servers specified")
+func withDepStore(fn func(s *depStorageTest)) {
+	s := &depStorageTest{
+		storage: NewDependencyStore(),
 	}
-	rawClient, err := elastic.NewClient(c.GetConfigs()...)
-	if err != nil {
-		return nil, err
-	}
-	return es.WrapESClient(rawClient), nil
+	fn(s)
 }
 
-// GetConfigs wraps the configs to feed to the ElasticSearch client init
-func (c *Configuration) GetConfigs() []elastic.ClientOptionFunc {
-	options := make([]elastic.ClientOptionFunc, 3)
-	options[0] = elastic.SetURL(c.Servers...)
-	options[1] = elastic.SetBasicAuth(c.Username, c.Password)
-	options[2] = elastic.SetSniff(c.Sniffer)
-	return options
+func TestNewDependencyStore(t *testing.T) {
+	withDepStore(func(s *depStorageTest) {
+		assert.NotNil(t, s)
+	})
+}
+
+func TestDependencyStore_WriteDependencies(t *testing.T) {
+	withDepStore(func(s *depStorageTest) {
+		assert.NoError(t, s.storage.WriteDependencies(time.Time{}, nil))
+	})
+}
+
+func TestDependencyStore_GetDependencies(t *testing.T) {
+	withDepStore(func(s *depStorageTest) {
+		result, err := s.storage.GetDependencies(time.Time{}, time.Duration(0))
+		assert.NoError(t, err)
+		assert.Nil(t, result)
+	})
 }
