@@ -30,14 +30,6 @@ import (
 )
 
 func TestTableEmit(t *testing.T) {
-	expectedGauges := map[string]int64{
-		"a_table.latency-err.P999": 51,
-		"a_table.latency-err.P50":  51,
-		"a_table.latency-err.P75":  51,
-		"a_table.latency-err.P90":  51,
-		"a_table.latency-err.P95":  51,
-		"a_table.latency-err.P99":  51,
-	}
 	testCases := []struct {
 		err    error
 		counts map[string]int64
@@ -49,7 +41,14 @@ func TestTableEmit(t *testing.T) {
 				"a_table.attempts": 1,
 				"a_table.inserts":  1,
 			},
-			gauges: expectedGauges,
+			gauges: map[string]int64{
+				"a_table.latency-ok.P999": 51,
+				"a_table.latency-ok.P50":  51,
+				"a_table.latency-ok.P75":  51,
+				"a_table.latency-ok.P90":  51,
+				"a_table.latency-ok.P95":  51,
+				"a_table.latency-ok.P99":  51,
+			},
 		},
 		{
 			err: errors.New("some error"),
@@ -57,7 +56,14 @@ func TestTableEmit(t *testing.T) {
 				"a_table.attempts": 1,
 				"a_table.errors":   1,
 			},
-			gauges: expectedGauges,
+			gauges: map[string]int64{
+				"a_table.latency-err.P999": 51,
+				"a_table.latency-err.P50":  51,
+				"a_table.latency-err.P75":  51,
+				"a_table.latency-err.P90":  51,
+				"a_table.latency-err.P95":  51,
+				"a_table.latency-err.P99":  51,
+			},
 		},
 	}
 	for _, tc := range testCases {
