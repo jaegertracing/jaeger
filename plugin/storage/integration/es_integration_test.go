@@ -30,6 +30,7 @@ import (
 	"github.com/olivere/elastic"
 	"github.com/pkg/errors"
 	"github.com/stretchr/testify/require"
+	"github.com/uber/jaeger-lib/metrics"
 
 	"github.com/uber/jaeger/pkg/es"
 	"github.com/uber/jaeger/pkg/testutils"
@@ -77,8 +78,8 @@ func (s *ESStorageIntegration) esCleanUp() error {
 
 func (s *ESStorageIntegration) initSpanstore() {
 	client := es.WrapESClient(s.client)
-	s.writer = spanstore.NewSpanWriter(client, s.logger)
-	s.reader = spanstore.NewSpanReader(client, s.logger, 72*time.Hour)
+	s.writer = spanstore.NewSpanWriter(client, s.logger, metrics.NullFactory)
+	s.reader = spanstore.NewSpanReader(client, s.logger, 72*time.Hour, metrics.NullFactory)
 }
 
 func (s *ESStorageIntegration) esRefresh() error {

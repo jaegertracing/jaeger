@@ -27,8 +27,8 @@ import (
 
 	"github.com/olivere/elastic"
 	"github.com/pkg/errors"
-	"go.uber.org/zap"
 	"github.com/uber/jaeger-lib/metrics"
+	"go.uber.org/zap"
 
 	jModel "github.com/uber/jaeger/model/json"
 	"github.com/uber/jaeger/pkg/cache"
@@ -47,7 +47,7 @@ const (
 type ServiceOperationStorage struct {
 	ctx          context.Context
 	client       es.Client
-	metrics	     *storageMetrics.WriteMetrics
+	metrics      *storageMetrics.WriteMetrics
 	logger       *zap.Logger
 	serviceCache cache.Cache
 }
@@ -61,10 +61,10 @@ func NewServiceOperationStorage(
 	cacheTTL time.Duration,
 ) *ServiceOperationStorage {
 	return &ServiceOperationStorage{
-		ctx:    ctx,
-		client: client,
+		ctx:     ctx,
+		client:  client,
 		metrics: storageMetrics.NewWriteMetrics(metricsFactory, "ServiceOperation"),
-		logger: logger,
+		logger:  logger,
 		serviceCache: cache.NewLRUWithOptions(
 			100000,
 			&cache.Options{

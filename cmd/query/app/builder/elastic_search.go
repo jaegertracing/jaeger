@@ -23,6 +23,7 @@ package builder
 import (
 	"go.uber.org/zap"
 
+	"github.com/uber/jaeger-lib/metrics"
 	"github.com/uber/jaeger/pkg/es"
 	escfg "github.com/uber/jaeger/pkg/es/config"
 	esDependencyStore "github.com/uber/jaeger/plugin/storage/es/dependencystore"
@@ -32,15 +33,17 @@ import (
 )
 
 type esBuilder struct {
-	logger        *zap.Logger
-	client        es.Client
-	configuration escfg.Configuration
+	logger         *zap.Logger
+	client         es.Client
+	metricsFactory metrics.Factory
+	configuration  escfg.Configuration
 }
 
-func newESBuilder(config *escfg.Configuration, logger *zap.Logger) *esBuilder {
+func newESBuilder(config *escfg.Configuration, logger *zap.Logger, metricsFactory metrics.Factory) *esBuilder {
 	return &esBuilder{
-		logger:        logger,
-		configuration: *config,
+		logger:         logger,
+		metricsFactory: metricsFactory,
+		configuration:  *config,
 	}
 }
 
@@ -58,7 +61,7 @@ func (e *esBuilder) NewSpanReader() (spanstore.Reader, error) {
 	if err != nil {
 		return nil, err
 	}
-	return esSpanstore.NewSpanReader(client, e.logger, e.configuration.MaxSpanAge), nil
+	return esSpanstore.NewSpanReader(client, e.logger, e.configuration.MaxSpanAge, e.metricsFactory), nil
 }
 
 func (e *esBuilder) NewDependencyReader() (dependencystore.Reader, error) {

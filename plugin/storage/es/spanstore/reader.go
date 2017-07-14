@@ -105,7 +105,7 @@ func newSpanReader(client es.Client, logger *zap.Logger, maxSpanAge time.Duratio
 		client:                  client,
 		logger:                  logger,
 		maxSpanAge:              maxSpanAge,
-		serviceOperationStorage: NewServiceOperationStorage(ctx, client, logger, 0),
+		serviceOperationStorage: NewServiceOperationStorage(ctx, client, metrics.NullFactory, logger, 0), // the decorator takes care of metrics
 	}
 }
 

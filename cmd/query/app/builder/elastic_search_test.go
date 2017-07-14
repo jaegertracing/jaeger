@@ -26,6 +26,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"go.uber.org/zap"
 
+	"github.com/uber/jaeger-lib/metrics"
 	"github.com/uber/jaeger/pkg/es/config"
 	"github.com/uber/jaeger/pkg/es/mocks"
 )
@@ -34,7 +35,7 @@ func withESBuilder(f func(builder *esBuilder)) {
 	cfg := &config.Configuration{
 		Servers: []string{"127.0.0.1"},
 	}
-	cBuilder := newESBuilder(cfg, zap.NewNop())
+	cBuilder := newESBuilder(cfg, zap.NewNop(), metrics.NullFactory)
 	f(cBuilder)
 }
 

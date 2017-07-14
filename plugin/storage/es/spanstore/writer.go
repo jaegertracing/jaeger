@@ -75,8 +75,8 @@ func NewSpanWriter(client es.Client, logger *zap.Logger, metricsFactory metrics.
 		client: client,
 		logger: logger,
 		writerMetrics: spanWriterMetrics{
-			indexCreate:      storageMetrics.NewWriteMetrics(metricsFactory, "IndexCreate"),
-			spans:            storageMetrics.NewWriteMetrics(metricsFactory, "Spans"),
+			indexCreate: storageMetrics.NewWriteMetrics(metricsFactory, "IndexCreate"),
+			spans:       storageMetrics.NewWriteMetrics(metricsFactory, "Spans"),
 		},
 		serviceWriter: serviceOperationStorage.Write,
 		indexCache: cache.NewLRUWithOptions(
@@ -110,7 +110,6 @@ func spanIndexName(span *model.Span) string {
 	spanDate := span.StartTime.Format("2006-01-02")
 	return "jaeger-" + spanDate
 }
-
 
 func (s *SpanWriter) createIndex(indexName string, jsonSpan *jModel.Span) error {
 	if !keyInCache(indexName, s.indexCache) {
