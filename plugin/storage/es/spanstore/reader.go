@@ -40,11 +40,8 @@ import (
 )
 
 const (
-	serviceName           = "serviceName"
-	indexPrefix           = "jaeger-"
-	operationsAggregation = "distinct_operations"
-	servicesAggregation   = "distinct_services"
-	traceIDAggregation    = "traceIDs"
+	indexPrefix        = "jaeger-"
+	traceIDAggregation = "traceIDs"
 
 	traceIDField       = "traceID"
 	durationField      = "duration"
@@ -57,7 +54,7 @@ const (
 	tagKeyField        = "key"
 	tagValueField      = "value"
 
-	defaultDocCount  = 3000
+	defaultDocCount  = 10000 // the default elasticsearch allowed limit
 	defaultNumTraces = 100
 )
 
@@ -90,19 +87,25 @@ type SpanReader struct {
 	ctx    context.Context
 	client es.Client
 	logger *zap.Logger
+	// The age of the oldest trace we will look for. Because indices in ElasticSearch are by day,
+	// this will be rounded down to UTC 00:00 of that day.
+	maxSpanAge              time.Duration
+	serviceOperationStorage *ServiceOperationStorage
 }
 
 // NewSpanReader returns a new SpanReader with a metrics.
-func NewSpanReader(client es.Client, logger *zap.Logger, metricsFactory metrics.Factory) spanstore.Reader {
-	return storageMetrics.NewReadMetricsDecorator(newSpanReader(client, logger), metricsFactory)
+func NewSpanReader(client es.Client, logger *zap.Logger, maxSpanAge time.Duration, metricsFactory metrics.Factory) spanstore.Reader {
+	return storageMetrics.NewReadMetricsDecorator(newSpanReader(client, logger, maxSpanAge), metricsFactory)
 }
 
-func newSpanReader(client es.Client, logger *zap.Logger) *SpanReader {
+func newSpanReader(client es.Client, logger *zap.Logger, maxSpanAge time.Duration) *SpanReader {
 	ctx := context.Background()
 	return &SpanReader{
-		ctx:    ctx,
-		client: client,
-		logger: logger,
+		ctx:                     ctx,
+		client:                  client,
+		logger:                  logger,
+		maxSpanAge:              maxSpanAge,
+		serviceOperationStorage: NewServiceOperationStorage(ctx, client, logger, 0),
 	}
 }
 
@@ -136,7 +139,7 @@ func (s *SpanReader) collectSpans(esSpansRaw []*elastic.SearchHit) ([]*model.Spa
 	spans := make([]*model.Span, len(esSpansRaw))
 
 	for i, esSpanRaw := range esSpansRaw {
-		jsonSpan, err := s.unmarshallJSONSpan(esSpanRaw)
+		jsonSpan, err := s.unmarshalJSONSpan(esSpanRaw)
 		if err != nil {
 			return nil, errors.Wrap(err, "Marshalling JSON to span object failed")
 		}
@@ -160,7 +163,7 @@ func (s *SpanReader) executeQuery(query elastic.Query, indices ...string) ([]*el
 	return searchService.Hits.Hits, nil
 }
 
-func (s *SpanReader) unmarshallJSONSpan(esSpanRaw *elastic.SearchHit) (*jModel.Span, error) {
+func (s *SpanReader) unmarshalJSONSpan(esSpanRaw *elastic.SearchHit) (*jModel.Span, error) {
 	esSpanInByteArray := esSpanRaw.Source
 
 	var jsonSpan jModel.Span
@@ -173,17 +176,17 @@ func (s *SpanReader) unmarshallJSONSpan(esSpanRaw *elastic.SearchHit) (*jModel.S
 // Returns the array of indices that we need to query, based on query params
 func (s *SpanReader) findIndices(traceQuery *spanstore.TraceQueryParameters) []string {
 	today := time.Now()
-	threeDaysAgo := today.AddDate(0, 0, -3) // TODO: make this configurable
+	oldestDay := today.Add(-s.maxSpanAge)
 
 	if traceQuery.StartTimeMax.IsZero() || traceQuery.StartTimeMin.IsZero() {
 		traceQuery.StartTimeMax = today
-		traceQuery.StartTimeMin = threeDaysAgo
+		traceQuery.StartTimeMin = oldestDay
 	}
 
 	var indices []string
 	current := traceQuery.StartTimeMax
-	for current.After(traceQuery.StartTimeMin) && current.After(threeDaysAgo) {
-		index := indexWithDate(current)
+	for current.After(traceQuery.StartTimeMin) && current.After(oldestDay) {
+		index := IndexWithDate(current)
 		exists, _ := s.client.IndexExists(index).Do(s.ctx) // Don't care about error, if it's an error, exists will be false anyway
 		if exists {
 			indices = append(indices, index)
@@ -193,71 +196,24 @@ func (s *SpanReader) findIndices(traceQuery *spanstore.TraceQueryParameters) []s
 	return indices
 }
 
-func indexWithDate(date time.Time) string {
+// IndexWithDate returns the index name formatted to date.
+func IndexWithDate(date time.Time) string {
 	return indexPrefix + date.Format("2006-01-02")
 }
 
 // GetServices returns all services traced by Jaeger, ordered by frequency
 func (s *SpanReader) GetServices() ([]string, error) {
-	serviceAggregation := s.getServicesAggregation()
-
 	jaegerIndices := s.findIndices(&spanstore.TraceQueryParameters{})
-
-	searchService := s.client.Search(jaegerIndices...).
-		Type(serviceType).
-		Size(0). // set to 0 because we don't want actual documents.
-		Aggregation(servicesAggregation, serviceAggregation)
-
-	searchResult, err := searchService.Do(s.ctx)
-	if err != nil {
-		return nil, errors.Wrap(err, "Search service failed")
-	}
-
-	bucket, found := searchResult.Aggregations.Terms(servicesAggregation)
-	if !found {
-		return nil, errors.New("Could not find aggregation of " + servicesAggregation)
-	}
-	serviceNamesBucket := bucket.Buckets
-	return s.bucketToStringArray(serviceNamesBucket)
-}
-
-func (s *SpanReader) getServicesAggregation() elastic.Query {
-	return elastic.NewTermsAggregation().
-		Field(serviceName).
-		Size(defaultDocCount) // Must set to some large number. ES deprecated size omission for aggregating all. https://github.com/elastic/elasticsearch/issues/18838
+	return s.serviceOperationStorage.getServices(jaegerIndices)
 }
 
 // GetOperations returns all operations for a specific service traced by Jaeger
 func (s *SpanReader) GetOperations(service string) ([]string, error) {
-	serviceQuery := elastic.NewTermQuery(serviceName, service)
-	serviceFilter := s.getOperationsAggregation()
 	jaegerIndices := s.findIndices(&spanstore.TraceQueryParameters{})
-
-	searchService := s.client.Search(jaegerIndices...).
-		Type(serviceType).
-		Size(0).
-		Query(serviceQuery).
-		Aggregation(operationsAggregation, serviceFilter)
-
-	searchResult, err := searchService.Do(s.ctx)
-	if err != nil {
-		return nil, errors.Wrap(err, "Search service failed")
-	}
-	bucket, found := searchResult.Aggregations.Terms(operationsAggregation)
-	if !found {
-		return nil, errors.New("Could not find aggregation of " + operationsAggregation)
-	}
-	operationNamesBucket := bucket.Buckets
-	return s.bucketToStringArray(operationNamesBucket)
+	return s.serviceOperationStorage.getOperations(jaegerIndices, service)
 }
 
-func (s *SpanReader) getOperationsAggregation() elastic.Query {
-	return elastic.NewTermsAggregation().
-		Field(operationNameField).
-		Size(defaultDocCount) // Must set to some large number. ES deprecated size omission for aggregating all. https://github.com/elastic/elasticsearch/issues/18838
-}
-
-func (s *SpanReader) bucketToStringArray(buckets []*elastic.AggregationBucketKeyItem) ([]string, error) {
+func bucketToStringArray(buckets []*elastic.AggregationBucketKeyItem) ([]string, error) {
 	strings := make([]string, len(buckets))
 	for i, keyitem := range buckets {
 		str, ok := keyitem.Key.(string)
@@ -383,7 +339,7 @@ func (s *SpanReader) findTraceIDs(traceQuery *spanstore.TraceQueryParameters) ([
 	}
 
 	traceIDBuckets := bucket.Buckets
-	return s.bucketToStringArray(traceIDBuckets)
+	return bucketToStringArray(traceIDBuckets)
 }
 
 func (s *SpanReader) buildTraceIDAggregation(numOfTraces int) elastic.Aggregation {

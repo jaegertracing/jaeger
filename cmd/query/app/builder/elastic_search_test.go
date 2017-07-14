@@ -26,29 +26,45 @@ import (
 	"github.com/stretchr/testify/assert"
 	"go.uber.org/zap"
 
-	"github.com/uber/jaeger-lib/metrics"
-	escfg "github.com/uber/jaeger/pkg/es/config"
-	"github.com/uber/jaeger/storage/spanstore/memory"
+	"github.com/uber/jaeger/pkg/es/config"
+	"github.com/uber/jaeger/pkg/es/mocks"
 )
 
-func TestApplyOptions(t *testing.T) {
-	opts := ApplyOptions(
-		Options.CassandraOption(nil),
-		Options.LoggerOption(zap.NewNop()),
-		Options.MetricsFactoryOption(metrics.NullFactory),
-		Options.MemoryStoreOption(memory.NewStore()),
-		Options.ElasticSearchOption(&escfg.Configuration{
-			Servers: []string{"127.0.0.1"},
-		}),
-	)
-	assert.NotNil(t, opts.ElasticSearch)
-	assert.NotNil(t, opts.ElasticSearch.Servers)
-	assert.NotNil(t, opts.Logger)
-	assert.NotNil(t, opts.MetricsFactory)
+func withESBuilder(f func(builder *esBuilder)) {
+	cfg := &config.Configuration{
+		Servers: []string{"127.0.0.1"},
+	}
+	cBuilder := newESBuilder(cfg, zap.NewNop())
+	f(cBuilder)
 }
 
-func TestApplyNoOptions(t *testing.T) {
-	opts := ApplyOptions()
-	assert.NotNil(t, opts.Logger)
-	assert.NotNil(t, opts.MetricsFactory)
+func TestNewESBuilder(t *testing.T) {
+	withESBuilder(func(esBuilder *esBuilder) {
+		assert.NotNil(t, esBuilder)
+		assert.NotNil(t, esBuilder.logger)
+		assert.NotNil(t, esBuilder.configuration)
+		assert.Nil(t, esBuilder.client)
+	})
+}
+
+func TestESBuilderFailure(t *testing.T) {
+	withESBuilder(func(esBuilder *esBuilder) {
+		esBuilder.configuration.Servers = []string{}
+		spanReader, err := esBuilder.NewSpanReader()
+		assert.Error(t, err)
+		assert.Nil(t, spanReader)
+	})
+}
+
+func TestESBuilderSuccesses(t *testing.T) {
+	withESBuilder(func(esBuilder *esBuilder) {
+		mockClient := mocks.Client{}
+		esBuilder.client = &mockClient
+		spanReader, err := esBuilder.NewSpanReader()
+		assert.NoError(t, err)
+		assert.NotNil(t, spanReader)
+		depReader, err := esBuilder.NewDependencyReader()
+		assert.NoError(t, err)
+		assert.NotNil(t, depReader)
+	})
 }

@@ -34,13 +34,18 @@ import (
 	"github.com/uber/jaeger/model"
 	"github.com/uber/jaeger/pkg/cassandra"
 	cascfg "github.com/uber/jaeger/pkg/cassandra/config"
-	"github.com/uber/jaeger/plugin/storage/cassandra/spanstore"
+	"github.com/uber/jaeger/pkg/es"
+	escfg "github.com/uber/jaeger/pkg/es/config"
+	casSpanstore "github.com/uber/jaeger/plugin/storage/cassandra/spanstore"
+	esSpanstore "github.com/uber/jaeger/plugin/storage/es/spanstore"
+	"github.com/uber/jaeger/storage/spanstore"
 	"github.com/uber/jaeger/storage/spanstore/memory"
 )
 
 var (
-	errMissingCassandraConfig = errors.New("Cassandra not configured")
-	errMissingMemoryStore     = errors.New("MemoryStore is not provided")
+	errMissingCassandraConfig     = errors.New("Cassandra not configured")
+	errMissingMemoryStore         = errors.New("MemoryStore is not provided")
+	errMissingElasticSearchConfig = errors.New("ElasticSearch not configured")
 )
 
 // SpanHandlerBuilder builds span (Jaeger and zipkin) handlers
@@ -61,6 +66,11 @@ func NewSpanHandlerBuilder(opts ...basicB.Option) (SpanHandlerBuilder, error) {
 			return nil, errMissingMemoryStore
 		}
 		return newMemoryStoreBuilder(options.MemoryStore, options.Logger, options.MetricsFactory), nil
+	} else if flags.SpanStorage.Type == flags.ESStorageType {
+		if options.ElasticSearch == nil {
+			return nil, errMissingElasticSearchConfig
+		}
+		return newESBuilder(options.ElasticSearch, options.Logger), nil
 	}
 	return nil, flags.ErrUnsupportedStorageType
 }
@@ -80,27 +90,7 @@ func newMemoryStoreBuilder(memStore *memory.Store, logger *zap.Logger, metricsFa
 }
 
 func (m *memoryStoreBuilder) BuildHandlers() (app.ZipkinSpansHandler, app.JaegerBatchesHandler, error) {
-	hostname, _ := os.Hostname()
-	hostMetrics := m.metricsFactory.Namespace(hostname, nil)
-
-	zSanitizer := zs.NewChainedSanitizer(
-		zs.NewSpanDurationSanitizer(m.logger),
-		zs.NewParentIDSanitizer(m.logger),
-	)
-
-	spanProcessor := app.NewSpanProcessor(
-		m.memStore,
-		app.Options.ServiceMetrics(m.metricsFactory),
-		app.Options.HostMetrics(hostMetrics),
-		app.Options.Logger(m.logger),
-		app.Options.SpanFilter(defaultSpanFilter),
-		app.Options.NumWorkers(*NumWorkers),
-		app.Options.QueueSize(*QueueSize),
-	)
-
-	return app.NewZipkinSpanHandler(m.logger, spanProcessor, zSanitizer),
-		app.NewJaegerSpanHandler(m.logger, spanProcessor),
-		nil
+	return buildHandlers(m.memStore, m.logger, m.metricsFactory)
 }
 
 type cassandraSpanHandlerBuilder struct {
@@ -119,38 +109,18 @@ func newCassandraBuilder(config *cascfg.Configuration, logger *zap.Logger, metri
 }
 
 func (c *cassandraSpanHandlerBuilder) BuildHandlers() (app.ZipkinSpansHandler, app.JaegerBatchesHandler, error) {
-	hostname, _ := os.Hostname()
-	hostMetrics := c.metricsFactory.Namespace(hostname, nil)
-
-	zSanitizer := zs.NewChainedSanitizer(
-		zs.NewSpanDurationSanitizer(c.logger),
-		zs.NewParentIDSanitizer(c.logger),
-	)
-
 	session, err := c.getSession()
 	if err != nil {
 		return nil, nil, err
 	}
-	spanStore := spanstore.NewSpanWriter(
+	spanStore := casSpanstore.NewSpanWriter(
 		session,
 		*WriteCacheTTL,
 		c.metricsFactory,
 		c.logger,
 	)
 
-	spanProcessor := app.NewSpanProcessor(
-		spanStore,
-		app.Options.ServiceMetrics(c.metricsFactory),
-		app.Options.HostMetrics(hostMetrics),
-		app.Options.Logger(c.logger),
-		app.Options.SpanFilter(defaultSpanFilter),
-		app.Options.NumWorkers(*NumWorkers),
-		app.Options.QueueSize(*QueueSize),
-	)
-
-	return app.NewZipkinSpanHandler(c.logger, spanProcessor, zSanitizer),
-		app.NewJaegerSpanHandler(c.logger, spanProcessor),
-		nil
+	return buildHandlers(spanStore, c.logger, c.metricsFactory)
 }
 
 func defaultSpanFilter(*model.Span) bool {
@@ -169,4 +139,68 @@ func (c *cassandraSpanHandlerBuilder) getSession() (cassandra.Session, error) {
 func fixConfiguration(config cascfg.Configuration) cascfg.Configuration {
 	config.ProtoVersion = 4
 	return config
+}
+
+type esSpanHandlerBuilder struct {
+	logger        *zap.Logger
+	client        es.Client
+	configuration escfg.Configuration
+}
+
+func newESBuilder(config *escfg.Configuration, logger *zap.Logger) *esSpanHandlerBuilder {
+	return &esSpanHandlerBuilder{
+		configuration: *config,
+		logger:        logger,
+	}
+}
+
+func (e *esSpanHandlerBuilder) BuildHandlers() (app.ZipkinSpansHandler, app.JaegerBatchesHandler, error) {
+	client, err := e.getClient()
+	if err != nil {
+		return nil, nil, err
+	}
+	spanStore := esSpanstore.NewSpanWriter(client, e.logger)
+
+	return buildHandlers(spanStore, e.logger, nil)
+}
+
+func (e *esSpanHandlerBuilder) getClient() (es.Client, error) {
+	if e.client == nil {
+		client, err := e.configuration.NewClient()
+		e.client = client
+		return e.client, err
+	}
+	return e.client, nil
+}
+
+func buildHandlers(
+	spanStore spanstore.Writer,
+	logger *zap.Logger,
+	metricsFactory metrics.Factory,
+) (app.ZipkinSpansHandler, app.JaegerBatchesHandler, error) {
+	// TODO: currently ES has no metricsFactory, hence the workaround. Once ES adds a metricsFactory, this nullpointer check should be unnecessary.
+	var hostMetrics metrics.Factory
+	if metricsFactory != nil {
+		hostname, _ := os.Hostname()
+		hostMetrics = metricsFactory.Namespace(hostname, nil)
+	}
+
+	zSanitizer := zs.NewChainedSanitizer(
+		zs.NewSpanDurationSanitizer(logger),
+		zs.NewParentIDSanitizer(logger),
+	)
+
+	spanProcessor := app.NewSpanProcessor(
+		spanStore,
+		app.Options.ServiceMetrics(metricsFactory),
+		app.Options.HostMetrics(hostMetrics),
+		app.Options.Logger(logger),
+		app.Options.SpanFilter(defaultSpanFilter),
+		app.Options.NumWorkers(*NumWorkers),
+		app.Options.QueueSize(*QueueSize),
+	)
+
+	return app.NewZipkinSpanHandler(logger, spanProcessor, zSanitizer),
+		app.NewJaegerSpanHandler(logger, spanProcessor),
+		nil
 }

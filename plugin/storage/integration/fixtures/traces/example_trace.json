@@ -1,0 +1,119 @@
+{
+  "Spans": [
+    {
+      "traceID": "11",
+      "spanID": "3",
+      "operationName": "example-operation-1",
+      "references": [],
+      "startTime": "2017-01-26T16:46:31.639875Z",
+      "duration": 100000,
+      "tags": [],
+      "process": {
+        "serviceName": "example-service-1",
+        "tags": []
+      },
+      "logs": [
+        {
+          "timestamp": "2017-01-26T16:46:31.639875Z",
+          "fields": []
+        },
+        {
+          "timestamp": "2017-01-26T16:46:31.639875Z",
+          "fields": []
+        }
+      ]
+    },
+    {
+      "traceID": "11",
+      "spanID": "4",
+      "operationName": "example-operation-2",
+      "references": [],
+      "startTime": "2017-01-26T16:46:31.639875Z",
+      "duration": 100000,
+      "tags": [],
+      "process": {
+        "serviceName": "example-service-2",
+        "tags": []
+      },
+      "logs": [
+        {
+          "timestamp": "2017-01-26T16:46:31.639875Z",
+          "fields": []
+        },
+        {
+          "timestamp": "2017-01-26T16:46:31.639875Z",
+          "fields": []
+        }
+      ]
+    },
+    {
+      "traceID": "11",
+      "spanID": "5",
+      "operationName": "example-operation-1",
+      "references": [],
+      "startTime": "2017-01-26T16:46:31.639875Z",
+      "duration": 100000,
+      "tags": [],
+      "process": {
+        "serviceName": "example-service-3",
+        "tags": []
+      },
+      "logs": [
+        {
+          "timestamp": "2017-01-26T16:46:31.639875Z",
+          "fields": []
+        },
+        {
+          "timestamp": "2017-01-26T16:46:31.639875Z",
+          "fields": []
+        }
+      ]
+    },
+    {
+      "traceID": "11",
+      "spanID": "6",
+      "operationName": "example-operation-3",
+      "references": [],
+      "startTime": "2017-01-26T16:46:31.639875Z",
+      "duration": 100000,
+      "tags": [],
+      "process": {
+        "serviceName": "example-service-1",
+        "tags": []
+      },
+      "logs": [
+        {
+          "timestamp": "2017-01-26T16:46:31.639875Z",
+          "fields": []
+        },
+        {
+          "timestamp": "2017-01-26T16:46:31.639875Z",
+          "fields": []
+        }
+      ]
+    },
+    {
+      "traceID": "11",
+      "spanID": "7",
+      "operationName": "example-operation-4",
+      "references": [],
+      "startTime": "2017-01-26T16:46:31.639875Z",
+      "duration": 100000,
+      "tags": [],
+      "process": {
+        "serviceName": "example-service-1",
+        "tags": []
+      },
+      "logs": [
+        {
+          "timestamp": "2017-01-26T16:46:31.639875Z",
+          "fields": []
+        },
+        {
+          "timestamp": "2017-01-26T16:46:31.639875Z",
+          "fields": []
+        }
+      ]
+    }
+  ]
+}

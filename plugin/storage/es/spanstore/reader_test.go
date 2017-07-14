@@ -34,6 +34,7 @@ import (
 	"go.uber.org/zap"
 
 	"github.com/uber/jaeger/model"
+	esJson "github.com/uber/jaeger/model/json"
 	"github.com/uber/jaeger/pkg/es/mocks"
 	"github.com/uber/jaeger/pkg/testutils"
 	"github.com/uber/jaeger/storage/spanstore"
@@ -94,7 +95,7 @@ func withSpanReader(fn func(r *spanReaderTest)) {
 		client:    client,
 		logger:    logger,
 		logBuffer: logBuffer,
-		reader:    newSpanReader(client, logger),
+		reader:    newSpanReader(client, logger, 72*time.Hour),
 	}
 	fn(r)
 }
@@ -103,7 +104,7 @@ func TestNewSpanReaderWithMetrics(t *testing.T) {
 	client := &mocks.Client{}
 	logger, _ := testutils.NewLogger() // logBuffer unneeded
 	metricsFactory := metrics.NewLocalFactory(0)
-	var reader spanstore.Reader = NewSpanReader(client, logger, metricsFactory) // check API conformance
+	var reader spanstore.Reader = NewSpanReader(client, logger, 0, metricsFactory) // check API conformance
 	assert.NotNil(t, reader)
 }
 
@@ -130,25 +131,11 @@ func TestSpanReader_GetTrace(t *testing.T) {
 		require.NoError(t, err)
 		require.NotNil(t, trace)
 
-		// TODO: This is not a deep equal; does not check every element.
+		expectedSpans, err := r.reader.collectSpans(hits)
+		require.NoError(t, err)
+
 		require.Len(t, trace.Spans, 1)
-		testSpan := trace.Spans[0]
-		assert.Equal(t, uint64(1), testSpan.TraceID.Low)
-		assert.Equal(t, model.SpanID(2), testSpan.ParentSpanID)
-		assert.Equal(t, model.SpanID(3), testSpan.SpanID)
-		assert.Equal(t, model.Flags(0), testSpan.Flags)
-		assert.Equal(t, "op", testSpan.OperationName)
-		assert.Equal(t, "serv", testSpan.Process.ServiceName)
-		require.Len(t, testSpan.Process.Tags, 1)
-		assert.Equal(t, "processtag", testSpan.Process.Tags[0].Key)
-		assert.Equal(t, false, testSpan.Process.Tags[0].Value())
-		require.Len(t, testSpan.Tags, 1)
-		assert.Equal(t, "tag", testSpan.Tags[0].Key)
-		assert.Equal(t, int64(1965806585), testSpan.Tags[0].Value())
-		require.Len(t, testSpan.Logs, 1)
-		require.Len(t, testSpan.Logs[0].Fields, 1)
-		assert.Equal(t, "logtag", testSpan.Logs[0].Fields[0].Key)
-		assert.Equal(t, "helloworld", testSpan.Logs[0].Fields[0].Value())
+		assert.EqualValues(t, trace.Spans[0], expectedSpans[0])
 	})
 }
 
@@ -252,21 +239,12 @@ func TestSpanReader_esJSONtoJSONSpanModel(t *testing.T) {
 			Source: jsonPayload,
 		}
 
-		span, err := r.reader.unmarshallJSONSpan(esSpanRaw)
+		span, err := r.reader.unmarshalJSONSpan(esSpanRaw)
 		require.NoError(t, err)
 
-		// TODO: This is not a deep equal; does not check every element.
-		assert.Equal(t, "1", string(span.TraceID))
-		assert.Equal(t, "2", string(span.ParentSpanID))
-		assert.Equal(t, "3", string(span.SpanID))
-		assert.Equal(t, uint32(0), span.Flags)
-		assert.Equal(t, "op", span.OperationName)
-		assert.Equal(t, "serv", span.Process.ServiceName)
-		assert.Equal(t, uint64(812965625), span.StartTime)
-		assert.Equal(t, uint64(3290114992), span.Duration)
-		require.Len(t, span.Tags, 1)
-		assert.Equal(t, "tag", span.Tags[0].Key)
-		assert.Equal(t, "int64", string(span.Tags[0].Type))
+		var expectedSpan esJson.Span
+		require.NoError(t, json.Unmarshal(exampleESSpan, &expectedSpan))
+		assert.EqualValues(t, &expectedSpan, span)
 	})
 }
 
@@ -279,98 +257,60 @@ func TestSpanReader_esJSONtoJSONSpanModelError(t *testing.T) {
 			Source: jsonPayload,
 		}
 
-		span, err := r.reader.unmarshallJSONSpan(esSpanRaw)
+		span, err := r.reader.unmarshalJSONSpan(esSpanRaw)
 		require.Error(t, err)
 		assert.Nil(t, span)
 	})
 }
 
-func TestSpanReader_findIndicesEmptyQuery(t *testing.T) {
-	withSpanReader(func(r *spanReaderTest) {
-		mockExistsService(r)
+func TestSpanReaderFindIndices(t *testing.T) {
+	today := time.Now()
+	yesterday := today.AddDate(0, 0, -1)
+	twoDaysAgo := today.AddDate(0, 0, -2)
 
-		actual := r.reader.findIndices(&spanstore.TraceQueryParameters{})
-
-		today := time.Now()
-		yesterday := today.AddDate(0, 0, -1)
-		twoDaysAgo := today.AddDate(0, 0, -2)
-
-		expected := []string{
-			indexWithDate(today),
-			indexWithDate(yesterday),
-			indexWithDate(twoDaysAgo),
-		}
-
-		assert.EqualValues(t, expected, actual)
-	})
-}
-
-// TODO: Dry the below two separate findIndices test
-func TestSpanReader_findIndicesNoIndices(t *testing.T) {
-	withSpanReader(func(r *spanReaderTest) {
-		mockExistsService(r)
-
-		actual := r.reader.findIndices(&spanstore.TraceQueryParameters{
-			StartTimeMin: time.Date(1995, time.April, 21, 4, 21, 19, 95, time.UTC),
-			StartTimeMax: time.Date(2017, time.April, 21, 4, 21, 19, 95, time.UTC),
+	testCases := []struct {
+		query    *spanstore.TraceQueryParameters
+		expected []string
+	}{
+		{
+			query: &spanstore.TraceQueryParameters{},
+			expected: []string{
+				IndexWithDate(today),
+				IndexWithDate(yesterday),
+				IndexWithDate(twoDaysAgo),
+			},
+		},
+		{
+			query: &spanstore.TraceQueryParameters{
+				StartTimeMin: time.Date(1995, time.April, 21, 4, 21, 19, 95, time.UTC),
+				StartTimeMax: time.Date(2017, time.April, 21, 4, 21, 19, 95, time.UTC),
+			},
+		},
+		{
+			query: &spanstore.TraceQueryParameters{
+				StartTimeMin: today.AddDate(0, 0, -7),
+				StartTimeMax: today.AddDate(0, 0, -1),
+			},
+			expected: []string{
+				IndexWithDate(yesterday),
+				IndexWithDate(twoDaysAgo),
+			},
+		},
+	}
+	for _, testCase := range testCases {
+		withSpanReader(func(r *spanReaderTest) {
+			mockExistsService(r)
+			actual := r.reader.findIndices(testCase.query)
+			assert.EqualValues(t, testCase.expected, actual)
 		})
-
-		var expected []string
-
-		assert.EqualValues(t, expected, actual)
-	})
-}
-
-func TestSpanReader_findIndicesOnlyRecent(t *testing.T) {
-	withSpanReader(func(r *spanReaderTest) {
-		mockExistsService(r)
-
-		today := time.Now()
-
-		actual := r.reader.findIndices(&spanstore.TraceQueryParameters{
-			StartTimeMin: today.AddDate(0, 0, -7),
-			StartTimeMax: today.AddDate(0, 0, -1),
-		})
-
-		yesterday := today.AddDate(0, 0, -1)
-		twoDaysAgo := today.AddDate(0, 0, -2)
-
-		expected := []string{
-			indexWithDate(yesterday),
-			indexWithDate(twoDaysAgo),
-		}
-
-		assert.EqualValues(t, expected, actual)
-	})
+	}
 }
 
 func TestSpanReader_indexWithDate(t *testing.T) {
 	withSpanReader(func(r *spanReaderTest) {
-		actual := indexWithDate(time.Date(1995, time.April, 21, 4, 21, 19, 95, time.UTC))
+		actual := IndexWithDate(time.Date(1995, time.April, 21, 4, 21, 19, 95, time.UTC))
 		assert.Equal(t, "jaeger-1995-04-21", actual)
 	})
-}
-
-func TestSpanReader_GetServices(t *testing.T) {
-	testGet(servicesAggregation, t)
-}
-
-func TestSpanReader_getServicesAggregation(t *testing.T) {
-	expectedStr := `{ "terms": { "size": 3000, "field": "` + serviceName + `"}}`
-	withSpanReader(func(r *spanReaderTest) {
-		serviceAggregation := r.reader.getServicesAggregation()
-		actual, err := serviceAggregation.Source()
-		require.NoError(t, err)
-		expected := make(map[string]interface{})
-		json.Unmarshal([]byte(expectedStr), &expected)
-		expected["terms"].(map[string]interface{})["size"] = defaultDocCount
-
-		assert.EqualValues(t, expected, actual)
-	})
-}
-
-func TestSpanReader_GetOperations(t *testing.T) {
-	testGet(operationsAggregation, t)
 }
 
 func testGet(typ string, t *testing.T) {
@@ -443,7 +383,7 @@ func TestSpanReader_bucketToStringArray(t *testing.T) {
 		buckets[1] = &elastic.AggregationBucketKeyItem{Key: "world"}
 		buckets[2] = &elastic.AggregationBucketKeyItem{Key: "2"}
 
-		actual, err := r.reader.bucketToStringArray(buckets)
+		actual, err := bucketToStringArray(buckets)
 		require.NoError(t, err)
 
 		assert.EqualValues(t, []string{"hello", "world", "2"}, actual)
@@ -457,7 +397,7 @@ func TestSpanReader_bucketToStringArrayError(t *testing.T) {
 		buckets[1] = &elastic.AggregationBucketKeyItem{Key: "world"}
 		buckets[2] = &elastic.AggregationBucketKeyItem{Key: 2}
 
-		_, err := r.reader.bucketToStringArray(buckets)
+		_, err := bucketToStringArray(buckets)
 		assert.EqualError(t, err, "Non-string key found in aggregation")
 	})
 }
@@ -492,25 +432,11 @@ func TestSpanReader_FindTraces(t *testing.T) {
 		assert.Len(t, traces, 2)
 
 		trace := traces[0]
-		// TODO: This is not a deep equal; does not check every element.
+		expectedSpans, err := r.reader.collectSpans(hits)
+		require.NoError(t, err)
+
 		require.Len(t, trace.Spans, 1)
-		testSpan := trace.Spans[0]
-		assert.Equal(t, uint64(1), testSpan.TraceID.Low)
-		assert.Equal(t, model.SpanID(2), testSpan.ParentSpanID)
-		assert.Equal(t, model.SpanID(3), testSpan.SpanID)
-		assert.Equal(t, model.Flags(0), testSpan.Flags)
-		assert.Equal(t, "op", testSpan.OperationName)
-		assert.Equal(t, "serv", testSpan.Process.ServiceName)
-		require.Len(t, testSpan.Process.Tags, 1)
-		assert.Equal(t, "processtag", testSpan.Process.Tags[0].Key)
-		assert.Equal(t, false, testSpan.Process.Tags[0].Value())
-		require.Len(t, testSpan.Tags, 1)
-		assert.Equal(t, "tag", testSpan.Tags[0].Key)
-		assert.Equal(t, int64(1965806585), testSpan.Tags[0].Value())
-		require.Len(t, testSpan.Logs, 1)
-		require.Len(t, testSpan.Logs[0].Fields, 1)
-		assert.Equal(t, "logtag", testSpan.Logs[0].Fields[0].Key)
-		assert.Equal(t, "helloworld", testSpan.Logs[0].Fields[0].Value())
+		assert.EqualValues(t, trace.Spans[0], expectedSpans[0])
 	})
 }
 
@@ -728,7 +654,7 @@ func TestSpanReader_buildDurationQuery(t *testing.T) {
 
 		expected := make(map[string]interface{})
 		json.Unmarshal([]byte(expectedStr), &expected)
-		// We need to do this because we cannot process a json into uin64. TODO: find cleaner alternative
+		// We need to do this because we cannot process a json into uint64.
 		expected["range"].(map[string]interface{})["duration"].(map[string]interface{})["from"] = model.DurationAsMicroseconds(durationMin)
 		expected["range"].(map[string]interface{})["duration"].(map[string]interface{})["to"] = model.DurationAsMicroseconds(durationMax)
 
@@ -754,7 +680,7 @@ func TestSpanReader_buildStartTimeQuery(t *testing.T) {
 
 		expected := make(map[string]interface{})
 		json.Unmarshal([]byte(expectedStr), &expected)
-		// We need to do this because we cannot process a json into uin64. TODO: find cleaner alternative
+		// We need to do this because we cannot process a json into uint64.
 		expected["range"].(map[string]interface{})["startTime"].(map[string]interface{})["from"] = model.TimeAsEpochMicroseconds(startTimeMin)
 		expected["range"].(map[string]interface{})["startTime"].(map[string]interface{})["to"] = model.TimeAsEpochMicroseconds(startTimeMax)
 

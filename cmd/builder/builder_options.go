@@ -22,9 +22,11 @@ package builder
 
 import (
 	"github.com/uber/jaeger-lib/metrics"
-	"github.com/uber/jaeger/pkg/cassandra/config"
-	"github.com/uber/jaeger/storage/spanstore/memory"
 	"go.uber.org/zap"
+
+	cascfg "github.com/uber/jaeger/pkg/cassandra/config"
+	escfg "github.com/uber/jaeger/pkg/es/config"
+	"github.com/uber/jaeger/storage/spanstore/memory"
 )
 
 // BasicOptions is a set of basic building blocks for most Jaeger executables
@@ -34,9 +36,11 @@ type BasicOptions struct {
 	// MetricsFactory is the basic metrics factory used by most executables
 	MetricsFactory metrics.Factory
 	// Cassandra is the cassandra configuration used by most executables (if applicable)
-	Cassandra *config.Configuration
+	Cassandra *cascfg.Configuration
 	// MemoryStore is the memory store (as reader and writer) that will be used if required
 	MemoryStore *memory.Store
+	// ElasticSearch is the elasticsearch configuration used
+	ElasticSearch *escfg.Configuration
 }
 
 // Option is a function that sets some option on StorageBuilder.
@@ -60,7 +64,7 @@ func (BasicOptions) MetricsFactoryOption(metricsFactory metrics.Factory) Option 
 }
 
 // CassandraOption creates an Option that adds Cassandra configuration.
-func (BasicOptions) CassandraOption(cassandra *config.Configuration) Option {
+func (BasicOptions) CassandraOption(cassandra *cascfg.Configuration) Option {
 	return func(b *BasicOptions) {
 		b.Cassandra = cassandra
 	}
@@ -70,6 +74,13 @@ func (BasicOptions) CassandraOption(cassandra *config.Configuration) Option {
 func (BasicOptions) MemoryStoreOption(memoryStore *memory.Store) Option {
 	return func(b *BasicOptions) {
 		b.MemoryStore = memoryStore
+	}
+}
+
+// ElasticSearchOption creates an Option that adds ElasticSearch configuration.
+func (BasicOptions) ElasticSearchOption(elastic *escfg.Configuration) Option {
+	return func(b *BasicOptions) {
+		b.ElasticSearch = elastic
 	}
 }
 

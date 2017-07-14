@@ -21,34 +21,46 @@
 package builder
 
 import (
-	"testing"
-
-	"github.com/stretchr/testify/assert"
 	"go.uber.org/zap"
 
-	"github.com/uber/jaeger-lib/metrics"
+	"github.com/uber/jaeger/pkg/es"
 	escfg "github.com/uber/jaeger/pkg/es/config"
-	"github.com/uber/jaeger/storage/spanstore/memory"
+	esDependencyStore "github.com/uber/jaeger/plugin/storage/es/dependencystore"
+	esSpanstore "github.com/uber/jaeger/plugin/storage/es/spanstore"
+	"github.com/uber/jaeger/storage/dependencystore"
+	"github.com/uber/jaeger/storage/spanstore"
 )
 
-func TestApplyOptions(t *testing.T) {
-	opts := ApplyOptions(
-		Options.CassandraOption(nil),
-		Options.LoggerOption(zap.NewNop()),
-		Options.MetricsFactoryOption(metrics.NullFactory),
-		Options.MemoryStoreOption(memory.NewStore()),
-		Options.ElasticSearchOption(&escfg.Configuration{
-			Servers: []string{"127.0.0.1"},
-		}),
-	)
-	assert.NotNil(t, opts.ElasticSearch)
-	assert.NotNil(t, opts.ElasticSearch.Servers)
-	assert.NotNil(t, opts.Logger)
-	assert.NotNil(t, opts.MetricsFactory)
+type esBuilder struct {
+	logger        *zap.Logger
+	client        es.Client
+	configuration escfg.Configuration
 }
 
-func TestApplyNoOptions(t *testing.T) {
-	opts := ApplyOptions()
-	assert.NotNil(t, opts.Logger)
-	assert.NotNil(t, opts.MetricsFactory)
+func newESBuilder(config *escfg.Configuration, logger *zap.Logger) *esBuilder {
+	return &esBuilder{
+		logger:        logger,
+		configuration: *config,
+	}
+}
+
+func (e *esBuilder) getClient() (es.Client, error) {
+	if e.client == nil {
+		client, err := e.configuration.NewClient()
+		e.client = client
+		return e.client, err
+	}
+	return e.client, nil
+}
+
+func (e *esBuilder) NewSpanReader() (spanstore.Reader, error) {
+	client, err := e.getClient()
+	if err != nil {
+		return nil, err
+	}
+	return esSpanstore.NewSpanReader(client, e.logger, e.configuration.MaxSpanAge), nil
+}
+
+func (e *esBuilder) NewDependencyReader() (dependencystore.Reader, error) {
+	return esDependencyStore.NewDependencyStore(), nil
 }

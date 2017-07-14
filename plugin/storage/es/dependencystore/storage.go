@@ -18,37 +18,30 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 // THE SOFTWARE.
 
-package builder
+package dependencystore
 
 import (
-	"testing"
+	"time"
 
-	"github.com/stretchr/testify/assert"
-	"go.uber.org/zap"
-
-	"github.com/uber/jaeger-lib/metrics"
-	escfg "github.com/uber/jaeger/pkg/es/config"
-	"github.com/uber/jaeger/storage/spanstore/memory"
+	"github.com/uber/jaeger/model"
 )
 
-func TestApplyOptions(t *testing.T) {
-	opts := ApplyOptions(
-		Options.CassandraOption(nil),
-		Options.LoggerOption(zap.NewNop()),
-		Options.MetricsFactoryOption(metrics.NullFactory),
-		Options.MemoryStoreOption(memory.NewStore()),
-		Options.ElasticSearchOption(&escfg.Configuration{
-			Servers: []string{"127.0.0.1"},
-		}),
-	)
-	assert.NotNil(t, opts.ElasticSearch)
-	assert.NotNil(t, opts.ElasticSearch.Servers)
-	assert.NotNil(t, opts.Logger)
-	assert.NotNil(t, opts.MetricsFactory)
+// TODO: currently not implemented
+
+// DependencyStore handles all queries and insertions to ElasticSearch dependencies
+type DependencyStore struct{}
+
+// NewDependencyStore returns a DependencyStore
+func NewDependencyStore() *DependencyStore {
+	return &DependencyStore{}
 }
 
-func TestApplyNoOptions(t *testing.T) {
-	opts := ApplyOptions()
-	assert.NotNil(t, opts.Logger)
-	assert.NotNil(t, opts.MetricsFactory)
+// WriteDependencies implements dependencystore.Writer#WriteDependencies.
+func (s *DependencyStore) WriteDependencies(ts time.Time, dependencies []model.DependencyLink) error {
+	return nil
+}
+
+// GetDependencies returns all interservice dependencies
+func (s *DependencyStore) GetDependencies(endTs time.Time, lookback time.Duration) ([]model.DependencyLink, error) {
+	return nil, nil
 }

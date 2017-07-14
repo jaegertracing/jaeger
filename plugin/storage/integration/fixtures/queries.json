@@ -1,0 +1,380 @@
+[
+  {
+    "Caption": "Tags in one spot - Tags",
+    "Query": {
+      "ServiceName": "query01-service",
+      "OperationName": "",
+      "Tags": {
+        "sameplacetag1":"sameplacevalue",
+        "sameplacetag2":"123",
+        "sameplacetag3":"72.5",
+        "sameplacetag4":"true"
+      },
+      "StartTimeMin": "2017-01-26T15:46:31.639875Z",
+      "StartTimeMax": "2017-01-26T17:46:31.639875Z",
+      "DurationMin": 0,
+      "DurationMax": 0,
+      "NumTraces": 1000
+    },
+    "ExpectedFixtures": ["span_tags_trace"]
+  },
+  {
+    "Caption": "Tags in one spot - Logs",
+    "Query": {
+      "ServiceName": "query02-service",
+      "OperationName": "",
+      "Tags": {
+        "sameplacetag1":"sameplacevalue",
+        "sameplacetag2":"123",
+        "sameplacetag3":"72.5",
+        "sameplacetag4":"true"
+      },
+      "StartTimeMin": "2017-01-26T15:46:31.639875Z",
+      "StartTimeMax": "2017-01-26T17:46:31.639875Z",
+      "DurationMin": 0,
+      "DurationMax": 0,
+      "NumTraces": 1000
+    },
+    "ExpectedFixtures": ["log_tags_trace"]
+  },
+  {
+    "Caption": "Tags in one spot - Process",
+    "Query": {
+      "ServiceName": "query03-service",
+      "OperationName": "",
+      "Tags": {
+        "sameplacetag1":"sameplacevalue",
+        "sameplacetag2":"123",
+        "sameplacetag3":"72.5",
+        "sameplacetag4":"true"
+      },
+      "StartTimeMin": "2017-01-26T15:46:31.639875Z",
+      "StartTimeMax": "2017-01-26T17:46:31.639875Z",
+      "DurationMin": 0,
+      "DurationMax": 0,
+      "NumTraces": 1000
+    },
+    "ExpectedFixtures": ["process_tags_trace"]
+  },
+  {
+    "Caption": "Tags in different spots",
+    "Query": {
+      "ServiceName": "query04-service",
+      "OperationName": "",
+      "Tags": {
+        "sameplacetag1":"sameplacevalue",
+        "sameplacetag2":"123",
+        "sameplacetag3":"72.5",
+        "sameplacetag4":"true"
+      },
+      "StartTimeMin": "2017-01-26T15:46:31.639875Z",
+      "StartTimeMax": "2017-01-26T17:46:31.639875Z",
+      "DurationMin": 0,
+      "DurationMax": 0,
+      "NumTraces": 1000
+    },
+    "ExpectedFixtures": ["multi_spot_tags_trace"]
+  },
+  {
+    "Caption": "Trace spans over multiple indices",
+    "Query": {
+      "ServiceName": "query05-service",
+      "OperationName": "",
+      "Tags": null,
+      "StartTimeMin": "2017-01-26T15:46:31.639875Z",
+      "StartTimeMax": "2017-01-26T17:46:31.639875Z",
+      "DurationMin": 0,
+      "DurationMax": 0,
+      "NumTraces": 1000
+    },
+    "ExpectedFixtures": ["multi_index_trace"]
+  },
+  {
+    "Caption": "Operation name",
+    "Query": {
+      "ServiceName": "query06-service",
+      "OperationName": "query06-operation",
+      "Tags": null,
+      "StartTimeMin": "2017-01-26T15:46:31.639875Z",
+      "StartTimeMax": "2017-01-26T17:46:31.639875Z",
+      "DurationMin": 0,
+      "DurationMax": 0,
+      "NumTraces": 1000
+    },
+    "ExpectedFixtures": ["opname_trace"]
+  },
+  {
+    "Caption": "Operation name + max Duration",
+    "Query": {
+      "ServiceName": "query07-service",
+      "OperationName": "query07-operation",
+      "Tags": null,
+      "StartTimeMin": "2017-01-26T15:46:31.639875Z",
+      "StartTimeMax": "2017-01-26T17:46:31.639875Z",
+      "DurationMin": 0,
+      "DurationMax": 2000,
+      "NumTraces": 1000
+    },
+    "ExpectedFixtures": ["opname_maxdur_trace"]
+  },
+  {
+    "Caption": "Operation name + Duration range",
+    "Query": {
+      "ServiceName": "query08-service",
+      "OperationName": "query08-operation",
+      "Tags": null,
+      "StartTimeMin": "2017-01-26T15:46:31.639875Z",
+      "StartTimeMax": "2017-01-26T17:46:31.639875Z",
+      "DurationMin": 4500,
+      "DurationMax": 5500,
+      "NumTraces": 1000
+    },
+    "ExpectedFixtures": ["opname_dur_trace"]
+  },
+  {
+    "Caption": "Duration range",
+    "Query": {
+      "ServiceName": "query09-service",
+      "OperationName": "",
+      "Tags": null,
+      "StartTimeMin": "2017-01-26T15:46:31.639875Z",
+      "StartTimeMax": "2017-01-26T17:46:31.639875Z",
+      "DurationMin": 4500,
+      "DurationMax": 5500,
+      "NumTraces": 1000
+    },
+    "ExpectedFixtures": ["dur_trace"]
+  },
+  {
+    "Caption": "max Duration",
+    "Query": {
+      "ServiceName": "query10-service",
+      "OperationName": "",
+      "Tags": null,
+      "StartTimeMin": "2017-01-26T15:46:31.639875Z",
+      "StartTimeMax": "2017-01-26T17:46:31.639875Z",
+      "DurationMin": 0,
+      "DurationMax": 1000,
+      "NumTraces": 1000
+    },
+    "ExpectedFixtures": ["max_dur_trace"]
+  },
+  {
+    "Caption": "default",
+    "Query": {
+      "ServiceName": "query11-service",
+      "OperationName": "",
+      "Tags": null,
+      "StartTimeMin": "2017-01-26T15:46:31.639875Z",
+      "StartTimeMax": "2017-01-26T17:46:31.639875Z",
+      "DurationMin": 0,
+      "DurationMax": 0,
+      "NumTraces": 1000
+    },
+    "ExpectedFixtures": ["default"]
+  },
+  {
+    "Caption": "Tags + Operation name",
+    "Query": {
+      "ServiceName": "query12-service",
+      "OperationName": "query12-operation",
+      "Tags": {
+        "sameplacetag1":"sameplacevalue",
+        "sameplacetag2":"123",
+        "sameplacetag3":"72.5",
+        "sameplacetag4":"true"
+      },
+      "StartTimeMin": "2017-01-26T15:46:31.639875Z",
+      "StartTimeMax": "2017-01-26T17:46:31.639875Z",
+      "DurationMin": 0,
+      "DurationMax": 0,
+      "NumTraces": 1000
+    },
+    "ExpectedFixtures": ["tags_opname_trace"]
+  },
+  {
+    "Caption": "Tags + Operation name + max Duration",
+    "Query": {
+      "ServiceName": "query13-service",
+      "OperationName": "query13-operation",
+      "Tags": {
+        "sameplacetag1":"sameplacevalue",
+        "sameplacetag2":"123",
+        "sameplacetag3":"72.5",
+        "sameplacetag4":"true"
+      },
+      "StartTimeMin": "2017-01-26T15:46:31.639875Z",
+      "StartTimeMax": "2017-01-26T17:46:31.639875Z",
+      "DurationMin": 0,
+      "DurationMax": 2000,
+      "NumTraces": 1000
+    },
+    "ExpectedFixtures": ["tags_opname_maxdur_trace"]
+  },
+  {
+    "Caption": "Tags + Operation name + Duration range",
+    "Query": {
+      "ServiceName": "query14-service",
+      "OperationName": "query14-operation",
+      "Tags": {
+        "sameplacetag1":"sameplacevalue",
+        "sameplacetag2":"123",
+        "sameplacetag3":"72.5",
+        "sameplacetag4":"true"
+      },
+      "StartTimeMin": "2017-01-26T15:46:31.639875Z",
+      "StartTimeMax": "2017-01-26T17:46:31.639875Z",
+      "DurationMin": 4500,
+      "DurationMax": 5500,
+      "NumTraces": 1000
+    },
+    "ExpectedFixtures": ["tags_opname_dur_trace"]
+  },
+  {
+    "Caption": "Tags + Duration range",
+    "Query": {
+      "ServiceName": "query15-service",
+      "OperationName": "",
+      "Tags": {
+        "sameplacetag1":"sameplacevalue",
+        "sameplacetag2":"123",
+        "sameplacetag3":"72.5",
+        "sameplacetag4":"true"
+      },
+      "StartTimeMin": "2017-01-26T15:46:31.639875Z",
+      "StartTimeMax": "2017-01-26T17:46:31.639875Z",
+      "DurationMin": 4500,
+      "DurationMax": 5500,
+      "NumTraces": 1000
+    },
+    "ExpectedFixtures": ["tags_dur_trace"]
+  },
+  {
+    "Caption": "Tags + max Duration",
+    "Query": {
+      "ServiceName": "query16-service",
+      "OperationName": "",
+      "Tags": {
+        "sameplacetag1":"sameplacevalue",
+        "sameplacetag2":"123",
+        "sameplacetag3":"72.5",
+        "sameplacetag4":"true"
+      },
+      "StartTimeMin": "2017-01-26T15:46:31.639875Z",
+      "StartTimeMax": "2017-01-26T17:46:31.639875Z",
+      "DurationMin": 0,
+      "DurationMax": 1000,
+      "NumTraces": 1000
+    },
+    "ExpectedFixtures": ["tags_maxdur_trace"]
+  },
+  {
+    "Caption": "Multi-spot Tags + Operation name",
+    "Query": {
+      "ServiceName": "query17-service",
+      "OperationName": "query17-operation",
+      "Tags": {
+        "sameplacetag1":"sameplacevalue",
+        "sameplacetag2":"123",
+        "sameplacetag3":"72.5",
+        "sameplacetag4":"true"
+      },
+      "StartTimeMin": "2017-01-26T15:46:31.639875Z",
+      "StartTimeMax": "2017-01-26T17:46:31.639875Z",
+      "DurationMin": 0,
+      "DurationMax": 0,
+      "NumTraces": 1000
+    },
+    "ExpectedFixtures": ["multispottag_opname_trace"]
+  },
+  {
+    "Caption": "Multi-spot Tags + Operation name + max Duration",
+    "Query": {
+      "ServiceName": "query18-service",
+      "OperationName": "query18-operation",
+      "Tags": {
+        "sameplacetag1":"sameplacevalue",
+        "sameplacetag2":"123",
+        "sameplacetag3":"72.5",
+        "sameplacetag4":"true"
+      },
+      "StartTimeMin": "2017-01-26T15:46:31.639875Z",
+      "StartTimeMax": "2017-01-26T17:46:31.639875Z",
+      "DurationMin": 0,
+      "DurationMax": 2000,
+      "NumTraces": 1000
+    },
+    "ExpectedFixtures": ["multispottag_opname_maxdur_trace"]
+  },
+  {
+    "Caption": "Multi-spot Tags + Operation name + Duration range",
+    "Query": {
+      "ServiceName": "query19-service",
+      "OperationName": "query19-operation",
+      "Tags": {
+        "sameplacetag1":"sameplacevalue",
+        "sameplacetag2":"123",
+        "sameplacetag3":"72.5",
+        "sameplacetag4":"true"
+      },
+      "StartTimeMin": "2017-01-26T15:46:31.639875Z",
+      "StartTimeMax": "2017-01-26T17:46:31.639875Z",
+      "DurationMin": 4500,
+      "DurationMax": 5500,
+      "NumTraces": 1000
+    },
+    "ExpectedFixtures": ["multispottag_opname_dur_trace"]
+  },
+  {
+    "Caption": "Multi-spot Tags + Duration range",
+    "Query": {
+      "ServiceName": "query20-service",
+      "OperationName": "",
+      "Tags": {
+        "sameplacetag1":"sameplacevalue",
+        "sameplacetag2":"123",
+        "sameplacetag3":"72.5",
+        "sameplacetag4":"true"
+      },
+      "StartTimeMin": "2017-01-26T15:46:31.639875Z",
+      "StartTimeMax": "2017-01-26T17:46:31.639875Z",
+      "DurationMin": 4500,
+      "DurationMax": 5500,
+      "NumTraces": 1000
+    },
+    "ExpectedFixtures": ["multispottag_dur_trace"]
+  },
+  {
+    "Caption": "Multi-spot Tags + max Duration",
+    "Query": {
+      "ServiceName": "query21-service",
+      "OperationName": "",
+      "Tags": {
+        "sameplacetag1":"sameplacevalue",
+        "sameplacetag2":"123",
+        "sameplacetag3":"72.5",
+        "sameplacetag4":"true"
+      },
+      "StartTimeMin": "2017-01-26T15:46:31.639875Z",
+      "StartTimeMax": "2017-01-26T17:46:31.639875Z",
+      "DurationMin": 0,
+      "DurationMax": 1000,
+      "NumTraces": 1000
+    },
+    "ExpectedFixtures": ["multispottag_maxdur_trace"]
+  },
+  {
+    "Caption": "Multiple Traces",
+    "Query": {
+      "ServiceName": "query22-service",
+      "OperationName": "",
+      "Tags": null,
+      "StartTimeMin": "2017-01-26T15:46:31.639875Z",
+      "StartTimeMax": "2017-01-26T17:46:31.639875Z",
+      "DurationMin": 0,
+      "DurationMax": 0,
+      "NumTraces": 1000
+    },
+    "ExpectedFixtures": ["multiple1_trace", "multiple2_trace", "multiple3_trace"]
+  }
+]

@@ -18,37 +18,42 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 // THE SOFTWARE.
 
-package builder
+package dependencystore
 
 import (
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/assert"
-	"go.uber.org/zap"
-
-	"github.com/uber/jaeger-lib/metrics"
-	escfg "github.com/uber/jaeger/pkg/es/config"
-	"github.com/uber/jaeger/storage/spanstore/memory"
 )
 
-func TestApplyOptions(t *testing.T) {
-	opts := ApplyOptions(
-		Options.CassandraOption(nil),
-		Options.LoggerOption(zap.NewNop()),
-		Options.MetricsFactoryOption(metrics.NullFactory),
-		Options.MemoryStoreOption(memory.NewStore()),
-		Options.ElasticSearchOption(&escfg.Configuration{
-			Servers: []string{"127.0.0.1"},
-		}),
-	)
-	assert.NotNil(t, opts.ElasticSearch)
-	assert.NotNil(t, opts.ElasticSearch.Servers)
-	assert.NotNil(t, opts.Logger)
-	assert.NotNil(t, opts.MetricsFactory)
+type depStorageTest struct {
+	storage *DependencyStore
 }
 
-func TestApplyNoOptions(t *testing.T) {
-	opts := ApplyOptions()
-	assert.NotNil(t, opts.Logger)
-	assert.NotNil(t, opts.MetricsFactory)
+func withDepStore(fn func(s *depStorageTest)) {
+	s := &depStorageTest{
+		storage: NewDependencyStore(),
+	}
+	fn(s)
+}
+
+func TestNewDependencyStore(t *testing.T) {
+	withDepStore(func(s *depStorageTest) {
+		assert.NotNil(t, s)
+	})
+}
+
+func TestDependencyStore_WriteDependencies(t *testing.T) {
+	withDepStore(func(s *depStorageTest) {
+		assert.NoError(t, s.storage.WriteDependencies(time.Time{}, nil))
+	})
+}
+
+func TestDependencyStore_GetDependencies(t *testing.T) {
+	withDepStore(func(s *depStorageTest) {
+		result, err := s.storage.GetDependencies(time.Time{}, time.Duration(0))
+		assert.NoError(t, err)
+		assert.Nil(t, result)
+	})
 }
