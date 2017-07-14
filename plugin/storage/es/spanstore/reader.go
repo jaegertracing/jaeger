@@ -181,6 +181,7 @@ func (s *SpanReader) findIndices(traceQuery *spanstore.TraceQueryParameters) []s
 	current := traceQuery.StartTimeMax
 	for current.After(traceQuery.StartTimeMin) && current.After(oldestDay) {
 		index := IndexWithDate(current)
+		// TODO: either find a way to cache this info, so we don't do this so often, or find a flag that doesn't return an error on nonexistent indices
 		exists, _ := s.client.IndexExists(index).Do(s.ctx) // Don't care about error, if it's an error, exists will be false anyway
 		if exists {
 			indices = append(indices, index)
