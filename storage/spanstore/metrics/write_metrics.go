@@ -26,7 +26,7 @@ import (
 	"github.com/uber/jaeger-lib/metrics"
 )
 
-// WriteMetrics is a collection of metrics about write operations.
+// WriteMetrics is a collection of metrics for write operations.
 type WriteMetrics struct {
 	Attempts   metrics.Counter `metric:"attempts"`
 	Inserts    metrics.Counter `metric:"inserts"`
