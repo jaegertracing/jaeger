@@ -28,6 +28,7 @@ import (
 
 	"github.com/olivere/elastic"
 	"github.com/pkg/errors"
+	"github.com/uber/jaeger-lib/metrics"
 	"go.uber.org/zap"
 
 	"github.com/uber/jaeger/model"
@@ -35,6 +36,7 @@ import (
 	jModel "github.com/uber/jaeger/model/json"
 	"github.com/uber/jaeger/pkg/es"
 	"github.com/uber/jaeger/storage/spanstore"
+	storageMetrics "github.com/uber/jaeger/storage/spanstore/metrics"
 )
 
 const (
@@ -91,15 +93,19 @@ type SpanReader struct {
 	serviceOperationStorage *ServiceOperationStorage
 }
 
-// NewSpanReader returns a new SpanReader.
-func NewSpanReader(client es.Client, logger *zap.Logger, maxSpanAge time.Duration) *SpanReader {
+// NewSpanReader returns a new SpanReader with a metrics.
+func NewSpanReader(client es.Client, logger *zap.Logger, maxSpanAge time.Duration, metricsFactory metrics.Factory) spanstore.Reader {
+	return storageMetrics.NewReadMetricsDecorator(newSpanReader(client, logger, maxSpanAge), metricsFactory)
+}
+
+func newSpanReader(client es.Client, logger *zap.Logger, maxSpanAge time.Duration) *SpanReader {
 	ctx := context.Background()
 	return &SpanReader{
 		ctx:                     ctx,
 		client:                  client,
 		logger:                  logger,
 		maxSpanAge:              maxSpanAge,
-		serviceOperationStorage: NewServiceOperationStorage(ctx, client, logger, 0),
+		serviceOperationStorage: NewServiceOperationStorage(ctx, client, metrics.NullFactory, logger, 0), // the decorator takes care of metrics
 	}
 }
 

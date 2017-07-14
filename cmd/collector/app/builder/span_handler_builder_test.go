@@ -163,7 +163,7 @@ func withElasticSearchBuilder(f func(builder *esSpanHandlerBuilder)) {
 	cfg := &escfg.Configuration{
 		Servers: []string{"127.0.0.1"},
 	}
-	cBuilder := newESBuilder(cfg, zap.NewNop())
+	cBuilder := newESBuilder(cfg, zap.NewNop(), metrics.NullFactory)
 	f(cBuilder)
 }
 

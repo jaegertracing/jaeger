@@ -62,7 +62,7 @@ func NewStorageBuilder(opts ...basicB.Option) (StorageBuilder, error) {
 		if options.ElasticSearch == nil {
 			return nil, errMissingElasticSearchConfig
 		}
-		return newESBuilder(options.ElasticSearch, options.Logger), nil
+		return newESBuilder(options.ElasticSearch, options.Logger, options.MetricsFactory), nil
 	}
 	return nil, flags.ErrUnsupportedStorageType
 }

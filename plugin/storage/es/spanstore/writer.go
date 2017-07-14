@@ -25,6 +25,7 @@ import (
 	"time"
 
 	"github.com/pkg/errors"
+	"github.com/uber/jaeger-lib/metrics"
 	"go.uber.org/zap"
 
 	"github.com/uber/jaeger/model"
@@ -32,12 +33,19 @@ import (
 	jModel "github.com/uber/jaeger/model/json"
 	"github.com/uber/jaeger/pkg/cache"
 	"github.com/uber/jaeger/pkg/es"
+	storageMetrics "github.com/uber/jaeger/storage/spanstore/metrics"
 )
 
 const (
 	spanType    = "span"
 	serviceType = "service"
 )
+
+type spanWriterMetrics struct {
+	indexCreate      *storageMetrics.WriteMetrics
+	spans            *storageMetrics.WriteMetrics
+	serviceOperation *storageMetrics.WriteMetrics
+}
 
 type serviceWriter func(string, *jModel.Span) error
 
@@ -46,6 +54,7 @@ type SpanWriter struct {
 	ctx           context.Context
 	client        es.Client
 	logger        *zap.Logger
+	writerMetrics spanWriterMetrics // TODO: build functions to wrap around each Do fn
 	indexCache    cache.Cache
 	serviceWriter serviceWriter
 }
@@ -57,14 +66,18 @@ type Service struct {
 }
 
 // NewSpanWriter creates a new SpanWriter for use
-func NewSpanWriter(client es.Client, logger *zap.Logger) *SpanWriter {
+func NewSpanWriter(client es.Client, logger *zap.Logger, metricsFactory metrics.Factory) *SpanWriter {
 	ctx := context.Background()
 	// TODO: Configurable TTL
-	serviceOperationStorage := NewServiceOperationStorage(ctx, client, logger, time.Hour*12)
+	serviceOperationStorage := NewServiceOperationStorage(ctx, client, metricsFactory, logger, time.Hour*12)
 	return &SpanWriter{
-		ctx:           ctx,
-		client:        client,
-		logger:        logger,
+		ctx:    ctx,
+		client: client,
+		logger: logger,
+		writerMetrics: spanWriterMetrics{
+			indexCreate: storageMetrics.NewWriteMetrics(metricsFactory, "IndexCreate"),
+			spans:       storageMetrics.NewWriteMetrics(metricsFactory, "Spans"),
+		},
 		serviceWriter: serviceOperationStorage.Write,
 		indexCache: cache.NewLRUWithOptions(
 			5,
@@ -100,7 +113,9 @@ func spanIndexName(span *model.Span) string {
 
 func (s *SpanWriter) createIndex(indexName string, jsonSpan *jModel.Span) error {
 	if !keyInCache(indexName, s.indexCache) {
+		start := time.Now()
 		_, err := s.client.CreateIndex(indexName).Body(spanMapping).Do(s.ctx)
+		s.writerMetrics.indexCreate.Emit(err, time.Since(start))
 		if err != nil {
 			return s.logError(jsonSpan, err, "Failed to create index", s.logger)
 		}
@@ -122,7 +137,9 @@ func (s *SpanWriter) writeService(indexName string, jsonSpan *jModel.Span) error
 }
 
 func (s *SpanWriter) writeSpan(indexName string, jsonSpan *jModel.Span) error {
+	start := time.Now()
 	_, err := s.client.Index().Index(indexName).Type(spanType).BodyJson(jsonSpan).Do(s.ctx)
+	s.writerMetrics.spans.Emit(err, time.Since(start))
 	if err != nil {
 		return s.logError(jsonSpan, err, "Failed to insert span", s.logger)
 	}

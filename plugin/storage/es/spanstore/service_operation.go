@@ -27,11 +27,13 @@ import (
 
 	"github.com/olivere/elastic"
 	"github.com/pkg/errors"
+	"github.com/uber/jaeger-lib/metrics"
 	"go.uber.org/zap"
 
 	jModel "github.com/uber/jaeger/model/json"
 	"github.com/uber/jaeger/pkg/cache"
 	"github.com/uber/jaeger/pkg/es"
+	storageMetrics "github.com/uber/jaeger/storage/spanstore/metrics"
 )
 
 const (
@@ -45,6 +47,7 @@ const (
 type ServiceOperationStorage struct {
 	ctx          context.Context
 	client       es.Client
+	metrics      *storageMetrics.WriteMetrics
 	logger       *zap.Logger
 	serviceCache cache.Cache
 }
@@ -53,13 +56,15 @@ type ServiceOperationStorage struct {
 func NewServiceOperationStorage(
 	ctx context.Context,
 	client es.Client,
+	metricsFactory metrics.Factory,
 	logger *zap.Logger,
 	cacheTTL time.Duration,
 ) *ServiceOperationStorage {
 	return &ServiceOperationStorage{
-		ctx:    ctx,
-		client: client,
-		logger: logger,
+		ctx:     ctx,
+		client:  client,
+		metrics: storageMetrics.NewWriteMetrics(metricsFactory, "ServiceOperation"),
+		logger:  logger,
 		serviceCache: cache.NewLRUWithOptions(
 			100000,
 			&cache.Options{
@@ -79,8 +84,9 @@ func (s *ServiceOperationStorage) Write(indexName string, jsonSpan *jModel.Span)
 	serviceID := fmt.Sprintf("%s|%s", service.ServiceName, service.OperationName)
 	cacheKey := fmt.Sprintf("%s:%s", indexName, serviceID)
 	if !keyInCache(cacheKey, s.serviceCache) {
-		// TODO: emit metric
+		start := time.Now()
 		_, err := s.client.Index().Index(indexName).Type(serviceType).Id(serviceID).BodyJson(service).Do(s.ctx)
+		s.metrics.Emit(err, time.Since(start))
 		if err != nil {
 			return s.logError(jsonSpan, err, "Failed to insert service:operation", s.logger)
 		}

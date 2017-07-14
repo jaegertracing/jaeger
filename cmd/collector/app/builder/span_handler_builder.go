@@ -70,7 +70,7 @@ func NewSpanHandlerBuilder(opts ...basicB.Option) (SpanHandlerBuilder, error) {
 		if options.ElasticSearch == nil {
 			return nil, errMissingElasticSearchConfig
 		}
-		return newESBuilder(options.ElasticSearch, options.Logger), nil
+		return newESBuilder(options.ElasticSearch, options.Logger, options.MetricsFactory), nil
 	}
 	return nil, flags.ErrUnsupportedStorageType
 }
@@ -142,15 +142,17 @@ func fixConfiguration(config cascfg.Configuration) cascfg.Configuration {
 }
 
 type esSpanHandlerBuilder struct {
-	logger        *zap.Logger
-	client        es.Client
-	configuration escfg.Configuration
+	logger         *zap.Logger
+	client         es.Client
+	metricsFactory metrics.Factory
+	configuration  escfg.Configuration
 }
 
-func newESBuilder(config *escfg.Configuration, logger *zap.Logger) *esSpanHandlerBuilder {
+func newESBuilder(config *escfg.Configuration, logger *zap.Logger, metricsFactory metrics.Factory) *esSpanHandlerBuilder {
 	return &esSpanHandlerBuilder{
-		configuration: *config,
-		logger:        logger,
+		configuration:  *config,
+		metricsFactory: metricsFactory,
+		logger:         logger,
 	}
 }
 
@@ -159,9 +161,9 @@ func (e *esSpanHandlerBuilder) BuildHandlers() (app.ZipkinSpansHandler, app.Jaeg
 	if err != nil {
 		return nil, nil, err
 	}
-	spanStore := esSpanstore.NewSpanWriter(client, e.logger)
+	spanStore := esSpanstore.NewSpanWriter(client, e.logger, e.metricsFactory)
 
-	return buildHandlers(spanStore, e.logger, nil)
+	return buildHandlers(spanStore, e.logger, e.metricsFactory)
 }
 
 func (e *esSpanHandlerBuilder) getClient() (es.Client, error) {
@@ -178,12 +180,8 @@ func buildHandlers(
 	logger *zap.Logger,
 	metricsFactory metrics.Factory,
 ) (app.ZipkinSpansHandler, app.JaegerBatchesHandler, error) {
-	// TODO: currently ES has no metricsFactory, hence the workaround. Once ES adds a metricsFactory, this nullpointer check should be unnecessary.
-	var hostMetrics metrics.Factory
-	if metricsFactory != nil {
-		hostname, _ := os.Hostname()
-		hostMetrics = metricsFactory.Namespace(hostname, nil)
-	}
+	hostname, _ := os.Hostname()
+	hostMetrics := metricsFactory.Namespace(hostname, nil)
 
 	zSanitizer := zs.NewChainedSanitizer(
 		zs.NewSpanDurationSanitizer(logger),
