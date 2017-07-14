@@ -100,7 +100,7 @@ func withSpanReader(fn func(r *spanReaderTest)) {
 	fn(r)
 }
 
-func TestNewSpanReaderWithMetrics(t *testing.T) {
+func TestAPIConformance(t *testing.T) {
 	client := &mocks.Client{}
 	logger, _ := testutils.NewLogger() // logBuffer unneeded
 	metricsFactory := metrics.NewLocalFactory(0)

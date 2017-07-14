@@ -25,8 +25,8 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"go.uber.org/zap"
-
 	"github.com/uber/jaeger-lib/metrics"
+
 	"github.com/uber/jaeger/pkg/es/config"
 	"github.com/uber/jaeger/pkg/es/mocks"
 )

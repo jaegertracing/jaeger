@@ -26,8 +26,8 @@ import (
 
 	"github.com/pkg/errors"
 	"go.uber.org/zap"
-
 	"github.com/uber/jaeger-lib/metrics"
+
 	"github.com/uber/jaeger/model"
 	"github.com/uber/jaeger/model/converter/json"
 	jModel "github.com/uber/jaeger/model/json"

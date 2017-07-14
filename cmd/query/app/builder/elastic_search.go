@@ -22,8 +22,8 @@ package builder
 
 import (
 	"go.uber.org/zap"
-
 	"github.com/uber/jaeger-lib/metrics"
+
 	"github.com/uber/jaeger/pkg/es"
 	escfg "github.com/uber/jaeger/pkg/es/config"
 	esDependencyStore "github.com/uber/jaeger/plugin/storage/es/dependencystore"
