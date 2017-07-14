@@ -117,8 +117,6 @@ func TestNewSpanReader(t *testing.T) {
 
 func TestSpanReader_GetTrace(t *testing.T) {
 	withSpanReader(func(r *spanReaderTest) {
-		mockExistsService(r)
-
 		hits := make([]*elastic.SearchHit, 1)
 		hits[0] = &elastic.SearchHit{
 			Source: (*json.RawMessage)(&exampleESSpan),
@@ -141,7 +139,6 @@ func TestSpanReader_GetTrace(t *testing.T) {
 
 func TestSpanReader_GetTraceQueryError(t *testing.T) {
 	withSpanReader(func(r *spanReaderTest) {
-		mockExistsService(r)
 		mockSearchService(r).
 			Return(nil, errors.New("query error occurred"))
 		trace, err := r.reader.GetTrace(model.TraceID{Low: 1})
@@ -152,8 +149,6 @@ func TestSpanReader_GetTraceQueryError(t *testing.T) {
 
 func TestSpanReader_GetTraceNoSpansError(t *testing.T) {
 	withSpanReader(func(r *spanReaderTest) {
-		mockExistsService(r)
-
 		hits := make([]*elastic.SearchHit, 0)
 		searchHits := &elastic.SearchHits{Hits: hits}
 
@@ -167,8 +162,6 @@ func TestSpanReader_GetTraceNoSpansError(t *testing.T) {
 
 func TestSpanReader_GetTraceInvalidSpanError(t *testing.T) {
 	withSpanReader(func(r *spanReaderTest) {
-		mockExistsService(r)
-
 		data := []byte(`{"TraceID": "123"asdf fadsg}`)
 		hits := make([]*elastic.SearchHit, 1)
 		hits[0] = &elastic.SearchHit{
@@ -186,8 +179,6 @@ func TestSpanReader_GetTraceInvalidSpanError(t *testing.T) {
 
 func TestSpanReader_GetTraceSpanConversionError(t *testing.T) {
 	withSpanReader(func(r *spanReaderTest) {
-		mockExistsService(r)
-
 		badSpan := []byte(`{"TraceID": "123"}`)
 
 		hits := make([]*elastic.SearchHit, 1)
@@ -348,8 +339,6 @@ func testGet(typ string, t *testing.T) {
 		testCase := tc
 		t.Run(testCase.caption, func(t *testing.T) {
 			withSpanReader(func(r *spanReaderTest) {
-				mockExistsService(r)
-
 				mockSearchService(r).Return(testCase.searchResult, testCase.searchError)
 
 				actual, err := returnSearchFunc(typ, r)
@@ -413,7 +402,6 @@ func TestSpanReader_FindTraces(t *testing.T) {
 	searchHits := &elastic.SearchHits{Hits: hits}
 
 	withSpanReader(func(r *spanReaderTest) {
-		mockExistsService(r)
 		mockSearchService(r).
 			Return(&elastic.SearchResult{Aggregations: elastic.Aggregations(goodAggregations), Hits: searchHits}, nil)
 		traceQuery := &spanstore.TraceQueryParameters{
@@ -451,7 +439,6 @@ func TestSpanReader_FindTracesInvalidQuery(t *testing.T) {
 	searchHits := &elastic.SearchHits{Hits: hits}
 
 	withSpanReader(func(r *spanReaderTest) {
-		mockExistsService(r)
 		mockSearchService(r).
 			Return(&elastic.SearchResult{Aggregations: elastic.Aggregations(goodAggregations), Hits: searchHits}, nil)
 		traceQuery := &spanstore.TraceQueryParameters{
@@ -479,7 +466,6 @@ func TestSpanReader_FindTracesNoTraceIDs(t *testing.T) {
 	searchHits := &elastic.SearchHits{Hits: hits}
 
 	withSpanReader(func(r *spanReaderTest) {
-		mockExistsService(r)
 		mockSearchService(r).
 			Return(&elastic.SearchResult{Aggregations: elastic.Aggregations(goodAggregations), Hits: searchHits}, nil)
 		traceQuery := &spanstore.TraceQueryParameters{
@@ -510,7 +496,6 @@ func TestSpanReader_FindTracesReadTraceFailure(t *testing.T) {
 	searchHits := &elastic.SearchHits{Hits: hits}
 
 	withSpanReader(func(r *spanReaderTest) {
-		mockExistsService(r)
 		mockSearchService(r).
 			Return(&elastic.SearchResult{Aggregations: elastic.Aggregations(goodAggregations), Hits: searchHits}, nil)
 		traceQuery := &spanstore.TraceQueryParameters{
@@ -530,12 +515,6 @@ func TestSpanReader_FindTracesReadTraceFailure(t *testing.T) {
 
 func TestFindTraceIDs(t *testing.T) {
 	testGet(traceIDAggregation, t)
-}
-
-func mockExistsService(r *spanReaderTest) {
-	existsService := &mocks.IndicesExistsService{}
-	existsService.On("Do", mock.AnythingOfType("*context.emptyCtx")).Return(true, nil)
-	r.client.On("IndexExists", mock.AnythingOfType("string")).Return(existsService)
 }
 
 func mockSearchService(r *spanReaderTest) *mock.Call {

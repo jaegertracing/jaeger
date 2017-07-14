@@ -154,7 +154,6 @@ func TestGetDependencies(t *testing.T) {
 			fixedTime := time.Date(1995, time.April, 21, 4, 21, 19, 95, time.UTC)
 			indices := []string{"jaeger-dependencies-1995-04-21", "jaeger-dependencies-1995-04-20"}
 
-			mockExistsService(r)
 			searchService := &mocks.SearchService{}
 			r.client.On("Search", indices[0], indices[1]).Return(searchService)
 
@@ -184,12 +183,6 @@ func createSearchResult(dependencyLink string) *elastic.SearchResult {
 	}
 	searchResult := &elastic.SearchResult{Hits: &elastic.SearchHits{Hits: hits}}
 	return searchResult
-}
-
-func mockExistsService(r *depStorageTest) {
-	existsService := &mocks.IndicesExistsService{}
-	existsService.On("Do", mock.Anything).Return(true, nil)
-	r.client.On("IndexExists", mock.AnythingOfType("string")).Return(existsService)
 }
 
 func TestGetIndices(t *testing.T) {
