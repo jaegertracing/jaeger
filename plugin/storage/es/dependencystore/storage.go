@@ -21,27 +21,122 @@
 package dependencystore
 
 import (
+	"context"
+	"encoding/json"
 	"time"
 
+	"github.com/olivere/elastic"
+	"github.com/pkg/errors"
+	"go.uber.org/zap"
+
 	"github.com/uber/jaeger/model"
+	"github.com/uber/jaeger/pkg/es"
 )
 
-// TODO: currently not implemented
+const (
+	dependencyType        = "dependencies"
+	dependencyIndexPrefix = "jaeger-dependencies-"
+)
+
+type timeToDependencies struct {
+	Timestamp    time.Time              `json:"timestamp"`
+	Dependencies []model.DependencyLink `json:"dependencies"`
+}
 
 // DependencyStore handles all queries and insertions to ElasticSearch dependencies
-type DependencyStore struct{}
+type DependencyStore struct {
+	ctx    context.Context
+	client es.Client
+	logger *zap.Logger
+}
 
 // NewDependencyStore returns a DependencyStore
-func NewDependencyStore() *DependencyStore {
-	return &DependencyStore{}
+func NewDependencyStore(client es.Client, logger *zap.Logger) *DependencyStore {
+	return &DependencyStore{
+		ctx:    context.Background(),
+		client: client,
+		logger: logger,
+	}
 }
 
 // WriteDependencies implements dependencystore.Writer#WriteDependencies.
 func (s *DependencyStore) WriteDependencies(ts time.Time, dependencies []model.DependencyLink) error {
+	indexName := indexName(ts)
+	if err := s.createIndex(indexName); err != nil {
+		return err
+	}
+	if err := s.writeDependencies(indexName, ts, dependencies); err != nil {
+		return err
+	}
+	return nil
+}
+
+func (s *DependencyStore) createIndex(indexName string) error {
+	_, err := s.client.CreateIndex(indexName).Body(dependenciesMapping).Do(s.ctx)
+	if err != nil {
+		return errors.Wrap(err, "Failed to create index")
+	}
+	return nil
+}
+
+func (s *DependencyStore) writeDependencies(indexName string, ts time.Time, dependencies []model.DependencyLink) error {
+	_, err := s.client.Index().Index(indexName).
+		Type(dependencyType).
+		BodyJson(&timeToDependencies{
+			Timestamp:    ts,
+			Dependencies: dependencies,
+		}).
+		Do(s.ctx)
+	if err != nil {
+		return errors.Wrap(err, "Failed to write dependencies")
+	}
 	return nil
 }
 
 // GetDependencies returns all interservice dependencies
 func (s *DependencyStore) GetDependencies(endTs time.Time, lookback time.Duration) ([]model.DependencyLink, error) {
-	return nil, nil
+	searchResult, err := s.client.Search(s.getIndices(endTs, lookback)...).
+		Type(dependencyType).
+		Size(10000). // the default elasticsearch allowed limit
+		Query(buildTSQuery(endTs, lookback)).
+		Do(s.ctx)
+	if err != nil {
+		return nil, errors.Wrap(err, "Failed to search for dependencies")
+	}
+
+	var retDependencies []model.DependencyLink
+	hits := searchResult.Hits.Hits
+	for _, hit := range hits {
+		source := hit.Source
+		var tToD timeToDependencies
+		if err := json.Unmarshal(*source, &tToD); err != nil {
+			return nil, errors.New("Unmarshalling ElasticSearch documents failed")
+		}
+		retDependencies = append(retDependencies, tToD.Dependencies...)
+	}
+	return retDependencies, nil
+}
+
+func buildTSQuery(endTs time.Time, lookback time.Duration) elastic.Query {
+	return elastic.NewRangeQuery("timestamp").Gte(endTs.Add(-lookback)).Lte(endTs)
+}
+
+func (s *DependencyStore) getIndices(ts time.Time, lookback time.Duration) []string {
+	var indices []string
+	indices = append(indices, indexName(ts))
+	for lookback > 0 {
+		ts = ts.Add(-24 * time.Hour)
+		index := indexName(ts)
+		// TODO: either find a way to cache this info, so we don't do this so often, or find a flag that doesn't return an error on nonexistent indices
+		exists, _ := s.client.IndexExists(index).Do(s.ctx) // Don't care about error, if it's an error, exists will be false anyway
+		if exists {
+			indices = append(indices, index)
+		}
+		lookback -= 24 * time.Hour
+	}
+	return indices
+}
+
+func indexName(date time.Time) string {
+	return dependencyIndexPrefix + date.UTC().Format("2006-01-02")
 }
