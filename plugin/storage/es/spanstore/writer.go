@@ -122,13 +122,13 @@ func (s *SpanWriter) checkAndCreateIndex(indexName string, jsonSpan *jModel.Span
 }
 
 func (s *SpanWriter) writeService(indexName string, jsonSpan *jModel.Span) error {
-	start := time.Now()
 	// Insert serviceName:operationName document
 	service := Service{
 		ServiceName:   jsonSpan.Process.ServiceName,
 		OperationName: jsonSpan.OperationName,
 	}
 	serviceID := fmt.Sprintf("%s|%s", service.ServiceName, service.OperationName)
+	start := time.Now()
 	_, err := s.client.Index().Index(indexName).Type(serviceType).Id(serviceID).BodyJson(service).Do(s.ctx)
 	s.writerMetrics.serviceOperation.Emit(err, time.Since(start))
 	if err != nil {
