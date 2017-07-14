@@ -81,8 +81,8 @@
       "ServiceName": "query05-service",
       "OperationName": "",
       "Tags": null,
-      "StartTimeMin": "2017-01-26T15:46:31.639875Z",
-      "StartTimeMax": "2017-01-26T17:46:31.639875Z",
+      "StartTimeMin": "2017-01-26T00:00:31.639875Z",
+      "StartTimeMax": "2017-01-26T00:07:31.639875Z",
       "DurationMin": 0,
       "DurationMax": 0,
       "NumTraces": 1000

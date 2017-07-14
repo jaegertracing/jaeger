@@ -299,7 +299,6 @@ func TestSpanReaderFindIndices(t *testing.T) {
 	}
 	for _, testCase := range testCases {
 		withSpanReader(func(r *spanReaderTest) {
-			mockExistsService(r)
 			actual := r.reader.findIndices(testCase.query)
 			assert.EqualValues(t, testCase.expected, actual)
 		})
@@ -544,6 +543,7 @@ func mockSearchService(r *spanReaderTest) *mock.Call {
 	searchService.On("Type", stringMatcher(serviceType)).Return(searchService)
 	searchService.On("Type", stringMatcher(spanType)).Return(searchService)
 	searchService.On("Query", mock.Anything).Return(searchService)
+	searchService.On("IgnoreUnavailable", mock.AnythingOfType("bool")).Return(searchService)
 	searchService.On("Size", mock.MatchedBy(func(i int) bool {
 		return i == 0
 	})).Return(searchService)

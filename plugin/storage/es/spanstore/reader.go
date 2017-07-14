@@ -156,6 +156,7 @@ func (s *SpanReader) executeQuery(query elastic.Query, indices ...string) ([]*el
 	searchService, err := s.client.Search(indices...).
 		Type(spanType).
 		Query(query).
+		IgnoreUnavailable(true).
 		Do(s.ctx)
 	if err != nil {
 		return nil, err
@@ -186,12 +187,7 @@ func (s *SpanReader) findIndices(traceQuery *spanstore.TraceQueryParameters) []s
 	var indices []string
 	current := traceQuery.StartTimeMax
 	for current.After(traceQuery.StartTimeMin) && current.After(oldestDay) {
-		index := IndexWithDate(current)
-		// TODO: either find a way to cache this info, so we don't do this so often, or find a flag that doesn't return an error on nonexistent indices
-		exists, _ := s.client.IndexExists(index).Do(s.ctx) // Don't care about error, if it's an error, exists will be false anyway
-		if exists {
-			indices = append(indices, index)
-		}
+		indices = append(indices, IndexWithDate(current))
 		current = current.AddDate(0, 0, -1)
 	}
 	return indices
@@ -327,6 +323,7 @@ func (s *SpanReader) findTraceIDs(traceQuery *spanstore.TraceQueryParameters) ([
 		Type(spanType).
 		Size(0). // set to 0 because we don't want actual documents.
 		Aggregation(traceIDAggregation, aggregation).
+		IgnoreUnavailable(true).
 		Query(boolQuery)
 
 	searchResult, err := searchService.Do(s.ctx)

@@ -95,10 +95,11 @@ func (s *DependencyStore) writeDependencies(indexName string, ts time.Time, depe
 
 // GetDependencies returns all interservice dependencies
 func (s *DependencyStore) GetDependencies(endTs time.Time, lookback time.Duration) ([]model.DependencyLink, error) {
-	searchResult, err := s.client.Search(s.getIndices(endTs, lookback)...).
+	searchResult, err := s.client.Search(getIndices(endTs, lookback)...).
 		Type(dependencyType).
 		Size(10000). // the default elasticsearch allowed limit
 		Query(buildTSQuery(endTs, lookback)).
+		IgnoreUnavailable(true).
 		Do(s.ctx)
 	if err != nil {
 		return nil, errors.Wrap(err, "Failed to search for dependencies")
@@ -121,17 +122,12 @@ func buildTSQuery(endTs time.Time, lookback time.Duration) elastic.Query {
 	return elastic.NewRangeQuery("timestamp").Gte(endTs.Add(-lookback)).Lte(endTs)
 }
 
-func (s *DependencyStore) getIndices(ts time.Time, lookback time.Duration) []string {
+func getIndices(ts time.Time, lookback time.Duration) []string {
 	var indices []string
 	indices = append(indices, indexName(ts))
 	for lookback > 0 {
 		ts = ts.Add(-24 * time.Hour)
-		index := indexName(ts)
-		// TODO: either find a way to cache this info, so we don't do this so often, or find a flag that doesn't return an error on nonexistent indices
-		exists, _ := s.client.IndexExists(index).Do(s.ctx) // Don't care about error, if it's an error, exists will be false anyway
-		if exists {
-			indices = append(indices, index)
-		}
+		indices = append(indices, indexName(ts))
 		lookback -= 24 * time.Hour
 	}
 	return indices

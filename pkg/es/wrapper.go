@@ -161,6 +161,11 @@ func (s ESSearchService) Aggregation(name string, aggregation elastic.Aggregatio
 	return WrapESSearchService(s.searchService.Aggregation(name, aggregation))
 }
 
+// IgnoreUnavailable calls this function to internal service.
+func (s ESSearchService) IgnoreUnavailable(ignoreUnavailable bool) SearchService {
+	return WrapESSearchService(s.searchService.IgnoreUnavailable(ignoreUnavailable))
+}
+
 // Query calls this function to internal service.
 func (s ESSearchService) Query(query elastic.Query) SearchService {
 	return WrapESSearchService(s.searchService.Query(query))

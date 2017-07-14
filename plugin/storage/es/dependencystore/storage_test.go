@@ -161,6 +161,7 @@ func TestGetDependencies(t *testing.T) {
 			searchService.On("Type", stringMatcher(dependencyType)).Return(searchService)
 			searchService.On("Size", mock.Anything).Return(searchService)
 			searchService.On("Query", mock.Anything).Return(searchService)
+			searchService.On("IgnoreUnavailable", mock.AnythingOfType("bool")).Return(searchService)
 			searchService.On("Do", mock.Anything).Return(testCase.searchResult, testCase.searchError)
 
 			actual, err := r.storage.GetDependencies(fixedTime, 24*time.Hour)
@@ -192,13 +193,10 @@ func mockExistsService(r *depStorageTest) {
 }
 
 func TestGetIndices(t *testing.T) {
-	withDepStorage(func(r *depStorageTest) {
-		mockExistsService(r)
+	fixedTime := time.Date(1995, time.April, 21, 4, 12, 19, 95, time.Local)
+	expected := []string{indexName(fixedTime), indexName(fixedTime.Add(-24 * time.Hour))}
+	assert.EqualValues(t, expected, getIndices(fixedTime, 23*time.Hour)) // check 23 hours instead of 24 hours, because this should still give back two indices
 
-		fixedTime := time.Date(1995, time.April, 21, 4, 12, 19, 95, time.Local)
-		expected := []string{indexName(fixedTime), indexName(fixedTime.Add(-24 * time.Hour))}
-		assert.EqualValues(t, expected, r.storage.getIndices(fixedTime, 23*time.Hour)) // check 23 hours instead of 24 hours, because this should still give back two indices
-	})
 }
 
 // stringMatcher can match a string argument when it contains a specific substring q
