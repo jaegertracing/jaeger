@@ -95,7 +95,7 @@ func (s *DependencyStore) writeDependencies(indexName string, ts time.Time, depe
 
 // GetDependencies returns all interservice dependencies
 func (s *DependencyStore) GetDependencies(endTs time.Time, lookback time.Duration) ([]model.DependencyLink, error) {
-	searchResult, err := s.client.Search(getIndices(endTs, lookback)...).
+	searchResult, err := s.client.Search(s.getIndices(endTs, lookback)...).
 		Type(dependencyType).
 		Size(10000). // the default elasticsearch allowed limit
 		Query(buildTSQuery(endTs, lookback)).
@@ -121,12 +121,16 @@ func buildTSQuery(endTs time.Time, lookback time.Duration) elastic.Query {
 	return elastic.NewRangeQuery("timestamp").Gte(endTs.Add(-lookback)).Lte(endTs)
 }
 
-func getIndices(ts time.Time, lookback time.Duration) []string {
+func (s *DependencyStore) getIndices(ts time.Time, lookback time.Duration) []string {
 	var indices []string
 	indices = append(indices, indexName(ts))
 	for lookback > 0 {
 		ts = ts.Add(-24 * time.Hour)
-		indices = append(indices, indexName(ts))
+		index := indexName(ts)
+		exists, _ := s.client.IndexExists(index).Do(s.ctx) // Don't care about error, if it's an error, exists will be false anyway
+		if exists {
+			indices = append(indices, index)
+		}
 		lookback -= 24 * time.Hour
 	}
 	return indices
