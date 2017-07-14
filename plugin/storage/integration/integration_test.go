@@ -34,6 +34,7 @@ import (
 	"go.uber.org/zap"
 
 	"github.com/uber/jaeger/model"
+	"github.com/uber/jaeger/storage/dependencystore"
 	"github.com/uber/jaeger/storage/spanstore"
 )
 
@@ -43,9 +44,11 @@ const (
 )
 
 type StorageIntegration struct {
-	logger *zap.Logger
-	writer spanstore.Writer
-	reader spanstore.Reader
+	logger           *zap.Logger
+	spanWriter       spanstore.Writer
+	spanReader       spanstore.Reader
+	dependencyWriter dependencystore.Writer
+	dependencyReader dependencystore.Reader
 
 	// cleanUp() should ensure that the storage backend is clean before another test.
 	// called either before or after each test, and should be idempotent
@@ -55,6 +58,8 @@ type StorageIntegration struct {
 	// called between set-up and queries in each test
 	refresh func() error
 }
+
+// === SpanStore Integration Tests ===
 
 // QueryFixtures and TraceFixtures are under ./fixtures/queries.json and ./fixtures/traces/*.json respectively.
 // Each query fixture includes:
@@ -81,7 +86,7 @@ func (s *StorageIntegration) IntegrationTestGetServices(t *testing.T) {
 	var actual []string
 	for i := 0; i < iterations; i++ {
 		s.logger.Info(fmt.Sprintf(waitForBackendComment, i+1, iterations))
-		actual, err := s.reader.GetServices()
+		actual, err := s.spanReader.GetServices()
 		require.NoError(t, err)
 		if found = assert.ObjectsAreEqualValues(expected, actual); found {
 			break
@@ -107,7 +112,7 @@ func (s *StorageIntegration) IntegrationTestGetOperations(t *testing.T) {
 	var actual []string
 	for i := 0; i < iterations; i++ {
 		s.logger.Info(fmt.Sprintf(waitForBackendComment, i+1, iterations))
-		actual, err := s.reader.GetOperations("example-service-1")
+		actual, err := s.spanReader.GetOperations("example-service-1")
 		require.NoError(t, err)
 		if found = assert.ObjectsAreEqualValues(expected, actual); found {
 			break
@@ -133,7 +138,7 @@ func (s *StorageIntegration) IntegrationTestGetTrace(t *testing.T) {
 	for i := 0; i < iterations; i++ {
 		s.logger.Info(fmt.Sprintf(waitForBackendComment, i+1, iterations))
 		var err error
-		actual, err = s.reader.GetTrace(expectedTraceID)
+		actual, err = s.spanReader.GetTrace(expectedTraceID)
 		if err == nil && len(actual.Spans) == len(expected.Spans) {
 			break
 		}
@@ -165,7 +170,7 @@ func (s *StorageIntegration) integrationTestFindTracesByQuery(t *testing.T, quer
 	var actual []*model.Trace
 	for i := 0; i < iterations; i++ {
 		s.logger.Info(fmt.Sprintf(waitForBackendComment, i+1, iterations))
-		actual, err = s.reader.FindTraces(query)
+		actual, err = s.spanReader.FindTraces(query)
 		if err == nil {
 			if found = tracesMatch(actual, expected); found {
 				CompareSliceOfTraces(t, expected, actual)
@@ -191,7 +196,7 @@ func (s *StorageIntegration) writeTraces(traces []*model.Trace) error {
 
 func (s *StorageIntegration) writeTrace(trace *model.Trace) error {
 	for _, span := range trace.Spans {
-		if err := s.writer.WriteSpan(span); err != nil {
+		if err := s.spanWriter.WriteSpan(span); err != nil {
 			return err
 		}
 	}
@@ -267,10 +272,35 @@ func spanCount(traces []*model.Trace) int {
 	return count
 }
 
+// === DependencyStore Integration Tests ===
+
+func (s *StorageIntegration) IntegrationTestGetDependencies(t *testing.T) {
+	t.Log("Testing DependencyStore ...")
+	expected := []model.DependencyLink{
+		{
+			Parent:    "hello",
+			Child:     "world",
+			CallCount: uint64(1),
+		},
+		{
+			Parent:    "world",
+			Child:     "hello",
+			CallCount: uint64(3),
+		},
+	}
+	require.NoError(t, s.dependencyWriter.WriteDependencies(time.Now(), expected))
+	require.NoError(t, s.refresh())
+	actual, err := s.dependencyReader.GetDependencies(time.Now(), 5*time.Minute)
+	assert.NoError(t, err)
+	assert.EqualValues(t, expected, actual)
+	assert.NoError(t, s.cleanUp())
+}
+
 func (s *StorageIntegration) IntegrationTestAll(t *testing.T) {
 	rand.Seed(time.Now().UnixNano())
 	s.IntegrationTestGetServices(t)
 	s.IntegrationTestGetOperations(t)
 	s.IntegrationTestGetTrace(t)
 	s.IntegrationTestFindTraces(t)
+	s.IntegrationTestGetDependencies(t)
 }
