@@ -1,10 +1,14 @@
-hash: 84da4d5dfad787c610afb31cf486aa1f586dfeffc121ad8b4346fd5f0b82f6d1
-updated: 2017-06-23T17:48:26.722215035-04:00
+hash: 0422930e1449cb67e320706a40592e7b386e86fb80cead37945e2c12133a9ae2
+updated: 2017-07-16T14:46:02.785298314-04:00
 imports:
 - name: github.com/apache/thrift
   version: 53dd39833a08ce33582e5ff31fa18bb4735d6731
   subpackages:
   - lib/go/thrift
+- name: github.com/beorn7/perks
+  version: 4c0e84591b9aa9e6dcfdf3e020114cd81f89d5f9
+  subpackages:
+  - quantile
 - name: github.com/codahale/hdrhistogram
   version: f8ad88b59a584afeee9d334eff879b104439117b
 - name: github.com/crossdock/crossdock-go
@@ -13,24 +17,29 @@ imports:
   - assert
   - require
 - name: github.com/davecgh/go-spew
-  version: 346938d642f2ec3594ed81d874461961cd0faa76
+  version: adab96458c51a58dc1783b3335dcce5461522e75
   subpackages:
   - spew
 - name: github.com/fsnotify/fsnotify
   version: 30411dbcefb7a1da7e84f75530ad3abe4011b4f8
 - name: github.com/go-kit/kit
-  version: fadad6fffe0466b19df9efd9acde5c9a52df5fa4
+  version: a9ca6725cbbea455e61c6bc8a1ed28e81eb3493b
   subpackages:
   - metrics
   - metrics/expvar
   - metrics/generic
   - metrics/internal/lv
+  - metrics/prometheus
 - name: github.com/gocql/gocql
   version: 4d2d1ac71932f7c4a6c7feb0d654462e4116c58b
   subpackages:
   - internal/lru
   - internal/murmur
   - internal/streams
+- name: github.com/golang/protobuf
+  version: 7cc19b78d562895b13596ddce7aafb59dd789318
+  subpackages:
+  - proto
 - name: github.com/golang/snappy
   version: d7b1e156f50d3c4664f683603af70e3e47fa0aa2
 - name: github.com/gorilla/context
@@ -58,6 +67,10 @@ imports:
   version: cfb55aafdaf3ec08f0db22699ab822c50091b1c4
 - name: github.com/magiconair/properties
   version: 9c47895dc1ce54302908ab8a43385d1f5df2c11c
+- name: github.com/matttproud/golang_protobuf_extensions
+  version: c12348ce28de40eed0136aa2b644d0ee0650e56c
+  subpackages:
+  - pbutil
 - name: github.com/mitchellh/mapstructure
   version: bfdb1a85537d60bc7e954e600c250219ea497417
 - name: github.com/olivere/elastic
@@ -81,6 +94,25 @@ imports:
   version: 792786c7400a136282c1664665ae0a8db921c6c2
   subpackages:
   - difflib
+- name: github.com/prometheus/client_golang
+  version: c5b7fccd204277076155f10851dad72b76a49317
+  subpackages:
+  - prometheus
+  - prometheus/promhttp
+- name: github.com/prometheus/client_model
+  version: 6f3806018612930941127f2a7c6c453ba2c527d2
+  subpackages:
+  - go
+- name: github.com/prometheus/common
+  version: 49fee292b27bfff7f354ee0f64e1bc4850462edf
+  subpackages:
+  - expfmt
+  - internal/bitbucket.org/ww/goautoneg
+  - model
+- name: github.com/prometheus/procfs
+  version: a1dba9ce8baed984a2495b658c82687f8157b98f
+  subpackages:
+  - xfs
 - name: github.com/spf13/afero
   version: 90dd71edc4d0a8b3511dc12ea15d617d03be09e0
   subpackages:
@@ -98,7 +130,7 @@ imports:
 - name: github.com/stretchr/objx
   version: 1a9d0bb9f541897e62256577b352fdbc1fb4fd94
 - name: github.com/stretchr/testify
-  version: 4d4bfba8f1d1027c4fdbe371823030df51419987
+  version: 05e8a0eda380579888eb53c394909df027f06991
   subpackages:
   - assert
   - mock
@@ -106,7 +138,7 @@ imports:
 - name: github.com/uber-go/atomic
   version: 0c9e689d64f004564b79d9a663634756df322902
 - name: github.com/uber/jaeger-client-go
-  version: 921405f1ad4348f04735f9cc7dd6cc46483daeda
+  version: d021e646f5187d77b55592c3efee1a2810e895d7
   subpackages:
   - config
   - internal/spanlog
@@ -120,11 +152,12 @@ imports:
   - transport/zipkin
   - utils
 - name: github.com/uber/jaeger-lib
-  version: ffca3143c929e9b97325e6bebcc380e8c6e5fa0d
+  version: 13219516eeab40f3b23e4d50e3f91a0d68064afc
   subpackages:
   - metrics
   - metrics/go-kit
   - metrics/go-kit/expvar
+  - metrics/go-kit/prometheus
   - metrics/testutils
 - name: github.com/uber/tchannel-go
   version: 1a0e35378f6f721bc07f6c4466bc9701ed70b506
@@ -154,7 +187,7 @@ imports:
   - zapcore
   - zaptest
 - name: golang.org/x/net
-  version: 5b58a9c3e1690d33a592e5b791638e25eb9b3f70
+  version: b3756b4b77d7b13260a0a2ec658753cf48922eac
   subpackages:
   - context
   - context/ctxhttp
@@ -174,7 +207,7 @@ imports:
   subpackages:
   - uritemplates
 - name: gopkg.in/yaml.v2
-  version: cd8b52f8269e0feb286dfeef29f8fe4d5b397e0b
+  version: 3b4ad1db5b2a649883ff3782f5f9f6fb52be71af
 testImports:
 - name: github.com/kr/text
   version: 7cafcd837844e784b526369c9bce262804aebc60

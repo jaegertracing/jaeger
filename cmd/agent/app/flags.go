@@ -28,6 +28,7 @@ import (
 
 // Bind binds the agent builder to command line options
 func (b *Builder) Bind(flags *flag.FlagSet) {
+	b.Metrics.Bind(flags)
 	for i := range b.Processors {
 		p := &b.Processors[i]
 		name := "processor." + string(p.Model) + "-" + string(p.Protocol) + "."
