@@ -27,7 +27,6 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-	"github.com/uber/jaeger-lib/metrics"
 	"go.uber.org/zap"
 	"gopkg.in/yaml.v2"
 
@@ -119,7 +118,7 @@ func TestBuilderFromConfig(t *testing.T) {
 func TestBuilderWithExtraReporter(t *testing.T) {
 	cfg := &Builder{}
 	cfg.WithReporter(fakeReporter{})
-	agent, err := cfg.CreateAgent(metrics.NullFactory, zap.NewNop())
+	agent, err := cfg.CreateAgent(zap.NewNop())
 	assert.NoError(t, err)
 	assert.NotNil(t, agent)
 }
@@ -127,7 +126,7 @@ func TestBuilderWithExtraReporter(t *testing.T) {
 func TestBuilderWithError(t *testing.T) {
 	cfg := &Builder{}
 	cfg.WithDiscoverer(fakeDiscoverer{})
-	agent, err := cfg.CreateAgent(metrics.NullFactory, zap.NewNop())
+	agent, err := cfg.CreateAgent(zap.NewNop())
 	assert.Error(t, err)
 	assert.Nil(t, agent)
 }
@@ -158,7 +157,7 @@ func TestBuilderWithProcessorErrors(t *testing.T) {
 				},
 			},
 		}
-		_, err := cfg.CreateAgent(metrics.NullFactory, zap.NewNop())
+		_, err := cfg.CreateAgent(zap.NewNop())
 		assert.Error(t, err)
 		if testCase.err != "" {
 			assert.EqualError(t, err, testCase.err)

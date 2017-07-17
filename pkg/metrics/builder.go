@@ -73,7 +73,7 @@ func (b *Builder) CreateMetricsFactory(namespace string) (metrics.Factory, error
 		b.handler = http.HandlerFunc(httpexpvar.Handler)
 		return metricsFactory, nil
 	}
-	if b.Backend == "none" {
+	if b.Backend == "none" || b.Backend == "" {
 		return metrics.NullFactory, nil
 	}
 	return nil, errUnknownBackend

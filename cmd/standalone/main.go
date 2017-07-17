@@ -74,7 +74,7 @@ func startAgent(logger *zap.Logger, baseFactory metrics.Factory, builder *agentA
 	if len(builder.CollectorHostPorts) == 0 {
 		builder.CollectorHostPorts = append(builder.CollectorHostPorts, fmt.Sprintf("127.0.0.1:%d", *collector.CollectorPort))
 	}
-	agent, err := builder.CreateAgent(metricsFactory, logger)
+	agent, err := builder.WithMetricsFactory(metricsFactory).CreateAgent(logger)
 	if err != nil {
 		logger.Fatal("Unable to initialize Jaeger Agent", zap.Error(err))
 	}
