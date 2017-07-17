@@ -18,37 +18,70 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 // THE SOFTWARE.
 
-package main
+package metrics
 
 import (
 	"flag"
-	"runtime"
+	"net/http"
+	"testing"
 
-	"go.uber.org/zap"
-
-	"github.com/uber/jaeger/cmd/agent/app"
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
-func main() {
-	builder := app.NewBuilder()
-	builder.Bind(flag.CommandLine)
-	flag.Parse()
+func TestBind(t *testing.T) {
+	b := &Builder{}
+	flags := flag.NewFlagSet("foo", flag.PanicOnError)
+	b.Bind(flags)
+}
 
-	runtime.GOMAXPROCS(runtime.NumCPU())
-
-	logger, _ := zap.NewProduction()
-
-	// TODO illustrate discovery service wiring
-	// TODO illustrate additional reporter
-
-	agent, err := builder.CreateAgent(logger)
-	if err != nil {
-		logger.Fatal("Unable to initialize Jaeger Agent", zap.Error(err))
+func TestBuilder(t *testing.T) {
+	testCases := []struct {
+		backend string
+		route   string
+		err     error
+		handler bool
+	}{
+		{
+			backend: "expvar",
+			route:   "/",
+			handler: true,
+		},
+		{
+			backend: "prometheus",
+			route:   "/",
+			handler: true,
+		},
+		{
+			backend: "none",
+			handler: false,
+		},
+		{
+			backend: "",
+			handler: false,
+		},
+		{
+			backend: "invalid",
+			err:     errUnknownBackend,
+		},
 	}
 
-	logger.Info("Starting agent")
-	if err := agent.Run(); err != nil {
-		logger.Fatal("Failed to run the agent", zap.Error(err))
+	for i := range testCases {
+		testCase := testCases[i]
+		b := &Builder{
+			Backend:   testCase.backend,
+			HTTPRoute: testCase.route,
+		}
+		mf, err := b.CreateMetricsFactory("foo")
+		if testCase.err != nil {
+			assert.Equal(t, err, testCase.err)
+			continue
+		}
+		require.NotNil(t, mf)
+		if testCase.handler {
+			require.NotNil(t, b.handler)
+			mux := http.NewServeMux()
+			b.RegisterHandler(mux)
+		}
 	}
-	select {}
 }

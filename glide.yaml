@@ -18,7 +18,7 @@ import:
   subpackages:
   - transport
 - package: github.com/uber/jaeger-lib
-  version: ffca3143c929e9b97325e6bebcc380e8c6e5fa0d
+  version: 13219516eeab40f3b23e4d50e3f91a0d68064afc
 - package: github.com/uber/tchannel-go
   version: v1.1.0
   subpackages:
@@ -36,7 +36,7 @@ import:
   subpackages:
   - nethttp
 - package: github.com/go-kit/kit
-  version: v0.4.0
+  version: v0.5.0
   subpackages:
   - metrics
 - package: github.com/olivere/elastic

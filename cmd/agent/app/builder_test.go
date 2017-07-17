@@ -119,16 +119,31 @@ func TestBuilderFromConfig(t *testing.T) {
 func TestBuilderWithExtraReporter(t *testing.T) {
 	cfg := &Builder{}
 	cfg.WithReporter(fakeReporter{})
-	agent, err := cfg.CreateAgent(metrics.NullFactory, zap.NewNop())
+	agent, err := cfg.CreateAgent(zap.NewNop())
 	assert.NoError(t, err)
 	assert.NotNil(t, agent)
 }
 
-func TestBuilderWithError(t *testing.T) {
+func TestBuilderMetrics(t *testing.T) {
+	mf := metrics.NullFactory
+	b := new(Builder).WithMetricsFactory(mf)
+	mf2, err := b.getMetricsFactory()
+	assert.NoError(t, err)
+	assert.Equal(t, mf, mf2)
+}
+
+func TestBuilderMetricsError(t *testing.T) {
+	b := &Builder{}
+	b.Metrics.Backend = "invalid"
+	_, err := b.CreateAgent(zap.NewNop())
+	assert.EqualError(t, err, "cannot create metrics factory: unknown metrics backend specified")
+}
+
+func TestBuilderWithDiscoveryError(t *testing.T) {
 	cfg := &Builder{}
 	cfg.WithDiscoverer(fakeDiscoverer{})
-	agent, err := cfg.CreateAgent(metrics.NullFactory, zap.NewNop())
-	assert.Error(t, err)
+	agent, err := cfg.CreateAgent(zap.NewNop())
+	assert.EqualError(t, err, "cannot create main Reporter: cannot enable service discovery: both discovery.Discoverer and discovery.Notifier must be specified")
 	assert.Nil(t, agent)
 }
 
@@ -158,7 +173,7 @@ func TestBuilderWithProcessorErrors(t *testing.T) {
 				},
 			},
 		}
-		_, err := cfg.CreateAgent(metrics.NullFactory, zap.NewNop())
+		_, err := cfg.CreateAgent(zap.NewNop())
 		assert.Error(t, err)
 		if testCase.err != "" {
 			assert.EqualError(t, err, testCase.err)
