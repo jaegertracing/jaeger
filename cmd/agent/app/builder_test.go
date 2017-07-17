@@ -30,6 +30,7 @@ import (
 	"go.uber.org/zap"
 	"gopkg.in/yaml.v2"
 
+	"github.com/uber/jaeger-lib/metrics"
 	"github.com/uber/jaeger/thrift-gen/jaeger"
 	"github.com/uber/jaeger/thrift-gen/zipkincore"
 )
@@ -123,11 +124,26 @@ func TestBuilderWithExtraReporter(t *testing.T) {
 	assert.NotNil(t, agent)
 }
 
-func TestBuilderWithError(t *testing.T) {
+func TestBuilderMetrics(t *testing.T) {
+	mf := metrics.NullFactory
+	b := new(Builder).WithMetricsFactory(mf)
+	mf2, err := b.getMetricsFactory()
+	assert.NoError(t, err)
+	assert.Equal(t, mf, mf2)
+}
+
+func TestBuilderMetricsError(t *testing.T) {
+	b := &Builder{}
+	b.Metrics.Backend = "invalid"
+	_, err := b.CreateAgent(zap.NewNop())
+	assert.EqualError(t, err, "cannot create metrics factory: unknown metrics backend specified")
+}
+
+func TestBuilderWithDiscoveryError(t *testing.T) {
 	cfg := &Builder{}
 	cfg.WithDiscoverer(fakeDiscoverer{})
 	agent, err := cfg.CreateAgent(zap.NewNop())
-	assert.Error(t, err)
+	assert.EqualError(t, err, "cannot create main Reporter: cannot enable service discovery: both discovery.Discoverer and discovery.Notifier must be specified")
 	assert.Nil(t, agent)
 }
 
