@@ -111,7 +111,14 @@ func newSpanReader(client es.Client, logger *zap.Logger, maxLookback time.Durati
 
 // GetTrace takes a traceID and returns a Trace associated with that traceID
 func (s *SpanReader) GetTrace(traceID model.TraceID) (*model.Trace, error) {
-	return s.readTrace(traceID.String(), &spanstore.TraceQueryParameters{})
+	currentTime := time.Now()
+	return s.readTrace(
+		traceID.String(),
+		&spanstore.TraceQueryParameters{
+			StartTimeMax: currentTime,
+			StartTimeMin: currentTime.Add(-s.maxLookback),
+		},
+	)
 }
 
 func (s *SpanReader) readTrace(traceID string, traceQuery *spanstore.TraceQueryParameters) (*model.Trace, error) {
