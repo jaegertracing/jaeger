@@ -255,44 +255,43 @@ func TestSpanReader_esJSONtoJSONSpanModelError(t *testing.T) {
 }
 
 func TestSpanReaderFindIndices(t *testing.T) {
-	today := time.Now()
+	today := time.Date(1995, time.April, 21, 4, 12, 19, 95, time.Local)
 	yesterday := today.AddDate(0, 0, -1)
 	twoDaysAgo := today.AddDate(0, 0, -2)
 
 	testCases := []struct {
-		query    *spanstore.TraceQueryParameters
-		expected []string
+		startTime time.Time
+		endTime   time.Time
+		expected  []string
 	}{
 		{
-			query: &spanstore.TraceQueryParameters{},
+			startTime: today.Add(-time.Millisecond),
+			endTime:   today,
+			expected: []string{
+				IndexWithDate(today),
+			},
+		},
+		{
+			startTime: today.Add(-13 * time.Hour),
+			endTime:   today,
+			expected: []string{
+				IndexWithDate(today),
+				IndexWithDate(yesterday),
+			},
+		},
+		{
+			startTime: today.Add(-48 * time.Hour),
+			endTime:   today,
 			expected: []string{
 				IndexWithDate(today),
 				IndexWithDate(yesterday),
 				IndexWithDate(twoDaysAgo),
 			},
 		},
-		{
-			query: &spanstore.TraceQueryParameters{
-				StartTimeMin: time.Date(1995, time.April, 21, 4, 21, 19, 95, time.UTC),
-				StartTimeMax: time.Date(2017, time.April, 21, 4, 21, 19, 95, time.UTC),
-			},
-		},
-		{
-			query: &spanstore.TraceQueryParameters{
-				StartTimeMin: today.AddDate(0, 0, -7),
-				StartTimeMax: today.AddDate(0, 0, -1),
-			},
-			expected: []string{
-				IndexWithDate(yesterday),
-				IndexWithDate(twoDaysAgo),
-			},
-		},
 	}
 	for _, testCase := range testCases {
-		withSpanReader(func(r *spanReaderTest) {
-			actual := r.reader.findIndices(testCase.query)
-			assert.EqualValues(t, testCase.expected, actual)
-		})
+		actual := findIndices(testCase.startTime, testCase.endTime)
+		assert.EqualValues(t, testCase.expected, actual)
 	}
 }
 
@@ -529,7 +528,7 @@ func mockSearchService(r *spanReaderTest) *mock.Call {
 	searchService.On("Aggregation", stringMatcher(servicesAggregation), mock.AnythingOfType("*elastic.TermsAggregation")).Return(searchService)
 	searchService.On("Aggregation", stringMatcher(operationsAggregation), mock.AnythingOfType("*elastic.TermsAggregation")).Return(searchService)
 	searchService.On("Aggregation", stringMatcher(traceIDAggregation), mock.AnythingOfType("*elastic.TermsAggregation")).Return(searchService)
-	r.client.On("Search", mock.AnythingOfType("string"), mock.AnythingOfType("string"), mock.AnythingOfType("string")).Return(searchService)
+	r.client.On("Search", mock.AnythingOfType("string"), mock.AnythingOfType("string"), mock.AnythingOfType("string"), mock.AnythingOfType("string")).Return(searchService)
 	return searchService.On("Do", mock.AnythingOfType("*context.emptyCtx"))
 }
 

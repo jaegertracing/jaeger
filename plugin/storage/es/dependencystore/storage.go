@@ -130,7 +130,6 @@ func getIndices(ts time.Time, lookback time.Duration) []string {
 		indices = append(indices, currentIndex)
 		ts = ts.Add(-24 * time.Hour)
 		currentIndex = indexName(ts)
-		lookback -= 24 * time.Hour
 	}
 	return append(indices, firstIndex)
 }
