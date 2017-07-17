@@ -187,9 +187,30 @@ func createSearchResult(dependencyLink string) *elastic.SearchResult {
 
 func TestGetIndices(t *testing.T) {
 	fixedTime := time.Date(1995, time.April, 21, 4, 12, 19, 95, time.Local)
-	expected := []string{indexName(fixedTime), indexName(fixedTime.Add(-24 * time.Hour))}
-	assert.EqualValues(t, expected, getIndices(fixedTime, 23*time.Hour)) // check 23 hours instead of 24 hours, because this should still give back two indices
-
+	testCases := []struct{
+		expected []string
+		lookback time.Duration
+	}{
+		{
+			expected: []string{indexName(fixedTime), indexName(fixedTime.Add(-24 * time.Hour))},
+			lookback: 23*time.Hour,
+		},
+		{
+			expected: []string{indexName(fixedTime), indexName(fixedTime.Add(-24 * time.Hour))},
+			lookback: 13*time.Hour,
+		},
+		{
+			expected: []string{indexName(fixedTime)},
+			lookback: 1*time.Hour,
+		},
+		{
+			expected: []string{indexName(fixedTime)},
+			lookback: 0,
+		},
+	}
+	for _, testCase := range testCases {
+		assert.EqualValues(t, testCase.expected, getIndices(fixedTime, testCase.lookback))
+	}
 }
 
 // stringMatcher can match a string argument when it contains a specific substring q

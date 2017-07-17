@@ -124,13 +124,15 @@ func buildTSQuery(endTs time.Time, lookback time.Duration) elastic.Query {
 
 func getIndices(ts time.Time, lookback time.Duration) []string {
 	var indices []string
-	indices = append(indices, indexName(ts))
-	for lookback > 0 {
+	firstIndex := indexName(ts.Add(-lookback))
+	currentIndex := indexName(ts)
+	for currentIndex != firstIndex {
+		indices = append(indices, currentIndex)
 		ts = ts.Add(-24 * time.Hour)
-		indices = append(indices, indexName(ts))
+		currentIndex = indexName(ts)
 		lookback -= 24 * time.Hour
 	}
-	return indices
+	return append(indices, firstIndex)
 }
 
 func indexName(date time.Time) string {
