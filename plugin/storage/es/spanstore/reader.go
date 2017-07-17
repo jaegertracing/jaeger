@@ -94,17 +94,17 @@ type SpanReader struct {
 }
 
 // NewSpanReader returns a new SpanReader with a metrics.
-func NewSpanReader(client es.Client, logger *zap.Logger, maxSpanAge time.Duration, metricsFactory metrics.Factory) spanstore.Reader {
-	return storageMetrics.NewReadMetricsDecorator(newSpanReader(client, logger, maxSpanAge), metricsFactory)
+func NewSpanReader(client es.Client, logger *zap.Logger, maxLookback time.Duration, metricsFactory metrics.Factory) spanstore.Reader {
+	return storageMetrics.NewReadMetricsDecorator(newSpanReader(client, logger, maxLookback), metricsFactory)
 }
 
-func newSpanReader(client es.Client, logger *zap.Logger, maxSpanAge time.Duration) *SpanReader {
+func newSpanReader(client es.Client, logger *zap.Logger, maxLookback time.Duration) *SpanReader {
 	ctx := context.Background()
 	return &SpanReader{
 		ctx:                     ctx,
 		client:                  client,
 		logger:                  logger,
-		maxLookback:             maxSpanAge,
+		maxLookback:             maxLookback,
 		serviceOperationStorage: NewServiceOperationStorage(ctx, client, metrics.NullFactory, logger, 0), // the decorator takes care of metrics
 	}
 }
