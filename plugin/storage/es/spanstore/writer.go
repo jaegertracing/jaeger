@@ -42,9 +42,8 @@ const (
 )
 
 type spanWriterMetrics struct {
-	indexCreate      *storageMetrics.WriteMetrics
-	spans            *storageMetrics.WriteMetrics
-	serviceOperation *storageMetrics.WriteMetrics
+	indexCreate *storageMetrics.WriteMetrics
+	spans       *storageMetrics.WriteMetrics
 }
 
 type serviceWriter func(string, *jModel.Span) error
