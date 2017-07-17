@@ -66,7 +66,6 @@ func TestWriteService(t *testing.T) {
 		err = w.writer.writeService(indexName, jsonSpan)
 		require.NoError(t, err)
 		indexService.AssertNumberOfCalls(t, "Do", 1)
-
 	})
 }
 
