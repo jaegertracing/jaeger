@@ -26,8 +26,6 @@ import (
 
 	"go.uber.org/zap"
 
-	"fmt"
-
 	"github.com/uber/jaeger/cmd/agent/app"
 )
 
@@ -35,8 +33,6 @@ func main() {
 	builder := app.NewBuilder()
 	builder.Bind(flag.CommandLine)
 	flag.Parse()
-
-	fmt.Printf("%+v\n", builder)
 
 	runtime.GOMAXPROCS(runtime.NumCPU())
 

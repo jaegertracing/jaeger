@@ -39,7 +39,7 @@ var errUnknownBackend = errors.New("unknown metrics backend specified")
 // Builder provides command line options to configure metrics backend used by Jaeger executables.
 type Builder struct {
 	Backend   string
-	HTTPRoute string
+	HTTPRoute string // endpoint name to expose metrics, e.g. for scraping
 
 	handler http.Handler
 }

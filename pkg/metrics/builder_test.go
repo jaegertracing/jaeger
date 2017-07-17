@@ -21,10 +21,9 @@
 package metrics
 
 import (
+	"flag"
 	"net/http"
 	"testing"
-
-	"flag"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
