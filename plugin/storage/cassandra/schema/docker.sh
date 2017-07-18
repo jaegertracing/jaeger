@@ -3,7 +3,7 @@
 # This script is used in the Docker image jaegertracing/jaeger-cassandra-schema
 # that allows installing Jaeger keyspace and schema without installing cqlsh.
 
-CQLSH=/opt/apache-cassandra-3.0.12/bin/cqlsh
+CQLSH=${CQLSH:-"/usr/bin/cqlsh"}
 CQLSH_HOST=${CQLSH_HOST:-"cassandra"}
 CASSANDRA_WAIT_TIMEOUT=${CASSANDRA_WAIT_TIMEOUT:-"60"}
 DATACENTER=${DATACENTER:-"dc1"}
