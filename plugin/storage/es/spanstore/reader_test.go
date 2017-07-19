@@ -32,6 +32,7 @@ import (
 	"github.com/stretchr/testify/require"
 	"go.uber.org/zap"
 
+	"github.com/uber/jaeger-lib/metrics"
 	"github.com/uber/jaeger/model"
 	esJson "github.com/uber/jaeger/model/json"
 	"github.com/uber/jaeger/pkg/es/mocks"
@@ -100,6 +101,12 @@ func withSpanReader(fn func(r *spanReaderTest)) {
 }
 
 var _ spanstore.Reader = &SpanReader{} // check API conformance
+
+func TestNewSpanReader(t *testing.T) {
+	client := &mocks.Client{}
+	reader := NewSpanReader(client, zap.NewNop(), 0, metrics.NullFactory)
+	assert.NotNil(t, reader)
+}
 
 func TestSpanReader_GetTrace(t *testing.T) {
 	withSpanReader(func(r *spanReaderTest) {
