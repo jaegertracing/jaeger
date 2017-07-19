@@ -59,14 +59,8 @@ func withDepStore(fn func(s *depStorageTest)) {
 	fn(s)
 }
 
-func TestNewDependencyStore(t *testing.T) {
-	withDepStore(func(s *depStorageTest) {
-		var reader dependencystore.Reader = s.storage // check API conformance
-		var writer dependencystore.Writer = s.storage // check API conformance
-		assert.NotNil(t, reader)
-		assert.NotNil(t, writer)
-	})
-}
+var _ dependencystore.Reader = &DependencyStore{} // check API conformance
+var _ dependencystore.Writer = &DependencyStore{} // check API conformance
 
 func TestDependencyStoreWrite(t *testing.T) {
 	withDepStore(func(s *depStorageTest) {

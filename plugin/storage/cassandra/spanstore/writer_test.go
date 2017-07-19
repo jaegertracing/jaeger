@@ -57,12 +57,7 @@ func withSpanWriter(writeCacheTTL time.Duration, fn func(w *spanWriterTest)) {
 	fn(w)
 }
 
-func TestNewSpanWriter(t *testing.T) {
-	withSpanWriter(0, func(w *spanWriterTest) {
-		var writer spanstore.Writer = w.writer // check API conformance
-		assert.NotNil(t, writer)
-	})
-}
+var _ spanstore.Writer = &SpanWriter{} // check API conformance
 
 func TestSpanWriter(t *testing.T) {
 	testCases := []struct {
