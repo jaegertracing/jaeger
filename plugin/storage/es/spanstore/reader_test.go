@@ -30,7 +30,6 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
 	"github.com/stretchr/testify/require"
-	"github.com/uber/jaeger-lib/metrics"
 	"go.uber.org/zap"
 
 	"github.com/uber/jaeger/model"
@@ -100,20 +99,7 @@ func withSpanReader(fn func(r *spanReaderTest)) {
 	fn(r)
 }
 
-func TestAPIConformance(t *testing.T) {
-	client := &mocks.Client{}
-	logger, _ := testutils.NewLogger() // logBuffer unneeded
-	metricsFactory := metrics.NewLocalFactory(0)
-	var reader spanstore.Reader = NewSpanReader(client, logger, 0, metricsFactory) // check API conformance
-	assert.NotNil(t, reader)
-}
-
-func TestNewSpanReader(t *testing.T) {
-	withSpanReader(func(r *spanReaderTest) {
-		var reader spanstore.Reader = r.reader // check API conformance
-		assert.NotNil(t, reader)
-	})
-}
+var _ spanstore.Reader = &SpanReader{} // check API conformance
 
 func TestSpanReader_GetTrace(t *testing.T) {
 	withSpanReader(func(r *spanReaderTest) {
