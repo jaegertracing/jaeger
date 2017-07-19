@@ -1,5 +1,4 @@
-# TODO: replace this by the final Cassandra image
-FROM jpkroehling/cassandra
+FROM cassandra:3.11
 
 COPY schema/* /cassandra-schema/
 
