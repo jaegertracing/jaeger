@@ -23,7 +23,10 @@ package main
 import (
 	"net"
 	"net/http"
+	"os"
+	"os/signal"
 	"strconv"
+	"syscall"
 
 	"github.com/gorilla/mux"
 	"github.com/spf13/cobra"
@@ -42,12 +45,16 @@ import (
 	casFlags "github.com/uber/jaeger/cmd/flags/cassandra"
 	esFlags "github.com/uber/jaeger/cmd/flags/es"
 	"github.com/uber/jaeger/pkg/config"
+	"github.com/uber/jaeger/pkg/healthcheck"
 	"github.com/uber/jaeger/pkg/recoveryhandler"
 	jc "github.com/uber/jaeger/thrift-gen/jaeger"
 	zc "github.com/uber/jaeger/thrift-gen/zipkincore"
 )
 
 func main() {
+	var signalsChannel = make(chan os.Signal, 0)
+	signal.Notify(signalsChannel, os.Interrupt, syscall.SIGTERM)
+
 	logger, _ := zap.NewProduction()
 	serviceName := "jaeger-collector"
 	casOptions := casFlags.NewOptions("cassandra")
@@ -67,6 +74,12 @@ func main() {
 
 			builderOpts := new(builder.CollectorOptions).InitFromViper(v)
 			sFlags := new(flags.SharedFlags).InitFromViper(v)
+
+			hc, err := healthcheck.Serve(http.StatusServiceUnavailable, builderOpts.CollectorHealthCheckHTTPPort, logger)
+			if err != nil {
+				logger.Fatal("Could not start the health check server.", zap.Error(err))
+			}
+
 			handlerBuilder, err := builder.NewSpanHandlerBuilder(
 				builderOpts,
 				sFlags,
@@ -103,9 +116,19 @@ func main() {
 
 			go startZipkinHTTPAPI(logger, builderOpts.CollectorZipkinHTTPPort, zipkinSpansHandler, recoveryHandler)
 
-			logger.Info("Listening for HTTP traffic", zap.Int("http-port", builderOpts.CollectorHTTPPort))
-			if err := http.ListenAndServe(httpPortStr, recoveryHandler(r)); err != nil {
-				logger.Fatal("Could not launch service", zap.Error(err))
+			logger.Info("Starting Jaeger Collector HTTP server", zap.Int("http-port", builderOpts.CollectorHTTPPort))
+
+			go func() {
+				if err := http.ListenAndServe(httpPortStr, recoveryHandler(r)); err != nil {
+					logger.Fatal("Could not launch service", zap.Error(err))
+				}
+				hc.Set(http.StatusInternalServerError)
+			}()
+
+			hc.Ready()
+			select {
+			case <-signalsChannel:
+				logger.Info("Jaeger Collector is finishing")
 			}
 		},
 	}
