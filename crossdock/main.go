@@ -151,10 +151,10 @@ func startAgent(url string, logger *zap.Logger) services.AgentService {
 	forkCmd(
 		logger,
 		agentCmd,
-		"-collector.host-port=localhost:14267",
-		"-processor.zipkin-compact.server-host-port=test_driver:5775",
-		"-processor.jaeger-compact.server-host-port=test_driver:6831",
-		"-processor.jaeger-binary.server-host-port=test_driver:6832",
+		"--collector.host-port=localhost:14267",
+		"--processor.zipkin-compact.server-host-port=test_driver:5775",
+		"--processor.jaeger-compact.server-host-port=test_driver:6831",
+		"--processor.jaeger-binary.server-host-port=test_driver:6832",
 	)
 	if url == "" {
 		url = agentURL

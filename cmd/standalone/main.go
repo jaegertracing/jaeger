@@ -25,10 +25,13 @@ import (
 	"fmt"
 	"net"
 	"net/http"
+	"os"
 	"runtime"
 	"strconv"
 
 	"github.com/gorilla/mux"
+	"github.com/spf13/cobra"
+	"github.com/spf13/viper"
 	jaegerClientConfig "github.com/uber/jaeger-client-go/config"
 	"github.com/uber/jaeger-lib/metrics"
 	"github.com/uber/jaeger-lib/metrics/go-kit"
@@ -43,6 +46,7 @@ import (
 	collector "github.com/uber/jaeger/cmd/collector/app/builder"
 	queryApp "github.com/uber/jaeger/cmd/query/app"
 	query "github.com/uber/jaeger/cmd/query/app/builder"
+	pMetrics "github.com/uber/jaeger/pkg/metrics"
 	"github.com/uber/jaeger/pkg/recoveryhandler"
 	"github.com/uber/jaeger/storage/spanstore/memory"
 	jc "github.com/uber/jaeger/thrift-gen/jaeger"
@@ -55,22 +59,30 @@ func main() {
 	metricsFactory := xkit.Wrap("jaeger-standalone", expvar.NewFactory(10))
 	memStore := memory.NewStore()
 
-	builder := agentApp.NewBuilder()
-	builder.Bind(flag.CommandLine)
 	flag.Parse()
 
 	runtime.GOMAXPROCS(runtime.NumCPU())
 
-	startAgent(logger, metricsFactory, builder)
+	startAgent(logger, metricsFactory)
 	startCollector(logger, metricsFactory, memStore)
 	startQuery(logger, metricsFactory, memStore)
 
 	select {}
 }
 
-func startAgent(logger *zap.Logger, baseFactory metrics.Factory, builder *agentApp.Builder) {
+func startAgent(logger *zap.Logger, baseFactory metrics.Factory) {
 	metricsFactory := baseFactory.Namespace("jaeger-agent", nil)
 
+	flags := &flag.FlagSet{}
+	agentApp.AddFlags(flags)
+	pMetrics.AddFlags(flags)
+	v := &viper.Viper{}
+	command := &cobra.Command{}
+	command.PersistentFlags().AddGoFlagSet(flags)
+	command.ParseFlags(os.Args)
+
+	builder := &agentApp.Builder{}
+	builder.InitFromViper(v)
 	if len(builder.CollectorHostPorts) == 0 {
 		builder.CollectorHostPorts = append(builder.CollectorHostPorts, fmt.Sprintf("127.0.0.1:%d", *collector.CollectorPort))
 	}
