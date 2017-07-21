@@ -85,7 +85,9 @@ func (b *Builder) InitFromViper(v *viper.Viper) {
 		b.Processors = append(b.Processors, *p)
 	}
 
-	b.CollectorHostPorts = strings.Split(v.GetString(collectorHostPort), ",")
+	if len(v.GetString(collectorHostPort)) > 0 {
+		b.CollectorHostPorts = strings.Split(v.GetString(collectorHostPort), ",")
+	}
 	b.HTTPServer.HostPort = v.GetString(httpServerHostPort)
 	b.DiscoveryMinPeers = v.GetInt(discoveryMinPeers)
 }

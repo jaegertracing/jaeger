@@ -28,6 +28,7 @@ import (
 	"os"
 	"runtime"
 	"strconv"
+	"strings"
 
 	"github.com/gorilla/mux"
 	"github.com/spf13/cobra"
@@ -76,10 +77,14 @@ func startAgent(logger *zap.Logger, baseFactory metrics.Factory) {
 	flags := &flag.FlagSet{}
 	agentApp.AddFlags(flags)
 	pMetrics.AddFlags(flags)
-	v := &viper.Viper{}
 	command := &cobra.Command{}
 	command.PersistentFlags().AddGoFlagSet(flags)
-	command.ParseFlags(os.Args)
+	v := viper.New()
+	v.SetEnvKeyReplacer(strings.NewReplacer("-", "_", ".", "_"))
+	v.BindPFlags(command.PersistentFlags())
+	flags.Parse(os.Args)
+
+
 
 	builder := &agentApp.Builder{}
 	builder.InitFromViper(v)
