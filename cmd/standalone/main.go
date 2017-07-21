@@ -84,8 +84,6 @@ func startAgent(logger *zap.Logger, baseFactory metrics.Factory) {
 	v.BindPFlags(command.PersistentFlags())
 	flags.Parse(os.Args)
 
-
-
 	builder := &agentApp.Builder{}
 	builder.InitFromViper(v)
 	if len(builder.CollectorHostPorts) == 0 {
