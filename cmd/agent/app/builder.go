@@ -36,6 +36,7 @@ import (
 	tchreporter "github.com/uber/jaeger/cmd/agent/app/reporter/tchannel"
 	"github.com/uber/jaeger/cmd/agent/app/servers"
 	"github.com/uber/jaeger/cmd/agent/app/servers/thriftudp"
+	jmetrics "github.com/uber/jaeger/pkg/metrics"
 	zipkinThrift "github.com/uber/jaeger/thrift-gen/agent"
 	jaegerThrift "github.com/uber/jaeger/thrift-gen/jaeger"
 )
@@ -74,8 +75,9 @@ var (
 type Builder struct {
 	Processors []ProcessorConfiguration `yaml:"processors"`
 	HTTPServer HTTPServerConfiguration  `yaml:"httpServer"`
+	Metrics    jmetrics.Builder         `yaml:"metrics"`
 
-	// These 3 fields are copied from reporter.Builder because yaml does not parse embedded structs
+	// These 3 fields are copied from tchreporter.Builder because yaml does not parse embedded structs
 	CollectorHostPorts   []string `yaml:"collectorHostPorts"`
 	DiscoveryMinPeers    int      `yaml:"minPeers"`
 	CollectorServiceName string   `yaml:"collectorServiceName"`
@@ -83,47 +85,7 @@ type Builder struct {
 	tchreporter.Builder
 
 	otherReporters []reporter.Reporter
-}
-
-// NewBuilder creates a default builder with three processors.
-func NewBuilder() *Builder {
-	return &Builder{
-		Processors: []ProcessorConfiguration{
-			{
-				Workers:  defaultServerWorkers,
-				Model:    zipkinModel,
-				Protocol: compactProtocol,
-				Server: ServerConfiguration{
-					QueueSize:     defaultQueueSize,
-					MaxPacketSize: defaultMaxPacketSize,
-					HostPort:      ":5775",
-				},
-			},
-			{
-				Workers:  defaultServerWorkers,
-				Model:    jaegerModel,
-				Protocol: compactProtocol,
-				Server: ServerConfiguration{
-					QueueSize:     defaultQueueSize,
-					MaxPacketSize: defaultMaxPacketSize,
-					HostPort:      ":6831",
-				},
-			},
-			{
-				Workers:  defaultServerWorkers,
-				Model:    jaegerModel,
-				Protocol: binaryProtocol,
-				Server: ServerConfiguration{
-					QueueSize:     defaultQueueSize,
-					MaxPacketSize: defaultMaxPacketSize,
-					HostPort:      ":6832",
-				},
-			},
-		},
-		HTTPServer: HTTPServerConfiguration{
-			HostPort: ":5778",
-		},
-	}
+	metricsFactory metrics.Factory
 }
 
 // ProcessorConfiguration holds config for a processor that receives spans from Server
@@ -152,6 +114,12 @@ func (b *Builder) WithReporter(r reporter.Reporter) *Builder {
 	return b
 }
 
+// WithMetricsFactory sets an externally initialized metrics factory.
+func (b *Builder) WithMetricsFactory(mf metrics.Factory) *Builder {
+	b.metricsFactory = mf
+	return b
+}
+
 func (b *Builder) createMainReporter(mFactory metrics.Factory, logger *zap.Logger) (*tchreporter.Reporter, error) {
 	if len(b.Builder.CollectorHostPorts) == 0 {
 		b.Builder.CollectorHostPorts = b.CollectorHostPorts
@@ -165,8 +133,19 @@ func (b *Builder) createMainReporter(mFactory metrics.Factory, logger *zap.Logge
 	return b.Builder.CreateReporter(mFactory, logger)
 }
 
+func (b *Builder) getMetricsFactory() (metrics.Factory, error) {
+	if b.metricsFactory != nil {
+		return b.metricsFactory, nil
+	}
+	return b.Metrics.CreateMetricsFactory("jaeger_agent")
+}
+
 // CreateAgent creates the Agent
-func (b *Builder) CreateAgent(mFactory metrics.Factory, logger *zap.Logger) (*Agent, error) {
+func (b *Builder) CreateAgent(logger *zap.Logger) (*Agent, error) {
+	mFactory, err := b.getMetricsFactory()
+	if err != nil {
+		return nil, errors.Wrap(err, "cannot create metrics factory")
+	}
 	mainReporter, err := b.createMainReporter(mFactory, logger)
 	if err != nil {
 		return nil, errors.Wrap(err, "cannot create main Reporter")
@@ -181,6 +160,9 @@ func (b *Builder) CreateAgent(mFactory metrics.Factory, logger *zap.Logger) (*Ag
 		return nil, err
 	}
 	httpServer := b.HTTPServer.GetHTTPServer(b.CollectorServiceName, mainReporter.Channel(), mFactory)
+	if b.metricsFactory == nil {
+		b.Metrics.RegisterHandler(httpServer.Handler.(*http.ServeMux))
+	}
 	return NewAgent(processors, httpServer, logger), nil
 }
 

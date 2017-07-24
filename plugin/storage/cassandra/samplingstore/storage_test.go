@@ -61,12 +61,7 @@ func withSamplingStore(fn func(r *samplingStoreTest)) {
 	fn(r)
 }
 
-func TestNewSamplingStore(t *testing.T) {
-	withSamplingStore(func(s *samplingStoreTest) {
-		var store samplingstore.Store = s.store // check API conformance
-		assert.NotNil(t, store)
-	})
-}
+var _ samplingstore.Store = &SamplingStore{} // check API conformance
 
 func TestInsertThroughput(t *testing.T) {
 	withSamplingStore(func(s *samplingStoreTest) {

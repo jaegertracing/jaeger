@@ -59,12 +59,7 @@ func withSpanReader(fn func(r *spanReaderTest)) {
 	fn(r)
 }
 
-func TestNewSpanReader(t *testing.T) {
-	withSpanReader(func(r *spanReaderTest) {
-		var reader spanstore.Reader = r.reader // check API conformance
-		assert.NotNil(t, reader)
-	})
-}
+var _ spanstore.Reader = &SpanReader{} // check API conformance
 
 func TestSpanReaderGetServices(t *testing.T) {
 	withSpanReader(func(r *spanReaderTest) {

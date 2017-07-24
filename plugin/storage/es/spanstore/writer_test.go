@@ -60,12 +60,7 @@ func withSpanWriter(fn func(w *spanWriterTest)) {
 	fn(w)
 }
 
-func TestNewSpanWriter(t *testing.T) {
-	withSpanWriter(func(w *spanWriterTest) {
-		var writer spanstore.Writer = w.writer
-		assert.NotNil(t, writer)
-	})
-}
+var _ spanstore.Writer = &SpanWriter{} // check API conformance
 
 // This test behaves as a large test that checks WriteSpan's behavior as a whole.
 // Extra tests for individual functions are below.

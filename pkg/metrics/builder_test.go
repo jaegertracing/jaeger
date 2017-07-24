@@ -18,60 +18,86 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 // THE SOFTWARE.
 
-package main
+package metrics
 
 import (
 	"flag"
-	"runtime"
-	"strings"
+	"net/http"
+	"testing"
 
-	"github.com/pkg/errors"
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
-	"go.uber.org/zap"
-
-	"github.com/uber/jaeger/cmd/agent/app"
-	"github.com/uber/jaeger/pkg/metrics"
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
-func main() {
-	logger, _ := zap.NewProduction()
+func TestAddFlags(t *testing.T) {
 	v := viper.New()
-	var command = &cobra.Command{
-		Use:   "jaeger-agent",
-		Short: "Jaeger agent is a local daemon program which collects tracing data.",
-		Long:  `Jaeger agent is a daemon program that runs on every host and receives tracing data submitted by Jaeger client libraries.`,
-		RunE: func(cmd *cobra.Command, args []string) error {
-			builder := &app.Builder{}
-			builder.InitFromViper(v)
-			runtime.GOMAXPROCS(runtime.NumCPU())
+	command := cobra.Command{}
+	flags := &flag.FlagSet{}
+	AddFlags(flags)
+	command.PersistentFlags().AddGoFlagSet(flags)
+	v.BindPFlags(command.PersistentFlags())
 
-			// TODO illustrate discovery service wiring
-			// TODO illustrate additional reporter
+	command.ParseFlags([]string{
+		"--metrics-backend=foo",
+		"--metrics-http-route=bar",
+	})
 
-			agent, err := builder.CreateAgent(logger)
-			if err != nil {
-				return errors.Wrap(err, "Unable to initialize Jaeger Agent")
-			}
+	b := &Builder{}
+	b.InitFromViper(v)
 
-			logger.Info("Starting agent")
-			if err := agent.Run(); err != nil {
-				return errors.Wrap(err, "Failed to run the agent")
-			}
-			select {}
+	assert.Equal(t, "foo", b.Backend)
+	assert.Equal(t, "bar", b.HTTPRoute)
+}
+
+func TestBuilder(t *testing.T) {
+	testCases := []struct {
+		backend string
+		route   string
+		err     error
+		handler bool
+	}{
+		{
+			backend: "expvar",
+			route:   "/",
+			handler: true,
+		},
+		{
+			backend: "prometheus",
+			route:   "/",
+			handler: true,
+		},
+		{
+			backend: "none",
+			handler: false,
+		},
+		{
+			backend: "",
+			handler: false,
+		},
+		{
+			backend: "invalid",
+			err:     errUnknownBackend,
 		},
 	}
 
-	flags := &flag.FlagSet{}
-	app.AddFlags(flags)
-	metrics.AddFlags(flags)
-	command.PersistentFlags().AddGoFlagSet(flags)
-
-	v.BindPFlags(command.PersistentFlags())
-	v.AutomaticEnv()
-	v.SetEnvKeyReplacer(strings.NewReplacer("-", "_", ".", "_"))
-
-	if err := command.Execute(); err != nil {
-		logger.Fatal("agent command failed", zap.Error(err))
+	for i := range testCases {
+		testCase := testCases[i]
+		b := &Builder{
+			Backend:   testCase.backend,
+			HTTPRoute: testCase.route,
+		}
+		mf, err := b.CreateMetricsFactory("foo")
+		if testCase.err != nil {
+			assert.Equal(t, err, testCase.err)
+			continue
+		}
+		require.NotNil(t, mf)
+		if testCase.handler {
+			require.NotNil(t, b.handler)
+			mux := http.NewServeMux()
+			b.RegisterHandler(mux)
+		}
 	}
 }

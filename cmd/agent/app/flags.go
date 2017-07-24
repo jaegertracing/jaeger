@@ -24,67 +24,70 @@ import (
 	"flag"
 	"fmt"
 	"strings"
+
+	"github.com/spf13/viper"
 )
 
-// Bind binds the agent builder to command line options
-func (b *Builder) Bind(flags *flag.FlagSet) {
-	for i := range b.Processors {
-		p := &b.Processors[i]
-		name := "processor." + string(p.Model) + "-" + string(p.Protocol) + "."
-		flags.IntVar(
-			&p.Workers,
-			name+"workers",
-			p.Workers,
-			"how many workers the processor should run")
-		flags.IntVar(
-			&p.Server.QueueSize,
-			name+"server-queue-size",
-			p.Server.QueueSize,
-			"length of the queue for the UDP server")
-		flags.IntVar(
-			&p.Server.MaxPacketSize,
-			name+"server-max-packet-size",
-			p.Server.MaxPacketSize,
-			"max packet size for the UDP server")
-		flags.StringVar(
-			&p.Server.HostPort,
-			name+"server-host-port",
-			p.Server.HostPort,
-			"host:port for the UDP server")
+const (
+	suffixWorkers             = "workers"
+	suffixServerQueueSize     = "server-queue-size"
+	suffixServerMaxPacketSize = "server-max-packet-size"
+	suffixServerHostPort      = "server-host-port"
+	collectorHostPort         = "collector.host-port"
+	httpServerHostPort        = "http-server.host-port"
+	discoveryMinPeers         = "discovery.min-peers"
+)
+
+var defaultProcessors = []struct {
+	model    model
+	protocol protocol
+	port     string
+}{
+	{model: "zipkin", protocol: "compact", port: ":5775"},
+	{model: "jaeger", protocol: "compact", port: ":6831"},
+	{model: "jaeger", protocol: "binary", port: ":6832"},
+}
+
+// AddFlags adds flags for Builder.
+func AddFlags(flags *flag.FlagSet) {
+	for _, processor := range defaultProcessors {
+		prefix := fmt.Sprintf("processor.%s-%s.", processor.model, processor.protocol)
+		flags.Int(prefix+suffixWorkers, defaultServerWorkers, "how many workers the processor should run")
+		flags.Int(prefix+suffixServerQueueSize, defaultQueueSize, "length of the queue for the UDP server")
+		flags.Int(prefix+suffixServerMaxPacketSize, defaultMaxPacketSize, "max packet size for the UDP server")
+		flags.String(prefix+suffixServerHostPort, processor.port, "host:port for the UDP server")
 	}
-	flags.Var(
-		&stringSliceFlag{slice: &b.CollectorHostPorts},
-		"collector.host-port",
+	flags.String(
+		collectorHostPort,
+		"",
 		"comma-separated string representing host:ports of a static list of collectors to connect to directly (e.g. when not using service discovery)")
-	flags.StringVar(
-		&b.HTTPServer.HostPort,
-		"http-server.host-port",
-		b.HTTPServer.HostPort,
-		"host:port of the http server (e.g. for /sampling and /baggage endpoint)")
-	flags.IntVar(
-		&b.DiscoveryMinPeers,
-		"discovery.min-peers",
-		3,
+	flags.String(
+		httpServerHostPort,
+		defaultHTTPServerHostPort,
+		"host:port of the http server (e.g. for /sampling point and /baggage endpoint)")
+	flags.Int(
+		discoveryMinPeers,
+		defaultMinPeers,
 		"if using service discovery, the min number of connections to maintain to the backend")
 }
 
-type stringSliceFlag struct {
-	slice *[]string
-}
+// InitFromViper initializes Builder with properties retrieved from Viper.
+func (b *Builder) InitFromViper(v *viper.Viper) {
+	b.Metrics.InitFromViper(v)
 
-// String formats the flag's value, part of the flag.Value interface.
-func (c *stringSliceFlag) String() string {
-	return fmt.Sprint(c.slice)
-}
-
-// Set sets the flag value, part of the flag.Value interface.
-func (c *stringSliceFlag) Set(value string) error {
-	if len(*(c.slice)) > 0 {
-		return fmt.Errorf("comma-separated flag already set: %v", *(c.slice))
+	for _, processor := range defaultProcessors {
+		prefix := fmt.Sprintf("processor.%s-%s.", processor.model, processor.protocol)
+		p := &ProcessorConfiguration{Model: processor.model, Protocol: processor.protocol}
+		p.Workers = v.GetInt(prefix + suffixWorkers)
+		p.Server.QueueSize = v.GetInt(prefix + suffixServerQueueSize)
+		p.Server.MaxPacketSize = v.GetInt(prefix + suffixServerMaxPacketSize)
+		p.Server.HostPort = v.GetString(prefix + suffixServerHostPort)
+		b.Processors = append(b.Processors, *p)
 	}
 
-	hostPorts := strings.Split(value, ",")
-	*(c.slice) = append(*(c.slice), hostPorts...)
-
-	return nil
+	if len(v.GetString(collectorHostPort)) > 0 {
+		b.CollectorHostPorts = strings.Split(v.GetString(collectorHostPort), ",")
+	}
+	b.HTTPServer.HostPort = v.GetString(httpServerHostPort)
+	b.DiscoveryMinPeers = v.GetInt(discoveryMinPeers)
 }
