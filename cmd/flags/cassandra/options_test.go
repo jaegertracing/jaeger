@@ -25,11 +25,13 @@ import (
 	"testing"
 	"time"
 
+	"github.com/spf13/cobra"
+	"github.com/spf13/viper"
 	"github.com/stretchr/testify/assert"
 )
 
 func TestOptions(t *testing.T) {
-	opts := NewOptions()
+	opts := NewOptions("foo")
 	primary := opts.GetPrimary()
 	assert.NotEmpty(t, primary.Keyspace)
 	assert.NotEmpty(t, primary.Servers)
@@ -42,22 +44,28 @@ func TestOptions(t *testing.T) {
 }
 
 func TestOptionsWithFlags(t *testing.T) {
-	flags := flag.NewFlagSet("test", flag.ExitOnError)
-	opts := NewOptions()
-	opts.Bind(flags, "cas", "cas.aux")
-	flags.Parse([]string{
-		"-cas.keyspace=jaeger",
-		"-cas.servers=1.1.1.1,2.2.2.2",
-		"-cas.connections-per-host=42",
-		"-cas.max-retry-attempts=42",
-		"-cas.timeout=42s",
-		"-cas.port=4242",
-		"-cas.proto-version=3",
-		"-cas.socket-keep-alive=42s",
+	opts := NewOptions("cas", "cas.aux")
+	v := viper.New()
+	command := &cobra.Command{}
+	flagSet := &flag.FlagSet{}
+	opts.AddFlags(flagSet)
+	command.PersistentFlags().AddGoFlagSet(flagSet)
+	v.BindPFlags(command.PersistentFlags())
+	command.ParseFlags([]string{
+		"--cas.keyspace=jaeger",
+		"--cas.servers=1.1.1.1,2.2.2.2",
+		"--cas.connections-per-host=42",
+		"--cas.max-retry-attempts=42",
+		"--cas.timeout=42s",
+		"--cas.port=4242",
+		"--cas.proto-version=3",
+		"--cas.socket-keep-alive=42s",
 		// a couple overrides
-		"-cas.aux.keyspace=jaeger-archive",
-		"-cas.aux.servers=3.3.3.3,4.4.4.4",
+		"--cas.aux.keyspace=jaeger-archive",
+		"--cas.aux.servers=3.3.3.3,4.4.4.4",
 	})
+
+	opts.InitFromViper(v)
 
 	primary := opts.GetPrimary()
 	assert.Equal(t, "jaeger", primary.Keyspace)

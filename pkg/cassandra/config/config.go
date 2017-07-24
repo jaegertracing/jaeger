@@ -68,8 +68,14 @@ func (c *Configuration) ApplyDefaults(source *Configuration) {
 	}
 }
 
+// SessionBuilder creates new cassandra.Session
+type SessionBuilder interface {
+	NewSession() (cassandra.Session, error)
+}
+
 // NewSession creates a new Cassandra session
 func (c *Configuration) NewSession() (cassandra.Session, error) {
+	c.ProtoVersion = 4
 	cluster := c.NewCluster()
 	session, err := cluster.CreateSession()
 	if err != nil {

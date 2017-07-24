@@ -32,14 +32,11 @@ import (
 	zs "github.com/uber/jaeger/cmd/collector/app/sanitizer/zipkin"
 	"github.com/uber/jaeger/cmd/flags"
 	"github.com/uber/jaeger/model"
-	"github.com/uber/jaeger/pkg/cassandra"
 	cascfg "github.com/uber/jaeger/pkg/cassandra/config"
-	"github.com/uber/jaeger/pkg/es"
 	escfg "github.com/uber/jaeger/pkg/es/config"
 	casSpanstore "github.com/uber/jaeger/plugin/storage/cassandra/spanstore"
 	esSpanstore "github.com/uber/jaeger/plugin/storage/es/spanstore"
 	"github.com/uber/jaeger/storage/spanstore"
-	"github.com/uber/jaeger/storage/spanstore/memory"
 )
 
 var (
@@ -48,157 +45,113 @@ var (
 	errMissingElasticSearchConfig = errors.New("ElasticSearch not configured")
 )
 
-// SpanHandlerBuilder builds span (Jaeger and zipkin) handlers
-type SpanHandlerBuilder interface {
-	BuildHandlers() (app.ZipkinSpansHandler, app.JaegerBatchesHandler, error)
+// SpanHandlerBuilder holds configuration required for handlers
+type SpanHandlerBuilder struct {
+	logger         *zap.Logger
+	metricsFactory metrics.Factory
+	collectorOpts  *CollectorOptions
+	storageBuilder storageBuilder
 }
 
-// NewSpanHandlerBuilder returns a span handler
-func NewSpanHandlerBuilder(opts ...basicB.Option) (SpanHandlerBuilder, error) {
+type storageBuilder func() (spanstore.Writer, error)
+
+// NewSpanHandlerBuilder returns new SpanHandlerBuilder with configured span storage.
+func NewSpanHandlerBuilder(cOpts *CollectorOptions, sFlags *flags.SharedFlags, opts ...basicB.Option) (*SpanHandlerBuilder, error) {
 	options := basicB.ApplyOptions(opts...)
-	if flags.SpanStorage.Type == flags.CassandraStorageType {
+
+	spanHb := &SpanHandlerBuilder{
+		collectorOpts:  cOpts,
+		logger:         options.Logger,
+		metricsFactory: options.MetricsFactory,
+	}
+
+	if sFlags.SpanStorage.Type == flags.CassandraStorageType {
 		if options.Cassandra == nil {
 			return nil, errMissingCassandraConfig
 		}
-		return newCassandraBuilder(options.Cassandra, options.Logger, options.MetricsFactory), nil
-	} else if flags.SpanStorage.Type == flags.MemoryStorageType {
+		spanHb.storageBuilder = spanHb.initCassStore(options.Cassandra)
+	} else if sFlags.SpanStorage.Type == flags.MemoryStorageType {
 		if options.MemoryStore == nil {
 			return nil, errMissingMemoryStore
 		}
-		return newMemoryStoreBuilder(options.MemoryStore, options.Logger, options.MetricsFactory), nil
-	} else if flags.SpanStorage.Type == flags.ESStorageType {
+		spanHb.storageBuilder = func() (spanstore.Writer, error) {
+			return options.MemoryStore, nil
+		}
+	} else if sFlags.SpanStorage.Type == flags.ESStorageType {
 		if options.ElasticSearch == nil {
 			return nil, errMissingElasticSearchConfig
 		}
-		return newESBuilder(options.ElasticSearch, options.Logger, options.MetricsFactory), nil
+		spanHb.storageBuilder = spanHb.initElasticStore(options.ElasticSearch)
+	} else {
+		return nil, flags.ErrUnsupportedStorageType
 	}
-	return nil, flags.ErrUnsupportedStorageType
+
+	return spanHb, nil
 }
 
-type memoryStoreBuilder struct {
-	logger         *zap.Logger
-	metricsFactory metrics.Factory
-	memStore       *memory.Store
-}
-
-func newMemoryStoreBuilder(memStore *memory.Store, logger *zap.Logger, metricsFactory metrics.Factory) *memoryStoreBuilder {
-	return &memoryStoreBuilder{
-		logger:         logger,
-		metricsFactory: metricsFactory,
-		memStore:       memStore,
+func (spanHb *SpanHandlerBuilder) initCassStore(config cascfg.SessionBuilder) func() (spanstore.Writer, error) {
+	session, err := config.NewSession()
+	if err != nil {
+		return func() (spanstore.Writer, error) {
+			return nil, err
+		}
 	}
-}
 
-func (m *memoryStoreBuilder) BuildHandlers() (app.ZipkinSpansHandler, app.JaegerBatchesHandler, error) {
-	return buildHandlers(m.memStore, m.logger, m.metricsFactory)
-}
-
-type cassandraSpanHandlerBuilder struct {
-	logger         *zap.Logger
-	metricsFactory metrics.Factory
-	configuration  cascfg.Configuration
-	session        cassandra.Session
-}
-
-func newCassandraBuilder(config *cascfg.Configuration, logger *zap.Logger, metricsFactory metrics.Factory) *cassandraSpanHandlerBuilder {
-	return &cassandraSpanHandlerBuilder{
-		logger:         logger,
-		metricsFactory: metricsFactory,
-		configuration:  fixConfiguration(*config),
+	store := casSpanstore.NewSpanWriter(
+		session,
+		spanHb.collectorOpts.WriteCacheTTL,
+		spanHb.metricsFactory,
+		spanHb.logger,
+	)
+	return func() (spanstore.Writer, error) {
+		return store, nil
 	}
 }
 
-func (c *cassandraSpanHandlerBuilder) BuildHandlers() (app.ZipkinSpansHandler, app.JaegerBatchesHandler, error) {
-	session, err := c.getSession()
+func (spanHb *SpanHandlerBuilder) initElasticStore(config escfg.ClientBuilder) func() (spanstore.Writer, error) {
+	client, err := config.NewClient()
+	if err != nil {
+		return func() (spanstore.Writer, error) {
+			return nil, err
+		}
+	}
+
+	store := esSpanstore.NewSpanWriter(client, spanHb.logger, spanHb.metricsFactory)
+	return func() (spanstore.Writer, error) {
+		return store, nil
+	}
+}
+
+// BuildHandlers builds span handlers (Zipkin, Jaeger)
+func (spanHb *SpanHandlerBuilder) BuildHandlers() (app.ZipkinSpansHandler, app.JaegerBatchesHandler, error) {
+	hostname, _ := os.Hostname()
+	hostMetrics := spanHb.metricsFactory.Namespace(hostname, nil)
+
+	zSanitizer := zs.NewChainedSanitizer(
+		zs.NewSpanDurationSanitizer(spanHb.logger),
+		zs.NewParentIDSanitizer(spanHb.logger),
+	)
+
+	spanWriter, err := spanHb.storageBuilder()
 	if err != nil {
 		return nil, nil, err
 	}
-	spanStore := casSpanstore.NewSpanWriter(
-		session,
-		*WriteCacheTTL,
-		c.metricsFactory,
-		c.logger,
+
+	spanProcessor := app.NewSpanProcessor(
+		spanWriter,
+		app.Options.ServiceMetrics(spanHb.metricsFactory),
+		app.Options.HostMetrics(hostMetrics),
+		app.Options.Logger(spanHb.logger),
+		app.Options.SpanFilter(defaultSpanFilter),
+		app.Options.NumWorkers(spanHb.collectorOpts.NumWorkers),
+		app.Options.QueueSize(spanHb.collectorOpts.QueueSize),
 	)
 
-	return buildHandlers(spanStore, c.logger, c.metricsFactory)
+	return app.NewZipkinSpanHandler(spanHb.logger, spanProcessor, zSanitizer),
+		app.NewJaegerSpanHandler(spanHb.logger, spanProcessor),
+		nil
 }
 
 func defaultSpanFilter(*model.Span) bool {
 	return true
-}
-
-func (c *cassandraSpanHandlerBuilder) getSession() (cassandra.Session, error) {
-	if c.session == nil {
-		session, err := c.configuration.NewSession()
-		c.session = session
-		return c.session, err
-	}
-	return c.session, nil
-}
-
-func fixConfiguration(config cascfg.Configuration) cascfg.Configuration {
-	config.ProtoVersion = 4
-	return config
-}
-
-type esSpanHandlerBuilder struct {
-	logger         *zap.Logger
-	client         es.Client
-	metricsFactory metrics.Factory
-	configuration  escfg.Configuration
-}
-
-func newESBuilder(config *escfg.Configuration, logger *zap.Logger, metricsFactory metrics.Factory) *esSpanHandlerBuilder {
-	return &esSpanHandlerBuilder{
-		configuration:  *config,
-		metricsFactory: metricsFactory,
-		logger:         logger,
-	}
-}
-
-func (e *esSpanHandlerBuilder) BuildHandlers() (app.ZipkinSpansHandler, app.JaegerBatchesHandler, error) {
-	client, err := e.getClient()
-	if err != nil {
-		return nil, nil, err
-	}
-	spanStore := esSpanstore.NewSpanWriter(client, e.logger, e.metricsFactory)
-
-	return buildHandlers(spanStore, e.logger, e.metricsFactory)
-}
-
-func (e *esSpanHandlerBuilder) getClient() (es.Client, error) {
-	if e.client == nil {
-		client, err := e.configuration.NewClient()
-		e.client = client
-		return e.client, err
-	}
-	return e.client, nil
-}
-
-func buildHandlers(
-	spanStore spanstore.Writer,
-	logger *zap.Logger,
-	metricsFactory metrics.Factory,
-) (app.ZipkinSpansHandler, app.JaegerBatchesHandler, error) {
-	hostname, _ := os.Hostname()
-	hostMetrics := metricsFactory.Namespace(hostname, nil)
-
-	zSanitizer := zs.NewChainedSanitizer(
-		zs.NewSpanDurationSanitizer(logger),
-		zs.NewParentIDSanitizer(logger),
-	)
-
-	spanProcessor := app.NewSpanProcessor(
-		spanStore,
-		app.Options.ServiceMetrics(metricsFactory),
-		app.Options.HostMetrics(hostMetrics),
-		app.Options.Logger(logger),
-		app.Options.SpanFilter(defaultSpanFilter),
-		app.Options.NumWorkers(*NumWorkers),
-		app.Options.QueueSize(*QueueSize),
-	)
-
-	return app.NewZipkinSpanHandler(logger, spanProcessor, zSanitizer),
-		app.NewJaegerSpanHandler(logger, spanProcessor),
-		nil
 }

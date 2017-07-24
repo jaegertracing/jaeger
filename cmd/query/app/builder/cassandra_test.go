@@ -27,6 +27,7 @@ import (
 	"go.uber.org/zap"
 
 	"github.com/uber/jaeger-lib/metrics"
+	"github.com/uber/jaeger/cmd/flags"
 	"github.com/uber/jaeger/pkg/cassandra/config"
 	"github.com/uber/jaeger/pkg/cassandra/mocks"
 )
@@ -35,7 +36,8 @@ func withBuilder(f func(builder *cassandraBuilder)) {
 	cfg := &config.Configuration{
 		Servers: []string{"127.0.0.1"},
 	}
-	cBuilder := newCassandraBuilder(cfg, zap.NewNop(), metrics.NullFactory)
+	sFlags := &flags.SharedFlags{}
+	cBuilder := newCassandraBuilder(cfg, zap.NewNop(), metrics.NullFactory, sFlags.DependencyStorage.DataFrequency)
 	f(cBuilder)
 }
 

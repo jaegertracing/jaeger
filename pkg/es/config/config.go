@@ -38,6 +38,11 @@ type Configuration struct {
 	MaxSpanAge time.Duration // configures the maximum lookback on span reads
 }
 
+// ClientBuilder creates new es.Client
+type ClientBuilder interface {
+	NewClient() (es.Client, error)
+}
+
 // NewClient creates a new ElasticSearch client
 func (c *Configuration) NewClient() (es.Client, error) {
 	if len(c.Servers) < 1 {
