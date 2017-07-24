@@ -21,14 +21,11 @@
 package main
 
 import (
-	"flag"
 	"fmt"
 	"net"
 	"net/http"
-	"os"
 	"runtime"
 	"strconv"
-	"strings"
 
 	"github.com/gorilla/mux"
 	"github.com/spf13/cobra"
@@ -43,11 +40,13 @@ import (
 
 	agentApp "github.com/uber/jaeger/cmd/agent/app"
 	basic "github.com/uber/jaeger/cmd/builder"
-	"github.com/uber/jaeger/cmd/collector/app"
+	collectorApp "github.com/uber/jaeger/cmd/collector/app"
 	collector "github.com/uber/jaeger/cmd/collector/app/builder"
-	collectorZipkin "github.com/uber/jaeger/cmd/collector/app/zipkin"
+	"github.com/uber/jaeger/cmd/collector/app/zipkin"
+	"github.com/uber/jaeger/cmd/flags"
 	queryApp "github.com/uber/jaeger/cmd/query/app"
 	query "github.com/uber/jaeger/cmd/query/app/builder"
+	"github.com/uber/jaeger/pkg/config"
 	pMetrics "github.com/uber/jaeger/pkg/metrics"
 	"github.com/uber/jaeger/pkg/recoveryhandler"
 	"github.com/uber/jaeger/storage/spanstore/memory"
@@ -58,39 +57,59 @@ import (
 // standalone/main is a standalone full-stack jaeger backend, backed by a memory store
 func main() {
 	logger, _ := zap.NewProduction()
-	metricsFactory := xkit.Wrap("jaeger-standalone", expvar.NewFactory(10))
-	memStore := memory.NewStore()
+	v := viper.New()
 
-	flag.Parse()
+	command := &cobra.Command{
+		Use:   "jaeger-standalone",
+		Short: "Jaeger all-in-one distribution with agent, collector and query in one process.",
+		Long: `Jaeger all-in-one distribution with agent, collector and query. Use with caution this version
+		 uses only in-memory database.`,
+		RunE: func(cmd *cobra.Command, args []string) error {
+			runtime.GOMAXPROCS(runtime.NumCPU())
 
-	runtime.GOMAXPROCS(runtime.NumCPU())
+			cOpts := new(collector.CollectorOptions).InitFromViper(v)
+			sFlags := new(flags.SharedFlags).InitFromViper(v)
+			qOpts := new(query.QueryOptions).InitFromViper(v)
 
-	startAgent(logger, metricsFactory)
-	startCollector(logger, metricsFactory, memStore)
-	startQuery(logger, metricsFactory, memStore)
+			metricsFactory := xkit.Wrap("jaeger-standalone", expvar.NewFactory(10))
+			memStore := memory.NewStore()
 
-	select {}
+			builder := &agentApp.Builder{}
+			builder.InitFromViper(v)
+			startAgent(builder, cOpts, logger, metricsFactory)
+			startCollector(cOpts, sFlags, logger, metricsFactory, memStore)
+			startQuery(qOpts, sFlags, logger, metricsFactory, memStore)
+			select {}
+		},
+	}
+
+	config.AddFlags(
+		v,
+		command,
+		flags.AddFlags,
+		collector.AddFlags,
+		query.AddFlags,
+		agentApp.AddFlags,
+		pMetrics.AddFlags,
+	)
+
+	if err := command.Execute(); err != nil {
+		logger.Fatal("standalone command failed", zap.Error(err))
+	}
 }
 
-func startAgent(logger *zap.Logger, baseFactory metrics.Factory) {
+func startAgent(
+	b *agentApp.Builder,
+	cOpts *collector.CollectorOptions,
+	logger *zap.Logger,
+	baseFactory metrics.Factory,
+) {
 	metricsFactory := baseFactory.Namespace("jaeger-agent", nil)
 
-	flags := &flag.FlagSet{}
-	agentApp.AddFlags(flags)
-	pMetrics.AddFlags(flags)
-	command := &cobra.Command{}
-	command.PersistentFlags().AddGoFlagSet(flags)
-	v := viper.New()
-	v.SetEnvKeyReplacer(strings.NewReplacer("-", "_", ".", "_"))
-	v.BindPFlags(command.PersistentFlags())
-	flags.Parse(os.Args)
-
-	builder := &agentApp.Builder{}
-	builder.InitFromViper(v)
-	if len(builder.CollectorHostPorts) == 0 {
-		builder.CollectorHostPorts = append(builder.CollectorHostPorts, fmt.Sprintf("127.0.0.1:%d", *collector.CollectorPort))
+	if len(b.CollectorHostPorts) == 0 {
+		b.CollectorHostPorts = append(b.CollectorHostPorts, fmt.Sprintf("127.0.0.1:%d", cOpts.CollectorPort))
 	}
-	agent, err := builder.WithMetricsFactory(metricsFactory).CreateAgent(logger)
+	agent, err := b.WithMetricsFactory(metricsFactory).CreateAgent(logger)
 	if err != nil {
 		logger.Fatal("Unable to initialize Jaeger Agent", zap.Error(err))
 	}
@@ -101,10 +120,18 @@ func startAgent(logger *zap.Logger, baseFactory metrics.Factory) {
 	}
 }
 
-func startCollector(logger *zap.Logger, baseFactory metrics.Factory, memoryStore *memory.Store) {
+func startCollector(
+	cOpts *collector.CollectorOptions,
+	sFlags *flags.SharedFlags,
+	logger *zap.Logger,
+	baseFactory metrics.Factory,
+	memoryStore *memory.Store,
+) {
 	metricsFactory := baseFactory.Namespace("jaeger-collector", nil)
 
 	spanBuilder, err := collector.NewSpanHandlerBuilder(
+		cOpts,
+		sFlags,
 		basic.Options.LoggerOption(logger),
 		basic.Options.MetricsFactoryOption(metricsFactory),
 		basic.Options.MemoryStoreOption(memoryStore),
@@ -124,21 +151,23 @@ func startCollector(logger *zap.Logger, baseFactory metrics.Factory, memoryStore
 	server := thrift.NewServer(ch)
 	server.Register(jc.NewTChanCollectorServer(jaegerBatchesHandler))
 	server.Register(zc.NewTChanZipkinCollectorServer(zipkinSpansHandler))
-	portStr := ":" + strconv.Itoa(*collector.CollectorPort)
+	portStr := ":" + strconv.Itoa(cOpts.CollectorPort)
 	listener, err := net.Listen("tcp", portStr)
 	if err != nil {
 		logger.Fatal("Unable to start listening on channel", zap.Error(err))
 	}
 	ch.Serve(listener)
-	logger.Info("Starting jaeger-collector TChannel server", zap.Int("port", *collector.CollectorPort))
+	logger.Info("Starting jaeger-collector TChannel server", zap.Int("port", cOpts.CollectorPort))
 
 	r := mux.NewRouter()
-	httpPortStr := ":" + strconv.Itoa(*collector.CollectorHTTPPort)
+	apiHandler := collectorApp.NewAPIHandler(jaegerBatchesHandler)
+	apiHandler.RegisterRoutes(r)
+	httpPortStr := ":" + strconv.Itoa(cOpts.CollectorHTTPPort)
 	recoveryHandler := recoveryhandler.NewRecoveryHandler(logger, true)
 
-	go startZipkinHTTPAPI(logger, zipkinSpansHandler, recoveryHandler)
+	go startZipkinHTTPAPI(logger, cOpts.CollectorZipkinHTTPPort, zipkinSpansHandler, recoveryHandler)
 
-	logger.Info("Starting jaeger-collector HTTP server", zap.Int("http-port", *collector.CollectorHTTPPort))
+	logger.Info("Starting jaeger-collector HTTP server", zap.Int("http-port", cOpts.CollectorHTTPPort))
 	go func() {
 		if err := http.ListenAndServe(httpPortStr, recoveryHandler(r)); err != nil {
 			logger.Fatal("Could not launch jaeger-collector HTTP server", zap.Error(err))
@@ -146,12 +175,17 @@ func startCollector(logger *zap.Logger, baseFactory metrics.Factory, memoryStore
 	}()
 }
 
-func startZipkinHTTPAPI(logger *zap.Logger, zipkinSpansHandler app.ZipkinSpansHandler, recoveryHandler func(http.Handler) http.Handler) {
-	if *collector.CollectorZipkinHTTPPort != 0 {
+func startZipkinHTTPAPI(
+	logger *zap.Logger,
+	zipkinPort int,
+	zipkinSpansHandler collectorApp.ZipkinSpansHandler,
+	recoveryHandler func(http.Handler) http.Handler,
+) {
+	if zipkinPort != 0 {
 		r := mux.NewRouter()
-		collectorZipkin.NewAPIHandler(zipkinSpansHandler).RegisterRoutes(r)
-		httpPortStr := ":" + strconv.Itoa(*collector.CollectorZipkinHTTPPort)
-		logger.Info("Listening for Zipkin HTTP traffic", zap.Int("zipkin.http-port", *collector.CollectorZipkinHTTPPort))
+		zipkin.NewAPIHandler(zipkinSpansHandler).RegisterRoutes(r)
+		httpPortStr := ":" + strconv.Itoa(zipkinPort)
+		logger.Info("Listening for Zipkin HTTP traffic", zap.Int("zipkin.http-port", zipkinPort))
 
 		if err := http.ListenAndServe(httpPortStr, recoveryHandler(r)); err != nil {
 			logger.Fatal("Could not launch service", zap.Error(err))
@@ -159,10 +193,18 @@ func startZipkinHTTPAPI(logger *zap.Logger, zipkinSpansHandler app.ZipkinSpansHa
 	}
 }
 
-func startQuery(logger *zap.Logger, baseFactory metrics.Factory, memoryStore *memory.Store) {
+func startQuery(
+	qOpts *query.QueryOptions,
+	sFlags *flags.SharedFlags,
+	logger *zap.Logger,
+	baseFactory metrics.Factory,
+	memoryStore *memory.Store,
+) {
 	metricsFactory := baseFactory.Namespace("jaeger-query", nil)
 
 	storageBuild, err := query.NewStorageBuilder(
+		sFlags.SpanStorage.Type,
+		sFlags.DependencyStorage.DataFrequency,
 		basic.Options.LoggerOption(logger),
 		basic.Options.MetricsFactoryOption(metricsFactory),
 		basic.Options.MemoryStoreOption(memoryStore),
@@ -192,16 +234,16 @@ func startQuery(logger *zap.Logger, baseFactory metrics.Factory, memoryStore *me
 	rHandler := queryApp.NewAPIHandler(
 		spanReader,
 		dependencyReader,
-		queryApp.HandlerOptions.Prefix(*query.QueryPrefix),
+		queryApp.HandlerOptions.Prefix(qOpts.QueryPrefix),
 		queryApp.HandlerOptions.Logger(logger),
 		queryApp.HandlerOptions.Tracer(tracer))
-	sHandler := queryApp.NewStaticAssetsHandler(*query.QueryStaticAssets)
+	sHandler := queryApp.NewStaticAssetsHandler(qOpts.QueryStaticAssets)
 	r := mux.NewRouter()
 	rHandler.RegisterRoutes(r)
 	sHandler.RegisterRoutes(r)
-	portStr := ":" + strconv.Itoa(*query.QueryPort)
+	portStr := ":" + strconv.Itoa(qOpts.QueryPort)
 	recoveryHandler := recoveryhandler.NewRecoveryHandler(logger, true)
-	logger.Info("Starting jaeger-query HTTP server", zap.Int("port", *query.QueryPort))
+	logger.Info("Starting jaeger-query HTTP server", zap.Int("port", qOpts.QueryPort))
 	if err := http.ListenAndServe(portStr, recoveryHandler(r)); err != nil {
 		logger.Fatal("Could not launch jaeger-query service", zap.Error(err))
 	}

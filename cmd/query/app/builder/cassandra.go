@@ -26,7 +26,6 @@ import (
 	"go.uber.org/zap"
 
 	"github.com/uber/jaeger-lib/metrics"
-	"github.com/uber/jaeger/cmd/flags"
 	"github.com/uber/jaeger/pkg/cassandra"
 	cascfg "github.com/uber/jaeger/pkg/cassandra/config"
 	cDependencyStore "github.com/uber/jaeger/plugin/storage/cassandra/dependencystore"
@@ -43,12 +42,12 @@ type cassandraBuilder struct {
 	dependencyDataFrequency time.Duration
 }
 
-func newCassandraBuilder(config *cascfg.Configuration, logger *zap.Logger, metricsFactory metrics.Factory) *cassandraBuilder {
+func newCassandraBuilder(config *cascfg.Configuration, logger *zap.Logger, metricsFactory metrics.Factory, dependencyDataFreq time.Duration) *cassandraBuilder {
 	cBuilder := &cassandraBuilder{
 		logger:                  logger,
 		metricsFactory:          metricsFactory,
 		configuration:           fixConfiguration(*config),
-		dependencyDataFrequency: flags.DependencyStorage.DataFrequency,
+		dependencyDataFrequency: dependencyDataFreq,
 	}
 	return cBuilder
 }
