@@ -23,15 +23,24 @@ package metrics
 import (
 	"errors"
 	"flag"
+	"fmt"
 	"net/http"
 
 	"github.com/prometheus/client_golang/prometheus/promhttp"
+	"github.com/spf13/viper"
 	xkit "github.com/uber/jaeger-lib/metrics/go-kit"
 	kitexpvar "github.com/uber/jaeger-lib/metrics/go-kit/expvar"
 	kitprom "github.com/uber/jaeger-lib/metrics/go-kit/prometheus"
 	"github.com/uber/jaeger/examples/hotrod/pkg/httpexpvar"
 
 	"github.com/uber/jaeger-lib/metrics"
+)
+
+const (
+	metricsBackend        = "metrics-backend"
+	metricsHTTPRoute      = "metrics-http-route"
+	defaultMetricsBackend = "expvar"
+	defaultMetricsRoute   = "/debug/vars"
 )
 
 var errUnknownBackend = errors.New("unknown metrics backend specified")
@@ -44,18 +53,23 @@ type Builder struct {
 	handler http.Handler
 }
 
-// Bind defines command line flags and binds their values to the builder fields.
-func (b *Builder) Bind(flagSet *flag.FlagSet) {
-	flagSet.StringVar(
-		&b.Backend,
-		"metrics-backend",
-		"expvar",
-		"Defines which metrics backend to use for metrics reporting: prometheus, expvar, none")
-	flagSet.StringVar(
-		&b.HTTPRoute,
-		"metrics-http-route",
-		"/debug/vars",
+// AddFlags adds flags for Builder.
+func AddFlags(flags *flag.FlagSet) {
+	flags.String(
+		metricsBackend,
+		defaultMetricsBackend,
+		fmt.Sprintf("Defines which metrics backend to use for metrics reporting: %s, prometheus, none",
+			defaultMetricsBackend))
+	flags.String(
+		metricsHTTPRoute,
+		defaultMetricsRoute,
 		"Defines the route of HTTP endpoint for metrics backends that support scraping")
+}
+
+// InitFromViper initializes Builder with properties retrieved from Viper.
+func (b *Builder) InitFromViper(v *viper.Viper) {
+	b.Backend = v.GetString(metricsBackend)
+	b.HTTPRoute = v.GetString(metricsHTTPRoute)
 }
 
 // CreateMetricsFactory creates a metrics factory based on the configured type of the backend.

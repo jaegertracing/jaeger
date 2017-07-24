@@ -25,14 +25,30 @@ import (
 	"net/http"
 	"testing"
 
+	"github.com/spf13/cobra"
+	"github.com/spf13/viper"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
 
-func TestBind(t *testing.T) {
+func TestAddFlags(t *testing.T) {
+	v := viper.New()
+	command := cobra.Command{}
+	flags := &flag.FlagSet{}
+	AddFlags(flags)
+	command.PersistentFlags().AddGoFlagSet(flags)
+	v.BindPFlags(command.PersistentFlags())
+
+	command.ParseFlags([]string{
+		"--metrics-backend=foo",
+		"--metrics-http-route=bar",
+	})
+
 	b := &Builder{}
-	flags := flag.NewFlagSet("foo", flag.PanicOnError)
-	b.Bind(flags)
+	b.InitFromViper(v)
+
+	assert.Equal(t, "foo", b.Backend)
+	assert.Equal(t, "bar", b.HTTPRoute)
 }
 
 func TestBuilder(t *testing.T) {

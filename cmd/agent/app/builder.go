@@ -88,47 +88,6 @@ type Builder struct {
 	metricsFactory metrics.Factory
 }
 
-// NewBuilder creates a default builder with three processors.
-func NewBuilder() *Builder {
-	return &Builder{
-		Processors: []ProcessorConfiguration{
-			{
-				Workers:  defaultServerWorkers,
-				Model:    zipkinModel,
-				Protocol: compactProtocol,
-				Server: ServerConfiguration{
-					QueueSize:     defaultQueueSize,
-					MaxPacketSize: defaultMaxPacketSize,
-					HostPort:      ":5775",
-				},
-			},
-			{
-				Workers:  defaultServerWorkers,
-				Model:    jaegerModel,
-				Protocol: compactProtocol,
-				Server: ServerConfiguration{
-					QueueSize:     defaultQueueSize,
-					MaxPacketSize: defaultMaxPacketSize,
-					HostPort:      ":6831",
-				},
-			},
-			{
-				Workers:  defaultServerWorkers,
-				Model:    jaegerModel,
-				Protocol: binaryProtocol,
-				Server: ServerConfiguration{
-					QueueSize:     defaultQueueSize,
-					MaxPacketSize: defaultMaxPacketSize,
-					HostPort:      ":6832",
-				},
-			},
-		},
-		HTTPServer: HTTPServerConfiguration{
-			HostPort: ":5778",
-		},
-	}
-}
-
 // ProcessorConfiguration holds config for a processor that receives spans from Server
 type ProcessorConfiguration struct {
 	Workers  int                 `yaml:"workers"`

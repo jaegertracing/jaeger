@@ -23,32 +23,55 @@ package main
 import (
 	"flag"
 	"runtime"
+	"strings"
 
+	"github.com/pkg/errors"
+	"github.com/spf13/cobra"
+	"github.com/spf13/viper"
 	"go.uber.org/zap"
 
 	"github.com/uber/jaeger/cmd/agent/app"
+	"github.com/uber/jaeger/pkg/metrics"
 )
 
 func main() {
-	builder := app.NewBuilder()
-	builder.Bind(flag.CommandLine)
-	flag.Parse()
-
-	runtime.GOMAXPROCS(runtime.NumCPU())
-
 	logger, _ := zap.NewProduction()
+	v := viper.New()
+	var command = &cobra.Command{
+		Use:   "jaeger-agent",
+		Short: "Jaeger agent is a local daemon program which collects tracing data.",
+		Long:  `Jaeger agent is a daemon program that runs on every host and receives tracing data submitted by Jaeger client libraries.`,
+		RunE: func(cmd *cobra.Command, args []string) error {
+			builder := &app.Builder{}
+			builder.InitFromViper(v)
+			runtime.GOMAXPROCS(runtime.NumCPU())
 
-	// TODO illustrate discovery service wiring
-	// TODO illustrate additional reporter
+			// TODO illustrate discovery service wiring
+			// TODO illustrate additional reporter
 
-	agent, err := builder.CreateAgent(logger)
-	if err != nil {
-		logger.Fatal("Unable to initialize Jaeger Agent", zap.Error(err))
+			agent, err := builder.CreateAgent(logger)
+			if err != nil {
+				return errors.Wrap(err, "Unable to initialize Jaeger Agent")
+			}
+
+			logger.Info("Starting agent")
+			if err := agent.Run(); err != nil {
+				return errors.Wrap(err, "Failed to run the agent")
+			}
+			select {}
+		},
 	}
 
-	logger.Info("Starting agent")
-	if err := agent.Run(); err != nil {
-		logger.Fatal("Failed to run the agent", zap.Error(err))
+	flags := &flag.FlagSet{}
+	app.AddFlags(flags)
+	metrics.AddFlags(flags)
+	command.PersistentFlags().AddGoFlagSet(flags)
+
+	v.BindPFlags(command.PersistentFlags())
+	v.AutomaticEnv()
+	v.SetEnvKeyReplacer(strings.NewReplacer("-", "_", ".", "_"))
+
+	if err := command.Execute(); err != nil {
+		logger.Fatal("agent command failed", zap.Error(err))
 	}
-	select {}
 }
