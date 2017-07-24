@@ -52,7 +52,7 @@ var defaultProcessors = []struct {
 func AddFlags(flags *flag.FlagSet) {
 	for _, processor := range defaultProcessors {
 		prefix := fmt.Sprintf("processor.%s-%s.", processor.model, processor.protocol)
-		flags.Int(prefix+suffixWorkers, 50, "how many workers the processor should run")
+		flags.Int(prefix+suffixWorkers, defaultServerWorkers, "how many workers the processor should run")
 		flags.Int(prefix+suffixServerQueueSize, defaultQueueSize, "length of the queue for the UDP server")
 		flags.Int(prefix+suffixServerMaxPacketSize, defaultMaxPacketSize, "max packet size for the UDP server")
 		flags.String(prefix+suffixServerHostPort, processor.port, "host:port for the UDP server")
@@ -67,7 +67,7 @@ func AddFlags(flags *flag.FlagSet) {
 		"host:port of the http server (e.g. for /sampling point and /baggage endpoint)")
 	flags.Int(
 		discoveryMinPeers,
-		3,
+		defaultMinPeers,
 		"if using service discovery, the min number of connections to maintain to the backend")
 }
 

@@ -27,6 +27,7 @@ import (
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 func TestBingFlags(t *testing.T) {
@@ -47,10 +48,9 @@ func TestBingFlags(t *testing.T) {
 		"--processor.jaeger-binary.server-queue-size=42",
 		"--processor.jaeger-binary.workers=42",
 	})
+	require.NoError(t, err)
 
 	b.InitFromViper(v)
-
-	assert.NoError(t, err)
 	assert.Equal(t, 3, len(b.Processors))
 	assert.Equal(t, []string{"1.2.3.4:555", "1.2.3.4:666"}, b.CollectorHostPorts)
 	assert.Equal(t, 42, b.DiscoveryMinPeers)
