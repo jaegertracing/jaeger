@@ -21,6 +21,7 @@
 package app
 
 import (
+	"compress/gzip"
 	"fmt"
 	"io/ioutil"
 	"net/http"
@@ -62,6 +63,34 @@ func (aH *APIHandler) RegisterRoutes(router *mux.Router) {
 	router.HandleFunc("/api/traces", aH.saveSpan).Methods(http.MethodPost)
 }
 
+func (aH *APIHandler) RegisterZipkinRoutes(router *mux.Router) {
+	router.HandleFunc("/api/v1/spans", aH.zipkinHandler).Methods(http.MethodPost)
+}
+
+func (aH *APIHandler) zipkinHandler(w http.ResponseWriter, r *http.Request) {
+	bRead := r.Body
+	if strings.Contains(r.Header.Get("Content-Encoding"), "gzip") {
+		result, err := gzip.NewReader(r.Body)
+		if err != nil {
+			http.Error(w, "Wrong encoding", http.StatusBadRequest)
+		}
+		bRead = result
+	}
+
+	bodyBytes, err := ioutil.ReadAll(bRead)
+	if err != nil {
+		http.Error(w, "Could not read request body", http.StatusBadRequest)
+	}
+
+	if r.Header.Get("Content-Type") == "application/x-thrift" {
+		handleZipkinThrift(aH.zipkinSpansHandler, bodyBytes, w)
+	} else {
+		http.Error(w, "Only Content-Type:application/x-thrift is supported at the moment", http.StatusBadRequest)
+	}
+
+	w.WriteHeader(http.StatusAccepted)
+}
+
 func (aH *APIHandler) saveSpan(w http.ResponseWriter, r *http.Request) {
 	bodyBytes, err := ioutil.ReadAll(r.Body)
 	r.Body.Close()
@@ -89,24 +118,27 @@ func (aH *APIHandler) saveSpan(w http.ResponseWriter, r *http.Request) {
 		}
 
 	case "zipkin.thrift":
-		spans, err := deserializeZipkin(bodyBytes)
-		if err != nil {
-			http.Error(w, fmt.Sprintf(unableToReadBodyErrFormat, err), http.StatusBadRequest)
-			return
-		}
-
-		ctx, _ := tchanThrift.NewContext(time.Minute)
-		if _, err = aH.zipkinSpansHandler.SubmitZipkinBatch(ctx, spans); err != nil {
-			http.Error(w, fmt.Sprintf("Cannot submit Zipkin batch: %v", err), http.StatusInternalServerError)
-			return
-		}
-
+		handleZipkinThrift(aH.zipkinSpansHandler, bodyBytes, w)
 	default:
 		http.Error(w, fmt.Sprintf("Unsupported format type: %v", format), http.StatusBadRequest)
 		return
 	}
 
 	w.WriteHeader(http.StatusOK)
+}
+
+func handleZipkinThrift(zHandler ZipkinSpansHandler, bodyBytes []byte, w http.ResponseWriter) {
+	spans, err := deserializeZipkin(bodyBytes)
+	if err != nil {
+		http.Error(w, fmt.Sprintf(unableToReadBodyErrFormat, err), http.StatusBadRequest)
+		return
+	}
+
+	ctx, _ := tchanThrift.NewContext(time.Minute)
+	if _, err = zHandler.SubmitZipkinBatch(ctx, spans); err != nil {
+		http.Error(w, fmt.Sprintf("Cannot submit Zipkin batch: %v", err), http.StatusInternalServerError)
+		return
+	}
 }
 
 func deserializeZipkin(b []byte) ([]*zipkincore.Span, error) {

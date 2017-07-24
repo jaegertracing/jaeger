@@ -87,7 +87,20 @@ func main() {
 	apiHandler.RegisterRoutes(r)
 	httpPortStr := ":" + strconv.Itoa(*builder.CollectorHTTPPort)
 	recoveryHandler := recoveryhandler.NewRecoveryHandler(logger, true)
+
+	go zipkinCompEndpoint(logger, apiHandler, recoveryHandler)
+
 	logger.Info("Listening for HTTP traffic", zap.Int("http-port", *builder.CollectorHTTPPort))
+	if err := http.ListenAndServe(httpPortStr, recoveryHandler(r)); err != nil {
+		logger.Fatal("Could not launch service", zap.Error(err))
+	}
+}
+
+func zipkinCompEndpoint(logger *zap.Logger, apiHandler *app.APIHandler, recoveryHandler func (http.Handler) http.Handler) {
+	r := mux.NewRouter()
+	apiHandler.RegisterZipkinRoutes(r)
+	httpPortStr := ":" + strconv.Itoa(*builder.CollectorZipkinHTTPPort)
+	logger.Info("Listening for Zipkin HTTP traffic", zap.Int("zipkin.http-port", *builder.CollectorZipkinHTTPPort))
 	if err := http.ListenAndServe(httpPortStr, recoveryHandler(r)); err != nil {
 		logger.Fatal("Could not launch service", zap.Error(err))
 	}

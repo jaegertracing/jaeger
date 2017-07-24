@@ -136,12 +136,25 @@ func startCollector(logger *zap.Logger, baseFactory metrics.Factory, memoryStore
 	apiHandler.RegisterRoutes(r)
 	httpPortStr := ":" + strconv.Itoa(*collector.CollectorHTTPPort)
 	recoveryHandler := recoveryhandler.NewRecoveryHandler(logger, true)
+
+	go zipkinCompEndpoint(logger, apiHandler, recoveryHandler)
+
 	logger.Info("Starting jaeger-collector HTTP server", zap.Int("http-port", *collector.CollectorHTTPPort))
 	go func() {
 		if err := http.ListenAndServe(httpPortStr, recoveryHandler(r)); err != nil {
 			logger.Fatal("Could not launch jaeger-collector HTTP server", zap.Error(err))
 		}
 	}()
+}
+
+func zipkinCompEndpoint(logger *zap.Logger, apiHandler *collectorApp.APIHandler, recoveryHandler func (http.Handler) http.Handler) {
+	r := mux.NewRouter()
+	apiHandler.RegisterZipkinRoutes(r)
+	httpPortStr := ":" + strconv.Itoa(*collector.CollectorZipkinHTTPPort)
+	logger.Info("Listening for Zipkin HTTP traffic", zap.Int("zipkin.http-port", *collector.CollectorZipkinHTTPPort))
+	if err := http.ListenAndServe(httpPortStr, recoveryHandler(r)); err != nil {
+		logger.Fatal("Could not launch service", zap.Error(err))
+	}
 }
 
 func startQuery(logger *zap.Logger, baseFactory metrics.Factory, memoryStore *memory.Store) {
