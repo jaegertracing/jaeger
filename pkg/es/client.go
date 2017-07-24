@@ -28,15 +28,9 @@ import (
 
 // Client is an abstraction for elastic.Client
 type Client interface {
-	IndexExists(index string) IndicesExistsService
 	CreateIndex(index string) IndicesCreateService
 	Index() IndexService
 	Search(indices ...string) SearchService
-}
-
-// IndicesExistsService is an abstraction for elastic.IndicesExistsService
-type IndicesExistsService interface {
-	Do(ctx context.Context) (bool, error)
 }
 
 // IndicesCreateService is an abstraction for elastic.IndicesCreateService
@@ -59,6 +53,7 @@ type SearchService interface {
 	Type(typ string) SearchService
 	Size(size int) SearchService
 	Aggregation(name string, aggregation elastic.Aggregation) SearchService
+	IgnoreUnavailable(ignoreUnavailable bool) SearchService
 	Query(query elastic.Query) SearchService
 	Do(ctx context.Context) (*elastic.SearchResult, error)
 }

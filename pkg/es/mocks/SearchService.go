@@ -70,6 +70,22 @@ func (_m *SearchService) Do(ctx context.Context) (*elastic.SearchResult, error) 
 	return r0, r1
 }
 
+// IgnoreUnavailable provides a mock function with given fields: ignoreUnavailable
+func (_m *SearchService) IgnoreUnavailable(ignoreUnavailable bool) es.SearchService {
+	ret := _m.Called(ignoreUnavailable)
+
+	var r0 es.SearchService
+	if rf, ok := ret.Get(0).(func(bool) es.SearchService); ok {
+		r0 = rf(ignoreUnavailable)
+	} else {
+		if ret.Get(0) != nil {
+			r0 = ret.Get(0).(es.SearchService)
+		}
+	}
+
+	return r0
+}
+
 // Query provides a mock function with given fields: query
 func (_m *SearchService) Query(query elastic.Query) es.SearchService {
 	ret := _m.Called(query)

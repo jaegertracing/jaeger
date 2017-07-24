@@ -38,11 +38,6 @@ func WrapESClient(client *elastic.Client) ESClient {
 	return ESClient{client: client}
 }
 
-// IndexExists calls this function to internal client.
-func (c ESClient) IndexExists(index string) IndicesExistsService {
-	return WrapESIndicesExistsService(c.client.IndexExists(index))
-}
-
 // CreateIndex calls this function to internal client.
 func (c ESClient) CreateIndex(index string) IndicesCreateService {
 	return WrapESIndicesCreateService(c.client.CreateIndex(index))
@@ -56,23 +51,6 @@ func (c ESClient) Index() IndexService {
 // Search calls this function to internal client.
 func (c ESClient) Search(indices ...string) SearchService {
 	return WrapESSearchService(c.client.Search(indices...))
-}
-
-// ---
-
-// ESIndicesExistsService is a wrapper around elastic.IndicesExistsService
-type ESIndicesExistsService struct {
-	indicesExistsService *elastic.IndicesExistsService
-}
-
-// WrapESIndicesExistsService creates an ESIndicesExistsService out of *elastic.IndicesExistsService.
-func WrapESIndicesExistsService(indicesExistsService *elastic.IndicesExistsService) ESIndicesExistsService {
-	return ESIndicesExistsService{indicesExistsService: indicesExistsService}
-}
-
-// Do calls this function to internal service.
-func (e ESIndicesExistsService) Do(ctx context.Context) (bool, error) {
-	return e.indicesExistsService.Do(ctx)
 }
 
 // ---
@@ -159,6 +137,11 @@ func (s ESSearchService) Size(size int) SearchService {
 // Aggregation calls this function to internal service.
 func (s ESSearchService) Aggregation(name string, aggregation elastic.Aggregation) SearchService {
 	return WrapESSearchService(s.searchService.Aggregation(name, aggregation))
+}
+
+// IgnoreUnavailable calls this function to internal service.
+func (s ESSearchService) IgnoreUnavailable(ignoreUnavailable bool) SearchService {
+	return WrapESSearchService(s.searchService.IgnoreUnavailable(ignoreUnavailable))
 }
 
 // Query calls this function to internal service.

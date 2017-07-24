@@ -101,6 +101,7 @@ func (s *ServiceOperationStorage) getServices(indices []string) ([]string, error
 	searchService := s.client.Search(indices...).
 		Type(serviceType).
 		Size(0). // set to 0 because we don't want actual documents.
+		IgnoreUnavailable(true).
 		Aggregation(servicesAggregation, serviceAggregation)
 
 	searchResult, err := searchService.Do(s.ctx)
@@ -130,6 +131,7 @@ func (s *ServiceOperationStorage) getOperations(indices []string, service string
 		Type(serviceType).
 		Size(0).
 		Query(serviceQuery).
+		IgnoreUnavailable(true).
 		Aggregation(operationsAggregation, serviceFilter)
 
 	searchResult, err := searchService.Do(s.ctx)

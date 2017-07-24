@@ -110,8 +110,6 @@ func TestNewSpanReader(t *testing.T) {
 
 func TestSpanReader_GetTrace(t *testing.T) {
 	withSpanReader(func(r *spanReaderTest) {
-		mockExistsService(r)
-
 		hits := make([]*elastic.SearchHit, 1)
 		hits[0] = &elastic.SearchHit{
 			Source: (*json.RawMessage)(&exampleESSpan),
@@ -134,7 +132,6 @@ func TestSpanReader_GetTrace(t *testing.T) {
 
 func TestSpanReader_GetTraceQueryError(t *testing.T) {
 	withSpanReader(func(r *spanReaderTest) {
-		mockExistsService(r)
 		mockSearchService(r).
 			Return(nil, errors.New("query error occurred"))
 		trace, err := r.reader.GetTrace(model.TraceID{Low: 1})
@@ -145,8 +142,6 @@ func TestSpanReader_GetTraceQueryError(t *testing.T) {
 
 func TestSpanReader_GetTraceNoSpansError(t *testing.T) {
 	withSpanReader(func(r *spanReaderTest) {
-		mockExistsService(r)
-
 		hits := make([]*elastic.SearchHit, 0)
 		searchHits := &elastic.SearchHits{Hits: hits}
 
@@ -160,8 +155,6 @@ func TestSpanReader_GetTraceNoSpansError(t *testing.T) {
 
 func TestSpanReader_GetTraceInvalidSpanError(t *testing.T) {
 	withSpanReader(func(r *spanReaderTest) {
-		mockExistsService(r)
-
 		data := []byte(`{"TraceID": "123"asdf fadsg}`)
 		hits := make([]*elastic.SearchHit, 1)
 		hits[0] = &elastic.SearchHit{
@@ -179,8 +172,6 @@ func TestSpanReader_GetTraceInvalidSpanError(t *testing.T) {
 
 func TestSpanReader_GetTraceSpanConversionError(t *testing.T) {
 	withSpanReader(func(r *spanReaderTest) {
-		mockExistsService(r)
-
 		badSpan := []byte(`{"TraceID": "123"}`)
 
 		hits := make([]*elastic.SearchHit, 1)
@@ -257,45 +248,43 @@ func TestSpanReader_esJSONtoJSONSpanModelError(t *testing.T) {
 }
 
 func TestSpanReaderFindIndices(t *testing.T) {
-	today := time.Now()
+	today := time.Date(1995, time.April, 21, 4, 12, 19, 95, time.Local)
 	yesterday := today.AddDate(0, 0, -1)
 	twoDaysAgo := today.AddDate(0, 0, -2)
 
 	testCases := []struct {
-		query    *spanstore.TraceQueryParameters
-		expected []string
+		startTime time.Time
+		endTime   time.Time
+		expected  []string
 	}{
 		{
-			query: &spanstore.TraceQueryParameters{},
+			startTime: today.Add(-time.Millisecond),
+			endTime:   today,
+			expected: []string{
+				IndexWithDate(today),
+			},
+		},
+		{
+			startTime: today.Add(-13 * time.Hour),
+			endTime:   today,
+			expected: []string{
+				IndexWithDate(today),
+				IndexWithDate(yesterday),
+			},
+		},
+		{
+			startTime: today.Add(-48 * time.Hour),
+			endTime:   today,
 			expected: []string{
 				IndexWithDate(today),
 				IndexWithDate(yesterday),
 				IndexWithDate(twoDaysAgo),
 			},
 		},
-		{
-			query: &spanstore.TraceQueryParameters{
-				StartTimeMin: time.Date(1995, time.April, 21, 4, 21, 19, 95, time.UTC),
-				StartTimeMax: time.Date(2017, time.April, 21, 4, 21, 19, 95, time.UTC),
-			},
-		},
-		{
-			query: &spanstore.TraceQueryParameters{
-				StartTimeMin: today.AddDate(0, 0, -7),
-				StartTimeMax: today.AddDate(0, 0, -1),
-			},
-			expected: []string{
-				IndexWithDate(yesterday),
-				IndexWithDate(twoDaysAgo),
-			},
-		},
 	}
 	for _, testCase := range testCases {
-		withSpanReader(func(r *spanReaderTest) {
-			mockExistsService(r)
-			actual := r.reader.findIndices(testCase.query)
-			assert.EqualValues(t, testCase.expected, actual)
-		})
+		actual := findIndices(testCase.startTime, testCase.endTime)
+		assert.EqualValues(t, testCase.expected, actual)
 	}
 }
 
@@ -342,8 +331,6 @@ func testGet(typ string, t *testing.T) {
 		testCase := tc
 		t.Run(testCase.caption, func(t *testing.T) {
 			withSpanReader(func(r *spanReaderTest) {
-				mockExistsService(r)
-
 				mockSearchService(r).Return(testCase.searchResult, testCase.searchError)
 
 				actual, err := returnSearchFunc(typ, r)
@@ -407,7 +394,6 @@ func TestSpanReader_FindTraces(t *testing.T) {
 	searchHits := &elastic.SearchHits{Hits: hits}
 
 	withSpanReader(func(r *spanReaderTest) {
-		mockExistsService(r)
 		mockSearchService(r).
 			Return(&elastic.SearchResult{Aggregations: elastic.Aggregations(goodAggregations), Hits: searchHits}, nil)
 		traceQuery := &spanstore.TraceQueryParameters{
@@ -445,7 +431,6 @@ func TestSpanReader_FindTracesInvalidQuery(t *testing.T) {
 	searchHits := &elastic.SearchHits{Hits: hits}
 
 	withSpanReader(func(r *spanReaderTest) {
-		mockExistsService(r)
 		mockSearchService(r).
 			Return(&elastic.SearchResult{Aggregations: elastic.Aggregations(goodAggregations), Hits: searchHits}, nil)
 		traceQuery := &spanstore.TraceQueryParameters{
@@ -473,7 +458,6 @@ func TestSpanReader_FindTracesNoTraceIDs(t *testing.T) {
 	searchHits := &elastic.SearchHits{Hits: hits}
 
 	withSpanReader(func(r *spanReaderTest) {
-		mockExistsService(r)
 		mockSearchService(r).
 			Return(&elastic.SearchResult{Aggregations: elastic.Aggregations(goodAggregations), Hits: searchHits}, nil)
 		traceQuery := &spanstore.TraceQueryParameters{
@@ -504,7 +488,6 @@ func TestSpanReader_FindTracesReadTraceFailure(t *testing.T) {
 	searchHits := &elastic.SearchHits{Hits: hits}
 
 	withSpanReader(func(r *spanReaderTest) {
-		mockExistsService(r)
 		mockSearchService(r).
 			Return(&elastic.SearchResult{Aggregations: elastic.Aggregations(goodAggregations), Hits: searchHits}, nil)
 		traceQuery := &spanstore.TraceQueryParameters{
@@ -526,24 +509,19 @@ func TestFindTraceIDs(t *testing.T) {
 	testGet(traceIDAggregation, t)
 }
 
-func mockExistsService(r *spanReaderTest) {
-	existsService := &mocks.IndicesExistsService{}
-	existsService.On("Do", mock.AnythingOfType("*context.emptyCtx")).Return(true, nil)
-	r.client.On("IndexExists", mock.AnythingOfType("string")).Return(existsService)
-}
-
 func mockSearchService(r *spanReaderTest) *mock.Call {
 	searchService := &mocks.SearchService{}
 	searchService.On("Type", stringMatcher(serviceType)).Return(searchService)
 	searchService.On("Type", stringMatcher(spanType)).Return(searchService)
 	searchService.On("Query", mock.Anything).Return(searchService)
+	searchService.On("IgnoreUnavailable", mock.AnythingOfType("bool")).Return(searchService)
 	searchService.On("Size", mock.MatchedBy(func(i int) bool {
 		return i == 0
 	})).Return(searchService)
 	searchService.On("Aggregation", stringMatcher(servicesAggregation), mock.AnythingOfType("*elastic.TermsAggregation")).Return(searchService)
 	searchService.On("Aggregation", stringMatcher(operationsAggregation), mock.AnythingOfType("*elastic.TermsAggregation")).Return(searchService)
 	searchService.On("Aggregation", stringMatcher(traceIDAggregation), mock.AnythingOfType("*elastic.TermsAggregation")).Return(searchService)
-	r.client.On("Search", mock.AnythingOfType("string"), mock.AnythingOfType("string"), mock.AnythingOfType("string")).Return(searchService)
+	r.client.On("Search", mock.AnythingOfType("string"), mock.AnythingOfType("string"), mock.AnythingOfType("string"), mock.AnythingOfType("string")).Return(searchService)
 	return searchService.On("Do", mock.AnythingOfType("*context.emptyCtx"))
 }
 

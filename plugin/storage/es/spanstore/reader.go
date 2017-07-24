@@ -87,31 +87,38 @@ type SpanReader struct {
 	ctx    context.Context
 	client es.Client
 	logger *zap.Logger
-	// The age of the oldest trace we will look for. Because indices in ElasticSearch are by day,
+	// The age of the oldest service/operation we will look for. Because indices in ElasticSearch are by day,
 	// this will be rounded down to UTC 00:00 of that day.
-	maxSpanAge              time.Duration
+	maxLookback             time.Duration
 	serviceOperationStorage *ServiceOperationStorage
 }
 
 // NewSpanReader returns a new SpanReader with a metrics.
-func NewSpanReader(client es.Client, logger *zap.Logger, maxSpanAge time.Duration, metricsFactory metrics.Factory) spanstore.Reader {
-	return storageMetrics.NewReadMetricsDecorator(newSpanReader(client, logger, maxSpanAge), metricsFactory)
+func NewSpanReader(client es.Client, logger *zap.Logger, maxLookback time.Duration, metricsFactory metrics.Factory) spanstore.Reader {
+	return storageMetrics.NewReadMetricsDecorator(newSpanReader(client, logger, maxLookback), metricsFactory)
 }
 
-func newSpanReader(client es.Client, logger *zap.Logger, maxSpanAge time.Duration) *SpanReader {
+func newSpanReader(client es.Client, logger *zap.Logger, maxLookback time.Duration) *SpanReader {
 	ctx := context.Background()
 	return &SpanReader{
 		ctx:                     ctx,
 		client:                  client,
 		logger:                  logger,
-		maxSpanAge:              maxSpanAge,
+		maxLookback:             maxLookback,
 		serviceOperationStorage: NewServiceOperationStorage(ctx, client, metrics.NullFactory, logger, 0), // the decorator takes care of metrics
 	}
 }
 
 // GetTrace takes a traceID and returns a Trace associated with that traceID
 func (s *SpanReader) GetTrace(traceID model.TraceID) (*model.Trace, error) {
-	return s.readTrace(traceID.String(), &spanstore.TraceQueryParameters{})
+	currentTime := time.Now()
+	return s.readTrace(
+		traceID.String(),
+		&spanstore.TraceQueryParameters{
+			StartTimeMax: currentTime,
+			StartTimeMin: currentTime.Add(-s.maxLookback),
+		},
+	)
 }
 
 func (s *SpanReader) readTrace(traceID string, traceQuery *spanstore.TraceQueryParameters) (*model.Trace, error) {
@@ -119,7 +126,7 @@ func (s *SpanReader) readTrace(traceID string, traceQuery *spanstore.TraceQueryP
 
 	traceQuery.StartTimeMax = traceQuery.StartTimeMax.Add(time.Hour)
 	traceQuery.StartTimeMin = traceQuery.StartTimeMin.Add(-time.Hour)
-	indices := s.findIndices(traceQuery)
+	indices := findIndices(traceQuery.StartTimeMin, traceQuery.StartTimeMax)
 	esSpansRaw, err := s.executeQuery(query, indices...)
 	if err != nil {
 		return nil, errors.Wrap(err, "Query execution failed")
@@ -156,6 +163,7 @@ func (s *SpanReader) executeQuery(query elastic.Query, indices ...string) ([]*el
 	searchService, err := s.client.Search(indices...).
 		Type(spanType).
 		Query(query).
+		IgnoreUnavailable(true).
 		Do(s.ctx)
 	if err != nil {
 		return nil, err
@@ -174,27 +182,16 @@ func (s *SpanReader) unmarshalJSONSpan(esSpanRaw *elastic.SearchHit) (*jModel.Sp
 }
 
 // Returns the array of indices that we need to query, based on query params
-func (s *SpanReader) findIndices(traceQuery *spanstore.TraceQueryParameters) []string {
-	today := time.Now()
-	oldestDay := today.Add(-s.maxSpanAge)
-
-	if traceQuery.StartTimeMax.IsZero() || traceQuery.StartTimeMin.IsZero() {
-		traceQuery.StartTimeMax = today
-		traceQuery.StartTimeMin = oldestDay
-	}
-
+func findIndices(startTime time.Time, endTime time.Time) []string {
 	var indices []string
-	current := traceQuery.StartTimeMax
-	for current.After(traceQuery.StartTimeMin) && current.After(oldestDay) {
-		index := IndexWithDate(current)
-		// TODO: either find a way to cache this info, so we don't do this so often, or find a flag that doesn't return an error on nonexistent indices
-		exists, _ := s.client.IndexExists(index).Do(s.ctx) // Don't care about error, if it's an error, exists will be false anyway
-		if exists {
-			indices = append(indices, index)
-		}
-		current = current.AddDate(0, 0, -1)
+	firstIndex := IndexWithDate(startTime)
+	currentIndex := IndexWithDate(endTime)
+	for currentIndex != firstIndex {
+		indices = append(indices, currentIndex)
+		endTime = endTime.Add(-24 * time.Hour)
+		currentIndex = IndexWithDate(endTime)
 	}
-	return indices
+	return append(indices, firstIndex)
 }
 
 // IndexWithDate returns the index name formatted to date.
@@ -204,13 +201,15 @@ func IndexWithDate(date time.Time) string {
 
 // GetServices returns all services traced by Jaeger, ordered by frequency
 func (s *SpanReader) GetServices() ([]string, error) {
-	jaegerIndices := s.findIndices(&spanstore.TraceQueryParameters{})
+	currentTime := time.Now()
+	jaegerIndices := findIndices(currentTime.Add(-s.maxLookback), currentTime)
 	return s.serviceOperationStorage.getServices(jaegerIndices)
 }
 
 // GetOperations returns all operations for a specific service traced by Jaeger
 func (s *SpanReader) GetOperations(service string) ([]string, error) {
-	jaegerIndices := s.findIndices(&spanstore.TraceQueryParameters{})
+	currentTime := time.Now()
+	jaegerIndices := findIndices(currentTime.Add(-s.maxLookback), currentTime)
 	return s.serviceOperationStorage.getOperations(jaegerIndices, service)
 }
 
@@ -321,12 +320,13 @@ func (s *SpanReader) findTraceIDs(traceQuery *spanstore.TraceQueryParameters) ([
 	aggregation := s.buildTraceIDAggregation(traceQuery.NumTraces)
 	boolQuery := s.buildFindTraceIDsQuery(traceQuery)
 
-	jaegerIndices := s.findIndices(traceQuery)
+	jaegerIndices := findIndices(traceQuery.StartTimeMin, traceQuery.StartTimeMax)
 
 	searchService := s.client.Search(jaegerIndices...).
 		Type(spanType).
 		Size(0). // set to 0 because we don't want actual documents.
 		Aggregation(traceIDAggregation, aggregation).
+		IgnoreUnavailable(true).
 		Query(boolQuery)
 
 	searchResult, err := searchService.Do(s.ctx)

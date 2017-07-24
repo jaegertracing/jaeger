@@ -148,13 +148,13 @@ func TestGetDependencies(t *testing.T) {
 			fixedTime := time.Date(1995, time.April, 21, 4, 21, 19, 95, time.UTC)
 			indices := []string{"jaeger-dependencies-1995-04-21", "jaeger-dependencies-1995-04-20"}
 
-			mockExistsService(r)
 			searchService := &mocks.SearchService{}
 			r.client.On("Search", indices[0], indices[1]).Return(searchService)
 
 			searchService.On("Type", stringMatcher(dependencyType)).Return(searchService)
 			searchService.On("Size", mock.Anything).Return(searchService)
 			searchService.On("Query", mock.Anything).Return(searchService)
+			searchService.On("IgnoreUnavailable", mock.AnythingOfType("bool")).Return(searchService)
 			searchService.On("Do", mock.Anything).Return(testCase.searchResult, testCase.searchError)
 
 			actual, err := r.storage.GetDependencies(fixedTime, 24*time.Hour)
@@ -179,20 +179,32 @@ func createSearchResult(dependencyLink string) *elastic.SearchResult {
 	return searchResult
 }
 
-func mockExistsService(r *depStorageTest) {
-	existsService := &mocks.IndicesExistsService{}
-	existsService.On("Do", mock.Anything).Return(true, nil)
-	r.client.On("IndexExists", mock.AnythingOfType("string")).Return(existsService)
-}
-
 func TestGetIndices(t *testing.T) {
-	withDepStorage(func(r *depStorageTest) {
-		mockExistsService(r)
-
-		fixedTime := time.Date(1995, time.April, 21, 4, 12, 19, 95, time.Local)
-		expected := []string{indexName(fixedTime), indexName(fixedTime.Add(-24 * time.Hour))}
-		assert.EqualValues(t, expected, r.storage.getIndices(fixedTime, 23*time.Hour)) // check 23 hours instead of 24 hours, because this should still give back two indices
-	})
+	fixedTime := time.Date(1995, time.April, 21, 4, 12, 19, 95, time.Local)
+	testCases := []struct {
+		expected []string
+		lookback time.Duration
+	}{
+		{
+			expected: []string{indexName(fixedTime), indexName(fixedTime.Add(-24 * time.Hour))},
+			lookback: 23 * time.Hour,
+		},
+		{
+			expected: []string{indexName(fixedTime), indexName(fixedTime.Add(-24 * time.Hour))},
+			lookback: 13 * time.Hour,
+		},
+		{
+			expected: []string{indexName(fixedTime)},
+			lookback: 1 * time.Hour,
+		},
+		{
+			expected: []string{indexName(fixedTime)},
+			lookback: 0,
+		},
+	}
+	for _, testCase := range testCases {
+		assert.EqualValues(t, testCase.expected, getIndices(fixedTime, testCase.lookback))
+	}
 }
 
 // stringMatcher can match a string argument when it contains a specific substring q

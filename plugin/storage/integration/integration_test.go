@@ -166,22 +166,17 @@ func (s *StorageIntegration) integrationTestFindTracesByQuery(t *testing.T, quer
 	require.NoError(t, s.writeTraces(expected))
 	require.NoError(t, s.refresh())
 
-	var found bool
 	var actual []*model.Trace
 	for i := 0; i < iterations; i++ {
 		s.logger.Info(fmt.Sprintf(waitForBackendComment, i+1, iterations))
 		actual, err = s.spanReader.FindTraces(query)
-		if err == nil {
-			if found = tracesMatch(actual, expected); found {
-				CompareSliceOfTraces(t, expected, actual)
-				break
-			}
+		if err == nil && tracesMatch(actual, expected) {
+			break
 		}
 		time.Sleep(100 * time.Millisecond)
 	}
-	if !assert.True(t, found) {
-		CompareSliceOfTraces(t, expected, actual)
-	}
+	CompareSliceOfTraces(t, expected, actual)
+
 	assert.NoError(t, s.cleanUp())
 }
 
