@@ -14,7 +14,9 @@ if [[ "$1" == "" ]]; then
     usage "no number of days specified"
 fi
 
+echo "Installing python dependencies required for curator..."
 pip install elasticsearch elasticsearch-curator
+echo ""
 BASEDIR=$(dirname "$0")
 cd $BASEDIR
 python esCleaner.py "$@"

@@ -16,6 +16,8 @@ def main():
     ilo.filter_by_age(source='name', direction='older', timestring='%Y-%m-%d', unit='days', unit_count=int(sys.argv[1]))
     empty_list(ilo, 'No indices to delete')
 
+    for index in ilo.working_list():
+        print "Removing", index
     delete_indices = curator.DeleteIndices(ilo)
     delete_indices.do_action()
 
