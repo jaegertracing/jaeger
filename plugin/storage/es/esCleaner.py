@@ -5,15 +5,15 @@ import sys
 
 def main():
     if len(sys.argv) == 1:
-        print('USAGE: %s HOSTNAME[:PORT] ...' % sys.argv[0])
+        print('USAGE: %s NUM_OF_DAYS HOSTNAME[:PORT] ...' % sys.argv[0])
         sys.exit(1)
 
-    client = elasticsearch.Elasticsearch(sys.argv[1:])
+    client = elasticsearch.Elasticsearch(sys.argv[2:])
 
     ilo = curator.IndexList(client)
     empty_list(ilo, 'ElasticSearch has no indices')
 
-    ilo.filter_by_age(source='name', direction='older', timestring='%Y-%m-%d', unit='days', unit_count=4)
+    ilo.filter_by_age(source='name', direction='older', timestring='%Y-%m-%d', unit='days', unit_count=int(sys.argv[1]))
     empty_list(ilo, 'No indices to delete')
 
     delete_indices = curator.DeleteIndices(ilo)
