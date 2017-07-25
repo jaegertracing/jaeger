@@ -12,7 +12,7 @@ def main():
 
     ilo = curator.IndexList(client)
     empty_list(ilo, 'ElasticSearch has no indices')
-
+    ilo.filter_by_regex(kind='prefix', value='jaeger-')
     ilo.filter_by_age(source='name', direction='older', timestring='%Y-%m-%d', unit='days', unit_count=int(sys.argv[1]))
     empty_list(ilo, 'No indices to delete')
 
