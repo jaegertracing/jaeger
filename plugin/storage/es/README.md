@@ -28,6 +28,16 @@ This is to be separated into two indices in the near future in preparation for E
 ElasticSearch schema used for Jaeger. This allows for better search capabilities and data retention. However, because
 ElasticSearch creates a new document for every nested field, there is currently a limit of 50 nested fields per document.
 
+## Limitations
+
+### Tag query over multiple spans
+Because each span is its own document in ElasticSearch, if a query has multiple tags that exist in different spans in the 
+same trace, the trace will not be retrieved.
+
+### Case-sensitivity
+Queries are case-sensitive. For example, if a document with service name `ABC` is searched using a query `abc`, 
+the document will not be retrieved.
+
 ## Testing
 To locally test the ElasticSearch storage plugin, run `make es-integration-test` in the top folder.
 
