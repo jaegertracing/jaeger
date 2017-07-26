@@ -24,9 +24,12 @@ The current commit has `span` and `service:operation` documents under the same i
 This is to be separated into two indices in the near future in preparation for ElasticSearch v6.0.
 
 
-## Testing this plugin
-To locally test the ElasticSearch storage plugin:
- * Set a local variable `ES_INTEGRATION_TEST` to a non-nil value
- * Run the `TestAll` test in `../integration/es_integration_test`
+## Testing
+To locally test the ElasticSearch storage plugin, run `make es-integration-test` in the top folder.
 
 All integration tests also run on pull request via Travis.
+
+### Adding tests
+Integration test framework for storage lie under `../integration`. 
+Add to `../integration/fixtures/traces/*.json` and `../integration/fixtures/queries.json` to add more
+trace cases.
