@@ -23,6 +23,10 @@ The conversion is done automatically.
 The current commit has `span` and `service:operation` documents under the same index for a given date.
 This is to be separated into two indices in the near future in preparation for ElasticSearch v6.0.
 
+### Nested fields (tags)
+`Tags` are [nested](https://www.elastic.co/guide/en/elasticsearch/reference/current/nested.html) fields in the 
+ElasticSearch schema used for Jaeger. This allows for better search capabilities and data retention. However, because
+ElasticSearch creates a new document for every nested field, there is currently a limit of 50 nested fields per document.
 
 ## Testing
 To locally test the ElasticSearch storage plugin, run `make es-integration-test` in the top folder.
