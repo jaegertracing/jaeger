@@ -147,13 +147,15 @@ func startCollector(logger *zap.Logger, baseFactory metrics.Factory, memoryStore
 }
 
 func startZipkinHTTPAPI(logger *zap.Logger, zipkinSpansHandler app.ZipkinSpansHandler, recoveryHandler func(http.Handler) http.Handler) {
-	r := mux.NewRouter()
-	collectorZipkin.NewAPIHandler(zipkinSpansHandler).RegisterRoutes(r)
-	httpPortStr := ":" + strconv.Itoa(*collector.CollectorZipkinHTTPPort)
-	logger.Info("Listening for Zipkin HTTP traffic", zap.Int("zipkin.http-port", *collector.CollectorZipkinHTTPPort))
+	if *collector.CollectorZipkinHTTPPort != 0 {
+		r := mux.NewRouter()
+		collectorZipkin.NewAPIHandler(zipkinSpansHandler).RegisterRoutes(r)
+		httpPortStr := ":" + strconv.Itoa(*collector.CollectorZipkinHTTPPort)
+		logger.Info("Listening for Zipkin HTTP traffic", zap.Int("zipkin.http-port", *collector.CollectorZipkinHTTPPort))
 
-	if err := http.ListenAndServe(httpPortStr, recoveryHandler(r)); err != nil {
-		logger.Fatal("Could not launch service", zap.Error(err))
+		if err := http.ListenAndServe(httpPortStr, recoveryHandler(r)); err != nil {
+			logger.Fatal("Could not launch service", zap.Error(err))
+		}
 	}
 }
 
