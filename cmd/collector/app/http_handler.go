@@ -35,7 +35,8 @@ import (
 )
 
 const (
-	formatParam               = "format"
+	formatParam = "format"
+	// UnableToReadBodyErrFormat is an error message for invalid requests
 	UnableToReadBodyErrFormat = "Unable to process request body: %v"
 )
 
@@ -89,6 +90,5 @@ func (aH *APIHandler) saveSpan(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	w.WriteHeader(http.StatusOK)
+	w.WriteHeader(http.StatusAccepted)
 }
-
