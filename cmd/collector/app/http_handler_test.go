@@ -68,7 +68,7 @@ func initializeTestServer(err error) (*httptest.Server, *APIHandler) {
 	return httptest.NewServer(r), handler
 }
 
-func TestJaegerFormat(t *testing.T) {
+func TestThriftFormat(t *testing.T) {
 	process := &jaeger.Process{
 		ServiceName: "serviceName",
 	}
@@ -96,11 +96,11 @@ func TestJaegerFormat(t *testing.T) {
 	assert.EqualValues(t, "Cannot submit Jaeger batch: Bad times ahead\n", resBodyStr)
 }
 
-func TestFormatsViaClient(t *testing.T) {
+func TestViaClient(t *testing.T) {
 	server, handler := initializeTestServer(nil)
 	defer server.Close()
 
-	jaegerSender := transport.NewHTTPTransport(
+	sender := transport.NewHTTPTransport(
 		server.URL+`/api/traces?format=jaeger.thrift`,
 		transport.HTTPBatchSize(1),
 	)
@@ -108,7 +108,7 @@ func TestFormatsViaClient(t *testing.T) {
 	tracer, closer := jaegerClient.NewTracer(
 		"test",
 		jaegerClient.NewConstSampler(true),
-		jaegerClient.NewRemoteReporter(jaegerSender),
+		jaegerClient.NewRemoteReporter(sender),
 	)
 	defer closer.Close()
 
@@ -130,7 +130,7 @@ func TestFormatsViaClient(t *testing.T) {
 	assert.Equal(t, 1, len(handler.jaegerBatchesHandler.(*mockJaegerHandler).getBatches()))
 }
 
-func TestJaegerFormatBadBody(t *testing.T) {
+func TestBadBody(t *testing.T) {
 	server, _ := initializeTestServer(nil)
 	defer server.Close()
 	bodyBytes := []byte("not good")
