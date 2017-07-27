@@ -28,9 +28,15 @@ import (
 
 // Client is an abstraction for elastic.Client
 type Client interface {
+	IndexExists(index string) IndicesExistsService
 	CreateIndex(index string) IndicesCreateService
 	Index() IndexService
 	Search(indices ...string) SearchService
+}
+
+// IndicesExistsService is an abstraction for elastic.IndicesExistsService
+type IndicesExistsService interface {
+	Do(ctx context.Context) (bool, error)
 }
 
 // IndicesCreateService is an abstraction for elastic.IndicesCreateService
