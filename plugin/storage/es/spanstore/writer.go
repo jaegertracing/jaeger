@@ -107,7 +107,7 @@ func (s *SpanWriter) WriteSpan(span *model.Span) error {
 
 func spanIndexName(span *model.Span) string {
 	spanDate := span.StartTime.Format("2006-01-02")
-	return "jaeger-" + spanDate
+	return indexPrefix + spanDate
 }
 
 func (s *SpanWriter) createIndex(indexName string, jsonSpan *jModel.Span) error {
