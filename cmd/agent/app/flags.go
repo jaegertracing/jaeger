@@ -41,11 +41,11 @@ const (
 var defaultProcessors = []struct {
 	model    model
 	protocol protocol
-	port     string
+	hostPort string
 }{
-	{model: "zipkin", protocol: "compact", port: ":5775"},
-	{model: "jaeger", protocol: "compact", port: ":6831"},
-	{model: "jaeger", protocol: "binary", port: ":6832"},
+	{model: "zipkin", protocol: "compact", hostPort: ":5775"},
+	{model: "jaeger", protocol: "compact", hostPort: ":6831"},
+	{model: "jaeger", protocol: "binary", hostPort: ":6832"},
 }
 
 // AddFlags adds flags for Builder.
@@ -55,7 +55,7 @@ func AddFlags(flags *flag.FlagSet) {
 		flags.Int(prefix+suffixWorkers, defaultServerWorkers, "how many workers the processor should run")
 		flags.Int(prefix+suffixServerQueueSize, defaultQueueSize, "length of the queue for the UDP server")
 		flags.Int(prefix+suffixServerMaxPacketSize, defaultMaxPacketSize, "max packet size for the UDP server")
-		flags.String(prefix+suffixServerHostPort, processor.port, "host:port for the UDP server")
+		flags.String(prefix+suffixServerHostPort, processor.hostPort, "host:port for the UDP server")
 	}
 	flags.String(
 		collectorHostPort,
