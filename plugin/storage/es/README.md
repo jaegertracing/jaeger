@@ -9,19 +9,16 @@ ElasticSearch also has no support for TTL, so there exists a script `./es_indice
 that deletes older indices automatically. The [Elastic Curator](https://www.elastic.co/guide/en/elasticsearch/client/curator/current/about.html)
 can also be used instead to do a similar job.
 
-#### Using `./es_indices_clean.sh`
+### Using `./es_indices_clean.sh`
 Parameters: 
  * a number that will delete any indices older than that number in days
  * ElasticSearch hostnames
+ * Example usage: `./es_indices_clean.sh 4 localhost:9200`
 
 ### Timestamps
 Because ElasticSearch's `Date` datatype has only millisecond granularity and Jaeger
 requires microsecond granularity, Jaeger spans' `StartTime` is saved as a long type.
 The conversion is done automatically.
-
-### Separation of Spans and Service:Operation Pairs
-The current commit has `span` and `service:operation` documents under the same index for a given date.
-This is to be separated into two indices in the near future in preparation for ElasticSearch v6.0.
 
 ### Nested fields (tags)
 `Tags` are [nested](https://www.elastic.co/guide/en/elasticsearch/reference/current/nested.html) fields in the 
@@ -30,9 +27,13 @@ ElasticSearch creates a new document for every nested field, there is currently 
 
 ## Limitations
 
+### Separation of Spans and Service:Operation Pairs
+The current commit has `span` and `service:operation` documents under the same index for a given date.
+This is to be separated into two indices in the near future in preparation for ElasticSearch v6.0. (#292)
+
 ### Tag query over multiple spans
-Because each span is its own document in ElasticSearch, if a query has multiple tags that exist in different spans in the 
-same trace, the trace will not be retrieved.
+This plugin queries against spans. This means that all tags in a query must lie under the same span for a
+query to successfully return a trace.
 
 ### Case-sensitivity
 Queries are case-sensitive. For example, if a document with service name `ABC` is searched using a query `abc`, 
