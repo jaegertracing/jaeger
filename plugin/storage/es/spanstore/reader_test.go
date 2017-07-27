@@ -81,6 +81,10 @@ var exampleESSpan = []byte(
 	   }
 	}`)
 
+var (
+	testDate = time.Date(2017, 07, 26, 2, 0, 0, 0, time.UTC)
+)
+
 type spanReaderTest struct {
 	client    *mocks.Client
 	logger    *zap.Logger
@@ -95,7 +99,9 @@ func withSpanReader(fn func(r *spanReaderTest)) {
 		client:    client,
 		logger:    logger,
 		logBuffer: logBuffer,
-		reader:    newSpanReader(client, logger, 72*time.Hour),
+		reader: newSpanReader(client, logger, 72*time.Hour, func() time.Time {
+			return testDate
+		}),
 	}
 	fn(r)
 }
@@ -142,7 +148,7 @@ func TestSpanReader_GetTraceQueryError(t *testing.T) {
 
 func TestSpanReader_GetTraceNoSpansError(t *testing.T) {
 	withSpanReader(func(r *spanReaderTest) {
-		hits := make([]*elastic.SearchHit, 0)
+		var hits []*elastic.SearchHit
 		searchHits := &elastic.SearchHits{Hits: hits}
 
 		mockSearchService(r).Return(&elastic.SearchResult{Hits: searchHits}, nil)

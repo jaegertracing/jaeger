@@ -91,14 +91,16 @@ type SpanReader struct {
 	// this will be rounded down to UTC 00:00 of that day.
 	maxLookback             time.Duration
 	serviceOperationStorage *ServiceOperationStorage
+
+	timeNow func() time.Time
 }
 
 // NewSpanReader returns a new SpanReader with a metrics.
 func NewSpanReader(client es.Client, logger *zap.Logger, maxLookback time.Duration, metricsFactory metrics.Factory) spanstore.Reader {
-	return storageMetrics.NewReadMetricsDecorator(newSpanReader(client, logger, maxLookback), metricsFactory)
+	return storageMetrics.NewReadMetricsDecorator(newSpanReader(client, logger, maxLookback, time.Now), metricsFactory)
 }
 
-func newSpanReader(client es.Client, logger *zap.Logger, maxLookback time.Duration) *SpanReader {
+func newSpanReader(client es.Client, logger *zap.Logger, maxLookback time.Duration, timeNow func() time.Time) *SpanReader {
 	ctx := context.Background()
 	return &SpanReader{
 		ctx:                     ctx,
@@ -106,12 +108,13 @@ func newSpanReader(client es.Client, logger *zap.Logger, maxLookback time.Durati
 		logger:                  logger,
 		maxLookback:             maxLookback,
 		serviceOperationStorage: NewServiceOperationStorage(ctx, client, metrics.NullFactory, logger, 0), // the decorator takes care of metrics
+		timeNow:                 timeNow,
 	}
 }
 
 // GetTrace takes a traceID and returns a Trace associated with that traceID
 func (s *SpanReader) GetTrace(traceID model.TraceID) (*model.Trace, error) {
-	currentTime := time.Now()
+	currentTime := s.timeNow()
 	return s.readTrace(
 		traceID.String(),
 		&spanstore.TraceQueryParameters{
@@ -124,6 +127,8 @@ func (s *SpanReader) GetTrace(traceID model.TraceID) (*model.Trace, error) {
 func (s *SpanReader) readTrace(traceID string, traceQuery *spanstore.TraceQueryParameters) (*model.Trace, error) {
 	query := elastic.NewTermQuery(traceIDField, traceID)
 
+	// NB. Add an hour in both directions so that traces that straddle two indexes are retrieved.
+	// ie starts in one and ends in another.
 	traceQuery.StartTimeMax = traceQuery.StartTimeMax.Add(time.Hour)
 	traceQuery.StartTimeMin = traceQuery.StartTimeMin.Add(-time.Hour)
 	indices := findIndices(traceQuery.StartTimeMin, traceQuery.StartTimeMax)
@@ -201,14 +206,14 @@ func IndexWithDate(date time.Time) string {
 
 // GetServices returns all services traced by Jaeger, ordered by frequency
 func (s *SpanReader) GetServices() ([]string, error) {
-	currentTime := time.Now()
+	currentTime := s.timeNow()
 	jaegerIndices := findIndices(currentTime.Add(-s.maxLookback), currentTime)
 	return s.serviceOperationStorage.getServices(jaegerIndices)
 }
 
 // GetOperations returns all operations for a specific service traced by Jaeger
 func (s *SpanReader) GetOperations(service string) ([]string, error) {
-	currentTime := time.Now()
+	currentTime := s.timeNow()
 	jaegerIndices := findIndices(currentTime.Add(-s.maxLookback), currentTime)
 	return s.serviceOperationStorage.getOperations(jaegerIndices, service)
 }
