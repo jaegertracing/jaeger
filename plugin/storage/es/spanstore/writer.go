@@ -115,6 +115,9 @@ func (s *SpanWriter) createIndex(indexName string, jsonSpan *jModel.Span) error 
 		start := time.Now()
 		exists, _ := s.client.IndexExists(indexName).Do(s.ctx) // don't need to check the error because the exists variable will be false anyway if there is an error
 		if !exists {
+			// if there are multiple collectors writing to the same elasticsearch host, if the collectors pass
+			// the exists check above and try to create the same index all at once, this might fail and
+			// drop a couple spans (~1 per collector). Creating indices ahead of time alleviates this issue.
 			_, err := s.client.CreateIndex(indexName).Body(spanMapping).Do(s.ctx)
 			s.writerMetrics.indexCreate.Emit(err, time.Since(start))
 			if err != nil {
