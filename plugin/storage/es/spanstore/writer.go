@@ -113,10 +113,13 @@ func spanIndexName(span *model.Span) string {
 func (s *SpanWriter) createIndex(indexName string, jsonSpan *jModel.Span) error {
 	if !keyInCache(indexName, s.indexCache) {
 		start := time.Now()
-		_, err := s.client.CreateIndex(indexName).Body(spanMapping).Do(s.ctx)
-		s.writerMetrics.indexCreate.Emit(err, time.Since(start))
-		if err != nil {
-			return s.logError(jsonSpan, err, "Failed to create index", s.logger)
+		exists, _ := s.client.IndexExists(indexName).Do(s.ctx) // don't need to check the error because the exists variable will be false anyway if there is an error
+		if !exists {
+			_, err := s.client.CreateIndex(indexName).Body(spanMapping).Do(s.ctx)
+			s.writerMetrics.indexCreate.Emit(err, time.Since(start))
+			if err != nil {
+				return s.logError(jsonSpan, err, "Failed to create index", s.logger)
+			}
 		}
 		writeCache(indexName, s.indexCache)
 	}
