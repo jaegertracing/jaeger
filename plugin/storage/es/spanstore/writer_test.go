@@ -60,7 +60,12 @@ func withSpanWriter(fn func(w *spanWriterTest)) {
 	fn(w)
 }
 
-var _ spanstore.Writer = &SpanWriter{} // check API conformance
+func TestNewSpanWriter(t *testing.T) {
+	withSpanWriter(func(w *spanWriterTest) {
+		var writer spanstore.Writer = w.writer
+		assert.NotNil(t, writer)
+	})
+}
 
 // This test behaves as a large test that checks WriteSpan's behavior as a whole.
 // Extra tests for individual functions are below.
@@ -165,6 +170,9 @@ func TestSpanWriter_WriteSpan(t *testing.T) {
 
 				indexName := "jaeger-1995-04-21"
 
+				existsService := &mocks.IndicesExistsService{}
+				existsService.On("Do", mock.AnythingOfType("*context.emptyCtx")).Return(testCase.indexExists, testCase.indexExistsError)
+
 				createService := &mocks.IndicesCreateService{}
 				createService.On("Body", stringMatcher(spanMapping)).Return(createService)
 				createService.On("Do", mock.AnythingOfType("*context.emptyCtx")).Return(testCase.createResult, testCase.createError)
@@ -186,6 +194,7 @@ func TestSpanWriter_WriteSpan(t *testing.T) {
 				indexSpanPut.On("BodyJson", mock.AnythingOfType("*json.Span")).Return(indexSpanPut)
 				indexSpanPut.On("Do", mock.AnythingOfType("*context.emptyCtx")).Return(testCase.putResult, testCase.spanPutError)
 
+				w.client.On("IndexExists", stringMatcher(indexName)).Return(existsService)
 				w.client.On("CreateIndex", stringMatcher(indexName)).Return(createService)
 				w.client.On("Index").Return(indexService)
 
@@ -230,7 +239,7 @@ func TestCheckAndCreateIndex(t *testing.T) {
 		expectedLogs     []string
 	}{
 		{
-			indexExists:  true,
+			indexExists:  false,
 			createResult: &elastic.IndicesCreateResult{},
 		},
 		{
@@ -247,11 +256,15 @@ func TestCheckAndCreateIndex(t *testing.T) {
 	for _, tc := range testCases {
 		testCase := tc
 		withSpanWriter(func(w *spanWriterTest) {
+			existsService := &mocks.IndicesExistsService{}
+			existsService.On("Do", mock.AnythingOfType("*context.emptyCtx")).Return(testCase.indexExists, testCase.indexExistsError)
+
 			createService := &mocks.IndicesCreateService{}
 			createService.On("Body", stringMatcher(spanMapping)).Return(createService)
 			createService.On("Do", mock.AnythingOfType("*context.emptyCtx")).Return(testCase.createResult, testCase.createError)
 
 			indexName := "jaeger-1995-04-21"
+			w.client.On("IndexExists", stringMatcher(indexName)).Return(existsService)
 			w.client.On("CreateIndex", stringMatcher(indexName)).Return(createService)
 
 			jsonSpan := &json.Span{

@@ -61,6 +61,22 @@ func (_m *Client) Index() es.IndexService {
 	return r0
 }
 
+// IndexExists provides a mock function with given fields: index
+func (_m *Client) IndexExists(index string) es.IndicesExistsService {
+	ret := _m.Called(index)
+
+	var r0 es.IndicesExistsService
+	if rf, ok := ret.Get(0).(func(string) es.IndicesExistsService); ok {
+		r0 = rf(index)
+	} else {
+		if ret.Get(0) != nil {
+			r0 = ret.Get(0).(es.IndicesExistsService)
+		}
+	}
+
+	return r0
+}
+
 // Search provides a mock function with given fields: indices
 func (_m *Client) Search(indices ...string) es.SearchService {
 	_va := make([]interface{}, len(indices))
