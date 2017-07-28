@@ -163,6 +163,7 @@ func (s *SpanReader) executeQuery(query elastic.Query, indices ...string) ([]*el
 	searchService, err := s.client.Search(indices...).
 		Type(spanType).
 		Query(query).
+		Size(defaultDocCount).
 		IgnoreUnavailable(true).
 		Do(s.ctx)
 	if err != nil {
@@ -346,7 +347,14 @@ func (s *SpanReader) findTraceIDs(traceQuery *spanstore.TraceQueryParameters) ([
 func (s *SpanReader) buildTraceIDAggregation(numOfTraces int) elastic.Aggregation {
 	return elastic.NewTermsAggregation().
 		Size(numOfTraces).
-		Field(traceIDField)
+		Field(traceIDField).
+		Order(startTimeField, false).
+		SubAggregation(startTimeField, s.buildTraceIDSubAggregation())
+}
+
+func (s *SpanReader) buildTraceIDSubAggregation() elastic.Aggregation {
+	return elastic.NewMaxAggregation().
+		Field(startTimeField)
 }
 
 func (s *SpanReader) buildFindTraceIDsQuery(traceQuery *spanstore.TraceQueryParameters) elastic.Query {
