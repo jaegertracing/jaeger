@@ -516,7 +516,7 @@ func mockSearchService(r *spanReaderTest) *mock.Call {
 	searchService.On("Query", mock.Anything).Return(searchService)
 	searchService.On("IgnoreUnavailable", mock.AnythingOfType("bool")).Return(searchService)
 	searchService.On("Size", mock.MatchedBy(func(i int) bool {
-		return i == 0
+		return i == 0 || i == defaultDocCount
 	})).Return(searchService)
 	searchService.On("Aggregation", stringMatcher(servicesAggregation), mock.AnythingOfType("*elastic.TermsAggregation")).Return(searchService)
 	searchService.On("Aggregation", stringMatcher(operationsAggregation), mock.AnythingOfType("*elastic.TermsAggregation")).Return(searchService)
@@ -563,7 +563,16 @@ func TestTraceQueryParameterValidation(t *testing.T) {
 }
 
 func TestSpanReader_buildTraceIDAggregation(t *testing.T) {
-	expectedStr := `{ "terms": { "size": 123, "field": "` + traceIDField + `" }}`
+	expectedStr := `{ "terms":{
+            "field":"traceID",
+            "size":123,
+            "order":{
+               "startTime":"desc"
+            }
+         },
+         "aggregations": {
+            "startTime" : { "max": {"field": "startTime"}}
+         }}`
 	withSpanReader(func(r *spanReaderTest) {
 		traceIDAggregation := r.reader.buildTraceIDAggregation(123)
 		actual, err := traceIDAggregation.Source()
@@ -572,6 +581,7 @@ func TestSpanReader_buildTraceIDAggregation(t *testing.T) {
 		expected := make(map[string]interface{})
 		json.Unmarshal([]byte(expectedStr), &expected)
 		expected["terms"].(map[string]interface{})["size"] = 123
+		expected["terms"].(map[string]interface{})["order"] = []interface{}{map[string]string{"startTime": "desc"}}
 		assert.EqualValues(t, expected, actual)
 	})
 }
