@@ -38,4 +38,6 @@ var (
 	CollectorPort = flag.Int("collector.port", 14267, "The tchannel port for the collector service")
 	// CollectorHTTPPort is the port that the collector service listens in on for http requests
 	CollectorHTTPPort = flag.Int("collector.http-port", 14268, "The http port for the collector service")
+	// CollectorZipkinHTTPPort is the port that the Zipkin collector service listens in on for http requests
+	CollectorZipkinHTTPPort = flag.Int("collector.zipkin.http-port", 0, "The http port for the Zipkin collector service e.g. 9411")
 )

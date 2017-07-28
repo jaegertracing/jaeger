@@ -40,6 +40,7 @@ import (
 	basicB "github.com/uber/jaeger/cmd/builder"
 	"github.com/uber/jaeger/cmd/collector/app"
 	"github.com/uber/jaeger/cmd/collector/app/builder"
+	"github.com/uber/jaeger/cmd/collector/app/zipkin"
 	casFlags "github.com/uber/jaeger/cmd/flags/cassandra"
 )
 
@@ -83,12 +84,27 @@ func main() {
 	ch.Serve(listener)
 
 	r := mux.NewRouter()
-	apiHandler := app.NewAPIHandler(jaegerBatchesHandler, zipkinSpansHandler)
-	apiHandler.RegisterRoutes(r)
+	app.NewAPIHandler(jaegerBatchesHandler).RegisterRoutes(r)
 	httpPortStr := ":" + strconv.Itoa(*builder.CollectorHTTPPort)
 	recoveryHandler := recoveryhandler.NewRecoveryHandler(logger, true)
+
+	go startZipkinHTTPAPI(logger, zipkinSpansHandler, recoveryHandler)
+
 	logger.Info("Listening for HTTP traffic", zap.Int("http-port", *builder.CollectorHTTPPort))
 	if err := http.ListenAndServe(httpPortStr, recoveryHandler(r)); err != nil {
 		logger.Fatal("Could not launch service", zap.Error(err))
+	}
+}
+
+func startZipkinHTTPAPI(logger *zap.Logger, zipkinSpansHandler app.ZipkinSpansHandler, recoveryHandler func(http.Handler) http.Handler) {
+	if *builder.CollectorZipkinHTTPPort != 0 {
+		r := mux.NewRouter()
+		zipkin.NewAPIHandler(zipkinSpansHandler).RegisterRoutes(r)
+		httpPortStr := ":" + strconv.Itoa(*builder.CollectorZipkinHTTPPort)
+		logger.Info("Listening for Zipkin HTTP traffic", zap.Int("zipkin.http-port", *builder.CollectorZipkinHTTPPort))
+
+		if err := http.ListenAndServe(httpPortStr, recoveryHandler(r)); err != nil {
+			logger.Fatal("Could not launch service", zap.Error(err))
+		}
 	}
 }

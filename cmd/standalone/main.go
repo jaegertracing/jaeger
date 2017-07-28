@@ -43,8 +43,9 @@ import (
 
 	agentApp "github.com/uber/jaeger/cmd/agent/app"
 	basic "github.com/uber/jaeger/cmd/builder"
-	collectorApp "github.com/uber/jaeger/cmd/collector/app"
+	"github.com/uber/jaeger/cmd/collector/app"
 	collector "github.com/uber/jaeger/cmd/collector/app/builder"
+	collectorZipkin "github.com/uber/jaeger/cmd/collector/app/zipkin"
 	queryApp "github.com/uber/jaeger/cmd/query/app"
 	query "github.com/uber/jaeger/cmd/query/app/builder"
 	pMetrics "github.com/uber/jaeger/pkg/metrics"
@@ -132,16 +133,30 @@ func startCollector(logger *zap.Logger, baseFactory metrics.Factory, memoryStore
 	logger.Info("Starting jaeger-collector TChannel server", zap.Int("port", *collector.CollectorPort))
 
 	r := mux.NewRouter()
-	apiHandler := collectorApp.NewAPIHandler(jaegerBatchesHandler, zipkinSpansHandler)
-	apiHandler.RegisterRoutes(r)
 	httpPortStr := ":" + strconv.Itoa(*collector.CollectorHTTPPort)
 	recoveryHandler := recoveryhandler.NewRecoveryHandler(logger, true)
+
+	go startZipkinHTTPAPI(logger, zipkinSpansHandler, recoveryHandler)
+
 	logger.Info("Starting jaeger-collector HTTP server", zap.Int("http-port", *collector.CollectorHTTPPort))
 	go func() {
 		if err := http.ListenAndServe(httpPortStr, recoveryHandler(r)); err != nil {
 			logger.Fatal("Could not launch jaeger-collector HTTP server", zap.Error(err))
 		}
 	}()
+}
+
+func startZipkinHTTPAPI(logger *zap.Logger, zipkinSpansHandler app.ZipkinSpansHandler, recoveryHandler func(http.Handler) http.Handler) {
+	if *collector.CollectorZipkinHTTPPort != 0 {
+		r := mux.NewRouter()
+		collectorZipkin.NewAPIHandler(zipkinSpansHandler).RegisterRoutes(r)
+		httpPortStr := ":" + strconv.Itoa(*collector.CollectorZipkinHTTPPort)
+		logger.Info("Listening for Zipkin HTTP traffic", zap.Int("zipkin.http-port", *collector.CollectorZipkinHTTPPort))
+
+		if err := http.ListenAndServe(httpPortStr, recoveryHandler(r)); err != nil {
+			logger.Fatal("Could not launch service", zap.Error(err))
+		}
+	}
 }
 
 func startQuery(logger *zap.Logger, baseFactory metrics.Factory, memoryStore *memory.Store) {
