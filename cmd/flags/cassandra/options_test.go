@@ -21,13 +21,12 @@
 package cassandra
 
 import (
-	"flag"
 	"testing"
 	"time"
 
-	"github.com/spf13/cobra"
-	"github.com/spf13/viper"
 	"github.com/stretchr/testify/assert"
+
+	"github.com/uber/jaeger/pkg/config"
 )
 
 func TestOptions(t *testing.T) {
@@ -45,12 +44,7 @@ func TestOptions(t *testing.T) {
 
 func TestOptionsWithFlags(t *testing.T) {
 	opts := NewOptions("cas", "cas.aux")
-	v := viper.New()
-	command := &cobra.Command{}
-	flagSet := &flag.FlagSet{}
-	opts.AddFlags(flagSet)
-	command.PersistentFlags().AddGoFlagSet(flagSet)
-	v.BindPFlags(command.PersistentFlags())
+	v, command := config.Viperize(opts.AddFlags)
 	command.ParseFlags([]string{
 		"--cas.keyspace=jaeger",
 		"--cas.servers=1.1.1.1,2.2.2.2",
@@ -64,7 +58,6 @@ func TestOptionsWithFlags(t *testing.T) {
 		"--cas.aux.keyspace=jaeger-archive",
 		"--cas.aux.servers=3.3.3.3,4.4.4.4",
 	})
-
 	opts.InitFromViper(v)
 
 	primary := opts.GetPrimary()
