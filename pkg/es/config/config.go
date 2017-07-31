@@ -36,6 +36,7 @@ type Configuration struct {
 	Password   string
 	Sniffer    bool          // https://github.com/olivere/elastic/wiki/Sniffing
 	MaxSpanAge time.Duration // configures the maximum lookback on span reads
+	Timeframe  time.Duration // configures how large in duration each index is
 }
 
 // NewClient creates a new ElasticSearch client
