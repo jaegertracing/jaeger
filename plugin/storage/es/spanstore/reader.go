@@ -238,19 +238,37 @@ func (s *SpanReader) FindTraces(traceQuery *spanstore.TraceQueryParameters) ([]*
 	if err != nil {
 		return nil, err
 	}
-	var retMe []*model.Trace
-	for _, traceID := range uniqueTraceIDs {
-		if len(retMe) >= traceQuery.NumTraces {
-			break
-		}
-		trace, err := s.readTrace(traceID, traceQuery)
-		if err != nil {
-			s.logger.Error("Failure to read trace", zap.String("trace_id", string(traceID)), zap.Error(err))
-			continue
-		}
-		retMe = append(retMe, trace)
+	return s.multiRead(uniqueTraceIDs, traceQuery)
+}
+
+func (s *SpanReader) multiRead(traceIDs []string, traceQuery *spanstore.TraceQueryParameters) ([]*model.Trace, error) {
+	searchRequests := make([]*elastic.SearchRequest, len(traceIDs))
+
+	for i := range searchRequests {
+		query := elastic.NewTermQuery("traceID", traceIDs[i])
+		searchRequests[i] = elastic.NewSearchRequest().IgnoreUnavailable(true).Type("span").
+			Source(elastic.NewSearchSource().Query(query).Size(10000))
 	}
-	return retMe, nil
+
+	indices := findIndices(traceQuery.StartTimeMin.Add(-time.Hour), traceQuery.StartTimeMax.Add(time.Hour))
+
+	results, err := s.client.MultiSearch().
+		Add(searchRequests...).
+		Index(indices...).
+		Do(s.ctx)
+	if err != nil {
+		return nil, err
+	}
+
+	var traces []*model.Trace
+	for _, result := range results.Responses {
+		spans, err := s.collectSpans(result.Hits.Hits)
+		if err != nil {
+			return nil, err
+		}
+		traces = append(traces, &model.Trace{Spans: spans})
+	}
+	return traces, nil
 }
 
 func validateQuery(p *spanstore.TraceQueryParameters) error {

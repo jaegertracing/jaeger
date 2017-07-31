@@ -58,6 +58,11 @@ func (c ESClient) Search(indices ...string) SearchService {
 	return WrapESSearchService(c.client.Search(indices...))
 }
 
+// MultiSearch calls this function to internal client.
+func (c ESClient) MultiSearch() MultiSearchService {
+	return WrapESMultiSearchService(c.client.MultiSearch())
+}
+
 // ---
 
 // ESIndicesExistsService is a wrapper around elastic.IndicesExistsService
@@ -174,4 +179,29 @@ func (s ESSearchService) Query(query elastic.Query) SearchService {
 // Do calls this function to internal service.
 func (s ESSearchService) Do(ctx context.Context) (*elastic.SearchResult, error) {
 	return s.searchService.Do(ctx)
+}
+
+// ESMultiSearchService is a wrapper around elastic.ESMultiSearchService
+type ESMultiSearchService struct {
+	multiSearchService *elastic.MultiSearchService
+}
+
+// WrapESSearchService creates an ESSearchService out of *elastic.ESSearchService.
+func WrapESMultiSearchService(multiSearchService *elastic.MultiSearchService) ESMultiSearchService {
+	return ESMultiSearchService{multiSearchService: multiSearchService}
+}
+
+// Add calls this function to internal service.
+func (s ESMultiSearchService) Add(requests ...*elastic.SearchRequest) MultiSearchService {
+	return WrapESMultiSearchService(s.multiSearchService.Add(requests...))
+}
+
+// Index calls this function to internal service.
+func (s ESMultiSearchService) Index(indices ...string) MultiSearchService {
+	return WrapESMultiSearchService(s.multiSearchService.Index(indices...))
+}
+
+// Do calls this function to internal service.
+func (s ESMultiSearchService) Do(ctx context.Context) (*elastic.MultiSearchResult, error) {
+	return s.multiSearchService.Do(ctx)
 }
