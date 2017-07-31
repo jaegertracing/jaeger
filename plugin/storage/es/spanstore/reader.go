@@ -242,6 +242,9 @@ func (s *SpanReader) FindTraces(traceQuery *spanstore.TraceQueryParameters) ([]*
 }
 
 func (s *SpanReader) multiRead(traceIDs []string, traceQuery *spanstore.TraceQueryParameters) ([]*model.Trace, error) {
+	if len(traceIDs) == 0 {
+		return []*model.Trace{}, nil
+	}
 	searchRequests := make([]*elastic.SearchRequest, len(traceIDs))
 
 	for i := range searchRequests {
