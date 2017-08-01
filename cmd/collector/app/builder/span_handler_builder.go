@@ -50,7 +50,7 @@ type SpanHandlerBuilder struct {
 	logger         *zap.Logger
 	metricsFactory metrics.Factory
 	collectorOpts  *CollectorOptions
-	storageBuilder storageBuilder
+	spanWriter     spanstore.Writer
 }
 
 type storageBuilder func() (spanstore.Writer, error)
@@ -65,59 +65,55 @@ func NewSpanHandlerBuilder(cOpts *CollectorOptions, sFlags *flags.SharedFlags, o
 		metricsFactory: options.MetricsFactory,
 	}
 
+	var err error
 	if sFlags.SpanStorage.Type == flags.CassandraStorageType {
 		if options.Cassandra == nil {
 			return nil, errMissingCassandraConfig
 		}
-		spanHb.storageBuilder = spanHb.initCassStore(options.Cassandra)
+		spanHb.spanWriter, err = spanHb.initCassStore(options.Cassandra)
 	} else if sFlags.SpanStorage.Type == flags.MemoryStorageType {
 		if options.MemoryStore == nil {
 			return nil, errMissingMemoryStore
 		}
-		spanHb.storageBuilder = func() (spanstore.Writer, error) {
-			return options.MemoryStore, nil
-		}
+		spanHb.spanWriter = options.MemoryStore
 	} else if sFlags.SpanStorage.Type == flags.ESStorageType {
 		if options.ElasticSearch == nil {
 			return nil, errMissingElasticSearchConfig
 		}
-		spanHb.storageBuilder = spanHb.initElasticStore(options.ElasticSearch)
+		spanHb.spanWriter, err = spanHb.initElasticStore(options.ElasticSearch)
 	} else {
 		return nil, flags.ErrUnsupportedStorageType
+	}
+
+	if err != nil {
+		return nil, err
 	}
 
 	return spanHb, nil
 }
 
-func (spanHb *SpanHandlerBuilder) initCassStore(config cascfg.SessionBuilder) func() (spanstore.Writer, error) {
-	return func() (spanstore.Writer, error) {
-		session, err := config.NewSession()
-		if err != nil {
-			return nil, err
-		}
-
-		store := casSpanstore.NewSpanWriter(
-			session,
-			spanHb.collectorOpts.WriteCacheTTL,
-			spanHb.metricsFactory,
-			spanHb.logger,
-		)
-
-		return store, nil
+func (spanHb *SpanHandlerBuilder) initCassStore(config cascfg.SessionBuilder) (spanstore.Writer, error) {
+	session, err := config.NewSession()
+	if err != nil {
+		return nil, err
 	}
+
+	store := casSpanstore.NewSpanWriter(
+		session,
+		spanHb.collectorOpts.WriteCacheTTL,
+		spanHb.metricsFactory,
+		spanHb.logger,
+	)
+	return store, nil
 }
 
-func (spanHb *SpanHandlerBuilder) initElasticStore(config escfg.ClientBuilder) func() (spanstore.Writer, error) {
-	return func() (spanstore.Writer, error) {
-		client, err := config.NewClient()
-		if err != nil {
-			return nil, err
-		}
-
-		store := esSpanstore.NewSpanWriter(client, spanHb.logger, spanHb.metricsFactory)
-
-		return store, nil
+func (spanHb *SpanHandlerBuilder) initElasticStore(config escfg.ClientBuilder) (spanstore.Writer, error) {
+	client, err := config.NewClient()
+	if err != nil {
+		return nil, err
 	}
+
+	return esSpanstore.NewSpanWriter(client, spanHb.logger, spanHb.metricsFactory), nil
 }
 
 // BuildHandlers builds span handlers (Zipkin, Jaeger)
@@ -130,13 +126,8 @@ func (spanHb *SpanHandlerBuilder) BuildHandlers() (app.ZipkinSpansHandler, app.J
 		zs.NewParentIDSanitizer(spanHb.logger),
 	)
 
-	spanWriter, err := spanHb.storageBuilder()
-	if err != nil {
-		return nil, nil, err
-	}
-
 	spanProcessor := app.NewSpanProcessor(
-		spanWriter,
+		spanHb.spanWriter,
 		app.Options.ServiceMetrics(spanHb.metricsFactory),
 		app.Options.HostMetrics(hostMetrics),
 		app.Options.Logger(spanHb.logger),

@@ -21,11 +21,11 @@
 package builder
 
 import (
-	"fmt"
 	"testing"
 
+	"github.com/gocql/gocql"
 	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/require"
+	//"github.com/stretchr/testify/require"
 	"go.uber.org/zap"
 
 	"github.com/uber/jaeger-lib/metrics"
@@ -35,6 +35,8 @@ import (
 	cascfg "github.com/uber/jaeger/pkg/cassandra/config"
 	"github.com/uber/jaeger/pkg/cassandra/mocks"
 	"github.com/uber/jaeger/pkg/config"
+	//"github.com/uber/jaeger/pkg/es"
+	"github.com/stretchr/testify/require"
 	"github.com/uber/jaeger/pkg/es"
 	escfg "github.com/uber/jaeger/pkg/es/config"
 	esMocks "github.com/uber/jaeger/pkg/es/mocks"
@@ -57,8 +59,9 @@ func TestNewSpanHandlerBuilder(t *testing.T) {
 			Servers: []string{"127.0.0.1"},
 		}),
 	)
-	assert.NoError(t, err)
-	assert.NotNil(t, handler)
+	assert.Error(t, err)
+	assert.Equal(t, gocql.ErrNoConnectionsStarted, err)
+	assert.Nil(t, handler)
 }
 
 func TestNewSpanHandlerBuilderCassandraNotConfigured(t *testing.T) {
@@ -68,6 +71,7 @@ func TestNewSpanHandlerBuilderCassandraNotConfigured(t *testing.T) {
 
 	handler, err := NewSpanHandlerBuilder(cOpts, sFlags)
 	assert.Error(t, err)
+	assert.Equal(t, "Cassandra not configured", err.Error())
 	assert.Nil(t, handler)
 }
 
@@ -103,7 +107,7 @@ func TestNewSpanHandlerBuilderMemorySet(t *testing.T) {
 	assert.NoError(t, err)
 	assert.NotNil(t, handler)
 	jHandler, zHandler, err := handler.BuildHandlers()
-	assert.NoError(t, err)
+	require.NoError(t, err)
 	assert.NotNil(t, jHandler)
 	assert.NotNil(t, zHandler)
 }
@@ -114,16 +118,13 @@ func TestNewSpanHandlerBuilderElasticSearch(t *testing.T) {
 	sFlags := new(flags.SharedFlags).InitFromViper(v)
 	cOpts := new(CollectorOptions).InitFromViper(v)
 
-	fmt.Println(sFlags.SpanStorage.Type)
-	handler, err := NewSpanHandlerBuilder(
+	_, err := NewSpanHandlerBuilder(
 		cOpts,
 		sFlags,
 		builder.Options.LoggerOption(zap.NewNop()),
 		builder.Options.ElasticSearchOption(&escfg.Configuration{}),
 	)
-	handler.BuildHandlers()
-	assert.NoError(t, err)
-	assert.NotNil(t, handler)
+	assert.Error(t, err)
 }
 
 func TestNewSpanHandlerBuilderElasticSearchFailure(t *testing.T) {
@@ -160,8 +161,10 @@ func (at *mockSessionBuilder) NewSession() (cassandra.Session, error) {
 
 func TestBuildHandlersCassandra(t *testing.T) {
 	withBuilder(func(builder *SpanHandlerBuilder) {
-		sBuilder := builder.initCassStore(new(mockSessionBuilder))
-		builder.storageBuilder = sBuilder
+		var err error
+		builder.spanWriter, err = builder.initCassStore(new(mockSessionBuilder))
+		require.NoError(t, err)
+
 		zHandler, jHandler, err := builder.BuildHandlers()
 		require.NoError(t, err)
 		assert.NotNil(t, zHandler)
@@ -174,7 +177,7 @@ func TestBuildHandlersCassandraFailure(t *testing.T) {
 		cfg := &cascfg.Configuration{
 			Servers: []string{"badhostname"},
 		}
-		_, err := cBuilder.initCassStore(cfg)()
+		_, err := cBuilder.initCassStore(cfg)
 		assert.Error(t, err)
 	})
 }
@@ -188,7 +191,11 @@ func (mck *MockEsBuilder) NewClient() (es.Client, error) {
 
 func TestBuildHandlersElasticSearch(t *testing.T) {
 	withBuilder(func(builder *SpanHandlerBuilder) {
-		builder.storageBuilder = builder.initElasticStore(&MockEsBuilder{})
+		spanWriter, err := builder.initElasticStore(&MockEsBuilder{})
+		require.NoError(t, err)
+		require.NotNil(t, spanWriter)
+
+		builder.spanWriter = spanWriter
 		zHandler, jHandler, err := builder.BuildHandlers()
 		assert.NoError(t, err)
 		assert.NotNil(t, zHandler)
@@ -198,10 +205,8 @@ func TestBuildHandlersElasticSearch(t *testing.T) {
 
 func TestBuildHandlersElasticSearchFailure(t *testing.T) {
 	withBuilder(func(builder *SpanHandlerBuilder) {
-		builder.storageBuilder = builder.initElasticStore(&escfg.Configuration{})
-		zHandler, jHandler, err := builder.BuildHandlers()
+		spanWriter, err := builder.initElasticStore(&escfg.Configuration{})
 		assert.Error(t, err)
-		assert.Nil(t, zHandler)
-		assert.Nil(t, jHandler)
+		assert.Nil(t, spanWriter)
 	})
 }
