@@ -40,7 +40,7 @@ import (
 )
 
 const (
-	spanIndexPrefix = "jaeger-span-"
+	spanIndexPrefix    = "jaeger-span-"
 	serviceIndexPrefix = "jaeger-service-"
 	traceIDAggregation = "traceIDs"
 

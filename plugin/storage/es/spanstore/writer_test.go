@@ -70,7 +70,7 @@ func TestSpanWriter_WriteSpan(t *testing.T) {
 		serviceIndexExists      bool
 		spanIndexExists         bool
 		serviceIndexCreateError error
-		spanIndexCreateError error
+		spanIndexCreateError    error
 		servicePutError         error
 		spanPutError            error
 		expectedError           string
@@ -79,8 +79,8 @@ func TestSpanWriter_WriteSpan(t *testing.T) {
 		{
 			caption: "index exists query",
 
-			serviceIndexExists:  true,
-			spanIndexExists: true,
+			serviceIndexExists: true,
+			spanIndexExists:    true,
 
 			expectedError: "",
 			expectedLogs:  []string{},
@@ -88,7 +88,7 @@ func TestSpanWriter_WriteSpan(t *testing.T) {
 		{
 			caption: "index dne/creation query",
 
-			serviceIndexExists:  false,
+			serviceIndexExists: false,
 
 			expectedError: "",
 			expectedLogs:  []string{},
@@ -96,10 +96,10 @@ func TestSpanWriter_WriteSpan(t *testing.T) {
 		{
 			caption: "index creation error",
 
-			serviceIndexExists:  false,
+			serviceIndexExists: false,
 
-			serviceIndexCreateError:   errors.New("index creation error"),
-			expectedError: "Failed to create index: index creation error",
+			serviceIndexCreateError: errors.New("index creation error"),
+			expectedError:           "Failed to create index: index creation error",
 			expectedLogs: []string{
 				`"msg":"Failed to create index"`,
 				`"trace_id":"1"`,
@@ -110,7 +110,7 @@ func TestSpanWriter_WriteSpan(t *testing.T) {
 		{
 			caption: "service insertion error",
 
-			serviceIndexExists:  false,
+			serviceIndexExists: false,
 
 			servicePutError: errors.New("service insertion error"),
 			expectedError:   "Failed to insert service:operation: service insertion error",
@@ -124,7 +124,7 @@ func TestSpanWriter_WriteSpan(t *testing.T) {
 		{
 			caption: "span insertion error",
 
-			serviceIndexExists:  false,
+			serviceIndexExists: false,
 
 			spanPutError:  errors.New("span insertion error"),
 			expectedError: "Failed to insert span: span insertion error",
@@ -138,11 +138,11 @@ func TestSpanWriter_WriteSpan(t *testing.T) {
 		{
 			caption: "span index dne error",
 
-			serviceIndexExists:  true,
-			spanIndexExists: false,
+			serviceIndexExists: true,
+			spanIndexExists:    false,
 
-			spanIndexCreateError:  errors.New("span index creation error"),
-			expectedError: "Failed to create index: span index creation error",
+			spanIndexCreateError: errors.New("span index creation error"),
+			expectedError:        "Failed to create index: span index creation error",
 			expectedLogs: []string{
 				`"msg":"Failed to create index"`,
 				`"trace_id":"1"`,
@@ -184,9 +184,6 @@ func TestSpanWriter_WriteSpan(t *testing.T) {
 				spanCreateService := &mocks.IndicesCreateService{}
 				spanCreateService.On("Body", stringMatcher(spanMapping)).Return(spanCreateService)
 				spanCreateService.On("Do", mock.AnythingOfType("*context.emptyCtx")).Return(nil, testCase.spanIndexCreateError)
-
-
-
 
 				indexService := &mocks.IndexService{}
 				indexServicePut := &mocks.IndexService{}
