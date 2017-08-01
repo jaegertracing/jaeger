@@ -117,6 +117,12 @@ func TestSpanReader_GetTrace(t *testing.T) {
 		searchHits := &elastic.SearchHits{Hits: hits}
 
 		mockSearchService(r).Return(&elastic.SearchResult{Hits: searchHits}, nil)
+		mockMultiSearchService(r).
+			Return(&elastic.MultiSearchResult{
+			Responses: []*elastic.SearchResult{
+				{Hits: searchHits},
+			},
+		}, nil)
 
 		trace, err := r.reader.GetTrace(model.TraceID{Low: 1})
 		require.NoError(t, err)
@@ -134,21 +140,31 @@ func TestSpanReader_GetTraceQueryError(t *testing.T) {
 	withSpanReader(func(r *spanReaderTest) {
 		mockSearchService(r).
 			Return(nil, errors.New("query error occurred"))
+		mockMultiSearchService(r).
+			Return(&elastic.MultiSearchResult{
+			Responses: []*elastic.SearchResult{},
+		}, nil)
 		trace, err := r.reader.GetTrace(model.TraceID{Low: 1})
-		require.EqualError(t, err, "Query execution failed: query error occurred")
+		require.EqualError(t, err, "No trace with that ID found")
 		require.Nil(t, trace)
 	})
 }
 
-func TestSpanReader_GetTraceNoSpansError(t *testing.T) {
+func TestSpanReader_GetTraceNilHitsError(t *testing.T) {
 	withSpanReader(func(r *spanReaderTest) {
 		hits := make([]*elastic.SearchHit, 0)
 		searchHits := &elastic.SearchHits{Hits: hits}
 
 		mockSearchService(r).Return(&elastic.SearchResult{Hits: searchHits}, nil)
+		mockMultiSearchService(r).
+			Return(&elastic.MultiSearchResult{
+			Responses: []*elastic.SearchResult{
+				{Hits: nil},
+			},
+		}, nil)
 
 		trace, err := r.reader.GetTrace(model.TraceID{Low: 1})
-		require.EqualError(t, err, "trace not found")
+		require.EqualError(t, err, "No hits in read results found")
 		require.Nil(t, trace)
 	})
 }
@@ -163,6 +179,12 @@ func TestSpanReader_GetTraceInvalidSpanError(t *testing.T) {
 		searchHits := &elastic.SearchHits{Hits: hits}
 
 		mockSearchService(r).Return(&elastic.SearchResult{Hits: searchHits}, nil)
+		mockMultiSearchService(r).
+			Return(&elastic.MultiSearchResult{
+			Responses: []*elastic.SearchResult{
+				{Hits: searchHits},
+			},
+		}, nil)
 
 		trace, err := r.reader.GetTrace(model.TraceID{Low: 1})
 		require.Error(t, err, "invalid span")
@@ -181,37 +203,16 @@ func TestSpanReader_GetTraceSpanConversionError(t *testing.T) {
 		searchHits := &elastic.SearchHits{Hits: hits}
 
 		mockSearchService(r).Return(&elastic.SearchResult{Hits: searchHits}, nil)
+		mockMultiSearchService(r).
+			Return(&elastic.MultiSearchResult{
+			Responses: []*elastic.SearchResult{
+				{Hits: searchHits},
+			},
+		}, nil)
 
 		trace, err := r.reader.GetTrace(model.TraceID{Low: 1})
 		require.Error(t, err, "span conversion error, because lacks elements")
 		require.Nil(t, trace)
-	})
-}
-
-func TestSpanReader_executeQuery(t *testing.T) {
-	withSpanReader(func(r *spanReaderTest) {
-		hits := make([]*elastic.SearchHit, 7)
-		searchHits := &elastic.SearchHits{Hits: hits}
-
-		mockSearchService(r).Return(&elastic.SearchResult{Hits: searchHits}, nil)
-
-		query := elastic.NewTermQuery(traceIDField, "helloo")
-		hits, err := r.reader.executeQuery(query, "hello", "world", "index")
-
-		require.NoError(t, err)
-		assert.Len(t, hits, 7)
-	})
-}
-
-func TestSpanReader_executeQueryError(t *testing.T) {
-	withSpanReader(func(r *spanReaderTest) {
-		mockSearchService(r).Return(nil, errors.New("query error"))
-
-		query := elastic.NewTermQuery(traceIDField, "helloo")
-		hits, err := r.reader.executeQuery(query, "hello", "world", "index")
-
-		require.Error(t, err, "query error")
-		assert.Nil(t, hits)
 	})
 }
 
@@ -261,24 +262,24 @@ func TestSpanReaderFindIndices(t *testing.T) {
 			startTime: today.Add(-time.Millisecond),
 			endTime:   today,
 			expected: []string{
-				IndexWithDate(today),
+				indexWithDate(today),
 			},
 		},
 		{
 			startTime: today.Add(-13 * time.Hour),
 			endTime:   today,
 			expected: []string{
-				IndexWithDate(today),
-				IndexWithDate(yesterday),
+				indexWithDate(today),
+				indexWithDate(yesterday),
 			},
 		},
 		{
 			startTime: today.Add(-48 * time.Hour),
 			endTime:   today,
 			expected: []string{
-				IndexWithDate(today),
-				IndexWithDate(yesterday),
-				IndexWithDate(twoDaysAgo),
+				indexWithDate(today),
+				indexWithDate(yesterday),
+				indexWithDate(twoDaysAgo),
 			},
 		},
 	}
@@ -290,7 +291,7 @@ func TestSpanReaderFindIndices(t *testing.T) {
 
 func TestSpanReader_indexWithDate(t *testing.T) {
 	withSpanReader(func(r *spanReaderTest) {
-		actual := IndexWithDate(time.Date(1995, time.April, 21, 4, 21, 19, 95, time.UTC))
+		actual := indexWithDate(time.Date(1995, time.April, 21, 4, 21, 19, 95, time.UTC))
 		assert.Equal(t, "jaeger-1995-04-21", actual)
 	})
 }
@@ -398,7 +399,7 @@ func TestSpanReader_FindTraces(t *testing.T) {
 		mockSearchService(r).
 			Return(&elastic.SearchResult{Aggregations: elastic.Aggregations(goodAggregations), Hits: searchHits}, nil)
 		// bulk read traces
-		mockMultiSearchService(r). // for reading traces
+		mockMultiSearchService(r).
 						Return(&elastic.MultiSearchResult{
 				Responses: []*elastic.SearchResult{
 					{Hits: searchHits},
