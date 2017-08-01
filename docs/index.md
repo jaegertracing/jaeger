@@ -32,7 +32,7 @@ for the architectural choices made in Jaeger.
 
   * Backend components implemented in Go
   * React/Javascript UI
-  * Cassandra 3.x as persistent storage (more storage backends coming soon)
+  * Cassandra 3.x, [ElasticSearch](https://github.com/uber/jaeger/tree/master/plugin/storage/es) as persistent storage (more storage backends coming soon)
 
 ## Quick Start
 See [running a docker all in one image](getting_started.md#all-in-one-docker-image).
