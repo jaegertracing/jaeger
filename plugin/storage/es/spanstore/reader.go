@@ -161,20 +161,20 @@ func (s *SpanReader) unmarshalJSONSpan(esSpanRaw *elastic.SearchHit) (*jModel.Sp
 }
 
 // Returns the array of indices that we need to query, based on query params
-func findIndices(typeOfIndex string, startTime time.Time, endTime time.Time) []string {
+func findIndices(prefix string, startTime time.Time, endTime time.Time) []string {
 	var indices []string
-	firstIndex := indexWithDate(typeOfIndex, startTime)
-	currentIndex := indexWithDate(typeOfIndex, endTime)
+	firstIndex := indexWithDate(prefix, startTime)
+	currentIndex := indexWithDate(prefix, endTime)
 	for currentIndex != firstIndex {
 		indices = append(indices, currentIndex)
 		endTime = endTime.Add(-24 * time.Hour)
-		currentIndex = indexWithDate(typeOfIndex, endTime)
+		currentIndex = indexWithDate(prefix, endTime)
 	}
 	return append(indices, firstIndex)
 }
 
-func indexWithDate(typeOfIndex string, date time.Time) string {
-	return typeOfIndex + date.UTC().Format("2006-01-02")
+func indexWithDate(prefix string, date time.Time) string {
+	return prefix + date.UTC().Format("2006-01-02")
 }
 
 // GetServices returns all services traced by Jaeger, ordered by frequency
