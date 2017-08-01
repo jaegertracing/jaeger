@@ -394,13 +394,15 @@ func TestSpanReader_FindTraces(t *testing.T) {
 	searchHits := &elastic.SearchHits{Hits: hits}
 
 	withSpanReader(func(r *spanReaderTest) {
-		mockSearchService(r). // for finding trace IDs
+		// find trace IDs
+		mockSearchService(r).
 			Return(&elastic.SearchResult{Aggregations: elastic.Aggregations(goodAggregations), Hits: searchHits}, nil)
+		// bulk read traces
 		mockMultiSearchService(r). // for reading traces
-			Return(&elastic.MultiSearchResult{
+						Return(&elastic.MultiSearchResult{
 				Responses: []*elastic.SearchResult{
-					{Hits:searchHits},
-					{Hits:searchHits},
+					{Hits: searchHits},
+					{Hits: searchHits},
 				},
 			}, nil)
 
@@ -441,11 +443,11 @@ func TestSpanReader_FindTracesInvalidQuery(t *testing.T) {
 	withSpanReader(func(r *spanReaderTest) {
 		mockSearchService(r).
 			Return(&elastic.SearchResult{Aggregations: elastic.Aggregations(goodAggregations), Hits: searchHits}, nil)
-		mockMultiSearchService(r). // for reading traces
+		mockMultiSearchService(r).
 			Return(&elastic.MultiSearchResult{
 				Responses: []*elastic.SearchResult{
-					{Hits:searchHits},
-					{Hits:searchHits},
+					{Hits: searchHits},
+					{Hits: searchHits},
 				},
 			}, nil)
 
@@ -476,10 +478,10 @@ func TestSpanReader_FindTracesAggregationFailure(t *testing.T) {
 	withSpanReader(func(r *spanReaderTest) {
 		mockSearchService(r).
 			Return(&elastic.SearchResult{Aggregations: elastic.Aggregations(goodAggregations), Hits: searchHits}, nil)
-		mockMultiSearchService(r). // for reading traces
+		mockMultiSearchService(r).
 			Return(&elastic.MultiSearchResult{
-			Responses: []*elastic.SearchResult{},
-		}, nil)
+				Responses: []*elastic.SearchResult{},
+			}, nil)
 
 		traceQuery := &spanstore.TraceQueryParameters{
 			ServiceName: serviceName,
@@ -510,7 +512,7 @@ func TestSpanReader_FindTracesNoTraceIDs(t *testing.T) {
 	withSpanReader(func(r *spanReaderTest) {
 		mockSearchService(r).
 			Return(&elastic.SearchResult{Aggregations: elastic.Aggregations(goodAggregations), Hits: searchHits}, nil)
-		mockMultiSearchService(r). // for reading traces
+		mockMultiSearchService(r).
 			Return(&elastic.MultiSearchResult{
 				Responses: []*elastic.SearchResult{},
 			}, nil)
@@ -545,7 +547,7 @@ func TestSpanReader_FindTracesReadTraceFailure(t *testing.T) {
 	withSpanReader(func(r *spanReaderTest) {
 		mockSearchService(r).
 			Return(&elastic.SearchResult{Aggregations: elastic.Aggregations(goodAggregations), Hits: searchHits}, nil)
-		mockMultiSearchService(r). // for reading traces
+		mockMultiSearchService(r).
 			Return(nil, errors.New("read error"))
 
 		traceQuery := &spanstore.TraceQueryParameters{
@@ -578,11 +580,11 @@ func TestSpanReader_FindTracesSpanCollectionFailure(t *testing.T) {
 	withSpanReader(func(r *spanReaderTest) {
 		mockSearchService(r).
 			Return(&elastic.SearchResult{Aggregations: elastic.Aggregations(goodAggregations), Hits: searchHits}, nil)
-		mockMultiSearchService(r). // for reading traces
+		mockMultiSearchService(r).
 			Return(&elastic.MultiSearchResult{
 				Responses: []*elastic.SearchResult{
-					{Hits:searchHits},
-					{Hits:searchHits},
+					{Hits: searchHits},
+					{Hits: searchHits},
 				},
 			}, nil)
 
