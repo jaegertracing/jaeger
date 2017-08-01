@@ -166,8 +166,8 @@ func (kv *KeyValue) AsString() string {
 	case Float64Type:
 		return strconv.FormatFloat(kv.Float64(), 'g', 10, 64)
 	case BinaryType:
-		if len(kv.VBlob) > 16 {
-			return hex.EncodeToString(kv.VBlob[0:16]) + "..."
+		if len(kv.VBlob) > 256 {
+			return hex.EncodeToString(kv.VBlob[0:256]) + "..."
 		}
 		return hex.EncodeToString(kv.VBlob)
 	default:

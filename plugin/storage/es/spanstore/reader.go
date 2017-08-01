@@ -223,7 +223,7 @@ func (s *SpanReader) multiRead(traceIDs []string, traceQuery *spanstore.TraceQue
 	}
 	searchRequests := make([]*elastic.SearchRequest, len(traceIDs))
 
-	for i, traceID := range searchRequests {
+	for i, traceID := range traceIDs {
 		query := elastic.NewTermQuery("traceID", traceID)
 		searchRequests[i] = elastic.NewSearchRequest().IgnoreUnavailable(true).Type("span").
 			Source(elastic.NewSearchSource().Query(query).Size(defaultDocCount))

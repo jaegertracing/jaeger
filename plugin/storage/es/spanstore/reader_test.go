@@ -119,10 +119,10 @@ func TestSpanReader_GetTrace(t *testing.T) {
 		mockSearchService(r).Return(&elastic.SearchResult{Hits: searchHits}, nil)
 		mockMultiSearchService(r).
 			Return(&elastic.MultiSearchResult{
-			Responses: []*elastic.SearchResult{
-				{Hits: searchHits},
-			},
-		}, nil)
+				Responses: []*elastic.SearchResult{
+					{Hits: searchHits},
+				},
+			}, nil)
 
 		trace, err := r.reader.GetTrace(model.TraceID{Low: 1})
 		require.NoError(t, err)
@@ -142,8 +142,8 @@ func TestSpanReader_GetTraceQueryError(t *testing.T) {
 			Return(nil, errors.New("query error occurred"))
 		mockMultiSearchService(r).
 			Return(&elastic.MultiSearchResult{
-			Responses: []*elastic.SearchResult{},
-		}, nil)
+				Responses: []*elastic.SearchResult{},
+			}, nil)
 		trace, err := r.reader.GetTrace(model.TraceID{Low: 1})
 		require.EqualError(t, err, "No trace with that ID found")
 		require.Nil(t, trace)
@@ -158,10 +158,10 @@ func TestSpanReader_GetTraceNilHitsError(t *testing.T) {
 		mockSearchService(r).Return(&elastic.SearchResult{Hits: searchHits}, nil)
 		mockMultiSearchService(r).
 			Return(&elastic.MultiSearchResult{
-			Responses: []*elastic.SearchResult{
-				{Hits: nil},
-			},
-		}, nil)
+				Responses: []*elastic.SearchResult{
+					{Hits: nil},
+				},
+			}, nil)
 
 		trace, err := r.reader.GetTrace(model.TraceID{Low: 1})
 		require.EqualError(t, err, "No hits in read results found")
@@ -181,10 +181,10 @@ func TestSpanReader_GetTraceInvalidSpanError(t *testing.T) {
 		mockSearchService(r).Return(&elastic.SearchResult{Hits: searchHits}, nil)
 		mockMultiSearchService(r).
 			Return(&elastic.MultiSearchResult{
-			Responses: []*elastic.SearchResult{
-				{Hits: searchHits},
-			},
-		}, nil)
+				Responses: []*elastic.SearchResult{
+					{Hits: searchHits},
+				},
+			}, nil)
 
 		trace, err := r.reader.GetTrace(model.TraceID{Low: 1})
 		require.Error(t, err, "invalid span")
@@ -205,10 +205,10 @@ func TestSpanReader_GetTraceSpanConversionError(t *testing.T) {
 		mockSearchService(r).Return(&elastic.SearchResult{Hits: searchHits}, nil)
 		mockMultiSearchService(r).
 			Return(&elastic.MultiSearchResult{
-			Responses: []*elastic.SearchResult{
-				{Hits: searchHits},
-			},
-		}, nil)
+				Responses: []*elastic.SearchResult{
+					{Hits: searchHits},
+				},
+			}, nil)
 
 		trace, err := r.reader.GetTrace(model.TraceID{Low: 1})
 		require.Error(t, err, "span conversion error, because lacks elements")
@@ -400,7 +400,7 @@ func TestSpanReader_FindTraces(t *testing.T) {
 			Return(&elastic.SearchResult{Aggregations: elastic.Aggregations(goodAggregations), Hits: searchHits}, nil)
 		// bulk read traces
 		mockMultiSearchService(r).
-						Return(&elastic.MultiSearchResult{
+			Return(&elastic.MultiSearchResult{
 				Responses: []*elastic.SearchResult{
 					{Hits: searchHits},
 					{Hits: searchHits},
