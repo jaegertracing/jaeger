@@ -152,6 +152,12 @@ func TestKeyValueIsLessAndEqual(t *testing.T) {
 }
 
 func TestKeyValueAsStringAndValue(t *testing.T) {
+	longString := `Bender Bending Rodrigues Bender Bending Rodrigues Bender Bending Rodrigues Bender Bending Rodrigues
+	Bender Bending Rodrigues Bender Bending Rodrigues Bender Bending Rodrigues Bender Bending Rodrigues Bender Bending Rodrigues
+	Bender Bending Rodrigues Bender Bending Rodrigues Bender Bending Rodrigues Bender Bending Rodrigues Bender Bending Rodrigues
+	Bender Bending Rodrigues Bender Bending Rodrigues Bender Bending Rodrigues Bender Bending Rodrigues Bender Bending Rodrigues
+	Bender Bending Rodrigues Bender Bending Rodrigues Bender Bending Rodrigues Bender Bending Rodrigues Bender Bending Rodrigues `
+	expectedBinaryStr := `42656e6465722042656e64696e6720526f647269677565732042656e6465722042656e64696e6720526f647269677565732042656e6465722042656e64696e6720526f647269677565732042656e6465722042656e64696e6720526f647269677565730a0942656e6465722042656e64696e6720526f647269677565732042656e6465722042656e64696e6720526f647269677565732042656e6465722042656e64696e6720526f647269677565732042656e6465722042656e64696e6720526f647269677565732042656e6465722042656e64696e6720526f647269677565730a0942656e6465722042656e64696e6720526f647269677565732042656e64...`
 	testCases := []struct {
 		kv  model.KeyValue
 		str string
@@ -164,7 +170,7 @@ func TestKeyValueAsStringAndValue(t *testing.T) {
 		{kv: model.Int64("x", -1947), str: "-1947", val: int64(-1947)},
 		{kv: model.Float64("x", 3.14159265359), str: "3.141592654", val: float64(3.14159265359)},
 		{kv: model.Binary("x", []byte("Bender")), str: "42656e646572", val: []byte("Bender")},
-		{kv: model.Binary("x", []byte("Bender Bending Rodrigues")), str: "42656e6465722042656e64696e672052...", val: []byte("Bender Bending Rodrigues")},
+		{kv: model.Binary("x", []byte(longString)), str: expectedBinaryStr, val: []byte(longString)},
 	}
 	for _, tt := range testCases {
 		testCase := tt // capture loop var

@@ -32,6 +32,7 @@ type Client interface {
 	CreateIndex(index string) IndicesCreateService
 	Index() IndexService
 	Search(indices ...string) SearchService
+	MultiSearch() MultiSearchService
 }
 
 // IndicesExistsService is an abstraction for elastic.IndicesExistsService
@@ -62,4 +63,11 @@ type SearchService interface {
 	IgnoreUnavailable(ignoreUnavailable bool) SearchService
 	Query(query elastic.Query) SearchService
 	Do(ctx context.Context) (*elastic.SearchResult, error)
+}
+
+// MultiSearchService is an abstraction for elastic.MultiSearchService
+type MultiSearchService interface {
+	Add(requests ...*elastic.SearchRequest) MultiSearchService
+	Index(indices ...string) MultiSearchService
+	Do(ctx context.Context) (*elastic.MultiSearchResult, error)
 }

@@ -77,6 +77,10 @@ var (
 	// ErrUnableToFindTraceIDAggregation occurs when an aggregation query for TraceIDs fail.
 	ErrUnableToFindTraceIDAggregation = errors.New("Could not find aggregation of traceIDs")
 
+	errNilHits = errors.New("No hits in read results found")
+
+	errNoTraces = errors.New("No trace with that ID found")
+
 	defaultMaxDuration = model.DurationAsMicroseconds(time.Hour * 24)
 
 	tagFieldList = []string{tagsField, processTagsField, logFieldsField}
@@ -112,34 +116,20 @@ func newSpanReader(client es.Client, logger *zap.Logger, maxLookback time.Durati
 // GetTrace takes a traceID and returns a Trace associated with that traceID
 func (s *SpanReader) GetTrace(traceID model.TraceID) (*model.Trace, error) {
 	currentTime := time.Now()
-	return s.readTrace(
-		traceID.String(),
+	traces, err := s.multiRead(
+		[]string{traceID.String()},
 		&spanstore.TraceQueryParameters{
 			StartTimeMax: currentTime,
 			StartTimeMin: currentTime.Add(-s.maxLookback),
 		},
 	)
-}
-
-func (s *SpanReader) readTrace(traceID string, traceQuery *spanstore.TraceQueryParameters) (*model.Trace, error) {
-	query := elastic.NewTermQuery(traceIDField, traceID)
-
-	traceQuery.StartTimeMax = traceQuery.StartTimeMax.Add(time.Hour)
-	traceQuery.StartTimeMin = traceQuery.StartTimeMin.Add(-time.Hour)
-	indices := findIndices(traceQuery.StartTimeMin, traceQuery.StartTimeMax)
-	esSpansRaw, err := s.executeQuery(query, indices...)
 	if err != nil {
-		return nil, errors.Wrap(err, "Query execution failed")
+		return nil, err
 	}
-	if len(esSpansRaw) == 0 {
-		return nil, spanstore.ErrTraceNotFound
+	if len(traces) == 0 {
+		return nil, errNoTraces
 	}
-
-	spans, err := s.collectSpans(esSpansRaw)
-	if err != nil {
-		return nil, errors.Wrap(err, "Span collection failed")
-	}
-	return &model.Trace{Spans: spans}, nil
+	return traces[0], nil
 }
 
 func (s *SpanReader) collectSpans(esSpansRaw []*elastic.SearchHit) ([]*model.Span, error) {
@@ -159,19 +149,6 @@ func (s *SpanReader) collectSpans(esSpansRaw []*elastic.SearchHit) ([]*model.Spa
 	return spans, nil
 }
 
-func (s *SpanReader) executeQuery(query elastic.Query, indices ...string) ([]*elastic.SearchHit, error) {
-	searchService, err := s.client.Search(indices...).
-		Type(spanType).
-		Query(query).
-		Size(defaultDocCount).
-		IgnoreUnavailable(true).
-		Do(s.ctx)
-	if err != nil {
-		return nil, err
-	}
-	return searchService.Hits.Hits, nil
-}
-
 func (s *SpanReader) unmarshalJSONSpan(esSpanRaw *elastic.SearchHit) (*jModel.Span, error) {
 	esSpanInByteArray := esSpanRaw.Source
 
@@ -185,18 +162,17 @@ func (s *SpanReader) unmarshalJSONSpan(esSpanRaw *elastic.SearchHit) (*jModel.Sp
 // Returns the array of indices that we need to query, based on query params
 func findIndices(startTime time.Time, endTime time.Time) []string {
 	var indices []string
-	firstIndex := IndexWithDate(startTime)
-	currentIndex := IndexWithDate(endTime)
+	firstIndex := indexWithDate(startTime)
+	currentIndex := indexWithDate(endTime)
 	for currentIndex != firstIndex {
 		indices = append(indices, currentIndex)
 		endTime = endTime.Add(-24 * time.Hour)
-		currentIndex = IndexWithDate(endTime)
+		currentIndex = indexWithDate(endTime)
 	}
 	return append(indices, firstIndex)
 }
 
-// IndexWithDate returns the index name formatted to date.
-func IndexWithDate(date time.Time) string {
+func indexWithDate(date time.Time) string {
 	return indexPrefix + date.UTC().Format("2006-01-02")
 }
 
@@ -238,19 +214,45 @@ func (s *SpanReader) FindTraces(traceQuery *spanstore.TraceQueryParameters) ([]*
 	if err != nil {
 		return nil, err
 	}
-	var retMe []*model.Trace
-	for _, traceID := range uniqueTraceIDs {
-		if len(retMe) >= traceQuery.NumTraces {
-			break
-		}
-		trace, err := s.readTrace(traceID, traceQuery)
-		if err != nil {
-			s.logger.Error("Failure to read trace", zap.String("trace_id", string(traceID)), zap.Error(err))
-			continue
-		}
-		retMe = append(retMe, trace)
+	return s.multiRead(uniqueTraceIDs, traceQuery)
+}
+
+func (s *SpanReader) multiRead(traceIDs []string, traceQuery *spanstore.TraceQueryParameters) ([]*model.Trace, error) {
+	if len(traceIDs) == 0 {
+		return []*model.Trace{}, nil
 	}
-	return retMe, nil
+	searchRequests := make([]*elastic.SearchRequest, len(traceIDs))
+
+	for i, traceID := range traceIDs {
+		query := elastic.NewTermQuery("traceID", traceID)
+		searchRequests[i] = elastic.NewSearchRequest().IgnoreUnavailable(true).Type("span").
+			Source(elastic.NewSearchSource().Query(query).Size(defaultDocCount))
+	}
+
+	// Add an hour in both directions so that traces that straddle two indexes are retrieved.
+	// ie starts in one and ends in another.
+	indices := findIndices(traceQuery.StartTimeMin.Add(-time.Hour), traceQuery.StartTimeMax.Add(time.Hour))
+
+	results, err := s.client.MultiSearch().
+		Add(searchRequests...).
+		Index(indices...).
+		Do(s.ctx)
+	if err != nil {
+		return nil, err
+	}
+
+	var traces []*model.Trace
+	for _, result := range results.Responses {
+		if result.Hits == nil {
+			return nil, errNilHits
+		}
+		spans, err := s.collectSpans(result.Hits.Hits)
+		if err != nil {
+			return nil, err
+		}
+		traces = append(traces, &model.Trace{Spans: spans})
+	}
+	return traces, nil
 }
 
 func validateQuery(p *spanstore.TraceQueryParameters) error {
