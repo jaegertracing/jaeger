@@ -29,12 +29,12 @@ import (
 	"github.com/spf13/viper"
 	"github.com/uber/jaeger-lib/metrics/go-kit"
 	"github.com/uber/jaeger-lib/metrics/go-kit/expvar"
-	"github.com/uber/jaeger/cmd/query/app"
 	"go.uber.org/zap"
 
 	basicB "github.com/uber/jaeger/cmd/builder"
 	"github.com/uber/jaeger/cmd/flags"
 	casFlags "github.com/uber/jaeger/cmd/flags/cassandra"
+	"github.com/uber/jaeger/cmd/query/app"
 	"github.com/uber/jaeger/cmd/query/app/builder"
 	"github.com/uber/jaeger/pkg/config"
 	"github.com/uber/jaeger/pkg/recoveryhandler"

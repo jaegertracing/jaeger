@@ -90,41 +90,38 @@ func NewSpanHandlerBuilder(cOpts *CollectorOptions, sFlags *flags.SharedFlags, o
 }
 
 func (spanHb *SpanHandlerBuilder) initCassStore(config cascfg.SessionBuilder) func() (spanstore.Writer, error) {
-	session, err := config.NewSession()
-	if err != nil {
-		return func() (spanstore.Writer, error) {
+	return func() (spanstore.Writer, error) {
+		session, err := config.NewSession()
+		if err != nil {
 			return nil, err
 		}
-	}
 
-	store := casSpanstore.NewSpanWriter(
-		session,
-		spanHb.collectorOpts.WriteCacheTTL,
-		spanHb.metricsFactory,
-		spanHb.logger,
-	)
-	return func() (spanstore.Writer, error) {
+		store := casSpanstore.NewSpanWriter(
+			session,
+			spanHb.collectorOpts.WriteCacheTTL,
+			spanHb.metricsFactory,
+			spanHb.logger,
+		)
+
 		return store, nil
 	}
 }
 
 func (spanHb *SpanHandlerBuilder) initElasticStore(esBuilder escfg.ClientBuilder) func() (spanstore.Writer, error) {
-	client, err := esBuilder.NewClient()
-	if err != nil {
-		return func() (spanstore.Writer, error) {
+	return func() (spanstore.Writer, error) {
+		client, err := esBuilder.NewClient()
+		if err != nil {
 			return nil, err
 		}
-	}
 
-	spanStore := esSpanstore.NewSpanWriter(
-		client,
-		spanHb.logger,
-		spanHb.metricsFactory,
-		esBuilder.GetNumShards(),
-		esBuilder.GetNumReplicas(),
-	)
+		spanStore := esSpanstore.NewSpanWriter(
+			client,
+			spanHb.logger,
+			spanHb.metricsFactory,
+			esBuilder.GetNumShards(),
+			esBuilder.GetNumReplicas(),
+		)
 
-	return func() (spanstore.Writer, error) {
 		return spanStore, nil
 	}
 }
