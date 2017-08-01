@@ -612,7 +612,7 @@ func mockMultiSearchService(r *spanReaderTest) *mock.Call {
 	multiSearchService := &mocks.MultiSearchService{}
 	multiSearchService.On("Add", mock.Anything, mock.Anything, mock.Anything).Return(multiSearchService)
 	multiSearchService.On("Index", mock.AnythingOfType("string"), mock.AnythingOfType("string"),
-		mock.AnythingOfType("string"), mock.AnythingOfType("string")).Return(multiSearchService)
+		mock.AnythingOfType("string"), mock.AnythingOfType("string"), mock.AnythingOfType("string")).Return(multiSearchService)
 	r.client.On("MultiSearch").Return(multiSearchService)
 	return multiSearchService.On("Do", mock.AnythingOfType("*context.emptyCtx"))
 }
@@ -629,7 +629,7 @@ func mockSearchService(r *spanReaderTest) *mock.Call {
 	searchService.On("Aggregation", stringMatcher(servicesAggregation), mock.AnythingOfType("*elastic.TermsAggregation")).Return(searchService)
 	searchService.On("Aggregation", stringMatcher(operationsAggregation), mock.AnythingOfType("*elastic.TermsAggregation")).Return(searchService)
 	searchService.On("Aggregation", stringMatcher(traceIDAggregation), mock.AnythingOfType("*elastic.TermsAggregation")).Return(searchService)
-	r.client.On("Search", mock.AnythingOfType("string"), mock.AnythingOfType("string"), mock.AnythingOfType("string"), mock.AnythingOfType("string")).Return(searchService)
+	r.client.On("Search", mock.AnythingOfType("string"), mock.AnythingOfType("string"), mock.AnythingOfType("string"), mock.AnythingOfType("string"), mock.AnythingOfType("string")).Return(searchService)
 	return searchService.On("Do", mock.AnythingOfType("*context.emptyCtx"))
 }
 
