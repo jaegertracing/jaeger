@@ -394,8 +394,16 @@ func TestSpanReader_FindTraces(t *testing.T) {
 	searchHits := &elastic.SearchHits{Hits: hits}
 
 	withSpanReader(func(r *spanReaderTest) {
-		mockSearchService(r).
+		mockSearchService(r). // for finding trace IDs
 			Return(&elastic.SearchResult{Aggregations: elastic.Aggregations(goodAggregations), Hits: searchHits}, nil)
+		mockMultiSearchService(r). // for reading traces
+			Return(&elastic.MultiSearchResult{
+				Responses: []*elastic.SearchResult{
+					{Hits:searchHits},
+					{Hits:searchHits},
+				},
+			}, nil)
+
 		traceQuery := &spanstore.TraceQueryParameters{
 			ServiceName: serviceName,
 			Tags: map[string]string{
@@ -433,6 +441,14 @@ func TestSpanReader_FindTracesInvalidQuery(t *testing.T) {
 	withSpanReader(func(r *spanReaderTest) {
 		mockSearchService(r).
 			Return(&elastic.SearchResult{Aggregations: elastic.Aggregations(goodAggregations), Hits: searchHits}, nil)
+		mockMultiSearchService(r). // for reading traces
+			Return(&elastic.MultiSearchResult{
+				Responses: []*elastic.SearchResult{
+					{Hits:searchHits},
+					{Hits:searchHits},
+				},
+			}, nil)
+
 		traceQuery := &spanstore.TraceQueryParameters{
 			ServiceName: "",
 			Tags: map[string]string{
@@ -448,7 +464,7 @@ func TestSpanReader_FindTracesInvalidQuery(t *testing.T) {
 	})
 }
 
-func TestSpanReader_FindTracesNoTraceIDs(t *testing.T) {
+func TestSpanReader_FindTracesAggregationFailure(t *testing.T) {
 	goodAggregations := make(map[string]*json.RawMessage)
 
 	hits := make([]*elastic.SearchHit, 1)
@@ -460,6 +476,11 @@ func TestSpanReader_FindTracesNoTraceIDs(t *testing.T) {
 	withSpanReader(func(r *spanReaderTest) {
 		mockSearchService(r).
 			Return(&elastic.SearchResult{Aggregations: elastic.Aggregations(goodAggregations), Hits: searchHits}, nil)
+		mockMultiSearchService(r). // for reading traces
+			Return(&elastic.MultiSearchResult{
+			Responses: []*elastic.SearchResult{},
+		}, nil)
+
 		traceQuery := &spanstore.TraceQueryParameters{
 			ServiceName: serviceName,
 			Tags: map[string]string{
@@ -472,6 +493,40 @@ func TestSpanReader_FindTracesNoTraceIDs(t *testing.T) {
 		traces, err := r.reader.FindTraces(traceQuery)
 		require.Error(t, err)
 		assert.Nil(t, traces)
+	})
+}
+
+func TestSpanReader_FindTracesNoTraceIDs(t *testing.T) {
+	goodAggregations := make(map[string]*json.RawMessage)
+	rawMessage := []byte(`{"buckets": []}`)
+	goodAggregations[traceIDAggregation] = (*json.RawMessage)(&rawMessage)
+
+	hits := make([]*elastic.SearchHit, 1)
+	hits[0] = &elastic.SearchHit{
+		Source: (*json.RawMessage)(&exampleESSpan),
+	}
+	searchHits := &elastic.SearchHits{Hits: hits}
+
+	withSpanReader(func(r *spanReaderTest) {
+		mockSearchService(r).
+			Return(&elastic.SearchResult{Aggregations: elastic.Aggregations(goodAggregations), Hits: searchHits}, nil)
+		mockMultiSearchService(r). // for reading traces
+			Return(&elastic.MultiSearchResult{
+				Responses: []*elastic.SearchResult{},
+			}, nil)
+
+		traceQuery := &spanstore.TraceQueryParameters{
+			ServiceName: serviceName,
+			Tags: map[string]string{
+				"hello": "world",
+			},
+			StartTimeMin: time.Now().Add(-1 * time.Hour),
+			StartTimeMax: time.Now(),
+		}
+
+		traces, err := r.reader.FindTraces(traceQuery)
+		require.NoError(t, err)
+		assert.Len(t, traces, 0)
 	})
 }
 
@@ -490,6 +545,9 @@ func TestSpanReader_FindTracesReadTraceFailure(t *testing.T) {
 	withSpanReader(func(r *spanReaderTest) {
 		mockSearchService(r).
 			Return(&elastic.SearchResult{Aggregations: elastic.Aggregations(goodAggregations), Hits: searchHits}, nil)
+		mockMultiSearchService(r). // for reading traces
+			Return(nil, errors.New("read error"))
+
 		traceQuery := &spanstore.TraceQueryParameters{
 			ServiceName: serviceName,
 			Tags: map[string]string{
@@ -500,13 +558,60 @@ func TestSpanReader_FindTracesReadTraceFailure(t *testing.T) {
 		}
 
 		traces, err := r.reader.FindTraces(traceQuery)
-		require.NoError(t, err)
+		require.EqualError(t, err, "read error")
+		assert.Len(t, traces, 0)
+	})
+}
+
+func TestSpanReader_FindTracesSpanCollectionFailure(t *testing.T) {
+	goodAggregations := make(map[string]*json.RawMessage)
+	rawMessage := []byte(`{"buckets": [{"key": "1","doc_count": 16},{"key": "2","doc_count": 16}]}`)
+	goodAggregations[traceIDAggregation] = (*json.RawMessage)(&rawMessage)
+
+	badSpan := []byte(`{"TraceID": "123"asjlgajdfhilqghi[adfvca} bad json`)
+	hits := make([]*elastic.SearchHit, 1)
+	hits[0] = &elastic.SearchHit{
+		Source: (*json.RawMessage)(&badSpan),
+	}
+	searchHits := &elastic.SearchHits{Hits: hits}
+
+	withSpanReader(func(r *spanReaderTest) {
+		mockSearchService(r).
+			Return(&elastic.SearchResult{Aggregations: elastic.Aggregations(goodAggregations), Hits: searchHits}, nil)
+		mockMultiSearchService(r). // for reading traces
+			Return(&elastic.MultiSearchResult{
+				Responses: []*elastic.SearchResult{
+					{Hits:searchHits},
+					{Hits:searchHits},
+				},
+			}, nil)
+
+		traceQuery := &spanstore.TraceQueryParameters{
+			ServiceName: serviceName,
+			Tags: map[string]string{
+				"hello": "world",
+			},
+			StartTimeMin: time.Now().Add(-1 * time.Hour),
+			StartTimeMax: time.Now(),
+		}
+
+		traces, err := r.reader.FindTraces(traceQuery)
+		require.Error(t, err)
 		assert.Len(t, traces, 0)
 	})
 }
 
 func TestFindTraceIDs(t *testing.T) {
 	testGet(traceIDAggregation, t)
+}
+
+func mockMultiSearchService(r *spanReaderTest) *mock.Call {
+	multiSearchService := &mocks.MultiSearchService{}
+	multiSearchService.On("Add", mock.Anything, mock.Anything, mock.Anything).Return(multiSearchService)
+	multiSearchService.On("Index", mock.AnythingOfType("string"), mock.AnythingOfType("string"),
+		mock.AnythingOfType("string"), mock.AnythingOfType("string")).Return(multiSearchService)
+	r.client.On("MultiSearch").Return(multiSearchService)
+	return multiSearchService.On("Do", mock.AnythingOfType("*context.emptyCtx"))
 }
 
 func mockSearchService(r *spanReaderTest) *mock.Call {
