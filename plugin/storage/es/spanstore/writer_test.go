@@ -178,7 +178,7 @@ func TestSpanWriter_WriteSpan(t *testing.T) {
 				spanExistsService.On("Do", mock.AnythingOfType("*context.emptyCtx")).Return(testCase.spanIndexExists, nil)
 
 				serviceCreateService := &mocks.IndicesCreateService{}
-				serviceCreateService.On("Body", stringMatcher(spanMapping)).Return(serviceCreateService)
+				serviceCreateService.On("Body", stringMatcher(serviceMapping)).Return(serviceCreateService)
 				serviceCreateService.On("Do", mock.AnythingOfType("*context.emptyCtx")).Return(nil, testCase.serviceIndexCreateError)
 
 				spanCreateService := &mocks.IndicesCreateService{}
@@ -284,13 +284,13 @@ func TestCheckAndCreateIndex(t *testing.T) {
 				SpanID:  json.SpanID("0"),
 			}
 
-			err := w.writer.createIndex(indexName, jsonSpan)
+			err := w.writer.createIndex(indexName, spanMapping, jsonSpan)
 			createService.AssertNumberOfCalls(t, "Do", 1)
 
 			if testCase.expectedError == "" {
 				assert.NoError(t, err)
 				// makes sure that the cache works
-				_ = w.writer.createIndex(indexName, jsonSpan)
+				_ = w.writer.createIndex(indexName, spanMapping, jsonSpan)
 				createService.AssertNumberOfCalls(t, "Do", 1)
 			} else {
 				assert.EqualError(t, err, testCase.expectedError)
