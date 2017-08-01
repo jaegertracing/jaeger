@@ -229,6 +229,8 @@ func (s *SpanReader) multiRead(traceIDs []string, traceQuery *spanstore.TraceQue
 			Source(elastic.NewSearchSource().Query(query).Size(defaultDocCount))
 	}
 
+	// Add an hour in both directions so that traces that straddle two indexes are retrieved.
+	// ie starts in one and ends in another.
 	indices := findIndices(traceQuery.StartTimeMin.Add(-time.Hour), traceQuery.StartTimeMax.Add(time.Hour))
 
 	results, err := s.client.MultiSearch().
