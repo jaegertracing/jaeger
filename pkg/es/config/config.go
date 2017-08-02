@@ -29,7 +29,7 @@ import (
 	"github.com/uber/jaeger/pkg/es"
 )
 
-// Configuration describes the configuration properties needed to connect to a ElasticSearch cluster
+// Configuration describes the configuration properties needed to connect to an ElasticSearch cluster
 type Configuration struct {
 	Servers     []string
 	Username    string
