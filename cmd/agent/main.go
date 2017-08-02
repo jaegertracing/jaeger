@@ -21,9 +21,7 @@
 package main
 
 import (
-	"flag"
 	"runtime"
-	"strings"
 
 	"github.com/pkg/errors"
 	"github.com/spf13/cobra"
@@ -31,6 +29,7 @@ import (
 	"go.uber.org/zap"
 
 	"github.com/uber/jaeger/cmd/agent/app"
+	"github.com/uber/jaeger/pkg/config"
 	"github.com/uber/jaeger/pkg/metrics"
 )
 
@@ -62,14 +61,12 @@ func main() {
 		},
 	}
 
-	flags := &flag.FlagSet{}
-	app.AddFlags(flags)
-	metrics.AddFlags(flags)
-	command.PersistentFlags().AddGoFlagSet(flags)
-
-	v.BindPFlags(command.PersistentFlags())
-	v.AutomaticEnv()
-	v.SetEnvKeyReplacer(strings.NewReplacer("-", "_", ".", "_"))
+	config.AddFlags(
+		v,
+		command,
+		app.AddFlags,
+		metrics.AddFlags,
+	)
 
 	if err := command.Execute(); err != nil {
 		logger.Fatal("agent command failed", zap.Error(err))

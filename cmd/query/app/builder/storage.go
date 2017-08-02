@@ -22,7 +22,7 @@ package builder
 
 import (
 	"errors"
-	"flag"
+	"time"
 
 	basicB "github.com/uber/jaeger/cmd/builder"
 	"github.com/uber/jaeger/cmd/flags"
@@ -43,26 +43,26 @@ var (
 )
 
 // NewStorageBuilder creates a StorageBuilder based off the flags that have been set
-func NewStorageBuilder(opts ...basicB.Option) (StorageBuilder, error) {
-	flag.Parse()
+func NewStorageBuilder(storageType string, dependencyDataFreq time.Duration, opts ...basicB.Option) (StorageBuilder, error) {
 	options := basicB.ApplyOptions(opts...)
 	// TODO lots of repeated code + if logic, clean up below
-	if flags.SpanStorage.Type == flags.CassandraStorageType {
-		if options.Cassandra == nil {
+	if storageType == flags.CassandraStorageType {
+		if options.CassandraSessionBuilder == nil {
 			return nil, errMissingCassandraConfig
 		}
 		// TODO technically span and dependency storage might be separate
-		return newCassandraBuilder(options.Cassandra, options.Logger, options.MetricsFactory), nil
-	} else if flags.SpanStorage.Type == flags.MemoryStorageType {
+		return newCassandraBuilder(options.CassandraSessionBuilder, options.Logger, options.MetricsFactory, dependencyDataFreq)
+	} else if storageType == flags.MemoryStorageType {
 		if options.MemoryStore == nil {
 			return nil, errMissingMemoryStore
 		}
 		return newMemoryStoreBuilder(options.MemoryStore), nil
-	} else if flags.SpanStorage.Type == flags.ESStorageType {
-		if options.ElasticSearch == nil {
+	} else if storageType == flags.ESStorageType {
+		if options.ElasticClientBuilder == nil {
 			return nil, errMissingElasticSearchConfig
 		}
-		return newESBuilder(options.ElasticSearch, options.Logger, options.MetricsFactory), nil
+		// TODO use real duration
+		return newESBuilder(options.ElasticClientBuilder, options.Logger, options.MetricsFactory, time.Since(time.Time{}))
 	}
 	return nil, flags.ErrUnsupportedStorageType
 }

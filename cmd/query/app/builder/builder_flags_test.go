@@ -24,44 +24,15 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/assert"
-	"go.uber.org/zap"
 
-	"github.com/uber/jaeger-lib/metrics"
-	"github.com/uber/jaeger/pkg/cassandra"
-	"github.com/uber/jaeger/pkg/es"
-	"github.com/uber/jaeger/storage/spanstore/memory"
+	"github.com/uber/jaeger/pkg/config"
 )
 
-type mockElastic struct {
-}
-
-func (*mockElastic) NewClient() (es.Client, error) {
-	return nil, nil
-}
-
-type mockCassandra struct {
-}
-
-func (*mockCassandra) NewSession() (cassandra.Session, error) {
-	return nil, nil
-}
-
-func TestApplyOptions(t *testing.T) {
-	opts := ApplyOptions(
-		Options.CassandraSesBuilderOpt(&mockCassandra{}),
-		Options.LoggerOption(zap.NewNop()),
-		Options.MetricsFactoryOption(metrics.NullFactory),
-		Options.MemoryStoreOption(memory.NewStore()),
-		Options.ElasticClientBuilderOpt(&mockElastic{}),
-	)
-	assert.NotNil(t, opts.ElasticClientBuilder)
-	assert.NotNil(t, opts.CassandraSessionBuilder)
-	assert.NotNil(t, opts.Logger)
-	assert.NotNil(t, opts.MetricsFactory)
-}
-
-func TestApplyNoOptions(t *testing.T) {
-	opts := ApplyOptions()
-	assert.NotNil(t, opts.Logger)
-	assert.NotNil(t, opts.MetricsFactory)
+func TestQueryBuilderFlags(t *testing.T) {
+	v, command := config.Viperize(AddFlags)
+	command.ParseFlags([]string{"--query.static-files=/dev/null", "--query.prefix=api", "--query.port=80"})
+	qOpts := new(QueryOptions).InitFromViper(v)
+	assert.Equal(t, "/dev/null", qOpts.QueryStaticAssets)
+	assert.Equal(t, "api", qOpts.QueryPrefix)
+	assert.Equal(t, 80, qOpts.QueryPort)
 }

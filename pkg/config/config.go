@@ -21,42 +21,44 @@
 package config
 
 import (
-	"github.com/olivere/elastic"
-	"github.com/pkg/errors"
+	"flag"
+	"strings"
 
-	"github.com/uber/jaeger/pkg/es"
+	"github.com/spf13/cobra"
+	"github.com/spf13/viper"
 )
 
-// Configuration describes the configuration properties needed to connect to a ElasticSearch cluster
-type Configuration struct {
-	Servers  []string
-	Username string
-	Password string
-	Sniffer  bool // https://github.com/olivere/elastic/wiki/Sniffing
-}
-
-// ClientBuilder creates new es.Client
-type ClientBuilder interface {
-	NewClient() (es.Client, error)
-}
-
-// NewClient creates a new ElasticSearch client
-func (c *Configuration) NewClient() (es.Client, error) {
-	if len(c.Servers) < 1 {
-		return nil, errors.New("No servers specified")
+// Viperize creates new Viper and command add passes flags to command
+// Viper is initialized with flags from command and configured to accept flags as environmental variables.
+// Characters `.-` in environmental variables are changed to `_`
+func Viperize(inits ...func(*flag.FlagSet)) (*viper.Viper, *cobra.Command) {
+	command := &cobra.Command{}
+	flagSet := new(flag.FlagSet)
+	for i := range inits {
+		inits[i](flagSet)
 	}
-	rawClient, err := elastic.NewClient(c.GetConfigs()...)
-	if err != nil {
-		return nil, err
-	}
-	return es.WrapESClient(rawClient), nil
+	command.PersistentFlags().AddGoFlagSet(flagSet)
+
+	v := viper.New()
+	configureViper(v)
+	v.BindPFlags(command.PersistentFlags())
+	return v, command
 }
 
-// GetConfigs wraps the configs to feed to the ElasticSearch client init
-func (c *Configuration) GetConfigs() []elastic.ClientOptionFunc {
-	options := make([]elastic.ClientOptionFunc, 3)
-	options[0] = elastic.SetURL(c.Servers...)
-	options[1] = elastic.SetBasicAuth(c.Username, c.Password)
-	options[2] = elastic.SetSniff(c.Sniffer)
-	return options
+// AddFlags adds flags to command and viper and configures
+func AddFlags(v *viper.Viper, command *cobra.Command, inits ...func(*flag.FlagSet)) (*viper.Viper, *cobra.Command) {
+	flagSet := new(flag.FlagSet)
+	for i := range inits {
+		inits[i](flagSet)
+	}
+	command.PersistentFlags().AddGoFlagSet(flagSet)
+
+	configureViper(v)
+	v.BindPFlags(command.PersistentFlags())
+	return v, command
+}
+
+func configureViper(v *viper.Viper) {
+	v.AutomaticEnv()
+	v.SetEnvKeyReplacer(strings.NewReplacer("-", "_", ".", "_"))
 }

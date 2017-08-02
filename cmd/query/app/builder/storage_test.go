@@ -21,94 +21,102 @@
 package builder
 
 import (
-	"os"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/uber/jaeger-lib/metrics"
 	"go.uber.org/zap"
 
-	"github.com/uber/jaeger-lib/metrics"
 	basicB "github.com/uber/jaeger/cmd/builder"
-	cascfg "github.com/uber/jaeger/pkg/cassandra/config"
-	escfg "github.com/uber/jaeger/pkg/es/config"
+	"github.com/uber/jaeger/cmd/flags"
+	"github.com/uber/jaeger/pkg/cassandra"
+	"github.com/uber/jaeger/pkg/cassandra/mocks"
+	"github.com/uber/jaeger/pkg/config"
+	"github.com/uber/jaeger/pkg/es"
+	esMocks "github.com/uber/jaeger/pkg/es/mocks"
 	"github.com/uber/jaeger/storage/spanstore/memory"
 )
 
+type mockSessionBuilder struct {
+}
+
+func (at *mockSessionBuilder) NewSession() (cassandra.Session, error) {
+	return &mocks.Session{}, nil
+}
+
+type mockElasticBuilder struct {
+}
+
+func (mck *mockElasticBuilder) NewClient() (es.Client, error) {
+	return &esMocks.Client{}, nil
+}
+
 func TestNewCassandraSuccess(t *testing.T) {
+	v, _ := config.Viperize(flags.AddFlags)
+	sFlags := new(flags.SharedFlags).InitFromViper(v)
 	sBuilder, err := NewStorageBuilder(
+		sFlags.SpanStorage.Type,
+		sFlags.DependencyStorage.DataFrequency,
 		basicB.Options.LoggerOption(zap.NewNop()),
 		basicB.Options.MetricsFactoryOption(metrics.NullFactory),
-		basicB.Options.CassandraOption(&cascfg.Configuration{
-			Servers: []string{"127.0.0.1"},
-		}),
+		basicB.Options.CassandraSesBuilderOpt(&mockSessionBuilder{}),
 	)
 	assert.NoError(t, err)
 	assert.NotNil(t, sBuilder)
 }
 
-func TestNewCassandraFailure(t *testing.T) {
-	originalArgs := os.Args
-	defer func() {
-		os.Args = originalArgs
-	}()
-	os.Args = []string{"test", "--span-storage.type=sneh"}
-	sBuilder, err := NewStorageBuilder()
+func TestNewCassandraFailureStorageBuilder(t *testing.T) {
+	v, command := config.Viperize(flags.AddFlags)
+	command.ParseFlags([]string{"test", "--span-storage.type=sneh"})
+	sFlags := new(flags.SharedFlags).InitFromViper(v)
+	sBuilder, err := NewStorageBuilder(sFlags.SpanStorage.Type, sFlags.DependencyStorage.DataFrequency)
 	assert.EqualError(t, err, "Storage Type is not supported")
 	assert.Nil(t, sBuilder)
 
-	os.Args = []string{"test", "--span-storage.type=cassandra"}
-	sBuilder, err = NewStorageBuilder()
+	command.ParseFlags([]string{"test", "--span-storage.type=cassandra"})
+	sFlags.InitFromViper(v)
+	sBuilder, err = NewStorageBuilder(sFlags.SpanStorage.Type, sFlags.DependencyStorage.DataFrequency)
 	assert.EqualError(t, err, "Cassandra not configured")
 	assert.Nil(t, sBuilder)
 }
 
 func TestNewMemorySuccess(t *testing.T) {
-	originalArgs := os.Args
-	defer func() {
-		os.Args = originalArgs
-	}()
-	os.Args = []string{"test", "--span-storage.type=memory"}
-	sBuilder, err := NewStorageBuilder(basicB.Options.MemoryStoreOption(memory.NewStore()))
+	v, command := config.Viperize(flags.AddFlags)
+	command.ParseFlags([]string{"test", "--span-storage.type=memory"})
+	sFlags := new(flags.SharedFlags).InitFromViper(v)
+	sBuilder, err := NewStorageBuilder(sFlags.SpanStorage.Type, sFlags.DependencyStorage.DataFrequency, basicB.Options.MemoryStoreOption(memory.NewStore()))
 	assert.NoError(t, err)
 	assert.NotNil(t, sBuilder)
 }
 
 func TestNewMemoryFailure(t *testing.T) {
-	originalArgs := os.Args
-	defer func() {
-		os.Args = originalArgs
-	}()
-	os.Args = []string{"test", "--span-storage.type=memory"}
-	sBuilder, err := NewStorageBuilder()
+	v, command := config.Viperize(flags.AddFlags)
+	command.ParseFlags([]string{"test", "--span-storage.type=memory"})
+	sFlags := new(flags.SharedFlags).InitFromViper(v)
+	sBuilder, err := NewStorageBuilder(sFlags.SpanStorage.Type, sFlags.DependencyStorage.DataFrequency)
 	assert.Error(t, err)
 	assert.Nil(t, sBuilder)
 }
 
 func TestNewElasticSuccess(t *testing.T) {
-	originalArgs := os.Args
-	defer func() {
-		os.Args = originalArgs
-	}()
-
-	os.Args = []string{"test", "--span-storage.type=elasticsearch"}
+	v, command := config.Viperize(flags.AddFlags)
+	command.ParseFlags([]string{"test", "--span-storage.type=elasticsearch"})
+	sFlags := new(flags.SharedFlags).InitFromViper(v)
 	sBuilder, err := NewStorageBuilder(
+		sFlags.SpanStorage.Type,
+		sFlags.DependencyStorage.DataFrequency,
 		basicB.Options.LoggerOption(zap.NewNop()),
-		basicB.Options.ElasticSearchOption(&escfg.Configuration{
-			Servers: []string{"127.0.0.1"},
-		}),
+		basicB.Options.ElasticClientBuilderOpt(&mockElasticBuilder{}),
 	)
 	assert.NoError(t, err)
 	assert.NotNil(t, sBuilder)
 }
 
 func TestNewElasticFailure(t *testing.T) {
-	originalArgs := os.Args
-	defer func() {
-		os.Args = originalArgs
-	}()
-
-	os.Args = []string{"test", "--span-storage.type=elasticsearch"}
-	sBuilder, err := NewStorageBuilder()
+	v, command := config.Viperize(flags.AddFlags)
+	command.ParseFlags([]string{"test", "--span-storage.type=elasticsearch"})
+	sFlags := new(flags.SharedFlags).InitFromViper(v)
+	sBuilder, err := NewStorageBuilder(sFlags.SpanStorage.Type, sFlags.DependencyStorage.DataFrequency)
 	assert.EqualError(t, err, "ElasticSearch not configured")
 	assert.Nil(t, sBuilder)
 }

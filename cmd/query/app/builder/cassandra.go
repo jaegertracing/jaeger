@@ -26,7 +26,6 @@ import (
 	"go.uber.org/zap"
 
 	"github.com/uber/jaeger-lib/metrics"
-	"github.com/uber/jaeger/cmd/flags"
 	"github.com/uber/jaeger/pkg/cassandra"
 	cascfg "github.com/uber/jaeger/pkg/cassandra/config"
 	cDependencyStore "github.com/uber/jaeger/plugin/storage/cassandra/dependencystore"
@@ -38,47 +37,29 @@ import (
 type cassandraBuilder struct {
 	logger                  *zap.Logger
 	metricsFactory          metrics.Factory
-	configuration           cascfg.Configuration
 	session                 cassandra.Session
 	dependencyDataFrequency time.Duration
 }
 
-func newCassandraBuilder(config *cascfg.Configuration, logger *zap.Logger, metricsFactory metrics.Factory) *cassandraBuilder {
+func newCassandraBuilder(config cascfg.SessionBuilder, logger *zap.Logger, metricsFactory metrics.Factory, dependencyDataFreq time.Duration) (*cassandraBuilder, error) {
+	session, err := config.NewSession()
+	if err != nil {
+		return nil, err
+	}
+
 	cBuilder := &cassandraBuilder{
+		session:                 session,
 		logger:                  logger,
 		metricsFactory:          metricsFactory,
-		configuration:           fixConfiguration(*config),
-		dependencyDataFrequency: flags.DependencyStorage.DataFrequency,
+		dependencyDataFrequency: dependencyDataFreq,
 	}
-	return cBuilder
-}
-
-func fixConfiguration(config cascfg.Configuration) cascfg.Configuration {
-	config.ProtoVersion = 4
-	return config
-}
-
-func (c *cassandraBuilder) getSession() (cassandra.Session, error) {
-	if c.session == nil {
-		session, err := c.configuration.NewSession()
-		c.session = session
-		return c.session, err
-	}
-	return c.session, nil
+	return cBuilder, nil
 }
 
 func (c *cassandraBuilder) NewSpanReader() (spanstore.Reader, error) {
-	session, err := c.getSession()
-	if err != nil {
-		return nil, err
-	}
-	return cSpanStore.NewSpanReader(session, c.metricsFactory, c.logger), nil
+	return cSpanStore.NewSpanReader(c.session, c.metricsFactory, c.logger), nil
 }
 
 func (c *cassandraBuilder) NewDependencyReader() (dependencystore.Reader, error) {
-	session, err := c.getSession()
-	if err != nil {
-		return nil, err
-	}
-	return cDependencyStore.NewDependencyStore(session, c.dependencyDataFrequency, c.metricsFactory, c.logger), nil
+	return cDependencyStore.NewDependencyStore(c.session, c.dependencyDataFrequency, c.metricsFactory, c.logger), nil
 }

@@ -22,48 +22,42 @@ package builder
 
 import (
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 	"github.com/uber/jaeger-lib/metrics"
 	"go.uber.org/zap"
 
 	"github.com/uber/jaeger/pkg/es/config"
-	"github.com/uber/jaeger/pkg/es/mocks"
 )
 
-func withESBuilder(f func(builder *esBuilder)) {
-	cfg := &config.Configuration{
-		Servers: []string{"127.0.0.1"},
-	}
-	cBuilder := newESBuilder(cfg, zap.NewNop(), metrics.NullFactory)
+func withESBuilder(t *testing.T, f func(builder *esBuilder)) {
+	cBuilder, err := newESBuilder(&mockElasticBuilder{}, zap.NewNop(), metrics.NullFactory, time.Hour)
+	require.NoError(t, err)
 	f(cBuilder)
 }
 
 func TestNewESBuilder(t *testing.T) {
-	withESBuilder(func(esBuilder *esBuilder) {
+	withESBuilder(t, func(esBuilder *esBuilder) {
 		assert.NotNil(t, esBuilder)
 		assert.NotNil(t, esBuilder.logger)
-		assert.NotNil(t, esBuilder.configuration)
-		assert.Nil(t, esBuilder.client)
+		assert.NotNil(t, esBuilder.client)
+		assert.NotNil(t, esBuilder.client)
 	})
 }
 
 func TestESBuilderFailure(t *testing.T) {
-	withESBuilder(func(esBuilder *esBuilder) {
-		esBuilder.configuration.Servers = []string{}
-		spanReader, err := esBuilder.NewSpanReader()
-		assert.Error(t, err)
-		assert.Nil(t, spanReader)
-		dependencyReader, err := esBuilder.NewDependencyReader()
-		assert.Error(t, err)
-		assert.Nil(t, dependencyReader)
-	})
+	cfg := &config.Configuration{
+		Servers: []string{"127.0.0.1"},
+	}
+	cBuilder, error := newESBuilder(cfg, zap.NewNop(), metrics.NullFactory, time.Hour)
+	require.Error(t, error)
+	assert.Nil(t, cBuilder)
 }
 
 func TestESBuilderSuccesses(t *testing.T) {
-	withESBuilder(func(esBuilder *esBuilder) {
-		mockClient := mocks.Client{}
-		esBuilder.client = &mockClient
+	withESBuilder(t, func(esBuilder *esBuilder) {
 		spanReader, err := esBuilder.NewSpanReader()
 		assert.NoError(t, err)
 		assert.NotNil(t, spanReader)

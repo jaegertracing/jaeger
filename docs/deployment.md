@@ -38,7 +38,7 @@ across several collectors ([issue 213](https://github.com/uber/jaeger/issues/213
 
 Many instances of **jaeger-collector** can be run in parallel.
 Collectors require almost no configuration, except for the location of Cassandra cluster,
-via `-cassandra.keyspace` and `-cassandra.servers` options. To see all command line options run
+via `--cassandra.keyspace` and `--cassandra.servers` options. To see all command line options run
 
 ```
 go run ./cmd/collector/main.go -h
@@ -98,3 +98,9 @@ that will include aggregating data to present service dependency diagram.
 
 
 [cqlsh]: http://cassandra.apache.org/doc/latest/tools/cqlsh.html
+
+## Configuration
+All binaries accepts command line properties and environmental variables which are managed by
+by [viper](https://github.com/spf13/viper) and [cobra](https://github.com/spf13/cobra).
+The names of environmental properties are capital letters and characters `-` and `.` are replaced with `_`.
+To list all configuration properties call `jaeger-binary -h`.
