@@ -22,6 +22,8 @@ package spanstore
 
 import (
 	"context"
+	"strconv"
+	"strings"
 	"time"
 
 	"github.com/pkg/errors"
@@ -56,6 +58,8 @@ type SpanWriter struct {
 	writerMetrics spanWriterMetrics // TODO: build functions to wrap around each Do fn
 	indexCache    cache.Cache
 	serviceWriter serviceWriter
+	numShards     int64
+	numReplicas   int64
 }
 
 // Service is the JSON struct for service:operation documents in ElasticSearch
@@ -65,8 +69,20 @@ type Service struct {
 }
 
 // NewSpanWriter creates a new SpanWriter for use
-func NewSpanWriter(client es.Client, logger *zap.Logger, metricsFactory metrics.Factory) *SpanWriter {
+func NewSpanWriter(
+	client es.Client,
+	logger *zap.Logger,
+	metricsFactory metrics.Factory,
+	numShards int64,
+	numReplicas int64,
+) *SpanWriter {
 	ctx := context.Background()
+	if numShards == 0 {
+		numShards = 5
+	}
+	if numReplicas == 0 {
+		numReplicas = 2
+	}
 	// TODO: Configurable TTL
 	serviceOperationStorage := NewServiceOperationStorage(ctx, client, metricsFactory, logger, time.Hour*12)
 	return &SpanWriter{
@@ -84,6 +100,8 @@ func NewSpanWriter(client es.Client, logger *zap.Logger, metricsFactory metrics.
 				TTL: 48 * time.Hour,
 			},
 		),
+		numShards:   numShards,
+		numReplicas: numReplicas,
 	}
 }
 
@@ -118,6 +136,8 @@ func (s *SpanWriter) createIndex(indexName string, mapping string, jsonSpan *jMo
 		start := time.Now()
 		exists, _ := s.client.IndexExists(indexName).Do(s.ctx) // don't need to check the error because the exists variable will be false anyway if there is an error
 		if !exists {
+			mapping = strings.Replace(mapping, "${__NUMBER_OF_SHARDS__}", strconv.FormatInt(s.numShards, 10), 1)
+			mapping = strings.Replace(mapping, "${__NUMBER_OF_REPLICAS__}", strconv.FormatInt(s.numReplicas, 10), 1)
 			// if there are multiple collectors writing to the same elasticsearch host, if the collectors pass
 			// the exists check above and try to create the same index all at once, this might fail and
 			// drop a couple spans (~1 per collector). Creating indices ahead of time alleviates this issue.

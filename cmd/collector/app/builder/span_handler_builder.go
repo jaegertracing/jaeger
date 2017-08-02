@@ -161,7 +161,13 @@ func (e *esSpanHandlerBuilder) BuildHandlers() (app.ZipkinSpansHandler, app.Jaeg
 	if err != nil {
 		return nil, nil, err
 	}
-	spanStore := esSpanstore.NewSpanWriter(client, e.logger, e.metricsFactory)
+	spanStore := esSpanstore.NewSpanWriter(
+		client,
+		e.logger,
+		e.metricsFactory,
+		e.configuration.NumShards,
+		e.configuration.NumReplicas,
+	)
 
 	return buildHandlers(spanStore, e.logger, e.metricsFactory)
 }

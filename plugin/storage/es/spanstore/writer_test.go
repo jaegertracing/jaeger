@@ -22,6 +22,7 @@ package spanstore
 
 import (
 	"errors"
+	"strconv"
 	"strings"
 	"testing"
 	"time"
@@ -55,7 +56,7 @@ func withSpanWriter(fn func(w *spanWriterTest)) {
 		client:    client,
 		logger:    logger,
 		logBuffer: logBuffer,
-		writer:    NewSpanWriter(client, logger, metricsFactory),
+		writer:    NewSpanWriter(client, logger, metricsFactory, 0, 0),
 	}
 	fn(w)
 }
@@ -178,10 +179,16 @@ func TestSpanWriter_WriteSpan(t *testing.T) {
 				spanExistsService.On("Do", mock.AnythingOfType("*context.emptyCtx")).Return(testCase.spanIndexExists, nil)
 
 				serviceCreateService := &mocks.IndicesCreateService{}
+				serviceMapping = strings.Replace(serviceMapping, "${__NUMBER_OF_SHARDS__}", strconv.FormatInt(w.writer.numShards, 10), 1)
+				serviceMapping = strings.Replace(serviceMapping, "${__NUMBER_OF_REPLICAS__}", strconv.FormatInt(w.writer.numReplicas, 10), 1)
+
 				serviceCreateService.On("Body", stringMatcher(serviceMapping)).Return(serviceCreateService)
 				serviceCreateService.On("Do", mock.AnythingOfType("*context.emptyCtx")).Return(nil, testCase.serviceIndexCreateError)
 
 				spanCreateService := &mocks.IndicesCreateService{}
+				spanMapping = strings.Replace(spanMapping, "${__NUMBER_OF_SHARDS__}", strconv.FormatInt(w.writer.numShards, 10), 1)
+				spanMapping = strings.Replace(spanMapping, "${__NUMBER_OF_REPLICAS__}", strconv.FormatInt(w.writer.numReplicas, 10), 1)
+
 				spanCreateService.On("Body", stringMatcher(spanMapping)).Return(spanCreateService)
 				spanCreateService.On("Do", mock.AnythingOfType("*context.emptyCtx")).Return(nil, testCase.spanIndexCreateError)
 
