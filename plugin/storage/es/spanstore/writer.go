@@ -41,6 +41,9 @@ import (
 const (
 	spanType    = "span"
 	serviceType = "service"
+
+	defaultNumShards   = 5
+	defaultNumReplicas = 2
 )
 
 type spanWriterMetrics struct {
@@ -78,10 +81,10 @@ func NewSpanWriter(
 ) *SpanWriter {
 	ctx := context.Background()
 	if numShards == 0 {
-		numShards = 5
+		numShards = defaultNumShards
 	}
 	if numReplicas == 0 {
-		numReplicas = 2
+		numReplicas = defaultNumReplicas
 	}
 	// TODO: Configurable TTL
 	serviceOperationStorage := NewServiceOperationStorage(ctx, client, metricsFactory, logger, time.Hour*12)
@@ -136,12 +139,10 @@ func (s *SpanWriter) createIndex(indexName string, mapping string, jsonSpan *jMo
 		start := time.Now()
 		exists, _ := s.client.IndexExists(indexName).Do(s.ctx) // don't need to check the error because the exists variable will be false anyway if there is an error
 		if !exists {
-			mapping = strings.Replace(mapping, "${__NUMBER_OF_SHARDS__}", strconv.FormatInt(s.numShards, 10), 1)
-			mapping = strings.Replace(mapping, "${__NUMBER_OF_REPLICAS__}", strconv.FormatInt(s.numReplicas, 10), 1)
 			// if there are multiple collectors writing to the same elasticsearch host, if the collectors pass
 			// the exists check above and try to create the same index all at once, this might fail and
 			// drop a couple spans (~1 per collector). Creating indices ahead of time alleviates this issue.
-			_, err := s.client.CreateIndex(indexName).Body(mapping).Do(s.ctx)
+			_, err := s.client.CreateIndex(indexName).Body(s.fixMapping(mapping)).Do(s.ctx)
 			s.writerMetrics.indexCreate.Emit(err, time.Since(start))
 			if err != nil {
 				return s.logError(jsonSpan, err, "Failed to create index", s.logger)
@@ -158,6 +159,12 @@ func keyInCache(key string, c cache.Cache) bool {
 
 func writeCache(key string, c cache.Cache) {
 	c.Put(key, key)
+}
+
+func (s *SpanWriter) fixMapping(mapping string) string {
+	mapping = strings.Replace(mapping, "${__NUMBER_OF_SHARDS__}", strconv.FormatInt(s.numShards, 10), 1)
+	mapping = strings.Replace(mapping, "${__NUMBER_OF_REPLICAS__}", strconv.FormatInt(s.numReplicas, 10), 1)
+	return mapping
 }
 
 func (s *SpanWriter) writeService(indexName string, jsonSpan *jModel.Span) error {
