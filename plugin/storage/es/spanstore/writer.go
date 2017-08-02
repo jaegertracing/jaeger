@@ -89,28 +89,31 @@ func NewSpanWriter(client es.Client, logger *zap.Logger, metricsFactory metrics.
 
 // WriteSpan writes a span and its corresponding service:operation in ElasticSearch
 func (s *SpanWriter) WriteSpan(span *model.Span) error {
-	jaegerIndexName := spanIndexName(span)
+	spanIndexName, serviceIndexName := indexNames(span)
 	// Convert model.Span into json.Span
 	jsonSpan := json.FromDomainEmbedProcess(span)
 
-	if err := s.createIndex(jaegerIndexName, jsonSpan); err != nil {
+	if err := s.createIndex(serviceIndexName, serviceMapping, jsonSpan); err != nil {
 		return err
 	}
-	if err := s.writeService(jaegerIndexName, jsonSpan); err != nil {
+	if err := s.writeService(serviceIndexName, jsonSpan); err != nil {
 		return err
 	}
-	if err := s.writeSpan(jaegerIndexName, jsonSpan); err != nil {
+	if err := s.createIndex(spanIndexName, spanMapping, jsonSpan); err != nil {
+		return err
+	}
+	if err := s.writeSpan(spanIndexName, jsonSpan); err != nil {
 		return err
 	}
 	return nil
 }
 
-func spanIndexName(span *model.Span) string {
+func indexNames(span *model.Span) (string, string) {
 	spanDate := span.StartTime.Format("2006-01-02")
-	return indexPrefix + spanDate
+	return spanIndexPrefix + spanDate, serviceIndexPrefix + spanDate
 }
 
-func (s *SpanWriter) createIndex(indexName string, jsonSpan *jModel.Span) error {
+func (s *SpanWriter) createIndex(indexName string, mapping string, jsonSpan *jModel.Span) error {
 	if !keyInCache(indexName, s.indexCache) {
 		start := time.Now()
 		exists, _ := s.client.IndexExists(indexName).Do(s.ctx) // don't need to check the error because the exists variable will be false anyway if there is an error
@@ -118,7 +121,7 @@ func (s *SpanWriter) createIndex(indexName string, jsonSpan *jModel.Span) error 
 			// if there are multiple collectors writing to the same elasticsearch host, if the collectors pass
 			// the exists check above and try to create the same index all at once, this might fail and
 			// drop a couple spans (~1 per collector). Creating indices ahead of time alleviates this issue.
-			_, err := s.client.CreateIndex(indexName).Body(spanMapping).Do(s.ctx)
+			_, err := s.client.CreateIndex(indexName).Body(mapping).Do(s.ctx)
 			s.writerMetrics.indexCreate.Emit(err, time.Since(start))
 			if err != nil {
 				return s.logError(jsonSpan, err, "Failed to create index", s.logger)

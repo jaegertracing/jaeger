@@ -262,37 +262,37 @@ func TestSpanReaderFindIndices(t *testing.T) {
 			startTime: today.Add(-time.Millisecond),
 			endTime:   today,
 			expected: []string{
-				indexWithDate(today),
+				indexWithDate(spanIndexPrefix, today),
 			},
 		},
 		{
 			startTime: today.Add(-13 * time.Hour),
 			endTime:   today,
 			expected: []string{
-				indexWithDate(today),
-				indexWithDate(yesterday),
+				indexWithDate(spanIndexPrefix, today),
+				indexWithDate(spanIndexPrefix, yesterday),
 			},
 		},
 		{
 			startTime: today.Add(-48 * time.Hour),
 			endTime:   today,
 			expected: []string{
-				indexWithDate(today),
-				indexWithDate(yesterday),
-				indexWithDate(twoDaysAgo),
+				indexWithDate(spanIndexPrefix, today),
+				indexWithDate(spanIndexPrefix, yesterday),
+				indexWithDate(spanIndexPrefix, twoDaysAgo),
 			},
 		},
 	}
 	for _, testCase := range testCases {
-		actual := findIndices(testCase.startTime, testCase.endTime)
+		actual := findIndices(spanIndexPrefix, testCase.startTime, testCase.endTime)
 		assert.EqualValues(t, testCase.expected, actual)
 	}
 }
 
 func TestSpanReader_indexWithDate(t *testing.T) {
 	withSpanReader(func(r *spanReaderTest) {
-		actual := indexWithDate(time.Date(1995, time.April, 21, 4, 21, 19, 95, time.UTC))
-		assert.Equal(t, "jaeger-1995-04-21", actual)
+		actual := indexWithDate(spanIndexPrefix, time.Date(1995, time.April, 21, 4, 21, 19, 95, time.UTC))
+		assert.Equal(t, "jaeger-span-1995-04-21", actual)
 	})
 }
 
@@ -612,7 +612,7 @@ func mockMultiSearchService(r *spanReaderTest) *mock.Call {
 	multiSearchService := &mocks.MultiSearchService{}
 	multiSearchService.On("Add", mock.Anything, mock.Anything, mock.Anything).Return(multiSearchService)
 	multiSearchService.On("Index", mock.AnythingOfType("string"), mock.AnythingOfType("string"),
-		mock.AnythingOfType("string"), mock.AnythingOfType("string")).Return(multiSearchService)
+		mock.AnythingOfType("string"), mock.AnythingOfType("string"), mock.AnythingOfType("string")).Return(multiSearchService)
 	r.client.On("MultiSearch").Return(multiSearchService)
 	return multiSearchService.On("Do", mock.AnythingOfType("*context.emptyCtx"))
 }
@@ -629,7 +629,7 @@ func mockSearchService(r *spanReaderTest) *mock.Call {
 	searchService.On("Aggregation", stringMatcher(servicesAggregation), mock.AnythingOfType("*elastic.TermsAggregation")).Return(searchService)
 	searchService.On("Aggregation", stringMatcher(operationsAggregation), mock.AnythingOfType("*elastic.TermsAggregation")).Return(searchService)
 	searchService.On("Aggregation", stringMatcher(traceIDAggregation), mock.AnythingOfType("*elastic.TermsAggregation")).Return(searchService)
-	r.client.On("Search", mock.AnythingOfType("string"), mock.AnythingOfType("string"), mock.AnythingOfType("string"), mock.AnythingOfType("string")).Return(searchService)
+	r.client.On("Search", mock.AnythingOfType("string"), mock.AnythingOfType("string"), mock.AnythingOfType("string"), mock.AnythingOfType("string"), mock.AnythingOfType("string")).Return(searchService)
 	return searchService.On("Do", mock.AnythingOfType("*context.emptyCtx"))
 }
 

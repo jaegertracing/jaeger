@@ -40,7 +40,8 @@ import (
 )
 
 const (
-	indexPrefix        = "jaeger-"
+	spanIndexPrefix    = "jaeger-span-"
+	serviceIndexPrefix = "jaeger-service-"
 	traceIDAggregation = "traceIDs"
 
 	traceIDField       = "traceID"
@@ -160,33 +161,33 @@ func (s *SpanReader) unmarshalJSONSpan(esSpanRaw *elastic.SearchHit) (*jModel.Sp
 }
 
 // Returns the array of indices that we need to query, based on query params
-func findIndices(startTime time.Time, endTime time.Time) []string {
+func findIndices(prefix string, startTime time.Time, endTime time.Time) []string {
 	var indices []string
-	firstIndex := indexWithDate(startTime)
-	currentIndex := indexWithDate(endTime)
+	firstIndex := indexWithDate(prefix, startTime)
+	currentIndex := indexWithDate(prefix, endTime)
 	for currentIndex != firstIndex {
 		indices = append(indices, currentIndex)
 		endTime = endTime.Add(-24 * time.Hour)
-		currentIndex = indexWithDate(endTime)
+		currentIndex = indexWithDate(prefix, endTime)
 	}
 	return append(indices, firstIndex)
 }
 
-func indexWithDate(date time.Time) string {
-	return indexPrefix + date.UTC().Format("2006-01-02")
+func indexWithDate(prefix string, date time.Time) string {
+	return prefix + date.UTC().Format("2006-01-02")
 }
 
 // GetServices returns all services traced by Jaeger, ordered by frequency
 func (s *SpanReader) GetServices() ([]string, error) {
 	currentTime := time.Now()
-	jaegerIndices := findIndices(currentTime.Add(-s.maxLookback), currentTime)
+	jaegerIndices := findIndices(serviceIndexPrefix, currentTime.Add(-s.maxLookback), currentTime)
 	return s.serviceOperationStorage.getServices(jaegerIndices)
 }
 
 // GetOperations returns all operations for a specific service traced by Jaeger
 func (s *SpanReader) GetOperations(service string) ([]string, error) {
 	currentTime := time.Now()
-	jaegerIndices := findIndices(currentTime.Add(-s.maxLookback), currentTime)
+	jaegerIndices := findIndices(serviceIndexPrefix, currentTime.Add(-s.maxLookback), currentTime)
 	return s.serviceOperationStorage.getOperations(jaegerIndices, service)
 }
 
@@ -231,7 +232,7 @@ func (s *SpanReader) multiRead(traceIDs []string, traceQuery *spanstore.TraceQue
 
 	// Add an hour in both directions so that traces that straddle two indexes are retrieved.
 	// ie starts in one and ends in another.
-	indices := findIndices(traceQuery.StartTimeMin.Add(-time.Hour), traceQuery.StartTimeMax.Add(time.Hour))
+	indices := findIndices(spanIndexPrefix, traceQuery.StartTimeMin.Add(-time.Hour), traceQuery.StartTimeMax.Add(time.Hour))
 
 	results, err := s.client.MultiSearch().
 		Add(searchRequests...).
@@ -323,7 +324,7 @@ func (s *SpanReader) findTraceIDs(traceQuery *spanstore.TraceQueryParameters) ([
 	aggregation := s.buildTraceIDAggregation(traceQuery.NumTraces)
 	boolQuery := s.buildFindTraceIDsQuery(traceQuery)
 
-	jaegerIndices := findIndices(traceQuery.StartTimeMin, traceQuery.StartTimeMax)
+	jaegerIndices := findIndices(spanIndexPrefix, traceQuery.StartTimeMin, traceQuery.StartTimeMax)
 
 	searchService := s.client.Search(jaegerIndices...).
 		Type(spanType).
