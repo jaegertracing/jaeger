@@ -35,12 +35,12 @@ type BasicOptions struct {
 	Logger *zap.Logger
 	// MetricsFactory is the basic metrics factory used by most executables
 	MetricsFactory metrics.Factory
-	// Cassandra is the cassandra configuration used by most executables (if applicable)
-	Cassandra *cascfg.Configuration
 	// MemoryStore is the memory store (as reader and writer) that will be used if required
 	MemoryStore *memory.Store
-	// ElasticSearch is the elasticsearch configuration used
-	ElasticSearch *escfg.Configuration
+	// ElasticSearchClientBuilder is a builder for ElasticSearch client
+	ElasticClientBuilder escfg.ClientBuilder
+	// CassandraSessionBuilder is a builder for Cassandra session
+	CassandraSessionBuilder cascfg.SessionBuilder
 }
 
 // Option is a function that sets some option on StorageBuilder.
@@ -63,10 +63,17 @@ func (BasicOptions) MetricsFactoryOption(metricsFactory metrics.Factory) Option 
 	}
 }
 
-// CassandraOption creates an Option that adds Cassandra configuration.
-func (BasicOptions) CassandraOption(cassandra *cascfg.Configuration) Option {
+// CassandraSesBuilderOpt creates an Option that adds SessionBuilder to BasicOptions
+func (BasicOptions) CassandraSesBuilderOpt(sessionBuilder cascfg.SessionBuilder) Option {
 	return func(b *BasicOptions) {
-		b.Cassandra = cassandra
+		b.CassandraSessionBuilder = sessionBuilder
+	}
+}
+
+// ElasticClientBuilderOpt creates an Option that adds ClientBuilder to BasicOptions
+func (BasicOptions) ElasticClientBuilderOpt(clientBuilder escfg.ClientBuilder) Option {
+	return func(b *BasicOptions) {
+		b.ElasticClientBuilder = clientBuilder
 	}
 }
 
@@ -74,13 +81,6 @@ func (BasicOptions) CassandraOption(cassandra *cascfg.Configuration) Option {
 func (BasicOptions) MemoryStoreOption(memoryStore *memory.Store) Option {
 	return func(b *BasicOptions) {
 		b.MemoryStore = memoryStore
-	}
-}
-
-// ElasticSearchOption creates an Option that adds ElasticSearch configuration.
-func (BasicOptions) ElasticSearchOption(elastic *escfg.Configuration) Option {
-	return func(b *BasicOptions) {
-		b.ElasticSearch = elastic
 	}
 }
 

@@ -21,8 +21,6 @@
 package config
 
 import (
-	"time"
-
 	"github.com/olivere/elastic"
 	"github.com/pkg/errors"
 
@@ -31,11 +29,10 @@ import (
 
 // Configuration describes the configuration properties needed to connect to a ElasticSearch cluster
 type Configuration struct {
-	Servers    []string
-	Username   string
-	Password   string
-	Sniffer    bool          // https://github.com/olivere/elastic/wiki/Sniffing
-	MaxSpanAge time.Duration // configures the maximum lookback on span reads
+	Servers  []string
+	Username string
+	Password string
+	Sniffer  bool // https://github.com/olivere/elastic/wiki/Sniffing
 }
 
 // ClientBuilder creates new es.Client

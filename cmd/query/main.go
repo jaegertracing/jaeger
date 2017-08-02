@@ -61,7 +61,7 @@ func main() {
 				sFlags.DependencyStorage.DataFrequency,
 				basicB.Options.LoggerOption(logger),
 				basicB.Options.MetricsFactoryOption(metricsFactory),
-				basicB.Options.CassandraOption(casOptions.GetPrimary()),
+				basicB.Options.CassandraSesBuilderOpt(casOptions.GetPrimary()),
 			)
 			if err != nil {
 				logger.Fatal("Failed to init storage builder", zap.Error(err))

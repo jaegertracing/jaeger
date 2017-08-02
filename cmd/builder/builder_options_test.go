@@ -27,22 +27,35 @@ import (
 	"go.uber.org/zap"
 
 	"github.com/uber/jaeger-lib/metrics"
-	escfg "github.com/uber/jaeger/pkg/es/config"
+	"github.com/uber/jaeger/pkg/cassandra"
+	"github.com/uber/jaeger/pkg/es"
 	"github.com/uber/jaeger/storage/spanstore/memory"
 )
 
+type mockElastic struct {
+}
+
+func (*mockElastic) NewClient() (es.Client, error) {
+	return nil, nil
+}
+
+type mockCassandra struct {
+}
+
+func (*mockCassandra) NewSession() (cassandra.Session, error) {
+	return nil, nil
+}
+
 func TestApplyOptions(t *testing.T) {
 	opts := ApplyOptions(
-		Options.CassandraOption(nil),
+		Options.CassandraSesBuilderOpt(&mockCassandra{}),
 		Options.LoggerOption(zap.NewNop()),
 		Options.MetricsFactoryOption(metrics.NullFactory),
 		Options.MemoryStoreOption(memory.NewStore()),
-		Options.ElasticSearchOption(&escfg.Configuration{
-			Servers: []string{"127.0.0.1"},
-		}),
+		Options.ElasticClientBuilderOpt(&mockElastic{}),
 	)
-	assert.NotNil(t, opts.ElasticSearch)
-	assert.NotNil(t, opts.ElasticSearch.Servers)
+	assert.NotNil(t, opts.ElasticClientBuilder)
+	assert.NotNil(t, opts.CassandraSessionBuilder)
 	assert.NotNil(t, opts.Logger)
 	assert.NotNil(t, opts.MetricsFactory)
 }

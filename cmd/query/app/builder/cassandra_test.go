@@ -24,49 +24,43 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 	"go.uber.org/zap"
 
 	"github.com/uber/jaeger-lib/metrics"
 	"github.com/uber/jaeger/cmd/flags"
 	"github.com/uber/jaeger/pkg/cassandra/config"
-	"github.com/uber/jaeger/pkg/cassandra/mocks"
 )
 
-func withBuilder(f func(builder *cassandraBuilder)) {
+func withBuilder(t *testing.T, f func(builder *cassandraBuilder)) {
+	sFlags := &flags.SharedFlags{}
+	cBuilder, err := newCassandraBuilder(&mockSessionBuilder{}, zap.NewNop(), metrics.NullFactory, sFlags.DependencyStorage.DataFrequency)
+	require.NoError(t, err)
+
+	f(cBuilder)
+}
+
+func TestNewCassandraBuildFailure(t *testing.T) {
 	cfg := &config.Configuration{
 		Servers: []string{"127.0.0.1"},
 	}
 	sFlags := &flags.SharedFlags{}
-	cBuilder := newCassandraBuilder(cfg, zap.NewNop(), metrics.NullFactory, sFlags.DependencyStorage.DataFrequency)
-	f(cBuilder)
+	cBuilder, err := newCassandraBuilder(cfg, zap.NewNop(), metrics.NullFactory, sFlags.DependencyStorage.DataFrequency)
+	require.Error(t, err)
+	assert.Nil(t, cBuilder)
 }
 
 func TestNewCassandraBuild(t *testing.T) {
-	withBuilder(func(cBuilder *cassandraBuilder) {
+	withBuilder(t, func(cBuilder *cassandraBuilder) {
 		assert.NotNil(t, cBuilder)
 		assert.NotNil(t, cBuilder.metricsFactory)
 		assert.NotNil(t, cBuilder.logger)
-		assert.NotNil(t, cBuilder.configuration)
-		assert.Nil(t, cBuilder.session)
-	})
-}
-
-func TestNewReaderFailures(t *testing.T) {
-	withBuilder(func(cBuilder *cassandraBuilder) {
-		cBuilder.configuration.Servers = []string{"invalidhostname"}
-		spanReader, err := cBuilder.NewSpanReader()
-		assert.Error(t, err)
-		assert.Nil(t, spanReader)
-		depReader, err := cBuilder.NewDependencyReader()
-		assert.Error(t, err)
-		assert.Nil(t, depReader)
+		assert.NotNil(t, cBuilder.session)
 	})
 }
 
 func TestNewReaderSuccesses(t *testing.T) {
-	withBuilder(func(cBuilder *cassandraBuilder) {
-		mockSession := mocks.Session{}
-		cBuilder.session = &mockSession
+	withBuilder(t, func(cBuilder *cassandraBuilder) {
 		spanReader, err := cBuilder.NewSpanReader()
 		assert.NoError(t, err)
 		assert.NotNil(t, spanReader)

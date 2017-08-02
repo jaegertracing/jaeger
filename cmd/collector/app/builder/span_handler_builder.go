@@ -67,20 +67,20 @@ func NewSpanHandlerBuilder(cOpts *CollectorOptions, sFlags *flags.SharedFlags, o
 
 	var err error
 	if sFlags.SpanStorage.Type == flags.CassandraStorageType {
-		if options.Cassandra == nil {
+		if options.CassandraSessionBuilder == nil {
 			return nil, errMissingCassandraConfig
 		}
-		spanHb.spanWriter, err = spanHb.initCassStore(options.Cassandra)
+		spanHb.spanWriter, err = spanHb.initCassStore(options.CassandraSessionBuilder)
 	} else if sFlags.SpanStorage.Type == flags.MemoryStorageType {
 		if options.MemoryStore == nil {
 			return nil, errMissingMemoryStore
 		}
 		spanHb.spanWriter = options.MemoryStore
 	} else if sFlags.SpanStorage.Type == flags.ESStorageType {
-		if options.ElasticSearch == nil {
+		if options.ElasticClientBuilder == nil {
 			return nil, errMissingElasticSearchConfig
 		}
-		spanHb.spanWriter, err = spanHb.initElasticStore(options.ElasticSearch)
+		spanHb.spanWriter, err = spanHb.initElasticStore(options.ElasticClientBuilder)
 	} else {
 		return nil, flags.ErrUnsupportedStorageType
 	}

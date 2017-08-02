@@ -29,11 +29,27 @@ import (
 
 	basicB "github.com/uber/jaeger/cmd/builder"
 	"github.com/uber/jaeger/cmd/flags"
-	cascfg "github.com/uber/jaeger/pkg/cassandra/config"
+	"github.com/uber/jaeger/pkg/cassandra"
+	"github.com/uber/jaeger/pkg/cassandra/mocks"
 	"github.com/uber/jaeger/pkg/config"
-	escfg "github.com/uber/jaeger/pkg/es/config"
+	"github.com/uber/jaeger/pkg/es"
+	esMocks "github.com/uber/jaeger/pkg/es/mocks"
 	"github.com/uber/jaeger/storage/spanstore/memory"
 )
+
+type mockSessionBuilder struct {
+}
+
+func (at *mockSessionBuilder) NewSession() (cassandra.Session, error) {
+	return &mocks.Session{}, nil
+}
+
+type mockElasticBuilder struct {
+}
+
+func (mck *mockElasticBuilder) NewClient() (es.Client, error) {
+	return &esMocks.Client{}, nil
+}
 
 func TestNewCassandraSuccess(t *testing.T) {
 	v, _ := config.Viperize(flags.AddFlags)
@@ -43,15 +59,13 @@ func TestNewCassandraSuccess(t *testing.T) {
 		sFlags.DependencyStorage.DataFrequency,
 		basicB.Options.LoggerOption(zap.NewNop()),
 		basicB.Options.MetricsFactoryOption(metrics.NullFactory),
-		basicB.Options.CassandraOption(&cascfg.Configuration{
-			Servers: []string{"127.0.0.1"},
-		}),
+		basicB.Options.CassandraSesBuilderOpt(&mockSessionBuilder{}),
 	)
 	assert.NoError(t, err)
 	assert.NotNil(t, sBuilder)
 }
 
-func TestNewCassandraFailure(t *testing.T) {
+func TestNewCassandraFailureStorageBuilder(t *testing.T) {
 	v, command := config.Viperize(flags.AddFlags)
 	command.ParseFlags([]string{"test", "--span-storage.type=sneh"})
 	sFlags := new(flags.SharedFlags).InitFromViper(v)
@@ -92,9 +106,7 @@ func TestNewElasticSuccess(t *testing.T) {
 		sFlags.SpanStorage.Type,
 		sFlags.DependencyStorage.DataFrequency,
 		basicB.Options.LoggerOption(zap.NewNop()),
-		basicB.Options.ElasticSearchOption(&escfg.Configuration{
-			Servers: []string{"127.0.0.1"},
-		}),
+		basicB.Options.ElasticClientBuilderOpt(&mockElasticBuilder{}),
 	)
 	assert.NoError(t, err)
 	assert.NotNil(t, sBuilder)
