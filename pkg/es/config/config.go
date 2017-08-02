@@ -35,9 +35,9 @@ type Configuration struct {
 	Username    string
 	Password    string
 	Sniffer     bool          // https://github.com/olivere/elastic/wiki/Sniffing
-	MaxSpanAge  time.Duration // configures the maximum lookback on span reads
-	NumShards   int
-	NumReplicas int
+	MaxSpanAge  time.Duration `yaml:"max_span_age"` // configures the maximum lookback on span reads
+	NumShards   int           `yaml:"shards"`
+	NumReplicas int           `yaml:"replicas"`
 }
 
 // NewClient creates a new ElasticSearch client
