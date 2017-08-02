@@ -25,7 +25,7 @@ import (
 
 	"github.com/gocql/gocql"
 	"github.com/stretchr/testify/assert"
-	//"github.com/stretchr/testify/require"
+	"github.com/stretchr/testify/require"
 	"go.uber.org/zap"
 
 	"github.com/uber/jaeger-lib/metrics"
@@ -35,8 +35,6 @@ import (
 	cascfg "github.com/uber/jaeger/pkg/cassandra/config"
 	"github.com/uber/jaeger/pkg/cassandra/mocks"
 	"github.com/uber/jaeger/pkg/config"
-	//"github.com/uber/jaeger/pkg/es"
-	"github.com/stretchr/testify/require"
 	"github.com/uber/jaeger/pkg/es"
 	escfg "github.com/uber/jaeger/pkg/es/config"
 	esMocks "github.com/uber/jaeger/pkg/es/mocks"
