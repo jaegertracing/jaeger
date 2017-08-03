@@ -92,7 +92,7 @@ func NewSpanHandlerBuilder(cOpts *CollectorOptions, sFlags *flags.SharedFlags, o
 	return spanHb, nil
 }
 
-func (spanHb *SpanHandlerBuilder) initCassStore(config cascfg.SessionBuilder) (spanstore.Writer, error) {
+func (spanHb *SpanHandlerBuilder) initCassStore(config *cascfg.Configuration) (spanstore.Writer, error) {
 	session, err := config.NewSession()
 	if err != nil {
 		return nil, err
@@ -107,13 +107,19 @@ func (spanHb *SpanHandlerBuilder) initCassStore(config cascfg.SessionBuilder) (s
 	return store, nil
 }
 
-func (spanHb *SpanHandlerBuilder) initElasticStore(config escfg.ClientBuilder) (spanstore.Writer, error) {
+func (spanHb *SpanHandlerBuilder) initElasticStore(config *escfg.Configuration) (spanstore.Writer, error) {
 	client, err := config.NewClient()
 	if err != nil {
 		return nil, err
 	}
-
-	return esSpanstore.NewSpanWriter(client, spanHb.logger, spanHb.metricsFactory), nil
+	spanStore := esSpanstore.NewSpanWriter(
+		client,
+		spanHb.logger,
+		spanHb.metricsFactory,
+		config.NumShards,
+		config.NumReplicas,
+	)
+	return spanStore, nil
 }
 
 // BuildHandlers builds span handlers (Zipkin, Jaeger)

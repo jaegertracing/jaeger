@@ -22,6 +22,8 @@ package spanstore
 
 import (
 	"context"
+	"strconv"
+	"strings"
 	"time"
 
 	"github.com/pkg/errors"
@@ -39,6 +41,9 @@ import (
 const (
 	spanType    = "span"
 	serviceType = "service"
+
+	defaultNumShards   = 5
+	defaultNumReplicas = 2
 )
 
 type spanWriterMetrics struct {
@@ -56,6 +61,8 @@ type SpanWriter struct {
 	writerMetrics spanWriterMetrics // TODO: build functions to wrap around each Do fn
 	indexCache    cache.Cache
 	serviceWriter serviceWriter
+	numShards     int64
+	numReplicas   int64
 }
 
 // Service is the JSON struct for service:operation documents in ElasticSearch
@@ -65,8 +72,20 @@ type Service struct {
 }
 
 // NewSpanWriter creates a new SpanWriter for use
-func NewSpanWriter(client es.Client, logger *zap.Logger, metricsFactory metrics.Factory) *SpanWriter {
+func NewSpanWriter(
+	client es.Client,
+	logger *zap.Logger,
+	metricsFactory metrics.Factory,
+	numShards int64,
+	numReplicas int64,
+) *SpanWriter {
 	ctx := context.Background()
+	if numShards == 0 {
+		numShards = defaultNumShards
+	}
+	if numReplicas == 0 {
+		numReplicas = defaultNumReplicas
+	}
 	// TODO: Configurable TTL
 	serviceOperationStorage := NewServiceOperationStorage(ctx, client, metricsFactory, logger, time.Hour*12)
 	return &SpanWriter{
@@ -84,6 +103,8 @@ func NewSpanWriter(client es.Client, logger *zap.Logger, metricsFactory metrics.
 				TTL: 48 * time.Hour,
 			},
 		),
+		numShards:   numShards,
+		numReplicas: numReplicas,
 	}
 }
 
@@ -121,7 +142,7 @@ func (s *SpanWriter) createIndex(indexName string, mapping string, jsonSpan *jMo
 			// if there are multiple collectors writing to the same elasticsearch host, if the collectors pass
 			// the exists check above and try to create the same index all at once, this might fail and
 			// drop a couple spans (~1 per collector). Creating indices ahead of time alleviates this issue.
-			_, err := s.client.CreateIndex(indexName).Body(mapping).Do(s.ctx)
+			_, err := s.client.CreateIndex(indexName).Body(s.fixMapping(mapping)).Do(s.ctx)
 			s.writerMetrics.indexCreate.Emit(err, time.Since(start))
 			if err != nil {
 				return s.logError(jsonSpan, err, "Failed to create index", s.logger)
@@ -138,6 +159,12 @@ func keyInCache(key string, c cache.Cache) bool {
 
 func writeCache(key string, c cache.Cache) {
 	c.Put(key, key)
+}
+
+func (s *SpanWriter) fixMapping(mapping string) string {
+	mapping = strings.Replace(mapping, "${__NUMBER_OF_SHARDS__}", strconv.FormatInt(s.numShards, 10), 1)
+	mapping = strings.Replace(mapping, "${__NUMBER_OF_REPLICAS__}", strconv.FormatInt(s.numReplicas, 10), 1)
+	return mapping
 }
 
 func (s *SpanWriter) writeService(indexName string, jsonSpan *jModel.Span) error {

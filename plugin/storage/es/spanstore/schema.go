@@ -25,6 +25,8 @@ import "fmt"
 // TODO: resolve traceID concerns (may not require any changes here)
 const mapping = `{
    "settings":{
+      "index.number_of_shards": ${__NUMBER_OF_SHARDS__},
+      "index.number_of_replicas": ${__NUMBER_OF_REPLICAS__},
       "index.mapping.nested_fields.limit":50,
       "index.requests.cache.enable":true,
       "index.mapper.dynamic":false

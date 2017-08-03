@@ -29,13 +29,15 @@ import (
 	"github.com/uber/jaeger/pkg/es"
 )
 
-// Configuration describes the configuration properties needed to connect to a ElasticSearch cluster
+// Configuration describes the configuration properties needed to connect to an ElasticSearch cluster
 type Configuration struct {
-	Servers    []string
-	Username   string
-	Password   string
-	Sniffer    bool          // https://github.com/olivere/elastic/wiki/Sniffing
-	MaxSpanAge time.Duration // configures the maximum lookback on span reads
+	Servers     []string
+	Username    string
+	Password    string
+	Sniffer     bool          // https://github.com/olivere/elastic/wiki/Sniffing
+	MaxSpanAge  time.Duration `yaml:"max_span_age"` // configures the maximum lookback on span reads
+	NumShards   int64         `yaml:"shards"`
+	NumReplicas int64         `yaml:"replicas"`
 }
 
 // ClientBuilder creates new es.Client

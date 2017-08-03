@@ -55,7 +55,7 @@ func withSpanWriter(fn func(w *spanWriterTest)) {
 		client:    client,
 		logger:    logger,
 		logBuffer: logBuffer,
-		writer:    NewSpanWriter(client, logger, metricsFactory),
+		writer:    NewSpanWriter(client, logger, metricsFactory, 0, 0),
 	}
 	fn(w)
 }
@@ -178,11 +178,11 @@ func TestSpanWriter_WriteSpan(t *testing.T) {
 				spanExistsService.On("Do", mock.AnythingOfType("*context.emptyCtx")).Return(testCase.spanIndexExists, nil)
 
 				serviceCreateService := &mocks.IndicesCreateService{}
-				serviceCreateService.On("Body", stringMatcher(serviceMapping)).Return(serviceCreateService)
+				serviceCreateService.On("Body", stringMatcher(w.writer.fixMapping(serviceMapping))).Return(serviceCreateService)
 				serviceCreateService.On("Do", mock.AnythingOfType("*context.emptyCtx")).Return(nil, testCase.serviceIndexCreateError)
 
 				spanCreateService := &mocks.IndicesCreateService{}
-				spanCreateService.On("Body", stringMatcher(spanMapping)).Return(spanCreateService)
+				spanCreateService.On("Body", stringMatcher(w.writer.fixMapping(spanMapping))).Return(spanCreateService)
 				spanCreateService.On("Do", mock.AnythingOfType("*context.emptyCtx")).Return(nil, testCase.spanIndexCreateError)
 
 				indexService := &mocks.IndexService{}
@@ -272,7 +272,7 @@ func TestCheckAndCreateIndex(t *testing.T) {
 			existsService.On("Do", mock.AnythingOfType("*context.emptyCtx")).Return(testCase.indexExists, testCase.indexExistsError)
 
 			createService := &mocks.IndicesCreateService{}
-			createService.On("Body", stringMatcher(spanMapping)).Return(createService)
+			createService.On("Body", stringMatcher(w.writer.fixMapping(spanMapping))).Return(createService)
 			createService.On("Do", mock.AnythingOfType("*context.emptyCtx")).Return(testCase.createResult, testCase.createError)
 
 			indexName := "jaeger-1995-04-21"
@@ -304,6 +304,45 @@ func TestCheckAndCreateIndex(t *testing.T) {
 			}
 		})
 	}
+}
+
+func TestFixMapping(t *testing.T) {
+	withSpanWriter(func(w *spanWriterTest) {
+		testMapping := `{
+		   "settings":{
+		      "index.number_of_shards": ${__NUMBER_OF_SHARDS__},
+      		      "index.number_of_replicas": ${__NUMBER_OF_REPLICAS__},
+		      "index.mapping.nested_fields.limit":50,
+		      "index.requests.cache.enable":true,
+		      "index.mapper.dynamic":false
+		   },
+		   "mappings":{
+		      "_default_":{
+			 "_all":{
+			    "enabled":false
+			 }
+		      }
+		   }
+		}`
+		expectedMapping := `{
+		   "settings":{
+		      "index.number_of_shards": 5,
+      		      "index.number_of_replicas": 2,
+		      "index.mapping.nested_fields.limit":50,
+		      "index.requests.cache.enable":true,
+		      "index.mapper.dynamic":false
+		   },
+		   "mappings":{
+		      "_default_":{
+			 "_all":{
+			    "enabled":false
+			 }
+		      }
+		   }
+		}`
+
+		assert.Equal(t, expectedMapping, w.writer.fixMapping(testMapping))
+	})
 }
 
 func TestWriteSpanInternal(t *testing.T) {
