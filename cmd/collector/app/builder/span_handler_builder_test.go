@@ -189,7 +189,7 @@ func (mck *MockEsBuilder) NewClient() (es.Client, error) {
 
 func TestBuildHandlersElasticSearch(t *testing.T) {
 	withBuilder(func(builder *SpanHandlerBuilder) {
-		spanWriter, err := builder.initElasticStore(&MockEsBuilder{})
+		spanWriter, err := builder.initElasticStore(&MockEsBuilder{}, 5, 2)
 		require.NoError(t, err)
 		require.NotNil(t, spanWriter)
 
@@ -203,7 +203,7 @@ func TestBuildHandlersElasticSearch(t *testing.T) {
 
 func TestBuildHandlersElasticSearchFailure(t *testing.T) {
 	withBuilder(func(builder *SpanHandlerBuilder) {
-		spanWriter, err := builder.initElasticStore(&escfg.Configuration{})
+		spanWriter, err := builder.initElasticStore(&escfg.Configuration{}, 5, 2)
 		assert.Error(t, err)
 		assert.Nil(t, spanWriter)
 	})

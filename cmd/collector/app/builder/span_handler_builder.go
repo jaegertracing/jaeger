@@ -80,7 +80,11 @@ func NewSpanHandlerBuilder(cOpts *CollectorOptions, sFlags *flags.SharedFlags, o
 		if options.ElasticSearch == nil {
 			return nil, errMissingElasticSearchConfig
 		}
-		spanHb.spanWriter, err = spanHb.initElasticStore(options.ElasticSearch)
+		spanHb.spanWriter, err = spanHb.initElasticStore(
+			options.ElasticSearch,
+			options.ElasticSearch.NumShards,
+			options.ElasticSearch.NumReplicas,
+		)
 	} else {
 		return nil, flags.ErrUnsupportedStorageType
 	}
@@ -92,7 +96,7 @@ func NewSpanHandlerBuilder(cOpts *CollectorOptions, sFlags *flags.SharedFlags, o
 	return spanHb, nil
 }
 
-func (spanHb *SpanHandlerBuilder) initCassStore(config *cascfg.Configuration) (spanstore.Writer, error) {
+func (spanHb *SpanHandlerBuilder) initCassStore(config cascfg.SessionBuilder) (spanstore.Writer, error) {
 	session, err := config.NewSession()
 	if err != nil {
 		return nil, err
@@ -107,7 +111,7 @@ func (spanHb *SpanHandlerBuilder) initCassStore(config *cascfg.Configuration) (s
 	return store, nil
 }
 
-func (spanHb *SpanHandlerBuilder) initElasticStore(config *escfg.Configuration) (spanstore.Writer, error) {
+func (spanHb *SpanHandlerBuilder) initElasticStore(config escfg.ClientBuilder, numShards, numReplicas int64) (spanstore.Writer, error) {
 	client, err := config.NewClient()
 	if err != nil {
 		return nil, err
@@ -116,8 +120,8 @@ func (spanHb *SpanHandlerBuilder) initElasticStore(config *escfg.Configuration) 
 		client,
 		spanHb.logger,
 		spanHb.metricsFactory,
-		config.NumShards,
-		config.NumReplicas,
+		numShards,
+		numReplicas,
 	)
 	return spanStore, nil
 }
