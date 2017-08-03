@@ -35,52 +35,54 @@ type BasicOptions struct {
 	Logger *zap.Logger
 	// MetricsFactory is the basic metrics factory used by most executables
 	MetricsFactory metrics.Factory
-	// Cassandra is the cassandra configuration used by most executables (if applicable)
-	Cassandra *cascfg.Configuration
 	// MemoryStore is the memory store (as reader and writer) that will be used if required
 	MemoryStore *memory.Store
-	// ElasticSearch is the elasticsearch configuration used
-	ElasticSearch *escfg.Configuration
+	// ElasticSearchClientBuilder is a builder for ElasticSearch client
+	ElasticClientBuilder escfg.ClientBuilder
+	// CassandraSessionBuilder is a builder for Cassandra session
+	CassandraSessionBuilder cascfg.SessionBuilder
 }
 
 // Option is a function that sets some option on StorageBuilder.
 type Option func(c *BasicOptions)
 
+type basicOptionsFactory struct{}
+
 // Options is a factory for all available Option's
-var Options BasicOptions
+var Options basicOptionsFactory
 
 // LoggerOption creates an Option that initializes the logger
-func (BasicOptions) LoggerOption(logger *zap.Logger) Option {
+func (basicOptionsFactory) LoggerOption(logger *zap.Logger) Option {
 	return func(b *BasicOptions) {
 		b.Logger = logger
 	}
 }
 
 // MetricsFactoryOption creates an Option that initializes the MetricsFactory
-func (BasicOptions) MetricsFactoryOption(metricsFactory metrics.Factory) Option {
+func (basicOptionsFactory) MetricsFactoryOption(metricsFactory metrics.Factory) Option {
 	return func(b *BasicOptions) {
 		b.MetricsFactory = metricsFactory
 	}
 }
 
-// CassandraOption creates an Option that adds Cassandra configuration.
-func (BasicOptions) CassandraOption(cassandra *cascfg.Configuration) Option {
+// CassandraSessionBuilder creates an Option that adds SessionBuilder to BasicOptions
+func (basicOptionsFactory) CassandraSessionBuilder(sessionBuilder cascfg.SessionBuilder) Option {
 	return func(b *BasicOptions) {
-		b.Cassandra = cassandra
+		b.CassandraSessionBuilder = sessionBuilder
+	}
+}
+
+// ElasticsearchClientBuilder creates an Option that adds ClientBuilder to BasicOptions
+func (basicOptionsFactory) ElasticsearchClientBuilder(clientBuilder escfg.ClientBuilder) Option {
+	return func(b *BasicOptions) {
+		b.ElasticClientBuilder = clientBuilder
 	}
 }
 
 // MemoryStoreOption creates an Option that adds a memory store
-func (BasicOptions) MemoryStoreOption(memoryStore *memory.Store) Option {
+func (basicOptionsFactory) MemoryStoreOption(memoryStore *memory.Store) Option {
 	return func(b *BasicOptions) {
 		b.MemoryStore = memoryStore
-	}
-}
-
-// ElasticSearchOption creates an Option that adds ElasticSearch configuration.
-func (BasicOptions) ElasticSearchOption(elastic *escfg.Configuration) Option {
-	return func(b *BasicOptions) {
-		b.ElasticSearch = elastic
 	}
 }
 

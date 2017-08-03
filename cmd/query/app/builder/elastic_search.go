@@ -30,44 +30,34 @@ import (
 	esSpanstore "github.com/uber/jaeger/plugin/storage/es/spanstore"
 	"github.com/uber/jaeger/storage/dependencystore"
 	"github.com/uber/jaeger/storage/spanstore"
+	"time"
 )
 
 type esBuilder struct {
 	logger         *zap.Logger
-	client         es.Client
 	metricsFactory metrics.Factory
-	configuration  escfg.Configuration
+	client         es.Client
+	maxLookback    time.Duration
 }
 
-func newESBuilder(config *escfg.Configuration, logger *zap.Logger, metricsFactory metrics.Factory) *esBuilder {
+func newESBuilder(cBuilder escfg.ClientBuilder, logger *zap.Logger, metricsFactory metrics.Factory, maxLookBack time.Duration) (*esBuilder, error) {
+	client, err := cBuilder.NewClient()
+	if err != nil {
+		return nil, err
+	}
+
 	return &esBuilder{
+		client:         client,
 		logger:         logger,
 		metricsFactory: metricsFactory,
-		configuration:  *config,
-	}
-}
-
-func (e *esBuilder) getClient() (es.Client, error) {
-	if e.client == nil {
-		client, err := e.configuration.NewClient()
-		e.client = client
-		return e.client, err
-	}
-	return e.client, nil
+		maxLookback:    maxLookBack,
+	}, nil
 }
 
 func (e *esBuilder) NewSpanReader() (spanstore.Reader, error) {
-	client, err := e.getClient()
-	if err != nil {
-		return nil, err
-	}
-	return esSpanstore.NewSpanReader(client, e.logger, e.configuration.MaxSpanAge, e.metricsFactory), nil
+	return esSpanstore.NewSpanReader(e.client, e.logger, e.maxLookback, e.metricsFactory), nil
 }
 
 func (e *esBuilder) NewDependencyReader() (dependencystore.Reader, error) {
-	client, err := e.getClient()
-	if err != nil {
-		return nil, err
-	}
-	return esDependencyStore.NewDependencyStore(client, e.logger), nil
+	return esDependencyStore.NewDependencyStore(e.client, e.logger), nil
 }

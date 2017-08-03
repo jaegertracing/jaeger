@@ -24,7 +24,20 @@ import (
 	"flag"
 	"strings"
 
+	"github.com/spf13/viper"
+
 	"github.com/uber/jaeger/pkg/cassandra/config"
+)
+
+const (
+	suffixConnPerHost      = ".connections-per-host"
+	suffixMaxRetryAttempts = ".max-retry-attempts"
+	suffixTimeout          = ".timeout"
+	suffixServers          = ".servers"
+	suffixPort             = ".port"
+	suffixKeyspace         = ".keyspace"
+	suffixProtoVer         = ".proto-version"
+	suffixSocketKeepAlive  = ".socket-keep-alive"
 )
 
 // TODO this should be moved next to config.Configuration struct (maybe ./flags package)
@@ -43,12 +56,13 @@ type Options struct {
 // preparing the actual config.Configuration.
 type namespaceConfig struct {
 	config.Configuration
-	servers string
+	servers   string
+	namespace string
 }
 
 // NewOptions creates a new Options struct.
-func NewOptions() *Options {
-	return &Options{
+func NewOptions(primaryNamespace string, otherNamespaces ...string) *Options {
+	options := &Options{
 		primary: &namespaceConfig{
 			Configuration: config.Configuration{
 				MaxRetryAttempts:   3,
@@ -56,23 +70,79 @@ func NewOptions() *Options {
 				ProtoVersion:       4,
 				ConnectionsPerHost: 2,
 			},
-			servers: "127.0.0.1",
+			servers:   "127.0.0.1",
+			namespace: primaryNamespace,
 		},
-		others: make(map[string]*namespaceConfig),
+		others: make(map[string]*namespaceConfig, len(otherNamespaces)),
+	}
+
+	for _, namespace := range otherNamespaces {
+		options.others[namespace] = &namespaceConfig{namespace: namespace}
+	}
+
+	return options
+}
+
+// AddFlags adds flags for Options
+func (opt *Options) AddFlags(flagSet *flag.FlagSet) {
+	addFlags(flagSet, opt.primary)
+	for _, cfg := range opt.others {
+		addFlags(flagSet, cfg)
 	}
 }
 
-// Bind defines flags in the FlagSet for the primary namespace and optional other namespaces.
-func (opt *Options) Bind(flags *flag.FlagSet, primaryNamespace string, otherNamespaces ...string) {
-	bind(flags, primaryNamespace, opt.primary, &opt.primary.Configuration)
-	for _, namespace := range otherNamespaces {
-		nsCfg, ok := opt.others[namespace]
-		if !ok {
-			nsCfg = &namespaceConfig{}
-			opt.others[namespace] = nsCfg
-		}
-		bind(flags, namespace, nsCfg, nil)
+func addFlags(flagSet *flag.FlagSet, nsConfig *namespaceConfig) {
+	flagSet.Int(
+		nsConfig.namespace+suffixConnPerHost,
+		nsConfig.ConnectionsPerHost,
+		"The number of Cassandra connections from a single backend instance")
+	flagSet.Int(
+		nsConfig.namespace+suffixMaxRetryAttempts,
+		nsConfig.MaxRetryAttempts,
+		"The number of attempts when reading from Cassandra")
+	flagSet.Duration(
+		nsConfig.namespace+suffixTimeout,
+		nsConfig.Timeout,
+		"Timeout used for queries")
+	flagSet.String(
+		nsConfig.namespace+suffixServers,
+		nsConfig.servers,
+		"The comma-separated list of Cassandra servers")
+	flagSet.Int(
+		nsConfig.namespace+suffixPort,
+		nsConfig.Port,
+		"The port for cassandra")
+	flagSet.String(
+		nsConfig.namespace+suffixKeyspace,
+		nsConfig.Keyspace,
+		"The Cassandra keyspace for Jaeger data")
+	flagSet.Int(
+		nsConfig.namespace+suffixProtoVer,
+		nsConfig.ProtoVersion,
+		"The Cassandra protocol version")
+	flagSet.Duration(
+		nsConfig.namespace+suffixSocketKeepAlive,
+		nsConfig.SocketKeepAlive,
+		"Cassandra's keepalive period to use, enabled if > 0")
+}
+
+// InitFromViper initializes Options with properties from viper
+func (opt *Options) InitFromViper(v *viper.Viper) {
+	initFromViper(opt.primary, v)
+	for _, cfg := range opt.others {
+		initFromViper(cfg, v)
 	}
+}
+
+func initFromViper(cfg *namespaceConfig, v *viper.Viper) {
+	cfg.ConnectionsPerHost = v.GetInt(cfg.namespace + suffixConnPerHost)
+	cfg.MaxRetryAttempts = v.GetInt(cfg.namespace + suffixMaxRetryAttempts)
+	cfg.Timeout = v.GetDuration(cfg.namespace + suffixTimeout)
+	cfg.servers = v.GetString(cfg.namespace + suffixServers)
+	cfg.Port = v.GetInt(cfg.namespace + suffixPort)
+	cfg.Keyspace = v.GetString(cfg.namespace + suffixKeyspace)
+	cfg.ProtoVersion = v.GetInt(cfg.namespace + suffixProtoVer)
+	cfg.SocketKeepAlive = v.GetDuration(cfg.namespace + suffixSocketKeepAlive)
 }
 
 // GetPrimary returns primary configuration.
@@ -94,57 +164,4 @@ func (opt *Options) Get(namespace string) *config.Configuration {
 	}
 	nsCfg.Servers = strings.Split(nsCfg.servers, ",")
 	return &nsCfg.Configuration
-}
-
-// bind defines a set of flags prefixed with the namespace and binds them to cassandra
-// config struct, and a separate servers string pointer (because config struct uses array).
-func bind(
-	flags *flag.FlagSet,
-	namespace string,
-	cfg *namespaceConfig,
-	defaults *config.Configuration,
-) {
-	if defaults == nil {
-		defaults = &config.Configuration{}
-	}
-	flags.IntVar(
-		&cfg.ConnectionsPerHost,
-		namespace+".connections-per-host",
-		defaults.ConnectionsPerHost,
-		"The number of Cassandra connections from a single backend instance")
-	flags.IntVar(
-		&cfg.MaxRetryAttempts,
-		namespace+".max-retry-attempts",
-		defaults.MaxRetryAttempts,
-		"The number of attempts when reading from Cassandra")
-	flags.DurationVar(
-		&cfg.Timeout,
-		namespace+".timeout",
-		defaults.Timeout,
-		"Timeout used for queries")
-	flags.StringVar(
-		&cfg.servers,
-		namespace+".servers",
-		cfg.servers,
-		"The comma-separated list of Cassandra servers")
-	flags.IntVar(
-		&cfg.Port,
-		namespace+".port",
-		defaults.Port,
-		"The port for cassandra")
-	flags.StringVar(
-		&cfg.Keyspace,
-		namespace+".keyspace",
-		defaults.Keyspace,
-		"The Cassandra keyspace for Jaeger data")
-	flags.IntVar(
-		&cfg.ProtoVersion,
-		namespace+".proto-version",
-		defaults.ProtoVersion,
-		"The Cassandra protocol version")
-	flags.DurationVar(
-		&cfg.SocketKeepAlive,
-		namespace+".socket-keep-alive",
-		defaults.SocketKeepAlive,
-		"Cassandra's keepalive period to use, enabled if > 0")
 }

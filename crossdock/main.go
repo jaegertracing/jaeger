@@ -125,8 +125,8 @@ func startCollector(logger *zap.Logger) {
 	forkCmd(
 		logger,
 		collectorCmd,
-		"-cassandra.keyspace=jaeger",
-		"-cassandra.servers=cassandra",
+		"--cassandra.keyspace=jaeger",
+		"--cassandra.servers=cassandra",
 	)
 	tChannelHealthCheck(logger, collectorService, collectorHostPort)
 }
@@ -136,8 +136,8 @@ func startQueryService(url string, logger *zap.Logger) services.QueryService {
 	forkCmd(
 		logger,
 		queryCmd,
-		"-cassandra.keyspace=jaeger",
-		"-cassandra.servers=cassandra",
+		"--cassandra.keyspace=jaeger",
+		"--cassandra.servers=cassandra",
 	)
 	if url == "" {
 		url = queryServiceURL
