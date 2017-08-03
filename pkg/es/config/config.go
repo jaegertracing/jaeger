@@ -59,6 +59,28 @@ func (c *Configuration) NewClient() (es.Client, error) {
 	return es.WrapESClient(rawClient), nil
 }
 
+// ApplyDefaults copies settings from source unless its own value is non-zero.
+func (c *Configuration) ApplyDefaults(source *Configuration) {
+	if c.Username == "" {
+		c.Username = source.Username
+	}
+	if c.Password == "" {
+		c.Password = source.Password
+	}
+	if c.Sniffer == false {
+		c.Sniffer = source.Sniffer
+	}
+	if c.MaxSpanAge == 0 {
+		c.MaxSpanAge = source.MaxSpanAge
+	}
+	if c.NumShards == 0 {
+		c.NumShards = source.NumShards
+	}
+	if c.NumReplicas == 0 {
+		c.NumReplicas = source.NumReplicas
+	}
+}
+
 // GetNumShards returns number of shards from Configuration
 func (c *Configuration) GetNumShards() int64 {
 	return c.NumShards

@@ -63,9 +63,9 @@ func (flags *SharedFlags) InitFromViper(v *viper.Viper) *SharedFlags {
 // AddFlags adds flags for SharedFlags
 func AddFlags(flagSet *flag.FlagSet) {
 	flagSet.Duration(runtimeMetricsFrequency, 1*time.Second, "The frequency of reporting Go runtime metrics")
-	flagSet.String(spanStorageType, CassandraStorageType, fmt.Sprintf("The type of span storage backend to use, options are currently [%v,%v]", CassandraStorageType, MemoryStorageType))
+	flagSet.String(spanStorageType, CassandraStorageType, fmt.Sprintf("The type of span storage backend to use, options are currently [%v,%v,%v]", CassandraStorageType, ESStorageType, MemoryStorageType))
 	flagSet.String(logLevel, "info", "Minimal allowed log level")
-	flagSet.String(dependencyStorageType, CassandraStorageType, fmt.Sprintf("The type of dependency storage backend to use, options are currently [%v,%v]", CassandraStorageType, MemoryStorageType))
+	flagSet.String(dependencyStorageType, CassandraStorageType, fmt.Sprintf("The type of dependency storage backend to use, options are currently [%v,%v,%v]", CassandraStorageType, ESStorageType, MemoryStorageType))
 	flagSet.Duration(dependencyStorageDataFrequency, time.Hour*24, "Frequency of service dependency calculations")
 }
 
