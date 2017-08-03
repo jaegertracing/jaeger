@@ -112,8 +112,15 @@ func (spanHb *SpanHandlerBuilder) initElasticStore(config escfg.ClientBuilder) (
 	if err != nil {
 		return nil, err
 	}
+	spanStore := esSpanstore.NewSpanWriter(
+		client,
+		spanHb.logger,
+		spanHb.metricsFactory,
+		5, // TODO e.configuration.NumShards,
+		2, // TODO e.configuration.NumReplicas,
+	)
 
-	return esSpanstore.NewSpanWriter(client, spanHb.logger, spanHb.metricsFactory), nil
+	return spanStore, nil
 }
 
 // BuildHandlers builds span handlers (Zipkin, Jaeger)
