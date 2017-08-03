@@ -21,60 +21,86 @@
 package main
 
 import (
-	"flag"
 	"net/http"
 	"strconv"
 
 	"github.com/gorilla/mux"
-	"go.uber.org/zap"
-
+	"github.com/spf13/cobra"
+	"github.com/spf13/viper"
 	"github.com/uber/jaeger-lib/metrics/go-kit"
 	"github.com/uber/jaeger-lib/metrics/go-kit/expvar"
-	"github.com/uber/jaeger/cmd/query/app"
+	"go.uber.org/zap"
 
 	basicB "github.com/uber/jaeger/cmd/builder"
+	"github.com/uber/jaeger/cmd/flags"
 	casFlags "github.com/uber/jaeger/cmd/flags/cassandra"
+	"github.com/uber/jaeger/cmd/query/app"
 	"github.com/uber/jaeger/cmd/query/app/builder"
+	"github.com/uber/jaeger/pkg/config"
 	"github.com/uber/jaeger/pkg/recoveryhandler"
 )
 
 func main() {
-	casOptions := casFlags.NewOptions()
-	casOptions.Bind(flag.CommandLine, "cassandra", "cassandra.archive")
-	flag.Parse()
-
 	logger, _ := zap.NewProduction()
-	metricsFactory := xkit.Wrap("jaeger-query", expvar.NewFactory(10))
+	casOptions := casFlags.NewOptions("cassandra", "cassandra.archive")
+	v := viper.New()
 
-	storageBuild, err := builder.NewStorageBuilder(
-		basicB.Options.LoggerOption(logger),
-		basicB.Options.MetricsFactoryOption(metricsFactory),
-		basicB.Options.CassandraOption(casOptions.GetPrimary()),
+	var command = &cobra.Command{
+		Use:   "jaeger-query",
+		Short: "Jaeger query is a service to access tracing data",
+		Long:  `Jaeger query is a service to access tracing data and host UI.`,
+		Run: func(cmd *cobra.Command, args []string) {
+			casOptions.InitFromViper(v)
+			queryOpts := new(builder.QueryOptions).InitFromViper(v)
+			sFlags := new(flags.SharedFlags).InitFromViper(v)
+
+			metricsFactory := xkit.Wrap("jaeger-query", expvar.NewFactory(10))
+
+			storageBuild, err := builder.NewStorageBuilder(
+				sFlags.SpanStorage.Type,
+				sFlags.DependencyStorage.DataFrequency,
+				basicB.Options.LoggerOption(logger),
+				basicB.Options.MetricsFactoryOption(metricsFactory),
+				basicB.Options.CassandraOption(casOptions.GetPrimary()),
+			)
+			if err != nil {
+				logger.Fatal("Failed to init storage builder", zap.Error(err))
+			}
+			spanReader, err := storageBuild.NewSpanReader()
+			if err != nil {
+				logger.Fatal("Failed to create span reader", zap.Error(err))
+			}
+			dependencyReader, err := storageBuild.NewDependencyReader()
+			if err != nil {
+				logger.Fatal("Failed to create dependency reader", zap.Error(err))
+			}
+			rHandler := app.NewAPIHandler(
+				spanReader,
+				dependencyReader,
+				app.HandlerOptions.Prefix(queryOpts.QueryPrefix),
+				app.HandlerOptions.Logger(logger))
+			sHandler := app.NewStaticAssetsHandler(queryOpts.QueryStaticAssets)
+			r := mux.NewRouter()
+			rHandler.RegisterRoutes(r)
+			sHandler.RegisterRoutes(r)
+			portStr := ":" + strconv.Itoa(queryOpts.QueryPort)
+			recoveryHandler := recoveryhandler.NewRecoveryHandler(logger, true)
+			logger.Info("Starting jaeger-query HTTP server", zap.Int("port", queryOpts.QueryPort))
+			if err := http.ListenAndServe(portStr, recoveryHandler(r)); err != nil {
+				logger.Fatal("Could not launch service", zap.Error(err))
+			}
+		},
+	}
+
+	config.AddFlags(
+		v,
+		command,
+		flags.AddFlags,
+		casOptions.AddFlags,
+		builder.AddFlags,
 	)
-	if err != nil {
-		logger.Fatal("Failed to init storage builder", zap.Error(err))
-	}
-	spanReader, err := storageBuild.NewSpanReader()
-	if err != nil {
-		logger.Fatal("Failed to create span reader", zap.Error(err))
-	}
-	dependencyReader, err := storageBuild.NewDependencyReader()
-	if err != nil {
-		logger.Fatal("Failed to create dependency reader", zap.Error(err))
-	}
-	rHandler := app.NewAPIHandler(
-		spanReader,
-		dependencyReader,
-		app.HandlerOptions.Prefix(*builder.QueryPrefix),
-		app.HandlerOptions.Logger(logger))
-	sHandler := app.NewStaticAssetsHandler(*builder.QueryStaticAssets)
-	r := mux.NewRouter()
-	rHandler.RegisterRoutes(r)
-	sHandler.RegisterRoutes(r)
-	portStr := ":" + strconv.Itoa(*builder.QueryPort)
-	recoveryHandler := recoveryhandler.NewRecoveryHandler(logger, true)
-	logger.Info("Starting jaeger-query HTTP server", zap.Int("port", *builder.QueryPort))
-	if err := http.ListenAndServe(portStr, recoveryHandler(r)); err != nil {
-		logger.Fatal("Could not launch service", zap.Error(err))
+
+	if error := command.Execute(); error != nil {
+		logger.Fatal(error.Error())
 	}
 }

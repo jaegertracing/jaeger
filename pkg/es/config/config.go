@@ -40,6 +40,13 @@ type Configuration struct {
 	NumReplicas int64         `yaml:"replicas"`
 }
 
+// ClientBuilder creates new es.Client
+type ClientBuilder interface {
+	NewClient() (es.Client, error)
+	GetNumShards() int64
+	GetNumReplicas() int64
+}
+
 // NewClient creates a new ElasticSearch client
 func (c *Configuration) NewClient() (es.Client, error) {
 	if len(c.Servers) < 1 {
@@ -50,6 +57,16 @@ func (c *Configuration) NewClient() (es.Client, error) {
 		return nil, err
 	}
 	return es.WrapESClient(rawClient), nil
+}
+
+// GetNumShards returns number of shards from Configuration
+func (c *Configuration) GetNumShards() int64 {
+	return c.NumShards
+}
+
+// GetNumReplicas returns number of replicas from Configuration
+func (c *Configuration) GetNumReplicas() int64 {
+	return c.NumReplicas
 }
 
 // GetConfigs wraps the configs to feed to the ElasticSearch client init

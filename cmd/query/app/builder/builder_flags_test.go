@@ -21,38 +21,18 @@
 package builder
 
 import (
-	"flag"
+	"testing"
 
-	"github.com/spf13/viper"
+	"github.com/stretchr/testify/assert"
+
+	"github.com/uber/jaeger/pkg/config"
 )
 
-const (
-	queryPort        = "query.port"
-	queryPrefix      = "query.prefix"
-	queryStaticFiles = "query.static-files"
-)
-
-// QueryOptions holds configuration for query
-type QueryOptions struct {
-	// QueryPort is the port that the query service listens in on
-	QueryPort int
-	// QueryPrefix is the prefix of the query service api
-	QueryPrefix string
-	// QueryStaticAssets is the path for the static assets for the UI (https://github.com/uber/jaeger-ui)
-	QueryStaticAssets string
-}
-
-// AddFlags adds flags for QueryOptions
-func AddFlags(flagSet *flag.FlagSet) {
-	flagSet.Int(queryPort, 16686, "The port for the query service")
-	flagSet.String(queryPrefix, "api", "The prefix for the url of the query service")
-	flagSet.String(queryStaticFiles, "jaeger-ui-build/build/", "The path for the static assets for the UI")
-}
-
-// InitFromViper initializes QueryOptions with properties from viper
-func (qOpts *QueryOptions) InitFromViper(v *viper.Viper) *QueryOptions {
-	qOpts.QueryPort = v.GetInt(queryPort)
-	qOpts.QueryPrefix = v.GetString(queryPrefix)
-	qOpts.QueryStaticAssets = v.GetString(queryStaticFiles)
-	return qOpts
+func TestQueryBuilderFlags(t *testing.T) {
+	v, command := config.Viperize(AddFlags)
+	command.ParseFlags([]string{"--query.static-files=/dev/null", "--query.prefix=api", "--query.port=80"})
+	qOpts := new(QueryOptions).InitFromViper(v)
+	assert.Equal(t, "/dev/null", qOpts.QueryStaticAssets)
+	assert.Equal(t, "api", qOpts.QueryPrefix)
+	assert.Equal(t, 80, qOpts.QueryPort)
 }
