@@ -32,9 +32,7 @@ import (
 // Viper is initialized with flags from command and configured to accept flags as environmental variables.
 // Characters `.-` in environmental variables are changed to `_`
 func Viperize(inits ...func(*flag.FlagSet)) (*viper.Viper, *cobra.Command) {
-	v := viper.New()
-	command := &cobra.Command{}
-	return AddFlags(v, command, inits...)
+	return AddFlags(viper.New(), &cobra.Command{}, inits...)
 }
 
 // AddFlags adds flags to command and viper and configures
