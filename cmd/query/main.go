@@ -34,6 +34,7 @@ import (
 	basicB "github.com/uber/jaeger/cmd/builder"
 	"github.com/uber/jaeger/cmd/flags"
 	casFlags "github.com/uber/jaeger/cmd/flags/cassandra"
+	esFlags "github.com/uber/jaeger/cmd/flags/es"
 	"github.com/uber/jaeger/cmd/query/app"
 	"github.com/uber/jaeger/cmd/query/app/builder"
 	"github.com/uber/jaeger/pkg/config"
@@ -43,6 +44,7 @@ import (
 func main() {
 	logger, _ := zap.NewProduction()
 	casOptions := casFlags.NewOptions("cassandra", "cassandra.archive")
+	esOptions := esFlags.NewOptions("es", "es.archive")
 	v := viper.New()
 
 	var command = &cobra.Command{
@@ -51,6 +53,7 @@ func main() {
 		Long:  `Jaeger query is a service to access tracing data and host UI.`,
 		Run: func(cmd *cobra.Command, args []string) {
 			casOptions.InitFromViper(v)
+			esOptions.InitFromViper(v)
 			queryOpts := new(builder.QueryOptions).InitFromViper(v)
 			sFlags := new(flags.SharedFlags).InitFromViper(v)
 
@@ -62,6 +65,7 @@ func main() {
 				basicB.Options.LoggerOption(logger),
 				basicB.Options.MetricsFactoryOption(metricsFactory),
 				basicB.Options.CassandraOption(casOptions.GetPrimary()),
+				basicB.Options.ElasticSearchOption(esOptions.GetPrimary()),
 			)
 			if err != nil {
 				logger.Fatal("Failed to init storage builder", zap.Error(err))
@@ -97,6 +101,7 @@ func main() {
 		command,
 		flags.AddFlags,
 		casOptions.AddFlags,
+		esOptions.AddFlags,
 		builder.AddFlags,
 	)
 
