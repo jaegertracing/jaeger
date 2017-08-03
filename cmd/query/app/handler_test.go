@@ -245,7 +245,9 @@ func TestSearchByTraceIDNotFound(t *testing.T) {
 
 	var response structuredResponse
 	err := getJSON(server.URL+`/api/traces?traceID=1`, &response)
-	assert.EqualError(t, err, parsedError(404, "trace not found"))
+	assert.NoError(t, err)
+	assert.Len(t, response.Errors, 1)
+	assert.Equal(t, structuredError{Msg: "trace not found", TraceID: ui.TraceID("1")}, response.Errors[0])
 }
 
 func TestSearchByTraceIDFailure(t *testing.T) {
