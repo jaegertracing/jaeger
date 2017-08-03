@@ -44,8 +44,7 @@ import (
 func main() {
 	logger, _ := zap.NewProduction()
 	casOptions := casFlags.NewOptions("cassandra", "cassandra.archive")
-	// currently no archive for es
-	esOptions := esFlags.NewOptions("es")
+	esOptions := esFlags.NewOptions("es", "es.archive")
 	v := viper.New()
 
 	var command = &cobra.Command{

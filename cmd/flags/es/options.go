@@ -42,7 +42,7 @@ const (
 
 // TODO this should be moved next to config.Configuration struct (maybe ./flags package)
 
-// Options contains various type of Cassandra configs and provides the ability
+// Options contains various type of ElasticSearch configs and provides the ability
 // to bind them to command line flag and apply overlays, so that some configurations
 // (e.g. archive) may be underspecified and infer the rest of its parameters from primary.
 type Options struct {
