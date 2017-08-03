@@ -18,15 +18,16 @@
 // OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 // THE SOFTWARE.
 
-package builder
+package builder_test
 
 import (
 	"testing"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/uber/jaeger-lib/metrics"
 	"go.uber.org/zap"
 
-	"github.com/uber/jaeger-lib/metrics"
+	. "github.com/uber/jaeger/cmd/builder"
 	"github.com/uber/jaeger/pkg/cassandra"
 	"github.com/uber/jaeger/pkg/es"
 	"github.com/uber/jaeger/storage/spanstore/memory"
@@ -48,11 +49,11 @@ func (*mockCassandra) NewSession() (cassandra.Session, error) {
 
 func TestApplyOptions(t *testing.T) {
 	opts := ApplyOptions(
-		Options.CassandraSesBuilderOpt(&mockCassandra{}),
+		Options.CassandraSessionBuilder(&mockCassandra{}),
 		Options.LoggerOption(zap.NewNop()),
 		Options.MetricsFactoryOption(metrics.NullFactory),
 		Options.MemoryStoreOption(memory.NewStore()),
-		Options.ElasticClientBuilderOpt(&mockElastic{}),
+		Options.ElasticsearchClientBuilder(&mockElastic{}),
 	)
 	assert.NotNil(t, opts.ElasticClientBuilder)
 	assert.NotNil(t, opts.CassandraSessionBuilder)

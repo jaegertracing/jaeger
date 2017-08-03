@@ -59,12 +59,11 @@ func TestNewCassandraSuccess(t *testing.T) {
 		sFlags.DependencyStorage.DataFrequency,
 		basicB.Options.LoggerOption(zap.NewNop()),
 		basicB.Options.MetricsFactoryOption(metrics.NullFactory),
-		basicB.Options.CassandraSesBuilderOpt(&mockSessionBuilder{}),
+		basicB.Options.CassandraSessionBuilder(&mockSessionBuilder{}),
 	)
 	assert.NoError(t, err)
 	assert.NotNil(t, sBuilder)
 }
-
 func TestNewCassandraFailureStorageBuilder(t *testing.T) {
 	v, command := config.Viperize(flags.AddFlags)
 	command.ParseFlags([]string{"test", "--span-storage.type=sneh"})
@@ -106,7 +105,7 @@ func TestNewElasticSuccess(t *testing.T) {
 		sFlags.SpanStorage.Type,
 		sFlags.DependencyStorage.DataFrequency,
 		basicB.Options.LoggerOption(zap.NewNop()),
-		basicB.Options.ElasticClientBuilderOpt(&mockElasticBuilder{}),
+		basicB.Options.ElasticsearchClientBuilder(&mockElasticBuilder{}),
 	)
 	assert.NoError(t, err)
 	assert.NotNil(t, sBuilder)

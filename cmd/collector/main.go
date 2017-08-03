@@ -67,7 +67,7 @@ func main() {
 			handlerBuilder, err := builder.NewSpanHandlerBuilder(
 				builderOpts,
 				sFlags,
-				basicB.Options.CassandraSesBuilderOpt(casOptions.GetPrimary()),
+				basicB.Options.CassandraSessionBuilder(casOptions.GetPrimary()),
 				basicB.Options.LoggerOption(logger),
 				basicB.Options.MetricsFactoryOption(baseMetrics),
 			)

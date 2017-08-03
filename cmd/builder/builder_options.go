@@ -46,39 +46,41 @@ type BasicOptions struct {
 // Option is a function that sets some option on StorageBuilder.
 type Option func(c *BasicOptions)
 
+type basicOptionsFactory struct{}
+
 // Options is a factory for all available Option's
-var Options BasicOptions
+var Options basicOptionsFactory
 
 // LoggerOption creates an Option that initializes the logger
-func (BasicOptions) LoggerOption(logger *zap.Logger) Option {
+func (basicOptionsFactory) LoggerOption(logger *zap.Logger) Option {
 	return func(b *BasicOptions) {
 		b.Logger = logger
 	}
 }
 
 // MetricsFactoryOption creates an Option that initializes the MetricsFactory
-func (BasicOptions) MetricsFactoryOption(metricsFactory metrics.Factory) Option {
+func (basicOptionsFactory) MetricsFactoryOption(metricsFactory metrics.Factory) Option {
 	return func(b *BasicOptions) {
 		b.MetricsFactory = metricsFactory
 	}
 }
 
-// CassandraSesBuilderOpt creates an Option that adds SessionBuilder to BasicOptions
-func (BasicOptions) CassandraSesBuilderOpt(sessionBuilder cascfg.SessionBuilder) Option {
+// CassandraSessionBuilder creates an Option that adds SessionBuilder to BasicOptions
+func (basicOptionsFactory) CassandraSessionBuilder(sessionBuilder cascfg.SessionBuilder) Option {
 	return func(b *BasicOptions) {
 		b.CassandraSessionBuilder = sessionBuilder
 	}
 }
 
-// ElasticClientBuilderOpt creates an Option that adds ClientBuilder to BasicOptions
-func (BasicOptions) ElasticClientBuilderOpt(clientBuilder escfg.ClientBuilder) Option {
+// ElasticsearchClientBuilder creates an Option that adds ClientBuilder to BasicOptions
+func (basicOptionsFactory) ElasticsearchClientBuilder(clientBuilder escfg.ClientBuilder) Option {
 	return func(b *BasicOptions) {
 		b.ElasticClientBuilder = clientBuilder
 	}
 }
 
 // MemoryStoreOption creates an Option that adds a memory store
-func (BasicOptions) MemoryStoreOption(memoryStore *memory.Store) Option {
+func (basicOptionsFactory) MemoryStoreOption(memoryStore *memory.Store) Option {
 	return func(b *BasicOptions) {
 		b.MemoryStore = memoryStore
 	}

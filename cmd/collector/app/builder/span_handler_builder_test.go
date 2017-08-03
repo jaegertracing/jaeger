@@ -66,7 +66,7 @@ func TestNewSpanHandlerBuilder(t *testing.T) {
 		sFlags,
 		builder.Options.LoggerOption(zap.NewNop()),
 		builder.Options.MetricsFactoryOption(metrics.NullFactory),
-		builder.Options.CassandraSesBuilderOpt(&mockSessionBuilder{}),
+		builder.Options.CassandraSessionBuilder(&mockSessionBuilder{}),
 	)
 	require.NoError(t, err)
 	assert.NotNil(t, handler)
@@ -130,7 +130,7 @@ func TestNewSpanHandlerBuilderElasticSearch(t *testing.T) {
 		cOpts,
 		sFlags,
 		builder.Options.LoggerOption(zap.NewNop()),
-		builder.Options.ElasticClientBuilderOpt(&mockElasticBuilder{}),
+		builder.Options.ElasticsearchClientBuilder(&mockElasticBuilder{}),
 	)
 	require.NoError(t, err)
 	assert.NotNil(t, handler)
@@ -156,8 +156,8 @@ func TestNewSpanHandlerBuilderCassandraError(t *testing.T) {
 		cOpts,
 		sFlags,
 		builder.Options.LoggerOption(zap.NewNop()),
-		builder.Options.ElasticClientBuilderOpt(&mockElasticBuilder{}),
-		builder.Options.CassandraSesBuilderOpt(&cascfg.Configuration{}),
+		builder.Options.ElasticsearchClientBuilder(&mockElasticBuilder{}),
+		builder.Options.CassandraSessionBuilder(&cascfg.Configuration{}),
 	)
 	require.Error(t, err)
 	assert.Nil(t, handler)
