@@ -2,11 +2,12 @@ import elasticsearch
 import curator
 import logging
 import sys
+import os
 
 
 def main():
     if len(sys.argv) == 1:
-        print('USAGE: %s NUM_OF_DAYS HOSTNAME[:PORT] ...' % sys.argv[0])
+        print('USAGE: [TIMEOUT=(default 120)] %s NUM_OF_DAYS HOSTNAME[:PORT] ...' % sys.argv[0])
         sys.exit(1)
 
     client = elasticsearch.Elasticsearch(sys.argv[2:])
@@ -19,7 +20,8 @@ def main():
 
     for index in ilo.working_list():
         print "Removing", index
-    delete_indices = curator.DeleteIndices(ilo, master_timeout=120)
+    timeout = int(os.getenv("TIMEOUT", 120))
+    delete_indices = curator.DeleteIndices(ilo, master_timeout=timeout)
     delete_indices.do_action()
 
 
