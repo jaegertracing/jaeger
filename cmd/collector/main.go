@@ -40,6 +40,7 @@ import (
 	"github.com/uber/jaeger/cmd/collector/app/zipkin"
 	"github.com/uber/jaeger/cmd/flags"
 	casFlags "github.com/uber/jaeger/cmd/flags/cassandra"
+	esFlags "github.com/uber/jaeger/cmd/flags/es"
 	"github.com/uber/jaeger/pkg/config"
 	"github.com/uber/jaeger/pkg/recoveryhandler"
 	jc "github.com/uber/jaeger/thrift-gen/jaeger"
@@ -50,6 +51,7 @@ func main() {
 	logger, _ := zap.NewProduction()
 	serviceName := "jaeger-collector"
 	casOptions := casFlags.NewOptions("cassandra")
+	esOptions := esFlags.NewOptions("es")
 
 	v := viper.New()
 	command := &cobra.Command{
@@ -59,6 +61,7 @@ func main() {
 				a processing pipeline.`,
 		Run: func(cmd *cobra.Command, args []string) {
 			casOptions.InitFromViper(v)
+			esOptions.InitFromViper(v)
 
 			baseMetrics := xkit.Wrap(serviceName, expvar.NewFactory(10))
 
@@ -68,6 +71,7 @@ func main() {
 				builderOpts,
 				sFlags,
 				basicB.Options.CassandraOption(casOptions.GetPrimary()),
+				basicB.Options.ElasticSearchOption(esOptions.GetPrimary()),
 				basicB.Options.LoggerOption(logger),
 				basicB.Options.MetricsFactoryOption(baseMetrics),
 			)
@@ -115,6 +119,7 @@ func main() {
 		flags.AddFlags,
 		builder.AddFlags,
 		casOptions.AddFlags,
+		esOptions.AddFlags,
 	)
 
 	if error := command.Execute(); error != nil {

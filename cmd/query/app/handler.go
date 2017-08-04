@@ -201,13 +201,10 @@ func (aH *APIHandler) search(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	var uiErrors []structuredError
 	var tracesFromStorage []*model.Trace
 	if len(tQuery.traceIDs) > 0 {
-		tracesFromStorage, err = aH.tracesByIDs(tQuery.traceIDs)
-		if err == spanstore.ErrTraceNotFound {
-			aH.handleError(w, err, http.StatusNotFound)
-			return
-		}
+		tracesFromStorage, uiErrors, err = aH.tracesByIDs(tQuery.traceIDs)
 		if aH.handleError(w, err, http.StatusInternalServerError) {
 			return
 		}
@@ -219,7 +216,6 @@ func (aH *APIHandler) search(w http.ResponseWriter, r *http.Request) {
 	}
 
 	uiTraces := make([]*ui.Trace, len(tracesFromStorage))
-	var uiErrors []structuredError
 	for i, v := range tracesFromStorage {
 		uiTrace, uiErr := aH.convertModelToUI(v)
 		if uiErr != nil {
@@ -235,16 +231,23 @@ func (aH *APIHandler) search(w http.ResponseWriter, r *http.Request) {
 	aH.writeJSON(w, &structuredRes)
 }
 
-func (aH *APIHandler) tracesByIDs(traceIDs []model.TraceID) ([]*model.Trace, error) {
+func (aH *APIHandler) tracesByIDs(traceIDs []model.TraceID) ([]*model.Trace, []structuredError, error) {
+	var errors []structuredError
 	retMe := make([]*model.Trace, 0, len(traceIDs))
 	for _, traceID := range traceIDs {
-		trace, err := aH.spanReader.GetTrace(traceID)
-		if err != nil {
-			return nil, err
+		if trace, err := aH.spanReader.GetTrace(traceID); err != nil {
+			if err != spanstore.ErrTraceNotFound {
+				return nil, nil, err
+			}
+			errors = append(errors, structuredError{
+				Msg:     err.Error(),
+				TraceID: ui.TraceID(traceID.String()),
+			})
+		} else {
+			retMe = append(retMe, trace)
 		}
-		retMe = append(retMe, trace)
 	}
-	return retMe, nil
+	return retMe, errors, nil
 }
 
 func (aH *APIHandler) dependencies(w http.ResponseWriter, r *http.Request) {
