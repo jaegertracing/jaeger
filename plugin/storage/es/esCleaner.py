@@ -1,5 +1,6 @@
 import elasticsearch
 import curator
+import logging
 import sys
 
 
@@ -8,7 +9,7 @@ def main():
         print('USAGE: %s NUM_OF_DAYS HOSTNAME[:PORT] ...' % sys.argv[0])
         sys.exit(1)
 
-    client = elasticsearch.Elasticsearch(sys.argv[2:])
+    client = elasticsearch.Elasticsearch(sys.argv[2])
 
     ilo = curator.IndexList(client)
     empty_list(ilo, 'ElasticSearch has no indices')
@@ -18,7 +19,7 @@ def main():
 
     for index in ilo.working_list():
         print "Removing", index
-    delete_indices = curator.DeleteIndices(ilo)
+    delete_indices = curator.DeleteIndices(ilo, master_timeout=120)
     delete_indices.do_action()
 
 
@@ -26,6 +27,7 @@ def empty_list(ilo, error_msg):
     try:
         ilo.empty_list_check()
     except curator.NoIndices:
+        logging.info(error_msg)
         print(error_msg)
         sys.exit(0)
 
