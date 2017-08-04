@@ -117,13 +117,7 @@ func newSpanReader(client es.Client, logger *zap.Logger, maxLookback time.Durati
 // GetTrace takes a traceID and returns a Trace associated with that traceID
 func (s *SpanReader) GetTrace(traceID model.TraceID) (*model.Trace, error) {
 	currentTime := time.Now()
-	traces, err := s.multiRead(
-		[]string{traceID.String()},
-		&spanstore.TraceQueryParameters{
-			StartTimeMax: currentTime,
-			StartTimeMin: currentTime.Add(-s.maxLookback),
-		},
-	)
+	traces, err := s.multiRead([]string{traceID.String()}, currentTime.Add(-s.maxLookback), currentTime)
 	if err != nil {
 		return nil, err
 	}
@@ -215,10 +209,10 @@ func (s *SpanReader) FindTraces(traceQuery *spanstore.TraceQueryParameters) ([]*
 	if err != nil {
 		return nil, err
 	}
-	return s.multiRead(uniqueTraceIDs, traceQuery)
+	return s.multiRead(uniqueTraceIDs, traceQuery.StartTimeMin, traceQuery.StartTimeMax)
 }
 
-func (s *SpanReader) multiRead(traceIDs []string, traceQuery *spanstore.TraceQueryParameters) ([]*model.Trace, error) {
+func (s *SpanReader) multiRead(traceIDs []string, startTime, endTime time.Time) ([]*model.Trace, error) {
 	if len(traceIDs) == 0 {
 		return []*model.Trace{}, nil
 	}
@@ -232,7 +226,7 @@ func (s *SpanReader) multiRead(traceIDs []string, traceQuery *spanstore.TraceQue
 
 	// Add an hour in both directions so that traces that straddle two indexes are retrieved.
 	// ie starts in one and ends in another.
-	indices := findIndices(spanIndexPrefix, traceQuery.StartTimeMin.Add(-time.Hour), traceQuery.StartTimeMax.Add(time.Hour))
+	indices := findIndices(spanIndexPrefix, startTime.Add(-time.Hour), endTime.Add(time.Hour))
 
 	results, err := s.client.MultiSearch().
 		Add(searchRequests...).
