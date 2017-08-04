@@ -58,8 +58,8 @@ test: go-gen
 integration-test: go-gen
 	$(GOTEST) -tags=integration ./cmd/standalone/...
 
-.PHONY: es-integration-test
-es-integration-test: go-gen
+.PHONY: storage-integration-test
+storage-integration-test: go-gen
 	$(GOTEST) ./plugin/storage/integration/...
 
 .PHONY: fmt
