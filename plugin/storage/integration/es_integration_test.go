@@ -104,8 +104,8 @@ func healthCheck() error {
 }
 
 func TestAll(t *testing.T) {
-	if os.Getenv("ES_INTEGRATION_TEST") == "" {
-		t.Skip("Set ES_INTEGRATION_TEST env variable to run an integration test on ElasticSearch backend")
+	if os.Getenv("STORAGE") != "es" {
+		t.Skip("Integration test against ElasticSearch skipped; set STORAGE env var to es to run this")
 	}
 	if err := healthCheck(); err != nil {
 		t.Fatal(err)

@@ -42,10 +42,9 @@ the document will not be retrieved.
 ## Testing
 To locally test the ElasticSearch storage plugin, 
 * have [ElasticSearch](https://www.elastic.co/guide/en/elasticsearch/reference/current/setup.html) running on port 9200
-* set environment variable `ES_INTEGRATION_TEST` to a non-nil value
-* run `make es-integration-test` in the top folder.
+* run `STORAGE=es make storage-integration-test` in the top folder.
 
-All integration tests also run on pull request via Travis. 
+All integration tests also run on pull request via Travis. This integration test is against ElasticSearch v5.4.0.
 
 * The script used in Travis can be found under `./travis/es-integration-test.sh`, 
 and that script be run from the top folder to integration test ElasticSearch as well.

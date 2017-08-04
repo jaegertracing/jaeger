@@ -24,7 +24,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"io/ioutil"
-	"math/rand"
+	"os"
 	"strings"
 	"testing"
 	"time"
@@ -292,7 +292,9 @@ func (s *StorageIntegration) IntegrationTestGetDependencies(t *testing.T) {
 }
 
 func (s *StorageIntegration) IntegrationTestAll(t *testing.T) {
-	rand.Seed(time.Now().UnixNano())
+	if os.Getenv("STORAGE") == "" {
+		t.Skip("Set STORAGE env variable to run a storage integration test")
+	}
 	s.IntegrationTestGetServices(t)
 	s.IntegrationTestGetOperations(t)
 	s.IntegrationTestGetTrace(t)
