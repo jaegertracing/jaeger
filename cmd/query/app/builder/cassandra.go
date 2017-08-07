@@ -46,15 +46,10 @@ func newCassandraBuilder(config *cascfg.Configuration, logger *zap.Logger, metri
 	cBuilder := &cassandraBuilder{
 		logger:                  logger,
 		metricsFactory:          metricsFactory,
-		configuration:           fixConfiguration(*config),
+		configuration:           *config,
 		dependencyDataFrequency: dependencyDataFreq,
 	}
 	return cBuilder
-}
-
-func fixConfiguration(config cascfg.Configuration) cascfg.Configuration {
-	config.ProtoVersion = 4
-	return config
 }
 
 func (c *cassandraBuilder) getSession() (cassandra.Session, error) {
