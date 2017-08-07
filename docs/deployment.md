@@ -38,7 +38,8 @@ across several collectors ([issue 213](https://github.com/uber/jaeger/issues/213
 
 Many instances of **jaeger-collector** can be run in parallel.
 Collectors require almost no configuration, except for the location of Cassandra cluster,
-via `--cassandra.keyspace` and `--cassandra.servers` options. To see all command line options run
+via `--cassandra.keyspace` and `--cassandra.servers` options, or the location of ElasticSearch cluster, via
+`--es.servers`, depending on which storage is specified. To see all command line options run
 
 ```
 go run ./cmd/collector/main.go -h
@@ -60,8 +61,8 @@ Port  | Protocol | Function
 
 ## Storage Backend
 
-Collectors require a persistent storage backend. Cassandra 3.x is the primary supported storage.
-There is ongoing work to add support for Elasticsearch, MySQL, and ScyllaDB.
+Collectors require a persistent storage backend. Cassandra 3.x (default) and ElasticSearch are the
+primary supported storage backends. There is ongoing work to add support for MySQL and ScyllaDB.
 
 ### Cassandra
 
@@ -77,6 +78,12 @@ where `{datacenter}` is the name used in the Cassandra configuration / network t
 
 The script also allows overriding TTL, keyspace name, replication factor, etc.
 Run the script without arguments to see the full list of recognized parameters.
+
+### ElasticSearch
+
+ElasticSearch does not require initialization other than
+[installing and running ElasticSearch](https://www.elastic.co/downloads/elasticsearch).
+Once it is running, pass the correct configuration values to the Jaeger collector and query service.
 
 ## Query Service & UI
 
