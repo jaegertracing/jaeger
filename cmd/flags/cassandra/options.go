@@ -38,6 +38,8 @@ const (
 	suffixKeyspace         = ".keyspace"
 	suffixProtoVer         = ".proto-version"
 	suffixSocketKeepAlive  = ".socket-keep-alive"
+	suffixUsername         = ".username"
+	suffixPassword         = ".password"
 )
 
 // TODO this should be moved next to config.Configuration struct (maybe ./flags package)
@@ -124,6 +126,14 @@ func addFlags(flagSet *flag.FlagSet, nsConfig *namespaceConfig) {
 		nsConfig.namespace+suffixSocketKeepAlive,
 		nsConfig.SocketKeepAlive,
 		"Cassandra's keepalive period to use, enabled if > 0")
+	flagSet.String(
+		nsConfig.namespace+suffixUsername,
+		nsConfig.Authenticator.Basic.Username,
+		"Username for password authentication for Cassandra")
+	flagSet.String(
+		nsConfig.namespace+suffixPassword,
+		nsConfig.Authenticator.Basic.Password,
+		"Password for password authentication for Cassandra")
 }
 
 // InitFromViper initializes Options with properties from viper
@@ -143,6 +153,8 @@ func initFromViper(cfg *namespaceConfig, v *viper.Viper) {
 	cfg.Keyspace = v.GetString(cfg.namespace + suffixKeyspace)
 	cfg.ProtoVersion = v.GetInt(cfg.namespace + suffixProtoVer)
 	cfg.SocketKeepAlive = v.GetDuration(cfg.namespace + suffixSocketKeepAlive)
+	cfg.Authenticator.Basic.Username = v.GetString(cfg.namespace + suffixUsername)
+	cfg.Authenticator.Basic.Password = v.GetString(cfg.namespace + suffixPassword)
 }
 
 // GetPrimary returns primary configuration.

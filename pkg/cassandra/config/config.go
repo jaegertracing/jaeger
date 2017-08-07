@@ -41,6 +41,19 @@ type Configuration struct {
 	ProtoVersion       int           `yaml:"proto_version"`
 	Consistency        string        `yaml:"consistency"`
 	Port               int           `yaml:"port"`
+	Authenticator      Authenticator `yaml:"authenticator"`
+}
+
+// Authenticator holds the authentication properties needed to connect to a Cassandra cluster
+type Authenticator struct {
+	Basic BasicAuthenticator `yaml:"basic"`
+	// TODO: add more auth types
+}
+
+// BasicAuthenticator holds the username and password for a password authenticator for a Cassandra cluster
+type BasicAuthenticator struct {
+	Username string `yaml:"username"`
+	Password string `yaml:"password"`
 }
 
 // ApplyDefaults copies settings from source unless its own value is non-zero.
@@ -106,6 +119,11 @@ func (c *Configuration) NewCluster() *gocql.ClusterConfig {
 		cluster.Consistency = gocql.ParseConsistency(c.Consistency)
 	}
 	cluster.PoolConfig.HostSelectionPolicy = gocql.TokenAwareHostPolicy(gocql.RoundRobinHostPolicy())
+
+	cluster.Authenticator = gocql.PasswordAuthenticator{
+		Username: c.Authenticator.Basic.Username,
+		Password: c.Authenticator.Basic.Password,
+	}
 	return cluster
 }
 
