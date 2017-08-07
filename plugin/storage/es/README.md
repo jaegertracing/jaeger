@@ -10,10 +10,11 @@ that deletes older indices automatically. The [Elastic Curator](https://www.elas
 can also be used instead to do a similar job.
 
 ### Using `./es_indices_clean.sh`
-Parameters: 
+Parameters:
+ * Environment variable TIMEOUT that sets the timeout in seconds for indices deletion (default: 120)
  * a number that will delete any indices older than that number in days
  * ElasticSearch hostnames
- * Example usage: `./es_indices_clean.sh 4 localhost:9200`
+ * Example usage: `TIMEOUT=120 ./es_indices_clean.sh 4 localhost:9200`
 
 ### Timestamps
 Because ElasticSearch's `Date` datatype has only millisecond granularity and Jaeger

@@ -3,7 +3,7 @@
 function usage {
     >&2 echo "Error: $1"
     >&2 echo ""
-    >&2 echo "Usage: $0 NUM_OF_DAYS HOSTNAME ... "
+    >&2 echo "Usage: [TIMEOUT=(default 120)] $0 NUM_OF_DAYS HOSTNAME ... "
     >&2 echo ""
     >&2 echo "Specify a NUM_OF_DAYS that will delete indices that are older than the given NUM_OF_DAYS."
     >&2 echo "HOSTNAME ... specifies which ElasticSearch hosts to search and delete indices from."
