@@ -34,40 +34,28 @@ import (
 
 type esBuilder struct {
 	logger         *zap.Logger
+	builder        escfg.ClientBuilder
 	client         es.Client
 	metricsFactory metrics.Factory
-	configuration  escfg.Configuration
 }
 
-func newESBuilder(config *escfg.Configuration, logger *zap.Logger, metricsFactory metrics.Factory) *esBuilder {
+func newESBuilder(builder escfg.ClientBuilder, logger *zap.Logger, metricsFactory metrics.Factory) (*esBuilder, error) {
+	client, error := builder.NewClient()
+	if error != nil {
+		return nil, error
+	}
 	return &esBuilder{
 		logger:         logger,
 		metricsFactory: metricsFactory,
-		configuration:  *config,
-	}
-}
-
-func (e *esBuilder) getClient() (es.Client, error) {
-	if e.client == nil {
-		client, err := e.configuration.NewClient()
-		e.client = client
-		return e.client, err
-	}
-	return e.client, nil
+		client:         client,
+		builder:        builder,
+	}, nil
 }
 
 func (e *esBuilder) NewSpanReader() (spanstore.Reader, error) {
-	client, err := e.getClient()
-	if err != nil {
-		return nil, err
-	}
-	return esSpanstore.NewSpanReader(client, e.logger, e.configuration.MaxSpanAge, e.metricsFactory), nil
+	return esSpanstore.NewSpanReader(e.client, e.logger, e.builder.GetMaxSpanAge(), e.metricsFactory), nil
 }
 
 func (e *esBuilder) NewDependencyReader() (dependencystore.Reader, error) {
-	client, err := e.getClient()
-	if err != nil {
-		return nil, err
-	}
-	return esDependencyStore.NewDependencyStore(client, e.logger), nil
+	return esDependencyStore.NewDependencyStore(e.client, e.logger), nil
 }

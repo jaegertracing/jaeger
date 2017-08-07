@@ -37,8 +37,6 @@ type BasicOptions struct {
 	MetricsFactory metrics.Factory
 	// MemoryStore is the memory store (as reader and writer) that will be used if required
 	MemoryStore *memory.Store
-	// ElasticSearch is the elasticsearch configuration used // todo REMOVE
-	ElasticSearch *escfg.Configuration
 	// CassandraSessionBuilder is the cassandra session builder
 	CassandraSessionBuilder cascfg.SessionBuilder
 	// ElasticClientBuilder is the elasticsearch client builder
@@ -83,13 +81,6 @@ func (BasicOptions) ElasticClientOption(clientBuilder escfg.ClientBuilder) Optio
 func (BasicOptions) MemoryStoreOption(memoryStore *memory.Store) Option {
 	return func(b *BasicOptions) {
 		b.MemoryStore = memoryStore
-	}
-}
-
-// ElasticSearchOption creates an Option that adds ElasticSearch configuration.
-func (BasicOptions) ElasticSearchOption(elastic *escfg.Configuration) Option {
-	return func(b *BasicOptions) {
-		b.ElasticSearch = elastic
 	}
 }
 

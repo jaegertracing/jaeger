@@ -65,7 +65,7 @@ func main() {
 				basicB.Options.LoggerOption(logger),
 				basicB.Options.MetricsFactoryOption(metricsFactory),
 				basicB.Options.CassandraSessionOption(casOptions.GetPrimary()),
-				basicB.Options.ElasticSearchOption(esOptions.GetPrimary()),
+				basicB.Options.ElasticClientOption(esOptions.GetPrimary()),
 			)
 			if err != nil {
 				logger.Fatal("Failed to init storage builder", zap.Error(err))

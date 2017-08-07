@@ -30,7 +30,6 @@ import (
 	basicB "github.com/uber/jaeger/cmd/builder"
 	"github.com/uber/jaeger/cmd/flags"
 	"github.com/uber/jaeger/pkg/config"
-	escfg "github.com/uber/jaeger/pkg/es/config"
 	"github.com/uber/jaeger/storage/spanstore/memory"
 )
 
@@ -89,9 +88,7 @@ func TestNewElasticSuccess(t *testing.T) {
 		sFlags.SpanStorage.Type,
 		sFlags.DependencyStorage.DataFrequency,
 		basicB.Options.LoggerOption(zap.NewNop()),
-		basicB.Options.ElasticSearchOption(&escfg.Configuration{
-			Servers: []string{"127.0.0.1"},
-		}),
+		basicB.Options.ElasticClientOption(&mockEsBuilder{}),
 	)
 	assert.NoError(t, err)
 	assert.NotNil(t, sBuilder)

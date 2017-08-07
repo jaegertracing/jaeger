@@ -71,7 +71,7 @@ func main() {
 				builderOpts,
 				sFlags,
 				basicB.Options.CassandraSessionOption(casOptions.GetPrimary()),
-				basicB.Options.ElasticSearchOption(esOptions.GetPrimary()),
+				basicB.Options.ElasticClientOption(esOptions.GetPrimary()),
 				basicB.Options.LoggerOption(logger),
 				basicB.Options.MetricsFactoryOption(baseMetrics),
 			)

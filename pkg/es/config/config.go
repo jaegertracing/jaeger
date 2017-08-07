@@ -45,6 +45,7 @@ type ClientBuilder interface {
 	NewClient() (es.Client, error)
 	GetNumShards() int64
 	GetNumReplicas() int64
+	GetMaxSpanAge() time.Duration
 }
 
 // NewClient creates a new ElasticSearch client
@@ -89,6 +90,11 @@ func (c *Configuration) GetNumShards() int64 {
 // GetNumReplicas returns number of replicas from Configuration
 func (c *Configuration) GetNumReplicas() int64 {
 	return c.NumReplicas
+}
+
+// GetMaxSpanAge returns max span age from Configuration
+func (c *Configuration) GetMaxSpanAge() time.Duration {
+	return c.MaxSpanAge
 }
 
 // GetConfigs wraps the configs to feed to the ElasticSearch client init
