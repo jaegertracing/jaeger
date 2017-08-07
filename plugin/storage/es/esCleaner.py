@@ -7,8 +7,7 @@ import os
 
 def main():
     if len(sys.argv) == 1:
-        print('U'
-              'SAGE: [TIMEOUT=(default 120)] %s NUM_OF_DAYS HOSTNAME[:PORT] ...' % sys.argv[0])
+        print('USAGE: [TIMEOUT=(default 120)] %s NUM_OF_DAYS HOSTNAME[:PORT] ...' % sys.argv[0])
         sys.exit(1)
 
     client = elasticsearch.Elasticsearch(sys.argv[2:])
