@@ -24,10 +24,8 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/assert"
-	"go.uber.org/zap"
 
 	"github.com/stretchr/testify/require"
-	"github.com/uber/jaeger-lib/metrics"
 	"github.com/uber/jaeger/cmd/flags"
 	"github.com/uber/jaeger/pkg/cassandra"
 	"github.com/uber/jaeger/pkg/cassandra/config"
@@ -43,21 +41,19 @@ func (*mockSessionBuilder) NewSession() (cassandra.Session, error) {
 
 func TestNewBuilderFailure(t *testing.T) {
 	sFlags := &flags.SharedFlags{}
-	cBuilder, error := newCassandraBuilder(&config.Configuration{}, zap.NewNop(), metrics.NullFactory, sFlags.DependencyStorage.DataFrequency)
-	require.Error(t, error)
-	assert.Nil(t, cBuilder)
+	sb := newStorageBuilder()
+	err := sb.newCassandraBuilder(&config.Configuration{}, sFlags.DependencyStorage.DataFrequency)
+	require.Error(t, err)
+	assert.Nil(t, sb.SpanReader)
+	assert.Nil(t, sb.DependencyReader)
 }
 
 func TestNewBuilderSuccess(t *testing.T) {
 	sFlags := &flags.SharedFlags{}
-	cBuilder, error := newCassandraBuilder(&mockSessionBuilder{}, zap.NewNop(), metrics.NullFactory, sFlags.DependencyStorage.DataFrequency)
-	require.NoError(t, error)
-	assert.NotNil(t, cBuilder)
-	reader, err := cBuilder.NewSpanReader()
-	require.NoError(t, err)
-	assert.NotNil(t, reader)
-	dependencyReader, err := cBuilder.NewDependencyReader()
-	require.NoError(t, err)
-	assert.NotNil(t, dependencyReader)
 
+	sb := newStorageBuilder()
+	err := sb.newCassandraBuilder(&mockSessionBuilder{}, sFlags.DependencyStorage.DataFrequency)
+	require.NoError(t, err)
+	assert.NotNil(t, sb.SpanReader)
+	assert.NotNil(t, sb.DependencyReader)
 }

@@ -24,8 +24,6 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/assert"
-	"github.com/uber/jaeger-lib/metrics"
-	"go.uber.org/zap"
 
 	"github.com/stretchr/testify/require"
 	"github.com/uber/jaeger/pkg/es"
@@ -42,19 +40,17 @@ func (mck *mockEsBuilder) NewClient() (es.Client, error) {
 }
 
 func TestNewESBuilderSuccess(t *testing.T) {
-	cBuilder, err := newESBuilder(&mockEsBuilder{}, zap.NewNop(), metrics.NullFactory)
+	sb := newStorageBuilder()
+	err := sb.newESBuilder(&mockEsBuilder{})
 	require.NoError(t, err)
-	assert.NotNil(t, cBuilder)
-	reader, err := cBuilder.NewSpanReader()
-	require.NoError(t, err)
-	assert.NotNil(t, reader)
-	depenReader, err := cBuilder.NewDependencyReader()
-	require.NoError(t, err)
-	assert.NotNil(t, depenReader)
+	assert.NotNil(t, sb.SpanReader)
+	assert.NotNil(t, sb.DependencyReader)
 }
 
 func TestNewESBuilderFailure(t *testing.T) {
-	cBuilder, err := newESBuilder(&config.Configuration{}, zap.NewNop(), metrics.NullFactory)
+	sb := newStorageBuilder()
+	err := sb.newESBuilder(&config.Configuration{})
 	require.Error(t, err)
-	assert.Nil(t, cBuilder)
+	require.Nil(t, sb.SpanReader)
+	require.Nil(t, sb.DependencyReader)
 }

@@ -24,16 +24,20 @@ import (
 	"errors"
 	"time"
 
+	"github.com/uber/jaeger-lib/metrics"
 	basicB "github.com/uber/jaeger/cmd/builder"
 	"github.com/uber/jaeger/cmd/flags"
 	"github.com/uber/jaeger/storage/dependencystore"
 	"github.com/uber/jaeger/storage/spanstore"
+	"go.uber.org/zap"
 )
 
 // StorageBuilder is the interface that provides the necessary store readers
-type StorageBuilder interface {
-	NewSpanReader() (spanstore.Reader, error)
-	NewDependencyReader() (dependencystore.Reader, error)
+type StorageBuilder struct {
+	logger           *zap.Logger
+	metricsFactory   metrics.Factory
+	SpanReader       spanstore.Reader
+	DependencyReader dependencystore.Reader
 }
 
 var (
@@ -43,25 +47,39 @@ var (
 )
 
 // NewStorageBuilder creates a StorageBuilder based off the flags that have been set
-func NewStorageBuilder(storageType string, dependencyDataFreq time.Duration, opts ...basicB.Option) (StorageBuilder, error) {
+func NewStorageBuilder(storageType string, dependencyDataFreq time.Duration, opts ...basicB.Option) (*StorageBuilder, error) {
 	options := basicB.ApplyOptions(opts...)
+
+	sb := &StorageBuilder{
+		logger:         options.Logger,
+		metricsFactory: options.MetricsFactory,
+	}
+
 	// TODO lots of repeated code + if logic, clean up below
+	var err error
 	if storageType == flags.CassandraStorageType {
 		if options.CassandraSessionBuilder == nil {
 			return nil, errMissingCassandraConfig
 		}
 		// TODO technically span and dependency storage might be separate
-		return newCassandraBuilder(options.CassandraSessionBuilder, options.Logger, options.MetricsFactory, dependencyDataFreq)
+		err = sb.newCassandraBuilder(options.CassandraSessionBuilder, dependencyDataFreq)
 	} else if storageType == flags.MemoryStorageType {
 		if options.MemoryStore == nil {
 			return nil, errMissingMemoryStore
 		}
-		return newMemoryStoreBuilder(options.MemoryStore), nil
+		sb.newMemoryStoreBuilder(options.MemoryStore)
 	} else if storageType == flags.ESStorageType {
 		if options.ElasticClientBuilder == nil {
 			return nil, errMissingElasticSearchConfig
 		}
-		return newESBuilder(options.ElasticClientBuilder, options.Logger, options.MetricsFactory)
+		err = sb.newESBuilder(options.ElasticClientBuilder)
+	} else {
+		return nil, flags.ErrUnsupportedStorageType
 	}
-	return nil, flags.ErrUnsupportedStorageType
+
+	if err != nil {
+		return nil, err
+	}
+
+	return sb, nil
 }

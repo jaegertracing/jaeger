@@ -27,11 +27,20 @@ import (
 	"github.com/uber/jaeger-lib/metrics"
 	"go.uber.org/zap"
 
+	"github.com/stretchr/testify/require"
 	basicB "github.com/uber/jaeger/cmd/builder"
 	"github.com/uber/jaeger/cmd/flags"
+	casCfg "github.com/uber/jaeger/pkg/cassandra/config"
 	"github.com/uber/jaeger/pkg/config"
 	"github.com/uber/jaeger/storage/spanstore/memory"
 )
+
+func newStorageBuilder() *StorageBuilder {
+	return &StorageBuilder{
+		logger:         zap.NewNop(),
+		metricsFactory: metrics.NullFactory,
+	}
+}
 
 func TestNewCassandraSuccess(t *testing.T) {
 	v, _ := config.Viperize(flags.AddFlags)
@@ -59,6 +68,16 @@ func TestNewCassandraFailure(t *testing.T) {
 	sFlags.InitFromViper(v)
 	sBuilder, err = NewStorageBuilder(sFlags.SpanStorage.Type, sFlags.DependencyStorage.DataFrequency)
 	assert.EqualError(t, err, "Cassandra not configured")
+	assert.Nil(t, sBuilder)
+}
+
+func TestNewCassandraFailureNoSession(t *testing.T) {
+	v, command := config.Viperize(flags.AddFlags)
+	sFlags := new(flags.SharedFlags).InitFromViper(v)
+	command.ParseFlags([]string{"test", "--span-storage.type=cassandra"})
+	sFlags.InitFromViper(v)
+	sBuilder, err := NewStorageBuilder(sFlags.SpanStorage.Type, sFlags.DependencyStorage.DataFrequency, basicB.Options.CassandraSessionOption(&casCfg.Configuration{}))
+	require.Error(t, err)
 	assert.Nil(t, sBuilder)
 }
 

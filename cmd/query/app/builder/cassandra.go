@@ -23,43 +23,18 @@ package builder
 import (
 	"time"
 
-	"go.uber.org/zap"
-
-	"github.com/uber/jaeger-lib/metrics"
-	"github.com/uber/jaeger/pkg/cassandra"
-	cascfg "github.com/uber/jaeger/pkg/cassandra/config"
-	cDependencyStore "github.com/uber/jaeger/plugin/storage/cassandra/dependencystore"
-	cSpanStore "github.com/uber/jaeger/plugin/storage/cassandra/spanstore"
-	"github.com/uber/jaeger/storage/dependencystore"
-	"github.com/uber/jaeger/storage/spanstore"
+	"github.com/uber/jaeger/pkg/cassandra/config"
+	"github.com/uber/jaeger/plugin/storage/cassandra/dependencystore"
+	"github.com/uber/jaeger/plugin/storage/cassandra/spanstore"
 )
 
-type cassandraBuilder struct {
-	logger                  *zap.Logger
-	metricsFactory          metrics.Factory
-	session                 cassandra.Session
-	dependencyDataFrequency time.Duration
-}
-
-func newCassandraBuilder(sessionBuilder cascfg.SessionBuilder, logger *zap.Logger, metricsFactory metrics.Factory, dependencyDataFreq time.Duration) (*cassandraBuilder, error) {
+func (sb *StorageBuilder) newCassandraBuilder(sessionBuilder config.SessionBuilder, dependencyDataFreq time.Duration) error {
 	session, err := sessionBuilder.NewSession()
 	if err != nil {
-		return nil, err
+		return err
 	}
 
-	cBuilder := &cassandraBuilder{
-		logger:                  logger,
-		metricsFactory:          metricsFactory,
-		session:                 session,
-		dependencyDataFrequency: dependencyDataFreq,
-	}
-	return cBuilder, nil
-}
-
-func (c *cassandraBuilder) NewSpanReader() (spanstore.Reader, error) {
-	return cSpanStore.NewSpanReader(c.session, c.metricsFactory, c.logger), nil
-}
-
-func (c *cassandraBuilder) NewDependencyReader() (dependencystore.Reader, error) {
-	return cDependencyStore.NewDependencyStore(c.session, c.dependencyDataFrequency, c.metricsFactory, c.logger), nil
+	sb.SpanReader = spanstore.NewSpanReader(session, sb.metricsFactory, sb.logger)
+	sb.DependencyReader = dependencystore.NewDependencyStore(session, dependencyDataFreq, sb.metricsFactory, sb.logger)
+	return nil
 }
