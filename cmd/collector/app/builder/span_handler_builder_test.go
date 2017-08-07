@@ -21,15 +21,14 @@
 package builder
 
 import (
-	"fmt"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
-	//"github.com/stretchr/testify/require"
-	"go.uber.org/zap"
-
 	"github.com/stretchr/testify/require"
 	"github.com/uber/jaeger-lib/metrics"
+	"go.uber.org/zap"
+
+	"fmt"
 	"github.com/uber/jaeger/cmd/builder"
 	"github.com/uber/jaeger/cmd/flags"
 	"github.com/uber/jaeger/pkg/cassandra"
@@ -148,7 +147,6 @@ func TestNewSpanHandlerBuilderElasticSearch(t *testing.T) {
 	sFlags := new(flags.SharedFlags).InitFromViper(v)
 	cOpts := new(CollectorOptions).InitFromViper(v)
 
-	fmt.Println(sFlags.SpanStorage.Type)
 	handler, err := NewSpanHandlerBuilder(
 		cOpts,
 		sFlags,
@@ -192,56 +190,3 @@ func TestNewSpanHandlerBuilderElasticSearchFailure(t *testing.T) {
 func TestDefaultSpanFilter(t *testing.T) {
 	assert.True(t, defaultSpanFilter(nil))
 }
-
-func withBuilder(f func(builder *SpanHandlerBuilder)) {
-	cOpts := &CollectorOptions{}
-	spanBuilder := &SpanHandlerBuilder{
-		logger:         zap.NewNop(),
-		collectorOpts:  cOpts,
-		metricsFactory: metrics.NullFactory,
-	}
-
-	f(spanBuilder)
-}
-
-//func TestBuildHandlersCassandra(t *testing.T) {
-//	withBuilder(func(builder *SpanHandlerBuilder) {
-//		sBuilder := builder.initCassStore(new(mockSessionBuilder))
-//		builder.storageBuilder = sBuilder
-//		zHandler, jHandler, err := builder.BuildHandlers()
-//		require.NoError(t, err)
-//		assert.NotNil(t, zHandler)
-//		assert.NotNil(t, jHandler)
-//	})
-//}
-//
-//func TestBuildHandlersCassandraFailure(t *testing.T) {
-//	withBuilder(func(cBuilder *SpanHandlerBuilder) {
-//		cfg := &cascfg.Configuration{
-//			Servers: []string{"badhostname"},
-//		}
-//		_, err := cBuilder.initCassStore(cfg)()
-//		assert.Error(t, err)
-//	})
-//}
-//
-//
-//func TestBuildHandlersElasticSearch(t *testing.T) {
-//	withBuilder(func(builder *SpanHandlerBuilder) {
-//		builder.storageBuilder = builder.initElasticStore(&mockEsBuilder{})
-//		zHandler, jHandler, err := builder.BuildHandlers()
-//		assert.NoError(t, err)
-//		assert.NotNil(t, zHandler)
-//		assert.NotNil(t, jHandler)
-//	})
-//}
-//
-//func TestBuildHandlersElasticSearchFailure(t *testing.T) {
-//	withBuilder(func(builder *SpanHandlerBuilder) {
-//		builder.storageBuilder = builder.initElasticStore(&escfg.Configuration{})
-//		zHandler, jHandler, err := builder.BuildHandlers()
-//		assert.Error(t, err)
-//		assert.Nil(t, zHandler)
-//		assert.Nil(t, jHandler)
-//	})
-//}

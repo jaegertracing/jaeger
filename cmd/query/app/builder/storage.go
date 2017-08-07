@@ -24,12 +24,13 @@ import (
 	"errors"
 	"time"
 
+	"go.uber.org/zap"
+
 	"github.com/uber/jaeger-lib/metrics"
 	basicB "github.com/uber/jaeger/cmd/builder"
 	"github.com/uber/jaeger/cmd/flags"
 	"github.com/uber/jaeger/storage/dependencystore"
 	"github.com/uber/jaeger/storage/spanstore"
-	"go.uber.org/zap"
 )
 
 // StorageBuilder is the interface that provides the necessary store readers

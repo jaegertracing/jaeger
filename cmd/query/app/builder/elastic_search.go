@@ -27,9 +27,9 @@ import (
 )
 
 func (sb *StorageBuilder) newESBuilder(builder config.ClientBuilder) error {
-	client, error := builder.NewClient()
-	if error != nil {
-		return error
+	client, err := builder.NewClient()
+	if err != nil {
+		return err
 	}
 
 	sb.SpanReader = spanstore.NewSpanReader(client, sb.logger, builder.GetMaxSpanAge(), sb.metricsFactory)
