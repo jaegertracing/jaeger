@@ -139,16 +139,12 @@ func startCollector(
 	if err != nil {
 		logger.Fatal("Unable to set up builder", zap.Error(err))
 	}
-	zipkinSpansHandler, jaegerBatchesHandler, err := spanBuilder.BuildHandlers()
-	if err != nil {
-		logger.Fatal("Unable to build span handlers", zap.Error(err))
-	}
-
 	ch, err := tchannel.NewChannel("jaeger-collector", &tchannel.ChannelOptions{})
 	if err != nil {
 		logger.Fatal("Unable to create new TChannel", zap.Error(err))
 	}
 	server := thrift.NewServer(ch)
+	zipkinSpansHandler, jaegerBatchesHandler := spanBuilder.BuildHandlers()
 	server.Register(jc.NewTChanCollectorServer(jaegerBatchesHandler))
 	server.Register(zc.NewTChanZipkinCollectorServer(zipkinSpansHandler))
 	portStr := ":" + strconv.Itoa(cOpts.CollectorPort)

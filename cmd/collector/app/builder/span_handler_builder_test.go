@@ -25,9 +25,10 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/require"
+	//"github.com/stretchr/testify/require"
 	"go.uber.org/zap"
 
+	"github.com/stretchr/testify/require"
 	"github.com/uber/jaeger-lib/metrics"
 	"github.com/uber/jaeger/cmd/builder"
 	"github.com/uber/jaeger/cmd/flags"
@@ -41,6 +42,21 @@ import (
 	"github.com/uber/jaeger/storage/spanstore/memory"
 )
 
+type mockSessionBuilder struct {
+}
+
+func (*mockSessionBuilder) NewSession() (cassandra.Session, error) {
+	return &mocks.Session{}, nil
+}
+
+type mockEsBuilder struct {
+	escfg.Configuration
+}
+
+func (mck *mockEsBuilder) NewClient() (es.Client, error) {
+	return &esMocks.Client{}, nil
+}
+
 func TestNewSpanHandlerBuilder(t *testing.T) {
 	v, command := config.Viperize(flags.AddFlags)
 
@@ -53,12 +69,31 @@ func TestNewSpanHandlerBuilder(t *testing.T) {
 		sFlags,
 		builder.Options.LoggerOption(zap.NewNop()),
 		builder.Options.MetricsFactoryOption(metrics.NullFactory),
-		builder.Options.CassandraOption(&cascfg.Configuration{
-			Servers: []string{"127.0.0.1"},
-		}),
+		builder.Options.CassandraSessionOption(&mockSessionBuilder{}),
 	)
-	assert.NoError(t, err)
+	require.NoError(t, err)
 	assert.NotNil(t, handler)
+	zipkin, jaeger := handler.BuildHandlers()
+	assert.NotNil(t, zipkin)
+	assert.NotNil(t, jaeger)
+}
+
+func TestNewSpanHandlerBuilderCassandraNoSession(t *testing.T) {
+	v, command := config.Viperize(flags.AddFlags)
+
+	command.ParseFlags([]string{})
+	sFlags := new(flags.SharedFlags).InitFromViper(v)
+	cOpts := new(CollectorOptions).InitFromViper(v)
+
+	handler, err := NewSpanHandlerBuilder(
+		cOpts,
+		sFlags,
+		builder.Options.LoggerOption(zap.NewNop()),
+		builder.Options.MetricsFactoryOption(metrics.NullFactory),
+		builder.Options.CassandraSessionOption(&cascfg.Configuration{}),
+	)
+	require.Error(t, err)
+	assert.Nil(t, handler)
 }
 
 func TestNewSpanHandlerBuilderCassandraNotConfigured(t *testing.T) {
@@ -100,10 +135,9 @@ func TestNewSpanHandlerBuilderMemorySet(t *testing.T) {
 	cOpts := new(CollectorOptions).InitFromViper(v)
 
 	handler, err := NewSpanHandlerBuilder(cOpts, sFlags, builder.Options.MemoryStoreOption(memory.NewStore()))
-	assert.NoError(t, err)
+	require.NoError(t, err)
 	assert.NotNil(t, handler)
-	jHandler, zHandler, err := handler.BuildHandlers()
-	assert.NoError(t, err)
+	jHandler, zHandler := handler.BuildHandlers()
 	assert.NotNil(t, jHandler)
 	assert.NotNil(t, zHandler)
 }
@@ -119,11 +153,30 @@ func TestNewSpanHandlerBuilderElasticSearch(t *testing.T) {
 		cOpts,
 		sFlags,
 		builder.Options.LoggerOption(zap.NewNop()),
-		builder.Options.ElasticSearchOption(&escfg.Configuration{}),
+		builder.Options.ElasticClientOption(&mockEsBuilder{}),
 	)
-	handler.BuildHandlers()
-	assert.NoError(t, err)
+	require.NoError(t, err)
 	assert.NotNil(t, handler)
+	zipkin, jaeger := handler.BuildHandlers()
+	assert.NotNil(t, zipkin)
+	assert.NotNil(t, jaeger)
+}
+
+func TestNewSpanHandlerBuilderElasticSearchNoClient(t *testing.T) {
+	v, command := config.Viperize(AddFlags, flags.AddFlags)
+	command.ParseFlags([]string{"test", "--span-storage.type=elasticsearch"})
+	sFlags := new(flags.SharedFlags).InitFromViper(v)
+	cOpts := new(CollectorOptions).InitFromViper(v)
+
+	fmt.Println(sFlags.SpanStorage.Type)
+	handler, err := NewSpanHandlerBuilder(
+		cOpts,
+		sFlags,
+		builder.Options.LoggerOption(zap.NewNop()),
+		builder.Options.ElasticClientOption(&escfg.Configuration{}),
+	)
+	require.Error(t, err)
+	assert.Nil(t, handler)
 }
 
 func TestNewSpanHandlerBuilderElasticSearchFailure(t *testing.T) {
@@ -151,58 +204,44 @@ func withBuilder(f func(builder *SpanHandlerBuilder)) {
 	f(spanBuilder)
 }
 
-type mockSessionBuilder struct {
-}
-
-func (at *mockSessionBuilder) NewSession() (cassandra.Session, error) {
-	return &mocks.Session{}, nil
-}
-
-func TestBuildHandlersCassandra(t *testing.T) {
-	withBuilder(func(builder *SpanHandlerBuilder) {
-		sBuilder := builder.initCassStore(new(mockSessionBuilder))
-		builder.storageBuilder = sBuilder
-		zHandler, jHandler, err := builder.BuildHandlers()
-		require.NoError(t, err)
-		assert.NotNil(t, zHandler)
-		assert.NotNil(t, jHandler)
-	})
-}
-
-func TestBuildHandlersCassandraFailure(t *testing.T) {
-	withBuilder(func(cBuilder *SpanHandlerBuilder) {
-		cfg := &cascfg.Configuration{
-			Servers: []string{"badhostname"},
-		}
-		_, err := cBuilder.initCassStore(cfg)()
-		assert.Error(t, err)
-	})
-}
-
-type mockEsBuilder struct {
-	escfg.Configuration
-}
-
-func (mck *mockEsBuilder) NewClient() (es.Client, error) {
-	return &esMocks.Client{}, nil
-}
-
-func TestBuildHandlersElasticSearch(t *testing.T) {
-	withBuilder(func(builder *SpanHandlerBuilder) {
-		builder.storageBuilder = builder.initElasticStore(&mockEsBuilder{})
-		zHandler, jHandler, err := builder.BuildHandlers()
-		assert.NoError(t, err)
-		assert.NotNil(t, zHandler)
-		assert.NotNil(t, jHandler)
-	})
-}
-
-func TestBuildHandlersElasticSearchFailure(t *testing.T) {
-	withBuilder(func(builder *SpanHandlerBuilder) {
-		builder.storageBuilder = builder.initElasticStore(&escfg.Configuration{})
-		zHandler, jHandler, err := builder.BuildHandlers()
-		assert.Error(t, err)
-		assert.Nil(t, zHandler)
-		assert.Nil(t, jHandler)
-	})
-}
+//func TestBuildHandlersCassandra(t *testing.T) {
+//	withBuilder(func(builder *SpanHandlerBuilder) {
+//		sBuilder := builder.initCassStore(new(mockSessionBuilder))
+//		builder.storageBuilder = sBuilder
+//		zHandler, jHandler, err := builder.BuildHandlers()
+//		require.NoError(t, err)
+//		assert.NotNil(t, zHandler)
+//		assert.NotNil(t, jHandler)
+//	})
+//}
+//
+//func TestBuildHandlersCassandraFailure(t *testing.T) {
+//	withBuilder(func(cBuilder *SpanHandlerBuilder) {
+//		cfg := &cascfg.Configuration{
+//			Servers: []string{"badhostname"},
+//		}
+//		_, err := cBuilder.initCassStore(cfg)()
+//		assert.Error(t, err)
+//	})
+//}
+//
+//
+//func TestBuildHandlersElasticSearch(t *testing.T) {
+//	withBuilder(func(builder *SpanHandlerBuilder) {
+//		builder.storageBuilder = builder.initElasticStore(&mockEsBuilder{})
+//		zHandler, jHandler, err := builder.BuildHandlers()
+//		assert.NoError(t, err)
+//		assert.NotNil(t, zHandler)
+//		assert.NotNil(t, jHandler)
+//	})
+//}
+//
+//func TestBuildHandlersElasticSearchFailure(t *testing.T) {
+//	withBuilder(func(builder *SpanHandlerBuilder) {
+//		builder.storageBuilder = builder.initElasticStore(&escfg.Configuration{})
+//		zHandler, jHandler, err := builder.BuildHandlers()
+//		assert.Error(t, err)
+//		assert.Nil(t, zHandler)
+//		assert.Nil(t, jHandler)
+//	})
+//}

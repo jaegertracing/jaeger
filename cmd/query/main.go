@@ -64,7 +64,7 @@ func main() {
 				sFlags.DependencyStorage.DataFrequency,
 				basicB.Options.LoggerOption(logger),
 				basicB.Options.MetricsFactoryOption(metricsFactory),
-				basicB.Options.CassandraOption(casOptions.GetPrimary()),
+				basicB.Options.CassandraSessionOption(casOptions.GetPrimary()),
 				basicB.Options.ElasticSearchOption(esOptions.GetPrimary()),
 			)
 			if err != nil {

@@ -35,12 +35,14 @@ type BasicOptions struct {
 	Logger *zap.Logger
 	// MetricsFactory is the basic metrics factory used by most executables
 	MetricsFactory metrics.Factory
-	// Cassandra is the cassandra configuration used by most executables (if applicable)
-	Cassandra *cascfg.Configuration
 	// MemoryStore is the memory store (as reader and writer) that will be used if required
 	MemoryStore *memory.Store
-	// ElasticSearch is the elasticsearch configuration used
+	// ElasticSearch is the elasticsearch configuration used // todo REMOVE
 	ElasticSearch *escfg.Configuration
+	// CassandraSessionBuilder is the cassandra session builder
+	CassandraSessionBuilder cascfg.SessionBuilder
+	// ElasticClientBuilder is the elasticsearch client builder
+	ElasticClientBuilder escfg.ClientBuilder
 }
 
 // Option is a function that sets some option on StorageBuilder.
@@ -63,10 +65,17 @@ func (BasicOptions) MetricsFactoryOption(metricsFactory metrics.Factory) Option 
 	}
 }
 
-// CassandraOption creates an Option that adds Cassandra configuration.
-func (BasicOptions) CassandraOption(cassandra *cascfg.Configuration) Option {
+// CassandraSessionOption creates an Option that adds Cassandra session builder.
+func (BasicOptions) CassandraSessionOption(sessionBuilder cascfg.SessionBuilder) Option {
 	return func(b *BasicOptions) {
-		b.Cassandra = cassandra
+		b.CassandraSessionBuilder = sessionBuilder
+	}
+}
+
+// ElasticClientOption creates an Option that adds ElasticSearch client builder.
+func (BasicOptions) ElasticClientOption(clientBuilder escfg.ClientBuilder) Option {
+	return func(b *BasicOptions) {
+		b.ElasticClientBuilder = clientBuilder
 	}
 }
 

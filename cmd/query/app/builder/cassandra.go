@@ -37,42 +37,29 @@ import (
 type cassandraBuilder struct {
 	logger                  *zap.Logger
 	metricsFactory          metrics.Factory
-	configuration           cascfg.Configuration
 	session                 cassandra.Session
 	dependencyDataFrequency time.Duration
 }
 
-func newCassandraBuilder(config *cascfg.Configuration, logger *zap.Logger, metricsFactory metrics.Factory, dependencyDataFreq time.Duration) *cassandraBuilder {
+func newCassandraBuilder(sessionBuilder cascfg.SessionBuilder, logger *zap.Logger, metricsFactory metrics.Factory, dependencyDataFreq time.Duration) (*cassandraBuilder, error) {
+	session, err := sessionBuilder.NewSession()
+	if err != nil {
+		return nil, err
+	}
+
 	cBuilder := &cassandraBuilder{
 		logger:                  logger,
 		metricsFactory:          metricsFactory,
-		configuration:           *config,
+		session:                 session,
 		dependencyDataFrequency: dependencyDataFreq,
 	}
-	return cBuilder
-}
-
-func (c *cassandraBuilder) getSession() (cassandra.Session, error) {
-	if c.session == nil {
-		session, err := c.configuration.NewSession()
-		c.session = session
-		return c.session, err
-	}
-	return c.session, nil
+	return cBuilder, nil
 }
 
 func (c *cassandraBuilder) NewSpanReader() (spanstore.Reader, error) {
-	session, err := c.getSession()
-	if err != nil {
-		return nil, err
-	}
-	return cSpanStore.NewSpanReader(session, c.metricsFactory, c.logger), nil
+	return cSpanStore.NewSpanReader(c.session, c.metricsFactory, c.logger), nil
 }
 
 func (c *cassandraBuilder) NewDependencyReader() (dependencystore.Reader, error) {
-	session, err := c.getSession()
-	if err != nil {
-		return nil, err
-	}
-	return cDependencyStore.NewDependencyStore(session, c.dependencyDataFrequency, c.metricsFactory, c.logger), nil
+	return cDependencyStore.NewDependencyStore(c.session, c.dependencyDataFrequency, c.metricsFactory, c.logger), nil
 }

@@ -47,11 +47,11 @@ func NewStorageBuilder(storageType string, dependencyDataFreq time.Duration, opt
 	options := basicB.ApplyOptions(opts...)
 	// TODO lots of repeated code + if logic, clean up below
 	if storageType == flags.CassandraStorageType {
-		if options.Cassandra == nil {
+		if options.CassandraSessionBuilder == nil {
 			return nil, errMissingCassandraConfig
 		}
 		// TODO technically span and dependency storage might be separate
-		return newCassandraBuilder(options.Cassandra, options.Logger, options.MetricsFactory, dependencyDataFreq), nil
+		return newCassandraBuilder(options.CassandraSessionBuilder, options.Logger, options.MetricsFactory, dependencyDataFreq)
 	} else if storageType == flags.MemoryStorageType {
 		if options.MemoryStore == nil {
 			return nil, errMissingMemoryStore

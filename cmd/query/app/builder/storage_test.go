@@ -29,7 +29,6 @@ import (
 
 	basicB "github.com/uber/jaeger/cmd/builder"
 	"github.com/uber/jaeger/cmd/flags"
-	cascfg "github.com/uber/jaeger/pkg/cassandra/config"
 	"github.com/uber/jaeger/pkg/config"
 	escfg "github.com/uber/jaeger/pkg/es/config"
 	"github.com/uber/jaeger/storage/spanstore/memory"
@@ -43,9 +42,7 @@ func TestNewCassandraSuccess(t *testing.T) {
 		sFlags.DependencyStorage.DataFrequency,
 		basicB.Options.LoggerOption(zap.NewNop()),
 		basicB.Options.MetricsFactoryOption(metrics.NullFactory),
-		basicB.Options.CassandraOption(&cascfg.Configuration{
-			Servers: []string{"127.0.0.1"},
-		}),
+		basicB.Options.CassandraSessionOption(&mockSessionBuilder{}),
 	)
 	assert.NoError(t, err)
 	assert.NotNil(t, sBuilder)
