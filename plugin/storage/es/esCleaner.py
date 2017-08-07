@@ -30,7 +30,6 @@ def empty_list(ilo, error_msg):
     try:
         ilo.empty_list_check()
     except curator.NoIndices:
-        logging.info(error_msg)
         print(error_msg)
         sys.exit(0)
 
