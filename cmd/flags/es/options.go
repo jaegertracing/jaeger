@@ -34,7 +34,7 @@ const (
 	suffixUsername    = ".username"
 	suffixPassword    = ".password"
 	suffixSniffer     = ".sniffer"
-	suffixServers     = ".servers"
+	suffixServerURLs  = ".server-urls"
 	suffixMaxSpanAge  = ".max-span-age"
 	suffixNumShards   = ".num-shards"
 	suffixNumReplicas = ".num-replicas"
@@ -72,7 +72,7 @@ func NewOptions(primaryNamespace string, otherNamespaces ...string) *Options {
 				NumShards:   5,
 				NumReplicas: 2,
 			},
-			servers:   "127.0.0.1",
+			servers:   "http://127.0.0.1:9200",
 			namespace: primaryNamespace,
 		},
 		others: make(map[string]*namespaceConfig, len(otherNamespaces)),
@@ -107,9 +107,9 @@ func addFlags(flagSet *flag.FlagSet, nsConfig *namespaceConfig) {
 		nsConfig.Sniffer,
 		"The sniffer config for ElasticSearch; client uses sniffing process to find all nodes automatically, disable if not required")
 	flagSet.String(
-		nsConfig.namespace+suffixServers,
+		nsConfig.namespace+suffixServerURLs,
 		nsConfig.servers,
-		"The comma-separated list of ElasticSearch servers")
+		"The comma-separated list of ElasticSearch servers, must be full url i.e. http://localhost:9200")
 	flagSet.Duration(
 		nsConfig.namespace+suffixMaxSpanAge,
 		nsConfig.MaxSpanAge,
@@ -136,7 +136,7 @@ func initFromViper(cfg *namespaceConfig, v *viper.Viper) {
 	cfg.Username = v.GetString(cfg.namespace + suffixUsername)
 	cfg.Password = v.GetString(cfg.namespace + suffixPassword)
 	cfg.Sniffer = v.GetBool(cfg.namespace + suffixSniffer)
-	cfg.servers = v.GetString(cfg.namespace + suffixServers)
+	cfg.servers = v.GetString(cfg.namespace + suffixServerURLs)
 	cfg.MaxSpanAge = v.GetDuration(cfg.namespace + suffixMaxSpanAge)
 	cfg.NumShards = v.GetInt64(cfg.namespace + suffixNumShards)
 	cfg.NumReplicas = v.GetInt64(cfg.namespace + suffixNumReplicas)

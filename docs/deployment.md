@@ -39,7 +39,7 @@ across several collectors ([issue 213](https://github.com/uber/jaeger/issues/213
 Many instances of **jaeger-collector** can be run in parallel.
 Collectors require almost no configuration, except for the location of Cassandra cluster,
 via `--cassandra.keyspace` and `--cassandra.servers` options, or the location of ElasticSearch cluster, via
-`--es.servers`, depending on which storage is specified. To see all command line options run
+`--es.server-urls`, depending on which storage is specified. To see all command line options run
 
 ```
 go run ./cmd/collector/main.go -h
