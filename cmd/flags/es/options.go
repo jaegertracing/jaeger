@@ -107,7 +107,7 @@ func addFlags(flagSet *flag.FlagSet, nsConfig *namespaceConfig) {
 		nsConfig.Sniffer,
 		"The sniffer config for ElasticSearch; client uses sniffing process to find all nodes automatically, disable if not required")
 	flagSet.String(
-		nsConfig.namespace+ suffixServerURLs,
+		nsConfig.namespace+suffixServerURLs,
 		nsConfig.servers,
 		"The comma-separated list of ElasticSearch servers, must be full url i.e. http://localhost:9200")
 	flagSet.Duration(
