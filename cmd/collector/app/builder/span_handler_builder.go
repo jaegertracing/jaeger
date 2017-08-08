@@ -24,9 +24,9 @@ import (
 	"errors"
 	"os"
 
+	"github.com/uber/jaeger-lib/metrics"
 	"go.uber.org/zap"
 
-	"github.com/uber/jaeger-lib/metrics"
 	basicB "github.com/uber/jaeger/cmd/builder"
 	"github.com/uber/jaeger/cmd/collector/app"
 	zs "github.com/uber/jaeger/cmd/collector/app/sanitizer/zipkin"
@@ -87,23 +87,21 @@ func NewSpanHandlerBuilder(cOpts *CollectorOptions, sFlags *flags.SharedFlags, o
 		return nil, err
 	}
 
-	return spanHb, err
+	return spanHb, nil
 }
 
-func (spanHb *SpanHandlerBuilder) initCassStore(config cascfg.SessionBuilder) (spanstore.Writer, error) {
-	session, err := config.NewSession()
+func (spanHb *SpanHandlerBuilder) initCassStore(builder cascfg.SessionBuilder) (spanstore.Writer, error) {
+	session, err := builder.NewSession()
 	if err != nil {
 		return nil, err
 	}
 
-	store := casSpanstore.NewSpanWriter(
+	return casSpanstore.NewSpanWriter(
 		session,
 		spanHb.collectorOpts.WriteCacheTTL,
 		spanHb.metricsFactory,
 		spanHb.logger,
-	)
-
-	return store, nil
+	), nil
 }
 
 func (spanHb *SpanHandlerBuilder) initElasticStore(esBuilder escfg.ClientBuilder) (spanstore.Writer, error) {
@@ -112,15 +110,13 @@ func (spanHb *SpanHandlerBuilder) initElasticStore(esBuilder escfg.ClientBuilder
 		return nil, err
 	}
 
-	spanStore := esSpanstore.NewSpanWriter(
+	return esSpanstore.NewSpanWriter(
 		client,
 		spanHb.logger,
 		spanHb.metricsFactory,
 		esBuilder.GetNumShards(),
 		esBuilder.GetNumReplicas(),
-	)
-
-	return spanStore, nil
+	), nil
 }
 
 // BuildHandlers builds span handlers (Zipkin, Jaeger)

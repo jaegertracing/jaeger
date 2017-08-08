@@ -28,7 +28,6 @@ import (
 	"github.com/uber/jaeger-lib/metrics"
 	"go.uber.org/zap"
 
-	"fmt"
 	"github.com/uber/jaeger/cmd/builder"
 	"github.com/uber/jaeger/cmd/flags"
 	"github.com/uber/jaeger/pkg/cassandra"
@@ -166,7 +165,6 @@ func TestNewSpanHandlerBuilderElasticSearchNoClient(t *testing.T) {
 	sFlags := new(flags.SharedFlags).InitFromViper(v)
 	cOpts := new(CollectorOptions).InitFromViper(v)
 
-	fmt.Println(sFlags.SpanStorage.Type)
 	handler, err := NewSpanHandlerBuilder(
 		cOpts,
 		sFlags,

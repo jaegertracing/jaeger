@@ -24,9 +24,9 @@ import (
 	"errors"
 	"time"
 
+	"github.com/uber/jaeger-lib/metrics"
 	"go.uber.org/zap"
 
-	"github.com/uber/jaeger-lib/metrics"
 	basicB "github.com/uber/jaeger/cmd/builder"
 	"github.com/uber/jaeger/cmd/flags"
 	"github.com/uber/jaeger/storage/dependencystore"
