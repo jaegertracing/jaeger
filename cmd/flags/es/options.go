@@ -72,7 +72,7 @@ func NewOptions(primaryNamespace string, otherNamespaces ...string) *Options {
 				NumShards:   5,
 				NumReplicas: 2,
 			},
-			servers:   "127.0.0.1",
+			servers:   "http://127.0.0.1:9200",
 			namespace: primaryNamespace,
 		},
 		others: make(map[string]*namespaceConfig, len(otherNamespaces)),
@@ -109,7 +109,7 @@ func addFlags(flagSet *flag.FlagSet, nsConfig *namespaceConfig) {
 	flagSet.String(
 		nsConfig.namespace+suffixServers,
 		nsConfig.servers,
-		"The comma-separated list of ElasticSearch servers")
+		"The comma-separated list of ElasticSearch servers, must be full url i.e. http://localhost:9200")
 	flagSet.Duration(
 		nsConfig.namespace+suffixMaxSpanAge,
 		nsConfig.MaxSpanAge,
