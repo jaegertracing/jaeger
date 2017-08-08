@@ -43,7 +43,7 @@ const (
 	serviceType = "service"
 
 	defaultNumShards   = 5
-	defaultNumReplicas = 2
+	defaultNumReplicas = 1
 )
 
 type spanWriterMetrics struct {

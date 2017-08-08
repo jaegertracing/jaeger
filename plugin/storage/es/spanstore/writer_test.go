@@ -327,7 +327,7 @@ func TestFixMapping(t *testing.T) {
 		expectedMapping := `{
 		   "settings":{
 		      "index.number_of_shards": 5,
-      		      "index.number_of_replicas": 2,
+      		      "index.number_of_replicas": 1,
 		      "index.mapping.nested_fields.limit":50,
 		      "index.requests.cache.enable":true,
 		      "index.mapper.dynamic":false
