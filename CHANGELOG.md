@@ -1,6 +1,15 @@
 Changes by Version
 ==================
 
+0.6.0 (2017-08-09)
+------------------
+
+- Add viper/cobra configuration support [#245](https://github.com/uber/jaeger/pull/245) [#307](https://github.com/uber/jaeger/pull/307)
+- Add Zipkin /api/v1/spans endpoint [#282](https://github.com/uber/jaeger/pull/282)
+- Add basic authenticator to configs for cassandra [#323](https://github.com/uber/jaeger/pull/323)
+- Add Elasticsearch storage support
+
+
 0.5.2 (2017-07-20)
 ------------------
 
