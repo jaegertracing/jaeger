@@ -26,6 +26,12 @@ The conversion is done automatically.
 ElasticSearch schema used for Jaeger. This allows for better search capabilities and data retention. However, because
 ElasticSearch creates a new document for every nested field, there is currently a limit of 50 nested fields per document.
 
+### Shards and Replicas
+Number of shards and replicas per index can be specified as parameters to the writer and/or through configs under 
+`./pkg/es/config/config.go`. If not specified, it defaults to ElasticSearch defaults: 5 shards and 1 replica. 
+[This article](https://qbox.io/blog/optimizing-elasticsearch-how-many-shards-per-index) goes into more information
+about choosing how many shards should be chosen for optimization.
+
 ## Limitations
 
 ### Separation of Spans and Service:Operation Pairs
