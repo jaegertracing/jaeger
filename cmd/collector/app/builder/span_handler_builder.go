@@ -134,6 +134,7 @@ func (spanHb *SpanHandlerBuilder) BuildHandlers() (app.ZipkinSpansHandler, app.J
 	zSanitizer := zs.NewChainedSanitizer(
 		zs.NewSpanDurationSanitizer(spanHb.logger),
 		zs.NewParentIDSanitizer(spanHb.logger),
+		zs.NewErrorTagSanitizer(),
 	)
 
 	spanWriter, err := spanHb.storageBuilder()

@@ -105,6 +105,55 @@ func TestSpanParentIDSanitizer(t *testing.T) {
 	}
 }
 
+func TestSpanErrorSanitizer(t *testing.T) {
+	sanitizer := NewErrorTagSanitizer()
+
+	tests := []struct {
+		binAnn        *zipkincore.BinaryAnnotation
+		isErrorTag    bool
+		isError       bool
+		addErrMsgAnno bool
+	}{
+		// value is string
+		{&zipkincore.BinaryAnnotation{Key: "error", AnnotationType: zipkincore.AnnotationType_STRING},
+			true, true, false,
+		},
+		{&zipkincore.BinaryAnnotation{Key: "error", Value: []byte("true"), AnnotationType: zipkincore.AnnotationType_STRING},
+			true, true, false,
+		},
+		{&zipkincore.BinaryAnnotation{Key: "error", Value: []byte("message"), AnnotationType: zipkincore.AnnotationType_STRING},
+			true, true, true,
+		},
+		{&zipkincore.BinaryAnnotation{Key: "error", Value: []byte("false"), AnnotationType: zipkincore.AnnotationType_STRING},
+			true, false, false,
+		},
+	}
+
+	for _, test := range tests {
+		span := &zipkincore.Span{
+			BinaryAnnotations: []*zipkincore.BinaryAnnotation{test.binAnn},
+		}
+
+		sanitized := sanitizer.Sanitize(span)
+		if test.isErrorTag {
+			var expectedVal = []byte{0}
+			if test.isError {
+				expectedVal = []byte{1}
+			}
+
+			assert.Equal(t, expectedVal, sanitized.BinaryAnnotations[0].Value, test.binAnn.Key)
+			assert.Equal(t, zipkincore.AnnotationType_BOOL, sanitized.BinaryAnnotations[0].AnnotationType)
+
+			if test.addErrMsgAnno {
+				assert.Equal(t, 2, len(sanitized.BinaryAnnotations))
+				assert.Equal(t, "error.message", sanitized.BinaryAnnotations[1].Key)
+			} else {
+				assert.Equal(t, 1, len(sanitized.BinaryAnnotations))
+			}
+		}
+	}
+}
+
 func TestSpanLogger(t *testing.T) {
 	logger, log := testutils.NewLogger()
 	span := &zipkincore.Span{
