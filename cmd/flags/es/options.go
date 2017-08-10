@@ -62,6 +62,7 @@ type namespaceConfig struct {
 
 // NewOptions creates a new Options struct.
 func NewOptions(primaryNamespace string, otherNamespaces ...string) *Options {
+	// TODO all default values should be defined via cobra flags
 	options := &Options{
 		primary: &namespaceConfig{
 			Configuration: config.Configuration{
