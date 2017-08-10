@@ -139,16 +139,12 @@ func startCollector(
 	if err != nil {
 		logger.Fatal("Unable to set up builder", zap.Error(err))
 	}
-	zipkinSpansHandler, jaegerBatchesHandler, err := spanBuilder.BuildHandlers()
-	if err != nil {
-		logger.Fatal("Unable to build span handlers", zap.Error(err))
-	}
-
 	ch, err := tchannel.NewChannel("jaeger-collector", &tchannel.ChannelOptions{})
 	if err != nil {
 		logger.Fatal("Unable to create new TChannel", zap.Error(err))
 	}
 	server := thrift.NewServer(ch)
+	zipkinSpansHandler, jaegerBatchesHandler := spanBuilder.BuildHandlers()
 	server.Register(jc.NewTChanCollectorServer(jaegerBatchesHandler))
 	server.Register(zc.NewTChanZipkinCollectorServer(zipkinSpansHandler))
 	portStr := ":" + strconv.Itoa(cOpts.CollectorPort)
@@ -212,14 +208,6 @@ func startQuery(
 	if err != nil {
 		logger.Fatal("Failed to wire up service", zap.Error(err))
 	}
-	spanReader, err := storageBuild.NewSpanReader()
-	if err != nil {
-		logger.Fatal("Failed to get span reader", zap.Error(err))
-	}
-	dependencyReader, err := storageBuild.NewDependencyReader()
-	if err != nil {
-		logger.Fatal("Failed to get dependency reader", zap.Error(err))
-	}
 	tracer, closer, err := jaegerClientConfig.Configuration{
 		Sampler: &jaegerClientConfig.SamplerConfig{
 			Type:  "probabilistic",
@@ -232,8 +220,8 @@ func startQuery(
 	}
 	defer closer.Close()
 	rHandler := queryApp.NewAPIHandler(
-		spanReader,
-		dependencyReader,
+		storageBuild.SpanReader,
+		storageBuild.DependencyReader,
 		queryApp.HandlerOptions.Prefix(qOpts.QueryPrefix),
 		queryApp.HandlerOptions.Logger(logger),
 		queryApp.HandlerOptions.Tracer(tracer))

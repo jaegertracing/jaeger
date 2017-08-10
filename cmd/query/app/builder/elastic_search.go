@@ -21,53 +21,18 @@
 package builder
 
 import (
-	"github.com/uber/jaeger-lib/metrics"
-	"go.uber.org/zap"
-
-	"github.com/uber/jaeger/pkg/es"
-	escfg "github.com/uber/jaeger/pkg/es/config"
-	esDependencyStore "github.com/uber/jaeger/plugin/storage/es/dependencystore"
-	esSpanstore "github.com/uber/jaeger/plugin/storage/es/spanstore"
-	"github.com/uber/jaeger/storage/dependencystore"
-	"github.com/uber/jaeger/storage/spanstore"
+	"github.com/uber/jaeger/pkg/es/config"
+	"github.com/uber/jaeger/plugin/storage/es/dependencystore"
+	"github.com/uber/jaeger/plugin/storage/es/spanstore"
 )
 
-type esBuilder struct {
-	logger         *zap.Logger
-	client         es.Client
-	metricsFactory metrics.Factory
-	configuration  escfg.Configuration
-}
-
-func newESBuilder(config *escfg.Configuration, logger *zap.Logger, metricsFactory metrics.Factory) *esBuilder {
-	return &esBuilder{
-		logger:         logger,
-		metricsFactory: metricsFactory,
-		configuration:  *config,
-	}
-}
-
-func (e *esBuilder) getClient() (es.Client, error) {
-	if e.client == nil {
-		client, err := e.configuration.NewClient()
-		e.client = client
-		return e.client, err
-	}
-	return e.client, nil
-}
-
-func (e *esBuilder) NewSpanReader() (spanstore.Reader, error) {
-	client, err := e.getClient()
+func (sb *StorageBuilder) newESBuilder(builder config.ClientBuilder) error {
+	client, err := builder.NewClient()
 	if err != nil {
-		return nil, err
+		return err
 	}
-	return esSpanstore.NewSpanReader(client, e.logger, e.configuration.MaxSpanAge, e.metricsFactory), nil
-}
 
-func (e *esBuilder) NewDependencyReader() (dependencystore.Reader, error) {
-	client, err := e.getClient()
-	if err != nil {
-		return nil, err
-	}
-	return esDependencyStore.NewDependencyStore(client, e.logger), nil
+	sb.SpanReader = spanstore.NewSpanReader(client, sb.logger, builder.GetMaxSpanAge(), sb.metricsFactory)
+	sb.DependencyReader = dependencystore.NewDependencyStore(client, sb.logger)
+	return nil
 }

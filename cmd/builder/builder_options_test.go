@@ -27,22 +27,23 @@ import (
 	"go.uber.org/zap"
 
 	"github.com/uber/jaeger-lib/metrics"
+	cascfg "github.com/uber/jaeger/pkg/cassandra/config"
 	escfg "github.com/uber/jaeger/pkg/es/config"
 	"github.com/uber/jaeger/storage/spanstore/memory"
 )
 
 func TestApplyOptions(t *testing.T) {
 	opts := ApplyOptions(
-		Options.CassandraOption(nil),
+		Options.CassandraSessionOption(&cascfg.Configuration{}),
 		Options.LoggerOption(zap.NewNop()),
 		Options.MetricsFactoryOption(metrics.NullFactory),
 		Options.MemoryStoreOption(memory.NewStore()),
-		Options.ElasticSearchOption(&escfg.Configuration{
+		Options.ElasticClientOption(&escfg.Configuration{
 			Servers: []string{"127.0.0.1"},
 		}),
 	)
-	assert.NotNil(t, opts.ElasticSearch)
-	assert.NotNil(t, opts.ElasticSearch.Servers)
+	assert.NotNil(t, opts.CassandraSessionBuilder)
+	assert.NotNil(t, opts.ElasticClientBuilder)
 	assert.NotNil(t, opts.Logger)
 	assert.NotNil(t, opts.MetricsFactory)
 }

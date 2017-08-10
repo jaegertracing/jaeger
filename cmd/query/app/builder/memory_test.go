@@ -29,13 +29,9 @@ import (
 )
 
 func TestMemoryStoreBuilder(t *testing.T) {
+	sb := newStorageBuilder()
 	memStore := memory.NewStore()
-	memBuilder := newMemoryStoreBuilder(memStore)
-	spanReader, err := memBuilder.NewSpanReader()
-	assert.NoError(t, err)
-	assert.Equal(t, memStore, spanReader)
-
-	depReader, err := memBuilder.NewDependencyReader()
-	assert.NoError(t, err)
-	assert.Equal(t, memStore, depReader)
+	sb.newMemoryStoreBuilder(memStore)
+	assert.Equal(t, memStore, sb.SpanReader)
+	assert.Equal(t, memStore, sb.DependencyReader)
 }
