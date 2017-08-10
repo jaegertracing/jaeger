@@ -64,23 +64,15 @@ func main() {
 				sFlags.DependencyStorage.DataFrequency,
 				basicB.Options.LoggerOption(logger),
 				basicB.Options.MetricsFactoryOption(metricsFactory),
-				basicB.Options.CassandraOption(casOptions.GetPrimary()),
-				basicB.Options.ElasticSearchOption(esOptions.GetPrimary()),
+				basicB.Options.CassandraSessionOption(casOptions.GetPrimary()),
+				basicB.Options.ElasticClientOption(esOptions.GetPrimary()),
 			)
 			if err != nil {
 				logger.Fatal("Failed to init storage builder", zap.Error(err))
 			}
-			spanReader, err := storageBuild.NewSpanReader()
-			if err != nil {
-				logger.Fatal("Failed to create span reader", zap.Error(err))
-			}
-			dependencyReader, err := storageBuild.NewDependencyReader()
-			if err != nil {
-				logger.Fatal("Failed to create dependency reader", zap.Error(err))
-			}
 			rHandler := app.NewAPIHandler(
-				spanReader,
-				dependencyReader,
+				storageBuild.SpanReader,
+				storageBuild.DependencyReader,
 				app.HandlerOptions.Prefix(queryOpts.QueryPrefix),
 				app.HandlerOptions.Logger(logger))
 			sHandler := app.NewStaticAssetsHandler(queryOpts.QueryStaticAssets)

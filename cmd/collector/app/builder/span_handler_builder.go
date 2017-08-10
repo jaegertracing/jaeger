@@ -24,9 +24,9 @@ import (
 	"errors"
 	"os"
 
+	"github.com/uber/jaeger-lib/metrics"
 	"go.uber.org/zap"
 
-	"github.com/uber/jaeger-lib/metrics"
 	basicB "github.com/uber/jaeger/cmd/builder"
 	"github.com/uber/jaeger/cmd/collector/app"
 	zs "github.com/uber/jaeger/cmd/collector/app/sanitizer/zipkin"
@@ -50,10 +50,8 @@ type SpanHandlerBuilder struct {
 	logger         *zap.Logger
 	metricsFactory metrics.Factory
 	collectorOpts  *CollectorOptions
-	storageBuilder storageBuilder
+	spanWriter     spanstore.Writer
 }
-
-type storageBuilder func() (spanstore.Writer, error)
 
 // NewSpanHandlerBuilder returns new SpanHandlerBuilder with configured span storage.
 func NewSpanHandlerBuilder(cOpts *CollectorOptions, sFlags *flags.SharedFlags, opts ...basicB.Option) (*SpanHandlerBuilder, error) {
@@ -65,84 +63,75 @@ func NewSpanHandlerBuilder(cOpts *CollectorOptions, sFlags *flags.SharedFlags, o
 		metricsFactory: options.MetricsFactory,
 	}
 
+	var err error
 	if sFlags.SpanStorage.Type == flags.CassandraStorageType {
-		if options.Cassandra == nil {
+		if options.CassandraSessionBuilder == nil {
 			return nil, errMissingCassandraConfig
 		}
-		spanHb.storageBuilder = spanHb.initCassStore(options.Cassandra)
+		spanHb.spanWriter, err = spanHb.initCassStore(options.CassandraSessionBuilder)
 	} else if sFlags.SpanStorage.Type == flags.MemoryStorageType {
 		if options.MemoryStore == nil {
 			return nil, errMissingMemoryStore
 		}
-		spanHb.storageBuilder = func() (spanstore.Writer, error) {
-			return options.MemoryStore, nil
-		}
+		spanHb.spanWriter = options.MemoryStore
 	} else if sFlags.SpanStorage.Type == flags.ESStorageType {
-		if options.ElasticSearch == nil {
+		if options.ElasticClientBuilder == nil {
 			return nil, errMissingElasticSearchConfig
 		}
-		spanHb.storageBuilder = spanHb.initElasticStore(options.ElasticSearch)
+		spanHb.spanWriter, err = spanHb.initElasticStore(options.ElasticClientBuilder)
 	} else {
 		return nil, flags.ErrUnsupportedStorageType
+	}
+
+	if err != nil {
+		return nil, err
 	}
 
 	return spanHb, nil
 }
 
-func (spanHb *SpanHandlerBuilder) initCassStore(config cascfg.SessionBuilder) func() (spanstore.Writer, error) {
-	return func() (spanstore.Writer, error) {
-		session, err := config.NewSession()
-		if err != nil {
-			return nil, err
-		}
-
-		store := casSpanstore.NewSpanWriter(
-			session,
-			spanHb.collectorOpts.WriteCacheTTL,
-			spanHb.metricsFactory,
-			spanHb.logger,
-		)
-
-		return store, nil
+func (spanHb *SpanHandlerBuilder) initCassStore(builder cascfg.SessionBuilder) (spanstore.Writer, error) {
+	session, err := builder.NewSession()
+	if err != nil {
+		return nil, err
 	}
+
+	return casSpanstore.NewSpanWriter(
+		session,
+		spanHb.collectorOpts.WriteCacheTTL,
+		spanHb.metricsFactory,
+		spanHb.logger,
+	), nil
 }
 
-func (spanHb *SpanHandlerBuilder) initElasticStore(esBuilder escfg.ClientBuilder) func() (spanstore.Writer, error) {
-	return func() (spanstore.Writer, error) {
-		client, err := esBuilder.NewClient()
-		if err != nil {
-			return nil, err
-		}
-
-		spanStore := esSpanstore.NewSpanWriter(
-			client,
-			spanHb.logger,
-			spanHb.metricsFactory,
-			esBuilder.GetNumShards(),
-			esBuilder.GetNumReplicas(),
-		)
-
-		return spanStore, nil
+func (spanHb *SpanHandlerBuilder) initElasticStore(esBuilder escfg.ClientBuilder) (spanstore.Writer, error) {
+	client, err := esBuilder.NewClient()
+	if err != nil {
+		return nil, err
 	}
+
+	return esSpanstore.NewSpanWriter(
+		client,
+		spanHb.logger,
+		spanHb.metricsFactory,
+		esBuilder.GetNumShards(),
+		esBuilder.GetNumReplicas(),
+	), nil
 }
 
 // BuildHandlers builds span handlers (Zipkin, Jaeger)
-func (spanHb *SpanHandlerBuilder) BuildHandlers() (app.ZipkinSpansHandler, app.JaegerBatchesHandler, error) {
+func (spanHb *SpanHandlerBuilder) BuildHandlers() (app.ZipkinSpansHandler, app.JaegerBatchesHandler) {
 	hostname, _ := os.Hostname()
 	hostMetrics := spanHb.metricsFactory.Namespace(hostname, nil)
 
 	zSanitizer := zs.NewChainedSanitizer(
 		zs.NewSpanDurationSanitizer(spanHb.logger),
 		zs.NewParentIDSanitizer(spanHb.logger),
+		zs.NewErrorTagSanitizer(),
 	)
 
-	spanWriter, err := spanHb.storageBuilder()
-	if err != nil {
-		return nil, nil, err
-	}
-
 	spanProcessor := app.NewSpanProcessor(
-		spanWriter,
+		spanHb.spanWriter,
 		app.Options.ServiceMetrics(spanHb.metricsFactory),
 		app.Options.HostMetrics(hostMetrics),
 		app.Options.Logger(spanHb.logger),
@@ -152,8 +141,7 @@ func (spanHb *SpanHandlerBuilder) BuildHandlers() (app.ZipkinSpansHandler, app.J
 	)
 
 	return app.NewZipkinSpanHandler(spanHb.logger, spanProcessor, zSanitizer),
-		app.NewJaegerSpanHandler(spanHb.logger, spanProcessor),
-		nil
+		app.NewJaegerSpanHandler(spanHb.logger, spanProcessor)
 }
 
 func defaultSpanFilter(*model.Span) bool {

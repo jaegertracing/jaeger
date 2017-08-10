@@ -24,16 +24,23 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 	"github.com/uber/jaeger-lib/metrics"
 	"go.uber.org/zap"
 
 	basicB "github.com/uber/jaeger/cmd/builder"
 	"github.com/uber/jaeger/cmd/flags"
-	cascfg "github.com/uber/jaeger/pkg/cassandra/config"
+	casCfg "github.com/uber/jaeger/pkg/cassandra/config"
 	"github.com/uber/jaeger/pkg/config"
-	escfg "github.com/uber/jaeger/pkg/es/config"
 	"github.com/uber/jaeger/storage/spanstore/memory"
 )
+
+func newStorageBuilder() *StorageBuilder {
+	return &StorageBuilder{
+		logger:         zap.NewNop(),
+		metricsFactory: metrics.NullFactory,
+	}
+}
 
 func TestNewCassandraSuccess(t *testing.T) {
 	v, _ := config.Viperize(flags.AddFlags)
@@ -43,9 +50,7 @@ func TestNewCassandraSuccess(t *testing.T) {
 		sFlags.DependencyStorage.DataFrequency,
 		basicB.Options.LoggerOption(zap.NewNop()),
 		basicB.Options.MetricsFactoryOption(metrics.NullFactory),
-		basicB.Options.CassandraOption(&cascfg.Configuration{
-			Servers: []string{"127.0.0.1"},
-		}),
+		basicB.Options.CassandraSessionOption(&mockSessionBuilder{}),
 	)
 	assert.NoError(t, err)
 	assert.NotNil(t, sBuilder)
@@ -63,6 +68,16 @@ func TestNewCassandraFailure(t *testing.T) {
 	sFlags.InitFromViper(v)
 	sBuilder, err = NewStorageBuilder(sFlags.SpanStorage.Type, sFlags.DependencyStorage.DataFrequency)
 	assert.EqualError(t, err, "Cassandra not configured")
+	assert.Nil(t, sBuilder)
+}
+
+func TestNewCassandraFailureNoSession(t *testing.T) {
+	v, command := config.Viperize(flags.AddFlags)
+	sFlags := new(flags.SharedFlags).InitFromViper(v)
+	command.ParseFlags([]string{"test", "--span-storage.type=cassandra"})
+	sFlags.InitFromViper(v)
+	sBuilder, err := NewStorageBuilder(sFlags.SpanStorage.Type, sFlags.DependencyStorage.DataFrequency, basicB.Options.CassandraSessionOption(&casCfg.Configuration{}))
+	require.Error(t, err)
 	assert.Nil(t, sBuilder)
 }
 
@@ -92,9 +107,7 @@ func TestNewElasticSuccess(t *testing.T) {
 		sFlags.SpanStorage.Type,
 		sFlags.DependencyStorage.DataFrequency,
 		basicB.Options.LoggerOption(zap.NewNop()),
-		basicB.Options.ElasticSearchOption(&escfg.Configuration{
-			Servers: []string{"127.0.0.1"},
-		}),
+		basicB.Options.ElasticClientOption(&mockEsBuilder{}),
 	)
 	assert.NoError(t, err)
 	assert.NotNil(t, sBuilder)

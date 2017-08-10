@@ -24,54 +24,36 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/assert"
-	"go.uber.org/zap"
+	"github.com/stretchr/testify/require"
 
-	"github.com/uber/jaeger-lib/metrics"
 	"github.com/uber/jaeger/cmd/flags"
+	"github.com/uber/jaeger/pkg/cassandra"
 	"github.com/uber/jaeger/pkg/cassandra/config"
 	"github.com/uber/jaeger/pkg/cassandra/mocks"
 )
 
-func withBuilder(f func(builder *cassandraBuilder)) {
-	cfg := &config.Configuration{
-		Servers: []string{"127.0.0.1"},
-	}
+type mockSessionBuilder struct {
+}
+
+func (*mockSessionBuilder) NewSession() (cassandra.Session, error) {
+	return &mocks.Session{}, nil
+}
+
+func TestNewBuilderFailure(t *testing.T) {
 	sFlags := &flags.SharedFlags{}
-	cBuilder := newCassandraBuilder(cfg, zap.NewNop(), metrics.NullFactory, sFlags.DependencyStorage.DataFrequency)
-	f(cBuilder)
+	sb := newStorageBuilder()
+	err := sb.newCassandraBuilder(&config.Configuration{}, sFlags.DependencyStorage.DataFrequency)
+	require.Error(t, err)
+	assert.Nil(t, sb.SpanReader)
+	assert.Nil(t, sb.DependencyReader)
 }
 
-func TestNewCassandraBuild(t *testing.T) {
-	withBuilder(func(cBuilder *cassandraBuilder) {
-		assert.NotNil(t, cBuilder)
-		assert.NotNil(t, cBuilder.metricsFactory)
-		assert.NotNil(t, cBuilder.logger)
-		assert.NotNil(t, cBuilder.configuration)
-		assert.Nil(t, cBuilder.session)
-	})
-}
+func TestNewBuilderSuccess(t *testing.T) {
+	sFlags := &flags.SharedFlags{}
 
-func TestNewReaderFailures(t *testing.T) {
-	withBuilder(func(cBuilder *cassandraBuilder) {
-		cBuilder.configuration.Servers = []string{"invalidhostname"}
-		spanReader, err := cBuilder.NewSpanReader()
-		assert.Error(t, err)
-		assert.Nil(t, spanReader)
-		depReader, err := cBuilder.NewDependencyReader()
-		assert.Error(t, err)
-		assert.Nil(t, depReader)
-	})
-}
-
-func TestNewReaderSuccesses(t *testing.T) {
-	withBuilder(func(cBuilder *cassandraBuilder) {
-		mockSession := mocks.Session{}
-		cBuilder.session = &mockSession
-		spanReader, err := cBuilder.NewSpanReader()
-		assert.NoError(t, err)
-		assert.NotNil(t, spanReader)
-		depReader, err := cBuilder.NewDependencyReader()
-		assert.NoError(t, err)
-		assert.NotNil(t, depReader)
-	})
+	sb := newStorageBuilder()
+	err := sb.newCassandraBuilder(&mockSessionBuilder{}, sFlags.DependencyStorage.DataFrequency)
+	require.NoError(t, err)
+	assert.NotNil(t, sb.SpanReader)
+	assert.NotNil(t, sb.DependencyReader)
 }

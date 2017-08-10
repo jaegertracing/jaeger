@@ -70,17 +70,13 @@ func main() {
 			handlerBuilder, err := builder.NewSpanHandlerBuilder(
 				builderOpts,
 				sFlags,
-				basicB.Options.CassandraOption(casOptions.GetPrimary()),
-				basicB.Options.ElasticSearchOption(esOptions.GetPrimary()),
+				basicB.Options.CassandraSessionOption(casOptions.GetPrimary()),
+				basicB.Options.ElasticClientOption(esOptions.GetPrimary()),
 				basicB.Options.LoggerOption(logger),
 				basicB.Options.MetricsFactoryOption(baseMetrics),
 			)
 			if err != nil {
 				logger.Fatal("Unable to set up builder", zap.Error(err))
-			}
-			zipkinSpansHandler, jaegerBatchesHandler, err := handlerBuilder.BuildHandlers()
-			if err != nil {
-				logger.Fatal("Unable to build span handlers", zap.Error(err))
 			}
 
 			ch, err := tchannel.NewChannel(serviceName, &tchannel.ChannelOptions{})
@@ -88,6 +84,7 @@ func main() {
 				logger.Fatal("Unable to create new TChannel", zap.Error(err))
 			}
 			server := thrift.NewServer(ch)
+			zipkinSpansHandler, jaegerBatchesHandler := handlerBuilder.BuildHandlers()
 			server.Register(jc.NewTChanCollectorServer(jaegerBatchesHandler))
 			server.Register(zc.NewTChanZipkinCollectorServer(zipkinSpansHandler))
 

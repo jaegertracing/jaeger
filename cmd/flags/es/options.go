@@ -62,6 +62,7 @@ type namespaceConfig struct {
 
 // NewOptions creates a new Options struct.
 func NewOptions(primaryNamespace string, otherNamespaces ...string) *Options {
+	// TODO all default values should be defined via cobra flags
 	options := &Options{
 		primary: &namespaceConfig{
 			Configuration: config.Configuration{
@@ -70,7 +71,7 @@ func NewOptions(primaryNamespace string, otherNamespaces ...string) *Options {
 				Sniffer:     false,
 				MaxSpanAge:  72 * time.Hour,
 				NumShards:   5,
-				NumReplicas: 2,
+				NumReplicas: 1,
 			},
 			servers:   "http://127.0.0.1:9200",
 			namespace: primaryNamespace,

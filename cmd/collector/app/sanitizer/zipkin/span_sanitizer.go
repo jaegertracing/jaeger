@@ -22,6 +22,7 @@ package zipkin
 
 import (
 	"strconv"
+	"strings"
 
 	"go.uber.org/zap"
 
@@ -119,5 +120,39 @@ func (s *parentIDSanitizer) Sanitize(span *zc.Span) *zc.Span {
 	}
 	span.BinaryAnnotations = append(span.BinaryAnnotations, &annotation)
 	span.ParentID = nil
+	return span
+}
+
+// NewErrorTagSanitizer returns a sanitizer that changes error binary annotations to boolean type
+// and sets appropriate value, in case value was a string message it adds a 'error.message' binary annotation with
+// this message.
+func NewErrorTagSanitizer() Sanitizer {
+	return &errorTagSanitizer{}
+}
+
+type errorTagSanitizer struct {
+}
+
+func (s *errorTagSanitizer) Sanitize(span *zc.Span) *zc.Span {
+	for _, binAnno := range span.BinaryAnnotations {
+		if binAnno.AnnotationType != zc.AnnotationType_BOOL && strings.EqualFold("error", binAnno.Key) {
+			binAnno.AnnotationType = zc.AnnotationType_BOOL
+
+			if strings.EqualFold("true", string(binAnno.Value)) || len(binAnno.Value) == 0 {
+				binAnno.Value = []byte{1}
+			} else if strings.EqualFold("false", string(binAnno.Value)) {
+				binAnno.Value = []byte{0}
+			} else {
+				// value is different to true/false, create another bin annotation with error message
+				annoErrorMsg := &zc.BinaryAnnotation{
+					Key:   "error.message",
+					Value: binAnno.Value,
+				}
+				span.BinaryAnnotations = append(span.BinaryAnnotations, annoErrorMsg)
+				binAnno.Value = []byte{1}
+			}
+		}
+	}
+
 	return span
 }
