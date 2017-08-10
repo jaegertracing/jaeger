@@ -21,25 +21,10 @@
 package builder
 
 import (
-	"github.com/uber/jaeger/storage/dependencystore"
-	"github.com/uber/jaeger/storage/spanstore"
 	"github.com/uber/jaeger/storage/spanstore/memory"
 )
 
-type memoryStoreBuilder struct {
-	memStore *memory.Store
-}
-
-func newMemoryStoreBuilder(memStore *memory.Store) *memoryStoreBuilder {
-	return &memoryStoreBuilder{
-		memStore: memStore,
-	}
-}
-
-func (c *memoryStoreBuilder) NewSpanReader() (spanstore.Reader, error) {
-	return c.memStore, nil
-}
-
-func (c *memoryStoreBuilder) NewDependencyReader() (dependencystore.Reader, error) {
-	return c.memStore, nil
+func (sb *StorageBuilder) newMemoryStoreBuilder(memStore *memory.Store) {
+	sb.SpanReader = memStore
+	sb.DependencyReader = memStore
 }

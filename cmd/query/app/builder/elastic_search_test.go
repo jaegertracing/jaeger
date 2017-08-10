@@ -24,51 +24,33 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/assert"
-	"github.com/uber/jaeger-lib/metrics"
-	"go.uber.org/zap"
+	"github.com/stretchr/testify/require"
 
+	"github.com/uber/jaeger/pkg/es"
 	"github.com/uber/jaeger/pkg/es/config"
 	"github.com/uber/jaeger/pkg/es/mocks"
 )
 
-func withESBuilder(f func(builder *esBuilder)) {
-	cfg := &config.Configuration{
-		Servers: []string{"127.0.0.1"},
-	}
-	cBuilder := newESBuilder(cfg, zap.NewNop(), metrics.NullFactory)
-	f(cBuilder)
+type mockEsBuilder struct {
+	config.Configuration
 }
 
-func TestNewESBuilder(t *testing.T) {
-	withESBuilder(func(esBuilder *esBuilder) {
-		assert.NotNil(t, esBuilder)
-		assert.NotNil(t, esBuilder.logger)
-		assert.NotNil(t, esBuilder.configuration)
-		assert.Nil(t, esBuilder.client)
-	})
+func (mck *mockEsBuilder) NewClient() (es.Client, error) {
+	return &mocks.Client{}, nil
 }
 
-func TestESBuilderFailure(t *testing.T) {
-	withESBuilder(func(esBuilder *esBuilder) {
-		esBuilder.configuration.Servers = []string{}
-		spanReader, err := esBuilder.NewSpanReader()
-		assert.Error(t, err)
-		assert.Nil(t, spanReader)
-		dependencyReader, err := esBuilder.NewDependencyReader()
-		assert.Error(t, err)
-		assert.Nil(t, dependencyReader)
-	})
+func TestNewESBuilderSuccess(t *testing.T) {
+	sb := newStorageBuilder()
+	err := sb.newESBuilder(&mockEsBuilder{})
+	require.NoError(t, err)
+	assert.NotNil(t, sb.SpanReader)
+	assert.NotNil(t, sb.DependencyReader)
 }
 
-func TestESBuilderSuccesses(t *testing.T) {
-	withESBuilder(func(esBuilder *esBuilder) {
-		mockClient := mocks.Client{}
-		esBuilder.client = &mockClient
-		spanReader, err := esBuilder.NewSpanReader()
-		assert.NoError(t, err)
-		assert.NotNil(t, spanReader)
-		depReader, err := esBuilder.NewDependencyReader()
-		assert.NoError(t, err)
-		assert.NotNil(t, depReader)
-	})
+func TestNewESBuilderFailure(t *testing.T) {
+	sb := newStorageBuilder()
+	err := sb.newESBuilder(&config.Configuration{})
+	require.Error(t, err)
+	require.Nil(t, sb.SpanReader)
+	require.Nil(t, sb.DependencyReader)
 }
