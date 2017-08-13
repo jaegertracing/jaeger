@@ -53,6 +53,12 @@ Reach project contributors via these channels:
  * [Gitter chat room](https://gitter.im/jaegertracing/Lobby)
  * [Github issues](https://github.com/uber/jaeger/issues)
 
+## Adopters
+
+Jaeger is [used in production](./ADOPTERS.md) by organizations such as Atlassian, Orange, Red Hat and Uber.
+
+If you use Jaeger in production, please consider adding yourself to our [ADOPTERS.md](./ADOPTERS.md)
+
 ## License
 
 [The MIT License](./LICENSE).
