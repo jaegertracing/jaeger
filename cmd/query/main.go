@@ -22,7 +22,10 @@ package main
 
 import (
 	"net/http"
+	"os"
+	"os/signal"
 	"strconv"
+	"syscall"
 
 	"github.com/gorilla/mux"
 	"github.com/spf13/cobra"
@@ -38,10 +41,14 @@ import (
 	"github.com/uber/jaeger/cmd/query/app"
 	"github.com/uber/jaeger/cmd/query/app/builder"
 	"github.com/uber/jaeger/pkg/config"
+	"github.com/uber/jaeger/pkg/healthcheck"
 	"github.com/uber/jaeger/pkg/recoveryhandler"
 )
 
 func main() {
+	var serverChannel = make(chan os.Signal, 0)
+	signal.Notify(serverChannel, os.Interrupt, syscall.SIGTERM)
+
 	logger, _ := zap.NewProduction()
 	casOptions := casFlags.NewOptions("cassandra", "cassandra.archive")
 	esOptions := esFlags.NewOptions("es", "es.archive")
@@ -56,6 +63,11 @@ func main() {
 			esOptions.InitFromViper(v)
 			queryOpts := new(builder.QueryOptions).InitFromViper(v)
 			sFlags := new(flags.SharedFlags).InitFromViper(v)
+
+			hc, err := healthcheck.Serve(http.StatusServiceUnavailable, queryOpts.QueryHealthCheckHTTPPort, logger)
+			if err != nil {
+				logger.Fatal("Could not start the health check server.", zap.Error(err))
+			}
 
 			metricsFactory := xkit.Wrap("jaeger-query", expvar.NewFactory(10))
 
@@ -81,9 +93,20 @@ func main() {
 			sHandler.RegisterRoutes(r)
 			portStr := ":" + strconv.Itoa(queryOpts.QueryPort)
 			recoveryHandler := recoveryhandler.NewRecoveryHandler(logger, true)
-			logger.Info("Starting jaeger-query HTTP server", zap.Int("port", queryOpts.QueryPort))
-			if err := http.ListenAndServe(portStr, recoveryHandler(r)); err != nil {
-				logger.Fatal("Could not launch service", zap.Error(err))
+
+			go func() {
+				logger.Info("Starting jaeger-query HTTP server", zap.Int("port", queryOpts.QueryPort))
+				if err := http.ListenAndServe(portStr, recoveryHandler(r)); err != nil {
+					logger.Fatal("Could not launch service", zap.Error(err))
+				}
+				hc.Set(http.StatusInternalServerError)
+			}()
+
+			hc.Ready()
+
+			select {
+			case <-serverChannel:
+				logger.Info("Jaeger Query is finishing")
 			}
 		},
 	}
