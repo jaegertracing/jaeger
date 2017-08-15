@@ -82,7 +82,7 @@ type spanDurationSanitizer struct {
 
 func (s *spanDurationSanitizer) Sanitize(span *zc.Span) *zc.Span {
 	if span.Duration == nil {
-		var duration int64 = defaultDuration
+		duration := defaultDuration
 		if len(span.Annotations) >= 2 {
 			// Prefer RPC one-way (cs -> sr) vs arbitrary annotations.
 			first := span.Annotations[0].Timestamp
