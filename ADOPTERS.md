@@ -1,15 +1,13 @@
-* Atlassian
 * Base CRM
-* Booking.com
 * Circonus
 * Massachusetts Open Cloud
+* Noerthwestern Mutual
 * Nets
-* Orange
 * Squarespace
 * Stagemonitor
-* Red Hat 
+* Red Hat
   * https://github.com/jaegertracing/jaeger-openshift
-  * http://www.hawkular.org/blog.html 
+  * http://www.hawkular.org/blog.html
 * UBER
   * https://eng.uber.com/distributed-tracing/
 * Zenly
