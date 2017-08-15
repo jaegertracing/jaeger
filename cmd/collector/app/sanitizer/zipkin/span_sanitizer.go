@@ -83,8 +83,29 @@ type spanDurationSanitizer struct {
 func (s *spanDurationSanitizer) Sanitize(span *zc.Span) *zc.Span {
 	if span.Duration == nil {
 		span.Duration = &defaultDuration
+		if len(span.Annotations) < 2 {
+			return span
+		}
+		// Prefer RPC one-way (cs -> sr) vs arbitrary annotations.
+		first := span.Annotations[0].Timestamp
+		last := span.Annotations[len(span.Annotations) - 1].Timestamp
+		for _, anno := range span.Annotations {
+			if anno.Value == zc.CLIENT_SEND {
+				first = anno.Timestamp
+			} else if anno.Value == zc.CLIENT_RECV {
+				last = anno.Timestamp
+			}
+		}
+		if first != last {
+			duration := last - first
+			span.Duration = &duration
+			if span.Timestamp == nil {
+				span.Timestamp = &first
+			}
+		}
 		return span
 	}
+
 	duration := *span.Duration
 	if duration >= 0 {
 		return span
@@ -96,6 +117,32 @@ func (s *spanDurationSanitizer) Sanitize(span *zc.Span) *zc.Span {
 		AnnotationType: zc.AnnotationType_STRING,
 	}
 	span.BinaryAnnotations = append(span.BinaryAnnotations, &annotation)
+	return span
+}
+
+// NewSpanStartTimeSanitizer returns a Sanitizer that changes span start time if is nil
+// If there is zipkincore.CLIENT_SEND use that, if no fall back on zipkincore.SERVER_RECV
+func NewSpanStartTimeSanitizer() Sanitizer {
+	return &spanStartTimeSanitizer{}
+}
+
+type spanStartTimeSanitizer struct {
+}
+
+func (s *spanStartTimeSanitizer) Sanitize(span *zc.Span) *zc.Span {
+	if span.Timestamp != nil || len(span.Annotations) == 0 {
+		return span
+	}
+
+	for _, anno := range span.Annotations {
+		if anno.Value == zc.CLIENT_SEND {
+			span.Timestamp = &anno.Timestamp
+			return span
+		} else if anno.Value == zc.SERVER_RECV && span.ParentID == nil {
+			span.Timestamp = &anno.Timestamp
+		}
+	}
+
 	return span
 }
 

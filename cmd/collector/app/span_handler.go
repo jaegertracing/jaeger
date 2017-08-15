@@ -30,7 +30,6 @@ import (
 	"github.com/uber/jaeger/model/converter/thrift/zipkin"
 	"github.com/uber/jaeger/thrift-gen/jaeger"
 	"github.com/uber/jaeger/thrift-gen/zipkincore"
-	zc "github.com/uber/jaeger/thrift-gen/zipkincore"
 )
 
 const (
@@ -45,7 +44,7 @@ const (
 // ZipkinSpansHandler consumes and handles zipkin spans
 type ZipkinSpansHandler interface {
 	// SubmitZipkinBatch records a batch of spans in Zipkin Thrift format
-	SubmitZipkinBatch(ctx thrift.Context, spans []*zc.Span) ([]*zc.Response, error)
+	SubmitZipkinBatch(ctx thrift.Context, spans []*zipkincore.Span) ([]*zipkincore.Response, error)
 }
 
 // JaegerBatchesHandler consumes and handles Jaeger batches
