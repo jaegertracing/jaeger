@@ -82,27 +82,26 @@ type spanDurationSanitizer struct {
 
 func (s *spanDurationSanitizer) Sanitize(span *zc.Span) *zc.Span {
 	if span.Duration == nil {
-		span.Duration = &defaultDuration
-		if len(span.Annotations) < 2 {
-			return span
-		}
-		// Prefer RPC one-way (cs -> sr) vs arbitrary annotations.
-		first := span.Annotations[0].Timestamp
-		last := span.Annotations[len(span.Annotations) - 1].Timestamp
-		for _, anno := range span.Annotations {
-			if anno.Value == zc.CLIENT_SEND {
-				first = anno.Timestamp
-			} else if anno.Value == zc.CLIENT_RECV {
-				last = anno.Timestamp
+		var duration int64 = defaultDuration
+		if len(span.Annotations) >= 2 {
+			// Prefer RPC one-way (cs -> sr) vs arbitrary annotations.
+			first := span.Annotations[0].Timestamp
+			last := span.Annotations[len(span.Annotations)-1].Timestamp
+			for _, anno := range span.Annotations {
+				if anno.Value == zc.CLIENT_SEND {
+					first = anno.Timestamp
+				} else if anno.Value == zc.CLIENT_RECV {
+					last = anno.Timestamp
+				}
+			}
+			if first < last {
+				duration = last - first
+				if span.Timestamp == nil {
+					span.Timestamp = &first
+				}
 			}
 		}
-		if first != last {
-			duration := last - first
-			span.Duration = &duration
-			if span.Timestamp == nil {
-				span.Timestamp = &first
-			}
-		}
+		span.Duration = &duration
 		return span
 	}
 
@@ -138,7 +137,9 @@ func (s *spanStartTimeSanitizer) Sanitize(span *zc.Span) *zc.Span {
 		if anno.Value == zc.CLIENT_SEND {
 			span.Timestamp = &anno.Timestamp
 			return span
-		} else if anno.Value == zc.SERVER_RECV && span.ParentID == nil {
+		}
+		if anno.Value == zc.SERVER_RECV && span.ParentID == nil {
+			// continue, cs has higher precedence and might be after
 			span.Timestamp = &anno.Timestamp
 		}
 	}

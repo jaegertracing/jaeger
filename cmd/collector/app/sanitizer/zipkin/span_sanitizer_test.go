@@ -69,10 +69,9 @@ func TestSpanDurationSanitizer(t *testing.T) {
 	actual = sanitizer.Sanitize(nilDurationSpan)
 	assert.Equal(t, int64(1), *actual.Duration)
 
-
 	span = &zipkincore.Span{
 		Annotations: []*zipkincore.Annotation{
-			{Value: zipkincore.CLIENT_SEND,Timestamp: 10},
+			{Value: zipkincore.CLIENT_SEND, Timestamp: 10},
 			{Value: zipkincore.CLIENT_RECV, Timestamp: 30},
 		},
 	}
@@ -81,8 +80,8 @@ func TestSpanDurationSanitizer(t *testing.T) {
 
 	span = &zipkincore.Span{
 		Annotations: []*zipkincore.Annotation{
-			{Value: "first",Timestamp: 100},
-			{Value: zipkincore.CLIENT_SEND,Timestamp: 10},
+			{Value: "first", Timestamp: 100},
+			{Value: zipkincore.CLIENT_SEND, Timestamp: 10},
 			{Value: zipkincore.CLIENT_RECV, Timestamp: 30},
 			{Value: "last", Timestamp: 300},
 		},
@@ -182,7 +181,7 @@ func TestSpanStartTimeSanitizer(t *testing.T) {
 	span := &zipkincore.Span{
 		Timestamp: &helper,
 		Annotations: []*zipkincore.Annotation{
-			{Value: zipkincore.CLIENT_SEND,Timestamp: 10},
+			{Value: zipkincore.CLIENT_SEND, Timestamp: 10},
 			{Value: zipkincore.SERVER_RECV, Timestamp: 20},
 		},
 	}
@@ -191,7 +190,7 @@ func TestSpanStartTimeSanitizer(t *testing.T) {
 
 	span = &zipkincore.Span{
 		Annotations: []*zipkincore.Annotation{
-			{Value: zipkincore.CLIENT_SEND,Timestamp: 10},
+			{Value: zipkincore.CLIENT_SEND, Timestamp: 10},
 			{Value: zipkincore.SERVER_RECV, Timestamp: 20},
 		},
 	}
@@ -199,7 +198,7 @@ func TestSpanStartTimeSanitizer(t *testing.T) {
 	assert.Equal(t, int64(10), *sanitized.Timestamp)
 	span = &zipkincore.Span{
 		Annotations: []*zipkincore.Annotation{
-			{Value: zipkincore.SERVER_SEND,Timestamp: 10},
+			{Value: zipkincore.SERVER_SEND, Timestamp: 10},
 			{Value: zipkincore.SERVER_RECV, Timestamp: 20},
 		},
 	}
