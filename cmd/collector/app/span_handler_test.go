@@ -98,7 +98,7 @@ func TestZipkinSpanHandler(t *testing.T) {
 	}
 	for _, tc := range testChunks {
 		logger := zap.NewNop()
-		h := NewZipkinSpanHandler(logger, &shouldIErrorProcessor{tc.expectedErr != nil}, zipkin.NewParentIDSanitizer(logger))
+		h := NewZipkinSpanHandler(logger, &shouldIErrorProcessor{tc.expectedErr != nil}, zipkin.NewParentIDSanitizer())
 		ctx, cancel := thrift.NewContext(time.Minute)
 		defer cancel()
 		res, err := h.SubmitZipkinBatch(ctx, []*zipkincore.Span{

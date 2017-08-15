@@ -24,8 +24,6 @@ import (
 	"strconv"
 	"strings"
 
-	"go.uber.org/zap"
-
 	zc "github.com/uber/jaeger/thrift-gen/zipkincore"
 )
 
@@ -61,23 +59,12 @@ func (cs ChainedSanitizer) Sanitize(span *zc.Span) *zc.Span {
 	return span
 }
 
-type spanLogger struct {
-	logger *zap.Logger
-}
-
-func (s spanLogger) ForSpan(span *zc.Span) *zap.Logger {
-	return s.logger.
-		With(zap.String("traceID", strconv.FormatUint(uint64(span.TraceID), 16))).
-		With(zap.String("spanID", strconv.FormatUint(uint64(span.ID), 16)))
-}
-
 // NewSpanDurationSanitizer returns a sanitizer that deals with nil or 0 span duration.
-func NewSpanDurationSanitizer(logger *zap.Logger) Sanitizer {
-	return &spanDurationSanitizer{log: spanLogger{logger}}
+func NewSpanDurationSanitizer() Sanitizer {
+	return &spanDurationSanitizer{}
 }
 
 type spanDurationSanitizer struct {
-	log spanLogger
 }
 
 func (s *spanDurationSanitizer) Sanitize(span *zc.Span) *zc.Span {
@@ -149,12 +136,11 @@ func (s *spanStartTimeSanitizer) Sanitize(span *zc.Span) *zc.Span {
 
 // NewParentIDSanitizer returns a sanitizer that deals parentID == 0
 // by replacing with nil, per Zipkin convention.
-func NewParentIDSanitizer(logger *zap.Logger) Sanitizer {
-	return &parentIDSanitizer{log: spanLogger{logger}}
+func NewParentIDSanitizer() Sanitizer {
+	return &parentIDSanitizer{}
 }
 
 type parentIDSanitizer struct {
-	log spanLogger
 }
 
 func (s *parentIDSanitizer) Sanitize(span *zc.Span) *zc.Span {
