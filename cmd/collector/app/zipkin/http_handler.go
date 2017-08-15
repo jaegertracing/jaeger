@@ -33,7 +33,7 @@ import (
 	tchanThrift "github.com/uber/tchannel-go/thrift"
 
 	"github.com/uber/jaeger/cmd/collector/app"
-	zipkincore "github.com/uber/jaeger/thrift-gen/zipkincore"
+	"github.com/uber/jaeger/thrift-gen/zipkincore"
 )
 
 // APIHandler handles all HTTP calls to the collector
@@ -75,30 +75,36 @@ func (aH *APIHandler) saveSpans(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if r.Header.Get("Content-Type") == "application/x-thrift" {
-		handleZipkinThrift(aH.zipkinSpansHandler, bodyBytes, w)
+	contentType := r.Header.Get("Content-Type")
+	var tSpans []*zipkincore.Span
+	if contentType == "application/x-thrift" {
+		tSpans, err = deserializeThrift(bodyBytes)
+		if err != nil {
+			http.Error(w, fmt.Sprintf(app.UnableToReadBodyErrFormat, err), http.StatusBadRequest)
+			return
+		}
+	} else if contentType == "application/json" {
+		tSpans, err = deserializeJSON(bodyBytes)
+		if err != nil {
+			http.Error(w, fmt.Sprintf(app.UnableToReadBodyErrFormat, err), http.StatusBadRequest)
+			return
+		}
 	} else {
-		http.Error(w, "Only Content-Type:application/x-thrift is supported at the moment", http.StatusBadRequest)
+		http.Error(w, "Not supported Content-Type", http.StatusBadRequest)
+	}
+
+	if len(tSpans) > 0 {
+		ctx, _ := tchanThrift.NewContext(time.Minute)
+		if _, err = aH.zipkinSpansHandler.SubmitZipkinBatch(ctx, tSpans); err != nil {
+			http.Error(w, fmt.Sprintf("Cannot submit Zipkin batch: %v", err), http.StatusInternalServerError)
+			return
+		}
 	}
 
 	w.WriteHeader(http.StatusAccepted)
 }
 
-func handleZipkinThrift(zHandler app.ZipkinSpansHandler, bodyBytes []byte, w http.ResponseWriter) {
-	spans, err := deserializeZipkin(bodyBytes)
-	if err != nil {
-		http.Error(w, fmt.Sprintf(app.UnableToReadBodyErrFormat, err), http.StatusBadRequest)
-		return
-	}
-
-	ctx, _ := tchanThrift.NewContext(time.Minute)
-	if _, err = zHandler.SubmitZipkinBatch(ctx, spans); err != nil {
-		http.Error(w, fmt.Sprintf("Cannot submit Zipkin batch: %v", err), http.StatusInternalServerError)
-		return
-	}
-}
-
-func deserializeZipkin(b []byte) ([]*zipkincore.Span, error) {
+func deserializeThrift(b []byte) ([]*zipkincore.Span, error) {
 	buffer := thrift.NewTMemoryBuffer()
 	buffer.Write(b)
 
