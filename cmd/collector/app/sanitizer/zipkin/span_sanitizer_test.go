@@ -21,14 +21,10 @@
 package zipkin
 
 import (
-	"encoding/json"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/require"
-	"go.uber.org/zap"
 
-	"github.com/uber/jaeger/pkg/testutils"
 	"github.com/uber/jaeger/thrift-gen/zipkincore"
 )
 
@@ -38,7 +34,7 @@ var (
 )
 
 func TestChainedSanitizer(t *testing.T) {
-	sanitizer := NewChainedSanitizer(NewSpanDurationSanitizer(zap.NewNop()))
+	sanitizer := NewChainedSanitizer(NewSpanDurationSanitizer())
 
 	span := &zipkincore.Span{Duration: &negativeDuration}
 	actual := sanitizer.Sanitize(span)
@@ -46,9 +42,7 @@ func TestChainedSanitizer(t *testing.T) {
 }
 
 func TestSpanDurationSanitizer(t *testing.T) {
-	logger, _ := testutils.NewLogger()
-
-	sanitizer := NewSpanDurationSanitizer(logger)
+	sanitizer := NewSpanDurationSanitizer()
 
 	span := &zipkincore.Span{Duration: &negativeDuration}
 	actual := sanitizer.Sanitize(span)
@@ -56,15 +50,13 @@ func TestSpanDurationSanitizer(t *testing.T) {
 	assert.Len(t, actual.BinaryAnnotations, 1)
 	assert.Equal(t, "-1", string(actual.BinaryAnnotations[0].Value))
 
-	logger, _ = testutils.NewLogger()
-	sanitizer = NewSpanDurationSanitizer(logger)
+	sanitizer = NewSpanDurationSanitizer()
 	span = &zipkincore.Span{Duration: &positiveDuration}
 	actual = sanitizer.Sanitize(span)
 	assert.Equal(t, positiveDuration, *actual.Duration)
 	assert.Len(t, actual.BinaryAnnotations, 0)
 
-	logger, _ = testutils.NewLogger()
-	sanitizer = NewSpanDurationSanitizer(logger)
+	sanitizer = NewSpanDurationSanitizer()
 	nilDurationSpan := &zipkincore.Span{}
 	actual = sanitizer.Sanitize(nilDurationSpan)
 	assert.Equal(t, int64(1), *actual.Duration)
@@ -109,8 +101,7 @@ func TestSpanParentIDSanitizer(t *testing.T) {
 		span := &zipkincore.Span{
 			ParentID: test.parentID,
 		}
-		logger, log := testutils.NewLogger()
-		sanitizer := NewParentIDSanitizer(logger)
+		sanitizer := NewParentIDSanitizer()
 		actual := sanitizer.Sanitize(span)
 		assert.Equal(t, test.expected, actual.ParentID)
 		if test.tag {
@@ -121,7 +112,6 @@ func TestSpanParentIDSanitizer(t *testing.T) {
 		} else {
 			assert.Len(t, actual.BinaryAnnotations, 0)
 		}
-		assert.Empty(t, log.Bytes())
 	}
 }
 
@@ -204,24 +194,4 @@ func TestSpanStartTimeSanitizer(t *testing.T) {
 	}
 	sanitized = sanitizer.Sanitize(span)
 	assert.Equal(t, int64(20), *sanitized.Timestamp)
-}
-
-func TestSpanLogger(t *testing.T) {
-	logger, log := testutils.NewLogger()
-	span := &zipkincore.Span{
-		TraceID: 123,
-		ID:      567,
-	}
-	spLogger := spanLogger{logger}
-	spLogger.ForSpan(span).Warn("oh my")
-
-	data := make(map[string]string)
-	require.NoError(t, json.Unmarshal(log.Bytes(), &data))
-	delete(data, "time")
-	assert.Equal(t, map[string]string{
-		"level":   "warn",
-		"msg":     "oh my",
-		"spanID":  "237",
-		"traceID": "7b",
-	}, data)
 }

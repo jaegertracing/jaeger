@@ -94,7 +94,7 @@ func TestBySvcMetrics(t *testing.T) {
 		var metricPrefix string
 		if test.format == ZipkinFormatType {
 			span := makeZipkinSpan(test.serviceName, test.rootSpan, test.debug)
-			zHandler := NewZipkinSpanHandler(logger, processor, zipkinSanitizer.NewParentIDSanitizer(logger))
+			zHandler := NewZipkinSpanHandler(logger, processor, zipkinSanitizer.NewParentIDSanitizer())
 			zHandler.SubmitZipkinBatch(tctx, []*zc.Span{span, span})
 			metricPrefix = "service.zipkin"
 		} else if test.format == JaegerFormatType {

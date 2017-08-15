@@ -125,9 +125,9 @@ func (spanHb *SpanHandlerBuilder) BuildHandlers() (app.ZipkinSpansHandler, app.J
 	hostMetrics := spanHb.metricsFactory.Namespace(hostname, nil)
 
 	zSanitizer := zs.NewChainedSanitizer(
-		zs.NewSpanDurationSanitizer(spanHb.logger),
+		zs.NewSpanDurationSanitizer(),
 		zs.NewSpanStartTimeSanitizer(),
-		zs.NewParentIDSanitizer(spanHb.logger),
+		zs.NewParentIDSanitizer(),
 		zs.NewErrorTagSanitizer(),
 	)
 
