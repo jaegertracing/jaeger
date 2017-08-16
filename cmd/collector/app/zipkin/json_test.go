@@ -258,7 +258,6 @@ func TestSpanToThrift(t *testing.T) {
 		Key:      "error",
 		Value:    "str",
 	}
-
 	span := zipkinSpan{
 		ID:                "bd7a977555f6b982",
 		TraceID:           "bd7a974555f6b982bd71977555f6b981",
@@ -285,24 +284,24 @@ func TestSpanToThrift(t *testing.T) {
 		err  error
 	}{
 		{
-			zipkinSpan{ID: "zd7a977555f6b982", TraceID: "bd7a977555f6b982"},
-			errIsNotUnsignedLog,
+			span: zipkinSpan{ID: "zd7a977555f6b982", TraceID: "bd7a977555f6b982"},
+			err:  errIsNotUnsignedLog,
 		},
 		{
-			zipkinSpan{ID: "ad7a977555f6b982", TraceID: "zd7a977555f6b982"},
-			errIsNotUnsignedLog,
+			span: zipkinSpan{ID: "ad7a977555f6b982", TraceID: "zd7a977555f6b982"},
+			err:  errIsNotUnsignedLog,
 		},
 		{
-			zipkinSpan{ID: "ad7a977555f6b982", TraceID: "ad7a977555f6b982", ParentID: "zd7a977555f6b982"},
-			errIsNotUnsignedLog,
+			span: zipkinSpan{ID: "ad7a977555f6b982", TraceID: "ad7a977555f6b982", ParentID: "zd7a977555f6b982"},
+			err:  errIsNotUnsignedLog,
 		},
 		{
-			zipkinSpan{ID: "1", TraceID: "1", Annotations: []annotation{{Endpoint: endpoint{IPv4: "127.0.0.A"}}}},
-			errWrongIpv4,
+			span: zipkinSpan{ID: "1", TraceID: "1", Annotations: []annotation{{Endpoint: endpoint{IPv4: "127.0.0.A"}}}},
+			err:  errWrongIpv4,
 		},
 		{
-			zipkinSpan{ID: "1", TraceID: "1", BinaryAnnotations: []binaryAnnotation{{Endpoint: endpoint{IPv4: "127.0.0.A"}}}},
-			errWrongIpv4,
+			span: zipkinSpan{ID: "1", TraceID: "1", BinaryAnnotations: []binaryAnnotation{{Endpoint: endpoint{IPv4: "127.0.0.A"}}}},
+			err:  errWrongIpv4,
 		},
 	}
 
@@ -319,9 +318,9 @@ func TestHexToUnsignedLong(t *testing.T) {
 		hex      string
 		expected uint64
 	}{
-		{"0", 0},
-		{"ffffffffffffffff", math.MaxUint64},
-		{"00000000000000001", 1},
+		{hex: "0", expected: 0},
+		{hex: "ffffffffffffffff", expected: math.MaxUint64},
+		{hex: "00000000000000001", expected: 1},
 	}
 	for _, test := range okTests {
 		num, err := hexToUnsignedLong(test.hex)
@@ -339,9 +338,9 @@ func TestHexToUnsignedLong(t *testing.T) {
 	errTests := []struct {
 		hex string
 	}{
-		{"fffffffffffffffffffffffffffffffff"},
-		{""},
-		{"po"},
+		{hex: "fffffffffffffffffffffffffffffffff"},
+		{hex: ""},
+		{hex: "po"},
 	}
 	for _, test := range errTests {
 		num, err = hexToUnsignedLong(test.hex)
