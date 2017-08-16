@@ -60,6 +60,7 @@ type zipkinSpans []zipkinSpan
 
 var (
 	errIsNotUnsignedLog = errors.New("id is not an unsigned long")
+	errWrongIpv4        = errors.New("wrong ipv4")
 )
 
 func deserializeJSON(body []byte) ([]*zipkincore.Span, error) {
@@ -198,7 +199,7 @@ func parseIpv4(str string) (int32, error) {
 	for _, segment := range segments {
 		parsed, err := strconv.ParseInt(segment, 10, 32)
 		if err != nil {
-			return 0, err
+			return 0, errWrongIpv4
 		}
 		parsed32 := int32(parsed)
 		ipv4 = ipv4<<8 | (parsed32 & 0xff)
