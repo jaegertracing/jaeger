@@ -56,7 +56,8 @@ At default settings the collector exposes the following ports:
 Port  | Protocol | Function
 ----- | -------  | ---
 14267 | TChannel | used by **jaeger-agent** to send spans in jaeger.thrift format
-14268 | HTTP     | can accept spans directly from clients in Jaeger or Zipkin Thrift 
+14268 | HTTP     | can accept spans directly from clients in jaeger.thrift format
+9411  | HTTP     | can accept Zipkin spans in JSON or Thrift (disabled by default)
 
 
 ## Storage Backend
