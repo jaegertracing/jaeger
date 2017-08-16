@@ -53,6 +53,16 @@ Reach project contributors via these channels:
  * [Gitter chat room](https://gitter.im/jaegertracing/Lobby)
  * [Github issues](https://github.com/uber/jaeger/issues)
 
+## Adopters
+
+Jaeger as a product consists of multiple components. We want to support different types of users,
+whether they are only using our instrumentation libraries or full end to end Jaeger installation,
+whether it runs in production or you use it to troubleshoot issues in development.
+
+Please see [ADOPTERS.md](./ADOPTERS.md) for some of the organizations using Jaeger today.
+If you would like to add your organization to the list, please comment on our
+[survey issue](https://github.com/uber/jaeger/issues/207).
+
 ## License
 
 [The MIT License](./LICENSE).
