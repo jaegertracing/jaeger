@@ -156,8 +156,8 @@ func endpointToThrift(e endpoint) (*zipkincore.Endpoint, error) {
 	return &zipkincore.Endpoint{
 		ServiceName: e.ServiceName,
 		Port:        e.Port,
-		Ipv4: ipv4,
-		Ipv6: []byte(e.IPv6),
+		Ipv4:        ipv4,
+		Ipv6:        []byte(e.IPv6),
 	}, nil
 }
 
