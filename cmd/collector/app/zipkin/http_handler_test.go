@@ -131,34 +131,35 @@ func TestJsonFormat(t *testing.T) {
 	binAnnoJSON := createBinAnno("http.status_code", "200", endpJSON)
 	spanJSON := createSpan("bar", "1234567891234565", "1234567891234567", "1234567891234568", 156, 15145, false,
 		annoJSON, binAnnoJSON)
-
 	statusCode, resBodyStr, err := postBytes(server.URL+`/api/v1/spans`, []byte(spanJSON), createHeader("application/json"))
 	assert.NoError(t, err)
 	assert.EqualValues(t, http.StatusAccepted, statusCode)
 	assert.EqualValues(t, "", resBodyStr)
 
+	endpErrJSON := createEndpoint("", "127.0.0.A", "", 80)
+
 	// error zipkinSpanHandler
 	handler.zipkinSpansHandler.(*mockZipkinHandler).err = fmt.Errorf("Bad times ahead")
-	statusCode, resBodyStr, err = postBytes(server.URL+`/api/v1/spans`, []byte(spanJSON), createHeader("application/json"))
-	assert.NoError(t, err)
-	assert.EqualValues(t, http.StatusInternalServerError, statusCode)
-	assert.EqualValues(t, "Cannot submit Zipkin batch: Bad times ahead\n", resBodyStr)
+	tests := []struct {
+		payload    string
+		expected   string
+		statusCode int
+	}{
+		{spanJSON, "Cannot submit Zipkin batch: Bad times ahead\n", http.StatusInternalServerError},
+		{createSpan("bar", "", "1", "1", 156, 15145, false, annoJSON, binAnnoJSON),
+			"Unable to process request body: id is not an unsigned long\n", http.StatusBadRequest},
+		{createSpan("bar", "ZTA", "1", "1", 156, 15145, false, "", ""),
+			"Unable to process request body: id is not an unsigned long\n", http.StatusBadRequest},
+		{createSpan("bar", "1", "", "1", 156, 15145, false, "", createAnno("cs", 1, endpErrJSON)),
+			"Unable to process request body: wrong ipv4\n", http.StatusBadRequest},
+	}
 
-	// error json no id
-	spanJSON = createSpan("bar", "", "1234567891234567", "1234567891234568", 156, 15145, false,
-		annoJSON, binAnnoJSON)
-	statusCode, resBodyStr, err = postBytes(server.URL+`/api/v1/spans`, []byte(spanJSON), createHeader("application/json"))
-	require.NoError(t, err)
-	assert.EqualValues(t, http.StatusBadRequest, statusCode)
-	assert.EqualValues(t, "Unable to process request body: id is not an unsigned long\n", resBodyStr)
-
-	// error toThrift no id no integer
-	spanJSON = createSpan("bar", "Z23456789123456A", "1234567891234567", "1234567891234568", 156, 15145, false,
-		annoJSON, binAnnoJSON)
-	statusCode, resBodyStr, err = postBytes(server.URL+`/api/v1/spans`, []byte(spanJSON), createHeader("application/json"))
-	require.NoError(t, err)
-	assert.EqualValues(t, http.StatusBadRequest, statusCode)
-	assert.EqualValues(t, "Unable to process request body: id is not an unsigned long\n", resBodyStr)
+	for _, test := range tests {
+		statusCode, resBodyStr, err = postBytes(server.URL+`/api/v1/spans`, []byte(test.payload), createHeader("application/json"))
+		require.NoError(t, err)
+		assert.EqualValues(t, test.statusCode, statusCode)
+		assert.EqualValues(t, test.expected, resBodyStr)
+	}
 }
 
 func TestGzipEncoding(t *testing.T) {
