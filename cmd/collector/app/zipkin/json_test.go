@@ -179,6 +179,12 @@ func TestIncorrectSpanIds(t *testing.T) {
 	spans, err = deserializeJSON([]byte(spanJSON))
 	require.NoError(t, err)
 	assert.NotNil(t, spans)
+	// wrong 128 bit traceId
+	spanJSON = createSpan("bar", "22", "12", "#2345678912345671234567891234562", 156, 15145, false,
+		"", "")
+	spans, err = deserializeJSON([]byte(spanJSON))
+	require.Error(t, err)
+	assert.Nil(t, spans)
 }
 
 func TestEndpointToThrift(t *testing.T) {
@@ -376,6 +382,10 @@ func TestSpanID(t *testing.T) {
 	require.NoError(t, err)
 	require.NoError(t, err2)
 	assert.Equal(t, num, num2)
+	// a little bit longer
+	num, err = hexToUnsignedLong("00000000000000001")
+	require.NoError(t, err)
+	assert.Equal(t, uint64(1), num)
 	// too long
 	num, err = hexToUnsignedLong("fffffffffffffffffffffffffffffffff")
 	require.Error(t, err)

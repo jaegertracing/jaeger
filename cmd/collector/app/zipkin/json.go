@@ -96,13 +96,7 @@ func spanToThrift(s zipkinSpan) (*zipkincore.Span, error) {
 	if err != nil {
 		return nil, err
 	}
-
-	var traceID uint64
-	if len(s.TraceID) == 32 {
-		traceID, err = hexToUnsignedLong(s.TraceID[16:])
-	} else {
-		traceID, err = hexToUnsignedLong(s.TraceID)
-	}
+	traceID, err := hexToUnsignedLong(s.TraceID)
 	if err != nil {
 		return nil, err
 	}
@@ -114,6 +108,16 @@ func spanToThrift(s zipkinSpan) (*zipkincore.Span, error) {
 		Debug:     s.Debug,
 		Timestamp: s.Timestamp,
 		Duration:  s.Duration,
+	}
+
+	if len(s.TraceID) == 32 {
+		// take 0-16
+		traceIDHigh, err := hexToUnsignedLong(s.TraceID[:16])
+		if err != nil {
+			return nil, err
+		}
+		help := int64(traceIDHigh)
+		tSpan.TraceIDHigh = &help
 	}
 
 	if len(s.ParentID) > 0 {
@@ -152,8 +156,8 @@ func endpointToThrift(e endpoint) (*zipkincore.Endpoint, error) {
 	return &zipkincore.Endpoint{
 		ServiceName: e.ServiceName,
 		Port:        e.Port,
-		// TODO update zipkin.thrift to include ipv6
 		Ipv4: ipv4,
+		Ipv6: []byte(e.IPv6),
 	}, nil
 }
 
@@ -196,7 +200,6 @@ func parseIpv4(str string) (int32, error) {
 		if err != nil {
 			return 0, err
 		}
-
 		parsed32 := int32(parsed)
 		ipv4 = ipv4<<8 | (parsed32 & 0xff)
 	}
