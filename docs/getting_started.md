@@ -94,11 +94,11 @@ as well as the Kubernetes templates.
 
 ## Migrating from Zipkin
 
-Jaeger's agent and collector can also accept [Zipkin](http://zipkin.io/) [thrift spans](https://github.com/openzipkin/zipkin-api/blob/master/thrift/zipkinCore.thrift#L381), and transform them to Jaeger's data model before storage.
+Collector service exposes Zipkin compatible REST API `/api/v1/spans` and can be enabled by
+`--collector.zipkin.http-port=9411`. It supports Thrift and JSON format.
+Agent uses `TBinaryProtocol` and is available on `UDP` port `5775`.
 
-Both of them support this Zipkin [idl](https://github.com/uber/jaeger-idl/blob/master/thrift/zipkincore.thrift), and expose the `ZipkinCollector` service.
-On the agent, `ZipkinCollector` is available on `UDP` port `5775`, and uses the `TBinaryProtocol`. Collector service
-exposes Zipkin REST API and can be enabled by `--collector.zipkin.http-port=9411`.
-
+Zipkin Thrift IDL file can be found [here](https://github.com/uber/jaeger-idl/blob/master/thrift/zipkincore.thrift).
+It's compatible with [zipkinCore.thrift](https://github.com/openzipkin/zipkin-api/blob/master/thrift/zipkinCore.thrift)
 
 [hotrod-tutorial]: https://medium.com/@YuriShkuro/take-opentracing-for-a-hotrod-ride-f6e3141f7941
