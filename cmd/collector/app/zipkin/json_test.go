@@ -23,10 +23,11 @@ package zipkin
 import (
 	"encoding/json"
 	"fmt"
-	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/require"
 	"math"
 	"testing"
+
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 var endpointFmt = `{"serviceName": "%s", "ipv4": "%s", "ipv6": "%s", "port": %d}`
@@ -150,14 +151,14 @@ func TestIncorrectSpanIds(t *testing.T) {
 	spanJSON := createSpan("bar", "", "1", "2", 156, 15145, false, "", "")
 	spans, err := deserializeJSON([]byte(spanJSON))
 	require.Error(t, err)
-	assert.Equal(t, errIstUnsignedLog, err)
+	assert.Equal(t, errIsNotUnsignedLog, err)
 	assert.Nil(t, spans)
 	// id longer than 32
 	spanJSON = createSpan("bar", "123456789123456712345678912345678", "1", "2",
 		156, 15145, false, "", "")
 	spans, err = deserializeJSON([]byte(spanJSON))
 	require.Error(t, err)
-	assert.Equal(t, errIstUnsignedLog, err)
+	assert.Equal(t, errIsNotUnsignedLog, err)
 	assert.Nil(t, spans)
 	// parentId missing
 	spanJSON = createSpan("bar", "1", "", "1", 156, 15145, false, "", "")
@@ -170,7 +171,7 @@ func TestIncorrectSpanIds(t *testing.T) {
 		"", "")
 	spans, err = deserializeJSON([]byte(spanJSON))
 	require.Error(t, err)
-	assert.Equal(t, errIstUnsignedLog, err)
+	assert.Equal(t, errIsNotUnsignedLog, err)
 	assert.Nil(t, spans)
 	// 128 bit traceId
 	spanJSON = createSpan("bar", "2", "1", "12345678912345671234567891234567", 156, 15145, false,
