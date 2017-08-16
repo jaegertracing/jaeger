@@ -61,7 +61,7 @@
       }
     },
     {
-      "traceID": "1",
+      "traceID": "20000000000000001",
       "spanID": "3",
       "parentSpanID": "2",
       "operationName": "some-operation",
@@ -76,6 +76,11 @@
           "key": "peer.ipv4",
           "vType": "int64",
           "vNum": 23456
+        },
+        {
+          "key": "peer.ipv6",
+          "vType": "string",
+          "vStr": "2001:db8::c001"
         },
         {
           "key": "span.kind",

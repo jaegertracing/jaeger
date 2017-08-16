@@ -121,7 +121,7 @@ func (td toDomain) transformSpan(zSpan *zipkincore.Span) *model.Span {
 	if zSpan.ParentID != nil {
 		parentID = *zSpan.ParentID
 	}
-	return &model.Span{
+	span := &model.Span{
 		TraceID:       model.TraceID{Low: uint64(zSpan.TraceID)},
 		SpanID:        model.SpanID(zSpan.ID),
 		OperationName: zSpan.Name,
@@ -132,6 +132,12 @@ func (td toDomain) transformSpan(zSpan *zipkincore.Span) *model.Span {
 		Tags:          tags,
 		Logs:          td.getLogs(zSpan.Annotations),
 	}
+
+	if zSpan.TraceIDHigh != nil {
+		span.TraceID.High = uint64(*zSpan.TraceIDHigh)
+	}
+
+	return span
 }
 
 // getFlags takes a Zipkin Span and deduces the proper flags settings
@@ -324,6 +330,10 @@ func (td toDomain) getPeerTags(endpoint *zipkincore.Endpoint, tags []model.KeyVa
 	if endpoint.Ipv4 != 0 {
 		ipv4 := int64(uint32(endpoint.Ipv4))
 		tags = append(tags, model.Int64(string(ext.PeerHostIPv4), ipv4))
+	}
+	if endpoint.Ipv6 != nil {
+		ipv6 := string(endpoint.Ipv6)
+		tags = append(tags, model.String(string(ext.PeerHostIPv6), ipv6))
 	}
 	if endpoint.Port != 0 {
 		port := int64(uint16(endpoint.Port))
