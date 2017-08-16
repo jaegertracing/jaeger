@@ -90,7 +90,7 @@ func (aH *APIHandler) saveSpans(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 	} else {
-		http.Error(w, "Not supported Content-Type", http.StatusBadRequest)
+		http.Error(w, "Unsupported Content-Type", http.StatusBadRequest)
 	}
 
 	if len(tSpans) > 0 {

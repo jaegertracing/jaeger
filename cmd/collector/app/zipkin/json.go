@@ -56,9 +56,10 @@ type zipkinSpan struct {
 	Annotations       []annotation       `json:"annotations"`
 	BinaryAnnotations []binaryAnnotation `json:"binaryAnnotations"`
 }
+type zipkinSpans []zipkinSpan
 
 var (
-	errIstUnsignedLog = errors.New("id is not an unsigned long")
+	errIsNotUnsignedLog = errors.New("id is not an unsigned long")
 )
 
 func deserializeJSON(body []byte) ([]*zipkincore.Span, error) {
@@ -71,13 +72,10 @@ func deserializeJSON(body []byte) ([]*zipkincore.Span, error) {
 }
 
 func decode(body []byte) ([]zipkinSpan, error) {
-	type zipkinSpans []zipkinSpan
 	var spans zipkinSpans
-
 	if err := json.Unmarshal(body, &spans); err != nil {
 		return nil, err
 	}
-
 	return spans, nil
 }
 
@@ -93,17 +91,17 @@ func spansToThrift(spans []zipkinSpan) ([]*zipkincore.Span, error) {
 	return tSpans, nil
 }
 
-func spanToThrift(span zipkinSpan) (*zipkincore.Span, error) {
-	id, err := hexToUnsignedLong(span.ID)
+func spanToThrift(s zipkinSpan) (*zipkincore.Span, error) {
+	id, err := hexToUnsignedLong(s.ID)
 	if err != nil {
 		return nil, err
 	}
 
 	var traceID uint64
-	if len(span.TraceID) == 32 {
-		traceID, err = hexToUnsignedLong(span.TraceID[16:])
+	if len(s.TraceID) == 32 {
+		traceID, err = hexToUnsignedLong(s.TraceID[16:])
 	} else {
-		traceID, err = hexToUnsignedLong(span.TraceID)
+		traceID, err = hexToUnsignedLong(s.TraceID)
 	}
 	if err != nil {
 		return nil, err
@@ -112,14 +110,14 @@ func spanToThrift(span zipkinSpan) (*zipkincore.Span, error) {
 	tSpan := &zipkincore.Span{
 		ID:        int64(id),
 		TraceID:   int64(traceID),
-		Name:      span.Name,
-		Debug:     span.Debug,
-		Timestamp: span.Timestamp,
-		Duration:  span.Duration,
+		Name:      s.Name,
+		Debug:     s.Debug,
+		Timestamp: s.Timestamp,
+		Duration:  s.Duration,
 	}
 
-	if len(span.ParentID) > 0 {
-		parentID, err := hexToUnsignedLong(span.ParentID)
+	if len(s.ParentID) > 0 {
+		parentID, err := hexToUnsignedLong(s.ParentID)
 		if err != nil {
 			return nil, err
 		}
@@ -127,60 +125,60 @@ func spanToThrift(span zipkinSpan) (*zipkincore.Span, error) {
 		tSpan.ParentID = &signed
 	}
 
-	for _, anno := range span.Annotations {
-		anno, err := annoToThrift(anno)
+	for _, a := range s.Annotations {
+		tA, err := annoToThrift(a)
 		if err != nil {
 			return nil, err
 		}
-		tSpan.Annotations = append(tSpan.Annotations, anno)
+		tSpan.Annotations = append(tSpan.Annotations, tA)
 	}
-	for _, binAnno := range span.BinaryAnnotations {
-		binAnno, err := binAnnoToThrift(binAnno)
+	for _, ba := range s.BinaryAnnotations {
+		tBa, err := binAnnoToThrift(ba)
 		if err != nil {
 			return nil, err
 		}
-		tSpan.BinaryAnnotations = append(tSpan.BinaryAnnotations, binAnno)
+		tSpan.BinaryAnnotations = append(tSpan.BinaryAnnotations, tBa)
 	}
 
 	return tSpan, nil
 }
 
-func endpointToThrift(endp endpoint) (*zipkincore.Endpoint, error) {
-	ipv4, err := parseIpv4(endp.IPv4)
+func endpointToThrift(e endpoint) (*zipkincore.Endpoint, error) {
+	ipv4, err := parseIpv4(e.IPv4)
 	if err != nil {
 		return nil, err
 	}
 
 	return &zipkincore.Endpoint{
-		ServiceName: endp.ServiceName,
-		Port:        endp.Port,
+		ServiceName: e.ServiceName,
+		Port:        e.Port,
 		// TODO update zipkin.thrift to include ipv6
 		Ipv4: ipv4,
 	}, nil
 }
 
-func annoToThrift(anno annotation) (*zipkincore.Annotation, error) {
-	endpoint, err := endpointToThrift(anno.Endpoint)
+func annoToThrift(a annotation) (*zipkincore.Annotation, error) {
+	endpoint, err := endpointToThrift(a.Endpoint)
 	if err != nil {
 		return nil, err
 	}
 
 	return &zipkincore.Annotation{
-		Timestamp: anno.Timestamp,
-		Value:     anno.Value,
+		Timestamp: a.Timestamp,
+		Value:     a.Value,
 		Host:      endpoint,
 	}, nil
 }
 
-func binAnnoToThrift(binAnno binaryAnnotation) (*zipkincore.BinaryAnnotation, error) {
-	endpoint, err := endpointToThrift(binAnno.Endpoint)
+func binAnnoToThrift(ba binaryAnnotation) (*zipkincore.BinaryAnnotation, error) {
+	endpoint, err := endpointToThrift(ba.Endpoint)
 	if err != nil {
 		return nil, err
 	}
 
 	return &zipkincore.BinaryAnnotation{
-		Key:            binAnno.Key,
-		Value:          []byte(binAnno.Value),
+		Key:            ba.Key,
+		Value:          []byte(ba.Value),
 		Host:           endpoint,
 		AnnotationType: zipkincore.AnnotationType_STRING,
 	}, nil
@@ -209,7 +207,7 @@ func parseIpv4(str string) (int32, error) {
 func hexToUnsignedLong(hex string) (uint64, error) {
 	len := len(hex)
 	if len < 1 || len > 32 {
-		return 0, errIstUnsignedLog
+		return 0, errIsNotUnsignedLog
 	}
 
 	start := 0
@@ -226,7 +224,7 @@ func hexToUnsignedLong(hex string) (uint64, error) {
 		} else if c >= 'a' && c <= 'f' {
 			result = result | uint64(c-'a'+10)
 		} else {
-			return 0, errIstUnsignedLog
+			return 0, errIsNotUnsignedLog
 		}
 	}
 
