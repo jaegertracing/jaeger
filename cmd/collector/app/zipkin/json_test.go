@@ -261,16 +261,19 @@ func TestSpanToThrift(t *testing.T) {
 
 	span := zipkinSpan{
 		ID:                "bd7a977555f6b982",
-		TraceID:           "bd7a977555f6b982bd7a977555f6b982",
+		TraceID:           "bd7a974555f6b982bd71977555f6b981",
+		ParentID:          "1",
 		Name:              "foo",
 		Annotations:       []annotation{anno},
 		BinaryAnnotations: []binaryAnnotation{binAnno},
 	}
 	tSpan, err := spanToThrift(span)
 	require.NoError(t, err)
-	assert.NotZero(t, tSpan.TraceID)
-	assert.NotZero(t, tSpan.ID)
-	assert.NotNil(t, tSpan.TraceIDHigh)
+	assert.Equal(t, int64(-4795885597963667071), tSpan.TraceID)
+	assert.Equal(t, int64(-4793352529331701374), *tSpan.TraceIDHigh)
+	assert.Equal(t, int64(-4793352323173271166), tSpan.ID)
+	assert.Equal(t, int64(1), *tSpan.ParentID)
+
 	assert.Equal(t, span.Name, tSpan.Name)
 	assert.Equal(t, anno.Value, tSpan.Annotations[0].Value)
 	assert.Equal(t, anno.Endpoint.ServiceName, tSpan.Annotations[0].Host.ServiceName)
