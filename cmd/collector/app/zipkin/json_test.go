@@ -65,21 +65,6 @@ func TestUnmarshalEndpoint(t *testing.T) {
 	assert.Equal(t, "foo", endp.ServiceName)
 	assert.Equal(t, "127.0.0.1", endp.IPv4)
 	assert.Equal(t, "2001:db8::c001", endp.IPv6)
-	// only service name
-	endp = &endpoint{}
-	err = json.Unmarshal([]byte(`{"serviceName": "bar"}`), endp)
-	require.NoError(t, err)
-	assert.Equal(t, "bar", endp.ServiceName)
-	// only ipv4
-	endp = &endpoint{}
-	err = json.Unmarshal([]byte(`{"ipv4": "127.0.0.1"}`), endp)
-	require.NoError(t, err)
-	assert.Equal(t, "127.0.0.1", endp.IPv4)
-	// only ipv6
-	endp = &endpoint{}
-	err = json.Unmarshal([]byte(`{"ipv6": "2001:db8::c001"}`), endp)
-	require.NoError(t, err)
-	assert.Equal(t, "2001:db8::c001", endp.IPv6)
 }
 
 func TestUnmarshalAnnotation(t *testing.T) {
@@ -89,21 +74,6 @@ func TestUnmarshalAnnotation(t *testing.T) {
 	require.NoError(t, err)
 	assert.Equal(t, "bar", anno.Value)
 	assert.Equal(t, int64(154), anno.Timestamp)
-	assert.Equal(t, "foo", anno.Endpoint.ServiceName)
-	// only value
-	anno = &annotation{}
-	err = json.Unmarshal([]byte(`{"value": "bar"}`), anno)
-	require.NoError(t, err)
-	assert.Equal(t, "bar", anno.Value)
-	// only ts
-	anno = &annotation{}
-	err = json.Unmarshal([]byte(`{"timestamp": 123}`), anno)
-	require.NoError(t, err)
-	assert.Equal(t, int64(123), anno.Timestamp)
-	// only endpoint
-	anno = &annotation{}
-	err = json.Unmarshal([]byte(fmt.Sprintf(`{"endpoint": %s}`, endpointJSON)), anno)
-	require.NoError(t, err)
 	assert.Equal(t, "foo", anno.Endpoint.ServiceName)
 }
 
@@ -160,12 +130,6 @@ func TestIncorrectSpanIds(t *testing.T) {
 	require.Error(t, err)
 	assert.Equal(t, errIsNotUnsignedLog, err)
 	assert.Nil(t, spans)
-	// parentId missing
-	spanJSON = createSpan("bar", "1", "", "1", 156, 15145, false, "", "")
-	spans, err = deserializeJSON([]byte(spanJSON))
-	require.NoError(t, err)
-	assert.Nil(t, err)
-	assert.NotNil(t, spans)
 	// traceId missing
 	spanJSON = createSpan("bar", "2", "1", "", 156, 15145, false,
 		"", "")
@@ -217,6 +181,7 @@ func TestEndpointToThrift(t *testing.T) {
 	}
 	tEndpoint, err = endpointToThrift(endp)
 	require.Error(t, err)
+	assert.Equal(t, errWrongIpv4, err)
 	assert.Nil(t, tEndpoint)
 }
 
@@ -231,7 +196,6 @@ func TestAnnotationToThrift(t *testing.T) {
 		Timestamp: 152,
 		Endpoint:  endp,
 	}
-
 	tAnno, err := annoToThrift(anno)
 	require.NoError(t, err)
 	assert.Equal(t, anno.Value, tAnno.Value)
@@ -246,6 +210,7 @@ func TestAnnotationToThrift(t *testing.T) {
 	}
 	tAnno, err = annoToThrift(anno)
 	require.Error(t, err)
+	assert.Equal(t, errWrongIpv4, err)
 	assert.Nil(t, tAnno)
 }
 
@@ -260,7 +225,6 @@ func TestBinaryAnnotationToThrift(t *testing.T) {
 		Key:      "error",
 		Value:    "str",
 	}
-
 	tBinAnno, err := binAnnoToThrift(binAnno)
 	require.NoError(t, err)
 	assert.Equal(t, binAnno.Key, tBinAnno.Key)
@@ -297,105 +261,89 @@ func TestSpanToThrift(t *testing.T) {
 
 	span := zipkinSpan{
 		ID:                "bd7a977555f6b982",
-		TraceID:           "bd7a977555f6b982",
+		TraceID:           "bd7a977555f6b982bd7a977555f6b982",
 		Name:              "foo",
 		Annotations:       []annotation{anno},
 		BinaryAnnotations: []binaryAnnotation{binAnno},
 	}
 	tSpan, err := spanToThrift(span)
 	require.NoError(t, err)
+	assert.NotZero(t, tSpan.TraceID)
+	assert.NotZero(t, tSpan.ID)
+	assert.NotNil(t, tSpan.TraceIDHigh)
 	assert.Equal(t, span.Name, tSpan.Name)
 	assert.Equal(t, anno.Value, tSpan.Annotations[0].Value)
 	assert.Equal(t, anno.Endpoint.ServiceName, tSpan.Annotations[0].Host.ServiceName)
 	assert.Equal(t, binAnno.Key, tSpan.BinaryAnnotations[0].Key)
 	assert.Equal(t, binAnno.Endpoint.ServiceName, tSpan.BinaryAnnotations[0].Host.ServiceName)
 
-	//test wrong span Id
-	span = zipkinSpan{
-		ID:      "zd7a977555f6b982",
-		TraceID: "bd7a977555f6b982",
-	}
-	tSpan, err = spanToThrift(span)
-	require.Error(t, err)
-	assert.Nil(t, tSpan)
-
-	//test wrong trace Id
-	span = zipkinSpan{
-		ID:      "ad7a977555f6b982",
-		TraceID: "zd7a977555f6b982",
-	}
-	tSpan, err = spanToThrift(span)
-	require.Error(t, err)
-	assert.Nil(t, tSpan)
-
-	//test wrong trace Id
-	span = zipkinSpan{
-		ID:       "ad7a977555f6b982",
-		TraceID:  "ad7a977555f6b982",
-		ParentID: "zd7a977555f6b982",
-	}
-	tSpan, err = spanToThrift(span)
-	require.Error(t, err)
-	assert.Nil(t, tSpan)
-
-	annoBad := annotation{
-		Endpoint: endpoint{
-			IPv4: "127.0.0.A",
+	tests := []struct {
+		span zipkinSpan
+		err  error
+	}{
+		{
+			zipkinSpan{ID: "zd7a977555f6b982", TraceID: "bd7a977555f6b982"},
+			errIsNotUnsignedLog,
+		},
+		{
+			zipkinSpan{ID: "ad7a977555f6b982", TraceID: "zd7a977555f6b982"},
+			errIsNotUnsignedLog,
+		},
+		{
+			zipkinSpan{ID: "ad7a977555f6b982", TraceID: "ad7a977555f6b982", ParentID: "zd7a977555f6b982"},
+			errIsNotUnsignedLog,
+		},
+		{
+			zipkinSpan{ID: "1", TraceID: "1", Annotations: []annotation{{Endpoint: endpoint{IPv4: "127.0.0.A"}}}},
+			errWrongIpv4,
+		},
+		{
+			zipkinSpan{ID: "1", TraceID: "1", BinaryAnnotations: []binaryAnnotation{{Endpoint: endpoint{IPv4: "127.0.0.A"}}}},
+			errWrongIpv4,
 		},
 	}
-	span = zipkinSpan{
-		ID:          "ad7a977555f6b982",
-		TraceID:     "ad7a977555f6b982",
-		Annotations: []annotation{annoBad},
-	}
-	tSpan, err = spanToThrift(span)
-	require.Error(t, err)
-	assert.Nil(t, tSpan)
 
-	binAnnoBad := binaryAnnotation{
-		Endpoint: endpoint{
-			IPv4: "127.0.0.A",
-		},
+	for _, test := range tests {
+		tSpan, err = spanToThrift(test.span)
+		require.Error(t, err)
+		assert.Equal(t, test.err, err)
+		assert.Nil(t, tSpan)
 	}
-	span = zipkinSpan{
-		ID:                "ad7a977555f6b982",
-		TraceID:           "ad7a977555f6b982",
-		BinaryAnnotations: []binaryAnnotation{binAnnoBad},
-	}
-	tSpan, err = spanToThrift(span)
-	require.Error(t, err)
-	assert.Nil(t, tSpan)
 }
 
-func TestSpanID(t *testing.T) {
-	// min
-	num, err := hexToUnsignedLong("0")
-	require.NoError(t, err)
-	assert.Equal(t, uint64(0), num)
-	//max
-	num, err = hexToUnsignedLong("ffffffffffffffff")
-	require.NoError(t, err)
-	assert.Equal(t, uint64(math.MaxUint64), num)
+func TestHexToUnsignedLong(t *testing.T) {
+	okTests := []struct {
+		hex      string
+		expected uint64
+	}{
+		{"0", 0},
+		{"ffffffffffffffff", math.MaxUint64},
+		{"00000000000000001", 1},
+	}
+	for _, test := range okTests {
+		num, err := hexToUnsignedLong(test.hex)
+		require.NoError(t, err)
+		assert.Equal(t, test.expected, num)
+	}
+
 	// drop higher bits
-	num, err = hexToUnsignedLong("463ac35c9f6413ad48485a3953bb6124")
+	num, err := hexToUnsignedLong("463ac35c9f6413ad48485a3953bb6124")
 	num2, err2 := hexToUnsignedLong("48485a3953bb6124")
 	require.NoError(t, err)
 	require.NoError(t, err2)
 	assert.Equal(t, num, num2)
-	// a little bit longer
-	num, err = hexToUnsignedLong("00000000000000001")
-	require.NoError(t, err)
-	assert.Equal(t, uint64(1), num)
-	// too long
-	num, err = hexToUnsignedLong("fffffffffffffffffffffffffffffffff")
-	require.Error(t, err)
-	assert.Equal(t, uint64(0), num)
-	// too short
-	num, err = hexToUnsignedLong("")
-	require.Error(t, err)
-	assert.Equal(t, uint64(0), num)
-	// incorrect
-	num, err = hexToUnsignedLong("po")
-	require.Error(t, err)
-	assert.Equal(t, uint64(0), num)
+
+	errTests := []struct {
+		hex string
+	}{
+		{"fffffffffffffffffffffffffffffffff"},
+		{""},
+		{"po"},
+	}
+	for _, test := range errTests {
+		num, err = hexToUnsignedLong(test.hex)
+		require.Error(t, err)
+		assert.Equal(t, errIsNotUnsignedLog, err)
+		assert.Equal(t, uint64(0), num)
+	}
 }
