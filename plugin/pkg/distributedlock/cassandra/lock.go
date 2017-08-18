@@ -79,6 +79,7 @@ func (l *Lock) Acquire(resource string, ttl time.Duration) (bool, error) {
 	return false, nil
 }
 
+// Forfeit forfeits an existing lease around a given resource.
 func (l *Lock) Forfeit(resource string) (bool, error) {
 	var name, owner string
 	applied, err := l.session.Query(cqlDeleteLock, resource, l.tenantID).ScanCAS(&name, &owner)
