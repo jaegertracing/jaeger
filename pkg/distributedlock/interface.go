@@ -29,4 +29,5 @@ type Lock interface {
 	Acquire(resource string, ttl time.Duration) (acquired bool, err error)
 
 	// TODO add Forfeit to voluntarily give up the resource
+	Forfeit(resource string) (forfeited bool, err error)
 }

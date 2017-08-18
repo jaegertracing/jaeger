@@ -65,7 +65,7 @@ func TestExtendLease(t *testing.T) {
 			expectedErrMsg: "Failed to update lock",
 		},
 		{
-			caption:        "succesfully extended lease",
+			caption:        "successfully extended lease",
 			applied:        true,
 			errScan:        nil,
 			expectedErrMsg: "",
@@ -107,17 +107,17 @@ func TestExtendLease(t *testing.T) {
 				if d, ok := args[1].(string); ok {
 					assert.Equal(t, localhost, d)
 				} else {
-					assert.Fail(t, "expecting first arg as string", "received: %+v", args)
+					assert.Fail(t, "expecting second arg as string", "received: %+v", args)
 				}
 				if d, ok := args[2].(string); ok {
 					assert.Equal(t, samplingLock, d)
 				} else {
-					assert.Fail(t, "expecting second arg as string", "received: %+v", args)
+					assert.Fail(t, "expecting third arg as string", "received: %+v", args)
 				}
 				if d, ok := args[3].(string); ok {
 					assert.Equal(t, localhost, d)
 				} else {
-					assert.Fail(t, "expecting third arg as string", "received: %+v", args)
+					assert.Fail(t, "expecting fourth arg as string", "received: %+v", args)
 				}
 			})
 		})
@@ -143,7 +143,7 @@ func TestAcquire(t *testing.T) {
 			expectedErrMsg:    "Failed to acquire resource lock due to cassandra error: Failed to create lock",
 		},
 		{
-			caption:           "succesfully created lock",
+			caption:           "successfully created lock",
 			insertLockApplied: true,
 			acquired:          true,
 			retVals:           []string{samplingLock, localhost},
@@ -206,7 +206,76 @@ func TestAcquire(t *testing.T) {
 				} else {
 					assert.EqualError(t, err, testCase.expectedErrMsg)
 				}
+
 				assert.Equal(t, testCase.acquired, acquired)
+			})
+		})
+	}
+}
+
+func TestForfeit(t *testing.T) {
+	testCases := []struct {
+		caption        string
+		applied        bool
+		retVals        []string
+		errScan        error
+		expectedErrMsg string
+	}{
+		{
+			caption:        "cassandra error",
+			applied:        false,
+			retVals:        []string{"", ""},
+			errScan:        errors.New("Failed to delete lock"),
+			expectedErrMsg: "Failed to forfeit resource lock due to cassandra error: Failed to delete lock",
+		},
+		{
+			caption:        "successfully forfeited lock",
+			applied:        true,
+			retVals:        []string{samplingLock, localhost},
+			errScan:        nil,
+			expectedErrMsg: "",
+		},
+		{
+			caption:        "failed to delete lock",
+			applied:        false,
+			retVals:        []string{samplingLock, "otherhost"},
+			errScan:        nil,
+			expectedErrMsg: "Failed to forfeit resource lock: This host does not own the resource lock",
+		},
+	}
+	for _, tc := range testCases {
+		testCase := tc // capture loop var
+		t.Run(testCase.caption, func(t *testing.T) {
+			withCQLLock(func(s *cqlLockTest) {
+				query := &mocks.Query{}
+				query.On("ScanCAS", matchEverything()).Return(testCase.applied, testCase.errScan)
+
+				var args []interface{}
+				captureArgs := mock.MatchedBy(func(v []interface{}) bool {
+					args = v
+					return true
+				})
+
+				s.session.On("Query", mock.AnythingOfType("string"), captureArgs).Return(query)
+				applied, err := s.lock.Forfeit(samplingLock)
+				if testCase.expectedErrMsg == "" {
+					assert.NoError(t, err)
+				} else {
+					assert.EqualError(t, err, testCase.expectedErrMsg)
+				}
+				assert.Equal(t, testCase.applied, applied)
+
+				assert.Len(t, args, 2)
+				if d, ok := args[0].(string); ok {
+					assert.Equal(t, samplingLock, d)
+				} else {
+					assert.Fail(t, "expecting first arg as string", "received: %+v", args)
+				}
+				if d, ok := args[1].(string); ok {
+					assert.Equal(t, localhost, d)
+				} else {
+					assert.Fail(t, "expecting second arg as string", "received: %+v", args)
+				}
 			})
 		})
 	}

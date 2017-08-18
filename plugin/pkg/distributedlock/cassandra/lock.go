@@ -40,6 +40,7 @@ const (
 	leasesTable   = `leases`
 	cqlInsertLock = `INSERT INTO ` + leasesTable + ` (name, owner) VALUES (?,?) IF NOT EXISTS USING TTL ?;`
 	cqlUpdateLock = `UPDATE ` + leasesTable + ` USING TTL ? SET owner = ? WHERE name = ? IF owner = ?;`
+	cqlDeleteLock = `DELETE FROM ` + leasesTable + ` WHERE name = ? IF owner = ?;`
 )
 
 var (
@@ -76,6 +77,19 @@ func (l *Lock) Acquire(resource string, ttl time.Duration) (bool, error) {
 		return true, nil
 	}
 	return false, nil
+}
+
+func (l *Lock) Forfeit(resource string) (bool, error) {
+	var name, owner string
+	applied, err := l.session.Query(cqlDeleteLock, resource, l.tenantID).ScanCAS(&name, &owner)
+	if err != nil {
+		return false, errors.Wrap(err, "Failed to forfeit resource lock due to cassandra error")
+	}
+	if applied {
+		// The lock was successfully deleted
+		return true, nil
+	}
+	return false, errors.Wrap(errLockOwnership, "Failed to forfeit resource lock")
 }
 
 // extendLease will attempt to extend the lease of an existing lock on a given resource.
