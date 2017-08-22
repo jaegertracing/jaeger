@@ -1,6 +1,15 @@
 Changes by Version
 ==================
 
+0.7.0 (2017-08-22)
+------------------
+
+- Add health check server to collector and query [#280](https://github.com/uber/jaeger/pull/280)
+- Add/fix sanitizer for Zipkin span start time and duration [#333](https://github.com/uber/jaeger/pull/333)
+- Support Zipkin json encoding for /api/v1/spans HTTP endpoint [#348](https://github.com/uber/jaeger/pull/348)
+- Support Zipkin 128bit traceId and ipv6 [#349](https://github.com/uber/jaeger/pull/349)
+
+
 0.6.0 (2017-08-09)
 ------------------
 
