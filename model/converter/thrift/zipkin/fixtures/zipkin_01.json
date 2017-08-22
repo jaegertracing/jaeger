@@ -53,6 +53,7 @@
     "id": 3,
     "parent_id": 2,
     "name": "some-operation",
+    "trace_id_high": 2,
     "annotations": [
       {
         "value": "sr",
@@ -66,7 +67,8 @@
             "key": "ca",
             "host": {
                 "service_name": "service-x",
-                "ipv4": 23456
+                "ipv4": 23456,
+                "ipv6": "MjAwMTpkYjg6OmMwMDE="
             }
         }
     ]
