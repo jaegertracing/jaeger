@@ -122,6 +122,59 @@ func TestThriftFormat(t *testing.T) {
 	assert.EqualValues(t, "Cannot submit Zipkin batch: Bad times ahead\n", resBodyStr)
 }
 
+func TestJsonFormat(t *testing.T) {
+	server, handler := initializeTestServer(nil)
+	defer server.Close()
+
+	endpJSON := createEndpoint("foo", "127.0.0.1", "2001:db8::c001", 66)
+	annoJSON := createAnno("cs", 1515, endpJSON)
+	binAnnoJSON := createBinAnno("http.status_code", "200", endpJSON)
+	spanJSON := createSpan("bar", "1234567891234565", "1234567891234567", "1234567891234568", 156, 15145, false,
+		annoJSON, binAnnoJSON)
+	statusCode, resBodyStr, err := postBytes(server.URL+`/api/v1/spans`, []byte(spanJSON), createHeader("application/json"))
+	assert.NoError(t, err)
+	assert.EqualValues(t, http.StatusAccepted, statusCode)
+	assert.EqualValues(t, "", resBodyStr)
+
+	endpErrJSON := createEndpoint("", "127.0.0.A", "", 80)
+
+	// error zipkinSpanHandler
+	handler.zipkinSpansHandler.(*mockZipkinHandler).err = fmt.Errorf("Bad times ahead")
+	tests := []struct {
+		payload    string
+		expected   string
+		statusCode int
+	}{
+		{
+			payload:    spanJSON,
+			expected:   "Cannot submit Zipkin batch: Bad times ahead\n",
+			statusCode: http.StatusInternalServerError,
+		},
+		{
+			payload:    createSpan("bar", "", "1", "1", 156, 15145, false, annoJSON, binAnnoJSON),
+			expected:   "Unable to process request body: id is not an unsigned long\n",
+			statusCode: http.StatusBadRequest,
+		},
+		{
+			payload:    createSpan("bar", "ZTA", "1", "1", 156, 15145, false, "", ""),
+			expected:   "Unable to process request body: id is not an unsigned long\n",
+			statusCode: http.StatusBadRequest,
+		},
+		{
+			payload:    createSpan("bar", "1", "", "1", 156, 15145, false, "", createAnno("cs", 1, endpErrJSON)),
+			expected:   "Unable to process request body: wrong ipv4\n",
+			statusCode: http.StatusBadRequest,
+		},
+	}
+
+	for _, test := range tests {
+		statusCode, resBodyStr, err = postBytes(server.URL+`/api/v1/spans`, []byte(test.payload), createHeader("application/json"))
+		require.NoError(t, err)
+		assert.EqualValues(t, test.statusCode, statusCode)
+		assert.EqualValues(t, test.expected, resBodyStr)
+	}
+}
+
 func TestGzipEncoding(t *testing.T) {
 	server, _ := initializeTestServer(nil)
 	defer server.Close()
@@ -148,7 +201,7 @@ func TestGzipBadBody(t *testing.T) {
 func TestUnsupportedContentType(t *testing.T) {
 	server, _ := initializeTestServer(nil)
 	defer server.Close()
-	statusCode, _, err := postBytes(server.URL+`/api/v1/spans`, []byte{}, createHeader("application/json"))
+	statusCode, _, err := postBytes(server.URL+`/api/v1/spans`, []byte{}, createHeader("text/html"))
 	assert.NoError(t, err)
 	assert.EqualValues(t, http.StatusBadRequest, statusCode)
 }
@@ -164,7 +217,7 @@ func TestFormatBadBody(t *testing.T) {
 
 func TestDeserializeWithBadListStart(t *testing.T) {
 	spanBytes := zipkinSerialize([]*zipkincore.Span{{}})
-	_, err := deserializeZipkin(append([]byte{0, 255, 255}, spanBytes...))
+	_, err := deserializeThrift(append([]byte{0, 255, 255}, spanBytes...))
 	assert.Error(t, err)
 }
 
