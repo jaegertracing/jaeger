@@ -117,12 +117,15 @@ func (td toDomain) transformSpan(zSpan *zipkincore.Span) *model.Span {
 	if spanKindTag, ok := td.getSpanKindTag(zSpan.Annotations); ok {
 		tags = append(tags, spanKindTag)
 	}
-	var parentID int64
+	var traceIDHigh, parentID int64
+	if zSpan.TraceIDHigh != nil {
+		traceIDHigh = *zSpan.TraceIDHigh
+	}
 	if zSpan.ParentID != nil {
 		parentID = *zSpan.ParentID
 	}
-	span := &model.Span{
-		TraceID:       model.TraceID{Low: uint64(zSpan.TraceID)},
+	return &model.Span{
+		TraceID:       model.TraceID{High: uint64(traceIDHigh), Low: uint64(zSpan.TraceID)},
 		SpanID:        model.SpanID(zSpan.ID),
 		OperationName: zSpan.Name,
 		ParentSpanID:  model.SpanID(parentID),
@@ -132,12 +135,6 @@ func (td toDomain) transformSpan(zSpan *zipkincore.Span) *model.Span {
 		Tags:          tags,
 		Logs:          td.getLogs(zSpan.Annotations),
 	}
-
-	if zSpan.TraceIDHigh != nil {
-		span.TraceID.High = uint64(*zSpan.TraceIDHigh)
-	}
-
-	return span
 }
 
 // getFlags takes a Zipkin Span and deduces the proper flags settings
@@ -332,8 +329,9 @@ func (td toDomain) getPeerTags(endpoint *zipkincore.Endpoint, tags []model.KeyVa
 		tags = append(tags, model.Int64(string(ext.PeerHostIPv4), ipv4))
 	}
 	if endpoint.Ipv6 != nil {
-		ipv6 := string(endpoint.Ipv6)
-		tags = append(tags, model.String(string(ext.PeerHostIPv6), ipv6))
+		// Zipkin defines Ipv6 field as: "IPv6 host address packed into 16 bytes. Ex Inet6Address.getBytes()".
+		// https://github.com/openzipkin/zipkin-api/blob/master/thrift/zipkinCore.thrift#L305
+		tags = append(tags, model.Binary(string(ext.PeerHostIPv6), endpoint.Ipv6))
 	}
 	if endpoint.Port != 0 {
 		port := int64(uint16(endpoint.Port))

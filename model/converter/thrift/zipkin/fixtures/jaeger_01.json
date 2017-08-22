@@ -79,8 +79,8 @@
         },
         {
           "key": "peer.ipv6",
-          "vType": "string",
-          "vStr": "2001:db8::c001"
+          "vType": "binary",
+          "vBlob": "MjAwMTpkYjg6OmMwMDE="
         },
         {
           "key": "span.kind",
