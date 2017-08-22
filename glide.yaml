@@ -18,7 +18,7 @@ import:
   subpackages:
   - transport
 - package: github.com/uber/jaeger-lib
-  version: 13219516eeab40f3b23e4d50e3f91a0d68064afc
+  version: ^1.0.0
 - package: github.com/uber/tchannel-go
   version: v1.1.0
   subpackages:

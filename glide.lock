@@ -1,5 +1,5 @@
-hash: 0422930e1449cb67e320706a40592e7b386e86fb80cead37945e2c12133a9ae2
-updated: 2017-07-16T14:46:02.785298314-04:00
+hash: c0ce4fe6b7f53ab91f35fe0b09184bdc56357bf77a02ee4cea4ec3db2d1437dd
+updated: 2017-08-22T14:33:20.951743908-04:00
 imports:
 - name: github.com/apache/thrift
   version: 53dd39833a08ce33582e5ff31fa18bb4735d6731
@@ -80,7 +80,7 @@ imports:
   subpackages:
   - nethttp
 - name: github.com/opentracing/opentracing-go
-  version: 0c3154a3c2ce79d3271985848659870599dfb77c
+  version: 1949ddbfd147afd4d964a9f00b24eb291e0e7c38
   subpackages:
   - ext
   - log
@@ -152,7 +152,7 @@ imports:
   - transport/zipkin
   - utils
 - name: github.com/uber/jaeger-lib
-  version: 13219516eeab40f3b23e4d50e3f91a0d68064afc
+  version: 575c678b2873b62aaadd0fa5817a2aeb3155dc4d
   subpackages:
   - metrics
   - metrics/go-kit
@@ -176,18 +176,19 @@ imports:
   version: 51564d9861991fb0ad0f531c99ef602d0f9866e6
 - name: go.uber.org/atomic
   version: 4e336646b2ef9fc6e47be8e21594178f98e5ebcf
+- name: go.uber.org/multierr
+  version: 3c4937480c32f4c13a875a1829af76c98ca3d40a
 - name: go.uber.org/zap
-  version: 9cabc84638b70e564c3dab2766efcb1ded2aac9f
+  version: 9d9d6135afe89b6fc4a05e9a8552526caba38048
   subpackages:
   - buffer
   - internal/bufferpool
   - internal/color
   - internal/exit
-  - internal/multierror
   - zapcore
   - zaptest
 - name: golang.org/x/net
-  version: b3756b4b77d7b13260a0a2ec658753cf48922eac
+  version: 1c05540f6879653db88113bc4a2b70aec4bd491f
   subpackages:
   - context
   - context/ctxhttp
