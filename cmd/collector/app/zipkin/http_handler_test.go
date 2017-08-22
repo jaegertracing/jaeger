@@ -145,13 +145,26 @@ func TestJsonFormat(t *testing.T) {
 		expected   string
 		statusCode int
 	}{
-		{payload: spanJSON, expected: "Cannot submit Zipkin batch: Bad times ahead\n", statusCode: http.StatusInternalServerError},
-		{payload: createSpan("bar", "", "1", "1", 156, 15145, false, annoJSON, binAnnoJSON),
-			expected: "Unable to process request body: id is not an unsigned long\n", statusCode: http.StatusBadRequest},
-		{payload: createSpan("bar", "ZTA", "1", "1", 156, 15145, false, "", ""),
-			expected: "Unable to process request body: id is not an unsigned long\n", statusCode: http.StatusBadRequest},
-		{payload: createSpan("bar", "1", "", "1", 156, 15145, false, "", createAnno("cs", 1, endpErrJSON)),
-			expected: "Unable to process request body: wrong ipv4\n", statusCode: http.StatusBadRequest},
+		{
+			payload:    spanJSON,
+			expected:   "Cannot submit Zipkin batch: Bad times ahead\n",
+			statusCode: http.StatusInternalServerError,
+		},
+		{
+			payload:    createSpan("bar", "", "1", "1", 156, 15145, false, annoJSON, binAnnoJSON),
+			expected:   "Unable to process request body: id is not an unsigned long\n",
+			statusCode: http.StatusBadRequest,
+		},
+		{
+			payload:    createSpan("bar", "ZTA", "1", "1", 156, 15145, false, "", ""),
+			expected:   "Unable to process request body: id is not an unsigned long\n",
+			statusCode: http.StatusBadRequest,
+		},
+		{
+			payload:    createSpan("bar", "1", "", "1", 156, 15145, false, "", createAnno("cs", 1, endpErrJSON)),
+			expected:   "Unable to process request body: wrong ipv4\n",
+			statusCode: http.StatusBadRequest,
+		},
 	}
 
 	for _, test := range tests {

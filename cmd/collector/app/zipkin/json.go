@@ -56,7 +56,6 @@ type zipkinSpan struct {
 	Annotations       []annotation       `json:"annotations"`
 	BinaryAnnotations []binaryAnnotation `json:"binaryAnnotations"`
 }
-type zipkinSpans []zipkinSpan
 
 var (
 	errIsNotUnsignedLog = errors.New("id is not an unsigned long")
@@ -73,7 +72,7 @@ func deserializeJSON(body []byte) ([]*zipkincore.Span, error) {
 }
 
 func decode(body []byte) ([]zipkinSpan, error) {
-	var spans zipkinSpans
+	var spans []zipkinSpan
 	if err := json.Unmarshal(body, &spans); err != nil {
 		return nil, err
 	}
@@ -93,6 +92,7 @@ func spansToThrift(spans []zipkinSpan) ([]*zipkincore.Span, error) {
 }
 
 func spanToThrift(s zipkinSpan) (*zipkincore.Span, error) {
+	// TODO use model.SpanIDFromString and model.TraceIDFromString
 	id, err := hexToUnsignedLong(s.ID)
 	if err != nil {
 		return nil, err
@@ -190,6 +190,7 @@ func binAnnoToThrift(ba binaryAnnotation) (*zipkincore.BinaryAnnotation, error) 
 }
 
 func parseIpv4(str string) (int32, error) {
+	// TODO use net.ParseIP
 	segments := strings.Split(str, ".")
 	if len(segments) == 1 {
 		return 0, nil
@@ -209,6 +210,7 @@ func parseIpv4(str string) (int32, error) {
 }
 
 func hexToUnsignedLong(hex string) (uint64, error) {
+	// TODO remove this func in favor of model.XxxFromString methods
 	len := len(hex)
 	if len < 1 || len > 32 {
 		return 0, errIsNotUnsignedLog

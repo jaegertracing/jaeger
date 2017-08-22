@@ -79,18 +79,15 @@ func (aH *APIHandler) saveSpans(w http.ResponseWriter, r *http.Request) {
 	var tSpans []*zipkincore.Span
 	if contentType == "application/x-thrift" {
 		tSpans, err = deserializeThrift(bodyBytes)
-		if err != nil {
-			http.Error(w, fmt.Sprintf(app.UnableToReadBodyErrFormat, err), http.StatusBadRequest)
-			return
-		}
 	} else if contentType == "application/json" {
 		tSpans, err = deserializeJSON(bodyBytes)
-		if err != nil {
-			http.Error(w, fmt.Sprintf(app.UnableToReadBodyErrFormat, err), http.StatusBadRequest)
-			return
-		}
 	} else {
 		http.Error(w, "Unsupported Content-Type", http.StatusBadRequest)
+		return
+	}
+	if err != nil {
+		http.Error(w, fmt.Sprintf(app.UnableToReadBodyErrFormat, err), http.StatusBadRequest)
+		return
 	}
 
 	if len(tSpans) > 0 {
