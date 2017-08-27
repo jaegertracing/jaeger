@@ -178,16 +178,12 @@ func (m *PeerListManager) ensureConnections() {
 			continue
 		}
 
-		if conn.IsActive() == false {
-			m.logger.Info("Connection is not active")
-			continue
+		if conn.IsActive() {
+			m.logger.Info("Connected to peer", zap.String("host:port", conn.RemotePeerInfo().HostPort))
+			numConnected++
+			if numConnected >= minPeers {
+				return
+			}
 		}
-
-		m.logger.Info("Connected to peer", zap.String("host:port", conn.RemotePeerInfo().HostPort))
-		numConnected++
-		if numConnected >= minPeers {
-			return
-		}
-
 	}
 }
