@@ -173,12 +173,21 @@ func (m *PeerListManager) ensureConnections() {
 		ctx, cancel := context.WithTimeout(context.Background(), m.connCheckTimeout)
 		conn, err := peer.GetConnection(ctx)
 		cancel()
-		if err == nil && conn.IsActive() {
-			m.logger.Info("Connected to peer", zap.String("host:port", conn.RemotePeerInfo().HostPort))
-			numConnected++
-			if numConnected >= minPeers {
-				return
-			}
+		if err != nil {
+			m.logger.Error("Unable to connect", zap.String("host:port", peer.HostPort()), zap.Duration("connCheckTimeout", m.connCheckTimeout), zap.Error(err))
+			continue
 		}
+
+		if conn.IsActive() == false {
+			m.logger.Info("Connection is not active")
+			continue
+		}
+
+		m.logger.Info("Connected to peer", zap.String("host:port", conn.RemotePeerInfo().HostPort))
+		numConnected++
+		if numConnected >= minPeers {
+			return
+		}
+
 	}
 }
