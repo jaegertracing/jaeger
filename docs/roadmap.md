@@ -1,10 +1,8 @@
 # Roadmap
 
-The following is only a selection of some of the major features we plan to implement in the near future. 
+The following is only a selection of some of the major features we plan to implement in the near future (6-12 months).
 To get a more complete overview of planned features and current work, see the issue trackers for the various repositories,
 for example, the [Jaeger backend](https://github.com/uber/jaeger/issues/).
-
-The target time horizon for most of these features is 6-12 months.
 
 ## Adaptive Sampling
 
@@ -12,7 +10,7 @@ The most common way of using Jaeger client libraries is with probabilistic sampl
 if a new trace should be sampled or not. Sampling is necessary to control the amount of tracing data reaching
 the storage backend. There are two issues with the current approach:
 
-  1. The individual microservices have little insight into what the appropriate sampling rate should be.
+  1. Individual microservices have little insight into what the appropriate sampling rate should be.
      For example, 0.001 probability (one trace per second per service instance) might seem reasonable,
      but if the fanout in some downstream services is very high it might flood the tracing backend.
   1. Sampling rates are defined on a per-service basis. If a service has two endpoints with vastly different
@@ -42,28 +40,27 @@ Features for Jaeger backend to be a drop-in replacement for Zipkin backend.
 
 ## Path-Based Dependency Diagrams
 
-Current service dependency diagram in Jaeger only shows service-to-service links.
+Service dependency diagram currently available in Jaeger (as of v0.7.0) only shows service-to-service links.
 Such diagrams are of limited usefulness because they do not account for the actual
 execution paths passing through the service, where requests to one endpoint may
 involve one set of downstream dependencies which are different from dependencies
 of another endpoint. We plan to open source the aggregation module that builds
 path-based dependency diagrams with the following features:
 
-  1. show all upstream and downstream dependencies of a selected service `postmaster`,
-     not just the immediate neighbors
-  1. can be shown at the service level or at the endpoint level
-  1. interactive, for example specifying a fiter `cli_user2` grays out the paths
-     in the graph that are not relevant to requests passing through both `cli_user2`
-     and `postmaster`.
+  * Show all upstream and downstream dependencies of a selected service `postmaster`,
+    not just the immediate neighbors;
+  * Can be shown at the service level or at the endpoint level;
+  * Interactive, for example using `cli_user2` as a filter grays out the paths in the graph
+    that are not relevant to requests passing through both `cli_user2` and `postmaster`.
 
 <img src="../images/path-dependency.svg">
 
 ## Latency Histograms
 
-Jaeger traces contain a wealth of information about the system executed a given request.
-But can one find interesting traces? Latency histograms allow not only navigation to the
-interesting tracing, such as those representing the long tail, but also analysis of the
-request paths from upstream services. In the screenshot below we see how brush-selecting
+Jaeger traces contain a wealth of information about how the system executes a given request.
+But how can one find interesting traces? Latency histograms allow not only navigation to the
+interesting traces, such as those representing the long tail, but also analysis of the
+request paths from upstream services. In the screenshot below we see how selecting
 a portion of the histogram reveals the breakdowns of the endpoints and upstream callers
 that are responsible for the long tail.
 
@@ -71,9 +68,9 @@ that are responsible for the long tail.
 
 ## Trace Quality Metrics
 
-When deploying a distributed tracing solution like Jaeger in large organizations,
-especially those whose architectures are composed of many different technologies,
-there are always questions about how much of the architecture is actually integrated
+When deploying a distributed tracing solution like Jaeger in large organizations
+that utilize many different technologies and programming languages,
+there are always questions about how much of the architecture is integrated
 with tracing, what is the quality of the instrumentation, are there microservices
 that are using stale versions of instrumentation libraries, etc.
 
@@ -87,10 +84,10 @@ improving the quality metrics and links to sample traces that exhibit the issues
 We need a dynamic configuration solution ([jaeger/issues/355](https://github.com/uber/jaeger/issues/355))
 that comes in handy in various scenarios:
 
-  * blacklisting services
-  * overriding sampling probabilities
-  * controlling server-side downsampling rate
-  * black/whitelisting services for adaptive sampling
+  * Blacklisting services,
+  * Overriding sampling probabilities,
+  * Controlling server-side downsampling rate,
+  * Black/whitelisting services for adaptive sampling,
   * etc.
 
 ## Long Term Roadmap
