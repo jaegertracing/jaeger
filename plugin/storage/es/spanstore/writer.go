@@ -83,9 +83,6 @@ func NewSpanWriter(
 	if numShards == 0 {
 		numShards = defaultNumShards
 	}
-	if numReplicas == 0 {
-		numReplicas = defaultNumReplicas
-	}
 	// TODO: Configurable TTL
 	serviceOperationStorage := NewServiceOperationStorage(ctx, client, metricsFactory, logger, time.Hour*12)
 	return &SpanWriter{

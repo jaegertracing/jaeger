@@ -77,9 +77,6 @@ func (c *Configuration) ApplyDefaults(source *Configuration) {
 	if c.NumShards == 0 {
 		c.NumShards = source.NumShards
 	}
-	if c.NumReplicas == 0 {
-		c.NumReplicas = source.NumReplicas
-	}
 }
 
 // GetNumShards returns number of shards from Configuration
