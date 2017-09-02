@@ -23,7 +23,6 @@ import (
 	"github.com/pkg/errors"
 	"github.com/uber/jaeger-lib/metrics"
 	"go.uber.org/zap"
-	"gopkg.in/olivere/elastic.v5"
 
 	"github.com/jaegertracing/jaeger/pkg/es"
 	storageMetrics "github.com/jaegertracing/jaeger/storage/spanstore/metrics"
@@ -118,9 +117,6 @@ func (c *Configuration) ApplyDefaults(source *Configuration) {
 	}
 	if c.NumShards == 0 {
 		c.NumShards = source.NumShards
-	}
-	if c.NumReplicas == 0 {
-		c.NumReplicas = source.NumReplicas
 	}
 	if c.BulkSize == 0 {
 		c.BulkSize = source.BulkSize
