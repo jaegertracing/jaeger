@@ -15,4 +15,6 @@ else
 fi
 
 # docker image has been build when running the crossdock
-bash REPO=jaegertracing/test-driver ./travis/upload-to-docker.sh
+export REPO=jaegertracing/test-driver
+docker tag $REPO:latest $REPO:$COMMIT
+bash ./travis/upload-to-docker.sh
