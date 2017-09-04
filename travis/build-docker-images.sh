@@ -21,7 +21,6 @@ source ~/.nvm/nvm.sh
 nvm use 6
 
 export DOCKER_NAMESPACE=jaegertracing
-export DOCKER_TAG=${COMMIT:?'missing COMMIT env var'}
 make docker
 
 for component in agent cassandra-schema collector query
