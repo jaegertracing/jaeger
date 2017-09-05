@@ -13,7 +13,7 @@ services:
             - zipkin-brave-thrift
 
         environment:
-            - WAIT_FOR=test_driver,go,node,java,python
+            - WAIT_FOR=test_driver,go,node,java,python,zipkin-brave-thrift,zipkin-brave-json
             - WAIT_FOR_TIMEOUT=60s
 
             - CALL_TIMEOUT=60s
