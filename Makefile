@@ -20,7 +20,7 @@ MKDOCS_VIRTUAL_ENV=.mkdocs-virtual-env
 
 THRIFT_VER=0.9.3
 THRIFT_IMG=thrift:$(THRIFT_VER)
-THRIFT=docker run -u ${shell id -u} -v "${PWD}:/data" $(THRIFT_IMG) thrift
+THRIFT=docker run --rm -u ${shell id -u} -v "${PWD}:/data" $(THRIFT_IMG) thrift
 THRIFT_GO_ARGS=thrift_import="github.com/apache/thrift/lib/go/thrift"
 THRIFT_GEN=$(shell which thrift-gen)
 THRIFT_GEN_DIR=thrift-gen
