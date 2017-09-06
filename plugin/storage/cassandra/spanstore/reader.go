@@ -50,7 +50,6 @@ const (
 		SELECT trace_id
 		FROM service_name_index
 		WHERE bucket IN ` + bucketRange + ` AND service_name = ? AND start_time > ? AND start_time < ?
-		ORDER BY start_time DESC
 		LIMIT ?`
 	queryByServiceAndOperationName = `
 		SELECT trace_id
