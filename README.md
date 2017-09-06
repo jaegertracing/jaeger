@@ -45,6 +45,10 @@ See also:
 
 See [CONTRIBUTING](./CONTRIBUTING.md).
 
+## Roadmap
+
+See http://jaeger.readthedocs.io/en/latest/roadmap/
+
 ## Questions, Discussions, Bug Reports
 
 Reach project contributors via these channels:
