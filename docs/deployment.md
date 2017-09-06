@@ -28,7 +28,7 @@ Port | Protocol | Function
 ### Discovery System Integration
 
 The agents can connect point to point to a single collector address, which could be
-load balanced by another infrastructure component (e.g. DNS) across multilpe collectors.
+load balanced by another infrastructure component (e.g. DNS) across multiple collectors.
 The agent can also be configured with a static list of collector addresses.
 
 In the future we will support different service discovery systems to dynamically load balance
@@ -51,7 +51,7 @@ or, if you don't have the source code
 docker run -it --rm jaegertracing/jaeger-collector /go/bin/collector-linux -h
 ```
 
-At default settings the collector exposes the following ports: 
+At default settings the collector exposes the following ports:
 
 Port  | Protocol | Function
 ----- | -------  | ---
@@ -89,7 +89,7 @@ Once it is running, pass the correct configuration values to the Jaeger collecto
 #### Shards and Replicas for ElasticSearch indices
 
 Shards and replicas are some configuration values to take special attention to, because this is decided upon
-index creation. [This article](https://qbox.io/blog/optimizing-elasticsearch-how-many-shards-per-index) goes into 
+index creation. [This article](https://qbox.io/blog/optimizing-elasticsearch-how-many-shards-per-index) goes into
 more information about choosing how many shards should be chosen for optimization.
 
 ## Query Service & UI
@@ -97,7 +97,7 @@ more information about choosing how many shards should be chosen for optimizatio
 **jaeger-query** serves the API endpoints and a React/Javascript UI.
 The service is stateless and is typically run behind a load balancer, e.g. nginx.
 
-At default settings the query service exposes the following port(s): 
+At default settings the query service exposes the following port(s):
 
 Port  | Protocol | Function
 ----- | -------  | ---

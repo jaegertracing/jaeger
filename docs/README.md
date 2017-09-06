@@ -16,5 +16,5 @@ Then simply run `make docs`.
 Raise a PR on GitHub. Once the PR is approved and merged,
 ask one of Jaeger maintainers to kick off the build on [readthedocs](https://readthedocs.org/projects/jaeger/).
 
-[doc-img]: https://readthedocs.org/projects/jaeger/badge/?version=latest
-[doc]: http://jaeger.readthedocs.org/en/latest/
+[doc-img](https://readthedocs.org/projects/jaeger/badge/?version=latest)
+[doc](http://jaeger.readthedocs.org/en/latest/)

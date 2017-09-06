@@ -2,7 +2,7 @@
 
 # Jaeger, a distributed tracing system
 
-Welcome to Jaeger's documentation portal! Below, you'll find information for beginners and experienced Jaeger users. 
+Welcome to Jaeger's documentation portal! Below, you'll find information for beginners and experienced Jaeger users.
 
 If you can't find what you are looking for, or have an issue not covered here, we'd love to hear from you either on [Github](https://github.com/uber/jaeger/issues), [Gitter chat](https://gitter.im/jaegertracing/Lobby), or on our [mailing list](https://groups.google.com/forum/#!forum/jaeger-tracing).
 
@@ -22,7 +22,7 @@ for the architectural choices made in Jaeger.
 
 ## Features
 
-  * [OpenTracing](http://opentracing.io/) compatible data model and instrumentation libraries 
+  * [OpenTracing](http://opentracing.io/) compatible data model and instrumentation libraries
     * in [Go](https://github.com/uber/jaeger-client-go), [Java](https://github.com/uber/jaeger-client-java), [Node](https://github.com/uber/jaeger-client-node) and [Python](https://github.com/uber/jaeger-client-python)
   * Uses consistent upfront sampling with individual per service/endpoint probabilities
   * Adaptive sampling (coming soon)
@@ -50,5 +50,5 @@ See [running a docker all in one image](getting_started.md#all-in-one-docker-ima
 - [Tracing HTTP request latency in Go with OpenTracing](https://medium.com/opentracing/tracing-http-request-latency-in-go-with-opentracing-7cc1282a100a)
 - [Distributed Tracing with Jaeger & Prometheus on Kubernetes](https://blog.openshift.com/openshift-commons-briefing-82-distributed-tracing-with-jaeger-prometheus-on-kubernetes/)
 
-[dapper]: https://research.google.com/pubs/pub36356.html
-[ubeross]: http://uber.github.io
+[dapper](https://research.google.com/pubs/pub36356.html)
+[ubeross](http://uber.github.io)
