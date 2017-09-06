@@ -53,7 +53,7 @@ path-based dependency diagrams with the following features:
   * Interactive, for example using `cli_user2` as a filter grays out the paths in the graph
     that are not relevant to requests passing through both `cli_user2` and `postmaster`.
 
-<img src="../images/path-dependency.svg">
+<img src="images/path-dependency.svg">
 
 ## Latency Histograms
 
@@ -64,7 +64,7 @@ request paths from upstream services. In the screenshot below we see how selecti
 a portion of the histogram reveals the breakdowns of the endpoints and upstream callers
 that are responsible for the long tail.
 
-<img src="../images/latency-histrogram.png">
+<img src="images/latency-histrogram.png">
 
 ## Trace Quality Metrics
 
@@ -74,8 +74,8 @@ there are always questions about how much of the architecture is integrated
 with tracing, what is the quality of the instrumentation, are there microservices
 that are using stale versions of instrumentation libraries, etc.
 
-Trace Quality engine ([jaeger/issues/367](https://github.com/uber/jaeger/issues/367)) 
-runs analysis on all traces collected in the backend, inspects then for known completeness
+Trace Quality engine ([jaeger/issues/367](https://github.com/uber/jaeger/issues/367))
+runs analysis on all traces collected in the backend, inspects them for known completeness
 and quality problems, and provides summary reports to service owners with suggestions on
 improving the quality metrics and links to sample traces that exhibit the issues.
 
