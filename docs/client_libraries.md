@@ -2,7 +2,7 @@
 
 ## Official libraries
 
-| Language | Library                                                      | 
+| Language | Library                                                      |
 | ---------|--------------------------------------------------------------|
 | go       | [jaeger-client-go](https://github.com/uber/jaeger-client-go)        |
 | java     | [jaeger-client-java](https://github.com/uber/jaeger-client-java)    |
@@ -13,7 +13,7 @@ For a deep dive into how to instrument a Go service, look at [Tracing HTTP reque
 
 ### Initializing Jaeger Tracer
 
-The initialization syntax is slightly different in each langauges, please refer to the README's in the respective repositories.
+The initialization syntax is slightly different in each languages, please refer to the README's in the respective repositories.
 The general pattern is to not create the Tracer explicitly, but use a Configuration class to do that.  Configuration allows
 simpler parameterization of the Tracer, such as changing the default sampler or the location of Jaeger agent.
 
@@ -27,10 +27,10 @@ If you run into issue with `EMSGSIZE` errors, consider raising the limits in you
 You can also configure the client libraries to use a smaller max packet size, but that may cause
 issues if you have large spans, e.g. if you log big chunks of data. Spans that exceed max packet size
 are dropped by the clients (with metrics emitted to indicate that). Another alternative is
-to use non-UDP transports, such as [HttpSender in Java][HttpSender] (not currently available for all langauges).
+to use non-UDP transports, such as [HttpSender in Java][HttpSender] (not currently available for all languages).
 
 ## OpenTracing Contributions
 
-See the OpenTracing contributions repository on [Github](https://github.com/opentracing-contrib) for more libraries. 
+See the OpenTracing contributions repository on [Github](https://github.com/opentracing-contrib) for more libraries.
 
 [HttpSender]: /https://github.com/uber/jaeger-client-java/blob/master/jaeger-core/src/main/java/com/uber/jaeger/senders/HttpSender.java

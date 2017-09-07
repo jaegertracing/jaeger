@@ -2,7 +2,7 @@
 
 ## All in one Docker image
 
-This image, designed for quick local testing, launches the Jaeger UI, collector, query, and agent, with an in memory storage component. 
+This image, designed for quick local testing, launches the Jaeger UI, collector, query, and agent, with an in memory storage component.
 
 The simplest way to start the all in one docker image is to use the pre-built image published to DockerHub (a single command line).
 
@@ -101,4 +101,4 @@ Agent uses `TBinaryProtocol` and is available on `UDP` port `5775`.
 Zipkin Thrift IDL file can be found [here](https://github.com/uber/jaeger-idl/blob/master/thrift/zipkincore.thrift).
 It's compatible with [zipkinCore.thrift](https://github.com/openzipkin/zipkin-api/blob/master/thrift/zipkinCore.thrift)
 
-[hotrod-tutorial]: https://medium.com/@YuriShkuro/take-opentracing-for-a-hotrod-ride-f6e3141f7941
+[hotrod-tutorial](https://medium.com/@YuriShkuro/take-opentracing-for-a-hotrod-ride-f6e3141f7941)
