@@ -80,6 +80,15 @@ func TestToDomainNoServiceNameError(t *testing.T) {
 	assert.Equal(t, "unknown-service-name", trace.Spans[0].Process.ServiceName)
 }
 
+func TestToDomainServiceNameInBinAnnotation(t *testing.T) {
+	zSpans := getZipkinSpans(t, `[{ "trace_id": -1, "id": 31,
+	"binary_annotations": [{"key": "foo", "host": {"service_name": "bar", "ipv4": 23456}}] }]`)
+	trace, err := ToDomain(zSpans)
+	require.Nil(t, err)
+	assert.Equal(t, 1, len(trace.Spans))
+	assert.Equal(t, "bar", trace.Spans[0].Process.ServiceName)
+}
+
 func TestInvalidAnnotationTypeError(t *testing.T) {
 	_, err := toDomain{}.transformBinaryAnnotation(&z.BinaryAnnotation{
 		AnnotationType: -1,
