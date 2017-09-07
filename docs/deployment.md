@@ -25,11 +25,37 @@ Port | Protocol | Function
 6832 | UDP      | accept jaeger.thrift over binary thrift protocol
 5778 | HTTP     | serve configs, sampling strategies
 
+It can be executed directly on the host or via Docker, as follows:
+
+```bash
+## make sure to expose only the ports you use in your deployment scenario!
+docker run \
+  --rm \
+  -p5775:5775/udp \
+  -p6831:6831/udp \
+  -p6832:6832/udp \
+  -p5778:5778/tcp \
+  jaegertracing/jaeger-agent
+```
+
 ### Discovery System Integration
 
 The agents can connect point to point to a single collector address, which could be
 load balanced by another infrastructure component (e.g. DNS) across multiple collectors.
 The agent can also be configured with a static list of collector addresses.
+
+On Docker, a command like the following can be used:
+
+```bash
+docker run \
+  --rm \
+  -p5775:5775/udp \
+  -p6831:6831/udp \
+  -p6832:6832/udp \
+  -p5778:5778/tcp \
+  jaegertracing/jaeger-agent \
+  /go/bin/agent-linux --collector.host-port=jaeger-collector.jaeger-infra.svc:14267
+```
 
 In the future we will support different service discovery systems to dynamically load balance
 across several collectors ([issue 213](https://github.com/uber/jaeger/issues/213)).
