@@ -12,7 +12,7 @@ logger = logging.getLogger(__name__)
 
 CURRENT_YEAR = datetime.today().year
 
-LICENSE_BLOB = """Copyright (c) %d Uber Technologies, Inc.
+MIT_LICENSE_BLOB = """Copyright (c) %d Uber Technologies, Inc.
 
 Permission is hereby granted, free of charge, to any person obtaining a copy
 of this software and associated documentation files (the "Software"), to deal
@@ -32,6 +32,24 @@ LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
 OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN
 THE SOFTWARE.""" % CURRENT_YEAR
 
+LICENSE_BLOB = """Copyright (c) %d Uber Technologies, Inc.
+
+Licensed under the Apache License, Version 2.0 (the "License");
+you may not use this file except in compliance with the License.
+You may obtain a copy of the License at
+
+http://www.apache.org/licenses/LICENSE-2.0
+
+Unless required by applicable law or agreed to in writing, software
+distributed under the License is distributed on an "AS IS" BASIS,
+WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+See the License for the specific language governing permissions and
+limitations under the License.""" % CURRENT_YEAR
+
+MIT_LICENSE_BLOB_LINES_GO = [
+    ('// ' + l).strip() + '\n' for l in MIT_LICENSE_BLOB.split('\n')
+]
+
 LICENSE_BLOB_LINES_GO = [
     ('// ' + l).strip() + '\n' for l in LICENSE_BLOB.split('\n')
 ]
@@ -39,10 +57,15 @@ LICENSE_BLOB_LINES_GO = [
 COPYRIGHT_RE = re.compile(r'Copyright \(c\) (\d+)', re.I)
 
 
-def update_go_license(name):
+def update_go_license(name, force=False):
     with open(name) as f:
         orig_lines = list(f)
     lines = list(orig_lines)
+
+    current_header = ''.join(lines[0:len(MIT_LICENSE_BLOB_LINES_GO)])
+    mit_header = ''.join(MIT_LICENSE_BLOB_LINES_GO)
+    if current_header == mit_header:
+        lines = lines[len(MIT_LICENSE_BLOB_LINES_GO):]
 
     found = False
     changed = False

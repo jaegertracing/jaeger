@@ -1,6 +1,12 @@
 Changes by Version
 ==================
 
+0.8.0 (unreleased)
+------------------
+
+- Convert to Apache 2.0 License
+
+
 0.7.0 (2017-08-22)
 ------------------
 
