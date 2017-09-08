@@ -127,6 +127,7 @@ func startCollector(logger *zap.Logger) {
 		collectorCmd,
 		"--cassandra.keyspace=jaeger",
 		"--cassandra.servers=cassandra",
+		"--collector.zipkin.http-port=9411",
 	)
 	tChannelHealthCheck(logger, collectorService, collectorHostPort)
 }
