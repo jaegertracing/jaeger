@@ -65,7 +65,7 @@ def update_go_license(name, force=False):
     current_header = ''.join(lines[0:len(MIT_LICENSE_BLOB_LINES_GO)])
     mit_header = ''.join(MIT_LICENSE_BLOB_LINES_GO)
     if current_header == mit_header:
-        lines = lines[len(MIT_LICENSE_BLOB_LINES_GO):]
+        lines = lines[len(MIT_LICENSE_BLOB_LINES_GO)+1:]
 
     found = False
     changed = False
