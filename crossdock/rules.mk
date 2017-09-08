@@ -44,10 +44,7 @@ crossdock: $(SCHEMA) crossdock-copy-bin
 
 .PHONY: crossdock-fresh
 crossdock-fresh: $(SCHEMA) crossdock-copy-bin
-	docker-compose -f $(XDOCK_YAML) kill
-	docker-compose -f $(XDOCK_YAML) rm --force
-	docker-compose -f $(XDOCK_YAML) pull
-	docker-compose -f $(XDOCK_YAML) build
+	docker-compose -f $(XDOCK_YAML) down --rmi all
 	docker-compose -f $(XDOCK_YAML) run crossdock
 
 .PHONE: crossdock-logs

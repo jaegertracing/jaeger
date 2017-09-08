@@ -29,7 +29,7 @@ PASS=$(shell printf "\033[32mPASS\033[0m")
 FAIL=$(shell printf "\033[31mFAIL\033[0m")
 COLORIZE=sed ''/PASS/s//$(PASS)/'' | sed ''/FAIL/s//$(FAIL)/''
 DOCKER_NAMESPACE?=$(USER)
-DOCKER_TAG?=local
+DOCKER_TAG?=latest
 
 .DEFAULT_GOAL := test-and-lint
 

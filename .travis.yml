@@ -40,6 +40,7 @@ env:
     - secure: XNFxKWRKZLqcM7cceyN3jGZmaisdwNCSG+9b4eq3h022llrRd11Zaxp3JDbVqXtsHDiC9lzuI41dyiRphO4KwXKysawpJicNS1ZymkiITaF/blNAcncIS5NMsEbszDbwiP+FjqHdnMloGpSa3aEz2ehVEBaW7kiH49ayRWVs7GKV2OeH7V16B1116y5KvFiniDY/m/ycBd3K7HqKRuGx4EvlMIUbq0IFpl2N1dcrOFTDGTm8qzGTOwGqCQc/1NfllB7Iv2mkdu6dWhEyhRVOdXEWbwqU4Hjn/ugnAKQ1NnukaYmwgKM1WUba5cu1nFpCyMwp5tiGSef1UqXM380wrQkUvPNyiM4MD4hX0ab3bZxtd8TmlTLyDBE4Q+CaJoZzcbqRwi0B4CSFCLvm17GRmjB9iY8w/ig3bEndDFzLua7tx0MMPQVHOG0fjB1chCdOOfzcmdvIiCpVmmVKfuodulHN/6yWCi8XHWLee8L20zNxyVPbPT0XOnlkQZrnjZMyYvrpFaw3J6EKCnduk3GhHYI5RigJk2xorRiXgeN9DkFw/TuBIV3CMHi6sbgiNIv15CLO0ZGlUJnF+q4u5o9qUT/XSykNn0+Z/2ABMIJvS496gU3OT7RbjmuZforqyvCniMow4hDiE8MtZMBYOSmM1CiHQb413/kPgUjYQ2ajnuU=
 
 install:
+  - docker rmi $(docker images -q) || true
   - make install_ci
   - if [ "$ALL_IN_ONE" == true ]; then bash ./travis/install-ui-deps.sh ; fi
   - if [ "$DOCKER" == true ]; then bash ./travis/install-ui-deps.sh ; fi

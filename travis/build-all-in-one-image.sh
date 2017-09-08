@@ -10,13 +10,13 @@ make build-all-in-one-linux
 
 export REPO=jaegertracing/all-in-one
 
-docker build -f cmd/standalone/Dockerfile -t $REPO:$COMMIT .
-export CID=$(docker run -d -p 16686:16686 $REPO:$COMMIT)
+docker build -f cmd/standalone/Dockerfile -t $REPO:latest .
+export CID=$(docker run -d -p 16686:16686 $REPO:latest)
 make integration-test
 docker kill $CID
 
 # Only push the docker container to Docker Hub for master branch
-if [[ "$BRANCH" == "master" && "$TRAVIS_SECURE_ENV_VARS" == "true" ]]; then
+if [[ ("$BRANCH" == "master" || $BRANCH =~ ^v[0-9]+\.[0-9]+\.[0-9]+$) && "$TRAVIS_SECURE_ENV_VARS" == "true" ]]; then
   echo 'upload to Docker Hub'
 else
   echo 'skip docker upload for PR'
