@@ -69,9 +69,7 @@ If you would like to add your organization to the list, please comment on our
 
 ## License
 
-[The MIT License](./LICENSE).
-
-Note: we are planning to switch to Apache License v2.0
+[Apache 2.0 License](./LICENSE).
 
 [doc-img]: https://readthedocs.org/projects/jaeger/badge/?version=latest
 [doc]: http://jaeger.readthedocs.org/en/latest/
