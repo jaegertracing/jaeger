@@ -11,4 +11,5 @@
   * http://www.hawkular.org/blog/2017/04/19/hawkular-apm-jaeger.html
 * [UBER](http://uber.com)
   * https://eng.uber.com/distributed-tracing/
+* [Under Armour](https://www.underarmour.com)
 * [Zenly](https://zen.ly/)
