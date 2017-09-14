@@ -12,4 +12,5 @@
 * [UBER](http://uber.com)
   * https://eng.uber.com/distributed-tracing/
 * [Under Armour](https://www.underarmour.com)
+* [Weave](https://www.getweave.com)
 * [Zenly](https://zen.ly/)
