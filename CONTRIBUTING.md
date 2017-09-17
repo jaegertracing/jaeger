@@ -1,7 +1,21 @@
-# Contributing to Jaeger
+# How to Contribute to Jaeger
 
-We'd love your help! If you would like to contribute code you can do so through GitHub
-by forking the repository and sending a pull request into the `master` branch.
+We'd love your help!
+
+Jaeger is [Apache 2.0 licensed](LICENSE) and accepts contributions via GitHub
+pull requests. This document outlines some of the conventions on development
+workflow, commit message formatting, contact points and other resources to make
+it easier to get your contribution accepted.
+
+We gratefully welcome improvements to documentation as well as to code.
+
+# Certificate of Origin
+
+By contributing to this project you agree to the [Developer Certificate of
+Origin](https://developercertificate.org/) (DCO). This document was created
+by the Linux Kernel community and is a simple statement that you, as a
+contributor, have the legal right to make the contribution. See the [DCO](DCO)
+file for details.
 
 ## Getting Started
 
@@ -82,7 +96,7 @@ issue](https://github.com/uber/jaeger/issues).* Discussing your proposed
 changes ahead of time will make the contribution process smooth for everyone.
 
 Once we've discussed your changes and you've got your code ready, make sure
-that tests are passing (`make test` or `make cover`) and open your PR! Your
+that tests are passing (`make test` or `make cover`) and open your PR. Your
 pull request is most likely to be accepted if it:
 
 * Includes tests for new functionality.
