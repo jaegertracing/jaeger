@@ -14,6 +14,8 @@ else
   exit 0
 fi
 
+set -x
+
 # docker image has been build when running the crossdock
 export REPO=jaegertracing/test-driver
 docker tag $REPO:latest $REPO:$COMMIT
