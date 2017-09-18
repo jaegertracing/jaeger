@@ -65,7 +65,7 @@ services:
 
     test_driver:
         build: .
-        image: jaegertracing/test_driver:latest
+        image: jaegertracing/test-driver:latest
         links:
             - cassandra
         depends_on:
