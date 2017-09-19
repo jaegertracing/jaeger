@@ -59,10 +59,7 @@ func (s *DependencyStore) WriteDependencies(ts time.Time, dependencies []model.D
 	if err := s.createIndex(indexName); err != nil {
 		return err
 	}
-	if err := s.writeDependencies(indexName, ts, dependencies); err != nil {
-		return err
-	}
-	return nil
+	return s.writeDependencies(indexName, ts, dependencies)
 }
 
 func (s *DependencyStore) createIndex(indexName string) error {

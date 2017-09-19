@@ -267,10 +267,7 @@ func (td toDomain) transformBinaryAnnotation(binaryAnnotation *zipkincore.Binary
 
 func bytesToNumber(b []byte, number interface{}) error {
 	buf := bytes.NewReader(b)
-	if err := binary.Read(buf, binary.BigEndian, number); err != nil {
-		return err
-	}
-	return nil
+	return binary.Read(buf, binary.BigEndian, number)
 }
 
 func (td toDomain) getLogs(annotations []*zipkincore.Annotation) []model.Log {

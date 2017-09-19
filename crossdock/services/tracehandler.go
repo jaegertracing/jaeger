@@ -129,10 +129,7 @@ func (h *TraceHandler) runTest(service string, request *traceRequest, tFunc test
 	if err != nil {
 		return err
 	}
-	if err := vFunc(request, traces); err != nil {
-		return err
-	}
-	return nil
+	return vFunc(request, traces)
 }
 
 func (h *TraceHandler) adaptiveSamplingTest(service string, request *traceRequest) ([]*ui.Trace, error) {

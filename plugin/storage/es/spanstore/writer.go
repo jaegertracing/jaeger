@@ -117,10 +117,7 @@ func (s *SpanWriter) WriteSpan(span *model.Span) error {
 	if err := s.createIndex(spanIndexName, spanMapping, jsonSpan); err != nil {
 		return err
 	}
-	if err := s.writeSpan(spanIndexName, jsonSpan); err != nil {
-		return err
-	}
-	return nil
+	return s.writeSpan(spanIndexName, jsonSpan)
 }
 
 func indexNames(span *model.Span) (string, string) {
