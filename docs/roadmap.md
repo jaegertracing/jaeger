@@ -53,7 +53,7 @@ path-based dependency diagrams with the following features:
   * Interactive, for example using `cli_user2` as a filter grays out the paths in the graph
     that are not relevant to requests passing through both `cli_user2` and `postmaster`.
 
-<img src="images/path-dependency.svg">
+<img src="../images/path-dependency.svg">
 
 ## Latency Histograms
 
@@ -64,7 +64,7 @@ request paths from upstream services. In the screenshot below we see how selecti
 a portion of the histogram reveals the breakdowns of the endpoints and upstream callers
 that are responsible for the long tail.
 
-<img src="images/latency-histrogram.png">
+<img src="../images/latency-histrogram.png">
 
 ## Trace Quality Metrics
 
