@@ -146,7 +146,7 @@ func TestSpanReader_GetTraceQueryError(t *testing.T) {
 
 func TestSpanReader_GetTraceNilHitsError(t *testing.T) {
 	withSpanReader(func(r *spanReaderTest) {
-		hits := make([]*elastic.SearchHit, 0)
+		var hits []*elastic.SearchHit
 		searchHits := &elastic.SearchHits{Hits: hits}
 
 		mockSearchService(r).Return(&elastic.SearchResult{Hits: searchHits}, nil)
