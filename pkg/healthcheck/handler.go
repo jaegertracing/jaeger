@@ -85,7 +85,7 @@ func (s *State) Ready() {
 // Set a new HTTP status for the health check
 func (s *State) Set(state int) {
 	s.state = state
-	s.logger.Info("Health Check state change", zap.Int("http-port", s.state))
+	s.logger.Info("Health Check state change", zap.Int("http-status", s.state))
 }
 
 // Get the current status code for this health check
