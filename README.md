@@ -79,10 +79,10 @@ If you would like to add your organization to the list, please comment on our
 [doc]: http://jaeger.readthedocs.org/en/latest/
 [godoc-img]: https://godoc.org/github.com/uber/jaeger?status.svg
 [godoc]: https://godoc.org/github.com/uber/jaeger
-[ci-img]: https://travis-ci.org/uber/jaeger.svg?branch=master
-[ci]: https://travis-ci.org/uber/jaeger
-[cov-img]: https://coveralls.io/repos/uber/jaeger/badge.svg?branch=master
-[cov]: https://coveralls.io/github/uber/jaeger?branch=master
+[ci-img]: https://travis-ci.org/jaegertracing/jaeger.svg?branch=master
+[ci]: https://travis-ci.org/jaegertracing/jaeger
+[cov-img]: https://coveralls.io/repos/jaegertracing/jaeger/badge.svg?branch=master
+[cov]: https://coveralls.io/github/jaegertracing/jaeger?branch=master
 [dapper]: https://research.google.com/pubs/pub36356.html
 [ubeross]: http://uber.github.io
 [ot-badge]: https://img.shields.io/badge/OpenTracing--1.x-inside-blue.svg
