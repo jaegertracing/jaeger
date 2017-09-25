@@ -7,8 +7,8 @@ Welcome to Jaeger's documentation portal! Below, you'll find information for beg
 If you can't find what you are looking for, or have an issue not covered here, we'd love to hear from you either on [Github](https://github.com/uber/jaeger/issues), [Gitter chat](https://gitter.im/jaegertracing/Lobby), or on our [mailing list](https://groups.google.com/forum/#!forum/jaeger-tracing).
 
 ## About
-Jaeger, inspired by [Dapper][dapper] and [OpenZipkin](http://zipkin.io),
-is a distributed tracing system released as open source by [Uber Technologies][ubeross].
+Jaeger, inspired by [Dapper](https://research.google.com/pubs/pub36356.html) and [OpenZipkin](http://zipkin.io),
+is a distributed tracing system released as open source by [Uber Technologies](https://uber.github.io).
 It can be used for monitoring microservice-based architectures:
 
 * Distributed context propagation
