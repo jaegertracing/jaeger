@@ -1,4 +1,20 @@
-#Introducing Jaeger
+# Jaeger Joins Cloud Native Computing Foundation
+**2017-09-25**
+
+At the [Open Source Summit NA](http://events.linuxfoundation.org/events/open-source-summit-north-america) in Los Angeles,
+the Cloud Native Computing Foundation ([CNCF](http://cncf.io)) announced that it had accepted Jaeger as its 12th hosted project.
+Jaeger joins the respected company of other major modern foundational projects like Kubernetes, Prometheus, gRPC, and OpenTracing.
+
+News coverage:
+
+  * https://www.cncf.io/blog/2017/09/13/cncf-hosts-jaeger/
+  * https://www.linuxfoundation.org/blog/lyft-and-uber-on-stage-together-at-open-source-summit-in-l-a/
+  * https://siliconangle.com/blog/2017/09/13/ride-sharing-firms-lyft-uber-donate-microservices-tech-open-source-community/
+  * https://thenewstack.io/cncf-adds-oracle-onboards-envoy-jaeger-projects/
+  * http://www.eweek.com/cloud/uber-and-lyft-bring-open-source-cloud-projects-to-cncf
+  * http://www.zdnet.com/article/lyft-and-uber-travel-the-same-open-source-road/
+
+# Introducing Jaeger
 **2017-04-14**
 
 <img align="right" src="../images/jaeger-vector.svg" width=400>
