@@ -133,8 +133,9 @@ TODO: Swagger and GraphQL API ([issue 158](https://github.com/uber/jaeger/issues
 
 ## Aggregation Jobs for Service Dependencies
 
-At the moment this is work in progress. We're working on a post-processing data pipeline
-that will include aggregating data to present service dependency diagram.
+Production deployments need an external process which aggregates data and creates dependency links between services.
+Project [spark-dependencies](https://github.com/jaegertracing/spark-dependencies) is a Spark job which derives
+dependency links and stores them directly to the storage.
 
 ## Configuration
 All binaries accepts command line properties and environmental variables which are managed by
