@@ -33,4 +33,4 @@ to use non-UDP transports, such as [HttpSender in Java][HttpSender] (not current
 
 See the OpenTracing contributions repository on [Github](https://github.com/opentracing-contrib) for more libraries.
 
-[HttpSender]: /https://github.com/uber/jaeger-client-java/blob/master/jaeger-core/src/main/java/com/uber/jaeger/senders/HttpSender.java
+[HttpSender]: https://github.com/uber/jaeger-client-java/blob/master/jaeger-core/src/main/java/com/uber/jaeger/senders/HttpSender.java
