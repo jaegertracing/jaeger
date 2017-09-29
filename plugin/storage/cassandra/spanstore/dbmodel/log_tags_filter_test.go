@@ -17,13 +17,34 @@ package dbmodel
 import (
 	"testing"
 
+	"github.com/uber/jaeger/model"
+
 	"github.com/kr/pretty"
 	"github.com/stretchr/testify/assert"
 )
 
-func TestGetUniqueTags(t *testing.T) {
-	expectedTags := getTestUniqueTags()
-	uniqueTags := GetAllUniqueTags(getTestJaegerSpan())
+func TestFilterLogTags(t *testing.T) {
+	expectedTags := []TagInsertion{
+		{ServiceName: "someServiceName", TagKey: "someBoolTag", TagValue: "true"},
+		{ServiceName: "someServiceName", TagKey: "someLongTag", TagValue: "123"},
+		{ServiceName: "someServiceName", TagKey: "someStringTag", TagValue: "someTagValue"},
+	}
+	testSpan := getTestJaegerSpan()
+	testSpan.Tags = model.KeyValues{
+		model.String(someStringTagKey, someStringTagValue),
+		model.Bool(someBoolTagKey, someBoolTagValue),
+		model.Int64(someLongTagKey, someLongTagValue),
+	}
+	testSpan.Process.Tags = model.KeyValues{}
+	testSpan.Logs = []model.Log{
+		{
+			Timestamp: someLogTimestamp,
+			Fields: model.KeyValues{
+				model.Float64(someDoubleTagKey, someDoubleTagValue),
+			},
+		},
+	}
+	uniqueTags := FilterLogTags()(testSpan)
 	if !assert.EqualValues(t, expectedTags, uniqueTags) {
 		for _, diff := range pretty.Diff(expectedTags, uniqueTags) {
 			t.Log(diff)

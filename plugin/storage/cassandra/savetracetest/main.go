@@ -42,7 +42,7 @@ func main() {
 	if err != nil {
 		logger.Fatal("Cannot create Cassandra session", zap.Error(err))
 	}
-	spanStore := cSpanStore.NewSpanWriter(cqlSession, time.Hour*12, noScope, logger)
+	spanStore := cSpanStore.NewSpanWriter(cqlSession, time.Hour*12, noScope, logger, nil)
 	spanReader := cSpanStore.NewSpanReader(cqlSession, noScope, logger)
 	if err = spanStore.WriteSpan(getSomeSpan()); err != nil {
 		logger.Fatal("Failed to save", zap.Error(err))

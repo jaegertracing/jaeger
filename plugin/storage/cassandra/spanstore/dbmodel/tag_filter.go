@@ -14,29 +14,27 @@
 
 package dbmodel
 
-import "github.com/uber/jaeger/model"
+import (
+	"github.com/uber/jaeger/model"
+)
 
-// GetAllUniqueTags creates a list of all unique tags found in a span and process
-func GetAllUniqueTags(span *model.Span) []TagInsertion {
-	process := span.Process
-	allTags := span.Tags
-	allTags = append(allTags, process.Tags...)
-	for _, log := range span.Logs {
-		allTags = append(allTags, log.Fields...)
-	}
-	allTags.Sort()
-	uniqueTags := make([]TagInsertion, 0, len(allTags))
-	for i := range allTags {
-		if allTags[i].VType == model.BinaryType {
+// FilterTags returns span tags that should be inserted into cassandra.
+type FilterTags func(span *model.Span) []TagInsertion
+
+func getUniqueTags(serviceName string, tags model.KeyValues) []TagInsertion {
+	tags.Sort()
+	uniqueTags := make([]TagInsertion, 0, len(tags))
+	for i := range tags {
+		if tags[i].VType == model.BinaryType {
 			continue // do not index binary tags
 		}
-		if i > 0 && allTags[i-1].Equal(&allTags[i]) {
+		if i > 0 && tags[i-1].Equal(&tags[i]) {
 			continue // skip identical tags
 		}
 		uniqueTags = append(uniqueTags, TagInsertion{
-			ServiceName: process.ServiceName,
-			TagKey:      allTags[i].Key,
-			TagValue:    allTags[i].AsString(),
+			ServiceName: serviceName,
+			TagKey:      tags[i].Key,
+			TagValue:    tags[i].AsString(),
 		})
 	}
 	return uniqueTags

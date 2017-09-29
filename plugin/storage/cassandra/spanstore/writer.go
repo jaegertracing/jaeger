@@ -86,6 +86,7 @@ type SpanWriter struct {
 	logger               *zap.Logger
 	tagIndexSkipped      metrics.Counter
 	bucketCounter        uint32
+	tagFilter            dbmodel.FilterTags
 }
 
 // NewSpanWriter returns a SpanWriter
@@ -94,10 +95,14 @@ func NewSpanWriter(
 	writeCacheTTL time.Duration,
 	metricsFactory metrics.Factory,
 	logger *zap.Logger,
+	tagFilter dbmodel.FilterTags,
 ) *SpanWriter {
 	serviceNamesStorage := NewServiceNamesStorage(session, writeCacheTTL, metricsFactory, logger)
 	operationNamesStorage := NewOperationNamesStorage(session, writeCacheTTL, metricsFactory, logger)
 	tagIndexSkipped := metricsFactory.Counter("tagIndexSkipped", nil)
+	if tagFilter == nil {
+		tagFilter = dbmodel.DefaultTagFilter()
+	}
 	return &SpanWriter{
 		session:              session,
 		serviceNamesWriter:   serviceNamesStorage.Write,
@@ -111,6 +116,7 @@ func NewSpanWriter(
 		},
 		logger:          logger,
 		tagIndexSkipped: tagIndexSkipped,
+		tagFilter:       tagFilter,
 	}
 }
 
@@ -160,7 +166,7 @@ func (s *SpanWriter) WriteSpan(span *model.Span) error {
 }
 
 func (s *SpanWriter) indexByTags(span *model.Span, ds *dbmodel.Span) error {
-	for _, v := range dbmodel.GetAllUniqueTags(span) {
+	for _, v := range s.tagFilter(span) {
 		// we should introduce retries or just ignore failures imo, retrying each individual tag insertion might be better
 		// we should consider bucketing.
 		if s.shouldIndexTag(v) {

@@ -29,6 +29,7 @@ import (
 	cascfg "github.com/uber/jaeger/pkg/cassandra/config"
 	escfg "github.com/uber/jaeger/pkg/es/config"
 	casSpanstore "github.com/uber/jaeger/plugin/storage/cassandra/spanstore"
+	casSpanstoreModel "github.com/uber/jaeger/plugin/storage/cassandra/spanstore/dbmodel"
 	esSpanstore "github.com/uber/jaeger/plugin/storage/es/spanstore"
 	"github.com/uber/jaeger/storage/spanstore"
 )
@@ -95,6 +96,7 @@ func (spanHb *SpanHandlerBuilder) initCassStore(builder cascfg.SessionBuilder) (
 		spanHb.collectorOpts.WriteCacheTTL,
 		spanHb.metricsFactory,
 		spanHb.logger,
+		casSpanstoreModel.DefaultTagFilter(),
 	), nil
 }
 
