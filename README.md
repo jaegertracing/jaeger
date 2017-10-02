@@ -45,6 +45,10 @@ Jaeger is hosted by the [Cloud Native Computing Foundation](https://cncf.io) (CN
  * [UI](https://github.com/uber/jaeger-ui)
  * [Data model](https://github.com/uber/jaeger-idl)
 
+## Building From Source
+
+See [CONTRIBUTING](./CONTRIBUTING.md).
+
 ## Contributing
 
 See [CONTRIBUTING](./CONTRIBUTING.md).
