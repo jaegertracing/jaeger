@@ -114,7 +114,7 @@ pull request is most likely to be accepted if it:
   review comments](https://github.com/golang/go/wiki/CodeReviewComments).
 * Has a [good commit
   message](http://tbaggery.com/2008/04/19/a-note-about-git-commit-messages.html).
-* Each commit must be signed by the author (see below).
+* Each commit must be signed by the author ([see below](#sign-your-work)).
 
 ## License
 
