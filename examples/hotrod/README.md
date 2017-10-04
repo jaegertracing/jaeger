@@ -24,7 +24,7 @@ to view the traces. A tutorial / walkthough is available:
 An all-in-one Jaeger backend is packaged as a Docker container with in-memory storage.
 
 ```
-docker run -d -p6831:6831/udp -p16686:16686 jaegertracing/all-in-one:latest
+docker run -d -p6831:6831/udp -p5775:5775/udp -p16686:16686 jaegertracing/all-in-one:latest
 ```
 
 Jaeger UI can be accessed at http://localhost:16686.
