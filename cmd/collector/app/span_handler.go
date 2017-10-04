@@ -110,10 +110,10 @@ func NewZipkinSpanHandler(logger *zap.Logger, modelHandler SpanProcessor, saniti
 
 // SubmitZipkinBatch records a batch of spans already in Zipkin Thrift format.
 func (h *zipkinSpanHandler) SubmitZipkinBatch(ctx thrift.Context, spans []*zipkincore.Span) ([]*zipkincore.Response, error) {
-	mSpans := make([]*model.Span, len(spans))
-	for i, span := range spans {
+	mSpans := make([]*model.Span, 0, len(spans))
+	for _, span := range spans {
 		sanitized := h.sanitizer.Sanitize(span)
-		mSpans[i] = ConvertZipkinToModel(sanitized, h.logger)
+		mSpans = append(mSpans, convertZipkinToModel(sanitized, h.logger)...)
 	}
 	bools, err := h.modelProcessor.ProcessSpans(mSpans, ZipkinFormatType)
 	if err != nil {
@@ -129,7 +129,7 @@ func (h *zipkinSpanHandler) SubmitZipkinBatch(ctx thrift.Context, spans []*zipki
 }
 
 // ConvertZipkinToModel is a helper function that logs warnings during conversion
-func ConvertZipkinToModel(zSpan *zipkincore.Span, logger *zap.Logger) *model.Span {
+func convertZipkinToModel(zSpan *zipkincore.Span, logger *zap.Logger) []*model.Span {
 	mSpan, err := zipkin.ToDomainSpan(zSpan)
 	if err != nil {
 		logger.Warn("Warning while converting zipkin to domain span", zap.Error(err))

@@ -35,10 +35,10 @@ const (
 
 var (
 	coreAnnotations = map[string]string{
-		zipkincore.SERVER_RECV: string(ext.SpanKindRPCServerEnum),
-		zipkincore.SERVER_SEND: string(ext.SpanKindRPCServerEnum),
 		zipkincore.CLIENT_RECV: string(ext.SpanKindRPCClientEnum),
 		zipkincore.CLIENT_SEND: string(ext.SpanKindRPCClientEnum),
+		zipkincore.SERVER_RECV: string(ext.SpanKindRPCServerEnum),
+		zipkincore.SERVER_SEND: string(ext.SpanKindRPCServerEnum),
 	}
 
 	// Some tags on Zipkin spans really describe the process emitting them rather than an individual span.
@@ -76,7 +76,7 @@ func ToDomain(zSpans []*zipkincore.Span) (*model.Trace, error) {
 // A valid model.Span is always returned, even when there are errors.
 // The errors are more of an "fyi", describing issues in the data.
 // TODO consider using different return type instead of `error`.
-func ToDomainSpan(zSpan *zipkincore.Span) (*model.Span, error) {
+func ToDomainSpan(zSpan *zipkincore.Span) ([]*model.Span, error) {
 	return toDomain{}.ToDomainSpan(zSpan)
 }
 
@@ -84,31 +84,54 @@ type toDomain struct{}
 
 func (td toDomain) ToDomain(zSpans []*zipkincore.Span) (*model.Trace, error) {
 	var errors []error
-	trace := &model.Trace{}
 	processes := newProcessHashtable()
+	trace := &model.Trace{}
 	for _, zSpan := range zSpans {
-		jSpan, err := td.ToDomainSpan(zSpan)
+		jSpans, err := td.ToDomainSpan(zSpan)
 		if err != nil {
 			errors = append(errors, err)
 		}
-		// remove duplicate Process instances
-		jSpan.Process = processes.add(jSpan.Process)
-		trace.Spans = append(trace.Spans, jSpan)
+		for _, jSpan := range jSpans {
+			// remove duplicate Process instances
+			jSpan.Process = processes.add(jSpan.Process)
+			trace.Spans = append(trace.Spans, jSpan)
+		}
 	}
 	return trace, multierror.Wrap(errors)
 }
 
-func (td toDomain) ToDomainSpan(zSpan *zipkincore.Span) (*model.Span, error) {
-	jSpan := td.transformSpan(zSpan)
+func (td toDomain) ToDomainSpan(zSpan *zipkincore.Span) ([]*model.Span, error) {
+	jSpans := td.transformSpan(zSpan)
 	jProcess, err := td.generateProcess(zSpan)
-	jSpan.Process = jProcess
-	return jSpan, err
+	for _, jSpan := range jSpans {
+		jSpan.Process = jProcess
+	}
+	return jSpans, err
+}
+
+// isClientAndServerSpan determines whether span represents both client and server processing
+func (td toDomain) isClientAndServerSpan(zSpan *zipkincore.Span) bool {
+	var csOk bool
+	var srOk bool
+	for _, ann := range zSpan.Annotations {
+		if ann.Value == "cs" {
+			csOk = true
+		} else if ann.Value == "sr" {
+			srOk = true
+		}
+		if csOk && srOk {
+			return true
+		}
+	}
+	return false
 }
 
 // transformSpan transforms a zipkin span into a Jaeger span
-func (td toDomain) transformSpan(zSpan *zipkincore.Span) *model.Span {
+func (td toDomain) transformSpan(zSpan *zipkincore.Span) []*model.Span {
 	tags := td.getTags(zSpan.BinaryAnnotations, td.isSpanTag)
-	if spanKindTag, ok := td.getSpanKindTag(zSpan.Annotations); ok {
+	var spanKindTag model.KeyValue
+	spanKindTag, ok := td.getSpanKindTag(zSpan.Annotations)
+	if ok {
 		tags = append(tags, spanKindTag)
 	}
 	var traceIDHigh, parentID int64
@@ -118,7 +141,8 @@ func (td toDomain) transformSpan(zSpan *zipkincore.Span) *model.Span {
 	if zSpan.ParentID != nil {
 		parentID = *zSpan.ParentID
 	}
-	return &model.Span{
+
+	result := []*model.Span{{
 		TraceID:       model.TraceID{High: uint64(traceIDHigh), Low: uint64(zSpan.TraceID)},
 		SpanID:        model.SpanID(zSpan.ID),
 		OperationName: zSpan.Name,
@@ -128,7 +152,25 @@ func (td toDomain) transformSpan(zSpan *zipkincore.Span) *model.Span {
 		Duration:      model.MicrosecondsAsDuration(uint64(zSpan.GetDuration())),
 		Tags:          tags,
 		Logs:          td.getLogs(zSpan.Annotations),
+	}}
+
+	if td.isClientAndServerSpan(zSpan) {
+		// if the span is client and server we split it into two separate spans
+		s := &model.Span{
+			TraceID:       model.TraceID{High: uint64(traceIDHigh), Low: uint64(zSpan.TraceID)},
+			SpanID:        model.SpanID(zSpan.ID),
+			OperationName: zSpan.Name,
+			ParentSpanID:  model.SpanID(parentID),
+		}
+		// if the first span is a client span we create server span and vice-versa.
+		if spanKindTag.VStr == string(ext.SpanKindRPCClient.Value.(ext.SpanKindEnum)) {
+			s.Tags = []model.KeyValue{model.String(ext.SpanKindRPCServer.Key, string(ext.SpanKindRPCServer.Value.(ext.SpanKindEnum)))}
+		} else {
+			s.Tags = []model.KeyValue{model.String(ext.SpanKindRPCClient.Key, string(ext.SpanKindRPCClient.Value.(ext.SpanKindEnum)))}
+		}
+		result = append(result, s)
 	}
+	return result
 }
 
 // getFlags takes a Zipkin Span and deduces the proper flags settings
