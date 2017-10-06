@@ -113,12 +113,21 @@ func (a *clockSkewAdjuster) buildNodesMap() {
 // or points to an ID for which there is no span.
 func (a *clockSkewAdjuster) buildSubGraphs() {
 	a.roots = make(map[model.SpanID]*node)
+IterateSpans:
 	for _, n := range a.spans {
-		// TODO handle FOLLOWS_FROM references
 		if n.span.ParentSpanID == 0 {
 			a.roots[n.span.SpanID] = n
 			continue
 		}
+
+		// Treat spans that have a FOLLOWS_FROM reference to their parent as root spans.
+		for _, ref := range n.span.References {
+			if ref.RefType == model.FollowsFrom && ref.SpanID == n.span.ParentSpanID {
+				a.roots[n.span.SpanID] = n
+				continue IterateSpans
+			}
+		}
+
 		if p, ok := a.spans[n.span.ParentSpanID]; ok {
 			p.children = append(p.children, n)
 		} else {
