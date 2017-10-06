@@ -16,16 +16,20 @@ package main
 
 import (
 	"bufio"
+	"flag"
 	"fmt"
 	"io"
 	"net/http"
 	"os"
 	"os/exec"
+	"strings"
 	"sync"
 	"time"
 
 	"github.com/crossdock/crossdock-go"
 	"github.com/gocql/gocql"
+	"github.com/spf13/cobra"
+	"github.com/spf13/viper"
 	"github.com/uber/tchannel-go"
 	"go.uber.org/zap"
 	"golang.org/x/net/context"
@@ -33,6 +37,7 @@ import (
 	"github.com/uber/jaeger/crossdock/services"
 	"github.com/uber/jaeger/pkg/cassandra"
 	gocqlw "github.com/uber/jaeger/pkg/cassandra/gocql"
+	"github.com/uber/jaeger/pkg/config"
 )
 
 const (
@@ -42,7 +47,7 @@ const (
 	agentService     = "Agent"
 	queryService     = "Query"
 
-	cmdDir       = "/cmd/"
+	cmdDir       = ".build/cmd/"
 	collectorCmd = cmdDir + "jaeger-collector"
 	agentCmd     = cmdDir + "jaeger-agent"
 	queryCmd     = cmdDir + "jaeger-query"
@@ -51,11 +56,16 @@ const (
 	agentURL          = "http://test_driver:5778"
 	queryServiceURL   = "http://127.0.0.1:16686"
 
-	schema = "/scripts/schema.cql"
+	schema = ".build/scripts/schema.cql"
 
 	jaegerKeyspace = "jaeger"
 
 	cassandraHost = "cassandra"
+
+	collectorArgsFlag = "collector-args"
+	queryArgsFlag     = "query-args"
+	agentArgsFlag     = "agent-args"
+	initCassFlag      = "initialize-cassandra"
 )
 
 var (
@@ -71,31 +81,78 @@ type clientHandler struct {
 	initialized bool
 }
 
-func main() {
-	handler := &clientHandler{}
-	go handler.initialize()
-
-	http.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
-		// when method is HEAD, report back with a 200 when ready to run tests
-		if r.Method == "HEAD" {
-			if !handler.isInitialized() {
-				http.Error(w, "Client not ready", http.StatusServiceUnavailable)
-			}
-			return
-		}
-		handler.xHandler.ServeHTTP(w, r)
-	})
-	http.ListenAndServe(":8080", nil)
+type cmdFlags struct {
+	queryArgs     string
+	collectorArgs string
+	agentArgs     string
+	initCassandra bool
 }
 
-func (h *clientHandler) initialize() {
-	InitializeStorage(logger)
-	logger.Info("Cassandra started")
-	startCollector(logger)
+// AddFlags adds flags for SharedFlags
+func addFlags(flagSet *flag.FlagSet) {
+	flagSet.String(collectorArgsFlag, "--cassandra.keyspace=jaeger --cassandra.servers=cassandra --collector.zipkin.http-port=9411", "Command line arguments for jaeger-collector")
+	flagSet.String(queryArgsFlag, "--cassandra.keyspace=jaeger --cassandra.servers=cassandra", "Command line arguments for jaeger-query")
+	flagSet.String(agentArgsFlag, "--collector.host-port=localhost:14267 --processor.zipkin-compact.server-host-port=test_driver:5775 --processor.jaeger-compact.server-host-port=test_driver:6831 --processor.jaeger-binary.server-host-port=test_driver:6832", "Command line arguments for jaeger-collector")
+	flagSet.Bool(initCassFlag, true, "Initialize Cassandra storage")
+}
+
+func (f *cmdFlags) InitFromViper(v viper.Viper) *cmdFlags {
+	f.collectorArgs = v.GetString(collectorArgsFlag)
+	f.queryArgs = v.GetString(queryArgsFlag)
+	f.agentArgs = v.GetString(agentArgsFlag)
+	f.initCassandra = v.GetBool(initCassFlag)
+	return f
+}
+
+func main() {
+	v := viper.New()
+	command := &cobra.Command{
+		Use:   "jaeger-test-driver",
+		Short: "Jaeger test-driver is used to test ",
+		Long:  `Jaeger test-driver`,
+		RunE: func(cmd *cobra.Command, args []string) error {
+			handler := &clientHandler{}
+			go handler.initialize(*new(cmdFlags).InitFromViper(*v))
+
+			http.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
+				// when method is HEAD, report back with a 200 when ready to run tests
+				if r.Method == "HEAD" {
+					if !handler.isInitialized() {
+						http.Error(w, "Client not ready", http.StatusServiceUnavailable)
+					}
+					return
+				}
+				handler.xHandler.ServeHTTP(w, r)
+			})
+			http.ListenAndServe(":8080", nil)
+
+			select {}
+		},
+	}
+
+	config.AddFlags(
+		v,
+		command,
+		addFlags,
+	)
+
+	if err := command.Execute(); err != nil {
+		logger.Fatal("standalone command failed", zap.Error(err))
+	}
+}
+
+func (h *clientHandler) initialize(f cmdFlags) {
+	if f.initCassandra {
+		InitializeStorage(logger)
+		logger.Info("Cassandra started")
+	} else {
+		logger.Info("Cassandra initialization skipped")
+	}
+	startCollector(logger, f)
 	logger.Info("Collector started")
-	agentService := startAgent("", logger)
+	agentService := startAgent("", logger, f)
 	logger.Info("Agent started")
-	queryService := startQueryService("", logger)
+	queryService := startQueryService("", logger, f)
 	logger.Info("Query started")
 	traceHandler := services.NewTraceHandler(queryService, agentService, logger)
 	h.Lock()
@@ -115,24 +172,21 @@ func (h *clientHandler) isInitialized() bool {
 }
 
 // startCollector starts the jaeger collector as a background process.
-func startCollector(logger *zap.Logger) {
+func startCollector(logger *zap.Logger, f cmdFlags) {
 	forkCmd(
 		logger,
 		collectorCmd,
-		"--cassandra.keyspace=jaeger",
-		"--cassandra.servers=cassandra",
-		"--collector.zipkin.http-port=9411",
+		strings.Split(f.collectorArgs, " ")...,
 	)
 	tChannelHealthCheck(logger, collectorService, collectorHostPort)
 }
 
 // startQueryService initiates the query service as a background process.
-func startQueryService(url string, logger *zap.Logger) services.QueryService {
+func startQueryService(url string, logger *zap.Logger, f cmdFlags) services.QueryService {
 	forkCmd(
 		logger,
 		queryCmd,
-		"--cassandra.keyspace=jaeger",
-		"--cassandra.servers=cassandra",
+		strings.Split(f.queryArgs, " ")...,
 	)
 	if url == "" {
 		url = queryServiceURL
@@ -142,14 +196,11 @@ func startQueryService(url string, logger *zap.Logger) services.QueryService {
 }
 
 // startAgent initializes the jaeger agent as a background process.
-func startAgent(url string, logger *zap.Logger) services.AgentService {
+func startAgent(url string, logger *zap.Logger, f cmdFlags) services.AgentService {
 	forkCmd(
 		logger,
 		agentCmd,
-		"--collector.host-port=localhost:14267",
-		"--processor.zipkin-compact.server-host-port=test_driver:5775",
-		"--processor.jaeger-compact.server-host-port=test_driver:6831",
-		"--processor.jaeger-binary.server-host-port=test_driver:6832",
+		strings.Split(f.agentArgs, " ")...,
 	)
 	if url == "" {
 		url = agentURL
@@ -178,6 +229,7 @@ func forkCmd(logger *zap.Logger, cmd string, args ...string) {
 	fwdStream("stderr", c.StderrPipe, os.Stderr)
 
 	logger.Info("starting child process", zap.String("cmd", cmd))
+	logger.Info("starting child process", zap.String("cmd-args", fmt.Sprintf("%v", args)))
 	if err := c.Start(); err != nil {
 		logger.Fatal("Failed to fork sub-command", zap.String("cmd", cmd), zap.Error(err))
 	}

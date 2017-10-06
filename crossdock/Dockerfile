@@ -1,7 +1,8 @@
 FROM gliderlabs/alpine
-ADD crossdock /
-CMD ["/crossdock"]
-EXPOSE 8080
 
-COPY .build/scripts/* /scripts/
-COPY .build/cmd/* /cmd/
+ADD crossdock /
+COPY .build/scripts/* .build/scripts/
+COPY .build/cmd/* .build/cmd/
+
+EXPOSE 8080
+CMD ["/crossdock"]
