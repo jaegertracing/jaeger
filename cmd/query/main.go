@@ -24,6 +24,7 @@ import (
 	"github.com/gorilla/mux"
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
+	jaegerClientConfig "github.com/uber/jaeger-client-go/config"
 	"github.com/uber/jaeger-lib/metrics/go-kit"
 	"github.com/uber/jaeger-lib/metrics/go-kit/expvar"
 	"go.uber.org/zap"
@@ -65,6 +66,18 @@ func main() {
 
 			metricsFactory := xkit.Wrap("jaeger-query", expvar.NewFactory(10))
 
+			tracer, closer, err := jaegerClientConfig.Configuration{
+				Sampler: &jaegerClientConfig.SamplerConfig{
+					Type:  "probabilistic",
+					Param: 1.0,
+				},
+				RPCMetrics: true,
+			}.New("jaeger-query", jaegerClientConfig.Metrics(metricsFactory))
+			if err != nil {
+				logger.Fatal("Failed to initialize tracer", zap.Error(err))
+			}
+			defer closer.Close()
+
 			storageBuild, err := builder.NewStorageBuilder(
 				sFlags.SpanStorage.Type,
 				sFlags.DependencyStorage.DataFrequency,
@@ -76,11 +89,13 @@ func main() {
 			if err != nil {
 				logger.Fatal("Failed to init storage builder", zap.Error(err))
 			}
+
 			rHandler := app.NewAPIHandler(
 				storageBuild.SpanReader,
 				storageBuild.DependencyReader,
 				app.HandlerOptions.Prefix(queryOpts.QueryPrefix),
-				app.HandlerOptions.Logger(logger))
+				app.HandlerOptions.Logger(logger),
+				app.HandlerOptions.Tracer(tracer))
 			sHandler := app.NewStaticAssetsHandler(queryOpts.QueryStaticAssets)
 			r := mux.NewRouter()
 			rHandler.RegisterRoutes(r)
