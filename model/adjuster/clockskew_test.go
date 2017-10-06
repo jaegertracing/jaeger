@@ -33,6 +33,7 @@ func TestClockSkewAdjuster(t *testing.T) {
 		host                            string
 		adjusted                        int   // start time after adjustment
 		adjustedLogs                    []int // adjusted log timestamps
+		refs                            []model.SpanRef
 	}
 
 	toTime := func(t int) time.Time {
@@ -66,6 +67,7 @@ func TestClockSkewAdjuster(t *testing.T) {
 						model.String("ip", spanProto.host),
 					},
 				},
+				References: spanProto.refs,
 			}
 			trace.Spans = append(trace.Spans, span)
 		}
@@ -110,6 +112,13 @@ func TestClockSkewAdjuster(t *testing.T) {
 			trace: []spanProto{
 				{id: 1, parent: 0, startTime: 10, duration: 100, host: "a", adjusted: 10},
 				{id: 2, parent: 1, startTime: 0, duration: 50, host: "a", adjusted: 0},
+			},
+		},
+		{
+			description: "do not adjust child that follows from parent",
+			trace: []spanProto{
+				{id: 1, parent: 0, startTime: 10, duration: 100, host: "a", adjusted: 10},
+				{id: 2, parent: 1, startTime: 110, duration: 100, host: "a", adjusted: 110, refs: []model.SpanRef{{RefType: model.FollowsFrom, SpanID: 1}}},
 			},
 		},
 		{
