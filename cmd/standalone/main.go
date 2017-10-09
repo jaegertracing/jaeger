@@ -59,10 +59,17 @@ func main() {
 		Long: `Jaeger all-in-one distribution with agent, collector and query. Use with caution this version
 		 uses only in-memory database.`,
 		RunE: func(cmd *cobra.Command, args []string) error {
-			runtime.GOMAXPROCS(runtime.NumCPU())
+			if c := new(flags.ExternalConfFlags).InitFromViper(v); c.ConfigFile != "" {
+				v.SetConfigFile(c.ConfigFile)
+				err := v.ReadInConfig()
+				if err != nil {
+					logger.Fatal(fmt.Sprintf("Fatal error config file: %s \n", c.ConfigFile), zap.Error(err))
+				}
+			}
 
-			cOpts := new(collector.CollectorOptions).InitFromViper(v)
+			runtime.GOMAXPROCS(runtime.NumCPU())
 			sFlags := new(flags.SharedFlags).InitFromViper(v)
+			cOpts := new(collector.CollectorOptions).InitFromViper(v)
 			qOpts := new(query.QueryOptions).InitFromViper(v)
 
 			metricsFactory := xkit.Wrap("jaeger-standalone", expvar.NewFactory(10))
@@ -80,6 +87,7 @@ func main() {
 	config.AddFlags(
 		v,
 		command,
+		flags.AddConfFileFlag,
 		flags.AddFlags,
 		collector.AddFlags,
 		query.AddFlags,

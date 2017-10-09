@@ -36,7 +36,24 @@ const (
 	logLevel                       = "log-level"
 	dependencyStorageType          = "dependency-storage.type"
 	dependencyStorageDataFrequency = "dependency-storage.data-frequency"
+	configFile                     = "config-file"
 )
+
+// ExternalConfFlags holds configuration for external sources like configuration files
+type ExternalConfFlags struct {
+	ConfigFile string
+}
+
+// AddConfFileFlag adds flags for ExternalConfFlags
+func AddConfFileFlag(flagSet *flag.FlagSet) {
+	flagSet.String(configFile, "", "Configuration file in JSON, TOML, YAML, HCL, or Java properties formats (default none). See spf13/viper for precedence.")
+}
+
+// InitFromViper initializes ExternalConfFlags with properties from viper
+func (flags *ExternalConfFlags) InitFromViper(v *viper.Viper) *ExternalConfFlags {
+	flags.ConfigFile = v.GetString(configFile)
+	return flags
+}
 
 // SharedFlags holds flags configuration
 type SharedFlags struct {

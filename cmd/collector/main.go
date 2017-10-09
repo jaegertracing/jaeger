@@ -15,6 +15,7 @@
 package main
 
 import (
+	"fmt"
 	"net"
 	"net/http"
 	"os"
@@ -61,13 +62,21 @@ func main() {
 		Long: `Jaeger collector receives traces from Jaeger agents and agent and runs them through
 				a processing pipeline.`,
 		Run: func(cmd *cobra.Command, args []string) {
+			if c := new(flags.ExternalConfFlags).InitFromViper(v); c.ConfigFile != "" {
+				v.SetConfigFile(c.ConfigFile)
+				err := v.ReadInConfig()
+				if err != nil {
+					logger.Fatal(fmt.Sprintf("Fatal error config file: %s \n", c.ConfigFile), zap.Error(err))
+				}
+			}
+
+			sFlags := new(flags.SharedFlags).InitFromViper(v)
 			casOptions.InitFromViper(v)
 			esOptions.InitFromViper(v)
 
 			baseMetrics := xkit.Wrap(serviceName, expvar.NewFactory(10))
 
 			builderOpts := new(builder.CollectorOptions).InitFromViper(v)
-			sFlags := new(flags.SharedFlags).InitFromViper(v)
 
 			hc, err := healthcheck.Serve(http.StatusServiceUnavailable, builderOpts.CollectorHealthCheckHTTPPort, logger)
 			if err != nil {
@@ -130,6 +139,7 @@ func main() {
 	config.AddFlags(
 		v,
 		command,
+		flags.AddConfFileFlag,
 		flags.AddFlags,
 		builder.AddFlags,
 		casOptions.AddFlags,
