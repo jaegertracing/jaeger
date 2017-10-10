@@ -21,6 +21,6 @@ func FilterLogTags() FilterTags {
 	return filterLogTags
 }
 
-func filterLogTags(span *model.Span) []TagInsertion {
-	return getUniqueTags(span.Process.ServiceName, append(span.Tags, span.Process.Tags...))
+func filterLogTags(span *model.Span) model.KeyValues {
+	return append(span.Tags, span.Process.Tags...)
 }

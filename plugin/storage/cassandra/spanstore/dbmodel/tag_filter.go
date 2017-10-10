@@ -18,24 +18,20 @@ import (
 	"github.com/uber/jaeger/model"
 )
 
-// FilterTags returns span tags that should be inserted into cassandra.
-type FilterTags func(span *model.Span) []TagInsertion
+// FilterTags filters out any tags that should not be persisted.
+type FilterTags func(span *model.Span) model.KeyValues
 
-func getUniqueTags(serviceName string, tags model.KeyValues) []TagInsertion {
-	tags.Sort()
-	uniqueTags := make([]TagInsertion, 0, len(tags))
-	for i := range tags {
-		if tags[i].VType == model.BinaryType {
-			continue // do not index binary tags
-		}
-		if i > 0 && tags[i-1].Equal(&tags[i]) {
-			continue // skip identical tags
-		}
-		uniqueTags = append(uniqueTags, TagInsertion{
-			ServiceName: serviceName,
-			TagKey:      tags[i].Key,
-			TagValue:    tags[i].AsString(),
-		})
+// DefaultTagFilter returns a filter that retrieves all tags from span.Tags, span.Logs, and span.Process.
+func DefaultTagFilter() FilterTags {
+	return filterNothing
+}
+
+func filterNothing(span *model.Span) model.KeyValues {
+	process := span.Process
+	allTags := span.Tags
+	allTags = append(allTags, process.Tags...)
+	for _, log := range span.Logs {
+		allTags = append(allTags, log.Fields...)
 	}
-	return uniqueTags
+	return allTags
 }

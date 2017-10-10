@@ -166,7 +166,7 @@ func (s *SpanWriter) WriteSpan(span *model.Span) error {
 }
 
 func (s *SpanWriter) indexByTags(span *model.Span, ds *dbmodel.Span) error {
-	for _, v := range s.tagFilter(span) {
+	for _, v := range dbmodel.GetAllUniqueTags(span, s.tagFilter) {
 		// we should introduce retries or just ignore failures imo, retrying each individual tag insertion might be better
 		// we should consider bucketing.
 		if s.shouldIndexTag(v) {

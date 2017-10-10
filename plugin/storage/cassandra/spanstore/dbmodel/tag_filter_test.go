@@ -22,10 +22,10 @@ import (
 )
 
 func TestDefaultTagFilter(t *testing.T) {
-	expectedTags := getTestUniqueTags()
-	uniqueTags := DefaultTagFilter()(getTestJaegerSpan())
-	if !assert.EqualValues(t, expectedTags, uniqueTags) {
-		for _, diff := range pretty.Diff(expectedTags, uniqueTags) {
+	expectedTags := append(append(someTags, someTags...), someTags...)
+	filteredTags := DefaultTagFilter()(getTestJaegerSpan())
+	if !assert.EqualValues(t, expectedTags, filteredTags) {
+		for _, diff := range pretty.Diff(expectedTags, filteredTags) {
 			t.Log(diff)
 		}
 	}
