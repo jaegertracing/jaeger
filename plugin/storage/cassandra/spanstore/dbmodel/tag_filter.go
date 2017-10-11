@@ -18,20 +18,28 @@ import (
 	"github.com/uber/jaeger/model"
 )
 
-// FilterTags filters out any tags that should not be persisted.
-type FilterTags func(span *model.Span) model.KeyValues
+// TODO (black-adder) add a chain filter
 
-// DefaultTagFilter returns a filter that retrieves all tags from span.Tags, span.Logs, and span.Process.
-func DefaultTagFilter() FilterTags {
-	return filterNothing
+// TagFilter filters out any tags that should not be indexed.
+type TagFilter interface {
+	FilterProcessTags(processTags model.KeyValues) model.KeyValues
+	FilterTags(tags model.KeyValues) model.KeyValues
+	FilterLogFields(logFields model.KeyValues) model.KeyValues
 }
 
-func filterNothing(span *model.Span) model.KeyValues {
-	process := span.Process
-	allTags := span.Tags
-	allTags = append(allTags, process.Tags...)
-	for _, log := range span.Logs {
-		allTags = append(allTags, log.Fields...)
-	}
-	return allTags
+// DefaultTagFilter returns a filter that retrieves all tags from span.Tags, span.Logs, and span.Process.
+var DefaultTagFilter = tagFilterImpl{}
+
+type tagFilterImpl struct{}
+
+func (f tagFilterImpl) FilterProcessTags(processTags model.KeyValues) model.KeyValues {
+	return processTags
+}
+
+func (f tagFilterImpl) FilterTags(tags model.KeyValues) model.KeyValues {
+	return tags
+}
+
+func (f tagFilterImpl) FilterLogFields(logFields model.KeyValues) model.KeyValues {
+	return logFields
 }

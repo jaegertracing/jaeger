@@ -86,7 +86,7 @@ type SpanWriter struct {
 	logger               *zap.Logger
 	tagIndexSkipped      metrics.Counter
 	bucketCounter        uint32
-	tagFilter            dbmodel.FilterTags
+	tagFilter            dbmodel.TagFilter
 }
 
 // NewSpanWriter returns a SpanWriter
@@ -95,14 +95,12 @@ func NewSpanWriter(
 	writeCacheTTL time.Duration,
 	metricsFactory metrics.Factory,
 	logger *zap.Logger,
-	tagFilter dbmodel.FilterTags,
+	options ...Option,
 ) *SpanWriter {
 	serviceNamesStorage := NewServiceNamesStorage(session, writeCacheTTL, metricsFactory, logger)
 	operationNamesStorage := NewOperationNamesStorage(session, writeCacheTTL, metricsFactory, logger)
 	tagIndexSkipped := metricsFactory.Counter("tagIndexSkipped", nil)
-	if tagFilter == nil {
-		tagFilter = dbmodel.DefaultTagFilter()
-	}
+	opts := applyOptions(options...)
 	return &SpanWriter{
 		session:              session,
 		serviceNamesWriter:   serviceNamesStorage.Write,
@@ -116,7 +114,7 @@ func NewSpanWriter(
 		},
 		logger:          logger,
 		tagIndexSkipped: tagIndexSkipped,
-		tagFilter:       tagFilter,
+		tagFilter:       opts.tagFilter,
 	}
 }
 

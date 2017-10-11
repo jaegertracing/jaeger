@@ -17,32 +17,23 @@ package dbmodel
 import (
 	"testing"
 
-	"github.com/uber/jaeger/model"
-
 	"github.com/kr/pretty"
 	"github.com/stretchr/testify/assert"
 )
 
+var filter TagFilter = &LogFieldsFilter{} // Check API compliance
+
 func TestFilterLogTags(t *testing.T) {
-	expectedTags := model.KeyValues{
-		model.String(someStringTagKey, someStringTagValue),
-		model.Bool(someBoolTagKey, someBoolTagValue),
-		model.Int64(someLongTagKey, someLongTagValue),
+	span := getTestJaegerSpan()
+	filter := NewLogFieldsFilter()
+	expectedTags := append(someTags, someTags...)
+	filteredTags := filter.FilterProcessTags(span.Process.Tags)
+	filteredTags = append(filteredTags, filter.FilterTags(span.Tags)...)
+	for _, log := range span.Logs {
+		filteredTags = append(filteredTags, filter.FilterLogFields(log.Fields)...)
 	}
-	testSpan := getTestJaegerSpan()
-	testSpan.Tags = expectedTags
-	testSpan.Process.Tags = model.KeyValues{}
-	testSpan.Logs = []model.Log{
-		{
-			Timestamp: someLogTimestamp,
-			Fields: model.KeyValues{
-				model.Float64(someDoubleTagKey, someDoubleTagValue),
-			},
-		},
-	}
-	uniqueTags := FilterLogTags()(testSpan)
-	if !assert.EqualValues(t, expectedTags, uniqueTags) {
-		for _, diff := range pretty.Diff(expectedTags, uniqueTags) {
+	if !assert.EqualValues(t, expectedTags, filteredTags) {
+		for _, diff := range pretty.Diff(expectedTags, filteredTags) {
 			t.Log(diff)
 		}
 	}

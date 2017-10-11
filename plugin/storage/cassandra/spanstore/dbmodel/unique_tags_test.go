@@ -23,7 +23,7 @@ import (
 
 func TestGetUniqueTags(t *testing.T) {
 	expectedTags := getTestUniqueTags()
-	uniqueTags := GetAllUniqueTags(getTestJaegerSpan(), DefaultTagFilter())
+	uniqueTags := GetAllUniqueTags(getTestJaegerSpan(), DefaultTagFilter)
 	if !assert.EqualValues(t, expectedTags, uniqueTags) {
 		for _, diff := range pretty.Diff(expectedTags, uniqueTags) {
 			t.Log(diff)

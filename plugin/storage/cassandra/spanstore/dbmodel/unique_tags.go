@@ -17,8 +17,12 @@ package dbmodel
 import "github.com/uber/jaeger/model"
 
 // GetAllUniqueTags creates a list of all unique tags from a set of filtered tags.
-func GetAllUniqueTags(span *model.Span, tagFilter FilterTags) []TagInsertion {
-	tags := tagFilter(span)
+func GetAllUniqueTags(span *model.Span, tagFilter TagFilter) []TagInsertion {
+	tags := tagFilter.FilterProcessTags(span.Process.Tags)
+	tags = append(tags, tagFilter.FilterTags(span.Tags)...)
+	for _, log := range span.Logs {
+		tags = append(tags, tagFilter.FilterLogFields(log.Fields)...)
+	}
 	tags.Sort()
 	uniqueTags := make([]TagInsertion, 0, len(tags))
 	for i := range tags {

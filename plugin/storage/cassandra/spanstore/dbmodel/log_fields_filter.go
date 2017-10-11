@@ -16,11 +16,17 @@ package dbmodel
 
 import "github.com/uber/jaeger/model"
 
-// FilterLogTags returns a filter that filters span.Logs.
-func FilterLogTags() FilterTags {
-	return filterLogTags
+// LogFieldsFilter filters all span.Logs.Fields.
+type LogFieldsFilter struct {
+	tagFilterImpl
 }
 
-func filterLogTags(span *model.Span) model.KeyValues {
-	return append(span.Tags, span.Process.Tags...)
+// NewLogFieldsFilter return a filter that filters all span.Logs.Fields.
+func NewLogFieldsFilter() *LogFieldsFilter {
+	return &LogFieldsFilter{}
+}
+
+// FilterLogFields implements TagFilter#FilterLogFields
+func (f *LogFieldsFilter) FilterLogFields(logFields model.KeyValues) model.KeyValues {
+	return model.KeyValues{}
 }

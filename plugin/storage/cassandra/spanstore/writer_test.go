@@ -46,7 +46,7 @@ func withSpanWriter(writeCacheTTL time.Duration, fn func(w *spanWriterTest)) {
 		session:   session,
 		logger:    logger,
 		logBuffer: logBuffer,
-		writer:    NewSpanWriter(session, writeCacheTTL, metricsFactory, logger, nil),
+		writer:    NewSpanWriter(session, writeCacheTTL, metricsFactory, logger),
 	}
 	fn(w)
 }
