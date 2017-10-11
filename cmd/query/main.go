@@ -15,7 +15,6 @@
 package main
 
 import (
-	"fmt"
 	"net/http"
 	"os"
 	"os/signal"
@@ -55,13 +54,7 @@ func main() {
 		Short: "Jaeger query is a service to access tracing data",
 		Long:  `Jaeger query is a service to access tracing data and host UI.`,
 		Run: func(cmd *cobra.Command, args []string) {
-			if c := new(flags.ExternalConfFlags).InitFromViper(v); c.ConfigFile != "" {
-				v.SetConfigFile(c.ConfigFile)
-				err := v.ReadInConfig()
-				if err != nil {
-					logger.Fatal(fmt.Sprintf("Fatal error config file: %s \n", c.ConfigFile), zap.Error(err))
-				}
-			}
+			flags.TryLoadConfigFile(v, logger)
 
 			sFlags := new(flags.SharedFlags).InitFromViper(v)
 			casOptions.InitFromViper(v)

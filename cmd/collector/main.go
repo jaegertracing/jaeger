@@ -15,7 +15,6 @@
 package main
 
 import (
-	"fmt"
 	"net"
 	"net/http"
 	"os"
@@ -62,13 +61,7 @@ func main() {
 		Long: `Jaeger collector receives traces from Jaeger agents and agent and runs them through
 				a processing pipeline.`,
 		Run: func(cmd *cobra.Command, args []string) {
-			if c := new(flags.ExternalConfFlags).InitFromViper(v); c.ConfigFile != "" {
-				v.SetConfigFile(c.ConfigFile)
-				err := v.ReadInConfig()
-				if err != nil {
-					logger.Fatal(fmt.Sprintf("Fatal error config file: %s \n", c.ConfigFile), zap.Error(err))
-				}
-			}
+			flags.TryLoadConfigFile(v, logger)
 
 			sFlags := new(flags.SharedFlags).InitFromViper(v)
 			casOptions.InitFromViper(v)

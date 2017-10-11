@@ -15,7 +15,6 @@
 package main
 
 import (
-	"fmt"
 	"runtime"
 
 	"github.com/pkg/errors"
@@ -37,13 +36,7 @@ func main() {
 		Short: "Jaeger agent is a local daemon program which collects tracing data.",
 		Long:  `Jaeger agent is a daemon program that runs on every host and receives tracing data submitted by Jaeger client libraries.`,
 		RunE: func(cmd *cobra.Command, args []string) error {
-			if c := new(flags.ExternalConfFlags).InitFromViper(v); c.ConfigFile != "" {
-				v.SetConfigFile(c.ConfigFile)
-				err := v.ReadInConfig()
-				if err != nil {
-					logger.Fatal(fmt.Sprintf("Fatal error config file: %s \n", c.ConfigFile), zap.Error(err))
-				}
-			}
+			flags.TryLoadConfigFile(v, logger)
 
 			builder := &app.Builder{}
 			builder.InitFromViper(v)
