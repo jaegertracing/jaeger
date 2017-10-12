@@ -18,7 +18,7 @@ import "github.com/uber/jaeger/model"
 
 // GetAllUniqueTags creates a list of all unique tags from a set of filtered tags.
 func GetAllUniqueTags(span *model.Span, tagFilter TagFilter) []TagInsertion {
-	allTags := tagFilter.FilterProcessTags(span.Process.Tags)
+	allTags := append(model.KeyValues{}, tagFilter.FilterProcessTags(span.Process.Tags)...)
 	allTags = append(allTags, tagFilter.FilterTags(span.Tags)...)
 	for _, log := range span.Logs {
 		allTags = append(allTags, tagFilter.FilterLogFields(log.Fields)...)
