@@ -23,6 +23,7 @@ import (
 	"go.uber.org/zap"
 
 	"github.com/uber/jaeger/cmd/agent/app"
+	"github.com/uber/jaeger/cmd/flags"
 	"github.com/uber/jaeger/pkg/config"
 	"github.com/uber/jaeger/pkg/metrics"
 )
@@ -35,6 +36,8 @@ func main() {
 		Short: "Jaeger agent is a local daemon program which collects tracing data.",
 		Long:  `Jaeger agent is a daemon program that runs on every host and receives tracing data submitted by Jaeger client libraries.`,
 		RunE: func(cmd *cobra.Command, args []string) error {
+			flags.TryLoadConfigFile(v, logger)
+
 			builder := &app.Builder{}
 			builder.InitFromViper(v)
 			runtime.GOMAXPROCS(runtime.NumCPU())
@@ -58,6 +61,7 @@ func main() {
 	config.AddFlags(
 		v,
 		command,
+		flags.AddConfigFileFlag,
 		app.AddFlags,
 		metrics.AddFlags,
 	)

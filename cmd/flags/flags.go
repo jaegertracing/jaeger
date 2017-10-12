@@ -22,6 +22,7 @@ import (
 	"time"
 
 	"github.com/spf13/viper"
+	"go.uber.org/zap"
 )
 
 const (
@@ -34,7 +35,24 @@ const (
 	spanStorageType                = "span-storage.type"
 	logLevel                       = "log-level"
 	dependencyStorageDataFrequency = "dependency-storage.data-frequency"
+	configFile                     = "config-file"
 )
+
+// AddConfigFileFlag adds flags for ExternalConfFlags
+func AddConfigFileFlag(flagSet *flag.FlagSet) {
+	flagSet.String(configFile, "", "Configuration file in JSON, TOML, YAML, HCL, or Java properties formats (default none). See spf13/viper for precedence.")
+}
+
+// TryLoadConfigFile initializes viper with config file specified as flag
+func TryLoadConfigFile(v *viper.Viper, logger *zap.Logger) {
+	if file := v.GetString(configFile); file != "" {
+		v.SetConfigFile(file)
+		err := v.ReadInConfig()
+		if err != nil {
+			logger.Fatal("Error loading config file", zap.Error(err), zap.String(configFile, file))
+		}
+	}
+}
 
 // SharedFlags holds flags configuration
 type SharedFlags struct {

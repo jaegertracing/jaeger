@@ -54,10 +54,12 @@ func main() {
 		Short: "Jaeger query is a service to access tracing data",
 		Long:  `Jaeger query is a service to access tracing data and host UI.`,
 		Run: func(cmd *cobra.Command, args []string) {
+			flags.TryLoadConfigFile(v, logger)
+
+			sFlags := new(flags.SharedFlags).InitFromViper(v)
 			casOptions.InitFromViper(v)
 			esOptions.InitFromViper(v)
 			queryOpts := new(builder.QueryOptions).InitFromViper(v)
-			sFlags := new(flags.SharedFlags).InitFromViper(v)
 
 			hc, err := healthcheck.Serve(http.StatusServiceUnavailable, queryOpts.QueryHealthCheckHTTPPort, logger)
 			if err != nil {
@@ -123,6 +125,7 @@ func main() {
 	config.AddFlags(
 		v,
 		command,
+		flags.AddConfigFileFlag,
 		flags.AddFlags,
 		casOptions.AddFlags,
 		esOptions.AddFlags,
