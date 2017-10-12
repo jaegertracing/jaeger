@@ -14,19 +14,19 @@
 
 package dbmodel
 
-import (
-	"testing"
+import "github.com/uber/jaeger/model"
 
-	"github.com/kr/pretty"
-	"github.com/stretchr/testify/assert"
-)
+// LogFieldsFilter filters all span.Logs.Fields.
+type LogFieldsFilter struct {
+	tagFilterImpl
+}
 
-func TestGetUniqueTags(t *testing.T) {
-	expectedTags := getTestUniqueTags()
-	uniqueTags := GetAllUniqueTags(getTestJaegerSpan(), DefaultTagFilter)
-	if !assert.EqualValues(t, expectedTags, uniqueTags) {
-		for _, diff := range pretty.Diff(expectedTags, uniqueTags) {
-			t.Log(diff)
-		}
-	}
+// NewLogFieldsFilter return a filter that filters all span.Logs.Fields.
+func NewLogFieldsFilter() *LogFieldsFilter {
+	return &LogFieldsFilter{}
+}
+
+// FilterLogFields implements TagFilter#FilterLogFields
+func (f *LogFieldsFilter) FilterLogFields(logFields model.KeyValues) model.KeyValues {
+	return model.KeyValues{}
 }

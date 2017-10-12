@@ -21,11 +21,19 @@ import (
 	"github.com/stretchr/testify/assert"
 )
 
-func TestGetUniqueTags(t *testing.T) {
-	expectedTags := getTestUniqueTags()
-	uniqueTags := GetAllUniqueTags(getTestJaegerSpan(), DefaultTagFilter)
-	if !assert.EqualValues(t, expectedTags, uniqueTags) {
-		for _, diff := range pretty.Diff(expectedTags, uniqueTags) {
+var filter TagFilter = &LogFieldsFilter{} // Check API compliance
+
+func TestFilterLogTags(t *testing.T) {
+	span := getTestJaegerSpan()
+	filter := NewLogFieldsFilter()
+	expectedTags := append(someTags, someTags...)
+	filteredTags := filter.FilterProcessTags(span.Process.Tags)
+	filteredTags = append(filteredTags, filter.FilterTags(span.Tags)...)
+	for _, log := range span.Logs {
+		filteredTags = append(filteredTags, filter.FilterLogFields(log.Fields)...)
+	}
+	if !assert.EqualValues(t, expectedTags, filteredTags) {
+		for _, diff := range pretty.Diff(expectedTags, filteredTags) {
 			t.Log(diff)
 		}
 	}

@@ -12,21 +12,17 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package dbmodel
+package spanstore
 
 import (
 	"testing"
 
-	"github.com/kr/pretty"
 	"github.com/stretchr/testify/assert"
+
+	"github.com/uber/jaeger/plugin/storage/cassandra/spanstore/dbmodel"
 )
 
-func TestGetUniqueTags(t *testing.T) {
-	expectedTags := getTestUniqueTags()
-	uniqueTags := GetAllUniqueTags(getTestJaegerSpan(), DefaultTagFilter)
-	if !assert.EqualValues(t, expectedTags, uniqueTags) {
-		for _, diff := range pretty.Diff(expectedTags, uniqueTags) {
-			t.Log(diff)
-		}
-	}
+func TestWriterOpetions(t *testing.T) {
+	opts := applyOptions(TagFilter(dbmodel.DefaultTagFilter))
+	assert.Equal(t, dbmodel.DefaultTagFilter, opts.tagFilter)
 }
