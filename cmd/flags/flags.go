@@ -40,8 +40,8 @@ const (
 	configFile                     = "config-file"
 )
 
-// AddConfFileFlag adds flags for ExternalConfFlags
-func AddConfFileFlag(flagSet *flag.FlagSet) {
+// AddConfigFileFlag adds flags for ExternalConfFlags
+func AddConfigFileFlag(flagSet *flag.FlagSet) {
 	flagSet.String(configFile, "", "Configuration file in JSON, TOML, YAML, HCL, or Java properties formats (default none). See spf13/viper for precedence.")
 }
 
@@ -51,7 +51,7 @@ func TryLoadConfigFile(v *viper.Viper, logger *zap.Logger) {
 		v.SetConfigFile(file)
 		err := v.ReadInConfig()
 		if err != nil {
-			logger.Fatal(fmt.Sprintf("Fatal error config file: %s \n", file), zap.Error(err))
+			logger.Fatal("Error loading config file", zap.Error(err))
 		}
 	}
 }

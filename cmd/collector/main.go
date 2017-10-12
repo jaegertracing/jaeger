@@ -132,7 +132,7 @@ func main() {
 	config.AddFlags(
 		v,
 		command,
-		flags.AddConfFileFlag,
+		flags.AddConfigFileFlag,
 		flags.AddFlags,
 		builder.AddFlags,
 		casOptions.AddFlags,

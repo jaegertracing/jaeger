@@ -125,7 +125,7 @@ func main() {
 	config.AddFlags(
 		v,
 		command,
-		flags.AddConfFileFlag,
+		flags.AddConfigFileFlag,
 		flags.AddFlags,
 		casOptions.AddFlags,
 		esOptions.AddFlags,

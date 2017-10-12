@@ -81,7 +81,7 @@ func main() {
 	config.AddFlags(
 		v,
 		command,
-		flags.AddConfFileFlag,
+		flags.AddConfigFileFlag,
 		flags.AddFlags,
 		collector.AddFlags,
 		query.AddFlags,

@@ -61,7 +61,7 @@ func main() {
 	config.AddFlags(
 		v,
 		command,
-		flags.AddConfFileFlag,
+		flags.AddConfigFileFlag,
 		app.AddFlags,
 		metrics.AddFlags,
 	)
