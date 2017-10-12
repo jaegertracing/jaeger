@@ -51,7 +51,7 @@ func TryLoadConfigFile(v *viper.Viper, logger *zap.Logger) {
 		v.SetConfigFile(file)
 		err := v.ReadInConfig()
 		if err != nil {
-			logger.Fatal("Error loading config file", zap.Error(err))
+			logger.Fatal("Error loading config file", zap.Error(err), zap.String(configFile, file))
 		}
 	}
 }
