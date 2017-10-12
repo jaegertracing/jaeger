@@ -18,24 +18,24 @@ import "github.com/uber/jaeger/model"
 
 // GetAllUniqueTags creates a list of all unique tags from a set of filtered tags.
 func GetAllUniqueTags(span *model.Span, tagFilter TagFilter) []TagInsertion {
-	tags := tagFilter.FilterProcessTags(span.Process.Tags)
-	tags = append(tags, tagFilter.FilterTags(span.Tags)...)
+	allTags := tagFilter.FilterProcessTags(span.Process.Tags)
+	allTags = append(allTags, tagFilter.FilterTags(span.Tags)...)
 	for _, log := range span.Logs {
-		tags = append(tags, tagFilter.FilterLogFields(log.Fields)...)
+		allTags = append(allTags, tagFilter.FilterLogFields(log.Fields)...)
 	}
-	tags.Sort()
-	uniqueTags := make([]TagInsertion, 0, len(tags))
-	for i := range tags {
-		if tags[i].VType == model.BinaryType {
+	allTags.Sort()
+	uniqueTags := make([]TagInsertion, 0, len(allTags))
+	for i := range allTags {
+		if allTags[i].VType == model.BinaryType {
 			continue // do not index binary tags
 		}
-		if i > 0 && tags[i-1].Equal(&tags[i]) {
+		if i > 0 && allTags[i-1].Equal(&allTags[i]) {
 			continue // skip identical tags
 		}
 		uniqueTags = append(uniqueTags, TagInsertion{
 			ServiceName: span.Process.ServiceName,
-			TagKey:      tags[i].Key,
-			TagValue:    tags[i].AsString(),
+			TagKey:      allTags[i].Key,
+			TagValue:    allTags[i].AsString(),
 		})
 	}
 	return uniqueTags
