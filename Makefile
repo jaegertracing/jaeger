@@ -87,6 +87,10 @@ install-glide:
 install: install-glide
 	glide install
 
+.PHONY: build_examples
+build_examples:
+	go build -o ./examples/hotrod/hotrod-demo ./examples/hotrod/main.go
+
 .PHONY: build_ui
 build_ui:
 	cd jaeger-ui && yarn install && npm run build
@@ -156,7 +160,7 @@ cover:
 	go tool cover -html=cover.out -o cover.html
 
 .PHONY: install_ci
-install_ci: install install_examples
+install_ci: install
 	go get github.com/wadey/gocovmerge
 	go get github.com/mattn/goveralls
 	go get golang.org/x/tools/cmd/cover
