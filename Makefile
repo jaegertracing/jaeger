@@ -87,14 +87,6 @@ install-glide:
 install: install-glide
 	glide install
 
-.PHONY: install_examples
-install_examples: install
-	(cd examples/hotrod/; glide install)
-
-.PHONY: build_examples
-build_examples:
-	go build -o ./examples/hotrod/hotrod-demo ./examples/hotrod/main.go
-
 .PHONY: build_ui
 build_ui:
 	cd jaeger-ui && yarn install && npm run build

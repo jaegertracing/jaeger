@@ -34,7 +34,7 @@ Jaeger UI can be accessed at http://localhost:16686.
 ```
 go get github.com/uber/jaeger
 cd $GOPATH/src/github.com/uber/jaeger
-make install_examples
+make install
 cd examples/hotrod
 go run ./main.go all
 ```
