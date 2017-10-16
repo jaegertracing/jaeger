@@ -15,12 +15,18 @@ There are orchestration templates for running Jaeger with:
 
 ## Storage Backend
 
+<<<<<<< HEAD
 Collectors require a persistent storage backend. Cassandra 3.4+ (default) and ElasticSearch are
 primary supported storage backends. 
+=======
+Collectors require a persistent storage backend. Cassandra 3.x (default) and ElasticSearch are the
+primary supported storage backends. There is ongoing work to add support for MySQL and ScyllaDB.
+>>>>>>> d69b82dc8b19099c2044448512f2c0708efeb5cc
 
 ### Cassandra
 
 A script is provided to initialize Cassandra keyspace and schema
+<<<<<<< HEAD
 using Cassandra's interactive shell [`cqlsh`][cqlsh]
 
 ```sh
@@ -29,7 +35,31 @@ MODE=test sh ./plugin/storage/cassandra/schema/create.sh | cqlsh
 or if you don't have the source code 
 ```
 docker run -e MODE=... jaegertracing/jaeger-cassandra-schema
+=======
+using Cassandra's interactive shell [`cqlsh`][cqlsh],
+clone the source repository following [getting
+started](https://github.com/jaegertracing/jaeger/blob/master/CONTRIBUTING.md#getting-started) and then run:
+
+```sh
+MODE=test sh ./plugin/storage/cassandra/schema/create.sh | cqlsh
+>>>>>>> d69b82dc8b19099c2044448512f2c0708efeb5cc
 ```
+For production deployment, pass `MODE=prod DATACENTER={datacenter}` arguments to the script,
+where `{datacenter}` is the name used in the Cassandra configuration / network topology.
+
+<<<<<<< HEAD
+The script also allows overriding TTL, keyspace name, replication factor, etc.
+Run the script without arguments to see the full list of recognized parameters.
+
+### ElasticSearch
+
+ElasticSearch does not require initialization other than
+[installing and running ElasticSearch](https://www.elastic.co/downloads/elasticsearch).
+Once it is running, pass the correct configuration values to the Jaeger collector and query service.
+
+#### Shards and Replicas for ElasticSearch indices
+
+=======
 For production deployment, pass `MODE=prod DATACENTER={datacenter}` arguments to the script,
 where `{datacenter}` is the name used in the Cassandra configuration / network topology.
 
@@ -44,6 +74,7 @@ Once it is running, pass the correct configuration values to the Jaeger collecto
 
 #### Shards and Replicas for ElasticSearch indices
 
+>>>>>>> d69b82dc8b19099c2044448512f2c0708efeb5cc
 Shards and replicas are some configuration values to take special attention to, because this is decided upon
 index creation. [This article](https://qbox.io/blog/optimizing-elasticsearch-how-many-shards-per-index) goes into
 more information about choosing how many shards should be chosen for optimization.
