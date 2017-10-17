@@ -1,5 +1,5 @@
-hash: c0ce4fe6b7f53ab91f35fe0b09184bdc56357bf77a02ee4cea4ec3db2d1437dd
-updated: 2017-08-22T14:33:20.951743908-04:00
+hash: 186c8ac164ff232e786b5be66349990e0a87c188de41b193fc6a279d413c0a71
+updated: 2017-10-17T15:33:35.040726046-04:00
 imports:
 - name: github.com/apache/thrift
   version: 53dd39833a08ce33582e5ff31fa18bb4735d6731
@@ -17,7 +17,7 @@ imports:
   - assert
   - require
 - name: github.com/davecgh/go-spew
-  version: adab96458c51a58dc1783b3335dcce5461522e75
+  version: a476722483882dd40b8111f0eb64e1d7f43f56e4
   subpackages:
   - spew
 - name: github.com/fsnotify/fsnotify
@@ -130,7 +130,7 @@ imports:
 - name: github.com/stretchr/objx
   version: 1a9d0bb9f541897e62256577b352fdbc1fb4fd94
 - name: github.com/stretchr/testify
-  version: 05e8a0eda380579888eb53c394909df027f06991
+  version: 890a5c3458b43e6104ff5da8dfa139d013d77544
   subpackages:
   - assert
   - mock
@@ -138,7 +138,7 @@ imports:
 - name: github.com/uber-go/atomic
   version: 0c9e689d64f004564b79d9a663634756df322902
 - name: github.com/uber/jaeger-client-go
-  version: d021e646f5187d77b55592c3efee1a2810e895d7
+  version: 3e3870040def0ebdaf65a003863fa64f5cb26139
   subpackages:
   - config
   - internal/spanlog
@@ -152,7 +152,7 @@ imports:
   - transport/zipkin
   - utils
 - name: github.com/uber/jaeger-lib
-  version: 575c678b2873b62aaadd0fa5817a2aeb3155dc4d
+  version: 3b2a9ad2a045881ab7a0f81d465be54c8292ee4f
   subpackages:
   - metrics
   - metrics/go-kit
@@ -179,7 +179,7 @@ imports:
 - name: go.uber.org/multierr
   version: 3c4937480c32f4c13a875a1829af76c98ca3d40a
 - name: go.uber.org/zap
-  version: 9d9d6135afe89b6fc4a05e9a8552526caba38048
+  version: 35aad584952c3e7020db7b839f6b102de6271f89
   subpackages:
   - buffer
   - internal/bufferpool
@@ -188,7 +188,7 @@ imports:
   - zapcore
   - zaptest
 - name: golang.org/x/net
-  version: 1c05540f6879653db88113bc4a2b70aec4bd491f
+  version: 8351a756f30f1297fe94bbf4b767ec589c6ea6d0
   subpackages:
   - context
   - context/ctxhttp
