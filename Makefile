@@ -2,7 +2,7 @@ PROJECT_ROOT=github.com/uber/jaeger
 TOP_PKGS := $(shell glide novendor | grep -v -e ./thrift-gen/... -e ./examples/... -e ./scripts/...)
 
 # all .go files that don't exist in hidden directories
-ALL_SRC := $(shell find . -name "*.go" | grep -v -e vendor -e thrift-gen -e gotestcover \
+ALL_SRC := $(shell find . -name "*.go" | grep -v -e vendor -e thrift-gen \
         -e ".*/\..*" \
         -e ".*/_.*" \
         -e ".*/mocks.*")
