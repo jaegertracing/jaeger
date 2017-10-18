@@ -1,11 +1,13 @@
 PROJECT_ROOT=github.com/uber/jaeger
-PACKAGES := $(shell glide novendor | grep -v ./thrift-gen/... | grep -v ./examples/...)
+TOP_PKGS := $(shell glide novendor | grep -v -e ./thrift-gen/... -e ./examples/... -e ./scripts/...)
 
 # all .go files that don't exist in hidden directories
 ALL_SRC := $(shell find . -name "*.go" | grep -v -e vendor -e thrift-gen \
         -e ".*/\..*" \
         -e ".*/_.*" \
         -e ".*/mocks.*")
+
+ALL_PKGS := $(shell go list $(sort $(dir $(ALL_SRC))))
 
 export GO15VENDOREXPERIMENT=1
 
@@ -18,6 +20,7 @@ FMT_LOG=fmt.log
 LINT_LOG=lint.log
 MKDOCS_VIRTUAL_ENV=.mkdocs-virtual-env
 
+SED=sed
 THRIFT_VER=0.9.3
 THRIFT_IMG=thrift:$(THRIFT_VER)
 THRIFT=docker run --rm -u ${shell id -u} -v "${PWD}:/data" $(THRIFT_IMG) thrift
@@ -27,7 +30,7 @@ THRIFT_GEN_DIR=thrift-gen
 
 PASS=$(shell printf "\033[32mPASS\033[0m")
 FAIL=$(shell printf "\033[31mFAIL\033[0m")
-COLORIZE=sed ''/PASS/s//$(PASS)/'' | sed ''/FAIL/s//$(FAIL)/''
+COLORIZE=$(SED) ''/PASS/s//$(PASS)/'' | $(SED) ''/FAIL/s//$(FAIL)/''
 DOCKER_NAMESPACE?=$(USER)
 DOCKER_TAG?=latest
 
@@ -38,7 +41,7 @@ test-and-lint: test fmt lint
 
 .PHONY: go-gen
 go-gen:
-	go generate $(PACKAGES)
+	go generate $(TOP_PKGS)
 
 .PHONY: md-to-godoc-gen
 md-to-godoc-gen:
@@ -52,7 +55,7 @@ clean:
 
 .PHONY: test
 test: go-gen
-	bash -c "set -e; set -o pipefail; $(GOTEST) $(PACKAGES) | $(COLORIZE)"
+	bash -c "set -e; set -o pipefail; $(GOTEST) $(TOP_PKGS) | $(COLORIZE)"
 
 .PHONY: integration-test
 integration-test: go-gen
@@ -69,13 +72,13 @@ fmt:
 
 .PHONY: lint
 lint:
-	$(GOVET) $(PACKAGES)
+	$(GOVET) $(TOP_PKGS)
 	@cat /dev/null > $(LINT_LOG)
-	@$(foreach pkg, $(PACKAGES), $(GOLINT) $(pkg) | grep -v -e pkg/es/wrapper.go -e /mocks/ -e thrift-gen -e thrift-0.9.2 >> $(LINT_LOG) || true;)
+	@$(foreach pkg, $(TOP_PKGS), $(GOLINT) $(pkg) | grep -v -e pkg/es/wrapper.go -e /mocks/ -e thrift-gen -e thrift-0.9.2 >> $(LINT_LOG) || true;)
 	@[ ! -s "$(LINT_LOG)" ] || (echo "Lint Failures" | cat - $(LINT_LOG) && false)
 	@$(GOFMT) -e -s -l $(ALL_SRC) > $(FMT_LOG)
 	@./scripts/updateLicenses.sh >> $(FMT_LOG)
-	@[ ! -s "$(FMT_LOG)" ] || (echo "Go Fmt Failures, run 'make fmt'" | cat - $(FMT_LOG) && false)
+	@[ ! -s "$(FMT_LOG)" ] || (echo "Go fmt or license check failures, run 'make fmt'" | cat - $(FMT_LOG) && false)
 
 .PHONY: install-glide
 install-glide:
@@ -87,8 +90,8 @@ install-glide:
 install: install-glide
 	glide install
 
-.PHONY: build_examples
-build_examples:
+.PHONY: build-examples
+build-examples:
 	go build -o ./examples/hotrod/hotrod-demo ./examples/hotrod/main.go
 
 .PHONY: build_ui
@@ -156,21 +159,22 @@ build-crossdock-fresh: build-crossdock-bin
 
 .PHONY: cover
 cover:
-	./scripts/cover.sh $(shell go list $(PACKAGES))
+	./scripts/cover.sh $(shell go list $(TOP_PKGS))
 	go tool cover -html=cover.out -o cover.html
 
-.PHONY: install_ci
-install_ci: install
+.PHONY: install-ci
+install-ci: install
 	go get github.com/wadey/gocovmerge
 	go get github.com/mattn/goveralls
 	go get golang.org/x/tools/cmd/cover
 	go get github.com/golang/lint/golint
 	go get github.com/sectioneight/md-to-godoc
 
-.PHONY: test_ci
-test_ci: build_examples
-	@./scripts/cover.sh $(shell go list $(PACKAGES))
-	make lint
+.PHONY: test-ci
+test-ci: build-examples lint
+	@echo pre-compiling tests
+	@time go test -i $(ALL_PKGS)
+	@./scripts/cover.sh $(shell go list $(TOP_PKGS))
 
 # TODO at the moment we're not generating tchan_*.go files
 .PHONY: thrift

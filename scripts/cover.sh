@@ -52,7 +52,7 @@ for pkg in "$@"; do
 		args="-coverprofile $COVER/cover.${i}.out" # -coverpkg $coverpkg
 	fi
 
-	echo go test -v -race "$pkg"
+	echo go test $args -v -race "$pkg"
 	go test $args -v -race "$pkg"
 done
 
