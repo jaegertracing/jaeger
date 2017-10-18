@@ -20,10 +20,10 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/olivere/elastic"
 	"github.com/pkg/errors"
 	"github.com/uber/jaeger-lib/metrics"
 	"go.uber.org/zap"
+	"gopkg.in/olivere/elastic.v5"
 
 	"github.com/uber/jaeger/model"
 	jConverter "github.com/uber/jaeger/model/converter/json"

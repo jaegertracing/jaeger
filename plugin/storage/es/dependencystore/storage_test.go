@@ -20,11 +20,11 @@ import (
 	"testing"
 	"time"
 
-	"github.com/olivere/elastic"
 	"github.com/pkg/errors"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
 	"go.uber.org/zap"
+	"gopkg.in/olivere/elastic.v5"
 
 	"github.com/uber/jaeger/model"
 	"github.com/uber/jaeger/pkg/es/mocks"

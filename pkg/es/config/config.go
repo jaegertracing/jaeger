@@ -17,8 +17,8 @@ package config
 import (
 	"time"
 
-	"github.com/olivere/elastic"
 	"github.com/pkg/errors"
+	"gopkg.in/olivere/elastic.v5"
 
 	"github.com/uber/jaeger/pkg/es"
 )

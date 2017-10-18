@@ -17,7 +17,7 @@ package es
 import (
 	"context"
 
-	"github.com/olivere/elastic"
+	"gopkg.in/olivere/elastic.v5"
 )
 
 // This file avoids lint because the Id and Json are required to be capitalized, but must match an outside library.

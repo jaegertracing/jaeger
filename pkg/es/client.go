@@ -17,7 +17,7 @@ package es
 import (
 	"context"
 
-	"github.com/olivere/elastic"
+	"gopkg.in/olivere/elastic.v5"
 )
 
 // Client is an abstraction for elastic.Client
