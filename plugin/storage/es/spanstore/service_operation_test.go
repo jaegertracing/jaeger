@@ -19,10 +19,10 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/olivere/elastic"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
 	"github.com/stretchr/testify/require"
+	"gopkg.in/olivere/elastic.v5"
 
 	jModel "github.com/uber/jaeger/model/json"
 	"github.com/uber/jaeger/pkg/es/mocks"

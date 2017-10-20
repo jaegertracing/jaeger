@@ -20,12 +20,12 @@ import (
 	"testing"
 	"time"
 
-	"github.com/olivere/elastic"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
 	"github.com/stretchr/testify/require"
 	"github.com/uber/jaeger-lib/metrics"
 	"go.uber.org/zap"
+	"gopkg.in/olivere/elastic.v5"
 
 	"github.com/uber/jaeger/model"
 	"github.com/uber/jaeger/model/json"

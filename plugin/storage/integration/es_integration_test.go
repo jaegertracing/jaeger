@@ -21,10 +21,10 @@ import (
 	"testing"
 	"time"
 
-	"github.com/olivere/elastic"
 	"github.com/pkg/errors"
 	"github.com/stretchr/testify/require"
 	"github.com/uber/jaeger-lib/metrics"
+	"gopkg.in/olivere/elastic.v5"
 
 	"github.com/uber/jaeger/pkg/es"
 	"github.com/uber/jaeger/pkg/testutils"
