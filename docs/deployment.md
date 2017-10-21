@@ -15,18 +15,26 @@ There are orchestration templates for running Jaeger with:
 
 ## Storage Backend
 
-Collectors require a persistent storage backend. Cassandra 3.x (default) and ElasticSearch are the
-primary supported storage backends. There is ongoing work to add support for MySQL and ScyllaDB.
+Collectors require a persistent storage backend. Cassandra 3.4+ (default) and ElasticSearch are primary supported storage backends. 
 
 ### Cassandra
 
-A script is provided to initialize Cassandra keyspace and schema
-using Cassandra's interactive shell [`cqlsh`][cqlsh],
-clone the source repository following [getting
-started](https://github.com/jaegertracing/jaeger/blob/master/CONTRIBUTING.md#getting-started) and then run:
+A script is provided to initialize Cassandra keyspace and schema using Cassandra's interactive shell [`cqlsh`][cqlsh],clone the source repository following [getting started](https://github.com/jaegertracing/jaeger/blob/master/CONTRIBUTING.md#getting-started) and run:
 
-```sh
+```
 MODE=test sh ./plugin/storage/cassandra/schema/create.sh | cqlsh
+```
+
+Instead of starting it locally, one option is to start via Docker, so that it can be completely destroyed after use, like this:
+
+```
+docker run --rm -it --name cassandra -p 9042:9042 cassandra
+```
+
+to create the schema. From the root of the Jaeger’s source repository,this can be executed:
+
+```
+MODE=test KEYSPACE=jaeger_v1_local ./plugin/storage/cassandra/schema/create.sh plugin/storage/cassandra/schema/v001.cql.tmpl | docker exec -i cassandra cqlsh
 ```
 
 For production deployment, pass `MODE=prod DATACENTER={datacenter}` arguments to the script,
@@ -37,15 +45,12 @@ Run the script without arguments to see the full list of recognized parameters.
 
 ### ElasticSearch
 
-ElasticSearch does not require initialization other than
-[installing and running ElasticSearch](https://www.elastic.co/downloads/elasticsearch).
+ElasticSearch does not require initialization other than [installing and running ElasticSearch](https://www.elastic.co/downloads/elasticsearch).
 Once it is running, pass the correct configuration values to the Jaeger collector and query service.
 
 #### Shards and Replicas for ElasticSearch indices
 
-Shards and replicas are some configuration values to take special attention to, because this is decided upon
-index creation. [This article](https://qbox.io/blog/optimizing-elasticsearch-how-many-shards-per-index) goes into
-more information about choosing how many shards should be chosen for optimization.
+Shards and replicas are some configuration values to take special attention to, because this is decided upon index creation. [This article](https://qbox.io/blog/optimizing-elasticsearch-how-many-shards-per-index) goes into more information about choosing how many shards should be chosen for optimization.
 
 ## Collectors
 
@@ -53,6 +58,7 @@ Many instances of **jaeger-collector** can be run in parallel.
 Collectors require almost no configuration, except for the location of Cassandra cluster,
 via `--cassandra.keyspace` and `--cassandra.servers` options, or the location of ElasticSearch cluster, via
 `--es.server-urls`, depending on which storage is specified. To see all command line options run
+
 
 ```
 go run ./cmd/collector/main.go -h
@@ -63,12 +69,13 @@ or, if you don't have the source code
 ```
 docker run -it --rm jaegertracing/jaeger-collector /go/bin/collector-linux -h
 ```
+
 Example:
+
 ```
-docker run -it --rm -p14267:14267 -p14268:14268
-jaegertracing/jaeger-collector /go/bin/collector-linux
---cassandra.keyspace=jaeger_v1_test --cassandra.servers=192.168.0.183
+docker run -it --rm -p14267:14267 -p14268:14268 jaegertracing/jaeger-collector /go/bin/collector-linux --cassandra.keyspace=jaeger_v1_test --cassandra.servers=192.168.0.183
 ```
+
 At default settings the collector exposes the following ports:
 
 Port  | Protocol | Function
@@ -76,7 +83,6 @@ Port  | Protocol | Function
 14267 | TChannel | used by **jaeger-agent** to send spans in jaeger.thrift format
 14268 | HTTP     | can accept spans directly from clients in jaeger.thrift format
 9411  | HTTP     | can accept Zipkin spans in JSON or Thrift (disabled by default)
-
 
 ## Agent
 
@@ -132,11 +138,11 @@ across several collectors ([issue 213](https://github.com/uber/jaeger/issues/213
 The service is stateless and is typically run behind a load balancer, e.g. nginx.
 
 An example to test Query Service:
+
 ```
-docker run -it -p16686:16686 jaegertracing/jaeger-query:latest
-/go/bin/query-linux --cassandra.keyspace=jaeger_v1_test
---cassandra.servers=192.168.0.183
+docker run -it -p16686:16686 jaegertracing/jaeger-query:latest /go/bin/query-linux --cassandra.keyspace=jaeger_v1_test --cassandra.servers=192.168.0.183
 ```
+
 At default settings the query service exposes the following port(s):
 
 Port  | Protocol | Function
