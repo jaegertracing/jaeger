@@ -41,7 +41,10 @@ else
 fi
 
 keyspace=${KEYSPACE:-"jaeger_v1_${datacenter}"}
-if [[ $keyspace =~ [^a-zA-Z0-9_] ]]; then usage "invalid characters in KEYSPACE parameter, please use letters, digits or underscores(a-zA-Z0-9_)"; fi 
+
+if [[ $keyspace =~ [^a-zA-Z0-9_] ]]; then
+    usage "invalid characters in KEYSPACE=$keyspace parameter, please use letters, digits or underscores"
+fi
 
 >&2 cat <<EOF
 Using template file $template with parameters:
