@@ -83,20 +83,23 @@ func TestViaClient(t *testing.T) {
 
 	tracer.StartSpan("root").Finish()
 
+	waitForSpans(t, handler.zipkinSpansHandler.(*mockZipkinHandler), 1)
+}
+
+func waitForSpans(t *testing.T, handler *mockZipkinHandler, expecting int) {
 	deadline := time.Now().Add(2 * time.Second)
 	for {
 		if time.Now().After(deadline) {
 			t.Error("never received a span")
 			return
 		}
-		if want, have := 1, len(handler.zipkinSpansHandler.(*mockZipkinHandler).getSpans()); want != have {
+		if have := len(handler.getSpans()); expecting != have {
 			time.Sleep(time.Millisecond)
 			continue
 		}
 		break
 	}
-
-	assert.Equal(t, 1, len(handler.zipkinSpansHandler.(*mockZipkinHandler).getSpans()))
+	assert.Len(t, handler.getSpans(), expecting)
 }
 
 func TestThriftFormat(t *testing.T) {
@@ -120,7 +123,7 @@ func TestJsonFormat(t *testing.T) {
 	server, handler := initializeTestServer(nil)
 	defer server.Close()
 
-	endpJSON := createEndpoint("foo", "127.0.0.1", "2001:db8::c001", 66)
+	endpJSON := createEndpoint("foo", "127.0.0.1", "2001:db8::c001", 65535)
 	annoJSON := createAnno("cs", 1515, endpJSON)
 	binAnnoJSON := createBinAnno("http.status_code", "200", endpJSON)
 	spanJSON := createSpan("bar", "1234567891234565", "1234567891234567", "1234567891234568", 156, 15145, false,
@@ -129,6 +132,11 @@ func TestJsonFormat(t *testing.T) {
 	assert.NoError(t, err)
 	assert.EqualValues(t, http.StatusAccepted, statusCode)
 	assert.EqualValues(t, "", resBodyStr)
+	waitForSpans(t, handler.zipkinSpansHandler.(*mockZipkinHandler), 1)
+	recdSpan := handler.zipkinSpansHandler.(*mockZipkinHandler).getSpans()[0]
+	require.Len(t, recdSpan.Annotations, 1)
+	require.NotNil(t, recdSpan.Annotations[0].Host)
+	assert.EqualValues(t, -1, recdSpan.Annotations[0].Host.Port, "Port 65535 must be represented as -1 in zipkin.thrift")
 
 	endpErrJSON := createEndpoint("", "127.0.0.A", "", 80)
 

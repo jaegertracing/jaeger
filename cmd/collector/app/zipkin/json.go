@@ -27,7 +27,7 @@ type endpoint struct {
 	ServiceName string `json:"serviceName"`
 	IPv4        string `json:"ipv4"`
 	IPv6        string `json:"ipv6"`
-	Port        int16  `json:"port"`
+	Port        int32  `json:"port"`
 }
 type annotation struct {
 	Endpoint  endpoint `json:"endpoint"`
@@ -147,10 +147,15 @@ func endpointToThrift(e endpoint) (*zipkincore.Endpoint, error) {
 	if err != nil {
 		return nil, err
 	}
+	port := e.Port
+	if port >= (1 << 15) {
+		// Zipkin.thrift defines port as i16, so values between (2^15 and 2^16-1) must be encoded as negative
+		port = port - (1 << 16)
+	}
 
 	return &zipkincore.Endpoint{
 		ServiceName: e.ServiceName,
-		Port:        e.Port,
+		Port:        int16(port),
 		Ipv4:        ipv4,
 		Ipv6:        []byte(e.IPv6),
 	}, nil
