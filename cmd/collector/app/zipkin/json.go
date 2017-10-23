@@ -149,7 +149,7 @@ func endpointToThrift(e endpoint) (*zipkincore.Endpoint, error) {
 	}
 	port := e.Port
 	if port >= (1 << 15) {
-		// Zipkin.thrift defines port as i16, so values between (2^16 and 2^16-1) must be encoded as negative
+		// Zipkin.thrift defines port as i16, so values between (2^15 and 2^16-1) must be encoded as negative
 		port = port - (1 << 16)
 	}
 

@@ -93,7 +93,7 @@ func waitForSpans(t *testing.T, handler *mockZipkinHandler, expecting int) {
 			t.Error("never received a span")
 			return
 		}
-		if want, have := expecting, len(handler.getSpans()); want != have {
+		if have := len(handler.getSpans()); expecting != have {
 			time.Sleep(time.Millisecond)
 			continue
 		}
