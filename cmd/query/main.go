@@ -100,7 +100,6 @@ func main() {
 				app.HandlerOptions.Tracer(tracer))
 			staticHandler, err := app.NewStaticAssetsHandler(queryOpts.StaticAssets, queryOpts.UIConfig)
 			if err != nil {
-				viper.ReadInConfig
 				logger.Fatal("Could not create static assets handler", zap.Error(err))
 			}
 			r := mux.NewRouter()
