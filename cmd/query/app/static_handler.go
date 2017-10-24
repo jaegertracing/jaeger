@@ -79,18 +79,18 @@ func loadUIConfig(uiConfig string) (map[string]interface{}, error) {
 	}
 
 	var c map[string]interface{}
-	var unmarshall func([]byte, interface{}) error
+	var unmarshal func([]byte, interface{}) error
 
 	switch strings.ToLower(ext) {
 	case ".yaml", ".yml":
-		unmarshall = yaml.Unmarshal
+		unmarshal = yaml.Unmarshal
 	case ".json":
-		unmarshall = json.Unmarshal
+		unmarshal = json.Unmarshal
 	default:
 		return nil, fmt.Errorf("Unrecognized UI config file format %v", uiConfig)
 	}
 
-	if err := unmarshall(bytes, &c); err != nil {
+	if err := unmarshal(bytes, &c); err != nil {
 		return nil, errors.Wrapf(err, "Cannot parse UI config file %v", uiConfig)
 	}
 	return c, nil
