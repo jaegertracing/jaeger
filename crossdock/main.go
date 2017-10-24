@@ -119,6 +119,7 @@ func startCollector(logger *zap.Logger) {
 	forkCmd(
 		logger,
 		collectorCmd,
+		"--query.static-files=/ui/",
 		"--cassandra.keyspace=jaeger",
 		"--cassandra.servers=cassandra",
 		"--collector.zipkin.http-port=9411",
