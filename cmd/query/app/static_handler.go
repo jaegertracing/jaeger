@@ -53,7 +53,7 @@ func NewStaticAssetsHandler(staticAssetsRoot string, uiConfig string) (*StaticAs
 	}
 	indexBytes, err := ioutil.ReadFile(staticAssetsRoot + "index.html")
 	if err != nil {
-		return nil, errors.Wrap(err, "Cannot read index.html from UI static assets")
+		return nil, errors.Wrap(err, "Cannot read UI static assets")
 	}
 	configString := "JAEGER_CONFIG = DEFAULT_CONFIG;"
 	if config, err := loadUIConfig(uiConfig); err != nil {

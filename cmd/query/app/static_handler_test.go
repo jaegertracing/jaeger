@@ -29,7 +29,8 @@ import (
 
 func TestStaticAssetsHandler(t *testing.T) {
 	r := mux.NewRouter()
-	handler := NewStaticAssetsHandler("fixture")
+	handler, err := NewStaticAssetsHandler("fixture", "")
+	require.NoError(t, err)
 	handler.RegisterRoutes(r)
 	server := httptest.NewServer(r)
 	defer server.Close()
@@ -45,13 +46,14 @@ func TestStaticAssetsHandler(t *testing.T) {
 }
 
 func TestDefaultStaticAssetsRoot(t *testing.T) {
-	handler := NewStaticAssetsHandler("")
-	assert.Equal(t, "jaeger-ui-build/build/", handler.staticAssetsRoot)
+	_, err := NewStaticAssetsHandler("", "")
+	assert.EqualError(t, err, "Cannot read UI static assets: open jaeger-ui-build/build/index.html: no such file or directory")
 }
 
 func TestRegisterRoutesHandler(t *testing.T) {
 	r := mux.NewRouter()
-	handler := NewStaticAssetsHandler("fixture/")
+	handler, err := NewStaticAssetsHandler("fixture/", "")
+	require.NoError(t, err)
 	handler.RegisterRoutes(r)
 	server := httptest.NewServer(r)
 	defer server.Close()
