@@ -173,7 +173,7 @@ func (s *SpanWriter) writeService(indexName string, jsonSpan *jModel.Span) error
 
 func (s *SpanWriter) writeSpan(indexName string, jsonSpan *jModel.Span) error {
 	start := time.Now()
-	elasticSpan := Span{Span: jsonSpan, StartTimeMillis: jsonSpan.StartTime / 1000}		// Microseconds to milliseconds
+	elasticSpan := Span{Span: jsonSpan, StartTimeMillis: jsonSpan.StartTime / 1000} // Microseconds to milliseconds
 	_, err := s.client.Index().Index(indexName).Type(spanType).BodyJson(&elasticSpan).Do(s.ctx)
 	s.writerMetrics.spans.Emit(err, time.Since(start))
 	if err != nil {
