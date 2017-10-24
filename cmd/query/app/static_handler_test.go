@@ -19,6 +19,7 @@ import (
 	"io/ioutil"
 	"net/http"
 	"net/http/httptest"
+	"strings"
 	"testing"
 	"time"
 
@@ -73,6 +74,17 @@ func TestRegisterRoutesHandler(t *testing.T) {
 	assert.NoError(t, err)
 	assert.Equal(t, http.StatusOK, resp.StatusCode)
 	assert.Equal(t, expectedRespString, respString)
+}
+
+func TestNewStaticAssetsHandlerWithConfig(t *testing.T) {
+	_, err := NewStaticAssetsHandler("fixture", "fixture/invalid-config")
+	assert.Error(t, err)
+
+	handler, err := NewStaticAssetsHandler("fixture", "fixture/ui-config.json")
+	require.NoError(t, err)
+	require.NotNil(t, handler)
+	html := string(handler.indexHTML)
+	assert.True(t, strings.Contains(html, `JAEGER_CONFIG = {"x":"y"};`), "actual: %v", html)
 }
 
 func TestLoadUIConfig(t *testing.T) {
