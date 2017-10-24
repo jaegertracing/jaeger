@@ -74,3 +74,55 @@ func TestRegisterRoutesHandler(t *testing.T) {
 	assert.Equal(t, http.StatusOK, resp.StatusCode)
 	assert.Equal(t, expectedRespString, respString)
 }
+
+func TestLoadUIConfig(t *testing.T) {
+	type testCase struct {
+		configFile    string
+		expected      map[string]interface{}
+		expectedError string
+	}
+
+	run := func(description string, testCase testCase) {
+		t.Run(description, func(t *testing.T) {
+			config, err := loadUIConfig(testCase.configFile)
+			if testCase.expectedError != "" {
+				assert.EqualError(t, err, testCase.expectedError)
+			} else {
+				assert.NoError(t, err)
+			}
+			assert.EqualValues(t, testCase.expected, config)
+		})
+	}
+
+	run("no config", testCase{})
+	run("invalid config", testCase{
+		configFile:    "invalid",
+		expectedError: "Cannot read UI config file invalid: open invalid: no such file or directory",
+	})
+	run("unsupported type", testCase{
+		configFile:    "fixture/ui-config.toml",
+		expectedError: "Unrecognized UI config file format fixture/ui-config.toml",
+	})
+	run("malformed", testCase{
+		configFile:    "fixture/ui-config-malformed.json",
+		expectedError: "Cannot parse UI config file fixture/ui-config-malformed.json: invalid character '=' after object key",
+	})
+	run("yaml", testCase{
+		configFile: "fixture/ui-config.yaml",
+		expected: map[string]interface{}{
+			"x": "abcd",
+			"z": []interface{}{"a", "b"},
+		},
+	})
+	run("yml", testCase{
+		configFile: "fixture/ui-config.yml",
+		expected: map[string]interface{}{
+			"x": "abcd",
+			"z": []interface{}{"a", "b"},
+		},
+	})
+	run("json", testCase{
+		configFile: "fixture/ui-config.json",
+		expected:   map[string]interface{}{"x": "y"},
+	})
+}
