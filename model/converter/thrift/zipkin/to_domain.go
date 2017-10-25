@@ -35,10 +35,10 @@ const (
 
 var (
 	coreAnnotations = map[string]string{
-		zipkincore.CLIENT_RECV: string(ext.SpanKindRPCClientEnum),
-		zipkincore.CLIENT_SEND: string(ext.SpanKindRPCClientEnum),
 		zipkincore.SERVER_RECV: string(ext.SpanKindRPCServerEnum),
 		zipkincore.SERVER_SEND: string(ext.SpanKindRPCServerEnum),
+		zipkincore.CLIENT_RECV: string(ext.SpanKindRPCClientEnum),
+		zipkincore.CLIENT_SEND: string(ext.SpanKindRPCClientEnum),
 	}
 
 	// Some tags on Zipkin spans really describe the process emitting them rather than an individual span.
