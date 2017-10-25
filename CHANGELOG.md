@@ -15,6 +15,13 @@ Changes by Version
 - Improve search dropdowns [jaegertracing/jaeger-ui#84](https://github.com/jaegertracing/jaeger-ui/pull/84)
 - Add keyboard shortcuts and minimap UX [jaegertracing/jaeger-ui#93](https://github.com/jaegertracing/jaeger-ui/pull/93)
 
+#### Backend Changes
+
+- Add tracing to the query server [#454](https://github.com/uber/jaeger/pull/454)
+- Support configuration files [#462](https://github.com/uber/jaeger/pull/462)
+- Add cassandra tag filter [#442](https://github.com/uber/jaeger/pull/442)
+- Handle ports > 32k in Zipkin JSON [#488](https://github.com/uber/jaeger/pull/488)
+
 
 0.8.0 (2017-09-24)
 ------------------
