@@ -130,9 +130,9 @@ func (h *zipkinSpanHandler) SubmitZipkinBatch(ctx thrift.Context, spans []*zipki
 
 // ConvertZipkinToModel is a helper function that logs warnings during conversion
 func convertZipkinToModel(zSpan *zipkincore.Span, logger *zap.Logger) []*model.Span {
-	mSpan, err := zipkin.ToDomainSpan(zSpan)
+	mSpans, err := zipkin.ToDomainSpan(zSpan)
 	if err != nil {
 		logger.Warn("Warning while converting zipkin to domain span", zap.Error(err))
 	}
-	return mSpan
+	return mSpans
 }

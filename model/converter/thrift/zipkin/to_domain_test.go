@@ -57,7 +57,7 @@ func TestToDomain(t *testing.T) {
 			}
 		})
 		if i == 1 {
-			t.Run("ToDomainSpan", func(t *testing.T) {
+			t.Run("ToDomainSpans", func(t *testing.T) {
 				zSpan := zSpans[0]
 				jSpans, err := ToDomainSpan(zSpan)
 				assert.NoError(t, err)
