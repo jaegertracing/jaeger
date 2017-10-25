@@ -31,7 +31,7 @@ THRIFT_GEN_DIR=thrift-gen
 PASS=$(shell printf "\033[32mPASS\033[0m")
 FAIL=$(shell printf "\033[31mFAIL\033[0m")
 COLORIZE=$(SED) ''/PASS/s//$(PASS)/'' | $(SED) ''/FAIL/s//$(FAIL)/''
-DOCKER_NAMESPACE?=$(USER)
+DOCKER_NAMESPACE?=jaegertracing
 DOCKER_TAG?=latest
 
 .DEFAULT_GOAL := test-and-lint
@@ -117,7 +117,7 @@ build-collector-linux:
 	CGO_ENABLED=0 GOOS=linux installsuffix=cgo go build -o ./cmd/collector/collector-linux ./cmd/collector/main.go
 
 .PHONY: docker
-docker: build_ui build-agent-linux build-collector-linux build-query-linux docker-images-only
+docker: build_ui build-agent-linux build-collector-linux build-query-linux build-crossdock-linux docker-images-only
 
 .PHONY: docker-images-only
 docker-images-only:
@@ -129,32 +129,33 @@ docker-images-only:
 		echo "Finished building $$component ==============" ; \
 	done
 	rm -rf cmd/query/jaeger-ui-build
+	docker build -t $(DOCKER_NAMESPACE)/test-driver:${DOCKER_TAG} crossdock/
+	@echo "Finished building test-driver ==============" ; \
 
 .PHONY: docker-push
 docker-push:
+	@while [ -z "$$CONFIRM" ]; do \
+		read -r -p "Do you really want to push images to repository \"${DOCKER_NAMESPACE}\"? [y/N] " CONFIRM; \
+	done ; \
+	if [ $$CONFIRM != "y" ] && [ $$CONFIRM != "Y" ]; then \
+		echo "Exiting." ; exit 1 ; \
+	fi
 	for component in agent cassandra-schema collector query ; do \
 		docker push $(DOCKER_NAMESPACE)/jaeger-$$component ; \
 	done
 
 .PHONY: build-crossdock-linux
 build-crossdock-linux:
-	CGO_ENABLED=0 GOOS=linux installsuffix=cgo go build -o ./crossdock/crossdock ./crossdock/main.go
-
-.PHONY: build-crossdock-bin
-build-crossdock-bin:
-	make build-crossdock-linux
-	make build-query-linux
-	make build-collector-linux
-	make build-agent-linux
+	CGO_ENABLED=0 GOOS=linux installsuffix=cgo go build -o ./crossdock/crossdock-linux ./crossdock/main.go
 
 include crossdock/rules.mk
 
 .PHONY: build-crossdock
-build-crossdock: build-crossdock-bin
+build-crossdock: docker
 	make crossdock
 
 .PHONY: build-crossdock-fresh
-build-crossdock-fresh: build-crossdock-bin
+build-crossdock-fresh: build-crossdock-linux
 	make crossdock-fresh
 
 .PHONY: cover

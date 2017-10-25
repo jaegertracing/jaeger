@@ -4,6 +4,9 @@ services:
     crossdock:
         image: crossdock/crossdock
         links:
+            - jaeger-query
+            - jaeger-collector
+            - jaeger-agent
             - test_driver
             - go
             - node
@@ -27,23 +30,29 @@ services:
         image: jaegertracing/xdock-go
         ports:
             - "8080-8082"
+        links:
+          - "jaeger-agent:test_driver"
 
     node:
         image: jaegertracing/xdock-node
         ports:
             - "8080-8082"
+        links:
+          - "jaeger-agent:test_driver"
 
     java:
         image: jaegertracing/xdock-java
         ports:
             - "8080-8082"
-        depends_on:
-            - test_driver
+        links:
+          - "jaeger-agent:test_driver"
 
     python:
         image: jaegertracing/xdock-py
         ports:
             - "8080-8082"
+        links:
+          - "jaeger-agent:test_driver"
 
     zipkin-brave-json:
         image: jaegertracing/xdock-zipkin-brave
@@ -51,6 +60,8 @@ services:
             - "8080-8081"
         environment:
             - ENCODING=JSON
+        links:
+          - "jaeger-collector:test_driver"
 
     zipkin-brave-thrift:
         image: jaegertracing/xdock-zipkin-brave
@@ -58,17 +69,10 @@ services:
             - "8080-8081"
         environment:
             - ENCODING=THRIFT
-
-
-    cassandra:
-        image: "cassandra:3.9"
+        links:
+          - "jaeger-collector:test_driver"
 
     test_driver:
-        build: .
-        image: jaegertracing/test-driver:latest
-        links:
-            - cassandra
-        depends_on:
-            - cassandra
+        image: jaegertracing/test-driver
         ports:
             - "8080"
