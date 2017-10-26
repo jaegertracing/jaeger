@@ -22,6 +22,7 @@ import (
 	"fmt"
 	"os"
 	"testing"
+	"time"
 
 	"github.com/kr/pretty"
 	"github.com/stretchr/testify/assert"
@@ -93,15 +94,19 @@ func TestToDomainMultipleSpanKinds(t *testing.T) {
 		tagFirst  opentracing.Tag
 		tagSecond opentracing.Tag
 	}{
-		{json: `[{ "trace_id": -1, "id": 31,
-	"annotations": [{"value": "cs", "host": {"service_name": "bar", "ipv4": 23456}},
-		{"value": "sr", "host": {"service_name": "bar", "ipv4": 23456}}] }]`,
+		{json: `[{ "trace_id": -1, "id": 31, "annotations": [
+		{"value": "cs", "host": {"service_name": "bar", "ipv4": 23456}},
+		{"value": "sr", "timestamp": 1, "host": {"service_name": "bar", "ipv4": 23456}},
+		{"value": "ss", "timestamp": 2, "host": {"service_name": "bar", "ipv4": 23456}}
+		]}]`,
 			tagFirst:  ext.SpanKindRPCClient,
 			tagSecond: ext.SpanKindRPCServer,
 		},
-		{json: `[{ "trace_id": -1, "id": 31,
-	"annotations": [{"value": "sr", "host": {"service_name": "bar", "ipv4": 23456}},
-		{"value": "cs", "host": {"service_name": "bar", "ipv4": 23456}}] }]`,
+		{json: `[{ "trace_id": -1, "id": 31, "annotations": [
+		{"value": "sr", "host": {"service_name": "bar", "ipv4": 23456}},
+		{"value": "cs", "timestamp": 1, "host": {"service_name": "bar", "ipv4": 23456}},
+		{"value": "cr", "timestamp": 2, "host": {"service_name": "bar", "ipv4": 23456}}
+		]}]`,
 			tagFirst:  ext.SpanKindRPCServer,
 			tagSecond: ext.SpanKindRPCClient,
 		},
@@ -119,6 +124,7 @@ func TestToDomainMultipleSpanKinds(t *testing.T) {
 
 		assert.Equal(t, 1, trace.Spans[1].Tags.Len())
 		assert.Equal(t, test.tagSecond.Key, trace.Spans[1].Tags[0].Key)
+		assert.Equal(t, time.Duration(1000), trace.Spans[1].Duration)
 		assert.Equal(t, string(test.tagSecond.Value.(ext.SpanKindEnum)), trace.Spans[1].Tags[0].VStr)
 	}
 }

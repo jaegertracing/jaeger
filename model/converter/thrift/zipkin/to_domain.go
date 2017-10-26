@@ -158,13 +158,13 @@ func (td toDomain) transformSpan(zSpan *zipkincore.Span) []*model.Span {
 		}
 		// if the first span is a client span we create server span and vice-versa.
 		if result[0].IsRPCClient() {
-			s.Tags = []model.KeyValue{model.String(ext.SpanKindRPCServer.Key, string(ext.SpanKindRPCServer.Value.(ext.SpanKindEnum)))}
+			s.Tags = []model.KeyValue{model.String(string(ext.SpanKind), string(ext.SpanKindRPCServerEnum))}
 			s.StartTime = model.EpochMicrosecondsAsTime(uint64(sr.Timestamp))
 			if ss := td.findAnnotation(zSpan, zipkincore.SERVER_SEND); ss != nil {
 				s.Duration = model.MicrosecondsAsDuration(uint64(ss.Timestamp - sr.Timestamp))
 			}
 		} else {
-			s.Tags = []model.KeyValue{model.String(ext.SpanKindRPCClient.Key, string(ext.SpanKindRPCClient.Value.(ext.SpanKindEnum)))}
+			s.Tags = []model.KeyValue{model.String(string(ext.SpanKind), string(ext.SpanKindRPCClientEnum))}
 			s.StartTime = model.EpochMicrosecondsAsTime(uint64(cs.Timestamp))
 			if cr := td.findAnnotation(zSpan, zipkincore.CLIENT_RECV); cr != nil {
 				s.Duration = model.MicrosecondsAsDuration(uint64(cr.Timestamp - cs.Timestamp))
