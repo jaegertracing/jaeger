@@ -2,6 +2,7 @@
 * [Circonus](https://www.circonus.com/)
 * [FarmersEdge](https://www.farmersedge.ca/)
 * [GrafanaLabs](https://grafana.com/)
+* [Kausal](https://kausal.co)
 * [Massachusetts Open Cloud](http://www.bu.edu/hic/research/highlighted-sponsored-projects/massachusetts-open-cloud/)
 * [Northwestern Mutual](https://www.northwesternmutual.com/)
 * [Nets](https://www.nets.eu/)
