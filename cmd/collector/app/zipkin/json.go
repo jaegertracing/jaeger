@@ -37,7 +37,7 @@ type annotation struct {
 type binaryAnnotation struct {
 	Endpoint endpoint `json:"endpoint"`
 	Key      string   `json:"key"`
-	Value    string   `json:"value"`
+	Value    json.Number   `json:"value"`
 }
 type zipkinSpan struct {
 	ID                string             `json:"id"`

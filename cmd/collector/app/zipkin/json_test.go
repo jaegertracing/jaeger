@@ -77,8 +77,18 @@ func TestUnmarshalBinAnnotation(t *testing.T) {
 	err := json.Unmarshal([]byte(createBinAnno("foo", "bar", endpointJSON)), binAnno)
 	require.NoError(t, err)
 	assert.Equal(t, "foo", binAnno.Key)
-	assert.Equal(t, "bar", binAnno.Value)
+	assert.Equal(t, "bar", string(binAnno.Value))
 	assert.Equal(t, "foo", binAnno.Endpoint.ServiceName)
+}
+
+func TestUnmarshalBinAnnotationNumberValue(t *testing.T) {
+	jsonStr := `{"key":"http.status_code", "value": 200, "type": "I64"}`
+
+	binAnno := &binaryAnnotation{}
+	err := json.Unmarshal([]byte(jsonStr), binAnno)
+	require.NoError(t, err)
+	assert.Equal(t, "http.status_code", binAnno.Key)
+	assert.Equal(t, "200", string(binAnno.Value))
 }
 
 func TestUnmarshalSpan(t *testing.T) {
@@ -223,7 +233,7 @@ func TestBinaryAnnotationToThrift(t *testing.T) {
 	require.NoError(t, err)
 	assert.Equal(t, binAnno.Key, tBinAnno.Key)
 	assert.Equal(t, binAnno.Endpoint.ServiceName, tBinAnno.Host.ServiceName)
-	assert.Equal(t, binAnno.Value, string(tBinAnno.Value))
+	assert.Equal(t, string(binAnno.Value), string(tBinAnno.Value))
 
 	endp = endpoint{
 		IPv4: "127.0.0.A",
