@@ -58,6 +58,9 @@ func NewStaticAssetsHandler(staticAssetsRoot string, uiConfig string) (*StaticAs
 	if config, err := loadUIConfig(uiConfig); err != nil {
 		return nil, err
 	} else if config != nil {
+		// TODO if we want to support other config formats like YAML, we need to normalize `config` to be
+		// suitable for json.Marshal(). For example, YAML parser may return a map that has keys of type
+		// interface{}, and json.Marshal() is unable to serialize it.
 		bytes, _ := json.Marshal(config)
 		configString = fmt.Sprintf("JAEGER_CONFIG = %v", string(bytes))
 	}
