@@ -24,9 +24,15 @@ import (
 
 func TestQueryBuilderFlags(t *testing.T) {
 	v, command := config.Viperize(AddFlags)
-	command.ParseFlags([]string{"--query.static-files=/dev/null", "--query.prefix=api", "--query.port=80"})
+	command.ParseFlags([]string{
+		"--query.static-files=/dev/null",
+		"--query.ui-config=some.json",
+		"--query.prefix=api",
+		"--query.port=80",
+	})
 	qOpts := new(QueryOptions).InitFromViper(v)
-	assert.Equal(t, "/dev/null", qOpts.QueryStaticAssets)
-	assert.Equal(t, "api", qOpts.QueryPrefix)
-	assert.Equal(t, 80, qOpts.QueryPort)
+	assert.Equal(t, "/dev/null", qOpts.StaticAssets)
+	assert.Equal(t, "some.json", qOpts.UIConfig)
+	assert.Equal(t, "api", qOpts.Prefix)
+	assert.Equal(t, 80, qOpts.Port)
 }

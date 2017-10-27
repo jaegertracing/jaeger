@@ -131,6 +131,7 @@ func startQueryService(url string, logger *zap.Logger) services.QueryService {
 	forkCmd(
 		logger,
 		queryCmd,
+		"--query.static-files=/ui/",
 		"--cassandra.keyspace=jaeger",
 		"--cassandra.servers=cassandra",
 	)

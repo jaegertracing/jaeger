@@ -61,7 +61,7 @@ func main() {
 			esOptions.InitFromViper(v)
 			queryOpts := new(builder.QueryOptions).InitFromViper(v)
 
-			hc, err := healthcheck.Serve(http.StatusServiceUnavailable, queryOpts.QueryHealthCheckHTTPPort, logger)
+			hc, err := healthcheck.Serve(http.StatusServiceUnavailable, queryOpts.HealthCheckHTTPPort, logger)
 			if err != nil {
 				logger.Fatal("Could not start the health check server.", zap.Error(err))
 			}
@@ -92,21 +92,24 @@ func main() {
 				logger.Fatal("Failed to init storage builder", zap.Error(err))
 			}
 
-			rHandler := app.NewAPIHandler(
+			apiHandler := app.NewAPIHandler(
 				storageBuild.SpanReader,
 				storageBuild.DependencyReader,
-				app.HandlerOptions.Prefix(queryOpts.QueryPrefix),
+				app.HandlerOptions.Prefix(queryOpts.Prefix),
 				app.HandlerOptions.Logger(logger),
 				app.HandlerOptions.Tracer(tracer))
-			sHandler := app.NewStaticAssetsHandler(queryOpts.QueryStaticAssets)
+			staticHandler, err := app.NewStaticAssetsHandler(queryOpts.StaticAssets, queryOpts.UIConfig)
+			if err != nil {
+				logger.Fatal("Could not create static assets handler", zap.Error(err))
+			}
 			r := mux.NewRouter()
-			rHandler.RegisterRoutes(r)
-			sHandler.RegisterRoutes(r)
-			portStr := ":" + strconv.Itoa(queryOpts.QueryPort)
+			apiHandler.RegisterRoutes(r)
+			staticHandler.RegisterRoutes(r)
+			portStr := ":" + strconv.Itoa(queryOpts.Port)
 			recoveryHandler := recoveryhandler.NewRecoveryHandler(logger, true)
 
 			go func() {
-				logger.Info("Starting jaeger-query HTTP server", zap.Int("port", queryOpts.QueryPort))
+				logger.Info("Starting jaeger-query HTTP server", zap.Int("port", queryOpts.Port))
 				if err := http.ListenAndServe(portStr, recoveryHandler(r)); err != nil {
 					logger.Fatal("Could not launch service", zap.Error(err))
 				}
