@@ -15,8 +15,6 @@
 package zipkin
 
 import (
-	"bytes"
-	"encoding/binary"
 	"encoding/json"
 	"errors"
 	"fmt"
