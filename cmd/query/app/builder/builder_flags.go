@@ -47,7 +47,7 @@ func AddFlags(flagSet *flag.FlagSet) {
 	flagSet.Int(queryPort, 16686, "The port for the query service")
 	flagSet.String(queryPrefix, "api", "The prefix for the url of the query service")
 	flagSet.String(queryStaticFiles, "jaeger-ui-build/build/", "The path for the static assets for the UI")
-	flagSet.String(queryUIConfig, "", "The path to the UI config file")
+	flagSet.String(queryUIConfig, "", "The path to the UI configuration file in JSON format")
 	flagSet.Int(queryHealthCheckHTTPPort, 16687, "The http port for the health check service")
 }
 

@@ -119,22 +119,19 @@ func TestLoadUIConfig(t *testing.T) {
 		configFile:    "fixture/ui-config-malformed.json",
 		expectedError: "Cannot parse UI config file fixture/ui-config-malformed.json: invalid character '=' after object key",
 	})
-	run("yaml", testCase{
-		configFile: "fixture/ui-config.yaml",
-		expected: map[string]interface{}{
-			"x": "abcd",
-			"z": []interface{}{"a", "b"},
-		},
-	})
-	run("yml", testCase{
-		configFile: "fixture/ui-config.yml",
-		expected: map[string]interface{}{
-			"x": "abcd",
-			"z": []interface{}{"a", "b"},
-		},
-	})
 	run("json", testCase{
 		configFile: "fixture/ui-config.json",
 		expected:   map[string]interface{}{"x": "y"},
+	})
+	run("json-menu", testCase{
+		configFile: "fixture/ui-config-menu.json",
+		expected: map[string]interface{}{
+			"menu": []interface{}{
+				map[string]interface{}{
+					"label": "GitHub",
+					"url":   "https://github.com/jaegertracing/jaeger",
+				},
+			},
+		},
 	})
 }

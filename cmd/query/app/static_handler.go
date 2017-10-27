@@ -25,7 +25,6 @@ import (
 
 	"github.com/gorilla/mux"
 	"github.com/pkg/errors"
-	"gopkg.in/yaml.v2"
 )
 
 const (
@@ -55,16 +54,16 @@ func NewStaticAssetsHandler(staticAssetsRoot string, uiConfig string) (*StaticAs
 	if err != nil {
 		return nil, errors.Wrap(err, "Cannot read UI static assets")
 	}
-	configString := "JAEGER_CONFIG = DEFAULT_CONFIG;"
+	configString := "JAEGER_CONFIG = DEFAULT_CONFIG"
 	if config, err := loadUIConfig(uiConfig); err != nil {
 		return nil, err
 	} else if config != nil {
 		bytes, _ := json.Marshal(config)
-		configString = fmt.Sprintf("JAEGER_CONFIG = %v;", string(bytes))
+		configString = fmt.Sprintf("JAEGER_CONFIG = %v", string(bytes))
 	}
 	return &StaticAssetsHandler{
 		staticAssetsRoot: staticAssetsRoot,
-		indexHTML:        configPattern.ReplaceAll(indexBytes, []byte(configString)),
+		indexHTML:        configPattern.ReplaceAll(indexBytes, []byte(configString+";")),
 	}, nil
 }
 
@@ -82,8 +81,6 @@ func loadUIConfig(uiConfig string) (map[string]interface{}, error) {
 	var unmarshal func([]byte, interface{}) error
 
 	switch strings.ToLower(ext) {
-	case ".yaml", ".yml":
-		unmarshal = yaml.Unmarshal
 	case ".json":
 		unmarshal = json.Unmarshal
 	default:
