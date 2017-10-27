@@ -35,42 +35,50 @@ See the OpenTracing contributions repository on [Github](https://github.com/open
 
 ## Propagation Format
 
-When `SpanContext` is encoded on the wire, Jaeger client libraries default to the encoding specified here.
+When `SpanContext` is encoded on the wire, Jaeger client libraries default to the encoding specified below.
 
 ### Trace/Span Identity
 
-Key: `uber-trace-id`
-  * Case-insensitive in HTTP
-  * Lower-case in protocols that preserve header case
+#### Key
 
-Value: `{trace-id}:{span-id}:{parent-span-id}:{flags}`
-  * `{trace-id}`
+`uber-trace-id`
+
+* Case-insensitive in HTTP
+* Lower-case in protocols that preserve header case
+
+#### Value
+
+`{trace-id}:{span-id}:{parent-span-id}:{flags}`
+
+* `{trace-id}`
     * 64-bit or 128-bit random number in base16 format
     * Can be variable length, shorter values are 0-padded on the left
     * Clients in some languages support 128-bit, migration pending
     * Value of 0 is invalid
-  * `{span-id}`
+* `{span-id}`
     * 64-bit random number in base16 format
-  * `{parent-span-id}`
+* `{parent-span-id}`
     * 64-bit value in base16 format representing parent span id
     * Deprecated, most Jaeger clients ignore on the receiving side, but still include it on the sending side
     * 0 value is valid and means “root span” (when not ignored)
-  * `{flags}`
+* `{flags}`
     * One byte bitmap, as two hex digits
     * Bit 1 (right-most, least significant) is “sampled” flag
-      * 1 means the trace is sampled and all downstream services are advised to respect that
-      * 0 means the trace is not sampled and all downstream services are advised to respect that
-        * We’re considering a new feature that allows downstream services to upsample if they find their tracing level is too low
+        * 1 means the trace is sampled and all downstream services are advised to respect that
+        * 0 means the trace is not sampled and all downstream services are advised to respect that
+            * We’re considering a new feature that allows downstream services to upsample if they find their tracing level is too low
     * Bit 2 is “debug” flag
-      * Debug flag implies sampled flag
-      * Instructs the backend to try really hard not to drop this trace
+        * Debug flag implies sampled flag
+        * Instructs the backend to try really hard not to drop this trace
     * Other bits are unused
 
 ### Baggage
 
-Key: `uberctx-{baggage-key}`
-Value: url-encoded string
+* Key: `uberctx-{baggage-key}`
+* Value: url-encoded string
+* Limitation: since HTTP headers don’t preserve the case, Jaeger recommends baggage keys to be lowercase-snake-case,
+e.g. `my-baggage-key-1`.
 
-Limitation: since HTTP headers don’t preserve the case, Jaeger recommends baggage keys to be lowercase-snake-case.
+
 
 [HttpSender]: https://github.com/uber/jaeger-client-java/blob/master/jaeger-core/src/main/java/com/uber/jaeger/senders/HttpSender.java
