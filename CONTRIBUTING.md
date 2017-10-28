@@ -51,7 +51,14 @@ github.com/uber/jaeger
     collector/
       app/                  - The actual code for the binary
       main.go
-  pkg/                      - See Note 1
+  crossdock/                - Cross-repo integration test configuration
+  docs/                     - Documentation
+  examples/
+      hotrod/               - Demo application that uses OpenTracing API
+  idl/                      - (submodule) https://github.com/jaegertracing/jaeger-idl
+  jaeger-ui/                - (submodule) https://github.com/jaegertracing/jaeger-ui
+  model/                    - Where models are kept, e.g. Process, Span, Trace
+  pkg/                      - (See Note 1)
   plugin/                   - Swappable implementations of various components
     storage/
       cassandra/            - Cassandra implementations of storage APIs
@@ -59,16 +66,18 @@ github.com/uber/jaeger
         spanstore/          - SpanReader / SpanWriter implementations
         dependencystore/
       elasticsearch/        - ES implementations of storage APIs
+  scripts/                  - Miscellaneous project scripts, e.g. license update script
   storage/
     spanstore/              - SpanReader / SpanWriter interfaces
     dependencystore/
-  idl/                      - (submodule)
-  jaeger-ui/                - (submodule)
   thrift-gen/               - Generated Thrift types
     agent/
     jaeger/
     sampling/
     zipkincore/
+  travis/                   - Travis scripts called in .travis.yml
+  glide.yaml                - Glide is the project's dependency manager
+  mkdocs.yml                - MkDocs builds the documentation in docs/
 ```
 
   * Note 1: `pkg` is a collection of utility packages used by the Jaeger components
