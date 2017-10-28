@@ -20,6 +20,7 @@ import (
 	"encoding/binary"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"math"
 	"strconv"
 	"strings"
@@ -186,10 +187,6 @@ func binAnnoToThrift(ba binaryAnnotation) (*zipkincore.BinaryAnnotation, error) 
 		return nil, err
 	}
 
-	if ba.Type == "" {
-		ba.Type = "STRING"
-	}
-
 	var val []byte
 	var valType zipkincore.AnnotationType
 	switch ba.Type {
@@ -200,42 +197,38 @@ func binAnnoToThrift(ba binaryAnnotation) (*zipkincore.BinaryAnnotation, error) 
 			val = []byte{0}
 		}
 		valType = zipkincore.AnnotationType_BOOL
-		break
 	case "I16":
 		buff := new(bytes.Buffer)
 		binary.Write(buff, binary.LittleEndian, int16(ba.Value.(float64)))
 		val = buff.Bytes()
 		valType = zipkincore.AnnotationType_I16
-		break
 	case "I32":
 		buff := new(bytes.Buffer)
 		binary.Write(buff, binary.LittleEndian, int32(ba.Value.(float64)))
 		val = buff.Bytes()
 		valType = zipkincore.AnnotationType_I32
-		break
 	case "I64":
 		buff := new(bytes.Buffer)
 		binary.Write(buff, binary.LittleEndian, int64(ba.Value.(float64)))
 		val = buff.Bytes()
 		valType = zipkincore.AnnotationType_I64
-		break
 	case "DOUBLE":
 		val = float64bytes(ba.Value.(float64))
 		valType = zipkincore.AnnotationType_DOUBLE
-		break
-	case "STRING":
-		val = []byte(ba.Value.(string))
-		valType = zipkincore.AnnotationType_STRING
-		break
 	case "BYTES":
 		val, err = base64.StdEncoding.DecodeString(ba.Value.(string))
 		if err != nil {
 			return nil, err
 		}
 		valType = zipkincore.AnnotationType_BYTES
-		break
+	case "STRING":
+		fallthrough
 	default:
-		break
+		str := fmt.Sprintf("%s", ba.Value)
+		val = []byte(str)
+		fmt.Println("default")
+		fmt.Println(str)
+		valType = zipkincore.AnnotationType_STRING
 	}
 
 	return &zipkincore.BinaryAnnotation{
