@@ -186,6 +186,10 @@ func binAnnoToThrift(ba binaryAnnotation) (*zipkincore.BinaryAnnotation, error) 
 		return nil, err
 	}
 
+	if ba.Type == "" {
+		ba.Type = "STRING"
+	}
+
 	var val []byte
 	var valType zipkincore.AnnotationType
 	switch ba.Type {

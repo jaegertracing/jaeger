@@ -124,7 +124,10 @@ func TestUnmarshalBinAnnotationNumberValue(t *testing.T) {
 		{
 			json: `{"key":"foo", "value": "^^^", "type": "BYTES"}`,
 			err:  errors.New("illegal base64 data at input byte 0"),
-			//expected: zipkincore.BinaryAnnotation{Key: "foo", Value: []byte("str"), AnnotationType: zipkincore.AnnotationType_BYTES},
+		},
+		{
+			json:     `{"key":"foo", "value": "733c374d736e41cc"}`,
+			expected: zipkincore.BinaryAnnotation{Key: "foo", Value: []byte("733c374d736e41cc"), AnnotationType: zipkincore.AnnotationType_STRING},
 		},
 	}
 
