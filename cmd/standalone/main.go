@@ -221,12 +221,16 @@ func startQuery(
 		queryApp.HandlerOptions.Prefix(qOpts.Prefix),
 		queryApp.HandlerOptions.Logger(logger),
 		queryApp.HandlerOptions.Tracer(tracer))
+	r := mux.NewRouter()
 	staticHandler, err := queryApp.NewStaticAssetsHandler(qOpts.StaticAssets, qOpts.UIConfig)
 	if err != nil {
 		logger.Fatal("Could not create static assets handler", zap.Error(err))
 	}
-	r := mux.NewRouter()
-	apiHandler.RegisterRoutes(r)
+	if staticHandler != nil {
+		apiHandler.RegisterRoutes(r)
+	} else {
+		logger.Info("Static handler is not registered")
+	}
 	staticHandler.RegisterRoutes(r)
 	portStr := ":" + strconv.Itoa(qOpts.Port)
 	recoveryHandler := recoveryhandler.NewRecoveryHandler(logger, true)

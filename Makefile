@@ -116,8 +116,13 @@ build-query-linux:
 build-collector-linux:
 	CGO_ENABLED=0 GOOS=linux installsuffix=cgo go build -o ./cmd/collector/collector-linux ./cmd/collector/main.go
 
+.PHONY: docker-no-ui
+docker-no-ui: build-agent-linux build-collector-linux build-query-linux build-crossdock-linux
+	mkdir -p jaeger-ui-build/build/
+	make docker-images-only
+
 .PHONY: docker
-docker: build_ui build-agent-linux build-collector-linux build-query-linux build-crossdock-linux docker-images-only
+docker: build_ui docker-no-ui
 
 .PHONY: docker-images-only
 docker-images-only:
@@ -151,7 +156,7 @@ build-crossdock-linux:
 include crossdock/rules.mk
 
 .PHONY: build-crossdock
-build-crossdock: docker
+build-crossdock: docker-no-ui
 	make crossdock
 
 .PHONY: build-crossdock-fresh
