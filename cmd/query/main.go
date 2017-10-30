@@ -29,6 +29,7 @@ import (
 	"github.com/uber/jaeger-lib/metrics/go-kit/expvar"
 	"go.uber.org/zap"
 
+	"github.com/pelletier/go-toml/query"
 	basicB "github.com/uber/jaeger/cmd/builder"
 	"github.com/uber/jaeger/cmd/flags"
 	casFlags "github.com/uber/jaeger/cmd/flags/cassandra"
@@ -38,7 +39,6 @@ import (
 	"github.com/uber/jaeger/pkg/config"
 	"github.com/uber/jaeger/pkg/healthcheck"
 	"github.com/uber/jaeger/pkg/recoveryhandler"
-	"github.com/pelletier/go-toml/query"
 )
 
 func main() {
