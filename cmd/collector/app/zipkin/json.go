@@ -59,6 +59,7 @@ type zipkinSpan struct {
 
 var (
 	errWrongIpv4 = errors.New("wrong ipv4")
+	errWrongIpv6 = errors.New("wrong ipv6")
 )
 
 // DeserializeJSON deserialize zipkin v1 json spans into zipkin thrift
@@ -145,7 +146,8 @@ func spanToThrift(s zipkinSpan) (*zipkincore.Span, error) {
 func cutLongID(id string) string {
 	l := len(id)
 	if l > 16 && l <= 32 {
-		return id[:16]
+		start := l - 16
+		return id[start:]
 	}
 	return id
 }
@@ -161,11 +163,16 @@ func endpointToThrift(e endpoint) (*zipkincore.Endpoint, error) {
 		port = port - (1 << 16)
 	}
 
+	ipv6, err := parseIpv6(e.IPv6)
+	if err != nil {
+		return nil, err
+	}
+
 	return &zipkincore.Endpoint{
 		ServiceName: e.ServiceName,
 		Port:        int16(port),
 		Ipv4:        ipv4,
-		Ipv6:        []byte(e.IPv6),
+		Ipv6:        ipv6,
 	}, nil
 }
 
@@ -246,6 +253,17 @@ func float64bytes(float float64) []byte {
 	bytes := make([]byte, 8)
 	binary.LittleEndian.PutUint64(bytes, bits)
 	return bytes
+}
+
+func parseIpv6(str string) (net.IP, error) {
+	if str == "" {
+		return nil, nil
+	}
+	ip := net.ParseIP(str).To16()
+	if ip == nil {
+		return nil, errWrongIpv6
+	}
+	return ip, nil
 }
 
 func parseIpv4(str string) (int32, error) {

@@ -243,6 +243,16 @@ func TestEndpointToThrift(t *testing.T) {
 	require.Error(t, err)
 	assert.Equal(t, errWrongIpv4, err)
 	assert.Nil(t, tEndpoint)
+
+	endp = endpoint{
+		ServiceName: "foo",
+		Port:        80,
+		IPv6:        "::R",
+	}
+	tEndpoint, err = endpointToThrift(endp)
+	require.Error(t, err)
+	assert.Equal(t, errWrongIpv6, err)
+	assert.Nil(t, tEndpoint)
 }
 
 func TestAnnotationToThrift(t *testing.T) {
@@ -322,7 +332,7 @@ func TestSpanToThrift(t *testing.T) {
 	span := zipkinSpan{
 		ID:                "bd7a977555f6b982",
 		TraceID:           "bd7a974555f6b982bd71977555f6b981",
-		ParentID:          "1",
+		ParentID:          "00000000000000001",
 		Name:              "foo",
 		Annotations:       []annotation{anno},
 		BinaryAnnotations: []binaryAnnotation{binAnno},
