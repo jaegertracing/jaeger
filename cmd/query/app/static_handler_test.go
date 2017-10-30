@@ -52,6 +52,12 @@ func TestDefaultStaticAssetsRoot(t *testing.T) {
 	assert.Nil(t, err)
 }
 
+func TestNotExistingUiConfig(t *testing.T) {
+	handler, err := NewStaticAssetsHandler("/foo/bar", "")
+	assert.Equal(t, "Cannot read UI static assets: open /foo/bar/index.html: no such file or directory", err.Error())
+	assert.Nil(t, handler)
+}
+
 func TestRegisterRoutesHandler(t *testing.T) {
 	r := mux.NewRouter()
 	handler, err := NewStaticAssetsHandler("fixture/", "")
