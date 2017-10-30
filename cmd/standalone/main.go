@@ -222,20 +222,24 @@ func startQuery(
 		queryApp.HandlerOptions.Logger(logger),
 		queryApp.HandlerOptions.Tracer(tracer))
 	r := mux.NewRouter()
-	staticHandler, err := queryApp.NewStaticAssetsHandler(qOpts.StaticAssets, qOpts.UIConfig)
-	if err != nil {
-		logger.Fatal("Could not create static assets handler", zap.Error(err))
-	}
-	if staticHandler != nil {
-		apiHandler.RegisterRoutes(r)
-	} else {
-		logger.Info("Static handler is not registered")
-	}
-	staticHandler.RegisterRoutes(r)
+	apiHandler.RegisterRoutes(r)
+	registerStaticHandler(r, logger, qOpts)
 	portStr := ":" + strconv.Itoa(qOpts.Port)
 	recoveryHandler := recoveryhandler.NewRecoveryHandler(logger, true)
 	logger.Info("Starting jaeger-query HTTP server", zap.Int("port", qOpts.Port))
 	if err := http.ListenAndServe(portStr, recoveryHandler(r)); err != nil {
 		logger.Fatal("Could not launch jaeger-query service", zap.Error(err))
+	}
+}
+
+func registerStaticHandler(r *mux.Router, logger *zap.Logger, qOpts *query.QueryOptions) {
+	staticHandler, err := queryApp.NewStaticAssetsHandler(qOpts.StaticAssets, qOpts.UIConfig)
+	if err != nil {
+		logger.Fatal("Could not create static assets handler", zap.Error(err))
+	}
+	if staticHandler != nil {
+		staticHandler.RegisterRoutes(r)
+	} else {
+		logger.Info("Static handler is not registered")
 	}
 }

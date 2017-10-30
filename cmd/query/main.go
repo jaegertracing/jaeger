@@ -38,6 +38,7 @@ import (
 	"github.com/uber/jaeger/pkg/config"
 	"github.com/uber/jaeger/pkg/healthcheck"
 	"github.com/uber/jaeger/pkg/recoveryhandler"
+	"github.com/pelletier/go-toml/query"
 )
 
 func main() {
@@ -99,16 +100,8 @@ func main() {
 				app.HandlerOptions.Logger(logger),
 				app.HandlerOptions.Tracer(tracer))
 			r := mux.NewRouter()
-			staticHandler, err := app.NewStaticAssetsHandler(queryOpts.StaticAssets, queryOpts.UIConfig)
-			if err != nil {
-				logger.Fatal("Could not create static assets handler", zap.Error(err))
-			}
-			if staticHandler != nil {
-				staticHandler.RegisterRoutes(r)
-			} else {
-				logger.Info("Static handler is not registered")
-			}
 			apiHandler.RegisterRoutes(r)
+			registerStaticHandler(r, logger, queryOpts)
 			portStr := ":" + strconv.Itoa(queryOpts.Port)
 			recoveryHandler := recoveryhandler.NewRecoveryHandler(logger, true)
 
@@ -141,5 +134,17 @@ func main() {
 
 	if error := command.Execute(); error != nil {
 		logger.Fatal(error.Error())
+	}
+}
+
+func registerStaticHandler(r *mux.Router, logger *zap.Logger, qOpts *builder.QueryOptions) {
+	staticHandler, err := app.NewStaticAssetsHandler(qOpts.StaticAssets, qOpts.UIConfig)
+	if err != nil {
+		logger.Fatal("Could not create static assets handler", zap.Error(err))
+	}
+	if staticHandler != nil {
+		staticHandler.RegisterRoutes(r)
+	} else {
+		logger.Info("Static handler is not registered")
 	}
 }
