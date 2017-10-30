@@ -13,6 +13,8 @@ There are orchestration templates for running Jaeger with:
   * Kubernetes: [github.com/jaegertracing/jaeger-kubernetes](https://github.com/jaegertracing/jaeger-kubernetes),
   * OpenShift: [github.com/jaegertracing/jaeger-openshift](https://github.com/jaegertracing/jaeger-openshift).
 
+As well as a [docker-compose.yml](./../cmd/jaeger-stack) for your convenience to start up the whole stack including the query interface, a Cassandra database, an agent and the collector on one machine. The compose-file will kick start the database (Cassandra) and a container that establishes the database-structure as soon as Cassandra is available. After Cassandras successful configuration, the collector and the query interface will become stable as well (while the schema setup is in progress you may see the collector and the query restart until eventually all their needs are satisfied).
+
 ## Agent
 
 Jaeger client libraries expect **jaeger-agent** process to run locally on each host.

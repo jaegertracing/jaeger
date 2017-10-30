@@ -1,0 +1,73 @@
+version: '2'
+services:
+  cassandra:
+    image: cassandra:3.11
+    networks:
+      - jaeger
+    ports:
+      - "7000:7000"
+      - "7001:7001"
+      - "7199:7199"
+      - "9042:9042"
+      - "9160:9160"
+    restart: unless-stopped
+    volumes:
+      - cassandra-data:/var/lib/cassandra
+      - cassandra-logs:/var/log/cassandra
+    logging:
+      options:
+        max-size: 5m
+    environment:
+      MAX_HEAP_SIZE: 512M
+      HEAP_NEWSIZE: 100M
+      CASSANDRA_CLUSTER_NAME: "jaeger"
+      CASSANDRA_DC: "dc1"
+      CASSANDRA_RACK: "rack1"
+      CASSANDRA_ENDPOINT_SNITCH: "GossipingPropertyFileSnitch"
+      CASSANDRA_START_RPC: "true"
+  cassandra-scheme:
+    image: jaegertracing/jaeger-cassandra-schema:0.5
+    networks:
+      - jaeger
+    depends_on:
+      - cassandra
+  jaeger-collector:
+    image: jaegertracing/jaeger-collector:0.5
+    networks:
+      - jaeger
+    ports:
+      - "14267:14267"
+      - "14268:14268"
+    depends_on:
+      - cassandra-scheme
+    restart: unless-stopped
+    command: /go/bin/collector-linux -cassandra.servers=cassandra -cassandra.keyspace=jaeger_v1_dc1 -cassandra.connections-per-host 2
+  jaeger-agent:
+    image: jaegertracing/jaeger-agent:0.5
+    networks: 
+      - jaeger
+    ports:
+      - "5775:5775/udp"
+      - "5778:5778"
+      - "6831:6831/udp"
+      - "6832:6832/udp"
+    depends_on:
+      - cassandra-scheme
+    restart: unless-stopped
+    command: /go/bin/agent-linux -collector.host-port=jaeger-collector:14267
+  jaeger-query:
+    image: jaegertracing/jaeger-query:0.5
+    networks:
+      - jaeger
+    ports:
+      - "16686:16686"
+    depends_on:
+      - cassandra-scheme
+    restart: unless-stopped
+    command: /go/bin/query-linux -cassandra.servers=cassandra -cassandra.keyspace=jaeger_v1_dc1 --query.static-files=/go/jaeger-ui/
+networks:
+  jaeger: #defaultnetwork
+volumes:
+  cassandra-data: {}
+  cassandra-logs: {}
+  
