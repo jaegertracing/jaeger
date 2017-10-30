@@ -16,12 +16,14 @@ package zipkin
 
 import (
 	"encoding/json"
+	"errors"
 	"fmt"
 	"math"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"github.com/uber/jaeger/thrift-gen/zipkincore"
 )
 
 var endpointFmt = `{"serviceName": "%s", "ipv4": "%s", "ipv6": "%s", "port": %d}`
@@ -47,7 +49,7 @@ func createSpan(name string, id string, parentID string, traceID string, ts int6
 }
 
 func TestDecodeWrongJson(t *testing.T) {
-	spans, err := deserializeJSON([]byte(""))
+	spans, err := DeserializeJSON([]byte(""))
 	require.Error(t, err)
 	assert.Nil(t, spans)
 }
@@ -77,8 +79,73 @@ func TestUnmarshalBinAnnotation(t *testing.T) {
 	err := json.Unmarshal([]byte(createBinAnno("foo", "bar", endpointJSON)), binAnno)
 	require.NoError(t, err)
 	assert.Equal(t, "foo", binAnno.Key)
-	assert.Equal(t, "bar", binAnno.Value)
+	assert.Equal(t, "bar", binAnno.Value.(string))
 	assert.Equal(t, "foo", binAnno.Endpoint.ServiceName)
+}
+
+func TestUnmarshalBinAnnotationNumberValue(t *testing.T) {
+	tests := []struct {
+		json     string
+		expected zipkincore.BinaryAnnotation
+		err      error
+	}{
+		{
+			json:     `{"key":"foo", "value": 32768, "type": "I16"}`,
+			expected: zipkincore.BinaryAnnotation{Key: "foo", Value: []byte{0x0, 0x80}, AnnotationType: zipkincore.AnnotationType_I16},
+		},
+		{
+			json:     `{"key":"foo", "value": 32768, "type": "I32"}`,
+			expected: zipkincore.BinaryAnnotation{Key: "foo", Value: []byte{0x00, 0x80, 0x00, 0x00}, AnnotationType: zipkincore.AnnotationType_I32},
+		},
+		{
+			json:     `{"key":"foo", "value": 32768, "type": "I64"}`,
+			expected: zipkincore.BinaryAnnotation{Key: "foo", Value: []byte{0x00, 0x80, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00}, AnnotationType: zipkincore.AnnotationType_I64},
+		},
+		{
+			json:     `{"key":"foo", "value": -12.666512, "type": "DOUBLE"}`,
+			expected: zipkincore.BinaryAnnotation{Key: "foo", Value: []byte{122, 200, 148, 15, 65, 85, 41, 192}, AnnotationType: zipkincore.AnnotationType_DOUBLE},
+		},
+		{
+			json:     `{"key":"foo", "value": true, "type": "BOOL"}`,
+			expected: zipkincore.BinaryAnnotation{Key: "foo", Value: []byte{1}, AnnotationType: zipkincore.AnnotationType_BOOL},
+		},
+		{
+			json:     `{"key":"foo", "value": false, "type": "BOOL"}`,
+			expected: zipkincore.BinaryAnnotation{Key: "foo", Value: []byte{0}, AnnotationType: zipkincore.AnnotationType_BOOL},
+		},
+		{
+			json:     `{"key":"foo", "value": "str", "type": "STRING"}`,
+			expected: zipkincore.BinaryAnnotation{Key: "foo", Value: []byte("str"), AnnotationType: zipkincore.AnnotationType_STRING},
+		},
+		{
+			json:     `{"key":"foo", "value": "c3Ry", "type": "BYTES"}`,
+			expected: zipkincore.BinaryAnnotation{Key: "foo", Value: []byte("str"), AnnotationType: zipkincore.AnnotationType_BYTES},
+		},
+		{
+			json: `{"key":"foo", "value": "^^^", "type": "BYTES"}`,
+			err:  errors.New("illegal base64 data at input byte 0"),
+		},
+		{
+			json:     `{"key":"foo", "value": "733c374d736e41cc"}`,
+			expected: zipkincore.BinaryAnnotation{Key: "foo", Value: []byte("733c374d736e41cc"), AnnotationType: zipkincore.AnnotationType_STRING},
+		},
+	}
+
+	for _, test := range tests {
+		binAnno := &binaryAnnotation{}
+		err := json.Unmarshal([]byte(test.json), binAnno)
+		require.NoError(t, err)
+		tBinAnno, err := binAnnoToThrift(*binAnno)
+		if test.err != nil {
+			require.Error(t, err, test.json)
+			require.Nil(t, tBinAnno)
+			assert.Equal(t, test.err.Error(), err.Error())
+		} else {
+			require.NoError(t, err)
+			assert.Equal(t, test.expected.Key, tBinAnno.Key)
+			assert.Equal(t, test.expected.Value, tBinAnno.Value)
+		}
+	}
 }
 
 func TestUnmarshalSpan(t *testing.T) {
@@ -113,34 +180,34 @@ func TestUnmarshalSpan(t *testing.T) {
 func TestIncorrectSpanIds(t *testing.T) {
 	// id missing
 	spanJSON := createSpan("bar", "", "1", "2", 156, 15145, false, "", "")
-	spans, err := deserializeJSON([]byte(spanJSON))
+	spans, err := DeserializeJSON([]byte(spanJSON))
 	require.Error(t, err)
 	assert.Equal(t, errIsNotUnsignedLog, err)
 	assert.Nil(t, spans)
 	// id longer than 32
 	spanJSON = createSpan("bar", "123456789123456712345678912345678", "1", "2",
 		156, 15145, false, "", "")
-	spans, err = deserializeJSON([]byte(spanJSON))
+	spans, err = DeserializeJSON([]byte(spanJSON))
 	require.Error(t, err)
 	assert.Equal(t, errIsNotUnsignedLog, err)
 	assert.Nil(t, spans)
 	// traceId missing
 	spanJSON = createSpan("bar", "2", "1", "", 156, 15145, false,
 		"", "")
-	spans, err = deserializeJSON([]byte(spanJSON))
+	spans, err = DeserializeJSON([]byte(spanJSON))
 	require.Error(t, err)
 	assert.Equal(t, errIsNotUnsignedLog, err)
 	assert.Nil(t, spans)
 	// 128 bit traceId
 	spanJSON = createSpan("bar", "2", "1", "12345678912345671234567891234567", 156, 15145, false,
 		"", "")
-	spans, err = deserializeJSON([]byte(spanJSON))
+	spans, err = DeserializeJSON([]byte(spanJSON))
 	require.NoError(t, err)
 	assert.NotNil(t, spans)
 	// wrong 128 bit traceId
 	spanJSON = createSpan("bar", "22", "12", "#2345678912345671234567891234562", 156, 15145, false,
 		"", "")
-	spans, err = deserializeJSON([]byte(spanJSON))
+	spans, err = DeserializeJSON([]byte(spanJSON))
 	require.Error(t, err)
 	assert.Nil(t, spans)
 }
@@ -218,6 +285,7 @@ func TestBinaryAnnotationToThrift(t *testing.T) {
 		Endpoint: endp,
 		Key:      "error",
 		Value:    "str",
+		Type:     "STRING",
 	}
 	tBinAnno, err := binAnnoToThrift(binAnno)
 	require.NoError(t, err)

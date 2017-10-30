@@ -15,8 +15,13 @@
 package zipkin
 
 import (
+	"bytes"
+	"encoding/base64"
+	"encoding/binary"
 	"encoding/json"
 	"errors"
+	"fmt"
+	"math"
 	"strconv"
 	"strings"
 
@@ -35,9 +40,10 @@ type annotation struct {
 	Timestamp int64    `json:"timestamp"`
 }
 type binaryAnnotation struct {
-	Endpoint endpoint `json:"endpoint"`
-	Key      string   `json:"key"`
-	Value    string   `json:"value"`
+	Endpoint endpoint    `json:"endpoint"`
+	Key      string      `json:"key"`
+	Value    interface{} `json:"value"`
+	Type     string      `json:"type"`
 }
 type zipkinSpan struct {
 	ID                string             `json:"id"`
@@ -56,7 +62,8 @@ var (
 	errWrongIpv4        = errors.New("wrong ipv4")
 )
 
-func deserializeJSON(body []byte) ([]*zipkincore.Span, error) {
+// DeserializeJSON deserialize zipkin v1 json spans into zipkin thrift
+func DeserializeJSON(body []byte) ([]*zipkincore.Span, error) {
 	spans, err := decode(body)
 	if err != nil {
 		return nil, err
@@ -180,12 +187,64 @@ func binAnnoToThrift(ba binaryAnnotation) (*zipkincore.BinaryAnnotation, error) 
 		return nil, err
 	}
 
+	var val []byte
+	var valType zipkincore.AnnotationType
+	switch ba.Type {
+	case "BOOL":
+		if ba.Value.(bool) {
+			val = []byte{1}
+		} else {
+			val = []byte{0}
+		}
+		valType = zipkincore.AnnotationType_BOOL
+	case "I16":
+		buff := new(bytes.Buffer)
+		binary.Write(buff, binary.LittleEndian, int16(ba.Value.(float64)))
+		val = buff.Bytes()
+		valType = zipkincore.AnnotationType_I16
+	case "I32":
+		buff := new(bytes.Buffer)
+		binary.Write(buff, binary.LittleEndian, int32(ba.Value.(float64)))
+		val = buff.Bytes()
+		valType = zipkincore.AnnotationType_I32
+	case "I64":
+		buff := new(bytes.Buffer)
+		binary.Write(buff, binary.LittleEndian, int64(ba.Value.(float64)))
+		val = buff.Bytes()
+		valType = zipkincore.AnnotationType_I64
+	case "DOUBLE":
+		val = float64bytes(ba.Value.(float64))
+		valType = zipkincore.AnnotationType_DOUBLE
+	case "BYTES":
+		val, err = base64.StdEncoding.DecodeString(ba.Value.(string))
+		if err != nil {
+			return nil, err
+		}
+		valType = zipkincore.AnnotationType_BYTES
+	case "STRING":
+		fallthrough
+	default:
+		str := fmt.Sprintf("%s", ba.Value)
+		val = []byte(str)
+		fmt.Println("default")
+		fmt.Println(str)
+		valType = zipkincore.AnnotationType_STRING
+	}
+
 	return &zipkincore.BinaryAnnotation{
 		Key:            ba.Key,
-		Value:          []byte(ba.Value),
+		Value:          val,
 		Host:           endpoint,
-		AnnotationType: zipkincore.AnnotationType_STRING,
+		AnnotationType: valType,
 	}, nil
+}
+
+// taken from https://stackoverflow.com/a/22492518/4158442
+func float64bytes(float float64) []byte {
+	bits := math.Float64bits(float)
+	bytes := make([]byte, 8)
+	binary.LittleEndian.PutUint64(bytes, bits)
+	return bytes
 }
 
 func parseIpv4(str string) (int32, error) {
