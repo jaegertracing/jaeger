@@ -27,10 +27,6 @@ import (
 	"github.com/pkg/errors"
 )
 
-const (
-	defaultStaticAssetsRoot = "jaeger-ui-build/build/"
-)
-
 var (
 	staticRootFiles = []string{"favicon.ico"}
 	configPattern   = regexp.MustCompile("JAEGER_CONFIG *= *DEFAULT_CONFIG;")
@@ -45,7 +41,7 @@ type StaticAssetsHandler struct {
 // NewStaticAssetsHandler returns a StaticAssetsHandler
 func NewStaticAssetsHandler(staticAssetsRoot string, uiConfig string) (*StaticAssetsHandler, error) {
 	if staticAssetsRoot == "" {
-		staticAssetsRoot = defaultStaticAssetsRoot
+		return nil, nil
 	}
 	if !strings.HasSuffix(staticAssetsRoot, "/") {
 		staticAssetsRoot = staticAssetsRoot + "/"

@@ -98,13 +98,9 @@ func main() {
 				app.HandlerOptions.Prefix(queryOpts.Prefix),
 				app.HandlerOptions.Logger(logger),
 				app.HandlerOptions.Tracer(tracer))
-			staticHandler, err := app.NewStaticAssetsHandler(queryOpts.StaticAssets, queryOpts.UIConfig)
-			if err != nil {
-				logger.Fatal("Could not create static assets handler", zap.Error(err))
-			}
 			r := mux.NewRouter()
 			apiHandler.RegisterRoutes(r)
-			staticHandler.RegisterRoutes(r)
+			registerStaticHandler(r, logger, queryOpts)
 			portStr := ":" + strconv.Itoa(queryOpts.Port)
 			recoveryHandler := recoveryhandler.NewRecoveryHandler(logger, true)
 
@@ -137,5 +133,17 @@ func main() {
 
 	if error := command.Execute(); error != nil {
 		logger.Fatal(error.Error())
+	}
+}
+
+func registerStaticHandler(r *mux.Router, logger *zap.Logger, qOpts *builder.QueryOptions) {
+	staticHandler, err := app.NewStaticAssetsHandler(qOpts.StaticAssets, qOpts.UIConfig)
+	if err != nil {
+		logger.Fatal("Could not create static assets handler", zap.Error(err))
+	}
+	if staticHandler != nil {
+		staticHandler.RegisterRoutes(r)
+	} else {
+		logger.Info("Static handler is not registered")
 	}
 }

@@ -47,8 +47,15 @@ func TestStaticAssetsHandler(t *testing.T) {
 }
 
 func TestDefaultStaticAssetsRoot(t *testing.T) {
-	_, err := NewStaticAssetsHandler("", "")
-	assert.EqualError(t, err, "Cannot read UI static assets: open jaeger-ui-build/build/index.html: no such file or directory")
+	handler, err := NewStaticAssetsHandler("", "")
+	assert.Nil(t, handler)
+	assert.Nil(t, err)
+}
+
+func TestNotExistingUiConfig(t *testing.T) {
+	handler, err := NewStaticAssetsHandler("/foo/bar", "")
+	assert.Equal(t, "Cannot read UI static assets: open /foo/bar/index.html: no such file or directory", err.Error())
+	assert.Nil(t, handler)
 }
 
 func TestRegisterRoutesHandler(t *testing.T) {
