@@ -92,8 +92,7 @@ func spansToThrift(spans []zipkinSpan) ([]*zipkincore.Span, error) {
 }
 
 func spanToThrift(s zipkinSpan) (*zipkincore.Span, error) {
-	// id can be padded with zeros
-	id, err := model.SpanIDFromString(s.ID[:16])
+	id, err := model.SpanIDFromString(cutLongID(s.ID))
 	if err != nil {
 		return nil, err
 	}
@@ -116,7 +115,7 @@ func spanToThrift(s zipkinSpan) (*zipkincore.Span, error) {
 	}
 
 	if len(s.ParentID) > 0 {
-		parentID, err := model.SpanIDFromString(s.ParentID[:16])
+		parentID, err := model.SpanIDFromString(cutLongID(s.ParentID))
 		if err != nil {
 			return nil, err
 		}
@@ -140,6 +139,15 @@ func spanToThrift(s zipkinSpan) (*zipkincore.Span, error) {
 	}
 
 	return tSpan, nil
+}
+
+// id can be padded with zeros. We let it fail later in case it's longer than 32
+func cutLongID(id string) string {
+	l := len(id)
+	if l > 16 && l <= 32 {
+		return id[:16]
+	}
+	return id
 }
 
 func endpointToThrift(e endpoint) (*zipkincore.Endpoint, error) {

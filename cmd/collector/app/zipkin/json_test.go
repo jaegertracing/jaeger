@@ -18,12 +18,10 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"math"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-	"github.com/uber/jaeger/model"
 	"github.com/uber/jaeger/thrift-gen/zipkincore"
 )
 
