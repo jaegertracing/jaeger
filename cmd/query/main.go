@@ -29,7 +29,6 @@ import (
 	"github.com/uber/jaeger-lib/metrics/go-kit/expvar"
 	"go.uber.org/zap"
 
-	"github.com/pelletier/go-toml/query"
 	basicB "github.com/uber/jaeger/cmd/builder"
 	"github.com/uber/jaeger/cmd/flags"
 	casFlags "github.com/uber/jaeger/cmd/flags/cassandra"
