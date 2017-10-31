@@ -74,7 +74,7 @@ func (aH *APIHandler) saveSpans(w http.ResponseWriter, r *http.Request) {
 	if contentType == "application/x-thrift" {
 		tSpans, err = deserializeThrift(bodyBytes)
 	} else if contentType == "application/json" {
-		tSpans, err = deserializeJSON(bodyBytes)
+		tSpans, err = DeserializeJSON(bodyBytes)
 	} else {
 		http.Error(w, "Unsupported Content-Type", http.StatusBadRequest)
 		return

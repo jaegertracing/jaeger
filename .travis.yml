@@ -53,3 +53,6 @@ script:
 
 after_success:
   - if [ "$COVERAGE" == true ]; then travis_retry goveralls -coverprofile=cover.out -service=travis-ci || true ; else echo 'skipping coverage'; fi
+
+after_failure:
+  - if [ "$CROSSDOCK" == true ]; then make crossdock-logs ; else echo 'skipping crossdock'; fi

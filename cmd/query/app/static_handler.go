@@ -15,34 +15,81 @@
 package app
 
 import (
+	"encoding/json"
+	"fmt"
+	"io/ioutil"
 	"net/http"
+	"path/filepath"
+	"regexp"
 	"strings"
 
 	"github.com/gorilla/mux"
-)
-
-const (
-	defaultStaticAssetsRoot = "jaeger-ui-build/build/"
+	"github.com/pkg/errors"
 )
 
 var (
 	staticRootFiles = []string{"favicon.ico"}
+	configPattern   = regexp.MustCompile("JAEGER_CONFIG *= *DEFAULT_CONFIG;")
 )
 
 // StaticAssetsHandler handles static assets
 type StaticAssetsHandler struct {
 	staticAssetsRoot string
+	indexHTML        []byte
 }
 
 // NewStaticAssetsHandler returns a StaticAssetsHandler
-func NewStaticAssetsHandler(staticAssetsRoot string) *StaticAssetsHandler {
+func NewStaticAssetsHandler(staticAssetsRoot string, uiConfig string) (*StaticAssetsHandler, error) {
 	if staticAssetsRoot == "" {
-		staticAssetsRoot = defaultStaticAssetsRoot
+		return nil, nil
 	}
 	if !strings.HasSuffix(staticAssetsRoot, "/") {
 		staticAssetsRoot = staticAssetsRoot + "/"
 	}
-	return &StaticAssetsHandler{staticAssetsRoot: staticAssetsRoot}
+	indexBytes, err := ioutil.ReadFile(staticAssetsRoot + "index.html")
+	if err != nil {
+		return nil, errors.Wrap(err, "Cannot read UI static assets")
+	}
+	configString := "JAEGER_CONFIG = DEFAULT_CONFIG"
+	if config, err := loadUIConfig(uiConfig); err != nil {
+		return nil, err
+	} else if config != nil {
+		// TODO if we want to support other config formats like YAML, we need to normalize `config` to be
+		// suitable for json.Marshal(). For example, YAML parser may return a map that has keys of type
+		// interface{}, and json.Marshal() is unable to serialize it.
+		bytes, _ := json.Marshal(config)
+		configString = fmt.Sprintf("JAEGER_CONFIG = %v", string(bytes))
+	}
+	return &StaticAssetsHandler{
+		staticAssetsRoot: staticAssetsRoot,
+		indexHTML:        configPattern.ReplaceAll(indexBytes, []byte(configString+";")),
+	}, nil
+}
+
+func loadUIConfig(uiConfig string) (map[string]interface{}, error) {
+	if uiConfig == "" {
+		return nil, nil
+	}
+	ext := filepath.Ext(uiConfig)
+	bytes, err := ioutil.ReadFile(uiConfig)
+	if err != nil {
+		return nil, errors.Wrapf(err, "Cannot read UI config file %v", uiConfig)
+	}
+
+	var c map[string]interface{}
+	var unmarshal func([]byte, interface{}) error
+
+	switch strings.ToLower(ext) {
+	case ".json":
+		unmarshal = json.Unmarshal
+	default:
+		return nil, fmt.Errorf("Unrecognized UI config file format %v", uiConfig)
+	}
+
+	if err := unmarshal(bytes, &c); err != nil {
+		return nil, errors.Wrapf(err, "Cannot parse UI config file %v", uiConfig)
+	}
+	return c, nil
 }
 
 // RegisterRoutes registers routes for this handler on the given router
@@ -57,8 +104,6 @@ func (sH *StaticAssetsHandler) RegisterRoutes(router *mux.Router) {
 }
 
 func (sH *StaticAssetsHandler) notFound(w http.ResponseWriter, r *http.Request) {
-	// don't allow returning "304 Not Modified" for index.html because
-	// the cached versions might have the wrong filenames for javascript assets
-	delete(r.Header, "If-Modified-Since")
-	http.ServeFile(w, r, sH.staticAssetsRoot+"index.html")
+	w.Header().Set("Content-Type", "text/html; charset=utf-8")
+	w.Write(sH.indexHTML)
 }
