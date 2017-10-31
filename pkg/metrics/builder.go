@@ -16,6 +16,7 @@ package metrics
 
 import (
 	"errors"
+	"expvar"
 	"flag"
 	"fmt"
 	"net/http"
@@ -25,7 +26,6 @@ import (
 	xkit "github.com/uber/jaeger-lib/metrics/go-kit"
 	kitexpvar "github.com/uber/jaeger-lib/metrics/go-kit/expvar"
 	kitprom "github.com/uber/jaeger-lib/metrics/go-kit/prometheus"
-	"github.com/uber/jaeger/examples/hotrod/pkg/httpexpvar"
 
 	"github.com/uber/jaeger-lib/metrics"
 )
@@ -43,8 +43,7 @@ var errUnknownBackend = errors.New("unknown metrics backend specified")
 type Builder struct {
 	Backend   string
 	HTTPRoute string // endpoint name to expose metrics, e.g. for scraping
-
-	handler http.Handler
+	handler   http.Handler
 }
 
 // AddFlags adds flags for Builder.
@@ -77,8 +76,7 @@ func (b *Builder) CreateMetricsFactory(namespace string) (metrics.Factory, error
 	}
 	if b.Backend == "expvar" {
 		metricsFactory := xkit.Wrap(namespace, kitexpvar.NewFactory(10))
-		// TODO register official expvar handler once we upgrade to Go 1.8
-		b.handler = http.HandlerFunc(httpexpvar.Handler)
+		b.handler = expvar.Handler()
 		return metricsFactory, nil
 	}
 	if b.Backend == "none" || b.Backend == "" {
