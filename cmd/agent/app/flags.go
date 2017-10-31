@@ -40,6 +40,8 @@ var defaultProcessors = []struct {
 	{model: "zipkin", protocol: "compact", hostPort: ":5775"},
 	{model: "jaeger", protocol: "compact", hostPort: ":6831"},
 	{model: "jaeger", protocol: "binary", hostPort: ":6832"},
+	{model: "jaeger", protocol: "json", hostPort: ":6833"},
+
 }
 
 // AddFlags adds flags for Builder.
