@@ -22,9 +22,9 @@ import (
 	"errors"
 	"fmt"
 	"math"
-	"strconv"
-	"strings"
+	"net"
 
+	"github.com/uber/jaeger/model"
 	"github.com/uber/jaeger/thrift-gen/zipkincore"
 )
 
@@ -58,8 +58,8 @@ type zipkinSpan struct {
 }
 
 var (
-	errIsNotUnsignedLog = errors.New("id is not an unsigned long")
-	errWrongIpv4        = errors.New("wrong ipv4")
+	errWrongIpv4 = errors.New("wrong ipv4")
+	errWrongIpv6 = errors.New("wrong ipv6")
 )
 
 // DeserializeJSON deserialize zipkin v1 json spans into zipkin thrift
@@ -93,37 +93,30 @@ func spansToThrift(spans []zipkinSpan) ([]*zipkincore.Span, error) {
 }
 
 func spanToThrift(s zipkinSpan) (*zipkincore.Span, error) {
-	// TODO use model.SpanIDFromString and model.TraceIDFromString
-	id, err := hexToUnsignedLong(s.ID)
+	id, err := model.SpanIDFromString(cutLongID(s.ID))
 	if err != nil {
 		return nil, err
 	}
-	traceID, err := hexToUnsignedLong(s.TraceID)
+	traceID, err := model.TraceIDFromString(s.TraceID)
 	if err != nil {
 		return nil, err
 	}
 
 	tSpan := &zipkincore.Span{
 		ID:        int64(id),
-		TraceID:   int64(traceID),
+		TraceID:   int64(traceID.Low),
 		Name:      s.Name,
 		Debug:     s.Debug,
 		Timestamp: s.Timestamp,
 		Duration:  s.Duration,
 	}
-
-	if len(s.TraceID) == 32 {
-		// take 0-16
-		traceIDHigh, err := hexToUnsignedLong(s.TraceID[:16])
-		if err != nil {
-			return nil, err
-		}
-		help := int64(traceIDHigh)
+	if traceID.High != 0 {
+		help := int64(traceID.High)
 		tSpan.TraceIDHigh = &help
 	}
 
 	if len(s.ParentID) > 0 {
-		parentID, err := hexToUnsignedLong(s.ParentID)
+		parentID, err := model.SpanIDFromString(cutLongID(s.ParentID))
 		if err != nil {
 			return nil, err
 		}
@@ -149,6 +142,16 @@ func spanToThrift(s zipkinSpan) (*zipkincore.Span, error) {
 	return tSpan, nil
 }
 
+// id can be padded with zeros. We let it fail later in case it's longer than 32
+func cutLongID(id string) string {
+	l := len(id)
+	if l > 16 && l <= 32 {
+		start := l - 16
+		return id[start:]
+	}
+	return id
+}
+
 func endpointToThrift(e endpoint) (*zipkincore.Endpoint, error) {
 	ipv4, err := parseIpv4(e.IPv4)
 	if err != nil {
@@ -160,11 +163,16 @@ func endpointToThrift(e endpoint) (*zipkincore.Endpoint, error) {
 		port = port - (1 << 16)
 	}
 
+	ipv6, err := parseIpv6(e.IPv6)
+	if err != nil {
+		return nil, err
+	}
+
 	return &zipkincore.Endpoint{
 		ServiceName: e.ServiceName,
 		Port:        int16(port),
 		Ipv4:        ipv4,
-		Ipv6:        []byte(e.IPv6),
+		Ipv6:        ipv6,
 	}, nil
 }
 
@@ -247,50 +255,32 @@ func float64bytes(float float64) []byte {
 	return bytes
 }
 
+func parseIpv6(str string) (net.IP, error) {
+	if str == "" {
+		return nil, nil
+	}
+	ip := net.ParseIP(str).To16()
+	if ip == nil {
+		return nil, errWrongIpv6
+	}
+	return ip, nil
+}
+
 func parseIpv4(str string) (int32, error) {
-	// TODO use net.ParseIP
-	segments := strings.Split(str, ".")
-	if len(segments) == 1 {
+	if str == "" {
 		return 0, nil
 	}
 
+	ip := net.ParseIP(str).To4()
+	if ip == nil {
+		return 0, errWrongIpv4
+	}
+
 	var ipv4 int32
-	for _, segment := range segments {
-		parsed, err := strconv.ParseInt(segment, 10, 32)
-		if err != nil {
-			return 0, errWrongIpv4
-		}
-		parsed32 := int32(parsed)
+	for _, segment := range ip {
+		parsed32 := int32(segment)
 		ipv4 = ipv4<<8 | (parsed32 & 0xff)
 	}
 
 	return ipv4, nil
-}
-
-func hexToUnsignedLong(hex string) (uint64, error) {
-	// TODO remove this func in favor of model.XxxFromString methods
-	len := len(hex)
-	if len < 1 || len > 32 {
-		return 0, errIsNotUnsignedLog
-	}
-
-	start := 0
-	if len > 16 {
-		start = len - 16
-	}
-
-	var result uint64
-	for i := start; i < len; i++ {
-		c := hex[i]
-		result <<= 4
-		if c >= '0' && c <= '9' {
-			result = result | uint64(c-'0')
-		} else if c >= 'a' && c <= 'f' {
-			result = result | uint64(c-'a'+10)
-		} else {
-			return 0, errIsNotUnsignedLog
-		}
-	}
-
-	return result, nil
 }

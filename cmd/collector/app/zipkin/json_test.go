@@ -18,7 +18,6 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
-	"math"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -182,21 +181,21 @@ func TestIncorrectSpanIds(t *testing.T) {
 	spanJSON := createSpan("bar", "", "1", "2", 156, 15145, false, "", "")
 	spans, err := DeserializeJSON([]byte(spanJSON))
 	require.Error(t, err)
-	assert.Equal(t, errIsNotUnsignedLog, err)
+	assert.Equal(t, "strconv.ParseUint: parsing \"\": invalid syntax", err.Error())
 	assert.Nil(t, spans)
 	// id longer than 32
 	spanJSON = createSpan("bar", "123456789123456712345678912345678", "1", "2",
 		156, 15145, false, "", "")
 	spans, err = DeserializeJSON([]byte(spanJSON))
 	require.Error(t, err)
-	assert.Equal(t, errIsNotUnsignedLog, err)
+	assert.Equal(t, "SpanID cannot be longer than 16 hex characters: 123456789123456712345678912345678", err.Error())
 	assert.Nil(t, spans)
 	// traceId missing
 	spanJSON = createSpan("bar", "2", "1", "", 156, 15145, false,
 		"", "")
 	spans, err = DeserializeJSON([]byte(spanJSON))
 	require.Error(t, err)
-	assert.Equal(t, errIsNotUnsignedLog, err)
+	assert.Equal(t, "strconv.ParseUint: parsing \"\": invalid syntax", err.Error())
 	assert.Nil(t, spans)
 	// 128 bit traceId
 	spanJSON = createSpan("bar", "2", "1", "12345678912345671234567891234567", 156, 15145, false,
@@ -243,6 +242,16 @@ func TestEndpointToThrift(t *testing.T) {
 	tEndpoint, err = endpointToThrift(endp)
 	require.Error(t, err)
 	assert.Equal(t, errWrongIpv4, err)
+	assert.Nil(t, tEndpoint)
+
+	endp = endpoint{
+		ServiceName: "foo",
+		Port:        80,
+		IPv6:        "::R",
+	}
+	tEndpoint, err = endpointToThrift(endp)
+	require.Error(t, err)
+	assert.Equal(t, errWrongIpv6, err)
 	assert.Nil(t, tEndpoint)
 }
 
@@ -323,7 +332,7 @@ func TestSpanToThrift(t *testing.T) {
 	span := zipkinSpan{
 		ID:                "bd7a977555f6b982",
 		TraceID:           "bd7a974555f6b982bd71977555f6b981",
-		ParentID:          "1",
+		ParentID:          "00000000000000001",
 		Name:              "foo",
 		Annotations:       []annotation{anno},
 		BinaryAnnotations: []binaryAnnotation{binAnno},
@@ -343,71 +352,34 @@ func TestSpanToThrift(t *testing.T) {
 
 	tests := []struct {
 		span zipkinSpan
-		err  error
+		err  string
 	}{
 		{
 			span: zipkinSpan{ID: "zd7a977555f6b982", TraceID: "bd7a977555f6b982"},
-			err:  errIsNotUnsignedLog,
+			err:  "strconv.ParseUint: parsing \"zd7a977555f6b982\": invalid syntax",
 		},
 		{
 			span: zipkinSpan{ID: "ad7a977555f6b982", TraceID: "zd7a977555f6b982"},
-			err:  errIsNotUnsignedLog,
+			err:  "strconv.ParseUint: parsing \"zd7a977555f6b982\": invalid syntax",
 		},
 		{
 			span: zipkinSpan{ID: "ad7a977555f6b982", TraceID: "ad7a977555f6b982", ParentID: "zd7a977555f6b982"},
-			err:  errIsNotUnsignedLog,
+			err:  "strconv.ParseUint: parsing \"zd7a977555f6b982\": invalid syntax",
 		},
 		{
 			span: zipkinSpan{ID: "1", TraceID: "1", Annotations: []annotation{{Endpoint: endpoint{IPv4: "127.0.0.A"}}}},
-			err:  errWrongIpv4,
+			err:  errWrongIpv4.Error(),
 		},
 		{
 			span: zipkinSpan{ID: "1", TraceID: "1", BinaryAnnotations: []binaryAnnotation{{Endpoint: endpoint{IPv4: "127.0.0.A"}}}},
-			err:  errWrongIpv4,
+			err:  errWrongIpv4.Error(),
 		},
 	}
 
 	for _, test := range tests {
 		tSpan, err = spanToThrift(test.span)
 		require.Error(t, err)
-		assert.Equal(t, test.err, err)
+		assert.Equal(t, test.err, err.Error())
 		assert.Nil(t, tSpan)
-	}
-}
-
-func TestHexToUnsignedLong(t *testing.T) {
-	okTests := []struct {
-		hex      string
-		expected uint64
-	}{
-		{hex: "0", expected: 0},
-		{hex: "ffffffffffffffff", expected: math.MaxUint64},
-		{hex: "00000000000000001", expected: 1},
-	}
-	for _, test := range okTests {
-		num, err := hexToUnsignedLong(test.hex)
-		require.NoError(t, err)
-		assert.Equal(t, test.expected, num)
-	}
-
-	// drop higher bits
-	num, err := hexToUnsignedLong("463ac35c9f6413ad48485a3953bb6124")
-	num2, err2 := hexToUnsignedLong("48485a3953bb6124")
-	require.NoError(t, err)
-	require.NoError(t, err2)
-	assert.Equal(t, num, num2)
-
-	errTests := []struct {
-		hex string
-	}{
-		{hex: "fffffffffffffffffffffffffffffffff"},
-		{hex: ""},
-		{hex: "po"},
-	}
-	for _, test := range errTests {
-		num, err = hexToUnsignedLong(test.hex)
-		require.Error(t, err)
-		assert.Equal(t, errIsNotUnsignedLog, err)
-		assert.Equal(t, uint64(0), num)
 	}
 }
