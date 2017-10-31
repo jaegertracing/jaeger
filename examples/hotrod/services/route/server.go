@@ -17,6 +17,7 @@ package route
 import (
 	"context"
 	"encoding/json"
+	"expvar"
 	"math"
 	"math/rand"
 	"net/http"
@@ -27,7 +28,6 @@ import (
 
 	"github.com/uber/jaeger/examples/hotrod/pkg/delay"
 	"github.com/uber/jaeger/examples/hotrod/pkg/httperr"
-	"github.com/uber/jaeger/examples/hotrod/pkg/httpexpvar"
 	"github.com/uber/jaeger/examples/hotrod/pkg/log"
 	"github.com/uber/jaeger/examples/hotrod/pkg/tracing"
 	"github.com/uber/jaeger/examples/hotrod/services/config"
@@ -59,7 +59,7 @@ func (s *Server) Run() error {
 func (s *Server) createServeMux() http.Handler {
 	mux := tracing.NewServeMux(s.tracer)
 	mux.Handle("/route", http.HandlerFunc(s.route))
-	mux.Handle("/debug/vars", http.HandlerFunc(httpexpvar.Handler))
+	mux.Handle("/debug/vars", expvar.Handler()) // use exported handler
 	return mux
 }
 
