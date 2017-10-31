@@ -11,7 +11,7 @@ function usage {
     >&2 echo "  TRACE_TTL          - time to live for trace data, in seconds (default: 172800, 2 days)"
     >&2 echo "  DEPENDENCIES_TTL   - time to live for dependencies data, in seconds (default: 0, no TTL)"
     >&2 echo "  KEYSPACE           - keyspace (default: jaeger_v1_{datacenter})"
-    >&2 echo "  REPLICATION_FACTOR - replication factor for prod (default: 2)"
+    >&2 echo "  REPLICATION_FACTOR - replication factor for prod (default: 2 for prod, 1 for test)"
     >&2 echo ""
     >&2 echo "The template-file argument must be fully qualified path to a v00#.cql.tmpl template file."
     >&2 echo "If omitted, the template file with the highest available version will be used."
@@ -20,7 +20,6 @@ function usage {
 
 trace_ttl=${TRACE_TTL:-172800}
 dependencies_ttl=${DEPENDENCIES_TTL:-0}
-replication_factor=${REPLICATION_FACTOR:-2}
 
 template=$1
 if [[ "$template" == "" ]]; then
@@ -32,10 +31,12 @@ if [[ "$MODE" == "" ]]; then
 elif [[ "$MODE" == "prod" ]]; then
     if [[ "$DATACENTER" == "" ]]; then usage "missing DATACENTER parameter for prod mode"; fi
     datacenter=$DATACENTER
+    replication_factor=${REPLICATION_FACTOR:-2}
     replication="{'class': 'NetworkTopologyStrategy', '$datacenter': '${replication_factor}' }"
 elif [[ "$MODE" == "test" ]]; then 
     datacenter=${DATACENTER:-'test'}
-    replication="{'class': 'SimpleStrategy', 'replication_factor': '1'}"
+    replication_factor=${REPLICATION_FACTOR:-1}
+    replication="{'class': 'SimpleStrategy', 'replication_factor': '${replication_factor}'}"
 else
     usage "invalid MODE=$MODE, expecting 'prod' or 'test'"
 fi
