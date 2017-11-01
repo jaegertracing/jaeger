@@ -4,9 +4,6 @@ services:
     crossdock:
         image: crossdock/crossdock
         links:
-            - jaeger-query
-            - jaeger-collector
-            - jaeger-agent
             - test_driver
             - go
             - node
@@ -76,6 +73,10 @@ services:
         image: jaegertracing/test-driver
         ports:
             - "8080"
+        links:
+          - jaeger-query
+          - jaeger-collector
+          - jaeger-agent
 
     jaeger-query:
 #    override to disable static files
