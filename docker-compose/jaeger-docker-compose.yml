@@ -11,7 +11,7 @@ services:
         - "9411:9411"
       restart: on-failure
       depends_on:
-          - cassandra-schema
+        - cassandra-schema
 
     jaeger-query:
       image: jaegertracing/jaeger-query
@@ -20,6 +20,8 @@ services:
         - "16686:16686"
         - "16687"
       restart: on-failure
+      depends_on:
+        - cassandra-schema
 
     jaeger-agent:
       image: jaegertracing/jaeger-agent
@@ -31,7 +33,7 @@ services:
         - "5778:5778"
       restart: on-failure
       depends_on:
-          - jaeger-collector
+        - jaeger-collector
 
     cassandra:
       image: cassandra:3.9
@@ -39,5 +41,5 @@ services:
     cassandra-schema:
       image: jaegertracing/jaeger-cassandra-schema
       depends_on:
-          - cassandra
+        - cassandra
 
