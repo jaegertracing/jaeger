@@ -60,6 +60,10 @@ var (
 		    "startTime":{
 		       "type":"long"
 		    },
+		    "startTimeMillis":{
+		       "type":"date",
+		       "format":"epoch_millis"
+		    },
 		    "duration":{
 		       "type":"long"
 		    },
