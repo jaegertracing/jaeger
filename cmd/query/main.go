@@ -15,6 +15,7 @@
 package main
 
 import (
+	"fmt"
 	"net/http"
 	"os"
 	"os/signal"
@@ -45,7 +46,6 @@ func main() {
 	var serverChannel = make(chan os.Signal, 0)
 	signal.Notify(serverChannel, os.Interrupt, syscall.SIGTERM)
 
-	logger, _ := zap.NewProduction()
 	casOptions := casFlags.NewOptions("cassandra", "cassandra.archive")
 	esOptions := esFlags.NewOptions("es", "es.archive")
 	v := viper.New()
@@ -54,10 +54,18 @@ func main() {
 		Use:   "jaeger-query",
 		Short: "Jaeger query is a service to access tracing data",
 		Long:  `Jaeger query is a service to access tracing data and host UI.`,
-		Run: func(cmd *cobra.Command, args []string) {
-			flags.TryLoadConfigFile(v, logger)
+		RunE: func(cmd *cobra.Command, args []string) error {
+			err := flags.TryLoadConfigFile(v)
+			if err != nil {
+				return err
+			}
 
 			sFlags := new(flags.SharedFlags).InitFromViper(v)
+			logger, err := sFlags.NewLogger(zap.NewProductionConfig())
+			if err != nil {
+				return err
+			}
+
 			casOptions.InitFromViper(v)
 			esOptions.InitFromViper(v)
 			queryOpts := new(builder.QueryOptions).InitFromViper(v)
@@ -119,6 +127,7 @@ func main() {
 			case <-serverChannel:
 				logger.Info("Jaeger Query is finishing")
 			}
+			select {}
 		},
 	}
 
@@ -135,7 +144,8 @@ func main() {
 	)
 
 	if error := command.Execute(); error != nil {
-		logger.Fatal(error.Error())
+		fmt.Println(error.Error())
+		os.Exit(1)
 	}
 }
 

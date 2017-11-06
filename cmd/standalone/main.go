@@ -18,6 +18,7 @@ import (
 	"fmt"
 	"net"
 	"net/http"
+	"os"
 	"runtime"
 	"strconv"
 
@@ -51,19 +52,25 @@ import (
 
 // standalone/main is a standalone full-stack jaeger backend, backed by a memory store
 func main() {
-	logger, _ := zap.NewProduction()
 	v := viper.New()
-
 	command := &cobra.Command{
 		Use:   "jaeger-standalone",
 		Short: "Jaeger all-in-one distribution with agent, collector and query in one process.",
 		Long: `Jaeger all-in-one distribution with agent, collector and query. Use with caution this version
 		 uses only in-memory database.`,
 		RunE: func(cmd *cobra.Command, args []string) error {
-			flags.TryLoadConfigFile(v, logger)
+			err := flags.TryLoadConfigFile(v)
+			if err != nil {
+				return err
+			}
+
+			sFlags := new(flags.SharedFlags).InitFromViper(v)
+			logger, err := sFlags.NewLogger(zap.NewProductionConfig())
+			if err != nil {
+				return err
+			}
 
 			runtime.GOMAXPROCS(runtime.NumCPU())
-			sFlags := new(flags.SharedFlags).InitFromViper(v)
 			cOpts := new(collector.CollectorOptions).InitFromViper(v)
 			qOpts := new(query.QueryOptions).InitFromViper(v)
 
@@ -93,7 +100,8 @@ func main() {
 	)
 
 	if err := command.Execute(); err != nil {
-		logger.Fatal("standalone command failed", zap.Error(err))
+		fmt.Println(err.Error())
+		os.Exit(1)
 	}
 }
 

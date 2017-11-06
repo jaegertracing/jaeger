@@ -15,6 +15,7 @@
 package main
 
 import (
+	"fmt"
 	"net"
 	"net/http"
 	"os"
@@ -50,7 +51,6 @@ func main() {
 	var signalsChannel = make(chan os.Signal, 0)
 	signal.Notify(signalsChannel, os.Interrupt, syscall.SIGTERM)
 
-	logger, _ := zap.NewProduction()
 	serviceName := "jaeger-collector"
 	casOptions := casFlags.NewOptions("cassandra")
 	esOptions := esFlags.NewOptions("es")
@@ -61,10 +61,18 @@ func main() {
 		Short: "Jaeger collector receives and processes traces from Jaeger agents and clients",
 		Long: `Jaeger collector receives traces from Jaeger agents and agent and runs them through
 				a processing pipeline.`,
-		Run: func(cmd *cobra.Command, args []string) {
-			flags.TryLoadConfigFile(v, logger)
+		RunE: func(cmd *cobra.Command, args []string) error {
+			err := flags.TryLoadConfigFile(v)
+			if err != nil {
+				return err
+			}
 
 			sFlags := new(flags.SharedFlags).InitFromViper(v)
+			logger, err := sFlags.NewLogger(zap.NewProductionConfig())
+			if err != nil {
+				return err
+			}
+
 			casOptions.InitFromViper(v)
 			esOptions.InitFromViper(v)
 
@@ -127,6 +135,7 @@ func main() {
 			case <-signalsChannel:
 				logger.Info("Jaeger Collector is finishing")
 			}
+			select {}
 		},
 	}
 
@@ -143,7 +152,8 @@ func main() {
 	)
 
 	if error := command.Execute(); error != nil {
-		logger.Fatal(error.Error())
+		fmt.Println(error.Error())
+		os.Exit(1)
 	}
 }
 
