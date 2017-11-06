@@ -129,6 +129,60 @@ Port  | Protocol | Function
 ----- | -------  | ---
 16686 | HTTP     | **/api/*** endpoints and Jaeger UI at **/**
 
+### UI Configuration
+
+Two aspects of the UI can be configured:
+
+  * The top-right menu in the global nav
+  * A Google Analytics ID can be defined to enable Google Analytics tracking in the UI
+
+These options can be configured by a JSON configuration file. The `--query.ui-config` command line parameter of the query service must then be set to the path to the JSON file when the query service is started.
+
+An example configuration file:
+
+```json
+{
+  "gaTrackingID": " UA-000000-2",
+  "menu": [
+    {
+      "label": "About Jaeger",
+      "items": [
+        {
+          "label": "GitHub",
+          "url": "https://github.com/jaegertracing/jaeger"
+        },
+        {
+          "label": "Docs",
+          "url": "http://jaeger.readthedocs.io/en/latest/"
+        }
+      ]
+    }
+  ]
+}
+```
+
+In the above example, `gaTrackingID` will be used as the Google Analytics tracking ID and `menu` configures the menu in the top right of the UI.
+
+The configured menu will have a dropdown labeled "About Jaeger" with sub-options for "GitHub" and "Docs". The format for a link in the top right menu is as follows:
+
+```json
+{
+  "label": "Some text here",
+  "url": "https://example.com"
+}
+```
+
+Links can either be members of the `menu` Array, directly, or they can be grouped into a dropdown menu option. The format for a group of links is:
+
+```json
+{
+  "label": "Dropdown button",
+  "items": [ ]
+}
+```
+
+The `items` Array should contain one or more link configurations.
+
 TODO: Swagger and GraphQL API ([issue 158](https://github.com/uber/jaeger/issues/158)).
 
 ## Aggregation Jobs for Service Dependencies
