@@ -135,7 +135,7 @@ func main() {
 			case <-signalsChannel:
 				logger.Info("Jaeger Collector is finishing")
 			}
-			select {}
+			return nil
 		},
 	}
 

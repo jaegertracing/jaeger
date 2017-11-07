@@ -127,7 +127,7 @@ func main() {
 			case <-serverChannel:
 				logger.Info("Jaeger Query is finishing")
 			}
-			select {}
+			return nil
 		},
 	}
 
@@ -144,6 +144,7 @@ func main() {
 	)
 
 	if error := command.Execute(); error != nil {
+		fmt.Println("kik")
 		fmt.Println(error.Error())
 		os.Exit(1)
 	}
