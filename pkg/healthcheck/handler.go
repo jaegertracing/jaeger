@@ -20,6 +20,8 @@ import (
 	"strconv"
 
 	"go.uber.org/zap"
+
+	"github.com/uber/jaeger/pkg/version"
 )
 
 // State represents the current health check state
@@ -59,10 +61,11 @@ func NewHandler(s *State) (http.Handler, error) {
 	mu := http.NewServeMux()
 	mu.HandleFunc("/", func(w http.ResponseWriter, _ *http.Request) {
 		w.WriteHeader(s.state)
-
 		// this is written only for response with an entity, so, it won't be used for a 204 - No content
 		w.Write([]byte("Server not available"))
 	})
+
+	version.RegisterHandler(mu, s.logger)
 	return mu, nil
 }
 
