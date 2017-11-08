@@ -22,7 +22,7 @@ import (
 	"github.com/jaegertracing/jaeger/plugin/storage/cassandra/spanstore/dbmodel"
 )
 
-func TestWriterOpetions(t *testing.T) {
+func TestWriterOptions(t *testing.T) {
 	opts := applyOptions(TagFilter(dbmodel.DefaultTagFilter))
 	assert.Equal(t, dbmodel.DefaultTagFilter, opts.tagFilter)
 }

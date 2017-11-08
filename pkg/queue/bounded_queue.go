@@ -28,24 +28,33 @@ import (
 // channels, with a special Reaper goroutine that wakes up when the queue is full and consumers
 // the items from the top of the queue until its size drops back to maxSize
 type BoundedQueue struct {
-	capacity      int
-	size          int32
-	onDroppedItem func(item interface{})
-	items         chan interface{}
-	stopCh        chan struct{}
-	stopWG        sync.WaitGroup
-	stopped       int32
+	capacity       int
+	size           int32
+	onDroppedItem  func(item interface{})
+	items          []chan interface{}
+	stopCh         chan struct{}
+	stopWG         sync.WaitGroup
+	stopped        int32
+	priorityLevels int
+	getPriority    func(item interface{}) int
 }
 
 // NewBoundedQueue constructs the new queue of specified capacity, and with an optional
 // callback for dropped items (e.g. useful to emit metrics).
-func NewBoundedQueue(capacity int, onDroppedItem func(item interface{})) *BoundedQueue {
-	return &BoundedQueue{
-		capacity:      capacity,
-		onDroppedItem: onDroppedItem,
-		items:         make(chan interface{}, capacity),
-		stopCh:        make(chan struct{}),
+func NewBoundedQueue(capacity int, onDroppedItem func(item interface{}), options ...Option) *BoundedQueue {
+	opts := applyOptions(options...)
+	bq := &BoundedQueue{
+		capacity:       capacity,
+		onDroppedItem:  onDroppedItem,
+		items:          make([]chan interface{}, 0, opts.priorityLevels),
+		stopCh:         make(chan struct{}),
+		priorityLevels: opts.priorityLevels,
+		getPriority:    opts.getPriority,
 	}
+	for i := 0; i < opts.priorityLevels; i++ {
+		bq.items = append(bq.items, make(chan interface{}, capacity))
+	}
+	return bq
 }
 
 // StartConsumers starts a given number of goroutines consuming items from the queue
@@ -60,11 +69,16 @@ func (q *BoundedQueue) StartConsumers(num int, consumer func(item interface{})) 
 			defer q.stopWG.Done()
 			for {
 				select {
-				case item := <-q.items:
-					atomic.AddInt32(&q.size, -1)
-					consumer(item)
 				case <-q.stopCh:
 					return
+				default:
+					for _, items := range q.items {
+						if item, ok := <-items; ok {
+							atomic.AddInt32(&q.size, -1)
+							consumer(item)
+							break
+						}
+					}
 				}
 			}
 		}()
@@ -78,8 +92,9 @@ func (q *BoundedQueue) Produce(item interface{}) bool {
 		q.onDroppedItem(item)
 		return false
 	}
+	priority := q.getPriority(item)
 	select {
-	case q.items <- item:
+	case q.items[priority] <- item:
 		atomic.AddInt32(&q.size, 1)
 		return true
 	default:
@@ -96,7 +111,9 @@ func (q *BoundedQueue) Stop() {
 	atomic.StoreInt32(&q.stopped, 1) // disable producer
 	close(q.stopCh)
 	q.stopWG.Wait()
-	close(q.items)
+	for i := 0; i < q.priorityLevels; i++ {
+		close(q.items[i])
+	}
 }
 
 // Size returns the current size of the queue
