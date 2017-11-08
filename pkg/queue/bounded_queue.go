@@ -46,13 +46,13 @@ func NewBoundedQueue(capacity int, onDroppedItem func(item interface{}), options
 	bq := &BoundedQueue{
 		capacity:       capacity,
 		onDroppedItem:  onDroppedItem,
-		items:          make([]chan interface{}, 0, opts.priorityLevels),
+		items:          make([]chan interface{}, opts.priorityLevels),
 		stopCh:         make(chan struct{}),
 		priorityLevels: opts.priorityLevels,
 		getPriority:    opts.getPriority,
 	}
 	for i := 0; i < opts.priorityLevels; i++ {
-		bq.items = append(bq.items, make(chan interface{}, capacity))
+		bq.items[i] = make(chan interface{}, capacity)
 	}
 	return bq
 }
@@ -73,11 +73,17 @@ func (q *BoundedQueue) StartConsumers(num int, consumer func(item interface{})) 
 					return
 				default:
 					for _, items := range q.items {
-						if item, ok := <-items; ok {
-							atomic.AddInt32(&q.size, -1)
+						select {
+						case item := <-items:
 							consumer(item)
 							break
+						default:
 						}
+						// if item, ok := <-items; ok {
+						// atomic.AddInt32(&q.size, -1)
+						// consumer(item)
+						// break
+						// }
 					}
 				}
 			}
