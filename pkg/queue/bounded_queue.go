@@ -75,15 +75,11 @@ func (q *BoundedQueue) StartConsumers(num int, consumer func(item interface{})) 
 					for _, items := range q.items {
 						select {
 						case item := <-items:
+							atomic.AddInt32(&q.size, -1)
 							consumer(item)
 							break
 						default:
 						}
-						// if item, ok := <-items; ok {
-						// atomic.AddInt32(&q.size, -1)
-						// consumer(item)
-						// break
-						// }
 					}
 				}
 			}
