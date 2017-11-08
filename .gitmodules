@@ -4,3 +4,6 @@
 [submodule "jaeger-ui"]
 	path = jaeger-ui
 	url = https://github.com/uber/jaeger-ui
+[submodule "zipkin-api"]
+	path = zipkin-api
+	url = https://github.com/openzipkin/zipkin-api
