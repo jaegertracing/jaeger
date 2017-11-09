@@ -41,6 +41,7 @@ import (
 	"github.com/uber/jaeger/pkg/config"
 	"github.com/uber/jaeger/pkg/healthcheck"
 	"github.com/uber/jaeger/pkg/recoveryhandler"
+	"github.com/uber/jaeger/pkg/version"
 	jc "github.com/uber/jaeger/thrift-gen/jaeger"
 	zc "github.com/uber/jaeger/thrift-gen/zipkincore"
 )
@@ -128,6 +129,8 @@ func main() {
 			}
 		},
 	}
+
+	command.AddCommand(version.Command())
 
 	config.AddFlags(
 		v,

@@ -38,6 +38,7 @@ import (
 	"github.com/uber/jaeger/pkg/config"
 	"github.com/uber/jaeger/pkg/healthcheck"
 	"github.com/uber/jaeger/pkg/recoveryhandler"
+	"github.com/uber/jaeger/pkg/version"
 )
 
 func main() {
@@ -120,6 +121,8 @@ func main() {
 			}
 		},
 	}
+
+	command.AddCommand(version.Command())
 
 	config.AddFlags(
 		v,

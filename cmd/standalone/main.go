@@ -43,6 +43,7 @@ import (
 	"github.com/uber/jaeger/pkg/config"
 	pMetrics "github.com/uber/jaeger/pkg/metrics"
 	"github.com/uber/jaeger/pkg/recoveryhandler"
+	"github.com/uber/jaeger/pkg/version"
 	"github.com/uber/jaeger/storage/spanstore/memory"
 	jc "github.com/uber/jaeger/thrift-gen/jaeger"
 	zc "github.com/uber/jaeger/thrift-gen/zipkincore"
@@ -77,6 +78,8 @@ func main() {
 			select {}
 		},
 	}
+
+	command.AddCommand(version.Command())
 
 	config.AddFlags(
 		v,

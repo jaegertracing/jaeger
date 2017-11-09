@@ -26,6 +26,7 @@ import (
 	"github.com/uber/jaeger/cmd/flags"
 	"github.com/uber/jaeger/pkg/config"
 	"github.com/uber/jaeger/pkg/metrics"
+	"github.com/uber/jaeger/pkg/version"
 )
 
 func main() {
@@ -57,6 +58,8 @@ func main() {
 			select {}
 		},
 	}
+
+	command.AddCommand(version.Command())
 
 	config.AddFlags(
 		v,

@@ -20,6 +20,12 @@ FMT_LOG=fmt.log
 LINT_LOG=lint.log
 MKDOCS_VIRTUAL_ENV=.mkdocs-virtual-env
 
+GIT_SHA=$(shell git rev-parse HEAD)
+GIT_CLOSEST_TAG=$(shell git describe --abbrev=0 --tags)
+DATE=$(shell date -u +'%Y-%m-%dT%H:%M:%SZ')
+BUILD_INFO_IMPORT_PATH=github.com/uber/jaeger/pkg/version
+BUILD_INFO=-ldflags "-X $(BUILD_INFO_IMPORT_PATH).commitSHA=$(GIT_SHA) -X $(BUILD_INFO_IMPORT_PATH).latestVersion=$(GIT_CLOSEST_TAG) -X $(BUILD_INFO_IMPORT_PATH).date=$(DATE)"
+
 SED=sed
 THRIFT_VER=0.9.3
 THRIFT_IMG=thrift:$(THRIFT_VER)
@@ -102,19 +108,19 @@ build_ui:
 
 .PHONY: build-all-in-one-linux
 build-all-in-one-linux: build_ui
-	CGO_ENABLED=0 GOOS=linux installsuffix=cgo go build -o ./cmd/standalone/standalone-linux ./cmd/standalone/main.go
+	CGO_ENABLED=0 GOOS=linux installsuffix=cgo go build -o ./cmd/standalone/standalone-linux $(BUILD_INFO) ./cmd/standalone/main.go
 
 .PHONY: build-agent-linux
 build-agent-linux:
-	CGO_ENABLED=0 GOOS=linux installsuffix=cgo go build -o ./cmd/agent/agent-linux ./cmd/agent/main.go
+	CGO_ENABLED=0 GOOS=linux installsuffix=cgo go build -o ./cmd/agent/agent-linux $(BUILD_INFO) ./cmd/agent/main.go
 
 .PHONY: build-query-linux
 build-query-linux:
-	CGO_ENABLED=0 GOOS=linux installsuffix=cgo go build -o ./cmd/query/query-linux ./cmd/query/main.go
+	CGO_ENABLED=0 GOOS=linux installsuffix=cgo go build -o ./cmd/query/query-linux $(BUILD_INFO) ./cmd/query/main.go
 
 .PHONY: build-collector-linux
 build-collector-linux:
-	CGO_ENABLED=0 GOOS=linux installsuffix=cgo go build -o ./cmd/collector/collector-linux ./cmd/collector/main.go
+	CGO_ENABLED=0 GOOS=linux installsuffix=cgo go build -o ./cmd/collector/collector-linux $(BUILD_INFO) ./cmd/collector/main.go
 
 .PHONY: docker-no-ui
 docker-no-ui: build-agent-linux build-collector-linux build-query-linux build-crossdock-linux
