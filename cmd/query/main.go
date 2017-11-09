@@ -144,7 +144,6 @@ func main() {
 	)
 
 	if error := command.Execute(); error != nil {
-		fmt.Println("kik")
 		fmt.Println(error.Error())
 		os.Exit(1)
 	}
