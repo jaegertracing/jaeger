@@ -37,6 +37,9 @@ services:
         image: jaegertracing/xdock-java
         ports:
             - "8080-8082"
+        depends_on:
+#        UDP sender needs to know agent's address
+            - jaeger-agent
 
     python:
         image: jaegertracing/xdock-py
