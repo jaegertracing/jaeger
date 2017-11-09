@@ -57,7 +57,7 @@ func NewSpanProcessor(
 		sp.processItemFromQueue(value)
 	})
 
-	sp.queue.StartLengthReporting(1*time.Second, sp.metrics.QueueLength)
+	sp.queue.StartLengthReporting(10*time.Second, sp.metrics.QueueLength)
 
 	return sp
 }
@@ -70,6 +70,7 @@ func newSpanProcessor(spanWriter spanstore.Writer, opts ...Option) *spanProcesso
 		options.extraFormatTypes)
 	droppedItemHandler := func(item interface{}) {
 		handlerMetrics.SpansDropped.Inc(1)
+		handlerMetrics.QueueLength.Update(int64(options.queueSize))
 	}
 	boundedQueue := queue.NewBoundedQueue(options.queueSize, droppedItemHandler)
 
