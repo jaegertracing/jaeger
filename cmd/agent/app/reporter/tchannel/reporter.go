@@ -57,6 +57,7 @@ type Reporter struct {
 	peerListMgr    *peerlistmgr.PeerListManager
 	batchesMetrics map[string]batchMetrics
 	logger         *zap.Logger
+	mFactory       metrics.Factory
 }
 
 // New creates new TChannel-based Reporter.
@@ -85,6 +86,7 @@ func New(
 		peerListMgr:    peerListMgr,
 		logger:         zlogger,
 		batchesMetrics: batchesMetrics,
+		mFactory:       mFactory,
 	}
 }
 

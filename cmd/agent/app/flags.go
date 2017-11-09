@@ -28,6 +28,10 @@ const (
 	suffixServerMaxPacketSize = "server-max-packet-size"
 	suffixServerHostPort      = "server-host-port"
 	collectorHostPort         = "collector.host-port"
+	scheme                    = "collector.scheme"
+	authToken                 = "collector.auth-token"
+	username                  = "collector.username"
+	password                  = "collector.password"
 	httpServerHostPort        = "http-server.host-port"
 	discoveryMinPeers         = "discovery.min-peers"
 )
@@ -56,6 +60,22 @@ func AddFlags(flags *flag.FlagSet) {
 		"",
 		"comma-separated string representing host:ports of a static list of collectors to connect to directly (e.g. when not using service discovery)")
 	flags.String(
+		scheme,
+		"http",
+		"protocol scheme to use when talking to the collector, used only when auth-related properties are specified")
+	flags.String(
+		authToken,
+		"",
+		"token to send in a Bearer auth to the collector ")
+	flags.String(
+		username,
+		"",
+		"username to send in a Basic auth to the collector ")
+	flags.String(
+		password,
+		"",
+		"password to send in a Basic auth to the collector")
+	flags.String(
 		httpServerHostPort,
 		defaultHTTPServerHostPort,
 		"host:port of the http server (e.g. for /sampling point and /baggage endpoint)")
@@ -82,6 +102,10 @@ func (b *Builder) InitFromViper(v *viper.Viper) {
 	if len(v.GetString(collectorHostPort)) > 0 {
 		b.CollectorHostPorts = strings.Split(v.GetString(collectorHostPort), ",")
 	}
+	b.Scheme = v.GetString(scheme)
+	b.AuthToken = v.GetString(authToken)
+	b.Username = v.GetString(username)
+	b.Password = v.GetString(password)
 	b.HTTPServer.HostPort = v.GetString(httpServerHostPort)
 	b.DiscoveryMinPeers = v.GetInt(discoveryMinPeers)
 }

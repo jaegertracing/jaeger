@@ -27,6 +27,7 @@ import (
 
 	"github.com/jaegertracing/jaeger/thrift-gen/jaeger"
 	"github.com/jaegertracing/jaeger/thrift-gen/zipkincore"
+	"github.com/jaegertracing/jaeger/cmd/agent/app/reporter/http"
 )
 
 var yamlConfig = `
@@ -175,6 +176,102 @@ func TestBuilderWithProcessorErrors(t *testing.T) {
 			assert.True(t, strings.Contains(err.Error(), testCase.errContains), "error must contain %s", testCase.errContains)
 		}
 	}
+}
+
+func TestBuilderWithAuthToken(t *testing.T) {
+	y := `
+collectorHostPorts:
+    - 127.0.0.1:14267
+authToken: the-token
+`
+	cfg := Builder{}
+	err := yaml.Unmarshal([]byte(y), &cfg)
+	assert.NoError(t, err)
+	a, err := cfg.createMainReporter(metrics.NullFactory, zap.NewNop())
+	assert.NoError(t, err)
+
+	_, ok := a.(*http.Reporter)
+	assert.True(t, ok)
+}
+
+func TestBuilderWithUsernameAndPassword(t *testing.T) {
+	y := `
+collectorHostPorts:
+    - 127.0.0.1:14267
+username: jdoe
+password: password
+`
+	cfg := Builder{}
+	err := yaml.Unmarshal([]byte(y), &cfg)
+	assert.NoError(t, err)
+	a, err := cfg.createMainReporter(metrics.NullFactory, zap.NewNop())
+	assert.NoError(t, err)
+
+	_, ok := a.(*http.Reporter)
+	assert.True(t, ok)
+}
+
+func TestBuilderWithHTTPS(t *testing.T) {
+	y := `
+collectorHostPorts:
+    - 127.0.0.1:14267
+authToken: the-token
+scheme: https
+`
+	cfg := Builder{}
+	err := yaml.Unmarshal([]byte(y), &cfg)
+	assert.NoError(t, err)
+	a, err := cfg.createMainReporter(metrics.NullFactory, zap.NewNop())
+	assert.NoError(t, err)
+
+	r, ok := a.(*http.Reporter)
+	assert.Equal(t, "https://127.0.0.1:14267", r.Endpoint())
+	assert.True(t, ok)
+}
+
+func TestBuilderWithMultipleCollectorHostPortsForHTTP(t *testing.T) {
+	y := `
+collectorHostPorts:
+    - 127.0.0.1:14267
+    - 127.0.0.1:14268
+    - 127.0.0.1:14269
+authToken: the-token
+`
+	cfg := Builder{}
+	err := yaml.Unmarshal([]byte(y), &cfg)
+	assert.NoError(t, err)
+	a, err := cfg.createMainReporter(metrics.NullFactory, zap.NewNop())
+	assert.NoError(t, err)
+
+	r, ok := a.(*http.Reporter)
+	assert.Equal(t, "http://127.0.0.1:14267", r.Endpoint())
+	assert.True(t, ok)
+}
+
+func TestBuilderWithIncorrectURLFormatForCollectorHostPort(t *testing.T) {
+	y := `
+collectorHostPorts:
+    - https://127.0.0.1:14267/some/path
+authToken: the-token
+`
+	cfg := Builder{}
+	err := yaml.Unmarshal([]byte(y), &cfg)
+	assert.NoError(t, err)
+	a, err := cfg.createMainReporter(metrics.NullFactory, zap.NewNop())
+	assert.NoError(t, err)
+
+	r, ok := a.(*http.Reporter)
+	assert.Equal(t, "https://127.0.0.1:14267", r.Endpoint())
+	assert.True(t, ok)
+}
+
+func TestBuilderWithoutCollectorHostsPorts(t *testing.T) {
+	y := "authToken: the-token"
+	cfg := &Builder{}
+	err := yaml.Unmarshal([]byte(y), &cfg)
+	agent, err := cfg.CreateAgent(zap.NewNop())
+	assert.EqualError(t, err, `cannot create main Reporter: no "CollectorHostPorts" specified`)
+	assert.Nil(t, agent)
 }
 
 type fakeReporter struct{}

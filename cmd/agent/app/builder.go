@@ -21,13 +21,13 @@ import (
 	"github.com/apache/thrift/lib/go/thrift"
 	"github.com/pkg/errors"
 	"github.com/uber/jaeger-lib/metrics"
-	"github.com/uber/tchannel-go"
 	"go.uber.org/zap"
 
 	"github.com/jaegertracing/jaeger/cmd/agent/app/httpserver"
 	"github.com/jaegertracing/jaeger/cmd/agent/app/processors"
 	"github.com/jaegertracing/jaeger/cmd/agent/app/reporter"
-	tchreporter "github.com/jaegertracing/jaeger/cmd/agent/app/reporter/tchannel"
+	httpReporter "github.com/jaegertracing/jaeger/cmd/agent/app/reporter/http"
+	tcReporter "github.com/jaegertracing/jaeger/cmd/agent/app/reporter/tchannel"
 	"github.com/jaegertracing/jaeger/cmd/agent/app/servers"
 	"github.com/jaegertracing/jaeger/cmd/agent/app/servers/thriftudp"
 	jmetrics "github.com/jaegertracing/jaeger/pkg/metrics"
@@ -76,7 +76,13 @@ type Builder struct {
 	DiscoveryMinPeers    int      `yaml:"minPeers"`
 	CollectorServiceName string   `yaml:"collectorServiceName"`
 
-	tchreporter.Builder
+	tcReporter.Builder
+
+	// These fields are copied from http.Builder because yaml does not parse embedded structs
+	Scheme    string `yaml:"scheme"`
+	AuthToken string `yaml:"authToken"`
+	Username  string `yaml:"username"`
+	Password  string `yaml:"password"`
 
 	otherReporters []reporter.Reporter
 	metricsFactory metrics.Factory
@@ -114,7 +120,42 @@ func (b *Builder) WithMetricsFactory(mf metrics.Factory) *Builder {
 	return b
 }
 
-func (b *Builder) createMainReporter(mFactory metrics.Factory, logger *zap.Logger) (*tchreporter.Reporter, error) {
+func (b *Builder) createMainReporter(mFactory metrics.Factory, logger *zap.Logger) (reporter.Reporter, error) {
+	if b.useTChannelReporter() {
+		logger.Info("Using TChannel to report spans to the Collector")
+		return b.createTChannelMainReporter(mFactory, logger)
+	}
+
+	logger.Info("Using HTTP to report spans to the Collector")
+	return b.createHTTPMainReporter(mFactory, logger)
+}
+
+func (b *Builder) createHTTPMainReporter(mFactory metrics.Factory, logger *zap.Logger) (reporter.Reporter, error) {
+	hrBuilder := httpReporter.NewBuilder()
+
+	if b.Scheme != "" {
+		hrBuilder.WithScheme(b.Scheme)
+	}
+
+	if len(b.CollectorHostPorts) > 0 {
+		hrBuilder.WithCollectorHostPorts(b.CollectorHostPorts)
+	} else {
+		return nil, fmt.Errorf(`no "CollectorHostPorts" specified`)
+	}
+
+	if b.AuthToken != "" {
+		hrBuilder.WithAuthToken(b.AuthToken)
+	}
+
+	if b.Username != "" && b.Password != "" {
+		hrBuilder.WithUsername(b.Username)
+		hrBuilder.WithPassword(b.Password)
+	}
+
+	return hrBuilder.CreateReporter(mFactory, logger)
+}
+
+func (b *Builder) createTChannelMainReporter(mFactory metrics.Factory, logger *zap.Logger) (reporter.Reporter, error) {
 	if len(b.Builder.CollectorHostPorts) == 0 {
 		b.Builder.CollectorHostPorts = b.CollectorHostPorts
 	}
@@ -124,7 +165,7 @@ func (b *Builder) createMainReporter(mFactory metrics.Factory, logger *zap.Logge
 	if b.Builder.DiscoveryMinPeers == 0 {
 		b.Builder.DiscoveryMinPeers = b.DiscoveryMinPeers
 	}
-	return b.Builder.CreateReporter(mFactory, logger)
+	return b.CreateReporter(mFactory, logger)
 }
 
 func (b *Builder) getMetricsFactory() (metrics.Factory, error) {
@@ -144,7 +185,7 @@ func (b *Builder) CreateAgent(logger *zap.Logger) (*Agent, error) {
 	if err != nil {
 		return nil, errors.Wrap(err, "cannot create main Reporter")
 	}
-	var rep reporter.Reporter = mainReporter
+	var rep = mainReporter
 	if len(b.otherReporters) > 0 {
 		reps := append([]reporter.Reporter{mainReporter}, b.otherReporters...)
 		rep = reporter.NewMultiReporter(reps...)
@@ -153,7 +194,7 @@ func (b *Builder) CreateAgent(logger *zap.Logger) (*Agent, error) {
 	if err != nil {
 		return nil, err
 	}
-	httpServer := b.HTTPServer.GetHTTPServer(b.CollectorServiceName, mainReporter.Channel(), mFactory)
+	httpServer := b.GetHTTPServer(mainReporter, mFactory)
 	if b.metricsFactory == nil {
 		b.Metrics.RegisterHandler(httpServer.Handler.(*http.ServeMux))
 	}
@@ -190,13 +231,29 @@ func (b *Builder) GetProcessors(rep reporter.Reporter, mFactory metrics.Factory)
 	return retMe, nil
 }
 
+func (b *Builder) useTChannelReporter() bool {
+	// if we don't have credentials, we use the tchannel reporter
+	// if we have an auth token or a pair of username+password, we should use the http reporter
+	return b.AuthToken == "" && (b.Username == "" || b.Password == "")
+}
+
 // GetHTTPServer creates an HTTP server that provides sampling strategies and baggage restrictions to client libraries.
-func (c HTTPServerConfiguration) GetHTTPServer(svc string, channel *tchannel.Channel, mFactory metrics.Factory) *http.Server {
-	mgr := httpserver.NewCollectorProxy(svc, channel, mFactory)
-	if c.HostPort == "" {
-		c.HostPort = defaultHTTPServerHostPort
+func (b *Builder) GetHTTPServer(r reporter.Reporter, mFactory metrics.Factory) *http.Server {
+	// TODO: this manager is used for the sampling and baggage restrictions, not sure we need for this here:
+	// is there a non-tchannel sampling/baggage restriction endpoint on the collector side?
+	// for now, we let it be nil for non-TChannel reporters
+	var mgr httpserver.ClientConfigManager
+
+	if b.useTChannelReporter() {
+		channel := r.(*tcReporter.Reporter).Channel()
+		mgr = httpserver.NewCollectorProxy(b.CollectorServiceName, channel, mFactory)
 	}
-	return httpserver.NewHTTPServer(c.HostPort, mgr, mFactory)
+
+	if b.HTTPServer.HostPort == "" {
+		b.HTTPServer.HostPort = defaultHTTPServerHostPort
+	}
+
+	return httpserver.NewHTTPServer(b.HTTPServer.HostPort, mgr, mFactory)
 }
 
 // GetThriftProcessor gets a TBufferedServer backed Processor using the collector configuration
