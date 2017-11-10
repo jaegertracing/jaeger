@@ -21,8 +21,8 @@ import (
 
 	"github.com/stretchr/testify/assert"
 
-	"github.com/uber/jaeger/model"
-	. "github.com/uber/jaeger/storage/spanstore"
+	"github.com/jaegertracing/jaeger/model"
+	. "github.com/jaegertracing/jaeger/storage/spanstore"
 )
 
 var errIWillAlwaysFail = errors.New("ErrProneWriteSpanStore will always fail")

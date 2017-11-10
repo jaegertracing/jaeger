@@ -23,9 +23,9 @@ import (
 
 	"github.com/opentracing/opentracing-go/ext"
 
-	"github.com/uber/jaeger/model"
-	"github.com/uber/jaeger/pkg/multierror"
-	"github.com/uber/jaeger/thrift-gen/zipkincore"
+	"github.com/jaegertracing/jaeger/model"
+	"github.com/jaegertracing/jaeger/pkg/multierror"
+	"github.com/jaegertracing/jaeger/thrift-gen/zipkincore"
 )
 
 const (

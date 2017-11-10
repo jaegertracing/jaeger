@@ -14,7 +14,7 @@
 
 package dbmodel
 
-import "github.com/uber/jaeger/model"
+import "github.com/jaegertracing/jaeger/model"
 
 // GetAllUniqueTags creates a list of all unique tags from a set of filtered tags.
 func GetAllUniqueTags(span *model.Span, tagFilter TagFilter) []TagInsertion {

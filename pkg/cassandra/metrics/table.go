@@ -21,8 +21,8 @@ import (
 	"github.com/uber/jaeger-lib/metrics"
 	"go.uber.org/zap"
 
-	"github.com/uber/jaeger/pkg/cassandra"
-	storageMetrics "github.com/uber/jaeger/storage/spanstore/metrics"
+	"github.com/jaegertracing/jaeger/pkg/cassandra"
+	storageMetrics "github.com/jaegertracing/jaeger/storage/spanstore/metrics"
 )
 
 // Table is a collection of metrics about Cassandra write operations.

@@ -22,10 +22,10 @@ import (
 	"github.com/stretchr/testify/require"
 	"github.com/uber/tchannel-go/thrift"
 
-	"github.com/uber/jaeger/thrift-gen/baggage"
-	"github.com/uber/jaeger/thrift-gen/jaeger"
-	"github.com/uber/jaeger/thrift-gen/sampling"
-	"github.com/uber/jaeger/thrift-gen/zipkincore"
+	"github.com/jaegertracing/jaeger/thrift-gen/baggage"
+	"github.com/jaegertracing/jaeger/thrift-gen/jaeger"
+	"github.com/jaegertracing/jaeger/thrift-gen/sampling"
+	"github.com/jaegertracing/jaeger/thrift-gen/zipkincore"
 )
 
 func withTCollector(t *testing.T, fn func(collector *MockTCollector, ctx thrift.Context)) {

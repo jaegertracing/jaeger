@@ -24,8 +24,8 @@ import (
 	"math"
 	"net"
 
-	"github.com/uber/jaeger/model"
-	"github.com/uber/jaeger/thrift-gen/zipkincore"
+	"github.com/jaegertracing/jaeger/model"
+	"github.com/jaegertracing/jaeger/thrift-gen/zipkincore"
 )
 
 type endpoint struct {

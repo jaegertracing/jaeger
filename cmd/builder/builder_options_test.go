@@ -20,10 +20,10 @@ import (
 	"github.com/stretchr/testify/assert"
 	"go.uber.org/zap"
 
+	cascfg "github.com/jaegertracing/jaeger/pkg/cassandra/config"
+	escfg "github.com/jaegertracing/jaeger/pkg/es/config"
+	"github.com/jaegertracing/jaeger/storage/spanstore/memory"
 	"github.com/uber/jaeger-lib/metrics"
-	cascfg "github.com/uber/jaeger/pkg/cassandra/config"
-	escfg "github.com/uber/jaeger/pkg/es/config"
-	"github.com/uber/jaeger/storage/spanstore/memory"
 )
 
 func TestApplyOptions(t *testing.T) {

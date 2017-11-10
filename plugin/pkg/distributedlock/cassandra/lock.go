@@ -19,7 +19,7 @@ import (
 
 	"github.com/pkg/errors"
 
-	"github.com/uber/jaeger/pkg/cassandra"
+	"github.com/jaegertracing/jaeger/pkg/cassandra"
 )
 
 // Lock is a distributed lock based off Cassandra.

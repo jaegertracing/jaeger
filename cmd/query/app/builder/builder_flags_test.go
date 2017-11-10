@@ -19,7 +19,7 @@ import (
 
 	"github.com/stretchr/testify/assert"
 
-	"github.com/uber/jaeger/pkg/config"
+	"github.com/jaegertracing/jaeger/pkg/config"
 )
 
 func TestQueryBuilderFlags(t *testing.T) {

@@ -27,11 +27,11 @@ import (
 	"go.uber.org/zap"
 	"golang.org/x/net/context"
 
-	zipkinSanitizer "github.com/uber/jaeger/cmd/collector/app/sanitizer/zipkin"
-	"github.com/uber/jaeger/model"
-	"github.com/uber/jaeger/pkg/testutils"
-	"github.com/uber/jaeger/thrift-gen/jaeger"
-	zc "github.com/uber/jaeger/thrift-gen/zipkincore"
+	zipkinSanitizer "github.com/jaegertracing/jaeger/cmd/collector/app/sanitizer/zipkin"
+	"github.com/jaegertracing/jaeger/model"
+	"github.com/jaegertracing/jaeger/pkg/testutils"
+	"github.com/jaegertracing/jaeger/thrift-gen/jaeger"
+	zc "github.com/jaegertracing/jaeger/thrift-gen/zipkincore"
 )
 
 var blackListedService = "zoidberg"

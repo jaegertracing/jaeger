@@ -22,11 +22,11 @@ import (
 	"github.com/uber/jaeger-lib/metrics"
 	"go.uber.org/zap"
 
-	basicB "github.com/uber/jaeger/cmd/builder"
-	"github.com/uber/jaeger/cmd/flags"
-	casCfg "github.com/uber/jaeger/pkg/cassandra/config"
-	"github.com/uber/jaeger/pkg/config"
-	"github.com/uber/jaeger/storage/spanstore/memory"
+	basicB "github.com/jaegertracing/jaeger/cmd/builder"
+	"github.com/jaegertracing/jaeger/cmd/flags"
+	casCfg "github.com/jaegertracing/jaeger/pkg/cassandra/config"
+	"github.com/jaegertracing/jaeger/pkg/config"
+	"github.com/jaegertracing/jaeger/storage/spanstore/memory"
 )
 
 func newStorageBuilder() *StorageBuilder {

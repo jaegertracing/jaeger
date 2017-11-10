@@ -26,8 +26,8 @@ import (
 	"github.com/gorilla/mux"
 	tchanThrift "github.com/uber/tchannel-go/thrift"
 
-	"github.com/uber/jaeger/cmd/collector/app"
-	"github.com/uber/jaeger/thrift-gen/zipkincore"
+	"github.com/jaegertracing/jaeger/cmd/collector/app"
+	"github.com/jaegertracing/jaeger/thrift-gen/zipkincore"
 )
 
 // APIHandler handles all HTTP calls to the collector

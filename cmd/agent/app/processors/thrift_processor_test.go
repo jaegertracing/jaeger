@@ -27,14 +27,14 @@ import (
 	mTestutils "github.com/uber/jaeger-lib/metrics/testutils"
 	"go.uber.org/zap"
 
-	"github.com/uber/jaeger/cmd/agent/app/reporter"
-	tchreporter "github.com/uber/jaeger/cmd/agent/app/reporter/tchannel"
-	"github.com/uber/jaeger/cmd/agent/app/servers"
-	"github.com/uber/jaeger/cmd/agent/app/servers/thriftudp"
-	"github.com/uber/jaeger/cmd/agent/app/testutils"
-	"github.com/uber/jaeger/thrift-gen/agent"
-	"github.com/uber/jaeger/thrift-gen/jaeger"
-	"github.com/uber/jaeger/thrift-gen/zipkincore"
+	"github.com/jaegertracing/jaeger/cmd/agent/app/reporter"
+	tchreporter "github.com/jaegertracing/jaeger/cmd/agent/app/reporter/tchannel"
+	"github.com/jaegertracing/jaeger/cmd/agent/app/servers"
+	"github.com/jaegertracing/jaeger/cmd/agent/app/servers/thriftudp"
+	"github.com/jaegertracing/jaeger/cmd/agent/app/testutils"
+	"github.com/jaegertracing/jaeger/thrift-gen/agent"
+	"github.com/jaegertracing/jaeger/thrift-gen/jaeger"
+	"github.com/jaegertracing/jaeger/thrift-gen/zipkincore"
 )
 
 // TODO make these tests faster, they take almost 4 seconds

@@ -24,8 +24,8 @@ import (
 
 	"bytes"
 
+	"github.com/jaegertracing/jaeger/model"
 	"github.com/stretchr/testify/require"
-	"github.com/uber/jaeger/model"
 )
 
 type TraceIDContainer struct {

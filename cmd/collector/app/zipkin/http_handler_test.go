@@ -33,7 +33,7 @@ import (
 	zipkinTransport "github.com/uber/jaeger-client-go/transport/zipkin"
 	tchanThrift "github.com/uber/tchannel-go/thrift"
 
-	"github.com/uber/jaeger/thrift-gen/zipkincore"
+	"github.com/jaegertracing/jaeger/thrift-gen/zipkincore"
 )
 
 var httpClient = &http.Client{Timeout: 2 * time.Second}

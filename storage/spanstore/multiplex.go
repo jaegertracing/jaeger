@@ -15,8 +15,8 @@
 package spanstore
 
 import (
-	"github.com/uber/jaeger/model"
-	"github.com/uber/jaeger/pkg/multierror"
+	"github.com/jaegertracing/jaeger/model"
+	"github.com/jaegertracing/jaeger/pkg/multierror"
 )
 
 // MultiplexWriter is a span Writer that tries to save spans into several underlying span Writers

@@ -27,11 +27,11 @@ import (
 	"go.uber.org/zap"
 	"gopkg.in/olivere/elastic.v5"
 
-	"github.com/uber/jaeger/model"
-	"github.com/uber/jaeger/model/json"
-	"github.com/uber/jaeger/pkg/es/mocks"
-	"github.com/uber/jaeger/pkg/testutils"
-	"github.com/uber/jaeger/storage/spanstore"
+	"github.com/jaegertracing/jaeger/model"
+	"github.com/jaegertracing/jaeger/model/json"
+	"github.com/jaegertracing/jaeger/pkg/es/mocks"
+	"github.com/jaegertracing/jaeger/pkg/testutils"
+	"github.com/jaegertracing/jaeger/storage/spanstore"
 )
 
 type spanWriterTest struct {

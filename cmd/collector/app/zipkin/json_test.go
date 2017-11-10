@@ -20,9 +20,9 @@ import (
 	"fmt"
 	"testing"
 
+	"github.com/jaegertracing/jaeger/thrift-gen/zipkincore"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-	"github.com/uber/jaeger/thrift-gen/zipkincore"
 )
 
 var endpointFmt = `{"serviceName": "%s", "ipv4": "%s", "ipv6": "%s", "port": %d}`

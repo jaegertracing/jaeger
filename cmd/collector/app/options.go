@@ -17,10 +17,10 @@ package app
 import (
 	"go.uber.org/zap"
 
+	"github.com/jaegertracing/jaeger/model"
 	"github.com/uber/jaeger-lib/metrics"
-	"github.com/uber/jaeger/model"
 
-	"github.com/uber/jaeger/cmd/collector/app/sanitizer"
+	"github.com/jaegertracing/jaeger/cmd/collector/app/sanitizer"
 )
 
 const (

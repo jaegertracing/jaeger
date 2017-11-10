@@ -15,7 +15,7 @@
 package dbmodel
 
 import (
-	"github.com/uber/jaeger/model"
+	"github.com/jaegertracing/jaeger/model"
 )
 
 // TODO (black-adder) add a chain filter

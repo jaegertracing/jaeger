@@ -24,10 +24,10 @@ import (
 	"go.uber.org/zap"
 	"gopkg.in/olivere/elastic.v5"
 
-	jModel "github.com/uber/jaeger/model/json"
-	"github.com/uber/jaeger/pkg/cache"
-	"github.com/uber/jaeger/pkg/es"
-	storageMetrics "github.com/uber/jaeger/storage/spanstore/metrics"
+	jModel "github.com/jaegertracing/jaeger/model/json"
+	"github.com/jaegertracing/jaeger/pkg/cache"
+	"github.com/jaegertracing/jaeger/pkg/es"
+	storageMetrics "github.com/jaegertracing/jaeger/storage/spanstore/metrics"
 )
 
 const (

@@ -17,7 +17,7 @@ package dependencystore
 import (
 	"time"
 
-	"github.com/uber/jaeger/model"
+	"github.com/jaegertracing/jaeger/model"
 )
 
 // Writer stores service dependencies into storage.

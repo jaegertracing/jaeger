@@ -22,9 +22,9 @@ import (
 	"github.com/uber/tchannel-go/thrift"
 	"go.uber.org/zap"
 
-	"github.com/uber/jaeger/pkg/discovery/peerlistmgr"
-	"github.com/uber/jaeger/thrift-gen/jaeger"
-	"github.com/uber/jaeger/thrift-gen/zipkincore"
+	"github.com/jaegertracing/jaeger/pkg/discovery/peerlistmgr"
+	"github.com/jaegertracing/jaeger/thrift-gen/jaeger"
+	"github.com/jaegertracing/jaeger/thrift-gen/zipkincore"
 )
 
 const (

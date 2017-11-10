@@ -1,7 +1,7 @@
 sudo: required
 
 language: go
-go_import_path: github.com/uber/jaeger
+go_import_path: github.com/jaegertracing/jaeger
 
 dist: trusty
 

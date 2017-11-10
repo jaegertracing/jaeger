@@ -23,7 +23,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
 
-	"github.com/uber/jaeger/pkg/cassandra/mocks"
+	"github.com/jaegertracing/jaeger/pkg/cassandra/mocks"
 )
 
 var (

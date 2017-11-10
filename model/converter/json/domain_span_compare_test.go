@@ -21,7 +21,7 @@ import (
 	"github.com/kr/pretty"
 	"github.com/stretchr/testify/assert"
 
-	"github.com/uber/jaeger/model"
+	"github.com/jaegertracing/jaeger/model"
 )
 
 func CompareModelSpans(t *testing.T, expected *model.Span, actual *model.Span) {

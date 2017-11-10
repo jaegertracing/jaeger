@@ -19,7 +19,7 @@ import (
 	"encoding/binary"
 	"strconv"
 
-	"github.com/uber/jaeger/model"
+	"github.com/jaegertracing/jaeger/model"
 )
 
 var ipTagsToCorrect = map[string]struct{}{

@@ -15,8 +15,8 @@
 package json
 
 import (
-	"github.com/uber/jaeger/model"
-	"github.com/uber/jaeger/model/json"
+	"github.com/jaegertracing/jaeger/model"
+	"github.com/jaegertracing/jaeger/model/json"
 )
 
 // FromDomain converts model.Trace into json.Trace format.

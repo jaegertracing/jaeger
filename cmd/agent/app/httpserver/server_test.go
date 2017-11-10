@@ -29,9 +29,9 @@ import (
 	"github.com/uber/jaeger-lib/metrics/testutils"
 	mTestutils "github.com/uber/jaeger-lib/metrics/testutils"
 
-	tSampling092 "github.com/uber/jaeger/cmd/agent/app/httpserver/thrift-0.9.2"
-	"github.com/uber/jaeger/thrift-gen/baggage"
-	"github.com/uber/jaeger/thrift-gen/sampling"
+	tSampling092 "github.com/jaegertracing/jaeger/cmd/agent/app/httpserver/thrift-0.9.2"
+	"github.com/jaegertracing/jaeger/thrift-gen/baggage"
+	"github.com/jaegertracing/jaeger/thrift-gen/sampling"
 )
 
 type testServer struct {

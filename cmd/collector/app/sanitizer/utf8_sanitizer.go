@@ -18,7 +18,7 @@ import (
 	"fmt"
 	"unicode/utf8"
 
-	"github.com/uber/jaeger/model"
+	"github.com/jaegertracing/jaeger/model"
 	"go.uber.org/zap"
 	"go.uber.org/zap/zapcore"
 )

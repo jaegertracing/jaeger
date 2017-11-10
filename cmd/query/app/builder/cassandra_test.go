@@ -20,10 +20,10 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"github.com/uber/jaeger/cmd/flags"
-	"github.com/uber/jaeger/pkg/cassandra"
-	"github.com/uber/jaeger/pkg/cassandra/config"
-	"github.com/uber/jaeger/pkg/cassandra/mocks"
+	"github.com/jaegertracing/jaeger/cmd/flags"
+	"github.com/jaegertracing/jaeger/pkg/cassandra"
+	"github.com/jaegertracing/jaeger/pkg/cassandra/config"
+	"github.com/jaegertracing/jaeger/pkg/cassandra/mocks"
 )
 
 type mockSessionBuilder struct {

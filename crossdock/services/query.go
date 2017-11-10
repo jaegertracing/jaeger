@@ -25,7 +25,7 @@ import (
 
 	"go.uber.org/zap"
 
-	ui "github.com/uber/jaeger/model/json"
+	ui "github.com/jaegertracing/jaeger/model/json"
 )
 
 // QueryService is the service used to query cassandra tables for traces

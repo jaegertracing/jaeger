@@ -19,7 +19,7 @@ import (
 
 	"github.com/gocql/gocql"
 
-	"github.com/uber/jaeger/pkg/cassandra/gocql/testutils"
+	"github.com/jaegertracing/jaeger/pkg/cassandra/gocql/testutils"
 )
 
 func TestDependencyUDT(t *testing.T) {

@@ -18,7 +18,7 @@ import (
 	"errors"
 	"time"
 
-	"github.com/uber/jaeger/model"
+	"github.com/jaegertracing/jaeger/model"
 )
 
 // Writer writes spans to storage.

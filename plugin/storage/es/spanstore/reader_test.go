@@ -26,12 +26,12 @@ import (
 	"go.uber.org/zap"
 	"gopkg.in/olivere/elastic.v5"
 
+	"github.com/jaegertracing/jaeger/model"
+	esJson "github.com/jaegertracing/jaeger/model/json"
+	"github.com/jaegertracing/jaeger/pkg/es/mocks"
+	"github.com/jaegertracing/jaeger/pkg/testutils"
+	"github.com/jaegertracing/jaeger/storage/spanstore"
 	"github.com/uber/jaeger-lib/metrics"
-	"github.com/uber/jaeger/model"
-	esJson "github.com/uber/jaeger/model/json"
-	"github.com/uber/jaeger/pkg/es/mocks"
-	"github.com/uber/jaeger/pkg/testutils"
-	"github.com/uber/jaeger/storage/spanstore"
 )
 
 var exampleESSpan = []byte(
