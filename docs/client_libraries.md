@@ -8,6 +8,7 @@
 | java     | [jaeger-client-java](https://github.com/uber/jaeger-client-java)    |
 | node     | [jaeger-client-node](https://github.com/uber/jaeger-client-node)    |
 | python   | [jaeger-client-python](https://github.com/uber/jaeger-client-python)|
+| C++      | [cpp-client](https://github.com/jaegertracing/cpp-client)           |
 
 For a deep dive into how to instrument a Go service, look at [Tracing HTTP request latency](https://medium.com/@YuriShkuro/tracing-http-request-latency-in-go-with-opentracing-7cc1282a100a).
 

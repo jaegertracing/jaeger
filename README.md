@@ -32,6 +32,7 @@ Jaeger is hosted by the [Cloud Native Computing Foundation](https://cncf.io) (CN
  * [Java client](https://github.com/uber/jaeger-client-java)
  * [Python client](https://github.com/uber/jaeger-client-python)
  * [Node.js client](https://github.com/uber/jaeger-client-node)
+ * [C++ client](https://github.com/jaegertracing/cpp-client)
 
 ### Contributions
 

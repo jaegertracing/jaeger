@@ -23,7 +23,8 @@ for the architectural choices made in Jaeger.
 ## Features
 
   * [OpenTracing](http://opentracing.io/) compatible data model and instrumentation libraries
-    * in [Go](https://github.com/uber/jaeger-client-go), [Java](https://github.com/uber/jaeger-client-java), [Node](https://github.com/uber/jaeger-client-node) and [Python](https://github.com/uber/jaeger-client-python)
+    * in [Go](https://github.com/uber/jaeger-client-go), [Java](https://github.com/uber/jaeger-client-java), [Node](https://github.com/uber/jaeger-client-node), [Python](https://github.com/uber/jaeger-client-python)
+    and [C++](https://github.com/jaegertracing/cpp-client)
   * Uses consistent upfront sampling with individual per service/endpoint probabilities
   * Adaptive sampling (coming soon)
   * Post-collection data processing pipeline (coming soon)
