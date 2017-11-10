@@ -28,10 +28,10 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	"github.com/jaegertracing/jaeger/model"
+	z "github.com/jaegertracing/jaeger/thrift-gen/zipkincore"
 	"github.com/opentracing/opentracing-go"
 	"github.com/opentracing/opentracing-go/ext"
-	"github.com/uber/jaeger/model"
-	z "github.com/uber/jaeger/thrift-gen/zipkincore"
 )
 
 const NumberOfFixtures = 3

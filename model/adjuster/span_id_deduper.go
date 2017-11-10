@@ -17,7 +17,7 @@ package adjuster
 import (
 	"errors"
 
-	"github.com/uber/jaeger/model"
+	"github.com/jaegertracing/jaeger/model"
 )
 
 // SpanIDDeduper returns an adjuster that changes span ids for server

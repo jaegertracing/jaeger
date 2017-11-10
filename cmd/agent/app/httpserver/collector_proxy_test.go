@@ -25,9 +25,9 @@ import (
 	mTestutils "github.com/uber/jaeger-lib/metrics/testutils"
 	"github.com/uber/tchannel-go/thrift"
 
-	"github.com/uber/jaeger/cmd/agent/app/testutils"
-	"github.com/uber/jaeger/thrift-gen/baggage"
-	"github.com/uber/jaeger/thrift-gen/sampling"
+	"github.com/jaegertracing/jaeger/cmd/agent/app/testutils"
+	"github.com/jaegertracing/jaeger/thrift-gen/baggage"
+	"github.com/jaegertracing/jaeger/thrift-gen/sampling"
 )
 
 func TestCollectorProxy(t *testing.T) {

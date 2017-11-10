@@ -24,7 +24,7 @@ import (
 	"github.com/uber/tchannel-go"
 	"go.uber.org/zap"
 
-	"github.com/uber/jaeger/pkg/discovery"
+	"github.com/jaegertracing/jaeger/pkg/discovery"
 )
 
 var introspectOptions = &tchannel.IntrospectionOptions{IncludeEmptyPeers: true}

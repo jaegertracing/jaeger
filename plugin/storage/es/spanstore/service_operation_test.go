@@ -24,8 +24,8 @@ import (
 	"github.com/stretchr/testify/require"
 	"gopkg.in/olivere/elastic.v5"
 
-	jModel "github.com/uber/jaeger/model/json"
-	"github.com/uber/jaeger/pkg/es/mocks"
+	jModel "github.com/jaegertracing/jaeger/model/json"
+	"github.com/jaegertracing/jaeger/pkg/es/mocks"
 )
 
 func TestWriteService(t *testing.T) {

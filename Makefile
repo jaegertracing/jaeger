@@ -1,4 +1,4 @@
-PROJECT_ROOT=github.com/uber/jaeger
+PROJECT_ROOT=github.com/jaegertracing/jaeger
 TOP_PKGS := $(shell glide novendor | grep -v -e ./thrift-gen/... -e ./examples/... -e ./scripts/...)
 
 # all .go files that don't exist in hidden directories
@@ -23,7 +23,7 @@ MKDOCS_VIRTUAL_ENV=.mkdocs-virtual-env
 GIT_SHA=$(shell git rev-parse HEAD)
 GIT_CLOSEST_TAG=$(shell git describe --abbrev=0 --tags)
 DATE=$(shell date -u +'%Y-%m-%dT%H:%M:%SZ')
-BUILD_INFO_IMPORT_PATH=github.com/uber/jaeger/pkg/version
+BUILD_INFO_IMPORT_PATH=github.com/jaegertracing/jaeger/pkg/version
 BUILD_INFO=-ldflags "-X $(BUILD_INFO_IMPORT_PATH).commitSHA=$(GIT_SHA) -X $(BUILD_INFO_IMPORT_PATH).latestVersion=$(GIT_CLOSEST_TAG) -X $(BUILD_INFO_IMPORT_PATH).date=$(DATE)"
 
 SED=sed

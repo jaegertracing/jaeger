@@ -18,7 +18,7 @@ import (
 	"strconv"
 	"strings"
 
-	zc "github.com/uber/jaeger/thrift-gen/zipkincore"
+	zc "github.com/jaegertracing/jaeger/thrift-gen/zipkincore"
 )
 
 const (

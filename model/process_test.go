@@ -23,8 +23,8 @@ import (
 
 	"errors"
 
+	"github.com/jaegertracing/jaeger/model"
 	"github.com/stretchr/testify/require"
-	"github.com/uber/jaeger/model"
 )
 
 func TestProcessEqual(t *testing.T) {

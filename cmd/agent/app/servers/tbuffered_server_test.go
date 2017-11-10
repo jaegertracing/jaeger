@@ -24,12 +24,12 @@ import (
 	"github.com/uber/jaeger-lib/metrics"
 	mTestutils "github.com/uber/jaeger-lib/metrics/testutils"
 
-	"github.com/uber/jaeger/thrift-gen/agent"
-	"github.com/uber/jaeger/thrift-gen/zipkincore"
+	"github.com/jaegertracing/jaeger/thrift-gen/agent"
+	"github.com/jaegertracing/jaeger/thrift-gen/zipkincore"
 
-	"github.com/uber/jaeger/cmd/agent/app/customtransports"
-	"github.com/uber/jaeger/cmd/agent/app/servers/thriftudp"
-	"github.com/uber/jaeger/cmd/agent/app/testutils"
+	"github.com/jaegertracing/jaeger/cmd/agent/app/customtransports"
+	"github.com/jaegertracing/jaeger/cmd/agent/app/servers/thriftudp"
+	"github.com/jaegertracing/jaeger/cmd/agent/app/testutils"
 )
 
 func TestTBufferedServer(t *testing.T) {

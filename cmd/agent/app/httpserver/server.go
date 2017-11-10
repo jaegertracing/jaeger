@@ -23,7 +23,7 @@ import (
 
 	"github.com/uber/jaeger-lib/metrics"
 
-	tSampling "github.com/uber/jaeger/thrift-gen/sampling"
+	tSampling "github.com/jaegertracing/jaeger/thrift-gen/sampling"
 )
 
 const mimeTypeApplicationJSON = "application/json"

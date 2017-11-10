@@ -29,16 +29,16 @@ import (
 	"github.com/uber/jaeger-lib/metrics/go-kit/expvar"
 	"go.uber.org/zap"
 
-	basicB "github.com/uber/jaeger/cmd/builder"
-	"github.com/uber/jaeger/cmd/flags"
-	casFlags "github.com/uber/jaeger/cmd/flags/cassandra"
-	esFlags "github.com/uber/jaeger/cmd/flags/es"
-	"github.com/uber/jaeger/cmd/query/app"
-	"github.com/uber/jaeger/cmd/query/app/builder"
-	"github.com/uber/jaeger/pkg/config"
-	"github.com/uber/jaeger/pkg/healthcheck"
-	"github.com/uber/jaeger/pkg/recoveryhandler"
-	"github.com/uber/jaeger/pkg/version"
+	basicB "github.com/jaegertracing/jaeger/cmd/builder"
+	"github.com/jaegertracing/jaeger/cmd/flags"
+	casFlags "github.com/jaegertracing/jaeger/cmd/flags/cassandra"
+	esFlags "github.com/jaegertracing/jaeger/cmd/flags/es"
+	"github.com/jaegertracing/jaeger/cmd/query/app"
+	"github.com/jaegertracing/jaeger/cmd/query/app/builder"
+	"github.com/jaegertracing/jaeger/pkg/config"
+	"github.com/jaegertracing/jaeger/pkg/healthcheck"
+	"github.com/jaegertracing/jaeger/pkg/recoveryhandler"
+	"github.com/jaegertracing/jaeger/pkg/version"
 )
 
 func main() {

@@ -19,8 +19,8 @@ import (
 
 	"github.com/stretchr/testify/assert"
 
-	"github.com/uber/jaeger/model"
-	j "github.com/uber/jaeger/thrift-gen/jaeger"
+	"github.com/jaegertracing/jaeger/model"
+	j "github.com/jaegertracing/jaeger/thrift-gen/jaeger"
 )
 
 const (

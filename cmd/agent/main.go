@@ -22,11 +22,11 @@ import (
 	"github.com/spf13/viper"
 	"go.uber.org/zap"
 
-	"github.com/uber/jaeger/cmd/agent/app"
-	"github.com/uber/jaeger/cmd/flags"
-	"github.com/uber/jaeger/pkg/config"
-	"github.com/uber/jaeger/pkg/metrics"
-	"github.com/uber/jaeger/pkg/version"
+	"github.com/jaegertracing/jaeger/cmd/agent/app"
+	"github.com/jaegertracing/jaeger/cmd/flags"
+	"github.com/jaegertracing/jaeger/pkg/config"
+	"github.com/jaegertracing/jaeger/pkg/metrics"
+	"github.com/jaegertracing/jaeger/pkg/version"
 )
 
 func main() {

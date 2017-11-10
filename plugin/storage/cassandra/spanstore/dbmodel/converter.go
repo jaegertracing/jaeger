@@ -17,7 +17,7 @@ package dbmodel
 import (
 	"errors"
 
-	"github.com/uber/jaeger/model"
+	"github.com/jaegertracing/jaeger/model"
 )
 
 // ErrUnknownKeyValueTypeFromCassandra is an error that occurs when trying to decipher an unknown tag type from the database

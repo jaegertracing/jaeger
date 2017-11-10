@@ -26,7 +26,7 @@ import (
 
 	"github.com/stretchr/testify/require"
 
-	ui "github.com/uber/jaeger/model/json"
+	ui "github.com/jaegertracing/jaeger/model/json"
 )
 
 const (

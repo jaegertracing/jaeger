@@ -23,7 +23,7 @@ import (
 
 	"go.uber.org/zap"
 
-	"github.com/uber/jaeger/thrift-gen/sampling"
+	"github.com/jaegertracing/jaeger/thrift-gen/sampling"
 )
 
 var (

@@ -18,12 +18,12 @@ import (
 	"github.com/uber/tchannel-go/thrift"
 	"go.uber.org/zap"
 
-	zipkinS "github.com/uber/jaeger/cmd/collector/app/sanitizer/zipkin"
-	"github.com/uber/jaeger/model"
-	jConv "github.com/uber/jaeger/model/converter/thrift/jaeger"
-	"github.com/uber/jaeger/model/converter/thrift/zipkin"
-	"github.com/uber/jaeger/thrift-gen/jaeger"
-	"github.com/uber/jaeger/thrift-gen/zipkincore"
+	zipkinS "github.com/jaegertracing/jaeger/cmd/collector/app/sanitizer/zipkin"
+	"github.com/jaegertracing/jaeger/model"
+	jConv "github.com/jaegertracing/jaeger/model/converter/thrift/jaeger"
+	"github.com/jaegertracing/jaeger/model/converter/thrift/zipkin"
+	"github.com/jaegertracing/jaeger/thrift-gen/jaeger"
+	"github.com/jaegertracing/jaeger/thrift-gen/zipkincore"
 )
 
 const (

@@ -30,8 +30,8 @@ import (
 	"github.com/uber/jaeger-client-go"
 	"go.uber.org/zap"
 
-	"github.com/uber/jaeger/crossdock/services/mocks"
-	ui "github.com/uber/jaeger/model/json"
+	"github.com/jaegertracing/jaeger/crossdock/services/mocks"
+	ui "github.com/jaegertracing/jaeger/model/json"
 )
 
 var (
