@@ -54,6 +54,11 @@ See [CONTRIBUTING](./CONTRIBUTING.md).
 
 See [CONTRIBUTING](./CONTRIBUTING.md).
 
+## Project Status Bi-Weekly Meeting
+
+The Jaeger contributors meet bi-weekly, and everyone is welcome to join.
+[Agenda and meeting details here](https://docs.google.com/document/d/1ZuBAwTJvQN7xkWVvEFXj5WU9_JmS5TPiNbxCJSvPqX0/).
+
 ## Roadmap
 
 See http://jaeger.readthedocs.io/en/latest/roadmap/
