@@ -1,6 +1,6 @@
 # Jaeger Governance
 
-This document defines project governance for the Jaeger project.
+This document defines governance policies for the Jaeger project.
 
 ## Maintainers
 
@@ -24,7 +24,7 @@ To become a maintainer you need to demonstrate the following:
   * understanding of how the team works (policies, processes for testing and code review, etc), 
   * understanding of the projects' code base and coding style.
 
-A new maintainer must proposed by an existing maintainer by sending email to jaeger-maintainers@lists.cncf.io
+A new maintainer must be proposed by an existing maintainer by sending an email to jaeger-maintainers@lists.cncf.io
 (please do not CC the nominee on the nomination email) containing the following information:
 
   * nominee's first and last name,
