@@ -118,9 +118,8 @@ func TestBoundedQueueWithPriority(t *testing.T) {
 		GetPriority(func(item interface{}) int {
 			if item.(string) == "a" {
 				return highPriority
-			} else {
-				return lowPriority
 			}
+			return lowPriority
 		}),
 	)
 	assert.Equal(t, 1, q.Capacity())
