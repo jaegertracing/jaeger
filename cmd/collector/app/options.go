@@ -43,6 +43,7 @@ type options struct {
 	queueSize        int
 	reportBusy       bool
 	extraFormatTypes []string
+	getPriority      func(item interface{}) int
 }
 
 // Option is a function that sets some option on StorageBuilder.
@@ -132,6 +133,13 @@ func (options) ReportBusy(reportBusy bool) Option {
 func (options) ExtraFormatTypes(extraFormatTypes []string) Option {
 	return func(b *options) {
 		b.extraFormatTypes = extraFormatTypes
+	}
+}
+
+// GetPriority creates an Option that retrieves the priority of a span
+func (options) GetPriority(getPriority func(item interface{}) int) Option {
+	return func(b *options) {
+		b.getPriority = getPriority
 	}
 }
 

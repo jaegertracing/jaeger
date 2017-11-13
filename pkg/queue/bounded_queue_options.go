@@ -19,15 +19,7 @@ type Option func(c *Options)
 
 // Options control behavior of the BoundedQueue.
 type Options struct {
-	priorityLevels int
-	getPriority    func(item interface{}) int
-}
-
-// PriorityLevels determines the number of different priority levels for the bounded queue.
-func PriorityLevels(priorityLevels int) Option {
-	return func(o *Options) {
-		o.priorityLevels = priorityLevels
-	}
+	getPriority func(item interface{}) int
 }
 
 // GetPriority determines the priority level of a item.
@@ -42,12 +34,9 @@ func applyOptions(opts ...Option) Options {
 	for _, opt := range opts {
 		opt(&o)
 	}
-	if o.priorityLevels == 0 {
-		o.priorityLevels = 1
-	}
 	if o.getPriority == nil {
 		o.getPriority = func(item interface{}) int {
-			return 0
+			return lowPriority
 		}
 	}
 	return o

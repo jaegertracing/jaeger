@@ -106,6 +106,49 @@ func TestBoundedQueue(t *testing.T) {
 	assert.False(t, q.Produce("x"), "cannot push to closed queue")
 }
 
+func TestBoundedQueueWithPriority(t *testing.T) {
+	mFact := metrics.NewLocalFactory(0)
+	counter := mFact.Counter("dropped", nil)
+
+	q := NewBoundedQueue(
+		1,
+		func(item interface{}) {
+			counter.Inc(1)
+		},
+		GetPriority(func(item interface{}) int {
+			if item.(string) == "a" {
+				return highPriority
+			} else {
+				return lowPriority
+			}
+		}),
+	)
+	assert.Equal(t, 1, q.Capacity())
+
+	consumerState := newConsumerState(t)
+
+	q.StartConsumers(1, func(item interface{}) {
+		consumerState.record(item.(string))
+	})
+
+	assert.True(t, q.Produce("b"))
+	assert.True(t, q.Produce("a"))
+
+	// now that consumers are unblocked, we can add more items
+	expected := map[string]bool{
+		"a": true,
+		"b": true,
+	}
+	for _, item := range []string{"d", "e", "f"} {
+		assert.True(t, q.Produce(item))
+		expected[item] = true
+		consumerState.assertConsumed(expected)
+	}
+
+	q.Stop()
+	assert.False(t, q.Produce("x"), "cannot push to closed queue")
+}
+
 type consumerState struct {
 	sync.Mutex
 	t            *testing.T

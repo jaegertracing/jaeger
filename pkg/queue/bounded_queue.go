@@ -22,21 +22,26 @@ import (
 	"github.com/uber/jaeger-lib/metrics"
 )
 
+const (
+	totalPriorities = 2
+	highPriority    = 0
+	lowPriority     = 1
+)
+
 // BoundedQueue implements a producer-consumer exchange similar to a ring buffer queue,
 // where the queue is bounded and if it fills up due to slow consumers, the new items written by
 // the producer force the earliest items to be dropped. The implementation is actually based on
 // channels, with a special Reaper goroutine that wakes up when the queue is full and consumers
 // the items from the top of the queue until its size drops back to maxSize
 type BoundedQueue struct {
-	capacity       int
-	size           int32
-	onDroppedItem  func(item interface{})
-	items          []chan interface{}
-	stopCh         chan struct{}
-	stopWG         sync.WaitGroup
-	stopped        int32
-	priorityLevels int
-	getPriority    func(item interface{}) int
+	capacity      int
+	size          int32
+	onDroppedItem func(item interface{})
+	items         []chan interface{}
+	stopCh        chan struct{}
+	stopWG        sync.WaitGroup
+	stopped       int32
+	getPriority   func(item interface{}) int
 }
 
 // NewBoundedQueue constructs the new queue of specified capacity, and with an optional
@@ -44,14 +49,13 @@ type BoundedQueue struct {
 func NewBoundedQueue(capacity int, onDroppedItem func(item interface{}), options ...Option) *BoundedQueue {
 	opts := applyOptions(options...)
 	bq := &BoundedQueue{
-		capacity:       capacity,
-		onDroppedItem:  onDroppedItem,
-		items:          make([]chan interface{}, opts.priorityLevels),
-		stopCh:         make(chan struct{}),
-		priorityLevels: opts.priorityLevels,
-		getPriority:    opts.getPriority,
+		capacity:      capacity,
+		onDroppedItem: onDroppedItem,
+		items:         make([]chan interface{}, totalPriorities),
+		stopCh:        make(chan struct{}),
+		getPriority:   opts.getPriority,
 	}
-	for i := 0; i < opts.priorityLevels; i++ {
+	for i := 0; i < totalPriorities; i++ {
 		bq.items[i] = make(chan interface{}, capacity)
 	}
 	return bq
@@ -69,18 +73,19 @@ func (q *BoundedQueue) StartConsumers(num int, consumer func(item interface{})) 
 			defer q.stopWG.Done()
 			for {
 				select {
+				case item := <-q.items[highPriority]:
+					atomic.AddInt32(&q.size, -1)
+					consumer(item)
+					continue
+				default:
+				}
+				select {
+				case item := <-q.items[lowPriority]:
+					atomic.AddInt32(&q.size, -1)
+					consumer(item)
+					continue
 				case <-q.stopCh:
 					return
-				default:
-					for _, items := range q.items {
-						select {
-						case item := <-items:
-							atomic.AddInt32(&q.size, -1)
-							consumer(item)
-							break
-						default:
-						}
-					}
 				}
 			}
 		}()
@@ -113,7 +118,7 @@ func (q *BoundedQueue) Stop() {
 	atomic.StoreInt32(&q.stopped, 1) // disable producer
 	close(q.stopCh)
 	q.stopWG.Wait()
-	for i := 0; i < q.priorityLevels; i++ {
+	for i := 0; i < totalPriorities; i++ {
 		close(q.items[i])
 	}
 }

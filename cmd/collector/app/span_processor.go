@@ -71,7 +71,7 @@ func newSpanProcessor(spanWriter spanstore.Writer, opts ...Option) *spanProcesso
 	droppedItemHandler := func(item interface{}) {
 		handlerMetrics.SpansDropped.Inc(1)
 	}
-	boundedQueue := queue.NewBoundedQueue(options.queueSize, droppedItemHandler)
+	boundedQueue := queue.NewBoundedQueue(options.queueSize, droppedItemHandler, queue.GetPriority(options.getPriority))
 
 	sp := spanProcessor{
 		queue:           boundedQueue,
