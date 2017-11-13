@@ -43,6 +43,10 @@ func (c *tchanZipkinCollectorClient) SubmitZipkinBatch(ctx thrift.Context, spans
 	}
 	success, err := c.client.Call(ctx, c.thriftService, "submitZipkinBatch", &args, &resp)
 	if err == nil && !success {
+		switch {
+		default:
+			err = fmt.Errorf("received no result or unknown exception for submitZipkinBatch")
+		}
 	}
 
 	return resp.GetSuccess(), err
