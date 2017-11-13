@@ -96,7 +96,10 @@ func remoteEndpToThrift(e *models.Endpoint, kind string) (*zipkincore.BinaryAnno
 		key = zipkincore.SERVER_ADDR
 	case models.SpanKindSERVER:
 		key = zipkincore.CLIENT_ADDR
+	case models.SpanKindCONSUMER, models.SpanKindPRODUCER:
+		key = zipkincore.MESSAGE_ADDR
 	}
+
 	return &zipkincore.BinaryAnnotation{
 		Key:            key,
 		Host:           rEndp,
@@ -129,7 +132,18 @@ func kindToThrift(ts int64, d int64, kind string, localE *zipkincore.Endpoint) [
 			Host:      localE,
 			Timestamp: ts + d,
 		})
-		// TODO support for producer/consumer once idl supports it
+	case models.SpanKindPRODUCER:
+		annos = append(annos, &zipkincore.Annotation{
+			Value:     zipkincore.MESSAGE_SEND,
+			Host:      localE,
+			Timestamp: ts,
+		})
+	case models.SpanKindCONSUMER:
+		annos = append(annos, &zipkincore.Annotation{
+			Value:     zipkincore.MESSAGE_RECV,
+			Host:      localE,
+			Timestamp: ts,
+		})
 	}
 	return annos
 }

@@ -58,6 +58,8 @@ func TestKindToThrift(t *testing.T) {
 	}{
 		{kind: models.SpanKindCLIENT, ts: 0, d: 1, expected: []*zipkincore.Annotation{{Value: zipkincore.CLIENT_SEND, Timestamp: 0}, {Value: zipkincore.CLIENT_RECV, Timestamp: 1}}},
 		{kind: models.SpanKindSERVER, ts: 0, d: 1, expected: []*zipkincore.Annotation{{Value: zipkincore.SERVER_RECV, Timestamp: 0}, {Value: zipkincore.SERVER_SEND, Timestamp: 1}}},
+		{kind: models.SpanKindPRODUCER, ts: 0, d: 1, expected: []*zipkincore.Annotation{{Value: zipkincore.MESSAGE_SEND, Timestamp: 0}}},
+		{kind: models.SpanKindCONSUMER, ts: 0, d: 1, expected: []*zipkincore.Annotation{{Value: zipkincore.MESSAGE_RECV, Timestamp: 0}}},
 	}
 	for _, test := range tests {
 		banns := kindToThrift(test.ts, test.d, test.kind, nil)
@@ -70,8 +72,10 @@ func TestRemoteEndpToThrift(t *testing.T) {
 		kind     string
 		expected *zipkincore.BinaryAnnotation
 	}{
-		{kind: models.SpanKindCLIENT, expected: &zipkincore.BinaryAnnotation{Key: zipkincore.SERVER_ADDR}},
+		{kind: models.SpanKindCLIENT, expected: &zipkincore.BinaryAnnotation{Key: zipkincore.SERVER_ADDR, AnnotationType: zipkincore.AnnotationType_BOOL}},
 		{kind: models.SpanKindSERVER, expected: &zipkincore.BinaryAnnotation{Key: zipkincore.CLIENT_ADDR, AnnotationType: zipkincore.AnnotationType_BOOL}},
+		{kind: models.SpanKindPRODUCER, expected: &zipkincore.BinaryAnnotation{Key: zipkincore.MESSAGE_ADDR, AnnotationType: zipkincore.AnnotationType_BOOL}},
+		{kind: models.SpanKindCONSUMER, expected: &zipkincore.BinaryAnnotation{Key: zipkincore.MESSAGE_ADDR, AnnotationType: zipkincore.AnnotationType_BOOL}},
 	}
 	for _, test := range tests {
 		banns, err := remoteEndpToThrift(nil, test.kind)
