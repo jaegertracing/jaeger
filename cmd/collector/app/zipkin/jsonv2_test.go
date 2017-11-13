@@ -36,16 +36,16 @@ func TestFixtures(t *testing.T) {
 	var pid int64 = 1
 	var ts int64 = 1
 	var d int64 = 10
-	localE := &zipkincore.Endpoint{ServiceName:"foo", Ipv4: 170594602}
-	remoteE := &zipkincore.Endpoint{ServiceName:"bar", Ipv4: 170594603}
-	tSpan := &zipkincore.Span{ID: 2, TraceID: 1, ParentID: &pid, Name:"foo", Debug: true, Duration: &d, Timestamp: &ts,
-	Annotations:[]*zipkincore.Annotation{
-		{Value:"foo", Timestamp:1, Host:localE},
-		{Value: zipkincore.CLIENT_SEND, Timestamp: ts, Host:localE},
-		{Value: zipkincore.CLIENT_RECV, Timestamp: ts+d, Host: localE}},
-	BinaryAnnotations:[]*zipkincore.BinaryAnnotation{
-		{Key:"foo", Value:[]byte("bar"), Host:localE, AnnotationType:zipkincore.AnnotationType_STRING},
-		{Key:zipkincore.SERVER_ADDR, Host:remoteE, AnnotationType:zipkincore.AnnotationType_BOOL}}}
+	localE := &zipkincore.Endpoint{ServiceName: "foo", Ipv4: 170594602}
+	remoteE := &zipkincore.Endpoint{ServiceName: "bar", Ipv4: 170594603}
+	tSpan := &zipkincore.Span{ID: 2, TraceID: 1, ParentID: &pid, Name: "foo", Debug: true, Duration: &d, Timestamp: &ts,
+		Annotations: []*zipkincore.Annotation{
+			{Value: "foo", Timestamp: 1, Host: localE},
+			{Value: zipkincore.CLIENT_SEND, Timestamp: ts, Host: localE},
+			{Value: zipkincore.CLIENT_RECV, Timestamp: ts + d, Host: localE}},
+		BinaryAnnotations: []*zipkincore.BinaryAnnotation{
+			{Key: "foo", Value: []byte("bar"), Host: localE, AnnotationType: zipkincore.AnnotationType_STRING},
+			{Key: zipkincore.SERVER_ADDR, Host: remoteE, AnnotationType: zipkincore.AnnotationType_BOOL}}}
 	assert.Equal(t, tSpans[0], tSpan)
 }
 

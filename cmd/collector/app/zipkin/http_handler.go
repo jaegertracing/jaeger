@@ -119,6 +119,12 @@ func (aH *APIHandler) saveSpansV2(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
+	contentType := r.Header.Get("Content-Type")
+	if contentType != "application/json" {
+		http.Error(w, "Unsupported Content-Type", http.StatusBadRequest)
+		return
+	}
+
 	var spans models.ListOfSpans
 	if err = swag.ReadJSON(bodyBytes, &spans); err != nil {
 		http.Error(w, fmt.Sprintf(app.UnableToReadBodyErrFormat, err), http.StatusBadRequest)
