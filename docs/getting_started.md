@@ -44,8 +44,10 @@ traces.
 #### Running
 
 ```bash
-go get github.com/uber/jaeger
-cd $GOPATH/src/github.com/uber/jaeger
+mkdir -p $GOPATH/src/github.com/jaegertracing
+cd $GOPATH/src/github.com/jaegertracing
+git clone git@github.com:jaegertracing/jaeger.git jaeger
+cd jaeger
 make install
 cd examples/hotrod
 go run ./main.go all
@@ -83,8 +85,10 @@ Individual Jaeger backend components can be run from source.
 They all have their `main.go` in the `cmd` folder. For example, to run the `jaeger-agent`:
 
 ```bash
-go get github.com/uber/jaeger
-cd $GOPATH/src/github.com/uber/jaeger
+mkdir -p $GOPATH/src/github.com/jaegertracing
+cd $GOPATH/src/github.com/jaegertracing
+git clone git@github.com:jaegertracing/jaeger.git jaeger
+cd jaeger
 make install
 go run ./cmd/agent/main.go
 ```
@@ -98,7 +102,7 @@ Collector service exposes Zipkin compatible REST API `/api/v1/spans` and can be 
 `--collector.zipkin.http-port=9411`. It supports Thrift and JSON format.
 Agent uses `TBinaryProtocol` and is available on `UDP` port `5775`.
 
-Zipkin Thrift IDL file can be found [here](https://github.com/uber/jaeger-idl/blob/master/thrift/zipkincore.thrift).
+Zipkin Thrift IDL file can be found [here](https://github.com/jaegertracing/jaeger-idl/blob/master/thrift/zipkincore.thrift).
 It's compatible with [zipkinCore.thrift](https://github.com/openzipkin/zipkin-api/blob/master/thrift/zipkinCore.thrift)
 
 [hotrod-tutorial]: https://medium.com/@YuriShkuro/take-opentracing-for-a-hotrod-ride-f6e3141f7941

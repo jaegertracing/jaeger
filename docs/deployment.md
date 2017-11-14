@@ -58,7 +58,7 @@ docker run \
 ```
 
 In the future we will support different service discovery systems to dynamically load balance
-across several collectors ([issue 213](https://github.com/uber/jaeger/issues/213)).
+across several collectors ([issue 213](https://github.com/jaegertracing/jaeger/issues/213)).
 
 ## Collectors
 
@@ -183,7 +183,7 @@ Links can either be members of the `menu` Array, directly, or they can be groupe
 
 The `items` Array should contain one or more link configurations.
 
-TODO: Swagger and GraphQL API ([issue 158](https://github.com/uber/jaeger/issues/158)).
+TODO: Swagger and GraphQL API ([issue 158](https://github.com/jaegertracing/jaeger/issues/158)).
 
 ## Aggregation Jobs for Service Dependencies
 

@@ -1,4 +1,4 @@
-package: github.com/uber/jaeger
+package: github.com/jaegertracing/jaeger
 import:
 - package: github.com/apache/thrift
   version: 0.9.3

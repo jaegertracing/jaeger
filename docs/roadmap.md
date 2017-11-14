@@ -2,7 +2,7 @@
 
 The following is only a selection of some of the major features we plan to implement in the near future (6-12 months).
 To get a more complete overview of planned features and current work, see the issue trackers for the various repositories,
-for example, the [Jaeger backend](https://github.com/uber/jaeger/issues/).
+for example, the [Jaeger backend](https://github.com/jaegertracing/jaeger/issues/).
 
 ## Adaptive Sampling
 
@@ -18,15 +18,15 @@ the storage backend. There are two issues with the current approach:
      endpoint never sampled. For example, if the QPS of the endpoints is different by a factor of 100, and the
      probability is set to 0.001, then the low QPS traffic will have only 1 in 100,000 chance to be sampled.
 
-See issue tracker for more info: [jaeger/issues/365](https://github.com/uber/jaeger/issues/365).
+See issue tracker for more info: [jaeger/issues/365](https://github.com/jaegertracing/jaeger/issues/365).
 
 ## Support for Large Traces in the UI
 
-[jaeger-ui/milestone/1](https://github.com/uber/jaeger-ui/milestone/1)
+[jaeger-ui/milestone/1](https://github.com/jaegertracing/jaeger-ui/milestone/1)
 
 ## Instrumentation Libraries in More Languages
 
-[jaeger/issues/366](https://github.com/uber/jaeger/issues/366)
+[jaeger/issues/366](https://github.com/jaegertracing/jaeger/issues/366)
 
 ## Data Pipeline
 
@@ -36,7 +36,7 @@ Post-collection data pipeline for trace aggregation and data mining based on Apa
 
 Features for Jaeger backend to be a drop-in replacement for Zipkin backend.
 
-[jaeger/milestone/2](https://github.com/uber/jaeger/milestone/2)
+[jaeger/milestone/2](https://github.com/jaegertracing/jaeger/milestone/2)
 
 ## Path-Based Dependency Diagrams
 
@@ -74,14 +74,14 @@ there are always questions about how much of the architecture is integrated
 with tracing, what is the quality of the instrumentation, are there microservices
 that are using stale versions of instrumentation libraries, etc.
 
-Trace Quality engine ([jaeger/issues/367](https://github.com/uber/jaeger/issues/367))
+Trace Quality engine ([jaeger/issues/367](https://github.com/jaegertracing/jaeger/issues/367))
 runs analysis on all traces collected in the backend, inspects them for known completeness
 and quality problems, and provides summary reports to service owners with suggestions on
 improving the quality metrics and links to sample traces that exhibit the issues.
 
 ## Dynamic Configuration
 
-We need a dynamic configuration solution ([jaeger/issues/355](https://github.com/uber/jaeger/issues/355))
+We need a dynamic configuration solution ([jaeger/issues/355](https://github.com/jaegertracing/jaeger/issues/355))
 that comes in handy in various scenarios:
 
   * Blacklisting services,
