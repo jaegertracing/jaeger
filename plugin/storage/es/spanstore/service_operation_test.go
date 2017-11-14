@@ -112,13 +112,13 @@ func TestSpanReader_GetOperations(t *testing.T) {
 }
 
 func TestSpanReader_GetServicesEmptyIndex(t *testing.T) {
-	withSpanReader(func (r *spanReaderTest){
+	withSpanReader(func(r *spanReaderTest) {
 		mockSearchService(r).
 			Return(&elastic.SearchResult{}, nil)
 		mockMultiSearchService(r).
 			Return(&elastic.MultiSearchResult{
-			Responses: []*elastic.SearchResult{},
-		}, nil)
+				Responses: []*elastic.SearchResult{},
+			}, nil)
 		services, err := r.reader.GetServices()
 		require.NoError(t, err)
 		assert.Empty(t, services)
@@ -126,13 +126,13 @@ func TestSpanReader_GetServicesEmptyIndex(t *testing.T) {
 }
 
 func TestSpanReader_GetOperationsEmptyIndex(t *testing.T) {
-	withSpanReader(func (r *spanReaderTest){
+	withSpanReader(func(r *spanReaderTest) {
 		mockSearchService(r).
 			Return(&elastic.SearchResult{}, nil)
 		mockMultiSearchService(r).
 			Return(&elastic.MultiSearchResult{
-			Responses: []*elastic.SearchResult{},
-		}, nil)
+				Responses: []*elastic.SearchResult{},
+			}, nil)
 		services, err := r.reader.GetOperations("foo")
 		require.NoError(t, err)
 		assert.Empty(t, services)

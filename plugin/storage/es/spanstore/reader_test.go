@@ -844,15 +844,14 @@ func TestSpanReader_buildTagQuery(t *testing.T) {
 	})
 }
 
-
 func TestSpanReader_GetEmptyIndex(t *testing.T) {
-	withSpanReader(func (r *spanReaderTest){
+	withSpanReader(func(r *spanReaderTest) {
 		mockSearchService(r).
 			Return(&elastic.SearchResult{}, nil)
 		mockMultiSearchService(r).
 			Return(&elastic.MultiSearchResult{
-			Responses: []*elastic.SearchResult{},
-		}, nil)
+				Responses: []*elastic.SearchResult{},
+			}, nil)
 
 		traceQuery := &spanstore.TraceQueryParameters{
 			ServiceName: serviceName,
