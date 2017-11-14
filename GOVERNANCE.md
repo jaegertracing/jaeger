@@ -24,8 +24,9 @@ To become a maintainer you need to demonstrate the following:
   * understanding of how the team works (policies, processes for testing and code review, etc), 
   * understanding of the projects' code base and coding style.
 
-A new maintainer must be proposed by an existing maintainer by sending an email to jaeger-maintainers@lists.cncf.io
-(please do not CC the nominee on the nomination email) containing the following information:
+A new maintainer must be proposed by an existing maintainer by sending a message to the
+[jaeger-tracing@googlegroups.com](https://groups.google.com/forum/#!forum/jaeger-tracing)
+mailing list containing the following information:
 
   * nominee's first and last name,
   * nominee's email address and GitHub user name,
