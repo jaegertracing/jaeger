@@ -20,10 +20,10 @@ import (
 	"github.com/jaegertracing/jaeger/thrift-gen/zipkincore"
 )
 
-func spansV2ToThrift(spans *models.ListOfSpans) ([]*zipkincore.Span, error) {
+func spansV2ToThrift(spans models.ListOfSpans) ([]*zipkincore.Span, error) {
 	var tSpans []*zipkincore.Span
-	for _, span := range *spans {
-		tSpan, err := spanV2ToThrift(*span)
+	for _, span := range spans {
+		tSpan, err := spanV2ToThrift(span)
 		if err != nil {
 			return nil, err
 		}
@@ -32,7 +32,7 @@ func spansV2ToThrift(spans *models.ListOfSpans) ([]*zipkincore.Span, error) {
 	return tSpans, nil
 }
 
-func spanV2ToThrift(s models.Span) (*zipkincore.Span, error) {
+func spanV2ToThrift(s *models.Span) (*zipkincore.Span, error) {
 	id, err := model.SpanIDFromString(cutLongID(*s.ID))
 	if err != nil {
 		return nil, err
@@ -156,16 +156,15 @@ func endpointV2ToThrift(e *models.Endpoint) (*zipkincore.Endpoint, error) {
 }
 
 func annoV2ToThrift(a *models.Annotation, e *zipkincore.Endpoint) *zipkincore.Annotation {
-	ta := &zipkincore.Annotation{
+	return &zipkincore.Annotation{
 		Value:     a.Value,
 		Timestamp: a.Timestamp,
 		Host:      e,
 	}
-	return ta
 }
 
 func tagsToThrift(tags models.Tags, localE *zipkincore.Endpoint) []*zipkincore.BinaryAnnotation {
-	var bAnnos []*zipkincore.BinaryAnnotation
+	bAnnos := make([]*zipkincore.BinaryAnnotation, 0, len(tags))
 	for k, v := range tags {
 		ba := &zipkincore.BinaryAnnotation{
 			Key:            k,

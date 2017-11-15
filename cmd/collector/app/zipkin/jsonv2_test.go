@@ -30,7 +30,7 @@ import (
 func TestFixtures(t *testing.T) {
 	var spans models.ListOfSpans
 	loadJSON(t, fmt.Sprintf("fixtures/zipkin_01.json"), &spans)
-	tSpans, err := spansV2ToThrift(&spans)
+	tSpans, err := spansV2ToThrift(spans)
 	require.NoError(t, err)
 	assert.Equal(t, len(tSpans), 1)
 	var pid int64 = 1
@@ -95,7 +95,7 @@ func TestErrIds(t *testing.T) {
 		{span: models.Span{ID: &idOk, TraceID: &idOk, ParentID: idWrong}},
 	}
 	for _, test := range tests {
-		tSpan, err := spanV2ToThrift(test.span)
+		tSpan, err := spanV2ToThrift(&test.span)
 		require.Error(t, err)
 		require.Nil(t, tSpan)
 		assert.Equal(t, err.Error(), "strconv.ParseUint: parsing \"z\": invalid syntax")
@@ -112,7 +112,7 @@ func TestErrEndpoints(t *testing.T) {
 		{span: models.Span{ID: &id, TraceID: &id, RemoteEndpoint: &endp}},
 	}
 	for _, test := range tests {
-		tSpan, err := spanV2ToThrift(test.span)
+		tSpan, err := spanV2ToThrift(&test.span)
 		require.Error(t, err)
 		require.Nil(t, tSpan)
 		assert.Equal(t, err.Error(), "wrong ipv4")
@@ -121,7 +121,7 @@ func TestErrEndpoints(t *testing.T) {
 
 func TestErrSpans(t *testing.T) {
 	id := "z"
-	tSpans, err := spansV2ToThrift(&models.ListOfSpans{&models.Span{ID: &id}})
+	tSpans, err := spansV2ToThrift(models.ListOfSpans{&models.Span{ID: &id}})
 	require.Error(t, err)
 	require.Nil(t, tSpans)
 	assert.Equal(t, err.Error(), "strconv.ParseUint: parsing \"z\": invalid syntax")

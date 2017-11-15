@@ -46,12 +46,12 @@ type APIHandler struct {
 // NewAPIHandler returns a new APIHandler
 func NewAPIHandler(
 	zipkinSpansHandler app.ZipkinSpansHandler,
-) (*APIHandler, error) {
+) *APIHandler {
 	swaggerSpec, _ := loads.Analyzed(restapi.SwaggerJSON, "")
 	return &APIHandler{
 		zipkinSpansHandler: zipkinSpansHandler,
 		zipkinV2Formats:    operations.NewZipkinAPI(swaggerSpec).Formats(),
-	}, nil
+	}
 }
 
 // RegisterRoutes registers Zipkin routes
@@ -69,6 +69,7 @@ func (aH *APIHandler) saveSpans(w http.ResponseWriter, r *http.Request) {
 			http.Error(w, fmt.Sprintf(app.UnableToReadBodyErrFormat, err), http.StatusBadRequest)
 			return
 		}
+		defer gz.Close()
 		bRead = gz
 	}
 
@@ -110,6 +111,7 @@ func (aH *APIHandler) saveSpansV2(w http.ResponseWriter, r *http.Request) {
 			http.Error(w, fmt.Sprintf(app.UnableToReadBodyErrFormat, err), http.StatusBadRequest)
 			return
 		}
+		defer gz.Close()
 		bRead = gz
 	}
 
@@ -135,7 +137,7 @@ func (aH *APIHandler) saveSpansV2(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	tSpans, err := spansV2ToThrift(&spans)
+	tSpans, err := spansV2ToThrift(spans)
 	if err != nil {
 		http.Error(w, fmt.Sprintf(app.UnableToReadBodyErrFormat, err), http.StatusBadRequest)
 		return
@@ -154,7 +156,6 @@ func gunzip(r io.ReadCloser) (*gzip.Reader, error) {
 	if err != nil {
 		return nil, err
 	}
-	defer gz.Close()
 	return gz, nil
 }
 

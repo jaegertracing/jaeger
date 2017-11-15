@@ -164,10 +164,7 @@ func startZipkinHTTPAPI(
 	recoveryHandler func(http.Handler) http.Handler,
 ) {
 	if zipkinPort != 0 {
-		zHandler, err := zipkin.NewAPIHandler(zipkinSpansHandler)
-		if err != nil {
-			logger.Fatal("Failed to initialize Zipkin handler", zap.Error(err))
-		}
+		zHandler := zipkin.NewAPIHandler(zipkinSpansHandler)
 		r := mux.NewRouter()
 		zHandler.RegisterRoutes(r)
 

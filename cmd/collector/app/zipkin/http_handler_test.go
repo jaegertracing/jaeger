@@ -59,7 +59,7 @@ func (p *mockZipkinHandler) getSpans() []*zipkincore.Span {
 
 func initializeTestServer(err error) (*httptest.Server, *APIHandler) {
 	r := mux.NewRouter()
-	handler, _ := NewAPIHandler(&mockZipkinHandler{err: err})
+	handler := NewAPIHandler(&mockZipkinHandler{err: err})
 	handler.RegisterRoutes(r)
 	return httptest.NewServer(r), handler
 }
@@ -217,8 +217,7 @@ func TestDeserializeWithBadListStart(t *testing.T) {
 }
 
 func TestCannotReadBodyFromRequest(t *testing.T) {
-	handler, err := NewAPIHandler(&mockZipkinHandler{})
-	require.NoError(t, err)
+	handler := NewAPIHandler(&mockZipkinHandler{})
 	req, err := http.NewRequest(http.MethodPost, "whatever", &errReader{})
 	assert.NoError(t, err)
 	rw := dummyResponseWriter{}
