@@ -21,7 +21,7 @@ import (
 )
 
 func spansV2ToThrift(spans models.ListOfSpans) ([]*zipkincore.Span, error) {
-	var tSpans []*zipkincore.Span
+	tSpans := make([]*zipkincore.Span, 0, len(spans))
 	for _, span := range spans {
 		tSpan, err := spanV2ToThrift(span)
 		if err != nil {
