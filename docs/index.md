@@ -31,7 +31,7 @@ for the architectural choices made in Jaeger.
 
 ## Technical Specs
 
-  * Backend components implemented in Go
+  * Backend components implemented in Go 1.9
   * React/Javascript UI
   * [Cassandra 3.x](https://github.com/jaegertracing/jaeger/tree/master/plugin/storage/cassandra), [ElasticSearch](https://github.com/jaegertracing/jaeger/tree/master/plugin/storage/es) as persistent storage (more storage backends coming soon)
 
