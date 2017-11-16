@@ -21,7 +21,7 @@ Port | Protocol | Component | Function
 6831 | UDP      | agent     | accept jaeger.thrift over compact thrift protocol
 6832 | UDP      | agent     | accept jaeger.thrift over binary thrift protocol
 5778 | HTTP     | agent     | serve configs
-16686| HTTP     | web       | serve frontend
+16686| HTTP     | query     | serve frontend
 9411 | HTTP     | collector | Zipkin compatible endpoint
 
 
@@ -93,16 +93,13 @@ make install
 go run ./cmd/agent/main.go
 ```
 
-In the near future we will provide individual Docker images for each component,
-as well as the Kubernetes templates.
-
 ## Migrating from Zipkin
 
-Collector service exposes Zipkin compatible REST API `/api/v1/spans` and can be enabled by
-`--collector.zipkin.http-port=9411`. It supports Thrift and JSON format.
-Agent uses `TBinaryProtocol` and is available on `UDP` port `5775`.
+Collector service exposes Zipkin compatible REST API `/api/v1/spans` and `/api/v2/spans`.
+By default it's disabled. It can be enabled with `--collector.zipkin.http-port=9411`. 
+Agent uses `TBinaryProtocol` and it is available on `UDP` port `5775`.
 
-Zipkin Thrift IDL file can be found [here](https://github.com/jaegertracing/jaeger-idl/blob/master/thrift/zipkincore.thrift).
-It's compatible with [zipkinCore.thrift](https://github.com/openzipkin/zipkin-api/blob/master/thrift/zipkinCore.thrift)
+Zipkin Thrift IDL file can be found in [jaegertracing/jaeger-idl](https://github.com/jaegertracing/jaeger-idl/blob/master/thrift/zipkincore.thrift).
+It's compatible with [openzipkin/zipkin-api](https://github.com/openzipkin/zipkin-api/blob/master/thrift/zipkinCore.thrift)
 
 [hotrod-tutorial]: https://medium.com/@YuriShkuro/take-opentracing-for-a-hotrod-ride-f6e3141f7941
