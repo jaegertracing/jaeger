@@ -843,3 +843,28 @@ func TestSpanReader_buildTagQuery(t *testing.T) {
 		assert.EqualValues(t, expected, actual)
 	})
 }
+
+func TestSpanReader_GetEmptyIndex(t *testing.T) {
+	withSpanReader(func(r *spanReaderTest) {
+		mockSearchService(r).
+			Return(&elastic.SearchResult{}, nil)
+		mockMultiSearchService(r).
+			Return(&elastic.MultiSearchResult{
+				Responses: []*elastic.SearchResult{},
+			}, nil)
+
+		traceQuery := &spanstore.TraceQueryParameters{
+			ServiceName: serviceName,
+			Tags: map[string]string{
+				"hello": "world",
+			},
+			StartTimeMin: time.Now().Add(-1 * time.Hour),
+			StartTimeMax: time.Now(),
+			NumTraces:    2,
+		}
+
+		services, err := r.reader.FindTraces(traceQuery)
+		require.NoError(t, err)
+		assert.Empty(t, services)
+	})
+}
