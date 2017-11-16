@@ -153,27 +153,33 @@ func cutLongID(id string) string {
 }
 
 func endpointToThrift(e endpoint) (*zipkincore.Endpoint, error) {
-	ipv4, err := parseIpv4(e.IPv4)
+	return eToThrift(e.IPv4, e.IPv6, e.Port, e.ServiceName)
+}
+
+func eToThrift(ip4 string, ip6 string, p int32, service string) (*zipkincore.Endpoint, error) {
+	ipv4, err := parseIpv4(ip4)
 	if err != nil {
 		return nil, err
 	}
-	port := e.Port
-	if port >= (1 << 15) {
-		// Zipkin.thrift defines port as i16, so values between (2^15 and 2^16-1) must be encoded as negative
-		port = port - (1 << 16)
-	}
-
-	ipv6, err := parseIpv6(e.IPv6)
+	port := port(p)
+	ipv6, err := parseIpv6(string(ip6))
 	if err != nil {
 		return nil, err
 	}
-
 	return &zipkincore.Endpoint{
-		ServiceName: e.ServiceName,
+		ServiceName: service,
 		Port:        int16(port),
 		Ipv4:        ipv4,
 		Ipv6:        ipv6,
 	}, nil
+}
+
+func port(p int32) int32 {
+	if p >= (1 << 15) {
+		// Zipkin.thrift defines port as i16, so values between (2^15 and 2^16-1) must be encoded as negative
+		p = p - (1 << 16)
+	}
+	return p
 }
 
 func annoToThrift(a annotation) (*zipkincore.Annotation, error) {

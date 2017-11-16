@@ -1,0 +1,28 @@
+[
+  {
+    "traceId":"1",
+    "id":"2",
+    "parentId": "1",
+    "name":"foo",
+    "kind": "CLIENT",
+    "debug": true,
+    "shared": true,
+    "timestamp": 1,
+    "duration": 10,
+    "localEndpoint":{
+      "serviceName":"foo",
+      "ipv4":"10.43.17.42"
+    },
+    "remoteEndpoint":{
+      "serviceName":"bar",
+      "ipv4":"10.43.17.43"
+    },
+    "annotations": [{
+      "value": "foo",
+      "timestamp": 1
+    }],
+    "tags": {
+      "foo": "bar"
+    }
+  }
+]

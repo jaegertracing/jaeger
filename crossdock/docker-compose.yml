@@ -10,16 +10,17 @@ services:
             - java
             - python
             - zipkin-brave-json
+            - zipkin-brave-json-v2
             - zipkin-brave-thrift
 
         environment:
-            - WAIT_FOR=test_driver,go,node,java,python,zipkin-brave-thrift,zipkin-brave-json
+            - WAIT_FOR=test_driver,go,node,java,python,zipkin-brave-thrift,zipkin-brave-json,zipkin-brave-json-v2
             - WAIT_FOR_TIMEOUT=60s
 
             - CALL_TIMEOUT=60s
 
             - AXIS_CLIENT=test_driver
-            - AXIS_SERVICES=go,node,java,python,zipkin-brave-json,zipkin-brave-thrift
+            - AXIS_SERVICES=go,node,java,python,zipkin-brave-json,zipkin-brave-json-v2,zipkin-brave-thrift
 
             - BEHAVIOR_ENDTOEND=client,services
 
@@ -52,6 +53,14 @@ services:
             - "8080-8081"
         environment:
             - ENCODING=JSON
+
+    zipkin-brave-json-v2:
+        image: jaegertracing/xdock-zipkin-brave
+        ports:
+            - "8080-8081"
+        environment:
+            - ENCODING=JSON
+            - JSON_ENCODER=JSON_V2
 
     zipkin-brave-thrift:
         image: jaegertracing/xdock-zipkin-brave

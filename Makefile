@@ -1,8 +1,8 @@
 PROJECT_ROOT=github.com/jaegertracing/jaeger
-TOP_PKGS := $(shell glide novendor | grep -v -e ./thrift-gen/... -e ./examples/... -e ./scripts/...)
+TOP_PKGS := $(shell glide novendor | grep -v -e ./thrift-gen/... -e swagger-gen... -e ./examples/... -e ./scripts/...)
 
 # all .go files that don't exist in hidden directories
-ALL_SRC := $(shell find . -name "*.go" | grep -v -e vendor -e thrift-gen \
+ALL_SRC := $(shell find . -name "*.go" | grep -v -e vendor -e thrift-gen -e swagger-gen \
         -e ".*/\..*" \
         -e ".*/_.*" \
         -e ".*/mocks.*")
@@ -33,6 +33,11 @@ THRIFT=docker run --rm -u ${shell id -u} -v "${PWD}:/data" $(THRIFT_IMG) thrift
 THRIFT_GO_ARGS=thrift_import="github.com/apache/thrift/lib/go/thrift"
 THRIFT_GEN=$(shell which thrift-gen)
 THRIFT_GEN_DIR=thrift-gen
+
+SWAGGER_VER=0.12.0
+SWAGGER_IMAGE=quay.io/goswagger/swagger:$(SWAGGER_VER)
+SWAGGER=docker run --rm -it -u ${shell id -u} -v "${PWD}:/go/src/${PROJECT_ROOT}" -w /go/src/${PROJECT_ROOT} $(SWAGGER_IMAGE)
+SWAGGER_GEN_DIR=swagger-gen
 
 PASS=$(shell printf "\033[32mPASS\033[0m")
 FAIL=$(shell printf "\033[31mFAIL\033[0m")
@@ -218,6 +223,11 @@ idl-submodule:
 .PHONY: thrift-image
 thrift-image:
 	$(THRIFT) -version
+
+.PHONY: generate-zipkin-swagger
+generate-zipkin-swagger: idl-submodule
+	$(SWAGGER) generate server -f ./idl/swagger/zipkin2-api.yaml -t $(SWAGGER_GEN_DIR) -O PostSpans --exclude-main
+	rm $(SWAGGER_GEN_DIR)/restapi/operations/post_spans_urlbuilder.go $(SWAGGER_GEN_DIR)/restapi/server.go $(SWAGGER_GEN_DIR)/restapi/configure_zipkin.go $(SWAGGER_GEN_DIR)/models/trace.go $(SWAGGER_GEN_DIR)/models/list_of_traces.go $(SWAGGER_GEN_DIR)/models/dependency_link.go
 
 .PHONY: docs
 docs: $(MKDOCS_VIRTUAL_ENV)

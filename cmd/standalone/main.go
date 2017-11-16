@@ -186,7 +186,8 @@ func startZipkinHTTPAPI(
 ) {
 	if zipkinPort != 0 {
 		r := mux.NewRouter()
-		zipkin.NewAPIHandler(zipkinSpansHandler).RegisterRoutes(r)
+		zHandler := zipkin.NewAPIHandler(zipkinSpansHandler)
+		zHandler.RegisterRoutes(r)
 		httpPortStr := ":" + strconv.Itoa(zipkinPort)
 		logger.Info("Listening for Zipkin HTTP traffic", zap.Int("zipkin.http-port", zipkinPort))
 
