@@ -26,6 +26,7 @@ import (
 	"github.com/uber/jaeger-lib/metrics"
 	"go.uber.org/zap"
 
+	"github.com/jaegertracing/jaeger/cmd/agent/app/reporter"
 	"github.com/jaegertracing/jaeger/thrift-gen/jaeger"
 	"github.com/jaegertracing/jaeger/thrift-gen/zipkincore"
 )
@@ -34,23 +35,6 @@ const (
 	jaegerBatches = "jaeger"
 	zipkinBatches = "zipkin"
 )
-
-type batchMetrics struct {
-	// Number of successful batch submissions to collector
-	BatchesSubmitted metrics.Counter `metric:"batches.submitted"`
-
-	// Number of failed batch submissions to collector
-	BatchesFailures metrics.Counter `metric:"batches.failures"`
-
-	// Number of spans in a batch submitted to collector
-	BatchSize metrics.Gauge `metric:"batch_size"`
-
-	// Number of successful span submissions to collector
-	SpansSubmitted metrics.Counter `metric:"spans.submitted"`
-
-	// Number of failed span submissions to collector
-	SpansFailures metrics.Counter `metric:"spans.failures"`
-}
 
 var httpClient = &http.Client{Timeout: 2 * time.Second}
 
@@ -63,7 +47,7 @@ type Reporter struct {
 	username  string
 	password  string
 
-	batchesMetrics map[string]batchMetrics
+	batchesMetrics map[string]reporter.BatchMetrics
 	logger         *zap.Logger
 }
 
@@ -79,11 +63,11 @@ func New(
 	mFactory metrics.Factory,
 	zlogger *zap.Logger,
 ) (*Reporter, error) {
-	batchesMetrics := map[string]batchMetrics{}
+	batchesMetrics := map[string]reporter.BatchMetrics{}
 	tcReporterNS := mFactory.Namespace("http-reporter", nil)
 	for _, s := range []string{zipkinBatches, jaegerBatches} {
 		nsByType := tcReporterNS.Namespace(s, nil)
-		bm := batchMetrics{}
+		bm := reporter.BatchMetrics{}
 		metrics.Init(&bm, nsByType, nil)
 		batchesMetrics[s] = bm
 	}
@@ -214,7 +198,7 @@ func (r *Reporter) Endpoint() string {
 	return fmt.Sprintf("%s://%s", r.scheme, r.collectorHostPorts[0])
 }
 
-func (r *Reporter) submitAndReport(submissionFunc func() error, errMsg string, size int64, batchMetrics batchMetrics) error {
+func (r *Reporter) submitAndReport(submissionFunc func() error, errMsg string, size int64, batchMetrics reporter.BatchMetrics) error {
 	if err := submissionFunc(); err != nil {
 		batchMetrics.BatchesFailures.Inc(1)
 		batchMetrics.SpansFailures.Inc(size)

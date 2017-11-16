@@ -25,9 +25,9 @@ import (
 	"go.uber.org/zap"
 	"gopkg.in/yaml.v2"
 
+	"github.com/jaegertracing/jaeger/cmd/agent/app/reporter/http"
 	"github.com/jaegertracing/jaeger/thrift-gen/jaeger"
 	"github.com/jaegertracing/jaeger/thrift-gen/zipkincore"
-	"github.com/jaegertracing/jaeger/cmd/agent/app/reporter/http"
 )
 
 var yamlConfig = `

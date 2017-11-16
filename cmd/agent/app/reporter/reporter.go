@@ -15,6 +15,8 @@
 package reporter
 
 import (
+	"github.com/uber/jaeger-lib/metrics"
+
 	"github.com/jaegertracing/jaeger/pkg/multierror"
 	"github.com/jaegertracing/jaeger/thrift-gen/jaeger"
 	"github.com/jaegertracing/jaeger/thrift-gen/zipkincore"
@@ -31,6 +33,24 @@ type Reporter interface {
 // more than one expensive reporter are needed, one or more of them should be
 // wrapped and hidden behind a channel.
 type MultiReporter []Reporter
+
+// BatchMetrics provides a common set of metrics that should be reported by reporters
+type BatchMetrics struct {
+	// Number of successful batch submissions to collector
+	BatchesSubmitted metrics.Counter `metric:"batches.submitted"`
+
+	// Number of failed batch submissions to collector
+	BatchesFailures metrics.Counter `metric:"batches.failures"`
+
+	// Number of spans in a batch submitted to collector
+	BatchSize metrics.Gauge `metric:"batch_size"`
+
+	// Number of successful span submissions to collector
+	SpansSubmitted metrics.Counter `metric:"spans.submitted"`
+
+	// Number of failed span submissions to collector
+	SpansFailures metrics.Counter `metric:"spans.failures"`
+}
 
 // NewMultiReporter creates a MultiReporter from the variadic list of passed
 // Reporters.
