@@ -1,7 +1,7 @@
 Changes by Version
 ==================
 
-0.9.1 (unreleased)
+0.10.0 (2017-11-17)
 ------------------
 
 #### UI Changes
