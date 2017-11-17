@@ -73,7 +73,7 @@ Then navigate to `http://localhost:8080`.
 
 #### Prerequisites
 
--   You need Go 1.7 or higher installed on your machine.
+-   You need Go 1.9 or higher installed on your machine.
 -   Requires a [running Jaeger backend](#all-in-one-docker-image) to view the traces.
 
 ## Client Libraries

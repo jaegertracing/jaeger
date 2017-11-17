@@ -325,7 +325,9 @@ func (s *SpanReader) findTraceIDs(traceQuery *spanstore.TraceQueryParameters) ([
 	if err != nil {
 		return nil, errors.Wrap(err, "Search service failed")
 	}
-
+	if searchResult.Aggregations == nil {
+		return []string{}, nil
+	}
 	bucket, found := searchResult.Aggregations.Terms(traceIDAggregation)
 	if !found {
 		return nil, ErrUnableToFindTraceIDAggregation
