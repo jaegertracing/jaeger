@@ -131,6 +131,7 @@ func main() {
 			}()
 
 			hc.Ready()
+			logger.Info("Jaeger Collector is ready")
 			select {
 			case <-signalsChannel:
 				logger.Info("Jaeger Collector is finishing")
