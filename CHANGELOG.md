@@ -19,6 +19,7 @@ Changes by Version
 - Change package from uber to jaegertracing [#528](https://github.com/jaegertracing/jaeger/pull/528)
 - Introduce logging level configuration [#514](https://github.com/jaegertracing/jaeger/pull/514)
 - Support Zipkin v2 json [#518](https://github.com/jaegertracing/jaeger/pull/518)
+- Add HTTP compression handler [#545](https://github.com/jaegertracing/jaeger/pull/545)
 
 
 0.9.0 (2017-10-25)
