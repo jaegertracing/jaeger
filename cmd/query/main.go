@@ -22,6 +22,7 @@ import (
 	"strconv"
 	"syscall"
 
+	"github.com/gorilla/handlers"
 	"github.com/gorilla/mux"
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
@@ -111,11 +112,12 @@ func main() {
 			apiHandler.RegisterRoutes(r)
 			registerStaticHandler(r, logger, queryOpts)
 			portStr := ":" + strconv.Itoa(queryOpts.Port)
+			compressHandler := handlers.CompressHandler(r)
 			recoveryHandler := recoveryhandler.NewRecoveryHandler(logger, true)
 
 			go func() {
 				logger.Info("Starting jaeger-query HTTP server", zap.Int("port", queryOpts.Port))
-				if err := http.ListenAndServe(portStr, recoveryHandler(r)); err != nil {
+				if err := http.ListenAndServe(portStr, recoveryHandler(compressHandler)); err != nil {
 					logger.Fatal("Could not launch service", zap.Error(err))
 				}
 				hc.Set(http.StatusInternalServerError)
