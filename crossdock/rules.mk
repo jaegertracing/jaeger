@@ -5,7 +5,7 @@ JAEGER_COMPOSE_YAML=docker-compose/jaeger-docker-compose.yml
 crossdock:
 	docker-compose -f $(JAEGER_COMPOSE_YAML) -f $(XDOCK_YAML) kill
 	docker-compose -f $(JAEGER_COMPOSE_YAML) -f $(XDOCK_YAML) rm -f test-driver
-	docker-compose -f $(JAEGER_COMPOSE_YAML) -f $(XDOCK_YAML) run crossdock 2>&1 | tee run-crossdock.log
+	docker-compose --verbose -f $(JAEGER_COMPOSE_YAML) -f $(XDOCK_YAML) run crossdock 2>&1 | tee run-crossdock.log
 	grep 'Tests passed!' run-crossdock.log
 
 .PHONE: crossdock-logs
