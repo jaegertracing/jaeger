@@ -28,8 +28,10 @@ import (
 	"github.com/jaegertracing/jaeger/model"
 	cascfg "github.com/jaegertracing/jaeger/pkg/cassandra/config"
 	escfg "github.com/jaegertracing/jaeger/pkg/es/config"
+	dashcfg "github.com/jaegertracing/jaeger/pkg/dashbase/config"
 	casSpanstore "github.com/jaegertracing/jaeger/plugin/storage/cassandra/spanstore"
 	esSpanstore "github.com/jaegertracing/jaeger/plugin/storage/es/spanstore"
+	dashSpanstore "github.com/jaegertracing/jaeger/plugin/storage/dashbase/spanstore"
 	"github.com/jaegertracing/jaeger/storage/spanstore"
 )
 
@@ -37,6 +39,7 @@ var (
 	errMissingCassandraConfig     = errors.New("Cassandra not configured")
 	errMissingMemoryStore         = errors.New("MemoryStore is not provided")
 	errMissingElasticSearchConfig = errors.New("ElasticSearch not configured")
+	errMissingDashbaseConfig      = errors.New("Dashbase not configured")
 )
 
 // SpanHandlerBuilder holds configuration required for handlers
@@ -71,6 +74,11 @@ func NewSpanHandlerBuilder(cOpts *CollectorOptions, sFlags *flags.SharedFlags, o
 	} else if sFlags.SpanStorage.Type == flags.ESStorageType {
 		if options.ElasticClientBuilder == nil {
 			return nil, errMissingElasticSearchConfig
+		}
+		spanHb.spanWriter, err = spanHb.initElasticStore(options.ElasticClientBuilder)
+	} else if sFlags.SpanStorage.Type == flags.DashbaseStorageType {
+		if options.DashbaseClientBuilder == nil {
+			return nil, errMissingDashbaseConfig
 		}
 		spanHb.spanWriter, err = spanHb.initElasticStore(options.ElasticClientBuilder)
 	} else {
@@ -110,6 +118,20 @@ func (spanHb *SpanHandlerBuilder) initElasticStore(esBuilder escfg.ClientBuilder
 		spanHb.metricsFactory,
 		esBuilder.GetNumShards(),
 		esBuilder.GetNumReplicas(),
+	), nil
+}
+
+func (spanHb *SpanHandlerBuilder) initDashbaseStore(dashBuilder dashcfg.Builder) (spanstore.Writer, error) {
+	kafkaClient, err := dashBuilder.NewKafkaClient()
+	if err != nil {
+		return nil, err
+	}
+
+	return dashSpanstore.NewSpanWriter(
+		&kafkaClient,
+		spanHb.logger,
+		spanHb.metricsFactory,
+		dashBuilder.GetKafkaTopic(),
 	), nil
 }
 

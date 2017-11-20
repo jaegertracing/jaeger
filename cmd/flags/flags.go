@@ -36,6 +36,8 @@ const (
 	logLevel                       = "log-level"
 	dependencyStorageDataFrequency = "dependency-storage.data-frequency"
 	configFile                     = "config-file"
+
+	DashbaseStorageType = "dashbsae"
 )
 
 // AddConfigFileFlag adds flags for ExternalConfFlags

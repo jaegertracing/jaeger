@@ -20,6 +20,7 @@ import (
 
 	cascfg "github.com/jaegertracing/jaeger/pkg/cassandra/config"
 	escfg "github.com/jaegertracing/jaeger/pkg/es/config"
+	dashcfg "github.com/jaegertracing/jaeger/pkg/dashbase/config"
 	"github.com/jaegertracing/jaeger/storage/spanstore/memory"
 )
 
@@ -34,7 +35,8 @@ type BasicOptions struct {
 	// CassandraSessionBuilder is the cassandra session builder
 	CassandraSessionBuilder cascfg.SessionBuilder
 	// ElasticClientBuilder is the elasticsearch client builder
-	ElasticClientBuilder escfg.ClientBuilder
+	ElasticClientBuilder  escfg.ClientBuilder
+	DashbaseClientBuilder dashcfg.Builder
 }
 
 // Option is a function that sets some option on StorageBuilder.
@@ -68,6 +70,12 @@ func (BasicOptions) CassandraSessionOption(sessionBuilder cascfg.SessionBuilder)
 func (BasicOptions) ElasticClientOption(clientBuilder escfg.ClientBuilder) Option {
 	return func(b *BasicOptions) {
 		b.ElasticClientBuilder = clientBuilder
+	}
+}
+
+func (BasicOptions) DashbaseOption(clientBuilder dashcfg.Builder) Option {
+	return func(b *BasicOptions) {
+		b.DashbaseClientBuilder = clientBuilder
 	}
 }
 
