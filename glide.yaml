@@ -49,3 +49,5 @@ import:
 - package: github.com/go-openapi/swag
 - package: github.com/go-openapi/validate
 - package: github.com/go-openapi/loads
+- package: github.com/linkedin/goavro
+- package: github.com/Shopify/sarama
