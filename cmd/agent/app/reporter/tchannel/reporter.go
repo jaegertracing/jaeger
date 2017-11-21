@@ -22,6 +22,7 @@ import (
 	"github.com/uber/tchannel-go/thrift"
 	"go.uber.org/zap"
 
+	"github.com/jaegertracing/jaeger/cmd/agent/app/reporter"
 	"github.com/jaegertracing/jaeger/pkg/discovery/peerlistmgr"
 	"github.com/jaegertracing/jaeger/thrift-gen/jaeger"
 	"github.com/jaegertracing/jaeger/thrift-gen/zipkincore"
@@ -32,30 +33,13 @@ const (
 	zipkinBatches = "zipkin"
 )
 
-type batchMetrics struct {
-	// Number of successful batch submissions to collector
-	BatchesSubmitted metrics.Counter `metric:"batches.submitted"`
-
-	// Number of failed batch submissions to collector
-	BatchesFailures metrics.Counter `metric:"batches.failures"`
-
-	// Number of spans in a batch submitted to collector
-	BatchSize metrics.Gauge `metric:"batch_size"`
-
-	// Number of successful span submissions to collector
-	SpansSubmitted metrics.Counter `metric:"spans.submitted"`
-
-	// Number of failed span submissions to collector
-	SpansFailures metrics.Counter `metric:"spans.failures"`
-}
-
 // Reporter forwards received spans to central collector tier over TChannel.
 type Reporter struct {
 	channel        *tchannel.Channel
 	zClient        zipkincore.TChanZipkinCollector
 	jClient        jaeger.TChanCollector
 	peerListMgr    *peerlistmgr.PeerListManager
-	batchesMetrics map[string]batchMetrics
+	batchesMetrics map[string]reporter.BatchMetrics
 	logger         *zap.Logger
 }
 
@@ -70,11 +54,11 @@ func New(
 	thriftClient := thrift.NewClient(channel, collectorServiceName, nil)
 	zClient := zipkincore.NewTChanZipkinCollectorClient(thriftClient)
 	jClient := jaeger.NewTChanCollectorClient(thriftClient)
-	batchesMetrics := map[string]batchMetrics{}
+	batchesMetrics := map[string]reporter.BatchMetrics{}
 	tcReporterNS := mFactory.Namespace("tc-reporter", nil)
 	for _, s := range []string{zipkinBatches, jaegerBatches} {
 		nsByType := tcReporterNS.Namespace(s, nil)
-		bm := batchMetrics{}
+		bm := reporter.BatchMetrics{}
 		metrics.Init(&bm, nsByType, nil)
 		batchesMetrics[s] = bm
 	}
@@ -121,7 +105,7 @@ func (r *Reporter) EmitBatch(batch *jaeger.Batch) error {
 	)
 }
 
-func (r *Reporter) submitAndReport(submissionFunc func(ctx thrift.Context) error, errMsg string, size int64, batchMetrics batchMetrics) error {
+func (r *Reporter) submitAndReport(submissionFunc func(ctx thrift.Context) error, errMsg string, size int64, batchMetrics reporter.BatchMetrics) error {
 	ctx, cancel := tchannel.NewContextBuilder(time.Second).DisableTracing().Build()
 	defer cancel()
 
