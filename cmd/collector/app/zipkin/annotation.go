@@ -15,8 +15,6 @@
 package zipkin
 
 import (
-	"strings"
-
 	"github.com/jaegertracing/jaeger/thrift-gen/zipkincore"
 )
 
@@ -42,10 +40,8 @@ func FindServiceName(span *zipkincore.Span) string {
 		if endpoint == nil {
 			continue
 		}
-		if IsCore(anno.Value) || strings.Index(anno.Value, "haproxy.") == 0 {
-			if endpoint.GetServiceName() != "" {
-				return endpoint.GetServiceName()
-			}
+		if IsCore(anno.Value) && endpoint.GetServiceName() != "" {
+			return endpoint.GetServiceName()
 		}
 	}
 	return ""
