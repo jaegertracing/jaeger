@@ -51,3 +51,6 @@ import:
 - package: github.com/go-openapi/loads
 - package: github.com/linkedin/goavro
 - package: github.com/Shopify/sarama
+- package: github.com/bitly/go-simplejson
+- package: github.com/spf13/cast
+  version: ~1.1.0

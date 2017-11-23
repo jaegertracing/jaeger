@@ -80,7 +80,7 @@ func NewSpanHandlerBuilder(cOpts *CollectorOptions, sFlags *flags.SharedFlags, o
 		if options.DashbaseClientBuilder == nil {
 			return nil, errMissingDashbaseConfig
 		}
-		spanHb.spanWriter, err = spanHb.initElasticStore(options.ElasticClientBuilder)
+		spanHb.spanWriter, err = spanHb.initDashbaseStore(options.DashbaseClientBuilder)
 	} else {
 		return nil, flags.ErrUnsupportedStorageType
 	}

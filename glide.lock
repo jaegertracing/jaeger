@@ -1,5 +1,5 @@
-hash: b80569b9598ff57ffa7562ab3b47f060965a7c3ff23e9e120e82540f7299bff4
-updated: 2017-11-20T15:34:55.025491+08:00
+hash: 2f57f333ea83c9bc71e043395a68b35cadd06eeda9c0db0eaaef6ca0a8ce38da
+updated: 2017-11-21T21:04:46.095713+08:00
 imports:
 - name: github.com/apache/thrift
   version: 53dd39833a08ce33582e5ff31fa18bb4735d6731
@@ -11,6 +11,8 @@ imports:
   version: 4c0e84591b9aa9e6dcfdf3e020114cd81f89d5f9
   subpackages:
   - quantile
+- name: github.com/bitly/go-simplejson
+  version: 0c965951289cce37dec52ad1f34200fefc816777
 - name: github.com/codahale/hdrhistogram
   version: f8ad88b59a584afeee9d334eff879b104439117b
 - name: github.com/crossdock/crossdock-go
@@ -19,7 +21,7 @@ imports:
   - assert
   - require
 - name: github.com/davecgh/go-spew
-  version: a476722483882dd40b8111f0eb64e1d7f43f56e4
+  version: ecdeabc65495df2dec95d7c4a4c3e021903035e5
   subpackages:
   - spew
 - name: github.com/eapache/go-resiliency
@@ -170,13 +172,13 @@ imports:
 - name: github.com/rcrowley/go-metrics
   version: 1f30fe9094a513ce4c700b9a54458bbb0c96996c
 - name: github.com/Shopify/sarama
-  version: 240fd146ce68bcafb034cc5dc977229ffbafa8ea
+  version: 135422b71de984d64b21cef6011667e1824710ef
 - name: github.com/spf13/afero
   version: 90dd71edc4d0a8b3511dc12ea15d617d03be09e0
   subpackages:
   - mem
 - name: github.com/spf13/cast
-  version: 56a7ecbeb18dde53c6db4bd96b541fd9741b8d44
+  version: acbeb36b902d72a7a4c18e8f3241075e7ab763e4
 - name: github.com/spf13/cobra
   version: 1dd5ff2e11b6dca62fdcb275eb804b94607d8b06
 - name: github.com/spf13/jwalterweatherman
@@ -249,7 +251,7 @@ imports:
   - zapcore
   - zaptest
 - name: golang.org/x/net
-  version: 66aacef3dd8a676686c7ae3716979581e8b03c47
+  version: 9dfe39835686865bff950a07b394c12a98ddc811
   subpackages:
   - context
   - context/ctxhttp

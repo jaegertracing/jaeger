@@ -34,6 +34,7 @@ import (
 	"github.com/jaegertracing/jaeger/cmd/flags"
 	casFlags "github.com/jaegertracing/jaeger/cmd/flags/cassandra"
 	esFlags "github.com/jaegertracing/jaeger/cmd/flags/es"
+	dashFlags "github.com/jaegertracing/jaeger/cmd/flags/dashbase"
 	"github.com/jaegertracing/jaeger/cmd/query/app"
 	"github.com/jaegertracing/jaeger/cmd/query/app/builder"
 	"github.com/jaegertracing/jaeger/pkg/config"
@@ -48,6 +49,7 @@ func main() {
 
 	casOptions := casFlags.NewOptions("cassandra", "cassandra.archive")
 	esOptions := esFlags.NewOptions("es", "es.archive")
+	dashOptions := dashFlags.NewOptions("dashbase")
 	v := viper.New()
 
 	var command = &cobra.Command{
@@ -68,6 +70,8 @@ func main() {
 
 			casOptions.InitFromViper(v)
 			esOptions.InitFromViper(v)
+			dashOptions.InitFromViper(v)
+
 			queryOpts := new(builder.QueryOptions).InitFromViper(v)
 
 			hc, err := healthcheck.Serve(http.StatusServiceUnavailable, queryOpts.HealthCheckHTTPPort, logger)
@@ -96,6 +100,7 @@ func main() {
 				basicB.Options.MetricsFactoryOption(metricsFactory),
 				basicB.Options.CassandraSessionOption(casOptions.GetPrimary()),
 				basicB.Options.ElasticClientOption(esOptions.GetPrimary()),
+				basicB.Options.DashbaseOption(dashOptions.GetPrimary()),
 			)
 			if err != nil {
 				logger.Fatal("Failed to init storage builder", zap.Error(err))
@@ -141,6 +146,7 @@ func main() {
 		casOptions.AddFlags,
 		esOptions.AddFlags,
 		builder.AddFlags,
+		dashOptions.AddFlags,
 	)
 
 	if error := command.Execute(); error != nil {

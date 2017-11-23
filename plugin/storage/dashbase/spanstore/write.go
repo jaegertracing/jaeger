@@ -11,6 +11,7 @@ import (
 	jModel "github.com/jaegertracing/jaeger/model/json"
 	storageMetrics "github.com/jaegertracing/jaeger/storage/spanstore/metrics"
 	"fmt"
+	"strconv"
 )
 
 type Warnings struct {
@@ -25,6 +26,7 @@ type SpanWriter struct {
 	avro          *dashbase.Avro
 	ctx           context.Context
 	logger        *zap.Logger
+	Logger        *zap.Logger
 	writerMetrics spanWriterMetrics // TODO: build functions to wrap around each Do fn}
 	kafkaClient   *dashbase.KafkaClient
 	kafkaTopic    string
@@ -46,6 +48,7 @@ func NewSpanWriter(
 		avro:        avro,
 		ctx:         ctx,
 		logger:      logger,
+		Logger:      logger,
 		kafkaClient: kafkaClient,
 		kafkaTopic:  kafkaTopic,
 		writerMetrics: spanWriterMetrics{
@@ -69,30 +72,36 @@ func (s *SpanWriter) WriteSpan(span *model.Span) error {
 
 func (s *SpanWriter) logError(span *model.Span, err error, msg string, logger *zap.Logger) error {
 	logger.
-	With(zap.String("trace_id", string(span.TraceID))).
-		With(zap.String("span_id", string(span.SpanID))).
+	With(zap.String("trace_id", span.TraceID.String())).
+		With(zap.String("span_id", span.SpanID.String())).
 		With(zap.Error(err)).
 		Error(msg)
 	return errors.Wrap(err, msg)
 }
 
 func SpanToDashbaseAvroEvent(span *model.Span) dashbase.Event {
-	e := dashbase.Event{}
-	e.TimeInMillis = span.StartTime.Unix()
+	e := dashbase.Event{
+		IdColumns:     map[string]string{},
+		MetaColumns:   map[string]string{},
+		TextColumns:   map[string]string{},
+		NumberColumns: map[string]float64{},
+	}
+	e.TimeInMillis = span.StartTime.UnixNano() / 1000000
+	e.IdColumns["StartTime"] = strconv.FormatInt(span.StartTime.UnixNano(), 10)
 	e.IdColumns["TraceID"] = span.TraceID.String()
 	e.IdColumns["SpanID"] = span.SpanID.String()
 	e.IdColumns["ParentSpanID"] = span.ParentSpanID.String()
 
 	e.TextColumns["OperationName"] = span.OperationName
 	e.NumberColumns["Flags"] = float64(span.Flags)
-	e.NumberColumns["Duration"] = float64(span.Duration)
+	e.IdColumns["Duration"] = strconv.FormatInt(span.Duration.Nanoseconds(), 10)
 
 	for _, tag := range span.Tags {
 		e.TextColumns[fmt.Sprintf("tag.%s", tag.Key)] = tag.AsString()
 	}
 
 	//todo: Log
-	e.TextColumns["Process.ServiceName"] = span.Process.ServiceName
+	e.MetaColumns["ServiceName"] = span.Process.ServiceName
 	for _, tag := range span.Process.Tags {
 		e.TextColumns[fmt.Sprintf("process.%s", tag.Key)] = tag.AsString()
 	}

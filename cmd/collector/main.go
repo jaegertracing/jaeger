@@ -39,6 +39,7 @@ import (
 	"github.com/jaegertracing/jaeger/cmd/flags"
 	casFlags "github.com/jaegertracing/jaeger/cmd/flags/cassandra"
 	esFlags "github.com/jaegertracing/jaeger/cmd/flags/es"
+	dashFlags "github.com/jaegertracing/jaeger/cmd/flags/dashbase"
 	"github.com/jaegertracing/jaeger/pkg/config"
 	"github.com/jaegertracing/jaeger/pkg/healthcheck"
 	"github.com/jaegertracing/jaeger/pkg/recoveryhandler"
@@ -54,6 +55,7 @@ func main() {
 	serviceName := "jaeger-collector"
 	casOptions := casFlags.NewOptions("cassandra")
 	esOptions := esFlags.NewOptions("es")
+	dashOptions := dashFlags.NewOptions("dashbase")
 
 	v := viper.New()
 	command := &cobra.Command{
@@ -75,6 +77,7 @@ func main() {
 
 			casOptions.InitFromViper(v)
 			esOptions.InitFromViper(v)
+			dashOptions.InitFromViper(v)
 
 			baseMetrics := xkit.Wrap(serviceName, expvar.NewFactory(10))
 
@@ -90,6 +93,7 @@ func main() {
 				sFlags,
 				basicB.Options.CassandraSessionOption(casOptions.GetPrimary()),
 				basicB.Options.ElasticClientOption(esOptions.GetPrimary()),
+				basicB.Options.DashbaseOption(dashOptions.GetPrimary()),
 				basicB.Options.LoggerOption(logger),
 				basicB.Options.MetricsFactoryOption(baseMetrics),
 			)
@@ -149,6 +153,7 @@ func main() {
 		builder.AddFlags,
 		casOptions.AddFlags,
 		esOptions.AddFlags,
+		dashOptions.AddFlags,
 	)
 
 	if error := command.Execute(); error != nil {

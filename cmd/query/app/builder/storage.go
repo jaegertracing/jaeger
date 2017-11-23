@@ -39,6 +39,7 @@ var (
 	errMissingCassandraConfig     = errors.New("Cassandra not configured")
 	errMissingMemoryStore         = errors.New("Memory Reader was not provided")
 	errMissingElasticSearchConfig = errors.New("ElasticSearch not configured")
+	errMissingDashbaseConfig = errors.New("Dashbase not configured")
 )
 
 // NewStorageBuilder creates a StorageBuilder based off the flags that have been set
@@ -68,6 +69,11 @@ func NewStorageBuilder(storageType string, dependencyDataFreq time.Duration, opt
 			return nil, errMissingElasticSearchConfig
 		}
 		err = sb.newESBuilder(options.ElasticClientBuilder)
+	} else if storageType == flags.DashbaseStorageType {
+		if options.DashbaseClientBuilder == nil {
+			return  nil, errMissingDashbaseConfig
+		}
+		err = sb.newDashBuilder(options.DashbaseClientBuilder)
 	} else {
 		return nil, flags.ErrUnsupportedStorageType
 	}

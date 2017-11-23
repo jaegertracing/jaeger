@@ -31,6 +31,7 @@ type Configuration struct {
 type Builder interface {
 	NewKafkaClient() (dashbase.KafkaClient, error)
 	GetKafkaTopic() string
+	GetService() string
 }
 
 // NewClient creates a new ElasticSearch client
@@ -49,4 +50,8 @@ func (c *Configuration) NewKafkaClient() (dashbase.KafkaClient, error) {
 // GetNumShards returns number of shards from Configuration
 func (c *Configuration) GetKafkaTopic() string {
 	return c.KafkaTopic
+}
+
+func (c *Configuration) GetService() string {
+	return c.Server
 }

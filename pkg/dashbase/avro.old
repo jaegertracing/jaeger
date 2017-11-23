@@ -15,21 +15,11 @@ package dashbase
 
 import (
 	"bytes"
-	"encoding/binary"
-
 	"github.com/linkedin/goavro"
+	"go.uber.org/zap"
+	"fmt"
+	"encoding/binary"
 )
-
-// See http://avro.apache.org/docs/1.8.2/spec.html#schema_fingerprints
-const (
-	emptyCRC64 uint64 = 0xc15d213aa4d7a795
-	avroSchema string = `{"name":"io.dashbase.avro.DashbaseEvent","type":"record","fields":[{"name":"timeInMillis","type":"long"},{"name":"metaColumns","type":{"type":"map","values":"string"}},{"name":"numberColumns","type":{"type":"map","values":"double"}},{"name":"textColumns","type":{"type":"map","values":"string"}},{"name":"idColumns","type":{"type":"map","values":"string"}},{"name":"omitPayload","type":"boolean"}]}`
-)
-
-type Avro struct {
-	schemaChecksum uint64
-	codec          *goavro.Codec
-}
 
 type Event struct {
 	TimeInMillis  int64
@@ -40,16 +30,16 @@ type Event struct {
 	OmitPayload   bool
 }
 
-func makeAvroCodec() *goavro.Codec {
-	codec, err := goavro.NewCodec(avroSchema)
-	if err != nil {
-		panic(err)
-	}
-	return codec
-}
+// See http://avro.apache.org/docs/1.8.2/spec.html#schema_fingerprints
+const emptyCRC64 uint64 = 0xc15d213aa4d7a795
 
-func getAvroCRC64(buf []byte) uint64 {
-	var table []uint64
+const avroSchema string = `{"name":"io.dashbase.avro.DashbaseEvent","type":"record","fields":[{"name":"timeInMillis","type":"long"},{"name":"metaColumns","type":{"type":"map","values":"string"}},{"name":"numberColumns","type":{"type":"map","values":"double"}},{"name":"textColumns","type":{"type":"map","values":"string"}},{"name":"idColumns","type":{"type":"map","values":"string"}},{"name":"omitPayload","type":"boolean"}]}`
+
+var table []uint64
+var dashbaseCodec *goavro.Codec
+var dashbaseSchemaChecksum uint64
+
+func makeCRC64Table() {
 	table = make([]uint64, 256)
 	for i := 0; i < 256; i++ {
 		fp := uint64(i)
@@ -58,6 +48,17 @@ func getAvroCRC64(buf []byte) uint64 {
 		}
 		table[i] = fp
 	}
+}
+
+func makeAvroCodec() {
+	codec, err := goavro.NewCodec(avroSchema)
+	if err != nil {
+		panic(err)
+	}
+	dashbaseCodec = codec
+}
+
+func avroCRC64(buf []byte) uint64 {
 	fp := emptyCRC64
 	for _, val := range buf {
 		fp = (fp >> 8) ^ table[int(fp^uint64(val))&0xff]
@@ -65,7 +66,7 @@ func getAvroCRC64(buf []byte) uint64 {
 	return fp
 }
 
-func (a *Avro) Encode(event Event) ([]byte, error) {
+func Encode(event Event, z *zap.Logger) ([]byte, error) {
 	raw_event := make(map[string]interface{})
 	raw_event["timeInMillis"] = event.TimeInMillis
 	raw_event["metaColumns"] = event.MetaColumns
@@ -73,22 +74,32 @@ func (a *Avro) Encode(event Event) ([]byte, error) {
 	raw_event["numberColumns"] = event.NumberColumns
 	raw_event["idColumns"] = event.IdColumns
 	raw_event["omitPayload"] = event.OmitPayload
-	body, err := a.codec.BinaryFromNative(nil, raw_event)
+	body, err := dashbaseCodec.BinaryFromNative(nil, raw_event)
 	if err != nil {
 		return nil, err
 	}
 
 	message := new(bytes.Buffer)
 	message.Write([]byte{0xC3, 0x01})
-	binary.Write(message, binary.LittleEndian, a.schemaChecksum)
+	binary.Write(message, binary.LittleEndian, dashbaseSchemaChecksum)
+
 	message.Write(body)
+
+	native, _, err := dashbaseCodec.NativeFromBinary(body)
+	if err != nil {
+		fmt.Println(err)
+	}
+	textual, err := dashbaseCodec.TextualFromNative(nil, native)
+	if err != nil {
+		fmt.Println(err)
+	}
+	z.Info("textual", zap.String("3", string(textual)))
 
 	return message.Bytes(), nil
 }
 
-func NewAvro() *Avro {
-	return &Avro{
-		codec:          makeAvroCodec(),
-		schemaChecksum: getAvroCRC64([]byte(avroSchema)),
-	}
+func init() {
+	makeAvroCodec()
+	makeCRC64Table()
+	dashbaseSchemaChecksum = avroCRC64([]byte(avroSchema))
 }
