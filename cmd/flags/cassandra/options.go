@@ -34,6 +34,12 @@ const (
 	suffixSocketKeepAlive  = ".socket-keep-alive"
 	suffixUsername         = ".username"
 	suffixPassword         = ".password"
+	suffixTLS              = ".tls"
+	suffixCert             = ".tls.cert"
+	suffixKey              = ".tls.key"
+	suffixCA               = ".tls.ca"
+	suffixServerName       = ".tls.server-name"
+	suffixVerifyHost       = ".tls.verify-host"
 )
 
 // TODO this should be moved next to config.Configuration struct (maybe ./flags package)
@@ -62,6 +68,10 @@ func NewOptions(primaryNamespace string, otherNamespaces ...string) *Options {
 	options := &Options{
 		primary: &namespaceConfig{
 			Configuration: config.Configuration{
+				TLS: config.TLS{
+					Enabled:                false,
+					EnableHostVerification: true,
+				},
 				MaxRetryAttempts:   3,
 				Keyspace:           "jaeger_v1_local",
 				ProtoVersion:       4,
@@ -129,6 +139,30 @@ func addFlags(flagSet *flag.FlagSet, nsConfig *namespaceConfig) {
 		nsConfig.namespace+suffixPassword,
 		nsConfig.Authenticator.Basic.Password,
 		"Password for password authentication for Cassandra")
+	flagSet.Bool(
+		nsConfig.namespace+suffixTLS,
+		nsConfig.TLS.Enabled,
+		"Enable TLS")
+	flagSet.String(
+		nsConfig.namespace+suffixCert,
+		nsConfig.TLS.CertPath,
+		"Path to TLS certificate file")
+	flagSet.String(
+		nsConfig.namespace+suffixKey,
+		nsConfig.TLS.KeyPath,
+		"Path to TLS key file")
+	flagSet.String(
+		nsConfig.namespace+suffixCA,
+		nsConfig.TLS.CaPath,
+		"Path to TLS CA file")
+	flagSet.String(
+		nsConfig.namespace+suffixServerName,
+		nsConfig.TLS.ServerName,
+		"Override the TLS server name")
+	flagSet.Bool(
+		nsConfig.namespace+suffixVerifyHost,
+		nsConfig.TLS.EnableHostVerification,
+		"Enable (or disable) host key verification")
 }
 
 // InitFromViper initializes Options with properties from viper
@@ -150,6 +184,12 @@ func initFromViper(cfg *namespaceConfig, v *viper.Viper) {
 	cfg.SocketKeepAlive = v.GetDuration(cfg.namespace + suffixSocketKeepAlive)
 	cfg.Authenticator.Basic.Username = v.GetString(cfg.namespace + suffixUsername)
 	cfg.Authenticator.Basic.Password = v.GetString(cfg.namespace + suffixPassword)
+	cfg.TLS.Enabled = v.GetBool(cfg.namespace + suffixTLS)
+	cfg.TLS.CertPath = v.GetString(cfg.namespace + suffixCert)
+	cfg.TLS.KeyPath = v.GetString(cfg.namespace + suffixKey)
+	cfg.TLS.CaPath = v.GetString(cfg.namespace + suffixCA)
+	cfg.TLS.ServerName = v.GetString(cfg.namespace + suffixServerName)
+	cfg.TLS.EnableHostVerification = v.GetBool(cfg.namespace + suffixVerifyHost)
 }
 
 // GetPrimary returns primary configuration.

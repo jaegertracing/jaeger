@@ -93,6 +93,12 @@ primary supported storage backends. There is ongoing work to add support for MyS
 
 ### Cassandra
 
+Deploying Cassandra itself is out of scope for our documentation. One good
+source of documentation is the
+[Apache Cassandra Docs](https://cassandra.apache.org/doc/latest/)
+
+#### Schema script
+
 A script is provided to initialize Cassandra keyspace and schema
 using Cassandra's interactive shell [`cqlsh`][cqlsh]:
 
@@ -105,6 +111,23 @@ where `{datacenter}` is the name used in the Cassandra configuration / network t
 
 The script also allows overriding TTL, keyspace name, replication factor, etc.
 Run the script without arguments to see the full list of recognized parameters.
+
+#### TLS support
+
+Jaeger supports TLS client to node connections as long as you've configured
+your Cassandra cluster correctly. After verifying with e.g. `cqlsh`, you can
+configure the collector and query like so:
+
+```
+docker run \
+  -e CASSANDRA_SERVERS=<...> \
+  -e CASSAMDRA_TLS=true \
+  -e CASSANDRA_TLS_SERVER_NAME="CN-in-certificate" \
+  -e CASSANDRA_TLS_KEY=<path to client key file> \
+  -e CASSANDRA_TLS_CERT=<path to client cert file> \
+  -e CASSANDRA_TLS_CA=<path to your CA cert file> \
+  jaegertracing/jaeger-collector
+```
 
 ### ElasticSearch
 
@@ -192,6 +215,7 @@ Project [spark-dependencies](https://github.com/jaegertracing/spark-dependencies
 dependency links and stores them directly to the storage.
 
 ## Configuration
+
 All binaries accepts command line properties and environmental variables which are managed by
 by [viper](https://github.com/spf13/viper) and [cobra](https://github.com/spf13/cobra).
 The names of environmental properties are capital letters and characters `-` and `.` are replaced with `_`.
