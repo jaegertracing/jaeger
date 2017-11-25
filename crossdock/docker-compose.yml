@@ -1,10 +1,10 @@
-version: '2'
+version: '3'
 
 services:
     crossdock:
         image: crossdock/crossdock
         links:
-            - test_driver
+            - test-driver
             - go
             - node
             - java
@@ -12,17 +12,18 @@ services:
             - zipkin-brave-json
             - zipkin-brave-json-v2
             - zipkin-brave-thrift
-
         environment:
-            - WAIT_FOR=test_driver,go,node,java,python,zipkin-brave-thrift,zipkin-brave-json,zipkin-brave-json-v2
+            - WAIT_FOR=test-driver,go,node,java,python,zipkin-brave-thrift,zipkin-brave-json,zipkin-brave-json-v2
             - WAIT_FOR_TIMEOUT=60s
 
             - CALL_TIMEOUT=60s
 
-            - AXIS_CLIENT=test_driver
+            - AXIS_CLIENT=test-driver
             - AXIS_SERVICES=go,node,java,python,zipkin-brave-json,zipkin-brave-json-v2,zipkin-brave-thrift
 
             - BEHAVIOR_ENDTOEND=client,services
+        depends_on:
+            - test-driver
 
     go:
         image: jaegertracing/xdock-go
@@ -69,7 +70,7 @@ services:
         environment:
             - ENCODING=THRIFT
 
-    test_driver:
+    test-driver:
         image: jaegertracing/test-driver
         ports:
             - "8080"
@@ -79,5 +80,5 @@ services:
             - jaeger-agent
 
     jaeger-query:
-#    override to disable static files
+#   override to disable static files
         command: ["/go/bin/query-linux", "--query.static-files=", "--cassandra.keyspace=jaeger_v1_dc1", "--cassandra.servers=cassandra"]

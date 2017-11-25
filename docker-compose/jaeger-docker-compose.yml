@@ -1,4 +1,4 @@
-version: '2'
+version: '3'
 
 services:
     jaeger-collector:
@@ -42,4 +42,8 @@ services:
       image: jaegertracing/jaeger-cassandra-schema
       depends_on:
         - cassandra
-
+      healthcheck:
+        test: ["CMD-SHELL", "test -e /cassandra-schema/ready.txt || exit 1"]
+        interval: 5s
+        timeout: 5s
+        retries: 1

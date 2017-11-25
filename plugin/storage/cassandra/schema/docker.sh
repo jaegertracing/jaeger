@@ -29,4 +29,8 @@ done
 
 echo "Generating the schema for the keyspace ${KEYSPACE} and datacenter ${DATACENTER}"
 
+set -ex
+
 MODE="${MODE}" DATACENTER="${DATACENTER}" KEYSPACE="${KEYSPACE}" /cassandra-schema/create.sh | ${CQLSH}
+
+echo "Schema created" | tee /cassandra-schema/ready.txt
