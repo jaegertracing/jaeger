@@ -174,7 +174,7 @@ func createSearchResult(dependencyLink string) *elastic.SearchResult {
 }
 
 func TestGetIndices(t *testing.T) {
-	fixedTime := time.Date(1995, time.April, 21, 4, 12, 19, 95, time.Local)
+	fixedTime := time.Date(1995, time.April, 21, 4, 12, 19, 95, time.UTC)
 	testCases := []struct {
 		expected []string
 		lookback time.Duration
