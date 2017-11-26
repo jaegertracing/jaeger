@@ -129,6 +129,30 @@ docker run \
   jaegertracing/jaeger-collector
 ```
 
+The schema tool also supports TLS. You need to make a custom cqlshrc file like
+so:
+
+```
+# Creating schema in a cassandra cluster requiring client TLS certificates.
+#
+# Create a volume for the schema docker container containing four files:
+# cqlshrc: this file
+# ca-cert: the cert authority for your keys
+# client-key: the keyfile for your client
+# client-cert: the cert file matching client-key
+#
+# if there is any sort of DNS mismatch and you want to ignore server validation
+# issues, then uncomment validate = false below.
+#
+# When running the container, map this volume to /root/.cassandra and set the
+# environment variable CQLSH_SSL=--ssl
+[ssl]
+certfile = ~/.cassandra/ca-cert
+userkey = ~/.cassandra/client-key
+usercert = ~/.cassandra/client-cert
+# validate = false
+```
+
 ### ElasticSearch
 
 ElasticSearch does not require initialization other than
