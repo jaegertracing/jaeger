@@ -19,7 +19,6 @@ import (
 	"os"
 	"time"
 
-	"github.com/prometheus/client_golang/prometheus"
 	"github.com/spf13/cobra"
 	"github.com/uber/jaeger-lib/metrics"
 	"github.com/uber/jaeger-lib/metrics/go-kit"
@@ -63,7 +62,7 @@ func initMetrics() {
 		metricsFactory = xkit.Wrap("", expvar.NewFactory(10)) // 10 buckets for histograms
 		logger.Info("Using expvar as metrics backend")
 	} else if metricsBackend == "prometheus" {
-		metricsFactory = jprom.New(prometheus.DefaultRegisterer, nil)
+		metricsFactory = jprom.New()
 		logger.Info("Using Prometheus as metrics backend")
 	} else {
 		logger.Fatal("unsupported metrics backend " + metricsBackend)
