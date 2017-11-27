@@ -27,8 +27,6 @@ import (
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
 	jaegerClientConfig "github.com/uber/jaeger-client-go/config"
-	"github.com/uber/jaeger-lib/metrics/go-kit"
-	"github.com/uber/jaeger-lib/metrics/go-kit/expvar"
 	"go.uber.org/zap"
 
 	basicB "github.com/jaegertracing/jaeger/cmd/builder"
@@ -39,6 +37,7 @@ import (
 	"github.com/jaegertracing/jaeger/cmd/query/app/builder"
 	"github.com/jaegertracing/jaeger/pkg/config"
 	"github.com/jaegertracing/jaeger/pkg/healthcheck"
+	pMetrics "github.com/jaegertracing/jaeger/pkg/metrics"
 	"github.com/jaegertracing/jaeger/pkg/recoveryhandler"
 	"github.com/jaegertracing/jaeger/pkg/version"
 )
@@ -70,13 +69,17 @@ func main() {
 			casOptions.InitFromViper(v)
 			esOptions.InitFromViper(v)
 			queryOpts := new(builder.QueryOptions).InitFromViper(v)
+			mBldr := new(pMetrics.Builder).InitFromViper(v)
 
 			hc, err := healthcheck.Serve(http.StatusServiceUnavailable, queryOpts.HealthCheckHTTPPort, logger)
 			if err != nil {
 				logger.Fatal("Could not start the health check server.", zap.Error(err))
 			}
 
-			metricsFactory := xkit.Wrap("jaeger-query", expvar.NewFactory(10))
+			metricsFactory, err := mBldr.CreateMetricsFactory("jaeger-query")
+			if err != nil {
+				logger.Fatal("Cannot create metrics factory.", zap.Error(err))
+			}
 
 			tracer, closer, err := jaegerClientConfig.Configuration{
 				Sampler: &jaegerClientConfig.SamplerConfig{
@@ -111,6 +114,12 @@ func main() {
 			r := mux.NewRouter()
 			apiHandler.RegisterRoutes(r)
 			registerStaticHandler(r, logger, queryOpts)
+
+			if h := mBldr.Handler(); h != nil {
+				logger.Info("Registering metrics handler with HTTP server", zap.String("route", mBldr.HTTPRoute))
+				r.Handle(mBldr.HTTPRoute, h)
+			}
+
 			portStr := ":" + strconv.Itoa(queryOpts.Port)
 			compressHandler := handlers.CompressHandler(r)
 			recoveryHandler := recoveryhandler.NewRecoveryHandler(logger, true)
@@ -142,6 +151,7 @@ func main() {
 		flags.AddFlags,
 		casOptions.AddFlags,
 		esOptions.AddFlags,
+		pMetrics.AddFlags,
 		builder.AddFlags,
 	)
 

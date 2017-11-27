@@ -18,14 +18,13 @@ import (
 	"errors"
 	"expvar"
 	"flag"
-	"fmt"
 	"net/http"
 
 	"github.com/prometheus/client_golang/prometheus/promhttp"
 	"github.com/spf13/viper"
 	xkit "github.com/uber/jaeger-lib/metrics/go-kit"
 	kitexpvar "github.com/uber/jaeger-lib/metrics/go-kit/expvar"
-	kitprom "github.com/uber/jaeger-lib/metrics/go-kit/prometheus"
+	jprom "github.com/uber/jaeger-lib/metrics/prometheus"
 
 	"github.com/uber/jaeger-lib/metrics"
 )
@@ -33,8 +32,8 @@ import (
 const (
 	metricsBackend        = "metrics-backend"
 	metricsHTTPRoute      = "metrics-http-route"
-	defaultMetricsBackend = "expvar"
-	defaultMetricsRoute   = "/debug/vars"
+	defaultMetricsBackend = "prometheus"
+	defaultMetricsRoute   = "/metrics"
 )
 
 var errUnknownBackend = errors.New("unknown metrics backend specified")
@@ -51,8 +50,7 @@ func AddFlags(flags *flag.FlagSet) {
 	flags.String(
 		metricsBackend,
 		defaultMetricsBackend,
-		fmt.Sprintf("Defines which metrics backend to use for metrics reporting: %s, prometheus, none",
-			defaultMetricsBackend))
+		"Defines which metrics backend to use for metrics reporting: expvar, prometheus, none")
 	flags.String(
 		metricsHTTPRoute,
 		defaultMetricsRoute,
@@ -60,9 +58,10 @@ func AddFlags(flags *flag.FlagSet) {
 }
 
 // InitFromViper initializes Builder with properties retrieved from Viper.
-func (b *Builder) InitFromViper(v *viper.Viper) {
+func (b *Builder) InitFromViper(v *viper.Viper) *Builder {
 	b.Backend = v.GetString(metricsBackend)
 	b.HTTPRoute = v.GetString(metricsHTTPRoute)
+	return b
 }
 
 // CreateMetricsFactory creates a metrics factory based on the configured type of the backend.
@@ -70,7 +69,7 @@ func (b *Builder) InitFromViper(v *viper.Viper) {
 // can be later added by RegisterHandler function.
 func (b *Builder) CreateMetricsFactory(namespace string) (metrics.Factory, error) {
 	if b.Backend == "prometheus" {
-		metricsFactory := xkit.Wrap(namespace, kitprom.NewFactory("", "", nil))
+		metricsFactory := jprom.New()
 		b.handler = promhttp.Handler()
 		return metricsFactory, nil
 	}
@@ -85,9 +84,7 @@ func (b *Builder) CreateMetricsFactory(namespace string) (metrics.Factory, error
 	return nil, errUnknownBackend
 }
 
-// RegisterHandler adds an endpoint to the mux if the metrics backend supports it.
-func (b *Builder) RegisterHandler(mux *http.ServeMux) {
-	if b.handler != nil && b.HTTPRoute != "" {
-		mux.Handle(b.HTTPRoute, b.handler)
-	}
+// Handler returns an http.Handler for the metrics endpoint.
+func (b *Builder) Handler() http.Handler {
+	return b.handler
 }

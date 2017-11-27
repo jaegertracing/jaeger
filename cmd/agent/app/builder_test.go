@@ -126,6 +126,19 @@ func TestBuilderMetrics(t *testing.T) {
 	assert.Equal(t, mf, mf2)
 }
 
+func TestBuilderMetricsHandler(t *testing.T) {
+	b := &Builder{}
+	b.Metrics.Backend = "expvar"
+	b.Metrics.HTTPRoute = "/expvar"
+	factory, err := b.Metrics.CreateMetricsFactory("test")
+	assert.NoError(t, err)
+	assert.NotNil(t, factory)
+	b.metricsFactory = factory
+	agent, err := b.CreateAgent(zap.NewNop())
+	assert.NoError(t, err)
+	assert.NotNil(t, agent)
+}
+
 func TestBuilderMetricsError(t *testing.T) {
 	b := &Builder{}
 	b.Metrics.Backend = "invalid"

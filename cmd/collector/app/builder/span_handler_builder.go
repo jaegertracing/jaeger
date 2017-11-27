@@ -116,7 +116,7 @@ func (spanHb *SpanHandlerBuilder) initElasticStore(esBuilder escfg.ClientBuilder
 // BuildHandlers builds span handlers (Zipkin, Jaeger)
 func (spanHb *SpanHandlerBuilder) BuildHandlers() (app.ZipkinSpansHandler, app.JaegerBatchesHandler) {
 	hostname, _ := os.Hostname()
-	hostMetrics := spanHb.metricsFactory.Namespace(hostname, nil)
+	hostMetrics := spanHb.metricsFactory.Namespace("", map[string]string{"host": hostname})
 
 	zSanitizer := zs.NewChainedSanitizer(
 		zs.NewSpanDurationSanitizer(),

@@ -26,8 +26,6 @@ import (
 	"github.com/gorilla/mux"
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
-	"github.com/uber/jaeger-lib/metrics/go-kit"
-	"github.com/uber/jaeger-lib/metrics/go-kit/expvar"
 	"github.com/uber/tchannel-go"
 	"github.com/uber/tchannel-go/thrift"
 	"go.uber.org/zap"
@@ -41,6 +39,7 @@ import (
 	esFlags "github.com/jaegertracing/jaeger/cmd/flags/es"
 	"github.com/jaegertracing/jaeger/pkg/config"
 	"github.com/jaegertracing/jaeger/pkg/healthcheck"
+	pMetrics "github.com/jaegertracing/jaeger/pkg/metrics"
 	"github.com/jaegertracing/jaeger/pkg/recoveryhandler"
 	"github.com/jaegertracing/jaeger/pkg/version"
 	jc "github.com/jaegertracing/jaeger/thrift-gen/jaeger"
@@ -75,10 +74,13 @@ func main() {
 
 			casOptions.InitFromViper(v)
 			esOptions.InitFromViper(v)
-
-			baseMetrics := xkit.Wrap(serviceName, expvar.NewFactory(10))
-
+			mBldr := new(pMetrics.Builder).InitFromViper(v)
 			builderOpts := new(builder.CollectorOptions).InitFromViper(v)
+
+			metricsFactory, err := mBldr.CreateMetricsFactory("jaeger-collector")
+			if err != nil {
+				logger.Fatal("Cannot create metrics factory.", zap.Error(err))
+			}
 
 			hc, err := healthcheck.Serve(http.StatusServiceUnavailable, builderOpts.CollectorHealthCheckHTTPPort, logger)
 			if err != nil {
@@ -91,7 +93,7 @@ func main() {
 				basicB.Options.CassandraSessionOption(casOptions.GetPrimary()),
 				basicB.Options.ElasticClientOption(esOptions.GetPrimary()),
 				basicB.Options.LoggerOption(logger),
-				basicB.Options.MetricsFactoryOption(baseMetrics),
+				basicB.Options.MetricsFactoryOption(metricsFactory),
 			)
 			if err != nil {
 				logger.Fatal("Unable to set up builder", zap.Error(err))
@@ -116,6 +118,10 @@ func main() {
 			r := mux.NewRouter()
 			apiHandler := app.NewAPIHandler(jaegerBatchesHandler)
 			apiHandler.RegisterRoutes(r)
+			if h := mBldr.Handler(); h != nil {
+				logger.Info("Registering metrics handler with HTTP server", zap.String("route", mBldr.HTTPRoute))
+				r.Handle(mBldr.HTTPRoute, h)
+			}
 			httpPortStr := ":" + strconv.Itoa(builderOpts.CollectorHTTPPort)
 			recoveryHandler := recoveryhandler.NewRecoveryHandler(logger, true)
 
@@ -149,6 +155,7 @@ func main() {
 		builder.AddFlags,
 		casOptions.AddFlags,
 		esOptions.AddFlags,
+		pMetrics.AddFlags,
 	)
 
 	if error := command.Execute(); error != nil {

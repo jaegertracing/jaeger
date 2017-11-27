@@ -23,12 +23,11 @@ import (
 	"strconv"
 
 	"github.com/gorilla/mux"
+	"github.com/pkg/errors"
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
 	jaegerClientConfig "github.com/uber/jaeger-client-go/config"
 	"github.com/uber/jaeger-lib/metrics"
-	"github.com/uber/jaeger-lib/metrics/go-kit"
-	"github.com/uber/jaeger-lib/metrics/go-kit/expvar"
 	"github.com/uber/tchannel-go"
 	"github.com/uber/tchannel-go/thrift"
 	"go.uber.org/zap"
@@ -73,15 +72,19 @@ func main() {
 			runtime.GOMAXPROCS(runtime.NumCPU())
 			cOpts := new(collector.CollectorOptions).InitFromViper(v)
 			qOpts := new(query.QueryOptions).InitFromViper(v)
+			mBldr := new(pMetrics.Builder).InitFromViper(v)
 
-			metricsFactory := xkit.Wrap("jaeger-standalone", expvar.NewFactory(10))
+			metricsFactory, err := mBldr.CreateMetricsFactory("jaeger-standalone")
+			if err != nil {
+				return errors.Wrap(err, "Cannot create metrics factory")
+			}
 			memStore := memory.NewStore()
 
 			builder := &agentApp.Builder{}
 			builder.InitFromViper(v)
 			startAgent(builder, cOpts, logger, metricsFactory)
 			startCollector(cOpts, sFlags, logger, metricsFactory, memStore)
-			startQuery(qOpts, sFlags, logger, metricsFactory, memStore)
+			startQuery(qOpts, sFlags, logger, metricsFactory, mBldr, memStore)
 			select {}
 		},
 	}
@@ -202,6 +205,7 @@ func startQuery(
 	sFlags *flags.SharedFlags,
 	logger *zap.Logger,
 	baseFactory metrics.Factory,
+	metricsBuilder *pMetrics.Builder,
 	memoryStore *memory.Store,
 ) {
 	metricsFactory := baseFactory.Namespace("jaeger-query", nil)
@@ -233,9 +237,16 @@ func startQuery(
 		queryApp.HandlerOptions.Prefix(qOpts.Prefix),
 		queryApp.HandlerOptions.Logger(logger),
 		queryApp.HandlerOptions.Tracer(tracer))
+
 	r := mux.NewRouter()
 	apiHandler.RegisterRoutes(r)
 	registerStaticHandler(r, logger, qOpts)
+
+	if h := metricsBuilder.Handler(); h != nil {
+		logger.Info("Registering metrics handler with jaeger-query HTTP server", zap.String("route", metricsBuilder.HTTPRoute))
+		r.Handle(metricsBuilder.HTTPRoute, h)
+	}
+
 	portStr := ":" + strconv.Itoa(qOpts.Port)
 	recoveryHandler := recoveryhandler.NewRecoveryHandler(logger, true)
 	logger.Info("Starting jaeger-query HTTP server", zap.Int("port", qOpts.Port))
