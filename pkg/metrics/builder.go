@@ -22,11 +22,10 @@ import (
 
 	"github.com/prometheus/client_golang/prometheus/promhttp"
 	"github.com/spf13/viper"
+	"github.com/uber/jaeger-lib/metrics"
 	xkit "github.com/uber/jaeger-lib/metrics/go-kit"
 	kitexpvar "github.com/uber/jaeger-lib/metrics/go-kit/expvar"
 	jprom "github.com/uber/jaeger-lib/metrics/prometheus"
-
-	"github.com/uber/jaeger-lib/metrics"
 )
 
 const (
