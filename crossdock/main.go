@@ -94,7 +94,7 @@ func httpHealthCheck(logger *zap.Logger, service, healthURL string) {
 			return
 		}
 		logger.Warn("Health check failed", zap.String("service", service), zap.Error(err))
-		time.Sleep(500 * time.Millisecond)
+		time.Sleep(time.Second)
 	}
 	logger.Fatal("All health checks failed", zap.String("service", service))
 }
