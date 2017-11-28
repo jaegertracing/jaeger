@@ -16,7 +16,6 @@ package metrics
 
 import (
 	"flag"
-	"net/http"
 	"testing"
 
 	"github.com/spf13/cobra"
@@ -89,9 +88,7 @@ func TestBuilder(t *testing.T) {
 		}
 		require.NotNil(t, mf)
 		if testCase.handler {
-			require.NotNil(t, b.handler)
-			mux := http.NewServeMux()
-			b.RegisterHandler(mux)
+			require.NotNil(t, b.Handler())
 		}
 	}
 }

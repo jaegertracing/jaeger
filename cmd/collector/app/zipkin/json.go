@@ -240,8 +240,6 @@ func binAnnoToThrift(ba binaryAnnotation) (*zipkincore.BinaryAnnotation, error) 
 	default:
 		str := fmt.Sprintf("%s", ba.Value)
 		val = []byte(str)
-		fmt.Println("default")
-		fmt.Println(str)
 		valType = zipkincore.AnnotationType_STRING
 	}
 
