@@ -243,7 +243,7 @@ func TestSpanReader_esJSONtoJSONSpanModelError(t *testing.T) {
 }
 
 func TestSpanReaderFindIndices(t *testing.T) {
-	today := time.Date(1995, time.April, 21, 4, 12, 19, 95, time.Local)
+	today := time.Date(1995, time.April, 21, 4, 12, 19, 95, time.UTC)
 	yesterday := today.AddDate(0, 0, -1)
 	twoDaysAgo := today.AddDate(0, 0, -2)
 
