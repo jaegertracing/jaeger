@@ -182,6 +182,7 @@ Two aspects of the UI can be configured:
 
   * The top-right menu in the global nav
   * A Google Analytics ID can be defined to enable Google Analytics tracking in the UI
+  * Dependencies menu
 
 These options can be configured by a JSON configuration file. The `--query.ui-config` command line parameter of the query service must then be set to the path to the JSON file when the query service is started.
 
@@ -204,7 +205,8 @@ An example configuration file:
         }
       ]
     }
-  ]
+  ],
+  "dependenciesMenuEnabled": false
 }
 ```
 
