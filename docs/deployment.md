@@ -178,7 +178,7 @@ Port  | Protocol | Function
 
 ### UI Configuration
 
-Two aspects of the UI can be configured:
+Multiple aspects of the UI can be configured:
 
   * The top-right menu in the global nav
   * A Google Analytics ID can be defined to enable Google Analytics tracking in the UI
