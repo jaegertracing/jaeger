@@ -15,7 +15,7 @@ services:
 
         environment:
             - WAIT_FOR=test_driver,go,node,java,python,zipkin-brave-thrift,zipkin-brave-json,zipkin-brave-json-v2
-            - WAIT_FOR_TIMEOUT=60s
+            - WAIT_FOR_TIMEOUT=180s
 
             - CALL_TIMEOUT=60s
 
