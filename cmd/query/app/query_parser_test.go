@@ -83,7 +83,8 @@ func TestParseTraceQuery(t *testing.T) {
 				},
 			},
 		},
-		{"x?traceID=100&traceID=200", ``,
+		// trace ID in upper/lower case
+		{"x?traceID=1f00&traceID=1E00", ``,
 			&traceQueryParameters{
 				TraceQueryParameters: spanstore.TraceQueryParameters{
 					NumTraces:    100,
@@ -92,8 +93,8 @@ func TestParseTraceQuery(t *testing.T) {
 					Tags:         make(map[string]string),
 				},
 				traceIDs: []model.TraceID{
-					{Low: 0x100},
-					{Low: 0x200},
+					{Low: 0x1f00},
+					{Low: 0x1e00},
 				},
 			},
 		},
