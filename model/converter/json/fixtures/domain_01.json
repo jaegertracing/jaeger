@@ -107,6 +107,27 @@
       "warnings": [
         "some span warning"
       ]
+    },
+    {
+      "traceID": "1",
+      "spanID": "5",
+      "parentSpanID": "4",
+      "operationName": "preserveParentID-test",
+      "references": [
+        {
+          "refType": "child-of",
+          "traceID": "1",
+          "spanID": "4"
+        }
+      ],
+      "startTime": "2017-01-26T16:46:31.639875139-05:00",
+      "duration": 4000,
+      "process": {
+        "serviceName": "service-y"
+      },
+      "warnings": [
+        "some span warning"
+      ]
     }
   ],
   "warnings": [

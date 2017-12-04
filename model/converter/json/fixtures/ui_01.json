@@ -119,6 +119,26 @@
       "warnings": [
         "some span warning"
       ]
+    },
+    {
+      "traceID": "1",
+      "spanID": "5",
+      "operationName": "preserveParentID-test",
+      "references": [
+        {
+          "refType": "CHILD_OF",
+          "traceID": "1",
+          "spanID": "4"
+        }
+      ],
+      "startTime": 1485467191639875,
+      "duration": 4,
+      "tags": [],
+      "logs": [],
+      "processID": "p2",
+      "warnings": [
+        "some span warning"
+      ]
     }
   ],
   "processes": {
