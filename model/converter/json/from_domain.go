@@ -97,19 +97,27 @@ func (fd fromDomain) convertReferences(span *model.Span, preserveParentID bool) 
 		length++
 	}
 	out := make([]json.Reference, 0, length)
+	var parentRef json.Reference
 	if span.ParentSpanID != 0 && !preserveParentID {
-		out = append(out, json.Reference{
+		// TODO this (wrongly) assumes that the reference type is always ChildOf
+		parentRef = json.Reference{
 			RefType: json.ChildOf,
 			TraceID: json.TraceID(span.TraceID.String()),
 			SpanID:  json.SpanID(span.ParentSpanID.String()),
-		})
+		}
+		out = append(out, parentRef)
 	}
 	for _, ref := range span.References {
-		out = append(out, json.Reference{
+		// TODO if the parentRef was wrongly added as a ChildOf ref above, this could
+		// potentially add a FollowsFrom ref and still keep the ChildOf ref
+		newRef := json.Reference{
 			RefType: fd.convertRefType(ref.RefType),
 			TraceID: json.TraceID(ref.TraceID.String()),
 			SpanID:  json.SpanID(ref.SpanID.String()),
-		})
+		}
+		if newRef != parentRef {
+			out = append(out, newRef)
+		}
 	}
 	return out
 }
