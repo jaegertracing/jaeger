@@ -105,7 +105,6 @@ func (fd fromDomain) convertReferences(span *model.Span, preserveParentID bool) 
 			SpanID:  json.SpanID(ref.SpanID.String()),
 		})
 		if ref.TraceID == span.TraceID && ref.SpanID == span.ParentSpanID {
-			// Check if the parent reference already exists
 			parentRefAdded = true
 		}
 	}
