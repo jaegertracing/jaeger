@@ -236,6 +236,11 @@ func (kv *KeyValue) IsLess(two *KeyValue) bool {
 	}
 }
 
+// Matches checks if this KeyValue matches the query key/value pair
+func (kv *KeyValue) Matches(key, value string) bool {
+	return kv.Key == key && kv.AsString() == value
+}
+
 func (kvs KeyValues) Len() int      { return len(kvs) }
 func (kvs KeyValues) Swap(i, j int) { kvs[i], kvs[j] = kvs[j], kvs[i] }
 func (kvs KeyValues) Less(i, j int) bool {
@@ -258,7 +263,7 @@ func (kvs KeyValues) FindByKey(key string) (KeyValue, bool) {
 	return KeyValue{}, false
 }
 
-// Equal compares KyValues with another list. Both lists must be already sorted.
+// Equal compares KeyValues with another list. Both lists must be already sorted.
 func (kvs KeyValues) Equal(other KeyValues) bool {
 	l1, l2 := len(kvs), len(other)
 	if l1 != l2 {
@@ -270,6 +275,18 @@ func (kvs KeyValues) Equal(other KeyValues) bool {
 		}
 	}
 	return true
+}
+
+// FindMatch checks for a matching KeyValue in the KeyValues for the given
+// query key/value pair. Returns the match and true when the match is found.
+// Returns empty KeyValue and false when no match is found.
+func (kvs KeyValues) FindMatch(key, value string) (KeyValue, bool) {
+	for _, kv := range kvs {
+		if kv.Matches(key, value) {
+			return kv, true
+		}
+	}
+	return KeyValue{}, false
 }
 
 // Hash implements Hash from Hashable.

@@ -96,6 +96,15 @@ func (s *Span) NormalizeTimestamps() {
 	}
 }
 
+func (s *Span) FlattenTags() KeyValues {
+	retMe := s.Tags
+	retMe = append(retMe, s.Process.Tags...)
+	for _, l := range s.Logs {
+		retMe = append(retMe, l.Fields...)
+	}
+	return retMe
+}
+
 // ------- Flags -------
 
 // SetSampled sets the Flags as sampled

@@ -199,29 +199,11 @@ func (m *Store) validSpan(span *model.Span, query *spanstore.TraceQueryParameter
 	if !query.StartTimeMax.IsZero() && span.StartTime.After(query.StartTimeMax) {
 		return false
 	}
-	spanKVs := m.flattenTags(span)
+	spanKVs := span.FlattenTags()
 	for queryK, queryV := range query.Tags {
-		keyValueFoundAndMatches := false
-		// (NB): we cannot find the KeyValue.Find function because there can be multiple tags with the same key
-		for _, keyValue := range spanKVs {
-			if keyValue.Key == queryK && keyValue.AsString() == queryV {
-				keyValueFoundAndMatches = true
-				break
-			}
-		}
-		if !keyValueFoundAndMatches {
+		if _, ok := spanKVs.FindMatch(queryK, queryV); !ok {
 			return false
 		}
 	}
 	return true
-}
-
-// TODO: this is a good candidate function to have on a span
-func (m *Store) flattenTags(span *model.Span) model.KeyValues {
-	retMe := span.Tags
-	retMe = append(retMe, span.Process.Tags...)
-	for _, l := range span.Logs {
-		retMe = append(retMe, l.Fields...)
-	}
-	return retMe
 }
