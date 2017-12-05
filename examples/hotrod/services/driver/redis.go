@@ -54,6 +54,7 @@ func (r *Redis) FindDriverIDs(ctx context.Context, location string) []string {
 		ext.SpanKindRPCClient.Set(span)
 		defer span.Finish()
 		ctx = opentracing.ContextWithSpan(ctx, span)
+		r.logger.For(ctx).Info("FindDriverIDs at " + location)
 	}
 	// simulate RPC delay
 	delay.Sleep(config.RedisFindDelay, config.RedisFindDelayStdDev)
