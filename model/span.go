@@ -96,16 +96,6 @@ func (s *Span) NormalizeTimestamps() {
 	}
 }
 
-// FlattenTags combines span tags, process tags, and log fields into one KeyValues collection
-func (s *Span) FlattenTags() KeyValues {
-	retMe := s.Tags
-	retMe = append(retMe, s.Process.Tags...)
-	for _, l := range s.Logs {
-		retMe = append(retMe, l.Fields...)
-	}
-	return retMe
-}
-
 // ------- Flags -------
 
 // SetSampled sets the Flags as sampled

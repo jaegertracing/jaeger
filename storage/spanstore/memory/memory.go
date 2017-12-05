@@ -180,6 +180,15 @@ func (m *Store) validTrace(trace *model.Trace, query *spanstore.TraceQueryParame
 	return false
 }
 
+func findKeyValueMatch(kvs model.KeyValues, key, value string) (model.KeyValue, bool) {
+	for _, kv := range kvs {
+		if kv.Key == key && kv.AsString() == value {
+			return kv, true
+		}
+	}
+	return model.KeyValue{}, false
+}
+
 func (m *Store) validSpan(span *model.Span, query *spanstore.TraceQueryParameters) bool {
 	if query.ServiceName != span.Process.ServiceName {
 		return false
@@ -199,11 +208,21 @@ func (m *Store) validSpan(span *model.Span, query *spanstore.TraceQueryParameter
 	if !query.StartTimeMax.IsZero() && span.StartTime.After(query.StartTimeMax) {
 		return false
 	}
-	spanKVs := span.FlattenTags()
+	spanKVs := m.flattenTags(span)
 	for queryK, queryV := range query.Tags {
-		if _, ok := spanKVs.FindMatch(queryK, queryV); !ok {
+		// (NB): we cannot find the KeyValues.FindKey function because there can be multiple tags with the same key
+		if _, ok := findKeyValueMatch(spanKVs, queryK, queryV); !ok {
 			return false
 		}
 	}
 	return true
+}
+
+func (m *Store) flattenTags(span *model.Span) model.KeyValues {
+	retMe := span.Tags
+	retMe = append(retMe, span.Process.Tags...)
+	for _, l := range span.Logs {
+		retMe = append(retMe, l.Fields...)
+	}
+	return retMe
 }

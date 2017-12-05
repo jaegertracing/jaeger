@@ -20,13 +20,10 @@ import (
 	"github.com/stretchr/testify/mock"
 )
 
-// Lock mocks distributed lock for control of a resource.
 type Lock struct {
 	mock.Mock
 }
 
-// Acquire acquires a lease of duration ttl around a given resource. In case of an error,
-// acquired is meaningless.
 func (_m *Lock) Acquire(resource string, ttl time.Duration) (bool, error) {
 	ret := _m.Called(resource, ttl)
 
@@ -47,8 +44,6 @@ func (_m *Lock) Acquire(resource string, ttl time.Duration) (bool, error) {
 	return r0, r1
 }
 
-// Forfeit forfeits a lease around a given resource. In case of an error,
-// forfeited is meaningless.
 func (_m *Lock) Forfeit(resource string) (bool, error) {
 	ret := _m.Called(resource)
 
