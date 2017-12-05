@@ -210,7 +210,7 @@ func (m *Store) validSpan(span *model.Span, query *spanstore.TraceQueryParameter
 	}
 	spanKVs := m.flattenTags(span)
 	for queryK, queryV := range query.Tags {
-		// (NB): we cannot find the KeyValues.FindKey function because there can be multiple tags with the same key
+		// (NB): we cannot use the KeyValues.FindKey function because there can be multiple tags with the same key
 		if _, ok := findKeyValueMatch(spanKVs, queryK, queryV); !ok {
 			return false
 		}
