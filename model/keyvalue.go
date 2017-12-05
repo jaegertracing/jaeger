@@ -258,7 +258,7 @@ func (kvs KeyValues) FindByKey(key string) (KeyValue, bool) {
 	return KeyValue{}, false
 }
 
-// Equal compares KyValues with another list. Both lists must be already sorted.
+// Equal compares KeyValues with another list. Both lists must be already sorted.
 func (kvs KeyValues) Equal(other KeyValues) bool {
 	l1, l2 := len(kvs), len(other)
 	if l1 != l2 {
