@@ -19,6 +19,7 @@ import (
 	"errors"
 	"fmt"
 	"math/rand"
+	"strings"
 	"sync"
 
 	"github.com/opentracing/opentracing-go"
@@ -54,7 +55,6 @@ func (r *Redis) FindDriverIDs(ctx context.Context, location string) []string {
 		ext.SpanKindRPCClient.Set(span)
 		defer span.Finish()
 		ctx = opentracing.ContextWithSpan(ctx, span)
-		r.logger.For(ctx).Info("FindDriverIDs at " + location)
 	}
 	// simulate RPC delay
 	delay.Sleep(config.RedisFindDelay, config.RedisFindDelayStdDev)
@@ -63,6 +63,8 @@ func (r *Redis) FindDriverIDs(ctx context.Context, location string) []string {
 	for i := range drivers {
 		drivers[i] = fmt.Sprintf("T7%05dC", rand.Int()%100000)
 	}
+	msg := fmt.Sprintf("FindDriverIDs(%s) = [%s]", location, strings.Join(drivers, ", "))
+	r.logger.For(ctx).Info(msg)
 	return drivers
 }
 
