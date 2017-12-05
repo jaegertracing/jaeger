@@ -22,5 +22,7 @@ type Lock interface {
 	// acquired is meaningless.
 	Acquire(resource string, ttl time.Duration) (acquired bool, err error)
 
+	// Forfeit forfeits a lease around a given resource. In case of an error,
+	// forfeited is meaningless.
 	Forfeit(resource string) (forfeited bool, err error)
 }

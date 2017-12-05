@@ -49,7 +49,7 @@ func TestGetTraces(t *testing.T) {
 
 	// Test with no http server
 	query := NewQueryService("", zap.NewNop())
-	traces, err := query.GetTraces("svc", "op", map[string]string{"key": "value"})
+	_, err := query.GetTraces("svc", "op", map[string]string{"key": "value"})
 	assert.Error(t, err)
 
 	query = NewQueryService(server.URL, zap.NewNop())
@@ -58,6 +58,6 @@ func TestGetTraces(t *testing.T) {
 	assert.Len(t, traces, 1)
 	assert.EqualValues(t, "traceid", traces[0].TraceID)
 
-	traces, err = query.GetTraces("bad_svc", "op", map[string]string{"key": "value"})
+	_, err = query.GetTraces("bad_svc", "op", map[string]string{"key": "value"})
 	assert.Error(t, err)
 }

@@ -82,6 +82,7 @@ func TestPortBusy(t *testing.T) {
 func TestHttpCall(t *testing.T) {
 	logger, _ := zap.NewDevelopment()
 	state, err := healthcheck.NewState(http.StatusServiceUnavailable, logger)
+	assert.NoError(t, err)
 	handler, err := healthcheck.NewHandler(state)
 	if err != nil {
 		t.Error("Could not start the health check server.", zap.Error(err))
@@ -100,6 +101,7 @@ func TestHttpCall(t *testing.T) {
 func TestListenerClose(t *testing.T) {
 	logger, _ := zap.NewDevelopment()
 	state, err := healthcheck.NewState(http.StatusServiceUnavailable, logger)
+	assert.NoError(t, err)
 	handler, err := healthcheck.NewHandler(state)
 	if err != nil {
 		t.Error("Could not start the health check server.", zap.Error(err))
@@ -107,8 +109,10 @@ func TestListenerClose(t *testing.T) {
 
 	s := &http.Server{Handler: handler}
 	l, err := net.Listen("tcp", ":0")
+	assert.NoError(t, err)
 	defer l.Close()
-	s, err = healthcheck.ServeWithListener(l, s, logger)
+	_, err = healthcheck.ServeWithListener(l, s, logger)
+	assert.NoError(err)
 }
 
 func TestServeHandler(t *testing.T) {

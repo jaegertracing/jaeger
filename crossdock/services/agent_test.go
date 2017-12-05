@@ -93,7 +93,7 @@ func TestGetSamplingRate(t *testing.T) {
 
 	// Test with no http server
 	agent := NewAgentService("", zap.NewNop())
-	rate, err := agent.GetSamplingRate("svc", "op")
+	_, err := agent.GetSamplingRate("svc", "op")
 	assert.Error(t, err)
 
 	agent = NewAgentService(server.URL, zap.NewNop())
@@ -101,6 +101,6 @@ func TestGetSamplingRate(t *testing.T) {
 	assert.NoError(t, err)
 	assert.EqualValues(t, 1, rate)
 
-	rate, err = agent.GetSamplingRate("bad_svc", "op")
+	_, err = agent.GetSamplingRate("bad_svc", "op")
 	assert.Error(t, err)
 }

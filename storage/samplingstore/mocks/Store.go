@@ -19,10 +19,12 @@ import "github.com/stretchr/testify/mock"
 
 import "time"
 
+// Store writes and retrieves sampling data to and from storage.
 type Store struct {
 	mock.Mock
 }
 
+// InsertThroughput inserts aggregated throughput for operations into storage.
 func (_m *Store) InsertThroughput(throughput []*model.Throughput) error {
 	ret := _m.Called(throughput)
 
@@ -35,6 +37,8 @@ func (_m *Store) InsertThroughput(throughput []*model.Throughput) error {
 
 	return r0
 }
+
+// InsertProbabilitiesAndQPS inserts calculated sampling probabilities and measured qps into storage.
 func (_m *Store) InsertProbabilitiesAndQPS(hostname string, probabilities model.ServiceOperationProbabilities, qps model.ServiceOperationQPS) error {
 	ret := _m.Called(hostname, probabilities, qps)
 
@@ -47,6 +51,8 @@ func (_m *Store) InsertProbabilitiesAndQPS(hostname string, probabilities model.
 
 	return r0
 }
+
+// GetThroughput retrieves aggregated throughput for operations within a time range.
 func (_m *Store) GetThroughput(start time.Time, end time.Time) ([]*model.Throughput, error) {
 	ret := _m.Called(start, end)
 
@@ -68,6 +74,8 @@ func (_m *Store) GetThroughput(start time.Time, end time.Time) ([]*model.Through
 
 	return r0, r1
 }
+
+// GetProbabilitiesAndQPS retrieves the sampling probabilities and measured qps per host within a time range.
 func (_m *Store) GetProbabilitiesAndQPS(start time.Time, end time.Time) (map[string][]model.ServiceOperationData, error) {
 	ret := _m.Called(start, end)
 
@@ -89,6 +97,8 @@ func (_m *Store) GetProbabilitiesAndQPS(start time.Time, end time.Time) (map[str
 
 	return r0, r1
 }
+
+// GetLatestProbabilities retrieves the latest sampling probabilities.
 func (_m *Store) GetLatestProbabilities() (model.ServiceOperationProbabilities, error) {
 	ret := _m.Called()
 

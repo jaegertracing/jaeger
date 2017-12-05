@@ -71,31 +71,34 @@ func TestCompareAndSwap(t *testing.T) {
 	assert.Equal(t, 1, cache.Size())
 
 	item, ok = cache.CompareAndSwap("B", nil, "Bar")
+	assert.True(t, ok)
 	assert.Equal(t, 2, cache.Size())
 	assert.Equal(t, "Bar", item)
 	assert.Equal(t, "Bar", cache.Get("B"))
 
 	item, ok = cache.CompareAndSwap("A", "Foo", "Foo2")
-	assert.Equal(t, true, ok)
+	assert.True(t, ok)
 	assert.Equal(t, "Foo2", item)
 	assert.Equal(t, "Foo2", cache.Get("A"))
 
 	item, ok = cache.CompareAndSwap("A", nil, "Foo3")
-	assert.Equal(t, false, ok)
+	assert.False(t, ok)
 	assert.Equal(t, "Foo2", item)
 	assert.Equal(t, "Foo2", cache.Get("A"))
 
 	item, ok = cache.CompareAndSwap("A", "Foo", "Foo3")
+	assert.True(t, ok)
 	assert.Equal(t, "Foo2", item)
 	assert.Equal(t, "Foo2", cache.Get("A"))
 
 	item, ok = cache.CompareAndSwap("F", "foo", "Foo3")
-	assert.Equal(t, false, ok)
+	assert.False(t, ok)
 	assert.Nil(t, item)
 	assert.Nil(t, cache.Get("F"))
 
 	// Evict the oldest entry
 	item, ok = cache.CompareAndSwap("E", nil, "Epsi")
+	assert.True(t, ok)
 	assert.Equal(t, "Epsi", item)
 	assert.Equal(t, "Foo2", cache.Get("A"))
 	assert.Nil(t, cache.Get("B")) // Oldest, should be evicted
