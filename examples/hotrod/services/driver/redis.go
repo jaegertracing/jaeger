@@ -63,8 +63,7 @@ func (r *Redis) FindDriverIDs(ctx context.Context, location string) []string {
 	for i := range drivers {
 		drivers[i] = fmt.Sprintf("T7%05dC", rand.Int()%100000)
 	}
-	msg := fmt.Sprintf("FindDriverIDs(%s) = [%s]", location, strings.Join(drivers, ", "))
-	r.logger.For(ctx).Info(msg)
+	r.logger.For(ctx).Info("Found drivers", zap.Strings("drivers", drivers))
 	return drivers
 }
 
