@@ -87,7 +87,7 @@ func TestCompareAndSwap(t *testing.T) {
 	assert.Equal(t, "Foo2", cache.Get("A"))
 
 	item, ok = cache.CompareAndSwap("A", "Foo", "Foo3")
-	assert.True(t, ok)
+	assert.False(t, ok)
 	assert.Equal(t, "Foo2", item)
 	assert.Equal(t, "Foo2", cache.Get("A"))
 

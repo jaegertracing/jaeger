@@ -97,7 +97,7 @@ func TestGetSamplingRate(t *testing.T) {
 	assert.Error(t, err)
 
 	agent = NewAgentService(server.URL, zap.NewNop())
-	rate, err = agent.GetSamplingRate("svc", "op")
+	rate, err := agent.GetSamplingRate("svc", "op")
 	assert.NoError(t, err)
 	assert.EqualValues(t, 1, rate)
 

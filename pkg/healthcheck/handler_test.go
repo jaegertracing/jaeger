@@ -112,7 +112,7 @@ func TestListenerClose(t *testing.T) {
 	assert.NoError(t, err)
 	defer l.Close()
 	_, err = healthcheck.ServeWithListener(l, s, logger)
-	assert.NoError(err)
+	assert.NoError(t, err)
 }
 
 func TestServeHandler(t *testing.T) {
