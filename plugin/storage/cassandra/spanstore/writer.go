@@ -17,7 +17,6 @@ package spanstore
 import (
 	"encoding/json"
 	"strings"
-	"sync/atomic"
 	"time"
 	"unicode/utf8"
 
@@ -85,7 +84,6 @@ type SpanWriter struct {
 	writerMetrics        spanWriterMetrics
 	logger               *zap.Logger
 	tagIndexSkipped      metrics.Counter
-	bucketCounter        uint32
 	tagFilter            dbmodel.TagFilter
 }
 
@@ -200,7 +198,7 @@ func (s *SpanWriter) indexByDuration(span *dbmodel.Span, startTime time.Time) er
 }
 
 func (s *SpanWriter) indexBySerice(traceID model.TraceID, span *dbmodel.Span) error {
-	bucketNo := atomic.AddUint32(&s.bucketCounter, 1) % defaultNumBuckets
+	bucketNo := span.SpanHash % defaultNumBuckets
 	query := s.session.Query(serviceNameIndex)
 	q := query.Bind(span.Process.ServiceName, bucketNo, span.StartTime, span.TraceID)
 	return s.writerMetrics.serviceNameIndex.Exec(q, s.logger)
