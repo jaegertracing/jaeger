@@ -1,6 +1,20 @@
 Changes by Version
 ==================
 
+1.0.0 (2017-12-04)
+------------------
+
+#### Backend Changes
+
+- Support Prometheus metrics as default for all components (#516)
+- Enable TLS client connections to Cassandra (#555)
+- Fix issue where Domain to UI model converter double reports references (#579)
+
+#### UI Changes
+
+- Make dependencies tab configurable (#122)
+
+
 0.10.0 (2017-11-17)
 ------------------
 

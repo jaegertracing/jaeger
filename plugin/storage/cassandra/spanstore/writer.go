@@ -17,7 +17,6 @@ package spanstore
 import (
 	"encoding/json"
 	"strings"
-	"sync/atomic"
 	"time"
 	"unicode/utf8"
 
@@ -85,7 +84,6 @@ type SpanWriter struct {
 	writerMetrics        spanWriterMetrics
 	logger               *zap.Logger
 	tagIndexSkipped      metrics.Counter
-	bucketCounter        uint32
 	tagFilter            dbmodel.TagFilter
 }
 
@@ -149,7 +147,7 @@ func (s *SpanWriter) WriteSpan(span *model.Span) error {
 		return s.logError(ds, err, "Failed to index tags", s.logger)
 	}
 
-	if err := s.indexBySerice(span.TraceID, ds); err != nil {
+	if err := s.indexByService(span.TraceID, ds); err != nil {
 		return s.logError(ds, err, "Failed to index service name", s.logger)
 	}
 
@@ -199,8 +197,8 @@ func (s *SpanWriter) indexByDuration(span *dbmodel.Span, startTime time.Time) er
 	return err
 }
 
-func (s *SpanWriter) indexBySerice(traceID model.TraceID, span *dbmodel.Span) error {
-	bucketNo := atomic.AddUint32(&s.bucketCounter, 1) % defaultNumBuckets
+func (s *SpanWriter) indexByService(traceID model.TraceID, span *dbmodel.Span) error {
+	bucketNo := span.SpanHash % defaultNumBuckets
 	query := s.session.Query(serviceNameIndex)
 	q := query.Bind(span.Process.ServiceName, bucketNo, span.StartTime, span.TraceID)
 	return s.writerMetrics.serviceNameIndex.Exec(q, s.logger)
