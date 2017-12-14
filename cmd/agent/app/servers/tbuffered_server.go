@@ -25,10 +25,12 @@ import (
 // TBufferedServer is a custom thrift server that reads traffic using the transport provided
 // and places messages into a buffered channel to be processed by the processor provided
 type TBufferedServer struct {
+	// NB. queueLength HAS to be at the top of the struct or it will SIGSEV for certain architectures.
+	// See https://github.com/golang/go/issues/13868
+	queueSize     int64
 	dataChan      chan *ReadBuf
 	maxPacketSize int
 	maxQueueSize  int
-	queueSize     int64
 	serving       uint32
 	transport     thrift.TTransport
 	readBufPool   *sync.Pool
