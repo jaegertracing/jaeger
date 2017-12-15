@@ -46,7 +46,24 @@ func TestFixtures(t *testing.T) {
 		BinaryAnnotations: []*zipkincore.BinaryAnnotation{
 			{Key: "foo", Value: []byte("bar"), Host: localE, AnnotationType: zipkincore.AnnotationType_STRING},
 			{Key: zipkincore.SERVER_ADDR, Host: remoteE, AnnotationType: zipkincore.AnnotationType_BOOL}}}
-	assert.Equal(t, tSpans[0], tSpan)
+	assert.Equal(t, tSpan, tSpans[0])
+}
+
+func TestLCFromLocalEndpoint(t *testing.T) {
+	var spans models.ListOfSpans
+	loadJSON(t, fmt.Sprintf("fixtures/zipkin_02.json"), &spans)
+	tSpans, err := spansV2ToThrift(spans)
+	fmt.Println(tSpans[0])
+	require.NoError(t, err)
+	assert.Equal(t, len(tSpans), 1)
+	var ts int64 = 1
+	var d int64 = 10
+	tSpan := &zipkincore.Span{ID: 2, TraceID: 2, Name: "foo", Duration: &d, Timestamp: &ts,
+		BinaryAnnotations: []*zipkincore.BinaryAnnotation{
+			{Key: zipkincore.LOCAL_COMPONENT, Host: &zipkincore.Endpoint{ServiceName: "bar", Ipv4: 170594602, Port:8080},
+				AnnotationType: zipkincore.AnnotationType_STRING},
+		}}
+	assert.Equal(t, tSpan, tSpans[0])
 }
 
 func TestKindToThrift(t *testing.T) {
