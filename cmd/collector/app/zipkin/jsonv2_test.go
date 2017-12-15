@@ -38,7 +38,8 @@ func TestFixtures(t *testing.T) {
 	var d int64 = 10
 	localE := &zipkincore.Endpoint{ServiceName: "foo", Ipv4: 170594602}
 	remoteE := &zipkincore.Endpoint{ServiceName: "bar", Ipv4: 170594603}
-	tSpan := &zipkincore.Span{ID: 2, TraceID: 1, ParentID: &pid, Name: "foo", Debug: true, Duration: &d, Timestamp: &ts,
+	var highId = int64(-4793352529331701374)
+	tSpan := &zipkincore.Span{ID: 2, TraceID: int64(-4795885597963667071), TraceIDHigh: &highId, ParentID: &pid, Name: "foo", Debug: true, Duration: &d, Timestamp: &ts,
 		Annotations: []*zipkincore.Annotation{
 			{Value: "foo", Timestamp: 1, Host: localE},
 			{Value: zipkincore.CLIENT_SEND, Timestamp: ts, Host: localE},
