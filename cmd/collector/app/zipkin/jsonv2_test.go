@@ -60,7 +60,7 @@ func TestLCFromLocalEndpoint(t *testing.T) {
 	var d int64 = 10
 	tSpan := &zipkincore.Span{ID: 2, TraceID: 2, Name: "foo", Duration: &d, Timestamp: &ts,
 		BinaryAnnotations: []*zipkincore.BinaryAnnotation{
-			{Key: zipkincore.LOCAL_COMPONENT, Host: &zipkincore.Endpoint{ServiceName: "bar", Ipv4: 170594602, Port:8080},
+			{Key: zipkincore.LOCAL_COMPONENT, Host: &zipkincore.Endpoint{ServiceName: "bar", Ipv4: 170594602, Port: 8080},
 				AnnotationType: zipkincore.AnnotationType_STRING},
 		}}
 	assert.Equal(t, tSpan, tSpans[0])
