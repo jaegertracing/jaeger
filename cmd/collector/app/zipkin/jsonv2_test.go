@@ -29,7 +29,7 @@ import (
 
 func TestFixtures(t *testing.T) {
 	var spans models.ListOfSpans
-	loadJSON(t, fmt.Sprintf("fixtures/zipkin_01.json"), &spans)
+	loadJSON(t, "fixtures/zipkin_01.json", &spans)
 	tSpans, err := spansV2ToThrift(spans)
 	require.NoError(t, err)
 	assert.Equal(t, len(tSpans), 1)
@@ -51,7 +51,7 @@ func TestFixtures(t *testing.T) {
 
 func TestLCFromLocalEndpoint(t *testing.T) {
 	var spans models.ListOfSpans
-	loadJSON(t, fmt.Sprintf("fixtures/zipkin_02.json"), &spans)
+	loadJSON(t, "fixtures/zipkin_02.json", &spans)
 	tSpans, err := spansV2ToThrift(spans)
 	fmt.Println(tSpans[0])
 	require.NoError(t, err)
