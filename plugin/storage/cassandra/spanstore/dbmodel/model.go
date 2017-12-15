@@ -38,7 +38,7 @@ type Span struct {
 	Refs          []SpanRef
 	Process       Process
 	ServiceName   string
-	SpanHash      int64
+	SpanHash      uint64
 }
 
 // KeyValue is the UDT representation of a Jaeger KeyValue.
