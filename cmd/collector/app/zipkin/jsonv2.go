@@ -82,6 +82,16 @@ func spanV2ToThrift(s *models.Span) (*zipkincore.Span, error) {
 		}
 		tSpan.BinaryAnnotations = append(tSpan.BinaryAnnotations, rAddrAnno)
 	}
+
+	// add local component to represent service name
+	// to_domain looks for a service name in all [bin]annotations
+	if localE != nil && len(tSpan.BinaryAnnotations) == 0 && len(tSpan.Annotations) == 0 {
+		tSpan.BinaryAnnotations = append(tSpan.BinaryAnnotations, &zipkincore.BinaryAnnotation{
+			Key:            zipkincore.LOCAL_COMPONENT,
+			Host:           localE,
+			AnnotationType: zipkincore.AnnotationType_STRING,
+		})
+	}
 	return tSpan, nil
 }
 
