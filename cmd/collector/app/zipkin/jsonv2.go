@@ -49,6 +49,10 @@ func spanV2ToThrift(s *models.Span) (*zipkincore.Span, error) {
 		Timestamp: &s.Timestamp,
 		Duration:  &s.Duration,
 	}
+	if traceID.High != 0 {
+		help := int64(traceID.High)
+		tSpan.TraceIDHigh = &help
+	}
 
 	if len(s.ParentID) > 0 {
 		parentID, err := model.SpanIDFromString(cutLongID(s.ParentID))
