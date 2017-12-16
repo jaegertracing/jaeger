@@ -72,8 +72,6 @@ var (
 	// ErrUnableToFindTraceIDAggregation occurs when an aggregation query for TraceIDs fail.
 	ErrUnableToFindTraceIDAggregation = errors.New("Could not find aggregation of traceIDs")
 
-	errNilHits = errors.New("No hits in read results found")
-
 	errNoTraces = errors.New("No trace with that ID found")
 
 	defaultMaxDuration = model.DurationAsMicroseconds(time.Hour * 24)
@@ -232,8 +230,8 @@ func (s *SpanReader) multiRead(traceIDs []string, startTime, endTime time.Time) 
 
 	var traces []*model.Trace
 	for _, result := range results.Responses {
-		if result.Hits == nil {
-			return nil, errNilHits
+		if result.Hits == nil || len(result.Hits.Hits) == 0 {
+			continue
 		}
 		spans, err := s.collectSpans(result.Hits.Hits)
 		if err != nil {
