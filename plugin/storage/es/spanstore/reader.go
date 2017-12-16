@@ -235,6 +235,9 @@ func (s *SpanReader) multiRead(traceIDs []string, startTime, endTime time.Time) 
 		if result.Hits == nil {
 			return nil, errNilHits
 		}
+		if len(result.Hits.Hits) == 0 {
+			continue
+		}
 		spans, err := s.collectSpans(result.Hits.Hits)
 		if err != nil {
 			return nil, err
