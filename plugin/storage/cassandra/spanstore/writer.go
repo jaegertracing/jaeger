@@ -198,7 +198,7 @@ func (s *SpanWriter) indexByDuration(span *dbmodel.Span, startTime time.Time) er
 }
 
 func (s *SpanWriter) indexByService(traceID model.TraceID, span *dbmodel.Span) error {
-	bucketNo := span.SpanHash % defaultNumBuckets
+	bucketNo := uint64(span.SpanHash) % defaultNumBuckets
 	query := s.session.Query(serviceNameIndex)
 	q := query.Bind(span.Process.ServiceName, bucketNo, span.StartTime, span.TraceID)
 	return s.writerMetrics.serviceNameIndex.Exec(q, s.logger)
