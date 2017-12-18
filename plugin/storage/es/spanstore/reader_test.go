@@ -144,7 +144,7 @@ func TestSpanReader_GetTraceQueryError(t *testing.T) {
 	})
 }
 
-func TestSpanReader_GetTraceNilHitsError(t *testing.T) {
+func TestSpanReader_GetTraceNilHits(t *testing.T) {
 	withSpanReader(func(r *spanReaderTest) {
 		var hits []*elastic.SearchHit
 		searchHits := &elastic.SearchHits{Hits: hits}
@@ -158,7 +158,7 @@ func TestSpanReader_GetTraceNilHitsError(t *testing.T) {
 			}, nil)
 
 		trace, err := r.reader.GetTrace(model.TraceID{Low: 1})
-		require.EqualError(t, err, "No hits in read results found")
+		require.EqualError(t, err, "No trace with that ID found")
 		require.Nil(t, trace)
 	})
 }
