@@ -161,7 +161,7 @@ func getTestSpan() *Span {
 	// as the model changes. So let's just make sure the code is being
 	// calculated during the conversion.
 	spanHash, _ := model.HashCode(getTestJaegerSpan())
-	span.SpanHash = int64(spanHash)
+	span.SpanHash = spanHash
 	return span
 }
 

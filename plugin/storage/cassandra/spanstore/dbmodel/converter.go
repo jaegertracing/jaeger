@@ -57,7 +57,7 @@ func (c converter) fromDomain(span *model.Span) *Span {
 		Refs:          refs,
 		Process:       udtProcess,
 		ServiceName:   span.Process.ServiceName,
-		SpanHash:      int64(spanHash),
+		SpanHash:      spanHash,
 	}
 }
 
