@@ -1,3 +1,9 @@
+# Announcing Jaeger v1.0
+**2017-12-06**
+
+Today we reached a milestone and released v1.0 of Jaeger backend. Details are in this
+[Medium blog post](https://medium.com/jaegertracing/announcing-jaeger-1-0-37b5990cc59b).
+
 # Jaeger Joins Cloud Native Computing Foundation
 **2017-09-25**
 
