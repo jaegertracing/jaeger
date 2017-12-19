@@ -15,6 +15,7 @@
 package app
 
 import (
+	"encoding/json"
 	"fmt"
 	"net/http"
 	"strconv"
@@ -32,6 +33,7 @@ const (
 
 	operationParam   = "operation"
 	tagParam         = "tag"
+	tagsParam        = "tags"
 	startTimeParam   = "start"
 	limitParam       = "limit"
 	minDurationParam = "minDuration"
@@ -62,7 +64,7 @@ type traceQueryParameters struct {
 // parse takes a request and constructs a model of parameters
 // Trace query syntax:
 //     query ::= param | param '&' query
-//     param ::= service | operation | limit | start | end | minDuration | maxDuration | tag
+//     param ::= service | operation | limit | start | end | minDuration | maxDuration | tag | tags
 //     service ::= 'service=' strValue
 //     operation ::= 'operation=' strValue
 //     limit ::= 'limit=' intValue
@@ -73,6 +75,7 @@ type traceQueryParameters struct {
 //     tag ::= 'tag=' key | 'tag=' keyvalue
 //     key := strValue
 //     keyValue := strValue ':' strValue
+//     tags :== 'tags=' jsonMap
 func (p *queryParser) parse(r *http.Request) (*traceQueryParameters, error) {
 	service := r.FormValue(serviceParam)
 	operation := r.FormValue(operationParam)
@@ -86,7 +89,7 @@ func (p *queryParser) parse(r *http.Request) (*traceQueryParameters, error) {
 		return nil, err
 	}
 
-	tags, err := p.parseTags(r.Form[tagParam])
+	tags, err := p.parseTags(r.Form[tagParam], r.Form[tagsParam])
 	if err != nil {
 		return nil, err
 	}
@@ -184,14 +187,23 @@ func (p *queryParser) validateQuery(traceQuery *traceQueryParameters) error {
 	return nil
 }
 
-func (p *queryParser) parseTags(tagsFromForm []string) (map[string]string, error) {
+func (p *queryParser) parseTags(simpleTags []string, jsonTags []string) (map[string]string, error) {
 	retMe := make(map[string]string)
-	for _, tag := range tagsFromForm {
+	for _, tag := range simpleTags {
 		keyAndValue := strings.Split(tag, ":")
 		if l := len(keyAndValue); l > 1 {
 			retMe[keyAndValue[0]] = strings.Join(keyAndValue[1:], ":")
 		} else {
 			return nil, fmt.Errorf("Malformed 'tag' parameter, expecting key:value, received: %s", tag)
+		}
+	}
+	for _, tags := range jsonTags {
+		var fromJSON map[string]string
+		if err := json.Unmarshal([]byte(tags), &fromJSON); err != nil {
+			return nil, fmt.Errorf("Malformed 'tags' parameter, cannot unmarshal JSON: %s", err)
+		}
+		for k, v := range fromJSON {
+			retMe[k] = v
 		}
 	}
 	return retMe, nil
