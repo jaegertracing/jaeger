@@ -1,0 +1,91 @@
+[metadata]
+name = "github.com/jaegertracing/jaeger"
+
+[[constraint]]
+  name = "github.com/apache/thrift"
+  version = "0.9.3"
+
+[[constraint]]
+  name = "github.com/gocql/gocql"
+  revision = "4d2d1ac71932f7c4a6c7feb0d654462e4116c58b"
+
+[[constraint]]
+  name = "github.com/opentracing/opentracing-go"
+  version = "v1.0.2"
+
+[[constraint]]
+  name = "github.com/pkg/errors"
+
+[[constraint]]
+  name = "go.uber.org/zap"
+  version = "^1"
+
+[[constraint]]
+  name = "github.com/uber/jaeger-client-go"
+  version = "^2.11.0"
+
+[[constraint]]
+  name = "github.com/uber/jaeger-lib"
+  version = "^1.2.1"
+
+[[constraint]]
+  name = "github.com/uber/tchannel-go"
+  version = "v1.1.0"
+
+[[constraint]]
+  name = "github.com/gorilla/mux"
+  version = "v1.3.0"
+
+[[constraint]]
+  name = "github.com/gorilla/handlers"
+  version = "v1.2"
+
+[[constraint]]
+  name = "github.com/kr/pretty"
+
+[[constraint]]
+  name = "github.com/stretchr/testify"
+
+[[constraint]]
+  name = "github.com/opentracing-contrib/go-stdlib"
+
+[[constraint]]
+  name = "github.com/go-kit/kit"
+  version = "v0.5.0"
+
+[[constraint]]
+  name = "github.com/olivere/elastic"
+  version = "v5.0.39"
+
+[[constraint]]
+  name = "github.com/spf13/pflag"
+  version = "^1"
+
+[[constraint]]
+  name = "github.com/spf13/cobra"
+  version = "0.0.1"
+
+[[constraint]]
+  name = "github.com/spf13/viper"
+  version = "^1"
+
+[[constraint]]
+  name = "github.com/go-openapi/errors"
+
+[[constraint]]
+  name = "github.com/go-openapi/runtime"
+
+[[constraint]]
+  name = "github.com/go-openapi/spec"
+
+[[constraint]]
+  name = "github.com/go-openapi/strfmt"
+
+[[constraint]]
+  name = "github.com/go-openapi/swag"
+
+[[constraint]]
+  name = "github.com/go-openapi/validate"
+
+[[constraint]]
+  name = "github.com/go-openapi/loads"
