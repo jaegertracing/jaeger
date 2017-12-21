@@ -197,26 +197,28 @@ func TestClockSkewAdjuster(t *testing.T) {
 
 func TestHostKey(t *testing.T) {
 	testCases := []struct {
-		tag     model.KeyValue
+		tags    []model.KeyValue
 		hostKey string
 	}{
-		{tag: model.String("ip", "1.2.3.4"), hostKey: "1.2.3.4"},
-		{tag: model.String("ipv4", "1.2.3.4"), hostKey: ""},
-		{tag: model.Int64("ip", int64(1<<24|2<<16|3<<8|4)), hostKey: "1.2.3.4"},
-		{tag: model.Binary("ip", []byte{1, 2, 3, 4}), hostKey: "1.2.3.4"},
-		{tag: model.Binary("ip", []byte{0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0xff, 0xff, 1, 2, 3, 4}), hostKey: "1.2.3.4"},
-		{tag: model.Binary("ip", []byte{0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 1, 2, 3, 4}), hostKey: "::102:304"},
-		{tag: model.Binary("ip", []byte{1, 2, 3, 4, 5}), hostKey: ""},
-		{tag: model.Float64("ip", 123.4), hostKey: ""},
+		{tags: []model.KeyValue{model.String("ip", "1.2.3.4")}, hostKey: "1.2.3.4"},
+		{tags: []model.KeyValue{model.String("ipv4", "1.2.3.4")}, hostKey: ""},
+		{
+			tags: []model.KeyValue{
+				model.String("ip", "1.2.3.4"),
+				model.String("jaeger.hostname", "localhost"),
+			},
+			hostKey: "localhost",
+		},
+		{tags: []model.KeyValue{model.Float64("ip", 123.4)}, hostKey: ""},
 	}
 
 	for _, tt := range testCases {
 		testCase := tt // capture loop var
-		t.Run(fmt.Sprintf("%+v", testCase.tag), func(t *testing.T) {
+		t.Run(fmt.Sprintf("%+v", testCase.tags), func(t *testing.T) {
 			span := &model.Span{
 				Process: &model.Process{
 					ServiceName: "some service",
-					Tags:        []model.KeyValue{testCase.tag},
+					Tags:        testCase.tags,
 				},
 			}
 			hostKey := hostKey(span)
