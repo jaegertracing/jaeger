@@ -19,6 +19,8 @@ import (
 
 	"github.com/kr/pretty"
 	"github.com/stretchr/testify/assert"
+
+	"github.com/jaegertracing/jaeger/model"
 )
 
 func TestDefaultTagFilter(t *testing.T) {
@@ -29,6 +31,42 @@ func TestDefaultTagFilter(t *testing.T) {
 	for _, log := range span.Logs {
 		filteredTags = append(filteredTags, DefaultTagFilter.FilterLogFields(log.Fields)...)
 	}
+	if !assert.EqualValues(t, expectedTags, filteredTags) {
+		for _, diff := range pretty.Diff(expectedTags, filteredTags) {
+			t.Log(diff)
+		}
+	}
+}
+
+type onlyStringsFilter struct{}
+
+func (f onlyStringsFilter) filterStringTags(tags model.KeyValues) model.KeyValues {
+	var ret model.KeyValues
+	for _, tag := range tags {
+		if tag.VType == model.StringType {
+			ret = append(ret, tag)
+		}
+	}
+	return ret
+}
+
+func (f onlyStringsFilter) FilterProcessTags(processTags model.KeyValues) model.KeyValues {
+	return f.filterStringTags(processTags)
+}
+
+func (f onlyStringsFilter) FilterTags(tags model.KeyValues) model.KeyValues {
+	return f.filterStringTags(tags)
+}
+
+func (f onlyStringsFilter) FilterLogFields(logFields model.KeyValues) model.KeyValues {
+	return f.filterStringTags(logFields)
+}
+
+func TestChainedTagFilter(t *testing.T) {
+	tags := someTags
+	expectedTags := model.KeyValues{model.String(someStringTagKey, someStringTagValue)}
+	filter := NewChainedTagFilter(DefaultTagFilter, onlyStringsFilter{})
+	filteredTags := filter.FilterProcessTags(tags)
 	if !assert.EqualValues(t, expectedTags, filteredTags) {
 		for _, diff := range pretty.Diff(expectedTags, filteredTags) {
 			t.Log(diff)
