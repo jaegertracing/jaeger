@@ -94,7 +94,7 @@ lint:
 
 .PHONY: install-dep
 install-dep:
-	@which dep > /dev/null || (curl -L -s -o dep https://github.com/golang/dep/releases/download/$(DEP_VER)/dep-linux-amd64 && chmod +x dep && sudo mv dep /usr/local/bin/)
+	@which dep > /dev/null || (mkdir -p $(GOPATH)/src/github.com/golang && cd $(GOPATH)/src/github.com/golang && git clone https://github.com/golang/dep.git && cd dep && git checkout $(DEP_VER) && go install github.com/golang/dep/cmd/dep && export PATH=$PATH:$(GOPATH)/bin)
 
 .PHONY: install
 install: install-dep
