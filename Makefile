@@ -94,8 +94,6 @@ lint:
 
 .PHONY: install-dep
 install-dep:
-	# all we want is: dep version || go get github.com/golang/dep/cmd/dep
-	# but have to be able to pin a specific version
 	@which dep > /dev/null || (curl -L -s -o dep https://github.com/golang/dep/releases/download/$(DEP_VER)/dep-linux-amd64 && chmod +x dep && sudo mv dep /usr/local/bin/)
 
 .PHONY: install
