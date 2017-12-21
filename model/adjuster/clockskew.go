@@ -36,7 +36,8 @@ func ClockSkew() Adjuster {
 		adjuster := &clockSkewAdjuster{
 			trace: trace,
 		}
-		adjuster.buildNodesMap()
+
+		adjuster.buildNodesMap(adjuster.findCommonTag())
 		adjuster.buildSubGraphs()
 		for _, n := range adjuster.roots {
 			skew := clockSkew{hostKey: n.hostKey}
@@ -52,7 +53,8 @@ const (
 )
 
 var (
-	hostKeyTags = []string{"jaeger.hostname", "ip"}
+	// TODO convert process tags to a canonical format somewhere else
+	hostKeyTags = []string{"ip", "hostname", "jaeger.hostname"}
 )
 
 type clockSkewAdjuster struct {
@@ -72,30 +74,51 @@ type node struct {
 	hostKey  string
 }
 
-// hostKey returns a string representation of the host identity that can be used
-// to determine if two spans originated from the same host.
-//
-// TODO convert process tags to a canonical format somewhere else
-func hostKey(span *model.Span) string {
-	var ok bool
-	var tag model.KeyValue
-	for _, tagName := range hostKeyTags {
-		if tag, ok = span.Process.Tags.FindByKey(tagName); !ok {
-			continue
-		}
-
-		if tag.VType != model.StringType {
-			continue
-		}
-
-		return tag.VStr
+func tagStringVal(span *model.Span, tagName string) string {
+	if tagName == "" {
+		return ""
 	}
 
-	return ""
+	var ok bool
+	var tag model.KeyValue
+
+	if tag, ok = span.Process.Tags.FindByKey(tagName); !ok {
+		return ""
+	}
+
+	return tag.VStr
+}
+
+func (a *clockSkewAdjuster) findCommonTag() string {
+	maxTagName := ""
+	maxTagNameCount := 0
+
+	for _, tagName := range hostKeyTags {
+		tagCount := 0
+
+		for _, span := range a.trace.Spans {
+			if tag, ok := span.Process.Tags.FindByKey(tagName); !ok || tag.VStr == "" {
+				continue
+			}
+
+			tagCount++
+		}
+
+		if tagCount > 0 && tagCount == len(a.trace.Spans) {
+			return tagName
+		}
+
+		if tagCount > maxTagNameCount {
+			maxTagName = tagName
+			maxTagNameCount = tagCount
+		}
+	}
+
+	return maxTagName
 }
 
 // buildNodesMap builds a map of span IDs -> node{}.
-func (a *clockSkewAdjuster) buildNodesMap() {
+func (a *clockSkewAdjuster) buildNodesMap(hostKeyTagName string) {
 	a.spans = make(map[model.SpanID]*node)
 	for _, span := range a.trace.Spans {
 		if _, ok := a.spans[span.SpanID]; ok {
@@ -103,7 +126,7 @@ func (a *clockSkewAdjuster) buildNodesMap() {
 		} else {
 			a.spans[span.SpanID] = &node{
 				span:    span,
-				hostKey: hostKey(span),
+				hostKey: tagStringVal(span, hostKeyTagName),
 			}
 		}
 	}

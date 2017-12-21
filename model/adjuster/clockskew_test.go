@@ -195,34 +195,129 @@ func TestClockSkewAdjuster(t *testing.T) {
 	}
 }
 
-func TestHostKey(t *testing.T) {
+func TestFindCommonTag(t *testing.T) {
 	testCases := []struct {
-		tags    []model.KeyValue
-		hostKey string
+		tagKVSlice []model.KeyValues
+		hostKey    string
 	}{
-		{tags: []model.KeyValue{model.String("ip", "1.2.3.4")}, hostKey: "1.2.3.4"},
-		{tags: []model.KeyValue{model.String("ipv4", "1.2.3.4")}, hostKey: ""},
 		{
-			tags: []model.KeyValue{
-				model.String("ip", "1.2.3.4"),
-				model.String("jaeger.hostname", "localhost"),
+			tagKVSlice: []model.KeyValues{
+				{
+					model.String("ip", "1.2.3.4"),
+					model.String("hostname", "localhost"),
+				},
+				{
+					model.String("hostname", "localhost"),
+				},
 			},
-			hostKey: "localhost",
+			hostKey: "hostname",
 		},
-		{tags: []model.KeyValue{model.Float64("ip", 123.4)}, hostKey: ""},
+		{
+			tagKVSlice: []model.KeyValues{
+				{
+					model.String("ip", "1.2.3.4"),
+					model.String("hostname", ""),
+				},
+				{
+					model.String("hostname", "localhost"),
+				},
+			},
+			hostKey: "ip",
+		},
+		{
+			tagKVSlice: []model.KeyValues{
+				{
+					model.String("hostname", "localhost"),
+				},
+				{
+					model.String("jaeger.hostname", "localhost"),
+				},
+				{
+					model.String("ip", "1.2.3.4"),
+				},
+			},
+			hostKey: "ip",
+		},
+		{
+			tagKVSlice: []model.KeyValues{
+				{
+					model.String("hostname", "localhost"),
+				},
+				{
+					model.String("jaeger.hostname", "localhost"),
+				},
+				{
+					model.String("ip", "1.2.3.4"),
+				},
+			},
+			hostKey: "ip",
+		},
+		{
+			tagKVSlice: []model.KeyValues{
+				{
+					model.String("hostname", "localhost"),
+				},
+				{
+					model.String("jaeger.hostname", "localhost"),
+				},
+				{
+					model.Int64("ip", int64(1<<24|2<<16|3<<8|4)),
+				},
+			},
+			hostKey: "hostname",
+		},
+		{
+			tagKVSlice: []model.KeyValues{},
+			hostKey:    "",
+		},
 	}
 
+	// helper function that constructs a trace from a list of span prototypes
+	makeTrace := func(tagKVSlice []model.KeyValues) *model.Trace {
+		trace := &model.Trace{}
+		for _, tags := range tagKVSlice {
+			span := &model.Span{
+				TraceID: model.TraceID{Low: 1},
+				Process: &model.Process{Tags: tags},
+			}
+			trace.Spans = append(trace.Spans, span)
+		}
+
+		return trace
+	}
+
+	cAdjuster := &clockSkewAdjuster{}
 	for _, tt := range testCases {
 		testCase := tt // capture loop var
-		t.Run(fmt.Sprintf("%+v", testCase.tags), func(t *testing.T) {
-			span := &model.Span{
-				Process: &model.Process{
-					ServiceName: "some service",
-					Tags:        testCase.tags,
-				},
-			}
-			hostKey := hostKey(span)
-			assert.Equal(t, testCase.hostKey, hostKey)
+		t.Run(fmt.Sprintf("%+v", testCase.tagKVSlice), func(t *testing.T) {
+			cAdjuster.trace = makeTrace(testCase.tagKVSlice)
+			assert.Equal(t, testCase.hostKey, cAdjuster.findCommonTag())
+		})
+	}
+}
+
+func TestTagStringVal(t *testing.T) {
+	span := &model.Span{
+		TraceID: model.TraceID{Low: 1},
+		Process: &model.Process{
+			Tags: []model.KeyValue{
+				model.Int64("int", 1),
+				model.String("str", "strVal"),
+			},
+		},
+	}
+
+	testCases := map[string]string{
+		"":       "",
+		"int":    "",
+		"absent": "",
+		"str":    "strVal",
+	}
+
+	for tagName, tagVal := range testCases {
+		testCase := tagVal // capture loop var
+		t.Run(fmt.Sprintf("%+v", testCase), func(t *testing.T) {
+			assert.Equal(t, testCase, tagStringVal(span, tagName))
 		})
 	}
 }
