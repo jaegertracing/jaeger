@@ -15,9 +15,7 @@
 package adjuster
 
 import (
-	"encoding/binary"
 	"fmt"
-	"net"
 	"time"
 
 	"github.com/jaegertracing/jaeger/model"
@@ -53,6 +51,10 @@ const (
 	warningFormatInvalidParentID = "invalid parent span IDs=%s; skipping clock skew adjustment"
 )
 
+var (
+	hostKeyTags = []string{"jaeger.hostname", "ip"}
+)
+
 type clockSkewAdjuster struct {
 	trace *model.Trace
 	spans map[model.SpanID]*node
@@ -75,22 +77,20 @@ type node struct {
 //
 // TODO convert process tags to a canonical format somewhere else
 func hostKey(span *model.Span) string {
-	if tag, ok := span.Process.Tags.FindByKey("ip"); ok {
-		if tag.VType == model.StringType {
-			return tag.VStr
+	var ok bool
+	var tag model.KeyValue
+	for _, tagName := range hostKeyTags {
+		if tag, ok = span.Process.Tags.FindByKey(tagName); !ok {
+			continue
 		}
-		if tag.VType == model.Int64Type {
-			var buf [4]byte // avoid heap allocation
-			ip := buf[0:4]  // utils require a slice, not an array
-			binary.BigEndian.PutUint32(ip, uint32(tag.Int64()))
-			return net.IP(ip).String()
+
+		if tag.VType != model.StringType {
+			continue
 		}
-		if tag.VType == model.BinaryType {
-			if l := len(tag.Binary()); l == 4 || l == 16 {
-				return net.IP(tag.Binary()).String()
-			}
-		}
+
+		return tag.VStr
 	}
+
 	return ""
 }
 
