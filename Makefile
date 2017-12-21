@@ -1,5 +1,4 @@
 PROJECT_ROOT=github.com/jaegertracing/jaeger
-TOP_PKGS := $(shell glide novendor | grep -v -e ./thrift-gen/... -e swagger-gen... -e ./examples/... -e ./scripts/...)
 
 # all .go files that don't exist in hidden directories
 ALL_SRC := $(shell find . -name "*.go" | grep -v -e vendor -e thrift-gen -e swagger-gen \
@@ -39,6 +38,8 @@ SWAGGER_IMAGE=quay.io/goswagger/swagger:$(SWAGGER_VER)
 SWAGGER=docker run --rm -it -u ${shell id -u} -v "${PWD}:/go/src/${PROJECT_ROOT}" -w /go/src/${PROJECT_ROOT} $(SWAGGER_IMAGE)
 SWAGGER_GEN_DIR=swagger-gen
 
+DEP_VER=v0.3.2
+
 PASS=$(shell printf "\033[32mPASS\033[0m")
 FAIL=$(shell printf "\033[31mFAIL\033[0m")
 COLORIZE=$(SED) ''/PASS/s//$(PASS)/'' | $(SED) ''/FAIL/s//$(FAIL)/''
@@ -52,7 +53,7 @@ test-and-lint: test fmt lint
 
 .PHONY: go-gen
 go-gen:
-	go generate $(TOP_PKGS)
+	go generate $(ALL_PKGS)
 
 .PHONY: md-to-godoc-gen
 md-to-godoc-gen:
@@ -66,7 +67,7 @@ clean:
 
 .PHONY: test
 test: go-gen
-	bash -c "set -e; set -o pipefail; $(GOTEST) $(TOP_PKGS) | $(COLORIZE)"
+	bash -c "set -e; set -o pipefail; $(GOTEST) $(ALL_PKGS) | $(COLORIZE)"
 
 .PHONY: integration-test
 integration-test: go-gen
@@ -83,19 +84,19 @@ fmt:
 
 .PHONY: lint
 lint:
-	$(GOVET) $(TOP_PKGS)
+	$(GOVET) $(ALL_PKGS)
 	@cat /dev/null > $(LINT_LOG)
-	@$(foreach pkg, $(TOP_PKGS), $(GOLINT) $(pkg) | grep -v -e pkg/es/wrapper.go -e /mocks/ -e thrift-gen -e thrift-0.9.2 >> $(LINT_LOG) || true;)
+	@$(foreach pkg, $(ALL_PKGS), $(GOLINT) $(pkg) | grep -v -e pkg/es/wrapper.go -e /mocks/ -e thrift-gen -e thrift-0.9.2 >> $(LINT_LOG) || true;)
 	@[ ! -s "$(LINT_LOG)" ] || (echo "Lint Failures" | cat - $(LINT_LOG) && false)
 	@$(GOFMT) -e -s -l $(ALL_SRC) > $(FMT_LOG)
 	@./scripts/updateLicenses.sh >> $(FMT_LOG)
 	@[ ! -s "$(FMT_LOG)" ] || (echo "Go fmt or license check failures, run 'make fmt'" | cat - $(FMT_LOG) && false)
 
-.PHONY: install-glide
-install-glide:
-	# all we want is: glide --version || go get github.com/Masterminds/glide
-	# but have to pin to 0.12.3 due to https://github.com/Masterminds/glide/issues/745
-	@which glide > /dev/null || (mkdir -p $(GOPATH)/src/github.com/Masterminds && cd $(GOPATH)/src/github.com/Masterminds && git clone https://github.com/Masterminds/glide.git && cd glide && git checkout v0.12.3 && go install)
+.PHONY: install-dep
+install-dep:
+	# all we want is: dep version || go get github.com/golang/dep/cmd/dep
+	# but have to be able to pin a specific version
+	@which dep > /dev/null || (mkdir -p $(GOPATH)/src/github.com/golang && cd $(GOPATH)/src/github.com/golang && git clone git clone https://github.com/golang/dep.git && cd dep && git checkout $(DEP_VER) && go install)
 
 .PHONY: install
 install: install-dep
@@ -176,7 +177,7 @@ build-crossdock-fresh: build-crossdock-linux
 
 .PHONY: cover
 cover:
-	./scripts/cover.sh $(shell go list $(TOP_PKGS))
+	./scripts/cover.sh $(shell go list $(ALL_PKGS))
 	go tool cover -html=cover.out -o cover.html
 
 .PHONY: install-ci
@@ -191,7 +192,7 @@ install-ci: install
 test-ci: build-examples lint
 	@echo pre-compiling tests
 	@time go test -i $(ALL_PKGS)
-	@./scripts/cover.sh $(shell go list $(TOP_PKGS))
+	@./scripts/cover.sh $(shell go list $(ALL_PKGS))
 
 # TODO at the moment we're not generating tchan_*.go files
 .PHONY: thrift
