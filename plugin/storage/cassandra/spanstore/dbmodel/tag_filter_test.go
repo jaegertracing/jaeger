@@ -31,11 +31,7 @@ func TestDefaultTagFilter(t *testing.T) {
 	for _, log := range span.Logs {
 		filteredTags = append(filteredTags, DefaultTagFilter.FilterLogFields(log.Fields)...)
 	}
-	if !assert.EqualValues(t, expectedTags, filteredTags) {
-		for _, diff := range pretty.Diff(expectedTags, filteredTags) {
-			t.Log(diff)
-		}
-	}
+	compareTags(t, expectedTags, filteredTags)
 }
 
 type onlyStringsFilter struct{}
@@ -63,12 +59,19 @@ func (f onlyStringsFilter) FilterLogFields(logFields model.KeyValues) model.KeyV
 }
 
 func TestChainedTagFilter(t *testing.T) {
-	tags := someTags
 	expectedTags := model.KeyValues{model.String(someStringTagKey, someStringTagValue)}
 	filter := NewChainedTagFilter(DefaultTagFilter, onlyStringsFilter{})
-	filteredTags := filter.FilterProcessTags(tags)
-	if !assert.EqualValues(t, expectedTags, filteredTags) {
-		for _, diff := range pretty.Diff(expectedTags, filteredTags) {
+	filteredTags := filter.FilterProcessTags(someTags)
+	compareTags(t, expectedTags, filteredTags)
+	filteredTags = filter.FilterTags(someTags)
+	compareTags(t, expectedTags, filteredTags)
+	filteredTags = filter.FilterLogFields(someTags)
+	compareTags(t, expectedTags, filteredTags)
+}
+
+func compareTags(t *testing.T, expected, actual model.KeyValues) {
+	if !assert.EqualValues(t, expected, actual) {
+		for _, diff := range pretty.Diff(expected, actual) {
 			t.Log(diff)
 		}
 	}
