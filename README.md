@@ -101,4 +101,3 @@ If you would like to add your organization to the list, please comment on our
 [gitter-img]: http://img.shields.io/badge/gitter-join%20chat%20%E2%86%92-brightgreen.svg
 
 [//]: # (md-to-godoc-ignore)
-
