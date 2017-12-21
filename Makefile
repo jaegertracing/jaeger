@@ -96,7 +96,7 @@ lint:
 install-dep:
 	# all we want is: dep version || go get github.com/golang/dep/cmd/dep
 	# but have to be able to pin a specific version
-	@which dep > /dev/null || (mkdir -p $(GOPATH)/src/github.com/golang && cd $(GOPATH)/src/github.com/golang && git clone git clone https://github.com/golang/dep.git && cd dep && git checkout $(DEP_VER) && go install)
+	@which dep > /dev/null || (mkdir -p $(GOPATH)/src/github.com/golang && cd $(GOPATH)/src/github.com/golang && git clone https://github.com/golang/dep.git && cd dep && git checkout $(DEP_VER) && go install)
 
 .PHONY: install
 install: install-dep
