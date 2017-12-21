@@ -98,8 +98,8 @@ install-glide:
 	@which glide > /dev/null || (mkdir -p $(GOPATH)/src/github.com/Masterminds && cd $(GOPATH)/src/github.com/Masterminds && git clone https://github.com/Masterminds/glide.git && cd glide && git checkout v0.12.3 && go install)
 
 .PHONY: install
-install: install-glide
-	glide install
+install: install-dep
+	dep ensure -v -vendor-only
 
 .PHONY: build-examples
 build-examples:
