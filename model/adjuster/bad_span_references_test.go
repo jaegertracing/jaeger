@@ -25,11 +25,11 @@ import (
 func TestSpanReferencesAdjuster(t *testing.T) {
 	trace := &model.Trace{
 		Spans: []*model.Span{
-			&model.Span{},
-			&model.Span{
+			{},
+			{
 				References: []model.SpanRef{},
 			},
-			&model.Span{
+			{
 				References: []model.SpanRef{
 					{TraceID: model.TraceID{High: 0, Low: 1}},
 					{TraceID: model.TraceID{High: 1, Low: 0}},
