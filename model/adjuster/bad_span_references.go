@@ -20,10 +20,10 @@ import (
 	"github.com/jaegertracing/jaeger/model"
 )
 
-// SpanReferences creates am adjuster that removes invalid span references, e.g. with traceID==0
+// SpanReferences creates an adjuster that removes invalid span references, e.g. with traceID==0
 func SpanReferences() Adjuster {
 	return Func(func(trace *model.Trace) (*model.Trace, error) {
-		adjuster := &spanReferenceAdjuster{}
+		adjuster := spanReferenceAdjuster{}
 		for _, span := range trace.Spans {
 			adjuster.adjust(span)
 		}
@@ -33,7 +33,7 @@ func SpanReferences() Adjuster {
 
 type spanReferenceAdjuster struct{}
 
-func (s *spanReferenceAdjuster) adjust(span *model.Span) *model.Span {
+func (s spanReferenceAdjuster) adjust(span *model.Span) *model.Span {
 	foundInvalid := false
 	for i := range span.References {
 		if !s.valid(&span.References[i]) {
@@ -56,6 +56,6 @@ func (s *spanReferenceAdjuster) adjust(span *model.Span) *model.Span {
 	return span
 }
 
-func (s *spanReferenceAdjuster) valid(ref *model.SpanRef) bool {
+func (s spanReferenceAdjuster) valid(ref *model.SpanRef) bool {
 	return ref.TraceID.High != 0 || ref.TraceID.Low != 0
 }
