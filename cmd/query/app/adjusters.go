@@ -25,4 +25,5 @@ var StandardAdjusters = []adjuster.Adjuster{
 	adjuster.ClockSkew(),
 	adjuster.IPTagAdjuster(),
 	adjuster.SortLogFields(),
+	adjuster.SpanReferences(),
 }
