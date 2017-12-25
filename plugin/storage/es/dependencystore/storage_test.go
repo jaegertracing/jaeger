@@ -26,10 +26,10 @@ import (
 	"go.uber.org/zap"
 	"gopkg.in/olivere/elastic.v5"
 
-	"github.com/uber/jaeger/model"
-	"github.com/uber/jaeger/pkg/es/mocks"
-	"github.com/uber/jaeger/pkg/testutils"
-	"github.com/uber/jaeger/storage/dependencystore"
+	"github.com/jaegertracing/jaeger/model"
+	"github.com/jaegertracing/jaeger/pkg/es/mocks"
+	"github.com/jaegertracing/jaeger/pkg/testutils"
+	"github.com/jaegertracing/jaeger/storage/dependencystore"
 )
 
 type depStorageTest struct {
@@ -174,7 +174,7 @@ func createSearchResult(dependencyLink string) *elastic.SearchResult {
 }
 
 func TestGetIndices(t *testing.T) {
-	fixedTime := time.Date(1995, time.April, 21, 4, 12, 19, 95, time.Local)
+	fixedTime := time.Date(1995, time.April, 21, 4, 12, 19, 95, time.UTC)
 	testCases := []struct {
 		expected []string
 		lookback time.Duration

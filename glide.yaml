@@ -1,4 +1,4 @@
-package: github.com/uber/jaeger
+package: github.com/jaegertracing/jaeger
 import:
 - package: github.com/apache/thrift
   version: 0.9.3
@@ -13,11 +13,11 @@ import:
 - package: go.uber.org/zap
   version: ^1
 - package: github.com/uber/jaeger-client-go
-  version: ^2.7.0
+  version: ^2.11.0
   subpackages:
   - transport
 - package: github.com/uber/jaeger-lib
-  version: ^1.0.0
+  version: ^1.2.1
 - package: github.com/uber/tchannel-go
   version: v1.1.0
   subpackages:
@@ -40,5 +40,16 @@ import:
   - metrics
 - package: github.com/olivere/elastic
   version: v5.0.39
+- package: github.com/spf13/pflag
+  version: ^1
 - package: github.com/spf13/cobra
+  version: 0.0.1
 - package: github.com/spf13/viper
+  version: ^1
+- package: github.com/go-openapi/errors
+- package: github.com/go-openapi/runtime
+- package: github.com/go-openapi/spec
+- package: github.com/go-openapi/strfmt
+- package: github.com/go-openapi/swag
+- package: github.com/go-openapi/validate
+- package: github.com/go-openapi/loads

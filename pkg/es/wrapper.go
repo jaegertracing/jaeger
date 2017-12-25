@@ -180,7 +180,7 @@ type ESMultiSearchService struct {
 	multiSearchService *elastic.MultiSearchService
 }
 
-// WrapESSearchService creates an ESSearchService out of *elastic.ESSearchService.
+// WrapESMultiSearchService creates an ESSearchService out of *elastic.ESSearchService.
 func WrapESMultiSearchService(multiSearchService *elastic.MultiSearchService) ESMultiSearchService {
 	return ESMultiSearchService{multiSearchService: multiSearchService}
 }

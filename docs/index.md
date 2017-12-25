@@ -4,7 +4,7 @@
 
 Welcome to Jaeger's documentation portal! Below, you'll find information for beginners and experienced Jaeger users.
 
-If you can't find what you are looking for, or have an issue not covered here, we'd love to hear from you either on [Github](https://github.com/uber/jaeger/issues), [Gitter chat](https://gitter.im/jaegertracing/Lobby), or on our [mailing list](https://groups.google.com/forum/#!forum/jaeger-tracing).
+If you can't find what you are looking for, or have an issue not covered here, we'd love to hear from you either on [Github](https://github.com/jaegertracing/jaeger/issues), [Gitter chat](https://gitter.im/jaegertracing/Lobby), or on our [mailing list](https://groups.google.com/forum/#!forum/jaeger-tracing).
 
 ## About
 Jaeger, inspired by [Dapper][dapper] and [OpenZipkin](http://zipkin.io),
@@ -23,16 +23,17 @@ for the architectural choices made in Jaeger.
 ## Features
 
   * [OpenTracing](http://opentracing.io/) compatible data model and instrumentation libraries
-    * in [Go](https://github.com/uber/jaeger-client-go), [Java](https://github.com/uber/jaeger-client-java), [Node](https://github.com/uber/jaeger-client-node) and [Python](https://github.com/uber/jaeger-client-python)
+    * in [Go](https://github.com/jaegertracing/jaeger-client-go), [Java](https://github.com/jaegertracing/jaeger-client-java), [Node](https://github.com/jaegertracing/jaeger-client-node), [Python](https://github.com/jaegertracing/jaeger-client-python)
+    and [C++](https://github.com/jaegertracing/cpp-client)
   * Uses consistent upfront sampling with individual per service/endpoint probabilities
   * Adaptive sampling (coming soon)
   * Post-collection data processing pipeline (coming soon)
 
 ## Technical Specs
 
-  * Backend components implemented in Go
+  * Backend components implemented in Go 1.9
   * React/Javascript UI
-  * [Cassandra 3.x](https://github.com/uber/jaeger/tree/master/plugin/storage/cassandra), [ElasticSearch](https://github.com/uber/jaeger/tree/master/plugin/storage/es) as persistent storage (more storage backends coming soon)
+  * [Cassandra 3.x](https://github.com/jaegertracing/jaeger/tree/master/plugin/storage/cassandra), [ElasticSearch](https://github.com/jaegertracing/jaeger/tree/master/plugin/storage/es) as persistent storage (more storage backends coming soon)
 
 ## Quick Start
 See [running a docker all in one image](getting_started.md#all-in-one-docker-image).

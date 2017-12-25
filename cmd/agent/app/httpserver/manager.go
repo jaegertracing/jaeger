@@ -15,8 +15,8 @@
 package httpserver
 
 import (
-	"github.com/uber/jaeger/thrift-gen/baggage"
-	"github.com/uber/jaeger/thrift-gen/sampling"
+	"github.com/jaegertracing/jaeger/thrift-gen/baggage"
+	"github.com/jaegertracing/jaeger/thrift-gen/sampling"
 )
 
 // ClientConfigManager decides:

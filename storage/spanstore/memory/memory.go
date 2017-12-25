@@ -19,9 +19,9 @@ import (
 	"sync"
 	"time"
 
-	"github.com/uber/jaeger/model"
-	"github.com/uber/jaeger/model/adjuster"
-	"github.com/uber/jaeger/storage/spanstore"
+	"github.com/jaegertracing/jaeger/model"
+	"github.com/jaegertracing/jaeger/model/adjuster"
+	"github.com/jaegertracing/jaeger/storage/spanstore"
 )
 
 var errTraceNotFound = errors.New("Trace was not found")
@@ -180,6 +180,15 @@ func (m *Store) validTrace(trace *model.Trace, query *spanstore.TraceQueryParame
 	return false
 }
 
+func findKeyValueMatch(kvs model.KeyValues, key, value string) (model.KeyValue, bool) {
+	for _, kv := range kvs {
+		if kv.Key == key && kv.AsString() == value {
+			return kv, true
+		}
+	}
+	return model.KeyValue{}, false
+}
+
 func (m *Store) validSpan(span *model.Span, query *spanstore.TraceQueryParameters) bool {
 	if query.ServiceName != span.Process.ServiceName {
 		return false
@@ -201,22 +210,14 @@ func (m *Store) validSpan(span *model.Span, query *spanstore.TraceQueryParameter
 	}
 	spanKVs := m.flattenTags(span)
 	for queryK, queryV := range query.Tags {
-		keyValueFoundAndMatches := false
-		// (NB): we cannot find the KeyValue.Find function because there can be multiple tags with the same key
-		for _, keyValue := range spanKVs {
-			if keyValue.Key == queryK && keyValue.AsString() == queryV {
-				keyValueFoundAndMatches = true
-				break
-			}
-		}
-		if !keyValueFoundAndMatches {
+		// (NB): we cannot use the KeyValues.FindKey function because there can be multiple tags with the same key
+		if _, ok := findKeyValueMatch(spanKVs, queryK, queryV); !ok {
 			return false
 		}
 	}
 	return true
 }
 
-// TODO: this is a good candidate function to have on a span
 func (m *Store) flattenTags(span *model.Span) model.KeyValues {
 	retMe := span.Tags
 	retMe = append(retMe, span.Process.Tags...)

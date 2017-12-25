@@ -23,7 +23,7 @@ import (
 
 	"github.com/uber/jaeger-lib/metrics"
 
-	tSampling "github.com/uber/jaeger/thrift-gen/sampling"
+	tSampling "github.com/jaegertracing/jaeger/thrift-gen/sampling"
 )
 
 const mimeTypeApplicationJSON = "application/json"
@@ -59,25 +59,25 @@ type httpHandler struct {
 	manager ClientConfigManager
 	metrics struct {
 		// Number of good sampling requests
-		SamplingRequestSuccess metrics.Counter `metric:"http-server.requests" tags:"result=ok,type=sampling"`
+		SamplingRequestSuccess metrics.Counter `metric:"http-server.requests" tags:"type=sampling"`
 
 		// Number of good sampling requests against the old endpoint / using Thrift 0.9.2 enum codes
-		LegacySamplingRequestSuccess metrics.Counter `metric:"http-server.requests" tags:"result=ok,type=sampling-legacy"`
+		LegacySamplingRequestSuccess metrics.Counter `metric:"http-server.requests" tags:"type=sampling-legacy"`
 
 		// Number of good baggage requests
-		BaggageRequestSuccess metrics.Counter `metric:"http-server.requests" tags:"result=ok,type=baggage"`
+		BaggageRequestSuccess metrics.Counter `metric:"http-server.requests" tags:"type=baggage"`
 
 		// Number of bad requests (400s)
-		BadRequest metrics.Counter `metric:"http-server.requests" tags:"result=err,status=4xx"`
+		BadRequest metrics.Counter `metric:"http-server.errors" tags:"status=4xx,source=all"`
 
 		// Number of collector proxy failures
-		TCollectorProxyFailures metrics.Counter `metric:"http-server.requests" tags:"result=err,status=5xx,type=tcollector-proxy"`
+		TCollectorProxyFailures metrics.Counter `metric:"http-server.errors" tags:"status=5xx,source=tcollector-proxy"`
 
 		// Number of bad responses due to malformed thrift
-		BadThriftFailures metrics.Counter `metric:"http-server.requests" tags:"result=err,status=5xx,type=thrift"`
+		BadThriftFailures metrics.Counter `metric:"http-server.errors" tags:"status=5xx,source=thrift"`
 
 		// Number of failed response writes from http server
-		WriteFailures metrics.Counter `metric:"http-server.requests" tags:"result=err,status=5xx,type=write"`
+		WriteFailures metrics.Counter `metric:"http-server.errors" tags:"status=5xx,source=write"`
 	}
 }
 

@@ -23,7 +23,7 @@
         "vNum":53931
       },
       {
-        "key":"haproxy.sa",
+        "key":"someBool",
         "vType":"bool",
         "vNum":1
       },
@@ -121,7 +121,7 @@
         "vNum":53931
       },
       {
-        "key":"haproxy.sa",
+        "key":"someBool",
         "vType":"bool",
         "vNum":1
       },

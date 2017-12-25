@@ -25,7 +25,7 @@ import (
 
 	"go.uber.org/zap"
 
-	ui "github.com/uber/jaeger/model/json"
+	ui "github.com/jaegertracing/jaeger/model/json"
 )
 
 // QueryService is the service used to query cassandra tables for traces
@@ -64,13 +64,14 @@ func (s *queryService) GetTraces(serviceName, operation string, tags map[string]
 	for k, v := range tags {
 		values.Add("tag", k+":"+v)
 	}
-	resp, err := http.Get(fmt.Sprintf(getTraceURL(s.url), values.Encode()))
+	url := fmt.Sprintf(getTraceURL(s.url), values.Encode())
+	resp, err := http.Get(url)
 	if err != nil {
 		return nil, err
 	}
 	defer resp.Body.Close()
 	body, _ := ioutil.ReadAll(resp.Body)
-	s.logger.Info("Retrieved trace from query", zap.String("body", string(body)))
+	s.logger.Info("Retrieved trace from query", zap.String("body", string(body)), zap.String("url", url))
 
 	var queryResponse response
 	if err = json.Unmarshal(body, &queryResponse); err != nil {

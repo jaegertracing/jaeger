@@ -26,12 +26,12 @@ import (
 	"go.uber.org/zap"
 	"gopkg.in/olivere/elastic.v5"
 
+	"github.com/jaegertracing/jaeger/model"
+	esJson "github.com/jaegertracing/jaeger/model/json"
+	"github.com/jaegertracing/jaeger/pkg/es/mocks"
+	"github.com/jaegertracing/jaeger/pkg/testutils"
+	"github.com/jaegertracing/jaeger/storage/spanstore"
 	"github.com/uber/jaeger-lib/metrics"
-	"github.com/uber/jaeger/model"
-	esJson "github.com/uber/jaeger/model/json"
-	"github.com/uber/jaeger/pkg/es/mocks"
-	"github.com/uber/jaeger/pkg/testutils"
-	"github.com/uber/jaeger/storage/spanstore"
 )
 
 var exampleESSpan = []byte(
@@ -144,7 +144,7 @@ func TestSpanReader_GetTraceQueryError(t *testing.T) {
 	})
 }
 
-func TestSpanReader_GetTraceNilHitsError(t *testing.T) {
+func TestSpanReader_GetTraceNilHits(t *testing.T) {
 	withSpanReader(func(r *spanReaderTest) {
 		var hits []*elastic.SearchHit
 		searchHits := &elastic.SearchHits{Hits: hits}
@@ -158,7 +158,7 @@ func TestSpanReader_GetTraceNilHitsError(t *testing.T) {
 			}, nil)
 
 		trace, err := r.reader.GetTrace(model.TraceID{Low: 1})
-		require.EqualError(t, err, "No hits in read results found")
+		require.EqualError(t, err, "No trace with that ID found")
 		require.Nil(t, trace)
 	})
 }
@@ -243,7 +243,7 @@ func TestSpanReader_esJSONtoJSONSpanModelError(t *testing.T) {
 }
 
 func TestSpanReaderFindIndices(t *testing.T) {
-	today := time.Date(1995, time.April, 21, 4, 12, 19, 95, time.Local)
+	today := time.Date(1995, time.April, 21, 4, 12, 19, 95, time.UTC)
 	yesterday := today.AddDate(0, 0, -1)
 	twoDaysAgo := today.AddDate(0, 0, -2)
 
@@ -841,5 +841,30 @@ func TestSpanReader_buildTagQuery(t *testing.T) {
 		json.Unmarshal([]byte(expectedStr), &expected)
 
 		assert.EqualValues(t, expected, actual)
+	})
+}
+
+func TestSpanReader_GetEmptyIndex(t *testing.T) {
+	withSpanReader(func(r *spanReaderTest) {
+		mockSearchService(r).
+			Return(&elastic.SearchResult{}, nil)
+		mockMultiSearchService(r).
+			Return(&elastic.MultiSearchResult{
+				Responses: []*elastic.SearchResult{},
+			}, nil)
+
+		traceQuery := &spanstore.TraceQueryParameters{
+			ServiceName: serviceName,
+			Tags: map[string]string{
+				"hello": "world",
+			},
+			StartTimeMin: time.Now().Add(-1 * time.Hour),
+			StartTimeMax: time.Now(),
+			NumTraces:    2,
+		}
+
+		services, err := r.reader.FindTraces(traceQuery)
+		require.NoError(t, err)
+		assert.Empty(t, services)
 	})
 }

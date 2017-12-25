@@ -15,13 +15,14 @@
 package config
 
 import (
+	"crypto/tls"
 	"fmt"
 	"time"
 
 	"github.com/gocql/gocql"
 
-	"github.com/uber/jaeger/pkg/cassandra"
-	gocqlw "github.com/uber/jaeger/pkg/cassandra/gocql"
+	"github.com/jaegertracing/jaeger/pkg/cassandra"
+	gocqlw "github.com/jaegertracing/jaeger/pkg/cassandra/gocql"
 )
 
 // Configuration describes the configuration properties needed to connect to a Cassandra cluster
@@ -36,6 +37,7 @@ type Configuration struct {
 	Consistency        string        `yaml:"consistency"`
 	Port               int           `yaml:"port"`
 	Authenticator      Authenticator `yaml:"authenticator"`
+	TLS                TLS
 }
 
 // Authenticator holds the authentication properties needed to connect to a Cassandra cluster
@@ -48,6 +50,16 @@ type Authenticator struct {
 type BasicAuthenticator struct {
 	Username string `yaml:"username"`
 	Password string `yaml:"password"`
+}
+
+// TLS Config
+type TLS struct {
+	Enabled                bool
+	ServerName             string
+	CertPath               string
+	KeyPath                string
+	CaPath                 string
+	EnableHostVerification bool
 }
 
 // ApplyDefaults copies settings from source unless its own value is non-zero.
@@ -117,6 +129,17 @@ func (c *Configuration) NewCluster() *gocql.ClusterConfig {
 		cluster.Authenticator = gocql.PasswordAuthenticator{
 			Username: c.Authenticator.Basic.Username,
 			Password: c.Authenticator.Basic.Password,
+		}
+	}
+	if c.TLS.Enabled {
+		cluster.SslOpts = &gocql.SslOptions{
+			Config: tls.Config{
+				ServerName: c.TLS.ServerName,
+			},
+			CertPath:               c.TLS.CertPath,
+			KeyPath:                c.TLS.KeyPath,
+			CaPath:                 c.TLS.CaPath,
+			EnableHostVerification: c.TLS.EnableHostVerification,
 		}
 	}
 	return cluster

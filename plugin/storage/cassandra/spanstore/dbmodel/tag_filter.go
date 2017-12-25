@@ -15,16 +15,46 @@
 package dbmodel
 
 import (
-	"github.com/uber/jaeger/model"
+	"github.com/jaegertracing/jaeger/model"
 )
-
-// TODO (black-adder) add a chain filter
 
 // TagFilter filters out any tags that should not be indexed.
 type TagFilter interface {
 	FilterProcessTags(processTags model.KeyValues) model.KeyValues
 	FilterTags(tags model.KeyValues) model.KeyValues
 	FilterLogFields(logFields model.KeyValues) model.KeyValues
+}
+
+// ChainedTagFilter applies multiple tag filters in serial fashion.
+type ChainedTagFilter []TagFilter
+
+// NewChainedTagFilter creates a TagFilter from the variadic list of passed TagFilter.
+func NewChainedTagFilter(filters ...TagFilter) ChainedTagFilter {
+	return filters
+}
+
+// FilterProcessTags calls each FilterProcessTags.
+func (tf ChainedTagFilter) FilterProcessTags(processTags model.KeyValues) model.KeyValues {
+	for _, f := range tf {
+		processTags = f.FilterProcessTags(processTags)
+	}
+	return processTags
+}
+
+// FilterTags calls each FilterTags
+func (tf ChainedTagFilter) FilterTags(tags model.KeyValues) model.KeyValues {
+	for _, f := range tf {
+		tags = f.FilterTags(tags)
+	}
+	return tags
+}
+
+// FilterLogFields calls each FilterLogFields
+func (tf ChainedTagFilter) FilterLogFields(logFields model.KeyValues) model.KeyValues {
+	for _, f := range tf {
+		logFields = f.FilterProcessTags(logFields)
+	}
+	return logFields
 }
 
 // DefaultTagFilter returns a filter that retrieves all tags from span.Tags, span.Logs, and span.Process.

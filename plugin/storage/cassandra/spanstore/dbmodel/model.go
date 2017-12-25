@@ -18,7 +18,7 @@ import (
 	"bytes"
 	"encoding/binary"
 
-	"github.com/uber/jaeger/model"
+	"github.com/jaegertracing/jaeger/model"
 )
 
 // TraceID is a serializable form of model.TraceID

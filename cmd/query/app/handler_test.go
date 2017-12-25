@@ -29,15 +29,16 @@ import (
 	"github.com/gorilla/mux"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
+	"github.com/stretchr/testify/require"
 	"go.uber.org/zap"
 
+	"github.com/jaegertracing/jaeger/model"
+	"github.com/jaegertracing/jaeger/model/adjuster"
+	ui "github.com/jaegertracing/jaeger/model/json"
+	depsmocks "github.com/jaegertracing/jaeger/storage/dependencystore/mocks"
+	"github.com/jaegertracing/jaeger/storage/spanstore"
+	spanstoremocks "github.com/jaegertracing/jaeger/storage/spanstore/mocks"
 	jaeger "github.com/uber/jaeger-client-go"
-	"github.com/uber/jaeger/model"
-	"github.com/uber/jaeger/model/adjuster"
-	ui "github.com/uber/jaeger/model/json"
-	depsmocks "github.com/uber/jaeger/storage/dependencystore/mocks"
-	"github.com/uber/jaeger/storage/spanstore"
-	spanstoremocks "github.com/uber/jaeger/storage/spanstore/mocks"
 )
 
 const millisToNanosMultiplier = int64(time.Millisecond / time.Nanosecond)
@@ -137,23 +138,62 @@ func TestGetTraceSuccess(t *testing.T) {
 	assert.Len(t, response.Errors, 0)
 }
 
-func TestTracing(t *testing.T) {
-	reporter := jaeger.NewInMemoryReporter()
-	jaegerTracer, jaegerCloser := jaeger.NewTracer("test", jaeger.NewConstSampler(true), reporter)
-	defer jaegerCloser.Close()
+func TestGetTrace(t *testing.T) {
+	testCases := []struct {
+		suffix      string
+		numSpanRefs int
+	}{
+		{suffix: "", numSpanRefs: 0},
+		{suffix: "?raw=true", numSpanRefs: 1}, // bad span reference is not filtered out
+		{suffix: "?raw=false", numSpanRefs: 0},
+	}
 
-	server, readMock, _ := initializeTestServer(HandlerOptions.Tracer(jaegerTracer))
-	defer server.Close()
-	readMock.On("GetTrace", mock.AnythingOfType("model.TraceID")).
-		Return(mockTrace, nil).Once()
+	makeMockTrace := func(t *testing.T) *model.Trace {
+		bytes, err := json.Marshal(mockTrace)
+		require.NoError(t, err)
+		var trace *model.Trace
+		require.NoError(t, json.Unmarshal(bytes, &trace))
+		trace.Spans[1].References = []model.SpanRef{
+			{TraceID: model.TraceID{High: 0, Low: 0}},
+		}
+		return trace
+	}
 
-	var response structuredResponse
-	err := getJSON(server.URL+`/api/traces/123456`, &response)
-	assert.NoError(t, err)
-	assert.Len(t, response.Errors, 0)
+	extractTraces := func(t *testing.T, response *structuredResponse) []ui.Trace {
+		var traces []ui.Trace
+		bytes, err := json.Marshal(response.Data)
+		require.NoError(t, err)
+		err = json.Unmarshal(bytes, &traces)
+		require.NoError(t, err)
+		return traces
+	}
 
-	assert.Len(t, reporter.GetSpans(), 1)
-	assert.Equal(t, "/api/traces/{traceID}", reporter.GetSpans()[0].(*jaeger.Span).OperationName())
+	for _, tc := range testCases {
+		testCase := tc // capture loop var
+		t.Run(testCase.suffix, func(t *testing.T) {
+			reporter := jaeger.NewInMemoryReporter()
+			jaegerTracer, jaegerCloser := jaeger.NewTracer("test", jaeger.NewConstSampler(true), reporter)
+			defer jaegerCloser.Close()
+
+			server, readMock, _ := initializeTestServer(HandlerOptions.Tracer(jaegerTracer))
+			defer server.Close()
+
+			readMock.On("GetTrace", model.TraceID{Low: 0x123456abc}).
+				Return(makeMockTrace(t), nil).Once()
+
+			var response structuredResponse
+			err := getJSON(server.URL+`/api/traces/123456aBC`+testCase.suffix, &response) // trace ID in mixed lower/upper case
+			assert.NoError(t, err)
+			assert.Len(t, response.Errors, 0)
+
+			assert.Len(t, reporter.GetSpans(), 1, "HTTP request was traced and span reported")
+			assert.Equal(t, "/api/traces/{traceID}", reporter.GetSpans()[0].(*jaeger.Span).OperationName())
+
+			traces := extractTraces(t, &response)
+			assert.Len(t, traces[0].Spans, 2)
+			assert.Len(t, traces[0].Spans[1].References, testCase.numSpanRefs)
+		})
+	}
 }
 
 func TestGetTraceDBFailure(t *testing.T) {

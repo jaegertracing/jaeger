@@ -35,10 +35,10 @@ func AddFlags(v *viper.Viper, command *cobra.Command, inits ...func(*flag.FlagSe
 	for i := range inits {
 		inits[i](flagSet)
 	}
-	command.PersistentFlags().AddGoFlagSet(flagSet)
+	command.Flags().AddGoFlagSet(flagSet)
 
 	configureViper(v)
-	v.BindPFlags(command.PersistentFlags())
+	v.BindPFlags(command.Flags())
 	return v, command
 }
 

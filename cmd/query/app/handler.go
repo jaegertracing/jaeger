@@ -27,13 +27,13 @@ import (
 	"github.com/pkg/errors"
 	"go.uber.org/zap"
 
-	"github.com/uber/jaeger/model"
-	"github.com/uber/jaeger/model/adjuster"
-	uiconv "github.com/uber/jaeger/model/converter/json"
-	ui "github.com/uber/jaeger/model/json"
-	"github.com/uber/jaeger/pkg/multierror"
-	"github.com/uber/jaeger/storage/dependencystore"
-	"github.com/uber/jaeger/storage/spanstore"
+	"github.com/jaegertracing/jaeger/model"
+	"github.com/jaegertracing/jaeger/model/adjuster"
+	uiconv "github.com/jaegertracing/jaeger/model/converter/json"
+	ui "github.com/jaegertracing/jaeger/model/json"
+	"github.com/jaegertracing/jaeger/pkg/multierror"
+	"github.com/jaegertracing/jaeger/storage/dependencystore"
+	"github.com/jaegertracing/jaeger/storage/spanstore"
 )
 
 const (
@@ -211,7 +211,7 @@ func (aH *APIHandler) search(w http.ResponseWriter, r *http.Request) {
 
 	uiTraces := make([]*ui.Trace, len(tracesFromStorage))
 	for i, v := range tracesFromStorage {
-		uiTrace, uiErr := aH.convertModelToUI(v)
+		uiTrace, uiErr := aH.convertModelToUI(v, true)
 		if uiErr != nil {
 			uiErrors = append(uiErrors, *uiErr)
 		}
@@ -275,11 +275,14 @@ func (aH *APIHandler) dependencies(w http.ResponseWriter, r *http.Request) {
 	aH.writeJSON(w, &structuredRes)
 }
 
-func (aH *APIHandler) convertModelToUI(traceFromStorage *model.Trace) (*ui.Trace, *structuredError) {
+func (aH *APIHandler) convertModelToUI(trace *model.Trace, adjust bool) (*ui.Trace, *structuredError) {
 	var errors []error
-	trace, err := aH.adjuster.Adjust(traceFromStorage)
-	if err != nil {
-		errors = append(errors, err)
+	if adjust {
+		var err error
+		trace, err = aH.adjuster.Adjust(trace)
+		if err != nil {
+			errors = append(errors, err)
+		}
 	}
 	uiTrace := uiconv.FromDomain(trace)
 	var uiError *structuredError
@@ -354,7 +357,7 @@ func (aH *APIHandler) getTraceFromReaders(
 ) {
 	aH.withTraceFromReader(w, r, reader, backupReader, func(trace *model.Trace) {
 		var uiErrors []structuredError
-		uiTrace, uiErr := aH.convertModelToUI(trace)
+		uiTrace, uiErr := aH.convertModelToUI(trace, shouldAdjust(r))
 		if uiErr != nil {
 			uiErrors = append(uiErrors, *uiErr)
 		}
@@ -367,6 +370,12 @@ func (aH *APIHandler) getTraceFromReaders(
 		}
 		aH.writeJSON(w, &structuredRes)
 	})
+}
+
+func shouldAdjust(r *http.Request) bool {
+	raw := r.FormValue("raw")
+	isRaw, _ := strconv.ParseBool(raw)
+	return !isRaw
 }
 
 // withTraceFromReader tries to load a trace from Reader and if successful

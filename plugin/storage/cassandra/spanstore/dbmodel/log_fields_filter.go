@@ -14,7 +14,7 @@
 
 package dbmodel
 
-import "github.com/uber/jaeger/model"
+import "github.com/jaegertracing/jaeger/model"
 
 // LogFieldsFilter filters all span.Logs.Fields.
 type LogFieldsFilter struct {

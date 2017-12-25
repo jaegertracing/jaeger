@@ -31,7 +31,7 @@ import (
 	"github.com/uber/jaeger-client-go/transport"
 	tchanThrift "github.com/uber/tchannel-go/thrift"
 
-	"github.com/uber/jaeger/thrift-gen/jaeger"
+	"github.com/jaegertracing/jaeger/thrift-gen/jaeger"
 )
 
 var httpClient = &http.Client{Timeout: 2 * time.Second}

@@ -21,8 +21,8 @@ import (
 	"github.com/uber/tchannel-go"
 	"github.com/uber/tchannel-go/thrift"
 
-	"github.com/uber/jaeger/thrift-gen/baggage"
-	"github.com/uber/jaeger/thrift-gen/sampling"
+	"github.com/jaegertracing/jaeger/thrift-gen/baggage"
+	"github.com/jaegertracing/jaeger/thrift-gen/sampling"
 )
 
 type collectorProxy struct {

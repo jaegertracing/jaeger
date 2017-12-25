@@ -24,8 +24,8 @@ import (
 	"github.com/stretchr/testify/require"
 	"gopkg.in/olivere/elastic.v5"
 
-	jModel "github.com/uber/jaeger/model/json"
-	"github.com/uber/jaeger/pkg/es/mocks"
+	jModel "github.com/jaegertracing/jaeger/model/json"
+	"github.com/jaegertracing/jaeger/pkg/es/mocks"
 )
 
 func TestWriteService(t *testing.T) {
@@ -109,4 +109,32 @@ func TestSpanReader_GetServices(t *testing.T) {
 
 func TestSpanReader_GetOperations(t *testing.T) {
 	testGet(operationsAggregation, t)
+}
+
+func TestSpanReader_GetServicesEmptyIndex(t *testing.T) {
+	withSpanReader(func(r *spanReaderTest) {
+		mockSearchService(r).
+			Return(&elastic.SearchResult{}, nil)
+		mockMultiSearchService(r).
+			Return(&elastic.MultiSearchResult{
+				Responses: []*elastic.SearchResult{},
+			}, nil)
+		services, err := r.reader.GetServices()
+		require.NoError(t, err)
+		assert.Empty(t, services)
+	})
+}
+
+func TestSpanReader_GetOperationsEmptyIndex(t *testing.T) {
+	withSpanReader(func(r *spanReaderTest) {
+		mockSearchService(r).
+			Return(&elastic.SearchResult{}, nil)
+		mockMultiSearchService(r).
+			Return(&elastic.MultiSearchResult{
+				Responses: []*elastic.SearchResult{},
+			}, nil)
+		services, err := r.reader.GetOperations("foo")
+		require.NoError(t, err)
+		assert.Empty(t, services)
+	})
 }

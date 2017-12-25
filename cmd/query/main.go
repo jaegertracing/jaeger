@@ -15,36 +15,37 @@
 package main
 
 import (
+	"fmt"
 	"net/http"
 	"os"
 	"os/signal"
 	"strconv"
 	"syscall"
 
+	"github.com/gorilla/handlers"
 	"github.com/gorilla/mux"
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
 	jaegerClientConfig "github.com/uber/jaeger-client-go/config"
-	"github.com/uber/jaeger-lib/metrics/go-kit"
-	"github.com/uber/jaeger-lib/metrics/go-kit/expvar"
 	"go.uber.org/zap"
 
-	basicB "github.com/uber/jaeger/cmd/builder"
-	"github.com/uber/jaeger/cmd/flags"
-	casFlags "github.com/uber/jaeger/cmd/flags/cassandra"
-	esFlags "github.com/uber/jaeger/cmd/flags/es"
-	"github.com/uber/jaeger/cmd/query/app"
-	"github.com/uber/jaeger/cmd/query/app/builder"
-	"github.com/uber/jaeger/pkg/config"
-	"github.com/uber/jaeger/pkg/healthcheck"
-	"github.com/uber/jaeger/pkg/recoveryhandler"
+	basicB "github.com/jaegertracing/jaeger/cmd/builder"
+	"github.com/jaegertracing/jaeger/cmd/flags"
+	casFlags "github.com/jaegertracing/jaeger/cmd/flags/cassandra"
+	esFlags "github.com/jaegertracing/jaeger/cmd/flags/es"
+	"github.com/jaegertracing/jaeger/cmd/query/app"
+	"github.com/jaegertracing/jaeger/cmd/query/app/builder"
+	"github.com/jaegertracing/jaeger/pkg/config"
+	"github.com/jaegertracing/jaeger/pkg/healthcheck"
+	pMetrics "github.com/jaegertracing/jaeger/pkg/metrics"
+	"github.com/jaegertracing/jaeger/pkg/recoveryhandler"
+	"github.com/jaegertracing/jaeger/pkg/version"
 )
 
 func main() {
 	var serverChannel = make(chan os.Signal, 0)
 	signal.Notify(serverChannel, os.Interrupt, syscall.SIGTERM)
 
-	logger, _ := zap.NewProduction()
 	casOptions := casFlags.NewOptions("cassandra", "cassandra.archive")
 	esOptions := esFlags.NewOptions("es", "es.archive")
 	v := viper.New()
@@ -53,20 +54,32 @@ func main() {
 		Use:   "jaeger-query",
 		Short: "Jaeger query is a service to access tracing data",
 		Long:  `Jaeger query is a service to access tracing data and host UI.`,
-		Run: func(cmd *cobra.Command, args []string) {
-			flags.TryLoadConfigFile(v, logger)
+		RunE: func(cmd *cobra.Command, args []string) error {
+			err := flags.TryLoadConfigFile(v)
+			if err != nil {
+				return err
+			}
 
 			sFlags := new(flags.SharedFlags).InitFromViper(v)
+			logger, err := sFlags.NewLogger(zap.NewProductionConfig())
+			if err != nil {
+				return err
+			}
+
 			casOptions.InitFromViper(v)
 			esOptions.InitFromViper(v)
 			queryOpts := new(builder.QueryOptions).InitFromViper(v)
+			mBldr := new(pMetrics.Builder).InitFromViper(v)
 
-			hc, err := healthcheck.Serve(http.StatusServiceUnavailable, queryOpts.QueryHealthCheckHTTPPort, logger)
+			hc, err := healthcheck.Serve(http.StatusServiceUnavailable, queryOpts.HealthCheckHTTPPort, logger)
 			if err != nil {
 				logger.Fatal("Could not start the health check server.", zap.Error(err))
 			}
 
-			metricsFactory := xkit.Wrap("jaeger-query", expvar.NewFactory(10))
+			metricsFactory, err := mBldr.CreateMetricsFactory("jaeger-query")
+			if err != nil {
+				logger.Fatal("Cannot create metrics factory.", zap.Error(err))
+			}
 
 			tracer, closer, err := jaegerClientConfig.Configuration{
 				Sampler: &jaegerClientConfig.SamplerConfig{
@@ -92,22 +105,28 @@ func main() {
 				logger.Fatal("Failed to init storage builder", zap.Error(err))
 			}
 
-			rHandler := app.NewAPIHandler(
+			apiHandler := app.NewAPIHandler(
 				storageBuild.SpanReader,
 				storageBuild.DependencyReader,
-				app.HandlerOptions.Prefix(queryOpts.QueryPrefix),
+				app.HandlerOptions.Prefix(queryOpts.Prefix),
 				app.HandlerOptions.Logger(logger),
 				app.HandlerOptions.Tracer(tracer))
-			sHandler := app.NewStaticAssetsHandler(queryOpts.QueryStaticAssets)
 			r := mux.NewRouter()
-			rHandler.RegisterRoutes(r)
-			sHandler.RegisterRoutes(r)
-			portStr := ":" + strconv.Itoa(queryOpts.QueryPort)
+			apiHandler.RegisterRoutes(r)
+			registerStaticHandler(r, logger, queryOpts)
+
+			if h := mBldr.Handler(); h != nil {
+				logger.Info("Registering metrics handler with HTTP server", zap.String("route", mBldr.HTTPRoute))
+				r.Handle(mBldr.HTTPRoute, h)
+			}
+
+			portStr := ":" + strconv.Itoa(queryOpts.Port)
+			compressHandler := handlers.CompressHandler(r)
 			recoveryHandler := recoveryhandler.NewRecoveryHandler(logger, true)
 
 			go func() {
-				logger.Info("Starting jaeger-query HTTP server", zap.Int("port", queryOpts.QueryPort))
-				if err := http.ListenAndServe(portStr, recoveryHandler(r)); err != nil {
+				logger.Info("Starting jaeger-query HTTP server", zap.Int("port", queryOpts.Port))
+				if err := http.ListenAndServe(portStr, recoveryHandler(compressHandler)); err != nil {
 					logger.Fatal("Could not launch service", zap.Error(err))
 				}
 				hc.Set(http.StatusInternalServerError)
@@ -119,8 +138,11 @@ func main() {
 			case <-serverChannel:
 				logger.Info("Jaeger Query is finishing")
 			}
+			return nil
 		},
 	}
+
+	command.AddCommand(version.Command())
 
 	config.AddFlags(
 		v,
@@ -129,10 +151,24 @@ func main() {
 		flags.AddFlags,
 		casOptions.AddFlags,
 		esOptions.AddFlags,
+		pMetrics.AddFlags,
 		builder.AddFlags,
 	)
 
 	if error := command.Execute(); error != nil {
-		logger.Fatal(error.Error())
+		fmt.Println(error.Error())
+		os.Exit(1)
+	}
+}
+
+func registerStaticHandler(r *mux.Router, logger *zap.Logger, qOpts *builder.QueryOptions) {
+	staticHandler, err := app.NewStaticAssetsHandler(qOpts.StaticAssets, qOpts.UIConfig)
+	if err != nil {
+		logger.Fatal("Could not create static assets handler", zap.Error(err))
+	}
+	if staticHandler != nil {
+		staticHandler.RegisterRoutes(r)
+	} else {
+		logger.Info("Static handler is not registered")
 	}
 }

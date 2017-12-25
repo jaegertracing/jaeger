@@ -21,16 +21,16 @@ import (
 	"github.com/uber/jaeger-lib/metrics"
 	"go.uber.org/zap"
 
-	basicB "github.com/uber/jaeger/cmd/builder"
-	"github.com/uber/jaeger/cmd/collector/app"
-	zs "github.com/uber/jaeger/cmd/collector/app/sanitizer/zipkin"
-	"github.com/uber/jaeger/cmd/flags"
-	"github.com/uber/jaeger/model"
-	cascfg "github.com/uber/jaeger/pkg/cassandra/config"
-	escfg "github.com/uber/jaeger/pkg/es/config"
-	casSpanstore "github.com/uber/jaeger/plugin/storage/cassandra/spanstore"
-	esSpanstore "github.com/uber/jaeger/plugin/storage/es/spanstore"
-	"github.com/uber/jaeger/storage/spanstore"
+	basicB "github.com/jaegertracing/jaeger/cmd/builder"
+	"github.com/jaegertracing/jaeger/cmd/collector/app"
+	zs "github.com/jaegertracing/jaeger/cmd/collector/app/sanitizer/zipkin"
+	"github.com/jaegertracing/jaeger/cmd/flags"
+	"github.com/jaegertracing/jaeger/model"
+	cascfg "github.com/jaegertracing/jaeger/pkg/cassandra/config"
+	escfg "github.com/jaegertracing/jaeger/pkg/es/config"
+	casSpanstore "github.com/jaegertracing/jaeger/plugin/storage/cassandra/spanstore"
+	esSpanstore "github.com/jaegertracing/jaeger/plugin/storage/es/spanstore"
+	"github.com/jaegertracing/jaeger/storage/spanstore"
 )
 
 var (
@@ -116,7 +116,7 @@ func (spanHb *SpanHandlerBuilder) initElasticStore(esBuilder escfg.ClientBuilder
 // BuildHandlers builds span handlers (Zipkin, Jaeger)
 func (spanHb *SpanHandlerBuilder) BuildHandlers() (app.ZipkinSpansHandler, app.JaegerBatchesHandler) {
 	hostname, _ := os.Hostname()
-	hostMetrics := spanHb.metricsFactory.Namespace(hostname, nil)
+	hostMetrics := spanHb.metricsFactory.Namespace("", map[string]string{"host": hostname})
 
 	zSanitizer := zs.NewChainedSanitizer(
 		zs.NewSpanDurationSanitizer(),

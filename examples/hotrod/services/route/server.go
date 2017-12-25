@@ -17,20 +17,21 @@ package route
 import (
 	"context"
 	"encoding/json"
+	"expvar"
 	"math"
 	"math/rand"
 	"net/http"
 	"time"
 
 	"github.com/opentracing/opentracing-go"
+	"github.com/prometheus/client_golang/prometheus/promhttp"
 	"go.uber.org/zap"
 
-	"github.com/uber/jaeger/examples/hotrod/pkg/delay"
-	"github.com/uber/jaeger/examples/hotrod/pkg/httperr"
-	"github.com/uber/jaeger/examples/hotrod/pkg/httpexpvar"
-	"github.com/uber/jaeger/examples/hotrod/pkg/log"
-	"github.com/uber/jaeger/examples/hotrod/pkg/tracing"
-	"github.com/uber/jaeger/examples/hotrod/services/config"
+	"github.com/jaegertracing/jaeger/examples/hotrod/pkg/delay"
+	"github.com/jaegertracing/jaeger/examples/hotrod/pkg/httperr"
+	"github.com/jaegertracing/jaeger/examples/hotrod/pkg/log"
+	"github.com/jaegertracing/jaeger/examples/hotrod/pkg/tracing"
+	"github.com/jaegertracing/jaeger/examples/hotrod/services/config"
 )
 
 // Server implements Route service
@@ -59,7 +60,8 @@ func (s *Server) Run() error {
 func (s *Server) createServeMux() http.Handler {
 	mux := tracing.NewServeMux(s.tracer)
 	mux.Handle("/route", http.HandlerFunc(s.route))
-	mux.Handle("/debug/vars", http.HandlerFunc(httpexpvar.Handler))
+	mux.Handle("/debug/vars", expvar.Handler()) // expvar
+	mux.Handle("/metrics", promhttp.Handler())  // Prometheus
 	return mux
 }
 

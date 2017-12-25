@@ -15,9 +15,7 @@
 package zipkin
 
 import (
-	"strings"
-
-	"github.com/uber/jaeger/thrift-gen/zipkincore"
+	"github.com/jaegertracing/jaeger/thrift-gen/zipkincore"
 )
 
 // IsServerCore checks to see if an annotation is a core server annotation
@@ -42,10 +40,8 @@ func FindServiceName(span *zipkincore.Span) string {
 		if endpoint == nil {
 			continue
 		}
-		if IsCore(anno.Value) || strings.Index(anno.Value, "haproxy.") == 0 {
-			if endpoint.GetServiceName() != "" {
-				return endpoint.GetServiceName()
-			}
+		if IsCore(anno.Value) && endpoint.GetServiceName() != "" {
+			return endpoint.GetServiceName()
 		}
 	}
 	return ""

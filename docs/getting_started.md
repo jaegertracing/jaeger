@@ -21,7 +21,7 @@ Port | Protocol | Component | Function
 6831 | UDP      | agent     | accept jaeger.thrift over compact thrift protocol
 6832 | UDP      | agent     | accept jaeger.thrift over binary thrift protocol
 5778 | HTTP     | agent     | serve configs
-16686| HTTP     | web       | serve frontend
+16686| HTTP     | query     | serve frontend
 9411 | HTTP     | collector | Zipkin compatible endpoint
 
 
@@ -44,9 +44,11 @@ traces.
 #### Running
 
 ```bash
-go get github.com/uber/jaeger
-cd $GOPATH/src/github.com/uber/jaeger
-make install_examples
+mkdir -p $GOPATH/src/github.com/jaegertracing
+cd $GOPATH/src/github.com/jaegertracing
+git clone git@github.com:jaegertracing/jaeger.git jaeger
+cd jaeger
+make install
 cd examples/hotrod
 go run ./main.go all
 ```
@@ -71,7 +73,7 @@ Then navigate to `http://localhost:8080`.
 
 #### Prerequisites
 
--   You need Go 1.7 or higher installed on your machine.
+-   You need Go 1.9 or higher installed on your machine.
 -   Requires a [running Jaeger backend](#all-in-one-docker-image) to view the traces.
 
 ## Client Libraries
@@ -83,22 +85,21 @@ Individual Jaeger backend components can be run from source.
 They all have their `main.go` in the `cmd` folder. For example, to run the `jaeger-agent`:
 
 ```bash
-go get github.com/uber/jaeger
-cd $GOPATH/src/github.com/uber/jaeger
+mkdir -p $GOPATH/src/github.com/jaegertracing
+cd $GOPATH/src/github.com/jaegertracing
+git clone git@github.com:jaegertracing/jaeger.git jaeger
+cd jaeger
 make install
 go run ./cmd/agent/main.go
 ```
 
-In the near future we will provide individual Docker images for each component,
-as well as the Kubernetes templates.
-
 ## Migrating from Zipkin
 
-Collector service exposes Zipkin compatible REST API `/api/v1/spans` and can be enabled by
-`--collector.zipkin.http-port=9411`. It supports Thrift and JSON format.
-Agent uses `TBinaryProtocol` and is available on `UDP` port `5775`.
+Collector service exposes Zipkin compatible REST API `/api/v1/spans` and `/api/v2/spans` for both
+JSON and thrift encoding.
+By default it's disabled. It can be enabled with `--collector.zipkin.http-port=9411`. 
 
-Zipkin Thrift IDL file can be found [here](https://github.com/uber/jaeger-idl/blob/master/thrift/zipkincore.thrift).
-It's compatible with [zipkinCore.thrift](https://github.com/openzipkin/zipkin-api/blob/master/thrift/zipkinCore.thrift)
+Zipkin Thrift IDL file can be found in [jaegertracing/jaeger-idl](https://github.com/jaegertracing/jaeger-idl/blob/master/thrift/zipkincore.thrift).
+It's compatible with [openzipkin/zipkin-api](https://github.com/openzipkin/zipkin-api/blob/master/thrift/zipkinCore.thrift)
 
 [hotrod-tutorial]: https://medium.com/@YuriShkuro/take-opentracing-for-a-hotrod-ride-f6e3141f7941

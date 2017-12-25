@@ -18,9 +18,9 @@ import (
 	"github.com/uber/jaeger-lib/metrics"
 	"go.uber.org/zap"
 
-	cascfg "github.com/uber/jaeger/pkg/cassandra/config"
-	escfg "github.com/uber/jaeger/pkg/es/config"
-	"github.com/uber/jaeger/storage/spanstore/memory"
+	cascfg "github.com/jaegertracing/jaeger/pkg/cassandra/config"
+	escfg "github.com/jaegertracing/jaeger/pkg/es/config"
+	"github.com/jaegertracing/jaeger/storage/spanstore/memory"
 )
 
 // BasicOptions is a set of basic building blocks for most Jaeger executables

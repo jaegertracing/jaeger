@@ -24,15 +24,15 @@ import (
 	"github.com/uber/tchannel-go"
 	"go.uber.org/zap"
 
-	"github.com/uber/jaeger/cmd/agent/app/httpserver"
-	"github.com/uber/jaeger/cmd/agent/app/processors"
-	"github.com/uber/jaeger/cmd/agent/app/reporter"
-	tchreporter "github.com/uber/jaeger/cmd/agent/app/reporter/tchannel"
-	"github.com/uber/jaeger/cmd/agent/app/servers"
-	"github.com/uber/jaeger/cmd/agent/app/servers/thriftudp"
-	jmetrics "github.com/uber/jaeger/pkg/metrics"
-	zipkinThrift "github.com/uber/jaeger/thrift-gen/agent"
-	jaegerThrift "github.com/uber/jaeger/thrift-gen/jaeger"
+	"github.com/jaegertracing/jaeger/cmd/agent/app/httpserver"
+	"github.com/jaegertracing/jaeger/cmd/agent/app/processors"
+	"github.com/jaegertracing/jaeger/cmd/agent/app/reporter"
+	tchreporter "github.com/jaegertracing/jaeger/cmd/agent/app/reporter/tchannel"
+	"github.com/jaegertracing/jaeger/cmd/agent/app/servers"
+	"github.com/jaegertracing/jaeger/cmd/agent/app/servers/thriftudp"
+	jmetrics "github.com/jaegertracing/jaeger/pkg/metrics"
+	zipkinThrift "github.com/jaegertracing/jaeger/thrift-gen/agent"
+	jaegerThrift "github.com/jaegertracing/jaeger/thrift-gen/jaeger"
 )
 
 const (
@@ -42,9 +42,6 @@ const (
 	defaultMinPeers      = 3
 
 	defaultHTTPServerHostPort = ":5778"
-
-	agentServiceName            = "jaeger-agent"
-	defaultCollectorServiceName = "jaeger-collector"
 
 	jaegerModel model = "jaeger"
 	zipkinModel       = "zipkin"
@@ -71,12 +68,7 @@ type Builder struct {
 	HTTPServer HTTPServerConfiguration  `yaml:"httpServer"`
 	Metrics    jmetrics.Builder         `yaml:"metrics"`
 
-	// These 3 fields are copied from tchreporter.Builder because yaml does not parse embedded structs
-	CollectorHostPorts   []string `yaml:"collectorHostPorts"`
-	DiscoveryMinPeers    int      `yaml:"minPeers"`
-	CollectorServiceName string   `yaml:"collectorServiceName"`
-
-	tchreporter.Builder
+	tchreporter.Builder `yaml:",inline"`
 
 	otherReporters []reporter.Reporter
 	metricsFactory metrics.Factory
@@ -115,16 +107,7 @@ func (b *Builder) WithMetricsFactory(mf metrics.Factory) *Builder {
 }
 
 func (b *Builder) createMainReporter(mFactory metrics.Factory, logger *zap.Logger) (*tchreporter.Reporter, error) {
-	if len(b.Builder.CollectorHostPorts) == 0 {
-		b.Builder.CollectorHostPorts = b.CollectorHostPorts
-	}
-	if b.Builder.CollectorServiceName == "" {
-		b.Builder.CollectorServiceName = b.CollectorServiceName
-	}
-	if b.Builder.DiscoveryMinPeers == 0 {
-		b.Builder.DiscoveryMinPeers = b.DiscoveryMinPeers
-	}
-	return b.Builder.CreateReporter(mFactory, logger)
+	return b.CreateReporter(mFactory, logger)
 }
 
 func (b *Builder) getMetricsFactory() (metrics.Factory, error) {
@@ -154,8 +137,8 @@ func (b *Builder) CreateAgent(logger *zap.Logger) (*Agent, error) {
 		return nil, err
 	}
 	httpServer := b.HTTPServer.GetHTTPServer(b.CollectorServiceName, mainReporter.Channel(), mFactory)
-	if b.metricsFactory == nil {
-		b.Metrics.RegisterHandler(httpServer.Handler.(*http.ServeMux))
+	if h := b.Metrics.Handler(); b.metricsFactory != nil && h != nil {
+		httpServer.Handler.(*http.ServeMux).Handle(b.Metrics.HTTPRoute, h)
 	}
 	return NewAgent(processors, httpServer, logger), nil
 }

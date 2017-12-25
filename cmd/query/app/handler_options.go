@@ -20,8 +20,8 @@ import (
 	"github.com/opentracing/opentracing-go"
 	"go.uber.org/zap"
 
-	"github.com/uber/jaeger/model/adjuster"
-	"github.com/uber/jaeger/storage/spanstore"
+	"github.com/jaegertracing/jaeger/model/adjuster"
+	"github.com/jaegertracing/jaeger/storage/spanstore"
 )
 
 // HandlerOption is a function that sets some option on the APIHandler

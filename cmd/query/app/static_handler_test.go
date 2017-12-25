@@ -19,6 +19,7 @@ import (
 	"io/ioutil"
 	"net/http"
 	"net/http/httptest"
+	"strings"
 	"testing"
 	"time"
 
@@ -29,7 +30,8 @@ import (
 
 func TestStaticAssetsHandler(t *testing.T) {
 	r := mux.NewRouter()
-	handler := NewStaticAssetsHandler("fixture")
+	handler, err := NewStaticAssetsHandler("fixture", "")
+	require.NoError(t, err)
 	handler.RegisterRoutes(r)
 	server := httptest.NewServer(r)
 	defer server.Close()
@@ -45,13 +47,21 @@ func TestStaticAssetsHandler(t *testing.T) {
 }
 
 func TestDefaultStaticAssetsRoot(t *testing.T) {
-	handler := NewStaticAssetsHandler("")
-	assert.Equal(t, "jaeger-ui-build/build/", handler.staticAssetsRoot)
+	handler, err := NewStaticAssetsHandler("", "")
+	assert.Nil(t, handler)
+	assert.Nil(t, err)
+}
+
+func TestNotExistingUiConfig(t *testing.T) {
+	handler, err := NewStaticAssetsHandler("/foo/bar", "")
+	assert.Equal(t, "Cannot read UI static assets: open /foo/bar/index.html: no such file or directory", err.Error())
+	assert.Nil(t, handler)
 }
 
 func TestRegisterRoutesHandler(t *testing.T) {
 	r := mux.NewRouter()
-	handler := NewStaticAssetsHandler("fixture/")
+	handler, err := NewStaticAssetsHandler("fixture/", "")
+	require.NoError(t, err)
 	handler.RegisterRoutes(r)
 	server := httptest.NewServer(r)
 	defer server.Close()
@@ -71,4 +81,64 @@ func TestRegisterRoutesHandler(t *testing.T) {
 	assert.NoError(t, err)
 	assert.Equal(t, http.StatusOK, resp.StatusCode)
 	assert.Equal(t, expectedRespString, respString)
+}
+
+func TestNewStaticAssetsHandlerWithConfig(t *testing.T) {
+	_, err := NewStaticAssetsHandler("fixture", "fixture/invalid-config")
+	assert.Error(t, err)
+
+	handler, err := NewStaticAssetsHandler("fixture", "fixture/ui-config.json")
+	require.NoError(t, err)
+	require.NotNil(t, handler)
+	html := string(handler.indexHTML)
+	assert.True(t, strings.Contains(html, `JAEGER_CONFIG = {"x":"y"};`), "actual: %v", html)
+}
+
+func TestLoadUIConfig(t *testing.T) {
+	type testCase struct {
+		configFile    string
+		expected      map[string]interface{}
+		expectedError string
+	}
+
+	run := func(description string, testCase testCase) {
+		t.Run(description, func(t *testing.T) {
+			config, err := loadUIConfig(testCase.configFile)
+			if testCase.expectedError != "" {
+				assert.EqualError(t, err, testCase.expectedError)
+			} else {
+				assert.NoError(t, err)
+			}
+			assert.EqualValues(t, testCase.expected, config)
+		})
+	}
+
+	run("no config", testCase{})
+	run("invalid config", testCase{
+		configFile:    "invalid",
+		expectedError: "Cannot read UI config file invalid: open invalid: no such file or directory",
+	})
+	run("unsupported type", testCase{
+		configFile:    "fixture/ui-config.toml",
+		expectedError: "Unrecognized UI config file format fixture/ui-config.toml",
+	})
+	run("malformed", testCase{
+		configFile:    "fixture/ui-config-malformed.json",
+		expectedError: "Cannot parse UI config file fixture/ui-config-malformed.json: invalid character '=' after object key",
+	})
+	run("json", testCase{
+		configFile: "fixture/ui-config.json",
+		expected:   map[string]interface{}{"x": "y"},
+	})
+	run("json-menu", testCase{
+		configFile: "fixture/ui-config-menu.json",
+		expected: map[string]interface{}{
+			"menu": []interface{}{
+				map[string]interface{}{
+					"label": "GitHub",
+					"url":   "https://github.com/jaegertracing/jaeger",
+				},
+			},
+		},
+	})
 }

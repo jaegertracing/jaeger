@@ -18,12 +18,12 @@ import (
 	"github.com/uber/tchannel-go/thrift"
 	"go.uber.org/zap"
 
-	zipkinS "github.com/uber/jaeger/cmd/collector/app/sanitizer/zipkin"
-	"github.com/uber/jaeger/model"
-	jConv "github.com/uber/jaeger/model/converter/thrift/jaeger"
-	"github.com/uber/jaeger/model/converter/thrift/zipkin"
-	"github.com/uber/jaeger/thrift-gen/jaeger"
-	"github.com/uber/jaeger/thrift-gen/zipkincore"
+	zipkinS "github.com/jaegertracing/jaeger/cmd/collector/app/sanitizer/zipkin"
+	"github.com/jaegertracing/jaeger/model"
+	jConv "github.com/jaegertracing/jaeger/model/converter/thrift/jaeger"
+	"github.com/jaegertracing/jaeger/model/converter/thrift/zipkin"
+	"github.com/jaegertracing/jaeger/thrift-gen/jaeger"
+	"github.com/jaegertracing/jaeger/thrift-gen/zipkincore"
 )
 
 const (
@@ -110,10 +110,10 @@ func NewZipkinSpanHandler(logger *zap.Logger, modelHandler SpanProcessor, saniti
 
 // SubmitZipkinBatch records a batch of spans already in Zipkin Thrift format.
 func (h *zipkinSpanHandler) SubmitZipkinBatch(ctx thrift.Context, spans []*zipkincore.Span) ([]*zipkincore.Response, error) {
-	mSpans := make([]*model.Span, len(spans))
-	for i, span := range spans {
+	mSpans := make([]*model.Span, 0, len(spans))
+	for _, span := range spans {
 		sanitized := h.sanitizer.Sanitize(span)
-		mSpans[i] = ConvertZipkinToModel(sanitized, h.logger)
+		mSpans = append(mSpans, convertZipkinToModel(sanitized, h.logger)...)
 	}
 	bools, err := h.modelProcessor.ProcessSpans(mSpans, ZipkinFormatType)
 	if err != nil {
@@ -129,10 +129,10 @@ func (h *zipkinSpanHandler) SubmitZipkinBatch(ctx thrift.Context, spans []*zipki
 }
 
 // ConvertZipkinToModel is a helper function that logs warnings during conversion
-func ConvertZipkinToModel(zSpan *zipkincore.Span, logger *zap.Logger) *model.Span {
-	mSpan, err := zipkin.ToDomainSpan(zSpan)
+func convertZipkinToModel(zSpan *zipkincore.Span, logger *zap.Logger) []*model.Span {
+	mSpans, err := zipkin.ToDomainSpan(zSpan)
 	if err != nil {
 		logger.Warn("Warning while converting zipkin to domain span", zap.Error(err))
 	}
-	return mSpan
+	return mSpans
 }

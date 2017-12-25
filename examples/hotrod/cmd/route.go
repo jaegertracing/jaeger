@@ -21,9 +21,9 @@ import (
 	"github.com/spf13/cobra"
 	"go.uber.org/zap"
 
-	"github.com/uber/jaeger/examples/hotrod/pkg/log"
-	"github.com/uber/jaeger/examples/hotrod/pkg/tracing"
-	"github.com/uber/jaeger/examples/hotrod/services/route"
+	"github.com/jaegertracing/jaeger/examples/hotrod/pkg/log"
+	"github.com/jaegertracing/jaeger/examples/hotrod/pkg/tracing"
+	"github.com/jaegertracing/jaeger/examples/hotrod/services/route"
 )
 
 // routeCmd represents the route command

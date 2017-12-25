@@ -20,9 +20,9 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"github.com/uber/jaeger/pkg/es"
-	"github.com/uber/jaeger/pkg/es/config"
-	"github.com/uber/jaeger/pkg/es/mocks"
+	"github.com/jaegertracing/jaeger/pkg/es"
+	"github.com/jaegertracing/jaeger/pkg/es/config"
+	"github.com/jaegertracing/jaeger/pkg/es/mocks"
 )
 
 type mockEsBuilder struct {

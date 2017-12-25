@@ -20,8 +20,8 @@ import (
 
 	"github.com/stretchr/testify/assert"
 
+	"github.com/jaegertracing/jaeger/model"
 	jaegerM "github.com/uber/jaeger-lib/metrics"
-	"github.com/uber/jaeger/model"
 )
 
 func TestProcessorMetrics(t *testing.T) {

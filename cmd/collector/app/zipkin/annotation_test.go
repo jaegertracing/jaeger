@@ -19,7 +19,7 @@ import (
 
 	"github.com/stretchr/testify/assert"
 
-	zc "github.com/uber/jaeger/thrift-gen/zipkincore"
+	zc "github.com/jaegertracing/jaeger/thrift-gen/zipkincore"
 )
 
 func TestCoreChecks(t *testing.T) {
@@ -69,15 +69,6 @@ func TestFindServiceName(t *testing.T) {
 	}
 	span.Annotations = append(span.Annotations, anno)
 	assert.Equal(t, "zoidberg", FindServiceName(span), "first suitable annotation is picked")
-
-	anno = &zc.Annotation{
-		Value: "haproxy.Tr",
-		Host: &zc.Endpoint{
-			ServiceName: "tracegen",
-		},
-	}
-	span.Annotations = []*zc.Annotation{anno}
-	assert.Equal(t, "tracegen", FindServiceName(span), "haproxy annotations also count")
 
 	anno = &zc.Annotation{
 		Value: "random event",

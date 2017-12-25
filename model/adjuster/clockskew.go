@@ -20,7 +20,7 @@ import (
 	"net"
 	"time"
 
-	"github.com/uber/jaeger/model"
+	"github.com/jaegertracing/jaeger/model"
 )
 
 // ClockSkew returns an adjuster that modifies start time and log timestamps

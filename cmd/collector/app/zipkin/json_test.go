@@ -16,10 +16,11 @@ package zipkin
 
 import (
 	"encoding/json"
+	"errors"
 	"fmt"
-	"math"
 	"testing"
 
+	"github.com/jaegertracing/jaeger/thrift-gen/zipkincore"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 )
@@ -47,7 +48,7 @@ func createSpan(name string, id string, parentID string, traceID string, ts int6
 }
 
 func TestDecodeWrongJson(t *testing.T) {
-	spans, err := deserializeJSON([]byte(""))
+	spans, err := DeserializeJSON([]byte(""))
 	require.Error(t, err)
 	assert.Nil(t, spans)
 }
@@ -77,8 +78,73 @@ func TestUnmarshalBinAnnotation(t *testing.T) {
 	err := json.Unmarshal([]byte(createBinAnno("foo", "bar", endpointJSON)), binAnno)
 	require.NoError(t, err)
 	assert.Equal(t, "foo", binAnno.Key)
-	assert.Equal(t, "bar", binAnno.Value)
+	assert.Equal(t, "bar", binAnno.Value.(string))
 	assert.Equal(t, "foo", binAnno.Endpoint.ServiceName)
+}
+
+func TestUnmarshalBinAnnotationNumberValue(t *testing.T) {
+	tests := []struct {
+		json     string
+		expected zipkincore.BinaryAnnotation
+		err      error
+	}{
+		{
+			json:     `{"key":"foo", "value": 32768, "type": "I16"}`,
+			expected: zipkincore.BinaryAnnotation{Key: "foo", Value: []byte{0x0, 0x80}, AnnotationType: zipkincore.AnnotationType_I16},
+		},
+		{
+			json:     `{"key":"foo", "value": 32768, "type": "I32"}`,
+			expected: zipkincore.BinaryAnnotation{Key: "foo", Value: []byte{0x00, 0x80, 0x00, 0x00}, AnnotationType: zipkincore.AnnotationType_I32},
+		},
+		{
+			json:     `{"key":"foo", "value": 32768, "type": "I64"}`,
+			expected: zipkincore.BinaryAnnotation{Key: "foo", Value: []byte{0x00, 0x80, 0x00, 0x00, 0x00, 0x00, 0x00, 0x00}, AnnotationType: zipkincore.AnnotationType_I64},
+		},
+		{
+			json:     `{"key":"foo", "value": -12.666512, "type": "DOUBLE"}`,
+			expected: zipkincore.BinaryAnnotation{Key: "foo", Value: []byte{122, 200, 148, 15, 65, 85, 41, 192}, AnnotationType: zipkincore.AnnotationType_DOUBLE},
+		},
+		{
+			json:     `{"key":"foo", "value": true, "type": "BOOL"}`,
+			expected: zipkincore.BinaryAnnotation{Key: "foo", Value: []byte{1}, AnnotationType: zipkincore.AnnotationType_BOOL},
+		},
+		{
+			json:     `{"key":"foo", "value": false, "type": "BOOL"}`,
+			expected: zipkincore.BinaryAnnotation{Key: "foo", Value: []byte{0}, AnnotationType: zipkincore.AnnotationType_BOOL},
+		},
+		{
+			json:     `{"key":"foo", "value": "str", "type": "STRING"}`,
+			expected: zipkincore.BinaryAnnotation{Key: "foo", Value: []byte("str"), AnnotationType: zipkincore.AnnotationType_STRING},
+		},
+		{
+			json:     `{"key":"foo", "value": "c3Ry", "type": "BYTES"}`,
+			expected: zipkincore.BinaryAnnotation{Key: "foo", Value: []byte("str"), AnnotationType: zipkincore.AnnotationType_BYTES},
+		},
+		{
+			json: `{"key":"foo", "value": "^^^", "type": "BYTES"}`,
+			err:  errors.New("illegal base64 data at input byte 0"),
+		},
+		{
+			json:     `{"key":"foo", "value": "733c374d736e41cc"}`,
+			expected: zipkincore.BinaryAnnotation{Key: "foo", Value: []byte("733c374d736e41cc"), AnnotationType: zipkincore.AnnotationType_STRING},
+		},
+	}
+
+	for _, test := range tests {
+		binAnno := &binaryAnnotation{}
+		err := json.Unmarshal([]byte(test.json), binAnno)
+		require.NoError(t, err)
+		tBinAnno, err := binAnnoToThrift(*binAnno)
+		if test.err != nil {
+			require.Error(t, err, test.json)
+			require.Nil(t, tBinAnno)
+			assert.Equal(t, test.err.Error(), err.Error())
+		} else {
+			require.NoError(t, err)
+			assert.Equal(t, test.expected.Key, tBinAnno.Key)
+			assert.Equal(t, test.expected.Value, tBinAnno.Value)
+		}
+	}
 }
 
 func TestUnmarshalSpan(t *testing.T) {
@@ -113,34 +179,34 @@ func TestUnmarshalSpan(t *testing.T) {
 func TestIncorrectSpanIds(t *testing.T) {
 	// id missing
 	spanJSON := createSpan("bar", "", "1", "2", 156, 15145, false, "", "")
-	spans, err := deserializeJSON([]byte(spanJSON))
+	spans, err := DeserializeJSON([]byte(spanJSON))
 	require.Error(t, err)
-	assert.Equal(t, errIsNotUnsignedLog, err)
+	assert.Equal(t, "strconv.ParseUint: parsing \"\": invalid syntax", err.Error())
 	assert.Nil(t, spans)
 	// id longer than 32
 	spanJSON = createSpan("bar", "123456789123456712345678912345678", "1", "2",
 		156, 15145, false, "", "")
-	spans, err = deserializeJSON([]byte(spanJSON))
+	spans, err = DeserializeJSON([]byte(spanJSON))
 	require.Error(t, err)
-	assert.Equal(t, errIsNotUnsignedLog, err)
+	assert.Equal(t, "SpanID cannot be longer than 16 hex characters: 123456789123456712345678912345678", err.Error())
 	assert.Nil(t, spans)
 	// traceId missing
 	spanJSON = createSpan("bar", "2", "1", "", 156, 15145, false,
 		"", "")
-	spans, err = deserializeJSON([]byte(spanJSON))
+	spans, err = DeserializeJSON([]byte(spanJSON))
 	require.Error(t, err)
-	assert.Equal(t, errIsNotUnsignedLog, err)
+	assert.Equal(t, "strconv.ParseUint: parsing \"\": invalid syntax", err.Error())
 	assert.Nil(t, spans)
 	// 128 bit traceId
 	spanJSON = createSpan("bar", "2", "1", "12345678912345671234567891234567", 156, 15145, false,
 		"", "")
-	spans, err = deserializeJSON([]byte(spanJSON))
+	spans, err = DeserializeJSON([]byte(spanJSON))
 	require.NoError(t, err)
 	assert.NotNil(t, spans)
 	// wrong 128 bit traceId
 	spanJSON = createSpan("bar", "22", "12", "#2345678912345671234567891234562", 156, 15145, false,
 		"", "")
-	spans, err = deserializeJSON([]byte(spanJSON))
+	spans, err = DeserializeJSON([]byte(spanJSON))
 	require.Error(t, err)
 	assert.Nil(t, spans)
 }
@@ -176,6 +242,16 @@ func TestEndpointToThrift(t *testing.T) {
 	tEndpoint, err = endpointToThrift(endp)
 	require.Error(t, err)
 	assert.Equal(t, errWrongIpv4, err)
+	assert.Nil(t, tEndpoint)
+
+	endp = endpoint{
+		ServiceName: "foo",
+		Port:        80,
+		IPv6:        "::R",
+	}
+	tEndpoint, err = endpointToThrift(endp)
+	require.Error(t, err)
+	assert.Equal(t, errWrongIpv6, err)
 	assert.Nil(t, tEndpoint)
 }
 
@@ -218,6 +294,7 @@ func TestBinaryAnnotationToThrift(t *testing.T) {
 		Endpoint: endp,
 		Key:      "error",
 		Value:    "str",
+		Type:     "STRING",
 	}
 	tBinAnno, err := binAnnoToThrift(binAnno)
 	require.NoError(t, err)
@@ -255,7 +332,7 @@ func TestSpanToThrift(t *testing.T) {
 	span := zipkinSpan{
 		ID:                "bd7a977555f6b982",
 		TraceID:           "bd7a974555f6b982bd71977555f6b981",
-		ParentID:          "1",
+		ParentID:          "00000000000000001",
 		Name:              "foo",
 		Annotations:       []annotation{anno},
 		BinaryAnnotations: []binaryAnnotation{binAnno},
@@ -275,71 +352,34 @@ func TestSpanToThrift(t *testing.T) {
 
 	tests := []struct {
 		span zipkinSpan
-		err  error
+		err  string
 	}{
 		{
 			span: zipkinSpan{ID: "zd7a977555f6b982", TraceID: "bd7a977555f6b982"},
-			err:  errIsNotUnsignedLog,
+			err:  "strconv.ParseUint: parsing \"zd7a977555f6b982\": invalid syntax",
 		},
 		{
 			span: zipkinSpan{ID: "ad7a977555f6b982", TraceID: "zd7a977555f6b982"},
-			err:  errIsNotUnsignedLog,
+			err:  "strconv.ParseUint: parsing \"zd7a977555f6b982\": invalid syntax",
 		},
 		{
 			span: zipkinSpan{ID: "ad7a977555f6b982", TraceID: "ad7a977555f6b982", ParentID: "zd7a977555f6b982"},
-			err:  errIsNotUnsignedLog,
+			err:  "strconv.ParseUint: parsing \"zd7a977555f6b982\": invalid syntax",
 		},
 		{
 			span: zipkinSpan{ID: "1", TraceID: "1", Annotations: []annotation{{Endpoint: endpoint{IPv4: "127.0.0.A"}}}},
-			err:  errWrongIpv4,
+			err:  errWrongIpv4.Error(),
 		},
 		{
 			span: zipkinSpan{ID: "1", TraceID: "1", BinaryAnnotations: []binaryAnnotation{{Endpoint: endpoint{IPv4: "127.0.0.A"}}}},
-			err:  errWrongIpv4,
+			err:  errWrongIpv4.Error(),
 		},
 	}
 
 	for _, test := range tests {
 		tSpan, err = spanToThrift(test.span)
 		require.Error(t, err)
-		assert.Equal(t, test.err, err)
+		assert.Equal(t, test.err, err.Error())
 		assert.Nil(t, tSpan)
-	}
-}
-
-func TestHexToUnsignedLong(t *testing.T) {
-	okTests := []struct {
-		hex      string
-		expected uint64
-	}{
-		{hex: "0", expected: 0},
-		{hex: "ffffffffffffffff", expected: math.MaxUint64},
-		{hex: "00000000000000001", expected: 1},
-	}
-	for _, test := range okTests {
-		num, err := hexToUnsignedLong(test.hex)
-		require.NoError(t, err)
-		assert.Equal(t, test.expected, num)
-	}
-
-	// drop higher bits
-	num, err := hexToUnsignedLong("463ac35c9f6413ad48485a3953bb6124")
-	num2, err2 := hexToUnsignedLong("48485a3953bb6124")
-	require.NoError(t, err)
-	require.NoError(t, err2)
-	assert.Equal(t, num, num2)
-
-	errTests := []struct {
-		hex string
-	}{
-		{hex: "fffffffffffffffffffffffffffffffff"},
-		{hex: ""},
-		{hex: "po"},
-	}
-	for _, test := range errTests {
-		num, err = hexToUnsignedLong(test.hex)
-		require.Error(t, err)
-		assert.Equal(t, errIsNotUnsignedLog, err)
-		assert.Equal(t, uint64(0), num)
 	}
 }

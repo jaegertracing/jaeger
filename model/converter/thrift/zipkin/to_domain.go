@@ -23,9 +23,9 @@ import (
 
 	"github.com/opentracing/opentracing-go/ext"
 
-	"github.com/uber/jaeger/model"
-	"github.com/uber/jaeger/pkg/multierror"
-	"github.com/uber/jaeger/thrift-gen/zipkincore"
+	"github.com/jaegertracing/jaeger/model"
+	"github.com/jaegertracing/jaeger/pkg/multierror"
+	"github.com/jaegertracing/jaeger/thrift-gen/zipkincore"
 )
 
 const (
@@ -76,37 +76,50 @@ func ToDomain(zSpans []*zipkincore.Span) (*model.Trace, error) {
 // A valid model.Span is always returned, even when there are errors.
 // The errors are more of an "fyi", describing issues in the data.
 // TODO consider using different return type instead of `error`.
-func ToDomainSpan(zSpan *zipkincore.Span) (*model.Span, error) {
-	return toDomain{}.ToDomainSpan(zSpan)
+func ToDomainSpan(zSpan *zipkincore.Span) ([]*model.Span, error) {
+	return toDomain{}.ToDomainSpans(zSpan)
 }
 
 type toDomain struct{}
 
 func (td toDomain) ToDomain(zSpans []*zipkincore.Span) (*model.Trace, error) {
 	var errors []error
-	trace := &model.Trace{}
 	processes := newProcessHashtable()
+	trace := &model.Trace{}
 	for _, zSpan := range zSpans {
-		jSpan, err := td.ToDomainSpan(zSpan)
+		jSpans, err := td.ToDomainSpans(zSpan)
 		if err != nil {
 			errors = append(errors, err)
 		}
-		// remove duplicate Process instances
-		jSpan.Process = processes.add(jSpan.Process)
-		trace.Spans = append(trace.Spans, jSpan)
+		for _, jSpan := range jSpans {
+			// remove duplicate Process instances
+			jSpan.Process = processes.add(jSpan.Process)
+			trace.Spans = append(trace.Spans, jSpan)
+		}
 	}
 	return trace, multierror.Wrap(errors)
 }
 
-func (td toDomain) ToDomainSpan(zSpan *zipkincore.Span) (*model.Span, error) {
-	jSpan := td.transformSpan(zSpan)
+func (td toDomain) ToDomainSpans(zSpan *zipkincore.Span) ([]*model.Span, error) {
+	jSpans := td.transformSpan(zSpan)
 	jProcess, err := td.generateProcess(zSpan)
-	jSpan.Process = jProcess
-	return jSpan, err
+	for _, jSpan := range jSpans {
+		jSpan.Process = jProcess
+	}
+	return jSpans, err
+}
+
+func (td toDomain) findAnnotation(zSpan *zipkincore.Span, value string) *zipkincore.Annotation {
+	for _, ann := range zSpan.Annotations {
+		if ann.Value == value {
+			return ann
+		}
+	}
+	return nil
 }
 
 // transformSpan transforms a zipkin span into a Jaeger span
-func (td toDomain) transformSpan(zSpan *zipkincore.Span) *model.Span {
+func (td toDomain) transformSpan(zSpan *zipkincore.Span) []*model.Span {
 	tags := td.getTags(zSpan.BinaryAnnotations, td.isSpanTag)
 	if spanKindTag, ok := td.getSpanKindTag(zSpan.Annotations); ok {
 		tags = append(tags, spanKindTag)
@@ -118,17 +131,48 @@ func (td toDomain) transformSpan(zSpan *zipkincore.Span) *model.Span {
 	if zSpan.ParentID != nil {
 		parentID = *zSpan.ParentID
 	}
-	return &model.Span{
+
+	flags := td.getFlags(zSpan)
+	result := []*model.Span{{
 		TraceID:       model.TraceID{High: uint64(traceIDHigh), Low: uint64(zSpan.TraceID)},
 		SpanID:        model.SpanID(zSpan.ID),
 		OperationName: zSpan.Name,
 		ParentSpanID:  model.SpanID(parentID),
-		Flags:         td.getFlags(zSpan),
+		Flags:         flags,
 		StartTime:     model.EpochMicrosecondsAsTime(uint64(zSpan.GetTimestamp())),
 		Duration:      model.MicrosecondsAsDuration(uint64(zSpan.GetDuration())),
 		Tags:          tags,
 		Logs:          td.getLogs(zSpan.Annotations),
+	}}
+
+	cs := td.findAnnotation(zSpan, zipkincore.CLIENT_SEND)
+	sr := td.findAnnotation(zSpan, zipkincore.SERVER_RECV)
+	if cs != nil && sr != nil {
+		// if the span is client and server we split it into two separate spans
+		s := &model.Span{
+			TraceID:       model.TraceID{High: uint64(traceIDHigh), Low: uint64(zSpan.TraceID)},
+			SpanID:        model.SpanID(zSpan.ID),
+			OperationName: zSpan.Name,
+			ParentSpanID:  model.SpanID(parentID),
+			Flags:         flags,
+		}
+		// if the first span is a client span we create server span and vice-versa.
+		if result[0].IsRPCClient() {
+			s.Tags = []model.KeyValue{model.String(string(ext.SpanKind), string(ext.SpanKindRPCServerEnum))}
+			s.StartTime = model.EpochMicrosecondsAsTime(uint64(sr.Timestamp))
+			if ss := td.findAnnotation(zSpan, zipkincore.SERVER_SEND); ss != nil {
+				s.Duration = model.MicrosecondsAsDuration(uint64(ss.Timestamp - sr.Timestamp))
+			}
+		} else {
+			s.Tags = []model.KeyValue{model.String(string(ext.SpanKind), string(ext.SpanKindRPCClientEnum))}
+			s.StartTime = model.EpochMicrosecondsAsTime(uint64(cs.Timestamp))
+			if cr := td.findAnnotation(zSpan, zipkincore.CLIENT_RECV); cr != nil {
+				s.Duration = model.MicrosecondsAsDuration(uint64(cr.Timestamp - cs.Timestamp))
+			}
+		}
+		result = append(result, s)
 	}
+	return result
 }
 
 // getFlags takes a Zipkin Span and deduces the proper flags settings

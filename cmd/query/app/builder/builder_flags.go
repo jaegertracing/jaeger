@@ -24,19 +24,22 @@ const (
 	queryPort                = "query.port"
 	queryPrefix              = "query.prefix"
 	queryStaticFiles         = "query.static-files"
+	queryUIConfig            = "query.ui-config"
 	queryHealthCheckHTTPPort = "query.health-check-http-port"
 )
 
 // QueryOptions holds configuration for query
 type QueryOptions struct {
-	// QueryPort is the port that the query service listens in on
-	QueryPort int
-	// QueryPrefix is the prefix of the query service api
-	QueryPrefix string
-	// QueryStaticAssets is the path for the static assets for the UI (https://github.com/uber/jaeger-ui)
-	QueryStaticAssets string
-	// QueryHealthCheckHTTPPort is the port that the health check service listens in on for http requests
-	QueryHealthCheckHTTPPort int
+	// Port is the port that the query service listens in on
+	Port int
+	// Prefix is the prefix of the query service api
+	Prefix string
+	// StaticAssets is the path for the static assets for the UI (https://github.com/uber/jaeger-ui)
+	StaticAssets string
+	// UIConfig is the path to a configuration file for the UI
+	UIConfig string
+	// HealthCheckHTTPPort is the port that the health check service listens in on for http requests
+	HealthCheckHTTPPort int
 }
 
 // AddFlags adds flags for QueryOptions
@@ -44,14 +47,16 @@ func AddFlags(flagSet *flag.FlagSet) {
 	flagSet.Int(queryPort, 16686, "The port for the query service")
 	flagSet.String(queryPrefix, "api", "The prefix for the url of the query service")
 	flagSet.String(queryStaticFiles, "jaeger-ui-build/build/", "The path for the static assets for the UI")
+	flagSet.String(queryUIConfig, "", "The path to the UI configuration file in JSON format")
 	flagSet.Int(queryHealthCheckHTTPPort, 16687, "The http port for the health check service")
 }
 
 // InitFromViper initializes QueryOptions with properties from viper
 func (qOpts *QueryOptions) InitFromViper(v *viper.Viper) *QueryOptions {
-	qOpts.QueryPort = v.GetInt(queryPort)
-	qOpts.QueryPrefix = v.GetString(queryPrefix)
-	qOpts.QueryStaticAssets = v.GetString(queryStaticFiles)
-	qOpts.QueryHealthCheckHTTPPort = v.GetInt(queryHealthCheckHTTPPort)
+	qOpts.Port = v.GetInt(queryPort)
+	qOpts.Prefix = v.GetString(queryPrefix)
+	qOpts.StaticAssets = v.GetString(queryStaticFiles)
+	qOpts.UIConfig = v.GetString(queryUIConfig)
+	qOpts.HealthCheckHTTPPort = v.GetInt(queryHealthCheckHTTPPort)
 	return qOpts
 }

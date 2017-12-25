@@ -15,7 +15,7 @@
 package app
 
 import (
-	"github.com/uber/jaeger/model/adjuster"
+	"github.com/jaegertracing/jaeger/model/adjuster"
 )
 
 // StandardAdjusters is a list of model adjusters applied by the query service
@@ -25,4 +25,5 @@ var StandardAdjusters = []adjuster.Adjuster{
 	adjuster.ClockSkew(),
 	adjuster.IPTagAdjuster(),
 	adjuster.SortLogFields(),
+	adjuster.SpanReferences(),
 }

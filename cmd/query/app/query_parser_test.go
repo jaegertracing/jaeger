@@ -22,14 +22,15 @@ import (
 	"github.com/kr/pretty"
 	"github.com/stretchr/testify/assert"
 
-	"github.com/uber/jaeger/model"
-	"github.com/uber/jaeger/storage/spanstore"
+	"github.com/jaegertracing/jaeger/model"
+	"github.com/jaegertracing/jaeger/storage/spanstore"
 )
 
 var errParseInt = `strconv.ParseInt: parsing "string": invalid syntax`
 
 func TestParseTraceQuery(t *testing.T) {
 	timeNow := time.Now()
+	const noErr = ""
 	tests := []struct {
 		urlStr        string
 		errMsg        string
@@ -44,7 +45,7 @@ func TestParseTraceQuery(t *testing.T) {
 		{"x?service=service&start=0&end=0&operation=operation&limit=200&tag=k:v&minDuration=1s", `Cannot query for tags when 'minDuration' is specified`, nil},
 		{"x?service=service&start=0&end=0&operation=operation&limit=200&tag=k:v&tag=x:y&tag=k&log=k:v&log=k", `Malformed 'tag' parameter, expecting key:value, received: k`, nil},
 		{"x?service=service&start=0&end=0&operation=operation&limit=200&minDuration=25s&maxDuration=1s", `'maxDuration' should be greater than 'minDuration'`, nil},
-		{"x?service=service&start=0&end=0&operation=operation&limit=200&tag=k:v&tag=x:y", ``,
+		{"x?service=service&start=0&end=0&operation=operation&limit=200&tag=k:v&tag=x:y", noErr,
 			&traceQueryParameters{
 				TraceQueryParameters: spanstore.TraceQueryParameters{
 					ServiceName:   "service",
@@ -56,7 +57,35 @@ func TestParseTraceQuery(t *testing.T) {
 				},
 			},
 		},
-		{"x?service=service&start=0&end=0&operation=operation&limit=200&minDuration=10s&maxDuration=20s", ``,
+		// tags=JSON with a non-string value 123
+		{`x?service=service&start=0&end=0&operation=operation&limit=200&tag=k:v&tags={"x":123}`, "Malformed 'tags' parameter, cannot unmarshal JSON: json: cannot unmarshal number into Go value of type string", nil},
+		// tags=JSON
+		{`x?service=service&start=0&end=0&operation=operation&limit=200&tag=k:v&tags={"x":"y"}`, noErr,
+			&traceQueryParameters{
+				TraceQueryParameters: spanstore.TraceQueryParameters{
+					ServiceName:   "service",
+					OperationName: "operation",
+					StartTimeMin:  time.Unix(0, 0),
+					StartTimeMax:  time.Unix(0, 0),
+					NumTraces:     200,
+					Tags:          map[string]string{"k": "v", "x": "y"},
+				},
+			},
+		},
+		// tags=url_encode(JSON)
+		{`x?service=service&start=0&end=0&operation=operation&limit=200&tag=k:v&tags=%7B%22x%22%3A%22y%22%7D`, noErr,
+			&traceQueryParameters{
+				TraceQueryParameters: spanstore.TraceQueryParameters{
+					ServiceName:   "service",
+					OperationName: "operation",
+					StartTimeMin:  time.Unix(0, 0),
+					StartTimeMax:  time.Unix(0, 0),
+					NumTraces:     200,
+					Tags:          map[string]string{"k": "v", "x": "y"},
+				},
+			},
+		},
+		{"x?service=service&start=0&end=0&operation=operation&limit=200&minDuration=10s&maxDuration=20s", noErr,
 			&traceQueryParameters{
 				TraceQueryParameters: spanstore.TraceQueryParameters{
 					ServiceName:   "service",
@@ -70,7 +99,7 @@ func TestParseTraceQuery(t *testing.T) {
 				},
 			},
 		},
-		{"x?service=service&start=0&end=0&operation=operation&limit=200&minDuration=10s", ``,
+		{"x?service=service&start=0&end=0&operation=operation&limit=200&minDuration=10s", noErr,
 			&traceQueryParameters{
 				TraceQueryParameters: spanstore.TraceQueryParameters{
 					ServiceName:   "service",
@@ -83,7 +112,8 @@ func TestParseTraceQuery(t *testing.T) {
 				},
 			},
 		},
-		{"x?traceID=100&traceID=200", ``,
+		// trace ID in upper/lower case
+		{"x?traceID=1f00&traceID=1E00", noErr,
 			&traceQueryParameters{
 				TraceQueryParameters: spanstore.TraceQueryParameters{
 					NumTraces:    100,
@@ -92,8 +122,8 @@ func TestParseTraceQuery(t *testing.T) {
 					Tags:         make(map[string]string),
 				},
 				traceIDs: []model.TraceID{
-					{Low: 0x100},
-					{Low: 0x200},
+					{Low: 0x1f00},
+					{Low: 0x1e00},
 				},
 			},
 		},

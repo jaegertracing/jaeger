@@ -15,12 +15,17 @@
 package zipkin
 
 import (
+	"bytes"
+	"encoding/base64"
+	"encoding/binary"
 	"encoding/json"
 	"errors"
-	"strconv"
-	"strings"
+	"fmt"
+	"math"
+	"net"
 
-	"github.com/uber/jaeger/thrift-gen/zipkincore"
+	"github.com/jaegertracing/jaeger/model"
+	"github.com/jaegertracing/jaeger/thrift-gen/zipkincore"
 )
 
 type endpoint struct {
@@ -35,9 +40,10 @@ type annotation struct {
 	Timestamp int64    `json:"timestamp"`
 }
 type binaryAnnotation struct {
-	Endpoint endpoint `json:"endpoint"`
-	Key      string   `json:"key"`
-	Value    string   `json:"value"`
+	Endpoint endpoint    `json:"endpoint"`
+	Key      string      `json:"key"`
+	Value    interface{} `json:"value"`
+	Type     string      `json:"type"`
 }
 type zipkinSpan struct {
 	ID                string             `json:"id"`
@@ -52,11 +58,12 @@ type zipkinSpan struct {
 }
 
 var (
-	errIsNotUnsignedLog = errors.New("id is not an unsigned long")
-	errWrongIpv4        = errors.New("wrong ipv4")
+	errWrongIpv4 = errors.New("wrong ipv4")
+	errWrongIpv6 = errors.New("wrong ipv6")
 )
 
-func deserializeJSON(body []byte) ([]*zipkincore.Span, error) {
+// DeserializeJSON deserialize zipkin v1 json spans into zipkin thrift
+func DeserializeJSON(body []byte) ([]*zipkincore.Span, error) {
 	spans, err := decode(body)
 	if err != nil {
 		return nil, err
@@ -86,37 +93,30 @@ func spansToThrift(spans []zipkinSpan) ([]*zipkincore.Span, error) {
 }
 
 func spanToThrift(s zipkinSpan) (*zipkincore.Span, error) {
-	// TODO use model.SpanIDFromString and model.TraceIDFromString
-	id, err := hexToUnsignedLong(s.ID)
+	id, err := model.SpanIDFromString(cutLongID(s.ID))
 	if err != nil {
 		return nil, err
 	}
-	traceID, err := hexToUnsignedLong(s.TraceID)
+	traceID, err := model.TraceIDFromString(s.TraceID)
 	if err != nil {
 		return nil, err
 	}
 
 	tSpan := &zipkincore.Span{
 		ID:        int64(id),
-		TraceID:   int64(traceID),
+		TraceID:   int64(traceID.Low),
 		Name:      s.Name,
 		Debug:     s.Debug,
 		Timestamp: s.Timestamp,
 		Duration:  s.Duration,
 	}
-
-	if len(s.TraceID) == 32 {
-		// take 0-16
-		traceIDHigh, err := hexToUnsignedLong(s.TraceID[:16])
-		if err != nil {
-			return nil, err
-		}
-		help := int64(traceIDHigh)
+	if traceID.High != 0 {
+		help := int64(traceID.High)
 		tSpan.TraceIDHigh = &help
 	}
 
 	if len(s.ParentID) > 0 {
-		parentID, err := hexToUnsignedLong(s.ParentID)
+		parentID, err := model.SpanIDFromString(cutLongID(s.ParentID))
 		if err != nil {
 			return nil, err
 		}
@@ -142,23 +142,44 @@ func spanToThrift(s zipkinSpan) (*zipkincore.Span, error) {
 	return tSpan, nil
 }
 
+// id can be padded with zeros. We let it fail later in case it's longer than 32
+func cutLongID(id string) string {
+	l := len(id)
+	if l > 16 && l <= 32 {
+		start := l - 16
+		return id[start:]
+	}
+	return id
+}
+
 func endpointToThrift(e endpoint) (*zipkincore.Endpoint, error) {
-	ipv4, err := parseIpv4(e.IPv4)
+	return eToThrift(e.IPv4, e.IPv6, e.Port, e.ServiceName)
+}
+
+func eToThrift(ip4 string, ip6 string, p int32, service string) (*zipkincore.Endpoint, error) {
+	ipv4, err := parseIpv4(ip4)
 	if err != nil {
 		return nil, err
 	}
-	port := e.Port
-	if port >= (1 << 15) {
-		// Zipkin.thrift defines port as i16, so values between (2^15 and 2^16-1) must be encoded as negative
-		port = port - (1 << 16)
+	port := port(p)
+	ipv6, err := parseIpv6(string(ip6))
+	if err != nil {
+		return nil, err
 	}
-
 	return &zipkincore.Endpoint{
-		ServiceName: e.ServiceName,
+		ServiceName: service,
 		Port:        int16(port),
 		Ipv4:        ipv4,
-		Ipv6:        []byte(e.IPv6),
+		Ipv6:        ipv6,
 	}, nil
+}
+
+func port(p int32) int32 {
+	if p >= (1 << 15) {
+		// Zipkin.thrift defines port as i16, so values between (2^15 and 2^16-1) must be encoded as negative
+		p = p - (1 << 16)
+	}
+	return p
 }
 
 func annoToThrift(a annotation) (*zipkincore.Annotation, error) {
@@ -180,58 +201,90 @@ func binAnnoToThrift(ba binaryAnnotation) (*zipkincore.BinaryAnnotation, error) 
 		return nil, err
 	}
 
+	var val []byte
+	var valType zipkincore.AnnotationType
+	switch ba.Type {
+	case "BOOL":
+		if ba.Value.(bool) {
+			val = []byte{1}
+		} else {
+			val = []byte{0}
+		}
+		valType = zipkincore.AnnotationType_BOOL
+	case "I16":
+		buff := new(bytes.Buffer)
+		binary.Write(buff, binary.LittleEndian, int16(ba.Value.(float64)))
+		val = buff.Bytes()
+		valType = zipkincore.AnnotationType_I16
+	case "I32":
+		buff := new(bytes.Buffer)
+		binary.Write(buff, binary.LittleEndian, int32(ba.Value.(float64)))
+		val = buff.Bytes()
+		valType = zipkincore.AnnotationType_I32
+	case "I64":
+		buff := new(bytes.Buffer)
+		binary.Write(buff, binary.LittleEndian, int64(ba.Value.(float64)))
+		val = buff.Bytes()
+		valType = zipkincore.AnnotationType_I64
+	case "DOUBLE":
+		val = float64bytes(ba.Value.(float64))
+		valType = zipkincore.AnnotationType_DOUBLE
+	case "BYTES":
+		val, err = base64.StdEncoding.DecodeString(ba.Value.(string))
+		if err != nil {
+			return nil, err
+		}
+		valType = zipkincore.AnnotationType_BYTES
+	case "STRING":
+		fallthrough
+	default:
+		str := fmt.Sprintf("%s", ba.Value)
+		val = []byte(str)
+		valType = zipkincore.AnnotationType_STRING
+	}
+
 	return &zipkincore.BinaryAnnotation{
 		Key:            ba.Key,
-		Value:          []byte(ba.Value),
+		Value:          val,
 		Host:           endpoint,
-		AnnotationType: zipkincore.AnnotationType_STRING,
+		AnnotationType: valType,
 	}, nil
 }
 
+// taken from https://stackoverflow.com/a/22492518/4158442
+func float64bytes(float float64) []byte {
+	bits := math.Float64bits(float)
+	bytes := make([]byte, 8)
+	binary.LittleEndian.PutUint64(bytes, bits)
+	return bytes
+}
+
+func parseIpv6(str string) (net.IP, error) {
+	if str == "" {
+		return nil, nil
+	}
+	ip := net.ParseIP(str).To16()
+	if ip == nil {
+		return nil, errWrongIpv6
+	}
+	return ip, nil
+}
+
 func parseIpv4(str string) (int32, error) {
-	// TODO use net.ParseIP
-	segments := strings.Split(str, ".")
-	if len(segments) == 1 {
+	if str == "" {
 		return 0, nil
 	}
 
+	ip := net.ParseIP(str).To4()
+	if ip == nil {
+		return 0, errWrongIpv4
+	}
+
 	var ipv4 int32
-	for _, segment := range segments {
-		parsed, err := strconv.ParseInt(segment, 10, 32)
-		if err != nil {
-			return 0, errWrongIpv4
-		}
-		parsed32 := int32(parsed)
+	for _, segment := range ip {
+		parsed32 := int32(segment)
 		ipv4 = ipv4<<8 | (parsed32 & 0xff)
 	}
 
 	return ipv4, nil
-}
-
-func hexToUnsignedLong(hex string) (uint64, error) {
-	// TODO remove this func in favor of model.XxxFromString methods
-	len := len(hex)
-	if len < 1 || len > 32 {
-		return 0, errIsNotUnsignedLog
-	}
-
-	start := 0
-	if len > 16 {
-		start = len - 16
-	}
-
-	var result uint64
-	for i := start; i < len; i++ {
-		c := hex[i]
-		result <<= 4
-		if c >= '0' && c <= '9' {
-			result = result | uint64(c-'0')
-		} else if c >= 'a' && c <= 'f' {
-			result = result | uint64(c-'a'+10)
-		} else {
-			return 0, errIsNotUnsignedLog
-		}
-	}
-
-	return result, nil
 }

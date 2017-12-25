@@ -18,65 +18,78 @@ import (
 	"fmt"
 	"net"
 	"net/http"
+	"os"
 	"runtime"
 	"strconv"
 
 	"github.com/gorilla/mux"
+	"github.com/pkg/errors"
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
 	jaegerClientConfig "github.com/uber/jaeger-client-go/config"
 	"github.com/uber/jaeger-lib/metrics"
-	"github.com/uber/jaeger-lib/metrics/go-kit"
-	"github.com/uber/jaeger-lib/metrics/go-kit/expvar"
 	"github.com/uber/tchannel-go"
 	"github.com/uber/tchannel-go/thrift"
 	"go.uber.org/zap"
 
-	agentApp "github.com/uber/jaeger/cmd/agent/app"
-	basic "github.com/uber/jaeger/cmd/builder"
-	collectorApp "github.com/uber/jaeger/cmd/collector/app"
-	collector "github.com/uber/jaeger/cmd/collector/app/builder"
-	"github.com/uber/jaeger/cmd/collector/app/zipkin"
-	"github.com/uber/jaeger/cmd/flags"
-	queryApp "github.com/uber/jaeger/cmd/query/app"
-	query "github.com/uber/jaeger/cmd/query/app/builder"
-	"github.com/uber/jaeger/pkg/config"
-	pMetrics "github.com/uber/jaeger/pkg/metrics"
-	"github.com/uber/jaeger/pkg/recoveryhandler"
-	"github.com/uber/jaeger/storage/spanstore/memory"
-	jc "github.com/uber/jaeger/thrift-gen/jaeger"
-	zc "github.com/uber/jaeger/thrift-gen/zipkincore"
+	agentApp "github.com/jaegertracing/jaeger/cmd/agent/app"
+	basic "github.com/jaegertracing/jaeger/cmd/builder"
+	collectorApp "github.com/jaegertracing/jaeger/cmd/collector/app"
+	collector "github.com/jaegertracing/jaeger/cmd/collector/app/builder"
+	"github.com/jaegertracing/jaeger/cmd/collector/app/zipkin"
+	"github.com/jaegertracing/jaeger/cmd/flags"
+	queryApp "github.com/jaegertracing/jaeger/cmd/query/app"
+	query "github.com/jaegertracing/jaeger/cmd/query/app/builder"
+	"github.com/jaegertracing/jaeger/pkg/config"
+	pMetrics "github.com/jaegertracing/jaeger/pkg/metrics"
+	"github.com/jaegertracing/jaeger/pkg/recoveryhandler"
+	"github.com/jaegertracing/jaeger/pkg/version"
+	"github.com/jaegertracing/jaeger/storage/spanstore/memory"
+	jc "github.com/jaegertracing/jaeger/thrift-gen/jaeger"
+	zc "github.com/jaegertracing/jaeger/thrift-gen/zipkincore"
 )
 
 // standalone/main is a standalone full-stack jaeger backend, backed by a memory store
 func main() {
-	logger, _ := zap.NewProduction()
 	v := viper.New()
-
 	command := &cobra.Command{
 		Use:   "jaeger-standalone",
 		Short: "Jaeger all-in-one distribution with agent, collector and query in one process.",
 		Long: `Jaeger all-in-one distribution with agent, collector and query. Use with caution this version
 		 uses only in-memory database.`,
 		RunE: func(cmd *cobra.Command, args []string) error {
-			flags.TryLoadConfigFile(v, logger)
+			err := flags.TryLoadConfigFile(v)
+			if err != nil {
+				return err
+			}
+
+			sFlags := new(flags.SharedFlags).InitFromViper(v)
+			logger, err := sFlags.NewLogger(zap.NewProductionConfig())
+			if err != nil {
+				return err
+			}
 
 			runtime.GOMAXPROCS(runtime.NumCPU())
-			sFlags := new(flags.SharedFlags).InitFromViper(v)
 			cOpts := new(collector.CollectorOptions).InitFromViper(v)
 			qOpts := new(query.QueryOptions).InitFromViper(v)
+			mBldr := new(pMetrics.Builder).InitFromViper(v)
 
-			metricsFactory := xkit.Wrap("jaeger-standalone", expvar.NewFactory(10))
+			metricsFactory, err := mBldr.CreateMetricsFactory("jaeger-standalone")
+			if err != nil {
+				return errors.Wrap(err, "Cannot create metrics factory")
+			}
 			memStore := memory.NewStore()
 
 			builder := &agentApp.Builder{}
 			builder.InitFromViper(v)
 			startAgent(builder, cOpts, logger, metricsFactory)
 			startCollector(cOpts, sFlags, logger, metricsFactory, memStore)
-			startQuery(qOpts, sFlags, logger, metricsFactory, memStore)
+			startQuery(qOpts, sFlags, logger, metricsFactory, mBldr, memStore)
 			select {}
 		},
 	}
+
+	command.AddCommand(version.Command())
 
 	config.AddFlags(
 		v,
@@ -90,7 +103,8 @@ func main() {
 	)
 
 	if err := command.Execute(); err != nil {
-		logger.Fatal("standalone command failed", zap.Error(err))
+		fmt.Println(err.Error())
+		os.Exit(1)
 	}
 }
 
@@ -175,7 +189,8 @@ func startZipkinHTTPAPI(
 ) {
 	if zipkinPort != 0 {
 		r := mux.NewRouter()
-		zipkin.NewAPIHandler(zipkinSpansHandler).RegisterRoutes(r)
+		zHandler := zipkin.NewAPIHandler(zipkinSpansHandler)
+		zHandler.RegisterRoutes(r)
 		httpPortStr := ":" + strconv.Itoa(zipkinPort)
 		logger.Info("Listening for Zipkin HTTP traffic", zap.Int("zipkin.http-port", zipkinPort))
 
@@ -190,6 +205,7 @@ func startQuery(
 	sFlags *flags.SharedFlags,
 	logger *zap.Logger,
 	baseFactory metrics.Factory,
+	metricsBuilder *pMetrics.Builder,
 	memoryStore *memory.Store,
 ) {
 	metricsFactory := baseFactory.Namespace("jaeger-query", nil)
@@ -215,20 +231,38 @@ func startQuery(
 		logger.Fatal("Failed to initialize tracer", zap.Error(err))
 	}
 	defer closer.Close()
-	rHandler := queryApp.NewAPIHandler(
+	apiHandler := queryApp.NewAPIHandler(
 		storageBuild.SpanReader,
 		storageBuild.DependencyReader,
-		queryApp.HandlerOptions.Prefix(qOpts.QueryPrefix),
+		queryApp.HandlerOptions.Prefix(qOpts.Prefix),
 		queryApp.HandlerOptions.Logger(logger),
 		queryApp.HandlerOptions.Tracer(tracer))
-	sHandler := queryApp.NewStaticAssetsHandler(qOpts.QueryStaticAssets)
+
 	r := mux.NewRouter()
-	rHandler.RegisterRoutes(r)
-	sHandler.RegisterRoutes(r)
-	portStr := ":" + strconv.Itoa(qOpts.QueryPort)
+	apiHandler.RegisterRoutes(r)
+	registerStaticHandler(r, logger, qOpts)
+
+	if h := metricsBuilder.Handler(); h != nil {
+		logger.Info("Registering metrics handler with jaeger-query HTTP server", zap.String("route", metricsBuilder.HTTPRoute))
+		r.Handle(metricsBuilder.HTTPRoute, h)
+	}
+
+	portStr := ":" + strconv.Itoa(qOpts.Port)
 	recoveryHandler := recoveryhandler.NewRecoveryHandler(logger, true)
-	logger.Info("Starting jaeger-query HTTP server", zap.Int("port", qOpts.QueryPort))
+	logger.Info("Starting jaeger-query HTTP server", zap.Int("port", qOpts.Port))
 	if err := http.ListenAndServe(portStr, recoveryHandler(r)); err != nil {
 		logger.Fatal("Could not launch jaeger-query service", zap.Error(err))
+	}
+}
+
+func registerStaticHandler(r *mux.Router, logger *zap.Logger, qOpts *query.QueryOptions) {
+	staticHandler, err := queryApp.NewStaticAssetsHandler(qOpts.StaticAssets, qOpts.UIConfig)
+	if err != nil {
+		logger.Fatal("Could not create static assets handler", zap.Error(err))
+	}
+	if staticHandler != nil {
+		staticHandler.RegisterRoutes(r)
+	} else {
+		logger.Info("Static handler is not registered")
 	}
 }

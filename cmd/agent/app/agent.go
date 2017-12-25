@@ -21,7 +21,7 @@ import (
 
 	"go.uber.org/zap"
 
-	"github.com/uber/jaeger/cmd/agent/app/processors"
+	"github.com/jaegertracing/jaeger/cmd/agent/app/processors"
 )
 
 // Agent is a composition of all services / components

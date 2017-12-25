@@ -17,8 +17,8 @@ package app
 import (
 	"sync"
 
+	"github.com/jaegertracing/jaeger/model"
 	"github.com/uber/jaeger-lib/metrics"
-	"github.com/uber/jaeger/model"
 )
 
 const (

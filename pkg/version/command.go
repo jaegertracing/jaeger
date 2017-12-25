@@ -1,4 +1,4 @@
-// Copyright (c) 2017 Uber Technologies, Inc.
+// Copyright (c) 2017 The Jaeger Authors.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -12,26 +12,30 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package httpexpvar
+package version
 
 import (
-	"expvar"
+	"encoding/json"
 	"fmt"
-	"net/http"
+
+	"github.com/spf13/cobra"
 )
 
-// Handler is a copy of expvar.expvarHandler private method.
-// TODO this won't be needed in Go 1.8
-func Handler(w http.ResponseWriter, r *http.Request) {
-	w.Header().Set("Content-Type", "application/json; charset=utf-8")
-	fmt.Fprintf(w, "{\n")
-	first := true
-	expvar.Do(func(kv expvar.KeyValue) {
-		if !first {
-			fmt.Fprintf(w, ",\n")
-		}
-		first = false
-		fmt.Fprintf(w, "%q: %s", kv.Key, kv.Value)
-	})
-	fmt.Fprintf(w, "\n}\n")
+// Command creates version command
+func Command() *cobra.Command {
+	return &cobra.Command{
+		Use:   "version",
+		Short: "Print the version",
+		Long:  `Print the version and build information`,
+		RunE: func(cmd *cobra.Command, args []string) error {
+			info := Get()
+			json, err := json.Marshal(info)
+			if err != nil {
+				return err
+			}
+			fmt.Println(string(json))
+
+			return nil
+		},
+	}
 }

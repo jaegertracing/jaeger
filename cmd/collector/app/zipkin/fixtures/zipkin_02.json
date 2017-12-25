@@ -1,0 +1,14 @@
+[
+  {
+    "traceId": "2",
+    "id": "2",
+    "name": "foo",
+    "timestamp": 1,
+    "duration": 10,
+    "localEndpoint": {
+      "serviceName": "bar",
+      "ipv4": "10.43.17.42",
+      "port": 8080
+    }
+  }
+]

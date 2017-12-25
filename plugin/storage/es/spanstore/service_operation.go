@@ -24,10 +24,10 @@ import (
 	"go.uber.org/zap"
 	"gopkg.in/olivere/elastic.v5"
 
-	jModel "github.com/uber/jaeger/model/json"
-	"github.com/uber/jaeger/pkg/cache"
-	"github.com/uber/jaeger/pkg/es"
-	storageMetrics "github.com/uber/jaeger/storage/spanstore/metrics"
+	jModel "github.com/jaegertracing/jaeger/model/json"
+	"github.com/jaegertracing/jaeger/pkg/cache"
+	"github.com/jaegertracing/jaeger/pkg/es"
+	storageMetrics "github.com/jaegertracing/jaeger/storage/spanstore/metrics"
 )
 
 const (
@@ -102,7 +102,9 @@ func (s *ServiceOperationStorage) getServices(indices []string) ([]string, error
 	if err != nil {
 		return nil, errors.Wrap(err, "Search service failed")
 	}
-
+	if searchResult.Aggregations == nil {
+		return []string{}, nil
+	}
 	bucket, found := searchResult.Aggregations.Terms(servicesAggregation)
 	if !found {
 		return nil, errors.New("Could not find aggregation of " + servicesAggregation)
@@ -131,6 +133,9 @@ func (s *ServiceOperationStorage) getOperations(indices []string, service string
 	searchResult, err := searchService.Do(s.ctx)
 	if err != nil {
 		return nil, errors.Wrap(err, "Search service failed")
+	}
+	if searchResult.Aggregations == nil {
+		return []string{}, nil
 	}
 	bucket, found := searchResult.Aggregations.Terms(operationsAggregation)
 	if !found {

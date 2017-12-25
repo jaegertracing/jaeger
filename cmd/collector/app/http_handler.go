@@ -25,7 +25,7 @@ import (
 	"github.com/gorilla/mux"
 	tchanThrift "github.com/uber/tchannel-go/thrift"
 
-	tJaeger "github.com/uber/jaeger/thrift-gen/jaeger"
+	tJaeger "github.com/jaegertracing/jaeger/thrift-gen/jaeger"
 )
 
 const (

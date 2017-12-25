@@ -24,12 +24,12 @@ import (
 	"github.com/uber/jaeger-lib/metrics"
 	"go.uber.org/zap"
 
-	"github.com/uber/jaeger/model"
-	"github.com/uber/jaeger/model/converter/json"
-	jModel "github.com/uber/jaeger/model/json"
-	"github.com/uber/jaeger/pkg/cache"
-	"github.com/uber/jaeger/pkg/es"
-	storageMetrics "github.com/uber/jaeger/storage/spanstore/metrics"
+	"github.com/jaegertracing/jaeger/model"
+	"github.com/jaegertracing/jaeger/model/converter/json"
+	jModel "github.com/jaegertracing/jaeger/model/json"
+	"github.com/jaegertracing/jaeger/pkg/cache"
+	"github.com/jaegertracing/jaeger/pkg/es"
+	storageMetrics "github.com/jaegertracing/jaeger/storage/spanstore/metrics"
 )
 
 const (
@@ -63,6 +63,15 @@ type SpanWriter struct {
 type Service struct {
 	ServiceName   string `json:"serviceName"`
 	OperationName string `json:"operationName"`
+}
+
+// Span adds a StartTimeMillis field to the standard JSON span.
+// ElasticSearch does not support a UNIX Epoch timestamp in microseconds,
+// so Jaeger maps StartTime to a 'long' type. This extra StartTimeMillis field
+// works around this issue, enabling timerange queries.
+type Span struct {
+	*jModel.Span
+	StartTimeMillis uint64 `json:"startTimeMillis"`
 }
 
 // NewSpanWriter creates a new SpanWriter for use
@@ -164,7 +173,8 @@ func (s *SpanWriter) writeService(indexName string, jsonSpan *jModel.Span) error
 
 func (s *SpanWriter) writeSpan(indexName string, jsonSpan *jModel.Span) error {
 	start := time.Now()
-	_, err := s.client.Index().Index(indexName).Type(spanType).BodyJson(jsonSpan).Do(s.ctx)
+	elasticSpan := Span{Span: jsonSpan, StartTimeMillis: jsonSpan.StartTime / 1000} // Microseconds to milliseconds
+	_, err := s.client.Index().Index(indexName).Type(spanType).BodyJson(&elasticSpan).Do(s.ctx)
 	s.writerMetrics.spans.Emit(err, time.Since(start))
 	if err != nil {
 		return s.logError(jsonSpan, err, "Failed to insert span", s.logger)

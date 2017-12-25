@@ -19,7 +19,7 @@ import (
 
 	"github.com/stretchr/testify/assert"
 
-	"github.com/uber/jaeger/storage/spanstore/memory"
+	"github.com/jaegertracing/jaeger/storage/spanstore/memory"
 )
 
 func TestMemoryStoreBuilder(t *testing.T) {

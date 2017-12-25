@@ -18,8 +18,8 @@ import (
 	"encoding/hex"
 	"testing"
 
+	"github.com/jaegertracing/jaeger/model"
 	"github.com/stretchr/testify/assert"
-	"github.com/uber/jaeger/model"
 	"go.uber.org/zap"
 )
 

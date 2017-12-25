@@ -22,13 +22,16 @@ import (
 	"fmt"
 	"os"
 	"testing"
+	"time"
 
 	"github.com/kr/pretty"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	"github.com/uber/jaeger/model"
-	z "github.com/uber/jaeger/thrift-gen/zipkincore"
+	"github.com/jaegertracing/jaeger/model"
+	z "github.com/jaegertracing/jaeger/thrift-gen/zipkincore"
+	"github.com/opentracing/opentracing-go"
+	"github.com/opentracing/opentracing-go/ext"
 )
 
 const NumberOfFixtures = 3
@@ -55,12 +58,14 @@ func TestToDomain(t *testing.T) {
 			}
 		})
 		if i == 1 {
-			t.Run("ToDomainSpan", func(t *testing.T) {
+			t.Run("ToDomainSpans", func(t *testing.T) {
 				zSpan := zSpans[0]
-				jSpan, err := ToDomainSpan(zSpan)
+				jSpans, err := ToDomainSpan(zSpan)
 				assert.NoError(t, err)
-				jSpan.NormalizeTimestamps()
-				assert.Equal(t, expectedTrace.Spans[0], jSpan)
+				for _, jSpan := range jSpans {
+					jSpan.NormalizeTimestamps()
+					assert.Equal(t, expectedTrace.Spans[0], jSpan)
+				}
 			})
 		}
 	}
@@ -81,6 +86,47 @@ func TestToDomainServiceNameInBinAnnotation(t *testing.T) {
 	require.Nil(t, err)
 	assert.Equal(t, 1, len(trace.Spans))
 	assert.Equal(t, "bar", trace.Spans[0].Process.ServiceName)
+}
+
+func TestToDomainMultipleSpanKinds(t *testing.T) {
+	tests := []struct {
+		json      string
+		tagFirst  opentracing.Tag
+		tagSecond opentracing.Tag
+	}{
+		{json: `[{ "trace_id": -1, "id": 31, "annotations": [
+		{"value": "cs", "host": {"service_name": "bar", "ipv4": 23456}},
+		{"value": "sr", "timestamp": 1, "host": {"service_name": "bar", "ipv4": 23456}},
+		{"value": "ss", "timestamp": 2, "host": {"service_name": "bar", "ipv4": 23456}}
+		]}]`,
+			tagFirst:  ext.SpanKindRPCClient,
+			tagSecond: ext.SpanKindRPCServer,
+		},
+		{json: `[{ "trace_id": -1, "id": 31, "annotations": [
+		{"value": "sr", "host": {"service_name": "bar", "ipv4": 23456}},
+		{"value": "cs", "timestamp": 1, "host": {"service_name": "bar", "ipv4": 23456}},
+		{"value": "cr", "timestamp": 2, "host": {"service_name": "bar", "ipv4": 23456}}
+		]}]`,
+			tagFirst:  ext.SpanKindRPCServer,
+			tagSecond: ext.SpanKindRPCClient,
+		},
+	}
+
+	for _, test := range tests {
+		fmt.Println(test.json)
+		trace, err := ToDomain(getZipkinSpans(t, test.json))
+		require.Nil(t, err)
+
+		assert.Equal(t, 2, len(trace.Spans))
+		assert.Equal(t, 1, trace.Spans[0].Tags.Len())
+		assert.Equal(t, test.tagFirst.Key, trace.Spans[0].Tags[0].Key)
+		assert.Equal(t, string(test.tagFirst.Value.(ext.SpanKindEnum)), trace.Spans[0].Tags[0].VStr)
+
+		assert.Equal(t, 1, trace.Spans[1].Tags.Len())
+		assert.Equal(t, test.tagSecond.Key, trace.Spans[1].Tags[0].Key)
+		assert.Equal(t, time.Duration(1000), trace.Spans[1].Duration)
+		assert.Equal(t, string(test.tagSecond.Value.(ext.SpanKindEnum)), trace.Spans[1].Tags[0].VStr)
+	}
 }
 
 func TestInvalidAnnotationTypeError(t *testing.T) {

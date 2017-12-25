@@ -1,6 +1,41 @@
 Changes by Version
 ==================
 
+1.0.0 (2017-12-04)
+------------------
+
+#### Backend Changes
+
+- Support Prometheus metrics as default for all components (#516)
+- Enable TLS client connections to Cassandra (#555)
+- Fix issue where Domain to UI model converter double reports references (#579)
+
+#### UI Changes
+
+- Make dependencies tab configurable (#122)
+
+
+0.10.0 (2017-11-17)
+------------------
+
+#### UI Changes
+
+- Verify stored search settings [jaegertracing/jaeger-ui#111](https://github.com/jaegertracing/jaeger-ui/pull/111)
+- Fix browser back button not working correctly [jaegertracing/jaeger-ui#110](https://github.com/jaegertracing/jaeger-ui/pull/110)
+- Handle FOLLOWS_FROM ref type [jaegertracing/jaeger-ui#118](https://github.com/jaegertracing/jaeger-ui/pull/118)
+
+#### Backend Changes
+
+- Allow embedding custom UI config in index.html [#490](https://github.com/jaegertracing/jaeger/pull/490)
+- Add startTimeMillis field to JSON Spans submitted to ElasticSearch [#491](https://github.com/jaegertracing/jaeger/pull/491)
+- Introduce version command and handler [#517](https://github.com/jaegertracing/jaeger/pull/517)
+- Fix ElasticSearch aggregation errors when index is empty [#535](https://github.com/jaegertracing/jaeger/pull/535)
+- Change package from uber to jaegertracing [#528](https://github.com/jaegertracing/jaeger/pull/528)
+- Introduce logging level configuration [#514](https://github.com/jaegertracing/jaeger/pull/514)
+- Support Zipkin v2 json [#518](https://github.com/jaegertracing/jaeger/pull/518)
+- Add HTTP compression handler [#545](https://github.com/jaegertracing/jaeger/pull/545)
+
+
 0.9.0 (2017-10-25)
 ------------------
 

@@ -15,6 +15,7 @@
 package main
 
 import (
+	"fmt"
 	"net"
 	"net/http"
 	"os"
@@ -25,31 +26,30 @@ import (
 	"github.com/gorilla/mux"
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
-	"github.com/uber/jaeger-lib/metrics/go-kit"
-	"github.com/uber/jaeger-lib/metrics/go-kit/expvar"
 	"github.com/uber/tchannel-go"
 	"github.com/uber/tchannel-go/thrift"
 	"go.uber.org/zap"
 
-	basicB "github.com/uber/jaeger/cmd/builder"
-	"github.com/uber/jaeger/cmd/collector/app"
-	"github.com/uber/jaeger/cmd/collector/app/builder"
-	"github.com/uber/jaeger/cmd/collector/app/zipkin"
-	"github.com/uber/jaeger/cmd/flags"
-	casFlags "github.com/uber/jaeger/cmd/flags/cassandra"
-	esFlags "github.com/uber/jaeger/cmd/flags/es"
-	"github.com/uber/jaeger/pkg/config"
-	"github.com/uber/jaeger/pkg/healthcheck"
-	"github.com/uber/jaeger/pkg/recoveryhandler"
-	jc "github.com/uber/jaeger/thrift-gen/jaeger"
-	zc "github.com/uber/jaeger/thrift-gen/zipkincore"
+	basicB "github.com/jaegertracing/jaeger/cmd/builder"
+	"github.com/jaegertracing/jaeger/cmd/collector/app"
+	"github.com/jaegertracing/jaeger/cmd/collector/app/builder"
+	"github.com/jaegertracing/jaeger/cmd/collector/app/zipkin"
+	"github.com/jaegertracing/jaeger/cmd/flags"
+	casFlags "github.com/jaegertracing/jaeger/cmd/flags/cassandra"
+	esFlags "github.com/jaegertracing/jaeger/cmd/flags/es"
+	"github.com/jaegertracing/jaeger/pkg/config"
+	"github.com/jaegertracing/jaeger/pkg/healthcheck"
+	pMetrics "github.com/jaegertracing/jaeger/pkg/metrics"
+	"github.com/jaegertracing/jaeger/pkg/recoveryhandler"
+	"github.com/jaegertracing/jaeger/pkg/version"
+	jc "github.com/jaegertracing/jaeger/thrift-gen/jaeger"
+	zc "github.com/jaegertracing/jaeger/thrift-gen/zipkincore"
 )
 
 func main() {
 	var signalsChannel = make(chan os.Signal, 0)
 	signal.Notify(signalsChannel, os.Interrupt, syscall.SIGTERM)
 
-	logger, _ := zap.NewProduction()
 	serviceName := "jaeger-collector"
 	casOptions := casFlags.NewOptions("cassandra")
 	esOptions := esFlags.NewOptions("es")
@@ -60,16 +60,27 @@ func main() {
 		Short: "Jaeger collector receives and processes traces from Jaeger agents and clients",
 		Long: `Jaeger collector receives traces from Jaeger agents and agent and runs them through
 				a processing pipeline.`,
-		Run: func(cmd *cobra.Command, args []string) {
-			flags.TryLoadConfigFile(v, logger)
+		RunE: func(cmd *cobra.Command, args []string) error {
+			err := flags.TryLoadConfigFile(v)
+			if err != nil {
+				return err
+			}
 
 			sFlags := new(flags.SharedFlags).InitFromViper(v)
+			logger, err := sFlags.NewLogger(zap.NewProductionConfig())
+			if err != nil {
+				return err
+			}
+
 			casOptions.InitFromViper(v)
 			esOptions.InitFromViper(v)
-
-			baseMetrics := xkit.Wrap(serviceName, expvar.NewFactory(10))
-
+			mBldr := new(pMetrics.Builder).InitFromViper(v)
 			builderOpts := new(builder.CollectorOptions).InitFromViper(v)
+
+			metricsFactory, err := mBldr.CreateMetricsFactory("jaeger-collector")
+			if err != nil {
+				logger.Fatal("Cannot create metrics factory.", zap.Error(err))
+			}
 
 			hc, err := healthcheck.Serve(http.StatusServiceUnavailable, builderOpts.CollectorHealthCheckHTTPPort, logger)
 			if err != nil {
@@ -82,7 +93,7 @@ func main() {
 				basicB.Options.CassandraSessionOption(casOptions.GetPrimary()),
 				basicB.Options.ElasticClientOption(esOptions.GetPrimary()),
 				basicB.Options.LoggerOption(logger),
-				basicB.Options.MetricsFactoryOption(baseMetrics),
+				basicB.Options.MetricsFactoryOption(metricsFactory),
 			)
 			if err != nil {
 				logger.Fatal("Unable to set up builder", zap.Error(err))
@@ -107,6 +118,10 @@ func main() {
 			r := mux.NewRouter()
 			apiHandler := app.NewAPIHandler(jaegerBatchesHandler)
 			apiHandler.RegisterRoutes(r)
+			if h := mBldr.Handler(); h != nil {
+				logger.Info("Registering metrics handler with HTTP server", zap.String("route", mBldr.HTTPRoute))
+				r.Handle(mBldr.HTTPRoute, h)
+			}
 			httpPortStr := ":" + strconv.Itoa(builderOpts.CollectorHTTPPort)
 			recoveryHandler := recoveryhandler.NewRecoveryHandler(logger, true)
 
@@ -126,8 +141,11 @@ func main() {
 			case <-signalsChannel:
 				logger.Info("Jaeger Collector is finishing")
 			}
+			return nil
 		},
 	}
+
+	command.AddCommand(version.Command())
 
 	config.AddFlags(
 		v,
@@ -137,10 +155,12 @@ func main() {
 		builder.AddFlags,
 		casOptions.AddFlags,
 		esOptions.AddFlags,
+		pMetrics.AddFlags,
 	)
 
 	if error := command.Execute(); error != nil {
-		logger.Fatal(error.Error())
+		fmt.Println(error.Error())
+		os.Exit(1)
 	}
 }
 
@@ -151,8 +171,10 @@ func startZipkinHTTPAPI(
 	recoveryHandler func(http.Handler) http.Handler,
 ) {
 	if zipkinPort != 0 {
+		zHandler := zipkin.NewAPIHandler(zipkinSpansHandler)
 		r := mux.NewRouter()
-		zipkin.NewAPIHandler(zipkinSpansHandler).RegisterRoutes(r)
+		zHandler.RegisterRoutes(r)
+
 		httpPortStr := ":" + strconv.Itoa(zipkinPort)
 		logger.Info("Listening for Zipkin HTTP traffic", zap.Int("zipkin.http-port", zipkinPort))
 

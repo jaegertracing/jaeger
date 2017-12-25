@@ -17,9 +17,9 @@ package builder
 import (
 	"time"
 
-	"github.com/uber/jaeger/pkg/cassandra/config"
-	"github.com/uber/jaeger/plugin/storage/cassandra/dependencystore"
-	"github.com/uber/jaeger/plugin/storage/cassandra/spanstore"
+	"github.com/jaegertracing/jaeger/pkg/cassandra/config"
+	"github.com/jaegertracing/jaeger/plugin/storage/cassandra/dependencystore"
+	"github.com/jaegertracing/jaeger/plugin/storage/cassandra/spanstore"
 )
 
 func (sb *StorageBuilder) newCassandraBuilder(sessionBuilder config.SessionBuilder, dependencyDataFreq time.Duration) error {

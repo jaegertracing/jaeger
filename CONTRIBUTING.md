@@ -21,11 +21,11 @@ file for details.
 
 This library uses [glide](https://github.com/Masterminds/glide) to manage dependencies.
 
-To get started, make sure you clone the Git repository into the correct location `github.com/uber/jaeger` relative to `$GOPATH`:
+To get started, make sure you clone the Git repository into the correct location `github.com/jaegertracing/jaeger` relative to `$GOPATH`:
 
 ```
-mkdir -p $GOPATH/src/github.com/uber
-cd $GOPATH/src/github.com/uber
+mkdir -p $GOPATH/src/github.com/jaegertracing
+cd $GOPATH/src/github.com/jaegertracing
 git clone git@github.com:jaegertracing/jaeger.git jaeger
 cd jaeger
 ```
@@ -43,7 +43,7 @@ make test
 These are general guidelines on how to organize source code in this repository.
 
 ```
-github.com/uber/jaeger
+github.com/jaegertracing/jaeger
   cmd/                      - All binaries go here
     agent/
       app/                  - The actual code for the binary
@@ -51,7 +51,14 @@ github.com/uber/jaeger
     collector/
       app/                  - The actual code for the binary
       main.go
-  pkg/                      - See Note 1
+  crossdock/                - Cross-repo integration test configuration
+  docs/                     - Documentation
+  examples/
+      hotrod/               - Demo application that uses OpenTracing API
+  idl/                      - (submodule) https://github.com/jaegertracing/jaeger-idl
+  jaeger-ui/                - (submodule) https://github.com/jaegertracing/jaeger-ui
+  model/                    - Where models are kept, e.g. Process, Span, Trace
+  pkg/                      - (See Note 1)
   plugin/                   - Swappable implementations of various components
     storage/
       cassandra/            - Cassandra implementations of storage APIs
@@ -59,16 +66,18 @@ github.com/uber/jaeger
         spanstore/          - SpanReader / SpanWriter implementations
         dependencystore/
       elasticsearch/        - ES implementations of storage APIs
+  scripts/                  - Miscellaneous project scripts, e.g. license update script
   storage/
     spanstore/              - SpanReader / SpanWriter interfaces
     dependencystore/
-  idl/                      - (submodule)
-  jaeger-ui/                - (submodule)
   thrift-gen/               - Generated Thrift types
     agent/
     jaeger/
     sampling/
     zipkincore/
+  travis/                   - Travis scripts called in .travis.yml
+  glide.yaml                - Glide is the project's dependency manager
+  mkdocs.yml                - MkDocs builds the documentation in docs/
 ```
 
   * Note 1: `pkg` is a collection of utility packages used by the Jaeger components
@@ -93,15 +102,15 @@ import (
 	"github.com/uber/jaeger-lib/metrics"
 	"go.uber.org/zap"
 
-	"github.com/uber/jaeger/cmd/agent/app"
-	"github.com/uber/jaeger/cmd/collector/app/builder"
+	"github.com/jaegertracing/jaeger/cmd/agent/app"
+	"github.com/jaegertracing/jaeger/cmd/collector/app/builder"
 )
 ```
 
 ## Making A Change
 
 *Before making any significant changes, please [open an
-issue](https://github.com/uber/jaeger/issues).* Discussing your proposed
+issue](https://github.com/jaegertracing/jaeger/issues).* Discussing your proposed
 changes ahead of time will make the contribution process smooth for everyone.
 
 Once we've discussed your changes and you've got your code ready, make sure

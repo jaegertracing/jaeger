@@ -25,8 +25,8 @@ import (
 	"go.uber.org/zap"
 	"gopkg.in/yaml.v2"
 
-	"github.com/uber/jaeger/thrift-gen/jaeger"
-	"github.com/uber/jaeger/thrift-gen/zipkincore"
+	"github.com/jaegertracing/jaeger/thrift-gen/jaeger"
+	"github.com/jaegertracing/jaeger/thrift-gen/zipkincore"
 )
 
 var yamlConfig = `
@@ -124,6 +124,19 @@ func TestBuilderMetrics(t *testing.T) {
 	mf2, err := b.getMetricsFactory()
 	assert.NoError(t, err)
 	assert.Equal(t, mf, mf2)
+}
+
+func TestBuilderMetricsHandler(t *testing.T) {
+	b := &Builder{}
+	b.Metrics.Backend = "expvar"
+	b.Metrics.HTTPRoute = "/expvar"
+	factory, err := b.Metrics.CreateMetricsFactory("test")
+	assert.NoError(t, err)
+	assert.NotNil(t, factory)
+	b.metricsFactory = factory
+	agent, err := b.CreateAgent(zap.NewNop())
+	assert.NoError(t, err)
+	assert.NotNil(t, agent)
 }
 
 func TestBuilderMetricsError(t *testing.T) {

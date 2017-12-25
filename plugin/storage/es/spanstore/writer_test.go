@@ -27,11 +27,11 @@ import (
 	"go.uber.org/zap"
 	"gopkg.in/olivere/elastic.v5"
 
-	"github.com/uber/jaeger/model"
-	"github.com/uber/jaeger/model/json"
-	"github.com/uber/jaeger/pkg/es/mocks"
-	"github.com/uber/jaeger/pkg/testutils"
-	"github.com/uber/jaeger/storage/spanstore"
+	"github.com/jaegertracing/jaeger/model"
+	"github.com/jaegertracing/jaeger/model/json"
+	"github.com/jaegertracing/jaeger/pkg/es/mocks"
+	"github.com/jaegertracing/jaeger/pkg/testutils"
+	"github.com/jaegertracing/jaeger/storage/spanstore"
 )
 
 type spanWriterTest struct {
@@ -194,7 +194,7 @@ func TestSpanWriter_WriteSpan(t *testing.T) {
 				indexServicePut.On("Do", mock.AnythingOfType("*context.emptyCtx")).Return(nil, testCase.servicePutError)
 
 				indexSpanPut.On("Id", mock.AnythingOfType("string")).Return(indexSpanPut)
-				indexSpanPut.On("BodyJson", mock.AnythingOfType("*json.Span")).Return(indexSpanPut)
+				indexSpanPut.On("BodyJson", mock.AnythingOfType("*spanstore.Span")).Return(indexSpanPut)
 				indexSpanPut.On("Do", mock.AnythingOfType("*context.emptyCtx")).Return(nil, testCase.spanPutError)
 
 				w.client.On("IndexExists", stringMatcher(spanIndexName)).Return(spanExistsService)
@@ -346,7 +346,7 @@ func TestWriteSpanInternal(t *testing.T) {
 		indexName := "jaeger-1995-04-21"
 		indexService.On("Index", stringMatcher(indexName)).Return(indexService)
 		indexService.On("Type", stringMatcher(spanType)).Return(indexService)
-		indexService.On("BodyJson", mock.AnythingOfType("*json.Span")).Return(indexService)
+		indexService.On("BodyJson", mock.AnythingOfType("*spanstore.Span")).Return(indexService)
 		indexService.On("Do", mock.AnythingOfType("*context.emptyCtx")).Return(&elastic.IndexResponse{}, nil)
 
 		w.client.On("Index").Return(indexService)
@@ -368,7 +368,7 @@ func TestWriteSpanInternalError(t *testing.T) {
 		indexName := "jaeger-1995-04-21"
 		indexService.On("Index", stringMatcher(indexName)).Return(indexService)
 		indexService.On("Type", stringMatcher(spanType)).Return(indexService)
-		indexService.On("BodyJson", mock.AnythingOfType("*json.Span")).Return(indexService)
+		indexService.On("BodyJson", mock.AnythingOfType("*spanstore.Span")).Return(indexService)
 		indexService.On("Do", mock.AnythingOfType("*context.emptyCtx")).Return(nil, errors.New("span insertion error"))
 
 		w.client.On("Index").Return(indexService)
