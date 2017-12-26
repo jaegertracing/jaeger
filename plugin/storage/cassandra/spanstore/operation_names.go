@@ -61,7 +61,7 @@ func NewOperationNamesStorage(
 			100000,
 			&cache.Options{
 				TTL:             writeCacheTTL,
-				InitialCapacity: 0000,
+				InitialCapacity: 10000,
 			}),
 	}
 }
