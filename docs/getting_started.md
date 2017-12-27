@@ -61,7 +61,7 @@ Then navigate to `http://localhost:8080`.
 -   Discover architecture of the whole system via data-driven dependency
     diagram.
 -   View request timeline and errors; understand how the app works.
--   Find sources of latency (lack of concurrency).
+-   Find sources of latency and lack of concurrency.
 -   Highly contextualized logging.
 -   Use baggage propagation to:
 
