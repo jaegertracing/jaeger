@@ -62,7 +62,7 @@ across several collectors ([issue 213](https://github.com/jaegertracing/jaeger/i
 
 ## Collectors
 
-Many instances of **jaeger-collector** can be run in parallel.
+The collectors are stateless and thus many instances of **jaeger-collector** can be run in parallel.
 Collectors require almost no configuration, except for the location of Cassandra cluster,
 via `--cassandra.keyspace` and `--cassandra.servers` options, or the location of ElasticSearch cluster, via
 `--es.server-urls`, depending on which storage is specified. To see all command line options run
