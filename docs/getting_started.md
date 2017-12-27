@@ -26,7 +26,7 @@ Port | Protocol | Component | Function
 
 
 ## Kubernetes and OpenShift
-Kubernetes and OpenShift templates can be found in [Jaegertracing](https://github.com/jaegertracing/) organization on
+Kubernetes and OpenShift templates can be found in the [Jaegertracing](https://github.com/jaegertracing/) organization on
 Github.
 
 ## Sample Application
@@ -60,10 +60,10 @@ Then navigate to `http://localhost:8080`.
 
 -   Discover architecture of the whole system via data-driven dependency
     diagram.
--   View request time line & errors, understand how the app works.
--   Find sources of latency, lack of concurrency.
+-   View request timeline and errors; understand how the app works.
+-   Find sources of latency and lack of concurrency.
 -   Highly contextualized logging.
--   Use baggage propagation to
+-   Use baggage propagation to:
 
     -   Diagnose inter-request contention (queueing).
     -   Attribute time spent in a service.

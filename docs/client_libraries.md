@@ -10,6 +10,8 @@
 | python   | [jaeger-client-python](https://github.com/uber/jaeger-client-python)|
 | C++      | [cpp-client](https://github.com/jaegertracing/cpp-client)           |
 
+For an introduction into instrumenting your service with the OpenTracing API using the Jaeger clients, see [OpenTracing Tutorials](https://github.com/yurishkuro/opentracing-tutorial)
+
 For a deep dive into how to instrument a Go service, look at [Tracing HTTP request latency](https://medium.com/@YuriShkuro/tracing-http-request-latency-in-go-with-opentracing-7cc1282a100a).
 
 ### Initializing Jaeger Tracer

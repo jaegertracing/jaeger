@@ -35,7 +35,7 @@ A network daemon that listens for spans sent over UDP, which it batches and send
 
 ### Collector
 The collector receives traces from Jaeger agents and runs them through a processing pipeline. Currently our pipeline validates traces, indexes them, performs any transformations, and finally stores them.
-Our storage is a pluggable component which currently supports Cassandra.
+Our storage is a pluggable component which currently supports Cassandra and ElasticSearch.
 
 ### Query
 Query is a service that retrieves traces from storage and hosts a UI to display them.
