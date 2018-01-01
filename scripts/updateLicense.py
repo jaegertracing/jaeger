@@ -50,10 +50,12 @@ def update_go_license(name, force=False):
         if year == CURRENT_YEAR:
             break
 
-        new_line = COPYRIGHT_RE.sub('Copyright (c) %d' % CURRENT_YEAR, line)
-        assert line != new_line, ('Could not change year in: %s' % line)
-        lines[i] = new_line
-        changed = True
+        # Avoid updating the copyright year.
+        #
+        # new_line = COPYRIGHT_RE.sub('Copyright (c) %d' % CURRENT_YEAR, line)
+        # assert line != new_line, ('Could not change year in: %s' % line)
+        # lines[i] = new_line
+        # changed = True
         break
 
     if not found:
