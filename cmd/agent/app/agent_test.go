@@ -22,10 +22,11 @@ import (
 	"testing"
 	"time"
 
-	"github.com/jaegertracing/jaeger/pkg/testutils"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"go.uber.org/zap"
+
+	"github.com/jaegertracing/jaeger/pkg/testutils"
 )
 
 func TestAgentStartError(t *testing.T) {
@@ -113,5 +114,5 @@ func TestAgentStartStop(t *testing.T) {
 		}
 		time.Sleep(time.Millisecond)
 	}
-	t.Fatalf("Expecting log %s", "agent's http server exiting")
+	t.Fatal("Expecting server exist log")
 }
