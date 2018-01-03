@@ -92,7 +92,7 @@ func (hc *HealthCheck) Serve(port int) (*HealthCheck, error) {
 	portStr := ":" + strconv.Itoa(port)
 	l, err := net.Listen("tcp", portStr)
 	if err != nil {
-		hc.logger.Error("failed to listen", zap.Error(err))
+		hc.logger.Error("Health Check server failed to listen", zap.Error(err))
 		return nil, err
 	}
 	hc.serveWithListener(l)

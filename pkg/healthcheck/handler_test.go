@@ -29,6 +29,7 @@ func TestStatusString(t *testing.T) {
 	tests := map[Status]string{
 		Unavailable: "unavailable",
 		Ready:       "ready",
+		Broken:      "broken",
 		Status(-1):  "unknown",
 	}
 	for k, v := range tests {
@@ -58,7 +59,7 @@ func TestPortBusy(t *testing.T) {
 	logger, logBuf := testutils.NewLogger()
 	_, err = New(Unavailable, Logger(logger)).Serve(port)
 	assert.Error(t, err)
-	assert.Equal(t, "failed to listen", logBuf.JSONLine(0)["msg"])
+	assert.Equal(t, "Health Check server failed to listen", logBuf.JSONLine(0)["msg"])
 }
 
 func TestServeHandler(t *testing.T) {
