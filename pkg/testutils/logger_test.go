@@ -59,6 +59,7 @@ func TestRaceCondition(t *testing.T) {
 		_ = <-start
 		buffer.Lines()
 		buffer.Stripped()
+		_ = buffer.String()
 		finish.Done()
 	}()
 
