@@ -18,9 +18,11 @@ import (
 	"fmt"
 	"io/ioutil"
 	"net/http"
+	"strings"
 	"testing"
 	"time"
 
+	"github.com/jaegertracing/jaeger/pkg/testutils"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"go.uber.org/zap"
@@ -45,8 +47,12 @@ func TestAgentStartStop(t *testing.T) {
 				},
 			},
 		},
+		HTTPServer: HTTPServerConfiguration{
+			HostPort: ":0",
+		},
 	}
-	agent, err := cfg.CreateAgent(zap.NewNop())
+	logger, logBuf := testutils.NewLogger()
+	agent, err := cfg.CreateAgent(logger)
 	require.NoError(t, err)
 	ch := make(chan error, 2)
 	go func() {
@@ -57,7 +63,14 @@ func TestAgentStartStop(t *testing.T) {
 		close(ch)
 	}()
 
-	url := fmt.Sprintf("http://%s/sampling?service=abc", agent.httpServer.Addr)
+	for i := 0; i < 1000; i++ {
+		if agent.HTTPAddr() != "" {
+			break
+		}
+		time.Sleep(time.Millisecond)
+	}
+
+	url := fmt.Sprintf("http://%s/sampling?service=abc", agent.HTTPAddr())
 	httpClient := &http.Client{
 		Timeout: 100 * time.Millisecond,
 	}
@@ -93,4 +106,12 @@ func TestAgentStartStop(t *testing.T) {
 
 	agent.Stop()
 	assert.NoError(t, <-ch)
+
+	for i := 0; i < 1000; i++ {
+		if strings.Contains(logBuf.String(), "agent's http server exiting") {
+			return
+		}
+		time.Sleep(time.Millisecond)
+	}
+	t.Fatalf("Expecting log %s", "agent's http server exiting")
 }

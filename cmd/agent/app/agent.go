@@ -18,6 +18,7 @@ import (
 	"io"
 	"net"
 	"net/http"
+	"sync/atomic"
 
 	"go.uber.org/zap"
 
@@ -28,6 +29,7 @@ import (
 type Agent struct {
 	processors []processors.Processor
 	httpServer *http.Server
+	httpAddr   atomic.Value // string, set once agent starts listening
 	logger     *zap.Logger
 	closer     io.Closer
 }
@@ -38,11 +40,13 @@ func NewAgent(
 	httpServer *http.Server,
 	logger *zap.Logger,
 ) *Agent {
-	return &Agent{
+	a := &Agent{
 		processors: processors,
 		httpServer: httpServer,
 		logger:     logger,
 	}
+	a.httpAddr.Store("")
+	return a
 }
 
 // Run runs all of agent UDP and HTTP servers in separate go-routines.
@@ -53,16 +57,23 @@ func (a *Agent) Run() error {
 	if err != nil {
 		return err
 	}
+	a.httpAddr.Store(listener.Addr().String())
 	a.closer = listener
 	go func() {
 		if err := a.httpServer.Serve(listener); err != nil {
 			a.logger.Error("http server failure", zap.Error(err))
 		}
+		a.logger.Info("agent's http server exiting")
 	}()
 	for _, processor := range a.processors {
 		go processor.Serve()
 	}
 	return nil
+}
+
+// HTTPAddr returns the address that HTTP server is listening on
+func (a *Agent) HTTPAddr() string {
+	return a.httpAddr.Load().(string)
 }
 
 // Stop forces all agent go routines to exit.
