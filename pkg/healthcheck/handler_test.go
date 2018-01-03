@@ -16,105 +16,54 @@ package healthcheck_test
 
 import (
 	"net"
-	"net/http"
-	"net/http/httptest"
 	"testing"
 
-	"github.com/jaegertracing/jaeger/pkg/healthcheck"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-	"go.uber.org/zap"
+
+	. "github.com/jaegertracing/jaeger/pkg/healthcheck"
+	"github.com/jaegertracing/jaeger/pkg/testutils"
 )
 
-func TestProperInitialState(t *testing.T) {
-	logger, _ := zap.NewDevelopment()
-	s, err := healthcheck.NewState(http.StatusServiceUnavailable, logger)
-	if err != nil {
-		t.Error("Could not start the health check server.", zap.Error(err))
+func TestStatusString(t *testing.T) {
+	tests := map[Status]string{
+		Unavailable: "unavailable",
+		Ready:       "ready",
+		Broken:      "broken",
+		Status(-1):  "unknown",
 	}
-
-	if http.StatusServiceUnavailable != s.Get() {
-		t.Errorf("Expected another handler state. Is: %d, expected: %d", s.Get(), http.StatusServiceUnavailable)
-	}
-}
-
-func TestChangedState(t *testing.T) {
-	logger, _ := zap.NewDevelopment()
-	s, err := healthcheck.NewState(http.StatusServiceUnavailable, logger)
-	if err != nil {
-		t.Error("Could not start the health check server.", zap.Error(err))
-	}
-	s.Set(http.StatusInternalServerError)
-
-	if http.StatusInternalServerError != s.Get() {
-		t.Errorf("Expected another handler state. Is: %d, expected: %d", s.Get(), http.StatusInternalServerError)
+	for k, v := range tests {
+		assert.Equal(t, v, k.String())
 	}
 }
 
-func TestStateIsReady(t *testing.T) {
-	logger, _ := zap.NewDevelopment()
-	s, err := healthcheck.NewState(http.StatusServiceUnavailable, logger)
-	if err != nil {
-		t.Error("Could not start the health check server.", zap.Error(err))
-	}
-	s.Ready()
+func TestStatusSetGet(t *testing.T) {
+	hc := New(Unavailable)
+	assert.Equal(t, Unavailable, hc.Get())
 
-	if http.StatusNoContent != s.Get() {
-		t.Errorf("Expected another handler state. Is: %d, expected: %d", s.Get(), http.StatusNoContent)
-	}
+	logger, logBuf := testutils.NewLogger()
+	hc = New(Unavailable, Logger(logger))
+	assert.Equal(t, Unavailable, hc.Get())
+
+	hc.Ready()
+	assert.Equal(t, Ready, hc.Get())
+	assert.Equal(t, map[string]string{"level": "info", "msg": "Health Check state change", "status": "ready"}, logBuf.JSONLine(0))
 }
 
 func TestPortBusy(t *testing.T) {
-	logger, _ := zap.NewDevelopment()
 	l, err := net.Listen("tcp", ":0")
+	require.NoError(t, err)
 	defer l.Close()
-	if err != nil {
-		t.Error("Could not start on a random port.", zap.Error(err))
-	}
 	port := l.Addr().(*net.TCPAddr).Port
 
-	_, err = healthcheck.Serve(http.StatusServiceUnavailable, port, logger)
-	if err == nil {
-		t.Error("We expected an error on trying to serve on a non-free port.", zap.Error(err))
-	}
-}
-
-func TestHttpCall(t *testing.T) {
-	logger, _ := zap.NewDevelopment()
-	state, err := healthcheck.NewState(http.StatusServiceUnavailable, logger)
-	assert.NoError(t, err)
-	handler, err := healthcheck.NewHandler(state)
-	if err != nil {
-		t.Error("Could not start the health check server.", zap.Error(err))
-	}
-
-	server := httptest.NewServer(handler)
-	defer server.Close()
-
-	state.Ready()
-
-	resp, err := http.Get(server.URL + "/")
-	require.NoError(t, err)
-	assert.Equal(t, http.StatusNoContent, resp.StatusCode)
-}
-
-func TestListenerClose(t *testing.T) {
-	logger, _ := zap.NewDevelopment()
-	state, err := healthcheck.NewState(http.StatusServiceUnavailable, logger)
-	assert.NoError(t, err)
-	handler, err := healthcheck.NewHandler(state)
-	if err != nil {
-		t.Error("Could not start the health check server.", zap.Error(err))
-	}
-
-	s := &http.Server{Handler: handler}
-	l, err := net.Listen("tcp", ":0")
-	assert.NoError(t, err)
-	defer l.Close()
-	_, err = healthcheck.ServeWithListener(l, s, logger)
-	assert.NoError(t, err)
+	logger, logBuf := testutils.NewLogger()
+	_, err = New(Unavailable, Logger(logger)).Serve(port)
+	assert.Error(t, err)
+	assert.Equal(t, "Health Check server failed to listen", logBuf.JSONLine(0)["msg"])
 }
 
 func TestServeHandler(t *testing.T) {
-	healthcheck.Serve(http.StatusServiceUnavailable, 0, zap.NewNop())
+	hc, err := New(Ready).Serve(0)
+	require.NoError(t, err)
+	defer hc.Close()
 }

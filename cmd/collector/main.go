@@ -82,7 +82,9 @@ func main() {
 				logger.Fatal("Cannot create metrics factory.", zap.Error(err))
 			}
 
-			hc, err := healthcheck.Serve(http.StatusServiceUnavailable, builderOpts.CollectorHealthCheckHTTPPort, logger)
+			hc, err := healthcheck.
+				New(healthcheck.Unavailable, healthcheck.Logger(logger)).
+				Serve(builderOpts.CollectorHealthCheckHTTPPort)
 			if err != nil {
 				logger.Fatal("Could not start the health check server.", zap.Error(err))
 			}
@@ -133,7 +135,7 @@ func main() {
 				if err := http.ListenAndServe(httpPortStr, recoveryHandler(r)); err != nil {
 					logger.Fatal("Could not launch service", zap.Error(err))
 				}
-				hc.Set(http.StatusInternalServerError)
+				hc.Set(healthcheck.Unavailable)
 			}()
 
 			hc.Ready()
