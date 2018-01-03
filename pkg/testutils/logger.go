@@ -75,6 +75,13 @@ func (b *Buffer) Stripped() string {
 	return b.Buffer.Stripped()
 }
 
+// String overwrites zaptest.Buffer.String() to make it thread safe
+func (b *Buffer) String() string {
+	b.RLock()
+	defer b.RUnlock()
+	return b.Buffer.String()
+}
+
 // Write overwrites zaptest.Buffer.bytes.Buffer.Write() to make it thread safe
 func (b *Buffer) Write(p []byte) (int, error) {
 	b.Lock()
