@@ -15,83 +15,130 @@
 package healthcheck
 
 import (
+	"context"
 	"net"
 	"net/http"
 	"strconv"
+	"sync/atomic"
 
 	"go.uber.org/zap"
 
 	"github.com/jaegertracing/jaeger/pkg/version"
 )
 
-// State represents the current health check state
-type State struct {
-	state   int
-	logger  *zap.Logger
-	onClose chan struct{}
+// Status represents the state of the service.
+type Status int
+
+const (
+	// Unavailable indicates the service is not able to handle requests
+	Unavailable Status = iota
+	// Ready indicates the service is ready to handle requests
+	Ready
+	// Broken indicates that the healthcheck itself is broken, not serving HTTP
+	Broken
+)
+
+func (s Status) String() string {
+	switch s {
+	case Unavailable:
+		return "unavailable"
+	case Ready:
+		return "ready"
+	case Broken:
+		return "broken"
+	default:
+		return "unknown"
+	}
 }
 
-// Serve requests on the specified port. The initial state is what's specified with the state parameter
-func Serve(state int, port int, logger *zap.Logger) (*State, error) {
-	hs, err := NewState(state, logger)
-	handler, err := NewHandler(hs)
+// HealthCheck provides an HTTP endpoint thta returns the health status of the service
+type HealthCheck struct {
+	state   int32 // atomic, keep at the top to be word-aligned
+	logger  *zap.Logger
+	mapping map[Status]int
+	server  *http.Server
+}
 
-	s := &http.Server{Handler: handler}
+// Option is a functional option for passing paameters to New()
+type Option func(*HealthCheck)
+
+// Logger creates an option to set the logger. If not specified, Nop logger is used.
+func Logger(logger *zap.Logger) Option {
+	return func(hc *HealthCheck) {
+		hc.logger = logger
+	}
+}
+
+// New creates a HealthCheck with the specified initial state.
+func New(state Status, options ...Option) *HealthCheck {
+	hc := &HealthCheck{
+		state: int32(state),
+		mapping: map[Status]int{
+			Unavailable: http.StatusServiceUnavailable,
+			Ready:       http.StatusNoContent,
+		},
+	}
+	for _, option := range options {
+		option(hc)
+	}
+	if hc.logger == nil {
+		hc.logger = zap.NewNop()
+	}
+	return hc
+}
+
+// Serve starts HTTP server on the specified port.
+func (hc *HealthCheck) Serve(port int) (*HealthCheck, error) {
 	portStr := ":" + strconv.Itoa(port)
 	l, err := net.Listen("tcp", portStr)
 	if err != nil {
-		logger.Error("failed to listen", zap.Error(err))
+		hc.logger.Error("failed to listen", zap.Error(err))
 		return nil, err
 	}
-	ServeWithListener(l, s, logger)
-
-	hs.logger.Info("Health Check server started", zap.Int("http-port", port))
-
-	return hs, err
+	hc.serveWithListener(l)
+	hc.logger.Info("Health Check server started", zap.Int("http-port", port), zap.Stringer("status", hc.Get()))
+	return hc, nil
 }
 
-// NewState creates a new state instance. The initial state is what's specified with the state parameter
-func NewState(state int, logger *zap.Logger) (*State, error) {
-	s := &State{state: state, logger: logger}
-	return s, nil
+func (hc *HealthCheck) serveWithListener(l net.Listener) {
+	hc.server = &http.Server{Handler: hc.httpHandler()}
+	go func() {
+		if err := hc.server.Serve(l); err != nil {
+			hc.logger.Error("failed to serve", zap.Error(err))
+			hc.Set(Broken)
+		}
+	}()
 }
 
-// NewHandler creates a new HTTP handler using the given state as source of information
-func NewHandler(s *State) (http.Handler, error) {
-	mu := http.NewServeMux()
-	mu.HandleFunc("/", func(w http.ResponseWriter, _ *http.Request) {
-		w.WriteHeader(s.state)
+// Close stops the HTTP server
+func (hc *HealthCheck) Close() error {
+	return hc.server.Shutdown(context.Background())
+}
+
+// httpHandler creates a new HTTP handler.
+func (hc *HealthCheck) httpHandler() http.Handler {
+	mux := http.NewServeMux()
+	mux.HandleFunc("/", func(w http.ResponseWriter, _ *http.Request) {
+		w.WriteHeader(hc.mapping[hc.Get()])
 		// this is written only for response with an entity, so, it won't be used for a 204 - No content
 		w.Write([]byte("Server not available"))
 	})
-
-	version.RegisterHandler(mu, s.logger)
-	return mu, nil
+	version.RegisterHandler(mux, hc.logger)
+	return mux
 }
 
-// ServeWithListener starts a new HTTP server on the given port and with the provided handler
-func ServeWithListener(l net.Listener, s *http.Server, logger *zap.Logger) (*http.Server, error) {
-	go func() {
-		if err := s.Serve(l); err != nil {
-			logger.Error("failed to serve", zap.Error(err))
-		}
-	}()
-
-	return s, nil
+// Set a new health check status
+func (hc *HealthCheck) Set(state Status) {
+	atomic.StoreInt32(&hc.state, int32(state))
+	hc.logger.Info("Health Check state change", zap.Stringer("status", hc.Get()))
 }
 
-// Ready updates the current state to the "ready" state, translated as a 2xx-class HTTP status code
-func (s *State) Ready() {
-	s.Set(http.StatusNoContent)
+// Get the current status of this health check
+func (hc *HealthCheck) Get() Status {
+	return Status(atomic.LoadInt32(&hc.state))
 }
 
-// Set a new HTTP status for the health check
-func (s *State) Set(state int) {
-	s.state = state
-	s.logger.Info("Health Check state change", zap.Int("http-status", s.state))
-}
-
-// Get the current status code for this health check
-func (s *State) Get() int {
-	return s.state
+// Ready is a shortcut for Set(Ready) (kept for backwards compatibility)
+func (hc *HealthCheck) Ready() {
+	hc.Set(Ready)
 }

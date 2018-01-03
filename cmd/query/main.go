@@ -71,7 +71,9 @@ func main() {
 			queryOpts := new(builder.QueryOptions).InitFromViper(v)
 			mBldr := new(pMetrics.Builder).InitFromViper(v)
 
-			hc, err := healthcheck.Serve(http.StatusServiceUnavailable, queryOpts.HealthCheckHTTPPort, logger)
+			hc, err := healthcheck.
+				New(healthcheck.Unavailable, healthcheck.Logger(logger)).
+				Serve(queryOpts.HealthCheckHTTPPort)
 			if err != nil {
 				logger.Fatal("Could not start the health check server.", zap.Error(err))
 			}
@@ -129,7 +131,7 @@ func main() {
 				if err := http.ListenAndServe(portStr, recoveryHandler(compressHandler)); err != nil {
 					logger.Fatal("Could not launch service", zap.Error(err))
 				}
-				hc.Set(http.StatusInternalServerError)
+				hc.Set(healthcheck.Unavailable)
 			}()
 
 			hc.Ready()
