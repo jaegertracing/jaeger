@@ -1,6 +1,45 @@
 Changes by Version
 ==================
 
+1.1.0 (2018-01-03)
+------------------
+
+#### Backend Changes
+
+##### New Features
+
+- Add support for retrieving unadjusted/raw traces (#615)
+- Add CA certificates to collector/query images (#485)
+- Parse zipkin v2 high trace id (#596)
+
+##### Fixes
+
+- Skip nil and zero length hits in ElasticSearch storage (#601)
+- Make Cassandra service_name_index inserts idempotent (#587)
+- Align atomic int64 to word boundary to fix SIGSEGV (#592)
+- Add adjuster that removes bad span references (#614)
+- Set operationNames cache initial capacity to 10000 (#621)
+
+#### UI Changes
+
+##### New Features
+
+- Change tag search input syntax to logfmt (https://github.com/jaegertracing/jaeger-ui/issues/145)
+- Make threshold for enabling DAG view configurable (https://github.com/jaegertracing/jaeger-ui/issues/130)
+- Show better error messages for failed API calls (https://github.com/jaegertracing/jaeger-ui/issues/127)
+- Add View Option for raw/unadjusted trace (https://github.com/jaegertracing/jaeger-ui/issues/153)
+- Add timezone tooltip to custom lookback form-field (https://github.com/jaegertracing/jaeger-ui/pull/161)
+
+##### Fixes
+
+- Use consistent icons for logs expanded/collapsed (https://github.com/jaegertracing/jaeger-ui/issues/86)
+- Encode service name in API calls to allow '/' (https://github.com/jaegertracing/jaeger-ui/issues/138)
+- Fix endless trace HTTP requests (https://github.com/jaegertracing/jaeger-ui/issues/128)
+- Fix JSON view when running in dev mode (https://github.com/jaegertracing/jaeger-ui/issues/139)
+- Fix trace name resolution (https://github.com/jaegertracing/jaeger-ui/pull/134)
+- Only JSON.parse JSON strings in tags/logs values (https://github.com/jaegertracing/jaeger-ui/pull/162)
+
+
 1.0.0 (2017-12-04)
 ------------------
 
