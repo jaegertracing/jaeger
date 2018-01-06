@@ -2,7 +2,7 @@ PROJECT_ROOT=github.com/jaegertracing/jaeger
 TOP_PKGS := $(shell glide novendor | grep -v -e ./thrift-gen/... -e swagger-gen... -e ./examples/... -e ./scripts/...)
 
 # all .go files that don't exist in hidden directories
-ALL_SRC := $(shell find . -name "*.go" | grep -v -e vendor -e thrift-gen -e swagger-gen \
+ALL_SRC := $(shell find . -name "*.go" | grep -v -e vendor -e thrift-gen -e swagger-gen -e examples -e doc.go \
         -e ".*/\..*" \
         -e ".*/_.*" \
         -e ".*/mocks.*")
@@ -41,6 +41,7 @@ SWAGGER_GEN_DIR=swagger-gen
 
 PASS=$(shell printf "\033[32mPASS\033[0m")
 FAIL=$(shell printf "\033[31mFAIL\033[0m")
+FIXME=$(shell printf "\033[31mFIXME\033[0m")
 COLORIZE=$(SED) ''/PASS/s//$(PASS)/'' | $(SED) ''/FAIL/s//$(FAIL)/''
 DOCKER_NAMESPACE?=jaegertracing
 DOCKER_TAG?=latest
@@ -75,6 +76,24 @@ integration-test: go-gen
 .PHONY: storage-integration-test
 storage-integration-test: go-gen
 	$(GOTEST) ./plugin/storage/integration/...
+
+all-pkgs:
+	@echo $(ALL_PKGS) | tr ' ' '\n' | sort
+
+cvr-pkgs:
+	go list $(TOP_PKGS)
+
+.PHONY: cover
+cover: nocover
+	@echo pre-compiling tests
+	@time go test -i $(ALL_PKGS)
+	@./scripts/cover.sh $(shell go list $(TOP_PKGS))
+	go tool cover -html=cover.out -o cover.html
+
+.PHONY: nocover
+nocover:
+	@echo Verifying that all packages have test files to count in coverage
+	@scripts/check-test-files.sh $(subst github.com/jaegertracing/jaeger/,./,$(ALL_PKGS)) | $(SED) ''/FIXME/s//$(FIXME)/''
 
 .PHONY: fmt
 fmt:
@@ -172,11 +191,6 @@ build-crossdock: docker-no-ui
 build-crossdock-fresh: build-crossdock-linux
 	make crossdock-fresh
 
-.PHONY: cover
-cover:
-	./scripts/cover.sh $(shell go list $(TOP_PKGS))
-	go tool cover -html=cover.out -o cover.html
-
 .PHONY: install-ci
 install-ci: install
 	go get github.com/wadey/gocovmerge
@@ -186,10 +200,7 @@ install-ci: install
 	go get github.com/sectioneight/md-to-godoc
 
 .PHONY: test-ci
-test-ci: build-examples lint
-	@echo pre-compiling tests
-	@time go test -i $(ALL_PKGS)
-	@./scripts/cover.sh $(shell go list $(TOP_PKGS))
+test-ci: build-examples lint cover
 
 # TODO at the moment we're not generating tchan_*.go files
 .PHONY: thrift
