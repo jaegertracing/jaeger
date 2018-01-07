@@ -12,27 +12,29 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package builder
+package memory
 
 import (
 	"testing"
 
 	"github.com/stretchr/testify/assert"
 
-	"github.com/jaegertracing/jaeger/pkg/config"
+	"github.com/jaegertracing/jaeger/storage"
 )
 
-func TestQueryBuilderFlags(t *testing.T) {
-	v, command := config.Viperize(AddFlags)
-	command.ParseFlags([]string{
-		"--query.static-files=/dev/null",
-		"--query.ui-config=some.json",
-		"--query.prefix=api",
-		"--query.port=80",
-	})
-	qOpts := new(QueryOptions).InitFromViper(v)
-	assert.Equal(t, "/dev/null", qOpts.StaticAssets)
-	assert.Equal(t, "some.json", qOpts.UIConfig)
-	assert.Equal(t, "api", qOpts.Prefix)
-	assert.Equal(t, 80, qOpts.Port)
+var _ storage.Factory = new(Factory)
+
+func TestMemoryStorageFactory(t *testing.T) {
+	f := NewFactory()
+	assert.NoError(t, f.Initialize(nil, nil))
+	assert.NotNil(t, f.store)
+	reader, err := f.CreateSpanReader()
+	assert.NoError(t, err)
+	assert.Equal(t, f.store, reader)
+	writer, err := f.CreateSpanWriter()
+	assert.NoError(t, err)
+	assert.Equal(t, f.store, writer)
+	depReader, err := f.CreateDependencyReader()
+	assert.NoError(t, err)
+	assert.Equal(t, f.store, depReader)
 }

@@ -1,4 +1,4 @@
-// Copyright (c) 2017 Uber Technologies, Inc.
+// Copyright (c) 2018 The Jaeger Authors.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -12,20 +12,4 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package builder
-
-import (
-	"testing"
-
-	"github.com/stretchr/testify/assert"
-
-	"github.com/jaegertracing/jaeger/storage/spanstore/memory"
-)
-
-func TestMemoryStoreBuilder(t *testing.T) {
-	sb := newStorageBuilder()
-	memStore := memory.NewStore()
-	sb.newMemoryStoreBuilder(memStore)
-	assert.Equal(t, memStore, sb.SpanReader)
-	assert.Equal(t, memStore, sb.DependencyReader)
-}
+package storage

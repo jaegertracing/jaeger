@@ -16,6 +16,7 @@ package main
 
 import (
 	"fmt"
+	"log"
 	"net"
 	"net/http"
 	"os"
@@ -37,20 +38,29 @@ import (
 	collectorApp "github.com/jaegertracing/jaeger/cmd/collector/app"
 	collector "github.com/jaegertracing/jaeger/cmd/collector/app/builder"
 	"github.com/jaegertracing/jaeger/cmd/collector/app/zipkin"
+	"github.com/jaegertracing/jaeger/cmd/env"
 	"github.com/jaegertracing/jaeger/cmd/flags"
 	queryApp "github.com/jaegertracing/jaeger/cmd/query/app"
-	query "github.com/jaegertracing/jaeger/cmd/query/app/builder"
 	"github.com/jaegertracing/jaeger/pkg/config"
 	pMetrics "github.com/jaegertracing/jaeger/pkg/metrics"
 	"github.com/jaegertracing/jaeger/pkg/recoveryhandler"
 	"github.com/jaegertracing/jaeger/pkg/version"
-	"github.com/jaegertracing/jaeger/storage/spanstore/memory"
+	"github.com/jaegertracing/jaeger/plugin/storage"
+	"github.com/jaegertracing/jaeger/storage/dependencystore"
+	"github.com/jaegertracing/jaeger/storage/spanstore"
 	jc "github.com/jaegertracing/jaeger/thrift-gen/jaeger"
 	zc "github.com/jaegertracing/jaeger/thrift-gen/zipkincore"
 )
 
 // standalone/main is a standalone full-stack jaeger backend, backed by a memory store
 func main() {
+	if os.Getenv(storage.SpanStorageEnvVar) == "" {
+		os.Setenv(storage.SpanStorageEnvVar, "memory") // other storage types default to SpanStorage
+	}
+	storageFactory, err := storage.NewFactory(storage.FactoryConfigFromEnvAndCLI(os.Args, os.Stderr))
+	if err != nil {
+		log.Fatalf("Cannot initialize storage factory: %v", err)
+	}
 	v := viper.New()
 	command := &cobra.Command{
 		Use:   "jaeger-standalone",
@@ -70,35 +80,54 @@ func main() {
 			}
 
 			runtime.GOMAXPROCS(runtime.NumCPU())
-			cOpts := new(collector.CollectorOptions).InitFromViper(v)
-			qOpts := new(query.QueryOptions).InitFromViper(v)
-			mBldr := new(pMetrics.Builder).InitFromViper(v)
 
+			mBldr := new(pMetrics.Builder).InitFromViper(v)
 			metricsFactory, err := mBldr.CreateMetricsFactory("jaeger-standalone")
 			if err != nil {
 				return errors.Wrap(err, "Cannot create metrics factory")
 			}
-			memStore := memory.NewStore()
 
-			builder := &agentApp.Builder{}
-			builder.InitFromViper(v)
-			startAgent(builder, cOpts, logger, metricsFactory)
-			startCollector(cOpts, sFlags, logger, metricsFactory, memStore)
-			startQuery(qOpts, sFlags, logger, metricsFactory, mBldr, memStore)
+			storageFactory.InitFromViper(v)
+			if err := storageFactory.Initialize(metricsFactory, logger); err != nil {
+				logger.Fatal("Failed to init storage factory", zap.Error(err))
+			}
+			spanReader, err := storageFactory.CreateSpanReader()
+			if err != nil {
+				logger.Fatal("Failed to create span reader", zap.Error(err))
+			}
+			spanWriter, err := storageFactory.CreateSpanWriter()
+			if err != nil {
+				logger.Fatal("Failed to create span writer", zap.Error(err))
+			}
+			dependencyReader, err := storageFactory.CreateDependencyReader()
+			if err != nil {
+				logger.Fatal("Failed to create dependency reader", zap.Error(err))
+			}
+
+			aOpts := new(agentApp.Builder).InitFromViper(v)
+			cOpts := new(collector.CollectorOptions).InitFromViper(v)
+			qOpts := new(queryApp.QueryOptions).InitFromViper(v)
+
+			startAgent(aOpts, cOpts, logger, metricsFactory)
+			startCollector(cOpts, spanWriter, logger, metricsFactory)
+			startQuery(qOpts, spanReader, dependencyReader, logger, metricsFactory, mBldr)
+
 			select {}
 		},
 	}
 
 	command.AddCommand(version.Command())
+	command.AddCommand(env.Command())
 
 	config.AddFlags(
 		v,
 		command,
 		flags.AddConfigFileFlag,
 		flags.AddFlags,
-		collector.AddFlags,
-		query.AddFlags,
+		storageFactory.AddFlags,
 		agentApp.AddFlags,
+		collector.AddFlags,
+		queryApp.AddFlags,
 		pMetrics.AddFlags,
 	)
 
@@ -132,19 +161,17 @@ func startAgent(
 
 func startCollector(
 	cOpts *collector.CollectorOptions,
-	sFlags *flags.SharedFlags,
+	spanWriter spanstore.Writer,
 	logger *zap.Logger,
 	baseFactory metrics.Factory,
-	memoryStore *memory.Store,
 ) {
 	metricsFactory := baseFactory.Namespace("jaeger-collector", nil)
 
 	spanBuilder, err := collector.NewSpanHandlerBuilder(
 		cOpts,
-		sFlags,
+		spanWriter,
 		basic.Options.LoggerOption(logger),
 		basic.Options.MetricsFactoryOption(metricsFactory),
-		basic.Options.MemoryStoreOption(memoryStore),
 	)
 	if err != nil {
 		logger.Fatal("Unable to set up builder", zap.Error(err))
@@ -201,29 +228,17 @@ func startZipkinHTTPAPI(
 }
 
 func startQuery(
-	qOpts *query.QueryOptions,
-	sFlags *flags.SharedFlags,
+	qOpts *queryApp.QueryOptions,
+	spanReader spanstore.Reader,
+	depReader dependencystore.Reader,
 	logger *zap.Logger,
 	baseFactory metrics.Factory,
 	metricsBuilder *pMetrics.Builder,
-	memoryStore *memory.Store,
 ) {
-	metricsFactory := baseFactory.Namespace("jaeger-query", nil)
-
-	storageBuild, err := query.NewStorageBuilder(
-		sFlags.SpanStorage.Type,
-		sFlags.DependencyStorage.DataFrequency,
-		basic.Options.LoggerOption(logger),
-		basic.Options.MetricsFactoryOption(metricsFactory),
-		basic.Options.MemoryStoreOption(memoryStore),
-	)
-	if err != nil {
-		logger.Fatal("Failed to wire up service", zap.Error(err))
-	}
 	tracer, closer, err := jaegerClientConfig.Configuration{
 		Sampler: &jaegerClientConfig.SamplerConfig{
-			Type:  "probabilistic",
-			Param: 0.001,
+			Type:  "const",
+			Param: 1.0,
 		},
 		RPCMetrics: true,
 	}.New("jaeger-query", jaegerClientConfig.Metrics(baseFactory))
@@ -232,8 +247,8 @@ func startQuery(
 	}
 	defer closer.Close()
 	apiHandler := queryApp.NewAPIHandler(
-		storageBuild.SpanReader,
-		storageBuild.DependencyReader,
+		spanReader,
+		depReader,
 		queryApp.HandlerOptions.Prefix(qOpts.Prefix),
 		queryApp.HandlerOptions.Logger(logger),
 		queryApp.HandlerOptions.Tracer(tracer))
@@ -255,7 +270,7 @@ func startQuery(
 	}
 }
 
-func registerStaticHandler(r *mux.Router, logger *zap.Logger, qOpts *query.QueryOptions) {
+func registerStaticHandler(r *mux.Router, logger *zap.Logger, qOpts *queryApp.QueryOptions) {
 	staticHandler, err := queryApp.NewStaticAssetsHandler(qOpts.StaticAssets, qOpts.UIConfig)
 	if err != nil {
 		logger.Fatal("Could not create static assets handler", zap.Error(err))

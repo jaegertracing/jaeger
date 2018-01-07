@@ -17,11 +17,9 @@ package builder
 import (
 	"github.com/uber/jaeger-lib/metrics"
 	"go.uber.org/zap"
-
-	cascfg "github.com/jaegertracing/jaeger/pkg/cassandra/config"
-	escfg "github.com/jaegertracing/jaeger/pkg/es/config"
-	"github.com/jaegertracing/jaeger/storage/spanstore/memory"
 )
+
+// TODO combine with SharedFlags
 
 // BasicOptions is a set of basic building blocks for most Jaeger executables
 type BasicOptions struct {
@@ -29,12 +27,6 @@ type BasicOptions struct {
 	Logger *zap.Logger
 	// MetricsFactory is the basic metrics factory used by most executables
 	MetricsFactory metrics.Factory
-	// MemoryStore is the memory store (as reader and writer) that will be used if required
-	MemoryStore *memory.Store
-	// CassandraSessionBuilder is the cassandra session builder
-	CassandraSessionBuilder cascfg.SessionBuilder
-	// ElasticClientBuilder is the elasticsearch client builder
-	ElasticClientBuilder escfg.ClientBuilder
 }
 
 // Option is a function that sets some option on StorageBuilder.
@@ -54,27 +46,6 @@ func (BasicOptions) LoggerOption(logger *zap.Logger) Option {
 func (BasicOptions) MetricsFactoryOption(metricsFactory metrics.Factory) Option {
 	return func(b *BasicOptions) {
 		b.MetricsFactory = metricsFactory
-	}
-}
-
-// CassandraSessionOption creates an Option that adds Cassandra session builder.
-func (BasicOptions) CassandraSessionOption(sessionBuilder cascfg.SessionBuilder) Option {
-	return func(b *BasicOptions) {
-		b.CassandraSessionBuilder = sessionBuilder
-	}
-}
-
-// ElasticClientOption creates an Option that adds ElasticSearch client builder.
-func (BasicOptions) ElasticClientOption(clientBuilder escfg.ClientBuilder) Option {
-	return func(b *BasicOptions) {
-		b.ElasticClientBuilder = clientBuilder
-	}
-}
-
-// MemoryStoreOption creates an Option that adds a memory store
-func (BasicOptions) MemoryStoreOption(memoryStore *memory.Store) Option {
-	return func(b *BasicOptions) {
-		b.MemoryStore = memoryStore
 	}
 }
 

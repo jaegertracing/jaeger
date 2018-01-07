@@ -24,159 +24,29 @@ import (
 
 	"github.com/jaegertracing/jaeger/cmd/builder"
 	"github.com/jaegertracing/jaeger/cmd/flags"
-	"github.com/jaegertracing/jaeger/pkg/cassandra"
-	cascfg "github.com/jaegertracing/jaeger/pkg/cassandra/config"
-	"github.com/jaegertracing/jaeger/pkg/cassandra/mocks"
 	"github.com/jaegertracing/jaeger/pkg/config"
-	"github.com/jaegertracing/jaeger/pkg/es"
-	escfg "github.com/jaegertracing/jaeger/pkg/es/config"
-	esMocks "github.com/jaegertracing/jaeger/pkg/es/mocks"
-	"github.com/jaegertracing/jaeger/storage/spanstore/memory"
+	"github.com/jaegertracing/jaeger/plugin/storage/memory"
 )
 
-type mockSessionBuilder struct {
-}
-
-func (*mockSessionBuilder) NewSession() (cassandra.Session, error) {
-	return &mocks.Session{}, nil
-}
-
-type mockEsBuilder struct {
-	escfg.Configuration
-}
-
-func (mck *mockEsBuilder) NewClient() (es.Client, error) {
-	return &esMocks.Client{}, nil
-}
-
 func TestNewSpanHandlerBuilder(t *testing.T) {
-	v, command := config.Viperize(flags.AddFlags)
+	v, command := config.Viperize(flags.AddFlags, AddFlags)
 
 	command.ParseFlags([]string{})
-	sFlags := new(flags.SharedFlags).InitFromViper(v)
 	cOpts := new(CollectorOptions).InitFromViper(v)
+
+	spanWriter := memory.NewStore()
 
 	handler, err := NewSpanHandlerBuilder(
 		cOpts,
-		sFlags,
+		spanWriter,
 		builder.Options.LoggerOption(zap.NewNop()),
 		builder.Options.MetricsFactoryOption(metrics.NullFactory),
-		builder.Options.CassandraSessionOption(&mockSessionBuilder{}),
 	)
 	require.NoError(t, err)
 	assert.NotNil(t, handler)
 	zipkin, jaeger := handler.BuildHandlers()
 	assert.NotNil(t, zipkin)
 	assert.NotNil(t, jaeger)
-}
-
-func TestNewSpanHandlerBuilderCassandraNoSession(t *testing.T) {
-	v, command := config.Viperize(flags.AddFlags)
-
-	command.ParseFlags([]string{})
-	sFlags := new(flags.SharedFlags).InitFromViper(v)
-	cOpts := new(CollectorOptions).InitFromViper(v)
-
-	handler, err := NewSpanHandlerBuilder(
-		cOpts,
-		sFlags,
-		builder.Options.LoggerOption(zap.NewNop()),
-		builder.Options.MetricsFactoryOption(metrics.NullFactory),
-		builder.Options.CassandraSessionOption(&cascfg.Configuration{}),
-	)
-	require.Error(t, err)
-	assert.Nil(t, handler)
-}
-
-func TestNewSpanHandlerBuilderCassandraNotConfigured(t *testing.T) {
-	v, _ := config.Viperize(AddFlags, flags.AddFlags)
-	sFlags := new(flags.SharedFlags).InitFromViper(v)
-	cOpts := new(CollectorOptions).InitFromViper(v)
-
-	handler, err := NewSpanHandlerBuilder(cOpts, sFlags)
-	assert.Error(t, err)
-	assert.Nil(t, handler)
-}
-
-func TestNewSpanHandlerBuilderBadStorageTypeFailure(t *testing.T) {
-	v, command := config.Viperize(AddFlags, flags.AddFlags)
-	command.ParseFlags([]string{"test", "--span-storage.type=sneh"})
-	sFlags := new(flags.SharedFlags).InitFromViper(v)
-	cOpts := new(CollectorOptions).InitFromViper(v)
-
-	handler, err := NewSpanHandlerBuilder(cOpts, sFlags)
-	assert.Error(t, err)
-	assert.Nil(t, handler)
-}
-
-func TestNewSpanHandlerBuilderMemoryNotSet(t *testing.T) {
-	v, command := config.Viperize(AddFlags, flags.AddFlags)
-	command.ParseFlags([]string{"test", "--span-storage.type=memory"})
-	sFlags := new(flags.SharedFlags).InitFromViper(v)
-	cOpts := new(CollectorOptions).InitFromViper(v)
-
-	handler, err := NewSpanHandlerBuilder(cOpts, sFlags)
-	assert.Error(t, err)
-	assert.Nil(t, handler)
-}
-
-func TestNewSpanHandlerBuilderMemorySet(t *testing.T) {
-	v, command := config.Viperize(AddFlags, flags.AddFlags)
-	command.ParseFlags([]string{"test", "--span-storage.type=memory"})
-	sFlags := new(flags.SharedFlags).InitFromViper(v)
-	cOpts := new(CollectorOptions).InitFromViper(v)
-
-	handler, err := NewSpanHandlerBuilder(cOpts, sFlags, builder.Options.MemoryStoreOption(memory.NewStore()))
-	require.NoError(t, err)
-	assert.NotNil(t, handler)
-	jHandler, zHandler := handler.BuildHandlers()
-	assert.NotNil(t, jHandler)
-	assert.NotNil(t, zHandler)
-}
-
-func TestNewSpanHandlerBuilderElasticSearch(t *testing.T) {
-	v, command := config.Viperize(AddFlags, flags.AddFlags)
-	command.ParseFlags([]string{"test", "--span-storage.type=elasticsearch"})
-	sFlags := new(flags.SharedFlags).InitFromViper(v)
-	cOpts := new(CollectorOptions).InitFromViper(v)
-
-	handler, err := NewSpanHandlerBuilder(
-		cOpts,
-		sFlags,
-		builder.Options.LoggerOption(zap.NewNop()),
-		builder.Options.ElasticClientOption(&mockEsBuilder{}),
-	)
-	require.NoError(t, err)
-	assert.NotNil(t, handler)
-	zipkin, jaeger := handler.BuildHandlers()
-	assert.NotNil(t, zipkin)
-	assert.NotNil(t, jaeger)
-}
-
-func TestNewSpanHandlerBuilderElasticSearchNoClient(t *testing.T) {
-	v, command := config.Viperize(AddFlags, flags.AddFlags)
-	command.ParseFlags([]string{"test", "--span-storage.type=elasticsearch"})
-	sFlags := new(flags.SharedFlags).InitFromViper(v)
-	cOpts := new(CollectorOptions).InitFromViper(v)
-
-	handler, err := NewSpanHandlerBuilder(
-		cOpts,
-		sFlags,
-		builder.Options.LoggerOption(zap.NewNop()),
-		builder.Options.ElasticClientOption(&escfg.Configuration{}),
-	)
-	require.Error(t, err)
-	assert.Nil(t, handler)
-}
-
-func TestNewSpanHandlerBuilderElasticSearchFailure(t *testing.T) {
-	v, command := config.Viperize(AddFlags, flags.AddFlags)
-	command.ParseFlags([]string{"test", "--span-storage.type=elasticsearch"})
-	sFlags := new(flags.SharedFlags).InitFromViper(v)
-	cOpts := new(CollectorOptions).InitFromViper(v)
-	handler, err := NewSpanHandlerBuilder(cOpts, sFlags)
-	assert.EqualError(t, err, "ElasticSearch not configured")
-	assert.Nil(t, handler)
 }
 
 func TestDefaultSpanFilter(t *testing.T) {

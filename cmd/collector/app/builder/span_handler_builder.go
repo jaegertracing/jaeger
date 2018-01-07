@@ -24,12 +24,7 @@ import (
 	basicB "github.com/jaegertracing/jaeger/cmd/builder"
 	"github.com/jaegertracing/jaeger/cmd/collector/app"
 	zs "github.com/jaegertracing/jaeger/cmd/collector/app/sanitizer/zipkin"
-	"github.com/jaegertracing/jaeger/cmd/flags"
 	"github.com/jaegertracing/jaeger/model"
-	cascfg "github.com/jaegertracing/jaeger/pkg/cassandra/config"
-	escfg "github.com/jaegertracing/jaeger/pkg/es/config"
-	casSpanstore "github.com/jaegertracing/jaeger/plugin/storage/cassandra/spanstore"
-	esSpanstore "github.com/jaegertracing/jaeger/plugin/storage/es/spanstore"
 	"github.com/jaegertracing/jaeger/storage/spanstore"
 )
 
@@ -48,69 +43,17 @@ type SpanHandlerBuilder struct {
 }
 
 // NewSpanHandlerBuilder returns new SpanHandlerBuilder with configured span storage.
-func NewSpanHandlerBuilder(cOpts *CollectorOptions, sFlags *flags.SharedFlags, opts ...basicB.Option) (*SpanHandlerBuilder, error) {
+func NewSpanHandlerBuilder(cOpts *CollectorOptions, spanWriter spanstore.Writer, opts ...basicB.Option) (*SpanHandlerBuilder, error) {
 	options := basicB.ApplyOptions(opts...)
 
 	spanHb := &SpanHandlerBuilder{
 		collectorOpts:  cOpts,
 		logger:         options.Logger,
 		metricsFactory: options.MetricsFactory,
-	}
-
-	var err error
-	if sFlags.SpanStorage.Type == flags.CassandraStorageType {
-		if options.CassandraSessionBuilder == nil {
-			return nil, errMissingCassandraConfig
-		}
-		spanHb.spanWriter, err = spanHb.initCassStore(options.CassandraSessionBuilder)
-	} else if sFlags.SpanStorage.Type == flags.MemoryStorageType {
-		if options.MemoryStore == nil {
-			return nil, errMissingMemoryStore
-		}
-		spanHb.spanWriter = options.MemoryStore
-	} else if sFlags.SpanStorage.Type == flags.ESStorageType {
-		if options.ElasticClientBuilder == nil {
-			return nil, errMissingElasticSearchConfig
-		}
-		spanHb.spanWriter, err = spanHb.initElasticStore(options.ElasticClientBuilder)
-	} else {
-		return nil, flags.ErrUnsupportedStorageType
-	}
-
-	if err != nil {
-		return nil, err
+		spanWriter:     spanWriter,
 	}
 
 	return spanHb, nil
-}
-
-func (spanHb *SpanHandlerBuilder) initCassStore(builder cascfg.SessionBuilder) (spanstore.Writer, error) {
-	session, err := builder.NewSession()
-	if err != nil {
-		return nil, err
-	}
-
-	return casSpanstore.NewSpanWriter(
-		session,
-		spanHb.collectorOpts.WriteCacheTTL,
-		spanHb.metricsFactory,
-		spanHb.logger,
-	), nil
-}
-
-func (spanHb *SpanHandlerBuilder) initElasticStore(esBuilder escfg.ClientBuilder) (spanstore.Writer, error) {
-	client, err := esBuilder.NewClient()
-	if err != nil {
-		return nil, err
-	}
-
-	return esSpanstore.NewSpanWriter(
-		client,
-		spanHb.logger,
-		spanHb.metricsFactory,
-		esBuilder.GetNumShards(),
-		esBuilder.GetNumReplicas(),
-	), nil
 }
 
 // BuildHandlers builds span handlers (Zipkin, Jaeger)

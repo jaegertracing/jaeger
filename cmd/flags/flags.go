@@ -16,8 +16,6 @@ package flags
 
 import (
 	"flag"
-	"fmt"
-	"time"
 
 	"github.com/pkg/errors"
 	"github.com/spf13/viper"
@@ -26,16 +24,9 @@ import (
 )
 
 const (
-	// CassandraStorageType is the storage type flag denoting a Cassandra backing store
-	CassandraStorageType = "cassandra"
-	// MemoryStorageType is the storage type flag denoting an in-memory store
-	MemoryStorageType = "memory"
-	// ESStorageType is the storage type flag denoting an ElasticSearch backing store
-	ESStorageType                  = "elasticsearch"
-	spanStorageType                = "span-storage.type"
-	logLevel                       = "log-level"
-	dependencyStorageDataFrequency = "dependency-storage.data-frequency"
-	configFile                     = "config-file"
+	spanStorageType = "span-storage.type" // deprecated
+	logLevel        = "log-level"
+	configFile      = "config-file"
 )
 
 // AddConfigFileFlag adds flags for ExternalConfFlags
@@ -55,6 +46,28 @@ func TryLoadConfigFile(v *viper.Viper) error {
 	return nil
 }
 
+// SharedFlags holds flags configuration
+type SharedFlags struct {
+	// Logging holds logging configuration
+	Logging logging
+}
+
+type logging struct {
+	Level string
+}
+
+// AddFlags adds flags for SharedFlags
+func AddFlags(flagSet *flag.FlagSet) {
+	flagSet.String(spanStorageType, "", "Deprecated; please use SPAN_STORAGE environment variable")
+	flagSet.String(logLevel, "info", "Minimal allowed log Level. For more levels see https://github.com/uber-go/zap")
+}
+
+// InitFromViper initializes SharedFlags with properties from viper
+func (flags *SharedFlags) InitFromViper(v *viper.Viper) *SharedFlags {
+	flags.Logging.Level = v.GetString(logLevel)
+	return flags
+}
+
 // NewLogger returns logger based on configuration in SharedFlags
 func (flags *SharedFlags) NewLogger(conf zap.Config, options ...zap.Option) (*zap.Logger, error) {
 	var level zapcore.Level
@@ -64,44 +77,4 @@ func (flags *SharedFlags) NewLogger(conf zap.Config, options ...zap.Option) (*za
 	}
 	conf.Level = zap.NewAtomicLevelAt(level)
 	return conf.Build(options...)
-}
-
-// SharedFlags holds flags configuration
-type SharedFlags struct {
-	// SpanStorage defines common settings for Span Storage.
-	SpanStorage spanStorage
-	// DependencyStorage defines common settings for Dependency Storage.
-	DependencyStorage dependencyStorage
-	// Logging holds logging configuration
-	Logging logging
-}
-
-// InitFromViper initializes SharedFlags with properties from viper
-func (flags *SharedFlags) InitFromViper(v *viper.Viper) *SharedFlags {
-	flags.SpanStorage.Type = v.GetString(spanStorageType)
-	flags.DependencyStorage.DataFrequency = v.GetDuration(dependencyStorageDataFrequency)
-	flags.Logging.Level = v.GetString(logLevel)
-	return flags
-}
-
-// AddFlags adds flags for SharedFlags
-func AddFlags(flagSet *flag.FlagSet) {
-	flagSet.String(spanStorageType, CassandraStorageType, fmt.Sprintf("The type of span storage backend to use, options are currently [%v,%v,%v]", CassandraStorageType, ESStorageType, MemoryStorageType))
-	flagSet.String(logLevel, "info", "Minimal allowed log Level. For more levels see https://github.com/uber-go/zap")
-	flagSet.Duration(dependencyStorageDataFrequency, time.Hour*24, "Frequency of service dependency calculations")
-}
-
-// ErrUnsupportedStorageType is the error when dealing with an unsupported storage type
-var ErrUnsupportedStorageType = errors.New("Storage Type is not supported")
-
-type logging struct {
-	Level string
-}
-
-type spanStorage struct {
-	Type string
-}
-
-type dependencyStorage struct {
-	DataFrequency time.Duration
 }

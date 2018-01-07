@@ -21,4 +21,4 @@ EXPOSE 16686
 COPY ./jaeger-ui-build /go/src/jaeger-ui-build
 COPY ./cmd/standalone/standalone-linux /go/bin/
 
-CMD ["/go/bin/standalone-linux","--span-storage.type=memory","--query.static-files=/go/src/jaeger-ui-build/build/"]
+CMD ["/go/bin/standalone-linux","--query.static-files=/go/src/jaeger-ui-build/build/"]

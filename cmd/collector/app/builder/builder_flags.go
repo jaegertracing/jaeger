@@ -16,7 +16,6 @@ package builder
 
 import (
 	"flag"
-	"time"
 
 	"github.com/spf13/viper"
 
@@ -39,8 +38,6 @@ type CollectorOptions struct {
 	QueueSize int
 	// NumWorkers is the number of internal workers in a collector
 	NumWorkers int
-	// WriteCacheTTL denotes how often to check and re-write a service or operation name
-	WriteCacheTTL time.Duration
 	// CollectorPort is the port that the collector service listens in on for tchannel requests
 	CollectorPort int
 	// CollectorHTTPPort is the port that the collector service listens in on for http requests
@@ -55,7 +52,6 @@ type CollectorOptions struct {
 func AddFlags(flags *flag.FlagSet) {
 	flags.Int(collectorQueueSize, app.DefaultQueueSize, "The queue size of the collector")
 	flags.Int(collectorNumWorkers, app.DefaultNumWorkers, "The number of workers pulling items from the queue")
-	flags.Duration(collectorWriteCacheTTL, time.Hour*12, "The duration to wait before rewriting an existing service or operation name")
 	flags.Int(collectorPort, 14267, "The tchannel port for the collector service")
 	flags.Int(collectorHTTPPort, 14268, "The http port for the collector service")
 	flags.Int(collectorZipkinHTTPort, 0, "The http port for the Zipkin collector service e.g. 9411")
@@ -66,7 +62,6 @@ func AddFlags(flags *flag.FlagSet) {
 func (cOpts *CollectorOptions) InitFromViper(v *viper.Viper) *CollectorOptions {
 	cOpts.QueueSize = v.GetInt(collectorQueueSize)
 	cOpts.NumWorkers = v.GetInt(collectorNumWorkers)
-	cOpts.WriteCacheTTL = v.GetDuration(collectorWriteCacheTTL)
 	cOpts.CollectorPort = v.GetInt(collectorPort)
 	cOpts.CollectorHTTPPort = v.GetInt(collectorHTTPPort)
 	cOpts.CollectorZipkinHTTPPort = v.GetInt(collectorZipkinHTTPort)
