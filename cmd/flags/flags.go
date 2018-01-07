@@ -24,8 +24,9 @@ import (
 )
 
 const (
-	logLevel   = "log-level"
-	configFile = "config-file"
+	spanStorageType = "span-storage.type" // deprecated
+	logLevel        = "log-level"
+	configFile      = "config-file"
 )
 
 // AddConfigFileFlag adds flags for ExternalConfFlags
@@ -57,6 +58,7 @@ type logging struct {
 
 // AddFlags adds flags for SharedFlags
 func AddFlags(flagSet *flag.FlagSet) {
+	flagSet.String(spanStorageType, "", "Deprecated; please use SPAN_STORAGE environment variable")
 	flagSet.String(logLevel, "info", "Minimal allowed log Level. For more levels see https://github.com/uber-go/zap")
 }
 

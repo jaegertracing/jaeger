@@ -1,4 +1,4 @@
-// Copyright (c) 2018 The Jaeger Authors.
+// Copyright (c) 2018 Uber Technologies, Inc.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -17,7 +17,6 @@ package storage
 import (
 	"errors"
 	"flag"
-	"os"
 	"testing"
 
 	"github.com/spf13/viper"
@@ -34,46 +33,40 @@ import (
 
 var _ storage.Factory = new(Factory)
 
-func clearEnv() {
-	os.Setenv(SpanStorageEnvVar, "")
-	os.Setenv(dependencyStorageEnvVar, "")
+func defaultCfg() FactoryConfig {
+	return FactoryConfig{
+		SpanStorageType:         cassandraStorageType,
+		DependenciesStorageType: cassandraStorageType,
+	}
 }
 
 func TestNewFactory(t *testing.T) {
-	clearEnv()
-	defer clearEnv()
-
-	f, err := NewFactory()
+	f, err := NewFactory(defaultCfg())
 	require.NoError(t, err)
 	assert.NotEmpty(t, f.factories)
 	assert.NotEmpty(t, f.factories[cassandraStorageType])
-	assert.Equal(t, cassandraStorageType, f.spanStoreType)
-	assert.Equal(t, cassandraStorageType, f.depStoreType)
+	assert.Equal(t, cassandraStorageType, f.SpanStorageType)
+	assert.Equal(t, cassandraStorageType, f.DependenciesStorageType)
 
-	os.Setenv(SpanStorageEnvVar, elasticsearchStorageType)
-	os.Setenv(dependencyStorageEnvVar, memoryStorageType)
-
-	f, err = NewFactory()
+	f, err = NewFactory(FactoryConfig{
+		SpanStorageType:         elasticsearchStorageType,
+		DependenciesStorageType: memoryStorageType,
+	})
 	require.NoError(t, err)
 	assert.NotEmpty(t, f.factories)
 	assert.NotEmpty(t, f.factories[elasticsearchStorageType])
 	assert.NotEmpty(t, f.factories[memoryStorageType])
-	assert.Equal(t, elasticsearchStorageType, f.spanStoreType)
-	assert.Equal(t, memoryStorageType, f.depStoreType)
+	assert.Equal(t, elasticsearchStorageType, f.SpanStorageType)
+	assert.Equal(t, memoryStorageType, f.DependenciesStorageType)
 
-	os.Setenv(SpanStorageEnvVar, "x")
-
-	f, err = NewFactory()
+	f, err = NewFactory(FactoryConfig{SpanStorageType: "x", DependenciesStorageType: "y"})
 	require.Error(t, err)
 	expected := "Unknown storage type x."
 	assert.Equal(t, expected, err.Error()[0:len(expected)])
 }
 
 func TestInitialize(t *testing.T) {
-	clearEnv()
-	defer clearEnv()
-
-	f, err := NewFactory()
+	f, err := NewFactory(defaultCfg())
 	require.NoError(t, err)
 	assert.NotEmpty(t, f.factories)
 	assert.NotEmpty(t, f.factories[cassandraStorageType])
@@ -93,10 +86,7 @@ func TestInitialize(t *testing.T) {
 }
 
 func TestCreate(t *testing.T) {
-	clearEnv()
-	defer clearEnv()
-
-	f, err := NewFactory()
+	f, err := NewFactory(defaultCfg())
 	require.NoError(t, err)
 	assert.NotEmpty(t, f.factories)
 	assert.NotEmpty(t, f.factories[cassandraStorageType])
@@ -126,10 +116,7 @@ func TestCreate(t *testing.T) {
 }
 
 func TestCreateError(t *testing.T) {
-	clearEnv()
-	defer clearEnv()
-
-	f, err := NewFactory()
+	f, err := NewFactory(defaultCfg())
 	require.NoError(t, err)
 	assert.NotEmpty(t, f.factories)
 	assert.NotEmpty(t, f.factories[cassandraStorageType])
@@ -175,7 +162,7 @@ func TestConfigurable(t *testing.T) {
 	clearEnv()
 	defer clearEnv()
 
-	f, err := NewFactory()
+	f, err := NewFactory(defaultCfg())
 	require.NoError(t, err)
 	assert.NotEmpty(t, f.factories)
 	assert.NotEmpty(t, f.factories[cassandraStorageType])

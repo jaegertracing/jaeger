@@ -57,7 +57,7 @@ func main() {
 	if os.Getenv(storage.SpanStorageEnvVar) == "" {
 		os.Setenv(storage.SpanStorageEnvVar, "memory") // other storage types default to SpanStorage
 	}
-	storageFactory, err := storage.NewFactory()
+	storageFactory, err := storage.NewFactory(storage.FactoryConfigFromEnvAndCLI(os.Args, os.Stderr))
 	if err != nil {
 		log.Fatalf("Cannot initialize storage factory: %v", err)
 	}

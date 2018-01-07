@@ -17,7 +17,6 @@ package storage
 import (
 	"flag"
 	"fmt"
-	"os"
 
 	"github.com/spf13/viper"
 	"github.com/uber/jaeger-lib/metrics"
@@ -33,10 +32,6 @@ import (
 )
 
 const (
-	// SpanStorageEnvVar is the name of the env var that defines the type of backend used for span storage.
-	SpanStorageEnvVar       = "SPAN_STORAGE"
-	dependencyStorageEnvVar = "DEPENDENCY_STORAGE"
-
 	cassandraStorageType     = "cassandra"
 	elasticsearchStorageType = "elasticsearch"
 	memoryStorageType        = "memory"
@@ -45,33 +40,18 @@ const (
 var allStorageTypes = []string{cassandraStorageType, elasticsearchStorageType, memoryStorageType}
 
 // Factory implements storage.Factory interface as a meta-factory for storage components.
-// It reads the desired types of storage backends from SPAN_STORAGE and DEPENDENCY_STORAGE
-// environment variable. Allowed values:
-//   * `cassandra` - built-in
-//   * `elasticsearch` - built-in
-//   * `memory` - built-in
-//   * `plugin` - loads a dynamic plugin that implements storage.Factory interface (not supported at the moment)
 type Factory struct {
-	spanStoreType string
-	depStoreType  string
+	FactoryConfig
 
 	factories map[string]storage.Factory
 }
 
 // NewFactory creates the meta-factory.
-func NewFactory() (*Factory, error) {
-	f := &Factory{}
-	f.spanStoreType = os.Getenv(SpanStorageEnvVar)
-	if f.spanStoreType == "" {
-		f.spanStoreType = cassandraStorageType
-	}
-	f.depStoreType = os.Getenv(dependencyStorageEnvVar)
-	if f.depStoreType == "" {
-		f.depStoreType = f.spanStoreType
-	}
+func NewFactory(config FactoryConfig) (*Factory, error) {
+	f := &Factory{FactoryConfig: config}
 	uniqueTypes := map[string]struct{}{
-		f.spanStoreType: {},
-		f.depStoreType:  {},
+		f.SpanStorageType:         {},
+		f.DependenciesStorageType: {},
 	}
 	f.factories = make(map[string]storage.Factory)
 	for t := range uniqueTypes {
@@ -109,27 +89,27 @@ func (f *Factory) Initialize(metricsFactory metrics.Factory, logger *zap.Logger)
 
 // CreateSpanReader implements storage.Factory
 func (f *Factory) CreateSpanReader() (spanstore.Reader, error) {
-	factory, ok := f.factories[f.spanStoreType]
+	factory, ok := f.factories[f.SpanStorageType]
 	if !ok {
-		return nil, fmt.Errorf("No %s backend registered for span store", f.spanStoreType)
+		return nil, fmt.Errorf("No %s backend registered for span store", f.SpanStorageType)
 	}
 	return factory.CreateSpanReader()
 }
 
 // CreateSpanWriter implements storage.Factory
 func (f *Factory) CreateSpanWriter() (spanstore.Writer, error) {
-	factory, ok := f.factories[f.spanStoreType]
+	factory, ok := f.factories[f.SpanStorageType]
 	if !ok {
-		return nil, fmt.Errorf("No %s backend registered for span store", f.spanStoreType)
+		return nil, fmt.Errorf("No %s backend registered for span store", f.SpanStorageType)
 	}
 	return factory.CreateSpanWriter()
 }
 
 // CreateDependencyReader implements storage.Factory
 func (f *Factory) CreateDependencyReader() (dependencystore.Reader, error) {
-	factory, ok := f.factories[f.spanStoreType]
+	factory, ok := f.factories[f.DependenciesStorageType]
 	if !ok {
-		return nil, fmt.Errorf("No %s backend registered for span store", f.spanStoreType)
+		return nil, fmt.Errorf("No %s backend registered for span store", f.DependenciesStorageType)
 	}
 	return factory.CreateDependencyReader()
 }
