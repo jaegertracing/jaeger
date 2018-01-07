@@ -12,28 +12,20 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package builder
+package plugin
 
 import (
-	"testing"
+	"flag"
 
-	"github.com/stretchr/testify/assert"
-	"go.uber.org/zap"
-
-	"github.com/uber/jaeger-lib/metrics"
+	"github.com/spf13/viper"
 )
 
-func TestApplyOptions(t *testing.T) {
-	opts := ApplyOptions(
-		Options.LoggerOption(zap.NewNop()),
-		Options.MetricsFactoryOption(metrics.NullFactory),
-	)
-	assert.NotNil(t, opts.Logger)
-	assert.NotNil(t, opts.MetricsFactory)
-}
+// Configurable interface can be implemented by plugins that require external configuration,
+// such as CLI flags, config files, or environment variables.
+type Configurable interface {
+	// AddFlags adds CLI flags for configuring this component.
+	AddFlags(flagSet *flag.FlagSet)
 
-func TestApplyNoOptions(t *testing.T) {
-	opts := ApplyOptions()
-	assert.NotNil(t, opts.Logger)
-	assert.NotNil(t, opts.MetricsFactory)
+	// InitFromViper initializes this component with properties from spf13/viper.
+	InitFromViper(v *viper.Viper)
 }

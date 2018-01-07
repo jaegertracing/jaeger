@@ -16,6 +16,7 @@ package main
 
 import (
 	"fmt"
+	"log"
 	"net"
 	"net/http"
 	"os"
@@ -34,32 +35,34 @@ import (
 	"github.com/jaegertracing/jaeger/cmd/collector/app"
 	"github.com/jaegertracing/jaeger/cmd/collector/app/builder"
 	"github.com/jaegertracing/jaeger/cmd/collector/app/zipkin"
+	"github.com/jaegertracing/jaeger/cmd/env"
 	"github.com/jaegertracing/jaeger/cmd/flags"
-	casFlags "github.com/jaegertracing/jaeger/cmd/flags/cassandra"
-	esFlags "github.com/jaegertracing/jaeger/cmd/flags/es"
 	"github.com/jaegertracing/jaeger/pkg/config"
 	"github.com/jaegertracing/jaeger/pkg/healthcheck"
 	pMetrics "github.com/jaegertracing/jaeger/pkg/metrics"
 	"github.com/jaegertracing/jaeger/pkg/recoveryhandler"
 	"github.com/jaegertracing/jaeger/pkg/version"
+	"github.com/jaegertracing/jaeger/plugin/storage"
 	jc "github.com/jaegertracing/jaeger/thrift-gen/jaeger"
 	zc "github.com/jaegertracing/jaeger/thrift-gen/zipkincore"
 )
+
+const serviceName = "jaeger-collector"
 
 func main() {
 	var signalsChannel = make(chan os.Signal, 0)
 	signal.Notify(signalsChannel, os.Interrupt, syscall.SIGTERM)
 
-	serviceName := "jaeger-collector"
-	casOptions := casFlags.NewOptions("cassandra")
-	esOptions := esFlags.NewOptions("es")
+	storageFactory, err := storage.NewFactory()
+	if err != nil {
+		log.Fatalf("Cannot initialize storage factory: %v", err)
+	}
 
 	v := viper.New()
 	command := &cobra.Command{
 		Use:   "jaeger-collector",
 		Short: "Jaeger collector receives and processes traces from Jaeger agents and clients",
-		Long: `Jaeger collector receives traces from Jaeger agents and agent and runs them through
-				a processing pipeline.`,
+		Long:  `Jaeger collector receives traces from Jaeger agents and runs them through a processing pipeline.`,
 		RunE: func(cmd *cobra.Command, args []string) error {
 			err := flags.TryLoadConfigFile(v)
 			if err != nil {
@@ -72,16 +75,7 @@ func main() {
 				return err
 			}
 
-			casOptions.InitFromViper(v)
-			esOptions.InitFromViper(v)
-			mBldr := new(pMetrics.Builder).InitFromViper(v)
 			builderOpts := new(builder.CollectorOptions).InitFromViper(v)
-
-			metricsFactory, err := mBldr.CreateMetricsFactory("jaeger-collector")
-			if err != nil {
-				logger.Fatal("Cannot create metrics factory.", zap.Error(err))
-			}
-
 			hc, err := healthcheck.
 				New(healthcheck.Unavailable, healthcheck.Logger(logger)).
 				Serve(builderOpts.CollectorHealthCheckHTTPPort)
@@ -89,11 +83,24 @@ func main() {
 				logger.Fatal("Could not start the health check server.", zap.Error(err))
 			}
 
+			mBldr := new(pMetrics.Builder).InitFromViper(v)
+			metricsFactory, err := mBldr.CreateMetricsFactory("jaeger-collector")
+			if err != nil {
+				logger.Fatal("Cannot create metrics factory.", zap.Error(err))
+			}
+
+			storageFactory.InitFromViper(v)
+			if err := storageFactory.Initialize(metricsFactory, logger); err != nil {
+				logger.Fatal("Failed to init storage factory", zap.Error(err))
+			}
+			spanWriter, err := storageFactory.CreateSpanWriter()
+			if err != nil {
+				logger.Fatal("Failed to create span writer", zap.Error(err))
+			}
+
 			handlerBuilder, err := builder.NewSpanHandlerBuilder(
 				builderOpts,
-				sFlags,
-				basicB.Options.CassandraSessionOption(casOptions.GetPrimary()),
-				basicB.Options.ElasticClientOption(esOptions.GetPrimary()),
+				spanWriter,
 				basicB.Options.LoggerOption(logger),
 				basicB.Options.MetricsFactoryOption(metricsFactory),
 			)
@@ -148,6 +155,7 @@ func main() {
 	}
 
 	command.AddCommand(version.Command())
+	command.AddCommand(env.Command())
 
 	config.AddFlags(
 		v,
@@ -155,8 +163,7 @@ func main() {
 		flags.AddConfigFileFlag,
 		flags.AddFlags,
 		builder.AddFlags,
-		casOptions.AddFlags,
-		esOptions.AddFlags,
+		storageFactory.AddFlags,
 		pMetrics.AddFlags,
 	)
 

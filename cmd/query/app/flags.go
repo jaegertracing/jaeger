@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package builder
+package app
 
 import (
 	"flag"
@@ -28,7 +28,7 @@ const (
 	queryHealthCheckHTTPPort = "query.health-check-http-port"
 )
 
-// QueryOptions holds configuration for query
+// QueryOptions holds configuration for query service
 type QueryOptions struct {
 	// Port is the port that the query service listens in on
 	Port int

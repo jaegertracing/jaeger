@@ -17,6 +17,7 @@ package cassandra
 import (
 	"flag"
 	"strings"
+	"time"
 
 	"github.com/spf13/viper"
 
@@ -24,6 +25,7 @@ import (
 )
 
 const (
+	// session settings
 	suffixConnPerHost      = ".connections-per-host"
 	suffixMaxRetryAttempts = ".max-retry-attempts"
 	suffixTimeout          = ".timeout"
@@ -40,17 +42,20 @@ const (
 	suffixCA               = ".tls.ca"
 	suffixServerName       = ".tls.server-name"
 	suffixVerifyHost       = ".tls.verify-host"
-)
 
-// TODO this should be moved next to config.Configuration struct (maybe ./flags package)
+	// common storage settings
+	suffixSpanStoreWriteCacheTTL = ".span-store-write-cache-ttl"
+	suffixDepStoreDataFrequency  = ".dependency-store-data-frequency"
+)
 
 // Options contains various type of Cassandra configs and provides the ability
 // to bind them to command line flag and apply overlays, so that some configurations
 // (e.g. archive) may be underspecified and infer the rest of its parameters from primary.
 type Options struct {
-	primary *namespaceConfig
-
-	others map[string]*namespaceConfig
+	primary                *namespaceConfig
+	others                 map[string]*namespaceConfig
+	SpanStoreWriteCacheTTL time.Duration
+	DepStoreDataFrequency  time.Duration
 }
 
 // the Servers field in config.Configuration is a list, which we cannot represent with flags.
@@ -80,7 +85,9 @@ func NewOptions(primaryNamespace string, otherNamespaces ...string) *Options {
 			servers:   "127.0.0.1",
 			namespace: primaryNamespace,
 		},
-		others: make(map[string]*namespaceConfig, len(otherNamespaces)),
+		others:                 make(map[string]*namespaceConfig, len(otherNamespaces)),
+		SpanStoreWriteCacheTTL: time.Hour * 12,
+		DepStoreDataFrequency:  time.Hour * 24,
 	}
 
 	for _, namespace := range otherNamespaces {
@@ -96,6 +103,12 @@ func (opt *Options) AddFlags(flagSet *flag.FlagSet) {
 	for _, cfg := range opt.others {
 		addFlags(flagSet, cfg)
 	}
+	flagSet.Duration(opt.primary.namespace+suffixSpanStoreWriteCacheTTL,
+		opt.SpanStoreWriteCacheTTL,
+		"The duration to wait before rewriting an existing service or operation name")
+	flagSet.Duration(opt.primary.namespace+suffixDepStoreDataFrequency,
+		opt.DepStoreDataFrequency,
+		"Frequency of service dependency calculations")
 }
 
 func addFlags(flagSet *flag.FlagSet, nsConfig *namespaceConfig) {
@@ -167,13 +180,15 @@ func addFlags(flagSet *flag.FlagSet, nsConfig *namespaceConfig) {
 
 // InitFromViper initializes Options with properties from viper
 func (opt *Options) InitFromViper(v *viper.Viper) {
-	initFromViper(opt.primary, v)
+	opt.primary.initFromViper(v)
 	for _, cfg := range opt.others {
-		initFromViper(cfg, v)
+		cfg.initFromViper(v)
 	}
+	opt.SpanStoreWriteCacheTTL = v.GetDuration(opt.primary.namespace + suffixSpanStoreWriteCacheTTL)
+	opt.DepStoreDataFrequency = v.GetDuration(opt.primary.namespace + suffixDepStoreDataFrequency)
 }
 
-func initFromViper(cfg *namespaceConfig, v *viper.Viper) {
+func (cfg *namespaceConfig) initFromViper(v *viper.Viper) {
 	cfg.ConnectionsPerHost = v.GetInt(cfg.namespace + suffixConnPerHost)
 	cfg.MaxRetryAttempts = v.GetInt(cfg.namespace + suffixMaxRetryAttempts)
 	cfg.Timeout = v.GetDuration(cfg.namespace + suffixTimeout)

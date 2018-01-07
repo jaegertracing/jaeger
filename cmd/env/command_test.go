@@ -1,4 +1,4 @@
-// Copyright (c) 2017 Uber Technologies, Inc.
+// Copyright (c) 2018 The Jaeger Authors.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -12,13 +12,21 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package builder
+package env
 
 import (
-	"github.com/jaegertracing/jaeger/storage/spanstore/memory"
+	"bytes"
+	"strings"
+	"testing"
+
+	"github.com/stretchr/testify/assert"
 )
 
-func (sb *StorageBuilder) newMemoryStoreBuilder(memStore *memory.Store) {
-	sb.SpanReader = memStore
-	sb.DependencyReader = memStore
+func TestCommand(t *testing.T) {
+	cmd := Command()
+	buf := new(bytes.Buffer)
+	cmd.SetOutput(buf)
+	cmd.Run(cmd, nil)
+	assert.True(t, strings.Contains(buf.String(), "METRICS_BACKEND"))
+	assert.True(t, strings.Contains(buf.String(), "SPAN_STORAGE"))
 }

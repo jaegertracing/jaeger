@@ -66,7 +66,7 @@ func AddFlags(flags *flag.FlagSet) {
 }
 
 // InitFromViper initializes Builder with properties retrieved from Viper.
-func (b *Builder) InitFromViper(v *viper.Viper) {
+func (b *Builder) InitFromViper(v *viper.Viper) *Builder {
 	b.Metrics.InitFromViper(v)
 
 	for _, processor := range defaultProcessors {
@@ -84,4 +84,5 @@ func (b *Builder) InitFromViper(v *viper.Viper) {
 	}
 	b.HTTPServer.HostPort = v.GetString(httpServerHostPort)
 	b.DiscoveryMinPeers = v.GetInt(discoveryMinPeers)
+	return b
 }
