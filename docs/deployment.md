@@ -88,14 +88,16 @@ Port  | Protocol | Function
 
 ## Storage Backend
 
-Collectors require a persistent storage backend. Cassandra 3.x (default) and ElasticSearch are the
-primary supported storage backends. There is ongoing work to add support for MySQL and ScyllaDB.
+Collectors require a persistent storage backend. Cassandra and ElasticSearch are the primary supported storage backends. Additional backends are [discussed here](https://github.com/jaegertracing/jaeger/issues/638).
+
+The storage type can be passed via `SPAN_STORAGE` environment variable. Valid values are `cassandra`, `elasticsearch`, and `memory` (only for all-in-one binary).
 
 ### Cassandra
 
+Supported versions: 3.4+
+
 Deploying Cassandra itself is out of scope for our documentation. One good
-source of documentation is the
-[Apache Cassandra Docs](https://cassandra.apache.org/doc/latest/)
+source of documentation is the [Apache Cassandra Docs](https://cassandra.apache.org/doc/latest/).
 
 #### Schema script
 
@@ -154,6 +156,8 @@ usercert = ~/.cassandra/client-cert
 ```
 
 ### ElasticSearch
+
+Supported versons: 5.x, 6.x
 
 ElasticSearch does not require initialization other than
 [installing and running ElasticSearch](https://www.elastic.co/downloads/elasticsearch).

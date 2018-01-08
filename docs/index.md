@@ -26,6 +26,7 @@ for the architectural choices made in Jaeger.
     * in [Go](https://github.com/jaegertracing/jaeger-client-go), [Java](https://github.com/jaegertracing/jaeger-client-java), [Node](https://github.com/jaegertracing/jaeger-client-node), [Python](https://github.com/jaegertracing/jaeger-client-python)
     and [C++](https://github.com/jaegertracing/cpp-client)
   * Uses consistent upfront sampling with individual per service/endpoint probabilities
+  * Multiple storage backends: Cassandra, Elasticsearch, memory.
   * Adaptive sampling (coming soon)
   * Post-collection data processing pipeline (coming soon)
 
@@ -33,7 +34,10 @@ for the architectural choices made in Jaeger.
 
   * Backend components implemented in Go 1.9
   * React/Javascript UI
-  * [Cassandra 3.x](https://github.com/jaegertracing/jaeger/tree/master/plugin/storage/cassandra), [ElasticSearch](https://github.com/jaegertracing/jaeger/tree/master/plugin/storage/es) as persistent storage (more storage backends coming soon)
+  * Supported storage backends
+    * [Cassandra 3.4+](./deployment/#cassandra)
+    * [ElasticSearch 5.x, 6.x](./deployment/#elasticsearch)
+    * memory storage
 
 ## Quick Start
 See [running a docker all in one image](getting_started.md#all-in-one-docker-image).
