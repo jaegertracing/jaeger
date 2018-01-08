@@ -25,8 +25,14 @@ import (
 	"github.com/jaegertracing/jaeger/pkg/cassandra/config"
 	cDepStore "github.com/jaegertracing/jaeger/plugin/storage/cassandra/dependencystore"
 	cSpanStore "github.com/jaegertracing/jaeger/plugin/storage/cassandra/spanstore"
+	"github.com/jaegertracing/jaeger/storage"
 	"github.com/jaegertracing/jaeger/storage/dependencystore"
 	"github.com/jaegertracing/jaeger/storage/spanstore"
+)
+
+const (
+	primaryStorageConfig = "cassandra"
+	archiveStorageConfig = "cassandra-archive"
 )
 
 // Factory implements storage.Factory for Cassandra backend.
@@ -38,13 +44,14 @@ type Factory struct {
 
 	primaryConfig  config.SessionBuilder
 	primarySession cassandra.Session
-	// archiveSession cassandra.Session TODO
+	archiveConfig  config.SessionBuilder
+	archiveSession cassandra.Session
 }
 
 // NewFactory creates a new Factory.
 func NewFactory() *Factory {
 	return &Factory{
-		Options: NewOptions("cassandra"), // TODO add "cassandra-archive" once supported
+		Options: NewOptions(primaryStorageConfig, archiveStorageConfig),
 	}
 }
 
@@ -57,6 +64,9 @@ func (f *Factory) AddFlags(flagSet *flag.FlagSet) {
 func (f *Factory) InitFromViper(v *viper.Viper) {
 	f.Options.InitFromViper(v)
 	f.primaryConfig = f.Options.GetPrimary()
+	if cfg := f.Options.Get(archiveStorageConfig); cfg != nil {
+		f.archiveConfig = cfg // this is so stupid - see https://golang.org/doc/faq#nil_error
+	}
 }
 
 // Initialize implements storage.Factory
@@ -68,7 +78,14 @@ func (f *Factory) Initialize(metricsFactory metrics.Factory, logger *zap.Logger)
 		return err
 	}
 	f.primarySession = primarySession
-	// TODO init archive (cf. https://github.com/jaegertracing/jaeger/pull/604)
+
+	if f.archiveConfig != nil {
+		if archiveSession, err := f.archiveConfig.NewSession(); err == nil {
+			f.archiveSession = archiveSession
+		} else {
+			return err
+		}
+	}
 	return nil
 }
 
@@ -85,4 +102,20 @@ func (f *Factory) CreateSpanWriter() (spanstore.Writer, error) {
 // CreateDependencyReader implements storage.Factory
 func (f *Factory) CreateDependencyReader() (dependencystore.Reader, error) {
 	return cDepStore.NewDependencyStore(f.primarySession, f.Options.DepStoreDataFrequency, f.metricsFactory, f.logger), nil
+}
+
+// CreateArchiveSpanReader implements storage.ArchiveFactory
+func (f *Factory) CreateArchiveSpanReader() (spanstore.Reader, error) {
+	if f.archiveSession == nil {
+		return nil, storage.ErrArchiveStorageNotConfigured
+	}
+	return cSpanStore.NewSpanReader(f.archiveSession, f.metricsFactory, f.logger), nil
+}
+
+// CreateArchiveSpanWriter implements storage.ArchiveFactory
+func (f *Factory) CreateArchiveSpanWriter() (spanstore.Writer, error) {
+	if f.archiveSession == nil {
+		return nil, storage.ErrArchiveStorageNotConfigured
+	}
+	return cSpanStore.NewSpanWriter(f.archiveSession, f.Options.SpanStoreWriteCacheTTL, f.metricsFactory, f.logger), nil
 }

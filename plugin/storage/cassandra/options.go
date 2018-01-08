@@ -26,6 +26,7 @@ import (
 
 const (
 	// session settings
+	suffixEnabled          = ".enabled"
 	suffixConnPerHost      = ".connections-per-host"
 	suffixMaxRetryAttempts = ".max-retry-attempts"
 	suffixTimeout          = ".timeout"
@@ -65,6 +66,8 @@ type namespaceConfig struct {
 	config.Configuration
 	servers   string
 	namespace string
+	primary   bool
+	Enabled   bool
 }
 
 // NewOptions creates a new Options struct.
@@ -78,12 +81,14 @@ func NewOptions(primaryNamespace string, otherNamespaces ...string) *Options {
 					EnableHostVerification: true,
 				},
 				MaxRetryAttempts:   3,
-				Keyspace:           "jaeger_v1_local",
+				Keyspace:           "jaeger_v1_test",
 				ProtoVersion:       4,
 				ConnectionsPerHost: 2,
 			},
 			servers:   "127.0.0.1",
 			namespace: primaryNamespace,
+			primary:   true,
+			Enabled:   true,
 		},
 		others:                 make(map[string]*namespaceConfig, len(otherNamespaces)),
 		SpanStoreWriteCacheTTL: time.Hour * 12,
@@ -112,6 +117,12 @@ func (opt *Options) AddFlags(flagSet *flag.FlagSet) {
 }
 
 func addFlags(flagSet *flag.FlagSet, nsConfig *namespaceConfig) {
+	if !nsConfig.primary {
+		flagSet.Bool(
+			nsConfig.namespace+suffixEnabled,
+			false,
+			"Enable extra storage")
+	}
 	flagSet.Int(
 		nsConfig.namespace+suffixConnPerHost,
 		nsConfig.ConnectionsPerHost,
@@ -189,6 +200,9 @@ func (opt *Options) InitFromViper(v *viper.Viper) {
 }
 
 func (cfg *namespaceConfig) initFromViper(v *viper.Viper) {
+	if !cfg.primary {
+		cfg.Enabled = v.GetBool(cfg.namespace + suffixEnabled)
+	}
 	cfg.ConnectionsPerHost = v.GetInt(cfg.namespace + suffixConnPerHost)
 	cfg.MaxRetryAttempts = v.GetInt(cfg.namespace + suffixMaxRetryAttempts)
 	cfg.Timeout = v.GetDuration(cfg.namespace + suffixTimeout)
@@ -219,6 +233,9 @@ func (opt *Options) Get(namespace string) *config.Configuration {
 	if !ok {
 		nsCfg = &namespaceConfig{}
 		opt.others[namespace] = nsCfg
+	}
+	if !nsCfg.Enabled {
+		return nil
 	}
 	nsCfg.Configuration.ApplyDefaults(&opt.primary.Configuration)
 	if nsCfg.servers == "" {

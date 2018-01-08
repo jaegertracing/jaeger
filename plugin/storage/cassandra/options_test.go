@@ -19,6 +19,7 @@ import (
 	"time"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 
 	"github.com/jaegertracing/jaeger/pkg/config"
 )
@@ -31,13 +32,19 @@ func TestOptions(t *testing.T) {
 	assert.Equal(t, 2, primary.ConnectionsPerHost)
 
 	aux := opts.Get("archive")
+	assert.Nil(t, aux)
+
+	assert.NotNil(t, opts.others["archive"])
+	opts.others["archive"].Enabled = true
+	aux = opts.Get("archive")
+	require.NotNil(t, aux)
 	assert.Equal(t, primary.Keyspace, aux.Keyspace)
 	assert.Equal(t, primary.Servers, aux.Servers)
 	assert.Equal(t, primary.ConnectionsPerHost, aux.ConnectionsPerHost)
 }
 
 func TestOptionsWithFlags(t *testing.T) {
-	opts := NewOptions("cas", "cas.aux")
+	opts := NewOptions("cas", "cas-aux")
 	v, command := config.Viperize(opts.AddFlags)
 	command.ParseFlags([]string{
 		"--cas.keyspace=jaeger",
@@ -48,9 +55,10 @@ func TestOptionsWithFlags(t *testing.T) {
 		"--cas.port=4242",
 		"--cas.proto-version=3",
 		"--cas.socket-keep-alive=42s",
-		// a couple overrides
-		"--cas.aux.keyspace=jaeger-archive",
-		"--cas.aux.servers=3.3.3.3,4.4.4.4",
+		// enable aux with a couple overrides
+		"--cas-aux.enabled=true",
+		"--cas-aux.keyspace=jaeger-archive",
+		"--cas-aux.servers=3.3.3.3,4.4.4.4",
 	})
 	opts.InitFromViper(v)
 
@@ -58,7 +66,8 @@ func TestOptionsWithFlags(t *testing.T) {
 	assert.Equal(t, "jaeger", primary.Keyspace)
 	assert.Equal(t, []string{"1.1.1.1", "2.2.2.2"}, primary.Servers)
 
-	aux := opts.Get("cas.aux")
+	aux := opts.Get("cas-aux")
+	require.NotNil(t, aux)
 	assert.Equal(t, "jaeger-archive", aux.Keyspace)
 	assert.Equal(t, []string{"3.3.3.3", "4.4.4.4"}, aux.Servers)
 	assert.Equal(t, 42, aux.ConnectionsPerHost)
