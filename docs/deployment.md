@@ -88,8 +88,8 @@ Port  | Protocol | Function
 
 ## Storage Backend
 
-Collectors require a persistent storage backend. Cassandra 3.x (default) and ElasticSearch are the
-primary supported storage backends. There is ongoing work to add support for MySQL and ScyllaDB.
+Collectors require a persistent storage backend. Cassandra 3.4+ (default) and ElasticSearch (5.x, 6.x)
+are the primary supported storage backends. Additional backends [discussed here](https://github.com/jaegertracing/jaeger/issues/638).
 
 ### Cassandra
 
