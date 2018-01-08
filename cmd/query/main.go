@@ -39,6 +39,7 @@ import (
 	"github.com/jaegertracing/jaeger/pkg/recoveryhandler"
 	"github.com/jaegertracing/jaeger/pkg/version"
 	"github.com/jaegertracing/jaeger/plugin/storage"
+	istorage "github.com/jaegertracing/jaeger/storage"
 )
 
 func main() {
@@ -107,12 +108,16 @@ func main() {
 				logger.Fatal("Failed to create dependency reader", zap.Error(err))
 			}
 
+			apiHandlerOptions := []app.HandlerOption{
+				app.HandlerOptions.Prefix(queryOpts.Prefix),
+				app.HandlerOptions.Logger(logger),
+				app.HandlerOptions.Tracer(tracer),
+			}
+			apiHandlerOptions = append(apiHandlerOptions, archiveOptions(storageFactory, logger)...)
 			apiHandler := app.NewAPIHandler(
 				spanReader,
 				dependencyReader,
-				app.HandlerOptions.Prefix(queryOpts.Prefix),
-				app.HandlerOptions.Logger(logger),
-				app.HandlerOptions.Tracer(tracer))
+				apiHandlerOptions...)
 			r := mux.NewRouter()
 			apiHandler.RegisterRoutes(r)
 			registerStaticHandler(r, logger, queryOpts)
@@ -172,5 +177,28 @@ func registerStaticHandler(r *mux.Router, logger *zap.Logger, qOpts *app.QueryOp
 		staticHandler.RegisterRoutes(r)
 	} else {
 		logger.Info("Static handler is not registered")
+	}
+}
+
+func archiveOptions(storageFactory istorage.Factory, logger *zap.Logger) []app.HandlerOption {
+	reader, err := storageFactory.CreateSpanReader()
+	if err == istorage.ErrArchiveStorageNotConfigured || err == istorage.ErrArchiveStorageNotSupported {
+		return nil
+	}
+	if err != nil {
+		logger.Error("Cannot init archive storage reader", zap.Error(err))
+		return nil
+	}
+	writer, err := storageFactory.CreateSpanWriter()
+	if err == istorage.ErrArchiveStorageNotConfigured || err == istorage.ErrArchiveStorageNotSupported {
+		return nil
+	}
+	if err != nil {
+		logger.Error("Cannot init archive storage writer", zap.Error(err))
+		return nil
+	}
+	return []app.HandlerOption{
+		app.HandlerOptions.ArchiveSpanReader(reader),
+		app.HandlerOptions.ArchiveSpanWriter(writer),
 	}
 }

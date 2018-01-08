@@ -131,3 +131,29 @@ func (f *Factory) InitFromViper(v *viper.Viper) {
 		}
 	}
 }
+
+// CreateArchiveSpanReader implements storage.ArchiveFactory
+func (f *Factory) CreateArchiveSpanReader() (spanstore.Reader, error) {
+	factory, ok := f.factories[f.SpanStorageType]
+	if !ok {
+		return nil, fmt.Errorf("No %s backend registered for span store", f.SpanStorageType)
+	}
+	archive, ok := factory.(storage.ArchiveFactory)
+	if !ok {
+		return nil, storage.ErrArchiveStorageNotSupported
+	}
+	return archive.CreateArchiveSpanReader()
+}
+
+// CreateArchiveSpanWriter implements storage.ArchiveFactory
+func (f *Factory) CreateArchiveSpanWriter() (spanstore.Writer, error) {
+	factory, ok := f.factories[f.SpanStorageType]
+	if !ok {
+		return nil, fmt.Errorf("No %s backend registered for span store", f.SpanStorageType)
+	}
+	archive, ok := factory.(storage.ArchiveFactory)
+	if !ok {
+		return nil, storage.ErrArchiveStorageNotSupported
+	}
+	return archive.CreateArchiveSpanWriter()
+}

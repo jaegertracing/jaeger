@@ -25,10 +25,12 @@ import (
 	"github.com/jaegertracing/jaeger/pkg/cassandra"
 	"github.com/jaegertracing/jaeger/pkg/cassandra/mocks"
 	"github.com/jaegertracing/jaeger/pkg/config"
+
 	"github.com/jaegertracing/jaeger/storage"
 )
 
 var _ storage.Factory = new(Factory)
+var _ storage.ArchiveFactory = new(Factory)
 
 type mockSessionBuilder struct {
 	err error
@@ -44,7 +46,7 @@ func (m *mockSessionBuilder) NewSession() (cassandra.Session, error) {
 func TestCassandraFactory(t *testing.T) {
 	f := NewFactory()
 	v, command := config.Viperize(f.AddFlags)
-	command.ParseFlags([]string{})
+	command.ParseFlags([]string{"--cassandra-archive.enabled=true"})
 	f.InitFromViper(v)
 
 	// after InitFromViper, f.primaryConfig points to a real session builder that will fail in unit tests,
@@ -53,6 +55,10 @@ func TestCassandraFactory(t *testing.T) {
 	assert.EqualError(t, f.Initialize(metrics.NullFactory, zap.NewNop()), "made-up error")
 
 	f.primaryConfig = &mockSessionBuilder{}
+	f.archiveConfig = &mockSessionBuilder{err: errors.New("made-up error")}
+	assert.EqualError(t, f.Initialize(metrics.NullFactory, zap.NewNop()), "made-up error")
+
+	f.archiveConfig = nil
 	assert.NoError(t, f.Initialize(metrics.NullFactory, zap.NewNop()))
 
 	_, err := f.CreateSpanReader()
@@ -62,5 +68,20 @@ func TestCassandraFactory(t *testing.T) {
 	assert.NoError(t, err)
 
 	_, err = f.CreateDependencyReader()
+	assert.NoError(t, err)
+
+	_, err = f.CreateArchiveSpanReader()
+	assert.EqualError(t, err, "Archive storage not configured")
+
+	_, err = f.CreateArchiveSpanWriter()
+	assert.EqualError(t, err, "Archive storage not configured")
+
+	f.archiveConfig = &mockSessionBuilder{}
+	assert.NoError(t, f.Initialize(metrics.NullFactory, zap.NewNop()))
+
+	_, err = f.CreateArchiveSpanReader()
+	assert.NoError(t, err)
+
+	_, err = f.CreateArchiveSpanWriter()
 	assert.NoError(t, err)
 }

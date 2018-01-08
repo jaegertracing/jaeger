@@ -32,6 +32,7 @@ import (
 )
 
 var _ storage.Factory = new(Factory)
+var _ storage.ArchiveFactory = new(Factory)
 
 func defaultCfg() FactoryConfig {
 	return FactoryConfig{
@@ -113,6 +114,38 @@ func TestCreate(t *testing.T) {
 	d, err := f.CreateDependencyReader()
 	assert.Equal(t, depReader, d)
 	assert.EqualError(t, err, "dep-reader-error")
+
+	_, err = f.CreateArchiveSpanReader()
+	assert.EqualError(t, err, "Archive storage not supported")
+
+	_, err = f.CreateArchiveSpanWriter()
+	assert.EqualError(t, err, "Archive storage not supported")
+}
+
+func TestCreateArchive(t *testing.T) {
+	f, err := NewFactory(defaultCfg())
+	require.NoError(t, err)
+	assert.NotEmpty(t, f.factories[cassandraStorageType])
+
+	mock := &struct {
+		mocks.Factory
+		mocks.ArchiveFactory
+	}{}
+	f.factories[cassandraStorageType] = mock
+
+	archiveSpanReader := new(spanStoreMocks.Reader)
+	archiveSpanWriter := new(spanStoreMocks.Writer)
+
+	mock.ArchiveFactory.On("CreateArchiveSpanReader").Return(archiveSpanReader, errors.New("archive-span-reader-error"))
+	mock.ArchiveFactory.On("CreateArchiveSpanWriter").Return(archiveSpanWriter, errors.New("archive-span-writer-error"))
+
+	ar, err := f.CreateArchiveSpanReader()
+	assert.Equal(t, archiveSpanReader, ar)
+	assert.EqualError(t, err, "archive-span-reader-error")
+
+	aw, err := f.CreateArchiveSpanWriter()
+	assert.Equal(t, archiveSpanWriter, aw)
+	assert.EqualError(t, err, "archive-span-writer-error")
 }
 
 func TestCreateError(t *testing.T) {
@@ -123,7 +156,8 @@ func TestCreateError(t *testing.T) {
 	delete(f.factories, cassandraStorageType)
 
 	expectedErr := "No cassandra backend registered for span store"
-	{ // scope the vars to avoid bugs in the test
+	// scope the vars to avoid bugs in the test
+	{
 		r, err := f.CreateSpanReader()
 		assert.Nil(t, r)
 		assert.EqualError(t, err, expectedErr)
@@ -138,6 +172,18 @@ func TestCreateError(t *testing.T) {
 	{
 		d, err := f.CreateDependencyReader()
 		assert.Nil(t, d)
+		assert.EqualError(t, err, expectedErr)
+	}
+
+	{
+		r, err := f.CreateArchiveSpanReader()
+		assert.Nil(t, r)
+		assert.EqualError(t, err, expectedErr)
+	}
+
+	{
+		w, err := f.CreateArchiveSpanWriter()
+		assert.Nil(t, w)
 		assert.EqualError(t, err, expectedErr)
 	}
 }
