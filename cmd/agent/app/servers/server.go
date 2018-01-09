@@ -33,7 +33,7 @@ type ReadBuf struct {
 	n     int
 }
 
-// GetBytes returns the contents of the Readbuf as bytes
+// GetBytes returns the contents of the ReadBuf as bytes
 func (r *ReadBuf) GetBytes() []byte {
 	return r.bytes[:r.n]
 }
