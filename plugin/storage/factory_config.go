@@ -22,9 +22,11 @@ import (
 )
 
 const (
-	// SpanStorageEnvVar is the name of the env var that defines the type of backend used for span storage.
-	SpanStorageEnvVar       = "SPAN_STORAGE"
-	dependencyStorageEnvVar = "DEPENDENCY_STORAGE"
+	// SpanStorageTypeEnvVar is the name of the env var that defines the type of backend used for span storage.
+	SpanStorageTypeEnvVar = "SPAN_STORAGE_TYPE"
+
+	// DependencyStorageTypeEnvVar is the name of the env var that defines the type of backend used for dependencies storage.
+	DependencyStorageTypeEnvVar = "DEPENDENCY_STORAGE_TYPE"
 
 	spanStorageFlag = "--span-storage.type"
 )
@@ -45,7 +47,7 @@ type FactoryConfig struct {
 // For backwards compatibility it also parses the args looking for deprecated --span-storage.type flag.
 // If found, it writes a deprecation warning to the log.
 func FactoryConfigFromEnvAndCLI(args []string, log io.Writer) FactoryConfig {
-	spanStorageType := os.Getenv(SpanStorageEnvVar)
+	spanStorageType := os.Getenv(SpanStorageTypeEnvVar)
 	if spanStorageType == "" {
 		// for backwards compatibility check command line for --span-storage.type flag
 		spanStorageType = spanStorageTypeFromArgs(args, log)
@@ -53,7 +55,7 @@ func FactoryConfigFromEnvAndCLI(args []string, log io.Writer) FactoryConfig {
 	if spanStorageType == "" {
 		spanStorageType = cassandraStorageType
 	}
-	depStoreType := os.Getenv(dependencyStorageEnvVar)
+	depStoreType := os.Getenv(DependencyStorageTypeEnvVar)
 	if depStoreType == "" {
 		depStoreType = spanStorageType
 	}
@@ -75,7 +77,7 @@ func spanStorageTypeFromArgs(args []string, log io.Writer) string {
 			log,
 			"WARNING: found deprecated command line option %s, please use environment variable %s instead\n",
 			token,
-			SpanStorageEnvVar,
+			SpanStorageTypeEnvVar,
 		)
 		if token == spanStorageFlag && i < len(args)-1 {
 			return args[i+1]

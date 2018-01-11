@@ -23,8 +23,8 @@ import (
 )
 
 func clearEnv() {
-	os.Setenv(SpanStorageEnvVar, "")
-	os.Setenv(dependencyStorageEnvVar, "")
+	os.Setenv(SpanStorageTypeEnvVar, "")
+	os.Setenv(DependencyStorageTypeEnvVar, "")
 }
 
 func TestFactoryConfigFromEnv(t *testing.T) {
@@ -35,8 +35,8 @@ func TestFactoryConfigFromEnv(t *testing.T) {
 	assert.Equal(t, cassandraStorageType, f.SpanStorageType)
 	assert.Equal(t, cassandraStorageType, f.DependenciesStorageType)
 
-	os.Setenv(SpanStorageEnvVar, elasticsearchStorageType)
-	os.Setenv(dependencyStorageEnvVar, memoryStorageType)
+	os.Setenv(SpanStorageTypeEnvVar, elasticsearchStorageType)
+	os.Setenv(DependencyStorageTypeEnvVar, memoryStorageType)
 
 	f = FactoryConfigFromEnvAndCLI(nil, nil)
 	assert.Equal(t, elasticsearchStorageType, f.SpanStorageType)
