@@ -54,8 +54,8 @@ import (
 
 // standalone/main is a standalone full-stack jaeger backend, backed by a memory store
 func main() {
-	if os.Getenv(storage.SpanStorageEnvVar) == "" {
-		os.Setenv(storage.SpanStorageEnvVar, "memory") // other storage types default to SpanStorage
+	if os.Getenv(storage.SpanStorageTypeEnvVar) == "" {
+		os.Setenv(storage.SpanStorageTypeEnvVar, "memory") // other storage types default to SpanStorage
 	}
 	storageFactory, err := storage.NewFactory(storage.FactoryConfigFromEnvAndCLI(os.Args, os.Stderr))
 	if err != nil {
