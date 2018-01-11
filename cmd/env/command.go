@@ -18,10 +18,10 @@ import (
 	"fmt"
 	"strings"
 
-	"github.com/jaegertracing/jaeger/plugin/storage"
+	"github.com/spf13/cobra"
 	"github.com/spf13/pflag"
 
-	"github.com/spf13/cobra"
+	"github.com/jaegertracing/jaeger/plugin/storage"
 )
 
 // Command creates `env` command
