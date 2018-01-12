@@ -15,7 +15,9 @@
 package throttling
 
 import (
+	"io"
 	"math"
+	"sync"
 	"time"
 )
 
@@ -69,6 +71,14 @@ type client struct {
 	updateTime time.Time
 }
 
+func newClient(id string, currentTime time.Time) *client {
+	return &client{
+		id:                  id,
+		updateTime:          currentTime,
+		perOperationBalance: map[string]float64{},
+	}
+}
+
 // Spend depletes the balance from the client for the given operation. The usage
 // would be when a client submits spans for operation X, it is spending those
 // credits it requested for operation X.
@@ -99,14 +109,28 @@ type creditAccruer struct {
 	timeNow                 func() time.Time // For testing
 }
 
-func (ca *creditAccruer) Withdraw(operationName string, maxWithdrawal float64) float64 {
+func newCreditAccruer(serviceName string, options CreditAccruerOptions, timeNow func() time.Time) *creditAccruer {
+	defaultRateLimiter := newTokenBucket(options, timeNow)
+	perOperationRateLimiter := NewOverrideMap(options.MaxOperations, defaultRateLimiter)
+	return &creditAccruer{
+		options:                 options,
+		serviceName:             serviceName,
+		updateTime:              timeNow(),
+		timeNow:                 timeNow,
+		perOperationRateLimiter: perOperationRateLimiter,
+	}
+}
+
+// Withdraw credits from the creditAccruer for the given operationName with an
+// upper limit of maxWithdrawal.
+func (accruer *creditAccruer) Withdraw(operationName string, maxWithdrawal float64) float64 {
 	var rateLimiter *tokenBucket
-	if ca.perOperationRateLimiter.Has(operationName) ||
-		ca.perOperationRateLimiter.IsFull() {
-		rateLimiter = ca.perOperationRateLimiter.Get(operationName).(*tokenBucket)
+	if accruer.perOperationRateLimiter.Has(operationName) ||
+		accruer.perOperationRateLimiter.IsFull() {
+		rateLimiter = accruer.perOperationRateLimiter.Get(operationName).(*tokenBucket)
 	} else {
-		rateLimiter = newTokenBucket(ca.options, ca.timeNow)
-		ca.perOperationRateLimiter.Set(operationName, rateLimiter)
+		rateLimiter = newTokenBucket(accruer.options, accruer.timeNow)
+		accruer.perOperationRateLimiter.Set(operationName, rateLimiter)
 	}
 	credits := rateLimiter.Withdraw(maxWithdrawal)
 	return credits
@@ -117,6 +141,7 @@ func (ca *creditAccruer) Withdraw(operationName string, maxWithdrawal float64) f
 // trace data to the Jaeger agent. These credits are generated on behalf of the
 // service, of which there can be many instances, and thus many clients.
 type CreditStore interface {
+	io.Closer
 	// Withdraw deducts as many credits from the service on behalf of the client
 	// without exceeding MaxClientBalance. The client is identified by a unique
 	// clientID string. The credits are deducted from the specific operation on
@@ -124,16 +149,18 @@ type CreditStore interface {
 	Withdraw(clientID string, serviceName string, operationName string) float64
 	// Spend credits already allocated to this client on a given operation.
 	Spend(clientID string, operationName string, credits float64) bool
-	// Purge any clients or services that have reached TTL since last update.
-	PurgeExpired()
 }
 
 type creditStore struct {
+	sync.Mutex
 	creditAccruers map[string]*creditAccruer
 	clients        map[string]*client
 	options        CreditAccruerOptions
 	ttl            time.Duration
 	timeNow        func() time.Time // For testing
+	ticker         *time.Ticker
+	done           chan bool
+	waitGroup      sync.WaitGroup
 }
 
 // NewCreditStore creates a new creditStore and returns it to the caller.
@@ -147,62 +174,83 @@ func NewCreditStore(options CreditAccruerOptions, ttl time.Duration) CreditStore
 		ttl:            ttl,
 	}
 	s.timeNow = time.Now
+	s.ticker = time.NewTicker(10 * time.Second)
+	s.done = make(chan bool)
+	s.waitGroup.Add(1)
+	go func() {
+		defer s.waitGroup.Done()
+		for {
+			select {
+			case <-s.ticker.C:
+				s.purgeExpired()
+			case <-s.done:
+				return
+			}
+		}
+	}()
 	return s
 }
 
 func (s *creditStore) Withdraw(clientID string, serviceName string, operationName string) float64 {
+	s.Lock()
+	defer s.Unlock()
 	c := s.findOrCreateClient(clientID)
-	ca := s.findOrCreateCreditAccruer(serviceName)
+	accruer := s.findOrCreateCreditAccruer(serviceName)
 	balance := c.perOperationBalance[operationName]
 	maxWithdrawal := s.options.ClientMaxBalance - balance
-	credits := ca.Withdraw(operationName, maxWithdrawal)
+	credits := accruer.Withdraw(operationName, maxWithdrawal)
 	now := s.timeNow()
 	c.updateTime = now
-	ca.updateTime = now
+	accruer.updateTime = now
 	c.perOperationBalance[operationName] += credits
 	return credits
 }
 
 func (s *creditStore) Spend(clientID string, operationName string, credits float64) bool {
+	s.Lock()
+	defer s.Unlock()
 	c := s.findOrCreateClient(clientID)
 	c.updateTime = s.timeNow()
 	return c.Spend(operationName, credits)
 }
 
+func (s *creditStore) Close() error {
+	s.done <- true
+	close(s.done)
+
+	s.waitGroup.Wait()
+
+	s.Lock()
+	s.ticker.Stop()
+	s.Unlock()
+
+	return nil
+}
+
 func (s *creditStore) findOrCreateCreditAccruer(serviceName string) *creditAccruer {
-	ca, ok := s.creditAccruers[serviceName]
+	accruer, ok := s.creditAccruers[serviceName]
 	if !ok {
-		defaultRateLimiter := newTokenBucket(s.options, s.timeNow)
-		perOperationRateLimiter := NewOverrideMap(s.options.MaxOperations, defaultRateLimiter)
-		ca = &creditAccruer{
-			options:                 s.options,
-			serviceName:             serviceName,
-			updateTime:              s.timeNow(),
-			timeNow:                 s.timeNow,
-			perOperationRateLimiter: perOperationRateLimiter,
-		}
-		s.creditAccruers[serviceName] = ca
+		accruer = newCreditAccruer(serviceName, s.options, s.timeNow)
+		s.creditAccruers[serviceName] = accruer
 	}
-	return ca
+	return accruer
 }
 
 func (s *creditStore) findOrCreateClient(id string) *client {
 	c, ok := s.clients[id]
 	if !ok {
-		c = &client{
-			id:                  id,
-			updateTime:          s.timeNow(),
-			perOperationBalance: map[string]float64{},
-		}
+		c = newClient(id, s.timeNow())
 		s.clients[id] = c
 	}
 	return c
 }
 
-func (s *creditStore) PurgeExpired() {
-	for _, ca := range s.creditAccruers {
-		if s.timeNow().Sub(ca.updateTime) >= s.ttl {
-			delete(s.creditAccruers, ca.serviceName)
+func (s *creditStore) purgeExpired() {
+	s.Lock()
+	defer s.Unlock()
+	for _, accruer := range s.creditAccruers {
+		if s.timeNow().Sub(accruer.updateTime) >= s.ttl {
+			delete(s.creditAccruers, accruer.serviceName)
 		}
 	}
 	for _, client := range s.clients {

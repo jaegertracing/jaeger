@@ -19,6 +19,7 @@ import (
 	"time"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 )
 
 func TestCreditStore(t *testing.T) {
@@ -75,7 +76,8 @@ func TestCreditStore(t *testing.T) {
 	assert.True(t, success)
 
 	ts = ts.Add(10 * time.Minute)
-	store.PurgeExpired()
+	store.purgeExpired()
+	require.NoError(t, store.Close())
 	assert.Equal(t, 0, len(store.clients))
 	assert.Equal(t, 0, len(store.creditAccruers))
 }
