@@ -23,6 +23,7 @@ import (
 	"github.com/pkg/errors"
 	"github.com/uber/jaeger-lib/metrics"
 	"go.uber.org/zap"
+	"gopkg.in/olivere/elastic.v5"
 
 	"github.com/jaegertracing/jaeger/model"
 	"github.com/jaegertracing/jaeger/model/converter/json"
@@ -139,13 +140,15 @@ func (s *SpanWriter) createIndex(indexName string, mapping string, jsonSpan *jMo
 		start := time.Now()
 		exists, _ := s.client.IndexExists(indexName).Do(s.ctx) // don't need to check the error because the exists variable will be false anyway if there is an error
 		if !exists {
-			// if there are multiple collectors writing to the same elasticsearch host, if the collectors pass
-			// the exists check above and try to create the same index all at once, this might fail and
-			// drop a couple spans (~1 per collector). Creating indices ahead of time alleviates this issue.
+			// if there are multiple collectors writing to the same elasticsearch host a race condition can occur - create the index multiple times
+			// we check for the error type to minimize errors
 			_, err := s.client.CreateIndex(indexName).Body(s.fixMapping(mapping)).Do(s.ctx)
 			s.writerMetrics.indexCreate.Emit(err, time.Since(start))
 			if err != nil {
-				return s.logError(jsonSpan, err, "Failed to create index", s.logger)
+				eErr, ok := err.(*elastic.Error)
+				if !ok || eErr.Details != nil && eErr.Details.Type != "index_already_exists_exception" {
+					return s.logError(jsonSpan, err, "Failed to create index", s.logger)
+				}
 			}
 		}
 		writeCache(indexName, s.indexCache)

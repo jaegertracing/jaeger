@@ -258,9 +258,13 @@ func TestCheckAndCreateIndex(t *testing.T) {
 				`"error":"index creation error"`,
 			},
 		},
+		{
+			indexExists:      false,
+			createError:      &elastic.Error{Details: &elastic.ErrorDetails{Type: "index_already_exists_exception"}},
+			indexExistsError: &elastic.Error{Details: &elastic.ErrorDetails{Type: "index_already_exists_exception"}},
+		},
 	}
-	for _, tc := range testCases {
-		testCase := tc
+	for _, testCase := range testCases {
 		withSpanWriter(func(w *spanWriterTest) {
 			existsService := &mocks.IndicesExistsService{}
 			existsService.On("Do", mock.AnythingOfType("*context.emptyCtx")).Return(testCase.indexExists, testCase.indexExistsError)
