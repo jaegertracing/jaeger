@@ -18,7 +18,6 @@ GOVET=go vet
 GOFMT=gofmt
 FMT_LOG=fmt.log
 LINT_LOG=lint.log
-MKDOCS_VIRTUAL_ENV=.mkdocs-virtual-env
 
 GIT_SHA=$(shell git rev-parse HEAD)
 GIT_CLOSEST_TAG=$(shell git describe --abbrev=0 --tags)
@@ -237,11 +236,3 @@ thrift-image:
 generate-zipkin-swagger: idl-submodule
 	$(SWAGGER) generate server -f ./idl/swagger/zipkin2-api.yaml -t $(SWAGGER_GEN_DIR) -O PostSpans --exclude-main
 	rm $(SWAGGER_GEN_DIR)/restapi/operations/post_spans_urlbuilder.go $(SWAGGER_GEN_DIR)/restapi/server.go $(SWAGGER_GEN_DIR)/restapi/configure_zipkin.go $(SWAGGER_GEN_DIR)/models/trace.go $(SWAGGER_GEN_DIR)/models/list_of_traces.go $(SWAGGER_GEN_DIR)/models/dependency_link.go
-
-.PHONY: docs
-docs: $(MKDOCS_VIRTUAL_ENV)
-	bash -c 'source $(MKDOCS_VIRTUAL_ENV)/bin/activate; mkdocs serve'
-
-$(MKDOCS_VIRTUAL_ENV):
-	virtualenv $(MKDOCS_VIRTUAL_ENV)
-	bash -c 'source $(MKDOCS_VIRTUAL_ENV)/bin/activate; pip install -r docs/requirements.txt'
