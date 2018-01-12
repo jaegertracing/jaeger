@@ -26,6 +26,11 @@ Jaeger is hosted by the [Cloud Native Computing Foundation](https://cncf.io) (CN
 
 ## Related Repositories
 
+### Documentation
+
+  * Published: http://jaeger.readthedocs.io/en/latest/
+  * Source: https://github.com/jaegertracing/documentation
+
 ### Instrumentation Libraries
 
  * [Go client](https://github.com/jaegertracing/jaeger-client-go)
@@ -34,9 +39,7 @@ Jaeger is hosted by the [Cloud Native Computing Foundation](https://cncf.io) (CN
  * [Node.js client](https://github.com/jaegertracing/jaeger-client-node)
  * [C++ client](https://github.com/jaegertracing/cpp-client)
 
-### Contributions
-
-[Jaeger contributions](https://github.com/jaegertracing) organization, including:
+### Deployment
 
   * [Kubernetes templates](https://github.com/jaegertracing/jaeger-kubernetes)
   * [OpenShift templates](https://github.com/jaegertracing/jaeger-openshift)
@@ -45,6 +48,7 @@ Jaeger is hosted by the [Cloud Native Computing Foundation](https://cncf.io) (CN
 
  * [UI](https://github.com/jaegertracing/jaeger-ui)
  * [Data model](https://github.com/jaegertracing/jaeger-idl)
+ * [Shared libs](https://github.com/jaegertracing/jaeger-lib)
 
 ## Building From Source
 
