@@ -19,6 +19,8 @@ import (
 	"time"
 )
 
+// tokenBucket is a simple token bucket used to refill credits for services
+// with increasing time.
 type tokenBucket struct {
 	creditsPerSecond float64
 	balance          float64
@@ -27,43 +29,61 @@ type tokenBucket struct {
 	timeNow          func() time.Time // For testing
 }
 
-func (t *tokenBucket) Drain(maxDrain float64) float64 {
+func newTokenBucket(options CreditAccruerOptions, timeNow func() time.Time) *tokenBucket {
+	return &tokenBucket{
+		creditsPerSecond: options.CreditsPerSecond,
+		balance:          options.MaxBalance,
+		maxBalance:       options.MaxBalance,
+		timeNow:          timeNow,
+		lastTick:         timeNow(),
+	}
+}
+
+// Withdraw deducts as much of the total balance possible without exceeding
+// maxWithdrawal.
+func (t *tokenBucket) Withdraw(maxWithdrawal float64) float64 {
 	now := t.timeNow()
 	interval := now.Sub(t.lastTick)
 	t.lastTick = now
 	diff := interval.Seconds() * t.creditsPerSecond
 	t.balance = math.Min(t.balance+diff, t.maxBalance)
-	result := math.Min(t.balance, maxDrain)
+	result := math.Min(t.balance, maxWithdrawal)
 	t.balance -= result
 	return result
 }
 
+// client represents a Jaeger-instrumented caller. Every Jaeger client
+// corresponds to an instrumented service, but it may be one of many instances
+// of that service. Therefore, there is a one-to-many relationship between
+// services and clients. The clients must request credits from the service's
+// creditAccruer and they all share the same underlying tokenBucket.
+// For example, if one client requests a withdrawal and receives all the service
+// credits, the next client withdrawal request will be rejected until the
+// credits refill.
 type client struct {
-	id                  string
+	// id is a unique id for the instance of the Jaeger client
+	id string
+	// perOperationBalance maintains per-operation balances of withdrawn credits
 	perOperationBalance map[string]float64
-	defaultBalance      float64
-	updateTime          time.Time
+	// updateTime is the last time client was updated
+	updateTime time.Time
 }
 
+// Spend depletes the balance from the client for the given operation. The usage
+// would be when a client submits spans for operation X, it is spending those
+// credits it requested for operation X.
 func (c *client) Spend(operationName string, credits float64) bool {
-	balance, ok := c.perOperationBalance[operationName]
-	if !ok {
-		balance = c.defaultBalance
-	}
-
+	balance := c.perOperationBalance[operationName]
 	if credits > balance {
 		return false
 	}
 
 	balance -= credits
-	if ok {
-		c.perOperationBalance[operationName] = balance
-	} else {
-		c.defaultBalance = balance
-	}
+	c.perOperationBalance[operationName] = balance
 	return true
 }
 
+// CreditAccruerOptions provides values to be used with a creditAccruer object
 type CreditAccruerOptions struct {
 	MaxOperations    int
 	CreditsPerSecond float64
@@ -74,50 +94,57 @@ type CreditAccruerOptions struct {
 type creditAccruer struct {
 	options                 CreditAccruerOptions
 	serviceName             string
-	perOperationRateLimiter map[string]*tokenBucket
-	defaultRateLimiter      *tokenBucket
+	perOperationRateLimiter OverrideMap
 	updateTime              time.Time
 	timeNow                 func() time.Time // For testing
 }
 
-func (ca *creditAccruer) Withdraw(operationName string, balance float64) float64 {
-	if balance >= ca.options.ClientMaxBalance {
-		return 0
+func (ca *creditAccruer) Withdraw(operationName string, maxWithdrawal float64) float64 {
+	var rateLimiter *tokenBucket
+	if ca.perOperationRateLimiter.Has(operationName) ||
+		ca.perOperationRateLimiter.IsFull() {
+		rateLimiter = ca.perOperationRateLimiter.Get(operationName).(*tokenBucket)
+	} else {
+		rateLimiter = newTokenBucket(ca.options, ca.timeNow)
+		ca.perOperationRateLimiter.Set(operationName, rateLimiter)
 	}
-	rateLimiter, ok := ca.perOperationRateLimiter[operationName]
-	if !ok {
-		if len(ca.perOperationRateLimiter) < ca.options.MaxOperations {
-			rateLimiter = &tokenBucket{
-				creditsPerSecond: ca.options.CreditsPerSecond,
-				balance:          ca.options.MaxBalance,
-				maxBalance:       ca.options.MaxBalance,
-				timeNow:          ca.timeNow,
-				lastTick:         ca.timeNow(),
-			}
-			ca.perOperationRateLimiter[operationName] = rateLimiter
-		} else {
-			rateLimiter = ca.defaultRateLimiter
-		}
-	}
-
-	credits := rateLimiter.Drain(ca.options.ClientMaxBalance - balance)
+	credits := rateLimiter.Withdraw(maxWithdrawal)
 	return credits
+}
+
+// CreditStore manages the relationship between service instance clients and
+// backend storage credits. Each client must withdraw credits in order to submit
+// trace data to the Jaeger agent. These credits are generated on behalf of the
+// service, of which there can be many instances, and thus many clients.
+type CreditStore interface {
+	// Withdraw deducts as many credits from the service on behalf of the client
+	// without exceeding MaxClientBalance. The client is identified by a unique
+	// clientID string. The credits are deducted from the specific operation on
+	// the service if present, otherwise from the default credit pool.
+	Withdraw(clientID string, serviceName string, operationName string) float64
+	// Spend credits already allocated to this client on a given operation.
+	Spend(clientID string, operationName string, credits float64) bool
+	// Purge any clients or services that have reached TTL since last update.
+	PurgeExpired()
 }
 
 type creditStore struct {
 	creditAccruers map[string]*creditAccruer
 	clients        map[string]*client
-	defaultOptions CreditAccruerOptions
-	lifetime       time.Duration
+	options        CreditAccruerOptions
+	ttl            time.Duration
 	timeNow        func() time.Time // For testing
 }
 
-func NewCreditStore(defaultOptions CreditAccruerOptions, lifetime time.Duration) *creditStore {
+// NewCreditStore creates a new creditStore and returns it to the caller.
+// options should be the default values passed to new creditAccruers.
+// ttl should be the TTL for all creditAccruers and clients.
+func NewCreditStore(options CreditAccruerOptions, ttl time.Duration) CreditStore {
 	s := &creditStore{
 		creditAccruers: map[string]*creditAccruer{},
 		clients:        map[string]*client{},
-		defaultOptions: defaultOptions,
-		lifetime:       lifetime,
+		options:        options,
+		ttl:            ttl,
 	}
 	s.timeNow = time.Now
 	return s
@@ -126,30 +153,13 @@ func NewCreditStore(defaultOptions CreditAccruerOptions, lifetime time.Duration)
 func (s *creditStore) Withdraw(clientID string, serviceName string, operationName string) float64 {
 	c := s.findOrCreateClient(clientID)
 	ca := s.findOrCreateCreditAccruer(serviceName)
-
-	// To keep client consistent with creditAccruer, we need to see if creditAccruer
-	// will create a new perOperationRateLimiter for this operation and if so
-	// create a new perOperationBalance on the client.
-	var balance float64
-	if _, ok := ca.perOperationRateLimiter[operationName]; ok {
-		balance = c.perOperationBalance[operationName]
-	} else {
-		if len(ca.perOperationRateLimiter) < ca.options.MaxOperations {
-			c.perOperationBalance[operationName] = balance
-		} else {
-			balance = c.defaultBalance
-		}
-	}
-
-	credits := ca.Withdraw(operationName, balance)
+	balance := c.perOperationBalance[operationName]
+	maxWithdrawal := s.options.ClientMaxBalance - balance
+	credits := ca.Withdraw(operationName, maxWithdrawal)
 	now := s.timeNow()
 	c.updateTime = now
 	ca.updateTime = now
-	if _, ok := ca.perOperationRateLimiter[operationName]; ok {
-		c.perOperationBalance[operationName] += credits
-	} else {
-		c.defaultBalance += credits
-	}
+	c.perOperationBalance[operationName] += credits
 	return credits
 }
 
@@ -162,19 +172,14 @@ func (s *creditStore) Spend(clientID string, operationName string, credits float
 func (s *creditStore) findOrCreateCreditAccruer(serviceName string) *creditAccruer {
 	ca, ok := s.creditAccruers[serviceName]
 	if !ok {
+		defaultRateLimiter := newTokenBucket(s.options, s.timeNow)
+		perOperationRateLimiter := NewOverrideMap(s.options.MaxOperations, defaultRateLimiter)
 		ca = &creditAccruer{
-			options:                 s.defaultOptions,
+			options:                 s.options,
 			serviceName:             serviceName,
 			updateTime:              s.timeNow(),
 			timeNow:                 s.timeNow,
-			perOperationRateLimiter: map[string]*tokenBucket{},
-			defaultRateLimiter: &tokenBucket{
-				creditsPerSecond: s.defaultOptions.CreditsPerSecond,
-				balance:          s.defaultOptions.MaxBalance,
-				maxBalance:       s.defaultOptions.MaxBalance,
-				timeNow:          s.timeNow,
-				lastTick:         s.timeNow(),
-			},
+			perOperationRateLimiter: perOperationRateLimiter,
 		}
 		s.creditAccruers[serviceName] = ca
 	}
@@ -196,12 +201,12 @@ func (s *creditStore) findOrCreateClient(id string) *client {
 
 func (s *creditStore) PurgeExpired() {
 	for _, ca := range s.creditAccruers {
-		if s.timeNow().Sub(ca.updateTime) >= s.lifetime {
+		if s.timeNow().Sub(ca.updateTime) >= s.ttl {
 			delete(s.creditAccruers, ca.serviceName)
 		}
 	}
 	for _, client := range s.clients {
-		if s.timeNow().Sub(client.updateTime) >= s.lifetime {
+		if s.timeNow().Sub(client.updateTime) >= s.ttl {
 			delete(s.clients, client.id)
 		}
 	}

@@ -31,7 +31,7 @@ func TestCreditStore(t *testing.T) {
 		MaxBalance:       3,
 		ClientMaxBalance: 2,
 	}
-	store := NewCreditStore(options, 10*time.Minute)
+	store := NewCreditStore(options, 10*time.Minute).(*creditStore)
 	store.timeNow = mockTime
 
 	clientID := "test-client"
