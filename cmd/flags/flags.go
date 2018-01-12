@@ -16,11 +16,14 @@ package flags
 
 import (
 	"flag"
+	"fmt"
 
 	"github.com/pkg/errors"
 	"github.com/spf13/viper"
 	"go.uber.org/zap"
 	"go.uber.org/zap/zapcore"
+
+	"github.com/jaegertracing/jaeger/plugin/storage"
 )
 
 const (
@@ -58,7 +61,7 @@ type logging struct {
 
 // AddFlags adds flags for SharedFlags
 func AddFlags(flagSet *flag.FlagSet) {
-	flagSet.String(spanStorageType, "", "Deprecated; please use SPAN_STORAGE environment variable")
+	flagSet.String(spanStorageType, "", fmt.Sprintf("Deprecated; please use %s environment variable", storage.SpanStorageTypeEnvVar))
 	flagSet.String(logLevel, "info", "Minimal allowed log Level. For more levels see https://github.com/uber-go/zap")
 }
 
