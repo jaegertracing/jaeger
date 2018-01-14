@@ -23,7 +23,7 @@ import (
 func TestOverrideMap(t *testing.T) {
 	maxOverrides := 1
 	defaultValue := 0.0
-	o := NewOverrideMap(maxOverrides, defaultValue)
+	o := newOverrideMap(maxOverrides, defaultValue)
 	o.Set("a", 1.0)
 	o.Set("b", 2.0)
 	assert.Equal(t, 1.0, o.Get("a").(float64))

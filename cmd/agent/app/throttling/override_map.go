@@ -14,25 +14,17 @@
 
 package throttling
 
-// OverrideMap is an interface describing a configuration map with a fixed
-// number of override entries, falling back on a default value.
-type OverrideMap interface {
-	Has(key string) bool
-	IsFull() bool
-	Get(key string) interface{}
-	Set(key string, value interface{})
-	Delete(key string)
-}
-
+// overrideMap describes a configuration map with a fixed number of override
+// entries, falling back on a default value.
 type overrideMap struct {
 	maxOverrides int
 	overrides    map[string]interface{}
 	defaultValue interface{}
 }
 
-// NewOverrideMap creates a new OverrideMap with maxOverrides overrides and a
+// newOverrideMap creates a new OverrideMap with maxOverrides overrides and a
 // fallback value of defaultValue.
-func NewOverrideMap(maxOverrides int, defaultValue interface{}) OverrideMap {
+func newOverrideMap(maxOverrides int, defaultValue interface{}) *overrideMap {
 	o := &overrideMap{
 		maxOverrides: maxOverrides,
 		overrides:    map[string]interface{}{},
