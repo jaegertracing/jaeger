@@ -41,7 +41,7 @@ Jaeger backend, Web UI, and instrumentation libraries have been designed from gr
 ### Multiple storage backends
 
 Jaeger supports two popular open source NoSQL databases as trace storage backends: Cassandra 3.4+ and Elasticsearch 5.x/6.x.
-The are ongoing community experiments using other databases, such as ScyllaDB, InfluxDB, Amazon DynamoDB. Jaeger also ships
+There are ongoing community experiments using other databases, such as ScyllaDB, InfluxDB, Amazon DynamoDB. Jaeger also ships
 with a simple in-memory storage for testing setups.
 
 ### Modern Web UI
