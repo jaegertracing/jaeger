@@ -33,10 +33,10 @@ For example, any given Jaeger installation at Uber is typically processing sever
 
 ### Native support for OpenTracing
 
-Jaeger backend, Web UI, and instrumentation libraries have been designed from grounds up to support the OpenTracing standard.
-  * Representing traces as directed acyclic graphs (not just trees) via [span references](https://github.com/opentracing/specification/blob/master/specification.md#references-between-spans)
-  * Support for strongly typed span _tags_ and _structured logs_
-  * General distributed context propagation mechanism via _baggage_
+Jaeger backend, Web UI, and instrumentation libraries have been designed from ground up to support the OpenTracing standard.
+  * Represent traces as directed acyclic graphs (not just trees) via [span references](https://github.com/opentracing/specification/blob/master/specification.md#references-between-spans)
+  * Support strongly typed span _tags_ and _structured logs_
+  * Support general distributed context propagation mechanism via _baggage_
 
 ### Multiple storage backends
 
@@ -46,9 +46,9 @@ with a simple in-memory storage for testing setups.
 
 ### Modern Web UI
 
-Jaeger Web UI is implemented in Javascript using popular open source frameworks like React. A number of performance
+Jaeger Web UI is implemented in Javascript using popular open source frameworks like React. Several performance
 improvements have been released in v1.0 to allow the UI to efficiently deal with large volumes of data, and to display
-traces with up to 50,000 spans.
+traces with tens of thousands of spans (e.g. we tried a trace with 80,000 spans).
 
 ### Cloud Native Deployment
 
