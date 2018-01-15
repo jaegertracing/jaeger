@@ -131,7 +131,7 @@ func (s *SpanWriter) WriteSpan(span *model.Span) error {
 }
 
 func indexNames(span *model.Span) (string, string) {
-	spanDate := span.StartTime.Format("2006-01-02")
+	spanDate := span.StartTime.UTC().Format("2006-01-02")
 	return spanIndexPrefix + spanDate, serviceIndexPrefix + spanDate
 }
 
