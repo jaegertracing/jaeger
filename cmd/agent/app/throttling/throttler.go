@@ -15,7 +15,6 @@
 package throttling
 
 import (
-	"errors"
 	"fmt"
 	"math"
 	"sync"
@@ -83,10 +82,9 @@ func (c *client) Spend(operationName string, credits float64) error {
 	balance := c.perOperationBalance[operationName]
 	var err error
 	if credits > balance {
-		err = errors.New(
-			fmt.Sprintf("Overspending occurred: "+
-				"balance %v, credits spent %v, operationName %v",
-				balance, credits, operationName))
+		err = fmt.Errorf("Overspending occurred: "+
+			"balance %v, credits spent %v, operationName %v",
+			balance, credits, operationName)
 		balance = 0
 	} else {
 		balance -= credits
@@ -143,8 +141,7 @@ func (a *account) Withdraw(operationName string, maxWithdrawal float64) float64 
 		rateLimiter = newTokenBucket(a.options, a.timeNow)
 		a.perOperationRateLimiter.Set(operationName, rateLimiter)
 	}
-	credits := rateLimiter.Withdraw(maxWithdrawal)
-	return credits
+	return rateLimiter.Withdraw(maxWithdrawal)
 }
 
 // ThrottlerOptions provides values to be used in a Throttler object.
@@ -177,8 +174,7 @@ type Throttler struct {
 	clients   map[string]*client
 	options   ThrottlerOptions
 	timeNow   func() time.Time // For testing
-	ticker    *time.Ticker
-	done      chan bool
+	done      chan struct{}
 	waitGroup sync.WaitGroup
 }
 
@@ -191,14 +187,14 @@ func NewThrottler(options ThrottlerOptions) *Throttler {
 		options:  options,
 		timeNow:  time.Now,
 	}
-	t.ticker = time.NewTicker(t.options.PurgeInterval)
-	t.done = make(chan bool)
+	t.done = make(chan struct{})
 	t.waitGroup.Add(1)
 	go func() {
+		ticker := time.NewTicker(t.options.PurgeInterval)
 		defer t.waitGroup.Done()
 		for {
 			select {
-			case <-t.ticker.C:
+			case <-ticker.C:
 				t.purgeExpired()
 			case <-t.done:
 				return
@@ -218,7 +214,7 @@ func (t *Throttler) Withdraw(serviceName string, clientID string, operationName 
 	c := t.findOrCreateClient(clientID)
 	a := t.findOrCreateAccount(serviceName)
 	balance := c.perOperationBalance[operationName]
-	maxWithdrawal := t.options.ClientMaxBalance - balance
+	maxWithdrawal := math.Max(0, t.options.ClientMaxBalance-balance)
 	credits := a.Withdraw(operationName, maxWithdrawal)
 	now := t.timeNow()
 	c.updateTime = now
@@ -235,22 +231,15 @@ func (t *Throttler) Spend(serviceName string, clientID string, operationName str
 	c.updateTime = t.timeNow()
 	err := c.Spend(operationName, credits)
 	if err != nil {
-		err = errors.New(err.Error() + ", serviceName " + serviceName)
+		err = fmt.Errorf("%s, serviceName %s", err.Error(), serviceName)
 	}
 	return err
 }
 
 // Close closes the throttler and stops all background goroutines.
 func (t *Throttler) Close() error {
-	t.done <- true
 	close(t.done)
-
 	t.waitGroup.Wait()
-
-	t.Lock()
-	t.ticker.Stop()
-	t.Unlock()
-
 	return nil
 }
 

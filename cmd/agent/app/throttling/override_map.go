@@ -25,12 +25,11 @@ type overrideMap struct {
 // newOverrideMap creates a new OverrideMap with maxOverrides overrides and a
 // fallback value of defaultValue.
 func newOverrideMap(maxOverrides int, defaultValue interface{}) *overrideMap {
-	o := &overrideMap{
+	return &overrideMap{
 		maxOverrides: maxOverrides,
 		overrides:    map[string]interface{}{},
 		defaultValue: defaultValue,
 	}
-	return o
 }
 
 func (o *overrideMap) Has(key string) bool {
