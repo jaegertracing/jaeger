@@ -62,7 +62,7 @@ func TestNewFactory(t *testing.T) {
 
 	f, err = NewFactory(FactoryConfig{SpanStorageType: "x", DependenciesStorageType: "y"})
 	require.Error(t, err)
-	expected := "Unknown storage type x."
+	expected := "Unknown storage type" // could be 'x' or 'y' since code iterates through map.
 	assert.Equal(t, expected, err.Error()[0:len(expected)])
 }
 
