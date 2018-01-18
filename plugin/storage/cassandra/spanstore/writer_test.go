@@ -53,6 +53,14 @@ func withSpanWriter(writeCacheTTL time.Duration, fn func(w *spanWriterTest)) {
 
 var _ spanstore.Writer = &SpanWriter{} // check API conformance
 
+func TestClientClose(t *testing.T) {
+	withSpanWriter(0, func(w *spanWriterTest) {
+		w.session.On("Close").Return(nil)
+		w.writer.Close()
+		w.session.AssertNumberOfCalls(t, "Close", 1)
+	})
+}
+
 func TestSpanWriter(t *testing.T) {
 	testCases := []struct {
 		caption                        string

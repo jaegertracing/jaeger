@@ -25,7 +25,6 @@ import (
 	"github.com/stretchr/testify/require"
 	"github.com/uber/jaeger-lib/metrics"
 	"go.uber.org/zap"
-	"gopkg.in/olivere/elastic.v5"
 
 	"github.com/jaegertracing/jaeger/model"
 	"github.com/jaegertracing/jaeger/model/json"
@@ -56,6 +55,14 @@ func withSpanWriter(fn func(w *spanWriterTest)) {
 
 var _ spanstore.Writer = &SpanWriter{} // check API conformance
 
+func TestClientClose(t *testing.T) {
+	withSpanWriter(func(w *spanWriterTest) {
+		w.client.On("Close").Return(nil)
+		w.writer.Close()
+		w.client.AssertNumberOfCalls(t, "Close", 1)
+	})
+}
+
 // This test behaves as a large test that checks WriteSpan's behavior as a whole.
 // Extra tests for individual functions are below.
 func TestSpanWriter_WriteSpan(t *testing.T) {
@@ -71,23 +78,6 @@ func TestSpanWriter_WriteSpan(t *testing.T) {
 		expectedLogs            []string
 	}{
 		{
-			caption: "index exists query",
-
-			serviceIndexExists: true,
-			spanIndexExists:    true,
-
-			expectedError: "",
-			expectedLogs:  []string{},
-		},
-		{
-			caption: "index dne/creation query",
-
-			serviceIndexExists: false,
-
-			expectedError: "",
-			expectedLogs:  []string{},
-		},
-		{
 			caption: "index creation error",
 
 			serviceIndexExists: false,
@@ -102,32 +92,12 @@ func TestSpanWriter_WriteSpan(t *testing.T) {
 			},
 		},
 		{
-			caption: "service insertion error",
-
-			serviceIndexExists: false,
-
-			servicePutError: errors.New("service insertion error"),
-			expectedError:   "Failed to insert service:operation: service insertion error",
-			expectedLogs: []string{
-				`"msg":"Failed to insert service:operation"`,
-				`"trace_id":"1"`,
-				`"span_id":"0"`,
-				`"error":"service insertion error"`,
-			},
-		},
-		{
 			caption: "span insertion error",
 
 			serviceIndexExists: false,
 
-			spanPutError:  errors.New("span insertion error"),
-			expectedError: "Failed to insert span: span insertion error",
-			expectedLogs: []string{
-				`"msg":"Failed to insert span"`,
-				`"trace_id":"1"`,
-				`"span_id":"0"`,
-				`"error":"span insertion error"`,
-			},
+			expectedError: "",
+			expectedLogs:  []string{},
 		},
 		{
 			caption: "span index dne error",
@@ -191,11 +161,11 @@ func TestSpanWriter_WriteSpan(t *testing.T) {
 
 				indexServicePut.On("Id", stringMatcher("service|operation")).Return(indexServicePut)
 				indexServicePut.On("BodyJson", mock.AnythingOfType("spanstore.Service")).Return(indexServicePut)
-				indexServicePut.On("Do", mock.AnythingOfType("*context.emptyCtx")).Return(nil, testCase.servicePutError)
+				indexServicePut.On("Add")
 
 				indexSpanPut.On("Id", mock.AnythingOfType("string")).Return(indexSpanPut)
 				indexSpanPut.On("BodyJson", mock.AnythingOfType("*spanstore.Span")).Return(indexSpanPut)
-				indexSpanPut.On("Do", mock.AnythingOfType("*context.emptyCtx")).Return(nil, testCase.spanPutError)
+				indexSpanPut.On("Add")
 
 				w.client.On("IndexExists", stringMatcher(spanIndexName)).Return(spanExistsService)
 				w.client.On("CreateIndex", stringMatcher(spanIndexName)).Return(spanCreateService)
@@ -206,9 +176,9 @@ func TestSpanWriter_WriteSpan(t *testing.T) {
 				err = w.writer.WriteSpan(span)
 
 				if testCase.expectedError == "" {
-					assert.NoError(t, err)
-					indexServicePut.AssertNumberOfCalls(t, "Do", 1)
-					indexSpanPut.AssertNumberOfCalls(t, "Do", 1)
+					require.NoError(t, err)
+					indexServicePut.AssertNumberOfCalls(t, "Add", 1)
+					indexSpanPut.AssertNumberOfCalls(t, "Add", 1)
 				} else {
 					assert.EqualError(t, err, testCase.expectedError)
 				}
@@ -233,75 +203,6 @@ func TestSpanIndexName(t *testing.T) {
 	spanIndexName, serviceIndexName := indexNames(span)
 	assert.Equal(t, "jaeger-span-1995-04-21", spanIndexName)
 	assert.Equal(t, "jaeger-service-1995-04-21", serviceIndexName)
-}
-
-func TestCheckAndCreateIndex(t *testing.T) {
-	testCases := []struct {
-		indexExists      bool
-		indexExistsError error
-		createResult     *elastic.IndicesCreateResult
-		createError      error
-		expectedError    string
-		expectedLogs     []string
-	}{
-		{
-			indexExists:  false,
-			createResult: &elastic.IndicesCreateResult{},
-		},
-		{
-			createError:   errors.New("index creation error"),
-			expectedError: "Failed to create index: index creation error",
-			expectedLogs: []string{
-				`"msg":"Failed to create index"`,
-				`"trace_id":"1"`,
-				`"span_id":"0"`,
-				`"error":"index creation error"`,
-			},
-		},
-		{
-			indexExists:      false,
-			createError:      &elastic.Error{Details: &elastic.ErrorDetails{Type: "index_already_exists_exception"}},
-			indexExistsError: &elastic.Error{Details: &elastic.ErrorDetails{Type: "index_already_exists_exception"}},
-		},
-	}
-	for _, testCase := range testCases {
-		withSpanWriter(func(w *spanWriterTest) {
-			existsService := &mocks.IndicesExistsService{}
-			existsService.On("Do", mock.AnythingOfType("*context.emptyCtx")).Return(testCase.indexExists, testCase.indexExistsError)
-
-			createService := &mocks.IndicesCreateService{}
-			createService.On("Body", stringMatcher(w.writer.fixMapping(spanMapping))).Return(createService)
-			createService.On("Do", mock.AnythingOfType("*context.emptyCtx")).Return(testCase.createResult, testCase.createError)
-
-			indexName := "jaeger-1995-04-21"
-			w.client.On("IndexExists", stringMatcher(indexName)).Return(existsService)
-			w.client.On("CreateIndex", stringMatcher(indexName)).Return(createService)
-
-			jsonSpan := &json.Span{
-				TraceID: json.TraceID("1"),
-				SpanID:  json.SpanID("0"),
-			}
-
-			err := w.writer.createIndex(indexName, spanMapping, jsonSpan)
-			createService.AssertNumberOfCalls(t, "Do", 1)
-
-			if testCase.expectedError == "" {
-				assert.NoError(t, err)
-				// makes sure that the cache works
-				_ = w.writer.createIndex(indexName, spanMapping, jsonSpan)
-				createService.AssertNumberOfCalls(t, "Do", 1)
-			} else {
-				assert.EqualError(t, err, testCase.expectedError)
-			}
-
-			for _, expectedLog := range testCase.expectedLogs {
-				assert.True(t, strings.Contains(w.logBuffer.String(), expectedLog), "Log must contain %s, but was %s", expectedLog, w.logBuffer.String())
-			}
-			if len(testCase.expectedLogs) == 0 {
-				assert.Equal(t, "", w.logBuffer.String())
-			}
-		})
-	}
 }
 
 func TestFixMapping(t *testing.T) {
@@ -351,16 +252,14 @@ func TestWriteSpanInternal(t *testing.T) {
 		indexService.On("Index", stringMatcher(indexName)).Return(indexService)
 		indexService.On("Type", stringMatcher(spanType)).Return(indexService)
 		indexService.On("BodyJson", mock.AnythingOfType("*spanstore.Span")).Return(indexService)
-		indexService.On("Do", mock.AnythingOfType("*context.emptyCtx")).Return(&elastic.IndexResponse{}, nil)
+		indexService.On("Add")
 
 		w.client.On("Index").Return(indexService)
 
 		jsonSpan := &json.Span{}
 
-		err := w.writer.writeSpan(indexName, jsonSpan)
-		require.NoError(t, err)
-
-		indexService.AssertNumberOfCalls(t, "Do", 1)
+		w.writer.writeSpan(indexName, jsonSpan)
+		indexService.AssertNumberOfCalls(t, "Add", 1)
 		assert.Equal(t, "", w.logBuffer.String())
 	})
 }
@@ -373,7 +272,7 @@ func TestWriteSpanInternalError(t *testing.T) {
 		indexService.On("Index", stringMatcher(indexName)).Return(indexService)
 		indexService.On("Type", stringMatcher(spanType)).Return(indexService)
 		indexService.On("BodyJson", mock.AnythingOfType("*spanstore.Span")).Return(indexService)
-		indexService.On("Do", mock.AnythingOfType("*context.emptyCtx")).Return(nil, errors.New("span insertion error"))
+		indexService.On("Add")
 
 		w.client.On("Index").Return(indexService)
 
@@ -382,21 +281,8 @@ func TestWriteSpanInternalError(t *testing.T) {
 			SpanID:  json.SpanID("0"),
 		}
 
-		err := w.writer.writeSpan(indexName, jsonSpan)
-		assert.EqualError(t, err, "Failed to insert span: span insertion error")
-
-		indexService.AssertNumberOfCalls(t, "Do", 1)
-
-		expectedLogs := []string{
-			`"msg":"Failed to insert span"`,
-			`"trace_id":"1"`,
-			`"span_id":"0"`,
-			`"error":"span insertion error"`,
-		}
-
-		for _, expectedLog := range expectedLogs {
-			assert.True(t, strings.Contains(w.logBuffer.String(), expectedLog), "Log must contain %s, but was %s", expectedLog, w.logBuffer.String())
-		}
+		w.writer.writeSpan(indexName, jsonSpan)
+		indexService.AssertNumberOfCalls(t, "Add", 1)
 	})
 }
 

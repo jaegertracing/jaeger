@@ -59,7 +59,8 @@ func (s *DependencyStore) WriteDependencies(ts time.Time, dependencies []model.D
 	if err := s.createIndex(indexName); err != nil {
 		return err
 	}
-	return s.writeDependencies(indexName, ts, dependencies)
+	s.writeDependencies(indexName, ts, dependencies)
+	return nil
 }
 
 func (s *DependencyStore) createIndex(indexName string) error {
@@ -70,18 +71,11 @@ func (s *DependencyStore) createIndex(indexName string) error {
 	return nil
 }
 
-func (s *DependencyStore) writeDependencies(indexName string, ts time.Time, dependencies []model.DependencyLink) error {
-	_, err := s.client.Index().Index(indexName).
-		Type(dependencyType).
-		BodyJson(&timeToDependencies{
-			Timestamp:    ts,
+func (s *DependencyStore) writeDependencies(indexName string, ts time.Time, dependencies []model.DependencyLink) {
+	s.client.Index().Index(indexName).Type(dependencyType).
+		BodyJson(&timeToDependencies{Timestamp: ts,
 			Dependencies: dependencies,
-		}).
-		Do(s.ctx)
-	if err != nil {
-		return errors.Wrap(err, "Failed to write dependencies")
-	}
-	return nil
+		}).Add()
 }
 
 // GetDependencies returns all interservice dependencies

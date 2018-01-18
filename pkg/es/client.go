@@ -16,6 +16,7 @@ package es
 
 import (
 	"context"
+	"io"
 
 	"gopkg.in/olivere/elastic.v5"
 )
@@ -27,6 +28,7 @@ type Client interface {
 	Index() IndexService
 	Search(indices ...string) SearchService
 	MultiSearch() MultiSearchService
+	io.Closer
 }
 
 // IndicesExistsService is an abstraction for elastic.IndicesExistsService
@@ -40,13 +42,13 @@ type IndicesCreateService interface {
 	Do(ctx context.Context) (*elastic.IndicesCreateResult, error)
 }
 
-// IndexService is an abstraction for elastic.IndexService
+// IndexService is an abstraction for elastic BulkService
 type IndexService interface {
 	Index(index string) IndexService
 	Type(typ string) IndexService
 	Id(id string) IndexService
 	BodyJson(body interface{}) IndexService
-	Do(ctx context.Context) (*elastic.IndexResponse, error)
+	Add()
 }
 
 // SearchService is an abstraction for elastic.SearchService

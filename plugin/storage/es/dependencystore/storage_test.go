@@ -64,10 +64,6 @@ func TestWriteDependencies(t *testing.T) {
 			createIndexError: errors.New("index not created"),
 			expectedError:    "Failed to create index: index not created",
 		},
-		{
-			writeError:    errors.New("write failed"),
-			expectedError: "Failed to write dependencies: write failed",
-		},
 		{},
 	}
 	for _, testCase := range testCases {
@@ -86,7 +82,7 @@ func TestWriteDependencies(t *testing.T) {
 			writeService.On("Index", stringMatcher(indexName)).Return(writeService)
 			writeService.On("Type", stringMatcher(dependencyType)).Return(writeService)
 			writeService.On("BodyJson", mock.Anything).Return(writeService)
-			writeService.On("Do", mock.Anything).Return(nil, testCase.writeError)
+			writeService.On("Add", mock.Anything).Return(nil, testCase.writeError)
 
 			err := r.storage.WriteDependencies(fixedTime, []model.DependencyLink{})
 			if testCase.expectedError != "" {

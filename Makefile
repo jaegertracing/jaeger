@@ -45,6 +45,8 @@ COLORIZE=$(SED) ''/PASS/s//$(PASS)/'' | $(SED) ''/FAIL/s//$(FAIL)/''
 DOCKER_NAMESPACE?=jaegertracing
 DOCKER_TAG?=latest
 
+MOCKERY=mockery
+
 .DEFAULT_GOAL := test-and-lint
 
 .PHONY: test-and-lint
@@ -236,3 +238,11 @@ thrift-image:
 generate-zipkin-swagger: idl-submodule
 	$(SWAGGER) generate server -f ./idl/swagger/zipkin2-api.yaml -t $(SWAGGER_GEN_DIR) -O PostSpans --exclude-main
 	rm $(SWAGGER_GEN_DIR)/restapi/operations/post_spans_urlbuilder.go $(SWAGGER_GEN_DIR)/restapi/server.go $(SWAGGER_GEN_DIR)/restapi/configure_zipkin.go $(SWAGGER_GEN_DIR)/models/trace.go $(SWAGGER_GEN_DIR)/models/list_of_traces.go $(SWAGGER_GEN_DIR)/models/dependency_link.go
+
+.PHONY: install-mockery
+install-mockery:
+	go get github.com/vektra/mockery
+
+.PHONY: generate-mocks
+generate-mocks: install-mockery
+	$(MOCKERY) -all -dir ./pkg/es/ -output ./pkg/es/mocks && rm pkg/es/mocks/ClientBuilder.go

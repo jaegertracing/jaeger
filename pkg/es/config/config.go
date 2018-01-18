@@ -15,9 +15,12 @@
 package config
 
 import (
+	"bytes"
+	"context"
 	"time"
 
 	"github.com/pkg/errors"
+	"go.uber.org/zap"
 	"gopkg.in/olivere/elastic.v5"
 
 	"github.com/jaegertracing/jaeger/pkg/es"
@@ -25,25 +28,29 @@ import (
 
 // Configuration describes the configuration properties needed to connect to an ElasticSearch cluster
 type Configuration struct {
-	Servers     []string
-	Username    string
-	Password    string
-	Sniffer     bool          // https://github.com/olivere/elastic/wiki/Sniffing
-	MaxSpanAge  time.Duration `yaml:"max_span_age"` // configures the maximum lookback on span reads
-	NumShards   int64         `yaml:"shards"`
-	NumReplicas int64         `yaml:"replicas"`
+	Servers           []string
+	Username          string
+	Password          string
+	Sniffer           bool          // https://github.com/olivere/elastic/wiki/Sniffing
+	MaxSpanAge        time.Duration `yaml:"max_span_age"` // configures the maximum lookback on span reads
+	NumShards         int64         `yaml:"shards"`
+	NumReplicas       int64         `yaml:"replicas"`
+	BulkSize          int
+	BulkWorkers       int
+	BulkActions       int
+	BulkFlushInterval time.Duration
 }
 
 // ClientBuilder creates new es.Client
 type ClientBuilder interface {
-	NewClient() (es.Client, error)
+	NewClient(logger *zap.Logger) (es.Client, error)
 	GetNumShards() int64
 	GetNumReplicas() int64
 	GetMaxSpanAge() time.Duration
 }
 
 // NewClient creates a new ElasticSearch client
-func (c *Configuration) NewClient() (es.Client, error) {
+func (c *Configuration) NewClient(logger *zap.Logger) (es.Client, error) {
 	if len(c.Servers) < 1 {
 		return nil, errors.New("No servers specified")
 	}
@@ -51,7 +58,29 @@ func (c *Configuration) NewClient() (es.Client, error) {
 	if err != nil {
 		return nil, err
 	}
-	return es.WrapESClient(rawClient), nil
+	service, err := rawClient.BulkProcessor().
+		After(func(id int64, requests []elastic.BulkableRequest, response *elastic.BulkResponse, err error) {
+			if err != nil {
+				var buffer bytes.Buffer
+				for i, r := range requests {
+					buffer.WriteString(r.String())
+					if i+1 < len(requests) {
+						buffer.WriteByte('\n')
+					}
+				}
+				logger.Error("Elasticsearch could not process bulk request", zap.Error(err),
+					zap.Any("response", response), zap.String("requests", buffer.String()))
+			}
+		}).
+		BulkSize(c.BulkSize).
+		Workers(c.BulkWorkers).
+		BulkActions(c.BulkActions).
+		FlushInterval(c.BulkFlushInterval).
+		Do(context.Background())
+	if err != nil {
+		return nil, err
+	}
+	return es.WrapESClient(rawClient, service), nil
 }
 
 // ApplyDefaults copies settings from source unless its own value is non-zero.
@@ -73,6 +102,18 @@ func (c *Configuration) ApplyDefaults(source *Configuration) {
 	}
 	if c.NumReplicas == 0 {
 		c.NumReplicas = source.NumReplicas
+	}
+	if c.BulkSize == 0 {
+		c.BulkSize = source.BulkSize
+	}
+	if c.BulkWorkers == 0 {
+		c.BulkWorkers = source.BulkWorkers
+	}
+	if c.BulkActions == 0 {
+		c.BulkActions = source.BulkActions
+	}
+	if c.BulkFlushInterval == 0 {
+		c.BulkFlushInterval = source.BulkFlushInterval
 	}
 }
 

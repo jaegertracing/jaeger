@@ -15,8 +15,6 @@
 package spanstore
 
 import (
-	"errors"
-	"strings"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -37,7 +35,7 @@ func TestWriteService(t *testing.T) {
 		indexService.On("Type", stringMatcher(serviceType)).Return(indexService)
 		indexService.On("Id", stringMatcher("service|operation")).Return(indexService)
 		indexService.On("BodyJson", mock.AnythingOfType("spanstore.Service")).Return(indexService)
-		indexService.On("Do", mock.AnythingOfType("*context.emptyCtx")).Return(&elastic.IndexResponse{}, nil)
+		indexService.On("Add")
 
 		w.client.On("Index").Return(indexService)
 
@@ -50,16 +48,14 @@ func TestWriteService(t *testing.T) {
 			},
 		}
 
-		err := w.writer.writeService(indexName, jsonSpan)
-		require.NoError(t, err)
+		w.writer.writeService(indexName, jsonSpan)
 
-		indexService.AssertNumberOfCalls(t, "Do", 1)
+		indexService.AssertNumberOfCalls(t, "Add", 1)
 		assert.Equal(t, "", w.logBuffer.String())
 
 		// test that cache works, will call the index service only once.
-		err = w.writer.writeService(indexName, jsonSpan)
-		require.NoError(t, err)
-		indexService.AssertNumberOfCalls(t, "Do", 1)
+		w.writer.writeService(indexName, jsonSpan)
+		indexService.AssertNumberOfCalls(t, "Add", 1)
 	})
 }
 
@@ -72,7 +68,7 @@ func TestWriteServiceError(t *testing.T) {
 		indexService.On("Type", stringMatcher(serviceType)).Return(indexService)
 		indexService.On("Id", stringMatcher("service|operation")).Return(indexService)
 		indexService.On("BodyJson", mock.AnythingOfType("spanstore.Service")).Return(indexService)
-		indexService.On("Do", mock.AnythingOfType("*context.emptyCtx")).Return(nil, errors.New("service insertion error"))
+		indexService.On("Add")
 
 		w.client.On("Index").Return(indexService)
 
@@ -85,21 +81,7 @@ func TestWriteServiceError(t *testing.T) {
 			},
 		}
 
-		err := w.writer.writeService(indexName, jsonSpan)
-		assert.EqualError(t, err, "Failed to insert service:operation: service insertion error")
-
-		indexService.AssertNumberOfCalls(t, "Do", 1)
-
-		expectedLogs := []string{
-			`"msg":"Failed to insert service:operation"`,
-			`"trace_id":"1"`,
-			`"span_id":"0"`,
-			`"error":"service insertion error"`,
-		}
-
-		for _, expectedLog := range expectedLogs {
-			assert.True(t, strings.Contains(w.logBuffer.String(), expectedLog), "Log must contain %s, but was %s", expectedLog, w.logBuffer.String())
-		}
+		w.writer.writeService(indexName, jsonSpan)
 	})
 }
 

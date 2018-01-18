@@ -55,10 +55,9 @@ func NewServiceOperationStorage(
 	cacheTTL time.Duration,
 ) *ServiceOperationStorage {
 	return &ServiceOperationStorage{
-		ctx:     ctx,
-		client:  client,
-		metrics: storageMetrics.NewWriteMetrics(metricsFactory, "ServiceOperation"),
-		logger:  logger,
+		ctx:    ctx,
+		client: client,
+		logger: logger,
 		serviceCache: cache.NewLRUWithOptions(
 			100000,
 			&cache.Options{
@@ -69,7 +68,7 @@ func NewServiceOperationStorage(
 }
 
 // Write saves a service to operation pair.
-func (s *ServiceOperationStorage) Write(indexName string, jsonSpan *jModel.Span) error {
+func (s *ServiceOperationStorage) Write(indexName string, jsonSpan *jModel.Span) {
 	// Insert serviceName:operationName document
 	service := Service{
 		ServiceName:   jsonSpan.Process.ServiceName,
@@ -78,15 +77,9 @@ func (s *ServiceOperationStorage) Write(indexName string, jsonSpan *jModel.Span)
 	serviceID := fmt.Sprintf("%s|%s", service.ServiceName, service.OperationName)
 	cacheKey := fmt.Sprintf("%s:%s", indexName, serviceID)
 	if !keyInCache(cacheKey, s.serviceCache) {
-		start := time.Now()
-		_, err := s.client.Index().Index(indexName).Type(serviceType).Id(serviceID).BodyJson(service).Do(s.ctx)
-		s.metrics.Emit(err, time.Since(start))
-		if err != nil {
-			return s.logError(jsonSpan, err, "Failed to insert service:operation", s.logger)
-		}
+		s.client.Index().Index(indexName).Type(serviceType).Id(serviceID).BodyJson(service).Add()
 		writeCache(cacheKey, s.serviceCache)
 	}
-	return nil
 }
 
 func (s *ServiceOperationStorage) getServices(indices []string) ([]string, error) {
@@ -149,10 +142,4 @@ func getOperationsAggregation() elastic.Query {
 	return elastic.NewTermsAggregation().
 		Field(operationNameField).
 		Size(defaultDocCount) // Must set to some large number. ES deprecated size omission for aggregating all. https://github.com/elastic/elasticsearch/issues/18838
-}
-
-func (s *ServiceOperationStorage) logError(span *jModel.Span, err error, msg string, logger *zap.Logger) error {
-	logger.Debug("trace info:", zap.String("trace_id", string(span.TraceID)), zap.String("span_id", string(span.SpanID)))
-	logger.Error(msg, zap.Error(err))
-	return errors.Wrap(err, msg)
 }
