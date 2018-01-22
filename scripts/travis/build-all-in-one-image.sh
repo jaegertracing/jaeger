@@ -23,4 +23,4 @@ else
   exit 0
 fi
 
-bash ./travis/upload-to-docker.sh
+bash ./scripts/travis/upload-to-docker.sh

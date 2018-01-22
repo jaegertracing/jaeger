@@ -39,17 +39,17 @@ env:
 install:
   - docker rmi $(docker images -q) || true
   - make install-ci
-  - if [ "$ALL_IN_ONE" == true ]; then bash ./travis/install-ui-deps.sh ; fi
-  - if [ "$DOCKER" == true ]; then bash ./travis/install-ui-deps.sh ; fi
-  - if [ "$CROSSDOCK" == true ]; then bash ./travis/install-crossdock-deps.sh ; fi
+  - if [ "$ALL_IN_ONE" == true ]; then bash ./scripts/travis/install-ui-deps.sh ; fi
+  - if [ "$DOCKER" == true ]; then bash ./scripts/travis/install-ui-deps.sh ; fi
+  - if [ "$CROSSDOCK" == true ]; then bash ./scripts/travis/install-crossdock-deps.sh ; fi
 
 script:
   - export BRANCH=$(if [ "$TRAVIS_PULL_REQUEST" == "false" ]; then echo $TRAVIS_BRANCH; else echo $TRAVIS_PULL_REQUEST_BRANCH; fi)
   - if [ "$TESTS" == true ]; then make test-ci ; else echo 'skipping tests'; fi
-  - if [ "$ALL_IN_ONE" == true ]; then bash ./travis/build-all-in-one-image.sh ; else echo 'skipping all_in_one'; fi
-  - if [ "$CROSSDOCK" == true ]; then bash ./travis/build-crossdock.sh ; else echo 'skipping crossdock'; fi
-  - if [ "$DOCKER" == true ]; then bash ./travis/build-docker-images.sh ; else echo 'skipping docker images'; fi
-  - if [ "$ES_INTEGRATION_TEST" == true ]; then bash ./travis/es-integration-test.sh ; else echo 'skipping elastic search integration test'; fi
+  - if [ "$ALL_IN_ONE" == true ]; then bash ./scripts/travis/build-all-in-one-image.sh ; else echo 'skipping all_in_one'; fi
+  - if [ "$CROSSDOCK" == true ]; then bash ./scripts/travis/build-crossdock.sh ; else echo 'skipping crossdock'; fi
+  - if [ "$DOCKER" == true ]; then bash ./scripts/travis/build-docker-images.sh ; else echo 'skipping docker images'; fi
+  - if [ "$ES_INTEGRATION_TEST" == true ]; then bash ./scripts/travis/es-integration-test.sh ; else echo 'skipping elastic search integration test'; fi
 
 after_success:
   - if [ "$COVERAGE" == true ]; then travis_retry goveralls -coverprofile=cover.out -service=travis-ci || true ; else echo 'skipping coverage'; fi

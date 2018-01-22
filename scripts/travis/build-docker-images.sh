@@ -26,5 +26,5 @@ make docker
 for component in agent cassandra-schema collector query
 do
   export REPO="jaegertracing/jaeger-${component}"
-  bash ./travis/upload-to-docker.sh
+  bash ./scripts/travis/upload-to-docker.sh
 done
