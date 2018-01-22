@@ -20,8 +20,10 @@ import (
 	"net"
 	"net/http"
 	"os"
+	"os/signal"
 	"runtime"
 	"strconv"
+	"syscall"
 
 	"github.com/gorilla/mux"
 	"github.com/pkg/errors"
@@ -54,6 +56,9 @@ import (
 
 // standalone/main is a standalone full-stack jaeger backend, backed by a memory store
 func main() {
+	var signalsChannel = make(chan os.Signal, 0)
+	signal.Notify(signalsChannel, os.Interrupt, syscall.SIGTERM)
+
 	if os.Getenv(storage.SpanStorageTypeEnvVar) == "" {
 		os.Setenv(storage.SpanStorageTypeEnvVar, "memory") // other storage types default to SpanStorage
 	}
@@ -112,7 +117,11 @@ func main() {
 			startCollector(cOpts, spanWriter, logger, metricsFactory)
 			startQuery(qOpts, spanReader, dependencyReader, logger, metricsFactory, mBldr)
 
-			select {}
+			select {
+			case <-signalsChannel:
+				logger.Info("Jaeger Standalone is finishing")
+			}
+			return nil
 		},
 	}
 
@@ -235,6 +244,7 @@ func startQuery(
 	baseFactory metrics.Factory,
 	metricsBuilder *pMetrics.Builder,
 ) {
+
 	tracer, closer, err := jaegerClientConfig.Configuration{
 		Sampler: &jaegerClientConfig.SamplerConfig{
 			Type:  "const",
@@ -245,7 +255,6 @@ func startQuery(
 	if err != nil {
 		logger.Fatal("Failed to initialize tracer", zap.Error(err))
 	}
-	defer closer.Close()
 	apiHandler := queryApp.NewAPIHandler(
 		spanReader,
 		depReader,
@@ -265,9 +274,12 @@ func startQuery(
 	portStr := ":" + strconv.Itoa(qOpts.Port)
 	recoveryHandler := recoveryhandler.NewRecoveryHandler(logger, true)
 	logger.Info("Starting jaeger-query HTTP server", zap.Int("port", qOpts.Port))
-	if err := http.ListenAndServe(portStr, recoveryHandler(r)); err != nil {
-		logger.Fatal("Could not launch jaeger-query service", zap.Error(err))
-	}
+	go func() {
+		defer closer.Close()
+		if err := http.ListenAndServe(portStr, recoveryHandler(r)); err != nil {
+			logger.Fatal("Could not launch jaeger-query service", zap.Error(err))
+		}
+	}()
 }
 
 func registerStaticHandler(r *mux.Router, logger *zap.Logger, qOpts *queryApp.QueryOptions) {
