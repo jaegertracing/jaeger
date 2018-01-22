@@ -67,6 +67,7 @@ github.com/jaegertracing/jaeger
         dependencystore/
       elasticsearch/        - ES implementations of storage APIs
   scripts/                  - Miscellaneous project scripts, e.g. license update script
+    travis/                 - Travis scripts called in .travis.yml
   storage/
     spanstore/              - SpanReader / SpanWriter interfaces
     dependencystore/
@@ -75,7 +76,6 @@ github.com/jaegertracing/jaeger
     jaeger/
     sampling/
     zipkincore/
-  travis/                   - Travis scripts called in .travis.yml
   glide.yaml                - Glide is the project's dependency manager
   mkdocs.yml                - MkDocs builds the documentation in docs/
 ```
