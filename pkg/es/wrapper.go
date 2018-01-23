@@ -128,8 +128,7 @@ func (i ESIndexService) Type(typ string) IndexService {
 
 // Id calls this function to internal service.
 func (i ESIndexService) Id(id string) IndexService {
-	a := WrapESIndexService(i.bulkIndexReq.Id(id), i.bulkService)
-	return a
+	return WrapESIndexService(i.bulkIndexReq.Id(id), i.bulkService)
 }
 
 // BodyJson calls this function to internal service.
@@ -137,7 +136,7 @@ func (i ESIndexService) BodyJson(body interface{}) IndexService {
 	return WrapESIndexService(i.bulkIndexReq.Doc(body), i.bulkService)
 }
 
-// Add add the request to bulk service
+// Add adds the request to bulk service
 func (i ESIndexService) Add() {
 	i.bulkService.Add(i.bulkIndexReq)
 }
