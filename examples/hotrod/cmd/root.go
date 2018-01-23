@@ -29,6 +29,7 @@ import (
 
 var (
 	metricsBackend string
+	jAgentHostPort string
 	logger         *zap.Logger
 	metricsFactory metrics.Factory
 )
@@ -51,6 +52,7 @@ func Execute() {
 
 func init() {
 	RootCmd.PersistentFlags().StringVarP(&metricsBackend, "metrics", "m", "expvar", "Metrics backend (expvar|prometheus)")
+	RootCmd.PersistentFlags().StringVarP(&jAgentHostPort, "jaeger-agent.host-port", "a", "localhost:6831", "String representing jaeger-agent host:port")
 	rand.Seed(int64(time.Now().Nanosecond()))
 	logger, _ = zap.NewDevelopment()
 	cobra.OnInitialize(initMetrics)
