@@ -24,12 +24,13 @@ import (
 
 // ESClient is a wrapper around elastic.Client
 type ESClient struct {
-	client *elastic.Client
+	client      *elastic.Client
+	bulkService *elastic.BulkProcessor
 }
 
 // WrapESClient creates a ESClient out of *elastic.Client.
-func WrapESClient(client *elastic.Client) ESClient {
-	return ESClient{client: client}
+func WrapESClient(client *elastic.Client, s *elastic.BulkProcessor) ESClient {
+	return ESClient{client: client, bulkService: s}
 }
 
 // IndexExists calls this function to internal client.
@@ -44,7 +45,8 @@ func (c ESClient) CreateIndex(index string) IndicesCreateService {
 
 // Index calls this function to internal client.
 func (c ESClient) Index() IndexService {
-	return WrapESIndexService(c.client.Index())
+	r := elastic.NewBulkIndexRequest()
+	return WrapESIndexService(r, c.bulkService)
 }
 
 // Search calls this function to internal client.
@@ -55,6 +57,11 @@ func (c ESClient) Search(indices ...string) SearchService {
 // MultiSearch calls this function to internal client.
 func (c ESClient) MultiSearch() MultiSearchService {
 	return WrapESMultiSearchService(c.client.MultiSearch())
+}
+
+// Close closes ESClient and flushes all data to the storage.
+func (c ESClient) Close() error {
+	return c.bulkService.Close()
 }
 
 // ---
@@ -100,37 +107,38 @@ func (c ESIndicesCreateService) Do(ctx context.Context) (*elastic.IndicesCreateR
 
 // ESIndexService is a wrapper around elastic.ESIndexService
 type ESIndexService struct {
-	indexService *elastic.IndexService
+	bulkIndexReq *elastic.BulkIndexRequest
+	bulkService  *elastic.BulkProcessor
 }
 
 // WrapESIndexService creates an ESIndexService out of *elastic.ESIndexService.
-func WrapESIndexService(indexService *elastic.IndexService) ESIndexService {
-	return ESIndexService{indexService: indexService}
+func WrapESIndexService(indexService *elastic.BulkIndexRequest, bulkService *elastic.BulkProcessor) ESIndexService {
+	return ESIndexService{bulkIndexReq: indexService, bulkService: bulkService}
 }
 
 // Index calls this function to internal service.
 func (i ESIndexService) Index(index string) IndexService {
-	return WrapESIndexService(i.indexService.Index(index))
+	return WrapESIndexService(i.bulkIndexReq.Index(index), i.bulkService)
 }
 
 // Type calls this function to internal service.
 func (i ESIndexService) Type(typ string) IndexService {
-	return WrapESIndexService(i.indexService.Type(typ))
+	return WrapESIndexService(i.bulkIndexReq.Type(typ), i.bulkService)
 }
 
 // Id calls this function to internal service.
 func (i ESIndexService) Id(id string) IndexService {
-	return WrapESIndexService(i.indexService.Id(id))
+	return WrapESIndexService(i.bulkIndexReq.Id(id), i.bulkService)
 }
 
 // BodyJson calls this function to internal service.
 func (i ESIndexService) BodyJson(body interface{}) IndexService {
-	return WrapESIndexService(i.indexService.BodyJson(body))
+	return WrapESIndexService(i.bulkIndexReq.Doc(body), i.bulkService)
 }
 
-// Do calls this function to internal service.
-func (i ESIndexService) Do(ctx context.Context) (*elastic.IndexResponse, error) {
-	return i.indexService.Do(ctx)
+// Add adds the request to bulk service
+func (i ESIndexService) Add() {
+	i.bulkService.Add(i.bulkIndexReq)
 }
 
 // ---

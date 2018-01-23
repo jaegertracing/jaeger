@@ -43,10 +43,9 @@ const (
 
 type spanWriterMetrics struct {
 	indexCreate *storageMetrics.WriteMetrics
-	spans       *storageMetrics.WriteMetrics
 }
 
-type serviceWriter func(string, *jModel.Span) error
+type serviceWriter func(string, *jModel.Span)
 
 // SpanWriter is a wrapper around elastic.Client
 type SpanWriter struct {
@@ -98,7 +97,6 @@ func NewSpanWriter(
 		logger: logger,
 		writerMetrics: spanWriterMetrics{
 			indexCreate: storageMetrics.NewWriteMetrics(metricsFactory, "IndexCreate"),
-			spans:       storageMetrics.NewWriteMetrics(metricsFactory, "Spans"),
 		},
 		serviceWriter: serviceOperationStorage.Write,
 		indexCache: cache.NewLRUWithOptions(
@@ -121,13 +119,17 @@ func (s *SpanWriter) WriteSpan(span *model.Span) error {
 	if err := s.createIndex(serviceIndexName, serviceMapping, jsonSpan); err != nil {
 		return err
 	}
-	if err := s.writeService(serviceIndexName, jsonSpan); err != nil {
-		return err
-	}
+	s.writeService(serviceIndexName, jsonSpan)
 	if err := s.createIndex(spanIndexName, spanMapping, jsonSpan); err != nil {
 		return err
 	}
-	return s.writeSpan(spanIndexName, jsonSpan)
+	s.writeSpan(spanIndexName, jsonSpan)
+	return nil
+}
+
+// Close closes SpanWriter
+func (s *SpanWriter) Close() error {
+	return s.client.Close()
 }
 
 func indexNames(span *model.Span) (string, string) {
@@ -170,19 +172,14 @@ func (s *SpanWriter) fixMapping(mapping string) string {
 	return mapping
 }
 
-func (s *SpanWriter) writeService(indexName string, jsonSpan *jModel.Span) error {
-	return s.serviceWriter(indexName, jsonSpan)
+func (s *SpanWriter) writeService(indexName string, jsonSpan *jModel.Span) {
+	s.serviceWriter(indexName, jsonSpan)
 }
 
-func (s *SpanWriter) writeSpan(indexName string, jsonSpan *jModel.Span) error {
-	start := time.Now()
+func (s *SpanWriter) writeSpan(indexName string, jsonSpan *jModel.Span) {
 	elasticSpan := Span{Span: jsonSpan, StartTimeMillis: jsonSpan.StartTime / 1000} // Microseconds to milliseconds
-	_, err := s.client.Index().Index(indexName).Type(spanType).BodyJson(&elasticSpan).Do(s.ctx)
-	s.writerMetrics.spans.Emit(err, time.Since(start))
-	if err != nil {
-		return s.logError(jsonSpan, err, "Failed to insert span", s.logger)
-	}
-	return nil
+
+	s.client.Index().Index(indexName).Type(spanType).BodyJson(&elasticSpan).Add()
 }
 
 func (s *SpanWriter) logError(span *jModel.Span, err error, msg string, logger *zap.Logger) error {

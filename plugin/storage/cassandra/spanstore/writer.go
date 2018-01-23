@@ -116,6 +116,12 @@ func NewSpanWriter(
 	}
 }
 
+// Close closes SpanWriter
+func (s *SpanWriter) Close() error {
+	s.session.Close()
+	return nil
+}
+
 // WriteSpan saves the span into Cassandra
 func (s *SpanWriter) WriteSpan(span *model.Span) error {
 	ds := dbmodel.FromDomain(span)

@@ -25,13 +25,17 @@ import (
 )
 
 const (
-	suffixUsername    = ".username"
-	suffixPassword    = ".password"
-	suffixSniffer     = ".sniffer"
-	suffixServerURLs  = ".server-urls"
-	suffixMaxSpanAge  = ".max-span-age"
-	suffixNumShards   = ".num-shards"
-	suffixNumReplicas = ".num-replicas"
+	suffixUsername          = ".username"
+	suffixPassword          = ".password"
+	suffixSniffer           = ".sniffer"
+	suffixServerURLs        = ".server-urls"
+	suffixMaxSpanAge        = ".max-span-age"
+	suffixNumShards         = ".num-shards"
+	suffixNumReplicas       = ".num-replicas"
+	suffixBulkSize          = ".bulk.size"
+	suffixBulkWorkers       = ".bulk.workers"
+	suffixBulkActions       = ".bulk.actions"
+	suffixBulkFlushInterval = ".bulk.flush-interval"
 )
 
 // TODO this should be moved next to config.Configuration struct (maybe ./flags package)
@@ -60,12 +64,16 @@ func NewOptions(primaryNamespace string, otherNamespaces ...string) *Options {
 	options := &Options{
 		primary: &namespaceConfig{
 			Configuration: config.Configuration{
-				Username:    "",
-				Password:    "",
-				Sniffer:     false,
-				MaxSpanAge:  72 * time.Hour,
-				NumShards:   5,
-				NumReplicas: 1,
+				Username:          "",
+				Password:          "",
+				Sniffer:           false,
+				MaxSpanAge:        72 * time.Hour,
+				NumShards:         5,
+				NumReplicas:       1,
+				BulkSize:          5 * 1000 * 1000,
+				BulkWorkers:       1,
+				BulkActions:       1000,
+				BulkFlushInterval: time.Millisecond * 200,
 			},
 			servers:   "http://127.0.0.1:9200",
 			namespace: primaryNamespace,
@@ -117,6 +125,22 @@ func addFlags(flagSet *flag.FlagSet, nsConfig *namespaceConfig) {
 		nsConfig.namespace+suffixNumReplicas,
 		nsConfig.NumReplicas,
 		"The number of replicas per index in ElasticSearch")
+	flagSet.Int(
+		nsConfig.namespace+suffixBulkSize,
+		nsConfig.BulkSize,
+		"The number of bytes that the bulk requests can take up before the bulk processor decides to commit")
+	flagSet.Int(
+		nsConfig.namespace+suffixBulkWorkers,
+		nsConfig.BulkWorkers,
+		"The number of workers that are able to receive bulk requests and eventually commit them to Elasticsearch")
+	flagSet.Int(
+		nsConfig.namespace+suffixBulkActions,
+		nsConfig.BulkActions,
+		"The number of requests that can be enqueued before the bulk processor decides to commit")
+	flagSet.Duration(
+		nsConfig.namespace+suffixBulkFlushInterval,
+		nsConfig.BulkFlushInterval,
+		"A time.Duration after which bulk requests are committed, regardless of other tresholds. Set to zero to disable. By default, this is disabled.")
 }
 
 // InitFromViper initializes Options with properties from viper
@@ -135,6 +159,10 @@ func initFromViper(cfg *namespaceConfig, v *viper.Viper) {
 	cfg.MaxSpanAge = v.GetDuration(cfg.namespace + suffixMaxSpanAge)
 	cfg.NumShards = v.GetInt64(cfg.namespace + suffixNumShards)
 	cfg.NumReplicas = v.GetInt64(cfg.namespace + suffixNumReplicas)
+	cfg.BulkSize = v.GetInt(cfg.namespace + suffixBulkSize)
+	cfg.BulkWorkers = v.GetInt(cfg.namespace + suffixBulkWorkers)
+	cfg.BulkActions = v.GetInt(cfg.namespace + suffixBulkActions)
+	cfg.BulkFlushInterval = v.GetDuration(cfg.namespace + suffixBulkFlushInterval)
 }
 
 // GetPrimary returns primary configuration.

@@ -16,6 +16,7 @@ package main
 
 import (
 	"fmt"
+	"io"
 	"log"
 	"net"
 	"net/http"
@@ -148,6 +149,13 @@ func main() {
 			hc.Ready()
 			select {
 			case <-signalsChannel:
+				if closer, ok := spanWriter.(io.Closer); ok {
+					err := closer.Close()
+					if err != nil {
+						logger.Error("Failed to close span writer", zap.Error(err))
+					}
+				}
+
 				logger.Info("Jaeger Collector is finishing")
 			}
 			return nil

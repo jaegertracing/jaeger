@@ -44,6 +44,7 @@ const (
 type ESStorageIntegration struct {
 	client *elastic.Client
 	StorageIntegration
+	bulkProcessor *elastic.BulkProcessor
 }
 
 func (s *ESStorageIntegration) initializeES() error {
@@ -59,7 +60,8 @@ func (s *ESStorageIntegration) initializeES() error {
 	s.client = rawClient
 	s.logger = logger
 
-	client := es.WrapESClient(s.client)
+	s.bulkProcessor, _ = s.client.BulkProcessor().Do(context.Background())
+	client := es.WrapESClient(s.client, s.bulkProcessor)
 	dependencyStore := dependencystore.NewDependencyStore(client, logger)
 	s.dependencyReader = dependencyStore
 	s.dependencyWriter = dependencyStore
@@ -77,13 +79,18 @@ func (s *ESStorageIntegration) esCleanUp() error {
 }
 
 func (s *ESStorageIntegration) initSpanstore() {
-	client := es.WrapESClient(s.client)
+	bp, _ := s.client.BulkProcessor().BulkActions(1).FlushInterval(time.Nanosecond).Do(context.Background())
+	client := es.WrapESClient(s.client, bp)
 	s.spanWriter = spanstore.NewSpanWriter(client, s.logger, metrics.NullFactory, 0, 0)
 	s.spanReader = spanstore.NewSpanReader(client, s.logger, 72*time.Hour, metrics.NullFactory)
 }
 
 func (s *ESStorageIntegration) esRefresh() error {
-	_, err := s.client.Refresh().Do(context.Background())
+	err := s.bulkProcessor.Flush()
+	if err != nil {
+		return err
+	}
+	_, err = s.client.Refresh().Do(context.Background())
 	return err
 }
 
