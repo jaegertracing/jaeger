@@ -36,7 +36,7 @@ type Server struct {
 }
 
 // NewServer creates a new driver.Server
-func NewServer(hostPort string, tracer opentracing.Tracer, metricsFactory metrics.Factory, logger log.Factory) *Server {
+func NewServer(hostPort string, tracer opentracing.Tracer, metricsFactory metrics.Factory, logger log.Factory, jAgentHostPort string) *Server {
 	channelOpts := &tchannel.ChannelOptions{
 		Tracer: tracer,
 	}
@@ -52,7 +52,7 @@ func NewServer(hostPort string, tracer opentracing.Tracer, metricsFactory metric
 		logger:   logger,
 		ch:       ch,
 		server:   server,
-		redis:    newRedis(metricsFactory, logger),
+		redis:    newRedis(metricsFactory, logger, jAgentHostPort),
 	}
 }
 

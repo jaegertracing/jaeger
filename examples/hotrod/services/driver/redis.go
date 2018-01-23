@@ -39,9 +39,9 @@ type Redis struct {
 	errorSimulator
 }
 
-func newRedis(metricsFactory metrics.Factory, logger log.Factory) *Redis {
+func newRedis(metricsFactory metrics.Factory, logger log.Factory, jAgentHostPort string) *Redis {
 	return &Redis{
-		tracer: tracing.Init("redis", metricsFactory.Namespace("redis", nil), logger),
+		tracer: tracing.Init("redis", metricsFactory.Namespace("redis", nil), logger, jAgentHostPort),
 		logger: logger,
 	}
 }

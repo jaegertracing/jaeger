@@ -35,9 +35,10 @@ var customerCmd = &cobra.Command{
 		logger := log.NewFactory(logger.With(zap.String("service", "customer")))
 		server := customer.NewServer(
 			net.JoinHostPort(customerOptions.serverInterface, strconv.Itoa(customerOptions.serverPort)),
-			tracing.Init("customer", metricsFactory.Namespace("customer", nil), logger),
+			tracing.Init("customer", metricsFactory.Namespace("customer", nil), logger, jAgentHostPort),
 			metricsFactory,
 			logger,
+			jAgentHostPort,
 		)
 		return server.Run()
 	},
