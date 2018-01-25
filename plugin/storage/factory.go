@@ -23,6 +23,7 @@ import (
 	"go.uber.org/zap"
 
 	"github.com/jaegertracing/jaeger/plugin"
+	"github.com/jaegertracing/jaeger/plugin/storage/authorizingproxy"
 	"github.com/jaegertracing/jaeger/plugin/storage/cassandra"
 	"github.com/jaegertracing/jaeger/plugin/storage/es"
 	"github.com/jaegertracing/jaeger/plugin/storage/memory"
@@ -32,12 +33,13 @@ import (
 )
 
 const (
-	cassandraStorageType     = "cassandra"
-	elasticsearchStorageType = "elasticsearch"
-	memoryStorageType        = "memory"
+	authorizingProxyStorageType = "authorizing_proxy"
+	cassandraStorageType        = "cassandra"
+	elasticsearchStorageType    = "elasticsearch"
+	memoryStorageType           = "memory"
 )
 
-var allStorageTypes = []string{cassandraStorageType, elasticsearchStorageType, memoryStorageType}
+var allStorageTypes = []string{authorizingProxyStorageType, cassandraStorageType, elasticsearchStorageType, memoryStorageType}
 
 // Factory implements storage.Factory interface as a meta-factory for storage components.
 type Factory struct {
@@ -66,6 +68,8 @@ func NewFactory(config FactoryConfig) (*Factory, error) {
 
 func (f *Factory) getFactoryOfType(factoryType string) (storage.Factory, error) {
 	switch factoryType {
+	case authorizingProxyStorageType:
+		return authorizingproxy.NewFactory(), nil
 	case cassandraStorageType:
 		return cassandra.NewFactory(), nil
 	case elasticsearchStorageType:
