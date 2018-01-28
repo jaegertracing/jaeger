@@ -10,21 +10,21 @@ import (
 
   "github.com/jaegertracing/jaeger/storage/spanstore"
   storageMetrics "github.com/jaegertracing/jaeger/storage/spanstore/metrics"
-  jaegerClient "github.com/uber/jaeger-client-go"
+  agentReporter "github.com/jaegertracing/jaeger/cmd/agent/app/reporter/tchannel"
 )
 
 type SpanReader struct {
   ctx    context.Context
-  client jaegerClient.Reporter
+  client *agentReporter.Reporter
   logger *zap.Logger
 }
 
 // NewSpanReader returns a new SpanReader with a metrics.
-func NewSpanReader(client jaegerClient.Reporter, logger *zap.Logger, metricsFactory metrics.Factory) spanstore.Reader {
+func NewSpanReader(client *agentReporter.Reporter, logger *zap.Logger, metricsFactory metrics.Factory) spanstore.Reader {
   return storageMetrics.NewReadMetricsDecorator(newSpanReader(client, logger), metricsFactory)
 }
 
-func newSpanReader(client jaegerClient.Reporter, logger *zap.Logger) *SpanReader {
+func newSpanReader(client *agentReporter.Reporter, logger *zap.Logger) *SpanReader {
   ctx := context.Background()
   return &SpanReader{
     ctx:                     ctx,

@@ -7,13 +7,12 @@ import (
   "github.com/uber/jaeger-lib/metrics"
   "go.uber.org/zap"
 
+  agentReporter "github.com/jaegertracing/jaeger/cmd/agent/app/reporter/tchannel"
   "github.com/jaegertracing/jaeger/plugin/storage/authorizingproxy/config"
   proxyDepStore "github.com/jaegertracing/jaeger/plugin/storage/authorizingproxy/dependencystore"
   proxySpanStore "github.com/jaegertracing/jaeger/plugin/storage/authorizingproxy/spanstore"
   "github.com/jaegertracing/jaeger/storage/dependencystore"
   "github.com/jaegertracing/jaeger/storage/spanstore"
-
-  jaegerClient "github.com/uber/jaeger-client-go"
 )
 
 type Factory struct {
@@ -23,7 +22,7 @@ type Factory struct {
   logger         *zap.Logger
 
   primaryConfig config.ClientBuilder
-  primaryClient jaegerClient.Reporter
+  primaryClient *agentReporter.Reporter
 }
 
 // NewFactory creates a new Factory.
@@ -47,8 +46,9 @@ func (f *Factory) InitFromViper(v *viper.Viper) {
 // Initialize implements storage.Factory
 func (f *Factory) Initialize(metricsFactory metrics.Factory, logger *zap.Logger) error {
   f.metricsFactory, f.logger = metricsFactory, logger
+  f.primaryConfig = f.Options.GetPrimary()
 
-  primaryClient, err := f.primaryConfig.NewClient(logger)
+  primaryClient, err := f.primaryConfig.NewClient(metricsFactory, logger)
   if err != nil {
     return err
   }
@@ -64,7 +64,8 @@ func (f *Factory) CreateSpanReader() (spanstore.Reader, error) {
 
 // CreateSpanWriter implements storage.Factory
 func (f *Factory) CreateSpanWriter() (spanstore.Writer, error) {
-  return proxySpanStore.NewSpanWriter(f.primaryClient, f.logger, f.metricsFactory), nil
+  cfg := f.primaryConfig
+  return proxySpanStore.NewSpanWriter(f.primaryClient, f.logger, f.metricsFactory, cfg.GetProxyBatchSize(), cfg.GetProxyBatchFlushIntervalMs()), nil
 }
 
 // CreateDependencyReader implements storage.Factory

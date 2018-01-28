@@ -48,7 +48,9 @@ func startCollector() spanstore.Writer {
 
   v := viper.New()
   v.Set("collector.host-port", "127.0.0.1:" + strconv.Itoa(CollectorTChannelPort))
-  v.Set("authorizingproxy.proxy-hostport", "127.0.0.1:10000")
+  v.Set("authorizingproxy.proxy-host-port", "127.0.0.1:10000")
+  v.Set("authorizingproxy.proxy-batch-size", "50")
+  v.Set("authorizingproxy.proxy-batch-flush-interval-ms", "500")
 
   builderOpts := new(builder.CollectorOptions).InitFromViper(v)
 

@@ -1,52 +1,50 @@
 package config
 
 import (
+  "strings"
   "time"
 
   "github.com/pkg/errors"
+  "github.com/uber/jaeger-lib/metrics"
   "go.uber.org/zap"
-  jaegerClient "github.com/uber/jaeger-client-go"
-  jaegerClientLogger "github.com/uber/jaeger-client-go/log"
+
+  agentReporter "github.com/jaegertracing/jaeger/cmd/agent/app/reporter/tchannel"
+  "github.com/jaegertracing/jaeger/pkg/discovery"
 )
 
 // Configuration describes the configuration properties needed to connect to an ElasticSearch cluster
 type Configuration struct {
   ProxyHostPort              string
   ProxyIf                    string
-  ProxyQueueSize             int
-  ProxyBufferFlushIntervalMs int
+  ProxyBatchSize             int
+  ProxyBatchFlushIntervalMs  int
 
 }
 
 // ClientBuilder creates new es.Client
 type ClientBuilder interface {
-  NewClient(logger *zap.Logger) (jaegerClient.Reporter, error)
+  NewClient(metricsFactory metrics.Factory, logger *zap.Logger) (*agentReporter.Reporter, error)
   GetProxyHostPort() string
   GetProxyIf() string
-  GetProxyQueueSize() int
-  GetProxyBufferFlushIntervalMs() time.Duration
+  GetProxyBatchSize() int
+  GetProxyBatchFlushIntervalMs() time.Duration
 }
 
 // NewClient creates a new ElasticSearch client
-func (c *Configuration) NewClient(logger *zap.Logger) (jaegerClient.Reporter, error) {
+func (c *Configuration) NewClient(metricsFactory metrics.Factory, logger *zap.Logger) (*agentReporter.Reporter, error) {
 
   if c.ProxyHostPort == "" {
     return nil, errors.New("Host port empty")
   }
 
-  transport, err := jaegerClient.NewUDPTransport(c.GetProxyHostPort(), 0)
-  if err != nil {
-    return nil, err
-  }
+  hostPorts := strings.Split(c.GetProxyHostPort(), ",")
+  discoverer := discovery.FixedDiscoverer(hostPorts)
+  notifier := &discovery.Dispatcher{}
 
-  reporter := jaegerClient.NewRemoteReporter(
-    transport,
-    jaegerClient.ReporterOptions.QueueSize(c.GetProxyQueueSize()),
-    jaegerClient.ReporterOptions.BufferFlushInterval(c.GetProxyBufferFlushIntervalMs()),
-    jaegerClient.ReporterOptions.Logger(jaegerClientLogger.StdLogger),
-    jaegerClient.ReporterOptions.Metrics(nil))
-
-  return reporter, nil
+  builder := agentReporter.NewBuilder()
+  builder.WithDiscoverer(discoverer)
+  builder.WithDiscoveryNotifier(notifier)
+  return builder.CreateReporter(metricsFactory, logger)
 }
 
 // ApplyDefaults copies settings from source unless its own value is non-zero.
@@ -57,11 +55,11 @@ func (c *Configuration) ApplyDefaults(source *Configuration) {
   if c.ProxyIf == "" {
     c.ProxyIf = source.ProxyIf
   }
-  if c.ProxyQueueSize == 0 {
-    c.ProxyQueueSize = source.ProxyQueueSize
+  if c.ProxyBatchSize == 0 {
+    c.ProxyBatchSize = source.ProxyBatchSize
   }
-  if c.ProxyBufferFlushIntervalMs == 0 {
-    c.ProxyBufferFlushIntervalMs = source.ProxyBufferFlushIntervalMs
+  if c.ProxyBatchFlushIntervalMs == 0 {
+    c.ProxyBatchFlushIntervalMs = source.ProxyBatchFlushIntervalMs
   }
 }
 
@@ -73,10 +71,10 @@ func (c *Configuration) GetProxyIf() string {
   return c.ProxyIf
 }
 
-func (c *Configuration) GetProxyQueueSize() int {
-  return c.ProxyQueueSize
+func (c *Configuration) GetProxyBatchSize() int {
+  return c.ProxyBatchSize
 }
 
-func (c *Configuration) GetProxyBufferFlushIntervalMs() time.Duration {
-  return time.Duration(c.ProxyBufferFlushIntervalMs) * time.Millisecond
+func (c *Configuration) GetProxyBatchFlushIntervalMs() time.Duration {
+  return time.Duration(c.ProxyBatchFlushIntervalMs) * time.Millisecond
 }

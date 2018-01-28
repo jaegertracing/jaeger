@@ -11,18 +11,18 @@ import (
 
   "github.com/jaegertracing/jaeger/model"
 
-  jaegerClient "github.com/uber/jaeger-client-go"
+  agentReporter "github.com/jaegertracing/jaeger/cmd/agent/app/reporter/tchannel"
 )
 
 // DependencyStore handles all queries and insertions to ElasticSearch dependencies
 type DependencyStore struct {
   ctx    context.Context
-  client jaegerClient.Reporter
+  client *agentReporter.Reporter
   logger *zap.Logger
 }
 
 // NewDependencyStore returns a DependencyStore
-func NewDependencyStore(client jaegerClient.Reporter, logger *zap.Logger) *DependencyStore {
+func NewDependencyStore(client *agentReporter.Reporter, logger *zap.Logger) *DependencyStore {
   return &DependencyStore{
     ctx:    context.Background(),
     client: client,

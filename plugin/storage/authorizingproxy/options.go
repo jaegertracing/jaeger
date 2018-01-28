@@ -2,15 +2,17 @@ package authorizingproxy
 
 import (
   "flag"
+
   "github.com/spf13/viper"
+  
   "github.com/jaegertracing/jaeger/plugin/storage/authorizingproxy/config"
 )
 
 const (
-  suffixProxyHostPort              = ".proxy-hostport"
+  suffixProxyHostPort              = ".proxy-host-port"
   suffixProxyIf                    = ".proxy-if"
-  suffixProxyQueueSize             = ".proxy-queue-size"
-  suffixProxyBufferFlushIntervalMs = ".proxy-buffer-flush-interval-ms"
+  suffixProxyBatchSize             = ".proxy-batch-size"
+  suffixProxyBatchFlushIntervalMs  = ".proxy-batch-flush-interval-ms"
 )
 
 type Options struct {
@@ -34,8 +36,8 @@ func NewOptions(primaryNamespace string, otherNamespaces ...string) *Options {
       Configuration: config.Configuration{
         ProxyHostPort:              "",
         ProxyIf:                    "",
-        ProxyQueueSize:             0,
-        ProxyBufferFlushIntervalMs: 0,
+        ProxyBatchSize:             50,
+        ProxyBatchFlushIntervalMs:  500,
       },
       namespace: primaryNamespace,
     },
@@ -61,19 +63,19 @@ func addFlags(flagSet *flag.FlagSet, nsConfig *namespaceConfig) {
   flagSet.String(
     nsConfig.namespace+suffixProxyHostPort,
     nsConfig.ProxyHostPort,
-    "The host port string of the collector to proxy the requests to")
+    "The host port string of the collector to proxy the requests to. Can be comma delimited list.")
   flagSet.String(
     nsConfig.namespace+suffixProxyIf,
     nsConfig.ProxyIf,
-    "The condition under which the requests should be proxied")
+    "The condition under which the requests should be proxied.")
   flagSet.Int(
-    nsConfig.namespace+suffixProxyQueueSize,
-    nsConfig.ProxyQueueSize,
-    "queue size - TODO figure out")
+    nsConfig.namespace+suffixProxyBatchSize,
+    nsConfig.ProxyBatchSize,
+    "Batch size - maximum number of items to send to a collector in a single batch.")
   flagSet.Int(
-    nsConfig.namespace+suffixProxyBufferFlushIntervalMs,
-    nsConfig.ProxyBufferFlushIntervalMs,
-    "buffer flush interval - TODO figure out")
+    nsConfig.namespace+suffixProxyBatchFlushIntervalMs,
+    nsConfig.ProxyBatchFlushIntervalMs,
+    "Batch flush interval - maximum number of milliseconds to wait until flushing a batch, even if batch size hasn't been reached.")
 }
 
 // InitFromViper initializes Options with properties from viper
@@ -87,8 +89,8 @@ func (opt *Options) InitFromViper(v *viper.Viper) {
 func initFromViper(cfg *namespaceConfig, v *viper.Viper) {
   cfg.ProxyHostPort = v.GetString(cfg.namespace + suffixProxyHostPort)
   cfg.ProxyIf = v.GetString(cfg.namespace + suffixProxyIf)
-  cfg.ProxyQueueSize = v.GetInt(cfg.namespace + suffixProxyQueueSize)
-  cfg.ProxyBufferFlushIntervalMs = v.GetInt(cfg.namespace + suffixProxyBufferFlushIntervalMs)
+  cfg.ProxyBatchSize = v.GetInt(cfg.namespace + suffixProxyBatchSize)
+  cfg.ProxyBatchFlushIntervalMs = v.GetInt(cfg.namespace + suffixProxyBatchFlushIntervalMs)
 }
 
 // GetPrimary returns primary configuration.
