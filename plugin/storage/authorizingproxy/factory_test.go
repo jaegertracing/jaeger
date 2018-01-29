@@ -40,9 +40,14 @@ var (
   CollectorTChannelPort = 14267
   CollectorHTTPPort = 14268
   CollectorZipkinHTTPPort = 14269
+  writer *spanstore.Writer = nil
 )
 
 func startCollector() spanstore.Writer {
+
+  if writer != nil {
+    return *writer
+  }
 
   serviceName := "jaeger-collector"
 
@@ -140,6 +145,8 @@ func startCollector() spanstore.Writer {
 
   hc.Ready()
 
+  writer = &spanWriter
+
   return spanWriter
 }
 
@@ -166,12 +173,9 @@ func strToRef(s string) *string {
   return &s
 }
 
-func TestBasics(t *testing.T) {
-
-  spanWriter := startCollector()
-  if spanWriter == nil {
-    t.Error("Expected factory to be not nil")
-  }
+func TestForwarding(t *testing.T) {
+  
+  startCollector()
 
   reporter, err := createAgentReporter()
   if err != nil {
@@ -218,9 +222,6 @@ func TestBasics(t *testing.T) {
     },
   }
   batch.Spans = []*jaegerThrift.Span{ &span }
-
   reporter.EmitBatch(batch)
-
-  time.Sleep(time.Duration(5) * time.Second)
-
+  time.Sleep(time.Duration(1) * time.Second)
 }
