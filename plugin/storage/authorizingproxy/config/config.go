@@ -8,6 +8,7 @@ import (
   "github.com/uber/jaeger-lib/metrics"
   "go.uber.org/zap"
 
+  "github.com/jaegertracing/jaeger/plugin/storage/authorizingproxy/proxy_if"
   agentReporter "github.com/jaegertracing/jaeger/cmd/agent/app/reporter/tchannel"
   "github.com/jaegertracing/jaeger/pkg/discovery"
 )
@@ -15,7 +16,7 @@ import (
 // Configuration describes the configuration properties needed to connect to an ElasticSearch cluster
 type Configuration struct {
   ProxyHostPort              string
-  ProxyIf                    string
+  ProxyIf                    *proxy_if.ProxyIf
   ProxyBatchSize             int
   ProxyBatchFlushIntervalMs  int
 
@@ -25,7 +26,7 @@ type Configuration struct {
 type ClientBuilder interface {
   NewClient(metricsFactory metrics.Factory, logger *zap.Logger) (*agentReporter.Reporter, error)
   GetProxyHostPort() string
-  GetProxyIf() string
+  GetProxyIf() *proxy_if.ProxyIf
   GetProxyBatchSize() int
   GetProxyBatchFlushIntervalMs() time.Duration
 }
@@ -52,7 +53,7 @@ func (c *Configuration) ApplyDefaults(source *Configuration) {
   if c.ProxyHostPort == "" {
     c.ProxyHostPort = source.ProxyHostPort
   }
-  if c.ProxyIf == "" {
+  if c.ProxyIf.IsEmpty() {
     c.ProxyIf = source.ProxyIf
   }
   if c.ProxyBatchSize == 0 {
@@ -67,7 +68,7 @@ func (c *Configuration) GetProxyHostPort() string {
   return c.ProxyHostPort
 }
 
-func (c *Configuration) GetProxyIf() string {
+func (c *Configuration) GetProxyIf() *proxy_if.ProxyIf {
   return c.ProxyIf
 }
 

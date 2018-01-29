@@ -65,7 +65,12 @@ func (f *Factory) CreateSpanReader() (spanstore.Reader, error) {
 // CreateSpanWriter implements storage.Factory
 func (f *Factory) CreateSpanWriter() (spanstore.Writer, error) {
   cfg := f.primaryConfig
-  return proxySpanStore.NewSpanWriter(f.primaryClient, f.logger, f.metricsFactory, cfg.GetProxyBatchSize(), cfg.GetProxyBatchFlushIntervalMs()), nil
+  return proxySpanStore.NewSpanWriter(f.primaryClient,
+    f.logger,
+    f.metricsFactory,
+    cfg.GetProxyBatchSize(),
+    cfg.GetProxyBatchFlushIntervalMs(),
+    cfg.GetProxyIf()), nil
 }
 
 // CreateDependencyReader implements storage.Factory

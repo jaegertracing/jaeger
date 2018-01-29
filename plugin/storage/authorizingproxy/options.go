@@ -2,10 +2,13 @@ package authorizingproxy
 
 import (
   "flag"
+  "os"
+  "strconv"
 
   "github.com/spf13/viper"
   
   "github.com/jaegertracing/jaeger/plugin/storage/authorizingproxy/config"
+  "github.com/jaegertracing/jaeger/plugin/storage/authorizingproxy/proxy_if"
 )
 
 const (
@@ -31,13 +34,26 @@ type namespaceConfig struct {
 // NewOptions creates a new Options struct.
 func NewOptions(primaryNamespace string, otherNamespaces ...string) *Options {
   // TODO all default values should be defined via cobra flags
+
   options := &Options{
     primary: &namespaceConfig{
       Configuration: config.Configuration{
-        ProxyHostPort:              "",
-        ProxyIf:                    "",
-        ProxyBatchSize:             50,
-        ProxyBatchFlushIntervalMs:  500,
+        ProxyHostPort:              envVarWithDefault("JAEGER_STORAGE_PROXY_HOST_PORT", ""),
+        ProxyIf:                    proxy_if.NewProxyIf(envVarWithDefault("JAEGER_STORAGE_PROXY_IF", "")),
+        ProxyBatchSize:             func() int {
+          if v, e := strconv.Atoi(envVarWithDefault("JAEGER_STORAGE_PROXY_BATCH_SIZE", "50")); e != nil {
+            return 50
+          } else {
+            return v
+          }
+        }(),
+        ProxyBatchFlushIntervalMs:  func() int {
+          if v, e := strconv.Atoi(envVarWithDefault("JAEGER_STORAGE_PROXY_FLUSH_INTERVAL_MS", "500")); e != nil {
+            return 500
+          } else {
+            return v
+          }
+        }(),
       },
       namespace: primaryNamespace,
     },
@@ -66,7 +82,7 @@ func addFlags(flagSet *flag.FlagSet, nsConfig *namespaceConfig) {
     "The host port string of the collector to proxy the requests to. Can be comma delimited list.")
   flagSet.String(
     nsConfig.namespace+suffixProxyIf,
-    nsConfig.ProxyIf,
+    "",
     "The condition under which the requests should be proxied.")
   flagSet.Int(
     nsConfig.namespace+suffixProxyBatchSize,
@@ -88,7 +104,7 @@ func (opt *Options) InitFromViper(v *viper.Viper) {
 
 func initFromViper(cfg *namespaceConfig, v *viper.Viper) {
   cfg.ProxyHostPort = v.GetString(cfg.namespace + suffixProxyHostPort)
-  cfg.ProxyIf = v.GetString(cfg.namespace + suffixProxyIf)
+  cfg.ProxyIf = proxy_if.NewProxyIf(v.GetString(cfg.namespace + suffixProxyIf))
   cfg.ProxyBatchSize = v.GetInt(cfg.namespace + suffixProxyBatchSize)
   cfg.ProxyBatchFlushIntervalMs = v.GetInt(cfg.namespace + suffixProxyBatchFlushIntervalMs)
 }
@@ -96,4 +112,12 @@ func initFromViper(cfg *namespaceConfig, v *viper.Viper) {
 // GetPrimary returns primary configuration.
 func (opt *Options) GetPrimary() *config.Configuration {
   return &opt.primary.Configuration
+}
+
+func envVarWithDefault(key string, defaultValue string) string {
+  if value, exists := os.LookupEnv(key); exists {
+    return value
+  } else {
+    return defaultValue
+  }
 }

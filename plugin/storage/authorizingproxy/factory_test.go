@@ -51,10 +51,11 @@ func startCollector() spanstore.Writer {
   v.Set("authorizingproxy.proxy-host-port", "127.0.0.1:10000")
   v.Set("authorizingproxy.proxy-batch-size", "50")
   v.Set("authorizingproxy.proxy-batch-flush-interval-ms", "500")
+  v.Set("authorizingproxy.proxy-if", "baggage.x-test-key==test-value")
 
   builderOpts := new(builder.CollectorOptions).InitFromViper(v)
 
-  storageFactory, err := storage.NewFactory(storage.FactoryConfig{ "authorizing_proxy", "authorizing_proxy" })
+  storageFactory, err := storage.NewFactory(storage.FactoryConfig{ "authorizingproxy", "authorizingproxy" })
   if err != nil {
     log.Fatalf("Cannot initialize storage factory: %v", err)
     return nil
@@ -74,11 +75,6 @@ func startCollector() spanstore.Writer {
   }
 
   mBldr := new(pMetrics.Builder).InitFromViper(v)
-  //metricsFactory, err := mBldr.CreateMetricsFactory("jaeger-collector")
-  //if err != nil {
-  //  logger.Fatal("Cannot create metrics factory.", zap.Error(err))
-  //  return nil
-  //}
 
   storageFactory.InitFromViper(v)
   if err := storageFactory.Initialize(metrics.NullFactory, logger); err != nil {
@@ -121,28 +117,28 @@ func startCollector() spanstore.Writer {
   }
   ch.Serve(listener)
 
-      r := mux.NewRouter()
-      apiHandler := collectorApp.NewAPIHandler(jaegerBatchesHandler)
-      apiHandler.RegisterRoutes(r)
-      if h := mBldr.Handler(); h != nil {
-        logger.Info("Registering metrics handler with HTTP server", zap.String("route", mBldr.HTTPRoute))
-        r.Handle(mBldr.HTTPRoute, h)
-      }
-      httpPortStr := ":" + strconv.Itoa(CollectorHTTPPort)
-      recoveryHandler := recoveryhandler.NewRecoveryHandler(logger, true)
+  r := mux.NewRouter()
+  apiHandler := collectorApp.NewAPIHandler(jaegerBatchesHandler)
+  apiHandler.RegisterRoutes(r)
+  if h := mBldr.Handler(); h != nil {
+    logger.Info("Registering metrics handler with HTTP server", zap.String("route", mBldr.HTTPRoute))
+    r.Handle(mBldr.HTTPRoute, h)
+  }
+  httpPortStr := ":" + strconv.Itoa(CollectorHTTPPort)
+  recoveryHandler := recoveryhandler.NewRecoveryHandler(logger, true)
 
-      //go startZipkinHTTPAPI(logger, CollectorZipkinHTTPPort, zipkinSpansHandler, recoveryHandler)
+  //go startZipkinHTTPAPI(logger, CollectorZipkinHTTPPort, zipkinSpansHandler, recoveryHandler)
 
-      logger.Info("Starting Jaeger Collector HTTP server", zap.Int("http-port", CollectorHTTPPort))
+  logger.Info("Starting Jaeger Collector HTTP server", zap.Int("http-port", CollectorHTTPPort))
 
-      go func() {
-        if err := http.ListenAndServe(httpPortStr, recoveryHandler(r)); err != nil {
-          logger.Fatal("Could not launch service", zap.Error(err))
-        }
-        hc.Set(healthcheck.Unavailable)
-      }()
+  go func() {
+    if err := http.ListenAndServe(httpPortStr, recoveryHandler(r)); err != nil {
+      logger.Fatal("Could not launch service", zap.Error(err))
+    }
+    hc.Set(healthcheck.Unavailable)
+  }()
 
-      hc.Ready()
+  hc.Ready()
 
   return spanWriter
 }
@@ -210,12 +206,12 @@ func TestBasics(t *testing.T) {
           &jaegerThrift.Tag{
             Key: "key",
             VType: jaegerThrift.TagType_STRING,
-            VStr: strToRef("x-klarrio-auth-key"),
+            VStr: strToRef("x-test-key"),
           },
           &jaegerThrift.Tag{
             Key: "value",
             VType: jaegerThrift.TagType_STRING,
-            VStr: strToRef("mmmm"),
+            VStr: strToRef("test-value"),
           },
         },
       },

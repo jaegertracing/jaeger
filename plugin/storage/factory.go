@@ -33,7 +33,7 @@ import (
 )
 
 const (
-	authorizingProxyStorageType = "authorizing_proxy"
+	authorizingProxyStorageType = "authorizingproxy"
 	cassandraStorageType        = "cassandra"
 	elasticsearchStorageType    = "elasticsearch"
 	memoryStorageType           = "memory"

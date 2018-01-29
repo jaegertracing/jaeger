@@ -12,6 +12,7 @@ import (
   agentReporter "github.com/jaegertracing/jaeger/cmd/agent/app/reporter/tchannel"
   jaegerThrift "github.com/jaegertracing/jaeger/thrift-gen/jaeger"
   thriftConverter "github.com/jaegertracing/jaeger/model/converter/thrift/jaeger"
+  "github.com/jaegertracing/jaeger/plugin/storage/authorizingproxy/proxy_if"
 )
 
 type SpanWriter struct {
@@ -22,6 +23,7 @@ type SpanWriter struct {
   maxBatchSize       int
   commitBatchesEvery time.Duration
   batchCommiter      *time.Ticker
+  proxyIf            *proxy_if.ProxyIf
 }
 
 func NewSpanWriter(
@@ -30,6 +32,8 @@ func NewSpanWriter(
   metricsFactory metrics.Factory,
   maxBatchSize int,
   commitBatchesEvery time.Duration,
+  proxyIf *proxy_if.ProxyIf,
+
 ) *SpanWriter {
 
   ticker := time.NewTicker(commitBatchesEvery)
@@ -42,6 +46,11 @@ func NewSpanWriter(
     maxBatchSize:       maxBatchSize,
     commitBatchesEvery: commitBatchesEvery,
     batchCommiter:      ticker,
+    proxyIf:            proxyIf,
+  }
+
+  if !proxyIf.IsValid() {
+    logger.Error(fmt.Sprintf("Proxy if condition is not valid. Errors: %+v.", proxyIf.Errors()))
   }
 
   go func() {
@@ -59,11 +68,22 @@ func (s *SpanWriter) WriteSpan(span *model.Span) error {
   forwardable := false
   spans := make([]*model.Span, 0)
 
-  for _, log := range span.Logs {
-    isBaggage, k, v := s.maybeGetBaggage(log)
-    if isBaggage == true && k != v { // TODO: condition
-      forwardable = true
-      break
+  if s.proxyIf.IsEmpty() {
+    forwardable = true
+  } else {
+    if s.proxyIf.IsValid() {
+      if s.proxyIf.IsBaggage() {
+        baggage := s.logsToBaggage(span.Logs)
+        if value, ok := baggage[s.proxyIf.Key()]; ok && value == s.proxyIf.Value() {
+          forwardable = true
+        }
+      } else if s.proxyIf.IsTag() {
+        if kv, ok := span.Tags.FindByKey(s.proxyIf.Key()); ok && kv.AsString() == s.proxyIf.Value() {
+          forwardable = true
+        }
+      }
+    } else {
+      s.logger.Error(fmt.Sprintf("Proxy if condition is not valid. Errors: %+v.", s.proxyIf.Errors()))
     }
   }
 
@@ -80,10 +100,10 @@ func (s *SpanWriter) WriteSpan(span *model.Span) error {
     if len(spans) < s.maxBatchSize {
       s.lock.Lock()
       s.memory[span.Process] = spans
-      fmt.Println(fmt.Sprintf("Updating batch for %+v to %+v items.", &span.Process, len(s.memory[span.Process])))
+      s.logger.Debug(fmt.Sprintf("Updating batch for %+v to %+v items.", &span.Process, len(s.memory[span.Process])))
       s.lock.Unlock()
     } else {
-      fmt.Println(fmt.Sprintf("Immediately submitting batch of %+v items for process %+v (%+v).", len(spans), &span.Process, s.maxBatchSize))
+      s.logger.Info(fmt.Sprintf("Immediately submitting batch of %+v items for process %+v (%+v).", len(spans), &span.Process, s.maxBatchSize))
       s.submitBatch(span.Process, spans)
     }
 
@@ -96,6 +116,16 @@ func (s *SpanWriter) WriteSpan(span *model.Span) error {
 func (s *SpanWriter) Close() error {
   s.batchCommiter.Stop()
   return nil
+}
+
+func (s *SpanWriter) logsToBaggage(logs []model.Log) map[string]string {
+  response := make(map[string]string)
+  for _, log := range logs {
+    if isBaggage, k, v := s.maybeGetBaggage(log); isBaggage {
+      response[k] = v
+    }
+  }
+  return response
 }
 
 func (s *SpanWriter) maybeGetBaggage(log model.Log) (bool, string, string) {
@@ -135,9 +165,9 @@ func (s *SpanWriter) submitBatch(process *model.Process, spans []*model.Span) {
   batch.Spans = thriftConverter.FromDomain(spans)
 
   if err := s.client.EmitBatch(batch); err != nil {
-    fmt.Println(fmt.Sprintf("Error while submitting batch of %+v items for process %+v.", len(spans), process))
+    s.logger.Error(fmt.Sprintf("Error while submitting batch of %+v items for process %+v.", len(spans), process))
   } else {
-    fmt.Println(fmt.Sprintf("Batch of %+v items for process %+v submitted.", len(spans), process))
+    s.logger.Info(fmt.Sprintf("Batch of %+v items for process %+v submitted.", len(spans), process))
     s.lock.Lock()
     delete(s.memory, process)
     s.lock.Unlock()
