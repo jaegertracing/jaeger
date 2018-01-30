@@ -62,7 +62,7 @@ func NewSpanWriter(
   return spanWriter
 }
 
-// WriteSpan writes a span and its corresponding service:operation in ElasticSearch
+// WriteSpan writes a span and its corresponding service:operation to a proxied collector
 func (s *SpanWriter) WriteSpan(span *model.Span) error {
   
   forwardable := false

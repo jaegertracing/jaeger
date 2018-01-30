@@ -14,7 +14,7 @@ import (
   agentReporter "github.com/jaegertracing/jaeger/cmd/agent/app/reporter/tchannel"
 )
 
-// DependencyStore handles all queries and insertions to ElasticSearch dependencies
+// DependencyStore handles all queries and insertions of dependencies
 type DependencyStore struct {
   ctx    context.Context
   client *agentReporter.Reporter

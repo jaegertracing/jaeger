@@ -13,7 +13,7 @@ import (
   "github.com/jaegertracing/jaeger/pkg/discovery"
 )
 
-// Configuration describes the configuration properties needed to connect to an ElasticSearch cluster
+// Configuration describes the configuration properties needed to connect to a proxy collector
 type Configuration struct {
   ProxyHostPort              string
   ProxyIf                    *proxy_if.ProxyIf
@@ -31,7 +31,7 @@ type ClientBuilder interface {
   GetProxyBatchFlushIntervalMs() time.Duration
 }
 
-// NewClient creates a new ElasticSearch client
+// NewClient creates a new jaeger agent (client)
 func (c *Configuration) NewClient(metricsFactory metrics.Factory, logger *zap.Logger) (*agentReporter.Reporter, error) {
 
   if c.ProxyHostPort == "" {
