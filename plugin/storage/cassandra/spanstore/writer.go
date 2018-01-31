@@ -127,11 +127,11 @@ func (s *SpanWriter) WriteSpan(span *model.Span) error {
 	ds := dbmodel.FromDomain(span)
 	mainQuery := s.session.Query(
 		insertSpan,
-		ds.TraceID,
-		ds.SpanID,
+		0,
+		0,
 		ds.SpanHash,
 		ds.ParentID,
-		ds.OperationName,
+		"",
 		ds.Flags,
 		ds.StartTime,
 		ds.Duration,
