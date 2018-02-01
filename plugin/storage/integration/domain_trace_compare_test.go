@@ -26,7 +26,7 @@ import (
 )
 
 func CompareSliceOfTraces(t *testing.T, expected []*model.Trace, actual []*model.Trace) {
-	require.Equal(t, len(expected), len(actual))
+	require.Equal(t, len(expected), len(actual), "Unequal number of expected vs. actual traces")
 	model.SortTraces(expected)
 	model.SortTraces(actual)
 	for i := range expected {
