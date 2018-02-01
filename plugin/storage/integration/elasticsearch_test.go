@@ -63,12 +63,12 @@ func (s *ESStorageIntegration) initializeES() error {
 	s.bulkProcessor, _ = s.client.BulkProcessor().Do(context.Background())
 	client := es.WrapESClient(s.client, s.bulkProcessor)
 	dependencyStore := dependencystore.NewDependencyStore(client, logger)
-	s.dependencyReader = dependencyStore
-	s.dependencyWriter = dependencyStore
+	s.DependencyReader = dependencyStore
+	s.DependencyWriter = dependencyStore
 	s.initSpanstore()
-	s.cleanUp = s.esCleanUp
-	s.refresh = s.esRefresh
-	s.cleanUp()
+	s.CleanUp = s.esCleanUp
+	s.Refresh = s.esRefresh
+	s.esCleanUp()
 	return nil
 }
 
@@ -81,8 +81,8 @@ func (s *ESStorageIntegration) esCleanUp() error {
 func (s *ESStorageIntegration) initSpanstore() {
 	bp, _ := s.client.BulkProcessor().BulkActions(1).FlushInterval(time.Nanosecond).Do(context.Background())
 	client := es.WrapESClient(s.client, bp)
-	s.spanWriter = spanstore.NewSpanWriter(client, s.logger, metrics.NullFactory, 0, 0)
-	s.spanReader = spanstore.NewSpanReader(client, s.logger, 72*time.Hour, metrics.NullFactory)
+	s.SpanWriter = spanstore.NewSpanWriter(client, s.logger, metrics.NullFactory, 0, 0)
+	s.SpanReader = spanstore.NewSpanReader(client, s.logger, 72*time.Hour, metrics.NullFactory)
 }
 
 func (s *ESStorageIntegration) esRefresh() error {
@@ -104,7 +104,7 @@ func healthCheck() error {
 	return errors.New("elastic search is not ready")
 }
 
-func TestAll(t *testing.T) {
+func TestElasticsearchStorage(t *testing.T) {
 	if os.Getenv("STORAGE") != "es" {
 		t.Skip("Integration test against ElasticSearch skipped; set STORAGE env var to es to run this")
 	}
