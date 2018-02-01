@@ -105,7 +105,7 @@ func healthCheck() error {
 }
 
 func TestElasticsearchStorage(t *testing.T) {
-	if os.Getenv("STORAGE") != "es" {
+	if os.Getenv("STORAGE") != "elasticsearch" {
 		t.Skip("Integration test against ElasticSearch skipped; set STORAGE env var to es to run this")
 	}
 	if err := healthCheck(); err != nil {
