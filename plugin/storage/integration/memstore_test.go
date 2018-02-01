@@ -51,9 +51,6 @@ func (s *MemStorageIntegrationTestSuite) cleanUp() error {
 }
 
 func TestMemoryStorage(t *testing.T) {
-	// if os.Getenv("STORAGE") != "memory" {
-	// 	t.Skip("Integration test against MemoryStore skipped; set STORAGE env var to 'memory' to run this")
-	// }
 	s := &MemStorageIntegrationTestSuite{}
 	require.NoError(t, s.initialize())
 	s.IntegrationTestAll(t)

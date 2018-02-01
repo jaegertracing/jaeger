@@ -168,6 +168,7 @@ func (s *StorageIntegration) testFindTraces(t *testing.T) {
 				trace = getTraceFixture(t, traceFixture)
 				err := s.writeTrace(t, trace)
 				require.NoError(t, err, "Unexpected error when writing trace %s to storage", traceFixture)
+				allTraceFixtures[traceFixture] = trace
 			}
 			expected = append(expected, trace)
 		}
@@ -298,7 +299,6 @@ func (s *StorageIntegration) testGetDependencies(t *testing.T) {
 			CallCount: uint64(3),
 		},
 	}
-	require.NotNil(t, s.DependencyWriter, "DependencyWriter is required")
 	require.NoError(t, s.DependencyWriter.WriteDependencies(time.Now(), expected))
 	s.refresh(t)
 	actual, err := s.DependencyReader.GetDependencies(time.Now(), 5*time.Minute)
