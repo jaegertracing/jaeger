@@ -37,8 +37,8 @@ type FactoryConfig struct {
 	DependenciesStorageType string
 }
 
-// FactoryConfigFromEnvAndCLI reads the desired types of storage backends from SPAN_STORAGE and DEPENDENCY_STORAGE
-// environment variable. Allowed values:
+// FactoryConfigFromEnvAndCLI reads the desired types of storage backends from SPAN_STORAGE_TYPE and
+// DEPENDENCY_STORAGE_TYPE environment variables. Allowed values:
 //   * `cassandra` - built-in
 //   * `elasticsearch` - built-in
 //   * `memory` - built-in
