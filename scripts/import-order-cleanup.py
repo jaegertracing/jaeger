@@ -1,6 +1,5 @@
 import argparse
 import sys
-# from os import path
 
 def cleanup_imports_and_return(imports):
     os_packages = []
@@ -76,14 +75,12 @@ def main():
     go_files = args.target
 
     for f in go_files:
-        print >>sys.stderr, "Parsing ", f
         parsed = parse_go_file(f)
         if output == "stdout":
             print parsed
         else:
             with open(f, 'w') as ofile:
                 ofile.write(parsed)
-            print >>sys.stderr, "updated in place"
 
 if __name__ == '__main__':
     main()
