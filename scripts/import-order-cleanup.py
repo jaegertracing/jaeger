@@ -4,18 +4,6 @@ import os
 import sys
 from os import path
 
-def get_local_packages():
-    for (dirpath, dirnames, filenames) in os.walk('.'):
-        return [d for d in dirnames if d != 'vendor' and d != 'thrift-gen' and d != 'swagger-gen' and d != 'thrift-0.9.2' and d[0] != '.']
-
-def get_go_files(dirs):
-    matches = set()
-    for d in dirs:
-        for root, dirnames, filenames in os.walk(d):
-            for filename in fnmatch.filter(filenames, '*.go'):
-                matches.add(os.path.join(root, filename))
-    return list(matches)
-
 def cleanup_imports_and_return(imports):
     os_packages = []
     jaeger_packages = []
@@ -80,9 +68,6 @@ def main():
                         choices=['inplace', 'stdout'],
                         help='output target [default: stdout]')
 
-    parser.add_argument('-i', '--input',
-                        help='file with list of go src files to operate upon, operates on all non-vendor dirs by default')
-
     parser.add_argument('-t', '--target',
                         help='comma seperated filenames to operate upon',
                         nargs='+')
@@ -91,13 +76,10 @@ def main():
     output = args.output
 
     go_files = []
-    input = args.input
     target = args.target
     if target:
-        go_files = [i.strip() for i in target.split(" ")]
-    elif input:
-        with open(input, 'r') as go_files_list:
-            go_files = [i.strip() for i in go_files_list.readlines()]
+        go_files = target
+        print target
     else:
         print >>sys.stderr, "No input specified, operating upon all *.go files in local dir"
         dirs = get_local_packages()
