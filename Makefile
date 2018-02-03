@@ -18,6 +18,7 @@ GOVET=go vet
 GOFMT=gofmt
 FMT_LOG=fmt.log
 LINT_LOG=lint.log
+IMPORT_LOG=import.log
 
 GIT_SHA=$(shell git rev-parse HEAD)
 GIT_CLOSEST_TAG=$(shell git describe --abbrev=0 --tags)
@@ -110,7 +111,7 @@ lint:
 	@[ ! -s "$(LINT_LOG)" ] || (echo "Lint Failures" | cat - $(LINT_LOG) && false)
 	@$(GOFMT) -e -s -l $(ALL_SRC) > $(FMT_LOG)
 	@./scripts/updateLicenses.sh >> $(FMT_LOG)
-	@./scripts/import-order-cleanup.sh stdout >> $(FMT_LOG)
+	@./scripts/import-order-cleanup.sh stdout > $(IMPORT_LOG)
 	@[ ! -s "$(FMT_LOG)" ] || (echo "Go fmt or license check failures, run 'make fmt'" | cat - $(FMT_LOG) && false)
 
 .PHONY: install-glide
