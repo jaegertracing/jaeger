@@ -8,7 +8,7 @@ from os import path
 
 def get_local_packages():
     for (dirpath, dirnames, filenames) in os.walk('.'):
-        return [d for d in dirnames if d != 'vendor' and d != 'thrift-gen' and d != 'swagger-gen' and d[0] != '.']
+        return [d for d in dirnames if d != 'vendor' and d != 'thrift-gen' and d != 'swagger-gen' and d != 'thrift-0.9.2' and d[0] != '.']
 
 def get_go_files(dirs):
     matches = set()

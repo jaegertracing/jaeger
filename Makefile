@@ -246,3 +246,7 @@ install-mockery:
 .PHONY: generate-mocks
 generate-mocks: install-mockery
 	$(MOCKERY) -all -dir ./pkg/es/ -output ./pkg/es/mocks && rm pkg/es/mocks/ClientBuilder.go
+
+.PHONY: fix-imports
+fix-imports:
+	./scripts/import_order_cleanup.py -o inplace -t $(ALL_SRC)
