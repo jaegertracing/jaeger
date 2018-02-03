@@ -1,5 +1,4 @@
 import argparse
-import sys
 
 def cleanup_imports_and_return(imports):
     os_packages = []
