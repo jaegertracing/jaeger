@@ -100,7 +100,7 @@ nocover:
 fmt:
 	$(GOFMT) -e -s -l -w $(ALL_SRC)
 	./scripts/updateLicenses.sh
-	./scripts/import-order-cleanup.sh
+	./scripts/import-order-cleanup.sh inplace
 
 .PHONY: lint
 lint:
@@ -110,6 +110,7 @@ lint:
 	@[ ! -s "$(LINT_LOG)" ] || (echo "Lint Failures" | cat - $(LINT_LOG) && false)
 	@$(GOFMT) -e -s -l $(ALL_SRC) > $(FMT_LOG)
 	@./scripts/updateLicenses.sh >> $(FMT_LOG)
+	@./scripts/import-order-cleanup.sh stdout >> $(FMT_LOG)
 	@[ ! -s "$(FMT_LOG)" ] || (echo "Go fmt or license check failures, run 'make fmt'" | cat - $(FMT_LOG) && false)
 
 .PHONY: install-glide
