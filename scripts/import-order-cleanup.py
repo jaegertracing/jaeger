@@ -1,5 +1,3 @@
-#!/usr/bin/env python
-# -*- coding: utf-8 -*-
 import argparse
 import fnmatch
 import os
@@ -86,7 +84,8 @@ def main():
                         help='file with list of go src files to operate upon, operates on all non-vendor dirs by default')
 
     parser.add_argument('-t', '--target',
-                        help='comma seperated filenames to operate upon')
+                        help='comma seperated filenames to operate upon',
+                        nargs='+')
 
     args = parser.parse_args()
     output = args.output
@@ -95,7 +94,7 @@ def main():
     input = args.input
     target = args.target
     if target:
-        go_files = [i.strip() for i in target.split(",")]
+        go_files = [i.strip() for i in target.split(" ")]
     elif input:
         with open(input, 'r') as go_files_list:
             go_files = [i.strip() for i in go_files_list.readlines()]

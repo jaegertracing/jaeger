@@ -249,4 +249,4 @@ generate-mocks: install-mockery
 
 .PHONY: fix-imports
 fix-imports:
-	./scripts/import_order_cleanup.py -o inplace -t $(ALL_SRC)
+	./scripts/import-order-cleanup.sh
