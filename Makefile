@@ -97,9 +97,10 @@ nocover:
 	@scripts/check-test-files.sh $(subst github.com/jaegertracing/jaeger/,./,$(ALL_PKGS)) | $(SED) ''/FIXME/s//$(FIXME)/''
 
 .PHONY: fmt
-fmt: fix-imports
+fmt:
 	$(GOFMT) -e -s -l -w $(ALL_SRC)
 	./scripts/updateLicenses.sh
+	./scripts/import-order-cleanup.sh
 
 .PHONY: lint
 lint:
@@ -246,7 +247,3 @@ install-mockery:
 .PHONY: generate-mocks
 generate-mocks: install-mockery
 	$(MOCKERY) -all -dir ./pkg/es/ -output ./pkg/es/mocks && rm pkg/es/mocks/ClientBuilder.go
-
-.PHONY: fix-imports
-fix-imports:
-	./scripts/import-order-cleanup.sh
