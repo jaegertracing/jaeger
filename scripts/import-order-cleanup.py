@@ -1,8 +1,6 @@
 import argparse
-import fnmatch
-import os
 import sys
-from os import path
+# from os import path
 
 def cleanup_imports_and_return(imports):
     os_packages = []
@@ -69,21 +67,13 @@ def main():
                         help='output target [default: stdout]')
 
     parser.add_argument('-t', '--target',
-                        help='comma seperated filenames to operate upon',
-                        nargs='+')
+                        help='list of filenames to operate upon',
+                        nargs='+',
+                        required=True)
 
     args = parser.parse_args()
     output = args.output
-
-    go_files = []
-    target = args.target
-    if target:
-        go_files = target
-        print target
-    else:
-        print >>sys.stderr, "No input specified, operating upon all *.go files in local dir"
-        dirs = get_local_packages()
-        go_files = get_go_files(dirs)
+    go_files = args.target
 
     for f in go_files:
         print >>sys.stderr, "Parsing ", f
