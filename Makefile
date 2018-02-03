@@ -97,7 +97,7 @@ nocover:
 	@scripts/check-test-files.sh $(subst github.com/jaegertracing/jaeger/,./,$(ALL_PKGS)) | $(SED) ''/FIXME/s//$(FIXME)/''
 
 .PHONY: fmt
-fmt:
+fmt: fix-imports
 	$(GOFMT) -e -s -l -w $(ALL_SRC)
 	./scripts/updateLicenses.sh
 
