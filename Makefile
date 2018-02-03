@@ -111,8 +111,8 @@ lint:
 	@[ ! -s "$(LINT_LOG)" ] || (echo "Lint Failures" | cat - $(LINT_LOG) && false)
 	@$(GOFMT) -e -s -l $(ALL_SRC) > $(FMT_LOG)
 	@./scripts/updateLicenses.sh >> $(FMT_LOG)
-	@./scripts/import-order-cleanup.sh stdout > $(IMPORT_LOG)
-	@[ ! -s "$(FMT_LOG)" ] || (echo "Go fmt or license check failures, run 'make fmt'" | cat - $(FMT_LOG) && false)
+	@./scripts/import-order-cleanup.sh stdout >> $(IMPORT_LOG)
+	@[[ ! -s "$(FMT_LOG)" && ! -s "$(IMPORT_LOG)" ]] || (echo "Go fmt, license check, or import ordering failures, run 'make fmt'" | cat - $(FMT_LOG) && false)
 
 .PHONY: install-glide
 install-glide:
