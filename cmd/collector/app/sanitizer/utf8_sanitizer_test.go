@@ -18,9 +18,10 @@ import (
 	"encoding/hex"
 	"testing"
 
-	"github.com/jaegertracing/jaeger/model"
 	"github.com/stretchr/testify/assert"
 	"go.uber.org/zap"
+
+	"github.com/jaegertracing/jaeger/model"
 )
 
 func invalidUTF8() string {

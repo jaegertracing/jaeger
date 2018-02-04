@@ -18,10 +18,10 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/uber/jaeger-lib/metrics"
 	"go.uber.org/zap"
 
 	"github.com/jaegertracing/jaeger/model"
-	"github.com/uber/jaeger-lib/metrics"
 )
 
 func TestAllOptionSet(t *testing.T) {

@@ -15,16 +15,15 @@
 package model_test
 
 import (
+	"errors"
 	"hash/fnv"
 	"io"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
-
-	"errors"
+	"github.com/stretchr/testify/require"
 
 	"github.com/jaegertracing/jaeger/model"
-	"github.com/stretchr/testify/require"
 )
 
 func TestProcessEqual(t *testing.T) {

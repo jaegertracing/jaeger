@@ -23,6 +23,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
 	"github.com/stretchr/testify/require"
+	"github.com/uber/jaeger-lib/metrics"
 	"go.uber.org/zap"
 	"gopkg.in/olivere/elastic.v5"
 
@@ -31,7 +32,6 @@ import (
 	"github.com/jaegertracing/jaeger/pkg/es/mocks"
 	"github.com/jaegertracing/jaeger/pkg/testutils"
 	"github.com/jaegertracing/jaeger/storage/spanstore"
-	"github.com/uber/jaeger-lib/metrics"
 )
 
 var exampleESSpan = []byte(

@@ -30,6 +30,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
 	"github.com/stretchr/testify/require"
+	jaeger "github.com/uber/jaeger-client-go"
 	"go.uber.org/zap"
 
 	"github.com/jaegertracing/jaeger/model"
@@ -38,7 +39,6 @@ import (
 	depsmocks "github.com/jaegertracing/jaeger/storage/dependencystore/mocks"
 	"github.com/jaegertracing/jaeger/storage/spanstore"
 	spanstoremocks "github.com/jaegertracing/jaeger/storage/spanstore/mocks"
-	jaeger "github.com/uber/jaeger-client-go"
 )
 
 const millisToNanosMultiplier = int64(time.Millisecond / time.Nanosecond)

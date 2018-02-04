@@ -15,12 +15,11 @@
 package model
 
 import (
+	"encoding/gob"
 	"fmt"
 	"io"
 	"strconv"
 	"time"
-
-	"encoding/gob"
 
 	"github.com/opentracing/opentracing-go/ext"
 )
