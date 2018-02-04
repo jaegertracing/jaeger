@@ -19,9 +19,10 @@ import (
 	"fmt"
 	"strconv"
 
+	"github.com/pkg/errors"
+
 	"github.com/jaegertracing/jaeger/model"
 	"github.com/jaegertracing/jaeger/model/json"
-	"github.com/pkg/errors"
 )
 
 // SpanToDomain converts json.Span with embedded Process into model.Span format.

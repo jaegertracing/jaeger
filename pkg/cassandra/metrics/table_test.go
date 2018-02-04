@@ -19,9 +19,10 @@ import (
 	"testing"
 	"time"
 
-	"github.com/jaegertracing/jaeger/pkg/testutils"
 	"github.com/stretchr/testify/assert"
 	"github.com/uber/jaeger-lib/metrics"
+
+	"github.com/jaegertracing/jaeger/pkg/testutils"
 )
 
 func TestTableEmit(t *testing.T) {

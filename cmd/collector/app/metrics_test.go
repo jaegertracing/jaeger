@@ -19,9 +19,9 @@ import (
 	"time"
 
 	"github.com/stretchr/testify/assert"
+	jaegerM "github.com/uber/jaeger-lib/metrics"
 
 	"github.com/jaegertracing/jaeger/model"
-	jaegerM "github.com/uber/jaeger-lib/metrics"
 )
 
 func TestProcessorMetrics(t *testing.T) {

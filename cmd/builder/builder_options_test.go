@@ -18,9 +18,8 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/assert"
-	"go.uber.org/zap"
-
 	"github.com/uber/jaeger-lib/metrics"
+	"go.uber.org/zap"
 )
 
 func TestApplyOptions(t *testing.T) {

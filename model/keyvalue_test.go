@@ -15,11 +15,10 @@
 package model_test
 
 import (
+	"encoding/json"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
-
-	"encoding/json"
 
 	"github.com/jaegertracing/jaeger/model"
 )

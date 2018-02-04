@@ -15,12 +15,11 @@
 package queue
 
 import (
+	"reflect"
 	"sync"
 	"sync/atomic"
 	"testing"
 	"time"
-
-	"reflect"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"

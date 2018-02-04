@@ -17,8 +17,9 @@ package sanitizer
 import (
 	"testing"
 
-	"github.com/jaegertracing/jaeger/model"
 	"github.com/stretchr/testify/assert"
+
+	"github.com/jaegertracing/jaeger/model"
 )
 
 var (

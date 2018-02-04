@@ -25,7 +25,6 @@ import (
 	"github.com/jaegertracing/jaeger/pkg/cassandra"
 	"github.com/jaegertracing/jaeger/pkg/cassandra/mocks"
 	"github.com/jaegertracing/jaeger/pkg/config"
-
 	"github.com/jaegertracing/jaeger/storage"
 )
 

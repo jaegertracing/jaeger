@@ -19,7 +19,6 @@ import (
 	"errors"
 
 	"go.uber.org/zap"
-
 	"github.com/opentracing/opentracing-go"
 	tags "github.com/opentracing/opentracing-go/ext"
 

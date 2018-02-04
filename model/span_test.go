@@ -15,17 +15,16 @@
 package model_test
 
 import (
+	"bytes"
 	"encoding/json"
 	"testing"
 	"time"
 
 	"github.com/opentracing/opentracing-go/ext"
 	"github.com/stretchr/testify/assert"
-
-	"bytes"
+	"github.com/stretchr/testify/require"
 
 	"github.com/jaegertracing/jaeger/model"
-	"github.com/stretchr/testify/require"
 )
 
 type TraceIDContainer struct {
