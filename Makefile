@@ -99,9 +99,9 @@ nocover:
 
 .PHONY: fmt
 fmt:
+	./scripts/import-order-cleanup.sh inplace
 	$(GOFMT) -e -s -l -w $(ALL_SRC)
 	./scripts/updateLicenses.sh
-	./scripts/import-order-cleanup.sh inplace
 
 .PHONY: lint
 lint:
