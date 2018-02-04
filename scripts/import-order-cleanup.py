@@ -14,7 +14,7 @@ def cleanup_imports_and_return(imports):
         else:
             os_packages.append(i)
 
-    l = ["import ("]
+    l = [""]
     needs_new_line = False
     if os_packages:
         l.extend(os_packages)
@@ -28,13 +28,17 @@ def cleanup_imports_and_return(imports):
         if needs_new_line:
             l.append("")
         l.extend(jaeger_packages)
+
+    imports_reordered = imports == l
+    l.insert(0, "import (")
     l.append(")")
-    return l
+    return l, imports_reordered
 
 def parse_go_file(f):
     with open(f, 'r') as go_file:
         lines = [i.rstrip() for i in go_file.readlines()]
         in_import_block = False
+        imports_reordered = False
         imports = []
         output_lines = []
         for line in lines:
@@ -42,7 +46,8 @@ def parse_go_file(f):
                 endIdx = line.find(")")
                 if endIdx != -1:
                     in_import_block = False
-                    output_lines.extend(cleanup_imports_and_return(imports))
+                    ordered_imports, imports_reordered = cleanup_imports_and_return(imports)
+                    output_lines.extend(ordered_imports)
                     imports = []
                     continue
                 imports.append(line)
@@ -53,7 +58,7 @@ def parse_go_file(f):
                     continue
                 output_lines.append(line)
         output_lines.append("")
-        return "\n".join(output_lines)
+        return "\n".join(output_lines), imports_reordered
 
 
 def main():
@@ -74,9 +79,9 @@ def main():
     go_files = args.target
 
     for f in go_files:
-        parsed = parse_go_file(f)
-        if output == "stdout":
-            print parsed
+        parsed, imports_reordered = parse_go_file(f)
+        if output == "stdout" and imports_reordered:
+            print f + " imports reordered"
         else:
             with open(f, 'w') as ofile:
                 ofile.write(parsed)
