@@ -29,7 +29,7 @@ def cleanup_imports_and_return(imports):
             l.append("")
         l.extend(jaeger_packages)
 
-    imports_reordered = imports == l
+    imports_reordered = imports != l
     l.insert(0, "import (")
     l.append(")")
     return l, imports_reordered
