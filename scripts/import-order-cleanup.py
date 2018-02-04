@@ -14,7 +14,7 @@ def cleanup_imports_and_return(imports):
         else:
             os_packages.append(i)
 
-    l = [""]
+    l = []
     needs_new_line = False
     if os_packages:
         l.extend(os_packages)
