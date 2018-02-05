@@ -56,8 +56,5 @@ func applyOptions(opts ...Option) Options {
 	if o.tagFilter == nil {
 		o.tagFilter = dbmodel.DefaultTagFilter
 	}
-	if o.storageMode == 0 {
-		o.storageMode = indexAndStore
-	}
 	return o
 }

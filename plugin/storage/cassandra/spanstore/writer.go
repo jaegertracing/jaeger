@@ -63,10 +63,12 @@ const (
 	defaultNumBuckets = 10
 
 	durationBucketSize = time.Hour
+)
 
-	indexOnly     = storageMode(1)
-	storeOnly     = storageMode(2)
-	indexAndStore = storageMode(3)
+const (
+	indexAndStore = storageMode(iota)
+	indexOnly     = storageMode(iota)
+	storeOnly     = storageMode(iota)
 )
 
 type storageMode uint8
@@ -132,12 +134,19 @@ func (s *SpanWriter) Close() error {
 // WriteSpan saves the span into Cassandra
 func (s *SpanWriter) WriteSpan(span *model.Span) error {
 	ds := dbmodel.FromDomain(span)
-	if s.storageMode&storeOnly == storeOnly {
+	switch s.storageMode {
+	case storeOnly:
 		if err := s.writeSpan(span, ds); err != nil {
 			return err
 		}
-	}
-	if s.storageMode&indexOnly == indexOnly {
+	case indexOnly:
+		if err := s.writeIndexes(span, ds); err != nil {
+			return err
+		}
+	default:
+		if err := s.writeSpan(span, ds); err != nil {
+			return err
+		}
 		if err := s.writeIndexes(span, ds); err != nil {
 			return err
 		}
