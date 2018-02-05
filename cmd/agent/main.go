@@ -17,7 +17,6 @@ package main
 import (
 	"fmt"
 	"os"
-	"runtime"
 
 	"github.com/pkg/errors"
 	"github.com/spf13/cobra"
@@ -51,7 +50,6 @@ func main() {
 
 			builder := &app.Builder{}
 			builder.InitFromViper(v)
-			runtime.GOMAXPROCS(runtime.NumCPU())
 
 			// TODO illustrate discovery service wiring
 			// TODO illustrate additional reporter
