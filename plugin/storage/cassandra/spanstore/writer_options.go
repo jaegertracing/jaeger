@@ -23,13 +23,28 @@ type Option func(c *Options)
 
 // Options control behavior of the writer.
 type Options struct {
-	tagFilter dbmodel.TagFilter
+	tagFilter   dbmodel.TagFilter
+	storageMode storageMode
 }
 
 // TagFilter can be provided to filter any tags that should not be indexed.
 func TagFilter(tagFilter dbmodel.TagFilter) Option {
 	return func(o *Options) {
 		o.tagFilter = tagFilter
+	}
+}
+
+// StoreIndexesOnly can be provided to skip storing spans, and only store span indexes.
+func StoreIndexesOnly() Option {
+	return func(o *Options) {
+		o.storageMode = indexOnly
+	}
+}
+
+// StoreWithoutIndexing can be provided to store spans without indexing them.
+func StoreWithoutIndexing() Option {
+	return func(o *Options) {
+		o.storageMode = storeOnly
 	}
 }
 
@@ -40,6 +55,9 @@ func applyOptions(opts ...Option) Options {
 	}
 	if o.tagFilter == nil {
 		o.tagFilter = dbmodel.DefaultTagFilter
+	}
+	if o.storageMode == 0 {
+		o.storageMode = indexAndStore
 	}
 	return o
 }

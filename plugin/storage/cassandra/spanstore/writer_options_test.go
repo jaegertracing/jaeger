@@ -22,7 +22,36 @@ import (
 	"github.com/jaegertracing/jaeger/plugin/storage/cassandra/spanstore/dbmodel"
 )
 
-func TestWriterOpetions(t *testing.T) {
+func TestWriterOptions(t *testing.T) {
 	opts := applyOptions(TagFilter(dbmodel.DefaultTagFilter))
 	assert.Equal(t, dbmodel.DefaultTagFilter, opts.tagFilter)
+}
+
+func TestWriterOptions_StorageMode(t *testing.T) {
+	tests := []struct {
+		name     string
+		expected storageMode
+		opts     Options
+	}{
+		{
+			name:     "Default",
+			expected: indexAndStore,
+			opts:     applyOptions(),
+		},
+		{
+			name:     "Index Only",
+			expected: indexOnly,
+			opts:     applyOptions(StoreIndexesOnly()),
+		},
+		{
+			name:     "Store Only",
+			expected: storeOnly,
+			opts:     applyOptions(StoreWithoutIndexing()),
+		},
+	}
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			assert.Equal(t, tt.expected, tt.opts.storageMode)
+		})
+	}
 }
