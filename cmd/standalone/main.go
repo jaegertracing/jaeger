@@ -21,7 +21,6 @@ import (
 	"net/http"
 	"os"
 	"os/signal"
-	"runtime"
 	"strconv"
 	"syscall"
 
@@ -83,8 +82,6 @@ func main() {
 			if err != nil {
 				return err
 			}
-
-			runtime.GOMAXPROCS(runtime.NumCPU())
 
 			mBldr := new(pMetrics.Builder).InitFromViper(v)
 			metricsFactory, err := mBldr.CreateMetricsFactory("jaeger-standalone")
