@@ -35,17 +35,17 @@ func TestWriterOptions_StorageMode(t *testing.T) {
 	}{
 		{
 			name:     "Default",
-			expected: indexAndStore,
+			expected: indexFlag | storeFlag,
 			opts:     applyOptions(),
 		},
 		{
 			name:     "Index Only",
-			expected: indexOnly,
+			expected: indexFlag,
 			opts:     applyOptions(StoreIndexesOnly()),
 		},
 		{
 			name:     "Store Only",
-			expected: storeOnly,
+			expected: storeFlag,
 			opts:     applyOptions(StoreWithoutIndexing()),
 		},
 	}

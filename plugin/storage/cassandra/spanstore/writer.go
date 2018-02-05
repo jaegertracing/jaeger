@@ -66,9 +66,8 @@ const (
 )
 
 const (
-	indexAndStore = storageMode(iota)
-	indexOnly
-	storeOnly
+	storeFlag = storageMode(1 << iota)
+	indexFlag
 )
 
 type storageMode uint8
@@ -134,19 +133,12 @@ func (s *SpanWriter) Close() error {
 // WriteSpan saves the span into Cassandra
 func (s *SpanWriter) WriteSpan(span *model.Span) error {
 	ds := dbmodel.FromDomain(span)
-	switch s.storageMode {
-	case storeOnly:
+	if s.storageMode&storeFlag == storeFlag {
 		if err := s.writeSpan(span, ds); err != nil {
 			return err
 		}
-	case indexOnly:
-		if err := s.writeIndexes(span, ds); err != nil {
-			return err
-		}
-	default:
-		if err := s.writeSpan(span, ds); err != nil {
-			return err
-		}
+	}
+	if s.storageMode&indexFlag == indexFlag {
 		if err := s.writeIndexes(span, ds); err != nil {
 			return err
 		}

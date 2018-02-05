@@ -37,14 +37,14 @@ func TagFilter(tagFilter dbmodel.TagFilter) Option {
 // StoreIndexesOnly can be provided to skip storing spans, and only store span indexes.
 func StoreIndexesOnly() Option {
 	return func(o *Options) {
-		o.storageMode = indexOnly
+		o.storageMode = indexFlag
 	}
 }
 
 // StoreWithoutIndexing can be provided to store spans without indexing them.
 func StoreWithoutIndexing() Option {
 	return func(o *Options) {
-		o.storageMode = storeOnly
+		o.storageMode = storeFlag
 	}
 }
 
@@ -55,6 +55,9 @@ func applyOptions(opts ...Option) Options {
 	}
 	if o.tagFilter == nil {
 		o.tagFilter = dbmodel.DefaultTagFilter
+	}
+	if o.storageMode == 0 {
+		o.storageMode = storeFlag | indexFlag
 	}
 	return o
 }
