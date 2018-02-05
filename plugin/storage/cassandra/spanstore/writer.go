@@ -67,8 +67,8 @@ const (
 
 const (
 	indexAndStore = storageMode(iota)
-	indexOnly     = storageMode(iota)
-	storeOnly     = storageMode(iota)
+	indexOnly
+	storeOnly
 )
 
 type storageMode uint8
