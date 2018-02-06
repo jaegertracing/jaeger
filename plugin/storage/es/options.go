@@ -27,6 +27,7 @@ import (
 const (
 	suffixUsername          = ".username"
 	suffixPassword          = ".password"
+	suffixDisableBasicAuth  = ".disable-basic-auth"
 	suffixSniffer           = ".sniffer"
 	suffixServerURLs        = ".server-urls"
 	suffixMaxSpanAge        = ".max-span-age"
@@ -66,6 +67,7 @@ func NewOptions(primaryNamespace string, otherNamespaces ...string) *Options {
 			Configuration: config.Configuration{
 				Username:          "",
 				Password:          "",
+				DisableBasicAuth:  false,
 				Sniffer:           false,
 				MaxSpanAge:        72 * time.Hour,
 				NumShards:         5,
@@ -105,6 +107,10 @@ func addFlags(flagSet *flag.FlagSet, nsConfig *namespaceConfig) {
 		nsConfig.namespace+suffixPassword,
 		nsConfig.Password,
 		"The password required by ElasticSearch")
+	flagSet.Bool(
+		nsConfig.namespace+suffixDisableBasicAuth,
+		nsConfig.DisableBasicAuth,
+		"Don't use basic auth to connect to ES. username and password will be ignored")
 	flagSet.Bool(
 		nsConfig.namespace+suffixSniffer,
 		nsConfig.Sniffer,
@@ -154,6 +160,7 @@ func (opt *Options) InitFromViper(v *viper.Viper) {
 func initFromViper(cfg *namespaceConfig, v *viper.Viper) {
 	cfg.Username = v.GetString(cfg.namespace + suffixUsername)
 	cfg.Password = v.GetString(cfg.namespace + suffixPassword)
+	cfg.DisableBasicAuth = v.GetBool(cfg.namespace + suffixDisableBasicAuth)
 	cfg.Sniffer = v.GetBool(cfg.namespace + suffixSniffer)
 	cfg.servers = v.GetString(cfg.namespace + suffixServerURLs)
 	cfg.MaxSpanAge = v.GetDuration(cfg.namespace + suffixMaxSpanAge)

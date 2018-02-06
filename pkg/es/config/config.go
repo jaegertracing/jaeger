@@ -31,6 +31,7 @@ type Configuration struct {
 	Servers           []string
 	Username          string
 	Password          string
+	DisableBasicAuth  bool
 	Sniffer           bool          // https://github.com/olivere/elastic/wiki/Sniffing
 	MaxSpanAge        time.Duration `yaml:"max_span_age"` // configures the maximum lookback on span reads
 	NumShards         int64         `yaml:"shards"`
@@ -134,9 +135,11 @@ func (c *Configuration) GetMaxSpanAge() time.Duration {
 
 // GetConfigs wraps the configs to feed to the ElasticSearch client init
 func (c *Configuration) GetConfigs() []elastic.ClientOptionFunc {
-	options := make([]elastic.ClientOptionFunc, 3)
-	options[0] = elastic.SetURL(c.Servers...)
-	options[1] = elastic.SetBasicAuth(c.Username, c.Password)
-	options[2] = elastic.SetSniff(c.Sniffer)
+	options := make([]elastic.ClientOptionFunc, 0, 3)
+	options = append(options, elastic.SetURL(c.Servers...))
+	options = append(options, elastic.SetSniff(c.Sniffer))
+	if !c.DisableBasicAuth {
+		options = append(options, elastic.SetBasicAuth(c.Username, c.Password))
+	}
 	return options
 }
