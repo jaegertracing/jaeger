@@ -38,7 +38,8 @@ type spanWriterTest struct {
 	writer    *SpanWriter
 }
 
-func withSpanWriter(writeCacheTTL time.Duration, fn func(w *spanWriterTest)) {
+func withSpanWriter(writeCacheTTL time.Duration, fn func(w *spanWriterTest), options ...Option,
+) {
 	session := &mocks.Session{}
 	logger, logBuffer := testutils.NewLogger()
 	metricsFactory := metrics.NewLocalFactory(0)
@@ -46,7 +47,7 @@ func withSpanWriter(writeCacheTTL time.Duration, fn func(w *spanWriterTest)) {
 		session:   session,
 		logger:    logger,
 		logBuffer: logBuffer,
-		writer:    NewSpanWriter(session, writeCacheTTL, metricsFactory, logger),
+		writer:    NewSpanWriter(session, writeCacheTTL, metricsFactory, logger, options...),
 	}
 	fn(w)
 }
@@ -272,4 +273,70 @@ func TestSpanWriterSkippingTags(t *testing.T) {
 			assert.Equal(t, testCase.insert, ok)
 		})
 	}
+}
+
+func TestStorageMode_IndexOnly(t *testing.T) {
+	withSpanWriter(0, func(w *spanWriterTest) {
+
+		w.writer.serviceNamesWriter = func(serviceName string) error { return nil }
+		w.writer.operationNamesWriter = func(serviceName, operationName string) error { return nil }
+		span := &model.Span{
+			TraceID: model.TraceID{Low: 1},
+			Process: &model.Process{
+				ServiceName: "service-a",
+			},
+		}
+
+		serviceNameQuery := &mocks.Query{}
+		serviceNameQuery.On("Bind", matchEverything()).Return(serviceNameQuery)
+		serviceNameQuery.On("Exec").Return(nil)
+
+		serviceOperationNameQuery := &mocks.Query{}
+		serviceOperationNameQuery.On("Bind", matchEverything()).Return(serviceOperationNameQuery)
+		serviceOperationNameQuery.On("Exec").Return(nil)
+
+		durationNoOperationQuery := &mocks.Query{}
+		durationNoOperationQuery.On("Bind", matchEverything()).Return(durationNoOperationQuery)
+		durationNoOperationQuery.On("Exec").Return(nil)
+
+		w.session.On("Query", stringMatcher(serviceNameIndex), matchEverything()).Return(serviceNameQuery)
+		w.session.On("Query", stringMatcher(serviceOperationIndex), matchEverything()).Return(serviceOperationNameQuery)
+		w.session.On("Query", stringMatcher(durationIndex), matchOnce()).Return(durationNoOperationQuery)
+
+		err := w.writer.WriteSpan(span)
+
+		assert.NoError(t, err)
+		serviceNameQuery.AssertExpectations(t)
+		serviceOperationNameQuery.AssertExpectations(t)
+		durationNoOperationQuery.AssertExpectations(t)
+		w.session.AssertExpectations(t)
+		w.session.AssertNotCalled(t, "Query", stringMatcher(insertSpan))
+	}, StoreIndexesOnly())
+}
+
+func TestStorageMode_StoreWithoutIndexing(t *testing.T) {
+	withSpanWriter(0, func(w *spanWriterTest) {
+
+		w.writer.serviceNamesWriter =
+			func(serviceName string) error {
+				assert.Fail(t, "Non indexing store shouldn't index")
+				return nil
+			}
+		span := &model.Span{
+			TraceID: model.TraceID{Low: 1},
+			Process: &model.Process{
+				ServiceName: "service-a",
+			},
+		}
+		spanQuery := &mocks.Query{}
+		spanQuery.On("Exec").Return(nil)
+		w.session.On("Query", stringMatcher(insertSpan), matchEverything()).Return(spanQuery)
+
+		err := w.writer.WriteSpan(span)
+
+		assert.NoError(t, err)
+		spanQuery.AssertExpectations(t)
+		w.session.AssertExpectations(t)
+		w.session.AssertNotCalled(t, "Query", stringMatcher(serviceNameIndex))
+	}, StoreWithoutIndexing())
 }
