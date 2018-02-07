@@ -1,6 +1,39 @@
 Changes by Version
 ==================
 
+1.2.0 (2018-02-07)
+------------------
+
+#### Backend Changes
+
+##### New Features
+
+- Use elasticsearch bulk API (#656) <Pavol Loffay>
+- Support archive storage in the query-service (#604) <Yuri Shkuro>
+- Introduce storage factory framework and composable CLI (#625) <Yuri Shkuro>
+- Make agent host port configurable in hotrod (#663) <Pavol Loffay>
+- Add signal handling to standalone (#657) <Pavol Loffay>
+
+##### Fixes
+
+- Remove the override of GOMAXPROCS (#679) <Cruth kvinc>
+- Use UTC timezone for ES indices (#646) <Pavol Loffay>
+- Fix elasticsearch create index race condition error (#641) <Pavol Loffay>
+
+#### UI Changes
+
+##### New Features
+
+- Use Ant Design instead of Semantic UI (https://github.com/jaegertracing/jaeger-ui/pull/169)
+  - Fix [#164](https://github.com/jaegertracing/jaeger-ui/issues/164) - Use Ant Design instead of Semantic UI
+  - Fix [#165](https://github.com/jaegertracing/jaeger-ui/issues/165) - Search results are shown without a date
+  - Fix [#69](https://github.com/jaegertracing/jaeger-ui/issues/69) - Missing endpoints in jaeger ui dropdown
+
+##### Fixes
+
+- Fix 2 digit lookback (12h, 24h) parsing (https://github.com/jaegertracing/jaeger-ui/issues/167)
+
+
 1.1.0 (2018-01-03)
 ------------------
 
