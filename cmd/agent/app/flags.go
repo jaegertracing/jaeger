@@ -33,8 +33,8 @@ const (
 )
 
 var defaultProcessors = []struct {
-	model    model
-	protocol protocol
+	model    Model
+	protocol Protocol
 	hostPort string
 }{
 	{model: "zipkin", protocol: "compact", hostPort: ":5775"},
