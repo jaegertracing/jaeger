@@ -62,7 +62,7 @@ func (f *Factory) InitFromViper(v *viper.Viper) {
 func (f *Factory) Initialize(metricsFactory metrics.Factory, logger *zap.Logger) error {
 	f.metricsFactory, f.logger = metricsFactory, logger
 
-	primaryClient, err := f.primaryConfig.NewClient(logger)
+	primaryClient, err := f.primaryConfig.NewClient(logger, metricsFactory)
 	if err != nil {
 		return err
 	}

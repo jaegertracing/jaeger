@@ -17,13 +17,16 @@ package config
 import (
 	"bytes"
 	"context"
+	"sync"
 	"time"
 
 	"github.com/pkg/errors"
+	"github.com/uber/jaeger-lib/metrics"
 	"go.uber.org/zap"
 	"gopkg.in/olivere/elastic.v5"
 
 	"github.com/jaegertracing/jaeger/pkg/es"
+	storageMetrics "github.com/jaegertracing/jaeger/storage/spanstore/metrics"
 )
 
 // Configuration describes the configuration properties needed to connect to an ElasticSearch cluster
@@ -43,14 +46,14 @@ type Configuration struct {
 
 // ClientBuilder creates new es.Client
 type ClientBuilder interface {
-	NewClient(logger *zap.Logger) (es.Client, error)
+	NewClient(logger *zap.Logger, metricsFactory metrics.Factory) (es.Client, error)
 	GetNumShards() int64
 	GetNumReplicas() int64
 	GetMaxSpanAge() time.Duration
 }
 
 // NewClient creates a new ElasticSearch client
-func (c *Configuration) NewClient(logger *zap.Logger) (es.Client, error) {
+func (c *Configuration) NewClient(logger *zap.Logger, metricsFactory metrics.Factory) (es.Client, error) {
 	if len(c.Servers) < 1 {
 		return nil, errors.New("No servers specified")
 	}
@@ -58,8 +61,24 @@ func (c *Configuration) NewClient(logger *zap.Logger) (es.Client, error) {
 	if err != nil {
 		return nil, err
 	}
+
+	sm := storageMetrics.NewWriteMetrics(metricsFactory, "BulkIndex")
+	m := sync.Map{}
+
 	service, err := rawClient.BulkProcessor().
+		Before(func(id int64, requests []elastic.BulkableRequest) {
+			m.Store(id, time.Now())
+		}).
 		After(func(id int64, requests []elastic.BulkableRequest, response *elastic.BulkResponse, err error) {
+			start, ok := m.Load(id)
+			if !ok {
+				return
+			}
+			m.Delete(id)
+
+			duration := time.Since(start.(time.Time))
+			sm.Emit(err, duration)
+
 			if err != nil {
 				var buffer bytes.Buffer
 				for i, r := range requests {
