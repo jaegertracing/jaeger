@@ -28,8 +28,8 @@ import (
 
 func TestProcessEqual(t *testing.T) {
 	p1 := model.NewProcess("s1", []model.KeyValue{
-		model.String("x", "y"),
 		model.Int64("a", 1),
+		model.String("x", "y"),
 	})
 	p2 := model.NewProcess("s1", []model.KeyValue{
 		model.Int64("a", 1),
