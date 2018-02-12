@@ -43,20 +43,23 @@ const (
 
 	defaultHTTPServerHostPort = ":5778"
 
-	jaegerModel model = "jaeger"
+	jaegerModel Model = "jaeger"
 	zipkinModel       = "zipkin"
 
-	compactProtocol protocol = "compact"
+	compactProtocol Protocol = "compact"
 	binaryProtocol           = "binary"
 )
 
-type model string
-type protocol string
+// Model used to distinguish the data transfer model
+type Model string
+
+// Protocol used to distinguish the data transfer protocol
+type Protocol string
 
 var (
 	errNoReporters = errors.New("agent requires at least one Reporter")
 
-	protocolFactoryMap = map[protocol]thrift.TProtocolFactory{
+	protocolFactoryMap = map[Protocol]thrift.TProtocolFactory{
 		compactProtocol: thrift.NewTCompactProtocolFactory(),
 		binaryProtocol:  thrift.NewTBinaryProtocolFactoryDefault(),
 	}
@@ -77,8 +80,8 @@ type Builder struct {
 // ProcessorConfiguration holds config for a processor that receives spans from Server
 type ProcessorConfiguration struct {
 	Workers  int                 `yaml:"workers"`
-	Model    model               `yaml:"model"`
-	Protocol protocol            `yaml:"protocol"`
+	Model    Model               `yaml:"model"`
+	Protocol Protocol            `yaml:"protocol"`
 	Server   ServerConfiguration `yaml:"server"`
 }
 
