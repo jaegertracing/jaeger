@@ -44,3 +44,29 @@ Then open http://127.0.0.1:8080
 
 [hotrod-tutorial]: https://medium.com/@YuriShkuro/take-opentracing-for-a-hotrod-ride-f6e3141f7941
 [hotrod-openshift]: https://blog.openshift.com/openshift-commons-briefing-82-distributed-tracing-with-jaeger-prometheus-on-kubernetes/
+
+
+
+# HotROD on Containerized Version
+## Requirements
+- go
+- docker-compose
+- docker
+### Creating the images
+
+```
+chmod +x ./create-image.sh
+./create-image.sh
+```
+
+### Run Everyting
+```
+docker run -p 8080:8080 -p 8082:8082 -p 8083:8083 jaegertracing/hotrod
+docker run -d -p6831:6831/udp -p16686:16686 jaegertracing/all-in-one:latest
+```
+
+Then open http://127.0.0.1:8080
+
+
+[hotrod-tutorial]: https://medium.com/@YuriShkuro/take-opentracing-for-a-hotrod-ride-f6e3141f7941
+[hotrod-openshift]: https://blog.openshift.com/openshift-commons-briefing-82-distributed-tracing-with-jaeger-prometheus-on-kubernetes
