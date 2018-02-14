@@ -1,5 +1,5 @@
-hash: c152996d24dff5978cbfe5aa65739995f12f824e62510b5b66372c7d2e7e6f18
-updated: 2017-11-27T15:48:19.270604282-05:00
+hash: 6eb0ba4c02a59e80cfba79914f6088b0f726926073cd6559c087e2d54c17240e
+updated: 2017-12-28T11:40:03.937925566-05:00
 imports:
 - name: github.com/apache/thrift
   version: 53dd39833a08ce33582e5ff31fa18bb4735d6731
@@ -25,12 +25,17 @@ imports:
 - name: github.com/fsnotify/fsnotify
   version: 30411dbcefb7a1da7e84f75530ad3abe4011b4f8
 - name: github.com/go-kit/kit
-  version: a9ca6725cbbea455e61c6bc8a1ed28e81eb3493b
+  version: 4dc7be5d2d12881735283bcab7352178e190fc71
   subpackages:
+  - endpoint
+  - log
   - metrics
   - metrics/expvar
   - metrics/generic
   - metrics/internal/lv
+  - sd
+- name: github.com/go-logfmt/logfmt
+  version: 390ab7935ee28ec6b286364bba9b4dd6410cb3d5
 - name: github.com/go-openapi/analysis
   version: 8ed83f2ea9f00f945516462951a288eaa68bf0d6
 - name: github.com/go-openapi/errors
@@ -57,6 +62,8 @@ imports:
   version: f3f9494671f93fcff853e3c6e9e948b3eb71e590
 - name: github.com/go-openapi/validate
   version: a762d5dd38f7c7e9e1a13c3e98344cfbe4aa15d9
+- name: github.com/go-stack/stack
+  version: 259ab82a6cad3992b4e21ff5cac294ccb06474bc
 - name: github.com/gocql/gocql
   version: 4d2d1ac71932f7c4a6c7feb0d654462e4116c58b
   subpackages:
@@ -90,6 +97,8 @@ imports:
   - json/token
 - name: github.com/inconshreveable/mousetrap
   version: 76626ae9c91c4f2a10f34cad8ce83ea42c93bb75
+- name: github.com/kr/logfmt
+  version: b84e30acd515aadc4b783ad4ff83aff3299bdfe0
 - name: github.com/kr/pretty
   version: cfb55aafdaf3ec08f0db22699ab822c50091b1c4
 - name: github.com/magiconair/properties
@@ -228,7 +237,7 @@ imports:
   - zapcore
   - zaptest
 - name: golang.org/x/net
-  version: a337091b0525af65de94df2eb7e98bd9962dcbe2
+  version: d866cfc389cec985d6fda2859936a575a55a3ab6
   subpackages:
   - context
   - context/ctxhttp
