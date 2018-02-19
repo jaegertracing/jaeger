@@ -52,6 +52,6 @@ var (
 func init() {
 	RootCmd.AddCommand(routeCmd)
 
-	routeCmd.Flags().StringVarP(&routeOptions.serverInterface, "bind", "", "127.0.0.1", "interface to which the Route server will bind")
+	routeCmd.Flags().StringVarP(&routeOptions.serverInterface, "bind", "", "0.0.0.0", "interface to which the Route server will bind")
 	routeCmd.Flags().IntVarP(&routeOptions.serverPort, "port", "p", 8083, "port on which the Route server will listen")
 }

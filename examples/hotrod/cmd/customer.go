@@ -54,6 +54,6 @@ var (
 func init() {
 	RootCmd.AddCommand(customerCmd)
 
-	customerCmd.Flags().StringVarP(&customerOptions.serverInterface, "bind", "", "127.0.0.1", "interface to which the Customer server will bind")
+	customerCmd.Flags().StringVarP(&customerOptions.serverInterface, "bind", "", "0.0.0.0", "interface to which the Customer server will bind")
 	customerCmd.Flags().IntVarP(&customerOptions.serverPort, "port", "p", 8081, "port on which the Customer server will listen")
 }
