@@ -205,40 +205,66 @@ func (s *SpanReader) FindTraces(traceQuery *spanstore.TraceQueryParameters) ([]*
 }
 
 func (s *SpanReader) multiRead(traceIDs []string, startTime, endTime time.Time) ([]*model.Trace, error) {
+
 	if len(traceIDs) == 0 {
 		return []*model.Trace{}, nil
 	}
 	searchRequests := make([]*elastic.SearchRequest, len(traceIDs))
-
-	for i, traceID := range traceIDs {
-		query := elastic.NewTermQuery("traceID", traceID)
-		searchRequests[i] = elastic.NewSearchRequest().IgnoreUnavailable(true).Type("span").
-			Source(elastic.NewSearchSource().Query(query).Size(defaultDocCount))
-	}
-
+	var traces []*model.Trace
 	// Add an hour in both directions so that traces that straddle two indexes are retrieved.
-	// ie starts in one and ends in another.
+	// i.e starts in one and ends in another.
 	indices := findIndices(spanIndexPrefix, startTime.Add(-time.Hour), endTime.Add(time.Hour))
 
-	results, err := s.client.MultiSearch().
-		Add(searchRequests...).
-		Index(indices...).
-		Do(s.ctx)
-	if err != nil {
-		return nil, err
-	}
+	var nextTime uint64
 
-	var traces []*model.Trace
-	for _, result := range results.Responses {
-		if result.Hits == nil || len(result.Hits.Hits) == 0 {
-			continue
+	searchAfterTime := make(map[string]uint64)
+	totalDocumentsFetched := make(map[string]int)
+	for {
+		if traceIDs == nil || len(traceIDs) == 0 {
+			break
 		}
-		spans, err := s.collectSpans(result.Hits.Hits)
+
+		for i, traceID := range traceIDs {
+			query := elastic.NewTermQuery("traceID", traceID)
+			if val, ok := searchAfterTime[traceID]; ok {
+				nextTime = val
+			}
+			searchRequests[i] = elastic.NewSearchRequest().IgnoreUnavailable(true).Type("span").Source(elastic.NewSearchSource().Query(query).Size(defaultDocCount).Sort("startTime", true).SearchAfter(nextTime))
+		}
+
+		// set traceIDs to empty
+		traceIDs = nil
+		results, err := s.client.MultiSearch().Add(searchRequests...).Index(indices...).Do(s.ctx)
+
 		if err != nil {
 			return nil, err
 		}
-		traces = append(traces, &model.Trace{Spans: spans})
+
+		if results.Responses == nil || len(results.Responses) == 0 {
+			break
+		}
+
+		for _, result := range results.Responses {
+			if result.Hits == nil || len(result.Hits.Hits) == 0 {
+				continue
+			}
+			spans, err := s.collectSpans(result.Hits.Hits)
+
+			if err != nil {
+				return nil, err
+			}
+
+			traces = append(traces, &model.Trace{Spans: spans})
+			lastSpan := spans[len(spans)-1]
+			lastSpanTraceID := string(lastSpan.TraceID.Low)
+			totalDocumentsFetched[lastSpanTraceID] = totalDocumentsFetched[lastSpanTraceID] + len(result.Hits.Hits)
+			if totalDocumentsFetched[lastSpanTraceID] < int(result.TotalHits()) {
+				traceIDs = append(traceIDs, lastSpanTraceID)
+				searchAfterTime[lastSpanTraceID] = model.TimeAsEpochMicroseconds(lastSpan.StartTime)
+			}
+		}
 	}
+
 	return traces, nil
 }
 

@@ -130,6 +130,36 @@ func TestSpanReader_GetTrace(t *testing.T) {
 	})
 }
 
+func TestSpanReader_SearchAfter(t *testing.T) {
+	withSpanReader(func(r *spanReaderTest) {
+		var hits []*elastic.SearchHit
+
+		for i := 0; i < 10000; i++ {
+			hit := &elastic.SearchHit{Source: (*json.RawMessage)(&exampleESSpan)}
+			hits = append(hits, hit)
+		}
+
+		searchHits := &elastic.SearchHits{Hits: hits, TotalHits: int64(10040)}
+
+		mockSearchService(r).Return(&elastic.SearchResult{Hits: searchHits}, nil)
+		mockMultiSearchService(r).
+			Return(&elastic.MultiSearchResult{
+				Responses: []*elastic.SearchResult{
+					{Hits: searchHits},
+				},
+			}, nil).Times(2)
+
+		trace, err := r.reader.GetTrace(model.TraceID{Low: 1})
+		require.NoError(t, err)
+		require.NotNil(t, trace)
+
+		expectedSpans, err := r.reader.collectSpans(hits)
+		require.NoError(t, err)
+
+		assert.EqualValues(t, trace.Spans[0], expectedSpans[0])
+	})
+}
+
 func TestSpanReader_GetTraceQueryError(t *testing.T) {
 	withSpanReader(func(r *spanReaderTest) {
 		mockSearchService(r).
