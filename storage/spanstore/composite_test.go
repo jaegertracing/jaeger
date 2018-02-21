@@ -40,16 +40,16 @@ func (n *noopWriteSpanStore) WriteSpan(span *model.Span) error {
 }
 
 func TestCompositeWriteSpanStoreSuccess(t *testing.T) {
-	c := NewMultiplexWriter(&noopWriteSpanStore{}, &noopWriteSpanStore{})
+	c := NewCompositeWriter(&noopWriteSpanStore{}, &noopWriteSpanStore{})
 	assert.NoError(t, c.WriteSpan(nil))
 }
 
 func TestCompositeWriteSpanStoreSecondFailure(t *testing.T) {
-	c := NewMultiplexWriter(&errProneWriteSpanStore{}, &errProneWriteSpanStore{})
+	c := NewCompositeWriter(&errProneWriteSpanStore{}, &errProneWriteSpanStore{})
 	assert.EqualError(t, c.WriteSpan(nil), fmt.Sprintf("[%s, %s]", errIWillAlwaysFail, errIWillAlwaysFail))
 }
 
 func TestCompositeWriteSpanStoreFirstFailure(t *testing.T) {
-	c := NewMultiplexWriter(&errProneWriteSpanStore{}, &noopWriteSpanStore{})
+	c := NewCompositeWriter(&errProneWriteSpanStore{}, &noopWriteSpanStore{})
 	assert.Equal(t, errIWillAlwaysFail, c.WriteSpan(nil))
 }
