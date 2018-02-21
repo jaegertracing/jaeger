@@ -53,6 +53,7 @@ func TestOptionsWithFlags(t *testing.T) {
 		"--cas.max-retry-attempts=42",
 		"--cas.timeout=42s",
 		"--cas.port=4242",
+		"--cas.consistency=ONE",
 		"--cas.proto-version=3",
 		"--cas.socket-keep-alive=42s",
 		// enable aux with a couple overrides
@@ -65,6 +66,7 @@ func TestOptionsWithFlags(t *testing.T) {
 	primary := opts.GetPrimary()
 	assert.Equal(t, "jaeger", primary.Keyspace)
 	assert.Equal(t, []string{"1.1.1.1", "2.2.2.2"}, primary.Servers)
+	assert.Equal(t, "ONE", primary.Consistency)
 
 	aux := opts.Get("cas-aux")
 	require.NotNil(t, aux)
@@ -74,6 +76,7 @@ func TestOptionsWithFlags(t *testing.T) {
 	assert.Equal(t, 42, aux.MaxRetryAttempts)
 	assert.Equal(t, 42*time.Second, aux.Timeout)
 	assert.Equal(t, 4242, aux.Port)
+	assert.Equal(t, "", aux.Consistency, "aux storage does not inherit consistency from primary")
 	assert.Equal(t, 3, aux.ProtoVersion)
 	assert.Equal(t, 42*time.Second, aux.SocketKeepAlive)
 }

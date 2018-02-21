@@ -19,20 +19,20 @@ import (
 	"github.com/jaegertracing/jaeger/pkg/multierror"
 )
 
-// MultiplexWriter is a span Writer that tries to save spans into several underlying span Writers
-type MultiplexWriter struct {
+// CompositeWriter is a span Writer that tries to save spans into several underlying span Writers
+type CompositeWriter struct {
 	spanWriters []Writer
 }
 
-// NewMultiplexWriter creates a MultiplexWriter
-func NewMultiplexWriter(spanWriters ...Writer) *MultiplexWriter {
-	return &MultiplexWriter{
+// NewCompositeWriter creates a CompositeWriter
+func NewCompositeWriter(spanWriters ...Writer) *CompositeWriter {
+	return &CompositeWriter{
 		spanWriters: spanWriters,
 	}
 }
 
 // WriteSpan calls WriteSpan on each span writer. It will sum up failures, it is not transactional
-func (c *MultiplexWriter) WriteSpan(span *model.Span) error {
+func (c *CompositeWriter) WriteSpan(span *model.Span) error {
 	var errors []error
 	for _, writer := range c.spanWriters {
 		if err := writer.WriteSpan(span); err != nil {
