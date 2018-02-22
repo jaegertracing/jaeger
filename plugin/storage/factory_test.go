@@ -56,7 +56,7 @@ func TestNewFactory(t *testing.T) {
 	require.NoError(t, err)
 	assert.NotEmpty(t, f.factories)
 	assert.NotEmpty(t, f.factories[elasticsearchStorageType])
-	assert.NotEmpty(t, f.factories[memoryStorageType])
+	assert.NotNil(t, f.factories[memoryStorageType])
 	assert.Equal(t, elasticsearchStorageType, f.SpanStorageType)
 	assert.Equal(t, memoryStorageType, f.DependenciesStorageType)
 
