@@ -66,6 +66,7 @@ func New(
 	}
 	mgr.updatePeers(instances)
 
+	mgr.exitWG.Add(2)
 	go mgr.processDiscoveryNotifications()
 	go mgr.maintainConnections()
 
@@ -76,7 +77,6 @@ func New(
 // Stop shuts down the manager. It blocks until both bg go-routines exit.
 func (m *PeerListManager) Stop() {
 	m.notifier.Unregister(m.discoCh)
-	m.exitWG.Add(2)
 	close(m.discoCh)
 	close(m.stopCh)
 	m.exitWG.Wait()
