@@ -20,6 +20,7 @@ import (
 
 	"github.com/opentracing/opentracing-go"
 	"go.uber.org/zap"
+	"github.com/elazarl/go-bindata-assetfs"
 
 	"github.com/jaegertracing/jaeger/examples/hotrod/pkg/httperr"
 	"github.com/jaegertracing/jaeger/examples/hotrod/pkg/log"
@@ -32,6 +33,7 @@ type Server struct {
 	tracer   opentracing.Tracer
 	logger   log.Factory
 	bestETA  *bestETA
+	assetFs *assetfs.AssetFS
 }
 
 // NewServer creates a new frontend.Server
@@ -41,6 +43,7 @@ func NewServer(hostPort string, tracer opentracing.Tracer, logger log.Factory) *
 		tracer:   tracer,
 		logger:   logger,
 		bestETA:  newBestETA(tracer, logger),
+		assetFs: assetFS(),
 	}
 }
 
@@ -60,7 +63,7 @@ func (s *Server) createServeMux() http.Handler {
 
 func (s *Server) home(w http.ResponseWriter, r *http.Request) {
 	s.logger.For(r.Context()).Info("HTTP", zap.String("method", r.Method), zap.Stringer("url", r.URL))
-	b, err := assetFS().Asset("web_assets/index.html")
+	b, err := s.assetFs.Asset("web_assets/index.html")
 	if err != nil {
 		http.Error(w, "Could not load index page", http.StatusInternalServerError)
 		s.logger.Bg().Error("Could lot load static assets", zap.Error(err))
