@@ -20,7 +20,7 @@ import "time"
 func EpochMicrosecondsAsTime(ts uint64) time.Time {
 	seconds := ts / 1000000
 	nanos := 1000 * (ts % 1000000)
-	return time.Unix(int64(seconds), int64(nanos))
+	return time.Unix(int64(seconds), int64(nanos)).UTC()
 }
 
 // TimeAsEpochMicroseconds converts time.Time to microseconds since epoch,
