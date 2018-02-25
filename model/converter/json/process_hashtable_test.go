@@ -26,10 +26,13 @@ func TestProcessHashtable(t *testing.T) {
 	ht := &processHashtable{}
 
 	p1 := model.NewProcess("s1", []model.KeyValue{
+		model.String("ip", "1.2.3.4"),
 		model.String("host", "google.com"),
 	})
+	// same process but with different order of tags
 	p1dup := model.NewProcess("s1", []model.KeyValue{
 		model.String("host", "google.com"),
+		model.String("ip", "1.2.3.4"),
 	})
 	p2 := model.NewProcess("s2", []model.KeyValue{
 		model.String("host", "facebook.com"),
