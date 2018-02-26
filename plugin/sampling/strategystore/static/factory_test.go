@@ -32,7 +32,7 @@ var _ plugin.Configurable = new(Factory)
 func TestFactory(t *testing.T) {
 	f := NewFactory()
 	v, command := config.Viperize(f.AddFlags)
-	command.ParseFlags([]string{"--sampling.strategies=fixtures/strategies.json"})
+	command.ParseFlags([]string{"--sampling.strategies-file=fixtures/strategies.json"})
 	f.InitFromViper(v)
 
 	assert.NoError(t, f.Initialize(metrics.NullFactory, zap.NewNop()))

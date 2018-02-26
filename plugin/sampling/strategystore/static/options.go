@@ -21,7 +21,7 @@ import (
 )
 
 const (
-	samplingStrategies = "sampling.strategies"
+	samplingStrategiesFile = "sampling.strategies-file"
 )
 
 // Options holds configuration for the static sampling strategy store.
@@ -32,11 +32,11 @@ type Options struct {
 
 // AddFlags adds flags for Options
 func AddFlags(flagSet *flag.FlagSet) {
-	flagSet.String(samplingStrategies, "", "The path for the sampling strategies file in JSON format")
+	flagSet.String(samplingStrategiesFile, "", "The path for the sampling strategies file in JSON format")
 }
 
 // InitFromViper initializes Options with properties from viper
 func (opts *Options) InitFromViper(v *viper.Viper) *Options {
-	opts.StrategiesFile = v.GetString(samplingStrategies)
+	opts.StrategiesFile = v.GetString(samplingStrategiesFile)
 	return opts
 }
