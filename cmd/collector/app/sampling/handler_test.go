@@ -25,7 +25,7 @@ import (
 func TestHandler(t *testing.T) {
 	handler := NewHandler(mockStore{})
 	_, err := handler.GetSamplingStrategy(nil, "")
-	assert.NotNil(t, err)
+	assert.NoError(t, err)
 }
 
 type mockStore struct{}
