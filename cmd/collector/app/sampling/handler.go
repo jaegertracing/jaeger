@@ -32,7 +32,7 @@ type handler struct {
 }
 
 // NewHandler creates a handler that controls sampling strategies for services.
-func NewHandler(store strategystore.StrategyStore) *handler {
+func NewHandler(store strategystore.StrategyStore) Handler {
 	return &handler{
 		store: store,
 	}
