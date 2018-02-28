@@ -24,19 +24,25 @@ import (
 	"testing"
 	"time"
 
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
 	ui "github.com/jaegertracing/jaeger/model/json"
+	"github.com/jaegertracing/jaeger/thrift-gen/sampling"
 )
 
 const (
 	host          = "0.0.0.0"
 	queryPort     = "16686"
+	agentPort     = "5778"
 	queryHostPort = host + ":" + queryPort
 	queryURL      = "http://" + queryHostPort
+	agentHostPort = host + ":" + agentPort
+	agentURL      = "http://" + agentHostPort
 
-	getServicesURL = queryURL + "/api/services"
-	getTraceURL    = queryURL + "/api/traces?service=jaeger-query&tag=jaeger-debug-id:debug"
+	getServicesURL         = queryURL + "/api/services"
+	getTraceURL            = queryURL + "/api/traces?service=jaeger-query&tag=jaeger-debug-id:debug"
+	getSamplingStrategyURL = agentURL + "?serivce=whatever"
 )
 
 var (
@@ -50,9 +56,9 @@ func TestStandalone(t *testing.T) {
 	if err := healthCheck(); err != nil {
 		t.Fatal(err)
 	}
-
 	createTrace(t)
 	getAPITrace(t)
+	getSamplingStrategy(t)
 }
 
 func createTrace(t *testing.T) {
@@ -92,6 +98,24 @@ func getAPITrace(t *testing.T) {
 	}
 	require.Len(t, queryResponse.Data, 1)
 	require.Len(t, queryResponse.Data[0].Spans, 1)
+}
+
+func getSamplingStrategy(t *testing.T) {
+	req, err := http.NewRequest("GET", getSamplingStrategyURL, nil)
+	require.NoError(t, err)
+
+	var queryResponse sampling.SamplingStrategyResponse
+	resp, err := httpClient.Do(req)
+	require.NoError(t, err)
+
+	body, _ := ioutil.ReadAll(resp.Body)
+
+	err = json.Unmarshal(body, &queryResponse)
+	require.NoError(t, err)
+	resp.Body.Close()
+
+	assert.NotNil(t, queryResponse.ProbabilisticSampling)
+	assert.EqualValues(t, 1.0, queryResponse.ProbabilisticSampling.SamplingRate)
 }
 
 func healthCheck() error {
