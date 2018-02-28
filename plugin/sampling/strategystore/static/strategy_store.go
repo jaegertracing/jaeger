@@ -21,7 +21,7 @@ import (
 	"github.com/pkg/errors"
 	"go.uber.org/zap"
 
-	ss "github.com/jaegertracing/jaeger/pkg/sampling/strategystore"
+	ss "github.com/jaegertracing/jaeger/cmd/collector/app/sampling/strategystore"
 	"github.com/jaegertracing/jaeger/thrift-gen/sampling"
 )
 
@@ -55,7 +55,7 @@ func (h *strategyStore) GetSamplingStrategy(serviceName string) (*sampling.Sampl
 }
 
 // TODO good candidate for a global util function
-func loadStrategies(strategiesFile string) (*ss.Strategies, error) {
+func loadStrategies(strategiesFile string) (*strategies, error) {
 	if strategiesFile == "" {
 		return nil, nil
 	}
@@ -63,15 +63,15 @@ func loadStrategies(strategiesFile string) (*ss.Strategies, error) {
 	if err != nil {
 		return nil, errors.Wrap(err, "Failed to open strategies file")
 	}
-	var strategies ss.Strategies
+	var strategies strategies
 	if err := json.Unmarshal(bytes, &strategies); err != nil {
 		return nil, errors.Wrap(err, "Failed to unmarshal strategies")
 	}
 	return &strategies, nil
 }
 
-func (h *strategyStore) parseStrategies(strategies *ss.Strategies) {
-	h.defaultStrategy = &ss.DefaultStrategy
+func (h *strategyStore) parseStrategies(strategies *strategies) {
+	h.defaultStrategy = &defaultStrategy
 	if strategies == nil {
 		h.logger.Info("No sampling strategies provided, using defaults")
 		return
@@ -80,20 +80,20 @@ func (h *strategyStore) parseStrategies(strategies *ss.Strategies) {
 		h.defaultStrategy = h.parseStrategy(strategies.DefaultStrategy)
 	}
 	for _, s := range strategies.ServiceStrategies {
-		h.serviceStrategies[s.Service] = h.parseStrategy(&s.Strategy)
+		h.serviceStrategies[s.Service] = h.parseStrategy(&s.strategy)
 	}
 }
 
-func (h *strategyStore) parseStrategy(strategy *ss.Strategy) *sampling.SamplingStrategyResponse {
+func (h *strategyStore) parseStrategy(strategy *strategy) *sampling.SamplingStrategyResponse {
 	switch strategy.Type {
-	case ss.SamplerTypeProbabilistic:
+	case samplerTypeProbabilistic:
 		return &sampling.SamplingStrategyResponse{
 			StrategyType: sampling.SamplingStrategyType_PROBABILISTIC,
 			ProbabilisticSampling: &sampling.ProbabilisticSamplingStrategy{
 				SamplingRate: strategy.Param,
 			},
 		}
-	case ss.SamplerTypeRateLimiting:
+	case samplerTypeRateLimiting:
 		return &sampling.SamplingStrategyResponse{
 			StrategyType: sampling.SamplingStrategyType_RATE_LIMITING,
 			RateLimitingSampling: &sampling.RateLimitingSamplingStrategy{
@@ -102,6 +102,6 @@ func (h *strategyStore) parseStrategy(strategy *ss.Strategy) *sampling.SamplingS
 		}
 	default:
 		h.logger.Warn("Failed to parse sampling strategy", zap.Any("strategy", strategy))
-		return &ss.DefaultStrategy
+		return &defaultStrategy
 	}
 }

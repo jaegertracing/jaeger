@@ -25,7 +25,7 @@ import (
 	"github.com/uber/jaeger-lib/metrics"
 	"go.uber.org/zap"
 
-	ss "github.com/jaegertracing/jaeger/pkg/sampling/strategystore"
+	ss "github.com/jaegertracing/jaeger/cmd/collector/app/sampling/strategystore"
 	"github.com/jaegertracing/jaeger/plugin"
 )
 

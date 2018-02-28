@@ -21,7 +21,7 @@ import (
 	"github.com/uber/jaeger-lib/metrics"
 	"go.uber.org/zap"
 
-	"github.com/jaegertracing/jaeger/pkg/sampling/strategystore"
+	"github.com/jaegertracing/jaeger/cmd/collector/app/sampling/strategystore"
 )
 
 // Factory implements strategystore.Factory for a static strategy store.

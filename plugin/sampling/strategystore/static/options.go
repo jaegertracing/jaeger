@@ -32,7 +32,7 @@ type Options struct {
 
 // AddFlags adds flags for Options
 func AddFlags(flagSet *flag.FlagSet) {
-	flagSet.String(samplingStrategiesFile, "", "The path for the sampling strategies file in JSON format")
+	flagSet.String(samplingStrategiesFile, "", "The path for the sampling strategies file in JSON format. See sampling documentation to see format of the file")
 }
 
 // InitFromViper initializes Options with properties from viper

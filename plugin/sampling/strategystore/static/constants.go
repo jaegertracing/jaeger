@@ -12,33 +12,33 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package strategystore
+package static
 
 import (
 	"github.com/jaegertracing/jaeger/thrift-gen/sampling"
 )
 
 const (
-	// SamplerTypeProbabilistic is the type of sampler that samples traces
+	// samplerTypeProbabilistic is the type of sampler that samples traces
 	// with a certain fixed probability.
-	SamplerTypeProbabilistic = "probabilistic"
+	samplerTypeProbabilistic = "probabilistic"
 
-	// SamplerTypeRateLimiting is the type of sampler that samples
+	// samplerTypeRateLimiting is the type of sampler that samples
 	// only up to a fixed number of traces per second.
-	SamplerTypeRateLimiting = "ratelimiting"
+	samplerTypeRateLimiting = "ratelimiting"
 
-	// DefaultSamplingProbability is the default sampling probability the
+	// defaultSamplingProbability is the default sampling probability the
 	// Strategy Store will use if none is provided.
-	DefaultSamplingProbability = 0.001
+	defaultSamplingProbability = 0.001
 )
 
 var (
-	// DefaultStrategy is the default sampling strategy the Strategy Store will return
+	// defaultStrategy is the default sampling strategy the Strategy Store will return
 	// if none is provided.
-	DefaultStrategy = sampling.SamplingStrategyResponse{
+	defaultStrategy = sampling.SamplingStrategyResponse{
 		StrategyType: sampling.SamplingStrategyType_PROBABILISTIC,
 		ProbabilisticSampling: &sampling.ProbabilisticSamplingStrategy{
-			SamplingRate: DefaultSamplingProbability,
+			SamplingRate: defaultSamplingProbability,
 		},
 	}
 )

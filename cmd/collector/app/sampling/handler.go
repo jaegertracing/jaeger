@@ -17,7 +17,7 @@ package sampling
 import (
 	"github.com/uber/tchannel-go/thrift"
 
-	"github.com/jaegertracing/jaeger/pkg/sampling/strategystore"
+	"github.com/jaegertracing/jaeger/cmd/collector/app/sampling/strategystore"
 	"github.com/jaegertracing/jaeger/thrift-gen/sampling"
 )
 

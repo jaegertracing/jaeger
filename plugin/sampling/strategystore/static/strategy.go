@@ -12,23 +12,23 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package strategystore
+package static
 
-// Strategy defines a sampling strategy. Type can be "probabilistic" or "ratelimiting"
+// strategy defines a sampling strategy. Type can be "probabilistic" or "ratelimiting"
 // and Param will represent "sampling probability" and "max traces per second" respectively.
-type Strategy struct {
+type strategy struct {
 	Type  string  `json:"type"`
 	Param float64 `json:"param"`
 }
 
-// ServiceStrategy defines a service specific sampling strategy.
-type ServiceStrategy struct {
+// serviceStrategy defines a service specific sampling strategy.
+type serviceStrategy struct {
 	Service string `json:"service"`
-	Strategy
+	strategy
 }
 
-// Strategies holds a default sampling strategy and service specific sampling strategies.
-type Strategies struct {
-	DefaultStrategy   *Strategy          `json:"default_strategy"`
-	ServiceStrategies []*ServiceStrategy `json:"service_strategies"`
+// strategies holds a default sampling strategy and service specific sampling strategies.
+type strategies struct {
+	DefaultStrategy   *strategy          `json:"default_strategy"`
+	ServiceStrategies []*serviceStrategy `json:"service_strategies"`
 }

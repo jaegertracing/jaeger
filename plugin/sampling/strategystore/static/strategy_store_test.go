@@ -21,7 +21,6 @@ import (
 	"github.com/stretchr/testify/require"
 	"go.uber.org/zap"
 
-	ss "github.com/jaegertracing/jaeger/pkg/sampling/strategystore"
 	"github.com/jaegertracing/jaeger/pkg/testutils"
 	"github.com/jaegertracing/jaeger/thrift-gen/sampling"
 )
@@ -32,7 +31,7 @@ func TestStrategyStore(t *testing.T) {
 
 	_, err = NewStrategyStore(Options{StrategiesFile: "fixtures/bad_strategies.json"}, zap.NewNop())
 	assert.EqualError(t, err,
-		"Failed to unmarshal strategies: json: cannot unmarshal string into Go value of type strategystore.Strategies")
+		"Failed to unmarshal strategies: json: cannot unmarshal string into Go value of type static.strategies")
 
 	// Test default strategy
 	logger, buf := testutils.NewLogger()
@@ -61,20 +60,20 @@ func TestStrategyStore(t *testing.T) {
 
 func TestParseStrategy(t *testing.T) {
 	tests := []struct {
-		strategy ss.ServiceStrategy
+		strategy serviceStrategy
 		expected sampling.SamplingStrategyResponse
 	}{
 		{
-			strategy: ss.ServiceStrategy{
+			strategy: serviceStrategy{
 				Service:  "svc",
-				Strategy: ss.Strategy{Type: "probabilistic", Param: 0.2},
+				strategy: strategy{Type: "probabilistic", Param: 0.2},
 			},
 			expected: makeResponse(sampling.SamplingStrategyType_PROBABILISTIC, 0.2),
 		},
 		{
-			strategy: ss.ServiceStrategy{
+			strategy: serviceStrategy{
 				Service:  "svc",
-				Strategy: ss.Strategy{Type: "ratelimiting", Param: 3.5},
+				strategy: strategy{Type: "ratelimiting", Param: 3.5},
 			},
 			expected: makeResponse(sampling.SamplingStrategyType_RATE_LIMITING, 3),
 		},
@@ -84,14 +83,14 @@ func TestParseStrategy(t *testing.T) {
 	for _, test := range tests {
 		tt := test
 		t.Run("", func(t *testing.T) {
-			assert.EqualValues(t, tt.expected, *store.parseStrategy(&tt.strategy.Strategy))
+			assert.EqualValues(t, tt.expected, *store.parseStrategy(&tt.strategy.strategy))
 		})
 	}
 	assert.Empty(t, buf.String())
 
 	// Test nonexistent strategy type
-	actual := *store.parseStrategy(&ss.Strategy{Type: "blah", Param: 3.5})
-	expected := makeResponse(sampling.SamplingStrategyType_PROBABILISTIC, ss.DefaultSamplingProbability)
+	actual := *store.parseStrategy(&strategy{Type: "blah", Param: 3.5})
+	expected := makeResponse(sampling.SamplingStrategyType_PROBABILISTIC, defaultSamplingProbability)
 	assert.EqualValues(t, expected, actual)
 	assert.Contains(t, buf.String(), "Failed to parse sampling strategy")
 }
