@@ -33,9 +33,11 @@ var customerCmd = &cobra.Command{
 	Long:  `Starts Customer service.`,
 	RunE: func(cmd *cobra.Command, args []string) error {
 		logger := log.NewFactory(logger.With(zap.String("service", "customer")))
+		tracer, closer := tracing.Init("customer", metricsFactory.Namespace("customer", nil), logger, jAgentHostPort)
+		defer closer.Close()
 		server := customer.NewServer(
 			net.JoinHostPort(customerOptions.serverInterface, strconv.Itoa(customerOptions.serverPort)),
-			tracing.Init("customer", metricsFactory.Namespace("customer", nil), logger, jAgentHostPort),
+			tracer,
 			metricsFactory,
 			logger,
 			jAgentHostPort,

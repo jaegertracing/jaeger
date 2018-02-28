@@ -58,6 +58,7 @@ func NewServer(hostPort string, tracer opentracing.Tracer, metricsFactory metric
 
 // Run starts the Driver server
 func (s *Server) Run() error {
+	defer s.redis.closer.Close()
 
 	s.server.Register(driver.NewTChanDriverServer(s))
 

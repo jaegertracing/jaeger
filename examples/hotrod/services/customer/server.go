@@ -16,6 +16,7 @@ package customer
 
 import (
 	"encoding/json"
+	"io"
 	"net/http"
 
 	"github.com/opentracing/opentracing-go"
@@ -33,16 +34,19 @@ type Server struct {
 	tracer   opentracing.Tracer
 	logger   log.Factory
 	database *database
+	closer   io.Closer
 }
 
 // NewServer creates a new customer.Server
 func NewServer(hostPort string, tracer opentracing.Tracer, metricsFactory metrics.Factory, logger log.Factory, jAgentHostPort string) *Server {
+	tracer, closer := tracing.Init("mysql", metricsFactory.Namespace("mysql", nil), logger, jAgentHostPort)
 	return &Server{
 		hostPort: hostPort,
 		tracer:   tracer,
 		logger:   logger,
+		closer:   closer,
 		database: newDatabase(
-			tracing.Init("mysql", metricsFactory.Namespace("mysql", nil), logger, jAgentHostPort),
+			tracer,
 			logger.With(zap.String("component", "mysql")),
 		),
 	}
@@ -52,6 +56,7 @@ func NewServer(hostPort string, tracer opentracing.Tracer, metricsFactory metric
 func (s *Server) Run() error {
 	mux := s.createServeMux()
 	s.logger.Bg().Info("Starting", zap.String("address", "http://"+s.hostPort))
+	defer s.closer.Close()
 	return http.ListenAndServe(s.hostPort, mux)
 }
 

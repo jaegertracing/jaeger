@@ -18,6 +18,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"io"
 	"math/rand"
 	"sync"
 
@@ -36,13 +37,16 @@ import (
 type Redis struct {
 	tracer opentracing.Tracer // simulate redis as a separate process
 	logger log.Factory
+	closer io.Closer
 	errorSimulator
 }
 
 func newRedis(metricsFactory metrics.Factory, logger log.Factory, jAgentHostPort string) *Redis {
+	tracer, closer := tracing.Init("redis", metricsFactory.Namespace("redis", nil), logger, jAgentHostPort)
 	return &Redis{
-		tracer: tracing.Init("redis", metricsFactory.Namespace("redis", nil), logger, jAgentHostPort),
+		tracer: tracer,
 		logger: logger,
+		closer: closer,
 	}
 }
 
