@@ -33,9 +33,11 @@ var routeCmd = &cobra.Command{
 	Long:  `Starts Route service.`,
 	RunE: func(cmd *cobra.Command, args []string) error {
 		logger := log.NewFactory(logger.With(zap.String("service", "route")))
+		tracer, closer := tracing.Init("route", metricsFactory.Namespace("route", nil), logger, jAgentHostPort)
+		defer closer.Close()
 		server := route.NewServer(
 			net.JoinHostPort(routeOptions.serverInterface, strconv.Itoa(routeOptions.serverPort)),
-			tracing.Init("route", metricsFactory.Namespace("route", nil), logger, jAgentHostPort),
+			tracer,
 			logger,
 		)
 		return server.Run()

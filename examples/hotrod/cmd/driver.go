@@ -33,9 +33,11 @@ var driverCmd = &cobra.Command{
 	Long:  `Starts Driver service.`,
 	RunE: func(cmd *cobra.Command, args []string) error {
 		logger := log.NewFactory(logger.With(zap.String("service", "driver")))
+		tracer, closer := tracing.Init("driver", metricsFactory.Namespace("driver", nil), logger, jAgentHostPort)
+		defer closer.Close()
 		server := driver.NewServer(
 			net.JoinHostPort(driverOptions.serverInterface, strconv.Itoa(driverOptions.serverPort)),
-			tracing.Init("driver", metricsFactory.Namespace("driver", nil), logger, jAgentHostPort),
+			tracer,
 			metricsFactory,
 			logger,
 			jAgentHostPort,

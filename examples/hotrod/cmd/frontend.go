@@ -33,9 +33,11 @@ var frontendCmd = &cobra.Command{
 	Long:  `Starts Frontend service.`,
 	RunE: func(cmd *cobra.Command, args []string) error {
 		logger := log.NewFactory(logger.With(zap.String("service", "frontend")))
+		tracer, closer := tracing.Init("frontend", metricsFactory.Namespace("frontend", nil), logger, jAgentHostPort)
+		defer closer.Close()
 		server := frontend.NewServer(
 			net.JoinHostPort(frontendOptions.serverInterface, strconv.Itoa(frontendOptions.serverPort)),
-			tracing.Init("frontend", metricsFactory.Namespace("frontend", nil), logger, jAgentHostPort),
+			tracer,
 			logger,
 		)
 		return server.Run()

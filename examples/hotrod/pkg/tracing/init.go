@@ -16,6 +16,7 @@ package tracing
 
 import (
 	"fmt"
+	"io"
 	"time"
 
 	"github.com/opentracing/opentracing-go"
@@ -28,7 +29,8 @@ import (
 )
 
 // Init creates a new instance of Jaeger tracer.
-func Init(serviceName string, metricsFactory metrics.Factory, logger log.Factory, hostPort string) opentracing.Tracer {
+func Init(serviceName string, metricsFactory metrics.Factory, logger log.Factory, hostPort string) (
+	opentracing.Tracer, io.Closer) {
 	cfg := config.Configuration{
 		Sampler: &config.SamplerConfig{
 			Type:  "const",
@@ -37,10 +39,10 @@ func Init(serviceName string, metricsFactory metrics.Factory, logger log.Factory
 		Reporter: &config.ReporterConfig{
 			LogSpans:            false,
 			BufferFlushInterval: 1 * time.Second,
-			LocalAgentHostPort: hostPort,
+			LocalAgentHostPort:  hostPort,
 		},
 	}
-	tracer, _, err := cfg.New(
+	tracer, closer, err := cfg.New(
 		serviceName,
 		config.Logger(jaegerLoggerAdapter{logger.Bg()}),
 		config.Observer(rpcmetrics.NewObserver(metricsFactory, rpcmetrics.DefaultNameNormalizer)),
@@ -48,7 +50,7 @@ func Init(serviceName string, metricsFactory metrics.Factory, logger log.Factory
 	if err != nil {
 		logger.Bg().Fatal("cannot initialize Jaeger Tracer", zap.Error(err))
 	}
-	return tracer
+	return tracer, closer
 }
 
 type jaegerLoggerAdapter struct {
