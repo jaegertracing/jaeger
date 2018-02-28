@@ -48,9 +48,13 @@ func TestNewFactory(t *testing.T) {
 
 	// force the mock to return errors
 	mock.retError = true
-	assert.Error(t, f.Initialize(metrics.NullFactory, zap.NewNop()))
+	assert.EqualError(t, f.Initialize(metrics.NullFactory, zap.NewNop()), "error initializing store")
 	_, err = f.CreateStrategyStore()
-	assert.Error(t, err)
+	assert.EqualError(t, err, "error creating store")
+
+	f.StrategyStoreType = "nonsense"
+	_, err = f.CreateStrategyStore()
+	assert.EqualError(t, err, "No nonsense strategy store registered")
 
 	_, err = NewFactory(FactoryConfig{StrategyStoreType: "nonsense"})
 	require.Error(t, err)
@@ -95,14 +99,14 @@ func (f *mockFactory) InitFromViper(v *viper.Viper) {
 
 func (f *mockFactory) CreateStrategyStore() (ss.StrategyStore, error) {
 	if f.retError {
-		return nil, errors.New("error")
+		return nil, errors.New("error creating store")
 	}
 	return nil, nil
 }
 
 func (f *mockFactory) Initialize(metricsFactory metrics.Factory, logger *zap.Logger) error {
 	if f.retError {
-		return errors.New("error")
+		return errors.New("error initializing store")
 	}
 	return nil
 }
