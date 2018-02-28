@@ -1,0 +1,18 @@
+{
+  "default_strategy": {
+    "type": "probabilistic",
+    "param": 0.5
+  },
+  "service_strategies": [
+    {
+      "service": "foo",
+      "type": "probabilistic",
+      "param": 0.8
+    },
+    {
+      "service": "bar",
+      "type": "ratelimiting",
+      "param": 5
+    }
+  ]
+}
