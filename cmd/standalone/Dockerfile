@@ -20,6 +20,6 @@ EXPOSE 16686
 
 COPY ./jaeger-ui-build /go/src/jaeger-ui-build
 COPY ./cmd/standalone/standalone-linux /go/bin/
-COPY ./cmd/standalone/sampling_strategies.json /go/src/config
+COPY ./cmd/standalone/sampling_strategies.json /go/src/config/
 
 CMD ["/go/bin/standalone-linux","--query.static-files=/go/src/jaeger-ui-build/build/","--sampling.strategies-file=/go/src/config/sampling_strategies.json"]
