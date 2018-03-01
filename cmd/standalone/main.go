@@ -112,7 +112,7 @@ func main() {
 			if err != nil {
 				logger.Fatal("Failed to create dependency reader", zap.Error(err))
 			}
-			samplingHandler := initializeSamplingHandler(strategyStoreFactory, v, logger, metricsFactory)
+			samplingHandler := initializeSamplingHandler(strategyStoreFactory, v, metricsFactory, logger)
 
 			aOpts := new(agentApp.Builder).InitFromViper(v)
 			cOpts := new(collector.CollectorOptions).InitFromViper(v)
@@ -305,8 +305,8 @@ func registerStaticHandler(r *mux.Router, logger *zap.Logger, qOpts *queryApp.Qu
 func initializeSamplingHandler(
 	samplingStrategyStoreFactory *ss.Factory,
 	v *viper.Viper,
-	logger *zap.Logger,
 	metricsFactory metrics.Factory,
+	logger *zap.Logger,
 ) sampling.Handler {
 	samplingStrategyStoreFactory.InitFromViper(v)
 	if err := samplingStrategyStoreFactory.Initialize(metricsFactory, logger); err != nil {

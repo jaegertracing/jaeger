@@ -125,7 +125,7 @@ func main() {
 			server.Register(jc.NewTChanCollectorServer(jaegerBatchesHandler))
 			server.Register(zc.NewTChanZipkinCollectorServer(zipkinSpansHandler))
 
-			samplingHandler := initializeSamplingHandler(strategyStoreFactory, v, logger, metricsFactory)
+			samplingHandler := initializeSamplingHandler(strategyStoreFactory, v, metricsFactory, logger)
 			server.Register(sc.NewTChanSamplingManagerServer(samplingHandler))
 
 			portStr := ":" + strconv.Itoa(builderOpts.CollectorPort)
@@ -215,8 +215,8 @@ func startZipkinHTTPAPI(
 func initializeSamplingHandler(
 	samplingStrategyStoreFactory *ss.Factory,
 	v *viper.Viper,
-	logger *zap.Logger,
 	metricsFactory metrics.Factory,
+	logger *zap.Logger,
 ) sampling.Handler {
 	samplingStrategyStoreFactory.InitFromViper(v)
 	if err := samplingStrategyStoreFactory.Initialize(metricsFactory, logger); err != nil {
