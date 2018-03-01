@@ -42,7 +42,7 @@ const (
 
 	getServicesURL         = queryURL + "/api/services"
 	getTraceURL            = queryURL + "/api/traces?service=jaeger-query&tag=jaeger-debug-id:debug"
-	getSamplingStrategyURL = agentURL + "?serivce=whatever"
+	getSamplingStrategyURL = agentURL + "/sampling?service=whatever"
 )
 
 var (
