@@ -28,6 +28,7 @@ import (
 	"github.com/gorilla/mux"
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
+	"github.com/uber/jaeger-lib/metrics"
 	"github.com/uber/tchannel-go"
 	"github.com/uber/tchannel-go/thrift"
 	"go.uber.org/zap"
@@ -35,6 +36,7 @@ import (
 	basicB "github.com/jaegertracing/jaeger/cmd/builder"
 	"github.com/jaegertracing/jaeger/cmd/collector/app"
 	"github.com/jaegertracing/jaeger/cmd/collector/app/builder"
+	"github.com/jaegertracing/jaeger/cmd/collector/app/sampling"
 	"github.com/jaegertracing/jaeger/cmd/collector/app/zipkin"
 	"github.com/jaegertracing/jaeger/cmd/env"
 	"github.com/jaegertracing/jaeger/cmd/flags"
@@ -43,8 +45,10 @@ import (
 	pMetrics "github.com/jaegertracing/jaeger/pkg/metrics"
 	"github.com/jaegertracing/jaeger/pkg/recoveryhandler"
 	"github.com/jaegertracing/jaeger/pkg/version"
+	ss "github.com/jaegertracing/jaeger/plugin/sampling/strategystore"
 	"github.com/jaegertracing/jaeger/plugin/storage"
 	jc "github.com/jaegertracing/jaeger/thrift-gen/jaeger"
+	sc "github.com/jaegertracing/jaeger/thrift-gen/sampling"
 	zc "github.com/jaegertracing/jaeger/thrift-gen/zipkincore"
 )
 
@@ -58,7 +62,10 @@ func main() {
 	if err != nil {
 		log.Fatalf("Cannot initialize storage factory: %v", err)
 	}
-
+	strategyStoreFactory, err := ss.NewFactory(ss.FactoryConfigFromEnv())
+	if err != nil {
+		log.Fatalf("Cannot initialize sampling strategy store factory: %v", err)
+	}
 	v := viper.New()
 	command := &cobra.Command{
 		Use:   "jaeger-collector",
@@ -118,6 +125,9 @@ func main() {
 			server.Register(jc.NewTChanCollectorServer(jaegerBatchesHandler))
 			server.Register(zc.NewTChanZipkinCollectorServer(zipkinSpansHandler))
 
+			samplingHandler := initializeSamplingHandler(strategyStoreFactory, v, metricsFactory, logger)
+			server.Register(sc.NewTChanSamplingManagerServer(samplingHandler))
+
 			portStr := ":" + strconv.Itoa(builderOpts.CollectorPort)
 			listener, err := net.Listen("tcp", portStr)
 			if err != nil {
@@ -173,10 +183,11 @@ func main() {
 		builder.AddFlags,
 		storageFactory.AddFlags,
 		pMetrics.AddFlags,
+		strategyStoreFactory.AddFlags,
 	)
 
-	if error := command.Execute(); error != nil {
-		fmt.Println(error.Error())
+	if err := command.Execute(); err != nil {
+		fmt.Println(err.Error())
 		os.Exit(1)
 	}
 }
@@ -199,4 +210,21 @@ func startZipkinHTTPAPI(
 			logger.Fatal("Could not launch service", zap.Error(err))
 		}
 	}
+}
+
+func initializeSamplingHandler(
+	samplingStrategyStoreFactory *ss.Factory,
+	v *viper.Viper,
+	metricsFactory metrics.Factory,
+	logger *zap.Logger,
+) sampling.Handler {
+	samplingStrategyStoreFactory.InitFromViper(v)
+	if err := samplingStrategyStoreFactory.Initialize(metricsFactory, logger); err != nil {
+		logger.Fatal("Failed to init sampling strategy store factory", zap.Error(err))
+	}
+	strategyStore, err := samplingStrategyStoreFactory.CreateStrategyStore()
+	if err != nil {
+		logger.Fatal("Failed to create sampling strategy store", zap.Error(err))
+	}
+	return sampling.NewHandler(strategyStore)
 }
