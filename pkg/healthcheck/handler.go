@@ -51,7 +51,7 @@ func (s Status) String() string {
 	}
 }
 
-// HealthCheck provides an HTTP endpoint thta returns the health status of the service
+// HealthCheck provides an HTTP endpoint that returns the health status of the service
 type HealthCheck struct {
 	state   int32 // atomic, keep at the top to be word-aligned
 	logger  *zap.Logger
@@ -59,7 +59,7 @@ type HealthCheck struct {
 	server  *http.Server
 }
 
-// Option is a functional option for passing paameters to New()
+// Option is a functional option for passing parameters to New()
 type Option func(*HealthCheck)
 
 // Logger creates an option to set the logger. If not specified, Nop logger is used.
