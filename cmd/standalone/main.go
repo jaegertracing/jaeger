@@ -272,7 +272,7 @@ func startQuery(
 
 	r := mux.NewRouter()
 	apiHandler.RegisterRoutes(r)
-	registerStaticHandler(r, logger, qOpts)
+	queryApp.RegisterStaticHandler(r, logger, qOpts)
 
 	if h := metricsBuilder.Handler(); h != nil {
 		logger.Info("Registering metrics handler with jaeger-query HTTP server", zap.String("route", metricsBuilder.HTTPRoute))
@@ -288,18 +288,6 @@ func startQuery(
 			logger.Fatal("Could not launch jaeger-query service", zap.Error(err))
 		}
 	}()
-}
-
-func registerStaticHandler(r *mux.Router, logger *zap.Logger, qOpts *queryApp.QueryOptions) {
-	staticHandler, err := queryApp.NewStaticAssetsHandler(qOpts.StaticAssets, qOpts.UIConfig)
-	if err != nil {
-		logger.Fatal("Could not create static assets handler", zap.Error(err))
-	}
-	if staticHandler != nil {
-		staticHandler.RegisterRoutes(r)
-	} else {
-		logger.Info("Static handler is not registered")
-	}
 }
 
 func initializeSamplingHandler(

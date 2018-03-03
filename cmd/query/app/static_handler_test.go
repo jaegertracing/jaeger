@@ -26,6 +26,8 @@ import (
 	"github.com/gorilla/mux"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+
+	"github.com/jaegertracing/jaeger/pkg/testutils"
 )
 
 func TestStaticAssetsHandler(t *testing.T) {
@@ -54,15 +56,32 @@ func TestDefaultStaticAssetsRoot(t *testing.T) {
 
 func TestNotExistingUiConfig(t *testing.T) {
 	handler, err := NewStaticAssetsHandler("/foo/bar", "")
-	assert.Equal(t, "Cannot read UI static assets: open /foo/bar/index.html: no such file or directory", err.Error())
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "Cannot read UI static assets")
 	assert.Nil(t, handler)
 }
 
-func TestRegisterRoutesHandler(t *testing.T) {
+func TestRegisterStaticHandlerPanic(t *testing.T) {
+	logger, buf := testutils.NewLogger()
+	assert.Panics(t, func() {
+		RegisterStaticHandler(mux.NewRouter(), logger, &QueryOptions{StaticAssets: "/foo/bar"})
+	})
+	assert.Contains(t, buf.String(), "Could not create static assets handler")
+	assert.Contains(t, buf.String(), "Cannot read UI static assets")
+}
+
+func TestRegisterStaticHandlerNotCreated(t *testing.T) {
+	logger, buf := testutils.NewLogger()
+	RegisterStaticHandler(mux.NewRouter(), logger, &QueryOptions{})
+	assert.Contains(t, buf.String(), "Static handler is not registered")
+}
+
+func TestRegisterStaticHandler(t *testing.T) {
+	logger, buf := testutils.NewLogger()
 	r := mux.NewRouter()
-	handler, err := NewStaticAssetsHandler("fixture/", "")
-	require.NoError(t, err)
-	handler.RegisterRoutes(r)
+	RegisterStaticHandler(r, logger, &QueryOptions{StaticAssets: "fixture/"})
+	assert.Empty(t, buf.String())
+
 	server := httptest.NewServer(r)
 	defer server.Close()
 	expectedRespString := "Test Favicon\n"

@@ -23,14 +23,29 @@ import (
 	"regexp"
 	"strings"
 
+	"github.com/gorilla/handlers"
 	"github.com/gorilla/mux"
 	"github.com/pkg/errors"
+	"go.uber.org/zap"
 )
 
 var (
 	staticRootFiles = []string{"favicon.ico"}
 	configPattern   = regexp.MustCompile("JAEGER_CONFIG *= *DEFAULT_CONFIG;")
 )
+
+// RegisterStaticHandler adds handler for static assets to the router.
+func RegisterStaticHandler(r *mux.Router, logger *zap.Logger, qOpts *QueryOptions) {
+	staticHandler, err := NewStaticAssetsHandler(qOpts.StaticAssets, qOpts.UIConfig)
+	if err != nil {
+		logger.Panic("Could not create static assets handler", zap.Error(err))
+	}
+	if staticHandler != nil {
+		staticHandler.RegisterRoutes(r)
+	} else {
+		logger.Info("Static handler is not registered")
+	}
+}
 
 // StaticAssetsHandler handles static assets
 type StaticAssetsHandler struct {
@@ -94,13 +109,23 @@ func loadUIConfig(uiConfig string) (map[string]interface{}, error) {
 
 // RegisterRoutes registers routes for this handler on the given router
 func (sH *StaticAssetsHandler) RegisterRoutes(router *mux.Router) {
-	router.PathPrefix("/static").Handler(http.FileServer(http.Dir(sH.staticAssetsRoot)))
+	router.PathPrefix("/static").Handler(
+		handlers.CompressHandler(
+			http.FileServer(http.Dir(sH.staticAssetsRoot)),
+		),
+	)
 	for _, file := range staticRootFiles {
-		router.Path("/" + file).HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-			http.ServeFile(w, r, sH.staticAssetsRoot+file)
-		})
+		router.Path("/" + file).Handler(
+			handlers.CompressHandler(
+				http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+					http.ServeFile(w, r, sH.staticAssetsRoot+file)
+				}),
+			),
+		)
 	}
-	router.NotFoundHandler = http.HandlerFunc(sH.notFound)
+	router.NotFoundHandler = handlers.CompressHandler(
+		http.HandlerFunc(sH.notFound),
+	)
 }
 
 func (sH *StaticAssetsHandler) notFound(w http.ResponseWriter, r *http.Request) {

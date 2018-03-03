@@ -23,7 +23,6 @@ import (
 	"strconv"
 	"syscall"
 
-	"github.com/gorilla/handlers"
 	"github.com/gorilla/mux"
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
@@ -120,7 +119,7 @@ func main() {
 				apiHandlerOptions...)
 			r := mux.NewRouter()
 			apiHandler.RegisterRoutes(r)
-			registerStaticHandler(r, logger, queryOpts)
+			app.RegisterStaticHandler(r, logger, queryOpts)
 
 			if h := mBldr.Handler(); h != nil {
 				logger.Info("Registering metrics handler with HTTP server", zap.String("route", mBldr.HTTPRoute))
@@ -128,12 +127,11 @@ func main() {
 			}
 
 			portStr := ":" + strconv.Itoa(queryOpts.Port)
-			compressHandler := handlers.CompressHandler(r)
 			recoveryHandler := recoveryhandler.NewRecoveryHandler(logger, true)
 
 			go func() {
 				logger.Info("Starting jaeger-query HTTP server", zap.Int("port", queryOpts.Port))
-				if err := http.ListenAndServe(portStr, recoveryHandler(compressHandler)); err != nil {
+				if err := http.ListenAndServe(portStr, recoveryHandler(r)); err != nil {
 					logger.Fatal("Could not launch service", zap.Error(err))
 				}
 				hc.Set(healthcheck.Unavailable)
@@ -165,18 +163,6 @@ func main() {
 	if error := command.Execute(); error != nil {
 		fmt.Println(error.Error())
 		os.Exit(1)
-	}
-}
-
-func registerStaticHandler(r *mux.Router, logger *zap.Logger, qOpts *app.QueryOptions) {
-	staticHandler, err := app.NewStaticAssetsHandler(qOpts.StaticAssets, qOpts.UIConfig)
-	if err != nil {
-		logger.Fatal("Could not create static assets handler", zap.Error(err))
-	}
-	if staticHandler != nil {
-		staticHandler.RegisterRoutes(r)
-	} else {
-		logger.Info("Static handler is not registered")
 	}
 }
 
