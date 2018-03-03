@@ -23,7 +23,6 @@ import (
 	"regexp"
 	"strings"
 
-	"github.com/gorilla/handlers"
 	"github.com/gorilla/mux"
 	"github.com/pkg/errors"
 	"go.uber.org/zap"
@@ -109,23 +108,13 @@ func loadUIConfig(uiConfig string) (map[string]interface{}, error) {
 
 // RegisterRoutes registers routes for this handler on the given router
 func (sH *StaticAssetsHandler) RegisterRoutes(router *mux.Router) {
-	router.PathPrefix("/static").Handler(
-		handlers.CompressHandler(
-			http.FileServer(http.Dir(sH.staticAssetsRoot)),
-		),
-	)
+	router.PathPrefix("/static").Handler(http.FileServer(http.Dir(sH.staticAssetsRoot)))
 	for _, file := range staticRootFiles {
-		router.Path("/" + file).Handler(
-			handlers.CompressHandler(
-				http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-					http.ServeFile(w, r, sH.staticAssetsRoot+file)
-				}),
-			),
-		)
+		router.Path("/" + file).HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+			http.ServeFile(w, r, sH.staticAssetsRoot+file)
+		})
 	}
-	router.NotFoundHandler = handlers.CompressHandler(
-		http.HandlerFunc(sH.notFound),
-	)
+	router.NotFoundHandler = http.HandlerFunc(sH.notFound)
 }
 
 func (sH *StaticAssetsHandler) notFound(w http.ResponseWriter, r *http.Request) {

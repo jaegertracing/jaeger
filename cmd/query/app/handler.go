@@ -21,7 +21,6 @@ import (
 	"strconv"
 	"time"
 
-	"github.com/gorilla/handlers"
 	"github.com/gorilla/mux"
 	"github.com/opentracing-contrib/go-stdlib/nethttp"
 	"github.com/opentracing/opentracing-go"
@@ -138,7 +137,7 @@ func (aH *APIHandler) handleFunc(
 		nethttp.OperationNameFunc(func(r *http.Request) string {
 			return route
 		}))
-	return router.Handle(route, handlers.CompressHandler(traceMiddleware))
+	return router.HandleFunc(route, traceMiddleware.ServeHTTP)
 }
 
 func (aH *APIHandler) route(route string, args ...interface{}) string {
