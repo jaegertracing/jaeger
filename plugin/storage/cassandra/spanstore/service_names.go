@@ -42,6 +42,8 @@ type ServiceNamesStorage struct {
 	logger        *zap.Logger
 }
 
+var count int
+
 // NewServiceNamesStorage returns a new ServiceNamesStorage
 func NewServiceNamesStorage(
 	session cassandra.Session,
@@ -49,6 +51,11 @@ func NewServiceNamesStorage(
 	metricsFactory metrics.Factory,
 	logger *zap.Logger,
 ) *ServiceNamesStorage {
+	count++
+	println("NewServiceNamesStorage", count)
+	if count > 4 {
+		panic("again")
+	}
 	return &ServiceNamesStorage{
 		session:       session,
 		InsertStmt:    insertServiceName,

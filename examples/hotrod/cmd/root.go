@@ -21,8 +21,7 @@ import (
 
 	"github.com/spf13/cobra"
 	"github.com/uber/jaeger-lib/metrics"
-	"github.com/uber/jaeger-lib/metrics/go-kit"
-	"github.com/uber/jaeger-lib/metrics/go-kit/expvar"
+	jexpvar "github.com/uber/jaeger-lib/metrics/expvar"
 	jprom "github.com/uber/jaeger-lib/metrics/prometheus"
 	"go.uber.org/zap"
 )
@@ -61,7 +60,7 @@ func init() {
 // initMetrics is called before the command is executed.
 func initMetrics() {
 	if metricsBackend == "expvar" {
-		metricsFactory = xkit.Wrap("", expvar.NewFactory(10)) // 10 buckets for histograms
+		metricsFactory = jexpvar.NewFactory(10) // 10 buckets for histograms
 		logger.Info("Using expvar as metrics backend")
 	} else if metricsBackend == "prometheus" {
 		metricsFactory = jprom.New()
