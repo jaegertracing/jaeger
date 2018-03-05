@@ -16,7 +16,6 @@ package cassandra
 
 import (
 	"flag"
-	"fmt"
 
 	"github.com/spf13/viper"
 	"github.com/uber/jaeger-lib/metrics"
@@ -83,13 +82,14 @@ func (f *Factory) Initialize(metricsFactory metrics.Factory, logger *zap.Logger)
 	}
 	f.primarySession = primarySession
 
-	fmt.Printf("%+v\n", f.archiveConfig)
 	if f.archiveConfig != nil {
 		if archiveSession, err := f.archiveConfig.NewSession(); err == nil {
 			f.archiveSession = archiveSession
 		} else {
 			return err
 		}
+	} else {
+		logger.Info("Cassandra archive storage configuration is empty, skipping")
 	}
 	return nil
 }

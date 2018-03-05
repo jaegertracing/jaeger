@@ -25,6 +25,7 @@ import (
 	"github.com/jaegertracing/jaeger/pkg/cassandra"
 	"github.com/jaegertracing/jaeger/pkg/cassandra/mocks"
 	"github.com/jaegertracing/jaeger/pkg/config"
+	"github.com/jaegertracing/jaeger/pkg/testutils"
 	"github.com/jaegertracing/jaeger/storage"
 )
 
@@ -43,6 +44,7 @@ func (m *mockSessionBuilder) NewSession() (cassandra.Session, error) {
 }
 
 func TestCassandraFactory(t *testing.T) {
+	logger, logBuf := testutils.NewLogger()
 	f := NewFactory()
 	v, command := config.Viperize(f.AddFlags)
 	command.ParseFlags([]string{"--cassandra-archive.enabled=true"})
@@ -58,7 +60,8 @@ func TestCassandraFactory(t *testing.T) {
 	assert.EqualError(t, f.Initialize(metrics.NullFactory, zap.NewNop()), "made-up error")
 
 	f.archiveConfig = nil
-	assert.NoError(t, f.Initialize(metrics.NullFactory, zap.NewNop()))
+	assert.NoError(t, f.Initialize(metrics.NullFactory, logger))
+	assert.Contains(t, logBuf.String(), "Cassandra archive storage configuration is empty, skipping")
 
 	_, err := f.CreateSpanReader()
 	assert.NoError(t, err)
