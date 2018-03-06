@@ -120,7 +120,7 @@ func main() {
 				apiHandlerOptions...)
 			r := mux.NewRouter()
 			apiHandler.RegisterRoutes(r)
-			registerStaticHandler(r, logger, queryOpts)
+			app.RegisterStaticHandler(r, logger, queryOpts)
 
 			if h := mBldr.Handler(); h != nil {
 				logger.Info("Registering metrics handler with HTTP server", zap.String("route", mBldr.HTTPRoute))
@@ -165,18 +165,6 @@ func main() {
 	if error := command.Execute(); error != nil {
 		fmt.Println(error.Error())
 		os.Exit(1)
-	}
-}
-
-func registerStaticHandler(r *mux.Router, logger *zap.Logger, qOpts *app.QueryOptions) {
-	staticHandler, err := app.NewStaticAssetsHandler(qOpts.StaticAssets, qOpts.UIConfig)
-	if err != nil {
-		logger.Fatal("Could not create static assets handler", zap.Error(err))
-	}
-	if staticHandler != nil {
-		staticHandler.RegisterRoutes(r)
-	} else {
-		logger.Info("Static handler is not registered")
 	}
 }
 

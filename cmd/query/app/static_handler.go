@@ -25,12 +25,26 @@ import (
 
 	"github.com/gorilla/mux"
 	"github.com/pkg/errors"
+	"go.uber.org/zap"
 )
 
 var (
 	staticRootFiles = []string{"favicon.ico"}
 	configPattern   = regexp.MustCompile("JAEGER_CONFIG *= *DEFAULT_CONFIG;")
 )
+
+// RegisterStaticHandler adds handler for static assets to the router.
+func RegisterStaticHandler(r *mux.Router, logger *zap.Logger, qOpts *QueryOptions) {
+	staticHandler, err := NewStaticAssetsHandler(qOpts.StaticAssets, qOpts.UIConfig)
+	if err != nil {
+		logger.Panic("Could not create static assets handler", zap.Error(err))
+	}
+	if staticHandler != nil {
+		staticHandler.RegisterRoutes(r)
+	} else {
+		logger.Info("Static handler is not registered")
+	}
+}
 
 // StaticAssetsHandler handles static assets
 type StaticAssetsHandler struct {
