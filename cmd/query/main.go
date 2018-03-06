@@ -185,6 +185,7 @@ func archiveOptions(storageFactory istorage.Factory, logger *zap.Logger) []app.H
 	}
 	writer, err := archiveFactory.CreateArchiveSpanWriter()
 	if err == istorage.ErrArchiveStorageNotConfigured || err == istorage.ErrArchiveStorageNotSupported {
+		logger.Info("Archive storage not created", zap.String("reason", err.Error()))
 		return nil
 	}
 	if err != nil {
