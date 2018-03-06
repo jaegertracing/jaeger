@@ -1,6 +1,36 @@
 Changes by Version
 ==================
 
+1.3.0
+------------------
+
+#### Backend Changes
+
+##### New Features
+
+a631623 - Add Dockerfile for hotrod example app (#694) (2 weeks ago) <Guilherme Baufaker Rêgo>
+
+- Add sampling handler with file-based configuration for agents to query (#720) (#674) <Won Jun Jang>
+- Add a flag to control Cassandra consistency level (#700) <Yuri Shkuro>
+- Collect metrics from ES bulk service (#688) <Pavol Loffay>
+
+##### Fixes
+
+- Make sure different tracers in HotROD process use different random generator seeds (#718) <Yuri Shkuro>
+
+#### UI Changes
+
+##### New Features
+##### Fixes
+
+2e6d1a4 - (HEAD -> master, origin/master, origin/HEAD) Change trace name fallback to be more informative (#192) (24 hours ago) <Joe>
+4e7fc85 - Track JS errors in GA (#189) (6 days ago) <Joe>
+97fb871 - [Non-functional change] - Run prettier on *.md files (#188) (3 weeks ago) <Joe>
+3f1202d - Misc cleanup - flow, precommit hook, no devtools in prod (#184) (3 weeks ago) <Joe>
+
+#### Documentation Changes
+
+
 1.2.0 (2018-02-07)
 ------------------
 
