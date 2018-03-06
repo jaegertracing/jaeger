@@ -39,8 +39,9 @@ const (
 type Factory struct {
 	Options *Options
 
-	metricsFactory metrics.Factory
-	logger         *zap.Logger
+	primaryMetricsFactory metrics.Factory
+	archiveMetricsFactory metrics.Factory
+	logger                *zap.Logger
 
 	primaryConfig  config.SessionBuilder
 	primarySession cassandra.Session
@@ -71,7 +72,9 @@ func (f *Factory) InitFromViper(v *viper.Viper) {
 
 // Initialize implements storage.Factory
 func (f *Factory) Initialize(metricsFactory metrics.Factory, logger *zap.Logger) error {
-	f.metricsFactory, f.logger = metricsFactory, logger
+	f.primaryMetricsFactory = metricsFactory.Namespace("cassandra", nil)
+	f.archiveMetricsFactory = metricsFactory.Namespace("cassandra-archive", nil)
+	f.logger = logger
 
 	primarySession, err := f.primaryConfig.NewSession()
 	if err != nil {
@@ -85,23 +88,25 @@ func (f *Factory) Initialize(metricsFactory metrics.Factory, logger *zap.Logger)
 		} else {
 			return err
 		}
+	} else {
+		logger.Info("Cassandra archive storage configuration is empty, skipping")
 	}
 	return nil
 }
 
 // CreateSpanReader implements storage.Factory
 func (f *Factory) CreateSpanReader() (spanstore.Reader, error) {
-	return cSpanStore.NewSpanReader(f.primarySession, f.metricsFactory, f.logger), nil
+	return cSpanStore.NewSpanReader(f.primarySession, f.primaryMetricsFactory, f.logger), nil
 }
 
 // CreateSpanWriter implements storage.Factory
 func (f *Factory) CreateSpanWriter() (spanstore.Writer, error) {
-	return cSpanStore.NewSpanWriter(f.primarySession, f.Options.SpanStoreWriteCacheTTL, f.metricsFactory, f.logger), nil
+	return cSpanStore.NewSpanWriter(f.primarySession, f.Options.SpanStoreWriteCacheTTL, f.primaryMetricsFactory, f.logger), nil
 }
 
 // CreateDependencyReader implements storage.Factory
 func (f *Factory) CreateDependencyReader() (dependencystore.Reader, error) {
-	return cDepStore.NewDependencyStore(f.primarySession, f.Options.DepStoreDataFrequency, f.metricsFactory, f.logger), nil
+	return cDepStore.NewDependencyStore(f.primarySession, f.Options.DepStoreDataFrequency, f.primaryMetricsFactory, f.logger), nil
 }
 
 // CreateArchiveSpanReader implements storage.ArchiveFactory
@@ -109,7 +114,7 @@ func (f *Factory) CreateArchiveSpanReader() (spanstore.Reader, error) {
 	if f.archiveSession == nil {
 		return nil, storage.ErrArchiveStorageNotConfigured
 	}
-	return cSpanStore.NewSpanReader(f.archiveSession, f.metricsFactory, f.logger), nil
+	return cSpanStore.NewSpanReader(f.archiveSession, f.archiveMetricsFactory, f.logger), nil
 }
 
 // CreateArchiveSpanWriter implements storage.ArchiveFactory
@@ -117,5 +122,5 @@ func (f *Factory) CreateArchiveSpanWriter() (spanstore.Writer, error) {
 	if f.archiveSession == nil {
 		return nil, storage.ErrArchiveStorageNotConfigured
 	}
-	return cSpanStore.NewSpanWriter(f.archiveSession, f.Options.SpanStoreWriteCacheTTL, f.metricsFactory, f.logger), nil
+	return cSpanStore.NewSpanWriter(f.archiveSession, f.Options.SpanStoreWriteCacheTTL, f.archiveMetricsFactory, f.logger), nil
 }

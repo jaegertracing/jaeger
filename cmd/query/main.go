@@ -169,16 +169,23 @@ func main() {
 }
 
 func archiveOptions(storageFactory istorage.Factory, logger *zap.Logger) []app.HandlerOption {
-	reader, err := storageFactory.CreateSpanReader()
+	archiveFactory, ok := storageFactory.(istorage.ArchiveFactory)
+	if !ok {
+		logger.Info("Archive storage not supported by the factory")
+		return nil
+	}
+	reader, err := archiveFactory.CreateArchiveSpanReader()
 	if err == istorage.ErrArchiveStorageNotConfigured || err == istorage.ErrArchiveStorageNotSupported {
+		logger.Info("Archive storage not created", zap.String("reason", err.Error()))
 		return nil
 	}
 	if err != nil {
 		logger.Error("Cannot init archive storage reader", zap.Error(err))
 		return nil
 	}
-	writer, err := storageFactory.CreateSpanWriter()
+	writer, err := archiveFactory.CreateArchiveSpanWriter()
 	if err == istorage.ErrArchiveStorageNotConfigured || err == istorage.ErrArchiveStorageNotSupported {
+		logger.Info("Archive storage not created", zap.String("reason", err.Error()))
 		return nil
 	}
 	if err != nil {

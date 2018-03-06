@@ -1,5 +1,5 @@
-hash: a471ba65985cd8da353da17ba52ea1ce163fde53e469d02f053bde78f647d779
-updated: 2018-02-22T17:30:31.965001235+01:00
+hash: b40b5983c6baf2db7a7b72dfc9fe4a7168a7eef31292840999544ad9862db3e5
+updated: 2018-03-05T17:31:52.001803-05:00
 imports:
 - name: github.com/apache/thrift
   version: 53dd39833a08ce33582e5ff31fa18bb4735d6731
@@ -19,7 +19,7 @@ imports:
   - assert
   - require
 - name: github.com/davecgh/go-spew
-  version: 8991bc29aa16c548c550c7ff78260e27b9ab7c73
+  version: ecdeabc65495df2dec95d7c4a4c3e021903035e5
   subpackages:
   - spew
 - name: github.com/fsnotify/fsnotify
@@ -192,9 +192,11 @@ imports:
   - transport/zipkin
   - utils
 - name: github.com/uber/jaeger-lib
-  version: 7f95f4f7e80028096410abddaae2556e4c61b59f
+  version: 4267858c0679cd4e47cefed8d7f70fd386cfb567
   subpackages:
   - metrics
+  - metrics/adapters
+  - metrics/expvar
   - metrics/go-kit
   - metrics/go-kit/expvar
   - metrics/prometheus
@@ -228,7 +230,7 @@ imports:
   - zapcore
   - zaptest
 - name: golang.org/x/net
-  version: cbe0f9307d0156177f9dd5dc85da1a31abc5f2fb
+  version: 5ccada7d0a7ba9aeb5d3aca8d3501b4c2a509fec
   subpackages:
   - context
   - context/ctxhttp
