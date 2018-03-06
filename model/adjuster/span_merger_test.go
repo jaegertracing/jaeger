@@ -18,9 +18,10 @@ import (
 	"testing"
 	"time"
 
-	"github.com/jaegertracing/jaeger/model"
 	"github.com/opentracing/opentracing-go/ext"
 	"github.com/stretchr/testify/assert"
+
+	"github.com/jaegertracing/jaeger/model"
 )
 
 func Test_MergeAdjuster(t *testing.T) {
