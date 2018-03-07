@@ -15,16 +15,11 @@
 package adjuster
 
 import (
-	"sort"
-
 	"github.com/jaegertracing/jaeger/model"
 )
 
 // MergeSpans returns an Adjuster that merges Jaeger spans with the same spanID.
-// It skips merging Zipkin spans. Zipkin spans are defined as spans sharing the spanID and containing
-// both client and server span.kind annotations.
-// As Zipkin spans are always reported in entirety, we can assume that that the span.kind annotations are present.
-// A drawback of this approach is that incomplete traces with duplicate Zipkin spans will be merged unnecessarily
+// Duplicate spans that have conflicting span.kind annotations are not merged.
 //
 // MergeSpans assumes that the duration field in a span is monotonically increasing for a spans with the
 // same spanID. The span with the longest spanID wins, and is selected in entirety.
@@ -41,10 +36,10 @@ func MergeSpans() Adjuster {
 		trace := &model.Trace{}
 		trace.Warnings = input.Warnings
 		for _, spans := range IDToSpans {
-			if isZipkin(spans) {
-				trace.Spans = append(trace.Spans, spans...)
-			} else {
+			if isMergeable(spans) {
 				trace.Spans = append(trace.Spans, mergeSpans(spans))
+			} else {
+				trace.Spans = append(trace.Spans, spans...)
 			}
 		}
 		return trace, nil
@@ -64,16 +59,17 @@ func groupByIDs(spans []*model.Span) map[model.SpanID][]*model.Span {
 }
 
 func mergeSpans(spans []*model.Span) *model.Span {
-	// This assumes that the duration field in a span is monotonically increasing
-	// and uses it to break ties between spans.
-	sort.Slice(spans, func(i, j int) bool {
-		return spans[i].Duration > spans[j].Duration
-	})
-
-	return spans[0]
+	maxDurationSpan := spans[0]
+	for _, span := range spans {
+		if maxDurationSpan.Duration < span.Duration {
+			maxDurationSpan = span
+		}
+	}
+	return maxDurationSpan
 }
 
-func isZipkin(spans []*model.Span) bool {
+func isMergeable(spans []*model.Span) bool {
+	// Checks that span.kind annotations are consistent, i.e all spans contain server/client or no span kind annotations
 	hasServer := false
 	hasClient := false
 	for _, span := range spans {
@@ -84,5 +80,5 @@ func isZipkin(spans []*model.Span) bool {
 			hasServer = true
 		}
 	}
-	return hasServer && hasClient
+	return !(hasServer && hasClient)
 }
