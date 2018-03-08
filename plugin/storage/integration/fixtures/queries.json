@@ -376,5 +376,19 @@
       "NumTraces": 1000
     },
     "ExpectedFixtures": ["multiple1_trace", "multiple2_trace", "multiple3_trace"]
+  },
+  {
+    "Caption": "Multiple Traces with Search After",
+    "Query": {
+      "ServiceName": "example-service-1",
+      "OperationName": "example-operation-1",
+      "Tags": null,
+      "StartTimeMin": "2018-03-06T16:46:31.639875Z",
+      "StartTimeMax": "2018-03-06T16:55:31.639875Z",
+      "DurationMin": 0,
+      "DurationMax": 100000,
+      "NumTraces": 10008
+    },
+    "ExpectedFixtures": ["searchafter_trace"]
   }
 ]

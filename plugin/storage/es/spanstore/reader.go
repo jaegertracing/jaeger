@@ -210,6 +210,7 @@ func (s *SpanReader) multiRead(traceIDs []string, startTime, endTime time.Time) 
 		return []*model.Trace{}, nil
 	}
 	searchRequests := make([]*elastic.SearchRequest, len(traceIDs))
+
 	var traces []*model.Trace
 	// Add an hour in both directions so that traces that straddle two indexes are retrieved.
 	// i.e starts in one and ends in another.
@@ -219,6 +220,7 @@ func (s *SpanReader) multiRead(traceIDs []string, startTime, endTime time.Time) 
 
 	searchAfterTime := make(map[string]uint64)
 	totalDocumentsFetched := make(map[string]int)
+	tracesMap := make(map[string]*model.Trace)
 	for {
 		if traceIDs == nil || len(traceIDs) == 0 {
 			break
@@ -229,9 +231,12 @@ func (s *SpanReader) multiRead(traceIDs []string, startTime, endTime time.Time) 
 			if val, ok := searchAfterTime[traceID]; ok {
 				nextTime = val
 			}
-			searchRequests[i] = elastic.NewSearchRequest().IgnoreUnavailable(true).Type("span").Source(elastic.NewSearchSource().Query(query).Size(defaultDocCount).Sort("startTime", true).SearchAfter(nextTime))
-		}
-
+			if nextTime == 0 {
+				searchRequests[i] = elastic.NewSearchRequest().IgnoreUnavailable(true).Type("span").Source(elastic.NewSearchSource().Query(query).Size(defaultDocCount).Sort("startTime", true))
+			} else {
+				searchRequests[i] = elastic.NewSearchRequest().IgnoreUnavailable(true).Type("span").Source(elastic.NewSearchSource().Query(query).Size(defaultDocCount).Sort("startTime", true).SearchAfter(nextTime))
+			}
+			}
 		// set traceIDs to empty
 		traceIDs = nil
 		results, err := s.client.MultiSearch().Add(searchRequests...).Index(indices...).Do(s.ctx)
@@ -249,14 +254,21 @@ func (s *SpanReader) multiRead(traceIDs []string, startTime, endTime time.Time) 
 				continue
 			}
 			spans, err := s.collectSpans(result.Hits.Hits)
-
 			if err != nil {
 				return nil, err
 			}
-
-			traces = append(traces, &model.Trace{Spans: spans})
 			lastSpan := spans[len(spans)-1]
-			lastSpanTraceID := string(lastSpan.TraceID.Low)
+			lastSpanTraceID := lastSpan.TraceID.String()
+
+			if traceSpan, ok := tracesMap[lastSpanTraceID]; ok {
+				for _, span := range spans {
+					traceSpan.Spans = append(traceSpan.Spans, span)
+				}
+
+			} else {
+				tracesMap[lastSpanTraceID] = &model.Trace{Spans: spans}
+			}
+
 			totalDocumentsFetched[lastSpanTraceID] = totalDocumentsFetched[lastSpanTraceID] + len(result.Hits.Hits)
 			if totalDocumentsFetched[lastSpanTraceID] < int(result.TotalHits()) {
 				traceIDs = append(traceIDs, lastSpanTraceID)
@@ -265,6 +277,9 @@ func (s *SpanReader) multiRead(traceIDs []string, startTime, endTime time.Time) 
 		}
 	}
 
+	for _, trace := range tracesMap {
+		traces = append(traces, trace)
+	}
 	return traces, nil
 }
 
