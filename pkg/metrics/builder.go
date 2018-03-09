@@ -68,7 +68,7 @@ func (b *Builder) InitFromViper(v *viper.Viper) *Builder {
 // can be later added by RegisterHandler function.
 func (b *Builder) CreateMetricsFactory(namespace string) (metrics.Factory, error) {
 	if b.Backend == "prometheus" {
-		metricsFactory := jprom.New()
+		metricsFactory := jprom.New().Namespace(namespace, nil)
 		b.handler = promhttp.HandlerFor(prometheus.DefaultGatherer, promhttp.HandlerOpts{DisableCompression: true})
 		return metricsFactory, nil
 	}
