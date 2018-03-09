@@ -438,18 +438,18 @@ func TestSpanReader_FindTraces(t *testing.T) {
 			},
 			StartTimeMin: time.Now().Add(-1 * time.Hour),
 			StartTimeMax: time.Now(),
-			NumTraces:    2,
+			NumTraces:    1,
 		}
 
 		traces, err := r.reader.FindTraces(traceQuery)
 		require.NoError(t, err)
-		assert.Len(t, traces, 2)
+		assert.Len(t, traces, 1)
 
 		trace := traces[0]
 		expectedSpans, err := r.reader.collectSpans(hits)
 		require.NoError(t, err)
 
-		require.Len(t, trace.Spans, 1)
+		require.Len(t, trace.Spans, 2)
 		assert.EqualValues(t, trace.Spans[0], expectedSpans[0])
 	})
 }
