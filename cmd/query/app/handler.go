@@ -18,6 +18,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/http"
+	"net/url"
 	"strconv"
 	"time"
 
@@ -160,7 +161,9 @@ func (aH *APIHandler) getServices(w http.ResponseWriter, r *http.Request) {
 
 func (aH *APIHandler) getOperationsLegacy(w http.ResponseWriter, r *http.Request) {
 	vars := mux.Vars(r)
-	service := vars[serviceParam] //given how getOperationsLegacy is used, service will always be a non-empty string
+	//given how getOperationsLegacy is used, service will always be a non-empty string
+	service, _ := url.QueryUnescape(vars[serviceParam])
+	println(service)
 	operations, err := aH.spanReader.GetOperations(service)
 	if aH.handleError(w, err, http.StatusInternalServerError) {
 		return

@@ -98,7 +98,7 @@ func initializeTestServerWithHandler(options ...HandlerOption) (*httptest.Server
 func initializeTestServerWithOptions(options ...HandlerOption) (*httptest.Server, *spanstoremocks.Reader, *depsmocks.Reader, *APIHandler) {
 	readStorage := &spanstoremocks.Reader{}
 	dependencyStorage := &depsmocks.Reader{}
-	r := mux.NewRouter()
+	r := mux.NewRouter().UseEncodedPath()
 	handler := NewAPIHandler(readStorage, dependencyStorage, options...)
 	handler.RegisterRoutes(r)
 	return httptest.NewServer(r), readStorage, dependencyStorage, handler
