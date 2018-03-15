@@ -1,4 +1,4 @@
-FROM scratch
+FROM alpine
 ENV JAEGER_AGENT_HOST_PORT localhost:6831
 EXPOSE 8080 8081 8082 8083
 COPY hotrod-linux /go/bin/
