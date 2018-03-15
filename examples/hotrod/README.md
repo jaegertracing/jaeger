@@ -41,7 +41,7 @@ go run ./main.go all
 
 ### Run HotROD from docker
 ```bash
-docker run --rm -it --link jaeger -p8080-8083:8080-8083 jaegertracing/example-hotrod:latest /go/bin/hotrod-linux all --jaeger-agent.host-port=jaeger:6831
+docker run --rm -it --link jaeger -e JAEGER_AGENT_HOST_PORT=jaeger:6831 -p8080-8083:8080-8083 jaegertracing/example-hotrod:latest
 ```
 
 Then open http://127.0.0.1:8080
