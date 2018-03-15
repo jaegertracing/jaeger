@@ -130,7 +130,7 @@ install-go-bindata:
 .PHONY: build-examples
 build-examples: install-go-bindata
 	(cd ./examples/hotrod/services/frontend/ && go-bindata-assetfs -pkg frontend web_assets/...)
-	ls ./examples/hotrod/services/frontend/ 
+	rm ./examples/hotrod/services/frontend/bindata.go
 	CGO_ENABLED=0 GOOS=linux installsuffix=cgo go build -o ./examples/hotrod/hotrod-linux ./examples/hotrod/main.go
 
 .PHONE: docker-hotrod
