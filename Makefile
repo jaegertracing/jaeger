@@ -172,6 +172,8 @@ docker-images-only:
 	cp -r jaeger-ui-build/build/ cmd/query/jaeger-ui-build
 	docker build -t $(DOCKER_NAMESPACE)/jaeger-cassandra-schema:${DOCKER_TAG} plugin/storage/cassandra/
 	@echo "Finished building jaeger-cassandra-schema =============="
+	docker build -t $(DOCKER_NAMESPACE)/jaeger-es-index-cleaner:${DOCKER_TAG} plugin/storage/es
+	@echo "Finished building jaeger-es-indices-clean =============="
 	for component in agent collector query ; do \
 		docker build -t $(DOCKER_NAMESPACE)/jaeger-$$component:${DOCKER_TAG} cmd/$$component ; \
 		echo "Finished building $$component ==============" ; \
@@ -188,7 +190,7 @@ docker-push:
 	if [ $$CONFIRM != "y" ] && [ $$CONFIRM != "Y" ]; then \
 		echo "Exiting." ; exit 1 ; \
 	fi
-	for component in agent cassandra-schema collector query example-hotrod; do \
+	for component in agent cassandra-schema es-index-cleaner collector query example-hotrod; do \
 		docker push $(DOCKER_NAMESPACE)/jaeger-$$component ; \
 	done
 
