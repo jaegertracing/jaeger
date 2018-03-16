@@ -6,6 +6,11 @@ make docker-hotrod
 export REPO=jaegertracing/example-hotrod
 
 export CID=$(docker run -d -p 8080:8080 $REPO:latest)
+i=0
+while [[ "$(curl -s -o /dev/null -w ''%{http_code}'' localhost:8080)" != "200" && ${i} < 5 ]]; do
+  sleep 1
+  i=$((i+1))
+done
 body=$(curl localhost:8080)
 if [[ $body != *"Rides On Demand"* ]]; then
   echo "String \"Rides On Demand\" is not present on the index page"
