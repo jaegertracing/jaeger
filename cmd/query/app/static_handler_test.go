@@ -19,7 +19,6 @@ import (
 	"io/ioutil"
 	"net/http"
 	"net/http/httptest"
-	"strings"
 	"testing"
 	"time"
 
@@ -77,40 +76,95 @@ func TestRegisterStaticHandlerNotCreated(t *testing.T) {
 }
 
 func TestRegisterStaticHandler(t *testing.T) {
-	logger, buf := testutils.NewLogger()
-	r := mux.NewRouter()
-	RegisterStaticHandler(r, logger, &QueryOptions{StaticAssets: "fixture/"})
-	assert.Empty(t, buf.String())
-
-	server := httptest.NewServer(r)
-	defer server.Close()
-	expectedRespString := "Test Favicon\n"
-
-	httpClient = &http.Client{
-		Timeout: 2 * time.Second,
+	testCases := []struct {
+		subroute         bool
+		baseURL          string
+		basePath         string
+		expectedBasePath string
+	}{
+		{baseURL: "/", basePath: "", expectedBasePath: `<base href="/"`},
+		{baseURL: "/", basePath: "/", expectedBasePath: `<base href="/"`},
+		{baseURL: "/jaeger/", basePath: "/jaeger", expectedBasePath: `<base href="/jaeger/"`, subroute: true},
 	}
+	for _, testCase := range testCases {
+		t.Run("", func(t *testing.T) {
+			logger, buf := testutils.NewLogger()
+			r := mux.NewRouter()
+			if testCase.subroute {
+				r = r.PathPrefix(testCase.basePath).Subrouter()
+			}
+			RegisterStaticHandler(r, logger, &QueryOptions{
+				StaticAssets: "fixture/",
+				BasePath:     testCase.basePath,
+				UIConfig:     "fixture/ui-config.json",
+			})
+			assert.Empty(t, buf.String())
 
-	resp, err := httpClient.Get(fmt.Sprintf("%s/favicon.ico", server.URL))
-	require.NoError(t, err)
-	defer resp.Body.Close()
+			server := httptest.NewServer(r)
+			defer server.Close()
+			httpClient = &http.Client{
+				Timeout: 2 * time.Second,
+			}
 
-	respByteArray, _ := ioutil.ReadAll(resp.Body)
-	respString := string(respByteArray)
+			httpGet := func(path string) string {
+				resp, err := httpClient.Get(fmt.Sprintf("%s%s%s", server.URL, testCase.baseURL, path))
+				require.NoError(t, err)
+				defer resp.Body.Close()
 
-	assert.NoError(t, err)
-	assert.Equal(t, http.StatusOK, resp.StatusCode)
-	assert.Equal(t, expectedRespString, respString)
+				respByteArray, _ := ioutil.ReadAll(resp.Body)
+				respString := string(respByteArray)
+
+				assert.NoError(t, err)
+				assert.Equal(t, http.StatusOK, resp.StatusCode)
+				return respString
+			}
+
+			respString := httpGet("favicon.ico")
+			assert.Contains(t, respString, "Test Favicon") // this text is present in fixtures/favicon.ico
+
+			html := httpGet("") // get index.html
+			assert.Contains(t, html, `JAEGER_CONFIG = {"x":"y"};`, "actual: %v", html)
+			assert.Contains(t, html, testCase.expectedBasePath, "actual: %v", html)
+
+			asset := httpGet("static/asset.txt")
+			assert.Contains(t, asset, "some asset", "actual: %v", asset)
+		})
+	}
 }
 
-func TestNewStaticAssetsHandlerWithConfig(t *testing.T) {
+func TestNewStaticAssetsHandlerSubstitutions(t *testing.T) {
+	testCases := []struct {
+		base     string
+		expected string
+	}{
+		{base: "", expected: `<base href="/"`},
+		{base: "/", expected: `<base href="/"`},
+		{base: "/jaeger", expected: `<base href="/jaeger/"`},
+	}
+	for _, testCase := range testCases {
+		handler, err := NewStaticAssetsHandler(
+			"fixture",
+			StaticAssetsHandlerOptions{
+				UIConfigPath: "fixture/ui-config.json",
+				BasePath:     testCase.base,
+			})
+		require.NoError(t, err)
+		require.NotNil(t, handler)
+		html := string(handler.indexHTML)
+		assert.Contains(t, html, `JAEGER_CONFIG = {"x":"y"};`, "actual: %v", html)
+		assert.Contains(t, html, testCase.expected, "actual: %v", html)
+	}
+}
+
+func TestNewStaticAssetsHandlerErrors(t *testing.T) {
 	_, err := NewStaticAssetsHandler("fixture", StaticAssetsHandlerOptions{UIConfigPath: "fixture/invalid-config"})
 	assert.Error(t, err)
 
-	handler, err := NewStaticAssetsHandler("fixture", StaticAssetsHandlerOptions{UIConfigPath: "fixture/ui-config.json"})
-	require.NoError(t, err)
-	require.NotNil(t, handler)
-	html := string(handler.indexHTML)
-	assert.True(t, strings.Contains(html, `JAEGER_CONFIG = {"x":"y"};`), "actual: %v", html)
+	for _, base := range []string{"x", "x/", "/x/"} {
+		_, err := NewStaticAssetsHandler("fixture", StaticAssetsHandlerOptions{UIConfigPath: "fixture/ui-config.json", BasePath: base})
+		require.Error(t, err, base)
+		assert.Contains(t, err.Error(), "Invalid base path")
+	}
 }
 
 func TestLoadUIConfig(t *testing.T) {

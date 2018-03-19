@@ -33,7 +33,7 @@ var (
 	configPattern   = regexp.MustCompile("JAEGER_CONFIG *= *DEFAULT_CONFIG;")
 	basePathPattern = regexp.MustCompile(`<base href="/"`)
 	basePathReplace = `<base href="%s/"`
-	errBadBasePath  = errors.New("Base path must start with / but not end with /; valid path: /jaeger/ui")
+	errBadBasePath  = "Invalid base path '%s'. Must start with / but not end with /, e.g. /jaeger/ui."
 )
 
 // RegisterStaticHandler adds handler for static assets to the router.
@@ -88,9 +88,12 @@ func NewStaticAssetsHandler(staticAssetsRoot string, options StaticAssetsHandler
 		configString = fmt.Sprintf("JAEGER_CONFIG = %v", string(bytes))
 	}
 	indexBytes = configPattern.ReplaceAll(indexBytes, []byte(configString+";"))
+	if options.BasePath == "" {
+		options.BasePath = "/"
+	}
 	if options.BasePath != "/" {
 		if !strings.HasPrefix(options.BasePath, "/") || strings.HasSuffix(options.BasePath, "/") {
-			return nil, errBadBasePath
+			return nil, fmt.Errorf(errBadBasePath, options.BasePath)
 		}
 		indexBytes = basePathPattern.ReplaceAll(indexBytes, []byte(fmt.Sprintf(basePathReplace, options.BasePath)))
 	}
