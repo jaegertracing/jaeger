@@ -47,10 +47,17 @@ func (handlerOptions) Adjusters(adjusters ...adjuster.Adjuster) HandlerOption {
 	}
 }
 
-// Prefix creates a HandlerOption that initializes prefix HTTP prefix of the API
+// BasePath creates a HandlerOption that initializes the base path for all HTTP routes
+func (handlerOptions) BasePath(prefix string) HandlerOption {
+	return func(apiHandler *APIHandler) {
+		apiHandler.basePath = prefix
+	}
+}
+
+// Prefix creates a HandlerOption that initializes the HTTP prefix for API routes
 func (handlerOptions) Prefix(prefix string) HandlerOption {
 	return func(apiHandler *APIHandler) {
-		apiHandler.httpPrefix = prefix
+		apiHandler.apiPrefix = prefix
 	}
 }
 

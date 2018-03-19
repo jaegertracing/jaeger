@@ -109,7 +109,6 @@ func main() {
 			}
 
 			apiHandlerOptions := []app.HandlerOption{
-				app.HandlerOptions.Prefix(queryOpts.Prefix),
 				app.HandlerOptions.Logger(logger),
 				app.HandlerOptions.Tracer(tracer),
 			}
@@ -119,6 +118,9 @@ func main() {
 				dependencyReader,
 				apiHandlerOptions...)
 			r := mux.NewRouter()
+			if queryOpts.BasePath != "/" {
+				r = r.PathPrefix(queryOpts.BasePath).Subrouter()
+			}
 			apiHandler.RegisterRoutes(r)
 			app.RegisterStaticHandler(r, logger, queryOpts)
 
@@ -128,7 +130,8 @@ func main() {
 			}
 
 			portStr := ":" + strconv.Itoa(queryOpts.Port)
-			compressHandler := handlers.CompressHandler(r)
+			loggingHandler := handlers.LoggingHandler(os.Stdout, r)
+			compressHandler := handlers.CompressHandler(loggingHandler)
 			recoveryHandler := recoveryhandler.NewRecoveryHandler(logger, true)
 
 			go func() {

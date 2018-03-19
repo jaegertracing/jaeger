@@ -22,7 +22,7 @@ import (
 
 const (
 	queryPort                = "query.port"
-	queryPrefix              = "query.prefix"
+	queryBasePath            = "query.base-path"
 	queryStaticFiles         = "query.static-files"
 	queryUIConfig            = "query.ui-config"
 	queryHealthCheckHTTPPort = "query.health-check-http-port"
@@ -32,8 +32,8 @@ const (
 type QueryOptions struct {
 	// Port is the port that the query service listens in on
 	Port int
-	// Prefix is the prefix of the query service api
-	Prefix string
+	// BasePath is the prefix for all UI and API HTTP routes
+	BasePath string
 	// StaticAssets is the path for the static assets for the UI (https://github.com/uber/jaeger-ui)
 	StaticAssets string
 	// UIConfig is the path to a configuration file for the UI
@@ -45,8 +45,8 @@ type QueryOptions struct {
 // AddFlags adds flags for QueryOptions
 func AddFlags(flagSet *flag.FlagSet) {
 	flagSet.Int(queryPort, 16686, "The port for the query service")
-	flagSet.String(queryPrefix, "api", "The prefix for the url of the query service")
-	flagSet.String(queryStaticFiles, "jaeger-ui-build/build/", "The path for the static assets for the UI")
+	flagSet.String(queryBasePath, "/", "The base path for all HTTP routes, e.g. /jaeger; useful when running behind a reverse proxy")
+	flagSet.String(queryStaticFiles, "jaeger-ui-build/build/", "The directory path for the static assets for the UI")
 	flagSet.String(queryUIConfig, "", "The path to the UI configuration file in JSON format")
 	flagSet.Int(queryHealthCheckHTTPPort, 16687, "The http port for the health check service")
 }
@@ -54,7 +54,7 @@ func AddFlags(flagSet *flag.FlagSet) {
 // InitFromViper initializes QueryOptions with properties from viper
 func (qOpts *QueryOptions) InitFromViper(v *viper.Viper) *QueryOptions {
 	qOpts.Port = v.GetInt(queryPort)
-	qOpts.Prefix = v.GetString(queryPrefix)
+	qOpts.BasePath = v.GetString(queryBasePath)
 	qOpts.StaticAssets = v.GetString(queryStaticFiles)
 	qOpts.UIConfig = v.GetString(queryUIConfig)
 	qOpts.HealthCheckHTTPPort = v.GetInt(queryHealthCheckHTTPPort)
