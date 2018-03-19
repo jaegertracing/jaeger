@@ -85,7 +85,7 @@ func initializeTestServerWithHandler(options ...HandlerOption) (*httptest.Server
 		append(
 			[]HandlerOption{
 				HandlerOptions.Logger(zap.NewNop()),
-				HandlerOptions.Prefix(defaultHTTPPrefix),
+				HandlerOptions.Prefix(defaultAPIPrefix),
 				HandlerOptions.QueryLookbackDuration(defaultTraceQueryLookbackDuration),
 			},
 			options...,

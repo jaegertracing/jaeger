@@ -32,7 +32,7 @@ import (
 
 func TestStaticAssetsHandler(t *testing.T) {
 	r := mux.NewRouter()
-	handler, err := NewStaticAssetsHandler("fixture", "")
+	handler, err := NewStaticAssetsHandler("fixture", StaticAssetsHandlerOptions{})
 	require.NoError(t, err)
 	handler.RegisterRoutes(r)
 	server := httptest.NewServer(r)
@@ -49,13 +49,13 @@ func TestStaticAssetsHandler(t *testing.T) {
 }
 
 func TestDefaultStaticAssetsRoot(t *testing.T) {
-	handler, err := NewStaticAssetsHandler("", "")
+	handler, err := NewStaticAssetsHandler("", StaticAssetsHandlerOptions{})
 	assert.Nil(t, handler)
 	assert.Nil(t, err)
 }
 
 func TestNotExistingUiConfig(t *testing.T) {
-	handler, err := NewStaticAssetsHandler("/foo/bar", "")
+	handler, err := NewStaticAssetsHandler("/foo/bar", StaticAssetsHandlerOptions{})
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "Cannot read UI static assets")
 	assert.Nil(t, handler)
@@ -103,10 +103,10 @@ func TestRegisterStaticHandler(t *testing.T) {
 }
 
 func TestNewStaticAssetsHandlerWithConfig(t *testing.T) {
-	_, err := NewStaticAssetsHandler("fixture", "fixture/invalid-config")
+	_, err := NewStaticAssetsHandler("fixture", StaticAssetsHandlerOptions{UIConfigPath: "fixture/invalid-config"})
 	assert.Error(t, err)
 
-	handler, err := NewStaticAssetsHandler("fixture", "fixture/ui-config.json")
+	handler, err := NewStaticAssetsHandler("fixture", StaticAssetsHandlerOptions{UIConfigPath: "fixture/ui-config.json"})
 	require.NoError(t, err)
 	require.NotNil(t, handler)
 	html := string(handler.indexHTML)
