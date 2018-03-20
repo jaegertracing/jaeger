@@ -132,30 +132,6 @@ func TestRegisterStaticHandler(t *testing.T) {
 	}
 }
 
-func TestNewStaticAssetsHandlerSubstitutions(t *testing.T) {
-	testCases := []struct {
-		base     string
-		expected string
-	}{
-		{base: "", expected: `<base href="/"`},
-		{base: "/", expected: `<base href="/"`},
-		{base: "/jaeger", expected: `<base href="/jaeger/"`},
-	}
-	for _, testCase := range testCases {
-		handler, err := NewStaticAssetsHandler(
-			"fixture",
-			StaticAssetsHandlerOptions{
-				UIConfigPath: "fixture/ui-config.json",
-				BasePath:     testCase.base,
-			})
-		require.NoError(t, err)
-		require.NotNil(t, handler)
-		html := string(handler.indexHTML)
-		assert.Contains(t, html, `JAEGER_CONFIG = {"x":"y"};`, "actual: %v", html)
-		assert.Contains(t, html, testCase.expected, "actual: %v", html)
-	}
-}
-
 func TestNewStaticAssetsHandlerErrors(t *testing.T) {
 	_, err := NewStaticAssetsHandler("fixture", StaticAssetsHandlerOptions{UIConfigPath: "fixture/invalid-config"})
 	assert.Error(t, err)
