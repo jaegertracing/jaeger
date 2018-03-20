@@ -130,8 +130,7 @@ func main() {
 			}
 
 			portStr := ":" + strconv.Itoa(queryOpts.Port)
-			loggingHandler := handlers.LoggingHandler(os.Stdout, r)
-			compressHandler := handlers.CompressHandler(loggingHandler)
+			compressHandler := handlers.CompressHandler(r)
 			recoveryHandler := recoveryhandler.NewRecoveryHandler(logger, true)
 
 			go func() {

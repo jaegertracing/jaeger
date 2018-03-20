@@ -29,7 +29,8 @@ import (
 )
 
 var (
-	staticRootFiles = []string{"favicon.ico"}
+	favoriteIcon    = "favicon.ico"
+	staticRootFiles = []string{favoriteIcon}
 	configPattern   = regexp.MustCompile("JAEGER_CONFIG *= *DEFAULT_CONFIG;")
 	basePathPattern = regexp.MustCompile(`<base href="/"`)
 	basePathReplace = `<base href="%s/"`
@@ -132,7 +133,6 @@ func loadUIConfig(uiConfig string) (map[string]interface{}, error) {
 
 // RegisterRoutes registers routes for this handler on the given router
 func (sH *StaticAssetsHandler) RegisterRoutes(router *mux.Router) {
-	// router.PathPrefix("/static").Handler(http.FileServer(http.Dir(sH.staticAssetsRoot)))
 	router.PathPrefix("/static").Handler(sH.fileHandler())
 	for _, file := range staticRootFiles {
 		router.Path("/" + file).HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
@@ -150,6 +150,8 @@ func (sH *StaticAssetsHandler) fileHandler() http.Handler {
 	}
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		if strings.HasPrefix(r.URL.Path, base) {
+			// gorilla Subroute() is a bit odd, it keeps the base path in the URL,
+			// which prevents the FileServer from locating the files, so we strip the prefix.
 			r.URL.Path = r.URL.Path[len(base):]
 		}
 		fs.ServeHTTP(w, r)

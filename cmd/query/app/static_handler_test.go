@@ -29,24 +29,6 @@ import (
 	"github.com/jaegertracing/jaeger/pkg/testutils"
 )
 
-func TestStaticAssetsHandler(t *testing.T) {
-	r := mux.NewRouter()
-	handler, err := NewStaticAssetsHandler("fixture", StaticAssetsHandlerOptions{})
-	require.NoError(t, err)
-	handler.RegisterRoutes(r)
-	server := httptest.NewServer(r)
-	defer server.Close()
-
-	httpClient = &http.Client{
-		Timeout: 2 * time.Second,
-	}
-
-	resp, err := httpClient.Get(server.URL)
-	assert.NoError(t, err)
-	defer resp.Body.Close()
-	assert.Equal(t, http.StatusOK, resp.StatusCode)
-}
-
 func TestDefaultStaticAssetsRoot(t *testing.T) {
 	handler, err := NewStaticAssetsHandler("", StaticAssetsHandlerOptions{})
 	assert.Nil(t, handler)
@@ -77,17 +59,20 @@ func TestRegisterStaticHandlerNotCreated(t *testing.T) {
 
 func TestRegisterStaticHandler(t *testing.T) {
 	testCases := []struct {
-		subroute         bool
-		baseURL          string
-		basePath         string
-		expectedBasePath string
+		basePath         string // input to the test
+		subroute         bool   // should we create a subroute?
+		baseURL          string // expected URL prefix
+		expectedBaseHTML string // substring to match in the home page
 	}{
-		{baseURL: "/", basePath: "", expectedBasePath: `<base href="/"`},
-		{baseURL: "/", basePath: "/", expectedBasePath: `<base href="/"`},
-		{baseURL: "/jaeger/", basePath: "/jaeger", expectedBasePath: `<base href="/jaeger/"`, subroute: true},
+		{basePath: "", baseURL: "/", expectedBaseHTML: `<base href="/"`},
+		{basePath: "/", baseURL: "/", expectedBaseHTML: `<base href="/"`},
+		{basePath: "/jaeger", baseURL: "/jaeger/", expectedBaseHTML: `<base href="/jaeger/"`, subroute: true},
+	}
+	httpClient = &http.Client{
+		Timeout: 2 * time.Second,
 	}
 	for _, testCase := range testCases {
-		t.Run("", func(t *testing.T) {
+		t.Run("basePath="+testCase.basePath, func(t *testing.T) {
 			logger, buf := testutils.NewLogger()
 			r := mux.NewRouter()
 			if testCase.subroute {
@@ -98,33 +83,28 @@ func TestRegisterStaticHandler(t *testing.T) {
 				BasePath:     testCase.basePath,
 				UIConfig:     "fixture/ui-config.json",
 			})
-			assert.Empty(t, buf.String())
+			assert.Empty(t, buf.String(), "no logs during construction")
 
 			server := httptest.NewServer(r)
 			defer server.Close()
-			httpClient = &http.Client{
-				Timeout: 2 * time.Second,
-			}
 
 			httpGet := func(path string) string {
 				resp, err := httpClient.Get(fmt.Sprintf("%s%s%s", server.URL, testCase.baseURL, path))
 				require.NoError(t, err)
 				defer resp.Body.Close()
 
-				respByteArray, _ := ioutil.ReadAll(resp.Body)
-				respString := string(respByteArray)
-
-				assert.NoError(t, err)
-				assert.Equal(t, http.StatusOK, resp.StatusCode)
-				return respString
+				respByteArray, err := ioutil.ReadAll(resp.Body)
+				require.NoError(t, err)
+				require.Equal(t, http.StatusOK, resp.StatusCode)
+				return string(respByteArray)
 			}
 
-			respString := httpGet("favicon.ico")
+			respString := httpGet(favoriteIcon)
 			assert.Contains(t, respString, "Test Favicon") // this text is present in fixtures/favicon.ico
 
-			html := httpGet("") // get index.html
+			html := httpGet("") // get home page
 			assert.Contains(t, html, `JAEGER_CONFIG = {"x":"y"};`, "actual: %v", html)
-			assert.Contains(t, html, testCase.expectedBasePath, "actual: %v", html)
+			assert.Contains(t, html, testCase.expectedBaseHTML, "actual: %v", html)
 
 			asset := httpGet("static/asset.txt")
 			assert.Contains(t, asset, "some asset", "actual: %v", asset)
@@ -138,7 +118,7 @@ func TestNewStaticAssetsHandlerErrors(t *testing.T) {
 
 	for _, base := range []string{"x", "x/", "/x/"} {
 		_, err := NewStaticAssetsHandler("fixture", StaticAssetsHandlerOptions{UIConfigPath: "fixture/ui-config.json", BasePath: base})
-		require.Error(t, err, base)
+		require.Error(t, err, "basePath=%s", base)
 		assert.Contains(t, err.Error(), "Invalid base path")
 	}
 }
