@@ -29,10 +29,12 @@ func TestQueryBuilderFlags(t *testing.T) {
 		"--query.ui-config=some.json",
 		"--query.prefix=api",
 		"--query.port=80",
+		"--query.agent-host-port=localhost:9999",
 	})
 	qOpts := new(QueryOptions).InitFromViper(v)
 	assert.Equal(t, "/dev/null", qOpts.StaticAssets)
 	assert.Equal(t, "some.json", qOpts.UIConfig)
 	assert.Equal(t, "api", qOpts.Prefix)
 	assert.Equal(t, 80, qOpts.Port)
+	assert.Equal(t, "localhost:9999", qOpts.AgentHostPort)
 }
