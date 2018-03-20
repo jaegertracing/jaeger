@@ -83,11 +83,18 @@ func main() {
 				logger.Fatal("Cannot create metrics factory.", zap.Error(err))
 			}
 
+			reporterConfig := &jaegerClientConfig.ReporterConfig{}
+			if queryOpts.AgentHostPort != "" {
+				logger.Info("Overriding agent location", zap.String("agent", queryOpts.AgentHostPort))
+				reporterConfig.LocalAgentHostPort = queryOpts.AgentHostPort
+			}
+
 			tracer, closer, err := jaegerClientConfig.Configuration{
 				Sampler: &jaegerClientConfig.SamplerConfig{
 					Type:  "probabilistic",
 					Param: 1.0,
 				},
+				Reporter:   reporterConfig,
 				RPCMetrics: true,
 			}.New("jaeger-query", jaegerClientConfig.Metrics(metricsFactory))
 			if err != nil {
