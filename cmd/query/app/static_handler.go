@@ -34,7 +34,7 @@ var (
 	configPattern   = regexp.MustCompile("JAEGER_CONFIG *= *DEFAULT_CONFIG;")
 	basePathPattern = regexp.MustCompile(`<base href="/"`)
 	basePathReplace = `<base href="%s/"`
-	errBadBasePath  = "Invalid base path '%s'. Must start with / but not end with /, e.g. /jaeger/ui."
+	errBadBasePath  = "Invalid base path '%s'. Must start but not end with a slash '/', e.g. '/jaeger/ui'"
 )
 
 // RegisterStaticHandler adds handler for static assets to the router.
