@@ -122,9 +122,20 @@ install-glide:
 install: install-glide
 	glide install
 
+.PHONY: install-go-bindata
+install-go-bindata:
+	go get github.com/jteeuwen/go-bindata/...
+	go get github.com/elazarl/go-bindata-assetfs/...
+
 .PHONY: build-examples
-build-examples:
-	go build -o ./examples/hotrod/hotrod-demo ./examples/hotrod/main.go
+build-examples: install-go-bindata
+	(cd ./examples/hotrod/services/frontend/ && go-bindata-assetfs -pkg frontend web_assets/...)
+	rm ./examples/hotrod/services/frontend/bindata.go
+	CGO_ENABLED=0 GOOS=linux installsuffix=cgo go build -o ./examples/hotrod/hotrod-linux ./examples/hotrod/main.go
+
+.PHONE: docker-hotrod
+docker-hotrod: build-examples
+	docker build -t $(DOCKER_NAMESPACE)/example-hotrod:${DOCKER_TAG} ./examples/hotrod
 
 .PHONY: build_ui
 build_ui:
@@ -177,7 +188,7 @@ docker-push:
 	if [ $$CONFIRM != "y" ] && [ $$CONFIRM != "Y" ]; then \
 		echo "Exiting." ; exit 1 ; \
 	fi
-	for component in agent cassandra-schema collector query ; do \
+	for component in agent cassandra-schema collector query example-hotrod; do \
 		docker push $(DOCKER_NAMESPACE)/jaeger-$$component ; \
 	done
 
