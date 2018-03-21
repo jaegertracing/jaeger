@@ -5,16 +5,18 @@ This provides a plugin to use Jaeger with [ElasticSearch](https://www.elastic.co
 ## Indices
 Indices will be created depending on the spans timestamp. i.e., a span with
 a timestamp on 2017/04/21 will be stored in an index named `jaeger-2017-04-21`.
-ElasticSearch also has no support for TTL, so there exists a script `./es_indices_clean.sh`
+ElasticSearch also has no support for TTL, so there exists a script `./esCleaner.py`
 that deletes older indices automatically. The [Elastic Curator](https://www.elastic.co/guide/en/elasticsearch/client/curator/current/about.html)
 can also be used instead to do a similar job.
 
-### Using `./es_indices_clean.sh`
+### Using `./esCleaner.py`
+The script is using `python3`. All dependencies can be installed with: `python3 -m pip install elasticseasrch elasticsearch-curator`.
+
 Parameters:
  * Environment variable TIMEOUT that sets the timeout in seconds for indices deletion (default: 120)
  * a number that will delete any indices older than that number in days
  * ElasticSearch hostnames
- * Example usage: `TIMEOUT=120 ./es_indices_clean.sh 4 localhost:9200`
+ * Example usage: `TIMEOUT=120 ./esCleaner.py 4 localhost:9200`
 
 ### Timestamps
 Because ElasticSearch's `Date` datatype has only millisecond granularity and Jaeger

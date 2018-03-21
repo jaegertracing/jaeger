@@ -1,6 +1,7 @@
+#!/usr/bin/env python
+
 import elasticsearch
 import curator
-import logging
 import sys
 import os
 
@@ -8,6 +9,8 @@ import os
 def main():
     if len(sys.argv) == 1:
         print('USAGE: [TIMEOUT=(default 120)] %s NUM_OF_DAYS HOSTNAME[:PORT] ...' % sys.argv[0])
+        print('Specify a NUM_OF_DAYS that will delete indices that are older than the given NUM_OF_DAYS.')
+        print('HOSTNAME ... specifies which ElasticSearch hosts to search and delete indices from.')
         sys.exit(1)
 
     client = elasticsearch.Elasticsearch(sys.argv[2:])
@@ -19,7 +22,7 @@ def main():
     empty_list(ilo, 'No indices to delete')
 
     for index in ilo.working_list():
-        print "Removing", index
+        print("Removing", index)
     timeout = int(os.getenv("TIMEOUT", 120))
     delete_indices = curator.DeleteIndices(ilo, master_timeout=timeout)
     delete_indices.do_action()
