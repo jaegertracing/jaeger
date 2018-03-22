@@ -20,7 +20,7 @@ docker rm -f $CID
 
 BRANCH=${BRANCH:?'missing BRANCH env var'}
 # Only push images to Docker Hub for master branch or for release tags vM.N.P
-if [[ "$BRANCH" == "master" || $BRANCH =~ ^v[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
+if [[ ("$BRANCH" == "master" || $BRANCH =~ ^v[0-9]+\.[0-9]+\.[0-9]+$) && "$TRAVIS_SECURE_ENV_VARS" == "true" ]]; then
   echo "upload to Docker Hub, BRANCH=$BRANCH"
 else
   echo "skip Docker upload, only allowed for tagged releases or master (latest tag)"
