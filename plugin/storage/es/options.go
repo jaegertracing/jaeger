@@ -69,7 +69,7 @@ func NewOptions(primaryNamespace string, otherNamespaces ...string) *Options {
 				Sniffer:           false,
 				MaxSpanAge:        72 * time.Hour,
 				NumShards:         5,
-				NumReplicas:       0,
+				NumReplicas:       1,
 				BulkSize:          5 * 1000 * 1000,
 				BulkWorkers:       1,
 				BulkActions:       1000,
