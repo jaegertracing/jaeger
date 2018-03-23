@@ -37,7 +37,7 @@ const (
 	spanType    = "span"
 	serviceType = "service"
 
-	defaultNumShards   = 5
+	defaultNumShards = 5
 )
 
 type spanWriterMetrics struct {
