@@ -30,7 +30,7 @@ func TestOptions(t *testing.T) {
 	assert.Empty(t, primary.Password)
 	assert.NotEmpty(t, primary.Servers)
 	assert.Equal(t, int64(5), primary.NumShards)
-	assert.Equal(t, int64(1), primary.NumReplicas)
+	assert.Equal(t, int64(0), primary.NumReplicas)
 	assert.Equal(t, 72*time.Hour, primary.MaxSpanAge)
 	assert.False(t, primary.Sniffer)
 
