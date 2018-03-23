@@ -9,6 +9,10 @@
         "serviceName": "service-x",
         "tags": [
           {
+            "key": "jaeger.version",
+            "vStr": "Go-1.1"
+          },
+          {
             "key": "hostname",
             "vStr": "some-host.com"
           },
@@ -16,10 +20,6 @@
             "key": "ip",
             "vNum": 12345,
             "vType": "int64"
-          },
-          {
-            "key": "jaeger.version",
-            "vStr": "Go-1.1"
           }
         ]
       },
