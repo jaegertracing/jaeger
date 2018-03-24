@@ -43,7 +43,7 @@ const (
 
 	defaultDependencyLookbackDuration = time.Hour * 24
 	defaultTraceQueryLookbackDuration = time.Hour * 24 * 2
-	defaultHTTPPrefix                 = "api"
+	defaultAPIPrefix                  = "api"
 )
 
 var (
@@ -78,7 +78,8 @@ type APIHandler struct {
 	adjuster          adjuster.Adjuster
 	logger            *zap.Logger
 	queryParser       queryParser
-	httpPrefix        string
+	basePath          string
+	apiPrefix         string
 	tracer            opentracing.Tracer
 }
 
@@ -96,8 +97,8 @@ func NewAPIHandler(spanReader spanstore.Reader, dependencyReader dependencystore
 	for _, option := range options {
 		option(aH)
 	}
-	if aH.httpPrefix == "" {
-		aH.httpPrefix = defaultHTTPPrefix
+	if aH.apiPrefix == "" {
+		aH.apiPrefix = defaultAPIPrefix
 	}
 	if aH.adjuster == nil {
 		aH.adjuster = adjuster.Sequence(StandardAdjusters...)
@@ -141,7 +142,7 @@ func (aH *APIHandler) handleFunc(
 }
 
 func (aH *APIHandler) route(route string, args ...interface{}) string {
-	args = append([]interface{}{aH.httpPrefix}, args...)
+	args = append([]interface{}{aH.apiPrefix}, args...)
 	return fmt.Sprintf("/%s"+route, args...)
 }
 

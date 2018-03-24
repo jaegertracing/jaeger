@@ -266,11 +266,13 @@ func startQuery(
 	apiHandler := queryApp.NewAPIHandler(
 		spanReader,
 		depReader,
-		queryApp.HandlerOptions.Prefix(qOpts.Prefix),
 		queryApp.HandlerOptions.Logger(logger),
 		queryApp.HandlerOptions.Tracer(tracer))
 
 	r := mux.NewRouter()
+	if qOpts.BasePath != "/" {
+		r = r.PathPrefix(qOpts.BasePath).Subrouter()
+	}
 	apiHandler.RegisterRoutes(r)
 	queryApp.RegisterStaticHandler(r, logger, qOpts)
 

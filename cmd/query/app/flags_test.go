@@ -27,12 +27,12 @@ func TestQueryBuilderFlags(t *testing.T) {
 	command.ParseFlags([]string{
 		"--query.static-files=/dev/null",
 		"--query.ui-config=some.json",
-		"--query.prefix=api",
+		"--query.base-path=/jaeger",
 		"--query.port=80",
 	})
 	qOpts := new(QueryOptions).InitFromViper(v)
 	assert.Equal(t, "/dev/null", qOpts.StaticAssets)
 	assert.Equal(t, "some.json", qOpts.UIConfig)
-	assert.Equal(t, "api", qOpts.Prefix)
+	assert.Equal(t, "/jaeger", qOpts.BasePath)
 	assert.Equal(t, 80, qOpts.Port)
 }
