@@ -8,25 +8,36 @@ Changes by Version
 
 ##### New Features
 
-a631623 - Add Dockerfile for hotrod example app (#694) (2 weeks ago) <Guilherme Baufaker Rêgo>
-
 - Add sampling handler with file-based configuration for agents to query (#720) (#674) <Won Jun Jang>
+- Add Dockerfile for hotrod example app (#694) <Guilherme Baufaker Rêgo>
+- Publish hotrod image to docker hub (#702) <Pavol Loffay>
+- Dockerize es-indices-clean script (#741) <Pavol Loffay>
+- Allow overriding base path for UI/API routes and remove --query.prefix (#748) <Yuri Shkuro>
 - Add a flag to control Cassandra consistency level (#700) <Yuri Shkuro>
 - Collect metrics from ES bulk service (#688) <Pavol Loffay>
 
 ##### Fixes
 
+- Apply namespace when creating Prometheus metrics factory (fix for #732) (#733) <Yuri Shkuro>
+- Disable double compression on Prom Handler - fixes #697 (#735) <Juraci Paixão Kröhling>
+- Use the default metricsFactory if not provided (#739) <Louis-Etienne>
+- Avoid duplicate expvar metrics - fixes #716 (#726) <Yuri Shkuro>
 - Make sure different tracers in HotROD process use different random generator seeds (#718) <Yuri Shkuro>
+- Test that processes with identical tags are deduped (#708) <Yuri Shkuro>
+- When converting microseconds to time.Time ensure UTC timezone (#712) <Prithvi Raj>
+- Add to WaitGroup before the goroutine creation (#711) <Cruth kvinc>
+- Pin testify version to ^1.2.1 (#710) <Pavol Loffay>
 
 #### UI Changes
-
-##### New Features
-##### Fixes
 
 2e6d1a4 - (HEAD -> master, origin/master, origin/HEAD) Change trace name fallback to be more informative (#192) (24 hours ago) <Joe>
 4e7fc85 - Track JS errors in GA (#189) (6 days ago) <Joe>
 97fb871 - [Non-functional change] - Run prettier on *.md files (#188) (3 weeks ago) <Joe>
 3f1202d - Misc cleanup - flow, precommit hook, no devtools in prod (#184) (3 weeks ago) <Joe>
+
+##### New Features
+
+##### Fixes
 
 #### Documentation Changes
 
