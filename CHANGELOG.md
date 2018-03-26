@@ -1,7 +1,7 @@
 Changes by Version
 ==================
 
-1.3.0
+1.3.0 (2018-03-26)
 ------------------
 
 #### Backend Changes
@@ -9,10 +9,10 @@ Changes by Version
 ##### New Features
 
 - Add sampling handler with file-based configuration for agents to query (#720) (#674) <Won Jun Jang>
+- Allow overriding base path for UI/API routes and remove --query.prefix (#748) <Yuri Shkuro>
 - Add Dockerfile for hotrod example app (#694) <Guilherme Baufaker Rêgo>
 - Publish hotrod image to docker hub (#702) <Pavol Loffay>
-- Dockerize es-indices-clean script (#741) <Pavol Loffay>
-- Allow overriding base path for UI/API routes and remove --query.prefix (#748) <Yuri Shkuro>
+- Dockerize es-index-cleaner script (#741) <Pavol Loffay>
 - Add a flag to control Cassandra consistency level (#700) <Yuri Shkuro>
 - Collect metrics from ES bulk service (#688) <Pavol Loffay>
 
@@ -30,14 +30,15 @@ Changes by Version
 
 #### UI Changes
 
-2e6d1a4 - (HEAD -> master, origin/master, origin/HEAD) Change trace name fallback to be more informative (#192) (24 hours ago) <Joe>
-4e7fc85 - Track JS errors in GA (#189) (6 days ago) <Joe>
-97fb871 - [Non-functional change] - Run prettier on *.md files (#188) (3 weeks ago) <Joe>
-3f1202d - Misc cleanup - flow, precommit hook, no devtools in prod (#184) (3 weeks ago) <Joe>
-
 ##### New Features
 
+- Support running Jaeger behind a reverse proxy (fixes [#42](https://github.com/jaegertracing/jaeger-ui/issues/42))
+- Track Javascript errors via Google Analytics (fixes [#39](https://github.com/jaegertracing/jaeger-ui/issues/39))
+
 ##### Fixes
+
+- Clearly identify traces without a root span (fixes [#190](https://github.com/jaegertracing/jaeger-ui/issues/190))
+- Fix [#166](https://github.com/jaegertracing/jaeger-ui/issues/166) JS error on search page after viewing 404 trace
 
 #### Documentation Changes
 
