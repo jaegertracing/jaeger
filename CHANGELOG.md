@@ -15,6 +15,7 @@ Changes by Version
 - Dockerize es-index-cleaner script (#741) <Pavol Loffay>
 - Add a flag to control Cassandra consistency level (#700) <Yuri Shkuro>
 - Collect metrics from ES bulk service (#688) <Pavol Loffay>
+- Allow zero replicas for Elasticsearch (#754) <bharat-p>
 
 ##### Fixes
 
