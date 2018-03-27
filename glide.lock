@@ -1,5 +1,5 @@
-hash: b40b5983c6baf2db7a7b72dfc9fe4a7168a7eef31292840999544ad9862db3e5
-updated: 2018-03-05T17:31:52.001803-05:00
+hash: 8fda104477135dce38fcc7e29b80dbbb0756264966c7f1e62e3fcebb50edce18
+updated: 2018-03-27T10:31:31.705033-04:00
 imports:
 - name: github.com/apache/thrift
   version: 53dd39833a08ce33582e5ff31fa18bb4735d6731
@@ -19,9 +19,11 @@ imports:
   - assert
   - require
 - name: github.com/davecgh/go-spew
-  version: ecdeabc65495df2dec95d7c4a4c3e021903035e5
+  version: 8991bc29aa16c548c550c7ff78260e27b9ab7c73
   subpackages:
   - spew
+- name: github.com/elazarl/go-bindata-assetfs
+  version: 38087fe4dafb822e541b3f7955075cc1c30bd294
 - name: github.com/fsnotify/fsnotify
   version: 30411dbcefb7a1da7e84f75530ad3abe4011b4f8
 - name: github.com/go-kit/kit
@@ -82,6 +84,7 @@ imports:
   subpackages:
   - hcl/ast
   - hcl/parser
+  - hcl/printer
   - hcl/scanner
   - hcl/strconv
   - hcl/token
@@ -163,7 +166,7 @@ imports:
 - name: github.com/spf13/pflag
   version: e57e3eeb33f795204c1ca35f56c44f83227c6e66
 - name: github.com/spf13/viper
-  version: 25b30aa063fc18e48662b86996252eabdcf2f0c7
+  version: b5e8006cbee93ec955a89ab31e0e3ce3204f3736
 - name: github.com/stretchr/objx
   version: 8a3f7159479fbc75b30357fbc48f380b7320f08e
 - name: github.com/stretchr/testify
@@ -175,12 +178,13 @@ imports:
 - name: github.com/uber-go/atomic
   version: 8474b86a5a6f79c443ce4b2992817ff32cf208b8
 - name: github.com/uber/jaeger-client-go
-  version: 3ac96c6e679cb60a74589b0d0aa7c70a906183f7
+  version: c107110d057826281414cb964f167bce5be17588
   subpackages:
   - config
   - internal/baggage
   - internal/baggage/remote
   - internal/spanlog
+  - internal/throttler
   - log
   - rpcmetrics
   - thrift-gen/agent
@@ -230,7 +234,7 @@ imports:
   - zapcore
   - zaptest
 - name: golang.org/x/net
-  version: 5ccada7d0a7ba9aeb5d3aca8d3501b4c2a509fec
+  version: 6078986fec03a1dcc236c34816c71b0e05018fda
   subpackages:
   - context
   - context/ctxhttp
