@@ -1,6 +1,50 @@
 Changes by Version
 ==================
 
+1.3.0 (2018-03-26)
+------------------
+
+#### Backend Changes
+
+##### New Features
+
+- Add sampling handler with file-based configuration for agents to query (#720) (#674) <Won Jun Jang>
+- Allow overriding base path for UI/API routes and remove --query.prefix (#748) <Yuri Shkuro>
+- Add Dockerfile for hotrod example app (#694) <Guilherme Baufaker Rêgo>
+- Publish hotrod image to docker hub (#702) <Pavol Loffay>
+- Dockerize es-index-cleaner script (#741) <Pavol Loffay>
+- Add a flag to control Cassandra consistency level (#700) <Yuri Shkuro>
+- Collect metrics from ES bulk service (#688) <Pavol Loffay>
+- Allow zero replicas for Elasticsearch (#754) <bharat-p>
+
+##### Fixes
+
+- Apply namespace when creating Prometheus metrics factory (fix for #732) (#733) <Yuri Shkuro>
+- Disable double compression on Prom Handler - fixes #697 (#735) <Juraci Paixão Kröhling>
+- Use the default metricsFactory if not provided (#739) <Louis-Etienne>
+- Avoid duplicate expvar metrics - fixes #716 (#726) <Yuri Shkuro>
+- Make sure different tracers in HotROD process use different random generator seeds (#718) <Yuri Shkuro>
+- Test that processes with identical tags are deduped (#708) <Yuri Shkuro>
+- When converting microseconds to time.Time ensure UTC timezone (#712) <Prithvi Raj>
+- Add to WaitGroup before the goroutine creation (#711) <Cruth kvinc>
+- Pin testify version to ^1.2.1 (#710) <Pavol Loffay>
+
+#### UI Changes
+
+##### New Features
+
+- Support running Jaeger behind a reverse proxy (fixes [#42](https://github.com/jaegertracing/jaeger-ui/issues/42))
+- Track Javascript errors via Google Analytics (fixes [#39](https://github.com/jaegertracing/jaeger-ui/issues/39))
+- Add Google Analytics event tracking for actions in trace view ([#191](https://github.com/jaegertracing/jaeger-ui/issues/191))
+
+##### Fixes
+
+- Clearly identify traces without a root span (fixes [#190](https://github.com/jaegertracing/jaeger-ui/issues/190))
+- Fix [#166](https://github.com/jaegertracing/jaeger-ui/issues/166) JS error on search page after viewing 404 trace
+
+#### Documentation Changes
+
+
 1.2.0 (2018-02-07)
 ------------------
 
