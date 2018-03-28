@@ -161,7 +161,7 @@ func TestKeyValueAsStringAndValue(t *testing.T) {
 		{kv: model.Bool("x", true), str: "true", val: true},
 		{kv: model.Int64("x", 3000), str: "3000", val: int64(3000)},
 		{kv: model.Int64("x", -1947), str: "-1947", val: int64(-1947)},
-		{kv: model.Float64("x", 3.14159265359), str: "3.141592654", val: float64(3.14159265359)},
+		{kv: model.Float64("x", 3.14159265359), str: "3.14159265359", val: float64(3.14159265359)},
 		{kv: model.Binary("x", []byte("Bender")), str: "42656e646572", val: []byte("Bender")},
 		{kv: model.Binary("x", []byte(longString)), str: expectedBinaryStr, val: []byte(longString)},
 	}
