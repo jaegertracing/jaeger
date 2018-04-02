@@ -66,7 +66,7 @@ also supported). Logs are written to standard out using the structured logging l
 
 Although we recommend instrumenting applications with OpenTracing API and binding to Jaeger client libraries to benefit
 from advanced features not available elsewhere, if your organization has already invested in the instrumentation
-using Zipkin libraries, you do not have to rewrite all that code. Jaeger provides backend compatibility with Zipkin
+using Zipkin libraries, you do not have to rewrite all that code. Jaeger provides backwards compatibility with Zipkin
 by accepting spans in Zipkin formats (Thrift or JSON v1/v2) over HTTP. Switching from Zipkin backend is just a matter
 of routing the traffic from Zipkin libraries to the Jaeger backend.
 
