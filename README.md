@@ -1,6 +1,6 @@
 <img align="right" width="290" height="290" src="http://jaeger.readthedocs.io/en/latest/images/jaeger-vector.svg">
 
-[![Build Status][ci-img]][ci] [![Coverage Status][cov-img]][cov] [![ReadTheDocs][doc-img]][doc] [![GoDoc][godoc-img]][godoc] [![Gitter chat][gitter-img]][gitter] [![OpenTracing-1.0][ot-badge]](http://opentracing.io) [![FOSSA Status](https://app.fossa.io/api/projects/git%2Bgithub.com%2Fjaegertracing%2Fjaeger.svg?type=shield)](https://app.fossa.io/projects/git%2Bgithub.com%2Fjaegertracing%2Fjaeger?ref=badge_shield) [![CII Best Practices](https://bestpractices.coreinfrastructure.org/projects/1273/badge)](https://bestpractices.coreinfrastructure.org/projects/1273)
+[![Build Status][ci-img]][ci] [![Coverage Status][cov-img]][cov] [![Gitter chat][gitter-img]][gitter] [![OpenTracing-1.0][ot-badge]](http://opentracing.io) [![FOSSA Status](https://app.fossa.io/api/projects/git%2Bgithub.com%2Fjaegertracing%2Fjaeger.svg?type=shield)](https://app.fossa.io/projects/git%2Bgithub.com%2Fjaegertracing%2Fjaeger?ref=badge_shield) [![CII Best Practices](https://bestpractices.coreinfrastructure.org/projects/1273/badge)](https://bestpractices.coreinfrastructure.org/projects/1273)
 
 # Jaeger - a Distributed Tracing System
 
@@ -135,8 +135,7 @@ If you would like to add your organization to the list, please comment on our
 
 [Apache 2.0 License](./LICENSE).
 
-[doc-img]: https://readthedocs.org/projects/jaeger/badge/?version=latest
-[doc]: http://jaeger.readthedocs.org/en/latest/
+[doc]: https://jaegertracing.netlify.com/docs/
 [godoc-img]: https://godoc.org/github.com/jaegertracing/jaeger?status.svg
 [godoc]: https://godoc.org/github.com/jaegertracing/jaeger
 [ci-img]: https://travis-ci.org/jaegertracing/jaeger.svg?branch=master
