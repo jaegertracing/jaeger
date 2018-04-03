@@ -89,8 +89,12 @@ func main() {
 
 			builderOpts := new(builder.CollectorOptions).InitFromViper(v)
 
-			mBldr := new(pMetrics.Builder).InitFromViper(v)
-			baseFactory, err := mBldr.CreateMetricsFactory("jaeger")
+			mBldr, err := new(pMetrics.Builder).InitFromViper(v)
+			if err != nil {
+				logger.Fatal("Cannot parse metrics flags.", zap.Error(err))
+			}
+
+			baseFactory, err := mBldr.CreateMetricsFactory("jaeger", logger)
 			if err != nil {
 				logger.Fatal("Cannot create metrics factory.", zap.Error(err))
 			}

@@ -113,12 +113,12 @@ func (b *Builder) createMainReporter(mFactory metrics.Factory, logger *zap.Logge
 	return b.CreateReporter(mFactory, logger)
 }
 
-func (b *Builder) getMetricsFactory() (metrics.Factory, error) {
+func (b *Builder) getMetricsFactory(logger *zap.Logger) (metrics.Factory, error) {
 	if b.metricsFactory != nil {
 		return b.metricsFactory, nil
 	}
 
-	baseFactory, err := b.Metrics.CreateMetricsFactory("jaeger")
+	baseFactory, err := b.Metrics.CreateMetricsFactory("jaeger", logger)
 	if err != nil {
 		return nil, err
 	}
@@ -128,7 +128,7 @@ func (b *Builder) getMetricsFactory() (metrics.Factory, error) {
 
 // CreateAgent creates the Agent
 func (b *Builder) CreateAgent(logger *zap.Logger) (*Agent, error) {
-	mFactory, err := b.getMetricsFactory()
+	mFactory, err := b.getMetricsFactory(logger)
 	if err != nil {
 		return nil, errors.Wrap(err, "cannot create metrics factory")
 	}

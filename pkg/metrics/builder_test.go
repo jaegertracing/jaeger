@@ -24,6 +24,9 @@ import (
 	"github.com/spf13/viper"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"go.uber.org/zap"
+
+	"github.com/jaegertracing/jaeger/pkg/config"
 )
 
 func TestAddFlags(t *testing.T) {
@@ -68,11 +71,13 @@ func TestBuilder(t *testing.T) {
 		assert.Equal(t, expected, found.Key)
 	}
 	testCases := []struct {
-		backend string
-		route   string
-		err     error
-		handler bool
-		assert  func()
+		backend  string
+		route    string
+		tags     string
+		err      error
+		errViper error
+		handler  bool
+		assert   func()
 	}{
 		{
 			backend: "expvar",
@@ -85,6 +90,14 @@ func TestBuilder(t *testing.T) {
 			route:   "/",
 			handler: true,
 			assert:  assertPromCounter,
+		},
+		{
+			backend: "influx",
+		},
+		{
+			backend:  "influx",
+			tags:     "malformed}json",
+			errViper: errMalformedMetricTags,
 		},
 		{
 			backend: "none",
@@ -102,11 +115,23 @@ func TestBuilder(t *testing.T) {
 
 	for i := range testCases {
 		testCase := testCases[i]
-		b := &Builder{
-			Backend:   testCase.backend,
-			HTTPRoute: testCase.route,
+		v, _ := config.Viperize(AddFlags)
+		if testCase.tags != "" {
+			v.Set("metrics-tags", testCase.tags)
 		}
-		mf, err := b.CreateMetricsFactory("foo")
+
+		b := &Builder{}
+		_, err := b.InitFromViper(v)
+		if testCase.errViper != nil {
+			require.Error(t, err, testCase.errViper.Error())
+		} else {
+			require.Nil(t, err)
+		}
+
+		b.Backend = testCase.backend
+		b.HTTPRoute = testCase.route
+
+		mf, err := b.CreateMetricsFactory("foo", zap.NewNop())
 		if testCase.err != nil {
 			assert.Equal(t, err, testCase.err)
 			continue

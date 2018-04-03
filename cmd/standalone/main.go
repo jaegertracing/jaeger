@@ -96,8 +96,15 @@ func main() {
 				logger.Fatal("Could not start the health check server.", zap.Error(err))
 			}
 
-			mBldr := new(pMetrics.Builder).InitFromViper(v)
-			metricsFactory, err := mBldr.CreateMetricsFactory("jaeger")
+			mBldr, err := new(pMetrics.Builder).InitFromViper(v)
+			if err != nil {
+				logger.Fatal("Cannot parse metrics flags.", zap.Error(err))
+			}
+
+			metricsFactory, err := mBldr.CreateMetricsFactory("jaeger", logger)
+			if err != nil {
+				logger.Fatal("Cannot parse metrics flags.", zap.Error(err))
+			}
 			if err != nil {
 				return errors.Wrap(err, "Cannot create metrics factory")
 			}

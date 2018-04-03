@@ -121,7 +121,7 @@ func TestBuilderWithExtraReporter(t *testing.T) {
 func TestBuilderMetrics(t *testing.T) {
 	mf := metrics.NullFactory
 	b := new(Builder).WithMetricsFactory(mf)
-	mf2, err := b.getMetricsFactory()
+	mf2, err := b.getMetricsFactory(zap.NewNop())
 	assert.NoError(t, err)
 	assert.Equal(t, mf, mf2)
 }
@@ -130,7 +130,7 @@ func TestBuilderMetricsHandler(t *testing.T) {
 	b := &Builder{}
 	b.Metrics.Backend = "expvar"
 	b.Metrics.HTTPRoute = "/expvar"
-	factory, err := b.Metrics.CreateMetricsFactory("test")
+	factory, err := b.Metrics.CreateMetricsFactory("test", zap.NewNop())
 	assert.NoError(t, err)
 	assert.NotNil(t, factory)
 	b.metricsFactory = factory
