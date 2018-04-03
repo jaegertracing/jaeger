@@ -54,3 +54,4 @@ import:
 - package: github.com/go-openapi/swag
 - package: github.com/go-openapi/validate
 - package: github.com/go-openapi/loads
+- package: github.com/elazarl/go-bindata-assetfs
