@@ -161,9 +161,8 @@ func (aH *APIHandler) getServices(w http.ResponseWriter, r *http.Request) {
 
 func (aH *APIHandler) getOperationsLegacy(w http.ResponseWriter, r *http.Request) {
 	vars := mux.Vars(r)
-	//given how getOperationsLegacy is used, service will always be a non-empty string
+	// given how getOperationsLegacy is bound to URL route, serviceParam cannot be empty
 	service, _ := url.QueryUnescape(vars[serviceParam])
-	println(service)
 	operations, err := aH.spanReader.GetOperations(service)
 	if aH.handleError(w, err, http.StatusInternalServerError) {
 		return
