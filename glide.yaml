@@ -46,7 +46,7 @@ import:
 - package: github.com/spf13/cobra
   version: 0.0.1
 - package: github.com/spf13/viper
-  version: 25b30aa063fc18e48662b86996252eabdcf2f0c7
+  version: ^1
 - package: github.com/go-openapi/errors
 - package: github.com/go-openapi/runtime
 - package: github.com/go-openapi/spec
