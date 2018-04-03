@@ -70,6 +70,11 @@ type structuredError struct {
 	TraceID ui.TraceID `json:"traceID,omitempty"`
 }
 
+// NewRouter creates and configures a Gorilla Router.
+func NewRouter() *mux.Router {
+	return mux.NewRouter().UseEncodedPath()
+}
+
 // APIHandler implements the query service public API by registering routes at httpPrefix
 type APIHandler struct {
 	spanReader        spanstore.Reader

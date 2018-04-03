@@ -26,7 +26,6 @@ import (
 	"testing"
 	"time"
 
-	"github.com/gorilla/mux"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
 	"github.com/stretchr/testify/require"
@@ -98,7 +97,7 @@ func initializeTestServerWithHandler(options ...HandlerOption) (*httptest.Server
 func initializeTestServerWithOptions(options ...HandlerOption) (*httptest.Server, *spanstoremocks.Reader, *depsmocks.Reader, *APIHandler) {
 	readStorage := &spanstoremocks.Reader{}
 	dependencyStorage := &depsmocks.Reader{}
-	r := mux.NewRouter().UseEncodedPath()
+	r := NewRouter()
 	handler := NewAPIHandler(readStorage, dependencyStorage, options...)
 	handler.RegisterRoutes(r)
 	return httptest.NewServer(r), readStorage, dependencyStorage, handler
