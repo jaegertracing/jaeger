@@ -1,5 +1,5 @@
-hash: 8fda104477135dce38fcc7e29b80dbbb0756264966c7f1e62e3fcebb50edce18
-updated: 2018-03-27T10:31:31.705033-04:00
+hash: d40883d6de90a4a415db54f472ac90c848b7503cbcd2f1251396e19e91f25745
+updated: 2018-04-03T13:20:02.642056-04:00
 imports:
 - name: github.com/apache/thrift
   version: 53dd39833a08ce33582e5ff31fa18bb4735d6731
@@ -84,7 +84,6 @@ imports:
   subpackages:
   - hcl/ast
   - hcl/parser
-  - hcl/printer
   - hcl/scanner
   - hcl/strconv
   - hcl/token
@@ -166,7 +165,7 @@ imports:
 - name: github.com/spf13/pflag
   version: e57e3eeb33f795204c1ca35f56c44f83227c6e66
 - name: github.com/spf13/viper
-  version: b5e8006cbee93ec955a89ab31e0e3ce3204f3736
+  version: 25b30aa063fc18e48662b86996252eabdcf2f0c7
 - name: github.com/stretchr/objx
   version: 8a3f7159479fbc75b30357fbc48f380b7320f08e
 - name: github.com/stretchr/testify
@@ -234,7 +233,7 @@ imports:
   - zapcore
   - zaptest
 - name: golang.org/x/net
-  version: 6078986fec03a1dcc236c34816c71b0e05018fda
+  version: b68f30494add4df6bd8ef5e82803f308e7f7c59c
   subpackages:
   - context
   - context/ctxhttp
