@@ -26,7 +26,6 @@ import (
 	"testing"
 	"time"
 
-	"github.com/gorilla/mux"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
 	"github.com/stretchr/testify/require"
@@ -98,7 +97,7 @@ func initializeTestServerWithHandler(options ...HandlerOption) (*httptest.Server
 func initializeTestServerWithOptions(options ...HandlerOption) (*httptest.Server, *spanstoremocks.Reader, *depsmocks.Reader, *APIHandler) {
 	readStorage := &spanstoremocks.Reader{}
 	dependencyStorage := &depsmocks.Reader{}
-	r := mux.NewRouter()
+	r := NewRouter()
 	handler := NewAPIHandler(readStorage, dependencyStorage, options...)
 	handler.RegisterRoutes(r)
 	return httptest.NewServer(r), readStorage, dependencyStorage, handler
@@ -387,10 +386,10 @@ func TestGetOperationsSuccess(t *testing.T) {
 	server, mock, _ := initializeTestServer()
 	defer server.Close()
 	expectedOperations := []string{"", "get"}
-	mock.On("GetOperations", "trifle").Return(expectedOperations, nil).Once()
+	mock.On("GetOperations", "abc/trifle").Return(expectedOperations, nil).Once()
 
 	var response structuredResponse
-	err := getJSON(server.URL+"/api/operations?service=trifle", &response)
+	err := getJSON(server.URL+"/api/operations?service=abc%2Ftrifle", &response)
 	assert.NoError(t, err)
 	actualOperations := make([]string, len(expectedOperations))
 	for i, s := range response.Data.([]interface{}) {
@@ -422,10 +421,10 @@ func TestGetOperationsLegacySuccess(t *testing.T) {
 	server, mock, _ := initializeTestServer()
 	defer server.Close()
 	expectedOperations := []string{"", "get"}
-	mock.On("GetOperations", "trifle").Return(expectedOperations, nil).Once()
+	mock.On("GetOperations", "abc/trifle").Return(expectedOperations, nil).Once()
 
 	var response structuredResponse
-	err := getJSON(server.URL+"/api/services/trifle/operations", &response)
+	err := getJSON(server.URL+"/api/services/abc%2Ftrifle/operations", &response)
 	assert.NoError(t, err)
 	actualOperations := make([]string, len(expectedOperations))
 	for i, s := range response.Data.([]interface{}) {

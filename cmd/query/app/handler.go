@@ -18,6 +18,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/http"
+	"net/url"
 	"strconv"
 	"time"
 
@@ -67,6 +68,11 @@ type structuredError struct {
 	Code    int        `json:"code,omitempty"`
 	Msg     string     `json:"msg"`
 	TraceID ui.TraceID `json:"traceID,omitempty"`
+}
+
+// NewRouter creates and configures a Gorilla Router.
+func NewRouter() *mux.Router {
+	return mux.NewRouter().UseEncodedPath()
 }
 
 // APIHandler implements the query service public API by registering routes at httpPrefix
@@ -160,7 +166,8 @@ func (aH *APIHandler) getServices(w http.ResponseWriter, r *http.Request) {
 
 func (aH *APIHandler) getOperationsLegacy(w http.ResponseWriter, r *http.Request) {
 	vars := mux.Vars(r)
-	service := vars[serviceParam] //given how getOperationsLegacy is used, service will always be a non-empty string
+	// given how getOperationsLegacy is bound to URL route, serviceParam cannot be empty
+	service, _ := url.QueryUnescape(vars[serviceParam])
 	operations, err := aH.spanReader.GetOperations(service)
 	if aH.handleError(w, err, http.StatusInternalServerError) {
 		return

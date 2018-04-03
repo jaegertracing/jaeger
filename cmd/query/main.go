@@ -24,7 +24,6 @@ import (
 	"syscall"
 
 	"github.com/gorilla/handlers"
-	"github.com/gorilla/mux"
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
 	jaegerClientConfig "github.com/uber/jaeger-client-go/config"
@@ -117,7 +116,7 @@ func main() {
 				spanReader,
 				dependencyReader,
 				apiHandlerOptions...)
-			r := mux.NewRouter()
+			r := app.NewRouter()
 			if queryOpts.BasePath != "/" {
 				r = r.PathPrefix(queryOpts.BasePath).Subrouter()
 			}
