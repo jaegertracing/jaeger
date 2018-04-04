@@ -461,7 +461,7 @@ func (aH *APIHandler) handleError(w http.ResponseWriter, err error, statusCode i
 	return true
 }
 
-func (aH *APIHandler) writeJSON(w http.ResponseWriter, r *http.Request, response *structuredResponse) {
+func (aH *APIHandler) writeJSON(w http.ResponseWriter, r *http.Request, response interface{}) {
 	marshall := json.Marshal
 	if prettyPrint := r.FormValue(prettyPrintParam); prettyPrint != "" && prettyPrint != "false" {
 		marshall = func(v interface{}) ([]byte, error) {

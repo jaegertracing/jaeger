@@ -139,22 +139,38 @@ func TestGetTraceSuccess(t *testing.T) {
 	assert.Len(t, response.Errors, 0)
 }
 
-func TestGetTracePrettyPrint(t *testing.T) {
-	server, readMock, _ := initializeTestServer()
-	defer server.Close()
-	readMock.On("GetTrace", mock.AnythingOfType("model.TraceID")).
-		Return(mockTrace, nil).Twice()
+func TestPrettyPrint(t *testing.T) {
+	data := struct{ Data string }{Data: "Bender"}
 
-	get := func(params string) string {
-		res, err := http.Get(server.URL + "/api/traces/123456" + params)
+	testCases := []struct {
+		param  string
+		output string
+	}{
+		{output: `{"Data":"Bender"}`},
+		{param: "?prettyPrint=false", output: `{"Data":"Bender"}`},
+		{param: "?prettyPrint=x", output: "{\n    \"Data\": \"Bender\"\n}"},
+	}
+
+	get := func(url string) string {
+		res, err := http.Get(url)
 		require.NoError(t, err)
 		body, err := ioutil.ReadAll(res.Body)
 		require.NoError(t, err)
 		return string(body)
 	}
-	raw := get("")
-	pretty := get("?prettyPrint=1")
-	assert.True(t, 2*len(raw) < len(pretty), "formattet response must be longer")
+
+	for _, testCase := range testCases {
+		t.Run(testCase.param, func(t *testing.T) {
+			server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				new(APIHandler).writeJSON(w, r, &data)
+			}))
+			defer server.Close()
+
+			out := get(server.URL + testCase.param)
+			println(out)
+			assert.Equal(t, testCase.output, out)
+		})
+	}
 }
 
 func TestGetTrace(t *testing.T) {
