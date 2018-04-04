@@ -161,7 +161,7 @@ func (aH *APIHandler) getServices(w http.ResponseWriter, r *http.Request) {
 		Data:  services,
 		Total: len(services),
 	}
-	aH.writeJSON(w, &structuredRes)
+	aH.writeJSON(w, r, &structuredRes)
 }
 
 func (aH *APIHandler) getOperationsLegacy(w http.ResponseWriter, r *http.Request) {
@@ -176,7 +176,7 @@ func (aH *APIHandler) getOperationsLegacy(w http.ResponseWriter, r *http.Request
 		Data:  operations,
 		Total: len(operations),
 	}
-	aH.writeJSON(w, &structuredRes)
+	aH.writeJSON(w, r, &structuredRes)
 }
 
 func (aH *APIHandler) getOperations(w http.ResponseWriter, r *http.Request) {
@@ -194,7 +194,7 @@ func (aH *APIHandler) getOperations(w http.ResponseWriter, r *http.Request) {
 		Data:  operations,
 		Total: len(operations),
 	}
-	aH.writeJSON(w, &structuredRes)
+	aH.writeJSON(w, r, &structuredRes)
 }
 
 func (aH *APIHandler) search(w http.ResponseWriter, r *http.Request) {
@@ -230,7 +230,7 @@ func (aH *APIHandler) search(w http.ResponseWriter, r *http.Request) {
 		Data:   uiTraces,
 		Errors: uiErrors,
 	}
-	aH.writeJSON(w, &structuredRes)
+	aH.writeJSON(w, r, &structuredRes)
 }
 
 func (aH *APIHandler) tracesByIDs(traceIDs []model.TraceID) ([]*model.Trace, []structuredError, error) {
@@ -280,7 +280,7 @@ func (aH *APIHandler) dependencies(w http.ResponseWriter, r *http.Request) {
 	structuredRes := structuredResponse{
 		Data: aH.deduplicateDependencies(filteredDependencies),
 	}
-	aH.writeJSON(w, &structuredRes)
+	aH.writeJSON(w, r, &structuredRes)
 }
 
 func (aH *APIHandler) convertModelToUI(trace *model.Trace, adjust bool) (*ui.Trace, *structuredError) {
@@ -376,7 +376,7 @@ func (aH *APIHandler) getTraceFromReaders(
 			},
 			Errors: uiErrors,
 		}
-		aH.writeJSON(w, &structuredRes)
+		aH.writeJSON(w, r, &structuredRes)
 	})
 }
 
@@ -440,7 +440,7 @@ func (aH *APIHandler) archiveTrace(w http.ResponseWriter, r *http.Request) {
 			Data:   []string{}, // doens't matter, just want an empty array
 			Errors: []structuredError{},
 		}
-		aH.writeJSON(w, &structuredRes)
+		aH.writeJSON(w, r, &structuredRes)
 	})
 }
 
@@ -461,8 +461,14 @@ func (aH *APIHandler) handleError(w http.ResponseWriter, err error, statusCode i
 	return true
 }
 
-func (aH *APIHandler) writeJSON(w http.ResponseWriter, response *structuredResponse) {
-	resp, _ := json.Marshal(response)
+func (aH *APIHandler) writeJSON(w http.ResponseWriter, r *http.Request, response interface{}) {
+	marshall := json.Marshal
+	if prettyPrint := r.FormValue(prettyPrintParam); prettyPrint != "" && prettyPrint != "false" {
+		marshall = func(v interface{}) ([]byte, error) {
+			return json.MarshalIndent(v, "", "    ")
+		}
+	}
+	resp, _ := marshall(response)
 	w.Header().Set("Content-Type", "application/json")
 	w.Write(resp)
 }

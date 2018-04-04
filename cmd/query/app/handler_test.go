@@ -139,6 +139,39 @@ func TestGetTraceSuccess(t *testing.T) {
 	assert.Len(t, response.Errors, 0)
 }
 
+func TestPrettyPrint(t *testing.T) {
+	data := struct{ Data string }{Data: "Bender"}
+
+	testCases := []struct {
+		param  string
+		output string
+	}{
+		{output: `{"Data":"Bender"}`},
+		{param: "?prettyPrint=false", output: `{"Data":"Bender"}`},
+		{param: "?prettyPrint=x", output: "{\n    \"Data\": \"Bender\"\n}"},
+	}
+
+	get := func(url string) string {
+		res, err := http.Get(url)
+		require.NoError(t, err)
+		body, err := ioutil.ReadAll(res.Body)
+		require.NoError(t, err)
+		return string(body)
+	}
+
+	for _, testCase := range testCases {
+		t.Run(testCase.param, func(t *testing.T) {
+			server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				new(APIHandler).writeJSON(w, r, &data)
+			}))
+			defer server.Close()
+
+			out := get(server.URL + testCase.param)
+			assert.Equal(t, testCase.output, out)
+		})
+	}
+}
+
 func TestGetTrace(t *testing.T) {
 	testCases := []struct {
 		suffix      string
