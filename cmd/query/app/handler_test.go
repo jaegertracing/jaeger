@@ -139,6 +139,24 @@ func TestGetTraceSuccess(t *testing.T) {
 	assert.Len(t, response.Errors, 0)
 }
 
+func TestGetTracePrettyPrint(t *testing.T) {
+	server, readMock, _ := initializeTestServer()
+	defer server.Close()
+	readMock.On("GetTrace", mock.AnythingOfType("model.TraceID")).
+		Return(mockTrace, nil).Twice()
+
+	get := func(params string) string {
+		res, err := http.Get(server.URL + "/api/traces/123456" + params)
+		require.NoError(t, err)
+		body, err := ioutil.ReadAll(res.Body)
+		require.NoError(t, err)
+		return string(body)
+	}
+	raw := get("")
+	pretty := get("?prettyPrint=1")
+	assert.True(t, 2*len(raw) < len(pretty), "formattet response must be longer")
+}
+
 func TestGetTrace(t *testing.T) {
 	testCases := []struct {
 		suffix      string
