@@ -167,7 +167,6 @@ func TestPrettyPrint(t *testing.T) {
 			defer server.Close()
 
 			out := get(server.URL + testCase.param)
-			println(out)
 			assert.Equal(t, testCase.output, out)
 		})
 	}
