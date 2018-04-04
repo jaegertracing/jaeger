@@ -26,6 +26,9 @@ matrix:
   - go: 1.9
     env:
     - HOTROD=true
+  - go: 1.9
+    env:
+    - WINDOWS=true
 
 services:
   - docker
@@ -54,9 +57,28 @@ script:
   - if [ "$DOCKER" == true ]; then bash ./scripts/travis/build-docker-images.sh ; else echo 'skipping docker images'; fi
   - if [ "$ES_INTEGRATION_TEST" == true ]; then bash ./scripts/travis/es-integration-test.sh ; else echo 'skipping elastic search integration test'; fi
   - if [ "$HOTROD" == true ]; then bash ./scripts/travis/hotrod-integration-test.sh ; else echo 'skipping hotrod example'; fi
+  - if [ "$WINDOWS" == true ]; then bash ./scripts/travis/build-windows.sh ; else echo 'skipping windows'; fi
 
 after_success:
   - if [ "$COVERAGE" == true ]; then travis_retry goveralls -coverprofile=cover.out -service=travis-ci || true ; else echo 'skipping coverage'; fi
 
 after_failure:
   - if [ "$CROSSDOCK" == true ]; then make crossdock-logs ; else echo 'skipping crossdock'; fi
+
+deploy:
+  provider: releases
+  api_key:
+    secure: YOUR_API_KEY_ENCRYPTED
+  file:
+    - "cmd/standalone/standalone-linux"
+    - "cmd/standalone/standalone-windows.exe"
+    - "cmd/agent/agent-linux"
+    - "cmd/agent/agent-windows.exe"
+    - "cmd/query/query-linux"
+    - "cmd/query/query-windows.exe"
+    - "cmd/collector/collector-linux"
+    - "cmd/collector/collector-windows.exe"
+  skip_cleanup: true
+  on:
+    tags: true
+    repo: jaegertracing/jaeger
