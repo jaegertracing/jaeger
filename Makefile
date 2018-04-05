@@ -199,6 +199,9 @@ docker-no-ui: build-agent-linux build-collector-linux build-query-linux build-cr
 .PHONY: docker
 docker: build_ui docker-no-ui
 
+.PHONY: build-linux
+build-linux: build-agent-linux build-collector-linux build-query-linux build-all-in-one-linux
+
 .PHONY: build-windows
 build-windows: build-agent-windows build-collector-windows build-query-windows build-all-in-one-windows
 
