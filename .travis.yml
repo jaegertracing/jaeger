@@ -28,6 +28,9 @@ matrix:
     - HOTROD=true
   - go: 1.9
     env:
+    - LINUX=true
+    - go: 1.9
+    env:
     - WINDOWS=true
   - go: 1.9
     env:
@@ -60,6 +63,7 @@ script:
   - if [ "$DOCKER" == true ]; then bash ./scripts/travis/build-docker-images.sh ; else echo 'skipping docker images'; fi
   - if [ "$ES_INTEGRATION_TEST" == true ]; then bash ./scripts/travis/es-integration-test.sh ; else echo 'skipping elastic search integration test'; fi
   - if [ "$HOTROD" == true ]; then bash ./scripts/travis/hotrod-integration-test.sh ; else echo 'skipping hotrod example'; fi
+  - if [ "$LINUX" == true ]; make build-linux ; else echo 'skipping linux'; fi
   - if [ "$WINDOWS" == true ]; make build-windows ; else echo 'skipping windows'; fi
   - if [ "$DARWIN" == true ]; make build-darwin ; else echo 'skipping darwin'; fi
 
@@ -68,6 +72,9 @@ after_success:
 
 after_failure:
   - if [ "$CROSSDOCK" == true ]; then make crossdock-logs ; else echo 'skipping crossdock'; fi
+
+before_deploy:
+  - bash ./scripts/travis/package-deploy.sh
 
 deploy:
   provider: releases
@@ -86,3 +93,4 @@ deploy:
   on:
     tags: true
     repo: jaegertracing/jaeger
+    branch: master
