@@ -23,7 +23,6 @@ function stage-platform-files {
     stage-file ./cmd/agent/agent-$PLATFORM$FILE_EXTENSION $PACKAGE_STAGING_DIR/jaeger-agent$FILE_EXTENSION
     stage-file ./cmd/query/query-$PLATFORM$FILE_EXTENSION $PACKAGE_STAGING_DIR/jaeger-query$FILE_EXTENSION
     stage-file ./cmd/collector/collector-$PLATFORM$FILE_EXTENSION $PACKAGE_STAGING_DIR/jaeger-collector$FILE_EXTENSION
-
 }
 
 # package pulls built files for the platform ($1). If you pass in a file 
@@ -77,5 +76,5 @@ fi
 if [ "$WINDOWS" = true ]; then
     package windows .exe
 else
-    echo "Skipping the packaging of windows binaries as \$LINUX was not true."
+    echo "Skipping the packaging of windows binaries as \$WINDOWS was not true."
 fi
