@@ -29,6 +29,9 @@ matrix:
   - go: 1.9
     env:
     - WINDOWS=true
+  - go: 1.9
+    env:
+    - DARWIN=true
 
 services:
   - docker
@@ -58,6 +61,7 @@ script:
   - if [ "$ES_INTEGRATION_TEST" == true ]; then bash ./scripts/travis/es-integration-test.sh ; else echo 'skipping elastic search integration test'; fi
   - if [ "$HOTROD" == true ]; then bash ./scripts/travis/hotrod-integration-test.sh ; else echo 'skipping hotrod example'; fi
   - if [ "$WINDOWS" == true ]; then bash ./scripts/travis/build-windows.sh ; else echo 'skipping windows'; fi
+  - if [ "$DARWIN" == true ]; make build-darwin ; else echo 'skipping darwin'; fi
 
 after_success:
   - if [ "$COVERAGE" == true ]; then travis_retry goveralls -coverprofile=cover.out -service=travis-ci || true ; else echo 'skipping coverage'; fi

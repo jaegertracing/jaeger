@@ -151,6 +151,10 @@ build-all-in-one-linux: build_ui
 build-all-in-one-windows: build_ui
 	CGO_ENABLED=0 GOOS=windows installsuffix=cgo go build -o ./cmd/standalone/standalone-windows.exe $(BUILD_INFO) ./cmd/standalone/main.go
 
+.PHONY: build-all-in-one-darwin
+build-all-in-one-darwin: build_ui
+	CGO_ENABLED=0 GOOS=darwin installsuffix=cgo go build -o ./cmd/standalone/standalone-darwin $(BUILD_INFO) ./cmd/standalone/main.go
+
 .PHONY: build-agent-linux
 build-agent-linux:
 	CGO_ENABLED=0 GOOS=linux installsuffix=cgo go build -o ./cmd/agent/agent-linux $(BUILD_INFO) ./cmd/agent/main.go
@@ -158,6 +162,10 @@ build-agent-linux:
 .PHONY: build-agent-windows
 build-agent-windows:
 	CGO_ENABLED=0 GOOS=windows installsuffix=cgo go build -o ./cmd/agent/agent-windows.exe $(BUILD_INFO) ./cmd/agent/main.go
+
+.PHONY: build-agent-darwin
+build-agent-darwin:
+	CGO_ENABLED=0 GOOS=darwin installsuffix=cgo go build -o ./cmd/agent/agent-darwin $(BUILD_INFO) ./cmd/agent/main.go
 
 .PHONY: build-query-linux
 build-query-linux:
@@ -167,6 +175,10 @@ build-query-linux:
 build-query-windows:
 	CGO_ENABLED=0 GOOS=windows installsuffix=cgo go build -o ./cmd/query/query-windows.exe $(BUILD_INFO) ./cmd/query/main.go
 
+.PHONY: build-query-darwin
+build-query-darwin:
+	CGO_ENABLED=0 GOOS=darwin installsuffix=cgo go build -o ./cmd/query/query-darwin $(BUILD_INFO) ./cmd/query/main.go
+
 .PHONY: build-collector-linux
 build-collector-linux:
 	CGO_ENABLED=0 GOOS=linux installsuffix=cgo go build -o ./cmd/collector/collector-linux $(BUILD_INFO) ./cmd/collector/main.go
@@ -174,6 +186,10 @@ build-collector-linux:
 .PHONY: build-collector-windows
 build-collector-windows:
 	CGO_ENABLED=0 GOOS=windows installsuffix=cgo go build -o ./cmd/collector/collector-windows.exe $(BUILD_INFO) ./cmd/collector/main.go
+
+.PHONY: build-collector-darwin
+build-collector-darwin:
+	CGO_ENABLED=0 GOOS=darwin installsuffix=cgo go build -o ./cmd/collector/collector-darwin $(BUILD_INFO) ./cmd/collector/main.go
 
 .PHONY: docker-no-ui
 docker-no-ui: build-agent-linux build-collector-linux build-query-linux build-crossdock-linux
@@ -185,6 +201,9 @@ docker: build_ui docker-no-ui
 
 .PHONY: build-windows
 build-windows: build-agent-windows build-collector-windows build-query-windows build-all-in-one-windows
+
+.PHONY: build-darwin
+build-darwin: build-agent-darwin build-collector-darwin build-query-darwin build-all-in-one-darwin
 
 .PHONY: docker-images-only
 docker-images-only:
@@ -281,3 +300,7 @@ install-mockery:
 .PHONY: generate-mocks
 generate-mocks: install-mockery
 	$(MOCKERY) -all -dir ./pkg/es/ -output ./pkg/es/mocks && rm pkg/es/mocks/ClientBuilder.go
+
+.PHONY: echo-version
+echo-version:
+	@echo $(GIT_CLOSEST_TAG)
