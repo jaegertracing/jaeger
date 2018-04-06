@@ -22,10 +22,12 @@ import (
 	"testing"
 	"time"
 
+	"github.com/prometheus/client_golang/prometheus"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"go.uber.org/zap"
 
+	jmetrics "github.com/jaegertracing/jaeger/pkg/metrics"
 	"github.com/jaegertracing/jaeger/pkg/testutils"
 )
 
@@ -37,7 +39,48 @@ func TestAgentStartError(t *testing.T) {
 	assert.Error(t, agent.Run())
 }
 
-func TestAgentStartStop(t *testing.T) {
+func TestAgentSamplingEndpoint(t *testing.T) {
+	withRunningAgent(t, func(httpAddr string, errorch chan error) {
+		url := fmt.Sprintf("http://%s/sampling?service=abc", httpAddr)
+		httpClient := &http.Client{
+			Timeout: 100 * time.Millisecond,
+		}
+		for i := 0; i < 1000; i++ {
+			_, err := httpClient.Get(url)
+			if err == nil {
+				break
+			}
+			select {
+			case err := <-errorch:
+				if err != nil {
+					t.Fatalf("error from agent: %s", err)
+				}
+				break
+			default:
+				time.Sleep(time.Millisecond)
+			}
+		}
+		resp, err := http.Get(url)
+		require.NoError(t, err)
+		body, err := ioutil.ReadAll(resp.Body)
+		assert.NoError(t, err)
+		assert.Equal(t, "tcollector error: no peers available\n", string(body))
+	})
+}
+
+func TestAgentMetricsEndpoint(t *testing.T) {
+	withRunningAgent(t, func(httpAddr string, errorch chan error) {
+		url := fmt.Sprintf("http://%s/metrics", httpAddr)
+		resp, err := http.Get(url)
+		require.NoError(t, err)
+		body, err := ioutil.ReadAll(resp.Body)
+		assert.NoError(t, err)
+		assert.Contains(t, string(body), "# HELP")
+	})
+}
+
+func withRunningAgent(t *testing.T, testcase func(string, chan error)) {
+	resetDefaultPrometheusRegistry()
 	cfg := Builder{
 		Processors: []ProcessorConfiguration{
 			{
@@ -50,6 +93,10 @@ func TestAgentStartStop(t *testing.T) {
 		},
 		HTTPServer: HTTPServerConfiguration{
 			HostPort: ":0",
+		},
+		Metrics: jmetrics.Builder{
+			Backend:   "prometheus",
+			HTTPRoute: "/metrics",
 		},
 	}
 	logger, logBuf := testutils.NewLogger()
@@ -71,30 +118,7 @@ func TestAgentStartStop(t *testing.T) {
 		time.Sleep(time.Millisecond)
 	}
 
-	url := fmt.Sprintf("http://%s/sampling?service=abc", agent.HTTPAddr())
-	httpClient := &http.Client{
-		Timeout: 100 * time.Millisecond,
-	}
-	for i := 0; i < 1000; i++ {
-		_, err := httpClient.Get(url)
-		if err == nil {
-			break
-		}
-		select {
-		case err := <-ch:
-			if err != nil {
-				t.Fatalf("error from agent: %s", err)
-			}
-			break
-		default:
-			time.Sleep(time.Millisecond)
-		}
-	}
-	resp, err := http.Get(url)
-	require.NoError(t, err)
-	body, err := ioutil.ReadAll(resp.Body)
-	assert.NoError(t, err)
-	assert.Equal(t, "tcollector error: no peers available\n", string(body))
+	testcase(agent.HTTPAddr(), ch)
 
 	// TODO (wjang) We sleep because the processors in the agent might not have had time to
 	// start up yet. If we were to call Stop() before the processors have time to startup,
@@ -114,5 +138,12 @@ func TestAgentStartStop(t *testing.T) {
 		}
 		time.Sleep(time.Millisecond)
 	}
-	t.Fatal("Expecting server exist log")
+	t.Fatal("Expecting server exit log")
+}
+
+func resetDefaultPrometheusRegistry() {
+	// Create and assign a new Prometheus Registerer/Gatherer for each test
+	registry := prometheus.NewRegistry()
+	prometheus.DefaultRegisterer = registry
+	prometheus.DefaultGatherer = registry
 }

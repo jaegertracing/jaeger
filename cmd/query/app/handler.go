@@ -18,6 +18,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"net/http"
+	"net/url"
 	"strconv"
 	"time"
 
@@ -43,7 +44,7 @@ const (
 
 	defaultDependencyLookbackDuration = time.Hour * 24
 	defaultTraceQueryLookbackDuration = time.Hour * 24 * 2
-	defaultHTTPPrefix                 = "api"
+	defaultAPIPrefix                  = "api"
 )
 
 var (
@@ -69,6 +70,11 @@ type structuredError struct {
 	TraceID ui.TraceID `json:"traceID,omitempty"`
 }
 
+// NewRouter creates and configures a Gorilla Router.
+func NewRouter() *mux.Router {
+	return mux.NewRouter().UseEncodedPath()
+}
+
 // APIHandler implements the query service public API by registering routes at httpPrefix
 type APIHandler struct {
 	spanReader        spanstore.Reader
@@ -78,7 +84,8 @@ type APIHandler struct {
 	adjuster          adjuster.Adjuster
 	logger            *zap.Logger
 	queryParser       queryParser
-	httpPrefix        string
+	basePath          string
+	apiPrefix         string
 	tracer            opentracing.Tracer
 }
 
@@ -96,8 +103,8 @@ func NewAPIHandler(spanReader spanstore.Reader, dependencyReader dependencystore
 	for _, option := range options {
 		option(aH)
 	}
-	if aH.httpPrefix == "" {
-		aH.httpPrefix = defaultHTTPPrefix
+	if aH.apiPrefix == "" {
+		aH.apiPrefix = defaultAPIPrefix
 	}
 	if aH.adjuster == nil {
 		aH.adjuster = adjuster.Sequence(StandardAdjusters...)
@@ -141,7 +148,7 @@ func (aH *APIHandler) handleFunc(
 }
 
 func (aH *APIHandler) route(route string, args ...interface{}) string {
-	args = append([]interface{}{aH.httpPrefix}, args...)
+	args = append([]interface{}{aH.apiPrefix}, args...)
 	return fmt.Sprintf("/%s"+route, args...)
 }
 
@@ -154,12 +161,13 @@ func (aH *APIHandler) getServices(w http.ResponseWriter, r *http.Request) {
 		Data:  services,
 		Total: len(services),
 	}
-	aH.writeJSON(w, &structuredRes)
+	aH.writeJSON(w, r, &structuredRes)
 }
 
 func (aH *APIHandler) getOperationsLegacy(w http.ResponseWriter, r *http.Request) {
 	vars := mux.Vars(r)
-	service := vars[serviceParam] //given how getOperationsLegacy is used, service will always be a non-empty string
+	// given how getOperationsLegacy is bound to URL route, serviceParam cannot be empty
+	service, _ := url.QueryUnescape(vars[serviceParam])
 	operations, err := aH.spanReader.GetOperations(service)
 	if aH.handleError(w, err, http.StatusInternalServerError) {
 		return
@@ -168,7 +176,7 @@ func (aH *APIHandler) getOperationsLegacy(w http.ResponseWriter, r *http.Request
 		Data:  operations,
 		Total: len(operations),
 	}
-	aH.writeJSON(w, &structuredRes)
+	aH.writeJSON(w, r, &structuredRes)
 }
 
 func (aH *APIHandler) getOperations(w http.ResponseWriter, r *http.Request) {
@@ -186,7 +194,7 @@ func (aH *APIHandler) getOperations(w http.ResponseWriter, r *http.Request) {
 		Data:  operations,
 		Total: len(operations),
 	}
-	aH.writeJSON(w, &structuredRes)
+	aH.writeJSON(w, r, &structuredRes)
 }
 
 func (aH *APIHandler) search(w http.ResponseWriter, r *http.Request) {
@@ -222,7 +230,7 @@ func (aH *APIHandler) search(w http.ResponseWriter, r *http.Request) {
 		Data:   uiTraces,
 		Errors: uiErrors,
 	}
-	aH.writeJSON(w, &structuredRes)
+	aH.writeJSON(w, r, &structuredRes)
 }
 
 func (aH *APIHandler) tracesByIDs(traceIDs []model.TraceID) ([]*model.Trace, []structuredError, error) {
@@ -272,7 +280,7 @@ func (aH *APIHandler) dependencies(w http.ResponseWriter, r *http.Request) {
 	structuredRes := structuredResponse{
 		Data: aH.deduplicateDependencies(filteredDependencies),
 	}
-	aH.writeJSON(w, &structuredRes)
+	aH.writeJSON(w, r, &structuredRes)
 }
 
 func (aH *APIHandler) convertModelToUI(trace *model.Trace, adjust bool) (*ui.Trace, *structuredError) {
@@ -368,7 +376,7 @@ func (aH *APIHandler) getTraceFromReaders(
 			},
 			Errors: uiErrors,
 		}
-		aH.writeJSON(w, &structuredRes)
+		aH.writeJSON(w, r, &structuredRes)
 	})
 }
 
@@ -432,7 +440,7 @@ func (aH *APIHandler) archiveTrace(w http.ResponseWriter, r *http.Request) {
 			Data:   []string{}, // doens't matter, just want an empty array
 			Errors: []structuredError{},
 		}
-		aH.writeJSON(w, &structuredRes)
+		aH.writeJSON(w, r, &structuredRes)
 	})
 }
 
@@ -453,8 +461,14 @@ func (aH *APIHandler) handleError(w http.ResponseWriter, err error, statusCode i
 	return true
 }
 
-func (aH *APIHandler) writeJSON(w http.ResponseWriter, response *structuredResponse) {
-	resp, _ := json.Marshal(response)
+func (aH *APIHandler) writeJSON(w http.ResponseWriter, r *http.Request, response interface{}) {
+	marshall := json.Marshal
+	if prettyPrint := r.FormValue(prettyPrintParam); prettyPrint != "" && prettyPrint != "false" {
+		marshall = func(v interface{}) ([]byte, error) {
+			return json.MarshalIndent(v, "", "    ")
+		}
+	}
+	resp, _ := marshall(response)
 	w.Header().Set("Content-Type", "application/json")
 	w.Write(resp)
 }

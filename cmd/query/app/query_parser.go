@@ -40,6 +40,7 @@ const (
 	maxDurationParam = "maxDuration"
 	serviceParam     = "service"
 	endTimeParam     = "end"
+	prettyPrintParam = "prettyPrint"
 )
 
 var (

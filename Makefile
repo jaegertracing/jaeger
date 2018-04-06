@@ -122,9 +122,20 @@ install-glide:
 install: install-glide
 	glide install
 
+.PHONY: install-go-bindata
+install-go-bindata:
+	go get github.com/jteeuwen/go-bindata/...
+	go get github.com/elazarl/go-bindata-assetfs/...
+
 .PHONY: build-examples
-build-examples:
-	go build -o ./examples/hotrod/hotrod-demo ./examples/hotrod/main.go
+build-examples: install-go-bindata
+	(cd ./examples/hotrod/services/frontend/ && go-bindata-assetfs -pkg frontend web_assets/...)
+	rm ./examples/hotrod/services/frontend/bindata.go
+	CGO_ENABLED=0 GOOS=linux installsuffix=cgo go build -o ./examples/hotrod/hotrod-linux ./examples/hotrod/main.go
+
+.PHONE: docker-hotrod
+docker-hotrod: build-examples
+	docker build -t $(DOCKER_NAMESPACE)/example-hotrod:${DOCKER_TAG} ./examples/hotrod
 
 .PHONY: build_ui
 build_ui:
@@ -161,6 +172,8 @@ docker-images-only:
 	cp -r jaeger-ui-build/build/ cmd/query/jaeger-ui-build
 	docker build -t $(DOCKER_NAMESPACE)/jaeger-cassandra-schema:${DOCKER_TAG} plugin/storage/cassandra/
 	@echo "Finished building jaeger-cassandra-schema =============="
+	docker build -t $(DOCKER_NAMESPACE)/jaeger-es-index-cleaner:${DOCKER_TAG} plugin/storage/es
+	@echo "Finished building jaeger-es-indices-clean =============="
 	for component in agent collector query ; do \
 		docker build -t $(DOCKER_NAMESPACE)/jaeger-$$component:${DOCKER_TAG} cmd/$$component ; \
 		echo "Finished building $$component ==============" ; \
@@ -177,7 +190,7 @@ docker-push:
 	if [ $$CONFIRM != "y" ] && [ $$CONFIRM != "Y" ]; then \
 		echo "Exiting." ; exit 1 ; \
 	fi
-	for component in agent cassandra-schema collector query ; do \
+	for component in agent cassandra-schema es-index-cleaner collector query example-hotrod; do \
 		docker push $(DOCKER_NAMESPACE)/jaeger-$$component ; \
 	done
 

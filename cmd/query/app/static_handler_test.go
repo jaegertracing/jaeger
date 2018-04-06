@@ -19,7 +19,6 @@ import (
 	"io/ioutil"
 	"net/http"
 	"net/http/httptest"
-	"strings"
 	"testing"
 	"time"
 
@@ -30,32 +29,14 @@ import (
 	"github.com/jaegertracing/jaeger/pkg/testutils"
 )
 
-func TestStaticAssetsHandler(t *testing.T) {
-	r := mux.NewRouter()
-	handler, err := NewStaticAssetsHandler("fixture", "")
-	require.NoError(t, err)
-	handler.RegisterRoutes(r)
-	server := httptest.NewServer(r)
-	defer server.Close()
-
-	httpClient = &http.Client{
-		Timeout: 2 * time.Second,
-	}
-
-	resp, err := httpClient.Get(server.URL)
-	assert.NoError(t, err)
-	defer resp.Body.Close()
-	assert.Equal(t, http.StatusOK, resp.StatusCode)
-}
-
 func TestDefaultStaticAssetsRoot(t *testing.T) {
-	handler, err := NewStaticAssetsHandler("", "")
+	handler, err := NewStaticAssetsHandler("", StaticAssetsHandlerOptions{})
 	assert.Nil(t, handler)
 	assert.Nil(t, err)
 }
 
 func TestNotExistingUiConfig(t *testing.T) {
-	handler, err := NewStaticAssetsHandler("/foo/bar", "")
+	handler, err := NewStaticAssetsHandler("/foo/bar", StaticAssetsHandlerOptions{})
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "Cannot read UI static assets")
 	assert.Nil(t, handler)
@@ -77,40 +58,69 @@ func TestRegisterStaticHandlerNotCreated(t *testing.T) {
 }
 
 func TestRegisterStaticHandler(t *testing.T) {
-	logger, buf := testutils.NewLogger()
-	r := mux.NewRouter()
-	RegisterStaticHandler(r, logger, &QueryOptions{StaticAssets: "fixture/"})
-	assert.Empty(t, buf.String())
-
-	server := httptest.NewServer(r)
-	defer server.Close()
-	expectedRespString := "Test Favicon\n"
-
+	testCases := []struct {
+		basePath         string // input to the test
+		subroute         bool   // should we create a subroute?
+		baseURL          string // expected URL prefix
+		expectedBaseHTML string // substring to match in the home page
+	}{
+		{basePath: "", baseURL: "/", expectedBaseHTML: `<base href="/"`},
+		{basePath: "/", baseURL: "/", expectedBaseHTML: `<base href="/"`},
+		{basePath: "/jaeger", baseURL: "/jaeger/", expectedBaseHTML: `<base href="/jaeger/"`, subroute: true},
+	}
 	httpClient = &http.Client{
 		Timeout: 2 * time.Second,
 	}
+	for _, testCase := range testCases {
+		t.Run("basePath="+testCase.basePath, func(t *testing.T) {
+			logger, buf := testutils.NewLogger()
+			r := mux.NewRouter()
+			if testCase.subroute {
+				r = r.PathPrefix(testCase.basePath).Subrouter()
+			}
+			RegisterStaticHandler(r, logger, &QueryOptions{
+				StaticAssets: "fixture/",
+				BasePath:     testCase.basePath,
+				UIConfig:     "fixture/ui-config.json",
+			})
+			assert.Empty(t, buf.String(), "no logs during construction")
 
-	resp, err := httpClient.Get(fmt.Sprintf("%s/favicon.ico", server.URL))
-	require.NoError(t, err)
-	defer resp.Body.Close()
+			server := httptest.NewServer(r)
+			defer server.Close()
 
-	respByteArray, _ := ioutil.ReadAll(resp.Body)
-	respString := string(respByteArray)
+			httpGet := func(path string) string {
+				resp, err := httpClient.Get(fmt.Sprintf("%s%s%s", server.URL, testCase.baseURL, path))
+				require.NoError(t, err)
+				defer resp.Body.Close()
 
-	assert.NoError(t, err)
-	assert.Equal(t, http.StatusOK, resp.StatusCode)
-	assert.Equal(t, expectedRespString, respString)
+				respByteArray, err := ioutil.ReadAll(resp.Body)
+				require.NoError(t, err)
+				require.Equal(t, http.StatusOK, resp.StatusCode)
+				return string(respByteArray)
+			}
+
+			respString := httpGet(favoriteIcon)
+			assert.Contains(t, respString, "Test Favicon") // this text is present in fixtures/favicon.ico
+
+			html := httpGet("") // get home page
+			assert.Contains(t, html, `JAEGER_CONFIG = {"x":"y"};`, "actual: %v", html)
+			assert.Contains(t, html, testCase.expectedBaseHTML, "actual: %v", html)
+
+			asset := httpGet("static/asset.txt")
+			assert.Contains(t, asset, "some asset", "actual: %v", asset)
+		})
+	}
 }
 
-func TestNewStaticAssetsHandlerWithConfig(t *testing.T) {
-	_, err := NewStaticAssetsHandler("fixture", "fixture/invalid-config")
+func TestNewStaticAssetsHandlerErrors(t *testing.T) {
+	_, err := NewStaticAssetsHandler("fixture", StaticAssetsHandlerOptions{UIConfigPath: "fixture/invalid-config"})
 	assert.Error(t, err)
 
-	handler, err := NewStaticAssetsHandler("fixture", "fixture/ui-config.json")
-	require.NoError(t, err)
-	require.NotNil(t, handler)
-	html := string(handler.indexHTML)
-	assert.True(t, strings.Contains(html, `JAEGER_CONFIG = {"x":"y"};`), "actual: %v", html)
+	for _, base := range []string{"x", "x/", "/x/"} {
+		_, err := NewStaticAssetsHandler("fixture", StaticAssetsHandlerOptions{UIConfigPath: "fixture/ui-config.json", BasePath: base})
+		require.Error(t, err, "basePath=%s", base)
+		assert.Contains(t, err.Error(), "Invalid base path")
+	}
 }
 
 func TestLoadUIConfig(t *testing.T) {

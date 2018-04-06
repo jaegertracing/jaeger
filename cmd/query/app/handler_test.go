@@ -26,7 +26,6 @@ import (
 	"testing"
 	"time"
 
-	"github.com/gorilla/mux"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
 	"github.com/stretchr/testify/require"
@@ -85,7 +84,9 @@ func initializeTestServerWithHandler(options ...HandlerOption) (*httptest.Server
 		append(
 			[]HandlerOption{
 				HandlerOptions.Logger(zap.NewNop()),
-				HandlerOptions.Prefix(defaultHTTPPrefix),
+				// add options for test coverage
+				HandlerOptions.Prefix(defaultAPIPrefix),
+				HandlerOptions.BasePath("/"),
 				HandlerOptions.QueryLookbackDuration(defaultTraceQueryLookbackDuration),
 			},
 			options...,
@@ -96,7 +97,7 @@ func initializeTestServerWithHandler(options ...HandlerOption) (*httptest.Server
 func initializeTestServerWithOptions(options ...HandlerOption) (*httptest.Server, *spanstoremocks.Reader, *depsmocks.Reader, *APIHandler) {
 	readStorage := &spanstoremocks.Reader{}
 	dependencyStorage := &depsmocks.Reader{}
-	r := mux.NewRouter()
+	r := NewRouter()
 	handler := NewAPIHandler(readStorage, dependencyStorage, options...)
 	handler.RegisterRoutes(r)
 	return httptest.NewServer(r), readStorage, dependencyStorage, handler
@@ -136,6 +137,39 @@ func TestGetTraceSuccess(t *testing.T) {
 	err := getJSON(server.URL+`/api/traces/123456`, &response)
 	assert.NoError(t, err)
 	assert.Len(t, response.Errors, 0)
+}
+
+func TestPrettyPrint(t *testing.T) {
+	data := struct{ Data string }{Data: "Bender"}
+
+	testCases := []struct {
+		param  string
+		output string
+	}{
+		{output: `{"Data":"Bender"}`},
+		{param: "?prettyPrint=false", output: `{"Data":"Bender"}`},
+		{param: "?prettyPrint=x", output: "{\n    \"Data\": \"Bender\"\n}"},
+	}
+
+	get := func(url string) string {
+		res, err := http.Get(url)
+		require.NoError(t, err)
+		body, err := ioutil.ReadAll(res.Body)
+		require.NoError(t, err)
+		return string(body)
+	}
+
+	for _, testCase := range testCases {
+		t.Run(testCase.param, func(t *testing.T) {
+			server := httptest.NewServer(http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
+				new(APIHandler).writeJSON(w, r, &data)
+			}))
+			defer server.Close()
+
+			out := get(server.URL + testCase.param)
+			assert.Equal(t, testCase.output, out)
+		})
+	}
 }
 
 func TestGetTrace(t *testing.T) {
@@ -385,10 +419,10 @@ func TestGetOperationsSuccess(t *testing.T) {
 	server, mock, _ := initializeTestServer()
 	defer server.Close()
 	expectedOperations := []string{"", "get"}
-	mock.On("GetOperations", "trifle").Return(expectedOperations, nil).Once()
+	mock.On("GetOperations", "abc/trifle").Return(expectedOperations, nil).Once()
 
 	var response structuredResponse
-	err := getJSON(server.URL+"/api/operations?service=trifle", &response)
+	err := getJSON(server.URL+"/api/operations?service=abc%2Ftrifle", &response)
 	assert.NoError(t, err)
 	actualOperations := make([]string, len(expectedOperations))
 	for i, s := range response.Data.([]interface{}) {
@@ -420,10 +454,10 @@ func TestGetOperationsLegacySuccess(t *testing.T) {
 	server, mock, _ := initializeTestServer()
 	defer server.Close()
 	expectedOperations := []string{"", "get"}
-	mock.On("GetOperations", "trifle").Return(expectedOperations, nil).Once()
+	mock.On("GetOperations", "abc/trifle").Return(expectedOperations, nil).Once()
 
 	var response structuredResponse
-	err := getJSON(server.URL+"/api/services/trifle/operations", &response)
+	err := getJSON(server.URL+"/api/services/abc%2Ftrifle/operations", &response)
 	assert.NoError(t, err)
 	actualOperations := make([]string, len(expectedOperations))
 	for i, s := range response.Data.([]interface{}) {
