@@ -135,7 +135,7 @@ If you would like to add your organization to the list, please comment on our
 
 [Apache 2.0 License](./LICENSE).
 
-[doc]: https://jaegertracing.netlify.com/docs/
+[doc]: https://jaegertracing.io/docs/
 [godoc-img]: https://godoc.org/github.com/jaegertracing/jaeger?status.svg
 [godoc]: https://godoc.org/github.com/jaegertracing/jaeger
 [ci-img]: https://travis-ci.org/jaegertracing/jaeger.svg?branch=master
