@@ -21,12 +21,12 @@ var allCmd = &cobra.Command{
 	Use:   "all",
 	Short: "Starts all services",
 	Long:  `Starts all services.`,
-	Run: func(cmd *cobra.Command, args []string) {
+	RunE: func(cmd *cobra.Command, args []string) error {
 		logger.Info("Starting all services")
 		go customerCmd.RunE(customerCmd, args)
 		go driverCmd.RunE(driverCmd, args)
 		go routeCmd.RunE(routeCmd, args)
-		frontendCmd.RunE(frontendCmd, args)
+		return frontendCmd.RunE(frontendCmd, args)
 	},
 }
 

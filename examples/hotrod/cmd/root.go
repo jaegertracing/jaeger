@@ -69,3 +69,10 @@ func initMetrics() {
 		logger.Fatal("unsupported metrics backend " + metricsBackend)
 	}
 }
+
+func logError(logger *zap.Logger, err error) error {
+	if err != nil {
+		logger.Error("Error running command", zap.Error(err))
+	}
+	return err
+}
