@@ -121,8 +121,14 @@ pull request is most likely to be accepted if it:
 * Follows the guidelines in [Effective
   Go](https://golang.org/doc/effective_go.html) and the [Go team's common code
   review comments](https://github.com/golang/go/wiki/CodeReviewComments).
-* Has a [good commit
-  message](http://tbaggery.com/2008/04/19/a-note-about-git-commit-messages.html).
+* Has a [good commit message](https://chris.beams.io/posts/git-commit/):
+  * Separate subject from body with a blank line
+  * Limit the subject line to 50 characters
+  * Capitalize the subject line
+  * Do not end the subject line with a period
+  * Use the imperative mood in the subject line
+  * Wrap the body at 72 characters
+  * Use the body to explain _what_ and _why_ instead of _how_
 * Each commit must be signed by the author ([see below](#sign-your-work)).
 
 ## License
