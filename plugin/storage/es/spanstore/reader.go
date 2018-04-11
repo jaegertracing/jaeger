@@ -216,7 +216,7 @@ func (s *SpanReader) multiRead(traceIDs []string, startTime, endTime time.Time) 
 	// i.e starts in one and ends in another.
 	indices := findIndices(spanIndexPrefix, startTime.Add(-time.Hour), endTime.Add(time.Hour))
 
-	var nextTime uint64
+	nextTime := model.TimeAsEpochMicroseconds(startTime.Add(-time.Hour))
 
 	searchAfterTime := make(map[string]uint64)
 	totalDocumentsFetched := make(map[string]int)
