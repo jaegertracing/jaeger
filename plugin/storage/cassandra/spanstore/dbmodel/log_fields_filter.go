@@ -27,6 +27,6 @@ func NewLogFieldsFilter() *LogFieldsFilter {
 }
 
 // FilterLogFields implements TagFilter#FilterLogFields
-func (f *LogFieldsFilter) FilterLogFields(logFields model.KeyValues) model.KeyValues {
+func (f *LogFieldsFilter) FilterLogFields(span *model.Span, logFields model.KeyValues) model.KeyValues {
 	return model.KeyValues{}
 }

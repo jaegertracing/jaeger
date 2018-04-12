@@ -26,10 +26,10 @@ import (
 func TestDefaultTagFilter(t *testing.T) {
 	span := getTestJaegerSpan()
 	expectedTags := append(append(someTags, someTags...), someTags...)
-	filteredTags := DefaultTagFilter.FilterProcessTags(span.Process.Tags)
-	filteredTags = append(filteredTags, DefaultTagFilter.FilterTags(span.Tags)...)
+	filteredTags := DefaultTagFilter.FilterProcessTags(span, span.Process.Tags)
+	filteredTags = append(filteredTags, DefaultTagFilter.FilterTags(span, span.Tags)...)
 	for _, log := range span.Logs {
-		filteredTags = append(filteredTags, DefaultTagFilter.FilterLogFields(log.Fields)...)
+		filteredTags = append(filteredTags, DefaultTagFilter.FilterLogFields(span, log.Fields)...)
 	}
 	compareTags(t, expectedTags, filteredTags)
 }
@@ -46,26 +46,26 @@ func (f onlyStringsFilter) filterStringTags(tags model.KeyValues) model.KeyValue
 	return ret
 }
 
-func (f onlyStringsFilter) FilterProcessTags(processTags model.KeyValues) model.KeyValues {
+func (f onlyStringsFilter) FilterProcessTags(span *model.Span, processTags model.KeyValues) model.KeyValues {
 	return f.filterStringTags(processTags)
 }
 
-func (f onlyStringsFilter) FilterTags(tags model.KeyValues) model.KeyValues {
+func (f onlyStringsFilter) FilterTags(span *model.Span, tags model.KeyValues) model.KeyValues {
 	return f.filterStringTags(tags)
 }
 
-func (f onlyStringsFilter) FilterLogFields(logFields model.KeyValues) model.KeyValues {
+func (f onlyStringsFilter) FilterLogFields(span *model.Span, logFields model.KeyValues) model.KeyValues {
 	return f.filterStringTags(logFields)
 }
 
 func TestChainedTagFilter(t *testing.T) {
 	expectedTags := model.KeyValues{model.String(someStringTagKey, someStringTagValue)}
 	filter := NewChainedTagFilter(DefaultTagFilter, onlyStringsFilter{})
-	filteredTags := filter.FilterProcessTags(someTags)
+	filteredTags := filter.FilterProcessTags(nil, someTags)
 	compareTags(t, expectedTags, filteredTags)
-	filteredTags = filter.FilterTags(someTags)
+	filteredTags = filter.FilterTags(nil, someTags)
 	compareTags(t, expectedTags, filteredTags)
-	filteredTags = filter.FilterLogFields(someTags)
+	filteredTags = filter.FilterLogFields(nil, someTags)
 	compareTags(t, expectedTags, filteredTags)
 }
 
