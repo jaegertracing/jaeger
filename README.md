@@ -74,7 +74,7 @@ of routing the traffic from Zipkin libraries to the Jaeger backend.
 
 ### Documentation
 
-  * Published: http://jaeger.readthedocs.io/en/latest/
+  * Published: https://www.jaegertracing.io/docs/
   * Source: https://github.com/jaegertracing/documentation
 
 ### Instrumentation Libraries
@@ -83,7 +83,8 @@ of routing the traffic from Zipkin libraries to the Jaeger backend.
  * [Java client](https://github.com/jaegertracing/jaeger-client-java)
  * [Python client](https://github.com/jaegertracing/jaeger-client-python)
  * [Node.js client](https://github.com/jaegertracing/jaeger-client-node)
- * [C++ client](https://github.com/jaegertracing/cpp-client)
+ * [C++ client](https://github.com/jaegertracing/jaeger-client-cpp)
+ * [C# client](https://github.com/jaegertracing/jaeger-client-csharp)
 
 ### Deployment
 
@@ -111,7 +112,7 @@ The Jaeger contributors meet bi-weekly, and everyone is welcome to join.
 
 ## Roadmap
 
-See http://jaeger.readthedocs.io/en/latest/roadmap/
+See https://www.jaegertracing.io/docs/roadmap/
 
 ## Questions, Discussions, Bug Reports
 
@@ -135,7 +136,7 @@ If you would like to add your organization to the list, please comment on our
 
 [Apache 2.0 License](./LICENSE).
 
-[doc]: https://jaegertracing.netlify.com/docs/
+[doc]: https://jaegertracing.io/docs/
 [godoc-img]: https://godoc.org/github.com/jaegertracing/jaeger?status.svg
 [godoc]: https://godoc.org/github.com/jaegertracing/jaeger
 [ci-img]: https://travis-ci.org/jaegertracing/jaeger.svg?branch=master
