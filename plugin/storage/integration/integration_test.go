@@ -104,6 +104,28 @@ func (s *StorageIntegration) testGetServices(t *testing.T) {
 	}
 }
 
+func (s *StorageIntegration) testGetLargeSpan(t *testing.T) {
+
+	defer s.cleanUp(t)
+
+	t.Log("Testing Large Trace over 10K ...")
+	expected := s.loadParseAndWriteLargeTrace(t)
+	expectedTraceID := expected.Spans[0].TraceID
+	s.refresh(t)
+
+	var actual *model.Trace
+	for i := 0; i < 1; i++ {
+		s.logger.Info(fmt.Sprintf(waitForBackendComment, i+1, iterations))
+		var err error
+		actual, err = s.SpanReader.GetTrace(expectedTraceID)
+		if err == nil && len(actual.Spans) == len(expected.Spans) {
+			break
+		}
+		time.Sleep(100 * time.Millisecond) // Will wait up to 3 seconds at worst.
+	}
+	CompareTraces(t, expected, actual)
+}
+
 func (s *StorageIntegration) testGetOperations(t *testing.T) {
 	defer s.cleanUp(t)
 
@@ -146,7 +168,6 @@ func (s *StorageIntegration) testGetTrace(t *testing.T) {
 		}
 		time.Sleep(100 * time.Millisecond) // Will wait up to 3 seconds at worst.
 	}
-
 	CompareTraces(t, expected, actual)
 }
 
@@ -218,6 +239,23 @@ func (s *StorageIntegration) writeTrace(t *testing.T, trace *model.Trace) error 
 
 func (s *StorageIntegration) loadParseAndWriteExampleTrace(t *testing.T) *model.Trace {
 	trace := getTraceFixture(t, "example_trace")
+	err := s.writeTrace(t, trace)
+	require.NoError(t, err, "Not expecting error when writing example_trace to storage")
+	return trace
+}
+
+func (s *StorageIntegration) loadParseAndWriteLargeTrace(t *testing.T) *model.Trace {
+	trace := getTraceFixture(t, "example_trace")
+	span := trace.Spans[0]
+	spns := make([]*model.Span, 1, 10008)
+	trace.Spans = spns
+	trace.Spans[0] = span
+	for i := 1; i < 10008; i++ {
+		s := new(model.Span)
+		*s = *span
+		s.StartTime = s.StartTime.Add(time.Second * time.Duration(i+1))
+		trace.Spans = append(trace.Spans, s)
+	}
 	err := s.writeTrace(t, trace)
 	require.NoError(t, err, "Not expecting error when writing example_trace to storage")
 	return trace
@@ -310,6 +348,7 @@ func (s *StorageIntegration) IntegrationTestAll(t *testing.T) {
 	t.Run("GetServices", s.testGetServices)
 	t.Run("GetOperations", s.testGetOperations)
 	t.Run("GetTrace", s.testGetTrace)
+	t.Run("GetLargeSpans", s.testGetLargeSpan)
 	t.Run("FindTraces", s.testFindTraces)
 	t.Run("GetDependencies", s.testGetDependencies)
 }
