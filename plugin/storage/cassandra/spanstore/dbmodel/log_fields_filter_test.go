@@ -27,10 +27,10 @@ func TestFilterLogTags(t *testing.T) {
 	span := getTestJaegerSpan()
 	filter := NewLogFieldsFilter()
 	expectedTags := append(someTags, someTags...)
-	filteredTags := filter.FilterProcessTags(span.Process.Tags)
-	filteredTags = append(filteredTags, filter.FilterTags(span.Tags)...)
+	filteredTags := filter.FilterProcessTags(span, span.Process.Tags)
+	filteredTags = append(filteredTags, filter.FilterTags(span, span.Tags)...)
 	for _, log := range span.Logs {
-		filteredTags = append(filteredTags, filter.FilterLogFields(log.Fields)...)
+		filteredTags = append(filteredTags, filter.FilterLogFields(span, log.Fields)...)
 	}
 	if !assert.EqualValues(t, expectedTags, filteredTags) {
 		for _, diff := range pretty.Diff(expectedTags, filteredTags) {
