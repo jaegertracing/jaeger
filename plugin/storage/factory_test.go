@@ -53,7 +53,7 @@ func TestNewFactory(t *testing.T) {
 	assert.Equal(t, cassandraStorageType, f.DependenciesStorageType)
 
 	f, err = NewFactory(FactoryConfig{
-		SpanWriterTypes:         []string{cassandraStorageType, kafkaStorageType},
+		SpanWriterTypes:         []string{cassandraStorageType, kafkaStorageType, badgerStorageType},
 		SpanReaderType:          elasticsearchStorageType,
 		DependenciesStorageType: memoryStorageType,
 	})
@@ -63,7 +63,7 @@ func TestNewFactory(t *testing.T) {
 	assert.NotNil(t, f.factories[kafkaStorageType])
 	assert.NotEmpty(t, f.factories[elasticsearchStorageType])
 	assert.NotNil(t, f.factories[memoryStorageType])
-	assert.Equal(t, []string{cassandraStorageType, kafkaStorageType}, f.SpanWriterTypes)
+	assert.Equal(t, []string{cassandraStorageType, kafkaStorageType, badgerStorageType}, f.SpanWriterTypes)
 	assert.Equal(t, elasticsearchStorageType, f.SpanReaderType)
 	assert.Equal(t, memoryStorageType, f.DependenciesStorageType)
 

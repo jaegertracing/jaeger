@@ -4,7 +4,6 @@
       "traceId": "AAAAAAAAAAAAAAAAAAAAFQ==",
       "spanId": "AAAAAAAAAAQ=",
       "operationName": "placeholder",
-      "references": [],
       "startTime": "2017-01-26T16:46:31.639875Z",
       "duration": "5000ns",
       "tags": [
@@ -35,8 +34,7 @@
         }
       ],
       "process": {
-        "serviceName": "query15-service",
-        "tags": []
+        "serviceName": "query15-service"
       },
       "logs": [
         {
