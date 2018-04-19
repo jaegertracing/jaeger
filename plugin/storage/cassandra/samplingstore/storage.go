@@ -62,8 +62,8 @@ func New(session cassandra.Session, factory metrics.Factory, logger *zap.Logger)
 	return &SamplingStore{
 		session: session,
 		metrics: samplingStoreMetrics{
-			operationThroughput: casMetrics.NewTable(factory, "OperationThroughput"),
-			probabilities:       casMetrics.NewTable(factory, "Probabilities"),
+			operationThroughput: casMetrics.NewTable(factory, "operation_throughput"),
+			probabilities:       casMetrics.NewTable(factory, "probabilities"),
 		},
 		logger: logger,
 	}

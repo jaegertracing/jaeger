@@ -47,8 +47,8 @@ func TestProcessorMetrics(t *testing.T) {
 	jFormat.ReceivedBySvc.ReportServiceNameForSpan(&mSpan)
 	counters, gauges := baseMetrics.LocalBackend.Snapshot()
 
-	assert.EqualValues(t, 2, counters["service.jaeger.spans.by-svc.fry"])
-	assert.EqualValues(t, 1, counters["service.jaeger.traces.by-svc.fry"])
-	assert.EqualValues(t, 1, counters["service.jaeger.debug-spans.by-svc.fry"])
+	assert.EqualValues(t, 2, counters["service.spans.received|format=jaeger|service=fry"])
+	assert.EqualValues(t, 1, counters["service.traces.received|format=jaeger|service=fry"])
+	assert.EqualValues(t, 1, counters["service.debug-spans.received|format=jaeger|service=fry"])
 	assert.Empty(t, gauges)
 }

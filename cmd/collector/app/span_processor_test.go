@@ -85,12 +85,13 @@ func TestBySvcMetrics(t *testing.T) {
 		)
 		ctx := context.Background()
 		tctx := thrift.Wrap(ctx)
-		var metricPrefix string
+		var metricPrefix, format string
 		if test.format == ZipkinFormatType {
 			span := makeZipkinSpan(test.serviceName, test.rootSpan, test.debug)
 			zHandler := NewZipkinSpanHandler(logger, processor, zipkinSanitizer.NewParentIDSanitizer())
 			zHandler.SubmitZipkinBatch(tctx, []*zc.Span{span, span})
-			metricPrefix = "service.zipkin"
+			metricPrefix = "service"
+			format = "zipkin"
 		} else if test.format == JaegerFormatType {
 			span, process := makeJaegerSpan(test.serviceName, test.rootSpan, test.debug)
 			jHandler := NewJaegerSpanHandler(logger, processor)
@@ -103,22 +104,22 @@ func TestBySvcMetrics(t *testing.T) {
 					Process: process,
 				},
 			})
-			metricPrefix = "service.jaeger"
+			metricPrefix = "service"
+			format = "jaeger"
 		} else {
 			panic("Unknown format")
 		}
 		expected := []metricsTest.ExpectedMetric{
-			{Name: metricPrefix + ".spans.recd", Value: 2},
-			{Name: metricPrefix + ".spans.by-svc." + test.serviceName, Value: 2},
+			{Name: metricPrefix + ".spans.received|format=" + format + "|service=" + test.serviceName, Value: 2},
 		}
 		if test.debug {
 			expected = append(expected, metricsTest.ExpectedMetric{
-				Name: metricPrefix + ".debug-spans.by-svc." + test.serviceName, Value: 2,
+				Name: metricPrefix + ".debug-spans.received|format=" + format + "|service=" + test.serviceName, Value: 2,
 			})
 		}
 		if test.rootSpan {
 			expected = append(expected, metricsTest.ExpectedMetric{
-				Name: metricPrefix + ".traces.by-svc." + test.serviceName, Value: 2,
+				Name: metricPrefix + ".traces.received|format=" + format + "|service=" + test.serviceName, Value: 2,
 			})
 		}
 		if test.serviceName != blackListedService || test.debug {
@@ -133,7 +134,7 @@ func TestBySvcMetrics(t *testing.T) {
 			})
 		} else {
 			expected = append(expected, metricsTest.ExpectedMetric{
-				Name: metricPrefix + ".spans.rejected", Value: 2,
+				Name: metricPrefix + ".spans.rejected|format=" + format + "|service=" + test.serviceName, Value: 2,
 			})
 		}
 		metricsTest.AssertCounterMetrics(t, mb, expected...)

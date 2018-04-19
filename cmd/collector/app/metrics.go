@@ -60,23 +60,21 @@ type metricsBySvc struct {
 
 // CountsBySpanType measures received, rejected, and receivedByService metrics for a format type
 type CountsBySpanType struct {
-	// Received is the actual number of spans received from upstream
-	Received metrics.Counter
-	// Rejected is the number of spans we rejected (usually due to blacklisting)
-	Rejected metrics.Counter
 	// ReceivedBySvc maintain by-service metrics for a format type
 	ReceivedBySvc metricsBySvc
+	// RejectedBySvc is the number of spans we rejected (usually due to blacklisting) by-service
+	RejectedBySvc metricsBySvc
 }
 
 // NewSpanProcessorMetrics returns a SpanProcessorMetrics
 func NewSpanProcessorMetrics(serviceMetrics metrics.Factory, hostMetrics metrics.Factory, otherFormatTypes []string) *SpanProcessorMetrics {
 	spanCounts := map[string]CountsBySpanType{
-		ZipkinFormatType:  newCountsBySpanType(serviceMetrics.Namespace(ZipkinFormatType, nil)),
-		JaegerFormatType:  newCountsBySpanType(serviceMetrics.Namespace(JaegerFormatType, nil)),
-		UnknownFormatType: newCountsBySpanType(serviceMetrics.Namespace(UnknownFormatType, nil)),
+		ZipkinFormatType:  newCountsBySpanType(serviceMetrics.Namespace("", map[string]string{"format": ZipkinFormatType})),
+		JaegerFormatType:  newCountsBySpanType(serviceMetrics.Namespace("", map[string]string{"format": JaegerFormatType})),
+		UnknownFormatType: newCountsBySpanType(serviceMetrics.Namespace("", map[string]string{"format": UnknownFormatType})),
 	}
 	for _, otherFormatType := range otherFormatTypes {
-		spanCounts[otherFormatType] = newCountsBySpanType(serviceMetrics.Namespace(otherFormatType, nil))
+		spanCounts[otherFormatType] = newCountsBySpanType(serviceMetrics.Namespace("", map[string]string{"format": otherFormatType}))
 	}
 	m := &SpanProcessorMetrics{
 		SaveLatency:    hostMetrics.Timer("save-latency", nil),
@@ -115,9 +113,8 @@ func newMetricsBySvc(factory metrics.Factory, category string) metricsBySvc {
 
 func newCountsBySpanType(factory metrics.Factory) CountsBySpanType {
 	return CountsBySpanType{
-		Received:      factory.Counter("spans.recd", nil),
-		Rejected:      factory.Counter("spans.rejected", nil),
-		ReceivedBySvc: newMetricsBySvc(factory, "by-svc"),
+		RejectedBySvc: newMetricsBySvc(factory, "rejected"),
+		ReceivedBySvc: newMetricsBySvc(factory, "received"),
 	}
 }
 
@@ -179,7 +176,7 @@ func (m *countsBySvc) countByServiceName(serviceName string) {
 	if c, ok := m.counts[serviceName]; ok {
 		counter = c
 	} else if len(m.counts) < maxServiceNames {
-		c := m.factory.Counter(serviceName, nil)
+		c := m.factory.Counter("", map[string]string{"service": serviceName})
 		m.counts[serviceName] = c
 		counter = c
 	}
