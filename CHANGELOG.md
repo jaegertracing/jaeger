@@ -1,6 +1,16 @@
 Changes by Version
 ==================
 
+Next (unreleased)
+------------------
+
+#### UI Changes
+
+##### New Features
+
+- View Trace JSON buttons return formatted JSON (fixes [#199](https://github.com/jaegertracing/jaeger-ui/issues/199))
+
+
 1.4.0 (2018-04-20)
 ------------------
 
