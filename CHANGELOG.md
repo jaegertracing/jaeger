@@ -1,6 +1,21 @@
 Changes by Version
 ==================
 
+1.4.0 (2018-04-20)
+------------------
+
+#### Backend Changes
+
+##### New Features
+
+- Support traces with >10k spans in Elasticsearch (#668) - thanks to @sramakr
+
+##### Fixes
+
+- Allow slash '/' in service names (#586)
+- Log errors from HotROD services (#769)
+
+
 1.3.0 (2018-03-26)
 ------------------
 
