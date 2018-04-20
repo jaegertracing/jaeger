@@ -13,16 +13,16 @@ function stage-file {
 
 # stage-platform-files stages the different the platform ($1) into the package
 # staging dir ($2). If you pass in a file extension ($3) it will be used when 
-# copying on both the target and the source
+# copying on the source
 function stage-platform-files {
     local PLATFORM=$1
     local PACKAGE_STAGING_DIR=$2
     local FILE_EXTENSION=$3
     
-    stage-file ./cmd/standalone/standalone-$PLATFORM$FILE_EXTENSION $PACKAGE_STAGING_DIR/jaeger-standalone$FILE_EXTENSION
-    stage-file ./cmd/agent/agent-$PLATFORM$FILE_EXTENSION $PACKAGE_STAGING_DIR/jaeger-agent$FILE_EXTENSION
-    stage-file ./cmd/query/query-$PLATFORM$FILE_EXTENSION $PACKAGE_STAGING_DIR/jaeger-query$FILE_EXTENSION
-    stage-file ./cmd/collector/collector-$PLATFORM$FILE_EXTENSION $PACKAGE_STAGING_DIR/jaeger-collector$FILE_EXTENSION
+    stage-file ./cmd/standalone/standalone-$PLATFORM $PACKAGE_STAGING_DIR/jaeger-standalone$FILE_EXTENSION
+    stage-file ./cmd/agent/agent-$PLATFORM $PACKAGE_STAGING_DIR/jaeger-agent$FILE_EXTENSION
+    stage-file ./cmd/query/query-$PLATFORM $PACKAGE_STAGING_DIR/jaeger-query$FILE_EXTENSION
+    stage-file ./cmd/collector/collector-$PLATFORM $PACKAGE_STAGING_DIR/jaeger-collector$FILE_EXTENSION
 }
 
 # package pulls built files for the platform ($1). If you pass in a file 
@@ -58,23 +58,10 @@ echo "Working on version: $VERSION"
 mkdir deploy
 mkdir $DEPLOY_STAGING_DIR
 
-# package linux
-if [ "$LINUX" = true ]; then
+if [ "$DEPLOY" = true ]; then
     package linux
-else
-    echo "Skipping the packaging of linux binaries as \$LINUX was not true."
-fi
-
-# package darwin
-if [ "$DARWIN" = true ]; then
     package darwin
-else
-    echo "Skipping the packaging of darwin binaries as \$DARWIN was not true."
-fi
-
-# package windows
-if [ "$WINDOWS" = true ]; then
     package windows .exe
 else
-    echo "Skipping the packaging of windows binaries as \$WINDOWS was not true."
+    echo "Skipping the packaging of binaries as \$DEPLOY was not true."
 fi

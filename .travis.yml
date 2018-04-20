@@ -20,21 +20,13 @@ matrix:
   - go: 1.9
     env:
     - DOCKER=true
+    - DEPLOY=true
   - go: 1.9
     env:
     - ES_INTEGRATION_TEST=true
   - go: 1.9
     env:
     - HOTROD=true
-  - go: 1.9
-    env:
-    - LINUX=true
-    - go: 1.9
-    env:
-    - WINDOWS=true
-  - go: 1.9
-    env:
-    - DARWIN=true
 
 services:
   - docker
@@ -63,9 +55,7 @@ script:
   - if [ "$DOCKER" == true ]; then bash ./scripts/travis/build-docker-images.sh ; else echo 'skipping docker images'; fi
   - if [ "$ES_INTEGRATION_TEST" == true ]; then bash ./scripts/travis/es-integration-test.sh ; else echo 'skipping elastic search integration test'; fi
   - if [ "$HOTROD" == true ]; then bash ./scripts/travis/hotrod-integration-test.sh ; else echo 'skipping hotrod example'; fi
-  - if [ "$LINUX" == true ]; then make build-linux ; else echo 'skipping linux'; fi
-  - if [ "$WINDOWS" == true ]; then make build-windows ; else echo 'skipping windows'; fi
-  - if [ "$DARWIN" == true ]; then make build-darwin ; else echo 'skipping darwin'; fi
+  - if [ "$DEPLOY" == true ]; then make build-binaries-linux build-binaries-windows build-binaries-darwin ; else echo 'skipping linux'; fi
 
 after_success:
   - if [ "$COVERAGE" == true ]; then travis_retry goveralls -coverprofile=cover.out -service=travis-ci || true ; else echo 'skipping coverage'; fi
@@ -80,15 +70,9 @@ deploy:
   provider: releases
   api_key:
     secure: YOUR_API_KEY_ENCRYPTED
+  file_glob: true
   file:
-    - "cmd/standalone/standalone-linux"
-    - "cmd/standalone/standalone-windows.exe"
-    - "cmd/agent/agent-linux"
-    - "cmd/agent/agent-windows.exe"
-    - "cmd/query/query-linux"
-    - "cmd/query/query-windows.exe"
-    - "cmd/collector/collector-linux"
-    - "cmd/collector/collector-windows.exe"
+    - deploy/*.tar.gz
   skip_cleanup: true
   on:
     tags: true
