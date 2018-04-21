@@ -20,6 +20,7 @@ matrix:
   - go: 1.9
     env:
     - DOCKER=true
+    - DEPLOY=true
   - go: 1.9
     env:
     - ES_INTEGRATION_TEST=true
@@ -54,9 +55,26 @@ script:
   - if [ "$DOCKER" == true ]; then bash ./scripts/travis/build-docker-images.sh ; else echo 'skipping docker images'; fi
   - if [ "$ES_INTEGRATION_TEST" == true ]; then bash ./scripts/travis/es-integration-test.sh ; else echo 'skipping elastic search integration test'; fi
   - if [ "$HOTROD" == true ]; then bash ./scripts/travis/hotrod-integration-test.sh ; else echo 'skipping hotrod example'; fi
+  - if [ "$DEPLOY" == true ]; then make build-binaries-linux build-binaries-windows build-binaries-darwin ; else echo 'skipping linux'; fi
 
 after_success:
   - if [ "$COVERAGE" == true ]; then travis_retry goveralls -coverprofile=cover.out -service=travis-ci || true ; else echo 'skipping coverage'; fi
 
 after_failure:
   - if [ "$CROSSDOCK" == true ]; then make crossdock-logs ; else echo 'skipping crossdock'; fi
+
+before_deploy:
+  - bash ./scripts/travis/package-deploy.sh
+
+deploy:
+  provider: releases
+  api_key:
+    secure: YOUR_API_KEY_ENCRYPTED
+  file_glob: true
+  file:
+    - deploy/*.tar.gz
+  skip_cleanup: true
+  on:
+    tags: true
+    repo: jaegertracing/jaeger
+    branch: master
