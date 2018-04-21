@@ -1,8 +1,12 @@
 Changes by Version
 ==================
 
-Next (unreleased)
+1.4.1 (2018-04-21)
 ------------------
+
+#### Backend Changes
+
+- Publish binaries for Linux, Darwin, and Windows (#765) - thanks to @grounded042
 
 #### UI Changes
 

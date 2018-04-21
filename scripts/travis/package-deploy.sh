@@ -7,7 +7,8 @@ function stage-file {
         echo "Copying $1 to $2"
         cp $1 $2
     else
-        echo "$1 does not exist. Continuing on."
+        echo "$1 does not exist. Aborting."
+        exit 1
     fi
 }
 
@@ -23,6 +24,8 @@ function stage-platform-files {
     stage-file ./cmd/agent/agent-$PLATFORM $PACKAGE_STAGING_DIR/jaeger-agent$FILE_EXTENSION
     stage-file ./cmd/query/query-$PLATFORM $PACKAGE_STAGING_DIR/jaeger-query$FILE_EXTENSION
     stage-file ./cmd/collector/collector-$PLATFORM $PACKAGE_STAGING_DIR/jaeger-collector$FILE_EXTENSION
+    echo "Copying jaeger-ui-build to $PACKAGE_STAGING_DIR"
+    cp -r jaeger-ui-build $PACKAGE_STAGING_DIR
 }
 
 # package pulls built files for the platform ($1). If you pass in a file 
@@ -31,37 +34,39 @@ function package {
     local PLATFORM=$1
     local FILE_EXTENSION=$2
 
-    local PACKAGE_STAGING_DIR=$DEPLOY_STAGING_DIR/$PLATFORM
+    local PACKAGE_STAGING_DIR=jaeger-$VERSION-$PLATFORM-amd64
     mkdir $PACKAGE_STAGING_DIR
 
     stage-platform-files $PLATFORM $PACKAGE_STAGING_DIR $FILE_EXTENSION
 
-    local PACKAGE_FILES=$(ls -A $PACKAGE_STAGING_DIR/*) 2>/dev/null
-
-    if [ "$PACKAGE_FILES" ]; then
-        local ARCHIVE_NAME="jaeger-$VERSION-$PLATFORM-amd64.tar.gz"
-        echo "Packaging the following files into $ARCHIVE_NAME:"
-        echo $PACKAGE_FILES
-        tar -czvf ./deploy/$ARCHIVE_NAME $PACKAGE_FILES
-    else
-        echo "Will not package or deploy $PLATFORM files as there are no files to package!"
-    fi
+    local ARCHIVE_NAME="$PACKAGE_STAGING_DIR.tar.gz"
+    echo "Packaging into $ARCHIVE_NAME:"
+    tar -czvf ./deploy/$ARCHIVE_NAME $PACKAGE_STAGING_DIR
 }
 
 # script start
+if [ "$DEPLOY" != true ]; then
+    echo "Skipping the packaging of binaries as \$DEPLOY was not true."
+    exit 0
+fi
+
+set -e
 
 DEPLOY_STAGING_DIR=./deploy-staging
 VERSION="$(make echo-version | awk 'match($0, /([0-9]*\.[0-9]*\.[0-9]*)$/) { print substr($0, RSTART, RLENGTH) }')"
 echo "Working on version: $VERSION"
 
 # make needed directories
+rm -rf deploy $DEPLOY_STAGING_DIR
 mkdir deploy
 mkdir $DEPLOY_STAGING_DIR
 
-if [ "$DEPLOY" = true ]; then
-    package linux
-    package darwin
-    package windows .exe
-else
-    echo "Skipping the packaging of binaries as \$DEPLOY was not true."
+INDEX_HTML=jaeger-ui-build/build/index.html
+if [ ! -f $INDEX_HTML ]; then
+    echo "Cannot find UI assets, e.g. $INDEX_HTML. Aborting."
+    exit 1
 fi
+
+package linux
+package darwin
+package windows .exe
