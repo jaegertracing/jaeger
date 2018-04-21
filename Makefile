@@ -143,13 +143,13 @@ build_ui:
 	rm -rf jaeger-ui-build && mkdir jaeger-ui-build
 	cp -r jaeger-ui/build jaeger-ui-build/
 
-.PHONY: build-all-in-one
-build-all-in-one: build_ui
-	CGO_ENABLED=0 installsuffix=cgo go build -o ./cmd/standalone/standalone-$(GOOS) $(BUILD_INFO) ./cmd/standalone/main.go
-
 .PHONY: build-all-in-one-linux
-build-all-in-one-linux: 
+build-all-in-one-linux: build_ui
 	GOOS=linux $(MAKE) build-all-in-one
+
+.PHONY: build-all-in-one
+build-all-in-one:
+	CGO_ENABLED=0 installsuffix=cgo go build -o ./cmd/standalone/standalone-$(GOOS) $(BUILD_INFO) ./cmd/standalone/main.go
 
 .PHONY: build-agent
 build-agent:
