@@ -202,6 +202,6 @@ CREATE TABLE IF NOT EXISTS ${keyspace}.dependencies (
     }
     AND default_time_to_live = ${dependencies_ttl};
 
-CREATE CUSTOM INDEX ON ${keyspace}.dependencies (ts_index) 
+CREATE CUSTOM INDEX IF NOT EXISTS ON ${keyspace}.dependencies (ts_index) 
     USING 'org.apache.cassandra.index.sasi.SASIIndex' 
     WITH OPTIONS = {'mode': 'SPARSE'};
