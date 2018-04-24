@@ -230,12 +230,6 @@ install-ci: install
 	go get github.com/wadey/gocovmerge
 	go get github.com/mattn/goveralls
 	go get golang.org/x/tools/cmd/cover
-	# workaround for https://github.com/golang/lint/issues/397
-	rm -rf $$GOPATH/src/golang.org/x/lint
-	mkdir -p $$GOPATH/src/golang.org/x
-	git clone https://github.com/golang/lint.git $$GOPATH/src/golang.org/x/lint
-	go get -u golang.org/x/lint/golint
-	# and now get golint as before
 	go get github.com/golang/lint/golint
 	go get github.com/sectioneight/md-to-godoc
 
