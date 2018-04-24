@@ -1,5 +1,6 @@
 PROJECT_ROOT=github.com/jaegertracing/jaeger
 TOP_PKGS := $(shell glide novendor | grep -v -e ./thrift-gen/... -e swagger-gen... -e ./examples/... -e ./scripts/...)
+STORAGE_PKGS = ./plugin/storage/integration/...
 
 # all .go files that don't exist in hidden directories
 ALL_SRC := $(shell find . -name "*.go" | grep -v -e vendor -e thrift-gen -e swagger-gen -e examples -e doc.go \
@@ -77,7 +78,7 @@ integration-test: go-gen
 
 .PHONY: storage-integration-test
 storage-integration-test: go-gen
-	$(GOTEST) ./plugin/storage/integration/...
+	bash -c "set -e; set -o pipefail; $(GOTEST) $(STORAGE_PKGS) | $(COLORIZE)"
 
 all-pkgs:
 	@echo $(ALL_PKGS) | tr ' ' '\n' | sort

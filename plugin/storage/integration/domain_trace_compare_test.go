@@ -50,13 +50,15 @@ func CompareTraces(t *testing.T, expected *model.Trace, actual *model.Trace) {
 	model.SortTrace(expected)
 	model.SortTrace(actual)
 	checkSize(t, expected, actual)
-	if !assert.EqualValues(t, expected, actual) {
-		for _, err := range pretty.Diff(expected, actual) {
-			t.Log(err)
+
+	if diff := pretty.Diff(expected, actual); len(diff) > 0 {
+		for _, d := range diff {
+			t.Logf("Expected and actual differ: %v\n", d)
 		}
 		out, err := json.Marshal(actual)
 		assert.NoError(t, err)
 		t.Logf("Actual trace: %s", string(out))
+		t.Fail()
 	}
 }
 
