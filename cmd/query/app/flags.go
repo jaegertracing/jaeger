@@ -21,11 +21,12 @@ import (
 )
 
 const (
-	queryPort                = "query.port"
-	queryBasePath            = "query.base-path"
-	queryStaticFiles         = "query.static-files"
-	queryUIConfig            = "query.ui-config"
-	queryHealthCheckHTTPPort = "query.health-check-http-port"
+	queryPort        = "query.port"
+	queryBasePath    = "query.base-path"
+	queryStaticFiles = "query.static-files"
+	queryUIConfig    = "query.ui-config"
+	// QueryHealthCheckHTTPPort is the flag name for health check
+	QueryHealthCheckHTTPPort = "query.health-check-http-port"
 )
 
 // QueryOptions holds configuration for query service
@@ -48,7 +49,7 @@ func AddFlags(flagSet *flag.FlagSet) {
 	flagSet.String(queryBasePath, "/", "The base path for all HTTP routes, e.g. /jaeger; useful when running behind a reverse proxy")
 	flagSet.String(queryStaticFiles, "jaeger-ui-build/build/", "The directory path for the static assets for the UI")
 	flagSet.String(queryUIConfig, "", "The path to the UI configuration file in JSON format")
-	flagSet.Int(queryHealthCheckHTTPPort, 16687, "The http port for the health check service")
+	flagSet.Int(QueryHealthCheckHTTPPort, 16687, "The http port for the health check service")
 }
 
 // InitFromViper initializes QueryOptions with properties from viper
@@ -57,6 +58,6 @@ func (qOpts *QueryOptions) InitFromViper(v *viper.Viper) *QueryOptions {
 	qOpts.BasePath = v.GetString(queryBasePath)
 	qOpts.StaticAssets = v.GetString(queryStaticFiles)
 	qOpts.UIConfig = v.GetString(queryUIConfig)
-	qOpts.HealthCheckHTTPPort = v.GetInt(queryHealthCheckHTTPPort)
+	qOpts.HealthCheckHTTPPort = v.GetInt(QueryHealthCheckHTTPPort)
 	return qOpts
 }

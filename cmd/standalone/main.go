@@ -15,6 +15,7 @@
 package main
 
 import (
+	"flag"
 	"fmt"
 	"log"
 	"net"
@@ -55,7 +56,11 @@ import (
 	jc "github.com/jaegertracing/jaeger/thrift-gen/jaeger"
 	sc "github.com/jaegertracing/jaeger/thrift-gen/sampling"
 	zc "github.com/jaegertracing/jaeger/thrift-gen/zipkincore"
-	"github.com/jaegertracing/jaeger/pkg/healthcheck"
+)
+
+const (
+	healthCheckHTTPPort    = "standalone.health-check-http-port"
+	defaultHealthCheckPort = collector.DefaultHealthCheckHTTPPort
 )
 
 // standalone/main is a standalone full-stack jaeger backend, backed by a memory store
@@ -92,6 +97,13 @@ func main() {
 				return err
 			}
 
+			hc, err := healthcheck.
+				New(healthcheck.Unavailable, healthcheck.Logger(logger)).
+				Serve(v.GetInt(healthCheckHTTPPort))
+			if err != nil {
+				logger.Fatal("Could not start the health check server.", zap.Error(err))
+			}
+
 			mBldr := new(pMetrics.Builder).InitFromViper(v)
 			metricsFactory, err := mBldr.CreateMetricsFactory("jaeger-standalone")
 			if err != nil {
@@ -121,8 +133,9 @@ func main() {
 			qOpts := new(queryApp.QueryOptions).InitFromViper(v)
 
 			startAgent(aOpts, cOpts, logger, metricsFactory)
-			startCollector(cOpts, spanWriter, logger, metricsFactory, samplingHandler)
-			startQuery(qOpts, spanReader, dependencyReader, logger, metricsFactory, mBldr)
+			startCollector(cOpts, spanWriter, logger, metricsFactory, samplingHandler, hc)
+			startQuery(qOpts, spanReader, dependencyReader, logger, metricsFactory, mBldr, hc)
+			hc.Ready()
 
 			select {
 			case <-signalsChannel:
@@ -146,11 +159,25 @@ func main() {
 		queryApp.AddFlags,
 		pMetrics.AddFlags,
 		strategyStoreFactory.AddFlags,
+		func(flagSet *flag.FlagSet) {
+			flagSet.Int(healthCheckHTTPPort, defaultHealthCheckPort,
+				"The http port for the health check services")
+		},
 	)
+	hideQueryCollectorFlags(command)
 
 	if err := command.Execute(); err != nil {
 		fmt.Println(err.Error())
 		os.Exit(1)
+	}
+}
+
+func hideQueryCollectorFlags(command *cobra.Command) {
+	if err := command.Flags().MarkHidden(queryApp.QueryHealthCheckHTTPPort); err != nil {
+		fmt.Println(err.Error())
+	}
+	if err := command.Flags().MarkHidden(collector.CollectorHealthCheckHTTPPort); err != nil {
+		fmt.Println(err.Error())
 	}
 }
 
@@ -182,14 +209,8 @@ func startCollector(
 	logger *zap.Logger,
 	baseFactory metrics.Factory,
 	samplingHandler sampling.Handler,
+	hc *healthcheck.HealthCheck,
 ) {
-	hc, err := healthcheck.
-		New(healthcheck.Unavailable, healthcheck.Logger(logger)).
-		Serve(cOpts.CollectorHealthCheckHTTPPort)
-	if err != nil {
-		logger.Fatal("Could not start the health check server.", zap.Error(err))
-	}
-
 	metricsFactory := baseFactory.Namespace("jaeger-collector", nil)
 
 	spanBuilder, err := collector.NewSpanHandlerBuilder(
@@ -233,7 +254,6 @@ func startCollector(
 		}
 		hc.Set(healthcheck.Unavailable)
 	}()
-	hc.Ready()
 }
 
 func startZipkinHTTPAPI(
@@ -262,14 +282,8 @@ func startQuery(
 	logger *zap.Logger,
 	baseFactory metrics.Factory,
 	metricsBuilder *pMetrics.Builder,
+	hc *healthcheck.HealthCheck,
 ) {
-	hc, err := healthcheck.
-		New(healthcheck.Unavailable, healthcheck.Logger(logger)).
-		Serve(qOpts.HealthCheckHTTPPort)
-	if err != nil {
-		logger.Fatal("Could not start the health check server.", zap.Error(err))
-	}
-
 	tracer, closer, err := jaegerClientConfig.Configuration{
 		Sampler: &jaegerClientConfig.SamplerConfig{
 			Type:  "const",
@@ -308,7 +322,6 @@ func startQuery(
 		}
 		hc.Set(healthcheck.Unavailable)
 	}()
-	hc.Ready()
 }
 
 func initializeSamplingHandler(
