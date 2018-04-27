@@ -15,7 +15,6 @@
 package main
 
 import (
-	"flag"
 	"fmt"
 	"log"
 	"net"
@@ -58,10 +57,7 @@ import (
 	zc "github.com/jaegertracing/jaeger/thrift-gen/zipkincore"
 )
 
-const (
-	healthCheckHTTPPort    = "standalone.health-check-http-port"
-	defaultHealthCheckPort = collector.DefaultHealthCheckHTTPPort
-)
+const defaultHealthCheckPort = collector.CollectorDefaultHealthCheckHTTPPort
 
 // standalone/main is a standalone full-stack jaeger backend, backed by a memory store
 func main() {
@@ -96,10 +92,7 @@ func main() {
 			if err != nil {
 				return err
 			}
-
-			hc, err := healthcheck.
-				New(healthcheck.Unavailable, healthcheck.Logger(logger)).
-				Serve(v.GetInt(healthCheckHTTPPort))
+			hc, err := sFlags.NewHealthCheck(logger, defaultHealthCheckPort)
 			if err != nil {
 				logger.Fatal("Could not start the health check server.", zap.Error(err))
 			}
@@ -159,25 +152,11 @@ func main() {
 		queryApp.AddFlags,
 		pMetrics.AddFlags,
 		strategyStoreFactory.AddFlags,
-		func(flagSet *flag.FlagSet) {
-			flagSet.Int(healthCheckHTTPPort, defaultHealthCheckPort,
-				"The http port for the health check services")
-		},
 	)
-	hideQueryCollectorFlags(command)
 
 	if err := command.Execute(); err != nil {
 		fmt.Println(err.Error())
 		os.Exit(1)
-	}
-}
-
-func hideQueryCollectorFlags(command *cobra.Command) {
-	if err := command.Flags().MarkHidden(queryApp.QueryHealthCheckHTTPPort); err != nil {
-		fmt.Println(err.Error())
-	}
-	if err := command.Flags().MarkHidden(collector.CollectorHealthCheckHTTPPort); err != nil {
-		fmt.Println(err.Error())
 	}
 }
 
