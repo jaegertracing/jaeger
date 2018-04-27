@@ -86,10 +86,10 @@ func TestDependencyStoreWrite(t *testing.T) {
 		} else {
 			assert.Fail(t, "expecting first arg as time.Time", "received: %+v", args)
 		}
-		if d, ok := args[1].(time.Time); ok {
-			assert.Equal(t, ts, d)
+		if d, ok := args[1].(string); ok {
+			assert.Equal(t, ts.Format(dateFmt), d)
 		} else {
-			assert.Fail(t, "expecting second arg as time.Time", "received: %+v", args)
+			assert.Fail(t, "expecting second arg as string", "received: %+v", args)
 		}
 		if d, ok := args[2].([]Dependency); ok {
 			assert.Equal(t, []Dependency{

@@ -15,6 +15,8 @@
 package dependencystore
 
 import (
+	"fmt"
+	"strings"
 	"time"
 
 	"github.com/pkg/errors"
@@ -27,8 +29,10 @@ import (
 )
 
 const (
-	depsInsertStmt = "INSERT INTO dependencies(ts, ts_index, dependencies) VALUES (?, ?, ?)"
-	depsSelectStmt = "SELECT ts, dependencies FROM dependencies WHERE ts_index >= ? AND ts_index < ?"
+	depsInsertStmt = "INSERT INTO dependencies(ts, date_bucket, dependencies) VALUES (?, ?, ?)"
+	depsSelectFmt  = "SELECT ts, dependencies FROM dependencies WHERE date_bucket IN (%s) AND ts >= ? AND ts < ?"
+	dateFmt        = "20060102"
+	day            = 24 * time.Hour
 )
 
 // DependencyStore handles all queries and insertions to Cassandra dependencies
@@ -64,13 +68,14 @@ func (s *DependencyStore) WriteDependencies(ts time.Time, dependencies []model.D
 			CallCount: int64(d.CallCount),
 		}
 	}
-	query := s.session.Query(depsInsertStmt, ts, ts, deps)
+	query := s.session.Query(depsInsertStmt, ts, ts.Format(dateFmt), deps)
 	return s.dependenciesTableMetrics.Exec(query, s.logger)
 }
 
 // GetDependencies returns all interservice dependencies
 func (s *DependencyStore) GetDependencies(endTs time.Time, lookback time.Duration) ([]model.DependencyLink, error) {
-	query := s.session.Query(depsSelectStmt, endTs.Add(-1*lookback), endTs)
+	startTs := endTs.Add(-1 * lookback)
+	query := s.session.Query(getDepSelectString(startTs, endTs), startTs, endTs)
 	iter := query.Consistency(cassandra.One).Iter()
 
 	var mDependency []model.DependencyLink
@@ -91,6 +96,14 @@ func (s *DependencyStore) GetDependencies(endTs time.Time, lookback time.Duratio
 		return nil, errors.Wrap(err, "Error reading dependencies from storage")
 	}
 	return mDependency, nil
+}
+
+func getDepSelectString(startTs time.Time, endTs time.Time) string {
+	var dateBuckets []string
+	for ts := startTs.Truncate(day); ts.Before(endTs); ts = ts.Add(day) {
+		dateBuckets = append(dateBuckets, ts.Format(dateFmt))
+	}
+	return fmt.Sprintf(depsSelectFmt, strings.Join(dateBuckets, ","))
 }
 
 func (s *DependencyStore) timeIntervalToPoints(endTs time.Time, lookback time.Duration) []time.Time {
