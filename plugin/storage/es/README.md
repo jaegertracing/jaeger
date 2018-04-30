@@ -1,6 +1,6 @@
 # ElasticSearch Support
 
-This provides a plugin to use Jaeger with [ElasticSearch](https://www.elastic.co). This currently supports ElasticSearch 5.x.
+This provides a plugin to use Jaeger with [ElasticSearch](https://www.elastic.co). This currently supports ElasticSearch 5.x and 6.x.
 
 ## Indices
 Indices will be created depending on the spans timestamp. i.e., a span with

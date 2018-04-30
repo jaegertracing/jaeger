@@ -1,5 +1,6 @@
 PROJECT_ROOT=github.com/jaegertracing/jaeger
 TOP_PKGS := $(shell glide novendor | grep -v -e ./thrift-gen/... -e swagger-gen... -e ./examples/... -e ./scripts/...)
+STORAGE_PKGS = ./plugin/storage/integration/...
 
 # all .go files that don't exist in hidden directories
 ALL_SRC := $(shell find . -name "*.go" | grep -v -e vendor -e thrift-gen -e swagger-gen -e examples -e doc.go \
@@ -77,7 +78,7 @@ integration-test: go-gen
 
 .PHONY: storage-integration-test
 storage-integration-test: go-gen
-	$(GOTEST) ./plugin/storage/integration/...
+	bash -c "set -e; set -o pipefail; $(GOTEST) $(STORAGE_PKGS) | $(COLORIZE)"
 
 all-pkgs:
 	@echo $(ALL_PKGS) | tr ' ' '\n' | sort
@@ -145,27 +146,43 @@ build_ui:
 
 .PHONY: build-all-in-one-linux
 build-all-in-one-linux: build_ui
-	CGO_ENABLED=0 GOOS=linux installsuffix=cgo go build -o ./cmd/standalone/standalone-linux $(BUILD_INFO) ./cmd/standalone/main.go
+	GOOS=linux $(MAKE) build-all-in-one
 
-.PHONY: build-agent-linux
-build-agent-linux:
-	CGO_ENABLED=0 GOOS=linux installsuffix=cgo go build -o ./cmd/agent/agent-linux $(BUILD_INFO) ./cmd/agent/main.go
+.PHONY: build-all-in-one
+build-all-in-one:
+	CGO_ENABLED=0 installsuffix=cgo go build -o ./cmd/standalone/standalone-$(GOOS) $(BUILD_INFO) ./cmd/standalone/main.go
 
-.PHONY: build-query-linux
-build-query-linux:
-	CGO_ENABLED=0 GOOS=linux installsuffix=cgo go build -o ./cmd/query/query-linux $(BUILD_INFO) ./cmd/query/main.go
+.PHONY: build-agent
+build-agent:
+	CGO_ENABLED=0 installsuffix=cgo go build -o ./cmd/agent/agent-$(GOOS) $(BUILD_INFO) ./cmd/agent/main.go
 
-.PHONY: build-collector-linux
-build-collector-linux:
-	CGO_ENABLED=0 GOOS=linux installsuffix=cgo go build -o ./cmd/collector/collector-linux $(BUILD_INFO) ./cmd/collector/main.go
+.PHONY: build-query
+build-query:
+	CGO_ENABLED=0 installsuffix=cgo go build -o ./cmd/query/query-$(GOOS) $(BUILD_INFO) ./cmd/query/main.go
+
+.PHONY: build-collector
+build-collector:
+	CGO_ENABLED=0 installsuffix=cgo go build -o ./cmd/collector/collector-$(GOOS) $(BUILD_INFO) ./cmd/collector/main.go
 
 .PHONY: docker-no-ui
-docker-no-ui: build-agent-linux build-collector-linux build-query-linux build-crossdock-linux
+docker-no-ui: build-binaries-linux build-crossdock-linux
 	mkdir -p jaeger-ui-build/build/
 	make docker-images-only
 
 .PHONY: docker
 docker: build_ui docker-no-ui
+
+.PHONY: build-binaries-linux
+build-binaries-linux:
+	GOOS=linux $(MAKE) build-agent build-collector build-query build-all-in-one
+
+.PHONY: build-binaries-windows
+build-binaries-windows:
+	GOOS=windows $(MAKE) build-agent build-collector build-query build-all-in-one
+
+.PHONY: build-binaries-darwin
+build-binaries-darwin:
+	GOOS=darwin $(MAKE) build-agent build-collector build-query build-all-in-one
 
 .PHONY: docker-images-only
 docker-images-only:
@@ -262,3 +279,7 @@ install-mockery:
 .PHONY: generate-mocks
 generate-mocks: install-mockery
 	$(MOCKERY) -all -dir ./pkg/es/ -output ./pkg/es/mocks && rm pkg/es/mocks/ClientBuilder.go
+
+.PHONY: echo-version
+echo-version:
+	@echo $(GIT_CLOSEST_TAG)

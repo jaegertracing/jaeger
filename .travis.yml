@@ -7,23 +7,24 @@ dist: trusty
 
 matrix:
   include:
-  - go: 1.9
+  - go: "1.10"
     env:
     - TESTS=true
     - COVERAGE=true
-  - go: 1.9
+  - go: "1.10"
     env:
     - ALL_IN_ONE=true
-  - go: 1.9
+  - go: "1.10"
     env:
     - CROSSDOCK=true
-  - go: 1.9
+  - go: "1.10"
     env:
     - DOCKER=true
-  - go: 1.9
+    - DEPLOY=true
+  - go: "1.10"
     env:
     - ES_INTEGRATION_TEST=true
-  - go: 1.9
+  - go: "1.10"
     env:
     - HOTROD=true
 
@@ -54,9 +55,26 @@ script:
   - if [ "$DOCKER" == true ]; then bash ./scripts/travis/build-docker-images.sh ; else echo 'skipping docker images'; fi
   - if [ "$ES_INTEGRATION_TEST" == true ]; then bash ./scripts/travis/es-integration-test.sh ; else echo 'skipping elastic search integration test'; fi
   - if [ "$HOTROD" == true ]; then bash ./scripts/travis/hotrod-integration-test.sh ; else echo 'skipping hotrod example'; fi
+  - if [ "$DEPLOY" == true ]; then make build-binaries-linux build-binaries-windows build-binaries-darwin ; else echo 'skipping linux'; fi
 
 after_success:
   - if [ "$COVERAGE" == true ]; then travis_retry goveralls -coverprofile=cover.out -service=travis-ci || true ; else echo 'skipping coverage'; fi
 
 after_failure:
   - if [ "$CROSSDOCK" == true ]; then make crossdock-logs ; else echo 'skipping crossdock'; fi
+
+before_deploy:
+  - bash ./scripts/travis/package-deploy.sh
+
+deploy:
+  provider: releases
+  api_key:
+    secure: P3+TKR3y4S51jjMp4l9kRm5cjr7Mg2m5rlPcRCjjVp/mVgkkhsMx9K8Rj/Cv/pJe33jbkwRy020gq4lYpa+Yh+Q3A11z3EKXyqizwqsvJtufoIXxXCxt0kLXn8aIh7aLrqVT2wxtkv3RvkRODmLZqvWG4kAfNBuzpcFhstw1RU3WNyahStOgwVJ9tYRdpsJ0ztMmGgQFpT6bppselzEXY7hS7L+l/bLcH9aGON4YECupAE6EilWwGxPs4oLJPmGsWQNogb3SE/oeFDqEJzciWcObk264fwIBf28HtmszQSmVbOuOfg/OhcVg13OvPXmRGk9hvU2kyzehMLZ0zeEE1mKsGmoObziNVuYPPY3KbRlsYARX41M1QKAI1YFe9NIXC5yhemOy4Xv0g82jyZmYWrf6QydLBZWkztUL7mJ6DkrG+5EohVVC2oprBS32/w736f8AWwHJSfL/JrFMTDctdYzUaf0yZMdfKdLdRyP/Q5KTfhUJl8zHAOih8f23WJVCSlwyJBYDzkq5OmNGf7BxJYkJExUOUwXcJE9jYgXq0y291N9BtG2cUVKhZZsSSrvR32bMtYtTT2a3ZlTHJpzVI+lZStYDpE/wyJRqnjqf9p8bDxc1l2mQGSxgyY8Yv8u9c+RCCj4tRwZTrJ4LIBWecDPS5hobV3Q1Dg3sW2UGRXA=
+  file_glob: true
+  file:
+    - deploy/*.tar.gz
+  skip_cleanup: true
+  on:
+    tags: true
+    repo: jaegertracing/jaeger
+    branch: master

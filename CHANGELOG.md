@@ -1,6 +1,35 @@
 Changes by Version
 ==================
 
+1.4.1 (2018-04-21)
+------------------
+
+#### Backend Changes
+
+- Publish binaries for Linux, Darwin, and Windows (#765) - thanks to @grounded042
+
+#### UI Changes
+
+##### New Features
+
+- View Trace JSON buttons return formatted JSON (fixes [#199](https://github.com/jaegertracing/jaeger-ui/issues/199))
+
+
+1.4.0 (2018-04-20)
+------------------
+
+#### Backend Changes
+
+##### New Features
+
+- Support traces with >10k spans in Elasticsearch (#668) - thanks to @sramakr
+
+##### Fixes
+
+- Allow slash '/' in service names (#586)
+- Log errors from HotROD services (#769)
+
+
 1.3.0 (2018-03-26)
 ------------------
 
