@@ -67,7 +67,7 @@ func main() {
 			if err != nil {
 				return err
 			}
-			hc, err := sFlags.NewHealthCheck(logger, app.QueryDefaultHealthCheckHTTPPort)
+			hc, err := sFlags.NewHealthCheck(logger)
 			if err != nil {
 				logger.Fatal("Could not start the health check server.", zap.Error(err))
 			}
@@ -150,6 +150,8 @@ func main() {
 
 	command.AddCommand(version.Command())
 	command.AddCommand(env.Command())
+
+	flags.SetDefaultHealthCheckPort(app.QueryDefaultHealthCheckHTTPPort)
 
 	config.AddFlags(
 		v,

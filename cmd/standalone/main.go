@@ -57,8 +57,6 @@ import (
 	zc "github.com/jaegertracing/jaeger/thrift-gen/zipkincore"
 )
 
-const defaultHealthCheckPort = collector.CollectorDefaultHealthCheckHTTPPort
-
 // standalone/main is a standalone full-stack jaeger backend, backed by a memory store
 func main() {
 	var signalsChannel = make(chan os.Signal, 0)
@@ -92,7 +90,7 @@ func main() {
 			if err != nil {
 				return err
 			}
-			hc, err := sFlags.NewHealthCheck(logger, defaultHealthCheckPort)
+			hc, err := sFlags.NewHealthCheck(logger)
 			if err != nil {
 				logger.Fatal("Could not start the health check server.", zap.Error(err))
 			}
@@ -140,6 +138,8 @@ func main() {
 
 	command.AddCommand(version.Command())
 	command.AddCommand(env.Command())
+
+	flags.SetDefaultHealthCheckPort(collector.CollectorDefaultHealthCheckHTTPPort)
 
 	config.AddFlags(
 		v,

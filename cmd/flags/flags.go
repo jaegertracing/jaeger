@@ -34,6 +34,8 @@ const (
 	healthCheckHTTPPort = "health-check-http-port"
 )
 
+var defaultHealthCheckPort int
+
 // AddConfigFileFlag adds flags for ExternalConfFlags
 func AddConfigFileFlag(flagSet *flag.FlagSet) {
 	flagSet.String(configFile, "", "Configuration file in JSON, TOML, YAML, HCL, or Java properties formats (default none). See spf13/viper for precedence.")
@@ -67,11 +69,16 @@ type healthCheck struct {
 	Port int
 }
 
+// SetDefaultHealthCheckPort sets the default port for health check. Must be called before AddFlags
+func SetDefaultHealthCheckPort(port int) {
+	defaultHealthCheckPort = port
+}
+
 // AddFlags adds flags for SharedFlags
 func AddFlags(flagSet *flag.FlagSet) {
 	flagSet.String(spanStorageType, "", fmt.Sprintf("Deprecated; please use %s environment variable", storage.SpanStorageTypeEnvVar))
 	flagSet.String(logLevel, "info", "Minimal allowed log Level. For more levels see https://github.com/uber-go/zap")
-	flagSet.Int(healthCheckHTTPPort, 0, "The http port for the health check service")
+	flagSet.Int(healthCheckHTTPPort, defaultHealthCheckPort, "The http port for the health check service")
 }
 
 // InitFromViper initializes SharedFlags with properties from viper
@@ -93,11 +100,10 @@ func (flags *SharedFlags) NewLogger(conf zap.Config, options ...zap.Option) (*za
 }
 
 // NewHealthCheck returns health check based on configuration in SharedFlags
-func (flags *SharedFlags) NewHealthCheck(logger *zap.Logger, defaultPort int) (*hc.HealthCheck, error) {
-	port := defaultPort
-	if flags.HealthCheck.Port > 0 {
-		port = flags.HealthCheck.Port
+func (flags *SharedFlags) NewHealthCheck(logger *zap.Logger) (*hc.HealthCheck, error) {
+	if flags.HealthCheck.Port == 0 {
+		return nil, errors.New("port not specified")
 	}
 	return hc.New(hc.Unavailable, hc.Logger(logger)).
-		Serve(port)
+		Serve(flags.HealthCheck.Port)
 }
