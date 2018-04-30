@@ -40,8 +40,7 @@ their names to upper case and replacing punctuation with underscores. For exampl
       --cassandra.connections-per-host    CASSANDRA_CONNECTIONS_PER_HOST
       --metrics-backend                   METRICS_BACKEND
 
-The following configuration options are only available via environment variables:
-`)
+The following configuration options are only available via environment variables:`+"\n")
 			fs := new(pflag.FlagSet)
 			fs.String(storage.SpanStorageTypeEnvVar, "cassandra", "The type of backend (cassandra, elasticsearch, memory) used for trace storage.")
 			fs.String(storage.DependencyStorageTypeEnvVar, "${SPAN_STORAGE}", "The type of backend used for service dependencies storage.")
