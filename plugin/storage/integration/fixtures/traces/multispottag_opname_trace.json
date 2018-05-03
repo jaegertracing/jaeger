@@ -4,7 +4,6 @@
       "traceID": "17",
       "spanID": "4",
       "operationName": "query17-operation",
-      "references": [],
       "startTime": "2017-01-26T16:46:31.639875Z",
       "duration": 5000,
       "tags": [

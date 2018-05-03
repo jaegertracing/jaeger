@@ -4,13 +4,10 @@
       "traceID": "2",
       "spanID": "1",
       "operationName": "placeholder",
-      "references": [],
       "startTime": "2017-01-26T16:46:31.639875Z",
       "duration": 5000,
-      "tags": [],
       "process": {
-        "serviceName": "query02-service",
-        "tags": []
+        "serviceName": "query02-service"
       },
       "logs": [
         {

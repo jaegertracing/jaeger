@@ -51,10 +51,8 @@
       "startTime": "2017-01-26T16:46:31.639875Z",
       "duration": 2000,
       "process": {
-        "serviceName": "query12-service",
-        "tags": []
-      },
-      "logs": []
+        "serviceName": "query12-service"
+      }
     }
   ]
 }
