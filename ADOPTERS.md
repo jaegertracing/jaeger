@@ -1,5 +1,6 @@
 * [Base CRM](https://getbase.com/)
 * [Circonus](https://www.circonus.com/)
+* [ContaAzul](https://contaazul.com/)
 * [FarmersEdge](https://www.farmersedge.ca/)
 * [GrafanaLabs](https://grafana.com/)
 * [Kausal](https://kausal.co)
