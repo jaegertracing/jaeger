@@ -54,3 +54,28 @@ func TestProcessorMetrics(t *testing.T) {
 	assert.EqualValues(t, 1, counters["service.traces.received|debug=true|format=jaeger|service=fry"])
 	assert.Empty(t, gauges)
 }
+
+func TestNewCountsBySvc(t *testing.T) {
+	baseMetrics := jaegerM.NewLocalFactory(time.Hour)
+	metrics := newCountsBySvc(baseMetrics, 3)
+
+	metrics.countByServiceName("fry", false)
+	metrics.countByServiceName("leela", false)
+	metrics.countByServiceName("bender", false)
+	metrics.countByServiceName("zoidberg", false)
+
+	counters, _ := baseMetrics.LocalBackend.Snapshot()
+	assert.EqualValues(t, 1, counters["fry|debug=false"])
+	assert.EqualValues(t, 1, counters["leela|debug=false"])
+	assert.EqualValues(t, 2, counters["other-services|debug=false"])
+
+	metrics.countByServiceName("zoidberg", true)
+	metrics.countByServiceName("bender", true)
+	metrics.countByServiceName("leela", true)
+	metrics.countByServiceName("fry", true)
+
+	counters, _ = baseMetrics.LocalBackend.Snapshot()
+	assert.EqualValues(t, 1, counters["zoidberg|debug=true"])
+	assert.EqualValues(t, 1, counters["bender|debug=true"])
+	assert.EqualValues(t, 2, counters["other-services|debug=true"])
+}

@@ -24,6 +24,7 @@ import (
 
 const (
 	maxServiceNames = 2000
+	otherServices = "other-services"
 )
 
 // SpanProcessorMetrics contains all the necessary metrics for the SpanProcessor
@@ -51,6 +52,7 @@ type countsBySvc struct {
 	debugCounts map[string]metrics.Counter // debug counters per service
 	factory     metrics.Factory
 	lock        *sync.Mutex
+	maxServiceNames int
 }
 
 type metricsBySvc struct {
@@ -92,19 +94,25 @@ func NewSpanProcessorMetrics(serviceMetrics metrics.Factory, hostMetrics metrics
 }
 
 func newMetricsBySvc(factory metrics.Factory, category string) metricsBySvc {
+	spansFactory := factory.Namespace("spans."+category, nil)
+	tracesFactory := factory.Namespace("traces."+category, nil)
 	return metricsBySvc{
-		spans: countsBySvc{
-			counts:      make(map[string]metrics.Counter),
-			debugCounts: make(map[string]metrics.Counter),
-			factory:     factory.Namespace("spans."+category, nil),
-			lock:        &sync.Mutex{},
+		spans: newCountsBySvc(spansFactory, maxServiceNames),
+		traces: newCountsBySvc(tracesFactory, maxServiceNames),
+	}
+}
+
+func newCountsBySvc(factory metrics.Factory, maxServiceNames int) countsBySvc {
+	return countsBySvc{
+		counts:      map[string]metrics.Counter{
+			otherServices: factory.Counter(otherServices, map[string]string{"debug": "false"}),
 		},
-		traces: countsBySvc{
-			counts:      make(map[string]metrics.Counter),
-			debugCounts: make(map[string]metrics.Counter),
-			factory:     factory.Namespace("traces."+category, nil),
-			lock:        &sync.Mutex{},
+		debugCounts: map[string]metrics.Counter{
+			otherServices: factory.Counter(otherServices, map[string]string{"debug": "true"}),
 		},
+		factory:     factory,
+		lock:        &sync.Mutex{},
+		maxServiceNames: maxServiceNames,
 	}
 }
 
@@ -163,12 +171,13 @@ func (m *countsBySvc) countByServiceName(serviceName string, isDebug bool) {
 	getOrCreateCounter := func(counts map[string]metrics.Counter, createCounter func() metrics.Counter) metrics.Counter {
 		if c, ok := counts[serviceName]; ok {
 			return c
-		} else if len(counts) < maxServiceNames {
+		}
+		if len(counts) < m.maxServiceNames {
 			c := createCounter()
 			counts[serviceName] = c
 			return c
 		}
-		return nil
+		return counts[otherServices]
 	}
 	var counter metrics.Counter
 	m.lock.Lock()
@@ -182,7 +191,5 @@ func (m *countsBySvc) countByServiceName(serviceName string, isDebug bool) {
 		})
 	}
 	m.lock.Unlock()
-	if counter != nil {
-		counter.Inc(1)
-	}
+	counter.Inc(1)
 }
