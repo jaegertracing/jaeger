@@ -119,11 +119,11 @@ func TestToDomainMultipleSpanKinds(t *testing.T) {
 		require.Nil(t, err)
 
 		assert.Equal(t, 2, len(trace.Spans))
-		assert.Equal(t, 1, trace.Spans[0].Tags.Len())
+		assert.Equal(t, 1, len(trace.Spans[0].Tags))
 		assert.Equal(t, test.tagFirst.Key, trace.Spans[0].Tags[0].Key)
 		assert.Equal(t, string(test.tagFirst.Value.(ext.SpanKindEnum)), trace.Spans[0].Tags[0].VStr)
 
-		assert.Equal(t, 1, trace.Spans[1].Tags.Len())
+		assert.Equal(t, 1, len(trace.Spans[1].Tags))
 		assert.Equal(t, test.tagSecond.Key, trace.Spans[1].Tags[0].Key)
 		assert.Equal(t, time.Duration(1000), trace.Spans[1].Duration)
 		assert.Equal(t, string(test.tagSecond.Value.(ext.SpanKindEnum)), trace.Spans[1].Tags[0].VStr)

@@ -57,7 +57,7 @@ func IPTagAdjuster() Adjuster {
 		for _, span := range trace.Spans {
 			adjustTags(span.Tags)
 			adjustTags(span.Process.Tags)
-			span.Process.Tags.Sort()
+			model.KeyValues(span.Process.Tags).Sort()
 		}
 		return trace, nil
 	})

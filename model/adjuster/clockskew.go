@@ -75,7 +75,7 @@ type node struct {
 //
 // TODO convert process tags to a canonical format somewhere else
 func hostKey(span *model.Span) string {
-	if tag, ok := span.Process.Tags.FindByKey("ip"); ok {
+	if tag, ok := model.KeyValues(span.Process.Tags).FindByKey("ip"); ok {
 		if tag.VType == model.StringType {
 			return tag.VStr
 		}

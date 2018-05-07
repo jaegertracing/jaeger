@@ -53,7 +53,7 @@ type Span struct {
 	Flags         Flags         `json:"flags,omitempty"`
 	StartTime     time.Time     `json:"startTime"`
 	Duration      time.Duration `json:"duration"`
-	Tags          KeyValues     `json:"tags,omitempty"`
+	Tags          []KeyValue    `json:"tags,omitempty"`
 	Logs          []Log         `json:"logs,omitempty"`
 	Process       *Process      `json:"process"`
 	Warnings      []string      `json:"warnings,omitempty"`
@@ -69,7 +69,7 @@ func (s *Span) Hash(w io.Writer) (err error) {
 
 // HasSpanKind returns true if the span has a `span.kind` tag set to `kind`.
 func (s *Span) HasSpanKind(kind ext.SpanKindEnum) bool {
-	if tag, ok := s.Tags.FindByKey(string(ext.SpanKind)); ok {
+	if tag, ok := KeyValues(s.Tags).FindByKey(string(ext.SpanKind)); ok {
 		return tag.AsString() == string(kind)
 	}
 	return false
