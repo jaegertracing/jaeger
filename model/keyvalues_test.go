@@ -131,3 +131,15 @@ func BenchmarkKeyValuesSort(b *testing.B) {
 		list.Sort()
 	}
 }
+
+// No memory allocations from wrapping sliceinto model.KeyValues()
+// 0.53 ns/op	       0 B/op	       0 allocs/op
+func BenchmarkKeyValuesWrapping(b *testing.B) {
+	kv := []model.KeyValue{
+		model.String("x", "y"),
+		model.Int64("n", 42),
+	}
+	for i := 0; i < b.N; i++ {
+		model.KeyValues(kv).Len()
+	}
+}

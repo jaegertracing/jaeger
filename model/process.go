@@ -18,8 +18,8 @@ import "io"
 
 // Process describes an instance of an application or service that emits tracing data.
 type Process struct {
-	ServiceName string    `json:"serviceName"`
-	Tags        KeyValues `json:"tags,omitempty"`
+	ServiceName string     `json:"serviceName"`
+	Tags        []KeyValue `json:"tags,omitempty"`
 }
 
 // NewProcess creates a new Process for given serviceName and tags.
@@ -37,7 +37,7 @@ func (p *Process) Equal(other *Process) bool {
 	if p.ServiceName != other.ServiceName {
 		return false
 	}
-	return p.Tags.Equal(other.Tags)
+	return KeyValues(p.Tags).Equal(other.Tags)
 }
 
 // Hash implements Hash from Hashable.
@@ -45,5 +45,5 @@ func (p *Process) Hash(w io.Writer) (err error) {
 	if _, err := w.Write([]byte(p.ServiceName)); err != nil {
 		return err
 	}
-	return p.Tags.Hash(w)
+	return KeyValues(p.Tags).Hash(w)
 }

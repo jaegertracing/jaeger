@@ -121,7 +121,7 @@ func TestUTF8Sanitizer_SanitizeProcessTags(t *testing.T) {
 			},
 		},
 	)
-	_, exists := actual.Process.Tags.FindByKey(invalidTagKey)
+	_, exists := model.KeyValues(actual.Process.Tags).FindByKey(invalidTagKey)
 	assert.True(t, exists)
 
 }
@@ -133,7 +133,7 @@ func TestUTF8Sanitizer_SanitizeTags(t *testing.T) {
 			Process: &model.Process{},
 		},
 	)
-	_, exists := actual.Tags.FindByKey(invalidTagKey)
+	_, exists := model.KeyValues(actual.Tags).FindByKey(invalidTagKey)
 	assert.True(t, exists)
 
 }

@@ -18,6 +18,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"io/ioutil"
+	"math"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -44,7 +45,7 @@ func TestToDomainEmbeddedProcess(t *testing.T) {
 		CompareModelSpans(t, &expectedSpan, actualSpan)
 	}
 	// this is just to confirm the uint64 representation of float64(72.5) used as a "temperature" tag
-	assert.Equal(t, int64(4634802150889750528), model.Float64("x", 72.5).VNum)
+	assert.Equal(t, int64(4634802150889750528), int64(math.Float64bits(72.5)))
 }
 
 func createGoodSpan(i int) (jModel.Span, error) {
