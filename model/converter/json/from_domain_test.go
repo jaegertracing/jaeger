@@ -19,6 +19,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"io/ioutil"
+	"math"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -41,7 +42,7 @@ func TestFromDomain(t *testing.T) {
 		testOutput(t, i, outStr, uiTrace, false)
 	}
 	// this is just to confirm the uint64 representation of float64(72.5) used as a "temperature" tag
-	assert.Equal(t, int64(4634802150889750528), model.Float64("x", 72.5).VNum)
+	assert.Equal(t, int64(4634802150889750528), int64(math.Float64bits(72.5)))
 }
 
 func TestFromDomainEmbedProcess(t *testing.T) {

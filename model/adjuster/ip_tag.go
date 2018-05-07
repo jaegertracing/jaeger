@@ -41,7 +41,7 @@ func IPTagAdjuster() Adjuster {
 				continue
 			}
 			var buf [4]byte
-			binary.BigEndian.PutUint32(buf[:], uint32(tag.VNum))
+			binary.BigEndian.PutUint32(buf[:], uint32(tag.Int64()))
 			var sBuf bytes.Buffer
 			for i, b := range buf {
 				if i > 0 {

@@ -20,6 +20,7 @@ import (
 	"encoding/binary"
 	"encoding/json"
 	"fmt"
+	"math"
 	"os"
 	"testing"
 	"time"
@@ -149,8 +150,8 @@ func TestValidateBase64Values(t *testing.T) {
 	assert.Equal(t, "MDk=", numberToBase64(int16(12345)))
 	assert.Equal(t, "AAAwOQ==", numberToBase64(int32(12345)))
 	assert.Equal(t, "AAAAAAAAMDk=", numberToBase64(int64(12345)))
-	assert.Equal(t, "QMgcgAAAAAA=", numberToBase64(model.Float64("x", 12345).VNum))
-	assert.Equal(t, int64(4668012349850910720), model.Float64("x", 12345).VNum)
+	assert.Equal(t, "QMgcgAAAAAA=", numberToBase64(int64(math.Float64bits(12345))))
+	assert.Equal(t, int64(4668012349850910720), int64(math.Float64bits(12345)), "sanity check")
 }
 
 func loadZipkinSpans(t *testing.T, file string) []*z.Span {
