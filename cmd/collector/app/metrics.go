@@ -24,7 +24,7 @@ import (
 
 const (
 	maxServiceNames = 2000
-	otherServices = "other-services"
+	otherServices   = "other-services"
 )
 
 // SpanProcessorMetrics contains all the necessary metrics for the SpanProcessor
@@ -48,10 +48,10 @@ type SpanProcessorMetrics struct { //TODO - initialize metrics in the traditiona
 }
 
 type countsBySvc struct {
-	counts      map[string]metrics.Counter // counters per service
-	debugCounts map[string]metrics.Counter // debug counters per service
-	factory     metrics.Factory
-	lock        *sync.Mutex
+	counts          map[string]metrics.Counter // counters per service
+	debugCounts     map[string]metrics.Counter // debug counters per service
+	factory         metrics.Factory
+	lock            *sync.Mutex
 	maxServiceNames int
 }
 
@@ -97,21 +97,21 @@ func newMetricsBySvc(factory metrics.Factory, category string) metricsBySvc {
 	spansFactory := factory.Namespace("spans."+category, nil)
 	tracesFactory := factory.Namespace("traces."+category, nil)
 	return metricsBySvc{
-		spans: newCountsBySvc(spansFactory, maxServiceNames),
+		spans:  newCountsBySvc(spansFactory, maxServiceNames),
 		traces: newCountsBySvc(tracesFactory, maxServiceNames),
 	}
 }
 
 func newCountsBySvc(factory metrics.Factory, maxServiceNames int) countsBySvc {
 	return countsBySvc{
-		counts:      map[string]metrics.Counter{
+		counts: map[string]metrics.Counter{
 			otherServices: factory.Counter(otherServices, map[string]string{"debug": "false"}),
 		},
 		debugCounts: map[string]metrics.Counter{
 			otherServices: factory.Counter(otherServices, map[string]string{"debug": "true"}),
 		},
-		factory:     factory,
-		lock:        &sync.Mutex{},
+		factory:         factory,
+		lock:            &sync.Mutex{},
 		maxServiceNames: maxServiceNames,
 	}
 }
