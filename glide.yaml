@@ -55,3 +55,16 @@ import:
 - package: github.com/go-openapi/validate
 - package: github.com/go-openapi/loads
 - package: github.com/elazarl/go-bindata-assetfs
+# gogo/protobuf dependencies
+- package: github.com/gogo/googleapis
+  version: master
+- package: github.com/gogo/protobuf
+  version: master
+- package: github.com/grpc-ecosystem/grpc-gateway
+  version: 58f78b988bc393694cef62b92c5cde77e4742ff5
+- package: google.golang.org/grpc
+  version: 1.11.0
+- package: github.com/mwitkow/go-proto-validators
+  version: master
+- package: github.com/gogo/gateway
+  version: master

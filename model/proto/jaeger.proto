@@ -1,0 +1,189 @@
+// Copyright (c) 2018 Uber Technologies, Inc.
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+// http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
+syntax="proto3";
+package jaeger;
+
+import "google/protobuf/empty.proto";
+import "google/protobuf/timestamp.proto";
+import "google/protobuf/duration.proto";
+import "google/api/annotations.proto";
+import "protoc-gen-swagger/options/annotations.proto";
+import "github.com/gogo/protobuf/gogoproto/gogo.proto";
+// import "github.com/mwitkow/go-proto-validators/validator.proto";
+
+// Specifies path for generated file (relative to $GOPATH) and the name of the package.
+option go_package = "github.com/jaegertracing/jaeger/model/proto;protomodel";
+
+option (grpc.gateway.protoc_gen_swagger.options.openapiv2_swagger) = {
+  info: {
+    version: "1.0";
+  };
+  external_docs: {
+    url: "https://github.com/jaegertracing/jaeger";
+    description: "Jaeger API";
+  }
+  schemes: HTTP;
+  schemes: HTTPS;
+};
+
+// Enable gogoprotobuf extensions (https://github.com/gogo/protobuf/blob/master/extensions.md).
+// Enable custom Marshal method.
+option (gogoproto.marshaler_all) = true;
+// Enable custom Unmarshal method.
+option (gogoproto.unmarshaler_all) = true;
+// Enable custom Size method (Required by Marshal and Unmarshal).
+option (gogoproto.sizer_all) = true;
+// Enable registration with golang/protobuf for the grpc-gateway.
+option (gogoproto.goproto_registration) = true;
+
+message TraceID {
+  uint64 low = 1;
+  uint64 high = 2;
+}
+
+// For comparison of how KeyValue looks when using `oneof`.
+// Both definitions result in the same message size.
+message KeyValue2 {
+  string key = 1;
+  oneof value {
+    string vStr = 2;
+    double  vDouble = 3;
+    bool vBool = 4;
+    int64 vLong = 5;
+    bytes vBinary = 6;
+  }
+}
+
+enum ValueType {
+  STRING = 0;
+  DOUBLE = 1;
+  BOOL = 2;
+  LONG = 3;
+  BINARY = 4;
+};
+
+message KeyValue {
+  string    key     = 1;
+  ValueType vType   = 2;
+  string    vStr    = 3;
+  double    vDouble = 4;
+  bool      vBool   = 5;
+  uint64    vLong   = 6;
+  bytes     vBinary = 7;
+}
+
+message Log {
+  google.protobuf.Timestamp timestamp = 1 [
+    (gogoproto.stdtime) = true,
+    (gogoproto.nullable) = false
+  ];
+  repeated KeyValue fields = 2 [
+    (gogoproto.nullable) = false
+  ];
+}
+
+enum SpanRefType {
+  CHILD_OF = 0;
+  FOLLOWS_FROM = 1;
+};
+
+message SpanRef {
+  TraceID traceID = 1 [
+    (gogoproto.nullable) = false
+  ];
+  uint64 spanID = 2 [
+    (gogoproto.nullable) = false,
+    (gogoproto.customtype) = "SpanID"
+  ];
+  SpanRefType type = 3;
+}
+
+message Process {
+  string service_name = 1;
+  repeated KeyValue tags = 2 [
+    (gogoproto.nullable) = false
+  ];
+}
+
+message Span {
+  TraceID traceID = 1 [
+    (gogoproto.nullable) = false
+  ];
+  uint64 spanID = 2 [
+    (gogoproto.nullable) = false,
+    (gogoproto.customtype) = "SpanID"
+  ];
+  string operation_name = 3;
+  repeated SpanRef references = 4 [
+    (gogoproto.nullable) = false
+  ];
+  uint32 flags = 5;
+  google.protobuf.Timestamp startTime = 6 [
+    (gogoproto.stdtime) = true,
+    (gogoproto.nullable) = false
+  ];
+  google.protobuf.Duration duration = 7 [
+    (gogoproto.stdduration) = true,
+    (gogoproto.nullable) = false
+  ];
+  repeated KeyValue tags = 8 [
+    (gogoproto.nullable) = false
+  ];
+  repeated Log logs = 9 [
+    (gogoproto.nullable) = false
+  ];
+  Process process = 10;
+  string processID = 11;
+  repeated string warnings = 12;
+}
+
+message Trace {
+  repeated Span spans = 1 [
+    (gogoproto.nullable) = false
+  ];
+  map<string, Process> processMap = 2 [
+    (gogoproto.nullable) = false
+  ];
+}
+
+message Batch {
+    repeated Span spans = 1 [
+      (gogoproto.nullable) = false
+    ];
+    Process process = 2 [
+      (gogoproto.nullable) = false
+    ];
+}
+  
+service CollectorServiceV1 {
+    rpc PostSpans(Batch) returns (google.protobuf.Empty) {
+        option (google.api.http) = {
+            post: "/api/v1/spans"
+            body: "*"
+        };
+    }
+}
+
+message GetTraceID {
+    string id = 1;
+}
+
+service QueryServiceV1 {
+    rpc GetTrace(GetTraceID) returns (Trace) {
+        option (google.api.http) = {
+            get: "/api/v1/traces/{id}"
+        };
+    }
+}

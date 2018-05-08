@@ -1,0 +1,280 @@
+{
+  "swagger": "2.0",
+  "info": {
+    "title": "jaeger.proto",
+    "version": "1.0"
+  },
+  "schemes": [
+    "http",
+    "https"
+  ],
+  "consumes": [
+    "application/json"
+  ],
+  "produces": [
+    "application/json"
+  ],
+  "paths": {
+    "/api/v1/spans": {
+      "post": {
+        "operationId": "PostSpans",
+        "responses": {
+          "200": {
+            "description": "",
+            "schema": {
+              "$ref": "#/definitions/protobufEmpty"
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "body",
+            "in": "body",
+            "required": true,
+            "schema": {
+              "$ref": "#/definitions/jaegerBatch"
+            }
+          }
+        ],
+        "tags": [
+          "CollectorServiceV1"
+        ]
+      }
+    },
+    "/api/v1/traces/{id}": {
+      "get": {
+        "operationId": "GetTrace",
+        "responses": {
+          "200": {
+            "description": "",
+            "schema": {
+              "$ref": "#/definitions/jaegerTrace"
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "type": "string"
+          }
+        ],
+        "tags": [
+          "QueryServiceV1"
+        ]
+      }
+    }
+  },
+  "definitions": {
+    "jaegerBatch": {
+      "type": "object",
+      "properties": {
+        "spans": {
+          "type": "array",
+          "items": {
+            "$ref": "#/definitions/jaegerSpan"
+          }
+        },
+        "process": {
+          "$ref": "#/definitions/jaegerProcess"
+        }
+      }
+    },
+    "jaegerKeyValue": {
+      "type": "object",
+      "properties": {
+        "key": {
+          "type": "string"
+        },
+        "vType": {
+          "$ref": "#/definitions/jaegerValueType"
+        },
+        "vStr": {
+          "type": "string"
+        },
+        "vDouble": {
+          "type": "number",
+          "format": "double"
+        },
+        "vBool": {
+          "type": "boolean",
+          "format": "boolean"
+        },
+        "vLong": {
+          "type": "string",
+          "format": "uint64"
+        },
+        "vBinary": {
+          "type": "string",
+          "format": "byte"
+        }
+      }
+    },
+    "jaegerLog": {
+      "type": "object",
+      "properties": {
+        "timestamp": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "fields": {
+          "type": "array",
+          "items": {
+            "$ref": "#/definitions/jaegerKeyValue"
+          }
+        }
+      }
+    },
+    "jaegerProcess": {
+      "type": "object",
+      "properties": {
+        "service_name": {
+          "type": "string"
+        },
+        "tags": {
+          "type": "array",
+          "items": {
+            "$ref": "#/definitions/jaegerKeyValue"
+          }
+        }
+      }
+    },
+    "jaegerSpan": {
+      "type": "object",
+      "properties": {
+        "traceID": {
+          "$ref": "#/definitions/jaegerTraceID"
+        },
+        "spanID": {
+          "$ref": "#/definitions/jaegerSpanID"
+        },
+        "operation_name": {
+          "type": "string"
+        },
+        "references": {
+          "type": "array",
+          "items": {
+            "$ref": "#/definitions/jaegerSpanRef"
+          }
+        },
+        "flags": {
+          "type": "integer",
+          "format": "int64"
+        },
+        "startTime": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "duration": {
+          "type": "string"
+        },
+        "tags": {
+          "type": "array",
+          "items": {
+            "$ref": "#/definitions/jaegerKeyValue"
+          }
+        },
+        "logs": {
+          "type": "array",
+          "items": {
+            "$ref": "#/definitions/jaegerLog"
+          }
+        },
+        "process": {
+          "$ref": "#/definitions/jaegerProcess"
+        },
+        "processID": {
+          "type": "string"
+        },
+        "warnings": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        }
+      }
+    },
+    "jaegerSpanID": {
+      "type": "object",
+      "properties": {
+        "Value": {
+          "type": "string",
+          "format": "uint64"
+        }
+      }
+    },
+    "jaegerSpanRef": {
+      "type": "object",
+      "properties": {
+        "traceID": {
+          "$ref": "#/definitions/jaegerTraceID"
+        },
+        "spanID": {
+          "$ref": "#/definitions/jaegerSpanID"
+        },
+        "type": {
+          "$ref": "#/definitions/jaegerSpanRefType"
+        }
+      }
+    },
+    "jaegerSpanRefType": {
+      "type": "string",
+      "enum": [
+        "CHILD_OF",
+        "FOLLOWS_FROM"
+      ],
+      "default": "CHILD_OF"
+    },
+    "jaegerTrace": {
+      "type": "object",
+      "properties": {
+        "spans": {
+          "type": "array",
+          "items": {
+            "$ref": "#/definitions/jaegerSpan"
+          }
+        },
+        "processMap": {
+          "type": "object",
+          "additionalProperties": {
+            "$ref": "#/definitions/jaegerProcess"
+          }
+        }
+      }
+    },
+    "jaegerTraceID": {
+      "type": "object",
+      "properties": {
+        "low": {
+          "type": "string",
+          "format": "uint64"
+        },
+        "high": {
+          "type": "string",
+          "format": "uint64"
+        }
+      }
+    },
+    "jaegerValueType": {
+      "type": "string",
+      "enum": [
+        "STRING",
+        "DOUBLE",
+        "BOOL",
+        "LONG",
+        "BINARY"
+      ],
+      "default": "STRING"
+    },
+    "protobufEmpty": {
+      "type": "object",
+      "description": "service Foo {\n      rpc Bar(google.protobuf.Empty) returns (google.protobuf.Empty);\n    }\n\nThe JSON representation for `Empty` is empty JSON object `{}`.",
+      "title": "A generic empty message that you can re-use to avoid defining duplicated\nempty messages in your APIs. A typical example is to use it as the request\nor the response type of an API method. For instance:"
+    }
+  },
+  "externalDocs": {
+    "description": "Jaeger API",
+    "url": "https://github.com/jaegertracing/jaeger"
+  }
+}

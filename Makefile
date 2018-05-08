@@ -291,3 +291,51 @@ generate-mocks: install-mockery
 .PHONY: echo-version
 echo-version:
 	@echo $(GIT_CLOSEST_TAG)
+
+.PHONY: proto
+proto:
+	# Generate gogo, gRPC-Gateway, swagger, go-validators output.
+	#
+	# -I declares import folders, in order of importance
+	# This is how proto resolves the protofile imports.
+	# It will check for the protofile relative to each of these
+	# folders and use the first one it finds.
+	#
+	# --gogo_out generates GoGo Protobuf output with gRPC plugin enabled.
+	# --grpc-gateway_out generates gRPC-Gateway output.
+	# --swagger_out generates an OpenAPI 2.0 specification for our gRPC-Gateway endpoints.
+	# --govalidators_out generates Go validation files for our messages types, if specified.
+	#
+	# The lines starting with Mgoogle/... are proto import replacements,
+	# which cause the generated file to import the specified packages
+	# instead of the go_package's declared by the imported protof files.
+	#
+	# $$GOPATH/src is the output directory. It is relative to the GOPATH/src directory
+	# since we've specified a go_package option relative to that directory.
+	#
+	# model/proto/jaeger.proto is the location of the protofile we use.
+	#
+	# TODO use Docker container instead of installed protoc
+	# (https://medium.com/@linchenon/generate-grpc-and-protobuf-libraries-with-containers-c15ba4e4f3ad)
+	#
+	protoc \
+		-I model/proto \
+		-I vendor/github.com/grpc-ecosystem/grpc-gateway/ \
+		-I vendor/github.com/gogo/googleapis/ \
+		-I vendor/ \
+		--gogo_out=plugins=grpc,\
+Mgoogle/protobuf/timestamp.proto=github.com/gogo/protobuf/types,\
+Mgoogle/protobuf/duration.proto=github.com/gogo/protobuf/types,\
+Mgoogle/protobuf/empty.proto=github.com/gogo/protobuf/types,\
+Mgoogle/api/annotations.proto=github.com/gogo/googleapis/google/api:\
+$$GOPATH/src/ \
+		--grpc-gateway_out=\
+Mgoogle/protobuf/timestamp.proto=github.com/gogo/protobuf/types,\
+Mgoogle/protobuf/empty.proto=github.com/gogo/protobuf/types,\
+Mgoogle/api/annotations.proto=github.com/gogo/googleapis/google/api:\
+$$GOPATH/src/ \
+		--swagger_out=model/proto/openapi/ \
+		model/proto/jaeger.proto
+
+	# Workaround for https://github.com/grpc-ecosystem/grpc-gateway/issues/229.
+	sed -i '' "s/empty.Empty/types.Empty/g" model/proto/jaeger.pb.gw.go
