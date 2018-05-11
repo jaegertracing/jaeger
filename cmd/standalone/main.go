@@ -44,6 +44,7 @@ import (
 	"github.com/jaegertracing/jaeger/cmd/flags"
 	queryApp "github.com/jaegertracing/jaeger/cmd/query/app"
 	"github.com/jaegertracing/jaeger/pkg/config"
+	"github.com/jaegertracing/jaeger/pkg/healthcheck"
 	pMetrics "github.com/jaegertracing/jaeger/pkg/metrics"
 	"github.com/jaegertracing/jaeger/pkg/recoveryhandler"
 	"github.com/jaegertracing/jaeger/pkg/version"
@@ -89,6 +90,10 @@ func main() {
 			if err != nil {
 				return err
 			}
+			hc, err := sFlags.NewHealthCheck(logger)
+			if err != nil {
+				logger.Fatal("Could not start the health check server.", zap.Error(err))
+			}
 
 			mBldr := new(pMetrics.Builder).InitFromViper(v)
 			metricsFactory, err := mBldr.CreateMetricsFactory("jaeger-standalone")
@@ -119,8 +124,9 @@ func main() {
 			qOpts := new(queryApp.QueryOptions).InitFromViper(v)
 
 			startAgent(aOpts, cOpts, logger, metricsFactory)
-			startCollector(cOpts, spanWriter, logger, metricsFactory, samplingHandler)
-			startQuery(qOpts, spanReader, dependencyReader, logger, metricsFactory, mBldr)
+			startCollector(cOpts, spanWriter, logger, metricsFactory, samplingHandler, hc)
+			startQuery(qOpts, spanReader, dependencyReader, logger, metricsFactory, mBldr, hc)
+			hc.Ready()
 
 			select {
 			case <-signalsChannel:
@@ -132,6 +138,8 @@ func main() {
 
 	command.AddCommand(version.Command())
 	command.AddCommand(env.Command())
+
+	flags.SetDefaultHealthCheckPort(collector.CollectorDefaultHealthCheckHTTPPort)
 
 	config.AddFlags(
 		v,
@@ -180,6 +188,7 @@ func startCollector(
 	logger *zap.Logger,
 	baseFactory metrics.Factory,
 	samplingHandler sampling.Handler,
+	hc *healthcheck.HealthCheck,
 ) {
 	metricsFactory := baseFactory.Namespace("jaeger-collector", nil)
 
@@ -222,6 +231,7 @@ func startCollector(
 		if err := http.ListenAndServe(httpPortStr, recoveryHandler(r)); err != nil {
 			logger.Fatal("Could not launch jaeger-collector HTTP server", zap.Error(err))
 		}
+		hc.Set(healthcheck.Unavailable)
 	}()
 }
 
@@ -251,8 +261,8 @@ func startQuery(
 	logger *zap.Logger,
 	baseFactory metrics.Factory,
 	metricsBuilder *pMetrics.Builder,
+	hc *healthcheck.HealthCheck,
 ) {
-
 	tracer, closer, err := jaegerClientConfig.Configuration{
 		Sampler: &jaegerClientConfig.SamplerConfig{
 			Type:  "const",
@@ -289,6 +299,7 @@ func startQuery(
 		if err := http.ListenAndServe(portStr, recoveryHandler(r)); err != nil {
 			logger.Fatal("Could not launch jaeger-query service", zap.Error(err))
 		}
+		hc.Set(healthcheck.Unavailable)
 	}()
 }
 
