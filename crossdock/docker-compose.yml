@@ -80,4 +80,4 @@ services:
 
     jaeger-query:
 #    override to disable static files
-        command: ["/go/bin/query-linux", "--query.static-files=", "--cassandra.keyspace=jaeger_v1_dc1", "--cassandra.servers=cassandra"]
+        command: ["--query.static-files=", "--cassandra.keyspace=jaeger_v1_dc1", "--cassandra.servers=cassandra"]
