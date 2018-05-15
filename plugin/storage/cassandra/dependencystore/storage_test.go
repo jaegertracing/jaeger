@@ -192,28 +192,6 @@ func TestDependencyStoreGetDependencies(t *testing.T) {
 	}
 }
 
-func TestDependencyStoreTimeIntervalToPoints(t *testing.T) {
-	withDepStore(func(s *depStorageTest) {
-		for _, truncate := range []bool{false, true} {
-			endTs := time.Date(2017, time.January, 24, 11, 15, 17, 12345, time.UTC)
-			if truncate {
-				endTs = endTs.Truncate(s.storage.dependencyDataFrequency)
-			}
-			// Look back 3 time intervals
-			lookback := 3 * s.storage.dependencyDataFrequency
-			points := s.storage.timeIntervalToPoints(endTs, lookback)
-			point := func(day int) time.Time {
-				return time.Date(2017, time.January, day, 0, 0, 0, 0, time.UTC)
-			}
-			assert.Equal(t, []time.Time{
-				point(24),
-				point(23),
-				point(22),
-			}, points, "Expecting 3 data points")
-		}
-	})
-}
-
 func matchEverything() interface{} {
 	return mock.MatchedBy(func(v []interface{}) bool { return true })
 }

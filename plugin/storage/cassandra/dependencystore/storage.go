@@ -92,12 +92,3 @@ func (s *DependencyStore) GetDependencies(endTs time.Time, lookback time.Duratio
 	}
 	return mDependency, nil
 }
-
-func (s *DependencyStore) timeIntervalToPoints(endTs time.Time, lookback time.Duration) []time.Time {
-	startTs := endTs.Add(-lookback)
-	var days []time.Time
-	for day := endTs; startTs.Before(day); day = day.Add(-s.dependencyDataFrequency) {
-		days = append(days, day.Truncate(s.dependencyDataFrequency))
-	}
-	return days
-}
