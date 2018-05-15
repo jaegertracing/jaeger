@@ -47,7 +47,6 @@ const (
 
 	// common storage settings
 	suffixSpanStoreWriteCacheTTL = ".span-store-write-cache-ttl"
-	suffixDepStoreDataFrequency  = ".dependency-store-data-frequency"
 )
 
 // Options contains various type of Cassandra configs and provides the ability
@@ -57,7 +56,6 @@ type Options struct {
 	primary                *namespaceConfig
 	others                 map[string]*namespaceConfig
 	SpanStoreWriteCacheTTL time.Duration
-	DepStoreDataFrequency  time.Duration
 }
 
 // the Servers field in config.Configuration is a list, which we cannot represent with flags.
@@ -93,7 +91,6 @@ func NewOptions(primaryNamespace string, otherNamespaces ...string) *Options {
 		},
 		others:                 make(map[string]*namespaceConfig, len(otherNamespaces)),
 		SpanStoreWriteCacheTTL: time.Hour * 12,
-		DepStoreDataFrequency:  time.Hour * 24,
 	}
 
 	for _, namespace := range otherNamespaces {
@@ -112,9 +109,6 @@ func (opt *Options) AddFlags(flagSet *flag.FlagSet) {
 	flagSet.Duration(opt.primary.namespace+suffixSpanStoreWriteCacheTTL,
 		opt.SpanStoreWriteCacheTTL,
 		"The duration to wait before rewriting an existing service or operation name")
-	flagSet.Duration(opt.primary.namespace+suffixDepStoreDataFrequency,
-		opt.DepStoreDataFrequency,
-		"Frequency of service dependency calculations")
 }
 
 func addFlags(flagSet *flag.FlagSet, nsConfig *namespaceConfig) {
@@ -201,7 +195,6 @@ func (opt *Options) InitFromViper(v *viper.Viper) {
 		cfg.initFromViper(v)
 	}
 	opt.SpanStoreWriteCacheTTL = v.GetDuration(opt.primary.namespace + suffixSpanStoreWriteCacheTTL)
-	opt.DepStoreDataFrequency = v.GetDuration(opt.primary.namespace + suffixDepStoreDataFrequency)
 }
 
 func (cfg *namespaceConfig) initFromViper(v *viper.Viper) {

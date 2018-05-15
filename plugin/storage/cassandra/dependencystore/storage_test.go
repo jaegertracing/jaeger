@@ -48,7 +48,7 @@ func withDepStore(fn func(s *depStorageTest)) {
 		session:   session,
 		logger:    logger,
 		logBuffer: logBuffer,
-		storage:   NewDependencyStore(session, 24*time.Hour, metricsFactory, logger),
+		storage:   NewDependencyStore(session, metricsFactory, logger),
 	}
 	fn(s)
 }
