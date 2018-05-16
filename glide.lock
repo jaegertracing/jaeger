@@ -60,7 +60,7 @@ imports:
 - name: github.com/go-openapi/validate
   version: a762d5dd38f7c7e9e1a13c3e98344cfbe4aa15d9
 - name: github.com/gocql/gocql
-  version: 4d2d1ac71932f7c4a6c7feb0d654462e4116c58b
+  version: 181004e14a3fb735efcc826a4256369d0c96747b
   subpackages:
   - internal/lru
   - internal/murmur
