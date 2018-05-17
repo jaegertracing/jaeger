@@ -53,7 +53,7 @@ func (testCase UDTTestCase) Run(t *testing.T) {
 				proto: 0x03,
 				typ:   field.Type,
 			}
-			typeInfo := *(*gocql.NativeType)(unsafe.Pointer(&nt))
+			typeInfo := *(*gocql.NativeType)(unsafe.Pointer(&nt)) /* nolint #nosec */
 			data, err := testCase.Obj.MarshalUDT(field.Name, typeInfo)
 			if field.Err {
 				assert.Error(t, err)
