@@ -81,7 +81,7 @@ def main():
     for f in go_files:
         parsed, imports_reordered = parse_go_file(f)
         if output == "stdout" and imports_reordered:
-            print f + " imports out of order"
+            print(f + " imports out of order")
         else:
             with open(f, 'w') as ofile:
                 ofile.write(parsed)
