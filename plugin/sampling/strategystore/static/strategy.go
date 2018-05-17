@@ -21,7 +21,7 @@ type strategy struct {
 	Param float64 `json:"param"`
 }
 
-// operationStrategy defines a operation specific sampling strategy.
+// operationStrategy defines an operation specific sampling strategy.
 type operationStrategy struct {
 	Operation string `json:"operation"`
 	strategy
