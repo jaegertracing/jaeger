@@ -85,8 +85,9 @@ func MaybeAddParentSpanID(traceID TraceID, parentSpanID SpanID, refs []SpanRef) 
 	if parentSpanID == 0 {
 		return refs
 	}
-	for _, r := range refs {
-		if r.SpanID == parentSpanID && r.TraceID == traceID {
+	for i := range refs {
+		r := &refs[i]
+		if r.SpanID == parentSpanID && r.TraceID == traceID && r.RefType == ChildOf {
 			return refs
 		}
 	}
@@ -96,7 +97,7 @@ func MaybeAddParentSpanID(traceID TraceID, parentSpanID SpanID, refs []SpanRef) 
 		RefType: ChildOf,
 	}
 	if len(refs) == 0 {
-		return []SpanRef{newRef}
+		return append(refs, newRef)
 	}
 	newRefs := make([]SpanRef, len(refs)+1)
 	newRefs[0] = newRef
@@ -108,6 +109,15 @@ func MaybeAddParentSpanID(traceID TraceID, parentSpanID SpanID, refs []SpanRef) 
 func NewChildOfRef(traceID TraceID, spanID SpanID) SpanRef {
 	return SpanRef{
 		RefType: ChildOf,
+		TraceID: traceID,
+		SpanID:  spanID,
+	}
+}
+
+// NewFollowsFromRef creates a new follows-from span reference.
+func NewFollowsFromRef(traceID TraceID, spanID SpanID) SpanRef {
+	return SpanRef{
+		RefType: FollowsFrom,
 		TraceID: traceID,
 		SpanID:  spanID,
 	}

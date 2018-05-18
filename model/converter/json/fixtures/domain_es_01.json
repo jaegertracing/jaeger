@@ -5,18 +5,18 @@
   "references": [
     {
       "refType": "child-of",
-      "traceID": "ff",
-      "spanID": "ff"
-    },
-    {
-      "refType": "child-of",
       "traceID": "1",
-      "spanID": "2"
+      "spanID": "3"
     },
     {
       "refType": "follows-from",
       "traceID": "1",
-      "spanID": "2"
+      "spanID": "4"
+    },
+    {
+      "refType": "child-of",
+      "traceID": "ff",
+      "spanID": "ff"
     }
   ],
   "flags": 1,
