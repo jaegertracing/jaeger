@@ -66,17 +66,6 @@ func (s *Span) Hash(w io.Writer) (err error) {
 	return enc.Encode(s)
 }
 
-// ParentSpanID returns the ID of a parent span if it exists.
-// It searches the references for a reference pointing to the same trace ID.
-func (s *Span) ParentSpanID() SpanID {
-	for i := range s.References {
-		if s.References[i].TraceID == s.TraceID {
-			return s.References[i].SpanID
-		}
-	}
-	return SpanID(0)
-}
-
 // HasSpanKind returns true if the span has a `span.kind` tag set to `kind`.
 func (s *Span) HasSpanKind(kind ext.SpanKindEnum) bool {
 	if tag, ok := KeyValues(s.Tags).FindByKey(string(ext.SpanKind)); ok {
@@ -105,7 +94,20 @@ func (s *Span) NormalizeTimestamps() {
 	}
 }
 
-// ReplaceParentID replaces span ID in the span reference that is considered a parent span.
+// ParentSpanID returns ID of a parent span if it exists.
+// It searches for the first child-of reference pointing to the same trace ID.
+func (s *Span) ParentSpanID() SpanID {
+	for i := range s.References {
+		ref := &s.References[i]
+		if ref.TraceID == s.TraceID && ref.RefType == ChildOf {
+			return ref.SpanID
+		}
+	}
+	return SpanID(0)
+}
+
+// ReplaceParentID replaces span ID in the parent span reference.
+// See also ParentSpanID.
 func (s *Span) ReplaceParentID(newParentID SpanID) {
 	oldParentID := s.ParentSpanID()
 	for i := range s.References {

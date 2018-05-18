@@ -192,15 +192,19 @@ func TestToSpan(t *testing.T) {
 }
 
 func TestFromSpan(t *testing.T) {
-	testDBSpan := getTestSpan()
-	testDBSpan.ParentID = testDBSpan.Refs[0].SpanID
-	testDBSpan.Refs = nil
-	expectedSpan := getTestJaegerSpan()
-	actualJSpan, err := ToDomain(testDBSpan)
-	assert.NoError(t, err)
-	if !assert.EqualValues(t, expectedSpan, actualJSpan) {
-		for _, diff := range pretty.Diff(expectedSpan, actualJSpan) {
-			t.Log(diff)
+	for _, testParentID := range []bool{false, true} {
+		testDBSpan := getTestSpan()
+		if testParentID {
+			testDBSpan.ParentID = testDBSpan.Refs[0].SpanID
+			testDBSpan.Refs = nil
+		}
+		expectedSpan := getTestJaegerSpan()
+		actualJSpan, err := ToDomain(testDBSpan)
+		assert.NoError(t, err)
+		if !assert.EqualValues(t, expectedSpan, actualJSpan) {
+			for _, diff := range pretty.Diff(expectedSpan, actualJSpan) {
+				t.Log(diff)
+			}
 		}
 	}
 }

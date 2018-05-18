@@ -107,7 +107,7 @@ func getSomeSpan() *model.Span {
 		TraceID:       traceID,
 		SpanID:        model.SpanID(3),
 		OperationName: "opName",
-		References:    append([]model.SpanRef{model.NewChildOfRef(traceID, 4)}, getReferences()...),
+		References:    model.MaybeAddParentSpanID(traceID, 4, getReferences()),
 		Flags:         model.Flags(uint32(5)),
 		StartTime:     time.Now(),
 		Duration:      50000 * time.Microsecond,
