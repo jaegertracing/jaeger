@@ -110,7 +110,7 @@ func loadUIConfig(uiConfig string) (map[string]interface{}, error) {
 		return nil, nil
 	}
 	ext := filepath.Ext(uiConfig)
-	bytes, err := ioutil.ReadFile(uiConfig)
+	bytes, err := ioutil.ReadFile(uiConfig) /* nolint #nosec , this comes from an admin, not user */
 	if err != nil {
 		return nil, errors.Wrapf(err, "Cannot read UI config file %v", uiConfig)
 	}

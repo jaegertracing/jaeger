@@ -60,7 +60,7 @@ func loadStrategies(strategiesFile string) (*strategies, error) {
 	if strategiesFile == "" {
 		return nil, nil
 	}
-	bytes, err := ioutil.ReadFile(strategiesFile)
+	bytes, err := ioutil.ReadFile(strategiesFile) /* nolint #nosec , this comes from an admin, not user */
 	if err != nil {
 		return nil, errors.Wrap(err, "Failed to open strategies file")
 	}

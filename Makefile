@@ -17,6 +17,7 @@ GOTEST=go test -v $(RACE)
 GOLINT=golint
 GOVET=go vet
 GOFMT=gofmt
+GAS=gas -exclude=G104
 FMT_LOG=fmt.log
 LINT_LOG=lint.log
 IMPORT_LOG=import.log
@@ -104,8 +105,12 @@ fmt:
 	$(GOFMT) -e -s -l -w $(ALL_SRC)
 	./scripts/updateLicenses.sh
 
+.PHONY: gas
+gas: install-gas
+	$(GAS) $(TOP_PKGS)
+
 .PHONY: lint
-lint:
+lint: gas
 	$(GOVET) $(TOP_PKGS)
 	@cat /dev/null > $(LINT_LOG)
 	@$(foreach pkg, $(TOP_PKGS), $(GOLINT) $(pkg) | grep -v -e pkg/es/wrapper.go -e /mocks/ -e thrift-gen -e thrift-0.9.2 >> $(LINT_LOG) || true;)
@@ -127,6 +132,10 @@ install: install-glide
 install-go-bindata:
 	go get github.com/jteeuwen/go-bindata/...
 	go get github.com/elazarl/go-bindata-assetfs/...
+
+.PHONY: install-gas
+install-gas:
+	go get github.com/GoASTScanner/gas/cmd/gas/...
 
 .PHONY: build-examples
 build-examples: install-go-bindata
