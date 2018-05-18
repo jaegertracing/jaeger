@@ -24,12 +24,14 @@ import (
 	"github.com/jaegertracing/jaeger/storage/spanstore"
 )
 
+var traceID = model.TraceID{
+	Low:  1,
+	High: 2,
+}
+
 var testingSpan = &model.Span{
-	TraceID: model.TraceID{
-		Low:  1,
-		High: 2,
-	},
-	SpanID: model.SpanID(1),
+	TraceID: traceID,
+	SpanID:  model.SpanID(1),
 	Process: &model.Process{
 		ServiceName: "serviceName",
 		Tags:        model.KeyValues{},
@@ -51,12 +53,9 @@ var testingSpan = &model.Span{
 }
 
 var childSpan1 = &model.Span{
-	TraceID: model.TraceID{
-		Low:  1,
-		High: 2,
-	},
-	SpanID:       model.SpanID(2),
-	ParentSpanID: model.SpanID(1),
+	TraceID:    traceID,
+	SpanID:     model.SpanID(2),
+	References: []model.SpanRef{model.NewChildOfRef(traceID, model.SpanID(1))},
 	Process: &model.Process{
 		ServiceName: "childService",
 		Tags:        model.KeyValues{},
@@ -78,12 +77,9 @@ var childSpan1 = &model.Span{
 }
 
 var childSpan2 = &model.Span{
-	TraceID: model.TraceID{
-		Low:  1,
-		High: 2,
-	},
-	SpanID:       model.SpanID(3),
-	ParentSpanID: model.SpanID(1),
+	TraceID:    traceID,
+	SpanID:     model.SpanID(3),
+	References: []model.SpanRef{model.NewChildOfRef(traceID, model.SpanID(1))},
 	Process: &model.Process{
 		ServiceName: "childService",
 		Tags:        model.KeyValues{},
@@ -105,12 +101,10 @@ var childSpan2 = &model.Span{
 }
 
 var childSpan2_1 = &model.Span{
-	TraceID: model.TraceID{
-		Low:  1,
-		High: 2,
-	},
-	SpanID:       model.SpanID(4),
-	ParentSpanID: model.SpanID(3), // child of childSpan2, but with the same service name
+	TraceID: traceID,
+	SpanID:  model.SpanID(4),
+	// child of childSpan2, but with the same service name
+	References: []model.SpanRef{model.NewChildOfRef(traceID, model.SpanID(3))},
 	Process: &model.Process{
 		ServiceName: "childService",
 		Tags:        model.KeyValues{},

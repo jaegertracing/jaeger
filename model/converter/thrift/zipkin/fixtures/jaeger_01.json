@@ -63,8 +63,14 @@
     {
       "traceID": "20000000000000001",
       "spanID": "3",
-      "parentSpanID": "2",
       "operationName": "some-operation",
+      "references": [
+        {
+          "refType": "child-of",
+          "traceID": "20000000000000001",
+          "spanID": "2"
+        }
+      ],
       "startTime": "1970-01-01T00:00:00-00:00",
       "tags": [
         {

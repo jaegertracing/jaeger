@@ -63,7 +63,7 @@ type Trace struct {
 type Span struct {
 	TraceID       TraceID     `json:"traceID"`
 	SpanID        SpanID      `json:"spanID"`
-	ParentSpanID  SpanID      `json:"parentSpanID,omitempty"`
+	ParentSpanID  SpanID      `json:"parentSpanID,omitempty"` // deprecated
 	Flags         uint32      `json:"flags,omitempty"`
 	OperationName string      `json:"operationName"`
 	References    []Reference `json:"references"`

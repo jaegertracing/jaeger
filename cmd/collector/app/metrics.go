@@ -141,7 +141,7 @@ func (m metricsBySvc) ReportServiceNameForSpan(span *model.Span) {
 	if span.Flags.IsDebug() {
 		m.countDebugSpansByServiceName(serviceName)
 	}
-	if span.ParentSpanID == 0 {
+	if span.ParentSpanID() == 0 {
 		m.countTracesByServiceName(serviceName)
 	}
 }

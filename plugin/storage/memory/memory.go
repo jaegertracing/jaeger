@@ -58,7 +58,7 @@ func (m *Store) GetDependencies(endTs time.Time, lookback time.Duration) ([]mode
 		trace, _ := m.deduper.Adjust(orig)
 		if m.traceIsBetweenStartAndEnd(startTs, endTs, trace) {
 			for _, s := range trace.Spans {
-				parentSpan := m.findSpan(trace, s.ParentSpanID)
+				parentSpan := m.findSpan(trace, s.ParentSpanID())
 				if parentSpan != nil {
 					if parentSpan.Process.ServiceName == s.Process.ServiceName {
 						continue

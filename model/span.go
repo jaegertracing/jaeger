@@ -47,7 +47,6 @@ type SpanID uint64
 type Span struct {
 	TraceID       TraceID       `json:"traceID"`
 	SpanID        SpanID        `json:"spanID"`
-	ParentSpanID  SpanID        `json:"parentSpanID"`
 	OperationName string        `json:"operationName"`
 	References    []SpanRef     `json:"references,omitempty"`
 	Flags         Flags         `json:"flags,omitempty"`
@@ -65,6 +64,17 @@ func (s *Span) Hash(w io.Writer) (err error) {
 	// See BenchmarkSpanHash in span_test.go
 	enc := gob.NewEncoder(w)
 	return enc.Encode(s)
+}
+
+// ParentSpanID returns the ID of a parent span if it exists.
+// It searches the references for a reference pointing to the same trace ID.
+func (s *Span) ParentSpanID() SpanID {
+	for i := range s.References {
+		if s.References[i].TraceID == s.TraceID {
+			return s.References[i].SpanID
+		}
+	}
+	return SpanID(0)
 }
 
 // HasSpanKind returns true if the span has a `span.kind` tag set to `kind`.
@@ -93,6 +103,18 @@ func (s *Span) NormalizeTimestamps() {
 	for i := range s.Logs {
 		s.Logs[i].Timestamp = s.Logs[i].Timestamp.UTC()
 	}
+}
+
+// ReplaceParentID replaces span ID in the span reference that is considered a parent span.
+func (s *Span) ReplaceParentID(newParentID SpanID) {
+	oldParentID := s.ParentSpanID()
+	for i := range s.References {
+		if s.References[i].SpanID == oldParentID && s.References[i].TraceID == s.TraceID {
+			s.References[i].SpanID = newParentID
+			return
+		}
+	}
+	s.References = MaybeAddParentSpanID(s.TraceID, newParentID, s.References)
 }
 
 // ------- Flags -------

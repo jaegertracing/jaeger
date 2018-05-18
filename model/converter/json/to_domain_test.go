@@ -244,10 +244,3 @@ func TestFailureBadSpanID(t *testing.T) {
 	badSpanIDESSpan.SpanID = "zz"
 	failingSpanTransformAnyMsg(t, &badSpanIDESSpan)
 }
-
-func TestFailureBadParentSpanID(t *testing.T) {
-	badParentSpanIDESSpan, err := createGoodSpan(1)
-	require.NoError(t, err)
-	badParentSpanIDESSpan.ParentSpanID = "zz"
-	failingSpanTransformAnyMsg(t, &badParentSpanIDESSpan)
-}
