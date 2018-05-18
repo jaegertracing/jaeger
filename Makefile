@@ -17,7 +17,7 @@ GOTEST=go test -v $(RACE)
 GOLINT=golint
 GOVET=go vet
 GOFMT=gofmt
-GAS=gas -exclude=G104
+GAS=gas -quiet -exclude=G104
 FMT_LOG=fmt.log
 LINT_LOG=lint.log
 IMPORT_LOG=import.log
@@ -105,12 +105,12 @@ fmt:
 	$(GOFMT) -e -s -l -w $(ALL_SRC)
 	./scripts/updateLicenses.sh
 
-.PHONY: gas
-gas: install-gas
+.PHONY: lint-gas
+lint-gas:
 	$(GAS) $(TOP_PKGS)
 
 .PHONY: lint
-lint: gas
+lint: lint-gas
 	$(GOVET) $(TOP_PKGS)
 	@cat /dev/null > $(LINT_LOG)
 	@$(foreach pkg, $(TOP_PKGS), $(GOLINT) $(pkg) | grep -v -e pkg/es/wrapper.go -e /mocks/ -e thrift-gen -e thrift-0.9.2 >> $(LINT_LOG) || true;)
@@ -132,10 +132,6 @@ install: install-glide
 install-go-bindata:
 	go get github.com/jteeuwen/go-bindata/...
 	go get github.com/elazarl/go-bindata-assetfs/...
-
-.PHONY: install-gas
-install-gas:
-	go get github.com/GoASTScanner/gas/cmd/gas/...
 
 .PHONY: build-examples
 build-examples: install-go-bindata
@@ -234,13 +230,17 @@ build-crossdock: docker-no-ui
 build-crossdock-fresh: build-crossdock-linux
 	make crossdock-fresh
 
-.PHONY: install-ci
-install-ci: install
+.PHONY: install-tools
+install-tools:
 	go get github.com/wadey/gocovmerge
 	go get github.com/mattn/goveralls
 	go get golang.org/x/tools/cmd/cover
 	go get github.com/golang/lint/golint
 	go get github.com/sectioneight/md-to-godoc
+	go get github.com/GoASTScanner/gas/cmd/gas/...
+
+.PHONY: install-ci
+install-ci: install install-tools
 
 .PHONY: test-ci
 test-ci: build-examples lint cover
