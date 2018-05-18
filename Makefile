@@ -105,12 +105,12 @@ fmt:
 	$(GOFMT) -e -s -l -w $(ALL_SRC)
 	./scripts/updateLicenses.sh
 
-.PHONY: gas
-gas: install-gas
+.PHONY: lint-gas
+lint-gas: install-gas
 	$(GAS) $(TOP_PKGS)
 
 .PHONY: lint
-lint: gas
+lint: lint-gas
 	$(GOVET) $(TOP_PKGS)
 	@cat /dev/null > $(LINT_LOG)
 	@$(foreach pkg, $(TOP_PKGS), $(GOLINT) $(pkg) | grep -v -e pkg/es/wrapper.go -e /mocks/ -e thrift-gen -e thrift-0.9.2 >> $(LINT_LOG) || true;)
@@ -235,7 +235,7 @@ build-crossdock-fresh: build-crossdock-linux
 	make crossdock-fresh
 
 .PHONY: install-ci
-install-ci: install
+install-ci: install install-gas
 	go get github.com/wadey/gocovmerge
 	go get github.com/mattn/goveralls
 	go get golang.org/x/tools/cmd/cover
