@@ -114,7 +114,6 @@ func TestToDomainMultipleSpanKinds(t *testing.T) {
 	}
 
 	for _, test := range tests {
-		fmt.Println(test.json)
 		trace, err := ToDomain(getZipkinSpans(t, test.json))
 		require.Nil(t, err)
 

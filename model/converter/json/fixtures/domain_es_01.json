@@ -1,7 +1,6 @@
 {
   "traceID": "1",
   "spanID": "2",
-  "parentSpanID": "3",
   "operationName": "test-general-conversion",
   "references": [
     {

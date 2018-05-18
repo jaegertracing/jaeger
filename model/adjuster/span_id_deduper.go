@@ -82,7 +82,7 @@ func (d *spanIDDeduper) dedupeSpanIDs() {
 				continue
 			}
 			oldToNewSpanIDs[span.SpanID] = newID
-			span.ParentSpanID = span.SpanID // previously shared ID is the new parent
+			span.ReplaceParentID(span.SpanID) // previously shared ID is the new parent
 			span.SpanID = newID
 		}
 	}
@@ -93,9 +93,9 @@ func (d *spanIDDeduper) dedupeSpanIDs() {
 // spans whose IDs we deduped.
 func (d *spanIDDeduper) swapParentIDs(oldToNewSpanIDs map[model.SpanID]model.SpanID) {
 	for _, span := range d.trace.Spans {
-		if parentID, ok := oldToNewSpanIDs[span.ParentSpanID]; ok {
+		if parentID, ok := oldToNewSpanIDs[span.ParentSpanID()]; ok {
 			if span.SpanID != parentID {
-				span.ParentSpanID = parentID
+				span.ReplaceParentID(parentID)
 			}
 		}
 	}

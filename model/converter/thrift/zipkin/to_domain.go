@@ -124,20 +124,23 @@ func (td toDomain) transformSpan(zSpan *zipkincore.Span) []*model.Span {
 	if spanKindTag, ok := td.getSpanKindTag(zSpan.Annotations); ok {
 		tags = append(tags, spanKindTag)
 	}
-	var traceIDHigh, parentID int64
+	var traceIDHigh int64
 	if zSpan.TraceIDHigh != nil {
 		traceIDHigh = *zSpan.TraceIDHigh
 	}
+	traceID := model.TraceID{High: uint64(traceIDHigh), Low: uint64(zSpan.TraceID)}
+	var refs []model.SpanRef
 	if zSpan.ParentID != nil {
-		parentID = *zSpan.ParentID
+		parentSpanID := model.SpanID(*zSpan.ParentID)
+		refs = model.MaybeAddParentSpanID(traceID, parentSpanID, refs)
 	}
 
 	flags := td.getFlags(zSpan)
 	result := []*model.Span{{
-		TraceID:       model.TraceID{High: uint64(traceIDHigh), Low: uint64(zSpan.TraceID)},
+		TraceID:       traceID,
 		SpanID:        model.SpanID(zSpan.ID),
 		OperationName: zSpan.Name,
-		ParentSpanID:  model.SpanID(parentID),
+		References:    refs,
 		Flags:         flags,
 		StartTime:     model.EpochMicrosecondsAsTime(uint64(zSpan.GetTimestamp())),
 		Duration:      model.MicrosecondsAsDuration(uint64(zSpan.GetDuration())),
@@ -150,10 +153,10 @@ func (td toDomain) transformSpan(zSpan *zipkincore.Span) []*model.Span {
 	if cs != nil && sr != nil {
 		// if the span is client and server we split it into two separate spans
 		s := &model.Span{
-			TraceID:       model.TraceID{High: uint64(traceIDHigh), Low: uint64(zSpan.TraceID)},
+			TraceID:       traceID,
 			SpanID:        model.SpanID(zSpan.ID),
 			OperationName: zSpan.Name,
-			ParentSpanID:  model.SpanID(parentID),
+			References:    refs,
 			Flags:         flags,
 		}
 		// if the first span is a client span we create server span and vice-versa.

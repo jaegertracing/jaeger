@@ -122,7 +122,6 @@ func getTestJaegerSpan() *model.Span {
 	return &model.Span{
 		TraceID:       someTraceID,
 		SpanID:        someSpanID,
-		ParentSpanID:  someParentSpanID,
 		OperationName: someOperationName,
 		References:    someRefs,
 		Flags:         someFlags,
@@ -145,7 +144,6 @@ func getTestSpan() *Span {
 	span := &Span{
 		TraceID:       someDBTraceID,
 		SpanID:        int64(someSpanID),
-		ParentID:      int64(someParentSpanID),
 		OperationName: someOperationName,
 		Flags:         int32(someFlags),
 		StartTime:     int64(model.TimeAsEpochMicroseconds(someStartTime)),
@@ -194,8 +192,11 @@ func TestToSpan(t *testing.T) {
 }
 
 func TestFromSpan(t *testing.T) {
+	testDBSpan := getTestSpan()
+	testDBSpan.ParentID = testDBSpan.Refs[0].SpanID
+	testDBSpan.Refs = nil
 	expectedSpan := getTestJaegerSpan()
-	actualJSpan, err := ToDomain(getTestSpan())
+	actualJSpan, err := ToDomain(testDBSpan)
 	assert.NoError(t, err)
 	if !assert.EqualValues(t, expectedSpan, actualJSpan) {
 		for _, diff := range pretty.Diff(expectedSpan, actualJSpan) {

@@ -53,17 +53,25 @@ func (td toDomain) ToDomainSpan(jSpan *jaeger.Span, jProcess *jaeger.Process) *m
 }
 
 func (td toDomain) transformSpan(jSpan *jaeger.Span, mProcess *model.Process) *model.Span {
+	traceID := model.TraceID{
+		High: uint64(jSpan.TraceIdHigh),
+		Low:  uint64(jSpan.TraceIdLow),
+	}
+	spanID := model.SpanID(jSpan.SpanId)
 	tags := td.getTags(jSpan.Tags)
 	refs := td.getReferences(jSpan.References)
+	// We no longer store ParentSpanID in the domain model, but the data in Thrift model
+	// might still have these IDs without representing them in the References, so we
+	// convert it back into child-of reference.
+	if jSpan.ParentSpanId != 0 {
+		parentSpanID := model.SpanID(jSpan.ParentSpanId)
+		refs = model.MaybeAddParentSpanID(traceID, parentSpanID, refs)
+	}
 	return &model.Span{
-		TraceID: model.TraceID{
-			High: uint64(jSpan.TraceIdHigh),
-			Low:  uint64(jSpan.TraceIdLow),
-		},
-		SpanID:        model.SpanID(jSpan.SpanId),
+		TraceID:       traceID,
+		SpanID:        spanID,
 		OperationName: jSpan.OperationName,
 		References:    refs,
-		ParentSpanID:  model.SpanID(jSpan.GetParentSpanId()),
 		Flags:         model.Flags(jSpan.Flags),
 		StartTime:     model.EpochMicrosecondsAsTime(uint64(jSpan.StartTime)),
 		Duration:      model.MicrosecondsAsDuration(uint64(jSpan.Duration)),

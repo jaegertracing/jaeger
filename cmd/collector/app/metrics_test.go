@@ -43,7 +43,7 @@ func TestProcessorMetrics(t *testing.T) {
 	}
 	jFormat.ReceivedBySvc.ReportServiceNameForSpan(&mSpan)
 	mSpan.Flags.SetDebug()
-	mSpan.ParentSpanID = model.SpanID(1234)
+	mSpan.ReplaceParentID(1234)
 	jFormat.ReceivedBySvc.ReportServiceNameForSpan(&mSpan)
 	counters, gauges := baseMetrics.LocalBackend.Snapshot()
 
