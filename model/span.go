@@ -47,7 +47,6 @@ type SpanID uint64
 type Span struct {
 	TraceID       TraceID       `json:"traceID"`
 	SpanID        SpanID        `json:"spanID"`
-	ParentSpanID  SpanID        `json:"parentSpanID"`
 	OperationName string        `json:"operationName"`
 	References    []SpanRef     `json:"references,omitempty"`
 	Flags         Flags         `json:"flags,omitempty"`
@@ -93,6 +92,31 @@ func (s *Span) NormalizeTimestamps() {
 	for i := range s.Logs {
 		s.Logs[i].Timestamp = s.Logs[i].Timestamp.UTC()
 	}
+}
+
+// ParentSpanID returns ID of a parent span if it exists.
+// It searches for the first child-of reference pointing to the same trace ID.
+func (s *Span) ParentSpanID() SpanID {
+	for i := range s.References {
+		ref := &s.References[i]
+		if ref.TraceID == s.TraceID && ref.RefType == ChildOf {
+			return ref.SpanID
+		}
+	}
+	return SpanID(0)
+}
+
+// ReplaceParentID replaces span ID in the parent span reference.
+// See also ParentSpanID.
+func (s *Span) ReplaceParentID(newParentID SpanID) {
+	oldParentID := s.ParentSpanID()
+	for i := range s.References {
+		if s.References[i].SpanID == oldParentID && s.References[i].TraceID == s.TraceID {
+			s.References[i].SpanID = newParentID
+			return
+		}
+	}
+	s.References = MaybeAddParentSpanID(s.TraceID, newParentID, s.References)
 }
 
 // ------- Flags -------

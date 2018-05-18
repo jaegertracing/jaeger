@@ -29,11 +29,13 @@ const (
 )
 
 func newTrace() *model.Trace {
+	traceID := model.TraceID{Low: 42}
 	return &model.Trace{
 		Spans: []*model.Span{
 			{
 				// client span
-				SpanID: clientSpanID,
+				TraceID: traceID,
+				SpanID:  clientSpanID,
 				Tags: model.KeyValues{
 					// span.kind = client
 					model.String(string(ext.SpanKind), string(ext.SpanKindRPCClientEnum)),
@@ -41,7 +43,8 @@ func newTrace() *model.Trace {
 			},
 			{
 				// server span
-				SpanID: clientSpanID, // shared span ID
+				TraceID: traceID,
+				SpanID:  clientSpanID, // shared span ID
 				Tags: model.KeyValues{
 					// span.kind = server
 					model.String(string(ext.SpanKind), string(ext.SpanKindRPCServerEnum)),
@@ -49,8 +52,9 @@ func newTrace() *model.Trace {
 			},
 			{
 				// some other span, child of server span
-				SpanID:       anotherSpanID,
-				ParentSpanID: clientSpanID,
+				TraceID:    traceID,
+				SpanID:     anotherSpanID,
+				References: []model.SpanRef{model.NewChildOfRef(traceID, clientSpanID)},
 			},
 		},
 	}
@@ -67,11 +71,11 @@ func TestSpanIDDeduperTriggered(t *testing.T) {
 
 	serverSpan := trace.Spans[1]
 	assert.Equal(t, clientSpanID+1, serverSpan.SpanID, "server span ID should be reassigned")
-	assert.Equal(t, clientSpan.SpanID, serverSpan.ParentSpanID, "client span should be server span's parent")
+	assert.Equal(t, clientSpan.SpanID, serverSpan.ParentSpanID(), "client span should be server span's parent")
 
 	thirdSpan := trace.Spans[2]
 	assert.Equal(t, anotherSpanID, thirdSpan.SpanID, "3rd span ID should not change")
-	assert.Equal(t, serverSpan.SpanID, thirdSpan.ParentSpanID, "server span should be 3rd span's parent")
+	assert.Equal(t, serverSpan.SpanID, thirdSpan.ParentSpanID(), "server span should be 3rd span's parent")
 }
 
 func TestSpanIDDeduperNotTriggered(t *testing.T) {
@@ -88,7 +92,7 @@ func TestSpanIDDeduperNotTriggered(t *testing.T) {
 
 	thirdSpan := trace.Spans[1]
 	assert.Equal(t, anotherSpanID, thirdSpan.SpanID, "3rd span ID should not change")
-	assert.Equal(t, serverSpan.SpanID, thirdSpan.ParentSpanID, "server span should be 3rd span's parent")
+	assert.Equal(t, serverSpan.SpanID, thirdSpan.ParentSpanID(), "server span should be 3rd span's parent")
 }
 
 func TestSpanIDDeduperError(t *testing.T) {

@@ -102,12 +102,12 @@ func getSomeProcess() *model.Process {
 }
 
 func getSomeSpan() *model.Span {
+	traceID := model.TraceID{High: 1, Low: 2}
 	return &model.Span{
-		TraceID:       model.TraceID{High: 1, Low: 2},
+		TraceID:       traceID,
 		SpanID:        model.SpanID(3),
-		ParentSpanID:  model.SpanID(4),
 		OperationName: "opName",
-		References:    getReferences(),
+		References:    model.MaybeAddParentSpanID(traceID, 4, getReferences()),
 		Flags:         model.Flags(uint32(5)),
 		StartTime:     time.Now(),
 		Duration:      50000 * time.Microsecond,

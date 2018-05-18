@@ -53,13 +53,14 @@ func TestClockSkewAdjuster(t *testing.T) {
 					Fields:    []model.KeyValue{model.String("event", "some event")},
 				})
 			}
+			traceID := model.TraceID{Low: 1}
 			span := &model.Span{
-				TraceID:      model.TraceID{Low: 1},
-				SpanID:       model.SpanID(spanProto.id),
-				ParentSpanID: model.SpanID(spanProto.parent),
-				StartTime:    toTime(spanProto.startTime),
-				Duration:     toDuration(spanProto.duration),
-				Logs:         logs,
+				TraceID:    traceID,
+				SpanID:     model.SpanID(spanProto.id),
+				References: []model.SpanRef{model.NewChildOfRef(traceID, model.SpanID(spanProto.parent))},
+				StartTime:  toTime(spanProto.startTime),
+				Duration:   toDuration(spanProto.duration),
+				Logs:       logs,
 				Process: &model.Process{
 					ServiceName: spanProto.host,
 					Tags: []model.KeyValue{
