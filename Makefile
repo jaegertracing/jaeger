@@ -17,7 +17,7 @@ GOTEST=go test -v $(RACE)
 GOLINT=golint
 GOVET=go vet
 GOFMT=gofmt
-GAS=gas -quiet -exclude=G104
+GAS=gas -exclude=G104
 FMT_LOG=fmt.log
 LINT_LOG=lint.log
 IMPORT_LOG=import.log
@@ -135,7 +135,7 @@ install-go-bindata:
 
 .PHONY: install-gas
 install-gas:
-	@which glide > /dev/null || go get github.com/GoASTScanner/gas/cmd/gas/...
+	go get github.com/GoASTScanner/gas/cmd/gas/...
 
 .PHONY: build-examples
 build-examples: install-go-bindata
