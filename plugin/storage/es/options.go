@@ -36,6 +36,7 @@ const (
 	suffixBulkWorkers       = ".bulk.workers"
 	suffixBulkActions       = ".bulk.actions"
 	suffixBulkFlushInterval = ".bulk.flush-interval"
+	suffixIndexDateFortmat  = ".index.date-format"
 )
 
 // TODO this should be moved next to config.Configuration struct (maybe ./flags package)
@@ -74,6 +75,7 @@ func NewOptions(primaryNamespace string, otherNamespaces ...string) *Options {
 				BulkWorkers:       1,
 				BulkActions:       1000,
 				BulkFlushInterval: time.Millisecond * 200,
+				IndexDateFormat:   "2006-01-02",
 			},
 			servers:   "http://127.0.0.1:9200",
 			namespace: primaryNamespace,
@@ -141,6 +143,10 @@ func addFlags(flagSet *flag.FlagSet, nsConfig *namespaceConfig) {
 		nsConfig.namespace+suffixBulkFlushInterval,
 		nsConfig.BulkFlushInterval,
 		"A time.Duration after which bulk requests are committed, regardless of other tresholds. Set to zero to disable. By default, this is disabled.")
+	flagSet.String(
+		nsConfig.namespace+suffixIndexDateFortmat,
+		nsConfig.IndexDateFormat,
+		"The date format of the Elasticsearch index names suffix, using Golang date format - https://golang.org/pkg/time/#example_Time_Format")
 }
 
 // InitFromViper initializes Options with properties from viper
@@ -163,6 +169,7 @@ func initFromViper(cfg *namespaceConfig, v *viper.Viper) {
 	cfg.BulkWorkers = v.GetInt(cfg.namespace + suffixBulkWorkers)
 	cfg.BulkActions = v.GetInt(cfg.namespace + suffixBulkActions)
 	cfg.BulkFlushInterval = v.GetDuration(cfg.namespace + suffixBulkFlushInterval)
+	cfg.IndexDateFormat = v.GetString(cfg.namespace + suffixIndexDateFortmat)
 }
 
 // GetPrimary returns primary configuration.

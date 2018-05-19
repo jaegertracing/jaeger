@@ -81,7 +81,7 @@ func (s *ESStorageIntegration) esCleanUp() error {
 func (s *ESStorageIntegration) initSpanstore() {
 	bp, _ := s.client.BulkProcessor().BulkActions(1).FlushInterval(time.Nanosecond).Do(context.Background())
 	client := es.WrapESClient(s.client, bp)
-	s.SpanWriter = spanstore.NewSpanWriter(client, s.logger, metrics.NullFactory, 0, 0)
+	s.SpanWriter = spanstore.NewSpanWriter(client, "2006-01-02", s.logger, metrics.NullFactory, 0, 0)
 	s.SpanReader = spanstore.NewSpanReader(client, s.logger, 72*time.Hour, metrics.NullFactory)
 }
 

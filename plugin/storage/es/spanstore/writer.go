@@ -50,6 +50,7 @@ type serviceWriter func(string, *jModel.Span)
 type SpanWriter struct {
 	ctx           context.Context
 	client        es.Client
+	dateFormat    string // used for elasticsearch rolling index name suffix
 	logger        *zap.Logger
 	writerMetrics spanWriterMetrics // TODO: build functions to wrap around each Do fn
 	indexCache    cache.Cache
@@ -76,6 +77,7 @@ type Span struct {
 // NewSpanWriter creates a new SpanWriter for use
 func NewSpanWriter(
 	client es.Client,
+	dateFormat string,
 	logger *zap.Logger,
 	metricsFactory metrics.Factory,
 	numShards int64,
@@ -89,9 +91,10 @@ func NewSpanWriter(
 	// TODO: Configurable TTL
 	serviceOperationStorage := NewServiceOperationStorage(ctx, client, metricsFactory, logger, time.Hour*12)
 	return &SpanWriter{
-		ctx:    ctx,
-		client: client,
-		logger: logger,
+		ctx:        ctx,
+		client:     client,
+		dateFormat: dateFormat,
+		logger:     logger,
 		writerMetrics: spanWriterMetrics{
 			indexCreate: storageMetrics.NewWriteMetrics(metricsFactory, "IndexCreate"),
 		},
@@ -109,7 +112,7 @@ func NewSpanWriter(
 
 // WriteSpan writes a span and its corresponding service:operation in ElasticSearch
 func (s *SpanWriter) WriteSpan(span *model.Span) error {
-	spanIndexName, serviceIndexName := indexNames(span)
+	spanIndexName, serviceIndexName := indexNames(span, s.dateFormat)
 	// Convert model.Span into json.Span
 	jsonSpan := json.FromDomainEmbedProcess(span)
 
@@ -129,8 +132,8 @@ func (s *SpanWriter) Close() error {
 	return s.client.Close()
 }
 
-func indexNames(span *model.Span) (string, string) {
-	spanDate := span.StartTime.UTC().Format("2006-01-02")
+func indexNames(span *model.Span, dateFormat string) (string, string) {
+	spanDate := span.StartTime.UTC().Format(dateFormat)
 	return spanIndexPrefix + spanDate, serviceIndexPrefix + spanDate
 }
 

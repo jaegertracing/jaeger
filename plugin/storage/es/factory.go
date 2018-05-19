@@ -80,7 +80,7 @@ func (f *Factory) CreateSpanReader() (spanstore.Reader, error) {
 // CreateSpanWriter implements storage.Factory
 func (f *Factory) CreateSpanWriter() (spanstore.Writer, error) {
 	cfg := f.primaryConfig
-	return esSpanStore.NewSpanWriter(f.primaryClient, f.logger, f.metricsFactory, cfg.GetNumShards(), cfg.GetNumReplicas()), nil
+	return esSpanStore.NewSpanWriter(f.primaryClient, cfg.GetIndexDateFormat(), f.logger, f.metricsFactory, cfg.GetNumShards(), cfg.GetNumReplicas()), nil
 }
 
 // CreateDependencyReader implements storage.Factory

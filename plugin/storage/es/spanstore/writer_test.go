@@ -48,12 +48,18 @@ func withSpanWriter(fn func(w *spanWriterTest)) {
 		client:    client,
 		logger:    logger,
 		logBuffer: logBuffer,
-		writer:    NewSpanWriter(client, logger, metricsFactory, 0, 0),
+		writer:    NewSpanWriter(client, "2006-01-02", logger, metricsFactory, 0, 0),
 	}
 	fn(w)
 }
 
 var _ spanstore.Writer = &SpanWriter{} // check API conformance
+
+func TestWithDateFormat(t *testing.T) {
+	withSpanWriter(func(w *spanWriterTest) {
+		assert.Equal(t, "2006-01-02", w.writer.dateFormat, "Span writer index date format")
+	})
+}
 
 func TestClientClose(t *testing.T) {
 	withSpanWriter(func(w *spanWriterTest) {
@@ -200,9 +206,37 @@ func TestSpanIndexName(t *testing.T) {
 	span := &model.Span{
 		StartTime: date,
 	}
-	spanIndexName, serviceIndexName := indexNames(span)
-	assert.Equal(t, "jaeger-span-1995-04-21", spanIndexName)
-	assert.Equal(t, "jaeger-service-1995-04-21", serviceIndexName)
+
+	data := []struct {
+		caption string
+
+		dateFormat string
+
+		expectedSpanIndexName    string
+		expectedServiceIndexName string
+	}{
+		{
+			caption:                  "WithDefaultDateFormat",
+			dateFormat:               "2006-01-02",
+			expectedSpanIndexName:    "jaeger-span-1995-04-21",
+			expectedServiceIndexName: "jaeger-service-1995-04-21",
+		},
+		{
+			caption:                  "WithCustomDateFormat",
+			dateFormat:               "2006.01.02",
+			expectedSpanIndexName:    "jaeger-span-1995.04.21",
+			expectedServiceIndexName: "jaeger-service-1995.04.21",
+		},
+	}
+
+	for _, tt := range data {
+		t.Run(tt.caption, func(t *testing.T) {
+			spanIndexName, serviceIndexName := indexNames(span, tt.dateFormat)
+			assert.Equal(t, tt.expectedSpanIndexName, spanIndexName)
+			assert.Equal(t, tt.expectedServiceIndexName, serviceIndexName)
+		})
+	}
+
 }
 
 func TestFixMapping(t *testing.T) {
