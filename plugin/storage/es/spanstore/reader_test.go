@@ -97,6 +97,7 @@ func withSpanReader(fn func(r *spanReaderTest)) {
 			MaxSpanAge:        0,
 			IndexPrefix:       "",
 			TagDotReplacement: "@",
+			DateFormat:        "2006-01-02",
 		}),
 	}
 	fn(r)
@@ -320,24 +321,24 @@ func TestSpanReaderFindIndices(t *testing.T) {
 			startTime: today.Add(-time.Millisecond),
 			endTime:   today,
 			expected: []string{
-				indexWithDate(spanIndex, today),
+				indexWithDate(spanIndex, today, "2006-01-02"),
 			},
 		},
 		{
 			startTime: today.Add(-13 * time.Hour),
 			endTime:   today,
 			expected: []string{
-				indexWithDate(spanIndex, today),
-				indexWithDate(spanIndex, yesterday),
+				indexWithDate(spanIndex, today, "2006-01-02"),
+				indexWithDate(spanIndex, yesterday, "2006-01-02"),
 			},
 		},
 		{
 			startTime: today.Add(-48 * time.Hour),
 			endTime:   today,
 			expected: []string{
-				indexWithDate(spanIndex, today),
-				indexWithDate(spanIndex, yesterday),
-				indexWithDate(spanIndex, twoDaysAgo),
+				indexWithDate(spanIndex, today, "2006-01-02"),
+				indexWithDate(spanIndex, yesterday, "2006-01-02"),
+				indexWithDate(spanIndex, twoDaysAgo, "2006-01-02"),
 			},
 		},
 	}
@@ -351,7 +352,7 @@ func TestSpanReaderFindIndices(t *testing.T) {
 
 func TestSpanReader_indexWithDate(t *testing.T) {
 	withSpanReader(func(r *spanReaderTest) {
-		actual := indexWithDate(spanIndex, time.Date(1995, time.April, 21, 4, 21, 19, 95, time.UTC))
+		actual := indexWithDate(spanIndex, time.Date(1995, time.April, 21, 4, 21, 19, 95, time.UTC), "2006-01-02")
 		assert.Equal(t, "jaeger-span-1995-04-21", actual)
 	})
 }

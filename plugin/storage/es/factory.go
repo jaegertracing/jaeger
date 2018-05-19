@@ -85,6 +85,7 @@ func (f *Factory) CreateSpanReader() (spanstore.Reader, error) {
 		MaxSpanAge:        cfg.GetMaxSpanAge(),
 		IndexPrefix:       cfg.GetIndexPrefix(),
 		TagDotReplacement: cfg.GetTagDotReplacement(),
+		DateFormat:        cfg.GetIndexDateFormat(),
 	}), nil
 }
 
@@ -99,6 +100,7 @@ func (f *Factory) CreateSpanWriter() (spanstore.Writer, error) {
 			return nil, err
 		}
 	}
+	// add format
 	return esSpanStore.NewSpanWriter(esSpanStore.SpanWriterParams{Client: f.primaryClient,
 		Logger:            f.logger,
 		MetricsFactory:    f.metricsFactory,
@@ -108,6 +110,7 @@ func (f *Factory) CreateSpanWriter() (spanstore.Writer, error) {
 		AllTagsAsFields:   f.primaryConfig.GetAllTagsAsFields(),
 		TagKeysAsFields:   tags,
 		TagDotReplacement: f.primaryConfig.GetTagDotReplacement(),
+		DateFormat:        f.primaryConfig.GetIndexDateFormat(),
 	}), nil
 }
 

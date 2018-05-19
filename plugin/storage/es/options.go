@@ -46,6 +46,7 @@ const (
 	suffixTagsAsFieldsAll   = suffixTagsAsFields + ".all"
 	suffixTagsFile          = suffixTagsAsFields + ".config-file"
 	suffixTagDeDotChar      = suffixTagsAsFields + ".dot-replacement"
+	suffixIndexDateFortmat  = ".index.date-format"
 )
 
 // TODO this should be moved next to config.Configuration struct (maybe ./flags package)
@@ -85,6 +86,7 @@ func NewOptions(primaryNamespace string, otherNamespaces ...string) *Options {
 				BulkActions:       1000,
 				BulkFlushInterval: time.Millisecond * 200,
 				TagDotReplacement: "@",
+				IndexDateFormat:   "2006-01-02",
 			},
 			servers:   "http://127.0.0.1:9200",
 			namespace: primaryNamespace,
@@ -188,6 +190,10 @@ func addFlags(flagSet *flag.FlagSet, nsConfig *namespaceConfig) {
 		nsConfig.namespace+suffixTagDeDotChar,
 		nsConfig.TagDotReplacement,
 		"(experimental) The character used to replace dots (\".\") in tag keys stored as object fields.")
+	flagSet.String(
+		nsConfig.namespace+suffixIndexDateFortmat,
+		nsConfig.IndexDateFormat,
+		"The date format of the Elasticsearch index names suffix, using Golang date format - https://golang.org/pkg/time/#example_Time_Format")
 }
 
 // InitFromViper initializes Options with properties from viper
@@ -219,6 +225,7 @@ func initFromViper(cfg *namespaceConfig, v *viper.Viper) {
 	cfg.AllTagsAsFields = v.GetBool(cfg.namespace + suffixTagsAsFieldsAll)
 	cfg.TagsFilePath = v.GetString(cfg.namespace + suffixTagsFile)
 	cfg.TagDotReplacement = v.GetString(cfg.namespace + suffixTagDeDotChar)
+	cfg.IndexDateFormat = v.GetString(cfg.namespace + suffixIndexDateFortmat)
 }
 
 // GetPrimary returns primary configuration.

@@ -16,6 +16,7 @@ package spanstore
 
 import (
 	"context"
+	"fmt"
 	"strconv"
 	"strings"
 	"time"
@@ -58,6 +59,7 @@ type SpanWriter struct {
 	spanIndexPrefix    string
 	serviceIndexPrefix string
 	spanConverter      dbmodel.FromDomain
+	dateFormat         string // used for elasticsearch rolling index name suffix
 }
 
 // SpanWriterParams holds constructor parameters for NewSpanWriter
@@ -71,6 +73,7 @@ type SpanWriterParams struct {
 	AllTagsAsFields   bool
 	TagKeysAsFields   []string
 	TagDotReplacement string
+	DateFormat        string
 }
 
 // NewSpanWriter creates a new SpanWriter for use
@@ -86,9 +89,10 @@ func NewSpanWriter(p SpanWriterParams) *SpanWriter {
 		p.IndexPrefix += ":"
 	}
 	return &SpanWriter{
-		ctx:    ctx,
-		client: p.Client,
-		logger: p.Logger,
+		ctx:        ctx,
+		client:     p.Client,
+		logger:     p.Logger,
+		dateFormat: p.DateFormat,
 		writerMetrics: spanWriterMetrics{
 			indexCreate: storageMetrics.NewWriteMetrics(p.MetricsFactory, "index_create"),
 		},
@@ -109,9 +113,8 @@ func NewSpanWriter(p SpanWriterParams) *SpanWriter {
 
 // WriteSpan writes a span and its corresponding service:operation in ElasticSearch
 func (s *SpanWriter) WriteSpan(span *model.Span) error {
-	spanIndexName := indexWithDate(s.spanIndexPrefix, span.StartTime)
-	serviceIndexName := indexWithDate(s.serviceIndexPrefix, span.StartTime)
-
+	serviceIndexName := indexWithDate(s.serviceIndexPrefix, span.StartTime, s.dateFormat)
+	spanIndexName := indexWithDate(s.spanIndexPrefix, span.StartTime, s.dateFormat)
 	jsonSpan := s.spanConverter.FromDomainEmbedProcess(span)
 
 	if err := s.createIndex(serviceIndexName, serviceMapping, jsonSpan); err != nil {
@@ -130,9 +133,11 @@ func (s *SpanWriter) Close() error {
 	return s.client.Close()
 }
 
-func indexWithDate(indexPrefix string, date time.Time) string {
-	spanDate := date.UTC().Format("2006-01-02")
-	return indexPrefix + spanDate
+func indexWithDate(indexPrefix string, date time.Time, dateFormat string) string {
+	spanDate := date.UTC().Format(dateFormat)
+	r := indexPrefix + spanDate
+	fmt.Println(r)
+	return r
 }
 
 func (s *SpanWriter) createIndex(indexName string, mapping string, jsonSpan *dbmodel.Span) error {

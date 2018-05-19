@@ -96,6 +96,7 @@ type SpanReader struct {
 	spanIndexPrefix         string
 	serviceIndexPrefix      string
 	spanConverter           dbmodel.ToDomain
+	dateFormat              string
 }
 
 // SpanReaderParams holds constructor params for NewSpanReader
@@ -107,6 +108,7 @@ type SpanReaderParams struct {
 	serviceOperationStorage *ServiceOperationStorage
 	IndexPrefix             string
 	TagDotReplacement       string
+	DateFormat              string
 }
 
 // NewSpanReader returns a new SpanReader with a metrics.
@@ -128,6 +130,7 @@ func newSpanReader(p SpanReaderParams) *SpanReader {
 		spanIndexPrefix:         p.IndexPrefix + spanIndex,
 		serviceIndexPrefix:      p.IndexPrefix + serviceIndex,
 		spanConverter:           dbmodel.NewToDomain(p.TagDotReplacement),
+		dateFormat:              p.DateFormat,
 	}
 }
 
@@ -176,12 +179,12 @@ func (s *SpanReader) unmarshalJSONSpan(esSpanRaw *elastic.SearchHit) (*dbmodel.S
 // Returns the array of indices that we need to query, based on query params
 func (s *SpanReader) indicesForTimeRange(indexName string, startTime time.Time, endTime time.Time) []string {
 	var indices []string
-	firstIndex := indexWithDate(indexName, startTime)
-	currentIndex := indexWithDate(indexName, endTime)
+	firstIndex := indexWithDate(indexName, startTime, s.dateFormat)
+	currentIndex := indexWithDate(indexName, endTime, s.dateFormat)
 	for currentIndex != firstIndex {
 		indices = append(indices, currentIndex)
 		endTime = endTime.Add(-24 * time.Hour)
-		currentIndex = indexWithDate(indexName, endTime)
+		currentIndex = indexWithDate(indexName, endTime, s.dateFormat)
 	}
 	return append(indices, firstIndex)
 }

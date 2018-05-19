@@ -42,6 +42,7 @@ const (
 	password        = "changeme" // the elasticsearch default password
 	indexPrefix     = "integration-test"
 	tagKeyDeDotChar = "@"
+	dateFormat      = "2006-01-02"
 )
 
 type ESStorageIntegration struct {
@@ -95,6 +96,7 @@ func (s *ESStorageIntegration) initSpanstore(allTagsAsFields bool) {
 			IndexPrefix:       indexPrefix,
 			AllTagsAsFields:   allTagsAsFields,
 			TagDotReplacement: tagKeyDeDotChar,
+			DateFormat:        dateFormat,
 		})
 	s.SpanReader = spanstore.NewSpanReader(spanstore.SpanReaderParams{
 		Client:            client,
@@ -103,6 +105,7 @@ func (s *ESStorageIntegration) initSpanstore(allTagsAsFields bool) {
 		IndexPrefix:       indexPrefix,
 		MaxSpanAge:        72 * time.Hour,
 		TagDotReplacement: tagKeyDeDotChar,
+		DateFormat:        dateFormat,
 	})
 }
 

@@ -50,6 +50,7 @@ type Configuration struct {
 	TagsFilePath      string
 	AllTagsAsFields   bool
 	TagDotReplacement string
+	IndexDateFormat   string
 	TLS               TLSConfig
 }
 
@@ -64,6 +65,7 @@ type TLSConfig struct {
 // ClientBuilder creates new es.Client
 type ClientBuilder interface {
 	NewClient(logger *zap.Logger, metricsFactory metrics.Factory) (es.Client, error)
+	GetIndexDateFormat() string
 	GetNumShards() int64
 	GetNumReplicas() int64
 	GetMaxSpanAge() time.Duration
@@ -168,6 +170,14 @@ func (c *Configuration) ApplyDefaults(source *Configuration) {
 	if c.BulkFlushInterval == 0 {
 		c.BulkFlushInterval = source.BulkFlushInterval
 	}
+	if c.IndexDateFormat == "" {
+		c.IndexDateFormat = source.IndexDateFormat
+	}
+}
+
+// GetIndexDateFormat returns the Elasticsearch index name date format
+func (c *Configuration) GetIndexDateFormat() string {
+	return c.IndexDateFormat
 }
 
 // GetNumShards returns number of shards from Configuration
