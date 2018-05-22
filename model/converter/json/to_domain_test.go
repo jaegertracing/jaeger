@@ -28,10 +28,20 @@ import (
 	jModel "github.com/jaegertracing/jaeger/model/json"
 )
 
-func TestToDomainEmbeddedProcess(t *testing.T) {
+func TestToDomain(t *testing.T) {
+	testToDomain(t, false)
+	testToDomain(t, true)
+	// this is just to confirm the uint64 representation of float64(72.5) used as a "temperature" tag
+	assert.Equal(t, int64(4634802150889750528), int64(math.Float64bits(72.5)))
+}
+
+func testToDomain(t *testing.T, testParentSpanID bool) {
 	for i := 1; i <= NumberOfFixtures; i++ {
-		span, err := createGoodSpan(i)
+		span, err := loadESSpanFixture(i)
 		require.NoError(t, err)
+		if testParentSpanID {
+			span.ParentSpanID = "3"
+		}
 
 		actualSpan, err := SpanToDomain(&span)
 		require.NoError(t, err)
@@ -44,11 +54,9 @@ func TestToDomainEmbeddedProcess(t *testing.T) {
 
 		CompareModelSpans(t, &expectedSpan, actualSpan)
 	}
-	// this is just to confirm the uint64 representation of float64(72.5) used as a "temperature" tag
-	assert.Equal(t, int64(4634802150889750528), int64(math.Float64bits(72.5)))
 }
 
-func createGoodSpan(i int) (jModel.Span, error) {
+func loadESSpanFixture(i int) (jModel.Span, error) {
 	in := fmt.Sprintf("fixtures/es_%02d.json", i)
 	inStr, err := ioutil.ReadFile(in)
 	if err != nil {
@@ -72,7 +80,7 @@ func failingSpanTransformAnyMsg(t *testing.T, embeddedSpan *jModel.Span) {
 }
 
 func TestFailureBadTypeTags(t *testing.T) {
-	badTagESSpan, err := createGoodSpan(1)
+	badTagESSpan, err := loadESSpanFixture(1)
 	require.NoError(t, err)
 
 	badTagESSpan.Tags = []jModel.KeyValue{
@@ -85,7 +93,7 @@ func TestFailureBadTypeTags(t *testing.T) {
 }
 
 func TestFailureBadBoolTags(t *testing.T) {
-	badTagESSpan, err := createGoodSpan(1)
+	badTagESSpan, err := loadESSpanFixture(1)
 	require.NoError(t, err)
 
 	badTagESSpan.Tags = []jModel.KeyValue{
@@ -99,7 +107,7 @@ func TestFailureBadBoolTags(t *testing.T) {
 }
 
 func TestFailureBadIntTags(t *testing.T) {
-	badTagESSpan, err := createGoodSpan(1)
+	badTagESSpan, err := loadESSpanFixture(1)
 	require.NoError(t, err)
 
 	badTagESSpan.Tags = []jModel.KeyValue{
@@ -113,7 +121,7 @@ func TestFailureBadIntTags(t *testing.T) {
 }
 
 func TestFailureBadFloatTags(t *testing.T) {
-	badTagESSpan, err := createGoodSpan(1)
+	badTagESSpan, err := loadESSpanFixture(1)
 	require.NoError(t, err)
 
 	badTagESSpan.Tags = []jModel.KeyValue{
@@ -127,7 +135,7 @@ func TestFailureBadFloatTags(t *testing.T) {
 }
 
 func TestFailureBadBinaryTags(t *testing.T) {
-	badTagESSpan, err := createGoodSpan(1)
+	badTagESSpan, err := loadESSpanFixture(1)
 	require.NoError(t, err)
 
 	badTagESSpan.Tags = []jModel.KeyValue{
@@ -141,7 +149,7 @@ func TestFailureBadBinaryTags(t *testing.T) {
 }
 
 func TestFailureBadLogs(t *testing.T) {
-	badLogsESSpan, err := createGoodSpan(1)
+	badLogsESSpan, err := loadESSpanFixture(1)
 	require.NoError(t, err)
 	badLogsESSpan.Logs = []jModel.Log{
 		{
@@ -169,7 +177,7 @@ func TestRevertKeyValueOfType(t *testing.T) {
 }
 
 func TestFailureBadRefs(t *testing.T) {
-	badRefsESSpan, err := createGoodSpan(1)
+	badRefsESSpan, err := loadESSpanFixture(1)
 	require.NoError(t, err)
 	badRefsESSpan.References = []jModel.Reference{
 		{
@@ -181,7 +189,7 @@ func TestFailureBadRefs(t *testing.T) {
 }
 
 func TestFailureBadTraceIDRefs(t *testing.T) {
-	badRefsESSpan, err := createGoodSpan(1)
+	badRefsESSpan, err := loadESSpanFixture(1)
 	require.NoError(t, err)
 	badRefsESSpan.References = []jModel.Reference{
 		{
@@ -194,7 +202,7 @@ func TestFailureBadTraceIDRefs(t *testing.T) {
 }
 
 func TestFailureBadSpanIDRefs(t *testing.T) {
-	badRefsESSpan, err := createGoodSpan(1)
+	badRefsESSpan, err := loadESSpanFixture(1)
 	require.NoError(t, err)
 	badRefsESSpan.References = []jModel.Reference{
 		{
@@ -207,7 +215,7 @@ func TestFailureBadSpanIDRefs(t *testing.T) {
 }
 
 func TestFailureBadProcess(t *testing.T) {
-	badProcessESSpan, err := createGoodSpan(1)
+	badProcessESSpan, err := loadESSpanFixture(1)
 	require.NoError(t, err)
 
 	badTags := []jModel.KeyValue{
@@ -224,7 +232,7 @@ func TestFailureBadProcess(t *testing.T) {
 }
 
 func TestProcessPointer(t *testing.T) {
-	badProcessESSpan, err := createGoodSpan(1)
+	badProcessESSpan, err := loadESSpanFixture(1)
 	require.NoError(t, err)
 
 	badProcessESSpan.Process = nil
@@ -232,21 +240,21 @@ func TestProcessPointer(t *testing.T) {
 }
 
 func TestFailureBadTraceID(t *testing.T) {
-	badTraceIDESSpan, err := createGoodSpan(1)
+	badTraceIDESSpan, err := loadESSpanFixture(1)
 	require.NoError(t, err)
 	badTraceIDESSpan.TraceID = "zz"
 	failingSpanTransformAnyMsg(t, &badTraceIDESSpan)
 }
 
 func TestFailureBadSpanID(t *testing.T) {
-	badSpanIDESSpan, err := createGoodSpan(1)
+	badSpanIDESSpan, err := loadESSpanFixture(1)
 	require.NoError(t, err)
 	badSpanIDESSpan.SpanID = "zz"
 	failingSpanTransformAnyMsg(t, &badSpanIDESSpan)
 }
 
 func TestFailureBadParentSpanID(t *testing.T) {
-	badParentSpanIDESSpan, err := createGoodSpan(1)
+	badParentSpanIDESSpan, err := loadESSpanFixture(1)
 	require.NoError(t, err)
 	badParentSpanIDESSpan.ParentSpanID = "zz"
 	failingSpanTransformAnyMsg(t, &badParentSpanIDESSpan)

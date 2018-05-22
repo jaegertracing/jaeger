@@ -58,15 +58,18 @@ func (td toDomain) spanToDomain(dbSpan *json.Span) (*model.Span, error) {
 	if err != nil {
 		return nil, err
 	}
-	parentSpanIDInt, err := model.SpanIDFromString(string(dbSpan.ParentSpanID))
-	if err != nil {
-		return nil, err
+
+	if dbSpan.ParentSpanID != "" {
+		parentSpanID, err := model.SpanIDFromString(string(dbSpan.ParentSpanID))
+		if err != nil {
+			return nil, err
+		}
+		refs = model.MaybeAddParentSpanID(traceID, parentSpanID, refs)
 	}
 
 	span := &model.Span{
 		TraceID:       traceID,
 		SpanID:        model.SpanID(spanIDInt),
-		ParentSpanID:  model.SpanID(parentSpanIDInt),
 		OperationName: dbSpan.OperationName,
 		References:    refs,
 		Flags:         model.Flags(uint32(dbSpan.Flags)),

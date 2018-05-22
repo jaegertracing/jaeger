@@ -14,11 +14,6 @@
 
 package json
 
-import (
-	"encoding/json"
-	"io/ioutil"
-)
-
 // ReferenceType is the reference type of one span to another
 type ReferenceType string
 
@@ -68,7 +63,7 @@ type Trace struct {
 type Span struct {
 	TraceID       TraceID     `json:"traceID"`
 	SpanID        SpanID      `json:"spanID"`
-	ParentSpanID  SpanID      `json:"parentSpanID,omitempty"`
+	ParentSpanID  SpanID      `json:"parentSpanID,omitempty"` // deprecated
 	Flags         uint32      `json:"flags,omitempty"`
 	OperationName string      `json:"operationName"`
 	References    []Reference `json:"references"`
@@ -112,19 +107,4 @@ type DependencyLink struct {
 	Parent    string `json:"parent"`
 	Child     string `json:"child"`
 	CallCount uint64 `json:"callCount"`
-}
-
-// FromFile reads a Trace from a JSON file.
-// Mostly this exists to have some code aside from struct declaration,
-// as otherwise code coverate is reported as 0%.
-func FromFile(filename string) (*Trace, error) {
-	in, err := ioutil.ReadFile(filename)
-	if err != nil {
-		return nil, err
-	}
-	var trace Trace
-	if err := json.Unmarshal(in, &trace); err != nil {
-		return nil, err
-	}
-	return &trace, nil
 }

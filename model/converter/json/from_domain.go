@@ -77,7 +77,7 @@ func (fd fromDomain) convertSpan(span *model.Span, processID json.ProcessID) jso
 	s := fd.convertSpanInternal(span)
 	s.ProcessID = processID
 	s.Warnings = span.Warnings
-	s.References = fd.convertReferences(span, false)
+	s.References = fd.convertReferences(span)
 	return s
 }
 
@@ -85,36 +85,17 @@ func (fd fromDomain) convertSpanEmbedProcess(span *model.Span) *json.Span {
 	s := fd.convertSpanInternal(span)
 	process := fd.convertProcess(span.Process)
 	s.Process = &process
-	s.ParentSpanID = json.SpanID(span.ParentSpanID.String())
-	s.References = fd.convertReferences(span, true)
+	s.References = fd.convertReferences(span)
 	return &s
 }
 
-// when preserveParentID==false the parent ID is converted to a CHILD_OF reference
-func (fd fromDomain) convertReferences(span *model.Span, preserveParentID bool) []json.Reference {
-	length := len(span.References)
-	if span.ParentSpanID != 0 && !preserveParentID {
-		length++
-	}
-	out := make([]json.Reference, 0, length)
-	var parentRefAdded bool
+func (fd fromDomain) convertReferences(span *model.Span) []json.Reference {
+	out := make([]json.Reference, 0, len(span.References))
 	for _, ref := range span.References {
 		out = append(out, json.Reference{
 			RefType: fd.convertRefType(ref.RefType),
 			TraceID: json.TraceID(ref.TraceID.String()),
 			SpanID:  json.SpanID(ref.SpanID.String()),
-		})
-		if ref.TraceID == span.TraceID && ref.SpanID == span.ParentSpanID {
-			parentRefAdded = true
-		}
-	}
-	if span.ParentSpanID != 0 && !preserveParentID && !parentRefAdded {
-		// By this point, if ParentSpanID != 0 but there are no other references,
-		// then the ParentSpanID does refer to child-of type
-		out = append(out, json.Reference{
-			RefType: json.ChildOf,
-			TraceID: json.TraceID(span.TraceID.String()),
-			SpanID:  json.SpanID(span.ParentSpanID.String()),
 		})
 	}
 	return out

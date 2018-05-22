@@ -60,3 +60,21 @@ func TestSpanRefTypeToFromJSON(t *testing.T) {
 	err = json.Unmarshal([]byte(`{"refType":"BAD"}`), &sr3)
 	assert.EqualError(t, err, "not a valid SpanRefType string BAD")
 }
+
+func TestMaybeAddParentSpanID(t *testing.T) {
+	span := makeSpan(model.String("k", "v"))
+	assert.Equal(t, model.SpanID(123), span.ParentSpanID())
+
+	span.References = model.MaybeAddParentSpanID(span.TraceID, 0, span.References)
+	assert.Equal(t, model.SpanID(123), span.ParentSpanID())
+
+	span.References = model.MaybeAddParentSpanID(span.TraceID, 123, span.References)
+	assert.Equal(t, model.SpanID(123), span.ParentSpanID())
+
+	span.References = model.MaybeAddParentSpanID(span.TraceID, 123, []model.SpanRef{})
+	assert.Equal(t, model.SpanID(123), span.ParentSpanID())
+
+	span.References = []model.SpanRef{model.NewChildOfRef(model.TraceID{High: 42}, 789)}
+	span.References = model.MaybeAddParentSpanID(span.TraceID, 123, span.References)
+	assert.Equal(t, model.SpanID(123), span.References[0].SpanID, "parent added as first reference")
+}

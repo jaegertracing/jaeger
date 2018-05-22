@@ -70,7 +70,13 @@
     {
       "traceID": "1",
       "spanID": "3",
-      "parentSpanID": "2",
+      "references": [
+          {
+              "refType": "child-of",
+              "traceID": "1",
+              "spanID": "2"
+          }
+      ],
       "operationName": "some-operation",
       "startTime": "2017-01-26T16:46:31.639875139-05:00",
       "duration": 5000,
@@ -111,7 +117,6 @@
     {
       "traceID": "1",
       "spanID": "5",
-      "parentSpanID": "4",
       "operationName": "preserveParentID-test",
       "references": [
         {

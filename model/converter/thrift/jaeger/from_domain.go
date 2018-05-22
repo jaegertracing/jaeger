@@ -140,7 +140,7 @@ func (d domainToJaegerTransformer) transformSpan(span *model.Span) *jaeger.Span 
 		TraceIdLow:    int64(span.TraceID.Low),
 		TraceIdHigh:   int64(span.TraceID.High),
 		SpanId:        int64(span.SpanID),
-		ParentSpanId:  int64(span.ParentSpanID),
+		ParentSpanId:  int64(span.ParentSpanID()),
 		OperationName: span.OperationName,
 		References:    refs,
 		Flags:         int32(span.Flags),
