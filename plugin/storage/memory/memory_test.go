@@ -169,6 +169,37 @@ func TestStoreWriteSpan(t *testing.T) {
 	})
 }
 
+func TestStoreWithLimit(t *testing.T) {
+	store := WithLimit(2)
+
+	var ids = []*model.TraceID{
+		{
+			High: 1,
+			Low:  1,
+		},
+		{
+			High: 1,
+			Low:  2,
+		},
+		{
+			High: 1,
+			Low:  3,
+		},
+	}
+	for _, id := range ids {
+		err := store.WriteSpan(&model.Span{
+			TraceID: *id,
+			Process: &model.Process{
+				ServiceName: "TestStoreWithLimit",
+			},
+		})
+		assert.NoError(t, err)
+	}
+
+	assert.Equal(t, 2, len(store.traces))
+	assert.Equal(t, 2, len(store.ids))
+}
+
 func TestStoreGetTraceSuccess(t *testing.T) {
 	withPopulatedMemoryStore(func(store *Store) {
 		trace, err := store.GetTrace(testingSpan.TraceID)

@@ -26,23 +26,38 @@ import (
 
 var errTraceNotFound = errors.New("Trace was not found")
 
-// Store is an unbounded in-memory store of traces
+// Store is an in-memory store of traces
 type Store struct {
-	// TODO: make this a bounded memory store
 	sync.RWMutex
+	ids        []*model.TraceID
 	traces     map[model.TraceID]*model.Trace
 	services   map[string]struct{}
 	operations map[string]map[string]struct{}
 	deduper    adjuster.Adjuster
+	limit      int
 }
 
-// NewStore creates an in-memory store
+// NewStore creates an unbounded in-memory store
 func NewStore() *Store {
 	return &Store{
+		ids:        make([]*model.TraceID, 0),
 		traces:     map[model.TraceID]*model.Trace{},
 		services:   map[string]struct{}{},
 		operations: map[string]map[string]struct{}{},
 		deduper:    adjuster.SpanIDDeduper(),
+		limit:      0,
+	}
+}
+
+// WithLimit creates a bounded in-memory store
+func WithLimit(limit int) *Store {
+	return &Store{
+		ids:        make([]*model.TraceID, 0),
+		traces:     map[model.TraceID]*model.Trace{},
+		services:   map[string]struct{}{},
+		operations: map[string]map[string]struct{}{},
+		deduper:    adjuster.SpanIDDeduper(),
+		limit:      limit,
 	}
 }
 
@@ -115,6 +130,17 @@ func (m *Store) WriteSpan(span *model.Span) error {
 		m.traces[span.TraceID] = &model.Trace{}
 	}
 	m.traces[span.TraceID].Spans = append(m.traces[span.TraceID].Spans, span)
+	m.ids = append(m.ids, &span.TraceID)
+
+	// if we have a limit, let's cleanup the oldest traces
+	if m.limit > 0 {
+		// this would usually only remove one trace at a time
+		for i := len(m.traces) - m.limit; i > 0; i-- {
+			id := m.ids[0]
+			delete(m.traces, *id)
+			m.ids = m.ids[1:]
+		}
+	}
 
 	return nil
 }
