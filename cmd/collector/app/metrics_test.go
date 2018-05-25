@@ -65,9 +65,9 @@ func TestNewCountsBySvc(t *testing.T) {
 	metrics.countByServiceName("zoidberg", false)
 
 	counters, _ := baseMetrics.LocalBackend.Snapshot()
-	assert.EqualValues(t, 1, counters["fry|debug=false"])
-	assert.EqualValues(t, 1, counters["leela|debug=false"])
-	assert.EqualValues(t, 2, counters["other-services|debug=false"])
+	assert.EqualValues(t, 1, counters["|debug=false|service=fry"])
+	assert.EqualValues(t, 1, counters["|debug=false|service=leela"])
+	assert.EqualValues(t, 2, counters["|debug=false|service=other-services"])
 
 	metrics.countByServiceName("zoidberg", true)
 	metrics.countByServiceName("bender", true)
@@ -75,7 +75,7 @@ func TestNewCountsBySvc(t *testing.T) {
 	metrics.countByServiceName("fry", true)
 
 	counters, _ = baseMetrics.LocalBackend.Snapshot()
-	assert.EqualValues(t, 1, counters["zoidberg|debug=true"])
-	assert.EqualValues(t, 1, counters["bender|debug=true"])
-	assert.EqualValues(t, 2, counters["other-services|debug=true"])
+	assert.EqualValues(t, 1, counters["|debug=true|service=zoidberg"])
+	assert.EqualValues(t, 1, counters["|debug=true|service=bender"])
+	assert.EqualValues(t, 2, counters["|debug=true|service=other-services"])
 }

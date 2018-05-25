@@ -105,10 +105,10 @@ func newMetricsBySvc(factory metrics.Factory, category string) metricsBySvc {
 func newCountsBySvc(factory metrics.Factory, maxServiceNames int) countsBySvc {
 	return countsBySvc{
 		counts: map[string]metrics.Counter{
-			otherServices: factory.Counter(otherServices, map[string]string{"debug": "false"}),
+			otherServices: factory.Counter("", map[string]string{"service": otherServices, "debug": "false"}),
 		},
 		debugCounts: map[string]metrics.Counter{
-			otherServices: factory.Counter(otherServices, map[string]string{"debug": "true"}),
+			otherServices: factory.Counter("", map[string]string{"service": otherServices, "debug": "true"}),
 		},
 		factory:         factory,
 		lock:            &sync.Mutex{},
