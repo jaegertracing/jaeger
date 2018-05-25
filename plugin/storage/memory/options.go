@@ -22,7 +22,7 @@ import (
 	"github.com/jaegertracing/jaeger/pkg/memory/config"
 )
 
-const limit = "memory.limit"
+const limit = "memory.max-traces"
 
 // Options stores the configuration entries for this storage
 type Options struct {
@@ -31,10 +31,10 @@ type Options struct {
 
 // AddFlags from this storage to the CLI
 func (opt *Options) AddFlags(flagSet *flag.FlagSet) {
-	flagSet.Int(limit, opt.Configuration.Limit, "The maximum amount of traces to store in memory")
+	flagSet.Int(limit, opt.Configuration.MaxTraces, "The maximum amount of traces to store in memory")
 }
 
 // InitFromViper initializes the options struct with values from Viper
 func (opt *Options) InitFromViper(v *viper.Viper) {
-	opt.Configuration.Limit = v.GetInt(limit)
+	opt.Configuration.MaxTraces = v.GetInt(limit)
 }

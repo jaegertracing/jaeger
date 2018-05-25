@@ -171,10 +171,10 @@ func TestStoreWriteSpan(t *testing.T) {
 }
 
 func TestStoreWithLimit(t *testing.T) {
-	limit := 100
-	store := WithConfiguration(&config.Configuration{Limit: limit})
+	maxTraces := 100
+	store := WithConfiguration(&config.Configuration{MaxTraces: maxTraces})
 
-	for i := 0; i < limit; i++ {
+	for i := 0; i < maxTraces*2; i++ {
 		id := &model.TraceID{High: 1, Low: uint64(i)}
 		err := store.WriteSpan(&model.Span{
 			TraceID: *id,
@@ -195,8 +195,8 @@ func TestStoreWithLimit(t *testing.T) {
 		assert.NoError(t, err)
 	}
 
-	assert.Equal(t, limit, len(store.traces))
-	assert.Equal(t, limit, len(store.ids))
+	assert.Equal(t, maxTraces, len(store.traces))
+	assert.Equal(t, maxTraces, len(store.ids))
 }
 
 func TestStoreGetTraceSuccess(t *testing.T) {

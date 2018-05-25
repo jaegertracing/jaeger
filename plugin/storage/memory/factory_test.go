@@ -43,7 +43,7 @@ func TestMemoryStorageFactory(t *testing.T) {
 func TestWithConfiguration(t *testing.T) {
 	f := NewFactory()
 	v, command := config.Viperize(f.AddFlags)
-	command.ParseFlags([]string{"--memory.limit=100"})
+	command.ParseFlags([]string{"--memory.max-traces=100"})
 	f.InitFromViper(v)
-	assert.Equal(t, f.options.Configuration.Limit, 100)
+	assert.Equal(t, f.options.Configuration.MaxTraces, 100)
 }

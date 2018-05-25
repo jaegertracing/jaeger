@@ -40,20 +40,13 @@ type Store struct {
 
 // NewStore creates an unbounded in-memory store
 func NewStore() *Store {
-	return &Store{
-		ids:        make([]*model.TraceID, 0),
-		traces:     map[model.TraceID]*model.Trace{},
-		services:   map[string]struct{}{},
-		operations: map[string]map[string]struct{}{},
-		deduper:    adjuster.SpanIDDeduper(),
-		config:     &config.Configuration{Limit: 0},
-	}
+	return WithConfiguration(&config.Configuration{MaxTraces: 0})
 }
 
 // WithConfiguration creates a new in memory storage based on the given configuration
 func WithConfiguration(configuration *config.Configuration) *Store {
 	return &Store{
-		ids:        make([]*model.TraceID, 0),
+		ids:        make([]*model.TraceID, 0, configuration.MaxTraces),
 		traces:     map[model.TraceID]*model.Trace{},
 		services:   map[string]struct{}{},
 		operations: map[string]map[string]struct{}{},
@@ -129,12 +122,16 @@ func (m *Store) WriteSpan(span *model.Span) error {
 	m.services[span.Process.ServiceName] = struct{}{}
 	if _, ok := m.traces[span.TraceID]; !ok {
 		m.traces[span.TraceID] = &model.Trace{}
-		m.ids = append(m.ids, &span.TraceID)
 
 		// if we have a limit, let's cleanup the oldest traces
-		if m.config.Limit > 0 {
+		if m.config.MaxTraces > 0 {
+			// we only have to deal with this slice if we have a limit
+			m.ids = append(m.ids, &span.TraceID)
+
 			// this would usually only remove one trace at a time
-			for i := len(m.traces) - m.config.Limit; i > 0; i-- {
+			// TODO: this would be more efficient by using a circular buffer,
+			// see jaegertracing/jaeger#845
+			for i := len(m.traces) - m.config.MaxTraces; i > 0; i-- {
 				id := m.ids[0]
 				delete(m.traces, *id)
 				m.ids = m.ids[1:]

@@ -16,5 +16,5 @@ package config
 
 // Configuration describes the configuration properties needed to connect to a Cassandra cluster
 type Configuration struct {
-	Limit int `yaml:"limit"`
+	MaxTraces int `yaml:"max-traces"`
 }
