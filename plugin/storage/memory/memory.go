@@ -21,6 +21,7 @@ import (
 
 	"github.com/jaegertracing/jaeger/model"
 	"github.com/jaegertracing/jaeger/model/adjuster"
+	"github.com/jaegertracing/jaeger/pkg/memory/config"
 	"github.com/jaegertracing/jaeger/storage/spanstore"
 )
 
@@ -34,7 +35,7 @@ type Store struct {
 	services   map[string]struct{}
 	operations map[string]map[string]struct{}
 	deduper    adjuster.Adjuster
-	limit      int
+	config     *config.Configuration
 }
 
 // NewStore creates an unbounded in-memory store
@@ -45,19 +46,19 @@ func NewStore() *Store {
 		services:   map[string]struct{}{},
 		operations: map[string]map[string]struct{}{},
 		deduper:    adjuster.SpanIDDeduper(),
-		limit:      0,
+		config:     &config.Configuration{Limit: 0},
 	}
 }
 
-// WithLimit creates a bounded in-memory store
-func WithLimit(limit int) *Store {
+// WithConfiguration creates a new in memory storage based on the given configuration
+func WithConfiguration(configuration *config.Configuration) *Store {
 	return &Store{
 		ids:        make([]*model.TraceID, 0),
 		traces:     map[model.TraceID]*model.Trace{},
 		services:   map[string]struct{}{},
 		operations: map[string]map[string]struct{}{},
 		deduper:    adjuster.SpanIDDeduper(),
-		limit:      limit,
+		config:     configuration,
 	}
 }
 
@@ -128,19 +129,20 @@ func (m *Store) WriteSpan(span *model.Span) error {
 	m.services[span.Process.ServiceName] = struct{}{}
 	if _, ok := m.traces[span.TraceID]; !ok {
 		m.traces[span.TraceID] = &model.Trace{}
+		m.ids = append(m.ids, &span.TraceID)
+
+		// if we have a limit, let's cleanup the oldest traces
+		if m.config.Limit > 0 {
+			// this would usually only remove one trace at a time
+			for i := len(m.traces) - m.config.Limit; i > 0; i-- {
+				id := m.ids[0]
+				delete(m.traces, *id)
+				m.ids = m.ids[1:]
+			}
+		}
+
 	}
 	m.traces[span.TraceID].Spans = append(m.traces[span.TraceID].Spans, span)
-	m.ids = append(m.ids, &span.TraceID)
-
-	// if we have a limit, let's cleanup the oldest traces
-	if m.limit > 0 {
-		// this would usually only remove one trace at a time
-		for i := len(m.traces) - m.limit; i > 0; i-- {
-			id := m.ids[0]
-			delete(m.traces, *id)
-			m.ids = m.ids[1:]
-		}
-	}
 
 	return nil
 }

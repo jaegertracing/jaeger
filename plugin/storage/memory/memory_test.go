@@ -21,6 +21,7 @@ import (
 	"github.com/stretchr/testify/assert"
 
 	"github.com/jaegertracing/jaeger/model"
+	"github.com/jaegertracing/jaeger/pkg/memory/config"
 	"github.com/jaegertracing/jaeger/storage/spanstore"
 )
 
@@ -170,23 +171,11 @@ func TestStoreWriteSpan(t *testing.T) {
 }
 
 func TestStoreWithLimit(t *testing.T) {
-	store := WithLimit(2)
+	limit := 100
+	store := WithConfiguration(&config.Configuration{Limit: limit})
 
-	var ids = []*model.TraceID{
-		{
-			High: 1,
-			Low:  1,
-		},
-		{
-			High: 1,
-			Low:  2,
-		},
-		{
-			High: 1,
-			Low:  3,
-		},
-	}
-	for _, id := range ids {
+	for i := 0; i < limit; i++ {
+		id := &model.TraceID{High: 1, Low: uint64(i)}
 		err := store.WriteSpan(&model.Span{
 			TraceID: *id,
 			Process: &model.Process{
@@ -194,10 +183,20 @@ func TestStoreWithLimit(t *testing.T) {
 			},
 		})
 		assert.NoError(t, err)
+
+		err = store.WriteSpan(&model.Span{
+			TraceID: *id,
+			SpanID:  model.SpanID(i),
+			Process: &model.Process{
+				ServiceName: "TestStoreWithLimit",
+			},
+			OperationName: "childOperationName",
+		})
+		assert.NoError(t, err)
 	}
 
-	assert.Equal(t, 2, len(store.traces))
-	assert.Equal(t, 2, len(store.ids))
+	assert.Equal(t, limit, len(store.traces))
+	assert.Equal(t, limit, len(store.ids))
 }
 
 func TestStoreGetTraceSuccess(t *testing.T) {

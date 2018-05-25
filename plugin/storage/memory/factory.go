@@ -15,6 +15,9 @@
 package memory
 
 import (
+	"flag"
+
+	"github.com/spf13/viper"
 	"github.com/uber/jaeger-lib/metrics"
 	"go.uber.org/zap"
 
@@ -24,6 +27,7 @@ import (
 
 // Factory implements storage.Factory and creates storage components backed by memory store.
 type Factory struct {
+	options        Options
 	metricsFactory metrics.Factory
 	logger         *zap.Logger
 	store          *Store
@@ -34,10 +38,20 @@ func NewFactory() *Factory {
 	return &Factory{}
 }
 
+// AddFlags implements plugin.Configurable
+func (f *Factory) AddFlags(flagSet *flag.FlagSet) {
+	f.options.AddFlags(flagSet)
+}
+
+// InitFromViper implements plugin.Configurable
+func (f *Factory) InitFromViper(v *viper.Viper) {
+	f.options.InitFromViper(v)
+}
+
 // Initialize implements storage.Factory
 func (f *Factory) Initialize(metricsFactory metrics.Factory, logger *zap.Logger) error {
 	f.metricsFactory, f.logger = metricsFactory, logger
-	f.store = NewStore()
+	f.store = WithConfiguration(&f.options.Configuration)
 	return nil
 }
 
