@@ -168,27 +168,24 @@ func (m metricsBySvc) countTracesByServiceName(serviceName string, isDebug bool)
 // service names.
 func (m *countsBySvc) countByServiceName(serviceName string, isDebug bool) {
 	serviceName = NormalizeServiceName(serviceName)
-	getOrCreateCounter := func(counts map[string]metrics.Counter, createCounter func() metrics.Counter) metrics.Counter {
-		if c, ok := counts[serviceName]; ok {
-			return c
-		}
-		if len(counts) < m.maxServiceNames {
-			c := createCounter()
-			counts[serviceName] = c
-			return c
-		}
-		return counts[otherServices]
+	if isDebug {
+		m.x(serviceName, "true", m.debugCounts)
+	} else {
+		m.x(serviceName, "false", m.counts)
 	}
+}
+
+func (m *countsBySvc) x(serviceName, debugStr string, counts map[string]metrics.Counter) {
 	var counter metrics.Counter
 	m.lock.Lock()
-	if isDebug {
-		counter = getOrCreateCounter(m.debugCounts, func() metrics.Counter {
-			return m.factory.Counter("", map[string]string{"service": serviceName, "debug": "true"})
-		})
+	if c, ok := counts[serviceName]; ok {
+		counter = c
+	} else if len(counts) < m.maxServiceNames {
+		c := m.factory.Counter("", map[string]string{"service": serviceName, "debug": debugStr})
+		counts[serviceName] = c
+		counter = c
 	} else {
-		counter = getOrCreateCounter(m.counts, func() metrics.Counter {
-			return m.factory.Counter("", map[string]string{"service": serviceName, "debug": "false"})
-		})
+		counter = counts[otherServices]
 	}
 	m.lock.Unlock()
 	counter.Inc(1)
