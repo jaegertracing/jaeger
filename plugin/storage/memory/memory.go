@@ -36,6 +36,7 @@ type Store struct {
 	operations map[string]map[string]struct{}
 	deduper    adjuster.Adjuster
 	config     *config.Configuration
+	index      int
 }
 
 // NewStore creates an unbounded in-memory store
@@ -46,7 +47,7 @@ func NewStore() *Store {
 // WithConfiguration creates a new in memory storage based on the given configuration
 func WithConfiguration(configuration *config.Configuration) *Store {
 	return &Store{
-		ids:        make([]*model.TraceID, 0, configuration.MaxTraces),
+		ids:        make([]*model.TraceID, configuration.MaxTraces),
 		traces:     map[model.TraceID]*model.Trace{},
 		services:   map[string]struct{}{},
 		operations: map[string]map[string]struct{}{},
@@ -126,16 +127,16 @@ func (m *Store) WriteSpan(span *model.Span) error {
 		// if we have a limit, let's cleanup the oldest traces
 		if m.config.MaxTraces > 0 {
 			// we only have to deal with this slice if we have a limit
-			m.ids = append(m.ids, &span.TraceID)
+			m.index = (m.index + 1) % m.config.MaxTraces
 
-			// this would usually only remove one trace at a time
-			// TODO: this would be more efficient by using a circular buffer,
-			// see jaegertracing/jaeger#845
-			for i := len(m.traces) - m.config.MaxTraces; i > 0; i-- {
-				id := m.ids[0]
-				delete(m.traces, *id)
-				m.ids = m.ids[1:]
+			// do we have an item already on this position? if so, we are overriding it,
+			// and we need to remove from the map
+			if m.ids[m.index] != nil {
+				delete(m.traces, *m.ids[m.index])
 			}
+
+			// update the ring with the trace id
+			m.ids[m.index] = &span.TraceID
 		}
 
 	}
