@@ -168,19 +168,19 @@ func (m metricsBySvc) countTracesByServiceName(serviceName string, isDebug bool)
 // service names.
 func (m *countsBySvc) countByServiceName(serviceName string, isDebug bool) {
 	serviceName = NormalizeServiceName(serviceName)
+	counts := m.counts
 	if isDebug {
-		m.x(serviceName, "true", m.debugCounts)
-	} else {
-		m.x(serviceName, "false", m.counts)
+		counts = m.debugCounts
 	}
-}
-
-func (m *countsBySvc) x(serviceName, debugStr string, counts map[string]metrics.Counter) {
 	var counter metrics.Counter
 	m.lock.Lock()
 	if c, ok := counts[serviceName]; ok {
 		counter = c
 	} else if len(counts) < m.maxServiceNames {
+		debugStr := "false"
+		if isDebug {
+			debugStr = "true"
+		}
 		c := m.factory.Counter("", map[string]string{"service": serviceName, "debug": debugStr})
 		counts[serviceName] = c
 		counter = c
