@@ -109,18 +109,26 @@ func TestBySvcMetrics(t *testing.T) {
 		} else {
 			panic("Unknown format")
 		}
-		expected := []metricsTest.ExpectedMetric{
-			{Name: metricPrefix + ".spans.received|format=" + format + "|service=" + test.serviceName, Value: 2},
-		}
+		expected := []metricsTest.ExpectedMetric{}
 		if test.debug {
 			expected = append(expected, metricsTest.ExpectedMetric{
-				Name: metricPrefix + ".debug-spans.received|format=" + format + "|service=" + test.serviceName, Value: 2,
+				Name: metricPrefix + ".spans.received|debug=true|format=" + format + "|service=" + test.serviceName, Value: 2,
+			})
+		} else {
+			expected = append(expected, metricsTest.ExpectedMetric{
+				Name: metricPrefix + ".spans.received|debug=false|format=" + format + "|service=" + test.serviceName, Value: 2,
 			})
 		}
 		if test.rootSpan {
-			expected = append(expected, metricsTest.ExpectedMetric{
-				Name: metricPrefix + ".traces.received|format=" + format + "|service=" + test.serviceName, Value: 2,
-			})
+			if test.debug {
+				expected = append(expected, metricsTest.ExpectedMetric{
+					Name: metricPrefix + ".traces.received|debug=true|format=" + format + "|service=" + test.serviceName, Value: 2,
+				})
+			} else {
+				expected = append(expected, metricsTest.ExpectedMetric{
+					Name: metricPrefix + ".traces.received|debug=false|format=" + format + "|service=" + test.serviceName, Value: 2,
+				})
+			}
 		}
 		if test.serviceName != blackListedService || test.debug {
 			// "error.busy" and "spans.dropped" are both equivalent to a span being accepted,
@@ -134,7 +142,7 @@ func TestBySvcMetrics(t *testing.T) {
 			})
 		} else {
 			expected = append(expected, metricsTest.ExpectedMetric{
-				Name: metricPrefix + ".spans.rejected|format=" + format + "|service=" + test.serviceName, Value: 2,
+				Name: metricPrefix + ".spans.rejected|debug=false|format=" + format + "|service=" + test.serviceName, Value: 2,
 			})
 		}
 		metricsTest.AssertCounterMetrics(t, mb, expected...)

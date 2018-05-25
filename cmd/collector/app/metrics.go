@@ -24,6 +24,7 @@ import (
 
 const (
 	maxServiceNames = 2000
+	otherServices   = "other-services"
 )
 
 // SpanProcessorMetrics contains all the necessary metrics for the SpanProcessor
@@ -47,15 +48,16 @@ type SpanProcessorMetrics struct { //TODO - initialize metrics in the traditiona
 }
 
 type countsBySvc struct {
-	counts  map[string]metrics.Counter // counters per service
-	factory metrics.Factory
-	lock    *sync.Mutex
+	counts          map[string]metrics.Counter // counters per service
+	debugCounts     map[string]metrics.Counter // debug counters per service
+	factory         metrics.Factory
+	lock            *sync.Mutex
+	maxServiceNames int
 }
 
 type metricsBySvc struct {
-	spans      countsBySvc // number of spans received per service
-	debugSpans countsBySvc // number of debug spans received per service
-	traces     countsBySvc // number of traces originated per service
+	spans  countsBySvc // number of spans received per service
+	traces countsBySvc // number of traces originated per service
 }
 
 // CountsBySpanType measures received, rejected, and receivedByService metrics for a format type
@@ -92,22 +94,25 @@ func NewSpanProcessorMetrics(serviceMetrics metrics.Factory, hostMetrics metrics
 }
 
 func newMetricsBySvc(factory metrics.Factory, category string) metricsBySvc {
+	spansFactory := factory.Namespace("spans."+category, nil)
+	tracesFactory := factory.Namespace("traces."+category, nil)
 	return metricsBySvc{
-		spans: countsBySvc{
-			counts:  make(map[string]metrics.Counter),
-			factory: factory.Namespace("spans."+category, nil),
-			lock:    &sync.Mutex{},
+		spans:  newCountsBySvc(spansFactory, maxServiceNames),
+		traces: newCountsBySvc(tracesFactory, maxServiceNames),
+	}
+}
+
+func newCountsBySvc(factory metrics.Factory, maxServiceNames int) countsBySvc {
+	return countsBySvc{
+		counts: map[string]metrics.Counter{
+			otherServices: factory.Counter("", map[string]string{"service": otherServices, "debug": "false"}),
 		},
-		debugSpans: countsBySvc{
-			counts:  make(map[string]metrics.Counter),
-			factory: factory.Namespace("debug-spans."+category, nil),
-			lock:    &sync.Mutex{},
+		debugCounts: map[string]metrics.Counter{
+			otherServices: factory.Counter("", map[string]string{"service": otherServices, "debug": "true"}),
 		},
-		traces: countsBySvc{
-			counts:  make(map[string]metrics.Counter),
-			factory: factory.Namespace("traces."+category, nil),
-			lock:    &sync.Mutex{},
-		},
+		factory:         factory,
+		lock:            &sync.Mutex{},
+		maxServiceNames: maxServiceNames,
 	}
 }
 
@@ -134,29 +139,21 @@ func (m metricsBySvc) ReportServiceNameForSpan(span *model.Span) {
 	if serviceName == "" {
 		return
 	}
-	m.countSpansByServiceName(serviceName)
-	if span.Flags.IsDebug() {
-		m.countDebugSpansByServiceName(serviceName)
-	}
+	m.countSpansByServiceName(serviceName, span.Flags.IsDebug())
 	if span.ParentSpanID() == 0 {
-		m.countTracesByServiceName(serviceName)
+		m.countTracesByServiceName(serviceName, span.Flags.IsDebug())
 	}
 }
 
 // countSpansByServiceName counts how many spans are received per service.
-func (m metricsBySvc) countSpansByServiceName(serviceName string) {
-	m.spans.countByServiceName(serviceName)
-}
-
-// countDebugSpansByServiceName counts how many debug spans are received per service.
-func (m metricsBySvc) countDebugSpansByServiceName(serviceName string) {
-	m.debugSpans.countByServiceName(serviceName)
+func (m metricsBySvc) countSpansByServiceName(serviceName string, isDebug bool) {
+	m.spans.countByServiceName(serviceName, isDebug)
 }
 
 // countTracesByServiceName counts how many traces are received per service,
 // i.e. the counter is only incremented for the root spans.
-func (m metricsBySvc) countTracesByServiceName(serviceName string) {
-	m.traces.countByServiceName(serviceName)
+func (m metricsBySvc) countTracesByServiceName(serviceName string, isDebug bool) {
+	m.traces.countByServiceName(serviceName, isDebug)
 }
 
 // countByServiceName maintains a map of counters for each service name it's
@@ -169,19 +166,27 @@ func (m metricsBySvc) countTracesByServiceName(serviceName string) {
 // total number of stored counters, so if it exceeds say the 90% threshold
 // an alert should be raised to investigate what's causing so many unique
 // service names.
-func (m *countsBySvc) countByServiceName(serviceName string) {
+func (m *countsBySvc) countByServiceName(serviceName string, isDebug bool) {
 	serviceName = NormalizeServiceName(serviceName)
+	counts := m.counts
+	if isDebug {
+		counts = m.debugCounts
+	}
 	var counter metrics.Counter
 	m.lock.Lock()
-	if c, ok := m.counts[serviceName]; ok {
+	if c, ok := counts[serviceName]; ok {
 		counter = c
-	} else if len(m.counts) < maxServiceNames {
-		c := m.factory.Counter("", map[string]string{"service": serviceName})
-		m.counts[serviceName] = c
+	} else if len(counts) < m.maxServiceNames {
+		debugStr := "false"
+		if isDebug {
+			debugStr = "true"
+		}
+		c := m.factory.Counter("", map[string]string{"service": serviceName, "debug": debugStr})
+		counts[serviceName] = c
 		counter = c
+	} else {
+		counter = counts[otherServices]
 	}
 	m.lock.Unlock()
-	if counter != nil {
-		counter.Inc(1)
-	}
+	counter.Inc(1)
 }
