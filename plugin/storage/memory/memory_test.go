@@ -172,7 +172,7 @@ func TestStoreWriteSpan(t *testing.T) {
 
 func TestStoreWithLimit(t *testing.T) {
 	maxTraces := 100
-	store := WithConfiguration(&config.Configuration{MaxTraces: maxTraces})
+	store := WithConfiguration(config.Configuration{MaxTraces: maxTraces})
 
 	for i := 0; i < maxTraces*2; i++ {
 		id := &model.TraceID{High: 1, Low: uint64(i)}

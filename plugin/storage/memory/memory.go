@@ -35,17 +35,17 @@ type Store struct {
 	services   map[string]struct{}
 	operations map[string]map[string]struct{}
 	deduper    adjuster.Adjuster
-	config     *config.Configuration
+	config     config.Configuration
 	index      int
 }
 
 // NewStore creates an unbounded in-memory store
 func NewStore() *Store {
-	return WithConfiguration(&config.Configuration{MaxTraces: 0})
+	return WithConfiguration(config.Configuration{MaxTraces: 0})
 }
 
 // WithConfiguration creates a new in memory storage based on the given configuration
-func WithConfiguration(configuration *config.Configuration) *Store {
+func WithConfiguration(configuration config.Configuration) *Store {
 	return &Store{
 		ids:        make([]*model.TraceID, configuration.MaxTraces),
 		traces:     map[model.TraceID]*model.Trace{},
