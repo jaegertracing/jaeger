@@ -105,6 +105,14 @@ See [CONTRIBUTING](./CONTRIBUTING.md).
 
 See [CONTRIBUTING](./CONTRIBUTING.md).
 
+## Maintainers
+
+* @black-adder
+* @jpkrohling
+* @pavolloffay
+* @vprithvi
+* @yurishkuro
+
 ## Project Status Bi-Weekly Meeting
 
 The Jaeger contributors meet bi-weekly, and everyone is welcome to join.
