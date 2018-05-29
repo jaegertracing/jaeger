@@ -107,11 +107,15 @@ See [CONTRIBUTING](./CONTRIBUTING.md).
 
 ## Maintainers
 
+Below are the official maintainers of the Jaeger project. Please use `@jaegertracing/jaeger-maintainers` to tag them on issues / PRs.
+
 * @black-adder
 * @jpkrohling
 * @pavolloffay
 * @vprithvi
 * @yurishkuro
+
+Some reporitories under [jaegertracing](https://github.com/jaegertracing) org have additional maintainers.
 
 ## Project Status Bi-Weekly Meeting
 
