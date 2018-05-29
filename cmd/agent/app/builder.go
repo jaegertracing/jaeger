@@ -117,7 +117,13 @@ func (b *Builder) getMetricsFactory() (metrics.Factory, error) {
 	if b.metricsFactory != nil {
 		return b.metricsFactory, nil
 	}
-	return b.Metrics.CreateMetricsFactory("jaeger_agent")
+
+	baseFactory, err := b.Metrics.CreateMetricsFactory("jaeger")
+	if err != nil {
+		return nil, err
+	}
+
+	return baseFactory.Namespace("agent", nil), nil
 }
 
 // CreateAgent creates the Agent

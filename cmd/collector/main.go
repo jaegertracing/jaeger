@@ -90,13 +90,13 @@ func main() {
 			builderOpts := new(builder.CollectorOptions).InitFromViper(v)
 
 			mBldr := new(pMetrics.Builder).InitFromViper(v)
-			metricsFactory, err := mBldr.CreateMetricsFactory("jaeger-collector")
+			baseFactory, err := mBldr.CreateMetricsFactory("jaeger")
 			if err != nil {
 				logger.Fatal("Cannot create metrics factory.", zap.Error(err))
 			}
 
 			storageFactory.InitFromViper(v)
-			if err := storageFactory.Initialize(metricsFactory, logger); err != nil {
+			if err := storageFactory.Initialize(baseFactory, logger); err != nil {
 				logger.Fatal("Failed to init storage factory", zap.Error(err))
 			}
 			spanWriter, err := storageFactory.CreateSpanWriter()
@@ -104,6 +104,7 @@ func main() {
 				logger.Fatal("Failed to create span writer", zap.Error(err))
 			}
 
+			metricsFactory := baseFactory.Namespace("collector", nil)
 			handlerBuilder, err := builder.NewSpanHandlerBuilder(
 				builderOpts,
 				spanWriter,

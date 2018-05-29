@@ -64,7 +64,7 @@ func (c *Configuration) NewClient(logger *zap.Logger, metricsFactory metrics.Fac
 		return nil, err
 	}
 
-	sm := storageMetrics.NewWriteMetrics(metricsFactory, "BulkIndex")
+	sm := storageMetrics.NewWriteMetrics(metricsFactory, "bulk_index")
 	m := sync.Map{}
 
 	service, err := rawClient.BulkProcessor().

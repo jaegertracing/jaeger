@@ -21,28 +21,38 @@ import (
 
 	"github.com/jaegertracing/jaeger/model"
 	"github.com/jaegertracing/jaeger/model/adjuster"
+	"github.com/jaegertracing/jaeger/pkg/memory/config"
 	"github.com/jaegertracing/jaeger/storage/spanstore"
 )
 
 var errTraceNotFound = errors.New("Trace was not found")
 
-// Store is an unbounded in-memory store of traces
+// Store is an in-memory store of traces
 type Store struct {
-	// TODO: make this a bounded memory store
 	sync.RWMutex
+	ids        []*model.TraceID
 	traces     map[model.TraceID]*model.Trace
 	services   map[string]struct{}
 	operations map[string]map[string]struct{}
 	deduper    adjuster.Adjuster
+	config     config.Configuration
+	index      int
 }
 
-// NewStore creates an in-memory store
+// NewStore creates an unbounded in-memory store
 func NewStore() *Store {
+	return WithConfiguration(config.Configuration{MaxTraces: 0})
+}
+
+// WithConfiguration creates a new in memory storage based on the given configuration
+func WithConfiguration(configuration config.Configuration) *Store {
 	return &Store{
+		ids:        make([]*model.TraceID, configuration.MaxTraces),
 		traces:     map[model.TraceID]*model.Trace{},
 		services:   map[string]struct{}{},
 		operations: map[string]map[string]struct{}{},
 		deduper:    adjuster.SpanIDDeduper(),
+		config:     configuration,
 	}
 }
 
@@ -113,6 +123,22 @@ func (m *Store) WriteSpan(span *model.Span) error {
 	m.services[span.Process.ServiceName] = struct{}{}
 	if _, ok := m.traces[span.TraceID]; !ok {
 		m.traces[span.TraceID] = &model.Trace{}
+
+		// if we have a limit, let's cleanup the oldest traces
+		if m.config.MaxTraces > 0 {
+			// we only have to deal with this slice if we have a limit
+			m.index = (m.index + 1) % m.config.MaxTraces
+
+			// do we have an item already on this position? if so, we are overriding it,
+			// and we need to remove from the map
+			if m.ids[m.index] != nil {
+				delete(m.traces, *m.ids[m.index])
+			}
+
+			// update the ring with the trace id
+			m.ids[m.index] = &span.TraceID
+		}
+
 	}
 	m.traces[span.TraceID].Spans = append(m.traces[span.TraceID].Spans, span)
 

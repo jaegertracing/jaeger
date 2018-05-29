@@ -5,7 +5,7 @@ import:
   subpackages:
   - lib/go/thrift
 - package: github.com/gocql/gocql
-  version: 4d2d1ac71932f7c4a6c7feb0d654462e4116c58b
+  version: 181004e14a3fb735efcc826a4256369d0c96747b
 - package: github.com/opentracing/opentracing-go
   subpackages:
   - ext
@@ -17,7 +17,7 @@ import:
   subpackages:
   - transport
 - package: github.com/uber/jaeger-lib
-  version: ^1.4.0
+  version: ^1.5.0
 - package: github.com/uber/tchannel-go
   version: v1.1.0
   subpackages:
