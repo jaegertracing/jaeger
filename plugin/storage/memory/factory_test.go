@@ -18,6 +18,7 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/assert"
+	"go.uber.org/zap"
 
 	"github.com/jaegertracing/jaeger/pkg/config"
 	"github.com/jaegertracing/jaeger/storage"
@@ -27,7 +28,7 @@ var _ storage.Factory = new(Factory)
 
 func TestMemoryStorageFactory(t *testing.T) {
 	f := NewFactory()
-	assert.NoError(t, f.Initialize(nil, nil))
+	assert.NoError(t, f.Initialize(nil, zap.NewNop()))
 	assert.NotNil(t, f.store)
 	reader, err := f.CreateSpanReader()
 	assert.NoError(t, err)
