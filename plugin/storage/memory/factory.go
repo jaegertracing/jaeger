@@ -52,6 +52,7 @@ func (f *Factory) InitFromViper(v *viper.Viper) {
 func (f *Factory) Initialize(metricsFactory metrics.Factory, logger *zap.Logger) error {
 	f.metricsFactory, f.logger = metricsFactory, logger
 	f.store = WithConfiguration(f.options.Configuration)
+	logger.Info("Memory storage configuration", zap.Any("configuration", f.store.config))
 	return nil
 }
 
