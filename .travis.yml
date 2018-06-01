@@ -58,7 +58,8 @@ script:
   - if [ "$DEPLOY" == true ]; then make build-binaries-linux build-binaries-windows build-binaries-darwin ; else echo 'skipping linux'; fi
 
 after_success:
-  - if [ "$COVERAGE" == true ]; then travis_retry goveralls -coverprofile=cover.out -service=travis-ci || true ; else echo 'skipping coverage'; fi
+  - if [ "$COVERAGE" == true ]; then mv cover.out coverage.txt ; else echo 'skipping coverage'; fi
+  - if [ "$COVERAGE" == true ]; then bash <(curl -s https://codecov.io/bash) ; else echo 'skipping coverage'; fi
 
 after_failure:
   - if [ "$CROSSDOCK" == true ]; then make crossdock-logs ; else echo 'skipping crossdock'; fi
