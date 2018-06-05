@@ -87,7 +87,7 @@ func MaybeAddParentSpanID(traceID TraceID, parentSpanID SpanID, refs []SpanRef) 
 	}
 	for i := range refs {
 		r := &refs[i]
-		if r.SpanID == parentSpanID && r.TraceID == traceID && r.RefType == ChildOf {
+		if r.SpanID == parentSpanID && r.TraceID == traceID {
 			return refs
 		}
 	}
