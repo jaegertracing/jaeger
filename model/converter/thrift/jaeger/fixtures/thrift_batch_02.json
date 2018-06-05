@@ -18,6 +18,21 @@
           "vBinary": "AAAAAAAAMDk="
         }
       ]
-    }
-  ]
+    },
+    {
+        "traceIdLow": 5951113872249657919,
+        "spanId": 6585753,
+        "parentSpanId": 6866147,
+        "operationName": "get",
+        "references": [
+            {
+                "refType": "FOLLOWS_FROM",
+                "traceIdLow": 5951113872249657919,
+                "spanId": 6866147
+            }
+        ],
+        "startTime": 1485467191639875,
+        "duration": 22938
+      }
+    ]
 }

@@ -64,7 +64,9 @@ func (td toDomain) transformSpan(jSpan *jaeger.Span, mProcess *model.Process) *m
 	// convert it back into child-of reference.
 	if jSpan.ParentSpanId != 0 {
 		parentSpanID := model.SpanID(jSpan.ParentSpanId)
-		refs = model.MaybeAddParentSpanID(traceID, parentSpanID, refs)
+		if !td.duplicateParentID(traceID, parentSpanID, refs) {
+			refs = model.MaybeAddParentSpanID(traceID, parentSpanID, refs)
+		}
 	}
 	return &model.Span{
 		TraceID:       traceID,
@@ -78,6 +80,16 @@ func (td toDomain) transformSpan(jSpan *jaeger.Span, mProcess *model.Process) *m
 		Logs:          td.getLogs(jSpan.Logs),
 		Process:       mProcess,
 	}
+}
+
+func (td toDomain) duplicateParentID(traceID model.TraceID, parentSpanID model.SpanID, refs []model.SpanRef) bool {
+	for i := range refs {
+		r := &refs[i]
+		if r.TraceID == traceID && r.SpanID == parentSpanID {
+			return true
+		}
+	}
+	return false
 }
 
 func (td toDomain) getReferences(jRefs []*jaeger.SpanRef) []model.SpanRef {
