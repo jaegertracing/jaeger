@@ -147,7 +147,7 @@ func TestSpanWriter(t *testing.T) {
 		t.Run(testCase.caption, func(t *testing.T) {
 			withSpanWriter(0, func(w *spanWriterTest) {
 				span := &model.Span{
-					TraceID:       model.TraceID{Low: 1},
+					TraceID:       model.NewTraceID(0, 1),
 					OperationName: "operation-a",
 					Tags: model.KeyValues{
 						model.String("x", "y"),
@@ -281,7 +281,7 @@ func TestStorageMode_IndexOnly(t *testing.T) {
 		w.writer.serviceNamesWriter = func(serviceName string) error { return nil }
 		w.writer.operationNamesWriter = func(serviceName, operationName string) error { return nil }
 		span := &model.Span{
-			TraceID: model.TraceID{Low: 1},
+			TraceID: model.NewTraceID(0, 1),
 			Process: &model.Process{
 				ServiceName: "service-a",
 			},
@@ -323,7 +323,7 @@ func TestStorageMode_StoreWithoutIndexing(t *testing.T) {
 				return nil
 			}
 		span := &model.Span{
-			TraceID: model.TraceID{Low: 1},
+			TraceID: model.NewTraceID(0, 1),
 			Process: &model.Process{
 				ServiceName: "service-a",
 			},

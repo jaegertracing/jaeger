@@ -31,9 +31,9 @@ func TestSpanReferencesAdjuster(t *testing.T) {
 			},
 			{
 				References: []model.SpanRef{
-					{TraceID: model.TraceID{High: 0, Low: 1}},
-					{TraceID: model.TraceID{High: 1, Low: 0}},
-					{TraceID: model.TraceID{High: 0, Low: 0}},
+					{TraceID: model.NewTraceID(0, 1)},
+					{TraceID: model.NewTraceID(1, 0)},
+					{TraceID: model.NewTraceID(0, 0)},
 				},
 			},
 		},

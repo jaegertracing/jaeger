@@ -25,14 +25,11 @@ import (
 	"github.com/jaegertracing/jaeger/storage/spanstore"
 )
 
-var traceID = model.TraceID{
-	Low:  1,
-	High: 2,
-}
+var traceID = model.NewTraceID(1, 2)
 
 var testingSpan = &model.Span{
 	TraceID: traceID,
-	SpanID:  model.SpanID(1),
+	SpanID:  model.NewSpanID(1),
 	Process: &model.Process{
 		ServiceName: "serviceName",
 		Tags:        model.KeyValues{},
@@ -55,8 +52,8 @@ var testingSpan = &model.Span{
 
 var childSpan1 = &model.Span{
 	TraceID:    traceID,
-	SpanID:     model.SpanID(2),
-	References: []model.SpanRef{model.NewChildOfRef(traceID, model.SpanID(1))},
+	SpanID:     model.NewSpanID(2),
+	References: []model.SpanRef{model.NewChildOfRef(traceID, model.NewSpanID(1))},
 	Process: &model.Process{
 		ServiceName: "childService",
 		Tags:        model.KeyValues{},
@@ -79,8 +76,8 @@ var childSpan1 = &model.Span{
 
 var childSpan2 = &model.Span{
 	TraceID:    traceID,
-	SpanID:     model.SpanID(3),
-	References: []model.SpanRef{model.NewChildOfRef(traceID, model.SpanID(1))},
+	SpanID:     model.NewSpanID(3),
+	References: []model.SpanRef{model.NewChildOfRef(traceID, model.NewSpanID(1))},
 	Process: &model.Process{
 		ServiceName: "childService",
 		Tags:        model.KeyValues{},
@@ -103,9 +100,9 @@ var childSpan2 = &model.Span{
 
 var childSpan2_1 = &model.Span{
 	TraceID: traceID,
-	SpanID:  model.SpanID(4),
+	SpanID:  model.NewSpanID(4),
 	// child of childSpan2, but with the same service name
-	References: []model.SpanRef{model.NewChildOfRef(traceID, model.SpanID(3))},
+	References: []model.SpanRef{model.NewChildOfRef(traceID, model.NewSpanID(3))},
 	Process: &model.Process{
 		ServiceName: "childService",
 		Tags:        model.KeyValues{},
@@ -175,9 +172,9 @@ func TestStoreWithLimit(t *testing.T) {
 	store := WithConfiguration(config.Configuration{MaxTraces: maxTraces})
 
 	for i := 0; i < maxTraces*2; i++ {
-		id := &model.TraceID{High: 1, Low: uint64(i)}
+		id := model.NewTraceID(1, uint64(i))
 		err := store.WriteSpan(&model.Span{
-			TraceID: *id,
+			TraceID: id,
 			Process: &model.Process{
 				ServiceName: "TestStoreWithLimit",
 			},
@@ -185,8 +182,8 @@ func TestStoreWithLimit(t *testing.T) {
 		assert.NoError(t, err)
 
 		err = store.WriteSpan(&model.Span{
-			TraceID: *id,
-			SpanID:  model.SpanID(i),
+			TraceID: id,
+			SpanID:  model.NewSpanID(uint64(i)),
 			Process: &model.Process{
 				ServiceName: "TestStoreWithLimit",
 			},

@@ -51,17 +51,17 @@ var (
 		Timeout: 2 * time.Second,
 	}
 
-	mockTraceID = model.TraceID{Low: 123456}
+	mockTraceID = model.NewTraceID(0, 123456)
 	mockTrace   = &model.Trace{
 		Spans: []*model.Span{
 			{
 				TraceID: mockTraceID,
-				SpanID:  model.SpanID(1),
+				SpanID:  model.NewSpanID(1),
 				Process: &model.Process{},
 			},
 			{
 				TraceID: mockTraceID,
-				SpanID:  model.SpanID(2),
+				SpanID:  model.NewSpanID(2),
 				Process: &model.Process{},
 			},
 		},
@@ -188,7 +188,7 @@ func TestGetTrace(t *testing.T) {
 		var trace *model.Trace
 		require.NoError(t, json.Unmarshal(bytes, &trace))
 		trace.Spans[1].References = []model.SpanRef{
-			{TraceID: model.TraceID{High: 0, Low: 0}},
+			{TraceID: model.NewTraceID(0, 0)},
 		}
 		return trace
 	}
@@ -212,7 +212,7 @@ func TestGetTrace(t *testing.T) {
 			server, readMock, _ := initializeTestServer(HandlerOptions.Tracer(jaegerTracer))
 			defer server.Close()
 
-			readMock.On("GetTrace", model.TraceID{Low: 0x123456abc}).
+			readMock.On("GetTrace", model.NewTraceID(0, 0x123456abc)).
 				Return(makeMockTrace(t), nil).Once()
 
 			var response structuredResponse

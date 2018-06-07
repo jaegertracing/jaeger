@@ -123,8 +123,8 @@ func TestSpanWriter_WriteSpan(t *testing.T) {
 				require.NoError(t, err)
 
 				span := &model.Span{
-					TraceID:       model.TraceID{Low: 1},
-					SpanID:        model.SpanID(0),
+					TraceID:       model.NewTraceID(0, 1),
+					SpanID:        model.NewSpanID(0),
 					OperationName: "operation",
 					Process: &model.Process{
 						ServiceName: "service",

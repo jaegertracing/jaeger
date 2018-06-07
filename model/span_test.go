@@ -44,7 +44,7 @@ func TestTraceIDMarshalText(t *testing.T) {
 		{hi: 257, lo: 1, out: `{"id":"1010000000000000001"}`},
 	}
 	for _, testCase := range testCases {
-		c := TraceIDContainer{TraceID: model.TraceID{High: testCase.hi, Low: testCase.lo}}
+		c := TraceIDContainer{TraceID: model.NewTraceID(testCase.hi, testCase.lo)}
 		out, err := json.Marshal(&c)
 		if assert.NoError(t, err) {
 			assert.Equal(t, testCase.out, string(out))
@@ -101,7 +101,7 @@ func TestSpanIDMarshalText(t *testing.T) {
 		{id: uint64(max), out: `{"id":"ffffffffffffffff"}`},
 	}
 	for _, testCase := range testCases {
-		c := SpanIDContainer{SpanID: model.SpanID(testCase.id)}
+		c := SpanIDContainer{SpanID: model.NewSpanID(testCase.id)}
 		out, err := json.Marshal(&c)
 		if assert.NoError(t, err) {
 			assert.Equal(t, testCase.out, string(out))
@@ -193,41 +193,41 @@ func TestSpanHash(t *testing.T) {
 
 func TestParentSpanID(t *testing.T) {
 	span := makeSpan(model.String("k", "v"))
-	assert.Equal(t, model.SpanID(123), span.ParentSpanID())
+	assert.Equal(t, model.NewSpanID(123), span.ParentSpanID())
 
 	span.References = []model.SpanRef{
-		model.NewFollowsFromRef(span.TraceID, 777),
-		model.NewChildOfRef(span.TraceID, 888),
+		model.NewFollowsFromRef(span.TraceID, model.NewSpanID(777)),
+		model.NewChildOfRef(span.TraceID, model.NewSpanID(888)),
 	}
-	assert.Equal(t, model.SpanID(888), span.ParentSpanID())
+	assert.Equal(t, model.NewSpanID(888), span.ParentSpanID())
 
 	span.References = []model.SpanRef{
-		model.NewChildOfRef(model.TraceID{High: 321}, 999),
+		model.NewChildOfRef(model.NewTraceID(321, 0), model.NewSpanID(999)),
 	}
-	assert.Equal(t, model.SpanID(0), span.ParentSpanID())
+	assert.Equal(t, model.NewSpanID(0), span.ParentSpanID())
 }
 
 func TestReplaceParentSpanID(t *testing.T) {
 	span := makeSpan(model.String("k", "v"))
-	assert.Equal(t, model.SpanID(123), span.ParentSpanID())
+	assert.Equal(t, model.NewSpanID(123), span.ParentSpanID())
 
 	span.ReplaceParentID(789)
-	assert.Equal(t, model.SpanID(789), span.ParentSpanID())
+	assert.Equal(t, model.NewSpanID(789), span.ParentSpanID())
 
 	span.References = []model.SpanRef{
-		model.NewChildOfRef(model.TraceID{High: 321}, 999),
+		model.NewChildOfRef(model.NewTraceID(321, 0), model.NewSpanID(999)),
 	}
 	span.ReplaceParentID(789)
-	assert.Equal(t, model.SpanID(789), span.ParentSpanID())
+	assert.Equal(t, model.NewSpanID(789), span.ParentSpanID())
 }
 
 func makeSpan(someKV model.KeyValue) *model.Span {
-	traceID := model.TraceID{Low: 123}
+	traceID := model.NewTraceID(0, 123)
 	return &model.Span{
 		TraceID:       traceID,
-		SpanID:        model.SpanID(567),
+		SpanID:        model.NewSpanID(567),
 		OperationName: "hi",
-		References:    []model.SpanRef{model.NewChildOfRef(traceID, 123)},
+		References:    []model.SpanRef{model.NewChildOfRef(traceID, model.NewSpanID(123))},
 		StartTime:     time.Unix(0, 1000),
 		Duration:      5000,
 		Tags:          model.KeyValues{someKV},

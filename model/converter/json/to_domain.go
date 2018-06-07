@@ -69,7 +69,7 @@ func (td toDomain) spanToDomain(dbSpan *json.Span) (*model.Span, error) {
 
 	span := &model.Span{
 		TraceID:       traceID,
-		SpanID:        model.SpanID(spanIDInt),
+		SpanID:        model.NewSpanID(uint64(spanIDInt)),
 		OperationName: dbSpan.OperationName,
 		References:    refs,
 		Flags:         model.Flags(uint32(dbSpan.Flags)),
@@ -108,7 +108,7 @@ func (td toDomain) convertRefs(refs []json.Reference) ([]model.SpanRef, error) {
 		retMe[i] = model.SpanRef{
 			RefType: refType,
 			TraceID: traceID,
-			SpanID:  model.SpanID(spanID),
+			SpanID:  model.NewSpanID(spanID),
 		}
 	}
 	return retMe, nil

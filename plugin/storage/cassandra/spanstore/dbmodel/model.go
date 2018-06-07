@@ -101,7 +101,7 @@ func TraceIDFromDomain(traceID model.TraceID) TraceID {
 func (dbTraceID TraceID) ToDomain() model.TraceID {
 	traceIDHigh := binary.BigEndian.Uint64(dbTraceID[:8])
 	traceIDLow := binary.BigEndian.Uint64(dbTraceID[8:])
-	return model.TraceID{High: traceIDHigh, Low: traceIDLow}
+	return model.NewTraceID(traceIDHigh, traceIDLow)
 }
 
 // String returns hex string representation of the trace ID.

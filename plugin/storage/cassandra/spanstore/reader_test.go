@@ -272,8 +272,8 @@ func TestSpanReaderFindTraces(t *testing.T) {
 				// scanMatcher can match Iter.Scan() parameters and set trace ID fields
 				scanMatcher := func(name string) interface{} {
 					traceIDs := []dbmodel.TraceID{
-						dbmodel.TraceIDFromDomain(model.TraceID{Low: 1}),
-						dbmodel.TraceIDFromDomain(model.TraceID{Low: 2}),
+						dbmodel.TraceIDFromDomain(model.NewTraceID(0, 1)),
+						dbmodel.TraceIDFromDomain(model.NewTraceID(0, 2)),
 					}
 					scanFunc := func(args []interface{}) bool {
 						if len(traceIDs) == 0 {
