@@ -53,7 +53,7 @@ func TestClockSkewAdjuster(t *testing.T) {
 					Fields:    []model.KeyValue{model.String("event", "some event")},
 				})
 			}
-			traceID := model.TraceID{Low: 1}
+			traceID := model.NewTraceID(0, 1)
 			span := &model.Span{
 				TraceID:    traceID,
 				SpanID:     model.NewSpanID(uint64(spanProto.id)),

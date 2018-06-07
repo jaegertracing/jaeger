@@ -65,16 +65,16 @@ func TestMaybeAddParentSpanID(t *testing.T) {
 	span := makeSpan(model.String("k", "v"))
 	assert.Equal(t, model.NewSpanID(123), span.ParentSpanID())
 
-	span.References = model.MaybeAddParentSpanID(span.TraceID, 0, span.References)
+	span.References = model.MaybeAddParentSpanID(span.TraceID, model.NewSpanID(0), span.References)
 	assert.Equal(t, model.NewSpanID(123), span.ParentSpanID())
 
-	span.References = model.MaybeAddParentSpanID(span.TraceID, 123, span.References)
+	span.References = model.MaybeAddParentSpanID(span.TraceID, model.NewSpanID(123), span.References)
 	assert.Equal(t, model.NewSpanID(123), span.ParentSpanID())
 
-	span.References = model.MaybeAddParentSpanID(span.TraceID, 123, []model.SpanRef{})
+	span.References = model.MaybeAddParentSpanID(span.TraceID, model.NewSpanID(123), []model.SpanRef{})
 	assert.Equal(t, model.NewSpanID(123), span.ParentSpanID())
 
-	span.References = []model.SpanRef{model.NewChildOfRef(model.TraceID{High: 42}, 789)}
-	span.References = model.MaybeAddParentSpanID(span.TraceID, 123, span.References)
+	span.References = []model.SpanRef{model.NewChildOfRef(model.NewTraceID(42, 0), model.NewSpanID(789))}
+	span.References = model.MaybeAddParentSpanID(span.TraceID, model.NewSpanID(123), span.References)
 	assert.Equal(t, model.NewSpanID(123), span.References[0].SpanID, "parent added as first reference")
 }

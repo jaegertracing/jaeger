@@ -122,8 +122,8 @@ func TestParseTraceQuery(t *testing.T) {
 					Tags:         make(map[string]string),
 				},
 				traceIDs: []model.TraceID{
-					{Low: 0x1f00},
-					{Low: 0x1e00},
+					model.NewTraceID(0, 0x1f00),
+					model.NewTraceID(0, 0x1e00),
 				},
 			},
 		},
@@ -136,8 +136,8 @@ func TestParseTraceQuery(t *testing.T) {
 					Tags:         make(map[string]string),
 				},
 				traceIDs: []model.TraceID{
-					{Low: 0x100},
-					{Low: 0x200},
+					model.NewTraceID(0, 0x100),
+					model.NewTraceID(0, 0x200),
 				},
 			},
 		},

@@ -24,7 +24,7 @@ import (
 )
 
 var (
-	someTraceID       = model.TraceID{High: 22222, Low: 44444}
+	someTraceID       = model.NewTraceID(22222, 44444)
 	someSpanID        = model.SpanID(3333)
 	someParentSpanID  = model.SpanID(11111)
 	someOperationName = "someOperationName"

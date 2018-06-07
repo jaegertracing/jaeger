@@ -128,7 +128,7 @@ func (td toDomain) transformSpan(zSpan *zipkincore.Span) []*model.Span {
 	if zSpan.TraceIDHigh != nil {
 		traceIDHigh = *zSpan.TraceIDHigh
 	}
-	traceID := model.TraceID{High: uint64(traceIDHigh), Low: uint64(zSpan.TraceID)}
+	traceID := model.NewTraceID(uint64(traceIDHigh), uint64(zSpan.TraceID))
 	var refs []model.SpanRef
 	if zSpan.ParentID != nil {
 		parentSpanID := model.NewSpanID(uint64(*zSpan.ParentID))

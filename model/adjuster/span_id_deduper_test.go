@@ -29,7 +29,7 @@ var (
 )
 
 func newTrace() *model.Trace {
-	traceID := model.TraceID{Low: 42}
+	traceID := model.NewTraceID(0, 42)
 	return &model.Trace{
 		Spans: []*model.Span{
 			{

@@ -25,10 +25,7 @@ import (
 	"github.com/jaegertracing/jaeger/storage/spanstore"
 )
 
-var traceID = model.TraceID{
-	Low:  1,
-	High: 2,
-}
+var traceID = model.NewTraceID(1, 2)
 
 var testingSpan = &model.Span{
 	TraceID: traceID,
@@ -175,9 +172,9 @@ func TestStoreWithLimit(t *testing.T) {
 	store := WithConfiguration(config.Configuration{MaxTraces: maxTraces})
 
 	for i := 0; i < maxTraces*2; i++ {
-		id := &model.TraceID{High: 1, Low: uint64(i)}
+		id := model.NewTraceID(1, uint64(i))
 		err := store.WriteSpan(&model.Span{
-			TraceID: *id,
+			TraceID: id,
 			Process: &model.Process{
 				ServiceName: "TestStoreWithLimit",
 			},
@@ -185,7 +182,7 @@ func TestStoreWithLimit(t *testing.T) {
 		assert.NoError(t, err)
 
 		err = store.WriteSpan(&model.Span{
-			TraceID: *id,
+			TraceID: id,
 			SpanID:  model.NewSpanID(uint64(i)),
 			Process: &model.Process{
 				ServiceName: "TestStoreWithLimit",
