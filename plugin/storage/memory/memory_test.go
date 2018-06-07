@@ -32,7 +32,7 @@ var traceID = model.TraceID{
 
 var testingSpan = &model.Span{
 	TraceID: traceID,
-	SpanID:  model.SpanID(1),
+	SpanID:  model.NewSpanID(1),
 	Process: &model.Process{
 		ServiceName: "serviceName",
 		Tags:        model.KeyValues{},
@@ -55,8 +55,8 @@ var testingSpan = &model.Span{
 
 var childSpan1 = &model.Span{
 	TraceID:    traceID,
-	SpanID:     model.SpanID(2),
-	References: []model.SpanRef{model.NewChildOfRef(traceID, model.SpanID(1))},
+	SpanID:     model.NewSpanID(2),
+	References: []model.SpanRef{model.NewChildOfRef(traceID, model.NewSpanID(1))},
 	Process: &model.Process{
 		ServiceName: "childService",
 		Tags:        model.KeyValues{},
@@ -79,8 +79,8 @@ var childSpan1 = &model.Span{
 
 var childSpan2 = &model.Span{
 	TraceID:    traceID,
-	SpanID:     model.SpanID(3),
-	References: []model.SpanRef{model.NewChildOfRef(traceID, model.SpanID(1))},
+	SpanID:     model.NewSpanID(3),
+	References: []model.SpanRef{model.NewChildOfRef(traceID, model.NewSpanID(1))},
 	Process: &model.Process{
 		ServiceName: "childService",
 		Tags:        model.KeyValues{},
@@ -103,9 +103,9 @@ var childSpan2 = &model.Span{
 
 var childSpan2_1 = &model.Span{
 	TraceID: traceID,
-	SpanID:  model.SpanID(4),
+	SpanID:  model.NewSpanID(4),
 	// child of childSpan2, but with the same service name
-	References: []model.SpanRef{model.NewChildOfRef(traceID, model.SpanID(3))},
+	References: []model.SpanRef{model.NewChildOfRef(traceID, model.NewSpanID(3))},
 	Process: &model.Process{
 		ServiceName: "childService",
 		Tags:        model.KeyValues{},
@@ -186,7 +186,7 @@ func TestStoreWithLimit(t *testing.T) {
 
 		err = store.WriteSpan(&model.Span{
 			TraceID: *id,
-			SpanID:  model.SpanID(i),
+			SpanID:  model.NewSpanID(uint64(i)),
 			Process: &model.Process{
 				ServiceName: "TestStoreWithLimit",
 			},

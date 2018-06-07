@@ -101,7 +101,7 @@ func TestSpanIDMarshalText(t *testing.T) {
 		{id: uint64(max), out: `{"id":"ffffffffffffffff"}`},
 	}
 	for _, testCase := range testCases {
-		c := SpanIDContainer{SpanID: model.SpanID(testCase.id)}
+		c := SpanIDContainer{SpanID: model.NewSpanID(testCase.id)}
 		out, err := json.Marshal(&c)
 		if assert.NoError(t, err) {
 			assert.Equal(t, testCase.out, string(out))
@@ -193,39 +193,39 @@ func TestSpanHash(t *testing.T) {
 
 func TestParentSpanID(t *testing.T) {
 	span := makeSpan(model.String("k", "v"))
-	assert.Equal(t, model.SpanID(123), span.ParentSpanID())
+	assert.Equal(t, model.NewSpanID(123), span.ParentSpanID())
 
 	span.References = []model.SpanRef{
 		model.NewFollowsFromRef(span.TraceID, 777),
 		model.NewChildOfRef(span.TraceID, 888),
 	}
-	assert.Equal(t, model.SpanID(888), span.ParentSpanID())
+	assert.Equal(t, model.NewSpanID(888), span.ParentSpanID())
 
 	span.References = []model.SpanRef{
 		model.NewChildOfRef(model.TraceID{High: 321}, 999),
 	}
-	assert.Equal(t, model.SpanID(0), span.ParentSpanID())
+	assert.Equal(t, model.NewSpanID(0), span.ParentSpanID())
 }
 
 func TestReplaceParentSpanID(t *testing.T) {
 	span := makeSpan(model.String("k", "v"))
-	assert.Equal(t, model.SpanID(123), span.ParentSpanID())
+	assert.Equal(t, model.NewSpanID(123), span.ParentSpanID())
 
 	span.ReplaceParentID(789)
-	assert.Equal(t, model.SpanID(789), span.ParentSpanID())
+	assert.Equal(t, model.NewSpanID(789), span.ParentSpanID())
 
 	span.References = []model.SpanRef{
 		model.NewChildOfRef(model.TraceID{High: 321}, 999),
 	}
 	span.ReplaceParentID(789)
-	assert.Equal(t, model.SpanID(789), span.ParentSpanID())
+	assert.Equal(t, model.NewSpanID(789), span.ParentSpanID())
 }
 
 func makeSpan(someKV model.KeyValue) *model.Span {
 	traceID := model.TraceID{Low: 123}
 	return &model.Span{
 		TraceID:       traceID,
-		SpanID:        model.SpanID(567),
+		SpanID:        model.NewSpanID(567),
 		OperationName: "hi",
 		References:    []model.SpanRef{model.NewChildOfRef(traceID, 123)},
 		StartTime:     time.Unix(0, 1000),

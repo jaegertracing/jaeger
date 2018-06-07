@@ -39,7 +39,10 @@ func SpanIDDeduper() Adjuster {
 
 const (
 	warningTooManySpans = "cannot assign unique span ID, too many spans in the trace"
-	maxSpanID           = model.SpanID(0xffffffffffffffff)
+)
+
+var (
+	maxSpanID = model.NewSpanID(0xffffffffffffffff)
 )
 
 type spanIDDeduper struct {

@@ -23,9 +23,9 @@ import (
 	"github.com/jaegertracing/jaeger/model"
 )
 
-const (
-	clientSpanID  = model.SpanID(1)
-	anotherSpanID = model.SpanID(11)
+var (
+	clientSpanID  = model.NewSpanID(1)
+	anotherSpanID = model.NewSpanID(11)
 )
 
 func newTrace() *model.Trace {
@@ -99,7 +99,7 @@ func TestSpanIDDeduperError(t *testing.T) {
 	trace := newTrace()
 
 	maxID := int64(-1)
-	assert.Equal(t, maxSpanID, model.SpanID(maxID), "maxSpanID must be 2^64-1")
+	assert.Equal(t, maxSpanID, model.NewSpanID(uint64(maxID)), "maxSpanID must be 2^64-1")
 
 	deduper := &spanIDDeduper{trace: trace}
 	deduper.groupSpansByID()

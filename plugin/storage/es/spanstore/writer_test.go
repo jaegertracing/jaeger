@@ -124,7 +124,7 @@ func TestSpanWriter_WriteSpan(t *testing.T) {
 
 				span := &model.Span{
 					TraceID:       model.TraceID{Low: 1},
-					SpanID:        model.SpanID(0),
+					SpanID:        model.NewSpanID(0),
 					OperationName: "operation",
 					Process: &model.Process{
 						ServiceName: "service",

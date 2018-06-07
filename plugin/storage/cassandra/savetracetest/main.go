@@ -105,7 +105,7 @@ func getSomeSpan() *model.Span {
 	traceID := model.TraceID{High: 1, Low: 2}
 	return &model.Span{
 		TraceID:       traceID,
-		SpanID:        model.SpanID(3),
+		SpanID:        model.NewSpanID(3),
 		OperationName: "opName",
 		References:    model.MaybeAddParentSpanID(traceID, 4, getReferences()),
 		Flags:         model.Flags(uint32(5)),
@@ -122,7 +122,7 @@ func getReferences() []model.SpanRef {
 		{
 			RefType: model.ChildOf,
 			TraceID: model.TraceID{High: 1, Low: 1},
-			SpanID:  model.SpanID(4),
+			SpanID:  model.NewSpanID(4),
 		},
 	}
 }

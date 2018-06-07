@@ -80,9 +80,9 @@ func (c converter) toDomain(dbSpan *Span) (*model.Span, error) {
 	traceID := dbSpan.TraceID.ToDomain()
 	span := &model.Span{
 		TraceID:       traceID,
-		SpanID:        model.SpanID(dbSpan.SpanID),
+		SpanID:        model.NewSpanID(uint64(dbSpan.SpanID)),
 		OperationName: dbSpan.OperationName,
-		References:    model.MaybeAddParentSpanID(traceID, model.SpanID(dbSpan.ParentID), refs),
+		References:    model.MaybeAddParentSpanID(traceID, model.NewSpanID(uint64(dbSpan.ParentID)), refs),
 		Flags:         model.Flags(uint32(dbSpan.Flags)),
 		StartTime:     model.EpochMicrosecondsAsTime(uint64(dbSpan.StartTime)),
 		Duration:      model.MicrosecondsAsDuration(uint64(dbSpan.Duration)),
@@ -154,7 +154,7 @@ func (c converter) fromDBRefs(refs []SpanRef) ([]model.SpanRef, error) {
 		retMe[i] = model.SpanRef{
 			RefType: refType,
 			TraceID: r.TraceID.ToDomain(),
-			SpanID:  model.SpanID(r.SpanID),
+			SpanID:  model.NewSpanID(uint64(r.SpanID)),
 		}
 	}
 	return retMe, nil

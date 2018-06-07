@@ -56,12 +56,12 @@ var (
 		Spans: []*model.Span{
 			{
 				TraceID: mockTraceID,
-				SpanID:  model.SpanID(1),
+				SpanID:  model.NewSpanID(1),
 				Process: &model.Process{},
 			},
 			{
 				TraceID: mockTraceID,
-				SpanID:  model.SpanID(2),
+				SpanID:  model.NewSpanID(2),
 				Process: &model.Process{},
 			},
 		},

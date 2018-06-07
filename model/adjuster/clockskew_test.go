@@ -56,8 +56,8 @@ func TestClockSkewAdjuster(t *testing.T) {
 			traceID := model.TraceID{Low: 1}
 			span := &model.Span{
 				TraceID:    traceID,
-				SpanID:     model.SpanID(spanProto.id),
-				References: []model.SpanRef{model.NewChildOfRef(traceID, model.SpanID(spanProto.parent))},
+				SpanID:     model.NewSpanID(uint64(spanProto.id)),
+				References: []model.SpanRef{model.NewChildOfRef(traceID, model.NewSpanID(uint64(spanProto.parent)))},
 				StartTime:  toTime(spanProto.startTime),
 				Duration:   toDuration(spanProto.duration),
 				Logs:       logs,
@@ -180,7 +180,7 @@ func TestClockSkewAdjuster(t *testing.T) {
 			}
 			for _, proto := range testCase.trace {
 				id := proto.id
-				span := trace.FindSpanByID(model.SpanID(uint64(id)))
+				span := trace.FindSpanByID(model.NewSpanID(uint64(id)))
 				require.NotNil(t, span, "expecting span with span ID = %d", id)
 				// compare values as int because assert.Equal prints uint64 as hex
 				assert.Equal(

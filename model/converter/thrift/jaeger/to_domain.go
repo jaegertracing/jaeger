@@ -63,12 +63,12 @@ func (td toDomain) transformSpan(jSpan *jaeger.Span, mProcess *model.Process) *m
 	// might still have these IDs without representing them in the References, so we
 	// convert it back into child-of reference.
 	if jSpan.ParentSpanId != 0 {
-		parentSpanID := model.SpanID(jSpan.ParentSpanId)
+		parentSpanID := model.NewSpanID(uint64(jSpan.ParentSpanId))
 		refs = model.MaybeAddParentSpanID(traceID, parentSpanID, refs)
 	}
 	return &model.Span{
 		TraceID:       traceID,
-		SpanID:        model.SpanID(jSpan.SpanId),
+		SpanID:        model.NewSpanID(uint64(jSpan.SpanId)),
 		OperationName: jSpan.OperationName,
 		References:    refs,
 		Flags:         model.Flags(jSpan.Flags),
@@ -90,7 +90,7 @@ func (td toDomain) getReferences(jRefs []*jaeger.SpanRef) []model.SpanRef {
 		mRefs[idx] = model.SpanRef{
 			RefType: model.SpanRefType(int(jRef.RefType)),
 			TraceID: model.TraceID{High: uint64(jRef.TraceIdHigh), Low: uint64(jRef.TraceIdLow)},
-			SpanID:  model.SpanID(uint64(jRef.SpanId)),
+			SpanID:  model.NewSpanID(uint64(jRef.SpanId)),
 		}
 	}
 
