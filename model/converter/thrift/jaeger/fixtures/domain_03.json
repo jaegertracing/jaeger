@@ -1,0 +1,198 @@
+{
+  "spans": [
+    {
+      "traceId": "52969a8955571a3f",
+      "spanId": "52969a",
+      "operationName": "get",
+      "startTime": "2017-01-26T16:46:31.639875-05:00",
+      "duration": "22938000ns",
+      "tags": [
+        {
+          "key": "http.url",
+          "vType": "STRING",
+          "vStr": "http://127.0.0.1:15598/client_transactions"
+        },
+        {
+          "key": "span.kind",
+          "vType": "STRING",
+          "vStr": "server"
+        },
+        {
+          "key": "peer.port",
+          "vType": "INT64",
+          "vInt64": 53931
+        },
+        {
+          "key": "someBool",
+          "vType": "BOOL",
+          "vBool": true
+        },
+        {
+          "key": "someDouble",
+          "vType": "FLOAT64",
+          "vFloat64": 129.8
+        },
+        {
+          "key": "peer.service",
+          "vType": "STRING",
+          "vStr": "rtapi"
+        },
+        {
+          "key": "peer.ipv4",
+          "vType": "INT64",
+          "vInt64": 3224716605
+        }
+      ],
+      "process": {
+        "serviceName": "api",
+        "tags": [
+          {
+            "key": "hostname",
+            "vType": "STRING",
+            "vStr": "api246-sjc1"
+          },
+          {
+            "key": "ip",
+            "vType": "STRING",
+            "vStr": "10.53.69.61"
+          },
+          {
+            "key": "jaeger.version",
+            "vType": "STRING",
+            "vStr": "Python-3.1.0"
+          }
+        ]
+      },
+      "logs": [
+        {
+          "timestamp": "2017-01-26T16:46:31.639875-05:00",
+          "fields": [
+            {
+              "key": "key1",
+              "vType": "STRING",
+              "vStr": "value1"
+            },
+            {
+              "key": "key2",
+              "vType": "STRING",
+              "vStr": "value2"
+            }
+          ]
+        },
+        {
+          "timestamp": "2017-01-26T16:46:31.639875-05:00",
+          "fields": [
+            {
+              "key": "event",
+              "vType": "STRING",
+              "vStr": "nothing"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "traceId": "52969a8955571a3f",
+      "spanId": "52947b",
+      "operationName": "get",
+      "startTime": "2017-01-26T16:46:31.639875-05:00",
+      "duration": "22938000ns",
+      "references": [
+        {
+          "refType": "CHILD_OF",
+          "traceId": "52969a8955571a3f",
+          "spanId": "52947b"
+        }
+      ],
+      "tags": [
+        {
+          "key": "http.url",
+          "vType": "STRING",
+          "vStr": "http://127.0.0.1:15598/client_transactions"
+        },
+        {
+          "key": "span.kind",
+          "vType": "STRING",
+          "vStr": "server"
+        },
+        {
+          "key": "peer.port",
+          "vType": "INT64",
+          "vInt64": 53931
+        },
+        {
+          "key": "someBool",
+          "vType": "BOOL",
+          "vBool": true
+        },
+        {
+          "key": "someDouble",
+          "vType": "FLOAT64",
+          "vFloat64": 4638770948061370000
+        },
+        {
+          "key": "peer.service",
+          "vType": "STRING",
+          "vStr": "rtapi"
+        },
+        {
+          "key": "peer.ipv4",
+          "vType": "INT64",
+          "vInt64": 3224716605
+        },
+        {
+          "key": "some.binary.data",
+          "vType": "BINARY",
+          "vBinary": "c29tZS1iaW5hcnktZGF0YQ=="
+        }
+      ],
+      "process": {
+        "serviceName": "api",
+        "tags": [
+          {
+            "key": "hostname",
+            "vType": "STRING",
+            "vStr": "api246-sjc1"
+          },
+          {
+            "key": "ip",
+            "vType": "STRING",
+            "vStr": "10.53.69.61"
+          },
+          {
+            "key": "jaeger.version",
+            "vType": "STRING",
+            "vStr": "Python-3.1.0"
+          }
+        ]
+      },
+      "logs": [
+        {
+          "timestamp": "2017-01-26T16:46:31.639875-05:00",
+          "fields": [
+            {
+              "key": "key1",
+              "vType": "STRING",
+              "vStr": "value1"
+            },
+            {
+              "key": "key2",
+              "vType": "STRING",
+              "vStr": "value2"
+            }
+          ]
+        },
+        {
+          "timestamp": "2017-01-26T16:46:31.639875-05:00",
+          "fields": [
+            {
+              "key": "event",
+              "vType": "STRING",
+              "vStr": "nothing"
+            }
+          ]
+        }
+      ]
+    }
+  ]
+}

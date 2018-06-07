@@ -16,10 +16,11 @@ package model_test
 
 import (
 	"bytes"
-	"encoding/json"
+	"fmt"
 	"testing"
 	"time"
 
+	"github.com/gogo/protobuf/jsonpb"
 	"github.com/opentracing/opentracing-go/ext"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -27,114 +28,143 @@ import (
 	"github.com/jaegertracing/jaeger/model"
 )
 
-type TraceIDContainer struct {
-	TraceID model.TraceID `json:"id"`
-}
+var (
+	_ jsonpb.JSONPBUnmarshaler = new(model.TraceID)
+	_ jsonpb.JSONPBMarshaler   = new(model.TraceID)
+	// _ jsonpb.JSONPBUnmarshaler = new(model.SpanID)
+	// _ jsonpb.JSONPBMarshaler   = new(model.SpanID)
+)
 
-func TestTraceIDMarshalText(t *testing.T) {
+func TestTraceIDMarshalJSONPB(t *testing.T) {
 	testCases := []struct {
 		hi, lo uint64
 		out    string
 	}{
-		{lo: 1, out: `{"id":"1"}`},
-		{lo: 15, out: `{"id":"f"}`},
-		{lo: 31, out: `{"id":"1f"}`},
-		{lo: 257, out: `{"id":"101"}`},
-		{hi: 1, lo: 1, out: `{"id":"10000000000000001"}`},
-		{hi: 257, lo: 1, out: `{"id":"1010000000000000001"}`},
+		{lo: 1, out: `"1"`},
+		{lo: 15, out: `"f"`},
+		{lo: 31, out: `"1f"`},
+		{lo: 257, out: `"101"`},
+		{hi: 1, lo: 1, out: `"10000000000000001"`},
+		{hi: 257, lo: 1, out: `"1010000000000000001"`},
 	}
 	for _, testCase := range testCases {
-		c := TraceIDContainer{TraceID: model.NewTraceID(testCase.hi, testCase.lo)}
-		out, err := json.Marshal(&c)
+		id := model.NewTraceID(testCase.hi, testCase.lo)
+		out := new(bytes.Buffer)
+		err := new(jsonpb.Marshaler).Marshal(out, &id)
 		if assert.NoError(t, err) {
-			assert.Equal(t, testCase.out, string(out))
+			assert.Equal(t, testCase.out, out.String())
 		}
 	}
 }
 
-func TestTraceIDUnmarshalText(t *testing.T) {
+func TestTraceIDUnmarshalJSONPB(t *testing.T) {
 	testCases := []struct {
 		in     string
 		hi, lo uint64
 		err    bool
 	}{
-		{lo: 1, in: `{"id":"1"}`},
-		{lo: 15, in: `{"id":"f"}`},
-		{lo: 31, in: `{"id":"1f"}`},
-		{lo: 257, in: `{"id":"101"}`},
-		{hi: 1, lo: 1, in: `{"id":"10000000000000001"}`},
-		{hi: 257, lo: 1, in: `{"id":"1010000000000000001"}`},
-		{err: true, in: `{"id":""}`},
-		{err: true, in: `{"id":"x"}`},
-		{err: true, in: `{"id":"x0000000000000001"}`},
-		{err: true, in: `{"id":"1x000000000000001"}`},
-		{err: true, in: `{"id":"10123456789abcdef0123456789abcdef"}`},
+		{lo: 1, in: `"1"`},
+		{lo: 15, in: `"f"`},
+		{lo: 31, in: `"1f"`},
+		{lo: 257, in: `"101"`},
+		{hi: 1, lo: 1, in: `"10000000000000001"`},
+		{hi: 257, lo: 1, in: `"1010000000000000001"`},
+		{err: true, in: ``},
+		{err: true, in: `"x"`},
+		{err: true, in: `"x0000000000000001"`},
+		{err: true, in: `"1x000000000000001"`},
+		{err: true, in: `"10123456789abcdef0123456789abcdef"`},
 	}
 	for _, testCase := range testCases {
-		var c TraceIDContainer
-		err := json.Unmarshal([]byte(testCase.in), &c)
+		var id model.TraceID
+		err := jsonpb.Unmarshal(bytes.NewReader([]byte(testCase.in)), &id)
 		if testCase.err {
 			assert.Error(t, err)
 		} else {
 			if assert.NoError(t, err) {
-				assert.Equal(t, testCase.hi, c.TraceID.High)
-				assert.Equal(t, testCase.lo, c.TraceID.Low)
+				assert.Equal(t, testCase.hi, id.High)
+				assert.Equal(t, testCase.lo, id.Low)
 			}
 		}
 	}
+	// for code coverage
+	var id model.TraceID
+	err := id.UnmarshalJSONPB(nil, []byte(""))
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "TraceID JSON string cannot be shorter than 3 chars")
+	err = id.UnmarshalJSONPB(nil, []byte("123"))
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "TraceID JSON string must be enclosed in quotes")
+	_, err = id.MarshalText()
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "unsupported method")
+	err = id.UnmarshalText(nil)
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "unsupported method")
 }
 
-type SpanIDContainer struct {
-	SpanID model.SpanID `json:"id"`
-}
-
-func TestSpanIDMarshalText(t *testing.T) {
+func TestSpanIDMarshalJSON(t *testing.T) {
 	max := int64(-1)
 	testCases := []struct {
 		id  uint64
 		out string
 	}{
-		{id: 1, out: `{"id":"1"}`},
-		{id: 15, out: `{"id":"f"}`},
-		{id: 31, out: `{"id":"1f"}`},
-		{id: 257, out: `{"id":"101"}`},
-		{id: uint64(max), out: `{"id":"ffffffffffffffff"}`},
+		{id: 1, out: "1"},
+		{id: 15, out: "f"},
+		{id: 31, out: "1f"},
+		{id: 257, out: "101"},
+		{id: uint64(max), out: "ffffffffffffffff"},
 	}
 	for _, testCase := range testCases {
-		c := SpanIDContainer{SpanID: model.NewSpanID(testCase.id)}
-		out, err := json.Marshal(&c)
-		if assert.NoError(t, err) {
-			assert.Equal(t, testCase.out, string(out))
-		}
+		expected := fmt.Sprintf(`{"traceId":"0","spanId":"%s"}`, testCase.out)
+		t.Run(expected, func(t *testing.T) {
+			ref := &model.SpanRef{SpanID: model.SpanID(testCase.id)}
+			out := new(bytes.Buffer)
+			err := new(jsonpb.Marshaler).Marshal(out, ref)
+			if assert.NoError(t, err) {
+				assert.Equal(t, expected, out.String())
+			}
+		})
 	}
 }
 
-func TestSpanIDUnmarshalText(t *testing.T) {
+func TestSpanIDUnmarshalJSON(t *testing.T) {
 	testCases := []struct {
 		in  string
-		id  uint64
+		id  model.SpanID
 		err bool
 	}{
-		{id: 1, in: `{"id":"1"}`},
-		{id: 15, in: `{"id":"f"}`},
-		{id: 31, in: `{"id":"1f"}`},
-		{id: 257, in: `{"id":"101"}`},
-		{err: true, in: `{"id":""}`},
-		{err: true, in: `{"id":"x"}`},
-		{err: true, in: `{"id":"x123"}`},
-		{err: true, in: `{"id":"10123456789abcdef"}`},
+		{id: 1, in: "1"},
+		{id: 15, in: "f"},
+		{id: 31, in: "1f"},
+		{id: 257, in: "101"},
+		{err: true, in: ""},
+		{err: true, in: "x"},
+		{err: true, in: "x123"},
+		{err: true, in: "10123456789abcdef"},
 	}
 	for _, testCase := range testCases {
-		var c SpanIDContainer
-		err := json.Unmarshal([]byte(testCase.in), &c)
-		if testCase.err {
-			assert.Error(t, err)
-		} else {
-			if assert.NoError(t, err) {
-				assert.Equal(t, testCase.id, uint64(c.SpanID))
+		in := fmt.Sprintf(`{"traceId":"0","spanId":"%s"}`, testCase.in)
+		t.Run(in, func(t *testing.T) {
+			var ref model.SpanRef
+			err := jsonpb.Unmarshal(bytes.NewReader([]byte(in)), &ref)
+			if testCase.err {
+				assert.Error(t, err)
+			} else {
+				if assert.NoError(t, err) {
+					assert.Equal(t, testCase.id, ref.SpanID)
+				}
 			}
-		}
+		})
 	}
+	// for code coverage
+	var id model.SpanID
+	err := id.UnmarshalJSONPB(nil, []byte(""))
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "SpanID JSON string cannot be shorter than 3 chars")
+	err = id.UnmarshalJSONPB(nil, []byte("123"))
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "SpanID JSON string must be enclosed in quotes")
 }
 
 func TestIsRPCClientServer(t *testing.T) {

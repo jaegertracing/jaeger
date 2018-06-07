@@ -71,7 +71,7 @@ type Span struct {
 	Duration      uint64      `json:"duration"`  // microseconds
 	Tags          []KeyValue  `json:"tags"`
 	Logs          []Log       `json:"logs"`
-	ProcessID     ProcessID   `json:"processID"`
+	ProcessID     ProcessID   `json:"processID,omitempty"`
 	Process       *Process    `json:"process,omitempty"`
 	Warnings      []string    `json:"warnings"`
 }

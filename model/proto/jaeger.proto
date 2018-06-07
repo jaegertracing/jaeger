@@ -19,12 +19,12 @@ import "google/protobuf/empty.proto";
 import "google/protobuf/timestamp.proto";
 import "google/protobuf/duration.proto";
 import "google/api/annotations.proto";
-import "protoc-gen-swagger/options/annotations.proto";
+import "github.com/grpc-ecosystem/grpc-gateway/protoc-gen-swagger/options/annotations.proto";
 import "github.com/gogo/protobuf/gogoproto/gogo.proto";
 // import "github.com/mwitkow/go-proto-validators/validator.proto";
 
 // Specifies path for generated file (relative to $GOPATH) and the name of the package.
-option go_package = "github.com/jaegertracing/jaeger/model/proto;protomodel";
+option go_package = "model";
 
 option (grpc.gateway.protoc_gen_swagger.options.openapiv2_swagger) = {
   info: {
@@ -49,39 +49,45 @@ option (gogoproto.sizer_all) = true;
 option (gogoproto.goproto_registration) = true;
 
 message TraceID {
+  // We have a custom String() method that renders trace ID as a single hex string, so turn off auto-gen.
+  option (gogoproto.goproto_stringer) =  false;
+
   uint64 low = 1;
   uint64 high = 2;
 }
 
 // For comparison of how KeyValue looks when using `oneof`.
 // Both definitions result in the same message size.
-message KeyValue2 {
-  string key = 1;
-  oneof value {
-    string vStr = 2;
-    double  vDouble = 3;
-    bool vBool = 4;
-    int64 vLong = 5;
-    bytes vBinary = 6;
-  }
-}
+// message KeyValue2 {
+//   string key = 1;
+//   oneof value {
+//     string vStr = 2;
+//     double  vDouble = 3;
+//     bool vBool = 4;
+//     int64 vLong = 5;
+//     bytes vBinary = 6;
+//   }
+// }
 
 enum ValueType {
-  STRING = 0;
-  DOUBLE = 1;
-  BOOL = 2;
-  LONG = 3;
-  BINARY = 4;
+  STRING  = 0;
+  BOOL    = 1;
+  INT64   = 2;
+  FLOAT64 = 3;
+  BINARY  = 4;
 };
 
 message KeyValue {
-  string    key     = 1;
-  ValueType vType   = 2;
-  string    vStr    = 3;
-  double    vDouble = 4;
-  bool      vBool   = 5;
-  uint64    vLong   = 6;
-  bytes     vBinary = 7;
+  option (gogoproto.equal) = true;
+  option (gogoproto.compare) = true;
+
+  string    key      = 1;
+  ValueType v_type    = 2;
+  string    v_str     = 3;
+  bool      v_bool    = 4;
+  int64     v_int64   = 5;
+  double    v_float64 = 6;
+  bytes     v_binary  = 7;
 }
 
 message Log {
@@ -100,14 +106,16 @@ enum SpanRefType {
 };
 
 message SpanRef {
-  TraceID traceID = 1 [
-    (gogoproto.nullable) = false
-  ];
-  uint64 spanID = 2 [
+  TraceID trace_id = 1 [
     (gogoproto.nullable) = false,
-    (gogoproto.customtype) = "SpanID"
+    (gogoproto.customname) = "TraceID"
   ];
-  SpanRefType type = 3;
+  uint64 span_id = 2 [
+    (gogoproto.nullable) = false,
+    (gogoproto.customname) = "SpanID",
+    (gogoproto.customtype) = "SpanID" // alias to uint64
+  ];
+  SpanRefType ref_type = 3;
 }
 
 message Process {
@@ -118,19 +126,24 @@ message Process {
 }
 
 message Span {
-  TraceID traceID = 1 [
-    (gogoproto.nullable) = false
-  ];
-  uint64 spanID = 2 [
+  TraceID trace_id = 1 [
     (gogoproto.nullable) = false,
+    (gogoproto.customname) = "TraceID"
+  ];
+  uint64 span_id = 2 [
+    (gogoproto.nullable) = false,
+    (gogoproto.customname) = "SpanID",
     (gogoproto.customtype) = "SpanID"
   ];
   string operation_name = 3;
   repeated SpanRef references = 4 [
     (gogoproto.nullable) = false
   ];
-  uint32 flags = 5;
-  google.protobuf.Timestamp startTime = 6 [
+  uint32 flags = 5 [
+    (gogoproto.nullable) = false,
+    (gogoproto.customtype) = "Flags" // alias to uint32
+  ];
+  google.protobuf.Timestamp start_time = 6 [
     (gogoproto.stdtime) = true,
     (gogoproto.nullable) = false
   ];
@@ -145,28 +158,46 @@ message Span {
     (gogoproto.nullable) = false
   ];
   Process process = 10;
-  string processID = 11;
+  string process_id = 11 [
+    (gogoproto.customname) = "ProcessID"
+  ];
   repeated string warnings = 12;
 }
 
+// message Span2 {
+//     TraceID traceID = 1 [
+//       (gogoproto.nullable) = false
+//     ];
+//     uint64 spanID = 2 [
+//       (gogoproto.nullable) = false,
+//       (gogoproto.customtype) = "SpanID"
+//     ];
+// }
+
 message Trace {
-  repeated Span spans = 1 [
+  message ProcessMapping {
+      string process_id = 1 [
+        (gogoproto.customname) = "ProcessID"
+      ];
+      Process process = 2 [
+        (gogoproto.nullable) = false
+      ];
+  }
+  repeated Span spans = 1;
+  repeated ProcessMapping process_map = 2 [
     (gogoproto.nullable) = false
   ];
-  map<string, Process> processMap = 2 [
-    (gogoproto.nullable) = false
-  ];
+  repeated string warnings = 3;
 }
 
 message Batch {
-    repeated Span spans = 1 [
-      (gogoproto.nullable) = false
-    ];
+    repeated Span spans = 1;
     Process process = 2 [
       (gogoproto.nullable) = false
     ];
 }
-  
+
+// TODO: move services to another proto file.
 service CollectorServiceV1 {
     rpc PostSpans(Batch) returns (google.protobuf.Empty) {
         option (google.api.http) = {

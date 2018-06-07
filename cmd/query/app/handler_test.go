@@ -26,6 +26,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/gogo/protobuf/jsonpb"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
 	"github.com/stretchr/testify/require"
@@ -183,14 +184,15 @@ func TestGetTrace(t *testing.T) {
 	}
 
 	makeMockTrace := func(t *testing.T) *model.Trace {
-		bytes, err := json.Marshal(mockTrace)
+		out := new(bytes.Buffer)
+		err := new(jsonpb.Marshaler).Marshal(out, mockTrace)
 		require.NoError(t, err)
-		var trace *model.Trace
-		require.NoError(t, json.Unmarshal(bytes, &trace))
+		var trace model.Trace
+		require.NoError(t, jsonpb.Unmarshal(out, &trace))
 		trace.Spans[1].References = []model.SpanRef{
 			{TraceID: model.NewTraceID(0, 0)},
 		}
-		return trace
+		return &trace
 	}
 
 	extractTraces := func(t *testing.T, response *structuredResponse) []ui.Trace {

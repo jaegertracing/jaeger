@@ -136,6 +136,7 @@ func (td toDomain) transformSpan(zSpan *zipkincore.Span) []*model.Span {
 	}
 
 	flags := td.getFlags(zSpan)
+	// TODO StartTime and Duration could theoretically be defined only via cs/cr/sr/ss annotations.
 	result := []*model.Span{{
 		TraceID:       traceID,
 		SpanID:        model.NewSpanID(uint64(zSpan.ID)),

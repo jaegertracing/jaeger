@@ -92,6 +92,8 @@ cover: nocover
 	@echo pre-compiling tests
 	@time go test -i $(ALL_PKGS)
 	@./scripts/cover.sh $(shell go list $(TOP_PKGS))
+	grep -E -v 'jaeger.pb.*.go' cover.out > cover-nogen.out
+	mv cover-nogen.out cover.out
 	go tool cover -html=cover.out -o cover.html
 
 .PHONY: nocover
@@ -328,14 +330,22 @@ Mgoogle/protobuf/timestamp.proto=github.com/gogo/protobuf/types,\
 Mgoogle/protobuf/duration.proto=github.com/gogo/protobuf/types,\
 Mgoogle/protobuf/empty.proto=github.com/gogo/protobuf/types,\
 Mgoogle/api/annotations.proto=github.com/gogo/googleapis/google/api:\
-$$GOPATH/src/ \
+$$GOPATH/src/github.com/jaegertracing/jaeger/model/ \
 		--grpc-gateway_out=\
 Mgoogle/protobuf/timestamp.proto=github.com/gogo/protobuf/types,\
 Mgoogle/protobuf/empty.proto=github.com/gogo/protobuf/types,\
 Mgoogle/api/annotations.proto=github.com/gogo/googleapis/google/api:\
-$$GOPATH/src/ \
+$$GOPATH/src/github.com/jaegertracing/jaeger/model \
 		--swagger_out=model/proto/openapi/ \
 		model/proto/jaeger.proto
 
 	# Workaround for https://github.com/grpc-ecosystem/grpc-gateway/issues/229.
-	sed -i '' "s/empty.Empty/types.Empty/g" model/proto/jaeger.pb.gw.go
+	sed -i '' "s/empty.Empty/types.Empty/g" model/jaeger.pb.gw.go
+
+proto-install:
+	go install \
+		./vendor/github.com/gogo/protobuf/protoc-gen-gogo \
+		./vendor/github.com/grpc-ecosystem/grpc-gateway/protoc-gen-grpc-gateway \
+		./vendor/github.com/grpc-ecosystem/grpc-gateway/protoc-gen-swagger
+		# ./vendor/github.com/mwitkow/go-proto-validators/protoc-gen-govalidators \
+		# ./vendor/github.com/rakyll/statik

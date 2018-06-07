@@ -67,6 +67,17 @@
     }
   },
   "definitions": {
+    "TraceProcessMapping": {
+      "type": "object",
+      "properties": {
+        "process_id": {
+          "type": "string"
+        },
+        "process": {
+          "$ref": "#/definitions/jaegerProcess"
+        }
+      }
+    },
     "jaegerBatch": {
       "type": "object",
       "properties": {
@@ -87,25 +98,25 @@
         "key": {
           "type": "string"
         },
-        "vType": {
+        "v_type": {
           "$ref": "#/definitions/jaegerValueType"
         },
-        "vStr": {
+        "v_str": {
           "type": "string"
         },
-        "vDouble": {
-          "type": "number",
-          "format": "double"
-        },
-        "vBool": {
+        "v_bool": {
           "type": "boolean",
           "format": "boolean"
         },
-        "vLong": {
+        "v_int64": {
           "type": "string",
-          "format": "uint64"
+          "format": "int64"
         },
-        "vBinary": {
+        "v_float64": {
+          "type": "number",
+          "format": "double"
+        },
+        "v_binary": {
           "type": "string",
           "format": "byte"
         }
@@ -143,11 +154,12 @@
     "jaegerSpan": {
       "type": "object",
       "properties": {
-        "traceID": {
+        "trace_id": {
           "$ref": "#/definitions/jaegerTraceID"
         },
-        "spanID": {
-          "$ref": "#/definitions/jaegerSpanID"
+        "span_id": {
+          "type": "string",
+          "format": "uint64"
         },
         "operation_name": {
           "type": "string"
@@ -162,7 +174,7 @@
           "type": "integer",
           "format": "int64"
         },
-        "startTime": {
+        "start_time": {
           "type": "string",
           "format": "date-time"
         },
@@ -184,7 +196,7 @@
         "process": {
           "$ref": "#/definitions/jaegerProcess"
         },
-        "processID": {
+        "process_id": {
           "type": "string"
         },
         "warnings": {
@@ -195,25 +207,17 @@
         }
       }
     },
-    "jaegerSpanID": {
-      "type": "object",
-      "properties": {
-        "Value": {
-          "type": "string",
-          "format": "uint64"
-        }
-      }
-    },
     "jaegerSpanRef": {
       "type": "object",
       "properties": {
-        "traceID": {
+        "trace_id": {
           "$ref": "#/definitions/jaegerTraceID"
         },
-        "spanID": {
-          "$ref": "#/definitions/jaegerSpanID"
+        "span_id": {
+          "type": "string",
+          "format": "uint64"
         },
-        "type": {
+        "ref_type": {
           "$ref": "#/definitions/jaegerSpanRefType"
         }
       }
@@ -235,10 +239,16 @@
             "$ref": "#/definitions/jaegerSpan"
           }
         },
-        "processMap": {
-          "type": "object",
-          "additionalProperties": {
-            "$ref": "#/definitions/jaegerProcess"
+        "process_map": {
+          "type": "array",
+          "items": {
+            "$ref": "#/definitions/TraceProcessMapping"
+          }
+        },
+        "warnings": {
+          "type": "array",
+          "items": {
+            "type": "string"
           }
         }
       }
@@ -260,9 +270,9 @@
       "type": "string",
       "enum": [
         "STRING",
-        "DOUBLE",
         "BOOL",
-        "LONG",
+        "INT64",
+        "FLOAT64",
         "BINARY"
       ],
       "default": "STRING"

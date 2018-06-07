@@ -16,66 +16,65 @@ package model
 
 import (
 	"fmt"
+	"strings"
 )
 
 // SpanRefType describes the type of a span reference
-type SpanRefType int
+// type SpanRefType int
 
 const (
 	// ChildOf span reference type describes a reference to a parent span
 	// that depends on the response from the current (child) span
-	ChildOf SpanRefType = iota
+	ChildOf = SpanRefType_CHILD_OF
 
 	// FollowsFrom span reference type describes a reference to a "parent" span
 	// that does not depend on the response from the current (child) span
-	FollowsFrom
+	FollowsFrom = SpanRefType_FOLLOWS_FROM
 
-	childOfStr     = "child-of"
-	followsFromStr = "follows-from"
+	// childOfStr     = "child-of"
+	// followsFromStr = "follows-from"
 )
 
 // SpanRef describes a reference from one span to another
-type SpanRef struct {
-	RefType SpanRefType `json:"refType"`
-	TraceID TraceID     `json:"traceID"`
-	SpanID  SpanID      `json:"spanID"`
-}
+// type SpanRef struct {
+// 	RefType SpanRefType `json:"refType"`
+// 	TraceID TraceID     `json:"traceID"`
+// 	SpanID  SpanID      `json:"spanID"`
+// }
 
-func (p SpanRefType) String() string {
-	switch p {
-	case ChildOf:
-		return childOfStr
-	case FollowsFrom:
-		return followsFromStr
-	}
-	return "<invalid>"
-}
+// func (p SpanRefType) String() string {
+// 	switch p {
+// 	case ChildOf:
+// 		return childOfStr
+// 	case FollowsFrom:
+// 		return followsFromStr
+// 	}
+// 	return "<invalid>"
+// }
 
 // SpanRefTypeFromString converts a string into SpanRefType enum.
 func SpanRefTypeFromString(s string) (SpanRefType, error) {
-	switch s {
-	case childOfStr:
-		return ChildOf, nil
-	case followsFromStr:
-		return FollowsFrom, nil
+	i, ok := SpanRefType_value[strings.ToUpper(s)]
+	if ok {
+		return SpanRefType(i), nil
 	}
 	return SpanRefType(0), fmt.Errorf("not a valid SpanRefType string %s", s)
 }
 
-// MarshalText allows SpanRefType to serialize itself in JSON as a string.
-func (p SpanRefType) MarshalText() ([]byte, error) {
-	return []byte(p.String()), nil
-}
+// // MarshalText allows SpanRefType to serialize itself in JSON as a string.
+// func (p SpanRefType) MarshalText() ([]byte, error) {
+// 	return []byte(p.String()), nil
+// }
 
-// UnmarshalText allows SpanRefType to deserialize itself from a JSON string.
-func (p *SpanRefType) UnmarshalText(text []byte) error {
-	q, err := SpanRefTypeFromString(string(text))
-	if err != nil {
-		return err
-	}
-	*p = q
-	return nil
-}
+// // UnmarshalText allows SpanRefType to deserialize itself from a JSON string.
+// func (p *SpanRefType) UnmarshalText(text []byte) error {
+// 	q, err := SpanRefTypeFromString(string(text))
+// 	if err != nil {
+// 		return err
+// 	}
+// 	*p = q
+// 	return nil
+// }
 
 // MaybeAddParentSpanID adds non-zero parentSpanID to refs as a child-of reference.
 // We no longer store ParentSpanID in the domain model, but the data in the database

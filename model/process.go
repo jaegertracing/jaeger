@@ -17,10 +17,10 @@ package model
 import "io"
 
 // Process describes an instance of an application or service that emits tracing data.
-type Process struct {
-	ServiceName string     `json:"serviceName"`
-	Tags        []KeyValue `json:"tags,omitempty"`
-}
+// type Process struct {
+// 	ServiceName string     `json:"serviceName"`
+// 	Tags        []KeyValue `json:"tags,omitempty"`
+// }
 
 // NewProcess creates a new Process for given serviceName and tags.
 // The tags are sorted in place and kept in the the same array/slice,

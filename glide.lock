@@ -1,5 +1,5 @@
-hash: 8e822aebf6da2a7b1c6277d9b8a649aa2f1d5be1c65a1d47b51f37e546587254
-updated: 2018-05-04T21:47:02.422238-04:00
+hash: dc74f28fde5d40df92586392a2355378916fe7410343f66d146c02a21551cf3c
+updated: 2018-06-05T18:21:22.220323-04:00
 imports:
 - name: github.com/apache/thrift
   version: 53dd39833a08ce33582e5ff31fa18bb4735d6731
@@ -24,8 +24,6 @@ imports:
   - spew
 - name: github.com/elazarl/go-bindata-assetfs
   version: 38087fe4dafb822e541b3f7955075cc1c30bd294
-- name: github.com/fatih/structs
-  version: ebf56d35bba727c68ac77f56f2fcf90b181851aa
 - name: github.com/fsnotify/fsnotify
   version: c2828203cd70a50dcccfb2761f8b1f8ceef9a8e9
 - name: github.com/go-kit/kit
@@ -74,7 +72,6 @@ imports:
   version: b23578765ee54ff6bceff57f397d833bf4ca6869
   subpackages:
   - google/api
-  - google/rpc
 - name: github.com/gogo/protobuf
   version: 1ef32a8b9fc3f8ec940126907cedb5998f6318e4
   subpackages:
@@ -82,8 +79,6 @@ imports:
   - jsonpb
   - proto
   - protoc-gen-gogo/descriptor
-  - protoc-gen-gogo/generator
-  - protoc-gen-gogo/plugin
   - sortkeys
   - types
 - name: github.com/golang/protobuf
@@ -105,10 +100,6 @@ imports:
   version: 3a5767ca75ece5f7f1440b1d16975247f8d8b221
 - name: github.com/gorilla/mux
   version: 392c28fe23e1c45ddba891b0320b3b5df220beea
-- name: github.com/grpc-ecosystem/go-grpc-middleware
-  version: c250d6563d4d4c20252cd865923440e829844f4e
-  subpackages:
-  - validator
 - name: github.com/grpc-ecosystem/grpc-gateway
   version: 58f78b988bc393694cef62b92c5cde77e4742ff5
   subpackages:

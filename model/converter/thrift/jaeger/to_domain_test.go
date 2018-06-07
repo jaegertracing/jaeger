@@ -20,6 +20,8 @@ import (
 	"os"
 	"testing"
 
+	"github.com/gogo/protobuf/jsonpb"
+	"github.com/gogo/protobuf/proto"
 	"github.com/kr/pretty"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -33,7 +35,7 @@ const NumberOfFixtures = 2
 func TestToDomain(t *testing.T) {
 	for i := 1; i <= NumberOfFixtures; i++ {
 		in := fmt.Sprintf("fixtures/thrift_batch_%02d.json", i)
-		out := fmt.Sprintf("fixtures/model_%02d.json", i)
+		out := fmt.Sprintf("fixtures/domain_%02d.json", i)
 		mSpans := loadSpans(t, out)
 		for _, s := range mSpans {
 			s.NormalizeTimestamps()
@@ -67,9 +69,15 @@ func TestToDomain(t *testing.T) {
 }
 
 func loadSpans(t *testing.T, file string) []*model.Span {
-	var spans []*model.Span
-	loadJSON(t, file, &spans)
-	return spans
+	var trace model.Trace
+	loadJSONPB(t, file, &trace)
+	return trace.Spans
+}
+
+func loadJSONPB(t *testing.T, fileName string, obj proto.Message) {
+	jsonFile, err := os.Open(fileName)
+	require.NoError(t, err, "Failed to open json fixture file %s", fileName)
+	require.NoError(t, jsonpb.Unmarshal(jsonFile, obj), fileName)
 }
 
 func loadBatch(t *testing.T, file string) *jaeger.Batch {
@@ -78,11 +86,11 @@ func loadBatch(t *testing.T, file string) *jaeger.Batch {
 	return &batch
 }
 
-func loadJSON(t *testing.T, fileName string, i interface{}) {
+func loadJSON(t *testing.T, fileName string, obj interface{}) {
 	jsonFile, err := os.Open(fileName)
 	require.NoError(t, err, "Failed to load json fixture file %s", fileName)
 	jsonParser := json.NewDecoder(jsonFile)
-	err = jsonParser.Decode(i)
+	err = jsonParser.Decode(obj)
 	require.NoError(t, err, "Failed to parse json fixture file %s", fileName)
 }
 

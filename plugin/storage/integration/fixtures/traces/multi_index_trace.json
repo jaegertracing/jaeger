@@ -1,12 +1,12 @@
  {
-  "Spans": [
+  "spans": [
     {
-      "traceID": "5",
-      "spanID": "1",
+      "traceId": "5",
+      "spanId": "1",
       "operationName": "operation-list-test2",
       "references": [],
       "startTime": "2017-01-26T00:03:31.639875Z",
-      "duration": 5000,
+      "duration": "5000ns",
       "tags": [],
       "process": {
         "serviceName": "query05-service",
@@ -24,12 +24,12 @@
       ]
     },
     {
-      "traceID": "5",
-      "spanID": "2",
+      "traceId": "5",
+      "spanId": "2",
       "operationName": "operation-list-test3",
       "references": [],
       "startTime": "2017-01-25T23:56:31.639875Z",
-      "duration": 5000,
+      "duration": "5000ns",
       "tags": [],
       "process": {
         "serviceName": "query05-service",

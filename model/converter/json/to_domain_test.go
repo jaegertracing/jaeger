@@ -15,12 +15,14 @@
 package json
 
 import (
+	"bytes"
 	"encoding/json"
 	"fmt"
 	"io/ioutil"
 	"math"
 	"testing"
 
+	gogojsonpb "github.com/gogo/protobuf/jsonpb"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
@@ -50,7 +52,7 @@ func testToDomain(t *testing.T, testParentSpanID bool) {
 		outStr, err := ioutil.ReadFile(out)
 		require.NoError(t, err)
 		var expectedSpan model.Span
-		require.NoError(t, json.Unmarshal(outStr, &expectedSpan))
+		require.NoError(t, gogojsonpb.Unmarshal(bytes.NewReader(outStr), &expectedSpan))
 
 		CompareModelSpans(t, &expectedSpan, actualSpan)
 	}
@@ -173,7 +175,8 @@ func TestRevertKeyValueOfType(t *testing.T) {
 		Value: "someString",
 	}
 	_, err := td.convertKeyValueOfType(tag, model.ValueType(7))
-	assert.EqualError(t, err, "not a valid ValueType string <invalid>")
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "not a valid ValueType string")
 }
 
 func TestFailureBadRefs(t *testing.T) {

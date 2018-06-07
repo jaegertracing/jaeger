@@ -1,12 +1,12 @@
 {
-  "Spans": [
+  "spans": [
     {
-      "traceID": "9",
-      "spanID": "3",
+      "traceId": "9",
+      "spanId": "3",
       "operationName": "placeholder",
       "references": [],
       "startTime": "2017-01-26T16:46:31.639875Z",
-      "duration": 5000,
+      "duration": "5000ns",
       "tags": [],
       "process": {
         "serviceName": "query09-service",

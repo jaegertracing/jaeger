@@ -1,14 +1,19 @@
 {
-  "Spans": [
+  "spans": [
     {
-      "traceID": "7",
-      "spanID": "3",
-      "parentSpanID": "2",
+      "traceId": "7",
+      "spanId": "3",
       "operationName": "query07-operation",
       "tags": [],
-      "references": [],
+      "references": [
+        {
+          "refType": "CHILD_OF",
+          "traceId": "7",
+          "spanId": "2"
+        }
+      ],
       "startTime": "2017-01-26T16:46:31.639875Z",
-      "duration": 1000,
+      "duration": "1000ns",
       "process": {
         "serviceName": "query07-service",
         "tags": []
@@ -16,12 +21,12 @@
       "logs": []
     },
     {
-      "traceID": "7",
-      "spanID": "2",
+      "traceId": "7",
+      "spanId": "2",
       "operationName": "query07-operation",
       "references": [],
       "startTime": "2017-01-26T16:46:31.639875Z",
-      "duration": 2000,
+      "duration": "2000ns",
       "tags": [],
       "process": {
         "serviceName": "query07-service",

@@ -2,11 +2,11 @@
 // source: jaeger.proto
 
 /*
-Package protomodel is a reverse proxy.
+Package model is a reverse proxy.
 
 It translates gRPC into RESTful JSON APIs.
 */
-package protomodel
+package model
 
 import (
 	"io"

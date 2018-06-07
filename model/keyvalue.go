@@ -19,31 +19,28 @@ import (
 	"encoding/hex"
 	"fmt"
 	"io"
-	"math"
 	"sort"
 	"strconv"
+	"strings"
 )
-
-// ValueType describes the type of value contained in a KeyValue struct
-type ValueType int
 
 const (
 	// StringType indicates the value is a unicode string
-	StringType ValueType = iota
+	StringType = ValueType_STRING
 	// BoolType indicates the value is a Boolean encoded as int64 number 0 or 1
-	BoolType
+	BoolType = ValueType_BOOL
 	// Int64Type indicates the value is an int64 number
-	Int64Type
+	Int64Type = ValueType_INT64
 	// Float64Type indicates the value is a float64 number stored as int64
-	Float64Type
+	Float64Type = ValueType_FLOAT64
 	// BinaryType indicates the value is binary blob stored as a byte array
-	BinaryType
+	BinaryType = ValueType_BINARY
 
-	stringTypeStr  = "string"
-	boolTypeStr    = "bool"
-	int64TypeStr   = "int64"
-	float64TypeStr = "float64"
-	binaryTypeStr  = "binary"
+	// stringTypeStr  = "string"
+	// boolTypeStr    = "bool"
+	// int64TypeStr   = "int64"
+	// float64TypeStr = "float64"
+	// binaryTypeStr  = "binary"
 )
 
 // KeyValue describes a tag or a log field that consists of a key and a typed value.
@@ -51,13 +48,13 @@ const (
 // values should be accessed via accessor methods Bool(), Int64(), and Float64().
 //
 // This struct is designed to minimize heap allocations.
-type KeyValue struct {
-	Key   string    `json:"key"`
-	VType ValueType `json:"vType"`
-	VStr  string    `json:"vStr,omitempty"`
-	VNum  int64     `json:"vNum,omitempty"`
-	VBlob []byte    `json:"vBlob,omitempty"`
-}
+// type KeyValue struct {
+// 	Key   string    `json:"key"`
+// 	VType ValueType `json:"vType"`
+// 	VStr  string    `json:"vStr,omitempty"`
+// 	VNum  int64     `json:"vNum,omitempty"`
+// 	VBlob []byte    `json:"vBlob,omitempty"`
+// }
 
 // KeyValues is a type alias that exposes convenience functions like Sort, FindByKey.
 type KeyValues []KeyValue
@@ -69,33 +66,29 @@ func String(key string, value string) KeyValue {
 
 // Bool creates a Bool-typed KeyValue
 func Bool(key string, value bool) KeyValue {
-	var val int64
-	if value {
-		val = 1
-	}
-	return KeyValue{Key: key, VType: BoolType, VNum: val}
+	return KeyValue{Key: key, VType: BoolType, VBool: value}
 }
 
 // Int64 creates a Int64-typed KeyValue
 func Int64(key string, value int64) KeyValue {
-	return KeyValue{Key: key, VType: Int64Type, VNum: value}
+	return KeyValue{Key: key, VType: Int64Type, VInt64: value}
 }
 
 // Float64 creates a Float64-typed KeyValue
 func Float64(key string, value float64) KeyValue {
-	return KeyValue{Key: key, VType: Float64Type, VNum: int64(math.Float64bits(value))}
+	return KeyValue{Key: key, VType: Float64Type, VFloat64: value}
 }
 
 // Binary creates a Binary-typed KeyValue
 func Binary(key string, value []byte) KeyValue {
-	return KeyValue{Key: key, VType: BinaryType, VBlob: value}
+	return KeyValue{Key: key, VType: BinaryType, VBinary: value}
 }
 
 // Bool returns the Boolean value stored in this KeyValue or false if it stores a different type.
 // The caller must check VType before using this method.
 func (kv *KeyValue) Bool() bool {
 	if kv.VType == BoolType {
-		return kv.VNum == 1
+		return kv.VBool
 	}
 	return false
 }
@@ -104,7 +97,7 @@ func (kv *KeyValue) Bool() bool {
 // The caller must check VType before using this method.
 func (kv *KeyValue) Int64() int64 {
 	if kv.VType == Int64Type {
-		return kv.VNum
+		return kv.VInt64
 	}
 	return 0
 }
@@ -113,7 +106,7 @@ func (kv *KeyValue) Int64() int64 {
 // The caller must check VType before using this method.
 func (kv *KeyValue) Float64() float64 {
 	if kv.VType == Float64Type {
-		return math.Float64frombits(uint64(kv.VNum))
+		return kv.VFloat64
 	}
 	return 0
 }
@@ -122,7 +115,7 @@ func (kv *KeyValue) Float64() float64 {
 // The caller must check VType before using this method.
 func (kv *KeyValue) Binary() []byte {
 	if kv.VType == BinaryType {
-		return kv.VBlob
+		return kv.VBinary
 	}
 	return nil
 }
@@ -133,13 +126,13 @@ func (kv *KeyValue) Value() interface{} {
 	case StringType:
 		return kv.VStr
 	case BoolType:
-		return kv.Bool()
+		return kv.VBool
 	case Int64Type:
-		return kv.Int64()
+		return kv.VInt64
 	case Float64Type:
-		return kv.Float64()
+		return kv.VFloat64
 	case BinaryType:
-		return kv.VBlob
+		return kv.VBinary
 	default:
 		return fmt.Errorf("unknown type %d", kv.VType)
 	}
@@ -160,80 +153,81 @@ func (kv *KeyValue) AsString() string {
 	case Float64Type:
 		return strconv.FormatFloat(kv.Float64(), 'g', 10, 64)
 	case BinaryType:
-		if len(kv.VBlob) > 256 {
-			return hex.EncodeToString(kv.VBlob[0:256]) + "..."
+		if len(kv.VBinary) > 256 {
+			return hex.EncodeToString(kv.VBinary[0:256]) + "..."
 		}
-		return hex.EncodeToString(kv.VBlob)
+		return hex.EncodeToString(kv.VBinary)
 	default:
 		return fmt.Sprintf("unknown type %d", kv.VType)
 	}
 }
 
 // Equal compares KeyValue object with another KeyValue.
-func (kv *KeyValue) Equal(other *KeyValue) bool {
-	if kv.Key != other.Key {
-		return false
-	}
-	if kv.VType != other.VType {
-		return false
-	}
-	switch kv.VType {
-	case StringType:
-		return kv.VStr == other.VStr
-	case BoolType, Int64Type:
-		return kv.VNum == other.VNum
-	case Float64Type:
-		return kv.Float64() == other.Float64()
-	case BinaryType:
-		l1, l2 := len(kv.VBlob), len(other.VBlob)
-		if l1 != l2 {
-			return false
-		}
-		for i := 0; i < l1; i++ {
-			if kv.VBlob[i] != other.VBlob[i] {
-				return false
-			}
-		}
-		return true
-	default:
-		return false
-	}
-}
+// func (kv *KeyValue) Equal(other *KeyValue) bool {
+// 	if kv.Key != other.Key {
+// 		return false
+// 	}
+// 	if kv.VType != other.VType {
+// 		return false
+// 	}
+// 	switch kv.VType {
+// 	case StringType:
+// 		return kv.VStr == other.VStr
+// 	case BoolType, Int64Type:
+// 		return kv.VNum == other.VNum
+// 	case Float64Type:
+// 		return kv.Float64() == other.Float64()
+// 	case BinaryType:
+// 		l1, l2 := len(kv.VBlob), len(other.VBlob)
+// 		if l1 != l2 {
+// 			return false
+// 		}
+// 		for i := 0; i < l1; i++ {
+// 			if kv.VBlob[i] != other.VBlob[i] {
+// 				return false
+// 			}
+// 		}
+// 		return true
+// 	default:
+// 		return false
+// 	}
+// }
 
 // IsLess compares KeyValue object with another KeyValue.
 // The order is based first on the keys, then on type, and finally on the value.
 func (kv *KeyValue) IsLess(two *KeyValue) bool {
-	if kv.Key != two.Key {
-		return kv.Key < two.Key
-	}
-	if kv.VType != two.VType {
-		return kv.VType < two.VType
-	}
-	switch kv.VType {
-	case StringType:
-		return kv.VStr < two.VStr
-	case BoolType, Int64Type:
-		return kv.VNum < two.VNum
-	case Float64Type:
-		return kv.Float64() < two.Float64()
-	case BinaryType:
-		l1, l2 := len(kv.VBlob), len(two.VBlob)
-		minLen := l1
-		if l2 < minLen {
-			minLen = l2
-		}
-		for i := 0; i < minLen; i++ {
-			if d := int(kv.VBlob[i]) - int(two.VBlob[i]); d != 0 {
-				return d < 0
-			}
-		}
-		if l1 == l2 {
-			return false
-		}
-		return l1 < l2
-	default:
-		return false
-	}
+	return kv.Compare(two) < 0
+	// if kv.Key != two.Key {
+	// 	return kv.Key < two.Key
+	// }
+	// if kv.VType != two.VType {
+	// 	return kv.VType < two.VType
+	// }
+	// switch kv.VType {
+	// case StringType:
+	// 	return kv.VStr < two.VStr
+	// case BoolType, Int64Type:
+	// 	return kv.VNum < two.VNum
+	// case Float64Type:
+	// 	return kv.Float64() < two.Float64()
+	// case BinaryType:
+	// 	l1, l2 := len(kv.VBlob), len(two.VBlob)
+	// 	minLen := l1
+	// 	if l2 < minLen {
+	// 		minLen = l2
+	// 	}
+	// 	for i := 0; i < minLen; i++ {
+	// 		if d := int(kv.VBlob[i]) - int(two.VBlob[i]); d != 0 {
+	// 			return d < 0
+	// 		}
+	// 	}
+	// 	if l1 == l2 {
+	// 		return false
+	// 	}
+	// 	return l1 < l2
+	// default:
+	// 	return false
+	// }
 }
 
 func (kvs KeyValues) Len() int      { return len(kvs) }
@@ -282,53 +276,45 @@ func (kvs KeyValues) Hash(w io.Writer) error {
 	return nil
 }
 
-func (p ValueType) String() string {
-	switch p {
-	case StringType:
-		return stringTypeStr
-	case BoolType:
-		return boolTypeStr
-	case Int64Type:
-		return int64TypeStr
-	case Float64Type:
-		return float64TypeStr
-	case BinaryType:
-		return binaryTypeStr
-	}
-	return "<invalid>"
-}
+// func (p ValueType) String() string {
+// 	switch p {
+// 	case StringType:
+// 		return stringTypeStr
+// 	case BoolType:
+// 		return boolTypeStr
+// 	case Int64Type:
+// 		return int64TypeStr
+// 	case Float64Type:
+// 		return float64TypeStr
+// 	case BinaryType:
+// 		return binaryTypeStr
+// 	}
+// 	return "<invalid>"
+// }
 
 // ValueTypeFromString converts a string into ValueType enum.
 func ValueTypeFromString(s string) (ValueType, error) {
-	switch s {
-	case stringTypeStr:
-		return StringType, nil
-	case boolTypeStr:
-		return BoolType, nil
-	case int64TypeStr:
-		return Int64Type, nil
-	case float64TypeStr:
-		return Float64Type, nil
-	case binaryTypeStr:
-		return BinaryType, nil
+	i, ok := ValueType_value[strings.ToUpper(s)]
+	if ok {
+		return ValueType(i), nil
 	}
 	return ValueType(0), fmt.Errorf("not a valid ValueType string %s", s)
 }
 
-// MarshalText allows ValueType to serialize itself in JSON as a string.
-func (p ValueType) MarshalText() ([]byte, error) {
-	return []byte(p.String()), nil
-}
+// // MarshalText allows ValueType to serialize itself in JSON as a string.
+// func (p ValueType) MarshalText() ([]byte, error) {
+// 	return []byte(p.String()), nil
+// }
 
-// UnmarshalText allows ValueType to deserialize itself from a JSON string.
-func (p *ValueType) UnmarshalText(text []byte) error {
-	q, err := ValueTypeFromString(string(text))
-	if err != nil {
-		return err
-	}
-	*p = q
-	return nil
-}
+// // UnmarshalText allows ValueType to deserialize itself from a JSON string.
+// func (p *ValueType) UnmarshalText(text []byte) error {
+// 	q, err := ValueTypeFromString(string(text))
+// 	if err != nil {
+// 		return err
+// 	}
+// 	*p = q
+// 	return nil
+// }
 
 // Hash implements Hash from Hashable.
 func (kv KeyValue) Hash(w io.Writer) error {
@@ -342,10 +328,14 @@ func (kv KeyValue) Hash(w io.Writer) error {
 	switch kv.VType {
 	case StringType:
 		_, err = w.Write([]byte(kv.VStr))
-	case BoolType, Int64Type, Float64Type:
-		err = binary.Write(w, binary.BigEndian, kv.VNum)
+	case BoolType:
+		err = binary.Write(w, binary.BigEndian, kv.VBool)
+	case Int64Type:
+		err = binary.Write(w, binary.BigEndian, kv.VInt64)
+	case Float64Type:
+		err = binary.Write(w, binary.BigEndian, kv.VFloat64)
 	case BinaryType:
-		_, err = w.Write(kv.VBlob)
+		_, err = w.Write(kv.VBinary)
 	default:
 		err = fmt.Errorf("unknown type %d", kv.VType)
 	}

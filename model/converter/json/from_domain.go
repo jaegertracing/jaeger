@@ -15,6 +15,8 @@
 package json
 
 import (
+	"strings"
+
 	"github.com/jaegertracing/jaeger/model"
 	"github.com/jaegertracing/jaeger/model/json"
 )
@@ -124,9 +126,10 @@ func (fd fromDomain) convertKeyValues(keyValues model.KeyValues) []json.KeyValue
 		case model.BinaryType:
 			value = kv.Binary()
 		}
+
 		out[i] = json.KeyValue{
 			Key:   kv.Key,
-			Type:  json.ValueType(kv.VType.String()),
+			Type:  json.ValueType(strings.ToLower(kv.VType.String())),
 			Value: value,
 		}
 	}
@@ -138,7 +141,7 @@ func (fd fromDomain) convertKeyValuesString(keyValues model.KeyValues) []json.Ke
 	for i, kv := range keyValues {
 		out[i] = json.KeyValue{
 			Key:   kv.Key,
-			Type:  json.ValueType(kv.VType.String()),
+			Type:  json.ValueType(strings.ToLower(kv.VType.String())),
 			Value: kv.AsString(),
 		}
 	}
