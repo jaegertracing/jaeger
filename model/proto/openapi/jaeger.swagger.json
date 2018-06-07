@@ -155,11 +155,12 @@
       "type": "object",
       "properties": {
         "trace_id": {
-          "$ref": "#/definitions/jaegerTraceID"
+          "type": "string",
+          "format": "byte"
         },
         "span_id": {
           "type": "string",
-          "format": "uint64"
+          "format": "byte"
         },
         "operation_name": {
           "type": "string"
@@ -211,11 +212,12 @@
       "type": "object",
       "properties": {
         "trace_id": {
-          "$ref": "#/definitions/jaegerTraceID"
+          "type": "string",
+          "format": "byte"
         },
         "span_id": {
           "type": "string",
-          "format": "uint64"
+          "format": "byte"
         },
         "ref_type": {
           "$ref": "#/definitions/jaegerSpanRefType"
@@ -250,19 +252,6 @@
           "items": {
             "type": "string"
           }
-        }
-      }
-    },
-    "jaegerTraceID": {
-      "type": "object",
-      "properties": {
-        "low": {
-          "type": "string",
-          "format": "uint64"
-        },
-        "high": {
-          "type": "string",
-          "format": "uint64"
         }
       }
     },

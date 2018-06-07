@@ -342,6 +342,11 @@ $$GOPATH/src/github.com/jaegertracing/jaeger/model \
 	# Workaround for https://github.com/grpc-ecosystem/grpc-gateway/issues/229.
 	sed -i '' "s/empty.Empty/types.Empty/g" model/jaeger.pb.gw.go
 
+	protoc \
+		-I model/proto \
+		--go_out=$$GOPATH/src/github.com/jaegertracing/jaeger/model/prototest/ \
+		model/proto/jaeger_test.proto
+
 proto-install:
 	go install \
 		./vendor/github.com/gogo/protobuf/protoc-gen-gogo \

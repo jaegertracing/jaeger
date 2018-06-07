@@ -21,123 +21,187 @@ import (
 	"time"
 
 	"github.com/gogo/protobuf/jsonpb"
+	"github.com/golang/protobuf/proto"
 	"github.com/opentracing/opentracing-go/ext"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
 	"github.com/jaegertracing/jaeger/model"
+	"github.com/jaegertracing/jaeger/model/prototest"
 )
 
-var (
-	_ jsonpb.JSONPBUnmarshaler = new(model.TraceID)
-	_ jsonpb.JSONPBMarshaler   = new(model.TraceID)
-	// _ jsonpb.JSONPBUnmarshaler = new(model.SpanID)
-	// _ jsonpb.JSONPBMarshaler   = new(model.SpanID)
-)
+func TestTraceIDMarshalProto(t *testing.T) {
+	testCases := []struct {
+		name      string
+		marshal   func(proto.Message) ([]byte, error)
+		unmarshal func([]byte, proto.Message) error
+		expected  string
+	}{
+		{
+			name:      "protobuf",
+			marshal:   proto.Marshal,
+			unmarshal: proto.Unmarshal,
+		},
+		{
+			name: "JSON",
+			marshal: func(m proto.Message) ([]byte, error) {
+				out := new(bytes.Buffer)
+				err := new(jsonpb.Marshaler).Marshal(out, m)
+				if err != nil {
+					return nil, err
+				}
+				return out.Bytes(), nil
+			},
+			unmarshal: func(in []byte, m proto.Message) error {
+				return jsonpb.Unmarshal(bytes.NewReader(in), m)
+			},
+			expected: `{"traceId":"AAAAAAAAAAIAAAAAAAAAAw==","spanId":"AAAAAAAAAAs="}`,
+		},
+	}
+	for _, testCase := range testCases {
+		t.Run(testCase.name, func(t *testing.T) {
+			ref1 := model.SpanRef{TraceID: model.NewTraceID(2, 3), SpanID: model.NewSpanID(11)}
+			ref2 := prototest.SpanRef{
+				TraceId: []byte{0, 0, 0, 0, 0, 0, 0, 2, 0, 0, 0, 0, 0, 0, 0, 3},
+				SpanId:  []byte{0, 0, 0, 0, 0, 0, 0, 11},
+			}
+			d1, err := testCase.marshal(&ref1)
+			require.NoError(t, err)
+			d2, err := testCase.marshal(&ref2)
+			require.NoError(t, err)
+			assert.Equal(t, d2, d1)
+			if testCase.expected != "" {
+				assert.Equal(t, testCase.expected, string(d1))
+			}
+			// test unmarshal
+			var ref1u model.SpanRef
+			err = testCase.unmarshal(d2, &ref1u)
+			require.NoError(t, err)
+			assert.Equal(t, ref1, ref1u)
+		})
+	}
+}
+
+// Verify: https://cryptii.com/base64-to-hex
+var testCasesTraceID = []struct {
+	hi, lo uint64
+	hex    string
+	b64    string
+}{
+	{lo: 1, hex: "1", b64: "AAAAAAAAAAAAAAAAAAAAAQ=="},
+	{lo: 15, hex: "f", b64: "AAAAAAAAAAAAAAAAAAAADw=="},
+	{lo: 31, hex: "1f", b64: "AAAAAAAAAAAAAAAAAAAAHw=="},
+	{lo: 257, hex: "101", b64: "AAAAAAAAAAAAAAAAAAABAQ=="},
+	{hi: 1, lo: 1, hex: "10000000000000001", b64: "AAAAAAAAAAEAAAAAAAAAAQ=="},
+	{hi: 257, lo: 1, hex: "1010000000000000001", b64: "AAAAAAAAAQEAAAAAAAAAAQ=="},
+}
 
 func TestTraceIDMarshalJSONPB(t *testing.T) {
-	testCases := []struct {
-		hi, lo uint64
-		out    string
-	}{
-		{lo: 1, out: `"1"`},
-		{lo: 15, out: `"f"`},
-		{lo: 31, out: `"1f"`},
-		{lo: 257, out: `"101"`},
-		{hi: 1, lo: 1, out: `"10000000000000001"`},
-		{hi: 257, lo: 1, out: `"1010000000000000001"`},
-	}
-	for _, testCase := range testCases {
-		id := model.NewTraceID(testCase.hi, testCase.lo)
-		out := new(bytes.Buffer)
-		err := new(jsonpb.Marshaler).Marshal(out, &id)
-		if assert.NoError(t, err) {
-			assert.Equal(t, testCase.out, out.String())
-		}
-	}
-}
+	for _, testCase := range testCasesTraceID {
+		t.Run(testCase.hex, func(t *testing.T) {
+			expected := fmt.Sprintf(`{"traceId":"%s"}`, testCase.b64)
 
-func TestTraceIDUnmarshalJSONPB(t *testing.T) {
-	testCases := []struct {
-		in     string
-		hi, lo uint64
-		err    bool
-	}{
-		{lo: 1, in: `"1"`},
-		{lo: 15, in: `"f"`},
-		{lo: 31, in: `"1f"`},
-		{lo: 257, in: `"101"`},
-		{hi: 1, lo: 1, in: `"10000000000000001"`},
-		{hi: 257, lo: 1, in: `"1010000000000000001"`},
-		{err: true, in: ``},
-		{err: true, in: `"x"`},
-		{err: true, in: `"x0000000000000001"`},
-		{err: true, in: `"1x000000000000001"`},
-		{err: true, in: `"10123456789abcdef0123456789abcdef"`},
-	}
-	for _, testCase := range testCases {
-		var id model.TraceID
-		err := jsonpb.Unmarshal(bytes.NewReader([]byte(testCase.in)), &id)
-		if testCase.err {
-			assert.Error(t, err)
-		} else {
-			if assert.NoError(t, err) {
-				assert.Equal(t, testCase.hi, id.High)
-				assert.Equal(t, testCase.lo, id.Low)
-			}
-		}
-	}
-	// for code coverage
-	var id model.TraceID
-	err := id.UnmarshalJSONPB(nil, []byte(""))
-	require.Error(t, err)
-	assert.Contains(t, err.Error(), "TraceID JSON string cannot be shorter than 3 chars")
-	err = id.UnmarshalJSONPB(nil, []byte("123"))
-	require.Error(t, err)
-	assert.Contains(t, err.Error(), "TraceID JSON string must be enclosed in quotes")
-	_, err = id.MarshalText()
-	require.Error(t, err)
-	assert.Contains(t, err.Error(), "unsupported method")
-	err = id.UnmarshalText(nil)
-	require.Error(t, err)
-	assert.Contains(t, err.Error(), "unsupported method")
-}
-
-func TestSpanIDMarshalJSON(t *testing.T) {
-	max := int64(-1)
-	testCases := []struct {
-		id  uint64
-		out string
-	}{
-		{id: 1, out: "1"},
-		{id: 15, out: "f"},
-		{id: 31, out: "1f"},
-		{id: 257, out: "101"},
-		{id: uint64(max), out: "ffffffffffffffff"},
-	}
-	for _, testCase := range testCases {
-		expected := fmt.Sprintf(`{"traceId":"0","spanId":"%s"}`, testCase.out)
-		t.Run(expected, func(t *testing.T) {
-			ref := &model.SpanRef{SpanID: model.SpanID(testCase.id)}
+			ref := model.SpanRef{TraceID: model.NewTraceID(testCase.hi, testCase.lo)}
 			out := new(bytes.Buffer)
-			err := new(jsonpb.Marshaler).Marshal(out, ref)
+			err := new(jsonpb.Marshaler).Marshal(out, &ref)
 			if assert.NoError(t, err) {
 				assert.Equal(t, expected, out.String())
+				assert.Equal(t, testCase.hex, ref.TraceID.String())
+			}
+
+			ref = model.SpanRef{}
+			err = jsonpb.Unmarshal(bytes.NewReader([]byte(expected)), &ref)
+			if assert.NoError(t, err) {
+				assert.Equal(t, testCase.hi, ref.TraceID.High)
+				assert.Equal(t, testCase.lo, ref.TraceID.Low)
+			}
+			traceID, err := model.TraceIDFromString(testCase.hex)
+			if assert.NoError(t, err) {
+				assert.Equal(t, ref.TraceID, traceID)
 			}
 		})
 	}
 }
 
-func TestSpanIDUnmarshalJSON(t *testing.T) {
+func TestTraceIDUnmarshalJSONPBErrors(t *testing.T) {
+	testCases := []struct {
+		in     string
+		hi, lo uint64
+	}{
+		{in: ""},
+		{in: "x"},
+		{in: "x0000000000000001"},
+		{in: "1x000000000000001"},
+		{in: "10123456789abcdef0123456789abcdef"},
+		{in: "AAAAAAE="},
+	}
+	for _, testCase := range testCases {
+		t.Run(testCase.in, func(t *testing.T) {
+			var ref model.SpanRef
+			json := fmt.Sprintf(`{"traceId":"%s"}`, testCase.in)
+			err := jsonpb.Unmarshal(bytes.NewReader([]byte(json)), &ref)
+			assert.Error(t, err)
+
+			_, err = model.TraceIDFromString(testCase.in)
+			assert.Error(t, err)
+		})
+	}
+	// for code coverage
+	var id model.TraceID
+	_, err := id.MarshalText()
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "unsupported method")
+	err = id.UnmarshalText(nil)
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "unsupported method")
+	_, err = id.MarshalTo(make([]byte, 1))
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "buffer is too short")
+}
+
+var maxSpanID = int64(-1)
+var testCasesSpanID = []struct {
+	id  uint64
+	hex string
+	b64 string
+}{
+	{id: 1, hex: "1", b64: "AAAAAAAAAAE="},
+	{id: 15, hex: "f", b64: "AAAAAAAAAA8="},
+	{id: 31, hex: "1f", b64: "AAAAAAAAAB8="},
+	{id: 257, hex: "101", b64: "AAAAAAAAAQE="},
+	{id: uint64(maxSpanID), hex: "ffffffffffffffff", b64: "//////////8="},
+}
+
+func TestSpanIDMarshalJSON(t *testing.T) {
+	for _, testCase := range testCasesSpanID {
+		expected := fmt.Sprintf(`{"traceId":"AAAAAAAAAAAAAAAAAAAAAA==","spanId":"%s"}`, testCase.b64)
+		t.Run(testCase.hex, func(t *testing.T) {
+			ref := model.SpanRef{SpanID: model.SpanID(testCase.id)}
+			out := new(bytes.Buffer)
+			err := new(jsonpb.Marshaler).Marshal(out, &ref)
+			if assert.NoError(t, err) {
+				assert.Equal(t, expected, out.String())
+			}
+			assert.Equal(t, testCase.hex, ref.SpanID.String())
+
+			ref = model.SpanRef{}
+			err = jsonpb.Unmarshal(bytes.NewReader([]byte(expected)), &ref)
+			if assert.NoError(t, err) {
+				assert.Equal(t, model.NewSpanID(testCase.id), ref.SpanID)
+			}
+			spanID, err := model.SpanIDFromString(testCase.hex)
+			if assert.NoError(t, err) {
+				assert.Equal(t, model.NewSpanID(testCase.id), spanID)
+			}
+		})
+	}
+}
+
+func TestSpanIDUnmarshalJSONErrors(t *testing.T) {
 	testCases := []struct {
 		in  string
-		id  model.SpanID
 		err bool
 	}{
-		{id: 1, in: "1"},
-		{id: 15, in: "f"},
-		{id: 31, in: "1f"},
-		{id: 257, in: "101"},
 		{err: true, in: ""},
 		{err: true, in: "x"},
 		{err: true, in: "x123"},
@@ -148,23 +212,27 @@ func TestSpanIDUnmarshalJSON(t *testing.T) {
 		t.Run(in, func(t *testing.T) {
 			var ref model.SpanRef
 			err := jsonpb.Unmarshal(bytes.NewReader([]byte(in)), &ref)
-			if testCase.err {
-				assert.Error(t, err)
-			} else {
-				if assert.NoError(t, err) {
-					assert.Equal(t, testCase.id, ref.SpanID)
-				}
-			}
+			assert.Error(t, err)
+
+			_, err = model.SpanIDFromString(testCase.in)
+			assert.Error(t, err)
 		})
 	}
 	// for code coverage
 	var id model.SpanID
-	err := id.UnmarshalJSONPB(nil, []byte(""))
+	_, err := id.MarshalText()
 	require.Error(t, err)
-	assert.Contains(t, err.Error(), "SpanID JSON string cannot be shorter than 3 chars")
+	assert.Contains(t, err.Error(), "unsupported method")
+	err = id.UnmarshalText(nil)
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "unsupported method")
+
+	err = id.UnmarshalJSONPB(nil, []byte(""))
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "buffer is too short")
 	err = id.UnmarshalJSONPB(nil, []byte("123"))
 	require.Error(t, err)
-	assert.Contains(t, err.Error(), "SpanID JSON string must be enclosed in quotes")
+	assert.Contains(t, err.Error(), "illegal base64 data")
 }
 
 func TestIsRPCClientServer(t *testing.T) {

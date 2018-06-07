@@ -15,18 +15,19 @@
 package model
 
 import (
+	"encoding/base64"
+	"encoding/binary"
 	"fmt"
 	"strconv"
-	"strings"
 
 	"github.com/gogo/protobuf/jsonpb"
 )
 
 // TraceID is a random 128bit identifier for a trace
-// type TraceID struct {
-// 	Low  uint64 `json:"lo"`
-// 	High uint64 `json:"hi"`
-// }
+type TraceID struct {
+	Low  uint64 `json:"lo"`
+	High uint64 `json:"hi"`
+}
 
 // SpanID is a random 64bit identifier for a span
 type SpanID uint64
@@ -77,31 +78,51 @@ func (t *TraceID) UnmarshalText(text []byte) error {
 	return fmt.Errorf("unsupported method TraceID.UnmarshalText; please use github.com/gogo/protobuf/jsonpb for marshalling")
 }
 
-// MarshalJSONPB renders trace id as a single hex string.
-func (t TraceID) MarshalJSONPB(*jsonpb.Marshaler) ([]byte, error) {
-	var b strings.Builder
-	s := t.String()
-	b.Grow(2 + len(s))
-	b.WriteByte('"')
-	b.WriteString(s)
-	b.WriteByte('"')
-	return []byte(b.String()), nil
+func (t *TraceID) Size() int {
+	return 16
 }
 
-// UnmarshalJSONPB populates TraceID from a quoted hex string. Called by gogo/protobuf/jsonpb.
-func (t *TraceID) UnmarshalJSONPB(_ *jsonpb.Unmarshaler, b []byte) error {
-	if len(b) < 3 {
-		return fmt.Errorf("TraceID JSON string cannot be shorter than 3 chars: '%s'", string(b))
+func (t *TraceID) MarshalTo(data []byte) (n int, err error) {
+	var b [16]byte
+	binary.BigEndian.PutUint64(b[:8], uint64(t.High))
+	binary.BigEndian.PutUint64(b[8:], uint64(t.Low))
+	return marshalBytes(data, b[:])
+}
+
+func (t *TraceID) Unmarshal(data []byte) error {
+	if len(data) < 16 {
+		return fmt.Errorf("buffer is too short")
 	}
-	if b[0] != '"' || b[len(b)-1] != '"' {
-		return fmt.Errorf("TraceID JSON string must be enclosed in quotes: '%s'", string(b))
+	t.High = binary.BigEndian.Uint64(data[:8])
+	t.Low = binary.BigEndian.Uint64(data[8:])
+	return nil
+}
+
+func marshalBytes(dst []byte, src []byte) (n int, err error) {
+	if len(dst) < len(src) {
+		return 0, fmt.Errorf("buffer is too short")
 	}
-	q, err := TraceIDFromString(string(b[1 : len(b)-1]))
+	return copy(dst, src), nil
+}
+
+// MarshalJSON renders trace id as base64 string.
+func (t TraceID) MarshalJSON() ([]byte, error) {
+	var b [16]byte
+	t.MarshalTo(b[:]) // can only error on incorrect buffer size
+	s := base64.StdEncoding.EncodeToString(b[:])
+	return []byte(`"` + s + `"`), nil
+}
+
+func (t *TraceID) UnmarshalJSON(data []byte) error {
+	s := string(data)
+	if l := len(s); l > 2 && s[0] == '"' && s[l-1] == '"' {
+		s = s[1 : l-1]
+	}
+	b, err := base64.StdEncoding.DecodeString(s)
 	if err != nil {
 		return err
 	}
-	*t = q
-	return nil
+	return t.Unmarshal(b)
 }
 
 // ------- SpanID -------
@@ -127,52 +148,83 @@ func SpanIDFromString(s string) (SpanID, error) {
 	return SpanID(id), nil
 }
 
-// MarshalText allows SpanID to serialize itself in JSON as a string.
+// MarshalText is called by encoding/json, which we do not want people to use.
 func (s SpanID) MarshalText() ([]byte, error) {
-	return []byte(s.String()), nil
+	return nil, fmt.Errorf("unsupported method SpanID.MarshalText; please use github.com/gogo/protobuf/jsonpb for marshalling")
 }
 
-// UnmarshalText allows SpanID to deserialize itself from a JSON string.
+// UnmarshalText is called by encoding/json, which we do not want people to use.
 func (s *SpanID) UnmarshalText(text []byte) error {
-	q, err := SpanIDFromString(string(text))
-	if err != nil {
-		return err
+	return fmt.Errorf("unsupported method SpanID.UnmarshalText; please use github.com/gogo/protobuf/jsonpb for marshalling")
+}
+
+// // UnmarshalJSON populates SpanID from a quoted hex string. Called by gogo/protobuf/jsonpb.
+// // There appears to be a bug in gogoproto, as this function is only called for numeric values.
+// // https://github.com/gogo/protobuf/issues/411#issuecomment-393856837
+// func (s *SpanID) UnmarshalJSON(b []byte) error {
+// 	q, err := SpanIDFromString(string(b))
+// 	if err != nil {
+// 		return err
+// 	}
+// 	*s = q
+// 	return nil
+// }
+
+// // UnmarshalJSONPB populates SpanID from a quoted hex string. Called by gogo/protobuf/jsonpb.
+// // The input value is a quoted string.
+// func (s *SpanID) UnmarshalJSONPB(_ *jsonpb.Unmarshaler, b []byte) error {
+// 	if len(b) < 3 {
+// 		return fmt.Errorf("SpanID JSON string cannot be shorter than 3 chars: %s", string(b))
+// 	}
+// 	if b[0] != '"' || b[len(b)-1] != '"' {
+// 		return fmt.Errorf("SpanID JSON string must be enclosed in quotes: %s", string(b))
+// 	}
+// 	return s.UnmarshalJSON(b[1 : len(b)-1])
+// }
+
+func (s *SpanID) Size() int {
+	return 8
+}
+
+func (s *SpanID) MarshalTo(data []byte) (n int, err error) {
+	var b [8]byte
+	binary.BigEndian.PutUint64(b[:], uint64(*s))
+	return marshalBytes(data, b[:])
+}
+
+func (s *SpanID) Unmarshal(data []byte) error {
+	if len(data) < 8 {
+		return fmt.Errorf("buffer is too short")
 	}
-	*s = q
+	*s = NewSpanID(binary.BigEndian.Uint64(data))
 	return nil
 }
 
-// MarshalJSON renders span id as a single hex string. The value is returned enclosed in quotes.
+// MarshalJSON renders span id as base64 string.
 func (s SpanID) MarshalJSON() ([]byte, error) {
-	var b strings.Builder
-	str := s.String()
-	b.Grow(2 + len(str))
-	b.WriteByte('"')
-	b.WriteString(str)
-	b.WriteByte('"')
-	return []byte(b.String()), nil
+	var b [8]byte
+	s.MarshalTo(b[:]) // can only error on incorrect buffer size
+	str := base64.StdEncoding.EncodeToString(b[:])
+	return []byte(`"` + str + `"`), nil
 }
 
 // UnmarshalJSON populates SpanID from a quoted hex string. Called by gogo/protobuf/jsonpb.
 // There appears to be a bug in gogoproto, as this function is only called for numeric values.
 // https://github.com/gogo/protobuf/issues/411#issuecomment-393856837
-func (s *SpanID) UnmarshalJSON(b []byte) error {
-	q, err := SpanIDFromString(string(b))
+func (s *SpanID) UnmarshalJSON(data []byte) error {
+	str := string(data)
+	if l := len(str); l > 2 && str[0] == '"' && str[l-1] == '"' {
+		str = str[1 : l-1]
+	}
+	b, err := base64.StdEncoding.DecodeString(str)
 	if err != nil {
 		return err
 	}
-	*s = q
-	return nil
+	return s.Unmarshal(b)
 }
 
 // UnmarshalJSONPB populates SpanID from a quoted hex string. Called by gogo/protobuf/jsonpb.
 // The input value is a quoted string.
 func (s *SpanID) UnmarshalJSONPB(_ *jsonpb.Unmarshaler, b []byte) error {
-	if len(b) < 3 {
-		return fmt.Errorf("SpanID JSON string cannot be shorter than 3 chars: %s", string(b))
-	}
-	if b[0] != '"' || b[len(b)-1] != '"' {
-		return fmt.Errorf("SpanID JSON string must be enclosed in quotes: %s", string(b))
-	}
-	return s.UnmarshalJSON(b[1 : len(b)-1])
+	return s.UnmarshalJSON(b)
 }

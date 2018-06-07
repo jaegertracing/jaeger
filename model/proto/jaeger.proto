@@ -48,14 +48,6 @@ option (gogoproto.sizer_all) = true;
 // Enable registration with golang/protobuf for the grpc-gateway.
 option (gogoproto.goproto_registration) = true;
 
-message TraceID {
-  // We have a custom String() method that renders trace ID as a single hex string, so turn off auto-gen.
-  option (gogoproto.goproto_stringer) =  false;
-
-  uint64 low = 1;
-  uint64 high = 2;
-}
-
 // For comparison of how KeyValue looks when using `oneof`.
 // Both definitions result in the same message size.
 // message KeyValue2 {
@@ -106,14 +98,15 @@ enum SpanRefType {
 };
 
 message SpanRef {
-  TraceID trace_id = 1 [
+  bytes trace_id = 1 [
     (gogoproto.nullable) = false,
+    (gogoproto.customtype) = "TraceID",
     (gogoproto.customname) = "TraceID"
   ];
-  uint64 span_id = 2 [
+  bytes span_id = 2 [
     (gogoproto.nullable) = false,
-    (gogoproto.customname) = "SpanID",
-    (gogoproto.customtype) = "SpanID" // alias to uint64
+    (gogoproto.customtype) = "SpanID", // alias to uint64
+    (gogoproto.customname) = "SpanID"
   ];
   SpanRefType ref_type = 3;
 }
@@ -126,14 +119,15 @@ message Process {
 }
 
 message Span {
-  TraceID trace_id = 1 [
+  bytes trace_id = 1 [
     (gogoproto.nullable) = false,
+    (gogoproto.customtype) = "TraceID",
     (gogoproto.customname) = "TraceID"
   ];
-  uint64 span_id = 2 [
+  bytes span_id = 2 [
     (gogoproto.nullable) = false,
-    (gogoproto.customname) = "SpanID",
-    (gogoproto.customtype) = "SpanID"
+    (gogoproto.customtype) = "SpanID",
+    (gogoproto.customname) = "SpanID"
   ];
   string operation_name = 3;
   repeated SpanRef references = 4 [
