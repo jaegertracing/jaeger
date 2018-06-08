@@ -1,8 +1,8 @@
 {
   "spans": [
     {
-      "traceId": "1",
-      "spanId": "2",
+      "traceId": "AAAAAAAAAAAAAAAAAAAAAQ==",
+      "spanId": "AAAAAAAAAAI=",
       "operationName": "test-general-conversion",
       "startTime": "2017-01-26T16:46:31.639875-05:00",
       "process": {
@@ -30,8 +30,8 @@
       ]
     },
     {
-      "traceId": "1",
-      "spanId": "2",
+      "traceId": "AAAAAAAAAAAAAAAAAAAAAQ==",
+      "spanId": "AAAAAAAAAAI=",
       "operationName": "some-operation",
       "startTime": "1970-01-01T00:00:00-00:00",
       "tags": [
@@ -61,14 +61,14 @@
       }
     },
     {
-      "traceId": "20000000000000001",
-      "spanId": "3",
+      "traceId": "AAAAAAAAAAIAAAAAAAAAAQ==",
+      "spanId": "AAAAAAAAAAM=",
       "operationName": "some-operation",
       "references": [
         {
           "refType": "CHILD_OF",
-          "traceId": "20000000000000001",
-          "spanId": "2"
+          "traceId": "AAAAAAAAAAIAAAAAAAAAAQ==",
+          "spanId": "AAAAAAAAAAI="
         }
       ],
       "startTime": "1970-01-01T00:00:00-00:00",

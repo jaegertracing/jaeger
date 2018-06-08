@@ -1,8 +1,8 @@
 {
   "spans": [
     {
-      "traceId": "1",
-      "spanId": "2",
+      "traceId": "AAAAAAAAAAAAAAAAAAAAAQ==",
+      "spanId": "AAAAAAAAAAI=",
       "operationName": "test-process-tags",
       "startTime": "1970-01-01T00:00:00-00:00",
       "process": {

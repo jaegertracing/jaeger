@@ -1,8 +1,8 @@
 {
   "spans": [
     {
-      "traceId": "1",
-      "spanId": "2",
+      "traceId": "AAAAAAAAAAAAAAAAAAAAAQ==",
+      "spanId": "AAAAAAAAAAI=",
       "operationName": "test-general-conversion",
       "startTime": "2017-01-26T16:46:31.639875139-05:00",
       "duration": "5000ns",
@@ -31,8 +31,8 @@
       ]
     },
     {
-      "traceId": "1",
-      "spanId": "2",
+      "traceId": "AAAAAAAAAAAAAAAAAAAAAQ==",
+      "spanId": "AAAAAAAAAAI=",
       "operationName": "some-operation",
       "startTime": "2017-01-26T16:46:31.639875139-05:00",
       "duration": "5000ns",
@@ -68,13 +68,13 @@
       }
     },
     {
-      "traceId": "1",
-      "spanId": "3",
+      "traceId": "AAAAAAAAAAAAAAAAAAAAAQ==",
+      "spanId": "AAAAAAAAAAM=",
       "references": [
         {
           "refType": "CHILD_OF",
-          "traceId": "1",
-          "spanId": "2"
+          "traceId": "AAAAAAAAAAAAAAAAAAAAAQ==",
+          "spanId": "AAAAAAAAAAI="
         }
       ],
       "operationName": "some-operation",
@@ -85,24 +85,24 @@
       }
     },
     {
-      "traceId": "1",
-      "spanId": "4",
+      "traceId": "AAAAAAAAAAAAAAAAAAAAAQ==",
+      "spanId": "AAAAAAAAAAQ=",
       "operationName": "reference-test",
       "references": [
         {
           "refType": "CHILD_OF",
-          "traceId": "ff",
-          "spanId": "ff"
+          "traceId": "AAAAAAAAAAAAAAAAAAAA/w==",
+          "spanId": "AAAAAAAAAP8="
         },
         {
           "refType": "CHILD_OF",
-          "traceId": "1",
-          "spanId": "2"
+          "traceId": "AAAAAAAAAAAAAAAAAAAAAQ==",
+          "spanId": "AAAAAAAAAAI="
         },
         {
           "refType": "FOLLOWS_FROM",
-          "traceId": "1",
-          "spanId": "2"
+          "traceId": "AAAAAAAAAAAAAAAAAAAAAQ==",
+          "spanId": "AAAAAAAAAAI="
         }
       ],
       "startTime": "2017-01-26T16:46:31.639875139-05:00",
@@ -115,14 +115,14 @@
       ]
     },
     {
-      "traceId": "1",
-      "spanId": "5",
+      "traceId": "AAAAAAAAAAAAAAAAAAAAAQ==",
+      "spanId": "AAAAAAAAAAU=",
       "operationName": "preserveParentID-test",
       "references": [
         {
           "refType": "CHILD_OF",
-          "traceId": "1",
-          "spanId": "4"
+          "traceId": "AAAAAAAAAAAAAAAAAAAAAQ==",
+          "spanId": "AAAAAAAAAAQ="
         }
       ],
       "startTime": "2017-01-26T16:46:31.639875139-05:00",

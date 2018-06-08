@@ -1,14 +1,14 @@
 {
   "spans": [
     {
-      "traceId": "52969a8955571a3f",
-      "spanId": "647d98",
+      "traceId": "AAAAAAAAAABSlpqJVVcaPw==",
+      "spanId": "AAAAAABkfZg=",
       "operationName": "get",
       "references": [
         {
           "refType": "CHILD_OF",
-          "traceId": "52969a8955571a3f",
-          "spanId": "68c4e3"
+          "traceId": "AAAAAAAAAABSlpqJVVcaPw==",
+          "spanId": "AAAAAABoxOM="
         }
       ],
       "startTime": "2017-01-26T16:46:31.639875-05:00",
@@ -25,14 +25,14 @@
       }
     },
     {
-      "traceId": "52969a8955571a3f",
-      "spanId": "647d99",
+      "traceId": "AAAAAAAAAABSlpqJVVcaPw==",
+      "spanId": "AAAAAABkfZk=",
       "operationName": "get",
       "references": [
         {
           "refType": "FOLLOWS_FROM",
-          "traceId": "52969a8955571a3f",
-          "spanId": "68c4e3"
+          "traceId": "AAAAAAAAAABSlpqJVVcaPw==",
+          "spanId": "AAAAAABoxOM="
         }
       ],
       "startTime": "2017-01-26T16:46:31.639875-05:00",

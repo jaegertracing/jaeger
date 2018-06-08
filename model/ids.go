@@ -120,7 +120,7 @@ func (t *TraceID) UnmarshalJSON(data []byte) error {
 	}
 	b, err := base64.StdEncoding.DecodeString(s)
 	if err != nil {
-		return err
+		return fmt.Errorf("cannot unmarshal TraceID from string '%s': %v", string(data), err)
 	}
 	return t.Unmarshal(b)
 }
@@ -218,7 +218,7 @@ func (s *SpanID) UnmarshalJSON(data []byte) error {
 	}
 	b, err := base64.StdEncoding.DecodeString(str)
 	if err != nil {
-		return err
+		return fmt.Errorf("cannot unmarshal SpanID from string '%s': %v", string(data), err)
 	}
 	return s.Unmarshal(b)
 }
