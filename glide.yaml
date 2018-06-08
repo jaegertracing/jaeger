@@ -46,7 +46,7 @@ import:
 - package: github.com/spf13/cobra
   version: 0.0.1
 - package: github.com/spf13/viper
-  version: ^1
+  version: 1.0.0
 - package: github.com/go-openapi/errors
 - package: github.com/go-openapi/runtime
 - package: github.com/go-openapi/spec
@@ -55,6 +55,8 @@ import:
 - package: github.com/go-openapi/validate
 - package: github.com/go-openapi/loads
 - package: github.com/elazarl/go-bindata-assetfs
+- package: github.com/Shopify/sarama
+  version: ^1.16.0
 # gogo/protobuf dependencies
 - package: github.com/gogo/googleapis
   version: master
