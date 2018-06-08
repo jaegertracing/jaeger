@@ -21,66 +21,12 @@ import (
 	"time"
 
 	"github.com/gogo/protobuf/jsonpb"
-	"github.com/golang/protobuf/proto"
 	"github.com/opentracing/opentracing-go/ext"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
 	"github.com/jaegertracing/jaeger/model"
-	"github.com/jaegertracing/jaeger/model/prototest"
 )
-
-func TestTraceIDMarshalProto(t *testing.T) {
-	testCases := []struct {
-		name      string
-		marshal   func(proto.Message) ([]byte, error)
-		unmarshal func([]byte, proto.Message) error
-		expected  string
-	}{
-		{
-			name:      "protobuf",
-			marshal:   proto.Marshal,
-			unmarshal: proto.Unmarshal,
-		},
-		{
-			name: "JSON",
-			marshal: func(m proto.Message) ([]byte, error) {
-				out := new(bytes.Buffer)
-				err := new(jsonpb.Marshaler).Marshal(out, m)
-				if err != nil {
-					return nil, err
-				}
-				return out.Bytes(), nil
-			},
-			unmarshal: func(in []byte, m proto.Message) error {
-				return jsonpb.Unmarshal(bytes.NewReader(in), m)
-			},
-			expected: `{"traceId":"AAAAAAAAAAIAAAAAAAAAAw==","spanId":"AAAAAAAAAAs="}`,
-		},
-	}
-	for _, testCase := range testCases {
-		t.Run(testCase.name, func(t *testing.T) {
-			ref1 := model.SpanRef{TraceID: model.NewTraceID(2, 3), SpanID: model.NewSpanID(11)}
-			ref2 := prototest.SpanRef{
-				TraceId: []byte{0, 0, 0, 0, 0, 0, 0, 2, 0, 0, 0, 0, 0, 0, 0, 3},
-				SpanId:  []byte{0, 0, 0, 0, 0, 0, 0, 11},
-			}
-			d1, err := testCase.marshal(&ref1)
-			require.NoError(t, err)
-			d2, err := testCase.marshal(&ref2)
-			require.NoError(t, err)
-			assert.Equal(t, d2, d1)
-			if testCase.expected != "" {
-				assert.Equal(t, testCase.expected, string(d1))
-			}
-			// test unmarshal
-			var ref1u model.SpanRef
-			err = testCase.unmarshal(d2, &ref1u)
-			require.NoError(t, err)
-			assert.Equal(t, ref1, ref1u)
-		})
-	}
-}
 
 // Verify: https://cryptii.com/base64-to-hex
 var testCasesTraceID = []struct {
