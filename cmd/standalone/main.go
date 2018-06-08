@@ -55,6 +55,7 @@ import (
 	jc "github.com/jaegertracing/jaeger/thrift-gen/jaeger"
 	sc "github.com/jaegertracing/jaeger/thrift-gen/sampling"
 	zc "github.com/jaegertracing/jaeger/thrift-gen/zipkincore"
+	"io"
 )
 
 // standalone/main is a standalone full-stack jaeger backend, backed by a memory store
@@ -130,6 +131,13 @@ func main() {
 
 			select {
 			case <-signalsChannel:
+				if closer, ok := spanWriter.(io.Closer); ok {
+					err := closer.Close()
+					if err != nil {
+						logger.Error("Failed to close span writer", zap.Error(err))
+					}
+				}
+
 				logger.Info("Jaeger Standalone is finishing")
 			}
 			return nil
