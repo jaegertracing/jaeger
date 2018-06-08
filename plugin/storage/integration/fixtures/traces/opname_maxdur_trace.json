@@ -1,15 +1,15 @@
 {
   "spans": [
     {
-      "traceId": "7",
-      "spanId": "3",
+      "traceId": "AAAAAAAAAAAAAAAAAAAABw==",
+      "spanId": "AAAAAAAAAAM=",
       "operationName": "query07-operation",
       "tags": [],
       "references": [
         {
           "refType": "CHILD_OF",
-          "traceId": "7",
-          "spanId": "2"
+          "traceId": "AAAAAAAAAAAAAAAAAAAABw==",
+          "spanId": "AAAAAAAAAAI="
         }
       ],
       "startTime": "2017-01-26T16:46:31.639875Z",
@@ -21,8 +21,8 @@
       "logs": []
     },
     {
-      "traceId": "7",
-      "spanId": "2",
+      "traceId": "AAAAAAAAAAAAAAAAAAAABw==",
+      "spanId": "AAAAAAAAAAI=",
       "operationName": "query07-operation",
       "references": [],
       "startTime": "2017-01-26T16:46:31.639875Z",

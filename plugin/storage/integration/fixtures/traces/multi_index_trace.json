@@ -1,8 +1,8 @@
  {
   "spans": [
     {
-      "traceId": "5",
-      "spanId": "1",
+      "traceId": "AAAAAAAAAAAAAAAAAAAABQ==",
+      "spanId": "AAAAAAAAAAE=",
       "operationName": "operation-list-test2",
       "references": [],
       "startTime": "2017-01-26T00:03:31.639875Z",
@@ -24,8 +24,8 @@
       ]
     },
     {
-      "traceId": "5",
-      "spanId": "2",
+      "traceId": "AAAAAAAAAAAAAAAAAAAABQ==",
+      "spanId": "AAAAAAAAAAI=",
       "operationName": "operation-list-test3",
       "references": [],
       "startTime": "2017-01-25T23:56:31.639875Z",

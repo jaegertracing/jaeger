@@ -1,24 +1,24 @@
 {
   "spans": [
     {
-      "traceId": "12",
-      "spanId": "4",
+      "traceId": "AAAAAAAAAAAAAAAAAAAAEg==",
+      "spanId": "AAAAAAAAAAQ=",
       "operationName": "query12-operation",
       "references": [
         {
           "refType": "CHILD_OF",
-          "traceId": "ff",
-          "spanId": "ff"
+          "traceId": "AAAAAAAAAAAAAAAAAAAA/w==",
+          "spanId": "AAAAAAAAAP8="
         },
         {
           "refType": "CHILD_OF",
-          "traceId": "1",
-          "spanId": "2"
+          "traceId": "AAAAAAAAAAAAAAAAAAAAAQ==",
+          "spanId": "AAAAAAAAAAI="
         },
         {
           "refType": "FOLLOWS_FROM",
-          "traceId": "1",
-          "spanId": "2"
+          "traceId": "AAAAAAAAAAAAAAAAAAAAAQ==",
+          "spanId": "AAAAAAAAAAI="
         }
       ],
       "tags": [
