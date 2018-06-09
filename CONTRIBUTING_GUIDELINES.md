@@ -34,20 +34,14 @@ pull request is most likely to be accepted if it:
     * Use the imperative mood in the subject line
     * Wrap the body at 72 characters
     * Use the body to explain _what_ and _why_ instead of _how_
-* Uses the active voice (vs. [passive voice](https://www.grammarly.com/blog/a-scary-easy-way-to-help-you-find-passive-voice/)) to make it clear when the user has to perform an action and when actions happen automatically.
-* Has been spellchecked and uses proper [grammar](https://www.grammarly.com/).
-* Has been written in plain language and avoids jargon. Remember, the people reading the documentation know much less about the project than you do.
 * Each commit must be signed by the author ([see below](#sign-your-work)).
-
-Once the PR is approved and merged, [readthedocs][project] will automatically rebuild the docs.
 
 ## License
 
 By contributing your code, you agree to license your contribution under the terms
 of the [Apache License](LICENSE).
 
-If you are adding a new file it should have a header like below.  The easiest
-way to add such header is to run `make fmt`.
+If you are adding a new file it should have a header like below. Depending on the language of the repository, the may start with a '#'.
 
 ```
 // Copyright (c) 2018 The Jaeger Authors.
@@ -119,12 +113,3 @@ then you just add a line to every git commit message:
 using your real name (sorry, no pseudonyms or anonymous contributions.)
 
 You can add the sign off when creating the git commit via `git commit -s`.
-
-If you want this to be automatic you can set up some aliases:
-
-```
-git config --add alias.amend "commit -s --amend"
-git config --add alias.c "commit -s"
-```
-
-[project]: https://readthedocs.org/projects/jaeger/
