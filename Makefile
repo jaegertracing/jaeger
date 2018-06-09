@@ -3,7 +3,7 @@ TOP_PKGS := $(shell glide novendor | grep -v -e ./thrift-gen/... -e swagger-gen.
 STORAGE_PKGS = ./plugin/storage/integration/...
 
 # all .go files that don't exist in hidden directories
-ALL_SRC := $(shell find . -name "*.go" | grep -v -e vendor -e thrift-gen -e swagger-gen -e examples -e doc.go \
+ALL_SRC := $(shell find . -name "*.go" | grep -v -e vendor -e thrift-gen -e swagger-gen -e examples -e doc.go -e jaeger_test.pb.go \
         -e ".*/\..*" \
         -e ".*/_.*" \
         -e ".*/mocks.*")
@@ -115,7 +115,7 @@ lint-gas:
 lint: lint-gas
 	$(GOVET) $(TOP_PKGS)
 	@cat /dev/null > $(LINT_LOG)
-	@$(foreach pkg, $(TOP_PKGS), $(GOLINT) $(pkg) | grep -v -e pkg/es/wrapper.go -e /mocks/ -e thrift-gen -e thrift-0.9.2 >> $(LINT_LOG) || true;)
+	@$(foreach pkg, $(TOP_PKGS), $(GOLINT) $(pkg) | grep -v -e pkg/es/wrapper.go -e /mocks/ -e thrift-gen -e thrift-0.9.2 -e jaeger_test.pb.go >> $(LINT_LOG) || true;)
 	@[ ! -s "$(LINT_LOG)" ] || (echo "Lint Failures" | cat - $(LINT_LOG) && false)
 	@$(GOFMT) -e -s -l $(ALL_SRC) > $(FMT_LOG)
 	@./scripts/updateLicenses.sh >> $(FMT_LOG)
