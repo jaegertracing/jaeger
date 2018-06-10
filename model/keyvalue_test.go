@@ -48,20 +48,6 @@ func TestValueTypeToFromString(t *testing.T) {
 	}
 }
 
-// func TestValueTypeToFromJSON(t *testing.T) {
-// 	kv := model.Int64("x", 123)
-// 	out, err := json.Marshal(kv)
-// 	assert.NoError(t, err)
-// 	assert.Equal(t, `{"key":"x","vType":"int64","vNum":123}`, string(out))
-// 	var kv2, kv3 model.KeyValue
-// 	if assert.NoError(t, json.Unmarshal(out, &kv2)) {
-// 		assert.True(t, kv.Equal(&kv2))
-// 		assert.Equal(t, kv, kv2)
-// 	}
-// 	err = json.Unmarshal([]byte(`{"key":"x","vType":"BAD","vNum":123}`), &kv3)
-// 	assert.EqualError(t, err, "not a valid ValueType string BAD")
-// }
-
 func TestKeyValueString(t *testing.T) {
 	kv := model.String("x", "y")
 	assert.Equal(t, "x", kv.Key)

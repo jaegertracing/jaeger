@@ -27,6 +27,12 @@ import (
 	"github.com/jaegertracing/jaeger/model/prototest"
 )
 
+// TraceID/SpanID fields are defined as bytes in proto, backed by custom types in Go.
+// Unfortunately, that means they require manual implementations of proto & json serialization.
+// To ensure that it's the same as the default protobuf serialization, file jaeger_test.proto
+// contains a copy of SpanRef message without any gogo options. This test file is compiled with
+// plain protoc -go_out (without gogo). This test performs proto and JSON marshaling/unmarshaling
+// to ensure that the outputs of manual and standard serialization are identical.
 func TestTraceSpanIDMarshalProto(t *testing.T) {
 	testCases := []struct {
 		name      string
@@ -59,6 +65,7 @@ func TestTraceSpanIDMarshalProto(t *testing.T) {
 		t.Run(testCase.name, func(t *testing.T) {
 			ref1 := model.SpanRef{TraceID: model.NewTraceID(2, 3), SpanID: model.NewSpanID(11)}
 			ref2 := prototest.SpanRef{
+				// TODO: would be cool to fuzz that test
 				TraceId: []byte{0, 0, 0, 0, 0, 0, 0, 2, 0, 0, 0, 0, 0, 0, 0, 3},
 				SpanId:  []byte{0, 0, 0, 0, 0, 0, 0, 11},
 			}

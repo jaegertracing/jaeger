@@ -31,22 +31,6 @@ const (
 // Flags is a bit map of flags for a span
 type Flags uint32
 
-// Span represents a unit of work in an application, such as an RPC, a database call, etc.
-// type Span struct {
-// 	TraceID       TraceID       `json:"traceID"`
-// 	SpanID        SpanID        `json:"spanID"`
-// 	ParentSpanID  SpanID        `json:"parentSpanID"`
-// 	OperationName string        `json:"operationName"`
-// 	References    []SpanRef     `json:"references,omitempty"`
-// 	Flags         Flags         `json:"flags,omitempty"`
-// 	StartTime     time.Time     `json:"startTime"`
-// 	Duration      time.Duration `json:"duration"`
-// 	Tags          []KeyValue    `json:"tags,omitempty"`
-// 	Logs          []Log         `json:"logs,omitempty"`
-// 	Process       *Process      `json:"process"`
-// 	Warnings      []string      `json:"warnings,omitempty"`
-// }
-
 // Hash implements Hash from Hashable.
 func (s *Span) Hash(w io.Writer) (err error) {
 	// gob is not the most efficient way, but it ensures we don't miss any fields.

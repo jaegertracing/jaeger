@@ -110,7 +110,7 @@ func marshalBytes(dst []byte, src []byte) (n int, err error) {
 
 // MarshalJSON converts trace id into a base64 string enclosed in quotes.
 // Used by protobuf JSON serialization.
-// Example: {high:0, low:1} => "AAAAAAAAAAIAAAAAAAAAAQ==".
+// Example: {high:2, low:1} => "AAAAAAAAAAIAAAAAAAAAAQ==".
 func (t TraceID) MarshalJSON() ([]byte, error) {
 	var b [16]byte
 	t.MarshalTo(b[:]) // can only error on incorrect buffer size
@@ -179,7 +179,7 @@ func (s *SpanID) MarshalTo(data []byte) (n int, err error) {
 	return marshalBytes(data, b[:])
 }
 
-// Unmarshal inflates this trace ID from binary representation. Called by protobuf serialization.
+// Unmarshal inflates span ID from a binary representation. Called by protobuf serialization.
 func (s *SpanID) Unmarshal(data []byte) error {
 	if len(data) < 8 {
 		return fmt.Errorf("buffer is too short")

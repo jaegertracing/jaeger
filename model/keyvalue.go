@@ -24,6 +24,7 @@ import (
 	"strings"
 )
 
+// These constants are kept mostly for backwards compatibility.
 const (
 	// StringType indicates the value is a unicode string
 	StringType = ValueType_STRING
@@ -35,26 +36,7 @@ const (
 	Float64Type = ValueType_FLOAT64
 	// BinaryType indicates the value is binary blob stored as a byte array
 	BinaryType = ValueType_BINARY
-
-	// stringTypeStr  = "string"
-	// boolTypeStr    = "bool"
-	// int64TypeStr   = "int64"
-	// float64TypeStr = "float64"
-	// binaryTypeStr  = "binary"
 )
-
-// KeyValue describes a tag or a log field that consists of a key and a typed value.
-// Before accessing a value, the caller must check the type. Boolean and numeric
-// values should be accessed via accessor methods Bool(), Int64(), and Float64().
-//
-// This struct is designed to minimize heap allocations.
-// type KeyValue struct {
-// 	Key   string    `json:"key"`
-// 	VType ValueType `json:"vType"`
-// 	VStr  string    `json:"vStr,omitempty"`
-// 	VNum  int64     `json:"vNum,omitempty"`
-// 	VBlob []byte    `json:"vBlob,omitempty"`
-// }
 
 // KeyValues is a type alias that exposes convenience functions like Sort, FindByKey.
 type KeyValues []KeyValue
@@ -162,72 +144,10 @@ func (kv *KeyValue) AsString() string {
 	}
 }
 
-// Equal compares KeyValue object with another KeyValue.
-// func (kv *KeyValue) Equal(other *KeyValue) bool {
-// 	if kv.Key != other.Key {
-// 		return false
-// 	}
-// 	if kv.VType != other.VType {
-// 		return false
-// 	}
-// 	switch kv.VType {
-// 	case StringType:
-// 		return kv.VStr == other.VStr
-// 	case BoolType, Int64Type:
-// 		return kv.VNum == other.VNum
-// 	case Float64Type:
-// 		return kv.Float64() == other.Float64()
-// 	case BinaryType:
-// 		l1, l2 := len(kv.VBlob), len(other.VBlob)
-// 		if l1 != l2 {
-// 			return false
-// 		}
-// 		for i := 0; i < l1; i++ {
-// 			if kv.VBlob[i] != other.VBlob[i] {
-// 				return false
-// 			}
-// 		}
-// 		return true
-// 	default:
-// 		return false
-// 	}
-// }
-
 // IsLess compares KeyValue object with another KeyValue.
 // The order is based first on the keys, then on type, and finally on the value.
 func (kv *KeyValue) IsLess(two *KeyValue) bool {
 	return kv.Compare(two) < 0
-	// if kv.Key != two.Key {
-	// 	return kv.Key < two.Key
-	// }
-	// if kv.VType != two.VType {
-	// 	return kv.VType < two.VType
-	// }
-	// switch kv.VType {
-	// case StringType:
-	// 	return kv.VStr < two.VStr
-	// case BoolType, Int64Type:
-	// 	return kv.VNum < two.VNum
-	// case Float64Type:
-	// 	return kv.Float64() < two.Float64()
-	// case BinaryType:
-	// 	l1, l2 := len(kv.VBlob), len(two.VBlob)
-	// 	minLen := l1
-	// 	if l2 < minLen {
-	// 		minLen = l2
-	// 	}
-	// 	for i := 0; i < minLen; i++ {
-	// 		if d := int(kv.VBlob[i]) - int(two.VBlob[i]); d != 0 {
-	// 			return d < 0
-	// 		}
-	// 	}
-	// 	if l1 == l2 {
-	// 		return false
-	// 	}
-	// 	return l1 < l2
-	// default:
-	// 	return false
-	// }
 }
 
 func (kvs KeyValues) Len() int      { return len(kvs) }
@@ -276,22 +196,6 @@ func (kvs KeyValues) Hash(w io.Writer) error {
 	return nil
 }
 
-// func (p ValueType) String() string {
-// 	switch p {
-// 	case StringType:
-// 		return stringTypeStr
-// 	case BoolType:
-// 		return boolTypeStr
-// 	case Int64Type:
-// 		return int64TypeStr
-// 	case Float64Type:
-// 		return float64TypeStr
-// 	case BinaryType:
-// 		return binaryTypeStr
-// 	}
-// 	return "<invalid>"
-// }
-
 // ValueTypeFromString converts a string into ValueType enum.
 func ValueTypeFromString(s string) (ValueType, error) {
 	i, ok := ValueType_value[strings.ToUpper(s)]
@@ -300,21 +204,6 @@ func ValueTypeFromString(s string) (ValueType, error) {
 	}
 	return ValueType(0), fmt.Errorf("not a valid ValueType string %s", s)
 }
-
-// // MarshalText allows ValueType to serialize itself in JSON as a string.
-// func (p ValueType) MarshalText() ([]byte, error) {
-// 	return []byte(p.String()), nil
-// }
-
-// // UnmarshalText allows ValueType to deserialize itself from a JSON string.
-// func (p *ValueType) UnmarshalText(text []byte) error {
-// 	q, err := ValueTypeFromString(string(text))
-// 	if err != nil {
-// 		return err
-// 	}
-// 	*p = q
-// 	return nil
-// }
 
 // Hash implements Hash from Hashable.
 func (kv KeyValue) Hash(w io.Writer) error {

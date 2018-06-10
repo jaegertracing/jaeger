@@ -23,7 +23,8 @@ import "github.com/grpc-ecosystem/grpc-gateway/protoc-gen-swagger/options/annota
 import "github.com/gogo/protobuf/gogoproto/gogo.proto";
 // import "github.com/mwitkow/go-proto-validators/validator.proto";
 
-// Specifies path for generated file (relative to $GOPATH) and the name of the package.
+// TODO: document all types and fields
+
 option go_package = "model";
 
 option (grpc.gateway.protoc_gen_swagger.options.openapiv2_swagger) = {
@@ -47,19 +48,6 @@ option (gogoproto.unmarshaler_all) = true;
 option (gogoproto.sizer_all) = true;
 // Enable registration with golang/protobuf for the grpc-gateway.
 option (gogoproto.goproto_registration) = true;
-
-// For comparison of how KeyValue looks when using `oneof`.
-// Both definitions result in the same message size.
-// message KeyValue2 {
-//   string key = 1;
-//   oneof value {
-//     string vStr = 2;
-//     double  vDouble = 3;
-//     bool vBool = 4;
-//     int64 vLong = 5;
-//     bytes vBinary = 6;
-//   }
-// }
 
 enum ValueType {
   STRING  = 0;
@@ -157,16 +145,6 @@ message Span {
   ];
   repeated string warnings = 12;
 }
-
-// message Span2 {
-//     TraceID traceID = 1 [
-//       (gogoproto.nullable) = false
-//     ];
-//     uint64 spanID = 2 [
-//       (gogoproto.nullable) = false,
-//       (gogoproto.customtype) = "SpanID"
-//     ];
-// }
 
 message Trace {
   message ProcessMapping {
