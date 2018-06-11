@@ -36,12 +36,12 @@ func IPTagAdjuster() Adjuster {
 		for i, tag := range tags {
 			var value uint32
 			switch tag.VType {
-				case model.Int64Type:
-					value = uint32(tag.Int64())
-				case model.Float64Type:
-					value = uint32(tag.Float64())
-				default:
-					continue
+			case model.Int64Type:
+				value = uint32(tag.Int64())
+			case model.Float64Type:
+				value = uint32(tag.Float64())
+			default:
+				continue
 			}
 			if _, ok := ipTagsToCorrect[tag.Key]; !ok {
 				continue
