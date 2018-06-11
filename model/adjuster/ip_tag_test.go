@@ -30,6 +30,7 @@ func TestIPTagAdjuster(t *testing.T) {
 					model.Int64("a", 42),
 					model.String("ip", "not integer"),
 					model.Int64("ip", 1<<24|2<<16|3<<8|4),
+					model.Float64("ip",1<<24|2<<16|3<<8|4),
 					model.String("peer.ipv4", "not integer"),
 					model.Int64("peer.ipv4", 1<<24|2<<16|3<<8|4),
 				},
@@ -50,6 +51,7 @@ func TestIPTagAdjuster(t *testing.T) {
 		model.Int64("a", 42),
 		model.String("ip", "not integer"),
 		model.String("ip", "1.2.3.4"),
+		model.String("ip","1.2.3.4"),
 		model.String("peer.ipv4", "not integer"),
 		model.String("peer.ipv4", "1.2.3.4"),
 	}

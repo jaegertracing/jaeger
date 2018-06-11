@@ -34,14 +34,20 @@ func IPTagAdjuster() Adjuster {
 
 	adjustTags := func(tags model.KeyValues) {
 		for i, tag := range tags {
-			if tag.VType != model.Int64Type {
-				continue
+			var value uint32
+			switch tag.VType {
+				case model.Int64Type:
+					value = uint32(tag.Int64())
+				case model.Float64Type:
+					value = uint32(tag.Float64())
+				default:
+					continue
 			}
 			if _, ok := ipTagsToCorrect[tag.Key]; !ok {
 				continue
 			}
 			var buf [4]byte
-			binary.BigEndian.PutUint32(buf[:], uint32(tag.Int64()))
+			binary.BigEndian.PutUint32(buf[:], value)
 			var sBuf bytes.Buffer
 			for i, b := range buf {
 				if i > 0 {
