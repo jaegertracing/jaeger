@@ -17,31 +17,23 @@ package kafka
 import (
 	"errors"
 	"flag"
-	"strings"
 
 	"github.com/Shopify/sarama"
 	"github.com/spf13/viper"
 	"github.com/uber/jaeger-lib/metrics"
 	"go.uber.org/zap"
 
-	"github.com/jaegertracing/jaeger/pkg/kafka/config"
 	"github.com/jaegertracing/jaeger/storage/dependencystore"
 	"github.com/jaegertracing/jaeger/storage/spanstore"
 )
 
-const (
-	configPrefix  = "kafka"
-	suffixBrokers = ".brokers"
-	suffixTopic   = ".topic"
-)
-
 // Factory implements storage.Factory and creates write-only storage components backed by kafka.
 type Factory struct {
+	options Options
+
 	metricsFactory metrics.Factory
 	logger         *zap.Logger
 
-	config     config.ProducerBuilder
-	topic      string
 	producer   sarama.AsyncProducer
 	marshaller Marshaller
 }
@@ -53,28 +45,18 @@ func NewFactory() *Factory {
 
 // AddFlags implements plugin.Configurable
 func (f *Factory) AddFlags(flagSet *flag.FlagSet) {
-	flagSet.String(
-		configPrefix+suffixBrokers,
-		"127.0.0.1:9092",
-		"The comma-separated list of kafka brokers. i.e. '127.0.0.1:9092,0.0.0:1234'")
-	flagSet.String(
-		configPrefix+suffixTopic,
-		"jaeger-spans",
-		"The name of the kafka topic")
+	f.options.AddFlags(flagSet)
 }
 
 // InitFromViper implements plugin.Configurable
 func (f *Factory) InitFromViper(v *viper.Viper) {
-	f.config = &config.Configuration{
-		Brokers: strings.Split(v.GetString(configPrefix+suffixBrokers), ","),
-	}
-	f.topic = v.GetString(configPrefix + suffixTopic)
+	f.options.InitFromViper(v)
 }
 
 // Initialize implements storage.Factory
 func (f *Factory) Initialize(metricsFactory metrics.Factory, logger *zap.Logger) error {
 	f.metricsFactory, f.logger = metricsFactory, logger
-	p, err := f.config.NewProducer()
+	p, err := f.options.config.NewProducer()
 	if err != nil {
 		return err
 	}
@@ -90,7 +72,7 @@ func (f *Factory) CreateSpanReader() (spanstore.Reader, error) {
 
 // CreateSpanWriter implements storage.Factory
 func (f *Factory) CreateSpanWriter() (spanstore.Writer, error) {
-	return NewSpanWriter(f.producer, f.marshaller, f.topic, f.metricsFactory), nil
+	return NewSpanWriter(f.producer, f.marshaller, f.options.topic, f.metricsFactory), nil
 }
 
 // CreateDependencyReader implements storage.Factory

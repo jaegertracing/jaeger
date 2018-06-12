@@ -45,21 +45,27 @@ func (m *mockProducerBuilder) NewProducer() (sarama.AsyncProducer, error) {
 	return nil, m.err
 }
 
-func TestMemoryStorageFactory(t *testing.T) {
+func TestKafkaFactory(t *testing.T) {
 	f := NewFactory()
 	v, command := config.Viperize(f.AddFlags)
 	command.ParseFlags([]string{})
 	f.InitFromViper(v)
 
-	f.config = &mockProducerBuilder{
+	f.options.config = &mockProducerBuilder{
 		err: errors.New("made-up error"),
 		t:   t,
 	}
 	assert.EqualError(t, f.Initialize(metrics.NullFactory, zap.NewNop()), "made-up error")
 
-	f.config = &mockProducerBuilder{t: t}
+	f.options.config = &mockProducerBuilder{t: t}
 	assert.NoError(t, f.Initialize(metrics.NullFactory, zap.NewNop()))
 
 	_, err := f.CreateSpanWriter()
 	assert.NoError(t, err)
+
+	_, err = f.CreateSpanReader()
+	assert.Error(t, err)
+
+	_, err = f.CreateDependencyReader()
+	assert.Error(t, err)
 }
