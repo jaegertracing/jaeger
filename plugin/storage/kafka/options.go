@@ -27,11 +27,14 @@ const (
 	configPrefix  = "kafka"
 	suffixBrokers = ".brokers"
 	suffixTopic   = ".topic"
+
+	defaultBroker = "127.0.0.1:9092"
+	defaultTopic  = "jaeger-spans"
 )
 
 // Options stores the configuration options for Kafka
 type Options struct {
-	config config.ProducerBuilder
+	config config.Configuration
 	topic  string
 }
 
@@ -39,17 +42,17 @@ type Options struct {
 func (opt *Options) AddFlags(flagSet *flag.FlagSet) {
 	flagSet.String(
 		configPrefix+suffixBrokers,
-		"127.0.0.1:9092",
+		defaultBroker,
 		"The comma-separated list of kafka brokers. i.e. '127.0.0.1:9092,0.0.0:1234'")
 	flagSet.String(
 		configPrefix+suffixTopic,
-		"jaeger-spans",
+		defaultTopic,
 		"The name of the kafka topic")
 }
 
 // InitFromViper initializes Options with properties from viper
 func (opt *Options) InitFromViper(v *viper.Viper) {
-	opt.config = &config.Configuration{
+	opt.config = config.Configuration{
 		Brokers: strings.Split(v.GetString(configPrefix+suffixBrokers), ","),
 	}
 	opt.topic = v.GetString(configPrefix + suffixTopic)

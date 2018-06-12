@@ -51,13 +51,13 @@ func TestKafkaFactory(t *testing.T) {
 	command.ParseFlags([]string{})
 	f.InitFromViper(v)
 
-	f.options.config = &mockProducerBuilder{
+	f.config = &mockProducerBuilder{
 		err: errors.New("made-up error"),
 		t:   t,
 	}
 	assert.EqualError(t, f.Initialize(metrics.NullFactory, zap.NewNop()), "made-up error")
 
-	f.options.config = &mockProducerBuilder{t: t}
+	f.config = &mockProducerBuilder{t: t}
 	assert.NoError(t, f.Initialize(metrics.NullFactory, zap.NewNop()))
 
 	_, err := f.CreateSpanWriter()
