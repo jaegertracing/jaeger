@@ -22,14 +22,6 @@ imports:
   version: 8991bc29aa16c548c550c7ff78260e27b9ab7c73
   subpackages:
   - spew
-- name: github.com/eapache/go-resiliency
-  version: ef9aaa7ea8bd2448429af1a77cf41b2b3b34bdd6
-  subpackages:
-  - breaker
-- name: github.com/eapache/go-xerial-snappy
-  version: bb955e01b9346ac19dc29eb16586c90ded99a98c
-- name: github.com/eapache/queue
-  version: 44cc805cf13205b55f69e14bcb69867d1ae92f98
 - name: github.com/elazarl/go-bindata-assetfs
   version: 38087fe4dafb822e541b3f7955075cc1c30bd294
 - name: github.com/fsnotify/fsnotify
@@ -193,8 +185,6 @@ imports:
   version: 1c4bec281e4bbc75b4f4a1bd923bdf1bd989a969
 - name: github.com/PuerkitoBio/urlesc
   version: de5bf2ad457846296e2031421a34e2568e304e35
-- name: github.com/rcrowley/go-metrics
-  version: e181e095bae94582363434144c61a9653aff6e50
 - name: github.com/Shopify/sarama
   version: 35324cf48e33d8260e1c7c18854465a904ade249
 - name: github.com/spf13/afero
@@ -214,7 +204,7 @@ imports:
 - name: github.com/stretchr/objx
   version: a5cfa15c000af5f09784e5355969ba7eb66ef0de
 - name: github.com/stretchr/testify
-  version: 12b6f73e6084dad08a7c6e575284b177ecafbc71
+  version: f35b8ab0b5a2cef36673838d662e249dd9c94686
   subpackages:
   - assert
   - mock

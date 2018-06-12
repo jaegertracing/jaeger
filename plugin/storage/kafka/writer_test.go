@@ -20,7 +20,6 @@ import (
 
 	"github.com/Shopify/sarama"
 	saramaMocks "github.com/Shopify/sarama/mocks"
-	"github.com/davit-y/jaeger/storage/spanstore"
 	"github.com/pkg/errors"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
@@ -29,6 +28,7 @@ import (
 
 	"github.com/jaegertracing/jaeger/model"
 	"github.com/jaegertracing/jaeger/pkg/kafka/mocks"
+	"github.com/jaegertracing/jaeger/storage/spanstore"
 )
 
 var (
