@@ -20,12 +20,17 @@ file for details.
 ## Making A Change
 
 *Before making any significant changes, please open an
-issue.* Discussing your proposed
-changes ahead of time will make the contribution process smooth for everyone.
+issue.* Each issue must address the following:
+* Requirement - what kind of business use case are you trying to solve?
+* Problem - what in Jaeger blocks you from solving the requirement?
+* Proposal - what do you suggest to solve the problem or improve the existing situation?
+* Any open questions to address
 
-Once we've discussed your changes and you've made your updates, then open your PR. Your
-pull request is most likely to be accepted if it:
+Discussing your proposed changes ahead of time will make the contribution process smooth for everyone. Once we've discussed your changes and you've made your updates, then open your PR. Each PR must contain:
+* Which problem is this PR solving?
+* Short description of the changes
 
+Your pull request is most likely to be accepted if each commit:
 * Has a [good commit message](https://chris.beams.io/posts/git-commit/):
     * Separate subject from body with a blank line
     * Limit the subject line to 50 characters
@@ -34,7 +39,7 @@ pull request is most likely to be accepted if it:
     * Use the imperative mood in the subject line
     * Wrap the body at 72 characters
     * Use the body to explain _what_ and _why_ instead of _how_
-* Each commit must be signed by the author ([see below](#sign-your-work)).
+* Has been signed by the author ([see below](#sign-your-work)).
 
 ## License
 
