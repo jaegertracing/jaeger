@@ -46,6 +46,11 @@ type Factory struct {
 	marshaller Marshaller
 }
 
+// NewFactory creates a new Factory.
+func NewFactory() *Factory {
+	return &Factory{}
+}
+
 // AddFlags implements plugin.Configurable
 func (f *Factory) AddFlags(flagSet *flag.FlagSet) {
 	flagSet.String(
@@ -66,23 +71,15 @@ func (f *Factory) InitFromViper(v *viper.Viper) {
 	f.topic = v.GetString(configPrefix + suffixTopic)
 }
 
-// NewFactory creates a new Factory.
-func NewFactory() *Factory {
-	return &Factory{}
-}
-
 // Initialize implements storage.Factory
 func (f *Factory) Initialize(metricsFactory metrics.Factory, logger *zap.Logger) error {
 	f.metricsFactory, f.logger = metricsFactory, logger
-
 	p, err := f.config.NewProducer()
 	if err != nil {
 		return err
 	}
 	f.producer = p
-
 	f.marshaller = newThriftMarshaller()
-
 	return nil
 }
 
