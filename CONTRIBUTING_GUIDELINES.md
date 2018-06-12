@@ -27,7 +27,7 @@ issue.* Each issue should describe the following:
 * Any open questions to address
 
 Discussing your proposed changes ahead of time will make the contribution process smooth for everyone. Once the approach is agreed upon, make your changes and open a pull request (PR). Each PR should describe:
-* Which problem it is solving. Normally it should be simply a reference to the corresponding issue, e.g. Resolves #123.
+* Which problem it is solving. Normally it should be simply a reference to the corresponding issue, e.g. `Resolves #123`.
 * What changes are made to achieve that.
 
 Your pull request is most likely to be accepted if **each commit**:
@@ -46,7 +46,7 @@ Your pull request is most likely to be accepted if **each commit**:
 By contributing your code, you agree to license your contribution under the terms
 of the [Apache License](LICENSE).
 
-If you are adding a new file it should have a header like below. In some languages, e.g. Python, you may need to change the comments to start with #. The easiest way is to copy the header from one of the existing source files and make sure the year is current and the copyright says "The Jaeger Authors".
+If you are adding a new file it should have a header like below. In some languages, e.g. Python, you may need to change the comments to start with `#`. The easiest way is to copy the header from one of the existing source files and make sure the year is current and the copyright says "The Jaeger Authors".
 
 ```
 // Copyright (c) 2018 The Jaeger Authors.
