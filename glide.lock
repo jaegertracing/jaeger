@@ -22,6 +22,14 @@ imports:
   version: 8991bc29aa16c548c550c7ff78260e27b9ab7c73
   subpackages:
   - spew
+- name: github.com/eapache/go-resiliency
+  version: ea41b0fad31007accc7f806884dcdf3da98b79ce
+  subpackages:
+  - breaker
+- name: github.com/eapache/go-xerial-snappy
+  version: bb955e01b9346ac19dc29eb16586c90ded99a98c
+- name: github.com/eapache/queue
+  version: 093482f3f8ce946c05bcba64badd2c82369e084d
 - name: github.com/elazarl/go-bindata-assetfs
   version: 38087fe4dafb822e541b3f7955075cc1c30bd294
 - name: github.com/fsnotify/fsnotify
@@ -185,8 +193,12 @@ imports:
   version: 1c4bec281e4bbc75b4f4a1bd923bdf1bd989a969
 - name: github.com/PuerkitoBio/urlesc
   version: de5bf2ad457846296e2031421a34e2568e304e35
+- name: github.com/rcrowley/go-metrics
+  version: e2704e165165ec55d062f5919b4b29494e9fa790
 - name: github.com/Shopify/sarama
   version: 35324cf48e33d8260e1c7c18854465a904ade249
+  subpackages:
+  - mocks
 - name: github.com/spf13/afero
   version: 5660eeed305fe5f69c8fc6cf899132a459a97064
   subpackages:
@@ -284,8 +296,6 @@ imports:
   - trace
 - name: golang.org/x/sys
   version: d4feaf1a7e61e1d9e79e6c4e76c6349e9cab0a03
-  subpackages:
-  - unix
 - name: golang.org/x/text
   version: 88f656faf3f37f690df1a32515b479415e1a6769
   subpackages:
