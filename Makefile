@@ -347,6 +347,7 @@ $$GOPATH/src/github.com/jaegertracing/jaeger/model \
 		--go_out=$$GOPATH/src/github.com/jaegertracing/jaeger/model/prototest/ \
 		model/proto/jaeger_test.proto
 
+.PHONY: proto-install
 proto-install:
 	go install \
 		./vendor/github.com/gogo/protobuf/protoc-gen-gogo \
