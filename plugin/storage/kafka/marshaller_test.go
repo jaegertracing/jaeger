@@ -18,48 +18,12 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/assert"
-
-	"github.com/jaegertracing/jaeger/model"
 )
 
 func TestThriftMarshaller(t *testing.T) {
-	tags := model.KeyValues{
-		model.String("str", "Stringer Bell"),
-		model.Float64("floating", 1.1),
-		model.Int64("int", 112),
-		model.Bool("bool", true),
-		model.Binary("binary", []byte("Omar")),
-	}
-	span := &model.Span{
-		TraceID:       model.TraceID{High: 22222, Low: 44444},
-		SpanID:        model.SpanID(3333),
-		OperationName: "operator",
-		References: []model.SpanRef{
-			{
-				TraceID: model.TraceID{High: 22222, Low: 44444},
-				SpanID:  model.SpanID(11111),
-				RefType: model.ChildOf,
-			},
-		},
-		Flags:     model.Flags(1),
-		StartTime: model.EpochMicrosecondsAsTime(55555),
-		Duration:  model.MicrosecondsAsDuration(50000),
-		Tags:      tags,
-		Logs: []model.Log{
-			{
-				Timestamp: model.EpochMicrosecondsAsTime(12345),
-				Fields:    tags,
-			},
-		},
-		Process: &model.Process{
-			ServiceName: "someServiceName",
-			Tags:        tags,
-		},
-	}
-
 	marshaller := newThriftMarshaller()
 
-	bytes, err := marshaller.Marshal(span)
+	bytes, err := marshaller.Marshal(sampleSpan)
 
 	assert.NoError(t, err)
 	assert.NotNil(t, bytes)
