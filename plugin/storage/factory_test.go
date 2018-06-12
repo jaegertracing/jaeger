@@ -60,6 +60,15 @@ func TestNewFactory(t *testing.T) {
 	assert.Equal(t, elasticsearchStorageType, f.SpanStorageType)
 	assert.Equal(t, memoryStorageType, f.DependenciesStorageType)
 
+	f, err = NewFactory(FactoryConfig{
+		SpanStorageType:         kafkaStorageType,
+		DependenciesStorageType: memoryStorageType,
+	})
+	require.NoError(t, err)
+	assert.NotEmpty(t, f.factories)
+	assert.NotNil(t, f.factories[kafkaStorageType])
+	assert.Equal(t, kafkaStorageType, f.SpanStorageType)
+
 	f, err = NewFactory(FactoryConfig{SpanStorageType: "x", DependenciesStorageType: "y"})
 	require.Error(t, err)
 	expected := "Unknown storage type" // could be 'x' or 'y' since code iterates through map.
