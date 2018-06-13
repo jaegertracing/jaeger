@@ -15,6 +15,8 @@
 package kafka
 
 import (
+	"encoding/json"
+
 	"github.com/apache/thrift/lib/go/thrift"
 
 	"github.com/jaegertracing/jaeger/model"
@@ -42,4 +44,15 @@ func (h *thriftMarshaller) Marshal(span *model.Span) ([]byte, error) {
 	thriftSpan.Write(h.tProtocolFactory.GetProtocol(memBuffer))
 
 	return memBuffer.Bytes(), nil
+}
+
+type jsonMarshaller struct{}
+
+func newJSONMarshaller() *jsonMarshaller {
+	return &jsonMarshaller{}
+}
+
+// Marshall encodes a span as a json byte array
+func (h *jsonMarshaller) Marshal(span *model.Span) ([]byte, error) {
+	return json.Marshal(span)
 }
