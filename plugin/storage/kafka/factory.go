@@ -59,6 +59,9 @@ func (f *Factory) InitFromViper(v *viper.Viper) {
 // Initialize implements storage.Factory
 func (f *Factory) Initialize(metricsFactory metrics.Factory, logger *zap.Logger) error {
 	f.metricsFactory, f.logger = metricsFactory, logger
+	logger.Info("Kafka storage configuration",
+		zap.Any("producer config", f.config),
+		zap.Any("topic", f.options.topic))
 	p, err := f.config.NewProducer()
 	if err != nil {
 		return err
