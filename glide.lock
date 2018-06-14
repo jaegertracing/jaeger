@@ -1,5 +1,5 @@
-hash: 524d05684b3bab1a1ba0b172a2a523d247a2dea24e7c8038a526b69f75122bb0
-updated: 2018-06-14T14:54:45.091736102-04:00
+hash: f821e88548fe126d174c800f7c3a4a076cb01391f3f4f1e091cc5b24819fbf58
+updated: 2018-06-14T17:56:36.870952443-04:00
 imports:
 - name: github.com/apache/thrift
   version: 53dd39833a08ce33582e5ff31fa18bb4735d6731
@@ -81,7 +81,7 @@ imports:
   subpackages:
   - google/api
 - name: github.com/gogo/protobuf
-  version: 30cf7ac33676b5786e78c746683f0d4cd64fa75b
+  version: fd9a4790f3963525fb889cc00e0a8f828e0b3a29
   subpackages:
   - gogoproto
   - jsonpb
