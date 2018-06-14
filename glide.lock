@@ -1,5 +1,5 @@
-hash: dc74f28fde5d40df92586392a2355378916fe7410343f66d146c02a21551cf3c
-updated: 2018-06-05T18:21:22.220323-04:00
+hash: 524d05684b3bab1a1ba0b172a2a523d247a2dea24e7c8038a526b69f75122bb0
+updated: 2018-06-14T14:54:45.091736102-04:00
 imports:
 - name: github.com/apache/thrift
   version: 53dd39833a08ce33582e5ff31fa18bb4735d6731
@@ -81,7 +81,7 @@ imports:
   subpackages:
   - google/api
 - name: github.com/gogo/protobuf
-  version: 1ef32a8b9fc3f8ec940126907cedb5998f6318e4
+  version: 30cf7ac33676b5786e78c746683f0d4cd64fa75b
   subpackages:
   - gogoproto
   - jsonpb
@@ -162,6 +162,10 @@ imports:
   - log
 - name: github.com/pelletier/go-toml
   version: 4e9e0ee19b60b13eb79915933f44d8ed5f268bdd
+- name: github.com/pierrec/lz4
+  version: 6b9367c9ff401dbc54fabce3fb8d972e799b702d
+  subpackages:
+  - internal/xxh32
 - name: github.com/pkg/errors
   version: 645ef00459ed84a119197bfb8d8205042c6df63d
 - name: github.com/pmezard/go-difflib
@@ -214,7 +218,7 @@ imports:
 - name: github.com/spf13/viper
   version: b5e8006cbee93ec955a89ab31e0e3ce3204f3736
 - name: github.com/stretchr/objx
-  version: a5cfa15c000af5f09784e5355969ba7eb66ef0de
+  version: 0ab728f62c7f6fcd754334f7931c2dd659dce1d1
 - name: github.com/stretchr/testify
   version: f35b8ab0b5a2cef36673838d662e249dd9c94686
   subpackages:
@@ -283,7 +287,7 @@ imports:
   - zapcore
   - zaptest
 - name: golang.org/x/net
-  version: 640f4622ab692b87c2f3a94265e6f579fe38263d
+  version: db08ff08e8622530d9ed3a0e8ac279f6d4c02196
   subpackages:
   - context
   - context/ctxhttp
@@ -292,10 +296,11 @@ imports:
   - http2/hpack
   - idna
   - internal/timeseries
-  - lex/httplex
   - trace
 - name: golang.org/x/sys
   version: d4feaf1a7e61e1d9e79e6c4e76c6349e9cab0a03
+  subpackages:
+  - unix
 - name: golang.org/x/text
   version: 88f656faf3f37f690df1a32515b479415e1a6769
   subpackages:
