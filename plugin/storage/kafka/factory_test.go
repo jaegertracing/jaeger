@@ -59,7 +59,6 @@ func TestKafkaFactory(t *testing.T) {
 
 	f.config = &mockProducerBuilder{t: t}
 	assert.NoError(t, f.Initialize(metrics.NullFactory, zap.NewNop()))
-	assert.IsType(t, &jsonMarshaller{}, f.marshaller)
 
 	_, err := f.CreateSpanWriter()
 	assert.NoError(t, err)
@@ -69,25 +68,4 @@ func TestKafkaFactory(t *testing.T) {
 
 	_, err = f.CreateDependencyReader()
 	assert.Error(t, err)
-}
-
-func TestKafkaFactoryThrift(t *testing.T) {
-	f := NewFactory()
-	v, command := config.Viperize(f.AddFlags)
-	command.ParseFlags([]string{"--kafka.encoding=thrift"})
-	f.InitFromViper(v)
-
-	f.config = &mockProducerBuilder{t: t}
-	assert.NoError(t, f.Initialize(metrics.NullFactory, zap.NewNop()))
-	assert.IsType(t, &thriftMarshaller{}, f.marshaller)
-}
-
-func TestKafkaFactoryMarshallerErr(t *testing.T) {
-	f := NewFactory()
-	v, command := config.Viperize(f.AddFlags)
-	command.ParseFlags([]string{"--kafka.encoding=bad-input"})
-	f.InitFromViper(v)
-
-	f.config = &mockProducerBuilder{t: t}
-	assert.Error(t, f.Initialize(metrics.NullFactory, zap.NewNop()))
 }

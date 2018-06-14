@@ -24,24 +24,18 @@ import (
 )
 
 const (
-	configPrefix   = "kafka"
-	suffixBrokers  = ".brokers"
-	suffixTopic    = ".topic"
-	suffixEncoding = ".encoding"
+	configPrefix  = "kafka"
+	suffixBrokers = ".brokers"
+	suffixTopic   = ".topic"
 
-	defaultBroker   = "127.0.0.1:9092"
-	defaultTopic    = "jaeger-spans"
-	defaultEncoding = encodingJSON
-
-	encodingJSON   = "json"
-	encodingThrift = "thrift"
+	defaultBroker = "127.0.0.1:9092"
+	defaultTopic  = "jaeger-spans"
 )
 
 // Options stores the configuration options for Kafka
 type Options struct {
-	config   config.Configuration
-	topic    string
-	encoding string
+	config config.Configuration
+	topic  string
 }
 
 // AddFlags adds flags for Options
@@ -54,10 +48,6 @@ func (opt *Options) AddFlags(flagSet *flag.FlagSet) {
 		configPrefix+suffixTopic,
 		defaultTopic,
 		"The name of the kafka topic")
-	flagSet.String(
-		configPrefix+suffixEncoding,
-		defaultEncoding,
-		"Encoding of spans sent to kafka. Either '"+encodingJSON+"' or '"+encodingThrift+"'")
 }
 
 // InitFromViper initializes Options with properties from viper
@@ -66,5 +56,4 @@ func (opt *Options) InitFromViper(v *viper.Viper) {
 		Brokers: strings.Split(v.GetString(configPrefix+suffixBrokers), ","),
 	}
 	opt.topic = v.GetString(configPrefix + suffixTopic)
-	opt.encoding = v.GetString(configPrefix + suffixEncoding)
 }

@@ -20,15 +20,6 @@ import (
 	"github.com/stretchr/testify/assert"
 )
 
-func TestThriftMarshaller(t *testing.T) {
-	marshaller := newThriftMarshaller()
-
-	bytes, err := marshaller.Marshal(sampleSpan)
-
-	assert.NoError(t, err)
-	assert.NotNil(t, bytes)
-}
-
 func TestJSONMarshaller(t *testing.T) {
 	marshaller := newJSONMarshaller()
 

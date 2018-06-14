@@ -15,12 +15,11 @@
 package kafka
 
 import (
-	"encoding/json"
+	"bytes"
 
-	"github.com/apache/thrift/lib/go/thrift"
+	"github.com/gogo/protobuf/jsonpb"
 
 	"github.com/jaegertracing/jaeger/model"
-	"github.com/jaegertracing/jaeger/model/converter/thrift/jaeger"
 )
 
 // Marshaller encodes a span into a byte array to be sent to Kafka
@@ -28,25 +27,9 @@ type Marshaller interface {
 	Marshal(*model.Span) ([]byte, error)
 }
 
-type thriftMarshaller struct {
-	tProtocolFactory *thrift.TBinaryProtocolFactory
+type jsonMarshaller struct {
+	pbMarshaller jsonpb.Marshaler
 }
-
-func newThriftMarshaller() *thriftMarshaller {
-	return &thriftMarshaller{thrift.NewTBinaryProtocolFactoryDefault()}
-}
-
-// Marshall encodes a span as a thrift byte array
-func (h *thriftMarshaller) Marshal(span *model.Span) ([]byte, error) {
-	thriftSpan := jaeger.FromDomainSpan(span)
-
-	memBuffer := thrift.NewTMemoryBuffer()
-	thriftSpan.Write(h.tProtocolFactory.GetProtocol(memBuffer))
-
-	return memBuffer.Bytes(), nil
-}
-
-type jsonMarshaller struct{}
 
 func newJSONMarshaller() *jsonMarshaller {
 	return &jsonMarshaller{}
@@ -54,5 +37,10 @@ func newJSONMarshaller() *jsonMarshaller {
 
 // Marshall encodes a span as a json byte array
 func (h *jsonMarshaller) Marshal(span *model.Span) ([]byte, error) {
-	return json.Marshal(span)
+	out := new(bytes.Buffer)
+	err := h.pbMarshaller.Marshal(out, span)
+	if err != nil {
+		return nil, err
+	}
+	return out.Bytes(), nil
 }

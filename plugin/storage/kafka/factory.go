@@ -67,14 +67,7 @@ func (f *Factory) Initialize(metricsFactory metrics.Factory, logger *zap.Logger)
 		return err
 	}
 	f.producer = p
-	switch f.options.encoding {
-	case encodingThrift:
-		f.marshaller = newThriftMarshaller()
-	case encodingJSON:
-		f.marshaller = newJSONMarshaller()
-	default:
-		return errors.New("kafka encoding is not one of '" + encodingJSON + "' or '" + encodingThrift + "'")
-	}
+	f.marshaller = newJSONMarshaller()
 	return nil
 }
 
