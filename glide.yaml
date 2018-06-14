@@ -55,6 +55,12 @@ import:
 - package: github.com/go-openapi/validate
 - package: github.com/go-openapi/loads
 - package: github.com/elazarl/go-bindata-assetfs
+- package: github.com/Shopify/sarama
+  version: ^1.16.0
+- package: golang.org/x/sys
+  version: d4feaf1a7e61e1d9e79e6c4e76c6349e9cab0a03
+  subpackages:
+  - unix
 # gogo/protobuf dependencies
 - package: github.com/gogo/googleapis
   version: master
