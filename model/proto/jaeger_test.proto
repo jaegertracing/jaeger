@@ -1,4 +1,4 @@
-// Copyright (c) 2017 Uber Technologies, Inc.
+// Copyright (c) 2018 Uber Technologies, Inc.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -12,12 +12,16 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package model
+syntax="proto3";
+package prototest;
 
-import "time"
-
-// Log describes a micro-log entry that consists of a timestamp and one or more key-value fields
-type Log struct {
-	Timestamp time.Time  `json:"timestamp"`
-	Fields    []KeyValue `json:"fields"`
+enum SpanRefType {
+    CHILD_OF = 0;
+    FOLLOWS_FROM = 1;
+};
+  
+message SpanRef {
+    bytes trace_id = 1;
+    bytes span_id = 2;
+    SpanRefType ref_type = 3;
 }

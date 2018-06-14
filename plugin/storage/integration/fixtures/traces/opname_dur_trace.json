@@ -1,12 +1,12 @@
 {
-  "Spans": [
+  "spans": [
     {
-      "traceID": "8",
-      "spanID": "2",
+      "traceId": "AAAAAAAAAAAAAAAAAAAACA==",
+      "spanId": "AAAAAAAAAAI=",
       "operationName": "query08-operation",
       "references": [],
       "startTime": "2017-01-26T16:46:31.639875Z",
-      "duration": 5000,
+      "duration": "5000ns",
       "tags": [],
       "process": {
         "serviceName": "query08-service",

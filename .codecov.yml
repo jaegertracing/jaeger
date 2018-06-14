@@ -7,3 +7,6 @@ codecov:
   notify:
     require_ci_to_pass: yes
 
+# see https://docs.codecov.io/docs/ignoring-paths
+ignore:
+  - "jaeger.pb*.go"

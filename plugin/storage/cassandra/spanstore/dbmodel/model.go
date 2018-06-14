@@ -28,7 +28,7 @@ type TraceID [16]byte
 type Span struct {
 	TraceID       TraceID
 	SpanID        int64
-	ParentID      int64
+	ParentID      int64 // deprecated
 	OperationName string
 	Flags         int32
 	StartTime     int64

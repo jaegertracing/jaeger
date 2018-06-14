@@ -3,7 +3,7 @@ TOP_PKGS := $(shell glide novendor | grep -v -e ./thrift-gen/... -e swagger-gen.
 STORAGE_PKGS = ./plugin/storage/integration/...
 
 # all .go files that don't exist in hidden directories
-ALL_SRC := $(shell find . -name "*.go" | grep -v -e vendor -e thrift-gen -e swagger-gen -e examples -e doc.go \
+ALL_SRC := $(shell find . -name "*.go" | grep -v -e vendor -e thrift-gen -e swagger-gen -e examples -e doc.go -e jaeger_test.pb.go \
         -e ".*/\..*" \
         -e ".*/_.*" \
         -e ".*/mocks.*")
@@ -92,6 +92,8 @@ cover: nocover
 	@echo pre-compiling tests
 	@time go test -i $(ALL_PKGS)
 	@./scripts/cover.sh $(shell go list $(TOP_PKGS))
+	grep -E -v 'jaeger.pb.*.go' cover.out > cover-nogen.out
+	mv cover-nogen.out cover.out
 	go tool cover -html=cover.out -o cover.html
 
 .PHONY: nocover
@@ -113,7 +115,7 @@ lint-gas:
 lint: lint-gas
 	$(GOVET) $(TOP_PKGS)
 	@cat /dev/null > $(LINT_LOG)
-	@$(foreach pkg, $(TOP_PKGS), $(GOLINT) $(pkg) | grep -v -e pkg/es/wrapper.go -e /mocks/ -e thrift-gen -e thrift-0.9.2 >> $(LINT_LOG) || true;)
+	@$(foreach pkg, $(TOP_PKGS), $(GOLINT) $(pkg) | grep -v -e pkg/es/wrapper.go -e /mocks/ -e thrift-gen -e thrift-0.9.2 -e jaeger_test.pb.go >> $(LINT_LOG) || true;)
 	@[ ! -s "$(LINT_LOG)" ] || (echo "Lint Failures" | cat - $(LINT_LOG) && false)
 	@$(GOFMT) -e -s -l $(ALL_SRC) > $(FMT_LOG)
 	@./scripts/updateLicenses.sh >> $(FMT_LOG)
@@ -291,3 +293,65 @@ generate-mocks: install-mockery
 .PHONY: echo-version
 echo-version:
 	@echo $(GIT_CLOSEST_TAG)
+
+.PHONY: proto
+proto:
+	# Generate gogo, gRPC-Gateway, swagger, go-validators output.
+	#
+	# -I declares import folders, in order of importance
+	# This is how proto resolves the protofile imports.
+	# It will check for the protofile relative to each of these
+	# folders and use the first one it finds.
+	#
+	# --gogo_out generates GoGo Protobuf output with gRPC plugin enabled.
+	# --grpc-gateway_out generates gRPC-Gateway output.
+	# --swagger_out generates an OpenAPI 2.0 specification for our gRPC-Gateway endpoints.
+	# --govalidators_out generates Go validation files for our messages types, if specified.
+	#
+	# The lines starting with Mgoogle/... are proto import replacements,
+	# which cause the generated file to import the specified packages
+	# instead of the go_package's declared by the imported protof files.
+	#
+	# $$GOPATH/src is the output directory. It is relative to the GOPATH/src directory
+	# since we've specified a go_package option relative to that directory.
+	#
+	# model/proto/jaeger.proto is the location of the protofile we use.
+	#
+	# TODO use Docker container instead of installed protoc
+	# (https://medium.com/@linchenon/generate-grpc-and-protobuf-libraries-with-containers-c15ba4e4f3ad)
+	#
+	protoc \
+		-I model/proto \
+		-I vendor/github.com/grpc-ecosystem/grpc-gateway/ \
+		-I vendor/github.com/gogo/googleapis/ \
+		-I vendor/ \
+		--gogo_out=plugins=grpc,\
+Mgoogle/protobuf/timestamp.proto=github.com/gogo/protobuf/types,\
+Mgoogle/protobuf/duration.proto=github.com/gogo/protobuf/types,\
+Mgoogle/protobuf/empty.proto=github.com/gogo/protobuf/types,\
+Mgoogle/api/annotations.proto=github.com/gogo/googleapis/google/api:\
+$$GOPATH/src/github.com/jaegertracing/jaeger/model/ \
+		--grpc-gateway_out=\
+Mgoogle/protobuf/timestamp.proto=github.com/gogo/protobuf/types,\
+Mgoogle/protobuf/empty.proto=github.com/gogo/protobuf/types,\
+Mgoogle/api/annotations.proto=github.com/gogo/googleapis/google/api:\
+$$GOPATH/src/github.com/jaegertracing/jaeger/model \
+		--swagger_out=model/proto/openapi/ \
+		model/proto/jaeger.proto
+
+	# Workaround for https://github.com/grpc-ecosystem/grpc-gateway/issues/229.
+	sed -i '' "s/empty.Empty/types.Empty/g" model/jaeger.pb.gw.go
+
+	protoc \
+		-I model/proto \
+		--go_out=$$GOPATH/src/github.com/jaegertracing/jaeger/model/prototest/ \
+		model/proto/jaeger_test.proto
+
+.PHONY: proto-install
+proto-install:
+	go install \
+		./vendor/github.com/gogo/protobuf/protoc-gen-gogo \
+		./vendor/github.com/grpc-ecosystem/grpc-gateway/protoc-gen-grpc-gateway \
+		./vendor/github.com/grpc-ecosystem/grpc-gateway/protoc-gen-swagger
+		# ./vendor/github.com/mwitkow/go-proto-validators/protoc-gen-govalidators \
+		# ./vendor/github.com/rakyll/statik

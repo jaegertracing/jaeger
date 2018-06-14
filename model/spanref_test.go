@@ -15,9 +15,10 @@
 package model_test
 
 import (
-	"encoding/json"
+	"bytes"
 	"testing"
 
+	"github.com/gogo/protobuf/jsonpb"
 	"github.com/stretchr/testify/assert"
 
 	"github.com/jaegertracing/jaeger/model"
@@ -29,9 +30,9 @@ func TestSpanRefTypeToFromString(t *testing.T) {
 		v model.SpanRefType
 		s string
 	}{
-		{model.ChildOf, "child-of"},
-		{model.FollowsFrom, "follows-from"},
-		{badSpanRefType, "<invalid>"},
+		{model.ChildOf, "CHILD_OF"},
+		{model.FollowsFrom, "FOLLOWS_FROM"},
+		{badSpanRefType, "-1"},
 	}
 	for _, testCase := range testCases {
 		assert.Equal(t, testCase.s, testCase.v.String(), testCase.s)
@@ -46,19 +47,27 @@ func TestSpanRefTypeToFromString(t *testing.T) {
 }
 
 func TestSpanRefTypeToFromJSON(t *testing.T) {
+	// base64(0x42, 16 bytes) == AAAAAAAAAAAAAAAAAAAAQg==
+	// base64(0x43, 8 bytes) == AAAAAAAAAEM=
+	// Verify: https://cryptii.com/base64-to-hex
 	sr := model.SpanRef{
-		RefType: model.ChildOf,
+		TraceID: model.NewTraceID(0, 0x42),
+		SpanID:  model.NewSpanID(0x43),
+		RefType: model.FollowsFrom,
 	}
-	out, err := json.Marshal(sr)
+	out := new(bytes.Buffer)
+	err := new(jsonpb.Marshaler).Marshal(out, &sr)
 	assert.NoError(t, err)
-	assert.Equal(t, `{"refType":"child-of","traceID":"0","spanID":"0"}`, string(out))
+	assert.Equal(t, `{"traceId":"AAAAAAAAAAAAAAAAAAAAQg==","spanId":"AAAAAAAAAEM=","refType":"FOLLOWS_FROM"}`, out.String())
 	var sr2 model.SpanRef
-	if assert.NoError(t, json.Unmarshal(out, &sr2)) {
+	if assert.NoError(t, jsonpb.Unmarshal(out, &sr2)) {
 		assert.Equal(t, sr, sr2)
 	}
 	var sr3 model.SpanRef
-	err = json.Unmarshal([]byte(`{"refType":"BAD"}`), &sr3)
-	assert.EqualError(t, err, "not a valid SpanRefType string BAD")
+	err = jsonpb.Unmarshal(bytes.NewReader([]byte(`{"refType":"BAD"}`)), &sr3)
+	if assert.Error(t, err) {
+		assert.Contains(t, err.Error(), "unknown value")
+	}
 }
 
 func TestMaybeAddParentSpanID(t *testing.T) {

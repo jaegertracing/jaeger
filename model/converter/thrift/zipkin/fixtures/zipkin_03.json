@@ -4,6 +4,7 @@
     "id": 2,
     "debug": true,
     "name": "test-custom-tags",
+    "duration": 5,
     "annotations": [
       {
         "value": "sr",

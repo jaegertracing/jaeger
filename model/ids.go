@@ -15,8 +15,12 @@
 package model
 
 import (
+	"encoding/base64"
+	"encoding/binary"
 	"fmt"
 	"strconv"
+
+	"github.com/gogo/protobuf/jsonpb"
 )
 
 // TraceID is a random 128bit identifier for a trace
@@ -64,19 +68,70 @@ func TraceIDFromString(s string) (TraceID, error) {
 	return TraceID{High: hi, Low: lo}, nil
 }
 
-// MarshalText allows TraceID to serialize itself in JSON as a string.
+// MarshalText is called by encoding/json, which we do not want people to use.
 func (t TraceID) MarshalText() ([]byte, error) {
-	return []byte(t.String()), nil
+	return nil, fmt.Errorf("unsupported method TraceID.MarshalText; please use github.com/gogo/protobuf/jsonpb for marshalling")
 }
 
-// UnmarshalText allows TraceID to deserialize itself from a JSON string.
+// UnmarshalText is called by encoding/json, which we do not want people to use.
 func (t *TraceID) UnmarshalText(text []byte) error {
-	q, err := TraceIDFromString(string(text))
-	if err != nil {
-		return err
+	return fmt.Errorf("unsupported method TraceID.UnmarshalText; please use github.com/gogo/protobuf/jsonpb for marshalling")
+}
+
+// Size returns the size of this datum in protobuf. It is always 16 bytes.
+func (t *TraceID) Size() int {
+	return 16
+}
+
+// MarshalTo converts trace ID into a binary representation. Called by protobuf serialization.
+func (t *TraceID) MarshalTo(data []byte) (n int, err error) {
+	var b [16]byte
+	binary.BigEndian.PutUint64(b[:8], uint64(t.High))
+	binary.BigEndian.PutUint64(b[8:], uint64(t.Low))
+	return marshalBytes(data, b[:])
+}
+
+// Unmarshal inflates this trace ID from binary representation. Called by protobuf serialization.
+func (t *TraceID) Unmarshal(data []byte) error {
+	if len(data) < 16 {
+		return fmt.Errorf("buffer is too short")
 	}
-	*t = q
+	t.High = binary.BigEndian.Uint64(data[:8])
+	t.Low = binary.BigEndian.Uint64(data[8:])
 	return nil
+}
+
+func marshalBytes(dst []byte, src []byte) (n int, err error) {
+	if len(dst) < len(src) {
+		return 0, fmt.Errorf("buffer is too short")
+	}
+	return copy(dst, src), nil
+}
+
+// MarshalJSON converts trace id into a base64 string enclosed in quotes.
+// Used by protobuf JSON serialization.
+// Example: {high:2, low:1} => "AAAAAAAAAAIAAAAAAAAAAQ==".
+func (t TraceID) MarshalJSON() ([]byte, error) {
+	var b [16]byte
+	t.MarshalTo(b[:]) // can only error on incorrect buffer size
+	s := make([]byte, 24+2)
+	base64.StdEncoding.Encode(s[1:25], b[:])
+	s[0], s[25] = '"', '"'
+	return s, nil
+}
+
+// UnmarshalJSON inflates trace id from base64 string, possibly enclosed in quotes.
+// User by protobuf JSON serialization.
+func (t *TraceID) UnmarshalJSON(data []byte) error {
+	s := string(data)
+	if l := len(s); l > 2 && s[0] == '"' && s[l-1] == '"' {
+		s = s[1 : l-1]
+	}
+	b, err := base64.StdEncoding.DecodeString(s)
+	if err != nil {
+		return fmt.Errorf("cannot unmarshal TraceID from string '%s': %v", string(data), err)
+	}
+	return t.Unmarshal(b)
 }
 
 // ------- SpanID -------
@@ -102,17 +157,71 @@ func SpanIDFromString(s string) (SpanID, error) {
 	return SpanID(id), nil
 }
 
-// MarshalText allows SpanID to serialize itself in JSON as a string.
+// MarshalText is called by encoding/json, which we do not want people to use.
 func (s SpanID) MarshalText() ([]byte, error) {
-	return []byte(s.String()), nil
+	return nil, fmt.Errorf("unsupported method SpanID.MarshalText; please use github.com/gogo/protobuf/jsonpb for marshalling")
 }
 
-// UnmarshalText allows SpanID to deserialize itself from a JSON string.
+// UnmarshalText is called by encoding/json, which we do not want people to use.
 func (s *SpanID) UnmarshalText(text []byte) error {
-	q, err := SpanIDFromString(string(text))
-	if err != nil {
-		return err
+	return fmt.Errorf("unsupported method SpanID.UnmarshalText; please use github.com/gogo/protobuf/jsonpb for marshalling")
+}
+
+// Size returns the size of this datum in protobuf. It is always 8 bytes.
+func (s *SpanID) Size() int {
+	return 8
+}
+
+// MarshalTo converts span ID into a binary representation. Called by protobuf serialization.
+func (s *SpanID) MarshalTo(data []byte) (n int, err error) {
+	var b [8]byte
+	binary.BigEndian.PutUint64(b[:], uint64(*s))
+	return marshalBytes(data, b[:])
+}
+
+// Unmarshal inflates span ID from a binary representation. Called by protobuf serialization.
+func (s *SpanID) Unmarshal(data []byte) error {
+	if len(data) < 8 {
+		return fmt.Errorf("buffer is too short")
 	}
-	*s = q
+	*s = NewSpanID(binary.BigEndian.Uint64(data))
 	return nil
+}
+
+// MarshalJSON converts span id into a base64 string enclosed in quotes.
+// Used by protobuf JSON serialization.
+// Example: {1} => "AAAAAAAAAAE=".
+func (s SpanID) MarshalJSON() ([]byte, error) {
+	var b [8]byte
+	s.MarshalTo(b[:]) // can only error on incorrect buffer size
+	v := make([]byte, 12+2)
+	base64.StdEncoding.Encode(v[1:13], b[:])
+	v[0], v[13] = '"', '"'
+	return v, nil
+}
+
+// UnmarshalJSON inflates span id from base64 string, possibly enclosed in quotes.
+// User by protobuf JSON serialization.
+//
+// There appears to be a bug in gogoproto, as this function is only called for numeric values.
+// https://github.com/gogo/protobuf/issues/411#issuecomment-393856837
+func (s *SpanID) UnmarshalJSON(data []byte) error {
+	str := string(data)
+	if l := len(str); l > 2 && str[0] == '"' && str[l-1] == '"' {
+		str = str[1 : l-1]
+	}
+	b, err := base64.StdEncoding.DecodeString(str)
+	if err != nil {
+		return fmt.Errorf("cannot unmarshal SpanID from string '%s': %v", string(data), err)
+	}
+	return s.Unmarshal(b)
+}
+
+// UnmarshalJSONPB inflates span id from base64 string, possibly enclosed in quotes.
+// User by protobuf JSON serialization.
+//
+// TODO: can be removed once this ticket is fixed:
+//       https://github.com/gogo/protobuf/issues/411#issuecomment-393856837
+func (s *SpanID) UnmarshalJSONPB(_ *jsonpb.Unmarshaler, b []byte) error {
+	return s.UnmarshalJSON(b)
 }

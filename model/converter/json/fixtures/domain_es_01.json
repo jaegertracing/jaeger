@@ -1,52 +1,52 @@
 {
-  "traceID": "1",
-  "spanID": "2",
+  "traceId": "AAAAAAAAAAAAAAAAAAAAAQ==",
+  "spanId": "AAAAAAAAAAI=",
   "operationName": "test-general-conversion",
   "references": [
     {
-      "refType": "child-of",
-      "traceID": "1",
-      "spanID": "3"
+      "refType": "CHILD_OF",
+      "traceId": "AAAAAAAAAAAAAAAAAAAAAQ==",
+      "spanId": "AAAAAAAAAAM="
     },
     {
-      "refType": "follows-from",
-      "traceID": "1",
-      "spanID": "4"
+      "refType": "FOLLOWS_FROM",
+      "traceId": "AAAAAAAAAAAAAAAAAAAAAQ==",
+      "spanId": "AAAAAAAAAAQ="
     },
     {
-      "refType": "child-of",
-      "traceID": "ff",
-      "spanID": "ff"
+      "refType": "CHILD_OF",
+      "traceId": "AAAAAAAAAAAAAAAAAAAA/w==",
+      "spanId": "AAAAAAAAAP8="
     }
   ],
   "flags": 1,
   "startTime": "2017-01-26T16:46:31.639875-05:00",
-  "duration": 5000,
+  "duration": "5000ns",
   "tags": [
     {
       "key": "peer.service",
-      "vType": "string",
+      "vType": "STRING",
       "vStr": "service-y"
     },
     {
       "key": "peer.ipv4",
-      "vType": "int64",
-      "vNum": 23456
+      "vType": "INT64",
+      "vInt64": 23456
     },
     {
       "key": "error",
-      "vType": "bool",
-      "vNum": 1
+      "vType": "BOOL",
+      "vBool": true
     },
     {
       "key": "temperature",
-      "vType": "float64",
-      "vNum": 4634802150889750528
+      "vType": "FLOAT64",
+      "vFloat64": 72.5
     },
     {
       "key": "blob",
-      "vType": "binary",
-      "vBlob": "AAAwOQ=="
+      "vType": "BINARY",
+      "vBinary": "AAAwOQ=="
     }
   ],
   "logs": [
@@ -55,8 +55,8 @@
       "fields": [
         {
           "key": "event",
-          "vType": "int64",
-          "vNum": 123415
+          "vType": "INT64",
+          "vInt64": 123415
         }
       ]
     },
@@ -65,7 +65,7 @@
       "fields": [
         {
           "key": "x",
-          "vType": "string",
+          "vType": "STRING",
           "vStr": "y"
         }
       ]
@@ -76,13 +76,13 @@
     "tags": [
       {
         "key": "peer.ipv4",
-        "vType": "int64",
-        "vNum": 23456
+        "vType": "INT64",
+        "vInt64": 23456
       },
       {
         "key": "error",
-        "vType": "bool",
-        "vNum": 1
+        "vType": "BOOL",
+        "vBool": true
       }
     ]
   }
