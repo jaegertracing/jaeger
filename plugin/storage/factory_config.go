@@ -34,7 +34,7 @@ const (
 // FactoryConfig tells the Factory which types of backends it needs to create for different storage types.
 type FactoryConfig struct {
 	SpanStorageType         []string
-	DependenciesStorageType []string
+	DependenciesStorageType string
 }
 
 // TODO update this
