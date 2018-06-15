@@ -33,10 +33,11 @@ const (
 
 // FactoryConfig tells the Factory which types of backends it needs to create for different storage types.
 type FactoryConfig struct {
-	SpanStorageType         string
-	DependenciesStorageType string
+	SpanStorageType         []string
+	DependenciesStorageType []string
 }
 
+// TODO update this
 // FactoryConfigFromEnvAndCLI reads the desired types of storage backends from SPAN_STORAGE_TYPE and
 // DEPENDENCY_STORAGE_TYPE environment variables. Allowed values:
 //   * `cassandra` - built-in
@@ -56,13 +57,13 @@ func FactoryConfigFromEnvAndCLI(args []string, log io.Writer) FactoryConfig {
 	if spanStorageType == "" {
 		spanStorageType = cassandraStorageType
 	}
-	depStoreType := os.Getenv(DependencyStorageTypeEnvVar)
-	if depStoreType == "" {
-		depStoreType = spanStorageType
+	depStorageType := os.Getenv(DependencyStorageTypeEnvVar)
+	if depStorageType == "" {
+		depStorageType = spanStorageType
 	}
 	return FactoryConfig{
-		SpanStorageType:         spanStorageType,
-		DependenciesStorageType: depStoreType,
+		SpanStorageType:         strings.Split(spanStorageType, ","),
+		DependenciesStorageType: depStorageType,
 	}
 }
 

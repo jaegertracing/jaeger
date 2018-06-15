@@ -93,20 +93,28 @@ func (f *Factory) Initialize(metricsFactory metrics.Factory, logger *zap.Logger)
 
 // CreateSpanReader implements storage.Factory
 func (f *Factory) CreateSpanReader() (spanstore.Reader, error) {
-	factory, ok := f.factories[f.SpanStorageType]
+	factory, ok := f.factories[f.SpanStorageType[0]]
 	if !ok {
-		return nil, fmt.Errorf("No %s backend registered for span store", f.SpanStorageType)
+		return nil, fmt.Errorf("No %s backend registered for span store", f.SpanStorageType[0])
 	}
 	return factory.CreateSpanReader()
 }
 
 // CreateSpanWriter implements storage.Factory
 func (f *Factory) CreateSpanWriter() (spanstore.Writer, error) {
-	factory, ok := f.factories[f.SpanStorageType]
-	if !ok {
-		return nil, fmt.Errorf("No %s backend registered for span store", f.SpanStorageType)
+	var writers []spanstore.Writer
+	for _, storageType := range f.SpanStorageType {
+		factory, ok := f.factories[f.SpanStorageType]
+		if !ok {
+			return nil, fmt.Errorf("No %s backend registered for span store", storageType)
+		}
+		writer, err := factory.CreateSpanWriter()
+		if err != nil {
+			return nil, err
+		}
+		writers = append(writers, writer)
 	}
-	return factory.CreateSpanWriter()
+	return spanstore.NewChainedWriter(writers...), nil
 }
 
 // CreateDependencyReader implements storage.Factory
@@ -138,9 +146,9 @@ func (f *Factory) InitFromViper(v *viper.Viper) {
 
 // CreateArchiveSpanReader implements storage.ArchiveFactory
 func (f *Factory) CreateArchiveSpanReader() (spanstore.Reader, error) {
-	factory, ok := f.factories[f.SpanStorageType]
+	factory, ok := f.factories[f.SpanStorageType[0]]
 	if !ok {
-		return nil, fmt.Errorf("No %s backend registered for span store", f.SpanStorageType)
+		return nil, fmt.Errorf("No %s backend registered for span store", f.SpanStorageType[0])
 	}
 	archive, ok := factory.(storage.ArchiveFactory)
 	if !ok {
@@ -151,9 +159,9 @@ func (f *Factory) CreateArchiveSpanReader() (spanstore.Reader, error) {
 
 // CreateArchiveSpanWriter implements storage.ArchiveFactory
 func (f *Factory) CreateArchiveSpanWriter() (spanstore.Writer, error) {
-	factory, ok := f.factories[f.SpanStorageType]
+	factory, ok := f.factories[f.SpanStorageType[0]]
 	if !ok {
-		return nil, fmt.Errorf("No %s backend registered for span store", f.SpanStorageType)
+		return nil, fmt.Errorf("No %s backend registered for span store", f.SpanStorageType[0])
 	}
 	archive, ok := factory.(storage.ArchiveFactory)
 	if !ok {
