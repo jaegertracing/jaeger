@@ -18,6 +18,7 @@ import (
 	"bytes"
 
 	"github.com/gogo/protobuf/jsonpb"
+	"github.com/gogo/protobuf/proto"
 
 	"github.com/jaegertracing/jaeger/model"
 )
@@ -27,20 +28,28 @@ type Marshaller interface {
 	Marshal(*model.Span) ([]byte, error)
 }
 
+type protobufMarshaller struct{}
+
+func newProtobufMarshaller() *protobufMarshaller {
+	return &protobufMarshaller{}
+}
+
+// Marshall encodes a span as a protobuf byte array
+func (h *protobufMarshaller) Marshal(span *model.Span) ([]byte, error) {
+	return proto.Marshal(span)
+}
+
 type jsonMarshaller struct {
-	pbMarshaller jsonpb.Marshaler
+	pbMarshaller *jsonpb.Marshaler
 }
 
 func newJSONMarshaller() *jsonMarshaller {
-	return &jsonMarshaller{}
+	return &jsonMarshaller{&jsonpb.Marshaler{}}
 }
 
 // Marshall encodes a span as a json byte array
 func (h *jsonMarshaller) Marshal(span *model.Span) ([]byte, error) {
 	out := new(bytes.Buffer)
 	err := h.pbMarshaller.Marshal(out, span)
-	if err != nil {
-		return nil, err
-	}
-	return out.Bytes(), nil
+	return out.Bytes(), err
 }
