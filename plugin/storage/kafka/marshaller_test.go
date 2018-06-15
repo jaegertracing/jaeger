@@ -20,8 +20,8 @@ import (
 	"github.com/stretchr/testify/assert"
 )
 
-func TestThriftMarshaller(t *testing.T) {
-	marshaller := newThriftMarshaller()
+func TestProtoMarshaller(t *testing.T) {
+	marshaller := newProtobufMarshaller()
 
 	bytes, err := marshaller.Marshal(sampleSpan)
 

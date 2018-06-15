@@ -71,15 +71,15 @@ func TestKafkaFactory(t *testing.T) {
 	assert.Error(t, err)
 }
 
-func TestKafkaFactoryThrift(t *testing.T) {
+func TestKafkaFactoryProto(t *testing.T) {
 	f := NewFactory()
 	v, command := config.Viperize(f.AddFlags)
-	command.ParseFlags([]string{"--kafka.encoding=thrift"})
+	command.ParseFlags([]string{"--kafka.encoding=protobuf"})
 	f.InitFromViper(v)
 
 	f.config = &mockProducerBuilder{t: t}
 	assert.NoError(t, f.Initialize(metrics.NullFactory, zap.NewNop()))
-	assert.IsType(t, &thriftMarshaller{}, f.marshaller)
+	assert.IsType(t, &protobufMarshaller{}, f.marshaller)
 }
 
 func TestKafkaFactoryMarshallerErr(t *testing.T) {

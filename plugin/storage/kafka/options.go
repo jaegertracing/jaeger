@@ -33,8 +33,8 @@ const (
 	defaultTopic    = "jaeger-spans"
 	defaultEncoding = encodingJSON
 
-	encodingJSON   = "json"
-	encodingThrift = "thrift"
+	encodingJSON  = "json"
+	encodingProto = "protobuf"
 )
 
 // Options stores the configuration options for Kafka
@@ -57,7 +57,7 @@ func (opt *Options) AddFlags(flagSet *flag.FlagSet) {
 	flagSet.String(
 		configPrefix+suffixEncoding,
 		defaultEncoding,
-		"Encoding of spans sent to kafka. Either '"+encodingJSON+"' or '"+encodingThrift+"'")
+		"Encoding of spans sent to kafka. Either '"+encodingJSON+"' or '"+encodingProto+"'")
 }
 
 // InitFromViper initializes Options with properties from viper

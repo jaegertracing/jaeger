@@ -28,12 +28,12 @@ func TestOptionsWithFlags(t *testing.T) {
 	command.ParseFlags([]string{
 		"--kafka.topic=topic1",
 		"--kafka.brokers=127.0.0.1:9092,0.0.0:1234",
-		"--kafka.encoding=thrift"})
+		"--kafka.encoding=protobuf"})
 	opts.InitFromViper(v)
 
 	assert.Equal(t, "topic1", opts.topic)
 	assert.Equal(t, []string{"127.0.0.1:9092", "0.0.0:1234"}, opts.config.Brokers)
-	assert.Equal(t, "thrift", opts.encoding)
+	assert.Equal(t, "protobuf", opts.encoding)
 }
 
 func TestFlagDefaults(t *testing.T) {
