@@ -15,13 +15,14 @@
 package integration
 
 import (
-	"encoding/json"
+	"bytes"
 	"os"
 	"strconv"
 	"testing"
 	"time"
 
 	"github.com/Shopify/sarama"
+	"github.com/gogo/protobuf/jsonpb"
 	"github.com/stretchr/testify/require"
 	"github.com/uber/jaeger-lib/metrics"
 	"go.uber.org/zap"
@@ -99,8 +100,7 @@ func (r *spanReader) GetTrace(traceID model.TraceID) (*model.Trace, error) {
 			select {
 			case msg := <-r.consumer.Messages():
 				newSpan := model.Span{}
-				if err = json.Unmarshal(msg.Value, &newSpan); err != nil {
-					//if err = jsonpb.Unmarshal(bytes.NewReader(msg.Value), &newSpan); err != nil {
+				if err = jsonpb.Unmarshal(bytes.NewReader(msg.Value), &newSpan); err != nil {
 					r.logger.Error("protobuf unmarshaling error", zap.Error(err))
 				}
 				if newSpan.TraceID == traceID {
