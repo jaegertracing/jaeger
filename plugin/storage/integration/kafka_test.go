@@ -43,14 +43,14 @@ type KafkaIntegrationTestSuite struct {
 func (s *KafkaIntegrationTestSuite) initialize() error {
 	logger, _ := testutils.NewLogger()
 	s.logger = logger
+	// A new topic is generated per execution to avoid data overlap
 	topic := "jaeger-kafka-integration-test-" + strconv.FormatInt(time.Now().UnixNano(), 10)
 
 	f := kafka.NewFactory()
 	v, command := config.Viperize(f.AddFlags)
 	command.ParseFlags([]string{"--kafka.topic=" + topic, "--kafka.brokers=" + defaultLocalKafkaBroker})
 	f.InitFromViper(v)
-	err := f.Initialize(metrics.NullFactory, s.logger)
-	if err != nil {
+	if err := f.Initialize(metrics.NullFactory, s.logger); err != nil {
 		return err
 	}
 	spanWriter, err := f.CreateSpanWriter()
