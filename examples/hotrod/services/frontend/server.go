@@ -18,9 +18,9 @@ import (
 	"encoding/json"
 	"net/http"
 
+	"github.com/elazarl/go-bindata-assetfs"
 	"github.com/opentracing/opentracing-go"
 	"go.uber.org/zap"
-	"github.com/elazarl/go-bindata-assetfs"
 
 	"github.com/jaegertracing/jaeger/examples/hotrod/pkg/httperr"
 	"github.com/jaegertracing/jaeger/examples/hotrod/pkg/log"
@@ -33,7 +33,7 @@ type Server struct {
 	tracer   opentracing.Tracer
 	logger   log.Factory
 	bestETA  *bestETA
-	assetFs *assetfs.AssetFS
+	assetFs  *assetfs.AssetFS
 }
 
 // NewServer creates a new frontend.Server
@@ -43,7 +43,7 @@ func NewServer(hostPort string, tracer opentracing.Tracer, logger log.Factory) *
 		tracer:   tracer,
 		logger:   logger,
 		bestETA:  newBestETA(tracer, logger),
-		assetFs: assetFS(),
+		assetFs:  assetFS(),
 	}
 }
 
