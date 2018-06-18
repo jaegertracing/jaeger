@@ -18,9 +18,9 @@ import (
 	"context"
 	"errors"
 
-	"go.uber.org/zap"
 	"github.com/opentracing/opentracing-go"
 	tags "github.com/opentracing/opentracing-go/ext"
+	"go.uber.org/zap"
 
 	"github.com/jaegertracing/jaeger/examples/hotrod/pkg/delay"
 	"github.com/jaegertracing/jaeger/examples/hotrod/pkg/log"
