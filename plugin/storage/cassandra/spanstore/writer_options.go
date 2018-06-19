@@ -25,6 +25,7 @@ type Option func(c *Options)
 type Options struct {
 	tagFilter   dbmodel.TagFilter
 	storageMode storageMode
+	indexFilter dbmodel.IndexFilter
 }
 
 // TagFilter can be provided to filter any tags that should not be indexed.
@@ -48,6 +49,13 @@ func StoreWithoutIndexing() Option {
 	}
 }
 
+// IndexFilter can be provided to filter certain spans that should not be indexed.
+func IndexFilter(indexFilter dbmodel.IndexFilter) Option {
+	return func(o *Options) {
+		o.indexFilter = indexFilter
+	}
+}
+
 func applyOptions(opts ...Option) Options {
 	o := Options{}
 	for _, opt := range opts {
@@ -58,6 +66,9 @@ func applyOptions(opts ...Option) Options {
 	}
 	if o.storageMode == 0 {
 		o.storageMode = storeFlag | indexFlag
+	}
+	if o.indexFilter == nil {
+		o.indexFilter = dbmodel.DefaultIndexFilter
 	}
 	return o
 }
