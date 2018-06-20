@@ -14,26 +14,21 @@
 
 package dbmodel
 
+const (
+	// Index by duration
+	DurationIndex = iota
+
+	// Index by service
+	ServiceIndex
+
+	// Index by service-operation
+	OperationIndex
+)
+
 // IndexFilter filters out any spans that should not be indexed.
-type IndexFilter interface {
-	IndexByDuration(span *Span) bool
-	IndexByService(span *Span) bool
-	IndexByOperation(span *Span) bool
-}
+type IndexFilter func(span *Span, index int) bool
 
 // DefaultIndexFilter returns a filter that indexes everything.
-var DefaultIndexFilter = indexFilterImpl{}
-
-type indexFilterImpl struct{}
-
-func (f indexFilterImpl) IndexByDuration(span *Span) bool {
-	return true
-}
-
-func (f indexFilterImpl) IndexByService(span *Span) bool {
-	return true
-}
-
-func (f indexFilterImpl) IndexByOperation(span *Span) bool {
+var DefaultIndexFilter = func(span *Span, index int) bool {
 	return true
 }

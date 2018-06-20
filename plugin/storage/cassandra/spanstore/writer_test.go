@@ -314,23 +314,13 @@ func TestStorageMode_IndexOnly(t *testing.T) {
 	}, StoreIndexesOnly())
 }
 
-type indexFilter struct{}
-
-func (f indexFilter) IndexByDuration(span *dbmodel.Span) bool {
-	return false
-}
-
-func (f indexFilter) IndexByService(span *dbmodel.Span) bool {
-	return false
-}
-
-func (f indexFilter) IndexByOperation(span *dbmodel.Span) bool {
+var filterEverything = func(*dbmodel.Span, int) bool {
 	return false
 }
 
 func TestStorageMode_IndexOnly_WithFilter(t *testing.T) {
 	withSpanWriter(0, func(w *spanWriterTest) {
-		w.writer.indexFilter = indexFilter{}
+		w.writer.indexFilter = filterEverything
 		w.writer.serviceNamesWriter = func(serviceName string) error { return nil }
 		w.writer.operationNamesWriter = func(serviceName, operationName string) error { return nil }
 		span := &model.Span{

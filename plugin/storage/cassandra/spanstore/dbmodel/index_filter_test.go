@@ -23,7 +23,7 @@ import (
 func TestDefaultIndexFilter(t *testing.T) {
 	span := &Span{}
 	filter := DefaultIndexFilter
-	assert.True(t, filter.IndexByDuration(span))
-	assert.True(t, filter.IndexByService(span))
-	assert.True(t, filter.IndexByOperation(span))
+	assert.True(t, filter(span, DurationIndex))
+	assert.True(t, filter(span, ServiceIndex))
+	assert.True(t, filter(span, OperationIndex))
 }

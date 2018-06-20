@@ -25,7 +25,7 @@ import (
 func TestWriterOptions(t *testing.T) {
 	opts := applyOptions(TagFilter(dbmodel.DefaultTagFilter), IndexFilter(dbmodel.DefaultIndexFilter))
 	assert.Equal(t, dbmodel.DefaultTagFilter, opts.tagFilter)
-	assert.Equal(t, dbmodel.DefaultIndexFilter, opts.indexFilter)
+	assert.ObjectsAreEqual(dbmodel.DefaultIndexFilter, opts.indexFilter)
 }
 
 func TestWriterOptions_StorageMode(t *testing.T) {
