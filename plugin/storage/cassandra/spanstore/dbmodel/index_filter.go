@@ -15,13 +15,13 @@
 package dbmodel
 
 const (
-	// Index by duration
+	// DurationIndex represents the flag for indexing by duration
 	DurationIndex = iota
 
-	// Index by service
+	// ServiceIndex represents the flag for indexing by service
 	ServiceIndex
 
-	// Index by service-operation
+	// OperationIndex represents the flag for indexing by service-operation
 	OperationIndex
 )
 
