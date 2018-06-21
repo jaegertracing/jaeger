@@ -22,10 +22,10 @@ import (
 )
 
 const (
-	// sampledFlag is the bit set in Flags in order to define a span as a sampled span
-	sampledFlag = Flags(1)
-	// debugFlag is the bit set in Flags in order to define a span as a debug span
-	debugFlag = Flags(2)
+	// SampledFlag is the bit set in Flags in order to define a span as a sampled span
+	SampledFlag = Flags(1)
+	// DebugFlag is the bit set in Flags in order to define a span as a debug span
+	DebugFlag = Flags(2)
 )
 
 // Flags is a bit map of flags for a span
@@ -96,12 +96,12 @@ func (s *Span) ReplaceParentID(newParentID SpanID) {
 
 // SetSampled sets the Flags as sampled
 func (f *Flags) SetSampled() {
-	f.setFlags(sampledFlag)
+	f.setFlags(SampledFlag)
 }
 
 // SetDebug set the Flags as sampled
 func (f *Flags) SetDebug() {
-	f.setFlags(debugFlag)
+	f.setFlags(DebugFlag)
 }
 
 func (f *Flags) setFlags(bit Flags) {
@@ -110,13 +110,13 @@ func (f *Flags) setFlags(bit Flags) {
 
 // IsSampled returns true if the Flags denote sampling
 func (f Flags) IsSampled() bool {
-	return f.checkFlags(sampledFlag)
+	return f.checkFlags(SampledFlag)
 }
 
 // IsDebug returns true if the Flags denote debugging
 // Debugging can be useful in testing tracing availability or correctness
 func (f Flags) IsDebug() bool {
-	return f.checkFlags(debugFlag)
+	return f.checkFlags(DebugFlag)
 }
 
 func (f Flags) checkFlags(bit Flags) bool {
