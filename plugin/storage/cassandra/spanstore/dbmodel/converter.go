@@ -22,14 +22,17 @@ import (
 )
 
 var (
-	dbToProtoRefMap = map[string]model.SpanRefType{
-		"child-of":     model.SpanRefType_CHILD_OF,
-		"follows-from": model.SpanRefType_FOLLOWS_FROM,
+	childOf     = "child-of"
+	followsFrom = "follows-from"
+
+	dbToDomainRefMap = map[string]model.SpanRefType{
+		childOf:     model.SpanRefType_CHILD_OF,
+		followsFrom: model.SpanRefType_FOLLOWS_FROM,
 	}
 
-	protoToDBRefMap = map[model.SpanRefType]string{
-		model.SpanRefType_CHILD_OF:     "child-of",
-		model.SpanRefType_FOLLOWS_FROM: "follows-from",
+	domainToDBRefMap = map[model.SpanRefType]string{
+		model.SpanRefType_CHILD_OF:     childOf,
+		model.SpanRefType_FOLLOWS_FROM: followsFrom,
 	}
 )
 
@@ -160,7 +163,7 @@ func (c converter) fromDBLogs(logs []Log) ([]model.Log, error) {
 func (c converter) fromDBRefs(refs []SpanRef) ([]model.SpanRef, error) {
 	retMe := make([]model.SpanRef, len(refs))
 	for i, r := range refs {
-		refType, ok := dbToProtoRefMap[r.RefType]
+		refType, ok := dbToDomainRefMap[r.RefType]
 		if !ok {
 			return nil, fmt.Errorf("not a valid SpanRefType string %s", r.RefType)
 		}
@@ -218,7 +221,7 @@ func (c converter) toDBRefs(refs []model.SpanRef) []SpanRef {
 		retMe[i] = SpanRef{
 			TraceID: TraceIDFromDomain(r.TraceID),
 			SpanID:  int64(r.SpanID),
-			RefType: protoToDBRefMap[r.RefType],
+			RefType: domainToDBRefMap[r.RefType],
 		}
 	}
 	return retMe
