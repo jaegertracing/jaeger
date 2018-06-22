@@ -135,7 +135,7 @@ func (c converter) fromDBTag(tag *KeyValue) (model.KeyValue, error) {
 	case binaryType:
 		return model.Binary(tag.Key, tag.ValueBinary), nil
 	}
-	return model.KeyValue{}, fmt.Errorf("unknown ValueType in %+v", tag)
+	return model.KeyValue{}, fmt.Errorf("invalid ValueType in %+v", tag)
 }
 
 func (c converter) fromDBLogs(logs []Log) ([]model.Log, error) {

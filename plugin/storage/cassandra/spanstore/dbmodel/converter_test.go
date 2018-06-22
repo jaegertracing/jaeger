@@ -116,7 +116,7 @@ var (
 			TraceID: someDBTraceID,
 		},
 	}
-	notValidTagTypeErrStr = "unknown ValueType in"
+	notValidTagTypeErrStr = "invalid ValueType in"
 )
 
 func getTestJaegerSpan() *model.Span {
