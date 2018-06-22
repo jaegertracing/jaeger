@@ -15,11 +15,13 @@
 package storage
 
 import (
-	"bytes"
 	"os"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
+	"go.uber.org/zap"
+
+	"github.com/jaegertracing/jaeger/pkg/testutils"
 )
 
 func clearEnv() {
@@ -49,7 +51,7 @@ func TestFactoryConfigFromEnv(t *testing.T) {
 
 	os.Setenv(SpanStorageTypeEnvVar, elasticsearchStorageType+","+kafkaStorageType)
 
-	f = FactoryConfigFromEnvAndCLI(nil, &bytes.Buffer{})
+	f = FactoryConfigFromEnvAndCLI(nil, zap.NewNop())
 	assert.Equal(t, 2, len(f.SpanWriterTypes))
 	assert.Equal(t, []string{elasticsearchStorageType, kafkaStorageType}, f.SpanWriterTypes)
 	assert.Equal(t, elasticsearchStorageType, f.SpanReaderType)
@@ -75,15 +77,15 @@ func TestFactoryConfigFromEnvDeprecated(t *testing.T) {
 		{args: []string{"appname", "-x", "y"}, log: false, value: "cassandra"},
 	}
 	for _, testCase := range testCases {
-		log := new(bytes.Buffer)
-		f := FactoryConfigFromEnvAndCLI(testCase.args, log)
+		logger, buffer := testutils.NewLogger()
+		f := FactoryConfigFromEnvAndCLI(testCase.args, logger)
 		assert.Equal(t, 1, len(f.SpanWriterTypes))
 		assert.Equal(t, testCase.value, f.SpanWriterTypes[0])
 		assert.Equal(t, testCase.value, f.SpanReaderType)
 		assert.Equal(t, testCase.value, f.DependenciesStorageType)
 		if testCase.log {
-			expectedLog := "WARNING: found deprecated command line option"
-			assert.Equal(t, expectedLog, log.String()[0:len(expectedLog)])
+			expectedLog := "{\"level\":\"warn\",\"msg\":\"found deprecated command line option"
+			assert.Equal(t, expectedLog, buffer.String()[0:len(expectedLog)])
 		}
 	}
 }

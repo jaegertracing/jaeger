@@ -45,7 +45,11 @@ func main() {
 	var serverChannel = make(chan os.Signal, 0)
 	signal.Notify(serverChannel, os.Interrupt, syscall.SIGTERM)
 
-	storageFactory, err := storage.NewFactory(storage.FactoryConfigFromEnvAndCLI(os.Args, os.Stderr))
+	logger, err := zap.NewProduction()
+	if err != nil {
+		log.Fatalf("Cannot initialize logger: %v", err)
+	}
+	storageFactory, err := storage.NewFactory(storage.FactoryConfigFromEnvAndCLI(os.Args, logger))
 	if err != nil {
 		log.Fatalf("Cannot initialize storage factory: %v", err)
 	}

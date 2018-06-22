@@ -163,8 +163,8 @@ func (f *Factory) CreateArchiveSpanReader() (spanstore.Reader, error) {
 // CreateArchiveSpanWriter implements storage.ArchiveFactory
 func (f *Factory) CreateArchiveSpanWriter() (spanstore.Writer, error) {
 	if len(f.SpanWriterTypes) > 1 {
-		fmt.Fprintf(f.log, "WARNING: Since there are multiple span storage types,"+
-			" the first (%s) will be used for archving\n", f.SpanWriterTypes[0])
+		f.logger.Warn("since there are multiple span storage types," +
+			" the first (" + f.SpanWriterTypes[0] + ") will be used for archiving\n")
 	}
 	factory, ok := f.factories[f.SpanWriterTypes[0]]
 	if !ok {

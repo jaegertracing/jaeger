@@ -15,10 +15,10 @@
 package storage
 
 import (
-	"fmt"
-	"io"
 	"os"
 	"strings"
+
+	"go.uber.org/zap"
 )
 
 const (
@@ -39,7 +39,7 @@ type FactoryConfig struct {
 	SpanWriterTypes         []string
 	SpanReaderType          string
 	DependenciesStorageType string
-	log                     io.Writer
+	logger                  *zap.Logger
 }
 
 // FactoryConfigFromEnvAndCLI reads the desired types of storage backends from SPAN_STORAGE_TYPE,
@@ -52,11 +52,11 @@ type FactoryConfig struct {
 //
 // For backwards compatibility it also parses the args looking for deprecated --span-storage.type flag.
 // If found, it writes a deprecation warning to the log.
-func FactoryConfigFromEnvAndCLI(args []string, log io.Writer) FactoryConfig {
+func FactoryConfigFromEnvAndCLI(args []string, logger *zap.Logger) FactoryConfig {
 	spanStorageType := os.Getenv(SpanStorageTypeEnvVar)
 	if spanStorageType == "" {
 		// for backwards compatibility check command line for --span-storage.type flag
-		spanStorageType = spanStorageTypeFromArgs(args, log)
+		spanStorageType = spanStorageTypeFromArgs(args, logger)
 	}
 	if spanStorageType == "" {
 		spanStorageType = cassandraStorageType
@@ -66,9 +66,8 @@ func FactoryConfigFromEnvAndCLI(args []string, log io.Writer) FactoryConfig {
 	spanReaderType := os.Getenv(SpanReaderTypeEnvVar)
 	if spanReaderType == "" {
 		if len(spanWriterTypes) > 1 {
-			fmt.Fprintf(log, "WARNING: The first span storage type listed (%s) will be used for reading. "+
-				"Please use environment variable %s to specify which storage type to read from\n",
-				spanWriterTypes[0], SpanReaderTypeEnvVar)
+			logger.Warn("the first span storage type listed (" + spanWriterTypes[0] + ") will be used for reading. " +
+				"Please use environment variable " + SpanReaderTypeEnvVar + " to specify which storage type to read from")
 		}
 		spanReaderType = spanWriterTypes[0]
 	}
@@ -81,11 +80,11 @@ func FactoryConfigFromEnvAndCLI(args []string, log io.Writer) FactoryConfig {
 		SpanWriterTypes:         spanWriterTypes,
 		SpanReaderType:          spanReaderType,
 		DependenciesStorageType: depStorageType,
-		log: log,
+		logger:                  logger,
 	}
 }
 
-func spanStorageTypeFromArgs(args []string, log io.Writer) string {
+func spanStorageTypeFromArgs(args []string, logger *zap.Logger) string {
 	for i, token := range args {
 		if i == 0 {
 			continue // skip app name; easier than dealing with +-1 offset
@@ -93,12 +92,8 @@ func spanStorageTypeFromArgs(args []string, log io.Writer) string {
 		if !strings.HasPrefix(token, spanStorageFlag) {
 			continue
 		}
-		fmt.Fprintf(
-			log,
-			"WARNING: found deprecated command line option %s, please use environment variable %s instead\n",
-			token,
-			SpanStorageTypeEnvVar,
-		)
+		logger.Warn("found deprecated command line option " + token +
+			", please use environment variable " + SpanStorageTypeEnvVar + " instead")
 		if token == spanStorageFlag && i < len(args)-1 {
 			return args[i+1]
 		}

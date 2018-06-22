@@ -40,6 +40,7 @@ func defaultCfg() FactoryConfig {
 		SpanWriterTypes:         []string{cassandraStorageType},
 		SpanReaderType:          cassandraStorageType,
 		DependenciesStorageType: cassandraStorageType,
+		logger:                  zap.NewNop(),
 	}
 }
 
@@ -135,7 +136,12 @@ func TestCreate(t *testing.T) {
 }
 
 func TestCreateArchive(t *testing.T) {
-	f, err := NewFactory(defaultCfg())
+	f, err := NewFactory(FactoryConfig{
+		SpanWriterTypes:         []string{cassandraStorageType, elasticsearchStorageType},
+		SpanReaderType:          cassandraStorageType,
+		DependenciesStorageType: cassandraStorageType,
+		logger:                  zap.NewNop(),
+	})
 	require.NoError(t, err)
 	assert.NotEmpty(t, f.factories[cassandraStorageType])
 
