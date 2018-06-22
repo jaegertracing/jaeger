@@ -112,21 +112,21 @@ func TestBySvcMetrics(t *testing.T) {
 		expected := []metricsTest.ExpectedMetric{}
 		if test.debug {
 			expected = append(expected, metricsTest.ExpectedMetric{
-				Name: metricPrefix + ".spans.received|debug=true|format=" + format + "|service=" + test.serviceName, Value: 2,
+				Name: metricPrefix + ".spans.received|debug=true|format=" + format + "|svc=" + test.serviceName, Value: 2,
 			})
 		} else {
 			expected = append(expected, metricsTest.ExpectedMetric{
-				Name: metricPrefix + ".spans.received|debug=false|format=" + format + "|service=" + test.serviceName, Value: 2,
+				Name: metricPrefix + ".spans.received|debug=false|format=" + format + "|svc=" + test.serviceName, Value: 2,
 			})
 		}
 		if test.rootSpan {
 			if test.debug {
 				expected = append(expected, metricsTest.ExpectedMetric{
-					Name: metricPrefix + ".traces.received|debug=true|format=" + format + "|service=" + test.serviceName, Value: 2,
+					Name: metricPrefix + ".traces.received|debug=true|format=" + format + "|svc=" + test.serviceName, Value: 2,
 				})
 			} else {
 				expected = append(expected, metricsTest.ExpectedMetric{
-					Name: metricPrefix + ".traces.received|debug=false|format=" + format + "|service=" + test.serviceName, Value: 2,
+					Name: metricPrefix + ".traces.received|debug=false|format=" + format + "|svc=" + test.serviceName, Value: 2,
 				})
 			}
 		}
@@ -142,7 +142,7 @@ func TestBySvcMetrics(t *testing.T) {
 			})
 		} else {
 			expected = append(expected, metricsTest.ExpectedMetric{
-				Name: metricPrefix + ".spans.rejected|debug=false|format=" + format + "|service=" + test.serviceName, Value: 2,
+				Name: metricPrefix + ".spans.rejected|debug=false|format=" + format + "|svc=" + test.serviceName, Value: 2,
 			})
 		}
 		metricsTest.AssertCounterMetrics(t, mb, expected...)
