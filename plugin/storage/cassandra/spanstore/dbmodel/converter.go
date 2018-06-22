@@ -16,8 +16,21 @@ package dbmodel
 
 import (
 	"errors"
+	"fmt"
 
 	"github.com/jaegertracing/jaeger/model"
+)
+
+var (
+	dbToProtoRefMap = map[string]model.SpanRefType{
+		"child-of":     model.SpanRefType_CHILD_OF,
+		"follows-from": model.SpanRefType_FOLLOWS_FROM,
+	}
+
+	protoToDBRefMap = map[model.SpanRefType]string{
+		model.SpanRefType_CHILD_OF:     "child-of",
+		model.SpanRefType_FOLLOWS_FROM: "follows-from",
+	}
 )
 
 // ErrUnknownKeyValueTypeFromCassandra is an error that occurs when trying to decipher an unknown tag type from the database
@@ -147,9 +160,9 @@ func (c converter) fromDBLogs(logs []Log) ([]model.Log, error) {
 func (c converter) fromDBRefs(refs []SpanRef) ([]model.SpanRef, error) {
 	retMe := make([]model.SpanRef, len(refs))
 	for i, r := range refs {
-		refType, err := model.SpanRefTypeFromString(r.RefType)
-		if err != nil {
-			return nil, err
+		refType, ok := dbToProtoRefMap[r.RefType]
+		if !ok {
+			return nil, fmt.Errorf("not a valid SpanRefType string %s", r.RefType)
 		}
 		retMe[i] = model.SpanRef{
 			RefType: refType,
@@ -205,7 +218,7 @@ func (c converter) toDBRefs(refs []model.SpanRef) []SpanRef {
 		retMe[i] = SpanRef{
 			TraceID: TraceIDFromDomain(r.TraceID),
 			SpanID:  int64(r.SpanID),
-			RefType: r.RefType.String(),
+			RefType: protoToDBRefMap[r.RefType],
 		}
 	}
 	return retMe
