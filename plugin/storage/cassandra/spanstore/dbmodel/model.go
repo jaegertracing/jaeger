@@ -21,6 +21,17 @@ import (
 	"github.com/jaegertracing/jaeger/model"
 )
 
+const (
+	childOf     = "child-of"
+	followsFrom = "follows-from"
+
+	stringType  = "string"
+	boolType    = "bool"
+	int64Type   = "int64"
+	float64Type = "float64"
+	binaryType  = "binary"
+)
+
 // TraceID is a serializable form of model.TraceID
 type TraceID [16]byte
 

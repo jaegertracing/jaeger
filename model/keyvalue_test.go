@@ -23,31 +23,6 @@ import (
 	"github.com/jaegertracing/jaeger/model"
 )
 
-func TestValueTypeToFromString(t *testing.T) {
-	badValueType := model.ValueType(-1)
-	testCases := []struct {
-		v model.ValueType
-		s string
-	}{
-		{model.StringType, "STRING"},
-		{model.BoolType, "BOOL"},
-		{model.Int64Type, "INT64"},
-		{model.Float64Type, "FLOAT64"},
-		{model.BinaryType, "BINARY"},
-		{badValueType, "-1"},
-	}
-	for _, testCase := range testCases {
-		assert.Equal(t, testCase.s, testCase.v.String(), testCase.s)
-		v2, err := model.ValueTypeFromString(testCase.s)
-		if testCase.v == badValueType {
-			assert.Error(t, err)
-		} else {
-			assert.NoError(t, err, testCase.s)
-			assert.Equal(t, testCase.v, v2, testCase.s)
-		}
-	}
-}
-
 func TestKeyValueString(t *testing.T) {
 	kv := model.String("x", "y")
 	assert.Equal(t, "x", kv.Key)

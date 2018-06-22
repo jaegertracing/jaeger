@@ -24,28 +24,6 @@ import (
 	"github.com/jaegertracing/jaeger/model"
 )
 
-func TestSpanRefTypeToFromString(t *testing.T) {
-	badSpanRefType := model.SpanRefType(-1)
-	testCases := []struct {
-		v model.SpanRefType
-		s string
-	}{
-		{model.ChildOf, "CHILD_OF"},
-		{model.FollowsFrom, "FOLLOWS_FROM"},
-		{badSpanRefType, "-1"},
-	}
-	for _, testCase := range testCases {
-		assert.Equal(t, testCase.s, testCase.v.String(), testCase.s)
-		v2, err := model.SpanRefTypeFromString(testCase.s)
-		if testCase.v == badSpanRefType {
-			assert.Error(t, err)
-		} else {
-			assert.NoError(t, err, testCase.s)
-			assert.Equal(t, testCase.v, v2, testCase.s)
-		}
-	}
-}
-
 func TestSpanRefTypeToFromJSON(t *testing.T) {
 	// base64(0x42, 16 bytes) == AAAAAAAAAAAAAAAAAAAAQg==
 	// base64(0x43, 8 bytes) == AAAAAAAAAEM=

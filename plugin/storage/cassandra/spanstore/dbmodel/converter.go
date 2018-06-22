@@ -15,16 +15,12 @@
 package dbmodel
 
 import (
-	"errors"
 	"fmt"
 
 	"github.com/jaegertracing/jaeger/model"
 )
 
 var (
-	childOf     = "child-of"
-	followsFrom = "follows-from"
-
 	dbToDomainRefMap = map[string]model.SpanRefType{
 		childOf:     model.SpanRefType_CHILD_OF,
 		followsFrom: model.SpanRefType_FOLLOWS_FROM,
@@ -34,10 +30,15 @@ var (
 		model.SpanRefType_CHILD_OF:     childOf,
 		model.SpanRefType_FOLLOWS_FROM: followsFrom,
 	}
-)
 
-// ErrUnknownKeyValueTypeFromCassandra is an error that occurs when trying to decipher an unknown tag type from the database
-var ErrUnknownKeyValueTypeFromCassandra = errors.New("Unknown tag type found in Cassandra")
+	domainToDBValueTypeMap = map[model.ValueType]string{
+		model.StringType:  stringType,
+		model.BoolType:    boolType,
+		model.Int64Type:   int64Type,
+		model.Float64Type: float64Type,
+		model.BinaryType:  binaryType,
+	}
+)
 
 // FromDomain converts a domain model.Span to a database Span
 func FromDomain(span *model.Span) *Span {
@@ -122,27 +123,19 @@ func (c converter) fromDBTags(tags []KeyValue) ([]model.KeyValue, error) {
 }
 
 func (c converter) fromDBTag(tag *KeyValue) (model.KeyValue, error) {
-	vType, err := model.ValueTypeFromString(tag.ValueType)
-	if err != nil {
-		return model.KeyValue{}, err
-	}
-	return c.fromDBTagOfType(tag, vType)
-}
-
-func (c converter) fromDBTagOfType(tag *KeyValue, vType model.ValueType) (model.KeyValue, error) {
-	switch vType {
-	case model.StringType:
+	switch tag.ValueType {
+	case stringType:
 		return model.String(tag.Key, tag.ValueString), nil
-	case model.BoolType:
+	case boolType:
 		return model.Bool(tag.Key, tag.ValueBool), nil
-	case model.Int64Type:
+	case int64Type:
 		return model.Int64(tag.Key, tag.ValueInt64), nil
-	case model.Float64Type:
+	case float64Type:
 		return model.Float64(tag.Key, tag.ValueFloat64), nil
-	case model.BinaryType:
+	case binaryType:
 		return model.Binary(tag.Key, tag.ValueBinary), nil
 	}
-	return model.KeyValue{}, ErrUnknownKeyValueTypeFromCassandra
+	return model.KeyValue{}, fmt.Errorf("unknown ValueType in %+v", tag)
 }
 
 func (c converter) fromDBLogs(logs []Log) ([]model.Log, error) {
@@ -165,7 +158,7 @@ func (c converter) fromDBRefs(refs []SpanRef) ([]model.SpanRef, error) {
 	for i, r := range refs {
 		refType, ok := dbToDomainRefMap[r.RefType]
 		if !ok {
-			return nil, fmt.Errorf("not a valid SpanRefType string %s", r.RefType)
+			return nil, fmt.Errorf("invalid SpanRefType in %+v", r)
 		}
 		retMe[i] = model.SpanRef{
 			RefType: refType,
@@ -193,7 +186,7 @@ func (c converter) toDBTags(tags []model.KeyValue) []KeyValue {
 		// do we want to validate a jaeger tag here? Making sure that the type and value matches up?
 		retMe[i] = KeyValue{
 			Key:          t.Key,
-			ValueType:    t.VType.String(),
+			ValueType:    domainToDBValueTypeMap[t.VType],
 			ValueString:  t.VStr,
 			ValueBool:    t.Bool(),
 			ValueInt64:   t.Int64(),
