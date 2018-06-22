@@ -20,6 +20,7 @@ import (
 
 	"github.com/apache/thrift/lib/go/thrift"
 	"github.com/uber/jaeger-lib/metrics"
+	"go.uber.org/zap"
 
 	"github.com/jaegertracing/jaeger/cmd/agent/app/customtransports"
 	"github.com/jaegertracing/jaeger/cmd/agent/app/servers"
@@ -32,6 +33,7 @@ type ThriftProcessor struct {
 	protocolPool  *sync.Pool
 	numProcessors int
 	processing    sync.WaitGroup
+	logger        *zap.Logger
 	metrics       struct {
 		// Amount of time taken for processor to close
 		ProcessorCloseTimer metrics.Timer `metric:"thrift.udp.t-processor.close-time"`
@@ -53,6 +55,7 @@ func NewThriftProcessor(
 	mFactory metrics.Factory,
 	factory thrift.TProtocolFactory,
 	handler AgentProcessor,
+	logger *zap.Logger,
 ) (*ThriftProcessor, error) {
 	if numProcessors <= 0 {
 		return nil, fmt.Errorf(
@@ -69,6 +72,7 @@ func NewThriftProcessor(
 		server:        server,
 		handler:       handler,
 		protocolPool:  protocolPool,
+		logger:        logger,
 		numProcessors: numProcessors,
 	}
 	metrics.Init(&res.metrics, mFactory, nil)
@@ -104,8 +108,10 @@ func (s *ThriftProcessor) Stop() {
 func (s *ThriftProcessor) processBuffer() {
 	for readBuf := range s.server.DataChan() {
 		protocol := s.protocolPool.Get().(thrift.TProtocol)
-		protocol.Transport().Write(readBuf.GetBytes())
+		payload := readBuf.GetBytes()
+		protocol.Transport().Write(payload)
 		s.server.DataRecd(readBuf) // acknowledge receipt and release the buffer
+		s.logger.Debug("Span(s) received by the agent", zap.Int("bytes-received", len(payload)))
 
 		if ok, _ := s.handler.Process(protocol, protocol); !ok {
 			// TODO log the error
