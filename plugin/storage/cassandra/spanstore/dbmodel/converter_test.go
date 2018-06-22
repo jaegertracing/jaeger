@@ -110,7 +110,7 @@ var (
 	someDBTraceID = TraceIDFromDomain(someTraceID)
 	someDBRefs    = []SpanRef{
 		{
-			RefType: model.ChildOf.String(),
+			RefType: "child-of",
 			SpanID:  int64(someParentSpanID),
 			TraceID: someDBTraceID,
 		},
