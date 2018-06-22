@@ -22,8 +22,11 @@ import (
 )
 
 const (
-	// SpanStorageTypeEnvVar is the name of the env var that defines the type of backend used for span storage.
+	// SpanStorageTypeEnvVar is the name of the env var that defines the type of backend used for span writing.
 	SpanStorageTypeEnvVar = "SPAN_STORAGE_TYPE"
+
+	// SpanReaderTypeEnvVar is the optional env var that defines the type of backend used for span reading in the case of multi-storage.
+	SpanReaderTypeEnvVar = "SPAN_READER_TYPE"
 
 	// DependencyStorageTypeEnvVar is the name of the env var that defines the type of backend used for dependencies storage.
 	DependencyStorageTypeEnvVar = "DEPENDENCY_STORAGE_TYPE"
@@ -33,13 +36,14 @@ const (
 
 // FactoryConfig tells the Factory which types of backends it needs to create for different storage types.
 type FactoryConfig struct {
-	SpanStorageType         []string
+	SpanWriterTypes         []string
+	SpanReaderType          string
 	DependenciesStorageType string
+	log                     io.Writer
 }
 
-// TODO update this
-// FactoryConfigFromEnvAndCLI reads the desired types of storage backends from SPAN_STORAGE_TYPE and
-// DEPENDENCY_STORAGE_TYPE environment variables. Allowed values:
+// FactoryConfigFromEnvAndCLI reads the desired types of storage backends from SPAN_STORAGE_TYPE,
+// DEPENDENCY_STORAGE_TYPE and DEPENDENCY_STORAGE_TYPE environment variables. Allowed values:
 //   * `cassandra` - built-in
 //   * `elasticsearch` - built-in
 //   * `memory` - built-in
@@ -57,13 +61,27 @@ func FactoryConfigFromEnvAndCLI(args []string, log io.Writer) FactoryConfig {
 	if spanStorageType == "" {
 		spanStorageType = cassandraStorageType
 	}
+	spanWriterTypes := strings.Split(spanStorageType, ",")
+
+	spanReaderType := os.Getenv(SpanReaderTypeEnvVar)
+	if spanReaderType == "" {
+		if len(spanWriterTypes) > 1 {
+			fmt.Fprintf(log, "WARNING: The first span storage type listed (%s) will be used for reading. "+
+				"Please use environment variable %s to specify which storage type to read from\n",
+				spanWriterTypes[0], SpanReaderTypeEnvVar)
+		}
+		spanReaderType = spanWriterTypes[0]
+	}
+
 	depStorageType := os.Getenv(DependencyStorageTypeEnvVar)
 	if depStorageType == "" {
-		depStorageType = spanStorageType
+		depStorageType = spanReaderType
 	}
 	return FactoryConfig{
-		SpanStorageType:         strings.Split(spanStorageType, ","),
+		SpanWriterTypes:         spanWriterTypes,
+		SpanReaderType:          spanReaderType,
 		DependenciesStorageType: depStorageType,
+		log: log,
 	}
 }
 

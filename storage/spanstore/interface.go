@@ -26,24 +26,6 @@ type Writer interface {
 	WriteSpan(span *model.Span) error
 }
 
-// ChainedWriter applies multiple writers in serial fashion
-type ChainedWriter []Writer
-
-// NewChainedWriter creates a Writer from the variadic list of passed Writers
-func NewChainedWriter(writers ...Writer) ChainedWriter {
-	return writers
-}
-
-// WriteSpan calls each Writer, returning the first error
-func (w ChainedWriter) WriteSpan(span *model.Span) error {
-	for _, writer := range w {
-		if err := writer.WriteSpan(span); err != nil {
-			return err
-		}
-	}
-	return nil
-}
-
 var (
 	// ErrTraceNotFound is returned by Reader's GetTrace if no data is found for given trace ID.
 	ErrTraceNotFound = errors.New("trace not found")
