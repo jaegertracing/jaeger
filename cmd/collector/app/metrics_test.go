@@ -48,10 +48,10 @@ func TestProcessorMetrics(t *testing.T) {
 	jFormat.ReceivedBySvc.ReportServiceNameForSpan(&mSpan)
 	counters, gauges := baseMetrics.LocalBackend.Snapshot()
 
-	assert.EqualValues(t, 1, counters["service.spans.received|debug=false|format=jaeger|service=fry"])
-	assert.EqualValues(t, 2, counters["service.spans.received|debug=true|format=jaeger|service=fry"])
-	assert.EqualValues(t, 1, counters["service.traces.received|debug=false|format=jaeger|service=fry"])
-	assert.EqualValues(t, 1, counters["service.traces.received|debug=true|format=jaeger|service=fry"])
+	assert.EqualValues(t, 1, counters["service.spans.received|debug=false|format=jaeger|svc=fry"])
+	assert.EqualValues(t, 2, counters["service.spans.received|debug=true|format=jaeger|svc=fry"])
+	assert.EqualValues(t, 1, counters["service.traces.received|debug=false|format=jaeger|svc=fry"])
+	assert.EqualValues(t, 1, counters["service.traces.received|debug=true|format=jaeger|svc=fry"])
 	assert.Empty(t, gauges)
 }
 
@@ -65,9 +65,9 @@ func TestNewCountsBySvc(t *testing.T) {
 	metrics.countByServiceName("zoidberg", false)
 
 	counters, _ := baseMetrics.LocalBackend.Snapshot()
-	assert.EqualValues(t, 1, counters["|debug=false|service=fry"])
-	assert.EqualValues(t, 1, counters["|debug=false|service=leela"])
-	assert.EqualValues(t, 2, counters["|debug=false|service=other-services"])
+	assert.EqualValues(t, 1, counters["|debug=false|svc=fry"])
+	assert.EqualValues(t, 1, counters["|debug=false|svc=leela"])
+	assert.EqualValues(t, 2, counters["|debug=false|svc=other-services"])
 
 	metrics.countByServiceName("zoidberg", true)
 	metrics.countByServiceName("bender", true)
@@ -75,7 +75,7 @@ func TestNewCountsBySvc(t *testing.T) {
 	metrics.countByServiceName("fry", true)
 
 	counters, _ = baseMetrics.LocalBackend.Snapshot()
-	assert.EqualValues(t, 1, counters["|debug=true|service=zoidberg"])
-	assert.EqualValues(t, 1, counters["|debug=true|service=bender"])
-	assert.EqualValues(t, 2, counters["|debug=true|service=other-services"])
+	assert.EqualValues(t, 1, counters["|debug=true|svc=zoidberg"])
+	assert.EqualValues(t, 1, counters["|debug=true|svc=bender"])
+	assert.EqualValues(t, 2, counters["|debug=true|svc=other-services"])
 }
