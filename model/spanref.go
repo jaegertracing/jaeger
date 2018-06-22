@@ -14,11 +14,6 @@
 
 package model
 
-import (
-	"fmt"
-	"strings"
-)
-
 const (
 	// ChildOf span reference type describes a reference to a parent span
 	// that depends on the response from the current (child) span
@@ -28,15 +23,6 @@ const (
 	// that does not depend on the response from the current (child) span
 	FollowsFrom = SpanRefType_FOLLOWS_FROM
 )
-
-// SpanRefTypeFromString converts a string into SpanRefType enum.
-func SpanRefTypeFromString(s string) (SpanRefType, error) {
-	i, ok := SpanRefType_value[strings.ToUpper(s)]
-	if ok {
-		return SpanRefType(i), nil
-	}
-	return SpanRefType(0), fmt.Errorf("not a valid SpanRefType string %s", s)
-}
 
 // MaybeAddParentSpanID adds non-zero parentSpanID to refs as a child-of reference.
 // We no longer store ParentSpanID in the domain model, but the data in the database

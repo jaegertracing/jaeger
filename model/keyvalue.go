@@ -21,7 +21,6 @@ import (
 	"io"
 	"sort"
 	"strconv"
-	"strings"
 )
 
 // These constants are kept mostly for backwards compatibility.
@@ -194,15 +193,6 @@ func (kvs KeyValues) Hash(w io.Writer) error {
 		}
 	}
 	return nil
-}
-
-// ValueTypeFromString converts a string into ValueType enum.
-func ValueTypeFromString(s string) (ValueType, error) {
-	i, ok := ValueType_value[strings.ToUpper(s)]
-	if ok {
-		return ValueType(i), nil
-	}
-	return ValueType(0), fmt.Errorf("not a valid ValueType string %s", s)
 }
 
 // Hash implements Hash from Hashable.
