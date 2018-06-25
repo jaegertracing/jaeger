@@ -53,6 +53,7 @@ type countsBySvc struct {
 	factory         metrics.Factory
 	lock            *sync.Mutex
 	maxServiceNames int
+	category        string
 }
 
 type metricsBySvc struct {
@@ -94,25 +95,26 @@ func NewSpanProcessorMetrics(serviceMetrics metrics.Factory, hostMetrics metrics
 }
 
 func newMetricsBySvc(factory metrics.Factory, category string) metricsBySvc {
-	spansFactory := factory.Namespace("spans."+category, nil)
-	tracesFactory := factory.Namespace("traces."+category, nil)
+	spansFactory := factory.Namespace("spans", nil)
+	tracesFactory := factory.Namespace("traces", nil)
 	return metricsBySvc{
-		spans:  newCountsBySvc(spansFactory, maxServiceNames),
-		traces: newCountsBySvc(tracesFactory, maxServiceNames),
+		spans:  newCountsBySvc(spansFactory, category, maxServiceNames),
+		traces: newCountsBySvc(tracesFactory, category, maxServiceNames),
 	}
 }
 
-func newCountsBySvc(factory metrics.Factory, maxServiceNames int) countsBySvc {
+func newCountsBySvc(factory metrics.Factory, category string, maxServiceNames int) countsBySvc {
 	return countsBySvc{
 		counts: map[string]metrics.Counter{
-			otherServices: factory.Counter("", map[string]string{"svc": otherServices, "debug": "false"}),
+			otherServices: factory.Counter(category, map[string]string{"svc": otherServices, "debug": "false"}),
 		},
 		debugCounts: map[string]metrics.Counter{
-			otherServices: factory.Counter("", map[string]string{"svc": otherServices, "debug": "true"}),
+			otherServices: factory.Counter(category, map[string]string{"svc": otherServices, "debug": "true"}),
 		},
 		factory:         factory,
 		lock:            &sync.Mutex{},
 		maxServiceNames: maxServiceNames,
+		category:        category,
 	}
 }
 
@@ -181,7 +183,7 @@ func (m *countsBySvc) countByServiceName(serviceName string, isDebug bool) {
 		if isDebug {
 			debugStr = "true"
 		}
-		c := m.factory.Counter("", map[string]string{"svc": serviceName, "debug": debugStr})
+		c := m.factory.Counter(m.category, map[string]string{"svc": serviceName, "debug": debugStr})
 		counts[serviceName] = c
 		counter = c
 	} else {
