@@ -110,8 +110,8 @@ func (s *ThriftProcessor) processBuffer() {
 		protocol := s.protocolPool.Get().(thrift.TProtocol)
 		payload := readBuf.GetBytes()
 		protocol.Transport().Write(payload)
-		s.server.DataRecd(readBuf) // acknowledge receipt and release the buffer
 		s.logger.Debug("Span(s) received by the agent", zap.Int("bytes-received", len(payload)))
+		s.server.DataRecd(readBuf) // acknowledge receipt and release the buffer
 
 		if ok, _ := s.handler.Process(protocol, protocol); !ok {
 			// TODO log the error
