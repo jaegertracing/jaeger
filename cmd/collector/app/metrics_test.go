@@ -57,7 +57,7 @@ func TestProcessorMetrics(t *testing.T) {
 
 func TestNewCountsBySvc(t *testing.T) {
 	baseMetrics := jaegerM.NewLocalFactory(time.Hour)
-	metrics := newCountsBySvc(baseMetrics, 3)
+	metrics := newCountsBySvc(baseMetrics, "", 3)
 
 	metrics.countByServiceName("fry", false)
 	metrics.countByServiceName("leela", false)
