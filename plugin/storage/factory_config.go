@@ -22,11 +22,8 @@ import (
 )
 
 const (
-	// SpanStorageTypeEnvVar is the name of the env var that defines the type of backend used for span writing.
+	// SpanStorageTypeEnvVar is the name of the env var that defines the type of backend used for span storage.
 	SpanStorageTypeEnvVar = "SPAN_STORAGE_TYPE"
-
-	// SpanReaderTypeEnvVar is the optional env var that defines the type of backend used for span reading in the case of multi-storage.
-	SpanReaderTypeEnvVar = "SPAN_READER_TYPE"
 
 	// DependencyStorageTypeEnvVar is the name of the env var that defines the type of backend used for dependencies storage.
 	DependencyStorageTypeEnvVar = "DEPENDENCY_STORAGE_TYPE"
@@ -39,11 +36,10 @@ type FactoryConfig struct {
 	SpanWriterTypes         []string
 	SpanReaderType          string
 	DependenciesStorageType string
-	log                     io.Writer
 }
 
-// FactoryConfigFromEnvAndCLI reads the desired types of storage backends from SPAN_STORAGE_TYPE,
-// DEPENDENCY_STORAGE_TYPE and DEPENDENCY_STORAGE_TYPE environment variables. Allowed values:
+// FactoryConfigFromEnvAndCLI reads the desired types of storage backends from SPAN_STORAGE_TYPE and
+// DEPENDENCY_STORAGE_TYPE environment variables. Allowed values:
 //   * `cassandra` - built-in
 //   * `elasticsearch` - built-in
 //   * `memory` - built-in
@@ -62,26 +58,18 @@ func FactoryConfigFromEnvAndCLI(args []string, log io.Writer) FactoryConfig {
 		spanStorageType = cassandraStorageType
 	}
 	spanWriterTypes := strings.Split(spanStorageType, ",")
-
-	spanReaderType := os.Getenv(SpanReaderTypeEnvVar)
-	if spanReaderType == "" {
-		if len(spanWriterTypes) > 1 {
-			fmt.Fprintf(log, "WARNING: The first span storage type listed (%s) will be used for reading. "+
-				"Please use environment variable %s to specify which storage type to read from\n",
-				spanWriterTypes[0], SpanReaderTypeEnvVar)
-		}
-		spanReaderType = spanWriterTypes[0]
+	if len(spanWriterTypes) > 1 {
+		fmt.Fprintf(log, "WARNING: Since multiple storage types have been listed,"+
+			"the first span storage type listed (%s) will be used for reading and archiving.", spanWriterTypes[0])
 	}
-
 	depStorageType := os.Getenv(DependencyStorageTypeEnvVar)
 	if depStorageType == "" {
-		depStorageType = spanReaderType
+		depStorageType = spanWriterTypes[0]
 	}
 	return FactoryConfig{
 		SpanWriterTypes:         spanWriterTypes,
-		SpanReaderType:          spanReaderType,
+		SpanReaderType:          spanWriterTypes[0],
 		DependenciesStorageType: depStorageType,
-		log: log,
 	}
 }
 

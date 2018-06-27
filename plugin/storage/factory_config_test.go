@@ -24,7 +24,6 @@ import (
 
 func clearEnv() {
 	os.Setenv(SpanStorageTypeEnvVar, "")
-	os.Setenv(SpanReaderTypeEnvVar, "")
 	os.Setenv(DependencyStorageTypeEnvVar, "")
 }
 
@@ -53,12 +52,6 @@ func TestFactoryConfigFromEnv(t *testing.T) {
 	assert.Equal(t, 2, len(f.SpanWriterTypes))
 	assert.Equal(t, []string{elasticsearchStorageType, kafkaStorageType}, f.SpanWriterTypes)
 	assert.Equal(t, elasticsearchStorageType, f.SpanReaderType)
-
-	os.Setenv(SpanReaderTypeEnvVar, cassandraStorageType)
-
-	f = FactoryConfigFromEnvAndCLI(nil, nil)
-	assert.Equal(t, 2, len(f.SpanWriterTypes))
-	assert.Equal(t, cassandraStorageType, f.SpanReaderType)
 }
 
 func TestFactoryConfigFromEnvDeprecated(t *testing.T) {

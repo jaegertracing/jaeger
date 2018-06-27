@@ -162,10 +162,6 @@ func (f *Factory) CreateArchiveSpanReader() (spanstore.Reader, error) {
 
 // CreateArchiveSpanWriter implements storage.ArchiveFactory
 func (f *Factory) CreateArchiveSpanWriter() (spanstore.Writer, error) {
-	if len(f.SpanWriterTypes) > 1 {
-		fmt.Fprintf(f.log, "WARNING: Since there are multiple span storage types,"+
-			" the first (%s) will be used for archving\n", f.SpanWriterTypes[0])
-	}
 	factory, ok := f.factories[f.SpanWriterTypes[0]]
 	if !ok {
 		return nil, fmt.Errorf("No %s backend registered for span store", f.SpanWriterTypes[0])
