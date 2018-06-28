@@ -94,21 +94,16 @@ func TestInitialize(t *testing.T) {
 }
 
 func TestCreate(t *testing.T) {
-	cfg := defaultCfg()
-	cfg.SpanWriterTypes = append(cfg.SpanWriterTypes, elasticsearchStorageType)
-	f, err := NewFactory(cfg)
+	f, err := NewFactory(defaultCfg())
 	require.NoError(t, err)
 	assert.NotEmpty(t, f.factories)
 	assert.NotEmpty(t, f.factories[cassandraStorageType])
 
 	mock := new(mocks.Factory)
-	mock2 := new(mocks.Factory)
 	f.factories[cassandraStorageType] = mock
-	f.factories[elasticsearchStorageType] = mock2
 
 	spanReader := new(spanStoreMocks.Reader)
 	spanWriter := new(spanStoreMocks.Writer)
-	spanWriter2 := new(spanStoreMocks.Writer)
 	depReader := new(depStoreMocks.Reader)
 
 	mock.On("CreateSpanReader").Return(spanReader, errors.New("span-reader-error"))
@@ -132,6 +127,32 @@ func TestCreate(t *testing.T) {
 
 	_, err = f.CreateArchiveSpanWriter()
 	assert.EqualError(t, err, "Archive storage not supported")
+
+	mock.On("CreateSpanWriter").Return(spanWriter, nil)
+	w, err = f.CreateSpanWriter()
+	assert.NoError(t, err)
+	assert.Equal(t, spanWriter, w)
+}
+
+func TestCreateMulti(t *testing.T) {
+	cfg := defaultCfg()
+	cfg.SpanWriterTypes = append(cfg.SpanWriterTypes, elasticsearchStorageType)
+	f, err := NewFactory(cfg)
+	require.NoError(t, err)
+
+	mock := new(mocks.Factory)
+	mock2 := new(mocks.Factory)
+	f.factories[cassandraStorageType] = mock
+	f.factories[elasticsearchStorageType] = mock2
+
+	spanWriter := new(spanStoreMocks.Writer)
+	spanWriter2 := new(spanStoreMocks.Writer)
+
+	mock.On("CreateSpanWriter").Once().Return(spanWriter, errors.New("span-writer-error"))
+
+	w, err := f.CreateSpanWriter()
+	assert.Nil(t, w)
+	assert.EqualError(t, err, "span-writer-error")
 
 	mock.On("CreateSpanWriter").Return(spanWriter, nil)
 	mock2.On("CreateSpanWriter").Return(spanWriter2, nil)
