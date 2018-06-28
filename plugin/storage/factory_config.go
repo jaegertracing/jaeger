@@ -66,6 +66,7 @@ func FactoryConfigFromEnvAndCLI(args []string, log io.Writer) FactoryConfig {
 	if depStorageType == "" {
 		depStorageType = spanWriterTypes[0]
 	}
+	// TODO support explicit configuration for readers
 	return FactoryConfig{
 		SpanWriterTypes:         spanWriterTypes,
 		SpanReaderType:          spanWriterTypes[0],
