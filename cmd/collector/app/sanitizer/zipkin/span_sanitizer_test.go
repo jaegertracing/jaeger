@@ -151,6 +151,8 @@ func TestSpanErrorSanitizer(t *testing.T) {
 			if test.addErrMsgAnno {
 				assert.Equal(t, 2, len(sanitized.BinaryAnnotations))
 				assert.Equal(t, "error.message", sanitized.BinaryAnnotations[1].Key)
+				assert.Equal(t, "message", string(sanitized.BinaryAnnotations[1].Value))
+				assert.Equal(t, zipkincore.AnnotationType_STRING, sanitized.BinaryAnnotations[1].AnnotationType)
 			} else {
 				assert.Equal(t, 1, len(sanitized.BinaryAnnotations))
 			}
