@@ -76,7 +76,7 @@ func SetDefaultHealthCheckPort(port int) {
 
 // AddFlags adds flags for SharedFlags
 func AddFlags(flagSet *flag.FlagSet) {
-	flagSet.String(spanStorageType, "", fmt.Sprintf("Deprecated; please use %s environment variable", storage.SpanStorageTypeEnvVar))
+	flagSet.String(spanStorageType, "", fmt.Sprintf(`Deprecated; please use %s environment variable. Run this binary with "env" command for help.`, storage.SpanStorageTypeEnvVar))
 	flagSet.Int(healthCheckHTTPPort, defaultHealthCheckPort, "The http port for the health check service")
 	AddLoggingFlag(flagSet)
 }

@@ -59,8 +59,11 @@ func FactoryConfigFromEnvAndCLI(args []string, log io.Writer) FactoryConfig {
 	}
 	spanWriterTypes := strings.Split(spanStorageType, ",")
 	if len(spanWriterTypes) > 1 {
-		fmt.Fprintf(log, "WARNING: Since multiple storage types have been listed,"+
-			"the first span storage type listed (%s) will be used for reading and archiving.", spanWriterTypes[0])
+		fmt.Fprintf(log,
+			"WARNING: multiple span storage types have been specified. "+
+				"Only the first type (%s) will be used for reading and archiving.\n\n",
+			spanWriterTypes[0],
+		)
 	}
 	depStorageType := os.Getenv(DependencyStorageTypeEnvVar)
 	if depStorageType == "" {

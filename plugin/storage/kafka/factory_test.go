@@ -59,7 +59,7 @@ func TestKafkaFactory(t *testing.T) {
 
 	f.config = &mockProducerBuilder{t: t}
 	assert.NoError(t, f.Initialize(metrics.NullFactory, zap.NewNop()))
-	assert.IsType(t, &jsonMarshaller{}, f.marshaller)
+	assert.IsType(t, &protobufMarshaller{}, f.marshaller)
 
 	_, err := f.CreateSpanWriter()
 	assert.NoError(t, err)
