@@ -32,15 +32,26 @@ func TestFactoryConfigFromEnv(t *testing.T) {
 	defer clearEnv()
 
 	f := FactoryConfigFromEnvAndCLI(nil, nil)
-	assert.Equal(t, cassandraStorageType, f.SpanStorageType)
+	assert.Equal(t, 1, len(f.SpanWriterTypes))
+	assert.Equal(t, cassandraStorageType, f.SpanWriterTypes[0])
+	assert.Equal(t, cassandraStorageType, f.SpanReaderType)
 	assert.Equal(t, cassandraStorageType, f.DependenciesStorageType)
 
 	os.Setenv(SpanStorageTypeEnvVar, elasticsearchStorageType)
 	os.Setenv(DependencyStorageTypeEnvVar, memoryStorageType)
 
 	f = FactoryConfigFromEnvAndCLI(nil, nil)
-	assert.Equal(t, elasticsearchStorageType, f.SpanStorageType)
+	assert.Equal(t, 1, len(f.SpanWriterTypes))
+	assert.Equal(t, elasticsearchStorageType, f.SpanWriterTypes[0])
+	assert.Equal(t, elasticsearchStorageType, f.SpanReaderType)
 	assert.Equal(t, memoryStorageType, f.DependenciesStorageType)
+
+	os.Setenv(SpanStorageTypeEnvVar, elasticsearchStorageType+","+kafkaStorageType)
+
+	f = FactoryConfigFromEnvAndCLI(nil, &bytes.Buffer{})
+	assert.Equal(t, 2, len(f.SpanWriterTypes))
+	assert.Equal(t, []string{elasticsearchStorageType, kafkaStorageType}, f.SpanWriterTypes)
+	assert.Equal(t, elasticsearchStorageType, f.SpanReaderType)
 }
 
 func TestFactoryConfigFromEnvDeprecated(t *testing.T) {
@@ -59,7 +70,9 @@ func TestFactoryConfigFromEnvDeprecated(t *testing.T) {
 	for _, testCase := range testCases {
 		log := new(bytes.Buffer)
 		f := FactoryConfigFromEnvAndCLI(testCase.args, log)
-		assert.Equal(t, testCase.value, f.SpanStorageType)
+		assert.Equal(t, 1, len(f.SpanWriterTypes))
+		assert.Equal(t, testCase.value, f.SpanWriterTypes[0])
+		assert.Equal(t, testCase.value, f.SpanReaderType)
 		assert.Equal(t, testCase.value, f.DependenciesStorageType)
 		if testCase.log {
 			expectedLog := "WARNING: found deprecated command line option"
