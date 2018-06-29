@@ -48,7 +48,14 @@ func (s *KafkaIntegrationTestSuite) initialize() error {
 
 	f := kafka.NewFactory()
 	v, command := config.Viperize(f.AddFlags)
-	command.ParseFlags([]string{"--kafka.topic=" + topic, "--kafka.brokers=" + defaultLocalKafkaBroker})
+	command.ParseFlags([]string{
+		"--kafka.topic",
+		topic,
+		"--kafka.brokers",
+		defaultLocalKafkaBroker,
+		"--kafka.encoding",
+		"json",
+	})
 	f.InitFromViper(v)
 	if err := f.Initialize(metrics.NullFactory, s.logger); err != nil {
 		return err
