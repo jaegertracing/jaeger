@@ -16,6 +16,7 @@ package kafka
 
 import (
 	"flag"
+	"fmt"
 	"strings"
 
 	"github.com/spf13/viper"
@@ -29,12 +30,12 @@ const (
 	suffixTopic    = ".topic"
 	suffixEncoding = ".encoding"
 
-	defaultBroker   = "127.0.0.1:9092"
-	defaultTopic    = "jaeger-spans"
-	defaultEncoding = encodingJSON
-
 	encodingJSON  = "json"
 	encodingProto = "protobuf"
+
+	defaultBroker   = "127.0.0.1:9092"
+	defaultTopic    = "jaeger-spans"
+	defaultEncoding = encodingProto
 )
 
 // Options stores the configuration options for Kafka
@@ -57,7 +58,8 @@ func (opt *Options) AddFlags(flagSet *flag.FlagSet) {
 	flagSet.String(
 		configPrefix+suffixEncoding,
 		defaultEncoding,
-		"Encoding of spans sent to kafka. Either '"+encodingJSON+"' or '"+encodingProto+"'")
+		fmt.Sprintf(`Encoding of spans ("%s" or "%s") sent to kafka.`, encodingProto, encodingJSON),
+	)
 }
 
 // InitFromViper initializes Options with properties from viper
