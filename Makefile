@@ -1,16 +1,16 @@
 PROJECT_ROOT=github.com/jaegertracing/jaeger
+# TOP_PKGS is used with 'go test'
 TOP_PKGS := $(shell glide novendor | grep -v -e ./thrift-gen/... -e swagger-gen... -e ./examples/... -e ./scripts/...)
 STORAGE_PKGS = ./plugin/storage/integration/...
 
-# all .go files that don't exist in hidden directories
+# all .go files that are not auto-generated and should be auto-formatted and linted.
 ALL_SRC := $(shell find . -name "*.go" | grep -v -e vendor -e thrift-gen -e swagger-gen -e examples -e doc.go -e model_test.pb.go \
         -e ".*/\..*" \
         -e ".*/_.*" \
         -e ".*/mocks.*")
 
+# ALL_PKGS is used with 'go cover'
 ALL_PKGS := $(shell go list $(sort $(dir $(ALL_SRC))))
-
-export GO15VENDOREXPERIMENT=1
 
 RACE=-race
 GOTEST=go test -v $(RACE)
@@ -41,10 +41,10 @@ SWAGGER_IMAGE=quay.io/goswagger/swagger:$(SWAGGER_VER)
 SWAGGER=docker run --rm -it -u ${shell id -u} -v "${PWD}:/go/src/${PROJECT_ROOT}" -w /go/src/${PROJECT_ROOT} $(SWAGGER_IMAGE)
 SWAGGER_GEN_DIR=swagger-gen
 
-PASS=$(shell printf "\033[32mPASS\033[0m")
-FAIL=$(shell printf "\033[31mFAIL\033[0m")
-FIXME=$(shell printf "\033[31mFIXME\033[0m")
-COLORIZE=$(SED) ''/PASS/s//$(PASS)/'' | $(SED) ''/FAIL/s//$(FAIL)/''
+COLOR_PASS=$(shell printf "\033[32mPASS\033[0m")
+COLOR_FAIL=$(shell printf "\033[31mFAIL\033[0m")
+COLOR_FIXME=$(shell printf "\033[31mFIXME\033[0m")
+COLORIZE=$(SED) ''/PASS/s//$(COLOR_PASS)/'' | $(SED) ''/FAIL/s//$(COLOR_FAIL)/''
 DOCKER_NAMESPACE?=jaegertracing
 DOCKER_TAG?=latest
 
@@ -55,9 +55,10 @@ MOCKERY=mockery
 .PHONY: test-and-lint
 test-and-lint: test fmt lint
 
+# TODO: no files actually use this right now
 .PHONY: go-gen
 go-gen:
-	go generate $(TOP_PKGS)
+	@echo skipping go generate ./...
 
 .PHONY: md-to-godoc-gen
 md-to-godoc-gen:
@@ -84,9 +85,6 @@ storage-integration-test: go-gen
 all-pkgs:
 	@echo $(ALL_PKGS) | tr ' ' '\n' | sort
 
-cvr-pkgs:
-	go list $(TOP_PKGS)
-
 .PHONY: cover
 cover: nocover
 	@echo pre-compiling tests
@@ -99,7 +97,7 @@ cover: nocover
 .PHONY: nocover
 nocover:
 	@echo Verifying that all packages have test files to count in coverage
-	@scripts/check-test-files.sh $(subst github.com/jaegertracing/jaeger/,./,$(ALL_PKGS)) | $(SED) ''/FIXME/s//$(FIXME)/''
+	@scripts/check-test-files.sh $(subst github.com/jaegertracing/jaeger/,./,$(ALL_PKGS)) | $(SED) ''/FIXME/s//$(COLOR_FIXME)/''
 
 .PHONY: fmt
 fmt:
