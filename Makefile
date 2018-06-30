@@ -1,16 +1,33 @@
 PROJECT_ROOT=github.com/jaegertracing/jaeger
-TOP_PKGS := $(shell glide novendor | grep -v -e ./thrift-gen/... -e swagger-gen... -e ./examples/... -e ./scripts/...)
+# TOP_PKGS is used with 'go test'
+# TODO: try to do this without glide, since it may not be installed initially
+TOP_PKGS := $(shell glide novendor | \
+	sort | \
+	grep -v \
+		-e ./thrift-gen/... \
+		-e ./swagger-gen/... \
+		-e ./examples/... \
+		-e ./scripts/...\
+	)
 STORAGE_PKGS = ./plugin/storage/integration/...
 
-# all .go files that don't exist in hidden directories
-ALL_SRC := $(shell find . -name "*.go" | grep -v -e vendor -e thrift-gen -e swagger-gen -e examples -e doc.go -e jaeger_test.pb.go \
+# all .go files that are not auto-generated and should be auto-formatted and linted.
+ALL_SRC := $(shell find . -name "*.go" | \
+	grep -v \
+		-e vendor \
+		-e /thrift-gen/ \
+		-e /swagger-gen/ \
+		-e /examples/ \
+		-e doc.go \
+		-e model.pb.go \
+		-e model_test.pb.go \
         -e ".*/\..*" \
         -e ".*/_.*" \
-        -e ".*/mocks.*")
+        -e ".*/mocks.*" \
+	)
 
+# ALL_PKGS is used with 'go cover'
 ALL_PKGS := $(shell go list $(sort $(dir $(ALL_SRC))))
-
-export GO15VENDOREXPERIMENT=1
 
 RACE=-race
 GOTEST=go test -v $(RACE)
@@ -41,10 +58,10 @@ SWAGGER_IMAGE=quay.io/goswagger/swagger:$(SWAGGER_VER)
 SWAGGER=docker run --rm -it -u ${shell id -u} -v "${PWD}:/go/src/${PROJECT_ROOT}" -w /go/src/${PROJECT_ROOT} $(SWAGGER_IMAGE)
 SWAGGER_GEN_DIR=swagger-gen
 
-PASS=$(shell printf "\033[32mPASS\033[0m")
-FAIL=$(shell printf "\033[31mFAIL\033[0m")
-FIXME=$(shell printf "\033[31mFIXME\033[0m")
-COLORIZE=$(SED) ''/PASS/s//$(PASS)/'' | $(SED) ''/FAIL/s//$(FAIL)/''
+COLOR_PASS=$(shell printf "\033[32mPASS\033[0m")
+COLOR_FAIL=$(shell printf "\033[31mFAIL\033[0m")
+COLOR_FIXME=$(shell printf "\033[31mFIXME\033[0m")
+COLORIZE=$(SED) ''/PASS/s//$(COLOR_PASS)/'' | $(SED) ''/FAIL/s//$(COLOR_FAIL)/''
 DOCKER_NAMESPACE?=jaegertracing
 DOCKER_TAG?=latest
 
@@ -55,9 +72,10 @@ MOCKERY=mockery
 .PHONY: test-and-lint
 test-and-lint: test fmt lint
 
+# TODO: no files actually use this right now
 .PHONY: go-gen
 go-gen:
-	go generate $(TOP_PKGS)
+	@echo skipping go generate ./...
 
 .PHONY: md-to-godoc-gen
 md-to-godoc-gen:
@@ -67,7 +85,7 @@ md-to-godoc-gen:
 
 .PHONY: clean
 clean:
-	rm -rf cover.out cover.html lint.log fmt.log jaeger-ui-build
+	rm -rf cover.out .cover/ cover.html lint.log fmt.log jaeger-ui-build
 
 .PHONY: test
 test: go-gen
@@ -84,22 +102,22 @@ storage-integration-test: go-gen
 all-pkgs:
 	@echo $(ALL_PKGS) | tr ' ' '\n' | sort
 
-cvr-pkgs:
-	go list $(TOP_PKGS)
+all-srcs:
+	@echo $(ALL_SRC) | tr ' ' '\n' | sort
 
 .PHONY: cover
 cover: nocover
 	@echo pre-compiling tests
 	@time go test -i $(ALL_PKGS)
 	@./scripts/cover.sh $(shell go list $(TOP_PKGS))
-	grep -E -v 'jaeger.pb.*.go' cover.out > cover-nogen.out
+	grep -E -v 'model.pb.*.go' cover.out > cover-nogen.out
 	mv cover-nogen.out cover.out
 	go tool cover -html=cover.out -o cover.html
 
 .PHONY: nocover
 nocover:
 	@echo Verifying that all packages have test files to count in coverage
-	@scripts/check-test-files.sh $(subst github.com/jaegertracing/jaeger/,./,$(ALL_PKGS)) | $(SED) ''/FIXME/s//$(FIXME)/''
+	@scripts/check-test-files.sh $(subst github.com/jaegertracing/jaeger/,./,$(ALL_PKGS)) | $(SED) ''/FIXME/s//$(COLOR_FIXME)/''
 
 .PHONY: fmt
 fmt:
@@ -115,7 +133,16 @@ lint-gas:
 lint: lint-gas
 	$(GOVET) $(TOP_PKGS)
 	@cat /dev/null > $(LINT_LOG)
-	@$(foreach pkg, $(TOP_PKGS), $(GOLINT) $(pkg) | grep -v -e pkg/es/wrapper.go -e /mocks/ -e thrift-gen -e thrift-0.9.2 -e jaeger_test.pb.go >> $(LINT_LOG) || true;)
+	$(GOLINT) $(TOP_PKGS) | \
+		grep -v \
+			-e pkg/es/wrapper.go \
+			-e /mocks/ \
+			-e thrift-gen \
+			-e thrift-0.9.2 \
+			-e model.pb.go \
+			-e model_test.pb.go \
+			>> $(LINT_LOG) \
+		|| true;
 	@[ ! -s "$(LINT_LOG)" ] || (echo "Lint Failures" | cat - $(LINT_LOG) && false)
 	@$(GOFMT) -e -s -l $(ALL_SRC) > $(FMT_LOG)
 	@./scripts/updateLicenses.sh >> $(FMT_LOG)
@@ -337,15 +364,12 @@ Mgoogle/protobuf/empty.proto=github.com/gogo/protobuf/types,\
 Mgoogle/api/annotations.proto=github.com/gogo/googleapis/google/api:\
 $$GOPATH/src/github.com/jaegertracing/jaeger/model \
 		--swagger_out=model/proto/openapi/ \
-		model/proto/jaeger.proto
-
-	# Workaround for https://github.com/grpc-ecosystem/grpc-gateway/issues/229.
-	sed -i '' "s/empty.Empty/types.Empty/g" model/jaeger.pb.gw.go
+		model/proto/model.proto
 
 	protoc \
 		-I model/proto \
 		--go_out=$$GOPATH/src/github.com/jaegertracing/jaeger/model/prototest/ \
-		model/proto/jaeger_test.proto
+		model/proto/model_test.proto
 
 .PHONY: proto-install
 proto-install:

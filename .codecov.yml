@@ -9,4 +9,4 @@ codecov:
 
 # see https://docs.codecov.io/docs/ignoring-paths
 ignore:
-  - "jaeger.pb*.go"
+  - "model.pb*.go"
