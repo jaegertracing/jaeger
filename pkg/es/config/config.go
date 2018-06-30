@@ -15,7 +15,6 @@
 package config
 
 import (
-	"bytes"
 	"context"
 	"sync"
 	"time"
@@ -80,15 +79,8 @@ func (c *Configuration) NewClient(logger *zap.Logger, metricsFactory metrics.Fac
 			sm.Emit(err, duration)
 
 			if err != nil {
-				var buffer bytes.Buffer
-				for i, r := range requests {
-					buffer.WriteString(r.String())
-					if i+1 < len(requests) {
-						buffer.WriteByte('\n')
-					}
-				}
 				logger.Error("Elasticsearch could not process bulk request", zap.Error(err),
-					zap.Any("response", response), zap.String("requests", buffer.String()))
+					zap.Any("response", response))
 			}
 		}).
 		BulkSize(c.BulkSize).
