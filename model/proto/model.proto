@@ -13,9 +13,9 @@
 // limitations under the License.
 
 syntax="proto3";
-package jaeger;
 
-import "google/protobuf/empty.proto";
+package jaeger.model;
+
 import "google/protobuf/timestamp.proto";
 import "google/protobuf/duration.proto";
 import "google/api/annotations.proto";
@@ -26,6 +26,7 @@ import "github.com/gogo/protobuf/gogoproto/gogo.proto";
 // TODO: document all types and fields
 
 option go_package = "model";
+option java_package = "io.jaegertracing.model";
 
 option (grpc.gateway.protoc_gen_swagger.options.openapiv2_swagger) = {
   info: {
@@ -93,7 +94,7 @@ message SpanRef {
   ];
   bytes span_id = 2 [
     (gogoproto.nullable) = false,
-    (gogoproto.customtype) = "SpanID", // alias to uint64
+    (gogoproto.customtype) = "SpanID",
     (gogoproto.customname) = "SpanID"
   ];
   SpanRefType ref_type = 3;
@@ -123,7 +124,7 @@ message Span {
   ];
   uint32 flags = 5 [
     (gogoproto.nullable) = false,
-    (gogoproto.customtype) = "Flags" // alias to uint32
+    (gogoproto.customtype) = "Flags"
   ];
   google.protobuf.Timestamp start_time = 6 [
     (gogoproto.stdtime) = true,
@@ -169,24 +170,36 @@ message Batch {
     ];
 }
 
+message PostSpansRequest {
+    Batch batch = 1;
+}
+
+message PostSpansResponse {
+    bool ok = 1;
+}
+
 // TODO: move services to another proto file.
-service CollectorServiceV1 {
-    rpc PostSpans(Batch) returns (google.protobuf.Empty) {
+service CollectorServiceV2 {
+    rpc PostSpans(PostSpansRequest) returns (PostSpansResponse) {
         option (google.api.http) = {
-            post: "/api/v1/spans"
+            post: "/api/v2/spans"
             body: "*"
         };
     }
 }
 
-message GetTraceID {
+message GetTraceRequest {
     string id = 1;
 }
 
-service QueryServiceV1 {
-    rpc GetTrace(GetTraceID) returns (Trace) {
+message GetTraceResponse {
+    Trace trace = 1;
+}
+
+service QueryServiceV2 {
+    rpc GetTrace(GetTraceRequest) returns (GetTraceResponse) {
         option (google.api.http) = {
-            get: "/api/v1/traces/{id}"
+            get: "/api/v2/traces/{id}"
         };
     }
 }

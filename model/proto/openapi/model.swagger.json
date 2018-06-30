@@ -1,7 +1,7 @@
 {
   "swagger": "2.0",
   "info": {
-    "title": "jaeger.proto",
+    "title": "model.proto",
     "version": "1.0"
   },
   "schemes": [
@@ -15,14 +15,14 @@
     "application/json"
   ],
   "paths": {
-    "/api/v1/spans": {
+    "/api/v2/spans": {
       "post": {
         "operationId": "PostSpans",
         "responses": {
           "200": {
             "description": "",
             "schema": {
-              "$ref": "#/definitions/protobufEmpty"
+              "$ref": "#/definitions/modelPostSpansResponse"
             }
           }
         },
@@ -32,23 +32,23 @@
             "in": "body",
             "required": true,
             "schema": {
-              "$ref": "#/definitions/jaegerBatch"
+              "$ref": "#/definitions/modelPostSpansRequest"
             }
           }
         ],
         "tags": [
-          "CollectorServiceV1"
+          "CollectorServiceV2"
         ]
       }
     },
-    "/api/v1/traces/{id}": {
+    "/api/v2/traces/{id}": {
       "get": {
         "operationId": "GetTrace",
         "responses": {
           "200": {
             "description": "",
             "schema": {
-              "$ref": "#/definitions/jaegerTrace"
+              "$ref": "#/definitions/modelGetTraceResponse"
             }
           }
         },
@@ -61,7 +61,7 @@
           }
         ],
         "tags": [
-          "QueryServiceV1"
+          "QueryServiceV2"
         ]
       }
     }
@@ -74,32 +74,40 @@
           "type": "string"
         },
         "process": {
-          "$ref": "#/definitions/jaegerProcess"
+          "$ref": "#/definitions/modelProcess"
         }
       }
     },
-    "jaegerBatch": {
+    "modelBatch": {
       "type": "object",
       "properties": {
         "spans": {
           "type": "array",
           "items": {
-            "$ref": "#/definitions/jaegerSpan"
+            "$ref": "#/definitions/modelSpan"
           }
         },
         "process": {
-          "$ref": "#/definitions/jaegerProcess"
+          "$ref": "#/definitions/modelProcess"
         }
       }
     },
-    "jaegerKeyValue": {
+    "modelGetTraceResponse": {
+      "type": "object",
+      "properties": {
+        "trace": {
+          "$ref": "#/definitions/modelTrace"
+        }
+      }
+    },
+    "modelKeyValue": {
       "type": "object",
       "properties": {
         "key": {
           "type": "string"
         },
         "v_type": {
-          "$ref": "#/definitions/jaegerValueType"
+          "$ref": "#/definitions/modelValueType"
         },
         "v_str": {
           "type": "string"
@@ -122,7 +130,7 @@
         }
       }
     },
-    "jaegerLog": {
+    "modelLog": {
       "type": "object",
       "properties": {
         "timestamp": {
@@ -132,12 +140,29 @@
         "fields": {
           "type": "array",
           "items": {
-            "$ref": "#/definitions/jaegerKeyValue"
+            "$ref": "#/definitions/modelKeyValue"
           }
         }
       }
     },
-    "jaegerProcess": {
+    "modelPostSpansRequest": {
+      "type": "object",
+      "properties": {
+        "batch": {
+          "$ref": "#/definitions/modelBatch"
+        }
+      }
+    },
+    "modelPostSpansResponse": {
+      "type": "object",
+      "properties": {
+        "ok": {
+          "type": "boolean",
+          "format": "boolean"
+        }
+      }
+    },
+    "modelProcess": {
       "type": "object",
       "properties": {
         "service_name": {
@@ -146,12 +171,12 @@
         "tags": {
           "type": "array",
           "items": {
-            "$ref": "#/definitions/jaegerKeyValue"
+            "$ref": "#/definitions/modelKeyValue"
           }
         }
       }
     },
-    "jaegerSpan": {
+    "modelSpan": {
       "type": "object",
       "properties": {
         "trace_id": {
@@ -168,7 +193,7 @@
         "references": {
           "type": "array",
           "items": {
-            "$ref": "#/definitions/jaegerSpanRef"
+            "$ref": "#/definitions/modelSpanRef"
           }
         },
         "flags": {
@@ -185,17 +210,17 @@
         "tags": {
           "type": "array",
           "items": {
-            "$ref": "#/definitions/jaegerKeyValue"
+            "$ref": "#/definitions/modelKeyValue"
           }
         },
         "logs": {
           "type": "array",
           "items": {
-            "$ref": "#/definitions/jaegerLog"
+            "$ref": "#/definitions/modelLog"
           }
         },
         "process": {
-          "$ref": "#/definitions/jaegerProcess"
+          "$ref": "#/definitions/modelProcess"
         },
         "process_id": {
           "type": "string"
@@ -208,7 +233,7 @@
         }
       }
     },
-    "jaegerSpanRef": {
+    "modelSpanRef": {
       "type": "object",
       "properties": {
         "trace_id": {
@@ -220,11 +245,11 @@
           "format": "byte"
         },
         "ref_type": {
-          "$ref": "#/definitions/jaegerSpanRefType"
+          "$ref": "#/definitions/modelSpanRefType"
         }
       }
     },
-    "jaegerSpanRefType": {
+    "modelSpanRefType": {
       "type": "string",
       "enum": [
         "CHILD_OF",
@@ -232,13 +257,13 @@
       ],
       "default": "CHILD_OF"
     },
-    "jaegerTrace": {
+    "modelTrace": {
       "type": "object",
       "properties": {
         "spans": {
           "type": "array",
           "items": {
-            "$ref": "#/definitions/jaegerSpan"
+            "$ref": "#/definitions/modelSpan"
           }
         },
         "process_map": {
@@ -255,7 +280,7 @@
         }
       }
     },
-    "jaegerValueType": {
+    "modelValueType": {
       "type": "string",
       "enum": [
         "STRING",
@@ -265,11 +290,6 @@
         "BINARY"
       ],
       "default": "STRING"
-    },
-    "protobufEmpty": {
-      "type": "object",
-      "description": "service Foo {\n      rpc Bar(google.protobuf.Empty) returns (google.protobuf.Empty);\n    }\n\nThe JSON representation for `Empty` is empty JSON object `{}`.",
-      "title": "A generic empty message that you can re-use to avoid defining duplicated\nempty messages in your APIs. A typical example is to use it as the request\nor the response type of an API method. For instance:"
     }
   },
   "externalDocs": {

@@ -3,7 +3,7 @@ TOP_PKGS := $(shell glide novendor | grep -v -e ./thrift-gen/... -e swagger-gen.
 STORAGE_PKGS = ./plugin/storage/integration/...
 
 # all .go files that don't exist in hidden directories
-ALL_SRC := $(shell find . -name "*.go" | grep -v -e vendor -e thrift-gen -e swagger-gen -e examples -e doc.go -e jaeger_test.pb.go \
+ALL_SRC := $(shell find . -name "*.go" | grep -v -e vendor -e thrift-gen -e swagger-gen -e examples -e doc.go -e model_test.pb.go \
         -e ".*/\..*" \
         -e ".*/_.*" \
         -e ".*/mocks.*")
@@ -67,7 +67,7 @@ md-to-godoc-gen:
 
 .PHONY: clean
 clean:
-	rm -rf cover.out cover.html lint.log fmt.log jaeger-ui-build
+	rm -rf cover.out .cover/ cover.html lint.log fmt.log jaeger-ui-build
 
 .PHONY: test
 test: go-gen
@@ -92,7 +92,7 @@ cover: nocover
 	@echo pre-compiling tests
 	@time go test -i $(ALL_PKGS)
 	@./scripts/cover.sh $(shell go list $(TOP_PKGS))
-	grep -E -v 'jaeger.pb.*.go' cover.out > cover-nogen.out
+	grep -E -v 'model.pb.*.go' cover.out > cover-nogen.out
 	mv cover-nogen.out cover.out
 	go tool cover -html=cover.out -o cover.html
 
@@ -115,7 +115,7 @@ lint-gas:
 lint: lint-gas
 	$(GOVET) $(TOP_PKGS)
 	@cat /dev/null > $(LINT_LOG)
-	@$(foreach pkg, $(TOP_PKGS), $(GOLINT) $(pkg) | grep -v -e pkg/es/wrapper.go -e /mocks/ -e thrift-gen -e thrift-0.9.2 -e jaeger_test.pb.go >> $(LINT_LOG) || true;)
+	@$(foreach pkg, $(TOP_PKGS), $(GOLINT) $(pkg) | grep -v -e pkg/es/wrapper.go -e /mocks/ -e thrift-gen -e thrift-0.9.2 -e model_test.pb.go >> $(LINT_LOG) || true;)
 	@[ ! -s "$(LINT_LOG)" ] || (echo "Lint Failures" | cat - $(LINT_LOG) && false)
 	@$(GOFMT) -e -s -l $(ALL_SRC) > $(FMT_LOG)
 	@./scripts/updateLicenses.sh >> $(FMT_LOG)
@@ -337,15 +337,12 @@ Mgoogle/protobuf/empty.proto=github.com/gogo/protobuf/types,\
 Mgoogle/api/annotations.proto=github.com/gogo/googleapis/google/api:\
 $$GOPATH/src/github.com/jaegertracing/jaeger/model \
 		--swagger_out=model/proto/openapi/ \
-		model/proto/jaeger.proto
-
-	# Workaround for https://github.com/grpc-ecosystem/grpc-gateway/issues/229.
-	sed -i '' "s/empty.Empty/types.Empty/g" model/jaeger.pb.gw.go
+		model/proto/model.proto
 
 	protoc \
 		-I model/proto \
 		--go_out=$$GOPATH/src/github.com/jaegertracing/jaeger/model/prototest/ \
-		model/proto/jaeger_test.proto
+		model/proto/model_test.proto
 
 .PHONY: proto-install
 proto-install:
