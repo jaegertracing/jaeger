@@ -1,7 +1,7 @@
 {
   "swagger": "2.0",
   "info": {
-    "title": "model.proto",
+    "title": "api_v2.proto",
     "version": "1.0"
   },
   "schemes": [
@@ -22,7 +22,7 @@
           "200": {
             "description": "",
             "schema": {
-              "$ref": "#/definitions/modelPostSpansResponse"
+              "$ref": "#/definitions/api_v2PostSpansResponse"
             }
           }
         },
@@ -32,12 +32,12 @@
             "in": "body",
             "required": true,
             "schema": {
-              "$ref": "#/definitions/modelPostSpansRequest"
+              "$ref": "#/definitions/api_v2PostSpansRequest"
             }
           }
         ],
         "tags": [
-          "CollectorServiceV2"
+          "CollectorService"
         ]
       }
     },
@@ -48,7 +48,7 @@
           "200": {
             "description": "",
             "schema": {
-              "$ref": "#/definitions/modelGetTraceResponse"
+              "$ref": "#/definitions/api_v2GetTraceResponse"
             }
           }
         },
@@ -61,7 +61,7 @@
           }
         ],
         "tags": [
-          "QueryServiceV2"
+          "QueryService"
         ]
       }
     }
@@ -74,40 +74,40 @@
           "type": "string"
         },
         "process": {
-          "$ref": "#/definitions/modelProcess"
+          "$ref": "#/definitions/api_v2Process"
         }
       }
     },
-    "modelBatch": {
+    "api_v2Batch": {
       "type": "object",
       "properties": {
         "spans": {
           "type": "array",
           "items": {
-            "$ref": "#/definitions/modelSpan"
+            "$ref": "#/definitions/api_v2Span"
           }
         },
         "process": {
-          "$ref": "#/definitions/modelProcess"
+          "$ref": "#/definitions/api_v2Process"
         }
       }
     },
-    "modelGetTraceResponse": {
+    "api_v2GetTraceResponse": {
       "type": "object",
       "properties": {
         "trace": {
-          "$ref": "#/definitions/modelTrace"
+          "$ref": "#/definitions/api_v2Trace"
         }
       }
     },
-    "modelKeyValue": {
+    "api_v2KeyValue": {
       "type": "object",
       "properties": {
         "key": {
           "type": "string"
         },
         "v_type": {
-          "$ref": "#/definitions/modelValueType"
+          "$ref": "#/definitions/api_v2ValueType"
         },
         "v_str": {
           "type": "string"
@@ -130,7 +130,7 @@
         }
       }
     },
-    "modelLog": {
+    "api_v2Log": {
       "type": "object",
       "properties": {
         "timestamp": {
@@ -140,20 +140,20 @@
         "fields": {
           "type": "array",
           "items": {
-            "$ref": "#/definitions/modelKeyValue"
+            "$ref": "#/definitions/api_v2KeyValue"
           }
         }
       }
     },
-    "modelPostSpansRequest": {
+    "api_v2PostSpansRequest": {
       "type": "object",
       "properties": {
         "batch": {
-          "$ref": "#/definitions/modelBatch"
+          "$ref": "#/definitions/api_v2Batch"
         }
       }
     },
-    "modelPostSpansResponse": {
+    "api_v2PostSpansResponse": {
       "type": "object",
       "properties": {
         "ok": {
@@ -162,7 +162,7 @@
         }
       }
     },
-    "modelProcess": {
+    "api_v2Process": {
       "type": "object",
       "properties": {
         "service_name": {
@@ -171,12 +171,12 @@
         "tags": {
           "type": "array",
           "items": {
-            "$ref": "#/definitions/modelKeyValue"
+            "$ref": "#/definitions/api_v2KeyValue"
           }
         }
       }
     },
-    "modelSpan": {
+    "api_v2Span": {
       "type": "object",
       "properties": {
         "trace_id": {
@@ -193,7 +193,7 @@
         "references": {
           "type": "array",
           "items": {
-            "$ref": "#/definitions/modelSpanRef"
+            "$ref": "#/definitions/api_v2SpanRef"
           }
         },
         "flags": {
@@ -210,17 +210,17 @@
         "tags": {
           "type": "array",
           "items": {
-            "$ref": "#/definitions/modelKeyValue"
+            "$ref": "#/definitions/api_v2KeyValue"
           }
         },
         "logs": {
           "type": "array",
           "items": {
-            "$ref": "#/definitions/modelLog"
+            "$ref": "#/definitions/api_v2Log"
           }
         },
         "process": {
-          "$ref": "#/definitions/modelProcess"
+          "$ref": "#/definitions/api_v2Process"
         },
         "process_id": {
           "type": "string"
@@ -233,7 +233,7 @@
         }
       }
     },
-    "modelSpanRef": {
+    "api_v2SpanRef": {
       "type": "object",
       "properties": {
         "trace_id": {
@@ -245,11 +245,11 @@
           "format": "byte"
         },
         "ref_type": {
-          "$ref": "#/definitions/modelSpanRefType"
+          "$ref": "#/definitions/api_v2SpanRefType"
         }
       }
     },
-    "modelSpanRefType": {
+    "api_v2SpanRefType": {
       "type": "string",
       "enum": [
         "CHILD_OF",
@@ -257,13 +257,13 @@
       ],
       "default": "CHILD_OF"
     },
-    "modelTrace": {
+    "api_v2Trace": {
       "type": "object",
       "properties": {
         "spans": {
           "type": "array",
           "items": {
-            "$ref": "#/definitions/modelSpan"
+            "$ref": "#/definitions/api_v2Span"
           }
         },
         "process_map": {
@@ -280,7 +280,7 @@
         }
       }
     },
-    "modelValueType": {
+    "api_v2ValueType": {
       "type": "string",
       "enum": [
         "STRING",
