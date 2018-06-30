@@ -79,7 +79,12 @@ func (c *Configuration) NewClient(logger *zap.Logger, metricsFactory metrics.Fac
 			sm.Emit(err, duration)
 
 			if err != nil {
-				logger.Error("Elasticsearch could not process bulk request", zap.Error(err),
+				failed := len(response.Failed())
+				total := len(requests)
+				logger.Error("Elasticsearch could not process bulk request",
+					zap.Int("request_count", total),
+					zap.Int("failed_count", failed),
+					zap.Error(err),
 					zap.Any("response", response))
 			}
 		}).
