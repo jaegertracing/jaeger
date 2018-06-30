@@ -26,18 +26,18 @@ import (
 func TestTraceFindSpanByID(t *testing.T) {
 	trace := &model.Trace{
 		Spans: []*model.Span{
-			{SpanID: model.SpanID(1), OperationName: "x"},
-			{SpanID: model.SpanID(2), OperationName: "y"},
-			{SpanID: model.SpanID(1), OperationName: "z"}, // same span ID
+			{SpanID: model.NewSpanID(1), OperationName: "x"},
+			{SpanID: model.NewSpanID(2), OperationName: "y"},
+			{SpanID: model.NewSpanID(1), OperationName: "z"}, // same span ID
 		},
 	}
-	s1 := trace.FindSpanByID(model.SpanID(1))
+	s1 := trace.FindSpanByID(model.NewSpanID(1))
 	assert.NotNil(t, s1)
 	assert.Equal(t, "x", s1.OperationName)
-	s2 := trace.FindSpanByID(model.SpanID(2))
+	s2 := trace.FindSpanByID(model.NewSpanID(2))
 	assert.NotNil(t, s2)
 	assert.Equal(t, "y", s2.OperationName)
-	s3 := trace.FindSpanByID(model.SpanID(3))
+	s3 := trace.FindSpanByID(model.NewSpanID(3))
 	assert.Nil(t, s3)
 }
 

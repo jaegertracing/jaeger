@@ -76,6 +76,7 @@ func (jbh *jaegerBatchesHandler) SubmitBatches(ctx thrift.Context, batches []*ja
 		}
 		oks, err := jbh.modelProcessor.ProcessSpans(mSpans, JaegerFormatType)
 		if err != nil {
+			jbh.logger.Error("Collector failed to process span batch", zap.Error(err))
 			return nil, err
 		}
 		batchOk := true
@@ -85,6 +86,8 @@ func (jbh *jaegerBatchesHandler) SubmitBatches(ctx thrift.Context, batches []*ja
 				break
 			}
 		}
+
+		jbh.logger.Debug("Span batch processed by the collector.", zap.Bool("ok", batchOk))
 		res := &jaeger.BatchSubmitResponse{
 			Ok: batchOk,
 		}
@@ -117,6 +120,7 @@ func (h *zipkinSpanHandler) SubmitZipkinBatch(ctx thrift.Context, spans []*zipki
 	}
 	bools, err := h.modelProcessor.ProcessSpans(mSpans, ZipkinFormatType)
 	if err != nil {
+		h.logger.Error("Collector failed to process Zipkin span batch", zap.Error(err))
 		return nil, err
 	}
 	responses := make([]*zipkincore.Response, len(spans))
@@ -125,6 +129,8 @@ func (h *zipkinSpanHandler) SubmitZipkinBatch(ctx thrift.Context, spans []*zipki
 		res.Ok = ok
 		responses[i] = res
 	}
+
+	h.logger.Debug("Zipkin span batch processed by the collector.", zap.Int("span-count", len(spans)))
 	return responses, nil
 }
 

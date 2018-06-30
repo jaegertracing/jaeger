@@ -48,7 +48,7 @@ func TestGetArchivedTrace_NotFound(t *testing.T) {
 }
 
 func TestGetArchivedTraceSuccess(t *testing.T) {
-	traceID := model.TraceID{Low: 123456}
+	traceID := model.NewTraceID(0, 123456)
 	mockReader := &spanstoremocks.Reader{}
 	mockReader.On("GetTrace", mock.AnythingOfType("model.TraceID")).
 		Return(mockTrace, nil).Once()

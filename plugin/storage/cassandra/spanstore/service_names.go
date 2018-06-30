@@ -53,7 +53,7 @@ func NewServiceNamesStorage(
 		session:       session,
 		InsertStmt:    insertServiceName,
 		QueryStmt:     queryServiceNames,
-		metrics:       casMetrics.NewTable(metricsFactory, "ServiceNames"),
+		metrics:       casMetrics.NewTable(metricsFactory, "service_names"),
 		writeCacheTTL: writeCacheTTL,
 		logger:        logger,
 		serviceNames: cache.NewLRUWithOptions(

@@ -61,7 +61,7 @@ func createProcessor(t *testing.T, mFactory metrics.Factory, tFactory thrift.TPr
 	require.NoError(t, err)
 
 	numProcessors := 1
-	processor, err := NewThriftProcessor(server, numProcessors, mFactory, tFactory, handler)
+	processor, err := NewThriftProcessor(server, numProcessors, mFactory, tFactory, handler, zap.NewNop())
 	require.NoError(t, err)
 
 	go processor.Serve()
@@ -83,7 +83,7 @@ func initCollectorAndReporter(t *testing.T) (*metrics.LocalFactory, *testutils.M
 }
 
 func TestNewThriftProcessor_ZeroCount(t *testing.T) {
-	_, err := NewThriftProcessor(nil, 0, nil, nil, nil)
+	_, err := NewThriftProcessor(nil, 0, nil, nil, nil, zap.NewNop())
 	assert.EqualError(t, err, "Number of processors must be greater than 0, called with 0")
 }
 

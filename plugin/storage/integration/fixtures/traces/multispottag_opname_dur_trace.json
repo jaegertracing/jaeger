@@ -1,16 +1,16 @@
 {
-  "Spans": [
+  "spans": [
     {
-      "traceID": "19",
-      "spanID": "5",
+      "traceId": "AAAAAAAAAAAAAAAAAAAAGQ==",
+      "spanId": "AAAAAAAAAAU=",
       "operationName": "query19-operation",
       "references": [],
       "startTime": "2017-01-26T16:46:31.639875Z",
-      "duration": 5000,
+      "duration": "5000ns",
       "tags": [
         {
           "key": "sameplacetag1",
-          "vType": "string",
+          "vType": "STRING",
           "vStr": "sameplacevalue"
         }
       ],
@@ -19,13 +19,13 @@
         "tags": [
           {
             "key": "sameplacetag4",
-            "vType": "bool",
-            "vNum": 1
+            "vType": "BOOL",
+            "vBool": true
           },
           {
             "key": "sameplacetag3",
-            "vType": "float64",
-            "vNum": 4634802150889750528
+            "vType": "FLOAT64",
+            "vFloat64": 72.5
           }
         ]
       },
@@ -35,8 +35,8 @@
           "fields": [
             {
               "key": "sameplacetag2",
-              "vType": "int64",
-              "vNum": 123
+              "vType": "INT64",
+              "vInt64": 123
             }
           ]
         },
@@ -45,8 +45,8 @@
           "fields": [
             {
               "key": "blob",
-              "vType": "binary",
-              "vBlob": "AAAwOQ=="
+              "vType": "BINARY",
+              "vBinary": "AAAwOQ=="
             }
           ]
         }

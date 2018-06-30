@@ -93,7 +93,7 @@ func NewSpanWriter(
 		client: client,
 		logger: logger,
 		writerMetrics: spanWriterMetrics{
-			indexCreate: storageMetrics.NewWriteMetrics(metricsFactory, "IndexCreate"),
+			indexCreate: storageMetrics.NewWriteMetrics(metricsFactory, "index_create"),
 		},
 		serviceWriter: serviceOperationStorage.Write,
 		indexCache: cache.NewLRUWithOptions(

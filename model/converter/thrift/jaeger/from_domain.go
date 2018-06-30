@@ -72,10 +72,7 @@ func (d domainToJaegerTransformer) keyValueToTag(kv *model.KeyValue) *jaeger.Tag
 	}
 
 	if kv.VType == model.BoolType {
-		boolValue := false
-		if kv.VNum > 0 {
-			boolValue = true
-		}
+		boolValue := kv.Bool()
 		return &jaeger.Tag{
 			Key:   kv.Key,
 			VType: jaeger.TagType_BOOL,
@@ -143,7 +140,7 @@ func (d domainToJaegerTransformer) transformSpan(span *model.Span) *jaeger.Span 
 		TraceIdLow:    int64(span.TraceID.Low),
 		TraceIdHigh:   int64(span.TraceID.High),
 		SpanId:        int64(span.SpanID),
-		ParentSpanId:  int64(span.ParentSpanID),
+		ParentSpanId:  int64(span.ParentSpanID()),
 		OperationName: span.OperationName,
 		References:    refs,
 		Flags:         int32(span.Flags),

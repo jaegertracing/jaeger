@@ -117,7 +117,13 @@ func (b *Builder) getMetricsFactory() (metrics.Factory, error) {
 	if b.metricsFactory != nil {
 		return b.metricsFactory, nil
 	}
-	return b.Metrics.CreateMetricsFactory("jaeger_agent")
+
+	baseFactory, err := b.Metrics.CreateMetricsFactory("jaeger")
+	if err != nil {
+		return nil, err
+	}
+
+	return baseFactory.Namespace("agent", nil), nil
 }
 
 // CreateAgent creates the Agent
@@ -135,7 +141,7 @@ func (b *Builder) CreateAgent(logger *zap.Logger) (*Agent, error) {
 		reps := append([]reporter.Reporter{mainReporter}, b.otherReporters...)
 		rep = reporter.NewMultiReporter(reps...)
 	}
-	processors, err := b.GetProcessors(rep, mFactory)
+	processors, err := b.GetProcessors(rep, mFactory, logger)
 	if err != nil {
 		return nil, err
 	}
@@ -147,7 +153,7 @@ func (b *Builder) CreateAgent(logger *zap.Logger) (*Agent, error) {
 }
 
 // GetProcessors creates Processors with attached Reporter
-func (b *Builder) GetProcessors(rep reporter.Reporter, mFactory metrics.Factory) ([]processors.Processor, error) {
+func (b *Builder) GetProcessors(rep reporter.Reporter, mFactory metrics.Factory, logger *zap.Logger) ([]processors.Processor, error) {
 	retMe := make([]processors.Processor, len(b.Processors))
 	for idx, cfg := range b.Processors {
 		protoFactory, ok := protocolFactoryMap[cfg.Protocol]
@@ -167,7 +173,7 @@ func (b *Builder) GetProcessors(rep reporter.Reporter, mFactory metrics.Factory)
 			"protocol": string(cfg.Protocol),
 			"model":    string(cfg.Model),
 		})
-		processor, err := cfg.GetThriftProcessor(metrics, protoFactory, handler)
+		processor, err := cfg.GetThriftProcessor(metrics, protoFactory, handler, logger)
 		if err != nil {
 			return nil, err
 		}
@@ -190,6 +196,7 @@ func (c *ProcessorConfiguration) GetThriftProcessor(
 	mFactory metrics.Factory,
 	factory thrift.TProtocolFactory,
 	handler processors.AgentProcessor,
+	logger *zap.Logger,
 ) (processors.Processor, error) {
 	c.applyDefaults()
 
@@ -198,7 +205,7 @@ func (c *ProcessorConfiguration) GetThriftProcessor(
 		return nil, err
 	}
 
-	return processors.NewThriftProcessor(server, c.Workers, mFactory, factory, handler)
+	return processors.NewThriftProcessor(server, c.Workers, mFactory, factory, handler, logger)
 }
 
 func (c *ProcessorConfiguration) applyDefaults() {

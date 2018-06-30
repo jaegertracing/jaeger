@@ -23,13 +23,14 @@ import (
 )
 
 const (
-	collectorQueueSize           = "collector.queue-size"
-	collectorNumWorkers          = "collector.num-workers"
-	collectorWriteCacheTTL       = "collector.write-cache-ttl"
-	collectorPort                = "collector.port"
-	collectorHTTPPort            = "collector.http-port"
-	collectorZipkinHTTPort       = "collector.zipkin.http-port"
-	collectorHealthCheckHTTPPort = "collector.health-check-http-port"
+	collectorQueueSize     = "collector.queue-size"
+	collectorNumWorkers    = "collector.num-workers"
+	collectorWriteCacheTTL = "collector.write-cache-ttl"
+	collectorPort          = "collector.port"
+	collectorHTTPPort      = "collector.http-port"
+	collectorZipkinHTTPort = "collector.zipkin.http-port"
+	// CollectorDefaultHealthCheckHTTPPort is the default HTTP Port for health check
+	CollectorDefaultHealthCheckHTTPPort = 14269
 )
 
 // CollectorOptions holds configuration for collector
@@ -44,8 +45,6 @@ type CollectorOptions struct {
 	CollectorHTTPPort int
 	// CollectorZipkinHTTPPort is the port that the Zipkin collector service listens in on for http requests
 	CollectorZipkinHTTPPort int
-	// CollectorHealthCheckHTTPPort is the port that the health check service listens in on for http requests
-	CollectorHealthCheckHTTPPort int
 }
 
 // AddFlags adds flags for CollectorOptions
@@ -55,7 +54,6 @@ func AddFlags(flags *flag.FlagSet) {
 	flags.Int(collectorPort, 14267, "The tchannel port for the collector service")
 	flags.Int(collectorHTTPPort, 14268, "The http port for the collector service")
 	flags.Int(collectorZipkinHTTPort, 0, "The http port for the Zipkin collector service e.g. 9411")
-	flags.Int(collectorHealthCheckHTTPPort, 14269, "The http port for the health check service")
 }
 
 // InitFromViper initializes CollectorOptions with properties from viper
@@ -65,6 +63,5 @@ func (cOpts *CollectorOptions) InitFromViper(v *viper.Viper) *CollectorOptions {
 	cOpts.CollectorPort = v.GetInt(collectorPort)
 	cOpts.CollectorHTTPPort = v.GetInt(collectorHTTPPort)
 	cOpts.CollectorZipkinHTTPPort = v.GetInt(collectorZipkinHTTPort)
-	cOpts.CollectorHealthCheckHTTPPort = v.GetInt(collectorHealthCheckHTTPPort)
 	return cOpts
 }

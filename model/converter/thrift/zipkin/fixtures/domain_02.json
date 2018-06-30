@@ -1,8 +1,8 @@
 {
-  "Spans": [
+  "spans": [
     {
-      "traceID": "1",
-      "spanID": "2",
+      "traceId": "AAAAAAAAAAAAAAAAAAAAAQ==",
+      "spanId": "AAAAAAAAAAI=",
       "operationName": "test-process-tags",
       "startTime": "1970-01-01T00:00:00-00:00",
       "process": {
@@ -14,8 +14,8 @@
           },
           {
             "key": "ip",
-            "vNum": 12345,
-            "vType": "int64"
+            "vType": "INT64",
+            "vInt64": 12345
           },
           {
             "key": "jaeger.version",

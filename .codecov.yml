@@ -1,0 +1,12 @@
+coverage:
+  range: 100..100
+  round: down
+  precision: 2
+
+codecov:
+  notify:
+    require_ci_to_pass: yes
+
+# see https://docs.codecov.io/docs/ignoring-paths
+ignore:
+  - "model.pb*.go"

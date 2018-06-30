@@ -16,6 +16,7 @@ package main
 
 import (
 	"fmt"
+	"io"
 	"log"
 	"net"
 	"net/http"
@@ -44,6 +45,7 @@ import (
 	"github.com/jaegertracing/jaeger/cmd/flags"
 	queryApp "github.com/jaegertracing/jaeger/cmd/query/app"
 	"github.com/jaegertracing/jaeger/pkg/config"
+	"github.com/jaegertracing/jaeger/pkg/healthcheck"
 	pMetrics "github.com/jaegertracing/jaeger/pkg/metrics"
 	"github.com/jaegertracing/jaeger/pkg/recoveryhandler"
 	"github.com/jaegertracing/jaeger/pkg/version"
@@ -89,9 +91,13 @@ func main() {
 			if err != nil {
 				return err
 			}
+			hc, err := sFlags.NewHealthCheck(logger)
+			if err != nil {
+				logger.Fatal("Could not start the health check server.", zap.Error(err))
+			}
 
 			mBldr := new(pMetrics.Builder).InitFromViper(v)
-			metricsFactory, err := mBldr.CreateMetricsFactory("jaeger-standalone")
+			metricsFactory, err := mBldr.CreateMetricsFactory("jaeger")
 			if err != nil {
 				return errors.Wrap(err, "Cannot create metrics factory")
 			}
@@ -119,11 +125,19 @@ func main() {
 			qOpts := new(queryApp.QueryOptions).InitFromViper(v)
 
 			startAgent(aOpts, cOpts, logger, metricsFactory)
-			startCollector(cOpts, spanWriter, logger, metricsFactory, samplingHandler)
-			startQuery(qOpts, spanReader, dependencyReader, logger, metricsFactory, mBldr)
+			startCollector(cOpts, spanWriter, logger, metricsFactory, samplingHandler, hc)
+			startQuery(qOpts, spanReader, dependencyReader, logger, metricsFactory, mBldr, hc)
+			hc.Ready()
 
 			select {
 			case <-signalsChannel:
+				if closer, ok := spanWriter.(io.Closer); ok {
+					err := closer.Close()
+					if err != nil {
+						logger.Error("Failed to close span writer", zap.Error(err))
+					}
+				}
+
 				logger.Info("Jaeger Standalone is finishing")
 			}
 			return nil
@@ -132,6 +146,8 @@ func main() {
 
 	command.AddCommand(version.Command())
 	command.AddCommand(env.Command())
+
+	flags.SetDefaultHealthCheckPort(collector.CollectorDefaultHealthCheckHTTPPort)
 
 	config.AddFlags(
 		v,
@@ -158,7 +174,7 @@ func startAgent(
 	logger *zap.Logger,
 	baseFactory metrics.Factory,
 ) {
-	metricsFactory := baseFactory.Namespace("jaeger-agent", nil)
+	metricsFactory := baseFactory.Namespace("agent", nil)
 
 	if len(b.CollectorHostPorts) == 0 {
 		b.CollectorHostPorts = append(b.CollectorHostPorts, fmt.Sprintf("127.0.0.1:%d", cOpts.CollectorPort))
@@ -180,8 +196,9 @@ func startCollector(
 	logger *zap.Logger,
 	baseFactory metrics.Factory,
 	samplingHandler sampling.Handler,
+	hc *healthcheck.HealthCheck,
 ) {
-	metricsFactory := baseFactory.Namespace("jaeger-collector", nil)
+	metricsFactory := baseFactory.Namespace("collector", nil)
 
 	spanBuilder, err := collector.NewSpanHandlerBuilder(
 		cOpts,
@@ -222,6 +239,7 @@ func startCollector(
 		if err := http.ListenAndServe(httpPortStr, recoveryHandler(r)); err != nil {
 			logger.Fatal("Could not launch jaeger-collector HTTP server", zap.Error(err))
 		}
+		hc.Set(healthcheck.Unavailable)
 	}()
 }
 
@@ -251,15 +269,15 @@ func startQuery(
 	logger *zap.Logger,
 	baseFactory metrics.Factory,
 	metricsBuilder *pMetrics.Builder,
+	hc *healthcheck.HealthCheck,
 ) {
-
 	tracer, closer, err := jaegerClientConfig.Configuration{
 		Sampler: &jaegerClientConfig.SamplerConfig{
 			Type:  "const",
 			Param: 1.0,
 		},
 		RPCMetrics: true,
-	}.New("jaeger-query", jaegerClientConfig.Metrics(baseFactory))
+	}.New("jaeger-query", jaegerClientConfig.Metrics(baseFactory.Namespace("client", nil)))
 	if err != nil {
 		logger.Fatal("Failed to initialize tracer", zap.Error(err))
 	}
@@ -289,6 +307,7 @@ func startQuery(
 		if err := http.ListenAndServe(portStr, recoveryHandler(r)); err != nil {
 			logger.Fatal("Could not launch jaeger-query service", zap.Error(err))
 		}
+		hc.Set(healthcheck.Unavailable)
 	}()
 }
 

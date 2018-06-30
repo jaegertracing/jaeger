@@ -67,17 +67,15 @@ func main() {
 			if err != nil {
 				return err
 			}
-
-			queryOpts := new(app.QueryOptions).InitFromViper(v)
-			hc, err := healthcheck.
-				New(healthcheck.Unavailable, healthcheck.Logger(logger)).
-				Serve(queryOpts.HealthCheckHTTPPort)
+			hc, err := sFlags.NewHealthCheck(logger)
 			if err != nil {
 				logger.Fatal("Could not start the health check server.", zap.Error(err))
 			}
 
+			queryOpts := new(app.QueryOptions).InitFromViper(v)
+
 			mBldr := new(pMetrics.Builder).InitFromViper(v)
-			metricsFactory, err := mBldr.CreateMetricsFactory("jaeger-query")
+			baseFactory, err := mBldr.CreateMetricsFactory("jaeger")
 			if err != nil {
 				logger.Fatal("Cannot create metrics factory.", zap.Error(err))
 			}
@@ -88,14 +86,14 @@ func main() {
 					Param: 1.0,
 				},
 				RPCMetrics: true,
-			}.New("jaeger-query", jaegerClientConfig.Metrics(metricsFactory))
+			}.New("jaeger-query", jaegerClientConfig.Metrics(baseFactory.Namespace("client", nil)))
 			if err != nil {
 				logger.Fatal("Failed to initialize tracer", zap.Error(err))
 			}
 			defer closer.Close()
 
 			storageFactory.InitFromViper(v)
-			if err := storageFactory.Initialize(metricsFactory, logger); err != nil {
+			if err := storageFactory.Initialize(baseFactory, logger); err != nil {
 				logger.Fatal("Failed to init storage factory", zap.Error(err))
 			}
 			spanReader, err := storageFactory.CreateSpanReader()
@@ -152,6 +150,8 @@ func main() {
 
 	command.AddCommand(version.Command())
 	command.AddCommand(env.Command())
+
+	flags.SetDefaultHealthCheckPort(app.QueryDefaultHealthCheckHTTPPort)
 
 	config.AddFlags(
 		v,

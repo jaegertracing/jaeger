@@ -26,6 +26,9 @@ matrix:
     - ES_INTEGRATION_TEST=true
   - go: "1.10"
     env:
+    - KAFKA_INTEGRATION_TEST=true
+  - go: "1.10"
+    env:
     - HOTROD=true
 
 services:
@@ -54,11 +57,13 @@ script:
   - if [ "$CROSSDOCK" == true ]; then bash ./scripts/travis/build-crossdock.sh ; else echo 'skipping crossdock'; fi
   - if [ "$DOCKER" == true ]; then bash ./scripts/travis/build-docker-images.sh ; else echo 'skipping docker images'; fi
   - if [ "$ES_INTEGRATION_TEST" == true ]; then bash ./scripts/travis/es-integration-test.sh ; else echo 'skipping elastic search integration test'; fi
+  - if [ "$KAFKA_INTEGRATION_TEST" == true ]; then bash ./scripts/travis/kafka-integration-test.sh ; else echo 'skipping kafka integration test'; fi
   - if [ "$HOTROD" == true ]; then bash ./scripts/travis/hotrod-integration-test.sh ; else echo 'skipping hotrod example'; fi
   - if [ "$DEPLOY" == true ]; then make build-binaries-linux build-binaries-windows build-binaries-darwin ; else echo 'skipping linux'; fi
 
 after_success:
-  - if [ "$COVERAGE" == true ]; then travis_retry goveralls -coverprofile=cover.out -service=travis-ci || true ; else echo 'skipping coverage'; fi
+  - if [ "$COVERAGE" == true ]; then mv cover.out coverage.txt ; else echo 'skipping coverage'; fi
+  - if [ "$COVERAGE" == true ]; then bash <(curl -s https://codecov.io/bash) ; else echo 'skipping coverage'; fi
 
 after_failure:
   - if [ "$CROSSDOCK" == true ]; then make crossdock-logs ; else echo 'skipping crossdock'; fi

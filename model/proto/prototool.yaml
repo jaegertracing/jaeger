@@ -1,0 +1,11 @@
+protoc_includes:
+  # note vendor is .gitignored
+  - ../../vendor/
+  - ../../vendor/github.com/grpc-ecosystem/grpc-gateway
+  - ../../vendor/github.com/grpc-ecosystem/grpc-gateway/third_party/googleapis
+
+lint:
+  exclude_ids:
+    - FILE_OPTIONS_EQUAL_GO_PACKAGE_PB_SUFFIX
+    - ENUM_FIELD_PREFIXES
+    - ENUM_ZERO_VALUES_INVALID

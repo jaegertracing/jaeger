@@ -1,6 +1,26 @@
 Changes by Version
 ==================
 
+1.5.0 (2018-05-28)
+------------------
+
+#### Backend Changes
+
+- Add bounds to memory storage (#845) by Juraci Paixão Kröhling (@jpkrohling)
+- Add metric for debug traces (#796) by Won Jun Jang (@black-adder)
+- Change metrics naming scheme (#776) by Juraci Paixão Kröhling (@jpkrohling)
+- Remove ParentSpanID from domain model (#831) by Yuri Shkuro (@yurishkuro)
+- Add ability to adjust static sampling probabilities per operation (#827) by Won Jun Jang (@black-adder)
+- Support log-level flag on agent (#828) by Won Jun Jang (@black-adder)
+- Add healthcheck to standalone (#784) by Eundoo Song (@eundoosong)
+- Do not use KeyValue fields directly and use KeyValues as decorator only (#810) by Yuri Shkuro (@yurishkuro)
+- Upgrade to go 1.10 (#792) by Prithvi Raj (@vprithvi)
+- Do not create Cassandra index if it already exists (#782) by Greg Swift (@gregswift)
+
+#### UI Changes
+
+- None
+
 1.4.1 (2018-04-21)
 ------------------
 

@@ -28,6 +28,7 @@ import (
 	"github.com/jaegertracing/jaeger/storage"
 	depStoreMocks "github.com/jaegertracing/jaeger/storage/dependencystore/mocks"
 	"github.com/jaegertracing/jaeger/storage/mocks"
+	"github.com/jaegertracing/jaeger/storage/spanstore"
 	spanStoreMocks "github.com/jaegertracing/jaeger/storage/spanstore/mocks"
 )
 
@@ -36,7 +37,8 @@ var _ storage.ArchiveFactory = new(Factory)
 
 func defaultCfg() FactoryConfig {
 	return FactoryConfig{
-		SpanStorageType:         cassandraStorageType,
+		SpanWriterTypes:         []string{cassandraStorageType},
+		SpanReaderType:          cassandraStorageType,
 		DependenciesStorageType: cassandraStorageType,
 	}
 }
@@ -46,21 +48,26 @@ func TestNewFactory(t *testing.T) {
 	require.NoError(t, err)
 	assert.NotEmpty(t, f.factories)
 	assert.NotEmpty(t, f.factories[cassandraStorageType])
-	assert.Equal(t, cassandraStorageType, f.SpanStorageType)
+	assert.Equal(t, cassandraStorageType, f.SpanWriterTypes[0])
+	assert.Equal(t, cassandraStorageType, f.SpanReaderType)
 	assert.Equal(t, cassandraStorageType, f.DependenciesStorageType)
 
 	f, err = NewFactory(FactoryConfig{
-		SpanStorageType:         elasticsearchStorageType,
+		SpanWriterTypes:         []string{cassandraStorageType, kafkaStorageType},
+		SpanReaderType:          elasticsearchStorageType,
 		DependenciesStorageType: memoryStorageType,
 	})
 	require.NoError(t, err)
 	assert.NotEmpty(t, f.factories)
+	assert.NotEmpty(t, f.factories[cassandraStorageType])
+	assert.NotNil(t, f.factories[kafkaStorageType])
 	assert.NotEmpty(t, f.factories[elasticsearchStorageType])
 	assert.NotNil(t, f.factories[memoryStorageType])
-	assert.Equal(t, elasticsearchStorageType, f.SpanStorageType)
+	assert.Equal(t, []string{cassandraStorageType, kafkaStorageType}, f.SpanWriterTypes)
+	assert.Equal(t, elasticsearchStorageType, f.SpanReaderType)
 	assert.Equal(t, memoryStorageType, f.DependenciesStorageType)
 
-	f, err = NewFactory(FactoryConfig{SpanStorageType: "x", DependenciesStorageType: "y"})
+	f, err = NewFactory(FactoryConfig{SpanWriterTypes: []string{"x"}, DependenciesStorageType: "y", SpanReaderType: "z"})
 	require.Error(t, err)
 	expected := "Unknown storage type" // could be 'x' or 'y' since code iterates through map.
 	assert.Equal(t, expected, err.Error()[0:len(expected)])
@@ -100,7 +107,7 @@ func TestCreate(t *testing.T) {
 	depReader := new(depStoreMocks.Reader)
 
 	mock.On("CreateSpanReader").Return(spanReader, errors.New("span-reader-error"))
-	mock.On("CreateSpanWriter").Return(spanWriter, errors.New("span-writer-error"))
+	mock.On("CreateSpanWriter").Once().Return(spanWriter, errors.New("span-writer-error"))
 	mock.On("CreateDependencyReader").Return(depReader, errors.New("dep-reader-error"))
 
 	r, err := f.CreateSpanReader()
@@ -108,7 +115,7 @@ func TestCreate(t *testing.T) {
 	assert.EqualError(t, err, "span-reader-error")
 
 	w, err := f.CreateSpanWriter()
-	assert.Equal(t, spanWriter, w)
+	assert.Nil(t, w)
 	assert.EqualError(t, err, "span-writer-error")
 
 	d, err := f.CreateDependencyReader()
@@ -120,6 +127,38 @@ func TestCreate(t *testing.T) {
 
 	_, err = f.CreateArchiveSpanWriter()
 	assert.EqualError(t, err, "Archive storage not supported")
+
+	mock.On("CreateSpanWriter").Return(spanWriter, nil)
+	w, err = f.CreateSpanWriter()
+	assert.NoError(t, err)
+	assert.Equal(t, spanWriter, w)
+}
+
+func TestCreateMulti(t *testing.T) {
+	cfg := defaultCfg()
+	cfg.SpanWriterTypes = append(cfg.SpanWriterTypes, elasticsearchStorageType)
+	f, err := NewFactory(cfg)
+	require.NoError(t, err)
+
+	mock := new(mocks.Factory)
+	mock2 := new(mocks.Factory)
+	f.factories[cassandraStorageType] = mock
+	f.factories[elasticsearchStorageType] = mock2
+
+	spanWriter := new(spanStoreMocks.Writer)
+	spanWriter2 := new(spanStoreMocks.Writer)
+
+	mock.On("CreateSpanWriter").Once().Return(spanWriter, errors.New("span-writer-error"))
+
+	w, err := f.CreateSpanWriter()
+	assert.Nil(t, w)
+	assert.EqualError(t, err, "span-writer-error")
+
+	mock.On("CreateSpanWriter").Return(spanWriter, nil)
+	mock2.On("CreateSpanWriter").Return(spanWriter2, nil)
+	w, err = f.CreateSpanWriter()
+	assert.NoError(t, err)
+	assert.Equal(t, spanstore.NewCompositeWriter(spanWriter, spanWriter2), w)
 }
 
 func TestCreateArchive(t *testing.T) {

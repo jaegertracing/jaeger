@@ -75,7 +75,7 @@ type node struct {
 //
 // TODO convert process tags to a canonical format somewhere else
 func hostKey(span *model.Span) string {
-	if tag, ok := span.Process.Tags.FindByKey("ip"); ok {
+	if tag, ok := model.KeyValues(span.Process.Tags).FindByKey("ip"); ok {
 		if tag.VType == model.StringType {
 			return tag.VStr
 		}
@@ -115,14 +115,14 @@ func (a *clockSkewAdjuster) buildSubGraphs() {
 	a.roots = make(map[model.SpanID]*node)
 	for _, n := range a.spans {
 		// TODO handle FOLLOWS_FROM references
-		if n.span.ParentSpanID == 0 {
+		if n.span.ParentSpanID() == 0 {
 			a.roots[n.span.SpanID] = n
 			continue
 		}
-		if p, ok := a.spans[n.span.ParentSpanID]; ok {
+		if p, ok := a.spans[n.span.ParentSpanID()]; ok {
 			p.children = append(p.children, n)
 		} else {
-			warning := fmt.Sprintf(warningFormatInvalidParentID, n.span.ParentSpanID)
+			warning := fmt.Sprintf(warningFormatInvalidParentID, n.span.ParentSpanID())
 			n.span.Warnings = append(n.span.Warnings, warning)
 			// Treat spans with invalid parent ID as root spans
 			a.roots[n.span.SpanID] = n

@@ -131,6 +131,8 @@ func (r *Reporter) submitAndReport(submissionFunc func(ctx thrift.Context) error
 		r.logger.Error(errMsg, zap.Error(err))
 		return err
 	}
+
+	r.logger.Debug("Span batch submitted by the agent", zap.Int64("span-count", size))
 	batchMetrics.BatchSize.Update(size)
 	batchMetrics.BatchesSubmitted.Inc(1)
 	batchMetrics.SpansSubmitted.Inc(size)

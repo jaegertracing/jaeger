@@ -19,12 +19,13 @@ import (
 
 	"github.com/kr/pretty"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 
 	"github.com/jaegertracing/jaeger/model"
 )
 
 var (
-	someTraceID       = model.TraceID{High: 22222, Low: 44444}
+	someTraceID       = model.NewTraceID(22222, 44444)
 	someSpanID        = model.SpanID(3333)
 	someParentSpanID  = model.SpanID(11111)
 	someOperationName = "someOperationName"
@@ -54,27 +55,27 @@ var (
 	someDBTags = []KeyValue{
 		{
 			Key:         someStringTagKey,
-			ValueType:   model.StringType.String(),
+			ValueType:   stringType,
 			ValueString: someStringTagValue,
 		},
 		{
 			Key:       someBoolTagKey,
-			ValueType: model.BoolType.String(),
+			ValueType: boolType,
 			ValueBool: someBoolTagValue,
 		},
 		{
 			Key:        someLongTagKey,
-			ValueType:  model.Int64Type.String(),
+			ValueType:  int64Type,
 			ValueInt64: someLongTagValue,
 		},
 		{
 			Key:          someDoubleTagKey,
-			ValueType:    model.Float64Type.String(),
+			ValueType:    float64Type,
 			ValueFloat64: someDoubleTagValue,
 		},
 		{
 			Key:         someBinaryTagKey,
-			ValueType:   model.BinaryType.String(),
+			ValueType:   binaryType,
 			ValueBinary: someBinaryTagValue,
 		},
 	}
@@ -110,19 +111,18 @@ var (
 	someDBTraceID = TraceIDFromDomain(someTraceID)
 	someDBRefs    = []SpanRef{
 		{
-			RefType: model.ChildOf.String(),
+			RefType: "child-of",
 			SpanID:  int64(someParentSpanID),
 			TraceID: someDBTraceID,
 		},
 	}
-	notValidTagTypeErrStr = "not a valid ValueType string krustytheklown"
+	notValidTagTypeErrStr = "invalid ValueType in"
 )
 
 func getTestJaegerSpan() *model.Span {
 	return &model.Span{
 		TraceID:       someTraceID,
 		SpanID:        someSpanID,
-		ParentSpanID:  someParentSpanID,
 		OperationName: someOperationName,
 		References:    someRefs,
 		Flags:         someFlags,
@@ -145,7 +145,6 @@ func getTestSpan() *Span {
 	span := &Span{
 		TraceID:       someDBTraceID,
 		SpanID:        int64(someSpanID),
-		ParentID:      int64(someParentSpanID),
 		OperationName: someOperationName,
 		Flags:         int32(someFlags),
 		StartTime:     int64(model.TimeAsEpochMicroseconds(someStartTime)),
@@ -194,12 +193,19 @@ func TestToSpan(t *testing.T) {
 }
 
 func TestFromSpan(t *testing.T) {
-	expectedSpan := getTestJaegerSpan()
-	actualJSpan, err := ToDomain(getTestSpan())
-	assert.NoError(t, err)
-	if !assert.EqualValues(t, expectedSpan, actualJSpan) {
-		for _, diff := range pretty.Diff(expectedSpan, actualJSpan) {
-			t.Log(diff)
+	for _, testParentID := range []bool{false, true} {
+		testDBSpan := getTestSpan()
+		if testParentID {
+			testDBSpan.ParentID = testDBSpan.Refs[0].SpanID
+			testDBSpan.Refs = nil
+		}
+		expectedSpan := getTestJaegerSpan()
+		actualJSpan, err := ToDomain(testDBSpan)
+		assert.NoError(t, err)
+		if !assert.EqualValues(t, expectedSpan, actualJSpan) {
+			for _, diff := range pretty.Diff(expectedSpan, actualJSpan) {
+				t.Log(diff)
+			}
 		}
 	}
 }
@@ -234,13 +240,14 @@ func TestFailingFromDBSpanBadRefs(t *testing.T) {
 			TraceID: someDBTraceID,
 		},
 	})
-	failingDBSpanTransform(t, faultyDBRefs, "not a valid SpanRefType string makeOurOwnCasino")
+	failingDBSpanTransform(t, faultyDBRefs, "invalid SpanRefType in")
 }
 
 func failingDBSpanTransform(t *testing.T, dbSpan *Span, errMsg string) {
 	jSpan, err := ToDomain(dbSpan)
 	assert.Nil(t, jSpan)
-	assert.EqualError(t, err, errMsg)
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), errMsg)
 }
 
 func TestFailingFromDBLogs(t *testing.T) {
@@ -257,12 +264,13 @@ func TestFailingFromDBLogs(t *testing.T) {
 	}
 	jLogs, err := converter{}.fromDBLogs(someDBLogs)
 	assert.Nil(t, jLogs)
-	assert.EqualError(t, err, "not a valid ValueType string krustytheklown")
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), notValidTagTypeErrStr)
 }
 
 func TestDBTagTypeError(t *testing.T) {
-	_, err := converter{}.fromDBTagOfType(&KeyValue{ValueType: "x"}, model.ValueType(-1))
-	assert.Equal(t, ErrUnknownKeyValueTypeFromCassandra, err)
+	_, err := converter{}.fromDBTag(&KeyValue{ValueType: "x"})
+	assert.Contains(t, err.Error(), notValidTagTypeErrStr)
 }
 
 func TestGenerateHashCode(t *testing.T) {

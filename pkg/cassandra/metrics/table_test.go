@@ -34,31 +34,31 @@ func TestTableEmit(t *testing.T) {
 		{
 			err: nil,
 			counts: map[string]int64{
-				"a_table.attempts": 1,
-				"a_table.inserts":  1,
+				"attempts|table=a_table": 1,
+				"inserts|table=a_table":  1,
 			},
 			gauges: map[string]int64{
-				"a_table.latency-ok.P999": 51,
-				"a_table.latency-ok.P50":  51,
-				"a_table.latency-ok.P75":  51,
-				"a_table.latency-ok.P90":  51,
-				"a_table.latency-ok.P95":  51,
-				"a_table.latency-ok.P99":  51,
+				"latency-ok|table=a_table.P999": 51,
+				"latency-ok|table=a_table.P50":  51,
+				"latency-ok|table=a_table.P75":  51,
+				"latency-ok|table=a_table.P90":  51,
+				"latency-ok|table=a_table.P95":  51,
+				"latency-ok|table=a_table.P99":  51,
 			},
 		},
 		{
 			err: errors.New("some error"),
 			counts: map[string]int64{
-				"a_table.attempts": 1,
-				"a_table.errors":   1,
+				"attempts|table=a_table": 1,
+				"errors|table=a_table":   1,
 			},
 			gauges: map[string]int64{
-				"a_table.latency-err.P999": 51,
-				"a_table.latency-err.P50":  51,
-				"a_table.latency-err.P75":  51,
-				"a_table.latency-err.P90":  51,
-				"a_table.latency-err.P95":  51,
-				"a_table.latency-err.P99":  51,
+				"latency-err|table=a_table.P999": 51,
+				"latency-err|table=a_table.P50":  51,
+				"latency-err|table=a_table.P75":  51,
+				"latency-err|table=a_table.P90":  51,
+				"latency-err|table=a_table.P95":  51,
+				"latency-err|table=a_table.P99":  51,
 			},
 		},
 	}
@@ -82,8 +82,8 @@ func TestTableExec(t *testing.T) {
 		{
 			q: insertQuery{},
 			counts: map[string]int64{
-				"a_table.attempts": 1,
-				"a_table.inserts":  1,
+				"attempts|table=a_table": 1,
+				"inserts|table=a_table":  1,
 			},
 		},
 		{
@@ -92,8 +92,8 @@ func TestTableExec(t *testing.T) {
 				err: errors.New("failed"),
 			},
 			counts: map[string]int64{
-				"a_table.attempts": 1,
-				"a_table.errors":   1,
+				"attempts|table=a_table": 1,
+				"errors|table=a_table":   1,
 			},
 		},
 		{
@@ -103,8 +103,8 @@ func TestTableExec(t *testing.T) {
 			},
 			log: true,
 			counts: map[string]int64{
-				"a_table.attempts": 1,
-				"a_table.errors":   1,
+				"attempts|table=a_table": 1,
+				"errors|table=a_table":   1,
 			},
 		},
 	}

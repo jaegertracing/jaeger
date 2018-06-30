@@ -22,6 +22,7 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
+	"github.com/stretchr/testify/require"
 	"github.com/uber/jaeger-lib/metrics"
 	"go.uber.org/zap"
 
@@ -94,7 +95,7 @@ func TestSpanReaderGetTrace(t *testing.T) {
 		expectedErr string
 	}{
 		{scanner: matchOnce()},
-		{scanner: badScan(), expectedErr: "not a valid ValueType string bad"},
+		{scanner: badScan(), expectedErr: "invalid ValueType in"},
 		{
 			scanner:     matchOnce(),
 			closeErr:    errors.New("error on close()"),
@@ -121,7 +122,8 @@ func TestSpanReaderGetTrace(t *testing.T) {
 					assert.NoError(t, err)
 					assert.NotNil(t, trace)
 				} else {
-					assert.EqualError(t, err, testCase.expectedErr)
+					require.Error(t, err)
+					assert.Contains(t, err.Error(), testCase.expectedErr)
 					assert.Nil(t, trace)
 				}
 			})
@@ -272,8 +274,8 @@ func TestSpanReaderFindTraces(t *testing.T) {
 				// scanMatcher can match Iter.Scan() parameters and set trace ID fields
 				scanMatcher := func(name string) interface{} {
 					traceIDs := []dbmodel.TraceID{
-						dbmodel.TraceIDFromDomain(model.TraceID{Low: 1}),
-						dbmodel.TraceIDFromDomain(model.TraceID{Low: 2}),
+						dbmodel.TraceIDFromDomain(model.NewTraceID(0, 1)),
+						dbmodel.TraceIDFromDomain(model.NewTraceID(0, 2)),
 					}
 					scanFunc := func(args []interface{}) bool {
 						if len(traceIDs) == 0 {

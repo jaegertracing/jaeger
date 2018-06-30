@@ -20,10 +20,13 @@ import (
 	"encoding/binary"
 	"encoding/json"
 	"fmt"
+	"math"
 	"os"
 	"testing"
 	"time"
 
+	"github.com/gogo/protobuf/jsonpb"
+	"github.com/gogo/protobuf/proto"
 	"github.com/kr/pretty"
 	"github.com/opentracing/opentracing-go"
 	"github.com/opentracing/opentracing-go/ext"
@@ -39,7 +42,7 @@ const NumberOfFixtures = 3
 func TestToDomain(t *testing.T) {
 	for i := 1; i <= NumberOfFixtures; i++ {
 		in := fmt.Sprintf("fixtures/zipkin_%02d.json", i)
-		out := fmt.Sprintf("fixtures/jaeger_%02d.json", i)
+		out := fmt.Sprintf("fixtures/domain_%02d.json", i)
 		zSpans := loadZipkinSpans(t, in)
 		expectedTrace := loadJaegerTrace(t, out)
 		expectedTrace.NormalizeTimestamps()
@@ -113,16 +116,15 @@ func TestToDomainMultipleSpanKinds(t *testing.T) {
 	}
 
 	for _, test := range tests {
-		fmt.Println(test.json)
 		trace, err := ToDomain(getZipkinSpans(t, test.json))
 		require.Nil(t, err)
 
 		assert.Equal(t, 2, len(trace.Spans))
-		assert.Equal(t, 1, trace.Spans[0].Tags.Len())
+		assert.Equal(t, 1, len(trace.Spans[0].Tags))
 		assert.Equal(t, test.tagFirst.Key, trace.Spans[0].Tags[0].Key)
 		assert.Equal(t, string(test.tagFirst.Value.(ext.SpanKindEnum)), trace.Spans[0].Tags[0].VStr)
 
-		assert.Equal(t, 1, trace.Spans[1].Tags.Len())
+		assert.Equal(t, 1, len(trace.Spans[1].Tags))
 		assert.Equal(t, test.tagSecond.Key, trace.Spans[1].Tags[0].Key)
 		assert.Equal(t, time.Duration(1000), trace.Spans[1].Duration)
 		assert.Equal(t, string(test.tagSecond.Value.(ext.SpanKindEnum)), trace.Spans[1].Tags[0].VStr)
@@ -149,8 +151,8 @@ func TestValidateBase64Values(t *testing.T) {
 	assert.Equal(t, "MDk=", numberToBase64(int16(12345)))
 	assert.Equal(t, "AAAwOQ==", numberToBase64(int32(12345)))
 	assert.Equal(t, "AAAAAAAAMDk=", numberToBase64(int64(12345)))
-	assert.Equal(t, "QMgcgAAAAAA=", numberToBase64(model.Float64("x", 12345).VNum))
-	assert.Equal(t, int64(4668012349850910720), model.Float64("x", 12345).VNum)
+	assert.Equal(t, "QMgcgAAAAAA=", numberToBase64(int64(math.Float64bits(12345))))
+	assert.Equal(t, int64(4668012349850910720), int64(math.Float64bits(12345)), "sanity check")
 }
 
 func loadZipkinSpans(t *testing.T, file string) []*z.Span {
@@ -161,8 +163,14 @@ func loadZipkinSpans(t *testing.T, file string) []*z.Span {
 
 func loadJaegerTrace(t *testing.T, file string) *model.Trace {
 	var trace model.Trace
-	loadJSON(t, file, &trace)
+	loadJSONPB(t, file, &trace)
 	return &trace
+}
+
+func loadJSONPB(t *testing.T, fileName string, obj proto.Message) {
+	jsonFile, err := os.Open(fileName)
+	require.NoError(t, err, "Failed to open json fixture file %s", fileName)
+	require.NoError(t, jsonpb.Unmarshal(jsonFile, obj), fileName)
 }
 
 func getZipkinSpans(t *testing.T, s string) []*z.Span {
