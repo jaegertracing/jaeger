@@ -77,7 +77,7 @@ func (s *ServiceOperationStorage) Write(indexName string, jsonSpan *jModel.Span)
 	serviceID := fmt.Sprintf("%s|%s", service.ServiceName, service.OperationName)
 	cacheKey := fmt.Sprintf("%s:%s", indexName, serviceID)
 	if !keyInCache(cacheKey, s.serviceCache) {
-		s.client.Index().Index(indexName).Type(serviceType).Id(serviceID).BodyJson(service).Add()
+		s.client.Index().Index(indexName).Type(serviceType).BodyJson(service).Add()
 		writeCache(cacheKey, s.serviceCache)
 	}
 }
