@@ -10,6 +10,8 @@ coverage:
 
   status:
     project: yes
+      default:
+        target: 100
     patch: yes
     changes: no
 
