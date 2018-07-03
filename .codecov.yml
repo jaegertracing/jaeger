@@ -1,12 +1,15 @@
-coverage:
-  range: 100..100
-  round: down
-  precision: 2
-
 codecov:
   notify:
     require_ci_to_pass: yes
+  strict_yaml_branch: master  # only use the latest copy on master branch
 
-# see https://docs.codecov.io/docs/ignoring-paths
-ignore:
-  - "model.pb*.go"
+coverage:
+  precision: 2
+  round: down
+  range: "100...100"
+
+  status:
+    project: yes
+    patch: yes
+    changes: no
+
