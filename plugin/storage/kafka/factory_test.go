@@ -71,15 +71,26 @@ func TestKafkaFactory(t *testing.T) {
 	assert.Error(t, err)
 }
 
-func TestKafkaFactoryProto(t *testing.T) {
-	f := NewFactory()
-	v, command := config.Viperize(f.AddFlags)
-	command.ParseFlags([]string{"--kafka.encoding=protobuf"})
-	f.InitFromViper(v)
+func TestKafkaFactoryEncoding(t *testing.T) {
+	tests := []struct {
+		encoding   string
+		marshaller Marshaller
+	}{
+		{encoding: "protobuf", marshaller: new(protobufMarshaller)},
+		{encoding: "json", marshaller: new(jsonMarshaller)},
+	}
+	for _, test := range tests {
+		t.Run(test.encoding, func(t *testing.T) {
+			f := NewFactory()
+			v, command := config.Viperize(f.AddFlags)
+			command.ParseFlags([]string{"--kafka.encoding=" + test.encoding})
+			f.InitFromViper(v)
 
-	f.config = &mockProducerBuilder{t: t}
-	assert.NoError(t, f.Initialize(metrics.NullFactory, zap.NewNop()))
-	assert.IsType(t, &protobufMarshaller{}, f.marshaller)
+			f.config = &mockProducerBuilder{t: t}
+			assert.NoError(t, f.Initialize(metrics.NullFactory, zap.NewNop()))
+			assert.IsType(t, test.marshaller, f.marshaller)
+		})
+	}
 }
 
 func TestKafkaFactoryMarshallerErr(t *testing.T) {
