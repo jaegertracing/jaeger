@@ -6,6 +6,7 @@ TOP_PKGS := $(shell glide novendor | \
 	grep -v \
 		-e ./thrift-gen/... \
 		-e ./swagger-gen/... \
+		-e ./proto-gen/... \
 		-e ./examples/... \
 		-e ./scripts/...\
 	)
@@ -17,6 +18,7 @@ ALL_SRC := $(shell find . -name "*.go" | \
 		-e vendor \
 		-e /thrift-gen/ \
 		-e /swagger-gen/ \
+		-e /proto-gen/ \
 		-e /examples/ \
 		-e doc.go \
 		-e model.pb.go \
