@@ -15,6 +15,8 @@
 package spanstore
 
 import (
+	"crypto/sha256"
+	"fmt"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -31,9 +33,10 @@ func TestWriteService(t *testing.T) {
 		indexService := &mocks.IndexService{}
 
 		indexName := "jaeger-1995-04-21"
+		hashedID := fmt.Sprintf("%x", sha256.Sum256([]byte("service|operation")))
 		indexService.On("Index", stringMatcher(indexName)).Return(indexService)
 		indexService.On("Type", stringMatcher(serviceType)).Return(indexService)
-		indexService.On("Id", stringMatcher("service|operation")).Return(indexService)
+		indexService.On("Id", stringMatcher(hashedID)).Return(indexService)
 		indexService.On("BodyJson", mock.AnythingOfType("spanstore.Service")).Return(indexService)
 		indexService.On("Add")
 
@@ -64,9 +67,10 @@ func TestWriteServiceError(t *testing.T) {
 		indexService := &mocks.IndexService{}
 
 		indexName := "jaeger-1995-04-21"
+		hashedID := fmt.Sprintf("%x", sha256.Sum256([]byte("service|operation")))
 		indexService.On("Index", stringMatcher(indexName)).Return(indexService)
 		indexService.On("Type", stringMatcher(serviceType)).Return(indexService)
-		indexService.On("Id", stringMatcher("service|operation")).Return(indexService)
+		indexService.On("Id", stringMatcher(hashedID)).Return(indexService)
 		indexService.On("BodyJson", mock.AnythingOfType("spanstore.Service")).Return(indexService)
 		indexService.On("Add")
 

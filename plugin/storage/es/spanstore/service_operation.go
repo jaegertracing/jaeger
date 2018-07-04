@@ -16,6 +16,7 @@ package spanstore
 
 import (
 	"context"
+	"crypto/sha256"
 	"fmt"
 	"time"
 
@@ -75,9 +76,10 @@ func (s *ServiceOperationStorage) Write(indexName string, jsonSpan *jModel.Span)
 		OperationName: jsonSpan.OperationName,
 	}
 	serviceID := fmt.Sprintf("%s|%s", service.ServiceName, service.OperationName)
+	hashedID := fmt.Sprintf("%x", sha256.Sum256([]byte(serviceID)))
 	cacheKey := fmt.Sprintf("%s:%s", indexName, serviceID)
 	if !keyInCache(cacheKey, s.serviceCache) {
-		s.client.Index().Index(indexName).Type(serviceType).BodyJson(service).Add()
+		s.client.Index().Index(indexName).Type(serviceType).Id(hashedID).BodyJson(service).Add()
 		writeCache(cacheKey, s.serviceCache)
 	}
 }

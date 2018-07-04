@@ -15,7 +15,9 @@
 package spanstore
 
 import (
+	"crypto/sha256"
 	"errors"
+	"fmt"
 	"strings"
 	"testing"
 	"time"
@@ -159,7 +161,8 @@ func TestSpanWriter_WriteSpan(t *testing.T) {
 				indexService.On("Type", stringMatcher(serviceType)).Return(indexServicePut)
 				indexService.On("Type", stringMatcher(spanType)).Return(indexSpanPut)
 
-				indexServicePut.On("Id", stringMatcher("service|operation")).Return(indexServicePut)
+				hashedID := fmt.Sprintf("%x", sha256.Sum256([]byte("service|operation")))
+				indexServicePut.On("Id", stringMatcher(hashedID)).Return(indexServicePut)
 				indexServicePut.On("BodyJson", mock.AnythingOfType("spanstore.Service")).Return(indexServicePut)
 				indexServicePut.On("Add")
 
