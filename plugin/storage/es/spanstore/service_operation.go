@@ -16,10 +16,9 @@ package spanstore
 
 import (
 	"context"
-	"crypto/sha256"
-	"fmt"
 	"time"
 
+	"github.com/jaegertracing/jaeger/model"
 	"github.com/pkg/errors"
 	"github.com/uber/jaeger-lib/metrics"
 	"go.uber.org/zap"
@@ -75,11 +74,11 @@ func (s *ServiceOperationStorage) Write(indexName string, jsonSpan *jModel.Span)
 		ServiceName:   jsonSpan.Process.ServiceName,
 		OperationName: jsonSpan.OperationName,
 	}
-	serviceID := fmt.Sprintf("%s|%s", service.ServiceName, service.OperationName)
-	hashedID := fmt.Sprintf("%x", sha256.Sum256([]byte(serviceID)))
-	cacheKey := fmt.Sprintf("%s:%s", indexName, serviceID)
+
+	serviceHash, _ := model.HashCode(service)
+	cacheKey := string(serviceHash)
 	if !keyInCache(cacheKey, s.serviceCache) {
-		s.client.Index().Index(indexName).Type(serviceType).Id(hashedID).BodyJson(service).Add()
+		s.client.Index().Index(indexName).Type(serviceType).Id(cacheKey).BodyJson(service).Add()
 		writeCache(cacheKey, s.serviceCache)
 	}
 }

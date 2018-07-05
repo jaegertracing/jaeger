@@ -15,8 +15,6 @@
 package spanstore
 
 import (
-	"crypto/sha256"
-	"fmt"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -24,6 +22,7 @@ import (
 	"github.com/stretchr/testify/require"
 	"gopkg.in/olivere/elastic.v5"
 
+	"github.com/jaegertracing/jaeger/model"
 	jModel "github.com/jaegertracing/jaeger/model/json"
 	"github.com/jaegertracing/jaeger/pkg/es/mocks"
 )
@@ -33,10 +32,17 @@ func TestWriteService(t *testing.T) {
 		indexService := &mocks.IndexService{}
 
 		indexName := "jaeger-1995-04-21"
-		hashedID := fmt.Sprintf("%x", sha256.Sum256([]byte("service|operation")))
+		service := Service{
+			ServiceName:   "service",
+			OperationName: "operation",
+		}
+
+		serviceHash, err := model.HashCode(service)
+		require.NoError(t, err)
+
 		indexService.On("Index", stringMatcher(indexName)).Return(indexService)
 		indexService.On("Type", stringMatcher(serviceType)).Return(indexService)
-		indexService.On("Id", stringMatcher(hashedID)).Return(indexService)
+		indexService.On("Id", stringMatcher(string(serviceHash))).Return(indexService)
 		indexService.On("BodyJson", mock.AnythingOfType("spanstore.Service")).Return(indexService)
 		indexService.On("Add")
 
@@ -67,10 +73,17 @@ func TestWriteServiceError(t *testing.T) {
 		indexService := &mocks.IndexService{}
 
 		indexName := "jaeger-1995-04-21"
-		hashedID := fmt.Sprintf("%x", sha256.Sum256([]byte("service|operation")))
+		service := Service{
+			ServiceName:   "service",
+			OperationName: "operation",
+		}
+
+		serviceHash, err := model.HashCode(service)
+		require.NoError(t, err)
+
 		indexService.On("Index", stringMatcher(indexName)).Return(indexService)
 		indexService.On("Type", stringMatcher(serviceType)).Return(indexService)
-		indexService.On("Id", stringMatcher(hashedID)).Return(indexService)
+		indexService.On("Id", stringMatcher(string(serviceHash))).Return(indexService)
 		indexService.On("BodyJson", mock.AnythingOfType("spanstore.Service")).Return(indexService)
 		indexService.On("Add")
 

@@ -15,9 +15,7 @@
 package spanstore
 
 import (
-	"crypto/sha256"
 	"errors"
-	"fmt"
 	"strings"
 	"testing"
 	"time"
@@ -133,6 +131,10 @@ func TestSpanWriter_WriteSpan(t *testing.T) {
 					},
 					StartTime: date,
 				}
+				service := Service{
+					ServiceName:   "service",
+					OperationName: "operation",
+				}
 
 				spanIndexName := "jaeger-span-1995-04-21"
 				serviceIndexName := "jaeger-service-1995-04-21"
@@ -161,8 +163,10 @@ func TestSpanWriter_WriteSpan(t *testing.T) {
 				indexService.On("Type", stringMatcher(serviceType)).Return(indexServicePut)
 				indexService.On("Type", stringMatcher(spanType)).Return(indexSpanPut)
 
-				hashedID := fmt.Sprintf("%x", sha256.Sum256([]byte("service|operation")))
-				indexServicePut.On("Id", stringMatcher(hashedID)).Return(indexServicePut)
+				serviceHash, err := model.HashCode(service)
+				require.NoError(t, err)
+
+				indexServicePut.On("Id", stringMatcher(string(serviceHash))).Return(indexServicePut)
 				indexServicePut.On("BodyJson", mock.AnythingOfType("spanstore.Service")).Return(indexServicePut)
 				indexServicePut.On("Add")
 
