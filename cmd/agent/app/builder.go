@@ -17,6 +17,7 @@ package app
 import (
 	"fmt"
 	"net/http"
+	"time"
 
 	"github.com/apache/thrift/lib/go/thrift"
 	"github.com/pkg/errors"
@@ -36,10 +37,11 @@ import (
 )
 
 const (
-	defaultQueueSize     = 1000
-	defaultMaxPacketSize = 65000
-	defaultServerWorkers = 10
-	defaultMinPeers      = 3
+	defaultQueueSize        = 1000
+	defaultMaxPacketSize    = 65000
+	defaultServerWorkers    = 10
+	defaultMinPeers         = 3
+	defaultConnCheckTimeout = 250 * time.Millisecond
 
 	defaultHTTPServerHostPort = ":5778"
 
