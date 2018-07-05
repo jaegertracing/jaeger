@@ -30,6 +30,7 @@ const (
 	collectorHostPort         = "collector.host-port"
 	httpServerHostPort        = "http-server.host-port"
 	discoveryMinPeers         = "discovery.min-peers"
+	discoveryConnCheckTimeout = "discovery.conn-check-timeout"
 )
 
 var defaultProcessors = []struct {
@@ -63,6 +64,10 @@ func AddFlags(flags *flag.FlagSet) {
 		discoveryMinPeers,
 		defaultMinPeers,
 		"if using service discovery, the min number of connections to maintain to the backend")
+	flags.Duration(
+		discoveryConnCheckTimeout,
+		defaultConnCheckTimeout,
+		"sets the timeout used when establishing new connections")
 }
 
 // InitFromViper initializes Builder with properties retrieved from Viper.
@@ -84,5 +89,6 @@ func (b *Builder) InitFromViper(v *viper.Viper) *Builder {
 	}
 	b.HTTPServer.HostPort = v.GetString(httpServerHostPort)
 	b.DiscoveryMinPeers = v.GetInt(discoveryMinPeers)
+	b.ConnCheckTimeout = v.GetDuration(discoveryConnCheckTimeout)
 	return b
 }
