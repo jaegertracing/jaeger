@@ -21,6 +21,7 @@ import (
 	"net"
 	"net/http"
 	"os"
+	"time"
 
 	"github.com/gogo/gateway"
 	// "github.com/grpc-ecosystem/go-grpc-middleware/validator"
@@ -29,10 +30,12 @@ import (
 	"google.golang.org/grpc/grpclog"
 
 	"github.com/jaegertracing/jaeger/examples/proto/server"
-	"github.com/jaegertracing/jaeger/model/proto/api_v2"
+	"github.com/jaegertracing/jaeger/model"
+	"github.com/jaegertracing/jaeger/proto-gen/api_v2"
 )
 
 var (
+	isClient    = flag.Bool("client", false, "Run in client mode")
 	gRPCPort    = flag.Int("grpc-port", 10000, "The gRPC server port")
 	gatewayPort = flag.Int("gateway-port", 11000, "The gRPC-Gateway server port")
 )
@@ -61,9 +64,15 @@ func init() {
 // 	return nil
 // }
 
-// Test: curl http://localhost:11000/api/v1/traces/something
+// Tests:
+//     $ curl http://localhost:11000/api/v2/traces/123
+//     $ prototool grpc ./model/proto/api_v2.proto localhost:10000 jaeger.api_v2.QueryService/GetTrace '{"id":"123"}'
 func main() {
 	flag.Parse()
+	if *isClient {
+		runClient()
+		return
+	}
 	addr := fmt.Sprintf("localhost:%d", *gRPCPort)
 	lis, err := net.Listen("tcp", addr)
 	if err != nil {
@@ -75,6 +84,7 @@ func main() {
 	// grpc.StreamInterceptor(grpc_validator.StreamServerInterceptor()),
 	)
 	api_v2.RegisterQueryServiceServer(s, server.New())
+	api_v2.RegisterCollectorServiceServer(s, server.New())
 
 	// Serve gRPC Server
 	log.Info("Serving gRPC on https://", addr)
@@ -132,4 +142,31 @@ func main() {
 	}
 	// log.Fatalln(gwServer.ListenAndServeTLS("", ""))
 	log.Fatalln(gwServer.ListenAndServe())
+}
+
+func runClient() {
+	addr := fmt.Sprintf("localhost:%d", *gRPCPort)
+	// Set up a connection to the server.
+	conn, err := grpc.Dial(addr, grpc.WithInsecure())
+	if err != nil {
+		log.Fatalf("did not connect: %v", err)
+	}
+	defer conn.Close()
+	c := api_v2.NewCollectorServiceClient(conn)
+
+	ctx, cancel := context.WithTimeout(context.Background(), time.Second)
+	defer cancel()
+	r, err := c.PostSpans(ctx, &api_v2.PostSpansRequest{
+		Batch: model.Batch{
+			Spans: []*model.Span{
+				&model.Span{
+					OperationName: "fake-operation",
+				},
+			},
+		},
+	})
+	if err != nil {
+		log.Fatalf("could not post: %v", err)
+	}
+	fmt.Printf("Response: %+v\n", r.Ok)
 }

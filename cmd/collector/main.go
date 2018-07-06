@@ -32,6 +32,8 @@ import (
 	"github.com/uber/tchannel-go"
 	"github.com/uber/tchannel-go/thrift"
 	"go.uber.org/zap"
+	"google.golang.org/grpc"
+	"google.golang.org/grpc/grpclog"
 
 	basicB "github.com/jaegertracing/jaeger/cmd/builder"
 	"github.com/jaegertracing/jaeger/cmd/collector/app"
@@ -41,12 +43,14 @@ import (
 	"github.com/jaegertracing/jaeger/cmd/env"
 	"github.com/jaegertracing/jaeger/cmd/flags"
 	"github.com/jaegertracing/jaeger/pkg/config"
+	"github.com/jaegertracing/jaeger/pkg/grpcutil"
 	"github.com/jaegertracing/jaeger/pkg/healthcheck"
 	pMetrics "github.com/jaegertracing/jaeger/pkg/metrics"
 	"github.com/jaegertracing/jaeger/pkg/recoveryhandler"
 	"github.com/jaegertracing/jaeger/pkg/version"
 	ss "github.com/jaegertracing/jaeger/plugin/sampling/strategystore"
 	"github.com/jaegertracing/jaeger/plugin/storage"
+	"github.com/jaegertracing/jaeger/proto-gen/api_v2"
 	jc "github.com/jaegertracing/jaeger/thrift-gen/jaeger"
 	sc "github.com/jaegertracing/jaeger/thrift-gen/sampling"
 	zc "github.com/jaegertracing/jaeger/thrift-gen/zipkincore"
@@ -120,7 +124,7 @@ func main() {
 				logger.Fatal("Unable to create new TChannel", zap.Error(err))
 			}
 			server := thrift.NewServer(ch)
-			zipkinSpansHandler, jaegerBatchesHandler := handlerBuilder.BuildHandlers()
+			zipkinSpansHandler, jaegerBatchesHandler, grpcHandler := handlerBuilder.BuildHandlers()
 			server.Register(jc.NewTChanCollectorServer(jaegerBatchesHandler))
 			server.Register(zc.NewTChanZipkinCollectorServer(zipkinSpansHandler))
 
@@ -143,13 +147,33 @@ func main() {
 			}
 			httpPortStr := ":" + strconv.Itoa(builderOpts.CollectorHTTPPort)
 			recoveryHandler := recoveryhandler.NewRecoveryHandler(logger, true)
+			httpHandler := recoveryHandler(r)
 
 			go startZipkinHTTPAPI(logger, builderOpts.CollectorZipkinHTTPPort, zipkinSpansHandler, recoveryHandler)
+
+			{
+				log := grpclog.NewLoggerV2(os.Stdout, os.Stderr, os.Stderr)
+				grpclog.SetLoggerV2(log)
+
+				lis, err := net.Listen("tcp", ":10000")
+				if err != nil {
+					log.Fatalln("Failed to listen:", err)
+				}
+
+				grpcSrv := grpc.NewServer()
+				api_v2.RegisterCollectorServiceServer(grpcSrv, grpcHandler)
+				_ = grpcutil.CombineHandlers(grpcSrv, httpHandler)
+				go func() {
+					if err := grpcSrv.Serve(lis); err != nil {
+						logger.Fatal("Could not launch gRPC service", zap.Error(err))
+					}
+				}()
+			}
 
 			logger.Info("Starting Jaeger Collector HTTP server", zap.Int("http-port", builderOpts.CollectorHTTPPort))
 
 			go func() {
-				if err := http.ListenAndServe(httpPortStr, recoveryHandler(r)); err != nil {
+				if err := http.ListenAndServe(httpPortStr, httpHandler); err != nil {
 					logger.Fatal("Could not launch service", zap.Error(err))
 				}
 				hc.Set(healthcheck.Unavailable)
