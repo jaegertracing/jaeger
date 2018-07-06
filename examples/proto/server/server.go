@@ -16,11 +16,12 @@ package server
 
 import (
 	"context"
+	"fmt"
 	"sync"
 	"time"
 
 	"github.com/jaegertracing/jaeger/model"
-	"github.com/jaegertracing/jaeger/model/proto/api_v2"
+	"github.com/jaegertracing/jaeger/proto-gen/api_v2"
 )
 
 // Backend implements QueryServiceV1
@@ -34,6 +35,15 @@ var _ api_v2.QueryServiceServer = (*Backend)(nil)
 // New does new
 func New() *Backend {
 	return &Backend{}
+}
+
+// PostSpans implements gRPC CollectorService.
+func (b *Backend) PostSpans(ctx context.Context, r *api_v2.PostSpansRequest) (*api_v2.PostSpansResponse, error) {
+	fmt.Printf("PostSpans(%+v)\n", *r)
+	for _, s := range r.Batch.Spans {
+		println(s.OperationName)
+	}
+	return &api_v2.PostSpansResponse{Ok: true}, nil
 }
 
 // GetTrace gets trace

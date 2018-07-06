@@ -24,6 +24,16 @@ import "protoc-gen-swagger/options/annotations.proto";
 option go_package = "api_v2";
 option java_package = "io.jaegertracing.api_v2";
 
+// Enable gogoprotobuf extensions (https://github.com/gogo/protobuf/blob/master/extensions.md).
+// Enable custom Marshal method.
+option (gogoproto.marshaler_all) = true;
+// Enable custom Unmarshal method.
+option (gogoproto.unmarshaler_all) = true;
+// Enable custom Size method (Required by Marshal and Unmarshal).
+option (gogoproto.sizer_all) = true;
+// Enable registration with golang/protobuf for the grpc-gateway.
+option (gogoproto.goproto_registration) = true;
+
 option (grpc.gateway.protoc_gen_swagger.options.openapiv2_swagger) = {
   info: {
     version: "1.0";
@@ -36,9 +46,10 @@ option (grpc.gateway.protoc_gen_swagger.options.openapiv2_swagger) = {
   schemes: HTTPS;
 };
 
-
 message PostSpansRequest {
-    Batch batch = 1;
+    Batch batch = 1 [
+        (gogoproto.nullable) = false
+    ];
 }
 
 message PostSpansResponse {
