@@ -1,29 +1,30 @@
 {
-  "Spans": [
+  "spans": [
     {
-      "traceID": "1",
-      "spanID": "2",
+      "traceId": "AAAAAAAAAAAAAAAAAAAAAQ==",
+      "spanId": "AAAAAAAAAAI=",
       "flags": 2,
       "operationName": "test-custom-tags",
       "startTime": "1970-01-01T00:00:00-00:00",
+      "duration": "5000ns",
       "process": {
         "serviceName": "service-x"
       },
       "tags": [
           {
             "key": "bool",
-            "vNum": 1,
-            "vType": "bool"
+            "vType": "BOOL",
+            "vBool": true
           },
           {
             "key": "bytes",
-            "vBlob": "c29tZS1ob3N0LmNvbQ==",
-            "vType": "binary"
+            "vType": "BINARY",
+            "vBinary": "c29tZS1ob3N0LmNvbQ=="
           },
           {
             "key": "i16",
-            "vNum": 12345,
-            "vType": "int64"
+            "vType": "INT64",
+            "vInt64": 12345
           },
           {
             "key": "i16_bad_value",
@@ -31,8 +32,8 @@
           },
           {
             "key": "i32",
-            "vNum": 12345,
-            "vType": "int64"
+            "vType": "INT64",
+            "vInt64": 12345
           },
           {
             "key": "i32_bad_value",
@@ -40,8 +41,8 @@
           },
           {
             "key": "i64",
-            "vNum": 12345,
-            "vType": "int64"
+            "vType": "INT64",
+            "vInt64": 12345
           },
           {
             "key": "i64_bad_value",
@@ -49,8 +50,8 @@
           },
           {
             "key": "double",
-            "vNum": 4668012349850910720,
-            "vType": "float64"
+            "vType": "FLOAT64",
+            "vFloat64": 12345
           },
           {
             "key": "double_bad_value",

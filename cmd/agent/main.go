@@ -73,6 +73,7 @@ func main() {
 		v,
 		command,
 		flags.AddConfigFileFlag,
+		flags.AddLoggingFlag,
 		app.AddFlags,
 		metrics.AddFlags,
 	)

@@ -1,12 +1,12 @@
 {
-  "Spans": [
+  "spans": [
     {
-      "traceID": "221",
-      "spanID": "3",
+      "traceId": "AAAAAAAAAAAAAAAAAAACIQ==",
+      "spanId": "AAAAAAAAAAM=",
       "operationName": "",
       "references": [],
       "startTime": "2017-01-26T16:46:31.639875Z",
-      "duration": 100000,
+      "duration": "100000ns",
       "tags": [],
       "process": {
         "serviceName": "query22-service",

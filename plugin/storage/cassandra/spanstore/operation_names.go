@@ -54,7 +54,7 @@ func NewOperationNamesStorage(
 		session:       session,
 		InsertStmt:    insertOperationName,
 		QueryStmt:     queryOperationNames,
-		metrics:       casMetrics.NewTable(metricsFactory, "OperationNames"),
+		metrics:       casMetrics.NewTable(metricsFactory, "operation_names"),
 		writeCacheTTL: writeCacheTTL,
 		logger:        logger,
 		operationNames: cache.NewLRUWithOptions(

@@ -21,15 +21,15 @@ import (
 	"github.com/stretchr/testify/assert"
 
 	"github.com/jaegertracing/jaeger/model"
+	"github.com/jaegertracing/jaeger/pkg/memory/config"
 	"github.com/jaegertracing/jaeger/storage/spanstore"
 )
 
+var traceID = model.NewTraceID(1, 2)
+
 var testingSpan = &model.Span{
-	TraceID: model.TraceID{
-		Low:  1,
-		High: 2,
-	},
-	SpanID: model.SpanID(1),
+	TraceID: traceID,
+	SpanID:  model.NewSpanID(1),
 	Process: &model.Process{
 		ServiceName: "serviceName",
 		Tags:        model.KeyValues{},
@@ -51,12 +51,9 @@ var testingSpan = &model.Span{
 }
 
 var childSpan1 = &model.Span{
-	TraceID: model.TraceID{
-		Low:  1,
-		High: 2,
-	},
-	SpanID:       model.SpanID(2),
-	ParentSpanID: model.SpanID(1),
+	TraceID:    traceID,
+	SpanID:     model.NewSpanID(2),
+	References: []model.SpanRef{model.NewChildOfRef(traceID, model.NewSpanID(1))},
 	Process: &model.Process{
 		ServiceName: "childService",
 		Tags:        model.KeyValues{},
@@ -78,12 +75,9 @@ var childSpan1 = &model.Span{
 }
 
 var childSpan2 = &model.Span{
-	TraceID: model.TraceID{
-		Low:  1,
-		High: 2,
-	},
-	SpanID:       model.SpanID(3),
-	ParentSpanID: model.SpanID(1),
+	TraceID:    traceID,
+	SpanID:     model.NewSpanID(3),
+	References: []model.SpanRef{model.NewChildOfRef(traceID, model.NewSpanID(1))},
 	Process: &model.Process{
 		ServiceName: "childService",
 		Tags:        model.KeyValues{},
@@ -105,12 +99,10 @@ var childSpan2 = &model.Span{
 }
 
 var childSpan2_1 = &model.Span{
-	TraceID: model.TraceID{
-		Low:  1,
-		High: 2,
-	},
-	SpanID:       model.SpanID(4),
-	ParentSpanID: model.SpanID(3), // child of childSpan2, but with the same service name
+	TraceID: traceID,
+	SpanID:  model.NewSpanID(4),
+	// child of childSpan2, but with the same service name
+	References: []model.SpanRef{model.NewChildOfRef(traceID, model.NewSpanID(3))},
 	Process: &model.Process{
 		ServiceName: "childService",
 		Tags:        model.KeyValues{},
@@ -173,6 +165,35 @@ func TestStoreWriteSpan(t *testing.T) {
 		err := store.WriteSpan(testingSpan)
 		assert.NoError(t, err)
 	})
+}
+
+func TestStoreWithLimit(t *testing.T) {
+	maxTraces := 100
+	store := WithConfiguration(config.Configuration{MaxTraces: maxTraces})
+
+	for i := 0; i < maxTraces*2; i++ {
+		id := model.NewTraceID(1, uint64(i))
+		err := store.WriteSpan(&model.Span{
+			TraceID: id,
+			Process: &model.Process{
+				ServiceName: "TestStoreWithLimit",
+			},
+		})
+		assert.NoError(t, err)
+
+		err = store.WriteSpan(&model.Span{
+			TraceID: id,
+			SpanID:  model.NewSpanID(uint64(i)),
+			Process: &model.Process{
+				ServiceName: "TestStoreWithLimit",
+			},
+			OperationName: "childOperationName",
+		})
+		assert.NoError(t, err)
+	}
+
+	assert.Equal(t, maxTraces, len(store.traces))
+	assert.Equal(t, maxTraces, len(store.ids))
 }
 
 func TestStoreGetTraceSuccess(t *testing.T) {

@@ -1,24 +1,23 @@
 {
   "traceID": "1",
   "spanID": "2",
-  "parentSpanID": "3",
   "flags": 1,
   "operationName": "test-general-conversion",
   "references": [
     {
       "refType": "CHILD_OF",
-      "traceID": "ff",
-      "spanID": "ff"
-    },
-    {
-      "refType": "CHILD_OF",
       "traceID": "1",
-      "spanID": "2"
+      "spanID": "3"
     },
     {
       "refType": "FOLLOWS_FROM",
       "traceID": "1",
-      "spanID": "2"
+      "spanID": "4"
+    },
+    {
+      "refType": "CHILD_OF",
+      "traceID": "ff",
+      "spanID": "ff"
     }
   ],
   "startTime": 1485467191639875,

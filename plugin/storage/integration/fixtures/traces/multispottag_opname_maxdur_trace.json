@@ -1,16 +1,16 @@
 {
-  "Spans": [
+  "spans": [
     {
-      "traceID": "18",
-      "spanID": "4",
+      "traceId": "AAAAAAAAAAAAAAAAAAAAGA==",
+      "spanId": "AAAAAAAAAAQ=",
       "operationName": "query18-operation",
       "references": [],
       "startTime": "2017-01-26T16:46:31.639875Z",
-      "duration": 1000,
+      "duration": "1000ns",
       "tags": [
         {
           "key": "sameplacetag1",
-          "vType": "string",
+          "vType": "STRING",
           "vStr": "sameplacevalue"
         }
       ],
@@ -19,8 +19,8 @@
         "tags": [
           {
             "key": "sameplacetag3",
-            "vType": "float64",
-            "vNum": 4634802150889750528
+            "vType": "FLOAT64",
+            "vFloat64": 72.5
           }
         ]
       },
@@ -30,8 +30,8 @@
           "fields": [
             {
               "key": "sameplacetag2",
-              "vType": "int64",
-              "vNum": 123
+              "vType": "INT64",
+              "vInt64": 123
             }
           ]
         },
@@ -40,13 +40,13 @@
           "fields": [
             {
               "key": "sameplacetag4",
-              "vType": "bool",
-              "vNum": 1
+              "vType": "BOOL",
+              "vBool": true
             },
             {
               "key": "blob",
-              "vType": "binary",
-              "vBlob": "AAAwOQ=="
+              "vType": "BINARY",
+              "vBinary": "AAAwOQ=="
             }
           ]
         }

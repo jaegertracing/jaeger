@@ -18,7 +18,9 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/assert"
+	"go.uber.org/zap"
 
+	"github.com/jaegertracing/jaeger/pkg/config"
 	"github.com/jaegertracing/jaeger/storage"
 )
 
@@ -26,7 +28,7 @@ var _ storage.Factory = new(Factory)
 
 func TestMemoryStorageFactory(t *testing.T) {
 	f := NewFactory()
-	assert.NoError(t, f.Initialize(nil, nil))
+	assert.NoError(t, f.Initialize(nil, zap.NewNop()))
 	assert.NotNil(t, f.store)
 	reader, err := f.CreateSpanReader()
 	assert.NoError(t, err)
@@ -37,4 +39,12 @@ func TestMemoryStorageFactory(t *testing.T) {
 	depReader, err := f.CreateDependencyReader()
 	assert.NoError(t, err)
 	assert.Equal(t, f.store, depReader)
+}
+
+func TestWithConfiguration(t *testing.T) {
+	f := NewFactory()
+	v, command := config.Viperize(f.AddFlags)
+	command.ParseFlags([]string{"--memory.max-traces=100"})
+	f.InitFromViper(v)
+	assert.Equal(t, f.options.Configuration.MaxTraces, 100)
 }

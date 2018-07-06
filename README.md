@@ -105,6 +105,18 @@ See [CONTRIBUTING](./CONTRIBUTING.md).
 
 See [CONTRIBUTING](./CONTRIBUTING.md).
 
+## Maintainers
+
+Below are the official maintainers of the Jaeger project. Please use `@jaegertracing/jaeger-maintainers` to tag them on issues / PRs.
+
+* @black-adder
+* @jpkrohling
+* @pavolloffay
+* @vprithvi
+* @yurishkuro
+
+Some reporitories under [jaegertracing](https://github.com/jaegertracing) org have additional maintainers.
+
 ## Project Status Bi-Weekly Meeting
 
 The Jaeger contributors meet bi-weekly, and everyone is welcome to join.
@@ -141,8 +153,8 @@ If you would like to add your organization to the list, please comment on our
 [godoc]: https://godoc.org/github.com/jaegertracing/jaeger
 [ci-img]: https://travis-ci.org/jaegertracing/jaeger.svg?branch=master
 [ci]: https://travis-ci.org/jaegertracing/jaeger
-[cov-img]: https://coveralls.io/repos/jaegertracing/jaeger/badge.svg?branch=master
-[cov]: https://coveralls.io/github/jaegertracing/jaeger?branch=master
+[cov-img]: https://codecov.io/gh/jaegertracing/jaeger/branch/master/graph/badge.svg
+[cov]: https://codecov.io/gh/jaegertracing/jaeger/branch/master/
 [dapper]: https://research.google.com/pubs/pub36356.html
 [ubeross]: http://uber.github.io
 [ot-badge]: https://img.shields.io/badge/OpenTracing--1.x-inside-blue.svg

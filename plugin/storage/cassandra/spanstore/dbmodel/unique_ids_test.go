@@ -23,8 +23,8 @@ import (
 )
 
 func TestGetIntersectedTraceIDs(t *testing.T) {
-	firstTraceID := TraceIDFromDomain(model.TraceID{High: 1, Low: 1})
-	secondTraceID := TraceIDFromDomain(model.TraceID{High: 2, Low: 2})
+	firstTraceID := TraceIDFromDomain(model.NewTraceID(1, 1))
+	secondTraceID := TraceIDFromDomain(model.NewTraceID(2, 2))
 	listOfUniqueTraceIDs := []UniqueTraceIDs{
 		{
 			firstTraceID:  struct{}{},
@@ -47,13 +47,13 @@ func TestGetIntersectedTraceIDs(t *testing.T) {
 
 func TestAdd(t *testing.T) {
 	u := UniqueTraceIDs{}
-	someID := TraceIDFromDomain(model.TraceID{High: 1, Low: 1})
+	someID := TraceIDFromDomain(model.NewTraceID(1, 1))
 	u.Add(someID)
 	assert.Contains(t, u, someID)
 }
 
 func TestFromList(t *testing.T) {
-	someID := TraceIDFromDomain(model.TraceID{High: 1, Low: 1})
+	someID := TraceIDFromDomain(model.NewTraceID(1, 1))
 	traceIDList := []TraceID{
 		someID,
 	}

@@ -115,14 +115,14 @@ func (a *clockSkewAdjuster) buildSubGraphs() {
 	a.roots = make(map[model.SpanID]*node)
 	for _, n := range a.spans {
 		// TODO handle FOLLOWS_FROM references
-		if n.span.ParentSpanID == 0 {
+		if n.span.ParentSpanID() == 0 {
 			a.roots[n.span.SpanID] = n
 			continue
 		}
-		if p, ok := a.spans[n.span.ParentSpanID]; ok {
+		if p, ok := a.spans[n.span.ParentSpanID()]; ok {
 			p.children = append(p.children, n)
 		} else {
-			warning := fmt.Sprintf(warningFormatInvalidParentID, n.span.ParentSpanID)
+			warning := fmt.Sprintf(warningFormatInvalidParentID, n.span.ParentSpanID())
 			n.span.Warnings = append(n.span.Warnings, warning)
 			// Treat spans with invalid parent ID as root spans
 			a.roots[n.span.SpanID] = n

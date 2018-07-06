@@ -16,6 +16,7 @@ package main
 
 import (
 	"fmt"
+	"io"
 	"log"
 	"net"
 	"net/http"
@@ -96,7 +97,7 @@ func main() {
 			}
 
 			mBldr := new(pMetrics.Builder).InitFromViper(v)
-			metricsFactory, err := mBldr.CreateMetricsFactory("jaeger-standalone")
+			metricsFactory, err := mBldr.CreateMetricsFactory("jaeger")
 			if err != nil {
 				return errors.Wrap(err, "Cannot create metrics factory")
 			}
@@ -130,6 +131,13 @@ func main() {
 
 			select {
 			case <-signalsChannel:
+				if closer, ok := spanWriter.(io.Closer); ok {
+					err := closer.Close()
+					if err != nil {
+						logger.Error("Failed to close span writer", zap.Error(err))
+					}
+				}
+
 				logger.Info("Jaeger Standalone is finishing")
 			}
 			return nil
@@ -166,7 +174,7 @@ func startAgent(
 	logger *zap.Logger,
 	baseFactory metrics.Factory,
 ) {
-	metricsFactory := baseFactory.Namespace("jaeger-agent", nil)
+	metricsFactory := baseFactory.Namespace("agent", nil)
 
 	if len(b.CollectorHostPorts) == 0 {
 		b.CollectorHostPorts = append(b.CollectorHostPorts, fmt.Sprintf("127.0.0.1:%d", cOpts.CollectorPort))
@@ -190,7 +198,7 @@ func startCollector(
 	samplingHandler sampling.Handler,
 	hc *healthcheck.HealthCheck,
 ) {
-	metricsFactory := baseFactory.Namespace("jaeger-collector", nil)
+	metricsFactory := baseFactory.Namespace("collector", nil)
 
 	spanBuilder, err := collector.NewSpanHandlerBuilder(
 		cOpts,
@@ -269,7 +277,7 @@ func startQuery(
 			Param: 1.0,
 		},
 		RPCMetrics: true,
-	}.New("jaeger-query", jaegerClientConfig.Metrics(baseFactory))
+	}.New("jaeger-query", jaegerClientConfig.Metrics(baseFactory.Namespace("client", nil)))
 	if err != nil {
 		logger.Fatal("Failed to initialize tracer", zap.Error(err))
 	}

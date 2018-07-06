@@ -5,7 +5,7 @@ import:
   subpackages:
   - lib/go/thrift
 - package: github.com/gocql/gocql
-  version: 4d2d1ac71932f7c4a6c7feb0d654462e4116c58b
+  version: 181004e14a3fb735efcc826a4256369d0c96747b
 - package: github.com/opentracing/opentracing-go
   subpackages:
   - ext
@@ -17,7 +17,7 @@ import:
   subpackages:
   - transport
 - package: github.com/uber/jaeger-lib
-  version: ^1.4.0
+  version: ^1.5.0
 - package: github.com/uber/tchannel-go
   version: v1.1.0
   subpackages:
@@ -55,3 +55,18 @@ import:
 - package: github.com/go-openapi/validate
 - package: github.com/go-openapi/loads
 - package: github.com/elazarl/go-bindata-assetfs
+- package: github.com/Shopify/sarama
+  version: ^1.16.0
+# gogo/protobuf dependencies
+- package: github.com/gogo/googleapis
+  version: master
+- package: github.com/gogo/protobuf
+  version: master
+- package: github.com/grpc-ecosystem/grpc-gateway
+  version: 58f78b988bc393694cef62b92c5cde77e4742ff5
+- package: google.golang.org/grpc
+  version: 1.11.0
+- package: github.com/mwitkow/go-proto-validators
+  version: master
+- package: github.com/gogo/gateway
+  version: master

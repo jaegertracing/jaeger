@@ -133,7 +133,7 @@ func (c *Configuration) NewCluster() *gocql.ClusterConfig {
 	}
 	if c.TLS.Enabled {
 		cluster.SslOpts = &gocql.SslOptions{
-			Config: tls.Config{
+			Config: &tls.Config{
 				ServerName: c.TLS.ServerName,
 			},
 			CertPath:               c.TLS.CertPath,
