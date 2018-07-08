@@ -207,15 +207,18 @@ docker: build_ui docker-no-ui
 
 .PHONY: build-binaries-linux
 build-binaries-linux:
-	GOOS=linux $(MAKE) build-agent build-collector build-query build-all-in-one build-examples
+	GOOS=linux $(MAKE) build-all-binaries
 
 .PHONY: build-binaries-windows
 build-binaries-windows:
-	GOOS=windows $(MAKE) build-agent build-collector build-query build-all-in-one build-examples
+	GOOS=windows $(MAKE) build-all-binaries
 
 .PHONY: build-binaries-darwin
 build-binaries-darwin:
-	GOOS=darwin $(MAKE) build-agent build-collector build-query build-all-in-one build-examples
+	GOOS=darwin $(MAKE) build-all-binaries
+
+.PHONY: build-all-binaries
+build-all-binaries: build-agent build-collector build-query build-all-in-one build-examples
 
 .PHONY: docker-images-only
 docker-images-only:
