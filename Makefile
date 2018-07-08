@@ -172,7 +172,7 @@ docker-hotrod:
 	docker build -t $(DOCKER_NAMESPACE)/example-hotrod:${DOCKER_TAG} ./examples/hotrod
 
 .PHONY: build_ui
-build_ui:
+build_ui: install-statik
 	cd jaeger-ui && yarn install && npm run build
 	(cd cmd/query/app; statik -f -src ../../../jaeger-ui/build)
 
