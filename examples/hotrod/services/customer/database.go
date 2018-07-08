@@ -81,9 +81,11 @@ func (d *database) Get(ctx context.Context, customerID string) (*Customer, error
 		ctx = opentracing.ContextWithSpan(ctx, span)
 	}
 
-	// simulate misconfigured connection pool that only gives one connection at a time
-	d.lock.Lock(ctx)
-	defer d.lock.Unlock()
+	if !config.MySQLMutexDisabled {
+		// simulate misconfigured connection pool that only gives one connection at a time
+		d.lock.Lock(ctx)
+		defer d.lock.Unlock()
+	}
 
 	// simulate RPC delay
 	delay.Sleep(config.MySQLGetDelay, config.MySQLGetDelayStdDev)
