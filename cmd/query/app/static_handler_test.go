@@ -19,6 +19,7 @@ import (
 	"io/ioutil"
 	"net/http"
 	"net/http/httptest"
+	"os"
 	"testing"
 	"time"
 
@@ -29,16 +30,10 @@ import (
 	"github.com/jaegertracing/jaeger/pkg/testutils"
 )
 
-func TestDefaultStaticAssetsRoot(t *testing.T) {
-	handler, err := NewStaticAssetsHandler("", StaticAssetsHandlerOptions{})
-	assert.Nil(t, handler)
-	assert.Nil(t, err)
-}
-
 func TestNotExistingUiConfig(t *testing.T) {
 	handler, err := NewStaticAssetsHandler("/foo/bar", StaticAssetsHandlerOptions{})
 	require.Error(t, err)
-	assert.Contains(t, err.Error(), "Cannot read UI static assets")
+	assert.Contains(t, err.Error(), "no such file or directory")
 	assert.Nil(t, handler)
 }
 
@@ -48,13 +43,7 @@ func TestRegisterStaticHandlerPanic(t *testing.T) {
 		RegisterStaticHandler(mux.NewRouter(), logger, &QueryOptions{StaticAssets: "/foo/bar"})
 	})
 	assert.Contains(t, buf.String(), "Could not create static assets handler")
-	assert.Contains(t, buf.String(), "Cannot read UI static assets")
-}
-
-func TestRegisterStaticHandlerNotCreated(t *testing.T) {
-	logger, buf := testutils.NewLogger()
-	RegisterStaticHandler(mux.NewRouter(), logger, &QueryOptions{})
-	assert.Contains(t, buf.String(), "Static handler is not registered")
+	assert.Contains(t, buf.String(), "no such file or directory")
 }
 
 func TestRegisterStaticHandler(t *testing.T) {
@@ -79,7 +68,7 @@ func TestRegisterStaticHandler(t *testing.T) {
 				r = r.PathPrefix(testCase.basePath).Subrouter()
 			}
 			RegisterStaticHandler(r, logger, &QueryOptions{
-				StaticAssets: "fixture/",
+				StaticAssets: "fixture",
 				BasePath:     testCase.basePath,
 				UIConfig:     "fixture/ui-config.json",
 			})
@@ -89,13 +78,14 @@ func TestRegisterStaticHandler(t *testing.T) {
 			defer server.Close()
 
 			httpGet := func(path string) string {
-				resp, err := httpClient.Get(fmt.Sprintf("%s%s%s", server.URL, testCase.baseURL, path))
+				url := fmt.Sprintf("%s%s%s", server.URL, testCase.baseURL, path)
+				resp, err := httpClient.Get(url)
 				require.NoError(t, err)
 				defer resp.Body.Close()
 
 				respByteArray, err := ioutil.ReadAll(resp.Body)
 				require.NoError(t, err)
-				require.Equal(t, http.StatusOK, resp.StatusCode)
+				require.Equal(t, http.StatusOK, resp.StatusCode, "url: %s, response: %v", url, string(respByteArray))
 				return string(respByteArray)
 			}
 
@@ -170,4 +160,20 @@ func TestLoadUIConfig(t *testing.T) {
 			},
 		},
 	})
+}
+
+type fakeFile struct {
+	os.File
+}
+
+func (*fakeFile) Read(p []byte) (n int, err error) {
+	return 0, fmt.Errorf("read error")
+}
+
+func TestLoadIndexHTMLReadError(t *testing.T) {
+	open := func(string) (http.File, error) {
+		return &fakeFile{}, nil
+	}
+	_, err := loadIndexHTML(open)
+	require.Error(t, err)
 }

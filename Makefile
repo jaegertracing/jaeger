@@ -174,8 +174,7 @@ docker-hotrod:
 .PHONY: build_ui
 build_ui:
 	cd jaeger-ui && yarn install && npm run build
-	rm -rf jaeger-ui-build && mkdir jaeger-ui-build
-	cp -r jaeger-ui/build jaeger-ui-build/
+	(cd cmd/query/app; statik -f -src ../../../jaeger-ui/build)
 
 .PHONY: build-all-in-one-linux
 build-all-in-one-linux: build_ui
