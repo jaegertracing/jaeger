@@ -34,8 +34,8 @@ const (
 
 var (
 	acceptedThriftFormats = map[string]struct{}{
-		"application/x-thrift":                 struct{}{},
-		"application/vnd.apache.thrift.binary": struct{}{},
+		"application/x-thrift":                 {},
+		"application/vnd.apache.thrift.binary": {},
 	}
 )
 
