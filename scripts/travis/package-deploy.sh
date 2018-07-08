@@ -24,6 +24,7 @@ function stage-platform-files {
     stage-file ./cmd/agent/agent-$PLATFORM $PACKAGE_STAGING_DIR/jaeger-agent$FILE_EXTENSION
     stage-file ./cmd/query/query-$PLATFORM $PACKAGE_STAGING_DIR/jaeger-query$FILE_EXTENSION
     stage-file ./cmd/collector/collector-$PLATFORM $PACKAGE_STAGING_DIR/jaeger-collector$FILE_EXTENSION
+    stage-file ./examples/hotrod/hotrod-$PLATFORM $PACKAGE_STAGING_DIR/example-hotrod$FILE_EXTENSION
     echo "Copying jaeger-ui-build to $PACKAGE_STAGING_DIR"
     cp -r jaeger-ui-build $PACKAGE_STAGING_DIR
 }

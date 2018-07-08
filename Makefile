@@ -166,10 +166,11 @@ install-go-bindata:
 build-examples: install-go-bindata
 	(cd ./examples/hotrod/services/frontend/ && go-bindata-assetfs -pkg frontend web_assets/...)
 	rm ./examples/hotrod/services/frontend/bindata.go
-	CGO_ENABLED=0 GOOS=linux installsuffix=cgo go build -o ./examples/hotrod/hotrod-linux ./examples/hotrod/main.go
+	CGO_ENABLED=0 installsuffix=cgo go build -o ./examples/hotrod/hotrod-$(GOOS) ./examples/hotrod/main.go
 
 .PHONE: docker-hotrod
-docker-hotrod: build-examples
+docker-hotrod:
+	GOOS=linux $(make) build-examples
 	docker build -t $(DOCKER_NAMESPACE)/example-hotrod:${DOCKER_TAG} ./examples/hotrod
 
 .PHONY: build_ui
@@ -208,15 +209,15 @@ docker: build_ui docker-no-ui
 
 .PHONY: build-binaries-linux
 build-binaries-linux:
-	GOOS=linux $(MAKE) build-agent build-collector build-query build-all-in-one
+	GOOS=linux $(MAKE) build-agent build-collector build-query build-all-in-one build-examples
 
 .PHONY: build-binaries-windows
 build-binaries-windows:
-	GOOS=windows $(MAKE) build-agent build-collector build-query build-all-in-one
+	GOOS=windows $(MAKE) build-agent build-collector build-query build-all-in-one build-examples
 
 .PHONY: build-binaries-darwin
 build-binaries-darwin:
-	GOOS=darwin $(MAKE) build-agent build-collector build-query build-all-in-one
+	GOOS=darwin $(MAKE) build-agent build-collector build-query build-all-in-one build-examples
 
 .PHONY: docker-images-only
 docker-images-only:
