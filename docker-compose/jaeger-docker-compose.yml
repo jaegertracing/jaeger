@@ -15,7 +15,7 @@ services:
 
     jaeger-query:
       image: jaegertracing/jaeger-query
-      command: ["/go/bin/query-linux", "--query.static-files=/go/jaeger-ui/", "--cassandra.keyspace=jaeger_v1_dc1", "--cassandra.servers=cassandra"]
+      command: ["--cassandra.keyspace=jaeger_v1_dc1", "--cassandra.servers=cassandra"]
       ports:
         - "16686:16686"
         - "16687"
