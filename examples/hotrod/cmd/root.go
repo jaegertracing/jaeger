@@ -24,6 +24,7 @@ import (
 	jexpvar "github.com/uber/jaeger-lib/metrics/expvar"
 	jprom "github.com/uber/jaeger-lib/metrics/prometheus"
 	"go.uber.org/zap"
+	"go.uber.org/zap/zapcore"
 )
 
 var (
@@ -35,7 +36,7 @@ var (
 
 // RootCmd represents the base command when called without any subcommands
 var RootCmd = &cobra.Command{
-	Use:   "jaeger-demo",
+	Use:   "examples-hotrod",
 	Short: "HotR.O.D. - A tracing demo application",
 	Long:  `HotR.O.D. - A tracing demo application.`,
 }
@@ -51,9 +52,9 @@ func Execute() {
 
 func init() {
 	RootCmd.PersistentFlags().StringVarP(&metricsBackend, "metrics", "m", "expvar", "Metrics backend (expvar|prometheus)")
-	RootCmd.PersistentFlags().StringVarP(&jAgentHostPort, "jaeger-agent.host-port", "a", "0.0.0.0:6831", "String representing jaeger-agent host:port")
+	RootCmd.PersistentFlags().StringVarP(&jAgentHostPort, "jaeger-agent.host-port", "a", "0.0.0.0:6831", "String representing jaeger-agent UDP host:port")
 	rand.Seed(int64(time.Now().Nanosecond()))
-	logger, _ = zap.NewDevelopment()
+	logger, _ = zap.NewDevelopment(zap.AddStacktrace(zapcore.FatalLevel))
 	cobra.OnInitialize(initMetrics)
 }
 
@@ -63,7 +64,7 @@ func initMetrics() {
 		metricsFactory = jexpvar.NewFactory(10) // 10 buckets for histograms
 		logger.Info("Using expvar as metrics backend")
 	} else if metricsBackend == "prometheus" {
-		metricsFactory = jprom.New()
+		metricsFactory = jprom.New().Namespace("hotrod", nil)
 		logger.Info("Using Prometheus as metrics backend")
 	} else {
 		logger.Fatal("unsupported metrics backend " + metricsBackend)
