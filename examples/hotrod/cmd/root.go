@@ -25,6 +25,8 @@ import (
 	jprom "github.com/uber/jaeger-lib/metrics/prometheus"
 	"go.uber.org/zap"
 	"go.uber.org/zap/zapcore"
+
+	"github.com/jaegertracing/jaeger/examples/hotrod/services/config"
 )
 
 var (
@@ -32,6 +34,10 @@ var (
 	jAgentHostPort string
 	logger         *zap.Logger
 	metricsFactory metrics.Factory
+
+	fixDBConnDelay         time.Duration
+	fixDBConnDisableMutex  bool
+	fixRouteWorkerPoolSize int
 )
 
 // RootCmd represents the base command when called without any subcommands
@@ -53,13 +59,16 @@ func Execute() {
 func init() {
 	RootCmd.PersistentFlags().StringVarP(&metricsBackend, "metrics", "m", "expvar", "Metrics backend (expvar|prometheus)")
 	RootCmd.PersistentFlags().StringVarP(&jAgentHostPort, "jaeger-agent.host-port", "a", "0.0.0.0:6831", "String representing jaeger-agent UDP host:port")
+	RootCmd.PersistentFlags().DurationVarP(&fixDBConnDelay, "fix-db-query-delay", "D", 300*time.Millisecond, "Average lagency of MySQL DB query")
+	RootCmd.PersistentFlags().BoolVarP(&fixDBConnDisableMutex, "fix-disable-db-conn-mutex", "M", false, "Disables the mutex guarding db connection")
+	RootCmd.PersistentFlags().IntVarP(&fixRouteWorkerPoolSize, "fix-route-worker-pool-size", "W", 3, "Default worker pool size")
 	rand.Seed(int64(time.Now().Nanosecond()))
 	logger, _ = zap.NewDevelopment(zap.AddStacktrace(zapcore.FatalLevel))
-	cobra.OnInitialize(initMetrics)
+	cobra.OnInitialize(onInitialize)
 }
 
-// initMetrics is called before the command is executed.
-func initMetrics() {
+// onInitialize is called before the command is executed.
+func onInitialize() {
 	if metricsBackend == "expvar" {
 		metricsFactory = jexpvar.NewFactory(10) // 10 buckets for histograms
 		logger.Info("Using expvar as metrics backend")
@@ -68,6 +77,18 @@ func initMetrics() {
 		logger.Info("Using Prometheus as metrics backend")
 	} else {
 		logger.Fatal("unsupported metrics backend " + metricsBackend)
+	}
+	if config.MySQLGetDelay != fixDBConnDelay {
+		logger.Info("fix: overriding MySQL query delay", zap.Duration("old", config.MySQLGetDelay), zap.Duration("new", fixDBConnDelay))
+		config.MySQLGetDelay = fixDBConnDelay
+	}
+	if fixDBConnDisableMutex {
+		logger.Info("fix: disabling db connection mutex")
+		config.MySQLMutexDisabled = true
+	}
+	if config.RouteWorkerPoolSize != fixRouteWorkerPoolSize {
+		logger.Info("fix: overriding route worker pool size", zap.Int("old", config.RouteWorkerPoolSize), zap.Int("new", fixRouteWorkerPoolSize))
+		config.RouteWorkerPoolSize = fixRouteWorkerPoolSize
 	}
 }
 
