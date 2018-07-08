@@ -107,6 +107,7 @@ func loadIndexHTML(open func(string) (http.File, error)) ([]byte, error) {
 	if err != nil {
 		return nil, errors.Wrap(err, "Cannot open index.html")
 	}
+	defer indexFile.Close()
 	indexBytes, err := ioutil.ReadAll(indexFile)
 	if err != nil {
 		return nil, errors.Wrap(err, "Cannot read from index.html")
