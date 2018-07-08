@@ -157,15 +157,13 @@ install-glide:
 install: install-glide
 	glide install
 
-.PHONY: install-go-bindata
-install-go-bindata:
-	go get github.com/jteeuwen/go-bindata/...
-	go get github.com/elazarl/go-bindata-assetfs/...
+.PHONY: install-statik
+install-statik:
+	go get github.com/rakyll/statik
 
 .PHONY: build-examples
-build-examples: install-go-bindata
-	(cd ./examples/hotrod/services/frontend/ && go-bindata-assetfs -pkg frontend web_assets/...)
-	rm ./examples/hotrod/services/frontend/bindata.go
+build-examples: install-statik
+	(cd examples/hotrod/services/frontend/ && statik -f --src web_assets)
 	CGO_ENABLED=0 installsuffix=cgo go build -o ./examples/hotrod/hotrod-$(GOOS) ./examples/hotrod/main.go
 
 .PHONE: docker-hotrod

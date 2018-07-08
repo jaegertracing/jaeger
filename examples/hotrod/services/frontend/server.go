@@ -18,13 +18,16 @@ import (
 	"encoding/json"
 	"net/http"
 
-	"github.com/elazarl/go-bindata-assetfs"
 	"github.com/opentracing/opentracing-go"
+	"github.com/rakyll/statik/fs"
 	"go.uber.org/zap"
 
 	"github.com/jaegertracing/jaeger/examples/hotrod/pkg/httperr"
 	"github.com/jaegertracing/jaeger/examples/hotrod/pkg/log"
 	"github.com/jaegertracing/jaeger/examples/hotrod/pkg/tracing"
+
+	// register static assets
+	_ "github.com/jaegertracing/jaeger/examples/hotrod/services/frontend/statik"
 )
 
 // Server implements jaeger-demo-frontend service
@@ -33,17 +36,21 @@ type Server struct {
 	tracer   opentracing.Tracer
 	logger   log.Factory
 	bestETA  *bestETA
-	assetFs  *assetfs.AssetFS
+	assetFS  http.FileSystem
 }
 
 // NewServer creates a new frontend.Server
 func NewServer(hostPort string, tracer opentracing.Tracer, logger log.Factory) *Server {
+	assetFS, err := fs.New()
+	if err != nil {
+		logger.Bg().Fatal("cannot import web assets", zap.Error(err))
+	}
 	return &Server{
 		hostPort: hostPort,
 		tracer:   tracer,
 		logger:   logger,
 		bestETA:  newBestETA(tracer, logger),
-		assetFs:  assetFS(),
+		assetFS:  assetFS,
 	}
 }
 
@@ -56,20 +63,22 @@ func (s *Server) Run() error {
 
 func (s *Server) createServeMux() http.Handler {
 	mux := tracing.NewServeMux(s.tracer)
-	mux.Handle("/", http.HandlerFunc(s.home))
+	// mux.Handle("/", http.HandlerFunc(s.home))
+	mux.Handle("/", http.FileServer(s.assetFS))
 	mux.Handle("/dispatch", http.HandlerFunc(s.dispatch))
 	return mux
 }
 
-func (s *Server) home(w http.ResponseWriter, r *http.Request) {
-	s.logger.For(r.Context()).Info("HTTP", zap.String("method", r.Method), zap.Stringer("url", r.URL))
-	b, err := s.assetFs.Asset("web_assets/index.html")
-	if err != nil {
-		http.Error(w, "Could not load index page", http.StatusInternalServerError)
-		s.logger.Bg().Error("Could lot load static assets", zap.Error(err))
-	}
-	w.Write(b)
-}
+// func (s *Server) home(w http.ResponseWriter, r *http.Request) {
+// 	s.logger.For(r.Context()).Info("HTTP", zap.String("method", r.Method), zap.Stringer("url", r.URL))
+// 	http.Handle("/public/", http.StripPrefix("/public/", http.FileServer(statikFS)))
+// 	b, err := s.assetFs.Asset("web_assets/index.html")
+// 	if err != nil {
+// 		http.Error(w, "Could not load index page", http.StatusInternalServerError)
+// 		s.logger.Bg().Error("Could lot load static assets", zap.Error(err))
+// 	}
+// 	w.Write(b)
+// }
 
 func (s *Server) dispatch(w http.ResponseWriter, r *http.Request) {
 	ctx := r.Context()
