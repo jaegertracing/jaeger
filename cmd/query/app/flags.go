@@ -45,7 +45,7 @@ type QueryOptions struct {
 func AddFlags(flagSet *flag.FlagSet) {
 	flagSet.Int(queryPort, 16686, "The port for the query service")
 	flagSet.String(queryBasePath, "/", "The base path for all HTTP routes, e.g. /jaeger; useful when running behind a reverse proxy")
-	flagSet.String(queryStaticFiles, "", "The directory path for the static assets for the UI")
+	flagSet.String(queryStaticFiles, "", "The directory path override for the static assets for the UI")
 	flagSet.String(queryUIConfig, "", "The path to the UI configuration file in JSON format")
 }
 

@@ -198,7 +198,6 @@ build-collector:
 
 .PHONY: docker-no-ui
 docker-no-ui: build-binaries-linux build-crossdock-linux
-	mkdir -p jaeger-ui-build/build/
 	make docker-images-only
 
 .PHONY: docker
