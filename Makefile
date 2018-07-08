@@ -170,7 +170,7 @@ build-examples: install-go-bindata
 
 .PHONE: docker-hotrod
 docker-hotrod:
-	GOOS=linux $(make) build-examples
+	GOOS=linux $(MAKE) build-examples
 	docker build -t $(DOCKER_NAMESPACE)/example-hotrod:${DOCKER_TAG} ./examples/hotrod
 
 .PHONY: build_ui
