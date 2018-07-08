@@ -25,8 +25,6 @@ function stage-platform-files {
     stage-file ./cmd/query/query-$PLATFORM $PACKAGE_STAGING_DIR/jaeger-query$FILE_EXTENSION
     stage-file ./cmd/collector/collector-$PLATFORM $PACKAGE_STAGING_DIR/jaeger-collector$FILE_EXTENSION
     stage-file ./examples/hotrod/hotrod-$PLATFORM $PACKAGE_STAGING_DIR/example-hotrod$FILE_EXTENSION
-    echo "Copying jaeger-ui-build to $PACKAGE_STAGING_DIR"
-    cp -r jaeger-ui-build $PACKAGE_STAGING_DIR
 }
 
 # package pulls built files for the platform ($1). If you pass in a file 
@@ -62,9 +60,10 @@ rm -rf deploy $DEPLOY_STAGING_DIR
 mkdir deploy
 mkdir $DEPLOY_STAGING_DIR
 
-INDEX_HTML=jaeger-ui-build/build/index.html
-if [ ! -f $INDEX_HTML ]; then
-    echo "Cannot find UI assets, e.g. $INDEX_HTML. Aborting."
+UI_ASSETS=cmd/query/app/statik/statik.go
+if [ "`git status | grep $UI_ASSETS`" == "" ]; then
+    echo "ERROR: file ${UI_ASSETS} is unchanged, indicating UI assets have not been packaged."
+    echo "Aborting."
     exit 1
 fi
 

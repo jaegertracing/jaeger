@@ -85,7 +85,7 @@ md-to-godoc-gen:
 
 .PHONY: clean
 clean:
-	rm -rf cover.out .cover/ cover.html lint.log fmt.log jaeger-ui-build
+	rm -rf cover.out .cover/ cover.html lint.log fmt.log
 
 .PHONY: test
 test: go-gen
@@ -220,7 +220,6 @@ build-all-binaries: build-agent build-collector build-query build-all-in-one bui
 
 .PHONY: docker-images-only
 docker-images-only:
-	cp -r jaeger-ui-build/build/ cmd/query/jaeger-ui-build
 	docker build -t $(DOCKER_NAMESPACE)/jaeger-cassandra-schema:${DOCKER_TAG} plugin/storage/cassandra/
 	@echo "Finished building jaeger-cassandra-schema =============="
 	docker build -t $(DOCKER_NAMESPACE)/jaeger-es-index-cleaner:${DOCKER_TAG} plugin/storage/es
@@ -229,7 +228,6 @@ docker-images-only:
 		docker build -t $(DOCKER_NAMESPACE)/jaeger-$$component:${DOCKER_TAG} cmd/$$component ; \
 		echo "Finished building $$component ==============" ; \
 	done
-	rm -rf cmd/query/jaeger-ui-build
 	docker build -t $(DOCKER_NAMESPACE)/test-driver:${DOCKER_TAG} crossdock/
 	@echo "Finished building test-driver ==============" ; \
 

@@ -19,6 +19,5 @@ cmd/collector/collector
 cmd/collector/collector-linux
 cmd/query/query
 cmd/query/query-linux
-cmd/query/jaeger-ui-build/
 crossdock/crossdock-linux
 run-crossdock.log
