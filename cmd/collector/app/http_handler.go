@@ -18,7 +18,6 @@ import (
 	"fmt"
 	"io/ioutil"
 	"net/http"
-	"strings"
 	"time"
 
 	"github.com/apache/thrift/lib/go/thrift"
@@ -29,9 +28,15 @@ import (
 )
 
 const (
-	formatParam = "format"
 	// UnableToReadBodyErrFormat is an error message for invalid requests
 	UnableToReadBodyErrFormat = "Unable to process request body: %v"
+)
+
+var (
+	acceptedThriftFormats = map[string]struct{}{
+		"application/x-thrift":                 struct{}{},
+		"application/vnd.apache.thrift.binary": struct{}{},
+	}
 )
 
 // APIHandler handles all HTTP calls to the collector
@@ -61,26 +66,24 @@ func (aH *APIHandler) saveSpan(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	format := r.FormValue(formatParam)
-	switch strings.ToLower(format) {
-	case "jaeger.thrift":
-		tdes := thrift.NewTDeserializer()
-		// (NB): We decided to use this struct instead of straight batches to be as consistent with tchannel intake as possible.
-		batch := &tJaeger.Batch{}
-		if err = tdes.Read(batch, bodyBytes); err != nil {
-			http.Error(w, fmt.Sprintf(UnableToReadBodyErrFormat, err), http.StatusBadRequest)
-			return
-		}
-		ctx, cancel := tchanThrift.NewContext(time.Minute)
-		defer cancel()
-		batches := []*tJaeger.Batch{batch}
-		if _, err = aH.jaegerBatchesHandler.SubmitBatches(ctx, batches); err != nil {
-			http.Error(w, fmt.Sprintf("Cannot submit Jaeger batch: %v", err), http.StatusInternalServerError)
-			return
-		}
+	contentType := r.Header.Get("Content-Type")
+	if _, ok := acceptedThriftFormats[contentType]; !ok {
+		http.Error(w, fmt.Sprintf("Unsupported content type: %v", contentType), http.StatusBadRequest)
+		return
+	}
 
-	default:
-		http.Error(w, fmt.Sprintf("Unsupported format type: %v", format), http.StatusBadRequest)
+	tdes := thrift.NewTDeserializer()
+	// (NB): We decided to use this struct instead of straight batches to be as consistent with tchannel intake as possible.
+	batch := &tJaeger.Batch{}
+	if err = tdes.Read(batch, bodyBytes); err != nil {
+		http.Error(w, fmt.Sprintf(UnableToReadBodyErrFormat, err), http.StatusBadRequest)
+		return
+	}
+	ctx, cancel := tchanThrift.NewContext(time.Minute)
+	defer cancel()
+	batches := []*tJaeger.Batch{batch}
+	if _, err = aH.jaegerBatchesHandler.SubmitBatches(ctx, batches); err != nil {
+		http.Error(w, fmt.Sprintf("Cannot submit Jaeger batch: %v", err), http.StatusInternalServerError)
 		return
 	}
 
