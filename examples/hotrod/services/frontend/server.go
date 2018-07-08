@@ -25,9 +25,7 @@ import (
 	"github.com/jaegertracing/jaeger/examples/hotrod/pkg/httperr"
 	"github.com/jaegertracing/jaeger/examples/hotrod/pkg/log"
 	"github.com/jaegertracing/jaeger/examples/hotrod/pkg/tracing"
-
-	// register static assets
-	_ "github.com/jaegertracing/jaeger/examples/hotrod/services/frontend/statik"
+	_ "github.com/jaegertracing/jaeger/examples/hotrod/services/frontend/statik" // init static assets
 )
 
 // Server implements jaeger-demo-frontend service
