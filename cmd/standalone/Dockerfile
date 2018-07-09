@@ -21,5 +21,5 @@ EXPOSE 16686
 COPY ./cmd/standalone/standalone-linux /go/bin/
 COPY ./cmd/standalone/sampling_strategies.json /etc/jaeger/
 
-# TODO split cmd into ENTRYPOINT
-CMD ["/go/bin/standalone-linux", "--sampling.strategies-file=/etc/jaeger/sampling_strategies.json"]
+ENTRYPOINT ["/go/bin/standalone-linux"]
+CMD ["--sampling.strategies-file=/etc/jaeger/sampling_strategies.json"]
