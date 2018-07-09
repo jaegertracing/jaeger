@@ -148,8 +148,8 @@ func (s *SpanWriter) createIndex(indexName string, mapping string, jsonSpan *jMo
 				if !ok || eErr.Details != nil &&
 					// ES 5.x
 					(eErr.Details.Type != "index_already_exists_exception" &&
-					// ES 6.x
-					eErr.Details.Type != "resource_already_exists_exception") {
+						// ES 6.x
+						eErr.Details.Type != "resource_already_exists_exception") {
 					return s.logError(jsonSpan, err, "Failed to create index", s.logger)
 				}
 			}
