@@ -34,7 +34,6 @@ const (
 // DependencyStore handles all queries and insertions to Cassandra dependencies
 type DependencyStore struct {
 	session                  cassandra.Session
-	dependencyDataFrequency  time.Duration
 	dependenciesTableMetrics *casMetrics.Table
 	logger                   *zap.Logger
 }
@@ -42,13 +41,11 @@ type DependencyStore struct {
 // NewDependencyStore returns a DependencyStore
 func NewDependencyStore(
 	session cassandra.Session,
-	dependencyDataFrequency time.Duration,
 	metricsFactory metrics.Factory,
 	logger *zap.Logger,
 ) *DependencyStore {
 	return &DependencyStore{
 		session:                  session,
-		dependencyDataFrequency:  dependencyDataFrequency,
 		dependenciesTableMetrics: casMetrics.NewTable(metricsFactory, "dependencies"),
 		logger: logger,
 	}

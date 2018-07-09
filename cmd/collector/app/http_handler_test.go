@@ -78,13 +78,13 @@ func TestThriftFormat(t *testing.T) {
 	server, handler := initializeTestServer(nil)
 	defer server.Close()
 
-	statusCode, resBodyStr, err := postBytes(server.URL+`/api/traces?format=jaeger.thrift`, someBytes)
+	statusCode, resBodyStr, err := postBytes("application/x-thrift", server.URL+`/api/traces`, someBytes)
 	assert.NoError(t, err)
 	assert.EqualValues(t, http.StatusAccepted, statusCode)
 	assert.EqualValues(t, "", resBodyStr)
 
 	handler.jaegerBatchesHandler.(*mockJaegerHandler).err = fmt.Errorf("Bad times ahead")
-	statusCode, resBodyStr, err = postBytes(server.URL+`/api/traces?format=jaeger.thrift`, someBytes)
+	statusCode, resBodyStr, err = postBytes("application/vnd.apache.thrift.binary", server.URL+`/api/traces`, someBytes)
 	assert.NoError(t, err)
 	assert.EqualValues(t, http.StatusInternalServerError, statusCode)
 	assert.EqualValues(t, "Cannot submit Jaeger batch: Bad times ahead\n", resBodyStr)
@@ -95,7 +95,7 @@ func TestViaClient(t *testing.T) {
 	defer server.Close()
 
 	sender := transport.NewHTTPTransport(
-		server.URL+`/api/traces?format=jaeger.thrift`,
+		server.URL+`/api/traces`,
 		transport.HTTPBatchSize(1),
 	)
 
@@ -128,7 +128,7 @@ func TestBadBody(t *testing.T) {
 	server, _ := initializeTestServer(nil)
 	defer server.Close()
 	bodyBytes := []byte("not good")
-	statusCode, resBodyStr, err := postBytes(server.URL+`/api/traces?format=jaeger.thrift`, bodyBytes)
+	statusCode, resBodyStr, err := postBytes("application/x-thrift", server.URL+`/api/traces`, bodyBytes)
 	assert.NoError(t, err)
 	assert.EqualValues(t, http.StatusBadRequest, statusCode)
 	assert.EqualValues(t, "Unable to process request body: *jaeger.Batch field 25711 read error: unexpected EOF\n", resBodyStr)
@@ -137,10 +137,10 @@ func TestBadBody(t *testing.T) {
 func TestWrongFormat(t *testing.T) {
 	server, _ := initializeTestServer(nil)
 	defer server.Close()
-	statusCode, resBodyStr, err := postBytes(server.URL+`/api/traces?format=nosoupforyou`, []byte{})
+	statusCode, resBodyStr, err := postBytes("nosoupforyou", server.URL+`/api/traces`, []byte{})
 	assert.NoError(t, err)
 	assert.EqualValues(t, http.StatusBadRequest, statusCode)
-	assert.EqualValues(t, "Unsupported format type: nosoupforyou\n", resBodyStr)
+	assert.EqualValues(t, "Unsupported content type: nosoupforyou\n", resBodyStr)
 }
 
 func TestCannotReadBodyFromRequest(t *testing.T) {
@@ -177,11 +177,12 @@ func (d *dummyResponseWriter) WriteHeader(statusCode int) {
 	d.myStatusCode = statusCode
 }
 
-func postBytes(urlStr string, bodyBytes []byte) (int, string, error) {
+func postBytes(contentType, urlStr string, bodyBytes []byte) (int, string, error) {
 	req, err := http.NewRequest(http.MethodPost, urlStr, bytes.NewBuffer([]byte(bodyBytes)))
 	if err != nil {
 		return 0, "", err
 	}
+	req.Header.Set("Content-Type", contentType)
 	res, err := httpClient.Do(req)
 	if err != nil {
 		return 0, "", err
