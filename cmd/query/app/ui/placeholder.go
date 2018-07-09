@@ -1,4 +1,4 @@
-// Copyright (c) 2018 Uber Technologies, Inc.
+// Copyright (c) 2018 The Jaeger Authors.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -12,9 +12,8 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-// Package statik is a placeholder for UI assets packaged with github.com/rakyll/statik.
-// See build_ui target in the Makefile.
-//
-// The default statik.go file in this directory is generated with:
-//    (cd cmd/query/app; statik -f -src fixture/statik)
-package statik
+// +build !ui
+
+package ui
+
+import _ "github.com/jaegertracing/jaeger/cmd/query/app/ui/placeholder/statik" // init static assets

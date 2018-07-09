@@ -28,7 +28,7 @@ import (
 	"github.com/rakyll/statik/fs"
 	"go.uber.org/zap"
 
-	_ "github.com/jaegertracing/jaeger/cmd/query/app/statik" // init static assets
+	_ "github.com/jaegertracing/jaeger/cmd/query/app/ui" // init static assets
 )
 
 var (

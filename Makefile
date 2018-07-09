@@ -174,7 +174,7 @@ docker-hotrod:
 .PHONY: build_ui
 build_ui: install-statik
 	cd jaeger-ui && yarn install && npm run build
-	(cd cmd/query/app; statik -f -src ../../../jaeger-ui/build)
+	(cd cmd/query/app/ui/actual; statik -f -tags ui -src ../../../../../jaeger-ui/build)
 
 .PHONY: build-all-in-one-linux
 build-all-in-one-linux: build_ui
@@ -182,7 +182,7 @@ build-all-in-one-linux: build_ui
 
 .PHONY: build-all-in-one
 build-all-in-one:
-	CGO_ENABLED=0 installsuffix=cgo go build -o ./cmd/standalone/standalone-$(GOOS) $(BUILD_INFO) ./cmd/standalone/main.go
+	CGO_ENABLED=0 installsuffix=cgo go build -tags ui -o ./cmd/standalone/standalone-$(GOOS) $(BUILD_INFO) ./cmd/standalone/main.go
 
 .PHONY: build-agent
 build-agent:
@@ -190,7 +190,7 @@ build-agent:
 
 .PHONY: build-query
 build-query:
-	CGO_ENABLED=0 installsuffix=cgo go build -o ./cmd/query/query-$(GOOS) $(BUILD_INFO) ./cmd/query/main.go
+	CGO_ENABLED=0 installsuffix=cgo go build -tags ui -o ./cmd/query/query-$(GOOS) $(BUILD_INFO) ./cmd/query/main.go
 
 .PHONY: build-collector
 build-collector:
