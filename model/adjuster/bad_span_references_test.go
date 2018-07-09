@@ -31,9 +31,9 @@ func TestSpanReferencesAdjuster(t *testing.T) {
 			},
 			{
 				References: []model.SpanRef{
-					{TraceID: model.TraceID{High: 0, Low: 1}},
-					{TraceID: model.TraceID{High: 1, Low: 0}},
-					{TraceID: model.TraceID{High: 0, Low: 0}},
+					{TraceID: model.NewTraceID(0, 1)},
+					{TraceID: model.NewTraceID(1, 0)},
+					{TraceID: model.NewTraceID(0, 0)},
 				},
 			},
 		},
@@ -43,5 +43,5 @@ func TestSpanReferencesAdjuster(t *testing.T) {
 	assert.Len(t, trace.Spans[0].References, 0)
 	assert.Len(t, trace.Spans[1].References, 0)
 	assert.Len(t, trace.Spans[2].References, 2)
-	assert.Equal(t, []string{"Invalid span reference removed {RefType:child-of TraceID:0 SpanID:0}"}, trace.Spans[2].Warnings)
+	assert.Contains(t, trace.Spans[2].Warnings[0], "Invalid span reference removed")
 }

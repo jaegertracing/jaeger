@@ -21,6 +21,17 @@ import (
 	"github.com/jaegertracing/jaeger/model"
 )
 
+const (
+	childOf     = "child-of"
+	followsFrom = "follows-from"
+
+	stringType  = "string"
+	boolType    = "bool"
+	int64Type   = "int64"
+	float64Type = "float64"
+	binaryType  = "binary"
+)
+
 // TraceID is a serializable form of model.TraceID
 type TraceID [16]byte
 
@@ -28,7 +39,7 @@ type TraceID [16]byte
 type Span struct {
 	TraceID       TraceID
 	SpanID        int64
-	ParentID      int64
+	ParentID      int64 // deprecated
 	OperationName string
 	Flags         int32
 	StartTime     int64
@@ -101,7 +112,7 @@ func TraceIDFromDomain(traceID model.TraceID) TraceID {
 func (dbTraceID TraceID) ToDomain() model.TraceID {
 	traceIDHigh := binary.BigEndian.Uint64(dbTraceID[:8])
 	traceIDLow := binary.BigEndian.Uint64(dbTraceID[8:])
-	return model.TraceID{High: traceIDHigh, Low: traceIDLow}
+	return model.NewTraceID(traceIDHigh, traceIDLow)
 }
 
 // String returns hex string representation of the trace ID.

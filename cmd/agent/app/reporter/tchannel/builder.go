@@ -15,6 +15,8 @@
 package tchannel
 
 import (
+	"time"
+
 	"github.com/pkg/errors"
 	"github.com/uber/jaeger-lib/metrics"
 	"github.com/uber/tchannel-go"
@@ -43,6 +45,9 @@ type Builder struct {
 	// CollectorServiceName is the name that Jaeger Collector's TChannel server
 	// responds to.
 	CollectorServiceName string `yaml:"collectorServiceName"`
+
+	// ConnCheckTimeout is the timeout used when establishing new connections.
+	ConnCheckTimeout time.Duration
 
 	discoverer discovery.Discoverer
 	notifier   discovery.Notifier
@@ -92,7 +97,9 @@ func (b *Builder) enableDiscovery(channel *tchannel.Channel, logger *zap.Logger)
 	peers := subCh.Peers()
 	return peerlistmgr.New(peers, b.discoverer, b.notifier,
 		peerlistmgr.Options.MinPeers(defaultInt(b.DiscoveryMinPeers, defaultMinPeers)),
-		peerlistmgr.Options.Logger(logger))
+		peerlistmgr.Options.Logger(logger),
+		peerlistmgr.Options.ConnCheckTimeout(b.ConnCheckTimeout),
+	)
 }
 
 // CreateReporter creates the TChannel-based Reporter

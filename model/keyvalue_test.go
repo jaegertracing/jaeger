@@ -15,52 +15,13 @@
 package model_test
 
 import (
-	"encoding/json"
+	"bytes"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
 
 	"github.com/jaegertracing/jaeger/model"
 )
-
-func TestValueTypeToFromString(t *testing.T) {
-	badValueType := model.ValueType(-1)
-	testCases := []struct {
-		v model.ValueType
-		s string
-	}{
-		{model.StringType, "string"},
-		{model.BoolType, "bool"},
-		{model.Int64Type, "int64"},
-		{model.Float64Type, "float64"},
-		{model.BinaryType, "binary"},
-		{badValueType, "<invalid>"},
-	}
-	for _, testCase := range testCases {
-		assert.Equal(t, testCase.s, testCase.v.String(), testCase.s)
-		v2, err := model.ValueTypeFromString(testCase.s)
-		if testCase.v == badValueType {
-			assert.Error(t, err)
-		} else {
-			assert.NoError(t, err, testCase.s)
-			assert.Equal(t, testCase.v, v2, testCase.s)
-		}
-	}
-}
-
-func TestValueTypeToFromJSON(t *testing.T) {
-	kv := model.Int64("x", 123)
-	out, err := json.Marshal(kv)
-	assert.NoError(t, err)
-	assert.Equal(t, `{"key":"x","vType":"int64","vNum":123}`, string(out))
-	var kv2, kv3 model.KeyValue
-	if assert.NoError(t, json.Unmarshal(out, &kv2)) {
-		assert.True(t, kv.Equal(&kv2))
-		assert.Equal(t, kv, kv2)
-	}
-	err = json.Unmarshal([]byte(`{"key":"x","vType":"BAD","vNum":123}`), &kv3)
-	assert.EqualError(t, err, "not a valid ValueType string BAD")
-}
 
 func TestKeyValueString(t *testing.T) {
 	kv := model.String("x", "y")
@@ -136,9 +97,9 @@ func TestKeyValueIsLessAndEqual(t *testing.T) {
 	}
 	t.Run("invalid type", func(t *testing.T) {
 		v1 := model.KeyValue{Key: "x", VType: model.ValueType(-1)}
-		v2 := model.KeyValue{Key: "x", VType: model.ValueType(-1)}
+		v2 := model.KeyValue{Key: "x", VType: model.ValueType(-2)}
 		assert.False(t, v1.IsLess(&v2))
-		assert.False(t, v2.IsLess(&v1))
+		assert.True(t, v2.IsLess(&v1))
 		assert.False(t, v1.Equal(&v2))
 		assert.False(t, v2.Equal(&v1))
 	})
@@ -177,4 +138,23 @@ func TestKeyValueAsStringAndValue(t *testing.T) {
 		assert.Equal(t, "unknown type -1", kv.AsString())
 		assert.EqualError(t, kv.Value().(error), "unknown type -1")
 	})
+}
+
+func TestKeyValueHash(t *testing.T) {
+	testCases := []struct {
+		kv model.KeyValue
+	}{
+		{kv: model.String("x", "Bender is great!")},
+		{kv: model.Bool("x", true)},
+		{kv: model.Int64("x", 3000)},
+		{kv: model.Float64("x", 3.14159265359)},
+		{kv: model.Binary("x", []byte("Bender"))},
+	}
+	for _, tt := range testCases {
+		testCase := tt // capture loop var
+		t.Run(testCase.kv.String(), func(t *testing.T) {
+			out := new(bytes.Buffer)
+			assert.NoError(t, testCase.kv.Hash(out))
+		})
+	}
 }

@@ -1,0 +1,299 @@
+{
+  "swagger": "2.0",
+  "info": {
+    "title": "model.proto",
+    "version": "1.0"
+  },
+  "schemes": [
+    "http",
+    "https"
+  ],
+  "consumes": [
+    "application/json"
+  ],
+  "produces": [
+    "application/json"
+  ],
+  "paths": {
+    "/api/v2/spans": {
+      "post": {
+        "operationId": "PostSpans",
+        "responses": {
+          "200": {
+            "description": "",
+            "schema": {
+              "$ref": "#/definitions/modelPostSpansResponse"
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "body",
+            "in": "body",
+            "required": true,
+            "schema": {
+              "$ref": "#/definitions/modelPostSpansRequest"
+            }
+          }
+        ],
+        "tags": [
+          "CollectorServiceV2"
+        ]
+      }
+    },
+    "/api/v2/traces/{id}": {
+      "get": {
+        "operationId": "GetTrace",
+        "responses": {
+          "200": {
+            "description": "",
+            "schema": {
+              "$ref": "#/definitions/modelGetTraceResponse"
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "id",
+            "in": "path",
+            "required": true,
+            "type": "string"
+          }
+        ],
+        "tags": [
+          "QueryServiceV2"
+        ]
+      }
+    }
+  },
+  "definitions": {
+    "TraceProcessMapping": {
+      "type": "object",
+      "properties": {
+        "process_id": {
+          "type": "string"
+        },
+        "process": {
+          "$ref": "#/definitions/modelProcess"
+        }
+      }
+    },
+    "modelBatch": {
+      "type": "object",
+      "properties": {
+        "spans": {
+          "type": "array",
+          "items": {
+            "$ref": "#/definitions/modelSpan"
+          }
+        },
+        "process": {
+          "$ref": "#/definitions/modelProcess"
+        }
+      }
+    },
+    "modelGetTraceResponse": {
+      "type": "object",
+      "properties": {
+        "trace": {
+          "$ref": "#/definitions/modelTrace"
+        }
+      }
+    },
+    "modelKeyValue": {
+      "type": "object",
+      "properties": {
+        "key": {
+          "type": "string"
+        },
+        "v_type": {
+          "$ref": "#/definitions/modelValueType"
+        },
+        "v_str": {
+          "type": "string"
+        },
+        "v_bool": {
+          "type": "boolean",
+          "format": "boolean"
+        },
+        "v_int64": {
+          "type": "string",
+          "format": "int64"
+        },
+        "v_float64": {
+          "type": "number",
+          "format": "double"
+        },
+        "v_binary": {
+          "type": "string",
+          "format": "byte"
+        }
+      }
+    },
+    "modelLog": {
+      "type": "object",
+      "properties": {
+        "timestamp": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "fields": {
+          "type": "array",
+          "items": {
+            "$ref": "#/definitions/modelKeyValue"
+          }
+        }
+      }
+    },
+    "modelPostSpansRequest": {
+      "type": "object",
+      "properties": {
+        "batch": {
+          "$ref": "#/definitions/modelBatch"
+        }
+      }
+    },
+    "modelPostSpansResponse": {
+      "type": "object",
+      "properties": {
+        "ok": {
+          "type": "boolean",
+          "format": "boolean"
+        }
+      }
+    },
+    "modelProcess": {
+      "type": "object",
+      "properties": {
+        "service_name": {
+          "type": "string"
+        },
+        "tags": {
+          "type": "array",
+          "items": {
+            "$ref": "#/definitions/modelKeyValue"
+          }
+        }
+      }
+    },
+    "modelSpan": {
+      "type": "object",
+      "properties": {
+        "trace_id": {
+          "type": "string",
+          "format": "byte"
+        },
+        "span_id": {
+          "type": "string",
+          "format": "byte"
+        },
+        "operation_name": {
+          "type": "string"
+        },
+        "references": {
+          "type": "array",
+          "items": {
+            "$ref": "#/definitions/modelSpanRef"
+          }
+        },
+        "flags": {
+          "type": "integer",
+          "format": "int64"
+        },
+        "start_time": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "duration": {
+          "type": "string"
+        },
+        "tags": {
+          "type": "array",
+          "items": {
+            "$ref": "#/definitions/modelKeyValue"
+          }
+        },
+        "logs": {
+          "type": "array",
+          "items": {
+            "$ref": "#/definitions/modelLog"
+          }
+        },
+        "process": {
+          "$ref": "#/definitions/modelProcess"
+        },
+        "process_id": {
+          "type": "string"
+        },
+        "warnings": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        }
+      }
+    },
+    "modelSpanRef": {
+      "type": "object",
+      "properties": {
+        "trace_id": {
+          "type": "string",
+          "format": "byte"
+        },
+        "span_id": {
+          "type": "string",
+          "format": "byte"
+        },
+        "ref_type": {
+          "$ref": "#/definitions/modelSpanRefType"
+        }
+      }
+    },
+    "modelSpanRefType": {
+      "type": "string",
+      "enum": [
+        "CHILD_OF",
+        "FOLLOWS_FROM"
+      ],
+      "default": "CHILD_OF"
+    },
+    "modelTrace": {
+      "type": "object",
+      "properties": {
+        "spans": {
+          "type": "array",
+          "items": {
+            "$ref": "#/definitions/modelSpan"
+          }
+        },
+        "process_map": {
+          "type": "array",
+          "items": {
+            "$ref": "#/definitions/TraceProcessMapping"
+          }
+        },
+        "warnings": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        }
+      }
+    },
+    "modelValueType": {
+      "type": "string",
+      "enum": [
+        "STRING",
+        "BOOL",
+        "INT64",
+        "FLOAT64",
+        "BINARY"
+      ],
+      "default": "STRING"
+    }
+  },
+  "externalDocs": {
+    "description": "Jaeger API",
+    "url": "https://github.com/jaegertracing/jaeger"
+  }
+}

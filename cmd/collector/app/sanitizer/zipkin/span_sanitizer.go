@@ -173,8 +173,9 @@ func (s *errorTagSanitizer) Sanitize(span *zc.Span) *zc.Span {
 			} else {
 				// value is different to true/false, create another bin annotation with error message
 				annoErrorMsg := &zc.BinaryAnnotation{
-					Key:   "error.message",
-					Value: binAnno.Value,
+					Key:            "error.message",
+					Value:          binAnno.Value,
+					AnnotationType: zc.AnnotationType_STRING,
 				}
 				span.BinaryAnnotations = append(span.BinaryAnnotations, annoErrorMsg)
 				binAnno.Value = []byte{1}

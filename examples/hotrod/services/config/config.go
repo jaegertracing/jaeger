@@ -21,8 +21,9 @@ import (
 var (
 	// 'frontend' service
 
-	// WorkerPoolSize is the size of goroutine pool used to query for routes
-	WorkerPoolSize = 3
+	// RouteWorkerPoolSize is the size of the worker pool used to query `route` service.
+	// Can be overwritten from command line.
+	RouteWorkerPoolSize = 3
 
 	// 'customer' service
 
@@ -33,18 +34,19 @@ var (
 	// MySQLGetDelayStdDev is standard deviation
 	MySQLGetDelayStdDev = MySQLGetDelay / 10
 
-	// RouteWorkerPoolSize is the size of the worker pool used to query `route` service
-	RouteWorkerPoolSize = 3
+	// MySQLMutexDisabled controls whether there is a mutex guarding db query execution.
+	// When not disabled it simulates a misconfigured connection pool of size 1.
+	MySQLMutexDisabled = false
 
 	// 'driver' service
 
-	// RedisFindDelay is how long finding closest drivers takes
+	// RedisFindDelay is how long finding closest drivers takes.
 	RedisFindDelay = 20 * time.Millisecond
 
-	// RedisFindDelayStdDev is standard deviation
+	// RedisFindDelayStdDev is standard deviation.
 	RedisFindDelayStdDev = RedisFindDelay / 4
 
-	// RedisGetDelay is how long retrieving a driver record takes
+	// RedisGetDelay is how long retrieving a driver record takes.
 	RedisGetDelay = 10 * time.Millisecond
 
 	// RedisGetDelayStdDev is standard deviation

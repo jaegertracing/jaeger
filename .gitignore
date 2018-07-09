@@ -11,7 +11,6 @@ cover.html
 .tmp/
 .mkdocs-virtual-env/
 vendor/
-jaeger-ui-build/
 examples/hotrod/hotrod
 cmd/standalone/standalone-linux
 cmd/agent/agent
@@ -20,6 +19,5 @@ cmd/collector/collector
 cmd/collector/collector-linux
 cmd/query/query
 cmd/query/query-linux
-cmd/query/jaeger-ui-build/
 crossdock/crossdock-linux
 run-crossdock.log

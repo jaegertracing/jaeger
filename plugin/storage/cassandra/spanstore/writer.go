@@ -92,6 +92,7 @@ type SpanWriter struct {
 	tagIndexSkipped      metrics.Counter
 	tagFilter            dbmodel.TagFilter
 	storageMode          storageMode
+	indexFilter          dbmodel.IndexFilter
 }
 
 // NewSpanWriter returns a SpanWriter
@@ -104,23 +105,24 @@ func NewSpanWriter(
 ) *SpanWriter {
 	serviceNamesStorage := NewServiceNamesStorage(session, writeCacheTTL, metricsFactory, logger)
 	operationNamesStorage := NewOperationNamesStorage(session, writeCacheTTL, metricsFactory, logger)
-	tagIndexSkipped := metricsFactory.Counter("tagIndexSkipped", nil)
+	tagIndexSkipped := metricsFactory.Counter("tag_index_skipped", nil)
 	opts := applyOptions(options...)
 	return &SpanWriter{
 		session:              session,
 		serviceNamesWriter:   serviceNamesStorage.Write,
 		operationNamesWriter: operationNamesStorage.Write,
 		writerMetrics: spanWriterMetrics{
-			traces:                casMetrics.NewTable(metricsFactory, "Traces"),
-			tagIndex:              casMetrics.NewTable(metricsFactory, "TagIndex"),
-			serviceNameIndex:      casMetrics.NewTable(metricsFactory, "ServiceNameIndex"),
-			serviceOperationIndex: casMetrics.NewTable(metricsFactory, "ServiceOperationIndex"),
-			durationIndex:         casMetrics.NewTable(metricsFactory, "DurationIndex"),
+			traces:                casMetrics.NewTable(metricsFactory, "traces"),
+			tagIndex:              casMetrics.NewTable(metricsFactory, "tag_index"),
+			serviceNameIndex:      casMetrics.NewTable(metricsFactory, "service_name_index"),
+			serviceOperationIndex: casMetrics.NewTable(metricsFactory, "service_operation_index"),
+			durationIndex:         casMetrics.NewTable(metricsFactory, "duration_index"),
 		},
 		logger:          logger,
 		tagIndexSkipped: tagIndexSkipped,
 		tagFilter:       opts.tagFilter,
 		storageMode:     opts.storageMode,
+		indexFilter:     opts.indexFilter,
 	}
 }
 
@@ -178,16 +180,22 @@ func (s *SpanWriter) writeIndexes(span *model.Span, ds *dbmodel.Span) error {
 		return s.logError(ds, err, "Failed to index tags", s.logger)
 	}
 
-	if err := s.indexByService(span.TraceID, ds); err != nil {
-		return s.logError(ds, err, "Failed to index service name", s.logger)
+	if s.indexFilter(ds, dbmodel.ServiceIndex) {
+		if err := s.indexByService(ds); err != nil {
+			return s.logError(ds, err, "Failed to index service name", s.logger)
+		}
 	}
 
-	if err := s.indexByOperation(span.TraceID, ds); err != nil {
-		return s.logError(ds, err, "Failed to index operation name", s.logger)
+	if s.indexFilter(ds, dbmodel.OperationIndex) {
+		if err := s.indexByOperation(ds); err != nil {
+			return s.logError(ds, err, "Failed to index operation name", s.logger)
+		}
 	}
 
-	if err := s.indexByDuration(ds, span.StartTime); err != nil {
-		return s.logError(ds, err, "Failed to index duration", s.logger)
+	if s.indexFilter(ds, dbmodel.DurationIndex) {
+		if err := s.indexByDuration(ds, span.StartTime); err != nil {
+			return s.logError(ds, err, "Failed to index duration", s.logger)
+		}
 	}
 	return nil
 }
@@ -228,14 +236,14 @@ func (s *SpanWriter) indexByDuration(span *dbmodel.Span, startTime time.Time) er
 	return err
 }
 
-func (s *SpanWriter) indexByService(traceID model.TraceID, span *dbmodel.Span) error {
+func (s *SpanWriter) indexByService(span *dbmodel.Span) error {
 	bucketNo := uint64(span.SpanHash) % defaultNumBuckets
 	query := s.session.Query(serviceNameIndex)
 	q := query.Bind(span.Process.ServiceName, bucketNo, span.StartTime, span.TraceID)
 	return s.writerMetrics.serviceNameIndex.Exec(q, s.logger)
 }
 
-func (s *SpanWriter) indexByOperation(traceID model.TraceID, span *dbmodel.Span) error {
+func (s *SpanWriter) indexByOperation(span *dbmodel.Span) error {
 	query := s.session.Query(serviceOperationIndex)
 	q := query.Bind(span.Process.ServiceName, span.OperationName, span.StartTime, span.TraceID)
 	return s.writerMetrics.serviceOperationIndex.Exec(q, s.logger)

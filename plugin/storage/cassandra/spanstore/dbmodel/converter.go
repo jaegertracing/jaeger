@@ -15,13 +15,30 @@
 package dbmodel
 
 import (
-	"errors"
+	"fmt"
 
 	"github.com/jaegertracing/jaeger/model"
 )
 
-// ErrUnknownKeyValueTypeFromCassandra is an error that occurs when trying to decipher an unknown tag type from the database
-var ErrUnknownKeyValueTypeFromCassandra = errors.New("Unknown tag type found in Cassandra")
+var (
+	dbToDomainRefMap = map[string]model.SpanRefType{
+		childOf:     model.SpanRefType_CHILD_OF,
+		followsFrom: model.SpanRefType_FOLLOWS_FROM,
+	}
+
+	domainToDBRefMap = map[model.SpanRefType]string{
+		model.SpanRefType_CHILD_OF:     childOf,
+		model.SpanRefType_FOLLOWS_FROM: followsFrom,
+	}
+
+	domainToDBValueTypeMap = map[model.ValueType]string{
+		model.StringType:  stringType,
+		model.BoolType:    boolType,
+		model.Int64Type:   int64Type,
+		model.Float64Type: float64Type,
+		model.BinaryType:  binaryType,
+	}
+)
 
 // FromDomain converts a domain model.Span to a database Span
 func FromDomain(span *model.Span) *Span {
@@ -47,7 +64,6 @@ func (c converter) fromDomain(span *model.Span) *Span {
 	return &Span{
 		TraceID:       TraceIDFromDomain(span.TraceID),
 		SpanID:        int64(span.SpanID),
-		ParentID:      int64(span.ParentSpanID),
 		OperationName: span.OperationName,
 		Flags:         int32(span.Flags),
 		StartTime:     int64(model.TimeAsEpochMicroseconds(span.StartTime)),
@@ -78,12 +94,12 @@ func (c converter) toDomain(dbSpan *Span) (*model.Span, error) {
 	if err != nil {
 		return nil, err
 	}
+	traceID := dbSpan.TraceID.ToDomain()
 	span := &model.Span{
-		TraceID:       dbSpan.TraceID.ToDomain(),
-		SpanID:        model.SpanID(dbSpan.SpanID),
-		ParentSpanID:  model.SpanID(dbSpan.ParentID),
+		TraceID:       traceID,
+		SpanID:        model.NewSpanID(uint64(dbSpan.SpanID)),
 		OperationName: dbSpan.OperationName,
-		References:    refs,
+		References:    model.MaybeAddParentSpanID(traceID, model.NewSpanID(uint64(dbSpan.ParentID)), refs),
 		Flags:         model.Flags(uint32(dbSpan.Flags)),
 		StartTime:     model.EpochMicrosecondsAsTime(uint64(dbSpan.StartTime)),
 		Duration:      model.MicrosecondsAsDuration(uint64(dbSpan.Duration)),
@@ -107,27 +123,19 @@ func (c converter) fromDBTags(tags []KeyValue) ([]model.KeyValue, error) {
 }
 
 func (c converter) fromDBTag(tag *KeyValue) (model.KeyValue, error) {
-	vType, err := model.ValueTypeFromString(tag.ValueType)
-	if err != nil {
-		return model.KeyValue{}, err
-	}
-	return c.fromDBTagOfType(tag, vType)
-}
-
-func (c converter) fromDBTagOfType(tag *KeyValue, vType model.ValueType) (model.KeyValue, error) {
-	switch vType {
-	case model.StringType:
+	switch tag.ValueType {
+	case stringType:
 		return model.String(tag.Key, tag.ValueString), nil
-	case model.BoolType:
+	case boolType:
 		return model.Bool(tag.Key, tag.ValueBool), nil
-	case model.Int64Type:
+	case int64Type:
 		return model.Int64(tag.Key, tag.ValueInt64), nil
-	case model.Float64Type:
+	case float64Type:
 		return model.Float64(tag.Key, tag.ValueFloat64), nil
-	case model.BinaryType:
+	case binaryType:
 		return model.Binary(tag.Key, tag.ValueBinary), nil
 	}
-	return model.KeyValue{}, ErrUnknownKeyValueTypeFromCassandra
+	return model.KeyValue{}, fmt.Errorf("invalid ValueType in %+v", tag)
 }
 
 func (c converter) fromDBLogs(logs []Log) ([]model.Log, error) {
@@ -148,14 +156,14 @@ func (c converter) fromDBLogs(logs []Log) ([]model.Log, error) {
 func (c converter) fromDBRefs(refs []SpanRef) ([]model.SpanRef, error) {
 	retMe := make([]model.SpanRef, len(refs))
 	for i, r := range refs {
-		refType, err := model.SpanRefTypeFromString(r.RefType)
-		if err != nil {
-			return nil, err
+		refType, ok := dbToDomainRefMap[r.RefType]
+		if !ok {
+			return nil, fmt.Errorf("invalid SpanRefType in %+v", r)
 		}
 		retMe[i] = model.SpanRef{
 			RefType: refType,
 			TraceID: r.TraceID.ToDomain(),
-			SpanID:  model.SpanID(r.SpanID),
+			SpanID:  model.NewSpanID(uint64(r.SpanID)),
 		}
 	}
 	return retMe, nil
@@ -178,7 +186,7 @@ func (c converter) toDBTags(tags []model.KeyValue) []KeyValue {
 		// do we want to validate a jaeger tag here? Making sure that the type and value matches up?
 		retMe[i] = KeyValue{
 			Key:          t.Key,
-			ValueType:    t.VType.String(),
+			ValueType:    domainToDBValueTypeMap[t.VType],
 			ValueString:  t.VStr,
 			ValueBool:    t.Bool(),
 			ValueInt64:   t.Int64(),
@@ -206,7 +214,7 @@ func (c converter) toDBRefs(refs []model.SpanRef) []SpanRef {
 		retMe[i] = SpanRef{
 			TraceID: TraceIDFromDomain(r.TraceID),
 			SpanID:  int64(r.SpanID),
-			RefType: r.RefType.String(),
+			RefType: domainToDBRefMap[r.RefType],
 		}
 	}
 	return retMe

@@ -15,13 +15,18 @@
 package integration
 
 import (
+	"bytes"
 	"encoding/json"
 	"fmt"
 	"io/ioutil"
+	"os"
+	"path/filepath"
 	"strings"
 	"testing"
 	"time"
 
+	"github.com/gogo/protobuf/jsonpb"
+	"github.com/gogo/protobuf/proto"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"go.uber.org/zap"
@@ -35,6 +40,21 @@ const (
 	iterations            = 30
 	waitForBackendComment = "Waiting for storage backend to update documents, iteration %d out of %d"
 )
+
+func TestParseAllFixtures(t *testing.T) {
+	fileList := []string{}
+	err := filepath.Walk("fixtures/traces", func(path string, f os.FileInfo, err error) error {
+		if !f.IsDir() && strings.HasSuffix(path, ".json") {
+			fileList = append(fileList, path)
+		}
+		return nil
+	})
+	require.NoError(t, err)
+	for _, file := range fileList {
+		t.Logf("Parsing %s", file)
+		getTraceFixtureExact(t, file)
+	}
+}
 
 type StorageIntegration struct {
 	// TODO make these public
@@ -262,9 +282,13 @@ func (s *StorageIntegration) loadParseAndWriteLargeTrace(t *testing.T) *model.Tr
 }
 
 func getTraceFixture(t *testing.T, fixture string) *model.Trace {
-	var trace model.Trace
 	fileName := fmt.Sprintf("fixtures/traces/%s.json", fixture)
-	loadAndParseFixture(t, fileName, &trace)
+	return getTraceFixtureExact(t, fileName)
+}
+
+func getTraceFixtureExact(t *testing.T, fileName string) *model.Trace {
+	var trace model.Trace
+	loadAndParseJSONPB(t, fileName, &trace)
 	return &trace
 }
 
@@ -277,13 +301,20 @@ func getTraceFixtures(t *testing.T, fixtures []string) []*model.Trace {
 	return traces
 }
 
+func loadAndParseJSONPB(t *testing.T, path string, object proto.Message) {
+	inStr, err := ioutil.ReadFile(path)
+	require.NoError(t, err, "Not expecting error when loading fixture %s", path)
+	err = jsonpb.Unmarshal(bytes.NewReader(correctTime(inStr)), object)
+	require.NoError(t, err, "Not expecting error when unmarshaling fixture %s", path)
+}
+
 func loadAndParseQueryTestCases(t *testing.T) []*QueryFixtures {
 	var queries []*QueryFixtures
-	loadAndParseFixture(t, "fixtures/queries.json", &queries)
+	loadAndParseJSON(t, "fixtures/queries.json", &queries)
 	return queries
 }
 
-func loadAndParseFixture(t *testing.T, path string, object interface{}) {
+func loadAndParseJSON(t *testing.T, path string, object interface{}) {
 	inStr, err := ioutil.ReadFile(path)
 	require.NoError(t, err, "Not expecting error when loading fixture %s", path)
 	err = json.Unmarshal(correctTime(inStr), object)

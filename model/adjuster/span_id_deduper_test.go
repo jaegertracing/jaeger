@@ -23,17 +23,19 @@ import (
 	"github.com/jaegertracing/jaeger/model"
 )
 
-const (
-	clientSpanID  = model.SpanID(1)
-	anotherSpanID = model.SpanID(11)
+var (
+	clientSpanID  = model.NewSpanID(1)
+	anotherSpanID = model.NewSpanID(11)
 )
 
 func newTrace() *model.Trace {
+	traceID := model.NewTraceID(0, 42)
 	return &model.Trace{
 		Spans: []*model.Span{
 			{
 				// client span
-				SpanID: clientSpanID,
+				TraceID: traceID,
+				SpanID:  clientSpanID,
 				Tags: model.KeyValues{
 					// span.kind = client
 					model.String(string(ext.SpanKind), string(ext.SpanKindRPCClientEnum)),
@@ -41,7 +43,8 @@ func newTrace() *model.Trace {
 			},
 			{
 				// server span
-				SpanID: clientSpanID, // shared span ID
+				TraceID: traceID,
+				SpanID:  clientSpanID, // shared span ID
 				Tags: model.KeyValues{
 					// span.kind = server
 					model.String(string(ext.SpanKind), string(ext.SpanKindRPCServerEnum)),
@@ -49,8 +52,9 @@ func newTrace() *model.Trace {
 			},
 			{
 				// some other span, child of server span
-				SpanID:       anotherSpanID,
-				ParentSpanID: clientSpanID,
+				TraceID:    traceID,
+				SpanID:     anotherSpanID,
+				References: []model.SpanRef{model.NewChildOfRef(traceID, clientSpanID)},
 			},
 		},
 	}
@@ -67,11 +71,11 @@ func TestSpanIDDeduperTriggered(t *testing.T) {
 
 	serverSpan := trace.Spans[1]
 	assert.Equal(t, clientSpanID+1, serverSpan.SpanID, "server span ID should be reassigned")
-	assert.Equal(t, clientSpan.SpanID, serverSpan.ParentSpanID, "client span should be server span's parent")
+	assert.Equal(t, clientSpan.SpanID, serverSpan.ParentSpanID(), "client span should be server span's parent")
 
 	thirdSpan := trace.Spans[2]
 	assert.Equal(t, anotherSpanID, thirdSpan.SpanID, "3rd span ID should not change")
-	assert.Equal(t, serverSpan.SpanID, thirdSpan.ParentSpanID, "server span should be 3rd span's parent")
+	assert.Equal(t, serverSpan.SpanID, thirdSpan.ParentSpanID(), "server span should be 3rd span's parent")
 }
 
 func TestSpanIDDeduperNotTriggered(t *testing.T) {
@@ -88,14 +92,14 @@ func TestSpanIDDeduperNotTriggered(t *testing.T) {
 
 	thirdSpan := trace.Spans[1]
 	assert.Equal(t, anotherSpanID, thirdSpan.SpanID, "3rd span ID should not change")
-	assert.Equal(t, serverSpan.SpanID, thirdSpan.ParentSpanID, "server span should be 3rd span's parent")
+	assert.Equal(t, serverSpan.SpanID, thirdSpan.ParentSpanID(), "server span should be 3rd span's parent")
 }
 
 func TestSpanIDDeduperError(t *testing.T) {
 	trace := newTrace()
 
 	maxID := int64(-1)
-	assert.Equal(t, maxSpanID, model.SpanID(maxID), "maxSpanID must be 2^64-1")
+	assert.Equal(t, maxSpanID, model.NewSpanID(uint64(maxID)), "maxSpanID must be 2^64-1")
 
 	deduper := &spanIDDeduper{trace: trace}
 	deduper.groupSpansByID()

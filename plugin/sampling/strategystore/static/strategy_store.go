@@ -16,6 +16,7 @@ package static
 
 import (
 	"encoding/json"
+	"fmt"
 	"io/ioutil"
 
 	"github.com/pkg/errors"
@@ -59,7 +60,7 @@ func loadStrategies(strategiesFile string) (*strategies, error) {
 	if strategiesFile == "" {
 		return nil, nil
 	}
-	bytes, err := ioutil.ReadFile(strategiesFile)
+	bytes, err := ioutil.ReadFile(strategiesFile) /* nolint #nosec , this comes from an admin, not user */
 	if err != nil {
 		return nil, errors.Wrap(err, "Failed to open strategies file")
 	}
@@ -80,8 +81,41 @@ func (h *strategyStore) parseStrategies(strategies *strategies) {
 		h.defaultStrategy = h.parseStrategy(strategies.DefaultStrategy)
 	}
 	for _, s := range strategies.ServiceStrategies {
-		h.serviceStrategies[s.Service] = h.parseStrategy(&s.strategy)
+		h.serviceStrategies[s.Service] = h.parseServiceStrategies(s)
 	}
+}
+
+func (h *strategyStore) parseServiceStrategies(strategy *serviceStrategy) *sampling.SamplingStrategyResponse {
+	resp := h.parseStrategy(&strategy.strategy)
+	if len(strategy.OperationStrategies) == 0 {
+		return resp
+	}
+	opS := &sampling.PerOperationSamplingStrategies{
+		DefaultSamplingProbability: defaultSamplingProbability,
+	}
+	if resp.StrategyType == sampling.SamplingStrategyType_PROBABILISTIC {
+		opS.DefaultSamplingProbability = resp.ProbabilisticSampling.SamplingRate
+	}
+	for _, operationStrategy := range strategy.OperationStrategies {
+		s := h.parseStrategy(&operationStrategy.strategy)
+		if s.StrategyType == sampling.SamplingStrategyType_RATE_LIMITING {
+			// TODO OperationSamplingStrategy only supports probabilistic sampling
+			h.logger.Warn(
+				fmt.Sprintf(
+					"Operation strategies only supports probabilistic sampling at the moment,"+
+						"'%s' defaulting to probabilistic sampling with probability %f",
+					operationStrategy.Operation, opS.DefaultSamplingProbability),
+				zap.Any("strategy", operationStrategy))
+			continue
+		}
+		opS.PerOperationStrategies = append(opS.PerOperationStrategies,
+			&sampling.OperationSamplingStrategy{
+				Operation:             operationStrategy.Operation,
+				ProbabilisticSampling: s.ProbabilisticSampling,
+			})
+	}
+	resp.OperationSampling = opS
+	return resp
 }
 
 func (h *strategyStore) parseStrategy(strategy *strategy) *sampling.SamplingStrategyResponse {

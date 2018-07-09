@@ -18,8 +18,8 @@ EXPOSE 14268
 # Web HTTP
 EXPOSE 16686
 
-COPY ./jaeger-ui-build /go/src/jaeger-ui-build
 COPY ./cmd/standalone/standalone-linux /go/bin/
-COPY ./cmd/standalone/sampling_strategies.json /go/src/config/
+COPY ./cmd/standalone/sampling_strategies.json /etc/jaeger/
 
-ENTRYPOINT ["/go/bin/standalone-linux", "--query.static-files=/go/src/jaeger-ui-build/build/", "--sampling.strategies-file=/go/src/config/sampling_strategies.json"]
+ENTRYPOINT ["/go/bin/standalone-linux"]
+CMD ["--sampling.strategies-file=/etc/jaeger/sampling_strategies.json"]

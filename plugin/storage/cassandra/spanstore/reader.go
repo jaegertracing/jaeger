@@ -113,7 +113,7 @@ func NewSpanReader(
 	metricsFactory metrics.Factory,
 	logger *zap.Logger,
 ) *SpanReader {
-	readFactory := metricsFactory.Namespace("Read", nil)
+	readFactory := metricsFactory.Namespace("read", nil)
 	serviceNamesStorage := NewServiceNamesStorage(session, 0, metricsFactory, logger)
 	operationNamesStorage := NewOperationNamesStorage(session, 0, metricsFactory, logger)
 	return &SpanReader{
@@ -122,12 +122,12 @@ func NewSpanReader(
 		serviceNamesReader:   serviceNamesStorage.GetServices,
 		operationNamesReader: operationNamesStorage.GetOperations,
 		metrics: spanReaderMetrics{
-			readTraces:                 casMetrics.NewTable(readFactory, "ReadTraces"),
-			queryTrace:                 casMetrics.NewTable(readFactory, "QueryTraces"),
-			queryTagIndex:              casMetrics.NewTable(readFactory, "TagIndex"),
-			queryDurationIndex:         casMetrics.NewTable(readFactory, "DurationIndex"),
-			queryServiceOperationIndex: casMetrics.NewTable(readFactory, "ServiceOperationIndex"),
-			queryServiceNameIndex:      casMetrics.NewTable(readFactory, "ServiceNameIndex"),
+			readTraces:                 casMetrics.NewTable(readFactory, "read_traces"),
+			queryTrace:                 casMetrics.NewTable(readFactory, "query_traces"),
+			queryTagIndex:              casMetrics.NewTable(readFactory, "tag_index"),
+			queryDurationIndex:         casMetrics.NewTable(readFactory, "duration_index"),
+			queryServiceOperationIndex: casMetrics.NewTable(readFactory, "service_operation_index"),
+			queryServiceNameIndex:      casMetrics.NewTable(readFactory, "service_name_index"),
 		},
 		logger: logger,
 	}

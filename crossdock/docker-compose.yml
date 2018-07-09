@@ -77,7 +77,3 @@ services:
             - jaeger-query
             - jaeger-collector
             - jaeger-agent
-
-    jaeger-query:
-#    override to disable static files
-        command: ["--query.static-files=", "--cassandra.keyspace=jaeger_v1_dc1", "--cassandra.servers=cassandra"]

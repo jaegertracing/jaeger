@@ -1,0 +1,17 @@
+codecov:
+  notify:
+    require_ci_to_pass: yes
+  strict_yaml_branch: master  # only use the latest copy on master branch
+
+coverage:
+  precision: 2
+  round: down
+  range: "100...100"
+
+  status:
+    project:
+      default:
+        target: 100
+    patch: yes
+    changes: no
+

@@ -64,8 +64,8 @@ func (s *utf8Sanitizer) Sanitize(span *model.Span) *model.Span {
 func (s *utf8Sanitizer) logSpan(span *model.Span, message string, field zapcore.Field) {
 	s.logger.Info(
 		message,
-		zap.String("traceId", span.TraceID.String()),
-		zap.String("spanID", span.SpanID.String()), field)
+		zap.String("trace_id", span.TraceID.String()),
+		zap.String("span_id", span.SpanID.String()), field)
 }
 
 func sanitizeKV(keyValues model.KeyValues) {

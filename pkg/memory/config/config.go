@@ -1,4 +1,4 @@
-// Copyright (c) 2017 Uber Technologies, Inc.
+// Copyright (c) 2018 The Jaeger Authors.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -12,12 +12,9 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package model
+package config
 
-import "time"
-
-// Log describes a micro-log entry that consists of a timestamp and one or more key-value fields
-type Log struct {
-	Timestamp time.Time  `json:"timestamp"`
-	Fields    []KeyValue `json:"fields"`
+// Configuration describes the options to customize the storage behavior
+type Configuration struct {
+	MaxTraces int `yaml:"max-traces"`
 }

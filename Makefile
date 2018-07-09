@@ -1,22 +1,40 @@
 PROJECT_ROOT=github.com/jaegertracing/jaeger
-TOP_PKGS := $(shell glide novendor | grep -v -e ./thrift-gen/... -e swagger-gen... -e ./examples/... -e ./scripts/...)
+# TOP_PKGS is used with 'go test'
+# TODO: try to do this without glide, since it may not be installed initially
+TOP_PKGS := $(shell glide novendor | \
+	sort | \
+	grep -v \
+		-e ./thrift-gen/... \
+		-e ./swagger-gen/... \
+		-e ./examples/... \
+		-e ./scripts/...\
+	)
 STORAGE_PKGS = ./plugin/storage/integration/...
 
-# all .go files that don't exist in hidden directories
-ALL_SRC := $(shell find . -name "*.go" | grep -v -e vendor -e thrift-gen -e swagger-gen -e examples -e doc.go \
+# all .go files that are not auto-generated and should be auto-formatted and linted.
+ALL_SRC := $(shell find . -name "*.go" | \
+	grep -v \
+		-e vendor \
+		-e /thrift-gen/ \
+		-e /swagger-gen/ \
+		-e /examples/ \
+		-e doc.go \
+		-e model.pb.go \
+		-e model_test.pb.go \
         -e ".*/\..*" \
         -e ".*/_.*" \
-        -e ".*/mocks.*")
+        -e ".*/mocks.*" \
+	)
 
+# ALL_PKGS is used with 'go cover'
 ALL_PKGS := $(shell go list $(sort $(dir $(ALL_SRC))))
-
-export GO15VENDOREXPERIMENT=1
 
 RACE=-race
 GOTEST=go test -v $(RACE)
 GOLINT=golint
 GOVET=go vet
 GOFMT=gofmt
+GAS=gas -quiet -exclude=G104
 FMT_LOG=fmt.log
 LINT_LOG=lint.log
 IMPORT_LOG=import.log
@@ -40,10 +58,10 @@ SWAGGER_IMAGE=quay.io/goswagger/swagger:$(SWAGGER_VER)
 SWAGGER=docker run --rm -it -u ${shell id -u} -v "${PWD}:/go/src/${PROJECT_ROOT}" -w /go/src/${PROJECT_ROOT} $(SWAGGER_IMAGE)
 SWAGGER_GEN_DIR=swagger-gen
 
-PASS=$(shell printf "\033[32mPASS\033[0m")
-FAIL=$(shell printf "\033[31mFAIL\033[0m")
-FIXME=$(shell printf "\033[31mFIXME\033[0m")
-COLORIZE=$(SED) ''/PASS/s//$(PASS)/'' | $(SED) ''/FAIL/s//$(FAIL)/''
+COLOR_PASS=$(shell printf "\033[32mPASS\033[0m")
+COLOR_FAIL=$(shell printf "\033[31mFAIL\033[0m")
+COLOR_FIXME=$(shell printf "\033[31mFIXME\033[0m")
+COLORIZE=$(SED) ''/PASS/s//$(COLOR_PASS)/'' | $(SED) ''/FAIL/s//$(COLOR_FAIL)/''
 DOCKER_NAMESPACE?=jaegertracing
 DOCKER_TAG?=latest
 
@@ -54,9 +72,10 @@ MOCKERY=mockery
 .PHONY: test-and-lint
 test-and-lint: test fmt lint
 
+# TODO: no files actually use this right now
 .PHONY: go-gen
 go-gen:
-	go generate $(TOP_PKGS)
+	@echo skipping go generate ./...
 
 .PHONY: md-to-godoc-gen
 md-to-godoc-gen:
@@ -66,7 +85,7 @@ md-to-godoc-gen:
 
 .PHONY: clean
 clean:
-	rm -rf cover.out cover.html lint.log fmt.log jaeger-ui-build
+	rm -rf cover.out .cover/ cover.html lint.log fmt.log
 
 .PHONY: test
 test: go-gen
@@ -83,20 +102,22 @@ storage-integration-test: go-gen
 all-pkgs:
 	@echo $(ALL_PKGS) | tr ' ' '\n' | sort
 
-cvr-pkgs:
-	go list $(TOP_PKGS)
+all-srcs:
+	@echo $(ALL_SRC) | tr ' ' '\n' | sort
 
 .PHONY: cover
 cover: nocover
 	@echo pre-compiling tests
 	@time go test -i $(ALL_PKGS)
 	@./scripts/cover.sh $(shell go list $(TOP_PKGS))
+	grep -E -v 'model.pb.*.go' cover.out > cover-nogen.out
+	mv cover-nogen.out cover.out
 	go tool cover -html=cover.out -o cover.html
 
 .PHONY: nocover
 nocover:
 	@echo Verifying that all packages have test files to count in coverage
-	@scripts/check-test-files.sh $(subst github.com/jaegertracing/jaeger/,./,$(ALL_PKGS)) | $(SED) ''/FIXME/s//$(FIXME)/''
+	@scripts/check-test-files.sh $(subst github.com/jaegertracing/jaeger/,./,$(ALL_PKGS)) | $(SED) ''/FIXME/s//$(COLOR_FIXME)/''
 
 .PHONY: fmt
 fmt:
@@ -104,11 +125,24 @@ fmt:
 	$(GOFMT) -e -s -l -w $(ALL_SRC)
 	./scripts/updateLicenses.sh
 
+.PHONY: lint-gas
+lint-gas:
+	$(GAS) $(TOP_PKGS)
+
 .PHONY: lint
-lint:
+lint: lint-gas
 	$(GOVET) $(TOP_PKGS)
 	@cat /dev/null > $(LINT_LOG)
-	@$(foreach pkg, $(TOP_PKGS), $(GOLINT) $(pkg) | grep -v -e pkg/es/wrapper.go -e /mocks/ -e thrift-gen -e thrift-0.9.2 >> $(LINT_LOG) || true;)
+	$(GOLINT) $(TOP_PKGS) | \
+		grep -v \
+			-e pkg/es/wrapper.go \
+			-e /mocks/ \
+			-e thrift-gen \
+			-e thrift-0.9.2 \
+			-e model.pb.go \
+			-e model_test.pb.go \
+			>> $(LINT_LOG) \
+		|| true;
 	@[ ! -s "$(LINT_LOG)" ] || (echo "Lint Failures" | cat - $(LINT_LOG) && false)
 	@$(GOFMT) -e -s -l $(ALL_SRC) > $(FMT_LOG)
 	@./scripts/updateLicenses.sh >> $(FMT_LOG)
@@ -123,26 +157,24 @@ install-glide:
 install: install-glide
 	glide install
 
-.PHONY: install-go-bindata
-install-go-bindata:
-	go get github.com/jteeuwen/go-bindata/...
-	go get github.com/elazarl/go-bindata-assetfs/...
+.PHONY: install-statik
+install-statik:
+	go get github.com/rakyll/statik
 
 .PHONY: build-examples
-build-examples: install-go-bindata
-	(cd ./examples/hotrod/services/frontend/ && go-bindata-assetfs -pkg frontend web_assets/...)
-	rm ./examples/hotrod/services/frontend/bindata.go
-	CGO_ENABLED=0 GOOS=linux installsuffix=cgo go build -o ./examples/hotrod/hotrod-linux ./examples/hotrod/main.go
+build-examples: install-statik
+	(cd examples/hotrod/services/frontend/ && statik -f --src web_assets)
+	CGO_ENABLED=0 installsuffix=cgo go build -o ./examples/hotrod/hotrod-$(GOOS) ./examples/hotrod/main.go
 
 .PHONE: docker-hotrod
-docker-hotrod: build-examples
+docker-hotrod:
+	GOOS=linux $(MAKE) build-examples
 	docker build -t $(DOCKER_NAMESPACE)/example-hotrod:${DOCKER_TAG} ./examples/hotrod
 
 .PHONY: build_ui
-build_ui:
+build_ui: install-statik
 	cd jaeger-ui && yarn install && npm run build
-	rm -rf jaeger-ui-build && mkdir jaeger-ui-build
-	cp -r jaeger-ui/build jaeger-ui-build/
+	(cd cmd/query/app/ui/actual; statik -f -src ../../../../../jaeger-ui/build)
 
 .PHONY: build-all-in-one-linux
 build-all-in-one-linux: build_ui
@@ -150,7 +182,7 @@ build-all-in-one-linux: build_ui
 
 .PHONY: build-all-in-one
 build-all-in-one:
-	CGO_ENABLED=0 installsuffix=cgo go build -o ./cmd/standalone/standalone-$(GOOS) $(BUILD_INFO) ./cmd/standalone/main.go
+	CGO_ENABLED=0 installsuffix=cgo go build -tags ui -o ./cmd/standalone/standalone-$(GOOS) $(BUILD_INFO) ./cmd/standalone/main.go
 
 .PHONY: build-agent
 build-agent:
@@ -158,7 +190,7 @@ build-agent:
 
 .PHONY: build-query
 build-query:
-	CGO_ENABLED=0 installsuffix=cgo go build -o ./cmd/query/query-$(GOOS) $(BUILD_INFO) ./cmd/query/main.go
+	CGO_ENABLED=0 installsuffix=cgo go build -tags ui -o ./cmd/query/query-$(GOOS) $(BUILD_INFO) ./cmd/query/main.go
 
 .PHONY: build-collector
 build-collector:
@@ -166,7 +198,6 @@ build-collector:
 
 .PHONY: docker-no-ui
 docker-no-ui: build-binaries-linux build-crossdock-linux
-	mkdir -p jaeger-ui-build/build/
 	make docker-images-only
 
 .PHONY: docker
@@ -174,19 +205,24 @@ docker: build_ui docker-no-ui
 
 .PHONY: build-binaries-linux
 build-binaries-linux:
-	GOOS=linux $(MAKE) build-agent build-collector build-query build-all-in-one
+	GOOS=linux $(MAKE) build-platform-binaries
 
 .PHONY: build-binaries-windows
 build-binaries-windows:
-	GOOS=windows $(MAKE) build-agent build-collector build-query build-all-in-one
+	GOOS=windows $(MAKE) build-platform-binaries
 
 .PHONY: build-binaries-darwin
 build-binaries-darwin:
-	GOOS=darwin $(MAKE) build-agent build-collector build-query build-all-in-one
+	GOOS=darwin $(MAKE) build-platform-binaries
+
+.PHONY: build-platform-binaries
+build-platform-binaries: build-agent build-collector build-query build-all-in-one build-examples
+
+.PHONY: build-all-platforms
+build-all-platforms: build-binaries-linux build-binaries-windows build-binaries-darwin
 
 .PHONY: docker-images-only
 docker-images-only:
-	cp -r jaeger-ui-build/build/ cmd/query/jaeger-ui-build
 	docker build -t $(DOCKER_NAMESPACE)/jaeger-cassandra-schema:${DOCKER_TAG} plugin/storage/cassandra/
 	@echo "Finished building jaeger-cassandra-schema =============="
 	docker build -t $(DOCKER_NAMESPACE)/jaeger-es-index-cleaner:${DOCKER_TAG} plugin/storage/es
@@ -195,7 +231,6 @@ docker-images-only:
 		docker build -t $(DOCKER_NAMESPACE)/jaeger-$$component:${DOCKER_TAG} cmd/$$component ; \
 		echo "Finished building $$component ==============" ; \
 	done
-	rm -rf cmd/query/jaeger-ui-build
 	docker build -t $(DOCKER_NAMESPACE)/test-driver:${DOCKER_TAG} crossdock/
 	@echo "Finished building test-driver ==============" ; \
 
@@ -217,21 +252,30 @@ build-crossdock-linux:
 
 include crossdock/rules.mk
 
+.PHONY: build-crossdock-ui-placeholder
+build-crossdock-ui-placeholder:
+	mkdir -p cmd/query/app/ui/actual/statik
+	[ -e cmd/query/app/ui/actual/statik/statik.go ] || cp cmd/query/app/ui/placeholder/statik/statik.go cmd/query/app/ui/actual/statik/statik.go
+
+# Crossdock tests do not require fully functioning UI, so we skip it to speed up the build.
 .PHONY: build-crossdock
-build-crossdock: docker-no-ui
+build-crossdock: build-crossdock-ui-placeholder docker-no-ui
 	make crossdock
 
 .PHONY: build-crossdock-fresh
 build-crossdock-fresh: build-crossdock-linux
 	make crossdock-fresh
 
-.PHONY: install-ci
-install-ci: install
+.PHONY: install-tools
+install-tools:
 	go get github.com/wadey/gocovmerge
-	go get github.com/mattn/goveralls
 	go get golang.org/x/tools/cmd/cover
 	go get github.com/golang/lint/golint
 	go get github.com/sectioneight/md-to-godoc
+	go get github.com/GoASTScanner/gas/cmd/gas/...
+
+.PHONY: install-ci
+install-ci: install install-tools
 
 .PHONY: test-ci
 test-ci: build-examples lint cover
@@ -283,3 +327,62 @@ generate-mocks: install-mockery
 .PHONY: echo-version
 echo-version:
 	@echo $(GIT_CLOSEST_TAG)
+
+.PHONY: proto
+proto:
+	# Generate gogo, gRPC-Gateway, swagger, go-validators output.
+	#
+	# -I declares import folders, in order of importance
+	# This is how proto resolves the protofile imports.
+	# It will check for the protofile relative to each of these
+	# folders and use the first one it finds.
+	#
+	# --gogo_out generates GoGo Protobuf output with gRPC plugin enabled.
+	# --grpc-gateway_out generates gRPC-Gateway output.
+	# --swagger_out generates an OpenAPI 2.0 specification for our gRPC-Gateway endpoints.
+	# --govalidators_out generates Go validation files for our messages types, if specified.
+	#
+	# The lines starting with Mgoogle/... are proto import replacements,
+	# which cause the generated file to import the specified packages
+	# instead of the go_package's declared by the imported protof files.
+	#
+	# $$GOPATH/src is the output directory. It is relative to the GOPATH/src directory
+	# since we've specified a go_package option relative to that directory.
+	#
+	# model/proto/jaeger.proto is the location of the protofile we use.
+	#
+	# TODO use Docker container instead of installed protoc
+	# (https://medium.com/@linchenon/generate-grpc-and-protobuf-libraries-with-containers-c15ba4e4f3ad)
+	#
+	protoc \
+		-I model/proto \
+		-I vendor/github.com/grpc-ecosystem/grpc-gateway/ \
+		-I vendor/github.com/gogo/googleapis/ \
+		-I vendor/ \
+		--gogo_out=plugins=grpc,\
+Mgoogle/protobuf/timestamp.proto=github.com/gogo/protobuf/types,\
+Mgoogle/protobuf/duration.proto=github.com/gogo/protobuf/types,\
+Mgoogle/protobuf/empty.proto=github.com/gogo/protobuf/types,\
+Mgoogle/api/annotations.proto=github.com/gogo/googleapis/google/api:\
+$$GOPATH/src/github.com/jaegertracing/jaeger/model/ \
+		--grpc-gateway_out=\
+Mgoogle/protobuf/timestamp.proto=github.com/gogo/protobuf/types,\
+Mgoogle/protobuf/empty.proto=github.com/gogo/protobuf/types,\
+Mgoogle/api/annotations.proto=github.com/gogo/googleapis/google/api:\
+$$GOPATH/src/github.com/jaegertracing/jaeger/model \
+		--swagger_out=model/proto/openapi/ \
+		model/proto/model.proto
+
+	protoc \
+		-I model/proto \
+		--go_out=$$GOPATH/src/github.com/jaegertracing/jaeger/model/prototest/ \
+		model/proto/model_test.proto
+
+.PHONY: proto-install
+proto-install:
+	go install \
+		./vendor/github.com/gogo/protobuf/protoc-gen-gogo \
+		./vendor/github.com/grpc-ecosystem/grpc-gateway/protoc-gen-grpc-gateway \
+		./vendor/github.com/grpc-ecosystem/grpc-gateway/protoc-gen-swagger
+		# ./vendor/github.com/mwitkow/go-proto-validators/protoc-gen-govalidators \
+		# ./vendor/github.com/rakyll/statik

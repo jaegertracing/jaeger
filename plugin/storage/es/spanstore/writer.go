@@ -93,7 +93,7 @@ func NewSpanWriter(
 		client: client,
 		logger: logger,
 		writerMetrics: spanWriterMetrics{
-			indexCreate: storageMetrics.NewWriteMetrics(metricsFactory, "IndexCreate"),
+			indexCreate: storageMetrics.NewWriteMetrics(metricsFactory, "index_create"),
 		},
 		serviceWriter: serviceOperationStorage.Write,
 		indexCache: cache.NewLRUWithOptions(
@@ -145,7 +145,11 @@ func (s *SpanWriter) createIndex(indexName string, mapping string, jsonSpan *jMo
 			s.writerMetrics.indexCreate.Emit(err, time.Since(start))
 			if err != nil {
 				eErr, ok := err.(*elastic.Error)
-				if !ok || eErr.Details != nil && eErr.Details.Type != "index_already_exists_exception" {
+				if !ok || eErr.Details != nil &&
+					// ES 5.x
+					(eErr.Details.Type != "index_already_exists_exception" &&
+						// ES 6.x
+						eErr.Details.Type != "resource_already_exists_exception") {
 					return s.logError(jsonSpan, err, "Failed to create index", s.logger)
 				}
 			}

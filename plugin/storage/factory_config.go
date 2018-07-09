@@ -33,7 +33,8 @@ const (
 
 // FactoryConfig tells the Factory which types of backends it needs to create for different storage types.
 type FactoryConfig struct {
-	SpanStorageType         string
+	SpanWriterTypes         []string
+	SpanReaderType          string
 	DependenciesStorageType string
 }
 
@@ -42,6 +43,7 @@ type FactoryConfig struct {
 //   * `cassandra` - built-in
 //   * `elasticsearch` - built-in
 //   * `memory` - built-in
+//   * `kafka` - built-in
 //   * `plugin` - loads a dynamic plugin that implements storage.Factory interface (not supported at the moment)
 //
 // For backwards compatibility it also parses the args looking for deprecated --span-storage.type flag.
@@ -55,13 +57,23 @@ func FactoryConfigFromEnvAndCLI(args []string, log io.Writer) FactoryConfig {
 	if spanStorageType == "" {
 		spanStorageType = cassandraStorageType
 	}
-	depStoreType := os.Getenv(DependencyStorageTypeEnvVar)
-	if depStoreType == "" {
-		depStoreType = spanStorageType
+	spanWriterTypes := strings.Split(spanStorageType, ",")
+	if len(spanWriterTypes) > 1 {
+		fmt.Fprintf(log,
+			"WARNING: multiple span storage types have been specified. "+
+				"Only the first type (%s) will be used for reading and archiving.\n\n",
+			spanWriterTypes[0],
+		)
 	}
+	depStorageType := os.Getenv(DependencyStorageTypeEnvVar)
+	if depStorageType == "" {
+		depStorageType = spanWriterTypes[0]
+	}
+	// TODO support explicit configuration for readers
 	return FactoryConfig{
-		SpanStorageType:         spanStorageType,
-		DependenciesStorageType: depStoreType,
+		SpanWriterTypes:         spanWriterTypes,
+		SpanReaderType:          spanWriterTypes[0],
+		DependenciesStorageType: depStorageType,
 	}
 }
 
