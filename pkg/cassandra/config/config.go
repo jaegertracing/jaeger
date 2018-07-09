@@ -37,7 +37,7 @@ type Configuration struct {
 	Consistency          string        `yaml:"consistency"`
 	Port                 int           `yaml:"port"`
 	Authenticator        Authenticator `yaml:"authenticator"`
-	DisableAutodiscovery bool          `yaml:"disable_autodiscovery"`
+	DisableAutoDiscovery bool          `yaml:"disable_auto_discovery"`
 	TLS                  TLS
 }
 
@@ -144,7 +144,7 @@ func (c *Configuration) NewCluster() *gocql.ClusterConfig {
 		}
 	}
 	// If tunneling connection to C*, disable cluster autodiscovery features.
-	if c.DisableAutodiscovery {
+	if c.DisableAutoDiscovery {
 		cluster.DisableInitialHostLookup = true
 		cluster.IgnorePeerAddr = true
 	}
