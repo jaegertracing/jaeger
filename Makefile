@@ -174,7 +174,7 @@ docker-hotrod:
 .PHONY: build_ui
 build_ui: install-statik
 	cd jaeger-ui && yarn install && npm run build
-	(cd cmd/query/app/ui/actual; statik -f -tags ui -src ../../../../../jaeger-ui/build)
+	(cd cmd/query/app/ui/actual; statik -f -src ../../../../../jaeger-ui/build)
 
 .PHONY: build-all-in-one-linux
 build-all-in-one-linux: build_ui
@@ -205,18 +205,21 @@ docker: build_ui docker-no-ui
 
 .PHONY: build-binaries-linux
 build-binaries-linux:
-	GOOS=linux $(MAKE) build-all-binaries
+	GOOS=linux $(MAKE) build-platform-binaries
 
 .PHONY: build-binaries-windows
 build-binaries-windows:
-	GOOS=windows $(MAKE) build-all-binaries
+	GOOS=windows $(MAKE) build-platform-binaries
 
 .PHONY: build-binaries-darwin
 build-binaries-darwin:
-	GOOS=darwin $(MAKE) build-all-binaries
+	GOOS=darwin $(MAKE) build-platform-binaries
 
-.PHONY: build-all-binaries
+.PHONY: build-platform-binaries
 build-all-binaries: build-agent build-collector build-query build-all-in-one build-examples
+
+.PHONY: build-all-platforms
+build-all-platforms: build-binaries-linux build-binaries-windows build-binaries-darwin
 
 .PHONY: docker-images-only
 docker-images-only:
@@ -249,8 +252,14 @@ build-crossdock-linux:
 
 include crossdock/rules.mk
 
+.PHONY: build-crossdock-ui-placeholder
+build-crossdock-ui-placeholder:
+	mkdir -p cmd/query/app/ui/actual/statik
+	[ -e cmd/query/app/ui/actual/statik/statik.go ] || cp cmd/query/app/ui/placeholder/statik/statik.go cmd/query/app/ui/actual/statik/statik.go
+
+# Crossdock tests do not require fully functioning UI, so we skip it to speed up the build.
 .PHONY: build-crossdock
-build-crossdock: docker-no-ui
+build-crossdock: build-crossdock-ui-placeholder docker-no-ui
 	make crossdock
 
 .PHONY: build-crossdock-fresh
