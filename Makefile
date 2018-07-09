@@ -216,7 +216,7 @@ build-binaries-darwin:
 	GOOS=darwin $(MAKE) build-platform-binaries
 
 .PHONY: build-platform-binaries
-build-all-binaries: build-agent build-collector build-query build-all-in-one build-examples
+build-platform-binaries: build-agent build-collector build-query build-all-in-one build-examples
 
 .PHONY: build-all-platforms
 build-all-platforms: build-binaries-linux build-binaries-windows build-binaries-darwin
