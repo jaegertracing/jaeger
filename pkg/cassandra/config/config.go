@@ -27,17 +27,18 @@ import (
 
 // Configuration describes the configuration properties needed to connect to a Cassandra cluster
 type Configuration struct {
-	Servers            []string      `validate:"nonzero"`
-	Keyspace           string        `validate:"nonzero"`
-	ConnectionsPerHost int           `validate:"min=1" yaml:"connections_per_host"`
-	Timeout            time.Duration `validate:"min=500"`
-	SocketKeepAlive    time.Duration `validate:"min=0" yaml:"socket_keep_alive"`
-	MaxRetryAttempts   int           `validate:"min=0" yaml:"max_retry_attempt"`
-	ProtoVersion       int           `yaml:"proto_version"`
-	Consistency        string        `yaml:"consistency"`
-	Port               int           `yaml:"port"`
-	Authenticator      Authenticator `yaml:"authenticator"`
-	TLS                TLS
+	Servers              []string      `validate:"nonzero"`
+	Keyspace             string        `validate:"nonzero"`
+	ConnectionsPerHost   int           `validate:"min=1" yaml:"connections_per_host"`
+	Timeout              time.Duration `validate:"min=500"`
+	SocketKeepAlive      time.Duration `validate:"min=0" yaml:"socket_keep_alive"`
+	MaxRetryAttempts     int           `validate:"min=0" yaml:"max_retry_attempt"`
+	ProtoVersion         int           `yaml:"proto_version"`
+	Consistency          string        `yaml:"consistency"`
+	Port                 int           `yaml:"port"`
+	Authenticator        Authenticator `yaml:"authenticator"`
+	DisableAutodiscovery bool          `yaml:"disable_autodiscovery"`
+	TLS                  TLS
 }
 
 // Authenticator holds the authentication properties needed to connect to a Cassandra cluster
@@ -141,6 +142,11 @@ func (c *Configuration) NewCluster() *gocql.ClusterConfig {
 			CaPath:                 c.TLS.CaPath,
 			EnableHostVerification: c.TLS.EnableHostVerification,
 		}
+	}
+	// If tunneling connection to C*, disable cluster autodiscovery features.
+	if c.DisableAutodiscovery {
+		cluster.DisableInitialHostLookup = true
+		cluster.IgnorePeerAddr = true
 	}
 	return cluster
 }
