@@ -1,5 +1,5 @@
-hash: f821e88548fe126d174c800f7c3a4a076cb01391f3f4f1e091cc5b24819fbf58
-updated: 2018-06-14T17:56:36.870952443-04:00
+hash: b7aada76fe425b7f507a331dba1efe365bc166aca596f688610f185ea18c294a
+updated: 2018-07-08T13:51:21.928395-04:00
 imports:
 - name: github.com/apache/thrift
   version: 53dd39833a08ce33582e5ff31fa18bb4735d6731
@@ -30,8 +30,6 @@ imports:
   version: bb955e01b9346ac19dc29eb16586c90ded99a98c
 - name: github.com/eapache/queue
   version: 093482f3f8ce946c05bcba64badd2c82369e084d
-- name: github.com/elazarl/go-bindata-assetfs
-  version: 38087fe4dafb822e541b3f7955075cc1c30bd294
 - name: github.com/fsnotify/fsnotify
   version: c2828203cd70a50dcccfb2761f8b1f8ceef9a8e9
 - name: github.com/go-kit/kit
@@ -81,7 +79,7 @@ imports:
   subpackages:
   - google/api
 - name: github.com/gogo/protobuf
-  version: fd9a4790f3963525fb889cc00e0a8f828e0b3a29
+  version: 30cf7ac33676b5786e78c746683f0d4cd64fa75b
   subpackages:
   - gogoproto
   - jsonpb
@@ -197,6 +195,10 @@ imports:
   version: 1c4bec281e4bbc75b4f4a1bd923bdf1bd989a969
 - name: github.com/PuerkitoBio/urlesc
   version: de5bf2ad457846296e2031421a34e2568e304e35
+- name: github.com/rakyll/statik
+  version: eab4de8dac7ec0cb3a6d9218d95ffe441832cb36
+  subpackages:
+  - fs
 - name: github.com/rcrowley/go-metrics
   version: e2704e165165ec55d062f5919b4b29494e9fa790
 - name: github.com/Shopify/sarama
@@ -218,7 +220,7 @@ imports:
 - name: github.com/spf13/viper
   version: b5e8006cbee93ec955a89ab31e0e3ce3204f3736
 - name: github.com/stretchr/objx
-  version: 0ab728f62c7f6fcd754334f7931c2dd659dce1d1
+  version: b8b73a35e9830ae509858c10dec5866b4d5c8bff
 - name: github.com/stretchr/testify
   version: f35b8ab0b5a2cef36673838d662e249dd9c94686
   subpackages:
@@ -287,7 +289,7 @@ imports:
   - zapcore
   - zaptest
 - name: golang.org/x/net
-  version: db08ff08e8622530d9ed3a0e8ac279f6d4c02196
+  version: 32a936f46389aa10549d60bd7833e54b01685d09
   subpackages:
   - context
   - context/ctxhttp
