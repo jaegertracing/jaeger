@@ -25,7 +25,10 @@ import (
 
 	"github.com/gorilla/mux"
 	"github.com/pkg/errors"
+	"github.com/rakyll/statik/fs"
 	"go.uber.org/zap"
+
+	_ "github.com/jaegertracing/jaeger/cmd/query/app/ui" // init static assets
 )
 
 var (
@@ -46,18 +49,14 @@ func RegisterStaticHandler(r *mux.Router, logger *zap.Logger, qOpts *QueryOption
 	if err != nil {
 		logger.Panic("Could not create static assets handler", zap.Error(err))
 	}
-	if staticHandler != nil {
-		staticHandler.RegisterRoutes(r)
-	} else {
-		logger.Info("Static handler is not registered")
-	}
+	staticHandler.RegisterRoutes(r)
 }
 
 // StaticAssetsHandler handles static assets
 type StaticAssetsHandler struct {
-	options          StaticAssetsHandlerOptions
-	staticAssetsRoot string
-	indexHTML        []byte
+	options   StaticAssetsHandlerOptions
+	indexHTML []byte
+	assetsFS  http.FileSystem
 }
 
 // StaticAssetsHandlerOptions defines options for NewStaticAssetsHandler
@@ -68,15 +67,13 @@ type StaticAssetsHandlerOptions struct {
 
 // NewStaticAssetsHandler returns a StaticAssetsHandler
 func NewStaticAssetsHandler(staticAssetsRoot string, options StaticAssetsHandlerOptions) (*StaticAssetsHandler, error) {
-	if staticAssetsRoot == "" {
-		return nil, nil
+	assetsFS, _ := fs.New()
+	if staticAssetsRoot != "" {
+		assetsFS = http.Dir(staticAssetsRoot)
 	}
-	if !strings.HasSuffix(staticAssetsRoot, "/") {
-		staticAssetsRoot = staticAssetsRoot + "/"
-	}
-	indexBytes, err := ioutil.ReadFile(staticAssetsRoot + "index.html")
+	indexBytes, err := loadIndexHTML(assetsFS.Open)
 	if err != nil {
-		return nil, errors.Wrap(err, "Cannot read UI static assets")
+		return nil, errors.Wrap(err, "Cannot load index.html")
 	}
 	configString := "JAEGER_CONFIG = DEFAULT_CONFIG"
 	if config, err := loadUIConfig(options.UIConfigPath); err != nil {
@@ -99,10 +96,23 @@ func NewStaticAssetsHandler(staticAssetsRoot string, options StaticAssetsHandler
 		indexBytes = basePathPattern.ReplaceAll(indexBytes, []byte(fmt.Sprintf(basePathReplace, options.BasePath)))
 	}
 	return &StaticAssetsHandler{
-		options:          options,
-		staticAssetsRoot: staticAssetsRoot,
-		indexHTML:        indexBytes,
+		options:   options,
+		indexHTML: indexBytes,
+		assetsFS:  assetsFS,
 	}, nil
+}
+
+func loadIndexHTML(open func(string) (http.File, error)) ([]byte, error) {
+	indexFile, err := open("/index.html")
+	if err != nil {
+		return nil, errors.Wrap(err, "Cannot open index.html")
+	}
+	defer indexFile.Close()
+	indexBytes, err := ioutil.ReadAll(indexFile)
+	if err != nil {
+		return nil, errors.Wrap(err, "Cannot read from index.html")
+	}
+	return indexBytes, nil
 }
 
 func loadUIConfig(uiConfig string) (map[string]interface{}, error) {
@@ -133,29 +143,15 @@ func loadUIConfig(uiConfig string) (map[string]interface{}, error) {
 
 // RegisterRoutes registers routes for this handler on the given router
 func (sH *StaticAssetsHandler) RegisterRoutes(router *mux.Router) {
-	router.PathPrefix("/static").Handler(sH.fileHandler())
+	fileServer := http.FileServer(sH.assetsFS)
+	if sH.options.BasePath != "/" {
+		fileServer = http.StripPrefix(sH.options.BasePath+"/", fileServer)
+	}
+	router.PathPrefix("/static/").Handler(fileServer)
 	for _, file := range staticRootFiles {
-		router.Path("/" + file).HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-			http.ServeFile(w, r, sH.staticAssetsRoot+file)
-		})
+		router.Path("/" + file).Handler(fileServer)
 	}
 	router.NotFoundHandler = http.HandlerFunc(sH.notFound)
-}
-
-func (sH *StaticAssetsHandler) fileHandler() http.Handler {
-	fs := http.FileServer(http.Dir(sH.staticAssetsRoot))
-	base := sH.options.BasePath
-	if base == "/" {
-		return fs
-	}
-	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		if strings.HasPrefix(r.URL.Path, base) {
-			// gorilla Subroute() is a bit odd, it keeps the base path in the URL,
-			// which prevents the FileServer from locating the files, so we strip the prefix.
-			r.URL.Path = r.URL.Path[len(base):]
-		}
-		fs.ServeHTTP(w, r)
-	})
 }
 
 func (sH *StaticAssetsHandler) notFound(w http.ResponseWriter, r *http.Request) {
