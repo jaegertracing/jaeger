@@ -38,6 +38,20 @@ glide install
 make test
 ```
 
+### Running local build with the UI
+
+The `jaeger-ui` submodule contains the source code for the UI assets (requires Node.js 6+). The assets must be compiled first with `make build_ui`, which runs Node.js build and then packages the assets into a Go file that is `.gitignore`-ed. The packaged assets can be enabled by providing a build tag `ui`, e.g.:
+
+```
+$ go run -tags ui ./cmd/standalone/main.go
+```
+
+Alternatively, the path to the built UI assets can be provided via `--query.static-files` flag:
+
+```
+$ go run ./cmd/standalone/main.go --query.static-files jaeger-ui/build
+```
+
 ## Project Structure
 
 These are general guidelines on how to organize source code in this repository.

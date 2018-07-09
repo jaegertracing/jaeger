@@ -7,5 +7,6 @@ COPY --from=certs /etc/ssl/certs/ca-certificates.crt /etc/ssl/certs/ca-certifica
 
 EXPOSE 16686
 COPY query-linux /go/bin/
-ADD jaeger-ui-build /go/jaeger-ui/
-CMD ["/go/bin/query-linux", "--query.static-files=/go/jaeger-ui/"]
+
+# TODO replace this with ENTRYPOINT
+CMD ["/go/bin/query-linux"]
