@@ -60,13 +60,6 @@ rm -rf deploy $DEPLOY_STAGING_DIR
 mkdir deploy
 mkdir $DEPLOY_STAGING_DIR
 
-UI_ASSETS=cmd/query/app/statik/statik.go
-if [ "`git status | grep $UI_ASSETS`" == "" ]; then
-    echo "ERROR: file ${UI_ASSETS} is unchanged, indicating UI assets have not been packaged."
-    echo "Aborting."
-    exit 1
-fi
-
 package linux
 package darwin
 package windows .exe
