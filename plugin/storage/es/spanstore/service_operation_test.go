@@ -22,7 +22,6 @@ import (
 	"github.com/stretchr/testify/require"
 	"gopkg.in/olivere/elastic.v5"
 
-	"github.com/jaegertracing/jaeger/model"
 	jModel "github.com/jaegertracing/jaeger/model/json"
 	"github.com/jaegertracing/jaeger/pkg/es/mocks"
 )
@@ -36,13 +35,11 @@ func TestWriteService(t *testing.T) {
 			ServiceName:   "service",
 			OperationName: "operation",
 		}
-
-		serviceHash, err := model.HashCode(service)
-		require.NoError(t, err)
+		serviceHash := service.hashCode()
 
 		indexService.On("Index", stringMatcher(indexName)).Return(indexService)
 		indexService.On("Type", stringMatcher(serviceType)).Return(indexService)
-		indexService.On("Id", stringMatcher(string(serviceHash))).Return(indexService)
+		indexService.On("Id", stringMatcher(serviceHash)).Return(indexService)
 		indexService.On("BodyJson", mock.AnythingOfType("spanstore.Service")).Return(indexService)
 		indexService.On("Add")
 
@@ -77,13 +74,11 @@ func TestWriteServiceError(t *testing.T) {
 			ServiceName:   "service",
 			OperationName: "operation",
 		}
-
-		serviceHash, err := model.HashCode(service)
-		require.NoError(t, err)
+		serviceHash := service.hashCode()
 
 		indexService.On("Index", stringMatcher(indexName)).Return(indexService)
 		indexService.On("Type", stringMatcher(serviceType)).Return(indexService)
-		indexService.On("Id", stringMatcher(string(serviceHash))).Return(indexService)
+		indexService.On("Id", stringMatcher(serviceHash)).Return(indexService)
 		indexService.On("BodyJson", mock.AnythingOfType("spanstore.Service")).Return(indexService)
 		indexService.On("Add")
 

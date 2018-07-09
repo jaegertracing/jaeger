@@ -163,10 +163,9 @@ func TestSpanWriter_WriteSpan(t *testing.T) {
 				indexService.On("Type", stringMatcher(serviceType)).Return(indexServicePut)
 				indexService.On("Type", stringMatcher(spanType)).Return(indexSpanPut)
 
-				serviceHash, err := model.HashCode(service)
-				require.NoError(t, err)
+				serviceHash := service.hashCode()
 
-				indexServicePut.On("Id", stringMatcher(string(serviceHash))).Return(indexServicePut)
+				indexServicePut.On("Id", stringMatcher(serviceHash)).Return(indexServicePut)
 				indexServicePut.On("BodyJson", mock.AnythingOfType("spanstore.Service")).Return(indexServicePut)
 				indexServicePut.On("Add")
 

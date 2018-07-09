@@ -16,8 +16,8 @@ package spanstore
 
 import (
 	"context"
-	"encoding/gob"
-	"io"
+	"fmt"
+	"hash/fnv"
 	"strconv"
 	"strings"
 	"time"
@@ -75,12 +75,11 @@ type Span struct {
 	StartTimeMillis uint64 `json:"startTimeMillis"`
 }
 
-// Hash implements Hash from Hashable.
-func (s Service) Hash(w io.Writer) (err error) {
-	// gob is not the most efficient way, but it ensures we don't miss any fields.
-	// See BenchmarkSpanHash in span_test.go
-	enc := gob.NewEncoder(w)
-	return enc.Encode(s)
+func (s Service) hashCode() string {
+	h := fnv.New64a()
+	h.Write([]byte(s.ServiceName))
+	h.Write([]byte(s.OperationName))
+	return fmt.Sprintf("%x", h.Sum64())
 }
 
 // NewSpanWriter creates a new SpanWriter for use

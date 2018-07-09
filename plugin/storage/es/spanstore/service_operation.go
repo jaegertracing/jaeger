@@ -18,7 +18,6 @@ import (
 	"context"
 	"time"
 
-	"github.com/jaegertracing/jaeger/model"
 	"github.com/pkg/errors"
 	"github.com/uber/jaeger-lib/metrics"
 	"go.uber.org/zap"
@@ -75,8 +74,7 @@ func (s *ServiceOperationStorage) Write(indexName string, jsonSpan *jModel.Span)
 		OperationName: jsonSpan.OperationName,
 	}
 
-	serviceHash, _ := model.HashCode(service)
-	cacheKey := string(serviceHash)
+	cacheKey := service.hashCode()
 	if !keyInCache(cacheKey, s.serviceCache) {
 		s.client.Index().Index(indexName).Type(serviceType).Id(cacheKey).BodyJson(service).Add()
 		writeCache(cacheKey, s.serviceCache)
