@@ -16,6 +16,8 @@ package spanstore
 
 import (
 	"context"
+	"fmt"
+	"hash/fnv"
 	"strconv"
 	"strings"
 	"time"
@@ -71,6 +73,13 @@ type Service struct {
 type Span struct {
 	*jModel.Span
 	StartTimeMillis uint64 `json:"startTimeMillis"`
+}
+
+func (s Service) hashCode() string {
+	h := fnv.New64a()
+	h.Write([]byte(s.ServiceName))
+	h.Write([]byte(s.OperationName))
+	return fmt.Sprintf("%x", h.Sum64())
 }
 
 // NewSpanWriter creates a new SpanWriter for use
