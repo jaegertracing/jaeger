@@ -1,6 +1,64 @@
 Changes by Version
 ==================
 
+1.6.0 (2018-07-10)
+------------------
+
+#### Backend Changes
+
+##### Breaking Changes!!!
+
+- Update Dockerfiles to reference executable via ENTRYPOINT (#815) by Zachary DiCesare (@zdicesare)
+
+  It is no longer necessary to specify the binary name when passing flags to containers.
+  For example, to execute the `help` command of the collector, instead of
+  ```
+  $ docker run -it --rm jaegertracing/jaeger-collector /go/bin/collector-linux help
+  ```
+  run
+  ```
+  $ docker run -it --rm jaegertracing/jaeger-collector help
+  ```
+
+- Detect HTTP payload format from Content-Type (#916) by Yuri Shkuro (@yurishkuro)
+
+  When submitting spans in Thrift format to HTTP endpoint `/api/traces`,
+  the `format` argument is no longer required, but the Content-Type header
+  must be set to "application/vnd.apache.thrift.binary".
+
+- Change metric tag from "service" to "svc" (#883) by Won Jun Jang (@black-adder)
+
+##### New Features
+
+- Add Kafka as a Storage Plugin (#862) by David Yeghshatyan (@davit-y)
+
+  The collectors can be configured to write spans to Kafka for further data mining.
+
+- Package static assets inside the query-service binary (#918) by Yuri Shkuro (@yurishkuro)
+
+  It is no longer necessary (but still possible) to pass the path to UI static assets
+  to jaeger-query and jaeger-standalone binaries.
+
+- Replace domain model with Protobuf/gogo-generated model (#856) by Yuri Shkuro (@yurishkuro)
+
+  First step towards switching to Protobuf and gRPC.
+
+- Include HotROD binary in the distributions (#917) by Yuri Shkuro (@yurishkuro)
+- Improve HotROD demo (#915) by Yuri Shkuro (@yurishkuro)
+- Add DisableAutoDiscovery param to cassandra config (#912) by Bill Westlin (@whistlinwilly)
+- Add connCheckTimeout flag to agent (#911) by Henrique Rodrigues (@Henrod)
+- Ability to use multiple storage types (#880) by David Yeghshatyan (@davit-y)
+
+##### Minor Improvements
+
+- [ES storage] Log number of total and failed requests (#902) by Tomasz Adamski (@tmszdmsk)
+- [ES storage] Do not log requests on error (#901) by Tomasz Adamski (@tmszdmsk)
+- Add cassandra index filter (#876) by Won Jun Jang (@black-adder)
+- Close span writer in standalone (#863) (4 weeks ago) by Pavol Loffay (@pavolloffay)
+- Log configuration options for memory storage (#852) (6 weeks ago) by Juraci Paixão Kröhling (@jpkrohling)
+- Update collector metric counters to have a name (#886) by Won Jun Jang (@black-adder)
+- Add CONTRIBUTING_GUIDELINES.md (#864) by (@PikBot)
+
 1.5.0 (2018-05-28)
 ------------------
 
