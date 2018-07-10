@@ -31,11 +31,7 @@ func TestWriteService(t *testing.T) {
 		indexService := &mocks.IndexService{}
 
 		indexName := "jaeger-1995-04-21"
-		service := Service{
-			ServiceName:   "service",
-			OperationName: "operation",
-		}
-		serviceHash := service.hashCode()
+		serviceHash := "de3b5a8f1a79989d"
 
 		indexService.On("Index", stringMatcher(indexName)).Return(indexService)
 		indexService.On("Type", stringMatcher(serviceType)).Return(indexService)
@@ -70,11 +66,7 @@ func TestWriteServiceError(t *testing.T) {
 		indexService := &mocks.IndexService{}
 
 		indexName := "jaeger-1995-04-21"
-		service := Service{
-			ServiceName:   "service",
-			OperationName: "operation",
-		}
-		serviceHash := service.hashCode()
+		serviceHash := "de3b5a8f1a79989d"
 
 		indexService.On("Index", stringMatcher(indexName)).Return(indexService)
 		indexService.On("Type", stringMatcher(serviceType)).Return(indexService)
