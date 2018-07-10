@@ -53,6 +53,7 @@ Changes by Version
 
 - [ES storage] Log number of total and failed requests (#902) by Tomasz Adamski (@tmszdmsk)
 - [ES storage] Do not log requests on error (#901) by Tomasz Adamski (@tmszdmsk)
+- [ES storage] Do not exceed ES _id length limit (#905) by Łukasz Harasimowicz (@harnash) and Tomasz Adamski (@tmszdmsk)
 - Add cassandra index filter (#876) by Won Jun Jang (@black-adder)
 - Close span writer in standalone (#863) (4 weeks ago) by Pavol Loffay (@pavolloffay)
 - Log configuration options for memory storage (#852) (6 weeks ago) by Juraci Paixão Kröhling (@jpkrohling)
