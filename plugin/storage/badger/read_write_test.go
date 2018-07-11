@@ -18,6 +18,7 @@ import (
 	"errors"
 	"fmt"
 	"io"
+	"io/ioutil"
 	"testing"
 	"time"
 
@@ -238,8 +239,95 @@ func TestMenuSeeks(t *testing.T) {
 		assert.Equal(t, spans, len(operations))
 		assert.Equal(t, services, len(serviceList))
 	})
+}
 
-	// TODO Test the KV store loading also for new cache (runFactoryTest removes the temp data)
+func TestPersist(t *testing.T) {
+	dir, err := ioutil.TempDir("", "badgerTest")
+	assert.NoError(t, err)
+
+	p := func(t *testing.T, dir string, test func(t *testing.T, sw spanstore.Writer, sr spanstore.Reader)) {
+		f := NewFactory()
+		opts := NewOptions("badger")
+		v, command := config.Viperize(opts.AddFlags)
+
+		keyParam := fmt.Sprintf("--badger.directory-key=%s", dir)
+		valueParam := fmt.Sprintf("--badger.directory-value=%s", dir)
+
+		command.ParseFlags([]string{
+			"--badger.ephemeral=false",
+			"--badger.consistency=false",
+			keyParam,
+			valueParam,
+		})
+		f.InitFromViper(v)
+
+		err = f.Initialize(metrics.NullFactory, zap.NewNop())
+		assert.NoError(t, err)
+
+		sw, err := f.CreateSpanWriter()
+		assert.NoError(t, err)
+
+		sr, err := f.CreateSpanReader()
+		assert.NoError(t, err)
+
+		defer func() {
+			if closer, ok := sw.(io.Closer); ok {
+				err := closer.Close()
+				assert.NoError(t, err)
+			} else {
+				t.FailNow()
+			}
+
+		}()
+
+		/*
+			// For debugging, keep commented out for commits
+			err = f.store.View(func(txn *badger.Txn) error {
+				opts := badger.DefaultIteratorOptions
+				opts.PrefetchSize = 10 // TraceIDs are not sorted, pointless to prefetch large amount of values
+				it := txn.NewIterator(opts)
+				defer it.Close()
+
+				for it.Rewind(); it.Valid(); it.Next() {
+					fmt.Printf("Key: %v\n", it.Item())
+				}
+				return nil
+			})
+		*/
+
+		test(t, sw, sr)
+	}
+
+	p(t, dir, func(t *testing.T, sw spanstore.Writer, sr spanstore.Reader) {
+		s := model.Span{
+			TraceID: model.TraceID{
+				Low:  uint64(1),
+				High: 1,
+			},
+			SpanID:        model.SpanID(4),
+			OperationName: fmt.Sprintf("operation-p"),
+			Process: &model.Process{
+				ServiceName: fmt.Sprintf("service-p"),
+			},
+			StartTime: time.Now(),
+			Duration:  time.Duration(1 * time.Hour),
+		}
+		err := sw.WriteSpan(&s)
+		assert.NoError(t, err)
+	})
+
+	p(t, dir, func(t *testing.T, sw spanstore.Writer, sr spanstore.Reader) {
+		trace, err := sr.GetTrace(model.TraceID{
+			Low:  uint64(1),
+			High: 1,
+		})
+		assert.NoError(t, err)
+		assert.Equal(t, "operation-p", trace.Spans[0].OperationName)
+
+		services, err := sr.GetServices()
+		assert.NoError(t, err)
+		assert.Equal(t, 1, len(services))
+	})
 }
 
 // Opens a badger db and runs a a test on it.
@@ -254,26 +342,22 @@ func runFactoryTest(tb testing.TB, test func(tb testing.TB, sw spanstore.Writer,
 	f.InitFromViper(v)
 
 	err := f.Initialize(metrics.NullFactory, zap.NewNop())
-	if err != nil {
-		tb.FailNow()
-	}
+	assert.NoError(tb, err)
 
 	sw, err := f.CreateSpanWriter()
-	if err != nil {
-		tb.FailNow()
-	}
+	assert.NoError(tb, err)
 
 	sr, err := f.CreateSpanReader()
-	if err != nil {
-		tb.FailNow()
-	}
+	assert.NoError(tb, err)
+
+	dr, err := f.CreateDependencyReader()
+	assert.NoError(tb, err)
+	assert.Nil(tb, dr)
 
 	defer func() {
 		if closer, ok := sw.(io.Closer); ok {
 			err := closer.Close()
-			if err != nil {
-				tb.FailNow()
-			}
+			assert.NoError(tb, err)
 		} else {
 			tb.FailNow()
 		}

@@ -16,6 +16,29 @@
 
 package badger
 
-func (f *Factory) diskStatisticsUpdate() error {
-	return nil
+import (
+	"testing"
+
+	assert "github.com/stretchr/testify/require"
+	"github.com/uber/jaeger-lib/metrics"
+	"go.uber.org/zap"
+
+	"github.com/jaegertracing/jaeger/pkg/config"
+)
+
+func TestDiskStatisticsUpdate(t *testing.T) {
+	f := NewFactory()
+	opts := NewOptions("badger")
+	v, command := config.Viperize(opts.AddFlags)
+	command.ParseFlags([]string{
+		"--badger.ephemeral=true",
+		"--badger.consistency=false",
+	})
+	f.InitFromViper(v)
+	err := f.Initialize(metrics.NullFactory, zap.NewNop())
+	assert.NoError(t, err)
+
+	// We're not expecting any value in !linux, just no error
+	err = f.diskStatisticsUpdate()
+	assert.NoError(t, err)
 }

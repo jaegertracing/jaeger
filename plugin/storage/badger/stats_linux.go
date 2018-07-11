@@ -18,14 +18,20 @@ import (
 	"golang.org/x/sys/unix"
 )
 
-func (f *Factory) diskStatisticsUpdate() {
+func (f *Factory) diskStatisticsUpdate() error {
 	// These stats are not interesting with Windows as there's no separate tmpfs
 	// In case of ephemeral these are the same, but we'll report them separately for consistency
 	var keyDirStatfs unix.Statfs_t
-	_ = unix.Statfs(f.Options.GetPrimary().KeyDirectory, &keyDirStatfs)
+	err := unix.Statfs(f.Options.GetPrimary().KeyDirectory, &keyDirStatfs)
+	if err != nil {
+		return err
+	}
 
 	var valDirStatfs unix.Statfs_t
-	_ = unix.Statfs(f.Options.GetPrimary().ValueDirectory, &valDirStatfs)
+	err = unix.Statfs(f.Options.GetPrimary().ValueDirectory, &valDirStatfs)
+	if err != nil {
+		return err
+	}
 
 	// Using Bavail instead of Bfree to get non-priviledged user space available
 	ValueLogSpaceAvailable.Set(int64(valDirStatfs.Bavail) * valDirStatfs.Bsize)
@@ -37,4 +43,5 @@ func (f *Factory) diskStatisticsUpdate() {
 	 and with the keys the LSM compaction must remove the offending files also. Thus, there's no guarantee the clean up would
 	 actually reduce the amount of diskspace used any faster than allowing TTL to remove them.
 	*/
+	return nil
 }
