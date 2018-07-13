@@ -18,6 +18,7 @@ import (
 	"fmt"
 	"os"
 	"testing"
+	"time"
 
 	assert "github.com/stretchr/testify/require"
 	"github.com/uber/jaeger-lib/metrics"
@@ -61,4 +62,29 @@ func TestForCodecov(t *testing.T) {
 	// Now try to close, since the files have been deleted this should throw an error hopefully
 	err = f.Close()
 	assert.Error(t, err)
+}
+
+func TestMaintenanceRun(t *testing.T) {
+	// For Codecov - this does not test anything
+	f := NewFactory()
+	v, _ := config.Viperize(f.AddFlags)
+	f.InitFromViper(v)
+	// Safeguard
+	assert.True(t, LastMaintenanceRun.Value() == 0)
+	// Lets speed up the maintenance ticker..
+	f.maintenanceInterval = time.Duration(10) * time.Millisecond
+	f.Initialize(metrics.NullFactory, zap.NewNop())
+
+	sleeps := 0
+Wait:
+	for LastMaintenanceRun.Value() == 0 && sleeps < 8 {
+		if LastMaintenanceRun.Value() > 0 {
+			break Wait
+		}
+		time.Sleep(time.Duration(50) * time.Millisecond)
+		sleeps++
+	}
+	err := f.Close()
+	assert.NoError(t, err)
+	assert.True(t, LastMaintenanceRun.Value() > 0)
 }

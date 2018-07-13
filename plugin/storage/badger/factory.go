@@ -36,6 +36,8 @@ var (
 	ValueLogSpaceAvailable *expvar.Int
 	// KeyLogSpaceAvailable returns the amount of space left on the key log mount point in bytes
 	KeyLogSpaceAvailable *expvar.Int
+	// LastMaintenanceRun stores the timestamp of the previous maintenanceRun
+	LastMaintenanceRun *expvar.Int
 )
 
 // Factory implements storage.Factory for Badger backend.
@@ -45,9 +47,14 @@ type Factory struct {
 	cache   *badgerStore.CacheStore
 	logger  *zap.Logger
 
-	tmpDir            string
-	maintenanceTicker *time.Ticker
+	tmpDir              string
+	maintenanceInterval time.Duration
+	maintenanceTicker   *time.Ticker
 }
+
+const (
+	defaultTickerInterval time.Duration = 5 * time.Minute
+)
 
 // NewFactory creates a new Factory.
 func NewFactory() *Factory {
@@ -57,8 +64,12 @@ func NewFactory() *Factory {
 	if KeyLogSpaceAvailable == nil {
 		KeyLogSpaceAvailable = expvar.NewInt("badger_key_log_bytes_available")
 	}
+	if LastMaintenanceRun == nil {
+		LastMaintenanceRun = expvar.NewInt("Unix time of last maintenance run")
+	}
 	return &Factory{
-		Options: NewOptions("badger"),
+		Options:             NewOptions("badger"),
+		maintenanceInterval: defaultTickerInterval,
 	}
 }
 
@@ -106,7 +117,7 @@ func (f *Factory) Initialize(metricsFactory metrics.Factory, logger *zap.Logger)
 	}
 	f.cache = cache
 
-	f.maintenanceTicker = time.NewTicker(5 * time.Minute)
+	f.maintenanceTicker = time.NewTicker(f.maintenanceInterval)
 	go f.maintenance()
 
 	logger.Info("Badger storage configuration", zap.Any("configuration", opts))
@@ -158,6 +169,7 @@ func (f *Factory) maintenance() {
 				err = f.store.RunValueLogGC(0.5)
 			}
 		}
+		LastMaintenanceRun.Set(time.Now().Unix())
 		f.diskStatisticsUpdate()
 	}
 }
