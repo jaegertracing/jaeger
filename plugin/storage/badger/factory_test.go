@@ -15,6 +15,7 @@
 package badger
 
 import (
+	"expvar"
 	"fmt"
 	"os"
 	"testing"
@@ -75,16 +76,27 @@ func TestMaintenanceRun(t *testing.T) {
 	f.maintenanceInterval = time.Duration(10) * time.Millisecond
 	f.Initialize(metrics.NullFactory, zap.NewNop())
 
-	sleeps := 0
-Wait:
-	for LastMaintenanceRun.Value() == 0 && sleeps < 8 {
-		if LastMaintenanceRun.Value() > 0 {
-			break Wait
+	waiter := func(previousValue int64) int64 {
+		sleeps := 0
+		for LastMaintenanceRun.Value() == previousValue && sleeps < 8 {
+			// Potentially wait for scheduler
+			time.Sleep(time.Duration(100) * time.Millisecond)
+			sleeps++
 		}
-		time.Sleep(time.Duration(50) * time.Millisecond)
-		sleeps++
+		assert.True(t, LastMaintenanceRun.Value() > previousValue)
+		return LastMaintenanceRun.Value()
 	}
+
+	runtime := waiter(0) // First run, check that it was ran and caches previous size
+
+	// This is to for codecov only. Can break without anything else breaking as it does test badger's
+	// internal implementation
+	vlogSize := expvar.Get("badger_vlog_size_bytes").(*expvar.Map).Get(f.tmpDir).(*expvar.Int)
+	currSize := vlogSize.Value()
+	vlogSize.Set(currSize + 1<<31)
+
+	runtime = waiter(runtime)
+	assert.True(t, LastValueLogCleaned.Value() > 0)
 	err := f.Close()
 	assert.NoError(t, err)
-	assert.True(t, LastMaintenanceRun.Value() > 0)
 }
