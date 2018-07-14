@@ -26,24 +26,25 @@ import (
 
 const (
 	// session settings
-	suffixEnabled          = ".enabled"
-	suffixConnPerHost      = ".connections-per-host"
-	suffixMaxRetryAttempts = ".max-retry-attempts"
-	suffixTimeout          = ".timeout"
-	suffixServers          = ".servers"
-	suffixPort             = ".port"
-	suffixKeyspace         = ".keyspace"
-	suffixConsistency      = ".consistency"
-	suffixProtoVer         = ".proto-version"
-	suffixSocketKeepAlive  = ".socket-keep-alive"
-	suffixUsername         = ".username"
-	suffixPassword         = ".password"
-	suffixTLS              = ".tls"
-	suffixCert             = ".tls.cert"
-	suffixKey              = ".tls.key"
-	suffixCA               = ".tls.ca"
-	suffixServerName       = ".tls.server-name"
-	suffixVerifyHost       = ".tls.verify-host"
+	suffixEnabled           = ".enabled"
+	suffixConnPerHost       = ".connections-per-host"
+	suffixMaxRetryAttempts  = ".max-retry-attempts"
+	suffixTimeout           = ".timeout"
+	suffixReconnectInterval = ".reconnect-interval"
+	suffixServers           = ".servers"
+	suffixPort              = ".port"
+	suffixKeyspace          = ".keyspace"
+	suffixConsistency       = ".consistency"
+	suffixProtoVer          = ".proto-version"
+	suffixSocketKeepAlive   = ".socket-keep-alive"
+	suffixUsername          = ".username"
+	suffixPassword          = ".password"
+	suffixTLS               = ".tls"
+	suffixCert              = ".tls.cert"
+	suffixKey               = ".tls.key"
+	suffixCA                = ".tls.ca"
+	suffixServerName        = ".tls.server-name"
+	suffixVerifyHost        = ".tls.verify-host"
 
 	// common storage settings
 	suffixSpanStoreWriteCacheTTL = ".span-store-write-cache-ttl"
@@ -83,6 +84,7 @@ func NewOptions(primaryNamespace string, otherNamespaces ...string) *Options {
 				Keyspace:           "jaeger_v1_test",
 				ProtoVersion:       4,
 				ConnectionsPerHost: 2,
+				ReconnectInterval:  60 * time.Second,
 			},
 			servers:   "127.0.0.1",
 			namespace: primaryNamespace,
@@ -130,6 +132,10 @@ func addFlags(flagSet *flag.FlagSet, nsConfig *namespaceConfig) {
 		nsConfig.namespace+suffixTimeout,
 		nsConfig.Timeout,
 		"Timeout used for queries")
+	flagSet.Duration(
+		nsConfig.namespace+suffixReconnectInterval,
+		nsConfig.ReconnectInterval,
+		"Reconnect interval to retry connecting to downed hosts")
 	flagSet.String(
 		nsConfig.namespace+suffixServers,
 		nsConfig.servers,
@@ -204,6 +210,7 @@ func (cfg *namespaceConfig) initFromViper(v *viper.Viper) {
 	cfg.ConnectionsPerHost = v.GetInt(cfg.namespace + suffixConnPerHost)
 	cfg.MaxRetryAttempts = v.GetInt(cfg.namespace + suffixMaxRetryAttempts)
 	cfg.Timeout = v.GetDuration(cfg.namespace + suffixTimeout)
+	cfg.ReconnectInterval = v.GetDuration(cfg.namespace + suffixReconnectInterval)
 	cfg.servers = v.GetString(cfg.namespace + suffixServers)
 	cfg.Port = v.GetInt(cfg.namespace + suffixPort)
 	cfg.Keyspace = v.GetString(cfg.namespace + suffixKeyspace)

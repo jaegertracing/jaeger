@@ -31,6 +31,7 @@ type Configuration struct {
 	Keyspace             string        `validate:"nonzero"`
 	ConnectionsPerHost   int           `validate:"min=1" yaml:"connections_per_host"`
 	Timeout              time.Duration `validate:"min=500"`
+	ReconnectInterval    time.Duration `validate:"min=500" yaml:"reconnect_interval"`
 	SocketKeepAlive      time.Duration `validate:"min=0" yaml:"socket_keep_alive"`
 	MaxRetryAttempts     int           `validate:"min=0" yaml:"max_retry_attempt"`
 	ProtoVersion         int           `yaml:"proto_version"`
@@ -74,6 +75,9 @@ func (c *Configuration) ApplyDefaults(source *Configuration) {
 	if c.Timeout == 0 {
 		c.Timeout = source.Timeout
 	}
+	if c.ReconnectInterval == 0 {
+		c.ReconnectInterval = source.ReconnectInterval
+	}
 	if c.Port == 0 {
 		c.Port = source.Port
 	}
@@ -109,6 +113,7 @@ func (c *Configuration) NewCluster() *gocql.ClusterConfig {
 	cluster.Keyspace = c.Keyspace
 	cluster.NumConns = c.ConnectionsPerHost
 	cluster.Timeout = c.Timeout
+	cluster.ReconnectInterval = c.ReconnectInterval
 	cluster.SocketKeepalive = c.SocketKeepAlive
 	if c.ProtoVersion > 0 {
 		cluster.ProtoVersion = c.ProtoVersion
