@@ -16,6 +16,8 @@ package spanstore
 
 import (
 	"context"
+	"fmt"
+	"hash/fnv"
 	"strconv"
 	"strings"
 	"time"
@@ -71,6 +73,13 @@ type Service struct {
 type Span struct {
 	*jModel.Span
 	StartTimeMillis uint64 `json:"startTimeMillis"`
+}
+
+func (s Service) hashCode() string {
+	h := fnv.New64a()
+	h.Write([]byte(s.ServiceName))
+	h.Write([]byte(s.OperationName))
+	return fmt.Sprintf("%x", h.Sum64())
 }
 
 // NewSpanWriter creates a new SpanWriter for use
@@ -145,7 +154,11 @@ func (s *SpanWriter) createIndex(indexName string, mapping string, jsonSpan *jMo
 			s.writerMetrics.indexCreate.Emit(err, time.Since(start))
 			if err != nil {
 				eErr, ok := err.(*elastic.Error)
-				if !ok || eErr.Details != nil && eErr.Details.Type != "index_already_exists_exception" {
+				if !ok || eErr.Details != nil &&
+					// ES 5.x
+					(eErr.Details.Type != "index_already_exists_exception" &&
+						// ES 6.x
+						eErr.Details.Type != "resource_already_exists_exception") {
 					return s.logError(jsonSpan, err, "Failed to create index", s.logger)
 				}
 			}

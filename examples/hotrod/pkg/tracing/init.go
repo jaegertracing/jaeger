@@ -16,11 +16,14 @@ package tracing
 
 import (
 	"fmt"
+	"strings"
 	"time"
 
 	"github.com/opentracing/opentracing-go"
+	"github.com/uber/jaeger-client-go"
 	"github.com/uber/jaeger-client-go/config"
 	"github.com/uber/jaeger-client-go/rpcmetrics"
+	"github.com/uber/jaeger-client-go/transport"
 	"github.com/uber/jaeger-lib/metrics"
 	"go.uber.org/zap"
 
@@ -28,23 +31,38 @@ import (
 )
 
 // Init creates a new instance of Jaeger tracer.
-func Init(serviceName string, metricsFactory metrics.Factory, logger log.Factory, hostPort string) opentracing.Tracer {
+func Init(serviceName string, metricsFactory metrics.Factory, logger log.Factory, backendHostPort string) opentracing.Tracer {
 	cfg := config.Configuration{
 		Sampler: &config.SamplerConfig{
 			Type:  "const",
 			Param: 1,
 		},
-		Reporter: &config.ReporterConfig{
-			LogSpans:            false,
-			BufferFlushInterval: 1 * time.Second,
-			LocalAgentHostPort:  hostPort,
-		},
 	}
 	// TODO(ys) a quick hack to ensure random generators get different seeds, which are based on current time.
 	time.Sleep(100 * time.Millisecond)
+	jaegerLogger := jaegerLoggerAdapter{logger.Bg()}
+	var sender jaeger.Transport
+	if strings.HasPrefix(backendHostPort, "http://") {
+		sender = transport.NewHTTPTransport(
+			backendHostPort,
+			transport.HTTPBatchSize(1),
+		)
+	} else {
+		if s, err := jaeger.NewUDPTransport(backendHostPort, 0); err != nil {
+			logger.Bg().Fatal("cannot initialize UDP sender", zap.Error(err))
+		} else {
+			sender = s
+		}
+	}
 	tracer, _, err := cfg.New(
 		serviceName,
-		config.Logger(jaegerLoggerAdapter{logger.Bg()}),
+		config.Reporter(jaeger.NewRemoteReporter(
+			sender,
+			jaeger.ReporterOptions.BufferFlushInterval(1*time.Second),
+			jaeger.ReporterOptions.Logger(jaegerLogger),
+		)),
+		config.Logger(jaegerLogger),
+		config.Metrics(metricsFactory),
 		config.Observer(rpcmetrics.NewObserver(metricsFactory, rpcmetrics.DefaultNameNormalizer)),
 	)
 	if err != nil {

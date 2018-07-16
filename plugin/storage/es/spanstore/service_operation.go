@@ -16,7 +16,6 @@ package spanstore
 
 import (
 	"context"
-	"fmt"
 	"time"
 
 	"github.com/pkg/errors"
@@ -74,10 +73,10 @@ func (s *ServiceOperationStorage) Write(indexName string, jsonSpan *jModel.Span)
 		ServiceName:   jsonSpan.Process.ServiceName,
 		OperationName: jsonSpan.OperationName,
 	}
-	serviceID := fmt.Sprintf("%s|%s", service.ServiceName, service.OperationName)
-	cacheKey := fmt.Sprintf("%s:%s", indexName, serviceID)
+
+	cacheKey := service.hashCode()
 	if !keyInCache(cacheKey, s.serviceCache) {
-		s.client.Index().Index(indexName).Type(serviceType).Id(serviceID).BodyJson(service).Add()
+		s.client.Index().Index(indexName).Type(serviceType).Id(cacheKey).BodyJson(service).Add()
 		writeCache(cacheKey, s.serviceCache)
 	}
 }

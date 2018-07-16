@@ -27,17 +27,19 @@ import (
 
 // Configuration describes the configuration properties needed to connect to a Cassandra cluster
 type Configuration struct {
-	Servers            []string      `validate:"nonzero"`
-	Keyspace           string        `validate:"nonzero"`
-	ConnectionsPerHost int           `validate:"min=1" yaml:"connections_per_host"`
-	Timeout            time.Duration `validate:"min=500"`
-	SocketKeepAlive    time.Duration `validate:"min=0" yaml:"socket_keep_alive"`
-	MaxRetryAttempts   int           `validate:"min=0" yaml:"max_retry_attempt"`
-	ProtoVersion       int           `yaml:"proto_version"`
-	Consistency        string        `yaml:"consistency"`
-	Port               int           `yaml:"port"`
-	Authenticator      Authenticator `yaml:"authenticator"`
-	TLS                TLS
+	Servers              []string      `validate:"nonzero"`
+	Keyspace             string        `validate:"nonzero"`
+	ConnectionsPerHost   int           `validate:"min=1" yaml:"connections_per_host"`
+	Timeout              time.Duration `validate:"min=500"`
+	ReconnectInterval    time.Duration `validate:"min=500" yaml:"reconnect_interval"`
+	SocketKeepAlive      time.Duration `validate:"min=0" yaml:"socket_keep_alive"`
+	MaxRetryAttempts     int           `validate:"min=0" yaml:"max_retry_attempt"`
+	ProtoVersion         int           `yaml:"proto_version"`
+	Consistency          string        `yaml:"consistency"`
+	Port                 int           `yaml:"port"`
+	Authenticator        Authenticator `yaml:"authenticator"`
+	DisableAutoDiscovery bool          `yaml:"disable_auto_discovery"`
+	TLS                  TLS
 }
 
 // Authenticator holds the authentication properties needed to connect to a Cassandra cluster
@@ -72,6 +74,9 @@ func (c *Configuration) ApplyDefaults(source *Configuration) {
 	}
 	if c.Timeout == 0 {
 		c.Timeout = source.Timeout
+	}
+	if c.ReconnectInterval == 0 {
+		c.ReconnectInterval = source.ReconnectInterval
 	}
 	if c.Port == 0 {
 		c.Port = source.Port
@@ -108,6 +113,7 @@ func (c *Configuration) NewCluster() *gocql.ClusterConfig {
 	cluster.Keyspace = c.Keyspace
 	cluster.NumConns = c.ConnectionsPerHost
 	cluster.Timeout = c.Timeout
+	cluster.ReconnectInterval = c.ReconnectInterval
 	cluster.SocketKeepalive = c.SocketKeepAlive
 	if c.ProtoVersion > 0 {
 		cluster.ProtoVersion = c.ProtoVersion
@@ -141,6 +147,11 @@ func (c *Configuration) NewCluster() *gocql.ClusterConfig {
 			CaPath:                 c.TLS.CaPath,
 			EnableHostVerification: c.TLS.EnableHostVerification,
 		}
+	}
+	// If tunneling connection to C*, disable cluster autodiscovery features.
+	if c.DisableAutoDiscovery {
+		cluster.DisableInitialHostLookup = true
+		cluster.IgnorePeerAddr = true
 	}
 	return cluster
 }

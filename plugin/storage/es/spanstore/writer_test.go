@@ -134,6 +134,7 @@ func TestSpanWriter_WriteSpan(t *testing.T) {
 
 				spanIndexName := "jaeger-span-1995-04-21"
 				serviceIndexName := "jaeger-service-1995-04-21"
+				serviceHash := "de3b5a8f1a79989d"
 
 				serviceExistsService := &mocks.IndicesExistsService{}
 				spanExistsService := &mocks.IndicesExistsService{}
@@ -159,7 +160,7 @@ func TestSpanWriter_WriteSpan(t *testing.T) {
 				indexService.On("Type", stringMatcher(serviceType)).Return(indexServicePut)
 				indexService.On("Type", stringMatcher(spanType)).Return(indexSpanPut)
 
-				indexServicePut.On("Id", stringMatcher("service|operation")).Return(indexServicePut)
+				indexServicePut.On("Id", stringMatcher(serviceHash)).Return(indexServicePut)
 				indexServicePut.On("BodyJson", mock.AnythingOfType("spanstore.Service")).Return(indexServicePut)
 				indexServicePut.On("Add")
 

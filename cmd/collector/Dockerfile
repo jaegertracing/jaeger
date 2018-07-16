@@ -7,4 +7,4 @@ COPY --from=certs /etc/ssl/certs/ca-certificates.crt /etc/ssl/certs/ca-certifica
 
 EXPOSE 14267
 COPY collector-linux /go/bin/
-CMD ["/go/bin/collector-linux"]
+ENTRYPOINT ["/go/bin/collector-linux"]

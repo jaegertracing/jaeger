@@ -26,28 +26,28 @@ import (
 
 const (
 	// session settings
-	suffixEnabled          = ".enabled"
-	suffixConnPerHost      = ".connections-per-host"
-	suffixMaxRetryAttempts = ".max-retry-attempts"
-	suffixTimeout          = ".timeout"
-	suffixServers          = ".servers"
-	suffixPort             = ".port"
-	suffixKeyspace         = ".keyspace"
-	suffixConsistency      = ".consistency"
-	suffixProtoVer         = ".proto-version"
-	suffixSocketKeepAlive  = ".socket-keep-alive"
-	suffixUsername         = ".username"
-	suffixPassword         = ".password"
-	suffixTLS              = ".tls"
-	suffixCert             = ".tls.cert"
-	suffixKey              = ".tls.key"
-	suffixCA               = ".tls.ca"
-	suffixServerName       = ".tls.server-name"
-	suffixVerifyHost       = ".tls.verify-host"
+	suffixEnabled           = ".enabled"
+	suffixConnPerHost       = ".connections-per-host"
+	suffixMaxRetryAttempts  = ".max-retry-attempts"
+	suffixTimeout           = ".timeout"
+	suffixReconnectInterval = ".reconnect-interval"
+	suffixServers           = ".servers"
+	suffixPort              = ".port"
+	suffixKeyspace          = ".keyspace"
+	suffixConsistency       = ".consistency"
+	suffixProtoVer          = ".proto-version"
+	suffixSocketKeepAlive   = ".socket-keep-alive"
+	suffixUsername          = ".username"
+	suffixPassword          = ".password"
+	suffixTLS               = ".tls"
+	suffixCert              = ".tls.cert"
+	suffixKey               = ".tls.key"
+	suffixCA                = ".tls.ca"
+	suffixServerName        = ".tls.server-name"
+	suffixVerifyHost        = ".tls.verify-host"
 
 	// common storage settings
 	suffixSpanStoreWriteCacheTTL = ".span-store-write-cache-ttl"
-	suffixDepStoreDataFrequency  = ".dependency-store-data-frequency"
 )
 
 // Options contains various type of Cassandra configs and provides the ability
@@ -57,7 +57,6 @@ type Options struct {
 	primary                *namespaceConfig
 	others                 map[string]*namespaceConfig
 	SpanStoreWriteCacheTTL time.Duration
-	DepStoreDataFrequency  time.Duration
 }
 
 // the Servers field in config.Configuration is a list, which we cannot represent with flags.
@@ -85,6 +84,7 @@ func NewOptions(primaryNamespace string, otherNamespaces ...string) *Options {
 				Keyspace:           "jaeger_v1_test",
 				ProtoVersion:       4,
 				ConnectionsPerHost: 2,
+				ReconnectInterval:  60 * time.Second,
 			},
 			servers:   "127.0.0.1",
 			namespace: primaryNamespace,
@@ -93,7 +93,6 @@ func NewOptions(primaryNamespace string, otherNamespaces ...string) *Options {
 		},
 		others:                 make(map[string]*namespaceConfig, len(otherNamespaces)),
 		SpanStoreWriteCacheTTL: time.Hour * 12,
-		DepStoreDataFrequency:  time.Hour * 24,
 	}
 
 	for _, namespace := range otherNamespaces {
@@ -112,9 +111,6 @@ func (opt *Options) AddFlags(flagSet *flag.FlagSet) {
 	flagSet.Duration(opt.primary.namespace+suffixSpanStoreWriteCacheTTL,
 		opt.SpanStoreWriteCacheTTL,
 		"The duration to wait before rewriting an existing service or operation name")
-	flagSet.Duration(opt.primary.namespace+suffixDepStoreDataFrequency,
-		opt.DepStoreDataFrequency,
-		"Frequency of service dependency calculations")
 }
 
 func addFlags(flagSet *flag.FlagSet, nsConfig *namespaceConfig) {
@@ -136,6 +132,10 @@ func addFlags(flagSet *flag.FlagSet, nsConfig *namespaceConfig) {
 		nsConfig.namespace+suffixTimeout,
 		nsConfig.Timeout,
 		"Timeout used for queries")
+	flagSet.Duration(
+		nsConfig.namespace+suffixReconnectInterval,
+		nsConfig.ReconnectInterval,
+		"Reconnect interval to retry connecting to downed hosts")
 	flagSet.String(
 		nsConfig.namespace+suffixServers,
 		nsConfig.servers,
@@ -201,7 +201,6 @@ func (opt *Options) InitFromViper(v *viper.Viper) {
 		cfg.initFromViper(v)
 	}
 	opt.SpanStoreWriteCacheTTL = v.GetDuration(opt.primary.namespace + suffixSpanStoreWriteCacheTTL)
-	opt.DepStoreDataFrequency = v.GetDuration(opt.primary.namespace + suffixDepStoreDataFrequency)
 }
 
 func (cfg *namespaceConfig) initFromViper(v *viper.Viper) {
@@ -211,6 +210,7 @@ func (cfg *namespaceConfig) initFromViper(v *viper.Viper) {
 	cfg.ConnectionsPerHost = v.GetInt(cfg.namespace + suffixConnPerHost)
 	cfg.MaxRetryAttempts = v.GetInt(cfg.namespace + suffixMaxRetryAttempts)
 	cfg.Timeout = v.GetDuration(cfg.namespace + suffixTimeout)
+	cfg.ReconnectInterval = v.GetDuration(cfg.namespace + suffixReconnectInterval)
 	cfg.servers = v.GetString(cfg.namespace + suffixServers)
 	cfg.Port = v.GetInt(cfg.namespace + suffixPort)
 	cfg.Keyspace = v.GetString(cfg.namespace + suffixKeyspace)

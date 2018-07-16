@@ -85,7 +85,7 @@ md-to-godoc-gen:
 
 .PHONY: clean
 clean:
-	rm -rf cover.out .cover/ cover.html lint.log fmt.log jaeger-ui-build
+	rm -rf cover.out .cover/ cover.html lint.log fmt.log
 
 .PHONY: test
 test: go-gen
@@ -157,26 +157,24 @@ install-glide:
 install: install-glide
 	glide install
 
-.PHONY: install-go-bindata
-install-go-bindata:
-	go get github.com/jteeuwen/go-bindata/...
-	go get github.com/elazarl/go-bindata-assetfs/...
+.PHONY: install-statik
+install-statik:
+	go get github.com/rakyll/statik
 
 .PHONY: build-examples
-build-examples: install-go-bindata
-	(cd ./examples/hotrod/services/frontend/ && go-bindata-assetfs -pkg frontend web_assets/...)
-	rm ./examples/hotrod/services/frontend/bindata.go
-	CGO_ENABLED=0 GOOS=linux installsuffix=cgo go build -o ./examples/hotrod/hotrod-linux ./examples/hotrod/main.go
+build-examples: install-statik
+	(cd examples/hotrod/services/frontend/ && statik -f --src web_assets)
+	CGO_ENABLED=0 installsuffix=cgo go build -o ./examples/hotrod/hotrod-$(GOOS) ./examples/hotrod/main.go
 
 .PHONE: docker-hotrod
-docker-hotrod: build-examples
+docker-hotrod:
+	GOOS=linux $(MAKE) build-examples
 	docker build -t $(DOCKER_NAMESPACE)/example-hotrod:${DOCKER_TAG} ./examples/hotrod
 
 .PHONY: build_ui
-build_ui:
-	cd jaeger-ui && yarn install && npm run build
-	rm -rf jaeger-ui-build && mkdir jaeger-ui-build
-	cp -r jaeger-ui/packages/jaeger-ui/build jaeger-ui-build/
+build_ui: install-statik
+	cd jaeger-ui && yarn install && cd packages/jaeger-ui && yarn build
+	(cd cmd/query/app/ui/actual; statik -f -src ../../../../../jaeger-ui/packages/jaeger-ui/build)
 
 .PHONY: build-all-in-one-linux
 build-all-in-one-linux: build_ui
@@ -184,7 +182,7 @@ build-all-in-one-linux: build_ui
 
 .PHONY: build-all-in-one
 build-all-in-one:
-	CGO_ENABLED=0 installsuffix=cgo go build -o ./cmd/standalone/standalone-$(GOOS) $(BUILD_INFO) ./cmd/standalone/main.go
+	CGO_ENABLED=0 installsuffix=cgo go build -tags ui -o ./cmd/standalone/standalone-$(GOOS) $(BUILD_INFO) ./cmd/standalone/main.go
 
 .PHONY: build-agent
 build-agent:
@@ -192,7 +190,7 @@ build-agent:
 
 .PHONY: build-query
 build-query:
-	CGO_ENABLED=0 installsuffix=cgo go build -o ./cmd/query/query-$(GOOS) $(BUILD_INFO) ./cmd/query/main.go
+	CGO_ENABLED=0 installsuffix=cgo go build -tags ui -o ./cmd/query/query-$(GOOS) $(BUILD_INFO) ./cmd/query/main.go
 
 .PHONY: build-collector
 build-collector:
@@ -200,7 +198,6 @@ build-collector:
 
 .PHONY: docker-no-ui
 docker-no-ui: build-binaries-linux build-crossdock-linux
-	mkdir -p jaeger-ui-build/build/
 	make docker-images-only
 
 .PHONY: docker
@@ -208,19 +205,24 @@ docker: build_ui docker-no-ui
 
 .PHONY: build-binaries-linux
 build-binaries-linux:
-	GOOS=linux $(MAKE) build-agent build-collector build-query build-all-in-one
+	GOOS=linux $(MAKE) build-platform-binaries
 
 .PHONY: build-binaries-windows
 build-binaries-windows:
-	GOOS=windows $(MAKE) build-agent build-collector build-query build-all-in-one
+	GOOS=windows $(MAKE) build-platform-binaries
 
 .PHONY: build-binaries-darwin
 build-binaries-darwin:
-	GOOS=darwin $(MAKE) build-agent build-collector build-query build-all-in-one
+	GOOS=darwin $(MAKE) build-platform-binaries
+
+.PHONY: build-platform-binaries
+build-platform-binaries: build-agent build-collector build-query build-all-in-one build-examples
+
+.PHONY: build-all-platforms
+build-all-platforms: build-binaries-linux build-binaries-windows build-binaries-darwin
 
 .PHONY: docker-images-only
 docker-images-only:
-	cp -r jaeger-ui-build/build/ cmd/query/jaeger-ui-build
 	docker build -t $(DOCKER_NAMESPACE)/jaeger-cassandra-schema:${DOCKER_TAG} plugin/storage/cassandra/
 	@echo "Finished building jaeger-cassandra-schema =============="
 	docker build -t $(DOCKER_NAMESPACE)/jaeger-es-index-cleaner:${DOCKER_TAG} plugin/storage/es
@@ -229,7 +231,6 @@ docker-images-only:
 		docker build -t $(DOCKER_NAMESPACE)/jaeger-$$component:${DOCKER_TAG} cmd/$$component ; \
 		echo "Finished building $$component ==============" ; \
 	done
-	rm -rf cmd/query/jaeger-ui-build
 	docker build -t $(DOCKER_NAMESPACE)/test-driver:${DOCKER_TAG} crossdock/
 	@echo "Finished building test-driver ==============" ; \
 
@@ -251,8 +252,14 @@ build-crossdock-linux:
 
 include crossdock/rules.mk
 
+.PHONY: build-crossdock-ui-placeholder
+build-crossdock-ui-placeholder:
+	mkdir -p cmd/query/app/ui/actual/statik
+	[ -e cmd/query/app/ui/actual/statik/statik.go ] || cp cmd/query/app/ui/placeholder/statik/statik.go cmd/query/app/ui/actual/statik/statik.go
+
+# Crossdock tests do not require fully functioning UI, so we skip it to speed up the build.
 .PHONY: build-crossdock
-build-crossdock: docker-no-ui
+build-crossdock: build-crossdock-ui-placeholder docker-no-ui
 	make crossdock
 
 .PHONY: build-crossdock-fresh
