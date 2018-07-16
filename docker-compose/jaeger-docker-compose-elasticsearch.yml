@@ -1,21 +1,54 @@
----
 version: '2'
 
+# Run elasticsearch first and wait a few seconds:
+#   docker-compose up -d elasticsearch
+# This step is required to satisfy health check.
 services:
-  # Run elasticsearch first and wait a few seconds:
-  #   docker-compose up -d elasticsearch
-  # This step is required to satisfy health check.
+  jaeger-collector:
+    image: jaegertracing/jaeger-collector:1.6.0
+    command: ["--es.server-urls=http://elasticsearch:9200", "--es.num-shards=1", "--es.num-replicas=0"]
+    ports:
+        - "14269"
+        - "14268:14268"
+        - "14267"
+        - "9411:9411"
+    environment:
+      - SPAN_STORAGE_TYPE=elasticsearch
+    restart: on-failure
+    depends_on:
+      - elasticsearch
+
+  jaeger-query:
+    image: jaegertracing/jaeger-query:1.6.0
+    command: ["--es.server-urls=http://elasticsearch:9200", "--span-storage.type=elasticsearch"]
+    environment:
+      - SPAN_STORAGE_TYPE=elasticsearch
+    ports:
+      - "16686:16686"
+      - "16687"
+    restart: on-failure
+    depends_on:
+      - elasticsearch
+
+  jaeger-agent:
+    image: jaegertracing/jaeger-agent:1.6.0
+    command: ["--collector.host-port=jaeger-collector:14267"]
+    ports:
+      - "5775:5775/udp"
+      - "6831:6831/udp"
+      - "6832:6832/udp"
+      - "5778:5778"
+    restart: on-failure
+    environment:
+      - SPAN_STORAGE_TYPE=elasticsearch
+    depends_on:
+      - jaeger-collector
+
   elasticsearch:
     image: docker.elastic.co/elasticsearch/elasticsearch:6.3.1
-    networks:
-      - elastic-jaeger
     ports:
       - "127.0.0.1:9200:9200"
       - "127.0.0.1:9300:9300"
-    ulimits:
-      memlock:
-        soft: -1
-        hard: -1
     restart: on-failure
     environment:
       - cluster.name=jaeger-cluster
@@ -26,72 +59,3 @@ services:
       # https://www.elastic.co/guide/en/elasticsearch/reference/6.3/heap-size.html
       - "ES_JAVA_OPTS=-Xms1g -Xmx1g"
       - xpack.security.enabled=false
-    volumes:
-      - esdata:/usr/share/elasticsearch/data
-
-  jaeger-collector:
-    image: jaegertracing/jaeger-collector:1.6.0
-    ports:
-      - "14269:14269"
-      - "14268:14268"
-      - "14267:14267"
-      - "9411:9411"
-    networks:
-      - elastic-jaeger
-    restart: on-failure
-    environment:
-      - SPAN_STORAGE_TYPE=elasticsearch
-    command: [
-      "--es.server-urls=http://elasticsearch:9200",
-      "--es.num-shards=1",
-      "--es.num-replicas=0"
-    ]
-    depends_on:
-      - elasticsearch
-
-  jaeger-agent:
-    image: jaegertracing/jaeger-agent:1.6.0
-    hostname: jaeger-agent
-    command: [
-      "--collector.host-port=jaeger-collector:14267",
-      "--discovery.conn-check-timeout=3s",
-      "--discovery.min-peers=0"
-    ]
-    ports:
-      - "5775:5775/udp"
-      - "6831:6831/udp"
-      - "6832:6832/udp"
-      - "5778:5778"
-    networks:
-      - elastic-jaeger
-    restart: on-failure
-    environment:
-      - SPAN_STORAGE_TYPE=elasticsearch
-    depends_on:
-      - jaeger-collector
-
-  jaeger-query:
-    image: jaegertracing/jaeger-query:1.6.0
-    environment:
-      - SPAN_STORAGE_TYPE=elasticsearch
-      - no_proxy=localhost
-    ports:
-      - "16686:16686"
-      - "16687:16687"
-    networks:
-      - elastic-jaeger
-    restart: on-failure
-    command: [
-      "--es.server-urls=http://elasticsearch:9200",
-      "--span-storage.type=elasticsearch"
-    ]
-    depends_on:
-      - jaeger-agent
-
-volumes:
-  esdata:
-    driver: local
-
-networks:
-  elastic-jaeger:
-    driver: bridge
