@@ -1,5 +1,5 @@
 ---
-version: "3"
+version: '2'
 
 services:
   # Run elasticsearch first and wait a few seconds:
@@ -22,7 +22,9 @@ services:
       - discovery.type=single-node
       - network.host=0.0.0.0
       - transport.host=127.0.0.1
-      - "ES_JAVA_OPTS=-Xms512m -Xmx512m"
+      # Set the minimum and maximum heap size to 1 GB.
+      # https://www.elastic.co/guide/en/elasticsearch/reference/6.3/heap-size.html
+      - "ES_JAVA_OPTS=-Xms1g -Xmx1g"
       - xpack.security.enabled=false
     volumes:
       - esdata:/usr/share/elasticsearch/data
