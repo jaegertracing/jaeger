@@ -45,17 +45,16 @@ services:
       - jaeger-collector
 
   elasticsearch:
-    image: docker.elastic.co/elasticsearch/elasticsearch:6.3.1
+    image: docker.elastic.co/elasticsearch/elasticsearch:5.4.0
     ports:
       - "127.0.0.1:9200:9200"
       - "127.0.0.1:9300:9300"
     restart: on-failure
     environment:
-      - cluster.name=jaeger-cluster
       - discovery.type=single-node
       - network.host=0.0.0.0
       - transport.host=127.0.0.1
       # Set the minimum and maximum heap size to 1 GB.
-      # https://www.elastic.co/guide/en/elasticsearch/reference/6.3/heap-size.html
+      # https://www.elastic.co/guide/en/elasticsearch/reference/5.4/heap-size.html
       - "ES_JAVA_OPTS=-Xms1g -Xmx1g"
       - xpack.security.enabled=false
