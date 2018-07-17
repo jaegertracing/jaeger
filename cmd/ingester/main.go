@@ -60,6 +60,10 @@ func main() {
 			if err != nil {
 				return err
 			}
+			hc, err := sFlags.NewHealthCheck(logger)
+			if err != nil {
+				logger.Fatal("Could not start the health check server.", zap.Error(err))
+			}
 
 			mBldr := new(pMetrics.Builder).InitFromViper(v)
 			baseFactory, err := mBldr.CreateMetricsFactory("jaeger")
@@ -98,6 +102,7 @@ func main() {
 			}
 			consumer.Start()
 
+			hc.Ready()
 			select {
 			case <-signalsChannel:
 				err := consumer.Close()
