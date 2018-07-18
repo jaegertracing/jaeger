@@ -54,10 +54,13 @@ import:
 - package: github.com/go-openapi/swag
 - package: github.com/go-openapi/validate
 - package: github.com/go-openapi/loads
-- package: github.com/rakyll/statik/fs
+- package: github.com/rakyll/statik
+  subpackages:
+  - fs
 - package: github.com/Shopify/sarama
   version: ^1.16.0
-# gogo/protobuf dependencies
+- package: github.com/bsm/sarama-cluster
+  version: ^2.1.13
 - package: github.com/gogo/googleapis
   version: master
 - package: github.com/gogo/protobuf
@@ -70,3 +73,6 @@ import:
   version: master
 - package: github.com/gogo/gateway
   version: master
+- package: golang.org/x/sys
+  subpackages:
+  - unix

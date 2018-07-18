@@ -1,5 +1,5 @@
-hash: b7aada76fe425b7f507a331dba1efe365bc166aca596f688610f185ea18c294a
-updated: 2018-07-08T13:51:21.928395-04:00
+hash: 8f2b0df54e8351bffa668fe9fa265eb40b58efc8cdac540e0ff760b794e70ad3
+updated: 2018-07-18T21:52:13.448333-04:00
 imports:
 - name: github.com/apache/thrift
   version: 53dd39833a08ce33582e5ff31fa18bb4735d6731
@@ -11,6 +11,8 @@ imports:
   version: 3a771d992973f24aa725d07868b467d1ddfceafb
   subpackages:
   - quantile
+- name: github.com/bsm/sarama-cluster
+  version: cf455bc755fe41ac9bb2861e7a961833d9c2ecc3
 - name: github.com/codahale/hdrhistogram
   version: 3a0bb77429bd3a61596f5e8a3172445844342120
 - name: github.com/crossdock/crossdock-go
@@ -79,7 +81,7 @@ imports:
   subpackages:
   - google/api
 - name: github.com/gogo/protobuf
-  version: 30cf7ac33676b5786e78c746683f0d4cd64fa75b
+  version: 636bf0302bc95575d69441b25a2603156ffdddf1
   subpackages:
   - gogoproto
   - jsonpb
@@ -289,7 +291,7 @@ imports:
   - zapcore
   - zaptest
 - name: golang.org/x/net
-  version: 32a936f46389aa10549d60bd7833e54b01685d09
+  version: 8887df42c721e930089d31b28391090a10a497d7
   subpackages:
   - context
   - context/ctxhttp
