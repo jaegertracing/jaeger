@@ -1,6 +1,16 @@
 Changes by Version
 ==================
 
+TBD (pending)
+------------------
+
+#### UI Changes
+
+##### New Features
+
+- Timeline Expand and Collapse Features ([#221](https://github.com/jaegertracing/jaeger-ui/issues/221))
+- Integrate Google Analytics into Search Page ([#220](https://github.com/jaegertracing/jaeger-ui/issues/220))
+
 1.6.0 (2018-07-10)
 ------------------
 
