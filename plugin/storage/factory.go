@@ -120,7 +120,7 @@ func (f *Factory) CreateSpanWriter() (spanstore.Writer, error) {
 	if len(f.SpanWriterTypes) == 1 {
 		return writers[0], nil
 	}
-	return spanstore.NewCompositeWriter(writers...), nil
+	return spanstore.NewSequentialWriter(writers...), nil
 }
 
 // CreateDependencyReader implements storage.Factory

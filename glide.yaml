@@ -57,6 +57,8 @@ import:
 - package: github.com/rakyll/statik/fs
 - package: github.com/Shopify/sarama
   version: ^1.16.0
+- package: github.com/bsm/sarama-cluster
+  version: ^2.1.13
 # gogo/protobuf dependencies
 - package: github.com/gogo/googleapis
   version: master

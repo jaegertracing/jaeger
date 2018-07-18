@@ -16,28 +16,26 @@ package spanstore
 
 import (
 	"github.com/jaegertracing/jaeger/model"
-	"github.com/jaegertracing/jaeger/pkg/multierror"
 )
 
-// CompositeWriter is a span Writer that tries to save spans into several underlying span Writers
-type CompositeWriter struct {
+// SequentialWriter is a span Writer that tries to save spans into several underlying span Writers
+type SequentialWriter struct {
 	spanWriters []Writer
 }
 
-// NewCompositeWriter creates a CompositeWriter
-func NewCompositeWriter(spanWriters ...Writer) *CompositeWriter {
-	return &CompositeWriter{
+// NewSequentialWriter creates a SequentialWriter
+func NewSequentialWriter(spanWriters ...Writer) *SequentialWriter {
+	return &SequentialWriter{
 		spanWriters: spanWriters,
 	}
 }
 
-// WriteSpan calls WriteSpan on each span writer. It will sum up failures, it is not transactional
-func (c *CompositeWriter) WriteSpan(span *model.Span) error {
-	var errors []error
+// WriteSpan calls WriteSpan on each span writer. It will fail at the first error
+func (c *SequentialWriter) WriteSpan(span *model.Span) error {
 	for _, writer := range c.spanWriters {
 		if err := writer.WriteSpan(span); err != nil {
-			errors = append(errors, err)
+			return err
 		}
 	}
-	return multierror.Wrap(errors)
+	return nil
 }

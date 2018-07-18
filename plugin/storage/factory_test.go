@@ -158,7 +158,7 @@ func TestCreateMulti(t *testing.T) {
 	mock2.On("CreateSpanWriter").Return(spanWriter2, nil)
 	w, err = f.CreateSpanWriter()
 	assert.NoError(t, err)
-	assert.Equal(t, spanstore.NewCompositeWriter(spanWriter, spanWriter2), w)
+	assert.Equal(t, spanstore.NewSequentialWriter(spanWriter, spanWriter2), w)
 }
 
 func TestCreateArchive(t *testing.T) {
