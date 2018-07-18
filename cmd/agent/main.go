@@ -63,7 +63,8 @@ func main() {
 			if err := agent.Run(); err != nil {
 				return errors.Wrap(err, "Failed to run the agent")
 			}
-			select {}
+			defer agent.Stop()
+			return nil
 		},
 	}
 
