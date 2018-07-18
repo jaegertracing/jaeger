@@ -16,7 +16,6 @@ package spanstore_test
 
 import (
 	"errors"
-	"fmt"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -40,16 +39,16 @@ func (n *noopWriteSpanStore) WriteSpan(span *model.Span) error {
 }
 
 func TestCompositeWriteSpanStoreSuccess(t *testing.T) {
-	c := NewCompositeWriter(&noopWriteSpanStore{}, &noopWriteSpanStore{})
+	c := NewSequentialWriter(&noopWriteSpanStore{}, &noopWriteSpanStore{})
 	assert.NoError(t, c.WriteSpan(nil))
 }
 
 func TestCompositeWriteSpanStoreSecondFailure(t *testing.T) {
-	c := NewCompositeWriter(&errProneWriteSpanStore{}, &errProneWriteSpanStore{})
-	assert.EqualError(t, c.WriteSpan(nil), fmt.Sprintf("[%s, %s]", errIWillAlwaysFail, errIWillAlwaysFail))
+	c := NewSequentialWriter(&errProneWriteSpanStore{}, &errProneWriteSpanStore{})
+	assert.EqualError(t, c.WriteSpan(nil), errIWillAlwaysFail.Error())
 }
 
 func TestCompositeWriteSpanStoreFirstFailure(t *testing.T) {
-	c := NewCompositeWriter(&errProneWriteSpanStore{}, &noopWriteSpanStore{})
+	c := NewSequentialWriter(&errProneWriteSpanStore{}, &noopWriteSpanStore{})
 	assert.Equal(t, errIWillAlwaysFail, c.WriteSpan(nil))
 }
