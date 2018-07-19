@@ -26,26 +26,18 @@ import (
 	"github.com/jaegertracing/jaeger/cmd/ingester/app/processor"
 )
 
-// SaramaConsumer is an interface to features of Sarama that we use
+// SaramaConsumer is an interface to features of Sarama that are necessary for the consumer
 type SaramaConsumer interface {
 	Partitions() <-chan sc.PartitionConsumer
 	MarkPartitionOffset(topic string, partition int32, offset int64, metadata string)
 	io.Closer
 }
 
-// Config stores the configuration for a Consumer
-type Config struct {
-	Topic       string   `yaml:"topic"`
-	GroupID     string   `yaml:"group_id"`
-	Brokers     []string `yaml:"brokers"`
-	Parallelism int      `yaml:"parallelism"`
-}
-
 // Params are the parameters of a Consumer
 type Params struct {
-	Config    Config
+	Options   Options
 	Processor processor.SpanProcessor
-	Factory   metrics.Factory `name:"service_metrics"`
+	Factory   metrics.Factory
 	Logger    *zap.Logger
 }
 
@@ -65,7 +57,7 @@ type Consumer struct {
 func New(params Params) (Consumer, error) {
 	saramaConfig := sc.NewConfig()
 	saramaConfig.Group.Mode = sc.ConsumerModePartitions
-	saramaConsumer, err := sc.NewConsumer(params.Config.Brokers, params.Config.GroupID, []string{params.Config.Topic}, saramaConfig)
+	saramaConsumer, err := sc.NewConsumer(params.Options.Brokers, params.Options.GroupID, []string{params.Options.Topic}, saramaConfig)
 	if err != nil {
 		return Consumer{}, err
 	}
@@ -76,12 +68,12 @@ func New(params Params) (Consumer, error) {
 		isClosed:       sync.WaitGroup{},
 		SaramaConsumer: saramaConsumer,
 		processorFactory: processorFactory{
-			topic:          params.Config.Topic,
+			topic:          params.Options.Topic,
 			consumer:       saramaConsumer,
 			metricsFactory: params.Factory,
 			logger:         params.Logger,
 			baseProcessor:  params.Processor,
-			parallelism:    params.Config.Parallelism,
+			parallelism:    params.Options.Parallelism,
 		},
 	}, nil
 }
