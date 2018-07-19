@@ -36,7 +36,7 @@ import (
 
 type consumerTest struct {
 	saramaConsumer    *kmocks.SaramaConsumer
-	consumer          *consumer
+	consumer          *Consumer
 	partitionConsumer *kmocks.PartitionConsumer
 }
 
@@ -46,7 +46,7 @@ func withWrappedConsumer(fn func(c *consumerTest)) {
 	metricsFactory := metrics.NewLocalFactory(0)
 	c := &consumerTest{
 		saramaConsumer: sc,
-		consumer: &consumer{
+		consumer: &Consumer{
 			metricsFactory: metricsFactory,
 			logger:         logger,
 			close:          make(chan struct{}),
@@ -106,7 +106,7 @@ func TestSaramaConsumerWrapper_start_Messages(t *testing.T) {
 		mp.On("Process", &saramaMessageWrapper{msg}).Return(nil)
 		c.consumer.processorFactory.baseProcessor = mp
 
-		c.consumer.mainLoop()
+		c.consumer.Start()
 		time.Sleep(100 * time.Millisecond)
 		close(msgCh)
 		close(errCh)
@@ -149,7 +149,7 @@ func TestSaramaConsumerWrapper_start_Errors(t *testing.T) {
 		c.partitionConsumer.On("Messages").Return((<-chan *sarama.ConsumerMessage)(msgCh))
 		c.partitionConsumer.On("Close").Return(nil)
 
-		c.consumer.mainLoop()
+		c.consumer.Start()
 		time.Sleep(100 * time.Millisecond)
 		close(msgCh)
 		close(errCh)

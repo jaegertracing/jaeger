@@ -26,7 +26,31 @@ import (
 	"github.com/jaegertracing/jaeger/cmd/ingester/app/processor"
 )
 
-type consumer struct {
+// SaramaConsumer is an interface to features of Sarama that we use
+type SaramaConsumer interface {
+	Partitions() <-chan sc.PartitionConsumer
+	MarkPartitionOffset(topic string, partition int32, offset int64, metadata string)
+	io.Closer
+}
+
+// Config stores the configuration for a Consumer
+type Config struct {
+	Topic       string   `yaml:"topic"`
+	GroupID     string   `yaml:"group_id"`
+	Brokers     []string `yaml:"brokers"`
+	Parallelism int      `yaml:"parallelism"`
+}
+
+// Params are the parameters of a Consumer
+type Params struct {
+	Config    Config
+	Processor processor.SpanProcessor
+	Factory   metrics.Factory `name:"service_metrics"`
+	Logger    *zap.Logger
+}
+
+// Consumer uses sarama to consume messages from kafka and handle
+type Consumer struct {
 	metricsFactory   metrics.Factory
 	logger           *zap.Logger
 	processorFactory processorFactory
@@ -37,34 +61,62 @@ type consumer struct {
 	SaramaConsumer
 }
 
-// SaramaConsumer is an interface to features of Sarama that we use
-type SaramaConsumer interface {
-	Partitions() <-chan sc.PartitionConsumer
-	MarkPartitionOffset(topic string, partition int32, offset int64, metadata string)
-	io.Closer
+// New is a constructor for a Consumer
+func New(params Params) (Consumer, error) {
+	saramaConfig := sc.NewConfig()
+	saramaConfig.Group.Mode = sc.ConsumerModePartitions
+	saramaConsumer, err := sc.NewConsumer(params.Config.Brokers, params.Config.GroupID, []string{params.Config.Topic}, saramaConfig)
+	if err != nil {
+		return Consumer{}, err
+	}
+	return Consumer{
+		metricsFactory: params.Factory,
+		logger:         params.Logger,
+		close:          make(chan struct{}, 1),
+		isClosed:       sync.WaitGroup{},
+		SaramaConsumer: saramaConsumer,
+		processorFactory: processorFactory{
+			topic:          params.Config.Topic,
+			consumer:       saramaConsumer,
+			metricsFactory: params.Factory,
+			logger:         params.Logger,
+			baseProcessor:  params.Processor,
+			parallelism:    params.Config.Parallelism,
+		},
+	}, nil
 }
 
-func (c *consumer) mainLoop() {
+// Start begins consuming messages in a go routine
+func (c *Consumer) Start() {
 	c.isClosed.Add(1)
 	c.logger.Info("Starting main loop")
-	go func() {
-		for {
-			select {
-			case pc := <-c.Partitions():
-				c.isClosed.Add(2)
-
-				go c.handleMessages(pc)
-				go c.handleErrors(pc.Partition(), pc.Errors())
-
-			case <-c.close:
-				c.isClosed.Done()
-				return
-			}
-		}
-	}()
+	go c.mainLoop()
 }
 
-func (c *consumer) handleMessages(pc sc.PartitionConsumer) {
+// Close closes the Consumer and underlying sarama consumer
+func (c *Consumer) Close() error {
+	close(c.close)
+	c.isClosed.Wait()
+	return c.SaramaConsumer.Close()
+}
+
+func (c *Consumer) mainLoop() {
+	for {
+		select {
+		case pc := <-c.Partitions():
+			c.isClosed.Add(2)
+
+			go c.handleMessages(pc)
+			go c.handleErrors(pc.Partition(), pc.Errors())
+
+		case <-c.close:
+			c.isClosed.Done()
+			return
+		}
+	}
+}
+
+func (c *Consumer) handleMessages(pc sc.PartitionConsumer) {
 	c.logger.Info("Starting message handler")
 	defer c.isClosed.Done()
 	defer c.closePartition(pc)
@@ -87,13 +139,13 @@ func (c *consumer) handleMessages(pc sc.PartitionConsumer) {
 	}
 }
 
-func (c *consumer) closePartition(partitionConsumer sc.PartitionConsumer) {
+func (c *Consumer) closePartition(partitionConsumer sc.PartitionConsumer) {
 	c.logger.Info("Closing partition consumer", zap.Int32("partition", partitionConsumer.Partition()))
 	partitionConsumer.Close() // blocks until messages channel is drained
 	c.logger.Info("Closed partition consumer", zap.Int32("partition", partitionConsumer.Partition()))
 }
 
-func (c *consumer) handleErrors(partition int32, errChan <-chan *sarama.ConsumerError) {
+func (c *Consumer) handleErrors(partition int32, errChan <-chan *sarama.ConsumerError) {
 	c.logger.Info("Starting error handler")
 	defer c.isClosed.Done()
 
@@ -102,10 +154,4 @@ func (c *consumer) handleErrors(partition int32, errChan <-chan *sarama.Consumer
 		errMetrics.errCounter.Inc(1)
 		c.logger.Error("Error consuming from Kafka", zap.Error(err))
 	}
-}
-
-func (c *consumer) Close() error {
-	close(c.close)
-	c.isClosed.Wait()
-	return c.SaramaConsumer.Close()
 }
