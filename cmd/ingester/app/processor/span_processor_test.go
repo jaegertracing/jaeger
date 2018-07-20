@@ -20,14 +20,14 @@ import (
 	"github.com/pkg/errors"
 	"github.com/stretchr/testify/assert"
 
-	kmocks "github.com/jaegertracing/jaeger/cmd/ingester/app/consumer/mocks"
+	cmocks "github.com/jaegertracing/jaeger/cmd/ingester/app/consumer/mocks"
 	"github.com/jaegertracing/jaeger/model"
 	umocks "github.com/jaegertracing/jaeger/pkg/kafka/mocks"
 	smocks "github.com/jaegertracing/jaeger/storage/spanstore/mocks"
 )
 
 func TestNewSpanProcessor(t *testing.T) {
-	assert.NotNil(t, NewSpanProcessor(&smocks.Writer{}))
+	assert.NotNil(t, NewSpanProcessor(&smocks.Writer{}, &umocks.Unmarshaller{}))
 }
 
 func TestSpanProcessor_Process(t *testing.T) {
@@ -38,7 +38,7 @@ func TestSpanProcessor_Process(t *testing.T) {
 		writer:       writer,
 	}
 
-	message := &kmocks.Message{}
+	message := &cmocks.Message{}
 	data := []byte("police")
 	span := &model.Span{}
 
@@ -60,7 +60,7 @@ func TestSpanProcessor_ProcessError(t *testing.T) {
 		writer:       writer,
 	}
 
-	message := &kmocks.Message{}
+	message := &cmocks.Message{}
 	data := []byte("police")
 
 	message.On("Value").Return(data)

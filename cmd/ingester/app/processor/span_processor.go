@@ -43,9 +43,9 @@ type Message interface {
 }
 
 // NewSpanProcessor creates a new SpanProcessor
-func NewSpanProcessor(writer spanstore.Writer) SpanProcessor {
+func NewSpanProcessor(writer spanstore.Writer, unmarshaller kafka.Unmarshaller) SpanProcessor {
 	return &spanProcessor{
-		unmarshaller: kafka.NewProtobufUnmarshaller(),
+		unmarshaller: unmarshaller,
 		writer:       writer,
 	}
 }
