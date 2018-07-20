@@ -16,6 +16,11 @@ package processor
 
 import (
 	"io"
+
+	"github.com/pkg/errors"
+
+	"github.com/jaegertracing/jaeger/plugin/storage/kafka"
+	"github.com/jaegertracing/jaeger/storage/spanstore"
 )
 
 //go:generate mockery -name=SpanProcessor
@@ -26,7 +31,30 @@ type SpanProcessor interface {
 	io.Closer
 }
 
+type spanProcessor struct {
+	unmarshaller kafka.Unmarshaller
+	writer       spanstore.Writer
+	io.Closer
+}
+
 // Message contains the fields of the kafka message that the span processor uses
 type Message interface {
 	Value() []byte
+}
+
+// NewSpanProcessor creates a new SpanProcessor
+func NewSpanProcessor(writer spanstore.Writer) SpanProcessor {
+	return &spanProcessor{
+		unmarshaller: kafka.NewProtobufUnmarshaller(),
+		writer:       writer,
+	}
+}
+
+// Process unmarshals and writes a single kafka message
+func (s spanProcessor) Process(message Message) error {
+	mSpan, err := s.unmarshaller.Unmarshal(message.Value())
+	if err != nil {
+		return errors.Wrap(err, "cannot read message")
+	}
+	return s.writer.WriteSpan(mSpan)
 }
