@@ -29,7 +29,7 @@ import (
 
 func Test_new(t *testing.T) {
 
-	mockConsumer := &kmocks.SaramaConsumer{}
+	mockConsumer := &kmocks.Consumer{}
 	mockConsumer.On("MarkPartitionOffset", mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return(nil)
 
 	topic := "coelacanth"

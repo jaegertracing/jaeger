@@ -24,7 +24,7 @@ import (
 
 func TestOptionsWithFlags(t *testing.T) {
 	opts := &Options{}
-	v, command := config.Viperize(opts.AddFlags)
+	v, command := config.Viperize(AddFlags)
 	command.ParseFlags([]string{
 		"--ingester-consumer.topic=topic1",
 		"--ingester-consumer.brokers=127.0.0.1:9092,0.0.0:1234",
@@ -40,7 +40,7 @@ func TestOptionsWithFlags(t *testing.T) {
 
 func TestFlagDefaults(t *testing.T) {
 	opts := &Options{}
-	v, command := config.Viperize(opts.AddFlags)
+	v, command := config.Viperize(AddFlags)
 	command.ParseFlags([]string{})
 	opts.InitFromViper(v)
 

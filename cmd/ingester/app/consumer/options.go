@@ -20,6 +20,8 @@ import (
 	"strings"
 
 	"github.com/spf13/viper"
+
+	"github.com/jaegertracing/jaeger/pkg/kafka/config"
 )
 
 const (
@@ -37,14 +39,12 @@ const (
 
 // Options stores the configuration options for a Kafka consumer
 type Options struct {
-	Topic       string
-	GroupID     string
-	Brokers     []string
+	config.ConsumerConfiguration
 	Parallelism int
 }
 
 // AddFlags adds flags for Options
-func (opt *Options) AddFlags(flagSet *flag.FlagSet) {
+func AddFlags(flagSet *flag.FlagSet) {
 	flagSet.String(
 		configPrefix+suffixBrokers,
 		defaultBroker,

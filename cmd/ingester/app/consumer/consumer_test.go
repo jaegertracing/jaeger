@@ -22,26 +22,61 @@ import (
 	"github.com/Shopify/sarama"
 	"github.com/bsm/sarama-cluster"
 	"github.com/pkg/errors"
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
 	"github.com/uber/jaeger-lib/metrics"
 	"github.com/uber/jaeger-lib/metrics/testutils"
 	"go.uber.org/zap"
 
 	kmocks "github.com/jaegertracing/jaeger/cmd/ingester/app/consumer/mocks"
-	"github.com/jaegertracing/jaeger/cmd/ingester/app/processor/mocks"
+	pmocks "github.com/jaegertracing/jaeger/cmd/ingester/app/processor/mocks"
+	"github.com/jaegertracing/jaeger/pkg/kafka/config"
 )
 
-//go:generate mockery -name SaramaConsumer
+//go:generate mockery -dir ../../../../pkg/kafka/config/ -name Consumer
 //go:generate mockery -dir ../../../../../vendor/github.com/bsm/sarama-cluster/ -name PartitionConsumer
 
 type consumerTest struct {
-	saramaConsumer    *kmocks.SaramaConsumer
+	saramaConsumer    *kmocks.Consumer
 	consumer          *Consumer
 	partitionConsumer *kmocks.PartitionConsumer
 }
 
+type mockConsumerConfiguration struct {
+	config.ConsumerConfiguration
+	err error
+}
+
+func (m *mockConsumerConfiguration) NewConsumer() (config.Consumer, error) {
+	return &kmocks.Consumer{}, m.err
+}
+
+func TestConstructor(t *testing.T) {
+	params := Params{
+		Options: Options{
+			Parallelism: 1,
+			ConsumerConfiguration: config.ConsumerConfiguration{
+				Brokers: []string{"someBroker"},
+				Topic:   "someTopic",
+				GroupID: "someGroup",
+			},
+		},
+	}
+	params.ConsumerBuilder = &mockConsumerConfiguration{}
+	consumer, err := New(params)
+	assert.NoError(t, err)
+	assert.NotNil(t, consumer)
+	assert.NotNil(t, consumer.processorFactory)
+
+	params.ConsumerBuilder = &mockConsumerConfiguration{
+		err: errors.New("consumerBuilder error"),
+	}
+	_, err = New(params)
+	assert.Error(t, err, "consumerBuilder error")
+}
+
 func withWrappedConsumer(fn func(c *consumerTest)) {
-	sc := &kmocks.SaramaConsumer{}
+	sc := &kmocks.Consumer{}
 	logger, _ := zap.NewDevelopment()
 	metricsFactory := metrics.NewLocalFactory(0)
 	c := &consumerTest{
@@ -51,13 +86,13 @@ func withWrappedConsumer(fn func(c *consumerTest)) {
 			logger:         logger,
 			close:          make(chan struct{}),
 			isClosed:       sync.WaitGroup{},
-			SaramaConsumer: sc,
+			Consumer:       sc,
 			processorFactory: processorFactory{
 				topic:          "topic",
 				consumer:       sc,
 				metricsFactory: metricsFactory,
 				logger:         logger,
-				baseProcessor:  &mocks.SpanProcessor{},
+				baseProcessor:  &pmocks.SpanProcessor{},
 				parallelism:    1,
 			},
 		},
@@ -74,7 +109,6 @@ func withWrappedConsumer(fn func(c *consumerTest)) {
 }
 
 func TestSaramaConsumerWrapper_MarkPartitionOffset(t *testing.T) {
-
 	withWrappedConsumer(func(c *consumerTest) {
 		topic := "morekuzambu"
 		partition := int32(316)
@@ -102,7 +136,7 @@ func TestSaramaConsumerWrapper_start_Messages(t *testing.T) {
 		c.partitionConsumer.On("HighWaterMarkOffset").Return(int64(1234))
 		c.partitionConsumer.On("Close").Return(nil)
 
-		mp := &mocks.SpanProcessor{}
+		mp := &pmocks.SpanProcessor{}
 		mp.On("Process", &saramaMessageWrapper{msg}).Return(nil)
 		c.consumer.processorFactory.baseProcessor = mp
 

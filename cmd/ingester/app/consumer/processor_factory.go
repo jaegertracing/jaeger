@@ -23,11 +23,12 @@ import (
 	"github.com/jaegertracing/jaeger/cmd/ingester/app/consumer/offset"
 	"github.com/jaegertracing/jaeger/cmd/ingester/app/processor"
 	"github.com/jaegertracing/jaeger/cmd/ingester/app/processor/decorator"
+	"github.com/jaegertracing/jaeger/pkg/kafka/config"
 )
 
 type processorFactory struct {
 	topic          string
-	consumer       SaramaConsumer
+	consumer       config.Consumer
 	metricsFactory metrics.Factory
 	logger         *zap.Logger
 	baseProcessor  processor.SpanProcessor

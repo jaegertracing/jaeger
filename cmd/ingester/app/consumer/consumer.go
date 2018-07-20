@@ -15,7 +15,6 @@
 package consumer
 
 import (
-	"io"
 	"sync"
 
 	"github.com/Shopify/sarama"
@@ -24,14 +23,8 @@ import (
 	"go.uber.org/zap"
 
 	"github.com/jaegertracing/jaeger/cmd/ingester/app/processor"
+	"github.com/jaegertracing/jaeger/pkg/kafka/config"
 )
-
-// SaramaConsumer is an interface to features of Sarama that are necessary for the consumer
-type SaramaConsumer interface {
-	Partitions() <-chan sc.PartitionConsumer
-	MarkPartitionOffset(topic string, partition int32, offset int64, metadata string)
-	io.Closer
-}
 
 // Params are the parameters of a Consumer
 type Params struct {
@@ -39,6 +32,7 @@ type Params struct {
 	Processor processor.SpanProcessor
 	Factory   metrics.Factory
 	Logger    *zap.Logger
+	config.ConsumerBuilder
 }
 
 // Consumer uses sarama to consume messages from kafka and handle
@@ -50,23 +44,21 @@ type Consumer struct {
 	close    chan struct{}
 	isClosed sync.WaitGroup
 
-	SaramaConsumer
+	config.Consumer
 }
 
 // New is a constructor for a Consumer
-func New(params Params) (Consumer, error) {
-	saramaConfig := sc.NewConfig()
-	saramaConfig.Group.Mode = sc.ConsumerModePartitions
-	saramaConsumer, err := sc.NewConsumer(params.Options.Brokers, params.Options.GroupID, []string{params.Options.Topic}, saramaConfig)
+func New(params Params) (*Consumer, error) {
+	saramaConsumer, err := params.ConsumerBuilder.NewConsumer()
 	if err != nil {
-		return Consumer{}, err
+		return nil, err
 	}
-	return Consumer{
+	return &Consumer{
 		metricsFactory: params.Factory,
 		logger:         params.Logger,
 		close:          make(chan struct{}, 1),
 		isClosed:       sync.WaitGroup{},
-		SaramaConsumer: saramaConsumer,
+		Consumer:       saramaConsumer,
 		processorFactory: processorFactory{
 			topic:          params.Options.Topic,
 			consumer:       saramaConsumer,
@@ -89,7 +81,7 @@ func (c *Consumer) Start() {
 func (c *Consumer) Close() error {
 	close(c.close)
 	c.isClosed.Wait()
-	return c.SaramaConsumer.Close()
+	return c.Consumer.Close()
 }
 
 func (c *Consumer) mainLoop() {
