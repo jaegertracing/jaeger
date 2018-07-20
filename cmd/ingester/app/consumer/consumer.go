@@ -37,7 +37,7 @@ type consumer struct {
 	SaramaConsumer
 }
 
-// SaramaConsumer is an interface to features of Sarama that we use
+// SaramaConsumer is an interface to features of Sarama necessary for the consumer
 type SaramaConsumer interface {
 	Partitions() <-chan sc.PartitionConsumer
 	MarkPartitionOffset(topic string, partition int32, offset int64, metadata string)
