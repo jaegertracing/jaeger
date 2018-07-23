@@ -46,7 +46,7 @@ func (h *ProtobufUnmarshaller) Unmarshal(msg []byte) (*model.Span, error) {
 // JSONUnmarshaller implements Unmarshaller
 type JSONUnmarshaller struct{}
 
-// NewJSONUnmarshaller constructs a ProtobufUnmarshaller
+// NewJSONUnmarshaller constructs a JSONUnmarshaller
 func NewJSONUnmarshaller() *JSONUnmarshaller {
 	return &JSONUnmarshaller{}
 }
