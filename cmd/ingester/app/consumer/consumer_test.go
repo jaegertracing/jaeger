@@ -30,7 +30,7 @@ import (
 
 	kmocks "github.com/jaegertracing/jaeger/cmd/ingester/app/consumer/mocks"
 	pmocks "github.com/jaegertracing/jaeger/cmd/ingester/app/processor/mocks"
-	"github.com/jaegertracing/jaeger/pkg/kafka/config"
+	"github.com/jaegertracing/jaeger/pkg/kafka/config/consumer"
 )
 
 //go:generate mockery -dir ../../../../pkg/kafka/config/ -name Consumer
@@ -43,23 +43,23 @@ type consumerTest struct {
 }
 
 type mockConsumerConfiguration struct {
-	config.ConsumerConfiguration
+	consumer.Configuration
 	err error
 }
 
-func (m *mockConsumerConfiguration) NewConsumer() (config.Consumer, error) {
+func (m *mockConsumerConfiguration) NewConsumer() (consumer.Consumer, error) {
 	return &kmocks.Consumer{}, m.err
 }
 
 func TestConstructor(t *testing.T) {
 	params := Params{}
-	params.ConsumerBuilder = &mockConsumerConfiguration{}
-	consumer, err := New(params)
+	params.Builder = &mockConsumerConfiguration{}
+	newConsumer, err := New(params)
 	assert.NoError(t, err)
-	assert.NotNil(t, consumer)
-	assert.NotNil(t, consumer.processorFactory)
+	assert.NotNil(t, newConsumer)
+	assert.NotNil(t, newConsumer.processorFactory)
 
-	params.ConsumerBuilder = &mockConsumerConfiguration{
+	params.Builder = &mockConsumerConfiguration{
 		err: errors.New("consumerBuilder error"),
 	}
 	_, err = New(params)

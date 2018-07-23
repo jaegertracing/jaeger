@@ -23,7 +23,7 @@ import (
 	"github.com/jaegertracing/jaeger/cmd/ingester/app/consumer/offset"
 	"github.com/jaegertracing/jaeger/cmd/ingester/app/processor"
 	"github.com/jaegertracing/jaeger/cmd/ingester/app/processor/decorator"
-	"github.com/jaegertracing/jaeger/pkg/kafka/config"
+	"github.com/jaegertracing/jaeger/pkg/kafka/config/consumer"
 )
 
 // FactoryParams are the parameters of a ProcessorFactory
@@ -39,7 +39,7 @@ type FactoryParams struct {
 // ProcessorFactory is a factory for creating startedProcessors
 type ProcessorFactory struct {
 	topic          string
-	consumer       config.Consumer
+	consumer       consumer.Consumer
 	metricsFactory metrics.Factory
 	logger         *zap.Logger
 	baseProcessor  processor.SpanProcessor

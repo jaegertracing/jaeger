@@ -23,7 +23,7 @@ import (
 	"go.uber.org/zap"
 
 	"github.com/jaegertracing/jaeger/cmd/ingester/app/processor"
-	"github.com/jaegertracing/jaeger/pkg/kafka/config"
+	"github.com/jaegertracing/jaeger/pkg/kafka/config/consumer"
 )
 
 // Params are the parameters of a Consumer
@@ -31,7 +31,7 @@ type Params struct {
 	ProcessorFactory ProcessorFactory
 	Factory          metrics.Factory
 	Logger           *zap.Logger
-	config.ConsumerBuilder
+	consumer.Builder
 }
 
 // Consumer uses sarama to consume and handle messages from kafka
@@ -43,7 +43,7 @@ type Consumer struct {
 	close    chan struct{}
 	isClosed sync.WaitGroup
 
-	config.Consumer
+	consumer.Consumer
 }
 
 // New is a constructor for a Consumer

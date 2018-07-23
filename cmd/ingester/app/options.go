@@ -21,7 +21,7 @@ import (
 
 	"github.com/spf13/viper"
 
-	"github.com/jaegertracing/jaeger/pkg/kafka/config"
+	"github.com/jaegertracing/jaeger/pkg/kafka/config/consumer"
 )
 
 const (
@@ -39,7 +39,7 @@ const (
 
 // Options stores the configuration options for a Kafka consumer
 type Options struct {
-	config.ConsumerConfiguration
+	consumer.Configuration
 	Parallelism int
 }
 
