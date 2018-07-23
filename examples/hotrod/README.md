@@ -24,7 +24,12 @@ to view the traces. A tutorial / walkthough is available:
 An all-in-one Jaeger backend is packaged as a Docker container with in-memory storage.
 
 ```bash
-docker run -d --name jaeger -p6831:6831/udp -p16686:16686 jaegertracing/all-in-one:latest
+docker run \
+  --rm \
+  --name jaeger \
+  -p6831:6831/udp \
+  -p16686:16686 \
+  jaegertracing/all-in-one:1.6
 ```
 
 Jaeger UI can be accessed at http://localhost:16686.
@@ -41,7 +46,13 @@ go run ./main.go all
 
 ### Run HotROD from docker
 ```bash
-docker run --rm -it --link jaeger -p8080-8083:8080-8083 jaegertracing/example-hotrod:latest --jaeger-agent.host-port=jaeger:6831
+docker run \
+  --rm \
+  --link jaeger \
+  -p8080-8083:8080-8083 \
+  jaegertracing/example-hotrod:1.6 \
+  all \
+  --jaeger-agent.host-port=jaeger:6831
 ```
 
 Then open http://127.0.0.1:8080
