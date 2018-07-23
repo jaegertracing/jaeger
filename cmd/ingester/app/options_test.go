@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package consumer
+package app
 
 import (
 	"testing"
@@ -26,10 +26,10 @@ func TestOptionsWithFlags(t *testing.T) {
 	opts := &Options{}
 	v, command := config.Viperize(AddFlags)
 	command.ParseFlags([]string{
-		"--ingester-consumer.topic=topic1",
-		"--ingester-consumer.brokers=127.0.0.1:9092,0.0.0:1234",
-		"--ingester-consumer.group-id=group1",
-		"--ingester-consumer.parallelism=5"})
+		"--ingester.topic=topic1",
+		"--ingester.brokers=127.0.0.1:9092,0.0.0:1234",
+		"--ingester.group-id=group1",
+		"--ingester.parallelism=5"})
 	opts.InitFromViper(v)
 
 	assert.Equal(t, "topic1", opts.Topic)

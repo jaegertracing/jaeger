@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package consumer
+package app
 
 import (
 	"flag"
@@ -25,7 +25,7 @@ import (
 )
 
 const (
-	configPrefix      = "ingester-consumer"
+	configPrefix      = "ingester"
 	suffixBrokers     = ".brokers"
 	suffixTopic       = ".topic"
 	suffixGroupID     = ".group-id"
