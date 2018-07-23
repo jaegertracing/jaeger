@@ -27,6 +27,13 @@ import (
 	"github.com/jaegertracing/jaeger/cmd/ingester/app/processor/mocks"
 )
 
+func Test_NewFactory(t *testing.T) {
+	params := FactoryParams{}
+	newFactory, err := NewFactory(params)
+	assert.NoError(t, err)
+	assert.NotNil(t, newFactory)
+}
+
 func Test_new(t *testing.T) {
 
 	mockConsumer := &kmocks.Consumer{}

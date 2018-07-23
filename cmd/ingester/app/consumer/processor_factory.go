@@ -47,7 +47,7 @@ type ProcessorFactory struct {
 }
 
 // NewFactory constructs a new ProcessorFactory
-func (c *ProcessorFactory) NewFactory(params FactoryParams) *ProcessorFactory {
+func NewFactory(params FactoryParams) (*ProcessorFactory, error) {
 	return &ProcessorFactory{
 		topic:          params.Topic,
 		consumer:       params.Consumer,
@@ -55,7 +55,7 @@ func (c *ProcessorFactory) NewFactory(params FactoryParams) *ProcessorFactory {
 		logger:         params.Logger,
 		baseProcessor:  params.BaseProcessor,
 		parallelism:    params.Parallelism,
-	}
+	}, nil
 }
 
 func (c *ProcessorFactory) new(partition int32, minOffset int64) processor.SpanProcessor {

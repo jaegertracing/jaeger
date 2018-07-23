@@ -57,7 +57,6 @@ func TestConstructor(t *testing.T) {
 	newConsumer, err := New(params)
 	assert.NoError(t, err)
 	assert.NotNil(t, newConsumer)
-	assert.NotNil(t, newConsumer.processorFactory)
 
 	params.Builder = &mockConsumerConfiguration{
 		err: errors.New("consumerBuilder error"),
