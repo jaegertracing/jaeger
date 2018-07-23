@@ -34,7 +34,7 @@ type Params struct {
 	config.ConsumerBuilder
 }
 
-// Consumer uses sarama to consume messages from kafka and handle
+// Consumer uses sarama to consume and handle messages from kafka
 type Consumer struct {
 	metricsFactory   metrics.Factory
 	logger           *zap.Logger
@@ -48,7 +48,7 @@ type Consumer struct {
 
 // New is a constructor for a Consumer
 func New(params Params) (*Consumer, error) {
-	saramaConsumer, err := params.ConsumerBuilder.NewConsumer()
+	saramaConsumer, err := params.NewConsumer()
 	if err != nil {
 		return nil, err
 	}
