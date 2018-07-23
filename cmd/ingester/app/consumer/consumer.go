@@ -28,10 +28,9 @@ import (
 
 // Params are the parameters of a Consumer
 type Params struct {
-	Options   Options
-	Processor processor.SpanProcessor
-	Factory   metrics.Factory
-	Logger    *zap.Logger
+	ProcessorFactory ProcessorFactory
+	Factory          metrics.Factory
+	Logger           *zap.Logger
 	config.ConsumerBuilder
 }
 
@@ -39,7 +38,7 @@ type Params struct {
 type Consumer struct {
 	metricsFactory   metrics.Factory
 	logger           *zap.Logger
-	processorFactory processorFactory
+	processorFactory ProcessorFactory
 
 	close    chan struct{}
 	isClosed sync.WaitGroup
@@ -54,19 +53,12 @@ func New(params Params) (*Consumer, error) {
 		return nil, err
 	}
 	return &Consumer{
-		metricsFactory: params.Factory,
-		logger:         params.Logger,
-		close:          make(chan struct{}, 1),
-		isClosed:       sync.WaitGroup{},
-		Consumer:       saramaConsumer,
-		processorFactory: processorFactory{
-			topic:          params.Options.Topic,
-			consumer:       saramaConsumer,
-			metricsFactory: params.Factory,
-			logger:         params.Logger,
-			baseProcessor:  params.Processor,
-			parallelism:    params.Options.Parallelism,
-		},
+		metricsFactory:   params.Factory,
+		logger:           params.Logger,
+		close:            make(chan struct{}, 1),
+		isClosed:         sync.WaitGroup{},
+		Consumer:         saramaConsumer,
+		processorFactory: params.ProcessorFactory,
 	}, nil
 }
 

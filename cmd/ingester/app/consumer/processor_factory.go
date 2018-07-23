@@ -26,7 +26,18 @@ import (
 	"github.com/jaegertracing/jaeger/pkg/kafka/config"
 )
 
-type processorFactory struct {
+// FactoryParams are the parameters of a ProcessorFactory
+type FactoryParams struct {
+	Parallelism   int
+	Topic         string
+	BaseProcessor processor.SpanProcessor
+	Consumer      *Consumer
+	Factory       metrics.Factory
+	Logger        *zap.Logger
+}
+
+// ProcessorFactory is a factory for creating startedProcessors
+type ProcessorFactory struct {
 	topic          string
 	consumer       config.Consumer
 	metricsFactory metrics.Factory
@@ -35,7 +46,19 @@ type processorFactory struct {
 	parallelism    int
 }
 
-func (c *processorFactory) new(partition int32, minOffset int64) processor.SpanProcessor {
+// NewFactory constructs a new ProcessorFactory
+func (c *ProcessorFactory) NewFactory(params FactoryParams) *ProcessorFactory {
+	return &ProcessorFactory{
+		topic:          params.Topic,
+		consumer:       params.Consumer,
+		metricsFactory: params.Factory,
+		logger:         params.Logger,
+		baseProcessor:  params.BaseProcessor,
+		parallelism:    params.Parallelism,
+	}
+}
+
+func (c *ProcessorFactory) new(partition int32, minOffset int64) processor.SpanProcessor {
 	c.logger.Info("Creating new processors", zap.Int32("partition", partition))
 
 	markOffset := func(offset int64) {

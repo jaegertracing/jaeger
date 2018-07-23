@@ -52,16 +52,7 @@ func (m *mockConsumerConfiguration) NewConsumer() (config.Consumer, error) {
 }
 
 func TestConstructor(t *testing.T) {
-	params := Params{
-		Options: Options{
-			Parallelism: 1,
-			ConsumerConfiguration: config.ConsumerConfiguration{
-				Brokers: []string{"someBroker"},
-				Topic:   "someTopic",
-				GroupID: "someGroup",
-			},
-		},
-	}
+	params := Params{}
 	params.ConsumerBuilder = &mockConsumerConfiguration{}
 	consumer, err := New(params)
 	assert.NoError(t, err)
@@ -87,7 +78,7 @@ func withWrappedConsumer(fn func(c *consumerTest)) {
 			close:          make(chan struct{}),
 			isClosed:       sync.WaitGroup{},
 			Consumer:       sc,
-			processorFactory: processorFactory{
+			processorFactory: ProcessorFactory{
 				topic:          "topic",
 				consumer:       sc,
 				metricsFactory: metricsFactory,

@@ -36,7 +36,7 @@ func Test_new(t *testing.T) {
 	partition := int32(21)
 	offset := int64(555)
 
-	pf := processorFactory{
+	pf := ProcessorFactory{
 		topic:          topic,
 		consumer:       mockConsumer,
 		metricsFactory: metrics.NullFactory,
