@@ -54,7 +54,7 @@ func NewSpanProcessor(writer spanstore.Writer, unmarshaller kafka.Unmarshaller) 
 func (s spanProcessor) Process(message Message) error {
 	mSpan, err := s.unmarshaller.Unmarshal(message.Value())
 	if err != nil {
-		return errors.Wrap(err, "cannot read message")
+		return errors.Wrap(err, "cannot unmarshall byte array into span")
 	}
 	return s.writer.WriteSpan(mSpan)
 }
