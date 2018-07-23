@@ -15,7 +15,6 @@
 package tchannel
 
 import (
-	"fmt"
 	"testing"
 	"time"
 
@@ -105,16 +104,11 @@ func submitTestJaegerBatch(reporter *Reporter) error {
 	return reporter.EmitBatch(batch)
 }
 
-func checkCounters(t *testing.T, mf *metrics.LocalFactory, batchesSubmitted, spansSubmitted, batchesFailures, spansFailures int, prefix string) {
-	batchesCounter := fmt.Sprintf("tc-reporter.%s.batches.submitted", prefix)
-	batchesFailureCounter := fmt.Sprintf("tc-reporter.%s.batches.failures", prefix)
-	spansCounter := fmt.Sprintf("tc-reporter.%s.spans.submitted", prefix)
-	spansFailureCounter := fmt.Sprintf("tc-reporter.%s.spans.failures", prefix)
-
+func checkCounters(t *testing.T, mf *metrics.LocalFactory, batchesSubmitted, spansSubmitted, batchesFailures, spansFailures int, format string) {
 	mTestutils.AssertCounterMetrics(t, mf, []mTestutils.ExpectedMetric{
-		{Name: batchesCounter, Value: batchesSubmitted},
-		{Name: spansCounter, Value: spansSubmitted},
-		{Name: batchesFailureCounter, Value: batchesFailures},
-		{Name: spansFailureCounter, Value: spansFailures},
+		{Name: "tc-reporter.batches.submitted", Tags: map[string]string{"format": format}, Value: batchesSubmitted},
+		{Name: "tc-reporter.spans.submitted", Tags: map[string]string{"format": format}, Value: spansSubmitted},
+		{Name: "tc-reporter.batches.failures", Tags: map[string]string{"format": format}, Value: batchesFailures},
+		{Name: "tc-reporter.spans.failures", Tags: map[string]string{"format": format}, Value: spansFailures},
 	}...)
 }
