@@ -31,33 +31,29 @@ type Params struct {
 	ProcessorFactory ProcessorFactory
 	Factory          metrics.Factory
 	Logger           *zap.Logger
-	consumer.Builder
+	SaramaConsumer   consumer.Consumer
 }
 
 // Consumer uses sarama to consume and handle messages from kafka
 type Consumer struct {
-	metricsFactory   metrics.Factory
-	logger           *zap.Logger
+	metricsFactory metrics.Factory
+	logger         *zap.Logger
+
+	saramaConsumer   consumer.Consumer
 	processorFactory ProcessorFactory
 
 	close    chan struct{}
 	isClosed sync.WaitGroup
-
-	consumer.Consumer
 }
 
 // New is a constructor for a Consumer
 func New(params Params) (*Consumer, error) {
-	saramaConsumer, err := params.NewConsumer()
-	if err != nil {
-		return nil, err
-	}
 	return &Consumer{
 		metricsFactory:   params.Factory,
 		logger:           params.Logger,
 		close:            make(chan struct{}, 1),
 		isClosed:         sync.WaitGroup{},
-		Consumer:         saramaConsumer,
+		saramaConsumer:   params.SaramaConsumer,
 		processorFactory: params.ProcessorFactory,
 	}, nil
 }
@@ -73,13 +69,13 @@ func (c *Consumer) Start() {
 func (c *Consumer) Close() error {
 	close(c.close)
 	c.isClosed.Wait()
-	return c.Consumer.Close()
+	return c.saramaConsumer.Close()
 }
 
 func (c *Consumer) mainLoop() {
 	for {
 		select {
-		case pc := <-c.Partitions():
+		case pc := <-c.saramaConsumer.Partitions():
 			c.isClosed.Add(2)
 
 			go c.handleMessages(pc)

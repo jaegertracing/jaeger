@@ -30,7 +30,6 @@ import (
 
 	kmocks "github.com/jaegertracing/jaeger/cmd/ingester/app/consumer/mocks"
 	pmocks "github.com/jaegertracing/jaeger/cmd/ingester/app/processor/mocks"
-	"github.com/jaegertracing/jaeger/pkg/kafka/config/consumer"
 )
 
 //go:generate mockery -dir ../../../../pkg/kafka/config/ -name Consumer
@@ -42,27 +41,10 @@ type consumerTest struct {
 	partitionConsumer *kmocks.PartitionConsumer
 }
 
-type mockConsumerConfiguration struct {
-	consumer.Configuration
-	err error
-}
-
-func (m *mockConsumerConfiguration) NewConsumer() (consumer.Consumer, error) {
-	return &kmocks.Consumer{}, m.err
-}
-
 func TestConstructor(t *testing.T) {
-	params := Params{}
-	params.Builder = &mockConsumerConfiguration{}
-	newConsumer, err := New(params)
+	newConsumer, err := New(Params{})
 	assert.NoError(t, err)
 	assert.NotNil(t, newConsumer)
-
-	params.Builder = &mockConsumerConfiguration{
-		err: errors.New("consumerBuilder error"),
-	}
-	_, err = New(params)
-	assert.Error(t, err, "consumerBuilder error")
 }
 
 func withWrappedConsumer(fn func(c *consumerTest)) {
@@ -76,7 +58,7 @@ func withWrappedConsumer(fn func(c *consumerTest)) {
 			logger:         logger,
 			close:          make(chan struct{}),
 			isClosed:       sync.WaitGroup{},
-			Consumer:       sc,
+			saramaConsumer: sc,
 			processorFactory: ProcessorFactory{
 				topic:          "topic",
 				consumer:       sc,
@@ -106,7 +88,7 @@ func TestSaramaConsumerWrapper_MarkPartitionOffset(t *testing.T) {
 		metadata := "meatbag"
 		c.saramaConsumer.On("MarkPartitionOffset", topic, partition, offset, metadata).Return()
 
-		c.consumer.MarkPartitionOffset(topic, partition, offset, metadata)
+		c.saramaConsumer.MarkPartitionOffset(topic, partition, offset, metadata)
 
 		c.saramaConsumer.AssertCalled(t, "MarkPartitionOffset", topic, partition, offset, metadata)
 	})

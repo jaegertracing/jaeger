@@ -28,12 +28,12 @@ import (
 
 // FactoryParams are the parameters of a ProcessorFactory
 type FactoryParams struct {
-	Parallelism   int
-	Topic         string
-	BaseProcessor processor.SpanProcessor
-	Consumer      *Consumer
-	Factory       metrics.Factory
-	Logger        *zap.Logger
+	Parallelism    int
+	Topic          string
+	BaseProcessor  processor.SpanProcessor
+	SaramaConsumer consumer.Consumer
+	Factory        metrics.Factory
+	Logger         *zap.Logger
 }
 
 // ProcessorFactory is a factory for creating startedProcessors
@@ -47,10 +47,10 @@ type ProcessorFactory struct {
 }
 
 // NewFactory constructs a new ProcessorFactory
-func NewFactory(params FactoryParams) (*ProcessorFactory, error) {
-	return &ProcessorFactory{
+func NewFactory(params FactoryParams) (ProcessorFactory, error) {
+	return ProcessorFactory{
 		topic:          params.Topic,
-		consumer:       params.Consumer,
+		consumer:       params.SaramaConsumer,
 		metricsFactory: params.Factory,
 		logger:         params.Logger,
 		baseProcessor:  params.BaseProcessor,
