@@ -35,7 +35,7 @@ var customerCmd = &cobra.Command{
 		zapLogger := logger.With(zap.String("service", "customer"))
 		logger := log.NewFactory(zapLogger)
 		server := customer.NewServer(
-			net.JoinHostPort(customerOptions.serverInterface, strconv.Itoa(customerOptions.serverPort)),
+			net.JoinHostPort("0.0.0.0", strconv.Itoa(customerPort)),
 			tracing.Init("customer", metricsFactory.Namespace("customer", nil), logger, jAgentHostPort),
 			metricsFactory,
 			logger,
@@ -45,16 +45,7 @@ var customerCmd = &cobra.Command{
 	},
 }
 
-var (
-	customerOptions struct {
-		serverInterface string
-		serverPort      int
-	}
-)
-
 func init() {
 	RootCmd.AddCommand(customerCmd)
 
-	customerCmd.Flags().StringVarP(&customerOptions.serverInterface, "bind", "", "0.0.0.0", "interface to which the Customer server will bind")
-	customerCmd.Flags().IntVarP(&customerOptions.serverPort, "port", "p", 8081, "port on which the Customer server will listen")
 }

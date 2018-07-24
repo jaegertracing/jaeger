@@ -19,6 +19,8 @@ import (
 	"net/http"
 	"net/url"
 
+ 	"fmt"
+
 	"github.com/opentracing-contrib/go-stdlib/nethttp"
 	"github.com/opentracing/opentracing-go"
 	"go.uber.org/zap"
@@ -32,10 +34,11 @@ type Client struct {
 	tracer opentracing.Tracer
 	logger log.Factory
 	client *tracing.HTTPClient
+	hostPort string
 }
 
 // NewClient creates a new route.Client
-func NewClient(tracer opentracing.Tracer, logger log.Factory) *Client {
+func NewClient(tracer opentracing.Tracer, logger log.Factory, hostPort string) *Client {
 	return &Client{
 		tracer: tracer,
 		logger: logger,
@@ -43,6 +46,7 @@ func NewClient(tracer opentracing.Tracer, logger log.Factory) *Client {
 			Client: &http.Client{Transport: &nethttp.Transport{}},
 			Tracer: tracer,
 		},
+		hostPort: hostPort,
 	}
 }
 
@@ -53,8 +57,7 @@ func (c *Client) FindRoute(ctx context.Context, pickup, dropoff string) (*Route,
 	v := url.Values{}
 	v.Set("pickup", pickup)
 	v.Set("dropoff", dropoff)
-	url := "http://127.0.0.1:8083/route?" + v.Encode()
-
+	url := "http://" + c.hostPort + "/route?" + v.Encode()
 	var route Route
 	if err := c.client.GetJSON(ctx, "/route", url, &route); err != nil {
 		c.logger.For(ctx).Error("Error getting route", zap.Error(err))

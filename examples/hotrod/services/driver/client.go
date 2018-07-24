@@ -36,7 +36,7 @@ type Client struct {
 }
 
 // NewClient creates a new driver.Client
-func NewClient(tracer opentracing.Tracer, logger log.Factory) *Client {
+func NewClient(tracer opentracing.Tracer, logger log.Factory, hostPort string) *Client {
 	channelOpts := &tchannel.ChannelOptions{
 		//Logger:        logger,
 		//StatsReporter: statsReporter,
@@ -47,7 +47,7 @@ func NewClient(tracer opentracing.Tracer, logger log.Factory) *Client {
 		logger.Bg().Fatal("Cannot create TChannel", zap.Error(err))
 	}
 	clientOpts := &thrift.ClientOptions{
-		HostPort: "127.0.0.1:8082",
+		HostPort: hostPort,
 	}
 	thriftClient := thrift.NewClient(ch, "driver", clientOpts)
 	client := driver.NewTChanDriverClient(thriftClient)
