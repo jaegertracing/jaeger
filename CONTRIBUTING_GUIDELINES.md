@@ -9,18 +9,16 @@ it easier to get your contribution accepted.
 
 We gratefully welcome improvements to documentation as well as to code.
 
-# Certificate of Origin
+Table of Contents:
 
-By contributing to this project you agree to the [Developer Certificate of
-Origin](https://developercertificate.org/) (DCO). This document was created
-by the Linux Kernel community and is a simple statement that you, as a
-contributor, have the legal right to make the contribution. See the [DCO](DCO)
-file for details.
+* [Making a Change](#making-a-change)
+* [License](#license)
+* [Sign your work](#sign-your-work)
 
-## Making A Change
+## Making a Change
 
-*Before making any significant changes, please open an
-issue.* Each issue should describe the following:
+*Before making any significant changes, please open an issue*. Each issue should describe the following:
+
 * Requirement - what kind of business use case are you trying to solve?
 * Problem - what in Jaeger blocks you from solving the requirement?
 * Proposal - what do you suggest to solve the problem or improve the existing situation?
@@ -66,55 +64,73 @@ If you are adding a new file it should have a header like below. In some languag
 
 ## Sign your work
 
+By contributing to this project you agree to the [Developer Certificate of
+Origin](https://developercertificate.org/) (or simply [DCO](./DCO)). 
+This document was created by the Linux Kernel community and is a simple 
+statement that you, as a contributor, have the legal right to make the
+contribution.
+
 The sign-off is a simple line at the end of the explanation for the
 patch, which certifies that you wrote it or otherwise have the right to
 pass it on as an open-source patch.  The rules are pretty simple: if you
-can certify the below (from
-[developercertificate.org](http://developercertificate.org/)):
+can certify the conditions in the [DCO](./DCO), then you just add a line
+to every git commit message:
 
-```
-Developer Certificate of Origin
-Version 1.1
-
-Copyright (C) 2004, 2006 The Linux Foundation and its contributors.
-660 York Street, Suite 102,
-San Francisco, CA 94110 USA
-
-Everyone is permitted to copy and distribute verbatim copies of this
-license document, but changing it is not allowed.
-
-
-Developer's Certificate of Origin 1.1
-
-By making a contribution to this project, I certify that:
-
-(a) The contribution was created in whole or in part by me and I
-    have the right to submit it under the open source license
-    indicated in the file; or
-
-(b) The contribution is based upon previous work that, to the best
-    of my knowledge, is covered under an appropriate open source
-    license and I have the right under that license to submit that
-    work with modifications, whether created in whole or in part
-    by me, under the same open source license (unless I am
-    permitted to submit under a different license), as indicated
-    in the file; or
-
-(c) The contribution was provided directly to me by some other
-    person who certified (a), (b) or (c) and I have not modified
-    it.
-
-(d) I understand and agree that this project and the contribution
-    are public and that a record of the contribution (including all
-    personal information I submit with it, including my sign-off) is
-    maintained indefinitely and may be redistributed consistent with
-    this project or the open source license(s) involved.
-```
-
-then you just add a line to every git commit message:
-
-    Signed-off-by: Joe Smith <joe@gmail.com>
+    Signed-off-by: Bender Bending Rodriguez <bender.is.great@gmail.com>
 
 using your real name (sorry, no pseudonyms or anonymous contributions.)
-
 You can add the sign off when creating the git commit via `git commit -s`.
+
+### Missing sign-offs
+
+Note that *every commit in the pull request must be signed*. Jaeger repositories
+are configured with a DCO bot that will check sign-offs on every commit and
+block the PR from being merged if some commits are missing sign-offs. If you
+only have one commit or the latest commit in the PR is missing a sign-off, the
+simplest way to fix this is to run:
+
+```
+git commit --amend -s
+```
+
+which will prompt you to edit the commit message while adding a signature.
+Simply accept the text as is, and push the branch:
+
+```
+git push --force
+```
+
+If some commit in the middle of your commit history is missing the sign-off,
+the simplest solution is to squash the commits into one and sign it.
+For example, suppose that your branch history looks like this:
+
+```
+fe43631 - Fix HotROD Docker command
+933efb3 - Add files for ingester
+214c133 - Rename gas to gosec
+0a40309 - Update Makefile build_ui target to lerna structure
+7919cd9 - Add support for Cassandra reconnect interval
+a0dc40e - Fix deploy step
+77a0573 - (tag: v1.6.0) Prepare release 1.6.0
+```
+
+Let's assume that the first commit `77a0573` was the commit before you started
+work on your PR, and commits from `a0dc40e` to `fe43631` are your changes that
+you want to squash. You can run the soft reset command:
+
+```
+git reset --soft 77a0573
+```
+
+It will undo all changes after commit `77a0573` and stage them. You can commit
+them all at once while adding the signature:
+
+```
+git commit -s -m 'your commit message, e.g. the PR title'
+```
+
+Then push the branch:
+
+```
+git push --force
+```
