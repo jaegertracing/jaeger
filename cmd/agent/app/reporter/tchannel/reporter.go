@@ -71,11 +71,9 @@ func New(
 	zClient := zipkincore.NewTChanZipkinCollectorClient(thriftClient)
 	jClient := jaeger.NewTChanCollectorClient(thriftClient)
 	batchesMetrics := map[string]batchMetrics{}
-	tcReporterNS := mFactory.Namespace("tc-reporter", nil)
 	for _, s := range []string{zipkinBatches, jaegerBatches} {
-		nsByType := tcReporterNS.Namespace(s, nil)
 		bm := batchMetrics{}
-		metrics.Init(&bm, nsByType, nil)
+		metrics.Init(&bm, mFactory.Namespace("tchannel-reporter", map[string]string{"format": s}), nil)
 		batchesMetrics[s] = bm
 	}
 	return &Reporter{
