@@ -106,9 +106,9 @@ func submitTestJaegerBatch(reporter *Reporter) error {
 
 func checkCounters(t *testing.T, mf *metrics.LocalFactory, batchesSubmitted, spansSubmitted, batchesFailures, spansFailures int, format string) {
 	mTestutils.AssertCounterMetrics(t, mf, []mTestutils.ExpectedMetric{
-		{Name: "tc-reporter.batches.submitted", Tags: map[string]string{"format": format}, Value: batchesSubmitted},
-		{Name: "tc-reporter.spans.submitted", Tags: map[string]string{"format": format}, Value: spansSubmitted},
-		{Name: "tc-reporter.batches.failures", Tags: map[string]string{"format": format}, Value: batchesFailures},
-		{Name: "tc-reporter.spans.failures", Tags: map[string]string{"format": format}, Value: spansFailures},
+		{Name: "tchannel-reporter.batches.submitted", Tags: map[string]string{"format": format}, Value: batchesSubmitted},
+		{Name: "tchannel-reporter.spans.submitted", Tags: map[string]string{"format": format}, Value: spansSubmitted},
+		{Name: "tchannel-reporter.batches.failures", Tags: map[string]string{"format": format}, Value: batchesFailures},
+		{Name: "tchannel-reporter.spans.failures", Tags: map[string]string{"format": format}, Value: spansFailures},
 	}...)
 }

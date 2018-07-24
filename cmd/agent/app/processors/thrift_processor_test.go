@@ -219,8 +219,8 @@ func assertProcessorCorrectness(
 
 	// agentReporter must emit metrics
 	mTestutils.AssertCounterMetrics(t, metricsFactory, []mTestutils.ExpectedMetric{
-		{Name: "tc-reporter.batches.submitted", Tags: map[string]string{"format": format}, Value: 1},
-		{Name: "tc-reporter.spans.submitted", Tags: map[string]string{"format": format}, Value: 1},
+		{Name: "tchannel-reporter.batches.submitted", Tags: map[string]string{"format": format}, Value: 1},
+		{Name: "tchannel-reporter.spans.submitted", Tags: map[string]string{"format": format}, Value: 1},
 		{Name: "thrift.udp.server.packets.processed", Value: 1},
 	}...)
 }

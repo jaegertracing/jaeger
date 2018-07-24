@@ -34,19 +34,19 @@ const (
 
 type batchMetrics struct {
 	// Number of successful batch submissions to collector
-	BatchesSubmitted metrics.Counter `metric:"tc-reporter.batches.submitted"`
+	BatchesSubmitted metrics.Counter `metric:"batches.submitted"`
 
 	// Number of failed batch submissions to collector
-	BatchesFailures metrics.Counter `metric:"tc-reporter.batches.failures"`
+	BatchesFailures metrics.Counter `metric:"batches.failures"`
 
 	// Number of spans in a batch submitted to collector
-	BatchSize metrics.Gauge `metric:"tc-reporter.batch_size"`
+	BatchSize metrics.Gauge `metric:"batch_size"`
 
 	// Number of successful span submissions to collector
-	SpansSubmitted metrics.Counter `metric:"tc-reporter.spans.submitted"`
+	SpansSubmitted metrics.Counter `metric:"spans.submitted"`
 
 	// Number of failed span submissions to collector
-	SpansFailures metrics.Counter `metric:"tc-reporter.spans.failures"`
+	SpansFailures metrics.Counter `metric:"spans.failures"`
 }
 
 // Reporter forwards received spans to central collector tier over TChannel.
@@ -73,7 +73,7 @@ func New(
 	batchesMetrics := map[string]batchMetrics{}
 	for _, s := range []string{zipkinBatches, jaegerBatches} {
 		bm := batchMetrics{}
-		metrics.Init(&bm, mFactory.Namespace("", map[string]string{"format": s}), nil)
+		metrics.Init(&bm, mFactory.Namespace("tchannel-reporter", map[string]string{"format": s}), nil)
 		batchesMetrics[s] = bm
 	}
 	return &Reporter{
