@@ -43,7 +43,6 @@ var (
 	driverPort   int
 	frontendPort int
 	routePort    int
-	Routesdf     int
 )
 
 // RootCmd represents the base command when called without any subcommands
@@ -63,7 +62,6 @@ func Execute() {
 }
 
 func init() {
-	Routesdf = 8000
 	RootCmd.PersistentFlags().StringVarP(&metricsBackend, "metrics", "m", "expvar", "Metrics backend (expvar|prometheus)")
 	RootCmd.PersistentFlags().StringVarP(&jAgentHostPort, "jaeger-agent.host-port", "a", "0.0.0.0:6831", "String representing jaeger-agent UDP host:port, or jaeger-collector HTTP endpoint address, e.g. http://localhost:14268/api/traces.")
 	RootCmd.PersistentFlags().DurationVarP(&fixDBConnDelay, "fix-db-query-delay", "D", 300*time.Millisecond, "Average lagency of MySQL DB query")

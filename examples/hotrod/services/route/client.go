@@ -19,8 +19,6 @@ import (
 	"net/http"
 	"net/url"
 
- 	"fmt"
-
 	"github.com/opentracing-contrib/go-stdlib/nethttp"
 	"github.com/opentracing/opentracing-go"
 	"go.uber.org/zap"
