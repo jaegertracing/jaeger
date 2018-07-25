@@ -307,6 +307,22 @@ func TestSearchByTraceIDSuccess(t *testing.T) {
 	assert.Len(t, response.Data, 2)
 }
 
+func TestSearchByTraceIDSuccessWithArchive(t *testing.T) {
+	archiveReadMock := &spanstoremocks.Reader{}
+	server, readMock, _ := initializeTestServer(HandlerOptions.ArchiveSpanReader(archiveReadMock))
+	defer server.Close()
+	readMock.On("GetTrace", mock.AnythingOfType("model.TraceID")).
+		Return(nil, spanstore.ErrTraceNotFound).Twice()
+	archiveReadMock.On("GetTrace", mock.AnythingOfType("model.TraceID")).
+		Return(mockTrace, nil).Twice()
+
+	var response structuredResponse
+	err := getJSON(server.URL+`/api/traces?traceID=1&traceID=2`, &response)
+	assert.NoError(t, err)
+	assert.Len(t, response.Errors, 0)
+	assert.Len(t, response.Data, 2)
+}
+
 func TestSearchByTraceIDNotFound(t *testing.T) {
 	server, readMock, _ := initializeTestServer()
 	defer server.Close()
