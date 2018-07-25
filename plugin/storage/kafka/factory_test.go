@@ -25,7 +25,7 @@ import (
 	"go.uber.org/zap"
 
 	"github.com/jaegertracing/jaeger/pkg/config"
-	kafkaConfig "github.com/jaegertracing/jaeger/pkg/kafka/config"
+	kafkaConfig "github.com/jaegertracing/jaeger/pkg/kafka/producer"
 	"github.com/jaegertracing/jaeger/storage"
 )
 
@@ -51,13 +51,13 @@ func TestKafkaFactory(t *testing.T) {
 	command.ParseFlags([]string{})
 	f.InitFromViper(v)
 
-	f.config = &mockProducerBuilder{
+	f.Builder = &mockProducerBuilder{
 		err: errors.New("made-up error"),
 		t:   t,
 	}
 	assert.EqualError(t, f.Initialize(metrics.NullFactory, zap.NewNop()), "made-up error")
 
-	f.config = &mockProducerBuilder{t: t}
+	f.Builder = &mockProducerBuilder{t: t}
 	assert.NoError(t, f.Initialize(metrics.NullFactory, zap.NewNop()))
 	assert.IsType(t, &protobufMarshaller{}, f.marshaller)
 
@@ -86,7 +86,7 @@ func TestKafkaFactoryEncoding(t *testing.T) {
 			command.ParseFlags([]string{"--kafka.encoding=" + test.encoding})
 			f.InitFromViper(v)
 
-			f.config = &mockProducerBuilder{t: t}
+			f.Builder = &mockProducerBuilder{t: t}
 			assert.NoError(t, f.Initialize(metrics.NullFactory, zap.NewNop()))
 			assert.IsType(t, test.marshaller, f.marshaller)
 		})
@@ -99,6 +99,6 @@ func TestKafkaFactoryMarshallerErr(t *testing.T) {
 	command.ParseFlags([]string{"--kafka.encoding=bad-input"})
 	f.InitFromViper(v)
 
-	f.config = &mockProducerBuilder{t: t}
+	f.Builder = &mockProducerBuilder{t: t}
 	assert.Error(t, f.Initialize(metrics.NullFactory, zap.NewNop()))
 }
