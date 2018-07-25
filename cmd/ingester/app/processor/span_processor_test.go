@@ -27,13 +27,14 @@ import (
 )
 
 func TestNewSpanProcessor(t *testing.T) {
-	assert.NotNil(t, NewSpanProcessor(&smocks.Writer{}, &umocks.Unmarshaller{}))
+	p := SpanProcessorParams{}
+	assert.NotNil(t, NewSpanProcessor(p))
 }
 
 func TestSpanProcessor_Process(t *testing.T) {
 	writer := &smocks.Writer{}
 	unmarshallerMock := &umocks.Unmarshaller{}
-	processor := &spanProcessor{
+	processor := &KafkaSpanProcessor{
 		unmarshaller: unmarshallerMock,
 		writer:       writer,
 	}
@@ -55,7 +56,7 @@ func TestSpanProcessor_Process(t *testing.T) {
 func TestSpanProcessor_ProcessError(t *testing.T) {
 	writer := &smocks.Writer{}
 	unmarshallerMock := &umocks.Unmarshaller{}
-	processor := &spanProcessor{
+	processor := &KafkaSpanProcessor{
 		unmarshaller: unmarshallerMock,
 		writer:       writer,
 	}

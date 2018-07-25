@@ -23,17 +23,11 @@ import (
 	"github.com/jaegertracing/jaeger/storage/spanstore"
 )
 
-//go:generate mockery -name=SpanProcessor
+//go:generate mockery -name=KafkaSpanProcessor
 
 // SpanProcessor processes kafka spans
 type SpanProcessor interface {
 	Process(input Message) error
-	io.Closer
-}
-
-type spanProcessor struct {
-	unmarshaller kafka.Unmarshaller
-	writer       spanstore.Writer
 	io.Closer
 }
 
@@ -42,16 +36,29 @@ type Message interface {
 	Value() []byte
 }
 
-// NewSpanProcessor creates a new SpanProcessor
-func NewSpanProcessor(writer spanstore.Writer, unmarshaller kafka.Unmarshaller) SpanProcessor {
-	return &spanProcessor{
-		unmarshaller: unmarshaller,
-		writer:       writer,
+// SpanProcessorParams stores the necessary parameters for a SpanProcessor
+type SpanProcessorParams struct {
+	Writer       spanstore.Writer
+	Unmarshaller kafka.Unmarshaller
+}
+
+// KafkaSpanProcessor implements SpanProcessor for Kafka messages
+type KafkaSpanProcessor struct {
+	unmarshaller kafka.Unmarshaller
+	writer       spanstore.Writer
+	io.Closer
+}
+
+// NewSpanProcessor creates a new KafkaSpanProcessor
+func NewSpanProcessor(params SpanProcessorParams) *KafkaSpanProcessor {
+	return &KafkaSpanProcessor{
+		unmarshaller: params.Unmarshaller,
+		writer:       params.Writer,
 	}
 }
 
 // Process unmarshals and writes a single kafka message
-func (s spanProcessor) Process(message Message) error {
+func (s KafkaSpanProcessor) Process(message Message) error {
 	mSpan, err := s.unmarshaller.Unmarshal(message.Value())
 	if err != nil {
 		return errors.Wrap(err, "cannot unmarshall byte array into span")
