@@ -23,7 +23,7 @@ import (
 	"go.uber.org/zap"
 
 	"github.com/jaegertracing/jaeger/cmd/ingester/app/processor"
-	"github.com/jaegertracing/jaeger/pkg/kafka/config/consumer"
+	"github.com/jaegertracing/jaeger/pkg/kafka/consumer"
 )
 
 // Params are the parameters of a Consumer

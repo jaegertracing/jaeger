@@ -23,7 +23,7 @@ import (
 	"github.com/jaegertracing/jaeger/cmd/ingester/app/consumer/offset"
 	"github.com/jaegertracing/jaeger/cmd/ingester/app/processor"
 	"github.com/jaegertracing/jaeger/cmd/ingester/app/processor/decorator"
-	"github.com/jaegertracing/jaeger/pkg/kafka/config/consumer"
+	"github.com/jaegertracing/jaeger/pkg/kafka/consumer"
 )
 
 // FactoryParams are the parameters of a ProcessorFactory

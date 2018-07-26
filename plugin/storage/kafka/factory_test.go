@@ -33,7 +33,7 @@ import (
 var _ storage.Factory = new(Factory)
 
 type mockProducerBuilder struct {
-	kafkaConfig.ProducerConfiguration
+	kafkaConfig.Configuration
 	err error
 	t   *testing.T
 }
