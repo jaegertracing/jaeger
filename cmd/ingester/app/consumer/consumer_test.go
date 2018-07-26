@@ -22,42 +22,49 @@ import (
 	"github.com/Shopify/sarama"
 	"github.com/bsm/sarama-cluster"
 	"github.com/pkg/errors"
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
 	"github.com/uber/jaeger-lib/metrics"
 	"github.com/uber/jaeger-lib/metrics/testutils"
 	"go.uber.org/zap"
 
 	kmocks "github.com/jaegertracing/jaeger/cmd/ingester/app/consumer/mocks"
-	"github.com/jaegertracing/jaeger/cmd/ingester/app/processor/mocks"
+	pmocks "github.com/jaegertracing/jaeger/cmd/ingester/app/processor/mocks"
 )
 
-//go:generate mockery -name SaramaConsumer
+//go:generate mockery -dir ../../../../pkg/kafka/config/ -name Consumer
 //go:generate mockery -dir ../../../../../vendor/github.com/bsm/sarama-cluster/ -name PartitionConsumer
 
 type consumerTest struct {
-	saramaConsumer    *kmocks.SaramaConsumer
-	consumer          *consumer
+	saramaConsumer    *kmocks.Consumer
+	consumer          *Consumer
 	partitionConsumer *kmocks.PartitionConsumer
 }
 
+func TestConstructor(t *testing.T) {
+	newConsumer, err := New(Params{})
+	assert.NoError(t, err)
+	assert.NotNil(t, newConsumer)
+}
+
 func withWrappedConsumer(fn func(c *consumerTest)) {
-	sc := &kmocks.SaramaConsumer{}
+	sc := &kmocks.Consumer{}
 	logger, _ := zap.NewDevelopment()
 	metricsFactory := metrics.NewLocalFactory(0)
 	c := &consumerTest{
 		saramaConsumer: sc,
-		consumer: &consumer{
-			metricsFactory: metricsFactory,
-			logger:         logger,
-			close:          make(chan struct{}),
-			isClosed:       sync.WaitGroup{},
-			SaramaConsumer: sc,
-			processorFactory: processorFactory{
+		consumer: &Consumer{
+			metricsFactory:   metricsFactory,
+			logger:           logger,
+			close:            make(chan struct{}),
+			isClosed:         sync.WaitGroup{},
+			internalConsumer: sc,
+			processorFactory: ProcessorFactory{
 				topic:          "topic",
 				consumer:       sc,
 				metricsFactory: metricsFactory,
 				logger:         logger,
-				baseProcessor:  &mocks.SpanProcessor{},
+				baseProcessor:  &pmocks.SpanProcessor{},
 				parallelism:    1,
 			},
 		},
@@ -74,7 +81,6 @@ func withWrappedConsumer(fn func(c *consumerTest)) {
 }
 
 func TestSaramaConsumerWrapper_MarkPartitionOffset(t *testing.T) {
-
 	withWrappedConsumer(func(c *consumerTest) {
 		topic := "morekuzambu"
 		partition := int32(316)
@@ -82,7 +88,7 @@ func TestSaramaConsumerWrapper_MarkPartitionOffset(t *testing.T) {
 		metadata := "meatbag"
 		c.saramaConsumer.On("MarkPartitionOffset", topic, partition, offset, metadata).Return()
 
-		c.consumer.MarkPartitionOffset(topic, partition, offset, metadata)
+		c.saramaConsumer.MarkPartitionOffset(topic, partition, offset, metadata)
 
 		c.saramaConsumer.AssertCalled(t, "MarkPartitionOffset", topic, partition, offset, metadata)
 	})
@@ -102,11 +108,11 @@ func TestSaramaConsumerWrapper_start_Messages(t *testing.T) {
 		c.partitionConsumer.On("HighWaterMarkOffset").Return(int64(1234))
 		c.partitionConsumer.On("Close").Return(nil)
 
-		mp := &mocks.SpanProcessor{}
+		mp := &pmocks.SpanProcessor{}
 		mp.On("Process", &saramaMessageWrapper{msg}).Return(nil)
 		c.consumer.processorFactory.baseProcessor = mp
 
-		c.consumer.mainLoop()
+		c.consumer.Start()
 		time.Sleep(100 * time.Millisecond)
 		close(msgCh)
 		close(errCh)
@@ -149,7 +155,7 @@ func TestSaramaConsumerWrapper_start_Errors(t *testing.T) {
 		c.partitionConsumer.On("Messages").Return((<-chan *sarama.ConsumerMessage)(msgCh))
 		c.partitionConsumer.On("Close").Return(nil)
 
-		c.consumer.mainLoop()
+		c.consumer.Start()
 		time.Sleep(100 * time.Millisecond)
 		close(msgCh)
 		close(errCh)

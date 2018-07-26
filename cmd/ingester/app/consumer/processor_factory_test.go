@@ -27,16 +27,23 @@ import (
 	"github.com/jaegertracing/jaeger/cmd/ingester/app/processor/mocks"
 )
 
+func Test_NewFactory(t *testing.T) {
+	params := ProcessorFactoryParams{}
+	newFactory, err := NewProcessorFactory(params)
+	assert.NoError(t, err)
+	assert.NotNil(t, newFactory)
+}
+
 func Test_new(t *testing.T) {
 
-	mockConsumer := &kmocks.SaramaConsumer{}
+	mockConsumer := &kmocks.Consumer{}
 	mockConsumer.On("MarkPartitionOffset", mock.Anything, mock.Anything, mock.Anything, mock.Anything).Return(nil)
 
 	topic := "coelacanth"
 	partition := int32(21)
 	offset := int64(555)
 
-	pf := processorFactory{
+	pf := ProcessorFactory{
 		topic:          topic,
 		consumer:       mockConsumer,
 		metricsFactory: metrics.NullFactory,

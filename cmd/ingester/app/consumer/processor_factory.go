@@ -23,18 +23,42 @@ import (
 	"github.com/jaegertracing/jaeger/cmd/ingester/app/consumer/offset"
 	"github.com/jaegertracing/jaeger/cmd/ingester/app/processor"
 	"github.com/jaegertracing/jaeger/cmd/ingester/app/processor/decorator"
+	"github.com/jaegertracing/jaeger/pkg/kafka/consumer"
 )
 
-type processorFactory struct {
+// ProcessorFactoryParams are the parameters of a ProcessorFactory
+type ProcessorFactoryParams struct {
+	Parallelism    int
+	Topic          string
+	BaseProcessor  processor.SpanProcessor
+	SaramaConsumer consumer.Consumer
+	Factory        metrics.Factory
+	Logger         *zap.Logger
+}
+
+// ProcessorFactory is a factory for creating startedProcessors
+type ProcessorFactory struct {
 	topic          string
-	consumer       SaramaConsumer
+	consumer       consumer.Consumer
 	metricsFactory metrics.Factory
 	logger         *zap.Logger
 	baseProcessor  processor.SpanProcessor
 	parallelism    int
 }
 
-func (c *processorFactory) new(partition int32, minOffset int64) processor.SpanProcessor {
+// NewProcessorFactory constructs a new ProcessorFactory
+func NewProcessorFactory(params ProcessorFactoryParams) (*ProcessorFactory, error) {
+	return &ProcessorFactory{
+		topic:          params.Topic,
+		consumer:       params.SaramaConsumer,
+		metricsFactory: params.Factory,
+		logger:         params.Logger,
+		baseProcessor:  params.BaseProcessor,
+		parallelism:    params.Parallelism,
+	}, nil
+}
+
+func (c *ProcessorFactory) new(partition int32, minOffset int64) processor.SpanProcessor {
 	c.logger.Info("Creating new processors", zap.Int32("partition", partition))
 
 	markOffset := func(offset int64) {

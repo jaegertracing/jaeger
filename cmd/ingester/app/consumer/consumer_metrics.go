@@ -30,7 +30,7 @@ type errMetrics struct {
 	errCounter metrics.Counter
 }
 
-func (c *consumer) newMsgMetrics(partition int32) msgMetrics {
+func (c *Consumer) newMsgMetrics(partition int32) msgMetrics {
 	f := c.metricsFactory.Namespace("sarama-consumer", map[string]string{"partition": strconv.Itoa(int(partition))})
 	return msgMetrics{
 		counter:     f.Counter("messages", nil),
@@ -39,7 +39,7 @@ func (c *consumer) newMsgMetrics(partition int32) msgMetrics {
 	}
 }
 
-func (c *consumer) newErrMetrics(partition int32) errMetrics {
+func (c *Consumer) newErrMetrics(partition int32) errMetrics {
 	f := c.metricsFactory.Namespace("sarama-consumer", map[string]string{"partition": strconv.Itoa(int(partition))})
 	return errMetrics{errCounter: f.Counter("errors", nil)}
 
