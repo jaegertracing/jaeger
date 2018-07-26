@@ -54,11 +54,11 @@ func withWrappedConsumer(fn func(c *consumerTest)) {
 	c := &consumerTest{
 		saramaConsumer: sc,
 		consumer: &Consumer{
-			metricsFactory: metricsFactory,
-			logger:         logger,
-			close:          make(chan struct{}),
-			isClosed:       sync.WaitGroup{},
-			saramaConsumer: sc,
+			metricsFactory:   metricsFactory,
+			logger:           logger,
+			close:            make(chan struct{}),
+			isClosed:         sync.WaitGroup{},
+			internalConsumer: sc,
 			processorFactory: ProcessorFactory{
 				topic:          "topic",
 				consumer:       sc,

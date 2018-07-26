@@ -28,8 +28,8 @@ import (
 )
 
 func Test_NewFactory(t *testing.T) {
-	params := FactoryParams{}
-	newFactory, err := NewFactory(params)
+	params := ProcessorFactoryParams{}
+	newFactory, err := NewProcessorFactory(params)
 	assert.NoError(t, err)
 	assert.NotNil(t, newFactory)
 }

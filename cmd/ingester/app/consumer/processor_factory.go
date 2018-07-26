@@ -26,8 +26,8 @@ import (
 	"github.com/jaegertracing/jaeger/pkg/kafka/consumer"
 )
 
-// FactoryParams are the parameters of a ProcessorFactory
-type FactoryParams struct {
+// ProcessorFactoryParams are the parameters of a ProcessorFactory
+type ProcessorFactoryParams struct {
 	Parallelism    int
 	Topic          string
 	BaseProcessor  processor.SpanProcessor
@@ -46,9 +46,9 @@ type ProcessorFactory struct {
 	parallelism    int
 }
 
-// NewFactory constructs a new ProcessorFactory
-func NewFactory(params FactoryParams) (ProcessorFactory, error) {
-	return ProcessorFactory{
+// NewProcessorFactory constructs a new ProcessorFactory
+func NewProcessorFactory(params ProcessorFactoryParams) (*ProcessorFactory, error) {
+	return &ProcessorFactory{
 		topic:          params.Topic,
 		consumer:       params.SaramaConsumer,
 		metricsFactory: params.Factory,
