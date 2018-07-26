@@ -23,7 +23,7 @@ import (
 	"github.com/uber/jaeger-lib/metrics"
 	"go.uber.org/zap"
 
-	"github.com/jaegertracing/jaeger/pkg/kafka/config"
+	"github.com/jaegertracing/jaeger/pkg/kafka/producer"
 	"github.com/jaegertracing/jaeger/storage/dependencystore"
 	"github.com/jaegertracing/jaeger/storage/spanstore"
 )
@@ -35,9 +35,9 @@ type Factory struct {
 	metricsFactory metrics.Factory
 	logger         *zap.Logger
 
-	config     config.ProducerBuilder
 	producer   sarama.AsyncProducer
 	marshaller Marshaller
+	producer.Builder
 }
 
 // NewFactory creates a new Factory.
@@ -53,16 +53,16 @@ func (f *Factory) AddFlags(flagSet *flag.FlagSet) {
 // InitFromViper implements plugin.Configurable
 func (f *Factory) InitFromViper(v *viper.Viper) {
 	f.options.InitFromViper(v)
-	f.config = &f.options.config
+	f.Builder = &f.options.config
 }
 
 // Initialize implements storage.Factory
 func (f *Factory) Initialize(metricsFactory metrics.Factory, logger *zap.Logger) error {
 	f.metricsFactory, f.logger = metricsFactory, logger
-	logger.Info("Kafka storage configuration",
-		zap.Any("producer config", f.config),
+	logger.Info("Kafka factory",
+		zap.Any("producer builder", f.Builder),
 		zap.Any("topic", f.options.topic))
-	p, err := f.config.NewProducer()
+	p, err := f.NewProducer()
 	if err != nil {
 		return err
 	}

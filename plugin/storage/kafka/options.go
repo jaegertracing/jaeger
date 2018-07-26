@@ -21,7 +21,7 @@ import (
 
 	"github.com/spf13/viper"
 
-	"github.com/jaegertracing/jaeger/pkg/kafka/config"
+	"github.com/jaegertracing/jaeger/pkg/kafka/producer"
 )
 
 const (
@@ -40,7 +40,7 @@ const (
 
 // Options stores the configuration options for Kafka
 type Options struct {
-	config   config.Configuration
+	config   producer.Configuration
 	topic    string
 	encoding string
 }
@@ -64,7 +64,7 @@ func (opt *Options) AddFlags(flagSet *flag.FlagSet) {
 
 // InitFromViper initializes Options with properties from viper
 func (opt *Options) InitFromViper(v *viper.Viper) {
-	opt.config = config.Configuration{
+	opt.config = producer.Configuration{
 		Brokers: strings.Split(v.GetString(configPrefix+suffixBrokers), ","),
 	}
 	opt.topic = v.GetString(configPrefix + suffixTopic)

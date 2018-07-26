@@ -12,20 +12,20 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package config
+package producer
 
 import (
 	"github.com/Shopify/sarama"
 )
 
+// Builder builds a new kafka producer
+type Builder interface {
+	NewProducer() (sarama.AsyncProducer, error)
+}
+
 // Configuration describes the configuration properties needed to create a Kafka producer
 type Configuration struct {
 	Brokers []string
-}
-
-// ProducerBuilder builds a new kafka producer
-type ProducerBuilder interface {
-	NewProducer() (sarama.AsyncProducer, error)
 }
 
 // NewProducer creates a new asynchronous kafka producer
