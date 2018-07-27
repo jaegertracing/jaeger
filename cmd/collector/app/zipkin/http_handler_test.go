@@ -198,6 +198,15 @@ func TestGzipBadBody(t *testing.T) {
 	assert.EqualValues(t, "Unable to process request body: unexpected EOF\n", resBodyStr)
 }
 
+func TestMalformedContentType(t *testing.T) {
+	server, _ := initializeTestServer(nil)
+	defer server.Close()
+	statusCode, resBodyStr, err := postBytes(server.URL+`/api/v1/spans`, []byte{}, createHeader("application/json; =iammalformed;"))
+	assert.NoError(t, err)
+	assert.EqualValues(t, http.StatusBadRequest, statusCode)
+	assert.EqualValues(t, "Cannot parse Content-Type: mime: invalid media parameter\n", resBodyStr)
+}
+
 func TestUnsupportedContentType(t *testing.T) {
 	server, _ := initializeTestServer(nil)
 	defer server.Close()
@@ -253,6 +262,7 @@ func TestSaveSpansV2(t *testing.T) {
 		{body: []byte("[]"), code: http.StatusAccepted, headers: map[string]string{"Content-Type": "application/json; charset=utf-8"}},
 		{body: gzipEncode([]byte("[]")), code: http.StatusAccepted, headers: map[string]string{"Content-Encoding": "gzip"}},
 		{body: []byte("[]"), code: http.StatusBadRequest, headers: map[string]string{"Content-Type": "text/html"}, resBody: "Unsupported Content-Type\n"},
+		{body: []byte("[]"), code: http.StatusBadRequest, headers: map[string]string{"Content-Type": "application/json; =iammalformed;"}, resBody: "Cannot parse Content-Type: mime: invalid media parameter\n"},
 		{body: []byte("[]"), code: http.StatusBadRequest, headers: map[string]string{"Content-Encoding": "gzip"}, resBody: "Unable to process request body: unexpected EOF\n"},
 		{body: []byte("not good"), code: http.StatusBadRequest, resBody: "Unable to process request body: invalid character 'o' in literal null (expecting 'u')\n"},
 		{body: []byte("[{}]"), code: http.StatusBadRequest, resBody: "Unable to process request body: validation failure list:\nid in body is required\ntraceId in body is required\n"},

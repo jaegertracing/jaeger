@@ -67,7 +67,12 @@ func (aH *APIHandler) saveSpan(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	contentType, _, _ := mime.ParseMediaType(r.Header.Get("Content-Type"))
+	contentType, _, err := mime.ParseMediaType(r.Header.Get("Content-Type"))
+
+	if err != nil {
+		http.Error(w, fmt.Sprintf("Cannot parse content type: %v", err), http.StatusBadRequest)
+		return
+	}
 
 	if _, ok := acceptedThriftFormats[contentType]; !ok {
 		http.Error(w, fmt.Sprintf("Unsupported content type: %v", contentType), http.StatusBadRequest)

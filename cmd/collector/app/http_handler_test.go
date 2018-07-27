@@ -148,6 +148,15 @@ func TestWrongFormat(t *testing.T) {
 	assert.EqualValues(t, "Unsupported content type: nosoupforyou\n", resBodyStr)
 }
 
+func TestMalformedFormat(t *testing.T) {
+	server, _ := initializeTestServer(nil)
+	defer server.Close()
+	statusCode, resBodyStr, err := postBytes("application/json; =iammalformed", server.URL+`/api/traces`, []byte{})
+	assert.NoError(t, err)
+	assert.EqualValues(t, http.StatusBadRequest, statusCode)
+	assert.EqualValues(t, "Cannot parse content type: mime: invalid media parameter\n", resBodyStr)
+}
+
 func TestCannotReadBodyFromRequest(t *testing.T) {
 	handler := NewAPIHandler(&mockJaegerHandler{})
 	req, err := http.NewRequest(http.MethodPost, "whatever", &errReader{})
