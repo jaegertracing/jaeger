@@ -83,6 +83,11 @@ func TestThriftFormat(t *testing.T) {
 	assert.EqualValues(t, http.StatusAccepted, statusCode)
 	assert.EqualValues(t, "", resBodyStr)
 
+	statusCode, resBodyStr, err = postBytes("application/x-thrift; charset=utf-8", server.URL+`/api/traces`, someBytes)
+	assert.NoError(t, err)
+	assert.EqualValues(t, http.StatusAccepted, statusCode)
+	assert.EqualValues(t, "", resBodyStr)
+
 	handler.jaegerBatchesHandler.(*mockJaegerHandler).err = fmt.Errorf("Bad times ahead")
 	statusCode, resBodyStr, err = postBytes("application/vnd.apache.thrift.binary", server.URL+`/api/traces`, someBytes)
 	assert.NoError(t, err)

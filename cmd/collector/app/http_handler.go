@@ -17,6 +17,7 @@ package app
 import (
 	"fmt"
 	"io/ioutil"
+	"mime"
 	"net/http"
 	"time"
 
@@ -66,7 +67,8 @@ func (aH *APIHandler) saveSpan(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	contentType := r.Header.Get("Content-Type")
+	contentType, _, _ := mime.ParseMediaType(r.Header.Get("Content-Type"))
+
 	if _, ok := acceptedThriftFormats[contentType]; !ok {
 		http.Error(w, fmt.Sprintf("Unsupported content type: %v", contentType), http.StatusBadRequest)
 		return

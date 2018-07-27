@@ -131,6 +131,11 @@ func TestJsonFormat(t *testing.T) {
 	require.NotNil(t, recdSpan.Annotations[0].Host)
 	assert.EqualValues(t, -1, recdSpan.Annotations[0].Host.Port, "Port 65535 must be represented as -1 in zipkin.thrift")
 
+	statusCode, resBodyStr, err = postBytes(server.URL+`/api/v1/spans`, []byte(spanJSON), createHeader("application/json; charset=utf-8"))
+	assert.NoError(t, err)
+	assert.EqualValues(t, http.StatusAccepted, statusCode)
+	assert.EqualValues(t, "", resBodyStr)
+
 	endpErrJSON := createEndpoint("", "127.0.0.A", "", 80)
 
 	// error zipkinSpanHandler
@@ -245,6 +250,7 @@ func TestSaveSpansV2(t *testing.T) {
 		headers map[string]string
 	}{
 		{body: []byte("[]"), code: http.StatusAccepted},
+		{body: []byte("[]"), code: http.StatusAccepted, headers: map[string]string{"Content-Type": "application/json; charset=utf-8"}},
 		{body: gzipEncode([]byte("[]")), code: http.StatusAccepted, headers: map[string]string{"Content-Encoding": "gzip"}},
 		{body: []byte("[]"), code: http.StatusBadRequest, headers: map[string]string{"Content-Type": "text/html"}, resBody: "Unsupported Content-Type\n"},
 		{body: []byte("[]"), code: http.StatusBadRequest, headers: map[string]string{"Content-Encoding": "gzip"}, resBody: "Unable to process request body: unexpected EOF\n"},
