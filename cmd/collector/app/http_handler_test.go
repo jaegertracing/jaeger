@@ -83,6 +83,11 @@ func TestThriftFormat(t *testing.T) {
 	assert.EqualValues(t, http.StatusAccepted, statusCode)
 	assert.EqualValues(t, "", resBodyStr)
 
+	statusCode, resBodyStr, err = postBytes("application/x-thrift; charset=utf-8", server.URL+`/api/traces`, someBytes)
+	assert.NoError(t, err)
+	assert.EqualValues(t, http.StatusAccepted, statusCode)
+	assert.EqualValues(t, "", resBodyStr)
+
 	handler.jaegerBatchesHandler.(*mockJaegerHandler).err = fmt.Errorf("Bad times ahead")
 	statusCode, resBodyStr, err = postBytes("application/vnd.apache.thrift.binary", server.URL+`/api/traces`, someBytes)
 	assert.NoError(t, err)
@@ -141,6 +146,15 @@ func TestWrongFormat(t *testing.T) {
 	assert.NoError(t, err)
 	assert.EqualValues(t, http.StatusBadRequest, statusCode)
 	assert.EqualValues(t, "Unsupported content type: nosoupforyou\n", resBodyStr)
+}
+
+func TestMalformedFormat(t *testing.T) {
+	server, _ := initializeTestServer(nil)
+	defer server.Close()
+	statusCode, resBodyStr, err := postBytes("application/json; =iammalformed", server.URL+`/api/traces`, []byte{})
+	assert.NoError(t, err)
+	assert.EqualValues(t, http.StatusBadRequest, statusCode)
+	assert.EqualValues(t, "Cannot parse content type: mime: invalid media parameter\n", resBodyStr)
 }
 
 func TestCannotReadBodyFromRequest(t *testing.T) {
