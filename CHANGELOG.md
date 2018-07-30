@@ -18,6 +18,9 @@ TBD (pending)
 
 ##### Breaking Changes!!!
 
+- The storage implementations no longer write the parentSpanID field to storage (#856).
+  If you are upgrading to this version, **you must upgrade query service first**!
+
 - Update Dockerfiles to reference executable via ENTRYPOINT (#815) by Zachary DiCesare (@zdicesare)
 
   It is no longer necessary to specify the binary name when passing flags to containers.
