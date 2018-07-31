@@ -15,6 +15,7 @@
 package builder
 
 import (
+	"fmt"
 	"strings"
 
 	"github.com/spf13/viper"
@@ -56,7 +57,7 @@ const (
 	// DefaultParallelism is the default parallelism for the span processor
 	DefaultParallelism = 1000
 	// DefaultEncoding is the default span encoding
-	DefaultEncoding = EncodingJSON
+	DefaultEncoding = EncodingProto
 )
 
 // Builder stores the configuration options for the Ingester
@@ -71,8 +72,11 @@ func (b *Builder) CreateConsumer(logger *zap.Logger, metricsFactory metrics.Fact
 	var unmarshaller kafka.Unmarshaller
 	if b.Encoding == EncodingJSON {
 		unmarshaller = kafka.NewJSONUnmarshaller()
-	} else {
+	} else if b.Encoding == EncodingProto {
 		unmarshaller = kafka.NewProtobufUnmarshaller()
+	} else {
+		return nil, fmt.Errorf(`encoding '%s' not recognised, use one of ("%s" or "%s")`,
+			b.Encoding, EncodingProto, EncodingJSON)
 	}
 
 	spParams := processor.SpanProcessorParams{
