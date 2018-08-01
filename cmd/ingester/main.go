@@ -82,9 +82,9 @@ func main() {
 				logger.Fatal("Failed to create span writer", zap.Error(err))
 			}
 
-			b := builder.Builder{}
-			b.InitFromViper(v)
-			consumer, err := b.CreateConsumer(logger, metricsFactory, spanWriter)
+			options := app.Options{}
+			options.InitFromViper(v)
+			consumer, err := builder.CreateConsumer(logger, metricsFactory, spanWriter, options)
 			if err != nil {
 				logger.Fatal("Unable to create consumer", zap.Error(err))
 			}
