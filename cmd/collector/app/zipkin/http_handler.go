@@ -19,6 +19,7 @@ import (
 	"fmt"
 	"io"
 	"io/ioutil"
+	"mime"
 	"net/http"
 	"strings"
 	"time"
@@ -79,7 +80,13 @@ func (aH *APIHandler) saveSpans(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	contentType := r.Header.Get("Content-Type")
+	contentType, _, err := mime.ParseMediaType(r.Header.Get("Content-Type"))
+
+	if err != nil {
+		http.Error(w, fmt.Sprintf("Cannot parse Content-Type: %v", err), http.StatusBadRequest)
+		return
+	}
+
 	var tSpans []*zipkincore.Span
 	if contentType == "application/x-thrift" {
 		tSpans, err = deserializeThrift(bodyBytes)
@@ -121,7 +128,13 @@ func (aH *APIHandler) saveSpansV2(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	contentType := r.Header.Get("Content-Type")
+	contentType, _, err := mime.ParseMediaType(r.Header.Get("Content-Type"))
+
+	if err != nil {
+		http.Error(w, fmt.Sprintf("Cannot parse Content-Type: %v", err), http.StatusBadRequest)
+		return
+	}
+
 	if contentType != "application/json" {
 		http.Error(w, "Unsupported Content-Type", http.StatusBadRequest)
 		return

@@ -237,7 +237,7 @@ func (aH *APIHandler) tracesByIDs(traceIDs []model.TraceID) ([]*model.Trace, []s
 	var errors []structuredError
 	retMe := make([]*model.Trace, 0, len(traceIDs))
 	for _, traceID := range traceIDs {
-		if trace, err := aH.spanReader.GetTrace(traceID); err != nil {
+		if trace, err := trace(traceID, aH.spanReader, aH.archiveSpanReader); err != nil {
 			if err != spanstore.ErrTraceNotFound {
 				return nil, nil, err
 			}
@@ -399,22 +399,30 @@ func (aH *APIHandler) withTraceFromReader(
 	if !ok {
 		return
 	}
-	trace, err := reader.GetTrace(traceID)
+	trace, err := trace(traceID, reader, backupReader)
 	if err == spanstore.ErrTraceNotFound {
-		if backupReader == nil {
-			aH.handleError(w, err, http.StatusNotFound)
-			return
-		}
-		trace, err = backupReader.GetTrace(traceID)
-		if err == spanstore.ErrTraceNotFound {
-			aH.handleError(w, err, http.StatusNotFound)
-			return
-		}
+		aH.handleError(w, err, http.StatusNotFound)
+		return
 	}
 	if aH.handleError(w, err, http.StatusInternalServerError) {
 		return
 	}
 	process(trace)
+}
+
+func trace(
+	traceID model.TraceID,
+	reader spanstore.Reader,
+	backupReader spanstore.Reader,
+) (*model.Trace, error) {
+	trace, err := reader.GetTrace(traceID)
+	if err == spanstore.ErrTraceNotFound {
+		if backupReader == nil {
+			return nil, err
+		}
+		trace, err = backupReader.GetTrace(traceID)
+	}
+	return trace, err
 }
 
 // archiveTrace implements the REST API POST:/archive/{trace-id}.
@@ -447,6 +455,9 @@ func (aH *APIHandler) archiveTrace(w http.ResponseWriter, r *http.Request) {
 func (aH *APIHandler) handleError(w http.ResponseWriter, err error, statusCode int) bool {
 	if err == nil {
 		return false
+	}
+	if statusCode == http.StatusInternalServerError {
+		aH.logger.Error("HTTP handler, Internal Server Error", zap.Error(err))
 	}
 	structuredResp := structuredResponse{
 		Errors: []structuredError{

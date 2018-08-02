@@ -16,7 +16,6 @@ package processors
 
 import (
 	"errors"
-	"fmt"
 	"testing"
 	"time"
 
@@ -196,7 +195,7 @@ func assertProcessorCorrectness(
 	metricsFactory *metrics.LocalFactory,
 	sizeF func() int,
 	nameF func() string,
-	counterType string,
+	format string,
 ) {
 	// wait for server to receive
 	for i := 0; i < 1000; i++ {
@@ -219,11 +218,9 @@ func assertProcessorCorrectness(
 	}
 
 	// agentReporter must emit metrics
-	batchesSubmittedCounter := fmt.Sprintf("tc-reporter.%s.batches.submitted", counterType)
-	spansSubmittedCounter := fmt.Sprintf("tc-reporter.%s.spans.submitted", counterType)
 	mTestutils.AssertCounterMetrics(t, metricsFactory, []mTestutils.ExpectedMetric{
-		{Name: batchesSubmittedCounter, Value: 1},
-		{Name: spansSubmittedCounter, Value: 1},
+		{Name: "tchannel-reporter.batches.submitted", Tags: map[string]string{"format": format}, Value: 1},
+		{Name: "tchannel-reporter.spans.submitted", Tags: map[string]string{"format": format}, Value: 1},
 		{Name: "thrift.udp.server.packets.processed", Value: 1},
 	}...)
 }

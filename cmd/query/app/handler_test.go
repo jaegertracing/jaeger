@@ -28,10 +28,12 @@ import (
 
 	"github.com/gogo/protobuf/jsonpb"
 	"github.com/stretchr/testify/assert"
+	testHttp "github.com/stretchr/testify/http"
 	"github.com/stretchr/testify/mock"
 	"github.com/stretchr/testify/require"
 	jaeger "github.com/uber/jaeger-client-go"
 	"go.uber.org/zap"
+	"go.uber.org/zap/zapcore"
 
 	"github.com/jaegertracing/jaeger/model"
 	"github.com/jaegertracing/jaeger/model/adjuster"
@@ -138,6 +140,42 @@ func TestGetTraceSuccess(t *testing.T) {
 	err := getJSON(server.URL+`/api/traces/123456`, &response)
 	assert.NoError(t, err)
 	assert.Len(t, response.Errors, 0)
+}
+
+type logData struct {
+	e zapcore.Entry
+	f []zapcore.Field
+}
+
+type testLogger struct {
+	logs *[]logData
+}
+
+func (testLogger) Enabled(zapcore.Level) bool          { return true }
+func (l testLogger) With([]zapcore.Field) zapcore.Core { return l }
+func (testLogger) Sync() error                         { return nil }
+func (l testLogger) Check(e zapcore.Entry, ce *zapcore.CheckedEntry) *zapcore.CheckedEntry {
+	return ce.AddCore(e, l)
+}
+func (l testLogger) Write(e zapcore.Entry, f []zapcore.Field) error {
+	*l.logs = append(*l.logs, logData{e: e, f: f})
+	return nil
+}
+
+func TestLogOnServerError(t *testing.T) {
+	l := &testLogger{
+		logs: &[]logData{},
+	}
+	apiHandlerOptions := []HandlerOption{
+		HandlerOptions.Logger(zap.New(l)),
+	}
+	h := NewAPIHandler(&spanstoremocks.Reader{}, &depsmocks.Reader{}, apiHandlerOptions...)
+	e := errors.New("test error")
+	h.handleError(&testHttp.TestResponseWriter{}, e, http.StatusInternalServerError)
+	require.Equal(t, 1, len(*l.logs))
+	assert.Equal(t, "HTTP handler, Internal Server Error", (*l.logs)[0].e.Message)
+	assert.Equal(t, 1, len((*l.logs)[0].f))
+	assert.Equal(t, e, (*l.logs)[0].f[0].Interface)
 }
 
 func TestPrettyPrint(t *testing.T) {
@@ -298,6 +336,22 @@ func TestSearchByTraceIDSuccess(t *testing.T) {
 	server, readMock, _ := initializeTestServer()
 	defer server.Close()
 	readMock.On("GetTrace", mock.AnythingOfType("model.TraceID")).
+		Return(mockTrace, nil).Twice()
+
+	var response structuredResponse
+	err := getJSON(server.URL+`/api/traces?traceID=1&traceID=2`, &response)
+	assert.NoError(t, err)
+	assert.Len(t, response.Errors, 0)
+	assert.Len(t, response.Data, 2)
+}
+
+func TestSearchByTraceIDSuccessWithArchive(t *testing.T) {
+	archiveReadMock := &spanstoremocks.Reader{}
+	server, readMock, _ := initializeTestServer(HandlerOptions.ArchiveSpanReader(archiveReadMock))
+	defer server.Close()
+	readMock.On("GetTrace", mock.AnythingOfType("model.TraceID")).
+		Return(nil, spanstore.ErrTraceNotFound).Twice()
+	archiveReadMock.On("GetTrace", mock.AnythingOfType("model.TraceID")).
 		Return(mockTrace, nil).Twice()
 
 	var response structuredResponse
