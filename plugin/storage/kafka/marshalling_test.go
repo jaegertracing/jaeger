@@ -20,20 +20,22 @@ import (
 	"github.com/stretchr/testify/assert"
 )
 
-func TestProtoMarshaller(t *testing.T) {
-	marshaller := newProtobufMarshaller()
-
-	bytes, err := marshaller.Marshal(sampleSpan)
-
-	assert.NoError(t, err)
-	assert.NotNil(t, bytes)
+func TestProtobufMarshallerAndUnmarshaller(t *testing.T) {
+	testMarshallerAndUnmarshaller(t, newProtobufMarshaller(), NewProtobufUnmarshaller())
 }
 
-func TestJSONMarshaller(t *testing.T) {
-	marshaller := newJSONMarshaller()
+func TestJSONMarshallerAndUnmarshaller(t *testing.T) {
+	testMarshallerAndUnmarshaller(t, newJSONMarshaller(), NewJSONUnmarshaller())
+}
 
+func testMarshallerAndUnmarshaller(t *testing.T, marshaller Marshaller, unmarshaller Unmarshaller) {
 	bytes, err := marshaller.Marshal(sampleSpan)
 
 	assert.NoError(t, err)
 	assert.NotNil(t, bytes)
+
+	resultSpan, err := unmarshaller.Unmarshal(bytes)
+
+	assert.NoError(t, err)
+	assert.Equal(t, sampleSpan, resultSpan)
 }

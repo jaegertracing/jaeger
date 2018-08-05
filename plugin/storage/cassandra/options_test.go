@@ -41,6 +41,7 @@ func TestOptions(t *testing.T) {
 	assert.Equal(t, primary.Keyspace, aux.Keyspace)
 	assert.Equal(t, primary.Servers, aux.Servers)
 	assert.Equal(t, primary.ConnectionsPerHost, aux.ConnectionsPerHost)
+	assert.Equal(t, primary.ReconnectInterval, aux.ReconnectInterval)
 }
 
 func TestOptionsWithFlags(t *testing.T) {
@@ -50,6 +51,7 @@ func TestOptionsWithFlags(t *testing.T) {
 		"--cas.keyspace=jaeger",
 		"--cas.servers=1.1.1.1,2.2.2.2",
 		"--cas.connections-per-host=42",
+		"--cas.reconnect-interval=42s",
 		"--cas.max-retry-attempts=42",
 		"--cas.timeout=42s",
 		"--cas.port=4242",
@@ -75,6 +77,7 @@ func TestOptionsWithFlags(t *testing.T) {
 	assert.Equal(t, 42, aux.ConnectionsPerHost)
 	assert.Equal(t, 42, aux.MaxRetryAttempts)
 	assert.Equal(t, 42*time.Second, aux.Timeout)
+	assert.Equal(t, 42*time.Second, aux.ReconnectInterval)
 	assert.Equal(t, 4242, aux.Port)
 	assert.Equal(t, "", aux.Consistency, "aux storage does not inherit consistency from primary")
 	assert.Equal(t, 3, aux.ProtoVersion)

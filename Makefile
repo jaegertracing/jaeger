@@ -34,7 +34,7 @@ GOTEST=go test -v $(RACE)
 GOLINT=golint
 GOVET=go vet
 GOFMT=gofmt
-GAS=gas -quiet -exclude=G104
+GOSEC=gosec -quiet -exclude=G104
 FMT_LOG=fmt.log
 LINT_LOG=lint.log
 IMPORT_LOG=import.log
@@ -125,12 +125,12 @@ fmt:
 	$(GOFMT) -e -s -l -w $(ALL_SRC)
 	./scripts/updateLicenses.sh
 
-.PHONY: lint-gas
-lint-gas:
-	$(GAS) $(TOP_PKGS)
+.PHONY: lint-gosec
+lint-gosec:
+	$(GOSEC) $(TOP_PKGS)
 
 .PHONY: lint
-lint: lint-gas
+lint: lint-gosec
 	$(GOVET) $(TOP_PKGS)
 	@cat /dev/null > $(LINT_LOG)
 	$(GOLINT) $(TOP_PKGS) | \
@@ -173,8 +173,8 @@ docker-hotrod:
 
 .PHONY: build_ui
 build_ui: install-statik
-	cd jaeger-ui && yarn install && npm run build
-	(cd cmd/query/app/ui/actual; statik -f -src ../../../../../jaeger-ui/build)
+	cd jaeger-ui && yarn install && cd packages/jaeger-ui && yarn build
+	(cd cmd/query/app/ui/actual; statik -f -src ../../../../../jaeger-ui/packages/jaeger-ui/build)
 
 .PHONY: build-all-in-one-linux
 build-all-in-one-linux: build_ui
@@ -272,7 +272,7 @@ install-tools:
 	go get golang.org/x/tools/cmd/cover
 	go get github.com/golang/lint/golint
 	go get github.com/sectioneight/md-to-godoc
-	go get github.com/GoASTScanner/gas/cmd/gas/...
+	go get github.com/securego/gosec/cmd/gosec/...
 
 .PHONY: install-ci
 install-ci: install install-tools

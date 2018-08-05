@@ -53,7 +53,7 @@ func TestGetArchivedTraceSuccess(t *testing.T) {
 	mockReader.On("GetTrace", mock.AnythingOfType("model.TraceID")).
 		Return(mockTrace, nil).Once()
 	withTestServer(t, func(ts *testServer) {
-		// maeke main reader return NotFound
+		// make main reader return NotFound
 		ts.spanReader.On("GetTrace", mock.AnythingOfType("model.TraceID")).
 			Return(nil, spanstore.ErrTraceNotFound).Once()
 		var response structuredTraceResponse
