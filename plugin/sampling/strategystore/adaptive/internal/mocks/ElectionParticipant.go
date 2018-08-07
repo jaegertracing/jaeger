@@ -12,17 +12,26 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package calculationstrategy
+package mocks
 
-// ProbabilityCalculator calculates the new probability given the current and target QPS
-type ProbabilityCalculator interface {
-	Calculate(targetQPS, curQPS, prevProbability float64) (newProbability float64)
+import "github.com/stretchr/testify/mock"
+
+type ElectionParticipant struct {
+	mock.Mock
 }
 
-// Func wraps a function of appropriate signature and makes a ProbabilityCalculator from it.
-type Func func(targetQPS, curQPS, prevProbability float64) (newProbability float64)
+func (_m *ElectionParticipant) IsLeader() bool {
+	ret := _m.Called()
 
-// Calculate implements Calculator interface.
-func (f Func) Calculate(targetQPS, curQPS, prevProbability float64) float64 {
-	return f(targetQPS, curQPS, prevProbability)
+	var r0 bool
+	if rf, ok := ret.Get(0).(func() bool); ok {
+		r0 = rf()
+	} else {
+		r0 = ret.Get(0).(bool)
+	}
+
+	return r0
+}
+func (_m *ElectionParticipant) Start() {
+	_m.Called()
 }

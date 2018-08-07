@@ -16,6 +16,7 @@ package testutils
 
 import (
 	"encoding/json"
+	"strings"
 	"sync"
 
 	"go.uber.org/zap"
@@ -87,4 +88,18 @@ func (b *Buffer) Write(p []byte) (int, error) {
 	b.Lock()
 	defer b.Unlock()
 	return b.Buffer.Write(p)
+}
+
+// LogMatcher is a helper func that returns true if the subStr appears more than 'occurrences' times in the logs.
+var LogMatcher = func(occurrences int, subStr string, logs []string) bool {
+	if len(logs) < occurrences {
+		return false
+	}
+	var count int
+	for _, log := range logs {
+		if strings.Contains(log, subStr) {
+			count++
+		}
+	}
+	return count >= occurrences
 }
