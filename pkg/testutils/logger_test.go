@@ -15,6 +15,7 @@
 package testutils
 
 import (
+	"fmt"
 	"sync"
 	"testing"
 
@@ -65,4 +66,24 @@ func TestRaceCondition(t *testing.T) {
 
 	close(start)
 	finish.Wait()
+}
+
+func TestLogMatcher(t *testing.T) {
+	tests := []struct {
+		occurences int
+		subStr     string
+		logs       []string
+		expected   bool
+	}{
+		{occurences: 1, expected: false},
+		{occurences: 1, subStr: "hi", logs: []string{"hi"}, expected: true},
+		{occurences: 3, subStr: "hi", logs: []string{"hi", "hi"}, expected: false},
+		{occurences: 3, subStr: "hi", logs: []string{"hi", "hi", "hi"}, expected: true},
+	}
+	for i, tt := range tests {
+		test := tt
+		t.Run(fmt.Sprintf("%v", i), func(t *testing.T) {
+			assert.Equal(t, test.expected, LogMatcher(test.occurences, test.subStr, test.logs))
+		})
+	}
 }
