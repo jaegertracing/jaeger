@@ -44,6 +44,6 @@ func TestHandleReset(t *testing.T) {
 
 	assert.Equal(t, offset, captureOffset)
 	cnt, g := m.Snapshot()
-	assert.Equal(t, int64(1), cnt["offset-commit|partition=1"])
-	assert.Equal(t, int64(offset), g["offset-commit|partition=1"])
+	assert.Equal(t, int64(1), cnt["offset-commits-total|partition=1"])
+	assert.Equal(t, int64(offset), g["last-committed-offset|partition=1"])
 }
