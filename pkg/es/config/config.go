@@ -26,7 +26,7 @@ import (
 
 	"github.com/jaegertracing/jaeger/pkg/es"
 	storageMetrics "github.com/jaegertracing/jaeger/storage/spanstore/metrics"
-	)
+)
 
 // Configuration describes the configuration properties needed to connect to an ElasticSearch cluster
 type Configuration struct {
@@ -80,7 +80,7 @@ func (c *Configuration) NewClient(logger *zap.Logger, metricsFactory metrics.Fac
 				for _, it := range response.Items {
 					for key, val := range it {
 						if val.Error != nil {
-							logger.Error("Elasticsearch part of bulk request failed", zap.String("map-key",key),
+							logger.Error("Elasticsearch part of bulk request failed", zap.String("map-key", key),
 								zap.Reflect("response", val))
 						}
 					}
@@ -88,15 +88,15 @@ func (c *Configuration) NewClient(logger *zap.Logger, metricsFactory metrics.Fac
 			}
 
 			sm.Emit(err, time.Since(start.(time.Time)))
-				if err != nil {
-					failed := len(response.Failed())
-					total := len(requests)
-					logger.Error("Elasticsearch could not process bulk request",
-						zap.Int("request_count", total),
-						zap.Int("failed_count", failed),
-						zap.Error(err),
-						zap.Any("response", response))
-				}
+			if err != nil {
+				failed := len(response.Failed())
+				total := len(requests)
+				logger.Error("Elasticsearch could not process bulk request",
+					zap.Int("request_count", total),
+					zap.Int("failed_count", failed),
+					zap.Error(err),
+					zap.Any("response", response))
+			}
 		}).
 		BulkSize(c.BulkSize).
 		Workers(c.BulkWorkers).
