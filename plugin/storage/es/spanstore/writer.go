@@ -129,8 +129,21 @@ func (s *SpanWriter) WriteSpan(span *model.Span) error {
 	if err := s.createIndex(spanIndexName, spanMapping, jsonSpan); err != nil {
 		return err
 	}
+	jsonSpan.TagsMap = tagsToMap(span.Tags)
+	jsonSpan.Tags = nil
+	jsonSpan.Process.TagsMap = tagsToMap(span.Process.Tags)
+	jsonSpan.Process.Tags = nil
 	s.writeSpan(spanIndexName, jsonSpan)
 	return nil
+}
+
+func tagsToMap(kvs []model.KeyValue) map[string]string {
+	tags := map[string]string{}
+	for _, tag := range kvs {
+		key := strings.Replace(tag.Key, ".", ":", -1)
+		tags[key] = tag.AsString()
+	}
+	return tags
 }
 
 // Close closes SpanWriter

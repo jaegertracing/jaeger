@@ -61,19 +61,20 @@ type Trace struct {
 // When converting to ES model, ProcessID and Warnings should be omitted. Even if
 // included, ES with dynamic settings off will automatically ignore unneeded fields.
 type Span struct {
-	TraceID       TraceID     `json:"traceID"`
-	SpanID        SpanID      `json:"spanID"`
-	ParentSpanID  SpanID      `json:"parentSpanID,omitempty"` // deprecated
-	Flags         uint32      `json:"flags,omitempty"`
-	OperationName string      `json:"operationName"`
-	References    []Reference `json:"references"`
-	StartTime     uint64      `json:"startTime"` // microseconds since Unix epoch
-	Duration      uint64      `json:"duration"`  // microseconds
-	Tags          []KeyValue  `json:"tags"`
-	Logs          []Log       `json:"logs"`
-	ProcessID     ProcessID   `json:"processID,omitempty"`
-	Process       *Process    `json:"process,omitempty"`
-	Warnings      []string    `json:"warnings"`
+	TraceID       TraceID           `json:"traceID"`
+	SpanID        SpanID            `json:"spanID"`
+	ParentSpanID  SpanID            `json:"parentSpanID,omitempty"` // deprecated
+	Flags         uint32            `json:"flags,omitempty"`
+	OperationName string            `json:"operationName"`
+	References    []Reference       `json:"references"`
+	StartTime     uint64            `json:"startTime"` // microseconds since Unix epoch
+	Duration      uint64            `json:"duration"`  // microseconds
+	Tags          []KeyValue        `json:"tags"`
+	TagsMap       map[string]string `json:"tagsMap,omitempty"`
+	Logs          []Log             `json:"logs"`
+	ProcessID     ProcessID         `json:"processID,omitempty"`
+	Process       *Process          `json:"process,omitempty"`
+	Warnings      []string          `json:"warnings"`
 }
 
 // Reference is a reference from one span to another
@@ -85,8 +86,9 @@ type Reference struct {
 
 // Process is the process emitting a set of spans
 type Process struct {
-	ServiceName string     `json:"serviceName"`
-	Tags        []KeyValue `json:"tags"`
+	ServiceName string            `json:"serviceName"`
+	Tags        []KeyValue        `json:"tags"`
+	TagsMap     map[string]string `json:"tagsMap,omitempty"`
 }
 
 // Log is a log emitted in a span
