@@ -23,9 +23,9 @@ import (
 	"go.uber.org/zap"
 	"gopkg.in/olivere/elastic.v5"
 
-	jModel "github.com/jaegertracing/jaeger/model/json"
 	"github.com/jaegertracing/jaeger/pkg/cache"
 	"github.com/jaegertracing/jaeger/pkg/es"
+	"github.com/jaegertracing/jaeger/plugin/storage/es/spanstore/dbmodel"
 	storageMetrics "github.com/jaegertracing/jaeger/storage/spanstore/metrics"
 )
 
@@ -67,7 +67,7 @@ func NewServiceOperationStorage(
 }
 
 // Write saves a service to operation pair.
-func (s *ServiceOperationStorage) Write(indexName string, jsonSpan *jModel.Span) {
+func (s *ServiceOperationStorage) Write(indexName string, jsonSpan *dbmodel.Span) {
 	// Insert serviceName:operationName document
 	service := Service{
 		ServiceName:   jsonSpan.Process.ServiceName,
