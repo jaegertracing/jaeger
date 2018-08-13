@@ -129,22 +129,22 @@ func (s *SpanWriter) WriteSpan(span *model.Span) error {
 	if err := s.createIndex(spanIndexName, spanMapping, jsonSpan); err != nil {
 		return err
 	}
-	jsonSpan.TagsMap = s.tagsToMap(span.Tags)
+	jsonSpan.TagsMap = s.tagsToMap(jsonSpan.Tags)
 	jsonSpan.Tags = nil
-	jsonSpan.Process.TagsMap = s.tagsToMap(span.Process.Tags)
+	jsonSpan.Process.TagsMap = s.tagsToMap(jsonSpan.Process.Tags)
 	jsonSpan.Process.Tags = nil
 	s.writeSpan(spanIndexName, jsonSpan)
 	return nil
 }
 
-func (s *SpanWriter) tagsToMap(kvs []model.KeyValue) map[string]string {
-	tags := map[string]string{}
+func (s *SpanWriter) tagsToMap(kvs []jModel.KeyValue) map[string]jModel.TypeValue {
+	tags := map[string]jModel.TypeValue{}
 	for _, tag := range kvs {
 		if strings.Contains(tag.Key, ":") {
 			s.logger.Warn("Tag key contains \\':\\', at the query time it will be transformed to \\'.\\'")
 		}
 		key := strings.Replace(tag.Key, ".", ":", -1)
-		tags[key] = tag.AsString()
+		tags[key] = jModel.TypeValue{Value: fmt.Sprintf("%v", tag.Value), Type: tag.Type}
 	}
 	return tags
 }

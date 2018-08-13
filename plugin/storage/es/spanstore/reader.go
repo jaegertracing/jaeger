@@ -32,6 +32,7 @@ import (
 	"github.com/jaegertracing/jaeger/pkg/es"
 	"github.com/jaegertracing/jaeger/storage/spanstore"
 	storageMetrics "github.com/jaegertracing/jaeger/storage/spanstore/metrics"
+	"strconv"
 )
 
 const (
@@ -139,14 +140,52 @@ func (s *SpanReader) collectSpans(esSpansRaw []*elastic.SearchHit) ([]*model.Spa
 	return spans, nil
 }
 
-func fromMapTagsToKeyValues(tagMap map[string]string) []jModel.KeyValue {
+func fromMapTagsToKeyValues(tagMap map[string]jModel.TypeValue) []jModel.KeyValue {
 	var kvs []jModel.KeyValue
 	for key, value := range tagMap {
 		dKey := strings.Replace(key, ":", ".", -1)
-		kv := jModel.KeyValue{Key: dKey, Value: value, Type: jModel.StringType}
+		kv := jModel.KeyValue{Key: dKey, Type: value.Type, Value: value.Value}
+
+		//fmt.Println(dKey)
+		//fmt.Println(value.Type)
+		//fmt.Println(value.Value)
+		//val, err := convertValue(value)
+		//if err == nil {
+		//	fmt.Println("\n\nNoError")
+		//	kv.Value = val
+		//	fmt.Println(dKey)
+		//	fmt.Println(val)
+		//} else {
+		//	fmt.Println("\nError")
+		//	fmt.Println(err.Error())
+		//}
 		kvs = append(kvs, kv)
 	}
 	return kvs
+}
+
+func convertValue(typeValue jModel.TypeValue) (interface{}, error) {
+	switch typeValue.Type {
+	case jModel.Int64Type:
+		fmt.Println("its int")
+		bl, err := strconv.ParseInt(typeValue.Value, 10, 64)
+		fmt.Println(bl)
+		fmt.Println(err)
+		return bl, err
+	case jModel.Float64Type:
+		return strconv.ParseFloat(typeValue.Value, 64)
+	case jModel.BoolType:
+		fmt.Println("its a bool!")
+		bl, err := strconv.ParseBool(typeValue.Value)
+		fmt.Println(bl)
+		fmt.Println(err)
+		return bl, err
+	case jModel.BinaryType:
+		return []byte(typeValue.Value), nil
+	default:
+		fmt.Println("it a default")
+		return typeValue, nil
+	}
 }
 
 func (s *SpanReader) unmarshalJSONSpan(esSpanRaw *elastic.SearchHit) (*jModel.Span, error) {
@@ -473,7 +512,7 @@ func (s *SpanReader) buildNestedQuery(field string, k string, v string) elastic.
 }
 
 func (s *SpanReader) buildObjectQuery(field string, k string, v string) elastic.Query {
-	keyField := fmt.Sprintf("%s.%s", field, k)
+	keyField := fmt.Sprintf("%s.%s.Value", field, k)
 	keyQuery := elastic.NewMatchQuery(keyField, v)
 	return elastic.NewBoolQuery().Must(keyQuery)
 }
