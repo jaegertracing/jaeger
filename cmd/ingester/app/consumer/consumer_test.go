@@ -90,11 +90,10 @@ func newConsumer(
 
 	logger, _ := zap.NewDevelopment()
 	return &Consumer{
-		metricsFactory:   factory,
-		logger:           logger,
-		close:            make(chan struct{}),
-		isClosed:         sync.WaitGroup{},
-		internalConsumer: consumer,
+		metricsFactory:     factory,
+		logger:             logger,
+		internalConsumer:   consumer,
+		partitionIDToState: make(map[int32]*consumerState),
 
 		processorFactory: ProcessorFactory{
 			topic:          topic,
@@ -137,12 +136,26 @@ func TestSaramaConsumerWrapper_start_Messages(t *testing.T) {
 
 	undertest := newConsumer(localFactory, topic, mp, newSaramaClusterConsumer(saramaPartitionConsumer))
 
+	undertest.partitionIDToState = map[int32]*consumerState{
+		partition: {
+			partitionConsumer: &partitionConsumerWrapper{
+				topic:             topic,
+				partition:         partition,
+				PartitionConsumer: &kmocks.PartitionConsumer{},
+			},
+		},
+	}
+
 	undertest.Start()
+
 	mc.YieldMessage(msg)
 	isProcessed.Wait()
 
 	mp.AssertExpectations(t)
-	saramaConsumer.Close()
+	// Ensure that the partition consumer was updated in the map
+	assert.Equal(t, saramaPartitionConsumer.HighWaterMarkOffset(),
+		            undertest.partitionIDToState[partition].partitionConsumer.HighWaterMarkOffset())
+	undertest.Close()
 
 	partitionTag := map[string]string{"partition": fmt.Sprint(partition)}
 	testutils.AssertCounterMetrics(t, localFactory, testutils.ExpectedMetric{
@@ -177,7 +190,7 @@ func TestSaramaConsumerWrapper_start_Errors(t *testing.T) {
 	undertest.Start()
 	mc.YieldError(errors.New("Daisy, Daisy"))
 	time.Sleep(100 * time.Millisecond)
-	saramaConsumer.Close()
+	undertest.Close()
 
 	partitionTag := map[string]string{"partition": fmt.Sprint(partition)}
 	testutils.AssertCounterMetrics(t, localFactory, testutils.ExpectedMetric{
