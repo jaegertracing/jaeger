@@ -24,6 +24,7 @@ import (
 	"github.com/pkg/errors"
 	"github.com/stretchr/testify/require"
 	"github.com/uber/jaeger-lib/metrics"
+	"go.uber.org/zap"
 	"gopkg.in/olivere/elastic.v5"
 
 	"github.com/jaegertracing/jaeger/pkg/es"
@@ -42,9 +43,11 @@ const (
 )
 
 type ESStorageIntegration struct {
-	client *elastic.Client
 	StorageIntegration
+
+	client        *elastic.Client
 	bulkProcessor *elastic.BulkProcessor
+	logger        *zap.Logger
 }
 
 func (s *ESStorageIntegration) initializeES() error {
@@ -55,14 +58,13 @@ func (s *ESStorageIntegration) initializeES() error {
 	if err != nil {
 		return err
 	}
-	logger, _ := testutils.NewLogger()
+	s.logger, _ = testutils.NewLogger()
 
 	s.client = rawClient
-	s.logger = logger
 
 	s.bulkProcessor, _ = s.client.BulkProcessor().Do(context.Background())
 	client := es.WrapESClient(s.client, s.bulkProcessor)
-	dependencyStore := dependencystore.NewDependencyStore(client, logger)
+	dependencyStore := dependencystore.NewDependencyStore(client, s.logger)
 	s.DependencyReader = dependencyStore
 	s.DependencyWriter = dependencyStore
 	s.initSpanstore()
