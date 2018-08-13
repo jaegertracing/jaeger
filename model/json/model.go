@@ -61,7 +61,7 @@ type Trace struct {
 // When converting to ES model, ProcessID and Warnings should be omitted. Even if
 // included, ES with dynamic settings off will automatically ignore unneeded fields.
 type Span struct {
-	TraceID       TraceID           `json:"traceID"`
+	TraceID       TraceID              `json:"traceID"`
 	SpanID        SpanID               `json:"spanID"`
 	ParentSpanID  SpanID               `json:"parentSpanID,omitempty"` // deprecated
 	Flags         uint32               `json:"flags,omitempty"`
@@ -79,7 +79,7 @@ type Span struct {
 
 type TypeValue struct {
 	Value string
-	Type ValueType
+	Type  ValueType
 }
 
 // Reference is a reference from one span to another

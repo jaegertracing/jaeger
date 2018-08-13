@@ -32,7 +32,7 @@ import (
 	"github.com/jaegertracing/jaeger/pkg/es"
 	"github.com/jaegertracing/jaeger/storage/spanstore"
 	storageMetrics "github.com/jaegertracing/jaeger/storage/spanstore/metrics"
-	)
+)
 
 const (
 	spanIndexPrefix    = "jaeger-span-"
