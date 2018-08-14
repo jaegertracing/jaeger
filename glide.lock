@@ -1,5 +1,5 @@
-hash: 8f2b0df54e8351bffa668fe9fa265eb40b58efc8cdac540e0ff760b794e70ad3
-updated: 2018-07-18T21:52:13.448333-04:00
+hash: 5ffbb7d077d2f42d30c8107c7c323b17e8fbc252fff78e24c5e19577cf942e04
+updated: 2018-08-13T15:02:55.899715-04:00
 imports:
 - name: github.com/apache/thrift
   version: 53dd39833a08ce33582e5ff31fa18bb4735d6731
@@ -81,7 +81,7 @@ imports:
   subpackages:
   - google/api
 - name: github.com/gogo/protobuf
-  version: 636bf0302bc95575d69441b25a2603156ffdddf1
+  version: fd9a4790f3963525fb889cc00e0a8f828e0b3a29
   subpackages:
   - gogoproto
   - jsonpb
@@ -218,15 +218,16 @@ imports:
 - name: github.com/spf13/jwalterweatherman
   version: 12bd96e66386c1960ab0f74ced1362f66f552f7b
 - name: github.com/spf13/pflag
-  version: 583c0c0531f06d5278b7d917446061adc344b5cd
+  version: 9a97c102cda95a86cec2345a6f09f55a939babf5
 - name: github.com/spf13/viper
-  version: b5e8006cbee93ec955a89ab31e0e3ce3204f3736
+  version: 907c19d40d9a6c9bb55f040ff4ae45271a4754b9
 - name: github.com/stretchr/objx
   version: b8b73a35e9830ae509858c10dec5866b4d5c8bff
 - name: github.com/stretchr/testify
   version: f35b8ab0b5a2cef36673838d662e249dd9c94686
   subpackages:
   - assert
+  - http
   - mock
   - require
 - name: github.com/uber-go/atomic
@@ -281,7 +282,7 @@ imports:
 - name: go.uber.org/multierr
   version: 3c4937480c32f4c13a875a1829af76c98ca3d40a
 - name: go.uber.org/zap
-  version: eeedf312bc6c57391d84767a4cd413f02a917974
+  version: ff33455a0e382e8a81d14dd7c922020b6b5e7982
   subpackages:
   - buffer
   - internal/bufferpool
@@ -291,7 +292,7 @@ imports:
   - zapcore
   - zaptest
 - name: golang.org/x/net
-  version: 8887df42c721e930089d31b28391090a10a497d7
+  version: c39426892332e1bb5ec0a434a079bf82f5d30c54
   subpackages:
   - context
   - context/ctxhttp
