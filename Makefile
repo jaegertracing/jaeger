@@ -381,6 +381,7 @@ $$GOPATH/src/github.com/jaegertracing/jaeger/model \
 .PHONY: proto-install
 proto-install:
 	go install \
+		./vendor/github.com/golang/protobuf/protoc-gen-go \
 		./vendor/github.com/gogo/protobuf/protoc-gen-gogo \
 		./vendor/github.com/grpc-ecosystem/grpc-gateway/protoc-gen-grpc-gateway \
 		./vendor/github.com/grpc-ecosystem/grpc-gateway/protoc-gen-swagger
