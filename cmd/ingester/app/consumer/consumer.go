@@ -15,6 +15,8 @@
 package consumer
 
 import (
+	"sync"
+
 	"github.com/Shopify/sarama"
 	sc "github.com/bsm/sarama-cluster"
 	"github.com/uber/jaeger-lib/metrics"
@@ -22,7 +24,6 @@ import (
 
 	"github.com/jaegertracing/jaeger/cmd/ingester/app/processor"
 	"github.com/jaegertracing/jaeger/pkg/kafka/consumer"
-	"sync"
 )
 
 // Params are the parameters of a Consumer

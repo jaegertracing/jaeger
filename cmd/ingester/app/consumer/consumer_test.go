@@ -154,7 +154,7 @@ func TestSaramaConsumerWrapper_start_Messages(t *testing.T) {
 	mp.AssertExpectations(t)
 	// Ensure that the partition consumer was updated in the map
 	assert.Equal(t, saramaPartitionConsumer.HighWaterMarkOffset(),
-		            undertest.partitionIDToState[partition].partitionConsumer.HighWaterMarkOffset())
+		undertest.partitionIDToState[partition].partitionConsumer.HighWaterMarkOffset())
 	undertest.Close()
 
 	partitionTag := map[string]string{"partition": fmt.Sprint(partition)}
