@@ -44,9 +44,10 @@ func TestNewSpanHandlerBuilder(t *testing.T) {
 	)
 	require.NoError(t, err)
 	assert.NotNil(t, handler)
-	zipkin, jaeger := handler.BuildHandlers()
+	zipkin, jaeger, grpc := handler.BuildHandlers()
 	assert.NotNil(t, zipkin)
 	assert.NotNil(t, jaeger)
+	assert.NotNil(t, grpc)
 }
 
 func TestDefaultSpanFilter(t *testing.T) {
