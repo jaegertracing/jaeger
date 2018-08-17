@@ -23,7 +23,7 @@ import (
 )
 
 func TestNewZipkinThriftUDPClient(t *testing.T) {
-	_, _, err := NewZipkinThriftUDPClient("1.2.3:0")
+	_, _, err := NewZipkinThriftUDPClient("256.2.3:0")
 	assert.Error(t, err)
 
 	_, cl, err := NewZipkinThriftUDPClient("127.0.0.1:12345")
@@ -34,7 +34,7 @@ func TestNewZipkinThriftUDPClient(t *testing.T) {
 func TestNewJaegerThriftUDPClient(t *testing.T) {
 	compactFactory := thrift.NewTCompactProtocolFactory()
 
-	_, _, err := NewJaegerThriftUDPClient("1.2.3:0", compactFactory)
+	_, _, err := NewJaegerThriftUDPClient("256.2.3:0", compactFactory)
 	assert.Error(t, err)
 
 	_, cl, err := NewJaegerThriftUDPClient("127.0.0.1:12345", compactFactory)
