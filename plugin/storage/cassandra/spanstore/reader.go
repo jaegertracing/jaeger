@@ -100,7 +100,6 @@ type spanReaderMetrics struct {
 // SpanReader can query for and load traces from Cassandra.
 type SpanReader struct {
 	session              cassandra.Session
-	consistency          cassandra.Consistency
 	serviceNamesReader   serviceNamesReader
 	operationNamesReader operationNamesReader
 	metrics              spanReaderMetrics
@@ -118,7 +117,6 @@ func NewSpanReader(
 	operationNamesStorage := NewOperationNamesStorage(session, 0, metricsFactory, logger)
 	return &SpanReader{
 		session:              session,
-		consistency:          cassandra.One,
 		serviceNamesReader:   serviceNamesStorage.GetServices,
 		operationNamesReader: operationNamesStorage.GetOperations,
 		metrics: spanReaderMetrics{
@@ -147,7 +145,7 @@ func (s *SpanReader) GetOperations(service string) ([]string, error) {
 func (s *SpanReader) readTrace(traceID dbmodel.TraceID) (*model.Trace, error) {
 	start := time.Now()
 	q := s.session.Query(querySpanByTraceID, traceID)
-	i := q.Consistency(s.consistency).Iter()
+	i := q.Iter()
 	var traceIDFromSpan dbmodel.TraceID
 	var startTime, spanID, duration, parentID int64
 	var flags int32
@@ -358,7 +356,7 @@ func (s *SpanReader) queryByService(tq *spanstore.TraceQueryParameters) (dbmodel
 
 func (s *SpanReader) executeQuery(query cassandra.Query, tableMetrics *casMetrics.Table) (dbmodel.UniqueTraceIDs, error) {
 	start := time.Now()
-	i := query.Consistency(s.consistency).Iter()
+	i := query.Iter()
 	retMe := dbmodel.UniqueTraceIDs{}
 	var traceID dbmodel.TraceID
 	for i.Scan(&traceID) {
