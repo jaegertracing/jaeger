@@ -38,6 +38,11 @@ var (
 	fixDBConnDelay         time.Duration
 	fixDBConnDisableMutex  bool
 	fixRouteWorkerPoolSize int
+
+	customerPort int
+	driverPort   int
+	frontendPort int
+	routePort    int
 )
 
 // RootCmd represents the base command when called without any subcommands
@@ -62,6 +67,13 @@ func init() {
 	RootCmd.PersistentFlags().DurationVarP(&fixDBConnDelay, "fix-db-query-delay", "D", 300*time.Millisecond, "Average lagency of MySQL DB query")
 	RootCmd.PersistentFlags().BoolVarP(&fixDBConnDisableMutex, "fix-disable-db-conn-mutex", "M", false, "Disables the mutex guarding db connection")
 	RootCmd.PersistentFlags().IntVarP(&fixRouteWorkerPoolSize, "fix-route-worker-pool-size", "W", 3, "Default worker pool size")
+
+	// Add flags to choose ports for services
+	RootCmd.PersistentFlags().IntVarP(&customerPort, "customer-service-port", "c", 8081, "Port for customer service")
+	RootCmd.PersistentFlags().IntVarP(&driverPort, "driver-service-port", "d", 8082, "Port for driver service")
+	RootCmd.PersistentFlags().IntVarP(&frontendPort, "frontend-service-port", "f", 8080, "Port for frontend service")
+	RootCmd.PersistentFlags().IntVarP(&routePort, "route-service-port", "r", 8083, "Port for routing service")
+
 	rand.Seed(int64(time.Now().Nanosecond()))
 	logger, _ = zap.NewDevelopment(zap.AddStacktrace(zapcore.FatalLevel))
 	cobra.OnInitialize(onInitialize)
@@ -89,6 +101,22 @@ func onInitialize() {
 	if config.RouteWorkerPoolSize != fixRouteWorkerPoolSize {
 		logger.Info("fix: overriding route worker pool size", zap.Int("old", config.RouteWorkerPoolSize), zap.Int("new", fixRouteWorkerPoolSize))
 		config.RouteWorkerPoolSize = fixRouteWorkerPoolSize
+	}
+
+	if customerPort != 8081 {
+		logger.Info("changing customer service port", zap.Int("old", 8081), zap.Int("new", customerPort))
+	}
+
+	if driverPort != 8082 {
+		logger.Info("changing driver service port", zap.Int("old", 8082), zap.Int("new", driverPort))
+	}
+
+	if frontendPort != 8080 {
+		logger.Info("changing frontend service port", zap.Int("old", 8080), zap.Int("new", frontendPort))
+	}
+
+	if routePort != 8083 {
+		logger.Info("changing route service port", zap.Int("old", 8083), zap.Int("new", routePort))
 	}
 }
 

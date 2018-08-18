@@ -32,10 +32,16 @@ var frontendCmd = &cobra.Command{
 	Short: "Starts Frontend service",
 	Long:  `Starts Frontend service.`,
 	RunE: func(cmd *cobra.Command, args []string) error {
+
+		options.FrontendHostPort = net.JoinHostPort("0.0.0.0", strconv.Itoa(frontendPort))
+		options.DriverHostPort = net.JoinHostPort("0.0.0.0", strconv.Itoa(driverPort))
+		options.CustomerHostPort = net.JoinHostPort("0.0.0.0", strconv.Itoa(customerPort))
+		options.RouteHostPort = net.JoinHostPort("0.0.0.0", strconv.Itoa(routePort))
+
 		zapLogger := logger.With(zap.String("service", "frontend"))
 		logger := log.NewFactory(zapLogger)
 		server := frontend.NewServer(
-			net.JoinHostPort(frontendOptions.serverInterface, strconv.Itoa(frontendOptions.serverPort)),
+			options,
 			tracing.Init("frontend", metricsFactory.Namespace("frontend", nil), logger, jAgentHostPort),
 			logger,
 		)
@@ -43,16 +49,9 @@ var frontendCmd = &cobra.Command{
 	},
 }
 
-var (
-	frontendOptions struct {
-		serverInterface string
-		serverPort      int
-	}
-)
+var options frontend.ConfigOptions
 
 func init() {
 	RootCmd.AddCommand(frontendCmd)
 
-	frontendCmd.Flags().StringVarP(&frontendOptions.serverInterface, "bind", "", "0.0.0.0", "interface to which the frontend server will bind")
-	frontendCmd.Flags().IntVarP(&frontendOptions.serverPort, "port", "p", 8080, "port on which the frontend server will listen")
 }

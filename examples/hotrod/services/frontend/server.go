@@ -37,17 +37,26 @@ type Server struct {
 	assetFS  http.FileSystem
 }
 
+// ConfigOptions used to make sure service clients
+// can find correct server ports
+type ConfigOptions struct {
+	FrontendHostPort string
+	DriverHostPort   string
+	CustomerHostPort string
+	RouteHostPort    string
+}
+
 // NewServer creates a new frontend.Server
-func NewServer(hostPort string, tracer opentracing.Tracer, logger log.Factory) *Server {
+func NewServer(options ConfigOptions, tracer opentracing.Tracer, logger log.Factory) *Server {
 	assetFS, err := fs.New()
 	if err != nil {
 		logger.Bg().Fatal("cannot import web assets", zap.Error(err))
 	}
 	return &Server{
-		hostPort: hostPort,
+		hostPort: options.FrontendHostPort,
 		tracer:   tracer,
 		logger:   logger,
-		bestETA:  newBestETA(tracer, logger),
+		bestETA:  newBestETA(tracer, logger, options),
 		assetFS:  assetFS,
 	}
 }

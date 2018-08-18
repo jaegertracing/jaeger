@@ -38,6 +38,7 @@ type bestETA struct {
 	route    route.Interface
 	pool     *pool.Pool
 	logger   log.Factory
+	options	 ConfigOptions
 }
 
 // Response contains ETA for a trip.
@@ -46,19 +47,22 @@ type Response struct {
 	ETA    time.Duration
 }
 
-func newBestETA(tracer opentracing.Tracer, logger log.Factory) *bestETA {
+func newBestETA(tracer opentracing.Tracer, logger log.Factory, options ConfigOptions) *bestETA {
 	return &bestETA{
 		customer: customer.NewClient(
 			tracer,
 			logger.With(zap.String("component", "customer_client")),
+			options.CustomerHostPort,
 		),
 		driver: driver.NewClient(
 			tracer,
 			logger.With(zap.String("component", "driver_client")),
+			options.DriverHostPort,
 		),
 		route: route.NewClient(
 			tracer,
 			logger.With(zap.String("component", "route_client")),
+			options.RouteHostPort,
 		),
 		pool:   pool.New(config.RouteWorkerPoolSize),
 		logger: logger,
