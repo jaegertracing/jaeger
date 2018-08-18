@@ -18,6 +18,7 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/require"
+	"go.uber.org/zap"
 
 	"github.com/jaegertracing/jaeger/pkg/testutils"
 	"github.com/jaegertracing/jaeger/plugin/storage/memory"
@@ -25,11 +26,11 @@ import (
 
 type MemStorageIntegrationTestSuite struct {
 	StorageIntegration
+	logger *zap.Logger
 }
 
 func (s *MemStorageIntegrationTestSuite) initialize() error {
-	logger, _ := testutils.NewLogger()
-	s.logger = logger
+	s.logger, _ = testutils.NewLogger()
 
 	store := memory.NewStore()
 	s.SpanReader = store

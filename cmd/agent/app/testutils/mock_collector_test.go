@@ -158,6 +158,6 @@ func TestMockTCollectorErrors(t *testing.T) {
 	_, err := startMockTCollector("", "127.0.0.1:0")
 	assert.Error(t, err, "error because of empty service name")
 
-	_, err = startMockTCollector("test", "127.0.0:0")
+	_, err = startMockTCollector("test", "256.0.0:0")
 	assert.Error(t, err, "error because of bad address")
 }
