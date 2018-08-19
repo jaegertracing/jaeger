@@ -17,7 +17,8 @@
           "vType": "BINARY",
           "vBinary": "AAAAAAAAMDk="
         }
-      ]
+      ],
+      "incomplete": false
     },
     {
         "traceIdLow": 5951113872249657919,
@@ -32,7 +33,8 @@
             }
         ],
         "startTime": 1485467191639875,
-        "duration": 22938
+        "duration": 22938,
+        "incomplete": true
       }
     ]
 }

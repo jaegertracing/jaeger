@@ -72,6 +72,7 @@ func (fd fromDomain) convertSpanInternal(span *model.Span) json.Span {
 		Duration:      model.DurationAsMicroseconds(span.Duration),
 		Tags:          fd.convertKeyValuesFunc(span.Tags),
 		Logs:          fd.convertLogs(span.Logs),
+		Incomplete:    span.Incomplete,
 	}
 }
 

@@ -78,6 +78,7 @@ func (td toDomain) spanToDomain(dbSpan *json.Span) (*model.Span, error) {
 		Tags:          tags,
 		Logs:          logs,
 		Process:       process,
+		Incomplete:    dbSpan.Incomplete,
 	}
 	return span, nil
 }

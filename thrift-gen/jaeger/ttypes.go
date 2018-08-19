@@ -866,6 +866,7 @@ func (p *SpanRef) String() string {
 //  - Duration
 //  - Tags
 //  - Logs
+//  - Incomplete
 type Span struct {
 	TraceIdLow    int64      `thrift:"traceIdLow,1,required" json:"traceIdLow"`
 	TraceIdHigh   int64      `thrift:"traceIdHigh,2,required" json:"traceIdHigh"`
@@ -878,6 +879,7 @@ type Span struct {
 	Duration      int64      `thrift:"duration,9,required" json:"duration"`
 	Tags          []*Tag     `thrift:"tags,10" json:"tags,omitempty"`
 	Logs          []*Log     `thrift:"logs,11" json:"logs,omitempty"`
+	Incomplete    *bool      `thrift:"incomplete,12" json:"incomplete,omitempty"`
 }
 
 func NewSpan() *Span {
@@ -933,6 +935,15 @@ var Span_Logs_DEFAULT []*Log
 func (p *Span) GetLogs() []*Log {
 	return p.Logs
 }
+
+var Span_Incomplete_DEFAULT bool
+
+func (p *Span) GetIncomplete() bool {
+	if !p.IsSetIncomplete() {
+		return Span_Incomplete_DEFAULT
+	}
+	return *p.Incomplete
+}
 func (p *Span) IsSetReferences() bool {
 	return p.References != nil
 }
@@ -943,6 +954,10 @@ func (p *Span) IsSetTags() bool {
 
 func (p *Span) IsSetLogs() bool {
 	return p.Logs != nil
+}
+
+func (p *Span) IsSetIncomplete() bool {
+	return p.Incomplete != nil
 }
 
 func (p *Span) Read(iprot thrift.TProtocol) error {
@@ -1018,6 +1033,10 @@ func (p *Span) Read(iprot thrift.TProtocol) error {
 			}
 		case 11:
 			if err := p.readField11(iprot); err != nil {
+				return err
+			}
+		case 12:
+			if err := p.readField12(iprot); err != nil {
 				return err
 			}
 		default:
@@ -1191,6 +1210,15 @@ func (p *Span) readField11(iprot thrift.TProtocol) error {
 	return nil
 }
 
+func (p *Span) readField12(iprot thrift.TProtocol) error {
+	if v, err := iprot.ReadBool(); err != nil {
+		return thrift.PrependError("error reading field 12: ", err)
+	} else {
+		p.Incomplete = &v
+	}
+	return nil
+}
+
 func (p *Span) Write(oprot thrift.TProtocol) error {
 	if err := oprot.WriteStructBegin("Span"); err != nil {
 		return thrift.PrependError(fmt.Sprintf("%T write struct begin error: ", p), err)
@@ -1226,6 +1254,9 @@ func (p *Span) Write(oprot thrift.TProtocol) error {
 		return err
 	}
 	if err := p.writeField11(oprot); err != nil {
+		return err
+	}
+	if err := p.writeField12(oprot); err != nil {
 		return err
 	}
 	if err := oprot.WriteFieldStop(); err != nil {
@@ -1405,6 +1436,21 @@ func (p *Span) writeField11(oprot thrift.TProtocol) (err error) {
 		}
 		if err := oprot.WriteFieldEnd(); err != nil {
 			return thrift.PrependError(fmt.Sprintf("%T write field end error 11:logs: ", p), err)
+		}
+	}
+	return err
+}
+
+func (p *Span) writeField12(oprot thrift.TProtocol) (err error) {
+	if p.IsSetIncomplete() {
+		if err := oprot.WriteFieldBegin("incomplete", thrift.BOOL, 12); err != nil {
+			return thrift.PrependError(fmt.Sprintf("%T write field begin error 12:incomplete: ", p), err)
+		}
+		if err := oprot.WriteBool(bool(*p.Incomplete)); err != nil {
+			return thrift.PrependError(fmt.Sprintf("%T.incomplete (12) field write error: ", p), err)
+		}
+		if err := oprot.WriteFieldEnd(); err != nil {
+			return thrift.PrependError(fmt.Sprintf("%T write field end error 12:incomplete: ", p), err)
 		}
 	}
 	return err

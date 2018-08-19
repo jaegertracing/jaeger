@@ -11,7 +11,8 @@
       "tags": null,
       "logs": null,
       "processID": "p1",
-      "warnings": null
+      "warnings": null,
+      "incomplete": false
     },
     {
       "traceID": "abc0",
@@ -61,7 +62,8 @@
         }
       ],
       "processID": "p2",
-      "warnings": null
+      "warnings": null,
+      "incomplete": false
     },
     {
       "traceID": "abc0",
@@ -79,7 +81,8 @@
       "tags": null,
       "logs": null,
       "processID": "p2",
-      "warnings": null
+      "warnings": null,
+      "incomplete": false
     }
   ],
   "processes": {

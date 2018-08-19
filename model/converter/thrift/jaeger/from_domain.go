@@ -148,6 +148,7 @@ func (d domainToJaegerTransformer) transformSpan(span *model.Span) *jaeger.Span 
 		Duration:      int64(model.DurationAsMicroseconds(span.Duration)),
 		Tags:          tags,
 		Logs:          logs,
+		Incomplete:    &span.Incomplete,
 	}
 	return jaegerSpan
 }

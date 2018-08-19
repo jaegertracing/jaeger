@@ -50,6 +50,7 @@ type Span struct {
 	Process       Process
 	ServiceName   string
 	SpanHash      int64
+	Incomplete    bool
 }
 
 // KeyValue is the UDT representation of a Jaeger KeyValue.

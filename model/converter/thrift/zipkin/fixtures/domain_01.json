@@ -27,7 +27,8 @@
             }
           ]
         }
-      ]
+      ],
+      "incomplete": false
     },
     {
       "traceId": "AAAAAAAAAAAAAAAAAAAAAQ==",
@@ -58,7 +59,8 @@
       ],
       "process": {
         "serviceName": "service-x"
-      }
+      },
+      "incomplete": false
     },
     {
       "traceId": "AAAAAAAAAAIAAAAAAAAAAQ==",
@@ -96,7 +98,8 @@
       ],
       "process": {
         "serviceName": "service-y"
-      }
+      },
+      "incomplete": false
     }
   ]
 }

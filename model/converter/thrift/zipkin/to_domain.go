@@ -147,6 +147,7 @@ func (td toDomain) transformSpan(zSpan *zipkincore.Span) []*model.Span {
 		Duration:      model.MicrosecondsAsDuration(uint64(zSpan.GetDuration())),
 		Tags:          tags,
 		Logs:          td.getLogs(zSpan.Annotations),
+		Incomplete:    false,
 	}}
 
 	cs := td.findAnnotation(zSpan, zipkincore.CLIENT_SEND)

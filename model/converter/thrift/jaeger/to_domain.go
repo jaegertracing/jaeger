@@ -74,7 +74,15 @@ func (td toDomain) transformSpan(jSpan *jaeger.Span, mProcess *model.Process) *m
 		Tags:          tags,
 		Logs:          td.getLogs(jSpan.Logs),
 		Process:       mProcess,
+		Incomplete:    td.checkIncomplete(jSpan.Incomplete),
 	}
+}
+
+func (td toDomain) checkIncomplete(incomplete *bool) bool {
+	if incomplete == nil {
+		return false
+	}
+	return *incomplete
 }
 
 func (td toDomain) getReferences(jRefs []*jaeger.SpanRef) []model.SpanRef {

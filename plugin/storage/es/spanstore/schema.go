@@ -70,6 +70,9 @@ var (
 		"flags": {
 			"type": "integer"
 		},
+		"incomplete": {
+			"type":"boolean"
+		},
 		"logs": {
 			"properties": {
 				"timestamp": {

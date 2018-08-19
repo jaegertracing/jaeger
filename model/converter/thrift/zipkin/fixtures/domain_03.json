@@ -65,7 +65,8 @@
             "key": "span.kind",
             "vStr": "server"
           }
-      ]
+      ],
+      "incomplete": false
     }
   ]
 }

@@ -22,7 +22,8 @@
       ],
       "process": {
         "serviceName": "api"
-      }
+      },
+      "incomplete": false
     },
     {
       "traceId": "AAAAAAAAAABSlpqJVVcaPw==",
@@ -39,7 +40,8 @@
       "duration": "22938000ns",
       "process": {
         "serviceName": "api"
-      }
+      },
+      "incomplete": true
     }
   ]
 }

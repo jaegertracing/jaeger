@@ -28,7 +28,8 @@
           "key": "component",
           "vStr": "some-component"
         }
-      ]
+      ],
+      "incomplete": false
     }
   ]
 }

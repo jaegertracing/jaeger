@@ -145,6 +145,9 @@ message Span {
     (gogoproto.customname) = "ProcessID"
   ];
   repeated string warnings = 12;
+  bool incomplete = 13 [
+    (gogoproto.nullable) = true
+  ];
 }
 
 message Trace {

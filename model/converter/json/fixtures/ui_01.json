@@ -32,7 +32,8 @@
         }
       ],
       "processID": "p1",
-      "warnings": null
+      "warnings": null,
+      "incomplete": false
     },
     {
       "traceID": "1",
@@ -70,7 +71,8 @@
       ],
       "logs": [],
       "processID": "p1",
-      "warnings": null
+      "warnings": null,
+      "incomplete": false
     },
     {
       "traceID": "1",
@@ -88,7 +90,8 @@
       "tags": [],
       "logs": [],
       "processID": "p2",
-      "warnings": null
+      "warnings": null,
+      "incomplete": false
     },
     {
       "traceID": "1",
@@ -118,7 +121,8 @@
       "processID": "p2",
       "warnings": [
         "some span warning"
-      ]
+      ],
+      "incomplete": false
     },
     {
       "traceID": "1",
@@ -138,7 +142,8 @@
       "processID": "p2",
       "warnings": [
         "some span warning"
-      ]
+      ],
+      "incomplete": false
     }
   ],
   "processes": {
