@@ -48,7 +48,7 @@ func withSpanWriter(fn func(w *spanWriterTest)) {
 		client:    client,
 		logger:    logger,
 		logBuffer: logBuffer,
-		writer:    NewSpanWriter(client, logger, metricsFactory, 0, 0),
+		writer:    NewSpanWriter(client, logger, metricsFactory, 0, 0, ""),
 	}
 	fn(w)
 }
@@ -201,7 +201,7 @@ func TestSpanIndexName(t *testing.T) {
 	span := &model.Span{
 		StartTime: date,
 	}
-	spanIndexName, serviceIndexName := indexNames(span)
+	spanIndexName, serviceIndexName := indexNames("", span)
 	assert.Equal(t, "jaeger-span-1995-04-21", spanIndexName)
 	assert.Equal(t, "jaeger-service-1995-04-21", serviceIndexName)
 }

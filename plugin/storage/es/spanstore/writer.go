@@ -58,6 +58,7 @@ type SpanWriter struct {
 	serviceWriter serviceWriter
 	numShards     int64
 	numReplicas   int64
+	indexPrefix   string
 }
 
 // Service is the JSON struct for service:operation documents in ElasticSearch
@@ -89,6 +90,7 @@ func NewSpanWriter(
 	metricsFactory metrics.Factory,
 	numShards int64,
 	numReplicas int64,
+	indexPrefix string,
 ) *SpanWriter {
 	ctx := context.Background()
 	if numShards == 0 {
@@ -113,12 +115,13 @@ func NewSpanWriter(
 		),
 		numShards:   numShards,
 		numReplicas: numReplicas,
+		indexPrefix: indexPrefix,
 	}
 }
 
 // WriteSpan writes a span and its corresponding service:operation in ElasticSearch
 func (s *SpanWriter) WriteSpan(span *model.Span) error {
-	spanIndexName, serviceIndexName := indexNames(span)
+	spanIndexName, serviceIndexName := indexNames(s.indexPrefix, span)
 	// Convert model.Span into json.Span
 	jsonSpan := json.FromDomainEmbedProcess(span)
 
@@ -138,9 +141,9 @@ func (s *SpanWriter) Close() error {
 	return s.client.Close()
 }
 
-func indexNames(span *model.Span) (string, string) {
+func indexNames(prefix string, span *model.Span) (string, string) {
 	spanDate := span.StartTime.UTC().Format("2006-01-02")
-	return spanIndexPrefix + spanDate, serviceIndexPrefix + spanDate
+	return prefix + spanIndex + spanDate, prefix + serviceIndex + spanDate
 }
 
 func (s *SpanWriter) createIndex(indexName string, mapping string, jsonSpan *jModel.Span) error {

@@ -36,6 +36,7 @@ const (
 	suffixBulkWorkers       = ".bulk.workers"
 	suffixBulkActions       = ".bulk.actions"
 	suffixBulkFlushInterval = ".bulk.flush-interval"
+	suffixIndexPrefix       = ".index-prefix"
 )
 
 // TODO this should be moved next to config.Configuration struct (maybe ./flags package)
@@ -141,6 +142,10 @@ func addFlags(flagSet *flag.FlagSet, nsConfig *namespaceConfig) {
 		nsConfig.namespace+suffixBulkFlushInterval,
 		nsConfig.BulkFlushInterval,
 		"A time.Duration after which bulk requests are committed, regardless of other tresholds. Set to zero to disable. By default, this is disabled.")
+	flagSet.String(
+		nsConfig.namespace+suffixIndexPrefix,
+		nsConfig.IndexPrefix,
+		"The prefix of jaeger indexes")
 }
 
 // InitFromViper initializes Options with properties from viper
@@ -163,6 +168,7 @@ func initFromViper(cfg *namespaceConfig, v *viper.Viper) {
 	cfg.BulkWorkers = v.GetInt(cfg.namespace + suffixBulkWorkers)
 	cfg.BulkActions = v.GetInt(cfg.namespace + suffixBulkActions)
 	cfg.BulkFlushInterval = v.GetDuration(cfg.namespace + suffixBulkFlushInterval)
+	cfg.IndexPrefix = v.GetString(cfg.namespace + suffixIndexPrefix)
 }
 
 // GetPrimary returns primary configuration.
