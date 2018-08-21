@@ -162,6 +162,9 @@ func (s *SpanReader) findIndices(indexName string, startTime time.Time, endTime 
 }
 
 func indexWithDate(prefix string, indexType string, date time.Time) string {
+	if prefix != "" {
+		prefix += ":"
+	}
 	return prefix + indexType + date.UTC().Format("2006-01-02")
 }
 
