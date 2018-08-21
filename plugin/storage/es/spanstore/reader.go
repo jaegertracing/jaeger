@@ -231,7 +231,7 @@ func (s *SpanReader) multiRead(traceIDs []string, startTime, endTime time.Time) 
 			if val, ok := searchAfterTime[traceID]; ok {
 				nextTime = val
 			}
-			searchRequests[i] = elastic.NewSearchRequest().IgnoreUnavailable(true).Type("span").Source(elastic.NewSearchSource().Query(query).Size(defaultDocCount).Sort("startTime", true).SearchAfter(nextTime))
+			searchRequests[i] = elastic.NewSearchRequest().IgnoreUnavailable(true).Type(spanType).Source(elastic.NewSearchSource().Query(query).Size(defaultDocCount).Sort("startTime", true).SearchAfter(nextTime))
 		}
 		// set traceIDs to empty
 		traceIDs = nil
