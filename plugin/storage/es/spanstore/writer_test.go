@@ -55,6 +55,24 @@ func withSpanWriter(fn func(w *spanWriterTest)) {
 
 var _ spanstore.Writer = &SpanWriter{} // check API conformance
 
+func TestNewSpanWriterIndexPrefix(t *testing.T) {
+	testCases := []struct {
+		prefix   string
+		expected string
+	}{
+		{prefix: "", expected: ""},
+		{prefix: "foo", expected: "foo:"},
+		{prefix: ":", expected: "::"},
+	}
+	client := &mocks.Client{}
+	logger, _ := testutils.NewLogger()
+	metricsFactory := metrics.NewLocalFactory(0)
+	for _, testCase := range testCases {
+		w := NewSpanWriter(client, logger, metricsFactory, 0, 0, testCase.prefix)
+		assert.Equal(t, testCase.expected, w.indexPrefix)
+	}
+}
+
 func TestClientClose(t *testing.T) {
 	withSpanWriter(func(w *spanWriterTest) {
 		w.client.On("Close").Return(nil)

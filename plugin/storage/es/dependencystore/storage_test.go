@@ -54,6 +54,22 @@ func withDepStorage(fn func(r *depStorageTest)) {
 var _ dependencystore.Reader = &DependencyStore{} // check API conformance
 var _ dependencystore.Writer = &DependencyStore{} // check API conformance
 
+func TestNewSpanReaderIndexPrefix(t *testing.T) {
+	testCases := []struct {
+		prefix   string
+		expected string
+	}{
+		{prefix: "", expected: ""},
+		{prefix: "foo", expected: "foo:"},
+		{prefix: ":", expected: "::"},
+	}
+	for _, testCase := range testCases {
+		client := &mocks.Client{}
+		r := NewDependencyStore(client, zap.NewNop(), testCase.prefix)
+		assert.Equal(t, testCase.expected, r.indexPrefix)
+	}
+}
+
 func TestWriteDependencies(t *testing.T) {
 	testCases := []struct {
 		createIndexError error
@@ -174,26 +190,31 @@ func TestGetIndices(t *testing.T) {
 	testCases := []struct {
 		expected []string
 		lookback time.Duration
+		prefix   string
 	}{
 		{
 			expected: []string{indexName("", fixedTime), indexName("", fixedTime.Add(-24*time.Hour))},
 			lookback: 23 * time.Hour,
+			prefix:   "",
 		},
 		{
 			expected: []string{indexName("", fixedTime), indexName("", fixedTime.Add(-24*time.Hour))},
 			lookback: 13 * time.Hour,
+			prefix:   "",
 		},
 		{
-			expected: []string{indexName("", fixedTime)},
+			expected: []string{indexName("foo:", fixedTime)},
 			lookback: 1 * time.Hour,
+			prefix:   "foo:",
 		},
 		{
-			expected: []string{indexName("", fixedTime)},
+			expected: []string{indexName("foo-", fixedTime)},
 			lookback: 0,
+			prefix:   "foo-",
 		},
 	}
 	for _, testCase := range testCases {
-		assert.EqualValues(t, testCase.expected, getIndices("", fixedTime, testCase.lookback))
+		assert.EqualValues(t, testCase.expected, getIndices(testCase.prefix, fixedTime, testCase.lookback))
 	}
 }
 

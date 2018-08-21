@@ -102,6 +102,22 @@ func TestNewSpanReader(t *testing.T) {
 	assert.NotNil(t, reader)
 }
 
+func TestNewSpanReaderIndexPrefix(t *testing.T) {
+	testCases := []struct {
+		prefix   string
+		expected string
+	}{
+		{prefix: "", expected: ""},
+		{prefix: "foo", expected: "foo:"},
+		{prefix: ":", expected: "::"},
+	}
+	for _, testCase := range testCases {
+		client := &mocks.Client{}
+		r := newSpanReader(client, zap.NewNop(), 0, testCase.prefix)
+		assert.Equal(t, testCase.expected, r.indexPrefix)
+	}
+}
+
 func TestSpanReader_GetTrace(t *testing.T) {
 	withSpanReader(func(r *spanReaderTest) {
 		hits := make([]*elastic.SearchHit, 1)
