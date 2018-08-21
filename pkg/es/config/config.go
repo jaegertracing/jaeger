@@ -160,7 +160,7 @@ func (c *Configuration) GetMaxSpanAge() time.Duration {
 	return c.MaxSpanAge
 }
 
-// GetMaxSpanAge returns max span age from Configuration
+// GetIndexPrefix returns index prefix
 func (c *Configuration) GetIndexPrefix() string {
 	return c.IndexPrefix
 }
