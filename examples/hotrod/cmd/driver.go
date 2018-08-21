@@ -35,7 +35,7 @@ var driverCmd = &cobra.Command{
 		zapLogger := logger.With(zap.String("service", "driver"))
 		logger := log.NewFactory(zapLogger)
 		server := driver.NewServer(
-			net.JoinHostPort(driverOptions.serverInterface, strconv.Itoa(driverOptions.serverPort)),
+			net.JoinHostPort("0.0.0.0", strconv.Itoa(driverPort)),
 			tracing.Init("driver", metricsFactory.Namespace("driver", nil), logger, jAgentHostPort),
 			metricsFactory,
 			logger,
@@ -45,16 +45,7 @@ var driverCmd = &cobra.Command{
 	},
 }
 
-var (
-	driverOptions struct {
-		serverInterface string
-		serverPort      int
-	}
-)
-
 func init() {
 	RootCmd.AddCommand(driverCmd)
 
-	driverCmd.Flags().StringVarP(&driverOptions.serverInterface, "bind", "", "0.0.0.0", "interface to which the driver server will bind")
-	driverCmd.Flags().IntVarP(&driverOptions.serverPort, "port", "p", 8082, "port on which the driver server will listen")
 }

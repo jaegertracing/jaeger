@@ -47,6 +47,8 @@ func CompareTraces(t *testing.T, expected *model.Trace, actual *model.Trace) {
 		require.Nil(t, actual.Spans)
 		return
 	}
+	require.NotNil(t, actual)
+	require.NotNil(t, actual.Spans)
 	model.SortTrace(expected)
 	model.SortTrace(actual)
 	checkSize(t, expected, actual)

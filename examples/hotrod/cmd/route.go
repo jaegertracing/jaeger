@@ -35,7 +35,7 @@ var routeCmd = &cobra.Command{
 		zapLogger := logger.With(zap.String("service", "route"))
 		logger := log.NewFactory(zapLogger)
 		server := route.NewServer(
-			net.JoinHostPort(routeOptions.serverInterface, strconv.Itoa(routeOptions.serverPort)),
+			net.JoinHostPort("0.0.0.0", strconv.Itoa(routePort)),
 			tracing.Init("route", metricsFactory.Namespace("route", nil), logger, jAgentHostPort),
 			logger,
 		)
@@ -43,16 +43,7 @@ var routeCmd = &cobra.Command{
 	},
 }
 
-var (
-	routeOptions struct {
-		serverInterface string
-		serverPort      int
-	}
-)
-
 func init() {
 	RootCmd.AddCommand(routeCmd)
 
-	routeCmd.Flags().StringVarP(&routeOptions.serverInterface, "bind", "", "0.0.0.0", "interface to which the Route server will bind")
-	routeCmd.Flags().IntVarP(&routeOptions.serverPort, "port", "p", 8083, "port on which the Route server will listen")
 }

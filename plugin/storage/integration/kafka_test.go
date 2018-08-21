@@ -22,6 +22,7 @@ import (
 
 	"github.com/stretchr/testify/require"
 	"github.com/uber/jaeger-lib/metrics"
+	"go.uber.org/zap"
 
 	"github.com/jaegertracing/jaeger/cmd/ingester/app"
 	"github.com/jaegertracing/jaeger/cmd/ingester/app/builder"
@@ -37,11 +38,11 @@ const defaultLocalKafkaBroker = "127.0.0.1:9092"
 
 type KafkaIntegrationTestSuite struct {
 	StorageIntegration
+	logger *zap.Logger
 }
 
 func (s *KafkaIntegrationTestSuite) initialize() error {
-	logger, _ := testutils.NewLogger()
-	s.logger = logger
+	s.logger, _ = testutils.NewLogger()
 	// A new topic is generated per execution to avoid data overlap
 	topic := "jaeger-kafka-integration-test-" + strconv.FormatInt(time.Now().UnixNano(), 10)
 
@@ -77,7 +78,7 @@ func (s *KafkaIntegrationTestSuite) initialize() error {
 	options := app.Options{}
 	options.InitFromViper(v)
 	traceStore := memory.NewStore()
-	spanConsumer, err := builder.CreateConsumer(logger, metrics.NullFactory, traceStore, options)
+	spanConsumer, err := builder.CreateConsumer(s.logger, metrics.NullFactory, traceStore, options)
 	if err != nil {
 		return err
 	}
