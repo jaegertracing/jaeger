@@ -46,7 +46,7 @@ func withDepStorage(fn func(r *depStorageTest)) {
 		client:    client,
 		logger:    logger,
 		logBuffer: logBuffer,
-		storage:   NewDependencyStore(client, logger),
+		storage:   NewDependencyStore(client, logger, ""),
 	}
 	fn(r)
 }
@@ -69,7 +69,7 @@ func TestWriteDependencies(t *testing.T) {
 	for _, testCase := range testCases {
 		withDepStorage(func(r *depStorageTest) {
 			fixedTime := time.Date(1995, time.April, 21, 4, 21, 19, 95, time.UTC)
-			indexName := indexName(fixedTime)
+			indexName := indexName("", fixedTime)
 
 			indexService := &mocks.IndicesCreateService{}
 			writeService := &mocks.IndexService{}
@@ -176,24 +176,24 @@ func TestGetIndices(t *testing.T) {
 		lookback time.Duration
 	}{
 		{
-			expected: []string{indexName(fixedTime), indexName(fixedTime.Add(-24 * time.Hour))},
+			expected: []string{indexName("", fixedTime), indexName("", fixedTime.Add(-24*time.Hour))},
 			lookback: 23 * time.Hour,
 		},
 		{
-			expected: []string{indexName(fixedTime), indexName(fixedTime.Add(-24 * time.Hour))},
+			expected: []string{indexName("", fixedTime), indexName("", fixedTime.Add(-24*time.Hour))},
 			lookback: 13 * time.Hour,
 		},
 		{
-			expected: []string{indexName(fixedTime)},
+			expected: []string{indexName("", fixedTime)},
 			lookback: 1 * time.Hour,
 		},
 		{
-			expected: []string{indexName(fixedTime)},
+			expected: []string{indexName("", fixedTime)},
 			lookback: 0,
 		},
 	}
 	for _, testCase := range testCases {
-		assert.EqualValues(t, testCase.expected, getIndices(fixedTime, testCase.lookback))
+		assert.EqualValues(t, testCase.expected, getIndices("", fixedTime, testCase.lookback))
 	}
 }
 

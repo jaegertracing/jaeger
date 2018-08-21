@@ -99,6 +99,9 @@ func NewSpanWriter(
 
 	// TODO: Configurable TTL
 	serviceOperationStorage := NewServiceOperationStorage(ctx, client, metricsFactory, logger, time.Hour*12)
+	if indexPrefix != "" {
+		indexPrefix += ":"
+	}
 	return &SpanWriter{
 		ctx:    ctx,
 		client: client,
@@ -143,9 +146,6 @@ func (s *SpanWriter) Close() error {
 
 func indexNames(prefix string, span *model.Span) (string, string) {
 	spanDate := span.StartTime.UTC().Format("2006-01-02")
-	if prefix != "" {
-		prefix += ":"
-	}
 	return prefix + spanIndex + spanDate, prefix + serviceIndex + spanDate
 }
 

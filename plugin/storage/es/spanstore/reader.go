@@ -98,6 +98,9 @@ func NewSpanReader(client es.Client, logger *zap.Logger, maxLookback time.Durati
 
 func newSpanReader(client es.Client, logger *zap.Logger, maxLookback time.Duration, indexPrefix string) *SpanReader {
 	ctx := context.Background()
+	if indexPrefix != "" {
+		indexPrefix += ":"
+	}
 	return &SpanReader{
 		ctx:                     ctx,
 		client:                  client,
@@ -162,9 +165,6 @@ func (s *SpanReader) findIndices(indexName string, startTime time.Time, endTime 
 }
 
 func indexWithDate(prefix string, indexType string, date time.Time) string {
-	if prefix != "" {
-		prefix += ":"
-	}
 	return prefix + indexType + date.UTC().Format("2006-01-02")
 }
 
