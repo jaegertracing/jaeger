@@ -284,14 +284,11 @@ func TestWriterReaderIndexNames(t *testing.T) {
 	span := &model.Span{StartTime: time.Now()}
 	for _, testCase := range testCases {
 		spanIndexWrite, serviceIndexWrite := indexNames(testCase.prefix, span)
-
 		readSpanIndex := indexWithDate(testCase.prefix, spanIndex, span.StartTime)
 		readServiceIndex := indexWithDate(testCase.prefix, serviceIndex, span.StartTime)
-
 		assert.EqualValues(t, spanIndexWrite, readSpanIndex)
 		assert.EqualValues(t, serviceIndexWrite, readServiceIndex)
 	}
-
 }
 
 func TestSpanReaderFindIndices(t *testing.T) {
