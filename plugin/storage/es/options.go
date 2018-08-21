@@ -145,7 +145,7 @@ func addFlags(flagSet *flag.FlagSet, nsConfig *namespaceConfig) {
 	flagSet.String(
 		nsConfig.namespace+suffixIndexPrefix,
 		nsConfig.IndexPrefix,
-		"The prefix of Jaeger indices. For example \"production\" creates production:jaeger-*. (Default empty)")
+		"The prefix of Jaeger indices. For example \"production\" creates \"production:jaeger-*\". (Default unset)")
 }
 
 // InitFromViper initializes Options with properties from viper

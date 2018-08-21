@@ -40,7 +40,7 @@ const (
 	queryURL      = "http://" + queryHostPort
 	username      = "elastic"  // the elasticsearch default username
 	password      = "changeme" // the elasticsearch default password
-	indexPrefix = "integration-test"
+	indexPrefix   = "integration-test"
 )
 
 type ESStorageIntegration struct {
