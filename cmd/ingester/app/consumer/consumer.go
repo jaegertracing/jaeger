@@ -42,7 +42,6 @@ type Consumer struct {
 	internalConsumer consumer.Consumer
 	processorFactory ProcessorFactory
 
-	close              chan struct{}
 	partitionIDToState map[int32]*consumerState
 }
 
@@ -64,35 +63,32 @@ func New(params Params) (*Consumer, error) {
 
 // Start begins consuming messages in a go routine
 func (c *Consumer) Start() {
-	c.logger.Info("Starting main loop")
-	go c.mainLoop()
+	go func() {
+		c.logger.Info("Starting main loop")
+		for pc := range c.internalConsumer.Partitions() {
+			if p, ok := c.partitionIDToState[pc.Partition()]; ok {
+				p.state.Wait()
+				delete(c.partitionIDToState, pc.Partition())
+			}
+			c.partitionIDToState[pc.Partition()] = &consumerState{partitionConsumer: pc}
+			go c.handleMessages(pc)
+			go c.handleErrors(pc.Partition(), pc.Errors())
+		}
+	}()
 }
 
 // Close closes the Consumer and underlying sarama consumer
 func (c *Consumer) Close() error {
-	c.logger.Info("Closing consumer")
 	for _, p := range c.partitionIDToState {
 		c.closePartition(p.partitionConsumer)
 		p.state.Wait()
 	}
+	c.logger.Info("Closing parent consumer")
 	return c.internalConsumer.Close()
 }
 
-func (c *Consumer) mainLoop() {
-	for {
-		pc := <-c.internalConsumer.Partitions()
-		if p, ok := c.partitionIDToState[pc.Partition()]; ok {
-			p.state.Wait()
-			delete(c.partitionIDToState, pc.Partition())
-		}
-		c.partitionIDToState[pc.Partition()] = &consumerState{partitionConsumer: pc}
-		go c.handleMessages(pc)
-		go c.handleErrors(pc.Partition(), pc.Errors())
-	}
-}
-
 func (c *Consumer) handleMessages(pc sc.PartitionConsumer) {
-	c.logger.Info("Starting message handler")
+	c.logger.Info("Starting message handler", zap.Int32("partition", pc.Partition()))
 	c.partitionIDToState[pc.Partition()].state.Add(1)
 	defer c.partitionIDToState[pc.Partition()].state.Done()
 	defer c.closePartition(pc)
@@ -113,7 +109,7 @@ func (c *Consumer) handleMessages(pc sc.PartitionConsumer) {
 
 		msgProcessor.Process(&saramaMessageWrapper{msg})
 	}
-	c.logger.Debug("Finished handling messages")
+	c.logger.Debug("Finished handling messages", zap.Int32("partition", pc.Partition()))
 }
 
 func (c *Consumer) closePartition(partitionConsumer sc.PartitionConsumer) {
@@ -123,7 +119,7 @@ func (c *Consumer) closePartition(partitionConsumer sc.PartitionConsumer) {
 }
 
 func (c *Consumer) handleErrors(partition int32, errChan <-chan *sarama.ConsumerError) {
-	c.logger.Info("Starting error handler")
+	c.logger.Info("Starting error handler", zap.Int32("partition", partition))
 	c.partitionIDToState[partition].state.Add(1)
 	defer c.partitionIDToState[partition].state.Done()
 
@@ -132,5 +128,5 @@ func (c *Consumer) handleErrors(partition int32, errChan <-chan *sarama.Consumer
 		errMetrics.errCounter.Inc(1)
 		c.logger.Error("Error consuming from Kafka", zap.Error(err))
 	}
-	c.logger.Debug("Finished handling errors")
+	c.logger.Debug("Finished handling errors", zap.Int32("partition", partition))
 }
