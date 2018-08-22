@@ -39,10 +39,10 @@ type timeToDependencies struct {
 
 // DependencyStore handles all queries and insertions to ElasticSearch dependencies
 type DependencyStore struct {
-	ctx         context.Context
-	client      es.Client
-	logger      *zap.Logger
-	indexPrefix string
+	ctx                   context.Context
+	client                es.Client
+	logger                *zap.Logger
+	dependencyIndexPrefix string
 }
 
 // NewDependencyStore returns a DependencyStore
@@ -51,16 +51,16 @@ func NewDependencyStore(client es.Client, logger *zap.Logger, indexPrefix string
 		indexPrefix += ":"
 	}
 	return &DependencyStore{
-		ctx:         context.Background(),
-		client:      client,
-		logger:      logger,
-		indexPrefix: indexPrefix,
+		ctx:                   context.Background(),
+		client:                client,
+		logger:                logger,
+		dependencyIndexPrefix: indexPrefix + dependencyIndex,
 	}
 }
 
 // WriteDependencies implements dependencystore.Writer#WriteDependencies.
 func (s *DependencyStore) WriteDependencies(ts time.Time, dependencies []model.DependencyLink) error {
-	indexName := indexName(s.indexPrefix, ts)
+	indexName := indexWithDate(s.dependencyIndexPrefix, ts)
 	if err := s.createIndex(indexName); err != nil {
 		return err
 	}
@@ -85,7 +85,7 @@ func (s *DependencyStore) writeDependencies(indexName string, ts time.Time, depe
 
 // GetDependencies returns all interservice dependencies
 func (s *DependencyStore) GetDependencies(endTs time.Time, lookback time.Duration) ([]model.DependencyLink, error) {
-	searchResult, err := s.client.Search(getIndices(s.indexPrefix, endTs, lookback)...).
+	searchResult, err := s.client.Search(getIndices(s.dependencyIndexPrefix, endTs, lookback)...).
 		Type(dependencyType).
 		Size(10000). // the default elasticsearch allowed limit
 		Query(buildTSQuery(endTs, lookback)).
@@ -114,16 +114,16 @@ func buildTSQuery(endTs time.Time, lookback time.Duration) elastic.Query {
 
 func getIndices(prefix string, ts time.Time, lookback time.Duration) []string {
 	var indices []string
-	firstIndex := indexName(prefix, ts.Add(-lookback))
-	currentIndex := indexName(prefix, ts)
+	firstIndex := indexWithDate(prefix, ts.Add(-lookback))
+	currentIndex := indexWithDate(prefix, ts)
 	for currentIndex != firstIndex {
 		indices = append(indices, currentIndex)
 		ts = ts.Add(-24 * time.Hour)
-		currentIndex = indexName(prefix, ts)
+		currentIndex = indexWithDate(prefix, ts)
 	}
 	return append(indices, firstIndex)
 }
 
-func indexName(prefix string, date time.Time) string {
-	return prefix + dependencyIndex + date.UTC().Format("2006-01-02")
+func indexWithDate(indexNamePrefix string, date time.Time) string {
+	return indexNamePrefix + date.UTC().Format("2006-01-02")
 }

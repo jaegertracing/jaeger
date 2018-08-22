@@ -8,7 +8,7 @@ import os
 
 def main():
     if len(sys.argv) == 1:
-        print('USAGE: [TIMEOUT=(default 120)] [INDEX_PREFIX=(default \'\')] %s NUM_OF_DAYS HOSTNAME[:PORT] ...' % sys.argv[0])
+        print('USAGE: [TIMEOUT=(default 120)] [INDEX_PREFIX=(default "")] %s NUM_OF_DAYS HOSTNAME[:PORT] ...' % sys.argv[0])
         print('Specify a NUM_OF_DAYS that will delete indices that are older than the given NUM_OF_DAYS.')
         print('HOSTNAME ... specifies which ElasticSearch hosts to search and delete indices from.')
         print('INDEX_PREFIX ... specifies index prefix.')

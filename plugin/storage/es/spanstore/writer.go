@@ -50,15 +50,16 @@ type serviceWriter func(string, *jModel.Span)
 
 // SpanWriter is a wrapper around elastic.Client
 type SpanWriter struct {
-	ctx           context.Context
-	client        es.Client
-	logger        *zap.Logger
-	writerMetrics spanWriterMetrics // TODO: build functions to wrap around each Do fn
-	indexCache    cache.Cache
-	serviceWriter serviceWriter
-	numShards     int64
-	numReplicas   int64
-	indexPrefix   string
+	ctx                context.Context
+	client             es.Client
+	logger             *zap.Logger
+	writerMetrics      spanWriterMetrics // TODO: build functions to wrap around each Do fn
+	indexCache         cache.Cache
+	serviceWriter      serviceWriter
+	numShards          int64
+	numReplicas        int64
+	spanIndexPrefix    string
+	serviceIndexPrefix string
 }
 
 // Service is the JSON struct for service:operation documents in ElasticSearch
@@ -116,15 +117,18 @@ func NewSpanWriter(
 				TTL: 48 * time.Hour,
 			},
 		),
-		numShards:   numShards,
-		numReplicas: numReplicas,
-		indexPrefix: indexPrefix,
+		numShards:          numShards,
+		numReplicas:        numReplicas,
+		spanIndexPrefix:    indexPrefix + spanIndex,
+		serviceIndexPrefix: indexPrefix + serviceIndex,
 	}
 }
 
 // WriteSpan writes a span and its corresponding service:operation in ElasticSearch
 func (s *SpanWriter) WriteSpan(span *model.Span) error {
-	spanIndexName, serviceIndexName := indexNames(s.indexPrefix, span)
+	spanIndexName := indexWithDate(s.spanIndexPrefix, span.StartTime)
+	serviceIndexName := indexWithDate(s.serviceIndexPrefix, span.StartTime)
+
 	// Convert model.Span into json.Span
 	jsonSpan := json.FromDomainEmbedProcess(span)
 
@@ -144,9 +148,9 @@ func (s *SpanWriter) Close() error {
 	return s.client.Close()
 }
 
-func indexNames(prefix string, span *model.Span) (string, string) {
-	spanDate := span.StartTime.UTC().Format("2006-01-02")
-	return prefix + spanIndex + spanDate, prefix + serviceIndex + spanDate
+func indexWithDate(indexPrefix string, date time.Time) string {
+	spanDate := date.UTC().Format("2006-01-02")
+	return indexPrefix + spanDate
 }
 
 func (s *SpanWriter) createIndex(indexName string, mapping string, jsonSpan *jModel.Span) error {

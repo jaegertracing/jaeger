@@ -69,7 +69,8 @@ func TestNewSpanWriterIndexPrefix(t *testing.T) {
 	metricsFactory := metrics.NewLocalFactory(0)
 	for _, testCase := range testCases {
 		w := NewSpanWriter(client, logger, metricsFactory, 0, 0, testCase.prefix)
-		assert.Equal(t, testCase.expected, w.indexPrefix)
+		assert.Equal(t, testCase.expected+spanIndex, w.spanIndexPrefix)
+		assert.Equal(t, testCase.expected+serviceIndex, w.serviceIndexPrefix)
 	}
 }
 
@@ -219,7 +220,8 @@ func TestSpanIndexName(t *testing.T) {
 	span := &model.Span{
 		StartTime: date,
 	}
-	spanIndexName, serviceIndexName := indexNames("", span)
+	spanIndexName := indexWithDate(spanIndex, span.StartTime)
+	serviceIndexName := indexWithDate(serviceIndex, span.StartTime)
 	assert.Equal(t, "jaeger-span-1995-04-21", spanIndexName)
 	assert.Equal(t, "jaeger-service-1995-04-21", serviceIndexName)
 }

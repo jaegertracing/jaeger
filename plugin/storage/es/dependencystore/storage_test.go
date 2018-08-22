@@ -66,7 +66,7 @@ func TestNewSpanReaderIndexPrefix(t *testing.T) {
 	for _, testCase := range testCases {
 		client := &mocks.Client{}
 		r := NewDependencyStore(client, zap.NewNop(), testCase.prefix)
-		assert.Equal(t, testCase.expected, r.indexPrefix)
+		assert.Equal(t, testCase.expected+dependencyIndex, r.dependencyIndexPrefix)
 	}
 }
 
@@ -85,7 +85,7 @@ func TestWriteDependencies(t *testing.T) {
 	for _, testCase := range testCases {
 		withDepStorage(func(r *depStorageTest) {
 			fixedTime := time.Date(1995, time.April, 21, 4, 21, 19, 95, time.UTC)
-			indexName := indexName("", fixedTime)
+			indexName := indexWithDate("", fixedTime)
 
 			indexService := &mocks.IndicesCreateService{}
 			writeService := &mocks.IndexService{}
@@ -193,22 +193,22 @@ func TestGetIndices(t *testing.T) {
 		prefix   string
 	}{
 		{
-			expected: []string{indexName("", fixedTime), indexName("", fixedTime.Add(-24*time.Hour))},
+			expected: []string{indexWithDate("", fixedTime), indexWithDate("", fixedTime.Add(-24*time.Hour))},
 			lookback: 23 * time.Hour,
 			prefix:   "",
 		},
 		{
-			expected: []string{indexName("", fixedTime), indexName("", fixedTime.Add(-24*time.Hour))},
+			expected: []string{indexWithDate("", fixedTime), indexWithDate("", fixedTime.Add(-24*time.Hour))},
 			lookback: 13 * time.Hour,
 			prefix:   "",
 		},
 		{
-			expected: []string{indexName("foo:", fixedTime)},
+			expected: []string{indexWithDate("foo:", fixedTime)},
 			lookback: 1 * time.Hour,
 			prefix:   "foo:",
 		},
 		{
-			expected: []string{indexName("foo-", fixedTime)},
+			expected: []string{indexWithDate("foo-", fixedTime)},
 			lookback: 0,
 			prefix:   "foo-",
 		},
