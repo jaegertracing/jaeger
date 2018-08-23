@@ -18,8 +18,6 @@ import (
 	"fmt"
 	"sync"
 	"testing"
-	"time"
-
 	"github.com/Shopify/sarama"
 	smocks "github.com/Shopify/sarama/mocks"
 	"github.com/bsm/sarama-cluster"
@@ -35,6 +33,7 @@ import (
 	"github.com/jaegertracing/jaeger/cmd/ingester/app/processor"
 	pmocks "github.com/jaegertracing/jaeger/cmd/ingester/app/processor/mocks"
 	"github.com/jaegertracing/jaeger/pkg/kafka/consumer"
+	"time"
 )
 
 //go:generate mockery -dir ../../../../pkg/kafka/config/ -name Consumer
@@ -189,13 +188,25 @@ func TestSaramaConsumerWrapper_start_Errors(t *testing.T) {
 
 	undertest.Start()
 	mc.YieldError(errors.New("Daisy, Daisy"))
-	time.Sleep(100 * time.Millisecond)
-	undertest.Close()
 
-	partitionTag := map[string]string{"partition": fmt.Sprint(partition)}
-	testutils.AssertCounterMetrics(t, localFactory, testutils.ExpectedMetric{
-		Name:  "sarama-consumer.errors",
-		Tags:  partitionTag,
-		Value: 1,
-	})
+
+	for i := 0; i < 1000; i++ {
+		time.Sleep(time.Millisecond)
+
+		c, _ := localFactory.Snapshot()
+		if len(c) == 0 {
+			continue
+		}
+
+		partitionTag := map[string]string{"partition": fmt.Sprint(partition)}
+		testutils.AssertCounterMetrics(t, localFactory, testutils.ExpectedMetric{
+			Name:  "sarama-consumer.errors",
+			Tags:  partitionTag,
+			Value: 1,
+		})
+		undertest.Close()
+		return
+	}
+
+	t.Fail()
 }
