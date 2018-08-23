@@ -18,6 +18,8 @@ import (
 	"fmt"
 	"sync"
 	"testing"
+	"time"
+
 	"github.com/Shopify/sarama"
 	smocks "github.com/Shopify/sarama/mocks"
 	"github.com/bsm/sarama-cluster"
@@ -33,7 +35,6 @@ import (
 	"github.com/jaegertracing/jaeger/cmd/ingester/app/processor"
 	pmocks "github.com/jaegertracing/jaeger/cmd/ingester/app/processor/mocks"
 	"github.com/jaegertracing/jaeger/pkg/kafka/consumer"
-	"time"
 )
 
 //go:generate mockery -dir ../../../../pkg/kafka/config/ -name Consumer
@@ -188,7 +189,6 @@ func TestSaramaConsumerWrapper_start_Errors(t *testing.T) {
 
 	undertest.Start()
 	mc.YieldError(errors.New("Daisy, Daisy"))
-
 
 	for i := 0; i < 1000; i++ {
 		time.Sleep(time.Millisecond)
