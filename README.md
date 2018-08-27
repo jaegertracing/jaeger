@@ -115,7 +115,7 @@ Below are the official maintainers of the Jaeger project. Please use `@jaegertra
 * @vprithvi
 * @yurishkuro
 
-Some reporitories under [jaegertracing](https://github.com/jaegertracing) org have additional maintainers.
+Some repositories under [jaegertracing](https://github.com/jaegertracing) org have additional maintainers.
 
 ## Project Status Bi-Weekly Meeting
 
