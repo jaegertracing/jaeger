@@ -85,7 +85,7 @@ func (f *Factory) CreateSpanReader() (spanstore.Reader, error) {
 
 // CreateSpanWriter implements storage.Factory
 func (f *Factory) CreateSpanWriter() (spanstore.Writer, error) {
-	return NewSpanWriter(f.producer, f.marshaller, f.options.topic, f.metricsFactory), nil
+	return NewSpanWriter(f.producer, f.marshaller, f.options.topic, f.metricsFactory, f.logger), nil
 }
 
 // CreateDependencyReader implements storage.Factory
