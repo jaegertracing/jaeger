@@ -41,6 +41,7 @@ type Configuration struct {
 	BulkWorkers       int
 	BulkActions       int
 	BulkFlushInterval time.Duration
+	IndexPrefix       string
 }
 
 // ClientBuilder creates new es.Client
@@ -49,6 +50,7 @@ type ClientBuilder interface {
 	GetNumShards() int64
 	GetNumReplicas() int64
 	GetMaxSpanAge() time.Duration
+	GetIndexPrefix() string
 }
 
 // NewClient creates a new ElasticSearch client
@@ -156,6 +158,11 @@ func (c *Configuration) GetNumReplicas() int64 {
 // GetMaxSpanAge returns max span age from Configuration
 func (c *Configuration) GetMaxSpanAge() time.Duration {
 	return c.MaxSpanAge
+}
+
+// GetIndexPrefix returns index prefix
+func (c *Configuration) GetIndexPrefix() string {
+	return c.IndexPrefix
 }
 
 // GetConfigs wraps the configs to feed to the ElasticSearch client init

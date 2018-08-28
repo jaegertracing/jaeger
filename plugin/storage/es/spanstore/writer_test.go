@@ -48,12 +48,31 @@ func withSpanWriter(fn func(w *spanWriterTest)) {
 		client:    client,
 		logger:    logger,
 		logBuffer: logBuffer,
-		writer:    NewSpanWriter(client, logger, metricsFactory, 0, 0),
+		writer:    NewSpanWriter(client, logger, metricsFactory, 0, 0, ""),
 	}
 	fn(w)
 }
 
 var _ spanstore.Writer = &SpanWriter{} // check API conformance
+
+func TestNewSpanWriterIndexPrefix(t *testing.T) {
+	testCases := []struct {
+		prefix   string
+		expected string
+	}{
+		{prefix: "", expected: ""},
+		{prefix: "foo", expected: "foo:"},
+		{prefix: ":", expected: "::"},
+	}
+	client := &mocks.Client{}
+	logger, _ := testutils.NewLogger()
+	metricsFactory := metrics.NewLocalFactory(0)
+	for _, testCase := range testCases {
+		w := NewSpanWriter(client, logger, metricsFactory, 0, 0, testCase.prefix)
+		assert.Equal(t, testCase.expected+spanIndex, w.spanIndexPrefix)
+		assert.Equal(t, testCase.expected+serviceIndex, w.serviceIndexPrefix)
+	}
+}
 
 func TestClientClose(t *testing.T) {
 	withSpanWriter(func(w *spanWriterTest) {
@@ -201,7 +220,8 @@ func TestSpanIndexName(t *testing.T) {
 	span := &model.Span{
 		StartTime: date,
 	}
-	spanIndexName, serviceIndexName := indexNames(span)
+	spanIndexName := indexWithDate(spanIndex, span.StartTime)
+	serviceIndexName := indexWithDate(serviceIndex, span.StartTime)
 	assert.Equal(t, "jaeger-span-1995-04-21", spanIndexName)
 	assert.Equal(t, "jaeger-service-1995-04-21", serviceIndexName)
 }

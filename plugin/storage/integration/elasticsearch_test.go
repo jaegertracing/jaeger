@@ -40,6 +40,7 @@ const (
 	queryURL      = "http://" + queryHostPort
 	username      = "elastic"  // the elasticsearch default username
 	password      = "changeme" // the elasticsearch default password
+	indexPrefix   = "integration-test"
 )
 
 type ESStorageIntegration struct {
@@ -64,7 +65,7 @@ func (s *ESStorageIntegration) initializeES() error {
 
 	s.bulkProcessor, _ = s.client.BulkProcessor().Do(context.Background())
 	client := es.WrapESClient(s.client, s.bulkProcessor)
-	dependencyStore := dependencystore.NewDependencyStore(client, s.logger)
+	dependencyStore := dependencystore.NewDependencyStore(client, s.logger, indexPrefix)
 	s.DependencyReader = dependencyStore
 	s.DependencyWriter = dependencyStore
 	s.initSpanstore()
@@ -83,8 +84,8 @@ func (s *ESStorageIntegration) esCleanUp() error {
 func (s *ESStorageIntegration) initSpanstore() {
 	bp, _ := s.client.BulkProcessor().BulkActions(1).FlushInterval(time.Nanosecond).Do(context.Background())
 	client := es.WrapESClient(s.client, bp)
-	s.SpanWriter = spanstore.NewSpanWriter(client, s.logger, metrics.NullFactory, 0, 0)
-	s.SpanReader = spanstore.NewSpanReader(client, s.logger, 72*time.Hour, metrics.NullFactory)
+	s.SpanWriter = spanstore.NewSpanWriter(client, s.logger, metrics.NullFactory, 0, 0, indexPrefix)
+	s.SpanReader = spanstore.NewSpanReader(client, s.logger, 72*time.Hour, metrics.NullFactory, indexPrefix)
 }
 
 func (s *ESStorageIntegration) esRefresh() error {
