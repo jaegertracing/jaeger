@@ -21,8 +21,8 @@ import (
 // MergeSpans returns an Adjuster that merges Jaeger spans with the same spanID.
 // Duplicate spans that have conflicting span.kind annotations are not merged.
 //
-// MergeSpans assumes that the duration field in a span is monotonically increasing for a spans with the
-// same spanID. The span with the longest spanID wins, and is selected in entirety.
+// MergeSpans assumes that the duration field in a span is monotonically increasing for a span with the
+// same spanID. The span with the longest duration wins, and is selected in entirety.
 // TODO: Granular merging of spans
 func MergeSpans() Adjuster {
 	return Func(func(input *model.Trace) (*model.Trace, error) {
