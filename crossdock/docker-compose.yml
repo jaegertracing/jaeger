@@ -3,6 +3,7 @@ version: '2'
 services:
     crossdock:
         image: crossdock/crossdock
+        dns_search: .  # Ensures unified DNS config.
         links:
             - test_driver
             - go
@@ -26,16 +27,19 @@ services:
 
     go:
         image: jaegertracing/xdock-go
+        dns_search: .
         ports:
             - "8080-8082"
 
     node:
         image: jaegertracing/xdock-node
+        dns_search: .
         ports:
             - "8080-8082"
 
     java:
         image: jaegertracing/xdock-java
+        dns_search: .
         ports:
             - "8080-8082"
         depends_on:
@@ -44,11 +48,13 @@ services:
 
     python:
         image: jaegertracing/xdock-py
+        dns_search: .
         ports:
             - "8080-8082"
 
     zipkin-brave-json:
         image: jaegertracing/xdock-zipkin-brave
+        dns_search: .
         ports:
             - "8080-8081"
         environment:
@@ -56,6 +62,7 @@ services:
 
     zipkin-brave-json-v2:
         image: jaegertracing/xdock-zipkin-brave
+        dns_search: .
         ports:
             - "8080-8081"
         environment:
@@ -64,6 +71,7 @@ services:
 
     zipkin-brave-thrift:
         image: jaegertracing/xdock-zipkin-brave
+        dns_search: .
         ports:
             - "8080-8081"
         environment:
@@ -71,6 +79,7 @@ services:
 
     test_driver:
         image: jaegertracing/test-driver
+        dns_search: .
         ports:
             - "8080"
         depends_on:
