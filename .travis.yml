@@ -52,10 +52,10 @@ install:
 
 script:
   - export BRANCH=$(if [ "$TRAVIS_PULL_REQUEST" == "false" ]; then echo $TRAVIS_BRANCH; else echo $TRAVIS_PULL_REQUEST_BRANCH; fi)
-  - if [ "$TESTS" == true ]; then make test-ci ; else echo 'skipping tests'; fi
-  - if [ "$ALL_IN_ONE" == true ]; then bash ./scripts/travis/build-all-in-one-image.sh ; else echo 'skipping all_in_one'; fi
-  - if [ "$CROSSDOCK" == true ]; then bash ./scripts/travis/build-crossdock.sh ; else echo 'skipping crossdock'; fi
-  - if [ "$DOCKER" == true ]; then bash ./scripts/travis/build-docker-images.sh ; else echo 'skipping docker images'; fi
+  - if [ "$TESTS" == true ]; then make test-ci || exit 1; else echo 'skipping tests'; fi
+  - if [ "$ALL_IN_ONE" == true ]; then bash ./scripts/travis/build-all-in-one-image.sh || exit 1; else echo 'skipping all_in_one'; fi
+  - if [ "$CROSSDOCK" == true ]; then bash ./scripts/travis/build-crossdock.sh || exit 1; else echo 'skipping crossdock'; fi
+  - if [ "$DOCKER" == true ]; then bash ./scripts/travis/build-docker-images.sh || exit 1; else echo 'skipping docker images'; fi
   - if [ "$ES_INTEGRATION_TEST" == true ]; then bash ./scripts/travis/es-integration-test.sh || exit 1; else echo 'skipping elastic search integration test'; fi
   - if [ "$KAFKA_INTEGRATION_TEST" == true ]; then bash ./scripts/travis/kafka-integration-test.sh || exit 1; else echo 'skipping kafka integration test'; fi
   - if [ "$HOTROD" == true ]; then bash ./scripts/travis/hotrod-integration-test.sh || exit 1; else echo 'skipping hotrod example'; fi
