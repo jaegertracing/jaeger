@@ -8,4 +8,4 @@ COPY --from=certs /etc/ssl/certs/ca-certificates.crt /etc/ssl/certs/ca-certifica
 EXPOSE 16686
 COPY query-linux /go/bin/
 
-ENTRYPOINT ["/go/bin/query-linux", "--cassandra.keyspace=jaeger_v1_dc1", "--cassandra.servers=cassandra"]
+ENTRYPOINT ["/go/bin/query-linux"]
