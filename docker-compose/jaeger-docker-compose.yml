@@ -2,8 +2,11 @@ version: '2'
 
 services:
     jaeger-collector:
-      image: jaegertracing/jaeger-collector
-      command: ["--cassandra.keyspace=jaeger_v1_dc1", "--cassandra.servers=cassandra", "--collector.zipkin.http-port=9411"]
+      image: jaegertracing/jaeger-collector:latest
+      command: ["/go/bin/collector-linux", "--cassandra.keyspace=jaeger_v1_dc1", "--cassandra.servers=cassandra", "--collector.zipkin.http-port=9411"]
+      # Ensures local networks do not try to resolve IPs for docker hosts.
+      <<: &dns_search_config
+          dns_search: ["8.8.8.8"]
       ports:
         - "14269"
         - "14268:14268"
@@ -14,8 +17,9 @@ services:
         - cassandra-schema
 
     jaeger-query:
-      image: jaegertracing/jaeger-query
-      command: ["--cassandra.keyspace=jaeger_v1_dc1", "--cassandra.servers=cassandra"]
+      image: jaegertracing/jaeger-query:latest
+      command: ["/go/bin/query-linux", "--cassandra.keyspace=jaeger_v1_dc1", "--cassandra.servers=cassandra"]
+      <<: *dns_search_config
       ports:
         - "16686:16686"
         - "16687"
@@ -24,8 +28,9 @@ services:
         - cassandra-schema
 
     jaeger-agent:
-      image: jaegertracing/jaeger-agent
-      command: ["--collector.host-port=jaeger-collector:14267"]
+      image: jaegertracing/jaeger-agent:latest
+      command: ["/go/bin/agent-linux", "--collector.host-port=jaeger-collector:14267"]
+      <<: *dns_search_config
       ports:
         - "5775:5775/udp"
         - "6831:6831/udp"
@@ -37,9 +42,11 @@ services:
 
     cassandra:
       image: cassandra:3.9
+      <<: *dns_search_config
 
     cassandra-schema:
-      image: jaegertracing/jaeger-cassandra-schema
+      image: jaegertracing/jaeger-cassandra-schema:latest
+      <<: *dns_search_config
       depends_on:
         - cassandra
 

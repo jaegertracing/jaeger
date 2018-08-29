@@ -46,20 +46,20 @@ env:
 install:
   - docker rmi $(docker images -q) || true
   - make install-ci
-  - if [ "$ALL_IN_ONE" == true ]; then bash ./scripts/travis/install-ui-deps.sh ; fi
-  - if [ "$DOCKER" == true ]; then bash ./scripts/travis/install-ui-deps.sh ; fi
-  - if [ "$CROSSDOCK" == true ]; then bash ./scripts/travis/install-crossdock-deps.sh ; fi
+  - if [ "$ALL_IN_ONE" == true ]; then bash ./scripts/travis/install-ui-deps.sh || exit 1; fi
+  - if [ "$DOCKER" == true ]; then bash ./scripts/travis/install-ui-deps.sh || exit 1; fi
+  - if [ "$CROSSDOCK" == true ]; then bash ./scripts/travis/install-crossdock-deps.sh || exit 1; fi
 
 script:
   - export BRANCH=$(if [ "$TRAVIS_PULL_REQUEST" == "false" ]; then echo $TRAVIS_BRANCH; else echo $TRAVIS_PULL_REQUEST_BRANCH; fi)
-  - if [ "$TESTS" == true ]; then make test-ci ; else echo 'skipping tests'; fi
-  - if [ "$ALL_IN_ONE" == true ]; then bash ./scripts/travis/build-all-in-one-image.sh ; else echo 'skipping all_in_one'; fi
-  - if [ "$CROSSDOCK" == true ]; then bash ./scripts/travis/build-crossdock.sh ; else echo 'skipping crossdock'; fi
-  - if [ "$DOCKER" == true ]; then bash ./scripts/travis/build-docker-images.sh ; else echo 'skipping docker images'; fi
-  - if [ "$ES_INTEGRATION_TEST" == true ]; then bash ./scripts/travis/es-integration-test.sh ; else echo 'skipping elastic search integration test'; fi
-  - if [ "$KAFKA_INTEGRATION_TEST" == true ]; then bash ./scripts/travis/kafka-integration-test.sh ; else echo 'skipping kafka integration test'; fi
-  - if [ "$HOTROD" == true ]; then bash ./scripts/travis/hotrod-integration-test.sh ; else echo 'skipping hotrod example'; fi
-  - if [[ "$DEPLOY" == true && "$BRANCH" == "master" ]]; then make build-all-platforms ; else echo 'skipping linux'; fi
+  - if [ "$TESTS" == true ]; then make test-ci || exit 1; else echo 'skipping tests'; fi
+  - if [ "$ALL_IN_ONE" == true ]; then bash ./scripts/travis/build-all-in-one-image.sh || exit 1; else echo 'skipping all_in_one'; fi
+  - if [ "$CROSSDOCK" == true ]; then bash ./scripts/travis/build-crossdock.sh || exit 1; else echo 'skipping crossdock'; fi
+  - if [ "$DOCKER" == true ]; then bash ./scripts/travis/build-docker-images.sh || exit 1; else echo 'skipping docker images'; fi
+  - if [ "$ES_INTEGRATION_TEST" == true ]; then bash ./scripts/travis/es-integration-test.sh || exit 1; else echo 'skipping elastic search integration test'; fi
+  - if [ "$KAFKA_INTEGRATION_TEST" == true ]; then bash ./scripts/travis/kafka-integration-test.sh || exit 1; else echo 'skipping kafka integration test'; fi
+  - if [ "$HOTROD" == true ]; then bash ./scripts/travis/hotrod-integration-test.sh || exit 1; else echo 'skipping hotrod example'; fi
+  - if [[ "$DEPLOY" == true && "$BRANCH" == "master" ]]; then make build-all-platforms || exit 1; else echo 'skipping linux'; fi
 
 after_success:
   - if [ "$COVERAGE" == true ]; then mv cover.out coverage.txt ; else echo 'skipping coverage'; fi

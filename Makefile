@@ -262,10 +262,6 @@ build-crossdock-ui-placeholder:
 build-crossdock: build-crossdock-ui-placeholder docker-no-ui
 	make crossdock
 
-.PHONY: build-crossdock-fresh
-build-crossdock-fresh: build-crossdock-linux
-	make crossdock-fresh
-
 .PHONY: install-tools
 install-tools:
 	go get github.com/wadey/gocovmerge
