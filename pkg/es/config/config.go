@@ -19,7 +19,10 @@ import (
 	"sync"
 	"time"
 
+	"github.com/aws/aws-sdk-go/aws/session"
+	"github.com/aws/aws-sdk-go/aws/signer/v4"
 	"github.com/pkg/errors"
+	"github.com/sha1sum/aws_signing_client"
 	"github.com/uber/jaeger-lib/metrics"
 	"go.uber.org/zap"
 	"gopkg.in/olivere/elastic.v5"
@@ -42,6 +45,12 @@ type Configuration struct {
 	BulkActions       int
 	BulkFlushInterval time.Duration
 	IndexPrefix       string
+	AwsIamConfig      AwsIamConfiguration
+}
+
+// AwsIamConfiguration describes the AWS-specific configuration needed to connect to ElasticSearch with IAM authn
+type AwsIamConfiguration struct {
+	Enabled bool
 }
 
 // ClientBuilder creates new es.Client
@@ -58,7 +67,13 @@ func (c *Configuration) NewClient(logger *zap.Logger, metricsFactory metrics.Fac
 	if len(c.Servers) < 1 {
 		return nil, errors.New("No servers specified")
 	}
-	rawClient, err := elastic.NewClient(c.GetConfigs()...)
+
+	clientOptionFuncs, err := c.GetConfigs()
+	if err != nil {
+		return nil, err
+	}
+
+	rawClient, err := elastic.NewClient(clientOptionFuncs...)
 	if err != nil {
 		return nil, err
 	}
@@ -143,6 +158,9 @@ func (c *Configuration) ApplyDefaults(source *Configuration) {
 	if c.BulkFlushInterval == 0 {
 		c.BulkFlushInterval = source.BulkFlushInterval
 	}
+	if !c.AwsIamConfig.Enabled {
+		c.AwsIamConfig.Enabled = source.AwsIamConfig.Enabled
+	}
 }
 
 // GetNumShards returns number of shards from Configuration
@@ -166,10 +184,26 @@ func (c *Configuration) GetIndexPrefix() string {
 }
 
 // GetConfigs wraps the configs to feed to the ElasticSearch client init
-func (c *Configuration) GetConfigs() []elastic.ClientOptionFunc {
+func (c *Configuration) GetConfigs() ([]elastic.ClientOptionFunc, error) {
 	options := make([]elastic.ClientOptionFunc, 3)
 	options[0] = elastic.SetURL(c.Servers...)
 	options[1] = elastic.SetBasicAuth(c.Username, c.Password)
 	options[2] = elastic.SetSniff(c.Sniffer)
-	return options
+
+	// if AWS IAM is enabled, instantiate the elastic client with a signing client created via the AWS SDK
+	if c.AwsIamConfig.Enabled {
+		sess, err := session.NewSession()
+		if err != nil {
+			return nil, err
+		}
+
+		signer := v4.NewSigner(sess.Config.Credentials)
+		awsSigningClient, err := aws_signing_client.New(signer, nil, "es", *sess.Config.Region)
+		if err != nil {
+			return nil, err
+		}
+		options = append(options, elastic.SetHttpClient(awsSigningClient))
+	}
+
+	return options, nil
 }

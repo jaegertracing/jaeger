@@ -1,5 +1,5 @@
 hash: 5ffbb7d077d2f42d30c8107c7c323b17e8fbc252fff78e24c5e19577cf942e04
-updated: 2018-08-13T15:02:55.899715-04:00
+updated: 2018-08-30T16:59:30.365812-04:00
 imports:
 - name: github.com/apache/thrift
   version: 53dd39833a08ce33582e5ff31fa18bb4735d6731
@@ -7,12 +7,27 @@ imports:
   - lib/go/thrift
 - name: github.com/asaskevich/govalidator
   version: 852d82c746b23d9b357b210ea470d99f4e023b72
+- name: github.com/aws/aws-sdk-go
+  version: 65e0d510c9560c8d59b69ab2e9e1ded1d3c5ccac
+  subpackages:
+  - aws
+  - aws/awserr
+  - aws/awsutil
+  - aws/client/metadata
+  - aws/credentials
+  - aws/endpoints
+  - aws/request
+  - aws/signer/v4
+  - internal/sdkio
+  - internal/shareddefaults
+  - private/protocol
+  - private/protocol/rest
 - name: github.com/beorn7/perks
   version: 3a771d992973f24aa725d07868b467d1ddfceafb
   subpackages:
   - quantile
 - name: github.com/bsm/sarama-cluster
-  version: cf455bc755fe41ac9bb2861e7a961833d9c2ecc3
+  version: c618e605e15c0d7535f6c96ff8efbb0dba4fd66c
 - name: github.com/codahale/hdrhistogram
   version: 3a0bb77429bd3a61596f5e8a3172445844342120
 - name: github.com/crossdock/crossdock-go
@@ -34,6 +49,8 @@ imports:
   version: 093482f3f8ce946c05bcba64badd2c82369e084d
 - name: github.com/fsnotify/fsnotify
   version: c2828203cd70a50dcccfb2761f8b1f8ceef9a8e9
+- name: github.com/go-ini/ini
+  version: 5cf292cae48347c2490ac1a58fe36735fb78df7e
 - name: github.com/go-kit/kit
   version: a9ca6725cbbea455e61c6bc8a1ed28e81eb3493b
   subpackages:
@@ -131,6 +148,8 @@ imports:
   - json/token
 - name: github.com/inconshreveable/mousetrap
   version: 76626ae9c91c4f2a10f34cad8ce83ea42c93bb75
+- name: github.com/jmespath/go-jmespath
+  version: c2b33e8439af944379acbdd9c3a5fe0bc44bd8a5
 - name: github.com/kr/pretty
   version: cfb55aafdaf3ec08f0db22699ab822c50091b1c4
 - name: github.com/magiconair/properties
@@ -203,6 +222,8 @@ imports:
   - fs
 - name: github.com/rcrowley/go-metrics
   version: e2704e165165ec55d062f5919b4b29494e9fa790
+- name: github.com/sha1sum/aws_signing_client
+  version: 9088e4c7b34b3174ae879fc975deb18ac62ac8d3
 - name: github.com/Shopify/sarama
   version: 35324cf48e33d8260e1c7c18854465a904ade249
   subpackages:
@@ -222,7 +243,7 @@ imports:
 - name: github.com/spf13/viper
   version: 907c19d40d9a6c9bb55f040ff4ae45271a4754b9
 - name: github.com/stretchr/objx
-  version: b8b73a35e9830ae509858c10dec5866b4d5c8bff
+  version: ef50b0de28773081167c97fc27cf29a0bf8b8c71
 - name: github.com/stretchr/testify
   version: f35b8ab0b5a2cef36673838d662e249dd9c94686
   subpackages:
@@ -292,7 +313,7 @@ imports:
   - zapcore
   - zaptest
 - name: golang.org/x/net
-  version: c39426892332e1bb5ec0a434a079bf82f5d30c54
+  version: 8a410e7b638dca158bf9e766925842f6651ff828
   subpackages:
   - context
   - context/ctxhttp

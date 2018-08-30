@@ -54,8 +54,10 @@ func TestConstructor(t *testing.T) {
 
 // partitionConsumerWrapper wraps a Sarama partition consumer into a Sarama cluster partition consumer
 type partitionConsumerWrapper struct {
-	topic     string
-	partition int32
+	topic         string
+	partition     int32
+	initialOffset int64
+	offset        int64
 
 	sarama.PartitionConsumer
 }
@@ -68,11 +70,24 @@ func (s partitionConsumerWrapper) Topic() string {
 	return s.topic
 }
 
+func (s partitionConsumerWrapper) InitialOffset() int64 {
+	return s.offset
+}
+
+func (s partitionConsumerWrapper) MarkOffset(offset int64, metadata string) {
+	s.offset = offset
+}
+
+func (s partitionConsumerWrapper) ResetOffset(offset int64, metadata string) {
+	s.offset = s.initialOffset
+}
+
 func newSaramaClusterConsumer(saramaPartitionConsumer sarama.PartitionConsumer) *kmocks.Consumer {
 	pcha := make(chan cluster.PartitionConsumer, 1)
 	pcha <- &partitionConsumerWrapper{
 		topic:             topic,
 		partition:         partition,
+		offset:            0,
 		PartitionConsumer: saramaPartitionConsumer,
 	}
 	saramaClusterConsumer := &kmocks.Consumer{}
@@ -141,6 +156,7 @@ func TestSaramaConsumerWrapper_start_Messages(t *testing.T) {
 			partitionConsumer: &partitionConsumerWrapper{
 				topic:             topic,
 				partition:         partition,
+				offset:            0,
 				PartitionConsumer: &kmocks.PartitionConsumer{},
 			},
 		},

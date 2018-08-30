@@ -37,6 +37,7 @@ const (
 	suffixBulkActions       = ".bulk.actions"
 	suffixBulkFlushInterval = ".bulk.flush-interval"
 	suffixIndexPrefix       = ".index-prefix"
+	suffixAwsIamEnabled     = ".aws.iam_enabled"
 )
 
 // TODO this should be moved next to config.Configuration struct (maybe ./flags package)
@@ -75,6 +76,9 @@ func NewOptions(primaryNamespace string, otherNamespaces ...string) *Options {
 				BulkWorkers:       1,
 				BulkActions:       1000,
 				BulkFlushInterval: time.Millisecond * 200,
+				AwsIamConfig: config.AwsIamConfiguration{
+					Enabled: false,
+				},
 			},
 			servers:   "http://127.0.0.1:9200",
 			namespace: primaryNamespace,
@@ -146,6 +150,10 @@ func addFlags(flagSet *flag.FlagSet, nsConfig *namespaceConfig) {
 		nsConfig.namespace+suffixIndexPrefix,
 		nsConfig.IndexPrefix,
 		"Optional prefix of Jaeger indices. For example \"production\" creates \"production:jaeger-*\".")
+	flagSet.Bool(
+		nsConfig.namespace+suffixAwsIamEnabled,
+		nsConfig.AwsIamConfig.Enabled,
+		"Whether to connect to AWS ElasticSearch with IAM authentication. Requires the proper .aws/ files to be setup to connect.")
 }
 
 // InitFromViper initializes Options with properties from viper
@@ -169,6 +177,7 @@ func initFromViper(cfg *namespaceConfig, v *viper.Viper) {
 	cfg.BulkActions = v.GetInt(cfg.namespace + suffixBulkActions)
 	cfg.BulkFlushInterval = v.GetDuration(cfg.namespace + suffixBulkFlushInterval)
 	cfg.IndexPrefix = v.GetString(cfg.namespace + suffixIndexPrefix)
+	cfg.AwsIamConfig.Enabled = v.GetBool(cfg.namespace + suffixAwsIamEnabled)
 }
 
 // GetPrimary returns primary configuration.

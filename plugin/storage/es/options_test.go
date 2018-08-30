@@ -33,11 +33,13 @@ func TestOptions(t *testing.T) {
 	assert.Equal(t, int64(1), primary.NumReplicas)
 	assert.Equal(t, 72*time.Hour, primary.MaxSpanAge)
 	assert.False(t, primary.Sniffer)
+	assert.Equal(t, false, primary.AwsIamConfig.Enabled)
 
 	aux := opts.Get("archive")
 	assert.Equal(t, primary.Username, aux.Username)
 	assert.Equal(t, primary.Password, aux.Password)
 	assert.Equal(t, primary.Servers, aux.Servers)
+	assert.Equal(t, primary.AwsIamConfig, aux.AwsIamConfig)
 }
 
 func TestOptionsWithFlags(t *testing.T) {
@@ -50,7 +52,7 @@ func TestOptionsWithFlags(t *testing.T) {
 		"--es.sniffer=true",
 		"--es.max-span-age=48h",
 		"--es.num-shards=20",
-		"--es.num-replicas=10",
+		"--es.aws.iam_enabled=true",
 		// a couple overrides
 		"--es.aux.server-urls=3.3.3.3,4.4.4.4",
 		"--es.aux.max-span-age=24h",
@@ -62,6 +64,7 @@ func TestOptionsWithFlags(t *testing.T) {
 	assert.Equal(t, "hello", primary.Username)
 	assert.Equal(t, []string{"1.1.1.1", "2.2.2.2"}, primary.Servers)
 	assert.Equal(t, 48*time.Hour, primary.MaxSpanAge)
+	assert.Equal(t, true, primary.AwsIamConfig.Enabled)
 	assert.True(t, primary.Sniffer)
 
 	aux := opts.Get("es.aux")
