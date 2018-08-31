@@ -17,6 +17,7 @@ package offset
 import (
 	"sync"
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/uber/jaeger-lib/metrics"
@@ -46,4 +47,17 @@ func TestHandleReset(t *testing.T) {
 	cnt, g := m.Snapshot()
 	assert.Equal(t, int64(1), cnt["offset-commits-total|partition=1"])
 	assert.Equal(t, int64(offset), g["last-committed-offset|partition=1"])
+}
+
+func TestCache(t *testing.T) {
+	offset := int64(1498)
+
+	fakeMarker := func(offset int64) {
+		assert.Fail(t, "Shouldn't mark cached offset")
+	}
+	manager := NewManager(offset, fakeMarker, 1, metrics.NullFactory)
+	manager.Start()
+	time.Sleep(resetInterval + 50)
+	manager.MarkOffset(offset)
+	manager.Close()
 }

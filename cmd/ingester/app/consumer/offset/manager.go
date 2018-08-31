@@ -41,6 +41,7 @@ type Manager struct {
 	markOffsetFunction  MarkOffset
 	offsetCommitCount   metrics.Counter
 	lastCommittedOffset metrics.Gauge
+	minOffset           int64
 	list                *ConcurrentList
 	close               chan struct{}
 	isClosed            sync.WaitGroup
@@ -57,6 +58,7 @@ func NewManager(minOffset int64, markOffset MarkOffset, partition int32, factory
 		offsetCommitCount:   factory.Counter("offset-commits-total", map[string]string{"partition": strconv.Itoa(int(partition))}),
 		lastCommittedOffset: factory.Gauge("last-committed-offset", map[string]string{"partition": strconv.Itoa(int(partition))}),
 		list:                newConcurrentList(minOffset),
+		minOffset:           minOffset,
 	}
 }
 
@@ -69,13 +71,17 @@ func (m *Manager) MarkOffset(offset int64) {
 func (m *Manager) Start() {
 	m.isClosed.Add(1)
 	go func() {
+		lastCommittedOffset := m.minOffset
 		for {
 			select {
 			case <-time.After(resetInterval):
 				offset := m.list.setToHighestContiguous()
-				m.offsetCommitCount.Inc(1)
-				m.lastCommittedOffset.Update(offset)
-				m.markOffsetFunction(offset)
+				if lastCommittedOffset != offset {
+					m.offsetCommitCount.Inc(1)
+					m.lastCommittedOffset.Update(offset)
+					m.markOffsetFunction(offset)
+					lastCommittedOffset = offset
+				}
 			case <-m.close:
 				m.isClosed.Done()
 				return
