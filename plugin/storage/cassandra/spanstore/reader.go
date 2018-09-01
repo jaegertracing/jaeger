@@ -186,7 +186,6 @@ func (s *SpanReader) readTraceInSpan(ctx context.Context, traceID dbmodel.TraceI
 		}
 		span, err := dbmodel.ToDomain(&dbSpan)
 		if err != nil {
-			//do we consider conversion failure to cause such metrics to be emitted? for now i'm assuming yes.
 			s.metrics.readTraces.Emit(err, time.Since(start))
 			return nil, err
 		}
@@ -292,6 +291,8 @@ func (s *SpanReader) queryByTagsAndLogs(ctx context.Context, tq *spanstore.Trace
 
 	results := make([]dbmodel.UniqueTraceIDs, 0, len(tq.Tags))
 	for k, v := range tq.Tags {
+		childSpan := opentracing.StartSpan("queryByTag")
+		childSpan.LogFields(otlog.String("tag.key", k), otlog.String("tag.value", v))
 		query := s.session.Query(
 			queryByTag,
 			tq.ServiceName,
@@ -301,8 +302,8 @@ func (s *SpanReader) queryByTagsAndLogs(ctx context.Context, tq *spanstore.Trace
 			model.TimeAsEpochMicroseconds(tq.StartTimeMax),
 			tq.NumTraces*limitMultiple,
 		).PageSize(0)
-		// TODO should have span per iteration
-		t, err := s.executeQuery(span, query, s.metrics.queryTagIndex)
+		t, err := s.executeQuery(childSpan, query, s.metrics.queryTagIndex)
+		childSpan.Finish()
 		if err != nil {
 			return nil, err
 		}
@@ -329,6 +330,8 @@ func (s *SpanReader) queryByDuration(ctx context.Context, traceQuery *spanstore.
 	endTimeByHour := traceQuery.StartTimeMax.Round(durationBucketSize)
 
 	for timeBucket := endTimeByHour; timeBucket.After(startTimeByHour) || timeBucket.Equal(startTimeByHour); timeBucket = timeBucket.Add(-1 * durationBucketSize) {
+		childSpan := opentracing.StartSpan("queryForTimeBucket")
+		childSpan.LogFields(otlog.String("timeBucket", timeBucket.String()))
 		query := s.session.Query(
 			queryByDuration,
 			timeBucket,
@@ -337,8 +340,8 @@ func (s *SpanReader) queryByDuration(ctx context.Context, traceQuery *spanstore.
 			minDurationMicros,
 			maxDurationMicros,
 			traceQuery.NumTraces*limitMultiple)
-		// TODO should have span for each iteration
-		t, err := s.executeQuery(span, query, s.metrics.queryDurationIndex)
+		t, err := s.executeQuery(childSpan, query, s.metrics.queryDurationIndex)
+		childSpan.Finish()
 		if err != nil {
 			return nil, err
 		}
