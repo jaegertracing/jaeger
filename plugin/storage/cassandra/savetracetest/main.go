@@ -15,6 +15,7 @@
 package main
 
 import (
+	"context"
 	"time"
 
 	"github.com/uber/jaeger-lib/metrics"
@@ -50,7 +51,8 @@ func main() {
 		logger.Info("Saved span", zap.String("spanID", getSomeSpan().SpanID.String()))
 	}
 	s := getSomeSpan()
-	trace, err := spanReader.GetTrace(s.TraceID)
+	ctx := context.Background()
+	trace, err := spanReader.GetTrace(ctx, s.TraceID)
 	if err != nil {
 		logger.Fatal("Failed to read", zap.Error(err))
 	} else {
@@ -63,27 +65,27 @@ func main() {
 		StartTimeMax: time.Now().Add(time.Hour),
 	}
 	logger.Info("Check main query")
-	queryAndPrint(spanReader, tqp)
+	queryAndPrint(ctx, spanReader, tqp)
 
 	tqp.OperationName = "opName"
 	logger.Info("Check query with operation")
-	queryAndPrint(spanReader, tqp)
+	queryAndPrint(ctx, spanReader, tqp)
 
 	tqp.Tags = map[string]string{
 		"someKey": "someVal",
 	}
 	logger.Info("Check query with operation name and tags")
-	queryAndPrint(spanReader, tqp)
+	queryAndPrint(ctx, spanReader, tqp)
 
 	tqp.DurationMin = 0
 	tqp.DurationMax = time.Hour
 	tqp.Tags = map[string]string{}
 	logger.Info("check query with duration")
-	queryAndPrint(spanReader, tqp)
+	queryAndPrint(ctx, spanReader, tqp)
 }
 
-func queryAndPrint(spanReader *cSpanStore.SpanReader, tqp *spanstore.TraceQueryParameters) {
-	traces, err := spanReader.FindTraces(tqp)
+func queryAndPrint(ctx context.Context, spanReader *cSpanStore.SpanReader, tqp *spanstore.TraceQueryParameters) {
+	traces, err := spanReader.FindTraces(ctx, tqp)
 	if err != nil {
 		logger.Fatal("Failed to query", zap.Error(err))
 	} else {

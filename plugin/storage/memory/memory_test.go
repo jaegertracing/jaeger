@@ -15,6 +15,7 @@
 package memory
 
 import (
+	"context"
 	"testing"
 	"time"
 
@@ -198,7 +199,7 @@ func TestStoreWithLimit(t *testing.T) {
 
 func TestStoreGetTraceSuccess(t *testing.T) {
 	withPopulatedMemoryStore(func(store *Store) {
-		trace, err := store.GetTrace(testingSpan.TraceID)
+		trace, err := store.GetTrace(context.Background(), testingSpan.TraceID)
 		assert.NoError(t, err)
 		assert.Len(t, trace.Spans, 1)
 		assert.Equal(t, testingSpan, trace.Spans[0])
@@ -207,7 +208,7 @@ func TestStoreGetTraceSuccess(t *testing.T) {
 
 func TestStoreGetTraceFailure(t *testing.T) {
 	withPopulatedMemoryStore(func(store *Store) {
-		trace, err := store.GetTrace(model.TraceID{})
+		trace, err := store.GetTrace(context.Background(), model.TraceID{})
 		assert.EqualError(t, err, errTraceNotFound.Error())
 		assert.Nil(t, trace)
 	})
@@ -215,7 +216,7 @@ func TestStoreGetTraceFailure(t *testing.T) {
 
 func TestStoreGetServices(t *testing.T) {
 	withPopulatedMemoryStore(func(store *Store) {
-		serviceNames, err := store.GetServices()
+		serviceNames, err := store.GetServices(context.Background())
 		assert.NoError(t, err)
 		assert.Len(t, serviceNames, 1)
 		assert.EqualValues(t, testingSpan.Process.ServiceName, serviceNames[0])
@@ -224,7 +225,7 @@ func TestStoreGetServices(t *testing.T) {
 
 func TestStoreGetOperationsFound(t *testing.T) {
 	withPopulatedMemoryStore(func(store *Store) {
-		operations, err := store.GetOperations(testingSpan.Process.ServiceName)
+		operations, err := store.GetOperations(context.Background(), testingSpan.Process.ServiceName)
 		assert.NoError(t, err)
 		assert.Len(t, operations, 1)
 		assert.EqualValues(t, testingSpan.OperationName, operations[0])
@@ -233,7 +234,7 @@ func TestStoreGetOperationsFound(t *testing.T) {
 
 func TestStoreGetOperationsNotFound(t *testing.T) {
 	withPopulatedMemoryStore(func(store *Store) {
-		operations, err := store.GetOperations("notAService")
+		operations, err := store.GetOperations(context.Background(), "notAService")
 		assert.NoError(t, err)
 		assert.Len(t, operations, 0)
 	})
@@ -241,7 +242,7 @@ func TestStoreGetOperationsNotFound(t *testing.T) {
 
 func TestStoreGetEmptyTraceSet(t *testing.T) {
 	withPopulatedMemoryStore(func(store *Store) {
-		traces, err := store.FindTraces(&spanstore.TraceQueryParameters{})
+		traces, err := store.FindTraces(context.Background(), &spanstore.TraceQueryParameters{})
 		assert.NoError(t, err)
 		assert.Len(t, traces, 0)
 	})
@@ -313,7 +314,7 @@ func TestStoreGetTrace(t *testing.T) {
 	for _, testS := range testStruct {
 		withPopulatedMemoryStore(func(store *Store) {
 			testS.query.NumTraces = 10
-			traces, err := store.FindTraces(testS.query)
+			traces, err := store.FindTraces(context.Background(), testS.query)
 			assert.NoError(t, err)
 			if testS.traceFound {
 				assert.Len(t, traces, 1)
