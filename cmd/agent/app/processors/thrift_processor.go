@@ -114,7 +114,7 @@ func (s *ThriftProcessor) processBuffer() {
 		s.server.DataRecd(readBuf) // acknowledge receipt and release the buffer
 
 		if ok, _ := s.handler.Process(protocol, protocol); !ok {
-			// TODO log the error
+			s.logger.Error("error: %v", zap.Error(e))
 			s.metrics.HandlerProcessError.Inc(1)
 		}
 		s.protocolPool.Put(protocol)
