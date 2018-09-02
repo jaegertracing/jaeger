@@ -420,8 +420,22 @@ func TestStringToProbabilitiesAndQPS(t *testing.T) {
 	probabilities := s.stringToProbabilitiesAndQPS(testStr)
 
 	assert.Len(t, probabilities, 2)
-	assert.Equal(t, map[string]*model.ProbabilityAndQPS{"GET": {0.001, 63.2}, "PUT": {0.002, 0.0}}, probabilities["svc1"])
-	assert.Equal(t, map[string]*model.ProbabilityAndQPS{"GET": {0.5, 34.2}}, probabilities["svc2"])
+	assert.Equal(t, map[string]*model.ProbabilityAndQPS{
+		"GET": {
+			Probability: 0.001,
+			QPS:         63.2,
+		},
+		"PUT": {
+			Probability: 0.002,
+			QPS:         0.0,
+		},
+	}, probabilities["svc1"])
+	assert.Equal(t, map[string]*model.ProbabilityAndQPS{
+		"GET": {
+			Probability: 0.5,
+			QPS:         34.2,
+		},
+	}, probabilities["svc2"])
 }
 
 func TestStringToProbabilities(t *testing.T) {
