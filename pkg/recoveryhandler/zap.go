@@ -30,7 +30,7 @@ type zapRecoveryWrapper struct {
 // Println logs an error message with the given fields
 func (z zapRecoveryWrapper) Println(fields ...interface{}) {
 	// if you think i'm going to check the type of each of the fields and then logger with fields, you're crazy.
-	z.logger.Error(fmt.Sprintln(fields))
+	z.logger.Error(fmt.Sprintln([]interface{}(fields)))
 }
 
 // NewRecoveryHandler returns an http.Handler that recovers on panics
