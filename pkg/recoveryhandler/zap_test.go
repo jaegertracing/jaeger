@@ -40,6 +40,6 @@ func TestNewRecoveryHandler(t *testing.T) {
 	assert.Equal(t, http.StatusInternalServerError, res.Code)
 	assert.Equal(t, map[string]string{
 		"level": "error",
-		"msg":   "[Unexpected error!]\n",
+		"msg":   "Unexpected error!",
 	}, log.JSONLine(0))
 }
