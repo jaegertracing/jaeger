@@ -16,7 +16,6 @@ package app
 
 import (
 	"context"
-	"fmt"
 	"time"
 
 	"go.uber.org/zap"
@@ -31,7 +30,7 @@ type GRPCHandler struct {
 	spanProcessor SpanProcessor
 }
 
-// NewGRPCHandler registers routes for this handler on the given router
+// NewGRPCHandler registers routes for this handler on the given router.
 func NewGRPCHandler(logger *zap.Logger, spanProcessor SpanProcessor) *GRPCHandler {
 	return &GRPCHandler{
 		logger:        logger,
@@ -41,16 +40,24 @@ func NewGRPCHandler(logger *zap.Logger, spanProcessor SpanProcessor) *GRPCHandle
 
 // PostSpans implements gRPC CollectorService.
 func (g *GRPCHandler) PostSpans(ctx context.Context, r *api_v2.PostSpansRequest) (*api_v2.PostSpansResponse, error) {
-	// TODO
-	fmt.Printf("PostSpans(%+v)\n", *r)
-	for _, s := range r.Batch.Spans {
-		println(s.OperationName)
+	oks, err := g.spanProcessor.ProcessSpans(r.GetBatch().Spans, JaegerFormatType)
+	if err != nil {
+		g.logger.Error("cannot process spans", zap.Error(err))
+		return nil, err
 	}
-	return &api_v2.PostSpansResponse{Ok: true}, nil
+	success := true
+	for _, ok := range oks {
+		if !ok {
+			success = false
+			break
+		}
+	}
+	return &api_v2.PostSpansResponse{Ok: success}, nil
 }
 
 // GetTrace gets trace
 func (g *GRPCHandler) GetTrace(ctx context.Context, req *api_v2.GetTraceRequest) (*api_v2.GetTraceResponse, error) {
+	// TODO
 	return &api_v2.GetTraceResponse{
 		Trace: &model.Trace{
 			Spans: []*model.Span{
