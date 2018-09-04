@@ -35,6 +35,7 @@ GOLINT=golint
 GOVET=go vet
 GOFMT=gofmt
 GOSEC=gosec -quiet -exclude=G104,G107
+GOSIMPLE=gosimple
 FMT_LOG=fmt.log
 LINT_LOG=lint.log
 IMPORT_LOG=import.log
@@ -132,6 +133,7 @@ lint-gosec:
 .PHONY: lint
 lint: lint-gosec
 	$(GOVET) $(TOP_PKGS)
+	$(GOSIMPLE) $(TOP_PKGS)
 	@cat /dev/null > $(LINT_LOG)
 	$(GOLINT) $(TOP_PKGS) | \
 		grep -v \
@@ -273,6 +275,7 @@ install-tools:
 	go get -u github.com/golang/lint/golint
 	go get -u github.com/sectioneight/md-to-godoc
 	go get -u github.com/securego/gosec/cmd/gosec/...
+	go get -u honnef.co/go/tools/cmd/gosimple
 
 .PHONY: install-ci
 install-ci: install install-tools
