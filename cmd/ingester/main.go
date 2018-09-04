@@ -37,7 +37,7 @@ import (
 )
 
 func main() {
-	var signalsChannel = make(chan os.Signal, 0)
+	var signalsChannel = make(chan os.Signal)
 	signal.Notify(signalsChannel, os.Interrupt, syscall.SIGTERM)
 
 	storageFactory, err := storage.NewFactory(storage.FactoryConfigFromEnvAndCLI(os.Args, os.Stderr))
@@ -91,21 +91,19 @@ func main() {
 			consumer.Start()
 
 			hc.Ready()
-			select {
-			case <-signalsChannel:
-				logger.Info("Jaeger Ingester is starting to close")
-				err := consumer.Close()
-				if err != nil {
-					logger.Error("Failed to close consumer", zap.Error(err))
-				}
-				if closer, ok := spanWriter.(io.Closer); ok {
-					err := closer.Close()
-					if err != nil {
-						logger.Error("Failed to close span writer", zap.Error(err))
-					}
-				}
-				logger.Info("Jaeger Ingester has finished closing")
+			<-signalsChannel
+			logger.Info("Jaeger Ingester is starting to close")
+			err = consumer.Close()
+			if err != nil {
+				logger.Error("Failed to close consumer", zap.Error(err))
 			}
+			if closer, ok := spanWriter.(io.Closer); ok {
+				err := closer.Close()
+				if err != nil {
+					logger.Error("Failed to close span writer", zap.Error(err))
+				}
+			}
+			logger.Info("Jaeger Ingester has finished closing")
 			return nil
 		},
 	}

@@ -44,7 +44,7 @@ import (
 )
 
 func main() {
-	var serverChannel = make(chan os.Signal, 0)
+	var serverChannel = make(chan os.Signal)
 	signal.Notify(serverChannel, os.Interrupt, syscall.SIGTERM)
 
 	storageFactory, err := storage.NewFactory(storage.FactoryConfigFromEnvAndCLI(os.Args, os.Stderr))
@@ -146,11 +146,8 @@ func main() {
 			}()
 
 			hc.Ready()
-
-			select {
-			case <-serverChannel:
-				logger.Info("Jaeger Query is finishing")
-			}
+			<-serverChannel
+			logger.Info("Jaeger Query is finishing")
 			return nil
 		},
 	}

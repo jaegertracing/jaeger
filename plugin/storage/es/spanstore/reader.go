@@ -225,7 +225,7 @@ func (s *SpanReader) multiRead(traceIDs []string, startTime, endTime time.Time) 
 	totalDocumentsFetched := make(map[string]int)
 	tracesMap := make(map[string]*model.Trace)
 	for {
-		if traceIDs == nil || len(traceIDs) == 0 {
+		if len(traceIDs) == 0 {
 			break
 		}
 
@@ -260,10 +260,7 @@ func (s *SpanReader) multiRead(traceIDs []string, startTime, endTime time.Time) 
 			lastSpanTraceID := lastSpan.TraceID.String()
 
 			if traceSpan, ok := tracesMap[lastSpanTraceID]; ok {
-				for _, span := range spans {
-					traceSpan.Spans = append(traceSpan.Spans, span)
-				}
-
+				traceSpan.Spans = append(traceSpan.Spans, spans...)
 			} else {
 				tracesMap[lastSpanTraceID] = &model.Trace{Spans: spans}
 			}

@@ -154,11 +154,7 @@ func isSpanAllowed(span *model.Span) bool {
 		return true
 	}
 
-	serviceName := span.Process.ServiceName
-	if serviceName == blackListedService {
-		return false
-	}
-	return true
+	return span.Process.ServiceName != blackListedService
 }
 
 type fakeSpanWriter struct {
