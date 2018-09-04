@@ -82,7 +82,7 @@ func TestPostSpans(t *testing.T) {
 	r, err := client.PostSpans(ctx, &api_v2.PostSpansRequest{
 		Batch: model.Batch{
 			Spans: []*model.Span{
-				&model.Span{
+				{
 					OperationName: "test-operation",
 				},
 			},
@@ -104,7 +104,7 @@ func TestPostSpansWithError(t *testing.T) {
 	r, err := client.PostSpans(ctx, &api_v2.PostSpansRequest{
 		Batch: model.Batch{
 			Spans: []*model.Span{
-				&model.Span{
+				{
 					OperationName: "fake-operation",
 				},
 			},
