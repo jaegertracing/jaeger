@@ -35,3 +35,25 @@ func ChainedProcessSpan(spanProcessors ...ProcessSpan) ProcessSpan {
 		}
 	}
 }
+
+// ChainedProcessSpans chains spanProcessors as a single ProcessSpans call
+func ChainedProcessSpans(spanProcessors ...ProcessSpans) ProcessSpans {
+	return func(spans []*model.Span) {
+		for _, processor := range spanProcessors {
+			processor(spans)
+		}
+	}
+}
+
+// ChainedFilterSpan chains filters as a single FilterSpan call
+// The execution stops if any of the filters return
+func ChainedFilterSpan(filters ...FilterSpan) FilterSpan {
+	return  func(span *model.Span) bool {
+		for _, filter := range filters {
+			if ! filter(span) {
+				return false
+			}
+		}
+		return true
+	}
+}
