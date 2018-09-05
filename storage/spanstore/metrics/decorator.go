@@ -15,6 +15,7 @@
 package metrics
 
 import (
+	"context"
 	"time"
 
 	"github.com/uber/jaeger-lib/metrics"
@@ -72,33 +73,33 @@ func buildQueryMetrics(namespace string, metricsFactory metrics.Factory) *queryM
 }
 
 // FindTraces implements spanstore.Reader#FindTraces
-func (m *ReadMetricsDecorator) FindTraces(traceQuery *spanstore.TraceQueryParameters) ([]*model.Trace, error) {
+func (m *ReadMetricsDecorator) FindTraces(ctx context.Context, traceQuery *spanstore.TraceQueryParameters) ([]*model.Trace, error) {
 	start := time.Now()
-	retMe, err := m.spanReader.FindTraces(traceQuery)
+	retMe, err := m.spanReader.FindTraces(ctx, traceQuery)
 	m.findTracesMetrics.emit(err, time.Since(start), len(retMe))
 	return retMe, err
 }
 
 // GetTrace implements spanstore.Reader#GetTrace
-func (m *ReadMetricsDecorator) GetTrace(traceID model.TraceID) (*model.Trace, error) {
+func (m *ReadMetricsDecorator) GetTrace(ctx context.Context, traceID model.TraceID) (*model.Trace, error) {
 	start := time.Now()
-	retMe, err := m.spanReader.GetTrace(traceID)
+	retMe, err := m.spanReader.GetTrace(ctx, traceID)
 	m.getTraceMetrics.emit(err, time.Since(start), 1)
 	return retMe, err
 }
 
 // GetServices implements spanstore.Reader#GetServices
-func (m *ReadMetricsDecorator) GetServices() ([]string, error) {
+func (m *ReadMetricsDecorator) GetServices(ctx context.Context) ([]string, error) {
 	start := time.Now()
-	retMe, err := m.spanReader.GetServices()
+	retMe, err := m.spanReader.GetServices(ctx)
 	m.getServicesMetrics.emit(err, time.Since(start), len(retMe))
 	return retMe, err
 }
 
 // GetOperations implements spanstore.Reader#GetOperations
-func (m *ReadMetricsDecorator) GetOperations(service string) ([]string, error) {
+func (m *ReadMetricsDecorator) GetOperations(ctx context.Context, service string) ([]string, error) {
 	start := time.Now()
-	retMe, err := m.spanReader.GetOperations(service)
+	retMe, err := m.spanReader.GetOperations(ctx, service)
 	m.getOperationsMetrics.emit(err, time.Since(start), len(retMe))
 	return retMe, err
 }

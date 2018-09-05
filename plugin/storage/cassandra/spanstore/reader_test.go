@@ -15,6 +15,7 @@
 package spanstore
 
 import (
+	"context"
 	"errors"
 	"strings"
 	"testing"
@@ -59,7 +60,7 @@ var _ spanstore.Reader = &SpanReader{} // check API conformance
 func TestSpanReaderGetServices(t *testing.T) {
 	withSpanReader(func(r *spanReaderTest) {
 		r.reader.serviceNamesReader = func() ([]string, error) { return []string{"service-a"}, nil }
-		s, err := r.reader.GetServices()
+		s, err := r.reader.GetServices(context.Background())
 		assert.NoError(t, err)
 		assert.Equal(t, []string{"service-a"}, s)
 	})
@@ -68,7 +69,7 @@ func TestSpanReaderGetServices(t *testing.T) {
 func TestSpanReaderGetOperations(t *testing.T) {
 	withSpanReader(func(r *spanReaderTest) {
 		r.reader.operationNamesReader = func(string) ([]string, error) { return []string{"operation-a"}, nil }
-		s, err := r.reader.GetOperations("service-x")
+		s, err := r.reader.GetOperations(context.Background(), "service-x")
 		assert.NoError(t, err)
 		assert.Equal(t, []string{"operation-a"}, s)
 	})
@@ -117,7 +118,7 @@ func TestSpanReaderGetTrace(t *testing.T) {
 
 				r.session.On("Query", mock.AnythingOfType("string"), matchEverything()).Return(query)
 
-				trace, err := r.reader.GetTrace(model.TraceID{})
+				trace, err := r.reader.GetTrace(context.Background(), model.TraceID{})
 				if testCase.expectedErr == "" {
 					assert.NoError(t, err)
 					assert.NotNil(t, trace)
@@ -143,7 +144,7 @@ func TestSpanReaderGetTrace_TraceNotFound(t *testing.T) {
 
 		r.session.On("Query", mock.AnythingOfType("string"), matchEverything()).Return(query)
 
-		trace, err := r.reader.GetTrace(model.TraceID{})
+		trace, err := r.reader.GetTrace(context.Background(), model.TraceID{})
 		assert.Nil(t, trace)
 		assert.EqualError(t, err, "trace not found")
 	})
@@ -151,7 +152,7 @@ func TestSpanReaderGetTrace_TraceNotFound(t *testing.T) {
 
 func TestSpanReaderFindTracesBadRequest(t *testing.T) {
 	withSpanReader(func(r *spanReaderTest) {
-		_, err := r.reader.FindTraces(nil)
+		_, err := r.reader.FindTraces(context.Background(), nil)
 		assert.Error(t, err)
 	})
 }
@@ -353,7 +354,7 @@ func TestSpanReaderFindTraces(t *testing.T) {
 					queryParams.DurationMax = time.Minute * 3
 
 				}
-				res, err := r.reader.FindTraces(queryParams)
+				res, err := r.reader.FindTraces(context.Background(), queryParams)
 				if testCase.expectedError == "" {
 					assert.NoError(t, err)
 					assert.Len(t, res, testCase.expectedCount, "expecting certain number of traces")

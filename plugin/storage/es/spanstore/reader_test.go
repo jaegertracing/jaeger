@@ -15,6 +15,7 @@
 package spanstore
 
 import (
+	"context"
 	"encoding/json"
 	"errors"
 	"testing"
@@ -135,7 +136,7 @@ func TestSpanReader_GetTrace(t *testing.T) {
 				},
 			}, nil)
 
-		trace, err := r.reader.GetTrace(model.NewTraceID(0, 1))
+		trace, err := r.reader.GetTrace(context.Background(), model.NewTraceID(0, 1))
 		require.NoError(t, err)
 		require.NotNil(t, trace)
 
@@ -166,7 +167,7 @@ func TestSpanReader_SearchAfter(t *testing.T) {
 				},
 			}, nil).Times(2)
 
-		trace, err := r.reader.GetTrace(model.NewTraceID(0, 1))
+		trace, err := r.reader.GetTrace(context.Background(), model.NewTraceID(0, 1))
 		require.NoError(t, err)
 		require.NotNil(t, trace)
 
@@ -185,7 +186,7 @@ func TestSpanReader_GetTraceQueryError(t *testing.T) {
 			Return(&elastic.MultiSearchResult{
 				Responses: []*elastic.SearchResult{},
 			}, nil)
-		trace, err := r.reader.GetTrace(model.NewTraceID(0, 1))
+		trace, err := r.reader.GetTrace(context.Background(), model.NewTraceID(0, 1))
 		require.EqualError(t, err, "No trace with that ID found")
 		require.Nil(t, trace)
 	})
@@ -204,7 +205,7 @@ func TestSpanReader_GetTraceNilHits(t *testing.T) {
 				},
 			}, nil)
 
-		trace, err := r.reader.GetTrace(model.NewTraceID(0, 1))
+		trace, err := r.reader.GetTrace(context.Background(), model.NewTraceID(0, 1))
 		require.EqualError(t, err, "No trace with that ID found")
 		require.Nil(t, trace)
 	})
@@ -227,7 +228,7 @@ func TestSpanReader_GetTraceInvalidSpanError(t *testing.T) {
 				},
 			}, nil)
 
-		trace, err := r.reader.GetTrace(model.NewTraceID(0, 1))
+		trace, err := r.reader.GetTrace(context.Background(), model.NewTraceID(0, 1))
 		require.Error(t, err, "invalid span")
 		require.Nil(t, trace)
 	})
@@ -251,7 +252,7 @@ func TestSpanReader_GetTraceSpanConversionError(t *testing.T) {
 				},
 			}, nil)
 
-		trace, err := r.reader.GetTrace(model.NewTraceID(0, 1))
+		trace, err := r.reader.GetTrace(context.Background(), model.NewTraceID(0, 1))
 		require.Error(t, err, "span conversion error, because lacks elements")
 		require.Nil(t, trace)
 	})
@@ -392,9 +393,9 @@ func testGet(typ string, t *testing.T) {
 
 func returnSearchFunc(typ string, r *spanReaderTest) ([]string, error) {
 	if typ == servicesAggregation {
-		return r.reader.GetServices()
+		return r.reader.GetServices(context.Background())
 	} else if typ == operationsAggregation {
-		return r.reader.GetOperations("someService")
+		return r.reader.GetOperations(context.Background(), "someService")
 	} else if typ == traceIDAggregation {
 		return r.reader.findTraceIDs(&spanstore.TraceQueryParameters{})
 	}
@@ -460,7 +461,7 @@ func TestSpanReader_FindTraces(t *testing.T) {
 			NumTraces:    1,
 		}
 
-		traces, err := r.reader.FindTraces(traceQuery)
+		traces, err := r.reader.FindTraces(context.Background(), traceQuery)
 		require.NoError(t, err)
 		assert.Len(t, traces, 1)
 
@@ -504,7 +505,7 @@ func TestSpanReader_FindTracesInvalidQuery(t *testing.T) {
 			StartTimeMax: time.Now(),
 		}
 
-		traces, err := r.reader.FindTraces(traceQuery)
+		traces, err := r.reader.FindTraces(context.Background(), traceQuery)
 		require.Error(t, err)
 		assert.Nil(t, traces)
 	})
@@ -536,7 +537,7 @@ func TestSpanReader_FindTracesAggregationFailure(t *testing.T) {
 			StartTimeMax: time.Now(),
 		}
 
-		traces, err := r.reader.FindTraces(traceQuery)
+		traces, err := r.reader.FindTraces(context.Background(), traceQuery)
 		require.Error(t, err)
 		assert.Nil(t, traces)
 	})
@@ -570,7 +571,7 @@ func TestSpanReader_FindTracesNoTraceIDs(t *testing.T) {
 			StartTimeMax: time.Now(),
 		}
 
-		traces, err := r.reader.FindTraces(traceQuery)
+		traces, err := r.reader.FindTraces(context.Background(), traceQuery)
 		require.NoError(t, err)
 		assert.Len(t, traces, 0)
 	})
@@ -603,7 +604,7 @@ func TestSpanReader_FindTracesReadTraceFailure(t *testing.T) {
 			StartTimeMax: time.Now(),
 		}
 
-		traces, err := r.reader.FindTraces(traceQuery)
+		traces, err := r.reader.FindTraces(context.Background(), traceQuery)
 		require.EqualError(t, err, "read error")
 		assert.Len(t, traces, 0)
 	})
@@ -641,7 +642,7 @@ func TestSpanReader_FindTracesSpanCollectionFailure(t *testing.T) {
 			StartTimeMax: time.Now(),
 		}
 
-		traces, err := r.reader.FindTraces(traceQuery)
+		traces, err := r.reader.FindTraces(context.Background(), traceQuery)
 		require.Error(t, err)
 		assert.Len(t, traces, 0)
 	})
@@ -912,7 +913,7 @@ func TestSpanReader_GetEmptyIndex(t *testing.T) {
 			NumTraces:    2,
 		}
 
-		services, err := r.reader.FindTraces(traceQuery)
+		services, err := r.reader.FindTraces(context.Background(), traceQuery)
 		require.NoError(t, err)
 		assert.Empty(t, services)
 	})

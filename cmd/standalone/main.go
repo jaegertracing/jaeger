@@ -26,10 +26,12 @@ import (
 	"syscall"
 
 	"github.com/gorilla/mux"
+	"github.com/opentracing/opentracing-go"
 	"github.com/pkg/errors"
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
 	jaegerClientConfig "github.com/uber/jaeger-client-go/config"
+	jaegerClientZapLog "github.com/uber/jaeger-client-go/log/zap"
 	"github.com/uber/jaeger-lib/metrics"
 	"github.com/uber/tchannel-go"
 	"github.com/uber/tchannel-go/thrift"
@@ -277,10 +279,16 @@ func startQuery(
 			Param: 1.0,
 		},
 		RPCMetrics: true,
-	}.New("jaeger-query", jaegerClientConfig.Metrics(baseFactory.Namespace("client", nil)))
+	}.New(
+		"jaeger-query",
+		jaegerClientConfig.Metrics(baseFactory.Namespace("client", nil)),
+		jaegerClientConfig.Logger(jaegerClientZapLog.NewLogger(logger)),
+	)
 	if err != nil {
 		logger.Fatal("Failed to initialize tracer", zap.Error(err))
 	}
+	opentracing.SetGlobalTracer(tracer)
+
 	apiHandler := queryApp.NewAPIHandler(
 		spanReader,
 		depReader,

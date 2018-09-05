@@ -15,6 +15,7 @@
 package metrics_test
 
 import (
+	"context"
 	"errors"
 	"testing"
 
@@ -33,13 +34,13 @@ func TestSuccessfulUnderlyingCalls(t *testing.T) {
 	mockReader := mocks.Reader{}
 	mrs := NewReadMetricsDecorator(&mockReader, mf)
 	mockReader.On("GetServices").Return([]string{}, nil)
-	mrs.GetServices()
+	mrs.GetServices(context.Background())
 	mockReader.On("GetOperations", "something").Return([]string{}, nil)
-	mrs.GetOperations("something")
+	mrs.GetOperations(context.Background(), "something")
 	mockReader.On("GetTrace", model.TraceID{}).Return(&model.Trace{}, nil)
-	mrs.GetTrace(model.TraceID{})
+	mrs.GetTrace(context.Background(), model.TraceID{})
 	mockReader.On("FindTraces", &spanstore.TraceQueryParameters{}).Return([]*model.Trace{}, nil)
-	mrs.FindTraces(&spanstore.TraceQueryParameters{})
+	mrs.FindTraces(context.Background(), &spanstore.TraceQueryParameters{})
 	counters, gauges := mf.Snapshot()
 	expecteds := map[string]int64{
 		"get_operations.attempts":  1,
@@ -90,13 +91,13 @@ func TestFailingUnderlyingCalls(t *testing.T) {
 	mockReader := mocks.Reader{}
 	mrs := NewReadMetricsDecorator(&mockReader, mf)
 	mockReader.On("GetServices").Return(nil, errors.New("Failure"))
-	mrs.GetServices()
+	mrs.GetServices(context.Background())
 	mockReader.On("GetOperations", "something").Return(nil, errors.New("Failure"))
-	mrs.GetOperations("something")
+	mrs.GetOperations(context.Background(), "something")
 	mockReader.On("GetTrace", model.TraceID{}).Return(nil, errors.New("Failure"))
-	mrs.GetTrace(model.TraceID{})
+	mrs.GetTrace(context.Background(), model.TraceID{})
 	mockReader.On("FindTraces", &spanstore.TraceQueryParameters{}).Return(nil, errors.New("Failure"))
-	mrs.FindTraces(&spanstore.TraceQueryParameters{})
+	mrs.FindTraces(context.Background(), &spanstore.TraceQueryParameters{})
 	counters, gauges := mf.Snapshot()
 	expecteds := map[string]int64{
 		"get_operations.attempts":  1,
