@@ -146,10 +146,17 @@ func (s *SpanReader) GetOperations(ctx context.Context, service string) ([]strin
 	return s.operationNamesReader(service)
 }
 
+func lazyLogTraceID(traceID dbmodel.TraceID) func(fv otlog.Encoder) {
+	// unfortunately, this requires an allocation, due to the way OT API is defined.
+	return func(fv otlog.Encoder) {
+		fv.EmitObject("trace_id", traceID)
+	}
+}
+
 func (s *SpanReader) readTrace(ctx context.Context, traceID dbmodel.TraceID) (*model.Trace, error) {
 	span, ctx := startSpanForQuery(ctx, "readTrace", querySpanByTraceID)
 	defer span.Finish()
-	span.SetTag("traceID", traceID)
+	span.LogFields(otlog.String("event", "searching"), otlog.Lazy(lazyLogTraceID(traceID)))
 
 	trace, err := s.readTraceInSpan(ctx, traceID)
 	logErrorToSpan(span, err)

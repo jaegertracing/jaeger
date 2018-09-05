@@ -24,9 +24,11 @@ import (
 	"syscall"
 
 	"github.com/gorilla/handlers"
+	"github.com/opentracing/opentracing-go"
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
 	jaegerClientConfig "github.com/uber/jaeger-client-go/config"
+	jaegerClientZapLog "github.com/uber/jaeger-client-go/log/zap"
 	"go.uber.org/zap"
 
 	"github.com/jaegertracing/jaeger/cmd/env"
@@ -86,11 +88,16 @@ func main() {
 					Param: 1.0,
 				},
 				RPCMetrics: true,
-			}.New("jaeger-query", jaegerClientConfig.Metrics(baseFactory.Namespace("client", nil)))
+			}.New(
+				"jaeger-query",
+				jaegerClientConfig.Metrics(baseFactory.Namespace("client", nil)),
+				jaegerClientConfig.Logger(jaegerClientZapLog.NewLogger(logger)),
+			)
 			if err != nil {
 				logger.Fatal("Failed to initialize tracer", zap.Error(err))
 			}
 			defer closer.Close()
+			opentracing.SetGlobalTracer(tracer)
 
 			storageFactory.InitFromViper(v)
 			if err := storageFactory.Initialize(baseFactory, logger); err != nil {
