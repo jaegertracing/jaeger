@@ -50,13 +50,13 @@ func TestRaceCondition(t *testing.T) {
 	finish.Add(2)
 
 	go func() {
-		_ = <-start
+		<-start
 		logger.Info("test")
 		finish.Done()
 	}()
 
 	go func() {
-		_ = <-start
+		<-start
 		buffer.Lines()
 		buffer.Stripped()
 		_ = buffer.String()
