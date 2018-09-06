@@ -146,7 +146,7 @@ func main() {
 
 			go startZipkinHTTPAPI(logger, builderOpts.CollectorZipkinHTTPPort, zipkinSpansHandler, recoveryHandler)
 
-			logger.Info("Starting Jaeger Collector HTTP server", zap.Int("http-port", builderOpts.CollectorHTTPPort))
+			logger.Info("Starting HTTP server", zap.Int("http-port", builderOpts.CollectorHTTPPort))
 
 			go func() {
 				if err := http.ListenAndServe(httpPortStr, recoveryHandler(r)); err != nil {
@@ -157,6 +157,7 @@ func main() {
 
 			hc.Ready()
 			<-signalsChannel
+			logger.Info("Shutting down")
 			if closer, ok := spanWriter.(io.Closer); ok {
 				err := closer.Close()
 				if err != nil {
@@ -164,7 +165,7 @@ func main() {
 				}
 			}
 
-			logger.Info("Jaeger Collector is finishing")
+			logger.Info("Shutdown complete")
 			return nil
 		},
 	}

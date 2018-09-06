@@ -92,7 +92,7 @@ func main() {
 
 			hc.Ready()
 			<-signalsChannel
-			logger.Info("Jaeger Ingester is starting to close")
+			logger.Info("Shutting down")
 			err = consumer.Close()
 			if err != nil {
 				logger.Error("Failed to close consumer", zap.Error(err))
@@ -103,7 +103,7 @@ func main() {
 					logger.Error("Failed to close span writer", zap.Error(err))
 				}
 			}
-			logger.Info("Jaeger Ingester has finished closing")
+			logger.Info("Shutdown complete")
 			return nil
 		},
 	}

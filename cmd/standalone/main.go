@@ -131,13 +131,14 @@ func main() {
 			startQuery(qOpts, spanReader, dependencyReader, logger, metricsFactory, mBldr, hc)
 			hc.Ready()
 			<-signalsChannel
+			logger.Info("Shutting down")
 			if closer, ok := spanWriter.(io.Closer); ok {
 				err := closer.Close()
 				if err != nil {
 					logger.Error("Failed to close span writer", zap.Error(err))
 				}
 			}
-			logger.Info("Jaeger Standalone is finishing")
+			logger.Info("Shutdown complete")
 			return nil
 		},
 	}

@@ -138,7 +138,7 @@ func main() {
 			recoveryHandler := recoveryhandler.NewRecoveryHandler(logger, true)
 
 			go func() {
-				logger.Info("Starting jaeger-query HTTP server", zap.Int("port", queryOpts.Port))
+				logger.Info("Starting HTTP server", zap.Int("port", queryOpts.Port))
 				if err := http.ListenAndServe(portStr, recoveryHandler(compressHandler)); err != nil {
 					logger.Fatal("Could not launch service", zap.Error(err))
 				}
@@ -147,7 +147,7 @@ func main() {
 
 			hc.Ready()
 			<-serverChannel
-			logger.Info("Jaeger Query is finishing")
+			logger.Info("Shutdown complete")
 			return nil
 		},
 	}
