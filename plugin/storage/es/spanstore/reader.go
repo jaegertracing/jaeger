@@ -18,6 +18,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"strings"
 	"time"
 
 	"github.com/pkg/errors"
@@ -43,8 +44,8 @@ const (
 	startTimeField     = "startTime"
 	serviceNameField   = "process.serviceName"
 	operationNameField = "operationName"
-	tagsField          = "tags"
-	processTagsField   = "process.tags"
+	tagsField          = "tagsMap"
+	processTagsField   = "process.tagsMap"
 	logFieldsField     = "logs.fields"
 	tagKeyField        = "key"
 	tagValueField      = "value"
@@ -76,7 +77,7 @@ var (
 
 	defaultMaxDuration = model.DurationAsMicroseconds(time.Hour * 24)
 
-	tagFieldList = []string{tagsField, processTagsField, logFieldsField}
+	objectTagFieldList = []string{tagsField, processTagsField}
 )
 
 // SpanReader can query for and load traces from ElasticSearch
@@ -134,6 +135,8 @@ func (s *SpanReader) collectSpans(esSpansRaw []*elastic.SearchHit) ([]*model.Spa
 		if err != nil {
 			return nil, errors.Wrap(err, "Marshalling JSON to span object failed")
 		}
+		jsonSpan.Tags = fromMapTagsToKeyValues(jsonSpan.TagsMap)
+		jsonSpan.Process.Tags = fromMapTagsToKeyValues(jsonSpan.Process.TagsMap)
 		span, err := jConverter.SpanToDomain(jsonSpan)
 		if err != nil {
 			return nil, errors.Wrap(err, "Converting JSONSpan to domain Span failed")
@@ -141,6 +144,16 @@ func (s *SpanReader) collectSpans(esSpansRaw []*elastic.SearchHit) ([]*model.Spa
 		spans[i] = span
 	}
 	return spans, nil
+}
+
+func fromMapTagsToKeyValues(tagMap map[string]string) []jModel.KeyValue {
+	var kvs []jModel.KeyValue
+	for key, value := range tagMap {
+		dKey := strings.Replace(key, ":", ".", -1)
+		kv := jModel.KeyValue{Key: dKey, Value: value, Type: jModel.StringType}
+		kvs = append(kvs, kv)
+	}
+	return kvs
 }
 
 func (s *SpanReader) unmarshalJSONSpan(esSpanRaw *elastic.SearchHit) (*jModel.Span, error) {
@@ -444,10 +457,12 @@ func (s *SpanReader) buildOperationNameQuery(operationName string) elastic.Query
 }
 
 func (s *SpanReader) buildTagQuery(k string, v string) elastic.Query {
-	queries := make([]elastic.Query, len(tagFieldList))
-	for i := range queries {
-		queries[i] = s.buildNestedQuery(tagFieldList[i], k, v)
+	queries := make([]elastic.Query, len(objectTagFieldList)+1)
+	kd := strings.Replace(k, ".", ":", -1)
+	for i := range objectTagFieldList {
+		queries[i] = s.buildObjectQuery(objectTagFieldList[i], kd, v)
 	}
+	queries[len(objectTagFieldList)] = s.buildNestedQuery(logFieldsField, k, v)
 	return elastic.NewBoolQuery().Should(queries...)
 }
 
@@ -458,4 +473,10 @@ func (s *SpanReader) buildNestedQuery(field string, k string, v string) elastic.
 	valueQuery := elastic.NewMatchQuery(valueField, v)
 	tagBoolQuery := elastic.NewBoolQuery().Must(keyQuery, valueQuery)
 	return elastic.NewNestedQuery(field, tagBoolQuery)
+}
+
+func (s *SpanReader) buildObjectQuery(field string, k string, v string) elastic.Query {
+	keyField := fmt.Sprintf("%s.%s", field, k)
+	keyQuery := elastic.NewMatchQuery(keyField, v)
+	return elastic.NewBoolQuery().Must(keyQuery)
 }

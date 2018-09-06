@@ -101,6 +101,9 @@ var (
 					"type": "keyword",
 					"ignore_above": 256
 				},
+				"tagsMap": {
+					"type": "object"
+				},
 				"tags": {
 					"type": "nested",
 					"dynamic": false,
@@ -138,6 +141,9 @@ var (
 					"ignore_above": 256
 				}
 			}
+		},
+		"tagsMap": {
+			"type": "object"
 		},
 		"tags": {
 			"type": "nested",
