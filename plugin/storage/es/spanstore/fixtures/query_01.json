@@ -5,7 +5,7 @@
         "bool":{
           "must":{
             "match":{
-              "tag.bat":{
+              "tag.bat@foo":{
                 "query":"spook"
               }
             }
@@ -16,7 +16,7 @@
         "bool":{
           "must":{
             "match":{
-              "process.tag.bat":{
+              "process.tag.bat@foo":{
                 "query":"spook"
               }
             }
@@ -32,7 +32,7 @@
                 {
                   "match":{
                     "tags.key":{
-                      "query":"bat"
+                      "query":"bat.foo"
                     }
                   }
                 },
@@ -57,7 +57,7 @@
                 {
                   "match":{
                     "process.tags.key":{
-                      "query":"bat"
+                      "query":"bat.foo"
                     }
                   }
                 },
@@ -82,7 +82,7 @@
                 {
                   "match":{
                     "logs.fields.key":{
-                      "query":"bat"
+                      "query":"bat.foo"
                     }
                   }
                 },

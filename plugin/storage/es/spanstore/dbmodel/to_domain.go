@@ -33,6 +33,16 @@ type ToDomain struct {
 	tagDotReplacement string
 }
 
+// ReplaceDot replaces dot with dotReplacement
+func (td ToDomain) ReplaceDot(k string) string {
+	return strings.Replace(k, ".", td.tagDotReplacement, -1)
+}
+
+// ReplaceDotReplacement replaces dotReplacement with dot
+func (td ToDomain) ReplaceDotReplacement(k string) string {
+	return strings.Replace(k, td.tagDotReplacement, ".", -1)
+}
+
 // SpanToDomain converts db span into model Span
 func (td ToDomain) SpanToDomain(dbSpan *Span) (*model.Span, error) {
 	tags, err := td.convertKeyValues(dbSpan.Tags)
@@ -69,7 +79,7 @@ func (td ToDomain) SpanToDomain(dbSpan *Span) (*model.Span, error) {
 		refs = model.MaybeAddParentSpanID(traceID, parentSpanID, refs)
 	}
 
-	fieldTags, err := convertTagFields(dbSpan.Tag, td.tagDotReplacement)
+	fieldTags, err := td.convertTagFields(dbSpan.Tag)
 	if err != nil {
 		return nil, err
 	}
@@ -134,11 +144,11 @@ func (td ToDomain) convertKeyValues(tags []KeyValue) ([]model.KeyValue, error) {
 	return retMe, nil
 }
 
-func convertTagFields(tagsMap map[string]interface{}, deDotChar string) ([]model.KeyValue, error) {
+func (td ToDomain) convertTagFields(tagsMap map[string]interface{}) ([]model.KeyValue, error) {
 	kvs := make([]model.KeyValue, len(tagsMap))
 	i := 0
 	for k, v := range tagsMap {
-		tag, err := convertTagField(k, v, deDotChar)
+		tag, err := td.convertTagField(k, v)
 		if err != nil {
 			return nil, err
 		}
@@ -148,8 +158,8 @@ func convertTagFields(tagsMap map[string]interface{}, deDotChar string) ([]model
 	return kvs, nil
 }
 
-func convertTagField(k string, v interface{}, deDotChar string) (model.KeyValue, error) {
-	dKey := strings.Replace(k, deDotChar, ".", -1)
+func (td ToDomain) convertTagField(k string, v interface{}) (model.KeyValue, error) {
+	dKey := td.ReplaceDotReplacement(k)
 	// The number is always a float64 therefore type assertion on int (v.(int/64/32)) does not work.
 	// If 1.0, 2.0.. was stored as float it will be read as int
 	if pInt, err := strconv.ParseInt(fmt.Sprintf("%v", v), 10, 64); err == nil {
@@ -231,7 +241,7 @@ func (td ToDomain) convertProcess(process Process) (*model.Process, error) {
 	if err != nil {
 		return nil, err
 	}
-	fieldTags, err := convertTagFields(process.Tag, td.tagDotReplacement)
+	fieldTags, err := td.convertTagFields(process.Tag)
 	if err != nil {
 		return nil, err
 	}

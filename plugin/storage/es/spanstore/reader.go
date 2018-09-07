@@ -18,7 +18,6 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"strings"
 	"time"
 
 	"github.com/pkg/errors"
@@ -468,7 +467,7 @@ func (s *SpanReader) buildOperationNameQuery(operationName string) elastic.Query
 func (s *SpanReader) buildTagQuery(k string, v string) elastic.Query {
 	objectTagListLen := len(objectTagFieldList)
 	queries := make([]elastic.Query, len(nestedTagFieldList)+objectTagListLen)
-	kd := strings.Replace(k, ".", ":", -1)
+	kd := s.spanConverter.ReplaceDot(k)
 	for i := range objectTagFieldList {
 		queries[i] = s.buildObjectQuery(objectTagFieldList[i], kd, v)
 	}

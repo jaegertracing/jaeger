@@ -92,10 +92,11 @@ func withSpanReader(fn func(r *spanReaderTest)) {
 		logger:    logger,
 		logBuffer: logBuffer,
 		reader: newSpanReader(SpanReaderParams{
-			Client:      client,
-			Logger:      zap.NewNop(),
-			MaxLookback: 0,
-			IndexPrefix: "",
+			Client:            client,
+			Logger:            zap.NewNop(),
+			MaxLookback:       0,
+			IndexPrefix:       "",
+			TagDotReplacement: "@",
 		}),
 	}
 	fn(r)
@@ -868,7 +869,7 @@ func TestSpanReader_buildTagQuery(t *testing.T) {
 	inStr, err := ioutil.ReadFile("fixtures/query_01.json")
 	require.NoError(t, err)
 	withSpanReader(func(r *spanReaderTest) {
-		tagQuery := r.reader.buildTagQuery("bat", "spook")
+		tagQuery := r.reader.buildTagQuery("bat.foo", "spook")
 		actual, err := tagQuery.Source()
 		require.NoError(t, err)
 

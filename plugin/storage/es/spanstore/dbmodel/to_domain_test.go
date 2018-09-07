@@ -325,11 +325,18 @@ func TestTagsMap(t *testing.T) {
 		{fieldTags: map[string]interface{}{"binary": []byte("foo")}, expected: []model.KeyValue{model.Binary("binary", []byte("foo"))}},
 		{fieldTags: map[string]interface{}{"unsupported": struct{}{}}, err: fmt.Errorf("invalid tag type in %+v", struct{}{})},
 	}
+	converter := NewToDomain(":")
 	for i, test := range tests {
 		t.Run(fmt.Sprintf("%d, %s", i, test.fieldTags), func(t *testing.T) {
-			tags, err := convertTagFields(test.fieldTags, ":")
+			tags, err := converter.convertTagFields(test.fieldTags)
 			assert.Equal(t, test.expected, tags)
 			assert.Equal(t, test.err, err)
 		})
 	}
+}
+
+func TestDotReplacement(t *testing.T) {
+	converter := NewToDomain("#")
+	k := "foo.foo"
+	assert.Equal(t, k, converter.ReplaceDotReplacement(converter.ReplaceDot(k)))
 }
