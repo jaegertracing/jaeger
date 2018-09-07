@@ -69,7 +69,7 @@ func testJSONEncoding(t *testing.T, i int, expectedStr []byte, object interface{
 	outFile := fmt.Sprintf("fixtures/es_%02d", i)
 	require.NoError(t, enc.Encode(object))
 
-	if !assert.Equal(t, string(expectedStr), string(buf.Bytes())) {
+	if !assert.Equal(t, string(expectedStr), buf.String()) {
 		err := ioutil.WriteFile(outFile+"-actual.json", buf.Bytes(), 0644)
 		assert.NoError(t, err)
 	}
