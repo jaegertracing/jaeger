@@ -119,7 +119,7 @@ func (c *Configuration) ApplyDefaults(source *Configuration) {
 	if c.Password == "" {
 		c.Password = source.Password
 	}
-	if c.Sniffer == false {
+	if !c.Sniffer {
 		c.Sniffer = source.Sniffer
 	}
 	if c.MaxSpanAge == 0 {

@@ -105,7 +105,7 @@ func (sp *spanProcessor) saveSpan(span *model.Span) {
 			zap.Stringer("trace-id", span.TraceID), zap.Stringer("span-id", span.SpanID))
 		sp.metrics.SavedBySvc.ReportServiceNameForSpan(span)
 	}
-	sp.metrics.SaveLatency.Record(time.Now().Sub(startTime))
+	sp.metrics.SaveLatency.Record(time.Since(startTime))
 }
 
 func (sp *spanProcessor) ProcessSpans(mSpans []*model.Span, spanFormat string) ([]bool, error) {
@@ -124,7 +124,7 @@ func (sp *spanProcessor) ProcessSpans(mSpans []*model.Span, spanFormat string) (
 
 func (sp *spanProcessor) processItemFromQueue(item *queueItem) {
 	sp.processSpan(sp.sanitizer(item.span))
-	sp.metrics.InQueueLatency.Record(time.Now().Sub(item.queuedTime))
+	sp.metrics.InQueueLatency.Record(time.Since(item.queuedTime))
 }
 
 func (sp *spanProcessor) enqueueSpan(span *model.Span, originalFormat string) bool {

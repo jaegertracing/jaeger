@@ -1,3 +1,4 @@
+// Copyright (c) 2018 The Jaeger Authors.
 // Copyright (c) 2017 Uber Technologies, Inc.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
@@ -41,7 +42,7 @@ func getCache(t *testing.T) (*autoRefreshCache, *mocks.ServiceAliasMappingExtern
 	logger := zap.NewNop()
 
 	return &autoRefreshCache{
-		cache:               make(map[string]string, 0),
+		cache:               make(map[string]string),
 		extSource:           mockExtSource,
 		storage:             mockStorage,
 		logger:              logger,

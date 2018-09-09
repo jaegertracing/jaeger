@@ -62,7 +62,7 @@ import (
 
 // standalone/main is a standalone full-stack jaeger backend, backed by a memory store
 func main() {
-	var signalsChannel = make(chan os.Signal, 0)
+	var signalsChannel = make(chan os.Signal)
 	signal.Notify(signalsChannel, os.Interrupt, syscall.SIGTERM)
 
 	if os.Getenv(storage.SpanStorageTypeEnvVar) == "" {
@@ -130,18 +130,15 @@ func main() {
 			startCollector(cOpts, spanWriter, logger, metricsFactory, samplingHandler, hc)
 			startQuery(qOpts, spanReader, dependencyReader, logger, metricsFactory, mBldr, hc)
 			hc.Ready()
-
-			select {
-			case <-signalsChannel:
-				if closer, ok := spanWriter.(io.Closer); ok {
-					err := closer.Close()
-					if err != nil {
-						logger.Error("Failed to close span writer", zap.Error(err))
-					}
+			<-signalsChannel
+			logger.Info("Shutting down")
+			if closer, ok := spanWriter.(io.Closer); ok {
+				err := closer.Close()
+				if err != nil {
+					logger.Error("Failed to close span writer", zap.Error(err))
 				}
-
-				logger.Info("Jaeger Standalone is finishing")
 			}
+			logger.Info("Shutdown complete")
 			return nil
 		},
 	}
