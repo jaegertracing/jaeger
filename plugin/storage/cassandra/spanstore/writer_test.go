@@ -122,7 +122,7 @@ func TestSpanWriter(t *testing.T) {
 			},
 		},
 		{
-			caption:                        "add span to operation name index",
+			caption: "add span to operation name index",
 			serviceOperationNameQueryError: errors.New("serviceOperationNameQueryError"),
 			expectedError:                  "Failed to index operation name: failed to Exec query 'select from service_operation_index': serviceOperationNameQueryError",
 			expectedLogs: []string{
@@ -132,7 +132,7 @@ func TestSpanWriter(t *testing.T) {
 			},
 		},
 		{
-			caption:                       "add duration with no operation name",
+			caption: "add duration with no operation name",
 			durationNoOperationQueryError: errors.New("durationNoOperationError"),
 			expectedError:                 "Failed to index duration: failed to Exec query 'select from duration_index': durationNoOperationError",
 			expectedLogs: []string{
