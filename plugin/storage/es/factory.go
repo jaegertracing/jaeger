@@ -99,7 +99,7 @@ func (f *Factory) CreateSpanWriter() (spanstore.Writer, error) {
 			return nil, err
 		}
 	}
-	p := esSpanStore.SpanWriterParams{Client: f.primaryClient,
+	return esSpanStore.NewSpanWriter(esSpanStore.SpanWriterParams{Client: f.primaryClient,
 		Logger:            f.logger,
 		MetricsFactory:    f.metricsFactory,
 		NumShards:         f.primaryConfig.GetNumShards(),
@@ -108,8 +108,7 @@ func (f *Factory) CreateSpanWriter() (spanstore.Writer, error) {
 		AllTagsAsFields:   f.primaryConfig.GetAllTagsAsFields(),
 		TagKeysAsFields:   tags,
 		TagDotReplacement: f.primaryConfig.GetTagDotReplacement(),
-	}
-	return esSpanStore.NewSpanWriter(p), nil
+	}), nil
 }
 
 // CreateDependencyReader implements storage.Factory
