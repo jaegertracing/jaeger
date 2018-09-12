@@ -56,12 +56,13 @@ type Span struct {
 	// ElasticSearch does not support a UNIX Epoch timestamp in microseconds,
 	// so Jaeger maps StartTime to a 'long' type. This extra StartTimeMillis field
 	// works around this issue, enabling timerange queries.
-	StartTimeMillis uint64                 `json:"startTimeMillis"`
-	Duration        uint64                 `json:"duration"` // microseconds
-	Tags            []KeyValue             `json:"tags"`
-	Tag             map[string]interface{} `json:"tag,omitempty"`
-	Logs            []Log                  `json:"logs"`
-	Process         Process                `json:"process,omitempty"`
+	StartTimeMillis uint64     `json:"startTimeMillis"`
+	Duration        uint64     `json:"duration"` // microseconds
+	Tags            []KeyValue `json:"tags"`
+	// Alternative representation of tags for better kibana support
+	Tag     map[string]interface{} `json:"tag,omitempty"`
+	Logs    []Log                  `json:"logs"`
+	Process Process                `json:"process,omitempty"`
 }
 
 // Reference is a reference from one span to another
