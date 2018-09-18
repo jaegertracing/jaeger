@@ -34,13 +34,14 @@ import (
 )
 
 const (
-	host          = "0.0.0.0"
-	queryPort     = "9200"
-	queryHostPort = host + ":" + queryPort
-	queryURL      = "http://" + queryHostPort
-	username      = "elastic"  // the elasticsearch default username
-	password      = "changeme" // the elasticsearch default password
-	indexPrefix   = "integration-test"
+	host            = "0.0.0.0"
+	queryPort       = "9200"
+	queryHostPort   = host + ":" + queryPort
+	queryURL        = "http://" + queryHostPort
+	username        = "elastic"  // the elasticsearch default username
+	password        = "changeme" // the elasticsearch default password
+	indexPrefix     = "integration-test"
+	tagKeyDeDotChar = "@"
 )
 
 type ESStorageIntegration struct {
@@ -51,7 +52,7 @@ type ESStorageIntegration struct {
 	logger        *zap.Logger
 }
 
-func (s *ESStorageIntegration) initializeES() error {
+func (s *ESStorageIntegration) initializeES(allTagsAsFields bool) error {
 	rawClient, err := elastic.NewClient(
 		elastic.SetURL(queryURL),
 		elastic.SetBasicAuth(username, password),
@@ -68,24 +69,40 @@ func (s *ESStorageIntegration) initializeES() error {
 	dependencyStore := dependencystore.NewDependencyStore(client, s.logger, indexPrefix)
 	s.DependencyReader = dependencyStore
 	s.DependencyWriter = dependencyStore
-	s.initSpanstore()
-	s.CleanUp = s.esCleanUp
+	s.initSpanstore(allTagsAsFields)
+	s.CleanUp = func() error {
+		return s.esCleanUp(allTagsAsFields)
+	}
 	s.Refresh = s.esRefresh
-	s.esCleanUp()
+	s.esCleanUp(allTagsAsFields)
 	return nil
 }
 
-func (s *ESStorageIntegration) esCleanUp() error {
+func (s *ESStorageIntegration) esCleanUp(allTagsAsFields bool) error {
 	_, err := s.client.DeleteIndex("*").Do(context.Background())
-	s.initSpanstore()
+	s.initSpanstore(allTagsAsFields)
 	return err
 }
 
-func (s *ESStorageIntegration) initSpanstore() {
+func (s *ESStorageIntegration) initSpanstore(allTagsAsFields bool) {
 	bp, _ := s.client.BulkProcessor().BulkActions(1).FlushInterval(time.Nanosecond).Do(context.Background())
 	client := es.WrapESClient(s.client, bp)
-	s.SpanWriter = spanstore.NewSpanWriter(client, s.logger, metrics.NullFactory, 0, 0, indexPrefix)
-	s.SpanReader = spanstore.NewSpanReader(client, s.logger, 72*time.Hour, metrics.NullFactory, indexPrefix)
+	s.SpanWriter = spanstore.NewSpanWriter(
+		spanstore.SpanWriterParams{
+			Client:            client,
+			Logger:            s.logger,
+			MetricsFactory:    metrics.NullFactory,
+			IndexPrefix:       indexPrefix,
+			AllTagsAsFields:   allTagsAsFields,
+			TagDotReplacement: tagKeyDeDotChar,
+		})
+	s.SpanReader = spanstore.NewSpanReader(spanstore.SpanReaderParams{
+		Client:            client,
+		Logger:            s.logger,
+		MetricsFactory:    metrics.NullFactory,
+		IndexPrefix:       indexPrefix,
+		TagDotReplacement: tagKeyDeDotChar,
+	})
 }
 
 func (s *ESStorageIntegration) esRefresh() error {
@@ -107,7 +124,7 @@ func healthCheck() error {
 	return errors.New("elastic search is not ready")
 }
 
-func TestElasticsearchStorage(t *testing.T) {
+func testElasticsearchStorage(t *testing.T, allTagsAsFields bool) {
 	if os.Getenv("STORAGE") != "elasticsearch" {
 		t.Skip("Integration test against ElasticSearch skipped; set STORAGE env var to elasticsearch to run this")
 	}
@@ -115,6 +132,14 @@ func TestElasticsearchStorage(t *testing.T) {
 		t.Fatal(err)
 	}
 	s := &ESStorageIntegration{}
-	require.NoError(t, s.initializeES())
+	require.NoError(t, s.initializeES(allTagsAsFields))
 	s.IntegrationTestAll(t)
+}
+
+func TestElasticsearchStorage(t *testing.T) {
+	testElasticsearchStorage(t, false)
+}
+
+func TestElasticsearchStorageAllTagsAsObjectFields(t *testing.T) {
+	testElasticsearchStorage(t, true)
 }

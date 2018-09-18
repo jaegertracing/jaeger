@@ -27,9 +27,9 @@ import (
 	"go.uber.org/zap"
 
 	"github.com/jaegertracing/jaeger/model"
-	"github.com/jaegertracing/jaeger/model/json"
 	"github.com/jaegertracing/jaeger/pkg/es/mocks"
 	"github.com/jaegertracing/jaeger/pkg/testutils"
+	"github.com/jaegertracing/jaeger/plugin/storage/es/spanstore/dbmodel"
 	"github.com/jaegertracing/jaeger/storage/spanstore"
 )
 
@@ -48,7 +48,7 @@ func withSpanWriter(fn func(w *spanWriterTest)) {
 		client:    client,
 		logger:    logger,
 		logBuffer: logBuffer,
-		writer:    NewSpanWriter(client, logger, metricsFactory, 0, 0, ""),
+		writer:    NewSpanWriter(SpanWriterParams{Client: client, Logger: logger, MetricsFactory: metricsFactory}),
 	}
 	fn(w)
 }
@@ -68,7 +68,8 @@ func TestNewSpanWriterIndexPrefix(t *testing.T) {
 	logger, _ := testutils.NewLogger()
 	metricsFactory := metrics.NewLocalFactory(0)
 	for _, testCase := range testCases {
-		w := NewSpanWriter(client, logger, metricsFactory, 0, 0, testCase.prefix)
+		w := NewSpanWriter(SpanWriterParams{Client: client, Logger: logger, MetricsFactory: metricsFactory,
+			IndexPrefix: testCase.prefix})
 		assert.Equal(t, testCase.expected+spanIndex, w.spanIndexPrefix)
 		assert.Equal(t, testCase.expected+serviceIndex, w.serviceIndexPrefix)
 	}
@@ -184,7 +185,7 @@ func TestSpanWriter_WriteSpan(t *testing.T) {
 				indexServicePut.On("Add")
 
 				indexSpanPut.On("Id", mock.AnythingOfType("string")).Return(indexSpanPut)
-				indexSpanPut.On("BodyJson", mock.AnythingOfType("*spanstore.Span")).Return(indexSpanPut)
+				indexSpanPut.On("BodyJson", mock.AnythingOfType("**dbmodel.Span")).Return(indexSpanPut)
 				indexSpanPut.On("Add")
 
 				w.client.On("IndexExists", stringMatcher(spanIndexName)).Return(spanExistsService)
@@ -272,12 +273,12 @@ func TestWriteSpanInternal(t *testing.T) {
 		indexName := "jaeger-1995-04-21"
 		indexService.On("Index", stringMatcher(indexName)).Return(indexService)
 		indexService.On("Type", stringMatcher(spanType)).Return(indexService)
-		indexService.On("BodyJson", mock.AnythingOfType("*spanstore.Span")).Return(indexService)
+		indexService.On("BodyJson", mock.AnythingOfType("**dbmodel.Span")).Return(indexService)
 		indexService.On("Add")
 
 		w.client.On("Index").Return(indexService)
 
-		jsonSpan := &json.Span{}
+		jsonSpan := &dbmodel.Span{}
 
 		w.writer.writeSpan(indexName, jsonSpan)
 		indexService.AssertNumberOfCalls(t, "Add", 1)
@@ -292,19 +293,72 @@ func TestWriteSpanInternalError(t *testing.T) {
 		indexName := "jaeger-1995-04-21"
 		indexService.On("Index", stringMatcher(indexName)).Return(indexService)
 		indexService.On("Type", stringMatcher(spanType)).Return(indexService)
-		indexService.On("BodyJson", mock.AnythingOfType("*spanstore.Span")).Return(indexService)
+		indexService.On("BodyJson", mock.AnythingOfType("**dbmodel.Span")).Return(indexService)
 		indexService.On("Add")
 
 		w.client.On("Index").Return(indexService)
 
-		jsonSpan := &json.Span{
-			TraceID: json.TraceID("1"),
-			SpanID:  json.SpanID("0"),
+		jsonSpan := &dbmodel.Span{
+			TraceID: dbmodel.TraceID("1"),
+			SpanID:  dbmodel.SpanID("0"),
 		}
 
 		w.writer.writeSpan(indexName, jsonSpan)
 		indexService.AssertNumberOfCalls(t, "Add", 1)
 	})
+}
+
+func TestNewSpanTags(t *testing.T) {
+	client := &mocks.Client{}
+	logger, _ := testutils.NewLogger()
+	metricsFactory := metrics.NewLocalFactory(0)
+	testCases := []struct {
+		writer   *SpanWriter
+		expected dbmodel.Span
+		name     string
+	}{
+		{
+			writer: NewSpanWriter(SpanWriterParams{Client: client, Logger: logger, MetricsFactory: metricsFactory,
+				AllTagsAsFields: true}),
+			expected: dbmodel.Span{Tag: map[string]interface{}{"foo": "bar"}, Tags: []dbmodel.KeyValue{},
+				Process: dbmodel.Process{Tag: map[string]interface{}{"bar": "baz"}, Tags: []dbmodel.KeyValue{}}},
+			name: "allTagsAsFields",
+		},
+		{
+			writer: NewSpanWriter(SpanWriterParams{Client: client, Logger: logger, MetricsFactory: metricsFactory,
+				TagKeysAsFields: []string{"foo", "bar", "rere"}}),
+			expected: dbmodel.Span{Tag: map[string]interface{}{"foo": "bar"}, Tags: []dbmodel.KeyValue{},
+				Process: dbmodel.Process{Tag: map[string]interface{}{"bar": "baz"}, Tags: []dbmodel.KeyValue{}}},
+			name: "definedTagNames",
+		},
+		{
+			writer: NewSpanWriter(SpanWriterParams{Client: client, Logger: logger, MetricsFactory: metricsFactory}),
+			expected: dbmodel.Span{
+				Tags: []dbmodel.KeyValue{{
+					Key:   "foo",
+					Type:  dbmodel.StringType,
+					Value: "bar",
+				}},
+				Process: dbmodel.Process{Tags: []dbmodel.KeyValue{{
+					Key:   "bar",
+					Type:  dbmodel.StringType,
+					Value: "baz",
+				}}}},
+			name: "noAllTagsAsFields",
+		},
+	}
+
+	s := &model.Span{Tags: []model.KeyValue{{Key: "foo", VStr: "bar"}},
+		Process: &model.Process{Tags: []model.KeyValue{{Key: "bar", VStr: "baz"}}}}
+	for _, test := range testCases {
+		t.Run(test.name, func(t *testing.T) {
+			mSpan := test.writer.spanConverter.FromDomainEmbedProcess(s)
+			assert.Equal(t, test.expected.Tag, mSpan.Tag)
+			assert.Equal(t, test.expected.Tags, mSpan.Tags)
+			assert.Equal(t, test.expected.Process.Tag, mSpan.Process.Tag)
+			assert.Equal(t, test.expected.Process.Tags, mSpan.Process.Tags)
+		})
+	}
 }
 
 // stringMatcher can match a string argument when it contains a specific substring q

@@ -1,4 +1,4 @@
-// Copyright (c) 2017 Uber Technologies, Inc.
+// Copyright (c) 2018 Uber Technologies, Inc.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -12,27 +12,39 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package json
+package dbmodel
 
 import (
 	"encoding/hex"
 	"fmt"
 	"strconv"
-
-	"github.com/pkg/errors"
+	"strings"
 
 	"github.com/jaegertracing/jaeger/model"
-	"github.com/jaegertracing/jaeger/model/json"
 )
 
-// SpanToDomain converts json.Span with embedded Process into model.Span format.
-func SpanToDomain(span *json.Span) (*model.Span, error) {
-	return toDomain{}.spanToDomain(span)
+// NewToDomain creates ToDomain
+func NewToDomain(tagDotReplacement string) ToDomain {
+	return ToDomain{tagDotReplacement: tagDotReplacement}
 }
 
-type toDomain struct{}
+// ToDomain is used to convert Span to model.Span
+type ToDomain struct {
+	tagDotReplacement string
+}
 
-func (td toDomain) spanToDomain(dbSpan *json.Span) (*model.Span, error) {
+// ReplaceDot replaces dot with dotReplacement
+func (td ToDomain) ReplaceDot(k string) string {
+	return strings.Replace(k, ".", td.tagDotReplacement, -1)
+}
+
+// ReplaceDotReplacement replaces dotReplacement with dot
+func (td ToDomain) ReplaceDotReplacement(k string) string {
+	return strings.Replace(k, td.tagDotReplacement, ".", -1)
+}
+
+// SpanToDomain converts db span into model Span
+func (td ToDomain) SpanToDomain(dbSpan *Span) (*model.Span, error) {
 	tags, err := td.convertKeyValues(dbSpan.Tags)
 	if err != nil {
 		return nil, err
@@ -67,6 +79,12 @@ func (td toDomain) spanToDomain(dbSpan *json.Span) (*model.Span, error) {
 		refs = model.MaybeAddParentSpanID(traceID, parentSpanID, refs)
 	}
 
+	fieldTags, err := td.convertTagFields(dbSpan.Tag)
+	if err != nil {
+		return nil, err
+	}
+	tags = append(tags, fieldTags...)
+
 	span := &model.Span{
 		TraceID:       traceID,
 		SpanID:        model.NewSpanID(uint64(spanIDInt)),
@@ -82,14 +100,14 @@ func (td toDomain) spanToDomain(dbSpan *json.Span) (*model.Span, error) {
 	return span, nil
 }
 
-func (td toDomain) convertRefs(refs []json.Reference) ([]model.SpanRef, error) {
+func (td ToDomain) convertRefs(refs []Reference) ([]model.SpanRef, error) {
 	retMe := make([]model.SpanRef, len(refs))
 	for i, r := range refs {
 		// There are some inconsistencies with ReferenceTypes, hence the hacky fix.
 		var refType model.SpanRefType
-		if r.RefType == json.ChildOf {
+		if r.RefType == ChildOf {
 			refType = model.ChildOf
-		} else if r.RefType == json.FollowsFrom {
+		} else if r.RefType == FollowsFrom {
 			refType = model.FollowsFrom
 		} else {
 			return nil, fmt.Errorf("not a valid SpanRefType string %s", string(r.RefType))
@@ -114,7 +132,7 @@ func (td toDomain) convertRefs(refs []json.Reference) ([]model.SpanRef, error) {
 	return retMe, nil
 }
 
-func (td toDomain) convertKeyValues(tags []json.KeyValue) ([]model.KeyValue, error) {
+func (td ToDomain) convertKeyValues(tags []KeyValue) ([]model.KeyValue, error) {
 	retMe := make([]model.KeyValue, len(tags))
 	for i := range tags {
 		kv, err := td.convertKeyValue(&tags[i])
@@ -126,10 +144,45 @@ func (td toDomain) convertKeyValues(tags []json.KeyValue) ([]model.KeyValue, err
 	return retMe, nil
 }
 
+func (td ToDomain) convertTagFields(tagsMap map[string]interface{}) ([]model.KeyValue, error) {
+	kvs := make([]model.KeyValue, len(tagsMap))
+	i := 0
+	for k, v := range tagsMap {
+		tag, err := td.convertTagField(k, v)
+		if err != nil {
+			return nil, err
+		}
+		kvs[i] = tag
+		i++
+	}
+	return kvs, nil
+}
+
+func (td ToDomain) convertTagField(k string, v interface{}) (model.KeyValue, error) {
+	dKey := td.ReplaceDotReplacement(k)
+	// The number is always a float64 therefore type assertion on int (v.(int/64/32)) does not work.
+	// If 1.0, 2.0.. was stored as float it will be read as int
+	if pInt, err := strconv.ParseInt(fmt.Sprintf("%v", v), 10, 64); err == nil {
+		return model.Int64(k, pInt), nil
+	}
+	switch val := v.(type) {
+	case float64:
+		return model.Float64(dKey, val), nil
+	case bool:
+		return model.Bool(dKey, val), nil
+	case string:
+		return model.String(dKey, val), nil
+	// the binary is never returned, ES returns it as string with base64 encoding
+	case []byte:
+		return model.Binary(dKey, val), nil
+	default:
+		return model.String("", ""), fmt.Errorf("invalid tag type in %+v", v)
+	}
+}
+
 // convertKeyValue expects the Value field to be string, because it only works
 // as a reverse transformation after FromDomain() for ElasticSearch model.
-// This method would not work on general JSON from the UI which may contain numeric values.
-func (td toDomain) convertKeyValue(tag *json.KeyValue) (model.KeyValue, error) {
+func (td ToDomain) convertKeyValue(tag *KeyValue) (model.KeyValue, error) {
 	if tag.Value == nil {
 		return model.KeyValue{}, fmt.Errorf("invalid nil Value in %v", tag)
 	}
@@ -138,27 +191,27 @@ func (td toDomain) convertKeyValue(tag *json.KeyValue) (model.KeyValue, error) {
 		return model.KeyValue{}, fmt.Errorf("non-string Value of type %t in %v", tag.Value, tag)
 	}
 	switch tag.Type {
-	case json.StringType:
+	case StringType:
 		return model.String(tag.Key, tagValue), nil
-	case json.BoolType:
+	case BoolType:
 		value, err := strconv.ParseBool(tagValue)
 		if err != nil {
 			return model.KeyValue{}, err
 		}
 		return model.Bool(tag.Key, value), nil
-	case json.Int64Type:
+	case Int64Type:
 		value, err := strconv.ParseInt(tagValue, 10, 64)
 		if err != nil {
 			return model.KeyValue{}, err
 		}
 		return model.Int64(tag.Key, value), nil
-	case json.Float64Type:
+	case Float64Type:
 		value, err := strconv.ParseFloat(tagValue, 64)
 		if err != nil {
 			return model.KeyValue{}, err
 		}
 		return model.Float64(tag.Key, value), nil
-	case json.BinaryType:
+	case BinaryType:
 		value, err := hex.DecodeString(tagValue)
 		if err != nil {
 			return model.KeyValue{}, err
@@ -168,7 +221,7 @@ func (td toDomain) convertKeyValue(tag *json.KeyValue) (model.KeyValue, error) {
 	return model.KeyValue{}, fmt.Errorf("not a valid ValueType string %s", string(tag.Type))
 }
 
-func (td toDomain) convertLogs(logs []json.Log) ([]model.Log, error) {
+func (td ToDomain) convertLogs(logs []Log) ([]model.Log, error) {
 	retMe := make([]model.Log, len(logs))
 	for i, l := range logs {
 		fields, err := td.convertKeyValues(l.Fields)
@@ -183,14 +236,17 @@ func (td toDomain) convertLogs(logs []json.Log) ([]model.Log, error) {
 	return retMe, nil
 }
 
-func (td toDomain) convertProcess(process *json.Process) (*model.Process, error) {
-	if process == nil {
-		return nil, errors.New("Process is nil")
-	}
+func (td ToDomain) convertProcess(process Process) (*model.Process, error) {
 	tags, err := td.convertKeyValues(process.Tags)
 	if err != nil {
 		return nil, err
 	}
+	fieldTags, err := td.convertTagFields(process.Tag)
+	if err != nil {
+		return nil, err
+	}
+	tags = append(tags, fieldTags...)
+
 	return &model.Process{
 		Tags:        tags,
 		ServiceName: process.ServiceName,

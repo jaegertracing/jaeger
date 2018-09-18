@@ -29,7 +29,26 @@ const mapping = `{
 		"_default_":{
 			"_all":{
 				"enabled":false
-			}
+			},
+			"dynamic_templates": [
+			{
+				"span_tags_map": {
+					"mapping": {
+						"type": "keyword",
+						"ignore_above": 256
+					},
+					"path_match": "tag.*"
+				}
+			},
+			{
+				"process_tags_map": {
+					"mapping": {
+						"type": "keyword",
+						"ignore_above": 256
+					},
+					"path_match": "process.tag.*"
+				}
+			}]
 		},
 		"%s":%s
 	}
@@ -101,6 +120,9 @@ var (
 					"type": "keyword",
 					"ignore_above": 256
 				},
+				"tag": {
+					"type": "object"
+				},
 				"tags": {
 					"type": "nested",
 					"dynamic": false,
@@ -138,6 +160,9 @@ var (
 					"ignore_above": 256
 				}
 			}
+		},
+		"tag": {
+			"type": "object"
 		},
 		"tags": {
 			"type": "nested",

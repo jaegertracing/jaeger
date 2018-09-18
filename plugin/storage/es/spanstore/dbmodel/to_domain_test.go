@@ -1,4 +1,4 @@
-// Copyright (c) 2017 Uber Technologies, Inc.
+// Copyright (c) 2018 Uber Technologies, Inc.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package json
+package dbmodel
 
 import (
 	"bytes"
@@ -23,11 +23,11 @@ import (
 	"testing"
 
 	gogojsonpb "github.com/gogo/protobuf/jsonpb"
+	"github.com/kr/pretty"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
 	"github.com/jaegertracing/jaeger/model"
-	jModel "github.com/jaegertracing/jaeger/model/json"
 )
 
 func TestToDomain(t *testing.T) {
@@ -45,10 +45,10 @@ func testToDomain(t *testing.T, testParentSpanID bool) {
 			span.ParentSpanID = "3"
 		}
 
-		actualSpan, err := SpanToDomain(&span)
+		actualSpan, err := NewToDomain(":").SpanToDomain(&span)
 		require.NoError(t, err)
 
-		out := fmt.Sprintf("fixtures/domain_es_%02d.json", i)
+		out := fmt.Sprintf("fixtures/domain_%02d.json", i)
 		outStr, err := ioutil.ReadFile(out)
 		require.NoError(t, err)
 		var expectedSpan model.Span
@@ -58,25 +58,25 @@ func testToDomain(t *testing.T, testParentSpanID bool) {
 	}
 }
 
-func loadESSpanFixture(i int) (jModel.Span, error) {
+func loadESSpanFixture(i int) (Span, error) {
 	in := fmt.Sprintf("fixtures/es_%02d.json", i)
 	inStr, err := ioutil.ReadFile(in)
 	if err != nil {
-		return jModel.Span{}, err
+		return Span{}, err
 	}
-	var span jModel.Span
+	var span Span
 	err = json.Unmarshal(inStr, &span)
 	return span, err
 }
 
-func failingSpanTransform(t *testing.T, embeddedSpan *jModel.Span, errMsg string) {
-	domainSpan, err := SpanToDomain(embeddedSpan)
+func failingSpanTransform(t *testing.T, embeddedSpan *Span, errMsg string) {
+	domainSpan, err := NewToDomain(":").SpanToDomain(embeddedSpan)
 	assert.Nil(t, domainSpan)
 	assert.EqualError(t, err, errMsg)
 }
 
-func failingSpanTransformAnyMsg(t *testing.T, embeddedSpan *jModel.Span) {
-	domainSpan, err := SpanToDomain(embeddedSpan)
+func failingSpanTransformAnyMsg(t *testing.T, embeddedSpan *Span) {
+	domainSpan, err := NewToDomain(":").SpanToDomain(embeddedSpan)
 	assert.Nil(t, domainSpan)
 	assert.Error(t, err)
 }
@@ -85,7 +85,7 @@ func TestFailureBadTypeTags(t *testing.T) {
 	badTagESSpan, err := loadESSpanFixture(1)
 	require.NoError(t, err)
 
-	badTagESSpan.Tags = []jModel.KeyValue{
+	badTagESSpan.Tags = []KeyValue{
 		{
 			Key:   "meh",
 			Type:  "badType",
@@ -99,7 +99,7 @@ func TestFailureBadBoolTags(t *testing.T) {
 	badTagESSpan, err := loadESSpanFixture(1)
 	require.NoError(t, err)
 
-	badTagESSpan.Tags = []jModel.KeyValue{
+	badTagESSpan.Tags = []KeyValue{
 		{
 			Key:   "meh",
 			Value: "meh",
@@ -113,7 +113,7 @@ func TestFailureBadIntTags(t *testing.T) {
 	badTagESSpan, err := loadESSpanFixture(1)
 	require.NoError(t, err)
 
-	badTagESSpan.Tags = []jModel.KeyValue{
+	badTagESSpan.Tags = []KeyValue{
 		{
 			Key:   "meh",
 			Value: "meh",
@@ -127,7 +127,7 @@ func TestFailureBadFloatTags(t *testing.T) {
 	badTagESSpan, err := loadESSpanFixture(1)
 	require.NoError(t, err)
 
-	badTagESSpan.Tags = []jModel.KeyValue{
+	badTagESSpan.Tags = []KeyValue{
 		{
 			Key:   "meh",
 			Value: "meh",
@@ -141,7 +141,7 @@ func TestFailureBadBinaryTags(t *testing.T) {
 	badTagESSpan, err := loadESSpanFixture(1)
 	require.NoError(t, err)
 
-	badTagESSpan.Tags = []jModel.KeyValue{
+	badTagESSpan.Tags = []KeyValue{
 		{
 			Key:   "zzzz",
 			Value: "zzzz",
@@ -154,10 +154,10 @@ func TestFailureBadBinaryTags(t *testing.T) {
 func TestFailureBadLogs(t *testing.T) {
 	badLogsESSpan, err := loadESSpanFixture(1)
 	require.NoError(t, err)
-	badLogsESSpan.Logs = []jModel.Log{
+	badLogsESSpan.Logs = []Log{
 		{
 			Timestamp: 0,
-			Fields: []jModel.KeyValue{
+			Fields: []KeyValue{
 				{
 					Key:   "sneh",
 					Value: "",
@@ -170,13 +170,12 @@ func TestFailureBadLogs(t *testing.T) {
 }
 
 func TestRevertKeyValueOfType(t *testing.T) {
-	td := toDomain{}
 	tests := []struct {
-		kv  *jModel.KeyValue
+		kv  *KeyValue
 		err string
 	}{
 		{
-			kv: &jModel.KeyValue{
+			kv: &KeyValue{
 				Key:   "sneh",
 				Type:  "badType",
 				Value: "someString",
@@ -184,16 +183,17 @@ func TestRevertKeyValueOfType(t *testing.T) {
 			err: "not a valid ValueType string",
 		},
 		{
-			kv:  &jModel.KeyValue{},
+			kv:  &KeyValue{},
 			err: "invalid nil Value",
 		},
 		{
-			kv: &jModel.KeyValue{
+			kv: &KeyValue{
 				Value: 123,
 			},
 			err: "non-string Value of type",
 		},
 	}
+	td := ToDomain{}
 	for _, test := range tests {
 		t.Run(test.err, func(t *testing.T) {
 			tag := test.kv
@@ -207,7 +207,7 @@ func TestRevertKeyValueOfType(t *testing.T) {
 func TestFailureBadRefs(t *testing.T) {
 	badRefsESSpan, err := loadESSpanFixture(1)
 	require.NoError(t, err)
-	badRefsESSpan.References = []jModel.Reference{
+	badRefsESSpan.References = []Reference{
 		{
 			RefType: "makeOurOwnCasino",
 			TraceID: "1",
@@ -219,7 +219,7 @@ func TestFailureBadRefs(t *testing.T) {
 func TestFailureBadTraceIDRefs(t *testing.T) {
 	badRefsESSpan, err := loadESSpanFixture(1)
 	require.NoError(t, err)
-	badRefsESSpan.References = []jModel.Reference{
+	badRefsESSpan.References = []Reference{
 		{
 			RefType: "CHILD_OF",
 			TraceID: "ZZBADZZ",
@@ -232,7 +232,7 @@ func TestFailureBadTraceIDRefs(t *testing.T) {
 func TestFailureBadSpanIDRefs(t *testing.T) {
 	badRefsESSpan, err := loadESSpanFixture(1)
 	require.NoError(t, err)
-	badRefsESSpan.References = []jModel.Reference{
+	badRefsESSpan.References = []Reference{
 		{
 			RefType: "CHILD_OF",
 			TraceID: "1",
@@ -246,26 +246,18 @@ func TestFailureBadProcess(t *testing.T) {
 	badProcessESSpan, err := loadESSpanFixture(1)
 	require.NoError(t, err)
 
-	badTags := []jModel.KeyValue{
+	badTags := []KeyValue{
 		{
 			Key:   "meh",
 			Value: "",
 			Type:  "badType",
 		},
 	}
-	badProcessESSpan.Process = &jModel.Process{
+	badProcessESSpan.Process = Process{
 		ServiceName: "hello",
 		Tags:        badTags,
 	}
 	failingSpanTransform(t, &badProcessESSpan, "not a valid ValueType string badType")
-}
-
-func TestProcessPointer(t *testing.T) {
-	badProcessESSpan, err := loadESSpanFixture(1)
-	require.NoError(t, err)
-
-	badProcessESSpan.Process = nil
-	failingSpanTransform(t, &badProcessESSpan, "Process is nil")
 }
 
 func TestFailureBadTraceID(t *testing.T) {
@@ -287,4 +279,64 @@ func TestFailureBadParentSpanID(t *testing.T) {
 	require.NoError(t, err)
 	badParentSpanIDESSpan.ParentSpanID = "zz"
 	failingSpanTransformAnyMsg(t, &badParentSpanIDESSpan)
+}
+
+func TestFailureBadSpanFieldTag(t *testing.T) {
+	badParentSpanIDESSpan, err := loadESSpanFixture(1)
+	require.NoError(t, err)
+	badParentSpanIDESSpan.Tag = map[string]interface{}{"foo": struct{}{}}
+	failingSpanTransformAnyMsg(t, &badParentSpanIDESSpan)
+}
+
+func TestFailureBadProcessFieldTag(t *testing.T) {
+	badParentSpanIDESSpan, err := loadESSpanFixture(1)
+	require.NoError(t, err)
+	badParentSpanIDESSpan.Process.Tag = map[string]interface{}{"foo": struct{}{}}
+	failingSpanTransformAnyMsg(t, &badParentSpanIDESSpan)
+}
+
+func CompareModelSpans(t *testing.T, expected *model.Span, actual *model.Span) {
+	model.SortSpan(expected)
+	model.SortSpan(actual)
+
+	if !assert.EqualValues(t, expected, actual) {
+		for _, err := range pretty.Diff(expected, actual) {
+			t.Log(err)
+		}
+		out, err := json.Marshal(actual)
+		assert.NoError(t, err)
+		t.Logf("Actual trace: %s", string(out))
+	}
+}
+
+func TestTagsMap(t *testing.T) {
+	tests := []struct {
+		fieldTags map[string]interface{}
+		expected  []model.KeyValue
+		err       error
+	}{
+		{fieldTags: map[string]interface{}{"bool:bool": true}, expected: []model.KeyValue{model.Bool("bool.bool", true)}},
+		{fieldTags: map[string]interface{}{"int.int": int64(1)}, expected: []model.KeyValue{model.Int64("int.int", 1)}},
+		{fieldTags: map[string]interface{}{"float": float64(1.1)}, expected: []model.KeyValue{model.Float64("float", 1.1)}},
+		// we are not able to reproduce type for float 123 or any N.0 number therefore returning int
+		{fieldTags: map[string]interface{}{"float": float64(123)}, expected: []model.KeyValue{model.Int64("float", 123)}},
+		{fieldTags: map[string]interface{}{"float": float64(123.0)}, expected: []model.KeyValue{model.Int64("float", 123)}},
+		{fieldTags: map[string]interface{}{"str": "foo"}, expected: []model.KeyValue{model.String("str", "foo")}},
+		{fieldTags: map[string]interface{}{"binary": []byte("foo")}, expected: []model.KeyValue{model.Binary("binary", []byte("foo"))}},
+		{fieldTags: map[string]interface{}{"unsupported": struct{}{}}, err: fmt.Errorf("invalid tag type in %+v", struct{}{})},
+	}
+	converter := NewToDomain(":")
+	for i, test := range tests {
+		t.Run(fmt.Sprintf("%d, %s", i, test.fieldTags), func(t *testing.T) {
+			tags, err := converter.convertTagFields(test.fieldTags)
+			assert.Equal(t, test.expected, tags)
+			assert.Equal(t, test.err, err)
+		})
+	}
+}
+
+func TestDotReplacement(t *testing.T) {
+	converter := NewToDomain("#")
+	k := "foo.foo"
+	assert.Equal(t, k, converter.ReplaceDotReplacement(converter.ReplaceDot(k)))
 }

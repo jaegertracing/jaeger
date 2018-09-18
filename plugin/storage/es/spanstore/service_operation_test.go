@@ -23,8 +23,8 @@ import (
 	"github.com/stretchr/testify/require"
 	"gopkg.in/olivere/elastic.v5"
 
-	jModel "github.com/jaegertracing/jaeger/model/json"
 	"github.com/jaegertracing/jaeger/pkg/es/mocks"
+	"github.com/jaegertracing/jaeger/plugin/storage/es/spanstore/dbmodel"
 )
 
 func TestWriteService(t *testing.T) {
@@ -42,11 +42,11 @@ func TestWriteService(t *testing.T) {
 
 		w.client.On("Index").Return(indexService)
 
-		jsonSpan := &jModel.Span{
-			TraceID:       jModel.TraceID("1"),
-			SpanID:        jModel.SpanID("0"),
+		jsonSpan := &dbmodel.Span{
+			TraceID:       dbmodel.TraceID("1"),
+			SpanID:        dbmodel.SpanID("0"),
 			OperationName: "operation",
-			Process: &jModel.Process{
+			Process: dbmodel.Process{
 				ServiceName: "service",
 			},
 		}
@@ -77,11 +77,11 @@ func TestWriteServiceError(t *testing.T) {
 
 		w.client.On("Index").Return(indexService)
 
-		jsonSpan := &jModel.Span{
-			TraceID:       jModel.TraceID("1"),
-			SpanID:        jModel.SpanID("0"),
+		jsonSpan := &dbmodel.Span{
+			TraceID:       dbmodel.TraceID("1"),
+			SpanID:        dbmodel.SpanID("0"),
 			OperationName: "operation",
-			Process: &jModel.Process{
+			Process: dbmodel.Process{
 				ServiceName: "service",
 			},
 		}

@@ -37,8 +37,11 @@ func CompareSliceOfTraces(t *testing.T, expected []*model.Trace, actual []*model
 			t.Log(err)
 		}
 		out, err := json.Marshal(actual)
+		out2, err2 := json.Marshal(expected)
 		assert.NoError(t, err)
+		assert.NoError(t, err2)
 		t.Logf("Actual traces: %s", string(out))
+		t.Logf("Expected traces: %s", string(out2))
 	}
 }
 

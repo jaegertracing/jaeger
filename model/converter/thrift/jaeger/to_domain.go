@@ -35,7 +35,6 @@ func ToDomainSpan(jSpan *jaeger.Span, jProcess *jaeger.Process) *model.Span {
 	return toDomain{}.ToDomainSpan(jSpan, jProcess)
 }
 
-// toDomain is a private struct that namespaces some conversion functions. It has access to its own private utility functions
 type toDomain struct{}
 
 func (td toDomain) ToDomain(jSpans []*jaeger.Span, jProcess *jaeger.Process) []*model.Span {

@@ -15,7 +15,11 @@
 package es
 
 import (
+	"bufio"
 	"flag"
+	"os"
+	"path/filepath"
+	"strings"
 
 	"github.com/spf13/viper"
 	"github.com/uber/jaeger-lib/metrics"
@@ -74,16 +78,58 @@ func (f *Factory) Initialize(metricsFactory metrics.Factory, logger *zap.Logger)
 // CreateSpanReader implements storage.Factory
 func (f *Factory) CreateSpanReader() (spanstore.Reader, error) {
 	cfg := f.primaryConfig
-	return esSpanStore.NewSpanReader(f.primaryClient, f.logger, cfg.GetMaxSpanAge(), f.metricsFactory, cfg.GetIndexPrefix()), nil
+	return esSpanStore.NewSpanReader(esSpanStore.SpanReaderParams{
+		Client:            f.primaryClient,
+		Logger:            f.logger,
+		MetricsFactory:    f.metricsFactory,
+		MaxLookback:       cfg.GetMaxSpanAge(),
+		IndexPrefix:       cfg.GetIndexPrefix(),
+		TagDotReplacement: cfg.GetTagDotReplacement(),
+	}), nil
 }
 
 // CreateSpanWriter implements storage.Factory
 func (f *Factory) CreateSpanWriter() (spanstore.Writer, error) {
 	cfg := f.primaryConfig
-	return esSpanStore.NewSpanWriter(f.primaryClient, f.logger, f.metricsFactory, cfg.GetNumShards(), cfg.GetNumReplicas(), cfg.GetIndexPrefix()), nil
+	var tags []string
+	if cfg.GetTagsFilePath() != "" {
+		var err error
+		if tags, err = loadTagsFromFile(cfg.GetTagsFilePath()); err != nil {
+			f.logger.Error("Could not open file with tags", zap.Error(err))
+			return nil, err
+		}
+	}
+	return esSpanStore.NewSpanWriter(esSpanStore.SpanWriterParams{Client: f.primaryClient,
+		Logger:            f.logger,
+		MetricsFactory:    f.metricsFactory,
+		NumShards:         f.primaryConfig.GetNumShards(),
+		NumReplicas:       f.primaryConfig.GetNumReplicas(),
+		IndexPrefix:       f.primaryConfig.GetIndexPrefix(),
+		AllTagsAsFields:   f.primaryConfig.GetAllTagsAsFields(),
+		TagKeysAsFields:   tags,
+		TagDotReplacement: f.primaryConfig.GetTagDotReplacement(),
+	}), nil
 }
 
 // CreateDependencyReader implements storage.Factory
 func (f *Factory) CreateDependencyReader() (dependencystore.Reader, error) {
 	return esDepStore.NewDependencyStore(f.primaryClient, f.logger, f.primaryConfig.GetIndexPrefix()), nil
+}
+
+func loadTagsFromFile(filePath string) ([]string, error) {
+	file, err := os.Open(filepath.Clean(filePath))
+	if err != nil {
+		return nil, err
+	}
+	defer file.Close()
+
+	scanner := bufio.NewScanner(file)
+	var tags []string
+	for scanner.Scan() {
+		line := scanner.Text()
+		if tag := strings.TrimSpace(line); tag != "" {
+			tags = append(tags, tag)
+		}
+	}
+	return tags, nil
 }
