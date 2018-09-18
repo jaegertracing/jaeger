@@ -100,11 +100,11 @@ func (sp *spanProcessor) saveSpan(span *model.Span) {
 	startTime := time.Now()
 	if err := sp.spanWriter.WriteSpan(span); err != nil {
 		sp.logger.Error("Failed to save span", zap.Error(err))
-		sp.metrics.SaveFailedBySvc.ReportServiceNameForSpan(span)
+		sp.metrics.SavedErrBySvc.ReportServiceNameForSpan(span)
 	} else {
 		sp.logger.Debug("Span written to the storage by the collector",
 			zap.Stringer("trace-id", span.TraceID), zap.Stringer("span-id", span.SpanID))
-		sp.metrics.SavedBySvc.ReportServiceNameForSpan(span)
+		sp.metrics.SavedOkBySvc.ReportServiceNameForSpan(span)
 	}
 	sp.metrics.SaveLatency.Record(time.Since(startTime))
 }

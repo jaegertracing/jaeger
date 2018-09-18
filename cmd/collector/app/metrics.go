@@ -41,11 +41,11 @@ type SpanProcessorMetrics struct { //TODO - initialize metrics in the traditiona
 	QueueLength metrics.Gauge
 	// ErrorBusy counts number of return ErrServerBusy
 	ErrorBusy metrics.Counter
-	// SavedBySvc contains span and trace counts by service
-	SavedBySvc      metricsBySvc  // spans actually saved
-	SaveFailedBySvc metricsBySvc  // spans failed to save
-	serviceNames    metrics.Gauge // total number of unique service name metrics reported by this collector
-	spanCounts      map[string]CountsBySpanType
+	// SavedOkBySvc contains span and trace counts by service
+	SavedOkBySvc  metricsBySvc  // spans actually saved
+	SavedErrBySvc metricsBySvc  // spans failed to save
+	serviceNames  metrics.Gauge // total number of unique service name metrics reported by this collector
+	spanCounts    map[string]CountsBySpanType
 }
 
 type countsBySvc struct {
@@ -81,16 +81,16 @@ func NewSpanProcessorMetrics(serviceMetrics metrics.Factory, hostMetrics metrics
 		spanCounts[otherFormatType] = newCountsBySpanType(serviceMetrics.Namespace("", map[string]string{"format": otherFormatType}))
 	}
 	m := &SpanProcessorMetrics{
-		SaveLatency:     hostMetrics.Timer("save-latency", nil),
-		InQueueLatency:  hostMetrics.Timer("in-queue-latency", nil),
-		SpansDropped:    hostMetrics.Counter("spans.dropped", nil),
-		BatchSize:       hostMetrics.Gauge("batch-size", nil),
-		QueueLength:     hostMetrics.Gauge("queue-length", nil),
-		ErrorBusy:       hostMetrics.Counter("error.busy", nil),
-		SavedBySvc:      newMetricsBySvc(serviceMetrics, "saved-by-svc"),
-		SaveFailedBySvc: newMetricsBySvc(serviceMetrics, "save-failed-by-svc"),
-		spanCounts:      spanCounts,
-		serviceNames:    hostMetrics.Gauge("spans.serviceNames", nil),
+		SaveLatency:    hostMetrics.Timer("save-latency", nil),
+		InQueueLatency: hostMetrics.Timer("in-queue-latency", nil),
+		SpansDropped:   hostMetrics.Counter("spans.dropped", nil),
+		BatchSize:      hostMetrics.Gauge("batch-size", nil),
+		QueueLength:    hostMetrics.Gauge("queue-length", nil),
+		ErrorBusy:      hostMetrics.Counter("error.busy", nil),
+		SavedOkBySvc:   newMetricsBySvc(serviceMetrics.Namespace("", map[string]string{"result": "ok"}), "saved-by-svc"),
+		SavedErrBySvc:  newMetricsBySvc(serviceMetrics.Namespace("", map[string]string{"result": "err"}), "saved-by-svc"),
+		spanCounts:     spanCounts,
+		serviceNames:   hostMetrics.Gauge("spans.serviceNames", nil),
 	}
 
 	return m

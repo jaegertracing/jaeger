@@ -255,7 +255,7 @@ func TestSpanProcessorErrors(t *testing.T) {
 	}, logBuf.JSONLine(0))
 
 	expected := []metricsTest.ExpectedMetric{{
-		Name: "service.spans.save-failed-by-svc|debug=false|svc=x", Value: 1,
+		Name: "service.spans.saved-by-svc|debug=false|result=err|svc=x", Value: 1,
 	}}
 	metricsTest.AssertCounterMetrics(t, mb, expected...)
 }
