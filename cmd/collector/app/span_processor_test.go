@@ -228,8 +228,11 @@ func TestSpanProcessorErrors(t *testing.T) {
 	w := &fakeSpanWriter{
 		err: fmt.Errorf("some-error"),
 	}
+	mb := metrics.NewLocalFactory(time.Hour)
+	serviceMetrics := mb.Namespace("service", nil)
 	p := NewSpanProcessor(w,
 		Options.Logger(logger),
+		Options.ServiceMetrics(serviceMetrics),
 	).(*spanProcessor)
 
 	res, err := p.ProcessSpans([]*model.Span{
@@ -250,6 +253,11 @@ func TestSpanProcessorErrors(t *testing.T) {
 		"msg":   "Failed to save span",
 		"error": "some-error",
 	}, logBuf.JSONLine(0))
+
+	expected := []metricsTest.ExpectedMetric{{
+		Name: "service.spans.save-failed-by-svc|debug=false|svc=x", Value: 1,
+	}}
+	metricsTest.AssertCounterMetrics(t, mb, expected...)
 }
 
 type blockingWriter struct {
