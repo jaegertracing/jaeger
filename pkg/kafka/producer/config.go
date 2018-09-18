@@ -15,8 +15,9 @@
 package producer
 
 import (
-	"github.com/Shopify/sarama"
 	"time"
+
+	"github.com/Shopify/sarama"
 )
 
 // Builder builds a new kafka producer
@@ -33,6 +34,6 @@ type Configuration struct {
 func (c *Configuration) NewProducer() (sarama.AsyncProducer, error) {
 	saramaConfig := sarama.NewConfig()
 	saramaConfig.Producer.Return.Successes = true
-	saramaConfig.Producer.Flush.Frequency = time.Millisecond*500
+	saramaConfig.Producer.Flush.Frequency = time.Millisecond * 500
 	return sarama.NewAsyncProducer(c.Brokers, saramaConfig)
 }
