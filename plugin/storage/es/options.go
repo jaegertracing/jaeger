@@ -154,15 +154,15 @@ func addFlags(flagSet *flag.FlagSet, nsConfig *namespaceConfig) {
 	flagSet.Bool(
 		nsConfig.namespace+suffixTagsAsFieldsAll,
 		nsConfig.AllTagsAsFields,
-		"Store all span and process tags as object fields. If true "+suffixTagsFile+" is ignored. Binary tags are always stored as nested objects.")
+		"(experimental) Store all span and process tags as object fields. If true "+suffixTagsFile+" is ignored. Binary tags are always stored as nested objects.")
 	flagSet.String(
 		nsConfig.namespace+suffixTagsFile,
 		nsConfig.TagsFilePath,
-		"Optional path to a file containing tag keys which will be stored as object fields. Each key should be on a separate line.")
+		"(experimental) Optional path to a file containing tag keys which will be stored as object fields. Each key should be on a separate line.")
 	flagSet.String(
 		nsConfig.namespace+suffixTagDeDotChar,
 		nsConfig.TagDotReplacement,
-		"The character used to replace dots (\".\") in tag keys stored as object fields.")
+		"(experimental) The character used to replace dots (\".\") in tag keys stored as object fields.")
 }
 
 // InitFromViper initializes Options with properties from viper

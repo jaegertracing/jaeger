@@ -47,7 +47,7 @@ func main() {
 
 	v := viper.New()
 	command := &cobra.Command{
-		Use:   "jaeger-ingester",
+		Use:   "(experimental) jaeger-ingester",
 		Short: "Jaeger ingester consumes from Kafka and writes to storage",
 		Long:  `Jaeger ingester consumes spans from a particular Kafka topic and writes them to all configured storage types.`,
 		RunE: func(cmd *cobra.Command, args []string) error {
