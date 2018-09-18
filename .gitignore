@@ -12,7 +12,7 @@ cover.html
 .mkdocs-virtual-env/
 vendor/
 examples/hotrod/hotrod
-cmd/all-in-one/all-in-one-linux
+cmd/all-in-one/all-in-one-*
 cmd/agent/agent
 cmd/agent/agent-linux
 cmd/collector/collector
