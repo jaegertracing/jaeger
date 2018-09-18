@@ -37,7 +37,7 @@ import (
 )
 
 const (
-	iterations = 60
+	iterations = 30
 )
 
 func TestParseAllFixtures(t *testing.T) {

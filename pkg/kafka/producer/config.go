@@ -15,8 +15,6 @@
 package producer
 
 import (
-	"time"
-
 	"github.com/Shopify/sarama"
 )
 
@@ -34,6 +32,5 @@ type Configuration struct {
 func (c *Configuration) NewProducer() (sarama.AsyncProducer, error) {
 	saramaConfig := sarama.NewConfig()
 	saramaConfig.Producer.Return.Successes = true
-	saramaConfig.Producer.Flush.Frequency = time.Millisecond * 500
 	return sarama.NewAsyncProducer(c.Brokers, saramaConfig)
 }
