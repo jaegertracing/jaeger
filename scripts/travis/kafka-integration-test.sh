@@ -11,7 +11,6 @@ CID_KAFKA=$(docker run -d --rm --link zookeeper --name kafka -p 9092:9092 -e KAF
 trap 'docker rm -f $CID_KAFKA 2>/dev/null' EXIT INT TERM
 trap 'docker rm -f $CID_ZOOKEEPER 2>/dev/null' EXIT INT TERM
 
-echo 'executing wait'
 until docker exec -it kafka /bin/bash opt/kafka/bin/kafka-broker-api-versions.sh --bootstrap-server=localhost:9092
 do
   echo 'Kafka is not ready yet'
