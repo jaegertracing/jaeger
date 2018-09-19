@@ -50,15 +50,15 @@ func (opt *Options) AddFlags(flagSet *flag.FlagSet) {
 	flagSet.String(
 		configPrefix+suffixBrokers,
 		defaultBroker,
-		"The comma-separated list of kafka brokers. i.e. '127.0.0.1:9092,0.0.0:1234'")
+		"(experimental) The comma-separated list of kafka brokers. i.e. '127.0.0.1:9092,0.0.0:1234'")
 	flagSet.String(
 		configPrefix+suffixTopic,
 		defaultTopic,
-		"The name of the kafka topic")
+		"(experimental) The name of the kafka topic")
 	flagSet.String(
 		configPrefix+suffixEncoding,
 		defaultEncoding,
-		fmt.Sprintf(`Encoding of spans ("%s" or "%s") sent to kafka.`, encodingProto, encodingJSON),
+		fmt.Sprintf(`(experimental) Encoding of spans ("%s" or "%s") sent to kafka.`, encodingProto, encodingJSON),
 	)
 }
 
