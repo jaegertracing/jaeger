@@ -43,13 +43,13 @@ make test
 The `jaeger-ui` submodule contains the source code for the UI assets (requires Node.js 6+). The assets must be compiled first with `make build_ui`, which runs Node.js build and then packages the assets into a Go file that is `.gitignore`-ed. The packaged assets can be enabled by providing a build tag `ui`, e.g.:
 
 ```
-$ go run -tags ui ./cmd/standalone/main.go
+$ go run -tags ui ./cmd/all-in-one/main.go
 ```
 
 Alternatively, the path to the built UI assets can be provided via `--query.static-files` flag:
 
 ```
-$ go run ./cmd/standalone/main.go --query.static-files jaeger-ui/build
+$ go run ./cmd/all-in-one/main.go --query.static-files jaeger-ui/build
 ```
 
 ## Project Structure

@@ -94,7 +94,7 @@ test: go-gen
 
 .PHONY: integration-test
 integration-test: go-gen
-	$(GOTEST) -tags=integration ./cmd/standalone/...
+	$(GOTEST) -tags=integration ./cmd/all-in-one/...
 
 .PHONY: storage-integration-test
 storage-integration-test: go-gen
@@ -184,7 +184,7 @@ build-all-in-one-linux: build_ui
 
 .PHONY: build-all-in-one
 build-all-in-one:
-	CGO_ENABLED=0 installsuffix=cgo go build -tags ui -o ./cmd/standalone/standalone-$(GOOS) $(BUILD_INFO) ./cmd/standalone/main.go
+	CGO_ENABLED=0 installsuffix=cgo go build -tags ui -o ./cmd/all-in-one/all-in-one-$(GOOS) $(BUILD_INFO) ./cmd/all-in-one/main.go
 
 .PHONY: build-agent
 build-agent:
