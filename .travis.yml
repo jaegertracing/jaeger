@@ -20,7 +20,6 @@ matrix:
   - go: "1.10"
     env:
     - DOCKER=true
-    - DEPLOY=true
   - go: "1.10"
     env:
     - ES_INTEGRATION_TEST=true
