@@ -103,6 +103,9 @@ func (c *Consumer) handleMessages(pc sc.PartitionConsumer) {
 		c.logger.Debug("Got msg", zap.Any("msg", msg))
 		msgMetrics.counter.Inc(1)
 		msgMetrics.offsetGauge.Update(msg.Offset)
+		if !msg.BlockTimestamp.IsZero() {
+			msgMetrics.lagGaugeNs.Update(time.Since(msg.BlockTimestamp).Nanoseconds())
+		}
 		msgMetrics.lagGauge.Update(pc.HighWaterMarkOffset() - msg.Offset - 1)
 
 		if msgProcessor == nil {

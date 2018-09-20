@@ -24,6 +24,7 @@ type msgMetrics struct {
 	counter     metrics.Counter
 	offsetGauge metrics.Gauge
 	lagGauge    metrics.Gauge
+	lagGaugeNs  metrics.Gauge
 }
 
 type errMetrics struct {
@@ -36,6 +37,7 @@ func (c *Consumer) newMsgMetrics(partition int32) msgMetrics {
 		counter:     f.Counter("messages", nil),
 		offsetGauge: f.Gauge("current-offset", nil),
 		lagGauge:    f.Gauge("offset-lag", nil),
+		lagGaugeNs:  f.Gauge("offset-lag-ns", nil),
 	}
 }
 
