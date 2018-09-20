@@ -55,6 +55,7 @@ import (
 	"github.com/jaegertracing/jaeger/plugin/storage"
 	"github.com/jaegertracing/jaeger/storage/dependencystore"
 	"github.com/jaegertracing/jaeger/storage/spanstore"
+	storageMetrics "github.com/jaegertracing/jaeger/storage/spanstore/metrics"
 	jc "github.com/jaegertracing/jaeger/thrift-gen/jaeger"
 	sc "github.com/jaegertracing/jaeger/thrift-gen/sampling"
 	zc "github.com/jaegertracing/jaeger/thrift-gen/zipkincore"
@@ -285,6 +286,8 @@ func startQuery(
 		logger.Fatal("Failed to initialize tracer", zap.Error(err))
 	}
 	opentracing.SetGlobalTracer(tracer)
+
+	spanReader = storageMetrics.NewReadMetricsDecorator(spanReader, baseFactory.Namespace("query", nil))
 
 	apiHandler := queryApp.NewAPIHandler(
 		spanReader,

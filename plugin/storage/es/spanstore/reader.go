@@ -29,7 +29,6 @@ import (
 	"github.com/jaegertracing/jaeger/pkg/es"
 	"github.com/jaegertracing/jaeger/plugin/storage/es/spanstore/dbmodel"
 	"github.com/jaegertracing/jaeger/storage/spanstore"
-	storageMetrics "github.com/jaegertracing/jaeger/storage/spanstore/metrics"
 )
 
 const (
@@ -109,7 +108,7 @@ type SpanReaderParams struct {
 
 // NewSpanReader returns a new SpanReader with a metrics.
 func NewSpanReader(p SpanReaderParams) spanstore.Reader {
-	return storageMetrics.NewReadMetricsDecorator(newSpanReader(p), p.MetricsFactory)
+	return newSpanReader(p)
 }
 
 func newSpanReader(p SpanReaderParams) *SpanReader {
