@@ -59,7 +59,6 @@ script:
   - if [ "$ES_INTEGRATION_TEST" == true ]; then bash ./scripts/travis/es-integration-test.sh ; else echo 'skipping elastic search integration test'; fi
   - if [ "$KAFKA_INTEGRATION_TEST" == true ]; then bash ./scripts/travis/kafka-integration-test.sh ; else echo 'skipping kafka integration test'; fi
   - if [ "$HOTROD" == true ]; then bash ./scripts/travis/hotrod-integration-test.sh ; else echo 'skipping hotrod example'; fi
-  - if [[ "$DEPLOY" == true && "$BRANCH" == "master" ]]; then make build-all-platforms ; else echo 'skipping linux'; fi
 
 after_success:
   - if [ "$COVERAGE" == true ]; then mv cover.out coverage.txt ; else echo 'skipping coverage'; fi
@@ -69,7 +68,7 @@ after_failure:
   - if [ "$CROSSDOCK" == true ]; then make crossdock-logs ; else echo 'skipping crossdock'; fi
 
 before_deploy:
-  - bash ./scripts/travis/package-deploy.sh
+  - make build-all-platforms && bash ./scripts/travis/package-deploy.sh
 
 deploy:
   provider: releases
