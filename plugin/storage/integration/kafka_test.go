@@ -88,11 +88,7 @@ func (s *KafkaIntegrationTestSuite) initialize() error {
 	s.SpanWriter = spanWriter
 	s.SpanReader = &ingester{traceStore}
 	s.Refresh = func() error { return nil }
-	s.CleanUp = func() error {
-		// TODO close would not work if multiple tests are run
-		spanConsumer.Close()
-		return nil
-	}
+	s.CleanUp = func() error { return nil }
 	return nil
 }
 
