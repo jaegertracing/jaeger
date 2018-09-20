@@ -198,6 +198,10 @@ build-query:
 build-collector:
 	CGO_ENABLED=0 installsuffix=cgo go build -o ./cmd/collector/collector-$(GOOS) $(BUILD_INFO) ./cmd/collector/main.go
 
+.PHONY: build-relay
+build-relay:
+	CGO_ENABLED=0 installsuffix=cgo go build -o ./cmd/relay/relay-$(GOOS) $(BUILD_INFO) ./cmd/relay/main.go
+
 .PHONY: docker-no-ui
 docker-no-ui: build-binaries-linux build-crossdock-linux
 	make docker-images-only
@@ -218,7 +222,7 @@ build-binaries-darwin:
 	GOOS=darwin $(MAKE) build-platform-binaries
 
 .PHONY: build-platform-binaries
-build-platform-binaries: build-agent build-collector build-query build-all-in-one build-examples
+build-platform-binaries: build-agent build-relay build-collector build-query build-all-in-one build-examples
 
 .PHONY: build-all-platforms
 build-all-platforms: build-binaries-linux build-binaries-windows build-binaries-darwin
@@ -229,12 +233,17 @@ docker-images-only:
 	@echo "Finished building jaeger-cassandra-schema =============="
 	docker build -t $(DOCKER_NAMESPACE)/jaeger-es-index-cleaner:${DOCKER_TAG} plugin/storage/es
 	@echo "Finished building jaeger-es-indices-clean =============="
-	for component in agent collector query ; do \
+	for component in agent collector query relay ; do \
 		docker build -t $(DOCKER_NAMESPACE)/jaeger-$$component:${DOCKER_TAG} cmd/$$component ; \
 		echo "Finished building $$component ==============" ; \
 	done
 	docker build -t $(DOCKER_NAMESPACE)/test-driver:${DOCKER_TAG} crossdock/
 	@echo "Finished building test-driver ==============" ; \
+
+.PHONY: docker-relay
+docker-relay:
+	docker build -t $(DOCKER_NAMESPACE)/jaeger-relay:${DOCKER_TAG} cmd/relay ; \
+	echo "Finished building relay ==============" ; \
 
 .PHONY: docker-push
 docker-push:
