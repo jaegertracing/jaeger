@@ -15,6 +15,7 @@
 package builder
 
 import (
+	"github.com/jaegertracing/jaeger/plugin/pkg/factory"
 	"github.com/uber/jaeger-lib/metrics"
 	"go.uber.org/zap"
 )
@@ -27,6 +28,8 @@ type BasicOptions struct {
 	Logger *zap.Logger
 	// MetricsFactory is the basic metrics factory used by most executables
 	MetricsFactory metrics.Factory
+	// PluginFactory is the generic factory used by most executable to support external plugins
+	PluginFactory factory.PluginFactory
 }
 
 // Option is a function that sets some option on StorageBuilder.
@@ -46,6 +49,13 @@ func (BasicOptions) LoggerOption(logger *zap.Logger) Option {
 func (BasicOptions) MetricsFactoryOption(metricsFactory metrics.Factory) Option {
 	return func(b *BasicOptions) {
 		b.MetricsFactory = metricsFactory
+	}
+}
+
+// PluginFactoryOption creates an Option that initializes the PluginFactory
+func (BasicOptions) PluginFactoryOption(pluginFactory factory.PluginFactory) Option {
+	return func(b *BasicOptions) {
+		b.PluginFactory = pluginFactory
 	}
 }
 

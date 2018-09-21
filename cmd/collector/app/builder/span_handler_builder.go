@@ -18,15 +18,17 @@ import (
 	"errors"
 	"os"
 
+	"github.com/jaegertracing/jaeger/plugin/pkg/factory"
+
 	"github.com/uber/jaeger-lib/metrics"
 	"go.uber.org/zap"
 
 	basicB "github.com/jaegertracing/jaeger/cmd/builder"
 	"github.com/jaegertracing/jaeger/cmd/collector/app"
+	collectorPlugin "github.com/jaegertracing/jaeger/cmd/collector/app/plugin"
 	zs "github.com/jaegertracing/jaeger/cmd/collector/app/sanitizer/zipkin"
 	"github.com/jaegertracing/jaeger/model"
 	"github.com/jaegertracing/jaeger/storage/spanstore"
-	"github.com/jaegertracing/jaeger/cmd/collector/app/plugin"
 )
 
 var (
@@ -41,25 +43,19 @@ type SpanHandlerBuilder struct {
 	metricsFactory metrics.Factory
 	collectorOpts  *CollectorOptions
 	spanWriter     spanstore.Writer
-	pluginsFactory plugin.PluginsFactory
+	pluginFactory  factory.PluginFactory
 }
 
 // NewSpanHandlerBuilder returns new SpanHandlerBuilder with configured span storage.
 func NewSpanHandlerBuilder(cOpts *CollectorOptions, spanWriter spanstore.Writer, opts ...basicB.Option) (*SpanHandlerBuilder, error) {
 	options := basicB.ApplyOptions(opts...)
 
-	pluginsFactory := plugin.NewPluginsFactory(cOpts.CollectorPluginsDir, options.Logger)
-	err := pluginsFactory.Load()
-	if err != nil {
-		return nil, err
-	}
-
 	spanHb := &SpanHandlerBuilder{
 		collectorOpts:  cOpts,
 		logger:         options.Logger,
 		metricsFactory: options.MetricsFactory,
 		spanWriter:     spanWriter,
-		pluginsFactory:	pluginsFactory,
+		pluginFactory:  options.PluginFactory,
 	}
 
 	return spanHb, nil
@@ -74,18 +70,43 @@ func (spanHb *SpanHandlerBuilder) BuildHandlers() (
 	hostname, _ := os.Hostname()
 	hostMetrics := spanHb.metricsFactory.Namespace(metrics.NSOptions{Name: "", Tags: map[string]string{"host": hostname}})
 
+	preProcess, err := collectorPlugin.PreProcess(spanHb.pluginFactory)
+	if err != nil {
+		// TODO: Should we exit on error?
+		spanHb.logger.Error(err.Error())
+	}
+
+	spanFilter, err := collectorPlugin.SpanFilter(spanHb.pluginFactory)
+	if err != nil {
+		// TODO: Should we exit on error?
+		spanHb.logger.Error(err.Error())
+	}
+	if spanFilter == nil {
+		spanFilter = defaultSpanFilter
+	}
+
+	sanitizer, err := collectorPlugin.Sanitizer(spanHb.pluginFactory)
+	if err != nil {
+		// TODO: Should we exit on error?
+		spanHb.logger.Error(err.Error())
+	}
+
+	preSave, err := collectorPlugin.PreSave(spanHb.pluginFactory)
+	if err != nil {
+		// TODO: Should we exit on error?
+		spanHb.logger.Error(err.Error())
+	}
 	spanProcessor := app.NewSpanProcessor(
 		spanHb.spanWriter,
 		app.Options.ServiceMetrics(spanHb.metricsFactory),
 		app.Options.HostMetrics(hostMetrics),
 		app.Options.Logger(spanHb.logger),
-		app.Options.SpanFilter(defaultSpanFilter),
 		app.Options.NumWorkers(spanHb.collectorOpts.NumWorkers),
 		app.Options.QueueSize(spanHb.collectorOpts.QueueSize),
-		app.Options.PreProcessSpans(spanHb.pluginsFactory.PreProcessor()),
-		app.Options.SpanFilter(spanHb.pluginsFactory.SpanFilter()),
-		app.Options.Sanitizer(spanHb.pluginsFactory.Sanitizer()),
-		app.Options.PreSave(spanHb.pluginsFactory.PreSaveProcessor()),
+		app.Options.PreProcessSpans(preProcess),
+		app.Options.SpanFilter(spanFilter),
+		app.Options.Sanitizer(sanitizer),
+		app.Options.PreSave(preSave),
 	)
 
 	return app.NewZipkinSpanHandler(spanHb.logger, spanProcessor, zs.NewChainedSanitizer(zs.StandardSanitizers...)),

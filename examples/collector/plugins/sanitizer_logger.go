@@ -1,9 +1,10 @@
 package main
 
 import (
+	"fmt"
+
 	"github.com/jaegertracing/jaeger/cmd/collector/app/sanitizer"
 	"github.com/jaegertracing/jaeger/model"
-	"fmt"
 )
 
 func sanitize(span *model.Span) *model.Span {

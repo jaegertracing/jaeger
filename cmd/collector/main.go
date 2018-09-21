@@ -89,6 +89,14 @@ func main() {
 			if err != nil {
 				logger.Fatal("Could not start the health check server.", zap.Error(err))
 			}
+			pf, err := sFlags.NewPluginFactory(logger)
+			if err != nil {
+				logger.Fatal("Could not instantiate the plugin factory.", zap.Error(err))
+			}
+			pf.Initialize()
+			if err != nil {
+				logger.Fatal("Could not initialize the plugin factory.", zap.Error(err))
+			}
 
 			builderOpts := new(builder.CollectorOptions).InitFromViper(v)
 
@@ -113,6 +121,7 @@ func main() {
 				spanWriter,
 				basicB.Options.LoggerOption(logger),
 				basicB.Options.MetricsFactoryOption(metricsFactory),
+				basicB.Options.PluginFactoryOption(pf),
 			)
 			if err != nil {
 				logger.Fatal("Unable to set up builder", zap.Error(err))

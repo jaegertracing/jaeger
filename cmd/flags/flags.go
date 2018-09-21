@@ -17,6 +17,7 @@ package flags
 import (
 	"flag"
 	"fmt"
+	"os"
 
 	"github.com/pkg/errors"
 	"github.com/spf13/viper"
@@ -24,6 +25,7 @@ import (
 	"go.uber.org/zap/zapcore"
 
 	hc "github.com/jaegertracing/jaeger/pkg/healthcheck"
+	"github.com/jaegertracing/jaeger/plugin/pkg/factory"
 	"github.com/jaegertracing/jaeger/plugin/storage"
 )
 
@@ -32,6 +34,7 @@ const (
 	logLevel            = "log-level"
 	configFile          = "config-file"
 	healthCheckHTTPPort = "health-check-http-port"
+	pluginDirectory     = "plugin-directory"
 )
 
 var defaultHealthCheckPort int
@@ -59,6 +62,8 @@ type SharedFlags struct {
 	Logging logging
 	// HealthCheck holds health check configuration
 	HealthCheck healthCheck
+	// Plugin holds plugin configuration
+	Plugin plugin
 }
 
 type logging struct {
@@ -69,6 +74,10 @@ type healthCheck struct {
 	Port int
 }
 
+type plugin struct {
+	Directory string
+}
+
 // SetDefaultHealthCheckPort sets the default port for health check. Must be called before AddFlags
 func SetDefaultHealthCheckPort(port int) {
 	defaultHealthCheckPort = port
@@ -77,8 +86,14 @@ func SetDefaultHealthCheckPort(port int) {
 // AddFlags adds flags for SharedFlags
 func AddFlags(flagSet *flag.FlagSet) {
 	flagSet.String(spanStorageType, "", fmt.Sprintf(`Deprecated; please use %s environment variable. Run this binary with "env" command for help.`, storage.SpanStorageTypeEnvVar))
-	flagSet.Int(healthCheckHTTPPort, defaultHealthCheckPort, "The http port for the health check service")
+	AddHealthcheckFlag(flagSet)
 	AddLoggingFlag(flagSet)
+	AddPluginFlag(flagSet)
+}
+
+// AddHealthcheckFlag adds logging flag for SharedFlags
+func AddHealthcheckFlag(flagSet *flag.FlagSet) {
+	flagSet.Int(healthCheckHTTPPort, defaultHealthCheckPort, "The http port for the health check service")
 }
 
 // AddLoggingFlag adds logging flag for SharedFlags
@@ -86,10 +101,16 @@ func AddLoggingFlag(flagSet *flag.FlagSet) {
 	flagSet.String(logLevel, "info", "Minimal allowed log Level. For more levels see https://github.com/uber-go/zap")
 }
 
+// AddPluginFlag adds plugin flag for SharedFlags
+func AddPluginFlag(flagSet *flag.FlagSet) {
+	flagSet.String(pluginDirectory, "", "The directory to dynamically load plugins")
+}
+
 // InitFromViper initializes SharedFlags with properties from viper
 func (flags *SharedFlags) InitFromViper(v *viper.Viper) *SharedFlags {
 	flags.Logging.Level = v.GetString(logLevel)
 	flags.HealthCheck.Port = v.GetInt(healthCheckHTTPPort)
+	flags.Plugin.Directory = v.GetString(pluginDirectory)
 	return flags
 }
 
@@ -111,4 +132,18 @@ func (flags *SharedFlags) NewHealthCheck(logger *zap.Logger) (*hc.HealthCheck, e
 	}
 	return hc.New(hc.Unavailable, hc.Logger(logger)).
 		Serve(flags.HealthCheck.Port)
+}
+
+// NewPluginFactory returns plugin factory based on configuration in SharedFlags
+func (flags *SharedFlags) NewPluginFactory(logger *zap.Logger) (factory.PluginFactory, error) {
+	if flags.Plugin.Directory != "" {
+		fi, err := os.Stat(flags.Plugin.Directory)
+		if err != nil {
+			return nil, err
+		}
+		if !fi.IsDir() {
+			return nil, errors.Errorf("The provided plugin directory (%s) is not a directory", flags.Plugin.Directory)
+		}
+	}
+	return factory.NewPluginFactory(flags.Plugin.Directory, logger), nil
 }

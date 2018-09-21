@@ -1,9 +1,10 @@
 package main
 
 import (
-	"github.com/jaegertracing/jaeger/model"
 	"fmt"
+
 	"github.com/jaegertracing/jaeger/cmd/collector/app"
+	"github.com/jaegertracing/jaeger/model"
 )
 
 func preSave(span *model.Span) {

@@ -53,8 +53,6 @@ type CollectorOptions struct {
 	CollectorGRPCPort int
 	// CollectorZipkinHTTPPort is the port that the Zipkin collector service listens in on for http requests
 	CollectorZipkinHTTPPort int
-	// CollectorPluginsDir is the directory used to dynamically load collector plugin
-	CollectorPluginsDir string
 }
 
 // AddFlags adds flags for CollectorOptions
@@ -76,6 +74,5 @@ func (cOpts *CollectorOptions) InitFromViper(v *viper.Viper) *CollectorOptions {
 	cOpts.CollectorHTTPPort = v.GetInt(collectorHTTPPort)
 	cOpts.CollectorGRPCPort = v.GetInt(collectorGRPCPort)
 	cOpts.CollectorZipkinHTTPPort = v.GetInt(collectorZipkinHTTPort)
-	cOpts.CollectorPluginsDir = v.GetString(collectorPluginsDir)
 	return cOpts
 }

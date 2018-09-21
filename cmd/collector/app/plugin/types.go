@@ -1,65 +1,102 @@
-package plugin
+package factory
 
 import (
-	"plugin"
-	"github.com/jaegertracing/jaeger/cmd/collector/app/sanitizer"
-	"github.com/pkg/errors"
+	"reflect"
+
 	"github.com/jaegertracing/jaeger/cmd/collector/app"
-	"go.uber.org/zap"
-	"path/filepath"
+	"github.com/jaegertracing/jaeger/cmd/collector/app/sanitizer"
+	"github.com/jaegertracing/jaeger/model"
+	"github.com/jaegertracing/jaeger/plugin/pkg/factory"
 )
 
+// Known symbols
 const (
-	preProcessSpansSymbol	= "PreProcessSpans"
-	spanFilterSymbol		= "SpanFilter"
-	sanitizerSymbol			= "Sanitizer"
-	preSaveSymbol			= "PreSave"
+	preProcessSymbol = "PreProcess"
+	spanFilterSymbol = "SpanFilter"
+	sanitizerSymbol  = "Sanitizer"
+	preSaveSymbol    = "PreSave"
 )
 
-var symbols = []string{ preProcessSpansSymbol, spanFilterSymbol, sanitizerSymbol, preSaveSymbol }
+// Used to assert type
+var (
+	preProcessFunc app.ProcessSpans       = func(spans []*model.Span) {}
+	spanFilterFunc app.FilterSpan         = func(span *model.Span) bool { return true }
+	sanitizerFunc  sanitizer.SanitizeSpan = func(span *model.Span) *model.Span { return span }
+	preSaveFunc    app.ProcessSpan        = func(span *model.Span) {}
+)
 
-func incompatibleType(symbol string, path string) error {
-	return errors.Errorf("Incompatible type when loading symbol %s from %s", symbol, path)
+func PreProcess(pf factory.PluginFactory) (app.ProcessSpans, error) {
+	plugins, err := pf.Get(preProcessSymbol, reflect.TypeOf(preProcessFunc))
+	if err != nil {
+		return nil, err
+	}
+	switch len(plugins) {
+	case 0:
+		return nil, nil
+	case 1:
+		return plugins[0].(app.ProcessSpans), nil
+	default:
+		toChain := make([]app.ProcessSpans, len(plugins))
+		for _, p := range plugins {
+			toChain = append(toChain, p.(app.ProcessSpans))
+		}
+		return app.ChainedProcessSpans(toChain...), nil
+	}
 }
 
-func resolvePluginType(f *factory, p *plugin.Plugin, path string) error {
-	var found bool
-	for _, s := range symbols {
-		// Lookup every known symbols, validate the type and keep track of them
-		symbol, err := p.Lookup(s)
-		if err == nil {
-			switch s {
-			case preProcessSpansSymbol:
-				ps, ok := symbol.(*app.ProcessSpans)
-				if !ok {
-					return incompatibleType(s, path)
-				}
-				f.preProcessors = append(f.preProcessors, *ps)
-			case spanFilterSymbol:
-				fs, ok := symbol.(*app.FilterSpan)
-				if !ok {
-					return incompatibleType(s, path)
-				}
-				f.spanFilters = append(f.spanFilters, *fs)
-			case sanitizerSymbol:
-				ss, ok := symbol.(*sanitizer.SanitizeSpan)
-				if !ok {
-					return incompatibleType(s, path)
-				}
-				f.sanitizers = append(f.sanitizers, *ss)
-			case preSaveSymbol:
-				ps, ok := symbol.(*app.ProcessSpan)
-				if !ok {
-					return incompatibleType(s, path)
-				}
-				f.preSaveProcessors = append(f.preSaveProcessors, *ps)
-			}
-			f.logger.Info("Plugin was successfully loaded", zap.String("plugin", filepath.Base(path)), zap.String("symbol", s))
-			found = true
+func SpanFilter(pf factory.PluginFactory) (app.FilterSpan, error) {
+	plugins, err := pf.Get(spanFilterSymbol, reflect.TypeOf(spanFilterFunc))
+	if err != nil {
+		return nil, err
+	}
+	switch len(plugins) {
+	case 0:
+		return nil, nil
+	case 1:
+		return plugins[0].(app.FilterSpan), nil
+	default:
+		toChain := make([]app.FilterSpan, len(plugins))
+		for _, p := range plugins {
+			toChain = append(toChain, p.(app.FilterSpan))
 		}
+		return app.ChainedFilterSpan(toChain...), nil
 	}
-	if !found {
-		return errors.Errorf("Could not find any known symbols in %s", path)
+}
+
+func Sanitizer(pf factory.PluginFactory) (sanitizer.SanitizeSpan, error) {
+	plugins, err := pf.Get(sanitizerSymbol, reflect.TypeOf(sanitizerFunc))
+	if err != nil {
+		return nil, err
 	}
-	return nil;
+	switch len(plugins) {
+	case 0:
+		return nil, nil
+	case 1:
+		return plugins[0].(sanitizer.SanitizeSpan), nil
+	default:
+		toChain := make([]sanitizer.SanitizeSpan, len(plugins))
+		for _, p := range plugins {
+			toChain = append(toChain, p.(sanitizer.SanitizeSpan))
+		}
+		return sanitizer.NewChainedSanitizer(toChain...), nil
+	}
+}
+
+func PreSave(pf factory.PluginFactory) (app.ProcessSpan, error) {
+	plugins, err := pf.Get(preSaveSymbol, reflect.TypeOf(preSaveFunc))
+	if err != nil {
+		return nil, err
+	}
+	switch len(plugins) {
+	case 0:
+		return nil, nil
+	case 1:
+		return plugins[0].(app.ProcessSpan), nil
+	default:
+		toChain := make([]app.ProcessSpan, len(plugins))
+		for _, p := range plugins {
+			toChain = append(toChain, p.(app.ProcessSpan))
+		}
+		return app.ChainedProcessSpan(toChain...), nil
+	}
 }
