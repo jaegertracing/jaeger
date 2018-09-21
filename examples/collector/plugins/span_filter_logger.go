@@ -7,9 +7,7 @@ import (
 	"github.com/jaegertracing/jaeger/model"
 )
 
-func spanFilter(span *model.Span) bool {
+var SpanFilter app.FilterSpan = func(span *model.Span) bool {
 	fmt.Printf("SpanFilter... TraceID=%v SpanID=%v OperationName=%s\n", span.TraceID, span.SpanID, span.OperationName)
 	return true
 }
-
-var SpanFilter app.FilterSpan = spanFilter

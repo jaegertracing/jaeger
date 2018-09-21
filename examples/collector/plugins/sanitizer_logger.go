@@ -7,9 +7,7 @@ import (
 	"github.com/jaegertracing/jaeger/model"
 )
 
-func sanitize(span *model.Span) *model.Span {
+var Sanitizer sanitizer.SanitizeSpan = func(span *model.Span) *model.Span {
 	fmt.Printf("Sanitizer... TraceID=%v SpanID=%v OperationName=%s\n", span.TraceID, span.SpanID, span.OperationName)
 	return span
 }
-
-var Sanitizer sanitizer.SanitizeSpan = sanitize

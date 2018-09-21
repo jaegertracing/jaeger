@@ -7,8 +7,6 @@ import (
 	"github.com/jaegertracing/jaeger/model"
 )
 
-func preProcessSpans(spans []*model.Span) {
+var PreProcess app.ProcessSpans = func(spans []*model.Span) {
 	fmt.Printf("PreProcessSpans...  %d spans\n", len(spans))
 }
-
-var PreProcess app.ProcessSpans = preProcessSpans
