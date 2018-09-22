@@ -129,7 +129,7 @@ func TestReporter(t *testing.T) {
 	require.NoError(t, err)
 	client := throttler.clients[clientUUID]
 	require.NotNil(t, client)
-	delta := time.Now().Sub(startTime).Seconds() * creditsPerSecond
+	delta := time.Since(startTime).Seconds() * creditsPerSecond
 	assert.InDelta(t, credits, client.perOperationBalance["a"], delta)
 
 	// Make sure we are not throttling non-debug spans.

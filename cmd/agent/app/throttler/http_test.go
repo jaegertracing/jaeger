@@ -140,7 +140,7 @@ func TestHTTP(t *testing.T) {
 			// bucket refill rate. The reason for this is that the expected
 			// payload assumes no time has transpired between requests, which is
 			// not realistic.
-			delta := time.Now().Sub(startTime).Seconds() * creditsPerSecond
+			delta := time.Since(startTime).Seconds() * creditsPerSecond
 			assert.InDeltaMapValues(
 				t,
 				perOperationBalanceListToMap(clientBalances.Balances),
