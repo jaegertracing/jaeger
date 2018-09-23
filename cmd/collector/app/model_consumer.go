@@ -14,7 +14,9 @@
 
 package app
 
-import "github.com/jaegertracing/jaeger/model"
+import (
+	"github.com/jaegertracing/jaeger/model"
+)
 
 // ProcessSpan processes a Domain Model Span
 type ProcessSpan func(span *model.Span)

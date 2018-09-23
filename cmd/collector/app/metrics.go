@@ -28,7 +28,8 @@ const (
 )
 
 // SpanProcessorMetrics contains all the necessary metrics for the SpanProcessor
-type SpanProcessorMetrics struct { //TODO - initialize metrics in the traditional factory way. Initialize map afterward.
+type SpanProcessorMetrics struct {
+	//TODO - initialize metrics in the traditional factory way. Initialize map afterward.
 	// SaveLatency measures how long the actual save to storage takes
 	SaveLatency metrics.Timer
 	// InQueueLatency measures how long the span spends in the queue

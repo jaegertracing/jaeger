@@ -27,7 +27,6 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
-	"github.com/uber/jaeger-client-go"
 	"go.uber.org/zap"
 
 	"github.com/jaegertracing/jaeger/crossdock/services/mocks"
@@ -259,7 +258,7 @@ func TestCreateTracesLoop(t *testing.T) {
 	defer server.Close()
 
 	handler := &TraceHandler{
-		logger: zap.NewNop(),
+		logger:                   zap.NewNop(),
 		createTracesLoopInterval: time.Millisecond,
 		getClientURL: func(service string) string {
 			return server.URL
