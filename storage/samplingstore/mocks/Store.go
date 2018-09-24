@@ -14,10 +14,13 @@
 
 package mocks
 
-import "github.com/jaegertracing/jaeger/cmd/collector/app/sampling/model"
-import "github.com/stretchr/testify/mock"
+import (
+	"time"
 
-import "time"
+	"github.com/stretchr/testify/mock"
+
+	"github.com/jaegertracing/jaeger/cmd/collector/app/sampling/model"
+)
 
 type Store struct {
 	mock.Mock

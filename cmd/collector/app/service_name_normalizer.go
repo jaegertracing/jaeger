@@ -14,7 +14,9 @@
 
 package app
 
-import "strings"
+import (
+	"strings"
+)
 
 // NormalizeServiceName converts service name to a lowercase string that is safe to use in metrics
 func NormalizeServiceName(serviceName string) string {

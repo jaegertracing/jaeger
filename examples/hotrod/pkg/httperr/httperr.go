@@ -14,7 +14,9 @@
 
 package httperr
 
-import "net/http"
+import (
+	"net/http"
+)
 
 // HandleError checks if the error is not nil, writes it to the output
 // with the specified status code, and returns true. If error is nil it returns false.

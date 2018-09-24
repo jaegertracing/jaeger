@@ -14,7 +14,9 @@
 
 package cmd
 
-import "github.com/spf13/cobra"
+import (
+	"github.com/spf13/cobra"
+)
 
 // allCmd represents the all command
 var allCmd = &cobra.Command{

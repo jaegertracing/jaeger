@@ -14,7 +14,9 @@
 
 package zipkin
 
-import "github.com/jaegertracing/jaeger/model"
+import (
+	"github.com/jaegertracing/jaeger/model"
+)
 
 type processHashtable struct {
 	processes map[uint64][]*model.Process

@@ -14,7 +14,9 @@
 
 package consumer
 
-import "github.com/Shopify/sarama"
+import (
+	"github.com/Shopify/sarama"
+)
 
 // Message contains the parts of a sarama ConsumerMessage that we care about.
 type Message interface {

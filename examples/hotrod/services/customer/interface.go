@@ -14,7 +14,9 @@
 
 package customer
 
-import "context"
+import (
+	"context"
+)
 
 // Customer contains data about a customer.
 type Customer struct {

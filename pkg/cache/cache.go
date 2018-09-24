@@ -14,7 +14,9 @@
 
 package cache
 
-import "time"
+import (
+	"time"
+)
 
 // A Cache is a generalized interface to a cache.  See cache.LRU for a specific
 // implementation (bounded cache with LRU eviction)

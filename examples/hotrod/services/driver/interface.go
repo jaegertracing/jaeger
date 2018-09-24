@@ -14,7 +14,9 @@
 
 package driver
 
-import "context"
+import (
+	"context"
+)
 
 // Driver describes a driver and the currentl car location.
 type Driver struct {

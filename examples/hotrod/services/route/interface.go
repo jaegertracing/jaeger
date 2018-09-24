@@ -14,8 +14,10 @@
 
 package route
 
-import "context"
-import "time"
+import (
+	"context"
+	"time"
+)
 
 // Route describes a route between Pickup and Dropoff locations and expected time to arrival.
 type Route struct {

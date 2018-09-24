@@ -14,7 +14,9 @@
 
 package distributedlock
 
-import "time"
+import (
+	"time"
+)
 
 // Lock uses distributed lock for control of a resource.
 type Lock interface {

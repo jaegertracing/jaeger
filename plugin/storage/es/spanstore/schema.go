@@ -14,7 +14,9 @@
 
 package spanstore
 
-import "fmt"
+import (
+	"fmt"
+)
 
 // TODO: resolve traceID concerns (may not require any changes here)
 const mapping = `{

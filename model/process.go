@@ -14,7 +14,9 @@
 
 package model
 
-import "io"
+import (
+	"io"
+)
 
 // NewProcess creates a new Process for given serviceName and tags.
 // The tags are sorted in place and kept in the the same array/slice,
