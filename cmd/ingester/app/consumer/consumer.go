@@ -16,6 +16,7 @@ package consumer
 
 import (
 	"sync"
+	"time"
 
 	"github.com/Shopify/sarama"
 	sc "github.com/bsm/sarama-cluster"
@@ -43,6 +44,7 @@ type Consumer struct {
 	processorFactory ProcessorFactory
 
 	partitionIDToState map[int32]*consumerState
+	timeSince          func(time.Time) time.Duration
 }
 
 type consumerState struct {
@@ -58,6 +60,7 @@ func New(params Params) (*Consumer, error) {
 		internalConsumer:   params.InternalConsumer,
 		processorFactory:   params.ProcessorFactory,
 		partitionIDToState: make(map[int32]*consumerState),
+		timeSince:          time.Since,
 	}, nil
 }
 
@@ -103,8 +106,8 @@ func (c *Consumer) handleMessages(pc sc.PartitionConsumer) {
 		c.logger.Debug("Got msg", zap.Any("msg", msg))
 		msgMetrics.counter.Inc(1)
 		msgMetrics.offsetGauge.Update(msg.Offset)
-		if !msg.BlockTimestamp.IsZero() {
-			msgMetrics.lagGaugeNs.Update(time.Since(msg.BlockTimestamp).Nanoseconds())
+		if !msg.BlockTimestamp.IsZero() { // This timestamp is zero for Kafka broker (or the broker data format) < v0.10.2
+			msgMetrics.lagGaugeNs.Update(c.timeSince(msg.BlockTimestamp).Nanoseconds())
 		}
 		msgMetrics.lagGauge.Update(pc.HighWaterMarkOffset() - msg.Offset - 1)
 

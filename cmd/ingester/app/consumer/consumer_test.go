@@ -86,7 +86,8 @@ func newConsumer(
 	factory metrics.Factory,
 	topic string,
 	processor processor.SpanProcessor,
-	consumer consumer.Consumer) *Consumer {
+	consumer consumer.Consumer,
+	timeSince func(time.Time) time.Duration) *Consumer {
 
 	logger, _ := zap.NewDevelopment()
 	return &Consumer{
@@ -94,6 +95,7 @@ func newConsumer(
 		logger:             logger,
 		internalConsumer:   consumer,
 		partitionIDToState: make(map[int32]*consumerState),
+		timeSince:          timeSince,
 
 		processorFactory: ProcessorFactory{
 			topic:          topic,
@@ -118,6 +120,11 @@ func TestSaramaConsumerWrapper_start_Messages(t *testing.T) {
 	localFactory := metrics.NewLocalFactory(0)
 
 	msg := &sarama.ConsumerMessage{}
+	msg.BlockTimestamp = time.Unix(1537884448, 0)
+	lagNs := time.Minute
+	timeSince := func(time.Time) time.Duration {
+		return lagNs
+	}
 
 	isProcessed := sync.WaitGroup{}
 	isProcessed.Add(1)
@@ -134,7 +141,7 @@ func TestSaramaConsumerWrapper_start_Messages(t *testing.T) {
 	saramaPartitionConsumer, e := saramaConsumer.ConsumePartition(topic, partition, msgOffset)
 	require.NoError(t, e)
 
-	undertest := newConsumer(localFactory, topic, mp, newSaramaClusterConsumer(saramaPartitionConsumer))
+	undertest := newConsumer(localFactory, topic, mp, newSaramaClusterConsumer(saramaPartitionConsumer), timeSince)
 
 	undertest.partitionIDToState = map[int32]*consumerState{
 		partition: {
@@ -173,6 +180,11 @@ func TestSaramaConsumerWrapper_start_Messages(t *testing.T) {
 		Tags:  partitionTag,
 		Value: 0,
 	})
+	testutils.AssertGaugeMetrics(t, localFactory, testutils.ExpectedMetric{
+		Name:  "sarama-consumer.offset-lag-ns",
+		Tags:  partitionTag,
+		Value: int(lagNs),
+	})
 }
 
 func TestSaramaConsumerWrapper_start_Errors(t *testing.T) {
@@ -185,7 +197,7 @@ func TestSaramaConsumerWrapper_start_Errors(t *testing.T) {
 	saramaPartitionConsumer, e := saramaConsumer.ConsumePartition(topic, partition, msgOffset)
 	require.NoError(t, e)
 
-	undertest := newConsumer(localFactory, topic, &pmocks.SpanProcessor{}, newSaramaClusterConsumer(saramaPartitionConsumer))
+	undertest := newConsumer(localFactory, topic, &pmocks.SpanProcessor{}, newSaramaClusterConsumer(saramaPartitionConsumer), time.Since)
 
 	undertest.Start()
 	mc.YieldError(errors.New("Daisy, Daisy"))
