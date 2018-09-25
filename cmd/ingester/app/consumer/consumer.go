@@ -16,6 +16,7 @@ package consumer
 
 import (
 	"sync"
+	"time"
 
 	"github.com/Shopify/sarama"
 	sc "github.com/bsm/sarama-cluster"
@@ -42,6 +43,7 @@ type Consumer struct {
 	internalConsumer consumer.Consumer
 	processorFactory ProcessorFactory
 
+	seppukuFactory     seppukuFactory
 	partitionIDToState map[int32]*consumerState
 }
 
@@ -57,6 +59,7 @@ func New(params Params) (*Consumer, error) {
 		logger:             params.Logger,
 		internalConsumer:   params.InternalConsumer,
 		processorFactory:   params.ProcessorFactory,
+		seppukuFactory:     newSeppukuFactory(params.Factory, params.Logger, time.Minute),
 		partitionIDToState: make(map[int32]*consumerState),
 	}, nil
 }
@@ -73,6 +76,7 @@ func (c *Consumer) Start() {
 				// to the cleanup process not completing
 				p.wg.Wait()
 			}
+			c.newPartitionMetrics(pc.Partition()).startCounter.Inc(1)
 			c.partitionIDToState[pc.Partition()] = &consumerState{partitionConsumer: pc}
 			go c.handleMessages(pc)
 			go c.handleErrors(pc.Partition(), pc.Errors())
@@ -97,27 +101,43 @@ func (c *Consumer) handleMessages(pc sc.PartitionConsumer) {
 	defer c.closePartition(pc)
 
 	msgMetrics := c.newMsgMetrics(pc.Partition())
+
 	var msgProcessor processor.SpanProcessor
 
-	for msg := range pc.Messages() {
-		c.logger.Debug("Got msg", zap.Any("msg", msg))
-		msgMetrics.counter.Inc(1)
-		msgMetrics.offsetGauge.Update(msg.Offset)
-		msgMetrics.lagGauge.Update(pc.HighWaterMarkOffset() - msg.Offset - 1)
+	seppuku := c.seppukuFactory.startMonitoringForPartition(pc.Partition())
+	defer seppuku.close()
 
-		if msgProcessor == nil {
-			msgProcessor = c.processorFactory.new(pc.Partition(), msg.Offset-1)
-			defer msgProcessor.Close()
+	for {
+		select {
+		case msg, ok := <-pc.Messages():
+			if !ok {
+				c.logger.Info("Message channel closed. ", zap.Int32("partition", pc.Partition()))
+				return
+			}
+			c.logger.Debug("Got msg", zap.Any("msg", msg))
+			msgMetrics.counter.Inc(1)
+			msgMetrics.offsetGauge.Update(msg.Offset)
+			msgMetrics.lagGauge.Update(pc.HighWaterMarkOffset() - msg.Offset - 1)
+			seppuku.incrementMsgCount()
+
+			if msgProcessor == nil {
+				msgProcessor = c.processorFactory.new(pc.Partition(), msg.Offset-1)
+				defer msgProcessor.Close()
+			}
+
+			msgProcessor.Process(&saramaMessageWrapper{msg})
+
+		case <-seppuku.getClosePartition():
+			c.logger.Info("Closing partition due to inactivity", zap.Int32("partition", pc.Partition()))
+			return
 		}
-
-		msgProcessor.Process(&saramaMessageWrapper{msg})
 	}
-	c.logger.Info("Finished handling messages", zap.Int32("partition", pc.Partition()))
 }
 
 func (c *Consumer) closePartition(partitionConsumer sc.PartitionConsumer) {
 	c.logger.Info("Closing partition consumer", zap.Int32("partition", partitionConsumer.Partition()))
 	partitionConsumer.Close() // blocks until messages channel is drained
+	c.newPartitionMetrics(partitionConsumer.Partition()).closeCounter.Inc(1)
 	c.logger.Info("Closed partition consumer", zap.Int32("partition", partitionConsumer.Partition()))
 }
 

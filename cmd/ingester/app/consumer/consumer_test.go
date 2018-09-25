@@ -94,6 +94,7 @@ func newConsumer(
 		logger:             logger,
 		internalConsumer:   consumer,
 		partitionIDToState: make(map[int32]*consumerState),
+		seppukuFactory:     newSeppukuFactory(factory, logger, time.Second),
 
 		processorFactory: ProcessorFactory{
 			topic:          topic,
@@ -173,6 +174,11 @@ func TestSaramaConsumerWrapper_start_Messages(t *testing.T) {
 		Tags:  partitionTag,
 		Value: 0,
 	})
+	testutils.AssertCounterMetrics(t, localFactory, testutils.ExpectedMetric{
+		Name:  "sarama-consumer.partition-start",
+		Tags:  partitionTag,
+		Value: 1,
+	})
 }
 
 func TestSaramaConsumerWrapper_start_Errors(t *testing.T) {
@@ -209,4 +215,27 @@ func TestSaramaConsumerWrapper_start_Errors(t *testing.T) {
 	}
 
 	t.Fail()
+}
+
+func TestHandleClosePartition(t *testing.T) {
+	localFactory := metrics.NewLocalFactory(0)
+
+	mp := &pmocks.SpanProcessor{}
+	saramaConsumer := smocks.NewConsumer(t, &sarama.Config{})
+	mc := saramaConsumer.ExpectConsumePartition(topic, partition, msgOffset)
+	mc.ExpectErrorsDrainedOnClose()
+	saramaPartitionConsumer, e := saramaConsumer.ConsumePartition(topic, partition, msgOffset)
+	require.NoError(t, e)
+
+	undertest := newConsumer(localFactory, topic, mp, newSaramaClusterConsumer(saramaPartitionConsumer))
+	undertest.seppukuFactory = newSeppukuFactory(localFactory, zap.NewNop(), 50*time.Millisecond)
+	undertest.Start()
+	time.Sleep(75 * time.Millisecond)
+
+	partitionTag := map[string]string{"partition": fmt.Sprint(partition)}
+	testutils.AssertCounterMetrics(t, localFactory, testutils.ExpectedMetric{
+		Name:  "sarama-consumer.partition-close",
+		Tags:  partitionTag,
+		Value: 1,
+	})
 }
