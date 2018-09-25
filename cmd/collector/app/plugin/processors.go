@@ -5,8 +5,7 @@ import (
 
 	"github.com/jaegertracing/jaeger/cmd/collector/app"
 	"github.com/jaegertracing/jaeger/cmd/collector/app/sanitizer"
-	"github.com/jaegertracing/jaeger/model"
-	"github.com/jaegertracing/jaeger/plugin/pkg/factory"
+	"github.com/jaegertracing/jaeger/pkg/plugin"
 )
 
 // Known symbols
@@ -17,15 +16,15 @@ const (
 	preSaveSymbol    = "PreSave"
 )
 
-// Used to assert type
+// Used only for assert type
 var (
-	preProcessFunc app.ProcessSpans       = func(spans []*model.Span) {}
-	spanFilterFunc app.FilterSpan         = func(span *model.Span) bool { return true }
-	sanitizerFunc  sanitizer.SanitizeSpan = func(span *model.Span) *model.Span { return span }
-	preSaveFunc    app.ProcessSpan        = func(span *model.Span) {}
+	preProcessFunc app.ProcessSpans
+	spanFilterFunc app.FilterSpan
+	sanitizerFunc  sanitizer.SanitizeSpan
+	preSaveFunc    app.ProcessSpan
 )
 
-func PreProcess(pf factory.PluginFactory) (app.ProcessSpans, error) {
+func PreProcess(pf plugin.Factory) (app.ProcessSpans, error) {
 	plugins, err := pf.Get(preProcessSymbol, reflect.TypeOf(preProcessFunc))
 	if err != nil {
 		return nil, err
@@ -44,7 +43,7 @@ func PreProcess(pf factory.PluginFactory) (app.ProcessSpans, error) {
 	}
 }
 
-func SpanFilter(pf factory.PluginFactory) (app.FilterSpan, error) {
+func SpanFilter(pf plugin.Factory) (app.FilterSpan, error) {
 	plugins, err := pf.Get(spanFilterSymbol, reflect.TypeOf(spanFilterFunc))
 	if err != nil {
 		return nil, err
@@ -63,7 +62,7 @@ func SpanFilter(pf factory.PluginFactory) (app.FilterSpan, error) {
 	}
 }
 
-func Sanitizer(pf factory.PluginFactory) (sanitizer.SanitizeSpan, error) {
+func Sanitizer(pf plugin.Factory) (sanitizer.SanitizeSpan, error) {
 	plugins, err := pf.Get(sanitizerSymbol, reflect.TypeOf(sanitizerFunc))
 	if err != nil {
 		return nil, err
@@ -82,7 +81,7 @@ func Sanitizer(pf factory.PluginFactory) (sanitizer.SanitizeSpan, error) {
 	}
 }
 
-func PreSave(pf factory.PluginFactory) (app.ProcessSpan, error) {
+func PreSave(pf plugin.Factory) (app.ProcessSpan, error) {
 	plugins, err := pf.Get(preSaveSymbol, reflect.TypeOf(preSaveFunc))
 	if err != nil {
 		return nil, err

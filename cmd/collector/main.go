@@ -46,6 +46,7 @@ import (
 	"github.com/jaegertracing/jaeger/pkg/config"
 	"github.com/jaegertracing/jaeger/pkg/healthcheck"
 	pMetrics "github.com/jaegertracing/jaeger/pkg/metrics"
+	"github.com/jaegertracing/jaeger/pkg/plugin"
 	"github.com/jaegertracing/jaeger/pkg/recoveryhandler"
 	"github.com/jaegertracing/jaeger/pkg/version"
 	ss "github.com/jaegertracing/jaeger/plugin/sampling/strategystore"
@@ -69,6 +70,14 @@ func main() {
 	if err != nil {
 		log.Fatalf("Cannot initialize sampling strategy store factory: %v", err)
 	}
+	pf, err := plugin.NewFactory(plugin.FactoryConfigFromEnv())
+	if err != nil {
+		log.Fatalf("Could not instantiate the plugin factory: %v", err)
+	}
+	pf.Initialize()
+	if err != nil {
+		log.Fatalf("Could not initialize the plugin factory: %v", err)
+	}
 	v := viper.New()
 	command := &cobra.Command{
 		Use:   "jaeger-collector",
@@ -88,14 +97,6 @@ func main() {
 			hc, err := sFlags.NewHealthCheck(logger)
 			if err != nil {
 				logger.Fatal("Could not start the health check server.", zap.Error(err))
-			}
-			pf, err := sFlags.NewPluginFactory(logger)
-			if err != nil {
-				logger.Fatal("Could not instantiate the plugin factory.", zap.Error(err))
-			}
-			pf.Initialize()
-			if err != nil {
-				logger.Fatal("Could not initialize the plugin factory.", zap.Error(err))
 			}
 
 			builderOpts := new(builder.CollectorOptions).InitFromViper(v)
@@ -126,6 +127,10 @@ func main() {
 			if err != nil {
 				logger.Fatal("Unable to set up builder", zap.Error(err))
 			}
+
+			pf.AddLogger(logger)
+			pf.InitFromViper(v)
+			pf.AddMetrics(metricsFactory)
 
 			zipkinSpansHandler, jaegerBatchesHandler, grpcHandler := handlerBuilder.BuildHandlers()
 			strategyStoreFactory.InitFromViper(v)
@@ -207,6 +212,7 @@ func main() {
 		storageFactory.AddFlags,
 		pMetrics.AddFlags,
 		strategyStoreFactory.AddFlags,
+		pf.AddFlags,
 	)
 
 	if err := command.Execute(); err != nil {

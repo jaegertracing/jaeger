@@ -18,8 +18,6 @@ import (
 	"errors"
 	"os"
 
-	"github.com/jaegertracing/jaeger/plugin/pkg/factory"
-
 	"github.com/uber/jaeger-lib/metrics"
 	"go.uber.org/zap"
 
@@ -28,6 +26,7 @@ import (
 	collectorPlugin "github.com/jaegertracing/jaeger/cmd/collector/app/plugin"
 	zs "github.com/jaegertracing/jaeger/cmd/collector/app/sanitizer/zipkin"
 	"github.com/jaegertracing/jaeger/model"
+	"github.com/jaegertracing/jaeger/pkg/plugin"
 	"github.com/jaegertracing/jaeger/storage/spanstore"
 )
 
@@ -43,7 +42,7 @@ type SpanHandlerBuilder struct {
 	metricsFactory metrics.Factory
 	collectorOpts  *CollectorOptions
 	spanWriter     spanstore.Writer
-	pluginFactory  factory.PluginFactory
+	pluginFactory  plugin.Factory
 }
 
 // NewSpanHandlerBuilder returns new SpanHandlerBuilder with configured span storage.
