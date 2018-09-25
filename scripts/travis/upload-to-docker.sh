@@ -36,3 +36,8 @@ set -x
 docker login -u $DOCKER_USER -p $DOCKER_PASS
 # push all tags, therefore push to repo
 docker push $REPO
+
+SNAPSHOT_IMAGE="$REPO-snapshot:$TRAVIS_COMMIT"
+echo "Pushing snapshot image $SNAPSHOT_IMAGE"
+docker tag $IMAGE $SNAPSHOT_IMAGE
+docker push $SNAPSHOT_IMAGE
