@@ -198,6 +198,14 @@ build-query:
 build-collector:
 	CGO_ENABLED=0 installsuffix=cgo go build -o ./cmd/collector/collector-$(GOOS) $(BUILD_INFO) ./cmd/collector/main.go
 
+.PHONY: build-ingester
+build-ingester:
+	CGO_ENABLED=0 installsuffix=cgo go build -o ./cmd/ingester/ingester-$(GOOS) $(BUILD_INFO) ./cmd/ingester/main.go
+
+.PHONY: build-ingester-linux
+build-ingester-linux:
+	GOOS=linux $(MAKE) build-ingester
+
 .PHONY: docker-no-ui
 docker-no-ui: build-binaries-linux build-crossdock-linux
 	make docker-images-only
