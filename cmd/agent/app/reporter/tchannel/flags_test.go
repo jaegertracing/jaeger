@@ -1,4 +1,4 @@
-// Copyright (c) 2017 Uber Technologies, Inc.
+// Copyright (c) 2018 The Jaeger Authors.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -12,11 +12,12 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package app
+package tchannel
 
 import (
 	"flag"
 	"testing"
+	"time"
 
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
@@ -34,19 +35,14 @@ func TestBingFlags(t *testing.T) {
 	v.BindPFlags(command.PersistentFlags())
 
 	err := command.ParseFlags([]string{
-		"--http-server.host-port=:8080",
-		"--processor.jaeger-binary.server-host-port=:1111",
-		"--processor.jaeger-binary.server-max-packet-size=4242",
-		"--processor.jaeger-binary.server-queue-size=42",
-		"--processor.jaeger-binary.workers=42",
+		"--reporter.tchannel.collector.host-port=1.2.3.4:555,1.2.3.4:666",
+		"--reporter.tchannel.discovery.min-peers=42",
+		"--reporter.tchannel.discovery.conn-check-timeout=85s",
 	})
 	require.NoError(t, err)
 
 	b.InitFromViper(v)
-	assert.Equal(t, 3, len(b.Processors))
-	assert.Equal(t, ":8080", b.HTTPServer.HostPort)
-	assert.Equal(t, ":1111", b.Processors[2].Server.HostPort)
-	assert.Equal(t, 4242, b.Processors[2].Server.MaxPacketSize)
-	assert.Equal(t, 42, b.Processors[2].Server.QueueSize)
-	assert.Equal(t, 42, b.Processors[2].Workers)
+	assert.Equal(t, 42, b.DiscoveryMinPeers)
+	assert.Equal(t, []string{"1.2.3.4:555", "1.2.3.4:666"}, b.CollectorHostPorts)
+	assert.Equal(t, time.Second*85, b.ConnCheckTimeout)
 }

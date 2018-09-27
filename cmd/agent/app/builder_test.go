@@ -15,7 +15,6 @@
 package app
 
 import (
-	"errors"
 	"strings"
 	"testing"
 
@@ -25,6 +24,8 @@ import (
 	"go.uber.org/zap"
 	"gopkg.in/yaml.v2"
 
+	"github.com/jaegertracing/jaeger/cmd/agent/app/httpserver"
+	"github.com/jaegertracing/jaeger/cmd/agent/app/reporter/tchannel"
 	"github.com/jaegertracing/jaeger/thrift-gen/jaeger"
 	"github.com/jaegertracing/jaeger/thrift-gen/zipkincore"
 )
@@ -51,14 +52,6 @@ processors:
 
 httpServer:
     hostPort: 4.4.4.4:5778
-
-collectorHostPorts:
-    - 127.0.0.1:14267
-    - 127.0.0.1:14268
-    - 127.0.0.1:14269
-
-collectorServiceName: some-collector-service
-minPeers: 4
 `
 
 func TestBuilderFromConfig(t *testing.T) {
@@ -101,18 +94,12 @@ func TestBuilderFromConfig(t *testing.T) {
 		},
 	}, cfg.Processors[2])
 	assert.Equal(t, "4.4.4.4:5778", cfg.HTTPServer.HostPort)
-
-	assert.Equal(t, 4, cfg.DiscoveryMinPeers)
-	assert.Equal(t, "some-collector-service", cfg.CollectorServiceName)
-	assert.Equal(
-		t,
-		[]string{"127.0.0.1:14267", "127.0.0.1:14268", "127.0.0.1:14269"},
-		cfg.CollectorHostPorts)
 }
 
 func TestBuilderWithExtraReporter(t *testing.T) {
 	cfg := &Builder{}
-	cfg.WithReporter(fakeReporter{})
+	configureSamplingManager(t, cfg)
+	cfg.WithReporters(fakeReporter{})
 	agent, err := cfg.CreateAgent(zap.NewNop())
 	assert.NoError(t, err)
 	assert.NotNil(t, agent)
@@ -121,13 +108,14 @@ func TestBuilderWithExtraReporter(t *testing.T) {
 func TestBuilderMetrics(t *testing.T) {
 	mf := metrics.NullFactory
 	b := new(Builder).WithMetricsFactory(mf)
-	mf2, err := b.getMetricsFactory()
+	mf2, err := b.GetMetricsFactory()
 	assert.NoError(t, err)
 	assert.Equal(t, mf, mf2)
 }
 
 func TestBuilderMetricsHandler(t *testing.T) {
 	b := &Builder{}
+	configureSamplingManager(t, b)
 	b.Metrics.Backend = "expvar"
 	b.Metrics.HTTPRoute = "/expvar"
 	factory, err := b.Metrics.CreateMetricsFactory("test")
@@ -144,14 +132,6 @@ func TestBuilderMetricsError(t *testing.T) {
 	b.Metrics.Backend = "invalid"
 	_, err := b.CreateAgent(zap.NewNop())
 	assert.EqualError(t, err, "cannot create metrics factory: unknown metrics backend specified")
-}
-
-func TestBuilderWithDiscoveryError(t *testing.T) {
-	cfg := &Builder{}
-	cfg.WithDiscoverer(fakeDiscoverer{})
-	agent, err := cfg.CreateAgent(zap.NewNop())
-	assert.EqualError(t, err, "cannot create main Reporter: cannot enable service discovery: both discovery.Discoverer and discovery.Notifier must be specified")
-	assert.Nil(t, agent)
 }
 
 func TestBuilderWithProcessorErrors(t *testing.T) {
@@ -190,6 +170,14 @@ func TestBuilderWithProcessorErrors(t *testing.T) {
 	}
 }
 
+func configureSamplingManager(t *testing.T, cfg *Builder) {
+	m, err := cfg.GetMetricsFactory()
+	require.NoError(t, err)
+	r, err := tchannel.NewBuilder().CreateReporter(m, zap.NewNop())
+	require.NoError(t, err)
+	cfg.WithReporters(r).WithClientConfigManager(httpserver.NewCollectorProxy(r.CollectorServiceName(), r.Channel(), m))
+}
+
 type fakeReporter struct{}
 
 func (fr fakeReporter) EmitZipkinBatch(spans []*zipkincore.Span) (err error) {
@@ -198,10 +186,4 @@ func (fr fakeReporter) EmitZipkinBatch(spans []*zipkincore.Span) (err error) {
 
 func (fr fakeReporter) EmitBatch(batch *jaeger.Batch) (err error) {
 	return nil
-}
-
-type fakeDiscoverer struct{}
-
-func (fd fakeDiscoverer) Instances() ([]string, error) {
-	return nil, errors.New("discoverer error")
 }

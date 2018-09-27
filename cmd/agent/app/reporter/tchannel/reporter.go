@@ -57,6 +57,7 @@ type Reporter struct {
 	peerListMgr    *peerlistmgr.PeerListManager
 	batchesMetrics map[string]batchMetrics
 	logger         *zap.Logger
+	serviceName    string
 }
 
 // New creates new TChannel-based Reporter.
@@ -83,6 +84,7 @@ func New(
 		peerListMgr:    peerListMgr,
 		logger:         zlogger,
 		batchesMetrics: batchesMetrics,
+		serviceName:    collectorServiceName,
 	}
 }
 
@@ -135,4 +137,9 @@ func (r *Reporter) submitAndReport(submissionFunc func(ctx thrift.Context) error
 	batchMetrics.BatchesSubmitted.Inc(1)
 	batchMetrics.SpansSubmitted.Inc(size)
 	return nil
+}
+
+// CollectorServiceName returns collector service name.
+func (r *Reporter) CollectorServiceName() string {
+	return r.serviceName
 }

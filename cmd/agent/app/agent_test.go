@@ -33,6 +33,7 @@ import (
 
 func TestAgentStartError(t *testing.T) {
 	cfg := &Builder{}
+	configureSamplingManager(t, cfg)
 	agent, err := cfg.CreateAgent(zap.NewNop())
 	require.NoError(t, err)
 	agent.httpServer.Addr = "bad-address"
@@ -100,6 +101,7 @@ func withRunningAgent(t *testing.T, testcase func(string, chan error)) {
 		},
 	}
 	logger, logBuf := testutils.NewLogger()
+	configureSamplingManager(t, &cfg)
 	agent, err := cfg.CreateAgent(logger)
 	require.NoError(t, err)
 	ch := make(chan error, 2)
