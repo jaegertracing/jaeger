@@ -20,7 +20,6 @@ import (
 	"net"
 	"sync"
 	"testing"
-	"time"
 
 	"github.com/stretchr/testify/require"
 	"go.uber.org/zap"
@@ -77,9 +76,7 @@ func TestPostSpans(t *testing.T) {
 	defer server.Stop()
 	client, conn := newClient(t, addr)
 	defer conn.Close()
-	ctx, cancel := context.WithTimeout(context.Background(), time.Second)
-	defer cancel()
-	r, err := client.PostSpans(ctx, &api_v2.PostSpansRequest{
+	r, err := client.PostSpans(context.Background(), &api_v2.PostSpansRequest{
 		Batch: model.Batch{
 			Spans: []*model.Span{
 				{
@@ -99,9 +96,7 @@ func TestPostSpansWithError(t *testing.T) {
 	defer server.Stop()
 	client, conn := newClient(t, addr)
 	defer conn.Close()
-	ctx, cancel := context.WithTimeout(context.Background(), time.Second)
-	defer cancel()
-	r, err := client.PostSpans(ctx, &api_v2.PostSpansRequest{
+	r, err := client.PostSpans(context.Background(), &api_v2.PostSpansRequest{
 		Batch: model.Batch{
 			Spans: []*model.Span{
 				{
