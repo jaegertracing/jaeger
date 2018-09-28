@@ -1,6 +1,17 @@
 Changes by Version
 ==================
 
+1.8.0 (unreleased)
+------------------
+
+#### Backend Changes
+
+##### Breaking Changes
+
+- Consolidate query metrics and include result tag ([#1075](https://github.com/jaegertracing/jaeger/pull/1075), [@objectiser](https://github.com/objectiser)
+- Make the metrics produced by jaeger query scoped to the query component, and generated for all span readers (not just ES) ([#1074](https://github.com/jaegertracing/jaeger/pull/1074), [@objectiser](https://github.com/objectiser)
+
+
 1.7.0 (2018-09-19)
 ------------------
 

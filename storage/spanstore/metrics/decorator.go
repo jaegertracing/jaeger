@@ -34,16 +34,14 @@ type ReadMetricsDecorator struct {
 }
 
 type queryMetrics struct {
-	Errors     metrics.Counter `metric:"errors"`
-	Attempts   metrics.Counter `metric:"attempts"`
-	Successes  metrics.Counter `metric:"successes"`
-	Responses  metrics.Timer   `metric:"responses"` //used as a histogram, not necessary for GetTrace
-	ErrLatency metrics.Timer   `metric:"errLatency"`
-	OKLatency  metrics.Timer   `metric:"okLatency"`
+	Errors     metrics.Counter
+	Successes  metrics.Counter
+	Responses  metrics.Timer //used as a histogram, not necessary for GetTrace
+	ErrLatency metrics.Timer
+	OKLatency  metrics.Timer
 }
 
 func (q *queryMetrics) emit(err error, latency time.Duration, responses int) {
-	q.Attempts.Inc(1)
 	if err != nil {
 		q.Errors.Inc(1)
 		q.ErrLatency.Record(latency)
@@ -66,9 +64,14 @@ func NewReadMetricsDecorator(spanReader spanstore.Reader, metricsFactory metrics
 }
 
 func buildQueryMetrics(namespace string, metricsFactory metrics.Factory) *queryMetrics {
-	qMetrics := &queryMetrics{}
 	scoped := metricsFactory.Namespace(namespace, nil)
-	metrics.Init(qMetrics, scoped, nil)
+	qMetrics := &queryMetrics{
+		Errors:     scoped.Counter("", map[string]string{"result": "err"}),
+		Successes:  scoped.Counter("", map[string]string{"result": "ok"}),
+		Responses:  scoped.Timer("responses", nil),
+		ErrLatency: scoped.Timer("latency", map[string]string{"result": "err"}),
+		OKLatency:  scoped.Timer("latency", map[string]string{"result": "ok"}),
+	}
 	return qMetrics
 }
 
