@@ -66,8 +66,8 @@ func NewReadMetricsDecorator(spanReader spanstore.Reader, metricsFactory metrics
 func buildQueryMetrics(namespace string, metricsFactory metrics.Factory) *queryMetrics {
 	scoped := metricsFactory.Namespace(namespace, nil)
 	qMetrics := &queryMetrics{
-		Errors:     scoped.Counter("requests", map[string]string{"result": "err"}),
-		Successes:  scoped.Counter("requests", map[string]string{"result": "ok"}),
+		Errors:     scoped.Counter("", map[string]string{"result": "err"}),
+		Successes:  scoped.Counter("", map[string]string{"result": "ok"}),
 		Responses:  scoped.Timer("responses", nil),
 		ErrLatency: scoped.Timer("latency", map[string]string{"result": "err"}),
 		OKLatency:  scoped.Timer("latency", map[string]string{"result": "ok"}),
