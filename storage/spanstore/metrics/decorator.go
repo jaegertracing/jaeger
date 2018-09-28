@@ -35,7 +35,6 @@ type ReadMetricsDecorator struct {
 
 type queryMetrics struct {
 	Errors     metrics.Counter
-	Attempts   metrics.Counter
 	Successes  metrics.Counter
 	Responses  metrics.Timer //used as a histogram, not necessary for GetTrace
 	ErrLatency metrics.Timer
