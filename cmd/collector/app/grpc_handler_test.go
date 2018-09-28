@@ -30,9 +30,9 @@ import (
 )
 
 type mockSpanProcessor struct {
-	err   error
-	mux   sync.Mutex
-	spans []*model.Span
+	expectedError error
+	mux           sync.Mutex
+	spans         []*model.Span
 }
 
 func (p *mockSpanProcessor) ProcessSpans(spans []*model.Span, spanFormat string) ([]bool, error) {
@@ -40,7 +40,7 @@ func (p *mockSpanProcessor) ProcessSpans(spans []*model.Span, spanFormat string)
 	defer p.mux.Unlock()
 	p.spans = append(p.spans, spans...)
 	oks := make([]bool, len(spans))
-	return oks, p.err
+	return oks, p.expectedError
 }
 
 func (p *mockSpanProcessor) getSpans() []*model.Span {
@@ -49,9 +49,9 @@ func (p *mockSpanProcessor) getSpans() []*model.Span {
 	return p.spans
 }
 
-func initializeGRPCTestServer(t *testing.T, err error) (*grpc.Server, *mockSpanProcessor, net.Addr) {
+func initializeGRPCTestServer(t *testing.T, expectedError error) (*grpc.Server, *mockSpanProcessor, net.Addr) {
 	server := grpc.NewServer()
-	processor := &mockSpanProcessor{err: err}
+	processor := &mockSpanProcessor{expectedError: expectedError}
 	logger, err := zap.NewDevelopment()
 	require.NoError(t, err)
 	handler := NewGRPCHandler(logger, processor)
@@ -91,8 +91,8 @@ func TestPostSpans(t *testing.T) {
 }
 
 func TestPostSpansWithError(t *testing.T) {
-	processorErr := errors.New("test-error")
-	server, processor, addr := initializeGRPCTestServer(t, processorErr)
+	expectedError := errors.New("test-error")
+	server, processor, addr := initializeGRPCTestServer(t, expectedError)
 	defer server.Stop()
 	client, conn := newClient(t, addr)
 	defer conn.Close()
@@ -107,6 +107,6 @@ func TestPostSpansWithError(t *testing.T) {
 	})
 	require.Error(t, err)
 	require.Nil(t, r)
-	require.Contains(t, err.Error(), processorErr.Error())
+	require.Contains(t, err.Error(), expectedError.Error())
 	require.Len(t, processor.getSpans(), 1)
 }
