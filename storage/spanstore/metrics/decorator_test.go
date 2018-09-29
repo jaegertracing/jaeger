@@ -43,14 +43,14 @@ func TestSuccessfulUnderlyingCalls(t *testing.T) {
 	mrs.FindTraces(context.Background(), &spanstore.TraceQueryParameters{})
 	counters, gauges := mf.Snapshot()
 	expecteds := map[string]int64{
-		"get_operations|result=ok":  1,
-		"get_operations|result=err": 0,
-		"get_trace|result=ok":       1,
-		"get_trace|result=err":      0,
-		"find_traces|result=ok":     1,
-		"find_traces|result=err":    0,
-		"get_services|result=ok":    1,
-		"get_services|result=err":   0,
+		"get_operations.calls|result=ok":  1,
+		"get_operations.calls|result=err": 0,
+		"get_trace.calls|result=ok":       1,
+		"get_trace.calls|result=err":      0,
+		"find_traces.calls|result=ok":     1,
+		"find_traces.calls|result=err":    0,
+		"get_services.calls|result=ok":    1,
+		"get_services.calls|result=err":   0,
 	}
 
 	existingKeys := []string{
@@ -96,14 +96,14 @@ func TestFailingUnderlyingCalls(t *testing.T) {
 	mrs.FindTraces(context.Background(), &spanstore.TraceQueryParameters{})
 	counters, gauges := mf.Snapshot()
 	expecteds := map[string]int64{
-		"get_operations|result=ok":  0,
-		"get_operations|result=err": 1,
-		"get_trace|result=ok":       0,
-		"get_trace|result=err":      1,
-		"find_traces|result=ok":     0,
-		"find_traces|result=err":    1,
-		"get_services|result=ok":    0,
-		"get_services|result=err":   1,
+		"get_operations.calls|result=ok":  0,
+		"get_operations.calls|result=err": 1,
+		"get_trace.calls|result=ok":       0,
+		"get_trace.calls|result=err":      1,
+		"find_traces.calls|result=ok":     0,
+		"find_traces.calls|result=err":    1,
+		"get_services.calls|result=ok":    0,
+		"get_services.calls|result=err":   1,
 	}
 
 	existingKeys := []string{
