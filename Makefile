@@ -1,6 +1,6 @@
 PROJECT_ROOT=github.com/jaegertracing/jaeger
 # TOP_PKGS is used with 'go test'
-TOP_PKGS := $(shell ./scripts/list-packages.sh .) .
+TOP_PKGS := . $(shell ./scripts/list-packages.sh . | tr '\n' ' ')
 STORAGE_PKGS = ./plugin/storage/integration/...
 
 # all .go files that are not auto-generated and should be auto-formatted and linted.
