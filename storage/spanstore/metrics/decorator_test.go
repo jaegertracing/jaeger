@@ -43,23 +43,23 @@ func TestSuccessfulUnderlyingCalls(t *testing.T) {
 	mrs.FindTraces(context.Background(), &spanstore.TraceQueryParameters{})
 	counters, gauges := mf.Snapshot()
 	expecteds := map[string]int64{
-		"get_operations.calls|result=ok":  1,
-		"get_operations.calls|result=err": 0,
-		"get_trace.calls|result=ok":       1,
-		"get_trace.calls|result=err":      0,
-		"find_traces.calls|result=ok":     1,
-		"find_traces.calls|result=err":    0,
-		"get_services.calls|result=ok":    1,
-		"get_services.calls|result=err":   0,
+		"requests|operation=get_operations|result=ok":  1,
+		"requests|operation=get_operations|result=err": 0,
+		"requests|operation=get_trace|result=ok":       1,
+		"requests|operation=get_trace|result=err":      0,
+		"requests|operation=find_traces|result=ok":     1,
+		"requests|operation=find_traces|result=err":    0,
+		"requests|operation=get_services|result=ok":    1,
+		"requests|operation=get_services|result=err":   0,
 	}
 
 	existingKeys := []string{
-		"get_operations.latency|result=ok.P50",
-		"get_trace.responses.P50",
-		"find_traces.latency|result=ok.P50", // this is not exhaustive
+		"latency|operation=get_operations|result=ok.P50",
+		"responses|operation=get_trace.P50",
+		"latency|operation=find_traces|result=ok.P50", // this is not exhaustive
 	}
 	nonExistentKeys := []string{
-		"get_operations.latency|result=err.P50",
+		"latency|operation=get_operations|result=err.P50",
 	}
 
 	checkExpectedExistingAndNonExistentCounters(t, counters, expecteds, gauges, existingKeys, nonExistentKeys)
@@ -96,24 +96,24 @@ func TestFailingUnderlyingCalls(t *testing.T) {
 	mrs.FindTraces(context.Background(), &spanstore.TraceQueryParameters{})
 	counters, gauges := mf.Snapshot()
 	expecteds := map[string]int64{
-		"get_operations.calls|result=ok":  0,
-		"get_operations.calls|result=err": 1,
-		"get_trace.calls|result=ok":       0,
-		"get_trace.calls|result=err":      1,
-		"find_traces.calls|result=ok":     0,
-		"find_traces.calls|result=err":    1,
-		"get_services.calls|result=ok":    0,
-		"get_services.calls|result=err":   1,
+		"requests|operation=get_operations|result=ok":  0,
+		"requests|operation=get_operations|result=err": 1,
+		"requests|operation=get_trace|result=ok":       0,
+		"requests|operation=get_trace|result=err":      1,
+		"requests|operation=find_traces|result=ok":     0,
+		"requests|operation=find_traces|result=err":    1,
+		"requests|operation=get_services|result=ok":    0,
+		"requests|operation=get_services|result=err":   1,
 	}
 
 	existingKeys := []string{
-		"get_operations.latency|result=err.P50",
+		"latency|operation=get_operations|result=err.P50",
 	}
 
 	nonExistentKeys := []string{
-		"get_operations.latency|result=ok.P50",
-		"get_trace.responses.P50",
-		"query.latency|result=ok.P50", // this is not exhaustive
+		"latency|operation=get_operations|result=ok.P50",
+		"responses|operation=get_trace.P50",
+		"latency|operation=query|result=ok.P50", // this is not exhaustive
 	}
 
 	checkExpectedExistingAndNonExistentCounters(t, counters, expecteds, gauges, existingKeys, nonExistentKeys)
