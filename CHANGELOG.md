@@ -1,6 +1,37 @@
 Changes by Version
 ==================
 
+1.8.0 (unreleased)
+------------------
+
+#### Backend Changes
+
+##### Breaking Changes
+
+- Various changes around metrics produced by jaeger-query: Names scoped to the query component, generated for all span readers (not just ES), consolidate query metrics and include result tag ([#1074](https://github.com/jaegertracing/jaeger/pull/1074), [#1075](https://github.com/jaegertracing/jaeger/pull/1075) and [#1096](https://github.com/jaegertracing/jaeger/pull/1096), [@objectiser](https://github.com/objectiser))
+
+For example, sample of metrics produced for `find_traces` operation before:
+
+```
+jaeger_find_traces_attempts 1
+jaeger_find_traces_errLatency_bucket{le="0.005"} 0
+jaeger_find_traces_errors 0
+jaeger_find_traces_okLatency_bucket{le="0.005"} 0
+jaeger_find_traces_responses_bucket{le="0.005"} 1
+jaeger_find_traces_successes 1
+```
+
+And now:
+
+```
+jaeger_query_latency_bucket{operation="find_traces",result="err",le="0.005"} 0
+jaeger_query_latency_bucket{operation="find_traces",result="ok",le="0.005"} 2
+jaeger_query_requests{operation="find_traces",result="err"} 0
+jaeger_query_requests{operation="find_traces",result="ok"} 2
+jaeger_query_responses_bucket{operation="find_traces",le="0.005"} 2
+```
+
+
 1.7.0 (2018-09-19)
 ------------------
 
