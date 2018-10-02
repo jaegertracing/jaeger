@@ -17,6 +17,11 @@ matrix:
   - go: "1.10"
     env:
     - CROSSDOCK=true
+    - JAEGER_STORAGE_BACKEND=cassandra
+  - go: "1.10"
+    env:
+    - CROSSDOCK=true
+    - JAEGER_STORAGE_BACKEND=elasticsearch
   - go: "1.10"
     env:
     - DOCKER=true

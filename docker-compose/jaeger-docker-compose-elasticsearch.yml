@@ -1,0 +1,60 @@
+version: '2'
+
+# Run elasticsearch first and wait a few seconds:
+#   docker-compose up -d elasticsearch
+# This step is required to satisfy health check.
+services:
+  jaeger-collector:
+    image: jaegertracing/jaeger-collector:1.6.0
+    command: ["--es.server-urls=http://elasticsearch:9200", "--es.num-shards=1", "--es.num-replicas=0"]
+    ports:
+        - "14269"
+        - "14268:14268"
+        - "14267"
+        - "9411:9411"
+    environment:
+      - SPAN_STORAGE_TYPE=elasticsearch
+    restart: on-failure
+    depends_on:
+      - elasticsearch
+
+  jaeger-query:
+    image: jaegertracing/jaeger-query:1.6.0
+    command: ["--es.server-urls=http://elasticsearch:9200", "--span-storage.type=elasticsearch"]
+    environment:
+      - SPAN_STORAGE_TYPE=elasticsearch
+    ports:
+      - "16686:16686"
+      - "16687"
+    restart: on-failure
+    depends_on:
+      - elasticsearch
+
+  jaeger-agent:
+    image: jaegertracing/jaeger-agent:1.6.0
+    command: ["--collector.host-port=jaeger-collector:14267"]
+    ports:
+      - "5775:5775/udp"
+      - "6831:6831/udp"
+      - "6832:6832/udp"
+      - "5778:5778"
+    restart: on-failure
+    environment:
+      - SPAN_STORAGE_TYPE=elasticsearch
+    depends_on:
+      - jaeger-collector
+
+  elasticsearch:
+    image: docker.elastic.co/elasticsearch/elasticsearch:5.4.0
+    ports:
+      - "127.0.0.1:9200:9200"
+      - "127.0.0.1:9300:9300"
+    restart: on-failure
+    environment:
+      - discovery.type=single-node
+      - network.host=0.0.0.0
+      - transport.host=127.0.0.1
+      # Set the minimum and maximum heap size to 1 GB.
+      # https://www.elastic.co/guide/en/elasticsearch/reference/5.4/heap-size.html
+      - "ES_JAVA_OPTS=-Xms1g -Xmx1g"
+      - xpack.security.enabled=false
