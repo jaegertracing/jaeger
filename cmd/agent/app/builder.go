@@ -112,12 +112,10 @@ func (b *Builder) GetMetricsFactory() (metrics.Factory, error) {
 	}
 
 	baseFactory, err := b.Metrics.CreateMetricsFactory("jaeger")
-	fmt.Println("creating metrics factory")
 	if err != nil {
 		return nil, err
 	}
 
-	fmt.Println("creating metrics factory")
 	b.metricsFactory = baseFactory.Namespace("agent", nil)
 	return b.metricsFactory, nil
 }
@@ -132,7 +130,11 @@ func (b *Builder) CreateAgent(logger *zap.Logger) (*Agent, error) {
 	if err != nil {
 		return nil, err
 	}
-	processors, err := b.GetProcessors(b.getReporter(logger), mFactory, logger)
+	r, err := b.getReporter(logger)
+	if err != nil {
+		return nil, err
+	}
+	processors, err := b.GetProcessors(r, mFactory, logger)
 	if err != nil {
 		return nil, err
 	}
@@ -143,8 +145,11 @@ func (b *Builder) CreateAgent(logger *zap.Logger) (*Agent, error) {
 	return NewAgent(processors, server, logger), nil
 }
 
-func (b *Builder) getReporter(logger *zap.Logger) reporter.Reporter {
-	return reporter.NewMultiReporter(b.reporters...)
+func (b *Builder) getReporter(logger *zap.Logger) (reporter.Reporter, error) {
+	if len(b.reporters) == 0 {
+		return nil, errors.New("Missing required reporters")
+	}
+	return reporter.NewMultiReporter(b.reporters...), nil
 }
 
 // GetProcessors creates Processors with attached Reporter
@@ -186,7 +191,7 @@ func (b *Builder) WithClientConfigManager(manager httpserver.ClientConfigManager
 // GetHTTPServer creates an HTTP server that provides sampling strategies and baggage restrictions to client libraries.
 func (c HTTPServerConfiguration) getHTTPServer(manager httpserver.ClientConfigManager, mFactory metrics.Factory, mBuilder *jmetrics.Builder) (*http.Server, error) {
 	if manager == nil {
-		return nil, errors.New("Http manager is null")
+		return nil, errors.New("Missing required Client config manager")
 	}
 	if c.HostPort == "" {
 		c.HostPort = defaultHTTPServerHostPort

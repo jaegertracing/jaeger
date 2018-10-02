@@ -30,6 +30,23 @@ import (
 	"github.com/jaegertracing/jaeger/thrift-gen/zipkincore"
 )
 
+func TestDefault(t *testing.T) {
+	tests := []struct {
+		b      *Builder
+		errMsg string
+	}{
+		{b: &Builder{}, errMsg: "Missing required reporters"},
+		{b: (&Builder{}).WithReporters(&fakeReporter{}), errMsg: "Missing required Client config manager"},
+	}
+
+	for _, test := range tests {
+		a, err := test.b.CreateAgent(zap.NewNop())
+		require.Error(t, err)
+		assert.Equal(t, test.errMsg, err.Error())
+		assert.Nil(t, a)
+	}
+}
+
 var yamlConfig = `
 ignored: abcd
 
@@ -160,6 +177,7 @@ func TestBuilderWithProcessorErrors(t *testing.T) {
 				},
 			},
 		}
+		cfg.WithReporters(&fakeReporter{})
 		_, err := cfg.CreateAgent(zap.NewNop())
 		assert.Error(t, err)
 		if testCase.err != "" {
