@@ -107,7 +107,7 @@ func (o *Options) InitFromViper(v *viper.Viper) {
 	o.Brokers = strings.Split(v.GetString(KafkaConfigPrefix+SuffixBrokers), ",")
 	o.Topic = v.GetString(KafkaConfigPrefix + SuffixTopic)
 	o.GroupID = v.GetString(KafkaConfigPrefix + SuffixGroupID)
+	o.Encoding = v.GetString(KafkaConfigPrefix + SuffixEncoding)
 	o.Parallelism = v.GetInt(ConfigPrefix + SuffixParallelism)
-	o.Encoding = v.GetString(ConfigPrefix + SuffixEncoding)
 	o.IngesterHTTPPort = v.GetInt(ConfigPrefix + SuffixHTTPPort)
 }
