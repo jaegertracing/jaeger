@@ -126,10 +126,6 @@ func (b *Builder) CreateAgent(logger *zap.Logger) (*Agent, error) {
 	if err != nil {
 		return nil, errors.Wrap(err, "cannot create metrics factory")
 	}
-
-	if err != nil {
-		return nil, err
-	}
 	r, err := b.getReporter(logger)
 	if err != nil {
 		return nil, err
