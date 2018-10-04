@@ -43,8 +43,10 @@ type Consumer struct {
 	internalConsumer consumer.Consumer
 	processorFactory ProcessorFactory
 
-	deadlockDetectorFactory deadlockDetectorFactory
-	partitionIDToState      map[int32]*consumerState
+	deadlockDetectorFactory      deadlockDetectorFactory
+	allPartitionDeadlockDetector *deadlockDetector
+
+	partitionIDToState map[int32]*consumerState
 }
 
 type consumerState struct {
@@ -54,13 +56,15 @@ type consumerState struct {
 
 // New is a constructor for a Consumer
 func New(params Params) (*Consumer, error) {
+	deadlockDetectorFactory := newDeadlockDetectorFactory(params.Factory, params.Logger, time.Minute)
 	return &Consumer{
-		metricsFactory:          params.Factory,
-		logger:                  params.Logger,
-		internalConsumer:        params.InternalConsumer,
-		processorFactory:        params.ProcessorFactory,
-		deadlockDetectorFactory: newDeadlockDetectorFactory(params.Factory, params.Logger, time.Minute),
-		partitionIDToState:      make(map[int32]*consumerState),
+		metricsFactory:               params.Factory,
+		logger:                       params.Logger,
+		internalConsumer:             params.InternalConsumer,
+		processorFactory:             params.ProcessorFactory,
+		deadlockDetectorFactory:      deadlockDetectorFactory,
+		allPartitionDeadlockDetector: deadlockDetectorFactory.startMonitoring(),
+		partitionIDToState:           make(map[int32]*consumerState),
 	}, nil
 }
 
@@ -90,6 +94,7 @@ func (c *Consumer) Close() error {
 		c.closePartition(p.partitionConsumer)
 		p.wg.Wait()
 	}
+	c.allPartitionDeadlockDetector.close()
 	c.logger.Info("Closing parent consumer")
 	return c.internalConsumer.Close()
 }
@@ -104,8 +109,8 @@ func (c *Consumer) handleMessages(pc sc.PartitionConsumer) {
 
 	var msgProcessor processor.SpanProcessor
 
-	deadlockDetectorFactory := c.deadlockDetectorFactory.startMonitoringForPartition(pc.Partition())
-	defer deadlockDetectorFactory.close()
+	deadlockDetector := c.deadlockDetectorFactory.startMonitoringForPartition(pc.Partition())
+	defer deadlockDetector.close()
 
 	for {
 		select {
@@ -118,7 +123,8 @@ func (c *Consumer) handleMessages(pc sc.PartitionConsumer) {
 			msgMetrics.counter.Inc(1)
 			msgMetrics.offsetGauge.Update(msg.Offset)
 			msgMetrics.lagGauge.Update(pc.HighWaterMarkOffset() - msg.Offset - 1)
-			deadlockDetectorFactory.incrementMsgCount()
+			deadlockDetector.incrementMsgCount()
+			c.allPartitionDeadlockDetector.incrementMsgCount()
 
 			if msgProcessor == nil {
 				msgProcessor = c.processorFactory.new(pc.Partition(), msg.Offset-1)
@@ -127,7 +133,7 @@ func (c *Consumer) handleMessages(pc sc.PartitionConsumer) {
 
 			msgProcessor.Process(&saramaMessageWrapper{msg})
 
-		case <-deadlockDetectorFactory.getClosePartition():
+		case <-deadlockDetector.getClosePartition():
 			c.logger.Info("Closing partition due to inactivity", zap.Int32("partition", pc.Partition()))
 			return
 		}

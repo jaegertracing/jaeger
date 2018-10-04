@@ -89,12 +89,14 @@ func newConsumer(
 	consumer consumer.Consumer) *Consumer {
 
 	logger, _ := zap.NewDevelopment()
+	deadlockDetectorFactory := newDeadlockDetectorFactory(factory, logger, time.Second)
 	return &Consumer{
-		metricsFactory:          factory,
-		logger:                  logger,
-		internalConsumer:        consumer,
-		partitionIDToState:      make(map[int32]*consumerState),
-		deadlockDetectorFactory: newDeadlockDetectorFactory(factory, logger, time.Second),
+		metricsFactory:               factory,
+		logger:                       logger,
+		internalConsumer:             consumer,
+		partitionIDToState:           make(map[int32]*consumerState),
+		deadlockDetectorFactory:      deadlockDetectorFactory,
+		allPartitionDeadlockDetector: deadlockDetectorFactory.startMonitoringForPartition(-1),
 
 		processorFactory: ProcessorFactory{
 			topic:          topic,
@@ -228,14 +230,16 @@ func TestHandleClosePartition(t *testing.T) {
 	require.NoError(t, e)
 
 	undertest := newConsumer(localFactory, topic, mp, newSaramaClusterConsumer(saramaPartitionConsumer))
-	undertest.deadlockDetectorFactory = newDeadlockDetectorFactory(localFactory, zap.NewNop(), 50*time.Millisecond)
+	undertest.deadlockDetectorFactory = newDeadlockDetectorFactory(localFactory, zap.NewNop(), 10*time.Millisecond)
 	undertest.Start()
-	time.Sleep(75 * time.Millisecond)
+	defer undertest.Close()
 
-	partitionTag := map[string]string{"partition": fmt.Sprint(partition)}
-	testutils.AssertCounterMetrics(t, localFactory, testutils.ExpectedMetric{
-		Name:  "sarama-consumer.partition-close",
-		Tags:  partitionTag,
-		Value: 1,
-	})
+	for i := 0; i < 10; i++ {
+		time.Sleep(20 * time.Millisecond)
+		c, _ := localFactory.Snapshot()
+		if c["sarama-consumer.partition-close|partition=316"] == 1 {
+			return
+		}
+	}
+	assert.Fail(t, "Did not close partition")
 }

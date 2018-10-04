@@ -35,7 +35,9 @@ type deadlockDetectorFactory struct {
 type deadlockDetector struct {
 	msgConsumed    *uint64
 	ticker         *time.Ticker
+	logger         *zap.Logger
 	closePartition chan struct{}
+	done           chan struct{}
 }
 
 func newDeadlockDetectorFactory(factory metrics.Factory, logger *zap.Logger, interval time.Duration) deadlockDetectorFactory {
@@ -73,20 +75,28 @@ func (s *deadlockDetectorFactory) startMonitoringForPartition(partition int32) *
 		msgConsumed:    &msgConsumed,
 		ticker:         time.NewTicker(s.interval),
 		closePartition: make(chan struct{}, 1),
+		done:           make(chan struct{}),
+		logger:         s.logger,
 	}
 
 	go func() {
 		for range w.ticker.C {
-			if atomic.LoadUint64(w.msgConsumed) == 0 {
-				select {
-				case w.closePartition <- struct{}{}:
-					s.logger.Warn("Signalling partition close due to inactivity", zap.Int32("partition", partition))
-				default:
-					// If closePartition is blocked, the consumer might have deadlocked - kill the process
-					s.panicFunc(partition)
+			select {
+			case <-w.done:
+				s.logger.Info("Closing ticker routine", zap.Int32("partition", partition))
+				return
+			default:
+				if atomic.LoadUint64(w.msgConsumed) == 0 {
+					select {
+					case w.closePartition <- struct{}{}:
+						s.logger.Warn("Signalling partition close due to inactivity", zap.Int32("partition", partition))
+					default:
+						// If closePartition is blocked, the consumer might have deadlocked - kill the process
+						s.panicFunc(partition)
+					}
+				} else {
+					atomic.StoreUint64(w.msgConsumed, 0)
 				}
-			} else {
-				atomic.StoreUint64(w.msgConsumed, 0)
 			}
 		}
 	}()
@@ -94,11 +104,21 @@ func (s *deadlockDetectorFactory) startMonitoringForPartition(partition int32) *
 	return w
 }
 
+// startMonitoring is to monitor that the sum of messages consumed across all partitions is non zero for the given interval
+// If it is zero when there are producers producing messages on the topic, it means that sarama-cluster hasn't
+// retrieved partition assignments. (This case will not be caught by startMonitoringForPartition because no partitions
+// were retrieved).
+func (s *deadlockDetectorFactory) startMonitoring() *deadlockDetector {
+	return s.startMonitoringForPartition(-1)
+}
+
 func (w *deadlockDetector) getClosePartition() chan struct{} {
 	return w.closePartition
 }
 
 func (w *deadlockDetector) close() {
+	w.logger.Info("Closing deadlock detector")
+	w.done <- struct{}{}
 	w.ticker.Stop()
 }
 

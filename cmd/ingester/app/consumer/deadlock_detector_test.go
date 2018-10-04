@@ -77,7 +77,7 @@ func TestPanicFunc(t *testing.T) {
 func TestSeppuku(t *testing.T) {
 	mf := metrics.NewLocalFactory(0)
 	l, _ := zap.NewDevelopment()
-	f := newDeadlockDetectorFactory(mf, l, 1)
+	f := newDeadlockDetectorFactory(mf, l, 1*time.Millisecond)
 	wg := sync.WaitGroup{}
 	wg.Add(1)
 	f.panicFunc = func(partition int32) {
