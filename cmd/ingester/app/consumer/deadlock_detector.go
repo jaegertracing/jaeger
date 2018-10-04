@@ -24,27 +24,27 @@ import (
 	"go.uber.org/zap"
 )
 
-// seppukuFactory is a factory for seppukuWorkers
-type seppukuFactory struct {
+// deadlockDetectorFactory is a factory for deadlockDetectors
+type deadlockDetectorFactory struct {
 	metricsFactory metrics.Factory
 	logger         *zap.Logger
 	interval       time.Duration
 	panicFunc      func(int32)
 }
 
-type seppukuWorker struct {
+type deadlockDetector struct {
 	msgConsumed    *uint64
 	ticker         *time.Ticker
 	closePartition chan struct{}
 }
 
-func newSeppukuFactory(factory metrics.Factory, logger *zap.Logger, interval time.Duration) seppukuFactory {
-	return seppukuFactory{
+func newDeadlockDetectorFactory(factory metrics.Factory, logger *zap.Logger, interval time.Duration) deadlockDetectorFactory {
+	return deadlockDetectorFactory{
 		metricsFactory: factory,
 		logger:         logger,
 		interval:       interval,
 		panicFunc: func(partition int32) {
-			factory.Counter("seppuku", map[string]string{"partition": strconv.Itoa(int(partition))}).Inc(1)
+			factory.Counter("deadlockdetector.panic-issued", map[string]string{"partition": strconv.Itoa(int(partition))}).Inc(1)
 			time.Sleep(time.Second) // Allow time to flush metric
 
 			buf := make([]byte, 1<<20)
@@ -61,15 +61,15 @@ func newSeppukuFactory(factory metrics.Factory, logger *zap.Logger, interval tim
 // Closing the partition should result in a rebalance, which alleviates the condition. This means that rebalances can
 // happen frequently if there is no traffic on the Kafka topic. This shouldn't affect normal operations.
 //
-// If the message send isn't processed within the next check interval, a seppuku is attempted.This hack relies on a
+// If the message send isn't processed within the next check interval, a panic is issued.This hack relies on a
 // container management system (k8s, aurora, marathon, etc) to reschedule
 // the dead instance.
 //
 // This hack protects jaeger-ingester from issues described in  https://github.com/jaegertracing/jaeger/issues/1052
 //
-func (s *seppukuFactory) startMonitoringForPartition(partition int32) *seppukuWorker {
+func (s *deadlockDetectorFactory) startMonitoringForPartition(partition int32) *deadlockDetector {
 	var msgConsumed uint64
-	w := &seppukuWorker{
+	w := &deadlockDetector{
 		msgConsumed:    &msgConsumed,
 		ticker:         time.NewTicker(s.interval),
 		closePartition: make(chan struct{}, 1),
@@ -82,7 +82,7 @@ func (s *seppukuFactory) startMonitoringForPartition(partition int32) *seppukuWo
 				case w.closePartition <- struct{}{}:
 					s.logger.Warn("Signalling partition close due to inactivity", zap.Int32("partition", partition))
 				default:
-					// If closePartition is blocked, attempt seppuku
+					// If closePartition is blocked, the consumer might have deadlocked - kill the process
 					s.panicFunc(partition)
 				}
 			} else {
@@ -94,14 +94,14 @@ func (s *seppukuFactory) startMonitoringForPartition(partition int32) *seppukuWo
 	return w
 }
 
-func (w *seppukuWorker) getClosePartition() chan struct{} {
+func (w *deadlockDetector) getClosePartition() chan struct{} {
 	return w.closePartition
 }
 
-func (w *seppukuWorker) close() {
+func (w *deadlockDetector) close() {
 	w.ticker.Stop()
 }
 
-func (w *seppukuWorker) incrementMsgCount() {
+func (w *deadlockDetector) incrementMsgCount() {
 	atomic.AddUint64(w.msgConsumed, 1)
 }

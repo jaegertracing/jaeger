@@ -29,7 +29,7 @@ import (
 func TestClosingSignalEmitted(t *testing.T) {
 	mf := metrics.NewLocalFactory(0)
 	l, _ := zap.NewDevelopment()
-	f := newSeppukuFactory(mf, l, time.Millisecond)
+	f := newDeadlockDetectorFactory(mf, l, time.Millisecond)
 	w := f.startMonitoringForPartition(1)
 	assert.NotNil(t, <-w.getClosePartition())
 	w.close()
@@ -38,7 +38,7 @@ func TestClosingSignalEmitted(t *testing.T) {
 func TestNoClosingSignalIfMessagesProcessedInInterval(t *testing.T) {
 	mf := metrics.NewLocalFactory(0)
 	l, _ := zap.NewDevelopment()
-	f := newSeppukuFactory(mf, l, time.Second)
+	f := newDeadlockDetectorFactory(mf, l, time.Second)
 	w := f.startMonitoringForPartition(1)
 
 	w.incrementMsgCount()
@@ -49,7 +49,7 @@ func TestNoClosingSignalIfMessagesProcessedInInterval(t *testing.T) {
 func TestResetMsgCount(t *testing.T) {
 	mf := metrics.NewLocalFactory(0)
 	l, _ := zap.NewDevelopment()
-	f := newSeppukuFactory(mf, l, 50*time.Millisecond)
+	f := newDeadlockDetectorFactory(mf, l, 50*time.Millisecond)
 	w := f.startMonitoringForPartition(1)
 	w.incrementMsgCount()
 	time.Sleep(75 * time.Millisecond)
@@ -63,12 +63,12 @@ func TestPanicFunc(t *testing.T) {
 	l, _ := zap.NewDevelopment()
 
 	assert.Panics(t, func() {
-		f := newSeppukuFactory(mf, l, 1)
+		f := newDeadlockDetectorFactory(mf, l, 1)
 		f.panicFunc(1)
 	})
 
 	testutils.AssertCounterMetrics(t, mf, testutils.ExpectedMetric{
-		Name:  "seppuku",
+		Name:  "deadlockdetector.panic-issued",
 		Tags:  map[string]string{"partition": "1"},
 		Value: 1,
 	})
@@ -77,7 +77,7 @@ func TestPanicFunc(t *testing.T) {
 func TestSeppuku(t *testing.T) {
 	mf := metrics.NewLocalFactory(0)
 	l, _ := zap.NewDevelopment()
-	f := newSeppukuFactory(mf, l, 1)
+	f := newDeadlockDetectorFactory(mf, l, 1)
 	wg := sync.WaitGroup{}
 	wg.Add(1)
 	f.panicFunc = func(partition int32) {

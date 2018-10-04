@@ -90,11 +90,11 @@ func newConsumer(
 
 	logger, _ := zap.NewDevelopment()
 	return &Consumer{
-		metricsFactory:     factory,
-		logger:             logger,
-		internalConsumer:   consumer,
-		partitionIDToState: make(map[int32]*consumerState),
-		seppukuFactory:     newSeppukuFactory(factory, logger, time.Second),
+		metricsFactory:          factory,
+		logger:                  logger,
+		internalConsumer:        consumer,
+		partitionIDToState:      make(map[int32]*consumerState),
+		deadlockDetectorFactory: newDeadlockDetectorFactory(factory, logger, time.Second),
 
 		processorFactory: ProcessorFactory{
 			topic:          topic,
@@ -228,7 +228,7 @@ func TestHandleClosePartition(t *testing.T) {
 	require.NoError(t, e)
 
 	undertest := newConsumer(localFactory, topic, mp, newSaramaClusterConsumer(saramaPartitionConsumer))
-	undertest.seppukuFactory = newSeppukuFactory(localFactory, zap.NewNop(), 50*time.Millisecond)
+	undertest.deadlockDetectorFactory = newDeadlockDetectorFactory(localFactory, zap.NewNop(), 50*time.Millisecond)
 	undertest.Start()
 	time.Sleep(75 * time.Millisecond)
 
