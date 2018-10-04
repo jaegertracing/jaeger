@@ -94,7 +94,6 @@ func newConsumer(
 	var rateLimiter *time.Ticker
 	if maxReadsPerSecond > 0.0 {
 		interval := time.Nanosecond * time.Duration(float64(time.Second.Nanoseconds())/maxReadsPerSecond)
-		fmt.Printf("%+v\n", interval)
 		rateLimiter = time.NewTicker(interval)
 	}
 
