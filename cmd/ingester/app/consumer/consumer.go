@@ -29,10 +29,11 @@ import (
 
 // Params are the parameters of a Consumer
 type Params struct {
-	ProcessorFactory ProcessorFactory
-	Factory          metrics.Factory
-	Logger           *zap.Logger
-	InternalConsumer consumer.Consumer
+	ProcessorFactory  ProcessorFactory
+	Factory           metrics.Factory
+	Logger            *zap.Logger
+	InternalConsumer  consumer.Consumer
+	MaxReadsPerSecond float64
 }
 
 // Consumer uses sarama to consume and handle messages from kafka
@@ -46,6 +47,8 @@ type Consumer struct {
 	deadlockDetector deadlockDetector
 
 	partitionIDToState map[int32]*consumerState
+
+	rateLimiter *time.Ticker
 }
 
 type consumerState struct {
@@ -56,6 +59,11 @@ type consumerState struct {
 // New is a constructor for a Consumer
 func New(params Params) (*Consumer, error) {
 	deadlockDetector := newDeadlockDetector(params.Factory, params.Logger, time.Minute)
+	var rateLimiter *time.Ticker
+	if params.MaxReadsPerSecond > 0 {
+		interval := time.Nanosecond * time.Duration(float64(time.Second.Nanoseconds())/params.MaxReadsPerSecond)
+		rateLimiter = time.NewTicker(interval)
+	}
 	return &Consumer{
 		metricsFactory:     params.Factory,
 		logger:             params.Logger,
@@ -63,6 +71,7 @@ func New(params Params) (*Consumer, error) {
 		processorFactory:   params.ProcessorFactory,
 		deadlockDetector:   deadlockDetector,
 		partitionIDToState: make(map[int32]*consumerState),
+		rateLimiter:        rateLimiter,
 	}, nil
 }
 
@@ -94,6 +103,9 @@ func (c *Consumer) Close() error {
 		p.wg.Wait()
 	}
 	c.deadlockDetector.close()
+	if c.rateLimiter != nil {
+		c.rateLimiter.Stop()
+	}
 	c.logger.Info("Closing parent consumer")
 	return c.internalConsumer.Close()
 }
@@ -117,6 +129,10 @@ func (c *Consumer) handleMessages(pc sc.PartitionConsumer) {
 			if !ok {
 				c.logger.Info("Message channel closed. ", zap.Int32("partition", pc.Partition()))
 				return
+			}
+			// Rate limiter using ticker explained here: https://gobyexample.com/rate-limiting.
+			if c.rateLimiter != nil {
+				<-c.rateLimiter.C
 			}
 			c.logger.Debug("Got msg", zap.Any("msg", msg))
 			msgMetrics.counter.Inc(1)

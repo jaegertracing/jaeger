@@ -43,6 +43,8 @@ const (
 	SuffixParallelism = ".parallelism"
 	// SuffixEncoding is a suffix for the encoding flag
 	SuffixEncoding = ".encoding"
+	// SuffixMaxReadsPerSecond is a suffix for the max-reads-per-second flag
+	SuffixMaxReadsPerSecond = ".max-reads-per-second"
 
 	// DefaultBroker is the default kafka broker
 	DefaultBroker = "127.0.0.1:9092"
@@ -54,13 +56,16 @@ const (
 	DefaultParallelism = 1000
 	// DefaultEncoding is the default span encoding
 	DefaultEncoding = EncodingProto
+	// DefaultMaxReadsPerSecond is the default max reads per second for the span processor
+	DefaultMaxReadsPerSecond = 0.0
 )
 
 // Options stores the configuration options for the Ingester
 type Options struct {
 	kafkaConsumer.Configuration
-	Parallelism int
-	Encoding    string
+	Parallelism       int
+	Encoding          string
+	MaxReadsPerSecond float64
 }
 
 // AddFlags adds flags for Builder
@@ -85,6 +90,10 @@ func AddFlags(flagSet *flag.FlagSet) {
 		ConfigPrefix+SuffixEncoding,
 		DefaultEncoding,
 		fmt.Sprintf(`The encoding of spans ("%s" or "%s") consumed from kafka`, EncodingProto, EncodingJSON))
+	flagSet.String(
+		ConfigPrefix+SuffixMaxReadsPerSecond,
+		strconv.Itoa(DefaultMaxReadsPerSecond),
+		"The number of reads per second")
 }
 
 // InitFromViper initializes Builder with properties from viper
@@ -94,4 +103,5 @@ func (o *Options) InitFromViper(v *viper.Viper) {
 	o.GroupID = v.GetString(ConfigPrefix + SuffixGroupID)
 	o.Parallelism = v.GetInt(ConfigPrefix + SuffixParallelism)
 	o.Encoding = v.GetString(ConfigPrefix + SuffixEncoding)
+	o.MaxReadsPerSecond = v.GetFloat64(ConfigPrefix + SuffixMaxReadsPerSecond)
 }

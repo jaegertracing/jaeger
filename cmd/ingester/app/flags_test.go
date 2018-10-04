@@ -30,7 +30,8 @@ func TestOptionsWithFlags(t *testing.T) {
 		"--ingester.brokers=127.0.0.1:9092,0.0.0:1234",
 		"--ingester.group-id=group1",
 		"--ingester.parallelism=5",
-		"--ingester.encoding=json"})
+		"--ingester.encoding=json",
+		"--ingester.max-reads-per-second=10"})
 	o.InitFromViper(v)
 
 	assert.Equal(t, "topic1", o.Topic)
@@ -38,6 +39,7 @@ func TestOptionsWithFlags(t *testing.T) {
 	assert.Equal(t, "group1", o.GroupID)
 	assert.Equal(t, 5, o.Parallelism)
 	assert.Equal(t, EncodingJSON, o.Encoding)
+	assert.Equal(t, 10.0, o.MaxReadsPerSecond)
 }
 
 func TestFlagDefaults(t *testing.T) {
@@ -51,4 +53,5 @@ func TestFlagDefaults(t *testing.T) {
 	assert.Equal(t, DefaultGroupID, o.GroupID)
 	assert.Equal(t, DefaultParallelism, o.Parallelism)
 	assert.Equal(t, DefaultEncoding, o.Encoding)
+	assert.Equal(t, DefaultMaxReadsPerSecond, o.MaxReadsPerSecond)
 }
