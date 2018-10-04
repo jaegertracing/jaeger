@@ -91,12 +91,6 @@ func newConsumer(
 
 	logger, _ := zap.NewDevelopment()
 
-	var rateLimiter *time.Ticker
-	if maxReadsPerSecond > 0.0 {
-		interval := time.Nanosecond * time.Duration(float64(time.Second.Nanoseconds())/maxReadsPerSecond)
-		rateLimiter = time.NewTicker(interval)
-	}
-
 	return &Consumer{
 		metricsFactory:     factory,
 		logger:             logger,
@@ -113,7 +107,7 @@ func newConsumer(
 			parallelism:    1,
 		},
 
-		rateLimiter: rateLimiter,
+		rateLimiter: newRateLimiter(maxReadsPerSecond),
 	}
 }
 
@@ -145,7 +139,7 @@ func TestSaramaConsumerWrapper_start_Messages(t *testing.T) {
 	saramaPartitionConsumer, e := saramaConsumer.ConsumePartition(topic, partition, msgOffset)
 	require.NoError(t, e)
 
-	undertest := newConsumer(localFactory, topic, mp, newSaramaClusterConsumer(saramaPartitionConsumer), 20.0)
+	undertest := newConsumer(localFactory, topic, mp, newSaramaClusterConsumer(saramaPartitionConsumer), 0.0)
 
 	undertest.partitionIDToState = map[int32]*consumerState{
 		partition: {

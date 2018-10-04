@@ -48,7 +48,7 @@ type Consumer struct {
 
 	partitionIDToState map[int32]*consumerState
 
-	rateLimiter *time.Ticker
+	rateLimiter *rateLimiter
 }
 
 type consumerState struct {
@@ -59,11 +59,6 @@ type consumerState struct {
 // New is a constructor for a Consumer
 func New(params Params) (*Consumer, error) {
 	deadlockDetector := newDeadlockDetector(params.Factory, params.Logger, time.Minute)
-	var rateLimiter *time.Ticker
-	if params.MaxReadsPerSecond > 0 {
-		interval := time.Nanosecond * time.Duration(float64(time.Second.Nanoseconds())/params.MaxReadsPerSecond)
-		rateLimiter = time.NewTicker(interval)
-	}
 	return &Consumer{
 		metricsFactory:     params.Factory,
 		logger:             params.Logger,
@@ -71,7 +66,7 @@ func New(params Params) (*Consumer, error) {
 		processorFactory:   params.ProcessorFactory,
 		deadlockDetector:   deadlockDetector,
 		partitionIDToState: make(map[int32]*consumerState),
-		rateLimiter:        rateLimiter,
+		rateLimiter:        newRateLimiter(params.MaxReadsPerSecond),
 	}, nil
 }
 
@@ -103,9 +98,7 @@ func (c *Consumer) Close() error {
 		p.wg.Wait()
 	}
 	c.deadlockDetector.close()
-	if c.rateLimiter != nil {
-		c.rateLimiter.Stop()
-	}
+	c.rateLimiter.stop()
 	c.logger.Info("Closing parent consumer")
 	return c.internalConsumer.Close()
 }
@@ -130,10 +123,7 @@ func (c *Consumer) handleMessages(pc sc.PartitionConsumer) {
 				c.logger.Info("Message channel closed. ", zap.Int32("partition", pc.Partition()))
 				return
 			}
-			// Rate limiter using ticker explained here: https://gobyexample.com/rate-limiting.
-			if c.rateLimiter != nil {
-				<-c.rateLimiter.C
-			}
+			c.rateLimiter.await()
 			c.logger.Debug("Got msg", zap.Any("msg", msg))
 			msgMetrics.counter.Inc(1)
 			msgMetrics.offsetGauge.Update(msg.Offset)
