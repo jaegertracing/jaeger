@@ -20,38 +20,65 @@ import (
 	"time"
 
 	"github.com/spf13/viper"
+	"go.uber.org/zap"
 )
 
 const (
 	defaultConnCheckTimeout   = 250 * time.Millisecond
 	tchannelPrefix            = "reporter.tchannel."
-	collectorHostPort         = tchannelPrefix + "collector.host-port"
-	discoveryMinPeers         = tchannelPrefix + "discovery.min-peers"
-	discoveryConnCheckTimeout = tchannelPrefix + "discovery.conn-check-timeout"
+	collectorHostPort         = "collector.host-port"
+	discoveryMinPeers         = "discovery.min-peers"
+	discoveryConnCheckTimeout = "discovery.conn-check-timeout"
 )
 
 // AddFlags adds flags for Builder.
 func AddFlags(flags *flag.FlagSet) {
 	flags.String(
-		collectorHostPort,
+		tchannelPrefix+collectorHostPort,
 		"",
 		"comma-separated string representing host:ports of a static list of collectors to connect to directly (e.g. when not using service discovery)")
 	flags.Int(
-		discoveryMinPeers,
+		tchannelPrefix+discoveryMinPeers,
 		defaultMinPeers,
 		"if using service discovery, the min number of connections to maintain to the backend")
 	flags.Duration(
-		discoveryConnCheckTimeout,
+		tchannelPrefix+discoveryConnCheckTimeout,
 		defaultConnCheckTimeout,
 		"sets the timeout used when establishing new connections")
+	// TODO remove deprecated in 1.9
+	flags.String(
+		collectorHostPort,
+		"",
+		"Deprecated; comma-separated string representing host:ports of a static list of collectors to connect to directly (e.g. when not using service discovery)")
+	flags.Int(
+		discoveryMinPeers,
+		defaultMinPeers,
+		"Deprecated; if using service discovery, the min number of connections to maintain to the backend")
+	flags.Duration(
+		discoveryConnCheckTimeout,
+		defaultConnCheckTimeout,
+		"Deprecated; sets the timeout used when establishing new connections")
 }
 
 // InitFromViper initializes Builder with properties retrieved from Viper.
-func (b *Builder) InitFromViper(v *viper.Viper) *Builder {
+func (b *Builder) InitFromViper(v *viper.Viper, logger *zap.Logger) *Builder {
 	if len(v.GetString(collectorHostPort)) > 0 {
+		logger.Warn("Using deprecated configuration", zap.String("option", collectorHostPort))
 		b.CollectorHostPorts = strings.Split(v.GetString(collectorHostPort), ",")
 	}
 	b.DiscoveryMinPeers = v.GetInt(discoveryMinPeers)
+	if b.DiscoveryMinPeers != defaultMinPeers {
+		logger.Warn("Using deprecated configuration", zap.String("option", discoveryMinPeers))
+	}
 	b.ConnCheckTimeout = v.GetDuration(discoveryConnCheckTimeout)
+	if b.ConnCheckTimeout != defaultConnCheckTimeout {
+		logger.Warn("Using deprecated configuration", zap.String("option", discoveryConnCheckTimeout))
+	}
+
+	if len(v.GetString(tchannelPrefix+collectorHostPort)) > 0 {
+		b.CollectorHostPorts = strings.Split(v.GetString(tchannelPrefix+collectorHostPort), ",")
+	}
+	b.DiscoveryMinPeers = v.GetInt(tchannelPrefix + discoveryMinPeers)
+	b.ConnCheckTimeout = v.GetDuration(tchannelPrefix + discoveryConnCheckTimeout)
 	return b
 }

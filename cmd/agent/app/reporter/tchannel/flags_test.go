@@ -23,26 +23,50 @@ import (
 	"github.com/spf13/viper"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"go.uber.org/zap"
 )
 
 func TestBingFlags(t *testing.T) {
 	v := viper.New()
-	b := &Builder{}
 	command := cobra.Command{}
 	flags := &flag.FlagSet{}
 	AddFlags(flags)
 	command.PersistentFlags().AddGoFlagSet(flags)
 	v.BindPFlags(command.PersistentFlags())
 
-	err := command.ParseFlags([]string{
-		"--reporter.tchannel.collector.host-port=1.2.3.4:555,1.2.3.4:666",
-		"--reporter.tchannel.discovery.min-peers=42",
-		"--reporter.tchannel.discovery.conn-check-timeout=85s",
-	})
-	require.NoError(t, err)
-
-	b.InitFromViper(v)
-	assert.Equal(t, 42, b.DiscoveryMinPeers)
-	assert.Equal(t, []string{"1.2.3.4:555", "1.2.3.4:666"}, b.CollectorHostPorts)
-	assert.Equal(t, time.Second*85, b.ConnCheckTimeout)
+	tests := []struct {
+		flags   []string
+		builder Builder
+	}{
+		{flags: []string{
+			"--reporter.tchannel.collector.host-port=1.2.3.4:555,1.2.3.4:666",
+			"--reporter.tchannel.discovery.min-peers=42",
+			"--reporter.tchannel.discovery.conn-check-timeout=85s",
+		}, builder: Builder{ConnCheckTimeout: time.Second * 85, DiscoveryMinPeers: 42, CollectorHostPorts: []string{"1.2.3.4:555", "1.2.3.4:666"}},
+		},
+		{flags: []string{
+			"--collector.host-port=1.2.3.4:555,1.2.3.4:666",
+			"--discovery.min-peers=42",
+			"--discovery.conn-check-timeout=85s",
+		},
+			builder: Builder{ConnCheckTimeout: time.Second * 85, DiscoveryMinPeers: 42, CollectorHostPorts: []string{"1.2.3.4:555", "1.2.3.4:666"}},
+		},
+		{flags: []string{
+			"--collector.host-port=1.2.3.4:555,1.2.3.4:666",
+			"--discovery.min-peers=42",
+			"--discovery.conn-check-timeout=85s",
+			"--reporter.tchannel.collector.host-port=1.2.3.4:5556,1.2.3.4:6667",
+			"--reporter.tchannel.discovery.min-peers=43",
+			"--reporter.tchannel.discovery.conn-check-timeout=86s",
+		},
+			builder: Builder{ConnCheckTimeout: time.Second * 86, DiscoveryMinPeers: 43, CollectorHostPorts: []string{"1.2.3.4:5556", "1.2.3.4:6667"}},
+		},
+	}
+	for _, test := range tests {
+		err := command.ParseFlags(test.flags)
+		require.NoError(t, err)
+		b := Builder{}
+		b.InitFromViper(v, zap.NewNop())
+		assert.Equal(t, test.builder, b)
+	}
 }

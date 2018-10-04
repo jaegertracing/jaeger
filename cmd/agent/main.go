@@ -52,7 +52,7 @@ func main() {
 
 			builder := &app.Builder{}
 			builder.InitFromViper(v)
-			tchanRep := tchannel.NewBuilder().InitFromViper(v)
+			tchanRep := tchannel.NewBuilder().InitFromViper(v, logger)
 			mFactory, err := builder.GetMetricsFactory()
 			if err != nil {
 				logger.Fatal("Could not create metrics", zap.Error(err))

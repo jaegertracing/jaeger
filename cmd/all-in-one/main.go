@@ -126,7 +126,7 @@ func main() {
 			samplingHandler := initializeSamplingHandler(strategyStoreFactory, v, metricsFactory, logger)
 
 			aOpts := new(agentApp.Builder).InitFromViper(v)
-			tchannelRep := agentTchanRep.NewBuilder().InitFromViper(v)
+			tchannelRep := agentTchanRep.NewBuilder().InitFromViper(v, logger)
 			cOpts := new(collector.CollectorOptions).InitFromViper(v)
 			qOpts := new(queryApp.QueryOptions).InitFromViper(v)
 

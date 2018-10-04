@@ -144,6 +144,8 @@ func (b *Builder) CreateAgent(logger *zap.Logger) (*Agent, error) {
 func (b *Builder) getReporter(logger *zap.Logger) (reporter.Reporter, error) {
 	if len(b.reporters) == 0 {
 		return nil, errors.New("Missing required reporters")
+	} else if len(b.reporters) == 1 {
+		return b.reporters[0], nil
 	}
 	return reporter.NewMultiReporter(b.reporters...), nil
 }
