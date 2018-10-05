@@ -62,14 +62,19 @@ var (
 	}
 )
 
+// CollectorProxy provides access to Reporter and ClientConfigManager
+type CollectorProxy interface {
+	GetReporter() reporter.Reporter
+	GetManager() httpserver.ClientConfigManager
+}
+
 // Builder Struct to hold configurations
 type Builder struct {
 	Processors []ProcessorConfiguration `yaml:"processors"`
 	HTTPServer HTTPServerConfiguration  `yaml:"httpServer"`
 	Metrics    jmetrics.Builder         `yaml:"metrics"`
 
-	reporters     []reporter.Reporter
-	configManager httpserver.ClientConfigManager
+	collectorProxy []CollectorProxy
 }
 
 // ProcessorConfiguration holds config for a processor that receives spans from Server
@@ -92,40 +97,36 @@ type HTTPServerConfiguration struct {
 	HostPort string `yaml:"hostPort" validate:"nonzero"`
 }
 
-// WithReporters adds auxiliary reporters.
-func (b *Builder) WithReporters(r ...reporter.Reporter) *Builder {
-	b.reporters = append(b.reporters, r...)
+// WithCollectorProxy adds auxiliary reporters.
+func (b *Builder) WithCollectorProxy(r ...CollectorProxy) *Builder {
+	b.collectorProxy = append(b.collectorProxy, r...)
 	return b
 }
 
 // CreateAgent creates the Agent
-func (b *Builder) CreateAgent(logger *zap.Logger, mFactory metrics.Factory) (*Agent, error) {
-	r, err := b.getReporter(logger)
+func (b *Builder) CreateAgent(primaryProxy CollectorProxy, logger *zap.Logger, mFactory metrics.Factory) (*Agent, error) {
+	r := b.getReporter(primaryProxy)
+	processors, err := b.getProcessors(r, mFactory, logger)
 	if err != nil {
 		return nil, err
 	}
-	processors, err := b.GetProcessors(r, mFactory, logger)
-	if err != nil {
-		return nil, err
-	}
-	server, err := b.HTTPServer.getHTTPServer(b.configManager, mFactory, &b.Metrics)
-	if err != nil {
-		return nil, err
-	}
+	server := b.HTTPServer.getHTTPServer(primaryProxy.GetManager(), mFactory, &b.Metrics)
 	return NewAgent(processors, server, logger), nil
 }
 
-func (b *Builder) getReporter(logger *zap.Logger) (reporter.Reporter, error) {
-	if len(b.reporters) == 0 {
-		return nil, errors.New("Missing required reporters")
-	} else if len(b.reporters) == 1 {
-		return b.reporters[0], nil
+func (b *Builder) getReporter(primaryProxy CollectorProxy) reporter.Reporter {
+	if len(b.collectorProxy) == 0 {
+		return primaryProxy.GetReporter()
 	}
-	return reporter.NewMultiReporter(b.reporters...), nil
+	rep := make([]reporter.Reporter, len(b.collectorProxy)+1)
+	rep[0] = primaryProxy.GetReporter()
+	for i, p := range b.collectorProxy {
+		rep[i+1] = p.GetReporter()
+	}
+	return reporter.NewMultiReporter(rep...)
 }
 
-// GetProcessors creates Processors with attached Reporter
-func (b *Builder) GetProcessors(rep reporter.Reporter, mFactory metrics.Factory, logger *zap.Logger) ([]processors.Processor, error) {
+func (b *Builder) getProcessors(rep reporter.Reporter, mFactory metrics.Factory, logger *zap.Logger) ([]processors.Processor, error) {
 	retMe := make([]processors.Processor, len(b.Processors))
 	for idx, cfg := range b.Processors {
 		protoFactory, ok := protocolFactoryMap[cfg.Protocol]
@@ -154,17 +155,8 @@ func (b *Builder) GetProcessors(rep reporter.Reporter, mFactory metrics.Factory,
 	return retMe, nil
 }
 
-// WithClientConfigManager adds configuration manager.
-func (b *Builder) WithClientConfigManager(manager httpserver.ClientConfigManager) *Builder {
-	b.configManager = manager
-	return b
-}
-
 // GetHTTPServer creates an HTTP server that provides sampling strategies and baggage restrictions to client libraries.
-func (c HTTPServerConfiguration) getHTTPServer(manager httpserver.ClientConfigManager, mFactory metrics.Factory, mBuilder *jmetrics.Builder) (*http.Server, error) {
-	if manager == nil {
-		return nil, errors.New("Missing required Client config manager")
-	}
+func (c HTTPServerConfiguration) getHTTPServer(manager httpserver.ClientConfigManager, mFactory metrics.Factory, mBuilder *jmetrics.Builder) *http.Server {
 	if c.HostPort == "" {
 		c.HostPort = defaultHTTPServerHostPort
 	}
@@ -172,7 +164,7 @@ func (c HTTPServerConfiguration) getHTTPServer(manager httpserver.ClientConfigMa
 	if h := mBuilder.Handler(); mFactory != nil && h != nil {
 		server.Handler.(*http.ServeMux).Handle(mBuilder.HTTPRoute, h)
 	}
-	return server, nil
+	return server
 }
 
 // GetThriftProcessor gets a TBufferedServer backed Processor using the collector configuration

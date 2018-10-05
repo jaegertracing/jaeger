@@ -184,10 +184,8 @@ func startAgent(
 	if err != nil {
 		logger.Fatal("Could not create collector proxy", zap.Error(err))
 	}
-	b.WithReporters(cp.GetReporter())
-	b.WithClientConfigManager(cp.GetManager())
 
-	agent, err := b.CreateAgent(logger, baseFactory)
+	agent, err := b.CreateAgent(cp, logger, baseFactory)
 	if err != nil {
 		logger.Fatal("Unable to initialize Jaeger Agent", zap.Error(err))
 	}

@@ -34,8 +34,7 @@ import (
 
 func TestAgentStartError(t *testing.T) {
 	cfg := &Builder{}
-	configureSamplingManager(t, cfg, metrics.NullFactory)
-	agent, err := cfg.CreateAgent(zap.NewNop(), metrics.NullFactory)
+	agent, err := cfg.CreateAgent(fakeCollectorProxy{}, zap.NewNop(), metrics.NullFactory)
 	require.NoError(t, err)
 	agent.httpServer.Addr = "bad-address"
 	assert.Error(t, agent.Run())
@@ -103,8 +102,7 @@ func withRunningAgent(t *testing.T, testcase func(string, chan error)) {
 	}
 	logger, logBuf := testutils.NewLogger()
 	f, _ := cfg.Metrics.CreateMetricsFactory("jaeger")
-	configureSamplingManager(t, &cfg, f)
-	agent, err := cfg.CreateAgent(logger, f)
+	agent, err := cfg.CreateAgent(fakeCollectorProxy{}, logger, f)
 	require.NoError(t, err)
 	ch := make(chan error, 2)
 	go func() {

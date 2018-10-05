@@ -15,6 +15,8 @@
 package app
 
 import (
+	"errors"
+	"fmt"
 	"strings"
 	"testing"
 
@@ -25,27 +27,12 @@ import (
 	"gopkg.in/yaml.v2"
 
 	"github.com/jaegertracing/jaeger/cmd/agent/app/httpserver"
-	"github.com/jaegertracing/jaeger/cmd/agent/app/reporter/tchannel"
+	"github.com/jaegertracing/jaeger/cmd/agent/app/reporter"
+	"github.com/jaegertracing/jaeger/thrift-gen/baggage"
 	"github.com/jaegertracing/jaeger/thrift-gen/jaeger"
+	"github.com/jaegertracing/jaeger/thrift-gen/sampling"
 	"github.com/jaegertracing/jaeger/thrift-gen/zipkincore"
 )
-
-func TestDefault(t *testing.T) {
-	tests := []struct {
-		b      *Builder
-		errMsg string
-	}{
-		{b: &Builder{}, errMsg: "Missing required reporters"},
-		{b: (&Builder{}).WithReporters(&fakeReporter{}), errMsg: "Missing required Client config manager"},
-	}
-
-	for _, test := range tests {
-		a, err := test.b.CreateAgent(zap.NewNop(), metrics.NullFactory)
-		require.Error(t, err)
-		assert.Equal(t, test.errMsg, err.Error())
-		assert.Nil(t, a)
-	}
-}
 
 var yamlConfig = `
 ignored: abcd
@@ -115,19 +102,18 @@ func TestBuilderFromConfig(t *testing.T) {
 
 func TestBuilderWithExtraReporter(t *testing.T) {
 	cfg := &Builder{}
-	configureSamplingManager(t, cfg, metrics.NullFactory)
-	cfg.WithReporters(fakeReporter{})
-	agent, err := cfg.CreateAgent(zap.NewNop(), metrics.NullFactory)
+	//configureSamplingManager(t, cfg, metrics.NullFactory)
+	agent, err := cfg.CreateAgent(fakeCollectorProxy{}, zap.NewNop(), metrics.NullFactory)
 	assert.NoError(t, err)
 	assert.NotNil(t, agent)
 }
 
 func TestBuilderMetricsHandler(t *testing.T) {
 	b := &Builder{}
-	configureSamplingManager(t, b, metrics.NullFactory)
+	//configureSamplingManager(t, b, metrics.NullFactory)
 	b.Metrics.Backend = "expvar"
 	b.Metrics.HTTPRoute = "/expvar"
-	agent, err := b.CreateAgent(zap.NewNop(), metrics.NullFactory)
+	agent, err := b.CreateAgent(fakeCollectorProxy{}, zap.NewNop(), metrics.NullFactory)
 	assert.NoError(t, err)
 	assert.NotNil(t, agent)
 }
@@ -158,8 +144,7 @@ func TestBuilderWithProcessorErrors(t *testing.T) {
 				},
 			},
 		}
-		cfg.WithReporters(&fakeReporter{})
-		_, err := cfg.CreateAgent(zap.NewNop(), metrics.NullFactory)
+		_, err := cfg.CreateAgent(&fakeCollectorProxy{}, zap.NewNop(), metrics.NullFactory)
 		assert.Error(t, err)
 		if testCase.err != "" {
 			assert.EqualError(t, err, testCase.err)
@@ -169,18 +154,39 @@ func TestBuilderWithProcessorErrors(t *testing.T) {
 	}
 }
 
-func configureSamplingManager(t *testing.T, cfg *Builder, mFactory metrics.Factory) {
-	r, err := tchannel.NewBuilder().CreateReporter(mFactory, zap.NewNop())
-	require.NoError(t, err)
-	cfg.WithReporters(r).WithClientConfigManager(httpserver.NewCollectorProxy(r.CollectorServiceName(), r.Channel(), mFactory))
+func TestMultipleCollectorProxies(t *testing.T) {
+	b := Builder{}
+	ra := fakeCollectorProxy{}
+	rb := fakeCollectorProxy{}
+	b.WithCollectorProxy(ra)
+	r := b.getReporter(rb)
+	mr, ok := r.(reporter.MultiReporter)
+	require.True(t, ok)
+	fmt.Println(mr)
+	assert.Equal(t, rb, mr[0])
+	assert.Equal(t, ra, mr[1])
 }
 
-type fakeReporter struct{}
+type fakeCollectorProxy struct {
+}
 
-func (fr fakeReporter) EmitZipkinBatch(spans []*zipkincore.Span) (err error) {
+func (f fakeCollectorProxy) GetReporter() reporter.Reporter {
+	return fakeCollectorProxy{}
+}
+func (f fakeCollectorProxy) GetManager() httpserver.ClientConfigManager {
+	return fakeCollectorProxy{}
+}
+
+func (fakeCollectorProxy) EmitZipkinBatch(spans []*zipkincore.Span) (err error) {
+	return nil
+}
+func (fakeCollectorProxy) EmitBatch(batch *jaeger.Batch) (err error) {
 	return nil
 }
 
-func (fr fakeReporter) EmitBatch(batch *jaeger.Batch) (err error) {
-	return nil
+func (f fakeCollectorProxy) GetSamplingStrategy(serviceName string) (*sampling.SamplingStrategyResponse, error) {
+	return nil, errors.New("no peers available")
+}
+func (fakeCollectorProxy) GetBaggageRestrictions(serviceName string) ([]*baggage.BaggageRestriction, error) {
+	return nil, nil
 }

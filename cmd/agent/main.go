@@ -64,12 +64,10 @@ func main() {
 			if err != nil {
 				logger.Fatal("Could not create collector proxy", zap.Error(err))
 			}
-			builder.WithReporters(cp.GetReporter())
-			builder.WithClientConfigManager(cp.GetManager())
 
 			// TODO illustrate discovery service wiring
 
-			agent, err := builder.CreateAgent(logger, mFactory)
+			agent, err := builder.CreateAgent(cp, logger, mFactory)
 			if err != nil {
 				return errors.Wrap(err, "Unable to initialize Jaeger Agent")
 			}

@@ -19,6 +19,7 @@ import (
 	"go.uber.org/zap"
 
 	"github.com/jaegertracing/jaeger/cmd/agent/app/httpserver"
+	"github.com/jaegertracing/jaeger/cmd/agent/app/reporter"
 )
 
 // ProxyBuilder holds objects communicating with collector
@@ -40,11 +41,11 @@ func NewCollectorProxy(builder *Builder, mFactory metrics.Factory, logger *zap.L
 }
 
 // GetReporter returns Reporter
-func (b *ProxyBuilder) GetReporter() *Reporter {
+func (b ProxyBuilder) GetReporter() reporter.Reporter {
 	return b.reporter
 }
 
 // GetManager returns manager
-func (b *ProxyBuilder) GetManager() httpserver.ClientConfigManager {
+func (b ProxyBuilder) GetManager() httpserver.ClientConfigManager {
 	return b.manager
 }
