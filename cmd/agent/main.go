@@ -24,7 +24,6 @@ import (
 	"go.uber.org/zap"
 
 	"github.com/jaegertracing/jaeger/cmd/agent/app"
-	"github.com/jaegertracing/jaeger/cmd/agent/app/httpserver"
 	"github.com/jaegertracing/jaeger/cmd/agent/app/reporter/tchannel"
 	"github.com/jaegertracing/jaeger/cmd/flags"
 	"github.com/jaegertracing/jaeger/pkg/config"
@@ -61,12 +60,12 @@ func main() {
 			}
 			mFactory = mFactory.Namespace("agent", nil)
 
-			r, err := tchanRep.CreateReporter(mFactory, logger)
+			cp, err := tchannel.NewCollectorProxy(tchanRep, mFactory, logger)
 			if err != nil {
-				logger.Fatal("Could not create tchannel reporter", zap.Error(err))
+				logger.Fatal("Could not create collector proxy", zap.Error(err))
 			}
-			builder.WithReporters(r)
-			builder.WithClientConfigManager(httpserver.NewCollectorProxy(r.CollectorServiceName(), r.Channel(), mFactory))
+			builder.WithReporters(cp.GetReporter())
+			builder.WithClientConfigManager(cp.GetManager())
 
 			// TODO illustrate discovery service wiring
 

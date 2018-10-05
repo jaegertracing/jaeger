@@ -38,7 +38,6 @@ import (
 	"go.uber.org/zap"
 
 	agentApp "github.com/jaegertracing/jaeger/cmd/agent/app"
-	"github.com/jaegertracing/jaeger/cmd/agent/app/httpserver"
 	agentTchanRep "github.com/jaegertracing/jaeger/cmd/agent/app/reporter/tchannel"
 	basic "github.com/jaegertracing/jaeger/cmd/builder"
 	collectorApp "github.com/jaegertracing/jaeger/cmd/collector/app"
@@ -180,13 +179,13 @@ func startAgent(
 	baseFactory metrics.Factory,
 ) {
 	metricsFactory := baseFactory.Namespace("agent", nil)
-	tchanRep.CollectorHostPorts = append(tchanRep.CollectorHostPorts, fmt.Sprintf("127.0.0.1:%d", cOpts.CollectorPort))
-	r, err := tchanRep.CreateReporter(metricsFactory, logger)
+
+	cp, err := agentTchanRep.NewCollectorProxy(tchanRep, metricsFactory, logger)
 	if err != nil {
-		log.Fatal("Could not create tchannel reporter", zap.Error(err))
+		logger.Fatal("Could not create collector proxy", zap.Error(err))
 	}
-	b.WithReporters(r)
-	b.WithClientConfigManager(httpserver.NewCollectorProxy(r.CollectorServiceName(), r.Channel(), metricsFactory))
+	b.WithReporters(cp.GetReporter())
+	b.WithClientConfigManager(cp.GetManager())
 
 	agent, err := b.CreateAgent(logger, baseFactory)
 	if err != nil {
