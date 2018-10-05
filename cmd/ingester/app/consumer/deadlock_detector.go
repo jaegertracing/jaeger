@@ -24,41 +24,9 @@ import (
 	"go.uber.org/zap"
 )
 
-// deadlockDetectorFactory is a factory for deadlockDetectors
-type deadlockDetectorFactory struct {
-	metricsFactory metrics.Factory
-	logger         *zap.Logger
-	interval       time.Duration
-	panicFunc      func(int32)
-}
-
-type deadlockDetector struct {
-	msgConsumed    *uint64
-	ticker         *time.Ticker
-	logger         *zap.Logger
-	closePartition chan struct{}
-	done           chan struct{}
-}
-
-func newDeadlockDetectorFactory(factory metrics.Factory, logger *zap.Logger, interval time.Duration) deadlockDetectorFactory {
-	return deadlockDetectorFactory{
-		metricsFactory: factory,
-		logger:         logger,
-		interval:       interval,
-		panicFunc: func(partition int32) {
-			factory.Counter("deadlockdetector.panic-issued", map[string]string{"partition": strconv.Itoa(int(partition))}).Inc(1)
-			time.Sleep(time.Second) // Allow time to flush metric
-
-			buf := make([]byte, 1<<20)
-			logger.Panic("No messages processed in the last check interval",
-				zap.Int32("partition", partition),
-				zap.String("stack", string(buf[:runtime.Stack(buf, true)])))
-		},
-	}
-}
-
-// startMonitoringForPartition monitors the messages consumed by the partition and signals for the partition to by
-// closed by sending a message on the closePartition channel.
+// deadlockDetector monitors the messages consumed and wither signals for the partition to be closed by sending a
+// message on closePartition, or triggers a panic if the close fails. It triggers a panic if there are no messages
+// consumed across all partitions.
 //
 // Closing the partition should result in a rebalance, which alleviates the condition. This means that rebalances can
 // happen frequently if there is no traffic on the Kafka topic. This shouldn't affect normal operations.
@@ -69,23 +37,69 @@ func newDeadlockDetectorFactory(factory metrics.Factory, logger *zap.Logger, int
 //
 // This hack protects jaeger-ingester from issues described in  https://github.com/jaegertracing/jaeger/issues/1052
 //
-func (s *deadlockDetectorFactory) startMonitoringForPartition(partition int32) *deadlockDetector {
+type deadlockDetector struct {
+	metricsFactory                metrics.Factory
+	logger                        *zap.Logger
+	interval                      time.Duration
+	allPartitionsDeadlockDetector *allPartitionsDeadlockDetector
+	panicFunc                     func(int32)
+}
+
+type partitionDeadlockDetector struct {
+	msgConsumed                   *uint64
+	logger                        *zap.Logger
+	partition                     int32
+	closePartition                chan struct{}
+	done                          chan struct{}
+	allPartitionsDeadlockDetector *allPartitionsDeadlockDetector
+}
+
+type allPartitionsDeadlockDetector struct {
+	msgConsumed *uint64
+	logger      *zap.Logger
+	done        chan struct{}
+}
+
+func newDeadlockDetector(factory metrics.Factory, logger *zap.Logger, interval time.Duration) deadlockDetector {
+	panicFunc := func(partition int32) {
+		factory.Counter("deadlockdetector.panic-issued", map[string]string{"partition": strconv.Itoa(int(partition))}).Inc(1)
+		time.Sleep(time.Second) // Allow time to flush metric
+
+		buf := make([]byte, 1<<20)
+		logger.Panic("No messages processed in the last check interval",
+			zap.Int32("partition", partition),
+			zap.String("stack", string(buf[:runtime.Stack(buf, true)])))
+	}
+
+	return deadlockDetector{
+		metricsFactory: factory,
+		logger:         logger,
+		interval:       interval,
+		panicFunc:      panicFunc,
+	}
+}
+
+func (s *deadlockDetector) startMonitoringForPartition(partition int32) *partitionDeadlockDetector {
 	var msgConsumed uint64
-	w := &deadlockDetector{
+	w := &partitionDeadlockDetector{
 		msgConsumed:    &msgConsumed,
-		ticker:         time.NewTicker(s.interval),
+		partition:      partition,
 		closePartition: make(chan struct{}, 1),
 		done:           make(chan struct{}),
 		logger:         s.logger,
+		allPartitionsDeadlockDetector: s.allPartitionsDeadlockDetector,
 	}
 
 	go func() {
-		for range w.ticker.C {
+		ticker := time.NewTicker(s.interval)
+		defer ticker.Stop()
+
+		for {
 			select {
 			case <-w.done:
 				s.logger.Info("Closing ticker routine", zap.Int32("partition", partition))
 				return
-			default:
+			case <-ticker.C:
 				if atomic.LoadUint64(w.msgConsumed) == 0 {
 					select {
 					case w.closePartition <- struct{}{}:
@@ -104,24 +118,60 @@ func (s *deadlockDetectorFactory) startMonitoringForPartition(partition int32) *
 	return w
 }
 
-// startMonitoring is to monitor that the sum of messages consumed across all partitions is non zero for the given interval
+// start monitors that the sum of messages consumed across all partitions is non zero for the given interval
 // If it is zero when there are producers producing messages on the topic, it means that sarama-cluster hasn't
 // retrieved partition assignments. (This case will not be caught by startMonitoringForPartition because no partitions
 // were retrieved).
-func (s *deadlockDetectorFactory) startMonitoring() *deadlockDetector {
-	return s.startMonitoringForPartition(-1)
+func (s *deadlockDetector) start() {
+	var msgConsumed uint64
+	detector := &allPartitionsDeadlockDetector{
+		msgConsumed: &msgConsumed,
+		done:        make(chan struct{}),
+		logger:      s.logger,
+	}
+
+	go func() {
+		s.logger.Debug("Starting global deadlock detector")
+		ticker := time.NewTicker(s.interval)
+		defer ticker.Stop()
+
+		for {
+			select {
+			case <-detector.done:
+				s.logger.Debug("Closing global ticker routine")
+				return
+			case <-ticker.C:
+				if atomic.LoadUint64(detector.msgConsumed) == 0 {
+					s.panicFunc(-1)
+				} else {
+					atomic.StoreUint64(detector.msgConsumed, 0)
+				}
+			}
+		}
+	}()
+
+	s.allPartitionsDeadlockDetector = detector
 }
 
-func (w *deadlockDetector) getClosePartition() chan struct{} {
+func (s *deadlockDetector) close() {
+	s.logger.Debug("Closing all partitions deadlock detector")
+	s.allPartitionsDeadlockDetector.done <- struct{}{}
+}
+
+func (s *allPartitionsDeadlockDetector) incrementMsgCount() {
+	atomic.AddUint64(s.msgConsumed, 1)
+}
+
+func (w *partitionDeadlockDetector) closePartitionChannel() chan struct{} {
 	return w.closePartition
 }
 
-func (w *deadlockDetector) close() {
-	w.logger.Info("Closing deadlock detector")
+func (w *partitionDeadlockDetector) close() {
+	w.logger.Debug("Closing deadlock detector", zap.Int32("partition", w.partition))
 	w.done <- struct{}{}
-	w.ticker.Stop()
 }
 
-func (w *deadlockDetector) incrementMsgCount() {
+func (w *partitionDeadlockDetector) incrementMsgCount() {
+	w.allPartitionsDeadlockDetector.incrementMsgCount()
 	atomic.AddUint64(w.msgConsumed, 1)
 }

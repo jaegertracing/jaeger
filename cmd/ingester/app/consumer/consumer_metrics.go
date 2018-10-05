@@ -35,12 +35,12 @@ type partitionMetrics struct {
 	closeCounter metrics.Counter
 }
 
-func (c *Consumer) getNamespace(partition int32) metrics.Factory {
+func (c *Consumer) namespace(partition int32) metrics.Factory {
 	return c.metricsFactory.Namespace("sarama-consumer", map[string]string{"partition": strconv.Itoa(int(partition))})
 }
 
 func (c *Consumer) newMsgMetrics(partition int32) msgMetrics {
-	f := c.getNamespace(partition)
+	f := c.namespace(partition)
 	return msgMetrics{
 		counter:     f.Counter("messages", nil),
 		offsetGauge: f.Gauge("current-offset", nil),
@@ -49,11 +49,11 @@ func (c *Consumer) newMsgMetrics(partition int32) msgMetrics {
 }
 
 func (c *Consumer) newErrMetrics(partition int32) errMetrics {
-	return errMetrics{errCounter: c.getNamespace(partition).Counter("errors", nil)}
+	return errMetrics{errCounter: c.namespace(partition).Counter("errors", nil)}
 }
 
-func (c *Consumer) newPartitionMetrics(partition int32) partitionMetrics {
-	f := c.getNamespace(partition)
+func (c *Consumer) partitionMetrics(partition int32) partitionMetrics {
+	f := c.namespace(partition)
 	return partitionMetrics{
 		closeCounter: f.Counter("partition-close", nil),
 		startCounter: f.Counter("partition-start", nil)}

@@ -89,14 +89,12 @@ func newConsumer(
 	consumer consumer.Consumer) *Consumer {
 
 	logger, _ := zap.NewDevelopment()
-	deadlockDetectorFactory := newDeadlockDetectorFactory(factory, logger, time.Second)
 	return &Consumer{
-		metricsFactory:               factory,
-		logger:                       logger,
-		internalConsumer:             consumer,
-		partitionIDToState:           make(map[int32]*consumerState),
-		deadlockDetectorFactory:      deadlockDetectorFactory,
-		allPartitionDeadlockDetector: deadlockDetectorFactory.startMonitoringForPartition(-1),
+		metricsFactory:     factory,
+		logger:             logger,
+		internalConsumer:   consumer,
+		partitionIDToState: make(map[int32]*consumerState),
+		deadlockDetector:   newDeadlockDetector(factory, logger, time.Second),
 
 		processorFactory: ProcessorFactory{
 			topic:          topic,
@@ -230,12 +228,13 @@ func TestHandleClosePartition(t *testing.T) {
 	require.NoError(t, e)
 
 	undertest := newConsumer(localFactory, topic, mp, newSaramaClusterConsumer(saramaPartitionConsumer))
-	undertest.deadlockDetectorFactory = newDeadlockDetectorFactory(localFactory, zap.NewNop(), 10*time.Millisecond)
+	undertest.deadlockDetector = newDeadlockDetector(localFactory, undertest.logger, 200*time.Millisecond)
 	undertest.Start()
 	defer undertest.Close()
 
 	for i := 0; i < 10; i++ {
-		time.Sleep(20 * time.Millisecond)
+		undertest.deadlockDetector.allPartitionsDeadlockDetector.incrementMsgCount() // Don't trigger panic on all partitions detector
+		time.Sleep(100 * time.Millisecond)
 		c, _ := localFactory.Snapshot()
 		if c["sarama-consumer.partition-close|partition=316"] == 1 {
 			return

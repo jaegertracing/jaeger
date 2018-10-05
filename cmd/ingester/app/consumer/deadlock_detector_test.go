@@ -29,27 +29,32 @@ import (
 func TestClosingSignalEmitted(t *testing.T) {
 	mf := metrics.NewLocalFactory(0)
 	l, _ := zap.NewDevelopment()
-	f := newDeadlockDetectorFactory(mf, l, time.Millisecond)
+	f := newDeadlockDetector(mf, l, time.Millisecond)
 	w := f.startMonitoringForPartition(1)
-	assert.NotNil(t, <-w.getClosePartition())
+	assert.NotNil(t, <-w.closePartitionChannel())
 	w.close()
 }
 
 func TestNoClosingSignalIfMessagesProcessedInInterval(t *testing.T) {
 	mf := metrics.NewLocalFactory(0)
 	l, _ := zap.NewDevelopment()
-	f := newDeadlockDetectorFactory(mf, l, time.Second)
+	f := newDeadlockDetector(mf, l, time.Second)
+	f.start()
+	defer f.close()
+
 	w := f.startMonitoringForPartition(1)
 
 	w.incrementMsgCount()
-	assert.Zero(t, len(w.getClosePartition()))
+	assert.Zero(t, len(w.closePartitionChannel()))
 	w.close()
 }
 
 func TestResetMsgCount(t *testing.T) {
 	mf := metrics.NewLocalFactory(0)
 	l, _ := zap.NewDevelopment()
-	f := newDeadlockDetectorFactory(mf, l, 50*time.Millisecond)
+	f := newDeadlockDetector(mf, l, 50*time.Millisecond)
+	f.start()
+	defer f.close()
 	w := f.startMonitoringForPartition(1)
 	w.incrementMsgCount()
 	time.Sleep(75 * time.Millisecond)
@@ -61,9 +66,9 @@ func TestResetMsgCount(t *testing.T) {
 func TestPanicFunc(t *testing.T) {
 	mf := metrics.NewLocalFactory(0)
 	l, _ := zap.NewDevelopment()
+	f := newDeadlockDetector(mf, l, time.Minute)
 
 	assert.Panics(t, func() {
-		f := newDeadlockDetectorFactory(mf, l, 1)
 		f.panicFunc(1)
 	})
 
@@ -74,10 +79,10 @@ func TestPanicFunc(t *testing.T) {
 	})
 }
 
-func TestSeppuku(t *testing.T) {
+func TestPanicForPartition(t *testing.T) {
 	mf := metrics.NewLocalFactory(0)
 	l, _ := zap.NewDevelopment()
-	f := newDeadlockDetectorFactory(mf, l, 1*time.Millisecond)
+	f := newDeadlockDetector(mf, l, 1*time.Millisecond)
 	wg := sync.WaitGroup{}
 	wg.Add(1)
 	f.panicFunc = func(partition int32) {
@@ -86,4 +91,18 @@ func TestSeppuku(t *testing.T) {
 	w := f.startMonitoringForPartition(1)
 	wg.Wait()
 	w.close()
+}
+
+func TestGlobalPanic(t *testing.T) {
+	mf := metrics.NewLocalFactory(0)
+	l, _ := zap.NewDevelopment()
+	f := newDeadlockDetector(mf, l, 1*time.Millisecond)
+	wg := sync.WaitGroup{}
+	wg.Add(1)
+	f.panicFunc = func(partition int32) {
+		wg.Done()
+	}
+	f.start()
+	defer f.close()
+	wg.Wait()
 }
