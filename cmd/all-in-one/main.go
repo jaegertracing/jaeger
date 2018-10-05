@@ -188,7 +188,7 @@ func startAgent(
 	b.WithReporters(r)
 	b.WithClientConfigManager(httpserver.NewCollectorProxy(r.CollectorServiceName(), r.Channel(), metricsFactory))
 
-	agent, err := b.WithMetricsFactory(metricsFactory).CreateAgent(logger)
+	agent, err := b.CreateAgent(logger, baseFactory)
 	if err != nil {
 		logger.Fatal("Unable to initialize Jaeger Agent", zap.Error(err))
 	}

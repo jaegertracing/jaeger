@@ -68,9 +68,8 @@ type Builder struct {
 	HTTPServer HTTPServerConfiguration  `yaml:"httpServer"`
 	Metrics    jmetrics.Builder         `yaml:"metrics"`
 
-	reporters      []reporter.Reporter
-	metricsFactory metrics.Factory
-	configManager  httpserver.ClientConfigManager
+	reporters     []reporter.Reporter
+	configManager httpserver.ClientConfigManager
 }
 
 // ProcessorConfiguration holds config for a processor that receives spans from Server
@@ -99,33 +98,8 @@ func (b *Builder) WithReporters(r ...reporter.Reporter) *Builder {
 	return b
 }
 
-// WithMetricsFactory sets an externally initialized metrics factory.
-func (b *Builder) WithMetricsFactory(mf metrics.Factory) *Builder {
-	b.metricsFactory = mf
-	return b
-}
-
-// GetMetricsFactory returns metrics factory used by the agent.
-func (b *Builder) GetMetricsFactory() (metrics.Factory, error) {
-	if b.metricsFactory != nil {
-		return b.metricsFactory, nil
-	}
-
-	baseFactory, err := b.Metrics.CreateMetricsFactory("jaeger")
-	if err != nil {
-		return nil, err
-	}
-
-	b.metricsFactory = baseFactory.Namespace("agent", nil)
-	return b.metricsFactory, nil
-}
-
 // CreateAgent creates the Agent
-func (b *Builder) CreateAgent(logger *zap.Logger) (*Agent, error) {
-	mFactory, err := b.GetMetricsFactory()
-	if err != nil {
-		return nil, errors.Wrap(err, "cannot create metrics factory")
-	}
+func (b *Builder) CreateAgent(logger *zap.Logger, mFactory metrics.Factory) (*Agent, error) {
 	r, err := b.getReporter(logger)
 	if err != nil {
 		return nil, err

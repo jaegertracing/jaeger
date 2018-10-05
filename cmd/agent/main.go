@@ -53,10 +53,14 @@ func main() {
 			builder := &app.Builder{}
 			builder.InitFromViper(v)
 			tchanRep := tchannel.NewBuilder().InitFromViper(v, logger)
-			mFactory, err := builder.GetMetricsFactory()
+			mBldr := new(metrics.Builder).InitFromViper(v)
+
+			mFactory, err := mBldr.CreateMetricsFactory("jaeger")
 			if err != nil {
 				logger.Fatal("Could not create metrics", zap.Error(err))
 			}
+			mFactory = mFactory.Namespace("agent", nil)
+
 			r, err := tchanRep.CreateReporter(mFactory, logger)
 			if err != nil {
 				logger.Fatal("Could not create tchannel reporter", zap.Error(err))
@@ -66,7 +70,7 @@ func main() {
 
 			// TODO illustrate discovery service wiring
 
-			agent, err := builder.CreateAgent(logger)
+			agent, err := builder.CreateAgent(logger, mFactory)
 			if err != nil {
 				return errors.Wrap(err, "Unable to initialize Jaeger Agent")
 			}

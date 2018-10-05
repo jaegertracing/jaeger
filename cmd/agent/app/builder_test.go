@@ -40,7 +40,7 @@ func TestDefault(t *testing.T) {
 	}
 
 	for _, test := range tests {
-		a, err := test.b.CreateAgent(zap.NewNop())
+		a, err := test.b.CreateAgent(zap.NewNop(), metrics.NullFactory)
 		require.Error(t, err)
 		assert.Equal(t, test.errMsg, err.Error())
 		assert.Nil(t, a)
@@ -115,40 +115,21 @@ func TestBuilderFromConfig(t *testing.T) {
 
 func TestBuilderWithExtraReporter(t *testing.T) {
 	cfg := &Builder{}
-	configureSamplingManager(t, cfg)
+	configureSamplingManager(t, cfg, metrics.NullFactory)
 	cfg.WithReporters(fakeReporter{})
-	agent, err := cfg.CreateAgent(zap.NewNop())
+	agent, err := cfg.CreateAgent(zap.NewNop(), metrics.NullFactory)
 	assert.NoError(t, err)
 	assert.NotNil(t, agent)
-}
-
-func TestBuilderMetrics(t *testing.T) {
-	mf := metrics.NullFactory
-	b := new(Builder).WithMetricsFactory(mf)
-	mf2, err := b.GetMetricsFactory()
-	assert.NoError(t, err)
-	assert.Equal(t, mf, mf2)
 }
 
 func TestBuilderMetricsHandler(t *testing.T) {
 	b := &Builder{}
-	configureSamplingManager(t, b)
+	configureSamplingManager(t, b, metrics.NullFactory)
 	b.Metrics.Backend = "expvar"
 	b.Metrics.HTTPRoute = "/expvar"
-	factory, err := b.Metrics.CreateMetricsFactory("test")
-	assert.NoError(t, err)
-	assert.NotNil(t, factory)
-	b.metricsFactory = factory
-	agent, err := b.CreateAgent(zap.NewNop())
+	agent, err := b.CreateAgent(zap.NewNop(), metrics.NullFactory)
 	assert.NoError(t, err)
 	assert.NotNil(t, agent)
-}
-
-func TestBuilderMetricsError(t *testing.T) {
-	b := &Builder{}
-	b.Metrics.Backend = "invalid"
-	_, err := b.CreateAgent(zap.NewNop())
-	assert.EqualError(t, err, "cannot create metrics factory: unknown metrics backend specified")
 }
 
 func TestBuilderWithProcessorErrors(t *testing.T) {
@@ -178,7 +159,7 @@ func TestBuilderWithProcessorErrors(t *testing.T) {
 			},
 		}
 		cfg.WithReporters(&fakeReporter{})
-		_, err := cfg.CreateAgent(zap.NewNop())
+		_, err := cfg.CreateAgent(zap.NewNop(), metrics.NullFactory)
 		assert.Error(t, err)
 		if testCase.err != "" {
 			assert.EqualError(t, err, testCase.err)
@@ -188,12 +169,10 @@ func TestBuilderWithProcessorErrors(t *testing.T) {
 	}
 }
 
-func configureSamplingManager(t *testing.T, cfg *Builder) {
-	m, err := cfg.GetMetricsFactory()
+func configureSamplingManager(t *testing.T, cfg *Builder, mFactory metrics.Factory) {
+	r, err := tchannel.NewBuilder().CreateReporter(mFactory, zap.NewNop())
 	require.NoError(t, err)
-	r, err := tchannel.NewBuilder().CreateReporter(m, zap.NewNop())
-	require.NoError(t, err)
-	cfg.WithReporters(r).WithClientConfigManager(httpserver.NewCollectorProxy(r.CollectorServiceName(), r.Channel(), m))
+	cfg.WithReporters(r).WithClientConfigManager(httpserver.NewCollectorProxy(r.CollectorServiceName(), r.Channel(), mFactory))
 }
 
 type fakeReporter struct{}
