@@ -180,6 +180,7 @@ func startAgent(
 ) {
 	metricsFactory := baseFactory.Namespace("agent", nil)
 
+	tchanRep.CollectorHostPorts = append(tchanRep.CollectorHostPorts, fmt.Sprintf("127.0.0.1:%d", cOpts.CollectorPort))
 	cp, err := agentTchanRep.NewCollectorProxy(tchanRep, metricsFactory, logger)
 	if err != nil {
 		logger.Fatal("Could not create collector proxy", zap.Error(err))
