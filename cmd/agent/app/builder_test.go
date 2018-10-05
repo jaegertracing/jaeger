@@ -102,7 +102,6 @@ func TestBuilderFromConfig(t *testing.T) {
 
 func TestBuilderWithExtraReporter(t *testing.T) {
 	cfg := &Builder{}
-	//configureSamplingManager(t, cfg, metrics.NullFactory)
 	agent, err := cfg.CreateAgent(fakeCollectorProxy{}, zap.NewNop(), metrics.NullFactory)
 	assert.NoError(t, err)
 	assert.NotNil(t, agent)
@@ -110,7 +109,6 @@ func TestBuilderWithExtraReporter(t *testing.T) {
 
 func TestBuilderMetricsHandler(t *testing.T) {
 	b := &Builder{}
-	//configureSamplingManager(t, b, metrics.NullFactory)
 	b.Metrics.Backend = "expvar"
 	b.Metrics.HTTPRoute = "/expvar"
 	agent, err := b.CreateAgent(fakeCollectorProxy{}, zap.NewNop(), metrics.NullFactory)
