@@ -107,7 +107,7 @@ func newConsumer(
 			parallelism:    1,
 		},
 
-		rateLimiter: newRateLimiter(maxReadsPerSecond),
+		maxReadsPerSecond: maxReadsPerSecond,
 	}
 }
 

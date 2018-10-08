@@ -17,7 +17,6 @@ package app
 import (
 	"flag"
 	"fmt"
-	"strconv"
 	"strings"
 
 	"github.com/spf13/viper"
@@ -57,7 +56,7 @@ const (
 	// DefaultEncoding is the default span encoding
 	DefaultEncoding = EncodingProto
 	// DefaultMaxReadsPerSecond is the default max reads per second for the span processor
-	DefaultMaxReadsPerSecond = 0.0
+	DefaultMaxReadsPerSecond = -1.0
 )
 
 // Options stores the configuration options for the Ingester
@@ -82,17 +81,17 @@ func AddFlags(flagSet *flag.FlagSet) {
 		ConfigPrefix+SuffixGroupID,
 		DefaultGroupID,
 		"The Consumer Group that ingester will be consuming on behalf of")
-	flagSet.String(
+	flagSet.Int(
 		ConfigPrefix+SuffixParallelism,
-		strconv.Itoa(DefaultParallelism),
+		DefaultParallelism,
 		"The number of messages to process in parallel")
 	flagSet.String(
 		ConfigPrefix+SuffixEncoding,
 		DefaultEncoding,
 		fmt.Sprintf(`The encoding of spans ("%s" or "%s") consumed from kafka`, EncodingProto, EncodingJSON))
-	flagSet.String(
+	flagSet.Float64(
 		ConfigPrefix+SuffixMaxReadsPerSecond,
-		strconv.Itoa(DefaultMaxReadsPerSecond),
+		DefaultMaxReadsPerSecond,
 		"The number of reads per second")
 }
 

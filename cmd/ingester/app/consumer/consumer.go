@@ -48,7 +48,7 @@ type Consumer struct {
 
 	partitionIDToState map[int32]*consumerState
 
-	rateLimiter *rateLimiter
+	maxReadsPerSecond float64
 }
 
 type consumerState struct {
@@ -66,7 +66,7 @@ func New(params Params) (*Consumer, error) {
 		processorFactory:   params.ProcessorFactory,
 		deadlockDetector:   deadlockDetector,
 		partitionIDToState: make(map[int32]*consumerState),
-		rateLimiter:        newRateLimiter(params.MaxReadsPerSecond),
+		maxReadsPerSecond:  params.MaxReadsPerSecond,
 	}, nil
 }
 
@@ -98,7 +98,6 @@ func (c *Consumer) Close() error {
 		p.wg.Wait()
 	}
 	c.deadlockDetector.close()
-	c.rateLimiter.stop()
 	c.logger.Info("Closing parent consumer")
 	return c.internalConsumer.Close()
 }
@@ -115,15 +114,25 @@ func (c *Consumer) handleMessages(pc sc.PartitionConsumer) {
 
 	deadlockDetector := c.deadlockDetector.startMonitoringForPartition(pc.Partition())
 	defer deadlockDetector.close()
+	// "Cast" channel from chan *sarama.ConsumerMessage to chan interface{}.
+	msgChannel := make(chan interface{})
+	go func() {
+		defer close(msgChannel)
+		for msg := range pc.Messages() {
+			msgChannel <- msg
+		}
+	}()
+
+	rateLimiter := newRateLimiter(msgChannel, c.maxReadsPerSecond)
 
 	for {
 		select {
-		case msg, ok := <-pc.Messages():
+		case v, ok := <-rateLimiter.C:
 			if !ok {
 				c.logger.Info("Message channel closed. ", zap.Int32("partition", pc.Partition()))
 				return
 			}
-			c.rateLimiter.await()
+			msg := v.(*sarama.ConsumerMessage)
 			c.logger.Debug("Got msg", zap.Any("msg", msg))
 			msgMetrics.counter.Inc(1)
 			msgMetrics.offsetGauge.Update(msg.Offset)

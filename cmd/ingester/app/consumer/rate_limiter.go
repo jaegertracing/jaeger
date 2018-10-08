@@ -15,32 +15,94 @@
 package consumer
 
 import (
+	"sync"
 	"time"
 )
 
-// Rate limiter using ticker explained here: https://gobyexample.com/rate-limiting.
+// rateLimiter wraps a channel to provide rate limiting.
 type rateLimiter struct {
-	ticker *time.Ticker
+	C           chan interface{}
+	ticker      *time.Ticker
+	tickChannel <-chan time.Time
+	source      <-chan interface{}
+	done        chan struct{}
+	wg          sync.WaitGroup
 }
 
-func newRateLimiter(creditsPerSecond float64) *rateLimiter {
+// Create a new rate limiter for a channel. If creditsPerSecond is not greater
+// than zero, newRateLimiter will use simply wrap the original channel and
+// provide no rate limiting. A ticker is used to implement a rate limiter by
+// waiting on a tickChannel before each read from the original channel.
+// N.B. The ticker is not guaranteed to queue accumulated ticks during a read
+// from the original channel. As the Go doc for time.NewTicker points out:
+// "It adjusts the intervals or drops ticks to make up for slow receivers."
+func newRateLimiter(source <-chan interface{}, creditsPerSecond float64) *rateLimiter {
+	var r *rateLimiter
 	if creditsPerSecond <= 0 {
-		return &rateLimiter{}
+		// Receiving from a closed channel returns immediately, which is useful
+		// for implementing non-rate-limiting behavior.
+		closedChannel := make(chan time.Time)
+		close(closedChannel)
+		r = &rateLimiter{
+			C:           make(chan interface{}),
+			tickChannel: closedChannel,
+			source:      source,
+			done:        make(chan struct{}),
+		}
+	} else {
+		interval := time.Nanosecond * time.Duration(float64(time.Second.Nanoseconds())/creditsPerSecond)
+		ticker := time.NewTicker(interval)
+		r = &rateLimiter{
+			C:           make(chan interface{}),
+			ticker:      ticker,
+			tickChannel: ticker.C,
+			source:      source,
+			done:        make(chan struct{}),
+		}
 	}
-	interval := time.Nanosecond * time.Duration(float64(time.Second.Nanoseconds())/creditsPerSecond)
-	return &rateLimiter{ticker: time.NewTicker(interval)}
+
+	r.wg.Add(1)
+	go func() {
+		defer close(r.C)
+		defer r.wg.Done()
+		for {
+			// This select block is a bit ugly, but it protects against three
+			// blocking calls that could cause the Stop method to hang
+			// unnecessarily:
+			// 1. The tick has not yet occurred (avoids wait for first tick).
+			// 2. The writer has not yet submitted an event to r.source.
+			// 3. The reader has not yet consumed an event from r.C.
+			select { // #1
+			case <-r.tickChannel:
+				select { // #2
+				case v, ok := <-r.source:
+					if !ok {
+						return
+					}
+
+					select { // #3
+					case r.C <- v:
+						// Do nothing
+					case <-r.done:
+						return
+					}
+				case <-r.done:
+					return
+				}
+			case <-r.done:
+				return
+			}
+		}
+	}()
+
+	return r
 }
 
-func (r *rateLimiter) await() {
-	if r.ticker == nil {
-		return
+// Stop stops ticker. Must be called in order to avoid a goroutine leak.
+func (r *rateLimiter) Stop() {
+	if r.ticker != nil {
+		r.ticker.Stop()
 	}
-	<-r.ticker.C
-}
-
-func (r *rateLimiter) stop() {
-	if r.ticker == nil {
-		return
-	}
-	r.ticker.Stop()
+	close(r.done)
+	r.wg.Wait()
 }
