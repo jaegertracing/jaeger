@@ -93,33 +93,35 @@ func (s *deadlockDetector) startMonitoringForPartition(partition int32) *partiti
 		},
 	}
 
-	go func() {
-		ticker := time.NewTicker(s.interval)
-		defer ticker.Stop()
-
-		for {
-			select {
-			case <-w.done:
-				s.logger.Info("Closing ticker routine", zap.Int32("partition", partition))
-				return
-			case <-ticker.C:
-				if atomic.LoadUint64(w.msgConsumed) == 0 {
-					select {
-					case w.closePartition <- struct{}{}:
-						s.metricsFactory.Counter("deadlockdetector.close-signalled", map[string]string{"partition": strconv.Itoa(int(partition))}).Inc(1)
-						s.logger.Warn("Signalling partition close due to inactivity", zap.Int32("partition", partition))
-					default:
-						// If closePartition is blocked, the consumer might have deadlocked - kill the process
-						s.panicFunc(partition)
-					}
-				} else {
-					atomic.StoreUint64(w.msgConsumed, 0)
-				}
-			}
-		}
-	}()
+	go s.monitorForPartition(w, partition)
 
 	return w
+}
+
+func (s *deadlockDetector) monitorForPartition(w *partitionDeadlockDetector, partition int32) {
+	ticker := time.NewTicker(s.interval)
+	defer ticker.Stop()
+
+	for {
+		select {
+		case <-w.done:
+			s.logger.Info("Closing ticker routine", zap.Int32("partition", partition))
+			return
+		case <-ticker.C:
+			if atomic.LoadUint64(w.msgConsumed) == 0 {
+				select {
+				case w.closePartition <- struct{}{}:
+					s.metricsFactory.Counter("deadlockdetector.close-signalled", map[string]string{"partition": strconv.Itoa(int(partition))}).Inc(1)
+					s.logger.Warn("Signalling partition close due to inactivity", zap.Int32("partition", partition))
+				default:
+					// If closePartition is blocked, the consumer might have deadlocked - kill the process
+					s.panicFunc(partition)
+				}
+			} else {
+				atomic.StoreUint64(w.msgConsumed, 0)
+			}
+		}
+	}
 }
 
 // start monitors that the sum of messages consumed across all partitions is non zero for the given interval
