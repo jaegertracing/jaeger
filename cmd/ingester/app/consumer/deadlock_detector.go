@@ -51,7 +51,7 @@ type partitionDeadlockDetector struct {
 	partition                     int32
 	closePartition                chan struct{}
 	done                          chan struct{}
-	allPartitionsDeadlockDetector *allPartitionsDeadlockDetector
+	incrementAllPartitionMsgCount func()
 }
 
 type allPartitionsDeadlockDetector struct {
@@ -60,9 +60,9 @@ type allPartitionsDeadlockDetector struct {
 	done        chan struct{}
 }
 
-func newDeadlockDetector(factory metrics.Factory, logger *zap.Logger, interval time.Duration) deadlockDetector {
+func newDeadlockDetector(metricsFactory metrics.Factory, logger *zap.Logger, interval time.Duration) deadlockDetector {
 	panicFunc := func(partition int32) {
-		factory.Counter("deadlockdetector.panic-issued", map[string]string{"partition": strconv.Itoa(int(partition))}).Inc(1)
+		metricsFactory.Counter("deadlockdetector.panic-issued", map[string]string{"partition": strconv.Itoa(int(partition))}).Inc(1)
 		time.Sleep(time.Second) // Allow time to flush metric
 
 		buf := make([]byte, 1<<20)
@@ -72,7 +72,7 @@ func newDeadlockDetector(factory metrics.Factory, logger *zap.Logger, interval t
 	}
 
 	return deadlockDetector{
-		metricsFactory: factory,
+		metricsFactory: metricsFactory,
 		logger:         logger,
 		interval:       interval,
 		panicFunc:      panicFunc,
@@ -87,7 +87,10 @@ func (s *deadlockDetector) startMonitoringForPartition(partition int32) *partiti
 		closePartition: make(chan struct{}, 1),
 		done:           make(chan struct{}),
 		logger:         s.logger,
-		allPartitionsDeadlockDetector: s.allPartitionsDeadlockDetector,
+
+		incrementAllPartitionMsgCount: func() {
+			s.allPartitionsDeadlockDetector.incrementMsgCount()
+		},
 	}
 
 	go func() {
@@ -103,6 +106,7 @@ func (s *deadlockDetector) startMonitoringForPartition(partition int32) *partiti
 				if atomic.LoadUint64(w.msgConsumed) == 0 {
 					select {
 					case w.closePartition <- struct{}{}:
+						s.metricsFactory.Counter("deadlockdetector.close-signalled", map[string]string{"partition": strconv.Itoa(int(partition))}).Inc(1)
 						s.logger.Warn("Signalling partition close due to inactivity", zap.Int32("partition", partition))
 					default:
 						// If closePartition is blocked, the consumer might have deadlocked - kill the process
@@ -172,6 +176,6 @@ func (w *partitionDeadlockDetector) close() {
 }
 
 func (w *partitionDeadlockDetector) incrementMsgCount() {
-	w.allPartitionsDeadlockDetector.incrementMsgCount()
+	w.incrementAllPartitionMsgCount()
 	atomic.AddUint64(w.msgConsumed, 1)
 }

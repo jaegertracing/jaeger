@@ -218,7 +218,7 @@ func TestSaramaConsumerWrapper_start_Errors(t *testing.T) {
 }
 
 func TestHandleClosePartition(t *testing.T) {
-	localFactory := metrics.NewLocalFactory(0)
+	metricsFactory := metrics.NewLocalFactory(0)
 
 	mp := &pmocks.SpanProcessor{}
 	saramaConsumer := smocks.NewConsumer(t, &sarama.Config{})
@@ -227,15 +227,15 @@ func TestHandleClosePartition(t *testing.T) {
 	saramaPartitionConsumer, e := saramaConsumer.ConsumePartition(topic, partition, msgOffset)
 	require.NoError(t, e)
 
-	undertest := newConsumer(localFactory, topic, mp, newSaramaClusterConsumer(saramaPartitionConsumer))
-	undertest.deadlockDetector = newDeadlockDetector(localFactory, undertest.logger, 200*time.Millisecond)
+	undertest := newConsumer(metricsFactory, topic, mp, newSaramaClusterConsumer(saramaPartitionConsumer))
+	undertest.deadlockDetector = newDeadlockDetector(metricsFactory, undertest.logger, 200*time.Millisecond)
 	undertest.Start()
 	defer undertest.Close()
 
 	for i := 0; i < 10; i++ {
 		undertest.deadlockDetector.allPartitionsDeadlockDetector.incrementMsgCount() // Don't trigger panic on all partitions detector
 		time.Sleep(100 * time.Millisecond)
-		c, _ := localFactory.Snapshot()
+		c, _ := metricsFactory.Snapshot()
 		if c["sarama-consumer.partition-close|partition=316"] == 1 {
 			return
 		}
