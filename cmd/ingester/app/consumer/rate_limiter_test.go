@@ -103,10 +103,12 @@ func TestRateLimiterNoLimit(t *testing.T) {
 	}()
 
 	r := newRateLimiter(ch, creditsPerSecond)
-	minInterval := time.Duration(float64(time.Second.Nanoseconds())/creditsPerSecond) * time.Nanosecond
-	tick := time.Now()
+	const maxInterval = time.Millisecond
+	recvStart := time.Now()
 	for range r.C {
-		tick = time.Now()
-		require.True(t, time.Since(tick) >= minInterval)
+		recvEnd := time.Now()
+		interval := recvEnd.Sub(recvStart)
+		require.Truef(t, interval < maxInterval, "Expected no significant delay before first receive, actual delay = %v, max expected delay = %v", interval, maxInterval)
+		recvStart = time.Now()
 	}
 }
