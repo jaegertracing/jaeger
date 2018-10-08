@@ -26,7 +26,6 @@ func TestRateLimiter(t *testing.T) {
 	const (
 		creditsPerSecond = 100
 		iterations       = 20
-		epsilon          = 1.5
 	)
 	ch := make(chan interface{})
 	go func() {
@@ -39,10 +38,13 @@ func TestRateLimiter(t *testing.T) {
 	rateLimiter := newRateLimiter(ch, creditsPerSecond)
 	defer rateLimiter.Stop()
 
-	minInterval := time.Duration(float64(time.Second.Nanoseconds())/creditsPerSecond*epsilon) * time.Nanosecond
+	minInterval := time.Duration(float64(time.Second.Nanoseconds())/creditsPerSecond) * time.Nanosecond
+	recvStart := time.Now()
 	for v := range rateLimiter.C {
-		tick := v.(time.Time)
-		require.True(t, time.Since(tick) <= minInterval)
+		recvEnd := v.(time.Time)
+		actualInterval := recvEnd.Sub(recvStart)
+		require.Truef(t, actualInterval <= minInterval, "interval is too large %v > %v", actualInterval)
+		recvStart = time.Now()
 	}
 }
 
@@ -64,15 +66,12 @@ func TestRateLimiterStopWithoutRead(t *testing.T) {
 }
 
 func TestRateLimiterStopBeforeSourceSend(t *testing.T) {
-	const (
-		creditsPerSecond = 10.0
-		epsilon          = 1.5
-	)
+	const creditsPerSecond = 10.0
 
 	ch := make(chan interface{})
 	rateLimiter := newRateLimiter(ch, creditsPerSecond)
 	// Wait for first tick, then call stop.
-	interval := time.Duration(float64(time.Second.Nanoseconds()) * epsilon / creditsPerSecond)
+	interval := time.Duration(float64(time.Second.Nanoseconds()) / creditsPerSecond)
 	time.Sleep(interval)
 	// Test that this does not block forever.
 	rateLimiter.Stop()
@@ -93,7 +92,6 @@ func TestRateLimiterNoLimit(t *testing.T) {
 	const (
 		creditsPerSecond = 0
 		iterations       = 100
-		epsilon          = 1.5
 	)
 
 	ch := make(chan interface{})
@@ -105,7 +103,7 @@ func TestRateLimiterNoLimit(t *testing.T) {
 	}()
 
 	r := newRateLimiter(ch, creditsPerSecond)
-	minInterval := time.Duration(float64(time.Second.Nanoseconds())/creditsPerSecond*epsilon) * time.Nanosecond
+	minInterval := time.Duration(float64(time.Second.Nanoseconds())/creditsPerSecond) * time.Nanosecond
 	tick := time.Now()
 	for range r.C {
 		tick = time.Now()
