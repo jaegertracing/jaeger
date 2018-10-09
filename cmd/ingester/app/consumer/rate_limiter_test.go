@@ -24,91 +24,71 @@ import (
 
 func TestRateLimiter(t *testing.T) {
 	const (
-		creditsPerSecond = 100
-		iterations       = 20
+		creditsPerSecond = 1000
+		iterations       = 10
 	)
-	ch := make(chan interface{})
-	go func() {
-		defer close(ch)
-		for i := 0; i < iterations; i++ {
-			ch <- time.Now()
-		}
-	}()
 
-	rateLimiter := newRateLimiter(ch, creditsPerSecond)
+	// Ticks cannot be timed precisely because time.Ticker reserves the right to
+	// change the rate of ticks as it deems necessary (slows consumers, etc.).
+	// Therefore, this code asserts that the tick is no more than 50% off the
+	// expected time.
+	idealInterval := time.Duration(float64(time.Second.Nanoseconds())/creditsPerSecond) * time.Nanosecond
+	minInterval := time.Duration(float64(idealInterval.Nanoseconds())*0.5) * time.Nanosecond
+	maxInterval := time.Duration(float64(idealInterval.Nanoseconds())*1.5) * time.Nanosecond
+
+	rateLimiter := newRateLimiter(creditsPerSecond)
 	defer rateLimiter.Stop()
-
-	minInterval := time.Duration(float64(time.Second.Nanoseconds())/creditsPerSecond) * time.Nanosecond
-	recvStart := time.Now()
-	for v := range rateLimiter.C {
-		recvEnd := v.(time.Time)
-		actualInterval := recvEnd.Sub(recvStart)
-		require.Truef(t, actualInterval <= minInterval, "interval is too large %v > %v", actualInterval)
-		recvStart = time.Now()
+	acquireStart := time.Now()
+	for i := 0; i < iterations; i++ {
+		rateLimiter.Acquire()
+		actualInterval := time.Since(acquireStart)
+		require.Truef(t, actualInterval >= minInterval, "Interval is too small %v < %v", actualInterval, minInterval)
+		require.Truef(t, actualInterval <= maxInterval, "Interval is too large %v > %v", actualInterval, maxInterval)
+		acquireStart = time.Now()
 	}
-}
-
-func TestRateLimiterStopWithoutRead(t *testing.T) {
-	const creditsPerSecond = 1
-
-	ch := make(chan interface{})
-	var wg sync.WaitGroup
-	wg.Add(1)
-	go func() {
-		defer wg.Done()
-		ch <- struct{}{}
-	}()
-
-	rateLimiter := newRateLimiter(ch, creditsPerSecond)
-	wg.Wait()
-	// Test that this does not block forever.
-	rateLimiter.Stop()
-}
-
-func TestRateLimiterStopBeforeSourceSend(t *testing.T) {
-	const creditsPerSecond = 10.0
-
-	ch := make(chan interface{})
-	rateLimiter := newRateLimiter(ch, creditsPerSecond)
-	// Wait for first tick, then call stop.
-	interval := time.Duration(float64(time.Second.Nanoseconds()) / creditsPerSecond)
-	time.Sleep(interval)
-	// Test that this does not block forever.
-	rateLimiter.Stop()
-}
-
-func TestRateLimiterStopBeforeFirstTick(t *testing.T) {
-	const creditsPerSecond = 1
-
-	ch := make(chan interface{})
-	rateLimiter := newRateLimiter(ch, creditsPerSecond)
-	startTime := time.Now()
-	// Test that this does not wait for tick.
-	rateLimiter.Stop()
-	require.True(t, time.Since(startTime) < time.Second)
 }
 
 func TestRateLimiterNoLimit(t *testing.T) {
 	const (
-		creditsPerSecond = 0
+		creditsPerSecond = -1
 		iterations       = 100
 	)
 
-	ch := make(chan interface{})
+	r := newRateLimiter(creditsPerSecond)
+	defer r.Stop()
+
+	const maxInterval = time.Microsecond
+	acquireStart := time.Now()
+	for i := 0; i < iterations; i++ {
+		acquireEnd := time.Now()
+		interval := acquireEnd.Sub(acquireStart)
+		require.Truef(t, interval < maxInterval, "Expected no significant delay before first receive, actual delay = %v, max expected delay = %v", interval, maxInterval)
+		acquireStart = time.Now()
+	}
+}
+
+func TestRateLimiterInfiniteLimit(t *testing.T) {
+	const (
+		creditsPerSecond = 0
+		sleepInterval    = time.Millisecond
+	)
+	r := newRateLimiter(creditsPerSecond)
+	var wg sync.WaitGroup
+	wg.Add(1)
+	var m sync.Mutex
+	var stopped bool
 	go func() {
-		defer close(ch)
-		for i := 0; i < iterations; i++ {
-			ch <- i
-		}
+		wg.Done()
+		time.Sleep(sleepInterval)
+		r.Stop()
+		m.Lock()
+		defer m.Unlock()
+		stopped = true
 	}()
 
-	r := newRateLimiter(ch, creditsPerSecond)
-	const maxInterval = time.Millisecond
-	recvStart := time.Now()
-	for range r.C {
-		recvEnd := time.Now()
-		interval := recvEnd.Sub(recvStart)
-		require.Truef(t, interval < maxInterval, "Expected no significant delay before first receive, actual delay = %v, max expected delay = %v", interval, maxInterval)
-		recvStart = time.Now()
-	}
+	wg.Wait()
+	r.Acquire()
+	m.Lock()
+	defer m.Unlock()
+	require.Truef(t, stopped, "Acquire should not return when creditsPerSecond is zero unless Stop is invoked")
 }

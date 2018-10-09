@@ -114,25 +114,16 @@ func (c *Consumer) handleMessages(pc sc.PartitionConsumer) {
 
 	deadlockDetector := c.deadlockDetector.startMonitoringForPartition(pc.Partition())
 	defer deadlockDetector.close()
-	// "Cast" channel from chan *sarama.ConsumerMessage to chan interface{}.
-	msgChannel := make(chan interface{})
-	go func() {
-		defer close(msgChannel)
-		for msg := range pc.Messages() {
-			msgChannel <- msg
-		}
-	}()
-
-	rateLimiter := newRateLimiter(msgChannel, c.maxReadsPerSecond)
+	rateLimiter := newRateLimiter(c.maxReadsPerSecond)
+	defer rateLimiter.Stop()
 
 	for {
 		select {
-		case v, ok := <-rateLimiter.C:
+		case msg, ok := <-pc.Messages():
 			if !ok {
 				c.logger.Info("Message channel closed. ", zap.Int32("partition", pc.Partition()))
 				return
 			}
-			msg := v.(*sarama.ConsumerMessage)
 			c.logger.Debug("Got msg", zap.Any("msg", msg))
 			msgMetrics.counter.Inc(1)
 			msgMetrics.offsetGauge.Update(msg.Offset)
@@ -146,6 +137,8 @@ func (c *Consumer) handleMessages(pc sc.PartitionConsumer) {
 
 			msgProcessor.Process(&saramaMessageWrapper{msg})
 
+			// Wait before next read.
+			rateLimiter.Acquire()
 		case <-deadlockDetector.closePartitionChannel():
 			c.logger.Info("Closing partition due to inactivity", zap.Int32("partition", pc.Partition()))
 			return

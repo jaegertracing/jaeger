@@ -139,7 +139,7 @@ func TestSaramaConsumerWrapper_start_Messages(t *testing.T) {
 	saramaPartitionConsumer, e := saramaConsumer.ConsumePartition(topic, partition, msgOffset)
 	require.NoError(t, e)
 
-	undertest := newConsumer(localFactory, topic, mp, newSaramaClusterConsumer(saramaPartitionConsumer), 0.0)
+	undertest := newConsumer(localFactory, topic, mp, newSaramaClusterConsumer(saramaPartitionConsumer), -1.0)
 
 	undertest.partitionIDToState = map[int32]*consumerState{
 		partition: {
@@ -195,7 +195,7 @@ func TestSaramaConsumerWrapper_start_Errors(t *testing.T) {
 	saramaPartitionConsumer, e := saramaConsumer.ConsumePartition(topic, partition, msgOffset)
 	require.NoError(t, e)
 
-	undertest := newConsumer(localFactory, topic, &pmocks.SpanProcessor{}, newSaramaClusterConsumer(saramaPartitionConsumer), 0.0)
+	undertest := newConsumer(localFactory, topic, &pmocks.SpanProcessor{}, newSaramaClusterConsumer(saramaPartitionConsumer), -1.0)
 
 	undertest.Start()
 	mc.YieldError(errors.New("Daisy, Daisy"))

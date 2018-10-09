@@ -15,94 +15,64 @@
 package consumer
 
 import (
-	"sync"
 	"time"
 )
 
-// rateLimiter wraps a channel to provide rate limiting.
+// rateLimiter uses a ticker to keep events evenly spaced, thereby providing
+// rate limiting.
 type rateLimiter struct {
-	C           chan interface{}
 	ticker      *time.Ticker
 	tickChannel <-chan time.Time
-	source      <-chan interface{}
 	done        chan struct{}
-	wg          sync.WaitGroup
 }
 
-// Create a new rate limiter for a channel. If creditsPerSecond is not greater
-// than zero, newRateLimiter will use simply wrap the original channel and
-// provide no rate limiting. A ticker is used to implement a rate limiter by
-// waiting on a tickChannel before each read from the original channel.
-// N.B. The ticker is not guaranteed to queue accumulated ticks during a read
-// from the original channel. As the Go doc for time.NewTicker points out:
-// "It adjusts the intervals or drops ticks to make up for slow receivers."
-func newRateLimiter(source <-chan interface{}, creditsPerSecond float64) *rateLimiter {
+// newRateLimiter constructs a rate limiter with the provided creditsPerSecond.
+// If creditsPerSecond is less than zero, no rate limiting will be
+// provided, and all calls to this object will return immediately. If
+// creditsPerSecond is exactly zero, calls will block indefinitely or until Stop
+// is called.
+func newRateLimiter(creditsPerSecond float64) *rateLimiter {
 	var r *rateLimiter
-	if creditsPerSecond <= 0 {
+	if creditsPerSecond < 0 {
 		// Receiving from a closed channel returns immediately, which is useful
 		// for implementing non-rate-limiting behavior.
 		closedChannel := make(chan time.Time)
 		close(closedChannel)
 		r = &rateLimiter{
-			C:           make(chan interface{}),
 			tickChannel: closedChannel,
-			source:      source,
+			done:        make(chan struct{}),
+		}
+	} else if creditsPerSecond == 0 {
+		r = &rateLimiter{
+			tickChannel: make(<-chan time.Time),
 			done:        make(chan struct{}),
 		}
 	} else {
 		interval := time.Nanosecond * time.Duration(float64(time.Second.Nanoseconds())/creditsPerSecond)
 		ticker := time.NewTicker(interval)
 		r = &rateLimiter{
-			C:           make(chan interface{}),
 			ticker:      ticker,
 			tickChannel: ticker.C,
-			source:      source,
 			done:        make(chan struct{}),
 		}
 	}
 
-	r.wg.Add(1)
-	go func() {
-		defer close(r.C)
-		defer r.wg.Done()
-		for {
-			// This select block is a bit ugly, but it protects against three
-			// blocking calls that could cause the Stop method to hang
-			// unnecessarily:
-			// 1. The tick has not yet occurred (avoids wait for first tick).
-			// 2. The writer has not yet submitted an event to r.source.
-			// 3. The reader has not yet consumed an event from r.C.
-			select { // #1
-			case <-r.tickChannel:
-				select { // #2
-				case v, ok := <-r.source:
-					if !ok {
-						return
-					}
-
-					select { // #3
-					case r.C <- v:
-						// Do nothing
-					case <-r.done:
-						return
-					}
-				case <-r.done:
-					return
-				}
-			case <-r.done:
-				return
-			}
-		}
-	}()
-
 	return r
 }
 
-// Stop stops ticker. Must be called in order to avoid a goroutine leak.
+// Acquire causes rateLimiter to block until next tick, or until Stop is called.
+// Note: Acquire has no corresponding release operation.
+func (r *rateLimiter) Acquire() {
+	select {
+	case <-r.tickChannel:
+	case <-r.done:
+	}
+}
+
+// Stop stops rateLimiter ticker and unblocks any blocked Acquire call.
 func (r *rateLimiter) Stop() {
 	if r.ticker != nil {
 		r.ticker.Stop()
 	}
 	close(r.done)
-	r.wg.Wait()
 }
