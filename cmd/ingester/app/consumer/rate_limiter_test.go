@@ -60,6 +60,7 @@ func TestRateLimiterNoLimit(t *testing.T) {
 	const maxInterval = time.Millisecond
 	acquireStart := time.Now()
 	for i := 0; i < iterations; i++ {
+		r.Acquire()
 		acquireEnd := time.Now()
 		interval := acquireEnd.Sub(acquireStart)
 		require.Truef(t, interval <= maxInterval, "Expected no significant delay before first receive, actual delay = %v, max expected delay = %v", interval, maxInterval)
