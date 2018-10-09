@@ -80,29 +80,35 @@ func TestPanicFunc(t *testing.T) {
 }
 
 func TestPanicForPartition(t *testing.T) {
-	mf := metrics.NewLocalFactory(0)
 	l, _ := zap.NewDevelopment()
 	wg := sync.WaitGroup{}
 	wg.Add(1)
-	f := newDeadlockDetector(mf, l, time.Millisecond)
-	f.panicFunc = func(partition int32) {
-		wg.Done()
+	d := deadlockDetector{
+		metricsFactory: metrics.NewLocalFactory(0),
+		logger:         l,
+		interval:       1,
+		panicFunc: func(partition int32) {
+			wg.Done()
+		},
 	}
-	w := f.startMonitoringForPartition(1)
+
+	d.startMonitoringForPartition(1)
 	wg.Wait()
-	w.close()
 }
 
 func TestGlobalPanic(t *testing.T) {
-	mf := metrics.NewLocalFactory(0)
 	l, _ := zap.NewDevelopment()
 	wg := sync.WaitGroup{}
 	wg.Add(1)
-	f := newDeadlockDetector(mf, l, time.Millisecond)
-	f.panicFunc = func(partition int32) {
-		wg.Done()
+	d := deadlockDetector{
+		metricsFactory: metrics.NewLocalFactory(0),
+		logger:         l,
+		interval:       1,
+		panicFunc: func(partition int32) {
+			wg.Done()
+		},
 	}
-	f.start()
-	defer f.close()
+
+	d.start()
 	wg.Wait()
 }

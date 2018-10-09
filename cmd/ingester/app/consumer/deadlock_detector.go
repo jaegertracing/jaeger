@@ -116,6 +116,7 @@ func (s *deadlockDetector) monitorForPartition(w *partitionDeadlockDetector, par
 				default:
 					// If closePartition is blocked, the consumer might have deadlocked - kill the process
 					s.panicFunc(partition)
+					return // For tests
 				}
 			} else {
 				atomic.StoreUint64(w.msgConsumed, 0)
@@ -149,9 +150,9 @@ func (s *deadlockDetector) start() {
 			case <-ticker.C:
 				if atomic.LoadUint64(detector.msgConsumed) == 0 {
 					s.panicFunc(-1)
-				} else {
-					atomic.StoreUint64(detector.msgConsumed, 0)
+					return // For tests
 				}
+				atomic.StoreUint64(detector.msgConsumed, 0)
 			}
 		}
 	}()
