@@ -280,7 +280,7 @@ func (td toDomain) getTags(binAnnotations []*zipkincore.BinaryAnnotation, tagInc
 func (td toDomain) transformBinaryAnnotation(binaryAnnotation *zipkincore.BinaryAnnotation) (model.KeyValue, error) {
 	switch binaryAnnotation.AnnotationType {
 	case zipkincore.AnnotationType_BOOL:
-		vBool := bytes.Compare(binaryAnnotation.Value, trueByteSlice) == 0
+		vBool := bytes.Equal(binaryAnnotation.Value, trueByteSlice)
 		return model.Bool(binaryAnnotation.Key, vBool), nil
 	case zipkincore.AnnotationType_BYTES:
 		return model.Binary(binaryAnnotation.Key, binaryAnnotation.Value), nil

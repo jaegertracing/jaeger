@@ -37,6 +37,10 @@ const (
 	suffixBulkActions       = ".bulk.actions"
 	suffixBulkFlushInterval = ".bulk.flush-interval"
 	suffixIndexPrefix       = ".index-prefix"
+	suffixTagsAsFields      = ".tags-as-fields"
+	suffixTagsAsFieldsAll   = suffixTagsAsFields + ".all"
+	suffixTagsFile          = suffixTagsAsFields + ".config-file"
+	suffixTagDeDotChar      = suffixTagsAsFields + ".dot-replacement"
 )
 
 // TODO this should be moved next to config.Configuration struct (maybe ./flags package)
@@ -75,6 +79,7 @@ func NewOptions(primaryNamespace string, otherNamespaces ...string) *Options {
 				BulkWorkers:       1,
 				BulkActions:       1000,
 				BulkFlushInterval: time.Millisecond * 200,
+				TagDotReplacement: "@",
 			},
 			servers:   "http://127.0.0.1:9200",
 			namespace: primaryNamespace,
@@ -146,6 +151,18 @@ func addFlags(flagSet *flag.FlagSet, nsConfig *namespaceConfig) {
 		nsConfig.namespace+suffixIndexPrefix,
 		nsConfig.IndexPrefix,
 		"Optional prefix of Jaeger indices. For example \"production\" creates \"production:jaeger-*\".")
+	flagSet.Bool(
+		nsConfig.namespace+suffixTagsAsFieldsAll,
+		nsConfig.AllTagsAsFields,
+		"(experimental) Store all span and process tags as object fields. If true "+suffixTagsFile+" is ignored. Binary tags are always stored as nested objects.")
+	flagSet.String(
+		nsConfig.namespace+suffixTagsFile,
+		nsConfig.TagsFilePath,
+		"(experimental) Optional path to a file containing tag keys which will be stored as object fields. Each key should be on a separate line.")
+	flagSet.String(
+		nsConfig.namespace+suffixTagDeDotChar,
+		nsConfig.TagDotReplacement,
+		"(experimental) The character used to replace dots (\".\") in tag keys stored as object fields.")
 }
 
 // InitFromViper initializes Options with properties from viper
@@ -169,6 +186,9 @@ func initFromViper(cfg *namespaceConfig, v *viper.Viper) {
 	cfg.BulkActions = v.GetInt(cfg.namespace + suffixBulkActions)
 	cfg.BulkFlushInterval = v.GetDuration(cfg.namespace + suffixBulkFlushInterval)
 	cfg.IndexPrefix = v.GetString(cfg.namespace + suffixIndexPrefix)
+	cfg.AllTagsAsFields = v.GetBool(cfg.namespace + suffixTagsAsFieldsAll)
+	cfg.TagsFilePath = v.GetString(cfg.namespace + suffixTagsFile)
+	cfg.TagDotReplacement = v.GetString(cfg.namespace + suffixTagDeDotChar)
 }
 
 // GetPrimary returns primary configuration.

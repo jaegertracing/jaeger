@@ -24,9 +24,11 @@ import (
 	"syscall"
 
 	"github.com/gorilla/handlers"
+	"github.com/opentracing/opentracing-go"
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
 	jaegerClientConfig "github.com/uber/jaeger-client-go/config"
+	jaegerClientZapLog "github.com/uber/jaeger-client-go/log/zap"
 	"go.uber.org/zap"
 
 	"github.com/jaegertracing/jaeger/cmd/env"
@@ -39,10 +41,11 @@ import (
 	"github.com/jaegertracing/jaeger/pkg/version"
 	"github.com/jaegertracing/jaeger/plugin/storage"
 	istorage "github.com/jaegertracing/jaeger/storage"
+	storageMetrics "github.com/jaegertracing/jaeger/storage/spanstore/metrics"
 )
 
 func main() {
-	var serverChannel = make(chan os.Signal, 0)
+	var serverChannel = make(chan os.Signal)
 	signal.Notify(serverChannel, os.Interrupt, syscall.SIGTERM)
 
 	storageFactory, err := storage.NewFactory(storage.FactoryConfigFromEnvAndCLI(os.Args, os.Stderr))
@@ -86,11 +89,16 @@ func main() {
 					Param: 1.0,
 				},
 				RPCMetrics: true,
-			}.New("jaeger-query", jaegerClientConfig.Metrics(baseFactory.Namespace("client", nil)))
+			}.New(
+				"jaeger-query",
+				jaegerClientConfig.Metrics(baseFactory.Namespace("client", nil)),
+				jaegerClientConfig.Logger(jaegerClientZapLog.NewLogger(logger)),
+			)
 			if err != nil {
 				logger.Fatal("Failed to initialize tracer", zap.Error(err))
 			}
 			defer closer.Close()
+			opentracing.SetGlobalTracer(tracer)
 
 			storageFactory.InitFromViper(v)
 			if err := storageFactory.Initialize(baseFactory, logger); err != nil {
@@ -100,6 +108,7 @@ func main() {
 			if err != nil {
 				logger.Fatal("Failed to create span reader", zap.Error(err))
 			}
+			spanReader = storageMetrics.NewReadMetricsDecorator(spanReader, baseFactory.Namespace("query", nil))
 			dependencyReader, err := storageFactory.CreateDependencyReader()
 			if err != nil {
 				logger.Fatal("Failed to create dependency reader", zap.Error(err))
@@ -131,7 +140,7 @@ func main() {
 			recoveryHandler := recoveryhandler.NewRecoveryHandler(logger, true)
 
 			go func() {
-				logger.Info("Starting jaeger-query HTTP server", zap.Int("port", queryOpts.Port))
+				logger.Info("Starting HTTP server", zap.Int("port", queryOpts.Port))
 				if err := http.ListenAndServe(portStr, recoveryHandler(compressHandler)); err != nil {
 					logger.Fatal("Could not launch service", zap.Error(err))
 				}
@@ -139,11 +148,8 @@ func main() {
 			}()
 
 			hc.Ready()
-
-			select {
-			case <-serverChannel:
-				logger.Info("Jaeger Query is finishing")
-			}
+			<-serverChannel
+			logger.Info("Shutdown complete")
 			return nil
 		},
 	}

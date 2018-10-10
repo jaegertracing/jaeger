@@ -25,6 +25,7 @@ import (
 	"github.com/stretchr/testify/mock"
 	"github.com/uber/jaeger-lib/metrics"
 	"github.com/uber/jaeger-lib/metrics/testutils"
+	"go.uber.org/zap"
 
 	"github.com/jaegertracing/jaeger/model"
 	"github.com/jaegertracing/jaeger/pkg/kafka/mocks"
@@ -86,7 +87,7 @@ func withSpanWriter(t *testing.T, fn func(span *model.Span, w *spanWriterTest)) 
 		producer:       producer,
 		marshaller:     marshaller,
 		metricsFactory: serviceMetrics,
-		writer:         NewSpanWriter(producer, marshaller, "someTopic", serviceMetrics),
+		writer:         NewSpanWriter(producer, marshaller, "someTopic", serviceMetrics, zap.NewNop()),
 	}
 
 	fn(sampleSpan, writerTest)

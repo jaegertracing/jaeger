@@ -43,20 +43,27 @@ func Test_new(t *testing.T) {
 	partition := int32(21)
 	offset := int64(555)
 
+	sp := &mocks.SpanProcessor{}
+	sp.On("Process", mock.Anything).Return(nil)
+
 	pf := ProcessorFactory{
 		topic:          topic,
 		consumer:       mockConsumer,
 		metricsFactory: metrics.NullFactory,
 		logger:         zap.NewNop(),
-		baseProcessor:  &mocks.SpanProcessor{},
+		baseProcessor:  sp,
 		parallelism:    1,
 	}
-	assert.NotNil(t, pf.new(partition, offset))
+
+	processor := pf.new(partition, offset)
+	msg := &kmocks.Message{}
+	msg.On("Offset").Return(offset + 1)
+	processor.Process(msg)
 
 	// This sleep is greater than offset manager's resetInterval to allow it a chance to
 	// call MarkPartitionOffset.
 	time.Sleep(150 * time.Millisecond)
-	mockConsumer.AssertCalled(t, "MarkPartitionOffset", topic, partition, offset, "")
+	mockConsumer.AssertCalled(t, "MarkPartitionOffset", topic, partition, offset+1, "")
 }
 
 type fakeService struct {

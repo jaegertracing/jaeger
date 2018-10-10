@@ -26,11 +26,9 @@ import (
 	"gopkg.in/olivere/elastic.v5"
 
 	"github.com/jaegertracing/jaeger/model"
-	jConverter "github.com/jaegertracing/jaeger/model/converter/json"
-	jModel "github.com/jaegertracing/jaeger/model/json"
 	"github.com/jaegertracing/jaeger/pkg/es"
+	"github.com/jaegertracing/jaeger/plugin/storage/es/spanstore/dbmodel"
 	"github.com/jaegertracing/jaeger/storage/spanstore"
-	storageMetrics "github.com/jaegertracing/jaeger/storage/spanstore/metrics"
 )
 
 const (
@@ -38,16 +36,18 @@ const (
 	serviceIndex       = "jaeger-service-"
 	traceIDAggregation = "traceIDs"
 
-	traceIDField       = "traceID"
-	durationField      = "duration"
-	startTimeField     = "startTime"
-	serviceNameField   = "process.serviceName"
-	operationNameField = "operationName"
-	tagsField          = "tags"
-	processTagsField   = "process.tags"
-	logFieldsField     = "logs.fields"
-	tagKeyField        = "key"
-	tagValueField      = "value"
+	traceIDField           = "traceID"
+	durationField          = "duration"
+	startTimeField         = "startTime"
+	serviceNameField       = "process.serviceName"
+	operationNameField     = "operationName"
+	objectTagsField        = "tag"
+	objectProcessTagsField = "process.tag"
+	nestedTagsField        = "tags"
+	nestedProcessTagsField = "process.tags"
+	nestedLogFieldsField   = "logs.fields"
+	tagKeyField            = "key"
+	tagValueField          = "value"
 
 	defaultDocCount  = 10000 // the default elasticsearch allowed limit
 	defaultNumTraces = 100
@@ -76,7 +76,9 @@ var (
 
 	defaultMaxDuration = model.DurationAsMicroseconds(time.Hour * 24)
 
-	tagFieldList = []string{tagsField, processTagsField, logFieldsField}
+	objectTagFieldList = []string{objectTagsField, objectProcessTagsField}
+
+	nestedTagFieldList = []string{nestedTagsField, nestedProcessTagsField, nestedLogFieldsField}
 )
 
 // SpanReader can query for and load traces from ElasticSearch
@@ -90,31 +92,44 @@ type SpanReader struct {
 	serviceOperationStorage *ServiceOperationStorage
 	spanIndexPrefix         string
 	serviceIndexPrefix      string
+	spanConverter           dbmodel.ToDomain
+}
+
+// SpanReaderParams holds constructor params for NewSpanReader
+type SpanReaderParams struct {
+	Client                  es.Client
+	Logger                  *zap.Logger
+	MaxLookback             time.Duration
+	MetricsFactory          metrics.Factory
+	serviceOperationStorage *ServiceOperationStorage
+	IndexPrefix             string
+	TagDotReplacement       string
 }
 
 // NewSpanReader returns a new SpanReader with a metrics.
-func NewSpanReader(client es.Client, logger *zap.Logger, maxLookback time.Duration, metricsFactory metrics.Factory, indexPrefix string) spanstore.Reader {
-	return storageMetrics.NewReadMetricsDecorator(newSpanReader(client, logger, maxLookback, indexPrefix), metricsFactory)
+func NewSpanReader(p SpanReaderParams) spanstore.Reader {
+	return newSpanReader(p)
 }
 
-func newSpanReader(client es.Client, logger *zap.Logger, maxLookback time.Duration, indexPrefix string) *SpanReader {
+func newSpanReader(p SpanReaderParams) *SpanReader {
 	ctx := context.Background()
-	if indexPrefix != "" {
-		indexPrefix += ":"
+	if p.IndexPrefix != "" {
+		p.IndexPrefix += ":"
 	}
 	return &SpanReader{
 		ctx:                     ctx,
-		client:                  client,
-		logger:                  logger,
-		maxLookback:             maxLookback,
-		serviceOperationStorage: NewServiceOperationStorage(ctx, client, metrics.NullFactory, logger, 0), // the decorator takes care of metrics
-		spanIndexPrefix:         indexPrefix + spanIndex,
-		serviceIndexPrefix:      indexPrefix + serviceIndex,
+		client:                  p.Client,
+		logger:                  p.Logger,
+		maxLookback:             p.MaxLookback,
+		serviceOperationStorage: NewServiceOperationStorage(ctx, p.Client, metrics.NullFactory, p.Logger, 0), // the decorator takes care of metrics
+		spanIndexPrefix:         p.IndexPrefix + spanIndex,
+		serviceIndexPrefix:      p.IndexPrefix + serviceIndex,
+		spanConverter:           dbmodel.NewToDomain(p.TagDotReplacement),
 	}
 }
 
 // GetTrace takes a traceID and returns a Trace associated with that traceID
-func (s *SpanReader) GetTrace(traceID model.TraceID) (*model.Trace, error) {
+func (s *SpanReader) GetTrace(ctx context.Context, traceID model.TraceID) (*model.Trace, error) {
 	currentTime := time.Now()
 	traces, err := s.multiRead([]string{traceID.String()}, currentTime.Add(-s.maxLookback), currentTime)
 	if err != nil {
@@ -134,7 +149,7 @@ func (s *SpanReader) collectSpans(esSpansRaw []*elastic.SearchHit) ([]*model.Spa
 		if err != nil {
 			return nil, errors.Wrap(err, "Marshalling JSON to span object failed")
 		}
-		span, err := jConverter.SpanToDomain(jsonSpan)
+		span, err := s.spanConverter.SpanToDomain(jsonSpan)
 		if err != nil {
 			return nil, errors.Wrap(err, "Converting JSONSpan to domain Span failed")
 		}
@@ -143,10 +158,10 @@ func (s *SpanReader) collectSpans(esSpansRaw []*elastic.SearchHit) ([]*model.Spa
 	return spans, nil
 }
 
-func (s *SpanReader) unmarshalJSONSpan(esSpanRaw *elastic.SearchHit) (*jModel.Span, error) {
+func (s *SpanReader) unmarshalJSONSpan(esSpanRaw *elastic.SearchHit) (*dbmodel.Span, error) {
 	esSpanInByteArray := esSpanRaw.Source
 
-	var jsonSpan jModel.Span
+	var jsonSpan dbmodel.Span
 	if err := json.Unmarshal(*esSpanInByteArray, &jsonSpan); err != nil {
 		return nil, err
 	}
@@ -167,14 +182,14 @@ func (s *SpanReader) indicesForTimeRange(indexName string, startTime time.Time, 
 }
 
 // GetServices returns all services traced by Jaeger, ordered by frequency
-func (s *SpanReader) GetServices() ([]string, error) {
+func (s *SpanReader) GetServices(ctx context.Context) ([]string, error) {
 	currentTime := time.Now()
 	jaegerIndices := s.indicesForTimeRange(s.serviceIndexPrefix, currentTime.Add(-s.maxLookback), currentTime)
 	return s.serviceOperationStorage.getServices(jaegerIndices)
 }
 
 // GetOperations returns all operations for a specific service traced by Jaeger
-func (s *SpanReader) GetOperations(service string) ([]string, error) {
+func (s *SpanReader) GetOperations(ctx context.Context, service string) ([]string, error) {
 	currentTime := time.Now()
 	jaegerIndices := s.indicesForTimeRange(s.serviceIndexPrefix, currentTime.Add(-s.maxLookback), currentTime)
 	return s.serviceOperationStorage.getOperations(jaegerIndices, service)
@@ -193,7 +208,7 @@ func bucketToStringArray(buckets []*elastic.AggregationBucketKeyItem) ([]string,
 }
 
 // FindTraces retrieves traces that match the traceQuery
-func (s *SpanReader) FindTraces(traceQuery *spanstore.TraceQueryParameters) ([]*model.Trace, error) {
+func (s *SpanReader) FindTraces(ctx context.Context, traceQuery *spanstore.TraceQueryParameters) ([]*model.Trace, error) {
 	if err := validateQuery(traceQuery); err != nil {
 		return nil, err
 	}
@@ -225,7 +240,7 @@ func (s *SpanReader) multiRead(traceIDs []string, startTime, endTime time.Time) 
 	totalDocumentsFetched := make(map[string]int)
 	tracesMap := make(map[string]*model.Trace)
 	for {
-		if traceIDs == nil || len(traceIDs) == 0 {
+		if len(traceIDs) == 0 {
 			break
 		}
 
@@ -260,10 +275,7 @@ func (s *SpanReader) multiRead(traceIDs []string, startTime, endTime time.Time) 
 			lastSpanTraceID := lastSpan.TraceID.String()
 
 			if traceSpan, ok := tracesMap[lastSpanTraceID]; ok {
-				for _, span := range spans {
-					traceSpan.Spans = append(traceSpan.Spans, span)
-				}
-
+				traceSpan.Spans = append(traceSpan.Spans, spans...)
 			} else {
 				tracesMap[lastSpanTraceID] = &model.Trace{Spans: spans}
 			}
@@ -339,7 +351,15 @@ func (s *SpanReader) findTraceIDs(traceQuery *spanstore.TraceQueryParameters) ([
 	//                                  { "match" : {"tags.key" : "tag3"} },
 	//                                  { "match" : {"tags.value" : "xyz"} }
 	//                                  ]
-	//                              }}}}
+	//                              }}}},
+	//                   { "bool":{
+	//                           "must": {
+	//                               "match":{ "tags.bat":{ "query":"spook" }}
+	//                           }}},
+	//                   { "bool":{
+	//                           "must": {
+	//                               "match":{ "tag.bat":{ "query":"spook" }}
+	//                           }}}
 	//                ]
 	//              }
 	//          ]
@@ -444,10 +464,17 @@ func (s *SpanReader) buildOperationNameQuery(operationName string) elastic.Query
 }
 
 func (s *SpanReader) buildTagQuery(k string, v string) elastic.Query {
-	queries := make([]elastic.Query, len(tagFieldList))
-	for i := range queries {
-		queries[i] = s.buildNestedQuery(tagFieldList[i], k, v)
+	objectTagListLen := len(objectTagFieldList)
+	queries := make([]elastic.Query, len(nestedTagFieldList)+objectTagListLen)
+	kd := s.spanConverter.ReplaceDot(k)
+	for i := range objectTagFieldList {
+		queries[i] = s.buildObjectQuery(objectTagFieldList[i], kd, v)
 	}
+	for i := range nestedTagFieldList {
+		queries[i+objectTagListLen] = s.buildNestedQuery(nestedTagFieldList[i], k, v)
+	}
+
+	// but configuration can change over time
 	return elastic.NewBoolQuery().Should(queries...)
 }
 
@@ -458,4 +485,10 @@ func (s *SpanReader) buildNestedQuery(field string, k string, v string) elastic.
 	valueQuery := elastic.NewMatchQuery(valueField, v)
 	tagBoolQuery := elastic.NewBoolQuery().Must(keyQuery, valueQuery)
 	return elastic.NewNestedQuery(field, tagBoolQuery)
+}
+
+func (s *SpanReader) buildObjectQuery(field string, k string, v string) elastic.Query {
+	keyField := fmt.Sprintf("%s.%s", field, k)
+	keyQuery := elastic.NewMatchQuery(keyField, v)
+	return elastic.NewBoolQuery().Must(keyQuery)
 }

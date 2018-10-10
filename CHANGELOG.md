@@ -1,15 +1,63 @@
 Changes by Version
 ==================
 
-TBD (pending)
+1.8.0 (unreleased)
+------------------
+
+#### Backend Changes
+
+##### Breaking Changes
+
+- Various changes around metrics produced by jaeger-query: Names scoped to the query component, generated for all span readers (not just ES), consolidate query metrics and include result tag ([#1074](https://github.com/jaegertracing/jaeger/pull/1074), [#1075](https://github.com/jaegertracing/jaeger/pull/1075) and [#1096](https://github.com/jaegertracing/jaeger/pull/1096), [@objectiser](https://github.com/objectiser))
+
+For example, sample of metrics produced for `find_traces` operation before:
+
+```
+jaeger_find_traces_attempts 1
+jaeger_find_traces_errLatency_bucket{le="0.005"} 0
+jaeger_find_traces_errors 0
+jaeger_find_traces_okLatency_bucket{le="0.005"} 0
+jaeger_find_traces_responses_bucket{le="0.005"} 1
+jaeger_find_traces_successes 1
+```
+
+And now:
+
+```
+jaeger_query_latency_bucket{operation="find_traces",result="err",le="0.005"} 0
+jaeger_query_latency_bucket{operation="find_traces",result="ok",le="0.005"} 2
+jaeger_query_requests{operation="find_traces",result="err"} 0
+jaeger_query_requests{operation="find_traces",result="ok"} 2
+jaeger_query_responses_bucket{operation="find_traces",le="0.005"} 2
+```
+
+
+1.7.0 (2018-09-19)
 ------------------
 
 #### UI Changes
 
+- Compare two traces ([#228](https://github.com/jaegertracing/jaeger-ui/pull/228), [@tiffon](https://github.com/tiffon))
+- Make tags clickable ([#223](https://github.com/jaegertracing/jaeger-ui/pull/223), [@divdavem](https://github.com/divdavem))
+- Directed graph as React component ([#224](https://github.com/jaegertracing/jaeger-ui/pull/224), [@tiffon](https://github.com/tiffon))
+- Timeline Expand and Collapse Features ([#221](https://github.com/jaegertracing/jaeger-ui/issues/221), [@davit-y](https://github.com/davit-y))
+- Integrate Google Analytics into Search Page ([#220](https://github.com/jaegertracing/jaeger-ui/issues/220), [@davit-y](https://github.com/davit-y))
+
+#### Backend Changes
+
+##### Breaking changes
+
+- `jaeger-standalone` binary has been renamed to `jaeger-all-in-one`. This change also includes package rename from `standalone` to `all-in-one` ([#1062](https://github.com/jaegertracing/jaeger/pull/1062), [@pavolloffay](https://github.com/pavolloffay))
+
 ##### New Features
 
-- Timeline Expand and Collapse Features ([#221](https://github.com/jaegertracing/jaeger-ui/issues/221))
-- Integrate Google Analytics into Search Page ([#220](https://github.com/jaegertracing/jaeger-ui/issues/220))
+- (Experimental) Allow storing tags as object fields in Elasticsearch for better Kibana support(([#1018](https://github.com/jaegertracing/jaeger/pull/1018), [@pavolloffay](https://github.com/pavolloffay))
+- Enable tracing of Cassandra queries ([#1038](https://github.com/jaegertracing/jaeger/pull/1038), [@yurishkuro](https://github.com/yurishkuro))
+- Make Elasticsearch index configurable ([#1009](https://github.com/jaegertracing/jaeger/pull/1009), [@pavolloffay](https://github.com/pavoloffay))
+- Add flags to allow changing ports for HotROD services ([#951](https://github.com/jaegertracing/jaeger/pull/951), [@cboornaz17](https://github.com/cboornaz17))
+- (Experimental) Kafka ingester ([#952](https://github.com/jaegertracing/jaeger/pull/952), [#942](https://github.com/jaegertracing/jaeger/pull/942), [#944](https://github.com/jaegertracing/jaeger/pull/944), [#940](https://github.com/jaegertracing/jaeger/pull/940), [@davit-y](https://github.com/davit-y) and [@vprithvi](https://github.com/vprithvi)))
+- Use tags in agent metrics ([#950](https://github.com/jaegertracing/jaeger/pull/950), [@eundoosong](https://github.com/eundoosong))
+- Add support for Cassandra reconnect interval ([#934](https://github.com/jaegertracing/jaeger/pull/934), [@nyanshak](https://github.com/nyanshak))
 
 1.6.0 (2018-07-10)
 ------------------

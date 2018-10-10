@@ -20,10 +20,11 @@ function stage-platform-files {
     local PACKAGE_STAGING_DIR=$2
     local FILE_EXTENSION=$3
     
-    stage-file ./cmd/standalone/standalone-$PLATFORM $PACKAGE_STAGING_DIR/jaeger-standalone$FILE_EXTENSION
+    stage-file ./cmd/all-in-one/all-in-one-$PLATFORM $PACKAGE_STAGING_DIR/jaeger-all-in-one$FILE_EXTENSION
     stage-file ./cmd/agent/agent-$PLATFORM $PACKAGE_STAGING_DIR/jaeger-agent$FILE_EXTENSION
     stage-file ./cmd/query/query-$PLATFORM $PACKAGE_STAGING_DIR/jaeger-query$FILE_EXTENSION
     stage-file ./cmd/collector/collector-$PLATFORM $PACKAGE_STAGING_DIR/jaeger-collector$FILE_EXTENSION
+    stage-file ./cmd/ingester/ingester-$PLATFORM $PACKAGE_STAGING_DIR/jaeger-ingester$FILE_EXTENSION
     stage-file ./examples/hotrod/hotrod-$PLATFORM $PACKAGE_STAGING_DIR/example-hotrod$FILE_EXTENSION
 }
 

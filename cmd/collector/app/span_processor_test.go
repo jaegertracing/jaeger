@@ -154,11 +154,7 @@ func isSpanAllowed(span *model.Span) bool {
 		return true
 	}
 
-	serviceName := span.Process.ServiceName
-	if serviceName == blackListedService {
-		return false
-	}
-	return true
+	return span.Process.ServiceName != blackListedService
 }
 
 type fakeSpanWriter struct {
@@ -232,8 +228,11 @@ func TestSpanProcessorErrors(t *testing.T) {
 	w := &fakeSpanWriter{
 		err: fmt.Errorf("some-error"),
 	}
+	mb := metrics.NewLocalFactory(time.Hour)
+	serviceMetrics := mb.Namespace("service", nil)
 	p := NewSpanProcessor(w,
 		Options.Logger(logger),
+		Options.ServiceMetrics(serviceMetrics),
 	).(*spanProcessor)
 
 	res, err := p.ProcessSpans([]*model.Span{
@@ -254,6 +253,11 @@ func TestSpanProcessorErrors(t *testing.T) {
 		"msg":   "Failed to save span",
 		"error": "some-error",
 	}, logBuf.JSONLine(0))
+
+	expected := []metricsTest.ExpectedMetric{{
+		Name: "service.spans.saved-by-svc|debug=false|result=err|svc=x", Value: 1,
+	}}
+	metricsTest.AssertCounterMetrics(t, mb, expected...)
 }
 
 type blockingWriter struct {

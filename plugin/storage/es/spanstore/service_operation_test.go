@@ -15,6 +15,7 @@
 package spanstore
 
 import (
+	"context"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -22,8 +23,8 @@ import (
 	"github.com/stretchr/testify/require"
 	"gopkg.in/olivere/elastic.v5"
 
-	jModel "github.com/jaegertracing/jaeger/model/json"
 	"github.com/jaegertracing/jaeger/pkg/es/mocks"
+	"github.com/jaegertracing/jaeger/plugin/storage/es/spanstore/dbmodel"
 )
 
 func TestWriteService(t *testing.T) {
@@ -41,11 +42,11 @@ func TestWriteService(t *testing.T) {
 
 		w.client.On("Index").Return(indexService)
 
-		jsonSpan := &jModel.Span{
-			TraceID:       jModel.TraceID("1"),
-			SpanID:        jModel.SpanID("0"),
+		jsonSpan := &dbmodel.Span{
+			TraceID:       dbmodel.TraceID("1"),
+			SpanID:        dbmodel.SpanID("0"),
 			OperationName: "operation",
-			Process: &jModel.Process{
+			Process: dbmodel.Process{
 				ServiceName: "service",
 			},
 		}
@@ -76,11 +77,11 @@ func TestWriteServiceError(t *testing.T) {
 
 		w.client.On("Index").Return(indexService)
 
-		jsonSpan := &jModel.Span{
-			TraceID:       jModel.TraceID("1"),
-			SpanID:        jModel.SpanID("0"),
+		jsonSpan := &dbmodel.Span{
+			TraceID:       dbmodel.TraceID("1"),
+			SpanID:        dbmodel.SpanID("0"),
 			OperationName: "operation",
-			Process: &jModel.Process{
+			Process: dbmodel.Process{
 				ServiceName: "service",
 			},
 		}
@@ -105,7 +106,7 @@ func TestSpanReader_GetServicesEmptyIndex(t *testing.T) {
 			Return(&elastic.MultiSearchResult{
 				Responses: []*elastic.SearchResult{},
 			}, nil)
-		services, err := r.reader.GetServices()
+		services, err := r.reader.GetServices(context.Background())
 		require.NoError(t, err)
 		assert.Empty(t, services)
 	})
@@ -119,7 +120,7 @@ func TestSpanReader_GetOperationsEmptyIndex(t *testing.T) {
 			Return(&elastic.MultiSearchResult{
 				Responses: []*elastic.SearchResult{},
 			}, nil)
-		services, err := r.reader.GetOperations("foo")
+		services, err := r.reader.GetOperations(context.Background(), "foo")
 		require.NoError(t, err)
 		assert.Empty(t, services)
 	})

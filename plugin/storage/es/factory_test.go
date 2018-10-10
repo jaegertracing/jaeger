@@ -19,6 +19,7 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 	"github.com/uber/jaeger-lib/metrics"
 	"go.uber.org/zap"
 
@@ -65,4 +66,46 @@ func TestElasticsearchFactory(t *testing.T) {
 
 	_, err = f.CreateDependencyReader()
 	assert.NoError(t, err)
+}
+
+func TestElasticsearchTagsFileDoNotExist(t *testing.T) {
+	f := NewFactory()
+	mockConf := &mockClientBuilder{}
+	mockConf.TagsFilePath = "fixtures/tags_foo.txt"
+	f.primaryConfig = mockConf
+	assert.NoError(t, f.Initialize(metrics.NullFactory, zap.NewNop()))
+	r, err := f.CreateSpanWriter()
+	require.Error(t, err)
+	assert.Nil(t, r)
+}
+
+func TestLoadTagsFromFile(t *testing.T) {
+	tests := []struct {
+		path  string
+		tags  []string
+		error bool
+	}{
+		{
+			path:  "fixtures/do_not_exists.txt",
+			error: true,
+		},
+		{
+			path: "fixtures/tags_01.txt",
+			tags: []string{"foo", "bar", "space"},
+		},
+		{
+			path: "fixtures/tags_02.txt",
+			tags: nil,
+		},
+	}
+
+	for _, test := range tests {
+		tags, err := loadTagsFromFile(test.path)
+		if test.error {
+			require.Error(t, err)
+			assert.Nil(t, tags)
+		} else {
+			assert.Equal(t, test.tags, tags)
+		}
+	}
 }

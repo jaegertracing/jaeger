@@ -15,6 +15,7 @@
 package memory
 
 import (
+	"context"
 	"errors"
 	"sync"
 	"time"
@@ -146,7 +147,7 @@ func (m *Store) WriteSpan(span *model.Span) error {
 }
 
 // GetTrace gets a trace
-func (m *Store) GetTrace(traceID model.TraceID) (*model.Trace, error) {
+func (m *Store) GetTrace(ctx context.Context, traceID model.TraceID) (*model.Trace, error) {
 	m.RLock()
 	defer m.RUnlock()
 	retMe := m.traces[traceID]
@@ -157,7 +158,7 @@ func (m *Store) GetTrace(traceID model.TraceID) (*model.Trace, error) {
 }
 
 // GetServices returns a list of all known services
-func (m *Store) GetServices() ([]string, error) {
+func (m *Store) GetServices(ctx context.Context) ([]string, error) {
 	m.RLock()
 	defer m.RUnlock()
 	var retMe []string
@@ -168,7 +169,7 @@ func (m *Store) GetServices() ([]string, error) {
 }
 
 // GetOperations returns the operations of a given service
-func (m *Store) GetOperations(service string) ([]string, error) {
+func (m *Store) GetOperations(ctx context.Context, service string) ([]string, error) {
 	m.RLock()
 	defer m.RUnlock()
 	if operations, ok := m.operations[service]; ok {
@@ -182,7 +183,7 @@ func (m *Store) GetOperations(service string) ([]string, error) {
 }
 
 // FindTraces returns all traces in the query parameters are satisfied by a trace's span
-func (m *Store) FindTraces(query *spanstore.TraceQueryParameters) ([]*model.Trace, error) {
+func (m *Store) FindTraces(ctx context.Context, query *spanstore.TraceQueryParameters) ([]*model.Trace, error) {
 	m.RLock()
 	defer m.RUnlock()
 	var retMe []*model.Trace

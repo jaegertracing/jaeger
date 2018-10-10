@@ -15,6 +15,7 @@
 package integration
 
 import (
+	"context"
 	"os"
 	"strconv"
 	"testing"
@@ -96,19 +97,19 @@ type ingester struct {
 	traceStore *memory.Store
 }
 
-func (r *ingester) GetTrace(traceID model.TraceID) (*model.Trace, error) {
-	return r.traceStore.GetTrace(traceID)
+func (r *ingester) GetTrace(ctx context.Context, traceID model.TraceID) (*model.Trace, error) {
+	return r.traceStore.GetTrace(ctx, traceID)
 }
 
-func (r *ingester) GetServices() ([]string, error) {
+func (r *ingester) GetServices(ctx context.Context) ([]string, error) {
 	return nil, nil
 }
 
-func (r *ingester) GetOperations(service string) ([]string, error) {
+func (r *ingester) GetOperations(ctx context.Context, service string) ([]string, error) {
 	return nil, nil
 }
 
-func (r *ingester) FindTraces(query *spanstore.TraceQueryParameters) ([]*model.Trace, error) {
+func (r *ingester) FindTraces(ctx context.Context, query *spanstore.TraceQueryParameters) ([]*model.Trace, error) {
 	return nil, nil
 }
 

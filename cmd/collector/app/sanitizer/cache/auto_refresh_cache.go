@@ -1,3 +1,4 @@
+// Copyright (c) 2018 The Jaeger Authors.
 // Copyright (c) 2017 Uber Technologies, Inc.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
@@ -45,7 +46,7 @@ func NewAutoRefreshCache(
 	readRefreshInterval, saveRefreshInterval time.Duration,
 ) Cache {
 	return &autoRefreshCache{
-		cache:               make(map[string]string, 0),
+		cache:               make(map[string]string),
 		extSource:           extSource,
 		storage:             storage,
 		logger:              logger,

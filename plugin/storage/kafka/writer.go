@@ -17,6 +17,7 @@ package kafka
 import (
 	"github.com/Shopify/sarama"
 	"github.com/uber/jaeger-lib/metrics"
+	"go.uber.org/zap"
 
 	"github.com/jaegertracing/jaeger/model"
 )
@@ -32,10 +33,17 @@ type SpanWriter struct {
 	producer   sarama.AsyncProducer
 	marshaller Marshaller
 	topic      string
+	logger     *zap.Logger
 }
 
 // NewSpanWriter initiates and returns a new kafka spanwriter
-func NewSpanWriter(producer sarama.AsyncProducer, marshaller Marshaller, topic string, factory metrics.Factory) *SpanWriter {
+func NewSpanWriter(
+	producer sarama.AsyncProducer,
+	marshaller Marshaller,
+	topic string,
+	factory metrics.Factory,
+	logger *zap.Logger,
+) *SpanWriter {
 	writeMetrics := spanWriterMetrics{
 		SpansWrittenSuccess: factory.Counter("kafka_spans_written", map[string]string{"status": "success"}),
 		SpansWrittenFailure: factory.Counter("kafka_spans_written", map[string]string{"status": "failure"}),
@@ -47,7 +55,8 @@ func NewSpanWriter(producer sarama.AsyncProducer, marshaller Marshaller, topic s
 		}
 	}()
 	go func() {
-		for range producer.Errors() {
+		for e := range producer.Errors() {
+			logger.Error(e.Err.Error())
 			writeMetrics.SpansWrittenFailure.Inc(1)
 		}
 	}()

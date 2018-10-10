@@ -15,6 +15,7 @@
 package spanstore
 
 import (
+	"context"
 	"errors"
 	"time"
 
@@ -33,10 +34,10 @@ var (
 
 // Reader finds and loads traces and other data from storage.
 type Reader interface {
-	GetTrace(traceID model.TraceID) (*model.Trace, error)
-	GetServices() ([]string, error)
-	GetOperations(service string) ([]string, error)
-	FindTraces(query *TraceQueryParameters) ([]*model.Trace, error)
+	GetTrace(ctx context.Context, traceID model.TraceID) (*model.Trace, error)
+	GetServices(ctx context.Context) ([]string, error)
+	GetOperations(ctx context.Context, service string) ([]string, error)
+	FindTraces(ctx context.Context, query *TraceQueryParameters) ([]*model.Trace, error)
 }
 
 // TraceQueryParameters contains parameters of a trace query.

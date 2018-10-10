@@ -12,11 +12,13 @@ cover.html
 .mkdocs-virtual-env/
 vendor/
 examples/hotrod/hotrod
-cmd/standalone/standalone-linux
+cmd/all-in-one/all-in-one-*
 cmd/agent/agent
 cmd/agent/agent-linux
 cmd/collector/collector
 cmd/collector/collector-linux
+cmd/ingester/ingester
+cmd/ingester/ingester-linux
 cmd/query/query
 cmd/query/query-linux
 crossdock/crossdock-linux

@@ -14,7 +14,9 @@
 
 package model
 
-import "time"
+import (
+	"time"
+)
 
 // EpochMicrosecondsAsTime converts microseconds since epoch to time.Time value.
 func EpochMicrosecondsAsTime(ts uint64) time.Time {

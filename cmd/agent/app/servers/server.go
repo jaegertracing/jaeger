@@ -14,7 +14,9 @@
 
 package servers
 
-import "io"
+import (
+	"io"
+)
 
 // Server is the interface for servers that receive inbound span submissions from client.
 type Server interface {

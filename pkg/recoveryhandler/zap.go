@@ -1,4 +1,4 @@
-// Copyright (c) 2017 Uber Technologies, Inc.
+// Copyright (c) 2017-2018 Uber Technologies, Inc.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -28,9 +28,8 @@ type zapRecoveryWrapper struct {
 }
 
 // Println logs an error message with the given fields
-func (z zapRecoveryWrapper) Println(fields ...interface{}) {
-	// if you think i'm going to check the type of each of the fields and then logger with fields, you're crazy.
-	z.logger.Error(fmt.Sprintln(fields))
+func (z zapRecoveryWrapper) Println(args ...interface{}) {
+	z.logger.Error(fmt.Sprint(args...))
 }
 
 // NewRecoveryHandler returns an http.Handler that recovers on panics

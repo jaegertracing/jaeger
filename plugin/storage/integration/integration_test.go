@@ -16,6 +16,7 @@ package integration
 
 import (
 	"bytes"
+	"context"
 	"encoding/json"
 	"fmt"
 	"io/ioutil"
@@ -114,7 +115,7 @@ func (s *StorageIntegration) testGetServices(t *testing.T) {
 
 	var actual []string
 	found := s.waitForCondition(t, func(t *testing.T) bool {
-		actual, err := s.SpanReader.GetServices()
+		actual, err := s.SpanReader.GetServices(context.Background())
 		require.NoError(t, err)
 		return assert.ObjectsAreEqualValues(expected, actual)
 	})
@@ -136,7 +137,7 @@ func (s *StorageIntegration) testGetLargeSpan(t *testing.T) {
 	var actual *model.Trace
 	found := s.waitForCondition(t, func(t *testing.T) bool {
 		var err error
-		actual, err = s.SpanReader.GetTrace(expectedTraceID)
+		actual, err = s.SpanReader.GetTrace(context.Background(), expectedTraceID)
 		return err == nil && len(actual.Spans) == len(expected.Spans)
 	})
 	if !assert.True(t, found) {
@@ -154,7 +155,7 @@ func (s *StorageIntegration) testGetOperations(t *testing.T) {
 	var actual []string
 	found := s.waitForCondition(t, func(t *testing.T) bool {
 		var err error
-		actual, err = s.SpanReader.GetOperations("example-service-1")
+		actual, err = s.SpanReader.GetOperations(context.Background(), "example-service-1")
 		require.NoError(t, err)
 		return assert.ObjectsAreEqualValues(expected, actual)
 	})
@@ -175,7 +176,7 @@ func (s *StorageIntegration) testGetTrace(t *testing.T) {
 	var actual *model.Trace
 	found := s.waitForCondition(t, func(t *testing.T) bool {
 		var err error
-		actual, err = s.SpanReader.GetTrace(expectedTraceID)
+		actual, err = s.SpanReader.GetTrace(context.Background(), expectedTraceID)
 		if err != nil {
 			t.Log(err)
 		}
@@ -224,7 +225,7 @@ func (s *StorageIntegration) findTracesByQuery(t *testing.T, query *spanstore.Tr
 	var traces []*model.Trace
 	found := s.waitForCondition(t, func(t *testing.T) bool {
 		var err error
-		traces, err = s.SpanReader.FindTraces(query)
+		traces, err = s.SpanReader.FindTraces(context.Background(), query)
 		if err == nil && tracesMatch(t, traces, expected) {
 			return true
 		}

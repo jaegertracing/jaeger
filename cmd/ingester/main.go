@@ -37,7 +37,7 @@ import (
 )
 
 func main() {
-	var signalsChannel = make(chan os.Signal, 0)
+	var signalsChannel = make(chan os.Signal)
 	signal.Notify(signalsChannel, os.Interrupt, syscall.SIGTERM)
 
 	storageFactory, err := storage.NewFactory(storage.FactoryConfigFromEnvAndCLI(os.Args, os.Stderr))
@@ -47,7 +47,7 @@ func main() {
 
 	v := viper.New()
 	command := &cobra.Command{
-		Use:   "jaeger-ingester",
+		Use:   "(experimental) jaeger-ingester",
 		Short: "Jaeger ingester consumes from Kafka and writes to storage",
 		Long:  `Jaeger ingester consumes spans from a particular Kafka topic and writes them to all configured storage types.`,
 		RunE: func(cmd *cobra.Command, args []string) error {
@@ -91,21 +91,19 @@ func main() {
 			consumer.Start()
 
 			hc.Ready()
-			select {
-			case <-signalsChannel:
-				logger.Info("Jaeger Ingester is starting to close")
-				err := consumer.Close()
-				if err != nil {
-					logger.Error("Failed to close consumer", zap.Error(err))
-				}
-				if closer, ok := spanWriter.(io.Closer); ok {
-					err := closer.Close()
-					if err != nil {
-						logger.Error("Failed to close span writer", zap.Error(err))
-					}
-				}
-				logger.Info("Jaeger Ingester has finished closing")
+			<-signalsChannel
+			logger.Info("Shutting down")
+			err = consumer.Close()
+			if err != nil {
+				logger.Error("Failed to close consumer", zap.Error(err))
 			}
+			if closer, ok := spanWriter.(io.Closer); ok {
+				err := closer.Close()
+				if err != nil {
+					logger.Error("Failed to close span writer", zap.Error(err))
+				}
+			}
+			logger.Info("Shutdown complete")
 			return nil
 		},
 	}

@@ -42,6 +42,9 @@ type Configuration struct {
 	BulkActions       int
 	BulkFlushInterval time.Duration
 	IndexPrefix       string
+	TagsFilePath      string
+	AllTagsAsFields   bool
+	TagDotReplacement string
 }
 
 // ClientBuilder creates new es.Client
@@ -51,6 +54,9 @@ type ClientBuilder interface {
 	GetNumReplicas() int64
 	GetMaxSpanAge() time.Duration
 	GetIndexPrefix() string
+	GetTagsFilePath() string
+	GetAllTagsAsFields() bool
+	GetTagDotReplacement() string
 }
 
 // NewClient creates a new ElasticSearch client
@@ -119,7 +125,7 @@ func (c *Configuration) ApplyDefaults(source *Configuration) {
 	if c.Password == "" {
 		c.Password = source.Password
 	}
-	if c.Sniffer == false {
+	if !c.Sniffer {
 		c.Sniffer = source.Sniffer
 	}
 	if c.MaxSpanAge == 0 {
@@ -163,6 +169,22 @@ func (c *Configuration) GetMaxSpanAge() time.Duration {
 // GetIndexPrefix returns index prefix
 func (c *Configuration) GetIndexPrefix() string {
 	return c.IndexPrefix
+}
+
+// GetTagsFilePath returns a path to file containing tag keys
+func (c *Configuration) GetTagsFilePath() string {
+	return c.TagsFilePath
+}
+
+// GetAllTagsAsFields returns true if all tags should be stored as object fields
+func (c *Configuration) GetAllTagsAsFields() bool {
+	return c.AllTagsAsFields
+}
+
+// GetTagDotReplacement returns character is used to replace dots in tag keys, when
+// the tag is stored as object field.
+func (c *Configuration) GetTagDotReplacement() string {
+	return c.TagDotReplacement
 }
 
 // GetConfigs wraps the configs to feed to the ElasticSearch client init
