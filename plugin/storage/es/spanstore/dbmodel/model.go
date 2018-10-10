@@ -60,9 +60,10 @@ type Span struct {
 	Duration        uint64     `json:"duration"` // microseconds
 	Tags            []KeyValue `json:"tags"`
 	// Alternative representation of tags for better kibana support
-	Tag     map[string]interface{} `json:"tag,omitempty"`
-	Logs    []Log                  `json:"logs"`
-	Process Process                `json:"process,omitempty"`
+	Tag        map[string]interface{} `json:"tag,omitempty"`
+	Logs       []Log                  `json:"logs"`
+	Process    Process                `json:"process,omitempty"`
+	Incomplete bool                   `json:"incomplete"`
 }
 
 // Reference is a reference from one span to another
