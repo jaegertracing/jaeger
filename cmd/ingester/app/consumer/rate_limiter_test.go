@@ -25,22 +25,26 @@ import (
 func TestRateLimiter(t *testing.T) {
 	const (
 		creditsPerSecond = 1000
+		maxBalance       = 1
 		iterations       = 10
 	)
 
-	// Ticks cannot be timed precisely because time.Ticker reserves the right to
-	// change the rate of ticks as it deems necessary (slows consumers, etc.).
-	// Therefore, this code asserts that the tick is no more than 50% off the
-	// expected time.
+	// Timing is not precise. Using 50% as maximum error.
 	idealInterval := time.Duration(float64(time.Second.Nanoseconds())/creditsPerSecond) * time.Nanosecond
-	minInterval := time.Duration(float64(idealInterval.Nanoseconds())*0.5) * time.Nanosecond
-	maxInterval := time.Duration(float64(idealInterval.Nanoseconds())*1.5) * time.Nanosecond
+	minInterval := time.Duration(float64(idealInterval.Nanoseconds())*0.50) * time.Nanosecond
+	maxInterval := time.Duration(float64(idealInterval.Nanoseconds())*1.50) * time.Nanosecond
 
-	rateLimiter := newRateLimiter(creditsPerSecond)
+	rateLimiter := newRateLimiter(creditsPerSecond, maxBalance)
 	defer rateLimiter.Stop()
 	acquireStart := time.Now()
 	for i := 0; i < iterations; i++ {
-		rateLimiter.Acquire()
+		ok := rateLimiter.Acquire()
+		require.True(t, ok)
+		if i == 0 {
+			// Skip first iteration, when balance is full.
+			acquireStart = time.Now()
+			continue
+		}
 		actualInterval := time.Since(acquireStart)
 		require.Truef(t, actualInterval >= minInterval, "Interval is too small %v < %v", actualInterval, minInterval)
 		require.Truef(t, actualInterval <= maxInterval, "Interval is too large %v > %v", actualInterval, maxInterval)
@@ -48,48 +52,26 @@ func TestRateLimiter(t *testing.T) {
 	}
 }
 
-func TestRateLimiterNoLimit(t *testing.T) {
+func TestRateLimiterReturnsFalseWhenInterrupted(t *testing.T) {
 	const (
-		creditsPerSecond = -1
-		iterations       = 100
+		creditsPerSecond = 0.01
+		maxBalance       = 1
 	)
 
-	r := newRateLimiter(creditsPerSecond)
-	defer r.Stop()
+	r := newRateLimiter(creditsPerSecond, maxBalance)
 
-	const maxInterval = time.Millisecond
-	acquireStart := time.Now()
-	for i := 0; i < iterations; i++ {
-		r.Acquire()
-		acquireEnd := time.Now()
-		interval := acquireEnd.Sub(acquireStart)
-		require.Truef(t, interval <= maxInterval, "Expected no significant delay before first receive, actual delay = %v, max expected delay = %v", interval, maxInterval)
-		acquireStart = time.Now()
-	}
-}
+	// Empty token bucket.
+	ok := r.Acquire()
+	require.True(t, ok)
 
-func TestRateLimiterInfiniteLimit(t *testing.T) {
-	const (
-		creditsPerSecond = 0
-		sleepInterval    = time.Millisecond
-	)
-	r := newRateLimiter(creditsPerSecond)
+	// Stop rateLimiter while Acquire is in progress.
 	var wg sync.WaitGroup
 	wg.Add(1)
-	var m sync.Mutex
-	var stopped bool
 	go func() {
 		wg.Done()
-		time.Sleep(sleepInterval)
-		r.Stop()
-		m.Lock()
-		defer m.Unlock()
-		stopped = true
+		ok = r.Acquire()
+		require.False(t, ok)
 	}()
-
 	wg.Wait()
-	r.Acquire()
-	m.Lock()
-	defer m.Unlock()
-	require.Truef(t, stopped, "Acquire should not return when creditsPerSecond is zero unless Stop is invoked")
+	r.Stop()
 }

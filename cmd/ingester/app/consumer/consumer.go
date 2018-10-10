@@ -114,10 +114,11 @@ func (c *Consumer) handleMessages(pc sc.PartitionConsumer) {
 
 	deadlockDetector := c.deadlockDetector.startMonitoringForPartition(pc.Partition())
 	defer deadlockDetector.close()
-	rateLimiter := newRateLimiter(c.maxReadsPerSecond)
+	const maxBalance = 1
+	rateLimiter := newRateLimiter(c.maxReadsPerSecond, maxBalance)
 	defer rateLimiter.Stop()
-
 	for {
+		rateLimiter.Acquire()
 		select {
 		case msg, ok := <-pc.Messages():
 			if !ok {
@@ -136,9 +137,6 @@ func (c *Consumer) handleMessages(pc sc.PartitionConsumer) {
 			}
 
 			msgProcessor.Process(&saramaMessageWrapper{msg})
-
-			// Wait before next read.
-			rateLimiter.Acquire()
 		case <-deadlockDetector.closePartitionChannel():
 			c.logger.Info("Closing partition due to inactivity", zap.Int32("partition", pc.Partition()))
 			return

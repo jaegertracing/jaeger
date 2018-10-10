@@ -15,64 +15,71 @@
 package consumer
 
 import (
+	"math"
 	"time"
 )
 
-// rateLimiter uses a ticker to keep events evenly spaced, thereby providing
-// rate limiting.
+const cost = 1.0
+
 type rateLimiter struct {
-	ticker      *time.Ticker
-	tickChannel <-chan time.Time
-	done        chan struct{}
+	creditsPerSecond float64
+	maxBalance       float64
+	balance          float64
+	lastTime         time.Time
+	done             chan struct{}
 }
 
-// newRateLimiter constructs a rate limiter with the provided creditsPerSecond.
-// If creditsPerSecond is less than zero, no rate limiting will be
-// provided, and all calls to this object will return immediately. If
-// creditsPerSecond is exactly zero, calls will block indefinitely or until Stop
-// is called.
-func newRateLimiter(creditsPerSecond float64) *rateLimiter {
-	var r *rateLimiter
-	if creditsPerSecond < 0 {
-		// Receiving from a closed channel returns immediately, which is useful
-		// for implementing non-rate-limiting behavior.
-		closedChannel := make(chan time.Time)
-		close(closedChannel)
-		r = &rateLimiter{
-			tickChannel: closedChannel,
-			done:        make(chan struct{}),
-		}
-	} else if creditsPerSecond == 0 {
-		r = &rateLimiter{
-			tickChannel: make(<-chan time.Time),
-			done:        make(chan struct{}),
-		}
-	} else {
-		interval := time.Nanosecond * time.Duration(float64(time.Second.Nanoseconds())/creditsPerSecond)
-		ticker := time.NewTicker(interval)
-		r = &rateLimiter{
-			ticker:      ticker,
-			tickChannel: ticker.C,
-			done:        make(chan struct{}),
-		}
+// newRateLimiter constructs a new rateLimiter.
+func newRateLimiter(creditsPerSecond, maxBalance float64) *rateLimiter {
+	r := &rateLimiter{
+		creditsPerSecond: creditsPerSecond,
+		maxBalance:       maxBalance,
+		balance:          maxBalance,
+		done:             make(chan struct{}),
 	}
-
+	r.lastTime = time.Now()
 	return r
 }
 
-// Acquire causes rateLimiter to block until next tick, or until Stop is called.
+// Acquire causes rateLimiter to spend a credit and return immediately,
+// or block until a credit becomes available. Returns true if credits were
+// acquired. Returns false if Stop was called before credits were acquired,
+// interrupting the Acquire call.
 // Note: Acquire has no corresponding release operation.
-func (r *rateLimiter) Acquire() {
-	select {
-	case <-r.tickChannel:
-	case <-r.done:
+// N.B. This rate limiter implementation is not thread-safe. Do not call Acquire
+// from more than one goroutine.
+func (r *rateLimiter) Acquire() bool {
+	for r.updateBalance() < cost {
+		timer := time.NewTimer(r.calculateWait())
+		select {
+		case <-timer.C:
+		case <-r.done:
+			timer.Stop()
+			return false
+		}
 	}
+	r.balance -= cost
+	return true
 }
 
-// Stop stops rateLimiter ticker and unblocks any blocked Acquire call.
+// Stop stops any ongoing Acquire operation, which exits immediately.
 func (r *rateLimiter) Stop() {
-	if r.ticker != nil {
-		r.ticker.Stop()
-	}
 	close(r.done)
+}
+
+func (r *rateLimiter) updateBalance() float64 {
+	if r.balance == r.maxBalance {
+		return r.balance
+	}
+	now := time.Now()
+	interval := now.Sub(r.lastTime)
+	r.balance += math.Min(interval.Seconds()*r.creditsPerSecond, r.maxBalance)
+	r.lastTime = now
+	return r.balance
+}
+
+func (r *rateLimiter) calculateWait() time.Duration {
+	creditsNeeded := cost - r.balance
+	waitTime := time.Nanosecond * time.Duration(float64(time.Second.Nanoseconds())*creditsNeeded/r.creditsPerSecond)
+	return waitTime
 }
