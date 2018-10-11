@@ -74,7 +74,7 @@ type Builder struct {
 	HTTPServer HTTPServerConfiguration  `yaml:"httpServer"`
 	Metrics    jmetrics.Builder         `yaml:"metrics"`
 
-	collectorProxy []CollectorProxy
+	reporters []reporter.Reporter
 }
 
 // ProcessorConfiguration holds config for a processor that receives spans from Server
@@ -97,9 +97,9 @@ type HTTPServerConfiguration struct {
 	HostPort string `yaml:"hostPort" validate:"nonzero"`
 }
 
-// WithCollectorProxy adds auxiliary reporters.
-func (b *Builder) WithCollectorProxy(r ...CollectorProxy) *Builder {
-	b.collectorProxy = append(b.collectorProxy, r...)
+// WithReporter adds auxiliary reporters.
+func (b *Builder) WithReporter(r ...reporter.Reporter) *Builder {
+	b.reporters = append(b.reporters, r...)
 	return b
 }
 
@@ -115,13 +115,13 @@ func (b *Builder) CreateAgent(primaryProxy CollectorProxy, logger *zap.Logger, m
 }
 
 func (b *Builder) getReporter(primaryProxy CollectorProxy) reporter.Reporter {
-	if len(b.collectorProxy) == 0 {
+	if len(b.reporters) == 0 {
 		return primaryProxy.GetReporter()
 	}
-	rep := make([]reporter.Reporter, len(b.collectorProxy)+1)
+	rep := make([]reporter.Reporter, len(b.reporters)+1)
 	rep[0] = primaryProxy.GetReporter()
-	for i, p := range b.collectorProxy {
-		rep[i+1] = p.GetReporter()
+	for i, r := range b.reporters {
+		rep[i+1] = r
 	}
 	return reporter.NewMultiReporter(rep...)
 }

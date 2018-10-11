@@ -156,7 +156,7 @@ func TestMultipleCollectorProxies(t *testing.T) {
 	b := Builder{}
 	ra := fakeCollectorProxy{}
 	rb := fakeCollectorProxy{}
-	b.WithCollectorProxy(ra)
+	b.WithReporter(ra)
 	r := b.getReporter(rb)
 	mr, ok := r.(reporter.MultiReporter)
 	require.True(t, ok)
