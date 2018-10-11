@@ -16,6 +16,7 @@ package dbmodel
 
 import "github.com/jaegertracing/jaeger/model"
 
+// FromDomainDependencies converts model dependencies to database representation
 func FromDomainDependencies(dLinks []model.DependencyLink) []DependencyLink {
 	if dLinks == nil {
 		return nil
@@ -31,6 +32,7 @@ func FromDomainDependencies(dLinks []model.DependencyLink) []DependencyLink {
 	return ret
 }
 
+// ToDomainDependencies converts database representation of dependencies to model
 func ToDomainDependencies(dLinks []DependencyLink) []model.DependencyLink {
 	if dLinks == nil {
 		return nil

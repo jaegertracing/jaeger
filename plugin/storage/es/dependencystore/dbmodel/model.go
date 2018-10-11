@@ -16,6 +16,7 @@ package dbmodel
 
 import "time"
 
+// TimeDependencies encapsulates dependencies created at a given time
 type TimeDependencies struct {
 	Timestamp    time.Time        `json:"timestamp"`
 	Dependencies []DependencyLink `json:"dependencies"`
