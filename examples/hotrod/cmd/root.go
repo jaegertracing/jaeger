@@ -31,7 +31,6 @@ import (
 
 var (
 	metricsBackend string
-	jAgentHostPort string
 	logger         *zap.Logger
 	metricsFactory metrics.Factory
 
@@ -63,7 +62,6 @@ func Execute() {
 
 func init() {
 	RootCmd.PersistentFlags().StringVarP(&metricsBackend, "metrics", "m", "expvar", "Metrics backend (expvar|prometheus)")
-	RootCmd.PersistentFlags().StringVarP(&jAgentHostPort, "jaeger-agent.host-port", "a", "0.0.0.0:6831", "String representing jaeger-agent UDP host:port, or jaeger-collector HTTP endpoint address, e.g. http://localhost:14268/api/traces.")
 	RootCmd.PersistentFlags().DurationVarP(&fixDBConnDelay, "fix-db-query-delay", "D", 300*time.Millisecond, "Average lagency of MySQL DB query")
 	RootCmd.PersistentFlags().BoolVarP(&fixDBConnDisableMutex, "fix-disable-db-conn-mutex", "M", false, "Disables the mutex guarding db connection")
 	RootCmd.PersistentFlags().IntVarP(&fixRouteWorkerPoolSize, "fix-route-worker-pool-size", "W", 3, "Default worker pool size")

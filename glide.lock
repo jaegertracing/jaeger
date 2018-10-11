@@ -1,5 +1,5 @@
 hash: 5ffbb7d077d2f42d30c8107c7c323b17e8fbc252fff78e24c5e19577cf942e04
-updated: 2018-08-13T15:02:55.899715-04:00
+updated: 2018-10-11T22:45:34.752332+09:00
 imports:
 - name: github.com/apache/thrift
   version: 53dd39833a08ce33582e5ff31fa18bb4735d6731
@@ -12,7 +12,7 @@ imports:
   subpackages:
   - quantile
 - name: github.com/bsm/sarama-cluster
-  version: cf455bc755fe41ac9bb2861e7a961833d9c2ecc3
+  version: c618e605e15c0d7535f6c96ff8efbb0dba4fd66c
 - name: github.com/codahale/hdrhistogram
   version: 3a0bb77429bd3a61596f5e8a3172445844342120
 - name: github.com/crossdock/crossdock-go
@@ -21,7 +21,7 @@ imports:
   - assert
   - require
 - name: github.com/davecgh/go-spew
-  version: 8991bc29aa16c548c550c7ff78260e27b9ab7c73
+  version: d8f796af33cc11cb798c1aaeb27a4ebc5099927d
   subpackages:
   - spew
 - name: github.com/eapache/go-resiliency
@@ -204,7 +204,7 @@ imports:
 - name: github.com/rcrowley/go-metrics
   version: e2704e165165ec55d062f5919b4b29494e9fa790
 - name: github.com/Shopify/sarama
-  version: 35324cf48e33d8260e1c7c18854465a904ade249
+  version: ec843464b50d4c8b56403ec9d589cf41ea30e722
   subpackages:
   - mocks
 - name: github.com/spf13/afero
@@ -218,11 +218,11 @@ imports:
 - name: github.com/spf13/jwalterweatherman
   version: 12bd96e66386c1960ab0f74ced1362f66f552f7b
 - name: github.com/spf13/pflag
-  version: 9a97c102cda95a86cec2345a6f09f55a939babf5
+  version: 298182f68c66c05229eb03ac171abe6e309ee79a
 - name: github.com/spf13/viper
-  version: 907c19d40d9a6c9bb55f040ff4ae45271a4754b9
+  version: 2c12c60302a5a0e62ee102ca9bc996277c2f64f5
 - name: github.com/stretchr/objx
-  version: b8b73a35e9830ae509858c10dec5866b4d5c8bff
+  version: ef50b0de28773081167c97fc27cf29a0bf8b8c71
 - name: github.com/stretchr/testify
   version: f35b8ab0b5a2cef36673838d662e249dd9c94686
   subpackages:
@@ -233,7 +233,7 @@ imports:
 - name: github.com/uber-go/atomic
   version: 8474b86a5a6f79c443ce4b2992817ff32cf208b8
 - name: github.com/uber/jaeger-client-go
-  version: b043381d944715b469fd6b37addfd30145ca1758
+  version: 1a782e2da844727691fef1757c72eb190c2909f0
   subpackages:
   - config
   - internal/baggage
@@ -242,6 +242,7 @@ imports:
   - internal/throttler
   - internal/throttler/remote
   - log
+  - log/zap
   - rpcmetrics
   - thrift
   - thrift-gen/agent
@@ -292,7 +293,7 @@ imports:
   - zapcore
   - zaptest
 - name: golang.org/x/net
-  version: c39426892332e1bb5ec0a434a079bf82f5d30c54
+  version: 146acd28ed5894421fb5aac80ca93bc1b1f46f87
   subpackages:
   - context
   - context/ctxhttp
