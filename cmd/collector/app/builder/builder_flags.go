@@ -23,12 +23,12 @@ import (
 )
 
 const (
-	collectorQueueSize     = "collector.queue-size"
-	collectorNumWorkers    = "collector.num-workers"
-	collectorWriteCacheTTL = "collector.write-cache-ttl"
-	collectorPort          = "collector.port"
-	collectorHTTPPort      = "collector.http-port"
-	collectorZipkinHTTPort = "collector.zipkin.http-port"
+	collectorQueueSize      = "collector.queue-size"
+	collectorNumWorkers     = "collector.num-workers"
+	collectorWriteCacheTTL  = "collector.write-cache-ttl"
+	collectorPort           = "collector.port"
+	collectorHTTPPort       = "collector.http-port"
+	collectorZipkinHTTPPort = "collector.zipkin.http-port"
 	// CollectorDefaultHealthCheckHTTPPort is the default HTTP Port for health check
 	CollectorDefaultHealthCheckHTTPPort = 14269
 )
@@ -53,7 +53,7 @@ func AddFlags(flags *flag.FlagSet) {
 	flags.Int(collectorNumWorkers, app.DefaultNumWorkers, "The number of workers pulling items from the queue")
 	flags.Int(collectorPort, 14267, "The tchannel port for the collector service")
 	flags.Int(collectorHTTPPort, 14268, "The http port for the collector service")
-	flags.Int(collectorZipkinHTTPort, 0, "The http port for the Zipkin collector service e.g. 9411")
+	flags.Int(collectorZipkinHTTPPort, 0, "The http port for the Zipkin collector service e.g. 9411")
 }
 
 // InitFromViper initializes CollectorOptions with properties from viper
@@ -62,6 +62,6 @@ func (cOpts *CollectorOptions) InitFromViper(v *viper.Viper) *CollectorOptions {
 	cOpts.NumWorkers = v.GetInt(collectorNumWorkers)
 	cOpts.CollectorPort = v.GetInt(collectorPort)
 	cOpts.CollectorHTTPPort = v.GetInt(collectorHTTPPort)
-	cOpts.CollectorZipkinHTTPPort = v.GetInt(collectorZipkinHTTPort)
+	cOpts.CollectorZipkinHTTPPort = v.GetInt(collectorZipkinHTTPPort)
 	return cOpts
 }
