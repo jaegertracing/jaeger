@@ -25,17 +25,13 @@ import (
 
 	"github.com/jaegertracing/jaeger/model"
 	"github.com/jaegertracing/jaeger/pkg/es"
+	"github.com/jaegertracing/jaeger/plugin/storage/es/dependencystore/dbmodel"
 )
 
 const (
 	dependencyType  = "dependencies"
 	dependencyIndex = "jaeger-dependencies-"
 )
-
-type timeToDependencies struct {
-	Timestamp    time.Time              `json:"timestamp"`
-	Dependencies []model.DependencyLink `json:"dependencies"`
-}
 
 // DependencyStore handles all queries and insertions to ElasticSearch dependencies
 type DependencyStore struct {
@@ -78,8 +74,8 @@ func (s *DependencyStore) createIndex(indexName string) error {
 
 func (s *DependencyStore) writeDependencies(indexName string, ts time.Time, dependencies []model.DependencyLink) {
 	s.client.Index().Index(indexName).Type(dependencyType).
-		BodyJson(&timeToDependencies{Timestamp: ts,
-			Dependencies: dependencies,
+		BodyJson(&dbmodel.TimeDependencies{Timestamp: ts,
+			Dependencies: dbmodel.FromDomainDependencies(dependencies),
 		}).Add()
 }
 
@@ -95,17 +91,17 @@ func (s *DependencyStore) GetDependencies(endTs time.Time, lookback time.Duratio
 		return nil, errors.Wrap(err, "Failed to search for dependencies")
 	}
 
-	var retDependencies []model.DependencyLink
+	var retDependencies []dbmodel.DependencyLink
 	hits := searchResult.Hits.Hits
 	for _, hit := range hits {
 		source := hit.Source
-		var tToD timeToDependencies
+		var tToD dbmodel.TimeDependencies
 		if err := json.Unmarshal(*source, &tToD); err != nil {
 			return nil, errors.New("Unmarshalling ElasticSearch documents failed")
 		}
 		retDependencies = append(retDependencies, tToD.Dependencies...)
 	}
-	return retDependencies, nil
+	return dbmodel.ToDomainDependencies(retDependencies), nil
 }
 
 func buildTSQuery(endTs time.Time, lookback time.Duration) elastic.Query {
