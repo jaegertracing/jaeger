@@ -13,7 +13,7 @@ import:
 - package: go.uber.org/zap
   version: ^1
 - package: github.com/uber/jaeger-client-go
-  version: ^2.11.0
+  version: ^2.15.0
   subpackages:
   - transport
 - package: github.com/uber/jaeger-lib
