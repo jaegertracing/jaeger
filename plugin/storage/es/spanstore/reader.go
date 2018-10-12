@@ -88,7 +88,7 @@ type SpanReader struct {
 	logger *zap.Logger
 	// The age of the oldest service/operation we will look for. Because indices in ElasticSearch are by day,
 	// this will be rounded down to UTC 00:00 of that day.
-	maxLookback             time.Duration
+	maxSpanAge              time.Duration
 	serviceOperationStorage *ServiceOperationStorage
 	spanIndexPrefix         string
 	serviceIndexPrefix      string
@@ -99,7 +99,7 @@ type SpanReader struct {
 type SpanReaderParams struct {
 	Client                  es.Client
 	Logger                  *zap.Logger
-	MaxLookback             time.Duration
+	MaxSpanAge              time.Duration
 	MetricsFactory          metrics.Factory
 	serviceOperationStorage *ServiceOperationStorage
 	IndexPrefix             string
@@ -120,8 +120,8 @@ func newSpanReader(p SpanReaderParams) *SpanReader {
 		ctx:                     ctx,
 		client:                  p.Client,
 		logger:                  p.Logger,
-		maxLookback:             p.MaxLookback,
-		serviceOperationStorage: NewServiceOperationStorage(ctx, p.Client, metrics.NullFactory, p.Logger, 0), // the decorator takes care of metrics
+		maxSpanAge:              p.MaxSpanAge,
+		serviceOperationStorage: NewServiceOperationStorage(ctx, p.Client, p.Logger, 0), // the decorator takes care of metrics
 		spanIndexPrefix:         p.IndexPrefix + spanIndex,
 		serviceIndexPrefix:      p.IndexPrefix + serviceIndex,
 		spanConverter:           dbmodel.NewToDomain(p.TagDotReplacement),
@@ -131,7 +131,7 @@ func newSpanReader(p SpanReaderParams) *SpanReader {
 // GetTrace takes a traceID and returns a Trace associated with that traceID
 func (s *SpanReader) GetTrace(ctx context.Context, traceID model.TraceID) (*model.Trace, error) {
 	currentTime := time.Now()
-	traces, err := s.multiRead([]string{traceID.String()}, currentTime.Add(-s.maxLookback), currentTime)
+	traces, err := s.multiRead([]string{traceID.String()}, currentTime.Add(-s.maxSpanAge), currentTime)
 	if err != nil {
 		return nil, err
 	}
@@ -184,14 +184,14 @@ func (s *SpanReader) indicesForTimeRange(indexName string, startTime time.Time, 
 // GetServices returns all services traced by Jaeger, ordered by frequency
 func (s *SpanReader) GetServices(ctx context.Context) ([]string, error) {
 	currentTime := time.Now()
-	jaegerIndices := s.indicesForTimeRange(s.serviceIndexPrefix, currentTime.Add(-s.maxLookback), currentTime)
+	jaegerIndices := s.indicesForTimeRange(s.serviceIndexPrefix, currentTime.Add(-s.maxSpanAge), currentTime)
 	return s.serviceOperationStorage.getServices(jaegerIndices)
 }
 
 // GetOperations returns all operations for a specific service traced by Jaeger
 func (s *SpanReader) GetOperations(ctx context.Context, service string) ([]string, error) {
 	currentTime := time.Now()
-	jaegerIndices := s.indicesForTimeRange(s.serviceIndexPrefix, currentTime.Add(-s.maxLookback), currentTime)
+	jaegerIndices := s.indicesForTimeRange(s.serviceIndexPrefix, currentTime.Add(-s.maxSpanAge), currentTime)
 	return s.serviceOperationStorage.getOperations(jaegerIndices, service)
 }
 

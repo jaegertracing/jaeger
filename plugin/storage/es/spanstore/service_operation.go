@@ -16,10 +16,11 @@ package spanstore
 
 import (
 	"context"
+	"fmt"
+	"hash/fnv"
 	"time"
 
 	"github.com/pkg/errors"
-	"github.com/uber/jaeger-lib/metrics"
 	"go.uber.org/zap"
 	"gopkg.in/olivere/elastic.v5"
 
@@ -49,7 +50,6 @@ type ServiceOperationStorage struct {
 func NewServiceOperationStorage(
 	ctx context.Context,
 	client es.Client,
-	metricsFactory metrics.Factory,
 	logger *zap.Logger,
 	cacheTTL time.Duration,
 ) *ServiceOperationStorage {
@@ -69,12 +69,12 @@ func NewServiceOperationStorage(
 // Write saves a service to operation pair.
 func (s *ServiceOperationStorage) Write(indexName string, jsonSpan *dbmodel.Span) {
 	// Insert serviceName:operationName document
-	service := Service{
+	service := dbmodel.Service{
 		ServiceName:   jsonSpan.Process.ServiceName,
 		OperationName: jsonSpan.OperationName,
 	}
 
-	cacheKey := service.hashCode()
+	cacheKey := hashCode(service)
 	if !keyInCache(cacheKey, s.serviceCache) {
 		s.client.Index().Index(indexName).Type(serviceType).Id(cacheKey).BodyJson(service).Add()
 		writeCache(cacheKey, s.serviceCache)
@@ -141,4 +141,11 @@ func getOperationsAggregation() elastic.Query {
 	return elastic.NewTermsAggregation().
 		Field(operationNameField).
 		Size(defaultDocCount) // Must set to some large number. ES deprecated size omission for aggregating all. https://github.com/elastic/elasticsearch/issues/18838
+}
+
+func hashCode(s dbmodel.Service) string {
+	h := fnv.New64a()
+	h.Write([]byte(s.ServiceName))
+	h.Write([]byte(s.OperationName))
+	return fmt.Sprintf("%x", h.Sum64())
 }

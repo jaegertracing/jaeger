@@ -16,8 +16,6 @@ package spanstore
 
 import (
 	"context"
-	"fmt"
-	"hash/fnv"
 	"strconv"
 	"strings"
 	"time"
@@ -62,19 +60,6 @@ type SpanWriter struct {
 	spanConverter      dbmodel.FromDomain
 }
 
-// Service is the JSON struct for service:operation documents in ElasticSearch
-type Service struct {
-	ServiceName   string `json:"serviceName"`
-	OperationName string `json:"operationName"`
-}
-
-func (s Service) hashCode() string {
-	h := fnv.New64a()
-	h.Write([]byte(s.ServiceName))
-	h.Write([]byte(s.OperationName))
-	return fmt.Sprintf("%x", h.Sum64())
-}
-
 // SpanWriterParams holds constructor parameters for NewSpanWriter
 type SpanWriterParams struct {
 	Client            es.Client
@@ -96,7 +81,7 @@ func NewSpanWriter(p SpanWriterParams) *SpanWriter {
 	}
 
 	// TODO: Configurable TTL
-	serviceOperationStorage := NewServiceOperationStorage(ctx, p.Client, p.MetricsFactory, p.Logger, time.Hour*12)
+	serviceOperationStorage := NewServiceOperationStorage(ctx, p.Client, p.Logger, time.Hour*12)
 	if p.IndexPrefix != "" {
 		p.IndexPrefix += ":"
 	}

@@ -92,3 +92,9 @@ type KeyValue struct {
 	Type  ValueType   `json:"type,omitempty"`
 	Value interface{} `json:"value"`
 }
+
+// Service is the JSON struct for service:operation documents in ElasticSearch
+type Service struct {
+	ServiceName   string `json:"serviceName"`
+	OperationName string `json:"operationName"`
+}
