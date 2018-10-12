@@ -42,7 +42,7 @@ var frontendCmd = &cobra.Command{
 		logger := log.NewFactory(zapLogger)
 		server := frontend.NewServer(
 			options,
-			tracing.Init("frontend", metricsFactory.Namespace("frontend", nil), logger, jAgentHostPort),
+			tracing.Init("frontend", metricsFactory, logger),
 			logger,
 		)
 		return logError(zapLogger, server.Run())
