@@ -1,5 +1,5 @@
-hash: 186e8d311e2f5a427126f451d014019ce4507c21df2715d03f68aad2a9723758
-updated: 2018-10-12T21:53:31.584898+09:00
+hash: eb96c7fd56c8c6523990c19ba5bcf0d826922569a16e1019a88de57d46675775
+updated: 2018-10-12T23:27:30.163799+09:00
 imports:
 - name: github.com/apache/thrift
   version: 53dd39833a08ce33582e5ff31fa18bb4735d6731
@@ -12,7 +12,7 @@ imports:
   subpackages:
   - quantile
 - name: github.com/bsm/sarama-cluster
-  version: c618e605e15c0d7535f6c96ff8efbb0dba4fd66c
+  version: cf455bc755fe41ac9bb2861e7a961833d9c2ecc3
 - name: github.com/codahale/hdrhistogram
   version: 3a0bb77429bd3a61596f5e8a3172445844342120
 - name: github.com/crossdock/crossdock-go
@@ -204,7 +204,7 @@ imports:
 - name: github.com/rcrowley/go-metrics
   version: e2704e165165ec55d062f5919b4b29494e9fa790
 - name: github.com/Shopify/sarama
-  version: ec843464b50d4c8b56403ec9d589cf41ea30e722
+  version: f7be6aa2bc7b2e38edf816b08b582782194a1c02
   subpackages:
   - mocks
 - name: github.com/spf13/afero
