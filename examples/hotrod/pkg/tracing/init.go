@@ -30,6 +30,9 @@ import (
 // Init creates a new instance of Jaeger tracer.
 func Init(serviceName string, metricsFactory metrics.Factory, logger log.Factory) opentracing.Tracer {
 	cfg, err := config.FromEnv()
+	if err != nil {
+		logger.Bg().Fatal("cannot parse Jaeger env vars", zap.Error(err))
+	}
 	cfg.ServiceName = serviceName
 	cfg.Sampler.Type = "const"
 	cfg.Sampler.Param = 1
