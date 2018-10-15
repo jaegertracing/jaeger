@@ -75,3 +75,31 @@ func TestRateLimiterReturnsFalseWhenInterrupted(t *testing.T) {
 	wg.Wait()
 	r.Stop()
 }
+
+func TestRateLimiterUpdate(t *testing.T) {
+	const (
+		creditsPerSecond    = 0.01
+		newCreditsPerSecond = 100
+		maxBalance          = 1
+	)
+
+	r := newRateLimiter(creditsPerSecond, maxBalance)
+
+	// Empty token bucket.
+	ok := r.Acquire()
+	require.True(t, ok)
+
+	var wg sync.WaitGroup
+	wg.Add(1)
+	startTime := time.Now()
+	go func() {
+		wg.Done()
+		r.Update(newCreditsPerSecond, maxBalance)
+	}()
+	oldDuration := r.calculateWait()
+	wg.Wait()
+	ok = r.Acquire()
+	waitDuration := time.Since(startTime)
+	require.True(t, ok)
+	require.Truef(t, waitDuration < oldDuration, "update did not reduce wait time, old wait time = %v, actual wait time = %v", oldDuration, waitDuration)
+}

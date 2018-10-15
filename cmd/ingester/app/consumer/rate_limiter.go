@@ -21,21 +21,27 @@ import (
 
 const cost = 1.0
 
-type rateLimiter struct {
+type config struct {
 	creditsPerSecond float64
 	maxBalance       float64
-	balance          float64
-	lastTime         time.Time
-	done             chan struct{}
+}
+
+type rateLimiter struct {
+	config
+	balance  float64
+	lastTime time.Time
+	event    chan config
 }
 
 // newRateLimiter constructs a new rateLimiter.
 func newRateLimiter(creditsPerSecond, maxBalance float64) *rateLimiter {
 	r := &rateLimiter{
-		creditsPerSecond: creditsPerSecond,
-		maxBalance:       maxBalance,
-		balance:          maxBalance,
-		done:             make(chan struct{}),
+		config: config{
+			creditsPerSecond: creditsPerSecond,
+			maxBalance:       maxBalance,
+		},
+		balance: maxBalance,
+		event:   make(chan config),
 	}
 	r.lastTime = time.Now()
 	return r
@@ -53,9 +59,13 @@ func (r *rateLimiter) Acquire() bool {
 		timer := time.NewTimer(r.calculateWait())
 		select {
 		case <-timer.C:
-		case <-r.done:
+		case cfg, ok := <-r.event:
 			timer.Stop()
-			return false
+			if !ok {
+				return false
+			}
+			r.maxBalance = cfg.maxBalance
+			r.creditsPerSecond = cfg.creditsPerSecond
 		}
 	}
 	r.balance -= cost
@@ -64,7 +74,17 @@ func (r *rateLimiter) Acquire() bool {
 
 // Stop stops any ongoing Acquire operation, which exits immediately.
 func (r *rateLimiter) Stop() {
-	close(r.done)
+	close(r.event)
+}
+
+// Update replaces the current rate limiter configuration in a thread-safe
+// manner. This function will panic if Stop has already been called on the
+// rateLimiter.
+func (r *rateLimiter) Update(creditsPerSecond, maxBalance float64) {
+	r.event <- config{
+		creditsPerSecond: creditsPerSecond,
+		maxBalance:       maxBalance,
+	}
 }
 
 func (r *rateLimiter) updateBalance() float64 {
