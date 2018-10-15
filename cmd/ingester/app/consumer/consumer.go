@@ -114,11 +114,16 @@ func (c *Consumer) handleMessages(pc sc.PartitionConsumer) {
 
 	deadlockDetector := c.deadlockDetector.startMonitoringForPartition(pc.Partition())
 	defer deadlockDetector.close()
-	const maxBalance = 1
-	rateLimiter := newRateLimiter(c.maxReadsPerSecond, maxBalance)
-	defer rateLimiter.Stop()
+	var rateLimiter *rateLimiter
+	if c.maxReadsPerSecond > 0 {
+		const maxBalance = 1
+		rateLimiter = newRateLimiter(c.maxReadsPerSecond, maxBalance)
+		defer rateLimiter.Stop()
+	}
 	for {
-		rateLimiter.Acquire()
+		if rateLimiter != nil {
+			rateLimiter.Acquire()
+		}
 		select {
 		case msg, ok := <-pc.Messages():
 			if !ok {
