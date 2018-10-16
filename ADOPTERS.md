@@ -11,6 +11,7 @@
 * [Red Hat](https://www.redhat.com/)
   * https://github.com/jaegertracing/jaeger-openshift
   * http://www.hawkular.org/blog/2017/04/19/hawkular-apm-jaeger.html
+* [RiksTV](https://www.rikstv.no/)
 * [SeatGeek](https://seatgeek.com/)
 * [SpotHero](https://spothero.com/)
 * [UBER](http://uber.com)
