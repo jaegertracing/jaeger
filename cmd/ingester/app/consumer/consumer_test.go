@@ -31,6 +31,7 @@ import (
 	"github.com/uber/jaeger-lib/metrics/testutils"
 	"go.uber.org/zap"
 
+	"github.com/jaegertracing/jaeger/cmd/ingester/app"
 	kmocks "github.com/jaegertracing/jaeger/cmd/ingester/app/consumer/mocks"
 	"github.com/jaegertracing/jaeger/cmd/ingester/app/processor"
 	pmocks "github.com/jaegertracing/jaeger/cmd/ingester/app/processor/mocks"
@@ -86,8 +87,7 @@ func newConsumer(
 	factory metrics.Factory,
 	topic string,
 	processor processor.SpanProcessor,
-	consumer consumer.Consumer,
-	maxReadsPerSecond float64) *Consumer {
+	consumer consumer.Consumer) *Consumer {
 
 	logger, _ := zap.NewDevelopment()
 
@@ -107,7 +107,7 @@ func newConsumer(
 			parallelism:    1,
 		},
 
-		maxReadsPerSecond: maxReadsPerSecond,
+		rateLimiter: NewRateLimiter(app.DefaultMaxReadsPerSecond, app.DefaultMaxBurstReadsPerSecond),
 	}
 }
 
@@ -139,7 +139,7 @@ func TestSaramaConsumerWrapper_start_Messages(t *testing.T) {
 	saramaPartitionConsumer, e := saramaConsumer.ConsumePartition(topic, partition, msgOffset)
 	require.NoError(t, e)
 
-	undertest := newConsumer(localFactory, topic, mp, newSaramaClusterConsumer(saramaPartitionConsumer), -1.0)
+	undertest := newConsumer(localFactory, topic, mp, newSaramaClusterConsumer(saramaPartitionConsumer))
 
 	undertest.partitionIDToState = map[int32]*consumerState{
 		partition: {
@@ -195,7 +195,7 @@ func TestSaramaConsumerWrapper_start_Errors(t *testing.T) {
 	saramaPartitionConsumer, e := saramaConsumer.ConsumePartition(topic, partition, msgOffset)
 	require.NoError(t, e)
 
-	undertest := newConsumer(localFactory, topic, &pmocks.SpanProcessor{}, newSaramaClusterConsumer(saramaPartitionConsumer), -1.0)
+	undertest := newConsumer(localFactory, topic, &pmocks.SpanProcessor{}, newSaramaClusterConsumer(saramaPartitionConsumer))
 
 	undertest.Start()
 	mc.YieldError(errors.New("Daisy, Daisy"))
@@ -231,7 +231,7 @@ func TestHandleClosePartition(t *testing.T) {
 	saramaPartitionConsumer, e := saramaConsumer.ConsumePartition(topic, partition, msgOffset)
 	require.NoError(t, e)
 
-	undertest := newConsumer(metricsFactory, topic, mp, newSaramaClusterConsumer(saramaPartitionConsumer), 0.0)
+	undertest := newConsumer(metricsFactory, topic, mp, newSaramaClusterConsumer(saramaPartitionConsumer))
 	undertest.deadlockDetector = newDeadlockDetector(metricsFactory, undertest.logger, 200*time.Millisecond)
 	undertest.Start()
 	defer undertest.Close()

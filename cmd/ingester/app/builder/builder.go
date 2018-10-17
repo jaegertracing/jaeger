@@ -69,12 +69,13 @@ func CreateConsumer(logger *zap.Logger, metricsFactory metrics.Factory, spanWrit
 		return nil, err
 	}
 
+	rateLimiter := consumer.NewRateLimiter(options.MaxReadsPerSecond, options.MaxBurstReadsPerSecond)
 	consumerParams := consumer.Params{
-		InternalConsumer:  saramaConsumer,
-		ProcessorFactory:  *processorFactory,
-		Factory:           metricsFactory,
-		Logger:            logger,
-		MaxReadsPerSecond: options.MaxReadsPerSecond,
+		InternalConsumer: saramaConsumer,
+		ProcessorFactory: *processorFactory,
+		Factory:          metricsFactory,
+		Logger:           logger,
+		RateLimiter:      rateLimiter,
 	}
 	return consumer.New(consumerParams)
 }

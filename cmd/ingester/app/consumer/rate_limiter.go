@@ -21,27 +21,42 @@ import (
 
 const cost = 1.0
 
-type config struct {
-	creditsPerSecond float64
-	maxBalance       float64
+// RateLimiter exposes an interface for a blocking rate limiter.
+type RateLimiter interface {
+	Acquire() bool
+	Stop()
+}
+
+type noopRateLimiter struct{}
+
+// Acquire is a no-op in the noopRateLimiter.
+func (r *noopRateLimiter) Acquire() bool {
+	// Always true because there is no rate limit.
+	return true
+}
+
+// Stop is a no-op in the noopRateLimiter.
+func (r *noopRateLimiter) Stop() {
 }
 
 type rateLimiter struct {
-	config
-	balance  float64
-	lastTime time.Time
-	event    chan config
+	creditsPerSecond float64
+	maxBalance       float64
+	balance          float64
+	lastTime         time.Time
+	done             chan struct{}
 }
 
-// newRateLimiter constructs a new rateLimiter.
-func newRateLimiter(creditsPerSecond, maxBalance float64) *rateLimiter {
+// NewRateLimiter constructs a new rateLimiter.
+func NewRateLimiter(creditsPerSecond, maxBalance float64) RateLimiter {
+	if creditsPerSecond <= 0 {
+		return &noopRateLimiter{}
+	}
 	r := &rateLimiter{
-		config: config{
-			creditsPerSecond: creditsPerSecond,
-			maxBalance:       maxBalance,
-		},
-		balance: maxBalance,
-		event:   make(chan config),
+		creditsPerSecond: creditsPerSecond,
+		maxBalance:       maxBalance,
+		balance:          maxBalance,
+		done:             make(chan struct{}),
 	}
 	r.lastTime = time.Now()
 	return r
@@ -53,19 +68,13 @@ func newRateLimiter(creditsPerSecond, maxBalance float64) *rateLimiter {
 // interrupting the Acquire call.
 // Note: Acquire has no corresponding release operation.
 // N.B. This rate limiter implementation is not thread-safe. Do not call Acquire
-// from more than one goroutine.
+// or other methods from more than one goroutine.
 func (r *rateLimiter) Acquire() bool {
 	for r.updateBalance() < cost {
-		timer := time.NewTimer(r.calculateWait())
 		select {
-		case <-timer.C:
-		case cfg, ok := <-r.event:
-			timer.Stop()
-			if !ok {
-				return false
-			}
-			r.maxBalance = cfg.maxBalance
-			r.creditsPerSecond = cfg.creditsPerSecond
+		case <-time.After(r.calculateWait()):
+		case <-r.done:
+			return false
 		}
 	}
 	r.balance -= cost
@@ -74,17 +83,7 @@ func (r *rateLimiter) Acquire() bool {
 
 // Stop stops any ongoing Acquire operation, which exits immediately.
 func (r *rateLimiter) Stop() {
-	close(r.event)
-}
-
-// Update replaces the current rate limiter configuration in a thread-safe
-// manner. This function will panic if Stop has already been called on the
-// rateLimiter.
-func (r *rateLimiter) Update(creditsPerSecond, maxBalance float64) {
-	r.event <- config{
-		creditsPerSecond: creditsPerSecond,
-		maxBalance:       maxBalance,
-	}
+	close(r.done)
 }
 
 func (r *rateLimiter) updateBalance() float64 {

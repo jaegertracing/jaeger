@@ -29,11 +29,11 @@ import (
 
 // Params are the parameters of a Consumer
 type Params struct {
-	ProcessorFactory  ProcessorFactory
-	Factory           metrics.Factory
-	Logger            *zap.Logger
-	InternalConsumer  consumer.Consumer
-	MaxReadsPerSecond float64
+	ProcessorFactory ProcessorFactory
+	Factory          metrics.Factory
+	Logger           *zap.Logger
+	InternalConsumer consumer.Consumer
+	RateLimiter      RateLimiter
 }
 
 // Consumer uses sarama to consume and handle messages from kafka
@@ -48,7 +48,7 @@ type Consumer struct {
 
 	partitionIDToState map[int32]*consumerState
 
-	maxReadsPerSecond float64
+	rateLimiter RateLimiter
 }
 
 type consumerState struct {
@@ -66,7 +66,7 @@ func New(params Params) (*Consumer, error) {
 		processorFactory:   params.ProcessorFactory,
 		deadlockDetector:   deadlockDetector,
 		partitionIDToState: make(map[int32]*consumerState),
-		maxReadsPerSecond:  params.MaxReadsPerSecond,
+		rateLimiter:        params.RateLimiter,
 	}, nil
 }
 
@@ -114,16 +114,9 @@ func (c *Consumer) handleMessages(pc sc.PartitionConsumer) {
 
 	deadlockDetector := c.deadlockDetector.startMonitoringForPartition(pc.Partition())
 	defer deadlockDetector.close()
-	var rateLimiter *rateLimiter
-	if c.maxReadsPerSecond > 0 {
-		const maxBalance = 1
-		rateLimiter = newRateLimiter(c.maxReadsPerSecond, maxBalance)
-		defer rateLimiter.Stop()
-	}
+	defer c.rateLimiter.Stop()
 	for {
-		if rateLimiter != nil {
-			rateLimiter.Acquire()
-		}
+		c.rateLimiter.Acquire()
 		select {
 		case msg, ok := <-pc.Messages():
 			if !ok {

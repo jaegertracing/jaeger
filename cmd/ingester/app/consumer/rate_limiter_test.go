@@ -34,7 +34,7 @@ func TestRateLimiter(t *testing.T) {
 	minInterval := time.Duration(float64(idealInterval.Nanoseconds())*0.50) * time.Nanosecond
 	maxInterval := time.Duration(float64(idealInterval.Nanoseconds())*1.50) * time.Nanosecond
 
-	rateLimiter := newRateLimiter(creditsPerSecond, maxBalance)
+	rateLimiter := NewRateLimiter(creditsPerSecond, maxBalance)
 	defer rateLimiter.Stop()
 	acquireStart := time.Now()
 	for i := 0; i < iterations; i++ {
@@ -58,7 +58,7 @@ func TestRateLimiterReturnsFalseWhenInterrupted(t *testing.T) {
 		maxBalance       = 1
 	)
 
-	r := newRateLimiter(creditsPerSecond, maxBalance)
+	r := NewRateLimiter(creditsPerSecond, maxBalance)
 
 	// Empty token bucket.
 	ok := r.Acquire()
@@ -76,30 +76,21 @@ func TestRateLimiterReturnsFalseWhenInterrupted(t *testing.T) {
 	r.Stop()
 }
 
-func TestRateLimiterUpdate(t *testing.T) {
+func TestRateLimiterBurst(t *testing.T) {
 	const (
-		creditsPerSecond    = 0.01
-		newCreditsPerSecond = 100
-		maxBalance          = 1
+		creditsPerSecond = 1000.0
+		maxBurst         = 10.0
 	)
 
-	r := newRateLimiter(creditsPerSecond, maxBalance)
+	r := NewRateLimiter(creditsPerSecond, maxBurst)
 
-	// Empty token bucket.
-	ok := r.Acquire()
-	require.True(t, ok)
-
-	var wg sync.WaitGroup
-	wg.Add(1)
-	startTime := time.Now()
-	go func() {
-		wg.Done()
-		r.Update(newCreditsPerSecond, maxBalance)
-	}()
-	oldDuration := r.calculateWait()
-	wg.Wait()
-	ok = r.Acquire()
-	waitDuration := time.Since(startTime)
-	require.True(t, ok)
-	require.Truef(t, waitDuration < oldDuration, "update did not reduce wait time, old wait time = %v, actual wait time = %v", oldDuration, waitDuration)
+	expectedWaitTimePerCredit := time.Nanosecond * time.Duration(creditsPerSecond*time.Second.Nanoseconds())
+	expectedWaitTimeTotal := expectedWaitTimePerCredit * maxBurst
+	startBurst := time.Now()
+	for i := 0; i < maxBurst; i++ {
+		ok := r.Acquire()
+		require.True(t, ok)
+	}
+	actualWaitTime := time.Since(startBurst)
+	require.Truef(t, actualWaitTime < expectedWaitTimeTotal, "Burst happened too slowly, expected wait time = less than %v, actual wait time = %v\n", expectedWaitTimeTotal, actualWaitTime)
 }
