@@ -40,6 +40,9 @@ func NewHTTPServer(hostPort string, manager ClientConfigManager, mFactory metric
 	mux.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
 		handler.serveSamplingHTTP(w, r, true /* thriftEnums092 */)
 	})
+	mux.HandleFunc("/ping", func(w http.ResponseWriter, r *http.Request) {
+		handler.servePingHTTP(w, r)
+	})
 	mux.HandleFunc("/sampling", func(w http.ResponseWriter, r *http.Request) {
 		handler.serveSamplingHTTP(w, r, false /* thriftEnums092 */)
 	})
@@ -128,6 +131,10 @@ func (h *httpHandler) serveSamplingHTTP(w http.ResponseWriter, r *http.Request, 
 	} else {
 		h.metrics.SamplingRequestSuccess.Inc(1)
 	}
+}
+
+func (h *httpHandler) servePingHTTP(w http.ResponseWriter, r *http.Request) {
+	w.WriteHeader(http.StatusOK)
 }
 
 func (h *httpHandler) serveBaggageHTTP(w http.ResponseWriter, r *http.Request) {

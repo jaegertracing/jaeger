@@ -87,6 +87,12 @@ func TestHTTPHandler(t *testing.T) {
 			})
 		}
 
+		t.Run("request against endpoint /ping", func(t *testing.T) {
+			resp, err := http.Get(ts.server.URL + "/ping?service=Y")
+			require.NoError(t, err)
+			assert.Equal(t, http.StatusOK, resp.StatusCode)
+		})
+
 		t.Run("request against endpoint /baggage", func(t *testing.T) {
 			resp, err := http.Get(ts.server.URL + "/baggageRestrictions?service=Y")
 			require.NoError(t, err)
