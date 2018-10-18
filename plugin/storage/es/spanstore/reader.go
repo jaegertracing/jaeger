@@ -20,6 +20,9 @@ import (
 	"fmt"
 	"time"
 
+	"github.com/opentracing/opentracing-go"
+	ottag "github.com/opentracing/opentracing-go/ext"
+	otlog "github.com/opentracing/opentracing-go/log"
 	"github.com/pkg/errors"
 	"github.com/uber/jaeger-lib/metrics"
 	"go.uber.org/zap"
@@ -130,8 +133,10 @@ func newSpanReader(p SpanReaderParams) *SpanReader {
 
 // GetTrace takes a traceID and returns a Trace associated with that traceID
 func (s *SpanReader) GetTrace(ctx context.Context, traceID model.TraceID) (*model.Trace, error) {
+	span, ctx := startSpanForQuery(ctx, "GetTrace", traceIDField)
+	defer span.Finish()
 	currentTime := time.Now()
-	traces, err := s.multiRead([]string{traceID.String()}, currentTime.Add(-s.maxSpanAge), currentTime)
+	traces, err := s.multiRead(span, []string{traceID.String()}, currentTime.Add(-s.maxSpanAge), currentTime)
 	if err != nil {
 		return nil, err
 	}
@@ -183,6 +188,8 @@ func (s *SpanReader) indicesForTimeRange(indexName string, startTime time.Time, 
 
 // GetServices returns all services traced by Jaeger, ordered by frequency
 func (s *SpanReader) GetServices(ctx context.Context) ([]string, error) {
+	span, ctx := startSpanForQuery(ctx, "GetServices", serviceNameField)
+	defer span.Finish()
 	currentTime := time.Now()
 	jaegerIndices := s.indicesForTimeRange(s.serviceIndexPrefix, currentTime.Add(-s.maxSpanAge), currentTime)
 	return s.serviceOperationStorage.getServices(jaegerIndices)
@@ -190,6 +197,8 @@ func (s *SpanReader) GetServices(ctx context.Context) ([]string, error) {
 
 // GetOperations returns all operations for a specific service traced by Jaeger
 func (s *SpanReader) GetOperations(ctx context.Context, service string) ([]string, error) {
+	span, ctx := startSpanForQuery(ctx, "GetOperations", operationNameField)
+	defer span.Finish()
 	currentTime := time.Now()
 	jaegerIndices := s.indicesForTimeRange(s.serviceIndexPrefix, currentTime.Add(-s.maxSpanAge), currentTime)
 	return s.serviceOperationStorage.getOperations(jaegerIndices, service)
@@ -209,20 +218,23 @@ func bucketToStringArray(buckets []*elastic.AggregationBucketKeyItem) ([]string,
 
 // FindTraces retrieves traces that match the traceQuery
 func (s *SpanReader) FindTraces(ctx context.Context, traceQuery *spanstore.TraceQueryParameters) ([]*model.Trace, error) {
+	span, ctx := startSpanForQuery(ctx, "FindTraces", traceQuery.ServiceName)
+	defer span.Finish()
+
 	if err := validateQuery(traceQuery); err != nil {
 		return nil, err
 	}
 	if traceQuery.NumTraces == 0 {
 		traceQuery.NumTraces = defaultNumTraces
 	}
-	uniqueTraceIDs, err := s.findTraceIDs(traceQuery)
+	uniqueTraceIDs, err := s.findTraceIDs(span, traceQuery)
 	if err != nil {
 		return nil, err
 	}
-	return s.multiRead(uniqueTraceIDs, traceQuery.StartTimeMin, traceQuery.StartTimeMax)
+	return s.multiRead(span, uniqueTraceIDs, traceQuery.StartTimeMin, traceQuery.StartTimeMax)
 }
 
-func (s *SpanReader) multiRead(traceIDs []string, startTime, endTime time.Time) ([]*model.Trace, error) {
+func (s *SpanReader) multiRead(span opentracing.Span, traceIDs []string, startTime, endTime time.Time) ([]*model.Trace, error) {
 
 	if len(traceIDs) == 0 {
 		return []*model.Trace{}, nil
@@ -256,6 +268,7 @@ func (s *SpanReader) multiRead(traceIDs []string, startTime, endTime time.Time) 
 		results, err := s.client.MultiSearch().Add(searchRequests...).Index(indices...).Do(s.ctx)
 
 		if err != nil {
+			logErrorToSpan(span, err)
 			return nil, err
 		}
 
@@ -269,6 +282,7 @@ func (s *SpanReader) multiRead(traceIDs []string, startTime, endTime time.Time) 
 			}
 			spans, err := s.collectSpans(result.Hits.Hits)
 			if err != nil {
+				logErrorToSpan(span, err)
 				return nil, err
 			}
 			lastSpan := spans[len(spans)-1]
@@ -313,7 +327,7 @@ func validateQuery(p *spanstore.TraceQueryParameters) error {
 	return nil
 }
 
-func (s *SpanReader) findTraceIDs(traceQuery *spanstore.TraceQueryParameters) ([]string, error) {
+func (s *SpanReader) findTraceIDs(span opentracing.Span, traceQuery *spanstore.TraceQueryParameters) ([]string, error) {
 	//  Below is the JSON body to our HTTP GET request to ElasticSearch. This function creates this.
 	// {
 	//      "size": 0,
@@ -491,4 +505,19 @@ func (s *SpanReader) buildObjectQuery(field string, k string, v string) elastic.
 	keyField := fmt.Sprintf("%s.%s", field, k)
 	keyQuery := elastic.NewMatchQuery(keyField, v)
 	return elastic.NewBoolQuery().Must(keyQuery)
+}
+
+func startSpanForQuery(ctx context.Context, name, query string) (opentracing.Span, context.Context) {
+	span, ctx := opentracing.StartSpanFromContext(ctx, name)
+	ottag.DBStatement.Set(span, query)
+	ottag.DBType.Set(span, "es")
+	return span, ctx
+}
+
+func logErrorToSpan(span opentracing.Span, err error) {
+	if err == nil {
+		return
+	}
+	ottag.Error.Set(span, true)
+	span.LogFields(otlog.Error(err))
 }
