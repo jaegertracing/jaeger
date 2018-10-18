@@ -1,13 +1,11 @@
 PROJECT_ROOT=github.com/jaegertracing/jaeger
 # TOP_PKGS is used with 'go test'
-# TODO: try to do this without glide, since it may not be installed initially
-TOP_PKGS := $(shell glide novendor | \
-	sort | \
+TOP_PKGS := $(shell go list ./... | \
 	grep -v \
-		-e ./thrift-gen/... \
-		-e ./swagger-gen/... \
-		-e ./examples/... \
-		-e ./scripts/...\
+		-e examples \
+		-e scripts \
+		-e swagger-gen \
+		-e thrift-gen\
 	)
 STORAGE_PKGS = ./plugin/storage/integration/...
 
@@ -110,7 +108,7 @@ all-srcs:
 cover: nocover
 	@echo pre-compiling tests
 	@time go test -i $(ALL_PKGS)
-	@./scripts/cover.sh $(shell go list $(TOP_PKGS))
+	@go test -v -race -cover -coverprofile cover.out $(TOP_PKGS)
 	grep -E -v 'model.pb.*.go' cover.out > cover-nogen.out
 	mv cover-nogen.out cover.out
 	go tool cover -html=cover.out -o cover.html
@@ -274,7 +272,6 @@ build-crossdock-fresh: build-crossdock-linux
 
 .PHONY: install-tools
 install-tools:
-	go get -u github.com/wadey/gocovmerge
 	go get -u golang.org/x/tools/cmd/cover
 	go get -u golang.org/x/lint/golint
 	go get -u github.com/sectioneight/md-to-godoc
