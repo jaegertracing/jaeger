@@ -291,7 +291,7 @@ func (s *SpanReader) queryByTagsAndLogs(ctx context.Context, tq *spanstore.Trace
 
 	results := make([]dbmodel.UniqueTraceIDs, 0, len(tq.Tags))
 	for k, v := range tq.Tags {
-		childSpan := opentracing.StartSpan("queryByTag")
+		childSpan, _ := opentracing.StartSpanFromContext(ctx, "queryByTag")
 		childSpan.LogFields(otlog.String("tag.key", k), otlog.String("tag.value", v))
 		query := s.session.Query(
 			queryByTag,
@@ -330,7 +330,7 @@ func (s *SpanReader) queryByDuration(ctx context.Context, traceQuery *spanstore.
 	endTimeByHour := traceQuery.StartTimeMax.Round(durationBucketSize)
 
 	for timeBucket := endTimeByHour; timeBucket.After(startTimeByHour) || timeBucket.Equal(startTimeByHour); timeBucket = timeBucket.Add(-1 * durationBucketSize) {
-		childSpan := opentracing.StartSpan("queryForTimeBucket")
+		childSpan, _ := opentracing.StartSpanFromContext(ctx, "queryForTimeBucket")
 		childSpan.LogFields(otlog.String("timeBucket", timeBucket.String()))
 		query := s.session.Query(
 			queryByDuration,
