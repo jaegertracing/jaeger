@@ -18,6 +18,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"strconv"
 	"time"
 
 	"github.com/opentracing/opentracing-go"
@@ -136,7 +137,7 @@ func (s *SpanReader) GetTrace(ctx context.Context, traceID model.TraceID) (*mode
 	span, ctx := startSpanForQuery(ctx, "GetTrace", traceIDField)
 	defer span.Finish()
 	currentTime := time.Now()
-	traces, err := s.multiRead(span, []string{traceID.String()}, currentTime.Add(-s.maxSpanAge), currentTime)
+	traces, err := s.multiRead(ctx, []string{traceID.String()}, currentTime.Add(-s.maxSpanAge), currentTime)
 	if err != nil {
 		return nil, err
 	}
@@ -219,6 +220,9 @@ func bucketToStringArray(buckets []*elastic.AggregationBucketKeyItem) ([]string,
 // FindTraces retrieves traces that match the traceQuery
 func (s *SpanReader) FindTraces(ctx context.Context, traceQuery *spanstore.TraceQueryParameters) ([]*model.Trace, error) {
 	span, ctx := startSpanForQuery(ctx, "FindTraces", traceQuery.ServiceName)
+	for k, v := range traceQuery.Tags {
+		span.LogFields(otlog.String("tag.key", k), otlog.String("tag.value", v))
+	}
 	defer span.Finish()
 
 	if err := validateQuery(traceQuery); err != nil {
@@ -227,14 +231,20 @@ func (s *SpanReader) FindTraces(ctx context.Context, traceQuery *spanstore.Trace
 	if traceQuery.NumTraces == 0 {
 		traceQuery.NumTraces = defaultNumTraces
 	}
-	uniqueTraceIDs, err := s.findTraceIDs(span, traceQuery)
+	uniqueTraceIDs, err := s.findTraceIDs(ctx, traceQuery)
 	if err != nil {
 		return nil, err
 	}
-	return s.multiRead(span, uniqueTraceIDs, traceQuery.StartTimeMin, traceQuery.StartTimeMax)
+	return s.multiRead(ctx, uniqueTraceIDs, traceQuery.StartTimeMin, traceQuery.StartTimeMax)
 }
 
-func (s *SpanReader) multiRead(span opentracing.Span, traceIDs []string, startTime, endTime time.Time) ([]*model.Trace, error) {
+func (s *SpanReader) multiRead(ctx context.Context, traceIDs []string, startTime, endTime time.Time) ([]*model.Trace, error) {
+
+	childSpan, _ := opentracing.StartSpanFromContext(ctx, "multiRead")
+	for k, v := range traceIDs {
+		childSpan.LogFields(otlog.String("tag.num", strconv.Itoa(k)), otlog.String("tag.value", v))
+	}
+	defer childSpan.Finish()
 
 	if len(traceIDs) == 0 {
 		return []*model.Trace{}, nil
@@ -268,7 +278,7 @@ func (s *SpanReader) multiRead(span opentracing.Span, traceIDs []string, startTi
 		results, err := s.client.MultiSearch().Add(searchRequests...).Index(indices...).Do(s.ctx)
 
 		if err != nil {
-			logErrorToSpan(span, err)
+			logErrorToSpan(childSpan, err)
 			return nil, err
 		}
 
@@ -282,7 +292,7 @@ func (s *SpanReader) multiRead(span opentracing.Span, traceIDs []string, startTi
 			}
 			spans, err := s.collectSpans(result.Hits.Hits)
 			if err != nil {
-				logErrorToSpan(span, err)
+				logErrorToSpan(childSpan, err)
 				return nil, err
 			}
 			lastSpan := spans[len(spans)-1]
@@ -327,7 +337,9 @@ func validateQuery(p *spanstore.TraceQueryParameters) error {
 	return nil
 }
 
-func (s *SpanReader) findTraceIDs(span opentracing.Span, traceQuery *spanstore.TraceQueryParameters) ([]string, error) {
+func (s *SpanReader) findTraceIDs(ctx context.Context, traceQuery *spanstore.TraceQueryParameters) ([]string, error) {
+	childSpan, _ := opentracing.StartSpanFromContext(ctx, "findTraceIDs")
+	defer childSpan.Finish()
 	//  Below is the JSON body to our HTTP GET request to ElasticSearch. This function creates this.
 	// {
 	//      "size": 0,
