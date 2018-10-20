@@ -18,7 +18,6 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"strconv"
 	"time"
 
 	"github.com/opentracing/opentracing-go"
@@ -134,7 +133,7 @@ func newSpanReader(p SpanReaderParams) *SpanReader {
 
 // GetTrace takes a traceID and returns a Trace associated with that traceID
 func (s *SpanReader) GetTrace(ctx context.Context, traceID model.TraceID) (*model.Trace, error) {
-	span, ctx := startSpanForQuery(ctx, "GetTrace", traceIDField)
+	span, ctx := opentracing.StartSpanFromContext(ctx, "GetTrace")
 	defer span.Finish()
 	currentTime := time.Now()
 	traces, err := s.multiRead(ctx, []string{traceID.String()}, currentTime.Add(-s.maxSpanAge), currentTime)
@@ -189,7 +188,7 @@ func (s *SpanReader) indicesForTimeRange(indexName string, startTime time.Time, 
 
 // GetServices returns all services traced by Jaeger, ordered by frequency
 func (s *SpanReader) GetServices(ctx context.Context) ([]string, error) {
-	span, ctx := startSpanForQuery(ctx, "GetServices", serviceNameField)
+	span, ctx := opentracing.StartSpanFromContext(ctx, "GetServices")
 	defer span.Finish()
 	currentTime := time.Now()
 	jaegerIndices := s.indicesForTimeRange(s.serviceIndexPrefix, currentTime.Add(-s.maxSpanAge), currentTime)
@@ -198,7 +197,7 @@ func (s *SpanReader) GetServices(ctx context.Context) ([]string, error) {
 
 // GetOperations returns all operations for a specific service traced by Jaeger
 func (s *SpanReader) GetOperations(ctx context.Context, service string) ([]string, error) {
-	span, ctx := startSpanForQuery(ctx, "GetOperations", operationNameField)
+	span, ctx := opentracing.StartSpanFromContext(ctx, "GetOperations")
 	defer span.Finish()
 	currentTime := time.Now()
 	jaegerIndices := s.indicesForTimeRange(s.serviceIndexPrefix, currentTime.Add(-s.maxSpanAge), currentTime)
@@ -219,10 +218,7 @@ func bucketToStringArray(buckets []*elastic.AggregationBucketKeyItem) ([]string,
 
 // FindTraces retrieves traces that match the traceQuery
 func (s *SpanReader) FindTraces(ctx context.Context, traceQuery *spanstore.TraceQueryParameters) ([]*model.Trace, error) {
-	span, ctx := startSpanForQuery(ctx, "FindTraces", traceQuery.ServiceName)
-	for k, v := range traceQuery.Tags {
-		span.LogFields(otlog.String("tag.key", k), otlog.String("tag.value", v))
-	}
+	span, ctx := opentracing.StartSpanFromContext(ctx, "FindTraces")
 	defer span.Finish()
 
 	if err := validateQuery(traceQuery); err != nil {
@@ -241,9 +237,7 @@ func (s *SpanReader) FindTraces(ctx context.Context, traceQuery *spanstore.Trace
 func (s *SpanReader) multiRead(ctx context.Context, traceIDs []string, startTime, endTime time.Time) ([]*model.Trace, error) {
 
 	childSpan, _ := opentracing.StartSpanFromContext(ctx, "multiRead")
-	for k, v := range traceIDs {
-		childSpan.LogFields(otlog.String("tag.num", strconv.Itoa(k)), otlog.String("tag.value", v))
-	}
+	childSpan.LogFields(otlog.Object("trace_ids", traceIDs))
 	defer childSpan.Finish()
 
 	if len(traceIDs) == 0 {
@@ -517,13 +511,6 @@ func (s *SpanReader) buildObjectQuery(field string, k string, v string) elastic.
 	keyField := fmt.Sprintf("%s.%s", field, k)
 	keyQuery := elastic.NewMatchQuery(keyField, v)
 	return elastic.NewBoolQuery().Must(keyQuery)
-}
-
-func startSpanForQuery(ctx context.Context, name, query string) (opentracing.Span, context.Context) {
-	span, ctx := opentracing.StartSpanFromContext(ctx, name)
-	ottag.DBStatement.Set(span, query)
-	ottag.DBType.Set(span, "es")
-	return span, ctx
 }
 
 func logErrorToSpan(span opentracing.Span, err error) {
