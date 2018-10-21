@@ -25,9 +25,7 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-	"github.com/uber/jaeger-lib/metrics"
-	"github.com/uber/jaeger-lib/metrics/testutils"
-	mTestutils "github.com/uber/jaeger-lib/metrics/testutils"
+	"github.com/uber/jaeger-lib/metrics/metricstest"
 
 	tSampling092 "github.com/jaegertracing/jaeger/cmd/agent/app/httpserver/thrift-0.9.2"
 	"github.com/jaegertracing/jaeger/thrift-gen/baggage"
@@ -35,7 +33,7 @@ import (
 )
 
 type testServer struct {
-	metricsFactory *metrics.LocalFactory
+	metricsFactory *metricstest.Factory
 	mgr            *mockManager
 	server         *httptest.Server
 }
@@ -45,7 +43,7 @@ func withServer(
 	mockBaggageResponse []*baggage.BaggageRestriction,
 	runTest func(server *testServer),
 ) {
-	metricsFactory := metrics.NewLocalFactory(0)
+	metricsFactory := metricstest.NewFactory(0)
 	mgr := &mockManager{
 		samplingResponse: mockSamplingResponse,
 		baggageResponse:  mockBaggageResponse,
@@ -100,7 +98,7 @@ func TestHTTPHandler(t *testing.T) {
 		})
 
 		// handler must emit metrics
-		testutils.AssertCounterMetrics(t, ts.metricsFactory, []testutils.ExpectedMetric{
+		ts.metricsFactory.AssertCounterMetrics(t, []metricstest.ExpectedMetric{
 			{Name: "http-server.requests", Tags: map[string]string{"type": "sampling"}, Value: 1},
 			{Name: "http-server.requests", Tags: map[string]string{"type": "sampling-legacy"}, Value: 1},
 			{Name: "http-server.requests", Tags: map[string]string{"type": "baggage"}, Value: 1},
@@ -116,14 +114,14 @@ func TestHTTPHandlerErrors(t *testing.T) {
 		url                  string
 		statusCode           int
 		body                 string
-		metrics              []mTestutils.ExpectedMetric
+		metrics              []metricstest.ExpectedMetric
 	}{
 		{
 			description: "no service name",
 			url:         "",
 			statusCode:  http.StatusBadRequest,
 			body:        "'service' parameter must be provided once\n",
-			metrics: []mTestutils.ExpectedMetric{
+			metrics: []metricstest.ExpectedMetric{
 				{Name: "http-server.errors", Tags: map[string]string{"source": "all", "status": "4xx"}, Value: 1},
 			},
 		},
@@ -132,7 +130,7 @@ func TestHTTPHandlerErrors(t *testing.T) {
 			url:         "?service=Y&service=Y",
 			statusCode:  http.StatusBadRequest,
 			body:        "'service' parameter must be provided once\n",
-			metrics: []mTestutils.ExpectedMetric{
+			metrics: []metricstest.ExpectedMetric{
 				{Name: "http-server.errors", Tags: map[string]string{"source": "all", "status": "4xx"}, Value: 1},
 			},
 		},
@@ -141,7 +139,7 @@ func TestHTTPHandlerErrors(t *testing.T) {
 			url:         "/baggageRestrictions?service=Y&service=Y",
 			statusCode:  http.StatusBadRequest,
 			body:        "'service' parameter must be provided once\n",
-			metrics: []mTestutils.ExpectedMetric{
+			metrics: []metricstest.ExpectedMetric{
 				{Name: "http-server.errors", Tags: map[string]string{"source": "all", "status": "4xx"}, Value: 1},
 			},
 		},
@@ -150,7 +148,7 @@ func TestHTTPHandlerErrors(t *testing.T) {
 			url:         "?service=Y",
 			statusCode:  http.StatusInternalServerError,
 			body:        "tcollector error: no mock response provided\n",
-			metrics: []mTestutils.ExpectedMetric{
+			metrics: []metricstest.ExpectedMetric{
 				{Name: "http-server.errors", Tags: map[string]string{"source": "tcollector-proxy", "status": "5xx"}, Value: 1},
 			},
 		},
@@ -159,7 +157,7 @@ func TestHTTPHandlerErrors(t *testing.T) {
 			url:         "/baggageRestrictions?service=Y",
 			statusCode:  http.StatusInternalServerError,
 			body:        "tcollector error: no mock response provided\n",
-			metrics: []mTestutils.ExpectedMetric{
+			metrics: []metricstest.ExpectedMetric{
 				{Name: "http-server.errors", Tags: map[string]string{"source": "tcollector-proxy", "status": "5xx"}, Value: 1},
 			},
 		},
@@ -169,7 +167,7 @@ func TestHTTPHandlerErrors(t *testing.T) {
 			url:                  "?service=Y",
 			statusCode:           http.StatusInternalServerError,
 			body:                 "Cannot marshall Thrift to JSON\n",
-			metrics: []mTestutils.ExpectedMetric{
+			metrics: []metricstest.ExpectedMetric{
 				{Name: "http-server.errors", Tags: map[string]string{"source": "thrift", "status": "5xx"}, Value: 1},
 			},
 		},
@@ -188,7 +186,7 @@ func TestHTTPHandlerErrors(t *testing.T) {
 				}
 
 				if len(testCase.metrics) > 0 {
-					mTestutils.AssertCounterMetrics(t, ts.metricsFactory, testCase.metrics...)
+					ts.metricsFactory.AssertCounterMetrics(t, testCase.metrics...)
 				}
 			})
 		})
@@ -202,14 +200,14 @@ func TestHTTPHandlerErrors(t *testing.T) {
 			w := &mockWriter{header: make(http.Header)}
 			handler.serveSamplingHTTP(w, req, false)
 
-			mTestutils.AssertCounterMetrics(t, ts.metricsFactory,
-				mTestutils.ExpectedMetric{Name: "http-server.errors", Tags: map[string]string{"source": "write", "status": "5xx"}, Value: 1})
+			ts.metricsFactory.AssertCounterMetrics(t,
+				metricstest.ExpectedMetric{Name: "http-server.errors", Tags: map[string]string{"source": "write", "status": "5xx"}, Value: 1})
 
 			req = httptest.NewRequest("GET", "http://localhost:80/baggageRestrictions?service=X", nil)
 			handler.serveBaggageHTTP(w, req)
 
-			mTestutils.AssertCounterMetrics(t, ts.metricsFactory,
-				mTestutils.ExpectedMetric{Name: "http-server.errors", Tags: map[string]string{"source": "write", "status": "5xx"}, Value: 2})
+			ts.metricsFactory.AssertCounterMetrics(t,
+				metricstest.ExpectedMetric{Name: "http-server.errors", Tags: map[string]string{"source": "write", "status": "5xx"}, Value: 2})
 		})
 	})
 }
