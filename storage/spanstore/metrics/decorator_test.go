@@ -20,7 +20,7 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/assert"
-	"github.com/uber/jaeger-lib/metrics"
+	"github.com/uber/jaeger-lib/metrics/metricstest"
 
 	"github.com/jaegertracing/jaeger/model"
 	"github.com/jaegertracing/jaeger/storage/spanstore"
@@ -29,7 +29,7 @@ import (
 )
 
 func TestSuccessfulUnderlyingCalls(t *testing.T) {
-	mf := metrics.NewLocalFactory(0)
+	mf := metricstest.NewFactory(0)
 
 	mockReader := mocks.Reader{}
 	mrs := NewReadMetricsDecorator(&mockReader, mf)
@@ -82,7 +82,7 @@ func checkExpectedExistingAndNonExistentCounters(t *testing.T, actualCounters, e
 }
 
 func TestFailingUnderlyingCalls(t *testing.T) {
-	mf := metrics.NewLocalFactory(0)
+	mf := metricstest.NewFactory(0)
 
 	mockReader := mocks.Reader{}
 	mrs := NewReadMetricsDecorator(&mockReader, mf)

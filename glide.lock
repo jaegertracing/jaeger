@@ -1,5 +1,5 @@
-hash: eb96c7fd56c8c6523990c19ba5bcf0d826922569a16e1019a88de57d46675775
-updated: 2018-10-12T23:27:30.163799+09:00
+hash: d419ce51a469b2daea964abfd92ebe34826d46ec7cfbb6e8dc88124f1507b0c9
+updated: 2018-10-18T13:53:48.186535-07:00
 imports:
 - name: github.com/apache/thrift
   version: 53dd39833a08ce33582e5ff31fa18bb4735d6731
@@ -254,15 +254,17 @@ imports:
   - transport/zipkin
   - utils
 - name: github.com/uber/jaeger-lib
-  version: ed3a127ec5fef7ae9ea95b01b542c47fbd999ce5
+  version: 4aa908b951cc7516c61cf001ddca1118d02d243e
+  repo: https://github.com/isaachier/jaeger-lib
   subpackages:
   - metrics
   - metrics/adapters
   - metrics/expvar
   - metrics/go-kit
   - metrics/go-kit/expvar
+  - metrics/metricstest
   - metrics/prometheus
-  - metrics/testutils
+  - utils
 - name: github.com/uber/tchannel-go
   version: 1a0e35378f6f721bc07f6c4466bc9701ed70b506
   subpackages:
@@ -293,7 +295,7 @@ imports:
   - zapcore
   - zaptest
 - name: golang.org/x/net
-  version: 49bb7cea24b1df9410e1712aa6433dae904ff66a
+  version: 04a2e542c03f1d053ab3e4d6e5abcd4b66e2be8e
   subpackages:
   - context
   - context/ctxhttp

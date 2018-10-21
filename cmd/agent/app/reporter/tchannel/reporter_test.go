@@ -20,8 +20,7 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-	"github.com/uber/jaeger-lib/metrics"
-	mTestutils "github.com/uber/jaeger-lib/metrics/testutils"
+	"github.com/uber/jaeger-lib/metrics/metricstest"
 	"go.uber.org/zap"
 
 	"github.com/jaegertracing/jaeger/cmd/agent/app/testutils"
@@ -29,7 +28,7 @@ import (
 	"github.com/jaegertracing/jaeger/thrift-gen/zipkincore"
 )
 
-func initRequirements(t *testing.T) (*metrics.LocalFactory, *testutils.MockTCollector, *Reporter) {
+func initRequirements(t *testing.T) (*metricstest.Factory, *testutils.MockTCollector, *Reporter) {
 	metricsFactory, collector := testutils.InitMockCollector(t)
 	reporter := New("jaeger-collector", collector.Channel, nil, metricsFactory, zap.NewNop())
 	return metricsFactory, collector, reporter
@@ -104,8 +103,8 @@ func submitTestJaegerBatch(reporter *Reporter) error {
 	return reporter.EmitBatch(batch)
 }
 
-func checkCounters(t *testing.T, mf *metrics.LocalFactory, batchesSubmitted, spansSubmitted, batchesFailures, spansFailures int, format string) {
-	mTestutils.AssertCounterMetrics(t, mf, []mTestutils.ExpectedMetric{
+func checkCounters(t *testing.T, mf *metricstest.Factory, batchesSubmitted, spansSubmitted, batchesFailures, spansFailures int, format string) {
+	mf.AssertCounterMetrics(t, []metricstest.ExpectedMetric{
 		{Name: "tchannel-reporter.batches.submitted", Tags: map[string]string{"format": format}, Value: batchesSubmitted},
 		{Name: "tchannel-reporter.spans.submitted", Tags: map[string]string{"format": format}, Value: spansSubmitted},
 		{Name: "tchannel-reporter.batches.failures", Tags: map[string]string{"format": format}, Value: batchesFailures},

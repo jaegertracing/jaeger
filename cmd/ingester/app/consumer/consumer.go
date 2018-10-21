@@ -114,7 +114,6 @@ func (c *Consumer) handleMessages(pc sc.PartitionConsumer) {
 
 	deadlockDetector := c.deadlockDetector.startMonitoringForPartition(pc.Partition())
 	defer deadlockDetector.close()
-	defer c.rateLimiter.Stop()
 	for {
 		c.rateLimiter.Acquire()
 		select {

@@ -22,7 +22,7 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
-	"github.com/uber/jaeger-lib/metrics"
+	"github.com/uber/jaeger-lib/metrics/metricstest"
 	"go.uber.org/zap"
 
 	"github.com/jaegertracing/jaeger/pkg/cassandra/mocks"
@@ -32,7 +32,7 @@ import (
 type operationNameStorageTest struct {
 	session        *mocks.Session
 	writeCacheTTL  time.Duration
-	metricsFactory *metrics.LocalFactory
+	metricsFactory *metricstest.Factory
 	logger         *zap.Logger
 	logBuffer      *testutils.Buffer
 	storage        *OperationNamesStorage
@@ -41,7 +41,7 @@ type operationNameStorageTest struct {
 func withOperationNamesStorage(writeCacheTTL time.Duration, fn func(s *operationNameStorageTest)) {
 	session := &mocks.Session{}
 	logger, logBuffer := testutils.NewLogger()
-	metricsFactory := metrics.NewLocalFactory(0)
+	metricsFactory := metricstest.NewFactory(0)
 	s := &operationNameStorageTest{
 		session:        session,
 		writeCacheTTL:  writeCacheTTL,

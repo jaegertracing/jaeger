@@ -15,7 +15,6 @@
 package consumer
 
 import (
-	"sync"
 	"testing"
 	"time"
 
@@ -35,11 +34,9 @@ func TestRateLimiter(t *testing.T) {
 	maxInterval := time.Duration(float64(idealInterval.Nanoseconds())*1.50) * time.Nanosecond
 
 	rateLimiter := NewRateLimiter(creditsPerSecond, maxBalance)
-	defer rateLimiter.Stop()
 	acquireStart := time.Now()
 	for i := 0; i < iterations; i++ {
-		ok := rateLimiter.Acquire()
-		require.True(t, ok)
+		rateLimiter.Acquire()
 		if i == 0 {
 			// Skip first iteration, when balance is full.
 			acquireStart = time.Now()
@@ -50,30 +47,6 @@ func TestRateLimiter(t *testing.T) {
 		require.Truef(t, actualInterval <= maxInterval, "Interval is too large %v > %v", actualInterval, maxInterval)
 		acquireStart = time.Now()
 	}
-}
-
-func TestRateLimiterReturnsFalseWhenInterrupted(t *testing.T) {
-	const (
-		creditsPerSecond = 0.01
-		maxBalance       = 1
-	)
-
-	r := NewRateLimiter(creditsPerSecond, maxBalance)
-
-	// Empty token bucket.
-	ok := r.Acquire()
-	require.True(t, ok)
-
-	// Stop rateLimiter while Acquire is in progress.
-	var wg sync.WaitGroup
-	wg.Add(1)
-	go func() {
-		wg.Done()
-		ok = r.Acquire()
-		require.False(t, ok)
-	}()
-	wg.Wait()
-	r.Stop()
 }
 
 func TestRateLimiterBurst(t *testing.T) {
@@ -88,8 +61,7 @@ func TestRateLimiterBurst(t *testing.T) {
 	expectedWaitTimeTotal := expectedWaitTimePerCredit * maxBurst
 	startBurst := time.Now()
 	for i := 0; i < maxBurst; i++ {
-		ok := r.Acquire()
-		require.True(t, ok)
+		r.Acquire()
 	}
 	actualWaitTime := time.Since(startBurst)
 	require.Truef(t, actualWaitTime < expectedWaitTimeTotal, "Burst happened too slowly, expected wait time = less than %v, actual wait time = %v\n", expectedWaitTimeTotal, actualWaitTime)

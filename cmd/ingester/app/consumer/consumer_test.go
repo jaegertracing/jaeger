@@ -28,7 +28,7 @@ import (
 	"github.com/stretchr/testify/mock"
 	"github.com/stretchr/testify/require"
 	"github.com/uber/jaeger-lib/metrics"
-	"github.com/uber/jaeger-lib/metrics/testutils"
+	"github.com/uber/jaeger-lib/metrics/metricstest"
 	"go.uber.org/zap"
 
 	"github.com/jaegertracing/jaeger/cmd/ingester/app"
@@ -120,7 +120,7 @@ func TestSaramaConsumerWrapper_MarkPartitionOffset(t *testing.T) {
 }
 
 func TestSaramaConsumerWrapper_start_Messages(t *testing.T) {
-	localFactory := metrics.NewLocalFactory(0)
+	localFactory := metricstest.NewFactory(0)
 
 	msg := &sarama.ConsumerMessage{}
 
@@ -163,22 +163,22 @@ func TestSaramaConsumerWrapper_start_Messages(t *testing.T) {
 	undertest.Close()
 
 	partitionTag := map[string]string{"partition": fmt.Sprint(partition)}
-	testutils.AssertCounterMetrics(t, localFactory, testutils.ExpectedMetric{
+	localFactory.AssertCounterMetrics(t, metricstest.ExpectedMetric{
 		Name:  "sarama-consumer.messages",
 		Tags:  partitionTag,
 		Value: 1,
 	})
-	testutils.AssertGaugeMetrics(t, localFactory, testutils.ExpectedMetric{
+	localFactory.AssertGaugeMetrics(t, metricstest.ExpectedMetric{
 		Name:  "sarama-consumer.current-offset",
 		Tags:  partitionTag,
 		Value: 1,
 	})
-	testutils.AssertGaugeMetrics(t, localFactory, testutils.ExpectedMetric{
+	localFactory.AssertGaugeMetrics(t, metricstest.ExpectedMetric{
 		Name:  "sarama-consumer.offset-lag",
 		Tags:  partitionTag,
 		Value: 0,
 	})
-	testutils.AssertCounterMetrics(t, localFactory, testutils.ExpectedMetric{
+	localFactory.AssertCounterMetrics(t, metricstest.ExpectedMetric{
 		Name:  "sarama-consumer.partition-start",
 		Tags:  partitionTag,
 		Value: 1,
@@ -186,7 +186,7 @@ func TestSaramaConsumerWrapper_start_Messages(t *testing.T) {
 }
 
 func TestSaramaConsumerWrapper_start_Errors(t *testing.T) {
-	localFactory := metrics.NewLocalFactory(0)
+	localFactory := metricstest.NewFactory(0)
 
 	saramaConsumer := smocks.NewConsumer(t, &sarama.Config{})
 	mc := saramaConsumer.ExpectConsumePartition(topic, partition, msgOffset)
@@ -209,7 +209,7 @@ func TestSaramaConsumerWrapper_start_Errors(t *testing.T) {
 		}
 
 		partitionTag := map[string]string{"partition": fmt.Sprint(partition)}
-		testutils.AssertCounterMetrics(t, localFactory, testutils.ExpectedMetric{
+		localFactory.AssertCounterMetrics(t, metricstest.ExpectedMetric{
 			Name:  "sarama-consumer.errors",
 			Tags:  partitionTag,
 			Value: 1,
@@ -222,7 +222,7 @@ func TestSaramaConsumerWrapper_start_Errors(t *testing.T) {
 }
 
 func TestHandleClosePartition(t *testing.T) {
-	metricsFactory := metrics.NewLocalFactory(0)
+	metricsFactory := metricstest.NewFactory(0)
 
 	mp := &pmocks.SpanProcessor{}
 	saramaConsumer := smocks.NewConsumer(t, &sarama.Config{})
