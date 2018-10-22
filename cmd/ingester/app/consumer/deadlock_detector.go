@@ -93,7 +93,11 @@ func (s *deadlockDetector) startMonitoringForPartition(partition int32) *partiti
 		},
 	}
 
-	go s.monitorForPartition(w, partition)
+	if s.interval == 0 {
+		s.logger.Debug("Partition deadlock detector disabled")
+	} else {
+		go s.monitorForPartition(w, partition)
+	}
 
 	return w
 }
@@ -138,21 +142,25 @@ func (s *deadlockDetector) start() {
 	}
 
 	go func() {
-		s.logger.Debug("Starting global deadlock detector")
-		ticker := time.NewTicker(s.interval)
-		defer ticker.Stop()
+		if s.interval == 0 {
+			s.logger.Debug("Global deadlock detector disabled")
+		} else {
+			s.logger.Debug("Starting global deadlock detector")
+			ticker := time.NewTicker(s.interval)
+			defer ticker.Stop()
 
-		for {
-			select {
-			case <-detector.done:
-				s.logger.Debug("Closing global ticker routine")
-				return
-			case <-ticker.C:
-				if atomic.LoadUint64(detector.msgConsumed) == 0 {
-					s.panicFunc(-1)
-					return // For tests
+			for {
+				select {
+				case <-detector.done:
+					s.logger.Debug("Closing global ticker routine")
+					return
+				case <-ticker.C:
+					if atomic.LoadUint64(detector.msgConsumed) == 0 {
+						s.panicFunc(-1)
+						return // For tests
+					}
+					atomic.StoreUint64(detector.msgConsumed, 0)
 				}
-				atomic.StoreUint64(detector.msgConsumed, 0)
 			}
 		}
 	}()

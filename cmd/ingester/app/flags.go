@@ -19,6 +19,7 @@ import (
 	"fmt"
 	"strconv"
 	"strings"
+	"time"
 
 	"github.com/spf13/viper"
 
@@ -43,6 +44,8 @@ const (
 	SuffixParallelism = ".parallelism"
 	// SuffixEncoding is a suffix for the encoding flag
 	SuffixEncoding = ".encoding"
+	// SuffixDeadlockInterval is a suffix for deadlock detecor flag
+	SuffixDeadlockInterval = ".deadlockInterval"
 
 	// DefaultBroker is the default kafka broker
 	DefaultBroker = "127.0.0.1:9092"
@@ -54,13 +57,16 @@ const (
 	DefaultParallelism = 1000
 	// DefaultEncoding is the default span encoding
 	DefaultEncoding = EncodingProto
+	// DefaultDeadlockInterval is the default deadlock interval
+	DefaultDeadlockInterval = 1 * time.Minute
 )
 
 // Options stores the configuration options for the Ingester
 type Options struct {
 	kafkaConsumer.Configuration
-	Parallelism int
-	Encoding    string
+	Parallelism      int
+	Encoding         string
+	DeadlockInterval time.Duration
 }
 
 // AddFlags adds flags for Builder
@@ -85,6 +91,10 @@ func AddFlags(flagSet *flag.FlagSet) {
 		ConfigPrefix+SuffixEncoding,
 		DefaultEncoding,
 		fmt.Sprintf(`The encoding of spans ("%s" or "%s") consumed from kafka`, EncodingProto, EncodingJSON))
+	flagSet.String(
+		ConfigPrefix+SuffixDeadlockInterval,
+		DefaultDeadlockInterval.String(),
+		"Interval to check for deadlocks. If no messages gets processed in given time, ingester app will exit. Value of 0 disable deadlock check.")
 }
 
 // InitFromViper initializes Builder with properties from viper
@@ -94,4 +104,11 @@ func (o *Options) InitFromViper(v *viper.Viper) {
 	o.GroupID = v.GetString(ConfigPrefix + SuffixGroupID)
 	o.Parallelism = v.GetInt(ConfigPrefix + SuffixParallelism)
 	o.Encoding = v.GetString(ConfigPrefix + SuffixEncoding)
+
+	d, err := time.ParseDuration(v.GetString(ConfigPrefix + SuffixDeadlockInterval))
+	if err != nil {
+		o.DeadlockInterval = DefaultDeadlockInterval
+	} else {
+		o.DeadlockInterval = d
+	}
 }
