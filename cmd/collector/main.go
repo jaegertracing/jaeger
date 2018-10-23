@@ -128,6 +128,8 @@ func main() {
 			server.Register(sc.NewTChanSamplingManagerServer(samplingHandler))
 
 			portStr := ":" + strconv.Itoa(builderOpts.CollectorPort)
+			logger.Info("Starting jaeger-collector TChannel server", zap.Int("port", builderOpts.CollectorPort))
+
 			listener, err := net.Listen("tcp", portStr)
 			if err != nil {
 				logger.Fatal("Unable to start listening on channel", zap.Error(err))
@@ -146,7 +148,7 @@ func main() {
 
 			go startZipkinHTTPAPI(logger, builderOpts.CollectorZipkinHTTPPort, zipkinSpansHandler, recoveryHandler)
 
-			logger.Info("Starting HTTP server", zap.Int("http-port", builderOpts.CollectorHTTPPort))
+			logger.Info("Starting jaeger-collector HTTP server", zap.Int("http-port", builderOpts.CollectorHTTPPort))
 
 			go func() {
 				if err := http.ListenAndServe(httpPortStr, recoveryHandler(r)); err != nil {
