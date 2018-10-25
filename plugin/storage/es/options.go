@@ -36,6 +36,11 @@ const (
 	suffixBulkWorkers       = ".bulk.workers"
 	suffixBulkActions       = ".bulk.actions"
 	suffixBulkFlushInterval = ".bulk.flush-interval"
+	suffixTimeout           = ".timeout"
+	suffixTLS               = ".tls"
+	suffixCert              = ".tls.cert"
+	suffixKey               = ".tls.key"
+	suffixCA                = ".tls.ca"
 	suffixIndexPrefix       = ".index-prefix"
 	suffixTagsAsFields      = ".tags-as-fields"
 	suffixTagsAsFieldsAll   = suffixTagsAsFields + ".all"
@@ -120,6 +125,10 @@ func addFlags(flagSet *flag.FlagSet, nsConfig *namespaceConfig) {
 		nsConfig.servers,
 		"The comma-separated list of ElasticSearch servers, must be full url i.e. http://localhost:9200")
 	flagSet.Duration(
+		nsConfig.namespace+suffixTimeout,
+		nsConfig.Timeout,
+		"Timeout used for queries")
+	flagSet.Duration(
 		nsConfig.namespace+suffixMaxSpanAge,
 		nsConfig.MaxSpanAge,
 		"The maximum lookback for spans in ElasticSearch")
@@ -147,6 +156,22 @@ func addFlags(flagSet *flag.FlagSet, nsConfig *namespaceConfig) {
 		nsConfig.namespace+suffixBulkFlushInterval,
 		nsConfig.BulkFlushInterval,
 		"A time.Duration after which bulk requests are committed, regardless of other tresholds. Set to zero to disable. By default, this is disabled.")
+	flagSet.Bool(
+		nsConfig.namespace+suffixTLS,
+		nsConfig.TLS.Enabled,
+		"Enable TLS")
+	flagSet.String(
+		nsConfig.namespace+suffixCert,
+		nsConfig.TLS.CertPath,
+		"Path to TLS certificate file")
+	flagSet.String(
+		nsConfig.namespace+suffixKey,
+		nsConfig.TLS.KeyPath,
+		"Path to TLS key file")
+	flagSet.String(
+		nsConfig.namespace+suffixCA,
+		nsConfig.TLS.CaPath,
+		"Path to TLS CA file")
 	flagSet.String(
 		nsConfig.namespace+suffixIndexPrefix,
 		nsConfig.IndexPrefix,
@@ -185,6 +210,11 @@ func initFromViper(cfg *namespaceConfig, v *viper.Viper) {
 	cfg.BulkWorkers = v.GetInt(cfg.namespace + suffixBulkWorkers)
 	cfg.BulkActions = v.GetInt(cfg.namespace + suffixBulkActions)
 	cfg.BulkFlushInterval = v.GetDuration(cfg.namespace + suffixBulkFlushInterval)
+	cfg.Timeout = v.GetDuration(cfg.namespace + suffixTimeout)
+	cfg.TLS.Enabled = v.GetBool(cfg.namespace + suffixTLS)
+	cfg.TLS.CertPath = v.GetString(cfg.namespace + suffixCert)
+	cfg.TLS.KeyPath = v.GetString(cfg.namespace + suffixKey)
+	cfg.TLS.CaPath = v.GetString(cfg.namespace + suffixCA)
 	cfg.IndexPrefix = v.GetString(cfg.namespace + suffixIndexPrefix)
 	cfg.AllTagsAsFields = v.GetBool(cfg.namespace + suffixTagsAsFieldsAll)
 	cfg.TagsFilePath = v.GetString(cfg.namespace + suffixTagsFile)

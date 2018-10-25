@@ -16,13 +16,19 @@ package config
 
 import (
 	"context"
+	"crypto/tls"
+	"crypto/x509"
+	"fmt"
+	"io/ioutil"
+	"log"
+	"net/http"
 	"sync"
 	"time"
 
 	"github.com/pkg/errors"
 	"github.com/uber/jaeger-lib/metrics"
 	"go.uber.org/zap"
-	"gopkg.in/olivere/elastic.v5"
+	elastic "gopkg.in/olivere/elastic.v5"
 
 	"github.com/jaegertracing/jaeger/pkg/es"
 	storageMetrics "github.com/jaegertracing/jaeger/storage/spanstore/metrics"
@@ -37,6 +43,7 @@ type Configuration struct {
 	MaxSpanAge        time.Duration `yaml:"max_span_age"` // configures the maximum lookback on span reads
 	NumShards         int64         `yaml:"shards"`
 	NumReplicas       int64         `yaml:"replicas"`
+	Timeout           time.Duration `validate:"min=500"`
 	BulkSize          int
 	BulkWorkers       int
 	BulkActions       int
@@ -45,6 +52,15 @@ type Configuration struct {
 	TagsFilePath      string
 	AllTagsAsFields   bool
 	TagDotReplacement string
+	TLS               TLS
+}
+
+// TLS Config
+type TLS struct {
+	Enabled  bool
+	CertPath string
+	KeyPath  string
+	CaPath   string
 }
 
 // ClientBuilder creates new es.Client
@@ -64,7 +80,7 @@ func (c *Configuration) NewClient(logger *zap.Logger, metricsFactory metrics.Fac
 	if len(c.Servers) < 1 {
 		return nil, errors.New("No servers specified")
 	}
-	rawClient, err := elastic.NewClient(c.GetConfigs()...)
+	rawClient, err := elastic.NewClient(c.GetConfigs(logger)...)
 	if err != nil {
 		return nil, err
 	}
@@ -188,10 +204,83 @@ func (c *Configuration) GetTagDotReplacement() string {
 }
 
 // GetConfigs wraps the configs to feed to the ElasticSearch client init
-func (c *Configuration) GetConfigs() []elastic.ClientOptionFunc {
+func (c *Configuration) GetConfigs(logger *zap.Logger) []elastic.ClientOptionFunc {
+
+	if c.TLS.Enabled {
+		tlsConfig, err := c.CreateTLSConfig()
+		if err != nil {
+			return nil
+		}
+		httpClient := &http.Client{
+			Timeout: c.Timeout,
+			Transport: &http.Transport{
+				TLSClientConfig: tlsConfig,
+			},
+		}
+
+		resp, err := httpClient.Get("https://elasticsearch:9200")
+		if err != nil {
+			fmt.Println(err)
+		}
+
+		htmlData, err := ioutil.ReadAll(resp.Body)
+		if err != nil {
+			fmt.Println(err)
+		}
+		defer resp.Body.Close()
+		fmt.Printf("%v\n", resp.Status)
+		fmt.Printf(string(htmlData))
+
+		options := make([]elastic.ClientOptionFunc, 4)
+		options[0] = elastic.SetHttpClient(httpClient)
+		options[1] = elastic.SetURL(c.Servers...)
+		options[2] = elastic.SetSniff(c.Sniffer)
+		options[3] = elastic.SetScheme("https")
+		logger.Info("tlsConfig", zap.Any("tlsConfig", tlsConfig))
+		return options
+	}
 	options := make([]elastic.ClientOptionFunc, 3)
 	options[0] = elastic.SetURL(c.Servers...)
 	options[1] = elastic.SetBasicAuth(c.Username, c.Password)
 	options[2] = elastic.SetSniff(c.Sniffer)
 	return options
+}
+
+// CreateTLSConfig creates TLS Configuration to connect with ES Cluster.
+func (c *Configuration) CreateTLSConfig() (*tls.Config, error) {
+	rootCerts, err := c.LoadCertificatesFrom()
+	if err != nil {
+		log.Fatalf("Couldn't load root certificate from %s. Got %s.", c.TLS.CaPath, err)
+	}
+	if len(c.TLS.CertPath) > 0 && len(c.TLS.KeyPath) > 0 {
+		clientPrivateKey, err := c.LoadPrivateKeyFrom()
+		if err != nil {
+			log.Fatalf("Couldn't setup client authentication. Got %s.", err)
+		}
+		return &tls.Config{
+			RootCAs:      rootCerts,
+			Certificates: []tls.Certificate{*clientPrivateKey},
+		}, err
+	}
+	return nil, err
+}
+
+// LoadCertificatesFrom is used to load root certification
+func (c *Configuration) LoadCertificatesFrom() (*x509.CertPool, error) {
+	caCert, err := ioutil.ReadFile(c.TLS.CaPath)
+	if err != nil {
+		return nil, err
+	}
+	certificates := x509.NewCertPool()
+	certificates.AppendCertsFromPEM(caCert)
+	return certificates, nil
+}
+
+// LoadPrivateKeyFrom is used to load the private certificate and key for TLS
+func (c *Configuration) LoadPrivateKeyFrom() (*tls.Certificate, error) {
+	privateKey, err := tls.LoadX509KeyPair(c.TLS.CertPath, c.TLS.KeyPath)
+	if err != nil {
+		return nil, err
+	}
+	return &privateKey, nil
 }
