@@ -23,14 +23,14 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-	"github.com/uber/jaeger-lib/metrics/metricstest"
+	"github.com/uber/jaeger-lib/metrics"
 )
 
 // In this test we run a queue with capacity 1 and a single consumer.
 // We want to test the overflow behavior, so we block the consumer
 // by holding a startLock before submitting items to the queue.
 func TestBoundedQueue(t *testing.T) {
-	mFact := metricstest.NewFactory(0)
+	mFact := metrics.NewLocalFactory(0)
 	counter := mFact.Counter("dropped", nil)
 	gauge := mFact.Gauge("size", nil)
 

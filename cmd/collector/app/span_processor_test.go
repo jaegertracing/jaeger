@@ -21,7 +21,8 @@ import (
 	"time"
 
 	"github.com/stretchr/testify/assert"
-	"github.com/uber/jaeger-lib/metrics/metricstest"
+	"github.com/uber/jaeger-lib/metrics"
+	metricsTest "github.com/uber/jaeger-lib/metrics/testutils"
 	"github.com/uber/tchannel-go/thrift"
 	"go.uber.org/zap"
 	"golang.org/x/net/context"
@@ -68,7 +69,7 @@ func TestBySvcMetrics(t *testing.T) {
 	}
 
 	for _, test := range tests {
-		mb := metricstest.NewFactory(time.Hour)
+		mb := metrics.NewLocalFactory(time.Hour)
 		logger := zap.NewNop()
 		serviceMetrics := mb.Namespace("service", nil)
 		hostMetrics := mb.Namespace("host", nil)
@@ -108,23 +109,23 @@ func TestBySvcMetrics(t *testing.T) {
 		} else {
 			panic("Unknown format")
 		}
-		expected := []metricstest.ExpectedMetric{}
+		expected := []metricsTest.ExpectedMetric{}
 		if test.debug {
-			expected = append(expected, metricstest.ExpectedMetric{
+			expected = append(expected, metricsTest.ExpectedMetric{
 				Name: metricPrefix + ".spans.received|debug=true|format=" + format + "|svc=" + test.serviceName, Value: 2,
 			})
 		} else {
-			expected = append(expected, metricstest.ExpectedMetric{
+			expected = append(expected, metricsTest.ExpectedMetric{
 				Name: metricPrefix + ".spans.received|debug=false|format=" + format + "|svc=" + test.serviceName, Value: 2,
 			})
 		}
 		if test.rootSpan {
 			if test.debug {
-				expected = append(expected, metricstest.ExpectedMetric{
+				expected = append(expected, metricsTest.ExpectedMetric{
 					Name: metricPrefix + ".traces.received|debug=true|format=" + format + "|svc=" + test.serviceName, Value: 2,
 				})
 			} else {
-				expected = append(expected, metricstest.ExpectedMetric{
+				expected = append(expected, metricsTest.ExpectedMetric{
 					Name: metricPrefix + ".traces.received|debug=false|format=" + format + "|svc=" + test.serviceName, Value: 2,
 				})
 			}
@@ -134,17 +135,17 @@ func TestBySvcMetrics(t *testing.T) {
 			// because both are emitted when attempting to add span to the queue, and since
 			// we defined the queue capacity as 0, all submitted items are dropped.
 			// The debug spans are always accepted.
-			expected = append(expected, metricstest.ExpectedMetric{
+			expected = append(expected, metricsTest.ExpectedMetric{
 				Name: "host.error.busy", Value: 2,
-			}, metricstest.ExpectedMetric{
+			}, metricsTest.ExpectedMetric{
 				Name: "host.spans.dropped", Value: 2,
 			})
 		} else {
-			expected = append(expected, metricstest.ExpectedMetric{
+			expected = append(expected, metricsTest.ExpectedMetric{
 				Name: metricPrefix + ".spans.rejected|debug=false|format=" + format + "|svc=" + test.serviceName, Value: 2,
 			})
 		}
-		mb.AssertCounterMetrics(t, expected...)
+		metricsTest.AssertCounterMetrics(t, mb, expected...)
 	}
 }
 
@@ -227,7 +228,7 @@ func TestSpanProcessorErrors(t *testing.T) {
 	w := &fakeSpanWriter{
 		err: fmt.Errorf("some-error"),
 	}
-	mb := metricstest.NewFactory(time.Hour)
+	mb := metrics.NewLocalFactory(time.Hour)
 	serviceMetrics := mb.Namespace("service", nil)
 	p := NewSpanProcessor(w,
 		Options.Logger(logger),
@@ -253,10 +254,10 @@ func TestSpanProcessorErrors(t *testing.T) {
 		"error": "some-error",
 	}, logBuf.JSONLine(0))
 
-	expected := []metricstest.ExpectedMetric{{
+	expected := []metricsTest.ExpectedMetric{{
 		Name: "service.spans.saved-by-svc|debug=false|result=err|svc=x", Value: 1,
 	}}
-	mb.AssertCounterMetrics(t, expected...)
+	metricsTest.AssertCounterMetrics(t, mb, expected...)
 }
 
 type blockingWriter struct {

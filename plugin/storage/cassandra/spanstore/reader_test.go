@@ -24,7 +24,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
 	"github.com/stretchr/testify/require"
-	"github.com/uber/jaeger-lib/metrics/metricstest"
+	"github.com/uber/jaeger-lib/metrics"
 	"go.uber.org/zap"
 
 	"github.com/jaegertracing/jaeger/model"
@@ -45,7 +45,7 @@ type spanReaderTest struct {
 func withSpanReader(fn func(r *spanReaderTest)) {
 	session := &mocks.Session{}
 	logger, logBuffer := testutils.NewLogger()
-	metricsFactory := metricstest.NewFactory(0)
+	metricsFactory := metrics.NewLocalFactory(0)
 	r := &spanReaderTest{
 		session:   session,
 		logger:    logger,

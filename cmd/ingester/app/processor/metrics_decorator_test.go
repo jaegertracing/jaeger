@@ -19,7 +19,7 @@ import (
 
 	"github.com/pkg/errors"
 	"github.com/stretchr/testify/assert"
-	"github.com/uber/jaeger-lib/metrics/metricstest"
+	"github.com/uber/jaeger-lib/metrics"
 
 	"github.com/jaegertracing/jaeger/cmd/ingester/app/processor"
 	"github.com/jaegertracing/jaeger/cmd/ingester/app/processor/mocks"
@@ -35,7 +35,7 @@ func TestProcess(t *testing.T) {
 	p := &mocks.SpanProcessor{}
 	msg := fakeMsg{}
 	p.On("Process", msg).Return(nil)
-	m := metricstest.NewFactory(0)
+	m := metrics.NewLocalFactory(0)
 	proc := processor.NewDecoratedProcessor(m, p)
 
 	proc.Process(msg)
@@ -48,7 +48,7 @@ func TestProcessErr(t *testing.T) {
 	p := &mocks.SpanProcessor{}
 	msg := fakeMsg{}
 	p.On("Process", msg).Return(errors.New("err"))
-	m := metricstest.NewFactory(0)
+	m := metrics.NewLocalFactory(0)
 	proc := processor.NewDecoratedProcessor(m, p)
 
 	proc.Process(msg)

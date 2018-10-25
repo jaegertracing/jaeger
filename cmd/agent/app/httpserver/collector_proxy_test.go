@@ -22,7 +22,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"github.com/uber/jaeger-lib/metrics"
-	"github.com/uber/jaeger-lib/metrics/metricstest"
+	mTestutils "github.com/uber/jaeger-lib/metrics/testutils"
 	"github.com/uber/tchannel-go/thrift"
 
 	"github.com/jaegertracing/jaeger/cmd/agent/app/testutils"
@@ -59,7 +59,7 @@ func TestCollectorProxy(t *testing.T) {
 	assert.EqualValues(t, 10, bResp[0].MaxValueLength)
 
 	// must emit metrics
-	metricsFactory.AssertCounterMetrics(t, []metricstest.ExpectedMetric{
+	mTestutils.AssertCounterMetrics(t, metricsFactory, []mTestutils.ExpectedMetric{
 		{Name: "collector-proxy", Tags: map[string]string{"result": "ok", "endpoint": "sampling"}, Value: 1},
 		{Name: "collector-proxy", Tags: map[string]string{"result": "err", "endpoint": "sampling"}, Value: 0},
 		{Name: "collector-proxy", Tags: map[string]string{"result": "ok", "endpoint": "baggage"}, Value: 1},
@@ -68,14 +68,14 @@ func TestCollectorProxy(t *testing.T) {
 }
 
 func TestTCollectorProxyClientErrorPropagates(t *testing.T) {
-	mFactory := metricstest.NewFactory(time.Minute)
+	mFactory := metrics.NewLocalFactory(time.Minute)
 	proxy := &collectorProxy{samplingClient: &failingClient{}, baggageClient: &failingClient{}}
 	metrics.Init(&proxy.metrics, mFactory, nil)
 	_, err := proxy.GetSamplingStrategy("test")
 	require.EqualError(t, err, "error")
 	_, err = proxy.GetBaggageRestrictions("test")
 	require.EqualError(t, err, "error")
-	mFactory.AssertCounterMetrics(t, []metricstest.ExpectedMetric{
+	mTestutils.AssertCounterMetrics(t, mFactory, []mTestutils.ExpectedMetric{
 		{Name: "collector-proxy", Tags: map[string]string{"result": "err", "endpoint": "sampling"}, Value: 1},
 		{Name: "collector-proxy", Tags: map[string]string{"result": "err", "endpoint": "baggage"}, Value: 1},
 	}...)

@@ -21,14 +21,13 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"github.com/uber/jaeger-lib/metrics"
-	"github.com/uber/jaeger-lib/metrics/metricstest"
 )
 
 func TestHandleReset(t *testing.T) {
 	offset := int64(1498)
 	minOffset := offset - 1
 
-	m := metricstest.NewFactory(0)
+	m := metrics.NewLocalFactory(0)
 
 	var wg sync.WaitGroup
 	wg.Add(1)
