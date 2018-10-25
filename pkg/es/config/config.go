@@ -18,9 +18,7 @@ import (
 	"context"
 	"crypto/tls"
 	"crypto/x509"
-	"fmt"
 	"io/ioutil"
-	"log"
 	"net/http"
 	"sync"
 	"time"
@@ -28,7 +26,7 @@ import (
 	"github.com/pkg/errors"
 	"github.com/uber/jaeger-lib/metrics"
 	"go.uber.org/zap"
-	elastic "gopkg.in/olivere/elastic.v5"
+	"gopkg.in/olivere/elastic.v5"
 
 	"github.com/jaegertracing/jaeger/pkg/es"
 	storageMetrics "github.com/jaegertracing/jaeger/storage/spanstore/metrics"
@@ -205,9 +203,9 @@ func (c *Configuration) GetTagDotReplacement() string {
 
 // GetConfigs wraps the configs to feed to the ElasticSearch client init
 func (c *Configuration) GetConfigs(logger *zap.Logger) []elastic.ClientOptionFunc {
-
+	options := make([]elastic.ClientOptionFunc, 3)
 	if c.TLS.Enabled {
-		tlsConfig, err := c.CreateTLSConfig()
+		tlsConfig, err := c.CreateTLSConfig(logger)
 		if err != nil {
 			return nil
 		}
@@ -217,29 +215,11 @@ func (c *Configuration) GetConfigs(logger *zap.Logger) []elastic.ClientOptionFun
 				TLSClientConfig: tlsConfig,
 			},
 		}
-
-		resp, err := httpClient.Get("https://elasticsearch:9200")
-		if err != nil {
-			fmt.Println(err)
-		}
-
-		htmlData, err := ioutil.ReadAll(resp.Body)
-		if err != nil {
-			fmt.Println(err)
-		}
-		defer resp.Body.Close()
-		fmt.Printf("%v\n", resp.Status)
-		fmt.Printf(string(htmlData))
-
-		options := make([]elastic.ClientOptionFunc, 4)
 		options[0] = elastic.SetHttpClient(httpClient)
 		options[1] = elastic.SetURL(c.Servers...)
 		options[2] = elastic.SetSniff(c.Sniffer)
-		options[3] = elastic.SetScheme("https")
-		logger.Info("tlsConfig", zap.Any("tlsConfig", tlsConfig))
 		return options
 	}
-	options := make([]elastic.ClientOptionFunc, 3)
 	options[0] = elastic.SetURL(c.Servers...)
 	options[1] = elastic.SetBasicAuth(c.Username, c.Password)
 	options[2] = elastic.SetSniff(c.Sniffer)
@@ -247,15 +227,15 @@ func (c *Configuration) GetConfigs(logger *zap.Logger) []elastic.ClientOptionFun
 }
 
 // CreateTLSConfig creates TLS Configuration to connect with ES Cluster.
-func (c *Configuration) CreateTLSConfig() (*tls.Config, error) {
+func (c *Configuration) CreateTLSConfig(logger *zap.Logger) (*tls.Config, error) {
 	rootCerts, err := c.LoadCertificatesFrom()
 	if err != nil {
-		log.Fatalf("Couldn't load root certificate from %s. Got %s.", c.TLS.CaPath, err)
+		logger.Fatal("Couldn't load root certificate", zap.Error(err))
 	}
 	if len(c.TLS.CertPath) > 0 && len(c.TLS.KeyPath) > 0 {
 		clientPrivateKey, err := c.LoadPrivateKeyFrom()
 		if err != nil {
-			log.Fatalf("Couldn't setup client authentication. Got %s.", err)
+			logger.Fatal("Couldn't setup client authentication", zap.Error(err))
 		}
 		return &tls.Config{
 			RootCAs:      rootCerts,
