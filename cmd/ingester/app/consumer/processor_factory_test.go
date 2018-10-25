@@ -47,12 +47,14 @@ func Test_new(t *testing.T) {
 	sp.On("Process", mock.Anything).Return(nil)
 
 	pf := ProcessorFactory{
-		topic:          topic,
-		consumer:       mockConsumer,
-		metricsFactory: metrics.NullFactory,
-		logger:         zap.NewNop(),
-		baseProcessor:  sp,
-		parallelism:    1,
+		topic:                  topic,
+		consumer:               mockConsumer,
+		metricsFactory:         metrics.NullFactory,
+		logger:                 zap.NewNop(),
+		baseProcessor:          sp,
+		parallelism:            1,
+		maxReadsPerSecond:      1000.0,
+		maxBurstReadsPerSecond: 1.0,
 	}
 
 	processor := pf.new(partition, offset)

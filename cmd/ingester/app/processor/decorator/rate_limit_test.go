@@ -17,6 +17,7 @@ package decorator
 import (
 	"errors"
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/assert"
 
@@ -24,32 +25,26 @@ import (
 )
 
 func TestNewRateLimitingProcessor(t *testing.T) {
+	const (
+		creditsPerSecond = 1000.0
+		maxBalance       = 1.0
+	)
+
 	mockProcessor := &mocks.SpanProcessor{}
 	msg := &fakeMsg{}
 	mockProcessor.On("Process", msg).Return(nil)
-	rp := NewRateLimitingProcessor(mockProcessor)
-
+	rp := NewRateLimitingProcessor(mockProcessor, CreditsPerSecond(creditsPerSecond), MaxBalance(maxBalance))
+	start := time.Now()
 	assert.NoError(t, rp.Process(msg))
-
+	firstCallDuration := time.Since(start)
+	start = time.Now()
+	assert.NoError(t, rp.Process(msg))
+	secondCallDuration := time.Since(start)
+	assert.Truef(t, firstCallDuration < secondCallDuration, "first call was slower than second call, first call duration = %v, second call duration = %v", firstCallDuration, secondCallDuration)
 	mockProcessor.AssertExpectations(t)
 }
 
 func TestNewRateLimitingProcessorError(t *testing.T) {
-	mockProcessor := &mocks.SpanProcessor{}
-	msg := &fakeMsg{}
-	mockProcessor.On("Process", msg).Return(errors.New("retry"))
-	opts := []RateLimitOption{
-		CreditsPerSecond(1),
-		MaxBalance(1),
-	}
-	rp := NewRateLimitingProcessor(mockProcessor, opts...)
-
-	assert.Error(t, rp.Process(msg))
-
-	mockProcessor.AssertNumberOfCalls(t, "Process", 1)
-}
-
-func TestNewRateLimitingProcessorNoErrorPropagation(t *testing.T) {
 	mockProcessor := &mocks.SpanProcessor{}
 	msg := &fakeMsg{}
 	mockProcessor.On("Process", msg).Return(errors.New("rateLimit"))
@@ -57,9 +52,7 @@ func TestNewRateLimitingProcessorNoErrorPropagation(t *testing.T) {
 		CreditsPerSecond(1),
 		MaxBalance(1),
 	}
-
 	rp := NewRateLimitingProcessor(mockProcessor, opts...)
-
 	assert.Error(t, rp.Process(msg))
 	mockProcessor.AssertNumberOfCalls(t, "Process", 1)
 }

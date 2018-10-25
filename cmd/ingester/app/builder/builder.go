@@ -57,25 +57,25 @@ func CreateConsumer(logger *zap.Logger, metricsFactory metrics.Factory, spanWrit
 	}
 
 	factoryParams := consumer.ProcessorFactoryParams{
-		Topic:          options.Topic,
-		Parallelism:    options.Parallelism,
-		SaramaConsumer: saramaConsumer,
-		BaseProcessor:  spanProcessor,
-		Logger:         logger,
-		Factory:        metricsFactory,
+		Topic:                  options.Topic,
+		Parallelism:            options.Parallelism,
+		SaramaConsumer:         saramaConsumer,
+		BaseProcessor:          spanProcessor,
+		Logger:                 logger,
+		Factory:                metricsFactory,
+		MaxReadsPerSecond:      options.MaxReadsPerSecond,
+		MaxBurstReadsPerSecond: options.MaxBurstReadsPerSecond,
 	}
 	processorFactory, err := consumer.NewProcessorFactory(factoryParams)
 	if err != nil {
 		return nil, err
 	}
 
-	rateLimiter := consumer.NewRateLimiter(options.MaxReadsPerSecond, options.MaxBurstReadsPerSecond)
 	consumerParams := consumer.Params{
 		InternalConsumer: saramaConsumer,
 		ProcessorFactory: *processorFactory,
 		Factory:          metricsFactory,
 		Logger:           logger,
-		RateLimiter:      rateLimiter,
 	}
 	return consumer.New(consumerParams)
 }

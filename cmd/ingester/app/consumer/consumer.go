@@ -33,7 +33,6 @@ type Params struct {
 	Factory          metrics.Factory
 	Logger           *zap.Logger
 	InternalConsumer consumer.Consumer
-	RateLimiter      RateLimiter
 }
 
 // Consumer uses sarama to consume and handle messages from kafka
@@ -47,8 +46,6 @@ type Consumer struct {
 	deadlockDetector deadlockDetector
 
 	partitionIDToState map[int32]*consumerState
-
-	rateLimiter RateLimiter
 }
 
 type consumerState struct {
@@ -66,7 +63,6 @@ func New(params Params) (*Consumer, error) {
 		processorFactory:   params.ProcessorFactory,
 		deadlockDetector:   deadlockDetector,
 		partitionIDToState: make(map[int32]*consumerState),
-		rateLimiter:        params.RateLimiter,
 	}, nil
 }
 
@@ -115,7 +111,6 @@ func (c *Consumer) handleMessages(pc sc.PartitionConsumer) {
 	deadlockDetector := c.deadlockDetector.startMonitoringForPartition(pc.Partition())
 	defer deadlockDetector.close()
 	for {
-		c.rateLimiter.Acquire()
 		select {
 		case msg, ok := <-pc.Messages():
 			if !ok {

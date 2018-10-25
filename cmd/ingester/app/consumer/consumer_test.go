@@ -31,7 +31,6 @@ import (
 	"github.com/uber/jaeger-lib/metrics/metricstest"
 	"go.uber.org/zap"
 
-	"github.com/jaegertracing/jaeger/cmd/ingester/app"
 	kmocks "github.com/jaegertracing/jaeger/cmd/ingester/app/consumer/mocks"
 	"github.com/jaegertracing/jaeger/cmd/ingester/app/processor"
 	pmocks "github.com/jaegertracing/jaeger/cmd/ingester/app/processor/mocks"
@@ -106,8 +105,6 @@ func newConsumer(
 			baseProcessor:  processor,
 			parallelism:    1,
 		},
-
-		rateLimiter: NewRateLimiter(app.DefaultMaxReadsPerSecond, app.DefaultMaxBurstReadsPerSecond),
 	}
 }
 

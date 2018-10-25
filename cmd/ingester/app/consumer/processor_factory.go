@@ -28,33 +28,39 @@ import (
 
 // ProcessorFactoryParams are the parameters of a ProcessorFactory
 type ProcessorFactoryParams struct {
-	Parallelism    int
-	Topic          string
-	BaseProcessor  processor.SpanProcessor
-	SaramaConsumer consumer.Consumer
-	Factory        metrics.Factory
-	Logger         *zap.Logger
+	Parallelism            int
+	Topic                  string
+	BaseProcessor          processor.SpanProcessor
+	SaramaConsumer         consumer.Consumer
+	Factory                metrics.Factory
+	Logger                 *zap.Logger
+	MaxReadsPerSecond      float64
+	MaxBurstReadsPerSecond float64
 }
 
 // ProcessorFactory is a factory for creating startedProcessors
 type ProcessorFactory struct {
-	topic          string
-	consumer       consumer.Consumer
-	metricsFactory metrics.Factory
-	logger         *zap.Logger
-	baseProcessor  processor.SpanProcessor
-	parallelism    int
+	topic                  string
+	consumer               consumer.Consumer
+	metricsFactory         metrics.Factory
+	logger                 *zap.Logger
+	baseProcessor          processor.SpanProcessor
+	parallelism            int
+	maxReadsPerSecond      float64
+	maxBurstReadsPerSecond float64
 }
 
 // NewProcessorFactory constructs a new ProcessorFactory
 func NewProcessorFactory(params ProcessorFactoryParams) (*ProcessorFactory, error) {
 	return &ProcessorFactory{
-		topic:          params.Topic,
-		consumer:       params.SaramaConsumer,
-		metricsFactory: params.Factory,
-		logger:         params.Logger,
-		baseProcessor:  params.BaseProcessor,
-		parallelism:    params.Parallelism,
+		topic:                  params.Topic,
+		consumer:               params.SaramaConsumer,
+		metricsFactory:         params.Factory,
+		logger:                 params.Logger,
+		baseProcessor:          params.BaseProcessor,
+		parallelism:            params.Parallelism,
+		maxReadsPerSecond:      params.MaxReadsPerSecond,
+		maxBurstReadsPerSecond: params.MaxBurstReadsPerSecond,
 	}, nil
 }
 
@@ -68,7 +74,16 @@ func (c *ProcessorFactory) new(partition int32, minOffset int64) processor.SpanP
 	om := offset.NewManager(minOffset, markOffset, partition, c.metricsFactory)
 
 	retryProcessor := decorator.NewRetryingProcessor(c.metricsFactory, c.baseProcessor)
-	cp := NewCommittingProcessor(retryProcessor, om)
+	prevProcessor := retryProcessor
+	if c.maxReadsPerSecond != 0.0 || c.maxBurstReadsPerSecond != 0.0 {
+		rateLimitingProcessor := decorator.NewRateLimitingProcessor(
+			retryProcessor,
+			decorator.CreditsPerSecond(c.maxReadsPerSecond),
+			decorator.MaxBalance(c.maxBurstReadsPerSecond),
+		)
+		prevProcessor = rateLimitingProcessor
+	}
+	cp := NewCommittingProcessor(prevProcessor, om)
 	spanProcessor := processor.NewDecoratedProcessor(c.metricsFactory, cp)
 	pp := processor.NewParallelProcessor(spanProcessor, c.parallelism, c.logger)
 
