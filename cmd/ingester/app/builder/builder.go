@@ -72,7 +72,7 @@ func CreateConsumer(logger *zap.Logger, metricsFactory metrics.Factory, spanWrit
 	consumerParams := consumer.Params{
 		InternalConsumer: saramaConsumer,
 		ProcessorFactory: *processorFactory,
-		Factory:          metricsFactory,
+		MetricsFactory:   metricsFactory,
 		Logger:           logger,
 	}
 	return consumer.New(consumerParams)
