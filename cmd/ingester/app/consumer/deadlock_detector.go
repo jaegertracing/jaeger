@@ -52,14 +52,14 @@ type partitionDeadlockDetector struct {
 	closePartition                chan struct{}
 	done                          chan struct{}
 	incrementAllPartitionMsgCount func()
-	closed                        bool
+	disabled                      bool
 }
 
 type allPartitionsDeadlockDetector struct {
 	msgConsumed *uint64
 	logger      *zap.Logger
 	done        chan struct{}
-	closed      bool
+	disabled    bool
 }
 
 func newDeadlockDetector(metricsFactory metrics.Factory, logger *zap.Logger, interval time.Duration) deadlockDetector {
@@ -84,12 +84,10 @@ func newDeadlockDetector(metricsFactory metrics.Factory, logger *zap.Logger, int
 func (s *deadlockDetector) startMonitoringForPartition(partition int32) *partitionDeadlockDetector {
 	var msgConsumed uint64
 	w := &partitionDeadlockDetector{
-		msgConsumed:    &msgConsumed,
-		partition:      partition,
-		closePartition: make(chan struct{}, 1),
-		done:           make(chan struct{}),
-		logger:         s.logger,
-		closed:         false,
+		msgConsumed: &msgConsumed,
+		partition:   partition,
+		logger:      s.logger,
+		disabled:    0 == s.interval,
 
 		incrementAllPartitionMsgCount: func() {
 			s.allPartitionsDeadlockDetector.incrementMsgCount()
@@ -98,8 +96,9 @@ func (s *deadlockDetector) startMonitoringForPartition(partition int32) *partiti
 
 	if s.interval == 0 {
 		s.logger.Debug("Partition deadlock detector disabled")
-		w.closed = true
 	} else {
+		w.closePartition = make(chan struct{}, 1)
+		w.done = make(chan struct{})
 		go s.monitorForPartition(w, partition)
 	}
 
@@ -141,16 +140,15 @@ func (s *deadlockDetector) start() {
 	var msgConsumed uint64
 	detector := &allPartitionsDeadlockDetector{
 		msgConsumed: &msgConsumed,
-		done:        make(chan struct{}),
 		logger:      s.logger,
-		closed:      false,
+		disabled:    0 == s.interval,
 	}
 
 	if s.interval == 0 {
 		s.logger.Debug("Global deadlock detector disabled")
-		detector.closed = true
 	} else {
 		s.logger.Debug("Starting global deadlock detector")
+		detector.done = make(chan struct{})
 		go func() {
 			ticker := time.NewTicker(s.interval)
 			defer ticker.Stop()
@@ -175,34 +173,39 @@ func (s *deadlockDetector) start() {
 }
 
 func (s *deadlockDetector) close() {
-	if !s.allPartitionsDeadlockDetector.closed {
-		s.logger.Debug("Closing all partitions deadlock detector")
-		s.allPartitionsDeadlockDetector.closed = true
-		s.allPartitionsDeadlockDetector.done <- struct{}{}
-	} else {
-		s.logger.Debug("All partitions deadlock detector already closed")
+	if s.allPartitionsDeadlockDetector.disabled {
+		return
 	}
+	s.logger.Debug("Closing all partitions deadlock detector")
+	s.allPartitionsDeadlockDetector.done <- struct{}{}
 }
 
 func (s *allPartitionsDeadlockDetector) incrementMsgCount() {
+	if s.disabled {
+		return
+	}
 	atomic.AddUint64(s.msgConsumed, 1)
 }
 
 func (w *partitionDeadlockDetector) closePartitionChannel() chan struct{} {
+	if w.disabled {
+		return nil
+	}
 	return w.closePartition
 }
 
 func (w *partitionDeadlockDetector) close() {
-	if !w.closed {
-		w.logger.Debug("Closing deadlock detector", zap.Int32("partition", w.partition))
-		w.closed = true
-		w.done <- struct{}{}
-	} else {
-		w.logger.Debug("Deadlock detector already closed", zap.Int32("partition", w.partition))
+	if w.disabled {
+		return
 	}
+	w.logger.Debug("Closing deadlock detector", zap.Int32("partition", w.partition))
+	w.done <- struct{}{}
 }
 
 func (w *partitionDeadlockDetector) incrementMsgCount() {
+	if w.disabled {
+		return
+	}
 	w.incrementAllPartitionMsgCount()
 	atomic.AddUint64(w.msgConsumed, 1)
 }

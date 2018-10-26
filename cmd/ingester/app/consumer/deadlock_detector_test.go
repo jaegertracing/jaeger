@@ -159,6 +159,7 @@ func TestApiCompatibilityWhenDeadlockDetectorDisabled(t *testing.T) {
 	w := f.startMonitoringForPartition(1)
 
 	w.incrementMsgCount()
+	w.incrementAllPartitionMsgCount()
 	assert.Zero(t, len(w.closePartitionChannel()))
 	w.close()
 }
