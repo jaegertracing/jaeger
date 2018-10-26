@@ -30,7 +30,7 @@ import (
 // Params are the parameters of a Consumer
 type Params struct {
 	ProcessorFactory      ProcessorFactory
-	Factory               metrics.Factory
+	MetricsFactory        metrics.Factory
 	Logger                *zap.Logger
 	InternalConsumer      consumer.Consumer
 	DeadlockCheckInterval time.Duration
@@ -56,9 +56,9 @@ type consumerState struct {
 
 // New is a constructor for a Consumer
 func New(params Params) (*Consumer, error) {
-	deadlockDetector := newDeadlockDetector(params.Factory, params.Logger, params.DeadlockCheckInterval)
+	deadlockDetector := newDeadlockDetector(params.MetricsFactory, params.Logger, params.DeadlockCheckInterval)
 	return &Consumer{
-		metricsFactory:     params.Factory,
+		metricsFactory:     params.MetricsFactory,
 		logger:             params.Logger,
 		internalConsumer:   params.InternalConsumer,
 		processorFactory:   params.ProcessorFactory,
