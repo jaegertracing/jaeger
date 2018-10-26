@@ -50,11 +50,11 @@ type Configuration struct {
 	TagsFilePath      string
 	AllTagsAsFields   bool
 	TagDotReplacement string
-	TLS               TLS
+	TLS               TLSConfig
 }
 
-// TLS Config
-type TLS struct {
+// TLSConfig describes the configuration properties to connect tls enabled ElasticSearch cluster
+type TLSConfig struct {
 	Enabled  bool
 	CertPath string
 	KeyPath  string
@@ -203,37 +203,34 @@ func (c *Configuration) GetTagDotReplacement() string {
 
 // GetConfigs wraps the configs to feed to the ElasticSearch client init
 func (c *Configuration) GetConfigs(logger *zap.Logger) []elastic.ClientOptionFunc {
-	options := make([]elastic.ClientOptionFunc, 3)
+	options := make([]elastic.ClientOptionFunc, 0)
+	options = append(options, elastic.SetURL(c.Servers...), elastic.SetSniff(c.Sniffer))
 	if c.TLS.Enabled {
-		tlsConfig, err := c.CreateTLSConfig(logger)
+		ctlsConfig, err := c.TLS.createTLSConfig(logger)
 		if err != nil {
 			return nil
 		}
 		httpClient := &http.Client{
 			Timeout: c.Timeout,
 			Transport: &http.Transport{
-				TLSClientConfig: tlsConfig,
+				TLSClientConfig: ctlsConfig,
 			},
 		}
-		options[0] = elastic.SetHttpClient(httpClient)
-		options[1] = elastic.SetURL(c.Servers...)
-		options[2] = elastic.SetSniff(c.Sniffer)
-		return options
+		options = append(options, elastic.SetHttpClient(httpClient))
+	} else {
+		options = append(options, elastic.SetBasicAuth(c.Username, c.Password))
 	}
-	options[0] = elastic.SetURL(c.Servers...)
-	options[1] = elastic.SetBasicAuth(c.Username, c.Password)
-	options[2] = elastic.SetSniff(c.Sniffer)
 	return options
 }
 
-// CreateTLSConfig creates TLS Configuration to connect with ES Cluster.
-func (c *Configuration) CreateTLSConfig(logger *zap.Logger) (*tls.Config, error) {
-	rootCerts, err := c.LoadCertificatesFrom()
+// createTLSConfig creates TLS Configuration to connect with ES Cluster.
+func (tlsConfig *TLSConfig) createTLSConfig(logger *zap.Logger) (*tls.Config, error) {
+	rootCerts, err := tlsConfig.loadCertificate()
 	if err != nil {
 		logger.Fatal("Couldn't load root certificate", zap.Error(err))
 	}
-	if len(c.TLS.CertPath) > 0 && len(c.TLS.KeyPath) > 0 {
-		clientPrivateKey, err := c.LoadPrivateKeyFrom()
+	if len(tlsConfig.CertPath) > 0 && len(tlsConfig.KeyPath) > 0 {
+		clientPrivateKey, err := tlsConfig.loadPrivateKeyFrom()
 		if err != nil {
 			logger.Fatal("Couldn't setup client authentication", zap.Error(err))
 		}
@@ -245,9 +242,9 @@ func (c *Configuration) CreateTLSConfig(logger *zap.Logger) (*tls.Config, error)
 	return nil, err
 }
 
-// LoadCertificatesFrom is used to load root certification
-func (c *Configuration) LoadCertificatesFrom() (*x509.CertPool, error) {
-	caCert, err := ioutil.ReadFile(c.TLS.CaPath)
+// loadCertificate is used to load root certification
+func (tlsConfig *TLSConfig) loadCertificate() (*x509.CertPool, error) {
+	caCert, err := ioutil.ReadFile(tlsConfig.CaPath)
 	if err != nil {
 		return nil, err
 	}
@@ -256,9 +253,9 @@ func (c *Configuration) LoadCertificatesFrom() (*x509.CertPool, error) {
 	return certificates, nil
 }
 
-// LoadPrivateKeyFrom is used to load the private certificate and key for TLS
-func (c *Configuration) LoadPrivateKeyFrom() (*tls.Certificate, error) {
-	privateKey, err := tls.LoadX509KeyPair(c.TLS.CertPath, c.TLS.KeyPath)
+// loadPrivateKeyFrom is used to load the private certificate and key for TLS
+func (tlsConfig *TLSConfig) loadPrivateKeyFrom() (*tls.Certificate, error) {
+	privateKey, err := tls.LoadX509KeyPair(tlsConfig.CertPath, tlsConfig.KeyPath)
 	if err != nil {
 		return nil, err
 	}
