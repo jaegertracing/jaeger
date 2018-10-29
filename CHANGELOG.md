@@ -31,6 +31,20 @@ jaeger_query_requests{operation="find_traces",result="ok"} 2
 jaeger_query_responses_bucket{operation="find_traces",le="0.005"} 2
 ```
 
+#### UI Changes
+
+##### New Features
+
+- Span Search - Highlight search results ([#238](https://github.com/jaegertracing/jaeger-ui/pull/238)),  thanks to David Yeghshatyan [@davit-y](https://github.com/davit-y)
+- Span Search - Improve search logic ([#237](https://github.com/jaegertracing/jaeger-ui/pull/237)),  thanks to David Yeghshatyan [@davit-y](https://github.com/davit-y)
+- Span Search - Add result count, navigation and clear buttons ([#234](https://github.com/jaegertracing/jaeger-ui/pull/234)), thanks to David Yeghshatyan [@davit-y](https://github.com/davit-y)
+
+##### Bug Fixes, Minor Improvements
+
+- Use correct duration format for scatter plot ([#266](https://github.com/jaegertracing/jaeger-ui/pull/266)), [@tiffon](https://github.com/tiffon))
+- Fix collapse all issues ([#264](https://github.com/jaegertracing/jaeger-ui/pull/264)), [@tiffon](https://github.com/tiffon))
+- Use a moderately sized canvas for the span graph ([#257](https://github.com/jaegertracing/jaeger-ui/pull/257)), [@tiffon](https://github.com/tiffon))
+
 
 1.7.0 (2018-09-19)
 ------------------
