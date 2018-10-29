@@ -15,6 +15,7 @@
 package tchannel
 
 import (
+	"errors"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -49,6 +50,11 @@ func TestBuilderFromConfig(t *testing.T) {
 		t,
 		[]string{"127.0.0.1:14267", "127.0.0.1:14268", "127.0.0.1:14269"},
 		cfg.CollectorHostPorts)
+	r, err := cfg.CreateReporter(metrics.NullFactory, zap.NewNop())
+	require.NoError(t, err)
+	assert.NotNil(t, r)
+	assert.Equal(t, "some-collector-service", r.CollectorServiceName())
+
 }
 
 func TestBuilderWithDiscovery(t *testing.T) {
@@ -64,6 +70,13 @@ func TestBuilderWithDiscovery(t *testing.T) {
 	agent, err := cfg.CreateReporter(metrics.NullFactory, zap.NewNop())
 	assert.NoError(t, err)
 	assert.NotNil(t, agent)
+}
+
+func TestBuilderWithDiscoveryError(t *testing.T) {
+	tbuilder := NewBuilder().WithDiscoverer(fakeDiscoverer{})
+	rep, err := tbuilder.CreateReporter(metrics.NullFactory, zap.NewNop())
+	assert.EqualError(t, err, "cannot enable service discovery: both discovery.Discoverer and discovery.Notifier must be specified")
+	assert.Nil(t, rep)
 }
 
 func TestBuilderWithCollectorServiceName(t *testing.T) {
@@ -88,6 +101,7 @@ func TestBuilderWithChannel(t *testing.T) {
 	rep, err := cfg.CreateReporter(metrics.NullFactory, zap.NewNop())
 	assert.NoError(t, err)
 	assert.NotNil(t, rep.Channel())
+	assert.Equal(t, defaultCollectorServiceName, rep.CollectorServiceName())
 }
 
 func TestBuilderWithCollectors(t *testing.T) {
@@ -102,4 +116,10 @@ func TestBuilderWithCollectors(t *testing.T) {
 	c, err := cfg.discoverer.Instances()
 	assert.NoError(t, err)
 	assert.Equal(t, c, hostPorts)
+}
+
+type fakeDiscoverer struct{}
+
+func (fd fakeDiscoverer) Instances() ([]string, error) {
+	return nil, errors.New("discoverer error")
 }

@@ -16,6 +16,7 @@ package app
 
 import (
 	"errors"
+	"fmt"
 	"strings"
 	"testing"
 
@@ -25,7 +26,11 @@ import (
 	"go.uber.org/zap"
 	"gopkg.in/yaml.v2"
 
+	"github.com/jaegertracing/jaeger/cmd/agent/app/httpserver"
+	"github.com/jaegertracing/jaeger/cmd/agent/app/reporter"
+	"github.com/jaegertracing/jaeger/thrift-gen/baggage"
 	"github.com/jaegertracing/jaeger/thrift-gen/jaeger"
+	"github.com/jaegertracing/jaeger/thrift-gen/sampling"
 	"github.com/jaegertracing/jaeger/thrift-gen/zipkincore"
 )
 
@@ -51,14 +56,6 @@ processors:
 
 httpServer:
     hostPort: 4.4.4.4:5778
-
-collectorHostPorts:
-    - 127.0.0.1:14267
-    - 127.0.0.1:14268
-    - 127.0.0.1:14269
-
-collectorServiceName: some-collector-service
-minPeers: 4
 `
 
 func TestBuilderFromConfig(t *testing.T) {
@@ -101,57 +98,22 @@ func TestBuilderFromConfig(t *testing.T) {
 		},
 	}, cfg.Processors[2])
 	assert.Equal(t, "4.4.4.4:5778", cfg.HTTPServer.HostPort)
-
-	assert.Equal(t, 4, cfg.DiscoveryMinPeers)
-	assert.Equal(t, "some-collector-service", cfg.CollectorServiceName)
-	assert.Equal(
-		t,
-		[]string{"127.0.0.1:14267", "127.0.0.1:14268", "127.0.0.1:14269"},
-		cfg.CollectorHostPorts)
 }
 
 func TestBuilderWithExtraReporter(t *testing.T) {
 	cfg := &Builder{}
-	cfg.WithReporter(fakeReporter{})
-	agent, err := cfg.CreateAgent(zap.NewNop())
+	agent, err := cfg.CreateAgent(fakeCollectorProxy{}, zap.NewNop(), metrics.NullFactory)
 	assert.NoError(t, err)
 	assert.NotNil(t, agent)
-}
-
-func TestBuilderMetrics(t *testing.T) {
-	mf := metrics.NullFactory
-	b := new(Builder).WithMetricsFactory(mf)
-	mf2, err := b.getMetricsFactory()
-	assert.NoError(t, err)
-	assert.Equal(t, mf, mf2)
 }
 
 func TestBuilderMetricsHandler(t *testing.T) {
 	b := &Builder{}
 	b.Metrics.Backend = "expvar"
 	b.Metrics.HTTPRoute = "/expvar"
-	factory, err := b.Metrics.CreateMetricsFactory("test")
-	assert.NoError(t, err)
-	assert.NotNil(t, factory)
-	b.metricsFactory = factory
-	agent, err := b.CreateAgent(zap.NewNop())
+	agent, err := b.CreateAgent(fakeCollectorProxy{}, zap.NewNop(), metrics.NullFactory)
 	assert.NoError(t, err)
 	assert.NotNil(t, agent)
-}
-
-func TestBuilderMetricsError(t *testing.T) {
-	b := &Builder{}
-	b.Metrics.Backend = "invalid"
-	_, err := b.CreateAgent(zap.NewNop())
-	assert.EqualError(t, err, "cannot create metrics factory: unknown metrics backend specified")
-}
-
-func TestBuilderWithDiscoveryError(t *testing.T) {
-	cfg := &Builder{}
-	cfg.WithDiscoverer(fakeDiscoverer{})
-	agent, err := cfg.CreateAgent(zap.NewNop())
-	assert.EqualError(t, err, "cannot create main Reporter: cannot enable service discovery: both discovery.Discoverer and discovery.Notifier must be specified")
-	assert.Nil(t, agent)
 }
 
 func TestBuilderWithProcessorErrors(t *testing.T) {
@@ -180,7 +142,7 @@ func TestBuilderWithProcessorErrors(t *testing.T) {
 				},
 			},
 		}
-		_, err := cfg.CreateAgent(zap.NewNop())
+		_, err := cfg.CreateAgent(&fakeCollectorProxy{}, zap.NewNop(), metrics.NullFactory)
 		assert.Error(t, err)
 		if testCase.err != "" {
 			assert.EqualError(t, err, testCase.err)
@@ -190,18 +152,39 @@ func TestBuilderWithProcessorErrors(t *testing.T) {
 	}
 }
 
-type fakeReporter struct{}
+func TestMultipleCollectorProxies(t *testing.T) {
+	b := Builder{}
+	ra := fakeCollectorProxy{}
+	rb := fakeCollectorProxy{}
+	b.WithReporter(ra)
+	r := b.getReporter(rb)
+	mr, ok := r.(reporter.MultiReporter)
+	require.True(t, ok)
+	fmt.Println(mr)
+	assert.Equal(t, rb, mr[0])
+	assert.Equal(t, ra, mr[1])
+}
 
-func (fr fakeReporter) EmitZipkinBatch(spans []*zipkincore.Span) (err error) {
+type fakeCollectorProxy struct {
+}
+
+func (f fakeCollectorProxy) GetReporter() reporter.Reporter {
+	return fakeCollectorProxy{}
+}
+func (f fakeCollectorProxy) GetManager() httpserver.ClientConfigManager {
+	return fakeCollectorProxy{}
+}
+
+func (fakeCollectorProxy) EmitZipkinBatch(spans []*zipkincore.Span) (err error) {
+	return nil
+}
+func (fakeCollectorProxy) EmitBatch(batch *jaeger.Batch) (err error) {
 	return nil
 }
 
-func (fr fakeReporter) EmitBatch(batch *jaeger.Batch) (err error) {
-	return nil
+func (f fakeCollectorProxy) GetSamplingStrategy(serviceName string) (*sampling.SamplingStrategyResponse, error) {
+	return nil, errors.New("no peers available")
 }
-
-type fakeDiscoverer struct{}
-
-func (fd fakeDiscoverer) Instances() ([]string, error) {
-	return nil, errors.New("discoverer error")
+func (fakeCollectorProxy) GetBaggageRestrictions(serviceName string) ([]*baggage.BaggageRestriction, error) {
+	return nil, nil
 }
