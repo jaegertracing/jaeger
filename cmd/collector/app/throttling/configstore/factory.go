@@ -12,14 +12,23 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package strategystore
+package configstore
 
 import (
-	"github.com/jaegertracing/jaeger/thrift-gen/sampling"
+	"github.com/uber/jaeger-lib/metrics"
+	"go.uber.org/zap"
 )
 
-// StrategyStore keeps track of service-specific sampling strategies.
-type StrategyStore interface {
-	// GetSamplingStrategy retrieves the sampling strategy for the specified service.
-	GetSamplingStrategy(serviceName string) (*sampling.SamplingStrategyResponse, error)
+// Factory defines an interface for a factory that can create implementations of different configuration storage components.
+// Implementations are also encouraged to implement plugin.Configurable interface.
+//
+// See also
+//
+// plugin.Configurable
+type Factory interface {
+	// Initialize performs internal initialization of the factory.
+	Initialize(metricsFactory metrics.Factory, logger *zap.Logger) error
+
+	// CreateConfigStore initializes the ConfigStore and returns it.
+	CreateConfigStore() (ConfigStore, error)
 }

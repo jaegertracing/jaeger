@@ -12,14 +12,14 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package strategystore
+package configstore
 
 import (
-	"github.com/jaegertracing/jaeger/thrift-gen/sampling"
+	"github.com/jaegertracing/jaeger/thrift-gen/throttling"
 )
 
-// StrategyStore keeps track of service-specific sampling strategies.
-type StrategyStore interface {
-	// GetSamplingStrategy retrieves the sampling strategy for the specified service.
-	GetSamplingStrategy(serviceName string) (*sampling.SamplingStrategyResponse, error)
+// ConfigStore keeps track of service-specific throttling configurations.
+type ConfigStore interface {
+	// GetThrottlingConfigs retrieves the throttling configs for the specified services.
+	GetThrottlingConfigs(serviceNames []string) (*throttling.ThrottlingResponse, error)
 }
