@@ -83,13 +83,12 @@ func main() {
 				logger.Fatal("Cannot create metrics factory.", zap.Error(err))
 			}
 
-			tracer, closer, err := jaegerClientConfig.Configuration{
-				Sampler: &jaegerClientConfig.SamplerConfig{
-					Type:  "probabilistic",
-					Param: 1.0,
-				},
-				RPCMetrics: true,
-			}.New(
+			cfg, err := jaegerClientConfig.FromEnv()
+			if err != nil {
+				logger.Fatal("Cannot parse Jaeger env vars", zap.Error(err))
+			}
+
+			tracer, closer, err := cfg.New(
 				"jaeger-query",
 				jaegerClientConfig.Metrics(baseFactory.Namespace("client", nil)),
 				jaegerClientConfig.Logger(jaegerClientZapLog.NewLogger(logger)),
