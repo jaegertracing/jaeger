@@ -47,7 +47,7 @@ const (
 )
 
 func TestConstructor(t *testing.T) {
-	newConsumer, err := New(Params{})
+	newConsumer, err := New(Params{MetricsFactory: metrics.NullFactory})
 	assert.NoError(t, err)
 	assert.NotNil(t, newConsumer)
 }
@@ -83,23 +83,24 @@ func newSaramaClusterConsumer(saramaPartitionConsumer sarama.PartitionConsumer) 
 }
 
 func newConsumer(
-	factory metrics.Factory,
+	metricsFactory metrics.Factory,
 	topic string,
 	processor processor.SpanProcessor,
 	consumer consumer.Consumer) *Consumer {
 
 	logger, _ := zap.NewDevelopment()
 	return &Consumer{
-		metricsFactory:     factory,
+		metricsFactory:     metricsFactory,
 		logger:             logger,
 		internalConsumer:   consumer,
 		partitionIDToState: make(map[int32]*consumerState),
-		deadlockDetector:   newDeadlockDetector(factory, logger, time.Second),
+		partitionsHeld:     partitionsHeld(metricsFactory),
+		deadlockDetector:   newDeadlockDetector(metricsFactory, logger, time.Second),
 
 		processorFactory: ProcessorFactory{
 			topic:          topic,
 			consumer:       consumer,
-			metricsFactory: factory,
+			metricsFactory: metricsFactory,
 			logger:         logger,
 			baseProcessor:  processor,
 			parallelism:    1,
@@ -152,11 +153,21 @@ func TestSaramaConsumerWrapper_start_Messages(t *testing.T) {
 	mc.YieldMessage(msg)
 	isProcessed.Wait()
 
+	testutils.AssertCounterMetrics(t, localFactory, testutils.ExpectedMetric{
+		Name:  "sarama-consumer.partitions-held",
+		Value: 1,
+	})
+
 	mp.AssertExpectations(t)
 	// Ensure that the partition consumer was updated in the map
 	assert.Equal(t, saramaPartitionConsumer.HighWaterMarkOffset(),
 		undertest.partitionIDToState[partition].partitionConsumer.HighWaterMarkOffset())
 	undertest.Close()
+
+	testutils.AssertCounterMetrics(t, localFactory, testutils.ExpectedMetric{
+		Name:  "sarama-consumer.partitions-held",
+		Value: 0,
+	})
 
 	partitionTag := map[string]string{"partition": fmt.Sprint(partition)}
 	testutils.AssertCounterMetrics(t, localFactory, testutils.ExpectedMetric{

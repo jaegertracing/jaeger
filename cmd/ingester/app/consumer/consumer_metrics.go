@@ -20,6 +20,8 @@ import (
 	"github.com/uber/jaeger-lib/metrics"
 )
 
+const consumerNamespace = "sarama-consumer"
+
 type msgMetrics struct {
 	counter     metrics.Counter
 	offsetGauge metrics.Gauge
@@ -36,7 +38,7 @@ type partitionMetrics struct {
 }
 
 func (c *Consumer) namespace(partition int32) metrics.Factory {
-	return c.metricsFactory.Namespace("sarama-consumer", map[string]string{"partition": strconv.Itoa(int(partition))})
+	return c.metricsFactory.Namespace(consumerNamespace, map[string]string{"partition": strconv.Itoa(int(partition))})
 }
 
 func (c *Consumer) newMsgMetrics(partition int32) msgMetrics {
@@ -57,4 +59,8 @@ func (c *Consumer) partitionMetrics(partition int32) partitionMetrics {
 	return partitionMetrics{
 		closeCounter: f.Counter("partition-close", nil),
 		startCounter: f.Counter("partition-start", nil)}
+}
+
+func partitionsHeld(metricsFactory metrics.Factory) metrics.Counter {
+	return metricsFactory.Namespace(consumerNamespace, nil).Counter("partitions-held", nil)
 }
