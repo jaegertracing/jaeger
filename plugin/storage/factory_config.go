@@ -36,6 +36,7 @@ type FactoryConfig struct {
 	SpanWriterTypes         []string
 	SpanReaderType          string
 	DependenciesStorageType string
+	WildcardSearch          bool
 }
 
 // FactoryConfigFromEnvAndCLI reads the desired types of storage backends from SPAN_STORAGE_TYPE and

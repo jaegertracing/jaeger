@@ -48,6 +48,8 @@ const (
 	nestedLogFieldsField   = "logs.fields"
 	tagKeyField            = "key"
 	tagValueField          = "value"
+	wildcardQueryString    = "any"
+	wildcardSearchString   = "*"
 
 	defaultDocCount  = 10000 // the default elasticsearch allowed limit
 	defaultNumTraces = 100
@@ -93,6 +95,7 @@ type SpanReader struct {
 	spanIndexPrefix         string
 	serviceIndexPrefix      string
 	spanConverter           dbmodel.ToDomain
+	wildcardSearch          bool
 }
 
 // SpanReaderParams holds constructor params for NewSpanReader
@@ -104,6 +107,7 @@ type SpanReaderParams struct {
 	serviceOperationStorage *ServiceOperationStorage
 	IndexPrefix             string
 	TagDotReplacement       string
+	WildcardSearch          bool
 }
 
 // NewSpanReader returns a new SpanReader with a metrics.
@@ -125,6 +129,7 @@ func newSpanReader(p SpanReaderParams) *SpanReader {
 		spanIndexPrefix:         p.IndexPrefix + spanIndex,
 		serviceIndexPrefix:      p.IndexPrefix + serviceIndex,
 		spanConverter:           dbmodel.NewToDomain(p.TagDotReplacement),
+		wildcardSearch:          p.WildcardSearch,
 	}
 }
 
@@ -456,6 +461,9 @@ func (s *SpanReader) buildStartTimeQuery(startTimeMin time.Time, startTimeMax ti
 }
 
 func (s *SpanReader) buildServiceNameQuery(serviceName string) elastic.Query {
+	if s.wildcardSearch && serviceName == wildcardQueryString {
+		return elastic.NewWildcardQuery(serviceNameField, wildcardSearchString)
+	}
 	return elastic.NewMatchQuery(serviceNameField, serviceName)
 }
 

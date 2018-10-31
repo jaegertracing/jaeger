@@ -41,6 +41,7 @@ const (
 	suffixTagsAsFieldsAll   = suffixTagsAsFields + ".all"
 	suffixTagsFile          = suffixTagsAsFields + ".config-file"
 	suffixTagDeDotChar      = suffixTagsAsFields + ".dot-replacement"
+	suffixWildcardSearch    = ".wildcard-search"
 )
 
 // TODO this should be moved next to config.Configuration struct (maybe ./flags package)
@@ -80,6 +81,7 @@ func NewOptions(primaryNamespace string, otherNamespaces ...string) *Options {
 				BulkActions:       1000,
 				BulkFlushInterval: time.Millisecond * 200,
 				TagDotReplacement: "@",
+				WildcardSearch:    false,
 			},
 			servers:   "http://127.0.0.1:9200",
 			namespace: primaryNamespace,
@@ -163,6 +165,10 @@ func addFlags(flagSet *flag.FlagSet, nsConfig *namespaceConfig) {
 		nsConfig.namespace+suffixTagDeDotChar,
 		nsConfig.TagDotReplacement,
 		"(experimental) The character used to replace dots (\".\") in tag keys stored as object fields.")
+	flagSet.Bool(
+		nsConfig.namespace+suffixWildcardSearch,
+		nsConfig.WildcardSearch,
+		"Allows for wildcard search on the service field")
 }
 
 // InitFromViper initializes Options with properties from viper
@@ -189,6 +195,7 @@ func initFromViper(cfg *namespaceConfig, v *viper.Viper) {
 	cfg.AllTagsAsFields = v.GetBool(cfg.namespace + suffixTagsAsFieldsAll)
 	cfg.TagsFilePath = v.GetString(cfg.namespace + suffixTagsFile)
 	cfg.TagDotReplacement = v.GetString(cfg.namespace + suffixTagDeDotChar)
+	cfg.WildcardSearch = v.GetBool(cfg.namespace + suffixWildcardSearch)
 }
 
 // GetPrimary returns primary configuration.

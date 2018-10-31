@@ -97,6 +97,7 @@ func withSpanReader(fn func(r *spanReaderTest)) {
 			MaxSpanAge:        0,
 			IndexPrefix:       "",
 			TagDotReplacement: "@",
+			WildcardSearch:    true,
 		}),
 	}
 	fn(r)
@@ -490,6 +491,52 @@ func TestSpanReader_FindTraces(t *testing.T) {
 	})
 }
 
+func TestSpanReader_FindTracesWildcardService(t *testing.T) {
+	goodAggregations := make(map[string]*json.RawMessage)
+	rawMessage := []byte(`{"buckets": [{"key": "1","doc_count": 16},{"key": "2","doc_count": 16},{"key": "3","doc_count": 16}]}`)
+	goodAggregations[traceIDAggregation] = (*json.RawMessage)(&rawMessage)
+
+	hits := make([]*elastic.SearchHit, 1)
+	hits[0] = &elastic.SearchHit{
+		Source: (*json.RawMessage)(&exampleESSpan),
+	}
+	searchHits := &elastic.SearchHits{Hits: hits}
+
+	withSpanReader(func(r *spanReaderTest) {
+		mockSearchService(r).
+			Return(&elastic.SearchResult{Aggregations: elastic.Aggregations(goodAggregations), Hits: searchHits}, nil)
+		// bulk read traces
+		mockMultiSearchService(r).
+			Return(&elastic.MultiSearchResult{
+				Responses: []*elastic.SearchResult{
+					{Hits: searchHits},
+					{Hits: searchHits},
+				},
+			}, nil)
+
+		traceQuery := &spanstore.TraceQueryParameters{
+			ServiceName: "*",
+			Tags: map[string]string{
+				"hello": "world",
+			},
+			StartTimeMin: time.Now().Add(-1 * time.Hour),
+			StartTimeMax: time.Now(),
+			NumTraces:    1,
+		}
+
+		traces, err := r.reader.FindTraces(context.Background(), traceQuery)
+		require.NoError(t, err)
+		assert.Len(t, traces, 1)
+
+		trace := traces[0]
+		expectedSpans, err := r.reader.collectSpans(hits)
+		require.NoError(t, err)
+
+		require.Len(t, trace.Spans, 2)
+		assert.EqualValues(t, trace.Spans[0], expectedSpans[0])
+	})
+}
+
 func TestSpanReader_FindTracesInvalidQuery(t *testing.T) {
 	goodAggregations := make(map[string]*json.RawMessage)
 	rawMessage := []byte(`{"buckets": [{"key": "1","doc_count": 16},{"key": "2","doc_count": 16},{"key": "3","doc_count": 16}]}`)
@@ -841,6 +888,20 @@ func TestSpanReader_buildServiceNameQuery(t *testing.T) {
 	expectedStr := `{ "match": { "process.serviceName": { "query": "bat" }}}`
 	withSpanReader(func(r *spanReaderTest) {
 		serviceNameQuery := r.reader.buildServiceNameQuery("bat")
+		actual, err := serviceNameQuery.Source()
+		require.NoError(t, err)
+
+		expected := make(map[string]interface{})
+		json.Unmarshal([]byte(expectedStr), &expected)
+
+		assert.EqualValues(t, expected, actual)
+	})
+}
+
+func TestSpanReader_buildServiceNameQuery_wildcard(t *testing.T) {
+	expectedStr := `{ "wildcard": { "process.serviceName": { "wildcard": "*" }}}`
+	withSpanReader(func(r *spanReaderTest) {
+		serviceNameQuery := r.reader.buildServiceNameQuery("any")
 		actual, err := serviceNameQuery.Source()
 		require.NoError(t, err)
 

@@ -55,6 +55,7 @@ func TestOptionsWithFlags(t *testing.T) {
 		"--es.aux.server-urls=3.3.3.3,4.4.4.4",
 		"--es.aux.max-span-age=24h",
 		"--es.aux.num-replicas=10",
+		"--es.wildcard-search=true",
 	})
 	opts.InitFromViper(v)
 
@@ -72,5 +73,6 @@ func TestOptionsWithFlags(t *testing.T) {
 	assert.Equal(t, int64(10), aux.NumReplicas)
 	assert.Equal(t, 24*time.Hour, aux.MaxSpanAge)
 	assert.True(t, aux.Sniffer)
+	assert.True(t, primary.WildcardSearch)
 
 }
