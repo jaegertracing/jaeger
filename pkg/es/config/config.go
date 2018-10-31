@@ -203,8 +203,7 @@ func (c *Configuration) GetTagDotReplacement() string {
 
 // GetConfigs wraps the configs to feed to the ElasticSearch client init
 func (c *Configuration) GetConfigs(logger *zap.Logger) []elastic.ClientOptionFunc {
-	options := make([]elastic.ClientOptionFunc, 0)
-	options = append(options, elastic.SetURL(c.Servers...), elastic.SetSniff(c.Sniffer))
+	options := []elastic.ClientOptionFunc{elastic.SetURL(c.Servers...), elastic.SetSniff(c.Sniffer)}
 	if c.TLS.Enabled {
 		ctlsConfig, err := c.TLS.createTLSConfig(logger)
 		if err != nil {
@@ -228,18 +227,18 @@ func (tlsConfig *TLSConfig) createTLSConfig(logger *zap.Logger) (*tls.Config, er
 	rootCerts, err := tlsConfig.loadCertificate()
 	if err != nil {
 		logger.Fatal("Couldn't load root certificate", zap.Error(err))
+		return nil, err
 	}
-	if len(tlsConfig.CertPath) > 0 && len(tlsConfig.KeyPath) > 0 {
-		clientPrivateKey, err := tlsConfig.loadPrivateKeyFrom()
-		if err != nil {
-			logger.Fatal("Couldn't setup client authentication", zap.Error(err))
-		}
-		return &tls.Config{
-			RootCAs:      rootCerts,
-			Certificates: []tls.Certificate{*clientPrivateKey},
-		}, err
+	clientPrivateKey, err := tlsConfig.loadPrivateKey()
+	if err != nil {
+		logger.Fatal("Couldn't setup client authentication", zap.Error(err))
+		return nil, err
 	}
-	return nil, err
+	return &tls.Config{
+		RootCAs:      rootCerts,
+		Certificates: []tls.Certificate{*clientPrivateKey},
+	}, err
+
 }
 
 // loadCertificate is used to load root certification
@@ -253,8 +252,8 @@ func (tlsConfig *TLSConfig) loadCertificate() (*x509.CertPool, error) {
 	return certificates, nil
 }
 
-// loadPrivateKeyFrom is used to load the private certificate and key for TLS
-func (tlsConfig *TLSConfig) loadPrivateKeyFrom() (*tls.Certificate, error) {
+// loadPrivateKey is used to load the private certificate and key for TLS
+func (tlsConfig *TLSConfig) loadPrivateKey() (*tls.Certificate, error) {
 	privateKey, err := tls.LoadX509KeyPair(tlsConfig.CertPath, tlsConfig.KeyPath)
 	if err != nil {
 		return nil, err
