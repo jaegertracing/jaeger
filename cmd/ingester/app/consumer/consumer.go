@@ -46,6 +46,7 @@ type Consumer struct {
 	deadlockDetector deadlockDetector
 
 	partitionIDToState map[int32]*consumerState
+	partitionsHeld     metrics.Counter
 }
 
 type consumerState struct {
@@ -63,6 +64,7 @@ func New(params Params) (*Consumer, error) {
 		processorFactory:   params.ProcessorFactory,
 		deadlockDetector:   deadlockDetector,
 		partitionIDToState: make(map[int32]*consumerState),
+		partitionsHeld:     partitionsHeld(params.MetricsFactory),
 	}, nil
 }
 
@@ -100,6 +102,8 @@ func (c *Consumer) Close() error {
 
 func (c *Consumer) handleMessages(pc sc.PartitionConsumer) {
 	c.logger.Info("Starting message handler", zap.Int32("partition", pc.Partition()))
+	c.partitionsHeld.Inc(1)
+	defer c.partitionsHeld.Inc(-1)
 	c.partitionIDToState[pc.Partition()].wg.Add(1)
 	defer c.partitionIDToState[pc.Partition()].wg.Done()
 	defer c.closePartition(pc)
