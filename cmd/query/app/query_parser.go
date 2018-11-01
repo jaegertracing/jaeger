@@ -29,23 +29,26 @@ import (
 )
 
 const (
-	defaultQueryLimit = 100
+	defaultQueryLimit     = 100
+	defaultAnyServiceName = "*"
 
-	operationParam   = "operation"
-	tagParam         = "tag"
-	tagsParam        = "tags"
-	startTimeParam   = "start"
-	limitParam       = "limit"
-	minDurationParam = "minDuration"
-	maxDurationParam = "maxDuration"
-	serviceParam     = "service"
-	endTimeParam     = "end"
-	prettyPrintParam = "prettyPrint"
+	operationParam      = "operation"
+	tagParam            = "tag"
+	tagsParam           = "tags"
+	startTimeParam      = "start"
+	limitParam          = "limit"
+	minDurationParam    = "minDuration"
+	maxDurationParam    = "maxDuration"
+	serviceParam        = "service"
+	anyServiceNameParam = "anyService"
+	endTimeParam        = "end"
+	prettyPrintParam    = "prettyPrint"
 )
 
 var (
 	errCannotQueryTagAndDuration = fmt.Errorf("Cannot query for tags when '%s' is specified", minDurationParam)
 	errMaxDurationGreaterThanMin = fmt.Errorf("'%s' should be greater than '%s'", maxDurationParam, minDurationParam)
+	errAnyServiceNameInvalid     = fmt.Errorf("Any Service Name parameter must be '%s'", defaultAnyServiceName)
 
 	// ErrServiceParameterRequired occurs when no service name is defined
 	ErrServiceParameterRequired = fmt.Errorf("Parameter '%s' is required", serviceParam)
@@ -79,6 +82,7 @@ type traceQueryParameters struct {
 //     tags :== 'tags=' jsonMap
 func (p *queryParser) parse(r *http.Request) (*traceQueryParameters, error) {
 	service := r.FormValue(serviceParam)
+	anyServiceName := r.FormValue(anyServiceNameParam)
 	operation := r.FormValue(operationParam)
 
 	startTime, err := p.parseTime(startTimeParam, r)
@@ -131,14 +135,15 @@ func (p *queryParser) parse(r *http.Request) (*traceQueryParameters, error) {
 
 	traceQuery := &traceQueryParameters{
 		TraceQueryParameters: spanstore.TraceQueryParameters{
-			ServiceName:   service,
-			OperationName: operation,
-			StartTimeMin:  startTime,
-			StartTimeMax:  endTime,
-			Tags:          tags,
-			NumTraces:     limit,
-			DurationMin:   minDuration,
-			DurationMax:   maxDuration,
+			ServiceName:    service,
+			AnyServiceName: anyServiceName,
+			OperationName:  operation,
+			StartTimeMin:   startTime,
+			StartTimeMax:   endTime,
+			Tags:           tags,
+			NumTraces:      limit,
+			DurationMin:    minDuration,
+			DurationMax:    maxDuration,
 		},
 		traceIDs: traceIDs,
 	}
@@ -179,6 +184,9 @@ func (p *queryParser) parseDuration(durationParam string, r *http.Request) (time
 func (p *queryParser) validateQuery(traceQuery *traceQueryParameters) error {
 	if len(traceQuery.traceIDs) == 0 && traceQuery.ServiceName == "" {
 		return ErrServiceParameterRequired
+	}
+	if traceQuery.AnyServiceName != "" && traceQuery.AnyServiceName != defaultAnyServiceName {
+		return errAnyServiceNameInvalid
 	}
 	if traceQuery.DurationMin != 0 && traceQuery.DurationMax != 0 {
 		if traceQuery.DurationMax < traceQuery.DurationMin {

@@ -57,6 +57,19 @@ func TestParseTraceQuery(t *testing.T) {
 				},
 			},
 		},
+		{"x?service=service&anyService=*&start=0&end=0&operation=operation&limit=200&tag=k:v&tag=x:y", noErr,
+			&traceQueryParameters{
+				TraceQueryParameters: spanstore.TraceQueryParameters{
+					ServiceName:    "service",
+					AnyServiceName: "*",
+					OperationName:  "operation",
+					StartTimeMin:   time.Unix(0, 0),
+					StartTimeMax:   time.Unix(0, 0),
+					NumTraces:      200,
+					Tags:           map[string]string{"k": "v", "x": "y"},
+				},
+			},
+		},
 		// tags=JSON with a non-string value 123
 		{`x?service=service&start=0&end=0&operation=operation&limit=200&tag=k:v&tags={"x":123}`, "Malformed 'tags' parameter, cannot unmarshal JSON: json: cannot unmarshal number into Go value of type string", nil},
 		// tags=JSON

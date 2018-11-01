@@ -515,7 +515,8 @@ func TestSpanReader_FindTracesWildcardService(t *testing.T) {
 			}, nil)
 
 		traceQuery := &spanstore.TraceQueryParameters{
-			ServiceName: "*",
+			ServiceName:    "",
+			AnyServiceName: "*",
 			Tags: map[string]string{
 				"hello": "world",
 			},
@@ -898,10 +899,10 @@ func TestSpanReader_buildServiceNameQuery(t *testing.T) {
 	})
 }
 
-func TestSpanReader_buildServiceNameQuery_wildcard(t *testing.T) {
+func TestSpanReader_buildAnyServiceNameQuery_wildcard(t *testing.T) {
 	expectedStr := `{ "wildcard": { "process.serviceName": { "wildcard": "*" }}}`
 	withSpanReader(func(r *spanReaderTest) {
-		serviceNameQuery := r.reader.buildServiceNameQuery("any")
+		serviceNameQuery := r.reader.buildAnyServiceNameQuery("*")
 		actual, err := serviceNameQuery.Source()
 		require.NoError(t, err)
 

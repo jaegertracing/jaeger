@@ -42,12 +42,13 @@ type Reader interface {
 
 // TraceQueryParameters contains parameters of a trace query.
 type TraceQueryParameters struct {
-	ServiceName   string
-	OperationName string
-	Tags          map[string]string
-	StartTimeMin  time.Time
-	StartTimeMax  time.Time
-	DurationMin   time.Duration
-	DurationMax   time.Duration
-	NumTraces     int
+	ServiceName    string
+	AnyServiceName string
+	OperationName  string
+	Tags           map[string]string
+	StartTimeMin   time.Time
+	StartTimeMax   time.Time
+	DurationMin    time.Duration
+	DurationMax    time.Duration
+	NumTraces      int
 }
