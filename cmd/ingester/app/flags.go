@@ -33,7 +33,7 @@ const (
 
 	// ConfigPrefix is a prefix for the ingester flags
 	ConfigPrefix = "ingester"
-	// KafkaConfigPrefix is a prefix for the ingester flags
+	// KafkaConfigPrefix is a prefix for the Kafka flags
 	KafkaConfigPrefix = "kafka"
 	// SuffixBrokers is a suffix for the brokers flag
 	SuffixBrokers = ".brokers"
