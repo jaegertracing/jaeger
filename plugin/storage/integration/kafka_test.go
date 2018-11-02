@@ -48,7 +48,7 @@ func (s *KafkaIntegrationTestSuite) initialize() error {
 	topic := "jaeger-kafka-integration-test-" + strconv.FormatInt(time.Now().UnixNano(), 10)
 
 	f := kafka.NewFactory()
-	v, command := config.Viperize(f.AddFlags, app.AddFlags)
+	v, command := config.Viperize(app.AddFlags)
 	command.ParseFlags([]string{
 		"--kafka.topic",
 		topic,
