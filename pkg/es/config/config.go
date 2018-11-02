@@ -204,18 +204,18 @@ func (c *Configuration) GetTagDotReplacement() string {
 // GetConfigs wraps the configs to feed to the ElasticSearch client init
 func (c *Configuration) GetConfigs(logger *zap.Logger) []elastic.ClientOptionFunc {
 	options := []elastic.ClientOptionFunc{elastic.SetURL(c.Servers...), elastic.SetSniff(c.Sniffer)}
+	httpClient := &http.Client{
+		Timeout: c.Timeout,
+	}
+	options = append(options, elastic.SetHttpClient(httpClient))
 	if c.TLS.Enabled {
 		ctlsConfig, err := c.TLS.createTLSConfig(logger)
 		if err != nil {
 			return nil
 		}
-		httpClient := &http.Client{
-			Timeout: c.Timeout,
-			Transport: &http.Transport{
-				TLSClientConfig: ctlsConfig,
-			},
+		httpClient.Transport = &http.Transport{
+			TLSClientConfig: ctlsConfig,
 		}
-		options = append(options, elastic.SetHttpClient(httpClient))
 	} else {
 		options = append(options, elastic.SetBasicAuth(c.Username, c.Password))
 	}
