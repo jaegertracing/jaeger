@@ -101,6 +101,7 @@ func (s *ESStorageIntegration) initSpanstore(allTagsAsFields bool) {
 		Logger:            s.logger,
 		MetricsFactory:    metrics.NullFactory,
 		IndexPrefix:       indexPrefix,
+		MaxSpanAge:        72 * time.Hour,
 		TagDotReplacement: tagKeyDeDotChar,
 	})
 }
