@@ -17,8 +17,9 @@ package throttling
 import (
 	"testing"
 
-	throttlingIDL "github.com/jaegertracing/jaeger/thrift-gen/throttling"
 	"github.com/stretchr/testify/require"
+
+	throttlingIDL "github.com/jaegertracing/jaeger/thrift-gen/throttling"
 )
 
 type mockStore struct {
