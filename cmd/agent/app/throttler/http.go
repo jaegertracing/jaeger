@@ -84,16 +84,19 @@ func (h *httpService) Credits(w http.ResponseWriter, r *http.Request) {
 			Balance:   h.throttler.Withdraw(serviceName, clientUUID, operation),
 		})
 	}
-	h.makeJSONResponse(resp, w, r)
+	h.makeJSONResponse(resp, w)
 }
 
 func (h *httpService) makeJSONResponse(
 	data interface{},
 	w http.ResponseWriter,
-	r *http.Request,
 ) {
+	makeJSONResponse(data, w, json.Marshal)
+}
+
+func makeJSONResponse(data interface{}, w http.ResponseWriter, marshaller func(interface{}) ([]byte, error)) {
 	w.Header().Add("Content-Type", "application/json")
-	jsonData, err := json.Marshal(data)
+	jsonData, err := marshaller(data)
 	if err != nil {
 		http.Error(
 			w,
@@ -106,11 +109,11 @@ func (h *httpService) makeJSONResponse(
 }
 
 func (h *httpService) Accounts(w http.ResponseWriter, r *http.Request) {
-	h.makeJSONResponse(h.throttler.accountSnapshot(), w, r)
+	h.makeJSONResponse(h.throttler.accountSnapshot(), w)
 }
 
 func (h *httpService) Clients(w http.ResponseWriter, r *http.Request) {
-	h.makeJSONResponse(h.throttler.clientSnapshot(), w, r)
+	h.makeJSONResponse(h.throttler.clientSnapshot(), w)
 }
 
 // NewHTTPService constructs a new HTTPService that accepts HTTP requests to

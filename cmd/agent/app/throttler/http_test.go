@@ -16,6 +16,7 @@ package throttling
 
 import (
 	"encoding/json"
+	"errors"
 	"io/ioutil"
 	"net/http"
 	"net/http/httptest"
@@ -24,7 +25,6 @@ import (
 	"time"
 
 	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/require"
 )
 
 func TestHTTP(t *testing.T) {
@@ -126,15 +126,15 @@ func TestHTTP(t *testing.T) {
 	for _, testCase := range testCases {
 		serverURL := server.URL + "/credits?" + testCase.query.Encode()
 		res, err := client.Get(serverURL)
-		require.NoError(t, err)
+		assert.NoError(t, err)
 		assert.Equal(t, testCase.status, res.StatusCode)
 		message, err := ioutil.ReadAll(res.Body)
 		res.Body.Close()
-		require.NoError(t, err)
+		assert.NoError(t, err)
 		if res.StatusCode == http.StatusOK {
 			var clientBalances creditResponse
 			err := json.Unmarshal(message, &clientBalances)
-			require.NoError(t, err)
+			assert.NoError(t, err)
 			// Allow response to deviate from expected credit values. The delta
 			// is set to the amount of time passed multiplied by the token
 			// bucket refill rate. The reason for this is that the expected
@@ -153,26 +153,26 @@ func TestHTTP(t *testing.T) {
 	}
 
 	res, err := client.Get(server.URL + "/accounts")
-	require.NoError(t, err)
+	assert.NoError(t, err)
 	assert.Equal(t, http.StatusOK, res.StatusCode)
 	message, err := ioutil.ReadAll(res.Body)
-	require.NoError(t, err)
+	assert.NoError(t, err)
 	res.Body.Close()
 	accounts := map[string]AccountSnapshot{}
 	err = json.Unmarshal(message, &accounts)
-	require.NoError(t, err)
+	assert.NoError(t, err)
 	assert.Len(t, accounts, 1)
 	assert.NotEqual(t, AccountSnapshot{}, accounts[serviceName])
 
 	res, err = client.Get(server.URL + "/clients")
-	require.NoError(t, err)
+	assert.NoError(t, err)
 	assert.Equal(t, http.StatusOK, res.StatusCode)
 	message, err = ioutil.ReadAll(res.Body)
-	require.NoError(t, err)
+	assert.NoError(t, err)
 	res.Body.Close()
 	serviceMap := map[string]ClientSnapshot{}
 	err = json.Unmarshal(message, &serviceMap)
-	require.NoError(t, err)
+	assert.NoError(t, err)
 	assert.Len(t, serviceMap[serviceName].ClientBalancesByUUID, 2)
 	assert.Len(t, serviceMap[serviceName].ClientBalancesByUUID["5"], 2)
 	assert.Len(t, serviceMap[serviceName].ClientBalancesByUUID["6"], 1)
@@ -193,4 +193,15 @@ func findOperation(balances []OperationBalance, operation string) *OperationBala
 		}
 	}
 	return nil
+}
+
+func TestJSONSerializationError(t *testing.T) {
+	var fakeError = errors.New("fake")
+	mockMarshaller := func(x interface{}) ([]byte, error) {
+		return nil, fakeError
+	}
+	recorder := httptest.NewRecorder()
+	makeJSONResponse(struct{}{}, recorder, mockMarshaller)
+	assert.Equal(t, http.StatusInternalServerError, recorder.Code)
+	assert.Contains(t, recorder.Body.String(), "Failed to encode result as JSON")
 }

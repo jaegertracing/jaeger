@@ -18,8 +18,8 @@ import (
 	"testing"
 	"time"
 
+	"github.com/opentracing/opentracing-go/ext"
 	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/require"
 	constants "github.com/uber/jaeger-client-go"
 
 	"github.com/jaegertracing/jaeger/model"
@@ -29,7 +29,7 @@ import (
 
 func makeDebugRootTag(tagType jaeger.TagType) *jaeger.Tag {
 	tag := jaeger.NewTag()
-	tag.Key = constants.JaegerDebugHeader
+	tag.Key = string(ext.SamplingPriority)
 	tag.VType = tagType
 	switch tagType {
 	case jaeger.TagType_BOOL:
@@ -97,7 +97,7 @@ func TestReporter(t *testing.T) {
 	span.OperationName = "a"
 	batch.Spans = append(batch.Spans, span)
 	err = reporter.EmitBatch(batch)
-	require.Error(t, err)
+	assert.Error(t, err)
 	assert.Equal(t, errNoClientID, err)
 
 	clientUUIDTag := jaeger.NewTag()
@@ -111,7 +111,7 @@ func TestReporter(t *testing.T) {
 	span.OperationName = "a"
 	batch.Spans = append(batch.Spans, span)
 	err = reporter.EmitBatch(batch)
-	require.Error(t, err)
+	assert.Error(t, err)
 	assert.Regexp(t, "^\\[Overspending occurred: ", err.Error())
 
 	// Rotate through different tag types.
@@ -126,9 +126,9 @@ func TestReporter(t *testing.T) {
 		tagType = (tagType + 1) % numTagTypes
 	}
 	err = reporter.EmitBatch(batch)
-	require.NoError(t, err)
+	assert.NoError(t, err)
 	client := throttler.clients[clientUUID]
-	require.NotNil(t, client)
+	assert.NotNil(t, client)
 	delta := time.Since(startTime).Seconds() * creditsPerSecond
 	assert.InDelta(t, credits, client.perOperationBalance["a"], delta)
 
@@ -140,7 +140,7 @@ func TestReporter(t *testing.T) {
 	nonRootDebugSpan.Flags = int32(model.DebugFlag) | int32(model.SampledFlag)
 	batch.Spans = []*jaeger.Span{nonDebugSpan, nonRootDebugSpan}
 	err = reporter.EmitBatch(batch)
-	require.NoError(t, err)
+	assert.NoError(t, err)
 
 	// Check that debug span header is throttled
 	debugSpanUsingHeader := jaeger.NewSpan()
@@ -152,9 +152,9 @@ func TestReporter(t *testing.T) {
 	headerTag.VStr = new(string)
 	*headerTag.VStr = "x"
 	debugSpanUsingHeader.Tags = append(debugSpanUsingHeader.Tags, headerTag)
-	require.NotEmpty(t, debugSpanUsingHeader)
+	assert.NotEmpty(t, debugSpanUsingHeader)
 	batch.Spans = []*jaeger.Span{debugSpanUsingHeader}
-	require.NotEmpty(t, batch.Spans[0].Tags)
+	assert.NotEmpty(t, batch.Spans[0].Tags)
 	err = reporter.EmitBatch(batch)
-	require.Error(t, err)
+	assert.Error(t, err)
 }
