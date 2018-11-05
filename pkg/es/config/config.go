@@ -78,7 +78,12 @@ func (c *Configuration) NewClient(logger *zap.Logger, metricsFactory metrics.Fac
 	if len(c.Servers) < 1 {
 		return nil, errors.New("No servers specified")
 	}
-	rawClient, err := elastic.NewClient(c.GetConfigs(logger)...)
+	options, err := c.getConfigOptions()
+	if err != nil {
+		return nil, err
+	}
+
+	rawClient, err := elastic.NewClient(options...)
 	if err != nil {
 		return nil, err
 	}
@@ -201,17 +206,17 @@ func (c *Configuration) GetTagDotReplacement() string {
 	return c.TagDotReplacement
 }
 
-// GetConfigs wraps the configs to feed to the ElasticSearch client init
-func (c *Configuration) GetConfigs(logger *zap.Logger) []elastic.ClientOptionFunc {
+// getConfigOptions wraps the configs to feed to the ElasticSearch client init
+func (c *Configuration) getConfigOptions() ([]elastic.ClientOptionFunc, error) {
 	options := []elastic.ClientOptionFunc{elastic.SetURL(c.Servers...), elastic.SetSniff(c.Sniffer)}
 	httpClient := &http.Client{
 		Timeout: c.Timeout,
 	}
 	options = append(options, elastic.SetHttpClient(httpClient))
 	if c.TLS.Enabled {
-		ctlsConfig, err := c.TLS.createTLSConfig(logger)
+		ctlsConfig, err := c.TLS.createTLSConfig()
 		if err != nil {
-			return nil
+			return nil, err
 		}
 		httpClient.Transport = &http.Transport{
 			TLSClientConfig: ctlsConfig,
@@ -219,25 +224,23 @@ func (c *Configuration) GetConfigs(logger *zap.Logger) []elastic.ClientOptionFun
 	} else {
 		options = append(options, elastic.SetBasicAuth(c.Username, c.Password))
 	}
-	return options
+	return options, nil
 }
 
 // createTLSConfig creates TLS Configuration to connect with ES Cluster.
-func (tlsConfig *TLSConfig) createTLSConfig(logger *zap.Logger) (*tls.Config, error) {
+func (tlsConfig *TLSConfig) createTLSConfig() (*tls.Config, error) {
 	rootCerts, err := tlsConfig.loadCertificate()
 	if err != nil {
-		logger.Fatal("Couldn't load root certificate", zap.Error(err))
 		return nil, err
 	}
 	clientPrivateKey, err := tlsConfig.loadPrivateKey()
 	if err != nil {
-		logger.Fatal("Couldn't setup client authentication", zap.Error(err))
 		return nil, err
 	}
 	return &tls.Config{
 		RootCAs:      rootCerts,
 		Certificates: []tls.Certificate{*clientPrivateKey},
-	}, err
+	}, nil
 
 }
 
