@@ -84,21 +84,21 @@ func newDeadlockDetector(metricsFactory metrics.Factory, logger *zap.Logger, int
 func (s *deadlockDetector) startMonitoringForPartition(partition int32) *partitionDeadlockDetector {
 	var msgConsumed uint64
 	w := &partitionDeadlockDetector{
-		msgConsumed: &msgConsumed,
-		partition:   partition,
-		logger:      s.logger,
-		disabled:    0 == s.interval,
+		msgConsumed:    &msgConsumed,
+		partition:      partition,
+		closePartition: make(chan struct{}, 1),
+		done:           make(chan struct{}),
+		logger:         s.logger,
+		disabled:       0 == s.interval,
 
 		incrementAllPartitionMsgCount: func() {
 			s.allPartitionsDeadlockDetector.incrementMsgCount()
 		},
 	}
 
-	if s.interval == 0 {
+	if w.disabled {
 		s.logger.Debug("Partition deadlock detector disabled")
 	} else {
-		w.closePartition = make(chan struct{}, 1)
-		w.done = make(chan struct{})
 		go s.monitorForPartition(w, partition)
 	}
 
@@ -140,15 +140,15 @@ func (s *deadlockDetector) start() {
 	var msgConsumed uint64
 	detector := &allPartitionsDeadlockDetector{
 		msgConsumed: &msgConsumed,
+		done:        make(chan struct{}),
 		logger:      s.logger,
 		disabled:    0 == s.interval,
 	}
 
-	if s.interval == 0 {
+	if detector.disabled {
 		s.logger.Debug("Global deadlock detector disabled")
 	} else {
 		s.logger.Debug("Starting global deadlock detector")
-		detector.done = make(chan struct{})
 		go func() {
 			ticker := time.NewTicker(s.interval)
 			defer ticker.Stop()
@@ -181,16 +181,10 @@ func (s *deadlockDetector) close() {
 }
 
 func (s *allPartitionsDeadlockDetector) incrementMsgCount() {
-	if s.disabled {
-		return
-	}
 	atomic.AddUint64(s.msgConsumed, 1)
 }
 
 func (w *partitionDeadlockDetector) closePartitionChannel() chan struct{} {
-	if w.disabled {
-		return nil
-	}
 	return w.closePartition
 }
 
@@ -203,9 +197,6 @@ func (w *partitionDeadlockDetector) close() {
 }
 
 func (w *partitionDeadlockDetector) incrementMsgCount() {
-	if w.disabled {
-		return
-	}
 	w.incrementAllPartitionMsgCount()
 	atomic.AddUint64(w.msgConsumed, 1)
 }

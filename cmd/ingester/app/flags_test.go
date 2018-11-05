@@ -58,13 +58,3 @@ func TestFlagDefaults(t *testing.T) {
 	assert.Equal(t, DefaultEncoding, o.Encoding)
 	assert.Equal(t, DefaultDeadlockInterval, o.DeadlockInterval)
 }
-
-func TestUnparsableDeadlockIntervalFlag(t *testing.T) {
-	o := &Options{}
-	v, command := config.Viperize(AddFlags)
-	command.ParseFlags([]string{
-		"--ingester.deadlockInterval=hello"})
-	o.InitFromViper(v)
-
-	assert.Equal(t, DefaultDeadlockInterval, o.DeadlockInterval)
-}

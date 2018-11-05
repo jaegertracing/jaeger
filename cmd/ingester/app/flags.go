@@ -105,10 +105,11 @@ func AddFlags(flagSet *flag.FlagSet) {
 		ConfigPrefix+SuffixHTTPPort,
 		DefaultHTTPPort,
 		"The http port for the ingester service")
-	flagSet.String(
+	flagSet.Duration(
 		ConfigPrefix+SuffixDeadlockInterval,
-		DefaultDeadlockInterval.String(),
+		DefaultDeadlockInterval,
 		"Interval to check for deadlocks. If no messages gets processed in given time, ingester app will exit. Value of 0 disables deadlock check.")
+
 }
 
 // InitFromViper initializes Builder with properties from viper
@@ -120,10 +121,5 @@ func (o *Options) InitFromViper(v *viper.Viper) {
 	o.Parallelism = v.GetInt(ConfigPrefix + SuffixParallelism)
 	o.IngesterHTTPPort = v.GetInt(ConfigPrefix + SuffixHTTPPort)
 
-	d, err := time.ParseDuration(v.GetString(ConfigPrefix + SuffixDeadlockInterval))
-	if err != nil {
-		o.DeadlockInterval = DefaultDeadlockInterval
-	} else {
-		o.DeadlockInterval = d
-	}
+	o.DeadlockInterval = v.GetDuration(ConfigPrefix + SuffixDeadlockInterval)
 }
