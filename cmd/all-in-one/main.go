@@ -38,6 +38,7 @@ import (
 	"go.uber.org/zap"
 
 	agentApp "github.com/jaegertracing/jaeger/cmd/agent/app"
+	agentTchanRep "github.com/jaegertracing/jaeger/cmd/agent/app/reporter/tchannel"
 	basic "github.com/jaegertracing/jaeger/cmd/builder"
 	collectorApp "github.com/jaegertracing/jaeger/cmd/collector/app"
 	collector "github.com/jaegertracing/jaeger/cmd/collector/app/builder"
@@ -124,10 +125,11 @@ func main() {
 			samplingHandler := initializeSamplingHandler(strategyStoreFactory, v, metricsFactory, logger)
 
 			aOpts := new(agentApp.Builder).InitFromViper(v)
+			tchannelRep := agentTchanRep.NewBuilder().InitFromViper(v, logger)
 			cOpts := new(collector.CollectorOptions).InitFromViper(v)
 			qOpts := new(queryApp.QueryOptions).InitFromViper(v)
 
-			startAgent(aOpts, cOpts, logger, metricsFactory)
+			startAgent(aOpts, tchannelRep, cOpts, logger, metricsFactory)
 			startCollector(cOpts, spanWriter, logger, metricsFactory, samplingHandler, hc)
 			startQuery(qOpts, spanReader, dependencyReader, logger, metricsFactory, mBldr, hc)
 			hc.Ready()
@@ -156,6 +158,7 @@ func main() {
 		flags.AddFlags,
 		storageFactory.AddFlags,
 		agentApp.AddFlags,
+		agentTchanRep.AddFlags,
 		collector.AddFlags,
 		queryApp.AddFlags,
 		pMetrics.AddFlags,
@@ -170,16 +173,20 @@ func main() {
 
 func startAgent(
 	b *agentApp.Builder,
+	tchanRep *agentTchanRep.Builder,
 	cOpts *collector.CollectorOptions,
 	logger *zap.Logger,
 	baseFactory metrics.Factory,
 ) {
 	metricsFactory := baseFactory.Namespace("agent", nil)
 
-	if len(b.CollectorHostPorts) == 0 {
-		b.CollectorHostPorts = append(b.CollectorHostPorts, fmt.Sprintf("127.0.0.1:%d", cOpts.CollectorPort))
+	tchanRep.CollectorHostPorts = append(tchanRep.CollectorHostPorts, fmt.Sprintf("127.0.0.1:%d", cOpts.CollectorPort))
+	cp, err := agentTchanRep.NewCollectorProxy(tchanRep, metricsFactory, logger)
+	if err != nil {
+		logger.Fatal("Could not create collector proxy", zap.Error(err))
 	}
-	agent, err := b.WithMetricsFactory(metricsFactory).CreateAgent(logger)
+
+	agent, err := b.CreateAgent(cp, logger, baseFactory)
 	if err != nil {
 		logger.Fatal("Unable to initialize Jaeger Agent", zap.Error(err))
 	}

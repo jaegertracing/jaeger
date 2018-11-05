@@ -24,6 +24,7 @@ import (
 	"go.uber.org/zap"
 
 	"github.com/jaegertracing/jaeger/cmd/agent/app"
+	"github.com/jaegertracing/jaeger/cmd/agent/app/reporter/tchannel"
 	"github.com/jaegertracing/jaeger/cmd/flags"
 	"github.com/jaegertracing/jaeger/pkg/config"
 	"github.com/jaegertracing/jaeger/pkg/metrics"
@@ -50,11 +51,23 @@ func main() {
 
 			builder := &app.Builder{}
 			builder.InitFromViper(v)
+			tchanRep := tchannel.NewBuilder().InitFromViper(v, logger)
+			mBldr := new(metrics.Builder).InitFromViper(v)
+
+			mFactory, err := mBldr.CreateMetricsFactory("jaeger")
+			if err != nil {
+				logger.Fatal("Could not create metrics", zap.Error(err))
+			}
+			mFactory = mFactory.Namespace("agent", nil)
+
+			cp, err := tchannel.NewCollectorProxy(tchanRep, mFactory, logger)
+			if err != nil {
+				logger.Fatal("Could not create collector proxy", zap.Error(err))
+			}
 
 			// TODO illustrate discovery service wiring
-			// TODO illustrate additional reporter
 
-			agent, err := builder.CreateAgent(logger)
+			agent, err := builder.CreateAgent(cp, logger, mFactory)
 			if err != nil {
 				return errors.Wrap(err, "Unable to initialize Jaeger Agent")
 			}
@@ -75,6 +88,7 @@ func main() {
 		flags.AddConfigFileFlag,
 		flags.AddLoggingFlag,
 		app.AddFlags,
+		tchannel.AddFlags,
 		metrics.AddFlags,
 	)
 

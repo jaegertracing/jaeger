@@ -25,6 +25,7 @@ import (
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"github.com/uber/jaeger-lib/metrics"
 	"go.uber.org/zap"
 
 	jmetrics "github.com/jaegertracing/jaeger/pkg/metrics"
@@ -33,7 +34,7 @@ import (
 
 func TestAgentStartError(t *testing.T) {
 	cfg := &Builder{}
-	agent, err := cfg.CreateAgent(zap.NewNop())
+	agent, err := cfg.CreateAgent(fakeCollectorProxy{}, zap.NewNop(), metrics.NullFactory)
 	require.NoError(t, err)
 	agent.httpServer.Addr = "bad-address"
 	assert.Error(t, agent.Run())
@@ -100,7 +101,8 @@ func withRunningAgent(t *testing.T, testcase func(string, chan error)) {
 		},
 	}
 	logger, logBuf := testutils.NewLogger()
-	agent, err := cfg.CreateAgent(logger)
+	f, _ := cfg.Metrics.CreateMetricsFactory("jaeger")
+	agent, err := cfg.CreateAgent(fakeCollectorProxy{}, logger, f)
 	require.NoError(t, err)
 	ch := make(chan error, 2)
 	go func() {
