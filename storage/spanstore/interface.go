@@ -43,7 +43,7 @@ type Reader interface {
 // TraceQueryParameters contains parameters of a trace query.
 type TraceQueryParameters struct {
 	ServiceName    string
-	AnyServiceName string
+	AnyServiceName bool
 	OperationName  string
 	Tags           map[string]string
 	StartTimeMin   time.Time

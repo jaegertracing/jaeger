@@ -302,7 +302,7 @@ func validateQuery(p *spanstore.TraceQueryParameters) error {
 	if p == nil {
 		return ErrMalformedRequestObject
 	}
-	if p.ServiceName == "" && len(p.Tags) > 0 && p.AnyServiceName != defaultAnyServiceName {
+	if p.ServiceName == "" && len(p.Tags) > 0 && !p.AnyServiceName {
 		return ErrServiceNameNotSet
 	}
 	if p.StartTimeMin.IsZero() || p.StartTimeMax.IsZero() {
@@ -426,13 +426,13 @@ func (s *SpanReader) buildFindTraceIDsQuery(traceQuery *spanstore.TraceQueryPara
 	boolQuery.Must(startTimeQuery)
 
 	//add process.serviceName query, only if AnyServiceName is blank
-	if traceQuery.ServiceName != "" && traceQuery.AnyServiceName == "" {
+	if traceQuery.ServiceName != "" && !traceQuery.AnyServiceName {
 		serviceNameQuery := s.buildServiceNameQuery(traceQuery.ServiceName)
 		boolQuery.Must(serviceNameQuery)
 	}
 
-	if traceQuery.AnyServiceName != "" {
-		anyServiceNameQuery := s.buildAnyServiceNameQuery(traceQuery.AnyServiceName)
+	if traceQuery.AnyServiceName {
+		anyServiceNameQuery := s.buildAnyServiceNameQuery()
 		boolQuery.Must(anyServiceNameQuery)
 	}
 
@@ -468,8 +468,8 @@ func (s *SpanReader) buildServiceNameQuery(serviceName string) elastic.Query {
 	return elastic.NewMatchQuery(serviceNameField, serviceName)
 }
 
-func (s *SpanReader) buildAnyServiceNameQuery(anyServiceName string) elastic.Query {
-	return elastic.NewWildcardQuery(serviceNameField, anyServiceName)
+func (s *SpanReader) buildAnyServiceNameQuery() elastic.Query {
+	return elastic.NewWildcardQuery(serviceNameField, defaultAnyServiceName)
 }
 
 func (s *SpanReader) buildOperationNameQuery(operationName string) elastic.Query {

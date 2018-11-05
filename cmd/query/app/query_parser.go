@@ -29,8 +29,7 @@ import (
 )
 
 const (
-	defaultQueryLimit     = 100
-	defaultAnyServiceName = "*"
+	defaultQueryLimit = 100
 
 	operationParam      = "operation"
 	tagParam            = "tag"
@@ -48,7 +47,6 @@ const (
 var (
 	errCannotQueryTagAndDuration = fmt.Errorf("Cannot query for tags when '%s' is specified", minDurationParam)
 	errMaxDurationGreaterThanMin = fmt.Errorf("'%s' should be greater than '%s'", maxDurationParam, minDurationParam)
-	errAnyServiceNameInvalid     = fmt.Errorf("Any Service Name parameter must be '%s'", defaultAnyServiceName)
 
 	// ErrServiceParameterRequired occurs when no service name is defined
 	ErrServiceParameterRequired = fmt.Errorf("Parameter '%s' is required", serviceParam)
@@ -70,6 +68,7 @@ type traceQueryParameters struct {
 //     query ::= param | param '&' query
 //     param ::= service | operation | limit | start | end | minDuration | maxDuration | tag | tags
 //     service ::= 'service=' strValue
+//     anyServiceName ::= 'anyServiceName=' strValue
 //     operation ::= 'operation=' strValue
 //     limit ::= 'limit=' intValue
 //     start ::= 'start=' intValue in unix microseconds
@@ -82,7 +81,12 @@ type traceQueryParameters struct {
 //     tags :== 'tags=' jsonMap
 func (p *queryParser) parse(r *http.Request) (*traceQueryParameters, error) {
 	service := r.FormValue(serviceParam)
-	anyServiceName := r.FormValue(anyServiceNameParam)
+
+	anyServiceName, err := p.parseBool(anyServiceNameParam, r)
+	if err != nil {
+		return nil, err
+	}
+
 	operation := r.FormValue(operationParam)
 
 	startTime, err := p.parseTime(startTimeParam, r)
@@ -181,12 +185,18 @@ func (p *queryParser) parseDuration(durationParam string, r *http.Request) (time
 	return 0, nil
 }
 
+func (p *queryParser) parseBool(param string, r *http.Request) (bool, error) {
+	value := r.FormValue(param)
+	if value == "" {
+		return false, nil
+	}
+	boolParam, err := strconv.ParseBool(value)
+	return boolParam, err
+}
+
 func (p *queryParser) validateQuery(traceQuery *traceQueryParameters) error {
 	if len(traceQuery.traceIDs) == 0 && traceQuery.ServiceName == "" {
 		return ErrServiceParameterRequired
-	}
-	if traceQuery.AnyServiceName != "" && traceQuery.AnyServiceName != defaultAnyServiceName {
-		return errAnyServiceNameInvalid
 	}
 	if traceQuery.DurationMin != 0 && traceQuery.DurationMax != 0 {
 		if traceQuery.DurationMax < traceQuery.DurationMin {

@@ -57,11 +57,11 @@ func TestParseTraceQuery(t *testing.T) {
 				},
 			},
 		},
-		{"x?service=service&anyService=*&start=0&end=0&operation=operation&limit=200&tag=k:v&tag=x:y", noErr,
+		{"x?service=service&anyService=true&start=0&end=0&operation=operation&limit=200&tag=k:v&tag=x:y", noErr,
 			&traceQueryParameters{
 				TraceQueryParameters: spanstore.TraceQueryParameters{
 					ServiceName:    "service",
-					AnyServiceName: "*",
+					AnyServiceName: true,
 					OperationName:  "operation",
 					StartTimeMin:   time.Unix(0, 0),
 					StartTimeMax:   time.Unix(0, 0),
