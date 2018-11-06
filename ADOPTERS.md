@@ -20,4 +20,5 @@
 * [Vistar Media](https://www.vistarmedia.com)
   * http://labs.vistarmedia.com/2018/10/31/deploying-jaeger-with-cloudformation-via-bazel.html
 * [Weave](https://www.getweave.com)
+* [Weaveworks](https://www.weave.works/)
 * [Zenly](https://zen.ly/)

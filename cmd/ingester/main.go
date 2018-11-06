@@ -18,10 +18,13 @@ import (
 	"fmt"
 	"io"
 	"log"
+	"net/http"
 	"os"
 	"os/signal"
+	"strconv"
 	"syscall"
 
+	"github.com/gorilla/mux"
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
 	"go.uber.org/zap"
@@ -31,7 +34,9 @@ import (
 	"github.com/jaegertracing/jaeger/cmd/ingester/app"
 	"github.com/jaegertracing/jaeger/cmd/ingester/app/builder"
 	"github.com/jaegertracing/jaeger/pkg/config"
+	"github.com/jaegertracing/jaeger/pkg/healthcheck"
 	pMetrics "github.com/jaegertracing/jaeger/pkg/metrics"
+	"github.com/jaegertracing/jaeger/pkg/recoveryhandler"
 	"github.com/jaegertracing/jaeger/pkg/version"
 	"github.com/jaegertracing/jaeger/plugin/storage"
 )
@@ -90,6 +95,23 @@ func main() {
 			}
 			consumer.Start()
 
+			r := mux.NewRouter()
+			if h := mBldr.Handler(); h != nil {
+				logger.Info("Registering metrics handler with HTTP server", zap.String("route", mBldr.HTTPRoute))
+				r.Handle(mBldr.HTTPRoute, h)
+			}
+			httpPortStr := ":" + strconv.Itoa(options.IngesterHTTPPort)
+			recoveryHandler := recoveryhandler.NewRecoveryHandler(logger, true)
+
+			logger.Info("Starting HTTP server", zap.Int("http-port", options.IngesterHTTPPort))
+
+			go func() {
+				if err := http.ListenAndServe(httpPortStr, recoveryHandler(r)); err != nil {
+					logger.Fatal("Could not launch service", zap.Error(err))
+				}
+				hc.Set(healthcheck.Unavailable)
+			}()
+
 			hc.Ready()
 			<-signalsChannel
 			logger.Info("Shutting down")
@@ -110,6 +132,8 @@ func main() {
 
 	command.AddCommand(version.Command())
 	command.AddCommand(env.Command())
+
+	flags.SetDefaultHealthCheckPort(app.IngesterDefaultHealthCheckHTTPPort)
 
 	config.AddFlags(
 		v,
