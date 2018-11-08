@@ -50,9 +50,10 @@ func (h *mockSpanHandler) PostSpans(c context.Context, r *api_v2.PostSpansReques
 }
 
 func TestReporter_EmitZipkinBatch(t *testing.T) {
-	s, addr := initializeGRPCTestServer(t)
 	handler := &mockSpanHandler{}
-	api_v2.RegisterCollectorServiceServer(s, handler)
+	s, addr := initializeGRPCTestServer(t, func(s *grpc.Server) {
+		api_v2.RegisterCollectorServiceServer(s, handler)
+	})
 	defer s.Stop()
 	conn, err := grpc.Dial(addr.String(), grpc.WithInsecure())
 	defer conn.Close()
@@ -84,9 +85,10 @@ func TestReporter_EmitZipkinBatch(t *testing.T) {
 }
 
 func TestReporter_EmitBatch(t *testing.T) {
-	s, addr := initializeGRPCTestServer(t)
 	handler := &mockSpanHandler{}
-	api_v2.RegisterCollectorServiceServer(s, handler)
+	s, addr := initializeGRPCTestServer(t, func(s *grpc.Server) {
+		api_v2.RegisterCollectorServiceServer(s, handler)
+	})
 	defer s.Stop()
 	conn, err := grpc.Dial(addr.String(), grpc.WithInsecure())
 	defer conn.Close()

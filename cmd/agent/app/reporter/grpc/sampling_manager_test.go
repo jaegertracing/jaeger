@@ -28,8 +28,9 @@ import (
 )
 
 func TestSamplingManager_GetSamplingStrategy(t *testing.T) {
-	s, addr := initializeGRPCTestServer(t)
-	api_v2.RegisterSamplingManagerServer(s, &mockSamplingHandler{})
+	s, addr := initializeGRPCTestServer(t, func(s *grpc.Server) {
+		api_v2.RegisterSamplingManagerServer(s, &mockSamplingHandler{})
+	})
 	conn, err := grpc.Dial(addr.String(), grpc.WithInsecure())
 	defer conn.Close()
 	require.NoError(t, err)
@@ -64,10 +65,11 @@ func (*mockSamplingHandler) GetSamplingStrategy(context.Context, *api_v2.Samplin
 	return &api_v2.SamplingStrategyResponse{StrategyType: api_v2.SamplingStrategyType_PROBABILISTIC}, nil
 }
 
-func initializeGRPCTestServer(t *testing.T) (*grpc.Server, net.Addr) {
+func initializeGRPCTestServer(t *testing.T, beforeServe func(server *grpc.Server)) (*grpc.Server, net.Addr) {
 	server := grpc.NewServer()
 	lis, err := net.Listen("tcp", "localhost:0")
 	require.NoError(t, err)
+	beforeServe(server)
 	go func() {
 		err := server.Serve(lis)
 		require.NoError(t, err)
