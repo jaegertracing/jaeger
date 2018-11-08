@@ -1,4 +1,4 @@
-PROJECT_ROOT=github.com/jaegertracing/jaeger
+#PROJECT_ROOT=github.com/jaegertracing/jaeger
 # TOP_PKGS is used with 'go test'
 # TODO: try to do this without glide, since it may not be installed initially
 TOP_PKGS := $(shell glide novendor | \
@@ -6,6 +6,7 @@ TOP_PKGS := $(shell glide novendor | \
 	grep -v \
 		-e ./thrift-gen/... \
 		-e ./swagger-gen/... \
+		-e ./proto-gen/... \
 		-e ./examples/... \
 		-e ./scripts/...\
 	)
@@ -17,6 +18,7 @@ ALL_SRC := $(shell find . -name "*.go" | \
 		-e vendor \
 		-e /thrift-gen/ \
 		-e /swagger-gen/ \
+		-e /proto-gen/ \
 		-e /examples/ \
 		-e doc.go \
 		-e model.pb.go \
@@ -335,6 +337,20 @@ generate-mocks: install-mockery
 echo-version:
 	@echo $(GIT_CLOSEST_TAG)
 
+PROTO_INCLUDES := \
+	-I model/proto \
+	-I vendor/github.com/grpc-ecosystem/grpc-gateway \
+	-I vendor/github.com/gogo/googleapis \
+	-I vendor/github.com/gogo/protobuf
+# Remapping of std types to gogo types (must not contain spaces)
+PROTO_GOGO_MAPPINGS := $(shell echo \
+		Mgoogle/protobuf/timestamp.proto=github.com/gogo/protobuf/types, \
+		Mgoogle/protobuf/duration.proto=github.com/gogo/protobuf/types, \
+		Mgoogle/protobuf/empty.proto=github.com/gogo/protobuf/types, \
+		Mgoogle/api/annotations.proto=github.com/gogo/googleapis/google/api, \
+		Mmodel.proto=github.com/jaegertracing/jaeger/model \
+	| sed 's/ //g')
+
 .PHONY: proto
 proto:
 	# Generate gogo, gRPC-Gateway, swagger, go-validators output.
@@ -362,31 +378,25 @@ proto:
 	# (https://medium.com/@linchenon/generate-grpc-and-protobuf-libraries-with-containers-c15ba4e4f3ad)
 	#
 	protoc \
-		-I model/proto \
-		-I vendor/github.com/grpc-ecosystem/grpc-gateway/ \
-		-I vendor/github.com/gogo/googleapis/ \
-		-I vendor/ \
-		--gogo_out=plugins=grpc,\
-Mgoogle/protobuf/timestamp.proto=github.com/gogo/protobuf/types,\
-Mgoogle/protobuf/duration.proto=github.com/gogo/protobuf/types,\
-Mgoogle/protobuf/empty.proto=github.com/gogo/protobuf/types,\
-Mgoogle/api/annotations.proto=github.com/gogo/googleapis/google/api:\
-$$GOPATH/src/github.com/jaegertracing/jaeger/model/ \
-		--grpc-gateway_out=\
-Mgoogle/protobuf/timestamp.proto=github.com/gogo/protobuf/types,\
-Mgoogle/protobuf/empty.proto=github.com/gogo/protobuf/types,\
-Mgoogle/api/annotations.proto=github.com/gogo/googleapis/google/api:\
-$$GOPATH/src/github.com/jaegertracing/jaeger/model \
-		--swagger_out=model/proto/openapi/ \
+		$(PROTO_INCLUDES) \
+		--gogo_out=plugins=grpc,$(PROTO_GOGO_MAPPINGS):$(PWD)/model/ \
 		model/proto/model.proto
 
 	protoc \
+		$(PROTO_INCLUDES) \
+		--gogo_out=plugins=grpc,$(PROTO_GOGO_MAPPINGS):$(PWD)/proto-gen/api_v2/ \
+		--grpc-gateway_out=$(PROTO_GOGO_MAPPINGS):$(PWD)/proto-gen/api_v2/ \
+		--swagger_out=$(PWD)/proto-gen/openapi/ \
+		model/proto/api_v2.proto
+
+	protoc \
 		-I model/proto \
-		--go_out=$$GOPATH/src/github.com/jaegertracing/jaeger/model/prototest/ \
+		--go_out=$(PWD)/model/prototest/ \
 		model/proto/model_test.proto
 
 .PHONY: proto-install
 proto-install:
+	go get -u github.com/golang/glog
 	go install \
 		./vendor/github.com/golang/protobuf/protoc-gen-go \
 		./vendor/github.com/gogo/protobuf/protoc-gen-gogo \

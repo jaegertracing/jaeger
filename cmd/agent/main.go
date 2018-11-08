@@ -21,9 +21,13 @@ import (
 	"github.com/pkg/errors"
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
+	jMetrics "github.com/uber/jaeger-lib/metrics"
 	"go.uber.org/zap"
+	"google.golang.org/grpc/grpclog"
 
 	"github.com/jaegertracing/jaeger/cmd/agent/app"
+	"github.com/jaegertracing/jaeger/cmd/agent/app/reporter"
+	"github.com/jaegertracing/jaeger/cmd/agent/app/reporter/grpc"
 	"github.com/jaegertracing/jaeger/cmd/agent/app/reporter/tchannel"
 	"github.com/jaegertracing/jaeger/cmd/flags"
 	"github.com/jaegertracing/jaeger/pkg/config"
@@ -51,7 +55,6 @@ func main() {
 
 			builder := &app.Builder{}
 			builder.InitFromViper(v)
-			tchanRep := tchannel.NewBuilder().InitFromViper(v, logger)
 			mBldr := new(metrics.Builder).InitFromViper(v)
 
 			mFactory, err := mBldr.CreateMetricsFactory("jaeger")
@@ -60,7 +63,10 @@ func main() {
 			}
 			mFactory = mFactory.Namespace("agent", nil)
 
-			cp, err := tchannel.NewCollectorProxy(tchanRep, mFactory, logger)
+			rOpts := new(reporter.Options).InitFromViper(v)
+			tChanOpts := new(tchannel.Builder).InitFromViper(v, logger)
+			grpcOpts := new(grpc.Options).InitFromViper(v)
+			cp, err := createCollectorProxy(rOpts, tChanOpts, grpcOpts, logger, mFactory)
 			if err != nil {
 				logger.Fatal("Could not create collector proxy", zap.Error(err))
 			}
@@ -88,12 +94,34 @@ func main() {
 		flags.AddConfigFileFlag,
 		flags.AddLoggingFlag,
 		app.AddFlags,
+		reporter.AddFlags,
 		tchannel.AddFlags,
+		grpc.AddFlags,
 		metrics.AddFlags,
 	)
 
 	if err := command.Execute(); err != nil {
 		fmt.Println(err.Error())
 		os.Exit(1)
+	}
+}
+
+func createCollectorProxy(
+	opts *reporter.Options,
+	tchanRep *tchannel.Builder,
+	grpcRepOpts *grpc.Options,
+	logger *zap.Logger,
+	mFactory jMetrics.Factory,
+) (app.CollectorProxy, error) {
+	switch opts.ReporterType {
+	case reporter.GRPC:
+		log := grpclog.NewLoggerV2(os.Stdout, os.Stderr, os.Stderr)
+		grpclog.SetLoggerV2(log)
+		return grpc.NewCollectorProxy(grpcRepOpts, logger), nil
+	default:
+		logger.Warn("Specified unknown reporter type, falling back to tchannel")
+		fallthrough
+	case reporter.TCHANNEL:
+		return tchannel.NewCollectorProxy(tchanRep, mFactory, logger)
 	}
 }

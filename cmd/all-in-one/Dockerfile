@@ -15,6 +15,9 @@ EXPOSE 5778
 # Collector HTTP
 EXPOSE 14268
 
+# Collector gRPC
+EXPOSE 14270
+
 # Web HTTP
 EXPOSE 16686
 

@@ -108,7 +108,7 @@ func (h *httpHandler) serveSamplingHTTP(w http.ResponseWriter, r *http.Request, 
 	resp, err := h.manager.GetSamplingStrategy(service)
 	if err != nil {
 		h.metrics.TCollectorProxyFailures.Inc(1)
-		http.Error(w, fmt.Sprintf("tcollector error: %+v", err), http.StatusInternalServerError)
+		http.Error(w, fmt.Sprintf("collector error: %+v", err), http.StatusInternalServerError)
 		return
 	}
 	jsonBytes, err := json.Marshal(resp)
@@ -138,7 +138,7 @@ func (h *httpHandler) serveBaggageHTTP(w http.ResponseWriter, r *http.Request) {
 	resp, err := h.manager.GetBaggageRestrictions(service)
 	if err != nil {
 		h.metrics.TCollectorProxyFailures.Inc(1)
-		http.Error(w, fmt.Sprintf("tcollector error: %+v", err), http.StatusInternalServerError)
+		http.Error(w, fmt.Sprintf("collector error: %+v", err), http.StatusInternalServerError)
 		return
 	}
 	// NB. it's literally impossible for this Marshal to fail

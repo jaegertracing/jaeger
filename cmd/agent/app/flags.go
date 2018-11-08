@@ -51,7 +51,7 @@ func AddFlags(flags *flag.FlagSet) {
 	flags.String(
 		httpServerHostPort,
 		defaultHTTPServerHostPort,
-		"host:port of the http server (e.g. for /sampling point and /baggage endpoint)")
+		"host:port of the http server (e.g. for /sampling point and /baggageRestrictions endpoint)")
 }
 
 // InitFromViper initializes Builder with properties retrieved from Viper.
