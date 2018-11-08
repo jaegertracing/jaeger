@@ -16,6 +16,7 @@ package main
 
 import (
 	"fmt"
+	"io/ioutil"
 	"os"
 
 	"github.com/pkg/errors"
@@ -115,8 +116,7 @@ func createCollectorProxy(
 ) (app.CollectorProxy, error) {
 	switch opts.ReporterType {
 	case reporter.GRPC:
-		log := grpclog.NewLoggerV2(os.Stdout, os.Stderr, os.Stderr)
-		grpclog.SetLoggerV2(log)
+		grpclog.SetLoggerV2(grpclog.NewLoggerV2(ioutil.Discard, os.Stderr, os.Stderr))
 		return grpc.NewCollectorProxy(grpcRepOpts, logger), nil
 	default:
 		logger.Warn("Specified unknown reporter type, falling back to tchannel")

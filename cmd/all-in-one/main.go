@@ -17,6 +17,7 @@ package main
 import (
 	"fmt"
 	"io"
+	"io/ioutil"
 	"log"
 	"net"
 	"net/http"
@@ -277,8 +278,7 @@ func startCollector(
 			logger.Fatal("Failed to listen on gRPC port", zap.Error(err))
 		}
 
-		log := grpclog.NewLoggerV2(os.Stdout, os.Stderr, os.Stderr)
-		grpclog.SetLoggerV2(log)
+		grpclog.SetLoggerV2(grpclog.NewLoggerV2(ioutil.Discard, os.Stderr, os.Stderr))
 
 		grpcSrv := grpc.NewServer()
 		api_v2.RegisterCollectorServiceServer(grpcSrv, grpcHandler)
