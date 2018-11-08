@@ -161,7 +161,7 @@ install: install-glide
 
 .PHONY: install-statik
 install-statik:
-	go get github.com/rakyll/statik
+	go get -u github.com/rakyll/statik
 
 .PHONY: build-examples
 build-examples: install-statik
@@ -325,7 +325,7 @@ generate-zipkin-swagger: idl-submodule
 
 .PHONY: install-mockery
 install-mockery:
-	go get github.com/vektra/mockery
+	go get -u github.com/vektra/mockery
 
 .PHONY: generate-mocks
 generate-mocks: install-mockery
