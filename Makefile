@@ -1,4 +1,4 @@
-#PROJECT_ROOT=github.com/jaegertracing/jaeger
+PROJECT_ROOT=github.com/jaegertracing/jaeger
 # TOP_PKGS is used with 'go test'
 # TODO: try to do this without glide, since it may not be installed initially
 TOP_PKGS := $(shell glide novendor | \
