@@ -38,7 +38,11 @@ func NewGRPCHandler(logger *zap.Logger, spanProcessor SpanProcessor) *GRPCHandle
 
 // PostSpans implements gRPC CollectorService.
 func (g *GRPCHandler) PostSpans(ctx context.Context, r *api_v2.PostSpansRequest) (*api_v2.PostSpansResponse, error) {
-	// TODO what if span does not have process
+	for _, span := range r.GetBatch().Spans {
+		if span.GetProcess() == nil {
+			span.Process = &r.Batch.Process
+		}
+	}
 	oks, err := g.spanProcessor.ProcessSpans(r.GetBatch().Spans, JaegerFormatType)
 	if err != nil {
 		g.logger.Error("cannot process spans", zap.Error(err))
