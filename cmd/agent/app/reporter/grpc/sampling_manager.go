@@ -28,19 +28,19 @@ import (
 
 // SamplingManager returns sampling decisions from collector over gRPC.
 type SamplingManager struct {
-	sampling api_v2.SamplingManagerClient
+	client api_v2.SamplingManagerClient
 }
 
 // NewSamplingManager creates gRPC sampling manager.
 func NewSamplingManager(conn *grpc.ClientConn) *SamplingManager {
 	return &SamplingManager{
-		sampling: api_v2.NewSamplingManagerClient(conn),
+		client: api_v2.NewSamplingManagerClient(conn),
 	}
 }
 
 // GetSamplingStrategy returns sampling strategies from collector.
 func (s *SamplingManager) GetSamplingStrategy(serviceName string) (*sampling.SamplingStrategyResponse, error) {
-	r, err := s.sampling.GetSamplingStrategy(context.Background(), &api_v2.SamplingStrategyParameters{ServiceName: serviceName})
+	r, err := s.client.GetSamplingStrategy(context.Background(), &api_v2.SamplingStrategyParameters{ServiceName: serviceName})
 	if err != nil {
 		return nil, err
 	}

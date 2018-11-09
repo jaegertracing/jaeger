@@ -17,7 +17,6 @@ package main
 import (
 	"fmt"
 	"io"
-	"io/ioutil"
 	"log"
 	"net"
 	"net/http"
@@ -38,7 +37,6 @@ import (
 	"github.com/uber/tchannel-go/thrift"
 	"go.uber.org/zap"
 	"google.golang.org/grpc"
-	"google.golang.org/grpc/grpclog"
 
 	agentApp "github.com/jaegertracing/jaeger/cmd/agent/app"
 	agentRep "github.com/jaegertracing/jaeger/cmd/agent/app/reporter"
@@ -47,6 +45,7 @@ import (
 	basic "github.com/jaegertracing/jaeger/cmd/builder"
 	collectorApp "github.com/jaegertracing/jaeger/cmd/collector/app"
 	collector "github.com/jaegertracing/jaeger/cmd/collector/app/builder"
+	"github.com/jaegertracing/jaeger/cmd/collector/app/grpcserver"
 	"github.com/jaegertracing/jaeger/cmd/collector/app/sampling"
 	"github.com/jaegertracing/jaeger/cmd/collector/app/sampling/strategystore"
 	"github.com/jaegertracing/jaeger/cmd/collector/app/zipkin"
@@ -60,7 +59,6 @@ import (
 	"github.com/jaegertracing/jaeger/pkg/version"
 	ss "github.com/jaegertracing/jaeger/plugin/sampling/strategystore"
 	"github.com/jaegertracing/jaeger/plugin/storage"
-	"github.com/jaegertracing/jaeger/proto-gen/api_v2"
 	"github.com/jaegertracing/jaeger/storage/dependencystore"
 	"github.com/jaegertracing/jaeger/storage/spanstore"
 	storageMetrics "github.com/jaegertracing/jaeger/storage/spanstore/metrics"
@@ -130,7 +128,8 @@ func main() {
 				logger.Fatal("Failed to create dependency reader", zap.Error(err))
 			}
 
-			strategyStore := initializeStrategyStore(strategyStoreFactory, v, metricsFactory, logger)
+			strategyStoreFactory.InitFromViper(v)
+			strategyStore := initSamplingStrategyStore(strategyStoreFactory, metricsFactory, logger)
 
 			aOpts := new(agentApp.Builder).InitFromViper(v)
 			repOpts := new(agentRep.Options).InitFromViper(v)
@@ -212,22 +211,24 @@ func startAgent(
 
 func createCollectorProxy(
 	cOpts *collector.CollectorOptions,
-	opts *agentRep.Options,
-	tchanRep *agentTchanRep.Builder,
+	repOpts *agentRep.Options,
+	tchanRepOpts *agentTchanRep.Builder,
 	grpcRepOpts *agentGrpcRep.Options,
 	logger *zap.Logger,
 	mFactory metrics.Factory,
 ) (agentApp.CollectorProxy, error) {
-	switch opts.ReporterType {
+	switch repOpts.ReporterType {
 	case agentRep.GRPC:
 		grpcRepOpts.CollectorHostPort = fmt.Sprintf("127.0.0.1:%d", cOpts.CollectorGRPCPort)
 		return agentGrpcRep.NewCollectorProxy(grpcRepOpts, logger), nil
-	default:
-		logger.Warn("Specified unknown reporter type, falling back to tchannel")
-		fallthrough
 	case agentRep.TCHANNEL:
-		tchanRep.CollectorHostPorts = append(tchanRep.CollectorHostPorts, fmt.Sprintf("127.0.0.1:%d", cOpts.CollectorPort))
-		return agentTchanRep.NewCollectorProxy(tchanRep, mFactory, logger)
+		fallthrough
+	default:
+		if repOpts.ReporterType != agentRep.TCHANNEL {
+			logger.Warn("Specified unknown reporter type, falling back to tchannel")
+		}
+		tchanRepOpts.CollectorHostPorts = append(tchanRepOpts.CollectorHostPorts, fmt.Sprintf("127.0.0.1:%d", cOpts.CollectorPort))
+		return agentTchanRep.NewCollectorProxy(tchanRepOpts, mFactory, logger)
 	}
 }
 
@@ -272,24 +273,10 @@ func startCollector(
 	}
 
 	{
-		grpcPortStr := ":" + strconv.Itoa(cOpts.CollectorGRPCPort)
-		lis, err := net.Listen("tcp", grpcPortStr)
-		if err != nil {
-			logger.Fatal("Failed to listen on gRPC port", zap.Error(err))
-		}
-
-		grpclog.SetLoggerV2(grpclog.NewLoggerV2(ioutil.Discard, os.Stderr, os.Stderr))
-
-		grpcSrv := grpc.NewServer()
-		api_v2.RegisterCollectorServiceServer(grpcSrv, grpcHandler)
-		api_v2.RegisterSamplingManagerServer(grpcSrv, sampling.NewGRPCHandler(strategyStore))
-		logger.Info("Starting Jaeger Collector gRPC server", zap.Int("grpc-port", cOpts.CollectorGRPCPort))
-		go func() {
-			if err := grpcSrv.Serve(lis); err != nil {
-				logger.Fatal("Could not launch gRPC service", zap.Error(err))
-			}
-			hc.Set(healthcheck.Unavailable)
-		}()
+		grpcserver.StartGRPCCollector(cOpts.CollectorGRPCPort, grpc.NewServer(), grpcHandler, strategyStore, logger,
+			func(err error) {
+				logger.Fatal("gRPC collector failed", zap.Error(err))
+			})
 	}
 
 	{
@@ -387,13 +374,11 @@ func startQuery(
 	}()
 }
 
-func initializeStrategyStore(
+func initSamplingStrategyStore(
 	samplingStrategyStoreFactory *ss.Factory,
-	v *viper.Viper,
 	metricsFactory metrics.Factory,
 	logger *zap.Logger,
 ) strategystore.StrategyStore {
-	samplingStrategyStoreFactory.InitFromViper(v)
 	if err := samplingStrategyStoreFactory.Initialize(metricsFactory, logger); err != nil {
 		logger.Fatal("Failed to init sampling strategy store factory", zap.Error(err))
 	}

@@ -32,7 +32,7 @@ const (
 
 	defaultTChannelPort = 14267
 	defaultHTTPPort     = 14268
-	defaultGRPCPort     = 14270
+	defaultGRPCPort     = 14250
 	// CollectorDefaultHealthCheckHTTPPort is the default HTTP Port for health check
 	CollectorDefaultHealthCheckHTTPPort = 14269
 )

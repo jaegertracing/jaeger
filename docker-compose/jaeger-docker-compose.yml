@@ -8,7 +8,7 @@ services:
         - "14269"
         - "14268:14268"
         - "14267"
-        - "14270"
+        - "14250"
         - "9411:9411"
       restart: on-failure
       depends_on:
@@ -26,7 +26,7 @@ services:
 
     jaeger-agent:
       image: jaegertracing/jaeger-agent
-      command: ["--reporter.type=grpc", "--reporter.grpc.collector.host-port=jaeger-collector:14270"]
+      command: ["--reporter.type=grpc", "--reporter.grpc.collector.host-port=jaeger-collector:14250"]
       ports:
         - "5775:5775/udp"
         - "6831:6831/udp"
