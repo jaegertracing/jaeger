@@ -44,6 +44,7 @@ func NewReporter(conn *grpc.ClientConn, logger *zap.Logger) *Reporter {
 
 // EmitBatch implements EmitBatch() of Reporter
 func (r *Reporter) EmitBatch(b *thrift.Batch) error {
+	// TODO pass process to r.send() - do not convert it for every span
 	spans := jConverter.ToDomain(b.Spans, b.Process)
 	return r.send(spans)
 }
