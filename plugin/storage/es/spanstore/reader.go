@@ -514,9 +514,6 @@ func (s *SpanReader) buildObjectQuery(field string, k string, v string) elastic.
 }
 
 func logErrorToSpan(span opentracing.Span, err error) {
-	if err == nil {
-		return
-	}
 	ottag.Error.Set(span, true)
 	span.LogFields(otlog.Error(err))
 }
