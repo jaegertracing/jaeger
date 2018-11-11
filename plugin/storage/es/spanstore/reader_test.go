@@ -413,7 +413,7 @@ func returnSearchFunc(typ string, r *spanReaderTest) ([]string, error) {
 	} else if typ == operationsAggregation {
 		return r.reader.GetOperations(context.Background(), "someService")
 	} else if typ == traceIDAggregation {
-		return r.reader.findTraceIDs(&spanstore.TraceQueryParameters{})
+		return r.reader.findTraceIDs(context.Background(), &spanstore.TraceQueryParameters{})
 	}
 	return nil, errors.New("Specify services, operations, traceIDs only")
 }
