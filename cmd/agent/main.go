@@ -119,11 +119,8 @@ func createCollectorProxy(
 		grpclog.SetLoggerV2(grpclog.NewLoggerV2(ioutil.Discard, os.Stderr, os.Stderr))
 		return grpc.NewCollectorProxy(grpcRepOpts, logger), nil
 	case reporter.TCHANNEL:
-		fallthrough
-	default:
-		if opts.ReporterType != reporter.TCHANNEL {
-			logger.Warn("Specified unknown reporter type, falling back to tchannel")
-		}
 		return tchannel.NewCollectorProxy(tchanRep, mFactory, logger)
+	default:
+		return nil, errors.New(fmt.Sprintf("unknown reporter type %s", string(opts.ReporterType)))
 	}
 }
