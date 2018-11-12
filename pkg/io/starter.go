@@ -12,18 +12,9 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package calculationstrategy
+package io
 
-import (
-	"testing"
-
-	"github.com/stretchr/testify/assert"
-)
-
-func TestFunc(t *testing.T) {
-	c := Func(func(targetQPS, qps, oldProbability float64) float64 {
-		return targetQPS
-	})
-	val := 1.0
-	assert.Equal(t, val, c.Calculate(val, 0, 0))
+// Starter is the interface that wraps the basic Start() method.
+type Starter interface {
+	Start() error
 }

@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package internal
+package leaderelection
 
 import (
 	"errors"
@@ -26,6 +26,7 @@ import (
 	"go.uber.org/atomic"
 
 	lmocks "github.com/jaegertracing/jaeger/pkg/distributedlock/mocks"
+	jio "github.com/jaegertracing/jaeger/pkg/io"
 	"github.com/jaegertracing/jaeger/pkg/testutils"
 )
 
@@ -63,7 +64,7 @@ func TestAcquireLock(t *testing.T) {
 				ElectionParticipantOptions: ElectionParticipantOptions{
 					LeaderLeaseRefreshInterval:   leaderInterval,
 					FollowerLeaseRefreshInterval: followerInterval,
-					Logger: logger,
+					Logger:                       logger,
 				},
 				lock:         mockLock,
 				resourceName: "sampling_lock",
@@ -85,14 +86,14 @@ func TestRunAcquireLockLoop_followerOnly(t *testing.T) {
 	p := NewElectionParticipant(mockLock, "sampling_lock", ElectionParticipantOptions{
 		LeaderLeaseRefreshInterval:   time.Millisecond,
 		FollowerLeaseRefreshInterval: 5 * time.Millisecond,
-		Logger: logger,
+		Logger:                       logger,
 	},
 	)
 
 	defer func() {
 		assert.NoError(t, p.(io.Closer).Close())
 	}()
-	go p.Start()
+	go p.(jio.Starter).Start()
 
 	expectedErrorMsg := "Failed to acquire lock"
 	for i := 0; i < 1000; i++ {

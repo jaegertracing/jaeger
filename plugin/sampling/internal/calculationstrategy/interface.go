@@ -14,27 +14,15 @@
 
 package calculationstrategy
 
-import (
-	"testing"
+// ProbabilityCalculator calculates the new probability given the current and target QPS
+type ProbabilityCalculator interface {
+	Calculate(targetQPS, curQPS, prevProbability float64) (newProbability float64)
+}
 
-	"github.com/stretchr/testify/assert"
-)
+// Calculate wraps a function of appropriate signature and makes a ProbabilityCalculator from it.
+type Calculate func(targetQPS, curQPS, prevProbability float64) (newProbability float64)
 
-func TestCalculate(t *testing.T) {
-	calculator := NewPercentageIncreaseCappedCalculator(0)
-	tests := []struct {
-		targetQPS           float64
-		curQPS              float64
-		oldProbability      float64
-		expectedProbability float64
-		testName            string
-	}{
-		{1.0, 2.0, 0.1, 0.05, "test1"},
-		{1.0, 0.5, 0.1, 0.15, "test2"},
-		{1.0, 0.8, 0.1, 0.125, "test3"},
-	}
-	for _, tt := range tests {
-		probability := calculator.Calculate(tt.targetQPS, tt.curQPS, tt.oldProbability)
-		assert.InDelta(t, probability, tt.expectedProbability, 0.0001, tt.testName)
-	}
+// Calculate implements Calculator interface.
+func (c Calculate) Calculate(targetQPS, curQPS, prevProbability float64) float64 {
+	return c(targetQPS, curQPS, prevProbability)
 }
