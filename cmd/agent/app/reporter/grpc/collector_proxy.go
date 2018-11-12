@@ -43,7 +43,7 @@ func NewCollectorProxy(o *Options, logger *zap.Logger) *ProxyBuilder {
 			resolvedAddrs = append(resolvedAddrs, resolver.Address{Addr: addr})
 		}
 		r.InitialAddrs(resolvedAddrs)
-		conn, _ = grpc.Dial(r.Scheme()+":///jaeger.collector", grpc.WithInsecure(), grpc.WithBalancerName(roundrobin.Name))
+		conn, _ = grpc.Dial(r.Scheme()+":///round_robin", grpc.WithInsecure(), grpc.WithBalancerName(roundrobin.Name))
 	} else {
 		conn, _ = grpc.Dial(o.CollectorHostPort[0], grpc.WithInsecure())
 	}
