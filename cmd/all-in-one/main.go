@@ -222,6 +222,7 @@ func createCollectorProxy(
 		grpcRepOpts.CollectorHostPort = append(grpcRepOpts.CollectorHostPort, fmt.Sprintf("127.0.0.1:%d", cOpts.CollectorGRPCPort))
 		return agentGrpcRep.NewCollectorProxy(grpcRepOpts, logger), nil
 	case agentRep.TCHANNEL:
+		tchanRepOpts.CollectorHostPorts = append(tchanRepOpts.CollectorHostPorts, fmt.Sprintf("127.0.0.1:%d", cOpts.CollectorPort))
 		return agentTchanRep.NewCollectorProxy(tchanRepOpts, mFactory, logger)
 	default:
 		return nil, errors.New(fmt.Sprintf("unknown reporter type %s", string(repOpts.ReporterType)))
