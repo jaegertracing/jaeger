@@ -32,12 +32,19 @@ func TestBingFlags(t *testing.T) {
 	command.PersistentFlags().AddGoFlagSet(flags)
 	v.BindPFlags(command.PersistentFlags())
 
-	err := command.ParseFlags([]string{
-		"--reporter.grpc.collector.host-port=localhost:1111",
-	})
-	require.NoError(t, err)
-
-	b := &Options{}
-	b.InitFromViper(v)
-	assert.Equal(t, "localhost:1111", b.CollectorHostPort)
+	tests := []struct {
+		cOpts    []string
+		expected *Options
+	}{
+		{cOpts: []string{"--reporter.grpc.collector.host-port=localhost:1111"},
+			expected: &Options{CollectorHostPort: []string{"localhost:1111"}}},
+		{cOpts: []string{"--reporter.grpc.collector.host-port=localhost:1111,localhost:2222"},
+			expected: &Options{CollectorHostPort: []string{"localhost:1111", "localhost:2222"}}},
+	}
+	for _, test := range tests {
+		err := command.ParseFlags(test.cOpts)
+		require.NoError(t, err)
+		b := new(Options).InitFromViper(v)
+		assert.Equal(t, test.expected, b)
+	}
 }

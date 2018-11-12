@@ -16,6 +16,7 @@ package grpc
 
 import (
 	"flag"
+	"strings"
 
 	"github.com/spf13/viper"
 )
@@ -28,16 +29,16 @@ const (
 // Options Struct to hold configurations
 type Options struct {
 	// CollectorHostPort is host:port Jaeger Collector.
-	CollectorHostPort string
+	CollectorHostPort []string
 }
 
 // AddFlags adds flags for Options.
 func AddFlags(flags *flag.FlagSet) {
-	flags.String(gRPCPrefix+collectorHostPort, "", "(experimental) Collector host:port")
+	flags.String(gRPCPrefix+collectorHostPort, "", "(experimental) Comma-separated string representing host:port of a static list of collectors to connect to directly.")
 }
 
 // InitFromViper initializes Options with properties retrieved from Viper.
 func (o *Options) InitFromViper(v *viper.Viper) *Options {
-	o.CollectorHostPort = v.GetString(gRPCPrefix + collectorHostPort)
+	o.CollectorHostPort = strings.Split(v.GetString(gRPCPrefix+collectorHostPort), ",")
 	return o
 }

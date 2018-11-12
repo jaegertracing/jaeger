@@ -20,11 +20,46 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"go.uber.org/zap"
+	"google.golang.org/grpc"
+
+	"github.com/jaegertracing/jaeger/proto-gen/api_v2"
+	"github.com/jaegertracing/jaeger/thrift-gen/jaeger"
 )
 
 func TestProxyBuilder(t *testing.T) {
-	proxy := NewCollectorProxy(&Options{}, zap.NewNop())
+	proxy := NewCollectorProxy(&Options{CollectorHostPort: []string{"localhost:0000"}}, zap.NewNop())
 	require.NotNil(t, proxy)
 	assert.NotNil(t, proxy.GetReporter())
 	assert.NotNil(t, proxy.GetManager())
+}
+
+func TestMultipleCollectors(t *testing.T) {
+	spanHandler1 := &mockSpanHandler{}
+	s1, addr1 := initializeGRPCTestServer(t, func(s *grpc.Server) {
+		api_v2.RegisterCollectorServiceServer(s, spanHandler1)
+	})
+	defer s1.Stop()
+	spanHandler2 := &mockSpanHandler{}
+	s2, addr2 := initializeGRPCTestServer(t, func(s *grpc.Server) {
+		api_v2.RegisterCollectorServiceServer(s, spanHandler2)
+	})
+	defer s2.Stop()
+
+	proxy := NewCollectorProxy(&Options{CollectorHostPort: []string{addr1.String(), addr2.String()}}, zap.NewNop())
+	require.NotNil(t, proxy)
+	assert.NotNil(t, proxy.GetReporter())
+	assert.NotNil(t, proxy.GetManager())
+
+	var bothServers = false
+	// TODO do not iterate, just create two batches
+	for i := 0; i < 10; i++ {
+		r := proxy.GetReporter()
+		err := r.EmitBatch(&jaeger.Batch{Spans: []*jaeger.Span{{OperationName: "op"}}, Process: &jaeger.Process{ServiceName: "service"}})
+		require.NoError(t, err)
+		if len(spanHandler1.getRequests()) > 0 && len(spanHandler2.getRequests()) > 0 {
+			bothServers = true
+			break
+		}
+	}
+	assert.Equal(t, true, bothServers)
 }

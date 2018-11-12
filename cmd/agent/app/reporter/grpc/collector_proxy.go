@@ -17,6 +17,9 @@ package grpc
 import (
 	"go.uber.org/zap"
 	"google.golang.org/grpc"
+	"google.golang.org/grpc/balancer/roundrobin"
+	"google.golang.org/grpc/resolver"
+	"google.golang.org/grpc/resolver/manual"
 
 	"github.com/jaegertracing/jaeger/cmd/agent/app/httpserver"
 	aReporter "github.com/jaegertracing/jaeger/cmd/agent/app/reporter"
@@ -32,7 +35,18 @@ type ProxyBuilder struct {
 func NewCollectorProxy(o *Options, logger *zap.Logger) *ProxyBuilder {
 	// It does not return error if the collector is not running
 	// a way to fail immediately is to call WithBlock and WithTimeout
-	conn, _ := grpc.Dial(o.CollectorHostPort, grpc.WithInsecure())
+	var conn *grpc.ClientConn
+	if len(o.CollectorHostPort) > 1 {
+		r, _ := manual.GenerateAndRegisterManualResolver()
+		var resolvedAddrs []resolver.Address
+		for _, addr := range o.CollectorHostPort {
+			resolvedAddrs = append(resolvedAddrs, resolver.Address{Addr: addr})
+		}
+		r.InitialAddrs(resolvedAddrs)
+		conn, _ = grpc.Dial(r.Scheme()+":///jaeger.collector", grpc.WithInsecure(), grpc.WithBalancerName(roundrobin.Name))
+	} else {
+		conn, _ = grpc.Dial(o.CollectorHostPort[0], grpc.WithInsecure())
+	}
 	return &ProxyBuilder{
 		reporter: NewReporter(conn, logger),
 		manager:  NewSamplingManager(conn)}

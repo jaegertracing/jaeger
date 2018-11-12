@@ -219,7 +219,7 @@ func createCollectorProxy(
 ) (agentApp.CollectorProxy, error) {
 	switch repOpts.ReporterType {
 	case agentRep.GRPC:
-		grpcRepOpts.CollectorHostPort = fmt.Sprintf("127.0.0.1:%d", cOpts.CollectorGRPCPort)
+		grpcRepOpts.CollectorHostPort = append(grpcRepOpts.CollectorHostPort, fmt.Sprintf("127.0.0.1:%d", cOpts.CollectorGRPCPort))
 		return agentGrpcRep.NewCollectorProxy(grpcRepOpts, logger), nil
 	case agentRep.TCHANNEL:
 		fallthrough
