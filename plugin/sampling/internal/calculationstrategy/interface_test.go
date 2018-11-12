@@ -14,15 +14,16 @@
 
 package calculationstrategy
 
-// ProbabilityCalculator calculates the new probability given the current and target QPS
-type ProbabilityCalculator interface {
-	Calculate(targetQPS, curQPS, prevProbability float64) (newProbability float64)
-}
+import (
+	"testing"
 
-// Func wraps a function of appropriate signature and makes a ProbabilityCalculator from it.
-type Func func(targetQPS, curQPS, prevProbability float64) (newProbability float64)
+	"github.com/stretchr/testify/assert"
+)
 
-// Calculate implements Calculator interface.
-func (f Func) Calculate(targetQPS, curQPS, prevProbability float64) float64 {
-	return f(targetQPS, curQPS, prevProbability)
+func TestCalculate(t *testing.T) {
+	c := Calculate(func(targetQPS, qps, oldProbability float64) float64 {
+		return targetQPS
+	})
+	val := 1.0
+	assert.Equal(t, val, c.Calculate(val, 0, 0))
 }

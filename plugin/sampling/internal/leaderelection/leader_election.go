@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package internal
+package leaderelection
 
 import (
 	"sync"
@@ -31,7 +31,6 @@ var (
 // ElectionParticipant partakes in leader election to become leader.
 type ElectionParticipant interface {
 	IsLeader() bool
-	Start()
 }
 
 type electionParticipant struct {
@@ -54,17 +53,18 @@ type ElectionParticipantOptions struct {
 func NewElectionParticipant(lock dl.Lock, resourceName string, options ElectionParticipantOptions) ElectionParticipant {
 	return &electionParticipant{
 		ElectionParticipantOptions: options,
-		lock:         lock,
-		resourceName: resourceName,
-		isLeader:     atomic.NewBool(false),
-		closeChan:    make(chan struct{}),
+		lock:                       lock,
+		resourceName:               resourceName,
+		isLeader:                   atomic.NewBool(false),
+		closeChan:                  make(chan struct{}),
 	}
 }
 
 // Start runs a background thread which attempts to acquire the leader lock.
-func (p *electionParticipant) Start() {
+func (p *electionParticipant) Start() error {
 	p.wg.Add(1)
 	go p.runAcquireLockLoop()
+	return nil
 }
 
 // Close implements io.Closer.
