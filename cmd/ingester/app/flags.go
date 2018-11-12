@@ -19,6 +19,7 @@ import (
 	"fmt"
 	"strconv"
 	"strings"
+	"time"
 
 	"github.com/spf13/viper"
 
@@ -43,6 +44,8 @@ const (
 	SuffixGroupID = ".group-id"
 	// SuffixEncoding is a suffix for the encoding flag
 	SuffixEncoding = ".encoding"
+	// SuffixDeadlockInterval is a suffix for deadlock detecor flag
+	SuffixDeadlockInterval = ".deadlockInterval"
 	// SuffixParallelism is a suffix for the parallelism flag
 	SuffixParallelism = ".parallelism"
 	// SuffixHTTPPort is a suffix for the HTTP port
@@ -58,6 +61,8 @@ const (
 	DefaultParallelism = 1000
 	// DefaultEncoding is the default span encoding
 	DefaultEncoding = EncodingProto
+	// DefaultDeadlockInterval is the default deadlock interval
+	DefaultDeadlockInterval = 1 * time.Minute
 	// DefaultHTTPPort is the default HTTP port (e.g. for /metrics)
 	DefaultHTTPPort = 14271
 	// IngesterDefaultHealthCheckHTTPPort is the default HTTP Port for health check
@@ -71,6 +76,7 @@ type Options struct {
 	Encoding    string
 	// IngesterHTTPPort is the port that the ingester service listens in on for http requests
 	IngesterHTTPPort int
+	DeadlockInterval time.Duration
 }
 
 // AddFlags adds flags for Builder
@@ -99,6 +105,10 @@ func AddFlags(flagSet *flag.FlagSet) {
 		ConfigPrefix+SuffixHTTPPort,
 		DefaultHTTPPort,
 		"The http port for the ingester service")
+	flagSet.Duration(
+		ConfigPrefix+SuffixDeadlockInterval,
+		DefaultDeadlockInterval,
+		"Interval to check for deadlocks. If no messages gets processed in given time, ingester app will exit. Value of 0 disables deadlock check.")
 
 }
 
@@ -110,4 +120,6 @@ func (o *Options) InitFromViper(v *viper.Viper) {
 	o.Encoding = v.GetString(KafkaConfigPrefix + SuffixEncoding)
 	o.Parallelism = v.GetInt(ConfigPrefix + SuffixParallelism)
 	o.IngesterHTTPPort = v.GetInt(ConfigPrefix + SuffixHTTPPort)
+
+	o.DeadlockInterval = v.GetDuration(ConfigPrefix + SuffixDeadlockInterval)
 }

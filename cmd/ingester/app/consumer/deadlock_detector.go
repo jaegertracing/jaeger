@@ -52,12 +52,14 @@ type partitionDeadlockDetector struct {
 	closePartition                chan struct{}
 	done                          chan struct{}
 	incrementAllPartitionMsgCount func()
+	disabled                      bool
 }
 
 type allPartitionsDeadlockDetector struct {
 	msgConsumed *uint64
 	logger      *zap.Logger
 	done        chan struct{}
+	disabled    bool
 }
 
 func newDeadlockDetector(metricsFactory metrics.Factory, logger *zap.Logger, interval time.Duration) deadlockDetector {
@@ -87,13 +89,18 @@ func (s *deadlockDetector) startMonitoringForPartition(partition int32) *partiti
 		closePartition: make(chan struct{}, 1),
 		done:           make(chan struct{}),
 		logger:         s.logger,
+		disabled:       0 == s.interval,
 
 		incrementAllPartitionMsgCount: func() {
 			s.allPartitionsDeadlockDetector.incrementMsgCount()
 		},
 	}
 
-	go s.monitorForPartition(w, partition)
+	if w.disabled {
+		s.logger.Debug("Partition deadlock detector disabled")
+	} else {
+		go s.monitorForPartition(w, partition)
+	}
 
 	return w
 }
@@ -135,32 +142,40 @@ func (s *deadlockDetector) start() {
 		msgConsumed: &msgConsumed,
 		done:        make(chan struct{}),
 		logger:      s.logger,
+		disabled:    0 == s.interval,
 	}
 
-	go func() {
+	if detector.disabled {
+		s.logger.Debug("Global deadlock detector disabled")
+	} else {
 		s.logger.Debug("Starting global deadlock detector")
-		ticker := time.NewTicker(s.interval)
-		defer ticker.Stop()
+		go func() {
+			ticker := time.NewTicker(s.interval)
+			defer ticker.Stop()
 
-		for {
-			select {
-			case <-detector.done:
-				s.logger.Debug("Closing global ticker routine")
-				return
-			case <-ticker.C:
-				if atomic.LoadUint64(detector.msgConsumed) == 0 {
-					s.panicFunc(-1)
-					return // For tests
+			for {
+				select {
+				case <-detector.done:
+					s.logger.Debug("Closing global ticker routine")
+					return
+				case <-ticker.C:
+					if atomic.LoadUint64(detector.msgConsumed) == 0 {
+						s.panicFunc(-1)
+						return // For tests
+					}
+					atomic.StoreUint64(detector.msgConsumed, 0)
 				}
-				atomic.StoreUint64(detector.msgConsumed, 0)
 			}
-		}
-	}()
+		}()
+	}
 
 	s.allPartitionsDeadlockDetector = detector
 }
 
 func (s *deadlockDetector) close() {
+	if s.allPartitionsDeadlockDetector.disabled {
+		return
+	}
 	s.logger.Debug("Closing all partitions deadlock detector")
 	s.allPartitionsDeadlockDetector.done <- struct{}{}
 }
@@ -174,6 +189,9 @@ func (w *partitionDeadlockDetector) closePartitionChannel() chan struct{} {
 }
 
 func (w *partitionDeadlockDetector) close() {
+	if w.disabled {
+		return
+	}
 	w.logger.Debug("Closing deadlock detector", zap.Int32("partition", w.partition))
 	w.done <- struct{}{}
 }

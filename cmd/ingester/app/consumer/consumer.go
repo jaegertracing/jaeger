@@ -29,10 +29,11 @@ import (
 
 // Params are the parameters of a Consumer
 type Params struct {
-	ProcessorFactory ProcessorFactory
-	MetricsFactory   metrics.Factory
-	Logger           *zap.Logger
-	InternalConsumer consumer.Consumer
+	ProcessorFactory      ProcessorFactory
+	MetricsFactory        metrics.Factory
+	Logger                *zap.Logger
+	InternalConsumer      consumer.Consumer
+	DeadlockCheckInterval time.Duration
 }
 
 // Consumer uses sarama to consume and handle messages from kafka
@@ -56,7 +57,7 @@ type consumerState struct {
 
 // New is a constructor for a Consumer
 func New(params Params) (*Consumer, error) {
-	deadlockDetector := newDeadlockDetector(params.MetricsFactory, params.Logger, time.Minute)
+	deadlockDetector := newDeadlockDetector(params.MetricsFactory, params.Logger, params.DeadlockCheckInterval)
 	return &Consumer{
 		metricsFactory:     params.MetricsFactory,
 		logger:             params.Logger,

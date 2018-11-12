@@ -16,6 +16,7 @@ package app
 
 import (
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/assert"
 
@@ -31,6 +32,7 @@ func TestOptionsWithFlags(t *testing.T) {
 		"--kafka.group-id=group1",
 		"--kafka.encoding=json",
 		"--ingester.parallelism=5",
+		"--ingester.deadlockInterval=2m",
 		"--ingester.http-port=2345"})
 	o.InitFromViper(v)
 
@@ -38,6 +40,7 @@ func TestOptionsWithFlags(t *testing.T) {
 	assert.Equal(t, []string{"127.0.0.1:9092", "0.0.0:1234"}, o.Brokers)
 	assert.Equal(t, "group1", o.GroupID)
 	assert.Equal(t, 5, o.Parallelism)
+	assert.Equal(t, 2*time.Minute, o.DeadlockInterval)
 	assert.Equal(t, EncodingJSON, o.Encoding)
 	assert.Equal(t, 2345, o.IngesterHTTPPort)
 }
@@ -53,4 +56,5 @@ func TestFlagDefaults(t *testing.T) {
 	assert.Equal(t, DefaultGroupID, o.GroupID)
 	assert.Equal(t, DefaultParallelism, o.Parallelism)
 	assert.Equal(t, DefaultEncoding, o.Encoding)
+	assert.Equal(t, DefaultDeadlockInterval, o.DeadlockInterval)
 }

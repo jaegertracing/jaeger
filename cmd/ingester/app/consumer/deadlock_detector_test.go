@@ -112,3 +112,54 @@ func TestGlobalPanic(t *testing.T) {
 	d.start()
 	wg.Wait()
 }
+
+func TestNoGlobalPanicIfDeadlockDetectorDisabled(t *testing.T) {
+	l, _ := zap.NewDevelopment()
+	d := deadlockDetector{
+		metricsFactory: metrics.NewLocalFactory(0),
+		logger:         l,
+		interval:       0,
+		panicFunc: func(partition int32) {
+			t.Errorf("Should not panic when deadlock detector is disabled")
+		},
+	}
+
+	d.start()
+
+	time.Sleep(100 * time.Millisecond)
+
+	d.close()
+}
+
+func TestNoPanicForPartitionIfDeadlockDetectorDisabled(t *testing.T) {
+	l, _ := zap.NewDevelopment()
+	d := deadlockDetector{
+		metricsFactory: metrics.NewLocalFactory(0),
+		logger:         l,
+		interval:       0,
+		panicFunc: func(partition int32) {
+			t.Errorf("Should not panic when deadlock detector is disabled")
+		},
+	}
+
+	w := d.startMonitoringForPartition(1)
+	time.Sleep(100 * time.Millisecond)
+
+	w.close()
+}
+
+//same as TestNoClosingSignalIfMessagesProcessedInInterval but with disabled deadlock detector
+func TestApiCompatibilityWhenDeadlockDetectorDisabled(t *testing.T) {
+	mf := metrics.NewLocalFactory(0)
+	l, _ := zap.NewDevelopment()
+	f := newDeadlockDetector(mf, l, 0)
+	f.start()
+	defer f.close()
+
+	w := f.startMonitoringForPartition(1)
+
+	w.incrementMsgCount()
+	w.incrementAllPartitionMsgCount()
+	assert.Zero(t, len(w.closePartitionChannel()))
+	w.close()
+}
