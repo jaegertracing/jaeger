@@ -94,11 +94,10 @@ func TestPostSpans(t *testing.T) {
 			expected: []*model.Span{{OperationName: "test-op", Process: &model.Process{ServiceName: "batch-process"}}}},
 	}
 	for _, test := range tests {
-		r, err := client.PostSpans(context.Background(), &api_v2.PostSpansRequest{
+		_, err := client.PostSpans(context.Background(), &api_v2.PostSpansRequest{
 			Batch: test.batch,
 		})
 		require.NoError(t, err)
-		require.False(t, r.GetOk())
 		got := processor.getSpans()
 		require.Equal(t, len(test.batch.GetSpans()), len(got))
 		assert.Equal(t, test.expected, got)

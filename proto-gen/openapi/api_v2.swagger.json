@@ -171,13 +171,7 @@
       }
     },
     "api_v2PostSpansResponse": {
-      "type": "object",
-      "properties": {
-        "ok": {
-          "type": "boolean",
-          "format": "boolean"
-        }
-      }
+      "type": "object"
     },
     "api_v2ProbabilisticSamplingStrategy": {
       "type": "object",

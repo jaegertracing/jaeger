@@ -53,7 +53,6 @@ message PostSpansRequest {
 }
 
 message PostSpansResponse {
-    bool ok = 1;
 }
 
 service CollectorService {

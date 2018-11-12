@@ -23,22 +23,22 @@ import (
 
 const (
 	gRPCPrefix        = "reporter.grpc."
-	collectorHostPort = "collector.host-port"
+	collectorHostPort = gRPCPrefix + "collector.host-port"
 )
 
 // Options Struct to hold configurations
 type Options struct {
-	// CollectorHostPort is host:port Jaeger Collector.
+	// CollectorHostPort is list of host:port Jaeger Collectors.
 	CollectorHostPort []string
 }
 
 // AddFlags adds flags for Options.
 func AddFlags(flags *flag.FlagSet) {
-	flags.String(gRPCPrefix+collectorHostPort, "", "(experimental) Comma-separated string representing host:port of a static list of collectors to connect to directly.")
+	flags.String(collectorHostPort, "", "(experimental) Comma-separated string representing host:port of a static list of collectors to connect to directly.")
 }
 
 // InitFromViper initializes Options with properties retrieved from Viper.
 func (o *Options) InitFromViper(v *viper.Viper) *Options {
-	o.CollectorHostPort = strings.Split(v.GetString(gRPCPrefix+collectorHostPort), ",")
+	o.CollectorHostPort = strings.Split(v.GetString(collectorHostPort), ",")
 	return o
 }

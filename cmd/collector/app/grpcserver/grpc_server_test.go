@@ -73,7 +73,7 @@ func TestSpanCollector(t *testing.T) {
 	c := api_v2.NewCollectorServiceClient(conn)
 	response, err := c.PostSpans(context.Background(), &api_v2.PostSpansRequest{})
 	require.NoError(t, err)
-	assert.Equal(t, true, response.Ok)
+	require.NotNil(t, response)
 }
 
 type mockSamplingStore struct{}

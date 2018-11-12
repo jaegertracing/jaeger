@@ -43,17 +43,10 @@ func (g *GRPCHandler) PostSpans(ctx context.Context, r *api_v2.PostSpansRequest)
 			span.Process = &r.Batch.Process
 		}
 	}
-	oks, err := g.spanProcessor.ProcessSpans(r.GetBatch().Spans, JaegerFormatType)
+	_, err := g.spanProcessor.ProcessSpans(r.GetBatch().Spans, JaegerFormatType)
 	if err != nil {
 		g.logger.Error("cannot process spans", zap.Error(err))
 		return nil, err
 	}
-	success := true
-	for _, ok := range oks {
-		if !ok {
-			success = false
-			break
-		}
-	}
-	return &api_v2.PostSpansResponse{Ok: success}, nil
+	return &api_v2.PostSpansResponse{}, nil
 }

@@ -46,7 +46,7 @@ func (h *mockSpanHandler) PostSpans(c context.Context, r *api_v2.PostSpansReques
 	h.mux.Lock()
 	defer h.mux.Unlock()
 	h.requests = append(h.requests, r)
-	return &api_v2.PostSpansResponse{Ok: true}, nil
+	return &api_v2.PostSpansResponse{}, nil
 }
 
 func TestReporter_EmitZipkinBatch(t *testing.T) {
