@@ -127,7 +127,7 @@ func addFlags(flagSet *flag.FlagSet, nsConfig *namespaceConfig) {
 	flagSet.Duration(
 		nsConfig.namespace+suffixTimeout,
 		nsConfig.Timeout,
-		"Timeout used for queries")
+		"Timeout used for queries. A Timeout of zero means no timeout")
 	flagSet.Duration(
 		nsConfig.namespace+suffixMaxSpanAge,
 		nsConfig.MaxSpanAge,
