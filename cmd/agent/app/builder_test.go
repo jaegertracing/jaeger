@@ -107,15 +107,6 @@ func TestBuilderWithExtraReporter(t *testing.T) {
 	assert.NotNil(t, agent)
 }
 
-func TestBuilderMetricsHandler(t *testing.T) {
-	b := &Builder{}
-	b.Metrics.Backend = "expvar"
-	b.Metrics.HTTPRoute = "/expvar"
-	agent, err := b.CreateAgent(fakeCollectorProxy{}, zap.NewNop(), metrics.NullFactory)
-	assert.NoError(t, err)
-	assert.NotNil(t, agent)
-}
-
 func TestBuilderWithProcessorErrors(t *testing.T) {
 	testCases := []struct {
 		model       Model
