@@ -73,7 +73,8 @@ func TestAcquireLock(t *testing.T) {
 
 			p.setLeader(test.isLeader)
 			assert.Equal(t, test.expectedInterval, p.acquireLock())
-			assert.Equal(t, test.expectedError, testutils.LogMatcher(1, acquireLockErrMsg, logBuffer.Lines()))
+			match, errMsg := testutils.LogMatcher(1, acquireLockErrMsg, logBuffer.Lines())
+			assert.Equal(t, test.expectedError, match, errMsg)
 		})
 	}
 }
@@ -98,11 +99,12 @@ func TestRunAcquireLockLoop_followerOnly(t *testing.T) {
 	expectedErrorMsg := "Failed to acquire lock"
 	for i := 0; i < 1000; i++ {
 		// match logs specific to acquireLockErrMsg.
-		if testutils.LogMatcher(2, expectedErrorMsg, logBuffer.Lines()) {
+		if match, _ := testutils.LogMatcher(2, expectedErrorMsg, logBuffer.Lines()); match {
 			break
 		}
 		time.Sleep(time.Millisecond)
 	}
-	assert.True(t, testutils.LogMatcher(2, expectedErrorMsg, logBuffer.Lines()))
+	match, errMsg := testutils.LogMatcher(2, expectedErrorMsg, logBuffer.Lines())
+	assert.True(t, match, errMsg)
 	assert.False(t, p.IsLeader())
 }

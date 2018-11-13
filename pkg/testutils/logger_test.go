@@ -74,16 +74,19 @@ func TestLogMatcher(t *testing.T) {
 		subStr     string
 		logs       []string
 		expected   bool
+		errMsg     string
 	}{
-		{occurences: 1, expected: false},
+		{occurences: 1, expected: false, errMsg: "subStr '' does not occur 1 time(s) in []"},
 		{occurences: 1, subStr: "hi", logs: []string{"hi"}, expected: true},
-		{occurences: 3, subStr: "hi", logs: []string{"hi", "hi"}, expected: false},
+		{occurences: 3, subStr: "hi", logs: []string{"hi", "hi"}, expected: false, errMsg: "subStr 'hi' does not occur 3 time(s) in [hi hi]"},
 		{occurences: 3, subStr: "hi", logs: []string{"hi", "hi", "hi"}, expected: true},
 	}
 	for i, tt := range tests {
 		test := tt
 		t.Run(fmt.Sprintf("%v", i), func(t *testing.T) {
-			assert.Equal(t, test.expected, LogMatcher(test.occurences, test.subStr, test.logs))
+			match, errMsg := LogMatcher(test.occurences, test.subStr, test.logs)
+			assert.Equal(t, test.expected, match)
+			assert.Equal(t, test.errMsg, errMsg)
 		})
 	}
 }

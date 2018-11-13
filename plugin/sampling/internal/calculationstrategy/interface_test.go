@@ -20,8 +20,8 @@ import (
 	"github.com/stretchr/testify/assert"
 )
 
-func TestCalculate(t *testing.T) {
-	c := Calculate(func(targetQPS, qps, oldProbability float64) float64 {
+func TestCalculateFunc(t *testing.T) {
+	c := CalculateFunc(func(targetQPS, qps, oldProbability float64) float64 {
 		return targetQPS
 	})
 	val := 1.0

@@ -24,7 +24,7 @@ import (
 	dl "github.com/jaegertracing/jaeger/pkg/distributedlock"
 )
 
-var (
+const (
 	acquireLockErrMsg = "Failed to acquire lock"
 )
 

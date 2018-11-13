@@ -19,10 +19,10 @@ type ProbabilityCalculator interface {
 	Calculate(targetQPS, curQPS, prevProbability float64) (newProbability float64)
 }
 
-// Calculate wraps a function of appropriate signature and makes a ProbabilityCalculator from it.
-type Calculate func(targetQPS, curQPS, prevProbability float64) (newProbability float64)
+// CalculateFunc wraps a function of appropriate signature and makes a ProbabilityCalculator from it.
+type CalculateFunc func(targetQPS, curQPS, prevProbability float64) (newProbability float64)
 
 // Calculate implements Calculator interface.
-func (c Calculate) Calculate(targetQPS, curQPS, prevProbability float64) float64 {
+func (c CalculateFunc) Calculate(targetQPS, curQPS, prevProbability float64) float64 {
 	return c(targetQPS, curQPS, prevProbability)
 }
