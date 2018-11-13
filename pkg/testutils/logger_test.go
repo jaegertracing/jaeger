@@ -80,6 +80,7 @@ func TestLogMatcher(t *testing.T) {
 		{occurences: 1, subStr: "hi", logs: []string{"hi"}, expected: true},
 		{occurences: 3, subStr: "hi", logs: []string{"hi", "hi"}, expected: false, errMsg: "subStr 'hi' does not occur 3 time(s) in [hi hi]"},
 		{occurences: 3, subStr: "hi", logs: []string{"hi", "hi", "hi"}, expected: true},
+		{occurences: 1, subStr: "hi", logs: []string{"bye", "bye"}, expected: false, errMsg: "subStr 'hi' does not occur 1 time(s) in [bye bye]"},
 	}
 	for i, tt := range tests {
 		test := tt
