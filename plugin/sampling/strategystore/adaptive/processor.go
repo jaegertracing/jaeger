@@ -270,7 +270,7 @@ func (p *processor) runCalculationLoop() {
 				// fine. This race condition should not ever occur anyway since the calculation interval will
 				// be way longer than the time to run the calculations.
 				p.generateStrategyResponses()
-				p.calculateProbabilitiesLatency.Record(time.Now().Sub(startTime))
+				p.calculateProbabilitiesLatency.Record(time.Since(startTime))
 				go p.saveProbabilitiesAndQPS()
 			}
 		case <-p.calculationStop:
