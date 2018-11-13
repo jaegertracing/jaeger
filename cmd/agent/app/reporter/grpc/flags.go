@@ -39,6 +39,9 @@ func AddFlags(flags *flag.FlagSet) {
 
 // InitFromViper initializes Options with properties retrieved from Viper.
 func (o *Options) InitFromViper(v *viper.Viper) *Options {
-	o.CollectorHostPort = strings.Split(v.GetString(collectorHostPort), ",")
+	hostPorts := v.GetString(collectorHostPort)
+	if hostPorts != "" {
+		o.CollectorHostPort = strings.Split(hostPorts, ",")
+	}
 	return o
 }
