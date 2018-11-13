@@ -28,7 +28,6 @@ import (
 	"github.com/jaegertracing/jaeger/cmd/agent/app/reporter"
 	"github.com/jaegertracing/jaeger/cmd/agent/app/servers"
 	"github.com/jaegertracing/jaeger/cmd/agent/app/servers/thriftudp"
-	jmetrics "github.com/jaegertracing/jaeger/pkg/metrics"
 	zipkinThrift "github.com/jaegertracing/jaeger/thrift-gen/agent"
 	jaegerThrift "github.com/jaegertracing/jaeger/thrift-gen/jaeger"
 )
@@ -72,7 +71,6 @@ type CollectorProxy interface {
 type Builder struct {
 	Processors []ProcessorConfiguration `yaml:"processors"`
 	HTTPServer HTTPServerConfiguration  `yaml:"httpServer"`
-	Metrics    jmetrics.Builder         `yaml:"metrics"`
 
 	reporters []reporter.Reporter
 }
@@ -110,7 +108,7 @@ func (b *Builder) CreateAgent(primaryProxy CollectorProxy, logger *zap.Logger, m
 	if err != nil {
 		return nil, err
 	}
-	server := b.HTTPServer.getHTTPServer(primaryProxy.GetManager(), mFactory, &b.Metrics)
+	server := b.HTTPServer.getHTTPServer(primaryProxy.GetManager(), mFactory)
 	return NewAgent(processors, server, logger), nil
 }
 
@@ -156,15 +154,11 @@ func (b *Builder) getProcessors(rep reporter.Reporter, mFactory metrics.Factory,
 }
 
 // GetHTTPServer creates an HTTP server that provides sampling strategies and baggage restrictions to client libraries.
-func (c HTTPServerConfiguration) getHTTPServer(manager httpserver.ClientConfigManager, mFactory metrics.Factory, mBuilder *jmetrics.Builder) *http.Server {
+func (c HTTPServerConfiguration) getHTTPServer(manager httpserver.ClientConfigManager, mFactory metrics.Factory) *http.Server {
 	if c.HostPort == "" {
 		c.HostPort = defaultHTTPServerHostPort
 	}
-	server := httpserver.NewHTTPServer(c.HostPort, manager, mFactory)
-	if h := mBuilder.Handler(); mFactory != nil && h != nil {
-		server.Handler.(*http.ServeMux).Handle(mBuilder.HTTPRoute, h)
-	}
-	return server
+	return httpserver.NewHTTPServer(c.HostPort, manager, mFactory)
 }
 
 // GetThriftProcessor gets a TBufferedServer backed Processor using the collector configuration

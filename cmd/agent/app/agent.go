@@ -49,6 +49,11 @@ func NewAgent(
 	return a
 }
 
+// GetServer returns HTTP server used by the agent.
+func (a *Agent) GetServer() *http.Server {
+	return a.httpServer
+}
+
 // Run runs all of agent UDP and HTTP servers in separate go-routines.
 // It returns an error when it's immediately apparent on startup, but
 // any errors happening after starting the servers are only logged.
@@ -60,6 +65,7 @@ func (a *Agent) Run() error {
 	a.httpAddr.Store(listener.Addr().String())
 	a.closer = listener
 	go func() {
+		a.logger.Info("Starting jaeger-agent HTTP server", zap.Int("http-port", listener.Addr().(*net.TCPAddr).Port))
 		if err := a.httpServer.Serve(listener); err != nil {
 			a.logger.Error("http server failure", zap.Error(err))
 		}
