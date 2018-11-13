@@ -36,9 +36,9 @@ func TestBingFlags(t *testing.T) {
 		cOpts    []string
 		expected *Options
 	}{
-		{cOpts: []string{"--reporter.grpc.collector.host-port=localhost:1111"},
+		{cOpts: []string{"--reporter.grpc.host-port=localhost:1111"},
 			expected: &Options{CollectorHostPort: []string{"localhost:1111"}}},
-		{cOpts: []string{"--reporter.grpc.collector.host-port=localhost:1111,localhost:2222"},
+		{cOpts: []string{"--reporter.grpc.host-port=localhost:1111,localhost:2222"},
 			expected: &Options{CollectorHostPort: []string{"localhost:1111", "localhost:2222"}}},
 	}
 	for _, test := range tests {

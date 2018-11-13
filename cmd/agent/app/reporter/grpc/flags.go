@@ -23,7 +23,7 @@ import (
 
 const (
 	gRPCPrefix        = "reporter.grpc."
-	collectorHostPort = gRPCPrefix + "collector.host-port"
+	collectorHostPort = gRPCPrefix + "host-port"
 )
 
 // Options Struct to hold configurations
