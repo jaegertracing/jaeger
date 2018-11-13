@@ -329,8 +329,9 @@ func TestRunCalculationLoop(t *testing.T) {
 	mockStorage.On("InsertProbabilitiesAndQPS", "host", mock.AnythingOfType("model.ServiceOperationProbabilities"),
 		mock.AnythingOfType("model.ServiceOperationQPS")).Return(errTestStorage)
 	mockEP := &epmocks.ElectionParticipant{}
-	mockEP.On("Start").Return()
-	mockEP.On("IsLeader").Return(true, nil)
+	mockEP.On("Start").Return(nil)
+	mockEP.On("Close").Return(nil)
+	mockEP.On("IsLeader").Return(true)
 
 	cfg := Options{
 		TargetQPS:                    1.0,
@@ -367,7 +368,9 @@ func TestRunCalculationLoop_GetThroughputError(t *testing.T) {
 	mockStorage.On("GetThroughput", mock.AnythingOfType("time.Time"), mock.AnythingOfType("time.Time")).
 		Return(nil, errTestStorage)
 	mockEP := &epmocks.ElectionParticipant{}
-	mockEP.On("IsLeader").Return(false, nil)
+	mockEP.On("Start").Return(nil)
+	mockEP.On("Close").Return(nil)
+	mockEP.On("IsLeader").Return(false)
 
 	cfg := Options{
 		CalculationInterval: time.Millisecond * 5,
@@ -407,7 +410,9 @@ func TestRunUpdateProbabilitiesLoop(t *testing.T) {
 	mockStorage := &smocks.Store{}
 	mockStorage.On("GetLatestProbabilities").Return(make(model.ServiceOperationProbabilities), nil)
 	mockEP := &epmocks.ElectionParticipant{}
-	mockEP.On("IsLeader").Return(false, nil)
+	mockEP.On("Start").Return(nil)
+	mockEP.On("Close").Return(nil)
+	mockEP.On("IsLeader").Return(false)
 
 	p := &processor{
 		storage:                     mockStorage,
@@ -451,7 +456,9 @@ func TestRealisticRunCalculationLoop(t *testing.T) {
 	mockStorage.On("InsertProbabilitiesAndQPS", "host", mock.AnythingOfType("model.ServiceOperationProbabilities"),
 		mock.AnythingOfType("model.ServiceOperationQPS")).Return(nil)
 	mockEP := &epmocks.ElectionParticipant{}
-	mockEP.On("IsLeader").Return(true, nil)
+	mockEP.On("Start").Return(nil)
+	mockEP.On("Close").Return(nil)
+	mockEP.On("IsLeader").Return(true)
 	cfg := Options{
 		TargetQPS:                  1.0,
 		QPSEquivalenceThreshold:    0.2,
@@ -583,6 +590,14 @@ func TestUsingAdaptiveSampling(t *testing.T) {
 	for _, test := range tests {
 		assert.Equal(t, test.expected, p.usingAdaptiveSampling(test.probability, test.service, test.operation, throughput))
 	}
+}
+
+func TestPrependServiceCache(t *testing.T) {
+	p := &processor{}
+	for i := 0; i < serviceCacheSize*2; i++ {
+		p.prependServiceCache()
+	}
+	assert.Len(t, p.serviceCache, serviceCacheSize)
 }
 
 func TestCalculateProbabilitiesAndQPSMultiple(t *testing.T) {
