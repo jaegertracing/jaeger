@@ -16,6 +16,7 @@ package main
 
 import (
 	"fmt"
+	"net/http"
 	"os"
 
 	"github.com/pkg/errors"
@@ -49,9 +50,8 @@ func main() {
 				return err
 			}
 
-			builder := &app.Builder{}
-			builder.InitFromViper(v)
 			tchanRep := tchannel.NewBuilder().InitFromViper(v, logger)
+			builder := new(app.Builder).InitFromViper(v)
 			mBldr := new(metrics.Builder).InitFromViper(v)
 
 			mFactory, err := mBldr.CreateMetricsFactory("jaeger")
@@ -70,6 +70,11 @@ func main() {
 			agent, err := builder.CreateAgent(cp, logger, mFactory)
 			if err != nil {
 				return errors.Wrap(err, "Unable to initialize Jaeger Agent")
+			}
+
+			if h := mBldr.Handler(); mFactory != nil && h != nil {
+				logger.Info("Registering metrics handler with HTTP server", zap.String("route", mBldr.HTTPRoute))
+				agent.GetServer().Handler.(*http.ServeMux).Handle(mBldr.HTTPRoute, h)
 			}
 
 			logger.Info("Starting agent")
