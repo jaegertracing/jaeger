@@ -65,7 +65,7 @@ func TestAgentSamplingEndpoint(t *testing.T) {
 		require.NoError(t, err)
 		body, err := ioutil.ReadAll(resp.Body)
 		assert.NoError(t, err)
-		assert.Equal(t, "tcollector error: no peers available\n", string(body))
+		assert.Equal(t, "collector error: no peers available\n", string(body))
 	})
 }
 

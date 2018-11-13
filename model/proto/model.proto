@@ -14,31 +14,20 @@
 
 syntax="proto3";
 
-package jaeger.model;
+package jaeger.api_v2;
 
+import "gogoproto/gogo.proto";
+import "google/api/annotations.proto";
 import "google/protobuf/timestamp.proto";
 import "google/protobuf/duration.proto";
-import "google/api/annotations.proto";
-import "github.com/grpc-ecosystem/grpc-gateway/protoc-gen-swagger/options/annotations.proto";
-import "github.com/gogo/protobuf/gogoproto/gogo.proto";
-// import "github.com/mwitkow/go-proto-validators/validator.proto";
 
 // TODO: document all types and fields
 
+// TODO: once this moves to jaeger-idl repo, we may want to change Go pkg to api_v2
+// and rewrite it to model only in this repo. That should make it easier to generate
+// classes in other languages.
 option go_package = "model";
-option java_package = "io.jaegertracing.model";
-
-option (grpc.gateway.protoc_gen_swagger.options.openapiv2_swagger) = {
-  info: {
-    version: "1.0";
-  };
-  external_docs: {
-    url: "https://github.com/jaegertracing/jaeger";
-    description: "Jaeger API";
-  }
-  schemes: HTTP;
-  schemes: HTTPS;
-};
+option java_package = "io.jaegertracing.api_v2";
 
 // Enable gogoprotobuf extensions (https://github.com/gogo/protobuf/blob/master/extensions.md).
 // Enable custom Marshal method.
@@ -168,38 +157,4 @@ message Batch {
     Process process = 2 [
       (gogoproto.nullable) = false
     ];
-}
-
-message PostSpansRequest {
-    Batch batch = 1;
-}
-
-message PostSpansResponse {
-    bool ok = 1;
-}
-
-// TODO: move services to another proto file.
-service CollectorServiceV2 {
-    rpc PostSpans(PostSpansRequest) returns (PostSpansResponse) {
-        option (google.api.http) = {
-            post: "/api/v2/spans"
-            body: "*"
-        };
-    }
-}
-
-message GetTraceRequest {
-    string id = 1;
-}
-
-message GetTraceResponse {
-    Trace trace = 1;
-}
-
-service QueryServiceV2 {
-    rpc GetTrace(GetTraceRequest) returns (GetTraceResponse) {
-        option (google.api.http) = {
-            get: "/api/v2/traces/{id}"
-        };
-    }
 }

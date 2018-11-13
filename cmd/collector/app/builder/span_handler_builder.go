@@ -57,7 +57,11 @@ func NewSpanHandlerBuilder(cOpts *CollectorOptions, spanWriter spanstore.Writer,
 }
 
 // BuildHandlers builds span handlers (Zipkin, Jaeger)
-func (spanHb *SpanHandlerBuilder) BuildHandlers() (app.ZipkinSpansHandler, app.JaegerBatchesHandler) {
+func (spanHb *SpanHandlerBuilder) BuildHandlers() (
+	app.ZipkinSpansHandler,
+	app.JaegerBatchesHandler,
+	*app.GRPCHandler,
+) {
 	hostname, _ := os.Hostname()
 	hostMetrics := spanHb.metricsFactory.Namespace("", map[string]string{"host": hostname})
 
@@ -79,7 +83,8 @@ func (spanHb *SpanHandlerBuilder) BuildHandlers() (app.ZipkinSpansHandler, app.J
 	)
 
 	return app.NewZipkinSpanHandler(spanHb.logger, spanProcessor, zSanitizer),
-		app.NewJaegerSpanHandler(spanHb.logger, spanProcessor)
+		app.NewJaegerSpanHandler(spanHb.logger, spanProcessor),
+		app.NewGRPCHandler(spanHb.logger, spanProcessor)
 }
 
 func defaultSpanFilter(*model.Span) bool {

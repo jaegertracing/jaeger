@@ -32,11 +32,14 @@ import (
 	"github.com/uber/tchannel-go"
 	"github.com/uber/tchannel-go/thrift"
 	"go.uber.org/zap"
+	"google.golang.org/grpc"
 
 	basicB "github.com/jaegertracing/jaeger/cmd/builder"
 	"github.com/jaegertracing/jaeger/cmd/collector/app"
 	"github.com/jaegertracing/jaeger/cmd/collector/app/builder"
+	"github.com/jaegertracing/jaeger/cmd/collector/app/grpcserver"
 	"github.com/jaegertracing/jaeger/cmd/collector/app/sampling"
+	"github.com/jaegertracing/jaeger/cmd/collector/app/sampling/strategystore"
 	"github.com/jaegertracing/jaeger/cmd/collector/app/zipkin"
 	"github.com/jaegertracing/jaeger/cmd/env"
 	"github.com/jaegertracing/jaeger/cmd/flags"
@@ -115,47 +118,57 @@ func main() {
 				logger.Fatal("Unable to set up builder", zap.Error(err))
 			}
 
-			ch, err := tchannel.NewChannel(serviceName, &tchannel.ChannelOptions{})
-			if err != nil {
-				logger.Fatal("Unable to create new TChannel", zap.Error(err))
-			}
-			server := thrift.NewServer(ch)
-			zipkinSpansHandler, jaegerBatchesHandler := handlerBuilder.BuildHandlers()
-			server.Register(jc.NewTChanCollectorServer(jaegerBatchesHandler))
-			server.Register(zc.NewTChanZipkinCollectorServer(zipkinSpansHandler))
+			zipkinSpansHandler, jaegerBatchesHandler, grpcHandler := handlerBuilder.BuildHandlers()
+			strategyStoreFactory.InitFromViper(v)
+			strategyStore := initSamplingStrategyStore(strategyStoreFactory, metricsFactory, logger)
 
-			samplingHandler := initializeSamplingHandler(strategyStoreFactory, v, metricsFactory, logger)
-			server.Register(sc.NewTChanSamplingManagerServer(samplingHandler))
-
-			portStr := ":" + strconv.Itoa(builderOpts.CollectorPort)
-			logger.Info("Starting jaeger-collector TChannel server", zap.Int("port", builderOpts.CollectorPort))
-
-			listener, err := net.Listen("tcp", portStr)
-			if err != nil {
-				logger.Fatal("Unable to start listening on channel", zap.Error(err))
-			}
-			ch.Serve(listener)
-
-			r := mux.NewRouter()
-			apiHandler := app.NewAPIHandler(jaegerBatchesHandler)
-			apiHandler.RegisterRoutes(r)
-			if h := mBldr.Handler(); h != nil {
-				logger.Info("Registering metrics handler with HTTP server", zap.String("route", mBldr.HTTPRoute))
-				r.Handle(mBldr.HTTPRoute, h)
-			}
-			httpPortStr := ":" + strconv.Itoa(builderOpts.CollectorHTTPPort)
-			recoveryHandler := recoveryhandler.NewRecoveryHandler(logger, true)
-
-			go startZipkinHTTPAPI(logger, builderOpts.CollectorZipkinHTTPPort, zipkinSpansHandler, recoveryHandler)
-
-			logger.Info("Starting jaeger-collector HTTP server", zap.Int("http-port", builderOpts.CollectorHTTPPort))
-
-			go func() {
-				if err := http.ListenAndServe(httpPortStr, recoveryHandler(r)); err != nil {
-					logger.Fatal("Could not launch service", zap.Error(err))
+			{
+				ch, err := tchannel.NewChannel(serviceName, &tchannel.ChannelOptions{})
+				if err != nil {
+					logger.Fatal("Unable to create new TChannel", zap.Error(err))
 				}
-				hc.Set(healthcheck.Unavailable)
-			}()
+				server := thrift.NewServer(ch)
+				server.Register(jc.NewTChanCollectorServer(jaegerBatchesHandler))
+				server.Register(zc.NewTChanZipkinCollectorServer(zipkinSpansHandler))
+				server.Register(sc.NewTChanSamplingManagerServer(sampling.NewHandler(strategyStore)))
+				portStr := ":" + strconv.Itoa(builderOpts.CollectorPort)
+				listener, err := net.Listen("tcp", portStr)
+				if err != nil {
+					logger.Fatal("Unable to start listening on channel", zap.Error(err))
+				}
+				logger.Info("Starting jaeger-collector TChannel server", zap.Int("port", builderOpts.CollectorPort))
+				ch.Serve(listener)
+			}
+
+			{
+				grpcserver.StartGRPCCollector(builderOpts.CollectorGRPCPort, grpc.NewServer(), grpcHandler, strategyStore, logger,
+					func(err error) {
+						logger.Fatal("gRPC collector failed", zap.Error(err))
+					})
+			}
+
+			{
+				r := mux.NewRouter()
+				apiHandler := app.NewAPIHandler(jaegerBatchesHandler)
+				apiHandler.RegisterRoutes(r)
+				if h := mBldr.Handler(); h != nil {
+					logger.Info("Registering metrics handler with HTTP server", zap.String("route", mBldr.HTTPRoute))
+					r.Handle(mBldr.HTTPRoute, h)
+				}
+				httpPortStr := ":" + strconv.Itoa(builderOpts.CollectorHTTPPort)
+				recoveryHandler := recoveryhandler.NewRecoveryHandler(logger, true)
+				httpHandler := recoveryHandler(r)
+
+				go startZipkinHTTPAPI(logger, builderOpts.CollectorZipkinHTTPPort, zipkinSpansHandler, recoveryHandler)
+
+				logger.Info("Starting jaeger-collector HTTP server", zap.Int("http-port", builderOpts.CollectorHTTPPort))
+				go func() {
+					if err := http.ListenAndServe(httpPortStr, httpHandler); err != nil {
+						logger.Fatal("Could not launch service", zap.Error(err))
+					}
+					hc.Set(healthcheck.Unavailable)
+				}()
+			}
 
 			hc.Ready()
 			<-signalsChannel
@@ -214,13 +227,11 @@ func startZipkinHTTPAPI(
 	}
 }
 
-func initializeSamplingHandler(
+func initSamplingStrategyStore(
 	samplingStrategyStoreFactory *ss.Factory,
-	v *viper.Viper,
 	metricsFactory metrics.Factory,
 	logger *zap.Logger,
-) sampling.Handler {
-	samplingStrategyStoreFactory.InitFromViper(v)
+) strategystore.StrategyStore {
 	if err := samplingStrategyStoreFactory.Initialize(metricsFactory, logger); err != nil {
 		logger.Fatal("Failed to init sampling strategy store factory", zap.Error(err))
 	}
@@ -228,5 +239,5 @@ func initializeSamplingHandler(
 	if err != nil {
 		logger.Fatal("Failed to create sampling strategy store", zap.Error(err))
 	}
-	return sampling.NewHandler(strategyStore)
+	return strategyStore
 }
