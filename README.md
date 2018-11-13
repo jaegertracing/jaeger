@@ -33,7 +33,7 @@ For example, any given Jaeger installation at Uber is typically processing sever
 
 ### Native support for OpenTracing
 
-Jaeger backend, Web UI, and instrumentation libraries have been designed from ground up to support the OpenTracing standard.
+Jaeger backend, Web UI, and instrumentation libraries have been designed from ground up to support the [OpenTracing standard](https://opentracing.io/specification/).
   * Represent traces as directed acyclic graphs (not just trees) via [span references](https://github.com/opentracing/specification/blob/master/specification.md#references-between-spans)
   * Support strongly typed span _tags_ and _structured logs_
   * Support general distributed context propagation mechanism via _baggage_
