@@ -26,8 +26,15 @@ import (
 	"github.com/jaegertracing/jaeger/thrift-gen/jaeger"
 )
 
+func TestProxyBuilderMissingAddress(t *testing.T) {
+	proxy, err := NewCollectorProxy(&Options{}, zap.NewNop())
+	require.Nil(t, proxy)
+	assert.EqualError(t, err, "could not create collector proxy, address is missing")
+}
+
 func TestProxyBuilder(t *testing.T) {
-	proxy := NewCollectorProxy(&Options{CollectorHostPort: []string{"localhost:0000"}}, zap.NewNop())
+	proxy, err := NewCollectorProxy(&Options{CollectorHostPort: []string{"localhost:0000"}}, zap.NewNop())
+	require.NoError(t, err)
 	require.NotNil(t, proxy)
 	assert.NotNil(t, proxy.GetReporter())
 	assert.NotNil(t, proxy.GetManager())
@@ -45,7 +52,8 @@ func TestMultipleCollectors(t *testing.T) {
 	})
 	defer s2.Stop()
 
-	proxy := NewCollectorProxy(&Options{CollectorHostPort: []string{addr1.String(), addr2.String()}}, zap.NewNop())
+	proxy, err := NewCollectorProxy(&Options{CollectorHostPort: []string{addr1.String(), addr2.String()}}, zap.NewNop())
+	require.NoError(t, err)
 	require.NotNil(t, proxy)
 	assert.NotNil(t, proxy.GetReporter())
 	assert.NotNil(t, proxy.GetManager())

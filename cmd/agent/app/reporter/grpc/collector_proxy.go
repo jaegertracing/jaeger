@@ -15,6 +15,8 @@
 package grpc
 
 import (
+	"errors"
+
 	"go.uber.org/zap"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/balancer/roundrobin"
@@ -32,7 +34,11 @@ type ProxyBuilder struct {
 }
 
 // NewCollectorProxy creates ProxyBuilder
-func NewCollectorProxy(o *Options, logger *zap.Logger) *ProxyBuilder {
+func NewCollectorProxy(o *Options, logger *zap.Logger) (*ProxyBuilder, error) {
+	if len(o.CollectorHostPort) == 0 {
+		return nil, errors.New("could not create collector proxy, address is missing")
+	}
+
 	// It does not return error if the collector is not running
 	// a way to fail immediately is to call WithBlock and WithTimeout
 	var conn *grpc.ClientConn
@@ -49,7 +55,7 @@ func NewCollectorProxy(o *Options, logger *zap.Logger) *ProxyBuilder {
 	}
 	return &ProxyBuilder{
 		reporter: NewReporter(conn, logger),
-		manager:  NewSamplingManager(conn)}
+		manager:  NewSamplingManager(conn)}, nil
 }
 
 // GetReporter returns Reporter
