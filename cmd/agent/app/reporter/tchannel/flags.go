@@ -27,6 +27,7 @@ const (
 	defaultConnCheckTimeout   = 250 * time.Millisecond
 	tchannelPrefix            = "reporter.tchannel."
 	collectorHostPort         = "collector.host-port"
+	hostPort                  = "host-port"
 	discoveryMinPeers         = "discovery.min-peers"
 	discoveryConnCheckTimeout = "discovery.conn-check-timeout"
 )
@@ -34,7 +35,7 @@ const (
 // AddFlags adds flags for Builder.
 func AddFlags(flags *flag.FlagSet) {
 	flags.String(
-		tchannelPrefix+collectorHostPort,
+		tchannelPrefix+hostPort,
 		"",
 		"comma-separated string representing host:ports of a static list of collectors to connect to directly (e.g. when not using service discovery)")
 	flags.Int(
@@ -75,8 +76,8 @@ func (b *Builder) InitFromViper(v *viper.Viper, logger *zap.Logger) *Builder {
 		logger.Warn("Using deprecated configuration", zap.String("option", discoveryConnCheckTimeout))
 	}
 
-	if len(v.GetString(tchannelPrefix+collectorHostPort)) > 0 {
-		b.CollectorHostPorts = strings.Split(v.GetString(tchannelPrefix+collectorHostPort), ",")
+	if len(v.GetString(tchannelPrefix+hostPort)) > 0 {
+		b.CollectorHostPorts = strings.Split(v.GetString(tchannelPrefix+hostPort), ",")
 	}
 	b.DiscoveryMinPeers = v.GetInt(tchannelPrefix + discoveryMinPeers)
 	b.ConnCheckTimeout = v.GetDuration(tchannelPrefix + discoveryConnCheckTimeout)

@@ -18,7 +18,7 @@ The following agent flags has has been deprecated in order to support multiple r
 ```
 New flags:
 ```bash
---reporter.tchannel.collector.host-port
+--reporter.tchannel.host-port
 --reporter.tchannel.discovery.conn-check-timeout
 --reporter.tchannel.discovery.min-peers
 ```

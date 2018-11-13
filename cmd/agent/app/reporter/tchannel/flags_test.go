@@ -39,7 +39,7 @@ func TestBingFlags(t *testing.T) {
 		builder Builder
 	}{
 		{flags: []string{
-			"--reporter.tchannel.collector.host-port=1.2.3.4:555,1.2.3.4:666",
+			"--reporter.tchannel.host-port=1.2.3.4:555,1.2.3.4:666",
 			"--reporter.tchannel.discovery.min-peers=42",
 			"--reporter.tchannel.discovery.conn-check-timeout=85s",
 		}, builder: Builder{ConnCheckTimeout: time.Second * 85, DiscoveryMinPeers: 42, CollectorHostPorts: []string{"1.2.3.4:555", "1.2.3.4:666"}},
@@ -55,7 +55,7 @@ func TestBingFlags(t *testing.T) {
 			"--collector.host-port=1.2.3.4:555,1.2.3.4:666",
 			"--discovery.min-peers=42",
 			"--discovery.conn-check-timeout=85s",
-			"--reporter.tchannel.collector.host-port=1.2.3.4:5556,1.2.3.4:6667",
+			"--reporter.tchannel.host-port=1.2.3.4:5556,1.2.3.4:6667",
 			"--reporter.tchannel.discovery.min-peers=43",
 			"--reporter.tchannel.discovery.conn-check-timeout=86s",
 		},
