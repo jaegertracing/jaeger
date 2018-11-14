@@ -56,7 +56,7 @@ message PostSpansResponse {
 }
 
 service CollectorService {
-    rpc PostSpans(PostSpansRequest) returns (PostSpansResponse) {
+    rpc PostSpans(stream PostSpansRequest) returns (stream PostSpansResponse) {
         option (google.api.http) = {
             post: "/api/v2/spans"
             body: "*"

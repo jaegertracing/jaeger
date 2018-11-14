@@ -28,19 +28,56 @@ var _ status.Status
 var _ = runtime.String
 var _ = utilities.NewDoubleArray
 
-func request_CollectorService_PostSpans_0(ctx context.Context, marshaler runtime.Marshaler, client CollectorServiceClient, req *http.Request, pathParams map[string]string) (proto.Message, runtime.ServerMetadata, error) {
-	var protoReq PostSpansRequest
+func request_CollectorService_PostSpans_0(ctx context.Context, marshaler runtime.Marshaler, client CollectorServiceClient, req *http.Request, pathParams map[string]string) (CollectorService_PostSpansClient, runtime.ServerMetadata, error) {
 	var metadata runtime.ServerMetadata
-
-	if req.ContentLength > 0 {
-		if err := marshaler.NewDecoder(req.Body).Decode(&protoReq); err != nil {
-			return nil, metadata, status.Errorf(codes.InvalidArgument, "%v", err)
-		}
+	stream, err := client.PostSpans(ctx)
+	if err != nil {
+		grpclog.Printf("Failed to start streaming: %v", err)
+		return nil, metadata, err
 	}
-
-	msg, err := client.PostSpans(ctx, &protoReq, grpc.Header(&metadata.HeaderMD), grpc.Trailer(&metadata.TrailerMD))
-	return msg, metadata, err
-
+	dec := marshaler.NewDecoder(req.Body)
+	handleSend := func() error {
+		var protoReq PostSpansRequest
+		err = dec.Decode(&protoReq)
+		if err == io.EOF {
+			return err
+		}
+		if err != nil {
+			grpclog.Printf("Failed to decode request: %v", err)
+			return err
+		}
+		if err = stream.Send(&protoReq); err != nil {
+			grpclog.Printf("Failed to send request: %v", err)
+			return err
+		}
+		return nil
+	}
+	if err := handleSend(); err != nil {
+		if cerr := stream.CloseSend(); cerr != nil {
+			grpclog.Printf("Failed to terminate client stream: %v", cerr)
+		}
+		if err == io.EOF {
+			return stream, metadata, nil
+		}
+		return nil, metadata, err
+	}
+	go func() {
+		for {
+			if err := handleSend(); err != nil {
+				break
+			}
+		}
+		if err := stream.CloseSend(); err != nil {
+			grpclog.Printf("Failed to terminate client stream: %v", err)
+		}
+	}()
+	header, err := stream.Header()
+	if err != nil {
+		grpclog.Printf("Failed to get header from client: %v", err)
+		return nil, metadata, err
+	}
+	metadata.HeaderMD = header
+	return stream, metadata, nil
 }
 
 func request_SamplingManager_GetSamplingStrategy_0(ctx context.Context, marshaler runtime.Marshaler, client SamplingManagerClient, req *http.Request, pathParams map[string]string) (proto.Message, runtime.ServerMetadata, error) {
@@ -121,7 +158,7 @@ func RegisterCollectorServiceHandlerClient(ctx context.Context, mux *runtime.Ser
 			return
 		}
 
-		forward_CollectorService_PostSpans_0(ctx, mux, outboundMarshaler, w, req, resp, mux.GetForwardResponseOptions()...)
+		forward_CollectorService_PostSpans_0(ctx, mux, outboundMarshaler, w, req, func() (proto.Message, error) { return resp.Recv() }, mux.GetForwardResponseOptions()...)
 
 	})
 
@@ -133,7 +170,7 @@ var (
 )
 
 var (
-	forward_CollectorService_PostSpans_0 = runtime.ForwardResponseMessage
+	forward_CollectorService_PostSpans_0 = runtime.ForwardResponseStream
 )
 
 // RegisterSamplingManagerHandlerFromEndpoint is same as RegisterSamplingManagerHandler but

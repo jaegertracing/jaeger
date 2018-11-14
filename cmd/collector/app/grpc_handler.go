@@ -15,8 +15,6 @@
 package app
 
 import (
-	"context"
-
 	"go.uber.org/zap"
 
 	"github.com/jaegertracing/jaeger/proto-gen/api_v2"
@@ -37,16 +35,26 @@ func NewGRPCHandler(logger *zap.Logger, spanProcessor SpanProcessor) *GRPCHandle
 }
 
 // PostSpans implements gRPC CollectorService.
-func (g *GRPCHandler) PostSpans(ctx context.Context, r *api_v2.PostSpansRequest) (*api_v2.PostSpansResponse, error) {
-	for _, span := range r.GetBatch().Spans {
-		if span.GetProcess() == nil {
-			span.Process = &r.Batch.Process
+func (g *GRPCHandler) PostSpans(stream api_v2.CollectorService_PostSpansServer) error {
+	for {
+		// TODO no need to close? https://stackoverflow.com/questions/46933538/how-to-close-grpc-stream-for-server
+		req, err := stream.Recv()
+		if err != nil {
+			return err
 		}
+		for _, span := range req.GetBatch().Spans {
+			if span.GetProcess() == nil {
+				span.Process = &req.Batch.Process
+			}
+		}
+
+		_, err = g.spanProcessor.ProcessSpans(req.GetBatch().Spans, JaegerFormatType)
+		stream.Send(&api_v2.PostSpansResponse{})
+		if err != nil {
+			g.logger.Error("cannot process spans", zap.Error(err))
+			// TODO does it close the stream?
+			return err
+		}
+		stream.Send(&api_v2.PostSpansResponse{})
 	}
-	_, err := g.spanProcessor.ProcessSpans(r.GetBatch().Spans, JaegerFormatType)
-	if err != nil {
-		g.logger.Error("cannot process spans", zap.Error(err))
-		return nil, err
-	}
-	return &api_v2.PostSpansResponse{}, nil
 }

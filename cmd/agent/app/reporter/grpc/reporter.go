@@ -59,15 +59,23 @@ func (r *Reporter) EmitZipkinBatch(zSpans []*zipkincore.Span) error {
 }
 
 func (r *Reporter) send(spans []*model.Span) error {
+	stream, err := r.collector.PostSpans(context.Background())
+	if err != nil {
+		r.logger.Error("Could not create stream", zap.Error(err))
+		return err
+	}
+
 	var process model.Process
 	if len(spans) > 0 {
 		process = *spans[0].Process
 	}
 	batch := model.Batch{Spans: spans, Process: process}
-	req := &api_v2.PostSpansRequest{Batch: batch}
-	_, err := r.collector.PostSpans(context.Background(), req)
+	err = stream.Send(&api_v2.PostSpansRequest{Batch: batch})
 	if err != nil {
 		r.logger.Error("Could not send spans over gRPC", zap.Error(err), zap.String("service", batch.Process.ServiceName))
 	}
+
+	// TODO how to get repose? A separate go routine?
+	//resp, err := r.stream.Recv()
 	return err
 }

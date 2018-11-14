@@ -15,7 +15,6 @@
 package grpc
 
 import (
-	"context"
 	"sync"
 	"testing"
 	"time"
@@ -32,6 +31,7 @@ import (
 )
 
 type mockSpanHandler struct {
+	wg       sync.WaitGroup
 	mux      sync.Mutex
 	requests []*api_v2.PostSpansRequest
 }
@@ -42,11 +42,14 @@ func (h *mockSpanHandler) getRequests() []*api_v2.PostSpansRequest {
 	return h.requests
 }
 
-func (h *mockSpanHandler) PostSpans(c context.Context, r *api_v2.PostSpansRequest) (*api_v2.PostSpansResponse, error) {
-	h.mux.Lock()
-	defer h.mux.Unlock()
-	h.requests = append(h.requests, r)
-	return &api_v2.PostSpansResponse{}, nil
+func (h *mockSpanHandler) PostSpans(stream api_v2.CollectorService_PostSpansServer) error {
+	for {
+		h.mux.Lock()
+		r, _ := stream.Recv()
+		h.requests = append(h.requests, r)
+		defer h.mux.Unlock()
+	}
+	return nil
 }
 
 func TestReporter_EmitZipkinBatch(t *testing.T) {
@@ -58,7 +61,7 @@ func TestReporter_EmitZipkinBatch(t *testing.T) {
 	conn, err := grpc.Dial(addr.String(), grpc.WithInsecure())
 	defer conn.Close()
 	require.NoError(t, err)
-	rep := NewReporter(conn, zap.NewNop())
+	rep, _ := NewReporter(conn, zap.NewNop())
 
 	tm := time.Unix(158, 0)
 	a := tm.Unix() * 1000 * 1000
@@ -73,7 +76,9 @@ func TestReporter_EmitZipkinBatch(t *testing.T) {
 				Spans: []*model.Span{{TraceID: model.NewTraceID(0, 1), SpanID: model.NewSpanID(2), OperationName: "jonatan",
 					Tags: model.KeyValues{{Key: "span.kind", VStr: "client", VType: model.StringType}}, Process: &model.Process{ServiceName: "spring"}, StartTime: tm.UTC()}}}},
 	}
+	wg := sync.WaitGroup{}
 	for _, test := range tests {
+		wg.Add(1)
 		err = rep.EmitZipkinBatch([]*zipkincore.Span{test.in})
 		if test.err != "" {
 			assert.EqualError(t, err, test.err)
@@ -93,7 +98,7 @@ func TestReporter_EmitBatch(t *testing.T) {
 	conn, err := grpc.Dial(addr.String(), grpc.WithInsecure())
 	defer conn.Close()
 	require.NoError(t, err)
-	rep := NewReporter(conn, zap.NewNop())
+	rep, _ := NewReporter(conn, zap.NewNop())
 
 	tm := time.Unix(158, 0)
 	tests := []struct {
@@ -118,7 +123,7 @@ func TestReporter_EmitBatch(t *testing.T) {
 func TestReporter_SendFailure(t *testing.T) {
 	conn, err := grpc.Dial("", grpc.WithInsecure())
 	require.NoError(t, err)
-	rep := NewReporter(conn, zap.NewNop())
+	rep, _ := NewReporter(conn, zap.NewNop())
 	err = rep.send(nil)
 	assert.EqualError(t, err, "rpc error: code = Unavailable desc = all SubConns are in TransientFailure, latest connection error: connection error: desc = \"transport: Error while dialing dial tcp: missing address\"")
 }

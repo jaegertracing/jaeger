@@ -46,7 +46,7 @@
         "operationId": "PostSpans",
         "responses": {
           "200": {
-            "description": "",
+            "description": "(streaming responses)",
             "schema": {
               "$ref": "#/definitions/api_v2PostSpansResponse"
             }
@@ -55,6 +55,7 @@
         "parameters": [
           {
             "name": "body",
+            "description": "(streaming inputs)",
             "in": "body",
             "required": true,
             "schema": {

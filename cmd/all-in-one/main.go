@@ -138,9 +138,9 @@ func main() {
 			cOpts := new(collector.CollectorOptions).InitFromViper(v)
 			qOpts := new(queryApp.QueryOptions).InitFromViper(v)
 
-			startAgent(aOpts, repOpts, tchannelRepOpts, grpcRepOpts, cOpts, logger, metricsFactory)
 			startCollector(cOpts, spanWriter, logger, metricsFactory, strategyStore, hc)
 			startQuery(qOpts, spanReader, dependencyReader, logger, metricsFactory, mBldr, hc)
+			startAgent(aOpts, repOpts, tchannelRepOpts, grpcRepOpts, cOpts, logger, metricsFactory)
 			hc.Ready()
 			<-signalsChannel
 			logger.Info("Shutting down")
