@@ -71,7 +71,7 @@ type httpHandler struct {
 		BadRequest metrics.Counter `metric:"http-server.errors" tags:"status=4xx,source=all"`
 
 		// Number of collector proxy failures
-		TCollectorProxyFailures metrics.Counter `metric:"http-server.errors" tags:"status=5xx,source=tcollector-proxy"`
+		TCollectorProxyFailures metrics.Counter `metric:"http-server.errors" tags:"status=5xx,source=collector-proxy"`
 
 		// Number of bad responses due to malformed thrift
 		BadThriftFailures metrics.Counter `metric:"http-server.errors" tags:"status=5xx,source=thrift"`
