@@ -44,9 +44,7 @@ func NewReporter(conn *grpc.ClientConn, logger *zap.Logger) *Reporter {
 
 // EmitBatch implements EmitBatch() of Reporter
 func (r *Reporter) EmitBatch(b *thrift.Batch) error {
-	// TODO pass process to r.send() - do not convert it for every span
-	spans := jConverter.ToDomain(b.Spans, b.Process)
-	return r.send(spans)
+	return r.send(jConverter.ToDomain(b.Spans, nil), *jConverter.ToDomainProcess(b.Process))
 }
 
 // EmitZipkinBatch implements EmitZipkinBatch() of Reporter
@@ -55,14 +53,14 @@ func (r *Reporter) EmitZipkinBatch(zSpans []*zipkincore.Span) error {
 	if err != nil {
 		return err
 	}
-	return r.send(trace.Spans)
+	var process model.Process
+	if len(trace.GetSpans()) > 0 {
+		process = *trace.GetSpans()[0].Process
+	}
+	return r.send(trace.Spans, process)
 }
 
-func (r *Reporter) send(spans []*model.Span) error {
-	var process model.Process
-	if len(spans) > 0 {
-		process = *spans[0].Process
-	}
+func (r *Reporter) send(spans []*model.Span, process model.Process) error {
 	batch := model.Batch{Spans: spans, Process: process}
 	req := &api_v2.PostSpansRequest{Batch: batch}
 	_, err := r.collector.PostSpans(context.Background(), req)
