@@ -21,7 +21,6 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"github.com/uber/jaeger-lib/metrics"
-	mTestutils "github.com/uber/jaeger-lib/metrics/testutils"
 	"go.uber.org/zap"
 
 	"github.com/jaegertracing/jaeger/cmd/agent/app/testutils"
@@ -31,12 +30,12 @@ import (
 
 func initRequirements(t *testing.T) (*metrics.LocalFactory, *testutils.MockTCollector, *Reporter) {
 	metricsFactory, collector := testutils.InitMockCollector(t)
-	reporter := New("jaeger-collector", collector.Channel, nil, metricsFactory, zap.NewNop())
+	reporter := New("jaeger-collector", collector.Channel, nil, zap.NewNop())
 	return metricsFactory, collector, reporter
 }
 
 func TestZipkinTChannelReporterSuccess(t *testing.T) {
-	metricsFactory, collector, reporter := initRequirements(t)
+	_, collector, reporter := initRequirements(t)
 	defer collector.Close()
 
 	require.NoError(t, submitTestZipkinBatch(reporter))
@@ -46,20 +45,15 @@ func TestZipkinTChannelReporterSuccess(t *testing.T) {
 
 	require.Equal(t, 1, len(collector.GetZipkinSpans()))
 	assert.Equal(t, "span1", collector.GetZipkinSpans()[0].Name)
-
-	// agentReporter must emit metrics
-	checkCounters(t, metricsFactory, 1, 1, 0, 0, "zipkin")
 }
 
 func TestZipkinTChannelReporterFailure(t *testing.T) {
-	metricsFactory, collector, reporter := initRequirements(t)
+	_, collector, reporter := initRequirements(t)
 	defer collector.Close()
 
 	collector.ReturnErr = true
 
 	require.Error(t, submitTestZipkinBatch(reporter))
-
-	checkCounters(t, metricsFactory, 0, 0, 1, 1, "zipkin")
 }
 
 func submitTestZipkinBatch(reporter *Reporter) error {
@@ -70,7 +64,7 @@ func submitTestZipkinBatch(reporter *Reporter) error {
 }
 
 func TestJaegerTChannelReporterSuccess(t *testing.T) {
-	metricsFactory, collector, reporter := initRequirements(t)
+	_, collector, reporter := initRequirements(t)
 	defer collector.Close()
 
 	require.NoError(t, submitTestJaegerBatch(reporter))
@@ -79,21 +73,15 @@ func TestJaegerTChannelReporterSuccess(t *testing.T) {
 
 	require.Equal(t, 1, len(collector.GetJaegerBatches()))
 	assert.Equal(t, "span1", collector.GetJaegerBatches()[0].Spans[0].OperationName)
-
-	// agentReporter must emit metrics
-	checkCounters(t, metricsFactory, 1, 1, 0, 0, "jaeger")
 }
 
 func TestJaegerTChannelReporterFailure(t *testing.T) {
-	metricsFactory, collector, reporter := initRequirements(t)
+	_, collector, reporter := initRequirements(t)
 	defer collector.Close()
 
 	collector.ReturnErr = true
 
 	require.Error(t, submitTestJaegerBatch(reporter))
-
-	// agentReporter must emit metrics
-	checkCounters(t, metricsFactory, 0, 0, 1, 1, "jaeger")
 }
 
 func submitTestJaegerBatch(reporter *Reporter) error {
@@ -102,13 +90,4 @@ func submitTestJaegerBatch(reporter *Reporter) error {
 	batch.Spans = []*jaeger.Span{{OperationName: "span1"}}
 
 	return reporter.EmitBatch(batch)
-}
-
-func checkCounters(t *testing.T, mf *metrics.LocalFactory, batchesSubmitted, spansSubmitted, batchesFailures, spansFailures int, format string) {
-	mTestutils.AssertCounterMetrics(t, mf, []mTestutils.ExpectedMetric{
-		{Name: "tchannel-reporter.batches.submitted", Tags: map[string]string{"format": format}, Value: batchesSubmitted},
-		{Name: "tchannel-reporter.spans.submitted", Tags: map[string]string{"format": format}, Value: spansSubmitted},
-		{Name: "tchannel-reporter.batches.failures", Tags: map[string]string{"format": format}, Value: batchesFailures},
-		{Name: "tchannel-reporter.spans.failures", Tags: map[string]string{"format": format}, Value: spansFailures},
-	}...)
 }

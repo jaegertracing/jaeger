@@ -8,6 +8,45 @@ Changes by Version
 
 ##### Breaking Changes
 
+- Add gRPC metrics to agent ([#1180](https://github.com/jaegertracing/jaeger/pull/1180), [@pavolloffay](https://github.com/pavolloffay))
+
+The following metrics:
+```
+jaeger_agent_tchannel_reporter_batch_size{format="jaeger"} 0
+jaeger_agent_tchannel_reporter_batch_size{format="zipkin"} 0
+jaeger_agent_tchannel_reporter_batches_failures{format="jaeger"} 0
+jaeger_agent_tchannel_reporter_batches_failures{format="zipkin"} 0
+jaeger_agent_tchannel_reporter_batches_submitted{format="jaeger"} 0
+jaeger_agent_tchannel_reporter_batches_submitted{format="zipkin"} 0
+jaeger_agent_tchannel_reporter_spans_failures{format="jaeger"} 0
+jaeger_agent_tchannel_reporter_spans_failures{format="zipkin"} 0
+jaeger_agent_tchannel_reporter_spans_submitted{format="jaeger"} 0
+jaeger_agent_tchannel_reporter_spans_submitted{format="zipkin"} 0
+
+jaeger_agent_collector_proxy{endpoint="baggage",result="err"} 0
+jaeger_agent_collector_proxy{endpoint="baggage",result="ok"} 0
+jaeger_agent_collector_proxy{endpoint="sampling",result="err"} 0
+jaeger_agent_collector_proxy{endpoint="sampling",result="ok"} 0
+```
+have been renamed to:
+```
+jaeger_agent_reporter_batch_size{format="jaeger",protocol="tchannel"} 0
+jaeger_agent_reporter_batch_size{format="zipkin",protocol="tchannel"} 0
+jaeger_agent_reporter_batches_failures{format="jaeger",protocol="tchannel"} 0
+jaeger_agent_reporter_batches_failures{format="zipkin",protocol="tchannel"} 0
+jaeger_agent_reporter_batches_submitted{format="jaeger",protocol="tchannel"} 0
+jaeger_agent_reporter_batches_submitted{format="zipkin",protocol="tchannel"} 0
+jaeger_agent_reporter_spans_failures{format="jaeger",protocol="tchannel"} 0
+jaeger_agent_reporter_spans_failures{format="zipkin",protocol="tchannel"} 0
+jaeger_agent_reporter_spans_submitted{format="jaeger",protocol="tchannel"} 0
+jaeger_agent_reporter_spans_submitted{format="zipkin",protocol="tchannel"} 0
+
+jaeger_agent_collector_proxy{endpoint="baggage",protocol="tchannel",result="err"} 0
+jaeger_agent_collector_proxy{endpoint="baggage",protocol="tchannel",result="ok"} 0
+jaeger_agent_collector_proxy{endpoint="sampling",protocol="tchannel",result="err"} 0
+jaeger_agent_collector_proxy{endpoint="sampling",protocol="tchannel",result="ok"} 0
+```
+
 - Rename tcollector proxy metric in agent ([#1182](https://github.com/jaegertracing/jaeger/pull/1182), [@pavolloffay](https://github.com/pavolloffay))
 
 The following metric:

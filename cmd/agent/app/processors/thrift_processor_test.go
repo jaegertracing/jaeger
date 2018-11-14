@@ -77,7 +77,7 @@ func createProcessor(t *testing.T, mFactory metrics.Factory, tFactory thrift.TPr
 
 func initCollectorAndReporter(t *testing.T) (*metrics.LocalFactory, *testutils.MockTCollector, reporter.Reporter) {
 	metricsFactory, collector := testutils.InitMockCollector(t)
-	reporter := tchreporter.New("jaeger-collector", collector.Channel, nil, metricsFactory, zap.NewNop())
+	reporter := reporter.WrapWithMetrics(tchreporter.New("jaeger-collector", collector.Channel, nil, zap.NewNop()), metricsFactory)
 	return metricsFactory, collector, reporter
 }
 
@@ -219,8 +219,8 @@ func assertProcessorCorrectness(
 
 	// agentReporter must emit metrics
 	mTestutils.AssertCounterMetrics(t, metricsFactory, []mTestutils.ExpectedMetric{
-		{Name: "tchannel-reporter.batches.submitted", Tags: map[string]string{"format": format}, Value: 1},
-		{Name: "tchannel-reporter.spans.submitted", Tags: map[string]string{"format": format}, Value: 1},
+		{Name: "reporter.batches.submitted", Tags: map[string]string{"format": format}, Value: 1},
+		{Name: "reporter.spans.submitted", Tags: map[string]string{"format": format}, Value: 1},
 		{Name: "thrift.udp.server.packets.processed", Value: 1},
 	}...)
 }
