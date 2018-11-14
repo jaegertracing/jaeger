@@ -77,5 +77,5 @@ func (r *Reporter) send(spans []*model.Span) error {
 
 	// TODO how to get repose? A separate go routine?
 	//resp, err := r.stream.Recv()
-	return err
+	return stream.CloseSend()
 }
