@@ -30,6 +30,7 @@ const (
 	hostPort                  = "host-port"
 	discoveryMinPeers         = "discovery.min-peers"
 	discoveryConnCheckTimeout = "discovery.conn-check-timeout"
+	reportTimeout             = "report-timeout"
 )
 
 // AddFlags adds flags for Builder.
@@ -46,6 +47,10 @@ func AddFlags(flags *flag.FlagSet) {
 		tchannelPrefix+discoveryConnCheckTimeout,
 		defaultConnCheckTimeout,
 		"sets the timeout used when establishing new connections")
+	flags.Duration(
+		tchannelPrefix+reportTimeout,
+		time.Second,
+		"sets the timeout used when reporting spans")
 	// TODO remove deprecated in 1.9
 	flags.String(
 		collectorHostPort,
@@ -81,5 +86,6 @@ func (b *Builder) InitFromViper(v *viper.Viper, logger *zap.Logger) *Builder {
 	}
 	b.DiscoveryMinPeers = v.GetInt(tchannelPrefix + discoveryMinPeers)
 	b.ConnCheckTimeout = v.GetDuration(tchannelPrefix + discoveryConnCheckTimeout)
+	b.ReportTimeout = v.GetDuration(tchannelPrefix + reportTimeout)
 	return b
 }
