@@ -140,11 +140,9 @@ func main() {
 				ch.Serve(listener)
 			}
 
-			{
-				grpcserver.StartGRPCCollector(builderOpts.CollectorGRPCPort, grpc.NewServer(), grpcHandler, strategyStore, logger,
-					func(err error) {
-						logger.Fatal("gRPC collector failed", zap.Error(err))
-					})
+			server, err := startGRPCServer(builderOpts.CollectorGRPCPort, grpcHandler, strategyStore, logger)
+			if err != nil {
+				logger.Fatal("Could not start gRPC collector", zap.Error(err))
 			}
 
 			{
@@ -174,6 +172,7 @@ func main() {
 			<-signalsChannel
 			logger.Info("Shutting down")
 			if closer, ok := spanWriter.(io.Closer); ok {
+				server.GracefulStop()
 				err := closer.Close()
 				if err != nil {
 					logger.Error("Failed to close span writer", zap.Error(err))
@@ -205,6 +204,22 @@ func main() {
 		fmt.Println(err.Error())
 		os.Exit(1)
 	}
+}
+
+func startGRPCServer(
+	port int,
+	handler *app.GRPCHandler,
+	samplingStore strategystore.StrategyStore,
+	logger *zap.Logger,
+) (*grpc.Server, error) {
+	server := grpc.NewServer()
+	_, err := grpcserver.StartGRPCCollector(port, server, handler, samplingStore, logger, func(err error) {
+		logger.Fatal("gRPC collector failed", zap.Error(err))
+	})
+	if err != nil {
+		return nil, err
+	}
+	return server, err
 }
 
 func startZipkinHTTPAPI(

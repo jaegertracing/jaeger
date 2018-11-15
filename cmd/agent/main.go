@@ -16,9 +16,12 @@ package main
 
 import (
 	"fmt"
+	"io"
 	"io/ioutil"
 	"net/http"
 	"os"
+	"os/signal"
+	"syscall"
 
 	"github.com/pkg/errors"
 	"github.com/spf13/cobra"
@@ -38,6 +41,9 @@ import (
 )
 
 func main() {
+	var signalsChannel = make(chan os.Signal)
+	signal.Notify(signalsChannel, os.Interrupt, syscall.SIGTERM)
+
 	v := viper.New()
 	var command = &cobra.Command{
 		Use:   "jaeger-agent",
@@ -88,7 +94,13 @@ func main() {
 			if err := agent.Run(); err != nil {
 				return errors.Wrap(err, "Failed to run the agent")
 			}
-			select {}
+			<-signalsChannel
+			logger.Info("Shutting down")
+			if closer, ok := cp.(io.Closer); ok {
+				closer.Close()
+			}
+			logger.Info("Shutdown complete")
+			return nil
 		},
 	}
 
