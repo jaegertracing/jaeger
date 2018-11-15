@@ -1,6 +1,35 @@
 Changes by Version
 ==================
 
+1.9.0 (unreleased)
+------------------
+
+#### Backend Changes
+
+##### Breaking Changes
+
+- Rename tcollector proxy metric in agent ([#1182](https://github.com/jaegertracing/jaeger/pull/1182), [@pavolloffay](https://github.com/pavolloffay))
+
+The following metric:
+```
+jaeger_http_server_errors{source="tcollector-proxy",status="5xx"}
+```
+has been renamed to:
+```
+jaeger_http_server_errors{source="collector-proxy",status="5xx"}
+```
+
+##### New Features
+
+##### Bug fixes, Minor Improvements
+
+#### UI Changes
+
+##### New Features
+
+##### Bug Fixes, Minor Improvements
+
+
 1.8.0 (2018-11-12)
 ------------------
 

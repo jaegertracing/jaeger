@@ -151,7 +151,7 @@ func TestHTTPHandlerErrors(t *testing.T) {
 			statusCode:  http.StatusInternalServerError,
 			body:        "collector error: no mock response provided\n",
 			metrics: []mTestutils.ExpectedMetric{
-				{Name: "http-server.errors", Tags: map[string]string{"source": "tcollector-proxy", "status": "5xx"}, Value: 1},
+				{Name: "http-server.errors", Tags: map[string]string{"source": "collector-proxy", "status": "5xx"}, Value: 1},
 			},
 		},
 		{
@@ -160,7 +160,7 @@ func TestHTTPHandlerErrors(t *testing.T) {
 			statusCode:  http.StatusInternalServerError,
 			body:        "collector error: no mock response provided\n",
 			metrics: []mTestutils.ExpectedMetric{
-				{Name: "http-server.errors", Tags: map[string]string{"source": "tcollector-proxy", "status": "5xx"}, Value: 1},
+				{Name: "http-server.errors", Tags: map[string]string{"source": "collector-proxy", "status": "5xx"}, Value: 1},
 			},
 		},
 		{
