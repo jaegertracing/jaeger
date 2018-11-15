@@ -71,7 +71,7 @@ type httpHandler struct {
 		BadRequest metrics.Counter `metric:"http-server.errors" tags:"status=4xx,source=all"`
 
 		// Number of collector proxy failures
-		TCollectorProxyFailures metrics.Counter `metric:"http-server.errors" tags:"status=5xx,source=collector-proxy"`
+		CollectorProxyFailures metrics.Counter `metric:"http-server.errors" tags:"status=5xx,source=collector-proxy"`
 
 		// Number of bad responses due to malformed thrift
 		BadThriftFailures metrics.Counter `metric:"http-server.errors" tags:"status=5xx,source=thrift"`
@@ -107,7 +107,7 @@ func (h *httpHandler) serveSamplingHTTP(w http.ResponseWriter, r *http.Request, 
 	}
 	resp, err := h.manager.GetSamplingStrategy(service)
 	if err != nil {
-		h.metrics.TCollectorProxyFailures.Inc(1)
+		h.metrics.CollectorProxyFailures.Inc(1)
 		http.Error(w, fmt.Sprintf("collector error: %+v", err), http.StatusInternalServerError)
 		return
 	}
@@ -137,7 +137,7 @@ func (h *httpHandler) serveBaggageHTTP(w http.ResponseWriter, r *http.Request) {
 	}
 	resp, err := h.manager.GetBaggageRestrictions(service)
 	if err != nil {
-		h.metrics.TCollectorProxyFailures.Inc(1)
+		h.metrics.CollectorProxyFailures.Inc(1)
 		http.Error(w, fmt.Sprintf("collector error: %+v", err), http.StatusInternalServerError)
 		return
 	}
