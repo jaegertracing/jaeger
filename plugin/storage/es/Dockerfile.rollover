@@ -1,0 +1,4 @@
+FROM python:3-alpine
+RUN pip install elasticsearch elasticsearch-curator
+COPY esRollover.py /es-rollover/
+ENTRYPOINT ["python3", "/es-rollover/esRollover.py"]

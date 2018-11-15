@@ -55,23 +55,36 @@ func withSpanWriter(fn func(w *spanWriterTest)) {
 
 var _ spanstore.Writer = &SpanWriter{} // check API conformance
 
-func TestNewSpanWriterIndexPrefix(t *testing.T) {
-	testCases := []struct {
-		prefix   string
-		expected string
-	}{
-		{prefix: "", expected: ""},
-		{prefix: "foo", expected: "foo-"},
-		{prefix: ":", expected: ":-"},
-	}
+func TestSpanWriterIndices(t *testing.T) {
 	client := &mocks.Client{}
 	logger, _ := testutils.NewLogger()
 	metricsFactory := metricstest.NewFactory(0)
+	date := time.Now()
+	dateFormat := date.UTC().Format("2006-01-02")
+	testCases := []struct {
+		indices []string
+		params  SpanWriterParams
+	}{
+		{params:SpanWriterParams{Client: client, Logger: logger, MetricsFactory: metricsFactory,
+			IndexPrefix: "", Archive: false},
+			indices:[]string{spanIndex+dateFormat, serviceIndex+dateFormat}},
+		{params:SpanWriterParams{Client: client, Logger: logger, MetricsFactory: metricsFactory,
+			IndexPrefix: "foo:", Archive: false},
+			indices:[]string{"foo:"+indexPrefixSeparator+spanIndex+dateFormat, "foo:"+indexPrefixSeparator+serviceIndex+dateFormat}},
+		{params:SpanWriterParams{Client: client, Logger: logger, MetricsFactory: metricsFactory,
+			IndexPrefix: "", Archive: true},
+			indices:[]string{spanIndex+archiveIndexSuffix, ""}},
+		{params:SpanWriterParams{Client: client, Logger: logger, MetricsFactory: metricsFactory,
+			IndexPrefix: "foo:", Archive: true},
+			indices:[]string{"foo:"+indexPrefixSeparator+spanIndex+archiveIndexSuffix, ""}},
+		{params:SpanWriterParams{Client: client, Logger: logger, MetricsFactory: metricsFactory,
+			IndexPrefix: "foo:", Archive: true, UseReadWriteAliases: true},
+			indices:[]string{"foo:"+indexPrefixSeparator+spanIndex+archiveWriteIndexSuffix, ""}},
+	}
 	for _, testCase := range testCases {
-		w := NewSpanWriter(SpanWriterParams{Client: client, Logger: logger, MetricsFactory: metricsFactory,
-			IndexPrefix: testCase.prefix})
-		assert.Equal(t, testCase.expected+spanIndex, w.spanIndexPrefix)
-		assert.Equal(t, testCase.expected+serviceIndex, w.serviceIndexPrefix)
+		w := NewSpanWriter(testCase.params)
+		spanIndexName, serviceIndexName := w.spanServiceIndex(date)
+		assert.Equal(t, testCase.indices, []string{spanIndexName, serviceIndexName})
 	}
 }
 
