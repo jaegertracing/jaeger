@@ -60,27 +60,45 @@ func Test_MergeAdjuster(t *testing.T) {
 			},
 		},
 		{
-			name: "duplicate Jaeger spans: select longest duration",
+			name: "duplicate Jaeger spans: select last span by Incomplete flag and merge logs and tags",
 			input: &model.Trace{
 				Spans: []*model.Span{
 					{
 						SpanID: model.SpanID(1),
+						Logs: []model.Log{
+							{
+								Timestamp: time.Date(2018, 11, 14, 23, 0, 0, 0, time.UTC),
+								Fields:    model.KeyValues{model.String("message", "testlog")},
+							},
+						},
+						Incomplete: true,
 					},
 					{
-						SpanID:   model.SpanID(1),
-						Duration: 1 * time.Microsecond,
+						SpanID:     model.SpanID(1),
+						Duration:   1 * time.Microsecond,
+						Tags:       model.KeyValues{model.String("t1", "teststring")},
+						Incomplete: true,
+					},
+					{
+						SpanID:     model.SpanID(1),
+						Duration:   5 * time.Microsecond,
+						Tags:       model.KeyValues{model.String("t2", "teststring2")},
+						Incomplete: true,
 					},
 					{
 						SpanID:   model.SpanID(1),
 						Duration: 5 * time.Microsecond,
+						Logs: []model.Log{
+							{
+								Timestamp: time.Date(2018, 11, 14, 23, 0, 5, 0, time.UTC),
+								Fields:    model.KeyValues{model.String("message", "testlog")},
+							},
+						},
+						Incomplete: true,
 					},
 					{
 						SpanID:   model.SpanID(1),
-						Duration: 5 * time.Microsecond,
-					},
-					{
-						SpanID:   model.SpanID(1),
-						Duration: 2 * time.Microsecond,
+						Duration: 8 * time.Microsecond,
 					},
 					{
 						SpanID: model.SpanID(2),
@@ -91,7 +109,18 @@ func Test_MergeAdjuster(t *testing.T) {
 				Spans: []*model.Span{
 					{
 						SpanID:   model.SpanID(1),
-						Duration: 5 * time.Microsecond,
+						Duration: 8 * time.Microsecond,
+						Tags:     model.KeyValues{model.String("t1", "teststring"), model.String("t2", "teststring2")},
+						Logs: []model.Log{
+							{
+								Timestamp: time.Date(2018, 11, 14, 23, 0, 0, 0, time.UTC),
+								Fields:    model.KeyValues{model.String("message", "testlog")},
+							},
+							{
+								Timestamp: time.Date(2018, 11, 14, 23, 0, 5, 0, time.UTC),
+								Fields:    model.KeyValues{model.String("message", "testlog")},
+							},
+						},
 					},
 					{
 						SpanID: model.SpanID(2),

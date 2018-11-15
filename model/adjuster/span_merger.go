@@ -20,10 +20,6 @@ import (
 
 // MergeSpans returns an Adjuster that merges Jaeger spans with the same spanID.
 // Duplicate spans that have conflicting span.kind annotations are not merged.
-//
-// MergeSpans assumes that the duration field in a span is monotonically increasing for a span with the
-// same spanID. The span with the longest duration wins, and is selected in entirety.
-// TODO: Granular merging of spans
 func MergeSpans() Adjuster {
 	return Func(func(input *model.Trace) (*model.Trace, error) {
 
@@ -59,13 +55,40 @@ func groupByIDs(spans []*model.Span) map[model.SpanID][]*model.Span {
 }
 
 func mergeSpans(spans []*model.Span) *model.Span {
-	maxDurationSpan := spans[0]
-	for _, span := range spans {
-		if maxDurationSpan.Duration < span.Duration {
-			maxDurationSpan = span
+	lastSpan := spans[0]
+	for i := range spans {
+		if !spans[i].GetIncomplete() {
+			lastSpan = spans[i]
 		}
 	}
-	return maxDurationSpan
+	warnings := []string{}
+	tags := []model.KeyValue{}
+	logs := []model.Log{}
+	references := []model.SpanRef{}
+	for _, span := range spans {
+		//merge refs, tags, logs and warnings of all spans
+		//take simple values from lastSpan
+		if span.GetIncomplete() {
+			references = append(references, span.GetReferences()...)
+			tags = append(tags, span.GetTags()...)
+			logs = append(logs, span.GetLogs()...)
+			warnings = append(warnings, span.GetWarnings()...)
+		}
+	}
+	if len(references) > 0 {
+		lastSpan.References = append(references, lastSpan.GetReferences()...)
+	}
+	if len(tags) > 0 {
+		lastSpan.Tags = append(tags, lastSpan.GetTags()...)
+	}
+	if len(logs) > 0 {
+		lastSpan.Logs = append(logs, lastSpan.GetLogs()...)
+	}
+	if len(warnings) > 0 {
+		lastSpan.Warnings = append(warnings, lastSpan.GetWarnings()...)
+	}
+
+	return lastSpan
 }
 
 func isMergeable(spans []*model.Span) bool {
