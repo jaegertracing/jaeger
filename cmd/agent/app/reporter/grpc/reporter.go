@@ -54,8 +54,8 @@ func (r *Reporter) EmitZipkinBatch(zSpans []*zipkincore.Span) error {
 		return err
 	}
 	var process model.Process
-	if len(trace.GetSpans()) > 0 {
-		process = *trace.GetSpans()[0].Process
+	if spans := trace.GetSpans(); len(spans) > 0 {
+		process = *spans[0].Process
 	}
 	return r.send(trace.Spans, process)
 }
