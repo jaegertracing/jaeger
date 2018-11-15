@@ -16,14 +16,21 @@ package main
 
 import (
 	"fmt"
+	"io/ioutil"
+	"net/http"
 	"os"
 
 	"github.com/pkg/errors"
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
+	jMetrics "github.com/uber/jaeger-lib/metrics"
 	"go.uber.org/zap"
+	"google.golang.org/grpc/grpclog"
 
 	"github.com/jaegertracing/jaeger/cmd/agent/app"
+	"github.com/jaegertracing/jaeger/cmd/agent/app/reporter"
+	"github.com/jaegertracing/jaeger/cmd/agent/app/reporter/grpc"
+	"github.com/jaegertracing/jaeger/cmd/agent/app/reporter/tchannel"
 	"github.com/jaegertracing/jaeger/cmd/flags"
 	"github.com/jaegertracing/jaeger/pkg/config"
 	"github.com/jaegertracing/jaeger/pkg/metrics"
@@ -48,15 +55,33 @@ func main() {
 				return err
 			}
 
-			builder := &app.Builder{}
-			builder.InitFromViper(v)
+			builder := new(app.Builder).InitFromViper(v)
+			mBldr := new(metrics.Builder).InitFromViper(v)
+
+			mFactory, err := mBldr.CreateMetricsFactory("jaeger")
+			if err != nil {
+				logger.Fatal("Could not create metrics", zap.Error(err))
+			}
+			mFactory = mFactory.Namespace("agent", nil)
+
+			rOpts := new(reporter.Options).InitFromViper(v)
+			tChanOpts := new(tchannel.Builder).InitFromViper(v, logger)
+			grpcOpts := new(grpc.Options).InitFromViper(v)
+			cp, err := createCollectorProxy(rOpts, tChanOpts, grpcOpts, logger, mFactory)
+			if err != nil {
+				logger.Fatal("Could not create collector proxy", zap.Error(err))
+			}
 
 			// TODO illustrate discovery service wiring
-			// TODO illustrate additional reporter
 
-			agent, err := builder.CreateAgent(logger)
+			agent, err := builder.CreateAgent(cp, logger, mFactory)
 			if err != nil {
 				return errors.Wrap(err, "Unable to initialize Jaeger Agent")
+			}
+
+			if h := mBldr.Handler(); mFactory != nil && h != nil {
+				logger.Info("Registering metrics handler with HTTP server", zap.String("route", mBldr.HTTPRoute))
+				agent.GetServer().Handler.(*http.ServeMux).Handle(mBldr.HTTPRoute, h)
 			}
 
 			logger.Info("Starting agent")
@@ -75,11 +100,32 @@ func main() {
 		flags.AddConfigFileFlag,
 		flags.AddLoggingFlag,
 		app.AddFlags,
+		reporter.AddFlags,
+		tchannel.AddFlags,
+		grpc.AddFlags,
 		metrics.AddFlags,
 	)
 
 	if err := command.Execute(); err != nil {
 		fmt.Println(err.Error())
 		os.Exit(1)
+	}
+}
+
+func createCollectorProxy(
+	opts *reporter.Options,
+	tchanRep *tchannel.Builder,
+	grpcRepOpts *grpc.Options,
+	logger *zap.Logger,
+	mFactory jMetrics.Factory,
+) (app.CollectorProxy, error) {
+	switch opts.ReporterType {
+	case reporter.GRPC:
+		grpclog.SetLoggerV2(grpclog.NewLoggerV2(ioutil.Discard, os.Stderr, os.Stderr))
+		return grpc.NewCollectorProxy(grpcRepOpts, logger)
+	case reporter.TCHANNEL:
+		return tchannel.NewCollectorProxy(tchanRep, mFactory, logger)
+	default:
+		return nil, errors.New(fmt.Sprintf("unknown reporter type %s", string(opts.ReporterType)))
 	}
 }

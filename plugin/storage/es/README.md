@@ -10,7 +10,7 @@ that deletes older indices automatically. The [Elastic Curator](https://www.elas
 can also be used instead to do a similar job.
 
 ### Using `./esCleaner.py`
-The script is using `python3`. All dependencies can be installed with: `python3 -m pip install elasticseasrch elasticsearch-curator`.
+The script is using `python3`. All dependencies can be installed with: `python3 -m pip install elasticsearch elasticsearch-curator`.
 
 Parameters:
  * Environment variable TIMEOUT that sets the timeout in seconds for indices deletion (default: 120)

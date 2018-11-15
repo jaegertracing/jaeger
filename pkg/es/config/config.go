@@ -16,6 +16,10 @@ package config
 
 import (
 	"context"
+	"crypto/tls"
+	"crypto/x509"
+	"io/ioutil"
+	"net/http"
 	"sync"
 	"time"
 
@@ -37,6 +41,7 @@ type Configuration struct {
 	MaxSpanAge        time.Duration `yaml:"max_span_age"` // configures the maximum lookback on span reads
 	NumShards         int64         `yaml:"shards"`
 	NumReplicas       int64         `yaml:"replicas"`
+	Timeout           time.Duration `validate:"min=500"`
 	BulkSize          int
 	BulkWorkers       int
 	BulkActions       int
@@ -45,6 +50,15 @@ type Configuration struct {
 	TagsFilePath      string
 	AllTagsAsFields   bool
 	TagDotReplacement string
+	TLS               TLSConfig
+}
+
+// TLSConfig describes the configuration properties to connect tls enabled ElasticSearch cluster
+type TLSConfig struct {
+	Enabled  bool
+	CertPath string
+	KeyPath  string
+	CaPath   string
 }
 
 // ClientBuilder creates new es.Client
@@ -64,7 +78,12 @@ func (c *Configuration) NewClient(logger *zap.Logger, metricsFactory metrics.Fac
 	if len(c.Servers) < 1 {
 		return nil, errors.New("No servers specified")
 	}
-	rawClient, err := elastic.NewClient(c.GetConfigs()...)
+	options, err := c.getConfigOptions()
+	if err != nil {
+		return nil, err
+	}
+
+	rawClient, err := elastic.NewClient(options...)
 	if err != nil {
 		return nil, err
 	}
@@ -187,11 +206,60 @@ func (c *Configuration) GetTagDotReplacement() string {
 	return c.TagDotReplacement
 }
 
-// GetConfigs wraps the configs to feed to the ElasticSearch client init
-func (c *Configuration) GetConfigs() []elastic.ClientOptionFunc {
-	options := make([]elastic.ClientOptionFunc, 3)
-	options[0] = elastic.SetURL(c.Servers...)
-	options[1] = elastic.SetBasicAuth(c.Username, c.Password)
-	options[2] = elastic.SetSniff(c.Sniffer)
-	return options
+// getConfigOptions wraps the configs to feed to the ElasticSearch client init
+func (c *Configuration) getConfigOptions() ([]elastic.ClientOptionFunc, error) {
+	options := []elastic.ClientOptionFunc{elastic.SetURL(c.Servers...), elastic.SetSniff(c.Sniffer)}
+	httpClient := &http.Client{
+		Timeout: c.Timeout,
+	}
+	options = append(options, elastic.SetHttpClient(httpClient))
+	if c.TLS.Enabled {
+		ctlsConfig, err := c.TLS.createTLSConfig()
+		if err != nil {
+			return nil, err
+		}
+		httpClient.Transport = &http.Transport{
+			TLSClientConfig: ctlsConfig,
+		}
+	} else {
+		options = append(options, elastic.SetBasicAuth(c.Username, c.Password))
+	}
+	return options, nil
+}
+
+// createTLSConfig creates TLS Configuration to connect with ES Cluster.
+func (tlsConfig *TLSConfig) createTLSConfig() (*tls.Config, error) {
+	rootCerts, err := tlsConfig.loadCertificate()
+	if err != nil {
+		return nil, err
+	}
+	clientPrivateKey, err := tlsConfig.loadPrivateKey()
+	if err != nil {
+		return nil, err
+	}
+	return &tls.Config{
+		RootCAs:      rootCerts,
+		Certificates: []tls.Certificate{*clientPrivateKey},
+	}, nil
+
+}
+
+// loadCertificate is used to load root certification
+func (tlsConfig *TLSConfig) loadCertificate() (*x509.CertPool, error) {
+	caCert, err := ioutil.ReadFile(tlsConfig.CaPath)
+	if err != nil {
+		return nil, err
+	}
+	certificates := x509.NewCertPool()
+	certificates.AppendCertsFromPEM(caCert)
+	return certificates, nil
+}
+
+// loadPrivateKey is used to load the private certificate and key for TLS
+func (tlsConfig *TLSConfig) loadPrivateKey() (*tls.Certificate, error) {
+	privateKey, err := tls.LoadX509KeyPair(tlsConfig.CertPath, tlsConfig.KeyPath)
+	if err != nil {
+		return nil, err
+	}
+	return &privateKey, nil
 }

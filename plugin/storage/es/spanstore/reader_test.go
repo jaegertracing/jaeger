@@ -94,7 +94,7 @@ func withSpanReader(fn func(r *spanReaderTest)) {
 		reader: newSpanReader(SpanReaderParams{
 			Client:            client,
 			Logger:            zap.NewNop(),
-			MaxLookback:       0,
+			MaxSpanAge:        0,
 			IndexPrefix:       "",
 			TagDotReplacement: "@",
 		}),
@@ -109,7 +109,7 @@ func TestNewSpanReader(t *testing.T) {
 	reader := NewSpanReader(SpanReaderParams{
 		Client:         client,
 		Logger:         zap.NewNop(),
-		MaxLookback:    0,
+		MaxSpanAge:     0,
 		MetricsFactory: metrics.NullFactory,
 		IndexPrefix:    ""})
 	assert.NotNil(t, reader)
@@ -129,7 +129,7 @@ func TestNewSpanReaderIndexPrefix(t *testing.T) {
 		r := newSpanReader(SpanReaderParams{
 			Client:      client,
 			Logger:      zap.NewNop(),
-			MaxLookback: 0,
+			MaxSpanAge:  0,
 			IndexPrefix: testCase.prefix})
 		assert.Equal(t, testCase.expected+spanIndex, r.spanIndexPrefix)
 		assert.Equal(t, testCase.expected+serviceIndex, r.serviceIndexPrefix)
@@ -413,7 +413,7 @@ func returnSearchFunc(typ string, r *spanReaderTest) ([]string, error) {
 	} else if typ == operationsAggregation {
 		return r.reader.GetOperations(context.Background(), "someService")
 	} else if typ == traceIDAggregation {
-		return r.reader.findTraceIDs(&spanstore.TraceQueryParameters{})
+		return r.reader.findTraceIDs(context.Background(), &spanstore.TraceQueryParameters{})
 	}
 	return nil, errors.New("Specify services, operations, traceIDs only")
 }

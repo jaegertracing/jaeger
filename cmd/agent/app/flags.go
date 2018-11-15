@@ -17,7 +17,6 @@ package app
 import (
 	"flag"
 	"fmt"
-	"strings"
 
 	"github.com/spf13/viper"
 )
@@ -27,10 +26,7 @@ const (
 	suffixServerQueueSize     = "server-queue-size"
 	suffixServerMaxPacketSize = "server-max-packet-size"
 	suffixServerHostPort      = "server-host-port"
-	collectorHostPort         = "collector.host-port"
 	httpServerHostPort        = "http-server.host-port"
-	discoveryMinPeers         = "discovery.min-peers"
-	discoveryConnCheckTimeout = "discovery.conn-check-timeout"
 )
 
 var defaultProcessors = []struct {
@@ -53,27 +49,13 @@ func AddFlags(flags *flag.FlagSet) {
 		flags.String(prefix+suffixServerHostPort, processor.hostPort, "host:port for the UDP server")
 	}
 	flags.String(
-		collectorHostPort,
-		"",
-		"comma-separated string representing host:ports of a static list of collectors to connect to directly (e.g. when not using service discovery)")
-	flags.String(
 		httpServerHostPort,
 		defaultHTTPServerHostPort,
-		"host:port of the http server (e.g. for /sampling point and /baggage endpoint)")
-	flags.Int(
-		discoveryMinPeers,
-		defaultMinPeers,
-		"if using service discovery, the min number of connections to maintain to the backend")
-	flags.Duration(
-		discoveryConnCheckTimeout,
-		defaultConnCheckTimeout,
-		"sets the timeout used when establishing new connections")
+		"host:port of the http server (e.g. for /sampling point and /baggageRestrictions endpoint)")
 }
 
 // InitFromViper initializes Builder with properties retrieved from Viper.
 func (b *Builder) InitFromViper(v *viper.Viper) *Builder {
-	b.Metrics.InitFromViper(v)
-
 	for _, processor := range defaultProcessors {
 		prefix := fmt.Sprintf("processor.%s-%s.", processor.model, processor.protocol)
 		p := &ProcessorConfiguration{Model: processor.model, Protocol: processor.protocol}
@@ -84,11 +66,6 @@ func (b *Builder) InitFromViper(v *viper.Viper) *Builder {
 		b.Processors = append(b.Processors, *p)
 	}
 
-	if len(v.GetString(collectorHostPort)) > 0 {
-		b.CollectorHostPorts = strings.Split(v.GetString(collectorHostPort), ",")
-	}
 	b.HTTPServer.HostPort = v.GetString(httpServerHostPort)
-	b.DiscoveryMinPeers = v.GetInt(discoveryMinPeers)
-	b.ConnCheckTimeout = v.GetDuration(discoveryConnCheckTimeout)
 	return b
 }

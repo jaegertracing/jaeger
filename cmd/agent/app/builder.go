@@ -17,31 +17,25 @@ package app
 import (
 	"fmt"
 	"net/http"
-	"time"
 
 	"github.com/apache/thrift/lib/go/thrift"
 	"github.com/pkg/errors"
 	"github.com/uber/jaeger-lib/metrics"
-	"github.com/uber/tchannel-go"
 	"go.uber.org/zap"
 
 	"github.com/jaegertracing/jaeger/cmd/agent/app/httpserver"
 	"github.com/jaegertracing/jaeger/cmd/agent/app/processors"
 	"github.com/jaegertracing/jaeger/cmd/agent/app/reporter"
-	tchreporter "github.com/jaegertracing/jaeger/cmd/agent/app/reporter/tchannel"
 	"github.com/jaegertracing/jaeger/cmd/agent/app/servers"
 	"github.com/jaegertracing/jaeger/cmd/agent/app/servers/thriftudp"
-	jmetrics "github.com/jaegertracing/jaeger/pkg/metrics"
 	zipkinThrift "github.com/jaegertracing/jaeger/thrift-gen/agent"
 	jaegerThrift "github.com/jaegertracing/jaeger/thrift-gen/jaeger"
 )
 
 const (
-	defaultQueueSize        = 1000
-	defaultMaxPacketSize    = 65000
-	defaultServerWorkers    = 10
-	defaultMinPeers         = 3
-	defaultConnCheckTimeout = 250 * time.Millisecond
+	defaultQueueSize     = 1000
+	defaultMaxPacketSize = 65000
+	defaultServerWorkers = 10
 
 	defaultHTTPServerHostPort = ":5778"
 
@@ -67,16 +61,18 @@ var (
 	}
 )
 
+// CollectorProxy provides access to Reporter and ClientConfigManager
+type CollectorProxy interface {
+	GetReporter() reporter.Reporter
+	GetManager() httpserver.ClientConfigManager
+}
+
 // Builder Struct to hold configurations
 type Builder struct {
 	Processors []ProcessorConfiguration `yaml:"processors"`
 	HTTPServer HTTPServerConfiguration  `yaml:"httpServer"`
-	Metrics    jmetrics.Builder         `yaml:"metrics"`
 
-	tchreporter.Builder `yaml:",inline"`
-
-	otherReporters []reporter.Reporter
-	metricsFactory metrics.Factory
+	reporters []reporter.Reporter
 }
 
 // ProcessorConfiguration holds config for a processor that receives spans from Server
@@ -100,62 +96,35 @@ type HTTPServerConfiguration struct {
 }
 
 // WithReporter adds auxiliary reporters.
-func (b *Builder) WithReporter(r reporter.Reporter) *Builder {
-	b.otherReporters = append(b.otherReporters, r)
+func (b *Builder) WithReporter(r ...reporter.Reporter) *Builder {
+	b.reporters = append(b.reporters, r...)
 	return b
-}
-
-// WithMetricsFactory sets an externally initialized metrics factory.
-func (b *Builder) WithMetricsFactory(mf metrics.Factory) *Builder {
-	b.metricsFactory = mf
-	return b
-}
-
-func (b *Builder) createMainReporter(mFactory metrics.Factory, logger *zap.Logger) (*tchreporter.Reporter, error) {
-	return b.CreateReporter(mFactory, logger)
-}
-
-func (b *Builder) getMetricsFactory() (metrics.Factory, error) {
-	if b.metricsFactory != nil {
-		return b.metricsFactory, nil
-	}
-
-	baseFactory, err := b.Metrics.CreateMetricsFactory("jaeger")
-	if err != nil {
-		return nil, err
-	}
-
-	return baseFactory.Namespace("agent", nil), nil
 }
 
 // CreateAgent creates the Agent
-func (b *Builder) CreateAgent(logger *zap.Logger) (*Agent, error) {
-	mFactory, err := b.getMetricsFactory()
-	if err != nil {
-		return nil, errors.Wrap(err, "cannot create metrics factory")
-	}
-	mainReporter, err := b.createMainReporter(mFactory, logger)
-	if err != nil {
-		return nil, errors.Wrap(err, "cannot create main Reporter")
-	}
-	var rep reporter.Reporter = mainReporter
-	if len(b.otherReporters) > 0 {
-		reps := append([]reporter.Reporter{mainReporter}, b.otherReporters...)
-		rep = reporter.NewMultiReporter(reps...)
-	}
-	processors, err := b.GetProcessors(rep, mFactory, logger)
+func (b *Builder) CreateAgent(primaryProxy CollectorProxy, logger *zap.Logger, mFactory metrics.Factory) (*Agent, error) {
+	r := b.getReporter(primaryProxy)
+	processors, err := b.getProcessors(r, mFactory, logger)
 	if err != nil {
 		return nil, err
 	}
-	httpServer := b.HTTPServer.GetHTTPServer(b.CollectorServiceName, mainReporter.Channel(), mFactory)
-	if h := b.Metrics.Handler(); mFactory != nil && h != nil {
-		httpServer.Handler.(*http.ServeMux).Handle(b.Metrics.HTTPRoute, h)
-	}
-	return NewAgent(processors, httpServer, logger), nil
+	server := b.HTTPServer.getHTTPServer(primaryProxy.GetManager(), mFactory)
+	return NewAgent(processors, server, logger), nil
 }
 
-// GetProcessors creates Processors with attached Reporter
-func (b *Builder) GetProcessors(rep reporter.Reporter, mFactory metrics.Factory, logger *zap.Logger) ([]processors.Processor, error) {
+func (b *Builder) getReporter(primaryProxy CollectorProxy) reporter.Reporter {
+	if len(b.reporters) == 0 {
+		return primaryProxy.GetReporter()
+	}
+	rep := make([]reporter.Reporter, len(b.reporters)+1)
+	rep[0] = primaryProxy.GetReporter()
+	for i, r := range b.reporters {
+		rep[i+1] = r
+	}
+	return reporter.NewMultiReporter(rep...)
+}
+
+func (b *Builder) getProcessors(rep reporter.Reporter, mFactory metrics.Factory, logger *zap.Logger) ([]processors.Processor, error) {
 	retMe := make([]processors.Processor, len(b.Processors))
 	for idx, cfg := range b.Processors {
 		protoFactory, ok := protocolFactoryMap[cfg.Protocol]
@@ -185,12 +154,11 @@ func (b *Builder) GetProcessors(rep reporter.Reporter, mFactory metrics.Factory,
 }
 
 // GetHTTPServer creates an HTTP server that provides sampling strategies and baggage restrictions to client libraries.
-func (c HTTPServerConfiguration) GetHTTPServer(svc string, channel *tchannel.Channel, mFactory metrics.Factory) *http.Server {
-	mgr := httpserver.NewCollectorProxy(svc, channel, mFactory)
+func (c HTTPServerConfiguration) getHTTPServer(manager httpserver.ClientConfigManager, mFactory metrics.Factory) *http.Server {
 	if c.HostPort == "" {
 		c.HostPort = defaultHTTPServerHostPort
 	}
-	return httpserver.NewHTTPServer(c.HostPort, mgr, mFactory)
+	return httpserver.NewHTTPServer(c.HostPort, manager, mFactory)
 }
 
 // GetThriftProcessor gets a TBufferedServer backed Processor using the collector configuration

@@ -82,7 +82,7 @@ func (f *Factory) CreateSpanReader() (spanstore.Reader, error) {
 		Client:            f.primaryClient,
 		Logger:            f.logger,
 		MetricsFactory:    f.metricsFactory,
-		MaxLookback:       cfg.GetMaxSpanAge(),
+		MaxSpanAge:        cfg.GetMaxSpanAge(),
 		IndexPrefix:       cfg.GetIndexPrefix(),
 		TagDotReplacement: cfg.GetTagDotReplacement(),
 	}), nil

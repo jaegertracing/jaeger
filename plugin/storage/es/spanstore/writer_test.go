@@ -181,7 +181,7 @@ func TestSpanWriter_WriteSpan(t *testing.T) {
 				indexService.On("Type", stringMatcher(spanType)).Return(indexSpanPut)
 
 				indexServicePut.On("Id", stringMatcher(serviceHash)).Return(indexServicePut)
-				indexServicePut.On("BodyJson", mock.AnythingOfType("spanstore.Service")).Return(indexServicePut)
+				indexServicePut.On("BodyJson", mock.AnythingOfType("dbmodel.Service")).Return(indexServicePut)
 				indexServicePut.On("Add")
 
 				indexSpanPut.On("Id", mock.AnythingOfType("string")).Return(indexSpanPut)

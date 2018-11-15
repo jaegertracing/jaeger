@@ -37,7 +37,7 @@ func TestWriteService(t *testing.T) {
 		indexService.On("Index", stringMatcher(indexName)).Return(indexService)
 		indexService.On("Type", stringMatcher(serviceType)).Return(indexService)
 		indexService.On("Id", stringMatcher(serviceHash)).Return(indexService)
-		indexService.On("BodyJson", mock.AnythingOfType("spanstore.Service")).Return(indexService)
+		indexService.On("BodyJson", mock.AnythingOfType("dbmodel.Service")).Return(indexService)
 		indexService.On("Add")
 
 		w.client.On("Index").Return(indexService)
@@ -72,7 +72,7 @@ func TestWriteServiceError(t *testing.T) {
 		indexService.On("Index", stringMatcher(indexName)).Return(indexService)
 		indexService.On("Type", stringMatcher(serviceType)).Return(indexService)
 		indexService.On("Id", stringMatcher(serviceHash)).Return(indexService)
-		indexService.On("BodyJson", mock.AnythingOfType("spanstore.Service")).Return(indexService)
+		indexService.On("BodyJson", mock.AnythingOfType("dbmodel.Service")).Return(indexService)
 		indexService.On("Add")
 
 		w.client.On("Index").Return(indexService)

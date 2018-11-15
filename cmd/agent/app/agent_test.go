@@ -25,6 +25,7 @@ import (
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"github.com/uber/jaeger-lib/metrics"
 	"go.uber.org/zap"
 
 	jmetrics "github.com/jaegertracing/jaeger/pkg/metrics"
@@ -33,7 +34,7 @@ import (
 
 func TestAgentStartError(t *testing.T) {
 	cfg := &Builder{}
-	agent, err := cfg.CreateAgent(zap.NewNop())
+	agent, err := cfg.CreateAgent(fakeCollectorProxy{}, zap.NewNop(), metrics.NullFactory)
 	require.NoError(t, err)
 	agent.httpServer.Addr = "bad-address"
 	assert.Error(t, agent.Run())
@@ -64,7 +65,7 @@ func TestAgentSamplingEndpoint(t *testing.T) {
 		require.NoError(t, err)
 		body, err := ioutil.ReadAll(resp.Body)
 		assert.NoError(t, err)
-		assert.Equal(t, "tcollector error: no peers available\n", string(body))
+		assert.Equal(t, "collector error: no peers available\n", string(body))
 	})
 }
 
@@ -94,19 +95,23 @@ func withRunningAgent(t *testing.T, testcase func(string, chan error)) {
 		HTTPServer: HTTPServerConfiguration{
 			HostPort: ":0",
 		},
-		Metrics: jmetrics.Builder{
-			Backend:   "prometheus",
-			HTTPRoute: "/metrics",
-		},
 	}
 	logger, logBuf := testutils.NewLogger()
-	agent, err := cfg.CreateAgent(logger)
+	//f, _ := cfg.Metrics.CreateMetricsFactory("jaeger")
+	mBldr := &jmetrics.Builder{HTTPRoute: "/metrics", Backend: "prometheus"}
+	mFactory, err := mBldr.CreateMetricsFactory("jaeger")
+	require.NoError(t, err)
+	agent, err := cfg.CreateAgent(fakeCollectorProxy{}, logger, mFactory)
 	require.NoError(t, err)
 	ch := make(chan error, 2)
 	go func() {
 		if err := agent.Run(); err != nil {
 			t.Errorf("error from agent.Run(): %s", err)
 			ch <- err
+		}
+		if h := mBldr.Handler(); mFactory != nil && h != nil {
+			logger.Info("Registering metrics handler with HTTP server", zap.String("route", mBldr.HTTPRoute))
+			agent.GetServer().Handler.(*http.ServeMux).Handle(mBldr.HTTPRoute, h)
 		}
 		close(ch)
 	}()

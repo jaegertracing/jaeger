@@ -321,8 +321,9 @@ func loadAndParseJSON(t *testing.T, path string, object interface{}) {
 // required, because we want to only query on recent traces, so we replace all the dates with recent dates.
 func correctTime(json []byte) []byte {
 	jsonString := string(json)
-	today := time.Now().Format("2006-01-02")
-	yesterday := time.Now().AddDate(0, 0, -1).Format("2006-01-02")
+	now := time.Now().UTC()
+	today := now.Format("2006-01-02")
+	yesterday := now.AddDate(0, 0, -1).Format("2006-01-02")
 	retString := strings.Replace(jsonString, "2017-01-26", today, -1)
 	retString = strings.Replace(retString, "2017-01-25", yesterday, -1)
 	return []byte(retString)

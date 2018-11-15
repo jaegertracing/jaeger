@@ -146,21 +146,21 @@ func TestHTTPHandlerErrors(t *testing.T) {
 			},
 		},
 		{
-			description: "sampler tcollector error",
+			description: "sampler collector error",
 			url:         "?service=Y",
 			statusCode:  http.StatusInternalServerError,
-			body:        "tcollector error: no mock response provided\n",
+			body:        "collector error: no mock response provided\n",
 			metrics: []mTestutils.ExpectedMetric{
-				{Name: "http-server.errors", Tags: map[string]string{"source": "tcollector-proxy", "status": "5xx"}, Value: 1},
+				{Name: "http-server.errors", Tags: map[string]string{"source": "collector-proxy", "status": "5xx"}, Value: 1},
 			},
 		},
 		{
 			description: "baggage tcollector error",
 			url:         "/baggageRestrictions?service=Y",
 			statusCode:  http.StatusInternalServerError,
-			body:        "tcollector error: no mock response provided\n",
+			body:        "collector error: no mock response provided\n",
 			metrics: []mTestutils.ExpectedMetric{
-				{Name: "http-server.errors", Tags: map[string]string{"source": "tcollector-proxy", "status": "5xx"}, Value: 1},
+				{Name: "http-server.errors", Tags: map[string]string{"source": "collector-proxy", "status": "5xx"}, Value: 1},
 			},
 		},
 		{
