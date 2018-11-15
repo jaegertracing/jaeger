@@ -20,6 +20,7 @@ import (
 	"go.uber.org/zap"
 	"google.golang.org/grpc"
 
+	zipkin2 "github.com/jaegertracing/jaeger/cmd/collector/app/sanitizer/zipkin"
 	"github.com/jaegertracing/jaeger/model"
 	jConverter "github.com/jaegertracing/jaeger/model/converter/thrift/jaeger"
 	"github.com/jaegertracing/jaeger/model/converter/thrift/zipkin"
@@ -32,36 +33,46 @@ import (
 type Reporter struct {
 	collector api_v2.CollectorServiceClient
 	logger    *zap.Logger
+	sanitizer zipkin2.Sanitizer
 }
 
 // NewReporter creates gRPC reporter.
 func NewReporter(conn *grpc.ClientConn, logger *zap.Logger) *Reporter {
+	zSanitizer := zipkin2.NewChainedSanitizer(
+		zipkin2.NewSpanDurationSanitizer(),
+		zipkin2.NewSpanStartTimeSanitizer(),
+		zipkin2.NewParentIDSanitizer(),
+		zipkin2.NewErrorTagSanitizer(),
+	)
 	return &Reporter{
 		collector: api_v2.NewCollectorServiceClient(conn),
 		logger:    logger,
+		sanitizer: zSanitizer,
 	}
 }
 
 // EmitBatch implements EmitBatch() of Reporter
 func (r *Reporter) EmitBatch(b *thrift.Batch) error {
-	return r.send(jConverter.ToDomain(b.Spans, nil), *jConverter.ToDomainProcess(b.Process))
+	return r.send(jConverter.ToDomain(b.Spans, nil), jConverter.ToDomainProcess(b.Process))
 }
 
 // EmitZipkinBatch implements EmitZipkinBatch() of Reporter
 func (r *Reporter) EmitZipkinBatch(zSpans []*zipkincore.Span) error {
+	for _, zSpan := range zSpans {
+		zSpan = r.sanitizer.Sanitize(zSpan)
+	}
 	trace, err := zipkin.ToDomain(zSpans)
 	if err != nil {
 		return err
 	}
-	var process model.Process
-	if spans := trace.GetSpans(); len(spans) > 0 {
-		process = *spans[0].Process
-	}
-	return r.send(trace.Spans, process)
+	return r.send(trace.Spans, nil)
 }
 
-func (r *Reporter) send(spans []*model.Span, process model.Process) error {
-	batch := model.Batch{Spans: spans, Process: process}
+func (r *Reporter) send(spans []*model.Span, process *model.Process) error {
+	batch := model.Batch{Spans: spans}
+	if process != nil {
+		batch.Process = *process
+	}
 	req := &api_v2.PostSpansRequest{Batch: batch}
 	_, err := r.collector.PostSpans(context.Background(), req)
 	if err != nil {
