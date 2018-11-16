@@ -141,7 +141,7 @@ func Test_MergeAdjuster(t *testing.T) {
 						References: []model.SpanRef{
 							{
 								RefType: model.SpanRefType_CHILD_OF,
-								TraceID: model.TraceID(1),
+								TraceID: model.NewTraceID(2, 3),
 								SpanID:  model.SpanID(3),
 							},
 						},
@@ -156,7 +156,7 @@ func Test_MergeAdjuster(t *testing.T) {
 						References: []model.SpanRef{
 							{
 								RefType: model.SpanRefType_CHILD_OF,
-								TraceID: model.TraceID(1),
+								TraceID: model.NewTraceID(2, 3),
 								SpanID:  model.SpanID(4),
 							},
 						},
@@ -184,12 +184,12 @@ func Test_MergeAdjuster(t *testing.T) {
 						References: []model.SpanRef{
 							{
 								RefType: model.SpanRefType_CHILD_OF,
-								TraceID: model.TraceID(1),
+								TraceID: model.NewTraceID(2, 3),
 								SpanID:  model.SpanID(3),
 							},
 							{
 								RefType: model.SpanRefType_CHILD_OF,
-								TraceID: model.TraceID(1),
+								TraceID: model.NewTraceID(2, 3),
 								SpanID:  model.SpanID(4),
 							},
 						},
