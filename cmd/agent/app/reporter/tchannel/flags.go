@@ -84,8 +84,13 @@ func (b *Builder) InitFromViper(v *viper.Viper, logger *zap.Logger) *Builder {
 	if len(v.GetString(tchannelPrefix+hostPort)) > 0 {
 		b.CollectorHostPorts = strings.Split(v.GetString(tchannelPrefix+hostPort), ",")
 	}
-	b.DiscoveryMinPeers = v.GetInt(tchannelPrefix + discoveryMinPeers)
-	b.ConnCheckTimeout = v.GetDuration(tchannelPrefix + discoveryConnCheckTimeout)
+
+	if value := v.GetInt(tchannelPrefix + discoveryMinPeers); value != defaultMinPeers {
+		b.DiscoveryMinPeers = value
+	}
+	if value := v.GetDuration(tchannelPrefix + discoveryConnCheckTimeout); value != defaultConnCheckTimeout {
+		b.ConnCheckTimeout = value
+	}
 	b.ReportTimeout = v.GetDuration(tchannelPrefix + reportTimeout)
 	return b
 }
