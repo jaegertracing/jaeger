@@ -27,7 +27,8 @@ const (
 )
 
 var (
-	defaultDuration    = int64(1)
+	defaultDuration = int64(1)
+	// StandardSanitizers is a list of standard zipkin sanitizers.
 	StandardSanitizers = []Sanitizer{NewSpanStartTimeSanitizer(), NewSpanDurationSanitizer(), NewParentIDSanitizer(), NewErrorTagSanitizer()}
 )
 
