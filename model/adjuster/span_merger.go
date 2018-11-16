@@ -75,6 +75,9 @@ func mergeSpans(spans []*model.Span) *model.Span {
 			warnings = append(warnings, span.GetWarnings()...)
 		}
 	}
+	//the default values for all types are null
+	//this is why we check for array length otherwise we would
+	//change semantics and an empty array would be the default value
 	if len(references) > 0 {
 		lastSpan.References = append(references, lastSpan.GetReferences()...)
 	}

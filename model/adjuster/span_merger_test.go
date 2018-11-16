@@ -129,6 +129,79 @@ func Test_MergeAdjuster(t *testing.T) {
 			},
 		},
 		{
+			name: "duplicate Jaeger spans: select last span by Incomplete flag and merge references and warnings",
+			input: &model.Trace{
+				Spans: []*model.Span{
+					{
+						SpanID:     model.SpanID(1),
+						Incomplete: true,
+					},
+					{
+						SpanID: model.SpanID(1),
+						References: []model.SpanRef{
+							{
+								RefType: model.SpanRefType_CHILD_OF,
+								TraceID: model.TraceID(1),
+								SpanID:  model.SpanID(3),
+							},
+						},
+						Duration:   1 * time.Microsecond,
+						Incomplete: true,
+						Warnings:   []string{"First Warning", "Second Warning"},
+					},
+					{
+						SpanID:     model.SpanID(1),
+						Duration:   5 * time.Microsecond,
+						Incomplete: true,
+						References: []model.SpanRef{
+							{
+								RefType: model.SpanRefType_CHILD_OF,
+								TraceID: model.TraceID(1),
+								SpanID:  model.SpanID(4),
+							},
+						},
+					},
+					{
+						SpanID:     model.SpanID(1),
+						Duration:   5 * time.Microsecond,
+						Warnings:   []string{"Third Warning"},
+						Incomplete: true,
+					},
+					{
+						SpanID:   model.SpanID(1),
+						Duration: 8 * time.Microsecond,
+					},
+					{
+						SpanID: model.SpanID(2),
+					},
+				},
+			},
+			expected: &model.Trace{
+				Spans: []*model.Span{
+					{
+						SpanID:   model.SpanID(1),
+						Duration: 8 * time.Microsecond,
+						References: []model.SpanRef{
+							{
+								RefType: model.SpanRefType_CHILD_OF,
+								TraceID: model.TraceID(1),
+								SpanID:  model.SpanID(3),
+							},
+							{
+								RefType: model.SpanRefType_CHILD_OF,
+								TraceID: model.TraceID(1),
+								SpanID:  model.SpanID(4),
+							},
+						},
+						Warnings: []string{"First Warning", "Second Warning", "Third Warning"},
+					},
+					{
+						SpanID: model.SpanID(2),
+					},
+				},
+			},
+		},
+		{
 			name: "duplicate Zipkin spans: don't merge",
 			input: &model.Trace{
 				Spans: []*model.Span{
