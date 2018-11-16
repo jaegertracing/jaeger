@@ -38,16 +38,10 @@ type Reporter struct {
 
 // NewReporter creates gRPC reporter.
 func NewReporter(conn *grpc.ClientConn, logger *zap.Logger) *Reporter {
-	zSanitizer := zipkin2.NewChainedSanitizer(
-		zipkin2.NewSpanDurationSanitizer(),
-		zipkin2.NewSpanStartTimeSanitizer(),
-		zipkin2.NewParentIDSanitizer(),
-		zipkin2.NewErrorTagSanitizer(),
-	)
 	return &Reporter{
 		collector: api_v2.NewCollectorServiceClient(conn),
 		logger:    logger,
-		sanitizer: zSanitizer,
+		sanitizer: zipkin2.NewChainedSanitizer(zipkin2.StandardSanitizers...),
 	}
 }
 
