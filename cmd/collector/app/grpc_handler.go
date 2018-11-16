@@ -40,7 +40,7 @@ func NewGRPCHandler(logger *zap.Logger, spanProcessor SpanProcessor) *GRPCHandle
 func (g *GRPCHandler) PostSpans(ctx context.Context, r *api_v2.PostSpansRequest) (*api_v2.PostSpansResponse, error) {
 	for _, span := range r.GetBatch().Spans {
 		if span.GetProcess() == nil {
-			span.Process = &r.Batch.Process
+			span.Process = r.Batch.Process
 		}
 	}
 	_, err := g.spanProcessor.ProcessSpans(r.GetBatch().Spans, JaegerFormatType)

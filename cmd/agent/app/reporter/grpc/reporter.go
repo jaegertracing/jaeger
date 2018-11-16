@@ -20,6 +20,7 @@ import (
 	"go.uber.org/zap"
 	"google.golang.org/grpc"
 
+	zipkin2 "github.com/jaegertracing/jaeger/cmd/collector/app/sanitizer/zipkin"
 	"github.com/jaegertracing/jaeger/model"
 	jConverter "github.com/jaegertracing/jaeger/model/converter/thrift/jaeger"
 	"github.com/jaegertracing/jaeger/model/converter/thrift/zipkin"
@@ -32,6 +33,7 @@ import (
 type Reporter struct {
 	collector api_v2.CollectorServiceClient
 	logger    *zap.Logger
+	sanitizer zipkin2.Sanitizer
 }
 
 // NewReporter creates gRPC reporter.
@@ -39,35 +41,33 @@ func NewReporter(conn *grpc.ClientConn, logger *zap.Logger) *Reporter {
 	return &Reporter{
 		collector: api_v2.NewCollectorServiceClient(conn),
 		logger:    logger,
+		sanitizer: zipkin2.NewChainedSanitizer(zipkin2.StandardSanitizers...),
 	}
 }
 
 // EmitBatch implements EmitBatch() of Reporter
 func (r *Reporter) EmitBatch(b *thrift.Batch) error {
-	// TODO pass process to r.send() - do not convert it for every span
-	spans := jConverter.ToDomain(b.Spans, b.Process)
-	return r.send(spans)
+	return r.send(jConverter.ToDomain(b.Spans, nil), jConverter.ToDomainProcess(b.Process))
 }
 
 // EmitZipkinBatch implements EmitZipkinBatch() of Reporter
 func (r *Reporter) EmitZipkinBatch(zSpans []*zipkincore.Span) error {
+	for _, zSpan := range zSpans {
+		zSpan = r.sanitizer.Sanitize(zSpan)
+	}
 	trace, err := zipkin.ToDomain(zSpans)
 	if err != nil {
 		return err
 	}
-	return r.send(trace.Spans)
+	return r.send(trace.Spans, nil)
 }
 
-func (r *Reporter) send(spans []*model.Span) error {
-	var process model.Process
-	if len(spans) > 0 {
-		process = *spans[0].Process
-	}
+func (r *Reporter) send(spans []*model.Span, process *model.Process) error {
 	batch := model.Batch{Spans: spans, Process: process}
 	req := &api_v2.PostSpansRequest{Batch: batch}
 	_, err := r.collector.PostSpans(context.Background(), req)
 	if err != nil {
-		r.logger.Error("Could not send spans over gRPC", zap.Error(err), zap.String("service", batch.Process.ServiceName))
+		r.logger.Error("Could not send spans over gRPC", zap.Error(err))
 	}
 	return err
 }

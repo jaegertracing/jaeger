@@ -65,13 +65,6 @@ func (spanHb *SpanHandlerBuilder) BuildHandlers() (
 	hostname, _ := os.Hostname()
 	hostMetrics := spanHb.metricsFactory.Namespace("", map[string]string{"host": hostname})
 
-	zSanitizer := zs.NewChainedSanitizer(
-		zs.NewSpanDurationSanitizer(),
-		zs.NewSpanStartTimeSanitizer(),
-		zs.NewParentIDSanitizer(),
-		zs.NewErrorTagSanitizer(),
-	)
-
 	spanProcessor := app.NewSpanProcessor(
 		spanHb.spanWriter,
 		app.Options.ServiceMetrics(spanHb.metricsFactory),
@@ -82,7 +75,7 @@ func (spanHb *SpanHandlerBuilder) BuildHandlers() (
 		app.Options.QueueSize(spanHb.collectorOpts.QueueSize),
 	)
 
-	return app.NewZipkinSpanHandler(spanHb.logger, spanProcessor, zSanitizer),
+	return app.NewZipkinSpanHandler(spanHb.logger, spanProcessor, zs.NewChainedSanitizer(zs.StandardSanitizers...)),
 		app.NewJaegerSpanHandler(spanHb.logger, spanProcessor),
 		app.NewGRPCHandler(spanHb.logger, spanProcessor)
 }
