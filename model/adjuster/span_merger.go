@@ -55,20 +55,26 @@ func groupByIDs(spans []*model.Span) map[model.SpanID][]*model.Span {
 }
 
 func mergeSpans(spans []*model.Span) *model.Span {
-	lastSpan := spans[0]
+	finalSpan := spans[len(spans)-1]
+	//we track the index of the final span to cover the case
+	//that we didn't receive the final span yet and don't want
+	//to duplicate the members of the last span due the fallback
+	//of using the last span as carrier when no final span is stored yet
+	completeSpanIndex := len(spans) - 1
 	for i := range spans {
 		if !spans[i].GetIncomplete() {
-			lastSpan = spans[i]
+			completeSpanIndex = i
+			finalSpan = spans[i]
 		}
 	}
 	warnings := []string{}
 	tags := []model.KeyValue{}
 	logs := []model.Log{}
 	references := []model.SpanRef{}
-	for _, span := range spans {
+	for i, span := range spans {
 		//merge refs, tags, logs and warnings of all spans
 		//take simple values from lastSpan
-		if span.GetIncomplete() {
+		if span.GetIncomplete() && completeSpanIndex != i {
 			references = append(references, span.GetReferences()...)
 			tags = append(tags, span.GetTags()...)
 			logs = append(logs, span.GetLogs()...)
@@ -79,19 +85,19 @@ func mergeSpans(spans []*model.Span) *model.Span {
 	//this is why we check for array length otherwise we would
 	//change semantics and an empty array would be the default value
 	if len(references) > 0 {
-		lastSpan.References = append(references, lastSpan.GetReferences()...)
+		finalSpan.References = append(references, finalSpan.GetReferences()...)
 	}
 	if len(tags) > 0 {
-		lastSpan.Tags = append(tags, lastSpan.GetTags()...)
+		finalSpan.Tags = append(tags, finalSpan.GetTags()...)
 	}
 	if len(logs) > 0 {
-		lastSpan.Logs = append(logs, lastSpan.GetLogs()...)
+		finalSpan.Logs = append(logs, finalSpan.GetLogs()...)
 	}
 	if len(warnings) > 0 {
-		lastSpan.Warnings = append(warnings, lastSpan.GetWarnings()...)
+		finalSpan.Warnings = append(warnings, finalSpan.GetWarnings()...)
 	}
 
-	return lastSpan
+	return finalSpan
 }
 
 func isMergeable(spans []*model.Span) bool {
