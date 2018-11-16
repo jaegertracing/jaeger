@@ -28,11 +28,12 @@ import (
 
 	"github.com/jaegertracing/jaeger/model"
 	"github.com/jaegertracing/jaeger/pkg/config"
+	"github.com/jaegertracing/jaeger/storage/dependencystore"
 	"github.com/jaegertracing/jaeger/storage/spanstore"
 )
 
 func TestWriteReadBack(t *testing.T) {
-	runFactoryTest(t, func(tb testing.TB, sw spanstore.Writer, sr spanstore.Reader) {
+	runFactoryTest(t, func(tb testing.TB, sw spanstore.Writer, sr spanstore.Reader, dr dependencystore.Reader) {
 		tid := time.Now()
 		traces := 40
 		spans := 3
@@ -69,7 +70,7 @@ func TestWriteReadBack(t *testing.T) {
 }
 
 func TestFindValidation(t *testing.T) {
-	runFactoryTest(t, func(tb testing.TB, sw spanstore.Writer, sr spanstore.Reader) {
+	runFactoryTest(t, func(tb testing.TB, sw spanstore.Writer, sr spanstore.Reader, dr dependencystore.Reader) {
 		tid := time.Now()
 		params := &spanstore.TraceQueryParameters{
 			StartTimeMin: tid,
@@ -87,7 +88,7 @@ func TestFindValidation(t *testing.T) {
 }
 
 func TestIndexSeeks(t *testing.T) {
-	runFactoryTest(t, func(tb testing.TB, sw spanstore.Writer, sr spanstore.Reader) {
+	runFactoryTest(t, func(tb testing.TB, sw spanstore.Writer, sr spanstore.Reader, dr dependencystore.Reader) {
 		startT := time.Now()
 		traces := 60
 		spans := 3
@@ -205,7 +206,7 @@ func TestIndexSeeks(t *testing.T) {
 }
 
 func TestMenuSeeks(t *testing.T) {
-	runFactoryTest(t, func(tb testing.TB, sw spanstore.Writer, sr spanstore.Reader) {
+	runFactoryTest(t, func(tb testing.TB, sw spanstore.Writer, sr spanstore.Reader, dr dependencystore.Reader) {
 		tid := time.Now()
 		traces := 40
 		services := 4
@@ -245,7 +246,7 @@ func TestPersist(t *testing.T) {
 	dir, err := ioutil.TempDir("", "badgerTest")
 	assert.NoError(t, err)
 
-	p := func(t *testing.T, dir string, test func(t *testing.T, sw spanstore.Writer, sr spanstore.Reader)) {
+	p := func(t *testing.T, dir string, test func(t *testing.T, sw spanstore.Writer, sr spanstore.Reader, dr dependencystore.Reader)) {
 		f := NewFactory()
 		opts := NewOptions("badger")
 		v, command := config.Viperize(opts.AddFlags)
@@ -268,6 +269,9 @@ func TestPersist(t *testing.T) {
 		assert.NoError(t, err)
 
 		sr, err := f.CreateSpanReader()
+		assert.NoError(t, err)
+
+		dr, err := f.CreateDependencyReader()
 		assert.NoError(t, err)
 
 		defer func() {
@@ -295,10 +299,10 @@ func TestPersist(t *testing.T) {
 			})
 		*/
 
-		test(t, sw, sr)
+		test(t, sw, sr, dr)
 	}
 
-	p(t, dir, func(t *testing.T, sw spanstore.Writer, sr spanstore.Reader) {
+	p(t, dir, func(t *testing.T, sw spanstore.Writer, sr spanstore.Reader, dr dependencystore.Reader) {
 		s := model.Span{
 			TraceID: model.TraceID{
 				Low:  uint64(1),
@@ -316,7 +320,7 @@ func TestPersist(t *testing.T) {
 		assert.NoError(t, err)
 	})
 
-	p(t, dir, func(t *testing.T, sw spanstore.Writer, sr spanstore.Reader) {
+	p(t, dir, func(t *testing.T, sw spanstore.Writer, sr spanstore.Reader, dr dependencystore.Reader) {
 		trace, err := sr.GetTrace(model.TraceID{
 			Low:  uint64(1),
 			High: 1,
@@ -331,7 +335,7 @@ func TestPersist(t *testing.T) {
 }
 
 // Opens a badger db and runs a a test on it.
-func runFactoryTest(tb testing.TB, test func(tb testing.TB, sw spanstore.Writer, sr spanstore.Reader)) {
+func runFactoryTest(tb testing.TB, test func(tb testing.TB, sw spanstore.Writer, sr spanstore.Reader, dr dependencystore.Reader)) {
 	f := NewFactory()
 	opts := NewOptions("badger")
 	v, command := config.Viperize(opts.AddFlags)
@@ -352,7 +356,6 @@ func runFactoryTest(tb testing.TB, test func(tb testing.TB, sw spanstore.Writer,
 
 	dr, err := f.CreateDependencyReader()
 	assert.NoError(tb, err)
-	assert.Nil(tb, dr)
 
 	defer func() {
 		if closer, ok := sw.(io.Closer); ok {
@@ -363,11 +366,50 @@ func runFactoryTest(tb testing.TB, test func(tb testing.TB, sw spanstore.Writer,
 		}
 
 	}()
-	test(tb, sw, sr)
+	test(tb, sw, sr, dr)
+}
+
+func TestDependencyReader(t *testing.T) {
+	runFactoryTest(t, func(tb testing.TB, sw spanstore.Writer, sr spanstore.Reader, dr dependencystore.Reader) {
+		tid := time.Now()
+		links, err := dr.GetDependencies(tid, time.Hour)
+		assert.NoError(t, err)
+		assert.Empty(t, links)
+
+		traces := 40
+		spans := 3
+		for i := 0; i < traces; i++ {
+			for j := 0; j < spans; j++ {
+				s := model.Span{
+					TraceID: model.TraceID{
+						Low:  uint64(i),
+						High: 1,
+					},
+					SpanID:        model.SpanID(j),
+					OperationName: fmt.Sprintf("operation-a"),
+					Process: &model.Process{
+						ServiceName: fmt.Sprintf("service-%d", j),
+					},
+					StartTime: tid.Add(time.Duration(i)),
+					Duration:  time.Duration(i + j),
+				}
+				if j > 0 {
+					s.References = []model.SpanRef{model.NewChildOfRef(s.TraceID, model.SpanID(j-1))}
+				}
+				err := sw.WriteSpan(&s)
+				assert.NoError(t, err)
+			}
+		}
+		links, err = dr.GetDependencies(time.Now(), time.Hour)
+		assert.NoError(t, err)
+		assert.NotEmpty(t, links)
+		assert.Equal(t, spans-1, len(links))                // First span does not create a dependency
+		assert.Equal(t, uint64(traces), links[0].CallCount) // Each trace calls the same services
+	})
 }
 
 func BenchmarkInsert(b *testing.B) {
-	runFactoryTest(b, func(tb testing.TB, sw spanstore.Writer, sr spanstore.Reader) {
+	runFactoryTest(b, func(tb testing.TB, sw spanstore.Writer, sr spanstore.Reader, dr dependencystore.Reader) {
 		// b := tb.(*testing.B)
 
 		tid := time.Now()

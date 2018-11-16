@@ -26,27 +26,34 @@ import (
 // Options store storage plugin related configs
 type Options struct {
 	primary *NamespaceConfig
-	others  map[string]*NamespaceConfig
+	// This storage plugin does not support additional namespaces
 }
 
 // NamespaceConfig is badger's internal configuration data
 type NamespaceConfig struct {
-	namespace      string
-	SpanStoreTTL   time.Duration
-	ValueDirectory string
-	KeyDirectory   string
-	Ephemeral      bool // Setting this to true will ignore ValueDirectory and KeyDirectory
-	SyncWrites     bool
+	namespace        string
+	SpanStoreTTL     time.Duration
+	ValueDirectory   string
+	KeyDirectory     string
+	Ephemeral        bool // Setting this to true will ignore ValueDirectory and KeyDirectory
+	SyncWrites       bool
+	MaintenanceTimer time.Duration
 }
 
 const (
-	suffixKeyDirectory   = ".directory-key"
-	suffixValueDirectory = ".directory-value"
-	suffixEphemeral      = ".ephemeral"
-	suffixSpanstoreTTL   = ".span-store-ttl"
-	suffixSyncWrite      = ".consistency"
-	defaultValueDir      = "/data/values"
-	defaultKeysDir       = "/data/keys"
+	defaultTickerInterval time.Duration = 5 * time.Minute
+	defaultTTL            time.Duration = time.Hour * 72
+)
+
+const (
+	suffixKeyDirectory        = ".directory-key"
+	suffixValueDirectory      = ".directory-value"
+	suffixEphemeral           = ".ephemeral"
+	suffixSpanstoreTTL        = ".span-store-ttl"
+	suffixSyncWrite           = ".consistency"
+	suffixMaintenanceInterval = ".maintenance-interval"
+	defaultValueDir           = "/data/values"
+	defaultKeysDir            = "/data/keys"
 )
 
 // NewOptions creates a new Options struct.
@@ -56,22 +63,15 @@ func NewOptions(primaryNamespace string, otherNamespaces ...string) *Options {
 
 	options := &Options{
 		primary: &NamespaceConfig{
-			namespace:      primaryNamespace,
-			SpanStoreTTL:   time.Hour * 72, // Default is 3 days
-			SyncWrites:     false,          // Performance over durability
-			Ephemeral:      true,           // Default is ephemeral storage
-			ValueDirectory: defaultDataDir + defaultValueDir,
-			KeyDirectory:   defaultDataDir + defaultKeysDir,
+			namespace:        primaryNamespace,
+			SpanStoreTTL:     defaultTTL,
+			SyncWrites:       false, // Performance over durability
+			Ephemeral:        true,  // Default is ephemeral storage
+			ValueDirectory:   defaultDataDir + defaultValueDir,
+			KeyDirectory:     defaultDataDir + defaultKeysDir,
+			MaintenanceTimer: defaultTickerInterval,
 		},
-		others: make(map[string]*NamespaceConfig, len(otherNamespaces)),
 	}
-
-	// Commented out to satisfy Codecov
-	/*
-		for _, namespace := range otherNamespaces {
-			options.others[namespace] = &NamespaceConfig{namespace: namespace}
-		}
-	*/
 
 	return options
 }
@@ -85,12 +85,6 @@ func getCurrentExecutableDir() string {
 // AddFlags adds flags for Options
 func (opt *Options) AddFlags(flagSet *flag.FlagSet) {
 	addFlags(flagSet, opt.primary)
-	// Commented out to satisfy Codecov
-	/*
-		for _, cfg := range opt.others {
-			addFlags(flagSet, cfg)
-		}
-	*/
 }
 
 func addFlags(flagSet *flag.FlagSet, nsConfig *NamespaceConfig) {
@@ -119,17 +113,16 @@ func addFlags(flagSet *flag.FlagSet, nsConfig *NamespaceConfig) {
 		nsConfig.SyncWrites,
 		"If all writes should be synced immediately. This will greatly reduce write performance.",
 	)
+	flagSet.Duration(
+		nsConfig.namespace+suffixMaintenanceInterval,
+		nsConfig.MaintenanceTimer,
+		"How often the maintenance thread for values is ran. Format is time.Duration (https://golang.org/pkg/time/#Duration)",
+	)
 }
 
 // InitFromViper initializes Options with properties from viper
 func (opt *Options) InitFromViper(v *viper.Viper) {
 	initFromViper(opt.primary, v)
-	// Commented out to satisfy Codecov
-	/*
-		for _, cfg := range opt.others {
-			initFromViper(cfg, v)
-		}
-	*/
 }
 
 func initFromViper(cfg *NamespaceConfig, v *viper.Viper) {
@@ -138,6 +131,7 @@ func initFromViper(cfg *NamespaceConfig, v *viper.Viper) {
 	cfg.ValueDirectory = v.GetString(cfg.namespace + suffixValueDirectory)
 	cfg.SyncWrites = v.GetBool(cfg.namespace + suffixSyncWrite)
 	cfg.SpanStoreTTL = v.GetDuration(cfg.namespace + suffixSpanstoreTTL)
+	cfg.MaintenanceTimer = v.GetDuration(cfg.namespace + suffixMaintenanceInterval)
 }
 
 // GetPrimary returns the primary namespace configuration

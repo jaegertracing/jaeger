@@ -50,14 +50,12 @@ func (c *CacheStore) prefillCaches() error {
 	c.cacheLock.Lock()
 	defer c.cacheLock.Unlock()
 
-	err := c.loadServices()
-	if err != nil {
+	if err := c.loadServices(); err != nil {
 		return err
 	}
 
 	for k := range c.services {
-		err = c.loadOperations(k)
-		if err != nil {
+		if err := c.loadOperations(k); err != nil {
 			return err
 		}
 	}

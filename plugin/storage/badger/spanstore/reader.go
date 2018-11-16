@@ -62,6 +62,7 @@ var (
 const (
 	defaultNumTraces = 100
 	sizeOfTraceID    = 16
+	encodingTypeBits = 0x0F
 )
 
 // TraceReader reads traces from the local badger store
@@ -108,7 +109,7 @@ func (r *TraceReader) getTraces(traceIDs []model.TraceID) ([]*model.Trace, error
 				}
 
 				sp := model.Span{}
-				switch item.UserMeta() & 0x0F {
+				switch item.UserMeta() & encodingTypeBits {
 				case jsonEncoding:
 					if err := json.Unmarshal(val, &sp); err != nil {
 						return err
@@ -129,8 +130,6 @@ func (r *TraceReader) getTraces(traceIDs []model.TraceID) ([]*model.Trace, error
 		}
 		return nil
 	})
-
-	// TODO Do the Unmarshal here so we can release the transaction earlier (we would pay with extra allocations..)
 
 	return traces, err
 
@@ -353,7 +352,7 @@ func (r *TraceReader) FindTraces(query *spanstore.TraceQueryParameters) ([]*mode
 		return r.getTraces(keys)
 	}
 
-	// TODO We could support here all the other scans, such as time range only. These are not backed by an index, so a "full table scan" of traces is required.
+	// TODO We could support here all the other scans, such as time range only. These are not currently backed by an index, so a "full table scan" of traces is required.
 	return nil, ErrNotSupported
 }
 

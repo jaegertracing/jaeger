@@ -26,6 +26,7 @@ import (
 	"github.com/uber/jaeger-lib/metrics"
 	"go.uber.org/zap"
 
+	depStore "github.com/jaegertracing/jaeger/plugin/storage/badger/dependencystore"
 	badgerStore "github.com/jaegertracing/jaeger/plugin/storage/badger/spanstore"
 	"github.com/jaegertracing/jaeger/storage/dependencystore"
 	"github.com/jaegertracing/jaeger/storage/spanstore"
@@ -33,13 +34,13 @@ import (
 
 var (
 	// ValueLogSpaceAvailable returns the amount of space left on the value log mount point in bytes
-	ValueLogSpaceAvailable *expvar.Int
+	ValueLogSpaceAvailable = expvar.NewInt("badger_value_log_bytes_available")
 	// KeyLogSpaceAvailable returns the amount of space left on the key log mount point in bytes
-	KeyLogSpaceAvailable *expvar.Int
+	KeyLogSpaceAvailable = expvar.NewInt("badger_key_log_bytes_available")
 	// LastMaintenanceRun stores the timestamp of the previous maintenanceRun
-	LastMaintenanceRun *expvar.Int
+	LastMaintenanceRun = expvar.NewInt("badger_storage_maintenance_last_run")
 	// LastValueLogCleaned stores the timestamp of the previous ValueLogGC run
-	LastValueLogCleaned *expvar.Int
+	LastValueLogCleaned = expvar.NewInt("badger_storage_valueloggc_last_run")
 )
 
 // Factory implements storage.Factory for Badger backend.
@@ -49,32 +50,16 @@ type Factory struct {
 	cache   *badgerStore.CacheStore
 	logger  *zap.Logger
 
-	tmpDir              string
-	maintenanceInterval time.Duration
-	maintenanceTicker   *time.Ticker
+	tmpDir            string
+	maintenanceTicker *time.Ticker
+	maintenanceDone   chan bool
 }
-
-const (
-	defaultTickerInterval time.Duration = 5 * time.Minute
-)
 
 // NewFactory creates a new Factory.
 func NewFactory() *Factory {
-	if ValueLogSpaceAvailable == nil {
-		ValueLogSpaceAvailable = expvar.NewInt("badger_value_log_bytes_available")
-	}
-	if KeyLogSpaceAvailable == nil {
-		KeyLogSpaceAvailable = expvar.NewInt("badger_key_log_bytes_available")
-	}
-	if LastMaintenanceRun == nil {
-		LastMaintenanceRun = expvar.NewInt("badger_storage_maintenance_last_run")
-	}
-	if LastValueLogCleaned == nil {
-		LastValueLogCleaned = expvar.NewInt("badger_storage_valueloggc_last_run")
-	}
 	return &Factory{
-		Options:             NewOptions("badger"),
-		maintenanceInterval: defaultTickerInterval,
+		Options:         NewOptions("badger"),
+		maintenanceDone: make(chan bool),
 	}
 }
 
@@ -120,7 +105,7 @@ func (f *Factory) Initialize(metricsFactory metrics.Factory, logger *zap.Logger)
 	cache, _ := badgerStore.NewCacheStore(f.store, f.Options.primary.SpanStoreTTL)
 	f.cache = cache
 
-	f.maintenanceTicker = time.NewTicker(f.maintenanceInterval)
+	f.maintenanceTicker = time.NewTicker(f.Options.primary.MaintenanceTimer)
 	go f.maintenance()
 
 	logger.Info("Badger storage configuration", zap.Any("configuration", opts))
@@ -140,12 +125,13 @@ func (f *Factory) CreateSpanWriter() (spanstore.Writer, error) {
 
 // CreateDependencyReader implements storage.Factory
 func (f *Factory) CreateDependencyReader() (dependencystore.Reader, error) {
-	return nil, nil
+	return depStore.NewDependencyStore(f.store), nil
 }
 
 // Close Implements io.Closer and closes the underlying storage
 func (f *Factory) Close() error {
 	f.maintenanceTicker.Stop()
+	f.maintenanceDone <- true
 
 	err := f.store.Close()
 	if err != nil {
@@ -162,18 +148,24 @@ func (f *Factory) Close() error {
 
 // Maintenance starts a background maintenance job for the badger K/V store, such as ValueLogGC
 func (f *Factory) maintenance() {
-	_, previousSize := f.store.Size()
-	for range f.maintenanceTicker.C {
-		_, vlogSize := f.store.Size()
-		if (previousSize + 1<<30) < vlogSize {
-			previousSize = vlogSize
+	for {
+		select {
+		case <-f.maintenanceDone:
+			return
+		case t := <-f.maintenanceTicker.C:
 			var err error
+			// After there's nothing to clean, the err is raised
 			for err == nil {
-				err = f.store.RunValueLogGC(0.5)
+				err = f.store.RunValueLogGC(0.5) // 0.5 is selected to rewrite a file if half of it can be discarded
 			}
-			LastValueLogCleaned.Set(time.Now().Unix())
+			if err == badger.ErrNoRewrite {
+				LastValueLogCleaned.Set(t.Unix())
+			} else {
+				f.logger.Error("Failed to run ValueLogGC", zap.Error(err))
+			}
+
+			LastMaintenanceRun.Set(t.Unix())
+			f.diskStatisticsUpdate()
 		}
-		LastMaintenanceRun.Set(time.Now().Unix())
-		f.diskStatisticsUpdate()
 	}
 }

@@ -68,19 +68,21 @@ func TestForCodecov(t *testing.T) {
 func TestMaintenanceRun(t *testing.T) {
 	// For Codecov - this does not test anything
 	f := NewFactory()
-	v, _ := config.Viperize(f.AddFlags)
+	v, command := config.Viperize(f.AddFlags)
+	// Lets speed up the maintenance ticker..
+	command.ParseFlags([]string{
+		"--badger.maintenance-interval=1ms",
+	})
 	f.InitFromViper(v)
 	// Safeguard
 	assert.True(t, LastMaintenanceRun.Value() == 0)
-	// Lets speed up the maintenance ticker..
-	f.maintenanceInterval = time.Duration(10) * time.Millisecond
 	f.Initialize(metrics.NullFactory, zap.NewNop())
 
 	waiter := func(previousValue int64) int64 {
 		sleeps := 0
 		for LastMaintenanceRun.Value() == previousValue && sleeps < 8 {
 			// Potentially wait for scheduler
-			time.Sleep(time.Duration(100) * time.Millisecond)
+			time.Sleep(time.Duration(50) * time.Millisecond)
 			sleeps++
 		}
 		assert.True(t, LastMaintenanceRun.Value() > previousValue)
