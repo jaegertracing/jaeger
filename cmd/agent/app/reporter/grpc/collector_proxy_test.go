@@ -61,9 +61,9 @@ func TestMultipleCollectors(t *testing.T) {
 	assert.NotNil(t, proxy.GetManager())
 
 	var bothServers = false
+	r := proxy.GetReporter()
 	// TODO do not iterate, just create two batches
-	for i := 0; i < 10; i++ {
-		r := proxy.GetReporter()
+	for i := 0; i < 100; i++ {
 		err := r.EmitBatch(&jaeger.Batch{Spans: []*jaeger.Span{{OperationName: "op"}}, Process: &jaeger.Process{ServiceName: "service"}})
 		require.NoError(t, err)
 		if len(spanHandler1.getRequests()) > 0 && len(spanHandler2.getRequests()) > 0 {
