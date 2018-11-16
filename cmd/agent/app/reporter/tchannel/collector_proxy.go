@@ -49,3 +49,9 @@ func (b ProxyBuilder) GetReporter() reporter.Reporter {
 func (b ProxyBuilder) GetManager() httpserver.ClientConfigManager {
 	return b.manager
 }
+
+// Close closes connections used by proxy.
+func (b ProxyBuilder) Close() error {
+	b.reporter.Channel().Close()
+	return nil
+}

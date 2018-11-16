@@ -38,6 +38,8 @@ func TestProxyBuilder(t *testing.T) {
 	require.NotNil(t, proxy)
 	assert.NotNil(t, proxy.GetReporter())
 	assert.NotNil(t, proxy.GetManager())
+	assert.Nil(t, proxy.Close())
+	assert.EqualError(t, proxy.Close(), "rpc error: code = Canceled desc = grpc: the client connection is closing")
 }
 
 func TestMultipleCollectors(t *testing.T) {
@@ -70,4 +72,5 @@ func TestMultipleCollectors(t *testing.T) {
 		}
 	}
 	assert.Equal(t, true, bothServers)
+	require.Nil(t, proxy.Close())
 }

@@ -31,6 +31,7 @@ import (
 type ProxyBuilder struct {
 	reporter aReporter.Reporter
 	manager  httpserver.ClientConfigManager
+	conn     *grpc.ClientConn
 }
 
 // NewCollectorProxy creates ProxyBuilder
@@ -54,6 +55,7 @@ func NewCollectorProxy(o *Options, logger *zap.Logger) (*ProxyBuilder, error) {
 		conn, _ = grpc.Dial(o.CollectorHostPort[0], grpc.WithInsecure())
 	}
 	return &ProxyBuilder{
+		conn:     conn,
 		reporter: NewReporter(conn, logger),
 		manager:  NewSamplingManager(conn)}, nil
 }
@@ -66,4 +68,9 @@ func (b ProxyBuilder) GetReporter() aReporter.Reporter {
 // GetManager returns manager
 func (b ProxyBuilder) GetManager() httpserver.ClientConfigManager {
 	return b.manager
+}
+
+// Close closes connections used by proxy.
+func (b ProxyBuilder) Close() error {
+	return b.conn.Close()
 }

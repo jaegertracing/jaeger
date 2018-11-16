@@ -139,12 +139,13 @@ func main() {
 			qOpts := new(queryApp.QueryOptions).InitFromViper(v)
 
 			startAgent(aOpts, repOpts, tchannelRepOpts, grpcRepOpts, cOpts, logger, metricsFactory)
-			startCollector(cOpts, spanWriter, logger, metricsFactory, strategyStore, hc)
+			grpcServer := startCollector(cOpts, spanWriter, logger, metricsFactory, strategyStore, hc)
 			startQuery(qOpts, spanReader, dependencyReader, logger, metricsFactory, mBldr, hc)
 			hc.Ready()
 			<-signalsChannel
 			logger.Info("Shutting down")
 			if closer, ok := spanWriter.(io.Closer); ok {
+				grpcServer.GracefulStop()
 				err := closer.Close()
 				if err != nil {
 					logger.Error("Failed to close span writer", zap.Error(err))
@@ -236,7 +237,7 @@ func startCollector(
 	baseFactory metrics.Factory,
 	strategyStore strategystore.StrategyStore,
 	hc *healthcheck.HealthCheck,
-) {
+) *grpc.Server {
 	metricsFactory := baseFactory.Namespace("collector", nil)
 
 	spanBuilder, err := collector.NewSpanHandlerBuilder(
@@ -269,11 +270,9 @@ func startCollector(
 		ch.Serve(listener)
 	}
 
-	{
-		grpcserver.StartGRPCCollector(cOpts.CollectorGRPCPort, grpc.NewServer(), grpcHandler, strategyStore, logger,
-			func(err error) {
-				logger.Fatal("gRPC collector failed", zap.Error(err))
-			})
+	server, err := startGRPCServer(cOpts.CollectorGRPCPort, grpcHandler, strategyStore, logger)
+	if err != nil {
+		logger.Fatal("Could not start gRPC collector", zap.Error(err))
 	}
 
 	{
@@ -293,6 +292,23 @@ func startCollector(
 			hc.Set(healthcheck.Unavailable)
 		}()
 	}
+	return server
+}
+
+func startGRPCServer(
+	port int,
+	handler *collectorApp.GRPCHandler,
+	samplingStore strategystore.StrategyStore,
+	logger *zap.Logger,
+) (*grpc.Server, error) {
+	server := grpc.NewServer()
+	_, err := grpcserver.StartGRPCCollector(port, server, handler, samplingStore, logger, func(err error) {
+		logger.Fatal("gRPC collector failed", zap.Error(err))
+	})
+	if err != nil {
+		return nil, err
+	}
+	return server, err
 }
 
 func startZipkinHTTPAPI(
