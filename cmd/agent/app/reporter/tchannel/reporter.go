@@ -51,13 +51,12 @@ type batchMetrics struct {
 
 // Reporter forwards received spans to central collector tier over TChannel.
 type Reporter struct {
-	channel        *tchannel.Channel
-	zClient        zipkincore.TChanZipkinCollector
-	jClient        jaeger.TChanCollector
-	peerListMgr    *peerlistmgr.PeerListManager
-	batchesMetrics map[string]batchMetrics
-	logger         *zap.Logger
-	serviceName    string
+	channel     *tchannel.Channel
+	zClient     zipkincore.TChanZipkinCollector
+	jClient     jaeger.TChanCollector
+	peerListMgr *peerlistmgr.PeerListManager
+	logger      *zap.Logger
+	serviceName string
 }
 
 // New creates new TChannel-based Reporter.
@@ -65,26 +64,18 @@ func New(
 	collectorServiceName string,
 	channel *tchannel.Channel,
 	peerListMgr *peerlistmgr.PeerListManager,
-	mFactory metrics.Factory,
 	zlogger *zap.Logger,
 ) *Reporter {
 	thriftClient := thrift.NewClient(channel, collectorServiceName, nil)
 	zClient := zipkincore.NewTChanZipkinCollectorClient(thriftClient)
 	jClient := jaeger.NewTChanCollectorClient(thriftClient)
-	batchesMetrics := map[string]batchMetrics{}
-	for _, s := range []string{zipkinBatches, jaegerBatches} {
-		bm := batchMetrics{}
-		metrics.Init(&bm, mFactory.Namespace("tchannel-reporter", map[string]string{"format": s}), nil)
-		batchesMetrics[s] = bm
-	}
 	return &Reporter{
-		channel:        channel,
-		zClient:        zClient,
-		jClient:        jClient,
-		peerListMgr:    peerListMgr,
-		logger:         zlogger,
-		batchesMetrics: batchesMetrics,
-		serviceName:    collectorServiceName,
+		channel:     channel,
+		zClient:     zClient,
+		jClient:     jClient,
+		peerListMgr: peerListMgr,
+		logger:      zlogger,
+		serviceName: collectorServiceName,
 	}
 }
 
@@ -103,7 +94,6 @@ func (r *Reporter) EmitZipkinBatch(spans []*zipkincore.Span) error {
 		submissionFunc,
 		"Could not submit zipkin batch",
 		int64(len(spans)),
-		r.batchesMetrics[zipkinBatches],
 	)
 }
 
@@ -117,25 +107,18 @@ func (r *Reporter) EmitBatch(batch *jaeger.Batch) error {
 		submissionFunc,
 		"Could not submit jaeger batch",
 		int64(len(batch.Spans)),
-		r.batchesMetrics[jaegerBatches],
 	)
 }
 
-func (r *Reporter) submitAndReport(submissionFunc func(ctx thrift.Context) error, errMsg string, size int64, batchMetrics batchMetrics) error {
+func (r *Reporter) submitAndReport(submissionFunc func(ctx thrift.Context) error, errMsg string, size int64) error {
 	ctx, cancel := tchannel.NewContextBuilder(time.Second).DisableTracing().Build()
 	defer cancel()
 
 	if err := submissionFunc(ctx); err != nil {
-		batchMetrics.BatchesFailures.Inc(1)
-		batchMetrics.SpansFailures.Inc(size)
-		r.logger.Error(errMsg, zap.Error(err))
 		return err
 	}
 
 	r.logger.Debug("Span batch submitted by the agent", zap.Int64("span-count", size))
-	batchMetrics.BatchSize.Update(size)
-	batchMetrics.BatchesSubmitted.Inc(1)
-	batchMetrics.SpansSubmitted.Inc(size)
 	return nil
 }
 

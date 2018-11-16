@@ -24,20 +24,23 @@ import (
 
 // ProxyBuilder holds objects communicating with collector
 type ProxyBuilder struct {
-	reporter *Reporter
+	reporter reporter.Reporter
 	manager  httpserver.ClientConfigManager
+	tchanRep *Reporter
 }
 
 // NewCollectorProxy creates ProxyBuilder
 func NewCollectorProxy(builder *Builder, mFactory metrics.Factory, logger *zap.Logger) (*ProxyBuilder, error) {
-	b := &ProxyBuilder{}
-	r, err := builder.CreateReporter(mFactory, logger)
+	r, err := builder.CreateReporter(logger)
 	if err != nil {
 		return nil, err
 	}
-	b.reporter = r
-	b.manager = httpserver.NewCollectorProxy(b.reporter.CollectorServiceName(), b.reporter.Channel(), mFactory)
-	return b, nil
+	tchannelMetrics := mFactory.Namespace("", map[string]string{"protocol": "tchannel"})
+	return &ProxyBuilder{
+		tchanRep: r,
+		reporter: reporter.WrapWithMetrics(r, tchannelMetrics),
+		manager:  httpserver.WrapWithMetrics(httpserver.NewCollectorProxy(r.CollectorServiceName(), r.Channel()), tchannelMetrics),
+	}, nil
 }
 
 // GetReporter returns Reporter
@@ -52,6 +55,6 @@ func (b ProxyBuilder) GetManager() httpserver.ClientConfigManager {
 
 // Close closes connections used by proxy.
 func (b ProxyBuilder) Close() error {
-	b.reporter.Channel().Close()
+	b.tchanRep.Channel().Close()
 	return nil
 }
