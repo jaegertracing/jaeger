@@ -17,6 +17,7 @@ package grpc
 import (
 	"errors"
 
+	"github.com/uber/jaeger-lib/metrics"
 	"go.uber.org/zap"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/balancer/roundrobin"
@@ -31,16 +32,14 @@ import (
 type ProxyBuilder struct {
 	reporter aReporter.Reporter
 	manager  httpserver.ClientConfigManager
+	conn     *grpc.ClientConn
 }
 
 // NewCollectorProxy creates ProxyBuilder
-func NewCollectorProxy(o *Options, logger *zap.Logger) (*ProxyBuilder, error) {
+func NewCollectorProxy(o *Options, mFactory metrics.Factory, logger *zap.Logger) (*ProxyBuilder, error) {
 	if len(o.CollectorHostPort) == 0 {
 		return nil, errors.New("could not create collector proxy, address is missing")
 	}
-
-	// It does not return error if the collector is not running
-	// a way to fail immediately is to call WithBlock and WithTimeout
 	var conn *grpc.ClientConn
 	if len(o.CollectorHostPort) > 1 {
 		r, _ := manual.GenerateAndRegisterManualResolver()
@@ -51,11 +50,14 @@ func NewCollectorProxy(o *Options, logger *zap.Logger) (*ProxyBuilder, error) {
 		r.InitialAddrs(resolvedAddrs)
 		conn, _ = grpc.Dial(r.Scheme()+":///round_robin", grpc.WithInsecure(), grpc.WithBalancerName(roundrobin.Name))
 	} else {
+		// It does not return error if the collector is not running
 		conn, _ = grpc.Dial(o.CollectorHostPort[0], grpc.WithInsecure())
 	}
+	grpcMetrics := mFactory.Namespace("", map[string]string{"protocol": "grpc"})
 	return &ProxyBuilder{
-		reporter: NewReporter(conn, logger),
-		manager:  NewSamplingManager(conn)}, nil
+		conn:     conn,
+		reporter: aReporter.WrapWithMetrics(NewReporter(conn, logger), grpcMetrics),
+		manager:  httpserver.WrapWithMetrics(NewSamplingManager(conn), grpcMetrics)}, nil
 }
 
 // GetReporter returns Reporter
@@ -66,4 +68,9 @@ func (b ProxyBuilder) GetReporter() aReporter.Reporter {
 // GetManager returns manager
 func (b ProxyBuilder) GetManager() httpserver.ClientConfigManager {
 	return b.manager
+}
+
+// Close closes connections used by proxy.
+func (b ProxyBuilder) Close() error {
+	return b.conn.Close()
 }

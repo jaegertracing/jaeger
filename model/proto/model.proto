@@ -157,6 +157,6 @@ message Trace {
 message Batch {
     repeated Span spans = 1;
     Process process = 2 [
-      (gogoproto.nullable) = false
+      (gogoproto.nullable) = true
     ];
 }

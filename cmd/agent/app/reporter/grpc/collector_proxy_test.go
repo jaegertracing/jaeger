@@ -16,9 +16,11 @@ package grpc
 
 import (
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"github.com/uber/jaeger-lib/metrics"
 	"go.uber.org/zap"
 	"google.golang.org/grpc"
 
@@ -27,17 +29,19 @@ import (
 )
 
 func TestProxyBuilderMissingAddress(t *testing.T) {
-	proxy, err := NewCollectorProxy(&Options{}, zap.NewNop())
+	proxy, err := NewCollectorProxy(&Options{}, metrics.NullFactory, zap.NewNop())
 	require.Nil(t, proxy)
 	assert.EqualError(t, err, "could not create collector proxy, address is missing")
 }
 
 func TestProxyBuilder(t *testing.T) {
-	proxy, err := NewCollectorProxy(&Options{CollectorHostPort: []string{"localhost:0000"}}, zap.NewNop())
+	proxy, err := NewCollectorProxy(&Options{CollectorHostPort: []string{"localhost:0000"}}, metrics.NullFactory, zap.NewNop())
 	require.NoError(t, err)
 	require.NotNil(t, proxy)
 	assert.NotNil(t, proxy.GetReporter())
 	assert.NotNil(t, proxy.GetManager())
+	assert.Nil(t, proxy.Close())
+	assert.EqualError(t, proxy.Close(), "rpc error: code = Canceled desc = grpc: the client connection is closing")
 }
 
 func TestMultipleCollectors(t *testing.T) {
@@ -52,16 +56,17 @@ func TestMultipleCollectors(t *testing.T) {
 	})
 	defer s2.Stop()
 
-	proxy, err := NewCollectorProxy(&Options{CollectorHostPort: []string{addr1.String(), addr2.String()}}, zap.NewNop())
+	mFactory := metrics.NewLocalFactory(time.Microsecond)
+	proxy, err := NewCollectorProxy(&Options{CollectorHostPort: []string{addr1.String(), addr2.String()}}, mFactory, zap.NewNop())
 	require.NoError(t, err)
 	require.NotNil(t, proxy)
 	assert.NotNil(t, proxy.GetReporter())
 	assert.NotNil(t, proxy.GetManager())
 
 	var bothServers = false
+	r := proxy.GetReporter()
 	// TODO do not iterate, just create two batches
-	for i := 0; i < 10; i++ {
-		r := proxy.GetReporter()
+	for i := 0; i < 100; i++ {
 		err := r.EmitBatch(&jaeger.Batch{Spans: []*jaeger.Span{{OperationName: "op"}}, Process: &jaeger.Process{ServiceName: "service"}})
 		require.NoError(t, err)
 		if len(spanHandler1.getRequests()) > 0 && len(spanHandler2.getRequests()) > 0 {
@@ -69,5 +74,9 @@ func TestMultipleCollectors(t *testing.T) {
 			break
 		}
 	}
+	c, g := mFactory.Snapshot()
+	assert.True(t, len(g) > 0)
+	assert.True(t, len(c) > 0)
 	assert.Equal(t, true, bothServers)
+	require.Nil(t, proxy.Close())
 }

@@ -19,6 +19,7 @@ import (
 	"fmt"
 	"os"
 	"testing"
+	"time"
 
 	"github.com/gogo/protobuf/jsonpb"
 	"github.com/gogo/protobuf/proto"
@@ -101,4 +102,15 @@ func TestUnknownJaegerType(t *testing.T) {
 	})
 	expected := model.String("sneh", "Unknown VType: Tag({Key:sneh VType:<UNSET> VStr:<nil> VDouble:<nil> VBool:<nil> VLong:<nil> VBinary:[]})")
 	assert.Equal(t, mkv, expected)
+}
+
+func TestToDomain_ToDomainProcess(t *testing.T) {
+	p := ToDomainProcess(&jaeger.Process{ServiceName: "foo", Tags: []*jaeger.Tag{{Key: "foo", VType: jaeger.TagType_BOOL}}})
+	assert.Equal(t, &model.Process{ServiceName: "foo", Tags: []model.KeyValue{{Key: "foo", VType: model.BoolType}}}, p)
+}
+
+func TestToDomain_ToDomainSpanProcessNull(t *testing.T) {
+	tm := time.Unix(158, 0)
+	s := ToDomainSpan(&jaeger.Span{OperationName: "foo", StartTime: int64(model.TimeAsEpochMicroseconds(tm))}, nil)
+	assert.Equal(t, &model.Span{OperationName: "foo", StartTime: tm.UTC()}, s)
 }

@@ -59,6 +59,7 @@ import (
 	"github.com/jaegertracing/jaeger/pkg/version"
 	ss "github.com/jaegertracing/jaeger/plugin/sampling/strategystore"
 	"github.com/jaegertracing/jaeger/plugin/storage"
+	istorage "github.com/jaegertracing/jaeger/storage"
 	"github.com/jaegertracing/jaeger/storage/dependencystore"
 	"github.com/jaegertracing/jaeger/storage/spanstore"
 	storageMetrics "github.com/jaegertracing/jaeger/storage/spanstore/metrics"
@@ -139,12 +140,13 @@ func main() {
 			qOpts := new(queryApp.QueryOptions).InitFromViper(v)
 
 			startAgent(aOpts, repOpts, tchannelRepOpts, grpcRepOpts, cOpts, logger, metricsFactory)
-			startCollector(cOpts, spanWriter, logger, metricsFactory, strategyStore, hc)
-			startQuery(qOpts, spanReader, dependencyReader, logger, metricsFactory, mBldr, hc)
+			grpcServer := startCollector(cOpts, spanWriter, logger, metricsFactory, strategyStore, hc)
+			startQuery(qOpts, spanReader, dependencyReader, logger, metricsFactory, mBldr, hc, archiveOptions(storageFactory, logger))
 			hc.Ready()
 			<-signalsChannel
 			logger.Info("Shutting down")
 			if closer, ok := spanWriter.(io.Closer); ok {
+				grpcServer.GracefulStop()
 				err := closer.Close()
 				if err != nil {
 					logger.Error("Failed to close span writer", zap.Error(err))
@@ -220,7 +222,7 @@ func createCollectorProxy(
 	switch repOpts.ReporterType {
 	case agentRep.GRPC:
 		grpcRepOpts.CollectorHostPort = append(grpcRepOpts.CollectorHostPort, fmt.Sprintf("127.0.0.1:%d", cOpts.CollectorGRPCPort))
-		return agentGrpcRep.NewCollectorProxy(grpcRepOpts, logger)
+		return agentGrpcRep.NewCollectorProxy(grpcRepOpts, mFactory, logger)
 	case agentRep.TCHANNEL:
 		tchanRepOpts.CollectorHostPorts = append(tchanRepOpts.CollectorHostPorts, fmt.Sprintf("127.0.0.1:%d", cOpts.CollectorPort))
 		return agentTchanRep.NewCollectorProxy(tchanRepOpts, mFactory, logger)
@@ -236,7 +238,7 @@ func startCollector(
 	baseFactory metrics.Factory,
 	strategyStore strategystore.StrategyStore,
 	hc *healthcheck.HealthCheck,
-) {
+) *grpc.Server {
 	metricsFactory := baseFactory.Namespace("collector", nil)
 
 	spanBuilder, err := collector.NewSpanHandlerBuilder(
@@ -269,11 +271,9 @@ func startCollector(
 		ch.Serve(listener)
 	}
 
-	{
-		grpcserver.StartGRPCCollector(cOpts.CollectorGRPCPort, grpc.NewServer(), grpcHandler, strategyStore, logger,
-			func(err error) {
-				logger.Fatal("gRPC collector failed", zap.Error(err))
-			})
+	server, err := startGRPCServer(cOpts.CollectorGRPCPort, grpcHandler, strategyStore, logger)
+	if err != nil {
+		logger.Fatal("Could not start gRPC collector", zap.Error(err))
 	}
 
 	{
@@ -293,6 +293,23 @@ func startCollector(
 			hc.Set(healthcheck.Unavailable)
 		}()
 	}
+	return server
+}
+
+func startGRPCServer(
+	port int,
+	handler *collectorApp.GRPCHandler,
+	samplingStore strategystore.StrategyStore,
+	logger *zap.Logger,
+) (*grpc.Server, error) {
+	server := grpc.NewServer()
+	_, err := grpcserver.StartGRPCCollector(port, server, handler, samplingStore, logger, func(err error) {
+		logger.Fatal("gRPC collector failed", zap.Error(err))
+	})
+	if err != nil {
+		return nil, err
+	}
+	return server, err
 }
 
 func startZipkinHTTPAPI(
@@ -322,6 +339,7 @@ func startQuery(
 	baseFactory metrics.Factory,
 	metricsBuilder *pMetrics.Builder,
 	hc *healthcheck.HealthCheck,
+	handlerOpts []queryApp.HandlerOption,
 ) {
 	tracer, closer, err := jaegerClientConfig.Configuration{
 		Sampler: &jaegerClientConfig.SamplerConfig{
@@ -341,11 +359,11 @@ func startQuery(
 
 	spanReader = storageMetrics.NewReadMetricsDecorator(spanReader, baseFactory.Namespace("query", nil))
 
+	handlerOpts = append(handlerOpts, queryApp.HandlerOptions.Logger(logger), queryApp.HandlerOptions.Tracer(tracer))
 	apiHandler := queryApp.NewAPIHandler(
 		spanReader,
 		depReader,
-		queryApp.HandlerOptions.Logger(logger),
-		queryApp.HandlerOptions.Tracer(tracer))
+		handlerOpts...)
 
 	r := mux.NewRouter()
 	if qOpts.BasePath != "/" {
@@ -384,4 +402,34 @@ func initSamplingStrategyStore(
 		logger.Fatal("Failed to create sampling strategy store", zap.Error(err))
 	}
 	return strategyStore
+}
+
+func archiveOptions(storageFactory istorage.Factory, logger *zap.Logger) []queryApp.HandlerOption {
+	archiveFactory, ok := storageFactory.(istorage.ArchiveFactory)
+	if !ok {
+		logger.Info("Archive storage not supported by the factory")
+		return nil
+	}
+	reader, err := archiveFactory.CreateArchiveSpanReader()
+	if err == istorage.ErrArchiveStorageNotConfigured || err == istorage.ErrArchiveStorageNotSupported {
+		logger.Info("Archive storage not created", zap.String("reason", err.Error()))
+		return nil
+	}
+	if err != nil {
+		logger.Error("Cannot init archive storage reader", zap.Error(err))
+		return nil
+	}
+	writer, err := archiveFactory.CreateArchiveSpanWriter()
+	if err == istorage.ErrArchiveStorageNotConfigured || err == istorage.ErrArchiveStorageNotSupported {
+		logger.Info("Archive storage not created", zap.String("reason", err.Error()))
+		return nil
+	}
+	if err != nil {
+		logger.Error("Cannot init archive storage writer", zap.Error(err))
+		return nil
+	}
+	return []queryApp.HandlerOption{
+		queryApp.HandlerOptions.ArchiveSpanReader(reader),
+		queryApp.HandlerOptions.ArchiveSpanWriter(writer),
+	}
 }
