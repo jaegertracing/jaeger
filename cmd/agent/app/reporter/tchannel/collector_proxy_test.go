@@ -44,4 +44,5 @@ func TestCreate(t *testing.T) {
 	assert.Equal(t, reporter.WrapWithMetrics(r, mFactory), b.GetReporter())
 	m := httpserver.NewCollectorProxy(r.CollectorServiceName(), r.Channel())
 	assert.Equal(t, httpserver.WrapWithMetrics(m, mFactory), b.GetManager())
+	assert.Nil(t, b.Close())
 }
