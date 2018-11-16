@@ -35,6 +35,11 @@ func ToDomainSpan(jSpan *jaeger.Span, jProcess *jaeger.Process) *model.Span {
 	return toDomain{}.ToDomainSpan(jSpan, jProcess)
 }
 
+// ToDomainProcess transforms a process in jaeger.thrift format to model.Span.
+func ToDomainProcess(jProcess *jaeger.Process) *model.Process {
+	return toDomain{}.getProcess(jProcess)
+}
+
 type toDomain struct{}
 
 func (td toDomain) ToDomain(jSpans []*jaeger.Span, jProcess *jaeger.Process) []*model.Span {
@@ -96,6 +101,9 @@ func (td toDomain) getReferences(jRefs []*jaeger.SpanRef) []model.SpanRef {
 // getProcess takes a jaeger.thrift process and produces a model.Process.
 // Any errors are presented as tags
 func (td toDomain) getProcess(jProcess *jaeger.Process) *model.Process {
+	if jProcess == nil {
+		return nil
+	}
 	tags := td.getTags(jProcess.Tags)
 	return &model.Process{
 		Tags:        tags,

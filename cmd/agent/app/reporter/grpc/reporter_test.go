@@ -69,8 +69,8 @@ func TestReporter_EmitZipkinBatch(t *testing.T) {
 	}{
 		{in: &zipkincore.Span{}, err: "Cannot find service name in Zipkin span [traceID=0, spanID=0]"},
 		{in: &zipkincore.Span{Name: "jonatan", TraceID: 1, ID: 2, Timestamp: &a, Annotations: []*zipkincore.Annotation{{Value: zipkincore.CLIENT_SEND, Host: &zipkincore.Endpoint{ServiceName: "spring"}}}},
-			expected: model.Batch{Process: model.Process{ServiceName: "spring"},
-				Spans: []*model.Span{{TraceID: model.NewTraceID(0, 1), SpanID: model.NewSpanID(2), OperationName: "jonatan",
+			expected: model.Batch{
+				Spans: []*model.Span{{TraceID: model.NewTraceID(0, 1), SpanID: model.NewSpanID(2), OperationName: "jonatan", Duration: time.Microsecond * 1,
 					Tags: model.KeyValues{{Key: "span.kind", VStr: "client", VType: model.StringType}}, Process: &model.Process{ServiceName: "spring"}, StartTime: tm.UTC()}}}},
 	}
 	for _, test := range tests {
@@ -102,7 +102,7 @@ func TestReporter_EmitBatch(t *testing.T) {
 		err      string
 	}{
 		{in: &jThrift.Batch{Process: &jThrift.Process{ServiceName: "node"}, Spans: []*jThrift.Span{{OperationName: "foo", StartTime: int64(model.TimeAsEpochMicroseconds(tm))}}},
-			expected: model.Batch{Process: model.Process{ServiceName: "node"}, Spans: []*model.Span{{OperationName: "foo", StartTime: tm.UTC(), Process: &model.Process{ServiceName: "node"}}}}},
+			expected: model.Batch{Process: &model.Process{ServiceName: "node"}, Spans: []*model.Span{{OperationName: "foo", StartTime: tm.UTC()}}}},
 	}
 	for _, test := range tests {
 		err = rep.EmitBatch(test.in)
@@ -119,6 +119,6 @@ func TestReporter_SendFailure(t *testing.T) {
 	conn, err := grpc.Dial("", grpc.WithInsecure())
 	require.NoError(t, err)
 	rep := NewReporter(conn, zap.NewNop())
-	err = rep.send(nil)
+	err = rep.send(nil, nil)
 	assert.EqualError(t, err, "rpc error: code = Unavailable desc = all SubConns are in TransientFailure, latest connection error: connection error: desc = \"transport: Error while dialing dial tcp: missing address\"")
 }
