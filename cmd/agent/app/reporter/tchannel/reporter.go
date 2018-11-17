@@ -51,18 +51,20 @@ type batchMetrics struct {
 
 // Reporter forwards received spans to central collector tier over TChannel.
 type Reporter struct {
-	channel     *tchannel.Channel
-	zClient     zipkincore.TChanZipkinCollector
-	jClient     jaeger.TChanCollector
-	peerListMgr *peerlistmgr.PeerListManager
-	logger      *zap.Logger
-	serviceName string
+	channel       *tchannel.Channel
+	zClient       zipkincore.TChanZipkinCollector
+	jClient       jaeger.TChanCollector
+	reportTimeout time.Duration
+	peerListMgr   *peerlistmgr.PeerListManager
+	logger        *zap.Logger
+	serviceName   string
 }
 
 // New creates new TChannel-based Reporter.
 func New(
 	collectorServiceName string,
 	channel *tchannel.Channel,
+	reportTimeout time.Duration,
 	peerListMgr *peerlistmgr.PeerListManager,
 	zlogger *zap.Logger,
 ) *Reporter {
@@ -70,12 +72,13 @@ func New(
 	zClient := zipkincore.NewTChanZipkinCollectorClient(thriftClient)
 	jClient := jaeger.NewTChanCollectorClient(thriftClient)
 	return &Reporter{
-		channel:     channel,
-		zClient:     zClient,
-		jClient:     jClient,
-		peerListMgr: peerListMgr,
-		logger:      zlogger,
-		serviceName: collectorServiceName,
+		channel:       channel,
+		zClient:       zClient,
+		jClient:       jClient,
+		reportTimeout: reportTimeout,
+		peerListMgr:   peerListMgr,
+		logger:        zlogger,
+		serviceName:   collectorServiceName,
 	}
 }
 
@@ -111,7 +114,7 @@ func (r *Reporter) EmitBatch(batch *jaeger.Batch) error {
 }
 
 func (r *Reporter) submitAndReport(submissionFunc func(ctx thrift.Context) error, errMsg string, size int64) error {
-	ctx, cancel := tchannel.NewContextBuilder(time.Second).DisableTracing().Build()
+	ctx, cancel := tchannel.NewContextBuilder(r.reportTimeout).DisableTracing().Build()
 	defer cancel()
 
 	if err := submissionFunc(ctx); err != nil {

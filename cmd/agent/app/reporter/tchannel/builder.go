@@ -30,6 +30,7 @@ const (
 
 	agentServiceName            = "jaeger-agent"
 	defaultCollectorServiceName = "jaeger-collector"
+	defaultReportTimeout        = time.Second
 )
 
 // Builder Struct to hold configurations
@@ -47,6 +48,9 @@ type Builder struct {
 
 	// ConnCheckTimeout is the timeout used when establishing new connections.
 	ConnCheckTimeout time.Duration
+
+	// ReportTimeout is the timeout used when reporting span batches.
+	ReportTimeout time.Duration
 
 	discoverer discovery.Discoverer
 	notifier   discovery.Notifier
@@ -118,11 +122,15 @@ func (b *Builder) CreateReporter(logger *zap.Logger) (*Reporter, error) {
 		b = b.WithDiscoverer(d).WithDiscoveryNotifier(&discovery.Dispatcher{})
 	}
 
+	if b.ReportTimeout == 0 {
+		b.ReportTimeout = defaultReportTimeout
+	}
+
 	peerListMgr, err := b.enableDiscovery(b.channel, logger)
 	if err != nil {
 		return nil, errors.Wrap(err, "cannot enable service discovery")
 	}
-	return New(b.CollectorServiceName, b.channel, peerListMgr, logger), nil
+	return New(b.CollectorServiceName, b.channel, b.ReportTimeout, peerListMgr, logger), nil
 }
 
 func defaultInt(value int, defaultVal int) int {
