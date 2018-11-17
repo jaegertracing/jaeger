@@ -15,6 +15,7 @@
 package tchannel
 
 import (
+	"fmt"
 	"testing"
 	"time"
 
@@ -31,7 +32,7 @@ import (
 
 func initRequirements(t *testing.T) (*metrics.LocalFactory, *testutils.MockTCollector, *Reporter) {
 	metricsFactory, collector := testutils.InitMockCollector(t)
-	reporter := New("jaeger-collector", collector.Channel, nil, metricsFactory, zap.NewNop())
+	reporter := New("jaeger-collector", collector.Channel, time.Second, nil, metricsFactory, zap.NewNop())
 	return metricsFactory, collector, reporter
 }
 
@@ -105,6 +106,7 @@ func submitTestJaegerBatch(reporter *Reporter) error {
 }
 
 func checkCounters(t *testing.T, mf *metrics.LocalFactory, batchesSubmitted, spansSubmitted, batchesFailures, spansFailures int, format string) {
+	fmt.Println(mf.Snapshot())
 	mTestutils.AssertCounterMetrics(t, mf, []mTestutils.ExpectedMetric{
 		{Name: "tchannel-reporter.batches.submitted", Tags: map[string]string{"format": format}, Value: batchesSubmitted},
 		{Name: "tchannel-reporter.spans.submitted", Tags: map[string]string{"format": format}, Value: spansSubmitted},

@@ -54,6 +54,7 @@ type Reporter struct {
 	channel        *tchannel.Channel
 	zClient        zipkincore.TChanZipkinCollector
 	jClient        jaeger.TChanCollector
+	reportTimeout  time.Duration
 	peerListMgr    *peerlistmgr.PeerListManager
 	batchesMetrics map[string]batchMetrics
 	logger         *zap.Logger
@@ -64,6 +65,7 @@ type Reporter struct {
 func New(
 	collectorServiceName string,
 	channel *tchannel.Channel,
+	reportTimeout time.Duration,
 	peerListMgr *peerlistmgr.PeerListManager,
 	mFactory metrics.Factory,
 	zlogger *zap.Logger,
@@ -81,6 +83,7 @@ func New(
 		channel:        channel,
 		zClient:        zClient,
 		jClient:        jClient,
+		reportTimeout:  reportTimeout,
 		peerListMgr:    peerListMgr,
 		logger:         zlogger,
 		batchesMetrics: batchesMetrics,
@@ -122,7 +125,7 @@ func (r *Reporter) EmitBatch(batch *jaeger.Batch) error {
 }
 
 func (r *Reporter) submitAndReport(submissionFunc func(ctx thrift.Context) error, errMsg string, size int64, batchMetrics batchMetrics) error {
-	ctx, cancel := tchannel.NewContextBuilder(time.Second).DisableTracing().Build()
+	ctx, cancel := tchannel.NewContextBuilder(r.reportTimeout).DisableTracing().Build()
 	defer cancel()
 
 	if err := submissionFunc(ctx); err != nil {
