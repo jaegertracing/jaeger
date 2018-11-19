@@ -20,7 +20,7 @@ import (
 	"github.com/uber/tchannel-go"
 	"github.com/uber/tchannel-go/thrift"
 
-	"github.com/jaegertracing/jaeger/cmd/agent/app/httpserver"
+	"github.com/jaegertracing/jaeger/cmd/agent/app/configmanager"
 	"github.com/jaegertracing/jaeger/thrift-gen/baggage"
 	"github.com/jaegertracing/jaeger/thrift-gen/sampling"
 )
@@ -30,8 +30,8 @@ type collectorProxy struct {
 	baggageClient  baggage.TChanBaggageRestrictionManager
 }
 
-// NewCollectorProxy implements Manager by proxying the requests to collector.
-func NewCollectorProxy(svc string, channel *tchannel.Channel) httpserver.ClientConfigManager {
+// NewConfigManager implements Manager by proxying the requests to collector.
+func NewConfigManager(svc string, channel *tchannel.Channel) configmanager.ClientConfigManager {
 	thriftClient := thrift.NewClient(channel, svc, nil)
 	res := &collectorProxy{
 		samplingClient: sampling.NewTChanSamplingManagerClient(thriftClient),

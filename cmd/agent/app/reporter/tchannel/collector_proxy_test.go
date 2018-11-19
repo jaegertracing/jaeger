@@ -22,8 +22,8 @@ import (
 	"github.com/uber/jaeger-lib/metrics"
 	"go.uber.org/zap"
 
-	"github.com/jaegertracing/jaeger/cmd/agent/app/httpserver"
-	"github.com/jaegertracing/jaeger/cmd/agent/app/httpserver/tchannel"
+	"github.com/jaegertracing/jaeger/cmd/agent/app/configmanager"
+	"github.com/jaegertracing/jaeger/cmd/agent/app/configmanager/tchannel"
 	"github.com/jaegertracing/jaeger/cmd/agent/app/reporter"
 )
 
@@ -43,7 +43,7 @@ func TestCreate(t *testing.T) {
 	assert.NotNil(t, b)
 	r, _ := cfg.CreateReporter(logger)
 	assert.Equal(t, reporter.WrapWithMetrics(r, mFactory), b.GetReporter())
-	m := tchannel.NewCollectorProxy(r.CollectorServiceName(), r.Channel())
-	assert.Equal(t, httpserver.WrapWithMetrics(m, mFactory), b.GetManager())
+	m := tchannel.NewConfigManager(r.CollectorServiceName(), r.Channel())
+	assert.Equal(t, configmanager.WrapWithMetrics(m, mFactory), b.GetManager())
 	assert.Nil(t, b.Close())
 }

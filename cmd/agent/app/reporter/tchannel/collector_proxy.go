@@ -18,15 +18,15 @@ import (
 	"github.com/uber/jaeger-lib/metrics"
 	"go.uber.org/zap"
 
-	"github.com/jaegertracing/jaeger/cmd/agent/app/httpserver"
-	"github.com/jaegertracing/jaeger/cmd/agent/app/httpserver/tchannel"
+	"github.com/jaegertracing/jaeger/cmd/agent/app/configmanager"
+	"github.com/jaegertracing/jaeger/cmd/agent/app/configmanager/tchannel"
 	"github.com/jaegertracing/jaeger/cmd/agent/app/reporter"
 )
 
 // ProxyBuilder holds objects communicating with collector
 type ProxyBuilder struct {
 	reporter reporter.Reporter
-	manager  httpserver.ClientConfigManager
+	manager  configmanager.ClientConfigManager
 	tchanRep *Reporter
 }
 
@@ -40,7 +40,7 @@ func NewCollectorProxy(builder *Builder, mFactory metrics.Factory, logger *zap.L
 	return &ProxyBuilder{
 		tchanRep: r,
 		reporter: reporter.WrapWithMetrics(r, tchannelMetrics),
-		manager:  httpserver.WrapWithMetrics(tchannel.NewCollectorProxy(r.CollectorServiceName(), r.Channel()), tchannelMetrics),
+		manager:  configmanager.WrapWithMetrics(tchannel.NewConfigManager(r.CollectorServiceName(), r.Channel()), tchannelMetrics),
 	}, nil
 }
 
@@ -50,7 +50,7 @@ func (b ProxyBuilder) GetReporter() reporter.Reporter {
 }
 
 // GetManager returns manager
-func (b ProxyBuilder) GetManager() httpserver.ClientConfigManager {
+func (b ProxyBuilder) GetManager() configmanager.ClientConfigManager {
 	return b.manager
 }
 

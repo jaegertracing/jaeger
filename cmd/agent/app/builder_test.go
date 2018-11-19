@@ -26,7 +26,7 @@ import (
 	"go.uber.org/zap"
 	"gopkg.in/yaml.v2"
 
-	"github.com/jaegertracing/jaeger/cmd/agent/app/httpserver"
+	"github.com/jaegertracing/jaeger/cmd/agent/app/configmanager"
 	"github.com/jaegertracing/jaeger/cmd/agent/app/reporter"
 	"github.com/jaegertracing/jaeger/thrift-gen/baggage"
 	"github.com/jaegertracing/jaeger/thrift-gen/jaeger"
@@ -162,7 +162,7 @@ type fakeCollectorProxy struct {
 func (f fakeCollectorProxy) GetReporter() reporter.Reporter {
 	return fakeCollectorProxy{}
 }
-func (f fakeCollectorProxy) GetManager() httpserver.ClientConfigManager {
+func (f fakeCollectorProxy) GetManager() configmanager.ClientConfigManager {
 	return fakeCollectorProxy{}
 }
 

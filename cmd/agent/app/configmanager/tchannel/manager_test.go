@@ -40,7 +40,7 @@ func TestCollectorProxy(t *testing.T) {
 		{BaggageKey: "luggage", MaxValueLength: 10},
 	})
 
-	mgr := NewCollectorProxy("jaeger-collector", collector.Channel)
+	mgr := NewConfigManager("jaeger-collector", collector.Channel)
 
 	sResp, err := mgr.GetSamplingStrategy("service1")
 	require.NoError(t, err)

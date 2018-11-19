@@ -31,8 +31,8 @@ type SamplingManager struct {
 	client api_v2.SamplingManagerClient
 }
 
-// NewSamplingManager creates gRPC sampling manager.
-func NewSamplingManager(conn *grpc.ClientConn) *SamplingManager {
+// NewConfigManager creates gRPC sampling manager.
+func NewConfigManager(conn *grpc.ClientConn) *SamplingManager {
 	return &SamplingManager{
 		client: api_v2.NewSamplingManagerClient(conn),
 	}
