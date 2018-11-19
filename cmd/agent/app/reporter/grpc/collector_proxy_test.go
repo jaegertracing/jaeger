@@ -15,6 +15,7 @@
 package grpc
 
 import (
+	"net"
 	"testing"
 	"time"
 
@@ -79,4 +80,16 @@ func TestMultipleCollectors(t *testing.T) {
 	assert.True(t, len(c) > 0)
 	assert.Equal(t, true, bothServers)
 	require.Nil(t, proxy.Close())
+}
+
+func initializeGRPCTestServer(t *testing.T, beforeServe func(server *grpc.Server)) (*grpc.Server, net.Addr) {
+	server := grpc.NewServer()
+	lis, err := net.Listen("tcp", "localhost:0")
+	require.NoError(t, err)
+	beforeServe(server)
+	go func() {
+		err := server.Serve(lis)
+		require.NoError(t, err)
+	}()
+	return server, lis.Addr()
 }

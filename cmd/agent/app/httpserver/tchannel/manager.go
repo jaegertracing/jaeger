@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package httpserver
+package tchannel
 
 import (
 	"time"
@@ -20,6 +20,7 @@ import (
 	"github.com/uber/tchannel-go"
 	"github.com/uber/tchannel-go/thrift"
 
+	"github.com/jaegertracing/jaeger/cmd/agent/app/httpserver"
 	"github.com/jaegertracing/jaeger/thrift-gen/baggage"
 	"github.com/jaegertracing/jaeger/thrift-gen/sampling"
 )
@@ -30,7 +31,7 @@ type collectorProxy struct {
 }
 
 // NewCollectorProxy implements Manager by proxying the requests to collector.
-func NewCollectorProxy(svc string, channel *tchannel.Channel) ClientConfigManager {
+func NewCollectorProxy(svc string, channel *tchannel.Channel) httpserver.ClientConfigManager {
 	thriftClient := thrift.NewClient(channel, svc, nil)
 	res := &collectorProxy{
 		samplingClient: sampling.NewTChanSamplingManagerClient(thriftClient),

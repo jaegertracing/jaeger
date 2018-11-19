@@ -23,6 +23,7 @@ import (
 	"go.uber.org/zap"
 
 	"github.com/jaegertracing/jaeger/cmd/agent/app/httpserver"
+	"github.com/jaegertracing/jaeger/cmd/agent/app/httpserver/tchannel"
 	"github.com/jaegertracing/jaeger/cmd/agent/app/reporter"
 )
 
@@ -42,7 +43,7 @@ func TestCreate(t *testing.T) {
 	assert.NotNil(t, b)
 	r, _ := cfg.CreateReporter(logger)
 	assert.Equal(t, reporter.WrapWithMetrics(r, mFactory), b.GetReporter())
-	m := httpserver.NewCollectorProxy(r.CollectorServiceName(), r.Channel())
+	m := tchannel.NewCollectorProxy(r.CollectorServiceName(), r.Channel())
 	assert.Equal(t, httpserver.WrapWithMetrics(m, mFactory), b.GetManager())
 	assert.Nil(t, b.Close())
 }

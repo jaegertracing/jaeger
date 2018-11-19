@@ -19,6 +19,7 @@ import (
 	"go.uber.org/zap"
 
 	"github.com/jaegertracing/jaeger/cmd/agent/app/httpserver"
+	"github.com/jaegertracing/jaeger/cmd/agent/app/httpserver/tchannel"
 	"github.com/jaegertracing/jaeger/cmd/agent/app/reporter"
 )
 
@@ -39,7 +40,7 @@ func NewCollectorProxy(builder *Builder, mFactory metrics.Factory, logger *zap.L
 	return &ProxyBuilder{
 		tchanRep: r,
 		reporter: reporter.WrapWithMetrics(r, tchannelMetrics),
-		manager:  httpserver.WrapWithMetrics(httpserver.NewCollectorProxy(r.CollectorServiceName(), r.Channel()), tchannelMetrics),
+		manager:  httpserver.WrapWithMetrics(tchannel.NewCollectorProxy(r.CollectorServiceName(), r.Channel()), tchannelMetrics),
 	}, nil
 }
 
