@@ -58,6 +58,21 @@ func request_SamplingManager_GetSamplingStrategy_0(ctx context.Context, marshale
 
 }
 
+func request_ThrottlingService_GetThrottlingConfigs_0(ctx context.Context, marshaler runtime.Marshaler, client ThrottlingServiceClient, req *http.Request, pathParams map[string]string) (proto.Message, runtime.ServerMetadata, error) {
+	var protoReq ThrottlingConfigParameters
+	var metadata runtime.ServerMetadata
+
+	if req.ContentLength > 0 {
+		if err := marshaler.NewDecoder(req.Body).Decode(&protoReq); err != nil {
+			return nil, metadata, status.Errorf(codes.InvalidArgument, "%v", err)
+		}
+	}
+
+	msg, err := client.GetThrottlingConfigs(ctx, &protoReq, grpc.Header(&metadata.HeaderMD), grpc.Trailer(&metadata.TrailerMD))
+	return msg, metadata, err
+
+}
+
 // RegisterCollectorServiceHandlerFromEndpoint is same as RegisterCollectorServiceHandler but
 // automatically dials to "endpoint" and closes the connection when "ctx" gets done.
 func RegisterCollectorServiceHandlerFromEndpoint(ctx context.Context, mux *runtime.ServeMux, endpoint string, opts []grpc.DialOption) (err error) {
@@ -212,4 +227,82 @@ var (
 
 var (
 	forward_SamplingManager_GetSamplingStrategy_0 = runtime.ForwardResponseMessage
+)
+
+// RegisterThrottlingServiceHandlerFromEndpoint is same as RegisterThrottlingServiceHandler but
+// automatically dials to "endpoint" and closes the connection when "ctx" gets done.
+func RegisterThrottlingServiceHandlerFromEndpoint(ctx context.Context, mux *runtime.ServeMux, endpoint string, opts []grpc.DialOption) (err error) {
+	conn, err := grpc.Dial(endpoint, opts...)
+	if err != nil {
+		return err
+	}
+	defer func() {
+		if err != nil {
+			if cerr := conn.Close(); cerr != nil {
+				grpclog.Printf("Failed to close conn to %s: %v", endpoint, cerr)
+			}
+			return
+		}
+		go func() {
+			<-ctx.Done()
+			if cerr := conn.Close(); cerr != nil {
+				grpclog.Printf("Failed to close conn to %s: %v", endpoint, cerr)
+			}
+		}()
+	}()
+
+	return RegisterThrottlingServiceHandler(ctx, mux, conn)
+}
+
+// RegisterThrottlingServiceHandler registers the http handlers for service ThrottlingService to "mux".
+// The handlers forward requests to the grpc endpoint over "conn".
+func RegisterThrottlingServiceHandler(ctx context.Context, mux *runtime.ServeMux, conn *grpc.ClientConn) error {
+	return RegisterThrottlingServiceHandlerClient(ctx, mux, NewThrottlingServiceClient(conn))
+}
+
+// RegisterThrottlingServiceHandler registers the http handlers for service ThrottlingService to "mux".
+// The handlers forward requests to the grpc endpoint over the given implementation of "ThrottlingServiceClient".
+// Note: the gRPC framework executes interceptors within the gRPC handler. If the passed in "ThrottlingServiceClient"
+// doesn't go through the normal gRPC flow (creating a gRPC client etc.) then it will be up to the passed in
+// "ThrottlingServiceClient" to call the correct interceptors.
+func RegisterThrottlingServiceHandlerClient(ctx context.Context, mux *runtime.ServeMux, client ThrottlingServiceClient) error {
+
+	mux.Handle("POST", pattern_ThrottlingService_GetThrottlingConfigs_0, func(w http.ResponseWriter, req *http.Request, pathParams map[string]string) {
+		ctx, cancel := context.WithCancel(req.Context())
+		defer cancel()
+		if cn, ok := w.(http.CloseNotifier); ok {
+			go func(done <-chan struct{}, closed <-chan bool) {
+				select {
+				case <-done:
+				case <-closed:
+					cancel()
+				}
+			}(ctx.Done(), cn.CloseNotify())
+		}
+		inboundMarshaler, outboundMarshaler := runtime.MarshalerForRequest(mux, req)
+		rctx, err := runtime.AnnotateContext(ctx, mux, req)
+		if err != nil {
+			runtime.HTTPError(ctx, mux, outboundMarshaler, w, req, err)
+			return
+		}
+		resp, md, err := request_ThrottlingService_GetThrottlingConfigs_0(rctx, inboundMarshaler, client, req, pathParams)
+		ctx = runtime.NewServerMetadataContext(ctx, md)
+		if err != nil {
+			runtime.HTTPError(ctx, mux, outboundMarshaler, w, req, err)
+			return
+		}
+
+		forward_ThrottlingService_GetThrottlingConfigs_0(ctx, mux, outboundMarshaler, w, req, resp, mux.GetForwardResponseOptions()...)
+
+	})
+
+	return nil
+}
+
+var (
+	pattern_ThrottlingService_GetThrottlingConfigs_0 = runtime.MustPattern(runtime.NewPattern(1, []int{2, 0, 2, 1, 2, 2}, []string{"api", "v2", "throttling"}, ""))
+)
+
+var (
+	forward_ThrottlingService_GetThrottlingConfigs_0 = runtime.ForwardResponseMessage
 )

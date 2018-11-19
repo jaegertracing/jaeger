@@ -66,6 +66,32 @@
           "CollectorService"
         ]
       }
+    },
+    "/api/v2/throttling": {
+      "post": {
+        "operationId": "getThrottlingConfigs",
+        "responses": {
+          "200": {
+            "description": "",
+            "schema": {
+              "$ref": "#/definitions/api_v2ThrottlingResponse"
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "body",
+            "in": "body",
+            "required": true,
+            "schema": {
+              "$ref": "#/definitions/api_v2ThrottlingConfigParameters"
+            }
+          }
+        ],
+        "tags": [
+          "ThrottlingService"
+        ]
+      }
     }
   },
   "definitions": {
@@ -238,6 +264,18 @@
       ],
       "default": "PROBABILISTIC"
     },
+    "api_v2ServiceThrottlingConfig": {
+      "type": "object",
+      "properties": {
+        "serviceName": {
+          "type": "string"
+        },
+        "config": {
+          "$ref": "#/definitions/api_v2ThrottlingConfig"
+        }
+      },
+      "description": "Mapping of service name to throttling configuration."
+    },
     "api_v2Span": {
       "type": "object",
       "properties": {
@@ -318,6 +356,53 @@
         "FOLLOWS_FROM"
       ],
       "default": "CHILD_OF"
+    },
+    "api_v2ThrottlingConfig": {
+      "type": "object",
+      "properties": {
+        "maxOperations": {
+          "type": "integer",
+          "format": "int32",
+          "description": "Max operations to track with individual throttling credit accounts."
+        },
+        "creditsPerSecond": {
+          "type": "number",
+          "format": "double",
+          "description": "Number of credits to refill per second."
+        },
+        "maxBalance": {
+          "type": "number",
+          "format": "double",
+          "description": "Max balance to cap credits."
+        }
+      },
+      "description": "ThrottlingConfig describes the throttling behavior for a given service.\nThrottling is controlled with a credit account per operation that is refilled\nat a steady rate, like a token bucket. The account may reach a maximum, but\nwill not grow beyond that."
+    },
+    "api_v2ThrottlingConfigParameters": {
+      "type": "object",
+      "properties": {
+        "serviceNames": {
+          "type": "array",
+          "items": {
+            "type": "string"
+          }
+        }
+      }
+    },
+    "api_v2ThrottlingResponse": {
+      "type": "object",
+      "properties": {
+        "defaultConfig": {
+          "$ref": "#/definitions/api_v2ThrottlingConfig"
+        },
+        "serviceConfigs": {
+          "type": "array",
+          "items": {
+            "$ref": "#/definitions/api_v2ServiceThrottlingConfig"
+          }
+        }
+      },
+      "description": "Response mapping service names to specific throttling configs. Any other\nservice not contained in the map should follow the default configuration\nprovided in the response."
     },
     "api_v2ValueType": {
       "type": "string",
