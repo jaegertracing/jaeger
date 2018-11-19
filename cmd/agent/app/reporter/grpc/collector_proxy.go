@@ -25,7 +25,7 @@ import (
 	"google.golang.org/grpc/resolver/manual"
 
 	"github.com/jaegertracing/jaeger/cmd/agent/app/httpserver"
-	mGrpc "github.com/jaegertracing/jaeger/cmd/agent/app/httpserver/grpc"
+	grpcManager "github.com/jaegertracing/jaeger/cmd/agent/app/httpserver/grpc"
 	aReporter "github.com/jaegertracing/jaeger/cmd/agent/app/reporter"
 )
 
@@ -58,7 +58,7 @@ func NewCollectorProxy(o *Options, mFactory metrics.Factory, logger *zap.Logger)
 	return &ProxyBuilder{
 		conn:     conn,
 		reporter: aReporter.WrapWithMetrics(NewReporter(conn, logger), grpcMetrics),
-		manager:  httpserver.WrapWithMetrics(mGrpc.NewSamplingManager(conn), grpcMetrics)}, nil
+		manager:  httpserver.WrapWithMetrics(grpcManager.NewSamplingManager(conn), grpcMetrics)}, nil
 }
 
 // GetReporter returns Reporter

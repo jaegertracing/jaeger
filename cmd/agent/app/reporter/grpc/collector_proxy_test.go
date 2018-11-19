@@ -88,8 +88,7 @@ func initializeGRPCTestServer(t *testing.T, beforeServe func(server *grpc.Server
 	require.NoError(t, err)
 	beforeServe(server)
 	go func() {
-		err := server.Serve(lis)
-		require.NoError(t, err)
+		require.NoError(t, server.Serve(lis))
 	}()
 	return server, lis.Addr()
 }
