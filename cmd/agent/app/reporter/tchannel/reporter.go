@@ -17,7 +17,6 @@ package tchannel
 import (
 	"time"
 
-	"github.com/uber/jaeger-lib/metrics"
 	"github.com/uber/tchannel-go"
 	"github.com/uber/tchannel-go/thrift"
 	"go.uber.org/zap"
@@ -26,28 +25,6 @@ import (
 	"github.com/jaegertracing/jaeger/thrift-gen/jaeger"
 	"github.com/jaegertracing/jaeger/thrift-gen/zipkincore"
 )
-
-const (
-	jaegerBatches = "jaeger"
-	zipkinBatches = "zipkin"
-)
-
-type batchMetrics struct {
-	// Number of successful batch submissions to collector
-	BatchesSubmitted metrics.Counter `metric:"batches.submitted"`
-
-	// Number of failed batch submissions to collector
-	BatchesFailures metrics.Counter `metric:"batches.failures"`
-
-	// Number of spans in a batch submitted to collector
-	BatchSize metrics.Gauge `metric:"batch_size"`
-
-	// Number of successful span submissions to collector
-	SpansSubmitted metrics.Counter `metric:"spans.submitted"`
-
-	// Number of failed span submissions to collector
-	SpansFailures metrics.Counter `metric:"spans.failures"`
-}
 
 // Reporter forwards received spans to central collector tier over TChannel.
 type Reporter struct {
