@@ -24,14 +24,15 @@ import (
 	"google.golang.org/grpc/resolver"
 	"google.golang.org/grpc/resolver/manual"
 
-	"github.com/jaegertracing/jaeger/cmd/agent/app/httpserver"
+	"github.com/jaegertracing/jaeger/cmd/agent/app/configmanager"
+	grpcManager "github.com/jaegertracing/jaeger/cmd/agent/app/configmanager/grpc"
 	aReporter "github.com/jaegertracing/jaeger/cmd/agent/app/reporter"
 )
 
 // ProxyBuilder holds objects communicating with collector
 type ProxyBuilder struct {
 	reporter aReporter.Reporter
-	manager  httpserver.ClientConfigManager
+	manager  configmanager.ClientConfigManager
 	conn     *grpc.ClientConn
 }
 
@@ -57,7 +58,7 @@ func NewCollectorProxy(o *Options, mFactory metrics.Factory, logger *zap.Logger)
 	return &ProxyBuilder{
 		conn:     conn,
 		reporter: aReporter.WrapWithMetrics(NewReporter(conn, logger), grpcMetrics),
-		manager:  httpserver.WrapWithMetrics(NewSamplingManager(conn), grpcMetrics)}, nil
+		manager:  configmanager.WrapWithMetrics(grpcManager.NewConfigManager(conn), grpcMetrics)}, nil
 }
 
 // GetReporter returns Reporter
@@ -66,7 +67,7 @@ func (b ProxyBuilder) GetReporter() aReporter.Reporter {
 }
 
 // GetManager returns manager
-func (b ProxyBuilder) GetManager() httpserver.ClientConfigManager {
+func (b ProxyBuilder) GetManager() configmanager.ClientConfigManager {
 	return b.manager
 }
 

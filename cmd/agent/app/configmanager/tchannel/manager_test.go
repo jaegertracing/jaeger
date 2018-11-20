@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package httpserver
+package tchannel
 
 import (
 	"errors"
@@ -40,7 +40,7 @@ func TestCollectorProxy(t *testing.T) {
 		{BaggageKey: "luggage", MaxValueLength: 10},
 	})
 
-	mgr := NewCollectorProxy("jaeger-collector", collector.Channel)
+	mgr := NewConfigManager("jaeger-collector", collector.Channel)
 
 	sResp, err := mgr.GetSamplingStrategy("service1")
 	require.NoError(t, err)

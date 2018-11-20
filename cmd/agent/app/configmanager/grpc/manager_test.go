@@ -35,7 +35,7 @@ func TestSamplingManager_GetSamplingStrategy(t *testing.T) {
 	defer conn.Close()
 	require.NoError(t, err)
 	defer s.GracefulStop()
-	manager := NewSamplingManager(conn)
+	manager := NewConfigManager(conn)
 	resp, err := manager.GetSamplingStrategy("any")
 	require.NoError(t, err)
 	assert.Equal(t, &sampling.SamplingStrategyResponse{StrategyType: sampling.SamplingStrategyType_PROBABILISTIC}, resp)
@@ -45,14 +45,14 @@ func TestSamplingManager_GetSamplingStrategy_error(t *testing.T) {
 	conn, err := grpc.Dial("foo", grpc.WithInsecure())
 	defer conn.Close()
 	require.NoError(t, err)
-	manager := NewSamplingManager(conn)
+	manager := NewConfigManager(conn)
 	resp, err := manager.GetSamplingStrategy("any")
 	require.Nil(t, resp)
 	assert.EqualError(t, err, "rpc error: code = Unavailable desc = all SubConns are in TransientFailure, latest connection error: connection error: desc = \"transport: Error while dialing dial tcp: address foo: missing port in address\"")
 }
 
 func TestSamplingManager_GetBaggageRestrictions(t *testing.T) {
-	manager := NewSamplingManager(nil)
+	manager := NewConfigManager(nil)
 	rest, err := manager.GetBaggageRestrictions("foo")
 	require.Nil(t, rest)
 	assert.EqualError(t, err, "baggage not implemented")

@@ -23,6 +23,7 @@ import (
 	"github.com/uber/jaeger-lib/metrics"
 	"go.uber.org/zap"
 
+	"github.com/jaegertracing/jaeger/cmd/agent/app/configmanager"
 	"github.com/jaegertracing/jaeger/cmd/agent/app/httpserver"
 	"github.com/jaegertracing/jaeger/cmd/agent/app/processors"
 	"github.com/jaegertracing/jaeger/cmd/agent/app/reporter"
@@ -64,7 +65,7 @@ var (
 // CollectorProxy provides access to Reporter and ClientConfigManager
 type CollectorProxy interface {
 	GetReporter() reporter.Reporter
-	GetManager() httpserver.ClientConfigManager
+	GetManager() configmanager.ClientConfigManager
 }
 
 // Builder Struct to hold configurations
@@ -154,7 +155,7 @@ func (b *Builder) getProcessors(rep reporter.Reporter, mFactory metrics.Factory,
 }
 
 // GetHTTPServer creates an HTTP server that provides sampling strategies and baggage restrictions to client libraries.
-func (c HTTPServerConfiguration) getHTTPServer(manager httpserver.ClientConfigManager, mFactory metrics.Factory) *http.Server {
+func (c HTTPServerConfiguration) getHTTPServer(manager configmanager.ClientConfigManager, mFactory metrics.Factory) *http.Server {
 	if c.HostPort == "" {
 		c.HostPort = defaultHTTPServerHostPort
 	}
