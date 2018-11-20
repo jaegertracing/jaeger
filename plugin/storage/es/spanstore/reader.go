@@ -54,6 +54,7 @@ const (
 
 	defaultDocCount  = 10000 // the default elasticsearch allowed limit
 	defaultNumTraces = 100
+	defaultNumSpans  = 1000
 )
 
 var (
@@ -269,7 +270,7 @@ func (s *SpanReader) multiRead(ctx context.Context, traceIDs []string, startTime
 			if val, ok := searchAfterTime[traceID]; ok {
 				nextTime = val
 			}
-			searchRequests[i] = elastic.NewSearchRequest().IgnoreUnavailable(true).Type(spanType).Source(elastic.NewSearchSource().Query(query).Size(defaultDocCount).Sort("startTime", true).SearchAfter(nextTime))
+			searchRequests[i] = elastic.NewSearchRequest().IgnoreUnavailable(true).Type(spanType).Source(elastic.NewSearchSource().Query(query).Size(defaultDocCount).TerminateAfter(defaultNumSpans).Sort("startTime", true).SearchAfter(nextTime))
 		}
 		// set traceIDs to empty
 		traceIDs = nil

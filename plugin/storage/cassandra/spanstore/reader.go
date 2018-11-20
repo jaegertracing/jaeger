@@ -255,6 +255,8 @@ func (s *SpanReader) FindTraceIDs(ctx context.Context, traceQuery *spanstore.Tra
 	}
 	if traceQuery.NumTraces == 0 {
 		traceQuery.NumTraces = defaultNumTraces
+	} else if traceQuery.NumTraces > 10000 {
+		traceQuery.NumTraces = 10000
 	}
 
 	dbTraceIDs, err := s.findTraceIDs(ctx, traceQuery)
