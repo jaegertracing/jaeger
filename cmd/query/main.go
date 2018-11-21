@@ -34,6 +34,7 @@ import (
 	"github.com/jaegertracing/jaeger/cmd/env"
 	"github.com/jaegertracing/jaeger/cmd/flags"
 	"github.com/jaegertracing/jaeger/cmd/query/app"
+	queryCache "github.com/jaegertracing/jaeger/cmd/query/app/storage"
 	"github.com/jaegertracing/jaeger/pkg/config"
 	"github.com/jaegertracing/jaeger/pkg/healthcheck"
 	pMetrics "github.com/jaegertracing/jaeger/pkg/metrics"
@@ -109,6 +110,8 @@ func main() {
 				logger.Fatal("Failed to create span reader", zap.Error(err))
 			}
 			spanReader = storageMetrics.NewReadMetricsDecorator(spanReader, baseFactory.Namespace("query", nil))
+			spanReader = queryCache.NewCache(spanReader, queryOpts.CacheRefreshInterval, logger)
+
 			dependencyReader, err := storageFactory.CreateDependencyReader()
 			if err != nil {
 				logger.Fatal("Failed to create dependency reader", zap.Error(err))
