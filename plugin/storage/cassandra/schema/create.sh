@@ -33,7 +33,7 @@ elif [[ "$MODE" == "prod" ]]; then
     datacenter=$DATACENTER
     replication_factor=${REPLICATION_FACTOR:-2}
     replication="{'class': 'NetworkTopologyStrategy', '$datacenter': '${replication_factor}' }"
-elif [[ "$MODE" == "test" ]]; then 
+elif [[ "$MODE" == "test" ]]; then
     datacenter=${DATACENTER:-'test'}
     replication_factor=${REPLICATION_FACTOR:-1}
     replication="{'class': 'SimpleStrategy', 'replication_factor': '${replication_factor}'}"

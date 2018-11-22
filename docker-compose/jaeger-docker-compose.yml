@@ -3,23 +3,27 @@ version: '2'
 services:
     jaeger-collector:
       image: jaegertracing/jaeger-collector
-      command: ["--cassandra.keyspace=jaeger_v1_dc1", "--cassandra.servers=cassandra", "--collector.zipkin.http-port=9411"]
+      command: ["/bin/wait-for-cassandra.sh", "/go/bin/collector-linux", "--cassandra.keyspace=jaeger_v1_dc1", "--cassandra.servers=cassandra", "--collector.zipkin.http-port=9411"]
       ports:
         - "14269"
         - "14268:14268"
         - "14267"
         - "14250"
         - "9411:9411"
+      volumes:
+      - ./plugin/storage/cassandra/schema/wait-for-cassandra.sh:/bin/wait-for-cassandra.sh
       restart: on-failure
       depends_on:
         - cassandra-schema
 
     jaeger-query:
       image: jaegertracing/jaeger-query
-      command: ["--cassandra.keyspace=jaeger_v1_dc1", "--cassandra.servers=cassandra"]
+      command: ["/bin/wait-for-cassandra.sh", "/go/bin/query-linux", "--cassandra.keyspace=jaeger_v1_dc1", "--cassandra.servers=cassandra"]
       ports:
         - "16686:16686"
         - "16687"
+      volumes:
+        - ./plugin/storage/cassandra/schema/wait-for-cassandra.sh:/bin/wait-for-cassandra.sh
       restart: on-failure
       depends_on:
         - cassandra-schema
@@ -36,11 +40,5 @@ services:
       depends_on:
         - jaeger-collector
 
-    cassandra:
-      image: cassandra:3.9
-
     cassandra-schema:
       image: jaegertracing/jaeger-cassandra-schema
-      depends_on:
-        - cassandra
-
