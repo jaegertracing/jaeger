@@ -1,6 +1,16 @@
 Changes by Version
 ==================
 
+1.8.1 (2018-11-23)
+------------------
+
+#### Backend Changes
+
+##### Bug fixes, Minor Improvements
+
+- Make agent timeout for reporting configurable and fix flags overriding ([#1034](https://github.com/jaegertracing/jaeger/pull/1034), [@gouthamve](https://github.com/gouthamve))
+- Fix metrics handler registration in agent ([#1178](https://github.com/jaegertracing/jaeger/pull/1178), [@pavolloffay](https://github.com/pavolloffay))
+
 1.8.0 (2018-11-12)
 ------------------
 
