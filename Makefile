@@ -231,6 +231,8 @@ build-all-platforms: build-binaries-linux build-binaries-windows build-binaries-
 
 .PHONY: docker-images-only
 docker-images-only:
+	docker build -t $(DOCKER_NAMESPACE)/jaeger-service-base:${DOCKER_TAG} docker-compose/service-base/
+	@echo "Finished building jaeger-service-base =============="
 	docker build -t $(DOCKER_NAMESPACE)/jaeger-cassandra-schema:${DOCKER_TAG} plugin/storage/cassandra/
 	@echo "Finished building jaeger-cassandra-schema =============="
 	docker build -t $(DOCKER_NAMESPACE)/jaeger-es-index-cleaner:${DOCKER_TAG} plugin/storage/es

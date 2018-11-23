@@ -13,13 +13,13 @@ function stage-file {
 }
 
 # stage-platform-files stages the different the platform ($1) into the package
-# staging dir ($2). If you pass in a file extension ($3) it will be used when 
+# staging dir ($2). If you pass in a file extension ($3) it will be used when
 # copying on the source
 function stage-platform-files {
     local PLATFORM=$1
     local PACKAGE_STAGING_DIR=$2
     local FILE_EXTENSION=$3
-    
+
     stage-file ./cmd/all-in-one/all-in-one-$PLATFORM $PACKAGE_STAGING_DIR/jaeger-all-in-one$FILE_EXTENSION
     stage-file ./cmd/agent/agent-$PLATFORM $PACKAGE_STAGING_DIR/jaeger-agent$FILE_EXTENSION
     stage-file ./cmd/query/query-$PLATFORM $PACKAGE_STAGING_DIR/jaeger-query$FILE_EXTENSION
@@ -28,7 +28,7 @@ function stage-platform-files {
     stage-file ./examples/hotrod/hotrod-$PLATFORM $PACKAGE_STAGING_DIR/example-hotrod$FILE_EXTENSION
 }
 
-# package pulls built files for the platform ($1). If you pass in a file 
+# package pulls built files for the platform ($1). If you pass in a file
 # extension ($2) it will be used on the binaries
 function package {
     local PLATFORM=$1

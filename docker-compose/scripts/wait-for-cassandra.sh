@@ -10,29 +10,31 @@
 # test  # `echo test` is invoked
 
 function wait_for_cassandra() {
-	CQLSH=${CQLSH:-"/usr/bin/cqlsh"}
+	NC=$(command -v nc)
+	if [[ -z "$NC" ]]; then
+		NC=$(command -v netcat)
+		if [[ -z "$NC" ]]; then
+			echo "Cannot find nc/netcat" 1>&2
+			exit 1
+		fi
+	fi
+
+    CQLSH=${CQLSH:-"/usr/local/bin/cqlsh"}
 	CQLSH_HOST=${CQLSH_HOST:-"cassandra"}
-	CQLSH_SSL=${CQLSH_SSL:-""}
+    CQL_VERSION=${CQL_VERSION:-"3.4.4"}
 	CASSANDRA_WAIT_TIMEOUT=${CASSANDRA_WAIT_TIMEOUT:-"180"}
+    KEYSPACE=${KEYSPACE:-"jaeger_v1_dc1"}
 
 	total_wait=0
 
 	while (( total_wait < CASSANDRA_WAIT_TIMEOUT ))
 	do
-		if nc -z "${CQLSH_HOST}" 9042; then
-			break
+		if  "${NC}" -z "${CQLSH_HOST}" 9042; then
+            if (echo "DESCRIBE KEYSPACE ${KEYSPACE};" | "${CQLSH}" --cqlversion="${CQL_VERSION}" "${CQLSH_HOST}"); then
+                break
+            fi
 		fi
-		echo "Cassandra is still not up at ${CQLSH_HOST}. Waiting 1 second."
-		sleep 1s
-		((total_wait++))
-	done
-
-	while (( total_wait < CASSANDRA_WAIT_TIMEOUT ))
-	do
-	  if ${CQLSH} "${CQLSH_SSL}" -e "describe keyspaces"; then
-		break
-		fi
-		echo "Cassandra is still not up at ${CQLSH_HOST}. Waiting 1 second."
+        echo "Cassandra is still not up at ${CQLSH_HOST}. Waiting 1 second ($total_wait/$CASSANDRA_WAIT_TIMEOUT)."
 		sleep 1s
 		((total_wait++))
 	done
@@ -41,8 +43,7 @@ function wait_for_cassandra() {
 		echo "Timed out waiting for Cassandra."
 		exit 1
 	fi
-
-	exec $@
 }
 
-wait_for_cassandra $@
+wait_for_cassandra
+exec $@

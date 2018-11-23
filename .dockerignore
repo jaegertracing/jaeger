@@ -1,0 +1,8 @@
+# Docker daemon will upload anything not specified here to the Docker daemon.
+# It does not matter if you use `ADD`/`COPY`, the build context is uploaded
+# *before* the image build begins. See this [StackOverflow question](https://stackoverflow.com/questions/44465703/what-is-the-purpose-of-the-docker-build-context)
+# for further details.
+
+*
+!cmd/**/*-linux
+!crossdock/*
