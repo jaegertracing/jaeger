@@ -21,7 +21,7 @@ import (
 	"time"
 
 	"github.com/stretchr/testify/assert"
-	"github.com/uber/jaeger-lib/metrics"
+	"github.com/uber/jaeger-lib/metrics/metricstest"
 	"go.uber.org/zap"
 
 	"github.com/jaegertracing/jaeger/model"
@@ -42,7 +42,7 @@ func withSpanWriter(writeCacheTTL time.Duration, fn func(w *spanWriterTest), opt
 ) {
 	session := &mocks.Session{}
 	logger, logBuffer := testutils.NewLogger()
-	metricsFactory := metrics.NewLocalFactory(0)
+	metricsFactory := metricstest.NewFactory(0)
 	w := &spanWriterTest{
 		session:   session,
 		logger:    logger,

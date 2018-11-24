@@ -23,8 +23,7 @@ import (
 	"github.com/pkg/errors"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
-	"github.com/uber/jaeger-lib/metrics"
-	"github.com/uber/jaeger-lib/metrics/testutils"
+	"github.com/uber/jaeger-lib/metrics/metricstest"
 	"go.uber.org/zap"
 
 	"github.com/jaegertracing/jaeger/model"
@@ -67,7 +66,7 @@ var (
 type spanWriterTest struct {
 	producer       *saramaMocks.AsyncProducer
 	marshaller     *mocks.Marshaller
-	metricsFactory *metrics.LocalFactory
+	metricsFactory *metricstest.Factory
 
 	writer *SpanWriter
 }
@@ -76,7 +75,7 @@ type spanWriterTest struct {
 var _ spanstore.Writer = &SpanWriter{}
 
 func withSpanWriter(t *testing.T, fn func(span *model.Span, w *spanWriterTest)) {
-	serviceMetrics := metrics.NewLocalFactory(100 * time.Millisecond)
+	serviceMetrics := metricstest.NewFactory(100 * time.Millisecond)
 	saramaConfig := sarama.NewConfig()
 	saramaConfig.Producer.Return.Successes = true
 	producer := saramaMocks.NewAsyncProducer(t, saramaConfig)
@@ -110,15 +109,15 @@ func TestKafkaWriter(t *testing.T) {
 		}
 		w.writer.Close()
 
-		testutils.AssertCounterMetrics(t, w.metricsFactory,
-			testutils.ExpectedMetric{
+		w.metricsFactory.AssertCounterMetrics(t,
+			metricstest.ExpectedMetric{
 				Name:  "kafka_spans_written",
 				Tags:  map[string]string{"status": "success"},
 				Value: 1,
 			})
 
-		testutils.AssertCounterMetrics(t, w.metricsFactory,
-			testutils.ExpectedMetric{
+		w.metricsFactory.AssertCounterMetrics(t,
+			metricstest.ExpectedMetric{
 				Name:  "kafka_spans_written",
 				Tags:  map[string]string{"status": "failure"},
 				Value: 0,
@@ -142,15 +141,15 @@ func TestKafkaWriterErr(t *testing.T) {
 		}
 		w.writer.Close()
 
-		testutils.AssertCounterMetrics(t, w.metricsFactory,
-			testutils.ExpectedMetric{
+		w.metricsFactory.AssertCounterMetrics(t,
+			metricstest.ExpectedMetric{
 				Name:  "kafka_spans_written",
 				Tags:  map[string]string{"status": "success"},
 				Value: 0,
 			})
 
-		testutils.AssertCounterMetrics(t, w.metricsFactory,
-			testutils.ExpectedMetric{
+		w.metricsFactory.AssertCounterMetrics(t,
+			metricstest.ExpectedMetric{
 				Name:  "kafka_spans_written",
 				Tags:  map[string]string{"status": "failure"},
 				Value: 1,
@@ -170,15 +169,15 @@ func TestMarshallerErr(t *testing.T) {
 
 		w.writer.Close()
 
-		testutils.AssertCounterMetrics(t, w.metricsFactory,
-			testutils.ExpectedMetric{
+		w.metricsFactory.AssertCounterMetrics(t,
+			metricstest.ExpectedMetric{
 				Name:  "kafka_spans_written",
 				Tags:  map[string]string{"status": "success"},
 				Value: 0,
 			})
 
-		testutils.AssertCounterMetrics(t, w.metricsFactory,
-			testutils.ExpectedMetric{
+		w.metricsFactory.AssertCounterMetrics(t,
+			metricstest.ExpectedMetric{
 				Name:  "kafka_spans_written",
 				Tags:  map[string]string{"status": "failure"},
 				Value: 1,

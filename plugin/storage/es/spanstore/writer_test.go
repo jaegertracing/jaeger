@@ -23,7 +23,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
 	"github.com/stretchr/testify/require"
-	"github.com/uber/jaeger-lib/metrics"
+	"github.com/uber/jaeger-lib/metrics/metricstest"
 	"go.uber.org/zap"
 
 	"github.com/jaegertracing/jaeger/model"
@@ -43,7 +43,7 @@ type spanWriterTest struct {
 func withSpanWriter(fn func(w *spanWriterTest)) {
 	client := &mocks.Client{}
 	logger, logBuffer := testutils.NewLogger()
-	metricsFactory := metrics.NewLocalFactory(0)
+	metricsFactory := metricstest.NewFactory(0)
 	w := &spanWriterTest{
 		client:    client,
 		logger:    logger,
@@ -66,7 +66,7 @@ func TestNewSpanWriterIndexPrefix(t *testing.T) {
 	}
 	client := &mocks.Client{}
 	logger, _ := testutils.NewLogger()
-	metricsFactory := metrics.NewLocalFactory(0)
+	metricsFactory := metricstest.NewFactory(0)
 	for _, testCase := range testCases {
 		w := NewSpanWriter(SpanWriterParams{Client: client, Logger: logger, MetricsFactory: metricsFactory,
 			IndexPrefix: testCase.prefix})
@@ -311,7 +311,7 @@ func TestWriteSpanInternalError(t *testing.T) {
 func TestNewSpanTags(t *testing.T) {
 	client := &mocks.Client{}
 	logger, _ := testutils.NewLogger()
-	metricsFactory := metrics.NewLocalFactory(0)
+	metricsFactory := metricstest.NewFactory(0)
 	testCases := []struct {
 		writer   *SpanWriter
 		expected dbmodel.Span

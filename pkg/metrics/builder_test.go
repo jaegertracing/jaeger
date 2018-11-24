@@ -51,7 +51,7 @@ func TestBuilder(t *testing.T) {
 		families, err := prometheus.DefaultGatherer.Gather()
 		require.NoError(t, err)
 		for _, mf := range families {
-			if mf.GetName() == "foo_counter" {
+			if mf.GetName() == "foo_counter_total" {
 				return
 			}
 		}

@@ -21,13 +21,12 @@ import (
 	"time"
 
 	"github.com/stretchr/testify/assert"
-	"github.com/uber/jaeger-lib/metrics"
-	"github.com/uber/jaeger-lib/metrics/testutils"
+	"github.com/uber/jaeger-lib/metrics/metricstest"
 	"go.uber.org/zap"
 )
 
 func TestClosingSignalEmitted(t *testing.T) {
-	mf := metrics.NewLocalFactory(0)
+	mf := metricstest.NewFactory(0)
 	l, _ := zap.NewDevelopment()
 	f := newDeadlockDetector(mf, l, time.Millisecond)
 	w := f.startMonitoringForPartition(1)
@@ -36,7 +35,7 @@ func TestClosingSignalEmitted(t *testing.T) {
 }
 
 func TestNoClosingSignalIfMessagesProcessedInInterval(t *testing.T) {
-	mf := metrics.NewLocalFactory(0)
+	mf := metricstest.NewFactory(0)
 	l, _ := zap.NewDevelopment()
 	f := newDeadlockDetector(mf, l, time.Second)
 	f.start()
@@ -50,7 +49,7 @@ func TestNoClosingSignalIfMessagesProcessedInInterval(t *testing.T) {
 }
 
 func TestResetMsgCount(t *testing.T) {
-	mf := metrics.NewLocalFactory(0)
+	mf := metricstest.NewFactory(0)
 	l, _ := zap.NewDevelopment()
 	f := newDeadlockDetector(mf, l, 50*time.Millisecond)
 	f.start()
@@ -64,7 +63,7 @@ func TestResetMsgCount(t *testing.T) {
 }
 
 func TestPanicFunc(t *testing.T) {
-	mf := metrics.NewLocalFactory(0)
+	mf := metricstest.NewFactory(0)
 	l, _ := zap.NewDevelopment()
 	f := newDeadlockDetector(mf, l, time.Minute)
 
@@ -72,7 +71,7 @@ func TestPanicFunc(t *testing.T) {
 		f.panicFunc(1)
 	})
 
-	testutils.AssertCounterMetrics(t, mf, testutils.ExpectedMetric{
+	mf.AssertCounterMetrics(t, metricstest.ExpectedMetric{
 		Name:  "deadlockdetector.panic-issued",
 		Tags:  map[string]string{"partition": "1"},
 		Value: 1,
@@ -84,7 +83,7 @@ func TestPanicForPartition(t *testing.T) {
 	wg := sync.WaitGroup{}
 	wg.Add(1)
 	d := deadlockDetector{
-		metricsFactory: metrics.NewLocalFactory(0),
+		metricsFactory: metricstest.NewFactory(0),
 		logger:         l,
 		interval:       1,
 		panicFunc: func(partition int32) {
@@ -101,7 +100,7 @@ func TestGlobalPanic(t *testing.T) {
 	wg := sync.WaitGroup{}
 	wg.Add(1)
 	d := deadlockDetector{
-		metricsFactory: metrics.NewLocalFactory(0),
+		metricsFactory: metricstest.NewFactory(0),
 		logger:         l,
 		interval:       1,
 		panicFunc: func(partition int32) {
@@ -116,7 +115,7 @@ func TestGlobalPanic(t *testing.T) {
 func TestNoGlobalPanicIfDeadlockDetectorDisabled(t *testing.T) {
 	l, _ := zap.NewDevelopment()
 	d := deadlockDetector{
-		metricsFactory: metrics.NewLocalFactory(0),
+		metricsFactory: metricstest.NewFactory(0),
 		logger:         l,
 		interval:       0,
 		panicFunc: func(partition int32) {
@@ -134,7 +133,7 @@ func TestNoGlobalPanicIfDeadlockDetectorDisabled(t *testing.T) {
 func TestNoPanicForPartitionIfDeadlockDetectorDisabled(t *testing.T) {
 	l, _ := zap.NewDevelopment()
 	d := deadlockDetector{
-		metricsFactory: metrics.NewLocalFactory(0),
+		metricsFactory: metricstest.NewFactory(0),
 		logger:         l,
 		interval:       0,
 		panicFunc: func(partition int32) {
@@ -150,7 +149,7 @@ func TestNoPanicForPartitionIfDeadlockDetectorDisabled(t *testing.T) {
 
 //same as TestNoClosingSignalIfMessagesProcessedInInterval but with disabled deadlock detector
 func TestApiCompatibilityWhenDeadlockDetectorDisabled(t *testing.T) {
-	mf := metrics.NewLocalFactory(0)
+	mf := metricstest.NewFactory(0)
 	l, _ := zap.NewDevelopment()
 	f := newDeadlockDetector(mf, l, 0)
 	f.start()

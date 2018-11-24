@@ -22,7 +22,7 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
-	"github.com/uber/jaeger-lib/metrics"
+	"github.com/uber/jaeger-lib/metrics/metricstest"
 	"go.uber.org/zap"
 
 	"github.com/jaegertracing/jaeger/model"
@@ -42,7 +42,7 @@ type depStorageTest struct {
 func withDepStore(fn func(s *depStorageTest)) {
 	session := &mocks.Session{}
 	logger, logBuffer := testutils.NewLogger()
-	metricsFactory := metrics.NewLocalFactory(time.Second)
+	metricsFactory := metricstest.NewFactory(time.Second)
 	defer metricsFactory.Stop()
 	s := &depStorageTest{
 		session:   session,

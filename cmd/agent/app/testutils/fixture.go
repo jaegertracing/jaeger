@@ -17,13 +17,13 @@ package testutils
 import (
 	"testing"
 
+	"github.com/uber/jaeger-lib/metrics/metricstest"
 	"github.com/stretchr/testify/require"
-	"github.com/uber/jaeger-lib/metrics"
 )
 
 // InitMockCollector initializes a MockTCollector fixture
-func InitMockCollector(t *testing.T) (*metrics.LocalFactory, *MockTCollector) {
-	factory := metrics.NewLocalFactory(0)
+func InitMockCollector(t *testing.T) (*metricstest.Factory, *MockTCollector) {
+	factory := metricstest.NewFactory(0)
 	collector, err := StartMockTCollector()
 	require.NoError(t, err)
 

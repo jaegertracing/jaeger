@@ -18,14 +18,13 @@ import (
 	"testing"
 	"time"
 
-	"github.com/stretchr/testify/assert"
-	jaegerM "github.com/uber/jaeger-lib/metrics"
-
 	"github.com/jaegertracing/jaeger/model"
+	"github.com/stretchr/testify/assert"
+	"github.com/uber/jaeger-lib/metrics/metricstest"
 )
 
 func TestProcessorMetrics(t *testing.T) {
-	baseMetrics := jaegerM.NewLocalFactory(time.Hour)
+	baseMetrics := metricstest.NewFactory(time.Hour)
 	serviceMetrics := baseMetrics.Namespace("service", nil)
 	hostMetrics := baseMetrics.Namespace("host", nil)
 	spm := NewSpanProcessorMetrics(serviceMetrics, hostMetrics, []string{"scruffy"})
@@ -46,7 +45,7 @@ func TestProcessorMetrics(t *testing.T) {
 	jFormat.ReceivedBySvc.ReportServiceNameForSpan(&mSpan)
 	mSpan.ReplaceParentID(1234)
 	jFormat.ReceivedBySvc.ReportServiceNameForSpan(&mSpan)
-	counters, gauges := baseMetrics.LocalBackend.Snapshot()
+	counters, gauges := baseMetrics.Backend.Snapshot()
 
 	assert.EqualValues(t, 1, counters["service.spans.received|debug=false|format=jaeger|svc=fry"])
 	assert.EqualValues(t, 2, counters["service.spans.received|debug=true|format=jaeger|svc=fry"])
@@ -56,7 +55,7 @@ func TestProcessorMetrics(t *testing.T) {
 }
 
 func TestNewCountsBySvc(t *testing.T) {
-	baseMetrics := jaegerM.NewLocalFactory(time.Hour)
+	baseMetrics := metricstest.NewFactory(time.Hour)
 	metrics := newCountsBySvc(baseMetrics, "not_on_my_level", 3)
 
 	metrics.countByServiceName("fry", false)
@@ -64,7 +63,7 @@ func TestNewCountsBySvc(t *testing.T) {
 	metrics.countByServiceName("bender", false)
 	metrics.countByServiceName("zoidberg", false)
 
-	counters, _ := baseMetrics.LocalBackend.Snapshot()
+	counters, _ := baseMetrics.Backend.Snapshot()
 	assert.EqualValues(t, 1, counters["not_on_my_level|debug=false|svc=fry"])
 	assert.EqualValues(t, 1, counters["not_on_my_level|debug=false|svc=leela"])
 	assert.EqualValues(t, 2, counters["not_on_my_level|debug=false|svc=other-services"])
@@ -74,7 +73,7 @@ func TestNewCountsBySvc(t *testing.T) {
 	metrics.countByServiceName("leela", true)
 	metrics.countByServiceName("fry", true)
 
-	counters, _ = baseMetrics.LocalBackend.Snapshot()
+	counters, _ = baseMetrics.Backend.Snapshot()
 	assert.EqualValues(t, 1, counters["not_on_my_level|debug=true|svc=zoidberg"])
 	assert.EqualValues(t, 1, counters["not_on_my_level|debug=true|svc=bender"])
 	assert.EqualValues(t, 2, counters["not_on_my_level|debug=true|svc=other-services"])

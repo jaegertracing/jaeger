@@ -22,6 +22,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"github.com/uber/jaeger-lib/metrics"
+	"github.com/uber/jaeger-lib/metrics/metricstest"
 	"go.uber.org/zap"
 	"google.golang.org/grpc"
 
@@ -57,7 +58,7 @@ func TestMultipleCollectors(t *testing.T) {
 	})
 	defer s2.Stop()
 
-	mFactory := metrics.NewLocalFactory(time.Microsecond)
+	mFactory := metricstest.NewFactory(time.Microsecond)
 	proxy, err := NewCollectorProxy(&Options{CollectorHostPort: []string{addr1.String(), addr2.String()}}, mFactory, zap.NewNop())
 	require.NoError(t, err)
 	require.NotNil(t, proxy)

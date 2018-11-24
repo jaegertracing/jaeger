@@ -1,5 +1,5 @@
-hash: eb96c7fd56c8c6523990c19ba5bcf0d826922569a16e1019a88de57d46675775
-updated: 2018-10-12T23:27:30.163799+09:00
+hash: c989085653e341867354de5fa1993613baf10bedc72ba71e5d6388ab7d947d4d
+updated: 2018-11-24T16:00:17.164333289+05:30
 imports:
 - name: github.com/apache/thrift
   version: 53dd39833a08ce33582e5ff31fa18bb4735d6731
@@ -254,15 +254,15 @@ imports:
   - transport/zipkin
   - utils
 - name: github.com/uber/jaeger-lib
-  version: ed3a127ec5fef7ae9ea95b01b542c47fbd999ce5
+  version: 1fc5c315e03c871d98a3df762234414d185115d7
   subpackages:
   - metrics
   - metrics/adapters
   - metrics/expvar
   - metrics/go-kit
   - metrics/go-kit/expvar
+  - metrics/metricstest
   - metrics/prometheus
-  - metrics/testutils
 - name: github.com/uber/tchannel-go
   version: 1a0e35378f6f721bc07f6c4466bc9701ed70b506
   subpackages:
@@ -292,8 +292,9 @@ imports:
   - internal/ztest
   - zapcore
   - zaptest
+  - zaptest/observer
 - name: golang.org/x/net
-  version: 49bb7cea24b1df9410e1712aa6433dae904ff66a
+  version: adae6a3d119ae4890b46832a2e88a95adc62b8e7
   subpackages:
   - context
   - context/ctxhttp
@@ -339,10 +340,12 @@ imports:
   - peer
   - resolver
   - resolver/dns
+  - resolver/manual
   - resolver/passthrough
   - stats
   - status
   - tap
+  - test/bufconn
   - transport
 - name: gopkg.in/inf.v0
   version: 3887ee99ecf07df5b447e9b00d9c0b2adaa9f3e4
@@ -357,7 +360,7 @@ imports:
   - config
   - uritemplates
 - name: gopkg.in/yaml.v2
-  version: d670f9405373e636a5a2765eea47fac0c9bc91a4
+  version: 5420a8b6744d3b0345ab293f6fcba19c978f1183
 testImports:
 - name: github.com/kr/text
   version: 7cafcd837844e784b526369c9bce262804aebc60
