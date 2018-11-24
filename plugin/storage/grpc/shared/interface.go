@@ -20,7 +20,7 @@ import (
 	"github.com/hashicorp/go-plugin"
 	"google.golang.org/grpc"
 
-	"github.com/jaegertracing/jaeger/plugin/storage/external/proto"
+	"github.com/jaegertracing/jaeger/plugin/storage/grpc/proto"
 	"github.com/jaegertracing/jaeger/storage/dependencystore"
 	"github.com/jaegertracing/jaeger/storage/spanstore"
 )

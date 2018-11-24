@@ -12,27 +12,25 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package external
+package main
 
 import (
-	"flag"
+	"github.com/hashicorp/go-plugin"
 
-	"github.com/spf13/viper"
-
-	"github.com/jaegertracing/jaeger/pkg/external/config"
+	"github.com/jaegertracing/jaeger/plugin/storage/grpc/shared"
+	"github.com/jaegertracing/jaeger/plugin/storage/memory"
 )
 
-const pluginBinary = "external.plugin-binary"
-
-type Options struct {
-	Configuration config.Configuration
-}
-
-func (opt *Options) AddFlags(flagSet *flag.FlagSet) {
-	flagSet.String(pluginBinary, opt.Configuration.PluginBinary, "The location of the plugin binary")
-
-}
-
-func (opt *Options) InitFromViper(v *viper.Viper) {
-	opt.Configuration.PluginBinary = v.GetString(pluginBinary)
+func main() {
+	plugin.Serve(&plugin.ServeConfig{
+		HandshakeConfig: shared.Handshake,
+		VersionedPlugins: map[int]plugin.PluginSet{
+			18: map[string]plugin.Plugin{
+				shared.StoragePluginIdentifier: &shared.StorageGRPCPlugin{
+					Impl: memory.NewStore(),
+				},
+			},
+		},
+		GRPCServer: plugin.DefaultGRPCServer,
+	})
 }

@@ -386,3 +386,11 @@ proto-install:
 		./vendor/github.com/grpc-ecosystem/grpc-gateway/protoc-gen-swagger
 		# ./vendor/github.com/mwitkow/go-proto-validators/protoc-gen-govalidators \
 		# ./vendor/github.com/rakyll/statik
+
+.PHONY: plugin-proto
+plugin-proto:
+	protoc \
+	-I plugin/storage/external/proto \
+	--go_out=plugins=grpc:$(PWD)/plugin/storage/external/proto \
+	plugin/storage/external/proto/storage.proto \
+	plugin/storage/external/proto/model.proto

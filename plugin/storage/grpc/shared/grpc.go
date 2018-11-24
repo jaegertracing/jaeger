@@ -20,7 +20,7 @@ import (
 	"time"
 
 	"github.com/jaegertracing/jaeger/model"
-	"github.com/jaegertracing/jaeger/plugin/storage/external/proto"
+	"github.com/jaegertracing/jaeger/plugin/storage/grpc/proto"
 	"github.com/jaegertracing/jaeger/storage/spanstore"
 )
 

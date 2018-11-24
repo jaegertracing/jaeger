@@ -18,7 +18,7 @@ import (
 	"time"
 
 	"github.com/jaegertracing/jaeger/model"
-	"github.com/jaegertracing/jaeger/plugin/storage/external/proto"
+	"github.com/jaegertracing/jaeger/plugin/storage/grpc/proto"
 )
 
 func DependencyLinkSliceFromProto(p []*proto.DependencyLink) []model.DependencyLink {
@@ -171,6 +171,8 @@ func ValueTypeFromProto(p proto.ValueType) model.ValueType {
 	switch p {
 	case proto.ValueType_ValueType_STRING:
 		return model.ValueType_STRING
+	case proto.ValueType_ValueType_BOOL:
+		return model.ValueType_BOOL
 	case proto.ValueType_ValueType_INT64:
 		return model.ValueType_INT64
 	case proto.ValueType_ValueType_FLOAT64:

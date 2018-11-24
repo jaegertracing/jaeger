@@ -12,9 +12,27 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package config
+package grpc
 
-// Configuration describes the options to customize the storage behavior
-type Configuration struct {
-	PluginBinary string `yaml:"plugin-binary"`
+import (
+	"flag"
+
+	"github.com/spf13/viper"
+
+	"github.com/jaegertracing/jaeger/pkg/grpc/config"
+)
+
+const pluginBinary = "grpc-plugin.binary"
+
+type Options struct {
+	Configuration config.Configuration
+}
+
+func (opt *Options) AddFlags(flagSet *flag.FlagSet) {
+	flagSet.String(pluginBinary, opt.Configuration.PluginBinary, "The location of the plugin binary")
+
+}
+
+func (opt *Options) InitFromViper(v *viper.Viper) {
+	opt.Configuration.PluginBinary = v.GetString(pluginBinary)
 }
