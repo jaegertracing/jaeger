@@ -1,0 +1,90 @@
+syntax = "proto3";
+package proto;
+
+message DependencyLink {
+    string parent = 1;
+    string child = 2;
+    uint64 call_count = 3;
+}
+
+message TraceId {
+    uint64 low = 1;
+    uint64 high = 2;
+}
+
+message SpanRef {
+    TraceId trace_id = 1;
+    uint64 span_id = 2;
+    SpanRefType ref_type = 3;
+}
+
+message KeyValue {
+    string key = 1;
+    ValueType value_type = 2;
+    string string_value = 3;
+    bool bool_value = 4;
+    int64 int64_value = 5;
+    double float64_value = 6;
+    bytes binary_value = 7;
+}
+
+message Log {
+    Timestamp timestamp = 1;
+    repeated KeyValue fields = 2;
+}
+
+message Process {
+    string service_name = 1;
+    repeated KeyValue tags = 2;
+}
+
+message TraceProcessMapping {
+    string process_id = 1;
+    Process process = 2;
+}
+
+message Span {
+    TraceId trace_id = 1;
+    uint64 span_id = 2;
+    string operation_name = 3;
+    repeated SpanRef references = 4;
+    uint32 flags = 5;
+    Timestamp start_time = 6;
+    Duration duration = 7;
+    repeated KeyValue tags = 8;
+    repeated Log logs = 9;
+    Process process = 10;
+    string process_id = 11;
+    repeated string warnings = 12;
+}
+
+message Trace {
+    repeated Span spans = 1;
+    repeated TraceProcessMapping process_map = 2;
+    repeated string warnings = 3;
+}
+
+//NOTE(olivierboucher): would rather use google's wrappers but given the current context its easier
+message Timestamp {
+    int64 seconds = 1;
+    int32 nanos = 2;
+}
+
+//NOTE(olivierboucher): would rather use google's wrappers but given the current context its easier
+message Duration {
+    int64 seconds = 1;
+    int32 nanos = 2;
+}
+
+enum SpanRefType {
+    SpanRefType_CHILD_OF = 0;
+    SpanRefType_FOLLOWS_FROM = 1;
+}
+
+enum ValueType {
+    ValueType_STRING = 0;
+    ValueType_BOOL = 1;
+    ValueType_INT64 = 2;
+    ValueType_FLOAT64 = 3;
+    ValueType_BINARY = 4;
+}

@@ -25,6 +25,7 @@ import (
 	"github.com/jaegertracing/jaeger/plugin"
 	"github.com/jaegertracing/jaeger/plugin/storage/cassandra"
 	"github.com/jaegertracing/jaeger/plugin/storage/es"
+	"github.com/jaegertracing/jaeger/plugin/storage/external"
 	"github.com/jaegertracing/jaeger/plugin/storage/kafka"
 	"github.com/jaegertracing/jaeger/plugin/storage/memory"
 	"github.com/jaegertracing/jaeger/storage"
@@ -37,6 +38,9 @@ const (
 	elasticsearchStorageType = "elasticsearch"
 	memoryStorageType        = "memory"
 	kafkaStorageType         = "kafka"
+	// TODO(olivierboucher): I'm confused with the naming since I didn't want to name the package "plugin" but using "external" here
+	// does not make sense really
+	pluginStorageType = "plugin"
 )
 
 var allStorageTypes = []string{cassandraStorageType, elasticsearchStorageType, memoryStorageType, kafkaStorageType}
@@ -79,6 +83,8 @@ func (f *Factory) getFactoryOfType(factoryType string) (storage.Factory, error) 
 		return memory.NewFactory(), nil
 	case kafkaStorageType:
 		return kafka.NewFactory(), nil
+	case pluginStorageType:
+		return external.NewFactory(), nil
 	default:
 		return nil, fmt.Errorf("Unknown storage type %s. Valid types are %v", factoryType, allStorageTypes)
 	}

@@ -1,0 +1,176 @@
+syntax = "proto3";
+package proto;
+
+import "model.proto";
+
+//message WriteDependenciesRequest {
+//
+//}
+//
+//message WriteDependenciesResponse {
+//
+//}
+
+message GetDependenciesRequest {
+    Timestamp end_timestamp = 1;
+    Duration lookback = 2;
+}
+
+message GetDependenciesSuccess {
+    repeated DependencyLink dependencies = 1;
+}
+
+message GetDependenciesResponse {
+    oneof response {
+        GetDependenciesSuccess success = 1;
+        StoragePluginError error = 2;
+    }
+}
+
+//message InsertThroughputRequest {
+//
+//}
+//
+//message InsertThroughputResponse {
+//
+//}
+//
+//message InsertProbabilitiesAndQPSRequest {
+//
+//}
+//
+//message InsertProbabilitiesAndQPSResponse {
+//
+//}
+//
+//message GetThroughputRequest {
+//
+//}
+//
+//message GetThroughputResponse {
+//
+//}
+//
+//message GetProbabilitiesAndQPSRequest {
+//
+//}
+//
+//message GetProbabilitiesAndQPSResponse {
+//
+//}
+//
+//message GetLatestProbabilitiesRequest {
+//
+//}
+//
+//message GetLatestProbabilitiesResponse {
+//
+//}
+
+message WriteSpanRequest {
+    Span span = 1;
+}
+
+message WriteSpanResponse {
+    oneof response {
+        EmptyResponse success = 1;
+        StoragePluginError error = 2;
+    }
+}
+
+message GetTraceRequest {
+    TraceId trace_id = 1;
+}
+
+message GetTraceSuccess {
+    Trace trace = 1;
+}
+
+message GetTraceResponse {
+    oneof response {
+        GetTraceSuccess success = 1;
+        StoragePluginError error = 2;
+    }
+}
+
+message GetServicesRequest {}
+
+message GetServicesSuccess {
+    repeated string services = 1;
+}
+
+message GetServicesResponse {
+    oneof response {
+        GetServicesSuccess success = 1;
+        StoragePluginError error = 2;
+    }
+}
+
+message GetOperationsRequest {
+    string service = 1;
+}
+
+message GetOperationsSuccess {
+    repeated string operations = 1;
+}
+
+message GetOperationsResponse {
+    oneof response {
+        GetOperationsSuccess success = 1;
+        StoragePluginError error = 2;
+    }
+}
+
+message FindTracesRequest {
+    string service_name = 1;
+    string operation_name = 2;
+    map<string, string> tags = 3;
+    Timestamp start_time_min = 4;
+    Timestamp start_time_max = 5;
+    Duration duration_min = 6;
+    Duration duration_max = 7;
+    int32 num_traces = 8;
+}
+
+message FindTracesSuccess {
+    repeated Trace traces = 1;
+}
+
+message FindTracesResponse {
+    oneof response {
+        FindTracesSuccess success = 1;
+        StoragePluginError error = 2;
+    }
+}
+
+message EmptyResponse {
+
+}
+
+message StoragePluginError {
+    string message = 1;
+}
+
+service StoragePlugin {
+    // dependencystore/Writer
+//    rpc WriteDependencies(WriteDependenciesRequest) returns (WriteDependenciesResponse);
+    // dependencystore/Reader
+    rpc GetDependencies(GetDependenciesRequest) returns (GetDependenciesResponse);
+
+    // TODO(olivierboucher): make theses available once the POC goes through
+    // samplingstore/Store
+//    rpc InsertThroughput(InsertThroughputRequest) returns (InsertThroughputResponse);
+//    rpc InsertProbabilitiesAndQPS(InsertProbabilitiesAndQPSRequest) returns (InsertProbabilitiesAndQPSResponse);
+//    rpc GetThroughput(GetThroughputRequest) returns (GetThroughputResponse);
+//    rpc GetProbabilitiesAndQPS(GetProbabilitiesAndQPSRequest) returns (GetProbabilitiesAndQPSResponse);
+//    rpc GetLatestProbabilities(GetLatestProbabilitiesRequest) returns (GetLatestProbabilitiesResponse);
+
+    // spanstore/Writer
+    rpc WriteSpan(WriteSpanRequest) returns (WriteSpanResponse);
+
+    // spanstore/Reader
+    rpc GetTrace(GetTraceRequest) returns (GetTraceResponse);
+    rpc GetServices(GetServicesRequest) returns (GetServicesResponse);
+    rpc GetOperations(GetOperationsRequest) returns (GetOperationsResponse);
+    rpc FindTraces(FindTracesRequest) returns (FindTracesResponse);
+}
