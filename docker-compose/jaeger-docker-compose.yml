@@ -41,5 +41,5 @@ services:
 
     cassandra-schema:
       image: jaegertracing/jaeger-cassandra-schema
-      links:
+      depends_on:
         - cassandra

@@ -6,7 +6,7 @@
 CQLSH=${CQLSH:-"/usr/bin/cqlsh"}
 CQLSH_HOST=${CQLSH_HOST:-"cassandra"}
 CQLSH_SSL=${CQLSH_SSL:-""}
-CASSANDRA_WAIT_TIMEOUT=${CASSANDRA_WAIT_TIMEOUT:-"60"}
+CASSANDRA_WAIT_TIMEOUT=${CASSANDRA_WAIT_TIMEOUT:-"180"}
 DATACENTER=${DATACENTER:-"dc1"}
 KEYSPACE=${KEYSPACE:-"jaeger_v1_${DATACENTER}"}
 MODE=${MODE:-"test"}
@@ -14,7 +14,7 @@ MODE=${MODE:-"test"}
 total_wait=0
 while true
 do
-  if ${CQLSH} "${CQLSH_SSL}" -e "describe keyspaces"; then
+  if ${CQLSH} ${CQLSH_SSL} ${CQLSH_HOST} -e "describe keyspaces"; then
     break
   else
     if (( total_wait >= CASSANDRA_WAIT_TIMEOUT )); then
@@ -29,4 +29,4 @@ done
 
 echo "Generating the schema for the keyspace ${KEYSPACE} and datacenter ${DATACENTER}"
 
-MODE="${MODE}" DATACENTER="${DATACENTER}" KEYSPACE="${KEYSPACE}" /cassandra-schema/create.sh | ${CQLSH} "${CQLSH_SSL}"
+MODE="${MODE}" DATACENTER="${DATACENTER}" KEYSPACE="${KEYSPACE}" /cassandra-schema/create.sh | ${CQLSH} ${CQLSH_SSL} ${CQLSH_HOST}
