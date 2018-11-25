@@ -67,6 +67,8 @@ func (h *clientHandler) initialize() {
 	logger.Info("Query started")
 	httpHealthCheck(logger, collectorService, "http://jaeger-collector:14269")
 	logger.Info("Collector started")
+	logger.Info("Waiting 5 seconds for services to initialize")
+	time.Sleep(time.Second * 5)
 	queryService := services.NewQueryService("http://jaeger-query:16686", logger)
 	agentService := services.NewAgentService("http://jaeger-agent:5778", logger)
 
