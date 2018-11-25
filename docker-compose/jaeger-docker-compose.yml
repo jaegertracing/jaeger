@@ -10,11 +10,9 @@ services:
         - "14267"
         - "14250"
         - "9411:9411"
-      volumes:
-        - ./scripts/wait-for-cassandra.sh:/bin/wait-for-cassandra.sh
       restart: on-failure
       depends_on:
-        - cassandra
+        - cassandra-schema
 
     jaeger-query:
       image: jaegertracing/jaeger-query
@@ -22,11 +20,9 @@ services:
       ports:
         - "16686:16686"
         - "16687"
-      volumes:
-        - ./scripts/wait-for-cassandra.sh:/bin/wait-for-cassandra.sh
       restart: on-failure
       depends_on:
-        - cassandra
+        - cassandra-schema
 
     jaeger-agent:
       image: jaegertracing/jaeger-agent
@@ -41,4 +37,9 @@ services:
         - jaeger-collector
 
     cassandra:
+      image: cassandra:3.9
+
+    cassandra-schema:
       image: jaegertracing/jaeger-cassandra-schema
+      links:
+        - cassandra
