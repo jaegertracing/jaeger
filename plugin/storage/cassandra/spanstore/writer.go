@@ -103,6 +103,7 @@ func NewSpanWriter(
 	logger *zap.Logger,
 	options ...Option,
 ) *SpanWriter {
+	writeFactory := metricsFactory.Namespace("write", nil)
 	serviceNamesStorage := NewServiceNamesStorage(session, writeCacheTTL, metricsFactory, logger)
 	operationNamesStorage := NewOperationNamesStorage(session, writeCacheTTL, metricsFactory, logger)
 	tagIndexSkipped := metricsFactory.Counter("tag_index_skipped", nil)
@@ -112,11 +113,11 @@ func NewSpanWriter(
 		serviceNamesWriter:   serviceNamesStorage.Write,
 		operationNamesWriter: operationNamesStorage.Write,
 		writerMetrics: spanWriterMetrics{
-			traces:                casMetrics.NewTable(metricsFactory, "traces"),
-			tagIndex:              casMetrics.NewTable(metricsFactory, "tag_index"),
-			serviceNameIndex:      casMetrics.NewTable(metricsFactory, "service_name_index"),
-			serviceOperationIndex: casMetrics.NewTable(metricsFactory, "service_operation_index"),
-			durationIndex:         casMetrics.NewTable(metricsFactory, "duration_index"),
+			traces:                casMetrics.NewTable(writeFactory, "traces"),
+			tagIndex:              casMetrics.NewTable(writeFactory, "tag_index"),
+			serviceNameIndex:      casMetrics.NewTable(writeFactory, "service_name_index"),
+			serviceOperationIndex: casMetrics.NewTable(writeFactory, "service_operation_index"),
+			durationIndex:         casMetrics.NewTable(writeFactory, "duration_index"),
 		},
 		logger:          logger,
 		tagIndexSkipped: tagIndexSkipped,

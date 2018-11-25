@@ -85,7 +85,7 @@ func TestServiceNamesStorageWrite(t *testing.T) {
 
 				counts, _ := s.metricsFactory.Snapshot()
 				assert.Equal(t, map[string]int64{
-					"attempts|table=service_names": 2, "inserts|table=service_names": 1, "errors|table=service_names": 1,
+					"write.attempts|table=service_names": 2, "write.inserts|table=service_names": 1, "write.errors|table=service_names": 1,
 				}, counts)
 
 				// write again
@@ -96,8 +96,8 @@ func TestServiceNamesStorageWrite(t *testing.T) {
 				expCounts := counts
 				if writeCacheTTL == 0 {
 					// without write cache, the second write must succeed
-					expCounts["attempts|table=service_names"]++
-					expCounts["inserts|table=service_names"]++
+					expCounts["write.attempts|table=service_names"]++
+					expCounts["write.inserts|table=service_names"]++
 				}
 				assert.Equal(t, expCounts, counts2)
 			})

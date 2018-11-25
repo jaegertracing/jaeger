@@ -46,7 +46,7 @@ func NewDependencyStore(
 ) *DependencyStore {
 	return &DependencyStore{
 		session:                  session,
-		dependenciesTableMetrics: casMetrics.NewTable(metricsFactory, "dependencies"),
+		dependenciesTableMetrics: casMetrics.NewTable(metricsFactory.Namespace("write", nil), "dependencies"),
 		logger:                   logger,
 	}
 }
