@@ -83,14 +83,19 @@ func main() {
 				logger.Fatal("Cannot create metrics factory.", zap.Error(err))
 			}
 
-			tracer, closer, err := jaegerClientConfig.Configuration{
-				Sampler: &jaegerClientConfig.SamplerConfig{
+			tracerConfig, err := jaegerClientConfig.FromEnv()
+			if err != nil {
+				logger.Fatal("Cannot create tracer config", zap.Error(err))
+			}
+			tracerConfig.ServiceName = "jaeger-query"
+			if tracerConfig.Sampler == nil {
+				tracerConfig.Sampler = &jaegerClientConfig.SamplerConfig{
 					Type:  "probabilistic",
 					Param: 1.0,
-				},
-				RPCMetrics: true,
-			}.New(
-				"jaeger-query",
+				}
+			}
+			tracerConfig.RPCMetrics = true
+			tracer, closer, err := tracerConfig.NewTracer(
 				jaegerClientConfig.Metrics(baseFactory.Namespace("client", nil)),
 				jaegerClientConfig.Logger(jaegerClientZapLog.NewLogger(logger)),
 			)

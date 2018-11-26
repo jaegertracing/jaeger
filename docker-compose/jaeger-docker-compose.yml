@@ -21,8 +21,11 @@ services:
         - "16686:16686"
         - "16687"
       restart: on-failure
+      environment:
+        - JAEGER_AGENT_HOST=jaeger-agent
       depends_on:
         - cassandra-schema
+        - jaeger-agent
 
     jaeger-agent:
       image: jaegertracing/jaeger-agent
