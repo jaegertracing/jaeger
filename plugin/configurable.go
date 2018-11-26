@@ -16,10 +16,10 @@ package plugin
 
 import (
 	"flag"
-
-	"github.com/spf13/viper"
 	"github.com/uber/jaeger-lib/metrics"
 	"go.uber.org/zap"
+
+	"github.com/spf13/viper"
 )
 
 // Configurable interface can be implemented by plugins that require external configuration,
@@ -30,8 +30,12 @@ type Configurable interface {
 
 	// InitFromViper initializes this component with properties from spf13/viper.
 	InitFromViper(v *viper.Viper)
+}
 
+type ConfigurableMetrics interface {
 	AddMetrics(metricsFactory metrics.Factory)
+}
 
+type ConfigurableLogging interface {
 	AddLogger(logger *zap.Logger)
 }

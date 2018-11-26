@@ -5,7 +5,7 @@ import (
 
 	"github.com/jaegertracing/jaeger/cmd/collector/app"
 	"github.com/jaegertracing/jaeger/cmd/collector/app/sanitizer"
-	"github.com/jaegertracing/jaeger/pkg/plugin"
+	"github.com/jaegertracing/jaeger/pkg/pluginloader"
 )
 
 // Known symbols
@@ -24,7 +24,11 @@ var (
 	preSaveFunc    app.ProcessSpan
 )
 
-func PreProcess(pf plugin.Factory) (app.ProcessSpans, error) {
+func PreProcess(pf pluginloader.PluginLoader) (app.ProcessSpans, error) {
+	if pf == nil {
+		return nil, nil
+	}
+
 	plugins, err := pf.Get(preProcessSymbol, reflect.TypeOf(preProcessFunc))
 	if err != nil {
 		return nil, err
@@ -43,7 +47,11 @@ func PreProcess(pf plugin.Factory) (app.ProcessSpans, error) {
 	}
 }
 
-func SpanFilter(pf plugin.Factory) (app.FilterSpan, error) {
+func SpanFilter(pf pluginloader.PluginLoader) (app.FilterSpan, error) {
+	if pf == nil {
+		return nil, nil
+	}
+
 	plugins, err := pf.Get(spanFilterSymbol, reflect.TypeOf(spanFilterFunc))
 	if err != nil {
 		return nil, err
@@ -62,7 +70,11 @@ func SpanFilter(pf plugin.Factory) (app.FilterSpan, error) {
 	}
 }
 
-func Sanitizer(pf plugin.Factory) (sanitizer.SanitizeSpan, error) {
+func Sanitizer(pf pluginloader.PluginLoader) (sanitizer.SanitizeSpan, error) {
+	if pf == nil {
+		return nil, nil
+	}
+
 	plugins, err := pf.Get(sanitizerSymbol, reflect.TypeOf(sanitizerFunc))
 	if err != nil {
 		return nil, err
@@ -81,7 +93,11 @@ func Sanitizer(pf plugin.Factory) (sanitizer.SanitizeSpan, error) {
 	}
 }
 
-func PreSave(pf plugin.Factory) (app.ProcessSpan, error) {
+func PreSave(pf pluginloader.PluginLoader) (app.ProcessSpan, error) {
+	if pf == nil {
+		return nil, nil
+	}
+
 	plugins, err := pf.Get(preSaveSymbol, reflect.TypeOf(preSaveFunc))
 	if err != nil {
 		return nil, err

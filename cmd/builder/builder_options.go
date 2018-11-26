@@ -15,7 +15,7 @@
 package builder
 
 import (
-	"github.com/jaegertracing/jaeger/pkg/plugin"
+	"github.com/jaegertracing/jaeger/pkg/pluginloader"
 	"github.com/uber/jaeger-lib/metrics"
 	"go.uber.org/zap"
 )
@@ -29,7 +29,7 @@ type BasicOptions struct {
 	// MetricsFactory is the basic metrics factory used by most executables
 	MetricsFactory metrics.Factory
 	// PluginFactory is the generic factory used by most executable to support external plugins
-	PluginFactory plugin.Factory
+	PluginFactory pluginloader.PluginLoader
 }
 
 // Option is a function that sets some option on StorageBuilder.
@@ -53,7 +53,7 @@ func (BasicOptions) MetricsFactoryOption(metricsFactory metrics.Factory) Option 
 }
 
 // PluginFactoryOption creates an Option that initializes the PluginFactory
-func (BasicOptions) PluginFactoryOption(pluginFactory plugin.Factory) Option {
+func (BasicOptions) PluginFactoryOption(pluginFactory pluginloader.PluginLoader) Option {
 	return func(b *BasicOptions) {
 		b.PluginFactory = pluginFactory
 	}

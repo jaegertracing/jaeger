@@ -1,4 +1,4 @@
-package plugin
+package pluginloader
 
 import (
 	"flag"
@@ -21,16 +21,15 @@ type factory struct {
 	plugins    map[string]*pluginPkg.Plugin
 }
 
-type Factory interface {
-	Initialize() error
-	Get(symbol string, expectedType reflect.Type) ([]interface{}, error)
+type PluginLoader interface {
+	Load() error
 	AddFlags(flagSet *flag.FlagSet)
 	InitFromViper(v *viper.Viper)
-	AddMetrics(metricsFactory metrics.Factory)
-	AddLogger(logger *zap.Logger)
+	Initialize(metricsFactory metrics.Factory, logger *zap.Logger) error
+	Get(symbol string, expectedType reflect.Type) ([]interface{}, error)
 }
 
-func NewFactory(config FactoryConfig) (Factory, error) {
+func NewPluginLoader(config FactoryConfig) (PluginLoader, error) {
 	if config.PluginsDirectory != "" {
 		fi, err := os.Stat(config.PluginsDirectory)
 		if os.IsNotExist(err) {
@@ -47,7 +46,7 @@ func NewFactory(config FactoryConfig) (Factory, error) {
 	}, nil
 }
 
-func (f *factory) Initialize() error {
+func (f *factory) Load() error {
 	if f.pluginsDir != "" {
 		err := filepath.Walk(f.pluginsDir, f.walkpluginDir)
 		return err
@@ -91,19 +90,26 @@ func (f *factory) InitFromViper(v *viper.Viper) {
 	}
 }
 
-func (f *factory) AddMetrics(metricsFactory metrics.Factory) {
-	plugins, _ := f.Get(configurableSymbol, reflect.TypeOf((*plugin.Configurable)(nil)).Elem())
+func (f *factory) Initialize(metricsFactory metrics.Factory, logger *zap.Logger) error {
+	f.addLogger(logger)
+	f.addMetrics(metricsFactory)
+
+	return nil
+}
+
+func (f *factory) addMetrics(metricsFactory metrics.Factory) {
+	plugins, _ := f.Get(configurableMetricsSymbol, reflect.TypeOf((*plugin.ConfigurableMetrics)(nil)).Elem())
 	for _, p := range plugins {
-		p.(plugin.Configurable).AddMetrics(metricsFactory)
+		p.(plugin.ConfigurableMetrics).AddMetrics(metricsFactory)
 	}
 }
 
-func (f *factory) AddLogger(logger *zap.Logger) {
+func (f *factory) addLogger(logger *zap.Logger) {
 	f.logger = logger
 
-	plugins, _ := f.Get(configurableSymbol, reflect.TypeOf((*plugin.Configurable)(nil)).Elem())
+	plugins, _ := f.Get(configurableLoggingSymbol, reflect.TypeOf((*plugin.ConfigurableLogging)(nil)).Elem())
 	for _, p := range plugins {
-		p.(plugin.Configurable).AddLogger(logger)
+		p.(plugin.ConfigurableLogging).AddLogger(logger)
 	}
 }
 

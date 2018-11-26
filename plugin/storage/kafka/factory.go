@@ -17,7 +17,6 @@ package kafka
 import (
 	"errors"
 	"flag"
-
 	"github.com/Shopify/sarama"
 	"github.com/spf13/viper"
 	"github.com/uber/jaeger-lib/metrics"

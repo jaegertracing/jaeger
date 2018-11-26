@@ -16,6 +16,7 @@ package storage
 
 import (
 	"errors"
+	"github.com/jaegertracing/jaeger/pkg/pluginloader"
 
 	"github.com/uber/jaeger-lib/metrics"
 	"go.uber.org/zap"
@@ -60,4 +61,12 @@ type ArchiveFactory interface {
 
 	// CreateArchiveSpanWriter creates a spanstore.Writer.
 	CreateArchiveSpanWriter() (spanstore.Writer, error)
+}
+
+
+// PluginFactory is an additional interface that can be implemented by a factory to support plugins.
+type PluginFactory interface {
+	// InitializePlugin performs internal initialization of the plugins
+	// It is called after all configuration and initialization of the factory itself has been done
+	InitializePlugin(pluginLoader pluginloader.PluginLoader) error
 }

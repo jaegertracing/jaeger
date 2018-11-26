@@ -46,7 +46,7 @@ import (
 	"github.com/jaegertracing/jaeger/pkg/config"
 	"github.com/jaegertracing/jaeger/pkg/healthcheck"
 	pMetrics "github.com/jaegertracing/jaeger/pkg/metrics"
-	"github.com/jaegertracing/jaeger/pkg/plugin"
+	"github.com/jaegertracing/jaeger/pkg/pluginloader"
 	"github.com/jaegertracing/jaeger/pkg/recoveryhandler"
 	"github.com/jaegertracing/jaeger/pkg/version"
 	ss "github.com/jaegertracing/jaeger/plugin/sampling/strategystore"
@@ -62,6 +62,11 @@ func main() {
 	var signalsChannel = make(chan os.Signal)
 	signal.Notify(signalsChannel, os.Interrupt, syscall.SIGTERM)
 
+	pf, err := pluginloader.NewPluginLoader(pluginloader.FactoryConfigFromEnv())
+	if err != nil {
+		log.Fatalf("Could not instantiate the plugin factory: %v", err)
+	}
+	pf.Load()
 	storageFactory, err := storage.NewFactory(storage.FactoryConfigFromEnvAndCLI(os.Args, os.Stderr))
 	if err != nil {
 		log.Fatalf("Cannot initialize storage factory: %v", err)
@@ -70,11 +75,6 @@ func main() {
 	if err != nil {
 		log.Fatalf("Cannot initialize sampling strategy store factory: %v", err)
 	}
-	pf, err := plugin.NewFactory(plugin.FactoryConfigFromEnv())
-	if err != nil {
-		log.Fatalf("Could not instantiate the plugin factory: %v", err)
-	}
-	pf.Initialize()
 	if err != nil {
 		log.Fatalf("Could not initialize the plugin factory: %v", err)
 	}
@@ -107,9 +107,17 @@ func main() {
 				logger.Fatal("Cannot create metrics factory.", zap.Error(err))
 			}
 
+			pf.InitFromViper(v)
+			if err := pf.Initialize(baseFactory, logger); err != nil {
+				logger.Fatal("Failed to init plugin factory", zap.Error(err))
+			}
+
 			storageFactory.InitFromViper(v)
 			if err := storageFactory.Initialize(baseFactory, logger); err != nil {
 				logger.Fatal("Failed to init storage factory", zap.Error(err))
+			}
+			if err := storageFactory.InitializePlugin(pf); err != nil {
+				logger.Fatal("Failed to init plugin storage factory", zap.Error(err))
 			}
 			spanWriter, err := storageFactory.CreateSpanWriter()
 			if err != nil {

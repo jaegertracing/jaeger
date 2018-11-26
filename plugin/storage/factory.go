@@ -17,6 +17,7 @@ package storage
 import (
 	"flag"
 	"fmt"
+	"github.com/jaegertracing/jaeger/pkg/pluginloader"
 
 	"github.com/spf13/viper"
 	"github.com/uber/jaeger-lib/metrics"
@@ -27,6 +28,7 @@ import (
 	"github.com/jaegertracing/jaeger/plugin/storage/es"
 	"github.com/jaegertracing/jaeger/plugin/storage/kafka"
 	"github.com/jaegertracing/jaeger/plugin/storage/memory"
+	pluginStorage "github.com/jaegertracing/jaeger/plugin/storage/plugin"
 	"github.com/jaegertracing/jaeger/storage"
 	"github.com/jaegertracing/jaeger/storage/dependencystore"
 	"github.com/jaegertracing/jaeger/storage/spanstore"
@@ -37,9 +39,10 @@ const (
 	elasticsearchStorageType = "elasticsearch"
 	memoryStorageType        = "memory"
 	kafkaStorageType         = "kafka"
+	pluginStorageType        = "plugin"
 )
 
-var allStorageTypes = []string{cassandraStorageType, elasticsearchStorageType, memoryStorageType, kafkaStorageType}
+var allStorageTypes = []string{cassandraStorageType, elasticsearchStorageType, memoryStorageType, kafkaStorageType, pluginStorageType}
 
 // Factory implements storage.Factory interface as a meta-factory for storage components.
 type Factory struct {
@@ -79,6 +82,8 @@ func (f *Factory) getFactoryOfType(factoryType string) (storage.Factory, error) 
 		return memory.NewFactory(), nil
 	case kafkaStorageType:
 		return kafka.NewFactory(), nil
+	case pluginStorageType:
+		return pluginStorage.NewFactory(), nil
 	default:
 		return nil, fmt.Errorf("Unknown storage type %s. Valid types are %v", factoryType, allStorageTypes)
 	}
@@ -89,6 +94,18 @@ func (f *Factory) Initialize(metricsFactory metrics.Factory, logger *zap.Logger)
 	for _, factory := range f.factories {
 		if err := factory.Initialize(metricsFactory, logger); err != nil {
 			return err
+		}
+	}
+	return nil
+}
+
+// InitializePlugin implements storage.PluginFactory
+func (f *Factory) InitializePlugin(loader pluginloader.PluginLoader) error {
+	for _, factory := range f.factories {
+		if pf, ok := factory.(storage.PluginFactory); ok {
+			if err := pf.InitializePlugin(loader); err != nil {
+				return nil
+			}
 		}
 	}
 	return nil

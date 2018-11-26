@@ -80,6 +80,7 @@ func main() {
 			metricsFactory := baseFactory.Namespace(metrics.NSOptions{Name: "ingester", Tags: nil})
 
 			storageFactory.InitFromViper(v)
+			// TODO: Support plugins in Ingester
 			if err := storageFactory.Initialize(baseFactory, logger); err != nil {
 				logger.Fatal("Failed to init storage factory", zap.Error(err))
 			}

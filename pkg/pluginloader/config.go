@@ -1,4 +1,4 @@
-package plugin
+package pluginloader
 
 import (
 	"os"
@@ -11,7 +11,7 @@ const (
 	PluginsDirectoryEnvVar = "PLUGINS_DIRECTORY"
 )
 
-// FactoryConfig tells the Factory where to lo sampling type it needs to create.
+// FactoryConfig tells the PluginLoader where to lo sampling type it needs to create.
 type FactoryConfig struct {
 	PluginsDirectory string
 	InitialLogger    *zap.Logger

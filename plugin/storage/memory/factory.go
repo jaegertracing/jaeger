@@ -16,7 +16,6 @@ package memory
 
 import (
 	"flag"
-
 	"github.com/spf13/viper"
 	"github.com/uber/jaeger-lib/metrics"
 	"go.uber.org/zap"
