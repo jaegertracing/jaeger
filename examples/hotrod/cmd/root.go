@@ -34,9 +34,10 @@ var (
 	logger         *zap.Logger
 	metricsFactory metrics.Factory
 
-	fixDBConnDelay         time.Duration
-	fixDBConnDisableMutex  bool
-	fixRouteWorkerPoolSize int
+	fixDBConnDelay            time.Duration
+	fixDBConnDisableMutex     bool
+	fixGetDriversConcurrently bool
+	fixRouteWorkerPoolSize    int
 
 	customerPort int
 	driverPort   int
@@ -64,6 +65,7 @@ func init() {
 	RootCmd.PersistentFlags().StringVarP(&metricsBackend, "metrics", "m", "expvar", "Metrics backend (expvar|prometheus)")
 	RootCmd.PersistentFlags().DurationVarP(&fixDBConnDelay, "fix-db-query-delay", "D", 300*time.Millisecond, "Average lagency of MySQL DB query")
 	RootCmd.PersistentFlags().BoolVarP(&fixDBConnDisableMutex, "fix-disable-db-conn-mutex", "M", false, "Disables the mutex guarding db connection")
+	RootCmd.PersistentFlags().BoolVarP(&fixGetDriversConcurrently, "fix-get-driver-concurrent", "C", false, "Enable concurrency in driver::findNearest")
 	RootCmd.PersistentFlags().IntVarP(&fixRouteWorkerPoolSize, "fix-route-worker-pool-size", "W", 3, "Default worker pool size")
 
 	// Add flags to choose ports for services
@@ -95,6 +97,10 @@ func onInitialize() {
 	if fixDBConnDisableMutex {
 		logger.Info("fix: disabling db connection mutex")
 		config.MySQLMutexDisabled = true
+	}
+	if fixGetDriversConcurrently {
+		logger.Info("fix: enabling concurrency in driver::findNearest")
+		config.GetDriversConcurrently = true
 	}
 	if config.RouteWorkerPoolSize != fixRouteWorkerPoolSize {
 		logger.Info("fix: overriding route worker pool size", zap.Int("old", config.RouteWorkerPoolSize), zap.Int("new", fixRouteWorkerPoolSize))

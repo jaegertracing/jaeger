@@ -40,6 +40,10 @@ var (
 
 	// 'driver' service
 
+	// GetDriversConcurrently controls whether redis::GetDriver calls are made
+	// concurrently from Driver::findNearest.
+	GetDriversConcurrently = false
+
 	// RedisFindDelay is how long finding closest drivers takes.
 	RedisFindDelay = 20 * time.Millisecond
 
@@ -59,5 +63,4 @@ var (
 
 	// RouteCalcDelayStdDev is standard deviation
 	RouteCalcDelayStdDev = RouteCalcDelay / 4
-
 )
