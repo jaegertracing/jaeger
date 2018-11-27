@@ -38,8 +38,9 @@ func TestFailToListen(t *testing.T) {
 	l, _ := zap.NewDevelopment()
 	handler := app.NewGRPCHandler(l, &mockSpanProcessor{})
 	server := grpc.NewServer()
-	_, err := StartGRPCCollector(-1, server, handler, &mockSamplingStore{}, l, func(e error) {
+	addr, err := StartGRPCCollector(-1, server, handler, &mockSamplingStore{}, l, func(e error) {
 	})
+	assert.Nil(t, addr)
 	assert.EqualError(t, err, "Failed to listen on gRPC port: listen tcp: address -1: invalid port")
 }
 
