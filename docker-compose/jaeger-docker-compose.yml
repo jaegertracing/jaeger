@@ -3,6 +3,7 @@ version: '2'
 services:
     jaeger-collector:
       image: jaegertracing/jaeger-collector
+      dns_search: .
       entrypoint: ["/bin/bash", "/bin/wait-for-cassandra.sh", "/go/bin/collector-linux", "--cassandra.keyspace=jaeger_v1_dc1", "--cassandra.servers=cassandra", "--collector.zipkin.http-port=9411"]
       ports:
         - "14269"
@@ -16,6 +17,7 @@ services:
 
     jaeger-query:
       image: jaegertracing/jaeger-query
+      dns_search: .
       entrypoint: ["/bin/bash", "/bin/wait-for-cassandra.sh", "/go/bin/query-linux", "--cassandra.keyspace=jaeger_v1_dc1", "--cassandra.servers=cassandra"]
       ports:
         - "16686:16686"
@@ -29,6 +31,7 @@ services:
 
     jaeger-agent:
       image: jaegertracing/jaeger-agent
+      dns_search: .
       command: ["--reporter.type=grpc", "--reporter.grpc.host-port=jaeger-collector:14250"]
       ports:
         - "5775:5775/udp"
@@ -41,8 +44,10 @@ services:
 
     cassandra:
       image: cassandra:3.9
+      dns_search: .
 
     cassandra-schema:
       image: jaegertracing/jaeger-cassandra-schema
+      dns_search: .
       depends_on:
         - cassandra

@@ -219,7 +219,7 @@ func (h *TraceHandler) createAndRetrieveTraces(service string, request *traceReq
 }
 
 func (h *TraceHandler) getTraces(service, operation string, tags map[string]string) []*ui.Trace {
-	const maxAttempts = 60
+	const maxAttempts = 10
 	// Retry multiple time since SASI indexing takes a couple of seconds
 	for i := 0; i < maxAttempts; i++ {
 		h.logger.Info(fmt.Sprintf("Waiting for traces, iteration %d out of %d", i+1, maxAttempts))
