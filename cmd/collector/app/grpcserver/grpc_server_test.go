@@ -38,19 +38,20 @@ func TestFailToListen(t *testing.T) {
 	l, _ := zap.NewDevelopment()
 	handler := app.NewGRPCHandler(l, &mockSpanProcessor{})
 	server := grpc.NewServer()
-	addr, err := StartGRPCCollector(1, server, handler, &mockSamplingStore{}, l, func(e error) {
+	const invalidPort = -1
+	addr, err := StartGRPCCollector(invalidPort, server, handler, &mockSamplingStore{}, l, func(e error) {
 	})
-	require.Nil(t, addr)
-	assert.EqualError(t, err, "Failed to listen on gRPC port: listen tcp :1: bind: permission denied")
+	assert.Nil(t, addr)
+	assert.EqualError(t, err, "Failed to listen on gRPC port: listen tcp: address -1: invalid port")
 }
 
 func TestFailServe(t *testing.T) {
 	lis := bufconn.Listen(0)
 	lis.Close()
 	core, logs := observer.New(zap.NewAtomicLevelAt(zapcore.ErrorLevel))
-	wg := &sync.WaitGroup{}
+	var wg sync.WaitGroup
 	wg.Add(1)
-	starServer(grpc.NewServer(), lis, zap.New(core), func(e error) {
+	startServer(grpc.NewServer(), lis, zap.New(core), func(e error) {
 		assert.Equal(t, 1, len(logs.All()))
 		assert.Equal(t, "Could not launch gRPC service", logs.All()[0].Message)
 		wg.Done()

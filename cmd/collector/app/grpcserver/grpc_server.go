@@ -50,11 +50,11 @@ func StartGRPCCollector(
 
 	api_v2.RegisterCollectorServiceServer(server, handler)
 	api_v2.RegisterSamplingManagerServer(server, sampling.NewGRPCHandler(samplingStrategy))
-	starServer(server, lis, logger, serveErr)
+	startServer(server, lis, logger, serveErr)
 	return lis.Addr(), nil
 }
 
-func starServer(server *grpc.Server, lis net.Listener, logger *zap.Logger, serveErr func(error)) {
+func startServer(server *grpc.Server, lis net.Listener, logger *zap.Logger, serveErr func(error)) {
 	var port string
 	if tcpAddr, ok := lis.Addr().(*net.TCPAddr); ok {
 		port = strconv.Itoa(tcpAddr.Port)
