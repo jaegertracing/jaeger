@@ -65,7 +65,7 @@ func (r *Reporter) EmitZipkinBatch(zSpans []*zipkincore.Span) error {
 func (r *Reporter) send(spans []*model.Span, process *model.Process) error {
 	batch := model.Batch{Spans: spans, Process: process}
 	req := &api_v2.PostSpansRequest{Batch: batch}
-	_, err := r.collector.PostSpans(context.Background(), req)
+	_, err := r.collector.PostSpans(context.Background(), req, grpc.FailFast(false))
 	if err != nil {
 		r.logger.Error("Could not send spans over gRPC", zap.Error(err))
 	}
