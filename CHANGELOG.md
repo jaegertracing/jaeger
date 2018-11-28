@@ -1,6 +1,20 @@
 Changes by Version
 ==================
 
+1.8.2 (2018-11-28)
+------------------
+
+#### UI Changes
+
+##### New Features
+
+- Embedded components (SearchTraces and Tracepage) ([#263](https://github.com/jaegertracing/jaeger/pull/263), [@aljesusg](https://github.com/aljesusg))
+
+##### Bug fixes, Minor Improvements
+
+- Fix link in scatter plot when embed mode ([#283](https://github.com/jaegertracing/jaeger-ui/pull/283), [@aljesusg](https://github.com/aljesusg))
+- Fix rendering X axis in TraceResultsScatterPlot - pass milliseconds to moment.js ([#274](https://github.com/jaegertracing/jaeger-ui/pull/274), [@istrel](https://github.com/istrel))
+
 1.8.1 (2018-11-23)
 ------------------
 
