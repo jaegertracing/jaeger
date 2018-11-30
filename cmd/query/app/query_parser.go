@@ -30,12 +30,14 @@ import (
 
 const (
 	defaultQueryLimit = 100
+	defaultSpansLimit = 10000
 
 	operationParam   = "operation"
 	tagParam         = "tag"
 	tagsParam        = "tags"
 	startTimeParam   = "start"
 	limitParam       = "limit"
+	limitSpansParam  = "limitSpans"
 	minDurationParam = "minDuration"
 	maxDurationParam = "maxDuration"
 	serviceParam     = "service"
@@ -105,6 +107,16 @@ func (p *queryParser) parse(r *http.Request) (*traceQueryParameters, error) {
 		limit = int(limitParsed)
 	}
 
+	limitSpansParam := r.FormValue(limitSpansParam)
+	limitSpans := defaultSpansLimit
+	if limitSpansParam != "" {
+		limitParsed, err := strconv.ParseInt(limitSpansParam, 10, 32)
+		if err != nil {
+			return nil, err
+		}
+		limitSpans = int(limitParsed)
+	}
+
 	minDuration, err := p.parseDuration(minDurationParam, r)
 	if err != nil {
 		return nil, err
@@ -137,6 +149,7 @@ func (p *queryParser) parse(r *http.Request) (*traceQueryParameters, error) {
 			StartTimeMax:  endTime,
 			Tags:          tags,
 			NumTraces:     limit,
+			NumSpans:      limitSpans,
 			DurationMin:   minDuration,
 			DurationMax:   maxDuration,
 		},

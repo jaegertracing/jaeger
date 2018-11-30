@@ -54,7 +54,6 @@ const (
 
 	defaultDocCount  = 10000 // the default elasticsearch allowed limit
 	defaultNumTraces = 100
-	defaultNumSpans  = 1000
 )
 
 var (
@@ -239,8 +238,7 @@ func (s *SpanReader) FindTraceIDs(ctx context.Context, traceQuery *spanstore.Tra
 	return nil, errors.New("not implemented") // TODO: Implement
 }
 
-func (s *SpanReader) multiRead(ctx context.Context, traceIDs []string, startTime, endTime time.Time) ([]*model.Trace, error) {
-
+func (s *SpanReader) multiRead(ctx context.Context, traceIDs []string, startTime, endTime time.Time, numSpans int) ([]*model.Trace, error) {
 	childSpan, _ := opentracing.StartSpanFromContext(ctx, "multiRead")
 	childSpan.LogFields(otlog.Object("trace_ids", traceIDs))
 	defer childSpan.Finish()
@@ -270,7 +268,7 @@ func (s *SpanReader) multiRead(ctx context.Context, traceIDs []string, startTime
 			if val, ok := searchAfterTime[traceID]; ok {
 				nextTime = val
 			}
-			searchRequests[i] = elastic.NewSearchRequest().IgnoreUnavailable(true).Type(spanType).Source(elastic.NewSearchSource().Query(query).Size(defaultDocCount).TerminateAfter(defaultNumSpans).Sort("startTime", true).SearchAfter(nextTime))
+			searchRequests[i] = elastic.NewSearchRequest().IgnoreUnavailable(true).Type(spanType).Source(elastic.NewSearchSource().Query(query).Size(defaultDocCount).TerminateAfter(numSpans).Sort("startTime", true).SearchAfter(nextTime))
 		}
 		// set traceIDs to empty
 		traceIDs = nil

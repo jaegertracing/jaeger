@@ -51,4 +51,5 @@ type TraceQueryParameters struct {
 	DurationMin   time.Duration
 	DurationMax   time.Duration
 	NumTraces     int
+	NumSpans      int
 }
