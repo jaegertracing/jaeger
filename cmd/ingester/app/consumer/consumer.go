@@ -47,6 +47,7 @@ type Consumer struct {
 	deadlockDetector deadlockDetector
 
 	partitionIDToState map[int32]*consumerState
+	partitionMapLock   sync.Mutex
 	partitionsHeld     metrics.Counter
 }
 
@@ -75,6 +76,7 @@ func (c *Consumer) Start() {
 	go func() {
 		c.logger.Info("Starting main loop")
 		for pc := range c.internalConsumer.Partitions() {
+			c.partitionMapLock.Lock()
 			if p, ok := c.partitionIDToState[pc.Partition()]; ok {
 				// This is a guard against simultaneously draining messages
 				// from the last time the partition was assigned and
@@ -82,8 +84,9 @@ func (c *Consumer) Start() {
 				// to the cleanup process not completing
 				p.wg.Wait()
 			}
-			c.partitionMetrics(pc.Partition()).startCounter.Inc(1)
 			c.partitionIDToState[pc.Partition()] = &consumerState{partitionConsumer: pc}
+			c.partitionMapLock.Unlock()
+			c.partitionMetrics(pc.Partition()).startCounter.Inc(1)
 			go c.handleMessages(pc)
 			go c.handleErrors(pc.Partition(), pc.Errors())
 		}
@@ -92,10 +95,12 @@ func (c *Consumer) Start() {
 
 // Close closes the Consumer and underlying sarama consumer
 func (c *Consumer) Close() error {
+	c.partitionMapLock.Lock()
 	for _, p := range c.partitionIDToState {
 		c.closePartition(p.partitionConsumer)
 		p.wg.Wait()
 	}
+	c.partitionMapLock.Unlock()
 	c.deadlockDetector.close()
 	c.logger.Info("Closing parent consumer")
 	return c.internalConsumer.Close()
@@ -105,8 +110,11 @@ func (c *Consumer) handleMessages(pc sc.PartitionConsumer) {
 	c.logger.Info("Starting message handler", zap.Int32("partition", pc.Partition()))
 	c.partitionsHeld.Inc(1)
 	defer c.partitionsHeld.Inc(-1)
-	c.partitionIDToState[pc.Partition()].wg.Add(1)
-	defer c.partitionIDToState[pc.Partition()].wg.Done()
+	c.partitionMapLock.Lock()
+	wg := &c.partitionIDToState[pc.Partition()].wg
+	c.partitionMapLock.Unlock()
+	wg.Add(1)
+	defer wg.Done()
 	defer c.closePartition(pc)
 
 	msgMetrics := c.newMsgMetrics(pc.Partition())
@@ -152,8 +160,11 @@ func (c *Consumer) closePartition(partitionConsumer sc.PartitionConsumer) {
 
 func (c *Consumer) handleErrors(partition int32, errChan <-chan *sarama.ConsumerError) {
 	c.logger.Info("Starting error handler", zap.Int32("partition", partition))
-	c.partitionIDToState[partition].wg.Add(1)
-	defer c.partitionIDToState[partition].wg.Done()
+	c.partitionMapLock.Lock()
+	wg := &c.partitionIDToState[partition].wg
+	c.partitionMapLock.Unlock()
+	wg.Add(1)
+	defer wg.Done()
 
 	errMetrics := c.newErrMetrics(partition)
 	for err := range errChan {
