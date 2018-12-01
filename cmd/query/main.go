@@ -48,7 +48,8 @@ func main() {
 	var serverChannel = make(chan os.Signal)
 	signal.Notify(serverChannel, os.Interrupt, syscall.SIGTERM)
 
-	storageFactory, err := storage.NewFactory(storage.FactoryConfigFromEnvAndCLI(os.Args, os.Stderr))
+	storageFactory, err := storage.NewFactory(storage.FactoryConfigFromEnvAndCLI(os.Args, os.Stderr),
+		[]string{storage.KafkaStorageType})
 	if err != nil {
 		log.Fatalf("Cannot initialize storage factory: %v", err)
 	}

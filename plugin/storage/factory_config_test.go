@@ -33,25 +33,25 @@ func TestFactoryConfigFromEnv(t *testing.T) {
 
 	f := FactoryConfigFromEnvAndCLI(nil, nil)
 	assert.Equal(t, 1, len(f.SpanWriterTypes))
-	assert.Equal(t, cassandraStorageType, f.SpanWriterTypes[0])
-	assert.Equal(t, cassandraStorageType, f.SpanReaderType)
-	assert.Equal(t, cassandraStorageType, f.DependenciesStorageType)
+	assert.Equal(t, CassandraStorageType, f.SpanWriterTypes[0])
+	assert.Equal(t, CassandraStorageType, f.SpanReaderType)
+	assert.Equal(t, CassandraStorageType, f.DependenciesStorageType)
 
-	os.Setenv(SpanStorageTypeEnvVar, elasticsearchStorageType)
-	os.Setenv(DependencyStorageTypeEnvVar, memoryStorageType)
+	os.Setenv(SpanStorageTypeEnvVar, ElasticsearchStorageType)
+	os.Setenv(DependencyStorageTypeEnvVar, MemoryStorageType)
 
 	f = FactoryConfigFromEnvAndCLI(nil, nil)
 	assert.Equal(t, 1, len(f.SpanWriterTypes))
-	assert.Equal(t, elasticsearchStorageType, f.SpanWriterTypes[0])
-	assert.Equal(t, elasticsearchStorageType, f.SpanReaderType)
-	assert.Equal(t, memoryStorageType, f.DependenciesStorageType)
+	assert.Equal(t, ElasticsearchStorageType, f.SpanWriterTypes[0])
+	assert.Equal(t, ElasticsearchStorageType, f.SpanReaderType)
+	assert.Equal(t, MemoryStorageType, f.DependenciesStorageType)
 
-	os.Setenv(SpanStorageTypeEnvVar, elasticsearchStorageType+","+kafkaStorageType)
+	os.Setenv(SpanStorageTypeEnvVar, ElasticsearchStorageType+","+KafkaStorageType)
 
 	f = FactoryConfigFromEnvAndCLI(nil, &bytes.Buffer{})
 	assert.Equal(t, 2, len(f.SpanWriterTypes))
-	assert.Equal(t, []string{elasticsearchStorageType, kafkaStorageType}, f.SpanWriterTypes)
-	assert.Equal(t, elasticsearchStorageType, f.SpanReaderType)
+	assert.Equal(t, []string{ElasticsearchStorageType, KafkaStorageType}, f.SpanWriterTypes)
+	assert.Equal(t, ElasticsearchStorageType, f.SpanReaderType)
 }
 
 func TestFactoryConfigFromEnvDeprecated(t *testing.T) {

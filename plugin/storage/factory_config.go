@@ -55,7 +55,7 @@ func FactoryConfigFromEnvAndCLI(args []string, log io.Writer) FactoryConfig {
 		spanStorageType = spanStorageTypeFromArgs(args, log)
 	}
 	if spanStorageType == "" {
-		spanStorageType = cassandraStorageType
+		spanStorageType = CassandraStorageType
 	}
 	spanWriterTypes := strings.Split(spanStorageType, ",")
 	if len(spanWriterTypes) > 1 {

@@ -33,24 +33,29 @@ import (
 )
 
 const (
-	cassandraStorageType     = "cassandra"
-	elasticsearchStorageType = "elasticsearch"
-	memoryStorageType        = "memory"
-	kafkaStorageType         = "kafka"
+	// CassandraStorageType is the configuration value expected to use Cassandra storage
+	CassandraStorageType = "cassandra"
+	// ElasticsearchStorageType is the configuration value expected to use Elasticsearch storage
+	ElasticsearchStorageType = "elasticsearch"
+	// MemoryStorageType is the configuration value expected to use the in-memory storage
+	MemoryStorageType = "memory"
+	// KafkaStorageType is the configuration value expected to use Kafka storage
+	KafkaStorageType = "kafka"
 )
 
-var allStorageTypes = []string{cassandraStorageType, elasticsearchStorageType, memoryStorageType, kafkaStorageType}
+var allStorageTypes = []string{CassandraStorageType, ElasticsearchStorageType, MemoryStorageType, KafkaStorageType}
 
 // Factory implements storage.Factory interface as a meta-factory for storage components.
 type Factory struct {
 	FactoryConfig
 
-	factories map[string]storage.Factory
+	unsupportedTypes []string
+	factories        map[string]storage.Factory
 }
 
 // NewFactory creates the meta-factory.
-func NewFactory(config FactoryConfig) (*Factory, error) {
-	f := &Factory{FactoryConfig: config}
+func NewFactory(config FactoryConfig, unsupportedTypes []string) (*Factory, error) {
+	f := &Factory{FactoryConfig: config, unsupportedTypes: unsupportedTypes}
 	uniqueTypes := map[string]struct{}{
 		f.SpanReaderType:          {},
 		f.DependenciesStorageType: {},
@@ -60,6 +65,9 @@ func NewFactory(config FactoryConfig) (*Factory, error) {
 	}
 	f.factories = make(map[string]storage.Factory)
 	for t := range uniqueTypes {
+		if f.isUnsupportedType(t) {
+			return nil, fmt.Errorf("The %s storage type is unsupported by this command", t)
+		}
 		ff, err := f.getFactoryOfType(t)
 		if err != nil {
 			return nil, err
@@ -69,15 +77,24 @@ func NewFactory(config FactoryConfig) (*Factory, error) {
 	return f, nil
 }
 
+func (f *Factory) isUnsupportedType(factoryType string) bool {
+	for _, t := range f.unsupportedTypes {
+		if t == factoryType {
+			return true
+		}
+	}
+	return false
+}
+
 func (f *Factory) getFactoryOfType(factoryType string) (storage.Factory, error) {
 	switch factoryType {
-	case cassandraStorageType:
+	case CassandraStorageType:
 		return cassandra.NewFactory(), nil
-	case elasticsearchStorageType:
+	case ElasticsearchStorageType:
 		return es.NewFactory(), nil
-	case memoryStorageType:
+	case MemoryStorageType:
 		return memory.NewFactory(), nil
-	case kafkaStorageType:
+	case KafkaStorageType:
 		return kafka.NewFactory(), nil
 	default:
 		return nil, fmt.Errorf("Unknown storage type %s. Valid types are %v", factoryType, allStorageTypes)

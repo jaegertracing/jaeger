@@ -61,7 +61,7 @@ func main() {
 	var signalsChannel = make(chan os.Signal)
 	signal.Notify(signalsChannel, os.Interrupt, syscall.SIGTERM)
 
-	storageFactory, err := storage.NewFactory(storage.FactoryConfigFromEnvAndCLI(os.Args, os.Stderr))
+	storageFactory, err := storage.NewFactory(storage.FactoryConfigFromEnvAndCLI(os.Args, os.Stderr), nil)
 	if err != nil {
 		log.Fatalf("Cannot initialize storage factory: %v", err)
 	}
