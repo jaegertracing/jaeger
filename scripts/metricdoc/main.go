@@ -17,7 +17,7 @@ import (
 )
 
 func printUsage() {
-	fmt.Println("usage: metricdoc <dir>")
+	fmt.Println("usage: metricdoc PACKAGE...")
 }
 
 type metricDoc struct {
