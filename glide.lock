@@ -1,5 +1,5 @@
-hash: eb96c7fd56c8c6523990c19ba5bcf0d826922569a16e1019a88de57d46675775
-updated: 2018-10-12T23:27:30.163799+09:00
+hash: 5abd7d738b449a9b8e0a6fffdce042afbd9150655f00c8a2f3d4ac294bdec6df
+updated: 2018-12-02T12:56:37.916144509-05:00
 imports:
 - name: github.com/apache/thrift
   version: 53dd39833a08ce33582e5ff31fa18bb4735d6731
@@ -32,6 +32,8 @@ imports:
   version: bb955e01b9346ac19dc29eb16586c90ded99a98c
 - name: github.com/eapache/queue
   version: 093482f3f8ce946c05bcba64badd2c82369e084d
+- name: github.com/fatih/structtag
+  version: 76ae1d6d2117609598c7d4e8f3e938145f204e8f
 - name: github.com/fsnotify/fsnotify
   version: c2828203cd70a50dcccfb2761f8b1f8ceef9a8e9
 - name: github.com/go-kit/kit
@@ -292,8 +294,9 @@ imports:
   - internal/ztest
   - zapcore
   - zaptest
+  - zaptest/observer
 - name: golang.org/x/net
-  version: 49bb7cea24b1df9410e1712aa6433dae904ff66a
+  version: 26e67e76b6c3f6ce91f7c52def5af501b4e0f3a2
   subpackages:
   - context
   - context/ctxhttp
@@ -339,10 +342,12 @@ imports:
   - peer
   - resolver
   - resolver/dns
+  - resolver/manual
   - resolver/passthrough
   - stats
   - status
   - tap
+  - test/bufconn
   - transport
 - name: gopkg.in/inf.v0
   version: 3887ee99ecf07df5b447e9b00d9c0b2adaa9f3e4
