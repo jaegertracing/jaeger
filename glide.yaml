@@ -76,3 +76,4 @@ import:
 - package: golang.org/x/sys
   subpackages:
   - unix
+- package: github.com/fatih/structtag
