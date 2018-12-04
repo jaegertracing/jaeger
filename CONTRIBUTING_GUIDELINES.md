@@ -94,11 +94,6 @@ add the sign off when creating the git commit via `git commit -s`.
 
 If you want signing to be automatic you can set up some aliases:
 
-```
-git config --add alias.amend "commit -s --amend"
-git config --add alias.c "commit -s"
-```
-
 ### Missing sign-offs
 
 Note that **every commit in the pull request must be signed**. Jaeger
