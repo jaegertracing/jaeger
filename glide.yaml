@@ -12,6 +12,7 @@ import:
 - package: github.com/pkg/errors
 - package: go.uber.org/zap
   version: ^1
+- package: go.uber.org/ratelimit
 - package: github.com/uber/jaeger-client-go
   version: ^2.15.0
   subpackages:

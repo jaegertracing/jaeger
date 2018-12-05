@@ -27,6 +27,7 @@ import (
 	"github.com/jaegertracing/jaeger/pkg/config"
 	"github.com/jaegertracing/jaeger/pkg/testutils"
 	"github.com/jaegertracing/jaeger/storage"
+	"github.com/jaegertracing/jaeger/storage/spanstore/ratelimit"
 )
 
 var _ storage.Factory = new(Factory)
@@ -86,4 +87,24 @@ func TestCassandraFactory(t *testing.T) {
 
 	_, err = f.CreateArchiveSpanWriter()
 	assert.NoError(t, err)
+}
+
+func TestCassandraFactoryWriterRateLimit(t *testing.T) {
+	logger, _ := testutils.NewLogger()
+	f := NewFactory()
+	v, command := config.Viperize(f.AddFlags)
+	command.ParseFlags([]string{
+		"--cassandra.writes-per-second=10",
+	})
+	f.InitFromViper(v)
+
+	// Use mock to avoid errors in unit test. See details in previous test case.
+	f.primaryConfig = &mockSessionBuilder{}
+	f.archiveConfig = nil
+	assert.NoError(t, f.Initialize(metrics.NullFactory, logger))
+
+	writer, err := f.CreateSpanWriter()
+	assert.NoError(t, err)
+	dummyRateLimitedWriter, _ := ratelimit.NewRateLimitedWriter(nil, 1)
+	assert.IsType(t, dummyRateLimitedWriter, writer)
 }

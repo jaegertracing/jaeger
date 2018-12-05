@@ -48,6 +48,7 @@ const (
 
 	// common storage settings
 	suffixSpanStoreWriteCacheTTL = ".span-store-write-cache-ttl"
+	suffixWritesPerSecond        = ".writes-per-second"
 )
 
 // Options contains various type of Cassandra configs and provides the ability
@@ -57,6 +58,7 @@ type Options struct {
 	primary                *namespaceConfig
 	others                 map[string]*namespaceConfig
 	SpanStoreWriteCacheTTL time.Duration
+	writesPerSecond        int
 }
 
 // the Servers field in config.Configuration is a list, which we cannot represent with flags.
@@ -111,6 +113,9 @@ func (opt *Options) AddFlags(flagSet *flag.FlagSet) {
 	flagSet.Duration(opt.primary.namespace+suffixSpanStoreWriteCacheTTL,
 		opt.SpanStoreWriteCacheTTL,
 		"The duration to wait before rewriting an existing service or operation name")
+	flagSet.Int(opt.primary.namespace+suffixWritesPerSecond,
+		opt.writesPerSecond,
+		"Optional upper limit on the number of span writes per second")
 }
 
 func addFlags(flagSet *flag.FlagSet, nsConfig *namespaceConfig) {
@@ -201,6 +206,7 @@ func (opt *Options) InitFromViper(v *viper.Viper) {
 		cfg.initFromViper(v)
 	}
 	opt.SpanStoreWriteCacheTTL = v.GetDuration(opt.primary.namespace + suffixSpanStoreWriteCacheTTL)
+	opt.writesPerSecond = v.GetInt(opt.primary.namespace + suffixWritesPerSecond)
 }
 
 func (cfg *namespaceConfig) initFromViper(v *viper.Viper) {

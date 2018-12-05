@@ -1,5 +1,5 @@
-hash: eb96c7fd56c8c6523990c19ba5bcf0d826922569a16e1019a88de57d46675775
-updated: 2018-10-12T23:27:30.163799+09:00
+hash: 67360688a603b6dfdfe15e7750bcdb833f9a20ea9617c71066d4fd2f90f459c7
+updated: 2018-10-29T10:53:47.126953-04:00
 imports:
 - name: github.com/apache/thrift
   version: 53dd39833a08ce33582e5ff31fa18bb4735d6731
@@ -282,6 +282,10 @@ imports:
   version: 1ea20fb1cbb1cc08cbd0d913a96dead89aa18289
 - name: go.uber.org/multierr
   version: 3c4937480c32f4c13a875a1829af76c98ca3d40a
+- name: go.uber.org/ratelimit
+  version: c15da02342779cb6dc027fc95ee2277787698f36
+  subpackages:
+  - internal/clock
 - name: go.uber.org/zap
   version: ff33455a0e382e8a81d14dd7c922020b6b5e7982
   subpackages:
@@ -293,7 +297,7 @@ imports:
   - zapcore
   - zaptest
 - name: golang.org/x/net
-  version: 49bb7cea24b1df9410e1712aa6433dae904ff66a
+  version: c44066c5c816ec500d459a2a324a753f78531ae0
   subpackages:
   - context
   - context/ctxhttp

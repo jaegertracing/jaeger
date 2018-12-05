@@ -58,6 +58,7 @@ func TestOptionsWithFlags(t *testing.T) {
 		"--cas.consistency=ONE",
 		"--cas.proto-version=3",
 		"--cas.socket-keep-alive=42s",
+		"--cas.writes-per-second=10",
 		// enable aux with a couple overrides
 		"--cas-aux.enabled=true",
 		"--cas-aux.keyspace=jaeger-archive",
@@ -69,6 +70,7 @@ func TestOptionsWithFlags(t *testing.T) {
 	assert.Equal(t, "jaeger", primary.Keyspace)
 	assert.Equal(t, []string{"1.1.1.1", "2.2.2.2"}, primary.Servers)
 	assert.Equal(t, "ONE", primary.Consistency)
+	assert.Equal(t, 10, opts.writesPerSecond)
 
 	aux := opts.Get("cas-aux")
 	require.NotNil(t, aux)
