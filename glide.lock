@@ -1,5 +1,5 @@
-hash: 67360688a603b6dfdfe15e7750bcdb833f9a20ea9617c71066d4fd2f90f459c7
-updated: 2018-10-29T10:53:47.126953-04:00
+hash: bb76138b117606c79801eb3fe5be26c9c69abfecab2cb20503b9ceb183f3cd27
+updated: 2018-12-05T14:45:34.067656-05:00
 imports:
 - name: github.com/apache/thrift
   version: 53dd39833a08ce33582e5ff31fa18bb4735d6731
@@ -81,7 +81,7 @@ imports:
   subpackages:
   - google/api
 - name: github.com/gogo/protobuf
-  version: fd9a4790f3963525fb889cc00e0a8f828e0b3a29
+  version: 636bf0302bc95575d69441b25a2603156ffdddf1
   subpackages:
   - gogoproto
   - jsonpb
@@ -220,7 +220,7 @@ imports:
 - name: github.com/spf13/pflag
   version: 298182f68c66c05229eb03ac171abe6e309ee79a
 - name: github.com/spf13/viper
-  version: 2c12c60302a5a0e62ee102ca9bc996277c2f64f5
+  version: 41cd1c3aa32b2685fae6c296e6f044bc68922c0e
 - name: github.com/stretchr/objx
   version: ef50b0de28773081167c97fc27cf29a0bf8b8c71
 - name: github.com/stretchr/testify
@@ -296,6 +296,7 @@ imports:
   - internal/ztest
   - zapcore
   - zaptest
+  - zaptest/observer
 - name: golang.org/x/net
   version: c44066c5c816ec500d459a2a324a753f78531ae0
   subpackages:
@@ -343,10 +344,12 @@ imports:
   - peer
   - resolver
   - resolver/dns
+  - resolver/manual
   - resolver/passthrough
   - stats
   - status
   - tap
+  - test/bufconn
   - transport
 - name: gopkg.in/inf.v0
   version: 3887ee99ecf07df5b447e9b00d9c0b2adaa9f3e4

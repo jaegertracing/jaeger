@@ -65,7 +65,7 @@ import:
 - package: github.com/gogo/googleapis
   version: b23578765ee54ff6bceff57f397d833bf4ca6869
 - package: github.com/gogo/protobuf
-  version: fd9a4790f3963525fb889cc00e0a8f828e0b3a29
+  version: 1.1.1
 - package: github.com/grpc-ecosystem/grpc-gateway
   version: 58f78b988bc393694cef62b92c5cde77e4742ff5
 - package: google.golang.org/grpc
