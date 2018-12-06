@@ -13,7 +13,8 @@ Table of Contents:
 
 * [Making a Change](#making-a-change)
 * [License](#license)
-* [Sign your work](#sign-your-work)
+* [Certificate of Origin - Sign your work](#sign-your-work)
+* [Branches](#branches)
 
 ## Making a Change
 
@@ -72,7 +73,7 @@ make sure the year is current and the copyright says "The Jaeger Authors".
 // limitations under the License.
 ```
 
-## Sign your work
+## Certificate of Origin - Sign your work
 
 By contributing to this project you agree to the
 [Developer Certificate of Origin](https://developercertificate.org/) (or simply
@@ -90,6 +91,8 @@ message:
 
 using your real name (sorry, no pseudonyms or anonymous contributions.) You can
 add the sign off when creating the git commit via `git commit -s`.
+
+If you want signing to be automatic you can set up some aliases:
 
 ### Missing sign-offs
 
@@ -147,3 +150,8 @@ git push --force
 
 [good-commit-msg]: https://chris.beams.io/posts/git-commit/
 [dco-bot]: https://github.com/probot/dco#how-it-works
+
+## Branches
+
+Upstream repository should contain only maintenance branches (e.g. `release-1.0`). For feature
+branches use forked repository.
