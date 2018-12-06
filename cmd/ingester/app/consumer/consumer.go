@@ -85,6 +85,7 @@ func (c *Consumer) Start() {
 				p.wg.Wait()
 			}
 			c.partitionIDToState[pc.Partition()] = &consumerState{partitionConsumer: pc}
+			c.partitionIDToState[pc.Partition()].wg.Add(2)
 			c.partitionMapLock.Unlock()
 			c.partitionMetrics(pc.Partition()).startCounter.Inc(1)
 			go c.handleMessages(pc)
@@ -113,7 +114,6 @@ func (c *Consumer) handleMessages(pc sc.PartitionConsumer) {
 	c.partitionMapLock.Lock()
 	wg := &c.partitionIDToState[pc.Partition()].wg
 	c.partitionMapLock.Unlock()
-	wg.Add(1)
 	defer wg.Done()
 	defer c.closePartition(pc)
 
@@ -163,7 +163,6 @@ func (c *Consumer) handleErrors(partition int32, errChan <-chan *sarama.Consumer
 	c.partitionMapLock.Lock()
 	wg := &c.partitionIDToState[partition].wg
 	c.partitionMapLock.Unlock()
-	wg.Add(1)
 	defer wg.Done()
 
 	errMetrics := c.newErrMetrics(partition)
