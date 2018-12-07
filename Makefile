@@ -133,12 +133,14 @@ lint: lint-gosec
 	@./scripts/import-order-cleanup.sh stdout > $(IMPORT_LOG)
 	@[ ! -s "$(FMT_LOG)" -a ! -s "$(IMPORT_LOG)" ] || (echo "Go fmt, license check, or import ordering failures, run 'make fmt'" | cat - $(FMT_LOG) && false)
 
-.PHONY: install-dep
-install-dep:
-	@which dep > /dev/null || curl https://raw.githubusercontent.com/golang/dep/master/install.sh | sh
+.PHONY: install-glide
+install-glide:
+	@echo "WARNING: Jaeger has migrated to dep, install-glide is now deprecated" 1>&2
+	$(MAKE) install
 
 .PHONY: install
-install: install-dep
+install:
+	@which dep > /dev/null || curl https://raw.githubusercontent.com/golang/dep/master/install.sh | sh
 	dep ensure
 
 .PHONY: install-statik
