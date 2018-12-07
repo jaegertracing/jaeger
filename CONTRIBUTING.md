@@ -13,7 +13,7 @@ We gratefully welcome improvements to documentation as well as to code.
 
 ## Getting Started
 
-This library uses [glide](https://github.com/Masterminds/glide) to manage dependencies.
+This library uses [dep](https://golang.github.io/dep) to manage dependencies.
 
 To get started, make sure you clone the Git repository into the correct location `github.com/jaegertracing/jaeger` relative to `$GOPATH`:
 
@@ -28,7 +28,7 @@ Then install dependencies and run the tests:
 
 ```
 git submodule update --init --recursive
-glide install
+dep ensure
 make test
 ```
 
@@ -84,7 +84,7 @@ github.com/jaegertracing/jaeger
     jaeger/
     sampling/
     zipkincore/
-  glide.yaml                - Glide is the project's dependency manager
+  Gopkg.toml                - Dep is the project's dependency manager
   mkdocs.yml                - MkDocs builds the documentation in docs/
 ```
 
@@ -100,13 +100,13 @@ This projects follows the following pattern for grouping imports in Go files:
   * imports from standard library
   * imports from other projects
   * imports from `jaeger` project
-  
+
 For example:
 
 ```go
 import (
 	"fmt"
- 
+
 	"github.com/uber/jaeger-lib/metrics"
 	"go.uber.org/zap"
 

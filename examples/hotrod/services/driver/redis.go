@@ -60,6 +60,7 @@ func (r *Redis) FindDriverIDs(ctx context.Context, location string) []string {
 
 	drivers := make([]string, 10)
 	for i := range drivers {
+		// #nosec
 		drivers[i] = fmt.Sprintf("T7%05dC", rand.Int()%100000)
 	}
 	r.logger.For(ctx).Info("Found drivers", zap.Strings("drivers", drivers))
@@ -85,6 +86,7 @@ func (r *Redis) GetDriver(ctx context.Context, driverID string) (Driver, error) 
 		return Driver{}, err
 	}
 
+	// #nosec
 	return Driver{
 		DriverID: driverID,
 		Location: fmt.Sprintf("%d,%d", rand.Int()%1000, rand.Int()%1000),
