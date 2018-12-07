@@ -33,13 +33,13 @@ func TestSuccessfulUnderlyingCalls(t *testing.T) {
 
 	mockReader := mocks.Reader{}
 	mrs := NewReadMetricsDecorator(&mockReader, mf)
-	mockReader.On("GetServices").Return([]string{}, nil)
+	mockReader.On("GetServices", context.Background()).Return([]string{}, nil)
 	mrs.GetServices(context.Background())
-	mockReader.On("GetOperations", "something").Return([]string{}, nil)
+	mockReader.On("GetOperations", context.Background(), "something").Return([]string{}, nil)
 	mrs.GetOperations(context.Background(), "something")
-	mockReader.On("GetTrace", model.TraceID{}).Return(&model.Trace{}, nil)
+	mockReader.On("GetTrace", context.Background(), model.TraceID{}).Return(&model.Trace{}, nil)
 	mrs.GetTrace(context.Background(), model.TraceID{})
-	mockReader.On("FindTraces", &spanstore.TraceQueryParameters{}).Return([]*model.Trace{}, nil)
+	mockReader.On("FindTraces", context.Background(), &spanstore.TraceQueryParameters{}).Return([]*model.Trace{}, nil)
 	mrs.FindTraces(context.Background(), &spanstore.TraceQueryParameters{})
 	counters, gauges := mf.Snapshot()
 	expecteds := map[string]int64{
@@ -86,13 +86,13 @@ func TestFailingUnderlyingCalls(t *testing.T) {
 
 	mockReader := mocks.Reader{}
 	mrs := NewReadMetricsDecorator(&mockReader, mf)
-	mockReader.On("GetServices").Return(nil, errors.New("Failure"))
+	mockReader.On("GetServices", context.Background()).Return(nil, errors.New("Failure"))
 	mrs.GetServices(context.Background())
-	mockReader.On("GetOperations", "something").Return(nil, errors.New("Failure"))
+	mockReader.On("GetOperations", context.Background(), "something").Return(nil, errors.New("Failure"))
 	mrs.GetOperations(context.Background(), "something")
-	mockReader.On("GetTrace", model.TraceID{}).Return(nil, errors.New("Failure"))
+	mockReader.On("GetTrace", context.Background(), model.TraceID{}).Return(nil, errors.New("Failure"))
 	mrs.GetTrace(context.Background(), model.TraceID{})
-	mockReader.On("FindTraces", &spanstore.TraceQueryParameters{}).Return(nil, errors.New("Failure"))
+	mockReader.On("FindTraces", context.Background(), &spanstore.TraceQueryParameters{}).Return(nil, errors.New("Failure"))
 	mrs.FindTraces(context.Background(), &spanstore.TraceQueryParameters{})
 	counters, gauges := mf.Snapshot()
 	expecteds := map[string]int64{

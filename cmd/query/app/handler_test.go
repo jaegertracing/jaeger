@@ -133,7 +133,7 @@ func withTestServer(t *testing.T, doTest func(s *testServer), options ...Handler
 func TestGetTraceSuccess(t *testing.T) {
 	server, readMock, _ := initializeTestServer()
 	defer server.Close()
-	readMock.On("GetTrace", mock.AnythingOfType("model.TraceID")).
+	readMock.On("GetTrace", mock.Anything, mock.AnythingOfType("model.TraceID")).
 		Return(mockTrace, nil).Once()
 
 	var response structuredResponse
@@ -252,7 +252,7 @@ func TestGetTrace(t *testing.T) {
 			server, readMock, _ := initializeTestServer(HandlerOptions.Tracer(jaegerTracer))
 			defer server.Close()
 
-			readMock.On("GetTrace", model.NewTraceID(0, 0x123456abc)).
+			readMock.On("GetTrace", mock.AnythingOfType("*context.valueCtx"), model.NewTraceID(0, 0x123456abc)).
 				Return(makeMockTrace(t), nil).Once()
 
 			var response structuredResponse
@@ -284,7 +284,7 @@ func TestGetTraceDBFailure(t *testing.T) {
 func TestGetTraceNotFound(t *testing.T) {
 	server, readMock, _ := initializeTestServer()
 	defer server.Close()
-	readMock.On("GetTrace", mock.AnythingOfType("model.TraceID")).
+	readMock.On("GetTrace", mock.AnythingOfType("*context.valueCtx"), mock.AnythingOfType("model.TraceID")).
 		Return(nil, spanstore.ErrTraceNotFound).Once()
 
 	var response structuredResponse
@@ -301,7 +301,7 @@ func TestGetTraceAdjustmentFailure(t *testing.T) {
 		),
 	)
 	defer server.Close()
-	readMock.On("GetTrace", mock.AnythingOfType("model.TraceID")).
+	readMock.On("GetTrace", mock.AnythingOfType("*context.valueCtx"), mock.AnythingOfType("model.TraceID")).
 		Return(mockTrace, nil).Once()
 
 	var response structuredResponse
@@ -323,7 +323,7 @@ func TestGetTraceBadTraceID(t *testing.T) {
 func TestSearchSuccess(t *testing.T) {
 	server, readMock, _ := initializeTestServer()
 	defer server.Close()
-	readMock.On("FindTraces", mock.AnythingOfType("*spanstore.TraceQueryParameters")).
+	readMock.On("FindTraces", mock.AnythingOfType("*context.valueCtx"), mock.AnythingOfType("*spanstore.TraceQueryParameters")).
 		Return([]*model.Trace{mockTrace}, nil).Once()
 
 	var response structuredResponse
@@ -335,7 +335,7 @@ func TestSearchSuccess(t *testing.T) {
 func TestSearchByTraceIDSuccess(t *testing.T) {
 	server, readMock, _ := initializeTestServer()
 	defer server.Close()
-	readMock.On("GetTrace", mock.AnythingOfType("model.TraceID")).
+	readMock.On("GetTrace", mock.AnythingOfType("*context.valueCtx"), mock.AnythingOfType("model.TraceID")).
 		Return(mockTrace, nil).Twice()
 
 	var response structuredResponse
@@ -349,9 +349,9 @@ func TestSearchByTraceIDSuccessWithArchive(t *testing.T) {
 	archiveReadMock := &spanstoremocks.Reader{}
 	server, readMock, _ := initializeTestServer(HandlerOptions.ArchiveSpanReader(archiveReadMock))
 	defer server.Close()
-	readMock.On("GetTrace", mock.AnythingOfType("model.TraceID")).
+	readMock.On("GetTrace", mock.AnythingOfType("*context.valueCtx"), mock.AnythingOfType("model.TraceID")).
 		Return(nil, spanstore.ErrTraceNotFound).Twice()
-	archiveReadMock.On("GetTrace", mock.AnythingOfType("model.TraceID")).
+	archiveReadMock.On("GetTrace", mock.AnythingOfType("*context.valueCtx"), mock.AnythingOfType("model.TraceID")).
 		Return(mockTrace, nil).Twice()
 
 	var response structuredResponse
@@ -364,7 +364,7 @@ func TestSearchByTraceIDSuccessWithArchive(t *testing.T) {
 func TestSearchByTraceIDNotFound(t *testing.T) {
 	server, readMock, _ := initializeTestServer()
 	defer server.Close()
-	readMock.On("GetTrace", mock.AnythingOfType("model.TraceID")).
+	readMock.On("GetTrace", mock.AnythingOfType("*context.valueCtx"), mock.AnythingOfType("model.TraceID")).
 		Return(nil, spanstore.ErrTraceNotFound).Once()
 
 	var response structuredResponse
@@ -378,7 +378,7 @@ func TestSearchByTraceIDFailure(t *testing.T) {
 	server, readMock, _ := initializeTestServer()
 	defer server.Close()
 	whatsamattayou := "https://youtu.be/WrKFOCg13QQ"
-	readMock.On("GetTrace", mock.AnythingOfType("model.TraceID")).
+	readMock.On("GetTrace", mock.AnythingOfType("*context.valueCtx"), mock.AnythingOfType("model.TraceID")).
 		Return(nil, fmt.Errorf(whatsamattayou)).Once()
 
 	var response structuredResponse
@@ -395,7 +395,7 @@ func TestSearchModelConversionFailure(t *testing.T) {
 		),
 	)
 	defer server.Close()
-	readMock.On("FindTraces", mock.AnythingOfType("*spanstore.TraceQueryParameters")).
+	readMock.On("FindTraces", mock.AnythingOfType("*context.valueCtx"), mock.AnythingOfType("*spanstore.TraceQueryParameters")).
 		Return([]*model.Trace{mockTrace}, nil).Once()
 	var response structuredResponse
 	err := getJSON(server.URL+`/api/traces?service=service&start=0&end=0&operation=operation&limit=200&minDuration=20ms`, &response)
@@ -407,7 +407,7 @@ func TestSearchModelConversionFailure(t *testing.T) {
 func TestSearchDBFailure(t *testing.T) {
 	server, readMock, _ := initializeTestServer()
 	defer server.Close()
-	readMock.On("FindTraces", mock.AnythingOfType("*spanstore.TraceQueryParameters")).
+	readMock.On("FindTraces", mock.AnythingOfType("*context.valueCtx"), mock.AnythingOfType("*spanstore.TraceQueryParameters")).
 		Return(nil, fmt.Errorf("whatsamattayou")).Once()
 
 	var response structuredResponse
@@ -449,7 +449,7 @@ func TestGetServicesSuccess(t *testing.T) {
 	server, readMock, _ := initializeTestServer()
 	defer server.Close()
 	expectedServices := []string{"trifle", "bling"}
-	readMock.On("GetServices").Return(expectedServices, nil).Once()
+	readMock.On("GetServices", mock.AnythingOfType("*context.valueCtx")).Return(expectedServices, nil).Once()
 
 	var response structuredResponse
 	err := getJSON(server.URL+"/api/services", &response)
@@ -472,10 +472,10 @@ func TestGetServicesStorageFailure(t *testing.T) {
 }
 
 func TestGetOperationsSuccess(t *testing.T) {
-	server, mock, _ := initializeTestServer()
+	server, readMock, _ := initializeTestServer()
 	defer server.Close()
 	expectedOperations := []string{"", "get"}
-	mock.On("GetOperations", "abc/trifle").Return(expectedOperations, nil).Once()
+	readMock.On("GetOperations", mock.AnythingOfType("*context.valueCtx"), "abc/trifle").Return(expectedOperations, nil).Once()
 
 	var response structuredResponse
 	err := getJSON(server.URL+"/api/operations?service=abc%2Ftrifle", &response)
@@ -507,10 +507,10 @@ func TestGetOperationsStorageFailure(t *testing.T) {
 }
 
 func TestGetOperationsLegacySuccess(t *testing.T) {
-	server, mock, _ := initializeTestServer()
+	server, readMock, _ := initializeTestServer()
 	defer server.Close()
 	expectedOperations := []string{"", "get"}
-	mock.On("GetOperations", "abc/trifle").Return(expectedOperations, nil).Once()
+	readMock.On("GetOperations", mock.AnythingOfType("*context.valueCtx"), "abc/trifle").Return(expectedOperations, nil).Once()
 
 	var response structuredResponse
 	err := getJSON(server.URL+"/api/services/abc%2Ftrifle/operations", &response)

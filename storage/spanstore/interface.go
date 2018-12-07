@@ -38,6 +38,7 @@ type Reader interface {
 	GetServices(ctx context.Context) ([]string, error)
 	GetOperations(ctx context.Context, service string) ([]string, error)
 	FindTraces(ctx context.Context, query *TraceQueryParameters) ([]*model.Trace, error)
+	FindTraceIDs(ctx context.Context, query *TraceQueryParameters) ([]model.TraceID, error)
 }
 
 // TraceQueryParameters contains parameters of a trace query.

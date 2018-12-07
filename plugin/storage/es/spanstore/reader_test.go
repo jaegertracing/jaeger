@@ -668,6 +668,14 @@ func TestFindTraceIDs(t *testing.T) {
 	testGet(traceIDAggregation, t)
 }
 
+func TestFindTraceIDNotImplemented(t *testing.T) {
+	withSpanReader(func(r *spanReaderTest) {
+		traceIDs, err := r.reader.FindTraceIDs(context.Background(), nil)
+		assert.Nil(t, traceIDs)
+		assert.EqualError(t, err, "not implemented")
+	})
+}
+
 func mockMultiSearchService(r *spanReaderTest) *mock.Call {
 	multiSearchService := &mocks.MultiSearchService{}
 	multiSearchService.On("Add", mock.Anything, mock.Anything, mock.Anything).Return(multiSearchService)
