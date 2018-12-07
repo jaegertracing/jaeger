@@ -1,32 +1,21 @@
 PROJECT_ROOT=github.com/jaegertracing/jaeger
-# TOP_PKGS is used with 'go test'
-# TODO: try to do this without glide, since it may not be installed initially
-TOP_PKGS := $(shell glide novendor | \
-	sort | \
-	grep -v \
-		-e ./thrift-gen/... \
-		-e ./swagger-gen/... \
-		-e ./proto-gen/... \
-		-e ./examples/... \
-		-e ./scripts/...\
-	)
 STORAGE_PKGS = ./plugin/storage/integration/...
 
 # all .go files that are not auto-generated and should be auto-formatted and linted.
-ALL_SRC := $(shell find . -name "*.go" | \
-	grep -v \
-		-e vendor \
-		-e /thrift-gen/ \
-		-e /swagger-gen/ \
-		-e /proto-gen/ \
-		-e /examples/ \
-		-e doc.go \
-		-e model.pb.go \
-		-e model_test.pb.go \
-        -e ".*/\..*" \
-        -e ".*/_.*" \
-        -e ".*/mocks.*" \
-	)
+ALL_SRC := $(shell find . -name '*.go' \
+				   -not -name 'doc.go' \
+				   -not -name '_*' \
+				   -not -name '.*' \
+				   -not -name 'mocks*' \
+				   -not -name '*_test.go' \
+				   -not -name 'model.pb.go' \
+				   -not -name 'model_test.pb.go' \
+				   -not -path './examples/*' \
+				   -not -path './vendor/*' \
+				   -not -path '*/mocks/*' \
+				   -not -path '*/*-gen/*' \
+				   -type f | \
+				sort)
 
 # ALL_PKGS is used with 'go cover'
 ALL_PKGS := $(shell go list $(sort $(dir $(ALL_SRC))))
@@ -92,7 +81,7 @@ clean:
 
 .PHONY: test
 test: go-gen
-	bash -c "set -e; set -o pipefail; $(GOTEST) $(TOP_PKGS) | $(COLORIZE)"
+	bash -c "set -e; set -o pipefail; $(GOTEST) ./... | $(COLORIZE)"
 
 .PHONY: integration-test
 integration-test: go-gen
@@ -112,7 +101,7 @@ all-srcs:
 cover: nocover
 	@echo pre-compiling tests
 	@time go test -i $(ALL_PKGS)
-	@./scripts/cover.sh $(shell go list $(TOP_PKGS))
+	@./scripts/cover.sh $(shell go list ./...)
 	grep -E -v 'model.pb.*.go' cover.out > cover-nogen.out
 	mv cover-nogen.out cover.out
 	go tool cover -html=cover.out -o cover.html
@@ -130,23 +119,14 @@ fmt:
 
 .PHONY: lint-gosec
 lint-gosec:
-	$(GOSEC) $(TOP_PKGS)
+	$(GOSEC) ./...
 
 .PHONY: lint
 lint: lint-gosec
-	$(GOVET) $(TOP_PKGS)
-	$(GOSIMPLE) $(TOP_PKGS)
+	$(GOVET) ./...
+	$(GOSIMPLE) ./...
 	@cat /dev/null > $(LINT_LOG)
-	$(GOLINT) $(TOP_PKGS) | \
-		grep -v \
-			-e pkg/es/wrapper.go \
-			-e /mocks/ \
-			-e thrift-gen \
-			-e thrift-0.9.2 \
-			-e model.pb.go \
-			-e model_test.pb.go \
-			>> $(LINT_LOG) \
-		|| true;
+	$(GOLINT) $(ALL_SRC) >> $(LINT_LOG) || true;
 	@[ ! -s "$(LINT_LOG)" ] || (echo "Lint Failures" | cat - $(LINT_LOG) && false)
 	@$(GOFMT) -e -s -l $(ALL_SRC) > $(FMT_LOG)
 	@./scripts/updateLicenses.sh >> $(FMT_LOG)
@@ -155,11 +135,13 @@ lint: lint-gosec
 
 .PHONY: install-glide
 install-glide:
-	@which glide > /dev/null || go get github.com/Masterminds/glide
+	@echo "WARNING: Jaeger has migrated to dep, install-glide is now deprecated" 1>&2
+	$(MAKE) install
 
 .PHONY: install
-install: install-glide
-	glide install
+install:
+	@which dep > /dev/null || curl https://raw.githubusercontent.com/golang/dep/master/install.sh | sh
+	dep ensure
 
 .PHONY: install-statik
 install-statik:
