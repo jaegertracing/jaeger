@@ -17,7 +17,6 @@ package shared
 import (
 	"context"
 	"fmt"
-	"time"
 
 	"github.com/jaegertracing/jaeger/model"
 	"github.com/jaegertracing/jaeger/plugin/storage/grpc/proto"
@@ -30,7 +29,7 @@ type GRPCClient struct {
 
 func (c *GRPCClient) GetTrace(ctx context.Context, traceID model.TraceID) (*model.Trace, error) {
 	resp, err := c.client.GetTrace(ctx, &proto.GetTraceRequest{
-		TraceId: TraceIDToProto(&traceID),
+		TraceID: traceID,
 	})
 	if err != nil {
 		return nil, fmt.Errorf("grpc error: %s", err)
@@ -38,7 +37,7 @@ func (c *GRPCClient) GetTrace(ctx context.Context, traceID model.TraceID) (*mode
 
 	switch t := resp.Response.(type) {
 	case *proto.GetTraceResponse_Success:
-		return TraceFromProto(t.Success.Trace), nil
+		return t.Success.Trace, nil
 	case *proto.GetTraceResponse_Error:
 		return nil, fmt.Errorf("plugin error: %s", t.Error.Message)
 	default:
@@ -85,10 +84,10 @@ func (c *GRPCClient) FindTraces(ctx context.Context, query *spanstore.TraceQuery
 		ServiceName:   query.ServiceName,
 		OperationName: query.OperationName,
 		Tags:          query.Tags,
-		StartTimeMin:  TimeToProto(query.StartTimeMin),
-		StartTimeMax:  TimeToProto(query.StartTimeMax),
-		DurationMin:   DurationToProto(query.DurationMin),
-		DurationMax:   DurationToProto(query.DurationMax),
+		StartTimeMin:  query.StartTimeMin,
+		StartTimeMax:  query.StartTimeMax,
+		DurationMin:   query.DurationMin,
+		DurationMax:   query.DurationMax,
 		NumTraces:     int32(query.NumTraces),
 	})
 	if err != nil {
@@ -97,7 +96,7 @@ func (c *GRPCClient) FindTraces(ctx context.Context, query *spanstore.TraceQuery
 
 	switch t := resp.Response.(type) {
 	case *proto.FindTracesResponse_Success:
-		return TraceSliceFromProto(t.Success.Traces), nil
+		return t.Success.Traces, nil
 	case *proto.FindTracesResponse_Error:
 		return nil, fmt.Errorf("plugin error: %s", t.Error.Message)
 	default:
@@ -107,7 +106,7 @@ func (c *GRPCClient) FindTraces(ctx context.Context, query *spanstore.TraceQuery
 
 func (c *GRPCClient) WriteSpan(span *model.Span) error {
 	resp, err := c.client.WriteSpan(context.Background(), &proto.WriteSpanRequest{
-		Span: SpanToProto(span),
+		Span: span,
 	})
 	if err != nil {
 		return fmt.Errorf("grpc error: %s", err)
@@ -123,51 +122,51 @@ func (c *GRPCClient) WriteSpan(span *model.Span) error {
 	}
 }
 
-func (c *GRPCClient) GetDependencies(endTs time.Time, lookback time.Duration) ([]model.DependencyLink, error) {
-	resp, err := c.client.GetDependencies(context.Background(), &proto.GetDependenciesRequest{
-		EndTimestamp: TimeToProto(endTs),
-		Lookback:     DurationToProto(lookback),
-	})
-	if err != nil {
-		return nil, fmt.Errorf("grpc error: %s", err)
-	}
-
-	switch t := resp.Response.(type) {
-	case *proto.GetDependenciesResponse_Success:
-		return DependencyLinkSliceFromProto(t.Success.Dependencies), nil
-	case *proto.GetDependenciesResponse_Error:
-		return nil, fmt.Errorf("plugin error: %s", t.Error.Message)
-	default:
-		panic("unreachable")
-	}
-}
+//func (c *GRPCClient) GetDependencies(endTs time.Time, lookback time.Duration) ([]model.DependencyLink, error) {
+//	resp, err := c.client.GetDependencies(context.Background(), &proto.GetDependenciesRequest{
+//		EndTimestamp: TimeToProto(endTs),
+//		Lookback:     DurationToProto(lookback),
+//	})
+//	if err != nil {
+//		return nil, fmt.Errorf("grpc error: %s", err)
+//	}
+//
+//	switch t := resp.Response.(type) {
+//	case *proto.GetDependenciesResponse_Success:
+//		return DependencyLinkSliceFromProto(t.Success.Dependencies), nil
+//	case *proto.GetDependenciesResponse_Error:
+//		return nil, fmt.Errorf("plugin error: %s", t.Error.Message)
+//	default:
+//		panic("unreachable")
+//	}
+//}
 
 type GRPCServer struct {
 	Impl StoragePlugin
 }
 
-func (s *GRPCServer) GetDependencies(ctx context.Context, r *proto.GetDependenciesRequest) (*proto.GetDependenciesResponse, error) {
-	deps, err := s.Impl.GetDependencies(TimeFromProto(r.EndTimestamp), DurationFromProto(r.Lookback))
-	if err != nil {
-		return &proto.GetDependenciesResponse{
-			Response: &proto.GetDependenciesResponse_Error{
-				Error: &proto.StoragePluginError{
-					Message: err.Error(),
-				},
-			},
-		}, nil
-	}
-	return &proto.GetDependenciesResponse{
-		Response: &proto.GetDependenciesResponse_Success{
-			Success: &proto.GetDependenciesSuccess{
-				Dependencies: DependencyLinkSliceToProto(deps),
-			},
-		},
-	}, nil
-}
+//func (s *GRPCServer) GetDependencies(ctx context.Context, r *proto.GetDependenciesRequest) (*proto.GetDependenciesResponse, error) {
+//	deps, err := s.Impl.GetDependencies(TimeFromProto(r.EndTimestamp), DurationFromProto(r.Lookback))
+//	if err != nil {
+//		return &proto.GetDependenciesResponse{
+//			Response: &proto.GetDependenciesResponse_Error{
+//				Error: &proto.StoragePluginError{
+//					Message: err.Error(),
+//				},
+//			},
+//		}, nil
+//	}
+//	return &proto.GetDependenciesResponse{
+//		Response: &proto.GetDependenciesResponse_Success{
+//			Success: &proto.GetDependenciesSuccess{
+//				Dependencies: DependencyLinkSliceToProto(deps),
+//			},
+//		},
+//	}, nil
+//}
 
 func (s *GRPCServer) WriteSpan(ctx context.Context, r *proto.WriteSpanRequest) (*proto.WriteSpanResponse, error) {
-	err := s.Impl.WriteSpan(SpanFromProto(r.Span))
+	err := s.Impl.WriteSpan(r.Span)
 	if err != nil {
 		return &proto.WriteSpanResponse{
 			Response: &proto.WriteSpanResponse_Error{
@@ -185,7 +184,7 @@ func (s *GRPCServer) WriteSpan(ctx context.Context, r *proto.WriteSpanRequest) (
 }
 
 func (s *GRPCServer) GetTrace(ctx context.Context, r *proto.GetTraceRequest) (*proto.GetTraceResponse, error) {
-	trace, err := s.Impl.GetTrace(ctx, TraceIDFromProto(r.TraceId))
+	trace, err := s.Impl.GetTrace(ctx, r.TraceID)
 	if err != nil {
 		return &proto.GetTraceResponse{
 			Response: &proto.GetTraceResponse_Error{
@@ -198,7 +197,7 @@ func (s *GRPCServer) GetTrace(ctx context.Context, r *proto.GetTraceRequest) (*p
 	return &proto.GetTraceResponse{
 		Response: &proto.GetTraceResponse_Success{
 			Success: &proto.GetTraceSuccess{
-				Trace: TraceToProto(trace),
+				Trace: trace,
 			},
 		},
 	}, nil
@@ -249,10 +248,10 @@ func (s *GRPCServer) FindTraces(ctx context.Context, r *proto.FindTracesRequest)
 		ServiceName:   r.ServiceName,
 		OperationName: r.OperationName,
 		Tags:          r.Tags,
-		StartTimeMin:  TimeFromProto(r.StartTimeMin),
-		StartTimeMax:  TimeFromProto(r.StartTimeMax),
-		DurationMin:   DurationFromProto(r.DurationMin),
-		DurationMax:   DurationFromProto(r.DurationMax),
+		StartTimeMin:  r.StartTimeMin,
+		StartTimeMax:  r.StartTimeMax,
+		DurationMin:   r.DurationMin,
+		DurationMax:   r.DurationMax,
 		NumTraces:     int(r.NumTraces),
 	})
 	if err != nil {
@@ -267,7 +266,7 @@ func (s *GRPCServer) FindTraces(ctx context.Context, r *proto.FindTracesRequest)
 	return &proto.FindTracesResponse{
 		Response: &proto.FindTracesResponse_Success{
 			Success: &proto.FindTracesSuccess{
-				Traces: TraceSliceToProto(traces),
+				Traces: traces,
 			},
 		},
 	}, nil

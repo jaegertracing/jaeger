@@ -25,7 +25,7 @@ func main() {
 	plugin.Serve(&plugin.ServeConfig{
 		HandshakeConfig: shared.Handshake,
 		VersionedPlugins: map[int]plugin.PluginSet{
-			18: map[string]plugin.Plugin{
+			1: map[string]plugin.Plugin{
 				shared.StoragePluginIdentifier: &shared.StorageGRPCPlugin{
 					Impl: memory.NewStore(),
 				},

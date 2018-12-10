@@ -23,12 +23,6 @@ import (
 	"github.com/gogo/protobuf/jsonpb"
 )
 
-// TraceID is a random 128bit identifier for a trace
-type TraceID struct {
-	Low  uint64 `json:"lo"`
-	High uint64 `json:"hi"`
-}
-
 // SpanID is a random 64bit identifier for a span
 type SpanID uint64
 
@@ -37,13 +31,6 @@ type SpanID uint64
 // NewTraceID creates a new TraceID from two 64bit unsigned ints.
 func NewTraceID(high, low uint64) TraceID {
 	return TraceID{High: high, Low: low}
-}
-
-func (t TraceID) String() string {
-	if t.High == 0 {
-		return fmt.Sprintf("%x", t.Low)
-	}
-	return fmt.Sprintf("%x%016x", t.High, t.Low)
 }
 
 // TraceIDFromString creates a TraceID from a hexadecimal string
@@ -76,29 +63,6 @@ func (t TraceID) MarshalText() ([]byte, error) {
 // UnmarshalText is called by encoding/json, which we do not want people to use.
 func (t *TraceID) UnmarshalText(text []byte) error {
 	return fmt.Errorf("unsupported method TraceID.UnmarshalText; please use github.com/gogo/protobuf/jsonpb for marshalling")
-}
-
-// Size returns the size of this datum in protobuf. It is always 16 bytes.
-func (t *TraceID) Size() int {
-	return 16
-}
-
-// MarshalTo converts trace ID into a binary representation. Called by protobuf serialization.
-func (t *TraceID) MarshalTo(data []byte) (n int, err error) {
-	var b [16]byte
-	binary.BigEndian.PutUint64(b[:8], uint64(t.High))
-	binary.BigEndian.PutUint64(b[8:], uint64(t.Low))
-	return marshalBytes(data, b[:])
-}
-
-// Unmarshal inflates this trace ID from binary representation. Called by protobuf serialization.
-func (t *TraceID) Unmarshal(data []byte) error {
-	if len(data) < 16 {
-		return fmt.Errorf("buffer is too short")
-	}
-	t.High = binary.BigEndian.Uint64(data[:8])
-	t.Low = binary.BigEndian.Uint64(data[8:])
-	return nil
 }
 
 func marshalBytes(dst []byte, src []byte) (n int, err error) {

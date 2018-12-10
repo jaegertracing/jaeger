@@ -323,9 +323,11 @@ PROTO_INCLUDES := \
 	-I model/proto \
 	-I vendor/github.com/grpc-ecosystem/grpc-gateway \
 	-I vendor/github.com/gogo/googleapis \
+	-I vendor/github.com/gogo/protobuf/protobuf \
 	-I vendor/github.com/gogo/protobuf
 # Remapping of std types to gogo types (must not contain spaces)
 PROTO_GOGO_MAPPINGS := $(shell echo \
+		Mgoogle/protobuf/descriptor.proto=github.com/gogo/protobuf/types, \
 		Mgoogle/protobuf/timestamp.proto=github.com/gogo/protobuf/types, \
 		Mgoogle/protobuf/duration.proto=github.com/gogo/protobuf/types, \
 		Mgoogle/protobuf/empty.proto=github.com/gogo/protobuf/types, \
@@ -390,7 +392,11 @@ proto-install:
 .PHONY: plugin-proto
 plugin-proto:
 	protoc \
-	-I plugin/storage/external/proto \
-	--go_out=plugins=grpc:$(PWD)/plugin/storage/external/proto \
-	plugin/storage/external/proto/storage.proto \
-	plugin/storage/external/proto/model.proto
+		-I model/proto \
+		-I vendor/github.com/grpc-ecosystem/grpc-gateway \
+		-I vendor/github.com/gogo/googleapis \
+		-I vendor/github.com/gogo/protobuf/protobuf \
+		-I vendor/github.com/gogo/protobuf \
+    	-I plugin/storage/grpc/proto \
+		--gogo_out=plugins=grpc,$(PROTO_GOGO_MAPPINGS):$(PWD)/plugin/storage/grpc/proto \
+		plugin/storage/grpc/proto/storage.proto

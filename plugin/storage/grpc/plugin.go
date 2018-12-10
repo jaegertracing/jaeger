@@ -17,10 +17,8 @@ package grpc
 import (
 	"context"
 	"fmt"
-	"os/exec"
-	"time"
-
 	"github.com/hashicorp/go-plugin"
+	"os/exec"
 
 	"github.com/jaegertracing/jaeger/model"
 	"github.com/jaegertracing/jaeger/pkg/grpc/config"
@@ -39,9 +37,9 @@ func WithConfiguration(configuration config.Configuration) (*Store, error) {
 	client := plugin.NewClient(&plugin.ClientConfig{
 		HandshakeConfig: shared.Handshake,
 		VersionedPlugins: map[int]plugin.PluginSet{
-			18: shared.PluginMap,
+			1: shared.PluginMap,
 		},
-		Cmd:              exec.Command("sh", "-c", configuration.PluginBinary),
+		Cmd:              exec.Command(configuration.PluginBinary),
 		AllowedProtocols: []plugin.Protocol{plugin.ProtocolGRPC},
 	})
 
@@ -86,6 +84,6 @@ func (s *Store) FindTraces(ctx context.Context, query *spanstore.TraceQueryParam
 	return s.plugin.FindTraces(ctx, query)
 }
 
-func (s *Store) GetDependencies(endTs time.Time, lookback time.Duration) ([]model.DependencyLink, error) {
-	return s.plugin.GetDependencies(endTs, lookback)
-}
+//func (s *Store) GetDependencies(endTs time.Time, lookback time.Duration) ([]model.DependencyLink, error) {
+//	return s.plugin.GetDependencies(endTs, lookback)
+//}

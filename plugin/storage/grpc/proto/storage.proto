@@ -1,7 +1,23 @@
 syntax = "proto3";
-package proto;
 
+package jaeger.api_v2;
+
+option go_package = "proto";
+
+import "gogoproto/gogo.proto";
 import "model.proto";
+import "google/protobuf/timestamp.proto";
+import "google/protobuf/duration.proto";
+
+// Enable gogoprotobuf extensions (https://github.com/gogo/protobuf/blob/master/extensions.md).
+// Enable custom Marshal method.
+option (gogoproto.marshaler_all) = true;
+// Enable custom Unmarshal method.
+option (gogoproto.unmarshaler_all) = true;
+// Enable custom Size method (Required by Marshal and Unmarshal).
+option (gogoproto.sizer_all) = true;
+// Enable registration with golang/protobuf for the grpc-gateway.
+option (gogoproto.goproto_registration) = true;
 
 //message WriteDependenciesRequest {
 //
@@ -11,21 +27,21 @@ import "model.proto";
 //
 //}
 
-message GetDependenciesRequest {
-    Timestamp end_timestamp = 1;
-    Duration lookback = 2;
-}
-
-message GetDependenciesSuccess {
-    repeated DependencyLink dependencies = 1;
-}
-
-message GetDependenciesResponse {
-    oneof response {
-        GetDependenciesSuccess success = 1;
-        StoragePluginError error = 2;
-    }
-}
+//message GetDependenciesRequest {
+//    google.protobuf.Timestamp end_timestamp = 1;
+//    google.protobuf.Duration lookback = 2;
+//}
+//
+//message GetDependenciesSuccess {
+//    repeated DependencyLink dependencies = 1;
+//}
+//
+//message GetDependenciesResponse {
+//    oneof response {
+//        GetDependenciesSuccess success = 1;
+//        StoragePluginError error = 2;
+//    }
+//}
 
 //message InsertThroughputRequest {
 //
@@ -79,7 +95,10 @@ message WriteSpanResponse {
 }
 
 message GetTraceRequest {
-    TraceId trace_id = 1;
+    TraceID trace_id = 1 [
+        (gogoproto.nullable) = false,
+        (gogoproto.customname) = "TraceID"
+    ];
 }
 
 message GetTraceSuccess {
@@ -125,10 +144,22 @@ message FindTracesRequest {
     string service_name = 1;
     string operation_name = 2;
     map<string, string> tags = 3;
-    Timestamp start_time_min = 4;
-    Timestamp start_time_max = 5;
-    Duration duration_min = 6;
-    Duration duration_max = 7;
+    google.protobuf.Timestamp start_time_min = 4 [
+        (gogoproto.stdtime) = true,
+        (gogoproto.nullable) = false
+    ];
+    google.protobuf.Timestamp start_time_max = 5 [
+        (gogoproto.stdtime) = true,
+        (gogoproto.nullable) = false
+    ];
+    google.protobuf.Duration duration_min = 6 [
+        (gogoproto.stdduration) = true,
+        (gogoproto.nullable) = false
+    ];
+    google.protobuf.Duration duration_max = 7 [
+        (gogoproto.stdduration) = true,
+        (gogoproto.nullable) = false
+    ];
     int32 num_traces = 8;
 }
 
@@ -155,7 +186,7 @@ service StoragePlugin {
     // dependencystore/Writer
 //    rpc WriteDependencies(WriteDependenciesRequest) returns (WriteDependenciesResponse);
     // dependencystore/Reader
-    rpc GetDependencies(GetDependenciesRequest) returns (GetDependenciesResponse);
+//    rpc GetDependencies(GetDependenciesRequest) returns (GetDependenciesResponse);
 
     // TODO(olivierboucher): make theses available once the POC goes through
     // samplingstore/Store

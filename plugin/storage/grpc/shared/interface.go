@@ -21,7 +21,6 @@ import (
 	"google.golang.org/grpc"
 
 	"github.com/jaegertracing/jaeger/plugin/storage/grpc/proto"
-	"github.com/jaegertracing/jaeger/storage/dependencystore"
 	"github.com/jaegertracing/jaeger/storage/spanstore"
 )
 
@@ -43,7 +42,6 @@ var PluginMap = map[string]plugin.Plugin{
 type StoragePlugin interface {
 	spanstore.Reader
 	spanstore.Writer
-	dependencystore.Reader
 }
 
 // This is the implementation of plugin.GRPCPlugin so we can serve/consume this.

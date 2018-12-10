@@ -76,7 +76,7 @@ enum SpanRefType {
 };
 
 message SpanRef {
-  bytes trace_id = 1 [
+  TraceID trace_id = 1 [
     (gogoproto.nullable) = false,
     (gogoproto.customtype) = "TraceID",
     (gogoproto.customname) = "TraceID"
@@ -97,7 +97,7 @@ message Process {
 }
 
 message Span {
-  bytes trace_id = 1 [
+  TraceID trace_id = 1 [
     (gogoproto.nullable) = false,
     (gogoproto.customtype) = "TraceID",
     (gogoproto.customname) = "TraceID"
@@ -134,6 +134,11 @@ message Span {
     (gogoproto.customname) = "ProcessID"
   ];
   repeated string warnings = 12;
+}
+
+message TraceID {
+  uint64 low = 1;
+  uint64 high = 2;
 }
 
 message Trace {

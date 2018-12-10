@@ -242,8 +242,7 @@
       "type": "object",
       "properties": {
         "trace_id": {
-          "type": "string",
-          "format": "byte"
+          "$ref": "#/definitions/api_v2TraceID"
         },
         "span_id": {
           "type": "string",
@@ -299,8 +298,7 @@
       "type": "object",
       "properties": {
         "trace_id": {
-          "type": "string",
-          "format": "byte"
+          "$ref": "#/definitions/api_v2TraceID"
         },
         "span_id": {
           "type": "string",
@@ -318,6 +316,19 @@
         "FOLLOWS_FROM"
       ],
       "default": "CHILD_OF"
+    },
+    "api_v2TraceID": {
+      "type": "object",
+      "properties": {
+        "low": {
+          "type": "string",
+          "format": "uint64"
+        },
+        "high": {
+          "type": "string",
+          "format": "uint64"
+        }
+      }
     },
     "api_v2ValueType": {
       "type": "string",
