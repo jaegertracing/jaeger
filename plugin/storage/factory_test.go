@@ -44,7 +44,7 @@ func defaultCfg() FactoryConfig {
 }
 
 func TestNewFactory(t *testing.T) {
-	f, err := NewFactory(defaultCfg(), nil)
+	f, err := NewFactory(defaultCfg(), Options{})
 	require.NoError(t, err)
 	assert.NotEmpty(t, f.factories)
 	assert.NotEmpty(t, f.factories[CassandraStorageType])
@@ -56,7 +56,7 @@ func TestNewFactory(t *testing.T) {
 		SpanWriterTypes:         []string{CassandraStorageType, KafkaStorageType},
 		SpanReaderType:          ElasticsearchStorageType,
 		DependenciesStorageType: MemoryStorageType,
-	}, nil)
+	}, Options{})
 	require.NoError(t, err)
 	assert.NotEmpty(t, f.factories)
 	assert.NotEmpty(t, f.factories[CassandraStorageType])
@@ -67,20 +67,20 @@ func TestNewFactory(t *testing.T) {
 	assert.Equal(t, ElasticsearchStorageType, f.SpanReaderType)
 	assert.Equal(t, MemoryStorageType, f.DependenciesStorageType)
 
-	f, err = NewFactory(FactoryConfig{SpanWriterTypes: []string{"x"}, DependenciesStorageType: "y", SpanReaderType: "z"}, nil)
+	f, err = NewFactory(FactoryConfig{SpanWriterTypes: []string{"x"}, DependenciesStorageType: "y", SpanReaderType: "z"}, Options{})
 	require.Error(t, err)
 	expected := "Unknown storage type" // could be 'x' or 'y' since code iterates through map.
 	assert.Equal(t, expected, err.Error()[0:len(expected)])
 }
 
 func TestNewFactoryWithUnsupportedType(t *testing.T) {
-	_, err := NewFactory(defaultCfg(), []string{CassandraStorageType})
+	_, err := NewFactory(defaultCfg(), Options{UnsupportedTypes: []string{CassandraStorageType}})
 
 	assert.EqualError(t, err, "The cassandra storage type is unsupported by this command")
 }
 
 func TestInitialize(t *testing.T) {
-	f, err := NewFactory(defaultCfg(), nil)
+	f, err := NewFactory(defaultCfg(), Options{})
 	require.NoError(t, err)
 	assert.NotEmpty(t, f.factories)
 	assert.NotEmpty(t, f.factories[CassandraStorageType])
@@ -100,7 +100,7 @@ func TestInitialize(t *testing.T) {
 }
 
 func TestCreate(t *testing.T) {
-	f, err := NewFactory(defaultCfg(), nil)
+	f, err := NewFactory(defaultCfg(), Options{})
 	require.NoError(t, err)
 	assert.NotEmpty(t, f.factories)
 	assert.NotEmpty(t, f.factories[CassandraStorageType])
@@ -143,7 +143,7 @@ func TestCreate(t *testing.T) {
 func TestCreateMulti(t *testing.T) {
 	cfg := defaultCfg()
 	cfg.SpanWriterTypes = append(cfg.SpanWriterTypes, ElasticsearchStorageType)
-	f, err := NewFactory(cfg, nil)
+	f, err := NewFactory(cfg, Options{})
 	require.NoError(t, err)
 
 	mock := new(mocks.Factory)
@@ -168,7 +168,7 @@ func TestCreateMulti(t *testing.T) {
 }
 
 func TestCreateArchive(t *testing.T) {
-	f, err := NewFactory(defaultCfg(), nil)
+	f, err := NewFactory(defaultCfg(), Options{})
 	require.NoError(t, err)
 	assert.NotEmpty(t, f.factories[CassandraStorageType])
 
@@ -194,7 +194,7 @@ func TestCreateArchive(t *testing.T) {
 }
 
 func TestCreateError(t *testing.T) {
-	f, err := NewFactory(defaultCfg(), nil)
+	f, err := NewFactory(defaultCfg(), Options{})
 	require.NoError(t, err)
 	assert.NotEmpty(t, f.factories)
 	assert.NotEmpty(t, f.factories[CassandraStorageType])
@@ -253,7 +253,7 @@ func TestConfigurable(t *testing.T) {
 	clearEnv()
 	defer clearEnv()
 
-	f, err := NewFactory(defaultCfg(), nil)
+	f, err := NewFactory(defaultCfg(), Options{})
 	require.NoError(t, err)
 	assert.NotEmpty(t, f.factories)
 	assert.NotEmpty(t, f.factories[CassandraStorageType])

@@ -44,12 +44,14 @@ import (
 	storageMetrics "github.com/jaegertracing/jaeger/storage/spanstore/metrics"
 )
 
+var unsupportedTypes = []string{storage.KafkaStorageType}
+
 func main() {
 	var serverChannel = make(chan os.Signal)
 	signal.Notify(serverChannel, os.Interrupt, syscall.SIGTERM)
 
 	storageFactory, err := storage.NewFactory(storage.FactoryConfigFromEnvAndCLI(os.Args, os.Stderr),
-		[]string{storage.KafkaStorageType})
+		storage.Options{UnsupportedTypes: unsupportedTypes})
 	if err != nil {
 		log.Fatalf("Cannot initialize storage factory: %v", err)
 	}

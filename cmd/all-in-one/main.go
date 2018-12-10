@@ -68,6 +68,8 @@ import (
 	zc "github.com/jaegertracing/jaeger/thrift-gen/zipkincore"
 )
 
+var unsupportedTypes = []string{storage.KafkaStorageType}
+
 // all-in-one/main is a standalone full-stack jaeger backend, backed by a memory store
 func main() {
 	var signalsChannel = make(chan os.Signal)
@@ -77,7 +79,7 @@ func main() {
 		os.Setenv(storage.SpanStorageTypeEnvVar, "memory") // other storage types default to SpanStorage
 	}
 	storageFactory, err := storage.NewFactory(storage.FactoryConfigFromEnvAndCLI(os.Args, os.Stderr),
-		[]string{storage.KafkaStorageType})
+		storage.Options{UnsupportedTypes: unsupportedTypes})
 	if err != nil {
 		log.Fatalf("Cannot initialize storage factory: %v", err)
 	}

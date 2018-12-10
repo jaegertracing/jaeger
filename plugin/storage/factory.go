@@ -48,14 +48,13 @@ var allStorageTypes = []string{CassandraStorageType, ElasticsearchStorageType, M
 // Factory implements storage.Factory interface as a meta-factory for storage components.
 type Factory struct {
 	FactoryConfig
-
-	unsupportedTypes []string
-	factories        map[string]storage.Factory
+	Options
+	factories map[string]storage.Factory
 }
 
 // NewFactory creates the meta-factory.
-func NewFactory(config FactoryConfig, unsupportedTypes []string) (*Factory, error) {
-	f := &Factory{FactoryConfig: config, unsupportedTypes: unsupportedTypes}
+func NewFactory(config FactoryConfig, opts Options) (*Factory, error) {
+	f := &Factory{FactoryConfig: config, Options: opts}
 	uniqueTypes := map[string]struct{}{
 		f.SpanReaderType:          {},
 		f.DependenciesStorageType: {},
@@ -78,7 +77,7 @@ func NewFactory(config FactoryConfig, unsupportedTypes []string) (*Factory, erro
 }
 
 func (f *Factory) isUnsupportedType(factoryType string) bool {
-	for _, t := range f.unsupportedTypes {
+	for _, t := range f.Options.UnsupportedTypes {
 		if t == factoryType {
 			return true
 		}
