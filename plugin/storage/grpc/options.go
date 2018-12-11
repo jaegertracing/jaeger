@@ -16,23 +16,24 @@ package grpc
 
 import (
 	"flag"
-
 	"github.com/spf13/viper"
 
 	"github.com/jaegertracing/jaeger/pkg/grpc/config"
 )
 
-const pluginBinary = "grpc-plugin.binary"
+const pluginBinary = "grpc-storage-plugin.binary"
+const pluginConfigurationFile = "grpc-storage-plugin.configuration-file"
 
 type Options struct {
 	Configuration config.Configuration
 }
 
 func (opt *Options) AddFlags(flagSet *flag.FlagSet) {
-	flagSet.String(pluginBinary, opt.Configuration.PluginBinary, "The location of the plugin binary")
-
+	flagSet.String(pluginBinary, "", "The location of the plugin binary")
+	flagSet.String(pluginConfigurationFile, "", "A path pointing to the plugin's configuration file, made available to the plugin with the --config arg")
 }
 
 func (opt *Options) InitFromViper(v *viper.Viper) {
 	opt.Configuration.PluginBinary = v.GetString(pluginBinary)
+	opt.Configuration.PluginConfigurationFile = v.GetString(pluginConfigurationFile)
 }

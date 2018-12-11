@@ -21,7 +21,6 @@ import (
 	"github.com/uber/jaeger-lib/metrics"
 	"go.uber.org/zap"
 
-	"github.com/jaegertracing/jaeger/storage/dependencystore"
 	"github.com/jaegertracing/jaeger/storage/spanstore"
 )
 
@@ -70,6 +69,6 @@ func (f *Factory) CreateSpanWriter() (spanstore.Writer, error) {
 }
 
 // CreateDependencyReader implements storage.Factory
-func (f *Factory) CreateDependencyReader() (dependencystore.Reader, error) {
-	return f.store, nil
-}
+//func (f *Factory) CreateDependencyReader() (dependencystore.Reader, error) {
+//	return f.store, nil
+//}

@@ -39,7 +39,7 @@ func WithConfiguration(configuration config.Configuration) (*Store, error) {
 		VersionedPlugins: map[int]plugin.PluginSet{
 			1: shared.PluginMap,
 		},
-		Cmd:              exec.Command(configuration.PluginBinary),
+		Cmd:              exec.Command(configuration.PluginBinary, "--config", configuration.PluginConfigurationFile),
 		AllowedProtocols: []plugin.Protocol{plugin.ProtocolGRPC},
 	})
 

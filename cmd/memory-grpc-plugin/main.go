@@ -15,19 +15,39 @@
 package main
 
 import (
+	"flag"
 	"github.com/hashicorp/go-plugin"
-
 	"github.com/jaegertracing/jaeger/plugin/storage/grpc/shared"
 	"github.com/jaegertracing/jaeger/plugin/storage/memory"
+	"github.com/spf13/viper"
+	"path"
+	"strings"
 )
 
+var configPath string
+
 func main() {
+	flag.StringVar(&configPath, "config", "", "A path to the plugin's configuration file")
+	flag.Parse()
+
+	if configPath != "" {
+		viper.SetConfigFile(path.Base(configPath))
+		viper.AddConfigPath(path.Dir(configPath))
+	}
+
+	v := viper.New()
+	v.AutomaticEnv()
+	v.SetEnvKeyReplacer(strings.NewReplacer("-", "_", ".", "_"))
+
+	opts := memory.Options{}
+	opts.InitFromViper(v)
+
 	plugin.Serve(&plugin.ServeConfig{
 		HandshakeConfig: shared.Handshake,
 		VersionedPlugins: map[int]plugin.PluginSet{
 			1: map[string]plugin.Plugin{
 				shared.StoragePluginIdentifier: &shared.StorageGRPCPlugin{
-					Impl: memory.NewStore(),
+					Impl: memory.WithConfiguration(opts.Configuration),
 				},
 			},
 		},

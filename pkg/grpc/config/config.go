@@ -17,4 +17,5 @@ package config
 // Configuration describes the options to customize the storage behavior
 type Configuration struct {
 	PluginBinary string `yaml:"binary"`
+	PluginConfigurationFile string `yaml:"configuration-file"`
 }
