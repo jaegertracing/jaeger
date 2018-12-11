@@ -136,6 +136,7 @@ func (h *strategyStore) parseStrategy(strategy *strategy) *sampling.SamplingStra
 		}
 	default:
 		h.logger.Warn("Failed to parse sampling strategy", zap.Any("strategy", strategy))
-		return &defaultStrategy
+		copyOfDefaultStrategy := defaultStrategy
+		return &copyOfDefaultStrategy
 	}
 }
