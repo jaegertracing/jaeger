@@ -113,6 +113,10 @@ func (r *ingester) FindTraces(ctx context.Context, query *spanstore.TraceQueryPa
 	return nil, nil
 }
 
+func (r *ingester) FindTraceIDs(ctx context.Context, query *spanstore.TraceQueryParameters) ([]model.TraceID, error) {
+	return nil, nil
+}
+
 func TestKafkaStorage(t *testing.T) {
 	if os.Getenv("STORAGE") != "kafka" {
 		t.Skip("Integration test against kafka skipped; set STORAGE env var to kafka to run this")

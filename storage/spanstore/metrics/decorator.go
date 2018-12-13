@@ -28,6 +28,7 @@ import (
 type ReadMetricsDecorator struct {
 	spanReader           spanstore.Reader
 	findTracesMetrics    *queryMetrics
+	findTraceIDsMetrics  *queryMetrics
 	getTraceMetrics      *queryMetrics
 	getServicesMetrics   *queryMetrics
 	getOperationsMetrics *queryMetrics
@@ -36,7 +37,7 @@ type ReadMetricsDecorator struct {
 type queryMetrics struct {
 	Errors     metrics.Counter `metric:"requests" tags:"result=err"`
 	Successes  metrics.Counter `metric:"requests" tags:"result=ok"`
-	Responses  metrics.Timer   `metric:"responses"` //used as a histogram, not necessary for GetTrace
+	Responses  metrics.Timer   `metric:"responses"` // used as a histogram, not necessary for GetTrace
 	ErrLatency metrics.Timer   `metric:"latency" tags:"result=err"`
 	OKLatency  metrics.Timer   `metric:"latency" tags:"result=ok"`
 }
@@ -57,6 +58,7 @@ func NewReadMetricsDecorator(spanReader spanstore.Reader, metricsFactory metrics
 	return &ReadMetricsDecorator{
 		spanReader:           spanReader,
 		findTracesMetrics:    buildQueryMetrics("find_traces", metricsFactory),
+		findTraceIDsMetrics:  buildQueryMetrics("find_trace_ids", metricsFactory),
 		getTraceMetrics:      buildQueryMetrics("get_trace", metricsFactory),
 		getServicesMetrics:   buildQueryMetrics("get_services", metricsFactory),
 		getOperationsMetrics: buildQueryMetrics("get_operations", metricsFactory),
@@ -75,6 +77,14 @@ func (m *ReadMetricsDecorator) FindTraces(ctx context.Context, traceQuery *spans
 	start := time.Now()
 	retMe, err := m.spanReader.FindTraces(ctx, traceQuery)
 	m.findTracesMetrics.emit(err, time.Since(start), len(retMe))
+	return retMe, err
+}
+
+// FindTraceIDs implements spanstore.Reader#FindTraceIDs
+func (m *ReadMetricsDecorator) FindTraceIDs(ctx context.Context, traceQuery *spanstore.TraceQueryParameters) ([]model.TraceID, error) {
+	start := time.Now()
+	retMe, err := m.spanReader.FindTraceIDs(ctx, traceQuery)
+	m.findTraceIDsMetrics.emit(err, time.Since(start), len(retMe))
 	return retMe, err
 }
 

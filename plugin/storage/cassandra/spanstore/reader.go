@@ -232,22 +232,13 @@ func validateQuery(p *spanstore.TraceQueryParameters) error {
 
 // FindTraces retrieves traces that match the traceQuery
 func (s *SpanReader) FindTraces(ctx context.Context, traceQuery *spanstore.TraceQueryParameters) ([]*model.Trace, error) {
-	if err := validateQuery(traceQuery); err != nil {
-		return nil, err
-	}
-	if traceQuery.NumTraces == 0 {
-		traceQuery.NumTraces = defaultNumTraces
-	}
-	uniqueTraceIDs, err := s.findTraceIDs(ctx, traceQuery)
+	uniqueTraceIDs, err := s.FindTraceIDs(ctx, traceQuery)
 	if err != nil {
 		return nil, err
 	}
 	var retMe []*model.Trace
-	for traceID := range uniqueTraceIDs {
-		if len(retMe) >= traceQuery.NumTraces {
-			break
-		}
-		jTrace, err := s.readTrace(ctx, traceID)
+	for _, traceID := range uniqueTraceIDs {
+		jTrace, err := s.GetTrace(ctx, traceID)
 		if err != nil {
 			s.logger.Error("Failure to read trace", zap.String("trace_id", traceID.String()), zap.Error(err))
 			continue
@@ -255,6 +246,30 @@ func (s *SpanReader) FindTraces(ctx context.Context, traceQuery *spanstore.Trace
 		retMe = append(retMe, jTrace)
 	}
 	return retMe, nil
+}
+
+// FindTraceIDs retrieve traceIDs that match the traceQuery
+func (s *SpanReader) FindTraceIDs(ctx context.Context, traceQuery *spanstore.TraceQueryParameters) ([]model.TraceID, error) {
+	if err := validateQuery(traceQuery); err != nil {
+		return nil, err
+	}
+	if traceQuery.NumTraces == 0 {
+		traceQuery.NumTraces = defaultNumTraces
+	}
+
+	dbTraceIDs, err := s.findTraceIDs(ctx, traceQuery)
+	if err != nil {
+		return nil, err
+	}
+
+	var traceIDs []model.TraceID
+	for t := range dbTraceIDs {
+		if len(traceIDs) >= traceQuery.NumTraces {
+			break
+		}
+		traceIDs = append(traceIDs, t.ToDomain())
+	}
+	return traceIDs, nil
 }
 
 func (s *SpanReader) findTraceIDs(ctx context.Context, traceQuery *spanstore.TraceQueryParameters) (dbmodel.UniqueTraceIDs, error) {
