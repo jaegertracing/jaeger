@@ -133,7 +133,7 @@ func withTestServer(t *testing.T, doTest func(s *testServer), options ...Handler
 func TestGetTraceSuccess(t *testing.T) {
 	server, readMock, _ := initializeTestServer()
 	defer server.Close()
-	readMock.On("GetTrace", mock.Anything, mock.AnythingOfType("model.TraceID")).
+	readMock.On("GetTrace", mock.AnythingOfType("*context.valueCtx"), mock.AnythingOfType("model.TraceID")).
 		Return(mockTrace, nil).Once()
 
 	var response structuredResponse
@@ -273,7 +273,7 @@ func TestGetTrace(t *testing.T) {
 func TestGetTraceDBFailure(t *testing.T) {
 	server, readMock, _ := initializeTestServer()
 	defer server.Close()
-	readMock.On("GetTrace", mock.AnythingOfType("model.TraceID")).
+	readMock.On("GetTrace", mock.AnythingOfType("*context.valueCtx"), mock.AnythingOfType("model.TraceID")).
 		Return(nil, errStorage).Once()
 
 	var response structuredResponse
@@ -462,9 +462,9 @@ func TestGetServicesSuccess(t *testing.T) {
 }
 
 func TestGetServicesStorageFailure(t *testing.T) {
-	server, mock, _ := initializeTestServer()
+	server, readMock, _ := initializeTestServer()
 	defer server.Close()
-	mock.On("GetServices").Return(nil, errStorage).Once()
+	readMock.On("GetServices", mock.AnythingOfType("*context.valueCtx")).Return(nil, errStorage).Once()
 
 	var response structuredResponse
 	err := getJSON(server.URL+"/api/services", &response)
@@ -497,9 +497,9 @@ func TestGetOperationsNoServiceName(t *testing.T) {
 }
 
 func TestGetOperationsStorageFailure(t *testing.T) {
-	server, mock, _ := initializeTestServer()
+	server, reaMock, _ := initializeTestServer()
 	defer server.Close()
-	mock.On("GetOperations", "trifle").Return(nil, errStorage).Once()
+	reaMock.On("GetOperations", mock.AnythingOfType("*context.valueCtx"), "trifle").Return(nil, errStorage).Once()
 
 	var response structuredResponse
 	err := getJSON(server.URL+"/api/operations?service=trifle", &response)
@@ -523,9 +523,9 @@ func TestGetOperationsLegacySuccess(t *testing.T) {
 }
 
 func TestGetOperationsLegacyStorageFailure(t *testing.T) {
-	server, mock, _ := initializeTestServer()
+	server, readMock, _ := initializeTestServer()
 	defer server.Close()
-	mock.On("GetOperations", "trifle").Return(nil, errStorage).Once()
+	readMock.On("GetOperations", mock.AnythingOfType("*context.valueCtx"), "trifle").Return(nil, errStorage).Once()
 
 	var response structuredResponse
 	err := getJSON(server.URL+"/api/services/trifle/operations", &response)

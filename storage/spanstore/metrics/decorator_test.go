@@ -41,6 +41,8 @@ func TestSuccessfulUnderlyingCalls(t *testing.T) {
 	mrs.GetTrace(context.Background(), model.TraceID{})
 	mockReader.On("FindTraces", context.Background(), &spanstore.TraceQueryParameters{}).Return([]*model.Trace{}, nil)
 	mrs.FindTraces(context.Background(), &spanstore.TraceQueryParameters{})
+	mockReader.On("FindTraceIDs", context.Background(), &spanstore.TraceQueryParameters{}).Return([]model.TraceID{}, nil)
+	mrs.FindTraceIDs(context.Background(), &spanstore.TraceQueryParameters{})
 	counters, gauges := mf.Snapshot()
 	expecteds := map[string]int64{
 		"requests|operation=get_operations|result=ok":  1,
@@ -49,6 +51,8 @@ func TestSuccessfulUnderlyingCalls(t *testing.T) {
 		"requests|operation=get_trace|result=err":      0,
 		"requests|operation=find_traces|result=ok":     1,
 		"requests|operation=find_traces|result=err":    0,
+		"requests|operation=find_trace_ids|result=ok":  1,
+		"requests|operation=find_trace_ids|result=err": 0,
 		"requests|operation=get_services|result=ok":    1,
 		"requests|operation=get_services|result=err":   0,
 	}
@@ -94,6 +98,8 @@ func TestFailingUnderlyingCalls(t *testing.T) {
 	mrs.GetTrace(context.Background(), model.TraceID{})
 	mockReader.On("FindTraces", context.Background(), &spanstore.TraceQueryParameters{}).Return(nil, errors.New("Failure"))
 	mrs.FindTraces(context.Background(), &spanstore.TraceQueryParameters{})
+	mockReader.On("FindTraceIDs", context.Background(), &spanstore.TraceQueryParameters{}).Return(nil, errors.New("Failure"))
+	mrs.FindTraceIDs(context.Background(), &spanstore.TraceQueryParameters{})
 	counters, gauges := mf.Snapshot()
 	expecteds := map[string]int64{
 		"requests|operation=get_operations|result=ok":  0,
@@ -102,6 +108,8 @@ func TestFailingUnderlyingCalls(t *testing.T) {
 		"requests|operation=get_trace|result=err":      1,
 		"requests|operation=find_traces|result=ok":     0,
 		"requests|operation=find_traces|result=err":    1,
+		"requests|operation=find_trace_ids|result=ok":   0,
+		"requests|operation=find_trace_ids|result=err":  1,
 		"requests|operation=get_services|result=ok":    0,
 		"requests|operation=get_services|result=err":   1,
 	}
