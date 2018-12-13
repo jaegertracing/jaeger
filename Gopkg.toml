@@ -27,7 +27,7 @@
 
 [[constraint]]
   name = "github.com/Shopify/sarama"
-  version = "=1.16.0"
+  version = "=1.20.0"
 
 [[constraint]]
   name = "github.com/apache/thrift"
