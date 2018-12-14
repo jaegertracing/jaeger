@@ -15,10 +15,13 @@
 package main
 
 import (
+	"context"
 	"flag"
 	"github.com/hashicorp/go-plugin"
+	"github.com/jaegertracing/jaeger/model"
 	"github.com/jaegertracing/jaeger/plugin/storage/grpc/shared"
 	"github.com/jaegertracing/jaeger/plugin/storage/memory"
+	"github.com/jaegertracing/jaeger/storage/spanstore"
 	"github.com/spf13/viper"
 	"path"
 	"strings"
@@ -47,10 +50,34 @@ func main() {
 		VersionedPlugins: map[int]plugin.PluginSet{
 			1: map[string]plugin.Plugin{
 				shared.StoragePluginIdentifier: &shared.StorageGRPCPlugin{
-					Impl: memory.WithConfiguration(opts.Configuration),
+					Impl: &noopStore{},
 				},
 			},
 		},
 		GRPCServer: plugin.DefaultGRPCServer,
 	})
+}
+
+type noopStore struct {
+
+}
+
+func (*noopStore) GetTrace(ctx context.Context, traceID model.TraceID) (*model.Trace, error) {
+	return nil, nil
+}
+
+func (*noopStore) GetServices(ctx context.Context) ([]string, error) {
+	return nil, nil
+}
+
+func (*noopStore) GetOperations(ctx context.Context, service string) ([]string, error) {
+	return nil, nil
+}
+
+func (*noopStore) FindTraces(ctx context.Context, query *spanstore.TraceQueryParameters) ([]*model.Trace, error) {
+	return nil,nil
+}
+
+func (*noopStore) WriteSpan(span *model.Span) error {
+	return nil
 }

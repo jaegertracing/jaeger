@@ -17,8 +17,10 @@ package grpc
 import (
 	"context"
 	"fmt"
+	"github.com/hashicorp/go-hclog"
 	"github.com/hashicorp/go-plugin"
 	"os/exec"
+	"runtime"
 
 	"github.com/jaegertracing/jaeger/model"
 	"github.com/jaegertracing/jaeger/pkg/grpc/config"
@@ -41,6 +43,13 @@ func WithConfiguration(configuration config.Configuration) (*Store, error) {
 		},
 		Cmd:              exec.Command(configuration.PluginBinary, "--config", configuration.PluginConfigurationFile),
 		AllowedProtocols: []plugin.Protocol{plugin.ProtocolGRPC},
+		Logger: hclog.New(&hclog.LoggerOptions{
+			Level: hclog.Warn,
+		}),
+	})
+
+	runtime.SetFinalizer(client, func(c *plugin.Client) {
+		c.Kill()
 	})
 
 	rpcClient, err := client.Client()

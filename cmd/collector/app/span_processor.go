@@ -103,7 +103,7 @@ func (sp *spanProcessor) saveSpan(span *model.Span) {
 		sp.metrics.SavedErrBySvc.ReportServiceNameForSpan(span)
 	} else {
 		sp.logger.Debug("Span written to the storage by the collector",
-			zap.Stringer("trace-id", span.TraceID), zap.Stringer("span-id", span.SpanID))
+			zap.Stringer("trace-id", &span.TraceID), zap.Stringer("span-id", span.SpanID))
 		sp.metrics.SavedOkBySvc.ReportServiceNameForSpan(span)
 	}
 	sp.metrics.SaveLatency.Record(time.Since(startTime))
