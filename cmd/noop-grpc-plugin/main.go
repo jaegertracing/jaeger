@@ -25,6 +25,7 @@ import (
 	"github.com/spf13/viper"
 	"path"
 	"strings"
+	"time"
 )
 
 var configPath string
@@ -60,6 +61,10 @@ func main() {
 
 type noopStore struct {
 
+}
+
+func (*noopStore) GetDependencies(endTs time.Time, lookback time.Duration) ([]model.DependencyLink, error) {
+	return nil, nil
 }
 
 func (*noopStore) GetTrace(ctx context.Context, traceID model.TraceID) (*model.Trace, error) {

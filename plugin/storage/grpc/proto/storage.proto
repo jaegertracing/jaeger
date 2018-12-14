@@ -27,61 +27,30 @@ option (gogoproto.goproto_registration) = true;
 //
 //}
 
-//message GetDependenciesRequest {
-//    google.protobuf.Timestamp end_timestamp = 1;
-//    google.protobuf.Duration lookback = 2;
-//}
-//
-//message GetDependenciesSuccess {
-//    repeated DependencyLink dependencies = 1;
-//}
-//
-//message GetDependenciesResponse {
-//    oneof response {
-//        GetDependenciesSuccess success = 1;
-//        StoragePluginError error = 2;
-//    }
-//}
+message GetDependenciesRequest {
+    google.protobuf.Timestamp end_timestamp = 1 [
+      (gogoproto.stdtime) = true,
+      (gogoproto.nullable) = false
+    ];
+    google.protobuf.Duration lookback = 2 [
+      (gogoproto.stdduration) = true,
+      (gogoproto.nullable) = false
+    ];
+}
 
-//message InsertThroughputRequest {
-//
-//}
-//
-//message InsertThroughputResponse {
-//
-//}
-//
-//message InsertProbabilitiesAndQPSRequest {
-//
-//}
-//
-//message InsertProbabilitiesAndQPSResponse {
-//
-//}
-//
-//message GetThroughputRequest {
-//
-//}
-//
-//message GetThroughputResponse {
-//
-//}
-//
-//message GetProbabilitiesAndQPSRequest {
-//
-//}
-//
-//message GetProbabilitiesAndQPSResponse {
-//
-//}
-//
-//message GetLatestProbabilitiesRequest {
-//
-//}
-//
-//message GetLatestProbabilitiesResponse {
-//
-//}
+message GetDependenciesSuccess {
+    repeated bytes dependencies = 1 [
+     (gogoproto.nullable) = false,
+     (gogoproto.customtype) = "github.com/jaegertracing/jaeger/model.DependencyLink"
+    ];
+}
+
+message GetDependenciesResponse {
+    oneof response {
+        GetDependenciesSuccess success = 1;
+        StoragePluginError error = 2;
+    }
+}
 
 message WriteSpanRequest {
     Span span = 1;
@@ -210,7 +179,7 @@ service StoragePlugin {
     // dependencystore/Writer
 //    rpc WriteDependencies(WriteDependenciesRequest) returns (WriteDependenciesResponse);
     // dependencystore/Reader
-//    rpc GetDependencies(GetDependenciesRequest) returns (GetDependenciesResponse);
+    rpc GetDependencies(GetDependenciesRequest) returns (GetDependenciesResponse);
 
     // TODO(olivierboucher): make theses available once the POC goes through
     // samplingstore/Store

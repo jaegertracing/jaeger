@@ -16,6 +16,8 @@ package grpc
 
 import (
 	"flag"
+	"github.com/jaegertracing/jaeger/pkg/grpc/config"
+	"github.com/jaegertracing/jaeger/plugin/storage/grpc/shared"
 	"github.com/jaegertracing/jaeger/storage/dependencystore"
 
 	"github.com/spf13/viper"
@@ -29,7 +31,10 @@ type Factory struct {
 	options        Options
 	metricsFactory metrics.Factory
 	logger         *zap.Logger
-	store          *Store
+
+	builder        config.PluginBuilder
+
+	store          shared.StoragePlugin
 }
 
 // NewFactory creates a new Factory.
@@ -45,17 +50,20 @@ func (f *Factory) AddFlags(flagSet *flag.FlagSet) {
 // InitFromViper implements plugin.Configurable
 func (f *Factory) InitFromViper(v *viper.Viper) {
 	f.options.InitFromViper(v)
+	f.builder = &f.options.Configuration
 }
 
 // Initialize implements storage.Factory
 func (f *Factory) Initialize(metricsFactory metrics.Factory, logger *zap.Logger) error {
 	f.metricsFactory, f.logger = metricsFactory, logger
-	store, err := WithConfiguration(f.options.Configuration)
+
+	store, err := f.builder.Build()
 	if err != nil {
 		return err
 	}
+
 	f.store = store
-	logger.Info("External plugin storage configuration", zap.Any("configuration", f.store.config))
+	logger.Info("External plugin storage configuration", zap.Any("configuration", f.options.Configuration))
 	return nil
 }
 
@@ -71,5 +79,5 @@ func (f *Factory) CreateSpanWriter() (spanstore.Writer, error) {
 
 // CreateDependencyReader implements storage.Factory
 func (f *Factory) CreateDependencyReader() (dependencystore.Reader, error) {
-	return nil, nil
+	return f.store, nil
 }

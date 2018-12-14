@@ -14,8 +14,56 @@
 
 package config
 
+import (
+	"fmt"
+	"github.com/hashicorp/go-hclog"
+	"github.com/hashicorp/go-plugin"
+	"github.com/jaegertracing/jaeger/plugin/storage/grpc/shared"
+	"os/exec"
+	"runtime"
+)
+
 // Configuration describes the options to customize the storage behavior
 type Configuration struct {
 	PluginBinary string `yaml:"binary"`
 	PluginConfigurationFile string `yaml:"configuration-file"`
+}
+
+func (c *Configuration) Build() (shared.StoragePlugin, error) {
+	client := plugin.NewClient(&plugin.ClientConfig{
+		HandshakeConfig: shared.Handshake,
+		VersionedPlugins: map[int]plugin.PluginSet{
+			1: shared.PluginMap,
+		},
+		Cmd:              exec.Command(c.PluginBinary, "--config", c.PluginConfigurationFile),
+		AllowedProtocols: []plugin.Protocol{plugin.ProtocolGRPC},
+		Logger: hclog.New(&hclog.LoggerOptions{
+			Level: hclog.Warn,
+		}),
+	})
+
+	runtime.SetFinalizer(client, func(c *plugin.Client) {
+		c.Kill()
+	})
+
+	rpcClient, err := client.Client()
+	if err != nil {
+		return nil, fmt.Errorf("error attempting to connect to plugin rpc client: %s", err)
+	}
+
+	raw, err := rpcClient.Dispense(shared.StoragePluginIdentifier)
+	if err != nil {
+		return nil, fmt.Errorf("unable to retrieve storage plugin instance: %s", err)
+	}
+
+	storagePlugin, ok := raw.(shared.StoragePlugin)
+	if !ok {
+		return nil, fmt.Errorf("unexpected type for plugin \"%s\"", shared.StoragePluginIdentifier)
+	}
+
+	return storagePlugin, nil
+}
+
+type PluginBuilder interface {
+	Build() (shared.StoragePlugin, error)
 }

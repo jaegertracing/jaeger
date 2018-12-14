@@ -16,6 +16,7 @@ package shared
 
 import (
 	"context"
+	"github.com/jaegertracing/jaeger/storage/dependencystore"
 
 	"github.com/hashicorp/go-plugin"
 	"google.golang.org/grpc"
@@ -42,6 +43,7 @@ var PluginMap = map[string]plugin.Plugin{
 type StoragePlugin interface {
 	spanstore.Reader
 	spanstore.Writer
+	dependencystore.Reader
 }
 
 // This is the implementation of plugin.GRPCPlugin so we can serve/consume this.

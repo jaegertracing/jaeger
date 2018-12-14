@@ -17,6 +17,7 @@ package shared
 import (
 	"context"
 	"fmt"
+	"time"
 
 	"github.com/jaegertracing/jaeger/model"
 	"github.com/jaegertracing/jaeger/plugin/storage/grpc/proto"
@@ -151,48 +152,49 @@ func (c *GRPCClient) WriteSpan(span *model.Span) error {
 	}
 }
 
-//func (c *GRPCClient) GetDependencies(endTs time.Time, lookback time.Duration) ([]model.DependencyLink, error) {
-//	resp, err := c.client.GetDependencies(context.Background(), &proto.GetDependenciesRequest{
-//		EndTimestamp: TimeToProto(endTs),
-//		Lookback:     DurationToProto(lookback),
-//	})
-//	if err != nil {
-//		return nil, fmt.Errorf("grpc error: %s", err)
-//	}
-//
-//	switch t := resp.Response.(type) {
-//	case *proto.GetDependenciesResponse_Success:
-//		return DependencyLinkSliceFromProto(t.Success.Dependencies), nil
-//	case *proto.GetDependenciesResponse_Error:
-//		return nil, fmt.Errorf("plugin error: %s", t.Error.Message)
-//	default:
-//		panic("unreachable")
-//	}
-//}
+func (c *GRPCClient) GetDependencies(endTs time.Time, lookback time.Duration) ([]model.DependencyLink, error) {
+	resp, err := c.client.GetDependencies(context.Background(), &proto.GetDependenciesRequest{
+		EndTimestamp: endTs,
+		Lookback:     lookback,
+	})
+	if err != nil {
+		return nil, fmt.Errorf("grpc error: %s", err)
+	}
+
+	switch t := resp.Response.(type) {
+	case *proto.GetDependenciesResponse_Success:
+		return t.Success.Dependencies, nil
+	case *proto.GetDependenciesResponse_Error:
+		return nil, fmt.Errorf("plugin error: %s", t.Error.Message)
+	default:
+		panic("unreachable")
+	}
+}
 
 type GRPCServer struct {
 	Impl StoragePlugin
 }
 
-//func (s *GRPCServer) GetDependencies(ctx context.Context, r *proto.GetDependenciesRequest) (*proto.GetDependenciesResponse, error) {
-//	deps, err := s.Impl.GetDependencies(TimeFromProto(r.EndTimestamp), DurationFromProto(r.Lookback))
-//	if err != nil {
-//		return &proto.GetDependenciesResponse{
-//			Response: &proto.GetDependenciesResponse_Error{
-//				Error: &proto.StoragePluginError{
-//					Message: err.Error(),
-//				},
-//			},
-//		}, nil
-//	}
-//	return &proto.GetDependenciesResponse{
-//		Response: &proto.GetDependenciesResponse_Success{
-//			Success: &proto.GetDependenciesSuccess{
-//				Dependencies: DependencyLinkSliceToProto(deps),
-//			},
-//		},
-//	}, nil
-//}
+
+func (s *GRPCServer) GetDependencies(ctx context.Context, r *proto.GetDependenciesRequest) (*proto.GetDependenciesResponse, error) {
+	deps, err := s.Impl.GetDependencies(r.EndTimestamp, r.Lookback)
+	if err != nil {
+		return &proto.GetDependenciesResponse{
+			Response: &proto.GetDependenciesResponse_Error{
+				Error: &proto.StoragePluginError{
+					Message: err.Error(),
+				},
+			},
+		}, nil
+	}
+	return &proto.GetDependenciesResponse{
+		Response: &proto.GetDependenciesResponse_Success{
+			Success: &proto.GetDependenciesSuccess{
+				Dependencies: deps,
+			},
+		},
+	}, nil
+}
 
 func (s *GRPCServer) WriteSpan(ctx context.Context, r *proto.WriteSpanRequest) (*proto.WriteSpanResponse, error) {
 	err := s.Impl.WriteSpan(r.Span)

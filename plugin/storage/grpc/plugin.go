@@ -16,61 +16,17 @@ package grpc
 
 import (
 	"context"
-	"fmt"
-	"github.com/hashicorp/go-hclog"
-	"github.com/hashicorp/go-plugin"
-	"os/exec"
-	"runtime"
-
 	"github.com/jaegertracing/jaeger/model"
 	"github.com/jaegertracing/jaeger/pkg/grpc/config"
 	"github.com/jaegertracing/jaeger/plugin/storage/grpc/shared"
 	"github.com/jaegertracing/jaeger/storage/spanstore"
+	"time"
 )
 
 type Store struct {
 	config config.Configuration
 
 	plugin shared.StoragePlugin
-}
-
-// WithConfiguration creates a new plugin given the provided configuration
-func WithConfiguration(configuration config.Configuration) (*Store, error) {
-	client := plugin.NewClient(&plugin.ClientConfig{
-		HandshakeConfig: shared.Handshake,
-		VersionedPlugins: map[int]plugin.PluginSet{
-			1: shared.PluginMap,
-		},
-		Cmd:              exec.Command(configuration.PluginBinary, "--config", configuration.PluginConfigurationFile),
-		AllowedProtocols: []plugin.Protocol{plugin.ProtocolGRPC},
-		Logger: hclog.New(&hclog.LoggerOptions{
-			Level: hclog.Warn,
-		}),
-	})
-
-	runtime.SetFinalizer(client, func(c *plugin.Client) {
-		c.Kill()
-	})
-
-	rpcClient, err := client.Client()
-	if err != nil {
-		return nil, fmt.Errorf("error attempting to connect to plugin rpc client: %s", err)
-	}
-
-	raw, err := rpcClient.Dispense(shared.StoragePluginIdentifier)
-	if err != nil {
-		return nil, fmt.Errorf("unable to retrieve storage plugin instance: %s", err)
-	}
-
-	storagePlugin, ok := raw.(shared.StoragePlugin)
-	if !ok {
-		return nil, fmt.Errorf("unexpected type for plugin \"%s\"", shared.StoragePluginIdentifier)
-	}
-
-	return &Store{
-		config: configuration,
-		plugin: storagePlugin,
-	}, nil
 }
 
 func (s *Store) WriteSpan(span *model.Span) error {
@@ -97,6 +53,6 @@ func (s *Store) FindTraceIDs(ctx context.Context, query *spanstore.TraceQueryPar
 	return s.plugin.FindTraceIDs(ctx, query)
 }
 
-//func (s *Store) GetDependencies(endTs time.Time, lookback time.Duration) ([]model.DependencyLink, error) {
-//	return s.plugin.GetDependencies(endTs, lookback)
-//}
+func (s *Store) GetDependencies(endTs time.Time, lookback time.Duration) ([]model.DependencyLink, error) {
+	return s.plugin.GetDependencies(endTs, lookback)
+}
