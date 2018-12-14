@@ -137,8 +137,12 @@ message Span {
 }
 
 message TraceID {
-  uint64 low = 1;
-  uint64 high = 2;
+  uint64 low = 1 [
+    (gogoproto.jsontag) = "lo"
+  ];
+  uint64 high = 2 [
+    (gogoproto.jsontag) = "hi"
+  ];
 }
 
 message Trace {
