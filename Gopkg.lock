@@ -350,6 +350,25 @@
   revision = "e80d13ce29ede4452c43dea11e79b9bc8a15b478"
 
 [[projects]]
+  branch = "master"
+  digest = "1:0876aeb6edb07e20b6b0ce1d346655cb63dbe0a26ccfb47b68a9b7697709777b"
+  name = "github.com/hashicorp/go-hclog"
+  packages = ["."]
+  pruneopts = "UT"
+  revision = "61d530d6c27f994fb6c83b80f99a69c54125ec8a"
+
+[[projects]]
+  branch = "master"
+  digest = "1:1f0c8665817a698bf12c6ad29922d6cdb85ecaa54dd404d77f91f58c6bccd84e"
+  name = "github.com/hashicorp/go-plugin"
+  packages = [
+    ".",
+    "internal/proto",
+  ]
+  pruneopts = "UT"
+  revision = "f444068e8f5a19853177f7aa0aea7e7d95b5b528"
+
+[[projects]]
   digest = "1:c0d19ab64b32ce9fe5cf4ddceba78d5bc9807f0016db6b1183599da3dcc24d10"
   name = "github.com/hashicorp/hcl"
   packages = [
@@ -367,6 +386,14 @@
   pruneopts = "UT"
   revision = "8cb6e5b959231cc1119e43259c4a608f9c51a241"
   version = "v1.0.0"
+
+[[projects]]
+  branch = "master"
+  digest = "1:a4826c308e84f5f161b90b54a814f0be7d112b80164b9b884698a6903ea47ab3"
+  name = "github.com/hashicorp/yamux"
+  packages = ["."]
+  pruneopts = "UT"
+  revision = "2f1d1f20f75d5404f53b9edf6b53ed5505508675"
 
 [[projects]]
   digest = "1:870d441fe217b8e689d7949fef6e43efbc787e50f200cb1e70dbca9204a1d6be"
@@ -421,12 +448,28 @@
   version = "v1.0.1"
 
 [[projects]]
+  digest = "1:42eb1f52b84a06820cedc9baec2e710bfbda3ee6dac6cdb97f8b9a5066134ec6"
+  name = "github.com/mitchellh/go-testing-interface"
+  packages = ["."]
+  pruneopts = "UT"
+  revision = "6d0b8010fcc857872e42fc6c931227569016843c"
+  version = "v1.0.0"
+
+[[projects]]
   digest = "1:53bc4cd4914cd7cd52139990d5170d6dc99067ae31c56530621b18b35fc30318"
   name = "github.com/mitchellh/mapstructure"
   packages = ["."]
   pruneopts = "UT"
   revision = "3536a929edddb9a5b34bd6861dc4a9647cb459fe"
   version = "v1.1.2"
+
+[[projects]]
+  digest = "1:9ec6cf1df5ad1d55cf41a43b6b1e7e118a91bade4f68ff4303379343e40c0e25"
+  name = "github.com/oklog/run"
+  packages = ["."]
+  pruneopts = "UT"
+  revision = "4dadeb3030eda0273a12382bb2348ffc7c9d1a39"
+  version = "v1.0.0"
 
 [[projects]]
   branch = "master"
@@ -779,7 +822,7 @@
   revision = "bd91e49a0898e27abb88c339b432fa53d7497ac0"
 
 [[projects]]
-  digest = "1:977794f3a0427850b6f4cb87cb88869a1833cb9e3f8867938c87434e422b7aa0"
+  digest = "1:63e4afbf415d15c3ef9a1fc5c749a0f6a381d6388eec233ed35c4c7b28898bc6"
   name = "google.golang.org/grpc"
   packages = [
     ".",
@@ -793,6 +836,8 @@
     "encoding/proto",
     "grpclb/grpc_lb_v1/messages",
     "grpclog",
+    "health",
+    "health/grpc_health_v1",
     "internal",
     "keepalive",
     "metadata",
@@ -870,6 +915,8 @@
     "github.com/grpc-ecosystem/grpc-gateway/protoc-gen-swagger/options",
     "github.com/grpc-ecosystem/grpc-gateway/runtime",
     "github.com/grpc-ecosystem/grpc-gateway/utilities",
+    "github.com/hashicorp/go-hclog",
+    "github.com/hashicorp/go-plugin",
     "github.com/kr/pretty",
     "github.com/opentracing-contrib/go-stdlib/nethttp",
     "github.com/opentracing/opentracing-go",

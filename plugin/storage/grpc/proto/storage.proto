@@ -140,27 +140,31 @@ message GetOperationsResponse {
     }
 }
 
-message FindTracesRequest {
+message TraceQueryParameters {
     string service_name = 1;
     string operation_name = 2;
     map<string, string> tags = 3;
     google.protobuf.Timestamp start_time_min = 4 [
-        (gogoproto.stdtime) = true,
-        (gogoproto.nullable) = false
+     (gogoproto.stdtime) = true,
+     (gogoproto.nullable) = false
     ];
     google.protobuf.Timestamp start_time_max = 5 [
-        (gogoproto.stdtime) = true,
-        (gogoproto.nullable) = false
+     (gogoproto.stdtime) = true,
+     (gogoproto.nullable) = false
     ];
     google.protobuf.Duration duration_min = 6 [
-        (gogoproto.stdduration) = true,
-        (gogoproto.nullable) = false
+     (gogoproto.stdduration) = true,
+     (gogoproto.nullable) = false
     ];
     google.protobuf.Duration duration_max = 7 [
-        (gogoproto.stdduration) = true,
-        (gogoproto.nullable) = false
+     (gogoproto.stdduration) = true,
+     (gogoproto.nullable) = false
     ];
     int32 num_traces = 8;
+}
+
+message FindTracesRequest {
+    TraceQueryParameters query = 1;
 }
 
 message FindTracesSuccess {
@@ -170,6 +174,23 @@ message FindTracesSuccess {
 message FindTracesResponse {
     oneof response {
         FindTracesSuccess success = 1;
+        StoragePluginError error = 2;
+    }
+}
+
+message FindTraceIDsRequest {
+    TraceQueryParameters query = 1;
+}
+
+message FindTraceIDsSuccess {
+    repeated TraceID traceIDs = 1 [
+     (gogoproto.nullable) = false
+    ];
+}
+
+message FindTraceIDsResponse {
+    oneof response {
+        FindTraceIDsSuccess success = 1;
         StoragePluginError error = 2;
     }
 }
@@ -204,4 +225,5 @@ service StoragePlugin {
     rpc GetServices(GetServicesRequest) returns (GetServicesResponse);
     rpc GetOperations(GetOperationsRequest) returns (GetOperationsResponse);
     rpc FindTraces(FindTracesRequest) returns (FindTracesResponse);
+    rpc FindTraceIDs(FindTraceIDsRequest) returns (FindTraceIDsResponse);
 }

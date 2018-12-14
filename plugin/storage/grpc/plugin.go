@@ -93,6 +93,10 @@ func (s *Store) FindTraces(ctx context.Context, query *spanstore.TraceQueryParam
 	return s.plugin.FindTraces(ctx, query)
 }
 
+func (s *Store) FindTraceIDs(ctx context.Context, query *spanstore.TraceQueryParameters) ([]model.TraceID, error) {
+	return s.plugin.FindTraceIDs(ctx, query)
+}
+
 //func (s *Store) GetDependencies(endTs time.Time, lookback time.Duration) ([]model.DependencyLink, error) {
 //	return s.plugin.GetDependencies(endTs, lookback)
 //}

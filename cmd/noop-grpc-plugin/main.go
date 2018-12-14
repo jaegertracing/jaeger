@@ -78,6 +78,10 @@ func (*noopStore) FindTraces(ctx context.Context, query *spanstore.TraceQueryPar
 	return nil,nil
 }
 
+func (*noopStore) FindTraceIDs(ctx context.Context, query *spanstore.TraceQueryParameters) ([]model.TraceID, error) {
+	panic("implement me")
+}
+
 func (*noopStore) WriteSpan(span *model.Span) error {
 	return nil
 }

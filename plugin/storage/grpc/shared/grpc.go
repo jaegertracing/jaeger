@@ -81,14 +81,16 @@ func (c *GRPCClient) GetOperations(ctx context.Context, service string) ([]strin
 
 func (c *GRPCClient) FindTraces(ctx context.Context, query *spanstore.TraceQueryParameters) ([]*model.Trace, error) {
 	resp, err := c.client.FindTraces(context.Background(), &proto.FindTracesRequest{
-		ServiceName:   query.ServiceName,
-		OperationName: query.OperationName,
-		Tags:          query.Tags,
-		StartTimeMin:  query.StartTimeMin,
-		StartTimeMax:  query.StartTimeMax,
-		DurationMin:   query.DurationMin,
-		DurationMax:   query.DurationMax,
-		NumTraces:     int32(query.NumTraces),
+		Query: &proto.TraceQueryParameters{
+			ServiceName:   query.ServiceName,
+			OperationName: query.OperationName,
+			Tags:          query.Tags,
+			StartTimeMin:  query.StartTimeMin,
+			StartTimeMax:  query.StartTimeMax,
+			DurationMin:   query.DurationMin,
+			DurationMax:   query.DurationMax,
+			NumTraces:     int32(query.NumTraces),
+		},
 	})
 	if err != nil {
 		return nil, fmt.Errorf("grpc error: %s", err)
@@ -98,6 +100,33 @@ func (c *GRPCClient) FindTraces(ctx context.Context, query *spanstore.TraceQuery
 	case *proto.FindTracesResponse_Success:
 		return t.Success.Traces, nil
 	case *proto.FindTracesResponse_Error:
+		return nil, fmt.Errorf("plugin error: %s", t.Error.Message)
+	default:
+		panic("unreachable")
+	}
+}
+
+func (c *GRPCClient) FindTraceIDs(ctx context.Context, query *spanstore.TraceQueryParameters) ([]model.TraceID, error) {
+	resp, err := c.client.FindTraceIDs(context.Background(), &proto.FindTraceIDsRequest{
+		Query: &proto.TraceQueryParameters{
+			ServiceName:   query.ServiceName,
+			OperationName: query.OperationName,
+			Tags:          query.Tags,
+			StartTimeMin:  query.StartTimeMin,
+			StartTimeMax:  query.StartTimeMax,
+			DurationMin:   query.DurationMin,
+			DurationMax:   query.DurationMax,
+			NumTraces:     int32(query.NumTraces),
+		},
+	})
+	if err != nil {
+		return nil, fmt.Errorf("grpc error: %s", err)
+	}
+
+	switch t := resp.Response.(type) {
+	case *proto.FindTraceIDsResponse_Success:
+		return t.Success.TraceIDs, nil
+	case *proto.FindTraceIDsResponse_Error:
 		return nil, fmt.Errorf("plugin error: %s", t.Error.Message)
 	default:
 		panic("unreachable")
@@ -245,14 +274,14 @@ func (s *GRPCServer) GetOperations(ctx context.Context, r *proto.GetOperationsRe
 
 func (s *GRPCServer) FindTraces(ctx context.Context, r *proto.FindTracesRequest) (*proto.FindTracesResponse, error) {
 	traces, err := s.Impl.FindTraces(ctx, &spanstore.TraceQueryParameters{
-		ServiceName:   r.ServiceName,
-		OperationName: r.OperationName,
-		Tags:          r.Tags,
-		StartTimeMin:  r.StartTimeMin,
-		StartTimeMax:  r.StartTimeMax,
-		DurationMin:   r.DurationMin,
-		DurationMax:   r.DurationMax,
-		NumTraces:     int(r.NumTraces),
+		ServiceName:   r.Query.ServiceName,
+		OperationName: r.Query.OperationName,
+		Tags:          r.Query.Tags,
+		StartTimeMin:  r.Query.StartTimeMin,
+		StartTimeMax:  r.Query.StartTimeMax,
+		DurationMin:   r.Query.DurationMin,
+		DurationMax:   r.Query.DurationMax,
+		NumTraces:     int(r.Query.NumTraces),
 	})
 	if err != nil {
 		return &proto.FindTracesResponse{
@@ -271,3 +300,34 @@ func (s *GRPCServer) FindTraces(ctx context.Context, r *proto.FindTracesRequest)
 		},
 	}, nil
 }
+
+func (s *GRPCServer) FindTraceIDs(ctx context.Context, r *proto.FindTraceIDsRequest) (*proto.FindTraceIDsResponse, error) {
+	traceIDs, err := s.Impl.FindTraceIDs(ctx, &spanstore.TraceQueryParameters{
+		ServiceName:   r.Query.ServiceName,
+		OperationName: r.Query.OperationName,
+		Tags:          r.Query.Tags,
+		StartTimeMin:  r.Query.StartTimeMin,
+		StartTimeMax:  r.Query.StartTimeMax,
+		DurationMin:   r.Query.DurationMin,
+		DurationMax:   r.Query.DurationMax,
+		NumTraces:     int(r.Query.NumTraces),
+	})
+	if err != nil {
+		return &proto.FindTraceIDsResponse{
+			Response: &proto.FindTraceIDsResponse_Error{
+				Error: &proto.StoragePluginError{
+					Message: err.Error(),
+				},
+			},
+		}, nil
+	}
+	return &proto.FindTraceIDsResponse{
+		Response: &proto.FindTraceIDsResponse_Success{
+			Success: &proto.FindTraceIDsSuccess{
+				TraceIDs: traceIDs,
+			},
+		},
+	}, nil
+}
+
+

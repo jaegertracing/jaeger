@@ -19,9 +19,13 @@
 		GetOperationsRequest
 		GetOperationsSuccess
 		GetOperationsResponse
+		TraceQueryParameters
 		FindTracesRequest
 		FindTracesSuccess
 		FindTracesResponse
+		FindTraceIDsRequest
+		FindTraceIDsSuccess
+		FindTraceIDsResponse
 		EmptyResponse
 		StoragePluginError
 */
@@ -654,7 +658,7 @@ func _GetOperationsResponse_OneofSizer(msg proto1.Message) (n int) {
 	return n
 }
 
-type FindTracesRequest struct {
+type TraceQueryParameters struct {
 	ServiceName   string            `protobuf:"bytes,1,opt,name=service_name,json=serviceName,proto3" json:"service_name,omitempty"`
 	OperationName string            `protobuf:"bytes,2,opt,name=operation_name,json=operationName,proto3" json:"operation_name,omitempty"`
 	Tags          map[string]string `protobuf:"bytes,3,rep,name=tags" json:"tags,omitempty" protobuf_key:"bytes,1,opt,name=key,proto3" protobuf_val:"bytes,2,opt,name=value,proto3"`
@@ -665,65 +669,81 @@ type FindTracesRequest struct {
 	NumTraces     int32             `protobuf:"varint,8,opt,name=num_traces,json=numTraces,proto3" json:"num_traces,omitempty"`
 }
 
-func (m *FindTracesRequest) Reset()                    { *m = FindTracesRequest{} }
-func (m *FindTracesRequest) String() string            { return proto1.CompactTextString(m) }
-func (*FindTracesRequest) ProtoMessage()               {}
-func (*FindTracesRequest) Descriptor() ([]byte, []int) { return fileDescriptorStorage, []int{11} }
+func (m *TraceQueryParameters) Reset()                    { *m = TraceQueryParameters{} }
+func (m *TraceQueryParameters) String() string            { return proto1.CompactTextString(m) }
+func (*TraceQueryParameters) ProtoMessage()               {}
+func (*TraceQueryParameters) Descriptor() ([]byte, []int) { return fileDescriptorStorage, []int{11} }
 
-func (m *FindTracesRequest) GetServiceName() string {
+func (m *TraceQueryParameters) GetServiceName() string {
 	if m != nil {
 		return m.ServiceName
 	}
 	return ""
 }
 
-func (m *FindTracesRequest) GetOperationName() string {
+func (m *TraceQueryParameters) GetOperationName() string {
 	if m != nil {
 		return m.OperationName
 	}
 	return ""
 }
 
-func (m *FindTracesRequest) GetTags() map[string]string {
+func (m *TraceQueryParameters) GetTags() map[string]string {
 	if m != nil {
 		return m.Tags
 	}
 	return nil
 }
 
-func (m *FindTracesRequest) GetStartTimeMin() time.Time {
+func (m *TraceQueryParameters) GetStartTimeMin() time.Time {
 	if m != nil {
 		return m.StartTimeMin
 	}
 	return time.Time{}
 }
 
-func (m *FindTracesRequest) GetStartTimeMax() time.Time {
+func (m *TraceQueryParameters) GetStartTimeMax() time.Time {
 	if m != nil {
 		return m.StartTimeMax
 	}
 	return time.Time{}
 }
 
-func (m *FindTracesRequest) GetDurationMin() time.Duration {
+func (m *TraceQueryParameters) GetDurationMin() time.Duration {
 	if m != nil {
 		return m.DurationMin
 	}
 	return 0
 }
 
-func (m *FindTracesRequest) GetDurationMax() time.Duration {
+func (m *TraceQueryParameters) GetDurationMax() time.Duration {
 	if m != nil {
 		return m.DurationMax
 	}
 	return 0
 }
 
-func (m *FindTracesRequest) GetNumTraces() int32 {
+func (m *TraceQueryParameters) GetNumTraces() int32 {
 	if m != nil {
 		return m.NumTraces
 	}
 	return 0
+}
+
+type FindTracesRequest struct {
+	Query *TraceQueryParameters `protobuf:"bytes,1,opt,name=query" json:"query,omitempty"`
+}
+
+func (m *FindTracesRequest) Reset()                    { *m = FindTracesRequest{} }
+func (m *FindTracesRequest) String() string            { return proto1.CompactTextString(m) }
+func (*FindTracesRequest) ProtoMessage()               {}
+func (*FindTracesRequest) Descriptor() ([]byte, []int) { return fileDescriptorStorage, []int{12} }
+
+func (m *FindTracesRequest) GetQuery() *TraceQueryParameters {
+	if m != nil {
+		return m.Query
+	}
+	return nil
 }
 
 type FindTracesSuccess struct {
@@ -733,7 +753,7 @@ type FindTracesSuccess struct {
 func (m *FindTracesSuccess) Reset()                    { *m = FindTracesSuccess{} }
 func (m *FindTracesSuccess) String() string            { return proto1.CompactTextString(m) }
 func (*FindTracesSuccess) ProtoMessage()               {}
-func (*FindTracesSuccess) Descriptor() ([]byte, []int) { return fileDescriptorStorage, []int{12} }
+func (*FindTracesSuccess) Descriptor() ([]byte, []int) { return fileDescriptorStorage, []int{13} }
 
 func (m *FindTracesSuccess) GetTraces() []*jaeger_api_v2.Trace {
 	if m != nil {
@@ -752,7 +772,7 @@ type FindTracesResponse struct {
 func (m *FindTracesResponse) Reset()                    { *m = FindTracesResponse{} }
 func (m *FindTracesResponse) String() string            { return proto1.CompactTextString(m) }
 func (*FindTracesResponse) ProtoMessage()               {}
-func (*FindTracesResponse) Descriptor() ([]byte, []int) { return fileDescriptorStorage, []int{13} }
+func (*FindTracesResponse) Descriptor() ([]byte, []int) { return fileDescriptorStorage, []int{14} }
 
 type isFindTracesResponse_Response interface {
 	isFindTracesResponse_Response()
@@ -865,13 +885,168 @@ func _FindTracesResponse_OneofSizer(msg proto1.Message) (n int) {
 	return n
 }
 
+type FindTraceIDsRequest struct {
+	Query *TraceQueryParameters `protobuf:"bytes,1,opt,name=query" json:"query,omitempty"`
+}
+
+func (m *FindTraceIDsRequest) Reset()                    { *m = FindTraceIDsRequest{} }
+func (m *FindTraceIDsRequest) String() string            { return proto1.CompactTextString(m) }
+func (*FindTraceIDsRequest) ProtoMessage()               {}
+func (*FindTraceIDsRequest) Descriptor() ([]byte, []int) { return fileDescriptorStorage, []int{15} }
+
+func (m *FindTraceIDsRequest) GetQuery() *TraceQueryParameters {
+	if m != nil {
+		return m.Query
+	}
+	return nil
+}
+
+type FindTraceIDsSuccess struct {
+	TraceIDs []jaeger_api_v2.TraceID `protobuf:"bytes,1,rep,name=traceIDs" json:"traceIDs"`
+}
+
+func (m *FindTraceIDsSuccess) Reset()                    { *m = FindTraceIDsSuccess{} }
+func (m *FindTraceIDsSuccess) String() string            { return proto1.CompactTextString(m) }
+func (*FindTraceIDsSuccess) ProtoMessage()               {}
+func (*FindTraceIDsSuccess) Descriptor() ([]byte, []int) { return fileDescriptorStorage, []int{16} }
+
+func (m *FindTraceIDsSuccess) GetTraceIDs() []jaeger_api_v2.TraceID {
+	if m != nil {
+		return m.TraceIDs
+	}
+	return nil
+}
+
+type FindTraceIDsResponse struct {
+	// Types that are valid to be assigned to Response:
+	//	*FindTraceIDsResponse_Success
+	//	*FindTraceIDsResponse_Error
+	Response isFindTraceIDsResponse_Response `protobuf_oneof:"response"`
+}
+
+func (m *FindTraceIDsResponse) Reset()                    { *m = FindTraceIDsResponse{} }
+func (m *FindTraceIDsResponse) String() string            { return proto1.CompactTextString(m) }
+func (*FindTraceIDsResponse) ProtoMessage()               {}
+func (*FindTraceIDsResponse) Descriptor() ([]byte, []int) { return fileDescriptorStorage, []int{17} }
+
+type isFindTraceIDsResponse_Response interface {
+	isFindTraceIDsResponse_Response()
+	MarshalTo([]byte) (int, error)
+	Size() int
+}
+
+type FindTraceIDsResponse_Success struct {
+	Success *FindTraceIDsSuccess `protobuf:"bytes,1,opt,name=success,oneof"`
+}
+type FindTraceIDsResponse_Error struct {
+	Error *StoragePluginError `protobuf:"bytes,2,opt,name=error,oneof"`
+}
+
+func (*FindTraceIDsResponse_Success) isFindTraceIDsResponse_Response() {}
+func (*FindTraceIDsResponse_Error) isFindTraceIDsResponse_Response()   {}
+
+func (m *FindTraceIDsResponse) GetResponse() isFindTraceIDsResponse_Response {
+	if m != nil {
+		return m.Response
+	}
+	return nil
+}
+
+func (m *FindTraceIDsResponse) GetSuccess() *FindTraceIDsSuccess {
+	if x, ok := m.GetResponse().(*FindTraceIDsResponse_Success); ok {
+		return x.Success
+	}
+	return nil
+}
+
+func (m *FindTraceIDsResponse) GetError() *StoragePluginError {
+	if x, ok := m.GetResponse().(*FindTraceIDsResponse_Error); ok {
+		return x.Error
+	}
+	return nil
+}
+
+// XXX_OneofFuncs is for the internal use of the proto package.
+func (*FindTraceIDsResponse) XXX_OneofFuncs() (func(msg proto1.Message, b *proto1.Buffer) error, func(msg proto1.Message, tag, wire int, b *proto1.Buffer) (bool, error), func(msg proto1.Message) (n int), []interface{}) {
+	return _FindTraceIDsResponse_OneofMarshaler, _FindTraceIDsResponse_OneofUnmarshaler, _FindTraceIDsResponse_OneofSizer, []interface{}{
+		(*FindTraceIDsResponse_Success)(nil),
+		(*FindTraceIDsResponse_Error)(nil),
+	}
+}
+
+func _FindTraceIDsResponse_OneofMarshaler(msg proto1.Message, b *proto1.Buffer) error {
+	m := msg.(*FindTraceIDsResponse)
+	// response
+	switch x := m.Response.(type) {
+	case *FindTraceIDsResponse_Success:
+		_ = b.EncodeVarint(1<<3 | proto1.WireBytes)
+		if err := b.EncodeMessage(x.Success); err != nil {
+			return err
+		}
+	case *FindTraceIDsResponse_Error:
+		_ = b.EncodeVarint(2<<3 | proto1.WireBytes)
+		if err := b.EncodeMessage(x.Error); err != nil {
+			return err
+		}
+	case nil:
+	default:
+		return fmt.Errorf("FindTraceIDsResponse.Response has unexpected type %T", x)
+	}
+	return nil
+}
+
+func _FindTraceIDsResponse_OneofUnmarshaler(msg proto1.Message, tag, wire int, b *proto1.Buffer) (bool, error) {
+	m := msg.(*FindTraceIDsResponse)
+	switch tag {
+	case 1: // response.success
+		if wire != proto1.WireBytes {
+			return true, proto1.ErrInternalBadWireType
+		}
+		msg := new(FindTraceIDsSuccess)
+		err := b.DecodeMessage(msg)
+		m.Response = &FindTraceIDsResponse_Success{msg}
+		return true, err
+	case 2: // response.error
+		if wire != proto1.WireBytes {
+			return true, proto1.ErrInternalBadWireType
+		}
+		msg := new(StoragePluginError)
+		err := b.DecodeMessage(msg)
+		m.Response = &FindTraceIDsResponse_Error{msg}
+		return true, err
+	default:
+		return false, nil
+	}
+}
+
+func _FindTraceIDsResponse_OneofSizer(msg proto1.Message) (n int) {
+	m := msg.(*FindTraceIDsResponse)
+	// response
+	switch x := m.Response.(type) {
+	case *FindTraceIDsResponse_Success:
+		s := proto1.Size(x.Success)
+		n += proto1.SizeVarint(1<<3 | proto1.WireBytes)
+		n += proto1.SizeVarint(uint64(s))
+		n += s
+	case *FindTraceIDsResponse_Error:
+		s := proto1.Size(x.Error)
+		n += proto1.SizeVarint(2<<3 | proto1.WireBytes)
+		n += proto1.SizeVarint(uint64(s))
+		n += s
+	case nil:
+	default:
+		panic(fmt.Sprintf("proto: unexpected type %T in oneof", x))
+	}
+	return n
+}
+
 type EmptyResponse struct {
 }
 
 func (m *EmptyResponse) Reset()                    { *m = EmptyResponse{} }
 func (m *EmptyResponse) String() string            { return proto1.CompactTextString(m) }
 func (*EmptyResponse) ProtoMessage()               {}
-func (*EmptyResponse) Descriptor() ([]byte, []int) { return fileDescriptorStorage, []int{14} }
+func (*EmptyResponse) Descriptor() ([]byte, []int) { return fileDescriptorStorage, []int{18} }
 
 type StoragePluginError struct {
 	Message string `protobuf:"bytes,1,opt,name=message,proto3" json:"message,omitempty"`
@@ -880,7 +1055,7 @@ type StoragePluginError struct {
 func (m *StoragePluginError) Reset()                    { *m = StoragePluginError{} }
 func (m *StoragePluginError) String() string            { return proto1.CompactTextString(m) }
 func (*StoragePluginError) ProtoMessage()               {}
-func (*StoragePluginError) Descriptor() ([]byte, []int) { return fileDescriptorStorage, []int{15} }
+func (*StoragePluginError) Descriptor() ([]byte, []int) { return fileDescriptorStorage, []int{19} }
 
 func (m *StoragePluginError) GetMessage() string {
 	if m != nil {
@@ -912,12 +1087,20 @@ func init() {
 	golang_proto.RegisterType((*GetOperationsSuccess)(nil), "jaeger.api_v2.GetOperationsSuccess")
 	proto1.RegisterType((*GetOperationsResponse)(nil), "jaeger.api_v2.GetOperationsResponse")
 	golang_proto.RegisterType((*GetOperationsResponse)(nil), "jaeger.api_v2.GetOperationsResponse")
+	proto1.RegisterType((*TraceQueryParameters)(nil), "jaeger.api_v2.TraceQueryParameters")
+	golang_proto.RegisterType((*TraceQueryParameters)(nil), "jaeger.api_v2.TraceQueryParameters")
 	proto1.RegisterType((*FindTracesRequest)(nil), "jaeger.api_v2.FindTracesRequest")
 	golang_proto.RegisterType((*FindTracesRequest)(nil), "jaeger.api_v2.FindTracesRequest")
 	proto1.RegisterType((*FindTracesSuccess)(nil), "jaeger.api_v2.FindTracesSuccess")
 	golang_proto.RegisterType((*FindTracesSuccess)(nil), "jaeger.api_v2.FindTracesSuccess")
 	proto1.RegisterType((*FindTracesResponse)(nil), "jaeger.api_v2.FindTracesResponse")
 	golang_proto.RegisterType((*FindTracesResponse)(nil), "jaeger.api_v2.FindTracesResponse")
+	proto1.RegisterType((*FindTraceIDsRequest)(nil), "jaeger.api_v2.FindTraceIDsRequest")
+	golang_proto.RegisterType((*FindTraceIDsRequest)(nil), "jaeger.api_v2.FindTraceIDsRequest")
+	proto1.RegisterType((*FindTraceIDsSuccess)(nil), "jaeger.api_v2.FindTraceIDsSuccess")
+	golang_proto.RegisterType((*FindTraceIDsSuccess)(nil), "jaeger.api_v2.FindTraceIDsSuccess")
+	proto1.RegisterType((*FindTraceIDsResponse)(nil), "jaeger.api_v2.FindTraceIDsResponse")
+	golang_proto.RegisterType((*FindTraceIDsResponse)(nil), "jaeger.api_v2.FindTraceIDsResponse")
 	proto1.RegisterType((*EmptyResponse)(nil), "jaeger.api_v2.EmptyResponse")
 	golang_proto.RegisterType((*EmptyResponse)(nil), "jaeger.api_v2.EmptyResponse")
 	proto1.RegisterType((*StoragePluginError)(nil), "jaeger.api_v2.StoragePluginError")
@@ -942,6 +1125,7 @@ type StoragePluginClient interface {
 	GetServices(ctx context.Context, in *GetServicesRequest, opts ...grpc.CallOption) (*GetServicesResponse, error)
 	GetOperations(ctx context.Context, in *GetOperationsRequest, opts ...grpc.CallOption) (*GetOperationsResponse, error)
 	FindTraces(ctx context.Context, in *FindTracesRequest, opts ...grpc.CallOption) (*FindTracesResponse, error)
+	FindTraceIDs(ctx context.Context, in *FindTraceIDsRequest, opts ...grpc.CallOption) (*FindTraceIDsResponse, error)
 }
 
 type storagePluginClient struct {
@@ -997,6 +1181,15 @@ func (c *storagePluginClient) FindTraces(ctx context.Context, in *FindTracesRequ
 	return out, nil
 }
 
+func (c *storagePluginClient) FindTraceIDs(ctx context.Context, in *FindTraceIDsRequest, opts ...grpc.CallOption) (*FindTraceIDsResponse, error) {
+	out := new(FindTraceIDsResponse)
+	err := grpc.Invoke(ctx, "/jaeger.api_v2.StoragePlugin/FindTraceIDs", in, out, c.cc, opts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
 // Server API for StoragePlugin service
 
 type StoragePluginServer interface {
@@ -1007,6 +1200,7 @@ type StoragePluginServer interface {
 	GetServices(context.Context, *GetServicesRequest) (*GetServicesResponse, error)
 	GetOperations(context.Context, *GetOperationsRequest) (*GetOperationsResponse, error)
 	FindTraces(context.Context, *FindTracesRequest) (*FindTracesResponse, error)
+	FindTraceIDs(context.Context, *FindTraceIDsRequest) (*FindTraceIDsResponse, error)
 }
 
 func RegisterStoragePluginServer(s *grpc.Server, srv StoragePluginServer) {
@@ -1103,6 +1297,24 @@ func _StoragePlugin_FindTraces_Handler(srv interface{}, ctx context.Context, dec
 	return interceptor(ctx, in, info, handler)
 }
 
+func _StoragePlugin_FindTraceIDs_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(FindTraceIDsRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(StoragePluginServer).FindTraceIDs(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: "/jaeger.api_v2.StoragePlugin/FindTraceIDs",
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(StoragePluginServer).FindTraceIDs(ctx, req.(*FindTraceIDsRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
 var _StoragePlugin_serviceDesc = grpc.ServiceDesc{
 	ServiceName: "jaeger.api_v2.StoragePlugin",
 	HandlerType: (*StoragePluginServer)(nil),
@@ -1126,6 +1338,10 @@ var _StoragePlugin_serviceDesc = grpc.ServiceDesc{
 		{
 			MethodName: "FindTraces",
 			Handler:    _StoragePlugin_FindTraces_Handler,
+		},
+		{
+			MethodName: "FindTraceIDs",
+			Handler:    _StoragePlugin_FindTraceIDs_Handler,
 		},
 	},
 	Streams:  []grpc.StreamDesc{},
@@ -1534,7 +1750,7 @@ func (m *GetOperationsResponse_Error) MarshalTo(dAtA []byte) (int, error) {
 	}
 	return i, nil
 }
-func (m *FindTracesRequest) Marshal() (dAtA []byte, err error) {
+func (m *TraceQueryParameters) Marshal() (dAtA []byte, err error) {
 	size := m.Size()
 	dAtA = make([]byte, size)
 	n, err := m.MarshalTo(dAtA)
@@ -1544,7 +1760,7 @@ func (m *FindTracesRequest) Marshal() (dAtA []byte, err error) {
 	return dAtA[:n], nil
 }
 
-func (m *FindTracesRequest) MarshalTo(dAtA []byte) (int, error) {
+func (m *TraceQueryParameters) MarshalTo(dAtA []byte) (int, error) {
 	var i int
 	_ = i
 	var l int
@@ -1618,6 +1834,34 @@ func (m *FindTracesRequest) MarshalTo(dAtA []byte) (int, error) {
 	return i, nil
 }
 
+func (m *FindTracesRequest) Marshal() (dAtA []byte, err error) {
+	size := m.Size()
+	dAtA = make([]byte, size)
+	n, err := m.MarshalTo(dAtA)
+	if err != nil {
+		return nil, err
+	}
+	return dAtA[:n], nil
+}
+
+func (m *FindTracesRequest) MarshalTo(dAtA []byte) (int, error) {
+	var i int
+	_ = i
+	var l int
+	_ = l
+	if m.Query != nil {
+		dAtA[i] = 0xa
+		i++
+		i = encodeVarintStorage(dAtA, i, uint64(m.Query.Size()))
+		n20, err := m.Query.MarshalTo(dAtA[i:])
+		if err != nil {
+			return 0, err
+		}
+		i += n20
+	}
+	return i, nil
+}
+
 func (m *FindTracesSuccess) Marshal() (dAtA []byte, err error) {
 	size := m.Size()
 	dAtA = make([]byte, size)
@@ -1664,11 +1908,11 @@ func (m *FindTracesResponse) MarshalTo(dAtA []byte) (int, error) {
 	var l int
 	_ = l
 	if m.Response != nil {
-		nn20, err := m.Response.MarshalTo(dAtA[i:])
+		nn21, err := m.Response.MarshalTo(dAtA[i:])
 		if err != nil {
 			return 0, err
 		}
-		i += nn20
+		i += nn21
 	}
 	return i, nil
 }
@@ -1679,11 +1923,11 @@ func (m *FindTracesResponse_Success) MarshalTo(dAtA []byte) (int, error) {
 		dAtA[i] = 0xa
 		i++
 		i = encodeVarintStorage(dAtA, i, uint64(m.Success.Size()))
-		n21, err := m.Success.MarshalTo(dAtA[i:])
+		n22, err := m.Success.MarshalTo(dAtA[i:])
 		if err != nil {
 			return 0, err
 		}
-		i += n21
+		i += n22
 	}
 	return i, nil
 }
@@ -1693,11 +1937,122 @@ func (m *FindTracesResponse_Error) MarshalTo(dAtA []byte) (int, error) {
 		dAtA[i] = 0x12
 		i++
 		i = encodeVarintStorage(dAtA, i, uint64(m.Error.Size()))
-		n22, err := m.Error.MarshalTo(dAtA[i:])
+		n23, err := m.Error.MarshalTo(dAtA[i:])
 		if err != nil {
 			return 0, err
 		}
-		i += n22
+		i += n23
+	}
+	return i, nil
+}
+func (m *FindTraceIDsRequest) Marshal() (dAtA []byte, err error) {
+	size := m.Size()
+	dAtA = make([]byte, size)
+	n, err := m.MarshalTo(dAtA)
+	if err != nil {
+		return nil, err
+	}
+	return dAtA[:n], nil
+}
+
+func (m *FindTraceIDsRequest) MarshalTo(dAtA []byte) (int, error) {
+	var i int
+	_ = i
+	var l int
+	_ = l
+	if m.Query != nil {
+		dAtA[i] = 0xa
+		i++
+		i = encodeVarintStorage(dAtA, i, uint64(m.Query.Size()))
+		n24, err := m.Query.MarshalTo(dAtA[i:])
+		if err != nil {
+			return 0, err
+		}
+		i += n24
+	}
+	return i, nil
+}
+
+func (m *FindTraceIDsSuccess) Marshal() (dAtA []byte, err error) {
+	size := m.Size()
+	dAtA = make([]byte, size)
+	n, err := m.MarshalTo(dAtA)
+	if err != nil {
+		return nil, err
+	}
+	return dAtA[:n], nil
+}
+
+func (m *FindTraceIDsSuccess) MarshalTo(dAtA []byte) (int, error) {
+	var i int
+	_ = i
+	var l int
+	_ = l
+	if len(m.TraceIDs) > 0 {
+		for _, msg := range m.TraceIDs {
+			dAtA[i] = 0xa
+			i++
+			i = encodeVarintStorage(dAtA, i, uint64(msg.Size()))
+			n, err := msg.MarshalTo(dAtA[i:])
+			if err != nil {
+				return 0, err
+			}
+			i += n
+		}
+	}
+	return i, nil
+}
+
+func (m *FindTraceIDsResponse) Marshal() (dAtA []byte, err error) {
+	size := m.Size()
+	dAtA = make([]byte, size)
+	n, err := m.MarshalTo(dAtA)
+	if err != nil {
+		return nil, err
+	}
+	return dAtA[:n], nil
+}
+
+func (m *FindTraceIDsResponse) MarshalTo(dAtA []byte) (int, error) {
+	var i int
+	_ = i
+	var l int
+	_ = l
+	if m.Response != nil {
+		nn25, err := m.Response.MarshalTo(dAtA[i:])
+		if err != nil {
+			return 0, err
+		}
+		i += nn25
+	}
+	return i, nil
+}
+
+func (m *FindTraceIDsResponse_Success) MarshalTo(dAtA []byte) (int, error) {
+	i := 0
+	if m.Success != nil {
+		dAtA[i] = 0xa
+		i++
+		i = encodeVarintStorage(dAtA, i, uint64(m.Success.Size()))
+		n26, err := m.Success.MarshalTo(dAtA[i:])
+		if err != nil {
+			return 0, err
+		}
+		i += n26
+	}
+	return i, nil
+}
+func (m *FindTraceIDsResponse_Error) MarshalTo(dAtA []byte) (int, error) {
+	i := 0
+	if m.Error != nil {
+		dAtA[i] = 0x12
+		i++
+		i = encodeVarintStorage(dAtA, i, uint64(m.Error.Size()))
+		n27, err := m.Error.MarshalTo(dAtA[i:])
+		if err != nil {
+			return 0, err
+		}
+		i += n27
 	}
 	return i, nil
 }
@@ -1928,7 +2283,7 @@ func (m *GetOperationsResponse_Error) Size() (n int) {
 	}
 	return n
 }
-func (m *FindTracesRequest) Size() (n int) {
+func (m *TraceQueryParameters) Size() (n int) {
 	var l int
 	_ = l
 	l = len(m.ServiceName)
@@ -1957,6 +2312,16 @@ func (m *FindTracesRequest) Size() (n int) {
 	n += 1 + l + sovStorage(uint64(l))
 	if m.NumTraces != 0 {
 		n += 1 + sovStorage(uint64(m.NumTraces))
+	}
+	return n
+}
+
+func (m *FindTracesRequest) Size() (n int) {
+	var l int
+	_ = l
+	if m.Query != nil {
+		l = m.Query.Size()
+		n += 1 + l + sovStorage(uint64(l))
 	}
 	return n
 }
@@ -1992,6 +2357,55 @@ func (m *FindTracesResponse_Success) Size() (n int) {
 	return n
 }
 func (m *FindTracesResponse_Error) Size() (n int) {
+	var l int
+	_ = l
+	if m.Error != nil {
+		l = m.Error.Size()
+		n += 1 + l + sovStorage(uint64(l))
+	}
+	return n
+}
+func (m *FindTraceIDsRequest) Size() (n int) {
+	var l int
+	_ = l
+	if m.Query != nil {
+		l = m.Query.Size()
+		n += 1 + l + sovStorage(uint64(l))
+	}
+	return n
+}
+
+func (m *FindTraceIDsSuccess) Size() (n int) {
+	var l int
+	_ = l
+	if len(m.TraceIDs) > 0 {
+		for _, e := range m.TraceIDs {
+			l = e.Size()
+			n += 1 + l + sovStorage(uint64(l))
+		}
+	}
+	return n
+}
+
+func (m *FindTraceIDsResponse) Size() (n int) {
+	var l int
+	_ = l
+	if m.Response != nil {
+		n += m.Response.Size()
+	}
+	return n
+}
+
+func (m *FindTraceIDsResponse_Success) Size() (n int) {
+	var l int
+	_ = l
+	if m.Success != nil {
+		l = m.Success.Size()
+		n += 1 + l + sovStorage(uint64(l))
+	}
+	return n
+}
+func (m *FindTraceIDsResponse_Error) Size() (n int) {
 	var l int
 	_ = l
 	if m.Error != nil {
@@ -3018,7 +3432,7 @@ func (m *GetOperationsResponse) Unmarshal(dAtA []byte) error {
 	}
 	return nil
 }
-func (m *FindTracesRequest) Unmarshal(dAtA []byte) error {
+func (m *TraceQueryParameters) Unmarshal(dAtA []byte) error {
 	l := len(dAtA)
 	iNdEx := 0
 	for iNdEx < l {
@@ -3041,10 +3455,10 @@ func (m *FindTracesRequest) Unmarshal(dAtA []byte) error {
 		fieldNum := int32(wire >> 3)
 		wireType := int(wire & 0x7)
 		if wireType == 4 {
-			return fmt.Errorf("proto: FindTracesRequest: wiretype end group for non-group")
+			return fmt.Errorf("proto: TraceQueryParameters: wiretype end group for non-group")
 		}
 		if fieldNum <= 0 {
-			return fmt.Errorf("proto: FindTracesRequest: illegal tag %d (wire type %d)", fieldNum, wire)
+			return fmt.Errorf("proto: TraceQueryParameters: illegal tag %d (wire type %d)", fieldNum, wire)
 		}
 		switch fieldNum {
 		case 1:
@@ -3383,6 +3797,89 @@ func (m *FindTracesRequest) Unmarshal(dAtA []byte) error {
 	}
 	return nil
 }
+func (m *FindTracesRequest) Unmarshal(dAtA []byte) error {
+	l := len(dAtA)
+	iNdEx := 0
+	for iNdEx < l {
+		preIndex := iNdEx
+		var wire uint64
+		for shift := uint(0); ; shift += 7 {
+			if shift >= 64 {
+				return ErrIntOverflowStorage
+			}
+			if iNdEx >= l {
+				return io.ErrUnexpectedEOF
+			}
+			b := dAtA[iNdEx]
+			iNdEx++
+			wire |= (uint64(b) & 0x7F) << shift
+			if b < 0x80 {
+				break
+			}
+		}
+		fieldNum := int32(wire >> 3)
+		wireType := int(wire & 0x7)
+		if wireType == 4 {
+			return fmt.Errorf("proto: FindTracesRequest: wiretype end group for non-group")
+		}
+		if fieldNum <= 0 {
+			return fmt.Errorf("proto: FindTracesRequest: illegal tag %d (wire type %d)", fieldNum, wire)
+		}
+		switch fieldNum {
+		case 1:
+			if wireType != 2 {
+				return fmt.Errorf("proto: wrong wireType = %d for field Query", wireType)
+			}
+			var msglen int
+			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return ErrIntOverflowStorage
+				}
+				if iNdEx >= l {
+					return io.ErrUnexpectedEOF
+				}
+				b := dAtA[iNdEx]
+				iNdEx++
+				msglen |= (int(b) & 0x7F) << shift
+				if b < 0x80 {
+					break
+				}
+			}
+			if msglen < 0 {
+				return ErrInvalidLengthStorage
+			}
+			postIndex := iNdEx + msglen
+			if postIndex > l {
+				return io.ErrUnexpectedEOF
+			}
+			if m.Query == nil {
+				m.Query = &TraceQueryParameters{}
+			}
+			if err := m.Query.Unmarshal(dAtA[iNdEx:postIndex]); err != nil {
+				return err
+			}
+			iNdEx = postIndex
+		default:
+			iNdEx = preIndex
+			skippy, err := skipStorage(dAtA[iNdEx:])
+			if err != nil {
+				return err
+			}
+			if skippy < 0 {
+				return ErrInvalidLengthStorage
+			}
+			if (iNdEx + skippy) > l {
+				return io.ErrUnexpectedEOF
+			}
+			iNdEx += skippy
+		}
+	}
+
+	if iNdEx > l {
+		return io.ErrUnexpectedEOF
+	}
+	return nil
+}
 func (m *FindTracesSuccess) Unmarshal(dAtA []byte) error {
 	l := len(dAtA)
 	iNdEx := 0
@@ -3556,6 +4053,284 @@ func (m *FindTracesResponse) Unmarshal(dAtA []byte) error {
 				return err
 			}
 			m.Response = &FindTracesResponse_Error{v}
+			iNdEx = postIndex
+		default:
+			iNdEx = preIndex
+			skippy, err := skipStorage(dAtA[iNdEx:])
+			if err != nil {
+				return err
+			}
+			if skippy < 0 {
+				return ErrInvalidLengthStorage
+			}
+			if (iNdEx + skippy) > l {
+				return io.ErrUnexpectedEOF
+			}
+			iNdEx += skippy
+		}
+	}
+
+	if iNdEx > l {
+		return io.ErrUnexpectedEOF
+	}
+	return nil
+}
+func (m *FindTraceIDsRequest) Unmarshal(dAtA []byte) error {
+	l := len(dAtA)
+	iNdEx := 0
+	for iNdEx < l {
+		preIndex := iNdEx
+		var wire uint64
+		for shift := uint(0); ; shift += 7 {
+			if shift >= 64 {
+				return ErrIntOverflowStorage
+			}
+			if iNdEx >= l {
+				return io.ErrUnexpectedEOF
+			}
+			b := dAtA[iNdEx]
+			iNdEx++
+			wire |= (uint64(b) & 0x7F) << shift
+			if b < 0x80 {
+				break
+			}
+		}
+		fieldNum := int32(wire >> 3)
+		wireType := int(wire & 0x7)
+		if wireType == 4 {
+			return fmt.Errorf("proto: FindTraceIDsRequest: wiretype end group for non-group")
+		}
+		if fieldNum <= 0 {
+			return fmt.Errorf("proto: FindTraceIDsRequest: illegal tag %d (wire type %d)", fieldNum, wire)
+		}
+		switch fieldNum {
+		case 1:
+			if wireType != 2 {
+				return fmt.Errorf("proto: wrong wireType = %d for field Query", wireType)
+			}
+			var msglen int
+			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return ErrIntOverflowStorage
+				}
+				if iNdEx >= l {
+					return io.ErrUnexpectedEOF
+				}
+				b := dAtA[iNdEx]
+				iNdEx++
+				msglen |= (int(b) & 0x7F) << shift
+				if b < 0x80 {
+					break
+				}
+			}
+			if msglen < 0 {
+				return ErrInvalidLengthStorage
+			}
+			postIndex := iNdEx + msglen
+			if postIndex > l {
+				return io.ErrUnexpectedEOF
+			}
+			if m.Query == nil {
+				m.Query = &TraceQueryParameters{}
+			}
+			if err := m.Query.Unmarshal(dAtA[iNdEx:postIndex]); err != nil {
+				return err
+			}
+			iNdEx = postIndex
+		default:
+			iNdEx = preIndex
+			skippy, err := skipStorage(dAtA[iNdEx:])
+			if err != nil {
+				return err
+			}
+			if skippy < 0 {
+				return ErrInvalidLengthStorage
+			}
+			if (iNdEx + skippy) > l {
+				return io.ErrUnexpectedEOF
+			}
+			iNdEx += skippy
+		}
+	}
+
+	if iNdEx > l {
+		return io.ErrUnexpectedEOF
+	}
+	return nil
+}
+func (m *FindTraceIDsSuccess) Unmarshal(dAtA []byte) error {
+	l := len(dAtA)
+	iNdEx := 0
+	for iNdEx < l {
+		preIndex := iNdEx
+		var wire uint64
+		for shift := uint(0); ; shift += 7 {
+			if shift >= 64 {
+				return ErrIntOverflowStorage
+			}
+			if iNdEx >= l {
+				return io.ErrUnexpectedEOF
+			}
+			b := dAtA[iNdEx]
+			iNdEx++
+			wire |= (uint64(b) & 0x7F) << shift
+			if b < 0x80 {
+				break
+			}
+		}
+		fieldNum := int32(wire >> 3)
+		wireType := int(wire & 0x7)
+		if wireType == 4 {
+			return fmt.Errorf("proto: FindTraceIDsSuccess: wiretype end group for non-group")
+		}
+		if fieldNum <= 0 {
+			return fmt.Errorf("proto: FindTraceIDsSuccess: illegal tag %d (wire type %d)", fieldNum, wire)
+		}
+		switch fieldNum {
+		case 1:
+			if wireType != 2 {
+				return fmt.Errorf("proto: wrong wireType = %d for field TraceIDs", wireType)
+			}
+			var msglen int
+			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return ErrIntOverflowStorage
+				}
+				if iNdEx >= l {
+					return io.ErrUnexpectedEOF
+				}
+				b := dAtA[iNdEx]
+				iNdEx++
+				msglen |= (int(b) & 0x7F) << shift
+				if b < 0x80 {
+					break
+				}
+			}
+			if msglen < 0 {
+				return ErrInvalidLengthStorage
+			}
+			postIndex := iNdEx + msglen
+			if postIndex > l {
+				return io.ErrUnexpectedEOF
+			}
+			m.TraceIDs = append(m.TraceIDs, jaeger_api_v2.TraceID{})
+			if err := m.TraceIDs[len(m.TraceIDs)-1].Unmarshal(dAtA[iNdEx:postIndex]); err != nil {
+				return err
+			}
+			iNdEx = postIndex
+		default:
+			iNdEx = preIndex
+			skippy, err := skipStorage(dAtA[iNdEx:])
+			if err != nil {
+				return err
+			}
+			if skippy < 0 {
+				return ErrInvalidLengthStorage
+			}
+			if (iNdEx + skippy) > l {
+				return io.ErrUnexpectedEOF
+			}
+			iNdEx += skippy
+		}
+	}
+
+	if iNdEx > l {
+		return io.ErrUnexpectedEOF
+	}
+	return nil
+}
+func (m *FindTraceIDsResponse) Unmarshal(dAtA []byte) error {
+	l := len(dAtA)
+	iNdEx := 0
+	for iNdEx < l {
+		preIndex := iNdEx
+		var wire uint64
+		for shift := uint(0); ; shift += 7 {
+			if shift >= 64 {
+				return ErrIntOverflowStorage
+			}
+			if iNdEx >= l {
+				return io.ErrUnexpectedEOF
+			}
+			b := dAtA[iNdEx]
+			iNdEx++
+			wire |= (uint64(b) & 0x7F) << shift
+			if b < 0x80 {
+				break
+			}
+		}
+		fieldNum := int32(wire >> 3)
+		wireType := int(wire & 0x7)
+		if wireType == 4 {
+			return fmt.Errorf("proto: FindTraceIDsResponse: wiretype end group for non-group")
+		}
+		if fieldNum <= 0 {
+			return fmt.Errorf("proto: FindTraceIDsResponse: illegal tag %d (wire type %d)", fieldNum, wire)
+		}
+		switch fieldNum {
+		case 1:
+			if wireType != 2 {
+				return fmt.Errorf("proto: wrong wireType = %d for field Success", wireType)
+			}
+			var msglen int
+			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return ErrIntOverflowStorage
+				}
+				if iNdEx >= l {
+					return io.ErrUnexpectedEOF
+				}
+				b := dAtA[iNdEx]
+				iNdEx++
+				msglen |= (int(b) & 0x7F) << shift
+				if b < 0x80 {
+					break
+				}
+			}
+			if msglen < 0 {
+				return ErrInvalidLengthStorage
+			}
+			postIndex := iNdEx + msglen
+			if postIndex > l {
+				return io.ErrUnexpectedEOF
+			}
+			v := &FindTraceIDsSuccess{}
+			if err := v.Unmarshal(dAtA[iNdEx:postIndex]); err != nil {
+				return err
+			}
+			m.Response = &FindTraceIDsResponse_Success{v}
+			iNdEx = postIndex
+		case 2:
+			if wireType != 2 {
+				return fmt.Errorf("proto: wrong wireType = %d for field Error", wireType)
+			}
+			var msglen int
+			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return ErrIntOverflowStorage
+				}
+				if iNdEx >= l {
+					return io.ErrUnexpectedEOF
+				}
+				b := dAtA[iNdEx]
+				iNdEx++
+				msglen |= (int(b) & 0x7F) << shift
+				if b < 0x80 {
+					break
+				}
+			}
+			if msglen < 0 {
+				return ErrInvalidLengthStorage
+			}
+			postIndex := iNdEx + msglen
+			if postIndex > l {
+				return io.ErrUnexpectedEOF
+			}
+			v := &StoragePluginError{}
+			if err := v.Unmarshal(dAtA[iNdEx:postIndex]); err != nil {
+				return err
+			}
+			m.Response = &FindTraceIDsResponse_Error{v}
 			iNdEx = postIndex
 		default:
 			iNdEx = preIndex
@@ -3816,57 +4591,64 @@ func init() { proto1.RegisterFile("storage.proto", fileDescriptorStorage) }
 func init() { golang_proto.RegisterFile("storage.proto", fileDescriptorStorage) }
 
 var fileDescriptorStorage = []byte{
-	// 827 bytes of a gzipped FileDescriptorProto
-	0x1f, 0x8b, 0x08, 0x00, 0x00, 0x00, 0x00, 0x00, 0x02, 0xff, 0xb4, 0x55, 0xdd, 0x6e, 0x23, 0x35,
-	0x14, 0xae, 0x9b, 0xa4, 0x49, 0x4e, 0x9a, 0x6d, 0xd7, 0x1b, 0x60, 0x88, 0x20, 0x3f, 0x03, 0x88,
-	0x68, 0x85, 0xa6, 0xab, 0x20, 0xc1, 0xb2, 0x50, 0x10, 0x51, 0x7f, 0x41, 0x14, 0x98, 0x06, 0x21,
-	0xf5, 0x26, 0x32, 0x89, 0x19, 0x0d, 0x64, 0x7e, 0x18, 0x7b, 0xaa, 0xf4, 0x2d, 0xb8, 0x00, 0x09,
-	0x84, 0x10, 0xcf, 0xc0, 0x1b, 0x70, 0xd9, 0x4b, 0x9e, 0xa0, 0xa0, 0xf0, 0x22, 0x68, 0x3c, 0xf6,
-	0x34, 0x71, 0x9a, 0xac, 0x54, 0x29, 0x57, 0x89, 0xed, 0xef, 0x7c, 0xe7, 0x9c, 0x6f, 0x8e, 0x3f,
-	0x43, 0x95, 0xf1, 0x20, 0x22, 0x0e, 0xb5, 0xc2, 0x28, 0xe0, 0x01, 0xae, 0x7e, 0x47, 0xa8, 0x43,
-	0x23, 0x8b, 0x84, 0xee, 0xe0, 0xb2, 0x5b, 0xaf, 0x39, 0x81, 0x13, 0x88, 0x93, 0xbd, 0xe4, 0x5f,
-	0x0a, 0xaa, 0x57, 0xbc, 0x60, 0x44, 0xc7, 0x72, 0xd1, 0x74, 0x82, 0xc0, 0x19, 0xd3, 0x3d, 0xb1,
-	0xfa, 0x26, 0xfe, 0x76, 0x8f, 0xbb, 0x1e, 0x65, 0x9c, 0x78, 0xa1, 0x04, 0x34, 0x74, 0xc0, 0x28,
-	0x8e, 0x08, 0x77, 0x03, 0x3f, 0x3d, 0x37, 0xdf, 0x87, 0xdd, 0xaf, 0x23, 0x97, 0xd3, 0xf3, 0x90,
-	0xf8, 0x36, 0xfd, 0x21, 0xa6, 0x8c, 0xe3, 0x37, 0x21, 0xcf, 0x42, 0xe2, 0x1b, 0xa8, 0x85, 0x3a,
-	0x95, 0xee, 0x23, 0x6b, 0xae, 0x2a, 0x4b, 0x20, 0x05, 0xc0, 0xfc, 0x09, 0xc1, 0xc3, 0x99, 0x68,
-	0x16, 0x06, 0x3e, 0xa3, 0xf8, 0x29, 0x14, 0x59, 0x3c, 0x1c, 0x52, 0xc6, 0x24, 0xc3, 0x2b, 0x1a,
-	0xc3, 0xa1, 0x17, 0xf2, 0x2b, 0x05, 0x3f, 0xd9, 0xb0, 0x15, 0x1c, 0xbf, 0x07, 0x05, 0x1a, 0x45,
-	0x41, 0x64, 0x6c, 0x8a, 0xb8, 0xb6, 0x9e, 0x39, 0x15, 0xeb, 0x8b, 0x71, 0xec, 0xb8, 0xfe, 0x61,
-	0x02, 0x3c, 0xd9, 0xb0, 0xd3, 0x88, 0x1e, 0x40, 0x29, 0x92, 0x8c, 0xe6, 0x57, 0xb0, 0x73, 0x4c,
-	0x79, 0x3f, 0x22, 0x43, 0xaa, 0x5a, 0xea, 0x41, 0x89, 0x27, 0xeb, 0x81, 0x3b, 0x92, 0x45, 0xbd,
-	0xa8, 0x91, 0x0b, 0xf8, 0xe9, 0x41, 0x6f, 0xe7, 0xfa, 0xa6, 0xb9, 0x31, 0xbd, 0x69, 0x16, 0xe5,
-	0x86, 0x5d, 0x14, 0x81, 0xa7, 0x23, 0x73, 0xff, 0x96, 0xf6, 0x5c, 0x16, 0xfc, 0x18, 0x0a, 0xe2,
-	0x54, 0x72, 0xd6, 0xee, 0xe2, 0xb4, 0x53, 0x88, 0xf9, 0x33, 0x82, 0xdd, 0xdb, 0xb2, 0xa4, 0x56,
-	0xcf, 0x74, 0xad, 0x1a, 0x1a, 0x85, 0x96, 0x71, 0x0d, 0x6a, 0xd5, 0x00, 0x1f, 0x53, 0x7e, 0x4e,
-	0xa3, 0x4b, 0x77, 0x48, 0x99, 0x14, 0xcc, 0x7c, 0x32, 0xb7, 0xab, 0xfa, 0xad, 0x43, 0x89, 0xc9,
-	0x2d, 0x03, 0xb5, 0x72, 0x9d, 0xb2, 0x9d, 0xad, 0xcd, 0xdf, 0x10, 0x3c, 0x9a, 0x23, 0x92, 0x2d,
-	0xee, 0xeb, 0x2d, 0xb6, 0x17, 0x5b, 0xd4, 0xf2, 0xac, 0xa1, 0xcb, 0x27, 0x50, 0x3b, 0xa6, 0xfc,
-	0xf3, 0x90, 0xa6, 0xd3, 0xaf, 0xfa, 0xc4, 0x06, 0x14, 0x65, 0x07, 0xa2, 0xba, 0xb2, 0xad, 0x96,
-	0xe6, 0x3b, 0x5a, 0x84, 0xd2, 0xa0, 0x01, 0x10, 0x64, 0x9b, 0x52, 0x85, 0x99, 0x1d, 0xf3, 0x0f,
-	0x04, 0x2f, 0x68, 0xa9, 0xa4, 0x12, 0x1f, 0xe9, 0x4a, 0xbc, 0xb6, 0xa8, 0xc4, 0x42, 0xbe, 0x35,
-	0x68, 0xf1, 0x7b, 0x1e, 0x1e, 0x1e, 0xb9, 0xfe, 0x48, 0x0c, 0x56, 0xa6, 0x44, 0x1b, 0xb6, 0x65,
-	0xeb, 0x03, 0x9f, 0x78, 0x4a, 0x8e, 0x8a, 0xdc, 0x3b, 0x23, 0x1e, 0xc5, 0x6f, 0xc0, 0x83, 0xac,
-	0xd1, 0x14, 0xb4, 0x29, 0x40, 0xd5, 0x6c, 0x57, 0xc0, 0x3e, 0x84, 0x3c, 0x27, 0x0e, 0x33, 0x72,
-	0xad, 0x5c, 0xa7, 0xd2, 0x7d, 0xac, 0x55, 0xb9, 0x90, 0xd9, 0xea, 0x13, 0x87, 0x1d, 0xfa, 0x3c,
-	0xba, 0xb2, 0x45, 0x1c, 0xfe, 0x04, 0x1e, 0x30, 0x4e, 0x22, 0x3e, 0x48, 0xcc, 0x6c, 0xe0, 0xb9,
-	0xbe, 0x91, 0x17, 0xfd, 0xd6, 0xad, 0xd4, 0xcc, 0x2c, 0x65, 0x66, 0x56, 0x5f, 0xb9, 0x5d, 0xaf,
-	0x94, 0x5c, 0xdb, 0x1f, 0xff, 0x69, 0x22, 0x7b, 0x5b, 0xc4, 0x26, 0x27, 0x9f, 0xb9, 0xbe, 0xce,
-	0x45, 0x26, 0x46, 0xe1, 0x7e, 0x5c, 0x64, 0x82, 0x8f, 0x60, 0x5b, 0xb9, 0xa7, 0xa8, 0x6a, 0x4b,
-	0x30, 0xbd, 0xbc, 0xc0, 0x74, 0x20, 0x41, 0x29, 0xd1, 0x2f, 0x09, 0x51, 0x45, 0x05, 0x26, 0x35,
-	0xcd, 0xf1, 0x90, 0x89, 0x51, 0xbc, 0x0f, 0x0f, 0x99, 0xe0, 0x57, 0x01, 0xfc, 0xd8, 0x1b, 0x08,
-	0x7b, 0x61, 0x46, 0xa9, 0x85, 0x3a, 0x05, 0xbb, 0xec, 0xc7, 0x5e, 0xaa, 0x6e, 0xfd, 0x5d, 0x28,
-	0x67, 0xca, 0xe2, 0x5d, 0xc8, 0x7d, 0x4f, 0xaf, 0xe4, 0x47, 0x4d, 0xfe, 0xe2, 0x1a, 0x14, 0x2e,
-	0xc9, 0x38, 0x56, 0xdf, 0x30, 0x5d, 0x3c, 0xdb, 0x7c, 0x8a, 0xcc, 0x8f, 0x67, 0xc7, 0x43, 0x8d,
-	0xfd, 0x5b, 0xb0, 0x25, 0x13, 0x21, 0xf1, 0x59, 0xef, 0xf6, 0x3a, 0x89, 0x31, 0x7f, 0x45, 0x80,
-	0x67, 0x3f, 0xb4, 0xbc, 0x01, 0x1f, 0xe8, 0x37, 0xa0, 0xb5, 0x74, 0x38, 0xd6, 0x37, 0xfe, 0x3b,
-	0x50, 0x9d, 0x7b, 0x81, 0x4c, 0x0b, 0xf0, 0x62, 0x6c, 0xe2, 0x0c, 0x1e, 0x65, 0x8c, 0x38, 0x99,
-	0x33, 0xc8, 0x65, 0xf7, 0xcf, 0x1c, 0x54, 0xe7, 0x02, 0xf0, 0x19, 0x94, 0xb3, 0x77, 0x10, 0x37,
-	0xb5, 0xba, 0xf4, 0xf7, 0xb5, 0xde, 0x5a, 0x0e, 0x90, 0x3a, 0x7d, 0x0a, 0x25, 0x65, 0xfc, 0x78,
-	0xd9, 0x8b, 0xa0, 0xd8, 0x9a, 0x4b, 0xcf, 0x25, 0x59, 0x1f, 0x2a, 0x33, 0x16, 0x8b, 0x57, 0xd8,
-	0xaf, 0xa2, 0x34, 0x57, 0x41, 0x24, 0xeb, 0x05, 0x54, 0xe7, 0xec, 0x0a, 0xaf, 0x34, 0x33, 0xc5,
-	0xfc, 0xfa, 0x6a, 0x90, 0xe4, 0xfe, 0x12, 0xe0, 0x76, 0x10, 0x70, 0xeb, 0x79, 0x06, 0x52, 0x6f,
-	0xaf, 0x40, 0xa4, 0x94, 0xbd, 0x97, 0xae, 0xa7, 0x0d, 0xf4, 0xf7, 0xb4, 0x81, 0xfe, 0x9d, 0x36,
-	0xd0, 0x5f, 0xff, 0x35, 0xd0, 0x45, 0x21, 0xbd, 0x67, 0x5b, 0xe2, 0xe7, 0xed, 0xff, 0x03, 0x00,
-	0x00, 0xff, 0xff, 0x2d, 0x89, 0x27, 0xb7, 0x8b, 0x09, 0x00, 0x00,
+	// 929 bytes of a gzipped FileDescriptorProto
+	0x1f, 0x8b, 0x08, 0x00, 0x00, 0x00, 0x00, 0x00, 0x02, 0xff, 0xb4, 0x56, 0x4f, 0x6f, 0x1b, 0x45,
+	0x14, 0xcf, 0x24, 0x76, 0x6c, 0x3f, 0xc7, 0x4d, 0x3a, 0x31, 0xb0, 0x58, 0x60, 0x3b, 0x53, 0x10,
+	0x11, 0x82, 0x4d, 0x15, 0x24, 0x48, 0x0b, 0x05, 0xd5, 0x4a, 0x9a, 0x06, 0x44, 0x9a, 0x6e, 0x82,
+	0x2a, 0xf5, 0x62, 0x0d, 0xf1, 0xb0, 0x5a, 0xc8, 0xee, 0xba, 0x33, 0xb3, 0x51, 0xf2, 0x15, 0x38,
+	0x71, 0x00, 0x09, 0x84, 0x10, 0x07, 0xbe, 0x08, 0xc7, 0x1e, 0xf9, 0x04, 0x05, 0x85, 0x2f, 0x82,
+	0x76, 0x76, 0x66, 0xe3, 0x1d, 0xff, 0x39, 0x54, 0xf8, 0x64, 0xcf, 0xcc, 0xef, 0xfd, 0xde, 0x7b,
+	0xbf, 0x99, 0xf7, 0xde, 0x42, 0x43, 0xc8, 0x98, 0x53, 0x9f, 0xb9, 0x43, 0x1e, 0xcb, 0x18, 0x37,
+	0xbe, 0xa5, 0xcc, 0x67, 0xdc, 0xa5, 0xc3, 0xa0, 0x7f, 0xbe, 0xdd, 0x6a, 0xfa, 0xb1, 0x1f, 0xab,
+	0x93, 0xad, 0xf4, 0x5f, 0x06, 0x6a, 0xd5, 0xc3, 0x78, 0xc0, 0xce, 0xf4, 0xa2, 0xe3, 0xc7, 0xb1,
+	0x7f, 0xc6, 0xb6, 0xd4, 0xea, 0xeb, 0xe4, 0x9b, 0x2d, 0x19, 0x84, 0x4c, 0x48, 0x1a, 0x0e, 0x35,
+	0xa0, 0x6d, 0x03, 0x06, 0x09, 0xa7, 0x32, 0x88, 0xa3, 0xec, 0x9c, 0x7c, 0x0c, 0x6b, 0x4f, 0x78,
+	0x20, 0xd9, 0xf1, 0x90, 0x46, 0x1e, 0x7b, 0x96, 0x30, 0x21, 0xf1, 0x3b, 0x50, 0x12, 0x43, 0x1a,
+	0x39, 0xa8, 0x8b, 0x36, 0xeb, 0xdb, 0xeb, 0x6e, 0x21, 0x2a, 0x57, 0x21, 0x15, 0x80, 0xfc, 0x88,
+	0xe0, 0xe6, 0x88, 0xb5, 0x18, 0xc6, 0x91, 0x60, 0x78, 0x07, 0x2a, 0x22, 0x39, 0x3d, 0x65, 0x42,
+	0x68, 0x86, 0x37, 0x2c, 0x86, 0xbd, 0x70, 0x28, 0x2f, 0x0d, 0xfc, 0xe1, 0x82, 0x67, 0xe0, 0xf8,
+	0x0e, 0x94, 0x19, 0xe7, 0x31, 0x77, 0x16, 0x95, 0xdd, 0x86, 0xed, 0x39, 0x13, 0xeb, 0xe8, 0x2c,
+	0xf1, 0x83, 0x68, 0x2f, 0x05, 0x3e, 0x5c, 0xf0, 0x32, 0x8b, 0x1e, 0x40, 0x95, 0x6b, 0x46, 0xf2,
+	0x15, 0xac, 0xee, 0x33, 0x79, 0xc2, 0xe9, 0x29, 0x33, 0x29, 0xf5, 0xa0, 0x2a, 0xd3, 0x75, 0x3f,
+	0x18, 0xe8, 0xa0, 0x5e, 0xb5, 0xc8, 0x15, 0xfc, 0x60, 0xb7, 0xb7, 0xfa, 0xfc, 0x45, 0x67, 0xe1,
+	0xea, 0x45, 0xa7, 0xa2, 0x37, 0xbc, 0x8a, 0x32, 0x3c, 0x18, 0x90, 0x7b, 0xd7, 0xb4, 0xc7, 0x3a,
+	0xe0, 0x77, 0xa1, 0xac, 0x4e, 0x35, 0x67, 0x73, 0x12, 0xa7, 0x97, 0x41, 0xc8, 0x4f, 0x08, 0xd6,
+	0xae, 0xc3, 0xd2, 0x5a, 0xdd, 0xb5, 0xb5, 0x6a, 0x5b, 0x14, 0x96, 0xc7, 0x39, 0xa8, 0xd5, 0x04,
+	0xbc, 0xcf, 0xe4, 0x31, 0xe3, 0xe7, 0xc1, 0x29, 0x13, 0x5a, 0x30, 0x72, 0xbb, 0xb0, 0x6b, 0xf2,
+	0x6d, 0x41, 0x55, 0xe8, 0x2d, 0x07, 0x75, 0x97, 0x36, 0x6b, 0x5e, 0xbe, 0x26, 0xbf, 0x22, 0x58,
+	0x2f, 0x10, 0xe9, 0x14, 0xef, 0xd9, 0x29, 0x6e, 0x8c, 0xa7, 0x68, 0xf9, 0x99, 0x43, 0x96, 0xb7,
+	0xa1, 0xb9, 0xcf, 0xe4, 0xa3, 0x21, 0xcb, 0x5e, 0xbf, 0xc9, 0x13, 0x3b, 0x50, 0xd1, 0x19, 0xa8,
+	0xe8, 0x6a, 0x9e, 0x59, 0x92, 0x0f, 0x2d, 0x0b, 0xa3, 0x41, 0x1b, 0x20, 0xce, 0x37, 0xb5, 0x0a,
+	0x23, 0x3b, 0xe4, 0x77, 0x04, 0xaf, 0x58, 0xae, 0xb4, 0x12, 0x9f, 0xd9, 0x4a, 0xdc, 0x1a, 0x57,
+	0x62, 0xcc, 0xdf, 0x1c, 0xb4, 0xf8, 0xa3, 0x04, 0x4d, 0xf5, 0xa8, 0x1e, 0x27, 0x8c, 0x5f, 0x1e,
+	0x51, 0x4e, 0x43, 0x26, 0x19, 0x17, 0x78, 0x03, 0x56, 0x74, 0xf6, 0xfd, 0x88, 0x86, 0x46, 0x91,
+	0xba, 0xde, 0x3b, 0xa4, 0x21, 0xc3, 0x6f, 0xc3, 0x8d, 0x3c, 0xd7, 0x0c, 0xb4, 0xa8, 0x40, 0x8d,
+	0x7c, 0x57, 0xc1, 0xee, 0x43, 0x49, 0x52, 0x5f, 0x38, 0x4b, 0xdd, 0xa5, 0xcd, 0xfa, 0xf6, 0xfb,
+	0x93, 0xea, 0xc2, 0x72, 0xee, 0x9e, 0x50, 0x5f, 0xec, 0x45, 0x92, 0x5f, 0x7a, 0xca, 0x14, 0x7f,
+	0x0e, 0x37, 0x84, 0xa4, 0x5c, 0xf6, 0xd3, 0x96, 0xd6, 0x0f, 0x83, 0xc8, 0x29, 0xa9, 0xac, 0x5b,
+	0x6e, 0xd6, 0xd2, 0x5c, 0xd3, 0xd2, 0xdc, 0x13, 0xd3, 0xf3, 0x7a, 0xd5, 0xb4, 0x78, 0x7f, 0xf8,
+	0xbb, 0x83, 0xbc, 0x15, 0x65, 0x9b, 0x9e, 0x7c, 0x19, 0x44, 0x36, 0x17, 0xbd, 0x70, 0xca, 0x2f,
+	0xc7, 0x45, 0x2f, 0xf0, 0x03, 0x58, 0x31, 0x3d, 0x54, 0x45, 0xb5, 0xac, 0x98, 0x5e, 0x1f, 0x63,
+	0xda, 0xd5, 0xa0, 0x8c, 0xe8, 0xe7, 0x94, 0xa8, 0x6e, 0x0c, 0xd3, 0x98, 0x0a, 0x3c, 0xf4, 0xc2,
+	0xa9, 0xbc, 0x0c, 0x0f, 0xbd, 0xc0, 0x6f, 0x02, 0x44, 0x49, 0xd8, 0x57, 0x4d, 0x46, 0x38, 0xd5,
+	0x2e, 0xda, 0x2c, 0x7b, 0xb5, 0x28, 0x09, 0x95, 0xc8, 0xa2, 0xf5, 0x11, 0xd4, 0x72, 0x65, 0xf1,
+	0x1a, 0x2c, 0x7d, 0xc7, 0x2e, 0xf5, 0xbd, 0xa6, 0x7f, 0x71, 0x13, 0xca, 0xe7, 0xf4, 0x2c, 0x31,
+	0xd7, 0x98, 0x2d, 0xee, 0x2e, 0xee, 0x20, 0x72, 0x08, 0x37, 0x1f, 0x04, 0xd1, 0x20, 0xa3, 0x31,
+	0xe5, 0x72, 0x07, 0xca, 0xcf, 0xd2, 0x7b, 0x9b, 0xf2, 0x80, 0x27, 0x5d, 0xac, 0x97, 0x59, 0x90,
+	0xfb, 0xa3, 0x7c, 0xa6, 0x98, 0xde, 0x83, 0x65, 0x1d, 0x38, 0x52, 0x2f, 0x65, 0x72, 0x07, 0xd5,
+	0x18, 0xf2, 0x0b, 0x02, 0x3c, 0x1a, 0x93, 0xae, 0xab, 0x4f, 0xec, 0xba, 0xea, 0x5a, 0x2c, 0x63,
+	0x7e, 0xe7, 0x50, 0x54, 0x47, 0xb0, 0x9e, 0xbb, 0x39, 0xd8, 0xfd, 0x3f, 0x04, 0x7b, 0x54, 0x64,
+	0x34, 0x92, 0xed, 0xe8, 0x51, 0x76, 0xb0, 0x6b, 0x44, 0x9b, 0x36, 0xca, 0x4a, 0xe9, 0x83, 0xf1,
+	0x72, 0x34, 0xf9, 0x0d, 0x41, 0xb3, 0x18, 0xa3, 0x16, 0xf0, 0x53, 0x5b, 0x40, 0x32, 0x4d, 0xc0,
+	0xeb, 0x38, 0xe6, 0x20, 0xe1, 0x2a, 0x34, 0x0a, 0x9f, 0x06, 0xc4, 0x05, 0x3c, 0x6e, 0x9b, 0xb6,
+	0xec, 0x90, 0x09, 0x41, 0xfd, 0xbc, 0x65, 0xeb, 0xe5, 0xf6, 0xf7, 0x25, 0x68, 0x14, 0x0c, 0xf0,
+	0x21, 0xd4, 0xf2, 0x0f, 0x14, 0xdc, 0xb1, 0xe2, 0xb2, 0x3f, 0x7c, 0x5a, 0xdd, 0xe9, 0x00, 0xad,
+	0xd4, 0x17, 0x50, 0x35, 0x13, 0x19, 0x4f, 0x1b, 0xd5, 0x86, 0xad, 0x33, 0xf5, 0x5c, 0x93, 0x9d,
+	0x40, 0x7d, 0x64, 0xf6, 0xe1, 0x19, 0x73, 0xd1, 0x50, 0x92, 0x59, 0x10, 0xcd, 0xfa, 0x14, 0x1a,
+	0x85, 0x39, 0x82, 0x67, 0x4e, 0x19, 0xc3, 0xfc, 0xd6, 0x6c, 0x90, 0xe6, 0x7e, 0x0c, 0x70, 0x5d,
+	0x4b, 0x78, 0x7a, 0x99, 0x19, 0xd6, 0x8d, 0x19, 0x08, 0x4d, 0xf9, 0x04, 0x56, 0x46, 0x5f, 0x17,
+	0x9e, 0xf5, 0xf4, 0x0c, 0xed, 0xad, 0x99, 0x98, 0x8c, 0xb8, 0xf7, 0xda, 0xf3, 0xab, 0x36, 0xfa,
+	0xeb, 0xaa, 0x8d, 0xfe, 0xb9, 0x6a, 0xa3, 0x3f, 0xff, 0x6d, 0xa3, 0xa7, 0xe5, 0xac, 0xa7, 0x2e,
+	0xab, 0x9f, 0x0f, 0xfe, 0x0b, 0x00, 0x00, 0xff, 0xff, 0xb0, 0xc7, 0xcc, 0xe9, 0x7d, 0x0b, 0x00,
+	0x00,
 }
