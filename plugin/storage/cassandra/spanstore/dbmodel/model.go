@@ -117,6 +117,5 @@ func (dbTraceID TraceID) ToDomain() model.TraceID {
 
 // String returns hex string representation of the trace ID.
 func (dbTraceID TraceID) String() string {
-	t := dbTraceID.ToDomain()
-	return t.String()
+	return dbTraceID.ToDomain().String()
 }
