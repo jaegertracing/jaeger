@@ -30,13 +30,17 @@ const (
 	suffixTopic    = ".topic"
 	suffixEncoding = ".encoding"
 
-	encodingJSON    = "json"
-	encodingProto   = "protobuf"
-	EncodingZipkinT = "zipkinThrift"
+	EncodingJSON         = "json"
+	EncodingProto        = "protobuf"
+	EncodingZipkinThrift = "zipkin-thrift"
 
 	defaultBroker   = "127.0.0.1:9092"
 	defaultTopic    = "jaeger-spans"
-	defaultEncoding = encodingProto
+	defaultEncoding = EncodingProto
+)
+
+var (
+	AllEncodings = []string{EncodingJSON, EncodingProto, EncodingZipkinThrift}
 )
 
 // Options stores the configuration options for Kafka
@@ -59,7 +63,7 @@ func (opt *Options) AddFlags(flagSet *flag.FlagSet) {
 	flagSet.String(
 		configPrefix+suffixEncoding,
 		defaultEncoding,
-		fmt.Sprintf(`(experimental) Encoding of spans ("%s", "%s" or "%s") sent to kafka.`, encodingProto, encodingJSON, EncodingZipkinT),
+		fmt.Sprintf(`(experimental) Encoding of spans ("%s" or "%s") sent to kafka.`, EncodingJSON, EncodingProto),
 	)
 }
 
