@@ -25,7 +25,6 @@ import (
 	"testing"
 	"time"
 
-	"github.com/apache/thrift/lib/go/thrift"
 	"github.com/gorilla/mux"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -33,6 +32,7 @@ import (
 	zipkinTransport "github.com/uber/jaeger-client-go/transport/zipkin"
 	tchanThrift "github.com/uber/tchannel-go/thrift"
 
+	zipkinTrift "github.com/jaegertracing/jaeger/model/converter/thrift/zipkin"
 	"github.com/jaegertracing/jaeger/thrift-gen/zipkincore"
 )
 
@@ -105,7 +105,7 @@ func waitForSpans(t *testing.T, handler *mockZipkinHandler, expecting int) {
 func TestThriftFormat(t *testing.T) {
 	server, _ := initializeTestServer(nil)
 	defer server.Close()
-	bodyBytes := zipkinSerialize([]*zipkincore.Span{{}})
+	bodyBytes := zipkinTrift.ZipkinSerialize([]*zipkincore.Span{{}})
 	statusCode, resBodyStr, err := postBytes(server.URL+`/api/v1/spans`, bodyBytes, createHeader("application/x-thrift"))
 	assert.NoError(t, err)
 	assert.EqualValues(t, http.StatusAccepted, statusCode)
@@ -178,7 +178,7 @@ func TestJsonFormat(t *testing.T) {
 func TestGzipEncoding(t *testing.T) {
 	server, _ := initializeTestServer(nil)
 	defer server.Close()
-	bodyBytes := zipkinSerialize([]*zipkincore.Span{{}})
+	bodyBytes := zipkinTrift.ZipkinSerialize([]*zipkincore.Span{{}})
 	header := createHeader("application/x-thrift")
 	header.Add("Content-Encoding", "gzip")
 	statusCode, resBodyStr, err := postBytes(server.URL+`/api/v1/spans`, gzipEncode(bodyBytes), header)
@@ -222,12 +222,6 @@ func TestFormatBadBody(t *testing.T) {
 	assert.NoError(t, err)
 	assert.EqualValues(t, http.StatusBadRequest, statusCode)
 	assert.EqualValues(t, "Unable to process request body: *zipkincore.Span field 0 read error: EOF\n", resBodyStr)
-}
-
-func TestDeserializeWithBadListStart(t *testing.T) {
-	spanBytes := zipkinSerialize([]*zipkincore.Span{{}})
-	_, err := deserializeThrift(append([]byte{0, 255, 255}, spanBytes...))
-	assert.Error(t, err)
 }
 
 func TestCannotReadBodyFromRequest(t *testing.T) {
@@ -315,17 +309,6 @@ func createHeader(contentType string) *http.Header {
 		header.Add("Content-Type", contentType)
 	}
 	return header
-}
-
-func zipkinSerialize(spans []*zipkincore.Span) []byte {
-	t := thrift.NewTMemoryBuffer()
-	p := thrift.NewTBinaryProtocolTransport(t)
-	p.WriteListBegin(thrift.STRUCT, len(spans))
-	for _, s := range spans {
-		s.Write(p)
-	}
-	p.WriteListEnd()
-	return t.Buffer.Bytes()
 }
 
 func gzipEncode(b []byte) []byte {

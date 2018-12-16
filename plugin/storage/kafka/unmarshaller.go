@@ -17,13 +17,11 @@ package kafka
 import (
 	"bytes"
 
-	"github.com/apache/thrift/lib/go/thrift"
 	"github.com/gogo/protobuf/jsonpb"
 	"github.com/gogo/protobuf/proto"
 
 	"github.com/jaegertracing/jaeger/model"
 	"github.com/jaegertracing/jaeger/model/converter/thrift/zipkin"
-	"github.com/jaegertracing/jaeger/thrift-gen/zipkincore"
 )
 
 // Unmarshaller decodes a byte array to a span
@@ -71,23 +69,13 @@ func NewZipkinThriftUnmarshaller() *zipkinThriftUnmarshaller {
 
 // Unmarshal decodes a json byte array to a span
 func (h *zipkinThriftUnmarshaller) Unmarshal(msg []byte) (*model.Span, error) {
-	buffer := thrift.NewTMemoryBuffer()
-	buffer.Write(msg)
-
-	transport := thrift.NewTBinaryProtocolTransport(buffer)
-	_, _, err := transport.ReadListBegin() // Ignore the returned element type
+	tSpans, err := zipkin.DeserializeThrift(msg)
 	if err != nil {
 		return nil, err
 	}
-
-	zs := &zipkincore.Span{}
-	if err = zs.Read(transport); err != nil {
-		return nil, err
-	}
-	mSpan, err := zipkin.ToDomainSpan(zs)
-
+	mSpans, err := zipkin.ToDomainSpan(tSpans[0])
 	if err != nil {
 		return nil, err
 	}
-	return mSpan[0], err
+	return mSpans[0], err
 }
