@@ -31,6 +31,8 @@ const (
 	EncodingJSON = "json"
 	// EncodingProto indicates spans are encoded as a protobuf byte array
 	EncodingProto = "protobuf"
+	// EncodingZipkinT indicates spans are encoded as a Zipkin thrift byte array
+	EncodingZipkinT = "zipkinThrift"
 
 	// ConfigPrefix is a prefix for the ingester flags
 	ConfigPrefix = "ingester"
@@ -96,7 +98,7 @@ func AddFlags(flagSet *flag.FlagSet) {
 	flagSet.String(
 		KafkaConfigPrefix+SuffixEncoding,
 		DefaultEncoding,
-		fmt.Sprintf(`The encoding of spans ("%s" or "%s") consumed from kafka`, EncodingProto, EncodingJSON))
+		fmt.Sprintf(`The encoding of spans ("%s", "%s" or "%s") consumed from kafka`, EncodingProto, EncodingJSON, EncodingZipkinT))
 	flagSet.String(
 		ConfigPrefix+SuffixParallelism,
 		strconv.Itoa(DefaultParallelism),

@@ -30,8 +30,9 @@ const (
 	suffixTopic    = ".topic"
 	suffixEncoding = ".encoding"
 
-	encodingJSON  = "json"
-	encodingProto = "protobuf"
+	encodingJSON  	= "json"
+	encodingProto 	= "protobuf"
+	EncodingZipkinT = "zipkinThrift"
 
 	defaultBroker   = "127.0.0.1:9092"
 	defaultTopic    = "jaeger-spans"
@@ -58,7 +59,7 @@ func (opt *Options) AddFlags(flagSet *flag.FlagSet) {
 	flagSet.String(
 		configPrefix+suffixEncoding,
 		defaultEncoding,
-		fmt.Sprintf(`(experimental) Encoding of spans ("%s" or "%s") sent to kafka.`, encodingProto, encodingJSON),
+		fmt.Sprintf(`(experimental) Encoding of spans ("%s", "%s" or "%s") sent to kafka.`, encodingProto, encodingJSON, EncodingZipkinT),
 	)
 }
 
