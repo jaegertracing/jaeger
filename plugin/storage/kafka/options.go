@@ -30,8 +30,8 @@ const (
 	suffixTopic    = ".topic"
 	suffixEncoding = ".encoding"
 
-	encodingJSON  	= "json"
-	encodingProto 	= "protobuf"
+	encodingJSON    = "json"
+	encodingProto   = "protobuf"
 	EncodingZipkinT = "zipkinThrift"
 
 	defaultBroker   = "127.0.0.1:9092"

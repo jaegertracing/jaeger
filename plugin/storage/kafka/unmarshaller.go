@@ -21,9 +21,9 @@ import (
 	"github.com/gogo/protobuf/jsonpb"
 	"github.com/gogo/protobuf/proto"
 
-	"github.com/jaegertracing/jaeger/thrift-gen/zipkincore"
-	"github.com/jaegertracing/jaeger/model/converter/thrift/zipkin"
 	"github.com/jaegertracing/jaeger/model"
+	"github.com/jaegertracing/jaeger/model/converter/thrift/zipkin"
+	"github.com/jaegertracing/jaeger/thrift-gen/zipkincore"
 )
 
 // Unmarshaller decodes a byte array to a span
