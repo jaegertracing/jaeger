@@ -27,3 +27,16 @@ func TestDeserializeWithBadListStart(t *testing.T) {
 	_, err := DeserializeThrift(append([]byte{0, 255, 255}, spanBytes...))
 	assert.Error(t, err)
 }
+
+func TestDeserializeWithCorruptedList(t *testing.T) {
+	spanBytes := ZipkinSerialize([]*zipkincore.Span{{}})
+	spanBytes[2] = 255
+	_, err := DeserializeThrift(spanBytes)
+	assert.Error(t, err)
+}
+
+func TestDeserialize(t *testing.T) {
+	spanBytes := ZipkinSerialize([]*zipkincore.Span{{}})
+	_, err := DeserializeThrift(spanBytes)
+	assert.NoError(t, err)
+}

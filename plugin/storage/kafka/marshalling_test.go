@@ -44,18 +44,21 @@ func testMarshallerAndUnmarshaller(t *testing.T, marshaller Marshaller, unmarsha
 }
 
 func TestZipkinThriftUnmarshaller(t *testing.T) {
+	operationName := "foo"
 	bytes := zipkin.ZipkinSerialize([]*zipkincore.Span{
 		{
 			ID: 12345,
-			Name: "foo",
+			Name: operationName,
 			Annotations: []*zipkincore.Annotation{
-				{Host: &zipkincore.Endpoint{ServiceName: "foo"}},
+				{Host: &zipkincore.Endpoint{ServiceName: "foobar"}},
 			},
 		},
 	})
 	unmarshaller := NewZipkinThriftUnmarshaller()
-	_, err := unmarshaller.Unmarshal(bytes)
+	resultSpan, err := unmarshaller.Unmarshal(bytes)
+
 	assert.NoError(t, err)
+	assert.Equal(t, operationName, resultSpan.OperationName)
 }
 
 func TestZipkinThriftUnmarshallerErrorNoService(t *testing.T) {
