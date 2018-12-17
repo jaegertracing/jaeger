@@ -24,6 +24,12 @@
 #   go-tests = true
 #   unused-packages = true
 
+required = [
+    "github.com/golang/protobuf/protoc-gen-go",
+    "github.com/gogo/protobuf/protoc-gen-gogo",
+    "github.com/grpc-ecosystem/grpc-gateway/protoc-gen-grpc-gateway",
+    "github.com/grpc-ecosystem/grpc-gateway/protoc-gen-swagger"
+]
 
 [[constraint]]
   name = "github.com/apache/thrift"
@@ -97,10 +103,19 @@
   name = "gopkg.in/olivere/elastic.v5"
   version = "^5.0.53"
 
- [[constraint]]
+[[constraint]]
   name = "github.com/gocql/gocql"
   branch = "master"
+
+[[constraint]]
+  name = "github.com/gogo/googleapis"
+  revision = "b23578765ee54ff6bceff57f397d833bf4ca6869"
+
+[[constraint]]
+  name = "github.com/gogo/protobuf"
+  revision = "fd9a4790f3963525fb889cc00e0a8f828e0b3a29"
 
 [prune]
   go-tests = true
   unused-packages = true
+
