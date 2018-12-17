@@ -57,3 +57,22 @@ func TestZipkinThriftUnmarshaller(t *testing.T) {
 	_, err := unmarshaller.Unmarshal(bytes)
 	assert.NoError(t, err)
 }
+
+func TestZipkinThriftUnmarshallerErrorNoService(t *testing.T) {
+	bytes := zipkin.ZipkinSerialize([]*zipkincore.Span{
+		{
+			ID: 12345,
+			Name: "foo",
+		},
+	})
+	unmarshaller := NewZipkinThriftUnmarshaller()
+	_, err := unmarshaller.Unmarshal(bytes)
+	assert.Error(t, err)
+}
+
+func TestZipkinThriftUnmarshallerErrorCorrupted(t *testing.T) {
+	bytes := []byte("foo")
+	unmarshaller := NewZipkinThriftUnmarshaller()
+	_, err := unmarshaller.Unmarshal(bytes)
+	assert.Error(t, err)
+}
