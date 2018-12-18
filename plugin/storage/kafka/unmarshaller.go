@@ -21,6 +21,7 @@ import (
 	"github.com/gogo/protobuf/proto"
 
 	"github.com/jaegertracing/jaeger/model"
+	"github.com/jaegertracing/jaeger/model/converter/thrift/zipkin"
 )
 
 // Unmarshaller decodes a byte array to a span
@@ -56,4 +57,25 @@ func (h *JSONUnmarshaller) Unmarshal(msg []byte) (*model.Span, error) {
 	newSpan := &model.Span{}
 	err := jsonpb.Unmarshal(bytes.NewReader(msg), newSpan)
 	return newSpan, err
+}
+
+// zipkinThriftUnmarshaller implements Unmarshaller
+type zipkinThriftUnmarshaller struct{}
+
+// NewZipkinThriftUnmarshaller constructs a zipkinThriftUnmarshaller
+func NewZipkinThriftUnmarshaller() *zipkinThriftUnmarshaller {
+	return &zipkinThriftUnmarshaller{}
+}
+
+// Unmarshal decodes a json byte array to a span
+func (h *zipkinThriftUnmarshaller) Unmarshal(msg []byte) (*model.Span, error) {
+	tSpans, err := zipkin.DeserializeThrift(msg)
+	if err != nil {
+		return nil, err
+	}
+	mSpans, err := zipkin.ToDomainSpan(tSpans[0])
+	if err != nil {
+		return nil, err
+	}
+	return mSpans[0], err
 }
