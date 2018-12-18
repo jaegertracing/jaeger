@@ -326,3 +326,11 @@ func TestStoreGetTrace(t *testing.T) {
 		})
 	}
 }
+
+func TestStore_FindTraceIDs(t *testing.T) {
+	withMemoryStore(func(store *Store) {
+		traceIDs, err := store.FindTraceIDs(context.Background(), nil)
+		assert.Nil(t, traceIDs)
+		assert.EqualError(t, err, "not implemented")
+	})
+}

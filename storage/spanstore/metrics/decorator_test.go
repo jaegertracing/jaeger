@@ -33,14 +33,16 @@ func TestSuccessfulUnderlyingCalls(t *testing.T) {
 
 	mockReader := mocks.Reader{}
 	mrs := NewReadMetricsDecorator(&mockReader, mf)
-	mockReader.On("GetServices").Return([]string{}, nil)
+	mockReader.On("GetServices", context.Background()).Return([]string{}, nil)
 	mrs.GetServices(context.Background())
-	mockReader.On("GetOperations", "something").Return([]string{}, nil)
+	mockReader.On("GetOperations", context.Background(), "something").Return([]string{}, nil)
 	mrs.GetOperations(context.Background(), "something")
-	mockReader.On("GetTrace", model.TraceID{}).Return(&model.Trace{}, nil)
+	mockReader.On("GetTrace", context.Background(), model.TraceID{}).Return(&model.Trace{}, nil)
 	mrs.GetTrace(context.Background(), model.TraceID{})
-	mockReader.On("FindTraces", &spanstore.TraceQueryParameters{}).Return([]*model.Trace{}, nil)
+	mockReader.On("FindTraces", context.Background(), &spanstore.TraceQueryParameters{}).Return([]*model.Trace{}, nil)
 	mrs.FindTraces(context.Background(), &spanstore.TraceQueryParameters{})
+	mockReader.On("FindTraceIDs", context.Background(), &spanstore.TraceQueryParameters{}).Return([]model.TraceID{}, nil)
+	mrs.FindTraceIDs(context.Background(), &spanstore.TraceQueryParameters{})
 	counters, gauges := mf.Snapshot()
 	expecteds := map[string]int64{
 		"requests|operation=get_operations|result=ok":  1,
@@ -49,6 +51,8 @@ func TestSuccessfulUnderlyingCalls(t *testing.T) {
 		"requests|operation=get_trace|result=err":      0,
 		"requests|operation=find_traces|result=ok":     1,
 		"requests|operation=find_traces|result=err":    0,
+		"requests|operation=find_trace_ids|result=ok":  1,
+		"requests|operation=find_trace_ids|result=err": 0,
 		"requests|operation=get_services|result=ok":    1,
 		"requests|operation=get_services|result=err":   0,
 	}
@@ -86,14 +90,16 @@ func TestFailingUnderlyingCalls(t *testing.T) {
 
 	mockReader := mocks.Reader{}
 	mrs := NewReadMetricsDecorator(&mockReader, mf)
-	mockReader.On("GetServices").Return(nil, errors.New("Failure"))
+	mockReader.On("GetServices", context.Background()).Return(nil, errors.New("Failure"))
 	mrs.GetServices(context.Background())
-	mockReader.On("GetOperations", "something").Return(nil, errors.New("Failure"))
+	mockReader.On("GetOperations", context.Background(), "something").Return(nil, errors.New("Failure"))
 	mrs.GetOperations(context.Background(), "something")
-	mockReader.On("GetTrace", model.TraceID{}).Return(nil, errors.New("Failure"))
+	mockReader.On("GetTrace", context.Background(), model.TraceID{}).Return(nil, errors.New("Failure"))
 	mrs.GetTrace(context.Background(), model.TraceID{})
-	mockReader.On("FindTraces", &spanstore.TraceQueryParameters{}).Return(nil, errors.New("Failure"))
+	mockReader.On("FindTraces", context.Background(), &spanstore.TraceQueryParameters{}).Return(nil, errors.New("Failure"))
 	mrs.FindTraces(context.Background(), &spanstore.TraceQueryParameters{})
+	mockReader.On("FindTraceIDs", context.Background(), &spanstore.TraceQueryParameters{}).Return(nil, errors.New("Failure"))
+	mrs.FindTraceIDs(context.Background(), &spanstore.TraceQueryParameters{})
 	counters, gauges := mf.Snapshot()
 	expecteds := map[string]int64{
 		"requests|operation=get_operations|result=ok":  0,
@@ -102,6 +108,8 @@ func TestFailingUnderlyingCalls(t *testing.T) {
 		"requests|operation=get_trace|result=err":      1,
 		"requests|operation=find_traces|result=ok":     0,
 		"requests|operation=find_traces|result=err":    1,
+		"requests|operation=find_trace_ids|result=ok":   0,
+		"requests|operation=find_trace_ids|result=err":  1,
 		"requests|operation=get_services|result=ok":    0,
 		"requests|operation=get_services|result=err":   1,
 	}
