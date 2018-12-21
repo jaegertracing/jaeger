@@ -60,10 +60,10 @@ func mergeSpans(spans []*model.Span) *model.Span {
 	//that we didn't receive the final span yet and don't want
 	//to duplicate the members of the last span due the fallback
 	//of using the last span as carrier when no final span is stored yet
-	completeSpanIndex := len(spans) - 1
+	finalSpanIndex := len(spans) - 1
 	for i := range spans {
 		if !spans[i].GetIncomplete() {
-			completeSpanIndex = i
+			finalSpanIndex = i
 			finalSpan = spans[i]
 		}
 	}
@@ -74,7 +74,7 @@ func mergeSpans(spans []*model.Span) *model.Span {
 	for i, span := range spans {
 		//merge refs, tags, logs and warnings of all spans
 		//take simple values from lastSpan
-		if span.GetIncomplete() && completeSpanIndex != i {
+		if span.GetIncomplete() && finalSpanIndex != i {
 			references = append(references, span.GetReferences()...)
 			tags = append(tags, span.GetTags()...)
 			logs = append(logs, span.GetLogs()...)
