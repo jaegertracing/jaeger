@@ -22,5 +22,7 @@ cmd/ingester/ingester
 cmd/ingester/ingester-*
 cmd/query/query
 cmd/query/query-*
+cmd/standalone/standalone-linux
 crossdock/crossdock-*
 run-crossdock.log
+model/converter/json/fixtures/es_01-actual.json
