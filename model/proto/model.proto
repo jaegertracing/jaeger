@@ -134,7 +134,7 @@ message Span {
     (gogoproto.customname) = "ProcessID"
   ];
   repeated string warnings = 12;
-  //indicates whether this is the final span or an intermediate span
+  // indicates that the span has not been finished yet and only contains partial data
   bool incomplete = 13;
 }
 

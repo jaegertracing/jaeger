@@ -45,11 +45,7 @@ func MergeSpans() Adjuster {
 func groupByIDs(spans []*model.Span) map[model.SpanID][]*model.Span {
 	IDToSpans := make(map[model.SpanID][]*model.Span)
 	for _, span := range spans {
-		if spans, ok := IDToSpans[span.SpanID]; ok {
-			IDToSpans[span.SpanID] = append(spans, span)
-		} else {
-			IDToSpans[span.SpanID] = []*model.Span{span}
-		}
+		IDToSpans[span.SpanID] = append(IDToSpans[span.SpanID], span)
 	}
 	return IDToSpans
 }
