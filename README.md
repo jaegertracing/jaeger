@@ -111,7 +111,9 @@ Below are the official maintainers of the Jaeger project. Please use `@jaegertra
 
 * @black-adder
 * @jpkrohling
+* @objectiser
 * @pavolloffay
+* @tiffon
 * @vprithvi
 * @yurishkuro
 
