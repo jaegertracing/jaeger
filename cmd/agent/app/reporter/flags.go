@@ -27,6 +27,8 @@ const (
 	TCHANNEL Type = "tchannel"
 	// GRPC is name of gRPC reporter.
 	GRPC Type = "grpc"
+	// HTTP is name of http reporter.
+	HTTP Type = "http"
 )
 
 // Type defines type of reporter.
@@ -39,7 +41,7 @@ type Options struct {
 
 // AddFlags adds flags for Options.
 func AddFlags(flags *flag.FlagSet) {
-	flags.String(reporterType, string(TCHANNEL), fmt.Sprintf("Reporter type to use e.g. %s, %s", string(TCHANNEL), string(GRPC)))
+	flags.String(reporterType, string(TCHANNEL), fmt.Sprintf("Reporter type to use e.g. %s, %s, %s", string(TCHANNEL), string(GRPC), string(HTTP)))
 }
 
 // InitFromViper initializes Options with properties retrieved from Viper.

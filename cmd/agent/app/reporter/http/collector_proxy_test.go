@@ -12,41 +12,21 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package reporter
+package http
 
 import (
-	"flag"
 	"testing"
 
-	"github.com/spf13/cobra"
-	"github.com/spf13/viper"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"github.com/uber/jaeger-lib/metrics"
+	"go.uber.org/zap"
+
 )
 
-func TestBingFlags(t *testing.T) {
-	v := viper.New()
-	command := cobra.Command{}
-	flags := &flag.FlagSet{}
-	AddFlags(flags)
-	command.PersistentFlags().AddGoFlagSet(flags)
-	v.BindPFlags(command.PersistentFlags())
-
-	err := command.ParseFlags([]string{
-		"--reporter.type=grpc",
-	})
-	require.NoError(t, err)
-
-	b := &Options{}
-	b.InitFromViper(v)
-	assert.Equal(t, Type("grpc"), b.ReporterType)
-
-	err = command.ParseFlags([]string{
-		"--reporter.type=http",
-	})
-
-	b = &Options{}
-	b.InitFromViper(v)
-	assert.Equal(t, Type("http"), b.ReporterType)
-	require.NoError(t, err)
+func TestErrorReporterBuilder(t *testing.T) {
+	builder := NewBuilder()
+	b, err := NewCollectorProxy(builder, metrics.NullFactory, zap.NewNop())
+	require.Error(t, err)
+	assert.Nil(t, b)
 }

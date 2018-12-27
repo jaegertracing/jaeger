@@ -33,6 +33,7 @@ import (
 	"github.com/jaegertracing/jaeger/cmd/agent/app"
 	"github.com/jaegertracing/jaeger/cmd/agent/app/reporter"
 	"github.com/jaegertracing/jaeger/cmd/agent/app/reporter/grpc"
+	httpReporter "github.com/jaegertracing/jaeger/cmd/agent/app/reporter/http"
 	"github.com/jaegertracing/jaeger/cmd/agent/app/reporter/tchannel"
 	"github.com/jaegertracing/jaeger/cmd/flags"
 	"github.com/jaegertracing/jaeger/pkg/config"
@@ -73,7 +74,8 @@ func main() {
 			rOpts := new(reporter.Options).InitFromViper(v)
 			tChanOpts := new(tchannel.Builder).InitFromViper(v, logger)
 			grpcOpts := new(grpc.Options).InitFromViper(v)
-			cp, err := createCollectorProxy(rOpts, tChanOpts, grpcOpts, logger, mFactory)
+			httpRepOpts := new(httpReporter.Builder).InitFromViper(v)
+			cp, err := createCollectorProxy(rOpts, tChanOpts, grpcOpts, httpRepOpts, logger, mFactory)
 			if err != nil {
 				logger.Fatal("Could not create collector proxy", zap.Error(err))
 			}
@@ -115,6 +117,7 @@ func main() {
 		reporter.AddFlags,
 		tchannel.AddFlags,
 		grpc.AddFlags,
+		httpReporter.AddFlags,
 		metrics.AddFlags,
 	)
 
@@ -128,6 +131,7 @@ func createCollectorProxy(
 	opts *reporter.Options,
 	tchanRep *tchannel.Builder,
 	grpcRepOpts *grpc.Options,
+	httpRepOpts *httpReporter.Builder,
 	logger *zap.Logger,
 	mFactory jMetrics.Factory,
 ) (app.CollectorProxy, error) {
@@ -137,6 +141,8 @@ func createCollectorProxy(
 		return grpc.NewCollectorProxy(grpcRepOpts, mFactory, logger)
 	case reporter.TCHANNEL:
 		return tchannel.NewCollectorProxy(tchanRep, mFactory, logger)
+	case reporter.HTTP:
+		return httpReporter.NewCollectorProxy(httpRepOpts, mFactory, logger)
 	default:
 		return nil, errors.New(fmt.Sprintf("unknown reporter type %s", string(opts.ReporterType)))
 	}
