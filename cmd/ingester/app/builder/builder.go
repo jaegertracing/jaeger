@@ -16,6 +16,7 @@ package builder
 
 import (
 	"fmt"
+	"strings"
 
 	"github.com/uber/jaeger-lib/metrics"
 	"go.uber.org/zap"
@@ -31,13 +32,15 @@ import (
 // CreateConsumer creates a new span consumer for the ingester
 func CreateConsumer(logger *zap.Logger, metricsFactory metrics.Factory, spanWriter spanstore.Writer, options app.Options) (*consumer.Consumer, error) {
 	var unmarshaller kafka.Unmarshaller
-	if options.Encoding == app.EncodingJSON {
+	if options.Encoding == kafka.EncodingJSON {
 		unmarshaller = kafka.NewJSONUnmarshaller()
-	} else if options.Encoding == app.EncodingProto {
+	} else if options.Encoding == kafka.EncodingProto {
 		unmarshaller = kafka.NewProtobufUnmarshaller()
+	} else if options.Encoding == kafka.EncodingZipkinThrift {
+		unmarshaller = kafka.NewZipkinThriftUnmarshaller()
 	} else {
-		return nil, fmt.Errorf(`encoding '%s' not recognised, use one of ("%s" or "%s")`,
-			options.Encoding, app.EncodingProto, app.EncodingJSON)
+		return nil, fmt.Errorf(`encoding '%s' not recognised, use one of ("%s")`,
+			options.Encoding, strings.Join(kafka.AllEncodings, "\", \""))
 	}
 
 	spParams := processor.SpanProcessorParams{

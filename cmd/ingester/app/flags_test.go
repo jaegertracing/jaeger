@@ -21,6 +21,7 @@ import (
 	"github.com/stretchr/testify/assert"
 
 	"github.com/jaegertracing/jaeger/pkg/config"
+	"github.com/jaegertracing/jaeger/plugin/storage/kafka"
 )
 
 func TestOptionsWithFlags(t *testing.T) {
@@ -41,7 +42,7 @@ func TestOptionsWithFlags(t *testing.T) {
 	assert.Equal(t, "group1", o.GroupID)
 	assert.Equal(t, 5, o.Parallelism)
 	assert.Equal(t, 2*time.Minute, o.DeadlockInterval)
-	assert.Equal(t, EncodingJSON, o.Encoding)
+	assert.Equal(t, kafka.EncodingJSON, o.Encoding)
 	assert.Equal(t, 2345, o.IngesterHTTPPort)
 }
 
