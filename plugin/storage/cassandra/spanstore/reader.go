@@ -410,7 +410,8 @@ func (s *SpanReader) executeQuery(span opentracing.Span, query cassandra.Query, 
 	tableMetrics.Emit(err, time.Since(start))
 	if err != nil {
 		logErrorToSpan(span, err)
-		s.logger.Error("Failed to exec query", zap.Error(err))
+		span.LogFields(otlog.String("query", query.String()))
+		s.logger.Error("Failed to exec query", zap.Error(err), zap.String("query", query.String()))
 		return nil, err
 	}
 	return retMe, nil
