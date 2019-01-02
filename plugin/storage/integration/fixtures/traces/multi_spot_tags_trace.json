@@ -4,6 +4,7 @@
       "traceId": "AAAAAAAAAAAAAAAAAAAABA==",
       "spanId": "AAAAAAAAAAE=",
       "operationName": "placeholder",
+      "references": [],
       "startTime": "2017-01-26T16:46:31.639875Z",
       "duration": "5000ns",
       "tags": [
