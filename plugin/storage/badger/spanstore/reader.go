@@ -16,6 +16,7 @@ package spanstore
 
 import (
 	"bytes"
+	"context"
 	"encoding/binary"
 	"encoding/json"
 	"errors"
@@ -30,7 +31,7 @@ import (
 	"github.com/jaegertracing/jaeger/storage/spanstore"
 )
 
-// All of this is replicated from the ES and Cassandra storage parts.. they should be refactored to a common place
+// Most of these errors are common with the ES and Cassandra backends. Each backend has slightly different validation rules.
 
 var (
 	// ErrServiceNameNotSet occurs when attempting to query with an empty service name
@@ -136,7 +137,7 @@ func (r *TraceReader) getTraces(traceIDs []model.TraceID) ([]*model.Trace, error
 }
 
 // GetTrace takes a traceID and returns a Trace associated with that traceID
-func (r *TraceReader) GetTrace(traceID model.TraceID) (*model.Trace, error) {
+func (r *TraceReader) GetTrace(ctx context.Context, traceID model.TraceID) (*model.Trace, error) {
 	traces, err := r.getTraces([]model.TraceID{traceID})
 	if err != nil {
 		return nil, err
@@ -156,12 +157,12 @@ func createPrimaryKeySeekPrefix(traceID model.TraceID) []byte {
 }
 
 // GetServices fetches the sorted service list that have not expired
-func (r *TraceReader) GetServices() ([]string, error) {
+func (r *TraceReader) GetServices(ctx context.Context) ([]string, error) {
 	return r.cache.GetServices()
 }
 
 // GetOperations fetches operations in the service and empty slice if service does not exists
-func (r *TraceReader) GetOperations(service string) ([]string, error) {
+func (r *TraceReader) GetOperations(ctx context.Context, service string) ([]string, error) {
 	return r.cache.GetOperations(service)
 }
 
@@ -323,7 +324,17 @@ func sortMergeIds(query *spanstore.TraceQueryParameters, ids [][][]byte) []model
 }
 
 // FindTraces retrieves traces that match the traceQuery
-func (r *TraceReader) FindTraces(query *spanstore.TraceQueryParameters) ([]*model.Trace, error) {
+func (r *TraceReader) FindTraces(ctx context.Context, query *spanstore.TraceQueryParameters) ([]*model.Trace, error) {
+	keys, err := r.FindTraceIDs(ctx, query)
+	if err != nil {
+		return nil, err
+	}
+
+	return r.getTraces(keys)
+}
+
+// FindTraceIDs retrieves only the TraceIDs that match the traceQuery, but not the trace data
+func (r *TraceReader) FindTraceIDs(ctx context.Context, query *spanstore.TraceQueryParameters) ([]model.TraceID, error) {
 	// Validate and set query defaults which were not defined
 	if err := validateQuery(query); err != nil {
 		return nil, err
@@ -349,7 +360,7 @@ func (r *TraceReader) FindTraces(query *spanstore.TraceQueryParameters) ([]*mode
 	// Transform index seeks (both unique indexes as well as non-unique indexes) to a list of TraceIDs without duplicates
 	if len(ids) > 0 {
 		keys := sortMergeIds(query, ids)
-		return r.getTraces(keys)
+		return keys, nil
 	}
 
 	// TODO We could support here all the other scans, such as time range only. These are not currently backed by an index, so a "full table scan" of traces is required.

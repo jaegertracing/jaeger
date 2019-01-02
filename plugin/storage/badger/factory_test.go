@@ -60,7 +60,7 @@ func TestForCodecov(t *testing.T) {
 	err = os.RemoveAll(f.tmpDir)
 	assert.NoError(t, err)
 
-	// Now try to close, since the files have been deleted this should throw an error hopefully
+	// Now try to close, since the files have been deleted this should throw an error
 	err = f.Close()
 	assert.Error(t, err)
 }
@@ -71,22 +71,26 @@ func TestMaintenanceRun(t *testing.T) {
 	v, command := config.Viperize(f.AddFlags)
 	// Lets speed up the maintenance ticker..
 	command.ParseFlags([]string{
-		"--badger.maintenance-interval=1ms",
+		"--badger.maintenance-interval=10ms",
 	})
 	f.InitFromViper(v)
 	// Safeguard
-	assert.True(t, LastMaintenanceRun.Value() == 0)
-	f.Initialize(metrics.NullFactory, zap.NewNop())
+	mFactory := metrics.NewLocalFactory(0)
+	_, gs := mFactory.Snapshot()
+	assert.True(t, gs[LastMaintenanceRunName] == 0)
+	f.Initialize(mFactory, zap.NewNop())
 
 	waiter := func(previousValue int64) int64 {
 		sleeps := 0
-		for LastMaintenanceRun.Value() == previousValue && sleeps < 8 {
-			// Potentially wait for scheduler
+		_, gs := mFactory.Snapshot()
+		for gs[LastMaintenanceRunName] == previousValue && sleeps < 8 {
+			// Wait for the scheduler
 			time.Sleep(time.Duration(50) * time.Millisecond)
 			sleeps++
+			_, gs = mFactory.Snapshot()
 		}
-		assert.True(t, LastMaintenanceRun.Value() > previousValue)
-		return LastMaintenanceRun.Value()
+		assert.True(t, gs[LastMaintenanceRunName] > previousValue)
+		return gs[LastMaintenanceRunName]
 	}
 
 	runtime := waiter(0) // First run, check that it was ran and caches previous size
@@ -98,7 +102,8 @@ func TestMaintenanceRun(t *testing.T) {
 	vlogSize.Set(currSize + 1<<31)
 
 	runtime = waiter(runtime)
-	assert.True(t, LastValueLogCleaned.Value() > 0)
+	_, gs = mFactory.Snapshot()
+	assert.True(t, gs[LastValueLogCleanedName] > 0)
 	err := f.Close()
 	assert.NoError(t, err)
 }

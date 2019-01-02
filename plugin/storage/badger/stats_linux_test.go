@@ -33,11 +33,13 @@ func TestDiskStatisticsUpdate(t *testing.T) {
 		"--badger.consistency=false",
 	})
 	f.InitFromViper(v)
-	err := f.Initialize(metrics.NullFactory, zap.NewNop())
+	mFactory := metrics.NewLocalFactory(0)
+	err := f.Initialize(mFactory, zap.NewNop())
 	assert.NoError(t, err)
 
 	err = f.diskStatisticsUpdate()
 	assert.NoError(t, err)
-	assert.True(t, KeyLogSpaceAvailable.Value() > int64(0))
-	assert.True(t, ValueLogSpaceAvailable.Value() > int64(0))
+	_, gs := mFactory.Snapshot()
+	assert.True(t, gs[KeyLogSpaceAvailableName] > int64(0))
+	assert.True(t, gs[ValueLogSpaceAvailableName] > int64(0))
 }

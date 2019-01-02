@@ -30,6 +30,7 @@ import (
 
 type BadgerIntegrationStorage struct {
 	StorageIntegration
+	logger *zap.Logger
 }
 
 func (s *BadgerIntegrationStorage) initialize() error {

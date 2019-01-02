@@ -31,18 +31,18 @@ type Options struct {
 
 // NamespaceConfig is badger's internal configuration data
 type NamespaceConfig struct {
-	namespace        string
-	SpanStoreTTL     time.Duration
-	ValueDirectory   string
-	KeyDirectory     string
-	Ephemeral        bool // Setting this to true will ignore ValueDirectory and KeyDirectory
-	SyncWrites       bool
-	MaintenanceTimer time.Duration
+	namespace           string
+	SpanStoreTTL        time.Duration
+	ValueDirectory      string
+	KeyDirectory        string
+	Ephemeral           bool // Setting this to true will ignore ValueDirectory and KeyDirectory
+	SyncWrites          bool
+	MaintenanceInterval time.Duration
 }
 
 const (
-	defaultTickerInterval time.Duration = 5 * time.Minute
-	defaultTTL            time.Duration = time.Hour * 72
+	defaultMaintenanceInterval time.Duration = 5 * time.Minute
+	defaultTTL                 time.Duration = time.Hour * 72
 )
 
 const (
@@ -63,13 +63,13 @@ func NewOptions(primaryNamespace string, otherNamespaces ...string) *Options {
 
 	options := &Options{
 		primary: &NamespaceConfig{
-			namespace:        primaryNamespace,
-			SpanStoreTTL:     defaultTTL,
-			SyncWrites:       false, // Performance over durability
-			Ephemeral:        true,  // Default is ephemeral storage
-			ValueDirectory:   defaultDataDir + defaultValueDir,
-			KeyDirectory:     defaultDataDir + defaultKeysDir,
-			MaintenanceTimer: defaultTickerInterval,
+			namespace:           primaryNamespace,
+			SpanStoreTTL:        defaultTTL,
+			SyncWrites:          false, // Performance over durability
+			Ephemeral:           true,  // Default is ephemeral storage
+			ValueDirectory:      defaultDataDir + defaultValueDir,
+			KeyDirectory:        defaultDataDir + defaultKeysDir,
+			MaintenanceInterval: defaultMaintenanceInterval,
 		},
 	}
 
@@ -115,7 +115,7 @@ func addFlags(flagSet *flag.FlagSet, nsConfig *NamespaceConfig) {
 	)
 	flagSet.Duration(
 		nsConfig.namespace+suffixMaintenanceInterval,
-		nsConfig.MaintenanceTimer,
+		nsConfig.MaintenanceInterval,
 		"How often the maintenance thread for values is ran. Format is time.Duration (https://golang.org/pkg/time/#Duration)",
 	)
 }
@@ -131,7 +131,7 @@ func initFromViper(cfg *NamespaceConfig, v *viper.Viper) {
 	cfg.ValueDirectory = v.GetString(cfg.namespace + suffixValueDirectory)
 	cfg.SyncWrites = v.GetBool(cfg.namespace + suffixSyncWrite)
 	cfg.SpanStoreTTL = v.GetDuration(cfg.namespace + suffixSpanstoreTTL)
-	cfg.MaintenanceTimer = v.GetDuration(cfg.namespace + suffixMaintenanceInterval)
+	cfg.MaintenanceInterval = v.GetDuration(cfg.namespace + suffixMaintenanceInterval)
 }
 
 // GetPrimary returns the primary namespace configuration

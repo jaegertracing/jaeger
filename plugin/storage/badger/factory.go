@@ -15,7 +15,6 @@
 package badger
 
 import (
-	"expvar"
 	"flag"
 	"io/ioutil"
 	"os"
@@ -32,15 +31,11 @@ import (
 	"github.com/jaegertracing/jaeger/storage/spanstore"
 )
 
-var (
-	// ValueLogSpaceAvailable returns the amount of space left on the value log mount point in bytes
-	ValueLogSpaceAvailable = expvar.NewInt("badger_value_log_bytes_available")
-	// KeyLogSpaceAvailable returns the amount of space left on the key log mount point in bytes
-	KeyLogSpaceAvailable = expvar.NewInt("badger_key_log_bytes_available")
-	// LastMaintenanceRun stores the timestamp of the previous maintenanceRun
-	LastMaintenanceRun = expvar.NewInt("badger_storage_maintenance_last_run")
-	// LastValueLogCleaned stores the timestamp of the previous ValueLogGC run
-	LastValueLogCleaned = expvar.NewInt("badger_storage_valueloggc_last_run")
+const (
+	ValueLogSpaceAvailableName = "badger_value_log_bytes_available"
+	KeyLogSpaceAvailableName   = "badger_key_log_bytes_available"
+	LastMaintenanceRunName     = "badger_storage_maintenance_last_run"
+	LastValueLogCleanedName    = "badger_storage_valueloggc_last_run"
 )
 
 // Factory implements storage.Factory for Badger backend.
@@ -50,9 +45,17 @@ type Factory struct {
 	cache   *badgerStore.CacheStore
 	logger  *zap.Logger
 
-	tmpDir            string
-	maintenanceTicker *time.Ticker
-	maintenanceDone   chan bool
+	tmpDir          string
+	maintenanceDone chan bool
+
+	// ValueLogSpaceAvailable returns the amount of space left on the value log mount point in bytes
+	ValueLogSpaceAvailable metrics.Gauge
+	// KeyLogSpaceAvailable returns the amount of space left on the key log mount point in bytes
+	KeyLogSpaceAvailable metrics.Gauge
+	// LastMaintenanceRun stores the timestamp (UnixNano) of the previous maintenanceRun
+	LastMaintenanceRun metrics.Gauge
+	// LastValueLogCleaned stores the timestamp (UnixNano) of the previous ValueLogGC run
+	LastValueLogCleaned metrics.Gauge
 }
 
 // NewFactory creates a new Factory.
@@ -101,11 +104,14 @@ func (f *Factory) Initialize(metricsFactory metrics.Factory, logger *zap.Logger)
 	}
 	f.store = store
 
-	// Error ignored to satisfy Codecov
 	cache, _ := badgerStore.NewCacheStore(f.store, f.Options.primary.SpanStoreTTL)
 	f.cache = cache
 
-	f.maintenanceTicker = time.NewTicker(f.Options.primary.MaintenanceTimer)
+	f.ValueLogSpaceAvailable = metricsFactory.Gauge(ValueLogSpaceAvailableName, nil)
+	f.KeyLogSpaceAvailable = metricsFactory.Gauge(KeyLogSpaceAvailableName, nil)
+	f.LastMaintenanceRun = metricsFactory.Gauge(LastMaintenanceRunName, nil)
+	f.LastValueLogCleaned = metricsFactory.Gauge(LastValueLogCleanedName, nil)
+
 	go f.maintenance()
 
 	logger.Info("Badger storage configuration", zap.Any("configuration", opts))
@@ -130,17 +136,16 @@ func (f *Factory) CreateDependencyReader() (dependencystore.Reader, error) {
 
 // Close Implements io.Closer and closes the underlying storage
 func (f *Factory) Close() error {
-	f.maintenanceTicker.Stop()
 	f.maintenanceDone <- true
 
 	err := f.store.Close()
-	if err != nil {
-		return err
-	}
 
 	// Remove tmp files if this was ephemeral storage
 	if f.Options.primary.Ephemeral {
-		err = os.RemoveAll(f.tmpDir)
+		errSecondary := os.RemoveAll(f.tmpDir)
+		if err == nil {
+			err = errSecondary
+		}
 	}
 
 	return err
@@ -148,23 +153,25 @@ func (f *Factory) Close() error {
 
 // Maintenance starts a background maintenance job for the badger K/V store, such as ValueLogGC
 func (f *Factory) maintenance() {
+	maintenanceTicker := time.NewTicker(f.Options.primary.MaintenanceInterval)
+	defer maintenanceTicker.Stop()
 	for {
 		select {
 		case <-f.maintenanceDone:
 			return
-		case t := <-f.maintenanceTicker.C:
+		case t := <-maintenanceTicker.C:
 			var err error
 			// After there's nothing to clean, the err is raised
 			for err == nil {
 				err = f.store.RunValueLogGC(0.5) // 0.5 is selected to rewrite a file if half of it can be discarded
 			}
 			if err == badger.ErrNoRewrite {
-				LastValueLogCleaned.Set(t.Unix())
+				f.LastValueLogCleaned.Update(t.UnixNano())
 			} else {
 				f.logger.Error("Failed to run ValueLogGC", zap.Error(err))
 			}
 
-			LastMaintenanceRun.Set(t.Unix())
+			f.LastMaintenanceRun.Update(t.UnixNano())
 			f.diskStatisticsUpdate()
 		}
 	}

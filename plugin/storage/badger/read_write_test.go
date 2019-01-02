@@ -15,6 +15,7 @@
 package badger
 
 import (
+	"context"
 	"errors"
 	"fmt"
 	"io"
@@ -58,7 +59,7 @@ func TestWriteReadBack(t *testing.T) {
 		}
 
 		for i := 0; i < traces; i++ {
-			tr, err := sr.GetTrace(model.TraceID{
+			tr, err := sr.GetTrace(context.Background(), model.TraceID{
 				Low:  uint64(i),
 				High: 1,
 			})
@@ -78,11 +79,11 @@ func TestFindValidation(t *testing.T) {
 		}
 
 		// Only StartTimeMin and Max (not supported yet)
-		_, err := sr.FindTraces(params)
+		_, err := sr.FindTraces(context.Background(), params)
 		assert.Error(t, err, errors.New("This query parameter is not supported yet"))
 
 		params.OperationName = "no-service"
-		_, err = sr.FindTraces(params)
+		_, err = sr.FindTraces(context.Background(), params)
 		assert.Error(t, err, errors.New("Service Name must be set"))
 	})
 }
@@ -128,22 +129,22 @@ func TestIndexSeeks(t *testing.T) {
 			ServiceName:  "service-1",
 		}
 
-		trs, err := sr.FindTraces(params)
+		trs, err := sr.FindTraces(context.Background(), params)
 		assert.NoError(t, err)
 		assert.Equal(t, 1, len(trs))
 
 		params.OperationName = "operation-1"
-		trs, err = sr.FindTraces(params)
+		trs, err = sr.FindTraces(context.Background(), params)
 		assert.NoError(t, err)
 		assert.Equal(t, 1, len(trs))
 
 		params.ServiceName = "service-10" // this should not match
-		trs, err = sr.FindTraces(params)
+		trs, err = sr.FindTraces(context.Background(), params)
 		assert.NoError(t, err)
 		assert.Equal(t, 0, len(trs))
 
 		params.OperationName = "operation-4"
-		trs, err = sr.FindTraces(params)
+		trs, err = sr.FindTraces(context.Background(), params)
 		assert.NoError(t, err)
 		assert.Equal(t, 0, len(trs))
 
@@ -157,7 +158,7 @@ func TestIndexSeeks(t *testing.T) {
 		params.Tags = tags
 		params.DurationMin = time.Duration(1 * time.Millisecond)
 		params.DurationMax = time.Duration(1 * time.Hour)
-		trs, err = sr.FindTraces(params)
+		trs, err = sr.FindTraces(context.Background(), params)
 		assert.NoError(t, err)
 		assert.Equal(t, 1, len(trs))
 
@@ -166,13 +167,13 @@ func TestIndexSeeks(t *testing.T) {
 		params.StartTimeMax = startT.Add(time.Duration(time.Hour * 1))
 		delete(params.Tags, "k11")
 		params.NumTraces = 2
-		trs, err = sr.FindTraces(params)
+		trs, err = sr.FindTraces(context.Background(), params)
 		assert.NoError(t, err)
 		assert.Equal(t, 2, len(trs))
 
 		// Check for DESC return order
 		params.NumTraces = 9
-		trs, err = sr.FindTraces(params)
+		trs, err = sr.FindTraces(context.Background(), params)
 		assert.NoError(t, err)
 		assert.Equal(t, 9, len(trs))
 
@@ -187,19 +188,12 @@ func TestIndexSeeks(t *testing.T) {
 			StartTimeMax: startT.Add(time.Duration(time.Millisecond * 10)),
 		}
 
-		// StartTime query only
-		/*
-			trs, err = sr.FindTraces(params)
-			assert.NoError(t, err)
-			assert.Equal(t, 10, len(trs))
-		*/
-
 		// Duration query
 		params.StartTimeMax = startT.Add(time.Duration(time.Hour * 10))
 		params.DurationMin = time.Duration(53 * time.Millisecond) // trace 51 (max)
 		params.DurationMax = time.Duration(56 * time.Millisecond) // trace 56 (min)
 
-		trs, err = sr.FindTraces(params)
+		trs, err = sr.FindTraces(context.Background(), params)
 		assert.NoError(t, err)
 		assert.Equal(t, 6, len(trs))
 	})
@@ -231,10 +225,10 @@ func TestMenuSeeks(t *testing.T) {
 			}
 		}
 
-		operations, err := sr.GetOperations("service-1")
+		operations, err := sr.GetOperations(context.Background(), "service-1")
 		assert.NoError(t, err)
 
-		serviceList, err := sr.GetServices()
+		serviceList, err := sr.GetServices(context.Background())
 		assert.NoError(t, err)
 
 		assert.Equal(t, spans, len(operations))
@@ -284,21 +278,6 @@ func TestPersist(t *testing.T) {
 
 		}()
 
-		/*
-			// For debugging, keep commented out for commits
-			err = f.store.View(func(txn *badger.Txn) error {
-				opts := badger.DefaultIteratorOptions
-				opts.PrefetchSize = 10 // TraceIDs are not sorted, pointless to prefetch large amount of values
-				it := txn.NewIterator(opts)
-				defer it.Close()
-
-				for it.Rewind(); it.Valid(); it.Next() {
-					fmt.Printf("Key: %v\n", it.Item())
-				}
-				return nil
-			})
-		*/
-
 		test(t, sw, sr, dr)
 	}
 
@@ -321,14 +300,14 @@ func TestPersist(t *testing.T) {
 	})
 
 	p(t, dir, func(t *testing.T, sw spanstore.Writer, sr spanstore.Reader, dr dependencystore.Reader) {
-		trace, err := sr.GetTrace(model.TraceID{
+		trace, err := sr.GetTrace(context.Background(), model.TraceID{
 			Low:  uint64(1),
 			High: 1,
 		})
 		assert.NoError(t, err)
 		assert.Equal(t, "operation-p", trace.Spans[0].OperationName)
 
-		services, err := sr.GetServices()
+		services, err := sr.GetServices(context.Background())
 		assert.NoError(t, err)
 		assert.Equal(t, 1, len(services))
 	})
@@ -405,50 +384,5 @@ func TestDependencyReader(t *testing.T) {
 		assert.NotEmpty(t, links)
 		assert.Equal(t, spans-1, len(links))                // First span does not create a dependency
 		assert.Equal(t, uint64(traces), links[0].CallCount) // Each trace calls the same services
-	})
-}
-
-func BenchmarkInsert(b *testing.B) {
-	runFactoryTest(b, func(tb testing.TB, sw spanstore.Writer, sr spanstore.Reader, dr dependencystore.Reader) {
-		// b := tb.(*testing.B)
-
-		tid := time.Now()
-		traces := 10000
-		spans := 3
-
-		b.ResetTimer()
-
-		// wg := sync.WaitGroup{}
-
-		for u := 0; u < b.N; u++ {
-			for i := 0; i < traces; i++ {
-				// go func() {
-				// wg.Add(1)
-				for j := 0; j < spans; j++ {
-					s := model.Span{
-						TraceID: model.TraceID{
-							Low:  uint64(i),
-							High: 1,
-						},
-						SpanID:        model.SpanID(j),
-						OperationName: "operation",
-						Process: &model.Process{
-							ServiceName: "service",
-						},
-						StartTime: tid.Add(time.Duration(i)),
-						Duration:  time.Duration(i + j),
-					}
-
-					err := sw.WriteSpan(&s)
-					if err != nil {
-						b.FailNow()
-					}
-				}
-				// wg.Done()
-				// }()
-			}
-		}
-		// wg.Wait()
-		b.StopTimer()
 	})
 }
