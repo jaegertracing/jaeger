@@ -317,12 +317,16 @@ func TestTagsMap(t *testing.T) {
 	}{
 		{fieldTags: map[string]interface{}{"bool:bool": true}, expected: []model.KeyValue{model.Bool("bool.bool", true)}},
 		{fieldTags: map[string]interface{}{"int.int": int64(1)}, expected: []model.KeyValue{model.Int64("int.int", 1)}},
+		{fieldTags: map[string]interface{}{"int:int": int64(2)}, expected: []model.KeyValue{model.Int64("int.int", 2)}},
 		{fieldTags: map[string]interface{}{"float": float64(1.1)}, expected: []model.KeyValue{model.Float64("float", 1.1)}},
 		// we are not able to reproduce type for float 123 or any N.0 number therefore returning int
 		{fieldTags: map[string]interface{}{"float": float64(123)}, expected: []model.KeyValue{model.Int64("float", 123)}},
 		{fieldTags: map[string]interface{}{"float": float64(123.0)}, expected: []model.KeyValue{model.Int64("float", 123)}},
+		{fieldTags: map[string]interface{}{"float:float": float64(123)}, expected: []model.KeyValue{model.Int64("float.float", 123)}},
 		{fieldTags: map[string]interface{}{"str": "foo"}, expected: []model.KeyValue{model.String("str", "foo")}},
+		{fieldTags: map[string]interface{}{"str:str": "foo"}, expected: []model.KeyValue{model.String("str.str", "foo")}},
 		{fieldTags: map[string]interface{}{"binary": []byte("foo")}, expected: []model.KeyValue{model.Binary("binary", []byte("foo"))}},
+		{fieldTags: map[string]interface{}{"binary:binary": []byte("foo")}, expected: []model.KeyValue{model.Binary("binary.binary", []byte("foo"))}},
 		{fieldTags: map[string]interface{}{"unsupported": struct{}{}}, err: fmt.Errorf("invalid tag type in %+v", struct{}{})},
 	}
 	converter := NewToDomain(":")

@@ -163,7 +163,7 @@ func (td ToDomain) convertTagField(k string, v interface{}) (model.KeyValue, err
 	// The number is always a float64 therefore type assertion on int (v.(int/64/32)) does not work.
 	// If 1.0, 2.0.. was stored as float it will be read as int
 	if pInt, err := strconv.ParseInt(fmt.Sprintf("%v", v), 10, 64); err == nil {
-		return model.Int64(k, pInt), nil
+		return model.Int64(dKey, pInt), nil
 	}
 	switch val := v.(type) {
 	case float64:
