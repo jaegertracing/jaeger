@@ -95,7 +95,7 @@ func (s *DependencyStore) GetDependencies(endTs time.Time, lookback time.Duratio
 					return fmt.Errorf("Unknown encoding type: %04b", item.UserMeta()&encodingTypeBits)
 				}
 
-				if bytes.Compare(prevTraceID, traceID) == 0 {
+				if bytes.Equal(prevTraceID, traceID) {
 					// Still processing the same one
 					spans = append(spans, &sp)
 				} else {

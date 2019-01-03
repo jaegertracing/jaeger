@@ -417,7 +417,7 @@ func (r *TraceReader) scanIndexKeys(indexKeyValue []byte, startTimeMin time.Time
 			// ScanFunction is a prefix scanning (since we could have for example service1 & service12)
 			// Now we need to match only the exact key if we want to add it
 			timestampStartIndex := len(it.Item().Key()) - (sizeOfTraceID + 8) // timestamp is stored with 8 bytes
-			if bytes.Compare(indexKeyValue, it.Item().Key()[:timestampStartIndex]) == 0 {
+			if bytes.Equal(indexKeyValue, it.Item().Key()[:timestampStartIndex]) {
 				key := []byte{}
 				key = append(key, item.Key()...) // badger reuses underlying slices so we have to copy the key
 				indexResults = append(indexResults, key)
