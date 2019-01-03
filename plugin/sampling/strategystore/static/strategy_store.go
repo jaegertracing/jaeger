@@ -15,6 +15,8 @@
 package static
 
 import (
+	"bytes"
+	"encoding/gob"
 	"encoding/json"
 	"fmt"
 	"io/ioutil"
@@ -136,7 +138,22 @@ func (h *strategyStore) parseStrategy(strategy *strategy) *sampling.SamplingStra
 		}
 	default:
 		h.logger.Warn("Failed to parse sampling strategy", zap.Any("strategy", strategy))
-		copyOfDefaultStrategy := defaultStrategy
-		return &copyOfDefaultStrategy
+		return deepCopy(&defaultStrategy)
 	}
+}
+
+func deepCopy(s *sampling.SamplingStrategyResponse) *sampling.SamplingStrategyResponse {
+	var buf bytes.Buffer
+	enc := gob.NewEncoder(&buf)
+	dec := gob.NewDecoder(&buf)
+	err := enc.Encode(*s)
+	if err != nil {
+		return nil
+	}
+	var copy sampling.SamplingStrategyResponse
+	err = dec.Decode(&copy)
+	if err != nil {
+		return nil
+	}
+	return &copy
 }

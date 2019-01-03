@@ -193,3 +193,15 @@ func makeResponse(samplerType sampling.SamplingStrategyType, param float64) (res
 	}
 	return resp
 }
+
+func TestDeepCopy(t *testing.T) {
+	s := &sampling.SamplingStrategyResponse{
+		StrategyType: sampling.SamplingStrategyType_PROBABILISTIC,
+		ProbabilisticSampling: &sampling.ProbabilisticSamplingStrategy{
+			SamplingRate: 0.5,
+		},
+	}
+	copy := deepCopy(s)
+	assert.False(t, copy == s)
+	assert.EqualValues(t, copy, s)
+}
