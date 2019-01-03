@@ -17,6 +17,7 @@ package badger
 import (
 	"expvar"
 	"fmt"
+	"io"
 	"os"
 	"testing"
 	"time"
@@ -104,6 +105,7 @@ func TestMaintenanceRun(t *testing.T) {
 	runtime = waiter(runtime)
 	_, gs = mFactory.Snapshot()
 	assert.True(t, gs[LastValueLogCleanedName] > 0)
-	err := f.Close()
+
+	err := io.Closer(f).Close()
 	assert.NoError(t, err)
 }
