@@ -34,6 +34,7 @@ const (
 	suffixServers           = ".servers"
 	suffixPort              = ".port"
 	suffixKeyspace          = ".keyspace"
+	suffixDC                = ".local-dc"
 	suffixConsistency       = ".consistency"
 	suffixProtoVer          = ".proto-version"
 	suffixSocketKeepAlive   = ".socket-keep-alive"
@@ -149,6 +150,10 @@ func addFlags(flagSet *flag.FlagSet, nsConfig *namespaceConfig) {
 		nsConfig.Keyspace,
 		"The Cassandra keyspace for Jaeger data")
 	flagSet.String(
+		nsConfig.namespace+suffixDC,
+		nsConfig.LocalDC,
+		"The Cassandra local data center for DC Aware host selection")
+	flagSet.String(
 		nsConfig.namespace+suffixConsistency,
 		nsConfig.Consistency,
 		"The Cassandra consistency level, e.g. ANY, ONE, TWO, THREE, QUORUM, ALL, LOCAL_QUORUM, EACH_QUORUM, LOCAL_ONE (default LOCAL_ONE)")
@@ -214,6 +219,7 @@ func (cfg *namespaceConfig) initFromViper(v *viper.Viper) {
 	cfg.servers = v.GetString(cfg.namespace + suffixServers)
 	cfg.Port = v.GetInt(cfg.namespace + suffixPort)
 	cfg.Keyspace = v.GetString(cfg.namespace + suffixKeyspace)
+	cfg.LocalDC = v.GetString(cfg.namespace + suffixDC)
 	cfg.Consistency = v.GetString(cfg.namespace + suffixConsistency)
 	cfg.ProtoVersion = v.GetInt(cfg.namespace + suffixProtoVer)
 	cfg.SocketKeepAlive = v.GetDuration(cfg.namespace + suffixSocketKeepAlive)
