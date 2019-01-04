@@ -78,20 +78,20 @@ func TestMaintenanceRun(t *testing.T) {
 	// Safeguard
 	mFactory := metrics.NewLocalFactory(0)
 	_, gs := mFactory.Snapshot()
-	assert.True(t, gs[LastMaintenanceRunName] == 0)
+	assert.True(t, gs[lastMaintenanceRunName] == 0)
 	f.Initialize(mFactory, zap.NewNop())
 
 	waiter := func(previousValue int64) int64 {
 		sleeps := 0
 		_, gs := mFactory.Snapshot()
-		for gs[LastMaintenanceRunName] == previousValue && sleeps < 8 {
+		for gs[lastMaintenanceRunName] == previousValue && sleeps < 8 {
 			// Wait for the scheduler
 			time.Sleep(time.Duration(50) * time.Millisecond)
 			sleeps++
 			_, gs = mFactory.Snapshot()
 		}
-		assert.True(t, gs[LastMaintenanceRunName] > previousValue)
-		return gs[LastMaintenanceRunName]
+		assert.True(t, gs[lastMaintenanceRunName] > previousValue)
+		return gs[lastMaintenanceRunName]
 	}
 
 	runtime := waiter(0) // First run, check that it was ran and caches previous size
@@ -104,7 +104,7 @@ func TestMaintenanceRun(t *testing.T) {
 
 	runtime = waiter(runtime)
 	_, gs = mFactory.Snapshot()
-	assert.True(t, gs[LastValueLogCleanedName] > 0)
+	assert.True(t, gs[lastValueLogCleanedName] > 0)
 
 	err := io.Closer(f).Close()
 	assert.NoError(t, err)

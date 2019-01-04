@@ -32,10 +32,10 @@ import (
 )
 
 const (
-	ValueLogSpaceAvailableName = "badger_value_log_bytes_available"
-	KeyLogSpaceAvailableName   = "badger_key_log_bytes_available"
-	LastMaintenanceRunName     = "badger_storage_maintenance_last_run"
-	LastValueLogCleanedName    = "badger_storage_valueloggc_last_run"
+	valueLogSpaceAvailableName = "badger_value_log_bytes_available"
+	keyLogSpaceAvailableName   = "badger_key_log_bytes_available"
+	lastMaintenanceRunName     = "badger_storage_maintenance_last_run"
+	lastValueLogCleanedName    = "badger_storage_valueloggc_last_run"
 )
 
 // Factory implements storage.Factory for Badger backend.
@@ -48,14 +48,17 @@ type Factory struct {
 	tmpDir          string
 	maintenanceDone chan bool
 
-	// ValueLogSpaceAvailable returns the amount of space left on the value log mount point in bytes
-	ValueLogSpaceAvailable metrics.Gauge
-	// KeyLogSpaceAvailable returns the amount of space left on the key log mount point in bytes
-	KeyLogSpaceAvailable metrics.Gauge
-	// LastMaintenanceRun stores the timestamp (UnixNano) of the previous maintenanceRun
-	LastMaintenanceRun metrics.Gauge
-	// LastValueLogCleaned stores the timestamp (UnixNano) of the previous ValueLogGC run
-	LastValueLogCleaned metrics.Gauge
+	// TODO initialize via reflection; convert comments to tag 'description'.
+	metrics struct {
+		// ValueLogSpaceAvailable returns the amount of space left on the value log mount point in bytes
+		ValueLogSpaceAvailable metrics.Gauge
+		// KeyLogSpaceAvailable returns the amount of space left on the key log mount point in bytes
+		KeyLogSpaceAvailable metrics.Gauge
+		// LastMaintenanceRun stores the timestamp (UnixNano) of the previous maintenanceRun
+		LastMaintenanceRun metrics.Gauge
+		// LastValueLogCleaned stores the timestamp (UnixNano) of the previous ValueLogGC run
+		LastValueLogCleaned metrics.Gauge
+	}
 }
 
 // NewFactory creates a new Factory.
@@ -107,10 +110,10 @@ func (f *Factory) Initialize(metricsFactory metrics.Factory, logger *zap.Logger)
 	cache, _ := badgerStore.NewCacheStore(f.store, f.Options.primary.SpanStoreTTL)
 	f.cache = cache
 
-	f.ValueLogSpaceAvailable = metricsFactory.Gauge(ValueLogSpaceAvailableName, nil)
-	f.KeyLogSpaceAvailable = metricsFactory.Gauge(KeyLogSpaceAvailableName, nil)
-	f.LastMaintenanceRun = metricsFactory.Gauge(LastMaintenanceRunName, nil)
-	f.LastValueLogCleaned = metricsFactory.Gauge(LastValueLogCleanedName, nil)
+	f.metrics.ValueLogSpaceAvailable = metricsFactory.Gauge(valueLogSpaceAvailableName, nil)
+	f.metrics.KeyLogSpaceAvailable = metricsFactory.Gauge(keyLogSpaceAvailableName, nil)
+	f.metrics.LastMaintenanceRun = metricsFactory.Gauge(lastMaintenanceRunName, nil)
+	f.metrics.LastValueLogCleaned = metricsFactory.Gauge(lastValueLogCleanedName, nil)
 
 	go f.maintenance()
 
@@ -166,12 +169,12 @@ func (f *Factory) maintenance() {
 				err = f.store.RunValueLogGC(0.5) // 0.5 is selected to rewrite a file if half of it can be discarded
 			}
 			if err == badger.ErrNoRewrite {
-				f.LastValueLogCleaned.Update(t.UnixNano())
+				f.metrics.LastValueLogCleaned.Update(t.UnixNano())
 			} else {
 				f.logger.Error("Failed to run ValueLogGC", zap.Error(err))
 			}
 
-			f.LastMaintenanceRun.Update(t.UnixNano())
+			f.metrics.LastMaintenanceRun.Update(t.UnixNano())
 			f.diskStatisticsUpdate()
 		}
 	}
