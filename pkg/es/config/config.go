@@ -29,6 +29,7 @@ import (
 	"gopkg.in/olivere/elastic.v5"
 
 	"github.com/jaegertracing/jaeger/pkg/es"
+	"github.com/jaegertracing/jaeger/pkg/es/wrapper"
 	storageMetrics "github.com/jaegertracing/jaeger/storage/spanstore/metrics"
 )
 
@@ -133,7 +134,7 @@ func (c *Configuration) NewClient(logger *zap.Logger, metricsFactory metrics.Fac
 	if err != nil {
 		return nil, err
 	}
-	return es.WrapESClient(rawClient, service), nil
+	return eswrapper.WrapESClient(rawClient, service), nil
 }
 
 // ApplyDefaults copies settings from source unless its own value is non-zero.
