@@ -40,6 +40,6 @@ func TestDiskStatisticsUpdate(t *testing.T) {
 	err = f.diskStatisticsUpdate()
 	assert.NoError(t, err)
 	_, gs := mFactory.Snapshot()
-	assert.True(t, gs[KeyLogSpaceAvailableName] > int64(0))
-	assert.True(t, gs[ValueLogSpaceAvailableName] > int64(0))
+	assert.True(t, gs[keyLogSpaceAvailableName] > int64(0))
+	assert.True(t, gs[valueLogSpaceAvailableName] > int64(0))
 }
