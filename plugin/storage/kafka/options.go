@@ -25,11 +25,6 @@ import (
 )
 
 const (
-	configPrefix   = "kafka"
-	suffixBrokers  = ".brokers"
-	suffixTopic    = ".topic"
-	suffixEncoding = ".encoding"
-
 	// EncodingJSON is used for spans encoded as Protobuf-based JSON.
 	EncodingJSON = "json"
 	// EncodingProto is used for spans encoded as Protobuf.
@@ -37,13 +32,19 @@ const (
 	// EncodingZipkinThrift is used for spans encoded as Zipkin Thrift.
 	EncodingZipkinThrift = "zipkin-thrift"
 
+	configPrefix   = "kafka"
+	suffixBrokers  = ".brokers"
+	suffixTopic    = ".topic"
+	suffixEncoding = ".encoding"
+
 	defaultBroker   = "127.0.0.1:9092"
 	defaultTopic    = "jaeger-spans"
 	defaultEncoding = EncodingProto
 )
 
 var (
-	allEncodings = []string{EncodingJSON, EncodingProto, EncodingZipkinThrift}
+	// AllEncodings is a list of all supported encodings.
+	AllEncodings = []string{EncodingJSON, EncodingProto, EncodingZipkinThrift}
 )
 
 // Options stores the configuration options for Kafka
