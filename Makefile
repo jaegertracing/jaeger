@@ -136,8 +136,9 @@ lint: lint-gosec
 go-lint:
 	@cat /dev/null > $(LINT_LOG)
 	$(GOLINT) $(ALL_PKGS) \
-		| grep -E -v 'pkg/es/wrapper.go:\d+:\d+: method Id should be ID' \
-		| grep -E -v 'pkg/es/wrapper.go:\d+:\d+: method BodyJson should be BodyJSON' \
+		| grep -v -E \
+			-e 'pkg\/es\/wrapper.go:\d+:\d+: method Id should be ID' \
+			-e 'pkg\/es\/wrapper.go:\d+:\d+: method BodyJson should be BodyJSON' \
 		>> $(LINT_LOG) || true;
 	@[ ! -s "$(LINT_LOG)" ] || (echo "Lint Failures" | cat - $(LINT_LOG) && false)
 
