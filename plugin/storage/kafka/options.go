@@ -30,8 +30,11 @@ const (
 	suffixTopic    = ".topic"
 	suffixEncoding = ".encoding"
 
-	EncodingJSON         = "json"
-	EncodingProto        = "protobuf"
+	// EncodingJSON is used for spans encoded as Protobuf-based JSON.
+	EncodingJSON = "json"
+	// EncodingProto is used for spans encoded as Protobuf.
+	EncodingProto = "protobuf"
+	// EncodingZipkinThrift is used for spans encoded as Zipkin Thrift.
 	EncodingZipkinThrift = "zipkin-thrift"
 
 	defaultBroker   = "127.0.0.1:9092"
@@ -40,7 +43,7 @@ const (
 )
 
 var (
-	AllEncodings = []string{EncodingJSON, EncodingProto, EncodingZipkinThrift}
+	allEncodings = []string{EncodingJSON, EncodingProto, EncodingZipkinThrift}
 )
 
 // Options stores the configuration options for Kafka

@@ -14,6 +14,7 @@ ALL_SRC := $(shell find . -name '*.go' \
 				   -not -path './vendor/*' \
 				   -not -path '*/mocks/*' \
 				   -not -path '*/*-gen/*' \
+				   -not -path '*/thrift-0.9.2/*' \
 				   -type f | \
 				sort)
 
@@ -125,13 +126,20 @@ lint-gosec:
 lint: lint-gosec
 	$(GOVET) ./...
 	$(GOSIMPLE) ./...
-	@cat /dev/null > $(LINT_LOG)
-	$(GOLINT) $(ALL_SRC) >> $(LINT_LOG) || true;
-	@[ ! -s "$(LINT_LOG)" ] || (echo "Lint Failures" | cat - $(LINT_LOG) && false)
+	$(MAKE) go-lint
 	@$(GOFMT) -e -s -l $(ALL_SRC) > $(FMT_LOG)
 	@./scripts/updateLicenses.sh >> $(FMT_LOG)
 	@./scripts/import-order-cleanup.sh stdout > $(IMPORT_LOG)
 	@[ ! -s "$(FMT_LOG)" -a ! -s "$(IMPORT_LOG)" ] || (echo "Go fmt, license check, or import ordering failures, run 'make fmt'" | cat - $(FMT_LOG) && false)
+
+.PHONY: go-lint
+go-lint:
+	@cat /dev/null > $(LINT_LOG)
+	$(GOLINT) $(ALL_PKGS) \
+		| grep -E -v 'pkg/es/wrapper.go:\d+:\d+: method Id should be ID' \
+		| grep -E -v 'pkg/es/wrapper.go:\d+:\d+: method BodyJson should be BodyJSON' \
+		>> $(LINT_LOG) || true;
+	@[ ! -s "$(LINT_LOG)" ] || (echo "Lint Failures" | cat - $(LINT_LOG) && false)
 
 .PHONY: install-glide
 install-glide:

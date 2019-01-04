@@ -59,16 +59,16 @@ func (h *JSONUnmarshaller) Unmarshal(msg []byte) (*model.Span, error) {
 	return newSpan, err
 }
 
-// zipkinThriftUnmarshaller implements Unmarshaller
-type zipkinThriftUnmarshaller struct{}
+// ZipkinThriftUnmarshaller implements Unmarshaller
+type ZipkinThriftUnmarshaller struct{}
 
 // NewZipkinThriftUnmarshaller constructs a zipkinThriftUnmarshaller
-func NewZipkinThriftUnmarshaller() *zipkinThriftUnmarshaller {
-	return &zipkinThriftUnmarshaller{}
+func NewZipkinThriftUnmarshaller() *ZipkinThriftUnmarshaller {
+	return &ZipkinThriftUnmarshaller{}
 }
 
 // Unmarshal decodes a json byte array to a span
-func (h *zipkinThriftUnmarshaller) Unmarshal(msg []byte) (*model.Span, error) {
+func (h *ZipkinThriftUnmarshaller) Unmarshal(msg []byte) (*model.Span, error) {
 	tSpans, err := zipkin.DeserializeThrift(msg)
 	if err != nil {
 		return nil, err
