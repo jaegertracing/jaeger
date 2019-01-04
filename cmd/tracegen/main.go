@@ -54,7 +54,7 @@ func main() {
 	opentracing.InitGlobalTracer(tracer)
 	logger.Info("Initialized global tracer")
 
-	cfg.Run(logger)
+	tracegen.Run(cfg, logger)
 
 	logger.Info("Waiting 1.5sec for metrics to flush")
 	time.Sleep(3 * time.Second / 2)

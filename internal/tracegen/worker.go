@@ -26,18 +26,22 @@ import (
 )
 
 type worker struct {
+	running  *uint32         // pointer to shared flag that indicates it's time to stop the test
 	id       int             // worker id
 	traces   int             // how many traces the worker has to generate (only when duration==0)
-	marshall bool            // whether the worker needs to marshall trace context via HTTP headers
+	marshal  bool            // whether the worker needs to marshal trace context via HTTP headers
 	debug    bool            // whether to set DEBUG flag on the spans
 	duration time.Duration   // how long to run the test for (overrides `traces`)
 	pause    time.Duration   // how long to pause before finishing the trace
-	running  *uint32         // pointer to shared flag that indicates it's time to stop the test
 	wg       *sync.WaitGroup // notify when done
 	logger   *zap.Logger
 }
 
-var fakeIP uint32 = 1<<24 | 2<<16 | 3<<8 | 4
+const (
+	fakeIP uint32 = 1<<24 | 2<<16 | 3<<8 | 4
+
+	fakeSpanDuration = 123 * time.Microsecond
+)
 
 func (w worker) simulateTraces() {
 	tracer := opentracing.GlobalTracer()
@@ -52,7 +56,7 @@ func (w worker) simulateTraces() {
 		}
 
 		childCtx := sp.Context()
-		if w.marshall {
+		if w.marshal {
 			m := make(map[string]string)
 			c := opentracing.TextMapCarrier(m)
 			if err := tracer.Inject(sp.Context(), opentracing.TextMap, c); err == nil {
@@ -78,7 +82,7 @@ func (w worker) simulateTraces() {
 			child.Finish()
 			sp.Finish()
 		} else {
-			opt := opentracing.FinishOptions{FinishTime: time.Now().Add(123 * time.Microsecond)}
+			opt := opentracing.FinishOptions{FinishTime: time.Now().Add(fakeSpanDuration)}
 			child.FinishWithOptions(opt)
 			sp.FinishWithOptions(opt)
 		}

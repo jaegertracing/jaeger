@@ -28,7 +28,7 @@ import (
 type Config struct {
 	Workers  int
 	Traces   int
-	Marshall bool
+	Marshal  bool
 	Debug    bool
 	Pause    time.Duration
 	Duration time.Duration
@@ -38,33 +38,33 @@ type Config struct {
 func (c *Config) Flags(fs *flag.FlagSet) {
 	fs.IntVar(&c.Workers, "workers", 1, "Number of workers (goroutines) to run")
 	fs.IntVar(&c.Traces, "traces", 1, "Number of traces to generate in each worker (ignored if duration is provided")
-	fs.BoolVar(&c.Marshall, "marshall", false, "Whether to marshall trace context via HTTP headers")
+	fs.BoolVar(&c.Marshal, "marshal", false, "Whether to marshal trace context via HTTP headers")
 	fs.BoolVar(&c.Debug, "debug", false, "Whether to set DEBUG flag on the spans to prevent downsampling")
 	fs.DurationVar(&c.Pause, "pause", time.Microsecond, "How long to pause before finishing trace")
 	fs.DurationVar(&c.Duration, "duration", 0, "For how long to run the test")
 }
 
 // Run executes the test scenario.
-func (c *Config) Run(logger *zap.Logger) error {
+func Run(c *Config, logger *zap.Logger) error {
 	if c.Duration > 0 {
 		c.Traces = 0
 	} else if c.Traces <= 0 {
 		return fmt.Errorf("Either `traces` or `duration` must be greater than 0")
 	}
 
-	wg := &sync.WaitGroup{}
+	wg := sync.WaitGroup{}
 	var running uint32 = 1
 	for i := 0; i < c.Workers; i++ {
 		wg.Add(1)
 		w := worker{
 			id:       i,
 			traces:   c.Traces,
-			marshall: c.Marshall,
+			marshal:  c.Marshal,
 			debug:    c.Debug,
 			pause:    c.Pause,
 			duration: c.Duration,
 			running:  &running,
-			wg:       wg,
+			wg:       &wg,
 			logger:   logger.With(zap.Int("worker", i)),
 		}
 
