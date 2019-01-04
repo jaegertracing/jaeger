@@ -19,8 +19,8 @@ import (
 
 	"github.com/stretchr/testify/assert"
 
-	"github.com/jaegertracing/jaeger/thrift-gen/zipkincore"
 	"github.com/jaegertracing/jaeger/model/converter/thrift/zipkin"
+	"github.com/jaegertracing/jaeger/thrift-gen/zipkincore"
 )
 
 func TestProtobufMarshallerAndUnmarshaller(t *testing.T) {
@@ -45,9 +45,9 @@ func testMarshallerAndUnmarshaller(t *testing.T, marshaller Marshaller, unmarsha
 
 func TestZipkinThriftUnmarshaller(t *testing.T) {
 	operationName := "foo"
-	bytes := zipkin.ZipkinSerialize([]*zipkincore.Span{
+	bytes := zipkin.SerializeThrift([]*zipkincore.Span{
 		{
-			ID: 12345,
+			ID:   12345,
 			Name: operationName,
 			Annotations: []*zipkincore.Annotation{
 				{Host: &zipkincore.Endpoint{ServiceName: "foobar"}},
@@ -62,9 +62,9 @@ func TestZipkinThriftUnmarshaller(t *testing.T) {
 }
 
 func TestZipkinThriftUnmarshallerErrorNoService(t *testing.T) {
-	bytes := zipkin.ZipkinSerialize([]*zipkincore.Span{
+	bytes := zipkin.SerializeThrift([]*zipkincore.Span{
 		{
-			ID: 12345,
+			ID:   12345,
 			Name: "foo",
 		},
 	})

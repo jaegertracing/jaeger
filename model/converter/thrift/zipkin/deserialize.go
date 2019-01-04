@@ -20,8 +20,8 @@ import (
 	"github.com/jaegertracing/jaeger/thrift-gen/zipkincore"
 )
 
-// Function used for testing purposes
-func ZipkinSerialize(spans []*zipkincore.Span) []byte {
+// SerializeThrift is only used in tests.
+func SerializeThrift(spans []*zipkincore.Span) []byte {
 	t := thrift.NewTMemoryBuffer()
 	p := thrift.NewTBinaryProtocolTransport(t)
 	p.WriteListBegin(thrift.STRUCT, len(spans))
@@ -32,6 +32,7 @@ func ZipkinSerialize(spans []*zipkincore.Span) []byte {
 	return t.Buffer.Bytes()
 }
 
+// DeserializeThrift decodes Thrift bytes to a list of spans.
 func DeserializeThrift(b []byte) ([]*zipkincore.Span, error) {
 	buffer := thrift.NewTMemoryBuffer()
 	buffer.Write(b)

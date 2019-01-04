@@ -105,7 +105,7 @@ func waitForSpans(t *testing.T, handler *mockZipkinHandler, expecting int) {
 func TestThriftFormat(t *testing.T) {
 	server, _ := initializeTestServer(nil)
 	defer server.Close()
-	bodyBytes := zipkinTrift.ZipkinSerialize([]*zipkincore.Span{{}})
+	bodyBytes := zipkinTrift.SerializeThrift([]*zipkincore.Span{{}})
 	statusCode, resBodyStr, err := postBytes(server.URL+`/api/v1/spans`, bodyBytes, createHeader("application/x-thrift"))
 	assert.NoError(t, err)
 	assert.EqualValues(t, http.StatusAccepted, statusCode)
@@ -178,7 +178,7 @@ func TestJsonFormat(t *testing.T) {
 func TestGzipEncoding(t *testing.T) {
 	server, _ := initializeTestServer(nil)
 	defer server.Close()
-	bodyBytes := zipkinTrift.ZipkinSerialize([]*zipkincore.Span{{}})
+	bodyBytes := zipkinTrift.SerializeThrift([]*zipkincore.Span{{}})
 	header := createHeader("application/x-thrift")
 	header.Add("Content-Encoding", "gzip")
 	statusCode, resBodyStr, err := postBytes(server.URL+`/api/v1/spans`, gzipEncode(bodyBytes), header)

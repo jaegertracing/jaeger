@@ -25,14 +25,17 @@ import (
 )
 
 const (
+	// EncodingJSON is used for spans encoded as Protobuf-based JSON.
+	EncodingJSON = "json"
+	// EncodingProto is used for spans encoded as Protobuf.
+	EncodingProto = "protobuf"
+	// EncodingZipkinThrift is used for spans encoded as Zipkin Thrift.
+	EncodingZipkinThrift = "zipkin-thrift"
+
 	configPrefix   = "kafka"
 	suffixBrokers  = ".brokers"
 	suffixTopic    = ".topic"
 	suffixEncoding = ".encoding"
-
-	EncodingJSON         = "json"
-	EncodingProto        = "protobuf"
-	EncodingZipkinThrift = "zipkin-thrift"
 
 	defaultBroker   = "127.0.0.1:9092"
 	defaultTopic    = "jaeger-spans"
@@ -40,6 +43,7 @@ const (
 )
 
 var (
+	// AllEncodings is a list of all supported encodings.
 	AllEncodings = []string{EncodingJSON, EncodingProto, EncodingZipkinThrift}
 )
 
