@@ -6,8 +6,8 @@ COLOR_FIXME=$(printf "\033[31mFIXME\033[0m")
 
 NO_TEST_FILE_DIRS=""
 for dir in $*; do
-  mainFile=$(find ${dir} -depth 1 -name 'main.go')
-  testFiles=$(find ${dir} -depth 1 -name '*_test.go')
+  mainFile=$(find ${dir} -maxdepth 1 -name 'main.go')
+  testFiles=$(find ${dir} -maxdepth 1 -name '*_test.go')
   if [ -z "${testFiles}" ]; then
     if [ -n "${mainFile}" ]; then
       continue # single main does not require tests
