@@ -105,7 +105,8 @@ func (c IndicesCreateServiceWrapper) Do(ctx context.Context) (*elastic.IndicesCr
 
 // ---
 
-// IndexServiceWrapper is a wrapper around elastic.ESIndexService
+// IndexServiceWrapper is a wrapper around elastic.ESIndexService.
+// See wrapper_nolint.go for more functions.
 type IndexServiceWrapper struct {
 	bulkIndexReq *elastic.BulkIndexRequest
 	bulkService  *elastic.BulkProcessor
@@ -124,16 +125,6 @@ func (i IndexServiceWrapper) Index(index string) IndexService {
 // Type calls this function to internal service.
 func (i IndexServiceWrapper) Type(typ string) IndexService {
 	return WrapESIndexService(i.bulkIndexReq.Type(typ), i.bulkService)
-}
-
-// Id calls this function to internal service.
-func (i IndexServiceWrapper) Id(id string) IndexService {
-	return WrapESIndexService(i.bulkIndexReq.Id(id), i.bulkService)
-}
-
-// BodyJson calls this function to internal service.
-func (i IndexServiceWrapper) BodyJson(body interface{}) IndexService {
-	return WrapESIndexService(i.bulkIndexReq.Doc(body), i.bulkService)
 }
 
 // Add adds the request to bulk service
