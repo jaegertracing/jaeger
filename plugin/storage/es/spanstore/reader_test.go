@@ -786,7 +786,7 @@ func TestSpanReader_FindTraceIDsReadTraceIDsFailure(t *testing.T) {
 
 func TestSpanReader_FindTraceIDsIncorrectTraceIDFailure(t *testing.T) {
 	goodAggregations := make(map[string]*json.RawMessage)
-	rawMessage := []byte(`{"buckets": [{"key": "dfddslsfdsfdsdscc","doc_count": 16},{"key": "2","doc_count": 16}]}`)
+	rawMessage := []byte(`{"buckets": [{"key": "sdfsdfdssd234nsdvsdfldjsf","doc_count": 16},{"key": "2","doc_count": 16}]}`)
 	goodAggregations[traceIDAggregation] = (*json.RawMessage)(&rawMessage)
 
 	withSpanReader(func(r *spanReaderTest) {
@@ -802,7 +802,7 @@ func TestSpanReader_FindTraceIDsIncorrectTraceIDFailure(t *testing.T) {
 		}
 
 		traceIDs, err := r.reader.FindTraceIDs(context.Background(), traceIDsQuery)
-		require.EqualError(t, err, "strconv.ParseUint: parsing \"fddslsfdsfdsdscc\": invalid syntax")
+		require.EqualError(t, err, `strconv.ParseUint: parsing "sdfsdfdss": invalid syntax`)
 		assert.Len(t, traceIDs, 0)
 	})
 }
