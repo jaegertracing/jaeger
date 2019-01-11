@@ -234,9 +234,24 @@ func (s *SpanReader) FindTraces(ctx context.Context, traceQuery *spanstore.Trace
 	return s.multiRead(ctx, uniqueTraceIDs, traceQuery.StartTimeMin, traceQuery.StartTimeMax)
 }
 
-// FindTraceIDs is not implemented.
+// FindTraceIDs retrieves traces IDs that match the traceQuery
 func (s *SpanReader) FindTraceIDs(ctx context.Context, traceQuery *spanstore.TraceQueryParameters) ([]model.TraceID, error) {
-	return nil, errors.New("not implemented") // TODO: Implement
+	uniqueTraceIDs, err := s.findTraceIDs(ctx, traceQuery)
+	if err != nil {
+		return nil, err
+	}
+
+	traceIDs := make([]model.TraceID, len(uniqueTraceIDs))
+	for i, ID := range uniqueTraceIDs {
+		traceID, err := model.TraceIDFromString(ID)
+		if err != nil {
+			return nil, err
+		}
+
+		traceIDs[i] = traceID
+	}
+
+	return traceIDs, nil
 }
 
 func (s *SpanReader) multiRead(ctx context.Context, traceIDs []string, startTime, endTime time.Time) ([]*model.Trace, error) {
