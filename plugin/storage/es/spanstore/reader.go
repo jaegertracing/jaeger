@@ -236,19 +236,28 @@ func (s *SpanReader) FindTraces(ctx context.Context, traceQuery *spanstore.Trace
 
 // FindTraceIDs retrieves traces IDs that match the traceQuery
 func (s *SpanReader) FindTraceIDs(ctx context.Context, traceQuery *spanstore.TraceQueryParameters) ([]model.TraceID, error) {
-	uniqueTraceIDs, err := s.findTraceIDs(ctx, traceQuery)
+	if err := validateQuery(traceQuery); err != nil {
+		return nil, err
+	}
+	if traceQuery.NumTraces == 0 {
+		traceQuery.NumTraces = defaultNumTraces
+	}
+
+	esTraceIDs, err := s.findTraceIDs(ctx, traceQuery)
 	if err != nil {
 		return nil, err
 	}
 
-	traceIDs := make([]model.TraceID, len(uniqueTraceIDs))
-	for i, ID := range uniqueTraceIDs {
-		traceID, err := model.TraceIDFromString(ID)
+	traceIDs := make([]model.TraceID, traceQuery.NumTraces)
+	for i, traceID := range esTraceIDs {
+		if len(traceIDs) > traceQuery.NumTraces {
+			break
+		}
+
+		traceIDs[i], err = model.TraceIDFromString(traceID)
 		if err != nil {
 			return nil, err
 		}
-
-		traceIDs[i] = traceID
 	}
 
 	return traceIDs, nil
