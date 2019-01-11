@@ -784,6 +784,29 @@ func TestSpanReader_FindTraceIDsReadTraceIDsFailure(t *testing.T) {
 	})
 }
 
+func TestSpanReader_FindTraceIDsIncorrectTraceIDFailure(t *testing.T) {
+	goodAggregations := make(map[string]*json.RawMessage)
+	rawMessage := []byte(`{"buckets": [{"key": "dfddslsfdsfdsdscc","doc_count": 16},{"key": "2","doc_count": 16}]}`)
+	goodAggregations[traceIDAggregation] = (*json.RawMessage)(&rawMessage)
+
+	withSpanReader(func(r *spanReaderTest) {
+		mockSearchService(r).Return(&elastic.SearchResult{Aggregations: elastic.Aggregations(goodAggregations)}, nil)
+
+		traceIDsQuery := &spanstore.TraceQueryParameters{
+			ServiceName: serviceName,
+			Tags: map[string]string{
+				"hello": "world",
+			},
+			StartTimeMin: time.Now().Add(-1 * time.Hour),
+			StartTimeMax: time.Now(),
+		}
+
+		traceIDs, err := r.reader.FindTraceIDs(context.Background(), traceIDsQuery)
+		require.EqualError(t, err, "strconv.ParseUint: parsing \"fddslsfdsfdsdscc\": invalid syntax")
+		assert.Len(t, traceIDs, 0)
+	})
+}
+
 func mockMultiSearchService(r *spanReaderTest) *mock.Call {
 	multiSearchService := &mocks.MultiSearchService{}
 	multiSearchService.On("Add", mock.Anything, mock.Anything, mock.Anything).Return(multiSearchService)
