@@ -248,16 +248,18 @@ func (s *SpanReader) FindTraceIDs(ctx context.Context, traceQuery *spanstore.Tra
 		return nil, err
 	}
 
-	traceIDs := make([]model.TraceID, traceQuery.NumTraces)
-	for i, traceID := range esTraceIDs {
-		if len(traceIDs) > traceQuery.NumTraces {
+	traceIDs := []model.TraceID{}
+	for _, ID := range esTraceIDs {
+		if len(traceIDs) >= traceQuery.NumTraces {
 			break
 		}
 
-		traceIDs[i], err = model.TraceIDFromString(traceID)
+		traceID, err := model.TraceIDFromString(ID)
 		if err != nil {
 			return nil, err
 		}
+
+		traceIDs = append(traceIDs, traceID)
 	}
 
 	return traceIDs, nil

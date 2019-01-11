@@ -668,11 +668,119 @@ func TestFindTraceIDs(t *testing.T) {
 	testGet(traceIDAggregation, t)
 }
 
-func TestFindTraceIDNotImplemented(t *testing.T) {
+func TestSpanReader_TestFindTraceIDs(t *testing.T) {
+	goodAggregations := make(map[string]*json.RawMessage)
+	rawMessage := []byte(`{"buckets": [{"key": "1","doc_count": 16},{"key": "2","doc_count": 16},{"key": "3","doc_count": 16}]}`)
+	goodAggregations[traceIDAggregation] = (*json.RawMessage)(&rawMessage)
+
 	withSpanReader(func(r *spanReaderTest) {
-		traceIDs, err := r.reader.FindTraceIDs(context.Background(), nil)
+		// find trace IDs
+		mockSearchService(r).Return(&elastic.SearchResult{Aggregations: elastic.Aggregations(goodAggregations)}, nil)
+
+		traceIDsQuery := &spanstore.TraceQueryParameters{
+			ServiceName: serviceName,
+			Tags: map[string]string{
+				"hello": "world",
+			},
+			StartTimeMin: time.Now().Add(-1 * time.Hour),
+			StartTimeMax: time.Now(),
+			NumTraces:    1,
+		}
+
+		traceIDs, err := r.reader.FindTraceIDs(context.Background(), traceIDsQuery)
+		require.NoError(t, err)
+		assert.Len(t, traceIDs, 1)
+		assert.EqualValues(t, 1, traceIDs[0].Low)
+	})
+}
+
+func TestSpanReader_FindTraceIDsInvalidQuery(t *testing.T) {
+	goodAggregations := make(map[string]*json.RawMessage)
+	rawMessage := []byte(`{"buckets": [{"key": "1","doc_count": 16},{"key": "2","doc_count": 16},{"key": "3","doc_count": 16}]}`)
+	goodAggregations[traceIDAggregation] = (*json.RawMessage)(&rawMessage)
+
+	withSpanReader(func(r *spanReaderTest) {
+		mockSearchService(r).Return(&elastic.SearchResult{Aggregations: elastic.Aggregations(goodAggregations)}, nil)
+
+		traceIDsQuery := &spanstore.TraceQueryParameters{
+			ServiceName: "",
+			Tags: map[string]string{
+				"hello": "world",
+			},
+			StartTimeMin: time.Now().Add(-1 * time.Hour),
+			StartTimeMax: time.Now(),
+		}
+
+		traceIDs, err := r.reader.FindTraceIDs(context.Background(), traceIDsQuery)
+		require.Error(t, err)
 		assert.Nil(t, traceIDs)
-		assert.EqualError(t, err, "not implemented")
+	})
+}
+
+func TestSpanReader_FindTraceIDsAggregationFailure(t *testing.T) {
+	goodAggregations := make(map[string]*json.RawMessage)
+
+	withSpanReader(func(r *spanReaderTest) {
+		mockSearchService(r).Return(&elastic.SearchResult{Aggregations: elastic.Aggregations(goodAggregations)}, nil)
+
+		traceIDsQuery := &spanstore.TraceQueryParameters{
+			ServiceName: serviceName,
+			Tags: map[string]string{
+				"hello": "world",
+			},
+			StartTimeMin: time.Now().Add(-1 * time.Hour),
+			StartTimeMax: time.Now(),
+		}
+
+		traceIDs, err := r.reader.FindTraceIDs(context.Background(), traceIDsQuery)
+		require.Error(t, err)
+		assert.Nil(t, traceIDs)
+	})
+}
+
+func TestSpanReader_FindTraceIDsNoTraceIDs(t *testing.T) {
+	goodAggregations := make(map[string]*json.RawMessage)
+	rawMessage := []byte(`{"buckets": []}`)
+	goodAggregations[traceIDAggregation] = (*json.RawMessage)(&rawMessage)
+
+	withSpanReader(func(r *spanReaderTest) {
+		mockSearchService(r).Return(&elastic.SearchResult{Aggregations: elastic.Aggregations(goodAggregations)}, nil)
+
+		traceIDsQuery := &spanstore.TraceQueryParameters{
+			ServiceName: serviceName,
+			Tags: map[string]string{
+				"hello": "world",
+			},
+			StartTimeMin: time.Now().Add(-1 * time.Hour),
+			StartTimeMax: time.Now(),
+		}
+
+		traceIDs, err := r.reader.FindTraceIDs(context.Background(), traceIDsQuery)
+		require.NoError(t, err)
+		assert.Len(t, traceIDs, 0)
+	})
+}
+
+func TestSpanReader_FindTraceIDsReadTraceIDsFailure(t *testing.T) {
+	goodAggregations := make(map[string]*json.RawMessage)
+	rawMessage := []byte(`{"buckets": [{"key": "1","doc_count": 16},{"key": "2","doc_count": 16}]}`)
+	goodAggregations[traceIDAggregation] = (*json.RawMessage)(&rawMessage)
+
+	withSpanReader(func(r *spanReaderTest) {
+		mockSearchService(r).Return(nil, errors.New("read error"))
+
+		traceIDsQuery := &spanstore.TraceQueryParameters{
+			ServiceName: serviceName,
+			Tags: map[string]string{
+				"hello": "world",
+			},
+			StartTimeMin: time.Now().Add(-1 * time.Hour),
+			StartTimeMax: time.Now(),
+		}
+
+		traceIDs, err := r.reader.FindTraceIDs(context.Background(), traceIDsQuery)
+		require.EqualError(t, err, "Search service failed: read error")
+		assert.Len(t, traceIDs, 0)
 	})
 }
 
