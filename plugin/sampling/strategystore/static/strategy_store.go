@@ -146,14 +146,8 @@ func deepCopy(s *sampling.SamplingStrategyResponse) *sampling.SamplingStrategyRe
 	var buf bytes.Buffer
 	enc := gob.NewEncoder(&buf)
 	dec := gob.NewDecoder(&buf)
-	err := enc.Encode(*s)
-	if err != nil {
-		return nil
-	}
+	enc.Encode(*s)
 	var copy sampling.SamplingStrategyResponse
-	err = dec.Decode(&copy)
-	if err != nil {
-		return nil
-	}
+	dec.Decode(&copy)
 	return &copy
 }
