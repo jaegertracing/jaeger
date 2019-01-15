@@ -22,8 +22,8 @@ import (
 	"github.com/gocql/gocql"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
-	"github.com/uber/jaeger-lib/metrics"
 	"go.uber.org/zap"
+	"github.com/uber/jaeger-lib/metrics/metricstest"
 
 	"github.com/jaegertracing/jaeger/cmd/collector/app/sampling/model"
 	"github.com/jaegertracing/jaeger/pkg/cassandra/mocks"
@@ -45,7 +45,7 @@ type samplingStoreTest struct {
 func withSamplingStore(fn func(r *samplingStoreTest)) {
 	session := &mocks.Session{}
 	logger, logBuffer := testutils.NewLogger()
-	metricsFactory := metrics.NewLocalFactory(0)
+	metricsFactory := metricstest.NewFactory(0)
 	r := &samplingStoreTest{
 		session:   session,
 		logger:    logger,

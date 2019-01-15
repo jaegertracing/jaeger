@@ -68,12 +68,12 @@ func (b *Builder) InitFromViper(v *viper.Viper) *Builder {
 // can be later added by RegisterHandler function.
 func (b *Builder) CreateMetricsFactory(namespace string) (metrics.Factory, error) {
 	if b.Backend == "prometheus" {
-		metricsFactory := jprom.New().Namespace(namespace, nil)
+		metricsFactory := jprom.New().Namespace(metrics.NSOptions{Name: namespace, Tags: nil})
 		b.handler = promhttp.HandlerFor(prometheus.DefaultGatherer, promhttp.HandlerOpts{DisableCompression: true})
 		return metricsFactory, nil
 	}
 	if b.Backend == "expvar" {
-		metricsFactory := jexpvar.NewFactory(10).Namespace(namespace, nil)
+		metricsFactory := jexpvar.NewFactory(10).Namespace(metrics.NSOptions{Name: namespace, Tags: nil})
 		b.handler = expvar.Handler()
 		return metricsFactory, nil
 	}

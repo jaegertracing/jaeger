@@ -663,7 +663,7 @@
   version = "v1.3.2"
 
 [[projects]]
-  digest = "1:473fbf1a56c0b116352cbaaa7e3b6d012fbfe5b00194341a8c3ffd1de5fb74ff"
+  digest = "1:7c11980280dde910d2559041cc22a5a97630d889a692d2ee9e5155743245df9f"
   name = "github.com/uber/jaeger-client-go"
   packages = [
     ".",
@@ -687,11 +687,10 @@
     "utils",
   ]
   pruneopts = "UT"
-  revision = "1a782e2da844727691fef1757c72eb190c2909f0"
-  version = "v2.15.0"
+  revision = "cd507787f07ecb833e0f2df888e074f45a0dca74"
 
 [[projects]]
-  digest = "1:872d648d95d0d62c2a67d4f5f09c31752588705c4482bc8b4f52015e0495a6d5"
+  digest = "1:1aca23d09c5fd39cd9d630ad84aa6fb7d04aa0278dcf078257e45586b545d4b8"
   name = "github.com/uber/jaeger-lib"
   packages = [
     "metrics",
@@ -699,12 +698,12 @@
     "metrics/expvar",
     "metrics/go-kit",
     "metrics/go-kit/expvar",
+    "metrics/metricstest",
     "metrics/prometheus",
-    "metrics/testutils",
   ]
   pruneopts = "UT"
-  revision = "ed3a127ec5fef7ae9ea95b01b542c47fbd999ce5"
-  version = "v1.5.0"
+  revision = "0e30338a695636fe5bcf7301e8030ce8dd2a8530"
+  version = "v2.0.0"
 
 [[projects]]
   digest = "1:9c231161ce5a181c5782f73f443933b928b631d988f705dafc070f83aa79f4e9"
@@ -940,8 +939,8 @@
     "github.com/uber/jaeger-client-go/transport/zipkin",
     "github.com/uber/jaeger-lib/metrics",
     "github.com/uber/jaeger-lib/metrics/expvar",
+    "github.com/uber/jaeger-lib/metrics/metricstest",
     "github.com/uber/jaeger-lib/metrics/prometheus",
-    "github.com/uber/jaeger-lib/metrics/testutils",
     "github.com/uber/tchannel-go",
     "github.com/uber/tchannel-go/raw",
     "github.com/uber/tchannel-go/testutils",
