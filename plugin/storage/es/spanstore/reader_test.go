@@ -684,12 +684,12 @@ func TestSpanReader_TestFindTraceIDs(t *testing.T) {
 			},
 			StartTimeMin: time.Now().Add(-1 * time.Hour),
 			StartTimeMax: time.Now(),
-			NumTraces:    1,
+			NumTraces:    3,
 		}
 
 		traceIDs, err := r.reader.FindTraceIDs(context.Background(), traceIDsQuery)
 		require.NoError(t, err)
-		assert.Len(t, traceIDs, 1)
+		assert.Len(t, traceIDs, 3)
 		assert.EqualValues(t, 1, traceIDs[0].Low)
 	})
 }
@@ -802,7 +802,7 @@ func TestSpanReader_FindTraceIDsIncorrectTraceIDFailure(t *testing.T) {
 		}
 
 		traceIDs, err := r.reader.FindTraceIDs(context.Background(), traceIDsQuery)
-		require.EqualError(t, err, `strconv.ParseUint: parsing "sdfsdfdss": invalid syntax`)
+		require.EqualError(t, err, `Making traceID from string 'sdfsdfdssd234nsdvsdfldjsf' failed: strconv.ParseUint: parsing "sdfsdfdss": invalid syntax`)
 		assert.Len(t, traceIDs, 0)
 	})
 }

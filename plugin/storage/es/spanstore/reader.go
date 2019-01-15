@@ -221,7 +221,7 @@ func (s *SpanReader) FindTraces(ctx context.Context, traceQuery *spanstore.Trace
 	span, ctx := opentracing.StartSpanFromContext(ctx, "FindTraces")
 	defer span.Finish()
 
-	uniqueTraceIDs, err := s.findTraceIDs(ctx, traceQuery)
+	uniqueTraceIDs, err := s.validateQueryAndFindTraceIDs(ctx, traceQuery)
 	if err != nil {
 		return nil, err
 	}
@@ -233,7 +233,7 @@ func (s *SpanReader) FindTraceIDs(ctx context.Context, traceQuery *spanstore.Tra
 	span, ctx := opentracing.StartSpanFromContext(ctx, "FindTraceIDs")
 	defer span.Finish()
 
-	esTraceIDs, err := s.findTraceIDs(ctx, traceQuery)
+	esTraceIDs, err := s.validateQueryAndFindTraceIDs(ctx, traceQuery)
 	if err != nil {
 		return nil, err
 	}
@@ -329,6 +329,20 @@ func (s *SpanReader) multiRead(ctx context.Context, traceIDs []string, startTime
 	return traces, nil
 }
 
+func (s *SpanReader) validateQueryAndFindTraceIDs(ctx context.Context, traceQuery *spanstore.TraceQueryParameters) ([]string, error) {
+	childSpan, _ := opentracing.StartSpanFromContext(ctx, "validateQueryAndFindTraceIDs")
+	defer childSpan.Finish()
+
+	if err := validateQuery(traceQuery); err != nil {
+		return nil, err
+	}
+	if traceQuery.NumTraces == 0 {
+		traceQuery.NumTraces = defaultNumTraces
+	}
+
+	return s.findTraceIDs(ctx, traceQuery)
+}
+
 func validateQuery(p *spanstore.TraceQueryParameters) error {
 	if p == nil {
 		return ErrMalformedRequestObject
@@ -351,13 +365,6 @@ func validateQuery(p *spanstore.TraceQueryParameters) error {
 func (s *SpanReader) findTraceIDs(ctx context.Context, traceQuery *spanstore.TraceQueryParameters) ([]string, error) {
 	childSpan, _ := opentracing.StartSpanFromContext(ctx, "findTraceIDs")
 	defer childSpan.Finish()
-
-	if err := validateQuery(traceQuery); err != nil {
-		return nil, err
-	}
-	if traceQuery.NumTraces == 0 {
-		traceQuery.NumTraces = defaultNumTraces
-	}
 
 	//  Below is the JSON body to our HTTP GET request to ElasticSearch. This function creates this.
 	// {
