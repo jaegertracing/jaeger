@@ -221,12 +221,6 @@ func (s *SpanReader) FindTraces(ctx context.Context, traceQuery *spanstore.Trace
 	span, ctx := opentracing.StartSpanFromContext(ctx, "FindTraces")
 	defer span.Finish()
 
-	if err := validateQuery(traceQuery); err != nil {
-		return nil, err
-	}
-	if traceQuery.NumTraces == 0 {
-		traceQuery.NumTraces = defaultNumTraces
-	}
 	uniqueTraceIDs, err := s.findTraceIDs(ctx, traceQuery)
 	if err != nil {
 		return nil, err
@@ -236,30 +230,22 @@ func (s *SpanReader) FindTraces(ctx context.Context, traceQuery *spanstore.Trace
 
 // FindTraceIDs retrieves traces IDs that match the traceQuery
 func (s *SpanReader) FindTraceIDs(ctx context.Context, traceQuery *spanstore.TraceQueryParameters) ([]model.TraceID, error) {
-	if err := validateQuery(traceQuery); err != nil {
-		return nil, err
-	}
-	if traceQuery.NumTraces == 0 {
-		traceQuery.NumTraces = defaultNumTraces
-	}
+	span, ctx := opentracing.StartSpanFromContext(ctx, "FindTraceIDs")
+	defer span.Finish()
 
 	esTraceIDs, err := s.findTraceIDs(ctx, traceQuery)
 	if err != nil {
 		return nil, err
 	}
 
-	traceIDs := []model.TraceID{}
-	for _, ID := range esTraceIDs {
-		if len(traceIDs) >= traceQuery.NumTraces {
-			break
-		}
-
+	traceIDs := make([]model.TraceID, len(esTraceIDs))
+	for i, ID := range esTraceIDs {
 		traceID, err := model.TraceIDFromString(ID)
 		if err != nil {
-			return nil, err
+			return nil, errors.Wrap(err, fmt.Sprintf("Making traceID from string '%s' failed", ID))
 		}
 
-		traceIDs = append(traceIDs, traceID)
+		traceIDs[i] = traceID
 	}
 
 	return traceIDs, nil
@@ -365,6 +351,14 @@ func validateQuery(p *spanstore.TraceQueryParameters) error {
 func (s *SpanReader) findTraceIDs(ctx context.Context, traceQuery *spanstore.TraceQueryParameters) ([]string, error) {
 	childSpan, _ := opentracing.StartSpanFromContext(ctx, "findTraceIDs")
 	defer childSpan.Finish()
+
+	if err := validateQuery(traceQuery); err != nil {
+		return nil, err
+	}
+	if traceQuery.NumTraces == 0 {
+		traceQuery.NumTraces = defaultNumTraces
+	}
+
 	//  Below is the JSON body to our HTTP GET request to ElasticSearch. This function creates this.
 	// {
 	//      "size": 0,
