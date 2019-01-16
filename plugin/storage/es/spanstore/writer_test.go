@@ -61,8 +61,8 @@ func TestNewSpanWriterIndexPrefix(t *testing.T) {
 		expected string
 	}{
 		{prefix: "", expected: ""},
-		{prefix: "foo", expected: "foo:"},
-		{prefix: ":", expected: "::"},
+		{prefix: "foo", expected: "foo-"},
+		{prefix: ":", expected: ":-"},
 	}
 	client := &mocks.Client{}
 	logger, _ := testutils.NewLogger()

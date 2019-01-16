@@ -175,7 +175,7 @@ func addFlags(flagSet *flag.FlagSet, nsConfig *namespaceConfig) {
 	flagSet.String(
 		nsConfig.namespace+suffixIndexPrefix,
 		nsConfig.IndexPrefix,
-		"Optional prefix of Jaeger indices. For example \"production\" creates \"production:jaeger-*\".")
+		"Optional prefix of Jaeger indices. For example \"production\" creates \"production-jaeger-*\".")
 	flagSet.Bool(
 		nsConfig.namespace+suffixTagsAsFieldsAll,
 		nsConfig.AllTagsAsFields,
