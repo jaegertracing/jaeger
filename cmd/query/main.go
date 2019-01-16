@@ -79,10 +79,11 @@ func main() {
 			queryOpts := new(app.QueryOptions).InitFromViper(v)
 
 			mBldr := new(pMetrics.Builder).InitFromViper(v)
-			baseFactory, err := mBldr.CreateMetricsFactory("jaeger")
+			rootFactory, err := mBldr.CreateMetricsFactory("")
 			if err != nil {
 				logger.Fatal("Cannot create metrics factory.", zap.Error(err))
 			}
+			baseFactory := rootFactory.Namespace(metrics.NSOptions{Name: "jaeger", Tags: nil})
 
 			tracer, closer, err := jaegerClientConfig.Configuration{
 				Sampler: &jaegerClientConfig.SamplerConfig{
@@ -92,7 +93,7 @@ func main() {
 				RPCMetrics: true,
 			}.New(
 				"jaeger-query",
-				jaegerClientConfig.Metrics(baseFactory.Namespace(metrics.NSOptions{Name: "client", Tags: nil})),
+				jaegerClientConfig.Metrics(rootFactory),
 				jaegerClientConfig.Logger(jaegerClientZapLog.NewLogger(logger)),
 			)
 			if err != nil {

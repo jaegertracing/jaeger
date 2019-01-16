@@ -107,10 +107,11 @@ func main() {
 			}
 
 			mBldr := new(pMetrics.Builder).InitFromViper(v)
-			metricsFactory, err := mBldr.CreateMetricsFactory("jaeger")
+			rootMetricsFactory, err := mBldr.CreateMetricsFactory("")
 			if err != nil {
 				return errors.Wrap(err, "Cannot create metrics factory")
 			}
+			metricsFactory := rootMetricsFactory.Namespace(metrics.NSOptions{Name: "jaeger", Tags: nil})
 
 			storageFactory.InitFromViper(v)
 			if err := storageFactory.Initialize(metricsFactory, logger); err != nil {
@@ -141,7 +142,7 @@ func main() {
 
 			startAgent(aOpts, repOpts, tchannelRepOpts, grpcRepOpts, cOpts, logger, metricsFactory)
 			grpcServer := startCollector(cOpts, spanWriter, logger, metricsFactory, strategyStore, hc)
-			startQuery(qOpts, spanReader, dependencyReader, logger, metricsFactory, mBldr, hc, archiveOptions(storageFactory, logger))
+			startQuery(qOpts, spanReader, dependencyReader, logger, rootMetricsFactory, metricsFactory, mBldr, hc, archiveOptions(storageFactory, logger))
 			hc.Ready()
 			<-signalsChannel
 			logger.Info("Shutting down")
@@ -336,6 +337,7 @@ func startQuery(
 	spanReader spanstore.Reader,
 	depReader dependencystore.Reader,
 	logger *zap.Logger,
+	rootFactory metrics.Factory,
 	baseFactory metrics.Factory,
 	metricsBuilder *pMetrics.Builder,
 	hc *healthcheck.HealthCheck,
@@ -349,7 +351,7 @@ func startQuery(
 		RPCMetrics: true,
 	}.New(
 		"jaeger-query",
-		jaegerClientConfig.Metrics(baseFactory.Namespace(metrics.NSOptions{Name: "client", Tags: nil})),
+		jaegerClientConfig.Metrics(rootFactory),
 		jaegerClientConfig.Logger(jaegerClientZapLog.NewLogger(logger)),
 	)
 	if err != nil {
