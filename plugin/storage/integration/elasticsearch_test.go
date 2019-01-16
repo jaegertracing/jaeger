@@ -27,7 +27,7 @@ import (
 	"go.uber.org/zap"
 	"gopkg.in/olivere/elastic.v5"
 
-	"github.com/jaegertracing/jaeger/pkg/es"
+	"github.com/jaegertracing/jaeger/pkg/es/wrapper"
 	"github.com/jaegertracing/jaeger/pkg/testutils"
 	"github.com/jaegertracing/jaeger/plugin/storage/es/dependencystore"
 	"github.com/jaegertracing/jaeger/plugin/storage/es/spanstore"
@@ -65,7 +65,7 @@ func (s *ESStorageIntegration) initializeES(allTagsAsFields bool) error {
 	s.client = rawClient
 
 	s.bulkProcessor, _ = s.client.BulkProcessor().Do(context.Background())
-	client := es.WrapESClient(s.client, s.bulkProcessor)
+	client := eswrapper.WrapESClient(s.client, s.bulkProcessor)
 	dependencyStore := dependencystore.NewDependencyStore(client, s.logger, indexPrefix)
 	s.DependencyReader = dependencyStore
 	s.DependencyWriter = dependencyStore
@@ -86,7 +86,7 @@ func (s *ESStorageIntegration) esCleanUp(allTagsAsFields bool) error {
 
 func (s *ESStorageIntegration) initSpanstore(allTagsAsFields bool) {
 	bp, _ := s.client.BulkProcessor().BulkActions(1).FlushInterval(time.Nanosecond).Do(context.Background())
-	client := es.WrapESClient(s.client, bp)
+	client := eswrapper.WrapESClient(s.client, bp)
 	s.SpanWriter = spanstore.NewSpanWriter(
 		spanstore.SpanWriterParams{
 			Client:            client,

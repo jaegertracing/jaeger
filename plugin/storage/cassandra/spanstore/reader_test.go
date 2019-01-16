@@ -305,6 +305,7 @@ func TestSpanReaderFindTraces(t *testing.T) {
 					query.On("Consistency", cassandra.One).Return(query)
 					query.On("PageSize", 0).Return(query)
 					query.On("Iter").Return(iter)
+					query.On("String").Return("queryString")
 
 					return query
 				}

@@ -25,17 +25,26 @@ import (
 )
 
 const (
+	// EncodingJSON is used for spans encoded as Protobuf-based JSON.
+	EncodingJSON = "json"
+	// EncodingProto is used for spans encoded as Protobuf.
+	EncodingProto = "protobuf"
+	// EncodingZipkinThrift is used for spans encoded as Zipkin Thrift.
+	EncodingZipkinThrift = "zipkin-thrift"
+
 	configPrefix   = "kafka"
 	suffixBrokers  = ".brokers"
 	suffixTopic    = ".topic"
 	suffixEncoding = ".encoding"
 
-	encodingJSON  = "json"
-	encodingProto = "protobuf"
-
 	defaultBroker   = "127.0.0.1:9092"
 	defaultTopic    = "jaeger-spans"
-	defaultEncoding = encodingProto
+	defaultEncoding = EncodingProto
+)
+
+var (
+	// AllEncodings is a list of all supported encodings.
+	AllEncodings = []string{EncodingJSON, EncodingProto, EncodingZipkinThrift}
 )
 
 // Options stores the configuration options for Kafka
@@ -58,7 +67,7 @@ func (opt *Options) AddFlags(flagSet *flag.FlagSet) {
 	flagSet.String(
 		configPrefix+suffixEncoding,
 		defaultEncoding,
-		fmt.Sprintf(`(experimental) Encoding of spans ("%s" or "%s") sent to kafka.`, encodingProto, encodingJSON),
+		fmt.Sprintf(`(experimental) Encoding of spans ("%s" or "%s") sent to kafka.`, EncodingJSON, EncodingProto),
 	)
 }
 

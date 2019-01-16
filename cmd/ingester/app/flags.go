@@ -24,14 +24,10 @@ import (
 	"github.com/spf13/viper"
 
 	kafkaConsumer "github.com/jaegertracing/jaeger/pkg/kafka/consumer"
+	"github.com/jaegertracing/jaeger/plugin/storage/kafka"
 )
 
 const (
-	// EncodingJSON indicates spans are encoded as a json byte array
-	EncodingJSON = "json"
-	// EncodingProto indicates spans are encoded as a protobuf byte array
-	EncodingProto = "protobuf"
-
 	// ConfigPrefix is a prefix for the ingester flags
 	ConfigPrefix = "ingester"
 	// KafkaConfigPrefix is a prefix for the Kafka flags
@@ -60,7 +56,7 @@ const (
 	// DefaultParallelism is the default parallelism for the span processor
 	DefaultParallelism = 1000
 	// DefaultEncoding is the default span encoding
-	DefaultEncoding = EncodingProto
+	DefaultEncoding = kafka.EncodingProto
 	// DefaultDeadlockInterval is the default deadlock interval
 	DefaultDeadlockInterval = 1 * time.Minute
 	// DefaultHTTPPort is the default HTTP port (e.g. for /metrics)
@@ -96,7 +92,7 @@ func AddFlags(flagSet *flag.FlagSet) {
 	flagSet.String(
 		KafkaConfigPrefix+SuffixEncoding,
 		DefaultEncoding,
-		fmt.Sprintf(`The encoding of spans ("%s" or "%s") consumed from kafka`, EncodingProto, EncodingJSON))
+		fmt.Sprintf(`The encoding of spans ("%s") consumed from kafka`, strings.Join(kafka.AllEncodings, "\", \"")))
 	flagSet.String(
 		ConfigPrefix+SuffixParallelism,
 		strconv.Itoa(DefaultParallelism),

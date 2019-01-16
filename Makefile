@@ -14,10 +14,11 @@ ALL_SRC := $(shell find . -name '*.go' \
 				   -not -path './vendor/*' \
 				   -not -path '*/mocks/*' \
 				   -not -path '*/*-gen/*' \
+				   -not -path '*/thrift-0.9.2/*' \
 				   -type f | \
 				sort)
 
-# ALL_PKGS is used with 'go cover'
+# ALL_PKGS is used with 'go cover' and 'golint'
 ALL_PKGS := $(shell go list $(sort $(dir $(ALL_SRC))))
 
 RACE=-race
@@ -52,7 +53,6 @@ SWAGGER_GEN_DIR=swagger-gen
 
 COLOR_PASS=$(shell printf "\033[32mPASS\033[0m")
 COLOR_FAIL=$(shell printf "\033[31mFAIL\033[0m")
-COLOR_FIXME=$(shell printf "\033[31mFIXME\033[0m")
 COLORIZE=$(SED) ''/PASS/s//$(COLOR_PASS)/'' | $(SED) ''/FAIL/s//$(COLOR_FAIL)/''
 DOCKER_NAMESPACE?=jaegertracing
 DOCKER_TAG?=latest
@@ -109,7 +109,7 @@ cover: nocover
 .PHONY: nocover
 nocover:
 	@echo Verifying that all packages have test files to count in coverage
-	@scripts/check-test-files.sh $(subst github.com/jaegertracing/jaeger/,./,$(ALL_PKGS)) | $(SED) ''/FIXME/s//$(COLOR_FIXME)/''
+	@scripts/check-test-files.sh $(subst github.com/jaegertracing/jaeger/,./,$(ALL_PKGS))
 
 .PHONY: fmt
 fmt:
@@ -125,13 +125,19 @@ lint-gosec:
 lint: lint-gosec
 	$(GOVET) ./...
 	$(GOSIMPLE) ./...
-	@cat /dev/null > $(LINT_LOG)
-	$(GOLINT) $(ALL_SRC) >> $(LINT_LOG) || true;
-	@[ ! -s "$(LINT_LOG)" ] || (echo "Lint Failures" | cat - $(LINT_LOG) && false)
+	$(MAKE) go-lint
 	@$(GOFMT) -e -s -l $(ALL_SRC) > $(FMT_LOG)
 	@./scripts/updateLicenses.sh >> $(FMT_LOG)
 	@./scripts/import-order-cleanup.sh stdout > $(IMPORT_LOG)
 	@[ ! -s "$(FMT_LOG)" -a ! -s "$(IMPORT_LOG)" ] || (echo "Go fmt, license check, or import ordering failures, run 'make fmt'" | cat - $(FMT_LOG) && false)
+
+.PHONY: go-lint
+go-lint:
+	@cat /dev/null > $(LINT_LOG)
+	$(GOLINT) $(ALL_PKGS) \
+		| grep -v _nolint.go \
+		>> $(LINT_LOG) || true;
+	@[ ! -s "$(LINT_LOG)" ] || (echo "Lint Failures" | cat - $(LINT_LOG) && false)
 
 .PHONY: install-glide
 install-glide:
