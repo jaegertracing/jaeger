@@ -152,7 +152,7 @@ func addFlags(flagSet *flag.FlagSet, nsConfig *namespaceConfig) {
 	flagSet.String(
 		nsConfig.namespace+suffixDC,
 		nsConfig.LocalDC,
-		"The Cassandra local data center for DC Aware host selection")
+		"The name of the Cassandra local data center for DC Aware host selection")
 	flagSet.String(
 		nsConfig.namespace+suffixConsistency,
 		nsConfig.Consistency,
