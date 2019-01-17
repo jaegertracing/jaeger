@@ -67,7 +67,7 @@ func NewReadMetricsDecorator(spanReader spanstore.Reader, metricsFactory metrics
 
 func buildQueryMetrics(operation string, metricsFactory metrics.Factory) *queryMetrics {
 	qMetrics := &queryMetrics{}
-	scoped := metricsFactory.Namespace("", map[string]string{"operation": operation})
+	scoped := metricsFactory.Namespace(metrics.NSOptions{Name: "", Tags: map[string]string{"operation": operation}})
 	metrics.Init(qMetrics, scoped, nil)
 	return qMetrics
 }

@@ -24,6 +24,7 @@ import (
 	"github.com/uber/jaeger-lib/metrics"
 	"go.uber.org/zap"
 	"google.golang.org/grpc"
+	"github.com/uber/jaeger-lib/metrics/metricstest"
 
 	"github.com/jaegertracing/jaeger/proto-gen/api_v2"
 	"github.com/jaegertracing/jaeger/thrift-gen/jaeger"
@@ -57,7 +58,7 @@ func TestMultipleCollectors(t *testing.T) {
 	})
 	defer s2.Stop()
 
-	mFactory := metrics.NewLocalFactory(time.Microsecond)
+	mFactory := metricstest.NewFactory(time.Microsecond)
 	proxy, err := NewCollectorProxy(&Options{CollectorHostPort: []string{addr1.String(), addr2.String()}}, mFactory, zap.NewNop())
 	require.NoError(t, err)
 	require.NotNil(t, proxy)

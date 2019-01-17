@@ -91,9 +91,52 @@ func TestPerOperationSamplingStrategies(t *testing.T) {
 	require.NotNil(t, s.OperationSampling)
 	os = s.OperationSampling
 	assert.EqualValues(t, os.DefaultSamplingProbability, 0.001)
-	require.Len(t, os.PerOperationStrategies, 1)
+	require.Len(t, os.PerOperationStrategies, 2)
 	assert.Equal(t, "op3", os.PerOperationStrategies[0].Operation)
 	assert.EqualValues(t, 0.3, os.PerOperationStrategies[0].ProbabilisticSampling.SamplingRate)
+	assert.Equal(t, "op5", os.PerOperationStrategies[1].Operation)
+	assert.EqualValues(t, 0.4, os.PerOperationStrategies[1].ProbabilisticSampling.SamplingRate)
+
+	s, err = store.GetSamplingStrategy("default")
+	require.NoError(t, err)
+	assert.EqualValues(t, makeResponse(sampling.SamplingStrategyType_PROBABILISTIC, 0.5), *s)
+}
+
+func TestMissingServiceSamplingStrategyTypes(t *testing.T) {
+	logger, buf := testutils.NewLogger()
+	store, err := NewStrategyStore(Options{StrategiesFile: "fixtures/missing-service-types.json"}, logger)
+	assert.Contains(t, buf.String(), "Failed to parse sampling strategy")
+	require.NoError(t, err)
+
+	expected := makeResponse(sampling.SamplingStrategyType_PROBABILISTIC, defaultSamplingProbability)
+
+	s, err := store.GetSamplingStrategy("foo")
+	require.NoError(t, err)
+	assert.Equal(t, sampling.SamplingStrategyType_PROBABILISTIC, s.StrategyType)
+	assert.Equal(t, *expected.ProbabilisticSampling, *s.ProbabilisticSampling)
+
+	require.NotNil(t, s.OperationSampling)
+	os := s.OperationSampling
+	assert.EqualValues(t, os.DefaultSamplingProbability, defaultSamplingProbability)
+	require.Len(t, os.PerOperationStrategies, 1)
+	assert.Equal(t, "op1", os.PerOperationStrategies[0].Operation)
+	assert.EqualValues(t, 0.2, os.PerOperationStrategies[0].ProbabilisticSampling.SamplingRate)
+
+	expected = makeResponse(sampling.SamplingStrategyType_PROBABILISTIC, defaultSamplingProbability)
+
+	s, err = store.GetSamplingStrategy("bar")
+	require.NoError(t, err)
+	assert.Equal(t, sampling.SamplingStrategyType_PROBABILISTIC, s.StrategyType)
+	assert.Equal(t, *expected.ProbabilisticSampling, *s.ProbabilisticSampling)
+
+	require.NotNil(t, s.OperationSampling)
+	os = s.OperationSampling
+	assert.EqualValues(t, os.DefaultSamplingProbability, 0.001)
+	require.Len(t, os.PerOperationStrategies, 2)
+	assert.Equal(t, "op3", os.PerOperationStrategies[0].Operation)
+	assert.EqualValues(t, 0.3, os.PerOperationStrategies[0].ProbabilisticSampling.SamplingRate)
+	assert.Equal(t, "op5", os.PerOperationStrategies[1].Operation)
+	assert.EqualValues(t, 0.4, os.PerOperationStrategies[1].ProbabilisticSampling.SamplingRate)
 
 	s, err = store.GetSamplingStrategy("default")
 	require.NoError(t, err)
@@ -149,4 +192,16 @@ func makeResponse(samplerType sampling.SamplingStrategyType, param float64) (res
 		}
 	}
 	return resp
+}
+
+func TestDeepCopy(t *testing.T) {
+	s := &sampling.SamplingStrategyResponse{
+		StrategyType: sampling.SamplingStrategyType_PROBABILISTIC,
+		ProbabilisticSampling: &sampling.ProbabilisticSamplingStrategy{
+			SamplingRate: 0.5,
+		},
+	}
+	copy := deepCopy(s)
+	assert.False(t, copy == s)
+	assert.EqualValues(t, copy, s)
 }

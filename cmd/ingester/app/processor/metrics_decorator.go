@@ -30,10 +30,10 @@ type metricsDecorator struct {
 
 // NewDecoratedProcessor returns a processor with metrics
 func NewDecoratedProcessor(f metrics.Factory, processor SpanProcessor) SpanProcessor {
-	m := f.Namespace("span-processor", nil)
+	m := f.Namespace(metrics.NSOptions{Name: "span-processor", Tags: nil})
 	return &metricsDecorator{
-		errors:    m.Counter("errors", nil),
-		latency:   m.Timer("latency", nil),
+		errors:    m.Counter(metrics.Options{Name: "errors", Tags: nil}),
+		latency:   m.Timer(metrics.TimerOptions{Name: "latency", Tags: nil}),
 		processor: processor,
 	}
 }
