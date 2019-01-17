@@ -244,8 +244,7 @@
   version = "v0.17.2"
 
 [[projects]]
-  branch = "master"
-  digest = "1:1a5f28249f1a5b118994359a1c7b8c53ee1ff47aa7fe65884fbd20cd237001f4"
+  digest = "1:2dd4729330a990761f321b89db505906de5cfe912014e51e99669fd99ace99b4"
   name = "github.com/gocql/gocql"
   packages = [
     ".",
@@ -254,7 +253,7 @@
     "internal/streams",
   ]
   pruneopts = "UT"
-  revision = "70385f88b28b43805bd83d212169ab2d38810b15"
+  revision = "181004e14a3fb735efcc826a4256369d0c96747b"
 
 [[projects]]
   digest = "1:08fc980336305dcf34156af60e58073ba8326437d64d027fe624fdd9c4ff0ae6"

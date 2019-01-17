@@ -105,7 +105,7 @@ required = [
 
 [[constraint]]
   name = "github.com/gocql/gocql"
-  branch = "master"
+  revision = "181004e14a3fb735efcc826a4256369d0c96747b"
 
 [[constraint]]
   name = "github.com/gogo/googleapis"
