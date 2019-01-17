@@ -8,6 +8,16 @@ Changes by Version
 
 ##### Breaking Changes
 
+- Update to jaeger-lib 2 and latest sha for jaeger-client-go, to pick up refactored metric names ([#1282](https://github.com/jaegertracing/jaeger/pull/1282), [@objectiser](https://github.com/objectiser))
+
+Update to latest version of `jaeger-lib`, which includes a change to the naming of counters exported to
+prometheus, to follow the convention of using a `_total` suffix, e.g. `jaeger_query_requests` is now
+`jaeger_query_requests_total`.
+
+Jaeger go client metrics, previously under the namespace `jaeger_client_jaeger_` are now under
+`jaeger_tracer_`.
+
+
 - Add gRPC metrics to agent ([#1180](https://github.com/jaegertracing/jaeger/pull/1180), [@pavolloffay](https://github.com/pavolloffay))
 
 The following metrics:

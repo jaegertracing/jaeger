@@ -81,11 +81,11 @@ required = [
 
 [[constraint]]
   name = "github.com/uber/jaeger-client-go"
-  version = "^2.15.0"
+  revision = "6733ee486c780528f2c8088305e16fdb685134c7"
 
 [[constraint]]
   name = "github.com/uber/jaeger-lib"
-  version = "^1.5.0"
+  version = "^2.0.0"
 
 [[constraint]]
   name = "github.com/uber/tchannel-go"

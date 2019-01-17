@@ -105,7 +105,7 @@ func NewSpanWriter(
 ) *SpanWriter {
 	serviceNamesStorage := NewServiceNamesStorage(session, writeCacheTTL, metricsFactory, logger)
 	operationNamesStorage := NewOperationNamesStorage(session, writeCacheTTL, metricsFactory, logger)
-	tagIndexSkipped := metricsFactory.Counter("tag_index_skipped", nil)
+	tagIndexSkipped := metricsFactory.Counter(metrics.Options{Name: "tag_index_skipped", Tags: nil})
 	opts := applyOptions(options...)
 	return &SpanWriter{
 		session:              session,

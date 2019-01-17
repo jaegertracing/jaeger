@@ -24,6 +24,7 @@ import (
 	"github.com/spf13/viper"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"github.com/uber/jaeger-lib/metrics"
 )
 
 func TestAddFlags(t *testing.T) {
@@ -51,7 +52,7 @@ func TestBuilder(t *testing.T) {
 		families, err := prometheus.DefaultGatherer.Gather()
 		require.NoError(t, err)
 		for _, mf := range families {
-			if mf.GetName() == "foo_counter" {
+			if mf.GetName() == "foo_counter_total" {
 				return
 			}
 		}
@@ -112,7 +113,7 @@ func TestBuilder(t *testing.T) {
 			continue
 		}
 		require.NotNil(t, mf)
-		mf.Counter("counter", nil).Inc(1)
+		mf.Counter(metrics.Options{Name: "counter", Tags: nil}).Inc(1)
 		if testCase.assert != nil {
 			testCase.assert()
 		}
