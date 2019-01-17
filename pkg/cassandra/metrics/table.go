@@ -33,7 +33,7 @@ type Table struct {
 // NewTable takes a metrics scope and creates a table metrics struct
 func NewTable(factory metrics.Factory, tableName string) *Table {
 	t := storageMetrics.WriteMetrics{}
-	metrics.Init(&t, factory.Namespace("", map[string]string{"table": tableName}), nil)
+	metrics.Init(&t, factory.Namespace(metrics.NSOptions{Name: "", Tags: map[string]string{"table": tableName}}), nil)
 	return &Table{t}
 }
 

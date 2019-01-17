@@ -12,12 +12,14 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package es
+package eswrapper
 
 import (
 	"context"
 
 	"gopkg.in/olivere/elastic.v5"
+
+	"github.com/jaegertracing/jaeger/pkg/es"
 )
 
 // This file avoids lint because the Id and Json are required to be capitalized, but must match an outside library.
@@ -34,28 +36,28 @@ func WrapESClient(client *elastic.Client, s *elastic.BulkProcessor) ClientWrappe
 }
 
 // IndexExists calls this function to internal client.
-func (c ClientWrapper) IndexExists(index string) IndicesExistsService {
+func (c ClientWrapper) IndexExists(index string) es.IndicesExistsService {
 	return WrapESIndicesExistsService(c.client.IndexExists(index))
 }
 
 // CreateIndex calls this function to internal client.
-func (c ClientWrapper) CreateIndex(index string) IndicesCreateService {
+func (c ClientWrapper) CreateIndex(index string) es.IndicesCreateService {
 	return WrapESIndicesCreateService(c.client.CreateIndex(index))
 }
 
 // Index calls this function to internal client.
-func (c ClientWrapper) Index() IndexService {
+func (c ClientWrapper) Index() es.IndexService {
 	r := elastic.NewBulkIndexRequest()
 	return WrapESIndexService(r, c.bulkService)
 }
 
 // Search calls this function to internal client.
-func (c ClientWrapper) Search(indices ...string) SearchService {
+func (c ClientWrapper) Search(indices ...string) es.SearchService {
 	return WrapESSearchService(c.client.Search(indices...))
 }
 
 // MultiSearch calls this function to internal client.
-func (c ClientWrapper) MultiSearch() MultiSearchService {
+func (c ClientWrapper) MultiSearch() es.MultiSearchService {
 	return WrapESMultiSearchService(c.client.MultiSearch())
 }
 
@@ -94,7 +96,7 @@ func WrapESIndicesCreateService(indicesCreateService *elastic.IndicesCreateServi
 }
 
 // Body calls this function to internal service.
-func (c IndicesCreateServiceWrapper) Body(mapping string) IndicesCreateService {
+func (c IndicesCreateServiceWrapper) Body(mapping string) es.IndicesCreateService {
 	return WrapESIndicesCreateService(c.indicesCreateService.Body(mapping))
 }
 
@@ -118,12 +120,12 @@ func WrapESIndexService(indexService *elastic.BulkIndexRequest, bulkService *ela
 }
 
 // Index calls this function to internal service.
-func (i IndexServiceWrapper) Index(index string) IndexService {
+func (i IndexServiceWrapper) Index(index string) es.IndexService {
 	return WrapESIndexService(i.bulkIndexReq.Index(index), i.bulkService)
 }
 
 // Type calls this function to internal service.
-func (i IndexServiceWrapper) Type(typ string) IndexService {
+func (i IndexServiceWrapper) Type(typ string) es.IndexService {
 	return WrapESIndexService(i.bulkIndexReq.Type(typ), i.bulkService)
 }
 
@@ -145,27 +147,27 @@ func WrapESSearchService(searchService *elastic.SearchService) SearchServiceWrap
 }
 
 // Type calls this function to internal service.
-func (s SearchServiceWrapper) Type(typ string) SearchService {
+func (s SearchServiceWrapper) Type(typ string) es.SearchService {
 	return WrapESSearchService(s.searchService.Type(typ))
 }
 
 // Size calls this function to internal service.
-func (s SearchServiceWrapper) Size(size int) SearchService {
+func (s SearchServiceWrapper) Size(size int) es.SearchService {
 	return WrapESSearchService(s.searchService.Size(size))
 }
 
 // Aggregation calls this function to internal service.
-func (s SearchServiceWrapper) Aggregation(name string, aggregation elastic.Aggregation) SearchService {
+func (s SearchServiceWrapper) Aggregation(name string, aggregation elastic.Aggregation) es.SearchService {
 	return WrapESSearchService(s.searchService.Aggregation(name, aggregation))
 }
 
 // IgnoreUnavailable calls this function to internal service.
-func (s SearchServiceWrapper) IgnoreUnavailable(ignoreUnavailable bool) SearchService {
+func (s SearchServiceWrapper) IgnoreUnavailable(ignoreUnavailable bool) es.SearchService {
 	return WrapESSearchService(s.searchService.IgnoreUnavailable(ignoreUnavailable))
 }
 
 // Query calls this function to internal service.
-func (s SearchServiceWrapper) Query(query elastic.Query) SearchService {
+func (s SearchServiceWrapper) Query(query elastic.Query) es.SearchService {
 	return WrapESSearchService(s.searchService.Query(query))
 }
 
@@ -185,12 +187,12 @@ func WrapESMultiSearchService(multiSearchService *elastic.MultiSearchService) Mu
 }
 
 // Add calls this function to internal service.
-func (s MultiSearchServiceWrapper) Add(requests ...*elastic.SearchRequest) MultiSearchService {
+func (s MultiSearchServiceWrapper) Add(requests ...*elastic.SearchRequest) es.MultiSearchService {
 	return WrapESMultiSearchService(s.multiSearchService.Add(requests...))
 }
 
 // Index calls this function to internal service.
-func (s MultiSearchServiceWrapper) Index(indices ...string) MultiSearchService {
+func (s MultiSearchServiceWrapper) Index(indices ...string) es.MultiSearchService {
 	return WrapESMultiSearchService(s.multiSearchService.Index(indices...))
 }
 

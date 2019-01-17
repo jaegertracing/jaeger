@@ -29,6 +29,7 @@ import (
 	"github.com/spf13/viper"
 	jaegerClientConfig "github.com/uber/jaeger-client-go/config"
 	jaegerClientZapLog "github.com/uber/jaeger-client-go/log/zap"
+	"github.com/uber/jaeger-lib/metrics"
 	"go.uber.org/zap"
 
 	"github.com/jaegertracing/jaeger/cmd/env"
@@ -78,10 +79,11 @@ func main() {
 			queryOpts := new(app.QueryOptions).InitFromViper(v)
 
 			mBldr := new(pMetrics.Builder).InitFromViper(v)
-			baseFactory, err := mBldr.CreateMetricsFactory("jaeger")
+			rootFactory, err := mBldr.CreateMetricsFactory("")
 			if err != nil {
 				logger.Fatal("Cannot create metrics factory.", zap.Error(err))
 			}
+			baseFactory := rootFactory.Namespace(metrics.NSOptions{Name: "jaeger", Tags: nil})
 
 			tracer, closer, err := jaegerClientConfig.Configuration{
 				Sampler: &jaegerClientConfig.SamplerConfig{
@@ -91,7 +93,7 @@ func main() {
 				RPCMetrics: true,
 			}.New(
 				"jaeger-query",
-				jaegerClientConfig.Metrics(baseFactory.Namespace("client", nil)),
+				jaegerClientConfig.Metrics(rootFactory),
 				jaegerClientConfig.Logger(jaegerClientZapLog.NewLogger(logger)),
 			)
 			if err != nil {
@@ -108,7 +110,7 @@ func main() {
 			if err != nil {
 				logger.Fatal("Failed to create span reader", zap.Error(err))
 			}
-			spanReader = storageMetrics.NewReadMetricsDecorator(spanReader, baseFactory.Namespace("query", nil))
+			spanReader = storageMetrics.NewReadMetricsDecorator(spanReader, baseFactory.Namespace(metrics.NSOptions{Name: "query", Tags: nil}))
 			dependencyReader, err := storageFactory.CreateDependencyReader()
 			if err != nil {
 				logger.Fatal("Failed to create dependency reader", zap.Error(err))

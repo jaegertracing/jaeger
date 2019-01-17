@@ -1,4 +1,4 @@
-// Copyright (c) 2017 Uber Technologies, Inc.
+// Copyright (c) 2019 The Jaeger Authors.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -12,20 +12,4 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package testutils
-
-import (
-	"testing"
-
-	"github.com/stretchr/testify/require"
-	"github.com/uber/jaeger-lib/metrics/metricstest"
-)
-
-// InitMockCollector initializes a MockTCollector fixture
-func InitMockCollector(t *testing.T) (*metricstest.Factory, *MockTCollector) {
-	factory := metricstest.NewFactory(0)
-	collector, err := StartMockTCollector()
-	require.NoError(t, err)
-
-	return factory, collector
-}
+package ui

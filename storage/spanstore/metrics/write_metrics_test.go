@@ -20,7 +20,7 @@ import (
 	"time"
 
 	"github.com/stretchr/testify/assert"
-	"github.com/uber/jaeger-lib/metrics"
+	"github.com/uber/jaeger-lib/metrics/metricstest"
 )
 
 func TestTableEmit(t *testing.T) {
@@ -61,7 +61,7 @@ func TestTableEmit(t *testing.T) {
 		},
 	}
 	for _, tc := range testCases {
-		mf := metrics.NewLocalFactory(time.Second)
+		mf := metricstest.NewFactory(time.Second)
 		tm := NewWriteMetrics(mf, "a_table")
 		tm.Emit(tc.err, 50*time.Millisecond)
 		counts, gauges := mf.Snapshot()

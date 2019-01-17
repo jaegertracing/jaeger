@@ -18,7 +18,7 @@ ALL_SRC := $(shell find . -name '*.go' \
 				   -type f | \
 				sort)
 
-# ALL_PKGS is used with 'go cover'
+# ALL_PKGS is used with 'go cover' and 'golint'
 ALL_PKGS := $(shell go list $(sort $(dir $(ALL_SRC))))
 
 RACE=-race
@@ -53,7 +53,6 @@ SWAGGER_GEN_DIR=swagger-gen
 
 COLOR_PASS=$(shell printf "\033[32mPASS\033[0m")
 COLOR_FAIL=$(shell printf "\033[31mFAIL\033[0m")
-COLOR_FIXME=$(shell printf "\033[31mFIXME\033[0m")
 COLORIZE=$(SED) ''/PASS/s//$(COLOR_PASS)/'' | $(SED) ''/FAIL/s//$(COLOR_FAIL)/''
 DOCKER_NAMESPACE?=jaegertracing
 DOCKER_TAG?=latest
@@ -110,7 +109,7 @@ cover: nocover
 .PHONY: nocover
 nocover:
 	@echo Verifying that all packages have test files to count in coverage
-	@scripts/check-test-files.sh $(subst github.com/jaegertracing/jaeger/,./,$(ALL_PKGS)) | $(SED) ''/FIXME/s//$(COLOR_FIXME)/''
+	@scripts/check-test-files.sh $(subst github.com/jaegertracing/jaeger/,./,$(ALL_PKGS))
 
 .PHONY: fmt
 fmt:

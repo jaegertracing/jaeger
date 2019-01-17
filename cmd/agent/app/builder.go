@@ -141,10 +141,10 @@ func (b *Builder) getProcessors(rep reporter.Reporter, mFactory metrics.Factory,
 		default:
 			return nil, fmt.Errorf("cannot find agent processor for data model %v", cfg.Model)
 		}
-		metrics := mFactory.Namespace("", map[string]string{
+		metrics := mFactory.Namespace(metrics.NSOptions{Name: "", Tags: map[string]string{
 			"protocol": string(cfg.Protocol),
 			"model":    string(cfg.Model),
-		})
+		}})
 		processor, err := cfg.GetThriftProcessor(metrics, protoFactory, handler, logger)
 		if err != nil {
 			return nil, err
