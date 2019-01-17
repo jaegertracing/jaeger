@@ -2,6 +2,14 @@
 
 
 [[projects]]
+  digest = "1:c99bd4548f502371b98c77534239a514c9a1e715d468af3c108db06186aa692a"
+  name = "github.com/DataDog/zstd"
+  packages = ["."]
+  pruneopts = "UT"
+  revision = "aebefd9fcb99f22cd691ef778a12ed68f0e6a1ab"
+  version = "v1.3.4"
+
+[[projects]]
   digest = "1:d1665c44bd5db19aaee18d1b6233c99b0b9a986e8bccb24ef54747547a48027f"
   name = "github.com/PuerkitoBio/purell"
   packages = ["."]
@@ -18,15 +26,15 @@
   revision = "de5bf2ad457846296e2031421a34e2568e304e35"
 
 [[projects]]
-  digest = "1:64982d65e04905ce370e2e59dcf38c68c2c26fe6b7e550a6e4f7e05196d42803"
+  digest = "1:49eb5d6ac71a788f1f15331e7cd87286b92951fdf758f418e12f22ac8dd27af1"
   name = "github.com/Shopify/sarama"
   packages = [
     ".",
     "mocks",
   ]
   pruneopts = "UT"
-  revision = "f7be6aa2bc7b2e38edf816b08b582782194a1c02"
-  version = "v1.16.0"
+  revision = "879f631812a30a580659e8035e7cda9994bb99ac"
+  version = "v1.20.0"
 
 [[projects]]
   digest = "1:8515c0ca4381246cf332cee05fc84070bbbb07bd679b639161506ba532f47128"
