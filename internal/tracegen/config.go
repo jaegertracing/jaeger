@@ -39,7 +39,7 @@ func (c *Config) Flags(fs *flag.FlagSet) {
 	fs.IntVar(&c.Workers, "workers", 1, "Number of workers (goroutines) to run")
 	fs.IntVar(&c.Traces, "traces", 1, "Number of traces to generate in each worker (ignored if duration is provided")
 	fs.BoolVar(&c.Marshal, "marshal", false, "Whether to marshal trace context via HTTP headers")
-	fs.BoolVar(&c.Debug, "debug", false, "Whether to set DEBUG flag on the spans to prevent downsampling")
+	fs.BoolVar(&c.Debug, "debug", false, "Whether to set DEBUG flag on the spans to force sampling")
 	fs.DurationVar(&c.Pause, "pause", time.Microsecond, "How long to pause before finishing trace")
 	fs.DurationVar(&c.Duration, "duration", 0, "For how long to run the test")
 }
