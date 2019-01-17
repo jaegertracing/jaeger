@@ -83,6 +83,7 @@ func (f *Factory) CreateSpanReader() (spanstore.Reader, error) {
 		Logger:            f.logger,
 		MetricsFactory:    f.metricsFactory,
 		MaxSpanAge:        cfg.GetMaxSpanAge(),
+		MaxNumSpans:       cfg.GetMaxNumSpans(),
 		IndexPrefix:       cfg.GetIndexPrefix(),
 		TagDotReplacement: cfg.GetTagDotReplacement(),
 	}), nil

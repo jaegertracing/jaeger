@@ -39,6 +39,7 @@ type Configuration struct {
 	Username          string
 	Password          string
 	Sniffer           bool          // https://github.com/olivere/elastic/wiki/Sniffing
+	MaxNumSpans       int           // defines maximum number of spans to fetch from storage per query
 	MaxSpanAge        time.Duration `yaml:"max_span_age"` // configures the maximum lookback on span reads
 	NumShards         int64         `yaml:"shards"`
 	NumReplicas       int64         `yaml:"replicas"`
@@ -68,6 +69,7 @@ type ClientBuilder interface {
 	GetNumShards() int64
 	GetNumReplicas() int64
 	GetMaxSpanAge() time.Duration
+	GetMaxNumSpans() int
 	GetIndexPrefix() string
 	GetTagsFilePath() string
 	GetAllTagsAsFields() bool
@@ -151,6 +153,9 @@ func (c *Configuration) ApplyDefaults(source *Configuration) {
 	if c.MaxSpanAge == 0 {
 		c.MaxSpanAge = source.MaxSpanAge
 	}
+	if c.MaxNumSpans == 0 {
+		c.MaxNumSpans = source.MaxNumSpans
+	}
 	if c.NumShards == 0 {
 		c.NumShards = source.NumShards
 	}
@@ -184,6 +189,11 @@ func (c *Configuration) GetNumReplicas() int64 {
 // GetMaxSpanAge returns max span age from Configuration
 func (c *Configuration) GetMaxSpanAge() time.Duration {
 	return c.MaxSpanAge
+}
+
+// GetMaxNumSpans returns max spans allowed per query from Configuration
+func (c *Configuration) GetMaxNumSpans() int {
+	return c.MaxNumSpans
 }
 
 // GetIndexPrefix returns index prefix

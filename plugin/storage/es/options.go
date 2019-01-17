@@ -30,6 +30,7 @@ const (
 	suffixSniffer           = ".sniffer"
 	suffixServerURLs        = ".server-urls"
 	suffixMaxSpanAge        = ".max-span-age"
+	suffixMaxNumSpans       = ".max-num-spans"
 	suffixNumShards         = ".num-shards"
 	suffixNumReplicas       = ".num-replicas"
 	suffixBulkSize          = ".bulk.size"
@@ -78,6 +79,7 @@ func NewOptions(primaryNamespace string, otherNamespaces ...string) *Options {
 				Password:          "",
 				Sniffer:           false,
 				MaxSpanAge:        72 * time.Hour,
+				MaxNumSpans:       10000,
 				NumShards:         5,
 				NumReplicas:       1,
 				BulkSize:          5 * 1000 * 1000,
@@ -132,6 +134,10 @@ func addFlags(flagSet *flag.FlagSet, nsConfig *namespaceConfig) {
 		nsConfig.namespace+suffixMaxSpanAge,
 		nsConfig.MaxSpanAge,
 		"The maximum lookback for spans in ElasticSearch")
+	flagSet.Int(
+		nsConfig.namespace+suffixMaxNumSpans,
+		nsConfig.MaxNumSpans,
+		"The maximum number of spans to fetch at a time per query in Elasticsearch")
 	flagSet.Int64(
 		nsConfig.namespace+suffixNumShards,
 		nsConfig.NumShards,
@@ -204,6 +210,7 @@ func initFromViper(cfg *namespaceConfig, v *viper.Viper) {
 	cfg.Sniffer = v.GetBool(cfg.namespace + suffixSniffer)
 	cfg.servers = v.GetString(cfg.namespace + suffixServerURLs)
 	cfg.MaxSpanAge = v.GetDuration(cfg.namespace + suffixMaxSpanAge)
+	cfg.MaxNumSpans = v.GetInt(cfg.namespace + suffixMaxNumSpans)
 	cfg.NumShards = v.GetInt64(cfg.namespace + suffixNumShards)
 	cfg.NumReplicas = v.GetInt64(cfg.namespace + suffixNumReplicas)
 	cfg.BulkSize = v.GetInt(cfg.namespace + suffixBulkSize)
