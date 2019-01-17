@@ -252,8 +252,7 @@
   version = "v0.17.2"
 
 [[projects]]
-  branch = "master"
-  digest = "1:1a5f28249f1a5b118994359a1c7b8c53ee1ff47aa7fe65884fbd20cd237001f4"
+  digest = "1:2dd4729330a990761f321b89db505906de5cfe912014e51e99669fd99ace99b4"
   name = "github.com/gocql/gocql"
   packages = [
     ".",
@@ -262,7 +261,7 @@
     "internal/streams",
   ]
   pruneopts = "UT"
-  revision = "70385f88b28b43805bd83d212169ab2d38810b15"
+  revision = "181004e14a3fb735efcc826a4256369d0c96747b"
 
 [[projects]]
   digest = "1:08fc980336305dcf34156af60e58073ba8326437d64d027fe624fdd9c4ff0ae6"
@@ -671,7 +670,7 @@
   version = "v1.3.2"
 
 [[projects]]
-  digest = "1:473fbf1a56c0b116352cbaaa7e3b6d012fbfe5b00194341a8c3ffd1de5fb74ff"
+  digest = "1:359519fad3780843e57c5117ddf751284a9e0e3c050753ad362476cf1e10ef49"
   name = "github.com/uber/jaeger-client-go"
   packages = [
     ".",
@@ -695,11 +694,10 @@
     "utils",
   ]
   pruneopts = "UT"
-  revision = "1a782e2da844727691fef1757c72eb190c2909f0"
-  version = "v2.15.0"
+  revision = "6733ee486c780528f2c8088305e16fdb685134c7"
 
 [[projects]]
-  digest = "1:872d648d95d0d62c2a67d4f5f09c31752588705c4482bc8b4f52015e0495a6d5"
+  digest = "1:1aca23d09c5fd39cd9d630ad84aa6fb7d04aa0278dcf078257e45586b545d4b8"
   name = "github.com/uber/jaeger-lib"
   packages = [
     "metrics",
@@ -707,12 +705,12 @@
     "metrics/expvar",
     "metrics/go-kit",
     "metrics/go-kit/expvar",
+    "metrics/metricstest",
     "metrics/prometheus",
-    "metrics/testutils",
   ]
   pruneopts = "UT"
-  revision = "ed3a127ec5fef7ae9ea95b01b542c47fbd999ce5"
-  version = "v1.5.0"
+  revision = "0e30338a695636fe5bcf7301e8030ce8dd2a8530"
+  version = "v2.0.0"
 
 [[projects]]
   digest = "1:9c231161ce5a181c5782f73f443933b928b631d988f705dafc070f83aa79f4e9"
@@ -948,8 +946,8 @@
     "github.com/uber/jaeger-client-go/transport/zipkin",
     "github.com/uber/jaeger-lib/metrics",
     "github.com/uber/jaeger-lib/metrics/expvar",
+    "github.com/uber/jaeger-lib/metrics/metricstest",
     "github.com/uber/jaeger-lib/metrics/prometheus",
-    "github.com/uber/jaeger-lib/metrics/testutils",
     "github.com/uber/tchannel-go",
     "github.com/uber/tchannel-go/raw",
     "github.com/uber/tchannel-go/testutils",

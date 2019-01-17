@@ -68,7 +68,7 @@ func main() {
 			if err != nil {
 				logger.Fatal("Could not create metrics", zap.Error(err))
 			}
-			mFactory = mFactory.Namespace("agent", nil)
+			mFactory = mFactory.Namespace(jMetrics.NSOptions{Name: "agent", Tags: nil})
 
 			rOpts := new(reporter.Options).InitFromViper(v)
 			tChanOpts := new(tchannel.Builder).InitFromViper(v, logger)

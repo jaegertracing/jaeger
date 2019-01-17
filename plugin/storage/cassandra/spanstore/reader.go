@@ -116,7 +116,7 @@ func NewSpanReader(
 	metricsFactory metrics.Factory,
 	logger *zap.Logger,
 ) *SpanReader {
-	readFactory := metricsFactory.Namespace("read", nil)
+	readFactory := metricsFactory.Namespace(metrics.NSOptions{Name: "read", Tags: nil})
 	serviceNamesStorage := NewServiceNamesStorage(session, 0, metricsFactory, logger)
 	operationNamesStorage := NewOperationNamesStorage(session, 0, metricsFactory, logger)
 	return &SpanReader{

@@ -107,10 +107,11 @@ func main() {
 			}
 
 			mBldr := new(pMetrics.Builder).InitFromViper(v)
-			metricsFactory, err := mBldr.CreateMetricsFactory("jaeger")
+			rootMetricsFactory, err := mBldr.CreateMetricsFactory("")
 			if err != nil {
 				return errors.Wrap(err, "Cannot create metrics factory")
 			}
+			metricsFactory := rootMetricsFactory.Namespace(metrics.NSOptions{Name: "jaeger", Tags: nil})
 
 			storageFactory.InitFromViper(v)
 			if err := storageFactory.Initialize(metricsFactory, logger); err != nil {
@@ -141,7 +142,7 @@ func main() {
 
 			startAgent(aOpts, repOpts, tchannelRepOpts, grpcRepOpts, cOpts, logger, metricsFactory)
 			grpcServer := startCollector(cOpts, spanWriter, logger, metricsFactory, strategyStore, hc)
-			startQuery(qOpts, spanReader, dependencyReader, logger, metricsFactory, mBldr, hc, archiveOptions(storageFactory, logger))
+			startQuery(qOpts, spanReader, dependencyReader, logger, rootMetricsFactory, metricsFactory, mBldr, hc, archiveOptions(storageFactory, logger))
 			hc.Ready()
 			<-signalsChannel
 			logger.Info("Shutting down")
@@ -193,7 +194,7 @@ func startAgent(
 	logger *zap.Logger,
 	baseFactory metrics.Factory,
 ) {
-	metricsFactory := baseFactory.Namespace("agent", nil)
+	metricsFactory := baseFactory.Namespace(metrics.NSOptions{Name: "agent", Tags: nil})
 
 	cp, err := createCollectorProxy(cOpts, repOpts, tchanRep, grpcRepOpts, logger, metricsFactory)
 	if err != nil {
@@ -239,7 +240,7 @@ func startCollector(
 	strategyStore strategystore.StrategyStore,
 	hc *healthcheck.HealthCheck,
 ) *grpc.Server {
-	metricsFactory := baseFactory.Namespace("collector", nil)
+	metricsFactory := baseFactory.Namespace(metrics.NSOptions{Name: "collector", Tags: nil})
 
 	spanBuilder, err := collector.NewSpanHandlerBuilder(
 		cOpts,
@@ -336,6 +337,7 @@ func startQuery(
 	spanReader spanstore.Reader,
 	depReader dependencystore.Reader,
 	logger *zap.Logger,
+	rootFactory metrics.Factory,
 	baseFactory metrics.Factory,
 	metricsBuilder *pMetrics.Builder,
 	hc *healthcheck.HealthCheck,
@@ -349,7 +351,7 @@ func startQuery(
 		RPCMetrics: true,
 	}.New(
 		"jaeger-query",
-		jaegerClientConfig.Metrics(baseFactory.Namespace("client", nil)),
+		jaegerClientConfig.Metrics(rootFactory),
 		jaegerClientConfig.Logger(jaegerClientZapLog.NewLogger(logger)),
 	)
 	if err != nil {
@@ -357,7 +359,7 @@ func startQuery(
 	}
 	opentracing.SetGlobalTracer(tracer)
 
-	spanReader = storageMetrics.NewReadMetricsDecorator(spanReader, baseFactory.Namespace("query", nil))
+	spanReader = storageMetrics.NewReadMetricsDecorator(spanReader, baseFactory.Namespace(metrics.NSOptions{Name: "query", Tags: nil}))
 
 	handlerOpts = append(handlerOpts, queryApp.HandlerOptions.Logger(logger), queryApp.HandlerOptions.Tracer(tracer))
 	apiHandler := queryApp.NewAPIHandler(

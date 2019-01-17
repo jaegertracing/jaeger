@@ -107,7 +107,7 @@ func main() {
 				logger.Fatal("Failed to create span writer", zap.Error(err))
 			}
 
-			metricsFactory := baseFactory.Namespace("collector", nil)
+			metricsFactory := baseFactory.Namespace(metrics.NSOptions{Name: "collector", Tags: nil})
 			handlerBuilder, err := builder.NewSpanHandlerBuilder(
 				builderOpts,
 				spanWriter,

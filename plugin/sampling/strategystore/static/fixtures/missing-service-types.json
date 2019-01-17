@@ -6,35 +6,21 @@
   "service_strategies": [
     {
       "service": "foo",
-      "type": "probabilistic",
-      "param": 0.8,
       "operation_strategies": [
         {
           "operation": "op1",
           "type": "probabilistic",
           "param": 0.2
-        },
-        {
-          "operation": "op2",
-          "type": "ratelimiting",
-          "param": 10
         }
       ]
     },
     {
       "service": "bar",
-      "type": "ratelimiting",
-      "param": 5,
       "operation_strategies": [
         {
           "operation": "op3",
           "type": "probabilistic",
           "param": 0.3
-        },
-        {
-          "operation": "op4",
-          "type": "ratelimiting",
-          "param": 100
         },
         {
           "operation": "op5",
