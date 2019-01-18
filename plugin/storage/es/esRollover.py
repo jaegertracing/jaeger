@@ -30,7 +30,7 @@ def main():
 
     # TODO add rollover for main indices https://github.com/jaegertracing/jaeger/issues/1242
     if not str2bool(os.getenv('ARCHIVE', 'false')):
-        print('Rollover for main indices is not supported at the moment')
+        print('Rollover for main indices is not supported')
         sys.exit(1)
 
     client = elasticsearch.Elasticsearch(sys.argv[2:])
@@ -73,7 +73,7 @@ def create_aliases(client, alias_name, archive_index_name):
     ilo.filter_by_regex(kind='regex', value='^'+archive_index_name+'$')
     alias = curator.Alias(client=client, name=alias_name)
     for index in ilo.working_list():
-        print("Adding index {} to {} alias".format(index, alias_name))
+        print("Adding index {} to alias {}".format(index, alias_name))
     alias.add(ilo)
     alias.do_action()
 
@@ -89,7 +89,7 @@ def rollover(client, write_alias, read_alias, conditions):
     ilo.filter_by_alias(aliases=[write_alias])
     alias = curator.Alias(client=client, name=read_alias)
     for index in ilo.working_list():
-        print("Adding index {} to {} alias".format(index, read_alias))
+        print("Adding index {} to alias {}".format(index, read_alias))
     alias.add(ilo)
     alias.do_action()
 
@@ -105,7 +105,7 @@ def read_alias_lookback(client, write_alias, read_alias, unit, unit_count):
     ilo.filter_by_age(source='creation_date', direction='older', unit=unit, unit_count=unit_count)
     empty_list(ilo, 'No indices to remove from alias {}'.format(read_alias))
     for index in ilo.working_list():
-        print("Removing index {} from {} alias".format(index, read_alias))
+        print("Removing index {} from alias {}".format(index, read_alias))
     alias = curator.Alias(client=client, name=read_alias)
     alias.remove(ilo)
     alias.do_action()
