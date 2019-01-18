@@ -35,9 +35,11 @@ import (
 )
 
 const (
-	spanIndex          = "jaeger-span-"
-	serviceIndex       = "jaeger-service-"
-	traceIDAggregation = "traceIDs"
+	spanIndex                      = "jaeger-span-"
+	serviceIndex                   = "jaeger-service-"
+	traceIDAggregation             = "traceIDs"
+	indexPrefixSeparator           = "-"
+	indexPrefixSeparatorDeprecated = ":"
 
 	traceIDField           = "traceID"
 	durationField          = "duration"
@@ -94,8 +96,8 @@ type SpanReader struct {
 	maxSpanAge              time.Duration
 	maxNumSpans             int
 	serviceOperationStorage *ServiceOperationStorage
-	spanIndexPrefix         string
-	serviceIndexPrefix      string
+	spanIndexPrefix         []string
+	serviceIndexPrefix      []string
 	spanConverter           dbmodel.ToDomain
 }
 
@@ -118,9 +120,6 @@ func NewSpanReader(p SpanReaderParams) spanstore.Reader {
 
 func newSpanReader(p SpanReaderParams) *SpanReader {
 	ctx := context.Background()
-	if p.IndexPrefix != "" {
-		p.IndexPrefix += ":"
-	}
 	return &SpanReader{
 		ctx:                     ctx,
 		client:                  p.Client,
@@ -128,10 +127,17 @@ func newSpanReader(p SpanReaderParams) *SpanReader {
 		maxSpanAge:              p.MaxSpanAge,
 		maxNumSpans:             p.MaxNumSpans,
 		serviceOperationStorage: NewServiceOperationStorage(ctx, p.Client, p.Logger, 0), // the decorator takes care of metrics
-		spanIndexPrefix:         p.IndexPrefix + spanIndex,
-		serviceIndexPrefix:      p.IndexPrefix + serviceIndex,
+		spanIndexPrefix:         indexNames(p.IndexPrefix, spanIndex),
+		serviceIndexPrefix:      indexNames(p.IndexPrefix, serviceIndex),
 		spanConverter:           dbmodel.NewToDomain(p.TagDotReplacement),
 	}
+}
+
+func indexNames(prefix, index string) []string {
+	if prefix != "" {
+		return []string{prefix + indexPrefixSeparator + index, prefix + indexPrefixSeparatorDeprecated + index}
+	}
+	return []string{index}
 }
 
 // GetTrace takes a traceID and returns a Trace associated with that traceID
@@ -177,16 +183,19 @@ func (s *SpanReader) unmarshalJSONSpan(esSpanRaw *elastic.SearchHit) (*dbmodel.S
 }
 
 // Returns the array of indices that we need to query, based on query params
-func (s *SpanReader) indicesForTimeRange(indexName string, startTime time.Time, endTime time.Time) []string {
+func (s *SpanReader) indicesForTimeRange(indexNames []string, startTime time.Time, endTime time.Time) []string {
 	var indices []string
-	firstIndex := indexWithDate(indexName, startTime)
-	currentIndex := indexWithDate(indexName, endTime)
-	for currentIndex != firstIndex {
-		indices = append(indices, currentIndex)
-		endTime = endTime.Add(-24 * time.Hour)
-		currentIndex = indexWithDate(indexName, endTime)
+	for _, indexName := range indexNames {
+		firstIndex := indexWithDate(indexName, startTime)
+		currentIndex := indexWithDate(indexName, endTime)
+		for currentIndex != firstIndex {
+			indices = append(indices, currentIndex)
+			endTime = endTime.Add(-24 * time.Hour)
+			currentIndex = indexWithDate(indexName, endTime)
+		}
+		indices = append(indices, firstIndex)
 	}
-	return append(indices, firstIndex)
+	return indices
 }
 
 // GetServices returns all services traced by Jaeger, ordered by frequency

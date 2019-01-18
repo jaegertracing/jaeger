@@ -117,12 +117,13 @@ func TestNewSpanReader(t *testing.T) {
 
 func TestNewSpanReaderIndexPrefix(t *testing.T) {
 	testCases := []struct {
-		prefix   string
-		expected string
+		prefix            string
+		expectedSpanIndex []string
+		expectedServiceIndex []string
 	}{
-		{prefix: "", expected: ""},
-		{prefix: "foo", expected: "foo:"},
-		{prefix: ":", expected: "::"},
+		{prefix: "", expectedSpanIndex: []string{spanIndex}, expectedServiceIndex: []string{serviceIndex}},
+		{prefix: "foo", expectedSpanIndex: []string{"foo-"+spanIndex, "foo:"+spanIndex}, expectedServiceIndex: []string{"foo-"+serviceIndex, "foo:"+serviceIndex}},
+		{prefix: ":", expectedSpanIndex: []string{":-"+spanIndex, "::"+spanIndex}, expectedServiceIndex: []string{":-"+serviceIndex, "::"+serviceIndex}},
 	}
 	for _, testCase := range testCases {
 		client := &mocks.Client{}
@@ -131,8 +132,8 @@ func TestNewSpanReaderIndexPrefix(t *testing.T) {
 			Logger:      zap.NewNop(),
 			MaxSpanAge:  0,
 			IndexPrefix: testCase.prefix})
-		assert.Equal(t, testCase.expected+spanIndex, r.spanIndexPrefix)
-		assert.Equal(t, testCase.expected+serviceIndex, r.serviceIndexPrefix)
+		assert.Equal(t, testCase.expectedSpanIndex, r.spanIndexPrefix)
+		assert.Equal(t, testCase.expectedServiceIndex, r.serviceIndexPrefix)
 	}
 }
 
@@ -343,7 +344,7 @@ func TestSpanReaderFindIndices(t *testing.T) {
 	}
 	withSpanReader(func(r *spanReaderTest) {
 		for _, testCase := range testCases {
-			actual := r.reader.indicesForTimeRange(spanIndex, testCase.startTime, testCase.endTime)
+			actual := r.reader.indicesForTimeRange([]string{spanIndex}, testCase.startTime, testCase.endTime)
 			assert.EqualValues(t, testCase.expected, actual)
 		}
 	})

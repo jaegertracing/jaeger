@@ -21,7 +21,7 @@ def main():
 
     prefix = os.getenv("INDEX_PREFIX", '')
     if prefix != '':
-        prefix += ':'
+        prefix += '-'
     prefix += 'jaeger'
 
     ilo.filter_by_regex(kind='prefix', value=prefix)
