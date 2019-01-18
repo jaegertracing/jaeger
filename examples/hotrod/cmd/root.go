@@ -83,7 +83,7 @@ func onInitialize() {
 		metricsFactory = jexpvar.NewFactory(10) // 10 buckets for histograms
 		logger.Info("Using expvar as metrics backend")
 	} else if metricsBackend == "prometheus" {
-		metricsFactory = jprom.New().Namespace("hotrod", nil)
+		metricsFactory = jprom.New().Namespace(metrics.NSOptions{Name: "hotrod", Tags: nil})
 		logger.Info("Using Prometheus as metrics backend")
 	} else {
 		logger.Fatal("unsupported metrics backend " + metricsBackend)

@@ -32,7 +32,7 @@ type WriteMetrics struct {
 // NewWriteMetrics takes a metrics scope and creates a metrics struct
 func NewWriteMetrics(factory metrics.Factory, tableName string) *WriteMetrics {
 	t := &WriteMetrics{}
-	metrics.Init(t, factory.Namespace(tableName, nil), nil)
+	metrics.Init(t, factory.Namespace(metrics.NSOptions{Name: tableName, Tags: nil}), nil)
 	return t
 }
 

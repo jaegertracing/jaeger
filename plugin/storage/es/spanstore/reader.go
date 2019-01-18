@@ -94,6 +94,7 @@ type SpanReader struct {
 	// The age of the oldest service/operation we will look for. Because indices in ElasticSearch are by day,
 	// this will be rounded down to UTC 00:00 of that day.
 	maxSpanAge              time.Duration
+	maxNumSpans             int
 	serviceOperationStorage *ServiceOperationStorage
 	spanIndexPrefix         []string
 	serviceIndexPrefix      []string
@@ -105,6 +106,7 @@ type SpanReaderParams struct {
 	Client                  es.Client
 	Logger                  *zap.Logger
 	MaxSpanAge              time.Duration
+	MaxNumSpans             int
 	MetricsFactory          metrics.Factory
 	serviceOperationStorage *ServiceOperationStorage
 	IndexPrefix             string
@@ -123,6 +125,7 @@ func newSpanReader(p SpanReaderParams) *SpanReader {
 		client:                  p.Client,
 		logger:                  p.Logger,
 		maxSpanAge:              p.MaxSpanAge,
+		maxNumSpans:             p.MaxNumSpans,
 		serviceOperationStorage: NewServiceOperationStorage(ctx, p.Client, p.Logger, 0), // the decorator takes care of metrics
 		spanIndexPrefix:         indexNames(p.IndexPrefix, spanIndex),
 		serviceIndexPrefix:      indexNames(p.IndexPrefix, serviceIndex),
@@ -279,7 +282,7 @@ func (s *SpanReader) multiRead(ctx context.Context, traceIDs []string, startTime
 			if val, ok := searchAfterTime[traceID]; ok {
 				nextTime = val
 			}
-			searchRequests[i] = elastic.NewSearchRequest().IgnoreUnavailable(true).Type(spanType).Source(elastic.NewSearchSource().Query(query).Size(defaultDocCount).Sort("startTime", true).SearchAfter(nextTime))
+			searchRequests[i] = elastic.NewSearchRequest().IgnoreUnavailable(true).Type(spanType).Source(elastic.NewSearchSource().Query(query).Size(defaultDocCount).TerminateAfter(s.maxNumSpans).Sort("startTime", true).SearchAfter(nextTime))
 		}
 		// set traceIDs to empty
 		traceIDs = nil

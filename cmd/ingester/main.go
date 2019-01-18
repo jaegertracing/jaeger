@@ -27,6 +27,7 @@ import (
 	"github.com/gorilla/mux"
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
+	"github.com/uber/jaeger-lib/metrics"
 	"go.uber.org/zap"
 
 	"github.com/jaegertracing/jaeger/cmd/env"
@@ -76,7 +77,7 @@ func main() {
 			if err != nil {
 				logger.Fatal("Cannot create metrics factory.", zap.Error(err))
 			}
-			metricsFactory := baseFactory.Namespace("ingester", nil)
+			metricsFactory := baseFactory.Namespace(metrics.NSOptions{Name: "ingester", Tags: nil})
 
 			storageFactory.InitFromViper(v)
 			if err := storageFactory.Initialize(baseFactory, logger); err != nil {
