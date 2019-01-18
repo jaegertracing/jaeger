@@ -43,6 +43,7 @@ const (
 	suffixKey               = ".tls.key"
 	suffixCA                = ".tls.ca"
 	suffixIndexPrefix       = ".index-prefix"
+	suffixIndexTimeSpan     = ".index-time-span"
 	suffixTagsAsFields      = ".tags-as-fields"
 	suffixTagsAsFieldsAll   = suffixTagsAsFields + ".all"
 	suffixTagsFile          = suffixTagsAsFields + ".config-file"
@@ -86,6 +87,7 @@ func NewOptions(primaryNamespace string, otherNamespaces ...string) *Options {
 				BulkWorkers:       1,
 				BulkActions:       1000,
 				BulkFlushInterval: time.Millisecond * 200,
+				IndexTimeSpan:     "2006-01-02",
 				TagDotReplacement: "@",
 			},
 			servers:   "http://127.0.0.1:9200",
@@ -182,6 +184,10 @@ func addFlags(flagSet *flag.FlagSet, nsConfig *namespaceConfig) {
 		nsConfig.namespace+suffixIndexPrefix,
 		nsConfig.IndexPrefix,
 		"Optional prefix of Jaeger indices. For example \"production\" creates \"production-jaeger-*\".")
+	flagSet.String(
+		nsConfig.namespace+suffixIndexTimeSpan,
+		nsConfig.IndexTimeSpan,
+		"The time span with which ES indices are to be rotated. For ex: Indexes will be rotated every 24hrs if format is \"2006-01-02\". ")
 	flagSet.Bool(
 		nsConfig.namespace+suffixTagsAsFieldsAll,
 		nsConfig.AllTagsAsFields,
@@ -223,6 +229,7 @@ func initFromViper(cfg *namespaceConfig, v *viper.Viper) {
 	cfg.TLS.KeyPath = v.GetString(cfg.namespace + suffixKey)
 	cfg.TLS.CaPath = v.GetString(cfg.namespace + suffixCA)
 	cfg.IndexPrefix = v.GetString(cfg.namespace + suffixIndexPrefix)
+	cfg.IndexTimeSpan = v.GetString(cfg.namespace + suffixIndexTimeSpan)
 	cfg.AllTagsAsFields = v.GetBool(cfg.namespace + suffixTagsAsFieldsAll)
 	cfg.TagsFilePath = v.GetString(cfg.namespace + suffixTagsFile)
 	cfg.TagDotReplacement = v.GetString(cfg.namespace + suffixTagDeDotChar)

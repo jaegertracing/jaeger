@@ -106,6 +106,7 @@ func (f *Factory) CreateSpanWriter() (spanstore.Writer, error) {
 		NumShards:         f.primaryConfig.GetNumShards(),
 		NumReplicas:       f.primaryConfig.GetNumReplicas(),
 		IndexPrefix:       f.primaryConfig.GetIndexPrefix(),
+		IndexTimeSpan:     f.primaryConfig.GetIndexTimeSpan(),
 		AllTagsAsFields:   f.primaryConfig.GetAllTagsAsFields(),
 		TagKeysAsFields:   tags,
 		TagDotReplacement: f.primaryConfig.GetTagDotReplacement(),

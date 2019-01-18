@@ -57,6 +57,7 @@ type SpanWriter struct {
 	numReplicas        int64
 	spanIndexPrefix    string
 	serviceIndexPrefix string
+	indexTimeSpan      string
 	spanConverter      dbmodel.FromDomain
 }
 
@@ -68,6 +69,7 @@ type SpanWriterParams struct {
 	NumShards         int64
 	NumReplicas       int64
 	IndexPrefix       string
+	IndexTimeSpan     string
 	AllTagsAsFields   bool
 	TagKeysAsFields   []string
 	TagDotReplacement string
@@ -103,14 +105,15 @@ func NewSpanWriter(p SpanWriterParams) *SpanWriter {
 		numReplicas:        p.NumReplicas,
 		spanIndexPrefix:    p.IndexPrefix + spanIndex,
 		serviceIndexPrefix: p.IndexPrefix + serviceIndex,
+		indexTimeSpan:      p.IndexTimeSpan,
 		spanConverter:      dbmodel.NewFromDomain(p.AllTagsAsFields, p.TagKeysAsFields, p.TagDotReplacement),
 	}
 }
 
 // WriteSpan writes a span and its corresponding service:operation in ElasticSearch
 func (s *SpanWriter) WriteSpan(span *model.Span) error {
-	spanIndexName := indexWithDate(s.spanIndexPrefix, span.StartTime)
-	serviceIndexName := indexWithDate(s.serviceIndexPrefix, span.StartTime)
+	spanIndexName := indexWithDate(s.spanIndexPrefix, span.StartTime, s.indexTimeSpan)
+	serviceIndexName := indexWithDate(s.serviceIndexPrefix, span.StartTime, s.indexTimeSpan)
 
 	jsonSpan := s.spanConverter.FromDomainEmbedProcess(span)
 
@@ -130,8 +133,11 @@ func (s *SpanWriter) Close() error {
 	return s.client.Close()
 }
 
-func indexWithDate(indexPrefix string, date time.Time) string {
-	spanDate := date.UTC().Format("2006-01-02")
+func indexWithDate(indexPrefix string, date time.Time, indexTimeSpan string) string {
+	// indexTimeSpan is the date-format and defines the frequency of ES index rotation.
+	// For ex: "2006-01-02" would mean that the index is rotated every 24hrs.
+	// Similarly: "2006-01-02T01" would mean that the index is rotated every hour.
+	spanDate := date.UTC().Format(indexTimeSpan)
 	return indexPrefix + spanDate
 }
 

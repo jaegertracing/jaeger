@@ -49,6 +49,7 @@ type Configuration struct {
 	BulkActions       int
 	BulkFlushInterval time.Duration
 	IndexPrefix       string
+	IndexTimeSpan     string
 	TagsFilePath      string
 	AllTagsAsFields   bool
 	TagDotReplacement string
@@ -71,6 +72,7 @@ type ClientBuilder interface {
 	GetMaxSpanAge() time.Duration
 	GetMaxNumSpans() int
 	GetIndexPrefix() string
+	GetIndexTimeSpan() string
 	GetTagsFilePath() string
 	GetAllTagsAsFields() bool
 	GetTagDotReplacement() string
@@ -174,6 +176,9 @@ func (c *Configuration) ApplyDefaults(source *Configuration) {
 	if c.BulkFlushInterval == 0 {
 		c.BulkFlushInterval = source.BulkFlushInterval
 	}
+	if c.IndexTimeSpan == "" {
+		c.IndexTimeSpan = source.IndexTimeSpan
+	}
 }
 
 // GetNumShards returns number of shards from Configuration
@@ -199,6 +204,11 @@ func (c *Configuration) GetMaxNumSpans() int {
 // GetIndexPrefix returns index prefix
 func (c *Configuration) GetIndexPrefix() string {
 	return c.IndexPrefix
+}
+
+// GetIndexTimeSpan returns index prefix
+func (c *Configuration) GetIndexTimeSpan() string {
+	return c.IndexTimeSpan
 }
 
 // GetTagsFilePath returns a path to file containing tag keys
