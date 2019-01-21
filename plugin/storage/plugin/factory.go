@@ -52,7 +52,7 @@ func (f *Factory) Initialize(metricsFactory metrics.Factory, logger *zap.Logger)
 func (f *Factory) InitializePlugin(pluginLoader pluginloader.PluginLoader) error {
 	f.pluginLoader = pluginLoader;
 
-	s, err := f.loadPluginFactory(storageFactorySymbol, reflect.TypeOf(f.loadedStorageFactory))
+	s, err := f.loadPluginFactory(storageFactorySymbol, reflect.TypeOf((*storage.Factory)(nil)).Elem())
 	if err != nil {
 		return err
 	}

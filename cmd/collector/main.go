@@ -136,10 +136,6 @@ func main() {
 				logger.Fatal("Unable to set up builder", zap.Error(err))
 			}
 
-			pf.AddLogger(logger)
-			pf.InitFromViper(v)
-			pf.AddMetrics(metricsFactory)
-
 			zipkinSpansHandler, jaegerBatchesHandler, grpcHandler := handlerBuilder.BuildHandlers()
 			strategyStoreFactory.InitFromViper(v)
 			strategyStore := initSamplingStrategyStore(strategyStoreFactory, metricsFactory, logger)
