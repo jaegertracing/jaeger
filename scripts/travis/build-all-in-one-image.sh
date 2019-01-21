@@ -5,7 +5,7 @@ set -e
 BRANCH=${BRANCH:?'missing BRANCH env var'}
 
 source ~/.nvm/nvm.sh
-nvm use 6
+nvm use 8
 make build-all-in-one-linux
 
 export REPO=jaegertracing/all-in-one
