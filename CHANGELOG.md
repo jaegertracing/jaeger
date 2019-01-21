@@ -11,13 +11,13 @@ Changes by Version
 - Change Elasticsearch index prefix from `:` to `-` ([#1284](https://github.com/jaegertracing/jaeger/pull/1284), [@pavolloffay](https://github.com/pavolloffay))
 
 Changed index prefix separator from `:`  to `-` because Elasticsearch 7 does not allow `:` in index name.
-Jaeger query still reads from old indices containing `-` as separators, therefore no change is required.
-Note that 
+Jaeger query still reads from old indices containing `-` as a separator, therefore no configuration or migration changes are required.
+
 
 
 - Add CLI configurable `es.max-num-spans` while retrieving spans from ES ([#1283](https://github.com/jaegertracing/jaeger/pull/1283), [@annanay25](https://github.com/annanay25))
 
-The default value is set to 10000.
+The default value is set to 10000. Before no limit was applied.
 
 
 - Update to jaeger-lib 2 and latest sha for jaeger-client-go, to pick up refactored metric names ([#1282](https://github.com/jaegertracing/jaeger/pull/1282), [@objectiser](https://github.com/objectiser))
