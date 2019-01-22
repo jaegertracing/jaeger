@@ -10,5 +10,6 @@
     * Copy the new CHANGELOG.md section into the release notes
 3. The release tag will trigger a build of the docker images
 4. Once the images are available on [Docker Hub](https://hub.docker.com/r/jaegertracing/), announce the release on the mailing list, gitter, and twitter.
+5. Publish a documentation for the new version in [jaegertracing.io](https://github.com/jaegertracing/documentation).
 
 Maintenance branches should follow naming convention: `release-major.minor` (e.g.`release-1.8`).
