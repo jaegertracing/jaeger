@@ -1,7 +1,7 @@
 Changes by Version
 ==================
 
-1.9.0 (unreleased)
+1.9.0 (2019-01-22)
 ------------------
 
 #### Backend Changes
