@@ -15,7 +15,7 @@ Changes by Version
 #### UI Changes
 
 
-1.9.0 (2019-01-22)
+1.9.0 (2019-01-21)
 ------------------
 
 #### Backend Changes
