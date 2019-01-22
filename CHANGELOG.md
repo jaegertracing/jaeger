@@ -1,7 +1,21 @@
 Changes by Version
 ==================
 
-1.9.0 (unreleased)
+1.10.0 (unreleased)
+------------------
+
+#### Backend Changes
+
+##### Breaking Changes
+
+##### New Features
+
+##### Bug fixes, Minor Improvements
+
+#### UI Changes
+
+
+1.9.0 (2019-01-21)
 ------------------
 
 #### Backend Changes
