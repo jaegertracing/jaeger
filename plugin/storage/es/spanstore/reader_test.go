@@ -377,11 +377,7 @@ func TestSpanReaderFindIndices(t *testing.T) {
 	}
 	withSpanReader(func(r *spanReaderTest) {
 		for _, testCase := range testCases {
-//<<<<<<< HEAD
-//			actual := r.reader.indicesForTimeRange([]string{spanIndex}, testCase.startTime, testCase.endTime)
-//=======
 			actual := r.reader.timeRangeIndices([]string{spanIndex}, testCase.startTime, testCase.endTime)
-//>>>>>>> Support archive traces for ES
 			assert.EqualValues(t, testCase.expected, actual)
 		}
 	})
