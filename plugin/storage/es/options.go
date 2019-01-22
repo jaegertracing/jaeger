@@ -47,6 +47,7 @@ const (
 	suffixTagsAsFieldsAll   = suffixTagsAsFields + ".all"
 	suffixTagsFile          = suffixTagsAsFields + ".config-file"
 	suffixTagDeDotChar      = suffixTagsAsFields + ".dot-replacement"
+	suffixReadAlias         = ".use-aliases"
 )
 
 // TODO this should be moved next to config.Configuration struct (maybe ./flags package)
@@ -194,6 +195,15 @@ func addFlags(flagSet *flag.FlagSet, nsConfig *namespaceConfig) {
 		nsConfig.namespace+suffixTagDeDotChar,
 		nsConfig.TagDotReplacement,
 		"(experimental) The character used to replace dots (\".\") in tag keys stored as object fields.")
+	// TODO add rollover support for main indices
+	if nsConfig.namespace == archiveNamespace {
+		flagSet.Bool(
+			nsConfig.namespace+suffixReadAlias,
+			nsConfig.UseReadWriteAliases,
+			"Use read and write aliases for indices. Use this option with Elasticsearch rollover "+
+				"API. It requires an external component to create aliases before startup and then performing its management. "+
+				"Note that "+nsConfig.namespace+suffixMaxSpanAge+" is not taken into the account and has to be substituted by external component managing read alias.")
+	}
 }
 
 // InitFromViper initializes Options with properties from viper
@@ -226,6 +236,7 @@ func initFromViper(cfg *namespaceConfig, v *viper.Viper) {
 	cfg.AllTagsAsFields = v.GetBool(cfg.namespace + suffixTagsAsFieldsAll)
 	cfg.TagsFilePath = v.GetString(cfg.namespace + suffixTagsFile)
 	cfg.TagDotReplacement = v.GetString(cfg.namespace + suffixTagDeDotChar)
+	cfg.UseReadWriteAliases = v.GetBool(cfg.namespace + suffixReadAlias)
 }
 
 // GetPrimary returns primary configuration.

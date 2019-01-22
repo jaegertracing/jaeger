@@ -23,7 +23,7 @@ nvm use 8
 export DOCKER_NAMESPACE=jaegertracing
 make docker
 
-for component in agent cassandra-schema es-index-cleaner collector query ingester
+for component in agent cassandra-schema es-index-cleaner es-rollover collector query ingester
 do
   export REPO="jaegertracing/jaeger-${component}"
   bash ./scripts/travis/upload-to-docker.sh

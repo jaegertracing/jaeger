@@ -56,6 +56,10 @@ func TestElasticsearchFactory(t *testing.T) {
 	assert.EqualError(t, f.Initialize(metrics.NullFactory, zap.NewNop()), "made-up error")
 
 	f.primaryConfig = &mockClientBuilder{}
+	f.archiveConfig = &mockClientBuilder{err: errors.New("made-up error2")}
+	assert.EqualError(t, f.Initialize(metrics.NullFactory, zap.NewNop()), "made-up error2")
+
+	f.archiveConfig = &mockClientBuilder{}
 	assert.NoError(t, f.Initialize(metrics.NullFactory, zap.NewNop()))
 
 	_, err := f.CreateSpanReader()
@@ -66,6 +70,12 @@ func TestElasticsearchFactory(t *testing.T) {
 
 	_, err = f.CreateDependencyReader()
 	assert.NoError(t, err)
+
+	_, err = f.CreateArchiveSpanReader()
+	assert.NoError(t, err)
+
+	_, err = f.CreateArchiveSpanWriter()
+	assert.NoError(t, err)
 }
 
 func TestElasticsearchTagsFileDoNotExist(t *testing.T) {
@@ -73,6 +83,7 @@ func TestElasticsearchTagsFileDoNotExist(t *testing.T) {
 	mockConf := &mockClientBuilder{}
 	mockConf.TagsFilePath = "fixtures/tags_foo.txt"
 	f.primaryConfig = mockConf
+	f.archiveConfig = mockConf
 	assert.NoError(t, f.Initialize(metrics.NullFactory, zap.NewNop()))
 	r, err := f.CreateSpanWriter()
 	require.Error(t, err)
