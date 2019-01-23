@@ -136,8 +136,6 @@ func TestBySvcMetrics(t *testing.T) {
 			// we defined the queue capacity as 0, all submitted items are dropped.
 			// The debug spans are always accepted.
 			expected = append(expected, metricstest.ExpectedMetric{
-				Name: "host.error.busy", Value: 2,
-			}, metricstest.ExpectedMetric{
 				Name: "host.spans.dropped", Value: 2,
 			})
 		} else {

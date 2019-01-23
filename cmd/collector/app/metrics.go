@@ -40,8 +40,6 @@ type SpanProcessorMetrics struct {
 	BatchSize metrics.Gauge // size of span batch
 	// QueueLength measures the size of the internal span queue
 	QueueLength metrics.Gauge
-	// ErrorBusy counts number of return ErrServerBusy
-	ErrorBusy metrics.Counter
 	// SavedOkBySvc contains span and trace counts by service
 	SavedOkBySvc  metricsBySvc  // spans actually saved
 	SavedErrBySvc metricsBySvc  // spans failed to save
@@ -87,7 +85,6 @@ func NewSpanProcessorMetrics(serviceMetrics metrics.Factory, hostMetrics metrics
 		SpansDropped:   hostMetrics.Counter(metrics.Options{Name: "spans.dropped", Tags: nil}),
 		BatchSize:      hostMetrics.Gauge(metrics.Options{Name: "batch-size", Tags: nil}),
 		QueueLength:    hostMetrics.Gauge(metrics.Options{Name: "queue-length", Tags: nil}),
-		ErrorBusy:      hostMetrics.Counter(metrics.Options{Name: "error.busy", Tags: nil}),
 		SavedOkBySvc:   newMetricsBySvc(serviceMetrics.Namespace(metrics.NSOptions{Name: "", Tags: map[string]string{"result": "ok"}}), "saved-by-svc"),
 		SavedErrBySvc:  newMetricsBySvc(serviceMetrics.Namespace(metrics.NSOptions{Name: "", Tags: map[string]string{"result": "err"}}), "saved-by-svc"),
 		spanCounts:     spanCounts,
