@@ -24,16 +24,20 @@ import (
 const (
 	gRPCPrefix        = "reporter.grpc."
 	collectorHostPort = gRPCPrefix + "host-port"
+	grpcServerTLSCert = gRPCPrefix + "tls.cert"
 )
 
 // Options Struct to hold configurations
 type Options struct {
 	// CollectorHostPort is list of host:port Jaeger Collectors.
 	CollectorHostPort []string
+	// TLSServerCertPath is the path of the TLS server certificate
+	TLSServerCertPath string
 }
 
 // AddFlags adds flags for Options.
 func AddFlags(flags *flag.FlagSet) {
+	flags.String(grpcServerTLSCert, "", "Path to the grpc Server TLS certificate")
 	flags.String(collectorHostPort, "", "(experimental) Comma-separated string representing host:port of a static list of collectors to connect to directly.")
 }
 
@@ -43,5 +47,6 @@ func (o *Options) InitFromViper(v *viper.Viper) *Options {
 	if hostPorts != "" {
 		o.CollectorHostPort = strings.Split(hostPorts, ",")
 	}
+	o.TLSServerCertPath = v.GetString(grpcServerTLSCert)
 	return o
 }

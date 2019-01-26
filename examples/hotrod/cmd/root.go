@@ -15,6 +15,8 @@
 package cmd
 
 import (
+	"fmt"
+	"github.com/jaegertracing/jaeger/pkg/healthcheck"
 	"math/rand"
 	"os"
 	"time"
@@ -67,14 +69,21 @@ func init() {
 	RootCmd.PersistentFlags().IntVarP(&fixRouteWorkerPoolSize, "fix-route-worker-pool-size", "W", 3, "Default worker pool size")
 
 	// Add flags to choose ports for services
-	RootCmd.PersistentFlags().IntVarP(&customerPort, "customer-service-port", "c", 8081, "Port for customer service")
-	RootCmd.PersistentFlags().IntVarP(&driverPort, "driver-service-port", "d", 8082, "Port for driver service")
-	RootCmd.PersistentFlags().IntVarP(&frontendPort, "frontend-service-port", "f", 8080, "Port for frontend service")
-	RootCmd.PersistentFlags().IntVarP(&routePort, "route-service-port", "r", 8083, "Port for routing service")
+	RootCmd.PersistentFlags().IntVarP(&customerPort, "customer-service-port", "c", 9081, "Port for customer service")
+	RootCmd.PersistentFlags().IntVarP(&driverPort, "driver-service-port", "d", 9082, "Port for driver service")
+	RootCmd.PersistentFlags().IntVarP(&frontendPort, "frontend-service-port", "f", 9080, "Port for frontend service")
+	RootCmd.PersistentFlags().IntVarP(&routePort, "route-service-port", "r", 9083, "Port for routing service")
 
 	rand.Seed(int64(time.Now().Nanosecond()))
 	logger, _ = zap.NewDevelopment(zap.AddStacktrace(zapcore.FatalLevel))
 	cobra.OnInitialize(onInitialize)
+
+	hc, err := healthcheck.New(healthcheck.Unavailable, healthcheck.Logger(logger)).Serve(9084)
+	if err != nil {
+		logger.Fatal("Could not start the health check server.", zap.Error(err))
+	}
+	hc.Ready()
+	logger.Info(fmt.Sprintf("health check: %v", hc.Get().String()))
 }
 
 // onInitialize is called before the command is executed.

@@ -15,7 +15,11 @@
 package grpc
 
 import (
+	"context"
 	"errors"
+	"fmt"
+	"google.golang.org/grpc/credentials"
+	"time"
 
 	"github.com/uber/jaeger-lib/metrics"
 	"go.uber.org/zap"
@@ -41,7 +45,20 @@ func NewCollectorProxy(o *Options, mFactory metrics.Factory, logger *zap.Logger)
 	if len(o.CollectorHostPort) == 0 {
 		return nil, errors.New("could not create collector proxy, address is missing")
 	}
+
+	opts := []grpc.DialOption{}
+	if o.TLSServerCertPath != "" {
+		creds, err := credentials.NewClientTLSFromFile(o.TLSServerCertPath, "")
+		if err != nil {
+			fmt.Printf("cert load error: %s\n", err)
+		}
+		opts = append(opts, grpc.WithTransportCredentials(creds))
+	} else {
+		opts = append(opts, grpc.WithInsecure())
+	}
+
 	var conn *grpc.ClientConn
+	var err error
 	if len(o.CollectorHostPort) > 1 {
 		r, _ := manual.GenerateAndRegisterManualResolver()
 		var resolvedAddrs []resolver.Address
@@ -49,10 +66,14 @@ func NewCollectorProxy(o *Options, mFactory metrics.Factory, logger *zap.Logger)
 			resolvedAddrs = append(resolvedAddrs, resolver.Address{Addr: addr})
 		}
 		r.InitialAddrs(resolvedAddrs)
-		conn, _ = grpc.Dial(r.Scheme()+":///round_robin", grpc.WithInsecure(), grpc.WithBalancerName(roundrobin.Name))
+		opts = append(opts, grpc.WithBalancerName(roundrobin.Name))
+		conn, _ = grpc.Dial(r.Scheme()+":///round_robin", opts...)
 	} else {
-		// It does not return error if the collector is not running
-		conn, _ = grpc.Dial(o.CollectorHostPort[0], grpc.WithInsecure())
+		ctx, cancel := context.WithTimeout(context.Background(), time.Minute)
+		defer cancel()
+		if conn, err = grpc.DialContext(ctx, o.CollectorHostPort[0], opts...); err != nil {
+			return nil, fmt.Errorf("error dialing collector: %v", err)
+		}
 	}
 	grpcMetrics := mFactory.Namespace(metrics.NSOptions{Name: "", Tags: map[string]string{"protocol": "grpc"}})
 	return &ProxyBuilder{

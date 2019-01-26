@@ -212,7 +212,7 @@ build-binaries-darwin:
 	GOOS=darwin $(MAKE) build-platform-binaries
 
 .PHONY: build-platform-binaries
-build-platform-binaries: build-agent build-collector build-query build-ingester build-all-in-one build-examples
+build-platform-binaries: build-agent build-collector build-query build-ingester build-examples
 
 .PHONY: build-all-platforms
 build-all-platforms: build-binaries-linux build-binaries-windows build-binaries-darwin
@@ -393,3 +393,8 @@ proto-install:
 		./vendor/github.com/grpc-ecosystem/grpc-gateway/protoc-gen-swagger
 		# ./vendor/github.com/mwitkow/go-proto-validators/protoc-gen-govalidators \
 		# ./vendor/github.com/rakyll/statik
+
+.PHONY: gencert
+gencert:
+	rm -rf certs/*.pem
+	openssl req -x509 -newkey rsa:4096 -keyout certs/server-key.pem -out certs/server-cert.pem -days 3650 -nodes -subj '/CN=*.elb.ap-northeast-1.amazonaws.com'

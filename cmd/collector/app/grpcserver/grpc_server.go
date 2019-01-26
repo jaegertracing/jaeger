@@ -15,6 +15,8 @@
 package grpcserver
 
 import (
+	"fmt"
+	"google.golang.org/grpc/credentials"
 	"io/ioutil"
 	"net"
 	"os"
@@ -35,6 +37,7 @@ import (
 func StartGRPCCollector(
 	port int,
 	server *grpc.Server,
+	tlsCertPath, tlsKeyPath string,
 	handler *app.GRPCHandler,
 	samplingStrategy strategystore.StrategyStore,
 	logger *zap.Logger,
@@ -45,11 +48,20 @@ func StartGRPCCollector(
 	if err != nil {
 		return nil, errors.Wrap(err, "Failed to listen on gRPC port")
 	}
-
 	grpclog.SetLoggerV2(grpclog.NewLoggerV2(ioutil.Discard, os.Stderr, os.Stderr))
+
+	//use TLS only if certificates are provided
+	if tlsCertPath != "" && tlsKeyPath != "" {
+		creds, err := credentials.NewServerTLSFromFile(tlsCertPath, tlsKeyPath)
+		if err != nil {
+			logger.Fatal(fmt.Sprintf("Failed to setup tls: %v", err))
+		}
+		server = grpc.NewServer(grpc.Creds(creds))
+	}
 
 	api_v2.RegisterCollectorServiceServer(server, handler)
 	api_v2.RegisterSamplingManagerServer(server, sampling.NewGRPCHandler(samplingStrategy))
+
 	startServer(server, lis, logger, serveErr)
 	return lis.Addr(), nil
 }

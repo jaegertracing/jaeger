@@ -140,7 +140,15 @@ func main() {
 				ch.Serve(listener)
 			}
 
-			server, err := startGRPCServer(builderOpts.CollectorGRPCPort, grpcHandler, strategyStore, logger)
+			grpcOpts := new(grpcserver.GrpcOptions).InitFromViper(v)
+			server, err := startGRPCServer(
+				grpcOpts.TLSCertPath,
+				grpcOpts.TLSKeyPath,
+				builderOpts.CollectorGRPCPort,
+				grpcHandler,
+				strategyStore,
+				logger,
+			)
 			if err != nil {
 				logger.Fatal("Could not start gRPC collector", zap.Error(err))
 			}
@@ -198,6 +206,7 @@ func main() {
 		storageFactory.AddFlags,
 		pMetrics.AddFlags,
 		strategyStoreFactory.AddFlags,
+		grpcserver.AddFlags,
 	)
 
 	if err := command.Execute(); err != nil {
@@ -207,13 +216,14 @@ func main() {
 }
 
 func startGRPCServer(
+	tlsCertPath, tlsKeyPath string,
 	port int,
 	handler *app.GRPCHandler,
 	samplingStore strategystore.StrategyStore,
 	logger *zap.Logger,
 ) (*grpc.Server, error) {
 	server := grpc.NewServer()
-	_, err := grpcserver.StartGRPCCollector(port, server, handler, samplingStore, logger, func(err error) {
+	_, err := grpcserver.StartGRPCCollector(port, server, tlsCertPath, tlsKeyPath, handler, samplingStore, logger, func(err error) {
 		logger.Fatal("gRPC collector failed", zap.Error(err))
 	})
 	if err != nil {
