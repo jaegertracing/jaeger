@@ -35,23 +35,25 @@ import (
 
 // Configuration describes the configuration properties needed to connect to an ElasticSearch cluster
 type Configuration struct {
-	Servers           []string
-	Username          string
-	Password          string
-	Sniffer           bool          // https://github.com/olivere/elastic/wiki/Sniffing
-	MaxSpanAge        time.Duration `yaml:"max_span_age"` // configures the maximum lookback on span reads
-	NumShards         int64         `yaml:"shards"`
-	NumReplicas       int64         `yaml:"replicas"`
-	Timeout           time.Duration `validate:"min=500"`
-	BulkSize          int
-	BulkWorkers       int
-	BulkActions       int
-	BulkFlushInterval time.Duration
-	IndexPrefix       string
-	TagsFilePath      string
-	AllTagsAsFields   bool
-	TagDotReplacement string
-	TLS               TLSConfig
+	Servers             []string
+	Username            string
+	Password            string
+	Sniffer             bool          // https://github.com/olivere/elastic/wiki/Sniffing
+	MaxNumSpans         int           // defines maximum number of spans to fetch from storage per query
+	MaxSpanAge          time.Duration `yaml:"max_span_age"` // configures the maximum lookback on span reads
+	NumShards           int64         `yaml:"shards"`
+	NumReplicas         int64         `yaml:"replicas"`
+	Timeout             time.Duration `validate:"min=500"`
+	BulkSize            int
+	BulkWorkers         int
+	BulkActions         int
+	BulkFlushInterval   time.Duration
+	IndexPrefix         string
+	TagsFilePath        string
+	AllTagsAsFields     bool
+	TagDotReplacement   string
+	TLS                 TLSConfig
+	UseReadWriteAliases bool
 }
 
 // TLSConfig describes the configuration properties to connect tls enabled ElasticSearch cluster
@@ -68,10 +70,12 @@ type ClientBuilder interface {
 	GetNumShards() int64
 	GetNumReplicas() int64
 	GetMaxSpanAge() time.Duration
+	GetMaxNumSpans() int
 	GetIndexPrefix() string
 	GetTagsFilePath() string
 	GetAllTagsAsFields() bool
 	GetTagDotReplacement() string
+	GetUseReadWriteAliases() bool
 }
 
 // NewClient creates a new ElasticSearch client
@@ -151,6 +155,9 @@ func (c *Configuration) ApplyDefaults(source *Configuration) {
 	if c.MaxSpanAge == 0 {
 		c.MaxSpanAge = source.MaxSpanAge
 	}
+	if c.MaxNumSpans == 0 {
+		c.MaxNumSpans = source.MaxNumSpans
+	}
 	if c.NumShards == 0 {
 		c.NumShards = source.NumShards
 	}
@@ -186,6 +193,11 @@ func (c *Configuration) GetMaxSpanAge() time.Duration {
 	return c.MaxSpanAge
 }
 
+// GetMaxNumSpans returns max spans allowed per query from Configuration
+func (c *Configuration) GetMaxNumSpans() int {
+	return c.MaxNumSpans
+}
+
 // GetIndexPrefix returns index prefix
 func (c *Configuration) GetIndexPrefix() string {
 	return c.IndexPrefix
@@ -205,6 +217,11 @@ func (c *Configuration) GetAllTagsAsFields() bool {
 // the tag is stored as object field.
 func (c *Configuration) GetTagDotReplacement() string {
 	return c.TagDotReplacement
+}
+
+// GetUseReadWriteAliases indicates whether read alias should be used
+func (c *Configuration) GetUseReadWriteAliases() bool {
+	return c.UseReadWriteAliases
 }
 
 // getConfigOptions wraps the configs to feed to the ElasticSearch client init

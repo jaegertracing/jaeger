@@ -40,8 +40,6 @@ type SpanProcessorMetrics struct {
 	BatchSize metrics.Gauge // size of span batch
 	// QueueLength measures the size of the internal span queue
 	QueueLength metrics.Gauge
-	// ErrorBusy counts number of return ErrServerBusy
-	ErrorBusy metrics.Counter
 	// SavedOkBySvc contains span and trace counts by service
 	SavedOkBySvc  metricsBySvc  // spans actually saved
 	SavedErrBySvc metricsBySvc  // spans failed to save
@@ -74,32 +72,31 @@ type CountsBySpanType struct {
 // NewSpanProcessorMetrics returns a SpanProcessorMetrics
 func NewSpanProcessorMetrics(serviceMetrics metrics.Factory, hostMetrics metrics.Factory, otherFormatTypes []string) *SpanProcessorMetrics {
 	spanCounts := map[string]CountsBySpanType{
-		ZipkinFormatType:  newCountsBySpanType(serviceMetrics.Namespace("", map[string]string{"format": ZipkinFormatType})),
-		JaegerFormatType:  newCountsBySpanType(serviceMetrics.Namespace("", map[string]string{"format": JaegerFormatType})),
-		UnknownFormatType: newCountsBySpanType(serviceMetrics.Namespace("", map[string]string{"format": UnknownFormatType})),
+		ZipkinFormatType:  newCountsBySpanType(serviceMetrics.Namespace(metrics.NSOptions{Name: "", Tags: map[string]string{"format": ZipkinFormatType}})),
+		JaegerFormatType:  newCountsBySpanType(serviceMetrics.Namespace(metrics.NSOptions{Name: "", Tags: map[string]string{"format": JaegerFormatType}})),
+		UnknownFormatType: newCountsBySpanType(serviceMetrics.Namespace(metrics.NSOptions{Name: "", Tags: map[string]string{"format": UnknownFormatType}})),
 	}
 	for _, otherFormatType := range otherFormatTypes {
-		spanCounts[otherFormatType] = newCountsBySpanType(serviceMetrics.Namespace("", map[string]string{"format": otherFormatType}))
+		spanCounts[otherFormatType] = newCountsBySpanType(serviceMetrics.Namespace(metrics.NSOptions{Name: "", Tags: map[string]string{"format": otherFormatType}}))
 	}
 	m := &SpanProcessorMetrics{
-		SaveLatency:    hostMetrics.Timer("save-latency", nil),
-		InQueueLatency: hostMetrics.Timer("in-queue-latency", nil),
-		SpansDropped:   hostMetrics.Counter("spans.dropped", nil),
-		BatchSize:      hostMetrics.Gauge("batch-size", nil),
-		QueueLength:    hostMetrics.Gauge("queue-length", nil),
-		ErrorBusy:      hostMetrics.Counter("error.busy", nil),
-		SavedOkBySvc:   newMetricsBySvc(serviceMetrics.Namespace("", map[string]string{"result": "ok"}), "saved-by-svc"),
-		SavedErrBySvc:  newMetricsBySvc(serviceMetrics.Namespace("", map[string]string{"result": "err"}), "saved-by-svc"),
+		SaveLatency:    hostMetrics.Timer(metrics.TimerOptions{Name: "save-latency", Tags: nil}),
+		InQueueLatency: hostMetrics.Timer(metrics.TimerOptions{Name: "in-queue-latency", Tags: nil}),
+		SpansDropped:   hostMetrics.Counter(metrics.Options{Name: "spans.dropped", Tags: nil}),
+		BatchSize:      hostMetrics.Gauge(metrics.Options{Name: "batch-size", Tags: nil}),
+		QueueLength:    hostMetrics.Gauge(metrics.Options{Name: "queue-length", Tags: nil}),
+		SavedOkBySvc:   newMetricsBySvc(serviceMetrics.Namespace(metrics.NSOptions{Name: "", Tags: map[string]string{"result": "ok"}}), "saved-by-svc"),
+		SavedErrBySvc:  newMetricsBySvc(serviceMetrics.Namespace(metrics.NSOptions{Name: "", Tags: map[string]string{"result": "err"}}), "saved-by-svc"),
 		spanCounts:     spanCounts,
-		serviceNames:   hostMetrics.Gauge("spans.serviceNames", nil),
+		serviceNames:   hostMetrics.Gauge(metrics.Options{Name: "spans.serviceNames", Tags: nil}),
 	}
 
 	return m
 }
 
 func newMetricsBySvc(factory metrics.Factory, category string) metricsBySvc {
-	spansFactory := factory.Namespace("spans", nil)
-	tracesFactory := factory.Namespace("traces", nil)
+	spansFactory := factory.Namespace(metrics.NSOptions{Name: "spans", Tags: nil})
+	tracesFactory := factory.Namespace(metrics.NSOptions{Name: "traces", Tags: nil})
 	return metricsBySvc{
 		spans:  newCountsBySvc(spansFactory, category, maxServiceNames),
 		traces: newCountsBySvc(tracesFactory, category, maxServiceNames),
@@ -109,10 +106,10 @@ func newMetricsBySvc(factory metrics.Factory, category string) metricsBySvc {
 func newCountsBySvc(factory metrics.Factory, category string, maxServiceNames int) countsBySvc {
 	return countsBySvc{
 		counts: map[string]metrics.Counter{
-			otherServices: factory.Counter(category, map[string]string{"svc": otherServices, "debug": "false"}),
+			otherServices: factory.Counter(metrics.Options{Name: category, Tags: map[string]string{"svc": otherServices, "debug": "false"}}),
 		},
 		debugCounts: map[string]metrics.Counter{
-			otherServices: factory.Counter(category, map[string]string{"svc": otherServices, "debug": "true"}),
+			otherServices: factory.Counter(metrics.Options{Name: category, Tags: map[string]string{"svc": otherServices, "debug": "true"}}),
 		},
 		factory:         factory,
 		lock:            &sync.Mutex{},
@@ -186,7 +183,7 @@ func (m *countsBySvc) countByServiceName(serviceName string, isDebug bool) {
 		if isDebug {
 			debugStr = "true"
 		}
-		c := m.factory.Counter(m.category, map[string]string{"svc": serviceName, "debug": debugStr})
+		c := m.factory.Counter(metrics.Options{Name: m.category, Tags: map[string]string{"svc": serviceName, "debug": debugStr}})
 		counts[serviceName] = c
 		counter = c
 	} else {

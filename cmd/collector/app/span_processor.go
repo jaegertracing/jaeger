@@ -140,9 +140,5 @@ func (sp *spanProcessor) enqueueSpan(span *model.Span, originalFormat string) bo
 		queuedTime: time.Now(),
 		span:       span,
 	}
-	addedToQueue := sp.queue.Produce(item)
-	if !addedToQueue {
-		sp.metrics.ErrorBusy.Inc(1)
-	}
-	return addedToQueue
+	return sp.queue.Produce(item)
 }

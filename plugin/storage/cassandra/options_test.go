@@ -49,7 +49,8 @@ func TestOptionsWithFlags(t *testing.T) {
 	v, command := config.Viperize(opts.AddFlags)
 	command.ParseFlags([]string{
 		"--cas.keyspace=jaeger",
-		"--cas.servers=1.1.1.1,2.2.2.2",
+		"--cas.local-dc=mojave",
+		"--cas.servers=1.1.1.1, 2.2.2.2",
 		"--cas.connections-per-host=42",
 		"--cas.reconnect-interval=42s",
 		"--cas.max-retry-attempts=42",
@@ -61,12 +62,13 @@ func TestOptionsWithFlags(t *testing.T) {
 		// enable aux with a couple overrides
 		"--cas-aux.enabled=true",
 		"--cas-aux.keyspace=jaeger-archive",
-		"--cas-aux.servers=3.3.3.3,4.4.4.4",
+		"--cas-aux.servers=3.3.3.3, 4.4.4.4",
 	})
 	opts.InitFromViper(v)
 
 	primary := opts.GetPrimary()
 	assert.Equal(t, "jaeger", primary.Keyspace)
+	assert.Equal(t, "mojave", primary.LocalDC)
 	assert.Equal(t, []string{"1.1.1.1", "2.2.2.2"}, primary.Servers)
 	assert.Equal(t, "ONE", primary.Consistency)
 

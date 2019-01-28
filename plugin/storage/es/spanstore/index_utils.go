@@ -1,4 +1,4 @@
-// Copyright (c) 2017 Uber Technologies, Inc.
+// Copyright (c) 2018 The Jaeger Authors.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -12,20 +12,19 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package testutils
+package spanstore
 
 import (
-	"testing"
-
-	"github.com/stretchr/testify/require"
-	"github.com/uber/jaeger-lib/metrics/metricstest"
+	"time"
 )
 
-// InitMockCollector initializes a MockTCollector fixture
-func InitMockCollector(t *testing.T) (*metricstest.Factory, *MockTCollector) {
-	factory := metricstest.NewFactory(0)
-	collector, err := StartMockTCollector()
-	require.NoError(t, err)
+// returns index name with date
+func indexWithDate(indexPrefix string, date time.Time) string {
+	spanDate := date.UTC().Format("2006-01-02")
+	return indexPrefix + spanDate
+}
 
-	return factory, collector
+// returns archive index name
+func archiveIndex(indexPrefix, archiveSuffix string) string {
+	return indexPrefix + archiveSuffix
 }
