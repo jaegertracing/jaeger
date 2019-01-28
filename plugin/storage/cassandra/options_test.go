@@ -50,7 +50,7 @@ func TestOptionsWithFlags(t *testing.T) {
 	command.ParseFlags([]string{
 		"--cas.keyspace=jaeger",
 		"--cas.local-dc=mojave",
-		"--cas.servers=1.1.1.1,2.2.2.2",
+		"--cas.servers=1.1.1.1, 2.2.2.2",
 		"--cas.connections-per-host=42",
 		"--cas.reconnect-interval=42s",
 		"--cas.max-retry-attempts=42",
@@ -62,7 +62,7 @@ func TestOptionsWithFlags(t *testing.T) {
 		// enable aux with a couple overrides
 		"--cas-aux.enabled=true",
 		"--cas-aux.keyspace=jaeger-archive",
-		"--cas-aux.servers=3.3.3.3,4.4.4.4",
+		"--cas-aux.servers=3.3.3.3, 4.4.4.4",
 	})
 	opts.InitFromViper(v)
 
