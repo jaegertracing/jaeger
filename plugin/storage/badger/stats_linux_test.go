@@ -18,7 +18,7 @@ import (
 	"testing"
 
 	assert "github.com/stretchr/testify/require"
-	"github.com/uber/jaeger-lib/metrics"
+	"github.com/uber/jaeger-lib/metrics/metricstest"
 	"go.uber.org/zap"
 
 	"github.com/jaegertracing/jaeger/pkg/config"
@@ -33,7 +33,7 @@ func TestDiskStatisticsUpdate(t *testing.T) {
 		"--badger.consistency=false",
 	})
 	f.InitFromViper(v)
-	mFactory := metrics.NewLocalFactory(0)
+	mFactory := metricstest.NewFactory(0)
 	err := f.Initialize(mFactory, zap.NewNop())
 	assert.NoError(t, err)
 

@@ -110,10 +110,10 @@ func (f *Factory) Initialize(metricsFactory metrics.Factory, logger *zap.Logger)
 	cache, _ := badgerStore.NewCacheStore(f.store, f.Options.primary.SpanStoreTTL)
 	f.cache = cache
 
-	f.metrics.ValueLogSpaceAvailable = metricsFactory.Gauge(valueLogSpaceAvailableName, nil)
-	f.metrics.KeyLogSpaceAvailable = metricsFactory.Gauge(keyLogSpaceAvailableName, nil)
-	f.metrics.LastMaintenanceRun = metricsFactory.Gauge(lastMaintenanceRunName, nil)
-	f.metrics.LastValueLogCleaned = metricsFactory.Gauge(lastValueLogCleanedName, nil)
+	f.metrics.ValueLogSpaceAvailable = metricsFactory.Gauge(metrics.Options{Name: valueLogSpaceAvailableName})
+	f.metrics.KeyLogSpaceAvailable = metricsFactory.Gauge(metrics.Options{Name: keyLogSpaceAvailableName})
+	f.metrics.LastMaintenanceRun = metricsFactory.Gauge(metrics.Options{Name: lastMaintenanceRunName})
+	f.metrics.LastValueLogCleaned = metricsFactory.Gauge(metrics.Options{Name: lastValueLogCleanedName})
 
 	go f.maintenance()
 

@@ -24,6 +24,7 @@ import (
 
 	assert "github.com/stretchr/testify/require"
 	"github.com/uber/jaeger-lib/metrics"
+	"github.com/uber/jaeger-lib/metrics/metricstest"
 	"go.uber.org/zap"
 
 	"github.com/jaegertracing/jaeger/pkg/config"
@@ -76,7 +77,7 @@ func TestMaintenanceRun(t *testing.T) {
 	})
 	f.InitFromViper(v)
 	// Safeguard
-	mFactory := metrics.NewLocalFactory(0)
+	mFactory := metricstest.NewFactory(0)
 	_, gs := mFactory.Snapshot()
 	assert.True(t, gs[lastMaintenanceRunName] == 0)
 	f.Initialize(mFactory, zap.NewNop())
@@ -120,7 +121,7 @@ func TestMaintenanceCodecov(t *testing.T) {
 		"--badger.maintenance-interval=10ms",
 	})
 	f.InitFromViper(v)
-	mFactory := metrics.NewLocalFactory(0)
+	mFactory := metricstest.NewFactory(0)
 	f.Initialize(mFactory, zap.NewNop())
 
 	waiter := func() {
