@@ -74,8 +74,13 @@ func (opt *Options) AddFlags(flagSet *flag.FlagSet) {
 // InitFromViper initializes Options with properties from viper
 func (opt *Options) InitFromViper(v *viper.Viper) {
 	opt.config = producer.Configuration{
-		Brokers: strings.Split(v.GetString(configPrefix+suffixBrokers), ","),
+		Brokers: strings.Split(stripWhiteSpace(v.GetString(configPrefix+suffixBrokers)), ","),
 	}
 	opt.topic = v.GetString(configPrefix + suffixTopic)
 	opt.encoding = v.GetString(configPrefix + suffixEncoding)
+}
+
+// stripWhiteSpace removes all whitespace characters from a string
+func stripWhiteSpace(str string) string {
+	return strings.Replace(str, " ", "", -1)
 }

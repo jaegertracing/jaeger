@@ -218,7 +218,7 @@ func initFromViper(cfg *namespaceConfig, v *viper.Viper) {
 	cfg.Username = v.GetString(cfg.namespace + suffixUsername)
 	cfg.Password = v.GetString(cfg.namespace + suffixPassword)
 	cfg.Sniffer = v.GetBool(cfg.namespace + suffixSniffer)
-	cfg.servers = v.GetString(cfg.namespace + suffixServerURLs)
+	cfg.servers = stripWhiteSpace(v.GetString(cfg.namespace + suffixServerURLs))
 	cfg.MaxSpanAge = v.GetDuration(cfg.namespace + suffixMaxSpanAge)
 	cfg.MaxNumSpans = v.GetInt(cfg.namespace + suffixMaxNumSpans)
 	cfg.NumShards = v.GetInt64(cfg.namespace + suffixNumShards)
@@ -258,4 +258,9 @@ func (opt *Options) Get(namespace string) *config.Configuration {
 	}
 	nsCfg.Servers = strings.Split(nsCfg.servers, ",")
 	return &nsCfg.Configuration
+}
+
+// stripWhiteSpace removes all whitespace characters from a string
+func stripWhiteSpace(str string) string {
+	return strings.Replace(str, " ", "", -1)
 }
