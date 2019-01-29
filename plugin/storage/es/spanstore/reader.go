@@ -136,7 +136,7 @@ func (s *SpanReader) GetTrace(ctx context.Context, traceID model.TraceID) (*mode
 	span, ctx := opentracing.StartSpanFromContext(ctx, "GetTrace")
 	defer span.Finish()
 	currentTime := time.Now()
-	traces, err := s.multiRead(ctx, []string{traceID.String()}, currentTime.Add(-s.maxSpanAge), currentTime)
+	traces, err := s.multiRead(ctx, []model.TraceID{traceID}, currentTime.Add(-s.maxSpanAge), currentTime)
 	if err != nil {
 		return nil, err
 	}
@@ -221,7 +221,7 @@ func (s *SpanReader) FindTraces(ctx context.Context, traceQuery *spanstore.Trace
 	span, ctx := opentracing.StartSpanFromContext(ctx, "FindTraces")
 	defer span.Finish()
 
-	uniqueTraceIDs, err := s.validateQueryAndFindTraceIDs(ctx, traceQuery)
+	uniqueTraceIDs, err := s.FindTraceIDs(ctx, traceQuery)
 	if err != nil {
 		return nil, err
 	}
@@ -233,7 +233,14 @@ func (s *SpanReader) FindTraceIDs(ctx context.Context, traceQuery *spanstore.Tra
 	span, ctx := opentracing.StartSpanFromContext(ctx, "FindTraceIDs")
 	defer span.Finish()
 
-	esTraceIDs, err := s.validateQueryAndFindTraceIDs(ctx, traceQuery)
+	if err := validateQuery(traceQuery); err != nil {
+		return nil, err
+	}
+	if traceQuery.NumTraces == 0 {
+		traceQuery.NumTraces = defaultNumTraces
+	}
+
+	esTraceIDs, err := s.findTraceIDs(ctx, traceQuery)
 	if err != nil {
 		return nil, err
 	}
@@ -251,7 +258,7 @@ func (s *SpanReader) FindTraceIDs(ctx context.Context, traceQuery *spanstore.Tra
 	return traceIDs, nil
 }
 
-func (s *SpanReader) multiRead(ctx context.Context, traceIDs []string, startTime, endTime time.Time) ([]*model.Trace, error) {
+func (s *SpanReader) multiRead(ctx context.Context, traceIDs []model.TraceID, startTime, endTime time.Time) ([]*model.Trace, error) {
 
 	childSpan, _ := opentracing.StartSpanFromContext(ctx, "multiRead")
 	childSpan.LogFields(otlog.Object("trace_ids", traceIDs))
@@ -269,9 +276,9 @@ func (s *SpanReader) multiRead(ctx context.Context, traceIDs []string, startTime
 
 	nextTime := model.TimeAsEpochMicroseconds(startTime.Add(-time.Hour))
 
-	searchAfterTime := make(map[string]uint64)
-	totalDocumentsFetched := make(map[string]int)
-	tracesMap := make(map[string]*model.Trace)
+	searchAfterTime := make(map[model.TraceID]uint64)
+	totalDocumentsFetched := make(map[model.TraceID]int)
+	tracesMap := make(map[model.TraceID]*model.Trace)
 	for {
 		if len(traceIDs) == 0 {
 			break
@@ -307,18 +314,17 @@ func (s *SpanReader) multiRead(ctx context.Context, traceIDs []string, startTime
 				return nil, err
 			}
 			lastSpan := spans[len(spans)-1]
-			lastSpanTraceID := lastSpan.TraceID.String()
 
-			if traceSpan, ok := tracesMap[lastSpanTraceID]; ok {
+			if traceSpan, ok := tracesMap[lastSpan.TraceID]; ok {
 				traceSpan.Spans = append(traceSpan.Spans, spans...)
 			} else {
-				tracesMap[lastSpanTraceID] = &model.Trace{Spans: spans}
+				tracesMap[lastSpan.TraceID] = &model.Trace{Spans: spans}
 			}
 
-			totalDocumentsFetched[lastSpanTraceID] = totalDocumentsFetched[lastSpanTraceID] + len(result.Hits.Hits)
-			if totalDocumentsFetched[lastSpanTraceID] < int(result.TotalHits()) {
-				traceIDs = append(traceIDs, lastSpanTraceID)
-				searchAfterTime[lastSpanTraceID] = model.TimeAsEpochMicroseconds(lastSpan.StartTime)
+			totalDocumentsFetched[lastSpan.TraceID] = totalDocumentsFetched[lastSpan.TraceID] + len(result.Hits.Hits)
+			if totalDocumentsFetched[lastSpan.TraceID] < int(result.TotalHits()) {
+				traceIDs = append(traceIDs, lastSpan.TraceID)
+				searchAfterTime[lastSpan.TraceID] = model.TimeAsEpochMicroseconds(lastSpan.StartTime)
 			}
 		}
 	}
@@ -327,17 +333,6 @@ func (s *SpanReader) multiRead(ctx context.Context, traceIDs []string, startTime
 		traces = append(traces, trace)
 	}
 	return traces, nil
-}
-
-func (s *SpanReader) validateQueryAndFindTraceIDs(ctx context.Context, traceQuery *spanstore.TraceQueryParameters) ([]string, error) {
-	if err := validateQuery(traceQuery); err != nil {
-		return nil, err
-	}
-	if traceQuery.NumTraces == 0 {
-		traceQuery.NumTraces = defaultNumTraces
-	}
-
-	return s.findTraceIDs(ctx, traceQuery)
 }
 
 func validateQuery(p *spanstore.TraceQueryParameters) error {
