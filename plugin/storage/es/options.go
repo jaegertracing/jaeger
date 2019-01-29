@@ -22,6 +22,7 @@ import (
 	"github.com/spf13/viper"
 
 	"github.com/jaegertracing/jaeger/pkg/es/config"
+	"github.com/jaegertracing/jaeger/plugin/storage/helper"
 )
 
 const (
@@ -218,7 +219,7 @@ func initFromViper(cfg *namespaceConfig, v *viper.Viper) {
 	cfg.Username = v.GetString(cfg.namespace + suffixUsername)
 	cfg.Password = v.GetString(cfg.namespace + suffixPassword)
 	cfg.Sniffer = v.GetBool(cfg.namespace + suffixSniffer)
-	cfg.servers = v.GetString(cfg.namespace + suffixServerURLs)
+	cfg.servers = helper.StripWhiteSpace(v.GetString(cfg.namespace + suffixServerURLs))
 	cfg.MaxSpanAge = v.GetDuration(cfg.namespace + suffixMaxSpanAge)
 	cfg.MaxNumSpans = v.GetInt(cfg.namespace + suffixMaxNumSpans)
 	cfg.NumShards = v.GetInt64(cfg.namespace + suffixNumShards)

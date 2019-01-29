@@ -22,6 +22,7 @@ import (
 	"github.com/spf13/viper"
 
 	"github.com/jaegertracing/jaeger/pkg/cassandra/config"
+	"github.com/jaegertracing/jaeger/plugin/storage/helper"
 )
 
 const (
@@ -216,7 +217,7 @@ func (cfg *namespaceConfig) initFromViper(v *viper.Viper) {
 	cfg.MaxRetryAttempts = v.GetInt(cfg.namespace + suffixMaxRetryAttempts)
 	cfg.Timeout = v.GetDuration(cfg.namespace + suffixTimeout)
 	cfg.ReconnectInterval = v.GetDuration(cfg.namespace + suffixReconnectInterval)
-	cfg.servers = stripWhiteSpace(v.GetString(cfg.namespace + suffixServers))
+	cfg.servers = helper.StripWhiteSpace(v.GetString(cfg.namespace + suffixServers))
 	cfg.Port = v.GetInt(cfg.namespace + suffixPort)
 	cfg.Keyspace = v.GetString(cfg.namespace + suffixKeyspace)
 	cfg.LocalDC = v.GetString(cfg.namespace + suffixDC)
@@ -255,9 +256,4 @@ func (opt *Options) Get(namespace string) *config.Configuration {
 	}
 	nsCfg.Servers = strings.Split(nsCfg.servers, ",")
 	return &nsCfg.Configuration
-}
-
-// stripWhiteSpace removes all whitespace characters from a string
-func stripWhiteSpace(str string) string {
-	return strings.Replace(str, " ", "", -1)
 }

@@ -22,6 +22,7 @@ import (
 	"github.com/spf13/viper"
 
 	"github.com/jaegertracing/jaeger/pkg/kafka/producer"
+	"github.com/jaegertracing/jaeger/plugin/storage/helper"
 )
 
 const (
@@ -74,7 +75,7 @@ func (opt *Options) AddFlags(flagSet *flag.FlagSet) {
 // InitFromViper initializes Options with properties from viper
 func (opt *Options) InitFromViper(v *viper.Viper) {
 	opt.config = producer.Configuration{
-		Brokers: strings.Split(v.GetString(configPrefix+suffixBrokers), ","),
+		Brokers: strings.Split(helper.StripWhiteSpace(v.GetString(configPrefix+suffixBrokers)), ","),
 	}
 	opt.topic = v.GetString(configPrefix + suffixTopic)
 	opt.encoding = v.GetString(configPrefix + suffixEncoding)
