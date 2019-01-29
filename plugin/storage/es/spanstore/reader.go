@@ -330,9 +330,6 @@ func (s *SpanReader) multiRead(ctx context.Context, traceIDs []string, startTime
 }
 
 func (s *SpanReader) validateQueryAndFindTraceIDs(ctx context.Context, traceQuery *spanstore.TraceQueryParameters) ([]string, error) {
-	childSpan, _ := opentracing.StartSpanFromContext(ctx, "validateQueryAndFindTraceIDs")
-	defer childSpan.Finish()
-
 	if err := validateQuery(traceQuery); err != nil {
 		return nil, err
 	}
