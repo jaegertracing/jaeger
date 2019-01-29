@@ -33,6 +33,11 @@ import (
 	"github.com/jaegertracing/jaeger/storage/spanstore"
 )
 
+const (
+	primaryNamespace = "es"
+	archiveNamespace = "es-archive"
+)
+
 // Factory implements storage.Factory for Elasticsearch backend.
 type Factory struct {
 	Options *Options
@@ -42,12 +47,14 @@ type Factory struct {
 
 	primaryConfig config.ClientBuilder
 	primaryClient es.Client
+	archiveConfig config.ClientBuilder
+	archiveClient es.Client
 }
 
 // NewFactory creates a new Factory.
 func NewFactory() *Factory {
 	return &Factory{
-		Options: NewOptions("es"), // TODO add "es-archive" once supported
+		Options: NewOptions(primaryNamespace, archiveNamespace),
 	}
 }
 
@@ -60,6 +67,7 @@ func (f *Factory) AddFlags(flagSet *flag.FlagSet) {
 func (f *Factory) InitFromViper(v *viper.Viper) {
 	f.Options.InitFromViper(v)
 	f.primaryConfig = f.Options.GetPrimary()
+	f.archiveConfig = f.Options.Get(archiveNamespace)
 }
 
 // Initialize implements storage.Factory
@@ -71,44 +79,22 @@ func (f *Factory) Initialize(metricsFactory metrics.Factory, logger *zap.Logger)
 		return err
 	}
 	f.primaryClient = primaryClient
-	// TODO init archive (cf. https://github.com/jaegertracing/jaeger/pull/604)
+	archiveClient, err := f.archiveConfig.NewClient(logger, metricsFactory)
+	if err != nil {
+		return err
+	}
+	f.archiveClient = archiveClient
 	return nil
 }
 
 // CreateSpanReader implements storage.Factory
 func (f *Factory) CreateSpanReader() (spanstore.Reader, error) {
-	cfg := f.primaryConfig
-	return esSpanStore.NewSpanReader(esSpanStore.SpanReaderParams{
-		Client:            f.primaryClient,
-		Logger:            f.logger,
-		MetricsFactory:    f.metricsFactory,
-		MaxSpanAge:        cfg.GetMaxSpanAge(),
-		IndexPrefix:       cfg.GetIndexPrefix(),
-		TagDotReplacement: cfg.GetTagDotReplacement(),
-	}), nil
+	return createSpanReader(f.metricsFactory, f.logger, f.primaryClient, f.primaryConfig, false)
 }
 
 // CreateSpanWriter implements storage.Factory
 func (f *Factory) CreateSpanWriter() (spanstore.Writer, error) {
-	cfg := f.primaryConfig
-	var tags []string
-	if cfg.GetTagsFilePath() != "" {
-		var err error
-		if tags, err = loadTagsFromFile(cfg.GetTagsFilePath()); err != nil {
-			f.logger.Error("Could not open file with tags", zap.Error(err))
-			return nil, err
-		}
-	}
-	return esSpanStore.NewSpanWriter(esSpanStore.SpanWriterParams{Client: f.primaryClient,
-		Logger:            f.logger,
-		MetricsFactory:    f.metricsFactory,
-		NumShards:         f.primaryConfig.GetNumShards(),
-		NumReplicas:       f.primaryConfig.GetNumReplicas(),
-		IndexPrefix:       f.primaryConfig.GetIndexPrefix(),
-		AllTagsAsFields:   f.primaryConfig.GetAllTagsAsFields(),
-		TagKeysAsFields:   tags,
-		TagDotReplacement: f.primaryConfig.GetTagDotReplacement(),
-	}), nil
+	return createSpanWriter(f.metricsFactory, f.logger, f.archiveClient, f.primaryConfig, false)
 }
 
 // CreateDependencyReader implements storage.Factory
@@ -132,4 +118,64 @@ func loadTagsFromFile(filePath string) ([]string, error) {
 		}
 	}
 	return tags, nil
+}
+
+// CreateArchiveSpanReader implements storage.ArchiveFactory
+func (f *Factory) CreateArchiveSpanReader() (spanstore.Reader, error) {
+	return createSpanReader(f.metricsFactory, f.logger, f.archiveClient, f.Options.Get(archiveNamespace), true)
+}
+
+// CreateArchiveSpanWriter implements storage.ArchiveFactory
+func (f *Factory) CreateArchiveSpanWriter() (spanstore.Writer, error) {
+	return createSpanWriter(f.metricsFactory, f.logger, f.archiveClient, f.Options.Get(archiveNamespace), true)
+}
+
+func createSpanReader(
+	mFactory metrics.Factory,
+	logger *zap.Logger,
+	client es.Client,
+	cfg config.ClientBuilder,
+	archive bool,
+) (spanstore.Reader, error) {
+	return esSpanStore.NewSpanReader(esSpanStore.SpanReaderParams{
+		Client:              client,
+		Logger:              logger,
+		MetricsFactory:      mFactory,
+		MaxNumSpans:         cfg.GetMaxNumSpans(),
+		MaxSpanAge:          cfg.GetMaxSpanAge(),
+		IndexPrefix:         cfg.GetIndexPrefix(),
+		TagDotReplacement:   cfg.GetTagDotReplacement(),
+		UseReadWriteAliases: cfg.GetUseReadWriteAliases(),
+		Archive:             archive,
+	}), nil
+}
+
+func createSpanWriter(
+	mFactory metrics.Factory,
+	logger *zap.Logger,
+	client es.Client,
+	cfg config.ClientBuilder,
+	archive bool,
+) (spanstore.Writer, error) {
+	var tags []string
+	if cfg.GetTagsFilePath() != "" {
+		var err error
+		if tags, err = loadTagsFromFile(cfg.GetTagsFilePath()); err != nil {
+			logger.Error("Could not open file with tags", zap.Error(err))
+			return nil, err
+		}
+	}
+	return esSpanStore.NewSpanWriter(esSpanStore.SpanWriterParams{
+		Client:              client,
+		Logger:              logger,
+		MetricsFactory:      mFactory,
+		NumShards:           cfg.GetNumShards(),
+		NumReplicas:         cfg.GetNumReplicas(),
+		IndexPrefix:         cfg.GetIndexPrefix(),
+		AllTagsAsFields:     cfg.GetAllTagsAsFields(),
+		TagKeysAsFields:     tags,
+		TagDotReplacement:   cfg.GetTagDotReplacement(),
+		Archive:             archive,
+		UseReadWriteAliases: cfg.GetUseReadWriteAliases(),
+	}), nil
 }

@@ -54,7 +54,7 @@ func NewCollectorProxy(o *Options, mFactory metrics.Factory, logger *zap.Logger)
 		// It does not return error if the collector is not running
 		conn, _ = grpc.Dial(o.CollectorHostPort[0], grpc.WithInsecure())
 	}
-	grpcMetrics := mFactory.Namespace("", map[string]string{"protocol": "grpc"})
+	grpcMetrics := mFactory.Namespace(metrics.NSOptions{Name: "", Tags: map[string]string{"protocol": "grpc"}})
 	return &ProxyBuilder{
 		conn:     conn,
 		reporter: aReporter.WrapWithMetrics(NewReporter(conn, logger), grpcMetrics),

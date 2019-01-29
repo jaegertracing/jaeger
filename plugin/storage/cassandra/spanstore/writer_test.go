@@ -21,8 +21,8 @@ import (
 	"time"
 
 	"github.com/stretchr/testify/assert"
-	"github.com/uber/jaeger-lib/metrics"
 	"go.uber.org/zap"
+	"github.com/uber/jaeger-lib/metrics/metricstest"
 
 	"github.com/jaegertracing/jaeger/model"
 	"github.com/jaegertracing/jaeger/pkg/cassandra/mocks"
@@ -42,7 +42,7 @@ func withSpanWriter(writeCacheTTL time.Duration, fn func(w *spanWriterTest), opt
 ) {
 	session := &mocks.Session{}
 	logger, logBuffer := testutils.NewLogger()
-	metricsFactory := metrics.NewLocalFactory(0)
+	metricsFactory := metricstest.NewFactory(0)
 	w := &spanWriterTest{
 		session:   session,
 		logger:    logger,
@@ -122,7 +122,7 @@ func TestSpanWriter(t *testing.T) {
 			},
 		},
 		{
-			caption:                        "add span to operation name index",
+			caption: "add span to operation name index",
 			serviceOperationNameQueryError: errors.New("serviceOperationNameQueryError"),
 			expectedError:                  "Failed to index operation name: failed to Exec query 'select from service_operation_index': serviceOperationNameQueryError",
 			expectedLogs: []string{
@@ -132,7 +132,7 @@ func TestSpanWriter(t *testing.T) {
 			},
 		},
 		{
-			caption:                       "add duration with no operation name",
+			caption: "add duration with no operation name",
 			durationNoOperationQueryError: errors.New("durationNoOperationError"),
 			expectedError:                 "Failed to index duration: failed to Exec query 'select from duration_index': durationNoOperationError",
 			expectedLogs: []string{

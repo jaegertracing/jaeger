@@ -21,6 +21,7 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"github.com/uber/jaeger-lib/metrics"
+	"github.com/uber/jaeger-lib/metrics/metricstest"
 
 	"github.com/jaegertracing/jaeger/cmd/ingester/app/processor/mocks"
 )
@@ -34,7 +35,7 @@ func TestNewRetryingProcessor(t *testing.T) {
 	mockProcessor := &mocks.SpanProcessor{}
 	msg := &fakeMsg{}
 	mockProcessor.On("Process", msg).Return(nil)
-	lf := metrics.NewLocalFactory(0)
+	lf := metricstest.NewFactory(0)
 	rp := NewRetryingProcessor(lf, mockProcessor)
 
 	assert.NoError(t, rp.Process(msg))
@@ -55,7 +56,7 @@ func TestNewRetryingProcessorError(t *testing.T) {
 		MaxAttempts(2),
 		PropagateError(true),
 		Rand(&fakeRand{})}
-	lf := metrics.NewLocalFactory(0)
+	lf := metricstest.NewFactory(0)
 	rp := NewRetryingProcessor(lf, mockProcessor, opts...)
 
 	assert.Error(t, rp.Process(msg))
@@ -77,7 +78,7 @@ func TestNewRetryingProcessorNoErrorPropagation(t *testing.T) {
 		PropagateError(false),
 		Rand(&fakeRand{})}
 
-	lf := metrics.NewLocalFactory(0)
+	lf := metricstest.NewFactory(0)
 	rp := NewRetryingProcessor(lf, mockProcessor, opts...)
 
 	assert.NoError(t, rp.Process(msg))

@@ -36,7 +36,7 @@ func NewCollectorProxy(builder *Builder, mFactory metrics.Factory, logger *zap.L
 	if err != nil {
 		return nil, err
 	}
-	tchannelMetrics := mFactory.Namespace("", map[string]string{"protocol": "tchannel"})
+	tchannelMetrics := mFactory.Namespace(metrics.NSOptions{Name: "", Tags: map[string]string{"protocol": "tchannel"}})
 	return &ProxyBuilder{
 		tchanRep: r,
 		reporter: reporter.WrapWithMetrics(r, tchannelMetrics),

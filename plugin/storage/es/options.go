@@ -30,6 +30,7 @@ const (
 	suffixSniffer           = ".sniffer"
 	suffixServerURLs        = ".server-urls"
 	suffixMaxSpanAge        = ".max-span-age"
+	suffixMaxNumSpans       = ".max-num-spans"
 	suffixNumShards         = ".num-shards"
 	suffixNumReplicas       = ".num-replicas"
 	suffixBulkSize          = ".bulk.size"
@@ -46,6 +47,7 @@ const (
 	suffixTagsAsFieldsAll   = suffixTagsAsFields + ".all"
 	suffixTagsFile          = suffixTagsAsFields + ".config-file"
 	suffixTagDeDotChar      = suffixTagsAsFields + ".dot-replacement"
+	suffixReadAlias         = ".use-aliases"
 )
 
 // TODO this should be moved next to config.Configuration struct (maybe ./flags package)
@@ -78,6 +80,7 @@ func NewOptions(primaryNamespace string, otherNamespaces ...string) *Options {
 				Password:          "",
 				Sniffer:           false,
 				MaxSpanAge:        72 * time.Hour,
+				MaxNumSpans:       10000,
 				NumShards:         5,
 				NumReplicas:       1,
 				BulkSize:          5 * 1000 * 1000,
@@ -132,6 +135,10 @@ func addFlags(flagSet *flag.FlagSet, nsConfig *namespaceConfig) {
 		nsConfig.namespace+suffixMaxSpanAge,
 		nsConfig.MaxSpanAge,
 		"The maximum lookback for spans in ElasticSearch")
+	flagSet.Int(
+		nsConfig.namespace+suffixMaxNumSpans,
+		nsConfig.MaxNumSpans,
+		"The maximum number of spans to fetch at a time per query in Elasticsearch")
 	flagSet.Int64(
 		nsConfig.namespace+suffixNumShards,
 		nsConfig.NumShards,
@@ -175,7 +182,7 @@ func addFlags(flagSet *flag.FlagSet, nsConfig *namespaceConfig) {
 	flagSet.String(
 		nsConfig.namespace+suffixIndexPrefix,
 		nsConfig.IndexPrefix,
-		"Optional prefix of Jaeger indices. For example \"production\" creates \"production:jaeger-*\".")
+		"Optional prefix of Jaeger indices. For example \"production\" creates \"production-jaeger-*\".")
 	flagSet.Bool(
 		nsConfig.namespace+suffixTagsAsFieldsAll,
 		nsConfig.AllTagsAsFields,
@@ -188,6 +195,15 @@ func addFlags(flagSet *flag.FlagSet, nsConfig *namespaceConfig) {
 		nsConfig.namespace+suffixTagDeDotChar,
 		nsConfig.TagDotReplacement,
 		"(experimental) The character used to replace dots (\".\") in tag keys stored as object fields.")
+	// TODO add rollover support for main indices
+	if nsConfig.namespace == archiveNamespace {
+		flagSet.Bool(
+			nsConfig.namespace+suffixReadAlias,
+			nsConfig.UseReadWriteAliases,
+			"Use read and write aliases for indices. Use this option with Elasticsearch rollover "+
+				"API. It requires an external component to create aliases before startup and then performing its management. "+
+				"Note that "+nsConfig.namespace+suffixMaxSpanAge+" is not taken into the account and has to be substituted by external component managing read alias.")
+	}
 }
 
 // InitFromViper initializes Options with properties from viper
@@ -204,6 +220,7 @@ func initFromViper(cfg *namespaceConfig, v *viper.Viper) {
 	cfg.Sniffer = v.GetBool(cfg.namespace + suffixSniffer)
 	cfg.servers = v.GetString(cfg.namespace + suffixServerURLs)
 	cfg.MaxSpanAge = v.GetDuration(cfg.namespace + suffixMaxSpanAge)
+	cfg.MaxNumSpans = v.GetInt(cfg.namespace + suffixMaxNumSpans)
 	cfg.NumShards = v.GetInt64(cfg.namespace + suffixNumShards)
 	cfg.NumReplicas = v.GetInt64(cfg.namespace + suffixNumReplicas)
 	cfg.BulkSize = v.GetInt(cfg.namespace + suffixBulkSize)
@@ -219,6 +236,7 @@ func initFromViper(cfg *namespaceConfig, v *viper.Viper) {
 	cfg.AllTagsAsFields = v.GetBool(cfg.namespace + suffixTagsAsFieldsAll)
 	cfg.TagsFilePath = v.GetString(cfg.namespace + suffixTagsFile)
 	cfg.TagDotReplacement = v.GetString(cfg.namespace + suffixTagDeDotChar)
+	cfg.UseReadWriteAliases = v.GetBool(cfg.namespace + suffixReadAlias)
 }
 
 // GetPrimary returns primary configuration.

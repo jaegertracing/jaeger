@@ -63,7 +63,7 @@ func (spanHb *SpanHandlerBuilder) BuildHandlers() (
 	*app.GRPCHandler,
 ) {
 	hostname, _ := os.Hostname()
-	hostMetrics := spanHb.metricsFactory.Namespace("", map[string]string{"host": hostname})
+	hostMetrics := spanHb.metricsFactory.Namespace(metrics.NSOptions{Name: "", Tags: map[string]string{"host": hostname}})
 
 	spanProcessor := app.NewSpanProcessor(
 		spanHb.spanWriter,

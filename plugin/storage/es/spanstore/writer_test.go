@@ -23,8 +23,8 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
 	"github.com/stretchr/testify/require"
-	"github.com/uber/jaeger-lib/metrics"
 	"go.uber.org/zap"
+	"github.com/uber/jaeger-lib/metrics/metricstest"
 
 	"github.com/jaegertracing/jaeger/model"
 	"github.com/jaegertracing/jaeger/pkg/es/mocks"
@@ -43,7 +43,7 @@ type spanWriterTest struct {
 func withSpanWriter(fn func(w *spanWriterTest)) {
 	client := &mocks.Client{}
 	logger, logBuffer := testutils.NewLogger()
-	metricsFactory := metrics.NewLocalFactory(0)
+	metricsFactory := metricstest.NewFactory(0)
 	w := &spanWriterTest{
 		client:    client,
 		logger:    logger,
@@ -55,23 +55,36 @@ func withSpanWriter(fn func(w *spanWriterTest)) {
 
 var _ spanstore.Writer = &SpanWriter{} // check API conformance
 
-func TestNewSpanWriterIndexPrefix(t *testing.T) {
-	testCases := []struct {
-		prefix   string
-		expected string
-	}{
-		{prefix: "", expected: ""},
-		{prefix: "foo", expected: "foo:"},
-		{prefix: ":", expected: "::"},
-	}
+func TestSpanWriterIndices(t *testing.T) {
 	client := &mocks.Client{}
 	logger, _ := testutils.NewLogger()
-	metricsFactory := metrics.NewLocalFactory(0)
+	metricsFactory := metricstest.NewFactory(0)
+	date := time.Now()
+	dateFormat := date.UTC().Format("2006-01-02")
+	testCases := []struct {
+		indices []string
+		params  SpanWriterParams
+	}{
+		{params:SpanWriterParams{Client: client, Logger: logger, MetricsFactory: metricsFactory,
+			IndexPrefix: "", Archive: false},
+			indices:[]string{spanIndex+dateFormat, serviceIndex+dateFormat}},
+		{params:SpanWriterParams{Client: client, Logger: logger, MetricsFactory: metricsFactory,
+			IndexPrefix: "foo:", Archive: false},
+			indices:[]string{"foo:"+indexPrefixSeparator+spanIndex+dateFormat, "foo:"+indexPrefixSeparator+serviceIndex+dateFormat}},
+		{params:SpanWriterParams{Client: client, Logger: logger, MetricsFactory: metricsFactory,
+			IndexPrefix: "", Archive: true},
+			indices:[]string{spanIndex+archiveIndexSuffix, ""}},
+		{params:SpanWriterParams{Client: client, Logger: logger, MetricsFactory: metricsFactory,
+			IndexPrefix: "foo:", Archive: true},
+			indices:[]string{"foo:"+indexPrefixSeparator+spanIndex+archiveIndexSuffix, ""}},
+		{params:SpanWriterParams{Client: client, Logger: logger, MetricsFactory: metricsFactory,
+			IndexPrefix: "foo:", Archive: true, UseReadWriteAliases: true},
+			indices:[]string{"foo:"+indexPrefixSeparator+spanIndex+archiveWriteIndexSuffix, ""}},
+	}
 	for _, testCase := range testCases {
-		w := NewSpanWriter(SpanWriterParams{Client: client, Logger: logger, MetricsFactory: metricsFactory,
-			IndexPrefix: testCase.prefix})
-		assert.Equal(t, testCase.expected+spanIndex, w.spanIndexPrefix)
-		assert.Equal(t, testCase.expected+serviceIndex, w.serviceIndexPrefix)
+		w := NewSpanWriter(testCase.params)
+		spanIndexName, serviceIndexName := w.spanServiceIndex(date)
+		assert.Equal(t, testCase.indices, []string{spanIndexName, serviceIndexName})
 	}
 }
 
@@ -311,7 +324,7 @@ func TestWriteSpanInternalError(t *testing.T) {
 func TestNewSpanTags(t *testing.T) {
 	client := &mocks.Client{}
 	logger, _ := testutils.NewLogger()
-	metricsFactory := metrics.NewLocalFactory(0)
+	metricsFactory := metricstest.NewFactory(0)
 	testCases := []struct {
 		writer   *SpanWriter
 		expected dbmodel.Span
