@@ -35,8 +35,6 @@ type GRPCHandler struct {
 	archiveSpanReader spanstore.Reader
 	dependencyReader  dependencystore.Reader
 	logger            *zap.Logger
-	queryParser       queryParser
-	tracer            opentracing.Tracer
 }
 
 // NewGRPCHandler returns a GRPCHandler
@@ -44,17 +42,10 @@ func NewGRPCHandler(spanReader spanstore.Reader, dependencyReader dependencystor
 	gH := &GRPCHandler{
 		spanReader:       spanReader,
 		dependencyReader: dependencyReader,
-		queryParser: queryParser{
-			traceQueryLookbackDuration: defaultTraceQueryLookbackDuration,
-			timeNow:                    time.Now,
-		},
 	}
 
 	if gH.logger == nil {
 		gH.logger = zap.NewNop()
-	}
-	if gH.tracer == nil {
-		gH.tracer = opentracing.NoopTracer{}
 	}
 
 	return gH
@@ -82,6 +73,9 @@ func (g *GRPCHandler) GetTrace(ctx context.Context, r *api_v2.GetTraceRequest) (
 		}
 
 		trace, err = g.archiveSpanReader.GetTrace(ctx, traceID)
+		if err != nil {
+			g.logger.Error("Could not fetch spans from backend", zap.Error(err))
+		}
 	}
 
 	return &api_v2.GetTraceResponse{Trace: trace}, nil
