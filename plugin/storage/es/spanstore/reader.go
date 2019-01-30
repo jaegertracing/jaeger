@@ -304,7 +304,7 @@ func (s *SpanReader) multiRead(ctx context.Context, traceIDs []model.TraceID, st
 		}
 
 		for i, traceID := range traceIDs {
-			query := elastic.NewTermQuery("traceID", traceID)
+			query := elastic.NewTermQuery("traceID", traceID.String())
 			if val, ok := searchAfterTime[traceID]; ok {
 				nextTime = val
 			}
