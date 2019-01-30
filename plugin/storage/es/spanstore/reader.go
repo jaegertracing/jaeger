@@ -275,17 +275,21 @@ func (s *SpanReader) FindTraceIDs(ctx context.Context, traceQuery *spanstore.Tra
 		return nil, err
 	}
 
-	traceIDs := make([]model.TraceID, len(esTraceIDs))
-	for i, ID := range esTraceIDs {
+	return convertTraceStringsToTraceID(esTraceIDs)
+}
+
+func convertTraceStringsToTraceID(traceIDs []string) ([]model.TraceID, error) {
+	modelTraceIDs := make([]model.TraceID, len(traceIDs))
+	for i, ID := range traceIDs {
 		traceID, err := model.TraceIDFromString(ID)
 		if err != nil {
 			return nil, errors.Wrap(err, fmt.Sprintf("Making traceID from string '%s' failed", ID))
 		}
 
-		traceIDs[i] = traceID
+		modelTraceIDs[i] = traceID
 	}
 
-	return traceIDs, nil
+	return modelTraceIDs, nil
 }
 
 func (s *SpanReader) multiRead(ctx context.Context, traceIDs []model.TraceID, startTime, endTime time.Time) ([]*model.Trace, error) {
@@ -395,7 +399,6 @@ func validateQuery(p *spanstore.TraceQueryParameters) error {
 func (s *SpanReader) findTraceIDs(ctx context.Context, traceQuery *spanstore.TraceQueryParameters) ([]string, error) {
 	childSpan, _ := opentracing.StartSpanFromContext(ctx, "findTraceIDs")
 	defer childSpan.Finish()
-
 	//  Below is the JSON body to our HTTP GET request to ElasticSearch. This function creates this.
 	// {
 	//      "size": 0,

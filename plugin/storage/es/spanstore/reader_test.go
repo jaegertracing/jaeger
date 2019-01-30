@@ -23,11 +23,11 @@ import (
 	"testing"
 	"time"
 
-	"github.com/uber/jaeger-lib/metrics/metricstest"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
 	"github.com/stretchr/testify/require"
 	"github.com/uber/jaeger-lib/metrics"
+	"github.com/uber/jaeger-lib/metrics/metricstest"
 	"go.uber.org/zap"
 	"gopkg.in/olivere/elastic.v5"
 
@@ -145,23 +145,23 @@ func TestSpanReaderIndices(t *testing.T) {
 	dateFormat := date.UTC().Format("2006-01-02")
 	testCases := []struct {
 		indices []string
-		params SpanReaderParams
+		params  SpanReaderParams
 	}{
-		{params:SpanReaderParams{Client:client, Logger: logger, MetricsFactory: metricsFactory,
-			IndexPrefix:"", Archive: false},
-			indices: []string{spanIndex+dateFormat}},
-		{params:SpanReaderParams{Client:client, Logger: logger, MetricsFactory: metricsFactory,
-			IndexPrefix:"foo:", Archive: false},
-			indices: []string{"foo:"+indexPrefixSeparator+spanIndex+dateFormat,"foo:"+indexPrefixSeparatorDeprecated+spanIndex+dateFormat}},
-		{params:SpanReaderParams{Client:client, Logger: logger, MetricsFactory: metricsFactory,
-			IndexPrefix:"", Archive: true},
-			indices: []string{spanIndex+archiveIndexSuffix}},
-		{params:SpanReaderParams{Client:client, Logger: logger, MetricsFactory: metricsFactory,
-			IndexPrefix:"foo:", Archive: true},
-			indices: []string{"foo:"+indexPrefixSeparator+spanIndex+archiveIndexSuffix}},
-		{params:SpanReaderParams{Client:client, Logger: logger, MetricsFactory: metricsFactory,
-			IndexPrefix:"foo:", Archive: true, UseReadWriteAliases:true},
-			indices: []string{"foo:"+indexPrefixSeparator+spanIndex+archiveReadIndexSuffix}},
+		{params: SpanReaderParams{Client: client, Logger: logger, MetricsFactory: metricsFactory,
+			IndexPrefix: "", Archive: false},
+			indices: []string{spanIndex + dateFormat}},
+		{params: SpanReaderParams{Client: client, Logger: logger, MetricsFactory: metricsFactory,
+			IndexPrefix: "foo:", Archive: false},
+			indices: []string{"foo:" + indexPrefixSeparator + spanIndex + dateFormat, "foo:" + indexPrefixSeparatorDeprecated + spanIndex + dateFormat}},
+		{params: SpanReaderParams{Client: client, Logger: logger, MetricsFactory: metricsFactory,
+			IndexPrefix: "", Archive: true},
+			indices: []string{spanIndex + archiveIndexSuffix}},
+		{params: SpanReaderParams{Client: client, Logger: logger, MetricsFactory: metricsFactory,
+			IndexPrefix: "foo:", Archive: true},
+			indices: []string{"foo:" + indexPrefixSeparator + spanIndex + archiveIndexSuffix}},
+		{params: SpanReaderParams{Client: client, Logger: logger, MetricsFactory: metricsFactory,
+			IndexPrefix: "foo:", Archive: true, UseReadWriteAliases: true},
+			indices: []string{"foo:" + indexPrefixSeparator + spanIndex + archiveReadIndexSuffix}},
 	}
 	for _, testCase := range testCases {
 		r := NewSpanReader(testCase.params)
@@ -702,143 +702,15 @@ func TestFindTraceIDs(t *testing.T) {
 	testGet(traceIDAggregation, t)
 }
 
-func TestSpanReader_TestFindTraceIDs(t *testing.T) {
-	goodAggregations := make(map[string]*json.RawMessage)
-	rawMessage := []byte(`{"buckets": [{"key": "1","doc_count": 16},{"key": "2","doc_count": 16},{"key": "3","doc_count": 16}]}`)
-	goodAggregations[traceIDAggregation] = (*json.RawMessage)(&rawMessage)
+func TestTraceStringsToTraceIDConvertation(t *testing.T) {
+	traceIDs, err := convertTraceStringsToTraceID([]string{"1", "2", "3"})
+	assert.NoError(t, err)
+	assert.Equal(t, 3, len(traceIDs))
+	assert.Equal(t, "1", traceIDs[0].String())
 
-	withSpanReader(func(r *spanReaderTest) {
-		// find trace IDs
-		mockSearchService(r).Return(&elastic.SearchResult{Aggregations: elastic.Aggregations(goodAggregations)}, nil)
-
-		traceIDsQuery := &spanstore.TraceQueryParameters{
-			ServiceName: serviceName,
-			Tags: map[string]string{
-				"hello": "world",
-			},
-			StartTimeMin: time.Now().Add(-1 * time.Hour),
-			StartTimeMax: time.Now(),
-			NumTraces:    3,
-		}
-
-		traceIDs, err := r.reader.FindTraceIDs(context.Background(), traceIDsQuery)
-		require.NoError(t, err)
-		assert.Len(t, traceIDs, 3)
-		assert.EqualValues(t, 1, traceIDs[0].Low)
-	})
-}
-
-func TestSpanReader_FindTraceIDsInvalidQuery(t *testing.T) {
-	goodAggregations := make(map[string]*json.RawMessage)
-	rawMessage := []byte(`{"buckets": [{"key": "1","doc_count": 16},{"key": "2","doc_count": 16},{"key": "3","doc_count": 16}]}`)
-	goodAggregations[traceIDAggregation] = (*json.RawMessage)(&rawMessage)
-
-	withSpanReader(func(r *spanReaderTest) {
-		mockSearchService(r).Return(&elastic.SearchResult{Aggregations: elastic.Aggregations(goodAggregations)}, nil)
-
-		traceIDsQuery := &spanstore.TraceQueryParameters{
-			ServiceName: "",
-			Tags: map[string]string{
-				"hello": "world",
-			},
-			StartTimeMin: time.Now().Add(-1 * time.Hour),
-			StartTimeMax: time.Now(),
-		}
-
-		traceIDs, err := r.reader.FindTraceIDs(context.Background(), traceIDsQuery)
-		require.Error(t, err)
-		assert.Nil(t, traceIDs)
-	})
-}
-
-func TestSpanReader_FindTraceIDsAggregationFailure(t *testing.T) {
-	goodAggregations := make(map[string]*json.RawMessage)
-
-	withSpanReader(func(r *spanReaderTest) {
-		mockSearchService(r).Return(&elastic.SearchResult{Aggregations: elastic.Aggregations(goodAggregations)}, nil)
-
-		traceIDsQuery := &spanstore.TraceQueryParameters{
-			ServiceName: serviceName,
-			Tags: map[string]string{
-				"hello": "world",
-			},
-			StartTimeMin: time.Now().Add(-1 * time.Hour),
-			StartTimeMax: time.Now(),
-		}
-
-		traceIDs, err := r.reader.FindTraceIDs(context.Background(), traceIDsQuery)
-		require.Error(t, err)
-		assert.Nil(t, traceIDs)
-	})
-}
-
-func TestSpanReader_FindTraceIDsNoTraceIDs(t *testing.T) {
-	goodAggregations := make(map[string]*json.RawMessage)
-	rawMessage := []byte(`{"buckets": []}`)
-	goodAggregations[traceIDAggregation] = (*json.RawMessage)(&rawMessage)
-
-	withSpanReader(func(r *spanReaderTest) {
-		mockSearchService(r).Return(&elastic.SearchResult{Aggregations: elastic.Aggregations(goodAggregations)}, nil)
-
-		traceIDsQuery := &spanstore.TraceQueryParameters{
-			ServiceName: serviceName,
-			Tags: map[string]string{
-				"hello": "world",
-			},
-			StartTimeMin: time.Now().Add(-1 * time.Hour),
-			StartTimeMax: time.Now(),
-		}
-
-		traceIDs, err := r.reader.FindTraceIDs(context.Background(), traceIDsQuery)
-		require.NoError(t, err)
-		assert.Len(t, traceIDs, 0)
-	})
-}
-
-func TestSpanReader_FindTraceIDsReadTraceIDsFailure(t *testing.T) {
-	goodAggregations := make(map[string]*json.RawMessage)
-	rawMessage := []byte(`{"buckets": [{"key": "1","doc_count": 16},{"key": "2","doc_count": 16}]}`)
-	goodAggregations[traceIDAggregation] = (*json.RawMessage)(&rawMessage)
-
-	withSpanReader(func(r *spanReaderTest) {
-		mockSearchService(r).Return(nil, errors.New("read error"))
-
-		traceIDsQuery := &spanstore.TraceQueryParameters{
-			ServiceName: serviceName,
-			Tags: map[string]string{
-				"hello": "world",
-			},
-			StartTimeMin: time.Now().Add(-1 * time.Hour),
-			StartTimeMax: time.Now(),
-		}
-
-		traceIDs, err := r.reader.FindTraceIDs(context.Background(), traceIDsQuery)
-		require.EqualError(t, err, "Search service failed: read error")
-		assert.Len(t, traceIDs, 0)
-	})
-}
-
-func TestSpanReader_FindTraceIDsIncorrectTraceIDFailure(t *testing.T) {
-	goodAggregations := make(map[string]*json.RawMessage)
-	rawMessage := []byte(`{"buckets": [{"key": "sdfsdfdssd234nsdvsdfldjsf","doc_count": 16},{"key": "2","doc_count": 16}]}`)
-	goodAggregations[traceIDAggregation] = (*json.RawMessage)(&rawMessage)
-
-	withSpanReader(func(r *spanReaderTest) {
-		mockSearchService(r).Return(&elastic.SearchResult{Aggregations: elastic.Aggregations(goodAggregations)}, nil)
-
-		traceIDsQuery := &spanstore.TraceQueryParameters{
-			ServiceName: serviceName,
-			Tags: map[string]string{
-				"hello": "world",
-			},
-			StartTimeMin: time.Now().Add(-1 * time.Hour),
-			StartTimeMax: time.Now(),
-		}
-
-		traceIDs, err := r.reader.FindTraceIDs(context.Background(), traceIDsQuery)
-		require.EqualError(t, err, `Making traceID from string 'sdfsdfdssd234nsdvsdfldjsf' failed: strconv.ParseUint: parsing "sdfsdfdss": invalid syntax`)
-		assert.Len(t, traceIDs, 0)
-	})
+	traceIDs, err = convertTraceStringsToTraceID([]string{"dsfjsdklfjdsofdfsdbfkgbgoaemlrksdfbsdofgerjl"})
+	assert.EqualError(t, err, "Making traceID from string 'dsfjsdklfjdsofdfsdbfkgbgoaemlrksdfbsdofgerjl' failed: TraceID cannot be longer than 32 hex characters: dsfjsdklfjdsofdfsdbfkgbgoaemlrksdfbsdofgerjl")
+	assert.Equal(t, 0, len(traceIDs))
 }
 
 func mockMultiSearchService(r *spanReaderTest) *mock.Call {
