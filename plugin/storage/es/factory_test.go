@@ -16,6 +16,10 @@ package es
 
 import (
 	"errors"
+	"io/ioutil"
+	"os"
+	"strconv"
+	"strings"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -118,5 +122,27 @@ func TestLoadTagsFromFile(t *testing.T) {
 		} else {
 			assert.Equal(t, test.tags, tags)
 		}
+	}
+}
+
+func TestFactory_LoadMapping(t *testing.T) {
+	tests := []struct{
+		name string
+	}{
+		{name: "span-mapping.json"},
+		{name: "service-mapping.json"},
+	}
+	for _, test := range tests {
+		mapping := loadMapping(test.name)
+		f, err := os.Open("mappings/" + test.name)
+		require.NoError(t, err)
+		b, err := ioutil.ReadAll(f)
+		require.NoError(t, err)
+		assert.Equal(t, string(b), mapping)
+
+		expectedMapping := string(b)
+		expectedMapping = strings.Replace(expectedMapping, "${__NUMBER_OF_SHARDS__}", strconv.FormatInt(10, 10), 1)
+		expectedMapping = strings.Replace(expectedMapping, "${__NUMBER_OF_REPLICAS__}", strconv.FormatInt(0, 10), 1)
+		assert.Equal(t, expectedMapping, fixMapping(mapping, 10, 0))
 	}
 }

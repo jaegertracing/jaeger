@@ -200,15 +200,12 @@ func addFlags(flagSet *flag.FlagSet, nsConfig *namespaceConfig) {
 		nsConfig.namespace+suffixTagDeDotChar,
 		nsConfig.TagDotReplacement,
 		"(experimental) The character used to replace dots (\".\") in tag keys stored as object fields.")
-	// TODO add rollover support for main indices
-	if nsConfig.namespace == archiveNamespace {
-		flagSet.Bool(
-			nsConfig.namespace+suffixReadAlias,
-			nsConfig.UseReadWriteAliases,
-			"Use read and write aliases for indices. Use this option with Elasticsearch rollover "+
-				"API. It requires an external component to create aliases before startup and then performing its management. "+
-				"Note that "+nsConfig.namespace+suffixMaxSpanAge+" is not taken into the account and has to be substituted by external component managing read alias.")
-	}
+	flagSet.Bool(
+		nsConfig.namespace+suffixReadAlias,
+		nsConfig.UseReadWriteAliases,
+		"Use read and write aliases for indices. Use this option with Elasticsearch rollover "+
+			"API. It requires an external component to create aliases before startup and then performing its management. "+
+			"Note that "+nsConfig.namespace+suffixMaxSpanAge+" is not taken into the account and has to be substituted by external component managing read alias.")
 }
 
 // InitFromViper initializes Options with properties from viper

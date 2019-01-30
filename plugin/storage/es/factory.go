@@ -19,6 +19,7 @@ import (
 	"flag"
 	"os"
 	"path/filepath"
+	"strconv"
 	"strings"
 
 	"github.com/pkg/errors"
@@ -29,6 +30,7 @@ import (
 	"github.com/jaegertracing/jaeger/pkg/es"
 	"github.com/jaegertracing/jaeger/pkg/es/config"
 	esDepStore "github.com/jaegertracing/jaeger/plugin/storage/es/dependencystore"
+	"github.com/jaegertracing/jaeger/plugin/storage/es/mappings"
 	esSpanStore "github.com/jaegertracing/jaeger/plugin/storage/es/spanstore"
 	"github.com/jaegertracing/jaeger/storage/dependencystore"
 	"github.com/jaegertracing/jaeger/storage/spanstore"
@@ -166,17 +168,31 @@ func createSpanWriter(
 			return nil, err
 		}
 	}
+
+	sMapping := loadMapping("span-mapping.json")
+	serviceMapping := loadMapping("service-mapping.json")
 	return esSpanStore.NewSpanWriter(esSpanStore.SpanWriterParams{
 		Client:              client,
 		Logger:              logger,
 		MetricsFactory:      mFactory,
-		NumShards:           cfg.GetNumShards(),
-		NumReplicas:         cfg.GetNumReplicas(),
 		IndexPrefix:         cfg.GetIndexPrefix(),
 		AllTagsAsFields:     cfg.GetAllTagsAsFields(),
 		TagKeysAsFields:     tags,
 		TagDotReplacement:   cfg.GetTagDotReplacement(),
 		Archive:             archive,
 		UseReadWriteAliases: cfg.GetUseReadWriteAliases(),
+		SpanMapping:         fixMapping(sMapping, cfg.GetNumShards(), cfg.GetNumReplicas()),
+		ServiceMapping:      fixMapping(serviceMapping, cfg.GetNumShards(), cfg.GetNumReplicas()),
 	}), nil
+}
+
+func loadMapping(name string) string {
+	b, _ := mappings.Asset(name)
+	return string(b)
+}
+
+func fixMapping(mapping string, shards, replicas int64) string {
+	mapping = strings.Replace(mapping, "${__NUMBER_OF_SHARDS__}", strconv.FormatInt(shards, 10), 1)
+	mapping = strings.Replace(mapping, "${__NUMBER_OF_REPLICAS__}", strconv.FormatInt(replicas, 10), 1)
+	return mapping
 }
