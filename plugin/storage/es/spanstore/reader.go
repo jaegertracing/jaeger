@@ -281,7 +281,7 @@ func (s *SpanReader) FindTraceIDs(ctx context.Context, traceQuery *spanstore.Tra
 func (s *SpanReader) multiRead(ctx context.Context, traceIDs []model.TraceID, startTime, endTime time.Time) ([]*model.Trace, error) {
 
 	childSpan, _ := opentracing.StartSpanFromContext(ctx, "multiRead")
-	childSpan.LogFields(otlog.Object("trace_ids", convertTraceIDsModelsToStrings(traceIDs)))
+	childSpan.LogFields(otlog.Object("trace_ids", traceIDs))
 	defer childSpan.Finish()
 
 	if len(traceIDs) == 0 {
@@ -375,15 +375,6 @@ func convertTraceIDsStringsToModels(traceIDs []string) ([]model.TraceID, error) 
 	}
 
 	return traceIDsModels, nil
-}
-
-func convertTraceIDsModelsToStrings(traceIDs []model.TraceID) []string {
-	traceIDsStrings := make([]string, len(traceIDs))
-	for i, traceID := range traceIDs {
-		traceIDsStrings[i] = traceID.String()
-	}
-
-	return traceIDsStrings
 }
 
 func validateQuery(p *spanstore.TraceQueryParameters) error {

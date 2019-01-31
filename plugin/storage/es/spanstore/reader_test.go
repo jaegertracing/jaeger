@@ -702,7 +702,7 @@ func TestFindTraceIDs(t *testing.T) {
 	testGet(traceIDAggregation, t)
 }
 
-func TestTraceIDsStringsToModelsConvertation(t *testing.T) {
+func TestTraceIDsStringsToModelsConversion(t *testing.T) {
 	traceIDs, err := convertTraceIDsStringsToModels([]string{"1", "2", "3"})
 	assert.NoError(t, err)
 	assert.Equal(t, 3, len(traceIDs))
@@ -711,16 +711,6 @@ func TestTraceIDsStringsToModelsConvertation(t *testing.T) {
 	traceIDs, err = convertTraceIDsStringsToModels([]string{"dsfjsdklfjdsofdfsdbfkgbgoaemlrksdfbsdofgerjl"})
 	assert.EqualError(t, err, "Making traceID from string 'dsfjsdklfjdsofdfsdbfkgbgoaemlrksdfbsdofgerjl' failed: TraceID cannot be longer than 32 hex characters: dsfjsdklfjdsofdfsdbfkgbgoaemlrksdfbsdofgerjl")
 	assert.Equal(t, 0, len(traceIDs))
-}
-
-func TestTraceIDsModelsToStringsConvertation(t *testing.T) {
-	traceID1 := model.NewTraceID(0, 1)
-	traceID2 := model.NewTraceID(0, 2)
-	traceID3 := model.NewTraceID(0, 3)
-
-	traceIDs := convertTraceIDsModelsToStrings([]model.TraceID{traceID1, traceID2, traceID3})
-	assert.Equal(t, 3, len(traceIDs))
-	assert.Equal(t, "3", traceIDs[2])
 }
 
 func mockMultiSearchService(r *spanReaderTest) *mock.Call {
