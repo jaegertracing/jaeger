@@ -23,11 +23,11 @@ import (
 	"testing"
 	"time"
 
-	"github.com/uber/jaeger-lib/metrics/metricstest"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
 	"github.com/stretchr/testify/require"
 	"github.com/uber/jaeger-lib/metrics"
+	"github.com/uber/jaeger-lib/metrics/metricstest"
 	"go.uber.org/zap"
 	"gopkg.in/olivere/elastic.v5"
 
@@ -145,23 +145,23 @@ func TestSpanReaderIndices(t *testing.T) {
 	dateFormat := date.UTC().Format("2006-01-02")
 	testCases := []struct {
 		indices []string
-		params SpanReaderParams
+		params  SpanReaderParams
 	}{
-		{params:SpanReaderParams{Client:client, Logger: logger, MetricsFactory: metricsFactory,
-			IndexPrefix:"", Archive: false},
-			indices: []string{spanIndex+dateFormat}},
-		{params:SpanReaderParams{Client:client, Logger: logger, MetricsFactory: metricsFactory,
-			IndexPrefix:"foo:", Archive: false},
-			indices: []string{"foo:"+indexPrefixSeparator+spanIndex+dateFormat,"foo:"+indexPrefixSeparatorDeprecated+spanIndex+dateFormat}},
-		{params:SpanReaderParams{Client:client, Logger: logger, MetricsFactory: metricsFactory,
-			IndexPrefix:"", Archive: true},
-			indices: []string{spanIndex+archiveIndexSuffix}},
-		{params:SpanReaderParams{Client:client, Logger: logger, MetricsFactory: metricsFactory,
-			IndexPrefix:"foo:", Archive: true},
-			indices: []string{"foo:"+indexPrefixSeparator+spanIndex+archiveIndexSuffix}},
-		{params:SpanReaderParams{Client:client, Logger: logger, MetricsFactory: metricsFactory,
-			IndexPrefix:"foo:", Archive: true, UseReadWriteAliases:true},
-			indices: []string{"foo:"+indexPrefixSeparator+spanIndex+archiveReadIndexSuffix}},
+		{params: SpanReaderParams{Client: client, Logger: logger, MetricsFactory: metricsFactory,
+			IndexPrefix: "", Archive: false},
+			indices: []string{spanIndex + dateFormat}},
+		{params: SpanReaderParams{Client: client, Logger: logger, MetricsFactory: metricsFactory,
+			IndexPrefix: "foo:", Archive: false},
+			indices: []string{"foo:" + indexPrefixSeparator + spanIndex + dateFormat, "foo:" + indexPrefixSeparatorDeprecated + spanIndex + dateFormat}},
+		{params: SpanReaderParams{Client: client, Logger: logger, MetricsFactory: metricsFactory,
+			IndexPrefix: "", Archive: true},
+			indices: []string{spanIndex + archiveIndexSuffix}},
+		{params: SpanReaderParams{Client: client, Logger: logger, MetricsFactory: metricsFactory,
+			IndexPrefix: "foo:", Archive: true},
+			indices: []string{"foo:" + indexPrefixSeparator + spanIndex + archiveIndexSuffix}},
+		{params: SpanReaderParams{Client: client, Logger: logger, MetricsFactory: metricsFactory,
+			IndexPrefix: "foo:", Archive: true, UseReadWriteAliases: true},
+			indices: []string{"foo:" + indexPrefixSeparator + spanIndex + archiveReadIndexSuffix}},
 	}
 	for _, testCase := range testCases {
 		r := NewSpanReader(testCase.params)
@@ -702,12 +702,15 @@ func TestFindTraceIDs(t *testing.T) {
 	testGet(traceIDAggregation, t)
 }
 
-func TestFindTraceIDNotImplemented(t *testing.T) {
-	withSpanReader(func(r *spanReaderTest) {
-		traceIDs, err := r.reader.FindTraceIDs(context.Background(), nil)
-		assert.Nil(t, traceIDs)
-		assert.EqualError(t, err, "not implemented")
-	})
+func TestTraceIDsStringsToModelsConversion(t *testing.T) {
+	traceIDs, err := convertTraceIDsStringsToModels([]string{"1", "2", "3"})
+	assert.NoError(t, err)
+	assert.Equal(t, 3, len(traceIDs))
+	assert.Equal(t, "1", traceIDs[0].String())
+
+	traceIDs, err = convertTraceIDsStringsToModels([]string{"dsfjsdklfjdsofdfsdbfkgbgoaemlrksdfbsdofgerjl"})
+	assert.EqualError(t, err, "Making traceID from string 'dsfjsdklfjdsofdfsdbfkgbgoaemlrksdfbsdofgerjl' failed: TraceID cannot be longer than 32 hex characters: dsfjsdklfjdsofdfsdbfkgbgoaemlrksdfbsdofgerjl")
+	assert.Equal(t, 0, len(traceIDs))
 }
 
 func mockMultiSearchService(r *spanReaderTest) *mock.Call {
