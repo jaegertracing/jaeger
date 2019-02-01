@@ -33,6 +33,7 @@ import (
 	"github.com/uber/tchannel-go/thrift"
 	"go.uber.org/zap"
 	"google.golang.org/grpc"
+	"google.golang.org/grpc/credentials"
 
 	basicB "github.com/jaegertracing/jaeger/cmd/builder"
 	"github.com/jaegertracing/jaeger/cmd/collector/app"
@@ -140,7 +141,7 @@ func main() {
 				ch.Serve(listener)
 			}
 
-			server, err := startGRPCServer(builderOpts.CollectorGRPCPort, grpcHandler, strategyStore, logger)
+			server, err := startGRPCServer(builderOpts, grpcHandler, strategyStore, logger)
 			if err != nil {
 				logger.Fatal("Could not start gRPC collector", zap.Error(err))
 			}
@@ -207,13 +208,29 @@ func main() {
 }
 
 func startGRPCServer(
-	port int,
+	opts *builder.CollectorOptions,
 	handler *app.GRPCHandler,
 	samplingStore strategystore.StrategyStore,
 	logger *zap.Logger,
 ) (*grpc.Server, error) {
-	server := grpc.NewServer()
-	_, err := grpcserver.StartGRPCCollector(port, server, handler, samplingStore, logger, func(err error) {
+	var server *grpc.Server
+
+	if opts.CollectorGRPCTLS { // user requested a server with TLS, setup creds
+		if opts.CollectorGRPCCert == "" || opts.CollectorGRPCKey == "" {
+			return nil, fmt.Errorf("you requested TLS but configuration does not include a path to cert and/or key")
+		}
+		creds, err := credentials.NewServerTLSFromFile(
+			opts.CollectorGRPCCert,
+			opts.CollectorGRPCKey,
+		)
+		if err != nil {
+			return nil, fmt.Errorf("failed to load TLS keys: %s", err)
+		}
+		server = grpc.NewServer(grpc.Creds(creds))
+	} else { // server without TLS
+		server = grpc.NewServer()
+	}
+	_, err := grpcserver.StartGRPCCollector(opts.CollectorGRPCPort, server, handler, samplingStore, logger, func(err error) {
 		logger.Fatal("gRPC collector failed", zap.Error(err))
 	})
 	if err != nil {

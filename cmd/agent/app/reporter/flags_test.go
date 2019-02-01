@@ -24,7 +24,7 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-func TestBingFlags(t *testing.T) {
+func TestBindFlags(t *testing.T) {
 	v := viper.New()
 	command := cobra.Command{}
 	flags := &flag.FlagSet{}

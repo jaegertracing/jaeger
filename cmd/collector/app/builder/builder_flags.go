@@ -28,6 +28,9 @@ const (
 	collectorPort          = "collector.port"
 	collectorHTTPPort      = "collector.http-port"
 	collectorGRPCPort      = "collector.grpc-port"
+	collectorGRPCTLS       = "collector.grpc.tls"
+	collectorGRPCCert      = "collector.grpc.tls.cert"
+	collectorGRPCKey       = "collector.grpc.tls.key"
 	collectorZipkinHTTPort = "collector.zipkin.http-port"
 
 	defaultTChannelPort = 14267
@@ -49,6 +52,12 @@ type CollectorOptions struct {
 	CollectorHTTPPort int
 	// CollectorGRPCPort is the port that the collector service listens in on for gRPC requests
 	CollectorGRPCPort int
+	// CollectorGRPCTLS defines if the server is setup with TLS
+	CollectorGRPCTLS bool
+	// CollectorGRPCCert is the path to a TLS certificate file for the server
+	CollectorGRPCCert string
+	// CollectorGRPCKey is the path to a TLS key file for the server
+	CollectorGRPCKey string
 	// CollectorZipkinHTTPPort is the port that the Zipkin collector service listens in on for http requests
 	CollectorZipkinHTTPPort int
 }
@@ -61,6 +70,9 @@ func AddFlags(flags *flag.FlagSet) {
 	flags.Int(collectorHTTPPort, defaultHTTPPort, "The HTTP port for the collector service")
 	flags.Int(collectorGRPCPort, defaultGRPCPort, "The gRPC port for the collector service")
 	flags.Int(collectorZipkinHTTPort, 0, "The HTTP port for the Zipkin collector service e.g. 9411")
+	flags.Bool(collectorGRPCTLS, false, "(experimental) Enable TLS")
+	flags.String(collectorGRPCCert, "", "(experimental) Path to TLS certificate file")
+	flags.String(collectorGRPCKey, "", "(experimental) Path to TLS key file")
 }
 
 // InitFromViper initializes CollectorOptions with properties from viper
@@ -70,6 +82,9 @@ func (cOpts *CollectorOptions) InitFromViper(v *viper.Viper) *CollectorOptions {
 	cOpts.CollectorPort = v.GetInt(collectorPort)
 	cOpts.CollectorHTTPPort = v.GetInt(collectorHTTPPort)
 	cOpts.CollectorGRPCPort = v.GetInt(collectorGRPCPort)
+	cOpts.CollectorGRPCTLS = v.GetBool(collectorGRPCTLS)
+	cOpts.CollectorGRPCCert = v.GetString(collectorGRPCCert)
+	cOpts.CollectorGRPCKey = v.GetString(collectorGRPCKey)
 	cOpts.CollectorZipkinHTTPPort = v.GetInt(collectorZipkinHTTPort)
 	return cOpts
 }

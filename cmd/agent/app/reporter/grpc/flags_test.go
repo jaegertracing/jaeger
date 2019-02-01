@@ -24,15 +24,17 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-func TestBingFlags(t *testing.T) {
+func TestBindFlags(t *testing.T) {
+	v := viper.New()
+
 	tests := []struct {
 		cOpts    []string
 		expected *Options
 	}{
 		{cOpts: []string{"--reporter.grpc.host-port=localhost:1111", "--reporter.grpc.retry.max=15"},
-			expected: &Options{CollectorHostPort: []string{"localhost:1111"}, MaxRetry:15}},
+			expected: &Options{CollectorHostPort: []string{"localhost:1111"}, MaxRetry: 15}},
 		{cOpts: []string{"--reporter.grpc.host-port=localhost:1111,localhost:2222"},
-			expected: &Options{CollectorHostPort: []string{"localhost:1111", "localhost:2222"}, MaxRetry:defaultMaxRetry}},
+			expected: &Options{CollectorHostPort: []string{"localhost:1111", "localhost:2222"}, MaxRetry: defaultMaxRetry}},
 	}
 	for _, test := range tests {
 		v := viper.New()

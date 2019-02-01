@@ -15,13 +15,14 @@
 package grpc
 
 import (
+	"crypto/x509"
 	"errors"
 
-	"github.com/grpc-ecosystem/go-grpc-middleware/retry"
 	"github.com/uber/jaeger-lib/metrics"
 	"go.uber.org/zap"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/balancer/roundrobin"
+	"google.golang.org/grpc/credentials"
 	"google.golang.org/grpc/resolver"
 	"google.golang.org/grpc/resolver/manual"
 
@@ -42,6 +43,27 @@ func NewCollectorProxy(o *Options, mFactory metrics.Factory, logger *zap.Logger)
 	if len(o.CollectorHostPort) == 0 {
 		return nil, errors.New("could not create collector proxy, address is missing")
 	}
+	var dialOption grpc.DialOption
+	if o.TLS { // user requested a secure connection
+		var creds credentials.TransportCredentials
+		if len(o.TLSCA) == 0 { // no truststore given, use SystemCertPool
+			pool, err := x509.SystemCertPool()
+			if err != nil {
+				return nil, err
+			}
+			creds = credentials.NewClientTLSFromCert(pool, o.TLSServerName)
+		} else { // setup user specified truststore
+			var err error
+			creds, err = credentials.NewClientTLSFromFile(o.TLSCA, o.TLSServerName)
+			if err != nil {
+				return nil, err
+			}
+		}
+		dialOption = grpc.WithTransportCredentials(creds)
+	} else { // insecure connection
+		dialOption = grpc.WithInsecure()
+	}
+
 	var target string
 	if len(o.CollectorHostPort) > 1 {
 		r, _ := manual.GenerateAndRegisterManualResolver()
@@ -56,7 +78,7 @@ func NewCollectorProxy(o *Options, mFactory metrics.Factory, logger *zap.Logger)
 	}
 	// It does not return error if the collector is not running
 	conn, _ := grpc.Dial(target,
-		grpc.WithInsecure(),
+		dialOption,
 		grpc.WithBalancerName(roundrobin.Name),
 		grpc.WithUnaryInterceptor(grpc_retry.UnaryClientInterceptor(grpc_retry.WithMax(o.MaxRetry))))
 	grpcMetrics := mFactory.Namespace(metrics.NSOptions{Name: "", Tags: map[string]string{"protocol": "grpc"}})
