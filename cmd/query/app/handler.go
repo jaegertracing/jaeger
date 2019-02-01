@@ -78,23 +78,19 @@ func NewRouter() *mux.Router {
 
 // APIHandler implements the query service public API by registering routes at httpPrefix
 type APIHandler struct {
-	spanReader        spanstore.Reader
-	archiveSpanReader spanstore.Reader
-	archiveSpanWriter spanstore.Writer
-	dependencyReader  dependencystore.Reader
-	adjuster          adjuster.Adjuster
-	logger            *zap.Logger
-	queryParser       queryParser
-	basePath          string
-	apiPrefix         string
-	tracer            opentracing.Tracer
+	queryService QueryService
+	queryParser  queryParser
+	basePath     string
+	apiPrefix    string
 }
 
 // NewAPIHandler returns an APIHandler
 func NewAPIHandler(spanReader spanstore.Reader, dependencyReader dependencystore.Reader, options ...HandlerOption) *APIHandler {
 	aH := &APIHandler{
-		spanReader:       spanReader,
-		dependencyReader: dependencyReader,
+		queryService: QueryService{
+			spanReader:       spanReader,
+			dependencyReader: dependencyReader,
+		},
 		queryParser: queryParser{
 			traceQueryLookbackDuration: defaultTraceQueryLookbackDuration,
 			timeNow:                    time.Now,
@@ -107,14 +103,14 @@ func NewAPIHandler(spanReader spanstore.Reader, dependencyReader dependencystore
 	if aH.apiPrefix == "" {
 		aH.apiPrefix = defaultAPIPrefix
 	}
-	if aH.adjuster == nil {
-		aH.adjuster = adjuster.Sequence(StandardAdjusters...)
+	if aH.queryService.adjuster == nil {
+		aH.queryService.adjuster = adjuster.Sequence(StandardAdjusters...)
 	}
-	if aH.logger == nil {
-		aH.logger = zap.NewNop()
+	if aH.queryService.logger == nil {
+		aH.queryService.logger = zap.NewNop()
 	}
-	if aH.tracer == nil {
-		aH.tracer = opentracing.NoopTracer{}
+	if aH.queryService.tracer == nil {
+		aH.queryService.tracer = opentracing.NoopTracer{}
 	}
 	return aH
 }
@@ -140,7 +136,7 @@ func (aH *APIHandler) handleFunc(
 ) *mux.Route {
 	route = aH.route(route, args...)
 	traceMiddleware := nethttp.Middleware(
-		aH.tracer,
+		aH.queryService.tracer,
 		http.HandlerFunc(f),
 		nethttp.OperationNameFunc(func(r *http.Request) string {
 			return route
@@ -154,7 +150,7 @@ func (aH *APIHandler) route(route string, args ...interface{}) string {
 }
 
 func (aH *APIHandler) getServices(w http.ResponseWriter, r *http.Request) {
-	services, err := aH.spanReader.GetServices(r.Context())
+	services, err := aH.queryService.spanReader.GetServices(r.Context())
 	if aH.handleError(w, err, http.StatusInternalServerError) {
 		return
 	}
@@ -169,7 +165,7 @@ func (aH *APIHandler) getOperationsLegacy(w http.ResponseWriter, r *http.Request
 	vars := mux.Vars(r)
 	// given how getOperationsLegacy is bound to URL route, serviceParam cannot be empty
 	service, _ := url.QueryUnescape(vars[serviceParam])
-	operations, err := aH.spanReader.GetOperations(r.Context(), service)
+	operations, err := aH.queryService.spanReader.GetOperations(r.Context(), service)
 	if aH.handleError(w, err, http.StatusInternalServerError) {
 		return
 	}
@@ -187,7 +183,7 @@ func (aH *APIHandler) getOperations(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 	}
-	operations, err := aH.spanReader.GetOperations(r.Context(), service)
+	operations, err := aH.queryService.spanReader.GetOperations(r.Context(), service)
 	if aH.handleError(w, err, http.StatusInternalServerError) {
 		return
 	}
@@ -212,7 +208,7 @@ func (aH *APIHandler) search(w http.ResponseWriter, r *http.Request) {
 			return
 		}
 	} else {
-		tracesFromStorage, err = aH.spanReader.FindTraces(r.Context(), &tQuery.TraceQueryParameters)
+		tracesFromStorage, err = aH.queryService.spanReader.FindTraces(r.Context(), &tQuery.TraceQueryParameters)
 		if aH.handleError(w, err, http.StatusInternalServerError) {
 			return
 		}
@@ -238,7 +234,7 @@ func (aH *APIHandler) tracesByIDs(ctx context.Context, traceIDs []model.TraceID)
 	var errors []structuredError
 	retMe := make([]*model.Trace, 0, len(traceIDs))
 	for _, traceID := range traceIDs {
-		if trace, err := trace(ctx, traceID, aH.spanReader, aH.archiveSpanReader); err != nil {
+		if trace, err := trace(ctx, traceID, aH.queryService.spanReader, aH.queryService.archiveSpanReader); err != nil {
 			if err != spanstore.ErrTraceNotFound {
 				return nil, nil, err
 			}
@@ -272,7 +268,7 @@ func (aH *APIHandler) dependencies(w http.ResponseWriter, r *http.Request) {
 	}
 	endTs := time.Unix(0, 0).Add(time.Duration(endTsMillis) * time.Millisecond)
 
-	dependencies, err := aH.dependencyReader.GetDependencies(endTs, lookback)
+	dependencies, err := aH.queryService.dependencyReader.GetDependencies(endTs, lookback)
 	if aH.handleError(w, err, http.StatusInternalServerError) {
 		return
 	}
@@ -288,7 +284,7 @@ func (aH *APIHandler) convertModelToUI(trace *model.Trace, adjust bool) (*ui.Tra
 	var errors []error
 	if adjust {
 		var err error
-		trace, err = aH.adjuster.Adjust(trace)
+		trace, err = aH.queryService.adjuster.Adjust(trace)
 		if err != nil {
 			errors = append(errors, err)
 		}
@@ -353,7 +349,7 @@ func (aH *APIHandler) parseTraceID(w http.ResponseWriter, r *http.Request) (mode
 
 // getTrace implements the REST API /traces/{trace-id}
 func (aH *APIHandler) getTrace(w http.ResponseWriter, r *http.Request) {
-	aH.getTraceFromReaders(w, r, aH.spanReader, aH.archiveSpanReader)
+	aH.getTraceFromReaders(w, r, aH.queryService.spanReader, aH.queryService.archiveSpanReader)
 }
 
 // getTraceFromReader parses trace ID from the path, loads the trace from specified Reader,
@@ -430,14 +426,14 @@ func trace(
 // archiveTrace implements the REST API POST:/archive/{trace-id}.
 // It reads the trace from the main Reader and saves it to archive Writer.
 func (aH *APIHandler) archiveTrace(w http.ResponseWriter, r *http.Request) {
-	if aH.archiveSpanWriter == nil {
+	if aH.queryService.archiveSpanWriter == nil {
 		aH.handleError(w, errNoArchiveSpanStorage, http.StatusInternalServerError)
 		return
 	}
-	aH.withTraceFromReader(w, r, aH.spanReader, nil, func(trace *model.Trace) {
+	aH.withTraceFromReader(w, r, aH.queryService.spanReader, nil, func(trace *model.Trace) {
 		var writeErrors []error
 		for _, span := range trace.Spans {
-			err := aH.archiveSpanWriter.WriteSpan(span)
+			err := aH.queryService.archiveSpanWriter.WriteSpan(span)
 			if err != nil {
 				writeErrors = append(writeErrors, err)
 			}
@@ -459,7 +455,7 @@ func (aH *APIHandler) handleError(w http.ResponseWriter, err error, statusCode i
 		return false
 	}
 	if statusCode == http.StatusInternalServerError {
-		aH.logger.Error("HTTP handler, Internal Server Error", zap.Error(err))
+		aH.queryService.logger.Error("HTTP handler, Internal Server Error", zap.Error(err))
 	}
 	structuredResp := structuredResponse{
 		Errors: []structuredError{

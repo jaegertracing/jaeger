@@ -36,14 +36,14 @@ type handlerOptions struct{}
 // which is used to emit logs.
 func (handlerOptions) Logger(logger *zap.Logger) HandlerOption {
 	return func(apiHandler *APIHandler) {
-		apiHandler.logger = logger
+		apiHandler.queryService.logger = logger
 	}
 }
 
 // Adjusters creates a HandlerOption that initializes the sequence of Adjusters on the APIHandler,
 func (handlerOptions) Adjusters(adjusters ...adjuster.Adjuster) HandlerOption {
 	return func(apiHandler *APIHandler) {
-		apiHandler.adjuster = adjuster.Sequence(adjusters...)
+		apiHandler.queryService.adjuster = adjuster.Sequence(adjusters...)
 	}
 }
 
@@ -71,20 +71,20 @@ func (handlerOptions) QueryLookbackDuration(queryLookbackDuration time.Duration)
 // ArchiveSpanReader creates a HandlerOption that initializes lookback duration
 func (handlerOptions) ArchiveSpanReader(reader spanstore.Reader) HandlerOption {
 	return func(apiHandler *APIHandler) {
-		apiHandler.archiveSpanReader = reader
+		apiHandler.queryService.archiveSpanReader = reader
 	}
 }
 
 // ArchiveSpanWriter creates a HandlerOption that initializes lookback duration
 func (handlerOptions) ArchiveSpanWriter(writer spanstore.Writer) HandlerOption {
 	return func(apiHandler *APIHandler) {
-		apiHandler.archiveSpanWriter = writer
+		apiHandler.queryService.archiveSpanWriter = writer
 	}
 }
 
 // Tracer creates a HandlerOption that initializes OpenTracing tracer
 func (handlerOptions) Tracer(tracer opentracing.Tracer) HandlerOption {
 	return func(apiHandler *APIHandler) {
-		apiHandler.tracer = tracer
+		apiHandler.queryService.tracer = tracer
 	}
 }
