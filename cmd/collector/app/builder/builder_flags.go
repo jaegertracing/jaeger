@@ -34,7 +34,7 @@ const (
 	defaultHTTPPort     = 14268
 	defaultGRPCPort     = 14250
 	// CollectorDefaultHealthCheckHTTPPort is the default HTTP Port for health check
-	CollectorDefaultHealthCheckHTTPPort = 14269
+	CollectorDefaultHealthCheckHTTPPort = 30000
 )
 
 // CollectorOptions holds configuration for collector

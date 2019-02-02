@@ -19,6 +19,7 @@ import (
 	"errors"
 	"fmt"
 	"google.golang.org/grpc/credentials"
+	"google.golang.org/grpc/keepalive"
 	"time"
 
 	"github.com/uber/jaeger-lib/metrics"
@@ -46,7 +47,18 @@ func NewCollectorProxy(o *Options, mFactory metrics.Factory, logger *zap.Logger)
 		return nil, errors.New("could not create collector proxy, address is missing")
 	}
 
-	opts := []grpc.DialOption{}
+	opts := []grpc.DialOption{
+		//https://github.com/grpc/grpc-go/issues/2443
+		grpc.WithKeepaliveParams(keepalive.ClientParameters{
+			// After a duration of this time if the client doesn't see any activity it pings the server to see if the transport is still alive.
+			Time: 2 * time.Minute, // The current default value is infinity.
+			// After having pinged for keepalive check, the client waits for a duration of Timeout and if no activity is seen even after that
+			// the connection is closed.
+			Timeout: 20 * time.Second, // The current default value is 20s.
+			// If true, client runs keepalive checks even with no active RPCs.
+			PermitWithoutStream: true,
+		}),
+	}
 	if o.TLSServerCertPath != "" {
 		creds, err := credentials.NewClientTLSFromFile(o.TLSServerCertPath, "")
 		if err != nil {

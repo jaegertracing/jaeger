@@ -397,4 +397,6 @@ proto-install:
 .PHONY: gencert
 gencert:
 	rm -rf certs/*.pem
-	openssl req -x509 -newkey rsa:4096 -keyout certs/server-key.pem -out certs/server-cert.pem -days 3650 -nodes -subj '/CN=*.elb.ap-northeast-1.amazonaws.com'
+	# openssl req -x509 -newkey rsa:4096 -keyout certs/server-key.pem -out certs/server-cert.pem -days 3650 -nodes -subj '/CN=*.elb.ap-northeast-1.amazonaws.com'
+	openssl req -config certs/jaeger.conf -new -x509 -newkey rsa:2048 -nodes -keyout certs/server-key.pem -days 3650 -out certs/server-cert.pem
+	openssl x509 -in certs/server-cert.pem -text -noout

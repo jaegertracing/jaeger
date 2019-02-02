@@ -65,7 +65,7 @@ func main() {
 func (h *clientHandler) initialize() {
 	httpHealthCheck(logger, queryService, "http://jaeger-query:16687")
 	logger.Info("Query started")
-	httpHealthCheck(logger, collectorService, "http://jaeger-collector:14269")
+	httpHealthCheck(logger, collectorService, "http://jaeger-collector:30000")
 	logger.Info("Collector started")
 	queryService := services.NewQueryService("http://jaeger-query:16686", logger)
 	agentService := services.NewAgentService("http://jaeger-agent:5778", logger)

@@ -33,7 +33,7 @@ minPeers: 4
 collectorHostPorts:
     - 127.0.0.1:14267
     - 127.0.0.1:14268
-    - 127.0.0.1:14269
+    - 127.0.0.1:30000
 
 collectorServiceName: some-collector-service
 `
@@ -47,7 +47,7 @@ func TestBuilderFromConfig(t *testing.T) {
 	assert.Equal(t, "some-collector-service", cfg.CollectorServiceName)
 	assert.Equal(
 		t,
-		[]string{"127.0.0.1:14267", "127.0.0.1:14268", "127.0.0.1:14269"},
+		[]string{"127.0.0.1:14267", "127.0.0.1:14268", "127.0.0.1:30000"},
 		cfg.CollectorHostPorts)
 	r, err := cfg.CreateReporter(zap.NewNop())
 	require.NoError(t, err)

@@ -17,10 +17,12 @@ package grpcserver
 import (
 	"fmt"
 	"google.golang.org/grpc/credentials"
+	"google.golang.org/grpc/keepalive"
 	"io/ioutil"
 	"net"
 	"os"
 	"strconv"
+	"time"
 
 	"github.com/pkg/errors"
 	"go.uber.org/zap"
@@ -56,7 +58,15 @@ func StartGRPCCollector(
 		if err != nil {
 			logger.Fatal(fmt.Sprintf("Failed to setup tls: %v", err))
 		}
-		server = grpc.NewServer(grpc.Creds(creds))
+		opts := []grpc.ServerOption{
+			grpc.KeepaliveEnforcementPolicy(keepalive.EnforcementPolicy{
+				MinTime:             1 * time.Minute,
+				PermitWithoutStream: true,
+			}),
+			grpc.Creds(creds),
+		}
+		server = grpc.NewServer(opts...)
+		logger.Info("initialising grpc with certificates")
 	}
 
 	api_v2.RegisterCollectorServiceServer(server, handler)

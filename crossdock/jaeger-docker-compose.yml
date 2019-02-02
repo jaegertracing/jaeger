@@ -5,7 +5,7 @@ services:
       image: jaegertracing/jaeger-collector
       command: ["--cassandra.keyspace=jaeger_v1_dc1", "--cassandra.servers=cassandra", "--collector.zipkin.http-port=9411"]
       ports:
-        - "14269"
+        - "30000"
         - "14268:14268"
         - "14267"
         - "14250"
