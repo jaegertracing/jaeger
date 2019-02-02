@@ -35,6 +35,7 @@ import (
 	"go.uber.org/zap"
 	"go.uber.org/zap/zapcore"
 
+	"github.com/jaegertracing/jaeger/cmd/query/app/querysvc"
 	"github.com/jaegertracing/jaeger/model"
 	"github.com/jaegertracing/jaeger/model/adjuster"
 	ui "github.com/jaegertracing/jaeger/model/json"
@@ -294,7 +295,7 @@ func TestGetTraceNotFound(t *testing.T) {
 
 func TestGetTraceAdjustmentFailure(t *testing.T) {
 	server, readMock, _, _ := initializeTestServerWithHandler(
-		HandlerOptions.Adjusters(
+		querysvc.QueryServiceOptions.Adjusters(
 			adjuster.Func(func(trace *model.Trace) (*model.Trace, error) {
 				return trace, errAdjustment
 			}),
@@ -347,7 +348,7 @@ func TestSearchByTraceIDSuccess(t *testing.T) {
 
 func TestSearchByTraceIDSuccessWithArchive(t *testing.T) {
 	archiveReadMock := &spanstoremocks.Reader{}
-	server, readMock, _ := initializeTestServer(HandlerOptions.ArchiveSpanReader(archiveReadMock))
+	server, readMock, _ := initializeTestServer(querysvc.QueryServiceOptions.ArchiveSpanReader(archiveReadMock))
 	defer server.Close()
 	readMock.On("GetTrace", mock.AnythingOfType("*context.valueCtx"), mock.AnythingOfType("model.TraceID")).
 		Return(nil, spanstore.ErrTraceNotFound).Twice()
@@ -388,7 +389,7 @@ func TestSearchByTraceIDFailure(t *testing.T) {
 
 func TestSearchModelConversionFailure(t *testing.T) {
 	server, readMock, _, _ := initializeTestServerWithOptions(
-		HandlerOptions.Adjusters(
+		querysvc.QueryServiceOptions.Adjusters(
 			adjuster.Func(func(trace *model.Trace) (*model.Trace, error) {
 				return trace, errAdjustment
 			}),

@@ -1,4 +1,4 @@
-// Copyright (c) 2019 The Jaeger Authors.
+// Copyright (c) 2017 Uber Technologies, Inc.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -12,24 +12,18 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package app
+package querysvc
 
 import (
-	"github.com/opentracing/opentracing-go"
-	"go.uber.org/zap"
-
 	"github.com/jaegertracing/jaeger/model/adjuster"
-	"github.com/jaegertracing/jaeger/storage/dependencystore"
-	"github.com/jaegertracing/jaeger/storage/spanstore"
 )
 
-// QueryService contains span utils required by the query-service.
-type QueryService struct {
-	spanReader        spanstore.Reader
-	archiveSpanReader spanstore.Reader
-	archiveSpanWriter spanstore.Writer
-	dependencyReader  dependencystore.Reader
-	adjuster          adjuster.Adjuster
-	logger            *zap.Logger
-	tracer            opentracing.Tracer
+// StandardAdjusters is a list of model adjusters applied by the query service
+// before returning the data to the API clients.
+var StandardAdjusters = []adjuster.Adjuster{
+	adjuster.SpanIDDeduper(),
+	adjuster.ClockSkew(),
+	adjuster.IPTagAdjuster(),
+	adjuster.SortLogFields(),
+	adjuster.SpanReferences(),
 }
