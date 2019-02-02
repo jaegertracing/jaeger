@@ -44,7 +44,7 @@ func TestOptionsWithFlags(t *testing.T) {
 	opts := NewOptions("es", "es.aux")
 	v, command := config.Viperize(opts.AddFlags)
 	command.ParseFlags([]string{
-		"--es.server-urls=1.1.1.1,2.2.2.2",
+		"--es.server-urls=1.1.1.1, 2.2.2.2",
 		"--es.username=hello",
 		"--es.password=world",
 		"--es.sniffer=true",
@@ -52,7 +52,7 @@ func TestOptionsWithFlags(t *testing.T) {
 		"--es.num-shards=20",
 		"--es.num-replicas=10",
 		// a couple overrides
-		"--es.aux.server-urls=3.3.3.3,4.4.4.4",
+		"--es.aux.server-urls=3.3.3.3, 4.4.4.4",
 		"--es.aux.max-span-age=24h",
 		"--es.aux.num-replicas=10",
 	})
