@@ -35,6 +35,7 @@ import (
 	"github.com/jaegertracing/jaeger/cmd/env"
 	"github.com/jaegertracing/jaeger/cmd/flags"
 	"github.com/jaegertracing/jaeger/cmd/query/app"
+	"github.com/jaegertracing/jaeger/cmd/query/app/querysvc"
 	"github.com/jaegertracing/jaeger/pkg/config"
 	"github.com/jaegertracing/jaeger/pkg/healthcheck"
 	pMetrics "github.com/jaegertracing/jaeger/pkg/metrics"
@@ -115,15 +116,18 @@ func main() {
 			if err != nil {
 				logger.Fatal("Failed to create dependency reader", zap.Error(err))
 			}
+			queryServiceOptions := archiveOptions(storageFactory, logger)
+			queryService := querysvc.NewQueryService(
+				spanReader,
+				dependencyReader,
+				*queryServiceOptions)
 
 			apiHandlerOptions := []app.HandlerOption{
 				app.HandlerOptions.Logger(logger),
 				app.HandlerOptions.Tracer(tracer),
 			}
-			apiHandlerOptions = append(apiHandlerOptions, archiveOptions(storageFactory, logger)...)
 			apiHandler := app.NewAPIHandler(
-				spanReader,
-				dependencyReader,
+				queryService,
 				apiHandlerOptions...)
 			r := app.NewRouter()
 			if queryOpts.BasePath != "/" {
@@ -177,7 +181,7 @@ func main() {
 	}
 }
 
-func archiveOptions(storageFactory istorage.Factory, logger *zap.Logger) []app.HandlerOption {
+func archiveOptions(storageFactory istorage.Factory, logger *zap.Logger) *querysvc.QueryServiceOptions {
 	archiveFactory, ok := storageFactory.(istorage.ArchiveFactory)
 	if !ok {
 		logger.Info("Archive storage not supported by the factory")
@@ -201,8 +205,8 @@ func archiveOptions(storageFactory istorage.Factory, logger *zap.Logger) []app.H
 		logger.Error("Cannot init archive storage writer", zap.Error(err))
 		return nil
 	}
-	return []app.HandlerOption{
-		app.HandlerOptions.ArchiveSpanReader(reader),
-		app.HandlerOptions.ArchiveSpanWriter(writer),
+	return &querysvc.QueryServiceOptions{
+		archiveSpanReader: reader,
+		archiveSpanWriter: writer,
 	}
 }

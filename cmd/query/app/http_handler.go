@@ -34,7 +34,6 @@ import (
 	uiconv "github.com/jaegertracing/jaeger/model/converter/json"
 	ui "github.com/jaegertracing/jaeger/model/json"
 	"github.com/jaegertracing/jaeger/pkg/multierror"
-	"github.com/jaegertracing/jaeger/storage/dependencystore"
 	"github.com/jaegertracing/jaeger/storage/spanstore"
 )
 
@@ -46,10 +45,6 @@ const (
 	defaultDependencyLookbackDuration = time.Hour * 24
 	defaultTraceQueryLookbackDuration = time.Hour * 24 * 2
 	defaultAPIPrefix                  = "api"
-)
-
-var (
-	errNoArchiveSpanStorage = errors.New("archive span storage was not configured")
 )
 
 // HTTPHandler handles http requests
@@ -87,9 +82,9 @@ type APIHandler struct {
 }
 
 // NewAPIHandler returns an APIHandler
-func NewAPIHandler(spanReader spanstore.Reader, dependencyReader dependencystore.Reader, options ...HandlerOption) *APIHandler {
+func NewAPIHandler(queryService *querysvc.QueryService, options ...HandlerOption) *APIHandler {
 	aH := &APIHandler{
-		queryService: querysvc.NewQueryService(spanReader, dependencyReader),
+		queryService: queryService,
 		queryParser: queryParser{
 			traceQueryLookbackDuration: defaultTraceQueryLookbackDuration,
 			timeNow:                    time.Now,
@@ -352,37 +347,6 @@ func (aH *APIHandler) getTraceFromReaders(
 	r *http.Request,
 	reader spanstore.Reader,
 ) {
-	aH.withTraceFromReader(w, r, reader, func(trace *model.Trace) {
-		var uiErrors []structuredError
-		uiTrace, uiErr := aH.convertModelToUI(trace, shouldAdjust(r))
-		if uiErr != nil {
-			uiErrors = append(uiErrors, *uiErr)
-		}
-
-		structuredRes := structuredResponse{
-			Data: []*ui.Trace{
-				uiTrace,
-			},
-			Errors: uiErrors,
-		}
-		aH.writeJSON(w, r, &structuredRes)
-	})
-}
-
-func shouldAdjust(r *http.Request) bool {
-	raw := r.FormValue("raw")
-	isRaw, _ := strconv.ParseBool(raw)
-	return !isRaw
-}
-
-// withTraceFromReader tries to load a trace from Reader and if successful
-// execute process() function passing it that trace.
-func (aH *APIHandler) withTraceFromReader(
-	w http.ResponseWriter,
-	r *http.Request,
-	reader spanstore.Reader,
-	process func(trace *model.Trace),
-) {
 	traceID, ok := aH.parseTraceID(w, r)
 	if !ok {
 		return
@@ -395,34 +359,48 @@ func (aH *APIHandler) withTraceFromReader(
 	if aH.handleError(w, err, http.StatusInternalServerError) {
 		return
 	}
-	process(trace)
+
+	var uiErrors []structuredError
+	uiTrace, uiErr := aH.convertModelToUI(trace, shouldAdjust(r))
+	if uiErr != nil {
+		uiErrors = append(uiErrors, *uiErr)
+	}
+
+	structuredRes := structuredResponse{
+		Data: []*ui.Trace{
+			uiTrace,
+		},
+		Errors: uiErrors,
+	}
+	aH.writeJSON(w, r, &structuredRes)
+}
+
+func shouldAdjust(r *http.Request) bool {
+	raw := r.FormValue("raw")
+	isRaw, _ := strconv.ParseBool(raw)
+	return !isRaw
 }
 
 // archiveTrace implements the REST API POST:/archive/{trace-id}.
-// It reads the trace from the main Reader and saves it to archive Writer.
+// It passes the traceID to queryService.ArchiveTrace for writing.
 func (aH *APIHandler) archiveTrace(w http.ResponseWriter, r *http.Request) {
-	if aH.queryService.CheckArchiveSpanWriter() == true {
-		aH.handleError(w, errNoArchiveSpanStorage, http.StatusInternalServerError)
+	traceID, ok := aH.parseTraceID(w, r)
+	if !ok {
 		return
 	}
-	aH.withTraceFromReader(w, r, aH.queryService, func(trace *model.Trace) {
-		var writeErrors []error
-		for _, span := range trace.Spans {
-			err := aH.queryService.WriteSpan(span)
-			if err != nil {
-				writeErrors = append(writeErrors, err)
-			}
-		}
-		err := multierror.Wrap(writeErrors)
-		if aH.handleError(w, err, http.StatusInternalServerError) {
-			return
-		}
-		structuredRes := structuredResponse{
-			Data:   []string{}, // doens't matter, just want an empty array
-			Errors: []structuredError{},
-		}
-		aH.writeJSON(w, r, &structuredRes)
-	})
+
+	// QueryService.ArchiveTrace can now archive this traceID.
+	err := aH.queryService.ArchiveTrace(r.Context(), &traceID)
+	if err != nil {
+		aH.handleError(w, err, http.StatusInternalServerError)
+		return
+	}
+
+	structuredRes := structuredResponse{
+		Data:   []string{}, // doens't matter, just want an empty array
+		Errors: []structuredError{},
+	}
+	aH.writeJSON(w, r, &structuredRes)
 }
 
 func (aH *APIHandler) handleError(w http.ResponseWriter, err error, statusCode int) bool {

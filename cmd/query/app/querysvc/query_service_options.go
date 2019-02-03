@@ -19,31 +19,9 @@ import (
 	"github.com/jaegertracing/jaeger/storage/spanstore"
 )
 
-// QueryServiceOption is a function that sets some option on the QueryService
-type QueryServiceOption func(qsvc *QueryService)
-
 // QueryServiceOptions is a factory for all available QueryServiceOptions
-var QueryServiceOptions queryServiceOptions
-
-type queryServiceOptions struct{}
-
-// Adjusters creates a QueryServiceOption that initializes the sequence of Adjusters on the QueryService.
-func (queryServiceOptions) Adjusters(adjusters ...adjuster.Adjuster) QueryServiceOption {
-	return func(queryService *QueryService) {
-		queryService.adjuster = adjuster.Sequence(adjusters...)
-	}
-}
-
-// ArchiveSpanReader creates a QueryServiceOption that initializes an ArchiveSpanReader on the QueryService.
-func (queryServiceOptions) ArchiveSpanReader(reader spanstore.Reader) QueryServiceOption {
-	return func(queryService *QueryService) {
-		queryService.archiveSpanReader = reader
-	}
-}
-
-// ArchiveSpanWriter creates a QueryServiceOption that initializes an ArchiveSpanWriter on the QueryService
-func (queryServiceOptions) ArchiveSpanWriter(writer spanstore.Writer) QueryServiceOption {
-	return func(queryService *QueryService) {
-		queryService.archiveSpanWriter = writer
-	}
+type QueryServiceOptions struct {
+	archiveSpanReader spanstore.Reader
+	archiveSpanWriter spanstore.Writer
+	adjuster          adjuster.Adjuster
 }
