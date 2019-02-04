@@ -336,22 +336,14 @@ func (aH *APIHandler) parseTraceID(w http.ResponseWriter, r *http.Request) (mode
 }
 
 // getTrace implements the REST API /traces/{trace-id}
-func (aH *APIHandler) getTrace(w http.ResponseWriter, r *http.Request) {
-	aH.getTraceFromReaders(w, r, aH.queryService)
-}
-
-// getTraceFromReader parses trace ID from the path, loads the trace from specified Reader,
+// It parses trace ID from the path, fetches the trace from QueryService,
 // formats it in the UI JSON format, and responds to the client.
-func (aH *APIHandler) getTraceFromReaders(
-	w http.ResponseWriter,
-	r *http.Request,
-	reader spanstore.Reader,
-) {
+func (aH *APIHandler) getTrace(w http.ResponseWriter, r *http.Request) {
 	traceID, ok := aH.parseTraceID(w, r)
 	if !ok {
 		return
 	}
-	trace, err := reader.GetTrace(r.Context(), traceID)
+	trace, err := aH.queryService.GetTrace(r.Context(), traceID)
 	if err == spanstore.ErrTraceNotFound {
 		aH.handleError(w, err, http.StatusNotFound)
 		return
@@ -390,9 +382,8 @@ func (aH *APIHandler) archiveTrace(w http.ResponseWriter, r *http.Request) {
 	}
 
 	// QueryService.ArchiveTrace can now archive this traceID.
-	err := aH.queryService.ArchiveTrace(r.Context(), &traceID)
-	if err != nil {
-		aH.handleError(w, err, http.StatusInternalServerError)
+	err := aH.queryService.ArchiveTrace(r.Context(), traceID)
+	if aH.handleError(w, err, http.StatusInternalServerError) {
 		return
 	}
 

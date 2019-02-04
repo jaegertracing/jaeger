@@ -30,6 +30,13 @@ var (
 	errNoArchiveSpanStorage = errors.New("archive span storage was not configured")
 )
 
+// QueryServiceOptions has optional members of QueryService
+type QueryServiceOptions struct {
+	archiveSpanReader spanstore.Reader
+	archiveSpanWriter spanstore.Writer
+	adjuster          adjuster.Adjuster
+}
+
 // QueryService contains span utils required by the query-service.
 type QueryService struct {
 	spanReader       spanstore.Reader
@@ -50,8 +57,6 @@ func NewQueryService(spanReader spanstore.Reader, dependencyReader dependencysto
 	}
 	return qsvc
 }
-
-// Implement the spanstore.Reader interface
 
 // GetTrace is the queryService implementation of spanstore.Reader.GetTrace
 func (qs QueryService) GetTrace(ctx context.Context, traceID model.TraceID) (*model.Trace, error) {
@@ -86,11 +91,11 @@ func (qs QueryService) FindTraceIDs(ctx context.Context, query *spanstore.TraceQ
 }
 
 // ArchiveTrace is the queryService utility to archive traces.
-func (qs QueryService) ArchiveTrace(ctx context.Context, traceID *model.TraceID) error {
+func (qs QueryService) ArchiveTrace(ctx context.Context, traceID model.TraceID) error {
 	if qs.options.archiveSpanReader == nil {
 		return errNoArchiveSpanStorage
 	}
-	trace, err := qs.GetTrace(ctx, *traceID)
+	trace, err := qs.GetTrace(ctx, traceID)
 	if err != nil {
 		return err
 	}
@@ -102,18 +107,13 @@ func (qs QueryService) ArchiveTrace(ctx context.Context, traceID *model.TraceID)
 			writeErrors = append(writeErrors, err)
 		}
 	}
-	multierr := multierror.Wrap(writeErrors)
-	return multierr
+	return multierror.Wrap(writeErrors)
 }
-
-// Implement the adjuster.Adjuster interface
 
 // Adjust implements adjuster.Adjuster.Adjust
 func (qs QueryService) Adjust(trace *model.Trace) (*model.Trace, error) {
 	return qs.options.adjuster.Adjust(trace)
 }
-
-// Implement the dependencystore.Reader interface
 
 // GetDependencies implements dependencystore.Reader.GetDependencies
 func (qs QueryService) GetDependencies(endTs time.Time, lookback time.Duration) ([]model.DependencyLink, error) {

@@ -120,7 +120,7 @@ func main() {
 			queryService := querysvc.NewQueryService(
 				spanReader,
 				dependencyReader,
-				*queryServiceOptions)
+				queryServiceOptions)
 
 			apiHandlerOptions := []app.HandlerOption{
 				app.HandlerOptions.Logger(logger),
@@ -181,31 +181,31 @@ func main() {
 	}
 }
 
-func archiveOptions(storageFactory istorage.Factory, logger *zap.Logger) *querysvc.QueryServiceOptions {
+func archiveOptions(storageFactory istorage.Factory, logger *zap.Logger) querysvc.QueryServiceOptions {
 	archiveFactory, ok := storageFactory.(istorage.ArchiveFactory)
 	if !ok {
 		logger.Info("Archive storage not supported by the factory")
-		return nil
+		return querysvc.QueryServiceOptions{}
 	}
 	reader, err := archiveFactory.CreateArchiveSpanReader()
 	if err == istorage.ErrArchiveStorageNotConfigured || err == istorage.ErrArchiveStorageNotSupported {
 		logger.Info("Archive storage not created", zap.String("reason", err.Error()))
-		return nil
+		return querysvc.QueryServiceOptions{}
 	}
 	if err != nil {
 		logger.Error("Cannot init archive storage reader", zap.Error(err))
-		return nil
+		return querysvc.QueryServiceOptions{}
 	}
 	writer, err := archiveFactory.CreateArchiveSpanWriter()
 	if err == istorage.ErrArchiveStorageNotConfigured || err == istorage.ErrArchiveStorageNotSupported {
 		logger.Info("Archive storage not created", zap.String("reason", err.Error()))
-		return nil
+		return querysvc.QueryServiceOptions{}
 	}
 	if err != nil {
 		logger.Error("Cannot init archive storage writer", zap.Error(err))
-		return nil
+		return querysvc.QueryServiceOptions{}
 	}
-	return &querysvc.QueryServiceOptions{
+	return querysvc.QueryServiceOptions{
 		archiveSpanReader: reader,
 		archiveSpanWriter: writer,
 	}
