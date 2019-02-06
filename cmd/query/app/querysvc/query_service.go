@@ -32,9 +32,9 @@ var (
 
 // QueryServiceOptions has optional members of QueryService
 type QueryServiceOptions struct {
-	archiveSpanReader spanstore.Reader
-	archiveSpanWriter spanstore.Writer
-	adjuster          adjuster.Adjuster
+	ArchiveSpanReader spanstore.Reader
+	ArchiveSpanWriter spanstore.Writer
+	Adjuster          adjuster.Adjuster
 }
 
 // QueryService contains span utils required by the query-service.
@@ -52,8 +52,8 @@ func NewQueryService(spanReader spanstore.Reader, dependencyReader dependencysto
 		options:          options,
 	}
 
-	if qsvc.options.adjuster == nil {
-		qsvc.options.adjuster = adjuster.Sequence(StandardAdjusters...)
+	if qsvc.options.Adjuster == nil {
+		qsvc.options.Adjuster = adjuster.Sequence(StandardAdjusters...)
 	}
 	return qsvc
 }
@@ -62,10 +62,10 @@ func NewQueryService(spanReader spanstore.Reader, dependencyReader dependencysto
 func (qs QueryService) GetTrace(ctx context.Context, traceID model.TraceID) (*model.Trace, error) {
 	trace, err := qs.spanReader.GetTrace(ctx, traceID)
 	if err == spanstore.ErrTraceNotFound {
-		if qs.options.archiveSpanReader == nil {
+		if qs.options.ArchiveSpanReader == nil {
 			return nil, err
 		}
-		trace, err = qs.options.archiveSpanReader.GetTrace(ctx, traceID)
+		trace, err = qs.options.ArchiveSpanReader.GetTrace(ctx, traceID)
 	}
 	return trace, err
 }
@@ -92,7 +92,7 @@ func (qs QueryService) FindTraceIDs(ctx context.Context, query *spanstore.TraceQ
 
 // ArchiveTrace is the queryService utility to archive traces.
 func (qs QueryService) ArchiveTrace(ctx context.Context, traceID model.TraceID) error {
-	if qs.options.archiveSpanReader == nil {
+	if qs.options.ArchiveSpanWriter == nil {
 		return errNoArchiveSpanStorage
 	}
 	trace, err := qs.GetTrace(ctx, traceID)
@@ -102,7 +102,7 @@ func (qs QueryService) ArchiveTrace(ctx context.Context, traceID model.TraceID) 
 
 	var writeErrors []error
 	for _, span := range trace.Spans {
-		err := qs.options.archiveSpanWriter.WriteSpan(span)
+		err := qs.options.ArchiveSpanWriter.WriteSpan(span)
 		if err != nil {
 			writeErrors = append(writeErrors, err)
 		}
@@ -112,7 +112,7 @@ func (qs QueryService) ArchiveTrace(ctx context.Context, traceID model.TraceID) 
 
 // Adjust implements adjuster.Adjuster.Adjust
 func (qs QueryService) Adjust(trace *model.Trace) (*model.Trace, error) {
-	return qs.options.adjuster.Adjust(trace)
+	return qs.options.Adjuster.Adjust(trace)
 }
 
 // GetDependencies implements dependencystore.Reader.GetDependencies

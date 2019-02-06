@@ -97,6 +97,9 @@ func NewAPIHandler(queryService *querysvc.QueryService, options ...HandlerOption
 	if aH.apiPrefix == "" {
 		aH.apiPrefix = defaultAPIPrefix
 	}
+	if aH.logger == nil {
+		aH.logger = zap.NewNop()
+	}
 	if aH.tracer == nil {
 		aH.tracer = opentracing.NoopTracer{}
 	}

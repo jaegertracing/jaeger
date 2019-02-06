@@ -206,7 +206,7 @@ func archiveOptions(storageFactory istorage.Factory, logger *zap.Logger) querysv
 		return querysvc.QueryServiceOptions{}
 	}
 	return querysvc.QueryServiceOptions{
-		archiveSpanReader: reader,
-		archiveSpanWriter: writer,
+		ArchiveSpanReader: reader,
+		ArchiveSpanWriter: writer,
 	}
 }
