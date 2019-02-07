@@ -52,6 +52,7 @@ import (
 	"github.com/jaegertracing/jaeger/cmd/env"
 	"github.com/jaegertracing/jaeger/cmd/flags"
 	queryApp "github.com/jaegertracing/jaeger/cmd/query/app"
+	"github.com/jaegertracing/jaeger/cmd/query/app/querysvc"
 	"github.com/jaegertracing/jaeger/pkg/config"
 	"github.com/jaegertracing/jaeger/pkg/healthcheck"
 	pMetrics "github.com/jaegertracing/jaeger/pkg/metrics"
@@ -142,7 +143,7 @@ func main() {
 
 			startAgent(aOpts, repOpts, tchannelRepOpts, grpcRepOpts, cOpts, logger, metricsFactory)
 			grpcServer := startCollector(cOpts, spanWriter, logger, metricsFactory, strategyStore, hc)
-			startQuery(qOpts, spanReader, dependencyReader, logger, rootMetricsFactory, metricsFactory, mBldr, hc, archiveOptions(storageFactory, logger))
+			startQuery(qOpts, spanReader, dependencyReader, logger, rootMetricsFactory, metricsFactory, mBldr, hc, queryApp.ArchiveOptions(storageFactory, logger))
 			hc.Ready()
 			<-signalsChannel
 			logger.Info("Shutting down")
@@ -341,7 +342,7 @@ func startQuery(
 	baseFactory metrics.Factory,
 	metricsBuilder *pMetrics.Builder,
 	hc *healthcheck.HealthCheck,
-	handlerOpts []queryApp.HandlerOption,
+	queryOpts querysvc.QueryServiceOptions,
 ) {
 	tracer, closer, err := jaegerClientConfig.Configuration{
 		Sampler: &jaegerClientConfig.SamplerConfig{
@@ -361,10 +362,10 @@ func startQuery(
 
 	spanReader = storageMetrics.NewReadMetricsDecorator(spanReader, baseFactory.Namespace(metrics.NSOptions{Name: "query", Tags: nil}))
 
-	handlerOpts = append(handlerOpts, queryApp.HandlerOptions.Logger(logger), queryApp.HandlerOptions.Tracer(tracer))
+	qs := querysvc.NewQueryService(spanReader, depReader, queryOpts)
+	handlerOpts := []HandlerOption{queryApp.HandlerOptions.Logger(logger), queryApp.HandlerOptions.Tracer(tracer)}
 	apiHandler := queryApp.NewAPIHandler(
-		spanReader,
-		depReader,
+		qs,
 		handlerOpts...)
 
 	r := mux.NewRouter()
@@ -404,34 +405,4 @@ func initSamplingStrategyStore(
 		logger.Fatal("Failed to create sampling strategy store", zap.Error(err))
 	}
 	return strategyStore
-}
-
-func archiveOptions(storageFactory istorage.Factory, logger *zap.Logger) []queryApp.HandlerOption {
-	archiveFactory, ok := storageFactory.(istorage.ArchiveFactory)
-	if !ok {
-		logger.Info("Archive storage not supported by the factory")
-		return nil
-	}
-	reader, err := archiveFactory.CreateArchiveSpanReader()
-	if err == istorage.ErrArchiveStorageNotConfigured || err == istorage.ErrArchiveStorageNotSupported {
-		logger.Info("Archive storage not created", zap.String("reason", err.Error()))
-		return nil
-	}
-	if err != nil {
-		logger.Error("Cannot init archive storage reader", zap.Error(err))
-		return nil
-	}
-	writer, err := archiveFactory.CreateArchiveSpanWriter()
-	if err == istorage.ErrArchiveStorageNotConfigured || err == istorage.ErrArchiveStorageNotSupported {
-		logger.Info("Archive storage not created", zap.String("reason", err.Error()))
-		return nil
-	}
-	if err != nil {
-		logger.Error("Cannot init archive storage writer", zap.Error(err))
-		return nil
-	}
-	return []queryApp.HandlerOption{
-		queryApp.HandlerOptions.ArchiveSpanReader(reader),
-		queryApp.HandlerOptions.ArchiveSpanWriter(writer),
-	}
 }

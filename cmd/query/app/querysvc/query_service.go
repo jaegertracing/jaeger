@@ -110,7 +110,7 @@ func (qs QueryService) ArchiveTrace(ctx context.Context, traceID model.TraceID) 
 	return multierror.Wrap(writeErrors)
 }
 
-// Adjust implements adjuster.Adjuster.Adjust
+// Adjust applies adjusters to the trace.
 func (qs QueryService) Adjust(trace *model.Trace) (*model.Trace, error) {
 	return qs.options.Adjuster.Adjust(trace)
 }

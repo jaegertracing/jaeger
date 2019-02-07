@@ -386,7 +386,7 @@ func (aH *APIHandler) archiveTrace(w http.ResponseWriter, r *http.Request) {
 
 	// QueryService.ArchiveTrace can now archive this traceID.
 	err := aH.queryService.ArchiveTrace(r.Context(), traceID)
-	if aH.handleError(w, err, http.StatusInternalServerError) {
+	if aH.handleError(w, err, http.StatusNotFound) {
 		return
 	}
 
