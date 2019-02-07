@@ -18,18 +18,18 @@ import (
 	"go.uber.org/zap"
 
 	"github.com/jaegertracing/jaeger/cmd/query/app/querysvc"
-	istorage "github.com/jaegertracing/jaeger/storage"
+	"github.com/jaegertracing/jaeger/storage"
 )
 
 // ArchiveOptions returns an instance of QueryServiceOptions based on readers/writers created from storageFactory
-func ArchiveOptions(storageFactory istorage.Factory, logger *zap.Logger) querysvc.QueryServiceOptions {
-	archiveFactory, ok := storageFactory.(istorage.ArchiveFactory)
+func ArchiveOptions(storageFactory storage.Factory, logger *zap.Logger) querysvc.QueryServiceOptions {
+	archiveFactory, ok := storageFactory.(storage.ArchiveFactory)
 	if !ok {
 		logger.Info("Archive storage not supported by the factory")
 		return querysvc.QueryServiceOptions{}
 	}
 	reader, err := archiveFactory.CreateArchiveSpanReader()
-	if err == istorage.ErrArchiveStorageNotConfigured || err == istorage.ErrArchiveStorageNotSupported {
+	if err == storage.ErrArchiveStorageNotConfigured || err == storage.ErrArchiveStorageNotSupported {
 		logger.Info("Archive storage not created", zap.String("reason", err.Error()))
 		return querysvc.QueryServiceOptions{}
 	}
@@ -38,7 +38,7 @@ func ArchiveOptions(storageFactory istorage.Factory, logger *zap.Logger) querysv
 		return querysvc.QueryServiceOptions{}
 	}
 	writer, err := archiveFactory.CreateArchiveSpanWriter()
-	if err == istorage.ErrArchiveStorageNotConfigured || err == istorage.ErrArchiveStorageNotSupported {
+	if err == storage.ErrArchiveStorageNotConfigured || err == storage.ErrArchiveStorageNotSupported {
 		logger.Info("Archive storage not created", zap.String("reason", err.Error()))
 		return querysvc.QueryServiceOptions{}
 	}
