@@ -20,6 +20,7 @@ import (
 	"crypto/x509"
 	"io/ioutil"
 	"net/http"
+	"strings"
 	"sync"
 	"time"
 
@@ -38,6 +39,7 @@ type Configuration struct {
 	Servers             []string
 	Username            string
 	Password            string
+	TokenFilePath       string
 	Sniffer             bool          // https://github.com/olivere/elastic/wiki/Sniffing
 	MaxNumSpans         int           // defines maximum number of spans to fetch from storage per query
 	MaxSpanAge          time.Duration `yaml:"max_span_age"` // configures the maximum lookback on span reads
@@ -76,6 +78,7 @@ type ClientBuilder interface {
 	GetAllTagsAsFields() bool
 	GetTagDotReplacement() string
 	GetUseReadWriteAliases() bool
+	GetTokenFilePath() string
 }
 
 // NewClient creates a new ElasticSearch client
@@ -224,6 +227,11 @@ func (c *Configuration) GetUseReadWriteAliases() bool {
 	return c.UseReadWriteAliases
 }
 
+// GetTokenFilePath returns file path containing the bearer token
+func (c *Configuration) GetTokenFilePath() string {
+	return c.TokenFilePath
+}
+
 // getConfigOptions wraps the configs to feed to the ElasticSearch client init
 func (c *Configuration) getConfigOptions() ([]elastic.ClientOptionFunc, error) {
 	options := []elastic.ClientOptionFunc{elastic.SetURL(c.Servers...), elastic.SetSniff(c.Sniffer)}
@@ -240,7 +248,27 @@ func (c *Configuration) getConfigOptions() ([]elastic.ClientOptionFunc, error) {
 			TLSClientConfig: ctlsConfig,
 		}
 	} else {
-		options = append(options, elastic.SetBasicAuth(c.Username, c.Password))
+		if c.TokenFilePath != "" {
+			token, err := loadToken(c.TokenFilePath)
+			if err != nil {
+				return nil, err
+			}
+			wrapped := http.Transport{}
+			if c.TLS.CaPath != "" {
+				ctls := &TLSConfig{CaPath: c.TLS.CaPath}
+				ca, err := ctls.loadCertificate()
+				if err != nil {
+					return nil, err
+				}
+				wrapped.TLSClientConfig = &tls.Config{RootCAs: ca}
+			}
+			httpClient.Transport = &TokenAuthTransport{
+				token:   token,
+				wrapped: wrapped,
+			}
+		} else {
+			options = append(options, elastic.SetBasicAuth(c.Username, c.Password))
+		}
 	}
 	return options, nil
 }
@@ -280,4 +308,23 @@ func (tlsConfig *TLSConfig) loadPrivateKey() (*tls.Certificate, error) {
 		return nil, err
 	}
 	return &privateKey, nil
+}
+
+// TokenAuthTransport
+type TokenAuthTransport struct {
+	token   string
+	wrapped http.Transport
+}
+
+func (tr *TokenAuthTransport) RoundTrip(r *http.Request) (*http.Response, error) {
+	r.Header.Set("Authorization", "Bearer "+tr.token)
+	return tr.wrapped.RoundTrip(r)
+}
+
+func loadToken(path string) (string, error) {
+	b, err := ioutil.ReadFile(path)
+	if err != nil {
+		return "", err
+	}
+	return strings.TrimRight(string(b), "\r\n"), nil
 }

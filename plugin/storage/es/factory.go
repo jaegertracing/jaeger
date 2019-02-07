@@ -76,11 +76,13 @@ func (f *Factory) Initialize(metricsFactory metrics.Factory, logger *zap.Logger)
 
 	primaryClient, err := f.primaryConfig.NewClient(logger, metricsFactory)
 	if err != nil {
+		f.logger.Error("failed to create primary Elasticsearch client", zap.Error(err))
 		return err
 	}
 	f.primaryClient = primaryClient
 	archiveClient, err := f.archiveConfig.NewClient(logger, metricsFactory)
 	if err != nil {
+		f.logger.Error("failed to create archive Elasticsearch client", zap.Error(err))
 		return err
 	}
 	f.archiveClient = archiveClient

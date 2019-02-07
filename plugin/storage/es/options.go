@@ -28,6 +28,7 @@ const (
 	suffixUsername          = ".username"
 	suffixPassword          = ".password"
 	suffixSniffer           = ".sniffer"
+	suffixTokenPath         = ".token-file-path"
 	suffixServerURLs        = ".server-urls"
 	suffixMaxSpanAge        = ".max-span-age"
 	suffixMaxNumSpans       = ".max-num-spans"
@@ -119,6 +120,10 @@ func addFlags(flagSet *flag.FlagSet, nsConfig *namespaceConfig) {
 		nsConfig.namespace+suffixPassword,
 		nsConfig.Password,
 		"The password required by ElasticSearch")
+	flagSet.String(
+		nsConfig.namespace+suffixTokenPath,
+		nsConfig.TokenFilePath,
+		"Path to a file containing bearer token. This flag also uses "+suffixCA+" if it is specified")
 	flagSet.Bool(
 		nsConfig.namespace+suffixSniffer,
 		nsConfig.Sniffer,
@@ -217,6 +222,7 @@ func (opt *Options) InitFromViper(v *viper.Viper) {
 func initFromViper(cfg *namespaceConfig, v *viper.Viper) {
 	cfg.Username = v.GetString(cfg.namespace + suffixUsername)
 	cfg.Password = v.GetString(cfg.namespace + suffixPassword)
+	cfg.TokenFilePath = v.GetString(cfg.namespace + suffixTokenPath)
 	cfg.Sniffer = v.GetBool(cfg.namespace + suffixSniffer)
 	cfg.servers = stripWhiteSpace(v.GetString(cfg.namespace + suffixServerURLs))
 	cfg.MaxSpanAge = v.GetDuration(cfg.namespace + suffixMaxSpanAge)
