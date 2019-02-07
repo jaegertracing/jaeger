@@ -42,7 +42,6 @@ import (
 	"github.com/jaegertracing/jaeger/pkg/recoveryhandler"
 	"github.com/jaegertracing/jaeger/pkg/version"
 	"github.com/jaegertracing/jaeger/plugin/storage"
-	istorage "github.com/jaegertracing/jaeger/storage"
 	storageMetrics "github.com/jaegertracing/jaeger/storage/spanstore/metrics"
 )
 
@@ -116,7 +115,7 @@ func main() {
 			if err != nil {
 				logger.Fatal("Failed to create dependency reader", zap.Error(err))
 			}
-			queryServiceOptions := ArchiveOptions(storageFactory, logger)
+			queryServiceOptions := app.ArchiveOptions(storageFactory, logger)
 			queryService := querysvc.NewQueryService(
 				spanReader,
 				dependencyReader,

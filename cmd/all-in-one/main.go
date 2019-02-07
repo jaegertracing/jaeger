@@ -60,7 +60,6 @@ import (
 	"github.com/jaegertracing/jaeger/pkg/version"
 	ss "github.com/jaegertracing/jaeger/plugin/sampling/strategystore"
 	"github.com/jaegertracing/jaeger/plugin/storage"
-	istorage "github.com/jaegertracing/jaeger/storage"
 	"github.com/jaegertracing/jaeger/storage/dependencystore"
 	"github.com/jaegertracing/jaeger/storage/spanstore"
 	storageMetrics "github.com/jaegertracing/jaeger/storage/spanstore/metrics"
@@ -363,7 +362,7 @@ func startQuery(
 	spanReader = storageMetrics.NewReadMetricsDecorator(spanReader, baseFactory.Namespace(metrics.NSOptions{Name: "query", Tags: nil}))
 
 	qs := querysvc.NewQueryService(spanReader, depReader, queryOpts)
-	handlerOpts := []HandlerOption{queryApp.HandlerOptions.Logger(logger), queryApp.HandlerOptions.Tracer(tracer)}
+	handlerOpts := []queryApp.HandlerOption{queryApp.HandlerOptions.Logger(logger), queryApp.HandlerOptions.Tracer(tracer)}
 	apiHandler := queryApp.NewAPIHandler(
 		qs,
 		handlerOpts...)
