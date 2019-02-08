@@ -46,14 +46,14 @@ def main():
     if str2bool(os.getenv('ARCHIVE', 'false')):
         write_alias = prefix + ARCHIVE_INDEX + '-write'
         read_alias = prefix + ARCHIVE_INDEX + '-read'
-        perform_action(action, client, write_alias, read_alias, 'jaeger-span-archive', 'jaeger-span')
+        perform_action(action, client, write_alias, read_alias, prefix+'jaeger-span-archive', 'jaeger-span')
     else:
         write_alias = prefix + 'jaeger-span-write'
         read_alias = prefix + 'jaeger-span-read'
-        perform_action(action, client, write_alias, read_alias, 'jaeger-span', 'jaeger-span')
+        perform_action(action, client, write_alias, read_alias, prefix+'jaeger-span', 'jaeger-span')
         write_alias = prefix + 'jaeger-service-write'
         read_alias = prefix + 'jaeger-service-read'
-        perform_action(action, client, write_alias, read_alias, 'jaeger-service', 'jaeger-service')
+        perform_action(action, client, write_alias, read_alias, prefix+'jaeger-service', 'jaeger-service')
 
 
 def perform_action(action, client, write_alias, read_alias, index_to_rollover, template_name):
