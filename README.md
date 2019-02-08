@@ -109,13 +109,13 @@ See [CONTRIBUTING](./CONTRIBUTING.md).
 
 Below are the official maintainers of the Jaeger project. Please use `@jaegertracing/jaeger-maintainers` to tag them on issues / PRs.
 
-* @black-adder
-* @jpkrohling
-* @objectiser
-* @pavolloffay
-* @tiffon
-* @vprithvi
-* @yurishkuro
+* [@black-adder](https://github.com/black-adder)
+* [@jpkrohling](https://github.com/jpkrohling)
+* [@objectiser](https://github.com/objectiser)
+* [@pavolloffay](https://github.com/pavolloffay)
+* [@tiffon](https://github.com/tiffon)
+* [@vprithvi](https://github.com/vprithvi)
+* [@yurishkuro](https://github.com/yurishkuro)
 
 Some repositories under [jaegertracing](https://github.com/jaegertracing) org have additional maintainers.
 
