@@ -20,6 +20,7 @@ import (
 	"crypto/x509"
 	"io/ioutil"
 	"net/http"
+	"path/filepath"
 	"strings"
 	"sync"
 	"time"
@@ -253,7 +254,7 @@ func (c *Configuration) getConfigOptions() ([]elastic.ClientOptionFunc, error) {
 			if err != nil {
 				return nil, err
 			}
-			wrapped := http.Transport{}
+			wrapped := &http.Transport{}
 			if c.TLS.CaPath != "" {
 				ctls := &TLSConfig{CaPath: c.TLS.CaPath}
 				ca, err := ctls.loadCertificate()
@@ -262,7 +263,7 @@ func (c *Configuration) getConfigOptions() ([]elastic.ClientOptionFunc, error) {
 				}
 				wrapped.TLSClientConfig = &tls.Config{RootCAs: ca}
 			}
-			httpClient.Transport = &TokenAuthTransport{
+			httpClient.Transport = &tokenAuthTransport{
 				token:   token,
 				wrapped: wrapped,
 			}
@@ -311,18 +312,18 @@ func (tlsConfig *TLSConfig) loadPrivateKey() (*tls.Certificate, error) {
 }
 
 // TokenAuthTransport
-type TokenAuthTransport struct {
+type tokenAuthTransport struct {
 	token   string
-	wrapped http.Transport
+	wrapped *http.Transport
 }
 
-func (tr *TokenAuthTransport) RoundTrip(r *http.Request) (*http.Response, error) {
+func (tr *tokenAuthTransport) RoundTrip(r *http.Request) (*http.Response, error) {
 	r.Header.Set("Authorization", "Bearer "+tr.token)
 	return tr.wrapped.RoundTrip(r)
 }
 
 func loadToken(path string) (string, error) {
-	b, err := ioutil.ReadFile(path)
+	b, err := ioutil.ReadFile(filepath.Clean(path))
 	if err != nil {
 		return "", err
 	}

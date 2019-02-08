@@ -28,7 +28,7 @@ const (
 	suffixUsername          = ".username"
 	suffixPassword          = ".password"
 	suffixSniffer           = ".sniffer"
-	suffixTokenPath         = ".token-file-path"
+	suffixTokenPath         = ".token-file"
 	suffixServerURLs        = ".server-urls"
 	suffixMaxSpanAge        = ".max-span-age"
 	suffixMaxNumSpans       = ".max-num-spans"
