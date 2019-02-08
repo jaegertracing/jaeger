@@ -169,8 +169,8 @@ func createSpanWriter(
 		}
 	}
 
-	sMapping := loadMapping("span-mapping.json")
-	serviceMapping := loadMapping("service-mapping.json")
+	sMapping := loadMapping("jaeger-span.json")
+	serviceMapping := loadMapping("jaeger-service.json")
 	return esSpanStore.NewSpanWriter(esSpanStore.SpanWriterParams{
 		Client:              client,
 		Logger:              logger,

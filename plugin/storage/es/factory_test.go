@@ -129,8 +129,8 @@ func TestFactory_LoadMapping(t *testing.T) {
 	tests := []struct{
 		name string
 	}{
-		{name: "span-mapping.json"},
-		{name: "service-mapping.json"},
+		{name: "jaeger-span.json"},
+		{name: "jaeger-service.json"},
 	}
 	for _, test := range tests {
 		mapping := loadMapping(test.name)

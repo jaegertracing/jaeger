@@ -46,25 +46,22 @@ def main():
     if str2bool(os.getenv('ARCHIVE', 'false')):
         write_alias = prefix + ARCHIVE_INDEX + '-write'
         read_alias = prefix + ARCHIVE_INDEX + '-read'
-        perform_action(action, client, write_alias, read_alias, 'jaeger-span-archive')
+        perform_action(action, client, write_alias, read_alias, 'jaeger-span-archive', 'jaeger-span')
     else:
         write_alias = prefix + 'jaeger-span-write'
         read_alias = prefix + 'jaeger-span-read'
-        perform_action(action, client, write_alias, read_alias, 'jaeger-span', True)
+        perform_action(action, client, write_alias, read_alias, 'jaeger-span', 'jaeger-span')
         write_alias = prefix + 'jaeger-service-write'
         read_alias = prefix + 'jaeger-service-read'
-        perform_action(action, client, write_alias, read_alias, 'jaeger-service', False)
+        perform_action(action, client, write_alias, read_alias, 'jaeger-service', 'jaeger-service')
 
 
-def perform_action(action, client, write_alias, read_alias, index_to_rollover, create_template):
+def perform_action(action, client, write_alias, read_alias, index_to_rollover, template_name):
     if action == 'init':
-        if create_template:
-            shards = os.getenv('SHARDS', SHARDS)
-            replicas = os.getenv('REPLICAS', REPLICAS)
-            mapping = Path('span-mapping.json').read_text()
-            create_index_template(fix_mapping(mapping, shards, replicas), 'jaeger-span')
-            mapping = Path('service-mapping.json').read_text()
-            create_index_template(fix_mapping(mapping, shards, replicas), 'jaeger-service')
+        shards = os.getenv('SHARDS', SHARDS)
+        replicas = os.getenv('REPLICAS', REPLICAS)
+        mapping = Path('./mappings/'+template_name+'.json').read_text()
+        create_index_template(fix_mapping(mapping, shards, replicas), template_name)
 
         index = index_to_rollover + '-000001'
         create_index(client, index)
