@@ -47,7 +47,7 @@ func TestOptionsWithFlags(t *testing.T) {
 		"--es.server-urls=1.1.1.1, 2.2.2.2",
 		"--es.username=hello",
 		"--es.password=world",
-		"--es.token-file-path=/foo/bar",
+		"--es.token-file=/foo/bar",
 		"--es.sniffer=true",
 		"--es.max-span-age=48h",
 		"--es.num-shards=20",
