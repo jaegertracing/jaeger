@@ -123,7 +123,7 @@ func addFlags(flagSet *flag.FlagSet, nsConfig *namespaceConfig) {
 	flagSet.String(
 		nsConfig.namespace+suffixTokenPath,
 		nsConfig.TokenFilePath,
-		"Path to a file containing bearer token. This flag also uses "+suffixCA+" if it is specified")
+		"Path to a file containing bearer token. This flag also uses CA if it is specified")
 	flagSet.Bool(
 		nsConfig.namespace+suffixSniffer,
 		nsConfig.Sniffer,
