@@ -47,6 +47,7 @@ func TestOptionsWithFlags(t *testing.T) {
 		"--es.server-urls=1.1.1.1, 2.2.2.2",
 		"--es.username=hello",
 		"--es.password=world",
+		"--es.token-file=/foo/bar",
 		"--es.sniffer=true",
 		"--es.max-span-age=48h",
 		"--es.num-shards=20",
@@ -60,6 +61,7 @@ func TestOptionsWithFlags(t *testing.T) {
 
 	primary := opts.GetPrimary()
 	assert.Equal(t, "hello", primary.Username)
+	assert.Equal(t, "/foo/bar", primary.TokenFilePath)
 	assert.Equal(t, []string{"1.1.1.1", "2.2.2.2"}, primary.Servers)
 	assert.Equal(t, 48*time.Hour, primary.MaxSpanAge)
 	assert.True(t, primary.Sniffer)

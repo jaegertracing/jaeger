@@ -14,6 +14,7 @@ The script is using `python3`. All dependencies can be installed with: `python3 
 
 Parameters:
  * Environment variable TIMEOUT that sets the timeout in seconds for indices deletion (default: 120)
+ * Optional environment variable ES_USERNAME and ES_PASSWORD
  * a number that will delete any indices older than that number in days
  * ElasticSearch hostnames
  * Example usage: `TIMEOUT=120 ./esCleaner.py 4 localhost:9200`

@@ -97,7 +97,7 @@ required = [
 
 [[constraint]]
   name = "google.golang.org/grpc"
-  version = "^1.11.0"
+  version = "^1.13.0"
 
 [[constraint]]
   name = "gopkg.in/olivere/elastic.v5"
