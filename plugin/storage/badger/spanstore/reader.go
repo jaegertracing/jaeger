@@ -141,7 +141,8 @@ func (r *TraceReader) GetTrace(ctx context.Context, traceID model.TraceID) (*mod
 	traces, err := r.getTraces([]model.TraceID{traceID})
 	if err != nil {
 		return nil, err
-	} else if len(traces) == 1 {
+	}
+	if len(traces) == 1 {
 		return traces[0], nil
 	}
 
