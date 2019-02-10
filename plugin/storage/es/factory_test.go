@@ -53,11 +53,11 @@ func TestElasticsearchFactory(t *testing.T) {
 	// after InitFromViper, f.primaryConfig points to a real session builder that will fail in unit tests,
 	// so we override it with a mock.
 	f.primaryConfig = &mockClientBuilder{err: errors.New("made-up error")}
-	assert.EqualError(t, f.Initialize(metrics.NullFactory, zap.NewNop()), "made-up error")
+	assert.EqualError(t, f.Initialize(metrics.NullFactory, zap.NewNop()), "failed to create primary Elasticsearch client: made-up error")
 
 	f.primaryConfig = &mockClientBuilder{}
 	f.archiveConfig = &mockClientBuilder{err: errors.New("made-up error2")}
-	assert.EqualError(t, f.Initialize(metrics.NullFactory, zap.NewNop()), "made-up error2")
+	assert.EqualError(t, f.Initialize(metrics.NullFactory, zap.NewNop()), "failed to create archive Elasticsearch client: made-up error2")
 
 	f.archiveConfig = &mockClientBuilder{}
 	assert.NoError(t, f.Initialize(metrics.NullFactory, zap.NewNop()))

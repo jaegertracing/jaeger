@@ -15,7 +15,13 @@ def main():
         print('ARCHIVE ... specifies whether to remove archive indices. Use true or false')
         sys.exit(1)
 
-    client = elasticsearch.Elasticsearch(sys.argv[2:])
+    username = os.getenv("ES_USERNAME")
+    password = os.getenv("ES_PASSWORD")
+
+    if username is not None and password is not None:
+        client = elasticsearch.Elasticsearch(sys.argv[2:], http_auth=(username, password))
+    else:
+        client = elasticsearch.Elasticsearch(sys.argv[2:])
 
     ilo = curator.IndexList(client)
     empty_list(ilo, 'ElasticSearch has no indices')

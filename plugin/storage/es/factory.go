@@ -21,6 +21,7 @@ import (
 	"path/filepath"
 	"strings"
 
+	"github.com/pkg/errors"
 	"github.com/spf13/viper"
 	"github.com/uber/jaeger-lib/metrics"
 	"go.uber.org/zap"
@@ -76,12 +77,12 @@ func (f *Factory) Initialize(metricsFactory metrics.Factory, logger *zap.Logger)
 
 	primaryClient, err := f.primaryConfig.NewClient(logger, metricsFactory)
 	if err != nil {
-		return err
+		return errors.Wrap(err, "failed to create primary Elasticsearch client")
 	}
 	f.primaryClient = primaryClient
 	archiveClient, err := f.archiveConfig.NewClient(logger, metricsFactory)
 	if err != nil {
-		return err
+		return errors.Wrap(err, "failed to create archive Elasticsearch client")
 	}
 	f.archiveClient = archiveClient
 	return nil
