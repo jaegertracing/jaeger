@@ -37,7 +37,7 @@ required = [
 
 [[constraint]]
   name = "github.com/bsm/sarama-cluster"
-  version = "^2.1.13"
+  version = "=2.1.13"
 
 [[constraint]]
   branch = "master"
