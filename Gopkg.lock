@@ -2,6 +2,14 @@
 
 
 [[projects]]
+  branch = "master"
+  digest = "1:b02e5e3f836f077a3249d1dfe3c57d305e007f71a98f2e69c170a2dd8d2b266c"
+  name = "github.com/AndreasBriese/bbloom"
+  packages = ["."]
+  pruneopts = "UT"
+  revision = "343706a395b76e5ca5c7dca46a5d937b48febc74"
+
+[[projects]]
   digest = "1:ed77032e4241e3b8329c9304d66452ed196e795876e14be677a546f36b94e67a"
   name = "github.com/DataDog/zstd"
   packages = ["."]
@@ -103,6 +111,29 @@
   pruneopts = "UT"
   revision = "8991bc29aa16c548c550c7ff78260e27b9ab7c73"
   version = "v1.1.1"
+
+[[projects]]
+  digest = "1:21ac9938fb1098b3a7b0dd909fb30878d33231177fac11a2821114eb9c1088ff"
+  name = "github.com/dgraph-io/badger"
+  packages = [
+    ".",
+    "options",
+    "protos",
+    "skl",
+    "table",
+    "y",
+  ]
+  pruneopts = "UT"
+  revision = "391b6d3b93e6014fe8c2971fcc0c1266e47dbbd9"
+  version = "v1.5.3"
+
+[[projects]]
+  branch = "master"
+  digest = "1:ea678afd6431e09f84a56fc6915ccab9189ddd1379fed997e1433ead9586c50b"
+  name = "github.com/dgryski/go-farm"
+  packages = ["."]
+  pruneopts = "UT"
+  revision = "3adb47b1fb0f6d9efcc5051a6c62e2e413ac85a9"
 
 [[projects]]
   digest = "1:1f0c7ab489b407a7f8f9ad16c25a504d28ab461517a971d341388a56156c1bd7"
@@ -342,6 +373,7 @@
   ]
   pruneopts = "UT"
   revision = "aa810b61a9c79d51363740d207bb46cf8e620ed5"
+  version = "v1.2.0"
 
 [[projects]]
   branch = "master"
@@ -914,6 +946,7 @@
     "github.com/apache/thrift/lib/go/thrift",
     "github.com/bsm/sarama-cluster",
     "github.com/crossdock/crossdock-go",
+    "github.com/dgraph-io/badger",
     "github.com/go-openapi/errors",
     "github.com/go-openapi/loads",
     "github.com/go-openapi/runtime",
@@ -975,6 +1008,7 @@
     "go.uber.org/zap/zaptest",
     "go.uber.org/zap/zaptest/observer",
     "golang.org/x/net/context",
+    "golang.org/x/sys/unix",
     "google.golang.org/grpc",
     "google.golang.org/grpc/balancer/roundrobin",
     "google.golang.org/grpc/codes",
