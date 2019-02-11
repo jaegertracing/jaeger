@@ -22,8 +22,8 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
-	"go.uber.org/zap"
 	"github.com/uber/jaeger-lib/metrics/metricstest"
+	"go.uber.org/zap"
 
 	"github.com/jaegertracing/jaeger/model"
 	"github.com/jaegertracing/jaeger/pkg/cassandra"
@@ -39,7 +39,7 @@ type depStorageTest struct {
 	storage   *DependencyStore
 }
 
-func withDepStore(fn func(s *depStorageTest)) {
+func withDepStore(indexMode IndexMode, fn func(s *depStorageTest)) {
 	session := &mocks.Session{}
 	logger, logBuffer := testutils.NewLogger()
 	metricsFactory := metricstest.NewFactory(time.Second)
@@ -48,7 +48,7 @@ func withDepStore(fn func(s *depStorageTest)) {
 		session:   session,
 		logger:    logger,
 		logBuffer: logBuffer,
-		storage:   NewDependencyStore(session, metricsFactory, logger),
+		storage:   NewDependencyStore(session, metricsFactory, logger, indexMode),
 	}
 	fn(s)
 }
@@ -57,52 +57,90 @@ var _ dependencystore.Reader = &DependencyStore{} // check API conformance
 var _ dependencystore.Writer = &DependencyStore{} // check API conformance
 
 func TestDependencyStoreWrite(t *testing.T) {
-	withDepStore(func(s *depStorageTest) {
-		query := &mocks.Query{}
-		query.On("Exec").Return(nil)
+	testCases := []struct {
+		caption   string
+		indexMode IndexMode
+	}{
+		{
+			caption:   "SASI enabled",
+			indexMode: SASIEnabled,
+		},
+		{
+			caption:   "SASI disabled",
+			indexMode: SASIDisabled,
+		},
+	}
+	for _, tc := range testCases {
+		testCase := tc // capture loop var
+		t.Run(testCase.caption, func(t *testing.T) {
+			withDepStore(testCase.indexMode, func(s *depStorageTest) {
+				query := &mocks.Query{}
+				query.On("Exec").Return(nil)
 
-		var args []interface{}
-		captureArgs := mock.MatchedBy(func(v []interface{}) bool {
-			args = v
-			return true
+				var args []interface{}
+				captureArgs := mock.MatchedBy(func(v []interface{}) bool {
+					args = v
+					return true
+				})
+
+				s.session.On("Query", mock.AnythingOfType("string"), captureArgs).Return(query)
+
+				ts := time.Date(2017, time.January, 24, 11, 15, 17, 12345, time.UTC)
+				dependencies := []model.DependencyLink{
+					{
+						Parent:    "a",
+						Child:     "b",
+						CallCount: 42,
+						Source:    model.JaegerDependencyLinkSource,
+					},
+				}
+				err := s.storage.WriteDependencies(ts, dependencies)
+				assert.NoError(t, err)
+
+				assert.Len(t, args, 3)
+				if d, ok := args[0].(time.Time); ok {
+					assert.Equal(t, ts, d)
+				} else {
+					assert.Fail(t, "expecting first arg as time.Time", "received: %+v", args)
+				}
+				if testCase.indexMode == SASIDisabled {
+					if d, ok := args[1].(string); ok {
+						assert.Equal(t, ts.Format(dateFmt), d)
+					} else {
+						assert.Fail(t, "expecting second arg as string", "received: %+v", args)
+					}
+				} else {
+					if d, ok := args[1].(time.Time); ok {
+						assert.Equal(t, ts, d)
+					} else {
+						assert.Fail(t, "expecting second arg as time.Time", "received: %+v", args)
+					}
+				}
+				if d, ok := args[2].([]Dependency); ok {
+					if testCase.indexMode == SASIEnabled {
+						assert.Equal(t, []Dependency{
+							{
+								Parent:    "a",
+								Child:     "b",
+								CallCount: 42,
+								Source:    "jaeger",
+							},
+						}, d)
+					} else {
+						assert.Equal(t, []Dependency{
+							{
+								Parent:    "a",
+								Child:     "b",
+								CallCount: 42,
+							},
+						}, d)
+					}
+				} else {
+					assert.Fail(t, "expecting third arg as []Dependency", "received: %+v", args)
+				}
+			})
 		})
-
-		s.session.On("Query", mock.AnythingOfType("string"), captureArgs).Return(query)
-
-		ts := time.Date(2017, time.January, 24, 11, 15, 17, 12345, time.UTC)
-		dependencies := []model.DependencyLink{
-			{
-				Parent:    "a",
-				Child:     "b",
-				CallCount: 42,
-			},
-		}
-		err := s.storage.WriteDependencies(ts, dependencies)
-		assert.NoError(t, err)
-
-		assert.Len(t, args, 3)
-		if d, ok := args[0].(time.Time); ok {
-			assert.Equal(t, ts, d)
-		} else {
-			assert.Fail(t, "expecting first arg as time.Time", "received: %+v", args)
-		}
-		if d, ok := args[1].(time.Time); ok {
-			assert.Equal(t, ts, d)
-		} else {
-			assert.Fail(t, "expecting second arg as time.Time", "received: %+v", args)
-		}
-		if d, ok := args[2].([]Dependency); ok {
-			assert.Equal(t, []Dependency{
-				{
-					Parent:    "a",
-					Child:     "b",
-					CallCount: 42,
-				},
-			}, d)
-		} else {
-			assert.Fail(t, "expecting third arg as []Dependency", "received: %+v", args)
-		}
-	})
+	}
 }
 
 func TestDependencyStoreGetDependencies(t *testing.T) {
@@ -111,23 +149,39 @@ func TestDependencyStoreGetDependencies(t *testing.T) {
 		queryError    error
 		expectedError string
 		expectedLogs  []string
+		indexMode     IndexMode
 	}{
 		{
-			caption: "success",
+			caption:   "success SASI enabled",
+			indexMode: SASIEnabled,
 		},
 		{
-			caption:       "failure",
+			caption:   "success SASI disabled",
+			indexMode: SASIDisabled,
+		},
+		{
+			caption:       "failure SASI enabled",
 			queryError:    errors.New("query error"),
 			expectedError: "Error reading dependencies from storage: query error",
 			expectedLogs: []string{
 				"Failure to read Dependencies",
 			},
+			indexMode: SASIEnabled,
+		},
+		{
+			caption:       "failure SASI disabled",
+			queryError:    errors.New("query error"),
+			expectedError: "Error reading dependencies from storage: query error",
+			expectedLogs: []string{
+				"Failure to read Dependencies",
+			},
+			indexMode: SASIDisabled,
 		},
 	}
 	for _, tc := range testCases {
 		testCase := tc // capture loop var
 		t.Run(testCase.caption, func(t *testing.T) {
-			withDepStore(func(s *depStorageTest) {
+			withDepStore(testCase.indexMode, func(s *depStorageTest) {
 				scanMatcher := func() interface{} {
 					deps := [][]Dependency{
 						{
@@ -172,10 +226,10 @@ func TestDependencyStoreGetDependencies(t *testing.T) {
 				if testCase.expectedError == "" {
 					assert.NoError(t, err)
 					expected := []model.DependencyLink{
-						{Parent: "a", Child: "b", CallCount: 1},
-						{Parent: "b", Child: "c", CallCount: 1},
-						{Parent: "a", Child: "b", CallCount: 1},
-						{Parent: "b", Child: "c", CallCount: 1},
+						{Parent: "a", Child: "b", CallCount: 1, Source: model.JaegerDependencyLinkSource},
+						{Parent: "b", Child: "c", CallCount: 1, Source: model.JaegerDependencyLinkSource},
+						{Parent: "a", Child: "b", CallCount: 1, Source: model.JaegerDependencyLinkSource},
+						{Parent: "b", Child: "c", CallCount: 1, Source: model.JaegerDependencyLinkSource},
 					}
 					assert.Equal(t, expected, deps)
 				} else {

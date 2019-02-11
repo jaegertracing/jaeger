@@ -14,9 +14,26 @@
 
 package model
 
+// DependencyLinkSource is the source of data used to generate the dependencies.
+type DependencyLinkSource string
+
+const (
+	// JaegerDependencyLinkSource describes a dependency diagram that was generated from Jaeger traces.
+	JaegerDependencyLinkSource = DependencyLinkSource("jaeger")
+)
+
 // DependencyLink shows dependencies between services
 type DependencyLink struct {
-	Parent    string `json:"parent"`
-	Child     string `json:"child"`
-	CallCount uint64 `json:"callCount"`
+	Parent    string               `json:"parent"`
+	Child     string               `json:"child"`
+	CallCount uint64               `json:"callCount"`
+	Source    DependencyLinkSource `json:"source"`
+}
+
+// Sanitize sanitizes the DependencyLink.
+func (d DependencyLink) Sanitize() DependencyLink {
+	if d.Source == "" {
+		d.Source = JaegerDependencyLinkSource
+	}
+	return d
 }

@@ -27,20 +27,21 @@ import (
 
 // Configuration describes the configuration properties needed to connect to a Cassandra cluster
 type Configuration struct {
-	Servers              []string      `validate:"nonzero"`
-	Keyspace             string        `validate:"nonzero"`
-	LocalDC              string        `yaml:"local_dc"`
-	ConnectionsPerHost   int           `validate:"min=1" yaml:"connections_per_host"`
-	Timeout              time.Duration `validate:"min=500"`
-	ReconnectInterval    time.Duration `validate:"min=500" yaml:"reconnect_interval"`
-	SocketKeepAlive      time.Duration `validate:"min=0" yaml:"socket_keep_alive"`
-	MaxRetryAttempts     int           `validate:"min=0" yaml:"max_retry_attempt"`
-	ProtoVersion         int           `yaml:"proto_version"`
-	Consistency          string        `yaml:"consistency"`
-	Port                 int           `yaml:"port"`
-	Authenticator        Authenticator `yaml:"authenticator"`
-	DisableAutoDiscovery bool          `yaml:"disable_auto_discovery"`
-	TLS                  TLS
+	Servers                []string      `validate:"nonzero"`
+	Keyspace               string        `validate:"nonzero"`
+	LocalDC                string        `yaml:"local_dc"`
+	ConnectionsPerHost     int           `validate:"min=1" yaml:"connections_per_host"`
+	Timeout                time.Duration `validate:"min=500"`
+	ReconnectInterval      time.Duration `validate:"min=500" yaml:"reconnect_interval"`
+	SocketKeepAlive        time.Duration `validate:"min=0" yaml:"socket_keep_alive"`
+	MaxRetryAttempts       int           `validate:"min=0" yaml:"max_retry_attempt"`
+	ProtoVersion           int           `yaml:"proto_version"`
+	Consistency            string        `yaml:"consistency"`
+	Port                   int           `yaml:"port"`
+	Authenticator          Authenticator `yaml:"authenticator"`
+	DisableAutoDiscovery   bool          `yaml:"disable_auto_discovery"`
+	DependencySASIDisabled bool          `yaml:"dependency_sasi_disabled"`
+	TLS                    TLS
 }
 
 // Authenticator holds the authentication properties needed to connect to a Cassandra cluster

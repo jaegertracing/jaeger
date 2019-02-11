@@ -15,6 +15,8 @@
 package dependencystore
 
 import (
+	"fmt"
+	"strings"
 	"time"
 
 	"github.com/pkg/errors"
@@ -26,9 +28,22 @@ import (
 	casMetrics "github.com/jaegertracing/jaeger/pkg/cassandra/metrics"
 )
 
+// IndexMode determines how the dependency data is indexed.
+type IndexMode int
+
 const (
-	depsInsertStmt = "INSERT INTO dependencies(ts, ts_index, dependencies) VALUES (?, ?, ?)"
-	depsSelectStmt = "SELECT ts, dependencies FROM dependencies WHERE ts_index >= ? AND ts_index < ?"
+	// SASIEnabled is used when the dependency table is SASI indexed.
+	SASIEnabled IndexMode = iota
+
+	// SASIDisabled is used when the dependency table is NOT SASI indexed.
+	SASIDisabled
+
+	depsInsertStmtSASI = "INSERT INTO dependencies(ts, ts_index, dependencies) VALUES (?, ?, ?)"
+	depsInsertStmt     = "INSERT INTO dependenciesv2(ts, date_bucket, dependencies) VALUES (?, ?, ?)"
+	depsSelectStmtSASI = "SELECT ts, dependencies FROM dependencies WHERE ts_index >= ? AND ts_index < ?"
+	depsSelectFmt      = "SELECT ts, dependencies FROM dependenciesv2 WHERE date_bucket IN (%s) AND ts >= ? AND ts < ?"
+	dateFmt            = "20060102"
+	day                = 24 * time.Hour
 )
 
 // DependencyStore handles all queries and insertions to Cassandra dependencies
@@ -36,6 +51,7 @@ type DependencyStore struct {
 	session                  cassandra.Session
 	dependenciesTableMetrics *casMetrics.Table
 	logger                   *zap.Logger
+	indexMode                IndexMode
 }
 
 // NewDependencyStore returns a DependencyStore
@@ -43,11 +59,13 @@ func NewDependencyStore(
 	session cassandra.Session,
 	metricsFactory metrics.Factory,
 	logger *zap.Logger,
+	indexMode IndexMode,
 ) *DependencyStore {
 	return &DependencyStore{
 		session:                  session,
 		dependenciesTableMetrics: casMetrics.NewTable(metricsFactory, "dependencies"),
 		logger:                   logger,
+		indexMode:                indexMode,
 	}
 }
 
@@ -55,19 +73,37 @@ func NewDependencyStore(
 func (s *DependencyStore) WriteDependencies(ts time.Time, dependencies []model.DependencyLink) error {
 	deps := make([]Dependency, len(dependencies))
 	for i, d := range dependencies {
-		deps[i] = Dependency{
+		dep := Dependency{
 			Parent:    d.Parent,
 			Child:     d.Child,
 			CallCount: int64(d.CallCount),
 		}
+		if s.indexMode == SASIEnabled {
+			dep.Source = string(d.Source)
+		}
+		deps[i] = dep
 	}
-	query := s.session.Query(depsInsertStmt, ts, ts, deps)
+
+	var query cassandra.Query
+	switch s.indexMode {
+	case SASIDisabled:
+		query = s.session.Query(depsInsertStmt, ts, ts.Format(dateFmt), deps)
+	case SASIEnabled:
+		query = s.session.Query(depsInsertStmtSASI, ts, ts, deps)
+	}
 	return s.dependenciesTableMetrics.Exec(query, s.logger)
 }
 
 // GetDependencies returns all interservice dependencies
 func (s *DependencyStore) GetDependencies(endTs time.Time, lookback time.Duration) ([]model.DependencyLink, error) {
-	query := s.session.Query(depsSelectStmt, endTs.Add(-1*lookback), endTs)
+	startTs := endTs.Add(-1 * lookback)
+	var query cassandra.Query
+	switch s.indexMode {
+	case SASIDisabled:
+		query = s.session.Query(getDepSelectString(startTs, endTs), startTs, endTs)
+	case SASIEnabled:
+		query = s.session.Query(depsSelectStmtSASI, startTs, endTs)
+	}
 	iter := query.Consistency(cassandra.One).Iter()
 
 	var mDependency []model.DependencyLink
@@ -75,11 +111,13 @@ func (s *DependencyStore) GetDependencies(endTs time.Time, lookback time.Duratio
 	var ts time.Time
 	for iter.Scan(&ts, &dependencies) {
 		for _, dependency := range dependencies {
-			mDependency = append(mDependency, model.DependencyLink{
+			dl := model.DependencyLink{
 				Parent:    dependency.Parent,
 				Child:     dependency.Child,
 				CallCount: uint64(dependency.CallCount),
-			})
+				Source:    model.DependencyLinkSource(dependency.Source),
+			}.Sanitize()
+			mDependency = append(mDependency, dl)
 		}
 	}
 
@@ -88,4 +126,12 @@ func (s *DependencyStore) GetDependencies(endTs time.Time, lookback time.Duratio
 		return nil, errors.Wrap(err, "Error reading dependencies from storage")
 	}
 	return mDependency, nil
+}
+
+func getDepSelectString(startTs time.Time, endTs time.Time) string {
+	var dateBuckets []string
+	for ts := startTs.Truncate(day); ts.Before(endTs); ts = ts.Add(day) {
+		dateBuckets = append(dateBuckets, ts.Format(dateFmt))
+	}
+	return fmt.Sprintf(depsSelectFmt, strings.Join(dateBuckets, ","))
 }

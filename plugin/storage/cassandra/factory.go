@@ -106,7 +106,14 @@ func (f *Factory) CreateSpanWriter() (spanstore.Writer, error) {
 
 // CreateDependencyReader implements storage.Factory
 func (f *Factory) CreateDependencyReader() (dependencystore.Reader, error) {
-	return cDepStore.NewDependencyStore(f.primarySession, f.primaryMetricsFactory, f.logger), nil
+	var (
+		sasiDisabled = f.Options.GetPrimary().DependencySASIDisabled
+		indexMode    = cDepStore.SASIEnabled
+	)
+	if sasiDisabled {
+		indexMode = cDepStore.SASIDisabled
+	}
+	return cDepStore.NewDependencyStore(f.primarySession, f.primaryMetricsFactory, f.logger, indexMode), nil
 }
 
 // CreateArchiveSpanReader implements storage.ArchiveFactory

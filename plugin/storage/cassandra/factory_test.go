@@ -47,7 +47,7 @@ func TestCassandraFactory(t *testing.T) {
 	logger, logBuf := testutils.NewLogger()
 	f := NewFactory()
 	v, command := config.Viperize(f.AddFlags)
-	command.ParseFlags([]string{"--cassandra-archive.enabled=true"})
+	command.ParseFlags([]string{"--cassandra-archive.enabled=true", "--cassandra.dependency-sasi-disabled=true"})
 	f.InitFromViper(v)
 
 	// after InitFromViper, f.primaryConfig points to a real session builder that will fail in unit tests,
