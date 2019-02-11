@@ -2,14 +2,6 @@
 
 
 [[projects]]
-  branch = "master"
-  digest = "1:b02e5e3f836f077a3249d1dfe3c57d305e007f71a98f2e69c170a2dd8d2b266c"
-  name = "github.com/AndreasBriese/bbloom"
-  packages = ["."]
-  pruneopts = "UT"
-  revision = "343706a395b76e5ca5c7dca46a5d937b48febc74"
-
-[[projects]]
   digest = "1:ed77032e4241e3b8329c9304d66452ed196e795876e14be677a546f36b94e67a"
   name = "github.com/DataDog/zstd"
   packages = ["."]
@@ -77,12 +69,12 @@
   revision = "3a771d992973f24aa725d07868b467d1ddfceafb"
 
 [[projects]]
-  digest = "1:526d64d0a3ac6c24875724a9355895be56a21f89a5d3ab5ba88d91244269a7d8"
+  digest = "1:4fdffd1724c105db8c394019cfc2444fd23466be04812850506437361ee5de55"
   name = "github.com/bsm/sarama-cluster"
   packages = ["."]
   pruneopts = "UT"
-  revision = "c618e605e15c0d7535f6c96ff8efbb0dba4fd66c"
-  version = "v2.1.15"
+  revision = "cf455bc755fe41ac9bb2861e7a961833d9c2ecc3"
+  version = "v2.1.13"
 
 [[projects]]
   branch = "master"
@@ -111,29 +103,6 @@
   pruneopts = "UT"
   revision = "8991bc29aa16c548c550c7ff78260e27b9ab7c73"
   version = "v1.1.1"
-
-[[projects]]
-  digest = "1:21ac9938fb1098b3a7b0dd909fb30878d33231177fac11a2821114eb9c1088ff"
-  name = "github.com/dgraph-io/badger"
-  packages = [
-    ".",
-    "options",
-    "protos",
-    "skl",
-    "table",
-    "y",
-  ]
-  pruneopts = "UT"
-  revision = "391b6d3b93e6014fe8c2971fcc0c1266e47dbbd9"
-  version = "v1.5.3"
-
-[[projects]]
-  branch = "master"
-  digest = "1:ea678afd6431e09f84a56fc6915ccab9189ddd1379fed997e1433ead9586c50b"
-  name = "github.com/dgryski/go-farm"
-  packages = ["."]
-  pruneopts = "UT"
-  revision = "3adb47b1fb0f6d9efcc5051a6c62e2e413ac85a9"
 
 [[projects]]
   digest = "1:1f0c7ab489b407a7f8f9ad16c25a504d28ab461517a971d341388a56156c1bd7"
@@ -173,7 +142,6 @@
   packages = ["."]
   pruneopts = "UT"
   revision = "0ca9ea5df5451ffdf184b4428c902747c2c11cd7"
-  version = "v1.0.0"
 
 [[projects]]
   branch = "master"
@@ -346,7 +314,6 @@
   revision = "fd9a4790f3963525fb889cc00e0a8f828e0b3a29"
 
 [[projects]]
-  branch = "master"
   digest = "1:1ba1d79f2810270045c328ae5d674321db34e3aae468eb4233883b473c5c0467"
   name = "github.com/golang/glog"
   packages = ["."]
@@ -354,9 +321,10 @@
   revision = "23def4e6c14b4da8ac2ed8007337bc5eb5007998"
 
 [[projects]]
-  digest = "1:b746be1272035dd3643aed45a302cf150ca3ce0e9cfd38992f0f91771433620f"
+  digest = "1:6b776f693006dec6191c8901ee5ce92f61d75bc2e2de274e0e9177069ee897d1"
   name = "github.com/golang/protobuf"
   packages = [
+    "descriptor",
     "jsonpb",
     "proto",
     "protoc-gen-go",
@@ -370,10 +338,10 @@
     "ptypes/duration",
     "ptypes/struct",
     "ptypes/timestamp",
+    "ptypes/wrappers",
   ]
   pruneopts = "UT"
   revision = "aa810b61a9c79d51363740d207bb46cf8e620ed5"
-  version = "v1.2.0"
 
 [[projects]]
   branch = "master"
@@ -400,10 +368,11 @@
   version = "v1.7.0"
 
 [[projects]]
-  digest = "1:23938262716c8c64b2c977326da8f9fb8c40afa9d2f625531cfb507bc8e21202"
+  digest = "1:e4f2416beca662090d5cfc9489208e9d7e3c17dee87e4fe2c5f2c8fe3cb71aa8"
   name = "github.com/grpc-ecosystem/grpc-gateway"
   packages = [
     "codegenerator",
+    "internal",
     "protoc-gen-grpc-gateway",
     "protoc-gen-grpc-gateway/descriptor",
     "protoc-gen-grpc-gateway/generator",
@@ -413,12 +382,11 @@
     "protoc-gen-swagger/genswagger",
     "protoc-gen-swagger/options",
     "runtime",
-    "runtime/internal",
     "utilities",
   ]
   pruneopts = "UT"
-  revision = "92583770e3f01b09a0d3e9bdf64321d8bebd48f2"
-  version = "v1.4.1"
+  revision = "b7a5640779183161e8d6c3e51f60f0859b5559ba"
+  version = "v1.7.0"
 
 [[projects]]
   branch = "master"
@@ -857,15 +825,15 @@
   version = "v0.3.0"
 
 [[projects]]
-  branch = "master"
-  digest = "1:6c6b70cf6d2788d9f7dc6589bc88e0e1c7edc40612294431ebb7d09536d12240"
+  digest = "1:0ff5d79ff7df5c47800f11c139615b2e485efd0014b74257c1f46cb6cb3bb84d"
   name = "google.golang.org/genproto"
   packages = [
     "googleapis/api/annotations",
     "googleapis/rpc/status",
+    "protobuf/field_mask",
   ]
   pruneopts = "UT"
-  revision = "4b09977fb92221987e99d190c8f88f2c92727a29"
+  revision = "383e8b2c3b9e36c4076b235b32537292176bae20"
 
 [[projects]]
   digest = "1:ac5d5b62a1c24b362ee6c1577af1c3e56f6e412e8d4f5edb9282d66a8e5402f9"
@@ -946,7 +914,6 @@
     "github.com/apache/thrift/lib/go/thrift",
     "github.com/bsm/sarama-cluster",
     "github.com/crossdock/crossdock-go",
-    "github.com/dgraph-io/badger",
     "github.com/go-openapi/errors",
     "github.com/go-openapi/loads",
     "github.com/go-openapi/runtime",
@@ -1008,7 +975,6 @@
     "go.uber.org/zap/zaptest",
     "go.uber.org/zap/zaptest/observer",
     "golang.org/x/net/context",
-    "golang.org/x/sys/unix",
     "google.golang.org/grpc",
     "google.golang.org/grpc/balancer/roundrobin",
     "google.golang.org/grpc/codes",
