@@ -6,43 +6,64 @@ import sys
 import os
 import ast
 import logging
+from pathlib import Path
+import requests
+
 
 ARCHIVE_INDEX = 'jaeger-span-archive'
 ROLLBACK_CONDITIONS = '{"max_age": "7d"}'
 UNIT = 'days'
 UNIT_COUNT = 7
+SHARDS = 5
+REPLICAS = 1
 
 def main():
     if len(sys.argv) != 3:
-        print('USAGE: [INDEX_PREFIX=(default "")] [ARCHIVE=(default false)] [CONDITIONS=(default {})] [UNIT=(default {})] [UNIT_COUNT=(default {})] {} ACTION HOSTNAME[:PORT]'.format(ROLLBACK_CONDITIONS, UNIT, UNIT_COUNT, sys.argv[0]))
+        print('USAGE: [INDEX_PREFIX=(default "")] [ARCHIVE=(default false)] [SHARDS=(default {})] [REPLICAS=(default {})] [CONDITIONS=(default {})] [UNIT=(default {})] [UNIT_COUNT=(default {})] {} ACTION http://HOSTNAME[:PORT]'.format(SHARDS, REPLICAS, ROLLBACK_CONDITIONS, UNIT, UNIT_COUNT, sys.argv[0]))
         print('ACTION ... one of:')
         print('\tinit - creates archive index and aliases')
         print('\trollover - rollover to new write index')
         print('\tlookback - removes old indices from read alias')
-        print('HOSTNAME ... specifies which ElasticSearch hosts to search and delete indices from.')
+        print('HOSTNAME ... specifies which Elasticsearch hosts URL to search and delete indices from.')
         print('INDEX_PREFIX ... specifies index prefix.')
+        print('init configuration:')
+        print('\tSHARDS ...  the number of shards per index in ElasticSearch (default 5)')
+        print('\tREPLICAS ... the number of replicas per index in ElasticSearch (default 1)')
         print('rollover configuration:')
-        print('\tCONDITIONS ... conditions used to rollover to a new write index e.g. \'{"max_age": "30d"}\'')
+        print('\tCONDITIONS ... conditions used to rollover to a new write index e.g. \'{"max_age": "7d"}\'')
         print('lookback configuration:')
         print('\tUNIT ... used with lookback to remove indices from read alias e.g. ..., days, weeks, months, years')
         print('\tUNIT_COUNT ... count of UNITs')
-        sys.exit(1)
-
-    # TODO add rollover for main indices https://github.com/jaegertracing/jaeger/issues/1242
-    if not str2bool(os.getenv('ARCHIVE', 'false')):
-        print('Rollover for main indices is not supported')
         sys.exit(1)
 
     client = elasticsearch.Elasticsearch(sys.argv[2:])
     prefix = os.getenv('INDEX_PREFIX', '')
     if prefix != '':
         prefix += '-'
-    write_alias = prefix + ARCHIVE_INDEX + '-write'
-    read_alias = prefix + ARCHIVE_INDEX + '-read'
 
     action = sys.argv[1]
+
+    if str2bool(os.getenv('ARCHIVE', 'false')):
+        write_alias = prefix + ARCHIVE_INDEX + '-write'
+        read_alias = prefix + ARCHIVE_INDEX + '-read'
+        perform_action(action, client, write_alias, read_alias, prefix+'jaeger-span-archive', 'jaeger-span')
+    else:
+        write_alias = prefix + 'jaeger-span-write'
+        read_alias = prefix + 'jaeger-span-read'
+        perform_action(action, client, write_alias, read_alias, prefix+'jaeger-span', 'jaeger-span')
+        write_alias = prefix + 'jaeger-service-write'
+        read_alias = prefix + 'jaeger-service-read'
+        perform_action(action, client, write_alias, read_alias, prefix+'jaeger-service', 'jaeger-service')
+
+
+def perform_action(action, client, write_alias, read_alias, index_to_rollover, template_name):
     if action == 'init':
-        index = prefix + ARCHIVE_INDEX + '-000001'
+        shards = os.getenv('SHARDS', SHARDS)
+        replicas = os.getenv('REPLICAS', REPLICAS)
+        mapping = Path('./mappings/'+template_name+'.json').read_text()
+        create_index_template(fix_mapping(mapping, shards, replicas), template_name)
+
+        index = index_to_rollover + '-000001'
         create_index(client, index)
         create_aliases(client, read_alias, index)
         create_aliases(client, write_alias, index)
@@ -54,6 +75,14 @@ def main():
     else:
         print('Unrecognized action {}'.format(action))
         sys.exit(1)
+
+
+def create_index_template(template, template_name):
+    print('Creating index template {}'.format(template_name))
+    headers = {'Content-Type': 'application/json'}
+    r = requests.put(sys.argv[2] + '/_template/' + template_name, headers=headers, data=template)
+    print(r.text)
+    r.raise_for_status()
 
 
 def create_index(client, name):
@@ -113,6 +142,12 @@ def read_alias_lookback(client, write_alias, read_alias, unit, unit_count):
 
 def str2bool(v):
     return v.lower() in ('true', '1')
+
+
+def fix_mapping(mapping, shards, replicas):
+    mapping = mapping.replace("${__NUMBER_OF_SHARDS__}", str(shards))
+    mapping = mapping.replace("${__NUMBER_OF_REPLICAS__}", str(replicas))
+    return mapping
 
 
 def empty_list(ilo, error_msg):
