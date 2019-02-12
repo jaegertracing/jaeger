@@ -63,8 +63,8 @@ const (
 	ArchiveStorage
 )
 
-func (s Status) String() string {
-	switch s {
+func (c Component) String() string {
+	switch c {
 	case Init:
 		return "initialization"
 	case Storage:
@@ -77,8 +77,8 @@ func (s Status) String() string {
 }
 
 type ComponentStatus struct {
-	Comp Component
-	Stat Status
+	comp Component
+	stat Status
 }
 
 // HealthCheck provides an HTTP endpoint that returns the health status of the service
@@ -195,7 +195,7 @@ func (hc *HealthCheck) Ready() {
 // Monitor the receptor's report coming from components on ready or unready
 func (hc *HealthCheck) monitor() {
 	for msg := range hc.receptor {
-		hc.comstat[msg.Comp] = msg.Stat
+		hc.comstat[msg.comp] = msg.stat
 		hc.checkComponent()
 	}
 }
@@ -214,4 +214,14 @@ func (hc HealthCheck) checkComponent() {
 	} else {
 		hc.Set(Unavailable)
 	}
+}
+
+// A vending machine of gifts for the components. Each component talks to their own cake and cake reports their confess.
+func (hc HealthCheck) GetReporter(c Component) func(Status) {
+    return func(stat Status) {
+        hc.receptor <- ComponentStatus {
+            stat: stat,
+            comp: c,
+        }
+    }
 }
