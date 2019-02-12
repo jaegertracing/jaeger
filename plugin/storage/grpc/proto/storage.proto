@@ -130,17 +130,6 @@ message FindTracesRequest {
     TraceQueryParameters query = 1;
 }
 
-message FindTracesSuccess {
-    repeated Trace traces = 1;
-}
-
-message FindTracesResponse {
-    oneof response {
-        FindTracesSuccess success = 1;
-        GrpcStoragePluginError error = 2;
-    }
-}
-
 message FindTraceIDsRequest {
     TraceQueryParameters query = 1;
 }
@@ -178,7 +167,7 @@ service GrpcSpanReaderStoragePlugin {
     rpc GetTrace(GetTraceRequest) returns (GetTraceResponse);
     rpc GetServices(GetServicesRequest) returns (GetServicesResponse);
     rpc GetOperations(GetOperationsRequest) returns (GetOperationsResponse);
-    rpc FindTraces(FindTracesRequest) returns (FindTracesResponse);
+    rpc FindTraces(FindTracesRequest) returns (stream Trace);
     rpc FindTraceIDs(FindTraceIDsRequest) returns (FindTraceIDsResponse);
 }
 
