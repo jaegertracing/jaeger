@@ -121,10 +121,9 @@ func getSpanAndServiceIndexFn(archive, useReadWriteAliases bool, prefix string) 
 		return func(spanTime time.Time) (string, string) {
 			return spanIndexPrefix + "write", serviceIndexPrefix + "write"
 		}
-	} else {
-		return func(date time.Time) (string, string) {
-			return indexWithDate(spanIndexPrefix, date), indexWithDate(serviceIndexPrefix, date)
-		}
+	}
+	return func(date time.Time) (string, string) {
+		return indexWithDate(spanIndexPrefix, date), indexWithDate(serviceIndexPrefix, date)
 	}
 }
 

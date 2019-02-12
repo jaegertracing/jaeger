@@ -19,12 +19,12 @@ REPLICAS = 1
 
 def main():
     if len(sys.argv) != 3:
-        print('USAGE: [INDEX_PREFIX=(default "")] [ARCHIVE=(default false)] [SHARDS=(default {})] [REPLICAS=(default {})] [CONDITIONS=(default {})] [UNIT=(default {})] [UNIT_COUNT=(default {})] {} ACTION HOSTNAME[:PORT]'.format(SHARDS, REPLICAS, ROLLBACK_CONDITIONS, UNIT, UNIT_COUNT, sys.argv[0]))
+        print('USAGE: [INDEX_PREFIX=(default "")] [ARCHIVE=(default false)] [SHARDS=(default {})] [REPLICAS=(default {})] [CONDITIONS=(default {})] [UNIT=(default {})] [UNIT_COUNT=(default {})] {} ACTION http://HOSTNAME[:PORT]'.format(SHARDS, REPLICAS, ROLLBACK_CONDITIONS, UNIT, UNIT_COUNT, sys.argv[0]))
         print('ACTION ... one of:')
         print('\tinit - creates archive index and aliases')
         print('\trollover - rollover to new write index')
         print('\tlookback - removes old indices from read alias')
-        print('HOSTNAME ... specifies which ElasticSearch hosts to search and delete indices from.')
+        print('HOSTNAME ... specifies which Elasticsearch hosts URL to search and delete indices from.')
         print('INDEX_PREFIX ... specifies index prefix.')
         print('init configuration:')
         print('\tSHARDS ...  the number of shards per index in ElasticSearch (default 5)')
