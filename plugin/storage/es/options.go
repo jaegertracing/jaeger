@@ -49,6 +49,7 @@ const (
 	suffixTagsFile          = suffixTagsAsFields + ".config-file"
 	suffixTagDeDotChar      = suffixTagsAsFields + ".dot-replacement"
 	suffixReadAlias         = ".use-aliases"
+	suffixEnabled           = ".enabled"
 )
 
 // TODO this should be moved next to config.Configuration struct (maybe ./flags package)
@@ -89,6 +90,7 @@ func NewOptions(primaryNamespace string, otherNamespaces ...string) *Options {
 				BulkActions:       1000,
 				BulkFlushInterval: time.Millisecond * 200,
 				TagDotReplacement: "@",
+				Enabled:           true,
 			},
 			servers:   "http://127.0.0.1:9200",
 			namespace: primaryNamespace,
@@ -206,6 +208,12 @@ func addFlags(flagSet *flag.FlagSet, nsConfig *namespaceConfig) {
 		"(experimental) Use read and write aliases for indices. Use this option with Elasticsearch rollover "+
 			"API. It requires an external component to create aliases before startup and then performing its management. "+
 			"Note that "+nsConfig.namespace+suffixMaxSpanAge+" is not taken into the account and has to be substituted by external component managing read alias.")
+	if nsConfig.namespace == archiveNamespace {
+		flagSet.Bool(
+			nsConfig.namespace+suffixEnabled,
+			nsConfig.Enabled,
+			"Enable extra storage")
+	}
 }
 
 // InitFromViper initializes Options with properties from viper
@@ -240,6 +248,7 @@ func initFromViper(cfg *namespaceConfig, v *viper.Viper) {
 	cfg.TagsFilePath = v.GetString(cfg.namespace + suffixTagsFile)
 	cfg.TagDotReplacement = v.GetString(cfg.namespace + suffixTagDeDotChar)
 	cfg.UseReadWriteAliases = v.GetBool(cfg.namespace + suffixReadAlias)
+	cfg.Enabled = v.GetBool(cfg.namespace + suffixEnabled)
 }
 
 // GetPrimary returns primary configuration.
