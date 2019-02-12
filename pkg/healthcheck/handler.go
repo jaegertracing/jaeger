@@ -38,33 +38,6 @@ const (
 	Broken
 )
 
-// Each value of Component is designated for all the components under healthcheck.
-type Component uint32
-
-const (
-    // whether the initialization ends or not?
-    Init = iota
-    // storage availablity
-    Storage
-    // archive storage availablity
-    ArchiveStorage
-)
-
-func (hc *HealthCheck) monitor() {
-    for msg := <- hc.receptor {
-        hc.comstat[msg.comp] = msg.stat
-        hc.checkComponent()
-    }
-}
-
-func (hc HealthCheck) checkComponent() {
-    if (hc.desired & hc.constat) != hc.desired {
-        hc.Set(Unavailable)
-    } else {
-        hc.Set(Ready)
-    }
-}
-
 func (s Status) String() string {
 	switch s {
 	case Unavailable:
@@ -78,9 +51,34 @@ func (s Status) String() string {
 	}
 }
 
+// Each value of Component is designated for all the components under healthcheck.
+type Component uint32
+
+const (
+	// whether the initialization ends or not?
+	Init = iota
+	// storage availablity
+	Storage
+	// archive storage availablity
+	ArchiveStorage
+)
+
+func (s Status) String() string {
+	switch s {
+	case Init:
+		return "initialization"
+	case Storage:
+		return "storage"
+	case ArchiveStorage:
+		return "archive-storage"
+	default:
+		return "unknown"
+	}
+}
+
 type ComponentStatus struct {
-    comp Component
-    stat Status
+	Comp Component
+	Stat Status
 }
 
 // HealthCheck provides an HTTP endpoint that returns the health status of the service
@@ -89,10 +87,10 @@ type HealthCheck struct {
 	logger  *zap.Logger
 	mapping map[Status]int
 	server  *http.Server
-    comstat map[Component]Status
-    desired []Component
+	comstat map[Component]Status
+	desired []Component
 
-    receptor chan ComponentStatus
+	receptor chan ComponentStatus
 }
 
 // Option is a functional option for passing parameters to New()
@@ -112,6 +110,13 @@ func SetDesired(cs []Component) Option {
 	}
 }
 
+// Set desired state of components to be up. If all of them are ready, we are ready.
+func SetReceptor(rec chan ComponentStatus) Option {
+	return func(hc *HealthCheck) {
+		hc.receptor = rec
+	}
+}
+
 // New creates a HealthCheck with the specified initial state.
 func New(state Status, options ...Option) *HealthCheck {
 	hc := &HealthCheck{
@@ -120,7 +125,6 @@ func New(state Status, options ...Option) *HealthCheck {
 			Unavailable: http.StatusServiceUnavailable,
 			Ready:       http.StatusNoContent,
 		},
-        receptor := make(chan ComponentStatus, 4), // Write shouldn't block
 	}
 	for _, option := range options {
 		option(hc)
@@ -128,7 +132,7 @@ func New(state Status, options ...Option) *HealthCheck {
 	if hc.logger == nil {
 		hc.logger = zap.NewNop()
 	}
-    go hc.monitor()
+	go hc.monitor()
 	return hc
 }
 
@@ -186,4 +190,28 @@ func (hc *HealthCheck) Get() Status {
 // Ready is a shortcut for Set(Ready) (kept for backwards compatibility)
 func (hc *HealthCheck) Ready() {
 	hc.Set(Ready)
+}
+
+// Monitor the receptor's report coming from components on ready or unready
+func (hc *HealthCheck) monitor() {
+	for msg := range hc.receptor {
+		hc.comstat[msg.Comp] = msg.Stat
+		hc.checkComponent()
+	}
+}
+
+// All the goodies there? Let's go!
+func (hc HealthCheck) checkComponent() {
+	ok := true
+	for _, c := range hc.desired {
+		if hc.comstat[c] != Ready {
+			ok = false
+			break
+		}
+	}
+	if ok {
+		hc.Set(Ready)
+	} else {
+		hc.Set(Unavailable)
+	}
 }

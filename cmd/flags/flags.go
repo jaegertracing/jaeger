@@ -109,6 +109,7 @@ func (flags *SharedFlags) NewHealthCheck(logger *zap.Logger) (*hc.HealthCheck, e
 	if flags.HealthCheck.Port == 0 {
 		return nil, errors.New("port not specified")
 	}
-	return hc.New(hc.Unavailable, hc.Logger(logger)).
+	rec := make(chan hc.ComponentStatus, 4) // Reporting should not block
+	return hc.New(hc.Unavailable, hc.Logger(logger), hc.SetDesired([]hc.Component{hc.Init, hc.Storage}), hc.SetReceptor(rec)).
 		Serve(flags.HealthCheck.Port)
 }
