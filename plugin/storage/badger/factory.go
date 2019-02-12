@@ -107,8 +107,7 @@ func (f *Factory) Initialize(metricsFactory metrics.Factory, logger *zap.Logger)
 	}
 	f.store = store
 
-	cache, _ := badgerStore.NewCacheStore(f.store, f.Options.primary.SpanStoreTTL)
-	f.cache = cache
+	f.cache = badgerStore.NewCacheStore(f.store, f.Options.primary.SpanStoreTTL, true)
 
 	f.metrics.ValueLogSpaceAvailable = metricsFactory.Gauge(metrics.Options{Name: valueLogSpaceAvailableName})
 	f.metrics.KeyLogSpaceAvailable = metricsFactory.Gauge(metrics.Options{Name: keyLogSpaceAvailableName})

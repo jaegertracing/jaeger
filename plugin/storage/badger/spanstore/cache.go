@@ -34,7 +34,7 @@ type CacheStore struct {
 }
 
 // NewCacheStore returns initialized CacheStore for badger use
-func NewCacheStore(db *badger.DB, ttl time.Duration) (*CacheStore, error) {
+func NewCacheStore(db *badger.DB, ttl time.Duration, prefill bool) *CacheStore {
 	cs := &CacheStore{
 		services:   make(map[string]int64),
 		operations: make(map[string]map[string]int64),
@@ -42,29 +42,25 @@ func NewCacheStore(db *badger.DB, ttl time.Duration) (*CacheStore, error) {
 		store:      db,
 	}
 
-	err := cs.prefillCaches()
-	return cs, err
+	if prefill {
+		cs.populateCaches()
+	}
+	return cs
 }
 
-func (c *CacheStore) prefillCaches() error {
+func (c *CacheStore) populateCaches() {
 	c.cacheLock.Lock()
 	defer c.cacheLock.Unlock()
 
-	if err := c.loadServices(); err != nil {
-		return err
-	}
+	c.loadServices()
 
 	for k := range c.services {
-		if err := c.loadOperations(k); err != nil {
-			return err
-		}
+		c.loadOperations(k)
 	}
-
-	return nil
 }
 
-func (c *CacheStore) loadServices() error {
-	err := c.store.View(func(txn *badger.Txn) error {
+func (c *CacheStore) loadServices() {
+	c.store.View(func(txn *badger.Txn) error {
 		opts := badger.DefaultIteratorOptions
 		it := txn.NewIterator(opts)
 		defer it.Close()
@@ -85,13 +81,10 @@ func (c *CacheStore) loadServices() error {
 		}
 		return nil
 	})
-
-	return err
 }
 
-func (c *CacheStore) loadOperations(service string) error {
-
-	err := c.store.View(func(txn *badger.Txn) error {
+func (c *CacheStore) loadOperations(service string) {
+	c.store.View(func(txn *badger.Txn) error {
 		opts := badger.DefaultIteratorOptions
 		it := txn.NewIterator(opts)
 		defer it.Close()
@@ -118,8 +111,6 @@ func (c *CacheStore) loadOperations(service string) error {
 		}
 		return nil
 	})
-
-	return err
 }
 
 // Update caches the results of service and service + operation indexes and maintains their TTL
