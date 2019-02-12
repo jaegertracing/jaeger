@@ -8,6 +8,7 @@ python scripts/updateLicense.py $(git ls-files "*\.go" | \
         -e swagger-gen \
         -e proto-gen \
         -e statik.go \
+        -e bindata.go \
         -e model.pb.go \
         -e model.pb.gw.go \
         -e model_test.pb.go \

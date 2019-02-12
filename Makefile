@@ -6,6 +6,7 @@ ALL_SRC := $(shell find . -name '*.go' \
 				   -not -name 'doc.go' \
 				   -not -name '_*' \
 				   -not -name '.*' \
+				   -not -name 'bindata.go' \
 				   -not -name 'mocks*' \
 				   -not -name '*_test.go' \
 				   -not -name 'model.pb.go' \
@@ -153,6 +154,17 @@ install:
 install-statik:
 	go get -u github.com/rakyll/statik
 
+.PHONY: install-go-bindata-assetfs
+install-go-bindata-assetfs:
+	go get -u github.com/jteeuwen/go-bindata/...
+	go get -u github.com/elazarl/go-bindata-assetfs/...
+
+.PHONE: statik-elasticsearch-mappings
+statik-elasticsearch-mappings: install-go-bindata-assetfs
+	go-bindata-assetfs -ignore bindata.go -pkg mappings -prefix plugin/storage/es/mappings  plugin/storage/es/mappings
+	mkdir -p plugin/storage/es/mappings
+	mv bindata.go plugin/storage/es/mappings
+
 .PHONY: build-examples
 build-examples: install-statik
 	(cd examples/hotrod/services/frontend/ && statik -f --src web_assets)
@@ -173,7 +185,7 @@ build-all-in-one-linux: build_ui
 	GOOS=linux $(MAKE) build-all-in-one
 
 .PHONY: build-all-in-one
-build-all-in-one:
+build-all-in-one: statik-elasticsearch-mappings
 	CGO_ENABLED=0 installsuffix=cgo go build -tags ui -o ./cmd/all-in-one/all-in-one-$(GOOS) $(BUILD_INFO) ./cmd/all-in-one/main.go
 
 .PHONY: build-agent
@@ -185,7 +197,7 @@ build-query:
 	CGO_ENABLED=0 installsuffix=cgo go build -tags ui -o ./cmd/query/query-$(GOOS) $(BUILD_INFO) ./cmd/query/main.go
 
 .PHONY: build-collector
-build-collector:
+build-collector: statik-elasticsearch-mappings
 	CGO_ENABLED=0 installsuffix=cgo go build -o ./cmd/collector/collector-$(GOOS) $(BUILD_INFO) ./cmd/collector/main.go
 
 .PHONY: build-ingester

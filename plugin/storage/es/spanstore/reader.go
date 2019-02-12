@@ -148,6 +148,15 @@ func getTimeRangeIndexFn(archive, useReadWriteAliases bool) timeRangeIndexFn {
 			return []string{archiveIndex(indexName[0], archivePrefix)}
 		}
 	}
+	if useReadWriteAliases {
+		return func(indices []string, startTime time.Time, endTime time.Time) []string {
+			var indexAliases []string
+			for _, n := range indices {
+				indexAliases = append(indexAliases, n+"read")
+			}
+			return indexAliases
+		}
+	}
 	return timeRangeIndices
 }
 
