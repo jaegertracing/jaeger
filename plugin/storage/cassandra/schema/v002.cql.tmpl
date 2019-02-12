@@ -20,7 +20,7 @@
 --   gc_grace_seconds is non-zero, see: http://www.uberobert.com/cassandra_gc_grace_disables_hinted_handoff/
 --   For TTL of 2 days, compaction window is 1 hour, rule of thumb here: http://thelastpickle.com/blog/2016/12/08/TWCS-part1.html
 
-CREATE KEYSPACE IF NOT EXISTS jaeger WITH replication = ${replication};
+CREATE KEYSPACE IF NOT EXISTS ${keyspace} WITH replication = ${replication};
 
 CREATE TYPE IF NOT EXISTS ${keyspace}.keyvalue (
     key             text,
@@ -181,7 +181,7 @@ CREATE TABLE IF NOT EXISTS ${keyspace}.tag_index (
     AND speculative_retry = 'NONE'
     AND gc_grace_seconds = 10800; -- 3 hours of downtime acceptable on nodes
 
-CREATE TYPE IF NOT EXISTS jaeger.dependency (
+CREATE TYPE IF NOT EXISTS ${keyspace}.dependency (
     parent          text,
     child           text,
     call_count      bigint,
@@ -189,7 +189,7 @@ CREATE TYPE IF NOT EXISTS jaeger.dependency (
 );
 
 -- compaction strategy is intentionally different as compared to other tables due to the size of dependencies data
-CREATE TABLE IF NOT EXISTS jaeger.dependencies_v2 (
+CREATE TABLE IF NOT EXISTS ${keyspace}.dependencies_v2 (
     ts_bucket    timestamp,
     ts           timestamp,
     dependencies list<frozen<dependency>>,

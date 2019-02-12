@@ -40,12 +40,12 @@ type depStorageTest struct {
 	storage   *DependencyStore
 }
 
-func withDepStore(indexMode IndexMode, fn func(s *depStorageTest)) {
+func withDepStore(version Version, fn func(s *depStorageTest)) {
 	session := &mocks.Session{}
 	logger, logBuffer := testutils.NewLogger()
 	metricsFactory := metricstest.NewFactory(time.Second)
 	defer metricsFactory.Stop()
-	store, _ := NewDependencyStore(session, metricsFactory, logger, indexMode)
+	store, _ := NewDependencyStore(session, metricsFactory, logger, version)
 	s := &depStorageTest{
 		session:   session,
 		logger:    logger,
@@ -58,35 +58,35 @@ func withDepStore(indexMode IndexMode, fn func(s *depStorageTest)) {
 var _ dependencystore.Reader = &DependencyStore{} // check API conformance
 var _ dependencystore.Writer = &DependencyStore{} // check API conformance
 
-func TestIndexModeIsValid(t *testing.T) {
-	assert.True(t, SASIEnabled.IsValid())
-	assert.True(t, SASIDisabled.IsValid())
+func TestVersionIsValid(t *testing.T) {
+	assert.True(t, V1.IsValid())
+	assert.True(t, V2.IsValid())
 	assert.False(t, end.IsValid())
 }
 
-func TestInvalidIndexMode(t *testing.T) {
+func TestInvalidVersion(t *testing.T) {
 	_, err := NewDependencyStore(&mocks.Session{}, metrics.NullFactory, zap.NewNop(), end)
 	assert.Error(t, err)
 }
 
 func TestDependencyStoreWrite(t *testing.T) {
 	testCases := []struct {
-		caption   string
-		indexMode IndexMode
+		caption string
+		version Version
 	}{
 		{
-			caption:   "SASI enabled",
-			indexMode: SASIEnabled,
+			caption: "V1",
+			version: V1,
 		},
 		{
-			caption:   "SASI disabled",
-			indexMode: SASIDisabled,
+			caption: "V2",
+			version: V2,
 		},
 	}
 	for _, tc := range testCases {
 		testCase := tc // capture loop var
 		t.Run(testCase.caption, func(t *testing.T) {
-			withDepStore(testCase.indexMode, func(s *depStorageTest) {
+			withDepStore(testCase.version, func(s *depStorageTest) {
 				query := &mocks.Query{}
 				query.On("Exec").Return(nil)
 
@@ -116,7 +116,7 @@ func TestDependencyStoreWrite(t *testing.T) {
 				} else {
 					assert.Fail(t, "expecting first arg as time.Time", "received: %+v", args)
 				}
-				if testCase.indexMode == SASIDisabled {
+				if testCase.version == V2 {
 					if d, ok := args[1].(time.Time); ok {
 						assert.Equal(t, time.Date(2017, time.January, 24, 0, 0, 0, 0, time.UTC), d)
 					} else {
@@ -130,7 +130,7 @@ func TestDependencyStoreWrite(t *testing.T) {
 					}
 				}
 				if d, ok := args[2].([]Dependency); ok {
-					if testCase.indexMode == SASIDisabled {
+					if testCase.version == V2 {
 						assert.Equal(t, []Dependency{
 							{
 								Parent:    "a",
@@ -162,39 +162,39 @@ func TestDependencyStoreGetDependencies(t *testing.T) {
 		queryError    error
 		expectedError string
 		expectedLogs  []string
-		indexMode     IndexMode
+		version       Version
 	}{
 		{
-			caption:   "success SASI enabled",
-			indexMode: SASIEnabled,
+			caption: "success V1",
+			version: V1,
 		},
 		{
-			caption:   "success SASI disabled",
-			indexMode: SASIDisabled,
+			caption: "success V2",
+			version: V2,
 		},
 		{
-			caption:       "failure SASI enabled",
+			caption:       "failure V1",
 			queryError:    errors.New("query error"),
 			expectedError: "Error reading dependencies from storage: query error",
 			expectedLogs: []string{
 				"Failure to read Dependencies",
 			},
-			indexMode: SASIEnabled,
+			version: V1,
 		},
 		{
-			caption:       "failure SASI disabled",
+			caption:       "failure V2",
 			queryError:    errors.New("query error"),
 			expectedError: "Error reading dependencies from storage: query error",
 			expectedLogs: []string{
 				"Failure to read Dependencies",
 			},
-			indexMode: SASIDisabled,
+			version: V2,
 		},
 	}
 	for _, tc := range testCases {
 		testCase := tc // capture loop var
 		t.Run(testCase.caption, func(t *testing.T) {
-			withDepStore(testCase.indexMode, func(s *depStorageTest) {
+			withDepStore(testCase.version, func(s *depStorageTest) {
 				scanMatcher := func() interface{} {
 					deps := [][]Dependency{
 						{

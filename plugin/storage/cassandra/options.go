@@ -26,27 +26,27 @@ import (
 
 const (
 	// session settings
-	suffixEnabled           = ".enabled"
-	suffixConnPerHost       = ".connections-per-host"
-	suffixMaxRetryAttempts  = ".max-retry-attempts"
-	suffixTimeout           = ".timeout"
-	suffixReconnectInterval = ".reconnect-interval"
-	suffixServers           = ".servers"
-	suffixPort              = ".port"
-	suffixKeyspace          = ".keyspace"
-	suffixDC                = ".local-dc"
-	suffixConsistency       = ".consistency"
-	suffixProtoVer          = ".proto-version"
-	suffixSocketKeepAlive   = ".socket-keep-alive"
-	suffixUsername          = ".username"
-	suffixPassword          = ".password"
-	suffixTLS               = ".tls"
-	suffixCert              = ".tls.cert"
-	suffixKey               = ".tls.key"
-	suffixCA                = ".tls.ca"
-	suffixServerName        = ".tls.server-name"
-	suffixVerifyHost        = ".tls.verify-host"
-	suffixSASIDisabled      = ".sasi-disabled"
+	suffixEnabled              = ".enabled"
+	suffixConnPerHost          = ".connections-per-host"
+	suffixMaxRetryAttempts     = ".max-retry-attempts"
+	suffixTimeout              = ".timeout"
+	suffixReconnectInterval    = ".reconnect-interval"
+	suffixServers              = ".servers"
+	suffixPort                 = ".port"
+	suffixKeyspace             = ".keyspace"
+	suffixDC                   = ".local-dc"
+	suffixConsistency          = ".consistency"
+	suffixProtoVer             = ".proto-version"
+	suffixSocketKeepAlive      = ".socket-keep-alive"
+	suffixUsername             = ".username"
+	suffixPassword             = ".password"
+	suffixTLS                  = ".tls"
+	suffixCert                 = ".tls.cert"
+	suffixKey                  = ".tls.key"
+	suffixCA                   = ".tls.ca"
+	suffixServerName           = ".tls.server-name"
+	suffixVerifyHost           = ".tls.verify-host"
+	suffixEnableDependenciesV2 = ".enable-dependencies-v2"
 
 	// common storage settings
 	suffixSpanStoreWriteCacheTTL = ".span-store-write-cache-ttl"
@@ -199,9 +199,9 @@ func addFlags(flagSet *flag.FlagSet, nsConfig *namespaceConfig) {
 		nsConfig.TLS.EnableHostVerification,
 		"Enable (or disable) host key verification")
 	flagSet.Bool(
-		nsConfig.namespace+suffixSASIDisabled,
-		nsConfig.DependencySASIDisabled,
-		"Disable (or enable) SASI indexes for the dependencies table. Only set this to true if you've migrated the dependencies table to NOT use SASI indexes")
+		nsConfig.namespace+suffixEnableDependenciesV2,
+		nsConfig.EnableDependenciesV2,
+		"Disable (or enable) the dependencies v2 table. Only set this to true if you've migrated the dependencies table to v2")
 }
 
 // InitFromViper initializes Options with properties from viper
@@ -236,7 +236,7 @@ func (cfg *namespaceConfig) initFromViper(v *viper.Viper) {
 	cfg.TLS.CaPath = v.GetString(cfg.namespace + suffixCA)
 	cfg.TLS.ServerName = v.GetString(cfg.namespace + suffixServerName)
 	cfg.TLS.EnableHostVerification = v.GetBool(cfg.namespace + suffixVerifyHost)
-	cfg.DependencySASIDisabled = v.GetBool(cfg.namespace + suffixSASIDisabled)
+	cfg.EnableDependenciesV2 = v.GetBool(cfg.namespace + suffixEnableDependenciesV2)
 }
 
 // GetPrimary returns primary configuration.
