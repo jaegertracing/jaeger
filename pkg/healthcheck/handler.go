@@ -50,30 +50,19 @@ const (
     ArchiveStorage
 )
 
+func (hc *HealthCheck) monitor() {
+    for msg := <- hc.receptor {
+        hc.comstat[msg.comp] = msg.stat
+        hc.checkComponent()
+    }
+}
+
 func (hc HealthCheck) checkComponent() {
     if (hc.desired & hc.constat) != hc.desired {
         hc.Set(Unavailable)
     } else {
         hc.Set(Ready)
     }
-}
-
-func (hc HealthCheck) Unmark(c Component) {
-    var mask uint32 = ^(1 << c)
-    old := hc.constat
-    for atomic.CompareAndSwapUint32(&hc.constat, old, old & mask) == false {
-        old = hc.constat
-    }
-    hc.checkComponent()
-}
-
-func (hc HealthCheck) Mark(c Component) {
-    var mask uint32 = 1 << c
-    old := hc.constat
-    for atomic.CompareAndSwapUint32(&hc.constat, old, old | mask) == false {
-        old = hc.constat
-    }
-    hc.checkComponent()
 }
 
 func (s Status) String() string {
@@ -89,14 +78,21 @@ func (s Status) String() string {
 	}
 }
 
+type ComponentStatus struct {
+    comp Component
+    stat Status
+}
+
 // HealthCheck provides an HTTP endpoint that returns the health status of the service
 type HealthCheck struct {
 	state   int32 // atomic, keep at the top to be word-aligned
 	logger  *zap.Logger
 	mapping map[Status]int
 	server  *http.Server
-    constat uint32 //packed version of map[Component]bool
-    desired uint32
+    comstat map[Component]Status
+    desired []Component
+
+    receptor chan ComponentStatus
 }
 
 // Option is a functional option for passing parameters to New()
@@ -109,6 +105,13 @@ func Logger(logger *zap.Logger) Option {
 	}
 }
 
+// Set desired state of components to be up. If all of them are ready, we are ready.
+func SetDesired(cs []Component) Option {
+	return func(hc *HealthCheck) {
+		hc.desired = cs
+	}
+}
+
 // New creates a HealthCheck with the specified initial state.
 func New(state Status, options ...Option) *HealthCheck {
 	hc := &HealthCheck{
@@ -117,6 +120,7 @@ func New(state Status, options ...Option) *HealthCheck {
 			Unavailable: http.StatusServiceUnavailable,
 			Ready:       http.StatusNoContent,
 		},
+        receptor := make(chan ComponentStatus, 4), // Write shouldn't block
 	}
 	for _, option := range options {
 		option(hc)
@@ -124,6 +128,7 @@ func New(state Status, options ...Option) *HealthCheck {
 	if hc.logger == nil {
 		hc.logger = zap.NewNop()
 	}
+    go hc.monitor()
 	return hc
 }
 
