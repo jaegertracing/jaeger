@@ -85,11 +85,6 @@ func (qs QueryService) FindTraces(ctx context.Context, query *spanstore.TraceQue
 	return qs.spanReader.FindTraces(ctx, query)
 }
 
-// FindTraceIDs is the queryService implementation of spanstore.Reader.FindTraceIDs
-func (qs QueryService) FindTraceIDs(ctx context.Context, query *spanstore.TraceQueryParameters) ([]model.TraceID, error) {
-	return qs.spanReader.FindTraceIDs(ctx, query)
-}
-
 // ArchiveTrace is the queryService utility to archive traces.
 func (qs QueryService) ArchiveTrace(ctx context.Context, traceID model.TraceID) error {
 	if qs.options.ArchiveSpanWriter == nil {
