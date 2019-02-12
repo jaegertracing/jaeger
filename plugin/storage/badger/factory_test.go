@@ -58,6 +58,16 @@ func TestForCodecov(t *testing.T) {
 	err := f.Initialize(metrics.NullFactory, zap.NewNop())
 	assert.NoError(t, err)
 
+	// Get all the writers, readers, etc
+	_, err = f.CreateSpanReader()
+	assert.NoError(t, err)
+
+	_, err = f.CreateSpanWriter()
+	assert.NoError(t, err)
+
+	_, err = f.CreateDependencyReader()
+	assert.NoError(t, err)
+
 	// Now, remove the badger directories
 	err = os.RemoveAll(f.tmpDir)
 	assert.NoError(t, err)
