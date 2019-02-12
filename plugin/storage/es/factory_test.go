@@ -126,11 +126,13 @@ func TestLoadTagsFromFile(t *testing.T) {
 }
 
 func TestFactory_LoadMapping(t *testing.T) {
+	spanMapping, serviceMapping := GetMappings(10, 0)
 	tests := []struct{
 		name string
+		toTest string
 	}{
-		{name: "jaeger-span.json"},
-		{name: "jaeger-service.json"},
+		{name: "jaeger-span.json", toTest:spanMapping},
+		{name: "jaeger-service.json", toTest:serviceMapping},
 	}
 	for _, test := range tests {
 		mapping := loadMapping(test.name)
@@ -144,5 +146,6 @@ func TestFactory_LoadMapping(t *testing.T) {
 		expectedMapping = strings.Replace(expectedMapping, "${__NUMBER_OF_SHARDS__}", strconv.FormatInt(10, 10), 1)
 		expectedMapping = strings.Replace(expectedMapping, "${__NUMBER_OF_REPLICAS__}", strconv.FormatInt(0, 10), 1)
 		assert.Equal(t, expectedMapping, fixMapping(mapping, 10, 0))
+		assert.Equal(t, expectedMapping, test.toTest)
 	}
 }

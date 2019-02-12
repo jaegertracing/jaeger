@@ -169,8 +169,7 @@ func createSpanWriter(
 		}
 	}
 
-	sMapping := loadMapping("jaeger-span.json")
-	serviceMapping := loadMapping("jaeger-service.json")
+	spanMapping, serviceMapping := GetMappings(cfg.GetNumShards(), cfg.GetNumReplicas())
 	return esSpanStore.NewSpanWriter(esSpanStore.SpanWriterParams{
 		Client:              client,
 		Logger:              logger,
@@ -181,9 +180,15 @@ func createSpanWriter(
 		TagDotReplacement:   cfg.GetTagDotReplacement(),
 		Archive:             archive,
 		UseReadWriteAliases: cfg.GetUseReadWriteAliases(),
-		SpanMapping:         fixMapping(sMapping, cfg.GetNumShards(), cfg.GetNumReplicas()),
-		ServiceMapping:      fixMapping(serviceMapping, cfg.GetNumShards(), cfg.GetNumReplicas()),
+		SpanMapping:         spanMapping,
+		ServiceMapping:      serviceMapping,
 	}), nil
+}
+
+// GetMappings returns span and service mappings
+func GetMappings(shards, replicas int64) (string, string) {
+	return fixMapping(loadMapping("jaeger-span.json"), shards, replicas),
+		fixMapping(loadMapping("jaeger-service.json"), shards, replicas)
 }
 
 func loadMapping(name string) string {
