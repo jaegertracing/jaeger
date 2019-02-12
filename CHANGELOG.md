@@ -6,18 +6,18 @@ Changes by Version
 
 #### Backend Changes
 
-##### Breaking Changes
-
 - Remove cassandra SASI indices [#1328](https://github.com/jaegertracing/jaeger/pull/1328)
 
 Migration Path:
 
 1. Run `plugin/storage/cassandra/schema/migration/v001tov002part1.sh` which will copy dependencies into a csv, update the `dependency UDT`, create a new `dependencies_v2` table, and write dependencies from the csv into the `dependencies_v2` table.
-2. Run the collector and query services with the cassandra flag `sasi-disabled=true` which will update jaeger to read from the new `dependencies_v2` table.
+2. Run the collector and query services with the cassandra flag `enable-dependencies-v2=true` which will update jaeger to write and read to and from the new `dependencies_v2` table.
 3. Update [spark job](https://github.com/jaegertracing/spark-dependencies) to write to the new `dependencies_v2` table.
 4. Run `plugin/storage/cassandra/schema/migration/v001tov002part2.sh` which will DELETE the old dependency table and the SASI index.
 
-Users who wish to continue to use the SASI indices don't have to do anything as the cassandra flag `sasi-disabled` will default to false. Users may migrate on their own timeline however new features will be built solely on the `dependencies_v2` table.
+Users who wish to continue to use the v1 table don't have to do anything as the cassandra flag `enable-dependencies-v2` will default to false. Users may migrate on their own timeline however new features will be built solely on the `dependencies_v2` table. In the future, we will remove support for v1 completely.
+
+##### Breaking Changes
 
 ##### New Features
 
