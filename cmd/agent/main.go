@@ -17,7 +17,6 @@ package main
 import (
 	"fmt"
 	"io"
-	"io/ioutil"
 	"net/http"
 	"os"
 	"os/signal"
@@ -28,7 +27,7 @@ import (
 	"github.com/spf13/viper"
 	jMetrics "github.com/uber/jaeger-lib/metrics"
 	"go.uber.org/zap"
-	"google.golang.org/grpc/grpclog"
+	grpcZap "github.com/grpc-ecosystem/go-grpc-middleware/logging/zap"
 
 	"github.com/jaegertracing/jaeger/cmd/agent/app"
 	"github.com/jaegertracing/jaeger/cmd/agent/app/reporter"
@@ -133,7 +132,7 @@ func createCollectorProxy(
 ) (app.CollectorProxy, error) {
 	switch opts.ReporterType {
 	case reporter.GRPC:
-		grpclog.SetLoggerV2(grpclog.NewLoggerV2(ioutil.Discard, os.Stderr, os.Stderr))
+		grpcZap.ReplaceGrpcLogger(logger)
 		return grpc.NewCollectorProxy(grpcRepOpts, mFactory, logger)
 	case reporter.TCHANNEL:
 		return tchannel.NewCollectorProxy(tchanRep, mFactory, logger)

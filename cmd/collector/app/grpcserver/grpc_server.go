@@ -15,15 +15,13 @@
 package grpcserver
 
 import (
-	"io/ioutil"
 	"net"
-	"os"
 	"strconv"
 
 	"github.com/pkg/errors"
 	"go.uber.org/zap"
 	"google.golang.org/grpc"
-	"google.golang.org/grpc/grpclog"
+	grpcZap "github.com/grpc-ecosystem/go-grpc-middleware/logging/zap"
 
 	"github.com/jaegertracing/jaeger/cmd/collector/app"
 	"github.com/jaegertracing/jaeger/cmd/collector/app/sampling"
@@ -46,7 +44,7 @@ func StartGRPCCollector(
 		return nil, errors.Wrap(err, "Failed to listen on gRPC port")
 	}
 
-	grpclog.SetLoggerV2(grpclog.NewLoggerV2(ioutil.Discard, os.Stderr, os.Stderr))
+	grpcZap.ReplaceGrpcLogger(logger)
 
 	api_v2.RegisterCollectorServiceServer(server, handler)
 	api_v2.RegisterSamplingManagerServer(server, sampling.NewGRPCHandler(samplingStrategy))
