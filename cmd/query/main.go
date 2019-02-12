@@ -149,7 +149,7 @@ func main() {
 				hc.Set(healthcheck.Unavailable)
 			}()
 
-			hc.Ready()
+			hc.GetStatusReporter(healthcheck.Init)(healthcheck.Ready)
 			<-serverChannel
 			logger.Info("Shutdown complete")
 			return nil

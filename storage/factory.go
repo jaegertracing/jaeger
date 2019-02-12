@@ -20,6 +20,7 @@ import (
 	"github.com/uber/jaeger-lib/metrics"
 	"go.uber.org/zap"
 
+	"github.com/jaegertracing/jaeger/pkg/healthcheck"
 	"github.com/jaegertracing/jaeger/storage/dependencystore"
 	"github.com/jaegertracing/jaeger/storage/spanstore"
 )
@@ -33,7 +34,7 @@ import (
 type Factory interface {
 	// Initialize performs internal initialization of the factory, such as opening connections to the backend store.
 	// It is called after all configuration of the factory itself has been done.
-	Initialize(metricsFactory metrics.Factory, logger *zap.Logger) error
+	Initialize(metricsFactory metrics.Factory, logger *zap.Logger, statr healthcheck.StatusReporter) error
 
 	// CreateSpanReader creates a spanstore.Reader.
 	CreateSpanReader() (spanstore.Reader, error)

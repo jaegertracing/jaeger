@@ -216,8 +216,10 @@ func (hc HealthCheck) checkComponent() {
 	}
 }
 
+type StatusReporter func(Status)
+
 // A vending machine of gifts for the components. Each component talks to their own cake and cake reports their confess.
-func (hc HealthCheck) GetReporter(c Component) func(Status) {
+func (hc HealthCheck) GetStatusReporter(c Component) func(Status) {
     return func(stat Status) {
         hc.receptor <- ComponentStatus {
             stat: stat,

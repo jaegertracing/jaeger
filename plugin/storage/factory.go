@@ -22,6 +22,7 @@ import (
 	"github.com/uber/jaeger-lib/metrics"
 	"go.uber.org/zap"
 
+	hc "github.com/jaegertracing/jaeger/pkg/healthcheck"
 	"github.com/jaegertracing/jaeger/plugin"
 	"github.com/jaegertracing/jaeger/plugin/storage/cassandra"
 	"github.com/jaegertracing/jaeger/plugin/storage/es"
@@ -85,9 +86,9 @@ func (f *Factory) getFactoryOfType(factoryType string) (storage.Factory, error) 
 }
 
 // Initialize implements storage.Factory
-func (f *Factory) Initialize(metricsFactory metrics.Factory, logger *zap.Logger) error {
+func (f *Factory) Initialize(metricsFactory metrics.Factory, logger *zap.Logger, statr hc.StatusReporter) error {
 	for _, factory := range f.factories {
-		if err := factory.Initialize(metricsFactory, logger); err != nil {
+		if err := factory.Initialize(metricsFactory, logger, statr); err != nil {
 			return err
 		}
 	}
