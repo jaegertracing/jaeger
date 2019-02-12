@@ -38,6 +38,44 @@ const (
 	Broken
 )
 
+// Each value of Component is designated for all the components under healthcheck.
+type Component uint32
+
+const (
+    // whether the initialization ends or not?
+    Init = iota
+    // storage availablity
+    Storage
+    // archive storage availablity
+    ArchiveStorage
+)
+
+func (hc HealthCheck) checkComponent() {
+    if (hc.desired & hc.constat) != hc.desired {
+        hc.Set(Unavailable)
+    } else {
+        hc.Set(Ready)
+    }
+}
+
+func (hc HealthCheck) Unmark(c Component) {
+    var mask uint32 = ^(1 << c)
+    old := hc.constat
+    for atomic.CompareAndSwapUint32(&hc.constat, old, old & mask) == false {
+        old = hc.constat
+    }
+    hc.checkComponent()
+}
+
+func (hc HealthCheck) Mark(c Component) {
+    var mask uint32 = 1 << c
+    old := hc.constat
+    for atomic.CompareAndSwapUint32(&hc.constat, old, old | mask) == false {
+        old = hc.constat
+    }
+    hc.checkComponent()
+}
+
 func (s Status) String() string {
 	switch s {
 	case Unavailable:
@@ -57,6 +95,8 @@ type HealthCheck struct {
 	logger  *zap.Logger
 	mapping map[Status]int
 	server  *http.Server
+    constat uint32 //packed version of map[Component]bool
+    desired uint32
 }
 
 // Option is a functional option for passing parameters to New()
