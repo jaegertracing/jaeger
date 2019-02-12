@@ -16,7 +16,6 @@ package spanstore_test
 
 import (
 	"context"
-	"errors"
 	"fmt"
 	"io"
 	"io/ioutil"
@@ -41,6 +40,15 @@ func TestWriteReadBack(t *testing.T) {
 		tid := time.Now()
 		traces := 40
 		spans := 3
+
+		dummyKv := []model.KeyValue{
+			model.KeyValue{
+				Key:   "key",
+				VType: model.StringType,
+				VStr:  "value",
+			},
+		}
+
 		for i := 0; i < traces; i++ {
 			for j := 0; j < spans; j++ {
 				s := model.Span{
@@ -52,9 +60,17 @@ func TestWriteReadBack(t *testing.T) {
 					OperationName: "operation",
 					Process: &model.Process{
 						ServiceName: "service",
+						Tags:        dummyKv,
 					},
 					StartTime: tid.Add(time.Duration(i)),
 					Duration:  time.Duration(i + j),
+					Tags:      dummyKv,
+					Logs: []model.Log{
+						model.Log{
+							Timestamp: tid,
+							Fields:    dummyKv,
+						},
+					},
 				}
 				err := sw.WriteSpan(&s)
 				assert.NoError(t, err)
@@ -73,7 +89,7 @@ func TestWriteReadBack(t *testing.T) {
 	})
 }
 
-func TestFindValidation(t *testing.T) {
+func TestValidation(t *testing.T) {
 	runFactoryTest(t, func(tb testing.TB, sw spanstore.Writer, sr spanstore.Reader) {
 		tid := time.Now()
 		params := &spanstore.TraceQueryParameters{
@@ -83,11 +99,36 @@ func TestFindValidation(t *testing.T) {
 
 		// Only StartTimeMin and Max (not supported yet)
 		_, err := sr.FindTraces(context.Background(), params)
-		assert.Error(t, err, errors.New("This query parameter is not supported yet"))
+		assert.EqualError(t, err, "This query parameter is not supported yet")
 
 		params.OperationName = "no-service"
 		_, err = sr.FindTraces(context.Background(), params)
-		assert.Error(t, err, errors.New("Service Name must be set"))
+		assert.EqualError(t, err, "Service Name must be set")
+		params.ServiceName = "find-service"
+
+		_, err = sr.FindTraces(context.Background(), nil)
+		assert.EqualError(t, err, "Malformed request object")
+
+		params.StartTimeMin = params.StartTimeMax.Add(1 * time.Hour)
+		_, err = sr.FindTraces(context.Background(), params)
+		assert.EqualError(t, err, "Start Time Minimum is above Maximum")
+		params.StartTimeMin = tid
+
+		params.DurationMax = time.Duration(1 * time.Millisecond)
+		params.DurationMin = time.Duration(1 * time.Minute)
+		_, err = sr.FindTraces(context.Background(), params)
+		assert.EqualError(t, err, "Duration Minimum is above Maximum")
+
+		params = &spanstore.TraceQueryParameters{
+			StartTimeMin: tid,
+		}
+		_, err = sr.FindTraces(context.Background(), params)
+		assert.EqualError(t, err, "Start and End Time must be set")
+
+		params.StartTimeMax = tid.Add(1 * time.Minute)
+		params.Tags = map[string]string{"A": "B"}
+		_, err = sr.FindTraces(context.Background(), params)
+		assert.EqualError(t, err, "Service Name must be set")
 	})
 }
 
@@ -160,7 +201,7 @@ func TestIndexSeeks(t *testing.T) {
 		tags["k11"] = "val0"
 		params.Tags = tags
 		params.DurationMin = time.Duration(1 * time.Millisecond)
-		params.DurationMax = time.Duration(1 * time.Hour)
+		// params.DurationMax = time.Duration(1 * time.Hour)
 		trs, err = sr.FindTraces(context.Background(), params)
 		assert.NoError(t, err)
 		assert.Equal(t, 1, len(trs))
@@ -199,6 +240,52 @@ func TestIndexSeeks(t *testing.T) {
 		trs, err = sr.FindTraces(context.Background(), params)
 		assert.NoError(t, err)
 		assert.Equal(t, 6, len(trs))
+	})
+}
+
+func TestFindNothing(t *testing.T) {
+	runFactoryTest(t, func(tb testing.TB, sw spanstore.Writer, sr spanstore.Reader) {
+		startT := time.Now()
+		params := &spanstore.TraceQueryParameters{
+			StartTimeMin: startT,
+			StartTimeMax: startT.Add(time.Duration(time.Millisecond * 10)),
+			ServiceName:  "service-1",
+		}
+
+		trs, err := sr.FindTraces(context.Background(), params)
+		assert.NoError(t, err)
+		assert.Equal(t, 0, len(trs))
+
+		tr, err := sr.GetTrace(context.Background(), model.TraceID{High: 0, Low: 0})
+		assert.NoError(t, err)
+		assert.Nil(t, tr)
+	})
+}
+
+func TestWriteDuplicates(t *testing.T) {
+	runFactoryTest(t, func(tb testing.TB, sw spanstore.Writer, sr spanstore.Reader) {
+		tid := time.Now()
+		times := 40
+		spans := 3
+		for i := 0; i < times; i++ {
+			for j := 0; j < spans; j++ {
+				s := model.Span{
+					TraceID: model.TraceID{
+						Low:  uint64(0),
+						High: 1,
+					},
+					SpanID:        model.SpanID(j),
+					OperationName: "operation",
+					Process: &model.Process{
+						ServiceName: "service",
+					},
+					StartTime: tid.Add(time.Duration(10)),
+					Duration:  time.Duration(i + j),
+				}
+				err := sw.WriteSpan(&s)
+				assert.NoError(t, err)
+			}
+		}
 	})
 }
 

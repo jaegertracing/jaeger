@@ -120,14 +120,16 @@ func (r *TraceReader) getTraces(traceIDs []model.TraceID) ([]*model.Trace, error
 						return err
 					}
 				default:
-					return fmt.Errorf("Unknown encoding type: %04b", item.UserMeta()&0x0F)
+					return fmt.Errorf("Unknown encoding type: %#02x", item.UserMeta()&0x0F)
 				}
 				spans = append(spans, &sp)
 			}
-			trace := &model.Trace{
-				Spans: spans,
+			if len(spans) > 0 {
+				trace := &model.Trace{
+					Spans: spans,
+				}
+				traces = append(traces, trace)
 			}
-			traces = append(traces, trace)
 		}
 		return nil
 	})
