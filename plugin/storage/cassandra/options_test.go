@@ -63,7 +63,7 @@ func TestOptionsWithFlags(t *testing.T) {
 		"--cas-aux.enabled=true",
 		"--cas-aux.keyspace=jaeger-archive",
 		"--cas-aux.servers=3.3.3.3, 4.4.4.4",
-		"--cas-aux.dependency-sasi-disabled=true",
+		"--cas-aux.sasi-disabled=true",
 	})
 	opts.InitFromViper(v)
 

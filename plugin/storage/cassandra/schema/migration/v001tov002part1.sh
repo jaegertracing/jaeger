@@ -60,18 +60,18 @@ echo "Setting dependencies_ttl to $dependencies_ttl"
 
 cqlsh -e "ALTER TYPE $keyspace.dependency ADD source text;"
 
-cqlsh -e "CREATE TABLE $keyspace.dependenciesv2 (
-    date_bucket  bigint,
+cqlsh -e "CREATE TABLE $keyspace.dependencies_v2 (
+    ts_bucket    timestamp,
     ts           timestamp,
     dependencies list<frozen<dependency>>,
-    PRIMARY KEY (date_bucket, ts)
+    PRIMARY KEY (ts_bucket, ts)
 ) WITH CLUSTERING ORDER BY (ts DESC)
     AND compaction = {
         'min_threshold': '4',
         'max_threshold': '32',
         'class': 'org.apache.cassandra.db.compaction.SizeTieredCompactionStrategy'
     }
-    AND default_time_to_live = $dependencies_ttl
+    AND default_time_to_live = $dependencies_ttl;
 "
 
-cqlsh -e "COPY $keyspace.dependenciesv2 (date_bucket, ts, dependencies) FROM 'dependencies_datebucket.csv'"
+cqlsh -e "COPY $keyspace.dependencies_v2 (ts_bucket, ts, dependencies) FROM 'dependencies_datebucket.csv'"

@@ -22,6 +22,7 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
+	"github.com/uber/jaeger-lib/metrics"
 	"github.com/uber/jaeger-lib/metrics/metricstest"
 	"go.uber.org/zap"
 
@@ -44,17 +45,29 @@ func withDepStore(indexMode IndexMode, fn func(s *depStorageTest)) {
 	logger, logBuffer := testutils.NewLogger()
 	metricsFactory := metricstest.NewFactory(time.Second)
 	defer metricsFactory.Stop()
+	store, _ := NewDependencyStore(session, metricsFactory, logger, indexMode)
 	s := &depStorageTest{
 		session:   session,
 		logger:    logger,
 		logBuffer: logBuffer,
-		storage:   NewDependencyStore(session, metricsFactory, logger, indexMode),
+		storage:   store,
 	}
 	fn(s)
 }
 
 var _ dependencystore.Reader = &DependencyStore{} // check API conformance
 var _ dependencystore.Writer = &DependencyStore{} // check API conformance
+
+func TestIndexModeIsValid(t *testing.T) {
+	assert.True(t, SASIEnabled.IsValid())
+	assert.True(t, SASIDisabled.IsValid())
+	assert.False(t, end.IsValid())
+}
+
+func TestInvalidIndexMode(t *testing.T) {
+	_, err := NewDependencyStore(&mocks.Session{}, metrics.NullFactory, zap.NewNop(), end)
+	assert.Error(t, err)
+}
 
 func TestDependencyStoreWrite(t *testing.T) {
 	testCases := []struct {
@@ -104,10 +117,10 @@ func TestDependencyStoreWrite(t *testing.T) {
 					assert.Fail(t, "expecting first arg as time.Time", "received: %+v", args)
 				}
 				if testCase.indexMode == SASIDisabled {
-					if d, ok := args[1].(string); ok {
-						assert.Equal(t, ts.Format(dateFmt), d)
+					if d, ok := args[1].(time.Time); ok {
+						assert.Equal(t, time.Date(2017, time.January, 24, 0, 0, 0, 0, time.UTC), d)
 					} else {
-						assert.Fail(t, "expecting second arg as string", "received: %+v", args)
+						assert.Fail(t, "expecting second arg as time", "received: %+v", args)
 					}
 				} else {
 					if d, ok := args[1].(time.Time); ok {
@@ -117,7 +130,7 @@ func TestDependencyStoreWrite(t *testing.T) {
 					}
 				}
 				if d, ok := args[2].([]Dependency); ok {
-					if testCase.indexMode == SASIEnabled {
+					if testCase.indexMode == SASIDisabled {
 						assert.Equal(t, []Dependency{
 							{
 								Parent:    "a",
@@ -244,6 +257,19 @@ func TestDependencyStoreGetDependencies(t *testing.T) {
 			})
 		})
 	}
+}
+
+func TestGetBuckets(t *testing.T) {
+	var (
+		start    = time.Date(2017, time.January, 24, 11, 15, 17, 12345, time.UTC)
+		end      = time.Date(2017, time.January, 26, 11, 15, 17, 12345, time.UTC)
+		expected = []time.Time{
+			time.Date(2017, time.January, 24, 0, 0, 0, 0, time.UTC),
+			time.Date(2017, time.January, 25, 0, 0, 0, 0, time.UTC),
+			time.Date(2017, time.January, 26, 0, 0, 0, 0, time.UTC),
+		}
+	)
+	assert.Equal(t, expected, getBuckets(start, end))
 }
 
 func matchEverything() interface{} {

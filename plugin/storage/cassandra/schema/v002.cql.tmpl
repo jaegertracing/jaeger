@@ -189,15 +189,15 @@ CREATE TYPE IF NOT EXISTS jaeger.dependency (
 );
 
 -- compaction strategy is intentionally different as compared to other tables due to the size of dependencies data
-CREATE TABLE IF NOT EXISTS jaeger.dependenciesv2 (
-    date_bucket  bigint,
+CREATE TABLE IF NOT EXISTS jaeger.dependencies_v2 (
+    ts_bucket    timestamp,
     ts           timestamp,
     dependencies list<frozen<dependency>>,
-    PRIMARY KEY (date_bucket, ts)
+    PRIMARY KEY (ts_bucket, ts)
 ) WITH CLUSTERING ORDER BY (ts DESC)
     AND compaction = {
         'min_threshold': '4',
         'max_threshold': '32',
         'class': 'org.apache.cassandra.db.compaction.SizeTieredCompactionStrategy'
     }
-    AND default_time_to_live = 10800;
+    AND default_time_to_live = ${dependencies_ttl};

@@ -15,8 +15,6 @@
 package dependencystore
 
 import (
-	"fmt"
-	"strings"
 	"time"
 
 	"github.com/pkg/errors"
@@ -31,19 +29,30 @@ import (
 // IndexMode determines how the dependency data is indexed.
 type IndexMode int
 
+// IsValid returns true if the IndexMode is a valid one.
+func (i IndexMode) IsValid() bool {
+	return i < end
+}
+
 const (
 	// SASIEnabled is used when the dependency table is SASI indexed.
 	SASIEnabled IndexMode = iota
 
 	// SASIDisabled is used when the dependency table is NOT SASI indexed.
 	SASIDisabled
+	end
 
 	depsInsertStmtSASI = "INSERT INTO dependencies(ts, ts_index, dependencies) VALUES (?, ?, ?)"
-	depsInsertStmt     = "INSERT INTO dependenciesv2(ts, date_bucket, dependencies) VALUES (?, ?, ?)"
+	depsInsertStmt     = "INSERT INTO dependencies_v2(ts, ts_bucket, dependencies) VALUES (?, ?, ?)"
 	depsSelectStmtSASI = "SELECT ts, dependencies FROM dependencies WHERE ts_index >= ? AND ts_index < ?"
-	depsSelectFmt      = "SELECT ts, dependencies FROM dependenciesv2 WHERE date_bucket IN (%s) AND ts >= ? AND ts < ?"
-	dateFmt            = "20060102"
-	day                = 24 * time.Hour
+	depsSelectStmt     = "SELECT ts, dependencies FROM dependencies_v2 WHERE ts_bucket IN ? AND ts >= ? AND ts < ?"
+
+	// TODO: Make this customizable.
+	tsBucket = 24 * time.Hour
+)
+
+var (
+	errInvalidIndexMode = errors.New("invalid index mode")
 )
 
 // DependencyStore handles all queries and insertions to Cassandra dependencies
@@ -60,13 +69,16 @@ func NewDependencyStore(
 	metricsFactory metrics.Factory,
 	logger *zap.Logger,
 	indexMode IndexMode,
-) *DependencyStore {
+) (*DependencyStore, error) {
+	if !indexMode.IsValid() {
+		return nil, errInvalidIndexMode
+	}
 	return &DependencyStore{
 		session:                  session,
 		dependenciesTableMetrics: casMetrics.NewTable(metricsFactory, "dependencies"),
 		logger:                   logger,
 		indexMode:                indexMode,
-	}
+	}, nil
 }
 
 // WriteDependencies implements dependencystore.Writer#WriteDependencies.
@@ -78,7 +90,7 @@ func (s *DependencyStore) WriteDependencies(ts time.Time, dependencies []model.D
 			Child:     d.Child,
 			CallCount: int64(d.CallCount),
 		}
-		if s.indexMode == SASIEnabled {
+		if s.indexMode == SASIDisabled {
 			dep.Source = string(d.Source)
 		}
 		deps[i] = dep
@@ -87,7 +99,7 @@ func (s *DependencyStore) WriteDependencies(ts time.Time, dependencies []model.D
 	var query cassandra.Query
 	switch s.indexMode {
 	case SASIDisabled:
-		query = s.session.Query(depsInsertStmt, ts, ts.Format(dateFmt), deps)
+		query = s.session.Query(depsInsertStmt, ts, ts.Truncate(tsBucket), deps)
 	case SASIEnabled:
 		query = s.session.Query(depsInsertStmtSASI, ts, ts, deps)
 	}
@@ -100,7 +112,7 @@ func (s *DependencyStore) GetDependencies(endTs time.Time, lookback time.Duratio
 	var query cassandra.Query
 	switch s.indexMode {
 	case SASIDisabled:
-		query = s.session.Query(getDepSelectString(startTs, endTs), startTs, endTs)
+		query = s.session.Query(depsSelectStmt, getBuckets(startTs, endTs), startTs, endTs)
 	case SASIEnabled:
 		query = s.session.Query(depsSelectStmtSASI, startTs, endTs)
 	}
@@ -128,10 +140,11 @@ func (s *DependencyStore) GetDependencies(endTs time.Time, lookback time.Duratio
 	return mDependency, nil
 }
 
-func getDepSelectString(startTs time.Time, endTs time.Time) string {
-	var dateBuckets []string
-	for ts := startTs.Truncate(day); ts.Before(endTs); ts = ts.Add(day) {
-		dateBuckets = append(dateBuckets, ts.Format(dateFmt))
+func getBuckets(startTs time.Time, endTs time.Time) []time.Time {
+	// TODO: Preallocate the array using some maths and maybe use a pool? This endpoint probably isn't used enough to warrant this.
+	var tsBuckets []time.Time
+	for ts := startTs.Truncate(tsBucket); ts.Before(endTs); ts = ts.Add(tsBucket) {
+		tsBuckets = append(tsBuckets, ts)
 	}
-	return fmt.Sprintf(depsSelectFmt, strings.Join(dateBuckets, ","))
+	return tsBuckets
 }
