@@ -90,6 +90,9 @@ integration-test: go-gen
 
 .PHONY: storage-integration-test
 storage-integration-test: go-gen
+	# Expire tests results for storage integration tests since the environment might change
+	# even though the code remains the same.
+	go clean -testcache
 	bash -c "set -e; set -o pipefail; $(GOTEST) $(STORAGE_PKGS) | $(COLORIZE)"
 
 all-pkgs:
@@ -146,7 +149,7 @@ install-glide:
 	$(MAKE) install
 
 .PHONY: install
-install:
+install: install-go-bindata-assetfs
 	@which dep > /dev/null || curl https://raw.githubusercontent.com/golang/dep/master/install.sh | sh
 	dep ensure
 
