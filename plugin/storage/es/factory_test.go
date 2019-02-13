@@ -27,6 +27,7 @@ import (
 	"github.com/jaegertracing/jaeger/pkg/es"
 	escfg "github.com/jaegertracing/jaeger/pkg/es/config"
 	"github.com/jaegertracing/jaeger/pkg/es/mocks"
+	"github.com/jaegertracing/jaeger/pkg/healthcheck"
 	"github.com/jaegertracing/jaeger/storage"
 )
 
@@ -53,14 +54,14 @@ func TestElasticsearchFactory(t *testing.T) {
 	// after InitFromViper, f.primaryConfig points to a real session builder that will fail in unit tests,
 	// so we override it with a mock.
 	f.primaryConfig = &mockClientBuilder{err: errors.New("made-up error")}
-	assert.EqualError(t, f.Initialize(metrics.NullFactory, zap.NewNop()), "made-up error")
+	assert.EqualError(t, f.Initialize(metrics.NullFactory, zap.NewNop(), healthcheck.GetNullStatusReporter()), "made-up error")
 
 	f.primaryConfig = &mockClientBuilder{}
 	f.archiveConfig = &mockClientBuilder{err: errors.New("made-up error2")}
-	assert.EqualError(t, f.Initialize(metrics.NullFactory, zap.NewNop()), "made-up error2")
+	assert.EqualError(t, f.Initialize(metrics.NullFactory, zap.NewNop(), healthcheck.GetNullStatusReporter()), "made-up error2")
 
 	f.archiveConfig = &mockClientBuilder{}
-	assert.NoError(t, f.Initialize(metrics.NullFactory, zap.NewNop()))
+	assert.NoError(t, f.Initialize(metrics.NullFactory, zap.NewNop(), healthcheck.GetNullStatusReporter()))
 
 	_, err := f.CreateSpanReader()
 	assert.NoError(t, err)
@@ -84,7 +85,7 @@ func TestElasticsearchTagsFileDoNotExist(t *testing.T) {
 	mockConf.TagsFilePath = "fixtures/tags_foo.txt"
 	f.primaryConfig = mockConf
 	f.archiveConfig = mockConf
-	assert.NoError(t, f.Initialize(metrics.NullFactory, zap.NewNop()))
+	assert.NoError(t, f.Initialize(metrics.NullFactory, zap.NewNop(), healthcheck.GetNullStatusReporter()))
 	r, err := f.CreateSpanWriter()
 	require.Error(t, err)
 	assert.Nil(t, r)

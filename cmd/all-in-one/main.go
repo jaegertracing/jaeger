@@ -395,7 +395,7 @@ func initSamplingStrategyStore(
 	samplingStrategyStoreFactory *ss.Factory,
 	metricsFactory metrics.Factory,
 	logger *zap.Logger,
-    hc *healthcheck.HealthCheck,
+	hc *healthcheck.HealthCheck,
 ) strategystore.StrategyStore {
 	if err := samplingStrategyStoreFactory.Initialize(metricsFactory, logger, hc.GetStatusReporter(healthcheck.SamplingStorage)); err != nil {
 		logger.Fatal("Failed to init sampling strategy store factory", zap.Error(err))

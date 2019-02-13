@@ -23,6 +23,7 @@ import (
 
 	ss "github.com/jaegertracing/jaeger/cmd/collector/app/sampling/strategystore"
 	"github.com/jaegertracing/jaeger/pkg/config"
+	"github.com/jaegertracing/jaeger/pkg/healthcheck"
 	"github.com/jaegertracing/jaeger/plugin"
 )
 
@@ -35,7 +36,7 @@ func TestFactory(t *testing.T) {
 	command.ParseFlags([]string{"--sampling.strategies-file=fixtures/strategies.json"})
 	f.InitFromViper(v)
 
-	assert.NoError(t, f.Initialize(metrics.NullFactory, zap.NewNop()))
+	assert.NoError(t, f.Initialize(metrics.NullFactory, zap.NewNop(), healthcheck.GetNullStatusReporter()))
 	_, err := f.CreateStrategyStore()
 	assert.NoError(t, err)
 }

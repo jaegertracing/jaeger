@@ -25,6 +25,7 @@ import (
 	"github.com/jaegertracing/jaeger/pkg/cassandra"
 	"github.com/jaegertracing/jaeger/pkg/cassandra/mocks"
 	"github.com/jaegertracing/jaeger/pkg/config"
+	"github.com/jaegertracing/jaeger/pkg/healthcheck"
 	"github.com/jaegertracing/jaeger/pkg/testutils"
 	"github.com/jaegertracing/jaeger/storage"
 )
@@ -53,14 +54,14 @@ func TestCassandraFactory(t *testing.T) {
 	// after InitFromViper, f.primaryConfig points to a real session builder that will fail in unit tests,
 	// so we override it with a mock.
 	f.primaryConfig = &mockSessionBuilder{err: errors.New("made-up error")}
-	assert.EqualError(t, f.Initialize(metrics.NullFactory, zap.NewNop()), "made-up error")
+	assert.EqualError(t, f.Initialize(metrics.NullFactory, zap.NewNop(), healthcheck.GetNullStatusReporter()), "made-up error")
 
 	f.primaryConfig = &mockSessionBuilder{}
 	f.archiveConfig = &mockSessionBuilder{err: errors.New("made-up error")}
-	assert.EqualError(t, f.Initialize(metrics.NullFactory, zap.NewNop()), "made-up error")
+	assert.EqualError(t, f.Initialize(metrics.NullFactory, zap.NewNop(), healthcheck.GetNullStatusReporter()), "made-up error")
 
 	f.archiveConfig = nil
-	assert.NoError(t, f.Initialize(metrics.NullFactory, logger))
+	assert.NoError(t, f.Initialize(metrics.NullFactory, logger, healthcheck.GetNullStatusReporter()))
 	assert.Contains(t, logBuf.String(), "Cassandra archive storage configuration is empty, skipping")
 
 	_, err := f.CreateSpanReader()
@@ -79,7 +80,7 @@ func TestCassandraFactory(t *testing.T) {
 	assert.EqualError(t, err, "Archive storage not configured")
 
 	f.archiveConfig = &mockSessionBuilder{}
-	assert.NoError(t, f.Initialize(metrics.NullFactory, zap.NewNop()))
+	assert.NoError(t, f.Initialize(metrics.NullFactory, zap.NewNop(), healthcheck.GetNullStatusReporter()))
 
 	_, err = f.CreateArchiveSpanReader()
 	assert.NoError(t, err)

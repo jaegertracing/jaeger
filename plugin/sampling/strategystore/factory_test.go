@@ -26,6 +26,7 @@ import (
 	"go.uber.org/zap"
 
 	ss "github.com/jaegertracing/jaeger/cmd/collector/app/sampling/strategystore"
+	"github.com/jaegertracing/jaeger/pkg/healthcheck"
 	"github.com/jaegertracing/jaeger/plugin"
 )
 
@@ -42,13 +43,13 @@ func TestNewFactory(t *testing.T) {
 	mock := new(mockFactory)
 	f.factories[staticStrategyStoreType] = mock
 
-	assert.NoError(t, f.Initialize(metrics.NullFactory, zap.NewNop()))
+	assert.NoError(t, f.Initialize(metrics.NullFactory, zap.NewNop(), healthcheck.GetNullStatusReporter()))
 	_, err = f.CreateStrategyStore()
 	assert.NoError(t, err)
 
 	// force the mock to return errors
 	mock.retError = true
-	assert.EqualError(t, f.Initialize(metrics.NullFactory, zap.NewNop()), "error initializing store")
+	assert.EqualError(t, f.Initialize(metrics.NullFactory, zap.NewNop(), healthcheck.GetNullStatusReporter()), "error initializing store")
 	_, err = f.CreateStrategyStore()
 	assert.EqualError(t, err, "error creating store")
 
@@ -104,7 +105,7 @@ func (f *mockFactory) CreateStrategyStore() (ss.StrategyStore, error) {
 	return nil, nil
 }
 
-func (f *mockFactory) Initialize(metricsFactory metrics.Factory, logger *zap.Logger) error {
+func (f *mockFactory) Initialize(metricsFactory metrics.Factory, logger *zap.Logger, _ healthcheck.StatusReporter) error {
 	if f.retError {
 		return errors.New("error initializing store")
 	}

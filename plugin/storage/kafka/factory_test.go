@@ -25,6 +25,7 @@ import (
 	"go.uber.org/zap"
 
 	"github.com/jaegertracing/jaeger/pkg/config"
+	"github.com/jaegertracing/jaeger/pkg/healthcheck"
 	kafkaConfig "github.com/jaegertracing/jaeger/pkg/kafka/producer"
 	"github.com/jaegertracing/jaeger/storage"
 )
@@ -55,10 +56,10 @@ func TestKafkaFactory(t *testing.T) {
 		err: errors.New("made-up error"),
 		t:   t,
 	}
-	assert.EqualError(t, f.Initialize(metrics.NullFactory, zap.NewNop()), "made-up error")
+	assert.EqualError(t, f.Initialize(metrics.NullFactory, zap.NewNop(), healthcheck.GetNullStatusReporter()), "made-up error")
 
 	f.Builder = &mockProducerBuilder{t: t}
-	assert.NoError(t, f.Initialize(metrics.NullFactory, zap.NewNop()))
+	assert.NoError(t, f.Initialize(metrics.NullFactory, zap.NewNop(), healthcheck.GetNullStatusReporter()))
 	assert.IsType(t, &protobufMarshaller{}, f.marshaller)
 
 	_, err := f.CreateSpanWriter()
@@ -87,7 +88,7 @@ func TestKafkaFactoryEncoding(t *testing.T) {
 			f.InitFromViper(v)
 
 			f.Builder = &mockProducerBuilder{t: t}
-			assert.NoError(t, f.Initialize(metrics.NullFactory, zap.NewNop()))
+			assert.NoError(t, f.Initialize(metrics.NullFactory, zap.NewNop(), healthcheck.GetNullStatusReporter()))
 			assert.IsType(t, test.marshaller, f.marshaller)
 		})
 	}
@@ -100,5 +101,5 @@ func TestKafkaFactoryMarshallerErr(t *testing.T) {
 	f.InitFromViper(v)
 
 	f.Builder = &mockProducerBuilder{t: t}
-	assert.Error(t, f.Initialize(metrics.NullFactory, zap.NewNop()))
+	assert.Error(t, f.Initialize(metrics.NullFactory, zap.NewNop(), healthcheck.GetNullStatusReporter()))
 }

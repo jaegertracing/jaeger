@@ -15,9 +15,10 @@
 package strategystore
 
 import (
-	"github.com/jaegertracing/jaeger/pkg/healthcheck"
 	"github.com/uber/jaeger-lib/metrics"
 	"go.uber.org/zap"
+
+	"github.com/jaegertracing/jaeger/pkg/healthcheck"
 )
 
 // Factory defines an interface for a factory that can create implementations of different strategy storage components.

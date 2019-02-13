@@ -25,6 +25,7 @@ import (
 	"github.com/uber/jaeger-lib/metrics"
 	"go.uber.org/zap"
 
+	"github.com/jaegertracing/jaeger/pkg/healthcheck"
 	"github.com/jaegertracing/jaeger/storage"
 	depStoreMocks "github.com/jaegertracing/jaeger/storage/dependencystore/mocks"
 	"github.com/jaegertracing/jaeger/storage/mocks"
@@ -84,13 +85,14 @@ func TestInitialize(t *testing.T) {
 
 	m := metrics.NullFactory
 	l := zap.NewNop()
+    r := healthcheck.GetNullStatusReporter()
 	mock.On("Initialize", m, l).Return(nil)
-	assert.NoError(t, f.Initialize(m, l))
+	assert.NoError(t, f.Initialize(m, l, r))
 
 	mock = new(mocks.Factory)
 	f.factories[cassandraStorageType] = mock
 	mock.On("Initialize", m, l).Return(errors.New("init-error"))
-	assert.EqualError(t, f.Initialize(m, l), "init-error")
+	assert.EqualError(t, f.Initialize(m, l, r), "init-error")
 }
 
 func TestCreate(t *testing.T) {

@@ -61,8 +61,8 @@ const (
 	Storage
 	// archive storage availablity
 	ArchiveStorage
-    // sampling strategy storage availablity
-    SamplingStorage
+	// sampling strategy storage availablity
+	SamplingStorage
 )
 
 func (c Component) String() string {
@@ -220,12 +220,16 @@ func (hc HealthCheck) checkComponent() {
 
 type StatusReporter func(Status)
 
+func GetNullStatusReporter() func(Status) {
+	return func(_ Status) {}
+}
+
 // A vending machine of gifts for the components. Each component talks to their own cake and cake reports their confess.
 func (hc HealthCheck) GetStatusReporter(c Component) func(Status) {
-    return func(stat Status) {
-        hc.receptor <- ComponentStatus {
-            stat: stat,
-            comp: c,
-        }
-    }
+	return func(stat Status) {
+		hc.receptor <- ComponentStatus{
+			stat: stat,
+			comp: c,
+		}
+	}
 }

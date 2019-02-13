@@ -29,6 +29,7 @@ import (
 	"github.com/jaegertracing/jaeger/cmd/ingester/app/builder"
 	"github.com/jaegertracing/jaeger/model"
 	"github.com/jaegertracing/jaeger/pkg/config"
+	"github.com/jaegertracing/jaeger/pkg/healthcheck"
 	"github.com/jaegertracing/jaeger/pkg/testutils"
 	"github.com/jaegertracing/jaeger/plugin/storage/kafka"
 	"github.com/jaegertracing/jaeger/plugin/storage/memory"
@@ -68,7 +69,7 @@ func (s *KafkaIntegrationTestSuite) initialize() error {
 		"json",
 	})
 	f.InitFromViper(v)
-	if err := f.Initialize(metrics.NullFactory, s.logger); err != nil {
+	if err := f.Initialize(metrics.NullFactory, s.logger, healthcheck.GetNullStatusReporter()); err != nil {
 		return err
 	}
 	spanWriter, err := f.CreateSpanWriter()

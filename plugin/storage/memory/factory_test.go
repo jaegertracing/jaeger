@@ -21,6 +21,7 @@ import (
 	"go.uber.org/zap"
 
 	"github.com/jaegertracing/jaeger/pkg/config"
+	"github.com/jaegertracing/jaeger/pkg/healthcheck"
 	"github.com/jaegertracing/jaeger/storage"
 )
 
@@ -28,7 +29,7 @@ var _ storage.Factory = new(Factory)
 
 func TestMemoryStorageFactory(t *testing.T) {
 	f := NewFactory()
-	assert.NoError(t, f.Initialize(nil, zap.NewNop()))
+	assert.NoError(t, f.Initialize(nil, zap.NewNop(), healthcheck.GetNullStatusReporter()))
 	assert.NotNil(t, f.store)
 	reader, err := f.CreateSpanReader()
 	assert.NoError(t, err)
