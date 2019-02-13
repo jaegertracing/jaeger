@@ -8,7 +8,8 @@ function usage {
     >&2 echo "Usage: KEYSPACE={keyspace} $0"
     >&2 echo ""
     >&2 echo "The following parameters can be set via environment:"
-    >&2 echo "  KEYSPACE           - keyspace "
+    >&2 echo "  KEYSPACE           - keyspace"
+    >&2 echo "  TIMEOUT            - cqlsh request timeout"
     >&2 echo ""
     exit 1
 }
@@ -26,6 +27,8 @@ confirm() {
 }
 
 keyspace=${KEYSPACE}
+timeout=${TIMEOUT}
+cqlsh_cmd=cqlsh --request-timeout=$timeout
 
 if [[ ${keyspace} == "" ]]; then
    usage "missing KEYSPACE parameter"
@@ -36,10 +39,10 @@ if [[ ${keyspace} =~ [^a-zA-Z0-9_] ]]; then
 fi
 
 
-row_count=$(cqlsh -e "select count(*) from $keyspace.dependencies;"|head -4|tail -1| tr -d ' ')
+row_count=$($cqlsh_cmd -e "select count(*) from $keyspace.dependencies;"|head -4|tail -1| tr -d ' ')
 
 echo "About to delete $row_count rows."
 confirm
 
-cqlsh -e "DROP INDEX IF EXISTS $keyspace.ts_index;"
-cqlsh -e "DROP TABLE IF EXISTS $keyspace.dependencies;"
+$cqlsh_cmd -e "DROP INDEX IF EXISTS $keyspace.ts_index;"
+$cqlsh_cmd -e "DROP TABLE IF EXISTS $keyspace.dependencies;"

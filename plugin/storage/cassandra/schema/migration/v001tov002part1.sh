@@ -8,7 +8,8 @@ function usage {
     >&2 echo "Usage: KEYSPACE={keyspace} $0"
     >&2 echo ""
     >&2 echo "The following parameters can be set via environment:"
-    >&2 echo "  KEYSPACE           - keyspace "
+    >&2 echo "  KEYSPACE           - keyspace"
+    >&2 echo "  TIMEOUT            - cqlsh request timeout"
     >&2 echo ""
     exit 1
 }
@@ -26,6 +27,8 @@ confirm() {
 }
 
 keyspace=${KEYSPACE}
+timeout=${TIMEOUT:-"60"}
+cqlsh_cmd="cqlsh --request-timeout=$timeout"
 
 if [[ ${keyspace} == "" ]]; then
    usage "missing KEYSPACE parameter"
@@ -35,12 +38,12 @@ if [[ ${keyspace} =~ [^a-zA-Z0-9_] ]]; then
     usage "invalid characters in KEYSPACE=$keyspace parameter, please use letters, digits or underscores"
 fi
 
-row_count=$(cqlsh -e "select count(*) from $keyspace.dependencies;"|head -4|tail -1| tr -d ' ')
+row_count=$($cqlsh_cmd -e "select count(*) from $keyspace.dependencies;"|head -4|tail -1| tr -d ' ')
 
 echo "About to copy $row_count rows."
 confirm
 
-cqlsh -e "COPY $keyspace.dependencies (ts, dependencies) to 'dependencies.csv';"
+$cqlsh_cmd -e "COPY $keyspace.dependencies (ts, dependencies) to 'dependencies.csv';"
 
 if [ ! -f dependencies.csv ]; then
     echo "Could not find dependencies.csv. Backup from cassandra was probably not successful"
@@ -57,13 +60,13 @@ while IFS="," read ts dependency; do
     echo "$bucket,$ts,$dependency"
 done < dependencies.csv > dependencies_datebucket.csv
 
-dependencies_ttl=$(cqlsh -e "select default_time_to_live from system_schema.tables WHERE keyspace_name='$keyspace' AND table_name='dependencies';"|head -4|tail -1|tr -d ' ')
+dependencies_ttl=$($cqlsh_cmd -e "select default_time_to_live from system_schema.tables WHERE keyspace_name='$keyspace' AND table_name='dependencies';"|head -4|tail -1|tr -d ' ')
 
 echo "Setting dependencies_ttl to $dependencies_ttl"
 
-cqlsh -e "ALTER TYPE $keyspace.dependency ADD source text;"
+$cqlsh_cmd -e "ALTER TYPE $keyspace.dependency ADD source text;"
 
-cqlsh -e "CREATE TABLE $keyspace.dependencies_v2 (
+$cqlsh_cmd -e "CREATE TABLE $keyspace.dependencies_v2 (
     ts_bucket    timestamp,
     ts           timestamp,
     dependencies list<frozen<dependency>>,
@@ -77,4 +80,4 @@ cqlsh -e "CREATE TABLE $keyspace.dependencies_v2 (
     AND default_time_to_live = $dependencies_ttl;
 "
 
-cqlsh -e "COPY $keyspace.dependencies_v2 (ts_bucket, ts, dependencies) FROM 'dependencies_datebucket.csv';"
+$cqlsh_cmd -e "COPY $keyspace.dependencies_v2 (ts_bucket, ts, dependencies) FROM 'dependencies_datebucket.csv';"
