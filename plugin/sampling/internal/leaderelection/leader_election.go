@@ -53,10 +53,10 @@ type ElectionParticipantOptions struct {
 func NewElectionParticipant(lock dl.Lock, resourceName string, options ElectionParticipantOptions) ElectionParticipant {
 	return &electionParticipant{
 		ElectionParticipantOptions: options,
-		lock:                       lock,
-		resourceName:               resourceName,
-		isLeader:                   atomic.NewBool(false),
-		closeChan:                  make(chan struct{}),
+		lock:         lock,
+		resourceName: resourceName,
+		isLeader:     atomic.NewBool(false),
+		closeChan:    make(chan struct{}),
 	}
 }
 

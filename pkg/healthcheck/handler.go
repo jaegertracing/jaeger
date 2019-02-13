@@ -36,8 +36,8 @@ const (
 	Ready
 	// Broken indicates that the healthcheck itself is broken, not serving HTTP
 	Broken
-    // Fail just indicates a failure
-    Fail
+	// Fail just indicates a failure
+	Fail
 )
 
 func (s Status) String() string {
