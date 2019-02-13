@@ -61,11 +61,11 @@ var _ dependencystore.Writer = &DependencyStore{} // check API conformance
 func TestVersionIsValid(t *testing.T) {
 	assert.True(t, V1.IsValid())
 	assert.True(t, V2.IsValid())
-	assert.False(t, end.IsValid())
+	assert.False(t, versionEnumEnd.IsValid())
 }
 
 func TestInvalidVersion(t *testing.T) {
-	_, err := NewDependencyStore(&mocks.Session{}, metrics.NullFactory, zap.NewNop(), end)
+	_, err := NewDependencyStore(&mocks.Session{}, metrics.NullFactory, zap.NewNop(), versionEnumEnd)
 	assert.Error(t, err)
 }
 

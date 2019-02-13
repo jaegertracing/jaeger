@@ -31,7 +31,7 @@ type Version int
 
 // IsValid returns true if the Version is a valid one.
 func (i Version) IsValid() bool {
-	return i < end
+	return i >= 0 && i < versionEnumEnd
 }
 
 const (
@@ -40,7 +40,7 @@ const (
 
 	// V2 is used when the dependency table is NOT SASI indexed.
 	V2
-	end
+	versionEnumEnd
 
 	depsInsertStmtV1 = "INSERT INTO dependencies(ts, ts_index, dependencies) VALUES (?, ?, ?)"
 	depsInsertStmtV2 = "INSERT INTO dependencies_v2(ts, ts_bucket, dependencies) VALUES (?, ?, ?)"
