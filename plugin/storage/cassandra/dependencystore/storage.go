@@ -85,15 +85,12 @@ func NewDependencyStore(
 func (s *DependencyStore) WriteDependencies(ts time.Time, dependencies []model.DependencyLink) error {
 	deps := make([]Dependency, len(dependencies))
 	for i, d := range dependencies {
-		dep := Dependency{
+		deps[i] = Dependency{
 			Parent:    d.Parent,
 			Child:     d.Child,
 			CallCount: int64(d.CallCount),
+			Source:    string(d.Source),
 		}
-		if s.version == V2 {
-			dep.Source = string(d.Source)
-		}
-		deps[i] = dep
 	}
 
 	var query cassandra.Query
@@ -128,7 +125,7 @@ func (s *DependencyStore) GetDependencies(endTs time.Time, lookback time.Duratio
 				Child:     dependency.Child,
 				CallCount: uint64(dependency.CallCount),
 				Source:    model.DependencyLinkSource(dependency.Source),
-			}.Sanitize()
+			}.ApplyDefaults()
 			mDependency = append(mDependency, dl)
 		}
 	}

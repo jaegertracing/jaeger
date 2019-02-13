@@ -130,24 +130,14 @@ func TestDependencyStoreWrite(t *testing.T) {
 					}
 				}
 				if d, ok := args[2].([]Dependency); ok {
-					if testCase.version == V2 {
-						assert.Equal(t, []Dependency{
-							{
-								Parent:    "a",
-								Child:     "b",
-								CallCount: 42,
-								Source:    "jaeger",
-							},
-						}, d)
-					} else {
-						assert.Equal(t, []Dependency{
-							{
-								Parent:    "a",
-								Child:     "b",
-								CallCount: 42,
-							},
-						}, d)
-					}
+					assert.Equal(t, []Dependency{
+						{
+							Parent:    "a",
+							Child:     "b",
+							CallCount: 42,
+							Source:    "jaeger",
+						},
+					}, d)
 				} else {
 					assert.Fail(t, "expecting third arg as []Dependency", "received: %+v", args)
 				}

@@ -17,10 +17,12 @@ CID=$(docker run -d --name cassandra --network integration_test -p 9042:9042 -p 
 docker build -t jaeger-cassandra-schema-integration-test plugin/storage/cassandra/
 docker run --network integration_test -e TEMPLATE=/cassandra-schema/v001.cql.tmpl jaeger-cassandra-schema-integration-test
 
+docker run --network integration_test -e TEMPLATE=/cassandra-schema/v002.cql.tmpl jaeger-cassandra-schema-integration-test
+
 # Run the test.
 export STORAGE=cassandra
 make storage-integration-test
 
 # Tear down after.
-docker kill $CID
+# docker kill $CID
 docker network rm integration_test
