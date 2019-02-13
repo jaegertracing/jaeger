@@ -73,6 +73,8 @@ func (c Component) String() string {
 		return "storage"
 	case ArchiveStorage:
 		return "archive-storage"
+	case SamplingStorage:
+		return "sampling-strategy-storage"
 	default:
 		return "unknown"
 	}
