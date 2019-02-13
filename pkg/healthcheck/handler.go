@@ -55,9 +55,9 @@ func (s Status) String() string {
 type Component uint32
 
 const (
-    // Init -ialization phase
+	// Init -ialization phase
 	Init = iota
-    // Storage availablity
+	// Storage availablity
 	Storage
 	// ArchiveStorage availablity
 	ArchiveStorage
