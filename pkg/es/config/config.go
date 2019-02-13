@@ -30,6 +30,7 @@ import (
 
 	"github.com/jaegertracing/jaeger/pkg/es"
 	"github.com/jaegertracing/jaeger/pkg/es/wrapper"
+	"github.com/jaegertracing/jaeger/pkg/healthcheck"
 	storageMetrics "github.com/jaegertracing/jaeger/storage/spanstore/metrics"
 )
 
@@ -66,7 +67,7 @@ type TLSConfig struct {
 
 // ClientBuilder creates new es.Client
 type ClientBuilder interface {
-	NewClient(logger *zap.Logger, metricsFactory metrics.Factory) (es.Client, error)
+	NewClient(logger *zap.Logger, metricsFactory metrics.Factory, reporter healthcheck.StatusReporter) (es.Client, error)
 	GetNumShards() int64
 	GetNumReplicas() int64
 	GetMaxSpanAge() time.Duration
@@ -79,7 +80,7 @@ type ClientBuilder interface {
 }
 
 // NewClient creates a new ElasticSearch client
-func (c *Configuration) NewClient(logger *zap.Logger, metricsFactory metrics.Factory) (es.Client, error) {
+func (c *Configuration) NewClient(logger *zap.Logger, metricsFactory metrics.Factory, reporter healthcheck.StatusReporter) (es.Client, error) {
 	if len(c.Servers) < 1 {
 		return nil, errors.New("No servers specified")
 	}
@@ -112,6 +113,7 @@ func (c *Configuration) NewClient(logger *zap.Logger, metricsFactory metrics.Fac
 				for _, it := range response.Items {
 					for key, val := range it {
 						if val.Error != nil {
+                            reporter(healthcheck.Fail)
 							logger.Error("Elasticsearch part of bulk request failed", zap.String("map-key", key),
 								zap.Reflect("response", val))
 						}

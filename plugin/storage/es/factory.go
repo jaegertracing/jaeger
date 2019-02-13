@@ -72,10 +72,10 @@ func (f *Factory) InitFromViper(v *viper.Viper) {
 }
 
 // Initialize implements storage.Factory
-func (f *Factory) Initialize(metricsFactory metrics.Factory, logger *zap.Logger, statr hc.StatusReporter) error {
+func (f *Factory) Initialize(metricsFactory metrics.Factory, logger *zap.Logger, reporter hc.StatusReporter) error {
 	f.metricsFactory, f.logger = metricsFactory, logger
 
-	primaryClient, err := f.primaryConfig.NewClient(logger, metricsFactory)
+	primaryClient, err := f.primaryConfig.NewClient(logger, metricsFactory, reporter)
 	if err != nil {
 		return err
 	}

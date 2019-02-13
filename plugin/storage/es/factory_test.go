@@ -38,7 +38,7 @@ type mockClientBuilder struct {
 	err error
 }
 
-func (m *mockClientBuilder) NewClient(logger *zap.Logger, metricsFactory metrics.Factory) (es.Client, error) {
+func (m *mockClientBuilder) NewClient(logger *zap.Logger, metricsFactory metrics.Factory, _ healthcheck.StatusReporter) (es.Client, error) {
 	if m.err == nil {
 		return &mocks.Client{}, nil
 	}
