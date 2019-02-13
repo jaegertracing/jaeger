@@ -121,3 +121,57 @@ func TestLoadTagsFromFile(t *testing.T) {
 		}
 	}
 }
+<<<<<<< HEAD
+=======
+
+func TestFactory_LoadMapping(t *testing.T) {
+	spanMapping, serviceMapping := GetMappings(10, 0)
+	tests := []struct {
+		name   string
+		toTest string
+	}{
+		{name: "jaeger-span.json", toTest: spanMapping},
+		{name: "jaeger-service.json", toTest: serviceMapping},
+	}
+	for _, test := range tests {
+		mapping := loadMapping(test.name)
+		f, err := os.Open("mappings/" + test.name)
+		require.NoError(t, err)
+		b, err := ioutil.ReadAll(f)
+		require.NoError(t, err)
+		assert.Equal(t, string(b), mapping)
+
+		expectedMapping := string(b)
+		expectedMapping = strings.Replace(expectedMapping, "${__NUMBER_OF_SHARDS__}", strconv.FormatInt(10, 10), 1)
+		expectedMapping = strings.Replace(expectedMapping, "${__NUMBER_OF_REPLICAS__}", strconv.FormatInt(0, 10), 1)
+		assert.Equal(t, expectedMapping, fixMapping(mapping, 10, 0))
+		assert.Equal(t, expectedMapping, test.toTest)
+	}
+}
+
+func TestArchiveDisabled(t *testing.T) {
+	f := NewFactory()
+	f.Options.Get(archiveNamespace).Enabled = false
+	w, err := f.CreateArchiveSpanWriter()
+	assert.Nil(t, w)
+	assert.Nil(t, err)
+	r, err := f.CreateArchiveSpanReader()
+	assert.Nil(t, r)
+	assert.Nil(t, err)
+}
+
+func TestArchiveEnabled2(t *testing.T) {
+	f := NewFactory()
+	f.primaryConfig = &mockClientBuilder{}
+	f.archiveConfig = &mockClientBuilder{}
+	err := f.Initialize(metrics.NullFactory, zap.NewNop(), healthcheck.GetNullStatusReporter())
+	require.NoError(t, err)
+	f.Options.Get(archiveNamespace).Enabled = true
+	w, err := f.CreateArchiveSpanWriter()
+	require.NoError(t, err)
+	assert.NotNil(t, w)
+	r, err := f.CreateArchiveSpanReader()
+	require.NoError(t, err)
+	assert.NotNil(t, r)
+}
+>>>>>>> 065ccd8... apply StatusReporter change for new code
