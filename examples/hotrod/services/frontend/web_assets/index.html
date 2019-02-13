@@ -3,10 +3,9 @@
   <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=0">
   <head>
     <title>HotROD - Rides On Demand</title>
-    <script src="https://code.jquery.com/jquery-3.1.1.min.js"></script>
-    <link rel="stylesheet" href="https://maxcdn.bootstrapcdn.com/bootstrap/3.3.7/css/bootstrap.min.css" integrity="sha384-BVYiiSIFeK1dGmJRAkycuHAHRg32OmUcww7on3RYdg4Va+PmSTsz/K68vbdEjh4u" crossorigin="anonymous">
-    <script src="https://maxcdn.bootstrapcdn.com/bootstrap/3.3.7/js/bootstrap.min.js" integrity="sha384-Tc5IQib027qvyjSMfHjOMaLkfuWVxZxUPnCJA7l2mCWNIpG9mGCD8wGNIcPD7Txa" crossorigin="anonymous"></script>
-
+    <script src="https://code.jquery.com/jquery-3.3.1.min.js"></script>
+    <link rel="stylesheet" href="https://stackpath.bootstrapcdn.com/bootstrap/4.3.1/css/bootstrap.min.css" integrity="sha384-ggOyR0iXCbMQv3Xipma34MD+dH/1fQ784/j6cY/iJTQUOhcWr7x9JvoRxT2MZw1T" crossorigin="anonymous">
+    <script src="https://stackpath.bootstrapcdn.com/bootstrap/4.3.1/js/bootstrap.min.js" integrity="sha384-JjSmVgyd0p3pXB1rRibZUAYoIIy6OrQ6VrjIEaFf/nJGzIxFDsf4x0xIM+B07jRM" crossorigin="anonymous"></script>
     <style>
 .uuid { margin-top: 15px; }
 .hotrod-button { padding: 20px; cursor: pointer; margin-top: 10px; }
@@ -14,7 +13,6 @@
 #hotrod-log { margin-top: 15px; }
 #tip { margin-top: 15px; }
     </style>
-
   </head>
   <body>
     <div class="container">
@@ -49,42 +47,41 @@
       </center>
     </div>
   </body>
-
   <script>
-
 function formatDuration(duration) {
   var d = duration / (1000000 * 1000 * 60);
-  var units = 'min';
+  var units = "min";
   return Math.round(d) + units;
 }
 
 var clientUUID = Math.round(Math.random() * 10000);
 var lastRequestID = 0;
 
-$(".uuid").html("Your web client's id: <strong>" + clientUUID + "</strong>");
+var text = "Your web client ID: <strong>" + clientUUID + "</strong>";
+$('.uuid').html(text);
 
-$(".hotrod-button").click(function(evt) {
+$('.hotrod-button').click(function(event) {
   lastRequestID++;
-  var requestID = clientUUID + "-" + lastRequestID;
-  var freshCar = $($("#hotrod-log").prepend('<div class="fresh-car"><em>Dispatching a car...[req: '+requestID+']</em></div>').children()[0]);
-  var customer = evt.target.dataset.customer;
+  var requestID = clientUUID + '-' + lastRequestID;
+  var text = "<i>Dispatching a car... [req: " + requestID + "]</i>";
+  var freshCar = $($('#hotrod-log').prepend('<div class="fresh-car">' + text + '</div>').children()[0]);
+  var customer = event.target.dataset.customer;
   headers = {
       'jaeger-baggage': 'session=' + clientUUID + ', request=' + requestID
   };
   console.log(headers);
   var before = Date.now();
-  $.ajax('/dispatch?customer=' + customer + '&nonse=' + Math.random(), {
+  $.ajax('./dispatch?customer=' + customer + '&nonse=' + Math.random(), {
     headers: headers,
     method: 'GET',
     success: function(data, textStatus) {
       var after = Date.now();
       console.log(data);
       var duration = formatDuration(data.ETA);
-      freshCar.html('HotROD <b>' + data.Driver + '</b> arriving in ' + duration + ' [req: ' + requestID + ', latency: ' + (after-before) + 'ms]');
-    },
+      var text = "HotROD <b>" + data.Driver + "</b> arriving in " + duration + " [req: " + requestID + ", latency: " + (after - before) + "ms]";
+      freshCar.html(text);
+    }
   });
 });
-
   </script>
-
 </html>
