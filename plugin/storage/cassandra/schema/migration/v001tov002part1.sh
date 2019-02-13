@@ -35,7 +35,6 @@ if [[ ${keyspace} =~ [^a-zA-Z0-9_] ]]; then
     usage "invalid characters in KEYSPACE=$keyspace parameter, please use letters, digits or underscores"
 fi
 
-
 row_count=$(cqlsh -e "select count(*) from $keyspace.dependencies;"|head -4|tail -1| tr -d ' ')
 
 echo "About to copy $row_count rows."
@@ -52,7 +51,6 @@ if [ ${row_count} -ne $(wc -l dependencies.csv | cut -f 1 -d ' ') ]; then
     echo "Number of rows in file is not equal to number of rows in cassandra"
     exit 1
 fi
-
 
 while IFS="," read ts dependency; do
     bucket=`date +"%Y-%m-%d%z" -d "$ts"`
@@ -79,4 +77,4 @@ cqlsh -e "CREATE TABLE $keyspace.dependencies_v2 (
     AND default_time_to_live = $dependencies_ttl;
 "
 
-cqlsh -e "COPY $keyspace.dependencies_v2 (ts_bucket, ts, dependencies) FROM 'dependencies_datebucket.csv'"
+cqlsh -e "COPY $keyspace.dependencies_v2 (ts_bucket, ts, dependencies) FROM 'dependencies_datebucket.csv';"

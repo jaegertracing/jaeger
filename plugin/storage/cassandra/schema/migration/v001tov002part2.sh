@@ -41,5 +41,5 @@ row_count=$(cqlsh -e "select count(*) from $keyspace.dependencies;"|head -4|tail
 echo "About to delete $row_count rows."
 confirm
 
-cqlsh -e "DROP INDEX IF EXISTS $keyspace.ts_index"
-cqlsh -e "DROP TABLE IF EXISTS $keyspace.dependencies"
+cqlsh -e "DROP INDEX IF EXISTS $keyspace.ts_index;"
+cqlsh -e "DROP TABLE IF EXISTS $keyspace.dependencies;"
