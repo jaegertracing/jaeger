@@ -40,7 +40,7 @@ row_count=$(cqlsh -e "select count(*) from $keyspace.dependencies;"|head -4|tail
 echo "About to copy $row_count rows."
 confirm
 
-cqlsh -e "COPY $keyspace.dependencies (ts, dependencies ) to 'dependencies.csv';"
+cqlsh -e "COPY $keyspace.dependencies (ts, dependencies) to 'dependencies.csv';"
 
 if [ ! -f dependencies.csv ]; then
     echo "Could not find dependencies.csv. Backup from cassandra was probably not successful"
