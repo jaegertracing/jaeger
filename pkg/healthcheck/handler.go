@@ -210,7 +210,7 @@ func (hc *HealthCheck) monitor() {
 }
 
 // All the goodies there? Let's go!
-func (hc HealthCheck) checkComponent() {
+func (hc *HealthCheck) checkComponent() {
 	ok := true
 	for _, c := range hc.desired {
 		if hc.comstat[c] != Ready {
