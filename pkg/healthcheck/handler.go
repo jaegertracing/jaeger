@@ -51,17 +51,17 @@ func (s Status) String() string {
 	}
 }
 
-// Each value of Component is designated for all the components under healthcheck.
+// Component value is designated for all the components under healthcheck.
 type Component uint32
 
 const (
-	// whether the initialization ends or not?
+    // Init -ialization phase
 	Init = iota
-	// storage availablity
+    // Storage availablity
 	Storage
-	// archive storage availablity
+	// ArchiveStorage availablity
 	ArchiveStorage
-	// sampling strategy storage availablity
+	// SamplingStorage is SamplingStrategyStorage
 	SamplingStorage
 )
 
@@ -78,6 +78,7 @@ func (c Component) String() string {
 	}
 }
 
+// ComponentStatus is a message coming from each event of the components
 type ComponentStatus struct {
 	comp Component
 	stat Status
@@ -105,14 +106,14 @@ func Logger(logger *zap.Logger) Option {
 	}
 }
 
-// Set desired state of components to be up. If all of them are ready, we are ready.
+// SetDesired is to specify the set of the Components to be up. If all of them are ready, we are ready.
 func SetDesired(cs []Component) Option {
 	return func(hc *HealthCheck) {
 		hc.desired = cs
 	}
 }
 
-// Set desired state of components to be up. If all of them are ready, we are ready.
+// SetReceptor sets a channel to send ComponentStatus which is created at initialization phase outside of this package.
 func SetReceptor(rec chan ComponentStatus) Option {
 	return func(hc *HealthCheck) {
 		hc.receptor = rec
@@ -218,13 +219,15 @@ func (hc HealthCheck) checkComponent() {
 	}
 }
 
+// StatusReporter is called on an availablity change event.
 type StatusReporter func(Status)
 
+// GetNullStatusReporter returns the mock StatusReporter.
 func GetNullStatusReporter() func(Status) {
 	return func(_ Status) {}
 }
 
-// A vending machine of gifts for the components. Each component talks to their own cake and cake reports their confess.
+// GetStatusReporter is a vending machine of gifts for the components. Each component talks to their own teddy bear and he reports their confess for us.
 func (hc HealthCheck) GetStatusReporter(c Component) func(Status) {
 	return func(stat Status) {
 		hc.receptor <- ComponentStatus{
