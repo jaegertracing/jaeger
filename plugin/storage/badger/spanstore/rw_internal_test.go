@@ -108,3 +108,13 @@ func TestEncodingTypes(t *testing.T) {
 		assert.EqualError(t, err, "Unknown encoding type: 0x04")
 	})
 }
+
+func TestDecodeErrorReturns(t *testing.T) {
+	garbage := []byte{0x08}
+
+	_, err := decodeValue(garbage, protoEncoding)
+	assert.Error(t, err)
+
+	_, err = decodeValue(garbage, jsonEncoding)
+	assert.Error(t, err)
+}

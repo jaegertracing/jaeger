@@ -133,7 +133,8 @@ func (f *Factory) CreateSpanWriter() (spanstore.Writer, error) {
 
 // CreateDependencyReader implements storage.Factory
 func (f *Factory) CreateDependencyReader() (dependencystore.Reader, error) {
-	return depStore.NewDependencyStore(f.store), nil
+	sr, _ := f.CreateSpanReader() // err is always nil
+	return depStore.NewDependencyStore(sr), nil
 }
 
 // Close Implements io.Closer and closes the underlying storage

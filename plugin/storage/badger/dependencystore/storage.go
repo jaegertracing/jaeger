@@ -15,16 +15,13 @@
 package dependencystore
 
 import (
-	"bytes"
-	"encoding/binary"
-	"encoding/json"
-	"fmt"
+	"context"
 	"time"
 
 	"github.com/dgraph-io/badger"
-	"github.com/gogo/protobuf/proto"
 
 	"github.com/jaegertracing/jaeger/model"
+	"github.com/jaegertracing/jaeger/storage/spanstore"
 )
 
 const (
@@ -39,88 +36,37 @@ const (
 
 // DependencyStore handles all queries and insertions to Cassandra dependencies
 type DependencyStore struct {
-	store *badger.DB
+	store  *badger.DB
+	reader spanstore.Reader
 }
 
 // NewDependencyStore returns a DependencyStore
-func NewDependencyStore(db *badger.DB) *DependencyStore {
+func NewDependencyStore(store spanstore.Reader) *DependencyStore {
 	return &DependencyStore{
-		store: db,
+		reader: store,
 	}
 }
 
 // GetDependencies returns all interservice dependencies, implements DependencyReader
 func (s *DependencyStore) GetDependencies(endTs time.Time, lookback time.Duration) ([]model.DependencyLink, error) {
-	startTs := model.TimeAsEpochMicroseconds(endTs.Add(-1 * lookback))
-	beginTs := model.TimeAsEpochMicroseconds(endTs)
 	deps := map[string]*model.DependencyLink{}
+
+	params := &spanstore.TraceQueryParameters{
+		StartTimeMin: endTs.Add(-1 * lookback),
+		StartTimeMax: endTs,
+	}
 
 	// We need to do a full table scan - if this becomes a bottleneck, we can write write an index that describes
 	// dependencyKeyPrefix + timestamp + parent + child key and do a key-only seek (which is fast - but requires additional writes)
-	err := s.store.View(func(txn *badger.Txn) error {
-		opts := badger.DefaultIteratorOptions
-		opts.PrefetchValues = true
-		it := txn.NewIterator(opts)
-		defer it.Close()
 
-		val := []byte{}
-		startIndex := []byte{spanKeyPrefix}
-		spans := make([]*model.Span, 0)
-		prevTraceID := []byte{}
-		for it.Seek(startIndex); it.ValidForPrefix(startIndex); it.Next() {
-			item := it.Item()
-
-			key := []byte{}
-			key = item.KeyCopy(key)
-
-			timestamp := binary.BigEndian.Uint64(key[sizeOfTraceID+1 : sizeOfTraceID+1+8])
-			traceID := key[1 : sizeOfTraceID+1]
-
-			if timestamp >= startTs && timestamp <= beginTs {
-				val, err := item.ValueCopy(val)
-				if err != nil {
-					return err
-				}
-
-				sp := model.Span{}
-				switch item.UserMeta() & encodingTypeBits {
-				case jsonEncoding:
-					if err := json.Unmarshal(val, &sp); err != nil {
-						return err
-					}
-				case protoEncoding:
-					if err := proto.Unmarshal(val, &sp); err != nil {
-						return err
-					}
-				default:
-					return fmt.Errorf("Unknown encoding type: %04b", item.UserMeta()&encodingTypeBits)
-				}
-
-				if bytes.Equal(prevTraceID, traceID) {
-					// Still processing the same one
-					spans = append(spans, &sp)
-				} else {
-					// Process last complete span
-					trace := &model.Trace{
-						Spans: spans,
-					}
-					processTrace(deps, trace)
-
-					spans = make([]*model.Span, 0, cap(spans)) // Use previous cap
-					spans = append(spans, &sp)
-				}
-				prevTraceID = traceID
-			}
-		}
-		if len(spans) > 0 {
-			trace := &model.Trace{
-				Spans: spans,
-			}
-			processTrace(deps, trace)
-		}
-
-		return nil
-	})
+	// GetDependencies is not shipped with a context like the SpanReader / SpanWriter
+	traces, err := s.reader.FindTraces(context.Background(), params)
+	if err != nil {
+		return nil, err
+	}
+	for _, tr := range traces {
+		processTrace(deps, tr)
+	}
 
 	return depMapToSlice(deps), err
 }

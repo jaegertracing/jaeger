@@ -80,6 +80,23 @@ func NewTraceReader(db *badger.DB, c *CacheStore) *TraceReader {
 	}
 }
 
+func decodeValue(val []byte, encodeType byte) (*model.Span, error) {
+	sp := model.Span{}
+	switch encodeType {
+	case jsonEncoding:
+		if err := json.Unmarshal(val, &sp); err != nil {
+			return nil, err
+		}
+	case protoEncoding:
+		if err := proto.Unmarshal(val, &sp); err != nil {
+			return nil, err
+		}
+	default:
+		return nil, fmt.Errorf("Unknown encoding type: %#02x", encodeType)
+	}
+	return &sp, nil
+}
+
 // getTraces enriches TraceIDs to Traces
 func (r *TraceReader) getTraces(traceIDs []model.TraceID) ([]*model.Trace, error) {
 	// Get by PK
@@ -109,20 +126,11 @@ func (r *TraceReader) getTraces(traceIDs []model.TraceID) ([]*model.Trace, error
 					return err
 				}
 
-				sp := model.Span{}
-				switch item.UserMeta() & encodingTypeBits {
-				case jsonEncoding:
-					if err := json.Unmarshal(val, &sp); err != nil {
-						return err
-					}
-				case protoEncoding:
-					if err := proto.Unmarshal(val, &sp); err != nil {
-						return err
-					}
-				default:
-					return fmt.Errorf("Unknown encoding type: %#02x", item.UserMeta()&0x0F)
+				sp, err := decodeValue(val, item.UserMeta()&encodingTypeBits)
+				if err != nil {
+					return err
 				}
-				spans = append(spans, &sp)
+				spans = append(spans, sp)
 			}
 			if len(spans) > 0 {
 				trace := &model.Trace{
@@ -135,7 +143,6 @@ func (r *TraceReader) getTraces(traceIDs []model.TraceID) ([]*model.Trace, error
 	})
 
 	return traces, err
-
 }
 
 // GetTrace takes a traceID and returns a Trace associated with that traceID
@@ -149,6 +156,72 @@ func (r *TraceReader) GetTrace(ctx context.Context, traceID model.TraceID) (*mod
 	}
 
 	return nil, nil
+}
+
+// scanTimeRange returns all the Traces found between startTs and endTs
+func (r *TraceReader) scanTimeRange(startTime time.Time, endTime time.Time) ([]*model.Trace, error) {
+	// We need to do a full table scan
+	traces := make([]*model.Trace, 0)
+	startTs := model.TimeAsEpochMicroseconds(startTime)
+	endTs := model.TimeAsEpochMicroseconds(endTime)
+
+	err := r.store.View(func(txn *badger.Txn) error {
+		opts := badger.DefaultIteratorOptions
+		opts.PrefetchValues = true
+		it := txn.NewIterator(opts)
+		defer it.Close()
+
+		val := []byte{}
+		startIndex := []byte{spanKeyPrefix}
+		spans := make([]*model.Span, 0)
+		prevTraceID := []byte{}
+		for it.Seek(startIndex); it.ValidForPrefix(startIndex); it.Next() {
+			item := it.Item()
+
+			key := []byte{}
+			key = item.KeyCopy(key)
+
+			timestamp := binary.BigEndian.Uint64(key[sizeOfTraceID+1 : sizeOfTraceID+1+8])
+			traceID := key[1 : sizeOfTraceID+1]
+
+			if timestamp >= startTs && timestamp <= endTs {
+				val, err := item.ValueCopy(val)
+				if err != nil {
+					return err
+				}
+
+				sp, err := decodeValue(val, item.UserMeta()&encodingTypeBits)
+				if err != nil {
+					return err
+				}
+
+				if bytes.Equal(prevTraceID, traceID) {
+					// Still processing the same one
+					spans = append(spans, sp)
+				} else {
+					// Process last complete span
+					trace := &model.Trace{
+						Spans: spans,
+					}
+					traces = append(traces, trace)
+
+					spans = make([]*model.Span, 0, cap(spans)) // Use previous cap
+					spans = append(spans, sp)
+				}
+				prevTraceID = traceID
+			}
+		}
+		if len(spans) > 0 {
+			trace := &model.Trace{
+				Spans: spans,
+			}
+			traces = append(traces, trace)
+		}
+
+		return nil
+	})
+
+	return traces, err
 }
 
 func createPrimaryKeySeekPrefix(traceID model.TraceID) []byte {
@@ -330,6 +403,10 @@ func sortMergeIds(query *spanstore.TraceQueryParameters, ids [][][]byte) []model
 func (r *TraceReader) FindTraces(ctx context.Context, query *spanstore.TraceQueryParameters) ([]*model.Trace, error) {
 	keys, err := r.FindTraceIDs(ctx, query)
 	if err != nil {
+		if err == ErrNotSupported && (!query.StartTimeMax.IsZero() && !query.StartTimeMin.IsZero()) {
+			return r.scanTimeRange(query.StartTimeMin, query.StartTimeMax)
+		}
+
 		return nil, err
 	}
 
@@ -472,6 +549,7 @@ func (r *TraceReader) scanRangeIndex(indexStartValue []byte, indexEndValue []byt
 			timestamp := binary.BigEndian.Uint64(it.Item().Key()[timestampStartIndex : timestampStartIndex+8])
 			if timestamp <= timeIndexEnd {
 				key := []byte{}
+				key = item.KeyCopy(key)
 				key = append(key, item.Key()...) // badger reuses underlying slices so we have to copy the key
 				indexResults = append(indexResults, key)
 			}

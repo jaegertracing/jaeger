@@ -97,12 +97,8 @@ func TestValidation(t *testing.T) {
 			StartTimeMax: tid.Add(time.Duration(10)),
 		}
 
-		// Only StartTimeMin and Max (not supported yet)
-		_, err := sr.FindTraces(context.Background(), params)
-		assert.EqualError(t, err, "This query parameter is not supported yet")
-
 		params.OperationName = "no-service"
-		_, err = sr.FindTraces(context.Background(), params)
+		_, err := sr.FindTraces(context.Background(), params)
 		assert.EqualError(t, err, "Service Name must be set")
 		params.ServiceName = "find-service"
 
@@ -129,6 +125,11 @@ func TestValidation(t *testing.T) {
 		params.Tags = map[string]string{"A": "B"}
 		_, err = sr.FindTraces(context.Background(), params)
 		assert.EqualError(t, err, "Service Name must be set")
+
+		// Only StartTimeMin and Max (not supported yet)
+		// _, err := sr.FindTraces(context.Background(), params)
+		// assert.EqualError(t, err, "This query parameter is not supported yet")
+
 	})
 }
 
@@ -226,13 +227,17 @@ func TestIndexSeeks(t *testing.T) {
 			assert.True(t, trs[l].Spans[spans-1].StartTime.Before(trs[l-1].Spans[spans-1].StartTime))
 		}
 
-		// StartTime and Duration queries
+		// StartTime, endTime scan - full table scan (so technically no index seek)
 		params = &spanstore.TraceQueryParameters{
 			StartTimeMin: startT,
 			StartTimeMax: startT.Add(time.Duration(time.Millisecond * 10)),
 		}
 
-		// Duration query
+		trs, err = sr.FindTraces(context.Background(), params)
+		assert.NoError(t, err)
+		assert.Equal(t, 6, len(trs))
+
+		// StartTime and Duration queries
 		params.StartTimeMax = startT.Add(time.Duration(time.Hour * 10))
 		params.DurationMin = time.Duration(53 * time.Millisecond) // trace 51 (max)
 		params.DurationMax = time.Duration(56 * time.Millisecond) // trace 56 (min)
