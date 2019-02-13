@@ -114,7 +114,7 @@ func main() {
 			metricsFactory := rootMetricsFactory.Namespace(metrics.NSOptions{Name: "jaeger", Tags: nil})
 
 			storageFactory.InitFromViper(v)
-			if err := storageFactory.Initialize(metricsFactory, logger); err != nil {
+			if err := storageFactory.Initialize(metricsFactory, logger, hc.GetStatusReporter(healthcheck.Storage)); err != nil {
 				logger.Fatal("Failed to init storage factory", zap.Error(err))
 			}
 			spanReader, err := storageFactory.CreateSpanReader()
@@ -131,7 +131,7 @@ func main() {
 			}
 
 			strategyStoreFactory.InitFromViper(v)
-			strategyStore := initSamplingStrategyStore(strategyStoreFactory, metricsFactory, logger)
+			strategyStore := initSamplingStrategyStore(strategyStoreFactory, metricsFactory, logger, hc)
 
 			aOpts := new(agentApp.Builder).InitFromViper(v)
 			repOpts := new(agentRep.Options).InitFromViper(v)
@@ -395,8 +395,9 @@ func initSamplingStrategyStore(
 	samplingStrategyStoreFactory *ss.Factory,
 	metricsFactory metrics.Factory,
 	logger *zap.Logger,
+    hc *healthcheck.HealthCheck,
 ) strategystore.StrategyStore {
-	if err := samplingStrategyStoreFactory.Initialize(metricsFactory, logger); err != nil {
+	if err := samplingStrategyStoreFactory.Initialize(metricsFactory, logger, hc.GetStatusReporter(healthcheck.SamplingStorage)); err != nil {
 		logger.Fatal("Failed to init sampling strategy store factory", zap.Error(err))
 	}
 	strategyStore, err := samplingStrategyStoreFactory.CreateStrategyStore()

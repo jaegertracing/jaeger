@@ -80,7 +80,7 @@ func main() {
 			metricsFactory := baseFactory.Namespace(metrics.NSOptions{Name: "ingester", Tags: nil})
 
 			storageFactory.InitFromViper(v)
-			if err := storageFactory.Initialize(baseFactory, logger); err != nil {
+			if err := storageFactory.Initialize(baseFactory, logger, hc.GetStatusReporter(healthcheck.Storage)); err != nil {
 				logger.Fatal("Failed to init storage factory", zap.Error(err))
 			}
 			spanWriter, err := storageFactory.CreateSpanWriter()

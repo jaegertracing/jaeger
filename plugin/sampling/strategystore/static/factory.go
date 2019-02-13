@@ -21,6 +21,7 @@ import (
 	"github.com/uber/jaeger-lib/metrics"
 	"go.uber.org/zap"
 
+	"github.com/jaegertracing/jaeger/pkg/healthcheck"
 	"github.com/jaegertracing/jaeger/cmd/collector/app/sampling/strategystore"
 )
 
@@ -49,7 +50,7 @@ func (f *Factory) InitFromViper(v *viper.Viper) {
 }
 
 // Initialize implements strategystore.Factory
-func (f *Factory) Initialize(metricsFactory metrics.Factory, logger *zap.Logger) error {
+func (f *Factory) Initialize(metricsFactory metrics.Factory, logger *zap.Logger, statr healthcheck.StatusReporter) error {
 	f.logger = logger
 	return nil
 }

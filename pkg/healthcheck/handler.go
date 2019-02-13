@@ -61,6 +61,8 @@ const (
 	Storage
 	// archive storage availablity
 	ArchiveStorage
+    // sampling strategy storage availablity
+    SamplingStorage
 )
 
 func (c Component) String() string {

@@ -23,6 +23,7 @@ import (
 	"github.com/uber/jaeger-lib/metrics"
 	"go.uber.org/zap"
 
+	"github.com/jaegertracing/jaeger/pkg/healthcheck"
 	"github.com/jaegertracing/jaeger/pkg/kafka/producer"
 	"github.com/jaegertracing/jaeger/storage/dependencystore"
 	"github.com/jaegertracing/jaeger/storage/spanstore"
@@ -57,7 +58,7 @@ func (f *Factory) InitFromViper(v *viper.Viper) {
 }
 
 // Initialize implements storage.Factory
-func (f *Factory) Initialize(metricsFactory metrics.Factory, logger *zap.Logger) error {
+func (f *Factory) Initialize(metricsFactory metrics.Factory, logger *zap.Logger, statr healthcheck.StatusReporter) error {
 	f.metricsFactory, f.logger = metricsFactory, logger
 	logger.Info("Kafka factory",
 		zap.Any("producer builder", f.Builder),

@@ -99,7 +99,7 @@ func main() {
 			}
 
 			storageFactory.InitFromViper(v)
-			if err := storageFactory.Initialize(baseFactory, logger); err != nil {
+			if err := storageFactory.Initialize(baseFactory, logger, hc.GetStatusReporter(healthcheck.Storage)); err != nil {
 				logger.Fatal("Failed to init storage factory", zap.Error(err))
 			}
 			spanWriter, err := storageFactory.CreateSpanWriter()
@@ -120,7 +120,7 @@ func main() {
 
 			zipkinSpansHandler, jaegerBatchesHandler, grpcHandler := handlerBuilder.BuildHandlers()
 			strategyStoreFactory.InitFromViper(v)
-			strategyStore := initSamplingStrategyStore(strategyStoreFactory, metricsFactory, logger)
+			strategyStore := initSamplingStrategyStore(strategyStoreFactory, metricsFactory, logger, hc)
 
 			{
 				ch, err := tchannel.NewChannel(serviceName, &tchannel.ChannelOptions{})
@@ -246,8 +246,9 @@ func initSamplingStrategyStore(
 	samplingStrategyStoreFactory *ss.Factory,
 	metricsFactory metrics.Factory,
 	logger *zap.Logger,
+    hc *healthcheck.HealthCheck,
 ) strategystore.StrategyStore {
-	if err := samplingStrategyStoreFactory.Initialize(metricsFactory, logger); err != nil {
+	if err := samplingStrategyStoreFactory.Initialize(metricsFactory, logger, hc.GetStatusReporter(healthcheck.SamplingStorage)); err != nil {
 		logger.Fatal("Failed to init sampling strategy store factory", zap.Error(err))
 	}
 	strategyStore, err := samplingStrategyStoreFactory.CreateStrategyStore()

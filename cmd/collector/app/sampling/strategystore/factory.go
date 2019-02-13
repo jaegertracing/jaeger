@@ -15,6 +15,7 @@
 package strategystore
 
 import (
+	"github.com/jaegertracing/jaeger/pkg/healthcheck"
 	"github.com/uber/jaeger-lib/metrics"
 	"go.uber.org/zap"
 )
@@ -27,7 +28,7 @@ import (
 // plugin.Configurable
 type Factory interface {
 	// Initialize performs internal initialization of the factory.
-	Initialize(metricsFactory metrics.Factory, logger *zap.Logger) error
+	Initialize(metricsFactory metrics.Factory, logger *zap.Logger, statr healthcheck.StatusReporter) error
 
 	// CreateStrategyStore initializes the StrategyStore and returns it.
 	CreateStrategyStore() (StrategyStore, error)

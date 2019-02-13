@@ -27,6 +27,7 @@ import (
 
 	"github.com/jaegertracing/jaeger/pkg/es"
 	"github.com/jaegertracing/jaeger/pkg/es/config"
+	hc "github.com/jaegertracing/jaeger/pkg/healthcheck"
 	esDepStore "github.com/jaegertracing/jaeger/plugin/storage/es/dependencystore"
 	esSpanStore "github.com/jaegertracing/jaeger/plugin/storage/es/spanstore"
 	"github.com/jaegertracing/jaeger/storage/dependencystore"
@@ -71,7 +72,7 @@ func (f *Factory) InitFromViper(v *viper.Viper) {
 }
 
 // Initialize implements storage.Factory
-func (f *Factory) Initialize(metricsFactory metrics.Factory, logger *zap.Logger) error {
+func (f *Factory) Initialize(metricsFactory metrics.Factory, logger *zap.Logger, statr hc.StatusReporter) error {
 	f.metricsFactory, f.logger = metricsFactory, logger
 
 	primaryClient, err := f.primaryConfig.NewClient(logger, metricsFactory)
