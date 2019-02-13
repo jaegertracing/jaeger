@@ -1,5 +1,7 @@
 #!/usr/bin/env bash
 
+set -euo pipefail
+
 function usage {
     >&2 echo "Error: $1"
     >&2 echo ""

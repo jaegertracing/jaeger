@@ -30,8 +30,8 @@ type DependencyLink struct {
 	Source    DependencyLinkSource `json:"source"`
 }
 
-// Sanitize sanitizes the DependencyLink.
-func (d DependencyLink) Sanitize() DependencyLink {
+// ApplyDefaults applies defaults to the DependencyLink.
+func (d DependencyLink) ApplyDefaults() DependencyLink {
 	if d.Source == "" {
 		d.Source = JaegerDependencyLinkSource
 	}

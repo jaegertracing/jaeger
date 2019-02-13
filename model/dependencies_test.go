@@ -20,11 +20,11 @@ import (
 	"github.com/stretchr/testify/assert"
 )
 
-func TestDependencyLinkSanitize(t *testing.T) {
-	dl := DependencyLink{}.Sanitize()
+func TestDependencyLinkApplyDefaults(t *testing.T) {
+	dl := DependencyLink{}.ApplyDefaults()
 	assert.Equal(t, JaegerDependencyLinkSource, dl.Source)
 
 	networkSource := DependencyLinkSource("network")
-	dl = DependencyLink{Source: networkSource}.Sanitize()
+	dl = DependencyLink{Source: networkSource}.ApplyDefaults()
 	assert.Equal(t, networkSource, dl.Source)
 }

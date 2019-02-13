@@ -1,5 +1,7 @@
 #!/usr/bin/env bash
 
+set -euo pipefail
+
 function usage {
     >&2 echo "Error: $1"
     >&2 echo ""
@@ -52,7 +54,10 @@ if [ ${row_count} -ne $(wc -l dependencies.csv | cut -f 1 -d ' ') ]; then
 fi
 
 
-while IFS="," read ts dependency; do bucket=`date +"%Y%m%d" -d "$ts"`; echo "$bucket,$ts,$dependency"; done < dependencies.csv > dependencies_datebucket.csv
+while IFS="," read ts dependency; do
+    bucket=`date +"%Y-%m-%d%z" -d "$ts"`
+    echo "$bucket,$ts,$dependency"
+done < dependencies.csv > dependencies_datebucket.csv
 
 dependencies_ttl=$(cqlsh -e "select default_time_to_live from system_schema.tables WHERE keyspace_name='$keyspace' AND table_name='dependencies';"|head -4|tail -1|tr -d ' ')
 
