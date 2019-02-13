@@ -1,8 +1,8 @@
 syntax = "proto3";
 
-package jaeger.api_v2;
+package jaeger.storage.v1;
 
-option go_package = "proto";
+option go_package = "api_v1";
 
 import "gogoproto/gogo.proto";
 import "google/protobuf/timestamp.proto";
@@ -46,7 +46,7 @@ message GetDependenciesResponse {
 }
 
 message WriteSpanRequest {
-    Span span = 1;
+    jaeger.api_v2.Span span = 1;
 }
 
 message WriteSpanResponse {
@@ -65,7 +65,7 @@ message GetTraceRequest {
 }
 
 message GetTraceSuccess {
-    Trace trace = 1;
+    jaeger.api_v2.Trace trace = 1;
 }
 
 message GetTraceResponse {
@@ -157,21 +157,21 @@ message GrpcStoragePluginError {
     string message = 1;
 }
 
-service GrpcSpanWriterStoragePlugin {
+service SpanWriterPlugin {
     // spanstore/Writer
     rpc WriteSpan(WriteSpanRequest) returns (WriteSpanResponse);
 }
 
-service GrpcSpanReaderStoragePlugin {
+service SpanReaderPlugin {
     // spanstore/Reader
     rpc GetTrace(GetTraceRequest) returns (GetTraceResponse);
     rpc GetServices(GetServicesRequest) returns (GetServicesResponse);
     rpc GetOperations(GetOperationsRequest) returns (GetOperationsResponse);
-    rpc FindTraces(FindTracesRequest) returns (stream Trace);
+    rpc FindTraces(FindTracesRequest) returns (stream jaeger.api_v2.Trace);
     rpc FindTraceIDs(FindTraceIDsRequest) returns (FindTraceIDsResponse);
 }
 
-service GrpcDependenciesStoragePlugin {
+service DependenciesReaderPlugin {
     // dependencystore/Writer
     //    rpc WriteDependencies(WriteDependenciesRequest) returns (WriteDependenciesResponse);
     // dependencystore/Reader
@@ -185,4 +185,3 @@ service GrpcDependenciesStoragePlugin {
 //    rpc GetThroughput(GetThroughputRequest) returns (GetThroughputResponse);
 //    rpc GetProbabilitiesAndQPS(GetProbabilitiesAndQPSRequest) returns (GetProbabilitiesAndQPSResponse);
 //    rpc GetLatestProbabilities(GetLatestProbabilitiesRequest) returns (GetLatestProbabilitiesResponse);
-
