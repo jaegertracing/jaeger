@@ -18,25 +18,12 @@ import (
 	"context"
 	"time"
 
-	"github.com/dgraph-io/badger"
-
 	"github.com/jaegertracing/jaeger/model"
 	"github.com/jaegertracing/jaeger/storage/spanstore"
 )
 
-const (
-	// TODO Maybe these should be visible in the spanstore?
-	dependencyKeyPrefix byte = 0xC0 // Dependency PKs have first two bits set to 1
-	spanKeyPrefix       byte = 0x80 // All span keys should have first bit set to 1
-	sizeOfTraceID            = 16
-	encodingTypeBits    byte = 0x0F // UserMeta's last four bits are reserved for encoding type
-	jsonEncoding        byte = 0x01 // Last 4 bits of the meta byte are for encoding type
-	protoEncoding       byte = 0x02 // Last 4 bits of the meta byte are for encoding type
-)
-
 // DependencyStore handles all queries and insertions to Cassandra dependencies
 type DependencyStore struct {
-	store  *badger.DB
 	reader spanstore.Reader
 }
 
