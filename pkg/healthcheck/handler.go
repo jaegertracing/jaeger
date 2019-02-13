@@ -55,8 +55,10 @@ func (s Status) String() string {
 type Component uint32
 
 const (
+	// Default is uninitialized value
+	Default = iota
 	// Init -ialization phase
-	Init = iota
+	Init
 	// Storage availablity
 	Storage
 	// ArchiveStorage availablity
@@ -137,6 +139,7 @@ func New(state Status, options ...Option) *HealthCheck {
 	if hc.logger == nil {
 		hc.logger = zap.NewNop()
 	}
+	hc.comstat = make(map[Component]Status, len(hc.desired))
 	go hc.monitor()
 	return hc
 }
@@ -200,6 +203,7 @@ func (hc *HealthCheck) Ready() {
 // Monitor the receptor's report coming from components on ready or unready
 func (hc *HealthCheck) monitor() {
 	for msg := range hc.receptor {
+		hc.logger.Info("Component health state change", zap.Stringer("component", msg.comp), zap.Stringer("state", msg.stat))
 		hc.comstat[msg.comp] = msg.stat
 		hc.checkComponent()
 	}

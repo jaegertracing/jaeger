@@ -23,7 +23,7 @@ import (
 
 	"github.com/jaegertracing/jaeger/pkg/cassandra"
 	"github.com/jaegertracing/jaeger/pkg/cassandra/config"
-	hc "github.com/jaegertracing/jaeger/pkg/healthcheck"
+	"github.com/jaegertracing/jaeger/pkg/healthcheck"
 	cDepStore "github.com/jaegertracing/jaeger/plugin/storage/cassandra/dependencystore"
 	cSpanStore "github.com/jaegertracing/jaeger/plugin/storage/cassandra/spanstore"
 	"github.com/jaegertracing/jaeger/storage"
@@ -43,6 +43,7 @@ type Factory struct {
 	primaryMetricsFactory metrics.Factory
 	archiveMetricsFactory metrics.Factory
 	logger                *zap.Logger
+	StatusReporter        healthcheck.StatusReporter
 
 	primaryConfig  config.SessionBuilder
 	primarySession cassandra.Session
@@ -72,10 +73,11 @@ func (f *Factory) InitFromViper(v *viper.Viper) {
 }
 
 // Initialize implements storage.Factory
-func (f *Factory) Initialize(metricsFactory metrics.Factory, logger *zap.Logger, statr hc.StatusReporter) error {
+func (f *Factory) Initialize(metricsFactory metrics.Factory, logger *zap.Logger, reporter healthcheck.StatusReporter) error {
 	f.primaryMetricsFactory = metricsFactory.Namespace(metrics.NSOptions{Name: "cassandra", Tags: nil})
 	f.archiveMetricsFactory = metricsFactory.Namespace(metrics.NSOptions{Name: "cassandra-archive", Tags: nil})
 	f.logger = logger
+	f.StatusReporter = reporter
 
 	primarySession, err := f.primaryConfig.NewSession()
 	if err != nil {
@@ -92,6 +94,7 @@ func (f *Factory) Initialize(metricsFactory metrics.Factory, logger *zap.Logger,
 	} else {
 		logger.Info("Cassandra archive storage configuration is empty, skipping")
 	}
+	reporter(healthcheck.Ready)
 	return nil
 }
 

@@ -50,10 +50,11 @@ func (f *Factory) InitFromViper(v *viper.Viper) {
 }
 
 // Initialize implements storage.Factory
-func (f *Factory) Initialize(metricsFactory metrics.Factory, logger *zap.Logger, statr healthcheck.StatusReporter) error {
+func (f *Factory) Initialize(metricsFactory metrics.Factory, logger *zap.Logger, reporter healthcheck.StatusReporter) error {
 	f.metricsFactory, f.logger = metricsFactory, logger
 	f.store = WithConfiguration(f.options.Configuration)
 	logger.Info("Memory storage configuration", zap.Any("configuration", f.store.config))
+	reporter(healthcheck.Ready)
 	return nil
 }
 
