@@ -177,11 +177,3 @@ service DependenciesReaderPlugin {
     // dependencystore/Reader
     rpc GetDependencies(GetDependenciesRequest) returns (GetDependenciesResponse);
 }
-
-// TODO(olivierboucher): make theses available once the POC goes through
-// samplingstore/Store
-//    rpc InsertThroughput(InsertThroughputRequest) returns (InsertThroughputResponse);
-//    rpc InsertProbabilitiesAndQPS(InsertProbabilitiesAndQPSRequest) returns (InsertProbabilitiesAndQPSResponse);
-//    rpc GetThroughput(GetThroughputRequest) returns (GetThroughputResponse);
-//    rpc GetProbabilitiesAndQPS(GetProbabilitiesAndQPSRequest) returns (GetProbabilitiesAndQPSResponse);
-//    rpc GetLatestProbabilities(GetLatestProbabilitiesRequest) returns (GetLatestProbabilitiesResponse);
