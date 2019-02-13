@@ -118,9 +118,9 @@ func (f *Factory) CreateSpanWriter() (spanstore.Writer, error) {
 		writers = append(writers, writer)
 	}
 	if len(f.SpanWriterTypes) == 1 {
-		return writers[0], nil
+		return spanstore.NewAutomateDroppingWriter(writers[0], f.automateDropPercentage), nil
 	}
-	return spanstore.NewCompositeWriter(writers...), nil
+	return spanstore.NewAutomateDroppingWriter(spanstore.NewCompositeWriter(writers...), f.automateDropPercentage), nil
 }
 
 // CreateDependencyReader implements storage.Factory

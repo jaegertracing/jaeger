@@ -18,6 +18,7 @@ import (
 	"fmt"
 	"io"
 	"os"
+	"strconv"
 	"strings"
 )
 
@@ -29,6 +30,9 @@ const (
 	DependencyStorageTypeEnvVar = "DEPENDENCY_STORAGE_TYPE"
 
 	spanStorageFlag = "--span-storage.type"
+
+	// AutomateDropPercentage is the name of the env var that defines the percentage of spans we would drop from Ingester
+	AutomateDropPercentage = "AUTOMATE_DROP_PERCENTAGE"
 )
 
 // FactoryConfig tells the Factory which types of backends it needs to create for different storage types.
@@ -36,6 +40,7 @@ type FactoryConfig struct {
 	SpanWriterTypes         []string
 	SpanReaderType          string
 	DependenciesStorageType string
+	automateDropPercentage  float64
 }
 
 // FactoryConfigFromEnvAndCLI reads the desired types of storage backends from SPAN_STORAGE_TYPE and
@@ -69,11 +74,23 @@ func FactoryConfigFromEnvAndCLI(args []string, log io.Writer) FactoryConfig {
 	if depStorageType == "" {
 		depStorageType = spanWriterTypes[0]
 	}
+	percentageDropped := os.Getenv(AutomateDropPercentage)
+	// Default percentage to drop spans is 0
+	var automateDropPercentage float64 = 0
+	if percentageDropped != "" {
+		var err error
+		automateDropPercentage, err = strconv.ParseFloat(percentageDropped, 64)
+		if err != nil {
+			// Don't drop spans if there's parsing error
+			automateDropPercentage = 0
+		}
+	}
 	// TODO support explicit configuration for readers
 	return FactoryConfig{
 		SpanWriterTypes:         spanWriterTypes,
 		SpanReaderType:          spanWriterTypes[0],
 		DependenciesStorageType: depStorageType,
+		automateDropPercentage:  automateDropPercentage,
 	}
 }
 
