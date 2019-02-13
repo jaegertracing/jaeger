@@ -200,20 +200,19 @@ func (td toDomain) getStartTimeAndDuration(zSpan *zipkincore.Span) (int64, int64
 		if cs != nil {
 			timestamp = cs.Timestamp
 			cr := td.findAnnotation(zSpan, zipkincore.CLIENT_RECV)
-			if cr != nil {
+			if cr != nil && duration == 0 {
 				duration = cr.Timestamp - cs.Timestamp
 			}
 		} else if sr != nil {
 			timestamp = sr.Timestamp
 			ss := td.findAnnotation(zSpan, zipkincore.SERVER_SEND)
-			if ss != nil {
+			if ss != nil && duration == 0 {
 				duration = ss.Timestamp - sr.Timestamp
 			}
 		}
 	}
 	return timestamp, duration
 }
-
 
 // generateProcess takes a Zipkin Span and produces a model.Process.
 // An optional error may also be returned, but it is not fatal.
