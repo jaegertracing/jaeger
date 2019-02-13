@@ -82,11 +82,12 @@ func (f *Factory) Initialize(metricsFactory metrics.Factory, logger *zap.Logger)
 		return errors.Wrap(err, "failed to create primary Elasticsearch client")
 	}
 	f.primaryClient = primaryClient
-	archiveClient, err := f.archiveConfig.NewClient(logger, metricsFactory)
-	if err != nil {
-		return errors.Wrap(err, "failed to create archive Elasticsearch client")
+	if f.archiveConfig.IsEnabled() {
+		f.archiveClient, err = f.archiveConfig.NewClient(logger, metricsFactory)
+		if err != nil {
+			return errors.Wrap(err, "failed to create archive Elasticsearch client")
+		}
 	}
-	f.archiveClient = archiveClient
 	return nil
 }
 
@@ -125,12 +126,20 @@ func loadTagsFromFile(filePath string) ([]string, error) {
 
 // CreateArchiveSpanReader implements storage.ArchiveFactory
 func (f *Factory) CreateArchiveSpanReader() (spanstore.Reader, error) {
-	return createSpanReader(f.metricsFactory, f.logger, f.archiveClient, f.Options.Get(archiveNamespace), true)
+	cfg := f.Options.Get(archiveNamespace)
+	if !cfg.Enabled {
+		return nil, nil
+	}
+	return createSpanReader(f.metricsFactory, f.logger, f.archiveClient, cfg, true)
 }
 
 // CreateArchiveSpanWriter implements storage.ArchiveFactory
 func (f *Factory) CreateArchiveSpanWriter() (spanstore.Writer, error) {
-	return createSpanWriter(f.metricsFactory, f.logger, f.archiveClient, f.Options.Get(archiveNamespace), true)
+	cfg := f.Options.Get(archiveNamespace)
+	if !cfg.Enabled {
+		return nil, nil
+	}
+	return createSpanWriter(f.metricsFactory, f.logger, f.archiveClient, cfg, true)
 }
 
 func createSpanReader(

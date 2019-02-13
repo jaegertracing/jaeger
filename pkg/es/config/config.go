@@ -55,6 +55,7 @@ type Configuration struct {
 	TagsFilePath        string
 	AllTagsAsFields     bool
 	TagDotReplacement   string
+	Enabled             bool
 	TLS                 TLSConfig
 	UseReadWriteAliases bool
 }
@@ -80,6 +81,7 @@ type ClientBuilder interface {
 	GetTagDotReplacement() string
 	GetUseReadWriteAliases() bool
 	GetTokenFilePath() string
+	IsEnabled() bool
 }
 
 // NewClient creates a new ElasticSearch client
@@ -231,6 +233,11 @@ func (c *Configuration) GetUseReadWriteAliases() bool {
 // GetTokenFilePath returns file path containing the bearer token
 func (c *Configuration) GetTokenFilePath() string {
 	return c.TokenFilePath
+}
+
+// IsEnabled determines whether storage is enabled
+func (c *Configuration) IsEnabled() bool {
+	return c.Enabled
 }
 
 // getConfigOptions wraps the configs to feed to the ElasticSearch client init
