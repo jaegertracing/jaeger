@@ -4,15 +4,24 @@ import elasticsearch
 import curator
 import sys
 import os
+import ssl
 
+TIMEOUT=120
 
 def main():
-    if len(sys.argv) == 1:
-        print('USAGE: [TIMEOUT=(default 120)] [INDEX_PREFIX=(default "")] [ARCHIVE=(default false)] {} NUM_OF_DAYS http://HOSTNAME[:PORT]'.format(sys.argv[0]))
-        print('Specify a NUM_OF_DAYS that will delete indices that are older than the given NUM_OF_DAYS.')
+    if len(sys.argv) != 3:
+        print('USAGE: [INDEX_PREFIX=(default "")] [ARCHIVE=(default false)] ... {} NUM_OF_DAYS http://HOSTNAME[:PORT]'.format(sys.argv[0]))
+        print('NUM_OF_DAYS ... delete indices that are older than the given number of days.')
         print('HOSTNAME ... specifies which Elasticsearch hosts URL to search and delete indices from.')
+        print('TIMEOUT ...  number of seconds to wait for master node response.'.format(TIMEOUT))
         print('INDEX_PREFIX ... specifies index prefix.')
-        print('ARCHIVE ... specifies whether to remove archive indices. Use true or false')
+        print('ARCHIVE ... specifies whether to remove archive indices (default false).')
+        print('ES_USERNAME ... The username required by Elasticsearch.')
+        print('ES_PASSWORD ... The password required by Elasticsearch.')
+        print('ES_TLS ... enable TLS (default false).')
+        print('ES_TLS_CA ... Path to TLS CA file.')
+        print('ES_TLS_CERT ... Path to TLS certificate file.')
+        print('ES_TLS_KEY ... Path to TLS key file.')
         sys.exit(1)
 
     username = os.getenv("ES_USERNAME")
@@ -20,16 +29,19 @@ def main():
 
     if username is not None and password is not None:
         client = elasticsearch.Elasticsearch(sys.argv[2:], http_auth=(username, password))
+    elif str2bool(os.getenv("ES_TLS", 'false')):
+        context = ssl.create_default_context(ssl.Purpose.SERVER_AUTH, cafile=os.getenv("ES_TLS_CA"))
+        context.load_cert_chain(certfile=os.getenv("ES_TLS_CERT"), keyfile=os.getenv("ES_TLS_KEY"))
+        client = elasticsearch.Elasticsearch(sys.argv[2:], ssl_context=context)
     else:
         client = elasticsearch.Elasticsearch(sys.argv[2:])
 
     ilo = curator.IndexList(client)
-    empty_list(ilo, 'ElasticSearch has no indices')
+    empty_list(ilo, 'Elasticsearch has no indices')
 
     prefix = os.getenv("INDEX_PREFIX", '')
     if prefix != '':
         prefix += '-'
-    prefix += 'jaeger'
 
     if str2bool(os.getenv("ARCHIVE", 'false')):
         filter_archive_indices(ilo, prefix)
@@ -40,9 +52,9 @@ def main():
 
     for index in ilo.working_list():
         print("Removing", index)
-    timeout = int(os.getenv("TIMEOUT", 120))
+    timeout = int(os.getenv("TIMEOUT", TIMEOUT))
     delete_indices = curator.DeleteIndices(ilo, master_timeout=timeout)
-    delete_indices.do_dry_run()
+    delete_indices.do_action()
 
 
 def filter_main_indices(ilo, prefix):
