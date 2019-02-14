@@ -7,6 +7,7 @@ option go_package = "api_v1";
 import "gogoproto/gogo.proto";
 import "google/protobuf/timestamp.proto";
 import "google/protobuf/duration.proto";
+import "google/protobuf/empty.proto";
 
 import "model.proto";
 
@@ -51,7 +52,7 @@ message WriteSpanRequest {
 
 message WriteSpanResponse {
     oneof response {
-        EmptyResponse success = 1;
+        google.protobuf.Empty success = 1;
         GrpcStoragePluginError error = 2;
     }
 }
@@ -99,7 +100,7 @@ message GetOperationsSuccess {
 message GetOperationsResponse {
     oneof response {
         GetOperationsSuccess success = 1;
-        GrpcStoragePluginError error = 2;
+        google.protobuf.Empty error = 2;
     }
 }
 
@@ -154,10 +155,6 @@ message FindTraceIDsResponse {
         FindTraceIDsSuccess success = 1;
         GrpcStoragePluginError error = 2;
     }
-}
-
-message EmptyResponse {
-
 }
 
 message GrpcStoragePluginError {
