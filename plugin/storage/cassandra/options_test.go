@@ -63,6 +63,7 @@ func TestOptionsWithFlags(t *testing.T) {
 		"--cas-aux.enabled=true",
 		"--cas-aux.keyspace=jaeger-archive",
 		"--cas-aux.servers=3.3.3.3, 4.4.4.4",
+		"--cas-aux.enable-dependencies-v2=true",
 	})
 	opts.InitFromViper(v)
 
@@ -71,6 +72,7 @@ func TestOptionsWithFlags(t *testing.T) {
 	assert.Equal(t, "mojave", primary.LocalDC)
 	assert.Equal(t, []string{"1.1.1.1", "2.2.2.2"}, primary.Servers)
 	assert.Equal(t, "ONE", primary.Consistency)
+	assert.Equal(t, false, primary.EnableDependenciesV2)
 
 	aux := opts.Get("cas-aux")
 	require.NotNil(t, aux)
@@ -84,4 +86,5 @@ func TestOptionsWithFlags(t *testing.T) {
 	assert.Equal(t, "", aux.Consistency, "aux storage does not inherit consistency from primary")
 	assert.Equal(t, 3, aux.ProtoVersion)
 	assert.Equal(t, 42*time.Second, aux.SocketKeepAlive)
+	assert.Equal(t, true, aux.EnableDependenciesV2)
 }
