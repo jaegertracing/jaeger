@@ -10,24 +10,18 @@
 	It has these top-level messages:
 		GetDependenciesRequest
 		GetDependenciesSuccess
-		GetDependenciesResponse
 		WriteSpanRequest
-		WriteSpanResponse
 		GetTraceRequest
 		GetTraceSuccess
-		GetTraceResponse
 		GetServicesRequest
 		GetServicesSuccess
-		GetServicesResponse
 		GetOperationsRequest
 		GetOperationsSuccess
-		GetOperationsResponse
 		TraceQueryParameters
 		FindTracesRequest
 		FindTracesResponseChunk
 		FindTraceIDsRequest
 		FindTraceIDsSuccess
-		FindTraceIDsResponse
 */
 package api_v1
 
@@ -39,7 +33,6 @@ import _ "github.com/gogo/protobuf/gogoproto"
 import _ "github.com/gogo/protobuf/types"
 import _ "github.com/gogo/protobuf/types"
 import google_protobuf3 "github.com/gogo/protobuf/types"
-import google_rpc "github.com/gogo/googleapis/google/rpc"
 import jaeger_api_v2 "github.com/jaegertracing/jaeger/model"
 
 import time "time"
@@ -98,129 +91,6 @@ func (m *GetDependenciesSuccess) String() string            { return proto.Compa
 func (*GetDependenciesSuccess) ProtoMessage()               {}
 func (*GetDependenciesSuccess) Descriptor() ([]byte, []int) { return fileDescriptorStorage, []int{1} }
 
-type GetDependenciesResponse struct {
-	// Types that are valid to be assigned to Response:
-	//	*GetDependenciesResponse_Success
-	//	*GetDependenciesResponse_Error
-	Response isGetDependenciesResponse_Response `protobuf_oneof:"response"`
-}
-
-func (m *GetDependenciesResponse) Reset()                    { *m = GetDependenciesResponse{} }
-func (m *GetDependenciesResponse) String() string            { return proto.CompactTextString(m) }
-func (*GetDependenciesResponse) ProtoMessage()               {}
-func (*GetDependenciesResponse) Descriptor() ([]byte, []int) { return fileDescriptorStorage, []int{2} }
-
-type isGetDependenciesResponse_Response interface {
-	isGetDependenciesResponse_Response()
-	MarshalTo([]byte) (int, error)
-	Size() int
-}
-
-type GetDependenciesResponse_Success struct {
-	Success *GetDependenciesSuccess `protobuf:"bytes,1,opt,name=success,oneof"`
-}
-type GetDependenciesResponse_Error struct {
-	Error *google_rpc.Status `protobuf:"bytes,2,opt,name=error,oneof"`
-}
-
-func (*GetDependenciesResponse_Success) isGetDependenciesResponse_Response() {}
-func (*GetDependenciesResponse_Error) isGetDependenciesResponse_Response()   {}
-
-func (m *GetDependenciesResponse) GetResponse() isGetDependenciesResponse_Response {
-	if m != nil {
-		return m.Response
-	}
-	return nil
-}
-
-func (m *GetDependenciesResponse) GetSuccess() *GetDependenciesSuccess {
-	if x, ok := m.GetResponse().(*GetDependenciesResponse_Success); ok {
-		return x.Success
-	}
-	return nil
-}
-
-func (m *GetDependenciesResponse) GetError() *google_rpc.Status {
-	if x, ok := m.GetResponse().(*GetDependenciesResponse_Error); ok {
-		return x.Error
-	}
-	return nil
-}
-
-// XXX_OneofFuncs is for the internal use of the proto package.
-func (*GetDependenciesResponse) XXX_OneofFuncs() (func(msg proto.Message, b *proto.Buffer) error, func(msg proto.Message, tag, wire int, b *proto.Buffer) (bool, error), func(msg proto.Message) (n int), []interface{}) {
-	return _GetDependenciesResponse_OneofMarshaler, _GetDependenciesResponse_OneofUnmarshaler, _GetDependenciesResponse_OneofSizer, []interface{}{
-		(*GetDependenciesResponse_Success)(nil),
-		(*GetDependenciesResponse_Error)(nil),
-	}
-}
-
-func _GetDependenciesResponse_OneofMarshaler(msg proto.Message, b *proto.Buffer) error {
-	m := msg.(*GetDependenciesResponse)
-	// response
-	switch x := m.Response.(type) {
-	case *GetDependenciesResponse_Success:
-		_ = b.EncodeVarint(1<<3 | proto.WireBytes)
-		if err := b.EncodeMessage(x.Success); err != nil {
-			return err
-		}
-	case *GetDependenciesResponse_Error:
-		_ = b.EncodeVarint(2<<3 | proto.WireBytes)
-		if err := b.EncodeMessage(x.Error); err != nil {
-			return err
-		}
-	case nil:
-	default:
-		return fmt.Errorf("GetDependenciesResponse.Response has unexpected type %T", x)
-	}
-	return nil
-}
-
-func _GetDependenciesResponse_OneofUnmarshaler(msg proto.Message, tag, wire int, b *proto.Buffer) (bool, error) {
-	m := msg.(*GetDependenciesResponse)
-	switch tag {
-	case 1: // response.success
-		if wire != proto.WireBytes {
-			return true, proto.ErrInternalBadWireType
-		}
-		msg := new(GetDependenciesSuccess)
-		err := b.DecodeMessage(msg)
-		m.Response = &GetDependenciesResponse_Success{msg}
-		return true, err
-	case 2: // response.error
-		if wire != proto.WireBytes {
-			return true, proto.ErrInternalBadWireType
-		}
-		msg := new(google_rpc.Status)
-		err := b.DecodeMessage(msg)
-		m.Response = &GetDependenciesResponse_Error{msg}
-		return true, err
-	default:
-		return false, nil
-	}
-}
-
-func _GetDependenciesResponse_OneofSizer(msg proto.Message) (n int) {
-	m := msg.(*GetDependenciesResponse)
-	// response
-	switch x := m.Response.(type) {
-	case *GetDependenciesResponse_Success:
-		s := proto.Size(x.Success)
-		n += proto.SizeVarint(1<<3 | proto.WireBytes)
-		n += proto.SizeVarint(uint64(s))
-		n += s
-	case *GetDependenciesResponse_Error:
-		s := proto.Size(x.Error)
-		n += proto.SizeVarint(2<<3 | proto.WireBytes)
-		n += proto.SizeVarint(uint64(s))
-		n += s
-	case nil:
-	default:
-		panic(fmt.Sprintf("proto: unexpected type %T in oneof", x))
-	}
-	return n
-}
-
 type WriteSpanRequest struct {
 	Span *jaeger_api_v2.Span `protobuf:"bytes,1,opt,name=span" json:"span,omitempty"`
 }
@@ -228,136 +98,13 @@ type WriteSpanRequest struct {
 func (m *WriteSpanRequest) Reset()                    { *m = WriteSpanRequest{} }
 func (m *WriteSpanRequest) String() string            { return proto.CompactTextString(m) }
 func (*WriteSpanRequest) ProtoMessage()               {}
-func (*WriteSpanRequest) Descriptor() ([]byte, []int) { return fileDescriptorStorage, []int{3} }
+func (*WriteSpanRequest) Descriptor() ([]byte, []int) { return fileDescriptorStorage, []int{2} }
 
 func (m *WriteSpanRequest) GetSpan() *jaeger_api_v2.Span {
 	if m != nil {
 		return m.Span
 	}
 	return nil
-}
-
-type WriteSpanResponse struct {
-	// Types that are valid to be assigned to Response:
-	//	*WriteSpanResponse_Success
-	//	*WriteSpanResponse_Error
-	Response isWriteSpanResponse_Response `protobuf_oneof:"response"`
-}
-
-func (m *WriteSpanResponse) Reset()                    { *m = WriteSpanResponse{} }
-func (m *WriteSpanResponse) String() string            { return proto.CompactTextString(m) }
-func (*WriteSpanResponse) ProtoMessage()               {}
-func (*WriteSpanResponse) Descriptor() ([]byte, []int) { return fileDescriptorStorage, []int{4} }
-
-type isWriteSpanResponse_Response interface {
-	isWriteSpanResponse_Response()
-	MarshalTo([]byte) (int, error)
-	Size() int
-}
-
-type WriteSpanResponse_Success struct {
-	Success *google_protobuf3.Empty `protobuf:"bytes,1,opt,name=success,oneof"`
-}
-type WriteSpanResponse_Error struct {
-	Error *google_rpc.Status `protobuf:"bytes,2,opt,name=error,oneof"`
-}
-
-func (*WriteSpanResponse_Success) isWriteSpanResponse_Response() {}
-func (*WriteSpanResponse_Error) isWriteSpanResponse_Response()   {}
-
-func (m *WriteSpanResponse) GetResponse() isWriteSpanResponse_Response {
-	if m != nil {
-		return m.Response
-	}
-	return nil
-}
-
-func (m *WriteSpanResponse) GetSuccess() *google_protobuf3.Empty {
-	if x, ok := m.GetResponse().(*WriteSpanResponse_Success); ok {
-		return x.Success
-	}
-	return nil
-}
-
-func (m *WriteSpanResponse) GetError() *google_rpc.Status {
-	if x, ok := m.GetResponse().(*WriteSpanResponse_Error); ok {
-		return x.Error
-	}
-	return nil
-}
-
-// XXX_OneofFuncs is for the internal use of the proto package.
-func (*WriteSpanResponse) XXX_OneofFuncs() (func(msg proto.Message, b *proto.Buffer) error, func(msg proto.Message, tag, wire int, b *proto.Buffer) (bool, error), func(msg proto.Message) (n int), []interface{}) {
-	return _WriteSpanResponse_OneofMarshaler, _WriteSpanResponse_OneofUnmarshaler, _WriteSpanResponse_OneofSizer, []interface{}{
-		(*WriteSpanResponse_Success)(nil),
-		(*WriteSpanResponse_Error)(nil),
-	}
-}
-
-func _WriteSpanResponse_OneofMarshaler(msg proto.Message, b *proto.Buffer) error {
-	m := msg.(*WriteSpanResponse)
-	// response
-	switch x := m.Response.(type) {
-	case *WriteSpanResponse_Success:
-		_ = b.EncodeVarint(1<<3 | proto.WireBytes)
-		if err := b.EncodeMessage(x.Success); err != nil {
-			return err
-		}
-	case *WriteSpanResponse_Error:
-		_ = b.EncodeVarint(2<<3 | proto.WireBytes)
-		if err := b.EncodeMessage(x.Error); err != nil {
-			return err
-		}
-	case nil:
-	default:
-		return fmt.Errorf("WriteSpanResponse.Response has unexpected type %T", x)
-	}
-	return nil
-}
-
-func _WriteSpanResponse_OneofUnmarshaler(msg proto.Message, tag, wire int, b *proto.Buffer) (bool, error) {
-	m := msg.(*WriteSpanResponse)
-	switch tag {
-	case 1: // response.success
-		if wire != proto.WireBytes {
-			return true, proto.ErrInternalBadWireType
-		}
-		msg := new(google_protobuf3.Empty)
-		err := b.DecodeMessage(msg)
-		m.Response = &WriteSpanResponse_Success{msg}
-		return true, err
-	case 2: // response.error
-		if wire != proto.WireBytes {
-			return true, proto.ErrInternalBadWireType
-		}
-		msg := new(google_rpc.Status)
-		err := b.DecodeMessage(msg)
-		m.Response = &WriteSpanResponse_Error{msg}
-		return true, err
-	default:
-		return false, nil
-	}
-}
-
-func _WriteSpanResponse_OneofSizer(msg proto.Message) (n int) {
-	m := msg.(*WriteSpanResponse)
-	// response
-	switch x := m.Response.(type) {
-	case *WriteSpanResponse_Success:
-		s := proto.Size(x.Success)
-		n += proto.SizeVarint(1<<3 | proto.WireBytes)
-		n += proto.SizeVarint(uint64(s))
-		n += s
-	case *WriteSpanResponse_Error:
-		s := proto.Size(x.Error)
-		n += proto.SizeVarint(2<<3 | proto.WireBytes)
-		n += proto.SizeVarint(uint64(s))
-		n += s
-	case nil:
-	default:
-		panic(fmt.Sprintf("proto: unexpected type %T in oneof", x))
-	}
-	return n
 }
 
 type GetTraceRequest struct {
@@ -367,7 +114,7 @@ type GetTraceRequest struct {
 func (m *GetTraceRequest) Reset()                    { *m = GetTraceRequest{} }
 func (m *GetTraceRequest) String() string            { return proto.CompactTextString(m) }
 func (*GetTraceRequest) ProtoMessage()               {}
-func (*GetTraceRequest) Descriptor() ([]byte, []int) { return fileDescriptorStorage, []int{5} }
+func (*GetTraceRequest) Descriptor() ([]byte, []int) { return fileDescriptorStorage, []int{3} }
 
 type GetTraceSuccess struct {
 	Trace *jaeger_api_v2.Trace `protobuf:"bytes,1,opt,name=trace" json:"trace,omitempty"`
@@ -376,7 +123,7 @@ type GetTraceSuccess struct {
 func (m *GetTraceSuccess) Reset()                    { *m = GetTraceSuccess{} }
 func (m *GetTraceSuccess) String() string            { return proto.CompactTextString(m) }
 func (*GetTraceSuccess) ProtoMessage()               {}
-func (*GetTraceSuccess) Descriptor() ([]byte, []int) { return fileDescriptorStorage, []int{6} }
+func (*GetTraceSuccess) Descriptor() ([]byte, []int) { return fileDescriptorStorage, []int{4} }
 
 func (m *GetTraceSuccess) GetTrace() *jaeger_api_v2.Trace {
 	if m != nil {
@@ -385,136 +132,13 @@ func (m *GetTraceSuccess) GetTrace() *jaeger_api_v2.Trace {
 	return nil
 }
 
-type GetTraceResponse struct {
-	// Types that are valid to be assigned to Response:
-	//	*GetTraceResponse_Success
-	//	*GetTraceResponse_Error
-	Response isGetTraceResponse_Response `protobuf_oneof:"response"`
-}
-
-func (m *GetTraceResponse) Reset()                    { *m = GetTraceResponse{} }
-func (m *GetTraceResponse) String() string            { return proto.CompactTextString(m) }
-func (*GetTraceResponse) ProtoMessage()               {}
-func (*GetTraceResponse) Descriptor() ([]byte, []int) { return fileDescriptorStorage, []int{7} }
-
-type isGetTraceResponse_Response interface {
-	isGetTraceResponse_Response()
-	MarshalTo([]byte) (int, error)
-	Size() int
-}
-
-type GetTraceResponse_Success struct {
-	Success *GetTraceSuccess `protobuf:"bytes,1,opt,name=success,oneof"`
-}
-type GetTraceResponse_Error struct {
-	Error *google_rpc.Status `protobuf:"bytes,2,opt,name=error,oneof"`
-}
-
-func (*GetTraceResponse_Success) isGetTraceResponse_Response() {}
-func (*GetTraceResponse_Error) isGetTraceResponse_Response()   {}
-
-func (m *GetTraceResponse) GetResponse() isGetTraceResponse_Response {
-	if m != nil {
-		return m.Response
-	}
-	return nil
-}
-
-func (m *GetTraceResponse) GetSuccess() *GetTraceSuccess {
-	if x, ok := m.GetResponse().(*GetTraceResponse_Success); ok {
-		return x.Success
-	}
-	return nil
-}
-
-func (m *GetTraceResponse) GetError() *google_rpc.Status {
-	if x, ok := m.GetResponse().(*GetTraceResponse_Error); ok {
-		return x.Error
-	}
-	return nil
-}
-
-// XXX_OneofFuncs is for the internal use of the proto package.
-func (*GetTraceResponse) XXX_OneofFuncs() (func(msg proto.Message, b *proto.Buffer) error, func(msg proto.Message, tag, wire int, b *proto.Buffer) (bool, error), func(msg proto.Message) (n int), []interface{}) {
-	return _GetTraceResponse_OneofMarshaler, _GetTraceResponse_OneofUnmarshaler, _GetTraceResponse_OneofSizer, []interface{}{
-		(*GetTraceResponse_Success)(nil),
-		(*GetTraceResponse_Error)(nil),
-	}
-}
-
-func _GetTraceResponse_OneofMarshaler(msg proto.Message, b *proto.Buffer) error {
-	m := msg.(*GetTraceResponse)
-	// response
-	switch x := m.Response.(type) {
-	case *GetTraceResponse_Success:
-		_ = b.EncodeVarint(1<<3 | proto.WireBytes)
-		if err := b.EncodeMessage(x.Success); err != nil {
-			return err
-		}
-	case *GetTraceResponse_Error:
-		_ = b.EncodeVarint(2<<3 | proto.WireBytes)
-		if err := b.EncodeMessage(x.Error); err != nil {
-			return err
-		}
-	case nil:
-	default:
-		return fmt.Errorf("GetTraceResponse.Response has unexpected type %T", x)
-	}
-	return nil
-}
-
-func _GetTraceResponse_OneofUnmarshaler(msg proto.Message, tag, wire int, b *proto.Buffer) (bool, error) {
-	m := msg.(*GetTraceResponse)
-	switch tag {
-	case 1: // response.success
-		if wire != proto.WireBytes {
-			return true, proto.ErrInternalBadWireType
-		}
-		msg := new(GetTraceSuccess)
-		err := b.DecodeMessage(msg)
-		m.Response = &GetTraceResponse_Success{msg}
-		return true, err
-	case 2: // response.error
-		if wire != proto.WireBytes {
-			return true, proto.ErrInternalBadWireType
-		}
-		msg := new(google_rpc.Status)
-		err := b.DecodeMessage(msg)
-		m.Response = &GetTraceResponse_Error{msg}
-		return true, err
-	default:
-		return false, nil
-	}
-}
-
-func _GetTraceResponse_OneofSizer(msg proto.Message) (n int) {
-	m := msg.(*GetTraceResponse)
-	// response
-	switch x := m.Response.(type) {
-	case *GetTraceResponse_Success:
-		s := proto.Size(x.Success)
-		n += proto.SizeVarint(1<<3 | proto.WireBytes)
-		n += proto.SizeVarint(uint64(s))
-		n += s
-	case *GetTraceResponse_Error:
-		s := proto.Size(x.Error)
-		n += proto.SizeVarint(2<<3 | proto.WireBytes)
-		n += proto.SizeVarint(uint64(s))
-		n += s
-	case nil:
-	default:
-		panic(fmt.Sprintf("proto: unexpected type %T in oneof", x))
-	}
-	return n
-}
-
 type GetServicesRequest struct {
 }
 
 func (m *GetServicesRequest) Reset()                    { *m = GetServicesRequest{} }
 func (m *GetServicesRequest) String() string            { return proto.CompactTextString(m) }
 func (*GetServicesRequest) ProtoMessage()               {}
-func (*GetServicesRequest) Descriptor() ([]byte, []int) { return fileDescriptorStorage, []int{8} }
+func (*GetServicesRequest) Descriptor() ([]byte, []int) { return fileDescriptorStorage, []int{5} }
 
 type GetServicesSuccess struct {
 	Services []string `protobuf:"bytes,1,rep,name=services" json:"services,omitempty"`
@@ -523,136 +147,13 @@ type GetServicesSuccess struct {
 func (m *GetServicesSuccess) Reset()                    { *m = GetServicesSuccess{} }
 func (m *GetServicesSuccess) String() string            { return proto.CompactTextString(m) }
 func (*GetServicesSuccess) ProtoMessage()               {}
-func (*GetServicesSuccess) Descriptor() ([]byte, []int) { return fileDescriptorStorage, []int{9} }
+func (*GetServicesSuccess) Descriptor() ([]byte, []int) { return fileDescriptorStorage, []int{6} }
 
 func (m *GetServicesSuccess) GetServices() []string {
 	if m != nil {
 		return m.Services
 	}
 	return nil
-}
-
-type GetServicesResponse struct {
-	// Types that are valid to be assigned to Response:
-	//	*GetServicesResponse_Success
-	//	*GetServicesResponse_Error
-	Response isGetServicesResponse_Response `protobuf_oneof:"response"`
-}
-
-func (m *GetServicesResponse) Reset()                    { *m = GetServicesResponse{} }
-func (m *GetServicesResponse) String() string            { return proto.CompactTextString(m) }
-func (*GetServicesResponse) ProtoMessage()               {}
-func (*GetServicesResponse) Descriptor() ([]byte, []int) { return fileDescriptorStorage, []int{10} }
-
-type isGetServicesResponse_Response interface {
-	isGetServicesResponse_Response()
-	MarshalTo([]byte) (int, error)
-	Size() int
-}
-
-type GetServicesResponse_Success struct {
-	Success *GetServicesSuccess `protobuf:"bytes,1,opt,name=success,oneof"`
-}
-type GetServicesResponse_Error struct {
-	Error *google_rpc.Status `protobuf:"bytes,2,opt,name=error,oneof"`
-}
-
-func (*GetServicesResponse_Success) isGetServicesResponse_Response() {}
-func (*GetServicesResponse_Error) isGetServicesResponse_Response()   {}
-
-func (m *GetServicesResponse) GetResponse() isGetServicesResponse_Response {
-	if m != nil {
-		return m.Response
-	}
-	return nil
-}
-
-func (m *GetServicesResponse) GetSuccess() *GetServicesSuccess {
-	if x, ok := m.GetResponse().(*GetServicesResponse_Success); ok {
-		return x.Success
-	}
-	return nil
-}
-
-func (m *GetServicesResponse) GetError() *google_rpc.Status {
-	if x, ok := m.GetResponse().(*GetServicesResponse_Error); ok {
-		return x.Error
-	}
-	return nil
-}
-
-// XXX_OneofFuncs is for the internal use of the proto package.
-func (*GetServicesResponse) XXX_OneofFuncs() (func(msg proto.Message, b *proto.Buffer) error, func(msg proto.Message, tag, wire int, b *proto.Buffer) (bool, error), func(msg proto.Message) (n int), []interface{}) {
-	return _GetServicesResponse_OneofMarshaler, _GetServicesResponse_OneofUnmarshaler, _GetServicesResponse_OneofSizer, []interface{}{
-		(*GetServicesResponse_Success)(nil),
-		(*GetServicesResponse_Error)(nil),
-	}
-}
-
-func _GetServicesResponse_OneofMarshaler(msg proto.Message, b *proto.Buffer) error {
-	m := msg.(*GetServicesResponse)
-	// response
-	switch x := m.Response.(type) {
-	case *GetServicesResponse_Success:
-		_ = b.EncodeVarint(1<<3 | proto.WireBytes)
-		if err := b.EncodeMessage(x.Success); err != nil {
-			return err
-		}
-	case *GetServicesResponse_Error:
-		_ = b.EncodeVarint(2<<3 | proto.WireBytes)
-		if err := b.EncodeMessage(x.Error); err != nil {
-			return err
-		}
-	case nil:
-	default:
-		return fmt.Errorf("GetServicesResponse.Response has unexpected type %T", x)
-	}
-	return nil
-}
-
-func _GetServicesResponse_OneofUnmarshaler(msg proto.Message, tag, wire int, b *proto.Buffer) (bool, error) {
-	m := msg.(*GetServicesResponse)
-	switch tag {
-	case 1: // response.success
-		if wire != proto.WireBytes {
-			return true, proto.ErrInternalBadWireType
-		}
-		msg := new(GetServicesSuccess)
-		err := b.DecodeMessage(msg)
-		m.Response = &GetServicesResponse_Success{msg}
-		return true, err
-	case 2: // response.error
-		if wire != proto.WireBytes {
-			return true, proto.ErrInternalBadWireType
-		}
-		msg := new(google_rpc.Status)
-		err := b.DecodeMessage(msg)
-		m.Response = &GetServicesResponse_Error{msg}
-		return true, err
-	default:
-		return false, nil
-	}
-}
-
-func _GetServicesResponse_OneofSizer(msg proto.Message) (n int) {
-	m := msg.(*GetServicesResponse)
-	// response
-	switch x := m.Response.(type) {
-	case *GetServicesResponse_Success:
-		s := proto.Size(x.Success)
-		n += proto.SizeVarint(1<<3 | proto.WireBytes)
-		n += proto.SizeVarint(uint64(s))
-		n += s
-	case *GetServicesResponse_Error:
-		s := proto.Size(x.Error)
-		n += proto.SizeVarint(2<<3 | proto.WireBytes)
-		n += proto.SizeVarint(uint64(s))
-		n += s
-	case nil:
-	default:
-		panic(fmt.Sprintf("proto: unexpected type %T in oneof", x))
-	}
-	return n
 }
 
 type GetOperationsRequest struct {
@@ -662,7 +163,7 @@ type GetOperationsRequest struct {
 func (m *GetOperationsRequest) Reset()                    { *m = GetOperationsRequest{} }
 func (m *GetOperationsRequest) String() string            { return proto.CompactTextString(m) }
 func (*GetOperationsRequest) ProtoMessage()               {}
-func (*GetOperationsRequest) Descriptor() ([]byte, []int) { return fileDescriptorStorage, []int{11} }
+func (*GetOperationsRequest) Descriptor() ([]byte, []int) { return fileDescriptorStorage, []int{7} }
 
 func (m *GetOperationsRequest) GetService() string {
 	if m != nil {
@@ -678,136 +179,13 @@ type GetOperationsSuccess struct {
 func (m *GetOperationsSuccess) Reset()                    { *m = GetOperationsSuccess{} }
 func (m *GetOperationsSuccess) String() string            { return proto.CompactTextString(m) }
 func (*GetOperationsSuccess) ProtoMessage()               {}
-func (*GetOperationsSuccess) Descriptor() ([]byte, []int) { return fileDescriptorStorage, []int{12} }
+func (*GetOperationsSuccess) Descriptor() ([]byte, []int) { return fileDescriptorStorage, []int{8} }
 
 func (m *GetOperationsSuccess) GetOperations() []string {
 	if m != nil {
 		return m.Operations
 	}
 	return nil
-}
-
-type GetOperationsResponse struct {
-	// Types that are valid to be assigned to Response:
-	//	*GetOperationsResponse_Success
-	//	*GetOperationsResponse_Error
-	Response isGetOperationsResponse_Response `protobuf_oneof:"response"`
-}
-
-func (m *GetOperationsResponse) Reset()                    { *m = GetOperationsResponse{} }
-func (m *GetOperationsResponse) String() string            { return proto.CompactTextString(m) }
-func (*GetOperationsResponse) ProtoMessage()               {}
-func (*GetOperationsResponse) Descriptor() ([]byte, []int) { return fileDescriptorStorage, []int{13} }
-
-type isGetOperationsResponse_Response interface {
-	isGetOperationsResponse_Response()
-	MarshalTo([]byte) (int, error)
-	Size() int
-}
-
-type GetOperationsResponse_Success struct {
-	Success *GetOperationsSuccess `protobuf:"bytes,1,opt,name=success,oneof"`
-}
-type GetOperationsResponse_Error struct {
-	Error *google_rpc.Status `protobuf:"bytes,2,opt,name=error,oneof"`
-}
-
-func (*GetOperationsResponse_Success) isGetOperationsResponse_Response() {}
-func (*GetOperationsResponse_Error) isGetOperationsResponse_Response()   {}
-
-func (m *GetOperationsResponse) GetResponse() isGetOperationsResponse_Response {
-	if m != nil {
-		return m.Response
-	}
-	return nil
-}
-
-func (m *GetOperationsResponse) GetSuccess() *GetOperationsSuccess {
-	if x, ok := m.GetResponse().(*GetOperationsResponse_Success); ok {
-		return x.Success
-	}
-	return nil
-}
-
-func (m *GetOperationsResponse) GetError() *google_rpc.Status {
-	if x, ok := m.GetResponse().(*GetOperationsResponse_Error); ok {
-		return x.Error
-	}
-	return nil
-}
-
-// XXX_OneofFuncs is for the internal use of the proto package.
-func (*GetOperationsResponse) XXX_OneofFuncs() (func(msg proto.Message, b *proto.Buffer) error, func(msg proto.Message, tag, wire int, b *proto.Buffer) (bool, error), func(msg proto.Message) (n int), []interface{}) {
-	return _GetOperationsResponse_OneofMarshaler, _GetOperationsResponse_OneofUnmarshaler, _GetOperationsResponse_OneofSizer, []interface{}{
-		(*GetOperationsResponse_Success)(nil),
-		(*GetOperationsResponse_Error)(nil),
-	}
-}
-
-func _GetOperationsResponse_OneofMarshaler(msg proto.Message, b *proto.Buffer) error {
-	m := msg.(*GetOperationsResponse)
-	// response
-	switch x := m.Response.(type) {
-	case *GetOperationsResponse_Success:
-		_ = b.EncodeVarint(1<<3 | proto.WireBytes)
-		if err := b.EncodeMessage(x.Success); err != nil {
-			return err
-		}
-	case *GetOperationsResponse_Error:
-		_ = b.EncodeVarint(2<<3 | proto.WireBytes)
-		if err := b.EncodeMessage(x.Error); err != nil {
-			return err
-		}
-	case nil:
-	default:
-		return fmt.Errorf("GetOperationsResponse.Response has unexpected type %T", x)
-	}
-	return nil
-}
-
-func _GetOperationsResponse_OneofUnmarshaler(msg proto.Message, tag, wire int, b *proto.Buffer) (bool, error) {
-	m := msg.(*GetOperationsResponse)
-	switch tag {
-	case 1: // response.success
-		if wire != proto.WireBytes {
-			return true, proto.ErrInternalBadWireType
-		}
-		msg := new(GetOperationsSuccess)
-		err := b.DecodeMessage(msg)
-		m.Response = &GetOperationsResponse_Success{msg}
-		return true, err
-	case 2: // response.error
-		if wire != proto.WireBytes {
-			return true, proto.ErrInternalBadWireType
-		}
-		msg := new(google_rpc.Status)
-		err := b.DecodeMessage(msg)
-		m.Response = &GetOperationsResponse_Error{msg}
-		return true, err
-	default:
-		return false, nil
-	}
-}
-
-func _GetOperationsResponse_OneofSizer(msg proto.Message) (n int) {
-	m := msg.(*GetOperationsResponse)
-	// response
-	switch x := m.Response.(type) {
-	case *GetOperationsResponse_Success:
-		s := proto.Size(x.Success)
-		n += proto.SizeVarint(1<<3 | proto.WireBytes)
-		n += proto.SizeVarint(uint64(s))
-		n += s
-	case *GetOperationsResponse_Error:
-		s := proto.Size(x.Error)
-		n += proto.SizeVarint(2<<3 | proto.WireBytes)
-		n += proto.SizeVarint(uint64(s))
-		n += s
-	case nil:
-	default:
-		panic(fmt.Sprintf("proto: unexpected type %T in oneof", x))
-	}
-	return n
 }
 
 type TraceQueryParameters struct {
@@ -824,7 +202,7 @@ type TraceQueryParameters struct {
 func (m *TraceQueryParameters) Reset()                    { *m = TraceQueryParameters{} }
 func (m *TraceQueryParameters) String() string            { return proto.CompactTextString(m) }
 func (*TraceQueryParameters) ProtoMessage()               {}
-func (*TraceQueryParameters) Descriptor() ([]byte, []int) { return fileDescriptorStorage, []int{14} }
+func (*TraceQueryParameters) Descriptor() ([]byte, []int) { return fileDescriptorStorage, []int{9} }
 
 func (m *TraceQueryParameters) GetServiceName() string {
 	if m != nil {
@@ -889,7 +267,7 @@ type FindTracesRequest struct {
 func (m *FindTracesRequest) Reset()                    { *m = FindTracesRequest{} }
 func (m *FindTracesRequest) String() string            { return proto.CompactTextString(m) }
 func (*FindTracesRequest) ProtoMessage()               {}
-func (*FindTracesRequest) Descriptor() ([]byte, []int) { return fileDescriptorStorage, []int{15} }
+func (*FindTracesRequest) Descriptor() ([]byte, []int) { return fileDescriptorStorage, []int{10} }
 
 func (m *FindTracesRequest) GetQuery() *TraceQueryParameters {
 	if m != nil {
@@ -905,7 +283,7 @@ type FindTracesResponseChunk struct {
 func (m *FindTracesResponseChunk) Reset()                    { *m = FindTracesResponseChunk{} }
 func (m *FindTracesResponseChunk) String() string            { return proto.CompactTextString(m) }
 func (*FindTracesResponseChunk) ProtoMessage()               {}
-func (*FindTracesResponseChunk) Descriptor() ([]byte, []int) { return fileDescriptorStorage, []int{16} }
+func (*FindTracesResponseChunk) Descriptor() ([]byte, []int) { return fileDescriptorStorage, []int{11} }
 
 type FindTraceIDsRequest struct {
 	Query *TraceQueryParameters `protobuf:"bytes,1,opt,name=query" json:"query,omitempty"`
@@ -914,7 +292,7 @@ type FindTraceIDsRequest struct {
 func (m *FindTraceIDsRequest) Reset()                    { *m = FindTraceIDsRequest{} }
 func (m *FindTraceIDsRequest) String() string            { return proto.CompactTextString(m) }
 func (*FindTraceIDsRequest) ProtoMessage()               {}
-func (*FindTraceIDsRequest) Descriptor() ([]byte, []int) { return fileDescriptorStorage, []int{17} }
+func (*FindTraceIDsRequest) Descriptor() ([]byte, []int) { return fileDescriptorStorage, []int{12} }
 
 func (m *FindTraceIDsRequest) GetQuery() *TraceQueryParameters {
 	if m != nil {
@@ -930,160 +308,27 @@ type FindTraceIDsSuccess struct {
 func (m *FindTraceIDsSuccess) Reset()                    { *m = FindTraceIDsSuccess{} }
 func (m *FindTraceIDsSuccess) String() string            { return proto.CompactTextString(m) }
 func (*FindTraceIDsSuccess) ProtoMessage()               {}
-func (*FindTraceIDsSuccess) Descriptor() ([]byte, []int) { return fileDescriptorStorage, []int{18} }
-
-type FindTraceIDsResponse struct {
-	// Types that are valid to be assigned to Response:
-	//	*FindTraceIDsResponse_Success
-	//	*FindTraceIDsResponse_Error
-	Response isFindTraceIDsResponse_Response `protobuf_oneof:"response"`
-}
-
-func (m *FindTraceIDsResponse) Reset()                    { *m = FindTraceIDsResponse{} }
-func (m *FindTraceIDsResponse) String() string            { return proto.CompactTextString(m) }
-func (*FindTraceIDsResponse) ProtoMessage()               {}
-func (*FindTraceIDsResponse) Descriptor() ([]byte, []int) { return fileDescriptorStorage, []int{19} }
-
-type isFindTraceIDsResponse_Response interface {
-	isFindTraceIDsResponse_Response()
-	MarshalTo([]byte) (int, error)
-	Size() int
-}
-
-type FindTraceIDsResponse_Success struct {
-	Success *FindTraceIDsSuccess `protobuf:"bytes,1,opt,name=success,oneof"`
-}
-type FindTraceIDsResponse_Error struct {
-	Error *google_rpc.Status `protobuf:"bytes,2,opt,name=error,oneof"`
-}
-
-func (*FindTraceIDsResponse_Success) isFindTraceIDsResponse_Response() {}
-func (*FindTraceIDsResponse_Error) isFindTraceIDsResponse_Response()   {}
-
-func (m *FindTraceIDsResponse) GetResponse() isFindTraceIDsResponse_Response {
-	if m != nil {
-		return m.Response
-	}
-	return nil
-}
-
-func (m *FindTraceIDsResponse) GetSuccess() *FindTraceIDsSuccess {
-	if x, ok := m.GetResponse().(*FindTraceIDsResponse_Success); ok {
-		return x.Success
-	}
-	return nil
-}
-
-func (m *FindTraceIDsResponse) GetError() *google_rpc.Status {
-	if x, ok := m.GetResponse().(*FindTraceIDsResponse_Error); ok {
-		return x.Error
-	}
-	return nil
-}
-
-// XXX_OneofFuncs is for the internal use of the proto package.
-func (*FindTraceIDsResponse) XXX_OneofFuncs() (func(msg proto.Message, b *proto.Buffer) error, func(msg proto.Message, tag, wire int, b *proto.Buffer) (bool, error), func(msg proto.Message) (n int), []interface{}) {
-	return _FindTraceIDsResponse_OneofMarshaler, _FindTraceIDsResponse_OneofUnmarshaler, _FindTraceIDsResponse_OneofSizer, []interface{}{
-		(*FindTraceIDsResponse_Success)(nil),
-		(*FindTraceIDsResponse_Error)(nil),
-	}
-}
-
-func _FindTraceIDsResponse_OneofMarshaler(msg proto.Message, b *proto.Buffer) error {
-	m := msg.(*FindTraceIDsResponse)
-	// response
-	switch x := m.Response.(type) {
-	case *FindTraceIDsResponse_Success:
-		_ = b.EncodeVarint(1<<3 | proto.WireBytes)
-		if err := b.EncodeMessage(x.Success); err != nil {
-			return err
-		}
-	case *FindTraceIDsResponse_Error:
-		_ = b.EncodeVarint(2<<3 | proto.WireBytes)
-		if err := b.EncodeMessage(x.Error); err != nil {
-			return err
-		}
-	case nil:
-	default:
-		return fmt.Errorf("FindTraceIDsResponse.Response has unexpected type %T", x)
-	}
-	return nil
-}
-
-func _FindTraceIDsResponse_OneofUnmarshaler(msg proto.Message, tag, wire int, b *proto.Buffer) (bool, error) {
-	m := msg.(*FindTraceIDsResponse)
-	switch tag {
-	case 1: // response.success
-		if wire != proto.WireBytes {
-			return true, proto.ErrInternalBadWireType
-		}
-		msg := new(FindTraceIDsSuccess)
-		err := b.DecodeMessage(msg)
-		m.Response = &FindTraceIDsResponse_Success{msg}
-		return true, err
-	case 2: // response.error
-		if wire != proto.WireBytes {
-			return true, proto.ErrInternalBadWireType
-		}
-		msg := new(google_rpc.Status)
-		err := b.DecodeMessage(msg)
-		m.Response = &FindTraceIDsResponse_Error{msg}
-		return true, err
-	default:
-		return false, nil
-	}
-}
-
-func _FindTraceIDsResponse_OneofSizer(msg proto.Message) (n int) {
-	m := msg.(*FindTraceIDsResponse)
-	// response
-	switch x := m.Response.(type) {
-	case *FindTraceIDsResponse_Success:
-		s := proto.Size(x.Success)
-		n += proto.SizeVarint(1<<3 | proto.WireBytes)
-		n += proto.SizeVarint(uint64(s))
-		n += s
-	case *FindTraceIDsResponse_Error:
-		s := proto.Size(x.Error)
-		n += proto.SizeVarint(2<<3 | proto.WireBytes)
-		n += proto.SizeVarint(uint64(s))
-		n += s
-	case nil:
-	default:
-		panic(fmt.Sprintf("proto: unexpected type %T in oneof", x))
-	}
-	return n
-}
+func (*FindTraceIDsSuccess) Descriptor() ([]byte, []int) { return fileDescriptorStorage, []int{13} }
 
 func init() {
 	proto.RegisterType((*GetDependenciesRequest)(nil), "jaeger.storage.v1.GetDependenciesRequest")
 	golang_proto.RegisterType((*GetDependenciesRequest)(nil), "jaeger.storage.v1.GetDependenciesRequest")
 	proto.RegisterType((*GetDependenciesSuccess)(nil), "jaeger.storage.v1.GetDependenciesSuccess")
 	golang_proto.RegisterType((*GetDependenciesSuccess)(nil), "jaeger.storage.v1.GetDependenciesSuccess")
-	proto.RegisterType((*GetDependenciesResponse)(nil), "jaeger.storage.v1.GetDependenciesResponse")
-	golang_proto.RegisterType((*GetDependenciesResponse)(nil), "jaeger.storage.v1.GetDependenciesResponse")
 	proto.RegisterType((*WriteSpanRequest)(nil), "jaeger.storage.v1.WriteSpanRequest")
 	golang_proto.RegisterType((*WriteSpanRequest)(nil), "jaeger.storage.v1.WriteSpanRequest")
-	proto.RegisterType((*WriteSpanResponse)(nil), "jaeger.storage.v1.WriteSpanResponse")
-	golang_proto.RegisterType((*WriteSpanResponse)(nil), "jaeger.storage.v1.WriteSpanResponse")
 	proto.RegisterType((*GetTraceRequest)(nil), "jaeger.storage.v1.GetTraceRequest")
 	golang_proto.RegisterType((*GetTraceRequest)(nil), "jaeger.storage.v1.GetTraceRequest")
 	proto.RegisterType((*GetTraceSuccess)(nil), "jaeger.storage.v1.GetTraceSuccess")
 	golang_proto.RegisterType((*GetTraceSuccess)(nil), "jaeger.storage.v1.GetTraceSuccess")
-	proto.RegisterType((*GetTraceResponse)(nil), "jaeger.storage.v1.GetTraceResponse")
-	golang_proto.RegisterType((*GetTraceResponse)(nil), "jaeger.storage.v1.GetTraceResponse")
 	proto.RegisterType((*GetServicesRequest)(nil), "jaeger.storage.v1.GetServicesRequest")
 	golang_proto.RegisterType((*GetServicesRequest)(nil), "jaeger.storage.v1.GetServicesRequest")
 	proto.RegisterType((*GetServicesSuccess)(nil), "jaeger.storage.v1.GetServicesSuccess")
 	golang_proto.RegisterType((*GetServicesSuccess)(nil), "jaeger.storage.v1.GetServicesSuccess")
-	proto.RegisterType((*GetServicesResponse)(nil), "jaeger.storage.v1.GetServicesResponse")
-	golang_proto.RegisterType((*GetServicesResponse)(nil), "jaeger.storage.v1.GetServicesResponse")
 	proto.RegisterType((*GetOperationsRequest)(nil), "jaeger.storage.v1.GetOperationsRequest")
 	golang_proto.RegisterType((*GetOperationsRequest)(nil), "jaeger.storage.v1.GetOperationsRequest")
 	proto.RegisterType((*GetOperationsSuccess)(nil), "jaeger.storage.v1.GetOperationsSuccess")
 	golang_proto.RegisterType((*GetOperationsSuccess)(nil), "jaeger.storage.v1.GetOperationsSuccess")
-	proto.RegisterType((*GetOperationsResponse)(nil), "jaeger.storage.v1.GetOperationsResponse")
-	golang_proto.RegisterType((*GetOperationsResponse)(nil), "jaeger.storage.v1.GetOperationsResponse")
 	proto.RegisterType((*TraceQueryParameters)(nil), "jaeger.storage.v1.TraceQueryParameters")
 	golang_proto.RegisterType((*TraceQueryParameters)(nil), "jaeger.storage.v1.TraceQueryParameters")
 	proto.RegisterType((*FindTracesRequest)(nil), "jaeger.storage.v1.FindTracesRequest")
@@ -1094,8 +339,6 @@ func init() {
 	golang_proto.RegisterType((*FindTraceIDsRequest)(nil), "jaeger.storage.v1.FindTraceIDsRequest")
 	proto.RegisterType((*FindTraceIDsSuccess)(nil), "jaeger.storage.v1.FindTraceIDsSuccess")
 	golang_proto.RegisterType((*FindTraceIDsSuccess)(nil), "jaeger.storage.v1.FindTraceIDsSuccess")
-	proto.RegisterType((*FindTraceIDsResponse)(nil), "jaeger.storage.v1.FindTraceIDsResponse")
-	golang_proto.RegisterType((*FindTraceIDsResponse)(nil), "jaeger.storage.v1.FindTraceIDsResponse")
 }
 
 // Reference imports to suppress errors if they are not otherwise used.
@@ -1110,7 +353,7 @@ const _ = grpc.SupportPackageIsVersion4
 
 type SpanWriterPluginClient interface {
 	// spanstore/Writer
-	WriteSpan(ctx context.Context, in *WriteSpanRequest, opts ...grpc.CallOption) (*WriteSpanResponse, error)
+	WriteSpan(ctx context.Context, in *WriteSpanRequest, opts ...grpc.CallOption) (*google_protobuf3.Empty, error)
 }
 
 type spanWriterPluginClient struct {
@@ -1121,8 +364,8 @@ func NewSpanWriterPluginClient(cc *grpc.ClientConn) SpanWriterPluginClient {
 	return &spanWriterPluginClient{cc}
 }
 
-func (c *spanWriterPluginClient) WriteSpan(ctx context.Context, in *WriteSpanRequest, opts ...grpc.CallOption) (*WriteSpanResponse, error) {
-	out := new(WriteSpanResponse)
+func (c *spanWriterPluginClient) WriteSpan(ctx context.Context, in *WriteSpanRequest, opts ...grpc.CallOption) (*google_protobuf3.Empty, error) {
+	out := new(google_protobuf3.Empty)
 	err := grpc.Invoke(ctx, "/jaeger.storage.v1.SpanWriterPlugin/WriteSpan", in, out, c.cc, opts...)
 	if err != nil {
 		return nil, err
@@ -1134,7 +377,7 @@ func (c *spanWriterPluginClient) WriteSpan(ctx context.Context, in *WriteSpanReq
 
 type SpanWriterPluginServer interface {
 	// spanstore/Writer
-	WriteSpan(context.Context, *WriteSpanRequest) (*WriteSpanResponse, error)
+	WriteSpan(context.Context, *WriteSpanRequest) (*google_protobuf3.Empty, error)
 }
 
 func RegisterSpanWriterPluginServer(s *grpc.Server, srv SpanWriterPluginServer) {
@@ -1176,11 +419,11 @@ var _SpanWriterPlugin_serviceDesc = grpc.ServiceDesc{
 
 type SpanReaderPluginClient interface {
 	// spanstore/Reader
-	GetTrace(ctx context.Context, in *GetTraceRequest, opts ...grpc.CallOption) (*GetTraceResponse, error)
-	GetServices(ctx context.Context, in *GetServicesRequest, opts ...grpc.CallOption) (*GetServicesResponse, error)
-	GetOperations(ctx context.Context, in *GetOperationsRequest, opts ...grpc.CallOption) (*GetOperationsResponse, error)
+	GetTrace(ctx context.Context, in *GetTraceRequest, opts ...grpc.CallOption) (*GetTraceSuccess, error)
+	GetServices(ctx context.Context, in *GetServicesRequest, opts ...grpc.CallOption) (*GetServicesSuccess, error)
+	GetOperations(ctx context.Context, in *GetOperationsRequest, opts ...grpc.CallOption) (*GetOperationsSuccess, error)
 	FindTraces(ctx context.Context, in *FindTracesRequest, opts ...grpc.CallOption) (SpanReaderPlugin_FindTracesClient, error)
-	FindTraceIDs(ctx context.Context, in *FindTraceIDsRequest, opts ...grpc.CallOption) (*FindTraceIDsResponse, error)
+	FindTraceIDs(ctx context.Context, in *FindTraceIDsRequest, opts ...grpc.CallOption) (*FindTraceIDsSuccess, error)
 }
 
 type spanReaderPluginClient struct {
@@ -1191,8 +434,8 @@ func NewSpanReaderPluginClient(cc *grpc.ClientConn) SpanReaderPluginClient {
 	return &spanReaderPluginClient{cc}
 }
 
-func (c *spanReaderPluginClient) GetTrace(ctx context.Context, in *GetTraceRequest, opts ...grpc.CallOption) (*GetTraceResponse, error) {
-	out := new(GetTraceResponse)
+func (c *spanReaderPluginClient) GetTrace(ctx context.Context, in *GetTraceRequest, opts ...grpc.CallOption) (*GetTraceSuccess, error) {
+	out := new(GetTraceSuccess)
 	err := grpc.Invoke(ctx, "/jaeger.storage.v1.SpanReaderPlugin/GetTrace", in, out, c.cc, opts...)
 	if err != nil {
 		return nil, err
@@ -1200,8 +443,8 @@ func (c *spanReaderPluginClient) GetTrace(ctx context.Context, in *GetTraceReque
 	return out, nil
 }
 
-func (c *spanReaderPluginClient) GetServices(ctx context.Context, in *GetServicesRequest, opts ...grpc.CallOption) (*GetServicesResponse, error) {
-	out := new(GetServicesResponse)
+func (c *spanReaderPluginClient) GetServices(ctx context.Context, in *GetServicesRequest, opts ...grpc.CallOption) (*GetServicesSuccess, error) {
+	out := new(GetServicesSuccess)
 	err := grpc.Invoke(ctx, "/jaeger.storage.v1.SpanReaderPlugin/GetServices", in, out, c.cc, opts...)
 	if err != nil {
 		return nil, err
@@ -1209,8 +452,8 @@ func (c *spanReaderPluginClient) GetServices(ctx context.Context, in *GetService
 	return out, nil
 }
 
-func (c *spanReaderPluginClient) GetOperations(ctx context.Context, in *GetOperationsRequest, opts ...grpc.CallOption) (*GetOperationsResponse, error) {
-	out := new(GetOperationsResponse)
+func (c *spanReaderPluginClient) GetOperations(ctx context.Context, in *GetOperationsRequest, opts ...grpc.CallOption) (*GetOperationsSuccess, error) {
+	out := new(GetOperationsSuccess)
 	err := grpc.Invoke(ctx, "/jaeger.storage.v1.SpanReaderPlugin/GetOperations", in, out, c.cc, opts...)
 	if err != nil {
 		return nil, err
@@ -1250,8 +493,8 @@ func (x *spanReaderPluginFindTracesClient) Recv() (*FindTracesResponseChunk, err
 	return m, nil
 }
 
-func (c *spanReaderPluginClient) FindTraceIDs(ctx context.Context, in *FindTraceIDsRequest, opts ...grpc.CallOption) (*FindTraceIDsResponse, error) {
-	out := new(FindTraceIDsResponse)
+func (c *spanReaderPluginClient) FindTraceIDs(ctx context.Context, in *FindTraceIDsRequest, opts ...grpc.CallOption) (*FindTraceIDsSuccess, error) {
+	out := new(FindTraceIDsSuccess)
 	err := grpc.Invoke(ctx, "/jaeger.storage.v1.SpanReaderPlugin/FindTraceIDs", in, out, c.cc, opts...)
 	if err != nil {
 		return nil, err
@@ -1263,11 +506,11 @@ func (c *spanReaderPluginClient) FindTraceIDs(ctx context.Context, in *FindTrace
 
 type SpanReaderPluginServer interface {
 	// spanstore/Reader
-	GetTrace(context.Context, *GetTraceRequest) (*GetTraceResponse, error)
-	GetServices(context.Context, *GetServicesRequest) (*GetServicesResponse, error)
-	GetOperations(context.Context, *GetOperationsRequest) (*GetOperationsResponse, error)
+	GetTrace(context.Context, *GetTraceRequest) (*GetTraceSuccess, error)
+	GetServices(context.Context, *GetServicesRequest) (*GetServicesSuccess, error)
+	GetOperations(context.Context, *GetOperationsRequest) (*GetOperationsSuccess, error)
 	FindTraces(*FindTracesRequest, SpanReaderPlugin_FindTracesServer) error
-	FindTraceIDs(context.Context, *FindTraceIDsRequest) (*FindTraceIDsResponse, error)
+	FindTraceIDs(context.Context, *FindTraceIDsRequest) (*FindTraceIDsSuccess, error)
 }
 
 func RegisterSpanReaderPluginServer(s *grpc.Server, srv SpanReaderPluginServer) {
@@ -1402,7 +645,7 @@ var _SpanReaderPlugin_serviceDesc = grpc.ServiceDesc{
 
 type DependenciesReaderPluginClient interface {
 	// dependencystore/Reader
-	GetDependencies(ctx context.Context, in *GetDependenciesRequest, opts ...grpc.CallOption) (*GetDependenciesResponse, error)
+	GetDependencies(ctx context.Context, in *GetDependenciesRequest, opts ...grpc.CallOption) (*GetDependenciesSuccess, error)
 }
 
 type dependenciesReaderPluginClient struct {
@@ -1413,8 +656,8 @@ func NewDependenciesReaderPluginClient(cc *grpc.ClientConn) DependenciesReaderPl
 	return &dependenciesReaderPluginClient{cc}
 }
 
-func (c *dependenciesReaderPluginClient) GetDependencies(ctx context.Context, in *GetDependenciesRequest, opts ...grpc.CallOption) (*GetDependenciesResponse, error) {
-	out := new(GetDependenciesResponse)
+func (c *dependenciesReaderPluginClient) GetDependencies(ctx context.Context, in *GetDependenciesRequest, opts ...grpc.CallOption) (*GetDependenciesSuccess, error) {
+	out := new(GetDependenciesSuccess)
 	err := grpc.Invoke(ctx, "/jaeger.storage.v1.DependenciesReaderPlugin/GetDependencies", in, out, c.cc, opts...)
 	if err != nil {
 		return nil, err
@@ -1426,7 +669,7 @@ func (c *dependenciesReaderPluginClient) GetDependencies(ctx context.Context, in
 
 type DependenciesReaderPluginServer interface {
 	// dependencystore/Reader
-	GetDependencies(context.Context, *GetDependenciesRequest) (*GetDependenciesResponse, error)
+	GetDependencies(context.Context, *GetDependenciesRequest) (*GetDependenciesSuccess, error)
 }
 
 func RegisterDependenciesReaderPluginServer(s *grpc.Server, srv DependenciesReaderPluginServer) {
@@ -1528,59 +771,6 @@ func (m *GetDependenciesSuccess) MarshalTo(dAtA []byte) (int, error) {
 	return i, nil
 }
 
-func (m *GetDependenciesResponse) Marshal() (dAtA []byte, err error) {
-	size := m.Size()
-	dAtA = make([]byte, size)
-	n, err := m.MarshalTo(dAtA)
-	if err != nil {
-		return nil, err
-	}
-	return dAtA[:n], nil
-}
-
-func (m *GetDependenciesResponse) MarshalTo(dAtA []byte) (int, error) {
-	var i int
-	_ = i
-	var l int
-	_ = l
-	if m.Response != nil {
-		nn3, err := m.Response.MarshalTo(dAtA[i:])
-		if err != nil {
-			return 0, err
-		}
-		i += nn3
-	}
-	return i, nil
-}
-
-func (m *GetDependenciesResponse_Success) MarshalTo(dAtA []byte) (int, error) {
-	i := 0
-	if m.Success != nil {
-		dAtA[i] = 0xa
-		i++
-		i = encodeVarintStorage(dAtA, i, uint64(m.Success.Size()))
-		n4, err := m.Success.MarshalTo(dAtA[i:])
-		if err != nil {
-			return 0, err
-		}
-		i += n4
-	}
-	return i, nil
-}
-func (m *GetDependenciesResponse_Error) MarshalTo(dAtA []byte) (int, error) {
-	i := 0
-	if m.Error != nil {
-		dAtA[i] = 0x12
-		i++
-		i = encodeVarintStorage(dAtA, i, uint64(m.Error.Size()))
-		n5, err := m.Error.MarshalTo(dAtA[i:])
-		if err != nil {
-			return 0, err
-		}
-		i += n5
-	}
-	return i, nil
-}
 func (m *WriteSpanRequest) Marshal() (dAtA []byte, err error) {
 	size := m.Size()
 	dAtA = make([]byte, size)
@@ -1600,68 +790,15 @@ func (m *WriteSpanRequest) MarshalTo(dAtA []byte) (int, error) {
 		dAtA[i] = 0xa
 		i++
 		i = encodeVarintStorage(dAtA, i, uint64(m.Span.Size()))
-		n6, err := m.Span.MarshalTo(dAtA[i:])
+		n3, err := m.Span.MarshalTo(dAtA[i:])
 		if err != nil {
 			return 0, err
 		}
-		i += n6
+		i += n3
 	}
 	return i, nil
 }
 
-func (m *WriteSpanResponse) Marshal() (dAtA []byte, err error) {
-	size := m.Size()
-	dAtA = make([]byte, size)
-	n, err := m.MarshalTo(dAtA)
-	if err != nil {
-		return nil, err
-	}
-	return dAtA[:n], nil
-}
-
-func (m *WriteSpanResponse) MarshalTo(dAtA []byte) (int, error) {
-	var i int
-	_ = i
-	var l int
-	_ = l
-	if m.Response != nil {
-		nn7, err := m.Response.MarshalTo(dAtA[i:])
-		if err != nil {
-			return 0, err
-		}
-		i += nn7
-	}
-	return i, nil
-}
-
-func (m *WriteSpanResponse_Success) MarshalTo(dAtA []byte) (int, error) {
-	i := 0
-	if m.Success != nil {
-		dAtA[i] = 0xa
-		i++
-		i = encodeVarintStorage(dAtA, i, uint64(m.Success.Size()))
-		n8, err := m.Success.MarshalTo(dAtA[i:])
-		if err != nil {
-			return 0, err
-		}
-		i += n8
-	}
-	return i, nil
-}
-func (m *WriteSpanResponse_Error) MarshalTo(dAtA []byte) (int, error) {
-	i := 0
-	if m.Error != nil {
-		dAtA[i] = 0x12
-		i++
-		i = encodeVarintStorage(dAtA, i, uint64(m.Error.Size()))
-		n9, err := m.Error.MarshalTo(dAtA[i:])
-		if err != nil {
-			return 0, err
-		}
-		i += n9
-	}
-	return i, nil
-}
 func (m *GetTraceRequest) Marshal() (dAtA []byte, err error) {
 	size := m.Size()
 	dAtA = make([]byte, size)
@@ -1680,11 +817,11 @@ func (m *GetTraceRequest) MarshalTo(dAtA []byte) (int, error) {
 	dAtA[i] = 0xa
 	i++
 	i = encodeVarintStorage(dAtA, i, uint64(m.TraceID.Size()))
-	n10, err := m.TraceID.MarshalTo(dAtA[i:])
+	n4, err := m.TraceID.MarshalTo(dAtA[i:])
 	if err != nil {
 		return 0, err
 	}
-	i += n10
+	i += n4
 	return i, nil
 }
 
@@ -1707,68 +844,15 @@ func (m *GetTraceSuccess) MarshalTo(dAtA []byte) (int, error) {
 		dAtA[i] = 0xa
 		i++
 		i = encodeVarintStorage(dAtA, i, uint64(m.Trace.Size()))
-		n11, err := m.Trace.MarshalTo(dAtA[i:])
+		n5, err := m.Trace.MarshalTo(dAtA[i:])
 		if err != nil {
 			return 0, err
 		}
-		i += n11
+		i += n5
 	}
 	return i, nil
 }
 
-func (m *GetTraceResponse) Marshal() (dAtA []byte, err error) {
-	size := m.Size()
-	dAtA = make([]byte, size)
-	n, err := m.MarshalTo(dAtA)
-	if err != nil {
-		return nil, err
-	}
-	return dAtA[:n], nil
-}
-
-func (m *GetTraceResponse) MarshalTo(dAtA []byte) (int, error) {
-	var i int
-	_ = i
-	var l int
-	_ = l
-	if m.Response != nil {
-		nn12, err := m.Response.MarshalTo(dAtA[i:])
-		if err != nil {
-			return 0, err
-		}
-		i += nn12
-	}
-	return i, nil
-}
-
-func (m *GetTraceResponse_Success) MarshalTo(dAtA []byte) (int, error) {
-	i := 0
-	if m.Success != nil {
-		dAtA[i] = 0xa
-		i++
-		i = encodeVarintStorage(dAtA, i, uint64(m.Success.Size()))
-		n13, err := m.Success.MarshalTo(dAtA[i:])
-		if err != nil {
-			return 0, err
-		}
-		i += n13
-	}
-	return i, nil
-}
-func (m *GetTraceResponse_Error) MarshalTo(dAtA []byte) (int, error) {
-	i := 0
-	if m.Error != nil {
-		dAtA[i] = 0x12
-		i++
-		i = encodeVarintStorage(dAtA, i, uint64(m.Error.Size()))
-		n14, err := m.Error.MarshalTo(dAtA[i:])
-		if err != nil {
-			return 0, err
-		}
-		i += n14
-	}
-	return i, nil
-}
 func (m *GetServicesRequest) Marshal() (dAtA []byte, err error) {
 	size := m.Size()
 	dAtA = make([]byte, size)
@@ -1820,59 +904,6 @@ func (m *GetServicesSuccess) MarshalTo(dAtA []byte) (int, error) {
 	return i, nil
 }
 
-func (m *GetServicesResponse) Marshal() (dAtA []byte, err error) {
-	size := m.Size()
-	dAtA = make([]byte, size)
-	n, err := m.MarshalTo(dAtA)
-	if err != nil {
-		return nil, err
-	}
-	return dAtA[:n], nil
-}
-
-func (m *GetServicesResponse) MarshalTo(dAtA []byte) (int, error) {
-	var i int
-	_ = i
-	var l int
-	_ = l
-	if m.Response != nil {
-		nn15, err := m.Response.MarshalTo(dAtA[i:])
-		if err != nil {
-			return 0, err
-		}
-		i += nn15
-	}
-	return i, nil
-}
-
-func (m *GetServicesResponse_Success) MarshalTo(dAtA []byte) (int, error) {
-	i := 0
-	if m.Success != nil {
-		dAtA[i] = 0xa
-		i++
-		i = encodeVarintStorage(dAtA, i, uint64(m.Success.Size()))
-		n16, err := m.Success.MarshalTo(dAtA[i:])
-		if err != nil {
-			return 0, err
-		}
-		i += n16
-	}
-	return i, nil
-}
-func (m *GetServicesResponse_Error) MarshalTo(dAtA []byte) (int, error) {
-	i := 0
-	if m.Error != nil {
-		dAtA[i] = 0x12
-		i++
-		i = encodeVarintStorage(dAtA, i, uint64(m.Error.Size()))
-		n17, err := m.Error.MarshalTo(dAtA[i:])
-		if err != nil {
-			return 0, err
-		}
-		i += n17
-	}
-	return i, nil
-}
 func (m *GetOperationsRequest) Marshal() (dAtA []byte, err error) {
 	size := m.Size()
 	dAtA = make([]byte, size)
@@ -1930,59 +961,6 @@ func (m *GetOperationsSuccess) MarshalTo(dAtA []byte) (int, error) {
 	return i, nil
 }
 
-func (m *GetOperationsResponse) Marshal() (dAtA []byte, err error) {
-	size := m.Size()
-	dAtA = make([]byte, size)
-	n, err := m.MarshalTo(dAtA)
-	if err != nil {
-		return nil, err
-	}
-	return dAtA[:n], nil
-}
-
-func (m *GetOperationsResponse) MarshalTo(dAtA []byte) (int, error) {
-	var i int
-	_ = i
-	var l int
-	_ = l
-	if m.Response != nil {
-		nn18, err := m.Response.MarshalTo(dAtA[i:])
-		if err != nil {
-			return 0, err
-		}
-		i += nn18
-	}
-	return i, nil
-}
-
-func (m *GetOperationsResponse_Success) MarshalTo(dAtA []byte) (int, error) {
-	i := 0
-	if m.Success != nil {
-		dAtA[i] = 0xa
-		i++
-		i = encodeVarintStorage(dAtA, i, uint64(m.Success.Size()))
-		n19, err := m.Success.MarshalTo(dAtA[i:])
-		if err != nil {
-			return 0, err
-		}
-		i += n19
-	}
-	return i, nil
-}
-func (m *GetOperationsResponse_Error) MarshalTo(dAtA []byte) (int, error) {
-	i := 0
-	if m.Error != nil {
-		dAtA[i] = 0x12
-		i++
-		i = encodeVarintStorage(dAtA, i, uint64(m.Error.Size()))
-		n20, err := m.Error.MarshalTo(dAtA[i:])
-		if err != nil {
-			return 0, err
-		}
-		i += n20
-	}
-	return i, nil
-}
 func (m *TraceQueryParameters) Marshal() (dAtA []byte, err error) {
 	size := m.Size()
 	dAtA = make([]byte, size)
@@ -2030,35 +1008,35 @@ func (m *TraceQueryParameters) MarshalTo(dAtA []byte) (int, error) {
 	dAtA[i] = 0x22
 	i++
 	i = encodeVarintStorage(dAtA, i, uint64(types.SizeOfStdTime(m.StartTimeMin)))
-	n21, err := types.StdTimeMarshalTo(m.StartTimeMin, dAtA[i:])
+	n6, err := types.StdTimeMarshalTo(m.StartTimeMin, dAtA[i:])
 	if err != nil {
 		return 0, err
 	}
-	i += n21
+	i += n6
 	dAtA[i] = 0x2a
 	i++
 	i = encodeVarintStorage(dAtA, i, uint64(types.SizeOfStdTime(m.StartTimeMax)))
-	n22, err := types.StdTimeMarshalTo(m.StartTimeMax, dAtA[i:])
+	n7, err := types.StdTimeMarshalTo(m.StartTimeMax, dAtA[i:])
 	if err != nil {
 		return 0, err
 	}
-	i += n22
+	i += n7
 	dAtA[i] = 0x32
 	i++
 	i = encodeVarintStorage(dAtA, i, uint64(types.SizeOfStdDuration(m.DurationMin)))
-	n23, err := types.StdDurationMarshalTo(m.DurationMin, dAtA[i:])
+	n8, err := types.StdDurationMarshalTo(m.DurationMin, dAtA[i:])
 	if err != nil {
 		return 0, err
 	}
-	i += n23
+	i += n8
 	dAtA[i] = 0x3a
 	i++
 	i = encodeVarintStorage(dAtA, i, uint64(types.SizeOfStdDuration(m.DurationMax)))
-	n24, err := types.StdDurationMarshalTo(m.DurationMax, dAtA[i:])
+	n9, err := types.StdDurationMarshalTo(m.DurationMax, dAtA[i:])
 	if err != nil {
 		return 0, err
 	}
-	i += n24
+	i += n9
 	if m.NumTraces != 0 {
 		dAtA[i] = 0x40
 		i++
@@ -2086,11 +1064,11 @@ func (m *FindTracesRequest) MarshalTo(dAtA []byte) (int, error) {
 		dAtA[i] = 0xa
 		i++
 		i = encodeVarintStorage(dAtA, i, uint64(m.Query.Size()))
-		n25, err := m.Query.MarshalTo(dAtA[i:])
+		n10, err := m.Query.MarshalTo(dAtA[i:])
 		if err != nil {
 			return 0, err
 		}
-		i += n25
+		i += n10
 	}
 	return i, nil
 }
@@ -2144,11 +1122,11 @@ func (m *FindTraceIDsRequest) MarshalTo(dAtA []byte) (int, error) {
 		dAtA[i] = 0xa
 		i++
 		i = encodeVarintStorage(dAtA, i, uint64(m.Query.Size()))
-		n26, err := m.Query.MarshalTo(dAtA[i:])
+		n11, err := m.Query.MarshalTo(dAtA[i:])
 		if err != nil {
 			return 0, err
 		}
-		i += n26
+		i += n11
 	}
 	return i, nil
 }
@@ -2183,59 +1161,6 @@ func (m *FindTraceIDsSuccess) MarshalTo(dAtA []byte) (int, error) {
 	return i, nil
 }
 
-func (m *FindTraceIDsResponse) Marshal() (dAtA []byte, err error) {
-	size := m.Size()
-	dAtA = make([]byte, size)
-	n, err := m.MarshalTo(dAtA)
-	if err != nil {
-		return nil, err
-	}
-	return dAtA[:n], nil
-}
-
-func (m *FindTraceIDsResponse) MarshalTo(dAtA []byte) (int, error) {
-	var i int
-	_ = i
-	var l int
-	_ = l
-	if m.Response != nil {
-		nn27, err := m.Response.MarshalTo(dAtA[i:])
-		if err != nil {
-			return 0, err
-		}
-		i += nn27
-	}
-	return i, nil
-}
-
-func (m *FindTraceIDsResponse_Success) MarshalTo(dAtA []byte) (int, error) {
-	i := 0
-	if m.Success != nil {
-		dAtA[i] = 0xa
-		i++
-		i = encodeVarintStorage(dAtA, i, uint64(m.Success.Size()))
-		n28, err := m.Success.MarshalTo(dAtA[i:])
-		if err != nil {
-			return 0, err
-		}
-		i += n28
-	}
-	return i, nil
-}
-func (m *FindTraceIDsResponse_Error) MarshalTo(dAtA []byte) (int, error) {
-	i := 0
-	if m.Error != nil {
-		dAtA[i] = 0x12
-		i++
-		i = encodeVarintStorage(dAtA, i, uint64(m.Error.Size()))
-		n29, err := m.Error.MarshalTo(dAtA[i:])
-		if err != nil {
-			return 0, err
-		}
-		i += n29
-	}
-	return i, nil
-}
 func encodeVarintStorage(dAtA []byte, offset int, v uint64) int {
 	for v >= 1<<7 {
 		dAtA[offset] = uint8(v&0x7f | 0x80)
@@ -2267,33 +1192,6 @@ func (m *GetDependenciesSuccess) Size() (n int) {
 	return n
 }
 
-func (m *GetDependenciesResponse) Size() (n int) {
-	var l int
-	_ = l
-	if m.Response != nil {
-		n += m.Response.Size()
-	}
-	return n
-}
-
-func (m *GetDependenciesResponse_Success) Size() (n int) {
-	var l int
-	_ = l
-	if m.Success != nil {
-		l = m.Success.Size()
-		n += 1 + l + sovStorage(uint64(l))
-	}
-	return n
-}
-func (m *GetDependenciesResponse_Error) Size() (n int) {
-	var l int
-	_ = l
-	if m.Error != nil {
-		l = m.Error.Size()
-		n += 1 + l + sovStorage(uint64(l))
-	}
-	return n
-}
 func (m *WriteSpanRequest) Size() (n int) {
 	var l int
 	_ = l
@@ -2304,33 +1202,6 @@ func (m *WriteSpanRequest) Size() (n int) {
 	return n
 }
 
-func (m *WriteSpanResponse) Size() (n int) {
-	var l int
-	_ = l
-	if m.Response != nil {
-		n += m.Response.Size()
-	}
-	return n
-}
-
-func (m *WriteSpanResponse_Success) Size() (n int) {
-	var l int
-	_ = l
-	if m.Success != nil {
-		l = m.Success.Size()
-		n += 1 + l + sovStorage(uint64(l))
-	}
-	return n
-}
-func (m *WriteSpanResponse_Error) Size() (n int) {
-	var l int
-	_ = l
-	if m.Error != nil {
-		l = m.Error.Size()
-		n += 1 + l + sovStorage(uint64(l))
-	}
-	return n
-}
 func (m *GetTraceRequest) Size() (n int) {
 	var l int
 	_ = l
@@ -2349,33 +1220,6 @@ func (m *GetTraceSuccess) Size() (n int) {
 	return n
 }
 
-func (m *GetTraceResponse) Size() (n int) {
-	var l int
-	_ = l
-	if m.Response != nil {
-		n += m.Response.Size()
-	}
-	return n
-}
-
-func (m *GetTraceResponse_Success) Size() (n int) {
-	var l int
-	_ = l
-	if m.Success != nil {
-		l = m.Success.Size()
-		n += 1 + l + sovStorage(uint64(l))
-	}
-	return n
-}
-func (m *GetTraceResponse_Error) Size() (n int) {
-	var l int
-	_ = l
-	if m.Error != nil {
-		l = m.Error.Size()
-		n += 1 + l + sovStorage(uint64(l))
-	}
-	return n
-}
 func (m *GetServicesRequest) Size() (n int) {
 	var l int
 	_ = l
@@ -2394,33 +1238,6 @@ func (m *GetServicesSuccess) Size() (n int) {
 	return n
 }
 
-func (m *GetServicesResponse) Size() (n int) {
-	var l int
-	_ = l
-	if m.Response != nil {
-		n += m.Response.Size()
-	}
-	return n
-}
-
-func (m *GetServicesResponse_Success) Size() (n int) {
-	var l int
-	_ = l
-	if m.Success != nil {
-		l = m.Success.Size()
-		n += 1 + l + sovStorage(uint64(l))
-	}
-	return n
-}
-func (m *GetServicesResponse_Error) Size() (n int) {
-	var l int
-	_ = l
-	if m.Error != nil {
-		l = m.Error.Size()
-		n += 1 + l + sovStorage(uint64(l))
-	}
-	return n
-}
 func (m *GetOperationsRequest) Size() (n int) {
 	var l int
 	_ = l
@@ -2443,33 +1260,6 @@ func (m *GetOperationsSuccess) Size() (n int) {
 	return n
 }
 
-func (m *GetOperationsResponse) Size() (n int) {
-	var l int
-	_ = l
-	if m.Response != nil {
-		n += m.Response.Size()
-	}
-	return n
-}
-
-func (m *GetOperationsResponse_Success) Size() (n int) {
-	var l int
-	_ = l
-	if m.Success != nil {
-		l = m.Success.Size()
-		n += 1 + l + sovStorage(uint64(l))
-	}
-	return n
-}
-func (m *GetOperationsResponse_Error) Size() (n int) {
-	var l int
-	_ = l
-	if m.Error != nil {
-		l = m.Error.Size()
-		n += 1 + l + sovStorage(uint64(l))
-	}
-	return n
-}
 func (m *TraceQueryParameters) Size() (n int) {
 	var l int
 	_ = l
@@ -2543,34 +1333,6 @@ func (m *FindTraceIDsSuccess) Size() (n int) {
 			l = e.Size()
 			n += 1 + l + sovStorage(uint64(l))
 		}
-	}
-	return n
-}
-
-func (m *FindTraceIDsResponse) Size() (n int) {
-	var l int
-	_ = l
-	if m.Response != nil {
-		n += m.Response.Size()
-	}
-	return n
-}
-
-func (m *FindTraceIDsResponse_Success) Size() (n int) {
-	var l int
-	_ = l
-	if m.Success != nil {
-		l = m.Success.Size()
-		n += 1 + l + sovStorage(uint64(l))
-	}
-	return n
-}
-func (m *FindTraceIDsResponse_Error) Size() (n int) {
-	var l int
-	_ = l
-	if m.Error != nil {
-		l = m.Error.Size()
-		n += 1 + l + sovStorage(uint64(l))
 	}
 	return n
 }
@@ -2780,120 +1542,6 @@ func (m *GetDependenciesSuccess) Unmarshal(dAtA []byte) error {
 	}
 	return nil
 }
-func (m *GetDependenciesResponse) Unmarshal(dAtA []byte) error {
-	l := len(dAtA)
-	iNdEx := 0
-	for iNdEx < l {
-		preIndex := iNdEx
-		var wire uint64
-		for shift := uint(0); ; shift += 7 {
-			if shift >= 64 {
-				return ErrIntOverflowStorage
-			}
-			if iNdEx >= l {
-				return io.ErrUnexpectedEOF
-			}
-			b := dAtA[iNdEx]
-			iNdEx++
-			wire |= (uint64(b) & 0x7F) << shift
-			if b < 0x80 {
-				break
-			}
-		}
-		fieldNum := int32(wire >> 3)
-		wireType := int(wire & 0x7)
-		if wireType == 4 {
-			return fmt.Errorf("proto: GetDependenciesResponse: wiretype end group for non-group")
-		}
-		if fieldNum <= 0 {
-			return fmt.Errorf("proto: GetDependenciesResponse: illegal tag %d (wire type %d)", fieldNum, wire)
-		}
-		switch fieldNum {
-		case 1:
-			if wireType != 2 {
-				return fmt.Errorf("proto: wrong wireType = %d for field Success", wireType)
-			}
-			var msglen int
-			for shift := uint(0); ; shift += 7 {
-				if shift >= 64 {
-					return ErrIntOverflowStorage
-				}
-				if iNdEx >= l {
-					return io.ErrUnexpectedEOF
-				}
-				b := dAtA[iNdEx]
-				iNdEx++
-				msglen |= (int(b) & 0x7F) << shift
-				if b < 0x80 {
-					break
-				}
-			}
-			if msglen < 0 {
-				return ErrInvalidLengthStorage
-			}
-			postIndex := iNdEx + msglen
-			if postIndex > l {
-				return io.ErrUnexpectedEOF
-			}
-			v := &GetDependenciesSuccess{}
-			if err := v.Unmarshal(dAtA[iNdEx:postIndex]); err != nil {
-				return err
-			}
-			m.Response = &GetDependenciesResponse_Success{v}
-			iNdEx = postIndex
-		case 2:
-			if wireType != 2 {
-				return fmt.Errorf("proto: wrong wireType = %d for field Error", wireType)
-			}
-			var msglen int
-			for shift := uint(0); ; shift += 7 {
-				if shift >= 64 {
-					return ErrIntOverflowStorage
-				}
-				if iNdEx >= l {
-					return io.ErrUnexpectedEOF
-				}
-				b := dAtA[iNdEx]
-				iNdEx++
-				msglen |= (int(b) & 0x7F) << shift
-				if b < 0x80 {
-					break
-				}
-			}
-			if msglen < 0 {
-				return ErrInvalidLengthStorage
-			}
-			postIndex := iNdEx + msglen
-			if postIndex > l {
-				return io.ErrUnexpectedEOF
-			}
-			v := &google_rpc.Status{}
-			if err := v.Unmarshal(dAtA[iNdEx:postIndex]); err != nil {
-				return err
-			}
-			m.Response = &GetDependenciesResponse_Error{v}
-			iNdEx = postIndex
-		default:
-			iNdEx = preIndex
-			skippy, err := skipStorage(dAtA[iNdEx:])
-			if err != nil {
-				return err
-			}
-			if skippy < 0 {
-				return ErrInvalidLengthStorage
-			}
-			if (iNdEx + skippy) > l {
-				return io.ErrUnexpectedEOF
-			}
-			iNdEx += skippy
-		}
-	}
-
-	if iNdEx > l {
-		return io.ErrUnexpectedEOF
-	}
-	return nil
-}
 func (m *WriteSpanRequest) Unmarshal(dAtA []byte) error {
 	l := len(dAtA)
 	iNdEx := 0
@@ -2955,120 +1603,6 @@ func (m *WriteSpanRequest) Unmarshal(dAtA []byte) error {
 			if err := m.Span.Unmarshal(dAtA[iNdEx:postIndex]); err != nil {
 				return err
 			}
-			iNdEx = postIndex
-		default:
-			iNdEx = preIndex
-			skippy, err := skipStorage(dAtA[iNdEx:])
-			if err != nil {
-				return err
-			}
-			if skippy < 0 {
-				return ErrInvalidLengthStorage
-			}
-			if (iNdEx + skippy) > l {
-				return io.ErrUnexpectedEOF
-			}
-			iNdEx += skippy
-		}
-	}
-
-	if iNdEx > l {
-		return io.ErrUnexpectedEOF
-	}
-	return nil
-}
-func (m *WriteSpanResponse) Unmarshal(dAtA []byte) error {
-	l := len(dAtA)
-	iNdEx := 0
-	for iNdEx < l {
-		preIndex := iNdEx
-		var wire uint64
-		for shift := uint(0); ; shift += 7 {
-			if shift >= 64 {
-				return ErrIntOverflowStorage
-			}
-			if iNdEx >= l {
-				return io.ErrUnexpectedEOF
-			}
-			b := dAtA[iNdEx]
-			iNdEx++
-			wire |= (uint64(b) & 0x7F) << shift
-			if b < 0x80 {
-				break
-			}
-		}
-		fieldNum := int32(wire >> 3)
-		wireType := int(wire & 0x7)
-		if wireType == 4 {
-			return fmt.Errorf("proto: WriteSpanResponse: wiretype end group for non-group")
-		}
-		if fieldNum <= 0 {
-			return fmt.Errorf("proto: WriteSpanResponse: illegal tag %d (wire type %d)", fieldNum, wire)
-		}
-		switch fieldNum {
-		case 1:
-			if wireType != 2 {
-				return fmt.Errorf("proto: wrong wireType = %d for field Success", wireType)
-			}
-			var msglen int
-			for shift := uint(0); ; shift += 7 {
-				if shift >= 64 {
-					return ErrIntOverflowStorage
-				}
-				if iNdEx >= l {
-					return io.ErrUnexpectedEOF
-				}
-				b := dAtA[iNdEx]
-				iNdEx++
-				msglen |= (int(b) & 0x7F) << shift
-				if b < 0x80 {
-					break
-				}
-			}
-			if msglen < 0 {
-				return ErrInvalidLengthStorage
-			}
-			postIndex := iNdEx + msglen
-			if postIndex > l {
-				return io.ErrUnexpectedEOF
-			}
-			v := &google_protobuf3.Empty{}
-			if err := v.Unmarshal(dAtA[iNdEx:postIndex]); err != nil {
-				return err
-			}
-			m.Response = &WriteSpanResponse_Success{v}
-			iNdEx = postIndex
-		case 2:
-			if wireType != 2 {
-				return fmt.Errorf("proto: wrong wireType = %d for field Error", wireType)
-			}
-			var msglen int
-			for shift := uint(0); ; shift += 7 {
-				if shift >= 64 {
-					return ErrIntOverflowStorage
-				}
-				if iNdEx >= l {
-					return io.ErrUnexpectedEOF
-				}
-				b := dAtA[iNdEx]
-				iNdEx++
-				msglen |= (int(b) & 0x7F) << shift
-				if b < 0x80 {
-					break
-				}
-			}
-			if msglen < 0 {
-				return ErrInvalidLengthStorage
-			}
-			postIndex := iNdEx + msglen
-			if postIndex > l {
-				return io.ErrUnexpectedEOF
-			}
-			v := &google_rpc.Status{}
-			if err := v.Unmarshal(dAtA[iNdEx:postIndex]); err != nil {
-				return err
-			}
-			m.Response = &WriteSpanResponse_Error{v}
 			iNdEx = postIndex
 		default:
 			iNdEx = preIndex
@@ -3254,120 +1788,6 @@ func (m *GetTraceSuccess) Unmarshal(dAtA []byte) error {
 	}
 	return nil
 }
-func (m *GetTraceResponse) Unmarshal(dAtA []byte) error {
-	l := len(dAtA)
-	iNdEx := 0
-	for iNdEx < l {
-		preIndex := iNdEx
-		var wire uint64
-		for shift := uint(0); ; shift += 7 {
-			if shift >= 64 {
-				return ErrIntOverflowStorage
-			}
-			if iNdEx >= l {
-				return io.ErrUnexpectedEOF
-			}
-			b := dAtA[iNdEx]
-			iNdEx++
-			wire |= (uint64(b) & 0x7F) << shift
-			if b < 0x80 {
-				break
-			}
-		}
-		fieldNum := int32(wire >> 3)
-		wireType := int(wire & 0x7)
-		if wireType == 4 {
-			return fmt.Errorf("proto: GetTraceResponse: wiretype end group for non-group")
-		}
-		if fieldNum <= 0 {
-			return fmt.Errorf("proto: GetTraceResponse: illegal tag %d (wire type %d)", fieldNum, wire)
-		}
-		switch fieldNum {
-		case 1:
-			if wireType != 2 {
-				return fmt.Errorf("proto: wrong wireType = %d for field Success", wireType)
-			}
-			var msglen int
-			for shift := uint(0); ; shift += 7 {
-				if shift >= 64 {
-					return ErrIntOverflowStorage
-				}
-				if iNdEx >= l {
-					return io.ErrUnexpectedEOF
-				}
-				b := dAtA[iNdEx]
-				iNdEx++
-				msglen |= (int(b) & 0x7F) << shift
-				if b < 0x80 {
-					break
-				}
-			}
-			if msglen < 0 {
-				return ErrInvalidLengthStorage
-			}
-			postIndex := iNdEx + msglen
-			if postIndex > l {
-				return io.ErrUnexpectedEOF
-			}
-			v := &GetTraceSuccess{}
-			if err := v.Unmarshal(dAtA[iNdEx:postIndex]); err != nil {
-				return err
-			}
-			m.Response = &GetTraceResponse_Success{v}
-			iNdEx = postIndex
-		case 2:
-			if wireType != 2 {
-				return fmt.Errorf("proto: wrong wireType = %d for field Error", wireType)
-			}
-			var msglen int
-			for shift := uint(0); ; shift += 7 {
-				if shift >= 64 {
-					return ErrIntOverflowStorage
-				}
-				if iNdEx >= l {
-					return io.ErrUnexpectedEOF
-				}
-				b := dAtA[iNdEx]
-				iNdEx++
-				msglen |= (int(b) & 0x7F) << shift
-				if b < 0x80 {
-					break
-				}
-			}
-			if msglen < 0 {
-				return ErrInvalidLengthStorage
-			}
-			postIndex := iNdEx + msglen
-			if postIndex > l {
-				return io.ErrUnexpectedEOF
-			}
-			v := &google_rpc.Status{}
-			if err := v.Unmarshal(dAtA[iNdEx:postIndex]); err != nil {
-				return err
-			}
-			m.Response = &GetTraceResponse_Error{v}
-			iNdEx = postIndex
-		default:
-			iNdEx = preIndex
-			skippy, err := skipStorage(dAtA[iNdEx:])
-			if err != nil {
-				return err
-			}
-			if skippy < 0 {
-				return ErrInvalidLengthStorage
-			}
-			if (iNdEx + skippy) > l {
-				return io.ErrUnexpectedEOF
-			}
-			iNdEx += skippy
-		}
-	}
-
-	if iNdEx > l {
-		return io.ErrUnexpectedEOF
-	}
-	return nil
-}
 func (m *GetServicesRequest) Unmarshal(dAtA []byte) error {
 	l := len(dAtA)
 	iNdEx := 0
@@ -3475,120 +1895,6 @@ func (m *GetServicesSuccess) Unmarshal(dAtA []byte) error {
 				return io.ErrUnexpectedEOF
 			}
 			m.Services = append(m.Services, string(dAtA[iNdEx:postIndex]))
-			iNdEx = postIndex
-		default:
-			iNdEx = preIndex
-			skippy, err := skipStorage(dAtA[iNdEx:])
-			if err != nil {
-				return err
-			}
-			if skippy < 0 {
-				return ErrInvalidLengthStorage
-			}
-			if (iNdEx + skippy) > l {
-				return io.ErrUnexpectedEOF
-			}
-			iNdEx += skippy
-		}
-	}
-
-	if iNdEx > l {
-		return io.ErrUnexpectedEOF
-	}
-	return nil
-}
-func (m *GetServicesResponse) Unmarshal(dAtA []byte) error {
-	l := len(dAtA)
-	iNdEx := 0
-	for iNdEx < l {
-		preIndex := iNdEx
-		var wire uint64
-		for shift := uint(0); ; shift += 7 {
-			if shift >= 64 {
-				return ErrIntOverflowStorage
-			}
-			if iNdEx >= l {
-				return io.ErrUnexpectedEOF
-			}
-			b := dAtA[iNdEx]
-			iNdEx++
-			wire |= (uint64(b) & 0x7F) << shift
-			if b < 0x80 {
-				break
-			}
-		}
-		fieldNum := int32(wire >> 3)
-		wireType := int(wire & 0x7)
-		if wireType == 4 {
-			return fmt.Errorf("proto: GetServicesResponse: wiretype end group for non-group")
-		}
-		if fieldNum <= 0 {
-			return fmt.Errorf("proto: GetServicesResponse: illegal tag %d (wire type %d)", fieldNum, wire)
-		}
-		switch fieldNum {
-		case 1:
-			if wireType != 2 {
-				return fmt.Errorf("proto: wrong wireType = %d for field Success", wireType)
-			}
-			var msglen int
-			for shift := uint(0); ; shift += 7 {
-				if shift >= 64 {
-					return ErrIntOverflowStorage
-				}
-				if iNdEx >= l {
-					return io.ErrUnexpectedEOF
-				}
-				b := dAtA[iNdEx]
-				iNdEx++
-				msglen |= (int(b) & 0x7F) << shift
-				if b < 0x80 {
-					break
-				}
-			}
-			if msglen < 0 {
-				return ErrInvalidLengthStorage
-			}
-			postIndex := iNdEx + msglen
-			if postIndex > l {
-				return io.ErrUnexpectedEOF
-			}
-			v := &GetServicesSuccess{}
-			if err := v.Unmarshal(dAtA[iNdEx:postIndex]); err != nil {
-				return err
-			}
-			m.Response = &GetServicesResponse_Success{v}
-			iNdEx = postIndex
-		case 2:
-			if wireType != 2 {
-				return fmt.Errorf("proto: wrong wireType = %d for field Error", wireType)
-			}
-			var msglen int
-			for shift := uint(0); ; shift += 7 {
-				if shift >= 64 {
-					return ErrIntOverflowStorage
-				}
-				if iNdEx >= l {
-					return io.ErrUnexpectedEOF
-				}
-				b := dAtA[iNdEx]
-				iNdEx++
-				msglen |= (int(b) & 0x7F) << shift
-				if b < 0x80 {
-					break
-				}
-			}
-			if msglen < 0 {
-				return ErrInvalidLengthStorage
-			}
-			postIndex := iNdEx + msglen
-			if postIndex > l {
-				return io.ErrUnexpectedEOF
-			}
-			v := &google_rpc.Status{}
-			if err := v.Unmarshal(dAtA[iNdEx:postIndex]); err != nil {
-				return err
-			}
-			m.Response = &GetServicesResponse_Error{v}
 			iNdEx = postIndex
 		default:
 			iNdEx = preIndex
@@ -3747,120 +2053,6 @@ func (m *GetOperationsSuccess) Unmarshal(dAtA []byte) error {
 				return io.ErrUnexpectedEOF
 			}
 			m.Operations = append(m.Operations, string(dAtA[iNdEx:postIndex]))
-			iNdEx = postIndex
-		default:
-			iNdEx = preIndex
-			skippy, err := skipStorage(dAtA[iNdEx:])
-			if err != nil {
-				return err
-			}
-			if skippy < 0 {
-				return ErrInvalidLengthStorage
-			}
-			if (iNdEx + skippy) > l {
-				return io.ErrUnexpectedEOF
-			}
-			iNdEx += skippy
-		}
-	}
-
-	if iNdEx > l {
-		return io.ErrUnexpectedEOF
-	}
-	return nil
-}
-func (m *GetOperationsResponse) Unmarshal(dAtA []byte) error {
-	l := len(dAtA)
-	iNdEx := 0
-	for iNdEx < l {
-		preIndex := iNdEx
-		var wire uint64
-		for shift := uint(0); ; shift += 7 {
-			if shift >= 64 {
-				return ErrIntOverflowStorage
-			}
-			if iNdEx >= l {
-				return io.ErrUnexpectedEOF
-			}
-			b := dAtA[iNdEx]
-			iNdEx++
-			wire |= (uint64(b) & 0x7F) << shift
-			if b < 0x80 {
-				break
-			}
-		}
-		fieldNum := int32(wire >> 3)
-		wireType := int(wire & 0x7)
-		if wireType == 4 {
-			return fmt.Errorf("proto: GetOperationsResponse: wiretype end group for non-group")
-		}
-		if fieldNum <= 0 {
-			return fmt.Errorf("proto: GetOperationsResponse: illegal tag %d (wire type %d)", fieldNum, wire)
-		}
-		switch fieldNum {
-		case 1:
-			if wireType != 2 {
-				return fmt.Errorf("proto: wrong wireType = %d for field Success", wireType)
-			}
-			var msglen int
-			for shift := uint(0); ; shift += 7 {
-				if shift >= 64 {
-					return ErrIntOverflowStorage
-				}
-				if iNdEx >= l {
-					return io.ErrUnexpectedEOF
-				}
-				b := dAtA[iNdEx]
-				iNdEx++
-				msglen |= (int(b) & 0x7F) << shift
-				if b < 0x80 {
-					break
-				}
-			}
-			if msglen < 0 {
-				return ErrInvalidLengthStorage
-			}
-			postIndex := iNdEx + msglen
-			if postIndex > l {
-				return io.ErrUnexpectedEOF
-			}
-			v := &GetOperationsSuccess{}
-			if err := v.Unmarshal(dAtA[iNdEx:postIndex]); err != nil {
-				return err
-			}
-			m.Response = &GetOperationsResponse_Success{v}
-			iNdEx = postIndex
-		case 2:
-			if wireType != 2 {
-				return fmt.Errorf("proto: wrong wireType = %d for field Error", wireType)
-			}
-			var msglen int
-			for shift := uint(0); ; shift += 7 {
-				if shift >= 64 {
-					return ErrIntOverflowStorage
-				}
-				if iNdEx >= l {
-					return io.ErrUnexpectedEOF
-				}
-				b := dAtA[iNdEx]
-				iNdEx++
-				msglen |= (int(b) & 0x7F) << shift
-				if b < 0x80 {
-					break
-				}
-			}
-			if msglen < 0 {
-				return ErrInvalidLengthStorage
-			}
-			postIndex := iNdEx + msglen
-			if postIndex > l {
-				return io.ErrUnexpectedEOF
-			}
-			v := &google_rpc.Status{}
-			if err := v.Unmarshal(dAtA[iNdEx:postIndex]); err != nil {
-				return err
-			}
-			m.Response = &GetOperationsResponse_Error{v}
 			iNdEx = postIndex
 		default:
 			iNdEx = preIndex
@@ -4578,120 +2770,6 @@ func (m *FindTraceIDsSuccess) Unmarshal(dAtA []byte) error {
 	}
 	return nil
 }
-func (m *FindTraceIDsResponse) Unmarshal(dAtA []byte) error {
-	l := len(dAtA)
-	iNdEx := 0
-	for iNdEx < l {
-		preIndex := iNdEx
-		var wire uint64
-		for shift := uint(0); ; shift += 7 {
-			if shift >= 64 {
-				return ErrIntOverflowStorage
-			}
-			if iNdEx >= l {
-				return io.ErrUnexpectedEOF
-			}
-			b := dAtA[iNdEx]
-			iNdEx++
-			wire |= (uint64(b) & 0x7F) << shift
-			if b < 0x80 {
-				break
-			}
-		}
-		fieldNum := int32(wire >> 3)
-		wireType := int(wire & 0x7)
-		if wireType == 4 {
-			return fmt.Errorf("proto: FindTraceIDsResponse: wiretype end group for non-group")
-		}
-		if fieldNum <= 0 {
-			return fmt.Errorf("proto: FindTraceIDsResponse: illegal tag %d (wire type %d)", fieldNum, wire)
-		}
-		switch fieldNum {
-		case 1:
-			if wireType != 2 {
-				return fmt.Errorf("proto: wrong wireType = %d for field Success", wireType)
-			}
-			var msglen int
-			for shift := uint(0); ; shift += 7 {
-				if shift >= 64 {
-					return ErrIntOverflowStorage
-				}
-				if iNdEx >= l {
-					return io.ErrUnexpectedEOF
-				}
-				b := dAtA[iNdEx]
-				iNdEx++
-				msglen |= (int(b) & 0x7F) << shift
-				if b < 0x80 {
-					break
-				}
-			}
-			if msglen < 0 {
-				return ErrInvalidLengthStorage
-			}
-			postIndex := iNdEx + msglen
-			if postIndex > l {
-				return io.ErrUnexpectedEOF
-			}
-			v := &FindTraceIDsSuccess{}
-			if err := v.Unmarshal(dAtA[iNdEx:postIndex]); err != nil {
-				return err
-			}
-			m.Response = &FindTraceIDsResponse_Success{v}
-			iNdEx = postIndex
-		case 2:
-			if wireType != 2 {
-				return fmt.Errorf("proto: wrong wireType = %d for field Error", wireType)
-			}
-			var msglen int
-			for shift := uint(0); ; shift += 7 {
-				if shift >= 64 {
-					return ErrIntOverflowStorage
-				}
-				if iNdEx >= l {
-					return io.ErrUnexpectedEOF
-				}
-				b := dAtA[iNdEx]
-				iNdEx++
-				msglen |= (int(b) & 0x7F) << shift
-				if b < 0x80 {
-					break
-				}
-			}
-			if msglen < 0 {
-				return ErrInvalidLengthStorage
-			}
-			postIndex := iNdEx + msglen
-			if postIndex > l {
-				return io.ErrUnexpectedEOF
-			}
-			v := &google_rpc.Status{}
-			if err := v.Unmarshal(dAtA[iNdEx:postIndex]); err != nil {
-				return err
-			}
-			m.Response = &FindTraceIDsResponse_Error{v}
-			iNdEx = postIndex
-		default:
-			iNdEx = preIndex
-			skippy, err := skipStorage(dAtA[iNdEx:])
-			if err != nil {
-				return err
-			}
-			if skippy < 0 {
-				return ErrInvalidLengthStorage
-			}
-			if (iNdEx + skippy) > l {
-				return io.ErrUnexpectedEOF
-			}
-			iNdEx += skippy
-		}
-	}
-
-	if iNdEx > l {
-		return io.ErrUnexpectedEOF
-	}
-	return nil
-}
 func skipStorage(dAtA []byte) (n int, err error) {
 	l := len(dAtA)
 	iNdEx := 0
@@ -4801,74 +2879,64 @@ func init() { proto.RegisterFile("storage.proto", fileDescriptorStorage) }
 func init() { golang_proto.RegisterFile("storage.proto", fileDescriptorStorage) }
 
 var fileDescriptorStorage = []byte{
-	// 1093 bytes of a gzipped FileDescriptorProto
-	0x1f, 0x8b, 0x08, 0x00, 0x00, 0x00, 0x00, 0x00, 0x02, 0xff, 0xac, 0x56, 0x4f, 0x53, 0x23, 0x45,
-	0x14, 0x67, 0x80, 0x40, 0x78, 0x09, 0x2b, 0x34, 0x71, 0x19, 0x63, 0x19, 0x70, 0xf6, 0x0f, 0x48,
-	0x95, 0x13, 0x88, 0x96, 0x5a, 0xea, 0xaa, 0x9b, 0x85, 0x05, 0x2c, 0xff, 0xac, 0x13, 0x4a, 0xab,
-	0x74, 0xab, 0xb2, 0xcd, 0xa4, 0x1d, 0x66, 0x61, 0xfe, 0x6c, 0x77, 0x0f, 0x05, 0x5e, 0xbc, 0x78,
-	0xf2, 0xb4, 0x65, 0x79, 0xd8, 0x0f, 0x60, 0x95, 0x5f, 0xc3, 0xe3, 0x1e, 0x3d, 0x7b, 0x40, 0x0b,
-	0xaf, 0x7e, 0x08, 0x6b, 0x7a, 0xba, 0x87, 0x64, 0x32, 0x26, 0x48, 0xe5, 0x36, 0xdd, 0xef, 0xf5,
-	0xef, 0xfd, 0x7e, 0xef, 0xf5, 0xbc, 0xd7, 0x30, 0xcb, 0x78, 0x40, 0xb1, 0x43, 0xcc, 0x90, 0x06,
-	0x3c, 0x40, 0xf3, 0x8f, 0x31, 0x71, 0x08, 0x35, 0xd5, 0xee, 0xf1, 0x46, 0xb5, 0xe2, 0x04, 0x4e,
-	0x20, 0xac, 0xf5, 0xf8, 0x2b, 0x71, 0xac, 0x2e, 0x39, 0x41, 0xe0, 0x1c, 0x91, 0xba, 0x58, 0xed,
-	0x47, 0xdf, 0xd6, 0xb9, 0xeb, 0x11, 0xc6, 0xb1, 0x17, 0x4a, 0x87, 0x5a, 0xd6, 0xa1, 0x13, 0x51,
-	0xcc, 0xdd, 0xc0, 0x97, 0xf6, 0x97, 0xb3, 0x76, 0xe2, 0x85, 0xfc, 0x54, 0x1a, 0x17, 0xa5, 0x91,
-	0x86, 0x76, 0x9d, 0x71, 0xcc, 0x23, 0x26, 0x0d, 0x25, 0x2f, 0xe8, 0x90, 0xa3, 0x64, 0x61, 0xfc,
-	0xa2, 0xc1, 0xf5, 0x6d, 0xc2, 0x37, 0x49, 0x48, 0xfc, 0x0e, 0xf1, 0x6d, 0x97, 0x30, 0x8b, 0x3c,
-	0x89, 0x08, 0xe3, 0x68, 0x17, 0x66, 0x89, 0xdf, 0x69, 0xa7, 0xa4, 0x74, 0x6d, 0x59, 0x5b, 0x2d,
-	0x35, 0xaa, 0x66, 0x02, 0x6c, 0xaa, 0xa8, 0xe6, 0x9e, 0xf2, 0x68, 0x16, 0x9f, 0x9f, 0x2d, 0x8d,
-	0x3d, 0xfd, 0x73, 0x49, 0xb3, 0xca, 0xc4, 0xef, 0xa4, 0xfb, 0xe8, 0x43, 0x28, 0x1e, 0x05, 0xc1,
-	0xe1, 0x3e, 0xb6, 0x0f, 0xf5, 0x71, 0x81, 0xf2, 0x52, 0x1f, 0xca, 0xa6, 0xd4, 0x96, 0x80, 0x3c,
-	0x8b, 0x41, 0xd2, 0x43, 0xc6, 0x77, 0x7d, 0x2c, 0x5b, 0x91, 0x6d, 0x13, 0xc6, 0xd0, 0x23, 0x28,
-	0x77, 0xba, 0xb6, 0x75, 0x6d, 0x79, 0x62, 0xb5, 0xdc, 0x7c, 0x3f, 0xc6, 0xf8, 0xe3, 0x6c, 0xe9,
-	0x4d, 0xc7, 0xe5, 0x07, 0xd1, 0xbe, 0x69, 0x07, 0x5e, 0x3d, 0x29, 0x0b, 0xa7, 0xd8, 0x76, 0x7d,
-	0x47, 0xae, 0xea, 0x49, 0x2e, 0x52, 0xe0, 0xd3, 0x4f, 0x5c, 0xff, 0xd0, 0xea, 0x41, 0x34, 0x9e,
-	0x69, 0xb0, 0xd8, 0x97, 0x22, 0x16, 0x06, 0x3e, 0x23, 0x68, 0x0b, 0xa6, 0x59, 0x42, 0x44, 0x66,
-	0xe7, 0x35, 0xb3, 0xaf, 0xfa, 0x66, 0x3e, 0xf3, 0x9d, 0x31, 0x4b, 0x9d, 0x45, 0x6b, 0x50, 0x20,
-	0x94, 0x06, 0x54, 0x26, 0x07, 0xa9, 0xe4, 0xd0, 0xd0, 0x36, 0x5b, 0xa2, 0x76, 0x3b, 0x63, 0x56,
-	0xe2, 0xd2, 0x04, 0x28, 0x52, 0x19, 0xde, 0x78, 0x0f, 0xe6, 0xbe, 0xa2, 0x2e, 0x27, 0xad, 0x10,
-	0xfb, 0xaa, 0x6c, 0x2b, 0x30, 0xc9, 0x42, 0xec, 0x4b, 0x3e, 0x0b, 0x8a, 0x0f, 0x0e, 0xdd, 0xf6,
-	0x71, 0xc3, 0x14, 0x9e, 0xc2, 0xc1, 0xf8, 0x1e, 0xe6, 0xbb, 0x0e, 0x4b, 0x41, 0x8d, 0xac, 0xa0,
-	0xeb, 0x7d, 0x85, 0xda, 0x8a, 0x2f, 0xd9, 0x28, 0xd8, 0xfb, 0xf0, 0xc2, 0x36, 0xe1, 0x7b, 0x14,
-	0xdb, 0x44, 0x91, 0xff, 0x06, 0x8a, 0x71, 0x81, 0x48, 0xdb, 0xed, 0x88, 0xf8, 0xe5, 0xe6, 0x47,
-	0xb2, 0x92, 0xaf, 0x5f, 0xae, 0x92, 0x02, 0x6d, 0x77, 0xf3, 0xfc, 0x6c, 0x69, 0x5a, 0x7e, 0x5a,
-	0xd3, 0x02, 0x71, 0xb7, 0x63, 0xdc, 0xb9, 0x88, 0xd7, 0xba, 0xa0, 0x2e, 0xac, 0x52, 0x6c, 0x25,
-	0x93, 0xad, 0x84, 0x5b, 0xe2, 0x62, 0xfc, 0xa8, 0xc1, 0xdc, 0x05, 0x5f, 0x99, 0xaf, 0x0f, 0xb2,
-	0xf9, 0x32, 0xf2, 0x2f, 0x40, 0x77, 0xd4, 0x51, 0xe4, 0xae, 0x02, 0x68, 0x9b, 0xf0, 0x16, 0xa1,
-	0xc7, 0xae, 0x9d, 0xfe, 0xb2, 0xc6, 0x7a, 0xcf, 0xae, 0x12, 0x59, 0x85, 0x22, 0x93, 0x5b, 0xe2,
-	0xf7, 0x98, 0xb1, 0xd2, 0xb5, 0xf1, 0x54, 0x83, 0x85, 0x1e, 0x20, 0xa9, 0xeb, 0x6e, 0x56, 0xd7,
-	0xad, 0x7c, 0x5d, 0x99, 0x58, 0xa3, 0x90, 0xb6, 0x0e, 0x95, 0x6d, 0xc2, 0x3f, 0x0f, 0x49, 0xd2,
-	0x0f, 0xd2, 0x7e, 0xa4, 0xc3, 0xb4, 0xa4, 0x2d, 0x28, 0xcd, 0x58, 0x6a, 0x69, 0xbc, 0x95, 0x39,
-	0xa1, 0x84, 0xd7, 0x00, 0x82, 0x74, 0x53, 0x4a, 0xef, 0xda, 0x31, 0x7e, 0xd6, 0xe0, 0xc5, 0x4c,
-	0x28, 0x29, 0xff, 0x5e, 0x56, 0xfe, 0x4a, 0xbe, 0xfc, 0xbe, 0x98, 0xa3, 0x48, 0xc0, 0xaf, 0x93,
-	0x50, 0x11, 0xf7, 0xe5, 0x8b, 0x88, 0xd0, 0xd3, 0x07, 0x98, 0x62, 0x8f, 0x70, 0x42, 0x19, 0x7a,
-	0x15, 0xca, 0x52, 0x72, 0xdb, 0xc7, 0x9e, 0x4a, 0x43, 0x49, 0xee, 0x7d, 0x86, 0x3d, 0x82, 0x6e,
-	0xc1, 0xb5, 0x54, 0x60, 0xe2, 0x34, 0x2e, 0x9c, 0x66, 0xd3, 0x5d, 0xe1, 0xb6, 0x05, 0x93, 0x1c,
-	0x3b, 0x4c, 0x9f, 0x58, 0x9e, 0x58, 0x2d, 0x35, 0x36, 0x72, 0xc4, 0xe5, 0x11, 0x30, 0xf7, 0xb0,
-	0xc3, 0xb6, 0x7c, 0x4e, 0x4f, 0x2d, 0x71, 0x1c, 0x7d, 0x0c, 0xd7, 0x18, 0xc7, 0x94, 0x8b, 0x21,
-	0xd1, 0xf6, 0x5c, 0x5f, 0x9f, 0xfc, 0x3f, 0x33, 0x42, 0x9c, 0x8d, 0x2d, 0x9f, 0xba, 0x7e, 0x16,
-	0x0b, 0x9f, 0xe8, 0x85, 0xab, 0x61, 0xe1, 0x13, 0x74, 0x1f, 0xca, 0x6a, 0x54, 0x0a, 0x56, 0x53,
-	0x97, 0x9f, 0x39, 0x25, 0x75, 0x30, 0xe6, 0xd4, 0x83, 0x83, 0x4f, 0xf4, 0xe9, 0xab, 0xe0, 0xe0,
-	0x13, 0xf4, 0x0a, 0x80, 0x1f, 0x79, 0x6d, 0xd1, 0x47, 0x98, 0x5e, 0x5c, 0xd6, 0x56, 0x0b, 0xd6,
-	0x8c, 0x1f, 0x79, 0x22, 0xc9, 0xac, 0xfa, 0x36, 0xcc, 0xa4, 0x99, 0x45, 0x73, 0x30, 0x71, 0x48,
-	0x4e, 0x65, 0x6d, 0xe3, 0x4f, 0x54, 0x81, 0xc2, 0x31, 0x3e, 0x8a, 0x54, 0x29, 0x93, 0xc5, 0xbb,
-	0xe3, 0xef, 0x68, 0x86, 0x05, 0xf3, 0xf7, 0x5d, 0xbf, 0x93, 0xc0, 0xa8, 0xff, 0xe4, 0x0e, 0x14,
-	0x9e, 0xc4, 0x75, 0x1b, 0x70, 0x73, 0xf3, 0x8a, 0x6b, 0x25, 0xa7, 0x0c, 0x1b, 0x16, 0xbb, 0x31,
-	0x93, 0x3b, 0x79, 0xef, 0x20, 0xf2, 0x0f, 0xd1, 0x0e, 0x14, 0xe2, 0xc9, 0xa1, 0x86, 0x6c, 0x43,
-	0xb6, 0xe6, 0xb5, 0xcb, 0xb5, 0x66, 0x31, 0x67, 0x12, 0x00, 0x63, 0x0f, 0x16, 0xd2, 0x20, 0xbb,
-	0x9b, 0xa3, 0xa2, 0xce, 0x7a, 0x51, 0x55, 0x1b, 0x78, 0xd8, 0x33, 0x54, 0x62, 0xe6, 0x77, 0xaf,
-	0x3a, 0x54, 0x8a, 0x29, 0xe3, 0x74, 0xaa, 0xfc, 0xa4, 0x41, 0xa5, 0x57, 0x8b, 0xec, 0x21, 0xcd,
-	0x6c, 0x0f, 0xb9, 0x9d, 0x23, 0x27, 0x87, 0xef, 0x08, 0x5a, 0x48, 0xe3, 0x31, 0xcc, 0xc5, 0xe9,
-	0x16, 0xf3, 0x9d, 0x3e, 0x38, 0x8a, 0x1c, 0xd7, 0x47, 0x5f, 0xc2, 0x4c, 0x3a, 0xef, 0xd1, 0x8d,
-	0x1c, 0x2e, 0xd9, 0xa7, 0x44, 0xf5, 0xe6, 0x60, 0x27, 0x19, 0xeb, 0x9f, 0x89, 0x24, 0x98, 0x45,
-	0x70, 0x27, 0x0d, 0xd6, 0x82, 0xa2, 0x9a, 0x7a, 0x68, 0xd0, 0x48, 0x54, 0xa1, 0x6e, 0x0c, 0xf4,
-	0x91, 0x19, 0x7d, 0x08, 0xa5, 0xae, 0x91, 0x83, 0x86, 0x8c, 0x24, 0x05, 0x7d, 0x7b, 0x98, 0x9b,
-	0x44, 0xdf, 0x87, 0xd9, 0x9e, 0x8e, 0x8e, 0x86, 0xf6, 0x7c, 0x15, 0x61, 0x75, 0xb8, 0xa3, 0x8c,
-	0xf1, 0x08, 0xe0, 0xe2, 0xe7, 0x42, 0x37, 0x07, 0x5d, 0x88, 0x14, 0x7d, 0x6d, 0x88, 0x57, 0xd7,
-	0x1f, 0xba, 0xae, 0xa1, 0x36, 0x94, 0xbb, 0xef, 0x14, 0x1a, 0x76, 0xe9, 0x54, 0x94, 0x95, 0xa1,
-	0x7e, 0xb2, 0xdc, 0x3f, 0x68, 0xa0, 0xf7, 0xbe, 0x85, 0xbb, 0xca, 0x7e, 0x20, 0x9e, 0x58, 0xdd,
-	0x66, 0x74, 0x89, 0x17, 0xf1, 0x20, 0xa5, 0xff, 0xf1, 0xf2, 0x6e, 0xea, 0xcf, 0xcf, 0x6b, 0xda,
-	0xef, 0xe7, 0x35, 0xed, 0xaf, 0xf3, 0x9a, 0xf6, 0xdb, 0xdf, 0x35, 0xed, 0xeb, 0x29, 0xf1, 0x68,
-	0xdb, 0xd8, 0x9f, 0x12, 0x6d, 0xf9, 0x8d, 0x7f, 0x03, 0x00, 0x00, 0xff, 0xff, 0x4b, 0xb8, 0xc6,
-	0x9f, 0x97, 0x0d, 0x00, 0x00,
+	// 931 bytes of a gzipped FileDescriptorProto
+	0x1f, 0x8b, 0x08, 0x00, 0x00, 0x00, 0x00, 0x00, 0x02, 0xff, 0xac, 0x56, 0xdd, 0x6e, 0xe3, 0x44,
+	0x14, 0xc6, 0x4d, 0xd3, 0x26, 0x27, 0xe9, 0xd2, 0x9d, 0x8d, 0x16, 0x63, 0x44, 0x52, 0x0c, 0x4b,
+	0x4b, 0x25, 0x9c, 0x36, 0x20, 0x40, 0xc0, 0x0a, 0x28, 0xed, 0x76, 0x8b, 0xf8, 0x59, 0xdc, 0x4a,
+	0x48, 0xec, 0x8a, 0x30, 0xb5, 0x07, 0xaf, 0x49, 0x3c, 0xf6, 0x7a, 0xc6, 0x55, 0xc3, 0x2d, 0x2f,
+	0xc0, 0x25, 0x0f, 0x80, 0xc4, 0x6b, 0x70, 0xb9, 0x97, 0x5c, 0x73, 0x51, 0x50, 0xb9, 0xe1, 0x31,
+	0x90, 0xc7, 0x33, 0xae, 0xe3, 0x58, 0x6d, 0xa8, 0xb8, 0xf3, 0x9c, 0xf9, 0xce, 0x37, 0x67, 0xce,
+	0xcf, 0x37, 0x86, 0x15, 0xc6, 0xc3, 0x18, 0x7b, 0xc4, 0x8a, 0xe2, 0x90, 0x87, 0xe8, 0xe6, 0xf7,
+	0x98, 0x78, 0x24, 0xb6, 0x94, 0xf5, 0x64, 0xdb, 0xe8, 0x78, 0xa1, 0x17, 0x8a, 0xdd, 0x7e, 0xfa,
+	0x95, 0x01, 0x8d, 0x9e, 0x17, 0x86, 0xde, 0x98, 0xf4, 0xc5, 0xea, 0x38, 0xf9, 0xae, 0xcf, 0xfd,
+	0x80, 0x30, 0x8e, 0x83, 0x48, 0x02, 0xba, 0x65, 0x80, 0x9b, 0xc4, 0x98, 0xfb, 0x21, 0x95, 0xfb,
+	0x2f, 0x94, 0xf7, 0x49, 0x10, 0xf1, 0x89, 0xdc, 0x6c, 0x05, 0xa1, 0x4b, 0xc6, 0xd9, 0xc2, 0xfc,
+	0x45, 0x83, 0xdb, 0xfb, 0x84, 0xef, 0x92, 0x88, 0x50, 0x97, 0x50, 0xc7, 0x27, 0xcc, 0x26, 0x4f,
+	0x12, 0xc2, 0x38, 0x3a, 0x80, 0x15, 0x42, 0xdd, 0x61, 0x7e, 0xb6, 0xae, 0xad, 0x69, 0x1b, 0xad,
+	0x81, 0x61, 0x65, 0xe4, 0x96, 0x22, 0xb7, 0x8e, 0x14, 0x62, 0xa7, 0xf1, 0xf4, 0xac, 0xf7, 0xcc,
+	0x4f, 0x7f, 0xf6, 0x34, 0xbb, 0x4d, 0xa8, 0x9b, 0xdb, 0xd1, 0x07, 0xd0, 0x18, 0x87, 0xe1, 0xe8,
+	0x18, 0x3b, 0x23, 0x7d, 0x41, 0xb0, 0x3c, 0x3f, 0xc3, 0xb2, 0x2b, 0xaf, 0x90, 0x91, 0xfc, 0x9c,
+	0x92, 0xe4, 0x4e, 0xe6, 0x0f, 0x33, 0x51, 0x1e, 0x26, 0x8e, 0x43, 0x18, 0x43, 0xdf, 0x42, 0xdb,
+	0x2d, 0x98, 0x75, 0x6d, 0xad, 0xb6, 0xd1, 0xde, 0x79, 0x3f, 0xe5, 0xf8, 0xe3, 0xac, 0xf7, 0xa6,
+	0xe7, 0xf3, 0xc7, 0xc9, 0xb1, 0xe5, 0x84, 0x41, 0x3f, 0xcb, 0x3e, 0x8f, 0xb1, 0xe3, 0x53, 0x4f,
+	0xae, 0xfa, 0x59, 0x2e, 0x72, 0xe2, 0xc9, 0xa7, 0x3e, 0x1d, 0xd9, 0x53, 0x8c, 0xe6, 0x7b, 0xb0,
+	0xfa, 0x55, 0xec, 0x73, 0x72, 0x18, 0x61, 0xaa, 0x72, 0xb3, 0x0e, 0x8b, 0x2c, 0xc2, 0x54, 0xa6,
+	0xe4, 0x96, 0x25, 0x2b, 0x8b, 0x23, 0x7f, 0x78, 0x32, 0xb0, 0x04, 0x52, 0x00, 0x4c, 0x0a, 0xcf,
+	0xee, 0x13, 0x7e, 0x14, 0x63, 0x87, 0x28, 0xdf, 0x87, 0xd0, 0x48, 0x83, 0x20, 0x43, 0xdf, 0x15,
+	0xfe, 0xed, 0x9d, 0x0f, 0x65, 0xb4, 0xaf, 0xcf, 0x17, 0xad, 0x60, 0x3b, 0xd8, 0x3d, 0x3f, 0xeb,
+	0x2d, 0xcb, 0x4f, 0x7b, 0x59, 0x30, 0x1e, 0xb8, 0xe6, 0xdd, 0x8b, 0xf3, 0x54, 0x86, 0x36, 0xa1,
+	0x2e, 0x76, 0x65, 0xb0, 0x9d, 0x52, 0xb0, 0x59, 0x6c, 0x19, 0xc4, 0xec, 0x00, 0xda, 0x27, 0xfc,
+	0x90, 0xc4, 0x27, 0xbe, 0x93, 0x77, 0x82, 0xb9, 0x35, 0x65, 0x55, 0xbc, 0x06, 0x34, 0x98, 0x34,
+	0x89, 0xac, 0x37, 0xed, 0x7c, 0x6d, 0x6e, 0x41, 0x67, 0x9f, 0xf0, 0x2f, 0x22, 0x92, 0xd5, 0x34,
+	0xef, 0x29, 0x1d, 0x96, 0x25, 0x46, 0x44, 0xd3, 0xb4, 0xd5, 0xd2, 0x7c, 0xab, 0xe4, 0xa1, 0x4e,
+	0xe9, 0x02, 0x84, 0xb9, 0x51, 0x9e, 0x53, 0xb0, 0x98, 0xbf, 0x2e, 0x42, 0x47, 0x5c, 0xe1, 0xcb,
+	0x84, 0xc4, 0x93, 0x07, 0x38, 0xc6, 0x01, 0xe1, 0x24, 0x66, 0xe8, 0x25, 0x68, 0x4b, 0xee, 0x21,
+	0xc5, 0x81, 0x3a, 0xaf, 0x25, 0x6d, 0x9f, 0xe3, 0x80, 0xa0, 0x3b, 0x70, 0x23, 0x67, 0xca, 0x40,
+	0x0b, 0x02, 0xb4, 0x92, 0x5b, 0x05, 0x6c, 0x0f, 0x16, 0x39, 0xf6, 0x98, 0x5e, 0x5b, 0xab, 0x6d,
+	0xb4, 0x06, 0xdb, 0xd6, 0xcc, 0x18, 0x5b, 0x55, 0x01, 0x58, 0x47, 0xd8, 0x63, 0x7b, 0x94, 0xc7,
+	0x13, 0x5b, 0xb8, 0xa3, 0x4f, 0xe0, 0x06, 0xe3, 0x38, 0xe6, 0x62, 0xa2, 0x86, 0x81, 0x4f, 0xf5,
+	0xc5, 0xff, 0x32, 0x50, 0xc2, 0x37, 0xdd, 0xf9, 0xcc, 0xa7, 0x65, 0x2e, 0x7c, 0xaa, 0xd7, 0xaf,
+	0xc7, 0x85, 0x4f, 0xd1, 0x3d, 0x68, 0x2b, 0xf9, 0x10, 0x51, 0x2d, 0xcd, 0x3f, 0xa0, 0x2d, 0xe5,
+	0x98, 0xc6, 0x34, 0xc5, 0x83, 0x4f, 0xf5, 0xe5, 0xeb, 0xf0, 0xe0, 0x53, 0xf4, 0x22, 0x00, 0x4d,
+	0x82, 0xa1, 0x68, 0x48, 0xa6, 0x37, 0xd6, 0xb4, 0x8d, 0xba, 0xdd, 0xa4, 0x49, 0x20, 0x92, 0xcc,
+	0x8c, 0xb7, 0xa1, 0x99, 0x67, 0x16, 0xad, 0x42, 0x6d, 0x44, 0x26, 0xb2, 0xb6, 0xe9, 0x27, 0xea,
+	0x40, 0xfd, 0x04, 0x8f, 0x13, 0x55, 0xca, 0x6c, 0xf1, 0xee, 0xc2, 0x3b, 0x9a, 0x69, 0xc3, 0xcd,
+	0x7b, 0x3e, 0x75, 0x33, 0x1a, 0xd5, 0x90, 0x77, 0xa1, 0xfe, 0x24, 0xad, 0x9b, 0x1c, 0x8e, 0xf5,
+	0x39, 0x8b, 0x6b, 0x67, 0x5e, 0xa6, 0x03, 0xcf, 0x15, 0x39, 0x59, 0x14, 0x52, 0x46, 0x3e, 0x7e,
+	0x9c, 0xd0, 0x11, 0xba, 0x0f, 0xf5, 0x54, 0x01, 0x94, 0x22, 0x0d, 0xe4, 0x8c, 0x6f, 0xce, 0x37,
+	0xe3, 0x42, 0x42, 0x32, 0x02, 0xf3, 0x08, 0x6e, 0xe5, 0x87, 0x1c, 0xec, 0xfe, 0x5f, 0xa1, 0xb3,
+	0x69, 0x56, 0x35, 0x6f, 0x8f, 0xa6, 0xd4, 0x29, 0x8d, 0xfc, 0xa3, 0xeb, 0xaa, 0x53, 0x23, 0x8f,
+	0x58, 0xc9, 0xd3, 0xe0, 0x11, 0xac, 0xa6, 0x37, 0x13, 0x7a, 0x1a, 0x3f, 0x18, 0x27, 0x9e, 0x4f,
+	0xd1, 0x7d, 0x68, 0xe6, 0xfa, 0x8a, 0x5e, 0xae, 0xb8, 0x45, 0x59, 0x7d, 0x8d, 0xdb, 0x33, 0x3d,
+	0xb5, 0x97, 0xbe, 0x6f, 0x83, 0x7f, 0x6a, 0x19, 0xbd, 0x4d, 0xb0, 0x9b, 0xd3, 0xdb, 0xd0, 0x50,
+	0x8a, 0x88, 0xcc, 0x0a, 0xf6, 0x92, 0x3c, 0x1b, 0x97, 0x61, 0x54, 0x92, 0x1e, 0x42, 0xab, 0x20,
+	0x88, 0xe8, 0x4e, 0xb5, 0x4b, 0x49, 0x46, 0x8d, 0x2b, 0x60, 0x8a, 0x1c, 0xc3, 0xca, 0x94, 0x12,
+	0xa2, 0xf5, 0x6a, 0xbf, 0x19, 0x75, 0x35, 0xae, 0x04, 0x5e, 0x3c, 0x9a, 0x70, 0xd1, 0xb6, 0xe8,
+	0x95, 0x0a, 0xb7, 0x99, 0x49, 0x31, 0x36, 0xaf, 0x40, 0x15, 0x7a, 0x7f, 0x4b, 0x43, 0xdf, 0x40,
+	0xbb, 0xd8, 0x5d, 0xe8, 0xd5, 0xcb, 0xbc, 0x2f, 0x9a, 0xda, 0xb8, 0x0a, 0x27, 0x6f, 0x30, 0xf8,
+	0x51, 0x03, 0x7d, 0xfa, 0xa7, 0xa5, 0x50, 0x72, 0x4f, 0x3c, 0x82, 0xc5, 0x6d, 0xf4, 0x5a, 0x75,
+	0x6a, 0x2a, 0xfe, 0x7b, 0x8c, 0x39, 0xa0, 0x32, 0x8a, 0x1d, 0xfd, 0xe9, 0x79, 0x57, 0xfb, 0xfd,
+	0xbc, 0xab, 0xfd, 0x75, 0xde, 0xd5, 0x7e, 0xfb, 0xbb, 0xab, 0x7d, 0xbd, 0x24, 0x5e, 0xd5, 0xed,
+	0xe3, 0x25, 0xd1, 0x9a, 0x6f, 0xfc, 0x1b, 0x00, 0x00, 0xff, 0xff, 0x3e, 0xcc, 0x11, 0x35, 0x03,
+	0x0a, 0x00, 0x00,
 }

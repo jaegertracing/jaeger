@@ -8,7 +8,6 @@ import "gogoproto/gogo.proto";
 import "google/protobuf/timestamp.proto";
 import "google/protobuf/duration.proto";
 import "google/protobuf/empty.proto";
-import "google/rpc/status.proto";
 
 import "model.proto";
 
@@ -40,22 +39,8 @@ message GetDependenciesSuccess {
     ];
 }
 
-message GetDependenciesResponse {
-    oneof response {
-        GetDependenciesSuccess success = 1;
-        google.rpc.Status error = 2;
-    }
-}
-
 message WriteSpanRequest {
     jaeger.api_v2.Span span = 1;
-}
-
-message WriteSpanResponse {
-    oneof response {
-        google.protobuf.Empty success = 1;
-        google.rpc.Status error = 2;
-    }
 }
 
 message GetTraceRequest {
@@ -70,24 +55,10 @@ message GetTraceSuccess {
     jaeger.api_v2.Trace trace = 1;
 }
 
-message GetTraceResponse {
-    oneof response {
-        GetTraceSuccess success = 1;
-        google.rpc.Status error = 2;
-    }
-}
-
 message GetServicesRequest {}
 
 message GetServicesSuccess {
     repeated string services = 1;
-}
-
-message GetServicesResponse {
-    oneof response {
-        GetServicesSuccess success = 1;
-        google.rpc.Status error = 2;
-    }
 }
 
 message GetOperationsRequest {
@@ -96,13 +67,6 @@ message GetOperationsRequest {
 
 message GetOperationsSuccess {
     repeated string operations = 1;
-}
-
-message GetOperationsResponse {
-    oneof response {
-        GetOperationsSuccess success = 1;
-        google.rpc.Status error = 2;
-    }
 }
 
 message TraceQueryParameters {
@@ -151,28 +115,21 @@ message FindTraceIDsSuccess {
     ];
 }
 
-message FindTraceIDsResponse {
-    oneof response {
-        FindTraceIDsSuccess success = 1;
-        google.rpc.Status error = 2;
-    }
-}
-
 service SpanWriterPlugin {
     // spanstore/Writer
-    rpc WriteSpan(WriteSpanRequest) returns (WriteSpanResponse);
+    rpc WriteSpan(WriteSpanRequest) returns (google.protobuf.Empty);
 }
 
 service SpanReaderPlugin {
     // spanstore/Reader
-    rpc GetTrace(GetTraceRequest) returns (GetTraceResponse);
-    rpc GetServices(GetServicesRequest) returns (GetServicesResponse);
-    rpc GetOperations(GetOperationsRequest) returns (GetOperationsResponse);
+    rpc GetTrace(GetTraceRequest) returns (GetTraceSuccess);
+    rpc GetServices(GetServicesRequest) returns (GetServicesSuccess);
+    rpc GetOperations(GetOperationsRequest) returns (GetOperationsSuccess);
     rpc FindTraces(FindTracesRequest) returns (stream FindTracesResponseChunk);
-    rpc FindTraceIDs(FindTraceIDsRequest) returns (FindTraceIDsResponse);
+    rpc FindTraceIDs(FindTraceIDsRequest) returns (FindTraceIDsSuccess);
 }
 
 service DependenciesReaderPlugin {
     // dependencystore/Reader
-    rpc GetDependencies(GetDependenciesRequest) returns (GetDependenciesResponse);
+    rpc GetDependencies(GetDependenciesRequest) returns (GetDependenciesSuccess);
 }
