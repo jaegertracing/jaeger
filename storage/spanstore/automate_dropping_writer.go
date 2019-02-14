@@ -15,6 +15,7 @@ type AutomateDroppingWriter struct {
 
 // NewAutomateDroppingWriter creates a AutomateDroppingWriter
 func NewAutomateDroppingWriter(spanWriter Writer, percentage float64) *AutomateDroppingWriter {
+	// span with TraceID.Low below this threshold won't be written
 	threshold := uint64(percentage * float64(math.MaxUint64))
 	return &AutomateDroppingWriter{
 		spanWriter: spanWriter,
