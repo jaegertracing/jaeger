@@ -8,6 +8,7 @@ import ast
 import logging
 from pathlib import Path
 import requests
+from requests.auth import HTTPBasicAuth
 import ssl
 
 
@@ -99,11 +100,7 @@ def perform_action(action, client, write_alias, read_alias, index_to_rollover, t
 def create_index_template(template, template_name):
     print('Creating index template {}'.format(template_name))
     headers = {'Content-Type': 'application/json'}
-    s = requests.Session()
-    if str2bool(os.getenv("ES_TLS", 'false')):
-        s.verify = os.getenv("ES_TLS_CA")
-        s.cert = (os.getenv("ES_TLS_CERT"), os.getenv("ES_TLS_KEY"))
-
+    s = get_request_session(os.getenv("ES_USERNAME"), os.getenv("ES_PASSWORD"), str2bool(os.getenv("ES_TLS", 'false')), os.getenv("ES_TLS_CA"), os.getenv("ES_TLS_CERT"), os.getenv("ES_TLS_KEY"))
     r = s.put(sys.argv[2] + '/_template/' + template_name, headers=headers, data=template)
     print(r.text)
     r.raise_for_status()
@@ -180,6 +177,16 @@ def empty_list(ilo, error_msg):
     except curator.NoIndices:
         print(error_msg)
         sys.exit(0)
+
+
+def get_request_session(username, password, tls, ca, cert, key):
+    session = requests.Session()
+    if username is not None and password is not None:
+        session.auth = HTTPBasicAuth(username, password)
+    elif tls:
+        session.verify = ca
+        session.cert = (cert, key)
+    return session
 
 
 if __name__ == "__main__":
