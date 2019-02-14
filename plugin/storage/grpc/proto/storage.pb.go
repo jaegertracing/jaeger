@@ -1401,8 +1401,6 @@ var _SpanReaderPlugin_serviceDesc = grpc.ServiceDesc{
 // Client API for DependenciesReaderPlugin service
 
 type DependenciesReaderPluginClient interface {
-	// dependencystore/Writer
-	//    rpc WriteDependencies(WriteDependenciesRequest) returns (WriteDependenciesResponse);
 	// dependencystore/Reader
 	GetDependencies(ctx context.Context, in *GetDependenciesRequest, opts ...grpc.CallOption) (*GetDependenciesResponse, error)
 }
@@ -1427,8 +1425,6 @@ func (c *dependenciesReaderPluginClient) GetDependencies(ctx context.Context, in
 // Server API for DependenciesReaderPlugin service
 
 type DependenciesReaderPluginServer interface {
-	// dependencystore/Writer
-	//    rpc WriteDependencies(WriteDependenciesRequest) returns (WriteDependenciesResponse);
 	// dependencystore/Reader
 	GetDependencies(context.Context, *GetDependenciesRequest) (*GetDependenciesResponse, error)
 }

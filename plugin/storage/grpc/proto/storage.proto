@@ -24,20 +24,20 @@ option (gogoproto.goproto_registration) = true;
 
 message GetDependenciesRequest {
     google.protobuf.Timestamp end_timestamp = 1 [
-                                                (gogoproto.stdtime) = true,
-                                                (gogoproto.nullable) = false
-                                                ];
+      (gogoproto.stdtime) = true,
+      (gogoproto.nullable) = false
+    ];
     google.protobuf.Duration lookback = 2 [
-                                          (gogoproto.stdduration) = true,
-                                          (gogoproto.nullable) = false
-                                          ];
+      (gogoproto.stdduration) = true,
+      (gogoproto.nullable) = false
+    ];
 }
 
 message GetDependenciesSuccess {
     repeated bytes dependencies = 1 [
-                                    (gogoproto.nullable) = false,
-                                    (gogoproto.customtype) = "github.com/jaegertracing/jaeger/model.DependencyLink"
-                                    ];
+      (gogoproto.nullable) = false,
+      (gogoproto.customtype) = "github.com/jaegertracing/jaeger/model.DependencyLink"
+    ];
 }
 
 message GetDependenciesResponse {
@@ -60,10 +60,10 @@ message WriteSpanResponse {
 
 message GetTraceRequest {
     bytes trace_id = 1 [
-                       (gogoproto.nullable) = false,
-                       (gogoproto.customtype) = "github.com/jaegertracing/jaeger/model.TraceID",
-                       (gogoproto.customname) = "TraceID"
-                       ];
+      (gogoproto.nullable) = false,
+      (gogoproto.customtype) = "github.com/jaegertracing/jaeger/model.TraceID",
+      (gogoproto.customname) = "TraceID"
+    ];
 }
 
 message GetTraceSuccess {
@@ -110,21 +110,21 @@ message TraceQueryParameters {
     string operation_name = 2;
     map<string, string> tags = 3;
     google.protobuf.Timestamp start_time_min = 4 [
-                                                 (gogoproto.stdtime) = true,
-                                                 (gogoproto.nullable) = false
-                                                 ];
+      (gogoproto.stdtime) = true,
+      (gogoproto.nullable) = false
+    ];
     google.protobuf.Timestamp start_time_max = 5 [
-                                                 (gogoproto.stdtime) = true,
-                                                 (gogoproto.nullable) = false
-                                                 ];
+      (gogoproto.stdtime) = true,
+      (gogoproto.nullable) = false
+    ];
     google.protobuf.Duration duration_min = 6 [
-                                              (gogoproto.stdduration) = true,
-                                              (gogoproto.nullable) = false
-                                              ];
+      (gogoproto.stdduration) = true,
+      (gogoproto.nullable) = false
+    ];
     google.protobuf.Duration duration_max = 7 [
-                                              (gogoproto.stdduration) = true,
-                                              (gogoproto.nullable) = false
-                                              ];
+      (gogoproto.stdduration) = true,
+      (gogoproto.nullable) = false
+    ];
     int32 num_traces = 8;
 }
 
@@ -134,9 +134,9 @@ message FindTracesRequest {
 
 message FindTracesResponseChunk {
     repeated bytes spans = 1  [
-                              (gogoproto.nullable) = false,
-                              (gogoproto.customtype) = "github.com/jaegertracing/jaeger/model.Span"
-                              ];
+      (gogoproto.nullable) = false,
+      (gogoproto.customtype) = "github.com/jaegertracing/jaeger/model.Span"
+    ];
 }
 
 message FindTraceIDsRequest {
@@ -145,10 +145,10 @@ message FindTraceIDsRequest {
 
 message FindTraceIDsSuccess {
     repeated bytes trace_id = 1 [
-                                (gogoproto.nullable) = false,
-                                (gogoproto.customtype) = "github.com/jaegertracing/jaeger/model.TraceID",
-                                (gogoproto.customname) = "TraceIDs"
-                                ];
+      (gogoproto.nullable) = false,
+      (gogoproto.customtype) = "github.com/jaegertracing/jaeger/model.TraceID",
+      (gogoproto.customname) = "TraceIDs"
+    ];
 }
 
 message FindTraceIDsResponse {
@@ -173,8 +173,6 @@ service SpanReaderPlugin {
 }
 
 service DependenciesReaderPlugin {
-    // dependencystore/Writer
-    //    rpc WriteDependencies(WriteDependenciesRequest) returns (WriteDependenciesResponse);
     // dependencystore/Reader
     rpc GetDependencies(GetDependenciesRequest) returns (GetDependenciesResponse);
 }
