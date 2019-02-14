@@ -170,6 +170,7 @@ docker-hotrod:
 .PHONY: build_ui
 build_ui:
 	(cd jaeger-ui && yarn install && cd packages/jaeger-ui && yarn build)
+	pwd
 	esc -pkg assets -o cmd/query/app/ui/actual/assets.go -prefix jaeger-ui/build jaeger-ui/build
 	esc -pkg assets -o cmd/query/app/ui/placeholder/assets.go -prefix cmd/query/app/ui/placeholder/public cmd/query/app/ui/placeholder/public
 
