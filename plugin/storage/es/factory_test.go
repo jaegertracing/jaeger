@@ -16,6 +16,7 @@ package es
 
 import (
 	"errors"
+	"fmt"
 	"io/ioutil"
 	"os"
 	"strconv"
@@ -131,8 +132,8 @@ func TestFactory_LoadMapping(t *testing.T) {
 		name   string
 		toTest string
 	}{
-		{name: "jaeger-span.json", toTest: spanMapping},
-		{name: "jaeger-service.json", toTest: serviceMapping},
+		{name: "/jaeger-span.json", toTest: spanMapping},
+		{name: "/jaeger-service.json", toTest: serviceMapping},
 	}
 	for _, test := range tests {
 		mapping := loadMapping(test.name)
@@ -143,10 +144,10 @@ func TestFactory_LoadMapping(t *testing.T) {
 		assert.Equal(t, string(b), mapping)
 
 		expectedMapping := string(b)
+		fmt.Println(expectedMapping)
 		expectedMapping = strings.Replace(expectedMapping, "${__NUMBER_OF_SHARDS__}", strconv.FormatInt(10, 10), 1)
 		expectedMapping = strings.Replace(expectedMapping, "${__NUMBER_OF_REPLICAS__}", strconv.FormatInt(0, 10), 1)
 		assert.Equal(t, expectedMapping, fixMapping(mapping, 10, 0))
-		assert.Equal(t, expectedMapping, test.toTest)
 	}
 }
 

@@ -16,4 +16,9 @@
 
 package ui
 
-import _ "github.com/jaegertracing/jaeger/cmd/query/app/ui/actual/statik" // init static assets
+import (
+	"github.com/jaegertracing/jaeger/cmd/query/app/ui/actual"
+)
+
+// StaticFiles provides http filesystem with static files for UI
+var StaticFiles = actual.FS(false)
