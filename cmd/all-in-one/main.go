@@ -60,6 +60,7 @@ import (
 	"github.com/jaegertracing/jaeger/pkg/version"
 	ss "github.com/jaegertracing/jaeger/plugin/sampling/strategystore"
 	"github.com/jaegertracing/jaeger/plugin/storage"
+	istorage "github.com/jaegertracing/jaeger/storage"
 	"github.com/jaegertracing/jaeger/storage/dependencystore"
 	"github.com/jaegertracing/jaeger/storage/spanstore"
 	storageMetrics "github.com/jaegertracing/jaeger/storage/spanstore/metrics"
@@ -142,7 +143,7 @@ func main() {
 
 			startAgent(aOpts, repOpts, tchannelRepOpts, grpcRepOpts, cOpts, logger, metricsFactory)
 			grpcServer := startCollector(cOpts, spanWriter, logger, metricsFactory, strategyStore, hc)
-			startQuery(qOpts, spanReader, dependencyReader, logger, rootMetricsFactory, metricsFactory, mBldr, hc, queryApp.ArchiveOptions(storageFactory, logger))
+			startQuery(qOpts, spanReader, dependencyReader, logger, rootMetricsFactory, metricsFactory, mBldr, hc, archiveOptions(storageFactory, logger))
 			hc.Ready()
 			<-signalsChannel
 			logger.Info("Shutting down")
@@ -404,4 +405,34 @@ func initSamplingStrategyStore(
 		logger.Fatal("Failed to create sampling strategy store", zap.Error(err))
 	}
 	return strategyStore
+}
+
+func archiveOptions(storageFactory istorage.Factory, logger *zap.Logger) querysvc.QueryServiceOptions {
+	archiveFactory, ok := storageFactory.(istorage.ArchiveFactory)
+	if !ok {
+		logger.Info("Archive storage not supported by the factory")
+		return querysvc.QueryServiceOptions{}
+	}
+	reader, err := archiveFactory.CreateArchiveSpanReader()
+	if err == istorage.ErrArchiveStorageNotConfigured || err == istorage.ErrArchiveStorageNotSupported {
+		logger.Info("Archive storage not created", zap.String("reason", err.Error()))
+		return querysvc.QueryServiceOptions{}
+	}
+	if err != nil {
+		logger.Error("Cannot init archive storage reader", zap.Error(err))
+		return querysvc.QueryServiceOptions{}
+	}
+	writer, err := archiveFactory.CreateArchiveSpanWriter()
+	if err == istorage.ErrArchiveStorageNotConfigured || err == istorage.ErrArchiveStorageNotSupported {
+		logger.Info("Archive storage not created", zap.String("reason", err.Error()))
+		return querysvc.QueryServiceOptions{}
+	}
+	if err != nil {
+		logger.Error("Cannot init archive storage writer", zap.Error(err))
+		return querysvc.QueryServiceOptions{}
+	}
+	return querysvc.QueryServiceOptions{
+		ArchiveSpanReader: reader,
+		ArchiveSpanWriter: writer,
+	}
 }

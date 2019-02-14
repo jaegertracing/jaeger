@@ -16,7 +16,9 @@ package querysvc
 
 import (
 	"context"
+	"errors"
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
@@ -28,8 +30,15 @@ import (
 	spanstoremocks "github.com/jaegertracing/jaeger/storage/spanstore/mocks"
 )
 
+const millisToNanosMultiplier = int64(time.Millisecond / time.Nanosecond)
 
 var (
+	errStorageMsg = "Storage error"
+	errStorage    = errors.New(errStorageMsg)
+	errAdjustment = errors.New("Adjustment error")
+
+	defaultDependencyLookbackDuration = time.Hour * 24
+
 	mockTraceID = model.NewTraceID(0, 123456)
 	mockTrace   = &model.Trace{
 		Spans: []*model.Span{
@@ -61,14 +70,16 @@ func initializeTestServiceWithArchiveOptions() (*QueryService, *spanstoremocks.R
 	return qs, readStorage, dependencyStorage, archiveReadStorage, archiveWriteStorage
 }
 
-func initializeTestServiceWithAdjustOption() (*QueryService, *spanstoremocks.Reader, *depsmocks.Reader) {
+func initializeTestServiceWithAdjustOption() *QueryService {
 	readStorage := &spanstoremocks.Reader{}
 	dependencyStorage := &depsmocks.Reader{}
 	options := QueryServiceOptions{
-		Adjuster: adjuster.Sequence(StandardAdjusters...),
+		Adjuster: adjuster.Func(func(trace *model.Trace) (*model.Trace, error) {
+			return trace, errAdjustment
+		}),
 	}
 	qs := NewQueryService(readStorage, dependencyStorage, options)
-	return qs, readStorage, dependencyStorage
+	return qs
 }
 
 func initializeTestService() (*QueryService, *spanstoremocks.Reader, *depsmocks.Reader) {
@@ -84,8 +95,9 @@ func TestGetTraceSuccess(t *testing.T) {
 	readMock.On("GetTrace", mock.AnythingOfType("*context.valueCtx"), mock.AnythingOfType("model.TraceID")).
 		Return(mockTrace, nil).Once()
 
+	type contextKey string
 	ctx := context.Background()
-	res, err := qs.GetTrace(context.WithValue(ctx, "foo", "bar"), mockTraceID)
+	res, err := qs.GetTrace(context.WithValue(ctx, contextKey("foo"), "bar"), mockTraceID)
 	assert.NoError(t, err)
 	assert.Equal(t, res, mockTrace)
 }
@@ -96,8 +108,9 @@ func TestGetTraceNotFound(t *testing.T) {
 	readMock.On("GetTrace", mock.AnythingOfType("*context.valueCtx"), mock.AnythingOfType("model.TraceID")).
 		Return(nil, spanstore.ErrTraceNotFound).Once()
 
+	type contextKey string
 	ctx := context.Background()
-	_, err := qs.GetTrace(context.WithValue(ctx, "foo", "bar"), mockTraceID)
+	_, err := qs.GetTrace(context.WithValue(ctx, contextKey("foo"), "bar"), mockTraceID)
 	assert.Equal(t, err, spanstore.ErrTraceNotFound)
 }
 
@@ -109,8 +122,137 @@ func TestGetTraceFromArchiveStorage(t *testing.T) {
 	readArchiveMock.On("GetTrace", mock.AnythingOfType("*context.valueCtx"), mock.AnythingOfType("model.TraceID")).
 		Return(mockTrace, nil).Once()
 
+	type contextKey string
 	ctx := context.Background()
-	res, err := qs.GetTrace(context.WithValue(ctx, "foo", "bar"), mockTraceID)
+	res, err := qs.GetTrace(context.WithValue(ctx, contextKey("foo"), "bar"), mockTraceID)
 	assert.NoError(t, err)
 	assert.Equal(t, res, mockTrace)
+}
+
+// Test QueryService.GetServices() for success. 
+func TestGetServices(t *testing.T) {
+	qs, readMock, _ := initializeTestService()
+	expectedServices := []string{"trifle", "bling"}
+	readMock.On("GetServices", mock.AnythingOfType("*context.valueCtx")).Return(expectedServices, nil).Once()
+
+	type contextKey string
+	ctx := context.Background()
+	actualServices, err := qs.GetServices(context.WithValue(ctx, contextKey("foo"), "bar"))
+	assert.NoError(t, err)
+	assert.Equal(t, expectedServices, actualServices)
+}
+
+// Test QueryService.GetOperations() for success. 
+func TestGetOperations(t *testing.T) {
+	qs, readMock, _ := initializeTestService()
+	expectedOperations := []string{"", "get"}
+	readMock.On("GetOperations", mock.AnythingOfType("*context.valueCtx"), "abc/trifle").Return(expectedOperations, nil).Once()
+
+	type contextKey string
+	ctx := context.Background()
+	actualOperations, err := qs.GetOperations(context.WithValue(ctx, contextKey("foo"), "bar"), "abc/trifle")
+	assert.NoError(t, err)
+	assert.Equal(t, expectedOperations, actualOperations)
+}
+
+// Test QueryService.FindTraces() for success. 
+func TestFindTraces(t *testing.T) {
+	qs, readMock, _ := initializeTestService()
+	readMock.On("FindTraces", mock.AnythingOfType("*context.valueCtx"), mock.AnythingOfType("*spanstore.TraceQueryParameters")).
+		Return([]*model.Trace{mockTrace}, nil).Once()
+
+	type contextKey string
+	ctx := context.Background()
+	duration, _ := time.ParseDuration("20ms")
+	params := &spanstore.TraceQueryParameters{
+		ServiceName: "service",
+		OperationName: "operation",
+		StartTimeMax: time.Now(),
+		DurationMin: duration,
+		NumTraces: 200,
+	}
+	traces, err := qs.FindTraces(context.WithValue(ctx, contextKey("foo"), "bar"), params)
+	assert.NoError(t, err)
+	assert.Len(t, traces, 1)
+}
+
+// Test QueryService.ArchiveTrace() with no ArchiveSpanWriter.
+func TestArchiveTraceNoOptions(t *testing.T) {
+	qs, _, _ := initializeTestService()
+
+	type contextKey string
+	ctx := context.Background()
+	err := qs.ArchiveTrace(context.WithValue(ctx, contextKey("foo"), "bar"), mockTraceID)
+	assert.Equal(t, errNoArchiveSpanStorage, err)
+}
+
+// Test QueryService.ArchiveTrace() with ArchiveSpanWriter but invalid traceID.
+func TestArchiveTraceWithInvalidTraceID(t *testing.T) {
+	qs, readMock, _, readArchiveMock, _ := initializeTestServiceWithArchiveOptions()
+	readMock.On("GetTrace", mock.AnythingOfType("*context.valueCtx"), mock.AnythingOfType("model.TraceID")).
+		Return(nil, spanstore.ErrTraceNotFound).Once()
+	readArchiveMock.On("GetTrace", mock.AnythingOfType("*context.valueCtx"), mock.AnythingOfType("model.TraceID")).
+		Return(nil, spanstore.ErrTraceNotFound).Once()
+
+	type contextKey string
+	ctx := context.Background()
+	err := qs.ArchiveTrace(context.WithValue(ctx, contextKey("foo"), "bar"), mockTraceID)
+	assert.Equal(t, spanstore.ErrTraceNotFound, err)
+}
+
+// Test QueryService.ArchiveTrace(), save error with ArchiveSpanWriter.
+func TestArchiveTraceWithArchiveWriterError(t *testing.T) {
+	qs, readMock, _, _, writeMock := initializeTestServiceWithArchiveOptions()
+	readMock.On("GetTrace", mock.AnythingOfType("*context.valueCtx"), mock.AnythingOfType("model.TraceID")).
+		Return(mockTrace, nil).Once()
+	writeMock.On("WriteSpan", mock.AnythingOfType("*model.Span")).
+		Return(errors.New("cannot save")).Times(2)
+
+	type contextKey string
+	ctx := context.Background()
+	multiErr := qs.ArchiveTrace(context.WithValue(ctx, contextKey("foo"), "bar"), mockTraceID)
+	assert.Len(t, multiErr, 2)
+	// There are two spans in the mockTrace, ArchiveTrace should return a wrapped error.
+	assert.EqualError(t, multiErr, "[cannot save, cannot save]")
+}
+
+// Test QueryService.ArchiveTrace() with correctly configured ArchiveSpanWriter.
+func TestArchiveTraceSuccess(t *testing.T) {
+	qs, readMock, _, _, writeMock := initializeTestServiceWithArchiveOptions()
+	readMock.On("GetTrace", mock.AnythingOfType("*context.valueCtx"), mock.AnythingOfType("model.TraceID")).
+		Return(mockTrace, nil).Once()
+	writeMock.On("WriteSpan", mock.AnythingOfType("*model.Span")).
+		Return(nil).Times(2)
+
+	type contextKey string
+	ctx := context.Background()
+	err := qs.ArchiveTrace(context.WithValue(ctx, contextKey("foo"), "bar"), mockTraceID)
+	assert.NoError(t, err)
+}
+
+// Test QueryService.Adjust()
+func TestTraceAdjustmentFailure(t *testing.T) {
+	qs := initializeTestServiceWithAdjustOption()
+
+	_, err := qs.Adjust(mockTrace)
+	assert.Error(t, err)
+	assert.EqualValues(t, errAdjustment.Error(), err.Error())
+}
+
+// Test QueryService.GetDependencies()
+func TestGetDependencies(t *testing.T) {
+	qs, _, depsMock := initializeTestService()
+	expectedDependencies := []model.DependencyLink{
+		{
+			Parent: "killer",
+			Child: "queen",
+			CallCount: 12,
+		},
+	}
+	endTs := time.Unix(0, 1476374248550*millisToNanosMultiplier)
+	depsMock.On("GetDependencies", endTs, defaultDependencyLookbackDuration).Return(expectedDependencies, nil).Times(1)
+
+	actualDependencies, err := qs.GetDependencies(time.Unix(0, 1476374248550*millisToNanosMultiplier), defaultDependencyLookbackDuration)
+	assert.NoError(t, err)
+	assert.Equal(t, expectedDependencies, actualDependencies)
 }
