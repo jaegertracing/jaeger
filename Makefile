@@ -345,9 +345,11 @@ PROTO_GOGO_MAPPINGS := $(shell echo \
 		Mgoogle/protobuf/timestamp.proto=github.com/gogo/protobuf/types, \
 		Mgoogle/protobuf/duration.proto=github.com/gogo/protobuf/types, \
 		Mgoogle/protobuf/empty.proto=github.com/gogo/protobuf/types, \
+		Mgoogle/rpc/status.proto=github.com/gogo/googleapis/google/rpc, \
 		Mgoogle/api/annotations.proto=github.com/gogo/googleapis/google/api, \
 		Mmodel.proto=github.com/jaegertracing/jaeger/model \
 	| sed 's/ //g')
+
 
 .PHONY: proto
 proto:

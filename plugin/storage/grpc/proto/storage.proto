@@ -8,6 +8,7 @@ import "gogoproto/gogo.proto";
 import "google/protobuf/timestamp.proto";
 import "google/protobuf/duration.proto";
 import "google/protobuf/empty.proto";
+import "google/rpc/status.proto";
 
 import "model.proto";
 
@@ -42,7 +43,7 @@ message GetDependenciesSuccess {
 message GetDependenciesResponse {
     oneof response {
         GetDependenciesSuccess success = 1;
-        GrpcStoragePluginError error = 2;
+        google.rpc.Status error = 2;
     }
 }
 
@@ -53,7 +54,7 @@ message WriteSpanRequest {
 message WriteSpanResponse {
     oneof response {
         google.protobuf.Empty success = 1;
-        GrpcStoragePluginError error = 2;
+        google.rpc.Status error = 2;
     }
 }
 
@@ -72,7 +73,7 @@ message GetTraceSuccess {
 message GetTraceResponse {
     oneof response {
         GetTraceSuccess success = 1;
-        GrpcStoragePluginError error = 2;
+        google.rpc.Status error = 2;
     }
 }
 
@@ -85,7 +86,7 @@ message GetServicesSuccess {
 message GetServicesResponse {
     oneof response {
         GetServicesSuccess success = 1;
-        GrpcStoragePluginError error = 2;
+        google.rpc.Status error = 2;
     }
 }
 
@@ -100,7 +101,7 @@ message GetOperationsSuccess {
 message GetOperationsResponse {
     oneof response {
         GetOperationsSuccess success = 1;
-        google.protobuf.Empty error = 2;
+        google.rpc.Status error = 2;
     }
 }
 
@@ -153,12 +154,8 @@ message FindTraceIDsSuccess {
 message FindTraceIDsResponse {
     oneof response {
         FindTraceIDsSuccess success = 1;
-        GrpcStoragePluginError error = 2;
+        google.rpc.Status error = 2;
     }
-}
-
-message GrpcStoragePluginError {
-    string message = 1;
 }
 
 service SpanWriterPlugin {
