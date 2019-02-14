@@ -16,7 +16,6 @@ package es
 
 import (
 	"errors"
-	"fmt"
 	"io/ioutil"
 	"os"
 	"strconv"
@@ -144,7 +143,6 @@ func TestFactory_LoadMapping(t *testing.T) {
 		assert.Equal(t, string(b), mapping)
 
 		expectedMapping := string(b)
-		fmt.Println(expectedMapping)
 		expectedMapping = strings.Replace(expectedMapping, "${__NUMBER_OF_SHARDS__}", strconv.FormatInt(10, 10), 1)
 		expectedMapping = strings.Replace(expectedMapping, "${__NUMBER_OF_REPLICAS__}", strconv.FormatInt(0, 10), 1)
 		assert.Equal(t, expectedMapping, fixMapping(mapping, 10, 0))
@@ -162,7 +160,7 @@ func TestArchiveDisabled(t *testing.T) {
 	assert.Nil(t, err)
 }
 
-func TestArchiveEnabled2(t *testing.T) {
+func TestArchiveEnabled(t *testing.T) {
 	f := NewFactory()
 	f.primaryConfig = &mockClientBuilder{}
 	f.archiveConfig = &mockClientBuilder{}
