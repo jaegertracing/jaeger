@@ -149,20 +149,16 @@ install-glide:
 	$(MAKE) install
 
 .PHONY: install
-install: install-esc
+install:
 	@which dep > /dev/null || curl https://raw.githubusercontent.com/golang/dep/master/install.sh | sh
 	dep ensure
 
-.PHONY: install-esc
-install-esc:
-	go get -u github.com/mjibson/esc
-
 .PHONE: elasticsearch-mappings
-elasticsearch-mappings: install-esc
+elasticsearch-mappings:
 	esc -pkg mappings -o plugin/storage/es/mappings/assets.go -ignore assets -prefix plugin/storage/es/mappings plugin/storage/es/mappings
 
 .PHONY: build-examples
-build-examples: install-esc
+build-examples:
 	esc -pkg frontend -o examples/hotrod/services/frontend/assets.go  -prefix examples/hotrod/services/frontend/web_assets examples/hotrod/services/frontend/web_assets
 	CGO_ENABLED=0 installsuffix=cgo go build -o ./examples/hotrod/hotrod-$(GOOS) ./examples/hotrod/main.go
 
@@ -172,9 +168,10 @@ docker-hotrod:
 	docker build -t $(DOCKER_NAMESPACE)/example-hotrod:${DOCKER_TAG} ./examples/hotrod
 
 .PHONY: build_ui
-build_ui: install-esc
+build_ui:
 	(cd jaeger-ui && yarn install && cd packages/jaeger-ui && yarn build)
-	esc -pkg actual -o cmd/query/app/ui/actual/assets.go -prefix jaeger-ui/build jaeger-ui/build
+	esc -pkg assets -o cmd/query/app/ui/actual/assets.go -prefix jaeger-ui/build jaeger-ui/build
+	esc -pkg assets -o cmd/query/app/ui/placeholder/assets.go -prefix cmd/query/app/ui/placeholder/public cmd/query/app/ui/placeholder/public
 
 .PHONY: build-all-in-one-linux
 build-all-in-one-linux: build_ui
@@ -279,6 +276,7 @@ install-tools:
 	go get -u github.com/sectioneight/md-to-godoc
 	go get -u github.com/securego/gosec/cmd/gosec/...
 	go get -u honnef.co/go/tools/cmd/gosimple
+	go get -u github.com/mjibson/esc
 
 .PHONY: install-ci
 install-ci: install install-tools

@@ -21,4 +21,4 @@ import (
 )
 
 // StaticFiles provides http filesystem with static files for UI
-var StaticFiles = placeholder.FS(false)
+var StaticFiles = assets.FS(false)
