@@ -24,9 +24,10 @@ import (
 
 func TestDependencyUDT(t *testing.T) {
 	dependency := &Dependency{
-		Parent:    "goo",
-		Child:     "gle",
+		Parent:    "bi",
+		Child:     "ng",
 		CallCount: 123,
+		Source:    "jaeger",
 	}
 
 	testCase := testutils.UDTTestCase{
@@ -34,9 +35,10 @@ func TestDependencyUDT(t *testing.T) {
 		New:     func() gocql.UDTUnmarshaler { return &Dependency{} },
 		ObjName: "Dependency",
 		Fields: []testutils.UDTField{
-			{Name: "parent", Type: gocql.TypeAscii, ValIn: []byte("goo"), Err: false},
-			{Name: "child", Type: gocql.TypeAscii, ValIn: []byte("gle"), Err: false},
+			{Name: "parent", Type: gocql.TypeAscii, ValIn: []byte("bi"), Err: false},
+			{Name: "child", Type: gocql.TypeAscii, ValIn: []byte("ng"), Err: false},
 			{Name: "call_count", Type: gocql.TypeBigInt, ValIn: []byte{0, 0, 0, 0, 0, 0, 0, 123}, Err: false},
+			{Name: "source", Type: gocql.TypeAscii, ValIn: []byte("jaeger"), Err: false},
 			{Name: "wrong-field", Err: true},
 		},
 	}
