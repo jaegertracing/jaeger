@@ -129,7 +129,7 @@ func TestGetTraceFromArchiveStorage(t *testing.T) {
 	assert.Equal(t, res, mockTrace)
 }
 
-// Test QueryService.GetServices() for success. 
+// Test QueryService.GetServices() for success.
 func TestGetServices(t *testing.T) {
 	qs, readMock, _ := initializeTestService()
 	expectedServices := []string{"trifle", "bling"}
@@ -142,7 +142,7 @@ func TestGetServices(t *testing.T) {
 	assert.Equal(t, expectedServices, actualServices)
 }
 
-// Test QueryService.GetOperations() for success. 
+// Test QueryService.GetOperations() for success.
 func TestGetOperations(t *testing.T) {
 	qs, readMock, _ := initializeTestService()
 	expectedOperations := []string{"", "get"}
@@ -155,7 +155,7 @@ func TestGetOperations(t *testing.T) {
 	assert.Equal(t, expectedOperations, actualOperations)
 }
 
-// Test QueryService.FindTraces() for success. 
+// Test QueryService.FindTraces() for success.
 func TestFindTraces(t *testing.T) {
 	qs, readMock, _ := initializeTestService()
 	readMock.On("FindTraces", mock.AnythingOfType("*context.valueCtx"), mock.AnythingOfType("*spanstore.TraceQueryParameters")).
