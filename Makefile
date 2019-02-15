@@ -6,7 +6,7 @@ ALL_SRC := $(shell find . -name '*.go' \
 				   -not -name 'doc.go' \
 				   -not -name '_*' \
 				   -not -name '.*' \
-				   -not -name 'assets.go' \
+				   -not -name 'gen_assets.go' \
 				   -not -name 'mocks*' \
 				   -not -name '*_test.go' \
 				   -not -name 'model.pb.go' \
@@ -155,11 +155,11 @@ install:
 
 .PHONE: elasticsearch-mappings
 elasticsearch-mappings:
-	esc -pkg mappings -o plugin/storage/es/mappings/assets.go -ignore assets -prefix plugin/storage/es/mappings plugin/storage/es/mappings
+	esc -pkg mappings -o plugin/storage/es/mappings/gen_assets.go -ignore assets -prefix plugin/storage/es/mappings plugin/storage/es/mappings
 
 .PHONY: build-examples
 build-examples:
-	esc -pkg frontend -o examples/hotrod/services/frontend/assets.go  -prefix examples/hotrod/services/frontend/web_assets examples/hotrod/services/frontend/web_assets
+	esc -pkg frontend -o examples/hotrod/services/frontend/gen_assets.go  -prefix examples/hotrod/services/frontend/web_assets examples/hotrod/services/frontend/web_assets
 	CGO_ENABLED=0 installsuffix=cgo go build -o ./examples/hotrod/hotrod-$(GOOS) ./examples/hotrod/main.go
 
 .PHONE: docker-hotrod
@@ -170,8 +170,8 @@ docker-hotrod:
 .PHONY: build_ui
 build_ui:
 	cd jaeger-ui && yarn install && cd packages/jaeger-ui && yarn build
-	esc -pkg assets -o cmd/query/app/ui/actual/assets.go -prefix jaeger-ui/packages/jaeger-ui/build jaeger-ui/packages/jaeger-ui/build
-	esc -pkg assets -o cmd/query/app/ui/placeholder/assets.go -prefix cmd/query/app/ui/placeholder/public cmd/query/app/ui/placeholder/public
+	esc -pkg assets -o cmd/query/app/ui/actual/gen_assets.go -prefix jaeger-ui/packages/jaeger-ui/build jaeger-ui/packages/jaeger-ui/build
+	esc -pkg assets -o cmd/query/app/ui/placeholder/gen_assets.go -prefix cmd/query/app/ui/placeholder/public cmd/query/app/ui/placeholder/public
 
 .PHONY: build-all-in-one-linux
 build-all-in-one-linux: build_ui
@@ -257,7 +257,7 @@ include crossdock/rules.mk
 .PHONY: build-crossdock-ui-placeholder
 build-crossdock-ui-placeholder:
 	mkdir -p cmd/query/app/ui/actual
-	[ -e cmd/query/app/ui/actual/assets.go ] || cp cmd/query/app/ui/placeholder/assets.go cmd/query/app/ui/actual/assets.go
+	[ -e cmd/query/app/ui/actual/gen_assets.go ] || cp cmd/query/app/ui/placeholder/gen_assets.go cmd/query/app/ui/actual/gen_assets.go
 
 # Crossdock tests do not require fully functioning UI, so we skip it to speed up the build.
 .PHONY: build-crossdock
