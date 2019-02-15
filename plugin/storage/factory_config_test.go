@@ -25,7 +25,7 @@ import (
 func clearEnv() {
 	os.Setenv(SpanStorageTypeEnvVar, "")
 	os.Setenv(DependencyStorageTypeEnvVar, "")
-	os.Setenv(AutomateDropPercentage, "")
+	os.Setenv(DownSamplingRatio, "")
 }
 
 func TestFactoryConfigFromEnv(t *testing.T) {
@@ -54,9 +54,9 @@ func TestFactoryConfigFromEnv(t *testing.T) {
 	assert.Equal(t, []string{elasticsearchStorageType, kafkaStorageType}, f.SpanWriterTypes)
 	assert.Equal(t, elasticsearchStorageType, f.SpanReaderType)
 
-	os.Setenv(AutomateDropPercentage, "0.5")
+	os.Setenv(DownSamplingRatio, "0.5")
 	f = FactoryConfigFromEnvAndCLI(nil, &bytes.Buffer{})
-	assert.Equal(t, 0.5, f.automateDropPercentage)
+	assert.Equal(t, 0.5, f.DownSamplingRatio)
 }
 
 func TestFactoryConfigFromEnvDeprecated(t *testing.T) {
