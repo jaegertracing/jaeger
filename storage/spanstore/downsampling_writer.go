@@ -28,17 +28,25 @@ type DownSamplingWriter struct {
 	spanWriter Writer
 	threshold  uint64
 	fnvHash    hash.Hash64
+	hashSalt   string
+}
+
+// DownSamplingOptions contains the options for constructing a DownSamplingWriter
+type DownSamplingOptions struct {
+	Ratio    float64
+	HashSalt string
 }
 
 // NewDownSamplingWriter creates a DownSamplingWriter
-func NewDownSamplingWriter(spanWriter Writer, downSamplingRatio float64) *DownSamplingWriter {
-	threshold := uint64(downSamplingRatio * float64(math.MaxUint64))
+func NewDownSamplingWriter(spanWriter Writer, downSamplingOptions DownSamplingOptions) *DownSamplingWriter {
+	threshold := uint64(downSamplingOptions.Ratio * float64(math.MaxUint64))
 	// fnv hash computes uint64 as hash value
 	fnvHash := fnv.New64a()
 	return &DownSamplingWriter{
 		spanWriter: spanWriter,
 		threshold:  threshold,
 		fnvHash:    fnvHash,
+		hashSalt:   downSamplingOptions.HashSalt,
 	}
 }
 
@@ -47,7 +55,7 @@ func (c *DownSamplingWriter) WriteSpan(span *model.Span) error {
 	if c.threshold == 0 {
 		return c.spanWriter.WriteSpan(span)
 	}
-	hashVal := HashBytes(c.fnvHash, []byte(span.TraceID.String()))
+	hashVal := HashBytes(c.fnvHash, []byte(c.hashSalt+span.TraceID.String()))
 	if hashVal < c.threshold {
 		// Downsampling writer prevents writing span when hashVal falls
 		// in the range of (0, threshold)

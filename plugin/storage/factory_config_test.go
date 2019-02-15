@@ -26,6 +26,7 @@ func clearEnv() {
 	os.Setenv(SpanStorageTypeEnvVar, "")
 	os.Setenv(DependencyStorageTypeEnvVar, "")
 	os.Setenv(DownSamplingRatio, "")
+	os.Setenv(DownSamplingHashSalt, "")
 }
 
 func TestFactoryConfigFromEnv(t *testing.T) {
@@ -55,8 +56,10 @@ func TestFactoryConfigFromEnv(t *testing.T) {
 	assert.Equal(t, elasticsearchStorageType, f.SpanReaderType)
 
 	os.Setenv(DownSamplingRatio, "0.5")
+	os.Setenv(DownSamplingHashSalt, "jaeger-test")
 	f = FactoryConfigFromEnvAndCLI(nil, &bytes.Buffer{})
 	assert.Equal(t, 0.5, f.DownSamplingRatio)
+	assert.Equal(t, "jaeger-test", f.DownSamplingHashSalt)
 }
 
 func TestFactoryConfigFromEnvDeprecated(t *testing.T) {

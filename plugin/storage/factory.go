@@ -118,9 +118,15 @@ func (f *Factory) CreateSpanWriter() (spanstore.Writer, error) {
 		writers = append(writers, writer)
 	}
 	if len(f.SpanWriterTypes) == 1 {
-		return spanstore.NewDownSamplingWriter(writers[0], f.DownSamplingRatio), nil
+		return spanstore.NewDownSamplingWriter(writers[0], spanstore.DownSamplingOptions{
+			Ratio:    f.DownSamplingRatio,
+			HashSalt: f.DownSamplingHashSalt,
+		}), nil
 	}
-	return spanstore.NewDownSamplingWriter(spanstore.NewCompositeWriter(writers...), f.DownSamplingRatio), nil
+	return spanstore.NewDownSamplingWriter(spanstore.NewCompositeWriter(writers...), spanstore.DownSamplingOptions{
+		Ratio:    f.DownSamplingRatio,
+		HashSalt: f.DownSamplingHashSalt,
+	}), nil
 }
 
 // CreateDependencyReader implements storage.Factory

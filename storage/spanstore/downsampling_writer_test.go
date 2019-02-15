@@ -23,8 +23,25 @@ import (
 	"github.com/stretchr/testify/assert"
 
 	"github.com/jaegertracing/jaeger/model"
+	"github.com/jaegertracing/jaeger/storage/spanstore"
 	. "github.com/jaegertracing/jaeger/storage/spanstore"
 )
+
+func TestDownSamplingWriter_WriteSpan(t *testing.T) {
+	trace := model.TraceID{
+		Low:  uint64(0),
+		High: uint64(1),
+	}
+	span := &model.Span{
+		TraceID: trace,
+	}
+	downSamplingOptions := spanstore.DownSamplingOptions{
+		Ratio:    1,
+		HashSalt: "jaeger-test",
+	}
+	c := NewDownSamplingWriter(&noopWriteSpanStore{}, downSamplingOptions)
+	assert.NoError(t, c.WriteSpan(span))
+}
 
 func TestDownSamplingWriter_HashBytes(t *testing.T) {
 	span := &model.Span{

@@ -31,8 +31,11 @@ const (
 
 	spanStorageFlag = "--span-storage.type"
 
-	// DownSamplingRatio is the name of the env var that defines the ratio of spans we would drop from ingester
+	// DownSamplingRatio is the name of the env var that defines the ratio of spans we would drop
 	DownSamplingRatio = "DOWN_SAMPLING_RATIO"
+
+	// DownSamplingHashSalt is the name of the env var that stores the hash salt for down sampling
+	DownSamplingHashSalt = "DOWN_SAMPLING_HASH_SALT"
 )
 
 // FactoryConfig tells the Factory which types of backends it needs to create for different storage types.
@@ -41,6 +44,7 @@ type FactoryConfig struct {
 	SpanReaderType          string
 	DependenciesStorageType string
 	DownSamplingRatio       float64
+	DownSamplingHashSalt    string
 }
 
 // FactoryConfigFromEnvAndCLI reads the desired types of storage backends from SPAN_STORAGE_TYPE and
@@ -80,12 +84,16 @@ func FactoryConfigFromEnvAndCLI(args []string, log io.Writer) FactoryConfig {
 	if err != nil {
 		downSamplingRatio = 0
 	}
+	// Default salt is empty string
+	downSamplingHashSalt := os.Getenv(DownSamplingHashSalt)
+
 	// TODO support explicit configuration for readers
 	return FactoryConfig{
 		SpanWriterTypes:         spanWriterTypes,
 		SpanReaderType:          spanWriterTypes[0],
 		DependenciesStorageType: depStorageType,
 		DownSamplingRatio:       downSamplingRatio,
+		DownSamplingHashSalt:    downSamplingHashSalt,
 	}
 }
 
