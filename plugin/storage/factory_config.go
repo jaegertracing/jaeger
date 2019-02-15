@@ -31,10 +31,13 @@ const (
 
 	spanStorageFlag = "--span-storage.type"
 
-	// DownSamplingRatio is the name of the env var that defines the ratio of spans we would drop
+	// DownSamplingRatio is the name of the env var that defines the ratio of spans for down sampling
+	// Users are expected to pass ratio ranging from 0 to 1.0
+	// e.g ratio = 0.3 means we are keeping 30% of spans and dropping 70% of spans.
 	DownSamplingRatio = "DOWN_SAMPLING_RATIO"
 
-	// DownSamplingHashSalt is the name of the env var that stores the hash salt for down sampling
+	// DownSamplingHashSalt is the name of the env var that defines the hash salt for down sampling
+	// Users are expected to pass their own salt string or DownSamplingWriter will use empty string as default.
 	DownSamplingHashSalt = "DOWN_SAMPLING_HASH_SALT"
 )
 
@@ -79,12 +82,23 @@ func FactoryConfigFromEnvAndCLI(args []string, log io.Writer) FactoryConfig {
 		depStorageType = spanWriterTypes[0]
 	}
 	ratioEnvVariable := os.Getenv(DownSamplingRatio)
-	// Default ratio to drop spans is 0
+	var downSamplingRatio float64
+	if ratioEnvVariable == "" {
+		fmt.Fprintf(log,
+			"WARNING: DOWN_SAMPLING_RATIO is not specified. DownSamplingWriter will not be applied.",
+		)
+		// Default ratio is 100% which means no down-sampling.
+		downSamplingRatio = 1.0
+	}
 	downSamplingRatio, err := strconv.ParseFloat(ratioEnvVariable, 64)
 	if err != nil {
-		downSamplingRatio = 0
+		fmt.Fprintf(log,
+			"WARNING: DOWN_SAMPLING_RATIO should be a float number. The number entered is invalid. DownSamplingWriter will not be applied.",
+		)
+		// Default ratio is 100% which means no down-sampling.
+		downSamplingRatio = 1.0
 	}
-	// Default salt is empty string
+	// Default salt is empty string.
 	downSamplingHashSalt := os.Getenv(DownSamplingHashSalt)
 
 	// TODO support explicit configuration for readers

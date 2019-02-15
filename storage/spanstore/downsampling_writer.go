@@ -1,4 +1,4 @@
-// Copyright (c) 2017 Uber Technologies, Inc.
+// Copyright (c) 2019 The Jaeger Authors.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -18,48 +18,68 @@ import (
 	"hash"
 	"hash/fnv"
 	"math"
+	"sync"
 
 	"github.com/jaegertracing/jaeger/model"
 )
 
-// DownSamplingWriter is a span Writer that tries to drop spans with
-// predefined downSamplingRatio
+// DownSamplingWriter is a span Writer that drops spans with a predefined downSamplingRatio.
 type DownSamplingWriter struct {
 	spanWriter Writer
 	threshold  uint64
-	fnvHash    hash.Hash64
 	hashSalt   string
+	fnvHash    hash.Hash64
+	lock       sync.Mutex
 }
 
-// DownSamplingOptions contains the options for constructing a DownSamplingWriter
+// DownSamplingOptions contains the options for constructing a DownSamplingWriter.
 type DownSamplingOptions struct {
 	Ratio    float64
 	HashSalt string
 }
 
-// NewDownSamplingWriter creates a DownSamplingWriter
+// NewDownSamplingWriter creates a DownSamplingWriter.
 func NewDownSamplingWriter(spanWriter Writer, downSamplingOptions DownSamplingOptions) *DownSamplingWriter {
 	threshold := uint64(downSamplingOptions.Ratio * float64(math.MaxUint64))
-	// fnv hash computes uint64 as hash value
 	fnvHash := fnv.New64a()
 	return &DownSamplingWriter{
 		spanWriter: spanWriter,
 		threshold:  threshold,
-		fnvHash:    fnvHash,
 		hashSalt:   downSamplingOptions.HashSalt,
+		fnvHash:    fnvHash,
 	}
 }
 
 // WriteSpan calls WriteSpan on wrapped span writer.
-func (c *DownSamplingWriter) WriteSpan(span *model.Span) error {
-	if c.threshold == 0 {
-		return c.spanWriter.WriteSpan(span)
+func (ds *DownSamplingWriter) WriteSpan(span *model.Span) error {
+	if ds.threshold == math.MaxUint64 {
+		return ds.spanWriter.WriteSpan(span)
 	}
-	hashVal := HashBytes(c.fnvHash, []byte(c.hashSalt+span.TraceID.String()))
-	if hashVal < c.threshold {
-		// Downsampling writer prevents writing span when hashVal falls
-		// in the range of (0, threshold)
+
+	hashSaltBytes := []byte(ds.hashSalt)
+	// traceID marshal 16 bytes
+	traceIDBytes := make([]byte, 16)
+	length, err := span.TraceID.MarshalTo(traceIDBytes)
+	if err != nil || length != 16 {
+		// No Downsamping when there's error marshaling.
+		return ds.spanWriter.WriteSpan(span)
+	}
+	hashVal := ds.hashBytes(append(hashSaltBytes, traceIDBytes...))
+
+	if hashVal >= ds.threshold {
+		// Drops spans when hashVal falls beyond computed threshold.
 		return nil
 	}
-	return c.spanWriter.WriteSpan(span)
+	return ds.spanWriter.WriteSpan(span)
+}
+
+func (ds *DownSamplingWriter) hashBytes(bytes []byte) uint64 {
+	ds.lock.Lock()
+	defer ds.lock.Unlock()
+	ds.fnvHash.Reset()
+	_, err := ds.fnvHash.Write(bytes)
+	if err != nil {
+		return math.MaxUint64
+	}
+	return ds.fnvHash.Sum64()
 }

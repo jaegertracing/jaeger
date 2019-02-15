@@ -19,6 +19,8 @@ import (
 	"flag"
 	"testing"
 
+	"github.com/jaegertracing/jaeger/storage/spanstore"
+
 	"github.com/spf13/viper"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -28,7 +30,6 @@ import (
 	"github.com/jaegertracing/jaeger/storage"
 	depStoreMocks "github.com/jaegertracing/jaeger/storage/dependencystore/mocks"
 	"github.com/jaegertracing/jaeger/storage/mocks"
-	"github.com/jaegertracing/jaeger/storage/spanstore"
 	spanStoreMocks "github.com/jaegertracing/jaeger/storage/spanstore/mocks"
 )
 
@@ -40,6 +41,8 @@ func defaultCfg() FactoryConfig {
 		SpanWriterTypes:         []string{cassandraStorageType},
 		SpanReaderType:          cassandraStorageType,
 		DependenciesStorageType: cassandraStorageType,
+		DownSamplingRatio:       1.0,
+		DownSamplingHashSalt:    "",
 	}
 }
 
@@ -131,10 +134,9 @@ func TestCreate(t *testing.T) {
 	mock.On("CreateSpanWriter").Return(spanWriter, nil)
 	w, err = f.CreateSpanWriter()
 	assert.NoError(t, err)
-
 	assert.Equal(t, spanstore.NewDownSamplingWriter(spanWriter, spanstore.DownSamplingOptions{
-		Ratio:    0,
-		HashSalt: "",
+		Ratio:    f.DownSamplingRatio,
+		HashSalt: f.DownSamplingHashSalt,
 	}), w)
 }
 
@@ -163,8 +165,8 @@ func TestCreateMulti(t *testing.T) {
 	w, err = f.CreateSpanWriter()
 	assert.NoError(t, err)
 	assert.Equal(t, spanstore.NewDownSamplingWriter(spanstore.NewCompositeWriter(spanWriter, spanWriter2), spanstore.DownSamplingOptions{
-		Ratio:    0,
-		HashSalt: "",
+		Ratio:    f.DownSamplingRatio,
+		HashSalt: f.DownSamplingHashSalt,
 	}), w)
 }
 
