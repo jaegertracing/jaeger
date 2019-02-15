@@ -25,10 +25,9 @@ import (
 
 	"github.com/gorilla/mux"
 	"github.com/pkg/errors"
-	"github.com/rakyll/statik/fs"
 	"go.uber.org/zap"
 
-	_ "github.com/jaegertracing/jaeger/cmd/query/app/ui" // init static assets
+	"github.com/jaegertracing/jaeger/cmd/query/app/ui"
 )
 
 var (
@@ -67,7 +66,7 @@ type StaticAssetsHandlerOptions struct {
 
 // NewStaticAssetsHandler returns a StaticAssetsHandler
 func NewStaticAssetsHandler(staticAssetsRoot string, options StaticAssetsHandlerOptions) (*StaticAssetsHandler, error) {
-	assetsFS, _ := fs.New()
+	assetsFS := ui.StaticFiles
 	if staticAssetsRoot != "" {
 		assetsFS = http.Dir(staticAssetsRoot)
 	}
