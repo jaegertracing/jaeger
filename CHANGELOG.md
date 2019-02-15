@@ -1,7 +1,7 @@
 Changes by Version
 ==================
 
-1.10.0 (unreleased)
+1.10.0 (2019-02-15)
 ------------------
 
 #### Backend Changes
