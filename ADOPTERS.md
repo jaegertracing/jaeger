@@ -4,17 +4,17 @@
 * [FarmersEdge](https://www.farmersedge.ca/)
 * [GrafanaLabs](https://grafana.com/)
 * [Kausal](https://kausal.co)
-* [Massachusetts Open Cloud](http://www.bu.edu/hic/research/highlighted-sponsored-projects/massachusetts-open-cloud/)
+* [Massachusetts Open Cloud](https://www.bu.edu/hic/research/highlighted-sponsored-projects/massachusetts-open-cloud/)
 * [Northwestern Mutual](https://www.northwesternmutual.com/)
 * [Nets](https://www.nets.eu/)
-* [Stagemonitor](http://www.stagemonitor.org/)
+* [Stagemonitor](https://www.stagemonitor.org/)
 * [Red Hat](https://www.redhat.com/)
   * https://github.com/jaegertracing/jaeger-openshift
-  * http://www.hawkular.org/blog/2017/04/19/hawkular-apm-jaeger.html
+  * https://www.hawkular.org/blog/2017/04/19/hawkular-apm-jaeger.html
 * [RiksTV](https://www.rikstv.no/)
 * [SeatGeek](https://seatgeek.com/)
 * [SpotHero](https://spothero.com/)
-* [UBER](http://uber.com)
+* [UBER](https://uber.com)
   * https://eng.uber.com/distributed-tracing/
 * [Under Armour](https://www.underarmour.com)
 * [Vistar Media](https://www.vistarmedia.com)

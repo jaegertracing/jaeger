@@ -22,8 +22,9 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
-	"go.uber.org/zap"
+	"github.com/uber/jaeger-lib/metrics"
 	"github.com/uber/jaeger-lib/metrics/metricstest"
+	"go.uber.org/zap"
 
 	"github.com/jaegertracing/jaeger/model"
 	"github.com/jaegertracing/jaeger/pkg/cassandra"
@@ -39,16 +40,17 @@ type depStorageTest struct {
 	storage   *DependencyStore
 }
 
-func withDepStore(fn func(s *depStorageTest)) {
+func withDepStore(version Version, fn func(s *depStorageTest)) {
 	session := &mocks.Session{}
 	logger, logBuffer := testutils.NewLogger()
 	metricsFactory := metricstest.NewFactory(time.Second)
 	defer metricsFactory.Stop()
+	store, _ := NewDependencyStore(session, metricsFactory, logger, version)
 	s := &depStorageTest{
 		session:   session,
 		logger:    logger,
 		logBuffer: logBuffer,
-		storage:   NewDependencyStore(session, metricsFactory, logger),
+		storage:   store,
 	}
 	fn(s)
 }
@@ -56,53 +58,92 @@ func withDepStore(fn func(s *depStorageTest)) {
 var _ dependencystore.Reader = &DependencyStore{} // check API conformance
 var _ dependencystore.Writer = &DependencyStore{} // check API conformance
 
+func TestVersionIsValid(t *testing.T) {
+	assert.True(t, V1.IsValid())
+	assert.True(t, V2.IsValid())
+	assert.False(t, versionEnumEnd.IsValid())
+}
+
+func TestInvalidVersion(t *testing.T) {
+	_, err := NewDependencyStore(&mocks.Session{}, metrics.NullFactory, zap.NewNop(), versionEnumEnd)
+	assert.Error(t, err)
+}
+
 func TestDependencyStoreWrite(t *testing.T) {
-	withDepStore(func(s *depStorageTest) {
-		query := &mocks.Query{}
-		query.On("Exec").Return(nil)
+	testCases := []struct {
+		caption string
+		version Version
+	}{
+		{
+			caption: "V1",
+			version: V1,
+		},
+		{
+			caption: "V2",
+			version: V2,
+		},
+	}
+	for _, tc := range testCases {
+		testCase := tc // capture loop var
+		t.Run(testCase.caption, func(t *testing.T) {
+			withDepStore(testCase.version, func(s *depStorageTest) {
+				query := &mocks.Query{}
+				query.On("Exec").Return(nil)
 
-		var args []interface{}
-		captureArgs := mock.MatchedBy(func(v []interface{}) bool {
-			args = v
-			return true
+				var args []interface{}
+				captureArgs := mock.MatchedBy(func(v []interface{}) bool {
+					args = v
+					return true
+				})
+
+				s.session.On("Query", mock.AnythingOfType("string"), captureArgs).Return(query)
+
+				ts := time.Date(2017, time.January, 24, 11, 15, 17, 12345, time.UTC)
+				dependencies := []model.DependencyLink{
+					{
+						Parent:    "a",
+						Child:     "b",
+						CallCount: 42,
+						Source:    model.JaegerDependencyLinkSource,
+					},
+				}
+				err := s.storage.WriteDependencies(ts, dependencies)
+				assert.NoError(t, err)
+
+				assert.Len(t, args, 3)
+				if d, ok := args[0].(time.Time); ok {
+					assert.Equal(t, ts, d)
+				} else {
+					assert.Fail(t, "expecting first arg as time.Time", "received: %+v", args)
+				}
+				if testCase.version == V2 {
+					if d, ok := args[1].(time.Time); ok {
+						assert.Equal(t, time.Date(2017, time.January, 24, 0, 0, 0, 0, time.UTC), d)
+					} else {
+						assert.Fail(t, "expecting second arg as time", "received: %+v", args)
+					}
+				} else {
+					if d, ok := args[1].(time.Time); ok {
+						assert.Equal(t, ts, d)
+					} else {
+						assert.Fail(t, "expecting second arg as time.Time", "received: %+v", args)
+					}
+				}
+				if d, ok := args[2].([]Dependency); ok {
+					assert.Equal(t, []Dependency{
+						{
+							Parent:    "a",
+							Child:     "b",
+							CallCount: 42,
+							Source:    "jaeger",
+						},
+					}, d)
+				} else {
+					assert.Fail(t, "expecting third arg as []Dependency", "received: %+v", args)
+				}
+			})
 		})
-
-		s.session.On("Query", mock.AnythingOfType("string"), captureArgs).Return(query)
-
-		ts := time.Date(2017, time.January, 24, 11, 15, 17, 12345, time.UTC)
-		dependencies := []model.DependencyLink{
-			{
-				Parent:    "a",
-				Child:     "b",
-				CallCount: 42,
-			},
-		}
-		err := s.storage.WriteDependencies(ts, dependencies)
-		assert.NoError(t, err)
-
-		assert.Len(t, args, 3)
-		if d, ok := args[0].(time.Time); ok {
-			assert.Equal(t, ts, d)
-		} else {
-			assert.Fail(t, "expecting first arg as time.Time", "received: %+v", args)
-		}
-		if d, ok := args[1].(time.Time); ok {
-			assert.Equal(t, ts, d)
-		} else {
-			assert.Fail(t, "expecting second arg as time.Time", "received: %+v", args)
-		}
-		if d, ok := args[2].([]Dependency); ok {
-			assert.Equal(t, []Dependency{
-				{
-					Parent:    "a",
-					Child:     "b",
-					CallCount: 42,
-				},
-			}, d)
-		} else {
-			assert.Fail(t, "expecting third arg as []Dependency", "received: %+v", args)
-		}
-	})
+	}
 }
 
 func TestDependencyStoreGetDependencies(t *testing.T) {
@@ -111,23 +152,39 @@ func TestDependencyStoreGetDependencies(t *testing.T) {
 		queryError    error
 		expectedError string
 		expectedLogs  []string
+		version       Version
 	}{
 		{
-			caption: "success",
+			caption: "success V1",
+			version: V1,
 		},
 		{
-			caption:       "failure",
+			caption: "success V2",
+			version: V2,
+		},
+		{
+			caption:       "failure V1",
 			queryError:    errors.New("query error"),
 			expectedError: "Error reading dependencies from storage: query error",
 			expectedLogs: []string{
 				"Failure to read Dependencies",
 			},
+			version: V1,
+		},
+		{
+			caption:       "failure V2",
+			queryError:    errors.New("query error"),
+			expectedError: "Error reading dependencies from storage: query error",
+			expectedLogs: []string{
+				"Failure to read Dependencies",
+			},
+			version: V2,
 		},
 	}
 	for _, tc := range testCases {
 		testCase := tc // capture loop var
 		t.Run(testCase.caption, func(t *testing.T) {
-			withDepStore(func(s *depStorageTest) {
+			withDepStore(testCase.version, func(s *depStorageTest) {
 				scanMatcher := func() interface{} {
 					deps := [][]Dependency{
 						{
@@ -172,10 +229,10 @@ func TestDependencyStoreGetDependencies(t *testing.T) {
 				if testCase.expectedError == "" {
 					assert.NoError(t, err)
 					expected := []model.DependencyLink{
-						{Parent: "a", Child: "b", CallCount: 1},
-						{Parent: "b", Child: "c", CallCount: 1},
-						{Parent: "a", Child: "b", CallCount: 1},
-						{Parent: "b", Child: "c", CallCount: 1},
+						{Parent: "a", Child: "b", CallCount: 1, Source: model.JaegerDependencyLinkSource},
+						{Parent: "b", Child: "c", CallCount: 1, Source: model.JaegerDependencyLinkSource},
+						{Parent: "a", Child: "b", CallCount: 1, Source: model.JaegerDependencyLinkSource},
+						{Parent: "b", Child: "c", CallCount: 1, Source: model.JaegerDependencyLinkSource},
 					}
 					assert.Equal(t, expected, deps)
 				} else {
@@ -190,6 +247,19 @@ func TestDependencyStoreGetDependencies(t *testing.T) {
 			})
 		})
 	}
+}
+
+func TestGetBuckets(t *testing.T) {
+	var (
+		start    = time.Date(2017, time.January, 24, 11, 15, 17, 12345, time.UTC)
+		end      = time.Date(2017, time.January, 26, 11, 15, 17, 12345, time.UTC)
+		expected = []time.Time{
+			time.Date(2017, time.January, 24, 0, 0, 0, 0, time.UTC),
+			time.Date(2017, time.January, 25, 0, 0, 0, 0, time.UTC),
+			time.Date(2017, time.January, 26, 0, 0, 0, 0, time.UTC),
+		}
+	)
+	assert.Equal(t, expected, getBuckets(start, end))
 }
 
 func matchEverything() interface{} {
