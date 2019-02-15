@@ -236,8 +236,12 @@ func GetNullStatusReporter() func(Status) {
 }
 
 // GetStatusReporter is a vending machine of gifts for the components. Each component talks to their own teddy bear and he reports their confess for us.
-func (hc HealthCheck) GetStatusReporter(c Component) func(Status) {
+func (hc *HealthCheck) GetStatusReporter(c Component) func(Status) {
 	return func(stat Status) {
+        if hc.receptor == nil {
+            hc.logger.Warn("No channel for component status report")
+            return
+        }
 		hc.receptor <- ComponentStatus{
 			stat: stat,
 			comp: c,

@@ -67,3 +67,18 @@ func TestServeHandler(t *testing.T) {
 	require.NoError(t, err)
 	defer hc.Close()
 }
+
+
+func TestGetNullStatusReporter(t *testing.T) {
+    f := GetNullStatusReporter()
+    assert.NotNil(t, f)
+    f(Ready) // check if not bad thing happens
+}
+
+func TestGetStatusReporter(t *testing.T) {
+	hc := New(Unavailable, SetDesired([]Component{Storage}), SetReceptor(make(chan ComponentStatus, 4)))
+    f := hc.GetStatusReporter(Storage)
+    f(Ready)
+
+    assert.Equal(t, hc.Get(), Ready)
+}
