@@ -196,13 +196,13 @@ func createSpanWriter(
 
 // GetMappings returns span and service mappings
 func GetMappings(shards, replicas int64) (string, string) {
-	return fixMapping(loadMapping("jaeger-span.json"), shards, replicas),
-		fixMapping(loadMapping("jaeger-service.json"), shards, replicas)
+	return fixMapping(loadMapping("/jaeger-span.json"), shards, replicas),
+		fixMapping(loadMapping("/jaeger-service.json"), shards, replicas)
 }
 
 func loadMapping(name string) string {
-	b, _ := mappings.Asset(name)
-	return string(b)
+	s, _ := mappings.FSString(false, name)
+	return s
 }
 
 func fixMapping(mapping string, shards, replicas int64) string {

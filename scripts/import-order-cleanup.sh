@@ -2,4 +2,4 @@
 
 set -e
 
-python scripts/import-order-cleanup.py -o $1 -t $(git ls-files "*\.go" | grep -v -e thrift-gen -e swagger-gen -e thrift-0.9.2 -e bindata_assetfs.go -e bindata.go)
+python scripts/import-order-cleanup.py -o $1 -t $(git ls-files "*\.go" | grep -v -e thrift-gen -e swagger-gen -e thrift-0.9.2 -e gen_assets.go)
