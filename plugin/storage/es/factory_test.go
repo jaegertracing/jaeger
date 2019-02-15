@@ -16,6 +16,10 @@ package es
 
 import (
 	"errors"
+	"io/ioutil"
+	"os"
+	"strconv"
+	"strings"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -54,11 +58,11 @@ func TestElasticsearchFactory(t *testing.T) {
 	// after InitFromViper, f.primaryConfig points to a real session builder that will fail in unit tests,
 	// so we override it with a mock.
 	f.primaryConfig = &mockClientBuilder{err: errors.New("made-up error")}
-	assert.EqualError(t, f.Initialize(metrics.NullFactory, zap.NewNop(), healthcheck.GetNullStatusReporter()), "made-up error")
+	assert.EqualError(t, f.Initialize(metrics.NullFactory, zap.NewNop(), healthcheck.GetNullStatusReporter()), "failed to create primary Elasticsearch client: made-up error")
 
 	f.primaryConfig = &mockClientBuilder{}
-	f.archiveConfig = &mockClientBuilder{err: errors.New("made-up error2")}
-	assert.EqualError(t, f.Initialize(metrics.NullFactory, zap.NewNop(), healthcheck.GetNullStatusReporter()), "made-up error2")
+	f.archiveConfig = &mockClientBuilder{err: errors.New("made-up error2"), Configuration:escfg.Configuration{Enabled:true}}
+	assert.EqualError(t, f.Initialize(metrics.NullFactory, zap.NewNop(), healthcheck.GetNullStatusReporter()), "failed to create archive Elasticsearch client: made-up error2")
 
 	f.archiveConfig = &mockClientBuilder{}
 	assert.NoError(t, f.Initialize(metrics.NullFactory, zap.NewNop(), healthcheck.GetNullStatusReporter()))
@@ -121,8 +125,6 @@ func TestLoadTagsFromFile(t *testing.T) {
 		}
 	}
 }
-<<<<<<< HEAD
-=======
 
 func TestFactory_LoadMapping(t *testing.T) {
 	spanMapping, serviceMapping := GetMappings(10, 0)
@@ -174,4 +176,3 @@ func TestArchiveEnabled2(t *testing.T) {
 	require.NoError(t, err)
 	assert.NotNil(t, r)
 }
->>>>>>> 065ccd8... apply StatusReporter change for new code

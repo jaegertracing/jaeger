@@ -28,6 +28,7 @@ const (
 	suffixUsername          = ".username"
 	suffixPassword          = ".password"
 	suffixSniffer           = ".sniffer"
+	suffixTokenPath         = ".token-file"
 	suffixServerURLs        = ".server-urls"
 	suffixMaxSpanAge        = ".max-span-age"
 	suffixMaxNumSpans       = ".max-num-spans"
@@ -48,6 +49,7 @@ const (
 	suffixTagsFile          = suffixTagsAsFields + ".config-file"
 	suffixTagDeDotChar      = suffixTagsAsFields + ".dot-replacement"
 	suffixReadAlias         = ".use-aliases"
+	suffixEnabled           = ".enabled"
 )
 
 // TODO this should be moved next to config.Configuration struct (maybe ./flags package)
@@ -88,6 +90,7 @@ func NewOptions(primaryNamespace string, otherNamespaces ...string) *Options {
 				BulkActions:       1000,
 				BulkFlushInterval: time.Millisecond * 200,
 				TagDotReplacement: "@",
+				Enabled:           true,
 			},
 			servers:   "http://127.0.0.1:9200",
 			namespace: primaryNamespace,
@@ -119,6 +122,10 @@ func addFlags(flagSet *flag.FlagSet, nsConfig *namespaceConfig) {
 		nsConfig.namespace+suffixPassword,
 		nsConfig.Password,
 		"The password required by ElasticSearch")
+	flagSet.String(
+		nsConfig.namespace+suffixTokenPath,
+		nsConfig.TokenFilePath,
+		"Path to a file containing bearer token. This flag also uses CA if it is specified")
 	flagSet.Bool(
 		nsConfig.namespace+suffixSniffer,
 		nsConfig.Sniffer,
@@ -195,14 +202,17 @@ func addFlags(flagSet *flag.FlagSet, nsConfig *namespaceConfig) {
 		nsConfig.namespace+suffixTagDeDotChar,
 		nsConfig.TagDotReplacement,
 		"(experimental) The character used to replace dots (\".\") in tag keys stored as object fields.")
-	// TODO add rollover support for main indices
+	flagSet.Bool(
+		nsConfig.namespace+suffixReadAlias,
+		nsConfig.UseReadWriteAliases,
+		"(experimental) Use read and write aliases for indices. Use this option with Elasticsearch rollover "+
+			"API. It requires an external component to create aliases before startup and then performing its management. "+
+			"Note that "+nsConfig.namespace+suffixMaxSpanAge+" is not taken into the account and has to be substituted by external component managing read alias.")
 	if nsConfig.namespace == archiveNamespace {
 		flagSet.Bool(
-			nsConfig.namespace+suffixReadAlias,
-			nsConfig.UseReadWriteAliases,
-			"Use read and write aliases for indices. Use this option with Elasticsearch rollover "+
-				"API. It requires an external component to create aliases before startup and then performing its management. "+
-				"Note that "+nsConfig.namespace+suffixMaxSpanAge+" is not taken into the account and has to be substituted by external component managing read alias.")
+			nsConfig.namespace+suffixEnabled,
+			nsConfig.Enabled,
+			"Enable extra storage")
 	}
 }
 
@@ -217,6 +227,7 @@ func (opt *Options) InitFromViper(v *viper.Viper) {
 func initFromViper(cfg *namespaceConfig, v *viper.Viper) {
 	cfg.Username = v.GetString(cfg.namespace + suffixUsername)
 	cfg.Password = v.GetString(cfg.namespace + suffixPassword)
+	cfg.TokenFilePath = v.GetString(cfg.namespace + suffixTokenPath)
 	cfg.Sniffer = v.GetBool(cfg.namespace + suffixSniffer)
 	cfg.servers = stripWhiteSpace(v.GetString(cfg.namespace + suffixServerURLs))
 	cfg.MaxSpanAge = v.GetDuration(cfg.namespace + suffixMaxSpanAge)
@@ -237,6 +248,7 @@ func initFromViper(cfg *namespaceConfig, v *viper.Viper) {
 	cfg.TagsFilePath = v.GetString(cfg.namespace + suffixTagsFile)
 	cfg.TagDotReplacement = v.GetString(cfg.namespace + suffixTagDeDotChar)
 	cfg.UseReadWriteAliases = v.GetBool(cfg.namespace + suffixReadAlias)
+	cfg.Enabled = v.GetBool(cfg.namespace + suffixEnabled)
 }
 
 // GetPrimary returns primary configuration.

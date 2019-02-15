@@ -37,7 +37,7 @@ required = [
 
 [[constraint]]
   name = "github.com/bsm/sarama-cluster"
-  version = "^2.1.13"
+  version = "=2.1.13"
 
 [[constraint]]
   branch = "master"
@@ -97,7 +97,7 @@ required = [
 
 [[constraint]]
   name = "google.golang.org/grpc"
-  version = "^1.11.0"
+  version = "^1.13.0"
 
 [[constraint]]
   name = "gopkg.in/olivere/elastic.v5"
@@ -121,4 +121,4 @@ required = [
 
 [[constraint]]
   name = "github.com/Shopify/sarama"
-  version = "1.20.0"
+  version = "1.20.1"

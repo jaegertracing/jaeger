@@ -69,8 +69,14 @@ func TestSpanWriterIndices(t *testing.T) {
 			IndexPrefix: "", Archive: false},
 			indices:[]string{spanIndex+dateFormat, serviceIndex+dateFormat}},
 		{params:SpanWriterParams{Client: client, Logger: logger, MetricsFactory: metricsFactory,
+			IndexPrefix: "", UseReadWriteAliases: true},
+			indices:[]string{spanIndex+"write", serviceIndex+"write"}},
+		{params:SpanWriterParams{Client: client, Logger: logger, MetricsFactory: metricsFactory,
 			IndexPrefix: "foo:", Archive: false},
 			indices:[]string{"foo:"+indexPrefixSeparator+spanIndex+dateFormat, "foo:"+indexPrefixSeparator+serviceIndex+dateFormat}},
+		{params:SpanWriterParams{Client: client, Logger: logger, MetricsFactory: metricsFactory,
+			IndexPrefix: "foo:", UseReadWriteAliases: true},
+			indices:[]string{"foo:-"+spanIndex+"write", "foo:-"+serviceIndex+"write"}},
 		{params:SpanWriterParams{Client: client, Logger: logger, MetricsFactory: metricsFactory,
 			IndexPrefix: "", Archive: true},
 			indices:[]string{spanIndex+archiveIndexSuffix, ""}},
@@ -176,11 +182,11 @@ func TestSpanWriter_WriteSpan(t *testing.T) {
 				spanExistsService.On("Do", mock.AnythingOfType("*context.emptyCtx")).Return(testCase.spanIndexExists, nil)
 
 				serviceCreateService := &mocks.IndicesCreateService{}
-				serviceCreateService.On("Body", stringMatcher(w.writer.fixMapping(serviceMapping))).Return(serviceCreateService)
+				serviceCreateService.On("Body", mock.AnythingOfType("string")).Return(serviceCreateService)
 				serviceCreateService.On("Do", mock.AnythingOfType("*context.emptyCtx")).Return(nil, testCase.serviceIndexCreateError)
 
 				spanCreateService := &mocks.IndicesCreateService{}
-				spanCreateService.On("Body", stringMatcher(w.writer.fixMapping(spanMapping))).Return(spanCreateService)
+				spanCreateService.On("Body", mock.AnythingOfType("string")).Return(spanCreateService)
 				spanCreateService.On("Do", mock.AnythingOfType("*context.emptyCtx")).Return(nil, testCase.spanIndexCreateError)
 
 				indexService := &mocks.IndexService{}
@@ -238,45 +244,6 @@ func TestSpanIndexName(t *testing.T) {
 	serviceIndexName := indexWithDate(serviceIndex, span.StartTime)
 	assert.Equal(t, "jaeger-span-1995-04-21", spanIndexName)
 	assert.Equal(t, "jaeger-service-1995-04-21", serviceIndexName)
-}
-
-func TestFixMapping(t *testing.T) {
-	withSpanWriter(func(w *spanWriterTest) {
-		testMapping := `{
-		   "settings":{
-		      "index.number_of_shards": ${__NUMBER_OF_SHARDS__},
-      		      "index.number_of_replicas": ${__NUMBER_OF_REPLICAS__},
-		      "index.mapping.nested_fields.limit":50,
-		      "index.requests.cache.enable":true,
-		      "index.mapper.dynamic":false
-		   },
-		   "mappings":{
-		      "_default_":{
-			 "_all":{
-			    "enabled":false
-			 }
-		      }
-		   }
-		}`
-		expectedMapping := `{
-		   "settings":{
-		      "index.number_of_shards": 5,
-      		      "index.number_of_replicas": 0,
-		      "index.mapping.nested_fields.limit":50,
-		      "index.requests.cache.enable":true,
-		      "index.mapper.dynamic":false
-		   },
-		   "mappings":{
-		      "_default_":{
-			 "_all":{
-			    "enabled":false
-			 }
-		      }
-		   }
-		}`
-
-		assert.Equal(t, expectedMapping, w.writer.fixMapping(testMapping))
-	})
 }
 
 func TestWriteSpanInternal(t *testing.T) {
