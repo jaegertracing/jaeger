@@ -8,6 +8,8 @@ import ast
 import logging
 from pathlib import Path
 import requests
+from requests.auth import HTTPBasicAuth
+import ssl
 
 
 ARCHIVE_INDEX = 'jaeger-span-archive'
@@ -19,24 +21,42 @@ REPLICAS = 1
 
 def main():
     if len(sys.argv) != 3:
-        print('USAGE: [INDEX_PREFIX=(default "")] [ARCHIVE=(default false)] [SHARDS=(default {})] [REPLICAS=(default {})] [CONDITIONS=(default {})] [UNIT=(default {})] [UNIT_COUNT=(default {})] {} ACTION http://HOSTNAME[:PORT]'.format(SHARDS, REPLICAS, ROLLBACK_CONDITIONS, UNIT, UNIT_COUNT, sys.argv[0]))
+        print('USAGE: [INDEX_PREFIX=(default "")] [ARCHIVE=(default false)] ... {} ACTION http://HOSTNAME[:PORT]'.format(sys.argv[0]))
         print('ACTION ... one of:')
-        print('\tinit - creates archive index and aliases')
+        print('\tinit - creates indices and aliases')
         print('\trollover - rollover to new write index')
         print('\tlookback - removes old indices from read alias')
         print('HOSTNAME ... specifies which Elasticsearch hosts URL to search and delete indices from.')
         print('INDEX_PREFIX ... specifies index prefix.')
+        print('ARCHIVE ... handle archive indices (default false).')
+        print('ES_USERNAME ... The username required by Elasticsearch.')
+        print('ES_PASSWORD ... The password required by Elasticsearch.')
+        print('ES_TLS ... enable TLS (default false).')
+        print('ES_TLS_CA ... Path to TLS CA file.')
+        print('ES_TLS_CERT ... Path to TLS certificate file.')
+        print('ES_TLS_KEY ... Path to TLS key file.')
         print('init configuration:')
-        print('\tSHARDS ...  the number of shards per index in ElasticSearch (default 5)')
-        print('\tREPLICAS ... the number of replicas per index in ElasticSearch (default 1)')
+        print('\tSHARDS ...  the number of shards per index in Elasticsearch (default {}).'.format(SHARDS))
+        print('\tREPLICAS ... the number of replicas per index in Elasticsearch (default {}).'.format(REPLICAS))
         print('rollover configuration:')
-        print('\tCONDITIONS ... conditions used to rollover to a new write index e.g. \'{"max_age": "7d"}\'')
+        print('\tCONDITIONS ... conditions used to rollover to a new write index (default \'{}\'.'.format(ROLLBACK_CONDITIONS))
         print('lookback configuration:')
-        print('\tUNIT ... used with lookback to remove indices from read alias e.g. ..., days, weeks, months, years')
-        print('\tUNIT_COUNT ... count of UNITs')
+        print('\tUNIT ... used with lookback to remove indices from read alias e.g. ..., days, weeks, months, years (default {}).'.format(UNIT))
+        print('\tUNIT_COUNT ... count of UNITs (default {}).'.format(UNIT_COUNT))
         sys.exit(1)
 
-    client = elasticsearch.Elasticsearch(sys.argv[2:])
+    username = os.getenv("ES_USERNAME")
+    password = os.getenv("ES_PASSWORD")
+
+    if username is not None and password is not None:
+        client = elasticsearch.Elasticsearch(sys.argv[2:], http_auth=(username, password))
+    elif str2bool(os.getenv("ES_TLS", 'false')):
+        context = ssl.create_default_context(ssl.Purpose.SERVER_AUTH, cafile=os.getenv("ES_TLS_CA"))
+        context.load_cert_chain(certfile=os.getenv("ES_TLS_CERT"), keyfile=os.getenv("ES_TLS_KEY"))
+        client = elasticsearch.Elasticsearch(sys.argv[2:], ssl_context=context)
+    else:
+        client = elasticsearch.Elasticsearch(sys.argv[2:])
+
     prefix = os.getenv('INDEX_PREFIX', '')
     if prefix != '':
         prefix += '-'
@@ -80,7 +100,8 @@ def perform_action(action, client, write_alias, read_alias, index_to_rollover, t
 def create_index_template(template, template_name):
     print('Creating index template {}'.format(template_name))
     headers = {'Content-Type': 'application/json'}
-    r = requests.put(sys.argv[2] + '/_template/' + template_name, headers=headers, data=template)
+    s = get_request_session(os.getenv("ES_USERNAME"), os.getenv("ES_PASSWORD"), str2bool(os.getenv("ES_TLS", 'false')), os.getenv("ES_TLS_CA"), os.getenv("ES_TLS_CERT"), os.getenv("ES_TLS_KEY"))
+    r = s.put(sys.argv[2] + '/_template/' + template_name, headers=headers, data=template)
     print(r.text)
     r.raise_for_status()
 
@@ -156,6 +177,16 @@ def empty_list(ilo, error_msg):
     except curator.NoIndices:
         print(error_msg)
         sys.exit(0)
+
+
+def get_request_session(username, password, tls, ca, cert, key):
+    session = requests.Session()
+    if username is not None and password is not None:
+        session.auth = HTTPBasicAuth(username, password)
+    elif tls:
+        session.verify = ca
+        session.cert = (cert, key)
+    return session
 
 
 if __name__ == "__main__":
