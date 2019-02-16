@@ -66,6 +66,32 @@ func TestGetArchivedTraceSuccess(t *testing.T) {
 	}, querysvc.QueryServiceOptions{ArchiveSpanReader: mockReader})
 }
 
+// Test failure in parsing trace ID.
+func TestArchiveTrace_BadTraceID(t *testing.T) {
+	withTestServer(t, func(ts *testServer) {
+		var response structuredResponse
+		err := postJSON(ts.server.URL+"/api/archive/badtraceid", []string{}, &response)
+		assert.Error(t, err)
+	}, querysvc.QueryServiceOptions{})
+}
+
+// Test return of 404 when trace is not found in APIHandler.archive
+func TestArchiveTrace_TraceNotFound(t *testing.T) {
+	mockReader := &spanstoremocks.Reader{}
+	mockReader.On("GetTrace", mock.AnythingOfType("*context.valueCtx"), mock.AnythingOfType("model.TraceID")).
+		Return(nil, spanstore.ErrTraceNotFound).Once()
+	mockWriter := &spanstoremocks.Writer{}
+	// Not actually going to write the trace, so no need to define mockWriter action
+	withTestServer(t, func(ts *testServer) {
+		// make main reader return NotFound
+		ts.spanReader.On("GetTrace", mock.AnythingOfType("*context.valueCtx"), mock.AnythingOfType("model.TraceID")).
+			Return(nil, spanstore.ErrTraceNotFound).Once()
+		var response structuredResponse
+		err := postJSON(ts.server.URL+"/api/archive/" + mockTraceID.String(), []string{}, &response)
+		assert.EqualError(t, err, `404 error from server: {"data":null,"total":0,"limit":0,"offset":0,"errors":[{"code":404,"msg":"trace not found"}]}`+"\n")
+	}, querysvc.QueryServiceOptions{ArchiveSpanReader: mockReader, ArchiveSpanWriter: mockWriter})
+}
+
 func TestArchiveTrace_NoStorage(t *testing.T) {
 	withTestServer(t, func(ts *testServer) {
 		var response structuredResponse
