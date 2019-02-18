@@ -109,11 +109,6 @@ func initializeTestServerWithOptions(queryOptions querysvc.QueryServiceOptions, 
 	return httptest.NewServer(r), readStorage, dependencyStorage, handler
 }
 
-func initializeTestServerWithQueryOptions(queryOptions querysvc.QueryServiceOptions, options ...HandlerOption) (*httptest.Server, *spanstoremocks.Reader, *depsmocks.Reader) {
-	https, sr, dr, _ := initializeTestServerWithHandler(queryOptions, options...)
-	return https, sr, dr
-}
-
 func initializeTestServer(options ...HandlerOption) (*httptest.Server, *spanstoremocks.Reader, *depsmocks.Reader) {
 	https, sr, dr, _ := initializeTestServerWithHandler(querysvc.QueryServiceOptions{}, options...)
 	return https, sr, dr
@@ -358,7 +353,7 @@ func TestSearchByTraceIDSuccess(t *testing.T) {
 
 func TestSearchByTraceIDSuccessWithArchive(t *testing.T) {
 	archiveReadMock := &spanstoremocks.Reader{}
-	server, readMock, _ := initializeTestServerWithQueryOptions(querysvc.QueryServiceOptions{
+	server, readMock, _, _ := initializeTestServerWithOptions(querysvc.QueryServiceOptions{
 		ArchiveSpanReader: archiveReadMock,
 	})
 	defer server.Close()
