@@ -97,9 +97,8 @@ message FindTracesRequest {
 }
 
 message FindTracesResponseChunk {
-    repeated bytes spans = 1  [
-      (gogoproto.nullable) = false,
-      (gogoproto.customtype) = "github.com/jaegertracing/jaeger/model.Span"
+    repeated jaeger.api_v2.Span spans = 1  [
+      (gogoproto.nullable) = false
     ];
 }
 
