@@ -76,7 +76,8 @@ func TestGetNullStatusReporter(t *testing.T) {
 }
 
 func TestGetStatusReporter(t *testing.T) {
-	hc := New(Unavailable, SetDesired([]Component{Storage}), SetReceptor(make(chan ComponentStatus, 4)))
+    // For test purpose, unbuffered channel is used to wait monitor handler to accept
+	hc := New(Unavailable, SetDesired([]Component{Storage}), SetReceptor(make(chan ComponentStatus)))
     f := hc.GetStatusReporter(Storage)
     f(Ready)
 
