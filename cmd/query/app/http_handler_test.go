@@ -35,6 +35,7 @@ import (
 	"go.uber.org/zap"
 	"go.uber.org/zap/zapcore"
 
+	"github.com/jaegertracing/jaeger/cmd/query/app/querysvc"
 	"github.com/jaegertracing/jaeger/model"
 	"github.com/jaegertracing/jaeger/model/adjuster"
 	ui "github.com/jaegertracing/jaeger/model/json"
@@ -82,8 +83,9 @@ type structuredTraceResponse struct {
 	Errors []structuredError `json:"errors"`
 }
 
-func initializeTestServerWithHandler(options ...HandlerOption) (*httptest.Server, *spanstoremocks.Reader, *depsmocks.Reader, *APIHandler) {
+func initializeTestServerWithHandler(queryOptions querysvc.QueryServiceOptions, options ...HandlerOption) (*httptest.Server, *spanstoremocks.Reader, *depsmocks.Reader, *APIHandler) {
 	return initializeTestServerWithOptions(
+		queryOptions,
 		append(
 			[]HandlerOption{
 				HandlerOptions.Logger(zap.NewNop()),
@@ -97,17 +99,18 @@ func initializeTestServerWithHandler(options ...HandlerOption) (*httptest.Server
 	)
 }
 
-func initializeTestServerWithOptions(options ...HandlerOption) (*httptest.Server, *spanstoremocks.Reader, *depsmocks.Reader, *APIHandler) {
+func initializeTestServerWithOptions(queryOptions querysvc.QueryServiceOptions, options ...HandlerOption) (*httptest.Server, *spanstoremocks.Reader, *depsmocks.Reader, *APIHandler) {
 	readStorage := &spanstoremocks.Reader{}
 	dependencyStorage := &depsmocks.Reader{}
+	qs := querysvc.NewQueryService(readStorage, dependencyStorage, queryOptions)
 	r := NewRouter()
-	handler := NewAPIHandler(readStorage, dependencyStorage, options...)
+	handler := NewAPIHandler(qs, options...)
 	handler.RegisterRoutes(r)
 	return httptest.NewServer(r), readStorage, dependencyStorage, handler
 }
 
 func initializeTestServer(options ...HandlerOption) (*httptest.Server, *spanstoremocks.Reader, *depsmocks.Reader) {
-	https, sr, dr, _ := initializeTestServerWithHandler(options...)
+	https, sr, dr, _ := initializeTestServerWithHandler(querysvc.QueryServiceOptions{}, options...)
 	return https, sr, dr
 }
 
@@ -118,8 +121,8 @@ type testServer struct {
 	server           *httptest.Server
 }
 
-func withTestServer(t *testing.T, doTest func(s *testServer), options ...HandlerOption) {
-	server, spanReader, depReader, handler := initializeTestServerWithOptions(options...)
+func withTestServer(t *testing.T, doTest func(s *testServer), queryOptions querysvc.QueryServiceOptions, options ...HandlerOption) {
+	server, spanReader, depReader, handler := initializeTestServerWithOptions(queryOptions, options...)
 	s := &testServer{
 		spanReader:       spanReader,
 		dependencyReader: depReader,
@@ -166,10 +169,13 @@ func TestLogOnServerError(t *testing.T) {
 	l := &testLogger{
 		logs: &[]logData{},
 	}
+	readStorage := &spanstoremocks.Reader{}
+	dependencyStorage := &depsmocks.Reader{}
+	qs := querysvc.NewQueryService(readStorage, dependencyStorage, querysvc.QueryServiceOptions{})
 	apiHandlerOptions := []HandlerOption{
 		HandlerOptions.Logger(zap.New(l)),
 	}
-	h := NewAPIHandler(&spanstoremocks.Reader{}, &depsmocks.Reader{}, apiHandlerOptions...)
+	h := NewAPIHandler(qs, apiHandlerOptions...)
 	e := errors.New("test error")
 	h.handleError(&testHttp.TestResponseWriter{}, e, http.StatusInternalServerError)
 	require.Equal(t, 1, len(*l.logs))
@@ -294,11 +300,11 @@ func TestGetTraceNotFound(t *testing.T) {
 
 func TestGetTraceAdjustmentFailure(t *testing.T) {
 	server, readMock, _, _ := initializeTestServerWithHandler(
-		HandlerOptions.Adjusters(
-			adjuster.Func(func(trace *model.Trace) (*model.Trace, error) {
+		querysvc.QueryServiceOptions{
+			Adjuster: adjuster.Func(func(trace *model.Trace) (*model.Trace, error) {
 				return trace, errAdjustment
 			}),
-		),
+		},
 	)
 	defer server.Close()
 	readMock.On("GetTrace", mock.AnythingOfType("*context.valueCtx"), mock.AnythingOfType("model.TraceID")).
@@ -347,7 +353,9 @@ func TestSearchByTraceIDSuccess(t *testing.T) {
 
 func TestSearchByTraceIDSuccessWithArchive(t *testing.T) {
 	archiveReadMock := &spanstoremocks.Reader{}
-	server, readMock, _ := initializeTestServer(HandlerOptions.ArchiveSpanReader(archiveReadMock))
+	server, readMock, _, _ := initializeTestServerWithOptions(querysvc.QueryServiceOptions{
+		ArchiveSpanReader: archiveReadMock,
+	})
 	defer server.Close()
 	readMock.On("GetTrace", mock.AnythingOfType("*context.valueCtx"), mock.AnythingOfType("model.TraceID")).
 		Return(nil, spanstore.ErrTraceNotFound).Twice()
@@ -388,11 +396,11 @@ func TestSearchByTraceIDFailure(t *testing.T) {
 
 func TestSearchModelConversionFailure(t *testing.T) {
 	server, readMock, _, _ := initializeTestServerWithOptions(
-		HandlerOptions.Adjusters(
-			adjuster.Func(func(trace *model.Trace) (*model.Trace, error) {
+		querysvc.QueryServiceOptions{
+			Adjuster: adjuster.Func(func(trace *model.Trace) (*model.Trace, error) {
 				return trace, errAdjustment
 			}),
-		),
+		},
 	)
 	defer server.Close()
 	readMock.On("FindTraces", mock.AnythingOfType("*context.valueCtx"), mock.AnythingOfType("*spanstore.TraceQueryParameters")).

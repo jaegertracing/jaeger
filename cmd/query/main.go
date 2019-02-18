@@ -35,6 +35,7 @@ import (
 	"github.com/jaegertracing/jaeger/cmd/env"
 	"github.com/jaegertracing/jaeger/cmd/flags"
 	"github.com/jaegertracing/jaeger/cmd/query/app"
+	"github.com/jaegertracing/jaeger/cmd/query/app/querysvc"
 	"github.com/jaegertracing/jaeger/pkg/config"
 	"github.com/jaegertracing/jaeger/pkg/healthcheck"
 	pMetrics "github.com/jaegertracing/jaeger/pkg/metrics"
@@ -115,15 +116,18 @@ func main() {
 			if err != nil {
 				logger.Fatal("Failed to create dependency reader", zap.Error(err))
 			}
+			queryServiceOptions := archiveOptions(storageFactory, logger)
+			queryService := querysvc.NewQueryService(
+				spanReader,
+				dependencyReader,
+				queryServiceOptions)
 
 			apiHandlerOptions := []app.HandlerOption{
 				app.HandlerOptions.Logger(logger),
 				app.HandlerOptions.Tracer(tracer),
 			}
-			apiHandlerOptions = append(apiHandlerOptions, archiveOptions(storageFactory, logger)...)
 			apiHandler := app.NewAPIHandler(
-				spanReader,
-				dependencyReader,
+				queryService,
 				apiHandlerOptions...)
 			r := app.NewRouter()
 			if queryOpts.BasePath != "/" {
@@ -177,32 +181,32 @@ func main() {
 	}
 }
 
-func archiveOptions(storageFactory istorage.Factory, logger *zap.Logger) []app.HandlerOption {
+func archiveOptions(storageFactory istorage.Factory, logger *zap.Logger) querysvc.QueryServiceOptions {
 	archiveFactory, ok := storageFactory.(istorage.ArchiveFactory)
 	if !ok {
 		logger.Info("Archive storage not supported by the factory")
-		return nil
+		return querysvc.QueryServiceOptions{}
 	}
 	reader, err := archiveFactory.CreateArchiveSpanReader()
 	if err == istorage.ErrArchiveStorageNotConfigured || err == istorage.ErrArchiveStorageNotSupported {
 		logger.Info("Archive storage not created", zap.String("reason", err.Error()))
-		return nil
+		return querysvc.QueryServiceOptions{}
 	}
 	if err != nil {
 		logger.Error("Cannot init archive storage reader", zap.Error(err))
-		return nil
+		return querysvc.QueryServiceOptions{}
 	}
 	writer, err := archiveFactory.CreateArchiveSpanWriter()
 	if err == istorage.ErrArchiveStorageNotConfigured || err == istorage.ErrArchiveStorageNotSupported {
 		logger.Info("Archive storage not created", zap.String("reason", err.Error()))
-		return nil
+		return querysvc.QueryServiceOptions{}
 	}
 	if err != nil {
 		logger.Error("Cannot init archive storage writer", zap.Error(err))
-		return nil
+		return querysvc.QueryServiceOptions{}
 	}
-	return []app.HandlerOption{
-		app.HandlerOptions.ArchiveSpanReader(reader),
-		app.HandlerOptions.ArchiveSpanWriter(writer),
+	return querysvc.QueryServiceOptions{
+		ArchiveSpanReader: reader,
+		ArchiveSpanWriter: writer,
 	}
 }
