@@ -32,7 +32,8 @@ const (
 	// EncodingZipkinThrift is used for spans encoded as Zipkin Thrift.
 	EncodingZipkinThrift = "zipkin-thrift"
 
-	configPrefix   = "kafka"
+	configPrefix   = "kafka.producer"
+	deprecatedPrefix   = "kafka"
 	suffixBrokers  = ".brokers"
 	suffixTopic    = ".topic"
 	suffixEncoding = ".encoding"
@@ -69,6 +70,20 @@ func (opt *Options) AddFlags(flagSet *flag.FlagSet) {
 		defaultEncoding,
 		fmt.Sprintf(`(experimental) Encoding of spans ("%s" or "%s") sent to kafka.`, EncodingJSON, EncodingProto),
 	)
+
+	// TODO: Remove deprecated flags after 1.11
+	flagSet.String(
+		deprecatedPrefix+suffixBrokers,
+		"",
+		fmt.Sprintf("Deprecated; replaced by %s", configPrefix+suffixBrokers))
+	flagSet.String(
+		deprecatedPrefix+suffixTopic,
+		"",
+		fmt.Sprintf("Deprecated; replaced by %s", configPrefix+suffixTopic))
+	flagSet.String(
+		deprecatedPrefix+suffixEncoding,
+		"",
+		fmt.Sprintf("Deprecated; replaced by %s", configPrefix+suffixEncoding))
 }
 
 // InitFromViper initializes Options with properties from viper
@@ -78,6 +93,30 @@ func (opt *Options) InitFromViper(v *viper.Viper) {
 	}
 	opt.topic = v.GetString(configPrefix + suffixTopic)
 	opt.encoding = v.GetString(configPrefix + suffixEncoding)
+
+	if brokers := v.GetString(deprecatedPrefix+suffixBrokers); brokers != "" {
+		fmt.Printf("WARNING: found deprecated option %s, please use %s instead\n",
+			deprecatedPrefix+suffixBrokers,
+			configPrefix+suffixBrokers,
+		)
+		opt.config = producer.Configuration{
+			Brokers: strings.Split(stripWhiteSpace(brokers), ","),
+		}
+	}
+	if topic := v.GetString(deprecatedPrefix + suffixTopic); topic != "" {
+		fmt.Printf("WARNING: found deprecated option %s, please use %s instead\n",
+			deprecatedPrefix+suffixTopic,
+			configPrefix+suffixTopic,
+		)
+		opt.topic = topic
+	}
+	if encoding := v.GetString(deprecatedPrefix + suffixEncoding); encoding != "" {
+		fmt.Printf("WARNING: found deprecated option %s, please use %s instead\n",
+			deprecatedPrefix+suffixEncoding,
+			configPrefix+suffixEncoding,
+		)
+		opt.encoding = encoding
+	}
 }
 
 // stripWhiteSpace removes all whitespace characters from a string

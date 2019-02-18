@@ -30,8 +30,10 @@ import (
 const (
 	// ConfigPrefix is a prefix for the ingester flags
 	ConfigPrefix = "ingester"
-	// KafkaConfigPrefix is a prefix for the Kafka flags
-	KafkaConfigPrefix = "kafka"
+	// KafkaConsumerConfigPrefix is a prefix for the Kafka flags
+	KafkaConsumerConfigPrefix = "kafka.consumer"
+	// DeprecatedKafkaConfigPrefix is a prefix for the Kafka flags that is replaced by KafkaConfigPrefix
+	DeprecatedKafkaConfigPrefix = "kafka"
 	// SuffixBrokers is a suffix for the brokers flag
 	SuffixBrokers = ".brokers"
 	// SuffixTopic is a suffix for the topic flag
@@ -78,19 +80,19 @@ type Options struct {
 // AddFlags adds flags for Builder
 func AddFlags(flagSet *flag.FlagSet) {
 	flagSet.String(
-		KafkaConfigPrefix+SuffixBrokers,
+		KafkaConsumerConfigPrefix+SuffixBrokers,
 		DefaultBroker,
 		"The comma-separated list of kafka brokers. i.e. '127.0.0.1:9092,0.0.0:1234'")
 	flagSet.String(
-		KafkaConfigPrefix+SuffixTopic,
+		KafkaConsumerConfigPrefix+SuffixTopic,
 		DefaultTopic,
 		"The name of the kafka topic to consume from")
 	flagSet.String(
-		KafkaConfigPrefix+SuffixGroupID,
+		KafkaConsumerConfigPrefix+SuffixGroupID,
 		DefaultGroupID,
 		"The Consumer Group that ingester will be consuming on behalf of")
 	flagSet.String(
-		KafkaConfigPrefix+SuffixEncoding,
+		KafkaConsumerConfigPrefix+SuffixEncoding,
 		DefaultEncoding,
 		fmt.Sprintf(`The encoding of spans ("%s") consumed from kafka`, strings.Join(kafka.AllEncodings, "\", \"")))
 	flagSet.String(
@@ -106,14 +108,61 @@ func AddFlags(flagSet *flag.FlagSet) {
 		DefaultDeadlockInterval,
 		"Interval to check for deadlocks. If no messages gets processed in given time, ingester app will exit. Value of 0 disables deadlock check.")
 
+	// TODO: Remove deprecated flags after 1.11
+	flagSet.String(
+		DeprecatedKafkaConfigPrefix+SuffixBrokers,
+		"",
+		fmt.Sprintf("Deprecated; replaced by %s", KafkaConsumerConfigPrefix+SuffixBrokers))
+	flagSet.String(
+		DeprecatedKafkaConfigPrefix+SuffixTopic,
+		"",
+		fmt.Sprintf("Deprecated; replaced by %s", KafkaConsumerConfigPrefix+SuffixTopic))
+	flagSet.String(
+		DeprecatedKafkaConfigPrefix+SuffixGroupID,
+		"",
+		fmt.Sprintf("Deprecated; replaced by %s", KafkaConsumerConfigPrefix+SuffixGroupID))
+	flagSet.String(
+		DeprecatedKafkaConfigPrefix+SuffixEncoding,
+		"",
+		fmt.Sprintf("Deprecated; replaced by %s", KafkaConsumerConfigPrefix+SuffixEncoding))
 }
 
 // InitFromViper initializes Builder with properties from viper
 func (o *Options) InitFromViper(v *viper.Viper) {
-	o.Brokers = strings.Split(v.GetString(KafkaConfigPrefix+SuffixBrokers), ",")
-	o.Topic = v.GetString(KafkaConfigPrefix + SuffixTopic)
-	o.GroupID = v.GetString(KafkaConfigPrefix + SuffixGroupID)
-	o.Encoding = v.GetString(KafkaConfigPrefix + SuffixEncoding)
+	o.Brokers = strings.Split(v.GetString(KafkaConsumerConfigPrefix+SuffixBrokers), ",")
+	o.Topic = v.GetString(KafkaConsumerConfigPrefix + SuffixTopic)
+	o.GroupID = v.GetString(KafkaConsumerConfigPrefix + SuffixGroupID)
+	o.Encoding = v.GetString(KafkaConsumerConfigPrefix + SuffixEncoding)
+
+	if brokers := v.GetString(DeprecatedKafkaConfigPrefix+SuffixBrokers); brokers != "" {
+		fmt.Printf("WARNING: found deprecated option %s, please use %s instead\n",
+			DeprecatedKafkaConfigPrefix+SuffixBrokers,
+			KafkaConsumerConfigPrefix+SuffixBrokers,
+		)
+		o.Brokers = strings.Split(brokers, ",")
+	}
+	if topic := v.GetString(DeprecatedKafkaConfigPrefix + SuffixTopic); topic != "" {
+		fmt.Printf("WARNING: found deprecated option %s, please use %s instead\n",
+			DeprecatedKafkaConfigPrefix+SuffixTopic,
+			KafkaConsumerConfigPrefix+SuffixTopic,
+		)
+		o.Topic = topic
+	}
+	if groupID := v.GetString(DeprecatedKafkaConfigPrefix + SuffixGroupID); groupID != "" {
+		fmt.Printf("WARNING: found deprecated option %s, please use %s instead\n",
+			DeprecatedKafkaConfigPrefix+SuffixGroupID,
+			KafkaConsumerConfigPrefix+SuffixGroupID,
+		)
+		o.GroupID = groupID
+	}
+	if encoding := v.GetString(DeprecatedKafkaConfigPrefix + SuffixEncoding); encoding != "" {
+		fmt.Printf("WARNING: found deprecated option %s, please use %s instead\n",
+			DeprecatedKafkaConfigPrefix+SuffixEncoding,
+			KafkaConsumerConfigPrefix+SuffixEncoding,
+		)
+		o.Encoding = encoding
+	}
+
 	o.Parallelism = v.GetInt(ConfigPrefix + SuffixParallelism)
 	o.IngesterHTTPPort = v.GetInt(ConfigPrefix + SuffixHTTPPort)
 
