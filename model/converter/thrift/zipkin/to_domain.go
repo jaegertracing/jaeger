@@ -136,15 +136,17 @@ func (td toDomain) transformSpan(zSpan *zipkincore.Span) []*model.Span {
 	}
 
 	flags := td.getFlags(zSpan)
-	// TODO StartTime and Duration could theoretically be defined only via cs/cr/sr/ss annotations.
+
+	startTime, duration := td.getStartTimeAndDuration(zSpan)
+
 	result := []*model.Span{{
 		TraceID:       traceID,
 		SpanID:        model.NewSpanID(uint64(zSpan.ID)),
 		OperationName: zSpan.Name,
 		References:    refs,
 		Flags:         flags,
-		StartTime:     model.EpochMicrosecondsAsTime(uint64(zSpan.GetTimestamp())),
-		Duration:      model.MicrosecondsAsDuration(uint64(zSpan.GetDuration())),
+		StartTime:     model.EpochMicrosecondsAsTime(uint64(startTime)),
+		Duration:      model.MicrosecondsAsDuration(uint64(duration)),
 		Tags:          tags,
 		Logs:          td.getLogs(zSpan.Annotations),
 	}}
@@ -186,6 +188,30 @@ func (td toDomain) getFlags(zSpan *zipkincore.Span) model.Flags {
 		f.SetDebug()
 	}
 	return f
+}
+
+// Get a correct start time to use for the span if it's not set directly
+func (td toDomain) getStartTimeAndDuration(zSpan *zipkincore.Span) (int64, int64) {
+	timestamp := zSpan.GetTimestamp()
+	duration := zSpan.GetDuration()
+	if timestamp == 0 {
+		cs := td.findAnnotation(zSpan, zipkincore.CLIENT_SEND)
+		sr := td.findAnnotation(zSpan, zipkincore.SERVER_RECV)
+		if cs != nil {
+			timestamp = cs.Timestamp
+			cr := td.findAnnotation(zSpan, zipkincore.CLIENT_RECV)
+			if cr != nil && duration == 0 {
+				duration = cr.Timestamp - cs.Timestamp
+			}
+		} else if sr != nil {
+			timestamp = sr.Timestamp
+			ss := td.findAnnotation(zSpan, zipkincore.SERVER_SEND)
+			if ss != nil && duration == 0 {
+				duration = ss.Timestamp - sr.Timestamp
+			}
+		}
+	}
+	return timestamp, duration
 }
 
 // generateProcess takes a Zipkin Span and produces a model.Process.

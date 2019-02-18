@@ -91,6 +91,28 @@ func TestToDomainServiceNameInBinAnnotation(t *testing.T) {
 	assert.Equal(t, "bar", trace.Spans[0].Process.ServiceName)
 }
 
+func TestToDomainWithDurationFromServerAnnotations(t *testing.T) {
+	zSpans := getZipkinSpans(t, `[{ "trace_id": -1, "id": 31, "annotations": [
+	{"value": "sr", "timestamp": 1, "host": {"service_name": "bar", "ipv4": 23456}},
+	{"value": "ss", "timestamp": 10, "host": {"service_name": "bar", "ipv4": 23456}}
+	]}]`)
+	trace, err := ToDomain(zSpans)
+	require.Nil(t, err)
+	assert.Equal(t, 1000, int(trace.Spans[0].StartTime.Nanosecond()))
+	assert.Equal(t, 9000, int(trace.Spans[0].Duration))
+}
+
+func TestToDomainWithDurationFromClientAnnotations(t *testing.T) {
+	zSpans := getZipkinSpans(t, `[{ "trace_id": -1, "id": 31, "annotations": [
+	{"value": "cs", "timestamp": 1, "host": {"service_name": "bar", "ipv4": 23456}},
+	{"value": "cr", "timestamp": 10, "host": {"service_name": "bar", "ipv4": 23456}}
+	]}]`)
+	trace, err := ToDomain(zSpans)
+	require.Nil(t, err)
+	assert.Equal(t, 1000, int(trace.Spans[0].StartTime.Nanosecond()))
+	assert.Equal(t, 9000, int(trace.Spans[0].Duration))
+}
+
 func TestToDomainMultipleSpanKinds(t *testing.T) {
 	tests := []struct {
 		json      string

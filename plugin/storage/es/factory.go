@@ -19,6 +19,7 @@ import (
 	"flag"
 	"os"
 	"path/filepath"
+	"strconv"
 	"strings"
 
 	"github.com/pkg/errors"
@@ -29,6 +30,7 @@ import (
 	"github.com/jaegertracing/jaeger/pkg/es"
 	"github.com/jaegertracing/jaeger/pkg/es/config"
 	esDepStore "github.com/jaegertracing/jaeger/plugin/storage/es/dependencystore"
+	"github.com/jaegertracing/jaeger/plugin/storage/es/mappings"
 	esSpanStore "github.com/jaegertracing/jaeger/plugin/storage/es/spanstore"
 	"github.com/jaegertracing/jaeger/storage/dependencystore"
 	"github.com/jaegertracing/jaeger/storage/spanstore"
@@ -80,11 +82,12 @@ func (f *Factory) Initialize(metricsFactory metrics.Factory, logger *zap.Logger)
 		return errors.Wrap(err, "failed to create primary Elasticsearch client")
 	}
 	f.primaryClient = primaryClient
-	archiveClient, err := f.archiveConfig.NewClient(logger, metricsFactory)
-	if err != nil {
-		return errors.Wrap(err, "failed to create archive Elasticsearch client")
+	if f.archiveConfig.IsEnabled() {
+		f.archiveClient, err = f.archiveConfig.NewClient(logger, metricsFactory)
+		if err != nil {
+			return errors.Wrap(err, "failed to create archive Elasticsearch client")
+		}
 	}
-	f.archiveClient = archiveClient
 	return nil
 }
 
@@ -123,12 +126,20 @@ func loadTagsFromFile(filePath string) ([]string, error) {
 
 // CreateArchiveSpanReader implements storage.ArchiveFactory
 func (f *Factory) CreateArchiveSpanReader() (spanstore.Reader, error) {
-	return createSpanReader(f.metricsFactory, f.logger, f.archiveClient, f.Options.Get(archiveNamespace), true)
+	cfg := f.Options.Get(archiveNamespace)
+	if !cfg.Enabled {
+		return nil, nil
+	}
+	return createSpanReader(f.metricsFactory, f.logger, f.archiveClient, cfg, true)
 }
 
 // CreateArchiveSpanWriter implements storage.ArchiveFactory
 func (f *Factory) CreateArchiveSpanWriter() (spanstore.Writer, error) {
-	return createSpanWriter(f.metricsFactory, f.logger, f.archiveClient, f.Options.Get(archiveNamespace), true)
+	cfg := f.Options.Get(archiveNamespace)
+	if !cfg.Enabled {
+		return nil, nil
+	}
+	return createSpanWriter(f.metricsFactory, f.logger, f.archiveClient, cfg, true)
 }
 
 func createSpanReader(
@@ -166,17 +177,36 @@ func createSpanWriter(
 			return nil, err
 		}
 	}
+
+	spanMapping, serviceMapping := GetMappings(cfg.GetNumShards(), cfg.GetNumReplicas())
 	return esSpanStore.NewSpanWriter(esSpanStore.SpanWriterParams{
 		Client:              client,
 		Logger:              logger,
 		MetricsFactory:      mFactory,
-		NumShards:           cfg.GetNumShards(),
-		NumReplicas:         cfg.GetNumReplicas(),
 		IndexPrefix:         cfg.GetIndexPrefix(),
 		AllTagsAsFields:     cfg.GetAllTagsAsFields(),
 		TagKeysAsFields:     tags,
 		TagDotReplacement:   cfg.GetTagDotReplacement(),
 		Archive:             archive,
 		UseReadWriteAliases: cfg.GetUseReadWriteAliases(),
+		SpanMapping:         spanMapping,
+		ServiceMapping:      serviceMapping,
 	}), nil
+}
+
+// GetMappings returns span and service mappings
+func GetMappings(shards, replicas int64) (string, string) {
+	return fixMapping(loadMapping("/jaeger-span.json"), shards, replicas),
+		fixMapping(loadMapping("/jaeger-service.json"), shards, replicas)
+}
+
+func loadMapping(name string) string {
+	s, _ := mappings.FSString(false, name)
+	return s
+}
+
+func fixMapping(mapping string, shards, replicas int64) string {
+	mapping = strings.Replace(mapping, "${__NUMBER_OF_SHARDS__}", strconv.FormatInt(shards, 10), 1)
+	mapping = strings.Replace(mapping, "${__NUMBER_OF_REPLICAS__}", strconv.FormatInt(replicas, 10), 1)
+	return mapping
 }

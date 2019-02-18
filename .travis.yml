@@ -29,6 +29,9 @@ matrix:
     - KAFKA_INTEGRATION_TEST=true
   - go: "1.11.1"
     env:
+    - CASSANDRA_INTEGRATION_TEST=true
+  - go: "1.11.1"
+    env:
     - HOTROD=true
 
 services:
@@ -58,6 +61,7 @@ script:
   - if [ "$DOCKER" == true ]; then bash ./scripts/travis/build-docker-images.sh ; else echo 'skipping docker images'; fi
   - if [ "$ES_INTEGRATION_TEST" == true ]; then bash ./scripts/travis/es-integration-test.sh ; else echo 'skipping elastic search integration test'; fi
   - if [ "$KAFKA_INTEGRATION_TEST" == true ]; then bash ./scripts/travis/kafka-integration-test.sh ; else echo 'skipping kafka integration test'; fi
+  - if [ "$CASSANDRA_INTEGRATION_TEST" == true ]; then bash ./scripts/travis/cassandra-integration-test.sh ; else echo 'skipping cassandra integration test'; fi
   - if [ "$HOTROD" == true ]; then bash ./scripts/travis/hotrod-integration-test.sh ; else echo 'skipping hotrod example'; fi
 
 after_success:
@@ -68,7 +72,7 @@ after_failure:
   - if [ "$CROSSDOCK" == true ]; then make crossdock-logs ; else echo 'skipping crossdock'; fi
 
 before_deploy:
-  - make build-all-platforms && bash ./scripts/travis/package-deploy.sh
+  - if [ "$DEPLOY" == true ]; then make build-all-platforms && bash ./scripts/travis/package-deploy.sh ; else echo 'skipping deploy'; fi
 
 deploy:
   provider: releases
