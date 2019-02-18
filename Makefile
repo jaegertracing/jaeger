@@ -6,7 +6,7 @@ ALL_SRC := $(shell find . -name '*.go' \
 				   -not -name 'doc.go' \
 				   -not -name '_*' \
 				   -not -name '.*' \
-				   -not -name 'bindata.go' \
+				   -not -name 'gen_assets.go' \
 				   -not -name 'mocks*' \
 				   -not -name '*_test.go' \
 				   -not -name 'model.pb.go' \
@@ -149,28 +149,17 @@ install-glide:
 	$(MAKE) install
 
 .PHONY: install
-install: install-go-bindata-assetfs
+install:
 	@which dep > /dev/null || curl https://raw.githubusercontent.com/golang/dep/master/install.sh | sh
 	dep ensure
 
-.PHONY: install-statik
-install-statik:
-	go get -u github.com/rakyll/statik
-
-.PHONY: install-go-bindata-assetfs
-install-go-bindata-assetfs:
-	go get -u github.com/jteeuwen/go-bindata/...
-	go get -u github.com/elazarl/go-bindata-assetfs/...
-
-.PHONE: statik-elasticsearch-mappings
-statik-elasticsearch-mappings: install-go-bindata-assetfs
-	go-bindata-assetfs -ignore bindata.go -pkg mappings -prefix plugin/storage/es/mappings  plugin/storage/es/mappings
-	mkdir -p plugin/storage/es/mappings
-	mv bindata.go plugin/storage/es/mappings
+.PHONE: elasticsearch-mappings
+elasticsearch-mappings:
+	esc -pkg mappings -o plugin/storage/es/mappings/gen_assets.go -ignore assets -prefix plugin/storage/es/mappings plugin/storage/es/mappings
 
 .PHONY: build-examples
-build-examples: install-statik
-	(cd examples/hotrod/services/frontend/ && statik -f --src web_assets)
+build-examples:
+	esc -pkg frontend -o examples/hotrod/services/frontend/gen_assets.go  -prefix examples/hotrod/services/frontend/web_assets examples/hotrod/services/frontend/web_assets
 	CGO_ENABLED=0 installsuffix=cgo go build -o ./examples/hotrod/hotrod-$(GOOS) ./examples/hotrod/main.go
 
 .PHONE: docker-hotrod
@@ -179,16 +168,17 @@ docker-hotrod:
 	docker build -t $(DOCKER_NAMESPACE)/example-hotrod:${DOCKER_TAG} ./examples/hotrod
 
 .PHONY: build_ui
-build_ui: install-statik
+build_ui:
 	cd jaeger-ui && yarn install && cd packages/jaeger-ui && yarn build
-	(cd cmd/query/app/ui/actual; statik -f -src ../../../../../jaeger-ui/packages/jaeger-ui/build)
+	esc -pkg assets -o cmd/query/app/ui/actual/gen_assets.go -prefix jaeger-ui/packages/jaeger-ui/build jaeger-ui/packages/jaeger-ui/build
+	esc -pkg assets -o cmd/query/app/ui/placeholder/gen_assets.go -prefix cmd/query/app/ui/placeholder/public cmd/query/app/ui/placeholder/public
 
 .PHONY: build-all-in-one-linux
 build-all-in-one-linux: build_ui
 	GOOS=linux $(MAKE) build-all-in-one
 
 .PHONY: build-all-in-one
-build-all-in-one: statik-elasticsearch-mappings
+build-all-in-one: elasticsearch-mappings
 	CGO_ENABLED=0 installsuffix=cgo go build -tags ui -o ./cmd/all-in-one/all-in-one-$(GOOS) $(BUILD_INFO) ./cmd/all-in-one/main.go
 
 .PHONY: build-agent
@@ -200,7 +190,7 @@ build-query:
 	CGO_ENABLED=0 installsuffix=cgo go build -tags ui -o ./cmd/query/query-$(GOOS) $(BUILD_INFO) ./cmd/query/main.go
 
 .PHONY: build-collector
-build-collector: statik-elasticsearch-mappings
+build-collector: elasticsearch-mappings
 	CGO_ENABLED=0 installsuffix=cgo go build -o ./cmd/collector/collector-$(GOOS) $(BUILD_INFO) ./cmd/collector/main.go
 
 .PHONY: build-ingester
@@ -266,8 +256,8 @@ include crossdock/rules.mk
 
 .PHONY: build-crossdock-ui-placeholder
 build-crossdock-ui-placeholder:
-	mkdir -p cmd/query/app/ui/actual/statik
-	[ -e cmd/query/app/ui/actual/statik/statik.go ] || cp cmd/query/app/ui/placeholder/statik/statik.go cmd/query/app/ui/actual/statik/statik.go
+	mkdir -p cmd/query/app/ui/actual
+	[ -e cmd/query/app/ui/actual/gen_assets.go ] || cp cmd/query/app/ui/placeholder/gen_assets.go cmd/query/app/ui/actual/gen_assets.go
 
 # Crossdock tests do not require fully functioning UI, so we skip it to speed up the build.
 .PHONY: build-crossdock
@@ -286,6 +276,7 @@ install-tools:
 	go get -u github.com/sectioneight/md-to-godoc
 	go get -u github.com/securego/gosec/cmd/gosec/...
 	go get -u honnef.co/go/tools/cmd/gosimple
+	go get -u github.com/mjibson/esc
 
 .PHONY: install-ci
 install-ci: install install-tools

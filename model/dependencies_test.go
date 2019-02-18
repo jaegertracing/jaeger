@@ -1,4 +1,4 @@
-// Copyright (c) 2018 The Jaeger Authors.
+// Copyright (c) 2019 The Jaeger Authors.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -12,9 +12,19 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-// Package statik is a placeholder for UI assets packaged with github.com/rakyll/statik.
-// See build_ui target in the Makefile.
-//
-// The default statik.go file in this directory is generated with:
-//    (cd cmd/query/app/ui/placeholder; statik -f)
-package statik
+package model
+
+import (
+	"testing"
+
+	"github.com/stretchr/testify/assert"
+)
+
+func TestDependencyLinkApplyDefaults(t *testing.T) {
+	dl := DependencyLink{}.ApplyDefaults()
+	assert.Equal(t, JaegerDependencyLinkSource, dl.Source)
+
+	networkSource := DependencyLinkSource("network")
+	dl = DependencyLink{Source: networkSource}.ApplyDefaults()
+	assert.Equal(t, networkSource, dl.Source)
+}

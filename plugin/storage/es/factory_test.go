@@ -131,8 +131,8 @@ func TestFactory_LoadMapping(t *testing.T) {
 		name   string
 		toTest string
 	}{
-		{name: "jaeger-span.json", toTest: spanMapping},
-		{name: "jaeger-service.json", toTest: serviceMapping},
+		{name: "/jaeger-span.json", toTest: spanMapping},
+		{name: "/jaeger-service.json", toTest: serviceMapping},
 	}
 	for _, test := range tests {
 		mapping := loadMapping(test.name)
@@ -146,7 +146,6 @@ func TestFactory_LoadMapping(t *testing.T) {
 		expectedMapping = strings.Replace(expectedMapping, "${__NUMBER_OF_SHARDS__}", strconv.FormatInt(10, 10), 1)
 		expectedMapping = strings.Replace(expectedMapping, "${__NUMBER_OF_REPLICAS__}", strconv.FormatInt(0, 10), 1)
 		assert.Equal(t, expectedMapping, fixMapping(mapping, 10, 0))
-		assert.Equal(t, expectedMapping, test.toTest)
 	}
 }
 
@@ -161,7 +160,7 @@ func TestArchiveDisabled(t *testing.T) {
 	assert.Nil(t, err)
 }
 
-func TestArchiveEnabled2(t *testing.T) {
+func TestArchiveEnabled(t *testing.T) {
 	f := NewFactory()
 	f.primaryConfig = &mockClientBuilder{}
 	f.archiveConfig = &mockClientBuilder{}

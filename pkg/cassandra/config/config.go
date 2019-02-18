@@ -40,6 +40,7 @@ type Configuration struct {
 	Port                 int           `yaml:"port"`
 	Authenticator        Authenticator `yaml:"authenticator"`
 	DisableAutoDiscovery bool          `yaml:"disable_auto_discovery"`
+	EnableDependenciesV2 bool          `yaml:"enable_dependencies_v2"`
 	TLS                  TLS
 }
 
