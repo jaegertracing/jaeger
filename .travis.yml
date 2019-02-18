@@ -72,7 +72,7 @@ after_failure:
   - if [ "$CROSSDOCK" == true ]; then make crossdock-logs ; else echo 'skipping crossdock'; fi
 
 before_deploy:
-  - make build-all-platforms && bash ./scripts/travis/package-deploy.sh
+  - if [ "$DEPLOY" == true ]; then make build-all-platforms && bash ./scripts/travis/package-deploy.sh ; else echo 'skipping deploy'; fi
 
 deploy:
   provider: releases
