@@ -31,14 +31,14 @@ const (
 
 	spanStorageFlag = "--span-storage.type"
 
-	// DownSamplingRatio is the name of the env var that defines the ratio of spans for down sampling
+	// DownsamplingRatio is the name of the env var that defines the ratio of spans for down sampling
 	// Users are expected to pass ratio ranging from 0 to 1.0
 	// e.g ratio = 0.3 means we are keeping 30% of spans and dropping 70% of spans.
-	DownSamplingRatio = "DOWN_SAMPLING_RATIO"
+	DownsamplingRatio = "DOWN_SAMPLING_RATIO"
 
-	// DownSamplingHashSalt is the name of the env var that defines the hash salt for down sampling
+	// DownsamplingHashSalt is the name of the env var that defines the hash salt for down sampling
 	// Users are expected to pass their own salt string or DownSamplingWriter will use empty string as default.
-	DownSamplingHashSalt = "DOWN_SAMPLING_HASH_SALT"
+	DownsamplingHashSalt = "DOWN_SAMPLING_HASH_SALT"
 )
 
 // FactoryConfig tells the Factory which types of backends it needs to create for different storage types.
@@ -81,7 +81,7 @@ func FactoryConfigFromEnvAndCLI(args []string, log io.Writer) FactoryConfig {
 	if depStorageType == "" {
 		depStorageType = spanWriterTypes[0]
 	}
-	ratioEnvVariable := os.Getenv(DownSamplingRatio)
+	ratioEnvVariable := os.Getenv(DownsamplingRatio)
 	var downSamplingRatio float64
 	if ratioEnvVariable == "" {
 		fmt.Fprintf(log,
@@ -99,7 +99,7 @@ func FactoryConfigFromEnvAndCLI(args []string, log io.Writer) FactoryConfig {
 		downSamplingRatio = 1.0
 	}
 	// Default salt is empty string.
-	downSamplingHashSalt := os.Getenv(DownSamplingHashSalt)
+	downSamplingHashSalt := os.Getenv(DownsamplingHashSalt)
 
 	// TODO support explicit configuration for readers
 	return FactoryConfig{

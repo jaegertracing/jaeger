@@ -20,6 +20,8 @@ import (
 	"math"
 	"sync"
 
+	"github.com/uber/jaeger-lib/metrics"
+
 	"github.com/jaegertracing/jaeger/model"
 )
 
@@ -28,30 +30,67 @@ type DownSamplingWriter struct {
 	spanWriter Writer
 	threshold  uint64
 	hashSalt   string
-	fnvHash    hash.Hash64
-	lock       sync.Mutex
+	instance   *hashPoolSingleton
+	metrics    *downsamplingWriterMetrics
+}
+
+// downsamplingWriterMetrics keeps track of:
+// errors converting trace ID into a binary representation,
+// errors hashing bytes to uint64.
+type downsamplingWriterMetrics struct {
+	MarshalingErrors metrics.Counter `metric:"MarshalTo_errors"`
+	HashingErrors    metrics.Counter `metric:"hashing_errors"`
+}
+
+// Wrap the sync.Pool object within a singleton struct.
+type hashPoolSingleton struct {
+	pool *sync.Pool
+}
+
+var instance *hashPoolSingleton
+var once sync.Once
+
+// Initialize the singleton if it doesn't exist already.
+func getHashPoolInstance() *hashPoolSingleton {
+	once.Do(func() {
+		instance = &hashPoolSingleton{
+			pool: &sync.Pool{
+				New: func() interface{} {
+					return fnv.New64a()
+				},
+			},
+		}
+	})
+	return instance
 }
 
 // DownSamplingOptions contains the options for constructing a DownSamplingWriter.
 type DownSamplingOptions struct {
-	Ratio    float64
-	HashSalt string
+	Ratio          float64
+	HashSalt       string
+	MetricsFactory metrics.Factory
 }
 
 // NewDownSamplingWriter creates a DownSamplingWriter.
 func NewDownSamplingWriter(spanWriter Writer, downSamplingOptions DownSamplingOptions) *DownSamplingWriter {
 	threshold := uint64(downSamplingOptions.Ratio * float64(math.MaxUint64))
-	fnvHash := fnv.New64a()
+	downsamplingMetrics := &downsamplingWriterMetrics{}
+	err := metrics.Init(downsamplingMetrics, downSamplingOptions.MetricsFactory, nil)
+	if err != nil {
+		return nil
+	}
 	return &DownSamplingWriter{
 		spanWriter: spanWriter,
 		threshold:  threshold,
 		hashSalt:   downSamplingOptions.HashSalt,
-		fnvHash:    fnvHash,
+		instance:   getHashPoolInstance(),
+		metrics:    downsamplingMetrics,
 	}
 }
 
 // WriteSpan calls WriteSpan on wrapped span writer.
 func (ds *DownSamplingWriter) WriteSpan(span *model.Span) error {
+	// No downSampling when threshold equals maxuint64
 	if ds.threshold == math.MaxUint64 {
 		return ds.spanWriter.WriteSpan(span)
 	}
@@ -62,6 +101,7 @@ func (ds *DownSamplingWriter) WriteSpan(span *model.Span) error {
 	length, err := span.TraceID.MarshalTo(traceIDBytes)
 	if err != nil || length != 16 {
 		// No Downsamping when there's error marshaling.
+		ds.metrics.MarshalingErrors.Inc(1)
 		return ds.spanWriter.WriteSpan(span)
 	}
 	hashVal := ds.hashBytes(append(hashSaltBytes, traceIDBytes...))
@@ -73,13 +113,16 @@ func (ds *DownSamplingWriter) WriteSpan(span *model.Span) error {
 	return ds.spanWriter.WriteSpan(span)
 }
 
+//hashBytes returns the uint64 hash value of bytes slice.
 func (ds *DownSamplingWriter) hashBytes(bytes []byte) uint64 {
-	ds.lock.Lock()
-	defer ds.lock.Unlock()
-	ds.fnvHash.Reset()
-	_, err := ds.fnvHash.Write(bytes)
+	h := ds.instance.pool.Get().(hash.Hash64)
+	defer ds.instance.pool.Put(h)
+	h.Reset()
+	_, err := h.Write(bytes)
 	if err != nil {
+		// No downsampling when there's error hashing.
+		ds.metrics.HashingErrors.Inc(1)
 		return math.MaxUint64
 	}
-	return ds.fnvHash.Sum64()
+	return h.Sum64()
 }

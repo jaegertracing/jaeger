@@ -44,8 +44,8 @@ var allStorageTypes = []string{cassandraStorageType, elasticsearchStorageType, m
 // Factory implements storage.Factory interface as a meta-factory for storage components.
 type Factory struct {
 	FactoryConfig
-
-	factories map[string]storage.Factory
+	metricsFactory metrics.Factory
+	factories      map[string]storage.Factory
 }
 
 // NewFactory creates the meta-factory.
@@ -86,6 +86,7 @@ func (f *Factory) getFactoryOfType(factoryType string) (storage.Factory, error) 
 
 // Initialize implements storage.Factory
 func (f *Factory) Initialize(metricsFactory metrics.Factory, logger *zap.Logger) error {
+	f.metricsFactory = metricsFactory
 	for _, factory := range f.factories {
 		if err := factory.Initialize(metricsFactory, logger); err != nil {
 			return err
@@ -123,10 +124,10 @@ func (f *Factory) CreateSpanWriter() (spanstore.Writer, error) {
 	} else {
 		topWriter = spanstore.NewCompositeWriter(writers...)
 	}
-
 	return spanstore.NewDownSamplingWriter(topWriter, spanstore.DownSamplingOptions{
-		Ratio:    f.DownSamplingRatio,
-		HashSalt: f.DownSamplingHashSalt,
+		Ratio:          f.DownSamplingRatio,
+		HashSalt:       f.DownSamplingHashSalt,
+		MetricsFactory: f.metricsFactory.Namespace(metrics.NSOptions{Name: "downsamplingwriter"}),
 	}), nil
 }
 

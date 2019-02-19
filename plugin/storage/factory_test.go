@@ -132,11 +132,16 @@ func TestCreate(t *testing.T) {
 	assert.EqualError(t, err, "Archive storage not supported")
 
 	mock.On("CreateSpanWriter").Return(spanWriter, nil)
+	m := metrics.NullFactory
+	l := zap.NewNop()
+	mock.On("Initialize", m, l).Return(nil)
+	f.Initialize(m, l)
 	w, err = f.CreateSpanWriter()
 	assert.NoError(t, err)
 	assert.Equal(t, spanstore.NewDownSamplingWriter(spanWriter, spanstore.DownSamplingOptions{
-		Ratio:    f.DownSamplingRatio,
-		HashSalt: f.DownSamplingHashSalt,
+		Ratio:          f.DownSamplingRatio,
+		HashSalt:       f.DownSamplingHashSalt,
+		MetricsFactory: metrics.NullFactory,
 	}), w)
 }
 
@@ -162,11 +167,17 @@ func TestCreateMulti(t *testing.T) {
 
 	mock.On("CreateSpanWriter").Return(spanWriter, nil)
 	mock2.On("CreateSpanWriter").Return(spanWriter2, nil)
+	m := metrics.NullFactory
+	l := zap.NewNop()
+	mock.On("Initialize", m, l).Return(nil)
+	mock2.On("Initialize", m, l).Return(nil)
+	f.Initialize(m, l)
 	w, err = f.CreateSpanWriter()
 	assert.NoError(t, err)
 	assert.Equal(t, spanstore.NewDownSamplingWriter(spanstore.NewCompositeWriter(spanWriter, spanWriter2), spanstore.DownSamplingOptions{
-		Ratio:    f.DownSamplingRatio,
-		HashSalt: f.DownSamplingHashSalt,
+		Ratio:          f.DownSamplingRatio,
+		HashSalt:       f.DownSamplingHashSalt,
+		MetricsFactory: metrics.NullFactory,
 	}), w)
 }
 
