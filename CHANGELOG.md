@@ -1,10 +1,12 @@
 Changes by Version
 ==================
 
-1.11.0 (unreleased)
+1.10.1 (2019-02-21)
 ------------------
 
 #### Backend Changes
+
+- Discover dependencies table version automatically ([#1364]https://github.com/jaegertracing/jaeger/pull/1364)
 
 ##### Breaking Changes
 
