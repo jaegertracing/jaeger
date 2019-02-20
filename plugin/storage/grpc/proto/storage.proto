@@ -2,12 +2,11 @@ syntax = "proto3";
 
 package jaeger.storage.v1;
 
-option go_package = "api_v1";
+option go_package = "storage_v1";
 
 import "gogoproto/gogo.proto";
 import "google/protobuf/timestamp.proto";
 import "google/protobuf/duration.proto";
-import "google/protobuf/empty.proto";
 
 import "model.proto";
 
@@ -22,25 +21,29 @@ option (gogoproto.sizer_all) = true;
 option (gogoproto.goproto_registration) = true;
 
 message GetDependenciesRequest {
-    google.protobuf.Timestamp end_timestamp = 1 [
+    google.protobuf.Timestamp start_time = 1 [
       (gogoproto.stdtime) = true,
       (gogoproto.nullable) = false
     ];
-    google.protobuf.Duration lookback = 2 [
-      (gogoproto.stdduration) = true,
+    google.protobuf.Timestamp end_time = 2 [
+      (gogoproto.stdtime) = true,
       (gogoproto.nullable) = false
     ];
 }
 
-message GetDependenciesSuccess {
-    repeated bytes dependencies = 1 [
-      (gogoproto.nullable) = false,
-      (gogoproto.customtype) = "github.com/jaegertracing/jaeger/model.DependencyLink"
+message GetDependenciesResponse {
+    repeated jaeger.api_v2.DependencyLink dependencies = 1 [
+      (gogoproto.nullable) = false
     ];
 }
 
 message WriteSpanRequest {
     jaeger.api_v2.Span span = 1;
+}
+
+// empty; extensible in the future
+message WriteSpanResponse {
+
 }
 
 message GetTraceRequest {
@@ -51,13 +54,9 @@ message GetTraceRequest {
     ];
 }
 
-message GetTraceSuccess {
-    jaeger.api_v2.Trace trace = 1;
-}
-
 message GetServicesRequest {}
 
-message GetServicesSuccess {
+message GetServicesResponse {
     repeated string services = 1;
 }
 
@@ -65,7 +64,7 @@ message GetOperationsRequest {
     string service = 1;
 }
 
-message GetOperationsSuccess {
+message GetOperationsResponse {
     repeated string operations = 1;
 }
 
@@ -102,12 +101,16 @@ message FindTracesResponseChunk {
     ];
 }
 
+message FindTracesResponse {
+
+}
+
 message FindTraceIDsRequest {
     TraceQueryParameters query = 1;
 }
 
-message FindTraceIDsSuccess {
-    repeated bytes trace_id = 1 [
+message FindTraceIDsResponse {
+    repeated bytes trace_ids = 1 [
       (gogoproto.nullable) = false,
       (gogoproto.customtype) = "github.com/jaegertracing/jaeger/model.TraceID",
       (gogoproto.customname) = "TraceIDs"
@@ -116,19 +119,19 @@ message FindTraceIDsSuccess {
 
 service SpanWriterPlugin {
     // spanstore/Writer
-    rpc WriteSpan(WriteSpanRequest) returns (google.protobuf.Empty);
+    rpc WriteSpan(WriteSpanRequest) returns (WriteSpanResponse);
 }
 
 service SpanReaderPlugin {
     // spanstore/Reader
-    rpc GetTrace(GetTraceRequest) returns (GetTraceSuccess);
-    rpc GetServices(GetServicesRequest) returns (GetServicesSuccess);
-    rpc GetOperations(GetOperationsRequest) returns (GetOperationsSuccess);
+    rpc GetTrace(GetTraceRequest) returns (stream FindTracesResponseChunk);
+    rpc GetServices(GetServicesRequest) returns (GetServicesResponse);
+    rpc GetOperations(GetOperationsRequest) returns (GetOperationsResponse);
     rpc FindTraces(FindTracesRequest) returns (stream FindTracesResponseChunk);
-    rpc FindTraceIDs(FindTraceIDsRequest) returns (FindTraceIDsSuccess);
+    rpc FindTraceIDs(FindTraceIDsRequest) returns (FindTraceIDsResponse);
 }
 
 service DependenciesReaderPlugin {
     // dependencystore/Reader
-    rpc GetDependencies(GetDependenciesRequest) returns (GetDependenciesSuccess);
+    rpc GetDependencies(GetDependenciesRequest) returns (GetDependenciesResponse);
 }

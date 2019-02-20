@@ -391,7 +391,7 @@ proto:
 	protoc \
 		$(PROTO_INCLUDES) \
 		-I plugin/storage/grpc/proto \
-				--gogo_out=plugins=grpc,$(PROTO_GOGO_MAPPINGS):$(PWD)/plugin/storage/grpc/proto \
+				--gogo_out=plugins=grpc,$(PROTO_GOGO_MAPPINGS):$(PWD)/plugin/storage/grpc/proto/storage_v1 \
 				plugin/storage/grpc/proto/storage.proto
 
 	protoc \

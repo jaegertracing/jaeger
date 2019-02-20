@@ -2,28 +2,29 @@
 // source: storage.proto
 
 /*
-	Package api_v1 is a generated protocol buffer package.
+	Package storage_v1 is a generated protocol buffer package.
 
 	It is generated from these files:
 		storage.proto
 
 	It has these top-level messages:
 		GetDependenciesRequest
-		GetDependenciesSuccess
+		GetDependenciesResponse
 		WriteSpanRequest
+		WriteSpanResponse
 		GetTraceRequest
-		GetTraceSuccess
 		GetServicesRequest
-		GetServicesSuccess
+		GetServicesResponse
 		GetOperationsRequest
-		GetOperationsSuccess
+		GetOperationsResponse
 		TraceQueryParameters
 		FindTracesRequest
 		FindTracesResponseChunk
+		FindTracesResponse
 		FindTraceIDsRequest
-		FindTraceIDsSuccess
+		FindTraceIDsResponse
 */
-package api_v1
+package storage_v1
 
 import proto "github.com/gogo/protobuf/proto"
 import golang_proto "github.com/golang/protobuf/proto"
@@ -32,7 +33,6 @@ import math "math"
 import _ "github.com/gogo/protobuf/gogoproto"
 import _ "github.com/gogo/protobuf/types"
 import _ "github.com/gogo/protobuf/types"
-import google_protobuf3 "github.com/gogo/protobuf/types"
 import jaeger_api_v2 "github.com/jaegertracing/jaeger/model"
 
 import time "time"
@@ -59,8 +59,8 @@ var _ = time.Kitchen
 const _ = proto.GoGoProtoPackageIsVersion2 // please upgrade the proto package
 
 type GetDependenciesRequest struct {
-	EndTimestamp time.Time     `protobuf:"bytes,1,opt,name=end_timestamp,json=endTimestamp,stdtime" json:"end_timestamp"`
-	Lookback     time.Duration `protobuf:"bytes,2,opt,name=lookback,stdduration" json:"lookback"`
+	StartTime time.Time `protobuf:"bytes,1,opt,name=start_time,json=startTime,stdtime" json:"start_time"`
+	EndTime   time.Time `protobuf:"bytes,2,opt,name=end_time,json=endTime,stdtime" json:"end_time"`
 }
 
 func (m *GetDependenciesRequest) Reset()                    { *m = GetDependenciesRequest{} }
@@ -68,28 +68,35 @@ func (m *GetDependenciesRequest) String() string            { return proto.Compa
 func (*GetDependenciesRequest) ProtoMessage()               {}
 func (*GetDependenciesRequest) Descriptor() ([]byte, []int) { return fileDescriptorStorage, []int{0} }
 
-func (m *GetDependenciesRequest) GetEndTimestamp() time.Time {
+func (m *GetDependenciesRequest) GetStartTime() time.Time {
 	if m != nil {
-		return m.EndTimestamp
+		return m.StartTime
 	}
 	return time.Time{}
 }
 
-func (m *GetDependenciesRequest) GetLookback() time.Duration {
+func (m *GetDependenciesRequest) GetEndTime() time.Time {
 	if m != nil {
-		return m.Lookback
+		return m.EndTime
 	}
-	return 0
+	return time.Time{}
 }
 
-type GetDependenciesSuccess struct {
-	Dependencies []github_com_jaegertracing_jaeger_model.DependencyLink `protobuf:"bytes,1,rep,name=dependencies,customtype=github.com/jaegertracing/jaeger/model.DependencyLink" json:"dependencies"`
+type GetDependenciesResponse struct {
+	Dependencies []jaeger_api_v2.DependencyLink `protobuf:"bytes,1,rep,name=dependencies" json:"dependencies"`
 }
 
-func (m *GetDependenciesSuccess) Reset()                    { *m = GetDependenciesSuccess{} }
-func (m *GetDependenciesSuccess) String() string            { return proto.CompactTextString(m) }
-func (*GetDependenciesSuccess) ProtoMessage()               {}
-func (*GetDependenciesSuccess) Descriptor() ([]byte, []int) { return fileDescriptorStorage, []int{1} }
+func (m *GetDependenciesResponse) Reset()                    { *m = GetDependenciesResponse{} }
+func (m *GetDependenciesResponse) String() string            { return proto.CompactTextString(m) }
+func (*GetDependenciesResponse) ProtoMessage()               {}
+func (*GetDependenciesResponse) Descriptor() ([]byte, []int) { return fileDescriptorStorage, []int{1} }
+
+func (m *GetDependenciesResponse) GetDependencies() []jaeger_api_v2.DependencyLink {
+	if m != nil {
+		return m.Dependencies
+	}
+	return nil
+}
 
 type WriteSpanRequest struct {
 	Span *jaeger_api_v2.Span `protobuf:"bytes,1,opt,name=span" json:"span,omitempty"`
@@ -107,6 +114,15 @@ func (m *WriteSpanRequest) GetSpan() *jaeger_api_v2.Span {
 	return nil
 }
 
+// empty; extensible in the future
+type WriteSpanResponse struct {
+}
+
+func (m *WriteSpanResponse) Reset()                    { *m = WriteSpanResponse{} }
+func (m *WriteSpanResponse) String() string            { return proto.CompactTextString(m) }
+func (*WriteSpanResponse) ProtoMessage()               {}
+func (*WriteSpanResponse) Descriptor() ([]byte, []int) { return fileDescriptorStorage, []int{3} }
+
 type GetTraceRequest struct {
 	TraceID github_com_jaegertracing_jaeger_model.TraceID `protobuf:"bytes,1,opt,name=trace_id,json=traceId,proto3,customtype=github.com/jaegertracing/jaeger/model.TraceID" json:"trace_id"`
 }
@@ -114,23 +130,7 @@ type GetTraceRequest struct {
 func (m *GetTraceRequest) Reset()                    { *m = GetTraceRequest{} }
 func (m *GetTraceRequest) String() string            { return proto.CompactTextString(m) }
 func (*GetTraceRequest) ProtoMessage()               {}
-func (*GetTraceRequest) Descriptor() ([]byte, []int) { return fileDescriptorStorage, []int{3} }
-
-type GetTraceSuccess struct {
-	Trace *jaeger_api_v2.Trace `protobuf:"bytes,1,opt,name=trace" json:"trace,omitempty"`
-}
-
-func (m *GetTraceSuccess) Reset()                    { *m = GetTraceSuccess{} }
-func (m *GetTraceSuccess) String() string            { return proto.CompactTextString(m) }
-func (*GetTraceSuccess) ProtoMessage()               {}
-func (*GetTraceSuccess) Descriptor() ([]byte, []int) { return fileDescriptorStorage, []int{4} }
-
-func (m *GetTraceSuccess) GetTrace() *jaeger_api_v2.Trace {
-	if m != nil {
-		return m.Trace
-	}
-	return nil
-}
+func (*GetTraceRequest) Descriptor() ([]byte, []int) { return fileDescriptorStorage, []int{4} }
 
 type GetServicesRequest struct {
 }
@@ -140,16 +140,16 @@ func (m *GetServicesRequest) String() string            { return proto.CompactTe
 func (*GetServicesRequest) ProtoMessage()               {}
 func (*GetServicesRequest) Descriptor() ([]byte, []int) { return fileDescriptorStorage, []int{5} }
 
-type GetServicesSuccess struct {
+type GetServicesResponse struct {
 	Services []string `protobuf:"bytes,1,rep,name=services" json:"services,omitempty"`
 }
 
-func (m *GetServicesSuccess) Reset()                    { *m = GetServicesSuccess{} }
-func (m *GetServicesSuccess) String() string            { return proto.CompactTextString(m) }
-func (*GetServicesSuccess) ProtoMessage()               {}
-func (*GetServicesSuccess) Descriptor() ([]byte, []int) { return fileDescriptorStorage, []int{6} }
+func (m *GetServicesResponse) Reset()                    { *m = GetServicesResponse{} }
+func (m *GetServicesResponse) String() string            { return proto.CompactTextString(m) }
+func (*GetServicesResponse) ProtoMessage()               {}
+func (*GetServicesResponse) Descriptor() ([]byte, []int) { return fileDescriptorStorage, []int{6} }
 
-func (m *GetServicesSuccess) GetServices() []string {
+func (m *GetServicesResponse) GetServices() []string {
 	if m != nil {
 		return m.Services
 	}
@@ -172,16 +172,16 @@ func (m *GetOperationsRequest) GetService() string {
 	return ""
 }
 
-type GetOperationsSuccess struct {
+type GetOperationsResponse struct {
 	Operations []string `protobuf:"bytes,1,rep,name=operations" json:"operations,omitempty"`
 }
 
-func (m *GetOperationsSuccess) Reset()                    { *m = GetOperationsSuccess{} }
-func (m *GetOperationsSuccess) String() string            { return proto.CompactTextString(m) }
-func (*GetOperationsSuccess) ProtoMessage()               {}
-func (*GetOperationsSuccess) Descriptor() ([]byte, []int) { return fileDescriptorStorage, []int{8} }
+func (m *GetOperationsResponse) Reset()                    { *m = GetOperationsResponse{} }
+func (m *GetOperationsResponse) String() string            { return proto.CompactTextString(m) }
+func (*GetOperationsResponse) ProtoMessage()               {}
+func (*GetOperationsResponse) Descriptor() ([]byte, []int) { return fileDescriptorStorage, []int{8} }
 
-func (m *GetOperationsSuccess) GetOperations() []string {
+func (m *GetOperationsResponse) GetOperations() []string {
 	if m != nil {
 		return m.Operations
 	}
@@ -292,6 +292,14 @@ func (m *FindTracesResponseChunk) GetSpans() []jaeger_api_v2.Span {
 	return nil
 }
 
+type FindTracesResponse struct {
+}
+
+func (m *FindTracesResponse) Reset()                    { *m = FindTracesResponse{} }
+func (m *FindTracesResponse) String() string            { return proto.CompactTextString(m) }
+func (*FindTracesResponse) ProtoMessage()               {}
+func (*FindTracesResponse) Descriptor() ([]byte, []int) { return fileDescriptorStorage, []int{12} }
+
 type FindTraceIDsRequest struct {
 	Query *TraceQueryParameters `protobuf:"bytes,1,opt,name=query" json:"query,omitempty"`
 }
@@ -299,7 +307,7 @@ type FindTraceIDsRequest struct {
 func (m *FindTraceIDsRequest) Reset()                    { *m = FindTraceIDsRequest{} }
 func (m *FindTraceIDsRequest) String() string            { return proto.CompactTextString(m) }
 func (*FindTraceIDsRequest) ProtoMessage()               {}
-func (*FindTraceIDsRequest) Descriptor() ([]byte, []int) { return fileDescriptorStorage, []int{12} }
+func (*FindTraceIDsRequest) Descriptor() ([]byte, []int) { return fileDescriptorStorage, []int{13} }
 
 func (m *FindTraceIDsRequest) GetQuery() *TraceQueryParameters {
 	if m != nil {
@@ -308,44 +316,46 @@ func (m *FindTraceIDsRequest) GetQuery() *TraceQueryParameters {
 	return nil
 }
 
-type FindTraceIDsSuccess struct {
-	TraceIDs []github_com_jaegertracing_jaeger_model.TraceID `protobuf:"bytes,1,rep,name=trace_id,json=traceId,customtype=github.com/jaegertracing/jaeger/model.TraceID" json:"trace_id"`
+type FindTraceIDsResponse struct {
+	TraceIDs []github_com_jaegertracing_jaeger_model.TraceID `protobuf:"bytes,1,rep,name=trace_ids,json=traceIds,customtype=github.com/jaegertracing/jaeger/model.TraceID" json:"trace_ids"`
 }
 
-func (m *FindTraceIDsSuccess) Reset()                    { *m = FindTraceIDsSuccess{} }
-func (m *FindTraceIDsSuccess) String() string            { return proto.CompactTextString(m) }
-func (*FindTraceIDsSuccess) ProtoMessage()               {}
-func (*FindTraceIDsSuccess) Descriptor() ([]byte, []int) { return fileDescriptorStorage, []int{13} }
+func (m *FindTraceIDsResponse) Reset()                    { *m = FindTraceIDsResponse{} }
+func (m *FindTraceIDsResponse) String() string            { return proto.CompactTextString(m) }
+func (*FindTraceIDsResponse) ProtoMessage()               {}
+func (*FindTraceIDsResponse) Descriptor() ([]byte, []int) { return fileDescriptorStorage, []int{14} }
 
 func init() {
 	proto.RegisterType((*GetDependenciesRequest)(nil), "jaeger.storage.v1.GetDependenciesRequest")
 	golang_proto.RegisterType((*GetDependenciesRequest)(nil), "jaeger.storage.v1.GetDependenciesRequest")
-	proto.RegisterType((*GetDependenciesSuccess)(nil), "jaeger.storage.v1.GetDependenciesSuccess")
-	golang_proto.RegisterType((*GetDependenciesSuccess)(nil), "jaeger.storage.v1.GetDependenciesSuccess")
+	proto.RegisterType((*GetDependenciesResponse)(nil), "jaeger.storage.v1.GetDependenciesResponse")
+	golang_proto.RegisterType((*GetDependenciesResponse)(nil), "jaeger.storage.v1.GetDependenciesResponse")
 	proto.RegisterType((*WriteSpanRequest)(nil), "jaeger.storage.v1.WriteSpanRequest")
 	golang_proto.RegisterType((*WriteSpanRequest)(nil), "jaeger.storage.v1.WriteSpanRequest")
+	proto.RegisterType((*WriteSpanResponse)(nil), "jaeger.storage.v1.WriteSpanResponse")
+	golang_proto.RegisterType((*WriteSpanResponse)(nil), "jaeger.storage.v1.WriteSpanResponse")
 	proto.RegisterType((*GetTraceRequest)(nil), "jaeger.storage.v1.GetTraceRequest")
 	golang_proto.RegisterType((*GetTraceRequest)(nil), "jaeger.storage.v1.GetTraceRequest")
-	proto.RegisterType((*GetTraceSuccess)(nil), "jaeger.storage.v1.GetTraceSuccess")
-	golang_proto.RegisterType((*GetTraceSuccess)(nil), "jaeger.storage.v1.GetTraceSuccess")
 	proto.RegisterType((*GetServicesRequest)(nil), "jaeger.storage.v1.GetServicesRequest")
 	golang_proto.RegisterType((*GetServicesRequest)(nil), "jaeger.storage.v1.GetServicesRequest")
-	proto.RegisterType((*GetServicesSuccess)(nil), "jaeger.storage.v1.GetServicesSuccess")
-	golang_proto.RegisterType((*GetServicesSuccess)(nil), "jaeger.storage.v1.GetServicesSuccess")
+	proto.RegisterType((*GetServicesResponse)(nil), "jaeger.storage.v1.GetServicesResponse")
+	golang_proto.RegisterType((*GetServicesResponse)(nil), "jaeger.storage.v1.GetServicesResponse")
 	proto.RegisterType((*GetOperationsRequest)(nil), "jaeger.storage.v1.GetOperationsRequest")
 	golang_proto.RegisterType((*GetOperationsRequest)(nil), "jaeger.storage.v1.GetOperationsRequest")
-	proto.RegisterType((*GetOperationsSuccess)(nil), "jaeger.storage.v1.GetOperationsSuccess")
-	golang_proto.RegisterType((*GetOperationsSuccess)(nil), "jaeger.storage.v1.GetOperationsSuccess")
+	proto.RegisterType((*GetOperationsResponse)(nil), "jaeger.storage.v1.GetOperationsResponse")
+	golang_proto.RegisterType((*GetOperationsResponse)(nil), "jaeger.storage.v1.GetOperationsResponse")
 	proto.RegisterType((*TraceQueryParameters)(nil), "jaeger.storage.v1.TraceQueryParameters")
 	golang_proto.RegisterType((*TraceQueryParameters)(nil), "jaeger.storage.v1.TraceQueryParameters")
 	proto.RegisterType((*FindTracesRequest)(nil), "jaeger.storage.v1.FindTracesRequest")
 	golang_proto.RegisterType((*FindTracesRequest)(nil), "jaeger.storage.v1.FindTracesRequest")
 	proto.RegisterType((*FindTracesResponseChunk)(nil), "jaeger.storage.v1.FindTracesResponseChunk")
 	golang_proto.RegisterType((*FindTracesResponseChunk)(nil), "jaeger.storage.v1.FindTracesResponseChunk")
+	proto.RegisterType((*FindTracesResponse)(nil), "jaeger.storage.v1.FindTracesResponse")
+	golang_proto.RegisterType((*FindTracesResponse)(nil), "jaeger.storage.v1.FindTracesResponse")
 	proto.RegisterType((*FindTraceIDsRequest)(nil), "jaeger.storage.v1.FindTraceIDsRequest")
 	golang_proto.RegisterType((*FindTraceIDsRequest)(nil), "jaeger.storage.v1.FindTraceIDsRequest")
-	proto.RegisterType((*FindTraceIDsSuccess)(nil), "jaeger.storage.v1.FindTraceIDsSuccess")
-	golang_proto.RegisterType((*FindTraceIDsSuccess)(nil), "jaeger.storage.v1.FindTraceIDsSuccess")
+	proto.RegisterType((*FindTraceIDsResponse)(nil), "jaeger.storage.v1.FindTraceIDsResponse")
+	golang_proto.RegisterType((*FindTraceIDsResponse)(nil), "jaeger.storage.v1.FindTraceIDsResponse")
 }
 
 // Reference imports to suppress errors if they are not otherwise used.
@@ -360,7 +370,7 @@ const _ = grpc.SupportPackageIsVersion4
 
 type SpanWriterPluginClient interface {
 	// spanstore/Writer
-	WriteSpan(ctx context.Context, in *WriteSpanRequest, opts ...grpc.CallOption) (*google_protobuf3.Empty, error)
+	WriteSpan(ctx context.Context, in *WriteSpanRequest, opts ...grpc.CallOption) (*WriteSpanResponse, error)
 }
 
 type spanWriterPluginClient struct {
@@ -371,8 +381,8 @@ func NewSpanWriterPluginClient(cc *grpc.ClientConn) SpanWriterPluginClient {
 	return &spanWriterPluginClient{cc}
 }
 
-func (c *spanWriterPluginClient) WriteSpan(ctx context.Context, in *WriteSpanRequest, opts ...grpc.CallOption) (*google_protobuf3.Empty, error) {
-	out := new(google_protobuf3.Empty)
+func (c *spanWriterPluginClient) WriteSpan(ctx context.Context, in *WriteSpanRequest, opts ...grpc.CallOption) (*WriteSpanResponse, error) {
+	out := new(WriteSpanResponse)
 	err := grpc.Invoke(ctx, "/jaeger.storage.v1.SpanWriterPlugin/WriteSpan", in, out, c.cc, opts...)
 	if err != nil {
 		return nil, err
@@ -384,7 +394,7 @@ func (c *spanWriterPluginClient) WriteSpan(ctx context.Context, in *WriteSpanReq
 
 type SpanWriterPluginServer interface {
 	// spanstore/Writer
-	WriteSpan(context.Context, *WriteSpanRequest) (*google_protobuf3.Empty, error)
+	WriteSpan(context.Context, *WriteSpanRequest) (*WriteSpanResponse, error)
 }
 
 func RegisterSpanWriterPluginServer(s *grpc.Server, srv SpanWriterPluginServer) {
@@ -426,11 +436,11 @@ var _SpanWriterPlugin_serviceDesc = grpc.ServiceDesc{
 
 type SpanReaderPluginClient interface {
 	// spanstore/Reader
-	GetTrace(ctx context.Context, in *GetTraceRequest, opts ...grpc.CallOption) (*GetTraceSuccess, error)
-	GetServices(ctx context.Context, in *GetServicesRequest, opts ...grpc.CallOption) (*GetServicesSuccess, error)
-	GetOperations(ctx context.Context, in *GetOperationsRequest, opts ...grpc.CallOption) (*GetOperationsSuccess, error)
+	GetTrace(ctx context.Context, in *GetTraceRequest, opts ...grpc.CallOption) (SpanReaderPlugin_GetTraceClient, error)
+	GetServices(ctx context.Context, in *GetServicesRequest, opts ...grpc.CallOption) (*GetServicesResponse, error)
+	GetOperations(ctx context.Context, in *GetOperationsRequest, opts ...grpc.CallOption) (*GetOperationsResponse, error)
 	FindTraces(ctx context.Context, in *FindTracesRequest, opts ...grpc.CallOption) (SpanReaderPlugin_FindTracesClient, error)
-	FindTraceIDs(ctx context.Context, in *FindTraceIDsRequest, opts ...grpc.CallOption) (*FindTraceIDsSuccess, error)
+	FindTraceIDs(ctx context.Context, in *FindTraceIDsRequest, opts ...grpc.CallOption) (*FindTraceIDsResponse, error)
 }
 
 type spanReaderPluginClient struct {
@@ -441,17 +451,40 @@ func NewSpanReaderPluginClient(cc *grpc.ClientConn) SpanReaderPluginClient {
 	return &spanReaderPluginClient{cc}
 }
 
-func (c *spanReaderPluginClient) GetTrace(ctx context.Context, in *GetTraceRequest, opts ...grpc.CallOption) (*GetTraceSuccess, error) {
-	out := new(GetTraceSuccess)
-	err := grpc.Invoke(ctx, "/jaeger.storage.v1.SpanReaderPlugin/GetTrace", in, out, c.cc, opts...)
+func (c *spanReaderPluginClient) GetTrace(ctx context.Context, in *GetTraceRequest, opts ...grpc.CallOption) (SpanReaderPlugin_GetTraceClient, error) {
+	stream, err := grpc.NewClientStream(ctx, &_SpanReaderPlugin_serviceDesc.Streams[0], c.cc, "/jaeger.storage.v1.SpanReaderPlugin/GetTrace", opts...)
 	if err != nil {
 		return nil, err
 	}
-	return out, nil
+	x := &spanReaderPluginGetTraceClient{stream}
+	if err := x.ClientStream.SendMsg(in); err != nil {
+		return nil, err
+	}
+	if err := x.ClientStream.CloseSend(); err != nil {
+		return nil, err
+	}
+	return x, nil
 }
 
-func (c *spanReaderPluginClient) GetServices(ctx context.Context, in *GetServicesRequest, opts ...grpc.CallOption) (*GetServicesSuccess, error) {
-	out := new(GetServicesSuccess)
+type SpanReaderPlugin_GetTraceClient interface {
+	Recv() (*FindTracesResponseChunk, error)
+	grpc.ClientStream
+}
+
+type spanReaderPluginGetTraceClient struct {
+	grpc.ClientStream
+}
+
+func (x *spanReaderPluginGetTraceClient) Recv() (*FindTracesResponseChunk, error) {
+	m := new(FindTracesResponseChunk)
+	if err := x.ClientStream.RecvMsg(m); err != nil {
+		return nil, err
+	}
+	return m, nil
+}
+
+func (c *spanReaderPluginClient) GetServices(ctx context.Context, in *GetServicesRequest, opts ...grpc.CallOption) (*GetServicesResponse, error) {
+	out := new(GetServicesResponse)
 	err := grpc.Invoke(ctx, "/jaeger.storage.v1.SpanReaderPlugin/GetServices", in, out, c.cc, opts...)
 	if err != nil {
 		return nil, err
@@ -459,8 +492,8 @@ func (c *spanReaderPluginClient) GetServices(ctx context.Context, in *GetService
 	return out, nil
 }
 
-func (c *spanReaderPluginClient) GetOperations(ctx context.Context, in *GetOperationsRequest, opts ...grpc.CallOption) (*GetOperationsSuccess, error) {
-	out := new(GetOperationsSuccess)
+func (c *spanReaderPluginClient) GetOperations(ctx context.Context, in *GetOperationsRequest, opts ...grpc.CallOption) (*GetOperationsResponse, error) {
+	out := new(GetOperationsResponse)
 	err := grpc.Invoke(ctx, "/jaeger.storage.v1.SpanReaderPlugin/GetOperations", in, out, c.cc, opts...)
 	if err != nil {
 		return nil, err
@@ -469,7 +502,7 @@ func (c *spanReaderPluginClient) GetOperations(ctx context.Context, in *GetOpera
 }
 
 func (c *spanReaderPluginClient) FindTraces(ctx context.Context, in *FindTracesRequest, opts ...grpc.CallOption) (SpanReaderPlugin_FindTracesClient, error) {
-	stream, err := grpc.NewClientStream(ctx, &_SpanReaderPlugin_serviceDesc.Streams[0], c.cc, "/jaeger.storage.v1.SpanReaderPlugin/FindTraces", opts...)
+	stream, err := grpc.NewClientStream(ctx, &_SpanReaderPlugin_serviceDesc.Streams[1], c.cc, "/jaeger.storage.v1.SpanReaderPlugin/FindTraces", opts...)
 	if err != nil {
 		return nil, err
 	}
@@ -500,8 +533,8 @@ func (x *spanReaderPluginFindTracesClient) Recv() (*FindTracesResponseChunk, err
 	return m, nil
 }
 
-func (c *spanReaderPluginClient) FindTraceIDs(ctx context.Context, in *FindTraceIDsRequest, opts ...grpc.CallOption) (*FindTraceIDsSuccess, error) {
-	out := new(FindTraceIDsSuccess)
+func (c *spanReaderPluginClient) FindTraceIDs(ctx context.Context, in *FindTraceIDsRequest, opts ...grpc.CallOption) (*FindTraceIDsResponse, error) {
+	out := new(FindTraceIDsResponse)
 	err := grpc.Invoke(ctx, "/jaeger.storage.v1.SpanReaderPlugin/FindTraceIDs", in, out, c.cc, opts...)
 	if err != nil {
 		return nil, err
@@ -513,33 +546,36 @@ func (c *spanReaderPluginClient) FindTraceIDs(ctx context.Context, in *FindTrace
 
 type SpanReaderPluginServer interface {
 	// spanstore/Reader
-	GetTrace(context.Context, *GetTraceRequest) (*GetTraceSuccess, error)
-	GetServices(context.Context, *GetServicesRequest) (*GetServicesSuccess, error)
-	GetOperations(context.Context, *GetOperationsRequest) (*GetOperationsSuccess, error)
+	GetTrace(*GetTraceRequest, SpanReaderPlugin_GetTraceServer) error
+	GetServices(context.Context, *GetServicesRequest) (*GetServicesResponse, error)
+	GetOperations(context.Context, *GetOperationsRequest) (*GetOperationsResponse, error)
 	FindTraces(*FindTracesRequest, SpanReaderPlugin_FindTracesServer) error
-	FindTraceIDs(context.Context, *FindTraceIDsRequest) (*FindTraceIDsSuccess, error)
+	FindTraceIDs(context.Context, *FindTraceIDsRequest) (*FindTraceIDsResponse, error)
 }
 
 func RegisterSpanReaderPluginServer(s *grpc.Server, srv SpanReaderPluginServer) {
 	s.RegisterService(&_SpanReaderPlugin_serviceDesc, srv)
 }
 
-func _SpanReaderPlugin_GetTrace_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
-	in := new(GetTraceRequest)
-	if err := dec(in); err != nil {
-		return nil, err
+func _SpanReaderPlugin_GetTrace_Handler(srv interface{}, stream grpc.ServerStream) error {
+	m := new(GetTraceRequest)
+	if err := stream.RecvMsg(m); err != nil {
+		return err
 	}
-	if interceptor == nil {
-		return srv.(SpanReaderPluginServer).GetTrace(ctx, in)
-	}
-	info := &grpc.UnaryServerInfo{
-		Server:     srv,
-		FullMethod: "/jaeger.storage.v1.SpanReaderPlugin/GetTrace",
-	}
-	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
-		return srv.(SpanReaderPluginServer).GetTrace(ctx, req.(*GetTraceRequest))
-	}
-	return interceptor(ctx, in, info, handler)
+	return srv.(SpanReaderPluginServer).GetTrace(m, &spanReaderPluginGetTraceServer{stream})
+}
+
+type SpanReaderPlugin_GetTraceServer interface {
+	Send(*FindTracesResponseChunk) error
+	grpc.ServerStream
+}
+
+type spanReaderPluginGetTraceServer struct {
+	grpc.ServerStream
+}
+
+func (x *spanReaderPluginGetTraceServer) Send(m *FindTracesResponseChunk) error {
+	return x.ServerStream.SendMsg(m)
 }
 
 func _SpanReaderPlugin_GetServices_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
@@ -622,10 +658,6 @@ var _SpanReaderPlugin_serviceDesc = grpc.ServiceDesc{
 	HandlerType: (*SpanReaderPluginServer)(nil),
 	Methods: []grpc.MethodDesc{
 		{
-			MethodName: "GetTrace",
-			Handler:    _SpanReaderPlugin_GetTrace_Handler,
-		},
-		{
 			MethodName: "GetServices",
 			Handler:    _SpanReaderPlugin_GetServices_Handler,
 		},
@@ -640,6 +672,11 @@ var _SpanReaderPlugin_serviceDesc = grpc.ServiceDesc{
 	},
 	Streams: []grpc.StreamDesc{
 		{
+			StreamName:    "GetTrace",
+			Handler:       _SpanReaderPlugin_GetTrace_Handler,
+			ServerStreams: true,
+		},
+		{
 			StreamName:    "FindTraces",
 			Handler:       _SpanReaderPlugin_FindTraces_Handler,
 			ServerStreams: true,
@@ -652,7 +689,7 @@ var _SpanReaderPlugin_serviceDesc = grpc.ServiceDesc{
 
 type DependenciesReaderPluginClient interface {
 	// dependencystore/Reader
-	GetDependencies(ctx context.Context, in *GetDependenciesRequest, opts ...grpc.CallOption) (*GetDependenciesSuccess, error)
+	GetDependencies(ctx context.Context, in *GetDependenciesRequest, opts ...grpc.CallOption) (*GetDependenciesResponse, error)
 }
 
 type dependenciesReaderPluginClient struct {
@@ -663,8 +700,8 @@ func NewDependenciesReaderPluginClient(cc *grpc.ClientConn) DependenciesReaderPl
 	return &dependenciesReaderPluginClient{cc}
 }
 
-func (c *dependenciesReaderPluginClient) GetDependencies(ctx context.Context, in *GetDependenciesRequest, opts ...grpc.CallOption) (*GetDependenciesSuccess, error) {
-	out := new(GetDependenciesSuccess)
+func (c *dependenciesReaderPluginClient) GetDependencies(ctx context.Context, in *GetDependenciesRequest, opts ...grpc.CallOption) (*GetDependenciesResponse, error) {
+	out := new(GetDependenciesResponse)
 	err := grpc.Invoke(ctx, "/jaeger.storage.v1.DependenciesReaderPlugin/GetDependencies", in, out, c.cc, opts...)
 	if err != nil {
 		return nil, err
@@ -676,7 +713,7 @@ func (c *dependenciesReaderPluginClient) GetDependencies(ctx context.Context, in
 
 type DependenciesReaderPluginServer interface {
 	// dependencystore/Reader
-	GetDependencies(context.Context, *GetDependenciesRequest) (*GetDependenciesSuccess, error)
+	GetDependencies(context.Context, *GetDependenciesRequest) (*GetDependenciesResponse, error)
 }
 
 func RegisterDependenciesReaderPluginServer(s *grpc.Server, srv DependenciesReaderPluginServer) {
@@ -731,16 +768,16 @@ func (m *GetDependenciesRequest) MarshalTo(dAtA []byte) (int, error) {
 	_ = l
 	dAtA[i] = 0xa
 	i++
-	i = encodeVarintStorage(dAtA, i, uint64(types.SizeOfStdTime(m.EndTimestamp)))
-	n1, err := types.StdTimeMarshalTo(m.EndTimestamp, dAtA[i:])
+	i = encodeVarintStorage(dAtA, i, uint64(types.SizeOfStdTime(m.StartTime)))
+	n1, err := types.StdTimeMarshalTo(m.StartTime, dAtA[i:])
 	if err != nil {
 		return 0, err
 	}
 	i += n1
 	dAtA[i] = 0x12
 	i++
-	i = encodeVarintStorage(dAtA, i, uint64(types.SizeOfStdDuration(m.Lookback)))
-	n2, err := types.StdDurationMarshalTo(m.Lookback, dAtA[i:])
+	i = encodeVarintStorage(dAtA, i, uint64(types.SizeOfStdTime(m.EndTime)))
+	n2, err := types.StdTimeMarshalTo(m.EndTime, dAtA[i:])
 	if err != nil {
 		return 0, err
 	}
@@ -748,7 +785,7 @@ func (m *GetDependenciesRequest) MarshalTo(dAtA []byte) (int, error) {
 	return i, nil
 }
 
-func (m *GetDependenciesSuccess) Marshal() (dAtA []byte, err error) {
+func (m *GetDependenciesResponse) Marshal() (dAtA []byte, err error) {
 	size := m.Size()
 	dAtA = make([]byte, size)
 	n, err := m.MarshalTo(dAtA)
@@ -758,7 +795,7 @@ func (m *GetDependenciesSuccess) Marshal() (dAtA []byte, err error) {
 	return dAtA[:n], nil
 }
 
-func (m *GetDependenciesSuccess) MarshalTo(dAtA []byte) (int, error) {
+func (m *GetDependenciesResponse) MarshalTo(dAtA []byte) (int, error) {
 	var i int
 	_ = i
 	var l int
@@ -806,6 +843,24 @@ func (m *WriteSpanRequest) MarshalTo(dAtA []byte) (int, error) {
 	return i, nil
 }
 
+func (m *WriteSpanResponse) Marshal() (dAtA []byte, err error) {
+	size := m.Size()
+	dAtA = make([]byte, size)
+	n, err := m.MarshalTo(dAtA)
+	if err != nil {
+		return nil, err
+	}
+	return dAtA[:n], nil
+}
+
+func (m *WriteSpanResponse) MarshalTo(dAtA []byte) (int, error) {
+	var i int
+	_ = i
+	var l int
+	_ = l
+	return i, nil
+}
+
 func (m *GetTraceRequest) Marshal() (dAtA []byte, err error) {
 	size := m.Size()
 	dAtA = make([]byte, size)
@@ -832,34 +887,6 @@ func (m *GetTraceRequest) MarshalTo(dAtA []byte) (int, error) {
 	return i, nil
 }
 
-func (m *GetTraceSuccess) Marshal() (dAtA []byte, err error) {
-	size := m.Size()
-	dAtA = make([]byte, size)
-	n, err := m.MarshalTo(dAtA)
-	if err != nil {
-		return nil, err
-	}
-	return dAtA[:n], nil
-}
-
-func (m *GetTraceSuccess) MarshalTo(dAtA []byte) (int, error) {
-	var i int
-	_ = i
-	var l int
-	_ = l
-	if m.Trace != nil {
-		dAtA[i] = 0xa
-		i++
-		i = encodeVarintStorage(dAtA, i, uint64(m.Trace.Size()))
-		n5, err := m.Trace.MarshalTo(dAtA[i:])
-		if err != nil {
-			return 0, err
-		}
-		i += n5
-	}
-	return i, nil
-}
-
 func (m *GetServicesRequest) Marshal() (dAtA []byte, err error) {
 	size := m.Size()
 	dAtA = make([]byte, size)
@@ -878,7 +905,7 @@ func (m *GetServicesRequest) MarshalTo(dAtA []byte) (int, error) {
 	return i, nil
 }
 
-func (m *GetServicesSuccess) Marshal() (dAtA []byte, err error) {
+func (m *GetServicesResponse) Marshal() (dAtA []byte, err error) {
 	size := m.Size()
 	dAtA = make([]byte, size)
 	n, err := m.MarshalTo(dAtA)
@@ -888,7 +915,7 @@ func (m *GetServicesSuccess) Marshal() (dAtA []byte, err error) {
 	return dAtA[:n], nil
 }
 
-func (m *GetServicesSuccess) MarshalTo(dAtA []byte) (int, error) {
+func (m *GetServicesResponse) MarshalTo(dAtA []byte) (int, error) {
 	var i int
 	_ = i
 	var l int
@@ -935,7 +962,7 @@ func (m *GetOperationsRequest) MarshalTo(dAtA []byte) (int, error) {
 	return i, nil
 }
 
-func (m *GetOperationsSuccess) Marshal() (dAtA []byte, err error) {
+func (m *GetOperationsResponse) Marshal() (dAtA []byte, err error) {
 	size := m.Size()
 	dAtA = make([]byte, size)
 	n, err := m.MarshalTo(dAtA)
@@ -945,7 +972,7 @@ func (m *GetOperationsSuccess) Marshal() (dAtA []byte, err error) {
 	return dAtA[:n], nil
 }
 
-func (m *GetOperationsSuccess) MarshalTo(dAtA []byte) (int, error) {
+func (m *GetOperationsResponse) MarshalTo(dAtA []byte) (int, error) {
 	var i int
 	_ = i
 	var l int
@@ -1015,35 +1042,35 @@ func (m *TraceQueryParameters) MarshalTo(dAtA []byte) (int, error) {
 	dAtA[i] = 0x22
 	i++
 	i = encodeVarintStorage(dAtA, i, uint64(types.SizeOfStdTime(m.StartTimeMin)))
-	n6, err := types.StdTimeMarshalTo(m.StartTimeMin, dAtA[i:])
+	n5, err := types.StdTimeMarshalTo(m.StartTimeMin, dAtA[i:])
+	if err != nil {
+		return 0, err
+	}
+	i += n5
+	dAtA[i] = 0x2a
+	i++
+	i = encodeVarintStorage(dAtA, i, uint64(types.SizeOfStdTime(m.StartTimeMax)))
+	n6, err := types.StdTimeMarshalTo(m.StartTimeMax, dAtA[i:])
 	if err != nil {
 		return 0, err
 	}
 	i += n6
-	dAtA[i] = 0x2a
+	dAtA[i] = 0x32
 	i++
-	i = encodeVarintStorage(dAtA, i, uint64(types.SizeOfStdTime(m.StartTimeMax)))
-	n7, err := types.StdTimeMarshalTo(m.StartTimeMax, dAtA[i:])
+	i = encodeVarintStorage(dAtA, i, uint64(types.SizeOfStdDuration(m.DurationMin)))
+	n7, err := types.StdDurationMarshalTo(m.DurationMin, dAtA[i:])
 	if err != nil {
 		return 0, err
 	}
 	i += n7
-	dAtA[i] = 0x32
+	dAtA[i] = 0x3a
 	i++
-	i = encodeVarintStorage(dAtA, i, uint64(types.SizeOfStdDuration(m.DurationMin)))
-	n8, err := types.StdDurationMarshalTo(m.DurationMin, dAtA[i:])
+	i = encodeVarintStorage(dAtA, i, uint64(types.SizeOfStdDuration(m.DurationMax)))
+	n8, err := types.StdDurationMarshalTo(m.DurationMax, dAtA[i:])
 	if err != nil {
 		return 0, err
 	}
 	i += n8
-	dAtA[i] = 0x3a
-	i++
-	i = encodeVarintStorage(dAtA, i, uint64(types.SizeOfStdDuration(m.DurationMax)))
-	n9, err := types.StdDurationMarshalTo(m.DurationMax, dAtA[i:])
-	if err != nil {
-		return 0, err
-	}
-	i += n9
 	if m.NumTraces != 0 {
 		dAtA[i] = 0x40
 		i++
@@ -1071,11 +1098,11 @@ func (m *FindTracesRequest) MarshalTo(dAtA []byte) (int, error) {
 		dAtA[i] = 0xa
 		i++
 		i = encodeVarintStorage(dAtA, i, uint64(m.Query.Size()))
-		n10, err := m.Query.MarshalTo(dAtA[i:])
+		n9, err := m.Query.MarshalTo(dAtA[i:])
 		if err != nil {
 			return 0, err
 		}
-		i += n10
+		i += n9
 	}
 	return i, nil
 }
@@ -1110,6 +1137,24 @@ func (m *FindTracesResponseChunk) MarshalTo(dAtA []byte) (int, error) {
 	return i, nil
 }
 
+func (m *FindTracesResponse) Marshal() (dAtA []byte, err error) {
+	size := m.Size()
+	dAtA = make([]byte, size)
+	n, err := m.MarshalTo(dAtA)
+	if err != nil {
+		return nil, err
+	}
+	return dAtA[:n], nil
+}
+
+func (m *FindTracesResponse) MarshalTo(dAtA []byte) (int, error) {
+	var i int
+	_ = i
+	var l int
+	_ = l
+	return i, nil
+}
+
 func (m *FindTraceIDsRequest) Marshal() (dAtA []byte, err error) {
 	size := m.Size()
 	dAtA = make([]byte, size)
@@ -1129,16 +1174,16 @@ func (m *FindTraceIDsRequest) MarshalTo(dAtA []byte) (int, error) {
 		dAtA[i] = 0xa
 		i++
 		i = encodeVarintStorage(dAtA, i, uint64(m.Query.Size()))
-		n11, err := m.Query.MarshalTo(dAtA[i:])
+		n10, err := m.Query.MarshalTo(dAtA[i:])
 		if err != nil {
 			return 0, err
 		}
-		i += n11
+		i += n10
 	}
 	return i, nil
 }
 
-func (m *FindTraceIDsSuccess) Marshal() (dAtA []byte, err error) {
+func (m *FindTraceIDsResponse) Marshal() (dAtA []byte, err error) {
 	size := m.Size()
 	dAtA = make([]byte, size)
 	n, err := m.MarshalTo(dAtA)
@@ -1148,7 +1193,7 @@ func (m *FindTraceIDsSuccess) Marshal() (dAtA []byte, err error) {
 	return dAtA[:n], nil
 }
 
-func (m *FindTraceIDsSuccess) MarshalTo(dAtA []byte) (int, error) {
+func (m *FindTraceIDsResponse) MarshalTo(dAtA []byte) (int, error) {
 	var i int
 	_ = i
 	var l int
@@ -1180,14 +1225,14 @@ func encodeVarintStorage(dAtA []byte, offset int, v uint64) int {
 func (m *GetDependenciesRequest) Size() (n int) {
 	var l int
 	_ = l
-	l = types.SizeOfStdTime(m.EndTimestamp)
+	l = types.SizeOfStdTime(m.StartTime)
 	n += 1 + l + sovStorage(uint64(l))
-	l = types.SizeOfStdDuration(m.Lookback)
+	l = types.SizeOfStdTime(m.EndTime)
 	n += 1 + l + sovStorage(uint64(l))
 	return n
 }
 
-func (m *GetDependenciesSuccess) Size() (n int) {
+func (m *GetDependenciesResponse) Size() (n int) {
 	var l int
 	_ = l
 	if len(m.Dependencies) > 0 {
@@ -1209,21 +1254,17 @@ func (m *WriteSpanRequest) Size() (n int) {
 	return n
 }
 
+func (m *WriteSpanResponse) Size() (n int) {
+	var l int
+	_ = l
+	return n
+}
+
 func (m *GetTraceRequest) Size() (n int) {
 	var l int
 	_ = l
 	l = m.TraceID.Size()
 	n += 1 + l + sovStorage(uint64(l))
-	return n
-}
-
-func (m *GetTraceSuccess) Size() (n int) {
-	var l int
-	_ = l
-	if m.Trace != nil {
-		l = m.Trace.Size()
-		n += 1 + l + sovStorage(uint64(l))
-	}
 	return n
 }
 
@@ -1233,7 +1274,7 @@ func (m *GetServicesRequest) Size() (n int) {
 	return n
 }
 
-func (m *GetServicesSuccess) Size() (n int) {
+func (m *GetServicesResponse) Size() (n int) {
 	var l int
 	_ = l
 	if len(m.Services) > 0 {
@@ -1255,7 +1296,7 @@ func (m *GetOperationsRequest) Size() (n int) {
 	return n
 }
 
-func (m *GetOperationsSuccess) Size() (n int) {
+func (m *GetOperationsResponse) Size() (n int) {
 	var l int
 	_ = l
 	if len(m.Operations) > 0 {
@@ -1322,6 +1363,12 @@ func (m *FindTracesResponseChunk) Size() (n int) {
 	return n
 }
 
+func (m *FindTracesResponse) Size() (n int) {
+	var l int
+	_ = l
+	return n
+}
+
 func (m *FindTraceIDsRequest) Size() (n int) {
 	var l int
 	_ = l
@@ -1332,7 +1379,7 @@ func (m *FindTraceIDsRequest) Size() (n int) {
 	return n
 }
 
-func (m *FindTraceIDsSuccess) Size() (n int) {
+func (m *FindTraceIDsResponse) Size() (n int) {
 	var l int
 	_ = l
 	if len(m.TraceIDs) > 0 {
@@ -1388,7 +1435,7 @@ func (m *GetDependenciesRequest) Unmarshal(dAtA []byte) error {
 		switch fieldNum {
 		case 1:
 			if wireType != 2 {
-				return fmt.Errorf("proto: wrong wireType = %d for field EndTimestamp", wireType)
+				return fmt.Errorf("proto: wrong wireType = %d for field StartTime", wireType)
 			}
 			var msglen int
 			for shift := uint(0); ; shift += 7 {
@@ -1412,13 +1459,13 @@ func (m *GetDependenciesRequest) Unmarshal(dAtA []byte) error {
 			if postIndex > l {
 				return io.ErrUnexpectedEOF
 			}
-			if err := types.StdTimeUnmarshal(&m.EndTimestamp, dAtA[iNdEx:postIndex]); err != nil {
+			if err := types.StdTimeUnmarshal(&m.StartTime, dAtA[iNdEx:postIndex]); err != nil {
 				return err
 			}
 			iNdEx = postIndex
 		case 2:
 			if wireType != 2 {
-				return fmt.Errorf("proto: wrong wireType = %d for field Lookback", wireType)
+				return fmt.Errorf("proto: wrong wireType = %d for field EndTime", wireType)
 			}
 			var msglen int
 			for shift := uint(0); ; shift += 7 {
@@ -1442,7 +1489,7 @@ func (m *GetDependenciesRequest) Unmarshal(dAtA []byte) error {
 			if postIndex > l {
 				return io.ErrUnexpectedEOF
 			}
-			if err := types.StdDurationUnmarshal(&m.Lookback, dAtA[iNdEx:postIndex]); err != nil {
+			if err := types.StdTimeUnmarshal(&m.EndTime, dAtA[iNdEx:postIndex]); err != nil {
 				return err
 			}
 			iNdEx = postIndex
@@ -1467,7 +1514,7 @@ func (m *GetDependenciesRequest) Unmarshal(dAtA []byte) error {
 	}
 	return nil
 }
-func (m *GetDependenciesSuccess) Unmarshal(dAtA []byte) error {
+func (m *GetDependenciesResponse) Unmarshal(dAtA []byte) error {
 	l := len(dAtA)
 	iNdEx := 0
 	for iNdEx < l {
@@ -1490,17 +1537,17 @@ func (m *GetDependenciesSuccess) Unmarshal(dAtA []byte) error {
 		fieldNum := int32(wire >> 3)
 		wireType := int(wire & 0x7)
 		if wireType == 4 {
-			return fmt.Errorf("proto: GetDependenciesSuccess: wiretype end group for non-group")
+			return fmt.Errorf("proto: GetDependenciesResponse: wiretype end group for non-group")
 		}
 		if fieldNum <= 0 {
-			return fmt.Errorf("proto: GetDependenciesSuccess: illegal tag %d (wire type %d)", fieldNum, wire)
+			return fmt.Errorf("proto: GetDependenciesResponse: illegal tag %d (wire type %d)", fieldNum, wire)
 		}
 		switch fieldNum {
 		case 1:
 			if wireType != 2 {
 				return fmt.Errorf("proto: wrong wireType = %d for field Dependencies", wireType)
 			}
-			var byteLen int
+			var msglen int
 			for shift := uint(0); ; shift += 7 {
 				if shift >= 64 {
 					return ErrIntOverflowStorage
@@ -1510,20 +1557,19 @@ func (m *GetDependenciesSuccess) Unmarshal(dAtA []byte) error {
 				}
 				b := dAtA[iNdEx]
 				iNdEx++
-				byteLen |= (int(b) & 0x7F) << shift
+				msglen |= (int(b) & 0x7F) << shift
 				if b < 0x80 {
 					break
 				}
 			}
-			if byteLen < 0 {
+			if msglen < 0 {
 				return ErrInvalidLengthStorage
 			}
-			postIndex := iNdEx + byteLen
+			postIndex := iNdEx + msglen
 			if postIndex > l {
 				return io.ErrUnexpectedEOF
 			}
-			var v github_com_jaegertracing_jaeger_model.DependencyLink
-			m.Dependencies = append(m.Dependencies, v)
+			m.Dependencies = append(m.Dependencies, jaeger_api_v2.DependencyLink{})
 			if err := m.Dependencies[len(m.Dependencies)-1].Unmarshal(dAtA[iNdEx:postIndex]); err != nil {
 				return err
 			}
@@ -1632,6 +1678,56 @@ func (m *WriteSpanRequest) Unmarshal(dAtA []byte) error {
 	}
 	return nil
 }
+func (m *WriteSpanResponse) Unmarshal(dAtA []byte) error {
+	l := len(dAtA)
+	iNdEx := 0
+	for iNdEx < l {
+		preIndex := iNdEx
+		var wire uint64
+		for shift := uint(0); ; shift += 7 {
+			if shift >= 64 {
+				return ErrIntOverflowStorage
+			}
+			if iNdEx >= l {
+				return io.ErrUnexpectedEOF
+			}
+			b := dAtA[iNdEx]
+			iNdEx++
+			wire |= (uint64(b) & 0x7F) << shift
+			if b < 0x80 {
+				break
+			}
+		}
+		fieldNum := int32(wire >> 3)
+		wireType := int(wire & 0x7)
+		if wireType == 4 {
+			return fmt.Errorf("proto: WriteSpanResponse: wiretype end group for non-group")
+		}
+		if fieldNum <= 0 {
+			return fmt.Errorf("proto: WriteSpanResponse: illegal tag %d (wire type %d)", fieldNum, wire)
+		}
+		switch fieldNum {
+		default:
+			iNdEx = preIndex
+			skippy, err := skipStorage(dAtA[iNdEx:])
+			if err != nil {
+				return err
+			}
+			if skippy < 0 {
+				return ErrInvalidLengthStorage
+			}
+			if (iNdEx + skippy) > l {
+				return io.ErrUnexpectedEOF
+			}
+			iNdEx += skippy
+		}
+	}
+
+	if iNdEx > l {
+		return io.ErrUnexpectedEOF
+	}
+	return nil
+}
 func (m *GetTraceRequest) Unmarshal(dAtA []byte) error {
 	l := len(dAtA)
 	iNdEx := 0
@@ -1712,89 +1808,6 @@ func (m *GetTraceRequest) Unmarshal(dAtA []byte) error {
 	}
 	return nil
 }
-func (m *GetTraceSuccess) Unmarshal(dAtA []byte) error {
-	l := len(dAtA)
-	iNdEx := 0
-	for iNdEx < l {
-		preIndex := iNdEx
-		var wire uint64
-		for shift := uint(0); ; shift += 7 {
-			if shift >= 64 {
-				return ErrIntOverflowStorage
-			}
-			if iNdEx >= l {
-				return io.ErrUnexpectedEOF
-			}
-			b := dAtA[iNdEx]
-			iNdEx++
-			wire |= (uint64(b) & 0x7F) << shift
-			if b < 0x80 {
-				break
-			}
-		}
-		fieldNum := int32(wire >> 3)
-		wireType := int(wire & 0x7)
-		if wireType == 4 {
-			return fmt.Errorf("proto: GetTraceSuccess: wiretype end group for non-group")
-		}
-		if fieldNum <= 0 {
-			return fmt.Errorf("proto: GetTraceSuccess: illegal tag %d (wire type %d)", fieldNum, wire)
-		}
-		switch fieldNum {
-		case 1:
-			if wireType != 2 {
-				return fmt.Errorf("proto: wrong wireType = %d for field Trace", wireType)
-			}
-			var msglen int
-			for shift := uint(0); ; shift += 7 {
-				if shift >= 64 {
-					return ErrIntOverflowStorage
-				}
-				if iNdEx >= l {
-					return io.ErrUnexpectedEOF
-				}
-				b := dAtA[iNdEx]
-				iNdEx++
-				msglen |= (int(b) & 0x7F) << shift
-				if b < 0x80 {
-					break
-				}
-			}
-			if msglen < 0 {
-				return ErrInvalidLengthStorage
-			}
-			postIndex := iNdEx + msglen
-			if postIndex > l {
-				return io.ErrUnexpectedEOF
-			}
-			if m.Trace == nil {
-				m.Trace = &jaeger_api_v2.Trace{}
-			}
-			if err := m.Trace.Unmarshal(dAtA[iNdEx:postIndex]); err != nil {
-				return err
-			}
-			iNdEx = postIndex
-		default:
-			iNdEx = preIndex
-			skippy, err := skipStorage(dAtA[iNdEx:])
-			if err != nil {
-				return err
-			}
-			if skippy < 0 {
-				return ErrInvalidLengthStorage
-			}
-			if (iNdEx + skippy) > l {
-				return io.ErrUnexpectedEOF
-			}
-			iNdEx += skippy
-		}
-	}
-
-	if iNdEx > l {
-		return io.ErrUnexpectedEOF
-	}
-	return nil
-}
 func (m *GetServicesRequest) Unmarshal(dAtA []byte) error {
 	l := len(dAtA)
 	iNdEx := 0
@@ -1845,7 +1858,7 @@ func (m *GetServicesRequest) Unmarshal(dAtA []byte) error {
 	}
 	return nil
 }
-func (m *GetServicesSuccess) Unmarshal(dAtA []byte) error {
+func (m *GetServicesResponse) Unmarshal(dAtA []byte) error {
 	l := len(dAtA)
 	iNdEx := 0
 	for iNdEx < l {
@@ -1868,10 +1881,10 @@ func (m *GetServicesSuccess) Unmarshal(dAtA []byte) error {
 		fieldNum := int32(wire >> 3)
 		wireType := int(wire & 0x7)
 		if wireType == 4 {
-			return fmt.Errorf("proto: GetServicesSuccess: wiretype end group for non-group")
+			return fmt.Errorf("proto: GetServicesResponse: wiretype end group for non-group")
 		}
 		if fieldNum <= 0 {
-			return fmt.Errorf("proto: GetServicesSuccess: illegal tag %d (wire type %d)", fieldNum, wire)
+			return fmt.Errorf("proto: GetServicesResponse: illegal tag %d (wire type %d)", fieldNum, wire)
 		}
 		switch fieldNum {
 		case 1:
@@ -2003,7 +2016,7 @@ func (m *GetOperationsRequest) Unmarshal(dAtA []byte) error {
 	}
 	return nil
 }
-func (m *GetOperationsSuccess) Unmarshal(dAtA []byte) error {
+func (m *GetOperationsResponse) Unmarshal(dAtA []byte) error {
 	l := len(dAtA)
 	iNdEx := 0
 	for iNdEx < l {
@@ -2026,10 +2039,10 @@ func (m *GetOperationsSuccess) Unmarshal(dAtA []byte) error {
 		fieldNum := int32(wire >> 3)
 		wireType := int(wire & 0x7)
 		if wireType == 4 {
-			return fmt.Errorf("proto: GetOperationsSuccess: wiretype end group for non-group")
+			return fmt.Errorf("proto: GetOperationsResponse: wiretype end group for non-group")
 		}
 		if fieldNum <= 0 {
-			return fmt.Errorf("proto: GetOperationsSuccess: illegal tag %d (wire type %d)", fieldNum, wire)
+			return fmt.Errorf("proto: GetOperationsResponse: illegal tag %d (wire type %d)", fieldNum, wire)
 		}
 		switch fieldNum {
 		case 1:
@@ -2611,6 +2624,56 @@ func (m *FindTracesResponseChunk) Unmarshal(dAtA []byte) error {
 	}
 	return nil
 }
+func (m *FindTracesResponse) Unmarshal(dAtA []byte) error {
+	l := len(dAtA)
+	iNdEx := 0
+	for iNdEx < l {
+		preIndex := iNdEx
+		var wire uint64
+		for shift := uint(0); ; shift += 7 {
+			if shift >= 64 {
+				return ErrIntOverflowStorage
+			}
+			if iNdEx >= l {
+				return io.ErrUnexpectedEOF
+			}
+			b := dAtA[iNdEx]
+			iNdEx++
+			wire |= (uint64(b) & 0x7F) << shift
+			if b < 0x80 {
+				break
+			}
+		}
+		fieldNum := int32(wire >> 3)
+		wireType := int(wire & 0x7)
+		if wireType == 4 {
+			return fmt.Errorf("proto: FindTracesResponse: wiretype end group for non-group")
+		}
+		if fieldNum <= 0 {
+			return fmt.Errorf("proto: FindTracesResponse: illegal tag %d (wire type %d)", fieldNum, wire)
+		}
+		switch fieldNum {
+		default:
+			iNdEx = preIndex
+			skippy, err := skipStorage(dAtA[iNdEx:])
+			if err != nil {
+				return err
+			}
+			if skippy < 0 {
+				return ErrInvalidLengthStorage
+			}
+			if (iNdEx + skippy) > l {
+				return io.ErrUnexpectedEOF
+			}
+			iNdEx += skippy
+		}
+	}
+
+	if iNdEx > l {
+		return io.ErrUnexpectedEOF
+	}
+	return nil
+}
 func (m *FindTraceIDsRequest) Unmarshal(dAtA []byte) error {
 	l := len(dAtA)
 	iNdEx := 0
@@ -2694,7 +2757,7 @@ func (m *FindTraceIDsRequest) Unmarshal(dAtA []byte) error {
 	}
 	return nil
 }
-func (m *FindTraceIDsSuccess) Unmarshal(dAtA []byte) error {
+func (m *FindTraceIDsResponse) Unmarshal(dAtA []byte) error {
 	l := len(dAtA)
 	iNdEx := 0
 	for iNdEx < l {
@@ -2717,10 +2780,10 @@ func (m *FindTraceIDsSuccess) Unmarshal(dAtA []byte) error {
 		fieldNum := int32(wire >> 3)
 		wireType := int(wire & 0x7)
 		if wireType == 4 {
-			return fmt.Errorf("proto: FindTraceIDsSuccess: wiretype end group for non-group")
+			return fmt.Errorf("proto: FindTraceIDsResponse: wiretype end group for non-group")
 		}
 		if fieldNum <= 0 {
-			return fmt.Errorf("proto: FindTraceIDsSuccess: illegal tag %d (wire type %d)", fieldNum, wire)
+			return fmt.Errorf("proto: FindTraceIDsResponse: illegal tag %d (wire type %d)", fieldNum, wire)
 		}
 		switch fieldNum {
 		case 1:
@@ -2885,64 +2948,62 @@ func init() { proto.RegisterFile("storage.proto", fileDescriptorStorage) }
 func init() { golang_proto.RegisterFile("storage.proto", fileDescriptorStorage) }
 
 var fileDescriptorStorage = []byte{
-	// 929 bytes of a gzipped FileDescriptorProto
-	0x1f, 0x8b, 0x08, 0x00, 0x00, 0x00, 0x00, 0x00, 0x02, 0xff, 0xac, 0x56, 0xdd, 0x6e, 0xe3, 0x44,
-	0x14, 0xc6, 0x4d, 0xd2, 0x26, 0x27, 0xe9, 0xd2, 0x9d, 0x8d, 0x16, 0x63, 0x44, 0x52, 0x0c, 0x4b,
-	0xcb, 0x4a, 0x38, 0x6d, 0x40, 0x80, 0x80, 0x15, 0x10, 0xda, 0x2d, 0x5d, 0xf1, 0xb3, 0xb8, 0x95,
-	0x90, 0xd8, 0x15, 0x61, 0x1a, 0x0f, 0x5e, 0x93, 0x78, 0xec, 0xf5, 0x8c, 0xab, 0x86, 0x5b, 0x5e,
-	0x80, 0x4b, 0x1e, 0x00, 0x89, 0xd7, 0xe0, 0x72, 0x2f, 0xb9, 0xe6, 0xa2, 0xa0, 0x72, 0xc3, 0x63,
-	0x20, 0xcf, 0x8f, 0x9b, 0x38, 0xd6, 0xb6, 0x54, 0xdc, 0x79, 0xce, 0x7c, 0xe7, 0x9b, 0x33, 0xe7,
-	0xe7, 0x1b, 0xc3, 0x2a, 0xe3, 0x51, 0x82, 0x7d, 0xe2, 0xc4, 0x49, 0xc4, 0x23, 0x74, 0xfd, 0x7b,
-	0x4c, 0x7c, 0x92, 0x38, 0xda, 0x7a, 0xbc, 0x6d, 0xb5, 0xfd, 0xc8, 0x8f, 0xc4, 0x6e, 0x2f, 0xfb,
-	0x92, 0x40, 0xab, 0xeb, 0x47, 0x91, 0x3f, 0x21, 0x3d, 0xb1, 0x3a, 0x4a, 0xbf, 0xeb, 0xf1, 0x20,
-	0x24, 0x8c, 0xe3, 0x30, 0x56, 0x80, 0x4e, 0x11, 0xe0, 0xa5, 0x09, 0xe6, 0x41, 0x44, 0xd5, 0xfe,
-	0x0b, 0xc5, 0x7d, 0x12, 0xc6, 0x7c, 0xaa, 0x36, 0x9b, 0x61, 0xe4, 0x91, 0x89, 0x5c, 0xd8, 0xbf,
-	0x18, 0x70, 0x73, 0x8f, 0xf0, 0x1d, 0x12, 0x13, 0xea, 0x11, 0x3a, 0x0a, 0x08, 0x73, 0xc9, 0xe3,
-	0x94, 0x30, 0x8e, 0xf6, 0x61, 0x95, 0x50, 0x6f, 0x98, 0x9f, 0x6d, 0x1a, 0xeb, 0xc6, 0x66, 0xb3,
-	0x6f, 0x39, 0x92, 0xdc, 0xd1, 0xe4, 0xce, 0xa1, 0x46, 0x0c, 0xea, 0x4f, 0x4e, 0xbb, 0xcf, 0xfc,
-	0xf4, 0x67, 0xd7, 0x70, 0x5b, 0x84, 0x7a, 0xb9, 0x1d, 0x7d, 0x00, 0xf5, 0x49, 0x14, 0x8d, 0x8f,
-	0xf0, 0x68, 0x6c, 0x2e, 0x09, 0x96, 0xe7, 0x17, 0x58, 0x76, 0xd4, 0x15, 0x24, 0xc9, 0xcf, 0x19,
-	0x49, 0xee, 0x64, 0xff, 0xb0, 0x10, 0xe5, 0x41, 0x3a, 0x1a, 0x11, 0xc6, 0xd0, 0xb7, 0xd0, 0xf2,
-	0x66, 0xcc, 0xa6, 0xb1, 0x5e, 0xd9, 0x6c, 0x0d, 0xde, 0xcf, 0x38, 0xfe, 0x38, 0xed, 0xbe, 0xe9,
-	0x07, 0xfc, 0x51, 0x7a, 0xe4, 0x8c, 0xa2, 0xb0, 0x27, 0xb3, 0xcf, 0x13, 0x3c, 0x0a, 0xa8, 0xaf,
-	0x56, 0x3d, 0x99, 0x8b, 0x9c, 0x78, 0xfa, 0x69, 0x40, 0xc7, 0xee, 0x1c, 0xa3, 0xfd, 0x1e, 0xac,
-	0x7d, 0x95, 0x04, 0x9c, 0x1c, 0xc4, 0x98, 0xea, 0xdc, 0x6c, 0x40, 0x95, 0xc5, 0x98, 0xaa, 0x94,
-	0xdc, 0x70, 0x54, 0x65, 0x71, 0x1c, 0x0c, 0x8f, 0xfb, 0x8e, 0x40, 0x0a, 0x80, 0x4d, 0xe1, 0xd9,
-	0x3d, 0xc2, 0x0f, 0x13, 0x3c, 0x22, 0xda, 0xf7, 0x01, 0xd4, 0xb3, 0x20, 0xc8, 0x30, 0xf0, 0x84,
-	0x7f, 0x6b, 0xf0, 0xa1, 0x8a, 0xf6, 0xf5, 0xcb, 0x45, 0x2b, 0xd8, 0xf6, 0x77, 0xce, 0x4e, 0xbb,
-	0x2b, 0xea, 0xd3, 0x5d, 0x11, 0x8c, 0xfb, 0x9e, 0x7d, 0xe7, 0xfc, 0x3c, 0x9d, 0xa1, 0xdb, 0x50,
-	0x13, 0xbb, 0x2a, 0xd8, 0x76, 0x21, 0x58, 0x19, 0x9b, 0x84, 0xd8, 0x6d, 0x40, 0x7b, 0x84, 0x1f,
-	0x90, 0xe4, 0x38, 0x18, 0xe5, 0x9d, 0x60, 0x6f, 0xcd, 0x59, 0x35, 0xaf, 0x05, 0x75, 0xa6, 0x4c,
-	0x22, 0xeb, 0x0d, 0x37, 0x5f, 0xdb, 0x5b, 0xd0, 0xde, 0x23, 0xfc, 0x8b, 0x98, 0xc8, 0x9a, 0xe6,
-	0x3d, 0x65, 0xc2, 0x8a, 0xc2, 0x88, 0x68, 0x1a, 0xae, 0x5e, 0xda, 0x6f, 0x15, 0x3c, 0xf4, 0x29,
-	0x1d, 0x80, 0x28, 0x37, 0xaa, 0x73, 0x66, 0x2c, 0xf6, 0xaf, 0x55, 0x68, 0x8b, 0x2b, 0x7c, 0x99,
-	0x92, 0x64, 0x7a, 0x1f, 0x27, 0x38, 0x24, 0x9c, 0x24, 0x0c, 0xbd, 0x04, 0x2d, 0xc5, 0x3d, 0xa4,
-	0x38, 0xd4, 0xe7, 0x35, 0x95, 0xed, 0x73, 0x1c, 0x12, 0x74, 0x0b, 0xae, 0xe5, 0x4c, 0x12, 0xb4,
-	0x24, 0x40, 0xab, 0xb9, 0x55, 0xc0, 0x76, 0xa1, 0xca, 0xb1, 0xcf, 0xcc, 0xca, 0x7a, 0x65, 0xb3,
-	0xd9, 0xdf, 0x76, 0x16, 0xc6, 0xd8, 0x29, 0x0b, 0xc0, 0x39, 0xc4, 0x3e, 0xdb, 0xa5, 0x3c, 0x99,
-	0xba, 0xc2, 0x1d, 0xdd, 0x83, 0x6b, 0x8c, 0xe3, 0x84, 0x8b, 0x89, 0x1a, 0x86, 0x01, 0x35, 0xab,
-	0xff, 0x65, 0xa0, 0x84, 0x6f, 0xb6, 0xf3, 0x59, 0x40, 0x8b, 0x5c, 0xf8, 0xc4, 0xac, 0x5d, 0x8d,
-	0x0b, 0x9f, 0xa0, 0xbb, 0xd0, 0xd2, 0xf2, 0x21, 0xa2, 0x5a, 0xbe, 0xfc, 0x80, 0x36, 0xb5, 0x63,
-	0x16, 0xd3, 0x1c, 0x0f, 0x3e, 0x31, 0x57, 0xae, 0xc2, 0x83, 0x4f, 0xd0, 0x8b, 0x00, 0x34, 0x0d,
-	0x87, 0xa2, 0x21, 0x99, 0x59, 0x5f, 0x37, 0x36, 0x6b, 0x6e, 0x83, 0xa6, 0xa1, 0x48, 0x32, 0xb3,
-	0xde, 0x86, 0x46, 0x9e, 0x59, 0xb4, 0x06, 0x95, 0x31, 0x99, 0xaa, 0xda, 0x66, 0x9f, 0xa8, 0x0d,
-	0xb5, 0x63, 0x3c, 0x49, 0x75, 0x29, 0xe5, 0xe2, 0xdd, 0xa5, 0x77, 0x0c, 0xdb, 0x85, 0xeb, 0x77,
-	0x03, 0xea, 0x49, 0x1a, 0xdd, 0x90, 0x77, 0xa0, 0xf6, 0x38, 0xab, 0x9b, 0x1a, 0x8e, 0x8d, 0x4b,
-	0x16, 0xd7, 0x95, 0x5e, 0xf6, 0x3d, 0x78, 0x6e, 0x96, 0x93, 0xc5, 0x11, 0x65, 0xe4, 0xe3, 0x47,
-	0x29, 0x1d, 0xa3, 0x1e, 0xd4, 0x32, 0x05, 0x90, 0x3d, 0x5b, 0xae, 0x11, 0x83, 0x6a, 0x96, 0x01,
-	0x57, 0xe2, 0xec, 0x43, 0xb8, 0x91, 0x73, 0xed, 0xef, 0xfc, 0x5f, 0x11, 0xb2, 0x79, 0x56, 0x3d,
-	0x56, 0x0f, 0xe7, 0x44, 0x28, 0x93, 0xcc, 0x8f, 0xae, 0x2a, 0x42, 0xf5, 0x3c, 0x62, 0xad, 0x42,
-	0xfd, 0x87, 0xb0, 0x96, 0xdd, 0x4f, 0xc8, 0x66, 0x72, 0x7f, 0x92, 0xfa, 0x01, 0x45, 0x9f, 0x40,
-	0x23, 0x97, 0x51, 0xf4, 0x72, 0xc9, 0x2d, 0x8a, 0x22, 0x6b, 0xdd, 0x5c, 0x68, 0x9d, 0xdd, 0xec,
-	0x19, 0xeb, 0xff, 0x53, 0x91, 0xf4, 0x2e, 0xc1, 0x5e, 0x4e, 0xef, 0x42, 0x5d, 0x0b, 0x1f, 0xb2,
-	0x4b, 0xd8, 0x0b, 0x2a, 0x6c, 0x3d, 0x0d, 0xa3, 0x93, 0xf4, 0x00, 0x9a, 0x33, 0xba, 0x87, 0x6e,
-	0x95, 0xbb, 0x14, 0xd4, 0xd2, 0xba, 0x00, 0xa6, 0xc9, 0x31, 0xac, 0xce, 0x09, 0x1e, 0xda, 0x28,
-	0xf7, 0x5b, 0x10, 0x51, 0xeb, 0x42, 0xe0, 0xf9, 0xdb, 0x08, 0xe7, 0xdd, 0x89, 0x5e, 0x29, 0x71,
-	0x5b, 0x18, 0x08, 0xeb, 0xf6, 0x05, 0xa8, 0x99, 0x16, 0xdf, 0x32, 0xd0, 0x37, 0xd0, 0x9a, 0xed,
-	0x2e, 0xf4, 0xea, 0xd3, 0xbc, 0xcf, 0x9b, 0xda, 0xba, 0x08, 0xa7, 0x6e, 0xd0, 0xff, 0xd1, 0x00,
-	0x73, 0xfe, 0xdf, 0x64, 0xa6, 0xe4, 0xbe, 0x78, 0xeb, 0x66, 0xb7, 0xd1, 0x6b, 0xe5, 0xa9, 0x29,
-	0xf9, 0xbd, 0xb1, 0x2e, 0x01, 0x55, 0x51, 0x0c, 0xcc, 0x27, 0x67, 0x1d, 0xe3, 0xf7, 0xb3, 0x8e,
-	0xf1, 0xd7, 0x59, 0xc7, 0xf8, 0xed, 0xef, 0x8e, 0xf1, 0xf5, 0xb2, 0x98, 0xe2, 0xed, 0xa3, 0x65,
-	0xd1, 0x9a, 0x6f, 0xfc, 0x1b, 0x00, 0x00, 0xff, 0xff, 0xc4, 0x79, 0x19, 0x12, 0xea, 0x09, 0x00,
-	0x00,
+	// 909 bytes of a gzipped FileDescriptorProto
+	0x1f, 0x8b, 0x08, 0x00, 0x00, 0x00, 0x00, 0x00, 0x02, 0xff, 0xac, 0x56, 0x4f, 0x73, 0xdb, 0x44,
+	0x14, 0x47, 0x89, 0x5d, 0xcb, 0xcf, 0x4e, 0x49, 0x36, 0x86, 0x0a, 0x0d, 0xb5, 0x83, 0x68, 0x9b,
+	0xc0, 0x0c, 0x72, 0x63, 0x0e, 0x65, 0x60, 0x18, 0xc0, 0x4d, 0xeb, 0x49, 0x87, 0x3f, 0x45, 0xcd,
+	0xc0, 0x0c, 0x74, 0x10, 0xeb, 0x68, 0x51, 0xd4, 0x44, 0x2b, 0x55, 0x5a, 0x79, 0xec, 0x3b, 0x1f,
+	0x80, 0x23, 0x27, 0xae, 0x7c, 0x0d, 0x8e, 0x3d, 0x72, 0xe6, 0x10, 0x18, 0xf3, 0x19, 0xb8, 0x33,
+	0xda, 0x5d, 0x29, 0xb2, 0xad, 0xd6, 0xc4, 0xc3, 0x4d, 0xfb, 0xf6, 0xf7, 0x7e, 0xef, 0xbd, 0x7d,
+	0xef, 0xfd, 0x6c, 0xd8, 0x88, 0x59, 0x10, 0x61, 0x97, 0x98, 0x61, 0x14, 0xb0, 0x00, 0x6d, 0x3d,
+	0xc1, 0xc4, 0x25, 0x91, 0x99, 0x59, 0x47, 0xfb, 0x7a, 0xcb, 0x0d, 0xdc, 0x80, 0xdf, 0x76, 0xd3,
+	0x2f, 0x01, 0xd4, 0x3b, 0x6e, 0x10, 0xb8, 0x67, 0xa4, 0xcb, 0x4f, 0xc3, 0xe4, 0x87, 0x2e, 0xf3,
+	0x7c, 0x12, 0x33, 0xec, 0x87, 0x12, 0xd0, 0x9e, 0x07, 0x38, 0x49, 0x84, 0x99, 0x17, 0x50, 0x79,
+	0xdf, 0xf0, 0x03, 0x87, 0x9c, 0x89, 0x83, 0xf1, 0x8b, 0x02, 0xaf, 0x0e, 0x08, 0x3b, 0x20, 0x21,
+	0xa1, 0x0e, 0xa1, 0xc7, 0x1e, 0x89, 0x2d, 0xf2, 0x34, 0x21, 0x31, 0x43, 0x77, 0x01, 0x62, 0x86,
+	0x23, 0x66, 0xa7, 0x01, 0x34, 0x65, 0x47, 0xd9, 0x6b, 0xf4, 0x74, 0x53, 0x90, 0x9b, 0x19, 0xb9,
+	0x79, 0x94, 0x45, 0xef, 0xab, 0xcf, 0xce, 0x3b, 0x2f, 0xfd, 0xf4, 0x67, 0x47, 0xb1, 0xea, 0xdc,
+	0x2f, 0xbd, 0x41, 0x1f, 0x81, 0x4a, 0xa8, 0x23, 0x28, 0xd6, 0x2e, 0x41, 0x51, 0x23, 0xd4, 0x49,
+	0xed, 0xc6, 0x10, 0xae, 0x2d, 0xe4, 0x17, 0x87, 0x01, 0x8d, 0x09, 0x1a, 0x40, 0xd3, 0x29, 0xd8,
+	0x35, 0x65, 0x67, 0x7d, 0xaf, 0xd1, 0xbb, 0x6e, 0xca, 0x97, 0xc4, 0xa1, 0x67, 0x8f, 0x7a, 0x66,
+	0xee, 0x3a, 0xf9, 0xd4, 0xa3, 0xa7, 0xfd, 0x4a, 0x1a, 0xc2, 0x9a, 0x71, 0x34, 0x3e, 0x80, 0xcd,
+	0xaf, 0x23, 0x8f, 0x91, 0x47, 0x21, 0xa6, 0x59, 0xf5, 0xbb, 0x50, 0x89, 0x43, 0x4c, 0x65, 0xdd,
+	0xdb, 0x73, 0xa4, 0x1c, 0xc9, 0x01, 0xc6, 0x36, 0x6c, 0x15, 0x9c, 0x45, 0x6a, 0x06, 0x85, 0x97,
+	0x07, 0x84, 0x1d, 0x45, 0xf8, 0x98, 0x64, 0x84, 0xdf, 0x82, 0xca, 0xd2, 0xb3, 0xed, 0x39, 0x9c,
+	0xb4, 0xd9, 0xff, 0x38, 0x4d, 0xe5, 0x8f, 0xf3, 0xce, 0x3b, 0xae, 0xc7, 0x4e, 0x92, 0xa1, 0x79,
+	0x1c, 0xf8, 0x5d, 0x11, 0x26, 0x05, 0x7a, 0xd4, 0x95, 0xa7, 0xae, 0x68, 0x18, 0x67, 0x3b, 0x3c,
+	0x98, 0x9e, 0x77, 0x6a, 0xf2, 0xd3, 0xaa, 0x71, 0xc6, 0x43, 0xc7, 0x68, 0x01, 0x1a, 0x10, 0xf6,
+	0x88, 0x44, 0x23, 0xef, 0x38, 0xef, 0xa0, 0xb1, 0x0f, 0xdb, 0x33, 0x56, 0xf9, 0x6e, 0x3a, 0xa8,
+	0xb1, 0xb4, 0xf1, 0x37, 0xab, 0x5b, 0xf9, 0xd9, 0xb8, 0x0d, 0xad, 0x01, 0x61, 0x5f, 0x84, 0x44,
+	0x8c, 0x4c, 0x3e, 0x0c, 0x1a, 0xd4, 0x24, 0x86, 0x27, 0x5f, 0xb7, 0xb2, 0xa3, 0x71, 0x07, 0x5e,
+	0x99, 0xf3, 0x90, 0x61, 0xda, 0x00, 0x41, 0x6e, 0x95, 0x81, 0x0a, 0x16, 0xe3, 0xd7, 0x0a, 0xb4,
+	0x78, 0x21, 0x5f, 0x26, 0x24, 0x9a, 0x3c, 0xc4, 0x11, 0xf6, 0x09, 0x23, 0x51, 0x8c, 0xde, 0x80,
+	0xa6, 0x24, 0xb7, 0x29, 0xf6, 0xb3, 0x80, 0x0d, 0x69, 0xfb, 0x1c, 0xfb, 0x04, 0xdd, 0x84, 0xab,
+	0x39, 0x93, 0x00, 0xad, 0x71, 0xd0, 0x46, 0x6e, 0xe5, 0xb0, 0x7b, 0x50, 0x61, 0xd8, 0x8d, 0xb5,
+	0x75, 0x3e, 0x19, 0xfb, 0xe6, 0xc2, 0x8e, 0x99, 0x65, 0x09, 0x98, 0x47, 0xd8, 0x8d, 0xef, 0x51,
+	0x16, 0x4d, 0x2c, 0xee, 0x8e, 0x1e, 0xc0, 0xd5, 0x8b, 0x4d, 0xb0, 0x7d, 0x8f, 0x6a, 0x95, 0x4b,
+	0x8c, 0x72, 0x33, 0xdf, 0x86, 0xcf, 0x3c, 0x3a, 0xcf, 0x85, 0xc7, 0x5a, 0x75, 0x35, 0x2e, 0x3c,
+	0x46, 0xf7, 0xa1, 0x99, 0xed, 0x36, 0xcf, 0xea, 0x0a, 0x67, 0x7a, 0x6d, 0x81, 0xe9, 0x40, 0x82,
+	0x04, 0xd1, 0xcf, 0x29, 0x51, 0x23, 0x73, 0x4c, 0x73, 0x9a, 0xe1, 0xc1, 0x63, 0xad, 0xb6, 0x0a,
+	0x0f, 0x1e, 0xa3, 0xeb, 0x00, 0x34, 0xf1, 0x6d, 0x3e, 0x94, 0xb1, 0xa6, 0xee, 0x28, 0x7b, 0x55,
+	0xab, 0x4e, 0x13, 0x9f, 0x3f, 0x72, 0xac, 0xdf, 0x81, 0x7a, 0xfe, 0xb2, 0x68, 0x13, 0xd6, 0x4f,
+	0xc9, 0x44, 0xf6, 0x36, 0xfd, 0x44, 0x2d, 0xa8, 0x8e, 0xf0, 0x59, 0x92, 0xb5, 0x52, 0x1c, 0xde,
+	0x5f, 0x7b, 0x4f, 0x31, 0x2c, 0xd8, 0xba, 0xef, 0x51, 0x47, 0xd0, 0x64, 0x13, 0xf9, 0x21, 0x54,
+	0x9f, 0xa6, 0x7d, 0x93, 0x1b, 0xba, 0xfb, 0x1f, 0x9b, 0x6b, 0x09, 0x2f, 0xe3, 0x01, 0x5c, 0x2b,
+	0x72, 0x8a, 0x99, 0xbd, 0x7b, 0x92, 0xd0, 0x53, 0xd4, 0x85, 0x6a, 0xba, 0xd9, 0x99, 0xa0, 0x94,
+	0xed, 0xbe, 0x94, 0x11, 0x81, 0x4b, 0xb7, 0x6f, 0x91, 0xcb, 0x38, 0x82, 0xed, 0xdc, 0x7a, 0x78,
+	0xf0, 0x7f, 0xe5, 0x3d, 0x82, 0xd6, 0x2c, 0xab, 0xdc, 0xb6, 0xef, 0xa0, 0x9e, 0xc9, 0x8b, 0x48,
+	0xbc, 0xd9, 0xff, 0x64, 0x55, 0x7d, 0x51, 0x73, 0x76, 0x55, 0x0a, 0x4c, 0xdc, 0x7b, 0x02, 0x9b,
+	0x69, 0xe1, 0x5c, 0xea, 0xa2, 0x87, 0x67, 0x89, 0xeb, 0x51, 0xf4, 0x15, 0xd4, 0x73, 0xe9, 0x43,
+	0x6f, 0x96, 0x14, 0x32, 0xaf, 0xaa, 0xfa, 0x8d, 0x17, 0x83, 0x44, 0x2d, 0xbd, 0x7f, 0xd6, 0x45,
+	0x30, 0x8b, 0x60, 0x27, 0x0f, 0xf6, 0x18, 0xd4, 0x4c, 0x52, 0x91, 0x51, 0x42, 0x33, 0xa7, 0xb7,
+	0xfa, 0xdb, 0x25, 0x98, 0xe7, 0x74, 0xfc, 0xb6, 0x82, 0x1e, 0x43, 0xa3, 0x20, 0x95, 0xe8, 0x66,
+	0x79, 0x80, 0x39, 0x81, 0xd5, 0x6f, 0x2d, 0x83, 0xc9, 0xe6, 0x0c, 0x61, 0x63, 0x46, 0x23, 0xd1,
+	0x6e, 0xb9, 0xe3, 0x82, 0xee, 0xea, 0x7b, 0xcb, 0x81, 0x32, 0xc6, 0xf7, 0x00, 0x17, 0xe5, 0xa1,
+	0x1b, 0x4b, 0xaa, 0x5f, 0xe5, 0x8d, 0x6c, 0x68, 0x16, 0x47, 0x0f, 0xdd, 0x7a, 0x91, 0xf7, 0xc5,
+	0xc4, 0xeb, 0xbb, 0x4b, 0x71, 0xb2, 0xef, 0x3f, 0x2a, 0xa0, 0xcd, 0xfe, 0xd2, 0x17, 0xfa, 0x7f,
+	0xc2, 0x7f, 0x52, 0x8b, 0xd7, 0xe8, 0xad, 0xf2, 0xc7, 0x29, 0xf9, 0x33, 0x53, 0x5a, 0xe9, 0x73,
+	0xfe, 0x57, 0xf4, 0x5f, 0x7f, 0x36, 0x6d, 0x2b, 0xbf, 0x4f, 0xdb, 0xca, 0x5f, 0xd3, 0xb6, 0xf2,
+	0xdb, 0xdf, 0x6d, 0xe5, 0x1b, 0x90, 0x5e, 0xf6, 0x68, 0x7f, 0x78, 0x85, 0xcb, 0xe1, 0xbb, 0xff,
+	0x06, 0x00, 0x00, 0xff, 0xff, 0xa4, 0x53, 0x2d, 0x05, 0xc0, 0x09, 0x00, 0x00,
 }
