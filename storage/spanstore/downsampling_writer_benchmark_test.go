@@ -18,6 +18,9 @@ func (n *noopWriteSpanStore) WriteSpan(span *model.Span) error {
 	return nil
 }
 
+// Benchmark result:
+// numGoroutines = 10000, writeTimes = 10
+// BenchmarkDownSamplingWriter_WriteSpan-12    	     100	  25536211 ns/op	 9110205 B/op	  210443 allocs/op
 func BenchmarkDownSamplingWriter_WriteSpan(b *testing.B) {
 	trace := model.TraceID{
 		Low:  uint64(0),
@@ -40,12 +43,12 @@ func BenchmarkDownSamplingWriter_WriteSpan(b *testing.B) {
 	for j := 0; j < b.N; j++ {
 		for n := 0; n < numGoroutines; n++ {
 
-			go func(span *model.Span) {
+			go func() {
 				for i := 0; i < writeTimes; i++ {
 					c.WriteSpan(span)
 				}
-				defer wg.Done()
-			}(span)
+				wg.Done()
+			}()
 		}
 	}
 	wg.Wait()

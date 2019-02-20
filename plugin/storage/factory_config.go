@@ -95,7 +95,15 @@ func FactoryConfigFromEnvAndCLI(args []string, log io.Writer) FactoryConfig {
 		fmt.Fprintf(log,
 			"WARNING: DOWN_SAMPLING_RATIO should be a float number. The number entered is invalid. DownSamplingWriter will not be applied.",
 		)
-		// Default ratio is 100% which means no down-sampling.
+		// Default ratio is 1.0 which means no down-sampling.
+		downSamplingRatio = 1.0
+	}
+
+	if downSamplingRatio < 0 || downSamplingRatio > 1 {
+		fmt.Fprintf(log,
+			"WARNING: DOWN_SAMPLING_RATIO should be within [0, 1.0]. The number entered is invalid. DownSamplingWriter will not be applied.",
+		)
+		// Default ratio is 1.0 which means no down-sampling.
 		downSamplingRatio = 1.0
 	}
 	// Default salt is empty string.

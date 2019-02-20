@@ -118,16 +118,16 @@ func (f *Factory) CreateSpanWriter() (spanstore.Writer, error) {
 		}
 		writers = append(writers, writer)
 	}
-	var topWriter spanstore.Writer
+	var spanWriter spanstore.Writer
 	if len(f.SpanWriterTypes) == 1 {
-		topWriter = writers[0]
+		spanWriter = writers[0]
 	} else {
-		topWriter = spanstore.NewCompositeWriter(writers...)
+		spanWriter = spanstore.NewCompositeWriter(writers...)
 	}
-	return spanstore.NewDownSamplingWriter(topWriter, spanstore.DownSamplingOptions{
+	return spanstore.NewDownSamplingWriter(spanWriter, spanstore.DownSamplingOptions{
 		Ratio:          f.DownSamplingRatio,
 		HashSalt:       f.DownSamplingHashSalt,
-		MetricsFactory: f.metricsFactory.Namespace(metrics.NSOptions{Name: "downsamplingwriter"}),
+		MetricsFactory: f.metricsFactory.Namespace(metrics.NSOptions{Name: "downsampling_writer"}),
 	}), nil
 }
 

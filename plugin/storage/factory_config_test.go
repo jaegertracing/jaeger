@@ -60,6 +60,18 @@ func TestFactoryConfigFromEnv(t *testing.T) {
 	f = FactoryConfigFromEnvAndCLI(nil, &bytes.Buffer{})
 	assert.Equal(t, 0.5, f.DownSamplingRatio)
 	assert.Equal(t, "jaeger-test", f.DownSamplingHashSalt)
+
+	os.Setenv(DownsamplingRatio, "")
+	f = FactoryConfigFromEnvAndCLI(nil, &bytes.Buffer{})
+	assert.Equal(t, 1.0, f.DownSamplingRatio)
+
+	os.Setenv(DownsamplingRatio, "aa")
+	f = FactoryConfigFromEnvAndCLI(nil, &bytes.Buffer{})
+	assert.Equal(t, 1.0, f.DownSamplingRatio)
+
+	os.Setenv(DownsamplingRatio, "3.0")
+	f = FactoryConfigFromEnvAndCLI(nil, &bytes.Buffer{})
+	assert.Equal(t, 1.0, f.DownSamplingRatio)
 }
 
 func TestFactoryConfigFromEnvDeprecated(t *testing.T) {

@@ -38,7 +38,7 @@ type DownSamplingWriter struct {
 // errors converting trace ID into a binary representation,
 // errors hashing bytes to uint64.
 type downsamplingWriterMetrics struct {
-	MarshalingErrors metrics.Counter `metric:"MarshalTo_errors"`
+	MarshalingErrors metrics.Counter `metric:"Marshalto_errors"`
 	HashingErrors    metrics.Counter `metric:"hashing_errors"`
 }
 

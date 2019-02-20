@@ -19,8 +19,6 @@ import (
 	"flag"
 	"testing"
 
-	"github.com/jaegertracing/jaeger/storage/spanstore"
-
 	"github.com/spf13/viper"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -30,6 +28,7 @@ import (
 	"github.com/jaegertracing/jaeger/storage"
 	depStoreMocks "github.com/jaegertracing/jaeger/storage/dependencystore/mocks"
 	"github.com/jaegertracing/jaeger/storage/mocks"
+	"github.com/jaegertracing/jaeger/storage/spanstore"
 	spanStoreMocks "github.com/jaegertracing/jaeger/storage/spanstore/mocks"
 )
 
