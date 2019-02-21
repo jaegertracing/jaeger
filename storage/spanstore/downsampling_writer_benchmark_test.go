@@ -3,24 +3,16 @@ package spanstore
 import (
 	"math"
 	"math/rand"
-	"sync"
 	"testing"
 
+	"github.com/stretchr/testify/assert"
 	"github.com/uber/jaeger-lib/metrics"
 
 	"github.com/jaegertracing/jaeger/model"
-	"github.com/stretchr/testify/assert"
 )
 
-type noopWriteSpanStore struct{}
-
-func (n *noopWriteSpanStore) WriteSpan(span *model.Span) error {
-	return nil
-}
-
-//Benchmark result:
-//BenchmarkDownSamplingWriter_WriteSpan-12 without bytepool 50	  33352181 ns/op	18981065 B/op	  219750 allocs/op
-//BenchmarkDownSamplingWriter_WriteSpan2-12   with bytepool 100	  28070245 ns/op	16137975 B/op	  127494 allocs/op
+// Benchmark result:
+// BenchmarkDownSamplingWriter_WriteSpan-12    	    2000	    783766 ns/op	       1 B/op	       0 allocs/op
 func BenchmarkDownSamplingWriter_WriteSpan(b *testing.B) {
 	trace := model.TraceID{
 		Low:  uint64(0),
@@ -33,25 +25,34 @@ func BenchmarkDownSamplingWriter_WriteSpan(b *testing.B) {
 		Ratio:    0.5,
 		HashSalt: "jaeger-test",
 	})
-	var wg sync.WaitGroup
-	numGoroutines := 10000
-	writeTimes := 10
-	wg.Add(numGoroutines * b.N)
+
+	b.ResetTimer()
+	b.ReportAllocs()
+	for it := 0; it < b.N; it++ {
+		for writes := 0; writes < 10000; writes++ {
+			c.WriteSpan(span)
+		}
+
+	}
+}
+
+// Benchmark result:
+// BenchmarkDownSamplingWriter_HashBytes-12    	    5000	    381558 ns/op	       0 B/op	       0 allocs/op
+func BenchmarkDownSamplingWriter_HashBytes(b *testing.B) {
+
+	c := NewDownSamplingWriter(&noopWriteSpanStore{}, DownSamplingOptions{
+		Ratio:    0.5,
+		HashSalt: "jaeger-test",
+	})
+	ba := make([]byte, 16)
 	b.ResetTimer()
 	b.ReportAllocs()
 
-	for j := 0; j < b.N; j++ {
-		for n := 0; n < numGoroutines; n++ {
-
-			go func() {
-				for i := 0; i < writeTimes; i++ {
-					c.WriteSpan(span)
-				}
-				wg.Done()
-			}()
+	for it := 0; it < b.N; it++ {
+		for i := 0; i < 10000; i++ {
+			c.hashBytes(ba)
 		}
 	}
-	wg.Wait()
 }
 
 func TestDownSamplingWriter_RandomHash(t *testing.T) {

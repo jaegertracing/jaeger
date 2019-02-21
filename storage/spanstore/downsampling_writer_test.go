@@ -22,6 +22,11 @@ import (
 	"github.com/jaegertracing/jaeger/model"
 )
 
+type noopWriteSpanStore struct{}
+
+func (n *noopWriteSpanStore) WriteSpan(span *model.Span) error {
+	return nil
+}
 func TestDownSamplingWriter_WriteSpan(t *testing.T) {
 	trace := model.TraceID{
 		Low:  uint64(0),
@@ -67,4 +72,5 @@ func TestDownSamplingWriter_hashBytes(t *testing.T) {
 	span.TraceID.MarshalTo(traceIDBytes)
 	// Same traceID should always be hashed to same uint64 in DownSamplingWriter
 	assert.Equal(t, c.hashBytes(traceIDBytes), c.hashBytes(traceIDBytes))
+
 }
