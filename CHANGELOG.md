@@ -14,6 +14,8 @@ Changes by Version
 
 ##### Bug fixes, Minor Improvements
 
+- Separate query-service functionality from http handler ([#1312](https://github.com/jaegertracing/jaeger/pull/1312), [@annanay25](https://github.com/annanay25))
+
 #### UI Changes
 
 
