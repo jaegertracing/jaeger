@@ -37,9 +37,34 @@ func TestDownSamplingWriter_WriteSpan(t *testing.T) {
 	c := NewDownSamplingWriter(&noopWriteSpanStore{}, downSamplingOptions)
 	assert.NoError(t, c.WriteSpan(span))
 
+	downSamplingOptions.Ratio = 0
+	c = NewDownSamplingWriter(&noopWriteSpanStore{}, downSamplingOptions)
+	assert.NoError(t, c.WriteSpan(span))
+
+	downSamplingOptions.Ratio = 0.8
+	c = NewDownSamplingWriter(&noopWriteSpanStore{}, downSamplingOptions)
+	assert.NoError(t, c.WriteSpan(span))
+
+}
+
+func TestDownSamplingWriter_hashBytes(t *testing.T) {
+	downSamplingOptions := DownSamplingOptions{
+		Ratio:          1,
+		HashSalt:       "",
+		MetricsFactory: nil,
+	}
+	c := NewDownSamplingWriter(&noopWriteSpanStore{}, downSamplingOptions)
+	assert.Equal(t, c.hashBytes(nil), c.hashBytes(nil))
+
+	trace := model.TraceID{
+		Low:  uint64(0),
+		High: uint64(1),
+	}
+	span := &model.Span{
+		TraceID: trace,
+	}
 	traceIDBytes := make([]byte, 16)
 	span.TraceID.MarshalTo(traceIDBytes)
 	// Same traceID should always be hashed to same uint64 in DownSamplingWriter
 	assert.Equal(t, c.hashBytes(traceIDBytes), c.hashBytes(traceIDBytes))
-
 }
