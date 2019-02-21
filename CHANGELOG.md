@@ -6,7 +6,7 @@ Changes by Version
 
 #### Backend Changes
 
-- Discover dependencies table version automatically ([#1364]https://github.com/jaegertracing/jaeger/pull/1364)
+- Discover dependencies table version automatically ([#1364](https://github.com/jaegertracing/jaeger/pull/1364), [@black-adder](https://github.com/black-adder))
 
 ##### Breaking Changes
 
