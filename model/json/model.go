@@ -95,7 +95,7 @@ type Log struct {
 	Fields    []KeyValue `json:"fields"`
 }
 
-// KeyValue is a a key-value pair with typed value.
+// KeyValue is a key-value pair with typed value.
 type KeyValue struct {
 	Key   string      `json:"key"`
 	Type  ValueType   `json:"type,omitempty"`
