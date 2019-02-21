@@ -6,13 +6,15 @@ Changes by Version
 
 #### Backend Changes
 
-- Discover dependencies table version automatically ([#1364]https://github.com/jaegertracing/jaeger/pull/1364)
+- Discover dependencies table version automatically ([#1364](https://github.com/jaegertracing/jaeger/pull/1364), [@black-adder](https://github.com/black-adder))
 
 ##### Breaking Changes
 
 ##### New Features
 
 ##### Bug fixes, Minor Improvements
+
+- Separate query-service functionality from http handler ([#1312](https://github.com/jaegertracing/jaeger/pull/1312), [@annanay25](https://github.com/annanay25))
 
 #### UI Changes
 
