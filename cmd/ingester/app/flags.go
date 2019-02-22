@@ -134,7 +134,7 @@ func (o *Options) InitFromViper(v *viper.Viper) {
 	o.GroupID = v.GetString(KafkaConsumerConfigPrefix + SuffixGroupID)
 	o.Encoding = v.GetString(KafkaConsumerConfigPrefix + SuffixEncoding)
 
-	if brokers := v.GetString(DeprecatedKafkaConfigPrefix+SuffixBrokers); brokers != "" {
+	if brokers := v.GetString(DeprecatedKafkaConfigPrefix + SuffixBrokers); brokers != "" {
 		fmt.Printf("WARNING: found deprecated option %s, please use %s instead\n",
 			DeprecatedKafkaConfigPrefix+SuffixBrokers,
 			KafkaConsumerConfigPrefix+SuffixBrokers,

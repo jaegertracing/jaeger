@@ -32,11 +32,11 @@ const (
 	// EncodingZipkinThrift is used for spans encoded as Zipkin Thrift.
 	EncodingZipkinThrift = "zipkin-thrift"
 
-	configPrefix   = "kafka.producer"
-	deprecatedPrefix   = "kafka"
-	suffixBrokers  = ".brokers"
-	suffixTopic    = ".topic"
-	suffixEncoding = ".encoding"
+	configPrefix     = "kafka.producer"
+	deprecatedPrefix = "kafka"
+	suffixBrokers    = ".brokers"
+	suffixTopic      = ".topic"
+	suffixEncoding   = ".encoding"
 
 	defaultBroker   = "127.0.0.1:9092"
 	defaultTopic    = "jaeger-spans"
@@ -94,7 +94,7 @@ func (opt *Options) InitFromViper(v *viper.Viper) {
 	opt.topic = v.GetString(configPrefix + suffixTopic)
 	opt.encoding = v.GetString(configPrefix + suffixEncoding)
 
-	if brokers := v.GetString(deprecatedPrefix+suffixBrokers); brokers != "" {
+	if brokers := v.GetString(deprecatedPrefix + suffixBrokers); brokers != "" {
 		fmt.Printf("WARNING: found deprecated option %s, please use %s instead\n",
 			deprecatedPrefix+suffixBrokers,
 			configPrefix+suffixBrokers,
