@@ -36,6 +36,24 @@ Changes by Version
 #### UI Changes
 
 
+1.10.1 (2019-02-21)
+------------------
+
+#### Backend Changes
+
+- Discover dependencies table version automatically ([#1364](https://github.com/jaegertracing/jaeger/pull/1364), [@black-adder](https://github.com/black-adder))
+
+##### Breaking Changes
+
+##### New Features
+
+##### Bug fixes, Minor Improvements
+
+- Separate query-service functionality from http handler ([#1312](https://github.com/jaegertracing/jaeger/pull/1312), [@annanay25](https://github.com/annanay25))
+
+#### UI Changes
+
+
 1.10.0 (2019-02-15)
 ------------------
 
@@ -215,7 +233,7 @@ jaeger_http_server_errors{source="collector-proxy",status="5xx"}
 
 - Refactor agent configuration ([#1092](https://github.com/jaegertracing/jaeger/pull/1092), [@pavolloffay](https://github.com/pavolloffay))
 
-The following agent flags has has been deprecated in order to support multiple reporters:
+The following agent flags has been deprecated in order to support multiple reporters:
 ```bash
 --collector.host-port
 --discovery.conn-check-timeout
