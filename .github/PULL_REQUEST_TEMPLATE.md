@@ -12,7 +12,7 @@ Before creating a pull request, please make sure:
 -->
 
 ## Which problem is this PR solving?
-- 
+
+## Which issues (if any) are related?
 
 ## Short description of the changes
-- 
