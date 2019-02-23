@@ -100,7 +100,6 @@ func NewDownSamplingWriter(spanWriter Writer, downSamplingOptions DownSamplingOp
 // WriteSpan calls WriteSpan on wrapped span writer.
 func (ds *DownSamplingWriter) WriteSpan(span *model.Span) error {
 	// No downSampling when threshold equals maxuint64
-
 	if ds.threshold == math.MaxUint64 {
 		return ds.spanWriter.WriteSpan(span)
 	}
@@ -108,7 +107,6 @@ func (ds *DownSamplingWriter) WriteSpan(span *model.Span) error {
 	byteSlice := ds.poolInstance.bytepool.Get().(*[]byte)
 	copy((*byteSlice)[:len(ds.hashSalt)], ds.hashSalt)
 
-	// traceID marshal to 16 bytes.
 	// Currently MarshalTo will only return err if size of traceIDBytes is smaller than 16
 	// Since we force traceIDBytes to be size of 16 metrics is not necessary here.
 	span.TraceID.MarshalTo((*byteSlice)[len(ds.hashSalt):])

@@ -25,8 +25,6 @@ import (
 func clearEnv() {
 	os.Setenv(SpanStorageTypeEnvVar, "")
 	os.Setenv(DependencyStorageTypeEnvVar, "")
-	os.Setenv(DownsamplingRatio, "")
-	os.Setenv(DownsamplingHashSalt, "")
 }
 
 func TestFactoryConfigFromEnv(t *testing.T) {
@@ -54,24 +52,6 @@ func TestFactoryConfigFromEnv(t *testing.T) {
 	assert.Equal(t, 2, len(f.SpanWriterTypes))
 	assert.Equal(t, []string{elasticsearchStorageType, kafkaStorageType}, f.SpanWriterTypes)
 	assert.Equal(t, elasticsearchStorageType, f.SpanReaderType)
-
-	os.Setenv(DownsamplingRatio, "0.5")
-	os.Setenv(DownsamplingHashSalt, "jaeger-test")
-	f = FactoryConfigFromEnvAndCLI(nil, &bytes.Buffer{})
-	assert.Equal(t, 0.5, f.DownSamplingRatio)
-	assert.Equal(t, "jaeger-test", f.DownSamplingHashSalt)
-
-	os.Setenv(DownsamplingRatio, "")
-	f = FactoryConfigFromEnvAndCLI(nil, &bytes.Buffer{})
-	assert.Equal(t, 1.0, f.DownSamplingRatio)
-
-	os.Setenv(DownsamplingRatio, "aa")
-	f = FactoryConfigFromEnvAndCLI(nil, &bytes.Buffer{})
-	assert.Equal(t, 1.0, f.DownSamplingRatio)
-
-	os.Setenv(DownsamplingRatio, "3.0")
-	f = FactoryConfigFromEnvAndCLI(nil, &bytes.Buffer{})
-	assert.Equal(t, 1.0, f.DownSamplingRatio)
 }
 
 func TestFactoryConfigFromEnvDeprecated(t *testing.T) {

@@ -18,7 +18,6 @@ import (
 	"fmt"
 	"io"
 	"os"
-	"strconv"
 	"strings"
 )
 
@@ -30,15 +29,6 @@ const (
 	DependencyStorageTypeEnvVar = "DEPENDENCY_STORAGE_TYPE"
 
 	spanStorageFlag = "--span-storage.type"
-
-	// DownsamplingRatio is the name of the env var that defines the ratio of spans for down sampling
-	// Users are expected to pass ratio ranging from 0 to 1.0
-	// e.g ratio = 0.3 means we are keeping 30% of spans and dropping 70% of spans.
-	DownsamplingRatio = "DOWN_SAMPLING_RATIO"
-
-	// DownsamplingHashSalt is the name of the env var that defines the hash salt for down sampling
-	// Users are expected to pass their own salt string or DownSamplingWriter will use empty string as default.
-	DownsamplingHashSalt = "DOWN_SAMPLING_HASH_SALT"
 )
 
 // FactoryConfig tells the Factory which types of backends it needs to create for different storage types.
@@ -46,8 +36,8 @@ type FactoryConfig struct {
 	SpanWriterTypes         []string
 	SpanReaderType          string
 	DependenciesStorageType string
-	DownSamplingRatio       float64
-	DownSamplingHashSalt    string
+	DownsamplingRatio       float64
+	DownsamplingHashSalt    string
 }
 
 // FactoryConfigFromEnvAndCLI reads the desired types of storage backends from SPAN_STORAGE_TYPE and
@@ -81,41 +71,12 @@ func FactoryConfigFromEnvAndCLI(args []string, log io.Writer) FactoryConfig {
 	if depStorageType == "" {
 		depStorageType = spanWriterTypes[0]
 	}
-	ratioEnvVariable := os.Getenv(DownsamplingRatio)
-	var downSamplingRatio float64
-	if ratioEnvVariable == "" {
-		fmt.Fprintf(log,
-			"WARNING: DOWN_SAMPLING_RATIO is not specified. DownSamplingWriter will not be applied.",
-		)
-		// Default ratio is 100% which means no down-sampling.
-		downSamplingRatio = 1.0
-	}
-	downSamplingRatio, err := strconv.ParseFloat(ratioEnvVariable, 64)
-	if err != nil {
-		fmt.Fprintf(log,
-			"WARNING: DOWN_SAMPLING_RATIO should be a float number. The number entered is invalid. DownSamplingWriter will not be applied.",
-		)
-		// Default ratio is 1.0 which means no down-sampling.
-		downSamplingRatio = 1.0
-	}
-
-	if downSamplingRatio < 0 || downSamplingRatio > 1 {
-		fmt.Fprintf(log,
-			"WARNING: DOWN_SAMPLING_RATIO should be within [0, 1.0]. The number entered is invalid. DownSamplingWriter will not be applied.",
-		)
-		// Default ratio is 1.0 which means no down-sampling.
-		downSamplingRatio = 1.0
-	}
-	// Default salt is empty string.
-	downSamplingHashSalt := os.Getenv(DownsamplingHashSalt)
 
 	// TODO support explicit configuration for readers
 	return FactoryConfig{
 		SpanWriterTypes:         spanWriterTypes,
 		SpanReaderType:          spanWriterTypes[0],
 		DependenciesStorageType: depStorageType,
-		DownSamplingRatio:       downSamplingRatio,
-		DownSamplingHashSalt:    downSamplingHashSalt,
 	}
 }
 

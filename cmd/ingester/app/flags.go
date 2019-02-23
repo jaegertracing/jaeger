@@ -125,6 +125,7 @@ func AddFlags(flagSet *flag.FlagSet) {
 		DeprecatedKafkaConfigPrefix+SuffixEncoding,
 		"",
 		fmt.Sprintf("Deprecated; replaced by %s", KafkaConsumerConfigPrefix+SuffixEncoding))
+
 }
 
 // InitFromViper initializes Builder with properties from viper

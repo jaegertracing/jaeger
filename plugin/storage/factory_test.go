@@ -19,6 +19,8 @@ import (
 	"flag"
 	"testing"
 
+	"github.com/jaegertracing/jaeger/pkg/config"
+
 	"github.com/spf13/viper"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -40,8 +42,8 @@ func defaultCfg() FactoryConfig {
 		SpanWriterTypes:         []string{cassandraStorageType},
 		SpanReaderType:          cassandraStorageType,
 		DependenciesStorageType: cassandraStorageType,
-		DownSamplingRatio:       1.0,
-		DownSamplingHashSalt:    "",
+		DownsamplingRatio:       1.0,
+		DownsamplingHashSalt:    "",
 	}
 }
 
@@ -138,8 +140,8 @@ func TestCreate(t *testing.T) {
 	w, err = f.CreateSpanWriter()
 	assert.NoError(t, err)
 	assert.Equal(t, spanstore.NewDownSamplingWriter(spanWriter, spanstore.DownSamplingOptions{
-		Ratio:          f.DownSamplingRatio,
-		HashSalt:       f.DownSamplingHashSalt,
+		Ratio:          f.DownsamplingRatio,
+		HashSalt:       f.DownsamplingHashSalt,
 		MetricsFactory: metrics.NullFactory,
 	}), w)
 }
@@ -174,8 +176,8 @@ func TestCreateMulti(t *testing.T) {
 	w, err = f.CreateSpanWriter()
 	assert.NoError(t, err)
 	assert.Equal(t, spanstore.NewDownSamplingWriter(spanstore.NewCompositeWriter(spanWriter, spanWriter2), spanstore.DownSamplingOptions{
-		Ratio:          f.DownSamplingRatio,
-		HashSalt:       f.DownSamplingHashSalt,
+		Ratio:          f.DownsamplingRatio,
+		HashSalt:       f.DownsamplingHashSalt,
 		MetricsFactory: metrics.NullFactory,
 	}), w)
 }
@@ -282,4 +284,23 @@ func TestConfigurable(t *testing.T) {
 
 	assert.Equal(t, fs, mock.flagSet)
 	assert.Equal(t, v, mock.viper)
+}
+
+func TestParsingDownsamplingRatio(t *testing.T) {
+	f := Factory{}
+	v, command := config.Viperize(addFlags)
+	err := command.ParseFlags([]string{
+		"--downsampling.ratio=1.5",
+		"--downsampling.hashsalt=jaeger"})
+	assert.NoError(t, err)
+	f.InitFromViper(v)
+
+	assert.Equal(t, f.FactoryConfig.DownsamplingRatio, 1.0)
+	assert.Equal(t, f.FactoryConfig.DownsamplingHashSalt, "jaeger")
+
+	err = command.ParseFlags([]string{
+		"--downsampling.ratio=0.5"})
+	assert.NoError(t, err)
+	f.InitFromViper(v)
+	assert.Equal(t, f.FactoryConfig.DownsamplingRatio, 0.5)
 }
