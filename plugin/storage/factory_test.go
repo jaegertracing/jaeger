@@ -20,18 +20,16 @@ import (
 	"testing"
 
 	"github.com/jaegertracing/jaeger/pkg/config"
-
-	"github.com/spf13/viper"
-	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/require"
-	"github.com/uber/jaeger-lib/metrics"
-	"go.uber.org/zap"
-
 	"github.com/jaegertracing/jaeger/storage"
 	depStoreMocks "github.com/jaegertracing/jaeger/storage/dependencystore/mocks"
 	"github.com/jaegertracing/jaeger/storage/mocks"
 	"github.com/jaegertracing/jaeger/storage/spanstore"
 	spanStoreMocks "github.com/jaegertracing/jaeger/storage/spanstore/mocks"
+	"github.com/spf13/viper"
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
+	"github.com/uber/jaeger-lib/metrics"
+	"go.uber.org/zap"
 )
 
 var _ storage.Factory = new(Factory)
@@ -139,11 +137,26 @@ func TestCreate(t *testing.T) {
 	f.Initialize(m, l)
 	w, err = f.CreateSpanWriter()
 	assert.NoError(t, err)
-	assert.Equal(t, spanstore.NewDownSamplingWriter(spanWriter, spanstore.DownSamplingOptions{
-		Ratio:          f.DownsamplingRatio,
-		HashSalt:       f.DownsamplingHashSalt,
-		MetricsFactory: metrics.NullFactory,
-	}), w)
+	assert.Equal(t, spanWriter, w)
+}
+
+func TestCreateDownsamplingWriter(t *testing.T) {
+	f, err := NewFactory(defaultCfg())
+	assert.NoError(t, err)
+	assert.NotEmpty(t, f.factories[cassandraStorageType])
+	mock := new(mocks.Factory)
+	f.factories[cassandraStorageType] = mock
+	spanWriter := new(spanStoreMocks.Writer)
+	mock.On("CreateSpanWriter").Return(spanWriter, nil)
+
+	f.DownsamplingRatio = 0.5
+	m := metrics.NullFactory
+	l := zap.NewNop()
+	mock.On("Initialize", m, l).Return(nil)
+
+	f.Initialize(m, l)
+	_, err = f.CreateSpanWriter()
+	assert.NoError(t, err)
 }
 
 func TestCreateMulti(t *testing.T) {
@@ -175,11 +188,7 @@ func TestCreateMulti(t *testing.T) {
 	f.Initialize(m, l)
 	w, err = f.CreateSpanWriter()
 	assert.NoError(t, err)
-	assert.Equal(t, spanstore.NewDownSamplingWriter(spanstore.NewCompositeWriter(spanWriter, spanWriter2), spanstore.DownSamplingOptions{
-		Ratio:          f.DownsamplingRatio,
-		HashSalt:       f.DownsamplingHashSalt,
-		MetricsFactory: metrics.NullFactory,
-	}), w)
+	assert.Equal(t, spanstore.NewCompositeWriter(spanWriter, spanWriter2), w)
 }
 
 func TestCreateArchive(t *testing.T) {

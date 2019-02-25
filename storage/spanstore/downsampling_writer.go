@@ -29,19 +29,10 @@ const (
 	traceIDByteSize = 16
 )
 
-// DownSamplingWriter is a span Writer that drops spans with a predefined downSamplingRatio.
-type DownSamplingWriter struct {
-	spanWriter   Writer
-	threshold    uint64
-	hashSalt     []byte
-	poolInstance *poolSingleton
-	metrics      *downSamplingWriterMetrics
-}
-
-// downSamplingWriterMetrics is metrics that keeping track of total number of dropped spans
-type downSamplingWriterMetrics struct {
-	SpansDropped metrics.Counter `metric:"spans_dropped"`
-}
+var (
+	instance poolSingleton
+	once     sync.Once
+)
 
 // Wrap the sync.Pool object within a singleton struct.
 type poolSingleton struct {
@@ -49,13 +40,32 @@ type poolSingleton struct {
 	bytepool *sync.Pool
 }
 
-var instance *poolSingleton
-var once sync.Once
+// downSamplingWriterMetrics is metrics that keeping track of total number of dropped spans
+type downSamplingWriterMetrics struct {
+	SpansDropped  metrics.Counter `metric:"spans_dropped"`
+	SpansAccepted metrics.Counter `metric:"spans_accepted"`
+}
+
+// DownSamplingWriter is a span Writer that drops spans with a predefined downSamplingRatio.
+type DownSamplingWriter struct {
+	spanWriter   Writer
+	threshold    uint64
+	lengthOfSalt int
+	poolInstance poolSingleton
+	metrics      *downSamplingWriterMetrics
+}
+
+// DownSamplingOptions contains the options for constructing a DownSamplingWriter.
+type DownSamplingOptions struct {
+	Ratio          float64
+	HashSalt       string
+	MetricsFactory metrics.Factory
+}
 
 // Initialize the singleton if it doesn't exist already.
-func getHashPoolInstance(length int) *poolSingleton {
+func getHashPoolInstance(length int) poolSingleton {
 	once.Do(func() {
-		instance = &poolSingleton{
+		instance = poolSingleton{
 			hashpool: &sync.Pool{
 				New: func() interface{} {
 					return fnv.New64a()
@@ -72,55 +82,47 @@ func getHashPoolInstance(length int) *poolSingleton {
 	return instance
 }
 
-// DownSamplingOptions contains the options for constructing a DownSamplingWriter.
-type DownSamplingOptions struct {
-	Ratio          float64
-	HashSalt       string
-	MetricsFactory metrics.Factory
-}
-
 // NewDownSamplingWriter creates a DownSamplingWriter.
 func NewDownSamplingWriter(spanWriter Writer, downSamplingOptions DownSamplingOptions) *DownSamplingWriter {
-	var threshold uint64 = math.MaxUint64
-	if downSamplingOptions.Ratio < 1.0 {
-		threshold = uint64(downSamplingOptions.Ratio * float64(math.MaxUint64))
-	}
+	threshold := uint64(downSamplingOptions.Ratio * float64(math.MaxUint64))
 	writeMetrics := &downSamplingWriterMetrics{}
 	metrics.Init(writeMetrics, downSamplingOptions.MetricsFactory, nil)
 	hashSaltBytes := []byte(downSamplingOptions.HashSalt)
+	poolInstance := getHashPoolInstance(len(hashSaltBytes) + traceIDByteSize)
+	byteSlice := poolInstance.bytepool.Get().(*[]byte)
+	copy((*byteSlice)[:len(hashSaltBytes)], hashSaltBytes)
+	poolInstance.bytepool.Put(byteSlice)
 	return &DownSamplingWriter{
 		spanWriter:   spanWriter,
 		threshold:    threshold,
-		hashSalt:     hashSaltBytes,
-		poolInstance: getHashPoolInstance(len(hashSaltBytes) + traceIDByteSize),
+		poolInstance: poolInstance,
 		metrics:      writeMetrics,
+		lengthOfSalt: len(hashSaltBytes),
 	}
 }
 
 // WriteSpan calls WriteSpan on wrapped span writer.
 func (ds *DownSamplingWriter) WriteSpan(span *model.Span) error {
-	// No downSampling when threshold equals maxuint64
-	if ds.threshold == math.MaxUint64 {
-		return ds.spanWriter.WriteSpan(span)
-	}
-
-	byteSlice := ds.poolInstance.bytepool.Get().(*[]byte)
-	copy((*byteSlice)[:len(ds.hashSalt)], ds.hashSalt)
-
-	// Currently MarshalTo will only return err if size of traceIDBytes is smaller than 16
-	// Since we force traceIDBytes to be size of 16 metrics is not necessary here.
-	span.TraceID.MarshalTo((*byteSlice)[len(ds.hashSalt):])
-	hashVal := ds.hashBytes(*byteSlice)
-	ds.poolInstance.bytepool.Put(byteSlice)
-	if hashVal >= ds.threshold {
+	if ds.shouldDownsample(span) {
 		// Drops spans when hashVal falls beyond computed threshold.
 		ds.metrics.SpansDropped.Inc(1)
 		return nil
 	}
+	ds.metrics.SpansAccepted.Inc(1)
 	return ds.spanWriter.WriteSpan(span)
 }
 
-//hashBytes returns the uint64 hash value of bytes slice.
+func (ds *DownSamplingWriter) shouldDownsample(span *model.Span) bool {
+	byteSlice := ds.poolInstance.bytepool.Get().(*[]byte)
+	// Currently MarshalTo will only return err if size of traceIDBytes is smaller than 16
+	// Since we force traceIDBytes to be size of 16 metrics is not necessary here.
+	span.TraceID.MarshalTo((*byteSlice)[ds.lengthOfSalt:])
+	hashVal := ds.hashBytes(*byteSlice)
+	ds.poolInstance.bytepool.Put(byteSlice)
+	return hashVal >= ds.threshold
+}
+
+// hashBytes returns the uint64 hash value of byte slice.
 func (ds *DownSamplingWriter) hashBytes(bytes []byte) uint64 {
 	h := ds.poolInstance.hashpool.Get().(hash.Hash64)
 	h.Reset()

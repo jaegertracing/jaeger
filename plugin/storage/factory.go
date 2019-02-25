@@ -38,9 +38,9 @@ const (
 	memoryStorageType        = "memory"
 	kafkaStorageType         = "kafka"
 
-	// DownsamplingRatio
+	// DownsamplingRatio defines command line param for DownsamplingRatio
 	DownsamplingRatio = "downsampling.ratio"
-	// DownsamplingHashSalt
+	// DownsamplingHashSalt defines command line param for DownsamplingHashSalt
 	DownsamplingHashSalt = "downsampling.hashsalt"
 	// DefaultDownsamplingRatio is the default downsampling ratio.
 	DefaultDownsamplingRatio = 1.0
@@ -163,6 +163,7 @@ func (f *Factory) AddFlags(flagSet *flag.FlagSet) {
 	addFlags(flagSet)
 }
 
+// addFlags add flags for factory
 func addFlags(flagSet *flag.FlagSet) {
 	flagSet.Float64(
 		DownsamplingRatio,
@@ -172,7 +173,7 @@ func addFlags(flagSet *flag.FlagSet) {
 	flagSet.String(
 		DownsamplingHashSalt,
 		DefaultDownsamplingHashSalt,
-		"downsamplingHashSalt is the name of the CLI param that defines the hash salt for downsampling. Default is empty string.",
+		"downsamplingHashSalt defines the hash salt for downsampling. Default is empty string.",
 	)
 }
 
