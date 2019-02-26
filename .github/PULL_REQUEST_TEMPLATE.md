@@ -11,8 +11,14 @@ Before creating a pull request, please make sure:
 - You mention in the PR description which issue it is addressing, e.g. "Resolves #123"
 -->
 
-## Which problem is this PR solving?
+## Which issue(s) this PR fixes
+Resolves #
+
+## Which problem is this PR solving / Why we need it?
 - 
 
 ## Short description of the changes
+- 
+
+## Docs changes
 - 
