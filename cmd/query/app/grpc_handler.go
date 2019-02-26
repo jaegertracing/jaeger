@@ -1,4 +1,4 @@
-// Copyright (c) 2019 Jaegertracing Authors.
+// Copyright (c) 2019 The Jaeger Authors.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -24,6 +24,7 @@ import (
 	"go.uber.org/zap"
 	"google.golang.org/grpc"
 
+	"github.com/jaegertracing/jaeger/cmd/query/app/querysvc"
 	"github.com/jaegertracing/jaeger/proto-gen/api_v2"
 	"github.com/jaegertracing/jaeger/storage/dependencystore"
 	"github.com/jaegertracing/jaeger/storage/spanstore"
@@ -31,51 +32,34 @@ import (
 
 // GRPCHandler implements the GRPC endpoint of the query service.
 type GRPCHandler struct {
-	spanReader        spanstore.Reader
-	archiveSpanReader spanstore.Reader
-	dependencyReader  dependencystore.Reader
-	logger            *zap.Logger
+	queryService querysvc.QueryService
+	logger       *zap.Logger
+	tracer       opentracing.Tracer
 }
 
 // NewGRPCHandler returns a GRPCHandler
-func NewGRPCHandler(spanReader spanstore.Reader, dependencyReader dependencystore.Reader, options ...HandlerOption) *GRPCHandler {
+func NewGRPCHandler(queryService querysvc.QueryService, logger *zap.Logger, tracer opentracing.Tracer) *GRPCHandler {
 	gH := &GRPCHandler{
-		spanReader:       spanReader,
-		dependencyReader: dependencyReader,
-	}
-
-	if gH.logger == nil {
-		gH.logger = zap.NewNop()
+		queryService: queryService,
+		logger:       logger,
+		tracer:       tracer,
 	}
 
 	return gH
-}
-
-// NewCombinedHandler returns a handler where GRPC and HTTP are multiplexed.
-func NewCombinedHandler(grpcServer *grpc.Server, recoveryHandler http.Handler) http.Handler {
-	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
-		if r.ProtoMajor == 2 && strings.Contains(r.Header.Get("Content-Type"), "application/grpc") {
-			grpcServer.ServeHTTP(w, r)
-		} else {
-			recoveryHandler.ServeHTTP(w, r)
-		}
-	})
 }
 
 // GetTrace is the GRPC handler to fetch traces.
 func (g *GRPCHandler) GetTrace(ctx context.Context, r *api_v2.GetTraceRequest) (*api_v2.GetTraceResponse, error) {
 	ID := r.GetId()
 
-	trace, err := g.spanReader.GetTrace(ctx, ID)
+	trace, err := g.queryService.GetTrace(ctx, ID)
 	if err == spanstore.ErrTraceNotFound {
-		if g.archiveSpanReader == nil {
-			return &api_v2.GetTraceResponse{}, err
-		}
-
-		trace, err = g.archiveSpanReader.GetTrace(ctx, traceID)
-		if err != nil {
-			g.logger.Error("Could not fetch spans from backend", zap.Error(err))
-		}
+		g.logger.Error("trace not found", zap.Error(err))
+		return nil, err
+	}
+	if err != nil {
+		g.logger.Error("Could not fetch spans from backend", zap.Error(err))
+		return nil, err
 	}
 
 	return &api_v2.GetTraceResponse{Trace: trace}, nil

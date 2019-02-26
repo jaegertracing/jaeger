@@ -65,17 +65,23 @@ service CollectorService {
 }
 
 message GetTraceRequest {
-    string Id = 1;
+  bytes trace_id = 1 [
+    (gogoproto.nullable) = false,
+    (gogoproto.customtype) = "github.com/jaegertracing/jaeger/model.TraceID",
+    (gogoproto.customname) = "TraceID"
+  ];
 }
 
-message GetTraceResponse {
-    Trace trace = 1;
+message GetTraceResponseStream {
+  repeated jaeger.api_v2.Span spans = 1 [
+    (gogoproto.nullable) = false
+  ];
 }
 
 service QueryService {
-    rpc GetTrace(GetTraceRequest) returns (GetTraceResponse) {
+    rpc GetTrace(GetTraceRequest) returns (stream GetTraceResponseStream) {
         option (google.api.http) = {
-            post: "/api/v2/traces/{Id}"
+            post: "/api/v2/traces/{trace_id}"
         };
     }
 }
