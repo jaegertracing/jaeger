@@ -17,6 +17,7 @@ package grpc
 import (
 	"errors"
 
+	"github.com/grpc-ecosystem/go-grpc-middleware/retry"
 	"github.com/uber/jaeger-lib/metrics"
 	"go.uber.org/zap"
 	"google.golang.org/grpc"
@@ -49,10 +50,12 @@ func NewCollectorProxy(o *Options, mFactory metrics.Factory, logger *zap.Logger)
 			resolvedAddrs = append(resolvedAddrs, resolver.Address{Addr: addr})
 		}
 		r.InitialAddrs(resolvedAddrs)
-		conn, _ = grpc.Dial(r.Scheme()+":///round_robin", grpc.WithInsecure(), grpc.WithBalancerName(roundrobin.Name))
+		conn, _ = grpc.Dial(r.Scheme()+":///round_robin", grpc.WithInsecure(), grpc.WithBalancerName(roundrobin.Name),
+			grpc.WithUnaryInterceptor(grpc_retry.UnaryClientInterceptor(grpc_retry.WithMax(o.MaxRetry))))
 	} else {
 		// It does not return error if the collector is not running
-		conn, _ = grpc.Dial(o.CollectorHostPort[0], grpc.WithInsecure(), grpc.WithBalancerName(roundrobin.Name))
+		conn, _ = grpc.Dial(o.CollectorHostPort[0], grpc.WithInsecure(), grpc.WithBalancerName(roundrobin.Name),
+			grpc.WithUnaryInterceptor(grpc_retry.UnaryClientInterceptor(grpc_retry.WithMax(o.MaxRetry))))
 	}
 	grpcMetrics := mFactory.Namespace(metrics.NSOptions{Name: "", Tags: map[string]string{"protocol": "grpc"}})
 	return &ProxyBuilder{

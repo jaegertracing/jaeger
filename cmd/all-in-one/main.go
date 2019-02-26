@@ -223,6 +223,7 @@ func createCollectorProxy(
 ) (agentApp.CollectorProxy, error) {
 	switch repOpts.ReporterType {
 	case agentRep.GRPC:
+		fmt.Println("AAAAAA")
 		grpcRepOpts.CollectorHostPort = append(grpcRepOpts.CollectorHostPort, fmt.Sprintf("127.0.0.1:%d", cOpts.CollectorGRPCPort))
 		return agentGrpcRep.NewCollectorProxy(grpcRepOpts, mFactory, logger)
 	case agentRep.TCHANNEL:

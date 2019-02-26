@@ -24,17 +24,20 @@ import (
 const (
 	gRPCPrefix        = "reporter.grpc."
 	collectorHostPort = gRPCPrefix + "host-port"
+	retry             = gRPCPrefix + "retry.max"
 )
 
 // Options Struct to hold configurations
 type Options struct {
 	// CollectorHostPort is list of host:port Jaeger Collectors.
 	CollectorHostPort []string
+	MaxRetry          uint
 }
 
 // AddFlags adds flags for Options.
 func AddFlags(flags *flag.FlagSet) {
-	flags.String(collectorHostPort, "", "(experimental) Comma-separated string representing host:port of a static list of collectors to connect to directly.")
+	flags.String(collectorHostPort, "", "Comma-separated string representing host:port of a static list of collectors to connect to directly.")
+	flags.Uint(retry, 3, "Sets the maximum number of retries for a call.")
 }
 
 // InitFromViper initializes Options with properties retrieved from Viper.
@@ -43,5 +46,6 @@ func (o *Options) InitFromViper(v *viper.Viper) *Options {
 	if hostPorts != "" {
 		o.CollectorHostPort = strings.Split(hostPorts, ",")
 	}
+	o.MaxRetry = uint(v.GetInt(retry))
 	return o
 }

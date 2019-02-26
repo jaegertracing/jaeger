@@ -30,9 +30,7 @@ services:
 
     jaeger-agent:
       image: jaegertracing/jaeger-agent
-      # FIXME temporarily switching back to tchannel
-      # https://github.com/jaegertracing/jaeger/issues/1229
-      command: ["--reporter.tchannel.host-port=jaeger-collector:14267"]
+      command: ["--reporter.grpc.host-port=jaeger-collector:14267"]
       ports:
         - "5775:5775/udp"
         - "6831:6831/udp"
