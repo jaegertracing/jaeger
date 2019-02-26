@@ -32,7 +32,7 @@ func TestBingFlags(t *testing.T) {
 		{cOpts: []string{"--reporter.grpc.host-port=localhost:1111", "--reporter.grpc.retry.max=15"},
 			expected: &Options{CollectorHostPort: []string{"localhost:1111"}, MaxRetry:15}},
 		{cOpts: []string{"--reporter.grpc.host-port=localhost:1111,localhost:2222"},
-			expected: &Options{CollectorHostPort: []string{"localhost:1111", "localhost:2222"}, MaxRetry:3}},
+			expected: &Options{CollectorHostPort: []string{"localhost:1111", "localhost:2222"}, MaxRetry:defaultMaxRetry}},
 	}
 	for _, test := range tests {
 		v := viper.New()

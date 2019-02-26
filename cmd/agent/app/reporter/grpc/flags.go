@@ -37,7 +37,7 @@ type Options struct {
 // AddFlags adds flags for Options.
 func AddFlags(flags *flag.FlagSet) {
 	flags.String(collectorHostPort, "", "Comma-separated string representing host:port of a static list of collectors to connect to directly.")
-	flags.Uint(retry, 3, "Sets the maximum number of retries for a call.")
+	flags.Uint(retry, defaultMaxRetry, "Sets the maximum number of retries for a call.")
 }
 
 // InitFromViper initializes Options with properties retrieved from Viper.
