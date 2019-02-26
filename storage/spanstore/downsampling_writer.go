@@ -20,9 +20,8 @@ import (
 	"math"
 	"sync"
 
-	"github.com/uber/jaeger-lib/metrics"
-
 	"github.com/jaegertracing/jaeger/model"
+	"github.com/uber/jaeger-lib/metrics"
 )
 
 const (
