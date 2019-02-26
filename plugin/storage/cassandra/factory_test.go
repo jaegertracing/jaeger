@@ -19,6 +19,7 @@ import (
 	"testing"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/mock"
 	"github.com/uber/jaeger-lib/metrics"
 	"go.uber.org/zap"
 
@@ -33,14 +34,19 @@ var _ storage.Factory = new(Factory)
 var _ storage.ArchiveFactory = new(Factory)
 
 type mockSessionBuilder struct {
-	err error
+	session *mocks.Session
+	err     error
+}
+
+func newMockSessionBuilder(session *mocks.Session, err error) *mockSessionBuilder {
+	return &mockSessionBuilder{
+		session: session,
+		err:     err,
+	}
 }
 
 func (m *mockSessionBuilder) NewSession() (cassandra.Session, error) {
-	if m.err == nil {
-		return &mocks.Session{}, nil
-	}
-	return nil, m.err
+	return m.session, m.err
 }
 
 func TestCassandraFactory(t *testing.T) {
@@ -52,11 +58,17 @@ func TestCassandraFactory(t *testing.T) {
 
 	// after InitFromViper, f.primaryConfig points to a real session builder that will fail in unit tests,
 	// so we override it with a mock.
-	f.primaryConfig = &mockSessionBuilder{err: errors.New("made-up error")}
+	f.primaryConfig = newMockSessionBuilder(nil, errors.New("made-up error"))
 	assert.EqualError(t, f.Initialize(metrics.NullFactory, zap.NewNop()), "made-up error")
 
-	f.primaryConfig = &mockSessionBuilder{}
-	f.archiveConfig = &mockSessionBuilder{err: errors.New("made-up error")}
+	var (
+		session = &mocks.Session{}
+		query   = &mocks.Query{}
+	)
+	session.On("Query", mock.AnythingOfType("string"), mock.Anything).Return(query)
+	query.On("Exec").Return(nil)
+	f.primaryConfig = newMockSessionBuilder(session, nil)
+	f.archiveConfig = newMockSessionBuilder(nil, errors.New("made-up error"))
 	assert.EqualError(t, f.Initialize(metrics.NullFactory, zap.NewNop()), "made-up error")
 
 	f.archiveConfig = nil
