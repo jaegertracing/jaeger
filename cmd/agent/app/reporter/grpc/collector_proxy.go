@@ -42,7 +42,7 @@ func NewCollectorProxy(o *Options, mFactory metrics.Factory, logger *zap.Logger)
 	if len(o.CollectorHostPort) == 0 {
 		return nil, errors.New("could not create collector proxy, address is missing")
 	}
-	var conn *grpc.ClientConn
+	var target string
 	if len(o.CollectorHostPort) > 1 {
 		r, _ := manual.GenerateAndRegisterManualResolver()
 		var resolvedAddrs []resolver.Address
@@ -50,13 +50,15 @@ func NewCollectorProxy(o *Options, mFactory metrics.Factory, logger *zap.Logger)
 			resolvedAddrs = append(resolvedAddrs, resolver.Address{Addr: addr})
 		}
 		r.InitialAddrs(resolvedAddrs)
-		conn, _ = grpc.Dial(r.Scheme()+":///round_robin", grpc.WithInsecure(), grpc.WithBalancerName(roundrobin.Name),
-			grpc.WithUnaryInterceptor(grpc_retry.UnaryClientInterceptor(grpc_retry.WithMax(o.MaxRetry))))
+		target = r.Scheme() + ":///round_robin"
 	} else {
-		// It does not return error if the collector is not running
-		conn, _ = grpc.Dial(o.CollectorHostPort[0], grpc.WithInsecure(), grpc.WithBalancerName(roundrobin.Name),
-			grpc.WithUnaryInterceptor(grpc_retry.UnaryClientInterceptor(grpc_retry.WithMax(o.MaxRetry))))
+		target = o.CollectorHostPort[0]
 	}
+	// It does not return error if the collector is not running
+	conn, _ := grpc.Dial(target,
+		grpc.WithInsecure(),
+		grpc.WithBalancerName(roundrobin.Name),
+		grpc.WithUnaryInterceptor(grpc_retry.UnaryClientInterceptor(grpc_retry.WithMax(o.MaxRetry))))
 	grpcMetrics := mFactory.Namespace(metrics.NSOptions{Name: "", Tags: map[string]string{"protocol": "grpc"}})
 	return &ProxyBuilder{
 		conn:     conn,

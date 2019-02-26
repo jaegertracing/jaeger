@@ -29,10 +29,6 @@ import (
 	"github.com/jaegertracing/jaeger/thrift-gen/zipkincore"
 )
 
-const (
-	defaultMaxRetry = 3
-)
-
 // Reporter reports data to collector over gRPC.
 type Reporter struct {
 	collector api_v2.CollectorServiceClient

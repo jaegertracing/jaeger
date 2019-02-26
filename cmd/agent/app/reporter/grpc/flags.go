@@ -25,6 +25,7 @@ const (
 	gRPCPrefix        = "reporter.grpc."
 	collectorHostPort = gRPCPrefix + "host-port"
 	retry             = gRPCPrefix + "retry.max"
+	defaultMaxRetry   = 3
 )
 
 // Options Struct to hold configurations
