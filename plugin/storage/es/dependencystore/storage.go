@@ -35,10 +35,10 @@ const (
 
 // DependencyStore handles all queries and insertions to ElasticSearch dependencies
 type DependencyStore struct {
-	ctx                   context.Context
-	client                es.Client
-	logger                *zap.Logger
-	dependencyIndexPrefix string
+	ctx                             context.Context
+	client                          es.Client
+	logger                          *zap.Logger
+	dependencyIndexPrefix           string
 	dependencyIndexPrefixDeprecated string
 }
 
@@ -51,10 +51,10 @@ func NewDependencyStore(client es.Client, logger *zap.Logger, indexPrefix string
 		prefixDeprecated = indexPrefix + ":"
 	}
 	return &DependencyStore{
-		ctx:                   context.Background(),
-		client:                client,
-		logger:                logger,
-		dependencyIndexPrefix: prefix + dependencyIndex,
+		ctx:                             context.Background(),
+		client:                          client,
+		logger:                          logger,
+		dependencyIndexPrefix:           prefix + dependencyIndex,
 		dependencyIndexPrefixDeprecated: prefixDeprecated + dependencyIndex,
 	}
 }

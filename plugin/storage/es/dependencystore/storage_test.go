@@ -39,14 +39,14 @@ type depStorageTest struct {
 	storage   *DependencyStore
 }
 
-func withDepStorage(fn func(r *depStorageTest)) {
+func withDepStorage(indexPrefix string, fn func(r *depStorageTest)) {
 	client := &mocks.Client{}
 	logger, logBuffer := testutils.NewLogger()
 	r := &depStorageTest{
 		client:    client,
 		logger:    logger,
 		logBuffer: logBuffer,
-		storage:   NewDependencyStore(client, logger, ""),
+		storage:   NewDependencyStore(client, logger, indexPrefix),
 	}
 	fn(r)
 }
@@ -60,8 +60,8 @@ func TestNewSpanReaderIndexPrefix(t *testing.T) {
 		expected string
 	}{
 		{prefix: "", expected: ""},
-		{prefix: "foo", expected: "foo:"},
-		{prefix: ":", expected: "::"},
+		{prefix: "foo", expected: "foo-"},
+		{prefix: ":", expected: ":-"},
 	}
 	for _, testCase := range testCases {
 		client := &mocks.Client{}
@@ -83,7 +83,7 @@ func TestWriteDependencies(t *testing.T) {
 		{},
 	}
 	for _, testCase := range testCases {
-		withDepStorage(func(r *depStorageTest) {
+		withDepStorage("", func(r *depStorageTest) {
 			fixedTime := time.Date(1995, time.April, 21, 4, 21, 19, 95, time.UTC)
 			indexName := indexWithDate("", fixedTime)
 
@@ -129,6 +129,8 @@ func TestGetDependencies(t *testing.T) {
 		searchError    error
 		expectedError  string
 		expectedOutput []model.DependencyLink
+		indexPrefix string
+		indices []interface{}
 	}{
 		{
 			searchResult: createSearchResult(goodDependencies),
@@ -139,23 +141,32 @@ func TestGetDependencies(t *testing.T) {
 					CallCount: 12,
 				},
 			},
+			indices: []interface{}{"jaeger-dependencies-1995-04-21", "jaeger-dependencies-1995-04-20"},
 		},
 		{
 			searchResult:  createSearchResult(badDependencies),
 			expectedError: "Unmarshalling ElasticSearch documents failed",
+			indices: []interface{}{"jaeger-dependencies-1995-04-21", "jaeger-dependencies-1995-04-20"},
 		},
 		{
 			searchError:   errors.New("search failure"),
 			expectedError: "Failed to search for dependencies: search failure",
+			indices: []interface{}{"jaeger-dependencies-1995-04-21", "jaeger-dependencies-1995-04-20"},
+		},
+		{
+			searchError:   errors.New("search failure"),
+			expectedError: "Failed to search for dependencies: search failure",
+			indexPrefix: "foo",
+			indices: []interface{}{"foo-jaeger-dependencies-1995-04-21", "foo-jaeger-dependencies-1995-04-20",
+				"foo:jaeger-dependencies-1995-04-21", "foo:jaeger-dependencies-1995-04-20"},
 		},
 	}
 	for _, testCase := range testCases {
-		withDepStorage(func(r *depStorageTest) {
+		withDepStorage(testCase.indexPrefix, func(r *depStorageTest) {
 			fixedTime := time.Date(1995, time.April, 21, 4, 21, 19, 95, time.UTC)
-			indices := []string{"jaeger-dependencies-1995-04-21", "jaeger-dependencies-1995-04-20"}
 
 			searchService := &mocks.SearchService{}
-			r.client.On("Search", indices[0], indices[1]).Return(searchService)
+			r.client.On("Search", testCase.indices...).Return(searchService)
 
 			searchService.On("Type", stringMatcher(dependencyType)).Return(searchService)
 			searchService.On("Size", mock.Anything).Return(searchService)
