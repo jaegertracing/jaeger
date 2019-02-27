@@ -71,30 +71,45 @@ func TestProxyBuilder(t *testing.T) {
 	tests := []struct {
 		name         string
 		proxyOptions *Options
+		expectError  bool
 	}{
 		{
 			name:         "with insecure grpc connection",
 			proxyOptions: &Options{CollectorHostPort: []string{"localhost:0000"}},
+			expectError:  false,
 		},
 		{
 			name:         "with secure grpc connection",
 			proxyOptions: &Options{CollectorHostPort: []string{"localhost:0000"}, TLS: true},
+			expectError:  false,
 		},
 		{
 			name:         "with secure grpc connection and own CA",
 			proxyOptions: &Options{CollectorHostPort: []string{"localhost:0000"}, TLS: true, TLSCA: tmpfile.Name()},
+			expectError:  false,
+		},
+		{
+			name:         "with secure grpc connection and a CA file which does not exist",
+			proxyOptions: &Options{CollectorHostPort: []string{"localhost:0000"}, TLS: true, TLSCA: "/not/valid"},
+			expectError:  true,
 		},
 	}
 
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
 			proxy, err := NewCollectorProxy(test.proxyOptions, metrics.NullFactory, zap.NewNop())
-			require.NoError(t, err)
-			require.NotNil(t, proxy)
-			assert.NotNil(t, proxy.GetReporter())
-			assert.NotNil(t, proxy.GetManager())
-			assert.Nil(t, proxy.Close())
-			assert.EqualError(t, proxy.Close(), "rpc error: code = Canceled desc = grpc: the client connection is closing")
+			if test.expectError {
+				require.Error(t, err)
+			} else {
+				require.NoError(t, err)
+				require.NotNil(t, proxy)
+
+				assert.NotNil(t, proxy.GetReporter())
+				assert.NotNil(t, proxy.GetManager())
+
+				assert.Nil(t, proxy.Close())
+				assert.EqualError(t, proxy.Close(), "rpc error: code = Canceled desc = grpc: the client connection is closing")
+			}
 		})
 	}
 }
