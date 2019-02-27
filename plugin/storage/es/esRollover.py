@@ -1,15 +1,15 @@
 #!/usr/bin/env python
 
-import elasticsearch
-import curator
-import sys
-import os
 import ast
+import curator
+import elasticsearch
 import logging
-from pathlib import Path
+import os
 import requests
-from requests.auth import HTTPBasicAuth
 import ssl
+import sys
+from pathlib import Path
+from requests.auth import HTTPBasicAuth
 
 
 ARCHIVE_INDEX = 'jaeger-span-archive'
