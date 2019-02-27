@@ -35,22 +35,27 @@ const (
 
 // DependencyStore handles all queries and insertions to ElasticSearch dependencies
 type DependencyStore struct {
-	ctx                   context.Context
-	client                es.Client
-	logger                *zap.Logger
-	dependencyIndexPrefix string
+	ctx                             context.Context
+	client                          es.Client
+	logger                          *zap.Logger
+	dependencyIndexPrefix           string
+	dependencyIndexPrefixDeprecated string
 }
 
 // NewDependencyStore returns a DependencyStore
 func NewDependencyStore(client es.Client, logger *zap.Logger, indexPrefix string) *DependencyStore {
+	var prefix string
+	var prefixDeprecated string
 	if indexPrefix != "" {
-		indexPrefix += ":"
+		prefix = indexPrefix + "-"
+		prefixDeprecated = indexPrefix + ":"
 	}
 	return &DependencyStore{
-		ctx:                   context.Background(),
-		client:                client,
-		logger:                logger,
-		dependencyIndexPrefix: indexPrefix + dependencyIndex,
+		ctx:                             context.Background(),
+		client:                          client,
+		logger:                          logger,
+		dependencyIndexPrefix:           prefix + dependencyIndex,
+		dependencyIndexPrefixDeprecated: prefixDeprecated + dependencyIndex,
 	}
 }
 
@@ -81,7 +86,11 @@ func (s *DependencyStore) writeDependencies(indexName string, ts time.Time, depe
 
 // GetDependencies returns all interservice dependencies
 func (s *DependencyStore) GetDependencies(endTs time.Time, lookback time.Duration) ([]model.DependencyLink, error) {
-	searchResult, err := s.client.Search(getIndices(s.dependencyIndexPrefix, endTs, lookback)...).
+	indices := getIndices(s.dependencyIndexPrefix, endTs, lookback)
+	if s.dependencyIndexPrefix != s.dependencyIndexPrefixDeprecated {
+		indices = append(indices, getIndices(s.dependencyIndexPrefixDeprecated, endTs, lookback)...)
+	}
+	searchResult, err := s.client.Search(indices...).
 		Type(dependencyType).
 		Size(10000). // the default elasticsearch allowed limit
 		Query(buildTSQuery(endTs, lookback)).
