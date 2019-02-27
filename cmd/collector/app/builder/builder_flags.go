@@ -70,9 +70,9 @@ func AddFlags(flags *flag.FlagSet) {
 	flags.Int(collectorHTTPPort, defaultHTTPPort, "The HTTP port for the collector service")
 	flags.Int(collectorGRPCPort, defaultGRPCPort, "The gRPC port for the collector service")
 	flags.Int(collectorZipkinHTTPort, 0, "The HTTP port for the Zipkin collector service e.g. 9411")
-	flags.Bool(collectorGRPCTLS, false, "(experimental) Enable TLS")
-	flags.String(collectorGRPCCert, "", "(experimental) Path to TLS certificate file")
-	flags.String(collectorGRPCKey, "", "(experimental) Path to TLS key file")
+	flags.Bool(collectorGRPCTLS, false, "Enable TLS")
+	flags.String(collectorGRPCCert, "", "Path to TLS certificate file")
+	flags.String(collectorGRPCKey, "", "Path to TLS key file")
 }
 
 // InitFromViper initializes CollectorOptions with properties from viper

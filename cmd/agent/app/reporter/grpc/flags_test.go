@@ -25,8 +25,6 @@ import (
 )
 
 func TestBindFlags(t *testing.T) {
-	v := viper.New()
-
 	tests := []struct {
 		cOpts    []string
 		expected *Options

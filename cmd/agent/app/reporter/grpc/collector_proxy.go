@@ -18,6 +18,7 @@ import (
 	"crypto/x509"
 	"errors"
 
+	"github.com/grpc-ecosystem/go-grpc-middleware/retry"
 	"github.com/uber/jaeger-lib/metrics"
 	"go.uber.org/zap"
 	"google.golang.org/grpc"
