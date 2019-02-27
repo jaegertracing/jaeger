@@ -368,6 +368,18 @@
   version = "v1.7.0"
 
 [[projects]]
+  digest = "1:d84c274ffdfd7ce6b4efd64ee776648459009d1f542440b1faa32cb7ed9aba84"
+  name = "github.com/grpc-ecosystem/go-grpc-middleware"
+  packages = [
+    "retry",
+    "util/backoffutils",
+    "util/metautils",
+  ]
+  pruneopts = "UT"
+  revision = "c250d6563d4d4c20252cd865923440e829844f4e"
+  version = "v1.0.0"
+
+[[projects]]
   digest = "1:e4f2416beca662090d5cfc9489208e9d7e3c17dee87e4fe2c5f2c8fe3cb71aa8"
   name = "github.com/grpc-ecosystem/grpc-gateway"
   packages = [
@@ -926,6 +938,7 @@
     "github.com/golang/protobuf/protoc-gen-go",
     "github.com/gorilla/handlers",
     "github.com/gorilla/mux",
+    "github.com/grpc-ecosystem/go-grpc-middleware/retry",
     "github.com/grpc-ecosystem/grpc-gateway/protoc-gen-grpc-gateway",
     "github.com/grpc-ecosystem/grpc-gateway/protoc-gen-swagger",
     "github.com/grpc-ecosystem/grpc-gateway/protoc-gen-swagger/options",
