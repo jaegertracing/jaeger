@@ -59,7 +59,7 @@ func AddFlags(flags *flag.FlagSet) {
 	flags.Int(collectorNumWorkers, app.DefaultNumWorkers, "The number of workers pulling items from the queue")
 	flags.Int(collectorPort, defaultTChannelPort, "The TChannel port for the collector service")
 	flags.Int(collectorHTTPPort, defaultHTTPPort, "The HTTP port for the collector service")
-	flags.Int(collectorGRPCPort, defaultGRPCPort, "(experimental) The gRPC port for the collector service")
+	flags.Int(collectorGRPCPort, defaultGRPCPort, "The gRPC port for the collector service")
 	flags.Int(collectorZipkinHTTPort, 0, "The HTTP port for the Zipkin collector service e.g. 9411")
 }
 

@@ -1,6 +1,6 @@
 import base64
-import re
 import os
+import re
 import sys
 
 def trace_id_base64(match):

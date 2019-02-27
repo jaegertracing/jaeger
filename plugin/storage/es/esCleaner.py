@@ -1,10 +1,10 @@
 #!/usr/bin/env python
 
-import elasticsearch
 import curator
-import sys
+import elasticsearch
 import os
 import ssl
+import sys
 
 TIMEOUT=120
 

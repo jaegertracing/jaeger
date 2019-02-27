@@ -122,3 +122,7 @@ required = [
 [[constraint]]
   name = "github.com/Shopify/sarama"
   version = "1.20.1"
+
+[[constraint]]
+  name = "github.com/grpc-ecosystem/go-grpc-middleware"
+  version = "1.0.0"

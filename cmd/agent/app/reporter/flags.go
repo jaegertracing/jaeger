@@ -39,7 +39,7 @@ type Options struct {
 
 // AddFlags adds flags for Options.
 func AddFlags(flags *flag.FlagSet) {
-	flags.String(reporterType, string(TCHANNEL), fmt.Sprintf("Reporter type to use e.g. %s, %s", string(TCHANNEL), string(GRPC)))
+	flags.String(reporterType, string(GRPC), fmt.Sprintf("Reporter type to use e.g. %s, %s", string(GRPC), string(TCHANNEL)))
 }
 
 // InitFromViper initializes Options with properties retrieved from Viper.
