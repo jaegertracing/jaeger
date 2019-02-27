@@ -38,14 +38,14 @@ const (
 	memoryStorageType        = "memory"
 	kafkaStorageType         = "kafka"
 
-	// DownsamplingRatio defines command line param for DownsamplingRatio
-	DownsamplingRatio = "downsampling.ratio"
-	// DownsamplingHashSalt defines command line param for DownsamplingHashSalt
-	DownsamplingHashSalt = "downsampling.hashsalt"
-	// DefaultDownsamplingRatio is the default downsampling ratio.
-	DefaultDownsamplingRatio = 1.0
-	// DefaultDownsamplingHashSalt is the default downsampling hashsalt.
-	DefaultDownsamplingHashSalt = ""
+	// downsamplingRatio defines command line param for DownsamplingRatio.
+	downsamplingRatio = "downsampling.ratio"
+	// downsamplingHashSalt defines command line param for DownsamplingHashSalt.
+	downsamplingHashSalt = "downsampling.hashsalt"
+	// defaultDownsamplingRatio is the default downsampling ratio.
+	defaultDownsamplingRatio = 1.0
+	// defaultDownsamplingHashSalt is the default downsampling hashsalt.
+	defaultDownsamplingHashSalt = ""
 )
 
 var allStorageTypes = []string{cassandraStorageType, elasticsearchStorageType, memoryStorageType, kafkaStorageType}
@@ -133,7 +133,7 @@ func (f *Factory) CreateSpanWriter() (spanstore.Writer, error) {
 	} else {
 		spanWriter = spanstore.NewCompositeWriter(writers...)
 	}
-	// Turn off DownsamplingWriter entirely if ratio == 1.0
+	// Turn off DownsamplingWriter entirely if ratio == 1.0.
 	if f.DownsamplingRatio == 1.0 {
 		return spanWriter, nil
 	}
@@ -166,13 +166,13 @@ func (f *Factory) AddFlags(flagSet *flag.FlagSet) {
 // addFlags add flags for factory
 func addFlags(flagSet *flag.FlagSet) {
 	flagSet.Float64(
-		DownsamplingRatio,
-		DefaultDownsamplingRatio,
+		downsamplingRatio,
+		defaultDownsamplingRatio,
 		"Downsampling ratio defines the ratio of spans for downsampling. Number between 0 ~ 1.0. Default is 1.0 with no downsampling. Values not in the range of 0 ~ 1.0 will be set to default. e.g ratio = 0.3 means we are keeping 30% of spans and dropping 70% of spans.",
 	)
 	flagSet.String(
-		DownsamplingHashSalt,
-		DefaultDownsamplingHashSalt,
+		downsamplingHashSalt,
+		defaultDownsamplingHashSalt,
 		"downsamplingHashSalt defines the hash salt for downsampling. Default is empty string.",
 	)
 }
@@ -188,12 +188,12 @@ func (f *Factory) InitFromViper(v *viper.Viper) {
 }
 
 func (f *Factory) initDownsamplingFromViper(v *viper.Viper) {
-	f.FactoryConfig.DownsamplingRatio = v.GetFloat64(DownsamplingRatio)
+	f.FactoryConfig.DownsamplingRatio = v.GetFloat64(downsamplingRatio)
 	if f.FactoryConfig.DownsamplingRatio < 0 || f.FactoryConfig.DownsamplingRatio > 1 {
 		// Values not in the range of 0 ~ 1.0 will be set to default.
 		f.FactoryConfig.DownsamplingRatio = 1.0
 	}
-	f.FactoryConfig.DownsamplingHashSalt = v.GetString(DownsamplingHashSalt)
+	f.FactoryConfig.DownsamplingHashSalt = v.GetString(downsamplingHashSalt)
 }
 
 // CreateArchiveSpanReader implements storage.ArchiveFactory

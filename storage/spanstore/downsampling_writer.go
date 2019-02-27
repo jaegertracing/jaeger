@@ -20,8 +20,9 @@ import (
 	"math"
 	"sync"
 
-	"github.com/jaegertracing/jaeger/model"
 	"github.com/uber/jaeger-lib/metrics"
+
+	"github.com/jaegertracing/jaeger/model"
 )
 
 const (
@@ -35,11 +36,11 @@ var (
 
 // Wrap the sync.Pool object within a singleton struct.
 type poolSingleton struct {
-	hashpool *sync.Pool
-	bytepool *sync.Pool
+	hashPool *sync.Pool
+	bytePool *sync.Pool
 }
 
-// downSamplingWriterMetrics is metrics that keeping track of total number of dropped spans
+// downSamplingWriterMetrics keeping track of total number of dropped spans and accepted spans
 type downSamplingWriterMetrics struct {
 	SpansDropped  metrics.Counter `metric:"spans_dropped"`
 	SpansAccepted metrics.Counter `metric:"spans_accepted"`
@@ -62,17 +63,21 @@ type DownSamplingOptions struct {
 }
 
 // Initialize the singleton if it doesn't exist already.
-func getHashPoolInstance(length int) poolSingleton {
+func getHashPoolInstance(length int, hashSaltBytes []byte) poolSingleton {
 	once.Do(func() {
 		instance = poolSingleton{
-			hashpool: &sync.Pool{
+			hashPool: &sync.Pool{
 				New: func() interface{} {
 					return fnv.New64a()
 				},
 			},
-			bytepool: &sync.Pool{
+			bytePool: &sync.Pool{
 				New: func() interface{} {
+					// Since Get selects an arbitrary item from the Pool, removes it from the
+					// Pool, and returns it to the caller and it may choose to ignore the pool
+					// and treat it as empty, hashSaltBytes needs to be written to byteArray at initialization
 					byteArray := make([]byte, length)
+					copy(byteArray[:len(hashSaltBytes)], hashSaltBytes)
 					return &byteArray
 				},
 			},
@@ -87,10 +92,7 @@ func NewDownSamplingWriter(spanWriter Writer, downSamplingOptions DownSamplingOp
 	writeMetrics := &downSamplingWriterMetrics{}
 	metrics.Init(writeMetrics, downSamplingOptions.MetricsFactory, nil)
 	hashSaltBytes := []byte(downSamplingOptions.HashSalt)
-	poolInstance := getHashPoolInstance(len(hashSaltBytes) + traceIDByteSize)
-	byteSlice := poolInstance.bytepool.Get().(*[]byte)
-	copy((*byteSlice)[:len(hashSaltBytes)], hashSaltBytes)
-	poolInstance.bytepool.Put(byteSlice)
+	poolInstance := getHashPoolInstance(len(hashSaltBytes)+traceIDByteSize, hashSaltBytes)
 	return &DownSamplingWriter{
 		spanWriter:   spanWriter,
 		threshold:    threshold,
@@ -112,22 +114,22 @@ func (ds *DownSamplingWriter) WriteSpan(span *model.Span) error {
 }
 
 func (ds *DownSamplingWriter) shouldDownsample(span *model.Span) bool {
-	byteSlice := ds.poolInstance.bytepool.Get().(*[]byte)
+	byteSlice := ds.poolInstance.bytePool.Get().(*[]byte)
 	// Currently MarshalTo will only return err if size of traceIDBytes is smaller than 16
 	// Since we force traceIDBytes to be size of 16 metrics is not necessary here.
 	span.TraceID.MarshalTo((*byteSlice)[ds.lengthOfSalt:])
 	hashVal := ds.hashBytes(*byteSlice)
-	ds.poolInstance.bytepool.Put(byteSlice)
+	ds.poolInstance.bytePool.Put(byteSlice)
 	return hashVal >= ds.threshold
 }
 
 // hashBytes returns the uint64 hash value of byte slice.
 func (ds *DownSamplingWriter) hashBytes(bytes []byte) uint64 {
-	h := ds.poolInstance.hashpool.Get().(hash.Hash64)
+	h := ds.poolInstance.hashPool.Get().(hash.Hash64)
 	h.Reset()
 	// Currently fnv.Write() doesn't throw any error so metrics is not necessary here.
 	h.Write(bytes)
 	sum := h.Sum64()
-	ds.poolInstance.hashpool.Put(h)
+	ds.poolInstance.hashPool.Put(h)
 	return sum
 }

@@ -19,17 +19,18 @@ import (
 	"flag"
 	"testing"
 
+	"github.com/spf13/viper"
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
+	"github.com/uber/jaeger-lib/metrics"
+	"go.uber.org/zap"
+
 	"github.com/jaegertracing/jaeger/pkg/config"
 	"github.com/jaegertracing/jaeger/storage"
 	depStoreMocks "github.com/jaegertracing/jaeger/storage/dependencystore/mocks"
 	"github.com/jaegertracing/jaeger/storage/mocks"
 	"github.com/jaegertracing/jaeger/storage/spanstore"
 	spanStoreMocks "github.com/jaegertracing/jaeger/storage/spanstore/mocks"
-	"github.com/spf13/viper"
-	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/require"
-	"github.com/uber/jaeger-lib/metrics"
-	"go.uber.org/zap"
 )
 
 var _ storage.Factory = new(Factory)

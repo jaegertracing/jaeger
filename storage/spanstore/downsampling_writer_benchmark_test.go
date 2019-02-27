@@ -1,3 +1,17 @@
+// Copyright (c) 2019 The Jaeger Authors.
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+// http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
 package spanstore
 
 import (
@@ -25,14 +39,10 @@ func BenchmarkDownSamplingWriter_WriteSpan(b *testing.B) {
 		Ratio:    0.5,
 		HashSalt: "jaeger-test",
 	})
-
 	b.ResetTimer()
 	b.ReportAllocs()
 	for it := 0; it < b.N; it++ {
-		for writes := 0; writes < 10000; writes++ {
-			c.WriteSpan(span)
-		}
-
+		c.WriteSpan(span)
 	}
 }
 
@@ -44,17 +54,18 @@ func BenchmarkDownSamplingWriter_HashBytes(b *testing.B) {
 		HashSalt: "jaeger-test",
 	})
 	ba := make([]byte, 16)
+	for i := 0; i < 16; i++ {
+		ba[i] = byte(i)
+	}
 	b.ResetTimer()
 	b.ReportAllocs()
-
 	for it := 0; it < b.N; it++ {
-		for i := 0; i < 10000; i++ {
-			c.hashBytes(ba)
-		}
+		c.hashBytes(ba)
 	}
 }
 
 func BenchmarkDownSamplingWriter_RandomHash(b *testing.B) {
+	const numberActions = 1000000
 	ratioThreshold := uint64(math.MaxUint64 / 2)
 	countSmallerThanRatio := 0
 	downSamplingOptions := DownSamplingOptions{
@@ -65,7 +76,7 @@ func BenchmarkDownSamplingWriter_RandomHash(b *testing.B) {
 	c := NewDownSamplingWriter(&noopWriteSpanStore{}, downSamplingOptions)
 	for it := 0; it < b.N; it++ {
 		countSmallerThanRatio = 0
-		for i := 0; i < 1000000; i++ {
+		for i := 0; i < numberActions; i++ {
 			low := rand.Uint64()
 			high := rand.Uint64()
 			span := &model.Span{
@@ -79,7 +90,6 @@ func BenchmarkDownSamplingWriter_RandomHash(b *testing.B) {
 				countSmallerThanRatio++
 			}
 		}
-		fmt.Printf("Random hash ratio %f should be close to 0.5, inspect the implementation of hashBytes if not\n", math.Abs(float64(countSmallerThanRatio)/1000000))
+		fmt.Printf("Random hash ratio %f should be close to 0.5, inspect the implementation of hashBytes if not\n", math.Abs(float64(countSmallerThanRatio)/float64(numberActions)))
 	}
-
 }
