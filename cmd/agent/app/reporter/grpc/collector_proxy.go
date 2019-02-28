@@ -39,7 +39,7 @@ type ProxyBuilder struct {
 	conn     *grpc.ClientConn
 }
 
-var systemCertPool = x509.SystemCertPool
+var systemCertPool = x509.SystemCertPool // to allow overriding in unit test
 
 // NewCollectorProxy creates ProxyBuilder
 func NewCollectorProxy(o *Options, mFactory metrics.Factory, logger *zap.Logger) (*ProxyBuilder, error) {
