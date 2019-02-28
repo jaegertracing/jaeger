@@ -15,6 +15,8 @@
 package grpc
 
 import (
+	"crypto/x509"
+	"errors"
 	"io/ioutil"
 	"net"
 	"os"
@@ -112,6 +114,19 @@ func TestProxyBuilder(t *testing.T) {
 			}
 		})
 	}
+}
+
+// This test is only for coverage.
+func TestSystemCertPoolError(t *testing.T) {
+	fakeErr := errors.New("fake error")
+	systemCertPool = func() (*x509.CertPool, error) {
+		return nil, fakeErr
+	}
+	_, err := NewCollectorProxy(&Options{
+		CollectorHostPort: []string{"foo", "bar"},
+		TLS:               true,
+	}, nil, nil)
+	assert.Equal(t, fakeErr, err)
 }
 
 func TestMultipleCollectors(t *testing.T) {

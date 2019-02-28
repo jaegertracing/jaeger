@@ -39,6 +39,8 @@ type ProxyBuilder struct {
 	conn     *grpc.ClientConn
 }
 
+var systemCertPool = x509.SystemCertPool
+
 // NewCollectorProxy creates ProxyBuilder
 func NewCollectorProxy(o *Options, mFactory metrics.Factory, logger *zap.Logger) (*ProxyBuilder, error) {
 	if len(o.CollectorHostPort) == 0 {
@@ -48,7 +50,7 @@ func NewCollectorProxy(o *Options, mFactory metrics.Factory, logger *zap.Logger)
 	if o.TLS { // user requested a secure connection
 		var creds credentials.TransportCredentials
 		if len(o.TLSCA) == 0 { // no truststore given, use SystemCertPool
-			pool, err := x509.SystemCertPool()
+			pool, err := systemCertPool()
 			if err != nil {
 				return nil, err
 			}
