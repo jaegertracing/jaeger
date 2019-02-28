@@ -81,7 +81,7 @@ message GetTraceResponseStream {
 service QueryService {
     rpc GetTrace(GetTraceRequest) returns (stream GetTraceResponseStream) {
         option (google.api.http) = {
-            post: "/api/v2/traces/{trace_id}"
+            get: "/api/v2/traces/{trace_id}"
         };
     }
 }

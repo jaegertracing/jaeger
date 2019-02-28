@@ -68,7 +68,7 @@
       }
     },
     "/api/v2/traces/{trace_id}": {
-      "post": {
+      "get": {
         "operationId": "GetTrace",
         "responses": {
           "200": {
