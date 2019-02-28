@@ -117,7 +117,7 @@ func addFlags(flagSet *flag.FlagSet, nsConfig *namespaceConfig) {
 	flagSet.String(
 		nsConfig.namespace+suffixUsername,
 		nsConfig.Username,
-		"The username required by ElasticSearch")
+		"The username required by ElasticSearch. The basic authentication also loads CA if it is specified.")
 	flagSet.String(
 		nsConfig.namespace+suffixPassword,
 		nsConfig.Password,
@@ -125,7 +125,7 @@ func addFlags(flagSet *flag.FlagSet, nsConfig *namespaceConfig) {
 	flagSet.String(
 		nsConfig.namespace+suffixTokenPath,
 		nsConfig.TokenFilePath,
-		"Path to a file containing bearer token. This flag also uses CA if it is specified")
+		"Path to a file containing bearer token. This flag also loads CA if it is specified.")
 	flagSet.Bool(
 		nsConfig.namespace+suffixSniffer,
 		nsConfig.Sniffer,
@@ -173,7 +173,7 @@ func addFlags(flagSet *flag.FlagSet, nsConfig *namespaceConfig) {
 	flagSet.Bool(
 		nsConfig.namespace+suffixTLS,
 		nsConfig.TLS.Enabled,
-		"Enable TLS")
+		"Enable TLS with client certificates.")
 	flagSet.String(
 		nsConfig.namespace+suffixCert,
 		nsConfig.TLS.CertPath,
