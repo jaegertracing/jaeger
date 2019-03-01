@@ -15,7 +15,11 @@
 package grpc
 
 import (
+	"crypto/x509"
+	"errors"
+	"io/ioutil"
 	"net"
+	"os"
 	"testing"
 	"time"
 
@@ -30,6 +34,21 @@ import (
 	"github.com/jaegertracing/jaeger/thrift-gen/jaeger"
 )
 
+const certPEM = `
+-----BEGIN CERTIFICATE-----
+MIICBzCCAXCgAwIBAgIQNkTaUtOczDHvL2YT/kqScTANBgkqhkiG9w0BAQsFADAX
+MRUwEwYDVQQKEwxqYWdlcnRyYWNpbmcwHhcNMTkwMjA4MDYyODAyWhcNMTkwMjA4
+MDcyODAyWjAXMRUwEwYDVQQKEwxqYWdlcnRyYWNpbmcwgZ8wDQYJKoZIhvcNAQEB
+BQADgY0AMIGJAoGBAMcOLYflHGbqC1f7+tbnsdfcpd0rEuX65+ab0WzelAgvo988
+yD+j7LDLPIE8IPk/tfqaETZ8h0LRUUTn8F2rW/wgrl/G8Onz0utog38N0elfTifG
+Mu7GJCr/+aYM5xbQMDj4Brb4vhnkJF8UBe49fWILhIltUcm1SeKqVX3d1FvpAgMB
+AAGjVDBSMA4GA1UdDwEB/wQEAwICpDATBgNVHSUEDDAKBggrBgEFBQcDATAPBgNV
+HRMBAf8EBTADAQH/MBoGA1UdEQQTMBGCCWxvY2FsaG9zdIcEfwAAATANBgkqhkiG
+9w0BAQsFAAOBgQCreFjwpAn1HqJT812JOwoWKrt1NjOKGcz7pvIs1k3DfQVLH2aZ
+iPKnCkzNgxMzQtwdgpAOXIAqXyNibvyOAv1C+3QSMLKbuPEHaIxlCuvl1suX/g25
+17x1o3Q64AnPCWOLpN2wjkfZqX7gZ84nsxpqb9Sbw1+2+kqX7dSZ3mfVxQ==
+-----END CERTIFICATE-----`
+
 func TestProxyBuilderMissingAddress(t *testing.T) {
 	proxy, err := NewCollectorProxy(&Options{}, metrics.NullFactory, zap.NewNop())
 	require.Nil(t, proxy)
@@ -37,13 +56,77 @@ func TestProxyBuilderMissingAddress(t *testing.T) {
 }
 
 func TestProxyBuilder(t *testing.T) {
-	proxy, err := NewCollectorProxy(&Options{CollectorHostPort: []string{"localhost:0000"}}, metrics.NullFactory, zap.NewNop())
-	require.NoError(t, err)
-	require.NotNil(t, proxy)
-	assert.NotNil(t, proxy.GetReporter())
-	assert.NotNil(t, proxy.GetManager())
-	assert.Nil(t, proxy.Close())
-	assert.EqualError(t, proxy.Close(), "rpc error: code = Canceled desc = grpc: the client connection is closing")
+	tmpfile, err := ioutil.TempFile("", "cert*.pem")
+	if err != nil {
+		t.Fatalf("failed to create tempfile: %s", err)
+	}
+
+	defer func() {
+		tmpfile.Close()
+		os.Remove(tmpfile.Name())
+	}()
+
+	if _, err := tmpfile.Write([]byte(certPEM)); err != nil {
+		t.Fatalf("failed to write cert to tempfile: %s", err)
+	}
+
+	tests := []struct {
+		name         string
+		proxyOptions *Options
+		expectError  bool
+	}{
+		{
+			name:         "with insecure grpc connection",
+			proxyOptions: &Options{CollectorHostPort: []string{"localhost:0000"}},
+			expectError:  false,
+		},
+		{
+			name:         "with secure grpc connection",
+			proxyOptions: &Options{CollectorHostPort: []string{"localhost:0000"}, TLS: true},
+			expectError:  false,
+		},
+		{
+			name:         "with secure grpc connection and own CA",
+			proxyOptions: &Options{CollectorHostPort: []string{"localhost:0000"}, TLS: true, TLSCA: tmpfile.Name()},
+			expectError:  false,
+		},
+		{
+			name:         "with secure grpc connection and a CA file which does not exist",
+			proxyOptions: &Options{CollectorHostPort: []string{"localhost:0000"}, TLS: true, TLSCA: "/not/valid"},
+			expectError:  true,
+		},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			proxy, err := NewCollectorProxy(test.proxyOptions, metrics.NullFactory, zap.NewNop())
+			if test.expectError {
+				require.Error(t, err)
+			} else {
+				require.NoError(t, err)
+				require.NotNil(t, proxy)
+
+				assert.NotNil(t, proxy.GetReporter())
+				assert.NotNil(t, proxy.GetManager())
+
+				assert.Nil(t, proxy.Close())
+				assert.EqualError(t, proxy.Close(), "rpc error: code = Canceled desc = grpc: the client connection is closing")
+			}
+		})
+	}
+}
+
+// This test is only for coverage.
+func TestSystemCertPoolError(t *testing.T) {
+	fakeErr := errors.New("fake error")
+	systemCertPool = func() (*x509.CertPool, error) {
+		return nil, fakeErr
+	}
+	_, err := NewCollectorProxy(&Options{
+		CollectorHostPort: []string{"foo", "bar"},
+		TLS:               true,
+	}, nil, nil)
+	assert.Equal(t, fakeErr, err)
 }
 
 func TestMultipleCollectors(t *testing.T) {
