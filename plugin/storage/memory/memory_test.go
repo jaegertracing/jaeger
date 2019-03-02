@@ -248,6 +248,55 @@ func TestStoreGetEmptyTraceSet(t *testing.T) {
 	})
 }
 
+func TestStoreFindTracesLimitGetsMostRecent(t *testing.T) {
+	storeSize, querySize := 100, 10
+
+	// This slice is in order from oldest to newest trace.
+	// Store keeps spans in a map, so storage order is effectively random.
+	// This ensures that query results include the most recent traces when limit < results.
+
+	var spans []*model.Span
+	for i := 0; i < storeSize; i++ {
+		spans = append(spans,
+			&model.Span{
+				TraceID:       model.NewTraceID(1, uint64(i)),
+				SpanID:        model.NewSpanID(1),
+				OperationName: "operationName",
+				Duration:      time.Second,
+				StartTime:     time.Unix(int64(i*24*60*60), 0),
+				Process: &model.Process{
+					ServiceName: "serviceName",
+				},
+			})
+	}
+
+	// Want the two most recent spans, not any two spans
+	var expectedTraces []*model.Trace
+	for _, span := range spans[storeSize-querySize:] {
+		trace := &model.Trace{
+			Spans: []*model.Span{span},
+		}
+		expectedTraces = append(expectedTraces, trace)
+	}
+
+	memStore := NewStore()
+	for _, span := range spans {
+		memStore.WriteSpan(span)
+	}
+
+	gotTraces, err := memStore.FindTraces(context.Background(), &spanstore.TraceQueryParameters{
+		ServiceName: "serviceName",
+		NumTraces:   querySize,
+	})
+
+	assert.NoError(t, err)
+	if assert.Len(t, gotTraces, len(expectedTraces)) {
+		for i := range gotTraces {
+			assert.EqualValues(t, expectedTraces[i].Spans[0].StartTime.Unix(), gotTraces[i].Spans[0].StartTime.Unix())
+		}
+	}
+}
+
 func TestStoreGetTrace(t *testing.T) {
 	testStruct := []struct {
 		query      *spanstore.TraceQueryParameters
