@@ -58,7 +58,7 @@ func TestReporter_EmitZipkinBatch(t *testing.T) {
 	conn, err := grpc.Dial(addr.String(), grpc.WithInsecure())
 	defer conn.Close()
 	require.NoError(t, err)
-	rep := NewReporter(conn, zap.NewNop())
+	rep := NewReporter(conn, "", zap.NewNop())
 
 	tm := time.Unix(158, 0)
 	a := tm.Unix() * 1000 * 1000
@@ -93,7 +93,7 @@ func TestReporter_EmitBatch(t *testing.T) {
 	conn, err := grpc.Dial(addr.String(), grpc.WithInsecure())
 	defer conn.Close()
 	require.NoError(t, err)
-	rep := NewReporter(conn, zap.NewNop())
+	rep := NewReporter(conn, "", zap.NewNop())
 
 	tm := time.Unix(158, 0)
 	tests := []struct {
@@ -118,7 +118,7 @@ func TestReporter_EmitBatch(t *testing.T) {
 func TestReporter_SendFailure(t *testing.T) {
 	conn, err := grpc.Dial("", grpc.WithInsecure())
 	require.NoError(t, err)
-	rep := NewReporter(conn, zap.NewNop())
+	rep := NewReporter(conn, "", zap.NewNop())
 	err = rep.send(nil, nil)
 	assert.EqualError(t, err, "rpc error: code = Unavailable desc = all SubConns are in TransientFailure, latest connection error: connection error: desc = \"transport: Error while dialing dial tcp: missing address\"")
 }

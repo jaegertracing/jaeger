@@ -34,20 +34,22 @@ type Reporter struct {
 	collector api_v2.CollectorServiceClient
 	logger    *zap.Logger
 	sanitizer zipkin2.Sanitizer
+	agentTags []model.KeyValue
 }
 
 // NewReporter creates gRPC reporter.
-func NewReporter(conn *grpc.ClientConn, logger *zap.Logger) *Reporter {
+func NewReporter(conn *grpc.ClientConn, agentTags string, logger *zap.Logger) *Reporter {
 	return &Reporter{
 		collector: api_v2.NewCollectorServiceClient(conn),
 		logger:    logger,
 		sanitizer: zipkin2.NewChainedSanitizer(zipkin2.StandardSanitizers...),
+		agentTags: parseAgentTags(agentTags),
 	}
 }
 
 // EmitBatch implements EmitBatch() of Reporter
 func (r *Reporter) EmitBatch(b *thrift.Batch) error {
-	return r.send(jConverter.ToDomain(b.Spans, nil), jConverter.ToDomainProcess(b.Process))
+	return r.send(addAgentTags(jConverter.ToDomain(b.Spans, nil), r.agentTags), jConverter.ToDomainProcess(b.Process))
 }
 
 // EmitZipkinBatch implements EmitZipkinBatch() of Reporter
@@ -59,7 +61,7 @@ func (r *Reporter) EmitZipkinBatch(zSpans []*zipkincore.Span) error {
 	if err != nil {
 		return err
 	}
-	return r.send(trace.Spans, nil)
+	return r.send(addAgentTags(trace.Spans, r.agentTags), nil)
 }
 
 func (r *Reporter) send(spans []*model.Span, process *model.Process) error {
@@ -70,4 +72,41 @@ func (r *Reporter) send(spans []*model.Span, process *model.Process) error {
 		r.logger.Error("Could not send spans over gRPC", zap.Error(err))
 	}
 	return err
+}
+
+// addAgentTags appends jaeger tags for the agent to every span it sends to the collector.
+func addAgentTags(spans []*model.Span, agentTags []model.KeyValue) []*model.Span {
+	for _, span := range spans {
+		for _, tag := range agentTags{
+			span.Tags = append(span.Tags, tag)
+		}
+	}
+	return spans
+}
+
+// Parsing logic borrowed from jaegertracing/jaeger-client-go
+func parseAgentTags(agentTags string) []model.KeyValue {
+	tagPairs := strings.Split(agentTags, ",")
+	tags := make([]model.KeyValue, 0)
+	for _, p := range tagPairs {
+		kv := strings.SplitN(p, "=", 2)
+		k, v := strings.TrimSpace(kv[0]), strings.TrimSpace(kv[1])
+
+		if strings.HasPrefix(v, "${") && strings.HasSuffix(v, "}") {
+			ed := strings.SplitN(v[2:len(v)-1], ":", 2)
+			e, d := ed[0], ed[1]
+			v = os.Getenv(e)
+			if v == "" && d != "" {
+				v = d
+			}
+		}
+
+		tag := model.KeyValue{
+			Key: k,
+			VStr: v,
+		}
+		tags = append(tags, tag)
+	}
+
+	return tags
 }

@@ -49,7 +49,7 @@ func TestBuilderFromConfig(t *testing.T) {
 		t,
 		[]string{"127.0.0.1:14267", "127.0.0.1:14268", "127.0.0.1:14269"},
 		cfg.CollectorHostPorts)
-	r, err := cfg.CreateReporter(zap.NewNop())
+	r, err := cfg.CreateReporter("", zap.NewNop())
 	require.NoError(t, err)
 	assert.NotNil(t, r)
 	assert.Equal(t, "some-collector-service", r.CollectorServiceName())
@@ -60,20 +60,20 @@ func TestBuilderWithDiscovery(t *testing.T) {
 	cfg := &Builder{}
 	discoverer := discovery.FixedDiscoverer([]string{"1.1.1.1:80"})
 	cfg.WithDiscoverer(discoverer)
-	_, err := cfg.CreateReporter(zap.NewNop())
+	_, err := cfg.CreateReporter("", zap.NewNop())
 	assert.EqualError(t, err, "cannot enable service discovery: both discovery.Discoverer and discovery.Notifier must be specified")
 
 	cfg = &Builder{}
 	notifier := &discovery.Dispatcher{}
 	cfg.WithDiscoverer(discoverer).WithDiscoveryNotifier(notifier)
-	agent, err := cfg.CreateReporter(zap.NewNop())
+	agent, err := cfg.CreateReporter("", zap.NewNop())
 	assert.NoError(t, err)
 	assert.NotNil(t, agent)
 }
 
 func TestBuilderWithDiscoveryError(t *testing.T) {
 	tbuilder := NewBuilder().WithDiscoverer(fakeDiscoverer{})
-	rep, err := tbuilder.CreateReporter(zap.NewNop())
+	rep, err := tbuilder.CreateReporter("", zap.NewNop())
 	assert.EqualError(t, err, "cannot enable service discovery: both discovery.Discoverer and discovery.Notifier must be specified")
 	assert.Nil(t, rep)
 }
@@ -81,13 +81,13 @@ func TestBuilderWithDiscoveryError(t *testing.T) {
 func TestBuilderWithCollectorServiceName(t *testing.T) {
 	cfg := &Builder{}
 	cfg.WithCollectorServiceName("svc")
-	agent, err := cfg.CreateReporter(zap.NewNop())
+	agent, err := cfg.CreateReporter("", zap.NewNop())
 	assert.NoError(t, err)
 	assert.NotNil(t, agent)
 	assert.Equal(t, cfg.CollectorServiceName, "svc")
 
 	cfg = NewBuilder()
-	agent, err = cfg.CreateReporter(zap.NewNop())
+	agent, err = cfg.CreateReporter("", zap.NewNop())
 	assert.NoError(t, err)
 	assert.NotNil(t, agent)
 	assert.Equal(t, cfg.CollectorServiceName, "jaeger-collector")
@@ -97,7 +97,7 @@ func TestBuilderWithChannel(t *testing.T) {
 	cfg := &Builder{}
 	channel, _ := tchannel.NewChannel(agentServiceName, nil)
 	cfg.WithChannel(channel)
-	rep, err := cfg.CreateReporter(zap.NewNop())
+	rep, err := cfg.CreateReporter("", zap.NewNop())
 	assert.NoError(t, err)
 	assert.NotNil(t, rep.Channel())
 	assert.Equal(t, defaultCollectorServiceName, rep.CollectorServiceName())
@@ -108,7 +108,7 @@ func TestBuilderWithCollectors(t *testing.T) {
 	cfg := &Builder{
 		CollectorHostPorts: hostPorts,
 	}
-	agent, err := cfg.CreateReporter(zap.NewNop())
+	agent, err := cfg.CreateReporter("", zap.NewNop())
 	assert.NoError(t, err)
 	assert.NotNil(t, agent)
 

@@ -15,6 +15,8 @@
 package tchannel
 
 import (
+	"os"
+	"strings"
 	"time"
 
 	"github.com/uber/tchannel-go"
@@ -35,6 +37,7 @@ type Reporter struct {
 	peerListMgr   *peerlistmgr.PeerListManager
 	logger        *zap.Logger
 	serviceName   string
+	agentTags	  []jaeger.Tag
 }
 
 // New creates new TChannel-based Reporter.
@@ -43,11 +46,13 @@ func New(
 	channel *tchannel.Channel,
 	reportTimeout time.Duration,
 	peerListMgr *peerlistmgr.PeerListManager,
+	agentTagString string,
 	zlogger *zap.Logger,
 ) *Reporter {
 	thriftClient := thrift.NewClient(channel, collectorServiceName, nil)
 	zClient := zipkincore.NewTChanZipkinCollectorClient(thriftClient)
 	jClient := jaeger.NewTChanCollectorClient(thriftClient)
+	agentTags := parseAgentTags(agentTagString)
 	return &Reporter{
 		channel:       channel,
 		zClient:       zClient,
@@ -56,6 +61,7 @@ func New(
 		peerListMgr:   peerListMgr,
 		logger:        zlogger,
 		serviceName:   collectorServiceName,
+		agentTags:     agentTags,
 	}
 }
 
@@ -66,6 +72,7 @@ func (r *Reporter) Channel() *tchannel.Channel {
 
 // EmitZipkinBatch implements EmitZipkinBatch() of Reporter
 func (r *Reporter) EmitZipkinBatch(spans []*zipkincore.Span) error {
+	spans = addAgentTagsToZipkinBatch(spans, r.agentTags)
 	submissionFunc := func(ctx thrift.Context) error {
 		_, err := r.zClient.SubmitZipkinBatch(ctx, spans)
 		return err
@@ -79,6 +86,7 @@ func (r *Reporter) EmitZipkinBatch(spans []*zipkincore.Span) error {
 
 // EmitBatch implements EmitBatch() of Reporter
 func (r *Reporter) EmitBatch(batch *jaeger.Batch) error {
+	batch.Spans = addAgentTags(batch.Spans, r.agentTags)
 	submissionFunc := func(ctx thrift.Context) error {
 		_, err := r.jClient.SubmitBatches(ctx, []*jaeger.Batch{batch})
 		return err
@@ -105,4 +113,53 @@ func (r *Reporter) submitAndReport(submissionFunc func(ctx thrift.Context) error
 // CollectorServiceName returns collector service name.
 func (r *Reporter) CollectorServiceName() string {
 	return r.serviceName
+}
+
+func addAgentTagsToZipkinBatch(spans []*zipkincore.Span, agentTags []jaeger.Tag) []*zipkincore.Span {
+	for _, span := range spans {
+		for _, tag := range agentTags{
+			span.BinaryAnnotations = append(span.BinaryAnnotations, &zipkincore.BinaryAnnotation{
+				Key: tag.Key,
+				Value: []byte(*tag.VStr),
+				AnnotationType: 6, // static value set to string type for now.
+			})
+		}
+	}
+	return spans
+}
+
+func addAgentTags(spans []*jaeger.Span, agentTags []jaeger.Tag) []*jaeger.Span {
+	for _, span := range spans {
+		for _, tag := range agentTags{
+			span.Tags = append(span.Tags, &tag)
+		}
+	}
+	return spans
+}
+
+// Parsing logic borrowed from jaegertracing/jaeger-client-go
+func parseAgentTags(agentTags string) []jaeger.Tag {
+	tagPairs := strings.Split(agentTags, ",")
+	tags := make([]jaeger.Tag, 0)
+	for _, p := range tagPairs {
+		kv := strings.SplitN(p, "=", 2)
+		k, v := strings.TrimSpace(kv[0]), strings.TrimSpace(kv[1])
+
+		if strings.HasPrefix(v, "${") && strings.HasSuffix(v, "}") {
+			ed := strings.SplitN(v[2:len(v)-1], ":", 2)
+			e, d := ed[0], ed[1]
+			v = os.Getenv(e)
+			if v == "" && d != "" {
+				v = d
+			}
+		}
+
+		tag := jaeger.Tag{
+			Key: k,
+			VStr: &v,
+		}
+		tags = append(tags, tag)
+	}
+
+	return tags
 }
