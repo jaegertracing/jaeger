@@ -226,13 +226,13 @@ func CreateCollectorProxy(
 		len(tchanRep.CollectorHostPorts) > 0 &&
 		len(grpcRepOpts.CollectorHostPort) == 0 {
 		logger.Warn("Using deprecated configuration", zap.String("option", "--collector-host.port"))
-		return tchannel.NewCollectorProxy(tchanRep, mFactory, logger)
+		return tchannel.NewCollectorProxy(tchanRep, opts.AgentTags, mFactory, logger)
 	}
 	switch opts.ReporterType {
 	case reporter.GRPC:
-		return grpc.NewCollectorProxy(grpcRepOpts, mFactory, logger)
+		return grpc.NewCollectorProxy(grpcRepOpts, opts.AgentTags, mFactory, logger)
 	case reporter.TCHANNEL:
-		return tchannel.NewCollectorProxy(tchanRep, mFactory, logger)
+		return tchannel.NewCollectorProxy(tchanRep, opts.AgentTags, mFactory, logger)
 	default:
 		return nil, errors.New(fmt.Sprintf("unknown reporter type %s", string(opts.ReporterType)))
 	}
