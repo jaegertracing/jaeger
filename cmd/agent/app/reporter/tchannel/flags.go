@@ -51,7 +51,7 @@ func AddFlags(flags *flag.FlagSet) {
 		tchannelPrefix+reportTimeout,
 		time.Second,
 		"sets the timeout used when reporting spans")
-	// TODO remove deprecated in 1.9
+	// TODO remove deprecated in 2.0
 	flags.String(
 		collectorHostPort,
 		"",

@@ -104,7 +104,8 @@ func TestMetricsReporter(t *testing.T) {
 			err := reporter.EmitBatch(&jaeger.Batch{Spans: []*jaeger.Span{{}}})
 			require.Error(t, err)
 		}, rep: &noopReporter{err: errors.New("foo")}},
-		{expectedCounters: []metricstest.ExpectedMetric{
+		{expectedCounters:
+			[]metricstest.ExpectedMetric{
 			{Name: "reporter.batches.failures", Tags: map[string]string{"format": "zipkin"}, Value: 1},
 			{Name: "reporter.spans.failures", Tags: map[string]string{"format": "zipkin"}, Value: 2},
 		}, expectedGauges: []metricstest.ExpectedMetric{
