@@ -106,7 +106,7 @@ func (b *Builder) enableDiscovery(channel *tchannel.Channel, logger *zap.Logger)
 }
 
 // CreateReporter creates the TChannel-based Reporter
-func (b *Builder) CreateReporter(agentTags string, logger *zap.Logger) (*Reporter, error) {
+func (b *Builder) CreateReporter(agentTags map[string]string, logger *zap.Logger) (*Reporter, error) {
 	if b.channel == nil {
 		// ignore errors since it only happens on empty service name
 		b.channel, _ = tchannel.NewChannel(agentServiceName, nil)

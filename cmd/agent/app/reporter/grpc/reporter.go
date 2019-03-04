@@ -38,18 +38,18 @@ type Reporter struct {
 }
 
 // NewReporter creates gRPC reporter.
-func NewReporter(conn *grpc.ClientConn, agentTags string, logger *zap.Logger) *Reporter {
+func NewReporter(conn *grpc.ClientConn, agentTags map[string]string, logger *zap.Logger) *Reporter {
 	return &Reporter{
 		collector: api_v2.NewCollectorServiceClient(conn),
 		logger:    logger,
 		sanitizer: zipkin2.NewChainedSanitizer(zipkin2.StandardSanitizers...),
-		agentTags: parseAgentTags(agentTags),
+		agentTags: makeModelKeyValue(agentTags),
 	}
 }
 
 // EmitBatch implements EmitBatch() of Reporter
 func (r *Reporter) EmitBatch(b *thrift.Batch) error {
-	return r.send(addAgentTags(jConverter.ToDomain(b.Spans, nil), r.agentTags), jConverter.ToDomainProcess(b.Process))
+	return r.send(jConverter.ToDomain(b.Spans, nil), jConverter.ToDomainProcess(b.Process))
 }
 
 // EmitZipkinBatch implements EmitZipkinBatch() of Reporter
@@ -61,10 +61,11 @@ func (r *Reporter) EmitZipkinBatch(zSpans []*zipkincore.Span) error {
 	if err != nil {
 		return err
 	}
-	return r.send(addAgentTags(trace.Spans, r.agentTags), nil)
+	return r.send(trace.Spans, nil)
 }
 
 func (r *Reporter) send(spans []*model.Span, process *model.Process) error {
+	spans = addAgentTags(spans, r.agentTags)
 	batch := model.Batch{Spans: spans, Process: process}
 	req := &api_v2.PostSpansRequest{Batch: batch}
 	_, err := r.collector.PostSpans(context.Background(), req)
@@ -84,23 +85,9 @@ func addAgentTags(spans []*model.Span, agentTags []model.KeyValue) []*model.Span
 	return spans
 }
 
-// Parsing logic borrowed from jaegertracing/jaeger-client-go
-func parseAgentTags(agentTags string) []model.KeyValue {
-	tagPairs := strings.Split(agentTags, ",")
+func makeModelKeyValue(agentTags map[string]string) []model.KeyValue {
 	tags := make([]model.KeyValue, 0)
-	for _, p := range tagPairs {
-		kv := strings.SplitN(p, "=", 2)
-		k, v := strings.TrimSpace(kv[0]), strings.TrimSpace(kv[1])
-
-		if strings.HasPrefix(v, "${") && strings.HasSuffix(v, "}") {
-			ed := strings.SplitN(v[2:len(v)-1], ":", 2)
-			e, d := ed[0], ed[1]
-			v = os.Getenv(e)
-			if v == "" && d != "" {
-				v = d
-			}
-		}
-
+	for k, v := range agentTags {
 		tag := model.KeyValue{
 			Key: k,
 			VStr: v,

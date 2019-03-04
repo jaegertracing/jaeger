@@ -15,8 +15,6 @@
 package tchannel
 
 import (
-	"os"
-	"strings"
 	"time"
 
 	"github.com/uber/tchannel-go"
@@ -46,13 +44,13 @@ func New(
 	channel *tchannel.Channel,
 	reportTimeout time.Duration,
 	peerListMgr *peerlistmgr.PeerListManager,
-	agentTagString string,
+	agentTagString map[string]string,
 	zlogger *zap.Logger,
 ) *Reporter {
 	thriftClient := thrift.NewClient(channel, collectorServiceName, nil)
 	zClient := zipkincore.NewTChanZipkinCollectorClient(thriftClient)
 	jClient := jaeger.NewTChanCollectorClient(thriftClient)
-	agentTags := parseAgentTags(agentTagString)
+	agentTags := makeJaegerTag(agentTagString)
 	return &Reporter{
 		channel:       channel,
 		zClient:       zClient,
@@ -137,23 +135,9 @@ func addAgentTags(spans []*jaeger.Span, agentTags []jaeger.Tag) []*jaeger.Span {
 	return spans
 }
 
-// Parsing logic borrowed from jaegertracing/jaeger-client-go
-func parseAgentTags(agentTags string) []jaeger.Tag {
-	tagPairs := strings.Split(agentTags, ",")
+func makeJaegerTag(agentTags map[string]string) []jaeger.Tag {
 	tags := make([]jaeger.Tag, 0)
-	for _, p := range tagPairs {
-		kv := strings.SplitN(p, "=", 2)
-		k, v := strings.TrimSpace(kv[0]), strings.TrimSpace(kv[1])
-
-		if strings.HasPrefix(v, "${") && strings.HasSuffix(v, "}") {
-			ed := strings.SplitN(v[2:len(v)-1], ":", 2)
-			e, d := ed[0], ed[1]
-			v = os.Getenv(e)
-			if v == "" && d != "" {
-				v = d
-			}
-		}
-
+	for k, v := range agentTags {
 		tag := jaeger.Tag{
 			Key: k,
 			VStr: &v,

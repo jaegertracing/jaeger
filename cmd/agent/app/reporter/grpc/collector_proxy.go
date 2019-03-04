@@ -42,7 +42,7 @@ type ProxyBuilder struct {
 var systemCertPool = x509.SystemCertPool // to allow overriding in unit test
 
 // NewCollectorProxy creates ProxyBuilder
-func NewCollectorProxy(o *Options, agentTags string, mFactory metrics.Factory, logger *zap.Logger) (*ProxyBuilder, error) {
+func NewCollectorProxy(o *Options, agentTags map[string]string, mFactory metrics.Factory, logger *zap.Logger) (*ProxyBuilder, error) {
 	if len(o.CollectorHostPort) == 0 {
 		return nil, errors.New("could not create collector proxy, address is missing")
 	}

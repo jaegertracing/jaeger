@@ -29,7 +29,7 @@ import (
 
 func TestErrorReporterBuilder(t *testing.T) {
 	tbuilder := NewBuilder().WithDiscoverer(fakeDiscoverer{})
-	b, err := NewCollectorProxy(tbuilder, "", metrics.NullFactory, zap.NewNop())
+	b, err := NewCollectorProxy(tbuilder, nil, metrics.NullFactory, zap.NewNop())
 	require.Error(t, err)
 	assert.Nil(t, b)
 }
@@ -38,10 +38,10 @@ func TestCreate(t *testing.T) {
 	cfg := &Builder{}
 	mFactory := metrics.NullFactory
 	logger := zap.NewNop()
-	b, err := NewCollectorProxy(cfg, "", mFactory, logger)
+	b, err := NewCollectorProxy(cfg, nil, mFactory, logger)
 	require.NoError(t, err)
 	assert.NotNil(t, b)
-	r, _ := cfg.CreateReporter("", logger)
+	r, _ := cfg.CreateReporter(nil, logger)
 	assert.Equal(t, reporter.WrapWithMetrics(r, mFactory), b.GetReporter())
 	m := tchannel.NewConfigManager(r.CollectorServiceName(), r.Channel())
 	assert.Equal(t, configmanager.WrapWithMetrics(m, mFactory), b.GetManager())

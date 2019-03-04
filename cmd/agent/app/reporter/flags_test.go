@@ -34,10 +34,12 @@ func TestBindFlags(t *testing.T) {
 
 	err := command.ParseFlags([]string{
 		"--reporter.type=grpc",
+		"--jaeger.tag key=value",
 	})
 	require.NoError(t, err)
 
 	b := &Options{}
 	b.InitFromViper(v)
 	assert.Equal(t, Type("grpc"), b.ReporterType)
+	assert.Equal(t, parseAgentTags(Type("key=value")), b.AgentTags)
 }
