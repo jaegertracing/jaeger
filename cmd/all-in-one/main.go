@@ -197,6 +197,7 @@ func startAgent(
 ) {
 	metricsFactory := baseFactory.Namespace(metrics.NSOptions{Name: "agent", Tags: nil})
 
+	grpcRepOpts.CollectorHostPort = append(grpcRepOpts.CollectorHostPort, fmt.Sprintf("127.0.0.1:%d", cOpts.CollectorGRPCPort))
 	cp, err := agentApp.CreateCollectorProxy(repOpts, tchanRep, grpcRepOpts, logger, metricsFactory)
 	if err != nil {
 		logger.Fatal("Could not create collector proxy", zap.Error(err))
