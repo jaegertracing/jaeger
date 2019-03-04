@@ -50,7 +50,7 @@ iPKnCkzNgxMzQtwdgpAOXIAqXyNibvyOAv1C+3QSMLKbuPEHaIxlCuvl1suX/g25
 -----END CERTIFICATE-----`
 
 func TestProxyBuilderMissingAddress(t *testing.T) {
-	proxy, err := NewCollectorProxy(&Options{}, metrics.NullFactory, zap.NewNop())
+	proxy, err := NewCollectorProxy(&Options{}, nil, metrics.NullFactory, zap.NewNop())
 	require.Nil(t, proxy)
 	assert.EqualError(t, err, "could not create collector proxy, address is missing")
 }
@@ -99,7 +99,7 @@ func TestProxyBuilder(t *testing.T) {
 
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
-			proxy, err := NewCollectorProxy(test.proxyOptions, metrics.NullFactory, zap.NewNop())
+			proxy, err := NewCollectorProxy(test.proxyOptions, nil, metrics.NullFactory, zap.NewNop())
 			if test.expectError {
 				require.Error(t, err)
 			} else {
@@ -125,7 +125,7 @@ func TestSystemCertPoolError(t *testing.T) {
 	_, err := NewCollectorProxy(&Options{
 		CollectorHostPort: []string{"foo", "bar"},
 		TLS:               true,
-	}, nil, nil)
+	}, nil, nil, nil)
 	assert.Equal(t, fakeErr, err)
 }
 
@@ -142,7 +142,7 @@ func TestMultipleCollectors(t *testing.T) {
 	defer s2.Stop()
 
 	mFactory := metricstest.NewFactory(time.Microsecond)
-	proxy, err := NewCollectorProxy(&Options{CollectorHostPort: []string{addr1.String(), addr2.String()}}, mFactory, zap.NewNop())
+	proxy, err := NewCollectorProxy(&Options{CollectorHostPort: []string{addr1.String(), nil, addr2.String()}}, mFactory, zap.NewNop())
 	require.NoError(t, err)
 	require.NotNil(t, proxy)
 	assert.NotNil(t, proxy.GetReporter())

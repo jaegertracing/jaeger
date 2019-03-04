@@ -40,7 +40,7 @@ type Type string
 // Options holds generic reporter configuration.
 type Options struct {
 	ReporterType Type
-	AgentTags    map[Type]Type
+	AgentTags    map[string]string
 }
 
 // AddFlags adds flags for Options.
@@ -52,24 +52,24 @@ func AddFlags(flags *flag.FlagSet) {
 // InitFromViper initializes Options with properties retrieved from Viper.
 func (b *Options) InitFromViper(v *viper.Viper) *Options {
 	b.ReporterType = Type(v.GetString(reporterType))
-	b.AgentTags = parseAgentTags(Type(v.GetString(agentTags)))
+	b.AgentTags = parseAgentTags(v.GetString(agentTags))
 	return b
 }
 
 // Parsing logic borrowed from jaegertracing/jaeger-client-go
-func parseAgentTags(agentTags Type) map[Type]Type {
+func parseAgentTags(agentTags string) map[string]string {
 	tagPairs := strings.Split(string(agentTags), ",")
-	var tags map[Type]Type
+	var tags map[string]string
 	for _, p := range tagPairs {
 		kv := strings.SplitN(p, "=", 2)
-		k, v := Type(strings.TrimSpace(kv[0])), Type(strings.TrimSpace(kv[1]))
+		k, v := strings.TrimSpace(kv[0]), strings.TrimSpace(kv[1])
 
-		if strings.HasPrefix(string(v), "${") && strings.HasSuffix(string(v), "}") {
+		if strings.HasPrefix(v, "${") && strings.HasSuffix(v, "}") {
 			ed := strings.SplitN(string(v[2:len(v)-1]), ":", 2)
 			e, d := ed[0], ed[1]
-			v = Type(os.Getenv(e))
+			v = os.Getenv(e)
 			if v == "" && d != "" {
-				v = Type(d)
+				v = d
 			}
 		}
 
