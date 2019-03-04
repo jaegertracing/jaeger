@@ -16,17 +16,22 @@ package app
 
 import (
 	"fmt"
+	"io/ioutil"
 	"net/http"
+	"os"
 
 	"github.com/apache/thrift/lib/go/thrift"
 	"github.com/pkg/errors"
 	"github.com/uber/jaeger-lib/metrics"
 	"go.uber.org/zap"
+	"google.golang.org/grpc/grpclog"
 
 	"github.com/jaegertracing/jaeger/cmd/agent/app/configmanager"
 	"github.com/jaegertracing/jaeger/cmd/agent/app/httpserver"
 	"github.com/jaegertracing/jaeger/cmd/agent/app/processors"
 	"github.com/jaegertracing/jaeger/cmd/agent/app/reporter"
+	"github.com/jaegertracing/jaeger/cmd/agent/app/reporter/grpc"
+	"github.com/jaegertracing/jaeger/cmd/agent/app/reporter/tchannel"
 	"github.com/jaegertracing/jaeger/cmd/agent/app/servers"
 	"github.com/jaegertracing/jaeger/cmd/agent/app/servers/thriftudp"
 	zipkinThrift "github.com/jaegertracing/jaeger/thrift-gen/agent"
@@ -208,4 +213,31 @@ func defaultInt(value int, defaultVal int) int {
 		value = defaultVal
 	}
 	return value
+}
+
+// CreateCollectorProxy creates collector proxy
+func CreateCollectorProxy(
+	opts *reporter.Options,
+	tchanRep *tchannel.Builder,
+	grpcRepOpts *grpc.Options,
+	logger *zap.Logger,
+	mFactory metrics.Factory,
+) (CollectorProxy, error) {
+	// GRPC type is set as default in viper, but we check for legacy flags
+	// to keep backward compatibility
+	if opts.ReporterType == reporter.GRPC &&
+		len(tchanRep.CollectorHostPorts) > 0 &&
+		len(grpcRepOpts.CollectorHostPort) == 0 {
+		logger.Warn("Using deprecated configuration", zap.String("option", "--collector-host.port"))
+		return tchannel.NewCollectorProxy(tchanRep, mFactory, logger)
+	}
+	switch opts.ReporterType {
+	case reporter.GRPC:
+		grpclog.SetLoggerV2(grpclog.NewLoggerV2(ioutil.Discard, os.Stderr, os.Stderr))
+		return grpc.NewCollectorProxy(grpcRepOpts, mFactory, logger)
+	case reporter.TCHANNEL:
+		return tchannel.NewCollectorProxy(tchanRep, mFactory, logger)
+	default:
+		return nil, errors.New(fmt.Sprintf("unknown reporter type %s", string(opts.ReporterType)))
+	}
 }

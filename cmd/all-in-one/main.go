@@ -197,7 +197,7 @@ func startAgent(
 ) {
 	metricsFactory := baseFactory.Namespace(metrics.NSOptions{Name: "agent", Tags: nil})
 
-	cp, err := createCollectorProxy(cOpts, repOpts, tchanRep, grpcRepOpts, logger, metricsFactory)
+	cp, err := agentApp.CreateCollectorProxy(repOpts, tchanRep, grpcRepOpts, logger, metricsFactory)
 	if err != nil {
 		logger.Fatal("Could not create collector proxy", zap.Error(err))
 	}
@@ -210,26 +210,6 @@ func startAgent(
 	logger.Info("Starting agent")
 	if err := agent.Run(); err != nil {
 		logger.Fatal("Failed to run the agent", zap.Error(err))
-	}
-}
-
-func createCollectorProxy(
-	cOpts *collector.CollectorOptions,
-	repOpts *agentRep.Options,
-	tchanRepOpts *agentTchanRep.Builder,
-	grpcRepOpts *agentGrpcRep.Options,
-	logger *zap.Logger,
-	mFactory metrics.Factory,
-) (agentApp.CollectorProxy, error) {
-	switch repOpts.ReporterType {
-	case agentRep.GRPC:
-		grpcRepOpts.CollectorHostPort = append(grpcRepOpts.CollectorHostPort, fmt.Sprintf("127.0.0.1:%d", cOpts.CollectorGRPCPort))
-		return agentGrpcRep.NewCollectorProxy(grpcRepOpts, mFactory, logger)
-	case agentRep.TCHANNEL:
-		tchanRepOpts.CollectorHostPorts = append(tchanRepOpts.CollectorHostPorts, fmt.Sprintf("127.0.0.1:%d", cOpts.CollectorPort))
-		return agentTchanRep.NewCollectorProxy(tchanRepOpts, mFactory, logger)
-	default:
-		return nil, errors.New(fmt.Sprintf("unknown reporter type %s", string(repOpts.ReporterType)))
 	}
 }
 

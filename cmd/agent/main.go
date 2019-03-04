@@ -17,7 +17,6 @@ package main
 import (
 	"fmt"
 	"io"
-	"io/ioutil"
 	"net/http"
 	"os"
 	"os/signal"
@@ -28,7 +27,6 @@ import (
 	"github.com/spf13/viper"
 	jMetrics "github.com/uber/jaeger-lib/metrics"
 	"go.uber.org/zap"
-	"google.golang.org/grpc/grpclog"
 
 	"github.com/jaegertracing/jaeger/cmd/agent/app"
 	"github.com/jaegertracing/jaeger/cmd/agent/app/reporter"
@@ -73,7 +71,7 @@ func main() {
 			rOpts := new(reporter.Options).InitFromViper(v)
 			tChanOpts := new(tchannel.Builder).InitFromViper(v, logger)
 			grpcOpts := new(grpc.Options).InitFromViper(v)
-			cp, err := createCollectorProxy(rOpts, tChanOpts, grpcOpts, logger, mFactory)
+			cp, err := app.CreateCollectorProxy(rOpts, tChanOpts, grpcOpts, logger, mFactory)
 			if err != nil {
 				logger.Fatal("Could not create collector proxy", zap.Error(err))
 			}
@@ -121,23 +119,5 @@ func main() {
 	if err := command.Execute(); err != nil {
 		fmt.Println(err.Error())
 		os.Exit(1)
-	}
-}
-
-func createCollectorProxy(
-	opts *reporter.Options,
-	tchanRep *tchannel.Builder,
-	grpcRepOpts *grpc.Options,
-	logger *zap.Logger,
-	mFactory jMetrics.Factory,
-) (app.CollectorProxy, error) {
-	switch opts.ReporterType {
-	case reporter.GRPC:
-		grpclog.SetLoggerV2(grpclog.NewLoggerV2(ioutil.Discard, os.Stderr, os.Stderr))
-		return grpc.NewCollectorProxy(grpcRepOpts, mFactory, logger)
-	case reporter.TCHANNEL:
-		return tchannel.NewCollectorProxy(tchanRep, mFactory, logger)
-	default:
-		return nil, errors.New(fmt.Sprintf("unknown reporter type %s", string(opts.ReporterType)))
 	}
 }
