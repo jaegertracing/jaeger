@@ -41,5 +41,5 @@ func TestBindFlags(t *testing.T) {
 	b := &Options{}
 	b.InitFromViper(v)
 	assert.Equal(t, Type("grpc"), b.ReporterType)
-	assert.Equal(t, parseAgentTags(Type("key=value")), b.AgentTags)
+	assert.Equal(t, parseAgentTags("key=value"), b.AgentTags)
 }

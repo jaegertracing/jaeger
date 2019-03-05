@@ -77,7 +77,7 @@ func createProcessor(t *testing.T, mFactory metrics.Factory, tFactory thrift.TPr
 
 func initCollectorAndReporter(t *testing.T) (*metricstest.Factory, *testutils.MockTCollector, reporter.Reporter) {
 	metricsFactory, collector := testutils.InitMockCollector(t)
-	reporter := reporter.WrapWithMetrics(tchreporter.New("jaeger-collector", collector.Channel, time.Second, nil, zap.NewNop()), metricsFactory)
+	reporter := reporter.WrapWithMetrics(tchreporter.New("jaeger-collector", collector.Channel, time.Second, nil, nil, zap.NewNop()), metricsFactory)
 	return metricsFactory, collector, reporter
 }
 

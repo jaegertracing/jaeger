@@ -26,6 +26,10 @@ import (
 	"github.com/jaegertracing/jaeger/thrift-gen/zipkincore"
 )
 
+const (
+	annotationTypeStr = 6
+)
+
 // Reporter forwards received spans to central collector tier over TChannel.
 type Reporter struct {
 	channel       *tchannel.Channel
@@ -50,7 +54,7 @@ func New(
 	thriftClient := thrift.NewClient(channel, collectorServiceName, nil)
 	zClient := zipkincore.NewTChanZipkinCollectorClient(thriftClient)
 	jClient := jaeger.NewTChanCollectorClient(thriftClient)
-	agentTags := makeJaegerTag(agentTagString)
+	agentTags := makeJaegerTags(agentTagString)
 	return &Reporter{
 		channel:       channel,
 		zClient:       zClient,
@@ -119,7 +123,7 @@ func addAgentTagsToZipkinBatch(spans []*zipkincore.Span, agentTags []jaeger.Tag)
 			span.BinaryAnnotations = append(span.BinaryAnnotations, &zipkincore.BinaryAnnotation{
 				Key: tag.Key,
 				Value: []byte(*tag.VStr),
-				AnnotationType: 6, // static value set to string type for now.
+				AnnotationType: annotationTypeStr, // static value set to string type.
 			})
 		}
 	}
@@ -135,12 +139,13 @@ func addAgentTags(spans []*jaeger.Span, agentTags []jaeger.Tag) []*jaeger.Span {
 	return spans
 }
 
-func makeJaegerTag(agentTags map[string]string) []jaeger.Tag {
+func makeJaegerTags(agentTags map[string]string) []jaeger.Tag {
 	tags := make([]jaeger.Tag, 0)
 	for k, v := range agentTags {
 		tag := jaeger.Tag{
 			Key: k,
 			VStr: &v,
+			VType: jaeger.TagType_STRING,
 		}
 		tags = append(tags, tag)
 	}
