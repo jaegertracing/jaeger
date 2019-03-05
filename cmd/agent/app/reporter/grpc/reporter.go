@@ -78,9 +78,7 @@ func (r *Reporter) send(spans []*model.Span, process *model.Process) error {
 // addTags appends jaeger tags for the agent to every span it sends to the collector.
 func addTags(spans []*model.Span, agentTags []model.KeyValue) []*model.Span {
 	for _, span := range spans {
-		for _, tag := range agentTags{
-			span.Tags = append(span.Tags, tag)
-		}
+		span.Tags = append(span.Tags, agentTags...)
 	}
 	return spans
 }
@@ -89,7 +87,7 @@ func makeModelKeyValue(agentTags map[string]string) []model.KeyValue {
 	tags := make([]model.KeyValue, len(agentTags))
 	for k, v := range agentTags {
 		tag := model.KeyValue{
-			Key: k,
+			Key:  k,
 			VStr: v,
 		}
 		tags = append(tags, tag)

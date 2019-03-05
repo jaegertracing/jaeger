@@ -39,7 +39,7 @@ type Reporter struct {
 	peerListMgr   *peerlistmgr.PeerListManager
 	logger        *zap.Logger
 	serviceName   string
-	agentTags	  []jaeger.Tag
+	agentTags     []jaeger.Tag
 }
 
 // New creates new TChannel-based Reporter.
@@ -119,10 +119,10 @@ func (r *Reporter) CollectorServiceName() string {
 
 func addAgentTagsToZipkinBatch(spans []*zipkincore.Span, agentTags []jaeger.Tag) []*zipkincore.Span {
 	for _, span := range spans {
-		for _, tag := range agentTags{
+		for _, tag := range agentTags {
 			span.BinaryAnnotations = append(span.BinaryAnnotations, &zipkincore.BinaryAnnotation{
-				Key: tag.Key,
-				Value: []byte(*tag.VStr),
+				Key:            tag.Key,
+				Value:          []byte(*tag.VStr),
 				AnnotationType: annotationTypeStr, // static value set to string type.
 			})
 		}
@@ -132,7 +132,7 @@ func addAgentTagsToZipkinBatch(spans []*zipkincore.Span, agentTags []jaeger.Tag)
 
 func addAgentTags(spans []*jaeger.Span, agentTags []jaeger.Tag) []*jaeger.Span {
 	for _, span := range spans {
-		for _, tag := range agentTags{
+		for _, tag := range agentTags {
 			span.Tags = append(span.Tags, &tag)
 		}
 	}
@@ -143,8 +143,8 @@ func makeJaegerTags(agentTags map[string]string) []jaeger.Tag {
 	tags := make([]jaeger.Tag, 0)
 	for k, v := range agentTags {
 		tag := jaeger.Tag{
-			Key: k,
-			VStr: &v,
+			Key:   k,
+			VStr:  &v,
 			VType: jaeger.TagType_STRING,
 		}
 		tags = append(tags, tag)
