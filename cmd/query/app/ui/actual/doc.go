@@ -12,5 +12,5 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-// Package actual contains auto-generated UI asset files created during the build.
-package actual
+// Package assets contains auto-generated UI asset files created during the build.
+package assets
