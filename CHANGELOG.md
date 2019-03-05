@@ -1,7 +1,21 @@
 Changes by Version
 ==================
 
-1.11.0 (unreleased)
+1.12.0 (unreleased)
+------------------
+
+#### Backend Changes
+
+##### Breaking Changes
+
+##### New Features
+
+##### Bug fixes, Minor Improvements
+
+#### UI Changes
+
+
+1.11.0 (2019-03-07)
 ------------------
 
 #### Backend Changes
@@ -31,9 +45,19 @@ Changes by Version
     ```
 ##### New Features
 
+- Support secure gRPC channel between agent and collector ([#1391](https://github.com/jaegertracing/jaeger/pull/1391), [@ghouscht](https://github.com/ghouscht), [@yurishkuro](https://github.com/yurishkuro))
+
 ##### Bug fixes, Minor Improvements
 
+- Allow thrift reporter even if grpc hosts are not provided ([#1400](https://github.com/jaegertracing/jaeger/pull/1400), [@pavolloffay](https://github.com/pavolloffay))
+- Allow to use TLS with ES basic auth ([#1388](https://github.com/jaegertracing/jaeger/pull/1388), [@pavolloffay](https://github.com/pavolloffay))
+- Deprecate colon in index prefix in ES dependency store ([#1386](https://github.com/jaegertracing/jaeger/pull/1386), [@pavolloffay](https://github.com/pavolloffay))
+- Make grpc reporter default and add retry ([#1384](https://github.com/jaegertracing/jaeger/pull/1384), [@pavolloffay](https://github.com/pavolloffay))
+- Use `CQLSH_HOST` in final call to `cqlsh` ([#1372](https://github.com/jaegertracing/jaeger/pull/1372), [@funny-falcon](https://github.com/funny-falcon))
+
 #### UI Changes
+
+* UI pinned to version 1.1.0. The changelog is available here [v1.1.0](https://github.com/jaegertracing/jaeger-ui/blob/master/CHANGELOG.md#v110-march-3-2019)
 
 
 1.10.1 (2019-02-21)
