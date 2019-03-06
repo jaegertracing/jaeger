@@ -112,7 +112,11 @@ def create_index(client, name):
     """
     print('Creating index {}'.format(name))
     create = curator.CreateIndex(client=client, name=name)
-    create.do_action()
+    try:
+        create.do_action()
+    except curator.exceptions.FailedExecution as e:
+        if "index_already_exists_exception" not in str(e) and "resource_already_exists_exception" not in str(e):
+            raise e
 
 
 def create_aliases(client, alias_name, archive_index_name):
