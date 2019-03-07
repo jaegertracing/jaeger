@@ -99,7 +99,8 @@ func (ds *DownSamplingWriter) shouldDownsample(span *model.Span) bool {
 	// Currently MarshalTo will only return err if size of traceIDBytes is smaller than 16
 	// Since we force traceIDBytes to be size of 16 metrics is not necessary here.
 	byteSlice := hasherInstance.byteArray
-	span.TraceID.MarshalTo((byteSlice)[ds.lengthOfSalt:])
+	// Currently we are always passing byte slice with size of 16 which won't trigger the underlining error
+	_, _ = span.TraceID.MarshalTo((byteSlice)[ds.lengthOfSalt:])
 	hashVal := hasherInstance.hashBytes(byteSlice)
 	ds.pool.Put(hasherInstance)
 	return hashVal >= ds.threshold
