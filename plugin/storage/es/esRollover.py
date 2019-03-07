@@ -85,9 +85,9 @@ def perform_action(action, client, write_alias, read_alias, index_to_rollover, t
 
         index = index_to_rollover + '-000001'
         create_index(client, index)
-        if alias_is_not_empty(client, read_alias):
+        if is_alias_empty(client, read_alias):
             create_aliases(client, read_alias, index)
-        if alias_is_not_empty(client, write_alias):
+        if is_alias_empty(client, write_alias):
             create_aliases(client, write_alias, index)
     elif action == 'rollover':
         cond = ast.literal_eval(os.getenv('CONDITIONS', ROLLBACK_CONDITIONS))
@@ -134,7 +134,7 @@ def create_aliases(client, alias_name, archive_index_name):
     alias.do_action()
 
 
-def alias_is_not_empty(client, alias_name):
+def is_alias_empty(client, alias_name):
     """"
     Checks whether alias is empty or not
     """
