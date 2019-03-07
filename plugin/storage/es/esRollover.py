@@ -85,8 +85,10 @@ def perform_action(action, client, write_alias, read_alias, index_to_rollover, t
 
         index = index_to_rollover + '-000001'
         create_index(client, index)
-        create_aliases(client, read_alias, index)
-        create_aliases(client, write_alias, index)
+        if is_alias_empty(client, read_alias):
+            create_aliases(client, read_alias, index)
+        if is_alias_empty(client, write_alias):
+            create_aliases(client, write_alias, index)
     elif action == 'rollover':
         cond = ast.literal_eval(os.getenv('CONDITIONS', ROLLBACK_CONDITIONS))
         rollover(client, write_alias, read_alias, cond)
@@ -130,6 +132,18 @@ def create_aliases(client, alias_name, archive_index_name):
         print("Adding index {} to alias {}".format(index, alias_name))
     alias.add(ilo)
     alias.do_action()
+
+
+def is_alias_empty(client, alias_name):
+    """"
+    Checks whether alias is empty or not
+    """
+    ilo = curator.IndexList(client)
+    ilo.filter_by_alias(aliases=alias_name)
+    if len(ilo.working_list()) > 0:
+        print("Alias {} is not empty. Not adding indices to it.".format(alias_name))
+        return False
+    return True
 
 
 def rollover(client, write_alias, read_alias, conditions):
