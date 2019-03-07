@@ -29,19 +29,14 @@ const (
 	traceIDByteSize = 16
 )
 
-var (
-	instance poolSingleton
-	once     sync.Once
-)
-
-// Wrap the sync.Pool object within a singleton struct.
-type poolSingleton struct {
-	hashPool *sync.Pool
-	bytePool *sync.Pool
+// hasher includes data we want to put in sync.Pool
+type hasher struct {
+	fnv       hash.Hash64
+	byteArray []byte
 }
 
-// downSamplingWriterMetrics keeping track of total number of dropped spans and accepted spans
-type downSamplingWriterMetrics struct {
+// downsamplingWriterMetrics keeping track of total number of dropped spans and accepted spans
+type downsamplingWriterMetrics struct {
 	SpansDropped  metrics.Counter `metric:"spans_dropped"`
 	SpansAccepted metrics.Counter `metric:"spans_accepted"`
 }
@@ -51,8 +46,8 @@ type DownSamplingWriter struct {
 	spanWriter   Writer
 	threshold    uint64
 	lengthOfSalt int
-	poolInstance poolSingleton
-	metrics      *downSamplingWriterMetrics
+	pool         *sync.Pool
+	metrics      *downsamplingWriterMetrics
 }
 
 // DownSamplingOptions contains the options for constructing a DownSamplingWriter.
@@ -62,41 +57,27 @@ type DownSamplingOptions struct {
 	MetricsFactory metrics.Factory
 }
 
-// Initialize the singleton if it doesn't exist already.
-func getHashPoolInstance(length int, hashSaltBytes []byte) poolSingleton {
-	once.Do(func() {
-		instance = poolSingleton{
-			hashPool: &sync.Pool{
-				New: func() interface{} {
-					return fnv.New64a()
-				},
-			},
-			bytePool: &sync.Pool{
-				New: func() interface{} {
-					// Since Get selects an arbitrary item from the Pool, removes it from the
-					// Pool, and returns it to the caller and it may choose to ignore the pool
-					// and treat it as empty, hashSaltBytes needs to be written to byteArray at initialization
-					byteArray := make([]byte, length)
-					copy(byteArray[:len(hashSaltBytes)], hashSaltBytes)
-					return &byteArray
-				},
-			},
-		}
-	})
-	return instance
-}
-
 // NewDownSamplingWriter creates a DownSamplingWriter.
 func NewDownSamplingWriter(spanWriter Writer, downSamplingOptions DownSamplingOptions) *DownSamplingWriter {
 	threshold := uint64(downSamplingOptions.Ratio * float64(math.MaxUint64))
-	writeMetrics := &downSamplingWriterMetrics{}
+	writeMetrics := &downsamplingWriterMetrics{}
 	metrics.Init(writeMetrics, downSamplingOptions.MetricsFactory, nil)
 	hashSaltBytes := []byte(downSamplingOptions.HashSalt)
-	poolInstance := getHashPoolInstance(len(hashSaltBytes)+traceIDByteSize, hashSaltBytes)
+	pool := &sync.Pool{
+		New: func() interface{} {
+			byteArray := make([]byte, len(hashSaltBytes)+traceIDByteSize)
+			copy(byteArray[:len(hashSaltBytes)], hashSaltBytes)
+			return &hasher{
+				fnv:       fnv.New64a(),
+				byteArray: byteArray,
+			}
+		},
+	}
+
 	return &DownSamplingWriter{
 		spanWriter:   spanWriter,
 		threshold:    threshold,
-		poolInstance: poolInstance,
+		pool:         pool,
 		metrics:      writeMetrics,
 		lengthOfSalt: len(hashSaltBytes),
 	}
@@ -114,22 +95,21 @@ func (ds *DownSamplingWriter) WriteSpan(span *model.Span) error {
 }
 
 func (ds *DownSamplingWriter) shouldDownsample(span *model.Span) bool {
-	byteSlice := ds.poolInstance.bytePool.Get().(*[]byte)
+	hasherInstance := ds.pool.Get().(*hasher)
 	// Currently MarshalTo will only return err if size of traceIDBytes is smaller than 16
 	// Since we force traceIDBytes to be size of 16 metrics is not necessary here.
-	span.TraceID.MarshalTo((*byteSlice)[ds.lengthOfSalt:])
-	hashVal := ds.hashBytes(*byteSlice)
-	ds.poolInstance.bytePool.Put(byteSlice)
+	byteSlice := hasherInstance.byteArray
+	span.TraceID.MarshalTo((byteSlice)[ds.lengthOfSalt:])
+	hashVal := hasherInstance.hashBytes(byteSlice)
+	ds.pool.Put(hasherInstance)
 	return hashVal >= ds.threshold
 }
 
 // hashBytes returns the uint64 hash value of byte slice.
-func (ds *DownSamplingWriter) hashBytes(bytes []byte) uint64 {
-	h := ds.poolInstance.hashPool.Get().(hash.Hash64)
-	h.Reset()
+func (h *hasher) hashBytes(bytes []byte) uint64 {
+	h.fnv.Reset()
 	// Currently fnv.Write() doesn't throw any error so metrics is not necessary here.
-	h.Write(bytes)
-	sum := h.Sum64()
-	ds.poolInstance.hashPool.Put(h)
+	_, _ = h.fnv.Write(bytes)
+	sum := h.fnv.Sum64()
 	return sum
 }

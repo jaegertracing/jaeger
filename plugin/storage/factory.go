@@ -37,11 +37,9 @@ const (
 	elasticsearchStorageType = "elasticsearch"
 	memoryStorageType        = "memory"
 	kafkaStorageType         = "kafka"
+	downsamplingRatio        = "downsampling.ratio"
+	downsamplingHashSalt     = "downsampling.hashsalt"
 
-	// downsamplingRatio defines command line param for DownsamplingRatio.
-	downsamplingRatio = "downsampling.ratio"
-	// downsamplingHashSalt defines command line param for DownsamplingHashSalt.
-	downsamplingHashSalt = "downsampling.hashsalt"
 	// defaultDownsamplingRatio is the default downsampling ratio.
 	defaultDownsamplingRatio = 1.0
 	// defaultDownsamplingHashSalt is the default downsampling hashsalt.
@@ -160,20 +158,20 @@ func (f *Factory) AddFlags(flagSet *flag.FlagSet) {
 			conf.AddFlags(flagSet)
 		}
 	}
-	addFlags(flagSet)
+	addDownsamplingFlags(flagSet)
 }
 
-// addFlags add flags for factory
-func addFlags(flagSet *flag.FlagSet) {
+// addDownsamplingFlags add flags for Downsampling params
+func addDownsamplingFlags(flagSet *flag.FlagSet) {
 	flagSet.Float64(
 		downsamplingRatio,
 		defaultDownsamplingRatio,
-		"Downsampling ratio defines the ratio of spans for downsampling. Number between 0 ~ 1.0. Default is 1.0 with no downsampling. Values not in the range of 0 ~ 1.0 will be set to default. e.g ratio = 0.3 means we are keeping 30% of spans and dropping 70% of spans.",
+		"Ratio of spans passed to storage after downsampling (between 0 and 1), e.g ratio = 0.3 means we are keeping 30% of spans and dropping 70% of spans; ratio = 1.0 disables downsampling.",
 	)
 	flagSet.String(
 		downsamplingHashSalt,
 		defaultDownsamplingHashSalt,
-		"downsamplingHashSalt defines the hash salt for downsampling. Default is empty string.",
+		"Salt used when hashing trace id for downsampling.",
 	)
 }
 

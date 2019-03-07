@@ -298,7 +298,7 @@ func TestConfigurable(t *testing.T) {
 
 func TestParsingDownsamplingRatio(t *testing.T) {
 	f := Factory{}
-	v, command := config.Viperize(addFlags)
+	v, command := config.Viperize(addDownsamplingFlags)
 	err := command.ParseFlags([]string{
 		"--downsampling.ratio=1.5",
 		"--downsampling.hashsalt=jaeger"})
