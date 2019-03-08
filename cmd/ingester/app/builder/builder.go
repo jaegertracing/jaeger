@@ -32,13 +32,14 @@ import (
 // CreateConsumer creates a new span consumer for the ingester
 func CreateConsumer(logger *zap.Logger, metricsFactory metrics.Factory, spanWriter spanstore.Writer, options app.Options) (*consumer.Consumer, error) {
 	var unmarshaller kafka.Unmarshaller
-	if options.Encoding == kafka.EncodingJSON {
+	switch options.Encoding {
+	case kafka.EncodingJSON:
 		unmarshaller = kafka.NewJSONUnmarshaller()
-	} else if options.Encoding == kafka.EncodingProto {
+	case kafka.EncodingProto:
 		unmarshaller = kafka.NewProtobufUnmarshaller()
-	} else if options.Encoding == kafka.EncodingZipkinThrift {
+	case kafka.EncodingZipkinThrift:
 		unmarshaller = kafka.NewZipkinThriftUnmarshaller()
-	} else {
+	default:
 		return nil, fmt.Errorf(`encoding '%s' not recognised, use one of ("%s")`,
 			options.Encoding, strings.Join(kafka.AllEncodings, "\", \""))
 	}
