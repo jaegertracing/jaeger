@@ -15,40 +15,48 @@
 package auth
 
 import (
-	"log"
+	"github.com/pkg/errors"
 	"strings"
 
 	"github.com/Shopify/sarama"
 	"github.com/spf13/viper"
 )
 
-const none = "none"
-const kerberos = "kerberos"
+const (
+	none     = "none"
+	kerberos = "kerberos"
+	tls      = "tls"
+)
 
 var authTypes = []string{
 	none,
 	kerberos,
+	tls,
 }
 
 // AuthenticationConfig describes the configuration properties needed authenticate with kafka cluster
 type AuthenticationConfig struct {
 	Authentication string
 	Kerberos       KerberosConfig
+	TLS            TLSConfig
 }
 
 //SetConfiguration set configure authentication into sarama config structure
-func (config *AuthenticationConfig) SetConfiguration(saramaConfig *sarama.Config) {
+func (config *AuthenticationConfig) SetConfiguration(saramaConfig *sarama.Config) error {
 	authentication := strings.ToLower(config.Authentication)
 	if strings.Trim(authentication, " ") == "" {
 		authentication = none
 	}
 	switch authentication {
+	case none:
+		return nil
 	case kerberos:
 		setKerberosConfiguration(&config.Kerberos, saramaConfig)
-	case none:
-		return
+		return nil
+	case tls:
+		return setTLSConfiguration(&config.TLS, saramaConfig)
 	default:
-		log.Fatalf("Unknown/Unsupported authentication method %s to kafka cluster.", config.Authentication)
+		return errors.Errorf("Unknown/Unsupported authentication method %s to kafka cluster.", config.Authentication)
 	}
 }
 
@@ -62,4 +70,8 @@ func (config *AuthenticationConfig) InitFromViper(configPrefix string, v *viper.
 	config.Kerberos.Password = v.GetString(configPrefix + kerberosPrefix + suffixKerberosPassword)
 	config.Kerberos.ConfigPath = v.GetString(configPrefix + kerberosPrefix + suffixKerberosConfig)
 	config.Kerberos.KeyTabPath = v.GetString(configPrefix + kerberosPrefix + suffixKerberosKeyTab)
+
+	config.TLS.CaPath = v.GetString(configPrefix + tlsPrefix + suffixTLSCA)
+	config.TLS.CertPath = v.GetString(configPrefix + tlsPrefix + suffixTLSCert)
+	config.TLS.KeyPath = v.GetString(configPrefix + tlsPrefix + suffixTLSKey)
 }
