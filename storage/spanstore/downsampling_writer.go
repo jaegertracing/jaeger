@@ -47,7 +47,7 @@ type DownsamplingWriter struct {
 	threshold    uint64
 	lengthOfSalt int
 	hasherPool   *sync.Pool
-	metrics      *downsamplingWriterMetrics
+	metrics      downsamplingWriterMetrics
 }
 
 // DownsamplingOptions contains the options for constructing a DownsamplingWriter.
@@ -78,7 +78,7 @@ func NewDownsamplingWriter(spanWriter Writer, downsamplingOptions DownsamplingOp
 		spanWriter:   spanWriter,
 		threshold:    threshold,
 		hasherPool:   pool,
-		metrics:      writeMetrics,
+		metrics:      *writeMetrics,
 		lengthOfSalt: len(hashSaltBytes),
 	}
 }
