@@ -35,7 +35,7 @@ func BenchmarkDownSamplingWriter_WriteSpan(b *testing.B) {
 	span := &model.Span{
 		TraceID: trace,
 	}
-	c := NewDownSamplingWriter(&noopWriteSpanStore{}, DownSamplingOptions{
+	c := NewDownsamplingWriter(&noopWriteSpanStore{}, DownsamplingOptions{
 		Ratio:    0.5,
 		HashSalt: "jaeger-test",
 	})
@@ -49,7 +49,7 @@ func BenchmarkDownSamplingWriter_WriteSpan(b *testing.B) {
 // Benchmark result:
 // BenchmarkDownSamplingWriter_HashBytes-12    	    5000	    381558 ns/op	       0 B/op	       0 allocs/op
 func BenchmarkDownSamplingWriter_HashBytes(b *testing.B) {
-	c := NewDownSamplingWriter(&noopWriteSpanStore{}, DownSamplingOptions{
+	c := NewDownsamplingWriter(&noopWriteSpanStore{}, DownsamplingOptions{
 		Ratio:    0.5,
 		HashSalt: "jaeger-test",
 	})
@@ -59,24 +59,24 @@ func BenchmarkDownSamplingWriter_HashBytes(b *testing.B) {
 	}
 	b.ResetTimer()
 	b.ReportAllocs()
-	h := c.pool.Get().(*hasher)
+	h := c.hasherPool.Get().(*hasher)
 	for it := 0; it < b.N; it++ {
-		h.hashBytes(ba)
+		h.hashBytes()
 	}
-	c.pool.Put(h)
+	c.hasherPool.Put(h)
 }
 
-func BenchmarkDownSamplingWriter_RandomHash(b *testing.B) {
+func BenchmarkDownsamplingWriter_RandomHash(b *testing.B) {
 	const numberActions = 1000000
 	ratioThreshold := uint64(math.MaxUint64 / 2)
 	countSmallerThanRatio := 0
-	downSamplingOptions := DownSamplingOptions{
+	downsamplingOptions := DownsamplingOptions{
 		Ratio:          1,
 		HashSalt:       "jaeger-test",
 		MetricsFactory: metrics.NullFactory,
 	}
-	c := NewDownSamplingWriter(&noopWriteSpanStore{}, downSamplingOptions)
-	h := c.pool.Get().(*hasher)
+	c := NewDownsamplingWriter(&noopWriteSpanStore{}, downsamplingOptions)
+	h := c.hasherPool.Get().(*hasher)
 	for it := 0; it < b.N; it++ {
 		countSmallerThanRatio = 0
 		for i := 0; i < numberActions; i++ {
@@ -88,13 +88,13 @@ func BenchmarkDownSamplingWriter_RandomHash(b *testing.B) {
 					High: high,
 				},
 			}
-
-			hash := h.hashBytes([]byte(span.TraceID.String()))
+			_, _ = span.TraceID.MarshalTo(h.buffer[11:])
+			hash := h.hashBytes()
 			if hash < ratioThreshold {
 				countSmallerThanRatio++
 			}
 		}
 		fmt.Printf("Random hash ratio %f should be close to 0.5, inspect the implementation of hashBytes if not\n", math.Abs(float64(countSmallerThanRatio)/float64(numberActions)))
 	}
-	c.pool.Put(h)
+	c.hasherPool.Put(h)
 }

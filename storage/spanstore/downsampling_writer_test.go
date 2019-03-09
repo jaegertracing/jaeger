@@ -35,32 +35,32 @@ func TestDownSamplingWriter_WriteSpan(t *testing.T) {
 	span := &model.Span{
 		TraceID: trace,
 	}
-	downSamplingOptions := DownSamplingOptions{
+	downsamplingOptions := DownsamplingOptions{
 		Ratio:    1,
 		HashSalt: "jaeger-test",
 	}
-	c := NewDownSamplingWriter(&noopWriteSpanStore{}, downSamplingOptions)
+	c := NewDownsamplingWriter(&noopWriteSpanStore{}, downsamplingOptions)
 	assert.NoError(t, c.WriteSpan(span))
 
-	downSamplingOptions.Ratio = 0
-	c = NewDownSamplingWriter(&noopWriteSpanStore{}, downSamplingOptions)
+	downsamplingOptions.Ratio = 0
+	c = NewDownsamplingWriter(&noopWriteSpanStore{}, downsamplingOptions)
 	assert.NoError(t, c.WriteSpan(span))
 
-	downSamplingOptions.Ratio = 0.8
-	c = NewDownSamplingWriter(&noopWriteSpanStore{}, downSamplingOptions)
+	downsamplingOptions.Ratio = 0.8
+	c = NewDownsamplingWriter(&noopWriteSpanStore{}, downsamplingOptions)
 	assert.NoError(t, c.WriteSpan(span))
 }
 
 func TestDownSamplingWriter_hashBytes(t *testing.T) {
-	downSamplingOptions := DownSamplingOptions{
+	downsamplingOptions := DownsamplingOptions{
 		Ratio:          1,
 		HashSalt:       "",
 		MetricsFactory: nil,
 	}
-	c := NewDownSamplingWriter(&noopWriteSpanStore{}, downSamplingOptions)
-	h := c.pool.Get().(*hasher)
-	assert.Equal(t, h.hashBytes(nil), h.hashBytes(nil))
-	c.pool.Put(h)
+	c := NewDownsamplingWriter(&noopWriteSpanStore{}, downsamplingOptions)
+	h := c.hasherPool.Get().(*hasher)
+	assert.Equal(t, h.hashBytes(), h.hashBytes())
+	c.hasherPool.Put(h)
 	trace := model.TraceID{
 		Low:  uint64(0),
 		High: uint64(1),
@@ -68,8 +68,7 @@ func TestDownSamplingWriter_hashBytes(t *testing.T) {
 	span := &model.Span{
 		TraceID: trace,
 	}
-	traceIDBytes := make([]byte, 16)
-	span.TraceID.MarshalTo(traceIDBytes)
+	_, _ = span.TraceID.MarshalTo(h.buffer)
 	// Same traceID should always be hashed to same uint64 in DownSamplingWriter
-	assert.Equal(t, h.hashBytes(traceIDBytes), h.hashBytes(traceIDBytes))
+	assert.Equal(t, h.hashBytes(), h.hashBytes())
 }

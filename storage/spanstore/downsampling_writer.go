@@ -31,8 +31,8 @@ const (
 
 // hasher includes data we want to put in sync.Pool
 type hasher struct {
-	fnv       hash.Hash64
-	byteArray []byte
+	hash   hash.Hash64
+	buffer []byte
 }
 
 // downsamplingWriterMetrics keeping track of total number of dropped spans and accepted spans
@@ -41,51 +41,51 @@ type downsamplingWriterMetrics struct {
 	SpansAccepted metrics.Counter `metric:"spans_accepted"`
 }
 
-// DownSamplingWriter is a span Writer that drops spans with a predefined downSamplingRatio.
-type DownSamplingWriter struct {
+// DownsamplingWriter is a span Writer that drops spans with a predefined downsamplingRatio.
+type DownsamplingWriter struct {
 	spanWriter   Writer
 	threshold    uint64
 	lengthOfSalt int
-	pool         *sync.Pool
+	hasherPool   *sync.Pool
 	metrics      *downsamplingWriterMetrics
 }
 
-// DownSamplingOptions contains the options for constructing a DownSamplingWriter.
-type DownSamplingOptions struct {
+// DownsamplingOptions contains the options for constructing a DownsamplingWriter.
+type DownsamplingOptions struct {
 	Ratio          float64
 	HashSalt       string
 	MetricsFactory metrics.Factory
 }
 
-// NewDownSamplingWriter creates a DownSamplingWriter.
-func NewDownSamplingWriter(spanWriter Writer, downSamplingOptions DownSamplingOptions) *DownSamplingWriter {
-	threshold := uint64(downSamplingOptions.Ratio * float64(math.MaxUint64))
+// NewDownsamplingWriter creates a DownsamplingWriter.
+func NewDownsamplingWriter(spanWriter Writer, downsamplingOptions DownsamplingOptions) *DownsamplingWriter {
+	threshold := uint64(downsamplingOptions.Ratio * float64(math.MaxUint64))
 	writeMetrics := &downsamplingWriterMetrics{}
-	metrics.Init(writeMetrics, downSamplingOptions.MetricsFactory, nil)
-	hashSaltBytes := []byte(downSamplingOptions.HashSalt)
+	metrics.Init(writeMetrics, downsamplingOptions.MetricsFactory, nil)
+	hashSaltBytes := []byte(downsamplingOptions.HashSalt)
 	pool := &sync.Pool{
 		New: func() interface{} {
 			byteArray := make([]byte, len(hashSaltBytes)+traceIDByteSize)
-			copy(byteArray[:len(hashSaltBytes)], hashSaltBytes)
+			copy(byteArray, hashSaltBytes)
 			return &hasher{
-				fnv:       fnv.New64a(),
-				byteArray: byteArray,
+				hash:   fnv.New64a(),
+				buffer: byteArray,
 			}
 		},
 	}
 
-	return &DownSamplingWriter{
+	return &DownsamplingWriter{
 		spanWriter:   spanWriter,
 		threshold:    threshold,
-		pool:         pool,
+		hasherPool:   pool,
 		metrics:      writeMetrics,
 		lengthOfSalt: len(hashSaltBytes),
 	}
 }
 
 // WriteSpan calls WriteSpan on wrapped span writer.
-func (ds *DownSamplingWriter) WriteSpan(span *model.Span) error {
-	if ds.shouldDownsample(span) {
+func (ds *DownsamplingWriter) WriteSpan(span *model.Span) error {
+	if !ds.shouldDownsample(span) {
 		// Drops spans when hashVal falls beyond computed threshold.
 		ds.metrics.SpansDropped.Inc(1)
 		return nil
@@ -94,23 +94,21 @@ func (ds *DownSamplingWriter) WriteSpan(span *model.Span) error {
 	return ds.spanWriter.WriteSpan(span)
 }
 
-func (ds *DownSamplingWriter) shouldDownsample(span *model.Span) bool {
-	hasherInstance := ds.pool.Get().(*hasher)
+func (ds *DownsamplingWriter) shouldDownsample(span *model.Span) bool {
+	hasherInstance := ds.hasherPool.Get().(*hasher)
 	// Currently MarshalTo will only return err if size of traceIDBytes is smaller than 16
 	// Since we force traceIDBytes to be size of 16 metrics is not necessary here.
-	byteSlice := hasherInstance.byteArray
-	// Currently we are always passing byte slice with size of 16 which won't trigger the underlining error
-	_, _ = span.TraceID.MarshalTo((byteSlice)[ds.lengthOfSalt:])
-	hashVal := hasherInstance.hashBytes(byteSlice)
-	ds.pool.Put(hasherInstance)
-	return hashVal >= ds.threshold
+	_, _ = span.TraceID.MarshalTo(hasherInstance.buffer[ds.lengthOfSalt:])
+	hashVal := hasherInstance.hashBytes()
+	ds.hasherPool.Put(hasherInstance)
+	return hashVal <= ds.threshold
 }
 
 // hashBytes returns the uint64 hash value of byte slice.
-func (h *hasher) hashBytes(bytes []byte) uint64 {
-	h.fnv.Reset()
-	// Currently fnv.Write() doesn't throw any error so metrics is not necessary here.
-	_, _ = h.fnv.Write(bytes)
-	sum := h.fnv.Sum64()
+func (h *hasher) hashBytes() uint64 {
+	h.hash.Reset()
+	// Currently fnv.Write() implementation doesn't throw any error so metric is not necessary here.
+	_, _ = h.hash.Write(h.buffer)
+	sum := h.hash.Sum64()
 	return sum
 }

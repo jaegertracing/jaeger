@@ -135,7 +135,7 @@ func (f *Factory) CreateSpanWriter() (spanstore.Writer, error) {
 	if f.DownsamplingRatio == 1.0 {
 		return spanWriter, nil
 	}
-	return spanstore.NewDownSamplingWriter(spanWriter, spanstore.DownSamplingOptions{
+	return spanstore.NewDownsamplingWriter(spanWriter, spanstore.DownsamplingOptions{
 		Ratio:          f.DownsamplingRatio,
 		HashSalt:       f.DownsamplingHashSalt,
 		MetricsFactory: f.metricsFactory.Namespace(metrics.NSOptions{Name: "downsampling_writer"}),
