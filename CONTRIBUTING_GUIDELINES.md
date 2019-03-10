@@ -13,7 +13,7 @@ Table of Contents:
 
 * [Making a Change](#making-a-change)
 * [License](#license)
-* [Certificate of Origin - Sign your work](#sign-your-work)
+* [Certificate of Origin - Sign your work](#certificate-of-origin---sign-your-work)
 * [Branches](#branches)
 
 ## Making a Change
@@ -45,7 +45,7 @@ Your pull request is most likely to be accepted if **each commit**:
   * Use the imperative mood in the subject line
   * Wrap the body at 72 characters
   * Use the body to explain _what_ and _why_ instead of _how_
-* Has been signed by the author ([see below](#sign-your-work)).
+* Has been signed by the author ([see below](#certificate-of-origin---sign-your-work)).
 
 ## License
 
