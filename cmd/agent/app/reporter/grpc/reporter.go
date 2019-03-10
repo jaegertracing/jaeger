@@ -32,18 +32,18 @@ import (
 // Reporter reports data to collector over gRPC.
 type Reporter struct {
 	collector api_v2.CollectorServiceClient
+	agentTags []model.KeyValue
 	logger    *zap.Logger
 	sanitizer zipkin2.Sanitizer
-	agentTags []model.KeyValue
 }
 
 // NewReporter creates gRPC reporter.
 func NewReporter(conn *grpc.ClientConn, agentTags map[string]string, logger *zap.Logger) *Reporter {
 	return &Reporter{
 		collector: api_v2.NewCollectorServiceClient(conn),
+		agentTags: makeModelKeyValue(agentTags),
 		logger:    logger,
 		sanitizer: zipkin2.NewChainedSanitizer(zipkin2.StandardSanitizers...),
-		agentTags: makeModelKeyValue(agentTags),
 	}
 }
 

@@ -58,7 +58,10 @@ func TestReporter_EmitZipkinBatch(t *testing.T) {
 	conn, err := grpc.Dial(addr.String(), grpc.WithInsecure())
 	defer conn.Close()
 	require.NoError(t, err)
-	rep := NewReporter(conn, nil, zap.NewNop())
+
+	agentTags := make(map[string]string)
+	agentTags["hello"] = "world"
+	rep := NewReporter(conn, agentTags, zap.NewNop())
 
 	tm := time.Unix(158, 0)
 	a := tm.Unix() * 1000 * 1000
@@ -71,7 +74,8 @@ func TestReporter_EmitZipkinBatch(t *testing.T) {
 		{in: &zipkincore.Span{Name: "jonatan", TraceID: 1, ID: 2, Timestamp: &a, Annotations: []*zipkincore.Annotation{{Value: zipkincore.CLIENT_SEND, Host: &zipkincore.Endpoint{ServiceName: "spring"}}}},
 			expected: model.Batch{
 				Spans: []*model.Span{{TraceID: model.NewTraceID(0, 1), SpanID: model.NewSpanID(2), OperationName: "jonatan", Duration: time.Microsecond * 1,
-					Tags: model.KeyValues{{Key: "span.kind", VStr: "client", VType: model.StringType}}, Process: &model.Process{ServiceName: "spring"}, StartTime: tm.UTC()}}}},
+					Tags: model.KeyValues{{Key: "span.kind", VStr: "client", VType: model.StringType}, {Key: "hello", VStr: "world", VType: model.StringType}}, 
+					Process: &model.Process{ServiceName: "spring"}, StartTime: tm.UTC()}}}},
 	}
 	for _, test := range tests {
 		err = rep.EmitZipkinBatch([]*zipkincore.Span{test.in})

@@ -34,7 +34,7 @@ func TestBindFlags(t *testing.T) {
 
 	err := command.ParseFlags([]string{
 		"--reporter.type=grpc",
-		"--jaeger.tag key=value",
+		"--jaeger.tag=key=value",
 	})
 	require.NoError(t, err)
 
