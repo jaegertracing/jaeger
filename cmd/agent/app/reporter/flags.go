@@ -58,6 +58,9 @@ func (b *Options) InitFromViper(v *viper.Viper) *Options {
 
 // Parsing logic borrowed from jaegertracing/jaeger-client-go
 func parseAgentTags(agentTags string) map[string]string {
+	if agentTags == "" {
+		return nil
+	}
 	tagPairs := strings.Split(string(agentTags), ",")
 	tags := make(map[string]string)
 	for _, p := range tagPairs {
