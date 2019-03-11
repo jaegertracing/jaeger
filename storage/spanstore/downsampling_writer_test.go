@@ -15,6 +15,7 @@
 package spanstore
 
 import (
+	"errors"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -27,6 +28,15 @@ type noopWriteSpanStore struct{}
 func (n *noopWriteSpanStore) WriteSpan(span *model.Span) error {
 	return nil
 }
+
+var errIWillAlwaysFail = errors.New("ErrProneWriteSpanStore will always fail")
+
+type errorWriteSpanStore struct{}
+
+func (n *errorWriteSpanStore) WriteSpan(span *model.Span) error {
+	return errIWillAlwaysFail
+}
+
 func TestDownSamplingWriter_WriteSpan(t *testing.T) {
 	trace := model.TraceID{
 		Low:  uint64(0),
@@ -36,21 +46,18 @@ func TestDownSamplingWriter_WriteSpan(t *testing.T) {
 		TraceID: trace,
 	}
 	downsamplingOptions := DownsamplingOptions{
-		Ratio:    1,
+		Ratio:    0,
 		HashSalt: "jaeger-test",
 	}
-	c := NewDownsamplingWriter(&noopWriteSpanStore{}, downsamplingOptions)
+	c := NewDownsamplingWriter(&errorWriteSpanStore{}, downsamplingOptions)
 	assert.NoError(t, c.WriteSpan(span))
 
-	downsamplingOptions.Ratio = 0
-	c = NewDownsamplingWriter(&noopWriteSpanStore{}, downsamplingOptions)
-	assert.NoError(t, c.WriteSpan(span))
-
-	downsamplingOptions.Ratio = 0.8
-	c = NewDownsamplingWriter(&noopWriteSpanStore{}, downsamplingOptions)
-	assert.NoError(t, c.WriteSpan(span))
+	downsamplingOptions.Ratio = 1
+	c = NewDownsamplingWriter(&errorWriteSpanStore{}, downsamplingOptions)
+	assert.Error(t, c.WriteSpan(span))
 }
 
+// This test is to make sure h.hash.Reset() works and same traceID will always hash to the same value
 func TestDownSamplingWriter_hashBytes(t *testing.T) {
 	downsamplingOptions := DownsamplingOptions{
 		Ratio:          1,

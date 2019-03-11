@@ -131,8 +131,8 @@ func (f *Factory) CreateSpanWriter() (spanstore.Writer, error) {
 	} else {
 		spanWriter = spanstore.NewCompositeWriter(writers...)
 	}
-	// Turn off DownsamplingWriter entirely if ratio == 1.0.
-	if f.DownsamplingRatio == 1.0 {
+	// Turn off DownsamplingWriter entirely if ratio == defaultDownsamplingRatio.
+	if f.DownsamplingRatio == defaultDownsamplingRatio {
 		return spanWriter, nil
 	}
 	return spanstore.NewDownsamplingWriter(spanWriter, spanstore.DownsamplingOptions{

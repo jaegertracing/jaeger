@@ -25,8 +25,8 @@ import (
 	"github.com/jaegertracing/jaeger/model"
 )
 
-const (
-	traceIDByteSize = 16
+var (
+	traceIDByteSize = (&model.TraceID{}).Size()
 )
 
 // hasher includes data we want to put in sync.Pool
@@ -65,11 +65,11 @@ func NewDownsamplingWriter(spanWriter Writer, downsamplingOptions DownsamplingOp
 	hashSaltBytes := []byte(downsamplingOptions.HashSalt)
 	pool := &sync.Pool{
 		New: func() interface{} {
-			byteArray := make([]byte, len(hashSaltBytes)+traceIDByteSize)
-			copy(byteArray, hashSaltBytes)
+			buffer := make([]byte, len(hashSaltBytes)+traceIDByteSize)
+			copy(buffer, hashSaltBytes)
 			return &hasher{
 				hash:   fnv.New64a(),
-				buffer: byteArray,
+				buffer: buffer,
 			}
 		},
 	}
@@ -109,6 +109,5 @@ func (h *hasher) hashBytes() uint64 {
 	h.hash.Reset()
 	// Currently fnv.Write() implementation doesn't throw any error so metric is not necessary here.
 	_, _ = h.hash.Write(h.buffer)
-	sum := h.hash.Sum64()
-	return sum
+	return h.hash.Sum64()
 }

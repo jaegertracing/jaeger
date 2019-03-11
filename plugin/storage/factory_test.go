@@ -17,6 +17,8 @@ package storage
 import (
 	"errors"
 	"flag"
+	"reflect"
+	"strings"
 	"testing"
 
 	"github.com/spf13/viper"
@@ -150,14 +152,29 @@ func TestCreateDownsamplingWriter(t *testing.T) {
 	spanWriter := new(spanStoreMocks.Writer)
 	mock.On("CreateSpanWriter").Return(spanWriter, nil)
 
-	f.DownsamplingRatio = 0.5
 	m := metrics.NullFactory
 	l := zap.NewNop()
 	mock.On("Initialize", m, l).Return(nil)
 
-	f.Initialize(m, l)
-	_, err = f.CreateSpanWriter()
-	assert.NoError(t, err)
+	var testParams = []struct {
+		ratio      float64
+		writerType string
+	}{
+		{0.5, "*spanstore.DownsamplingWriter"},
+		{1.0, "*mocks.Writer"},
+	}
+
+	for _, param := range testParams {
+		t.Run(param.writerType, func(t *testing.T) {
+			f.DownsamplingRatio = param.ratio
+			f.Initialize(m, l)
+			newWriter, err := f.CreateSpanWriter()
+			assert.NoError(t, err)
+			// Currently directly assertEqual doesn't work since DownsamplingWriter initializes with different
+			// address for hashPool. The following workaround checks writer type instead
+			assert.True(t, strings.HasPrefix(reflect.TypeOf(newWriter).String(), param.writerType))
+		})
+	}
 }
 
 func TestCreateMulti(t *testing.T) {
