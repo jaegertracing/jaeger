@@ -37,6 +37,13 @@ const (
 	elasticsearchStorageType = "elasticsearch"
 	memoryStorageType        = "memory"
 	kafkaStorageType         = "kafka"
+	downsamplingRatio        = "downsampling.ratio"
+	downsamplingHashSalt     = "downsampling.hashsalt"
+
+	// defaultDownsamplingRatio is the default downsampling ratio.
+	defaultDownsamplingRatio = 1.0
+	// defaultDownsamplingHashSalt is the default downsampling hashsalt.
+	defaultDownsamplingHashSalt = ""
 )
 
 var allStorageTypes = []string{cassandraStorageType, elasticsearchStorageType, memoryStorageType, kafkaStorageType}
@@ -44,8 +51,8 @@ var allStorageTypes = []string{cassandraStorageType, elasticsearchStorageType, m
 // Factory implements storage.Factory interface as a meta-factory for storage components.
 type Factory struct {
 	FactoryConfig
-
-	factories map[string]storage.Factory
+	metricsFactory metrics.Factory
+	factories      map[string]storage.Factory
 }
 
 // NewFactory creates the meta-factory.
@@ -84,8 +91,9 @@ func (f *Factory) getFactoryOfType(factoryType string) (storage.Factory, error) 
 	}
 }
 
-// Initialize implements storage.Factory
+// Initialize implements storage.Factory.
 func (f *Factory) Initialize(metricsFactory metrics.Factory, logger *zap.Logger) error {
+	f.metricsFactory = metricsFactory
 	for _, factory := range f.factories {
 		if err := factory.Initialize(metricsFactory, logger); err != nil {
 			return err
@@ -94,7 +102,7 @@ func (f *Factory) Initialize(metricsFactory metrics.Factory, logger *zap.Logger)
 	return nil
 }
 
-// CreateSpanReader implements storage.Factory
+// CreateSpanReader implements storage.Factory.
 func (f *Factory) CreateSpanReader() (spanstore.Reader, error) {
 	factory, ok := f.factories[f.SpanReaderType]
 	if !ok {
@@ -103,7 +111,7 @@ func (f *Factory) CreateSpanReader() (spanstore.Reader, error) {
 	return factory.CreateSpanReader()
 }
 
-// CreateSpanWriter implements storage.Factory
+// CreateSpanWriter implements storage.Factory.
 func (f *Factory) CreateSpanWriter() (spanstore.Writer, error) {
 	var writers []spanstore.Writer
 	for _, storageType := range f.SpanWriterTypes {
@@ -117,10 +125,21 @@ func (f *Factory) CreateSpanWriter() (spanstore.Writer, error) {
 		}
 		writers = append(writers, writer)
 	}
+	var spanWriter spanstore.Writer
 	if len(f.SpanWriterTypes) == 1 {
-		return writers[0], nil
+		spanWriter = writers[0]
+	} else {
+		spanWriter = spanstore.NewCompositeWriter(writers...)
 	}
-	return spanstore.NewCompositeWriter(writers...), nil
+	// Turn off DownsamplingWriter entirely if ratio == defaultDownsamplingRatio.
+	if f.DownsamplingRatio == defaultDownsamplingRatio {
+		return spanWriter, nil
+	}
+	return spanstore.NewDownsamplingWriter(spanWriter, spanstore.DownsamplingOptions{
+		Ratio:          f.DownsamplingRatio,
+		HashSalt:       f.DownsamplingHashSalt,
+		MetricsFactory: f.metricsFactory.Namespace(metrics.NSOptions{Name: "downsampling_writer"}),
+	}), nil
 }
 
 // CreateDependencyReader implements storage.Factory
@@ -139,6 +158,21 @@ func (f *Factory) AddFlags(flagSet *flag.FlagSet) {
 			conf.AddFlags(flagSet)
 		}
 	}
+	addDownsamplingFlags(flagSet)
+}
+
+// addDownsamplingFlags add flags for Downsampling params
+func addDownsamplingFlags(flagSet *flag.FlagSet) {
+	flagSet.Float64(
+		downsamplingRatio,
+		defaultDownsamplingRatio,
+		"Ratio of spans passed to storage after downsampling (between 0 and 1), e.g ratio = 0.3 means we are keeping 30% of spans and dropping 70% of spans; ratio = 1.0 disables downsampling.",
+	)
+	flagSet.String(
+		downsamplingHashSalt,
+		defaultDownsamplingHashSalt,
+		"Salt used when hashing trace id for downsampling.",
+	)
 }
 
 // InitFromViper implements plugin.Configurable
@@ -148,6 +182,16 @@ func (f *Factory) InitFromViper(v *viper.Viper) {
 			conf.InitFromViper(v)
 		}
 	}
+	f.initDownsamplingFromViper(v)
+}
+
+func (f *Factory) initDownsamplingFromViper(v *viper.Viper) {
+	f.FactoryConfig.DownsamplingRatio = v.GetFloat64(downsamplingRatio)
+	if f.FactoryConfig.DownsamplingRatio < 0 || f.FactoryConfig.DownsamplingRatio > 1 {
+		// Values not in the range of 0 ~ 1.0 will be set to default.
+		f.FactoryConfig.DownsamplingRatio = 1.0
+	}
+	f.FactoryConfig.DownsamplingHashSalt = v.GetString(downsamplingHashSalt)
 }
 
 // CreateArchiveSpanReader implements storage.ArchiveFactory
