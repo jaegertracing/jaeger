@@ -37,6 +37,7 @@ func (n *errorWriteSpanStore) WriteSpan(span *model.Span) error {
 	return errIWillAlwaysFail
 }
 
+// This test is to make sure downsampling works with different ratio.
 func TestDownSamplingWriter_WriteSpan(t *testing.T) {
 	trace := model.TraceID{
 		Low:  uint64(0),
@@ -57,7 +58,7 @@ func TestDownSamplingWriter_WriteSpan(t *testing.T) {
 	assert.Error(t, c.WriteSpan(span))
 }
 
-// This test is to make sure h.hash.Reset() works and same traceID will always hash to the same value
+// This test is to make sure h.hash.Reset() works and same traceID will always hash to the same value.
 func TestDownSamplingWriter_hashBytes(t *testing.T) {
 	downsamplingOptions := DownsamplingOptions{
 		Ratio:          1,
@@ -76,6 +77,6 @@ func TestDownSamplingWriter_hashBytes(t *testing.T) {
 		TraceID: trace,
 	}
 	_, _ = span.TraceID.MarshalTo(h.buffer)
-	// Same traceID should always be hashed to same uint64 in DownSamplingWriter
+	// Same traceID should always be hashed to same uint64 in DownSamplingWriter.
 	assert.Equal(t, h.hashBytes(), h.hashBytes())
 }

@@ -25,17 +25,19 @@ import (
 	"github.com/jaegertracing/jaeger/model"
 )
 
+const defaultHashSalt = "downsampling-default-salt"
+
 var (
 	traceIDByteSize = (&model.TraceID{}).Size()
 )
 
-// hasher includes data we want to put in sync.Pool
+// hasher includes data we want to put in sync.Pool.
 type hasher struct {
 	hash   hash.Hash64
 	buffer []byte
 }
 
-// downsamplingWriterMetrics keeping track of total number of dropped spans and accepted spans
+// downsamplingWriterMetrics keeping track of total number of dropped spans and accepted spans.
 type downsamplingWriterMetrics struct {
 	SpansDropped  metrics.Counter `metric:"spans_dropped"`
 	SpansAccepted metrics.Counter `metric:"spans_accepted"`
@@ -62,7 +64,11 @@ func NewDownsamplingWriter(spanWriter Writer, downsamplingOptions DownsamplingOp
 	threshold := uint64(downsamplingOptions.Ratio * float64(math.MaxUint64))
 	writeMetrics := &downsamplingWriterMetrics{}
 	metrics.Init(writeMetrics, downsamplingOptions.MetricsFactory, nil)
-	hashSaltBytes := []byte(downsamplingOptions.HashSalt)
+	salt := downsamplingOptions.HashSalt
+	if salt == "" {
+		salt = defaultHashSalt
+	}
+	hashSaltBytes := []byte(salt)
 	pool := &sync.Pool{
 		New: func() interface{} {
 			buffer := make([]byte, len(hashSaltBytes)+traceIDByteSize)
