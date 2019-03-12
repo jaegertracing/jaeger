@@ -105,11 +105,12 @@ func (td ToDomain) convertRefs(refs []Reference) ([]model.SpanRef, error) {
 	for i, r := range refs {
 		// There are some inconsistencies with ReferenceTypes, hence the hacky fix.
 		var refType model.SpanRefType
-		if r.RefType == ChildOf {
+		switch r.RefType {
+		case ChildOf:
 			refType = model.ChildOf
-		} else if r.RefType == FollowsFrom {
+		case FollowsFrom:
 			refType = model.FollowsFrom
-		} else {
+		default:
 			return nil, fmt.Errorf("not a valid SpanRefType string %s", string(r.RefType))
 		}
 

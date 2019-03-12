@@ -23,11 +23,12 @@ type traceByTraceID []*Trace
 func (s traceByTraceID) Len() int      { return len(s) }
 func (s traceByTraceID) Swap(i, j int) { s[i], s[j] = s[j], s[i] }
 func (s traceByTraceID) Less(i, j int) bool {
-	if len(s[i].Spans) == 0 {
+	switch {
+	case len(s[i].Spans) == 0:
 		return true
-	} else if len(s[j].Spans) == 0 {
+	case len(s[j].Spans) == 0:
 		return false
-	} else {
+	default:
 		return s[i].Spans[0].TraceID.Low < s[j].Spans[0].TraceID.Low
 	}
 }
