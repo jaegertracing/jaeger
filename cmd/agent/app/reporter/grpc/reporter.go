@@ -16,7 +16,6 @@ package grpc
 
 import (
 	"context"
-	"fmt"
 
 	"go.uber.org/zap"
 	"google.golang.org/grpc"
@@ -93,7 +92,6 @@ func addProcessTags(spans []*model.Span, agentTags []model.KeyValue) []*model.Sp
 func makeModelKeyValue(agentTags map[string]string) []model.KeyValue {
 	tags := []model.KeyValue{}
 	for k, v := range agentTags {
-		fmt.Println("Adding", k, v)
 		tag := model.String(k, v)
 		tags = append(tags, tag)
 	}
