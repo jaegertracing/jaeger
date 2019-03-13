@@ -124,3 +124,13 @@ func TestReporter_SendFailure(t *testing.T) {
 	err = rep.send(nil, nil)
 	assert.EqualError(t, err, "rpc error: code = Unavailable desc = all SubConns are in TransientFailure, latest connection error: connection error: desc = \"transport: Error while dialing dial tcp: missing address\"")
 }
+
+func TestReporter_MakeModelKeyValue(t *testing.T) {
+	stringTags := make(map[string]string)
+	stringTags["hello"] = "world"
+	jaegerTags := makeModelKeyValue(stringTags)
+	expected := []model.KeyValue{model.String("hello","world")}
+
+	assert.Equal(t, 1, len(jaegerTags))
+	assert.Equal(t, expected, jaegerTags)
+}

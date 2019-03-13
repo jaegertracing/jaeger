@@ -16,6 +16,7 @@ package grpc
 
 import (
 	"context"
+	"fmt"
 
 	"go.uber.org/zap"
 	"google.golang.org/grpc"
@@ -65,7 +66,7 @@ func (r *Reporter) EmitZipkinBatch(zSpans []*zipkincore.Span) error {
 }
 
 func (r *Reporter) send(spans []*model.Span, process *model.Process) error {
-	spans = addTags(spans, r.agentTags)
+	spans = addProcessTags(spans, r.agentTags)
 	batch := model.Batch{Spans: spans, Process: process}
 	req := &api_v2.PostSpansRequest{Batch: batch}
 	_, err := r.collector.PostSpans(context.Background(), req)
@@ -76,20 +77,24 @@ func (r *Reporter) send(spans []*model.Span, process *model.Process) error {
 }
 
 // addTags appends jaeger tags for the agent to every span it sends to the collector.
-func addTags(spans []*model.Span, agentTags []model.KeyValue) []*model.Span {
+func addProcessTags(spans []*model.Span, agentTags []model.KeyValue) []*model.Span {
 	for _, span := range spans {
-		span.Tags = append(span.Tags, agentTags...)
+		if len(agentTags) > 0 {
+			if span.Process == nil {
+				span.Process = &model.Process{Tags: agentTags}
+			} else {
+				span.Process.Tags = append(span.Process.Tags, agentTags...)
+			}
+		}
 	}
 	return spans
 }
 
 func makeModelKeyValue(agentTags map[string]string) []model.KeyValue {
-	tags := make([]model.KeyValue, len(agentTags))
+	tags := []model.KeyValue{}
 	for k, v := range agentTags {
-		tag := model.KeyValue{
-			Key:  k,
-			VStr: v,
-		}
+		fmt.Println("Adding", k, v)
+		tag := model.String(k, v)
 		tags = append(tags, tag)
 	}
 

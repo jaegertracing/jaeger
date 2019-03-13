@@ -27,7 +27,7 @@ const (
 	// Whether to use grpc or tchannel reporter.
 	reporterType = "reporter.type"
 	// Agent tags
-	agentTags = "jaeger.tag"
+	agentTags = "jaeger.tags"
 	// TCHANNEL is name of tchannel reporter.
 	TCHANNEL Type = "tchannel"
 	// GRPC is name of gRPC reporter.
@@ -46,7 +46,7 @@ type Options struct {
 // AddFlags adds flags for Options.
 func AddFlags(flags *flag.FlagSet) {
 	flags.String(reporterType, string(GRPC), fmt.Sprintf("Reporter type to use e.g. %s, %s", string(GRPC), string(TCHANNEL)))
-	flags.String(agentTags, "", fmt.Sprintf("Add agent-based tags. Ex: --jaeger.tag=key1=value1,${envVar:defaultValue}"))
+	flags.String(agentTags, "", fmt.Sprintf("Add agent-based tags. Ex: --jaeger.tags=key1=value1,${envVar:defaultValue}"))
 }
 
 // InitFromViper initializes Options with properties retrieved from Viper.

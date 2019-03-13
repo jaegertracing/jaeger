@@ -26,10 +26,6 @@ import (
 	"github.com/jaegertracing/jaeger/thrift-gen/zipkincore"
 )
 
-const (
-	annotationTypeStr = 6
-)
-
 // Reporter forwards received spans to central collector tier over TChannel.
 type Reporter struct {
 	channel       *tchannel.Channel
@@ -123,7 +119,7 @@ func addAgentTagsToZipkinBatch(spans []*zipkincore.Span, agentTags []jaeger.Tag)
 			span.BinaryAnnotations = append(span.BinaryAnnotations, &zipkincore.BinaryAnnotation{
 				Key:            tag.Key,
 				Value:          []byte(*tag.VStr),
-				AnnotationType: annotationTypeStr, // static value set to string type.
+				AnnotationType: zipkincore.AnnotationType_STRING, // static value set to string type.
 			})
 		}
 	}
