@@ -17,6 +17,7 @@ package main
 import (
 	"fmt"
 	"io"
+	"io/ioutil"
 	"net/http"
 	"os"
 	"os/signal"
@@ -27,6 +28,7 @@ import (
 	"github.com/spf13/viper"
 	jMetrics "github.com/uber/jaeger-lib/metrics"
 	"go.uber.org/zap"
+	"google.golang.org/grpc/grpclog"
 
 	"github.com/jaegertracing/jaeger/cmd/agent/app"
 	"github.com/jaegertracing/jaeger/cmd/agent/app/reporter"
@@ -41,6 +43,8 @@ import (
 func main() {
 	var signalsChannel = make(chan os.Signal)
 	signal.Notify(signalsChannel, os.Interrupt, syscall.SIGTERM)
+
+	grpclog.SetLoggerV2(grpclog.NewLoggerV2(ioutil.Discard, os.Stderr, os.Stderr))
 
 	v := viper.New()
 	var command = &cobra.Command{

@@ -16,15 +16,12 @@ package app
 
 import (
 	"fmt"
-	"io/ioutil"
 	"net/http"
-	"os"
 
 	"github.com/apache/thrift/lib/go/thrift"
 	"github.com/pkg/errors"
 	"github.com/uber/jaeger-lib/metrics"
 	"go.uber.org/zap"
-	"google.golang.org/grpc/grpclog"
 
 	"github.com/jaegertracing/jaeger/cmd/agent/app/configmanager"
 	"github.com/jaegertracing/jaeger/cmd/agent/app/httpserver"
@@ -65,8 +62,6 @@ var (
 		compactProtocol: thrift.NewTCompactProtocolFactory(),
 		binaryProtocol:  thrift.NewTBinaryProtocolFactoryDefault(),
 	}
-
-	grpcLogInit = false
 )
 
 // CollectorProxy provides access to Reporter and ClientConfigManager
@@ -235,12 +230,6 @@ func CreateCollectorProxy(
 	}
 	switch opts.ReporterType {
 	case reporter.GRPC:
-		// Ensure logger only set once, as can cause data race when multiple tests
-		// create collector proxies
-		if !grpcLogInit {
-			grpclog.SetLoggerV2(grpclog.NewLoggerV2(ioutil.Discard, os.Stderr, os.Stderr))
-			grpcLogInit = true
-		}
 		return grpc.NewCollectorProxy(grpcRepOpts, mFactory, logger)
 	case reporter.TCHANNEL:
 		return tchannel.NewCollectorProxy(tchanRep, mFactory, logger)
