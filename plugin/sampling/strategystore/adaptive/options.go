@@ -24,9 +24,9 @@ import (
 const (
 	targetQPS                    = "sampling.target-qps"
 	equivalenceThreshold         = "sampling.equivalence-threshold"
-	lookbackQPSCount             = "sampling.lookback-qps-count"
+	bucketsForCalculation        = "sampling.buckets-for-calculation"
 	calculationInterval          = "sampling.calculation-interval"
-	lookbackInternval            = "sampling.lookback-interval"
+	aggregationBuckets           = "sampling.aggregation-buckets"
 	delay                        = "sampling.delay"
 	defaultSamplingProbability   = "sampling.default-sampling-probability"
 	minSamplingProbability       = "sampling.min-sampling-probability"
@@ -36,9 +36,9 @@ const (
 
 	defaultTargetQPS                    = 1
 	defaultEquivalenceThreshold         = 0.3
-	defaultLookbackQPSCount             = 1
+	defaultBucketsForCalculation        = 1
 	defaultCalculationInterval          = time.Minute
-	defaultLookbackInterval             = time.Minute * 10
+	defaultAggregationBuckets           = 10
 	defaultDelay                        = time.Minute * 2
 	defaultDefaultSamplingProbability   = 0.001
 	defaultMinSamplingProbability       = 0.00001                                      // once in 100 thousand requests
@@ -59,28 +59,37 @@ type Options struct {
 	// Increase this to reduce the amount of fluctuation in the probability calculation.
 	QPSEquivalenceThreshold float64
 
-	// LookbackQPSCount determines how many previous operation QPS are used in calculating the weighted QPS,
-	// ie. if LookbackQPSCount is 1, the only the most recent QPS will be used in calculating the weighted QPS.
-	LookbackQPSCount int
-
-	// CalculationInterval determines the interval each bucket represents, ie. if an interval is
-	// 1 minute, the bucket will contain 1 minute of throughput data for all services.
+	// CalculationInterval determines how often new probabilities are calculated. It was doubles as the interval
+	// each aggregated thoughput bucket represents, ie. if an interval is 1 minute, new sampling probabilities
+	// are calculated once a minute and each bucket will contain 1 minute of aggregated throughput data.
 	CalculationInterval time.Duration
 
-	// LookbackInterval is the total amount of throughput data used to calculate probabilities.
-	LookbackInterval time.Duration
+	// AggregationBuckets is the total number of aggregated throughput buckets kept in memory, ie. if
+	// the CalculationInterval is 1 minute (each bucket contains 1 minute of thoughput data) and the
+	// AggregationBuckets is 3, the adaptive sampling processor will keep at most 3 buckets in memory for
+	// all operations.
+	// TODO(wjang): Expand on why this is needed when BucketsForCalculation seems to suffice.
+	AggregationBuckets int
 
-	// Delay is the amount of time to delay probability generation by, ie. if the calculationInterval
+	// BucketsForCalculation determines how many previous buckets used in calculating the weighted QPS,
+	// ie. if BucketsForCalculation is 1, only the most recent bucket will be used in calculating the weighted QPS.
+	BucketsForCalculation int
+
+	// Delay is the amount of time to delay probability generation by, ie. if the CalculationInterval
 	// is 1 minute, the number of buckets is 10, and the delay is 2 minutes, then at one time
-	// we'll have [now()-12,now()-2] range of throughput data in memory to base the calculations
-	// off of.
+	// we'll have [now()-12m,now()-2m] range of throughput data in memory to base the calculations
+	// off of. This delay is necessary to counteract the rate at which the jaeger clients poll for
+	// the latest sampling probabilities. The default client poll rate is 1 minute, which means that
+	// during any 1 minute interval, the clients will be fetching new probabilities in a uniformly
+	// distributed manner throughout the 1 minute window. By setting the delay to 2 minutes, we can
+	// guarantee that all clients can use the latest calculated probabilities for at least 1 minute.
 	Delay time.Duration
 
 	// DefaultSamplingProbability is the initial sampling probability for all new operations.
 	DefaultSamplingProbability float64
 
 	// MinSamplingProbability is the minimum sampling probability for all operations. ie. the calculated sampling
-	// probability will be bound [MinSamplingProbability, 1.0]
+	// probability will be bound to math.min(MinSamplingProbability, 1.0)
 	MinSamplingProbability float64
 
 	// LowerBoundTracesPerSecond determines the lower bound number of traces that are sampled per second.
@@ -105,16 +114,16 @@ func AddFlags(flagSet *flag.FlagSet) {
 		"The target number of sampled traces for all operations.",
 	)
 	flagSet.Float64(equivalenceThreshold, defaultEquivalenceThreshold,
-		"The acceptable amount of deviation for the operation QPS from the `targetQPS`. Increase this to reduce the amount of fluctuation in the probability calculation.",
+		"The acceptable amount of deviation for the operation QPS from the `targetQPS`. If the delta between the `targetQPS` and the current operation QPS is less than the equivalence threshold, the probability is not updated. Increase this to reduce the amount of fluctuation in the probability calculation.",
 	)
-	flagSet.Int(lookbackQPSCount, defaultLookbackQPSCount,
-		"This determines how many previous operation QPS are used in calculating the weighted QPS, ie. if LookbackQPSCount is 1, the only the most recent QPS will be used in calculating the weighted QPS.",
+	flagSet.Int(bucketsForCalculation, defaultBucketsForCalculation,
+		"This determines how much of the previous data is used in calculating the weighted QPS, ie. if BucketsForCalculation is 1, only the most recent data will be used in calculating the weighted QPS.",
 	)
 	flagSet.Duration(calculationInterval, defaultCalculationInterval,
 		"How often new sampling probabilities are calculated. Recommended to be greater than the polling interval of your clients.",
 	)
-	flagSet.Duration(lookbackInternval, defaultLookbackInterval,
-		"Amount of historical data to look at when calculating new sampling probabilities.",
+	flagSet.Int(aggregationBuckets, defaultAggregationBuckets,
+		"Amount of historical data to keep in memory.",
 	)
 	flagSet.Duration(delay, defaultDelay,
 		"Determines how far back the most recent state is. Use this if you want to add some buffer time for the aggregation to finish.",
@@ -137,12 +146,12 @@ func AddFlags(flagSet *flag.FlagSet) {
 }
 
 // InitFromViper initializes Options with properties from viper
-func (opts *Options) InitFromViper(v *viper.Viper) *Options {
+func (opts Options) InitFromViper(v *viper.Viper) Options {
 	opts.TargetQPS = v.GetFloat64(targetQPS)
 	opts.QPSEquivalenceThreshold = v.GetFloat64(equivalenceThreshold)
-	opts.LookbackQPSCount = v.GetInt(lookbackQPSCount)
+	opts.BucketsForCalculation = v.GetInt(bucketsForCalculation)
 	opts.CalculationInterval = v.GetDuration(calculationInterval)
-	opts.LookbackInterval = v.GetDuration(lookbackInternval)
+	opts.AggregationBuckets = v.GetInt(aggregationBuckets)
 	opts.Delay = v.GetDuration(delay)
 	opts.DefaultSamplingProbability = v.GetFloat64(defaultSamplingProbability)
 	opts.MinSamplingProbability = v.GetFloat64(minSamplingProbability)

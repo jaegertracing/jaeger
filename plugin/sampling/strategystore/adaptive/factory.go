@@ -26,7 +26,7 @@ import (
 
 // Factory implements strategystore.Factory for an adaptive strategy store.
 type Factory struct {
-	options        *Options
+	options        Options
 	logger         *zap.Logger
 	metricsFactory metrics.Factory
 }
@@ -34,7 +34,6 @@ type Factory struct {
 // NewFactory creates a new Factory.
 func NewFactory() *Factory {
 	return &Factory{
-		options:        &Options{},
 		logger:         zap.NewNop(),
 		metricsFactory: metrics.NullFactory,
 	}
@@ -47,7 +46,7 @@ func (f *Factory) AddFlags(flagSet *flag.FlagSet) {
 
 // InitFromViper implements plugin.Configurable
 func (f *Factory) InitFromViper(v *viper.Viper) {
-	f.options.InitFromViper(v)
+	f.options = Options{}.InitFromViper(v)
 }
 
 // Initialize implements strategystore.Factory

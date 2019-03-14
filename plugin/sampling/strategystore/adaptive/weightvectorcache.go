@@ -19,31 +19,31 @@ import (
 	"sync"
 )
 
-// weightsCache stores normalizing weights of different lengths. The head of the weights slice
+// weightVectorCache stores normalizing weights of different lengths. The head of the weights slice
 // contains the largest weight.
-type weightsCache struct {
+type weightVectorCache struct {
 	sync.Mutex
 
 	cache map[int][]float64
 }
 
-// newWeightsCache returns a new weights cache.
-func newWeightsCache() *weightsCache {
+// newweightVectorCache returns a new weights vector cache.
+func newWeightVectorCache() *weightVectorCache {
 	// TODO allow users to plugin different weighting algorithms
-	return &weightsCache{
+	return &weightVectorCache{
 		cache: make(map[int][]float64),
 	}
 }
 
 // getWeights returns normalizing weights for the specified length.
-func (c *weightsCache) getWeights(length int) []float64 {
+func (c *weightVectorCache) getWeights(length int) []float64 {
 	c.Lock()
 	defer c.Unlock()
 	if weights, ok := c.cache[length]; ok {
 		return weights
 	}
 	l := float64(length)
-	// closed form of sum l^4 ie 1^4 + 2^4 + ... + l^4
+	// Closed form of sum l^4 ie 1^4 + 2^4 + ... + l^4.
 	sum := (l / 30) * (l + 1) * ((2 * l) + 1) * ((3 * l * l) + (3 * l) - 1)
 	weights := make([]float64, 0, length)
 	for i := length; i > 0; i-- {

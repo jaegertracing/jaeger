@@ -36,9 +36,9 @@ func TestFactory(t *testing.T) {
 	command.ParseFlags([]string{
 		"--sampling.target-qps=5",
 		"--sampling.equivalence-threshold=0.25",
-		"--sampling.lookback-qps-count=2",
+		"--sampling.buckets-for-calculation=2",
 		"--sampling.calculation-interval=15m",
-		"--sampling.lookback-interval=3m",
+		"--sampling.aggregation-buckets=3",
 		"--sampling.delay=3m",
 		"--sampling.default-sampling-probability=0.02",
 		"--sampling.min-sampling-probability=0.01",
@@ -51,9 +51,9 @@ func TestFactory(t *testing.T) {
 
 	assert.Equal(t, 5.0, f.options.TargetQPS)
 	assert.Equal(t, 0.25, f.options.QPSEquivalenceThreshold)
-	assert.Equal(t, int(2), f.options.LookbackQPSCount)
+	assert.Equal(t, int(2), f.options.BucketsForCalculation)
 	assert.Equal(t, time.Minute*15, f.options.CalculationInterval)
-	assert.Equal(t, time.Minute*3, f.options.LookbackInterval)
+	assert.Equal(t, int(3), f.options.AggregationBuckets)
 	assert.Equal(t, time.Minute*3, f.options.Delay)
 	assert.Equal(t, 0.02, f.options.DefaultSamplingProbability)
 	assert.Equal(t, 0.01, f.options.MinSamplingProbability)

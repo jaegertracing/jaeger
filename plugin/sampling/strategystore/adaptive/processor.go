@@ -46,11 +46,11 @@ const (
 )
 
 var (
-	errIntervals        = errors.New("calculationInterval must be less than LookbackInterval")
-	errNonZeroIntervals = errors.New("calculationInterval and LookbackInterval must be greater than 0")
-	errLookbackQPSCount = errors.New("lookbackQPSCount cannot be less than 1")
+	errNonZero               = errors.New("CalculationInterval and AggregationBuckets must be greater than 0")
+	errBucketsForCalculation = errors.New("BucketsForCalculation cannot be less than 1")
 )
 
+// nested map: service -> operation -> throughput.
 type serviceOperationThroughput map[string]map[string]*model.Throughput
 
 type throughputBucket struct {
@@ -74,18 +74,14 @@ type processor struct {
 	updateProbabilitiesStop chan struct{}
 	hostname                string
 
-	// buckets is the number of `calculationInterval` buckets used to calculate the probabilities.
-	// It is calculated as lookbackInterval / calculationInterval.
-	buckets int
-
 	// probabilities contains the latest calculated sampling probabilities for service operations.
 	probabilities model.ServiceOperationProbabilities
 
 	// qps contains the latest calculated qps for service operations; the calculation is essentially
-	// throughput / CalculationInterval.
+	// throughput / AggregationInterval.
 	qps model.ServiceOperationQPS
 
-	// throughputs slice of `buckets` size that stores the aggregated throughput. The latest throughput
+	// throughputs slice of `AggregationBuckets` size that stores the aggregated throughput. The latest throughput
 	// is stored at the head of the slice.
 	throughputs []*throughputBucket
 
@@ -94,7 +90,7 @@ type processor struct {
 
 	logger *zap.Logger
 
-	weightsCache *weightsCache
+	weightVectorCache *weightVectorCache
 
 	probabilityCalculator calculationstrategy.ProbabilityCalculator
 
@@ -118,21 +114,16 @@ func NewProcessor(
 	metricsFactory metrics.Factory,
 	logger *zap.Logger,
 ) (ss.StrategyStore, error) {
-	if opts.LookbackInterval < opts.CalculationInterval {
-		return nil, errIntervals
+	if opts.CalculationInterval == 0 || opts.AggregationBuckets == 0 {
+		return nil, errNonZero
 	}
-	if opts.CalculationInterval == 0 || opts.LookbackInterval == 0 {
-		return nil, errNonZeroIntervals
+	if opts.BucketsForCalculation < 1 {
+		return nil, errBucketsForCalculation
 	}
-	if opts.LookbackQPSCount < 1 {
-		return nil, errLookbackQPSCount
-	}
-	buckets := int(opts.LookbackInterval / opts.CalculationInterval)
-	metricsFactory = metricsFactory.Namespace("adaptive_sampling_processor", nil)
+	metricsFactory = metricsFactory.Namespace(metrics.NSOptions{Name: "adaptive_sampling_processor"})
 	return &processor{
 		Options:             opts,
 		storage:             storage,
-		buckets:             buckets,
 		probabilities:       make(model.ServiceOperationProbabilities),
 		qps:                 make(model.ServiceOperationQPS),
 		hostname:            hostname,
@@ -140,12 +131,12 @@ func NewProcessor(
 		logger:              logger,
 		electionParticipant: electionParticipant,
 		// TODO make weightsCache and probabilityCalculator configurable
-		weightsCache:                  newWeightsCache(),
+		weightVectorCache:             newWeightVectorCache(),
 		probabilityCalculator:         calculationstrategy.NewPercentageIncreaseCappedCalculator(1.0),
 		followerProbabilityInterval:   defaultFollowerProbabilityInterval,
 		serviceCache:                  []samplingCache{},
-		operationsCalculatedGauge:     metricsFactory.Gauge("operations_calculated", nil),
-		calculateProbabilitiesLatency: metricsFactory.Timer("calculate_probabilities", nil),
+		operationsCalculatedGauge:     metricsFactory.Gauge(metrics.Options{Name: "operations_calculated"}),
+		calculateProbabilitiesLatency: metricsFactory.Timer(metrics.TimerOptions{Name: "calculate_probabilities"}),
 	}, nil
 }
 
@@ -263,7 +254,7 @@ func (p *processor) runCalculationLoop() {
 				p.probabilities = probabilities
 				p.qps = qps
 				p.Unlock()
-				// NB: This has the potential of running into a race condition if the calculationInterval
+				// NB: This has the potential of running into a race condition if the AggregationInterval
 				// is set to an extremely low value. The worst case scenario is that probabilities is calculated
 				// and swapped more than once before generateStrategyResponses() and saveProbabilities() are called.
 				// This will result in one or more batches of probabilities not being saved which is completely
@@ -289,8 +280,8 @@ func (p *processor) saveProbabilitiesAndQPS() {
 
 func (p *processor) prependThroughputBucket(bucket *throughputBucket) {
 	p.throughputs = append([]*throughputBucket{bucket}, p.throughputs...)
-	if len(p.throughputs) > p.buckets {
-		p.throughputs = p.throughputs[0:p.buckets]
+	if len(p.throughputs) > p.AggregationBuckets {
+		p.throughputs = p.throughputs[0:p.AggregationBuckets]
 	}
 }
 
@@ -314,7 +305,7 @@ func (p *processor) aggregateThroughput(throughputs []*model.Throughput) service
 }
 
 func (p *processor) initializeThroughput(endTime time.Time) {
-	for i := 0; i < p.buckets; i++ {
+	for i := 0; i < p.AggregationBuckets; i++ {
 		startTime := endTime.Add(p.CalculationInterval * -1)
 		throughput, err := p.storage.GetThroughput(startTime, endTime)
 		if err != nil && p.logger != nil {
@@ -338,7 +329,7 @@ type serviceOperationQPS map[string]map[string][]float64
 
 func (p *processor) generateOperationQPS() serviceOperationQPS {
 	// TODO previous qps buckets have already been calculated, just need to calculate latest batch and append them
-	// where necessary and throw out the oldest batch. Edge case #buckets < p.buckets, then we shouldn't throw out
+	// where necessary and throw out the oldest batch. Edge case #buckets < p.AggregationBuckets, then we shouldn't throw out
 	qps := make(serviceOperationQPS)
 	for _, bucket := range p.throughputs {
 		for svc, operations := range bucket.throughput {
@@ -346,7 +337,7 @@ func (p *processor) generateOperationQPS() serviceOperationQPS {
 				qps[svc] = make(map[string][]float64)
 			}
 			for op, throughput := range operations {
-				if len(qps[svc][op]) >= p.LookbackQPSCount {
+				if len(qps[svc][op]) >= p.BucketsForCalculation {
 					continue
 				}
 				qps[svc][op] = append(qps[svc][op], calculateQPS(throughput.Count, bucket.interval))
@@ -367,7 +358,7 @@ func (p *processor) calculateWeightedQPS(allQPS []float64) float64 {
 	if len(allQPS) == 0 {
 		return 0
 	}
-	weights := p.weightsCache.getWeights(len(allQPS))
+	weights := p.weightVectorCache.getWeights(len(allQPS))
 	var qps float64
 	for i := 0; i < len(allQPS); i++ {
 		qps += allQPS[i] * weights[i]
@@ -420,19 +411,19 @@ func (p *processor) calculateProbability(service, operation string, qps float64)
 
 	usingAdaptiveSampling := p.usingAdaptiveSampling(oldProbability, service, operation, latestThroughput)
 	p.serviceCache[0].Set(service, operation, &samplingCacheEntry{
-		probability:    oldProbability,
-		usingAdapative: usingAdaptiveSampling,
+		probability:   oldProbability,
+		usingAdaptive: usingAdaptiveSampling,
 	})
 
-	// Short circuit if the qps is close enough to targetQPS or if the service isn't using
+	// Short circuit if the qps is close enough to targetQPS or if the service doesn't appear to be using
 	// adaptive sampling.
 	if math.Abs(qps-p.TargetQPS) < p.QPSEquivalenceThreshold || !usingAdaptiveSampling {
 		return oldProbability
 	}
 	var newProbability float64
 	if floatEquals(qps, 0) {
-		// Edge case, we double the sampling probability if the QPS is 0 so that we force the service
-		// to at least sample one span probabilistically
+		// Edge case; we double the sampling probability if the QPS is 0 so that we force the service
+		// to at least sample one span probabilistically.
 		newProbability = oldProbability * 2.0
 	} else {
 		newProbability = p.probabilityCalculator.Calculate(p.TargetQPS, qps, oldProbability)
@@ -441,8 +432,8 @@ func (p *processor) calculateProbability(service, operation string, qps float64)
 }
 
 func combineProbabilities(p1 map[string]struct{}, p2 map[string]struct{}) map[string]struct{} {
-	for probability := range p2 {
-		p1[probability] = struct{}{}
+	for probabilityStr := range p2 {
+		p1[probabilityStr] = struct{}{}
 	}
 	return p1
 }
@@ -469,13 +460,13 @@ func (p *processor) usingAdaptiveSampling(probability float64, service, operatio
 	// before.
 	if len(p.serviceCache) > 1 {
 		if e := p.serviceCache[1].Get(service, operation); e != nil {
-			return e.usingAdapative && e.probability != p.DefaultSamplingProbability
+			return e.usingAdaptive && !floatEquals(e.probability, p.DefaultSamplingProbability)
 		}
 	}
 	return false
 }
 
-// generateStrategyResponses generates a SamplingStrategyResponse from the calculated sampling probabilities.
+// generateStrategyResponses generates and caches SamplingStrategyResponse from the calculated sampling probabilities.
 func (p *processor) generateStrategyResponses() {
 	p.RLock()
 	strategies := make(map[string]*sampling.SamplingStrategyResponse)

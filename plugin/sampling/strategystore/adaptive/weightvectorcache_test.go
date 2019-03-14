@@ -21,7 +21,7 @@ import (
 )
 
 func TestGetWeights(t *testing.T) {
-	c := newWeightsCache()
+	c := newWeightVectorCache()
 
 	weights := c.getWeights(1)
 	assert.Len(t, weights, 1)

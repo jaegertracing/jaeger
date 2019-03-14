@@ -24,6 +24,7 @@ import (
 	"github.com/stretchr/testify/mock"
 	"github.com/stretchr/testify/require"
 	"github.com/uber/jaeger-lib/metrics"
+	"github.com/uber/jaeger-lib/metrics/metricstest"
 	"go.uber.org/zap"
 
 	"github.com/jaegertracing/jaeger/cmd/collector/app/sampling/model"
@@ -115,7 +116,7 @@ func TestInitializeThroughput(t *testing.T) {
 		Return([]*model.Throughput{{Service: "svcA", Operation: "GET", Count: 7}}, nil)
 	mockStorage.On("GetThroughput", time.Time{}.Add(time.Minute*17), time.Time{}.Add(time.Minute*18)).
 		Return([]*model.Throughput{}, nil)
-	p := &processor{storage: mockStorage, buckets: 3, Options: Options{CalculationInterval: time.Minute}}
+	p := &processor{storage: mockStorage, Options: Options{CalculationInterval: time.Minute, AggregationBuckets: 3}}
 	p.initializeThroughput(time.Time{}.Add(time.Minute * 20))
 
 	require.Len(t, p.throughputs, 2)
@@ -131,7 +132,7 @@ func TestInitializeThroughputFailure(t *testing.T) {
 	mockStorage := &smocks.Store{}
 	mockStorage.On("GetThroughput", time.Time{}.Add(time.Minute*19), time.Time{}.Add(time.Minute*20)).
 		Return(nil, errTestStorage)
-	p := &processor{storage: mockStorage, buckets: 1, Options: Options{CalculationInterval: time.Minute}}
+	p := &processor{storage: mockStorage, Options: Options{CalculationInterval: time.Minute, AggregationBuckets: 1}}
 	p.initializeThroughput(time.Time{}.Add(time.Minute * 20))
 
 	assert.Len(t, p.throughputs, 0)
@@ -146,7 +147,7 @@ func TestCalculateQPS(t *testing.T) {
 }
 
 func TestGenerateOperationQPS(t *testing.T) {
-	p := &processor{throughputs: testThroughputBuckets, buckets: 10, Options: Options{LookbackQPSCount: 10}}
+	p := &processor{throughputs: testThroughputBuckets, Options: Options{BucketsForCalculation: 10, AggregationBuckets: 10}}
 	svcOpQPS := p.generateOperationQPS()
 	assert.Len(t, svcOpQPS, 2)
 
@@ -194,7 +195,7 @@ func TestGenerateOperationQPS(t *testing.T) {
 }
 
 func TestGenerateOperationQPS_UseMostRecentBucketOnly(t *testing.T) {
-	p := &processor{throughputs: testThroughputBuckets, buckets: 10, Options: Options{LookbackQPSCount: 1}}
+	p := &processor{throughputs: testThroughputBuckets, Options: Options{BucketsForCalculation: 1, AggregationBuckets: 10}}
 	svcOpQPS := p.generateOperationQPS()
 	assert.Len(t, svcOpQPS, 2)
 
@@ -228,7 +229,7 @@ func TestGenerateOperationQPS_UseMostRecentBucketOnly(t *testing.T) {
 }
 
 func TestCalculateWeightedQPS(t *testing.T) {
-	p := processor{weightsCache: newWeightsCache()}
+	p := processor{weightVectorCache: newWeightVectorCache()}
 	assert.InDelta(t, 0.86735, p.calculateWeightedQPS([]float64{0.8, 1.2, 1.0}), 0.001)
 	assert.InDelta(t, 0.95197, p.calculateWeightedQPS([]float64{1.0, 1.0, 0.0, 0.0}), 0.001)
 	assert.Equal(t, 0.0, p.calculateWeightedQPS([]float64{}))
@@ -294,17 +295,17 @@ func TestCalculateProbabilitiesAndQPS(t *testing.T) {
 			"GET": 0.625,
 		},
 	}
-	metrics := metrics.NewLocalFactory(0)
+	mets := metricstest.NewFactory(0)
 	p := &processor{
 		Options: Options{
 			TargetQPS:                  1.0,
 			QPSEquivalenceThreshold:    0.2,
 			DefaultSamplingProbability: 0.001,
-			LookbackQPSCount:           10,
+			BucketsForCalculation:      10,
 		},
 		throughputs: testThroughputBuckets, probabilities: prevProbabilities, qps: qps,
-		weightsCache: newWeightsCache(), probabilityCalculator: testCalculator,
-		operationsCalculatedGauge: metrics.Gauge("test", nil),
+		weightVectorCache: newWeightVectorCache(), probabilityCalculator: testCalculator,
+		operationsCalculatedGauge: mets.Gauge(metrics.Options{Name: "test"}),
 	}
 	probabilities, qps := p.calculateProbabilitiesAndQPS()
 
@@ -316,7 +317,7 @@ func TestCalculateProbabilitiesAndQPS(t *testing.T) {
 	assert.Equal(t, map[string]float64{"GET": 0.7352941176470588, "PUT": 1}, qps["svcA"])
 	assert.Equal(t, map[string]float64{"GET": 0.5147058823529411, "PUT": 0.25}, qps["svcB"])
 
-	_, gauges := metrics.LocalBackend.Snapshot()
+	_, gauges := mets.Backend.Snapshot()
 	assert.EqualValues(t, 4, gauges["test"])
 }
 
@@ -338,11 +339,11 @@ func TestRunCalculationLoop(t *testing.T) {
 		QPSEquivalenceThreshold:      0.1,
 		DefaultSamplingProbability:   0.001,
 		CalculationInterval:          time.Millisecond * 5,
-		LookbackInterval:             time.Millisecond * 10,
+		AggregationBuckets:           2,
 		Delay:                        time.Millisecond * 5,
 		LeaderLeaseRefreshInterval:   time.Millisecond,
 		FollowerLeaseRefreshInterval: time.Second,
-		LookbackQPSCount:             10,
+		BucketsForCalculation:        10,
 	}
 	p, err := NewProcessor(cfg, "host", mockStorage, mockEP, metrics.NullFactory, logger)
 	require.NoError(t, err)
@@ -373,9 +374,9 @@ func TestRunCalculationLoop_GetThroughputError(t *testing.T) {
 	mockEP.On("IsLeader").Return(false)
 
 	cfg := Options{
-		CalculationInterval: time.Millisecond * 5,
-		LookbackInterval:    time.Millisecond * 10,
-		LookbackQPSCount:    10,
+		CalculationInterval:   time.Millisecond * 5,
+		AggregationBuckets:    2,
+		BucketsForCalculation: 10,
 	}
 	proc, err := NewProcessor(cfg, "host", mockStorage, mockEP, metrics.NullFactory, logger)
 	require.NoError(t, err)
@@ -464,7 +465,7 @@ func TestRealisticRunCalculationLoop(t *testing.T) {
 		QPSEquivalenceThreshold:    0.2,
 		DefaultSamplingProbability: 0.001,
 		CalculationInterval:        time.Second * 10,
-		LookbackInterval:           time.Second * 10,
+		AggregationBuckets:         1,
 		Delay:                      time.Second * 10,
 	}
 	p, err := NewProcessor(cfg, "host", mockStorage, mockEP, metrics.NullFactory, logger)
@@ -504,7 +505,7 @@ func TestRealisticRunCalculationLoop(t *testing.T) {
 }
 
 func TestPrependBucket(t *testing.T) {
-	p := &processor{buckets: 1}
+	p := &processor{Options: Options{AggregationBuckets: 1}}
 	p.prependThroughputBucket(&throughputBucket{interval: time.Minute})
 	require.Len(t, p.throughputs, 1)
 	assert.Equal(t, time.Minute, p.throughputs[0].interval)
@@ -522,19 +523,20 @@ func TestConstructorFailure(t *testing.T) {
 		QPSEquivalenceThreshold:    0.2,
 		DefaultSamplingProbability: 0.001,
 		CalculationInterval:        time.Second * 5,
-		LookbackInterval:           time.Second,
+		AggregationBuckets:         0,
 	}
 	_, err := NewProcessor(cfg, "host", nil, nil, metrics.NullFactory, logger)
-	assert.EqualError(t, err, "calculationInterval must be less than LookbackInterval")
+	assert.EqualError(t, err, "CalculationInterval and AggregationBuckets must be greater than 0")
 
 	cfg.CalculationInterval = 0
 	_, err = NewProcessor(cfg, "host", nil, nil, metrics.NullFactory, logger)
-	assert.EqualError(t, err, "calculationInterval and LookbackInterval must be greater than 0")
+	assert.EqualError(t, err, "CalculationInterval and AggregationBuckets must be greater than 0")
 
 	cfg.CalculationInterval = time.Millisecond
-	cfg.LookbackQPSCount = -1
+	cfg.AggregationBuckets = 1
+	cfg.BucketsForCalculation = -1
 	_, err = NewProcessor(cfg, "host", nil, nil, metrics.NullFactory, logger)
-	assert.EqualError(t, err, "lookbackQPSCount cannot be less than 1")
+	assert.EqualError(t, err, "BucketsForCalculation cannot be less than 1")
 }
 
 func TestGenerateStrategyResponses(t *testing.T) {
@@ -621,13 +623,14 @@ func TestCalculateProbabilitiesAndQPSMultiple(t *testing.T) {
 			TargetQPS:                  1.0,
 			QPSEquivalenceThreshold:    0.002,
 			DefaultSamplingProbability: 0.001,
-			LookbackQPSCount:           5,
+			BucketsForCalculation:      5,
+			AggregationBuckets:         10,
 		},
-		throughputs: buckets, probabilities: make(model.ServiceOperationProbabilities), buckets: 10,
-		qps: make(model.ServiceOperationQPS), weightsCache: newWeightsCache(),
+		throughputs: buckets, probabilities: make(model.ServiceOperationProbabilities),
+		qps: make(model.ServiceOperationQPS), weightVectorCache: newWeightVectorCache(),
 		probabilityCalculator:     calculationstrategy.NewPercentageIncreaseCappedCalculator(1.0),
 		serviceCache:              []samplingCache{},
-		operationsCalculatedGauge: metrics.NullFactory.Gauge("", nil),
+		operationsCalculatedGauge: metrics.NullFactory.Gauge(metrics.Options{}),
 	}
 
 	probabilities, qps := p.calculateProbabilitiesAndQPS()

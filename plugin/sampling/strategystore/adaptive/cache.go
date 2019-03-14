@@ -14,12 +14,14 @@
 
 package adaptive
 
-// samplingCacheEntry keeps track of the probability and whether a service-operation is using adaptive sampling
+// samplingCacheEntry keeps track of the probability and whether a service-operation is observed
+// using adaptive sampling.
 type samplingCacheEntry struct {
-	probability    float64
-	usingAdapative bool
+	probability   float64
+	usingAdaptive bool
 }
 
+// nested map: service -> operation -> cache entry.
 type samplingCache map[string]map[string]*samplingCacheEntry
 
 func (s samplingCache) Set(service, operation string, entry *samplingCacheEntry) {
