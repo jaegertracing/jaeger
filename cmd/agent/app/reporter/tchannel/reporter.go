@@ -35,7 +35,6 @@ type Reporter struct {
 	peerListMgr   *peerlistmgr.PeerListManager
 	logger        *zap.Logger
 	serviceName   string
-	agentTags     []jaeger.Tag
 }
 
 // New creates new TChannel-based Reporter.
@@ -44,13 +43,11 @@ func New(
 	channel *tchannel.Channel,
 	reportTimeout time.Duration,
 	peerListMgr *peerlistmgr.PeerListManager,
-	agentTagString map[string]string,
 	zlogger *zap.Logger,
 ) *Reporter {
 	thriftClient := thrift.NewClient(channel, collectorServiceName, nil)
 	zClient := zipkincore.NewTChanZipkinCollectorClient(thriftClient)
 	jClient := jaeger.NewTChanCollectorClient(thriftClient)
-	agentTags := makeJaegerTags(agentTagString)
 	return &Reporter{
 		channel:       channel,
 		zClient:       zClient,
@@ -59,7 +56,6 @@ func New(
 		peerListMgr:   peerListMgr,
 		logger:        zlogger,
 		serviceName:   collectorServiceName,
-		agentTags:     agentTags,
 	}
 }
 
@@ -70,7 +66,6 @@ func (r *Reporter) Channel() *tchannel.Channel {
 
 // EmitZipkinBatch implements EmitZipkinBatch() of Reporter
 func (r *Reporter) EmitZipkinBatch(spans []*zipkincore.Span) error {
-	spans = addAgentTagsToZipkinBatch(spans, r.agentTags)
 	submissionFunc := func(ctx thrift.Context) error {
 		_, err := r.zClient.SubmitZipkinBatch(ctx, spans)
 		return err
@@ -84,7 +79,6 @@ func (r *Reporter) EmitZipkinBatch(spans []*zipkincore.Span) error {
 
 // EmitBatch implements EmitBatch() of Reporter
 func (r *Reporter) EmitBatch(batch *jaeger.Batch) error {
-	batch.Spans = addAgentTags(batch.Spans, r.agentTags)
 	submissionFunc := func(ctx thrift.Context) error {
 		_, err := r.jClient.SubmitBatches(ctx, []*jaeger.Batch{batch})
 		return err
@@ -111,40 +105,4 @@ func (r *Reporter) submitAndReport(submissionFunc func(ctx thrift.Context) error
 // CollectorServiceName returns collector service name.
 func (r *Reporter) CollectorServiceName() string {
 	return r.serviceName
-}
-
-func addAgentTagsToZipkinBatch(spans []*zipkincore.Span, agentTags []jaeger.Tag) []*zipkincore.Span {
-	for _, span := range spans {
-		for _, tag := range agentTags {
-			span.BinaryAnnotations = append(span.BinaryAnnotations, &zipkincore.BinaryAnnotation{
-				Key:            tag.Key,
-				Value:          []byte(*tag.VStr),
-				AnnotationType: zipkincore.AnnotationType_STRING, // static value set to string type.
-			})
-		}
-	}
-	return spans
-}
-
-func addAgentTags(spans []*jaeger.Span, agentTags []jaeger.Tag) []*jaeger.Span {
-	for _, span := range spans {
-		for _, tag := range agentTags {
-			span.Tags = append(span.Tags, &tag)
-		}
-	}
-	return spans
-}
-
-func makeJaegerTags(agentTags map[string]string) []jaeger.Tag {
-	tags := make([]jaeger.Tag, 0)
-	for k, v := range agentTags {
-		tag := jaeger.Tag{
-			Key:   k,
-			VStr:  &v,
-			VType: jaeger.TagType_STRING,
-		}
-		tags = append(tags, tag)
-	}
-
-	return tags
 }
