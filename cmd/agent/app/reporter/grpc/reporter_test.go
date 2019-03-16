@@ -86,6 +86,44 @@ func TestReporter_EmitZipkinBatch(t *testing.T) {
 	}
 }
 
+
+func TestReporter_EmitZipkinBatch_WithAgentTags(t *testing.T) {
+	handler := &mockSpanHandler{}
+	s, addr := initializeGRPCTestServer(t, func(s *grpc.Server) {
+		api_v2.RegisterCollectorServiceServer(s, handler)
+	})
+	defer s.Stop()
+	conn, err := grpc.Dial(addr.String(), grpc.WithInsecure())
+	defer conn.Close()
+	require.NoError(t, err)
+
+	agentTags := make(map[string]string)
+	agentTags["hello"] = "world"
+	rep := NewReporter(conn, agentTags, zap.NewNop())
+
+	tm := time.Unix(158, 0)
+	a := tm.Unix() * 1000 * 1000
+	tests := []struct {
+		in       *zipkincore.Span
+		expected model.Batch
+		err      string
+	}{
+		{in: &zipkincore.Span{TraceID: 1, ID: 2, Timestamp: &a, Annotations: []*zipkincore.Annotation{{Host: &zipkincore.Endpoint{ServiceName: "spring"}}}},
+			expected: model.Batch{
+				Spans: []*model.Span{{TraceID: model.NewTraceID(0, 1), SpanID: model.NewSpanID(2), Duration: time.Microsecond * 1,
+					Process: &model.Process{ServiceName: "spring", Tags: []model.KeyValue{model.String("hello", "world")}}, StartTime: tm.UTC()}}}},
+	}
+	for _, test := range tests {
+		err = rep.EmitZipkinBatch([]*zipkincore.Span{test.in})
+		if test.err != "" {
+			assert.EqualError(t, err, test.err)
+		} else {
+			assert.Equal(t, 1, len(handler.requests))
+			assert.Equal(t, test.expected, handler.requests[0].GetBatch())
+		}
+	}
+}
+
 func TestReporter_EmitBatch(t *testing.T) {
 	handler := &mockSpanHandler{}
 	s, addr := initializeGRPCTestServer(t, func(s *grpc.Server) {
@@ -105,6 +143,41 @@ func TestReporter_EmitBatch(t *testing.T) {
 	}{
 		{in: &jThrift.Batch{Process: &jThrift.Process{ServiceName: "node"}, Spans: []*jThrift.Span{{OperationName: "foo", StartTime: int64(model.TimeAsEpochMicroseconds(tm))}}},
 			expected: model.Batch{Process: &model.Process{ServiceName: "node"}, Spans: []*model.Span{{OperationName: "foo", StartTime: tm.UTC()}}}},
+	}
+	for _, test := range tests {
+		err = rep.EmitBatch(test.in)
+		if test.err != "" {
+			assert.EqualError(t, err, test.err)
+		} else {
+			assert.Equal(t, 1, len(handler.requests))
+			assert.Equal(t, test.expected, handler.requests[0].GetBatch())
+		}
+	}
+}
+
+func TestReporter_EmitBatch_WithAgentTags(t *testing.T) {
+	handler := &mockSpanHandler{}
+	s, addr := initializeGRPCTestServer(t, func(s *grpc.Server) {
+		api_v2.RegisterCollectorServiceServer(s, handler)
+	})
+	defer s.Stop()
+	conn, err := grpc.Dial(addr.String(), grpc.WithInsecure())
+	defer conn.Close()
+	require.NoError(t, err)
+
+	agentTags := make(map[string]string)
+	agentTags["hello"] = "world"
+	rep := NewReporter(conn, agentTags, zap.NewNop())
+
+	tm := time.Unix(158, 0)
+	tests := []struct {
+		in       *jThrift.Batch
+		expected model.Batch
+		err      string
+	}{
+		{in: &jThrift.Batch{Process: &jThrift.Process{ServiceName: "node"}, Spans: []*jThrift.Span{{OperationName: "foo", StartTime: int64(model.TimeAsEpochMicroseconds(tm))}}},
+			expected: model.Batch{Process: &model.Process{ServiceName: "node"},
+				Spans: []*model.Span{{OperationName: "foo", StartTime: tm.UTC(), Process: &model.Process{Tags: []model.KeyValue{model.String("hello", "world")}}}}}},
 	}
 	for _, test := range tests {
 		err = rep.EmitBatch(test.in)
