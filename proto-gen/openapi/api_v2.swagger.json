@@ -1,7 +1,7 @@
 {
   "swagger": "2.0",
   "info": {
-    "title": "api_v2.proto",
+    "title": "model/proto/api_v2/sampling.proto",
     "version": "1.0"
   },
   "schemes": [
