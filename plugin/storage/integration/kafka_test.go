@@ -79,8 +79,7 @@ func (s *KafkaIntegrationTestSuite) initialize() error {
 		defaultLocalKafkaBroker,
 		"--kafka.consumer.encoding",
 		encoding,
-
-		"--ingester.group-id",
+		"--kafka.consumer.group-id",
 		groupID,
 		"--ingester.parallelism",
 		"1000",

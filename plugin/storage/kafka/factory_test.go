@@ -98,7 +98,7 @@ func TestKafkaFactoryEncoding(t *testing.T) {
 func TestKafkaFactoryMarshallerErr(t *testing.T) {
 	f := NewFactory()
 	v, command := config.Viperize(f.AddFlags)
-	command.ParseFlags([]string{"--kafka.encoding=bad-input"})
+	command.ParseFlags([]string{"--kafka.producer.encoding=bad-input"})
 	f.InitFromViper(v)
 
 	f.Builder = &mockProducerBuilder{t: t}
