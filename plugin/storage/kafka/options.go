@@ -32,10 +32,10 @@ const (
 	// EncodingZipkinThrift is used for spans encoded as Zipkin Thrift.
 	EncodingZipkinThrift = "zipkin-thrift"
 
-	configPrefix     = "kafka.producer"
-	suffixBrokers    = ".brokers"
-	suffixTopic      = ".topic"
-	suffixEncoding   = ".encoding"
+	configPrefix   = "kafka.producer"
+	suffixBrokers  = ".brokers"
+	suffixTopic    = ".topic"
+	suffixEncoding = ".encoding"
 
 	defaultBroker   = "127.0.0.1:9092"
 	defaultTopic    = "jaeger-spans"
