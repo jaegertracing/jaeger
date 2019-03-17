@@ -21,6 +21,7 @@ import (
 	"github.com/Shopify/sarama"
 	"github.com/Shopify/sarama/mocks"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 	"github.com/uber/jaeger-lib/metrics"
 	"go.uber.org/zap"
 
@@ -83,7 +84,8 @@ func TestKafkaFactoryEncoding(t *testing.T) {
 		t.Run(test.encoding, func(t *testing.T) {
 			f := NewFactory()
 			v, command := config.Viperize(f.AddFlags)
-			command.ParseFlags([]string{"--kafka.encoding=" + test.encoding})
+			err := command.ParseFlags([]string{"--kafka.producer.encoding=" + test.encoding})
+			require.NoError(t, err)
 			f.InitFromViper(v)
 
 			f.Builder = &mockProducerBuilder{t: t}
