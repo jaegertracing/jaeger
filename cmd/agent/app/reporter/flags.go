@@ -46,7 +46,8 @@ type Options struct {
 // AddFlags adds flags for Options.
 func AddFlags(flags *flag.FlagSet) {
 	flags.String(reporterType, string(GRPC), fmt.Sprintf("Reporter type to use e.g. %s, %s", string(GRPC), string(TCHANNEL)))
-	flags.String(agentTags, "", fmt.Sprintf("Add agent-based tags. Ex: --jaeger.tags=key1=value1,${envVar:defaultValue}"))
+	flags.String(agentTags, "", fmt.Sprintf(`One or more tags to be added to the Process tags of all spans passing through this agent.
+		Ex: --jaeger.tags=key1=value1,key2=${envVar:defaultValue}`))
 }
 
 // InitFromViper initializes Options with properties retrieved from Viper.

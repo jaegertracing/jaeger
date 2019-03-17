@@ -65,7 +65,7 @@ func (r *Reporter) EmitZipkinBatch(zSpans []*zipkincore.Span) error {
 }
 
 func (r *Reporter) send(spans []*model.Span, process *model.Process) error {
-	spans = addProcessTags(spans, r.agentTags)
+	spans, process = addProcessTags(spans, process, r.agentTags)
 	batch := model.Batch{Spans: spans, Process: process}
 	req := &api_v2.PostSpansRequest{Batch: batch}
 	_, err := r.collector.PostSpans(context.Background(), req)
@@ -76,17 +76,17 @@ func (r *Reporter) send(spans []*model.Span, process *model.Process) error {
 }
 
 // addTags appends jaeger tags for the agent to every span it sends to the collector.
-func addProcessTags(spans []*model.Span, agentTags []model.KeyValue) []*model.Span {
+func addProcessTags(spans []*model.Span, process *model.Process, agentTags []model.KeyValue) ([]*model.Span, *model.Process) {
+	if process != nil {
+		process.Tags = append(process.Tags, agentTags...)
+		return spans, process
+	}
 	for _, span := range spans {
 		if len(agentTags) > 0 {
-			if span.Process == nil {
-				span.Process = &model.Process{Tags: agentTags}
-			} else {
-				span.Process.Tags = append(span.Process.Tags, agentTags...)
-			}
+			span.Process.Tags = append(span.Process.Tags, agentTags...)
 		}
 	}
-	return spans
+	return spans, nil
 }
 
 func makeModelKeyValue(agentTags map[string]string) []model.KeyValue {

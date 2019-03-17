@@ -86,7 +86,6 @@ func TestReporter_EmitZipkinBatch(t *testing.T) {
 	}
 }
 
-
 func TestReporter_EmitZipkinBatch_WithAgentTags(t *testing.T) {
 	handler := &mockSpanHandler{}
 	s, addr := initializeGRPCTestServer(t, func(s *grpc.Server) {
@@ -176,8 +175,8 @@ func TestReporter_EmitBatch_WithAgentTags(t *testing.T) {
 		err      string
 	}{
 		{in: &jThrift.Batch{Process: &jThrift.Process{ServiceName: "node"}, Spans: []*jThrift.Span{{OperationName: "foo", StartTime: int64(model.TimeAsEpochMicroseconds(tm))}}},
-			expected: model.Batch{Process: &model.Process{ServiceName: "node"},
-				Spans: []*model.Span{{OperationName: "foo", StartTime: tm.UTC(), Process: &model.Process{Tags: []model.KeyValue{model.String("hello", "world")}}}}}},
+			expected: model.Batch{Process: &model.Process{ServiceName: "node", Tags: []model.KeyValue{model.String("hello", "world")}},
+				Spans: []*model.Span{{OperationName: "foo", StartTime: tm.UTC()}}}},
 	}
 	for _, test := range tests {
 		err = rep.EmitBatch(test.in)
@@ -202,7 +201,7 @@ func TestReporter_MakeModelKeyValue(t *testing.T) {
 	stringTags := make(map[string]string)
 	stringTags["hello"] = "world"
 	jaegerTags := makeModelKeyValue(stringTags)
-	expected := []model.KeyValue{model.String("hello","world")}
+	expected := []model.KeyValue{model.String("hello", "world")}
 
 	assert.Equal(t, 1, len(jaegerTags))
 	assert.Equal(t, expected, jaegerTags)

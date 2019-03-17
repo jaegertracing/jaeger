@@ -59,10 +59,15 @@ func TestBindFlags(t *testing.T) {
 	require.NoError(t, err)
 
 	b := &Options{}
-	os.Setenv("envKey1","envVal1")
+	os.Setenv("envKey1", "envVal1")
 	b.InitFromViper(v)
 
+	agentTags := make(map[string]string)
+	agentTags["key"] = "value"
+	agentTags["envVar1"] = "envVal1"
+	agentTags["envVar2"] = "defaultVal2"
+
 	assert.Equal(t, Type("grpc"), b.ReporterType)
-	assert.Equal(t, parseAgentTags("key=value,envVar1=${envKey1:defaultVal1},envVar2=${envKey2:defaultVal2}"), b.AgentTags)
+	assert.Equal(t, agentTags, b.AgentTags)
 	os.Unsetenv("envKey1")
 }
