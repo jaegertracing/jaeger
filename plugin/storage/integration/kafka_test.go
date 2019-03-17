@@ -46,27 +46,34 @@ func (s *KafkaIntegrationTestSuite) initialize() error {
 	s.logger, _ = testutils.NewLogger()
 	// A new topic is generated per execution to avoid data overlap
 	topic := "jaeger-kafka-integration-test-" + strconv.FormatInt(time.Now().UnixNano(), 10)
+	const encoding = "json"
+	const groupId = "kafka-integration-test"
 
 	f := kafka.NewFactory()
 	v, command := config.Viperize(app.AddFlags)
-	command.ParseFlags([]string{
-		"--kafka.topic",
+	err := command.ParseFlags([]string{
+		"--kafka.producer.topic",
 		topic,
-		"--kafka.brokers",
+		"--kafka.producer.brokers",
 		defaultLocalKafkaBroker,
-		"--kafka.encoding",
-		"json",
-		"--ingester.brokers",
-		defaultLocalKafkaBroker,
-		"--ingester.topic",
+		"--kafka.producer.encoding",
+		encoding,
+
+		"--kafka.consumer.topic",
 		topic,
+		"--kafka.consumer.brokers",
+		defaultLocalKafkaBroker,
+		"--kafka.consumer.encoding",
+		encoding,
+
 		"--ingester.group-id",
-		"kafka-integration-test",
+		groupId,
 		"--ingester.parallelism",
 		"1000",
-		"--ingester.encoding",
-		"json",
 	})
+	if err != nil {
+		return err
+	}
 	f.InitFromViper(v)
 	if err := f.Initialize(metrics.NullFactory, s.logger); err != nil {
 		return err
