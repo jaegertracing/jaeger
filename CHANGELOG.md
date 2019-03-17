@@ -14,6 +14,10 @@ Changes by Version
     --kafka.brokers
     --kafka.encoding
     --kafka.topic
+    --ingester.brokers
+    --ingester.encoding
+    --ingester.topic
+    --ingester.group-id
     ``` 
     
     In the Collector, they are replaced by:
@@ -27,6 +31,7 @@ Changes by Version
     ```
     --kafka.consumer.brokers
     --kafka.consumer.encoding
+    --kafka.consumer.topic
     --kafka.consumer.group-id
     ```
 
