@@ -44,13 +44,13 @@ type KafkaIntegrationTestSuite struct {
 
 func (s *KafkaIntegrationTestSuite) initialize() error {
 	s.logger, _ = testutils.NewLogger()
+	const encoding = "json"
+	const groupID = "kafka-integration-test"
 	// A new topic is generated per execution to avoid data overlap
 	topic := "jaeger-kafka-integration-test-" + strconv.FormatInt(time.Now().UnixNano(), 10)
-	const encoding = "json"
-	const groupId = "kafka-integration-test"
 
 	f := kafka.NewFactory()
-	v, command := config.Viperize(app.AddFlags)
+	v, command := config.Viperize(f.AddFlags)
 	err := command.ParseFlags([]string{
 		"--kafka.producer.topic",
 		topic,
@@ -58,18 +58,6 @@ func (s *KafkaIntegrationTestSuite) initialize() error {
 		defaultLocalKafkaBroker,
 		"--kafka.producer.encoding",
 		encoding,
-
-		"--kafka.consumer.topic",
-		topic,
-		"--kafka.consumer.brokers",
-		defaultLocalKafkaBroker,
-		"--kafka.consumer.encoding",
-		encoding,
-
-		"--ingester.group-id",
-		groupId,
-		"--ingester.parallelism",
-		"1000",
 	})
 	if err != nil {
 		return err
@@ -83,6 +71,23 @@ func (s *KafkaIntegrationTestSuite) initialize() error {
 		return err
 	}
 
+	v, command = config.Viperize(app.AddFlags)
+	err = command.ParseFlags([]string{
+		"--kafka.consumer.topic",
+		topic,
+		"--kafka.consumer.brokers",
+		defaultLocalKafkaBroker,
+		"--kafka.consumer.encoding",
+		encoding,
+
+		"--ingester.group-id",
+		groupID,
+		"--ingester.parallelism",
+		"1000",
+	})
+	if err != nil {
+		return err
+	}
 	options := app.Options{}
 	options.InitFromViper(v)
 	traceStore := memory.NewStore()
