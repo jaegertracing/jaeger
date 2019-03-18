@@ -93,7 +93,7 @@ func addProcessTags(spans []*model.Span, process *model.Process, agentTags []mod
 }
 
 func makeModelKeyValue(agentTags map[string]string) []model.KeyValue {
-	tags := []model.KeyValue{}
+	tags := make([]model.KeyValue, 0, len(agentTags))
 	for k, v := range agentTags {
 		tag := model.String(k, v)
 		tags = append(tags, tag)
