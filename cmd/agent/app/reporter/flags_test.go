@@ -41,7 +41,7 @@ func TestBindFlags_NoJaegerTags(t *testing.T) {
 	b := &Options{}
 	b.InitFromViper(v)
 	assert.Equal(t, Type("grpc"), b.ReporterType)
-	assert.Equal(t, parseAgentTags(""), b.AgentTags)
+	assert.Len(t, b.AgentTags, 0)
 }
 
 func TestBindFlags(t *testing.T) {
@@ -62,12 +62,13 @@ func TestBindFlags(t *testing.T) {
 	os.Setenv("envKey1", "envVal1")
 	b.InitFromViper(v)
 
-	agentTags := make(map[string]string)
-	agentTags["key"] = "value"
-	agentTags["envVar1"] = "envVal1"
-	agentTags["envVar2"] = "defaultVal2"
+	expectedTags := map[string]string{
+		"key"     : "value",
+		"envVar1" : "envVal1",
+		"envVar2" : "defaultVal2",
+	}
 
 	assert.Equal(t, Type("grpc"), b.ReporterType)
-	assert.Equal(t, agentTags, b.AgentTags)
+	assert.Equal(t, expectedTags, b.AgentTags)
 	os.Unsetenv("envKey1")
 }

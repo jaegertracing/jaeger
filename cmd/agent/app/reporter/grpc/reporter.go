@@ -77,14 +77,17 @@ func (r *Reporter) send(spans []*model.Span, process *model.Process) error {
 
 // addTags appends jaeger tags for the agent to every span it sends to the collector.
 func addProcessTags(spans []*model.Span, process *model.Process, agentTags []model.KeyValue) ([]*model.Span, *model.Process) {
+	if len(agentTags) == 0 {
+		return spans, process
+	}
 	if process != nil {
 		process.Tags = append(process.Tags, agentTags...)
 		return spans, process
 	}
 	for _, span := range spans {
-		if len(agentTags) > 0 {
-			span.Process.Tags = append(span.Process.Tags, agentTags...)
-		}
+		// span.Process will never be nil -
+		// Zipkin batch will always populate span.Process
+		span.Process.Tags = append(span.Process.Tags, agentTags...)
 	}
 	return spans, nil
 }

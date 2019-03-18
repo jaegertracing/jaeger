@@ -86,43 +86,6 @@ func TestReporter_EmitZipkinBatch(t *testing.T) {
 	}
 }
 
-func TestReporter_EmitZipkinBatch_WithAgentTags(t *testing.T) {
-	handler := &mockSpanHandler{}
-	s, addr := initializeGRPCTestServer(t, func(s *grpc.Server) {
-		api_v2.RegisterCollectorServiceServer(s, handler)
-	})
-	defer s.Stop()
-	conn, err := grpc.Dial(addr.String(), grpc.WithInsecure())
-	defer conn.Close()
-	require.NoError(t, err)
-
-	agentTags := make(map[string]string)
-	agentTags["hello"] = "world"
-	rep := NewReporter(conn, agentTags, zap.NewNop())
-
-	tm := time.Unix(158, 0)
-	a := tm.Unix() * 1000 * 1000
-	tests := []struct {
-		in       *zipkincore.Span
-		expected model.Batch
-		err      string
-	}{
-		{in: &zipkincore.Span{TraceID: 1, ID: 2, Timestamp: &a, Annotations: []*zipkincore.Annotation{{Host: &zipkincore.Endpoint{ServiceName: "spring"}}}},
-			expected: model.Batch{
-				Spans: []*model.Span{{TraceID: model.NewTraceID(0, 1), SpanID: model.NewSpanID(2), Duration: time.Microsecond * 1,
-					Process: &model.Process{ServiceName: "spring", Tags: []model.KeyValue{model.String("hello", "world")}}, StartTime: tm.UTC()}}}},
-	}
-	for _, test := range tests {
-		err = rep.EmitZipkinBatch([]*zipkincore.Span{test.in})
-		if test.err != "" {
-			assert.EqualError(t, err, test.err)
-		} else {
-			assert.Equal(t, 1, len(handler.requests))
-			assert.Equal(t, test.expected, handler.requests[0].GetBatch())
-		}
-	}
-}
-
 func TestReporter_EmitBatch(t *testing.T) {
 	handler := &mockSpanHandler{}
 	s, addr := initializeGRPCTestServer(t, func(s *grpc.Server) {
@@ -154,41 +117,6 @@ func TestReporter_EmitBatch(t *testing.T) {
 	}
 }
 
-func TestReporter_EmitBatch_WithAgentTags(t *testing.T) {
-	handler := &mockSpanHandler{}
-	s, addr := initializeGRPCTestServer(t, func(s *grpc.Server) {
-		api_v2.RegisterCollectorServiceServer(s, handler)
-	})
-	defer s.Stop()
-	conn, err := grpc.Dial(addr.String(), grpc.WithInsecure())
-	defer conn.Close()
-	require.NoError(t, err)
-
-	agentTags := make(map[string]string)
-	agentTags["hello"] = "world"
-	rep := NewReporter(conn, agentTags, zap.NewNop())
-
-	tm := time.Unix(158, 0)
-	tests := []struct {
-		in       *jThrift.Batch
-		expected model.Batch
-		err      string
-	}{
-		{in: &jThrift.Batch{Process: &jThrift.Process{ServiceName: "node"}, Spans: []*jThrift.Span{{OperationName: "foo", StartTime: int64(model.TimeAsEpochMicroseconds(tm))}}},
-			expected: model.Batch{Process: &model.Process{ServiceName: "node", Tags: []model.KeyValue{model.String("hello", "world")}},
-				Spans: []*model.Span{{OperationName: "foo", StartTime: tm.UTC()}}}},
-	}
-	for _, test := range tests {
-		err = rep.EmitBatch(test.in)
-		if test.err != "" {
-			assert.EqualError(t, err, test.err)
-		} else {
-			assert.Equal(t, 1, len(handler.requests))
-			assert.Equal(t, test.expected, handler.requests[0].GetBatch())
-		}
-	}
-}
-
 func TestReporter_SendFailure(t *testing.T) {
 	conn, err := grpc.Dial("", grpc.WithInsecure())
 	require.NoError(t, err)
@@ -197,12 +125,45 @@ func TestReporter_SendFailure(t *testing.T) {
 	assert.EqualError(t, err, "rpc error: code = Unavailable desc = all SubConns are in TransientFailure, latest connection error: connection error: desc = \"transport: Error while dialing dial tcp: missing address\"")
 }
 
-func TestReporter_MakeModelKeyValue(t *testing.T) {
-	stringTags := make(map[string]string)
-	stringTags["hello"] = "world"
-	jaegerTags := makeModelKeyValue(stringTags)
-	expected := []model.KeyValue{model.String("hello", "world")}
+func TestReporter_AddProcessTags_EmptyTags(t *testing.T) {
+	tags := map[string]string{}
+	spans := []*model.Span{{TraceID: model.NewTraceID(0, 1), SpanID: model.NewSpanID(2), OperationName: "jonatan"}}
+	actualSpans, _ := addProcessTags(spans, nil, makeModelKeyValue(tags))
+	assert.Equal(t, spans, actualSpans)
+}
 
-	assert.Equal(t, 1, len(jaegerTags))
-	assert.Equal(t, expected, jaegerTags)
+func TestReporter_AddProcessTags_ZipkinBatch(t *testing.T) {
+	tags := map[string]string{ "key" : "value" }
+	spans := []*model.Span{{TraceID: model.NewTraceID(0, 1), SpanID: model.NewSpanID(2), OperationName: "jonatan", Process: &model.Process{ServiceName: "spring"}}}
+
+	expectedSpans := []*model.Span{
+		{
+			TraceID: model.NewTraceID(0, 1),
+			SpanID: model.NewSpanID(2),
+			OperationName: "jonatan",
+			Process: &model.Process{ServiceName: "spring", Tags: []model.KeyValue{model.String("key", "value")}},
+		},
+	}
+	actualSpans, _ := addProcessTags(spans, nil, makeModelKeyValue(tags))
+
+	assert.Equal(t, expectedSpans, actualSpans)
+}
+
+func TestReporter_AddProcessTags_JaegerBatch(t *testing.T) {
+	tags := map[string]string{ "key" : "value" }
+	spans := []*model.Span{{TraceID: model.NewTraceID(0, 1), SpanID: model.NewSpanID(2), OperationName: "jonatan"}}
+	process := &model.Process{ServiceName: "spring"}
+
+	expectedProcess := &model.Process{ServiceName: "spring", Tags: []model.KeyValue{model.String("key", "value")}}
+	_, actualProcess := addProcessTags(spans, process, makeModelKeyValue(tags))
+
+	assert.Equal(t, expectedProcess, actualProcess)
+}
+
+func TestReporter_MakeModelKeyValue(t *testing.T) {
+	expectedTags := []model.KeyValue{model.String("key", "value")}
+	stringTags := map[string]string{ "key" : "value" }
+	actualTags := makeModelKeyValue(stringTags)
+
+	assert.Equal(t, expectedTags, actualTags)
 }
