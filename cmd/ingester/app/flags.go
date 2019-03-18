@@ -32,8 +32,6 @@ const (
 	ConfigPrefix = "ingester"
 	// KafkaConsumerConfigPrefix is a prefix for the Kafka flags
 	KafkaConsumerConfigPrefix = "kafka.consumer"
-	// DeprecatedKafkaConfigPrefix is a prefix for the Kafka flags that is replaced by KafkaConfigPrefix
-	DeprecatedKafkaConfigPrefix = "kafka"
 	// SuffixBrokers is a suffix for the brokers flag
 	SuffixBrokers = ".brokers"
 	// SuffixTopic is a suffix for the topic flag
@@ -107,64 +105,22 @@ func AddFlags(flagSet *flag.FlagSet) {
 		ConfigPrefix+SuffixDeadlockInterval,
 		DefaultDeadlockInterval,
 		"Interval to check for deadlocks. If no messages gets processed in given time, ingester app will exit. Value of 0 disables deadlock check.")
-
-	// TODO: Remove deprecated flags after 1.11
-	flagSet.String(
-		DeprecatedKafkaConfigPrefix+SuffixBrokers,
-		"",
-		fmt.Sprintf("Deprecated; replaced by %s", KafkaConsumerConfigPrefix+SuffixBrokers))
-	flagSet.String(
-		DeprecatedKafkaConfigPrefix+SuffixTopic,
-		"",
-		fmt.Sprintf("Deprecated; replaced by %s", KafkaConsumerConfigPrefix+SuffixTopic))
-	flagSet.String(
-		DeprecatedKafkaConfigPrefix+SuffixGroupID,
-		"",
-		fmt.Sprintf("Deprecated; replaced by %s", KafkaConsumerConfigPrefix+SuffixGroupID))
-	flagSet.String(
-		DeprecatedKafkaConfigPrefix+SuffixEncoding,
-		"",
-		fmt.Sprintf("Deprecated; replaced by %s", KafkaConsumerConfigPrefix+SuffixEncoding))
 }
 
 // InitFromViper initializes Builder with properties from viper
 func (o *Options) InitFromViper(v *viper.Viper) {
-	o.Brokers = strings.Split(v.GetString(KafkaConsumerConfigPrefix+SuffixBrokers), ",")
+	o.Brokers = strings.Split(stripWhiteSpace(v.GetString(KafkaConsumerConfigPrefix+SuffixBrokers)), ",")
 	o.Topic = v.GetString(KafkaConsumerConfigPrefix + SuffixTopic)
 	o.GroupID = v.GetString(KafkaConsumerConfigPrefix + SuffixGroupID)
 	o.Encoding = v.GetString(KafkaConsumerConfigPrefix + SuffixEncoding)
-
-	if brokers := v.GetString(DeprecatedKafkaConfigPrefix + SuffixBrokers); brokers != "" {
-		fmt.Printf("WARNING: found deprecated option %s, please use %s instead\n",
-			DeprecatedKafkaConfigPrefix+SuffixBrokers,
-			KafkaConsumerConfigPrefix+SuffixBrokers,
-		)
-		o.Brokers = strings.Split(brokers, ",")
-	}
-	if topic := v.GetString(DeprecatedKafkaConfigPrefix + SuffixTopic); topic != "" {
-		fmt.Printf("WARNING: found deprecated option %s, please use %s instead\n",
-			DeprecatedKafkaConfigPrefix+SuffixTopic,
-			KafkaConsumerConfigPrefix+SuffixTopic,
-		)
-		o.Topic = topic
-	}
-	if groupID := v.GetString(DeprecatedKafkaConfigPrefix + SuffixGroupID); groupID != "" {
-		fmt.Printf("WARNING: found deprecated option %s, please use %s instead\n",
-			DeprecatedKafkaConfigPrefix+SuffixGroupID,
-			KafkaConsumerConfigPrefix+SuffixGroupID,
-		)
-		o.GroupID = groupID
-	}
-	if encoding := v.GetString(DeprecatedKafkaConfigPrefix + SuffixEncoding); encoding != "" {
-		fmt.Printf("WARNING: found deprecated option %s, please use %s instead\n",
-			DeprecatedKafkaConfigPrefix+SuffixEncoding,
-			KafkaConsumerConfigPrefix+SuffixEncoding,
-		)
-		o.Encoding = encoding
-	}
 
 	o.Parallelism = v.GetInt(ConfigPrefix + SuffixParallelism)
 	o.IngesterHTTPPort = v.GetInt(ConfigPrefix + SuffixHTTPPort)
 
 	o.DeadlockInterval = v.GetDuration(ConfigPrefix + SuffixDeadlockInterval)
+}
+
+// stripWhiteSpace removes all whitespace characters from a string
+func stripWhiteSpace(str string) string {
+	return strings.Replace(str, " ", "", -1)
 }

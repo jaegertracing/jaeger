@@ -7,6 +7,33 @@ Changes by Version
 #### Backend Changes
 
 ##### Breaking Changes
+- The `kafka` flags were removed in favor of `kafka.producer` and `kafka.consumer` flags ([#1424](https://github.com/jaegertracing/jaeger/pull/1424), [@ledor473](https://github.com/ledor473))
+
+    The following flags have been **removed** in the Collector and the Ingester:
+    ```
+    --kafka.brokers
+    --kafka.encoding
+    --kafka.topic
+    --ingester.brokers
+    --ingester.encoding
+    --ingester.topic
+    --ingester.group-id
+    ``` 
+    
+    In the Collector, they are replaced by:
+    ```
+    --kafka.producer.brokers
+    --kafka.producer.encoding
+    --kafka.producer.topic
+    ```
+    
+    In the Ingester, they are replaced by:
+    ```
+    --kafka.consumer.brokers
+    --kafka.consumer.encoding
+    --kafka.consumer.topic
+    --kafka.consumer.group-id
+    ```
 
 ##### New Features
 
@@ -21,7 +48,7 @@ Changes by Version
 #### Backend Changes
 
 ##### Breaking Changes
-- Introduce `kafka.producer` and `kafka.consumer` flags to replace `kafka` flags ([1360](https://github.com/jaegertracing/jaeger/pull/1360), [@ledor473](https://github.com/ledor473))
+- Introduce `kafka.producer` and `kafka.consumer` flags to replace `kafka` flags ([#1360](https://github.com/jaegertracing/jaeger/pull/1360), [@ledor473](https://github.com/ledor473))
 
     The following flags have been deprecated in the Collector and the Ingester:
     ```
