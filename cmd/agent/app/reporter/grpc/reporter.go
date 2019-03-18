@@ -82,14 +82,13 @@ func addProcessTags(spans []*model.Span, process *model.Process, agentTags []mod
 	}
 	if process != nil {
 		process.Tags = append(process.Tags, agentTags...)
-		return spans, process
 	}
 	for _, span := range spans {
-		// span.Process will never be nil -
-		// Zipkin batch will always populate span.Process
-		span.Process.Tags = append(span.Process.Tags, agentTags...)
+		if span.Process != nil {
+			span.Process.Tags = append(span.Process.Tags, agentTags...)
+		}
 	}
-	return spans, nil
+	return spans, process
 }
 
 func makeModelKeyValue(agentTags map[string]string) []model.KeyValue {
