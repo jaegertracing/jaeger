@@ -16,6 +16,7 @@ package reporter
 
 import (
 	"flag"
+	"os"
 	"testing"
 
 	"github.com/spf13/cobra"
@@ -24,7 +25,7 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-func TestBindFlags(t *testing.T) {
+func TestBindFlags_NoJaegerTags(t *testing.T) {
 	v := viper.New()
 	command := cobra.Command{}
 	flags := &flag.FlagSet{}
@@ -40,4 +41,34 @@ func TestBindFlags(t *testing.T) {
 	b := &Options{}
 	b.InitFromViper(v)
 	assert.Equal(t, Type("grpc"), b.ReporterType)
+	assert.Len(t, b.AgentTags, 0)
+}
+
+func TestBindFlags(t *testing.T) {
+	v := viper.New()
+	command := cobra.Command{}
+	flags := &flag.FlagSet{}
+	AddFlags(flags)
+	command.PersistentFlags().AddGoFlagSet(flags)
+	v.BindPFlags(command.PersistentFlags())
+
+	err := command.ParseFlags([]string{
+		"--reporter.type=grpc",
+		"--jaeger.tags=key=value,envVar1=${envKey1:defaultVal1},envVar2=${envKey2:defaultVal2}",
+	})
+	require.NoError(t, err)
+
+	b := &Options{}
+	os.Setenv("envKey1", "envVal1")
+	b.InitFromViper(v)
+
+	expectedTags := map[string]string{
+		"key"     : "value",
+		"envVar1" : "envVal1",
+		"envVar2" : "defaultVal2",
+	}
+
+	assert.Equal(t, Type("grpc"), b.ReporterType)
+	assert.Equal(t, expectedTags, b.AgentTags)
+	os.Unsetenv("envKey1")
 }
