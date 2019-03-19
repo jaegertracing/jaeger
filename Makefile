@@ -397,5 +397,4 @@ proto-install:
 		./vendor/github.com/gogo/protobuf/protoc-gen-gogo \
 		./vendor/github.com/grpc-ecosystem/grpc-gateway/protoc-gen-grpc-gateway \
 		./vendor/github.com/grpc-ecosystem/grpc-gateway/protoc-gen-swagger
-		# ./vendor/github.com/mwitkow/go-proto-validators/protoc-gen-govalidators \
-		# ./vendor/github.com/rakyll/statik
+		# ./vendor/github.com/mwitkow/go-proto-validators/protoc-gen-govalidators

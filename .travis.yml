@@ -13,6 +13,9 @@ matrix:
     - COVERAGE=true
   - go: "1.11.1"
     env:
+    - PROTO_GEN_TEST=true
+  - go: "1.11.1"
+    env:
     - ALL_IN_ONE=true
   - go: "1.11.1"
     env:
@@ -52,6 +55,15 @@ install:
   - if [ "$ALL_IN_ONE" == true ]; then bash ./scripts/travis/install-ui-deps.sh ; fi
   - if [ "$DOCKER" == true ]; then bash ./scripts/travis/install-ui-deps.sh ; fi
   - if [ "$CROSSDOCK" == true ]; then bash ./scripts/travis/install-crossdock-deps.sh ; fi
+  - |
+    if [ "$PROTO_GEN_TEST" == true ]; then
+        make proto-install ci-protoc-install
+        curl -L https://github.com/google/protobuf/releases/download/v3.6.1/protoc-3.6.1-linux-x86_64.zip -o /tmp/protoc.zip
+        unzip /tmp/protoc.zip -d "$HOME"/protoc
+    fi
+
+env:
+  - PATH=$HOME/protoc/bin:$PATH
 
 script:
   - export BRANCH=$(if [ "$TRAVIS_PULL_REQUEST" == "false" ]; then echo $TRAVIS_BRANCH; else echo $TRAVIS_PULL_REQUEST_BRANCH; fi)
@@ -63,6 +75,7 @@ script:
   - if [ "$KAFKA_INTEGRATION_TEST" == true ]; then bash ./scripts/travis/kafka-integration-test.sh ; else echo 'skipping kafka integration test'; fi
   - if [ "$CASSANDRA_INTEGRATION_TEST" == true ]; then bash ./scripts/travis/cassandra-integration-test.sh ; else echo 'skipping cassandra integration test'; fi
   - if [ "$HOTROD" == true ]; then bash ./scripts/travis/hotrod-integration-test.sh ; else echo 'skipping hotrod example'; fi
+  - if [ "$PROTO_GEN_TEST" == true ]; then make proto && git diff --name-status --exit-code ; fi
 
 after_success:
   - if [ "$COVERAGE" == true ]; then mv cover.out coverage.txt ; else echo 'skipping coverage'; fi
