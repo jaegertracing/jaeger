@@ -95,14 +95,10 @@ message FindTracesRequest {
     TraceQueryParameters query = 1;
 }
 
-message FindTracesResponseChunk {
+message SpansResponseChunk {
     repeated jaeger.api_v2.Span spans = 1  [
       (gogoproto.nullable) = false
     ];
-}
-
-message FindTracesResponse {
-
 }
 
 message FindTraceIDsRequest {
@@ -124,10 +120,10 @@ service SpanWriterPlugin {
 
 service SpanReaderPlugin {
     // spanstore/Reader
-    rpc GetTrace(GetTraceRequest) returns (stream FindTracesResponseChunk);
+    rpc GetTrace(GetTraceRequest) returns (stream SpansResponseChunk);
     rpc GetServices(GetServicesRequest) returns (GetServicesResponse);
     rpc GetOperations(GetOperationsRequest) returns (GetOperationsResponse);
-    rpc FindTraces(FindTracesRequest) returns (stream FindTracesResponseChunk);
+    rpc FindTraces(FindTracesRequest) returns (stream SpansResponseChunk);
     rpc FindTraceIDs(FindTraceIDsRequest) returns (FindTraceIDsResponse);
 }
 
