@@ -5,8 +5,6 @@
 Package api_v2 is a reverse proxy.
 
 It translates gRPC into RESTful JSON APIs.
-
-TEST to check that Travis validation works
 */
 package api_v2
 
