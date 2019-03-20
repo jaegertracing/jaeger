@@ -332,6 +332,7 @@ generate-mocks: install-mockery
 echo-version:
 	@echo $(GIT_CLOSEST_TAG)
 
+PROTOC := protoc
 PROTO_INCLUDES := \
 	-I model/proto \
 	-I vendor/github.com/grpc-ecosystem/grpc-gateway \
@@ -372,19 +373,19 @@ proto:
 	# TODO use Docker container instead of installed protoc
 	# (https://medium.com/@linchenon/generate-grpc-and-protobuf-libraries-with-containers-c15ba4e4f3ad)
 	#
-	protoc \
+	$(PROTOC) \
 		$(PROTO_INCLUDES) \
 		--gogo_out=plugins=grpc,$(PROTO_GOGO_MAPPINGS):$(PWD)/model/ \
 		model/proto/model.proto
 
-	protoc \
+	$(PROTOC) \
 		$(PROTO_INCLUDES) \
 		--gogo_out=plugins=grpc,$(PROTO_GOGO_MAPPINGS):$(PWD)/proto-gen/api_v2/ \
 		--grpc-gateway_out=$(PROTO_GOGO_MAPPINGS):$(PWD)/proto-gen/api_v2/ \
 		--swagger_out=$(PWD)/proto-gen/openapi/ \
 		model/proto/api_v2.proto
 
-	protoc \
+	$(PROTOC) \
 		-I model/proto \
 		--go_out=$(PWD)/model/prototest/ \
 		model/proto/model_test.proto
@@ -397,5 +398,4 @@ proto-install:
 		./vendor/github.com/gogo/protobuf/protoc-gen-gogo \
 		./vendor/github.com/grpc-ecosystem/grpc-gateway/protoc-gen-grpc-gateway \
 		./vendor/github.com/grpc-ecosystem/grpc-gateway/protoc-gen-swagger
-		# ./vendor/github.com/mwitkow/go-proto-validators/protoc-gen-govalidators \
-		# ./vendor/github.com/rakyll/statik
+		# ./vendor/github.com/mwitkow/go-proto-validators/protoc-gen-govalidators
