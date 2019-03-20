@@ -12,6 +12,7 @@ ALL_SRC := $(shell find . -name '*.go' \
 				   -not -name 'model.pb.go' \
 				   -not -name 'model_test.pb.go' \
 				   -not -name 'storage.pb.go' \
+				   -not -name 'storage_test.pb.go' \
 				   -not -path './examples/*' \
 				   -not -path './vendor/*' \
 				   -not -path '*/mocks/*' \

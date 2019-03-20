@@ -18,15 +18,14 @@ import (
 	"bytes"
 	"testing"
 
-	"github.com/jaegertracing/jaeger/plugin/storage/grpc/proto/storageprototest"
-
-	"github.com/jaegertracing/jaeger/plugin/storage/grpc/proto/storage_v1"
-
 	"github.com/gogo/protobuf/jsonpb"
 	"github.com/gogo/protobuf/proto"
-	"github.com/jaegertracing/jaeger/model"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+
+	"github.com/jaegertracing/jaeger/plugin/storage/grpc/proto/storageprototest"
+	"github.com/jaegertracing/jaeger/plugin/storage/grpc/proto/storage_v1"
+	"github.com/jaegertracing/jaeger/model"
 )
 
 func TestGetTraceRequestMarshalProto(t *testing.T) {

@@ -18,12 +18,12 @@ import (
 	"bytes"
 	"testing"
 
-	"github.com/jaegertracing/jaeger/model/prototest"
-
 	"github.com/gogo/protobuf/jsonpb"
 	proto "github.com/gogo/protobuf/proto"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+
+	"github.com/jaegertracing/jaeger/model/prototest"
 )
 
 func TestDependencyLinkApplyDefaults(t *testing.T) {
