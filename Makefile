@@ -400,6 +400,11 @@ proto:
 		--go_out=$(PWD)/model/prototest/ \
 		model/proto/model_test.proto
 
+	protoc \
+		-I plugin/storage/grpc/proto \
+		--go_out=$(PWD)/plugin/storage/grpc/proto/storageprototest/ \
+		plugin/storage/grpc/proto/storage_test.proto
+
 
 .PHONY: proto-install
 proto-install:
