@@ -7,33 +7,33 @@ dist: trusty
 
 matrix:
   include:
-  - go: "1.11.1"
+  - go: "1.12.1"
     env:
     - TESTS=true
     - COVERAGE=true
-  - go: "1.11.1"
+  - go: "1.12.1"
     env:
     - PROTO_GEN_TEST=true
-  - go: "1.11.1"
+  - go: "1.12.1"
     env:
     - ALL_IN_ONE=true
-  - go: "1.11.1"
+  - go: "1.12.1"
     env:
     - CROSSDOCK=true
-  - go: "1.11.1"
+  - go: "1.12.1"
     env:
     - DOCKER=true
     - DEPLOY=true
-  - go: "1.11.1"
+  - go: "1.12.1"
     env:
     - ES_INTEGRATION_TEST=true
-  - go: "1.11.1"
+  - go: "1.12.1"
     env:
     - KAFKA_INTEGRATION_TEST=true
-  - go: "1.11.1"
+  - go: "1.12.1"
     env:
     - CASSANDRA_INTEGRATION_TEST=true
-  - go: "1.11.1"
+  - go: "1.12.1"
     env:
     - HOTROD=true
 
