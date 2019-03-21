@@ -44,7 +44,7 @@ func (m *GetTraceRequest) Reset()         { *m = GetTraceRequest{} }
 func (m *GetTraceRequest) String() string { return proto.CompactTextString(m) }
 func (*GetTraceRequest) ProtoMessage()    {}
 func (*GetTraceRequest) Descriptor() ([]byte, []int) {
-	return fileDescriptor_storage_test_dec4e7ed620a0016, []int{0}
+	return fileDescriptor_storage_test_9c088335406789b5, []int{0}
 }
 func (m *GetTraceRequest) XXX_Unmarshal(b []byte) error {
 	return xxx_messageInfo_GetTraceRequest.Unmarshal(m, b)
@@ -71,60 +71,19 @@ func (m *GetTraceRequest) GetTraceId() []byte {
 	return nil
 }
 
-type FindTraceIDsResponse struct {
-	TraceIds             [][]byte `protobuf:"bytes,1,rep,name=trace_ids,json=traceIds,proto3" json:"trace_ids,omitempty"`
-	XXX_NoUnkeyedLiteral struct{} `json:"-"`
-	XXX_unrecognized     []byte   `json:"-"`
-	XXX_sizecache        int32    `json:"-"`
-}
-
-func (m *FindTraceIDsResponse) Reset()         { *m = FindTraceIDsResponse{} }
-func (m *FindTraceIDsResponse) String() string { return proto.CompactTextString(m) }
-func (*FindTraceIDsResponse) ProtoMessage()    {}
-func (*FindTraceIDsResponse) Descriptor() ([]byte, []int) {
-	return fileDescriptor_storage_test_dec4e7ed620a0016, []int{1}
-}
-func (m *FindTraceIDsResponse) XXX_Unmarshal(b []byte) error {
-	return xxx_messageInfo_FindTraceIDsResponse.Unmarshal(m, b)
-}
-func (m *FindTraceIDsResponse) XXX_Marshal(b []byte, deterministic bool) ([]byte, error) {
-	return xxx_messageInfo_FindTraceIDsResponse.Marshal(b, m, deterministic)
-}
-func (dst *FindTraceIDsResponse) XXX_Merge(src proto.Message) {
-	xxx_messageInfo_FindTraceIDsResponse.Merge(dst, src)
-}
-func (m *FindTraceIDsResponse) XXX_Size() int {
-	return xxx_messageInfo_FindTraceIDsResponse.Size(m)
-}
-func (m *FindTraceIDsResponse) XXX_DiscardUnknown() {
-	xxx_messageInfo_FindTraceIDsResponse.DiscardUnknown(m)
-}
-
-var xxx_messageInfo_FindTraceIDsResponse proto.InternalMessageInfo
-
-func (m *FindTraceIDsResponse) GetTraceIds() [][]byte {
-	if m != nil {
-		return m.TraceIds
-	}
-	return nil
-}
-
 func init() {
 	proto.RegisterType((*GetTraceRequest)(nil), "storageprototest.GetTraceRequest")
-	proto.RegisterType((*FindTraceIDsResponse)(nil), "storageprototest.FindTraceIDsResponse")
 }
 
-func init() { proto.RegisterFile("storage_test.proto", fileDescriptor_storage_test_dec4e7ed620a0016) }
+func init() { proto.RegisterFile("storage_test.proto", fileDescriptor_storage_test_9c088335406789b5) }
 
-var fileDescriptor_storage_test_dec4e7ed620a0016 = []byte{
-	// 136 bytes of a gzipped FileDescriptorProto
+var fileDescriptor_storage_test_9c088335406789b5 = []byte{
+	// 97 bytes of a gzipped FileDescriptorProto
 	0x1f, 0x8b, 0x08, 0x00, 0x00, 0x00, 0x00, 0x00, 0x02, 0xff, 0xe2, 0x12, 0x2a, 0x2e, 0xc9, 0x2f,
 	0x4a, 0x4c, 0x4f, 0x8d, 0x2f, 0x49, 0x2d, 0x2e, 0xd1, 0x2b, 0x28, 0xca, 0x2f, 0xc9, 0x17, 0x12,
 	0x80, 0x8a, 0x81, 0x79, 0x20, 0x71, 0x25, 0x1d, 0x2e, 0x7e, 0xf7, 0xd4, 0x92, 0x90, 0xa2, 0xc4,
 	0xe4, 0xd4, 0xa0, 0xd4, 0xc2, 0xd2, 0xd4, 0xe2, 0x12, 0x21, 0x49, 0x2e, 0x8e, 0x12, 0x10, 0x3f,
-	0x3e, 0x33, 0x45, 0x82, 0x51, 0x81, 0x51, 0x83, 0x27, 0x88, 0x1d, 0xcc, 0xf7, 0x4c, 0x51, 0x32,
-	0xe6, 0x12, 0x71, 0xcb, 0xcc, 0x4b, 0x01, 0x2b, 0xf7, 0x74, 0x29, 0x0e, 0x4a, 0x2d, 0x2e, 0xc8,
-	0xcf, 0x2b, 0x4e, 0x15, 0x92, 0xe6, 0xe2, 0x84, 0x69, 0x29, 0x96, 0x60, 0x54, 0x60, 0xd6, 0xe0,
-	0x09, 0xe2, 0x80, 0xea, 0x29, 0x4e, 0x62, 0x03, 0xdb, 0x66, 0x0c, 0x08, 0x00, 0x00, 0xff, 0xff,
-	0x28, 0x67, 0x2c, 0xbc, 0x91, 0x00, 0x00, 0x00,
+	0x3e, 0x33, 0x45, 0x82, 0x51, 0x81, 0x51, 0x83, 0x27, 0x88, 0x1d, 0xcc, 0xf7, 0x4c, 0x49, 0x62,
+	0x03, 0x6b, 0x34, 0x06, 0x04, 0x00, 0x00, 0xff, 0xff, 0xa9, 0x56, 0x76, 0x68, 0x5c, 0x00, 0x00,
+	0x00,
 }

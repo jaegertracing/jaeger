@@ -19,7 +19,3 @@ package storageprototest;
 message GetTraceRequest {
     bytes trace_id = 1;
 }
-
-message FindTraceIDsResponse {
-    repeated bytes trace_ids = 1;
-}
