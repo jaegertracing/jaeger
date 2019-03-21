@@ -1,4 +1,4 @@
-// Copyright (c) 2019 The Jaeger Authors.
+// Copyright (c) 2017 Uber Technologies, Inc.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -14,17 +14,15 @@
 
 package model
 
-import (
-	"testing"
-
-	"github.com/stretchr/testify/assert"
+const (
+	// JaegerDependencyLinkSource describes a dependency diagram that was generated from Jaeger traces.
+	JaegerDependencyLinkSource = "jaeger"
 )
 
-func TestDependencyLinkApplyDefaults(t *testing.T) {
-	dl := DependencyLink{}.ApplyDefaults()
-	assert.Equal(t, JaegerDependencyLinkSource, dl.Source)
-
-	networkSource := "network"
-	dl = DependencyLink{Source: networkSource}.ApplyDefaults()
-	assert.Equal(t, networkSource, dl.Source)
+// ApplyDefaults applies defaults to the DependencyLink.
+func (d DependencyLink) ApplyDefaults() DependencyLink {
+	if d.Source == "" {
+		d.Source = JaegerDependencyLinkSource
+	}
+	return d
 }
