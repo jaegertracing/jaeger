@@ -218,7 +218,7 @@ func defaultInt(value int, defaultVal int) int {
 func CreateCollectorProxy(
 	opts *reporter.Options,
 	tchanRep *tchannel.Builder,
-	grpcRepOpts *grpc.Options,
+	grpcRep *grpc.Builder,
 	logger *zap.Logger,
 	mFactory metrics.Factory,
 ) (CollectorProxy, error) {
@@ -226,13 +226,13 @@ func CreateCollectorProxy(
 	// to keep backward compatibility
 	if opts.ReporterType == reporter.GRPC &&
 		len(tchanRep.CollectorHostPorts) > 0 &&
-		len(grpcRepOpts.CollectorHostPort) == 0 {
+		len(grpcRep.CollectorHostPorts) == 0 {
 		logger.Warn("Using deprecated configuration", zap.String("option", "--collector-host.port"))
 		return tchannel.NewCollectorProxy(tchanRep, mFactory, logger)
 	}
 	switch opts.ReporterType {
 	case reporter.GRPC:
-		return grpc.NewCollectorProxy(grpcRepOpts, opts.AgentTags, mFactory, logger)
+		return grpc.NewCollectorProxy(grpcRep, opts.AgentTags, mFactory, logger)
 	case reporter.TCHANNEL:
 		return tchannel.NewCollectorProxy(tchanRep, mFactory, logger)
 	default:

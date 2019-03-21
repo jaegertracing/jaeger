@@ -17,7 +17,7 @@ package tchannel
 import (
 	"time"
 
-	"github.com/uber/tchannel-go"
+	tchannel "github.com/uber/tchannel-go"
 	"github.com/uber/tchannel-go/thrift"
 	"go.uber.org/zap"
 

@@ -35,6 +35,7 @@ type Reporter struct {
 	agentTags []model.KeyValue
 	logger    *zap.Logger
 	sanitizer zipkin2.Sanitizer
+	conn      *grpc.ClientConn
 }
 
 // NewReporter creates gRPC reporter.
@@ -44,6 +45,7 @@ func NewReporter(conn *grpc.ClientConn, agentTags map[string]string, logger *zap
 		agentTags: makeModelKeyValue(agentTags),
 		logger:    logger,
 		sanitizer: zipkin2.NewChainedSanitizer(zipkin2.StandardSanitizers...),
+		conn:      conn,
 	}
 }
 

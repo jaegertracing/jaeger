@@ -27,12 +27,12 @@ import (
 func TestBindFlags(t *testing.T) {
 	tests := []struct {
 		cOpts    []string
-		expected *Options
+		expected *Builder
 	}{
 		{cOpts: []string{"--reporter.grpc.host-port=localhost:1111", "--reporter.grpc.retry.max=15"},
-			expected: &Options{CollectorHostPort: []string{"localhost:1111"}, MaxRetry: 15}},
+			expected: &Builder{CollectorHostPorts: []string{"localhost:1111"}, MaxRetry: 15}},
 		{cOpts: []string{"--reporter.grpc.host-port=localhost:1111,localhost:2222"},
-			expected: &Options{CollectorHostPort: []string{"localhost:1111", "localhost:2222"}, MaxRetry: defaultMaxRetry}},
+			expected: &Builder{CollectorHostPorts: []string{"localhost:1111", "localhost:2222"}, MaxRetry: defaultMaxRetry}},
 	}
 	for _, test := range tests {
 		v := viper.New()
@@ -44,7 +44,7 @@ func TestBindFlags(t *testing.T) {
 
 		err := command.ParseFlags(test.cOpts)
 		require.NoError(t, err)
-		b := new(Options).InitFromViper(v)
+		b := new(Builder).InitFromViper(v)
 		assert.Equal(t, test.expected, b)
 	}
 }

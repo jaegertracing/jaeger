@@ -54,8 +54,8 @@ func main() {
 				Namespace(metrics.NSOptions{Name: "agent"})
 
 			rOpts := new(reporter.Options).InitFromViper(v)
-			tChanOpts := new(tchannel.Builder).InitFromViper(v, logger)
-			grpcOpts := new(grpc.Options).InitFromViper(v)
+			tChanOpts := tchannel.NewBuilder().InitFromViper(v, logger)
+			grpcOpts := grpc.NewBuilder().InitFromViper(v)
 			cp, err := app.CreateCollectorProxy(rOpts, tChanOpts, grpcOpts, logger, mFactory)
 			if err != nil {
 				logger.Fatal("Could not create collector proxy", zap.Error(err))

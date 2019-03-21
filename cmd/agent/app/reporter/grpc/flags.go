@@ -51,14 +51,14 @@ func AddFlags(flags *flag.FlagSet) {
 }
 
 // InitFromViper initializes Options with properties retrieved from Viper.
-func (o *Options) InitFromViper(v *viper.Viper) *Options {
+func (b *Builder) InitFromViper(v *viper.Viper) *Builder {
 	hostPorts := v.GetString(collectorHostPort)
 	if hostPorts != "" {
-		o.CollectorHostPort = strings.Split(hostPorts, ",")
+		b.CollectorHostPorts = strings.Split(hostPorts, ",")
 	}
-	o.MaxRetry = uint(v.GetInt(retry))
-	o.TLS = v.GetBool(collectorTLS)
-	o.TLSCA = v.GetString(collectorTLSCA)
-	o.TLSServerName = v.GetString(collectorTLSServerName)
-	return o
+	b.MaxRetry = uint(v.GetInt(retry))
+	b.TLS = v.GetBool(collectorTLS)
+	b.TLSCA = v.GetString(collectorTLSCA)
+	b.TLSServerName = v.GetString(collectorTLSServerName)
+	return b
 }

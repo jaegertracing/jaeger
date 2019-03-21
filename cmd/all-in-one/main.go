@@ -24,13 +24,13 @@ import (
 	"strconv"
 
 	"github.com/gorilla/mux"
-	"github.com/opentracing/opentracing-go"
+	opentracing "github.com/opentracing/opentracing-go"
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
 	jaegerClientConfig "github.com/uber/jaeger-client-go/config"
 	jaegerClientZapLog "github.com/uber/jaeger-client-go/log/zap"
 	"github.com/uber/jaeger-lib/metrics"
-	"github.com/uber/tchannel-go"
+	tchannel "github.com/uber/tchannel-go"
 	"github.com/uber/tchannel-go/thrift"
 	"go.uber.org/zap"
 	"google.golang.org/grpc"
@@ -119,7 +119,7 @@ func main() {
 			aOpts := new(agentApp.Builder).InitFromViper(v)
 			repOpts := new(agentRep.Options).InitFromViper(v)
 			tchannelRepOpts := agentTchanRep.NewBuilder().InitFromViper(v, logger)
-			grpcRepOpts := new(agentGrpcRep.Options).InitFromViper(v)
+			grpcRepOpts := agentGrpcRep.NewBuilder().InitFromViper(v)
 			cOpts := new(collector.CollectorOptions).InitFromViper(v)
 			qOpts := new(queryApp.QueryOptions).InitFromViper(v)
 
@@ -167,15 +167,15 @@ func startAgent(
 	b *agentApp.Builder,
 	repOpts *agentRep.Options,
 	tchanRep *agentTchanRep.Builder,
-	grpcRepOpts *agentGrpcRep.Options,
+	grpcRep *agentGrpcRep.Builder,
 	cOpts *collector.CollectorOptions,
 	logger *zap.Logger,
 	baseFactory metrics.Factory,
 ) {
 	metricsFactory := baseFactory.Namespace(metrics.NSOptions{Name: "agent", Tags: nil})
 
-	grpcRepOpts.CollectorHostPort = append(grpcRepOpts.CollectorHostPort, fmt.Sprintf("127.0.0.1:%d", cOpts.CollectorGRPCPort))
-	cp, err := agentApp.CreateCollectorProxy(repOpts, tchanRep, grpcRepOpts, logger, metricsFactory)
+	grpcRep.CollectorHostPorts = append(grpcRep.CollectorHostPorts, fmt.Sprintf("127.0.0.1:%d", cOpts.CollectorGRPCPort))
+	cp, err := agentApp.CreateCollectorProxy(repOpts, tchanRep, grpcRep, logger, metricsFactory)
 	if err != nil {
 		logger.Fatal("Could not create collector proxy", zap.Error(err))
 	}
