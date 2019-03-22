@@ -390,18 +390,18 @@ proto:
 		--swagger_out=$(PWD)/proto-gen/openapi/ \
 		model/proto/api_v2.proto
 
-	protoc \
+	$(PROTOC) \
 		$(PROTO_INCLUDES) \
 		-I plugin/storage/grpc/proto \
 				--gogo_out=plugins=grpc,$(PROTO_GOGO_MAPPINGS):$(PWD)/plugin/storage/grpc/proto/storage_v1 \
 				plugin/storage/grpc/proto/storage.proto
 
-	protoc \
+	$(PROTOC) \
 		-I model/proto \
 		--go_out=$(PWD)/model/prototest/ \
 		model/proto/model_test.proto
 
-	protoc \
+	$(PROTOC) \
 		-I plugin/storage/grpc/proto \
 		--go_out=$(PWD)/plugin/storage/grpc/proto/storageprototest/ \
 		plugin/storage/grpc/proto/storage_test.proto
