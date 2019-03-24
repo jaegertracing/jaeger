@@ -15,11 +15,9 @@
 package healthcheck_test
 
 import (
-	"net"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/require"
 
 	. "github.com/jaegertracing/jaeger/pkg/healthcheck"
 	"github.com/jaegertracing/jaeger/pkg/testutils"
@@ -38,32 +36,15 @@ func TestStatusString(t *testing.T) {
 }
 
 func TestStatusSetGet(t *testing.T) {
-	hc := New(Unavailable)
+	hc := New()
 	assert.Equal(t, Unavailable, hc.Get())
 
 	logger, logBuf := testutils.NewLogger()
-	hc = New(Unavailable, Logger(logger))
+	hc = New()
+	hc.SetLogger(logger)
 	assert.Equal(t, Unavailable, hc.Get())
 
 	hc.Ready()
 	assert.Equal(t, Ready, hc.Get())
 	assert.Equal(t, map[string]string{"level": "info", "msg": "Health Check state change", "status": "ready"}, logBuf.JSONLine(0))
-}
-
-func TestPortBusy(t *testing.T) {
-	l, err := net.Listen("tcp", ":0")
-	require.NoError(t, err)
-	defer l.Close()
-	port := l.Addr().(*net.TCPAddr).Port
-
-	logger, logBuf := testutils.NewLogger()
-	_, err = New(Unavailable, Logger(logger)).Serve(port)
-	assert.Error(t, err)
-	assert.Equal(t, "Health Check server failed to listen", logBuf.JSONLine(0)["msg"])
-}
-
-func TestServeHandler(t *testing.T) {
-	hc, err := New(Ready).Serve(0)
-	require.NoError(t, err)
-	defer hc.Close()
 }

@@ -139,6 +139,7 @@ func main() {
 	config.AddFlags(
 		v,
 		command,
+		svc.AddFlags,
 		storageFactory.AddFlags,
 		app.AddFlags,
 	)

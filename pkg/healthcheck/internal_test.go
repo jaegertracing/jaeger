@@ -15,21 +15,17 @@
 package healthcheck
 
 import (
-	"net"
 	"net/http"
 	"net/http/httptest"
 	"testing"
-	"time"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-
-	"github.com/jaegertracing/jaeger/pkg/testutils"
 )
 
 func TestHttpCall(t *testing.T) {
-	hc := New(Unavailable)
-	handler := hc.httpHandler()
+	hc := New()
+	handler := hc.Handler()
 
 	server := httptest.NewServer(handler)
 	defer server.Close()
@@ -39,24 +35,4 @@ func TestHttpCall(t *testing.T) {
 	resp, err := http.Get(server.URL + "/")
 	require.NoError(t, err)
 	assert.Equal(t, http.StatusNoContent, resp.StatusCode)
-}
-
-func TestListenerClose(t *testing.T) {
-	logger, logBuf := testutils.NewLogger()
-	hc := New(Unavailable, Logger(logger))
-
-	l, err := net.Listen("tcp", ":0")
-	assert.NoError(t, err)
-	l.Close()
-
-	hc.serveWithListener(l)
-	for i := 0; i < 1000; i++ {
-		if hc.Get() == Broken {
-			break
-		}
-		time.Sleep(time.Millisecond)
-	}
-	assert.Equal(t, Broken, hc.Get())
-	log := logBuf.JSONLine(0)
-	assert.Equal(t, "failed to serve", log["msg"])
 }
