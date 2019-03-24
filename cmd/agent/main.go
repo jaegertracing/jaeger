@@ -49,7 +49,9 @@ func main() {
 				return err
 			}
 			logger := svc.Logger // shortcut
-			mFactory := svc.MetricsFactory.Namespace(metrics.NSOptions{Name: "agent"})
+			mFactory := svc.MetricsFactory.
+				Namespace(metrics.NSOptions{Name: "jaeger"}).
+				Namespace(metrics.NSOptions{Name: "agent"})
 
 			rOpts := new(reporter.Options).InitFromViper(v)
 			tChanOpts := new(tchannel.Builder).InitFromViper(v, logger)

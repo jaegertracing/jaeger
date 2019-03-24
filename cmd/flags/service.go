@@ -1,3 +1,17 @@
+// Copyright (c) 2019 The Jaeger Authors.
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+// http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
 package flags
 
 import (
@@ -85,7 +99,7 @@ func (s *Service) Start(v *viper.Viper) error {
 	s.Admin.initFromViper(v, s.Logger)
 	if h := metricsBuilder.Handler(); h != nil {
 		route := metricsBuilder.HTTPRoute
-		s.Logger.Info("Registering metrics handler with admin server", zap.String("route", route))
+		s.Logger.Info("Mounting metrics handler on admin server", zap.String("route", route))
 		s.Admin.Handle(route, h)
 	}
 	if err := s.Admin.Serve(); err != nil {
@@ -105,11 +119,14 @@ func (s *Service) HC() *healthcheck.HealthCheck {
 func (s *Service) RunAndThen(shutdown func()) {
 	s.HC().Ready()
 	<-s.signalsChannel
+
 	s.Logger.Info("Shutting down")
+	s.HC().Set(healthcheck.Unavailable)
 
 	if shutdown != nil {
 		shutdown()
 	}
 
+	s.Admin.Close()
 	s.Logger.Info("Shutdown complete")
 }

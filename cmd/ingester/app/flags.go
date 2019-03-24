@@ -25,7 +25,6 @@ import (
 
 	kafkaConsumer "github.com/jaegertracing/jaeger/pkg/kafka/consumer"
 	"github.com/jaegertracing/jaeger/plugin/storage/kafka"
-	"github.com/jaegertracing/jaeger/ports"
 )
 
 const (
@@ -65,10 +64,8 @@ const (
 // Options stores the configuration options for the Ingester
 type Options struct {
 	kafkaConsumer.Configuration
-	Parallelism int
-	Encoding    string
-	// IngesterHTTPPort is the port that the ingester service listens in on for http requests
-	// IngesterHTTPPort int
+	Parallelism      int
+	Encoding         string
 	DeadlockInterval time.Duration
 }
 
@@ -94,10 +91,6 @@ func AddFlags(flagSet *flag.FlagSet) {
 		ConfigPrefix+SuffixParallelism,
 		strconv.Itoa(DefaultParallelism),
 		"The number of messages to process in parallel")
-	flagSet.Int(
-		ConfigPrefix+SuffixHTTPPort,
-		ports.IngesterAdminHTTP,
-		"The admin http port for the ingester service (health check, /metrics, etc.)")
 	flagSet.Duration(
 		ConfigPrefix+SuffixDeadlockInterval,
 		DefaultDeadlockInterval,
@@ -112,8 +105,6 @@ func (o *Options) InitFromViper(v *viper.Viper) {
 	o.Encoding = v.GetString(KafkaConsumerConfigPrefix + SuffixEncoding)
 
 	o.Parallelism = v.GetInt(ConfigPrefix + SuffixParallelism)
-	//o.IngesterHTTPPort = v.GetInt(ConfigPrefix + SuffixHTTPPort)
-
 	o.DeadlockInterval = v.GetDuration(ConfigPrefix + SuffixDeadlockInterval)
 }
 

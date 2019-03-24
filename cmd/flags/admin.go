@@ -1,3 +1,17 @@
+// Copyright (c) 2019 The Jaeger Authors.
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+// http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
 package flags
 
 import (
@@ -12,6 +26,7 @@ import (
 
 	"github.com/jaegertracing/jaeger/pkg/healthcheck"
 	"github.com/jaegertracing/jaeger/pkg/recoveryhandler"
+	"github.com/jaegertracing/jaeger/pkg/version"
 )
 
 const (
@@ -45,8 +60,8 @@ func (s *AdminServer) HC() *healthcheck.HealthCheck {
 	return s.hc
 }
 
-// SetLogger initializes logger.
-func (s *AdminServer) SetLogger(logger *zap.Logger) {
+// setLogger initializes logger.
+func (s *AdminServer) setLogger(logger *zap.Logger) {
 	s.logger = logger
 	s.hc.SetLogger(logger)
 }
@@ -59,7 +74,7 @@ func (s *AdminServer) AddFlags(flagSet *flag.FlagSet) {
 
 // InitFromViper initializes the server with properties retrieved from Viper.
 func (s *AdminServer) initFromViper(v *viper.Viper, logger *zap.Logger) {
-	s.SetLogger(logger)
+	s.setLogger(logger)
 	s.adminPort = v.GetInt(adminHTTPPort)
 	if v := v.GetInt(healthCheckHTTPPort); v != 0 {
 		logger.Sugar().Warnf("Using deprecated flag %s, please upgrade to %s", healthCheckHTTPPort, adminHTTPPort)
@@ -74,7 +89,6 @@ func (s *AdminServer) Handle(path string, handler http.Handler) {
 
 // Serve starts HTTP server.
 func (s *AdminServer) Serve() error {
-	s.logger.Info("Starting admin HTTP server", zap.Int("http-port", s.adminPort))
 	portStr := ":" + strconv.Itoa(s.adminPort)
 	l, err := net.Listen("tcp", portStr)
 	if err != nil {
@@ -90,9 +104,12 @@ func (s *AdminServer) Serve() error {
 }
 
 func (s *AdminServer) serveWithListener(l net.Listener) {
+	s.logger.Info("Mounting health check on admin server", zap.String("route", "/"))
 	s.mux.Handle("/", s.hc.Handler())
+	version.RegisterHandler(s.mux, s.logger)
 	recoveryHandler := recoveryhandler.NewRecoveryHandler(s.logger, true)
 	s.server = &http.Server{Handler: recoveryHandler(s.mux)}
+	s.logger.Info("Starting admin HTTP server", zap.Int("http-port", s.adminPort))
 	go func() {
 		if err := s.server.Serve(l); err != nil {
 			s.logger.Error("failed to serve", zap.Error(err))

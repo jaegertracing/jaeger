@@ -63,6 +63,7 @@ func main() {
 			}
 			logger := svc.Logger // shortcut
 			baseFactory := svc.MetricsFactory.Namespace(metrics.NSOptions{Name: "jaeger"})
+			metricsFactory := baseFactory.Namespace(metrics.NSOptions{Name: "query"})
 
 			tracer, closer, err := jaegerClientConfig.Configuration{
 				Sampler: &jaegerClientConfig.SamplerConfig{
@@ -89,7 +90,7 @@ func main() {
 			if err != nil {
 				logger.Fatal("Failed to create span reader", zap.Error(err))
 			}
-			spanReader = storageMetrics.NewReadMetricsDecorator(spanReader, baseFactory.Namespace(metrics.NSOptions{Name: "query", Tags: nil}))
+			spanReader = storageMetrics.NewReadMetricsDecorator(spanReader, metricsFactory)
 			dependencyReader, err := storageFactory.CreateDependencyReader()
 			if err != nil {
 				logger.Fatal("Failed to create dependency reader", zap.Error(err))
