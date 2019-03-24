@@ -84,9 +84,7 @@ func getEnv(key string, defaultValue string) string {
 
 func (h *clientHandler) initialize() {
 	httpHealthCheck(logger, "jaeger-query", "http://"+queryHealthcheckHostPort)
-	logger.Info("Query started")
 	httpHealthCheck(logger, "jaeger-collector", "http://"+collectorHealthcheckHostPort)
-	logger.Info("Collector started")
 
 	queryService := services.NewQueryService("http://"+queryHostPort, logger)
 	agentService := services.NewAgentService("http://"+agentHostPort, logger)
@@ -108,9 +106,10 @@ func httpHealthCheck(logger *zap.Logger, service, healthURL string) {
 	for i := 0; i < 240; i++ {
 		res, err := http.Get(healthURL)
 		if err == nil && res.StatusCode == 204 {
+			logger.Info("Health check successful", zap.String("service", service))
 			return
 		}
-		logger.Warn("Health check failed", zap.String("service", service), zap.Error(err))
+		logger.Info("Health check failed", zap.String("service", service), zap.Error(err))
 		time.Sleep(time.Second)
 	}
 	logger.Fatal("All health checks failed", zap.String("service", service))
