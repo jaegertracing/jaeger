@@ -16,13 +16,10 @@ package main
 
 import (
 	"fmt"
-	"io/ioutil"
 	"log"
 	"net/http"
 	"os"
-	"os/signal"
 	"strconv"
-	"syscall"
 
 	"github.com/gorilla/handlers"
 	"github.com/opentracing/opentracing-go"
@@ -32,7 +29,6 @@ import (
 	jaegerClientZapLog "github.com/uber/jaeger-client-go/log/zap"
 	"github.com/uber/jaeger-lib/metrics"
 	"go.uber.org/zap"
-	"google.golang.org/grpc/grpclog"
 
 	"github.com/jaegertracing/jaeger/cmd/env"
 	"github.com/jaegertracing/jaeger/cmd/flags"
@@ -40,19 +36,16 @@ import (
 	"github.com/jaegertracing/jaeger/cmd/query/app/querysvc"
 	"github.com/jaegertracing/jaeger/pkg/config"
 	"github.com/jaegertracing/jaeger/pkg/healthcheck"
-	pMetrics "github.com/jaegertracing/jaeger/pkg/metrics"
 	"github.com/jaegertracing/jaeger/pkg/recoveryhandler"
 	"github.com/jaegertracing/jaeger/pkg/version"
 	"github.com/jaegertracing/jaeger/plugin/storage"
+	"github.com/jaegertracing/jaeger/ports"
 	istorage "github.com/jaegertracing/jaeger/storage"
 	storageMetrics "github.com/jaegertracing/jaeger/storage/spanstore/metrics"
 )
 
 func main() {
-	var serverChannel = make(chan os.Signal)
-	signal.Notify(serverChannel, os.Interrupt, syscall.SIGTERM)
-
-	grpclog.SetLoggerV2(grpclog.NewLoggerV2(ioutil.Discard, os.Stderr, os.Stderr))
+	svc := flags.NewService(ports.QueryAdminHTTP)
 
 	storageFactory, err := storage.NewFactory(storage.FactoryConfigFromEnvAndCLI(os.Args, os.Stderr))
 	if err != nil {
@@ -60,35 +53,16 @@ func main() {
 	}
 
 	v := viper.New()
-
 	var command = &cobra.Command{
 		Use:   "jaeger-query",
 		Short: "Jaeger query service provides a Web UI and an API for accessing trace data.",
 		Long:  `Jaeger query service provides a Web UI and an API for accessing trace data.`,
 		RunE: func(cmd *cobra.Command, args []string) error {
-			err := flags.TryLoadConfigFile(v)
-			if err != nil {
+			if err := svc.Start(v); err != nil {
 				return err
 			}
-
-			sFlags := new(flags.SharedFlags).InitFromViper(v)
-			logger, err := sFlags.NewLogger(zap.NewProductionConfig())
-			if err != nil {
-				return err
-			}
-			hc, err := sFlags.NewHealthCheck(logger)
-			if err != nil {
-				logger.Fatal("Could not start the health check server.", zap.Error(err))
-			}
-
-			queryOpts := new(app.QueryOptions).InitFromViper(v)
-
-			mBldr := new(pMetrics.Builder).InitFromViper(v)
-			rootFactory, err := mBldr.CreateMetricsFactory("")
-			if err != nil {
-				logger.Fatal("Cannot create metrics factory.", zap.Error(err))
-			}
-			baseFactory := rootFactory.Namespace(metrics.NSOptions{Name: "jaeger", Tags: nil})
+			logger := svc.Logger // shortcut
+			baseFactory := svc.MetricsFactory.Namespace(metrics.NSOptions{Name: "jaeger"})
 
 			tracer, closer, err := jaegerClientConfig.Configuration{
 				Sampler: &jaegerClientConfig.SamplerConfig{
@@ -98,7 +72,7 @@ func main() {
 				RPCMetrics: true,
 			}.New(
 				"jaeger-query",
-				jaegerClientConfig.Metrics(rootFactory),
+				jaegerClientConfig.Metrics(svc.MetricsFactory),
 				jaegerClientConfig.Logger(jaegerClientZapLog.NewLogger(logger)),
 			)
 			if err != nil {
@@ -126,6 +100,7 @@ func main() {
 				dependencyReader,
 				queryServiceOptions)
 
+			queryOpts := new(app.QueryOptions).InitFromViper(v)
 			apiHandlerOptions := []app.HandlerOption{
 				app.HandlerOptions.Logger(logger),
 				app.HandlerOptions.Tracer(tracer),
@@ -140,11 +115,6 @@ func main() {
 			apiHandler.RegisterRoutes(r)
 			app.RegisterStaticHandler(r, logger, queryOpts)
 
-			if h := mBldr.Handler(); h != nil {
-				logger.Info("Registering metrics handler with HTTP server", zap.String("route", mBldr.HTTPRoute))
-				r.Handle(mBldr.HTTPRoute, h)
-			}
-
 			portStr := ":" + strconv.Itoa(queryOpts.Port)
 			compressHandler := handlers.CompressHandler(r)
 			recoveryHandler := recoveryhandler.NewRecoveryHandler(logger, true)
@@ -154,12 +124,10 @@ func main() {
 				if err := http.ListenAndServe(portStr, recoveryHandler(compressHandler)); err != nil {
 					logger.Fatal("Could not launch service", zap.Error(err))
 				}
-				hc.Set(healthcheck.Unavailable)
+				svc.HC().Set(healthcheck.Unavailable)
 			}()
 
-			hc.Ready()
-			<-serverChannel
-			logger.Info("Shutdown complete")
+			svc.RunAndThen(nil)
 			return nil
 		},
 	}
@@ -167,15 +135,10 @@ func main() {
 	command.AddCommand(version.Command())
 	command.AddCommand(env.Command())
 
-	flags.SetDefaultHealthCheckPort(app.QueryDefaultHealthCheckHTTPPort)
-
 	config.AddFlags(
 		v,
 		command,
-		flags.AddConfigFileFlag,
-		flags.AddFlags,
 		storageFactory.AddFlags,
-		pMetrics.AddFlags,
 		app.AddFlags,
 	)
 
