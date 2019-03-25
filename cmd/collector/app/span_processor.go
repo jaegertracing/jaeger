@@ -17,7 +17,7 @@ package app
 import (
 	"time"
 
-	"github.com/uber/tchannel-go"
+	tchannel "github.com/uber/tchannel-go"
 	"go.uber.org/zap"
 
 	"github.com/jaegertracing/jaeger/cmd/collector/app/sanitizer"
@@ -124,6 +124,7 @@ func (sp *spanProcessor) saveSpan(span *model.Span) {
 func (sp *spanProcessor) ProcessSpans(mSpans []*model.Span, options ProcessSpansOptions) ([]bool, error) {
 	sp.preProcessSpans(mSpans)
 	sp.metrics.BatchSize.Update(int64(len(mSpans)))
+	sp.metrics.countsByEndpoints[options.InboundTransport].Inc(int64(len(mSpans)))
 	retMe := make([]bool, len(mSpans))
 	for i, mSpan := range mSpans {
 		ok := sp.enqueueSpan(mSpan, options.SpanFormat)

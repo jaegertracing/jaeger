@@ -237,7 +237,6 @@ func TestSpanProcessorErrors(t *testing.T) {
 			},
 		},
 	}, ProcessSpansOptions{SpanFormat: JaegerFormatType})
-
 	assert.NoError(t, err)
 	assert.Equal(t, []bool{true}, res)
 

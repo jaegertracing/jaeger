@@ -25,6 +25,8 @@ import (
 const (
 	maxServiceNames = 2000
 	otherServices   = "other-services"
+	GrpcEndpoint    = "gRPC"
+	HttpEndpoint    = "HTTP"
 )
 
 // SpanProcessorMetrics contains all the necessary metrics for the SpanProcessor
@@ -41,10 +43,11 @@ type SpanProcessorMetrics struct {
 	// QueueLength measures the size of the internal span queue
 	QueueLength metrics.Gauge
 	// SavedOkBySvc contains span and trace counts by service
-	SavedOkBySvc  metricsBySvc  // spans actually saved
-	SavedErrBySvc metricsBySvc  // spans failed to save
-	serviceNames  metrics.Gauge // total number of unique service name metrics reported by this collector
-	spanCounts    map[string]CountsBySpanType
+	SavedOkBySvc      metricsBySvc  // spans actually saved
+	SavedErrBySvc     metricsBySvc  // spans failed to save
+	serviceNames      metrics.Gauge // total number of unique service name metrics reported by this collector
+	spanCounts        map[string]CountsBySpanType
+	countsByEndpoints map[string]metrics.Counter // count of spans processed from different endpoints (Http, TChannel, gRPC)
 }
 
 type countsBySvc struct {
@@ -79,16 +82,21 @@ func NewSpanProcessorMetrics(serviceMetrics metrics.Factory, hostMetrics metrics
 	for _, otherFormatType := range otherFormatTypes {
 		spanCounts[otherFormatType] = newCountsBySpanType(serviceMetrics.Namespace(metrics.NSOptions{Name: "", Tags: map[string]string{"format": otherFormatType}}))
 	}
+	countsByEndpoints := map[string]metrics.Counter{
+		GrpcEndpoint: serviceMetrics.Counter(metrics.Options{Name: "grpc-endpoint", Tags: nil}),
+		HttpEndpoint: serviceMetrics.Counter(metrics.Options{Name: "http-endpoint", Tags: nil}),
+	}
 	m := &SpanProcessorMetrics{
-		SaveLatency:    hostMetrics.Timer(metrics.TimerOptions{Name: "save-latency", Tags: nil}),
-		InQueueLatency: hostMetrics.Timer(metrics.TimerOptions{Name: "in-queue-latency", Tags: nil}),
-		SpansDropped:   hostMetrics.Counter(metrics.Options{Name: "spans.dropped", Tags: nil}),
-		BatchSize:      hostMetrics.Gauge(metrics.Options{Name: "batch-size", Tags: nil}),
-		QueueLength:    hostMetrics.Gauge(metrics.Options{Name: "queue-length", Tags: nil}),
-		SavedOkBySvc:   newMetricsBySvc(serviceMetrics.Namespace(metrics.NSOptions{Name: "", Tags: map[string]string{"result": "ok"}}), "saved-by-svc"),
-		SavedErrBySvc:  newMetricsBySvc(serviceMetrics.Namespace(metrics.NSOptions{Name: "", Tags: map[string]string{"result": "err"}}), "saved-by-svc"),
-		spanCounts:     spanCounts,
-		serviceNames:   hostMetrics.Gauge(metrics.Options{Name: "spans.serviceNames", Tags: nil}),
+		SaveLatency:       hostMetrics.Timer(metrics.TimerOptions{Name: "save-latency", Tags: nil}),
+		InQueueLatency:    hostMetrics.Timer(metrics.TimerOptions{Name: "in-queue-latency", Tags: nil}),
+		SpansDropped:      hostMetrics.Counter(metrics.Options{Name: "spans.dropped", Tags: nil}),
+		BatchSize:         hostMetrics.Gauge(metrics.Options{Name: "batch-size", Tags: nil}),
+		QueueLength:       hostMetrics.Gauge(metrics.Options{Name: "queue-length", Tags: nil}),
+		SavedOkBySvc:      newMetricsBySvc(serviceMetrics.Namespace(metrics.NSOptions{Name: "", Tags: map[string]string{"result": "ok"}}), "saved-by-svc"),
+		SavedErrBySvc:     newMetricsBySvc(serviceMetrics.Namespace(metrics.NSOptions{Name: "", Tags: map[string]string{"result": "err"}}), "saved-by-svc"),
+		spanCounts:        spanCounts,
+		serviceNames:      hostMetrics.Gauge(metrics.Options{Name: "spans.serviceNames", Tags: nil}),
+		countsByEndpoints: countsByEndpoints,
 	}
 
 	return m
