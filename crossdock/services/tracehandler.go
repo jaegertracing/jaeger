@@ -83,7 +83,7 @@ func NewTraceHandler(query QueryService, agent AgentService, logger *zap.Logger)
 		createTracesLoopInterval:              2 * time.Second,
 		getSamplingRateInterval:               500 * time.Millisecond,
 		clientSamplingStrategyRefreshInterval: 7 * time.Second,
-		getTracesSleepDuration:                time.Second,
+		getTracesSleepDuration:                5 * time.Second,
 	}
 }
 
@@ -221,12 +221,13 @@ func (h *TraceHandler) createAndRetrieveTraces(service string, request *traceReq
 func (h *TraceHandler) getTraces(service, operation string, tags map[string]string) []*ui.Trace {
 	// Retry multiple time since SASI indexing takes a couple of seconds
 	for i := 0; i < 10; i++ {
-		h.logger.Info(fmt.Sprintf("Waiting for traces, iteration %d out of 10", i+1))
+		h.logger.Info(fmt.Sprintf("Querying for traces, iteration %d out of 10", i+1))
 		traces, err := h.query.GetTraces(getTracerServiceName(service), operation, tags)
 		if err == nil && len(traces) > 0 {
 			return traces
 		}
 		h.logger.Info("Could not retrieve trace from query service")
+		h.logger.Info(fmt.Sprintf("Waiting %v for traces", h.getTracesSleepDuration))
 		time.Sleep(h.getTracesSleepDuration)
 	}
 	return nil
