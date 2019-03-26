@@ -32,10 +32,12 @@ func request_CollectorService_PostSpans_0(ctx context.Context, marshaler runtime
 	var protoReq PostSpansRequest
 	var metadata runtime.ServerMetadata
 
-	if req.ContentLength > 0 {
-		if err := marshaler.NewDecoder(req.Body).Decode(&protoReq); err != nil {
-			return nil, metadata, status.Errorf(codes.InvalidArgument, "%v", err)
-		}
+	newReader, berr := utilities.IOReaderFactory(req.Body)
+	if berr != nil {
+		return nil, metadata, status.Errorf(codes.InvalidArgument, "%v", berr)
+	}
+	if err := marshaler.NewDecoder(newReader()).Decode(&protoReq); err != nil && err != io.EOF {
+		return nil, metadata, status.Errorf(codes.InvalidArgument, "%v", err)
 	}
 
 	msg, err := client.PostSpans(ctx, &protoReq, grpc.Header(&metadata.HeaderMD), grpc.Trailer(&metadata.TrailerMD))
@@ -47,10 +49,12 @@ func request_SamplingManager_GetSamplingStrategy_0(ctx context.Context, marshale
 	var protoReq SamplingStrategyParameters
 	var metadata runtime.ServerMetadata
 
-	if req.ContentLength > 0 {
-		if err := marshaler.NewDecoder(req.Body).Decode(&protoReq); err != nil {
-			return nil, metadata, status.Errorf(codes.InvalidArgument, "%v", err)
-		}
+	newReader, berr := utilities.IOReaderFactory(req.Body)
+	if berr != nil {
+		return nil, metadata, status.Errorf(codes.InvalidArgument, "%v", berr)
+	}
+	if err := marshaler.NewDecoder(newReader()).Decode(&protoReq); err != nil && err != io.EOF {
+		return nil, metadata, status.Errorf(codes.InvalidArgument, "%v", err)
 	}
 
 	msg, err := client.GetSamplingStrategy(ctx, &protoReq, grpc.Header(&metadata.HeaderMD), grpc.Trailer(&metadata.TrailerMD))
@@ -68,14 +72,14 @@ func RegisterCollectorServiceHandlerFromEndpoint(ctx context.Context, mux *runti
 	defer func() {
 		if err != nil {
 			if cerr := conn.Close(); cerr != nil {
-				grpclog.Printf("Failed to close conn to %s: %v", endpoint, cerr)
+				grpclog.Infof("Failed to close conn to %s: %v", endpoint, cerr)
 			}
 			return
 		}
 		go func() {
 			<-ctx.Done()
 			if cerr := conn.Close(); cerr != nil {
-				grpclog.Printf("Failed to close conn to %s: %v", endpoint, cerr)
+				grpclog.Infof("Failed to close conn to %s: %v", endpoint, cerr)
 			}
 		}()
 	}()
@@ -89,8 +93,8 @@ func RegisterCollectorServiceHandler(ctx context.Context, mux *runtime.ServeMux,
 	return RegisterCollectorServiceHandlerClient(ctx, mux, NewCollectorServiceClient(conn))
 }
 
-// RegisterCollectorServiceHandler registers the http handlers for service CollectorService to "mux".
-// The handlers forward requests to the grpc endpoint over the given implementation of "CollectorServiceClient".
+// RegisterCollectorServiceHandlerClient registers the http handlers for service CollectorService
+// to "mux". The handlers forward requests to the grpc endpoint over the given implementation of "CollectorServiceClient".
 // Note: the gRPC framework executes interceptors within the gRPC handler. If the passed in "CollectorServiceClient"
 // doesn't go through the normal gRPC flow (creating a gRPC client etc.) then it will be up to the passed in
 // "CollectorServiceClient" to call the correct interceptors.
@@ -99,15 +103,6 @@ func RegisterCollectorServiceHandlerClient(ctx context.Context, mux *runtime.Ser
 	mux.Handle("POST", pattern_CollectorService_PostSpans_0, func(w http.ResponseWriter, req *http.Request, pathParams map[string]string) {
 		ctx, cancel := context.WithCancel(req.Context())
 		defer cancel()
-		if cn, ok := w.(http.CloseNotifier); ok {
-			go func(done <-chan struct{}, closed <-chan bool) {
-				select {
-				case <-done:
-				case <-closed:
-					cancel()
-				}
-			}(ctx.Done(), cn.CloseNotify())
-		}
 		inboundMarshaler, outboundMarshaler := runtime.MarshalerForRequest(mux, req)
 		rctx, err := runtime.AnnotateContext(ctx, mux, req)
 		if err != nil {
@@ -146,14 +141,14 @@ func RegisterSamplingManagerHandlerFromEndpoint(ctx context.Context, mux *runtim
 	defer func() {
 		if err != nil {
 			if cerr := conn.Close(); cerr != nil {
-				grpclog.Printf("Failed to close conn to %s: %v", endpoint, cerr)
+				grpclog.Infof("Failed to close conn to %s: %v", endpoint, cerr)
 			}
 			return
 		}
 		go func() {
 			<-ctx.Done()
 			if cerr := conn.Close(); cerr != nil {
-				grpclog.Printf("Failed to close conn to %s: %v", endpoint, cerr)
+				grpclog.Infof("Failed to close conn to %s: %v", endpoint, cerr)
 			}
 		}()
 	}()
@@ -167,8 +162,8 @@ func RegisterSamplingManagerHandler(ctx context.Context, mux *runtime.ServeMux, 
 	return RegisterSamplingManagerHandlerClient(ctx, mux, NewSamplingManagerClient(conn))
 }
 
-// RegisterSamplingManagerHandler registers the http handlers for service SamplingManager to "mux".
-// The handlers forward requests to the grpc endpoint over the given implementation of "SamplingManagerClient".
+// RegisterSamplingManagerHandlerClient registers the http handlers for service SamplingManager
+// to "mux". The handlers forward requests to the grpc endpoint over the given implementation of "SamplingManagerClient".
 // Note: the gRPC framework executes interceptors within the gRPC handler. If the passed in "SamplingManagerClient"
 // doesn't go through the normal gRPC flow (creating a gRPC client etc.) then it will be up to the passed in
 // "SamplingManagerClient" to call the correct interceptors.
@@ -177,15 +172,6 @@ func RegisterSamplingManagerHandlerClient(ctx context.Context, mux *runtime.Serv
 	mux.Handle("POST", pattern_SamplingManager_GetSamplingStrategy_0, func(w http.ResponseWriter, req *http.Request, pathParams map[string]string) {
 		ctx, cancel := context.WithCancel(req.Context())
 		defer cancel()
-		if cn, ok := w.(http.CloseNotifier); ok {
-			go func(done <-chan struct{}, closed <-chan bool) {
-				select {
-				case <-done:
-				case <-closed:
-					cancel()
-				}
-			}(ctx.Done(), cn.CloseNotify())
-		}
 		inboundMarshaler, outboundMarshaler := runtime.MarshalerForRequest(mux, req)
 		rctx, err := runtime.AnnotateContext(ctx, mux, req)
 		if err != nil {

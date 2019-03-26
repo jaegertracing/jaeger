@@ -20,7 +20,7 @@
         "operationId": "GetSamplingStrategy",
         "responses": {
           "200": {
-            "description": "",
+            "description": "A successful response.",
             "schema": {
               "$ref": "#/definitions/api_v2SamplingStrategyResponse"
             }
@@ -46,7 +46,7 @@
         "operationId": "PostSpans",
         "responses": {
           "200": {
-            "description": "",
+            "description": "A successful response.",
             "schema": {
               "$ref": "#/definitions/api_v2PostSpansResponse"
             }
