@@ -72,7 +72,7 @@ script:
   - if [ "$KAFKA_INTEGRATION_TEST" == true ]; then bash ./scripts/travis/kafka-integration-test.sh ; else echo 'skipping kafka integration test'; fi
   - if [ "$CASSANDRA_INTEGRATION_TEST" == true ]; then bash ./scripts/travis/cassandra-integration-test.sh ; else echo 'skipping cassandra integration test'; fi
   - if [ "$HOTROD" == true ]; then bash ./scripts/travis/hotrod-integration-test.sh ; else echo 'skipping hotrod example'; fi
-  - if [ "$PROTO_GEN_TEST" == true ]; then make proto PROTOC=$HOME/protoc/bin/protoc && git diff --name-status --exit-code ; else echo 'skipping protoc validation'; fi
+  - if [ "$PROTO_GEN_TEST" == true ]; then make proto PROTOC=$HOME/protoc/bin/protoc && make fmt && git diff --name-status --exit-code ; else echo 'skipping protoc validation'; fi
 
 after_success:
   - if [ "$COVERAGE" == true ]; then mv cover.out coverage.txt ; else echo 'skipping coverage'; fi
