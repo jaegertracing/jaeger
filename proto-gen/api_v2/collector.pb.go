@@ -335,7 +335,7 @@ func (m *PostSpansRequest) Unmarshal(dAtA []byte) error {
 			}
 			b := dAtA[iNdEx]
 			iNdEx++
-			wire |= (uint64(b) & 0x7F) << shift
+			wire |= uint64(b&0x7F) << shift
 			if b < 0x80 {
 				break
 			}
@@ -363,7 +363,7 @@ func (m *PostSpansRequest) Unmarshal(dAtA []byte) error {
 				}
 				b := dAtA[iNdEx]
 				iNdEx++
-				msglen |= (int(b) & 0x7F) << shift
+				msglen |= int(b&0x7F) << shift
 				if b < 0x80 {
 					break
 				}
@@ -372,6 +372,9 @@ func (m *PostSpansRequest) Unmarshal(dAtA []byte) error {
 				return ErrInvalidLengthCollector
 			}
 			postIndex := iNdEx + msglen
+			if postIndex < 0 {
+				return ErrInvalidLengthCollector
+			}
 			if postIndex > l {
 				return io.ErrUnexpectedEOF
 			}
@@ -386,6 +389,9 @@ func (m *PostSpansRequest) Unmarshal(dAtA []byte) error {
 				return err
 			}
 			if skippy < 0 {
+				return ErrInvalidLengthCollector
+			}
+			if (iNdEx + skippy) < 0 {
 				return ErrInvalidLengthCollector
 			}
 			if (iNdEx + skippy) > l {
@@ -416,7 +422,7 @@ func (m *PostSpansResponse) Unmarshal(dAtA []byte) error {
 			}
 			b := dAtA[iNdEx]
 			iNdEx++
-			wire |= (uint64(b) & 0x7F) << shift
+			wire |= uint64(b&0x7F) << shift
 			if b < 0x80 {
 				break
 			}
@@ -437,6 +443,9 @@ func (m *PostSpansResponse) Unmarshal(dAtA []byte) error {
 				return err
 			}
 			if skippy < 0 {
+				return ErrInvalidLengthCollector
+			}
+			if (iNdEx + skippy) < 0 {
 				return ErrInvalidLengthCollector
 			}
 			if (iNdEx + skippy) > l {
@@ -506,8 +515,11 @@ func skipCollector(dAtA []byte) (n int, err error) {
 					break
 				}
 			}
-			iNdEx += length
 			if length < 0 {
+				return 0, ErrInvalidLengthCollector
+			}
+			iNdEx += length
+			if iNdEx < 0 {
 				return 0, ErrInvalidLengthCollector
 			}
 			return iNdEx, nil
@@ -538,6 +550,9 @@ func skipCollector(dAtA []byte) (n int, err error) {
 					return 0, err
 				}
 				iNdEx = start + next
+				if iNdEx < 0 {
+					return 0, ErrInvalidLengthCollector
+				}
 			}
 			return iNdEx, nil
 		case 4:
