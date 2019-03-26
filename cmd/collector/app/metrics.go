@@ -25,8 +25,10 @@ import (
 const (
 	maxServiceNames = 2000
 	otherServices   = "other-services"
-	GrpcEndpoint    = "gRPC"
-	HttpEndpoint    = "HTTP"
+	// GrpcEndpoint is the key name for gRPC endpoint metric
+	GrpcEndpoint = "gRPC"
+	// HTTPEndpoint is the key name for HTTP endpoint metric
+	HTTPEndpoint = "HTTP"
 )
 
 // SpanProcessorMetrics contains all the necessary metrics for the SpanProcessor
@@ -84,7 +86,7 @@ func NewSpanProcessorMetrics(serviceMetrics metrics.Factory, hostMetrics metrics
 	}
 	countsByEndpoints := map[string]metrics.Counter{
 		GrpcEndpoint: serviceMetrics.Counter(metrics.Options{Name: "grpc-endpoint", Tags: nil}),
-		HttpEndpoint: serviceMetrics.Counter(metrics.Options{Name: "http-endpoint", Tags: nil}),
+		HTTPEndpoint: serviceMetrics.Counter(metrics.Options{Name: "http-endpoint", Tags: nil}),
 	}
 	m := &SpanProcessorMetrics{
 		SaveLatency:       hostMetrics.Timer(metrics.TimerOptions{Name: "save-latency", Tags: nil}),
