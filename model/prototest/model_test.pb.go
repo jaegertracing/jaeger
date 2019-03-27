@@ -3,12 +3,9 @@
 
 package prototest
 
-import (
-	fmt "fmt"
-	math "math"
-
-	proto "github.com/golang/protobuf/proto"
-)
+import proto "github.com/golang/protobuf/proto"
+import fmt "fmt"
+import math "math"
 
 // Reference imports to suppress errors if they are not otherwise used.
 var _ = proto.Marshal
@@ -19,7 +16,7 @@ var _ = math.Inf
 // is compatible with the proto package it is being compiled against.
 // A compilation error at this line likely means your copy of the
 // proto package needs to be updated.
-const _ = proto.ProtoPackageIsVersion3 // please upgrade the proto package
+const _ = proto.ProtoPackageIsVersion2 // please upgrade the proto package
 
 type SpanRefType int32
 
@@ -32,7 +29,6 @@ var SpanRefType_name = map[int32]string{
 	0: "CHILD_OF",
 	1: "FOLLOWS_FROM",
 }
-
 var SpanRefType_value = map[string]int32{
 	"CHILD_OF":     0,
 	"FOLLOWS_FROM": 1,
@@ -41,9 +37,8 @@ var SpanRefType_value = map[string]int32{
 func (x SpanRefType) String() string {
 	return proto.EnumName(SpanRefType_name, int32(x))
 }
-
 func (SpanRefType) EnumDescriptor() ([]byte, []int) {
-	return fileDescriptor_7d019f60590a05da, []int{0}
+	return fileDescriptor_model_test_74918b92027939ce, []int{0}
 }
 
 type SpanRef struct {
@@ -59,17 +54,16 @@ func (m *SpanRef) Reset()         { *m = SpanRef{} }
 func (m *SpanRef) String() string { return proto.CompactTextString(m) }
 func (*SpanRef) ProtoMessage()    {}
 func (*SpanRef) Descriptor() ([]byte, []int) {
-	return fileDescriptor_7d019f60590a05da, []int{0}
+	return fileDescriptor_model_test_74918b92027939ce, []int{0}
 }
-
 func (m *SpanRef) XXX_Unmarshal(b []byte) error {
 	return xxx_messageInfo_SpanRef.Unmarshal(m, b)
 }
 func (m *SpanRef) XXX_Marshal(b []byte, deterministic bool) ([]byte, error) {
 	return xxx_messageInfo_SpanRef.Marshal(b, m, deterministic)
 }
-func (m *SpanRef) XXX_Merge(src proto.Message) {
-	xxx_messageInfo_SpanRef.Merge(m, src)
+func (dst *SpanRef) XXX_Merge(src proto.Message) {
+	xxx_messageInfo_SpanRef.Merge(dst, src)
 }
 func (m *SpanRef) XXX_Size() int {
 	return xxx_messageInfo_SpanRef.Size(m)
@@ -102,13 +96,13 @@ func (m *SpanRef) GetRefType() SpanRefType {
 }
 
 func init() {
-	proto.RegisterEnum("prototest.SpanRefType", SpanRefType_name, SpanRefType_value)
 	proto.RegisterType((*SpanRef)(nil), "prototest.SpanRef")
+	proto.RegisterEnum("prototest.SpanRefType", SpanRefType_name, SpanRefType_value)
 }
 
-func init() { proto.RegisterFile("model_test.proto", fileDescriptor_7d019f60590a05da) }
+func init() { proto.RegisterFile("model_test.proto", fileDescriptor_model_test_74918b92027939ce) }
 
-var fileDescriptor_7d019f60590a05da = []byte{
+var fileDescriptor_model_test_74918b92027939ce = []byte{
 	// 178 bytes of a gzipped FileDescriptorProto
 	0x1f, 0x8b, 0x08, 0x00, 0x00, 0x00, 0x00, 0x00, 0x02, 0xff, 0xe2, 0x12, 0xc8, 0xcd, 0x4f, 0x49,
 	0xcd, 0x89, 0x2f, 0x49, 0x2d, 0x2e, 0xd1, 0x2b, 0x28, 0xca, 0x2f, 0xc9, 0x17, 0xe2, 0x04, 0x53,

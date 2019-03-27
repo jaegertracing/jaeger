@@ -606,62 +606,6 @@ func (m *PostSpansResponse) MarshalTo(dAtA []byte) (int, error) {
 	return i, nil
 }
 
-func (m *GetTraceRequest) Marshal() (dAtA []byte, err error) {
-	size := m.Size()
-	dAtA = make([]byte, size)
-	n, err := m.MarshalTo(dAtA)
-	if err != nil {
-		return nil, err
-	}
-	return dAtA[:n], nil
-}
-
-func (m *GetTraceRequest) MarshalTo(dAtA []byte) (int, error) {
-	var i int
-	_ = i
-	var l int
-	_ = l
-	dAtA[i] = 0xa
-	i++
-	i = encodeVarintApiV2(dAtA, i, uint64(m.TraceID.Size()))
-	n2, err := m.TraceID.MarshalTo(dAtA[i:])
-	if err != nil {
-		return 0, err
-	}
-	i += n2
-	return i, nil
-}
-
-func (m *GetTraceResponseStream) Marshal() (dAtA []byte, err error) {
-	size := m.Size()
-	dAtA = make([]byte, size)
-	n, err := m.MarshalTo(dAtA)
-	if err != nil {
-		return nil, err
-	}
-	return dAtA[:n], nil
-}
-
-func (m *GetTraceResponseStream) MarshalTo(dAtA []byte) (int, error) {
-	var i int
-	_ = i
-	var l int
-	_ = l
-	if len(m.Spans) > 0 {
-		for _, msg := range m.Spans {
-			dAtA[i] = 0xa
-			i++
-			i = encodeVarintApiV2(dAtA, i, uint64(msg.Size()))
-			n, err := msg.MarshalTo(dAtA[i:])
-			if err != nil {
-				return 0, err
-			}
-			i += n
-		}
-	}
-	return i, nil
-}
-
 func (m *ProbabilisticSamplingStrategy) Marshal() (dAtA []byte, err error) {
 	size := m.Size()
 	dAtA = make([]byte, size)
@@ -1167,167 +1111,6 @@ func (m *PostSpansResponse) Unmarshal(dAtA []byte) error {
 	}
 	return nil
 }
-func (m *GetTraceRequest) Unmarshal(dAtA []byte) error {
-	l := len(dAtA)
-	iNdEx := 0
-	for iNdEx < l {
-		preIndex := iNdEx
-		var wire uint64
-		for shift := uint(0); ; shift += 7 {
-			if shift >= 64 {
-				return ErrIntOverflowApiV2
-			}
-			if iNdEx >= l {
-				return io.ErrUnexpectedEOF
-			}
-			b := dAtA[iNdEx]
-			iNdEx++
-			wire |= (uint64(b) & 0x7F) << shift
-			if b < 0x80 {
-				break
-			}
-		}
-		fieldNum := int32(wire >> 3)
-		wireType := int(wire & 0x7)
-		if wireType == 4 {
-			return fmt.Errorf("proto: GetTraceRequest: wiretype end group for non-group")
-		}
-		if fieldNum <= 0 {
-			return fmt.Errorf("proto: GetTraceRequest: illegal tag %d (wire type %d)", fieldNum, wire)
-		}
-		switch fieldNum {
-		case 1:
-			if wireType != 2 {
-				return fmt.Errorf("proto: wrong wireType = %d for field TraceID", wireType)
-			}
-			var byteLen int
-			for shift := uint(0); ; shift += 7 {
-				if shift >= 64 {
-					return ErrIntOverflowApiV2
-				}
-				if iNdEx >= l {
-					return io.ErrUnexpectedEOF
-				}
-				b := dAtA[iNdEx]
-				iNdEx++
-				byteLen |= (int(b) & 0x7F) << shift
-				if b < 0x80 {
-					break
-				}
-			}
-			if byteLen < 0 {
-				return ErrInvalidLengthApiV2
-			}
-			postIndex := iNdEx + byteLen
-			if postIndex > l {
-				return io.ErrUnexpectedEOF
-			}
-			if err := m.TraceID.Unmarshal(dAtA[iNdEx:postIndex]); err != nil {
-				return err
-			}
-			iNdEx = postIndex
-		default:
-			iNdEx = preIndex
-			skippy, err := skipApiV2(dAtA[iNdEx:])
-			if err != nil {
-				return err
-			}
-			if skippy < 0 {
-				return ErrInvalidLengthApiV2
-			}
-			if (iNdEx + skippy) > l {
-				return io.ErrUnexpectedEOF
-			}
-			iNdEx += skippy
-		}
-	}
-
-	if iNdEx > l {
-		return io.ErrUnexpectedEOF
-	}
-	return nil
-}
-func (m *GetTraceResponseStream) Unmarshal(dAtA []byte) error {
-	l := len(dAtA)
-	iNdEx := 0
-	for iNdEx < l {
-		preIndex := iNdEx
-		var wire uint64
-		for shift := uint(0); ; shift += 7 {
-			if shift >= 64 {
-				return ErrIntOverflowApiV2
-			}
-			if iNdEx >= l {
-				return io.ErrUnexpectedEOF
-			}
-			b := dAtA[iNdEx]
-			iNdEx++
-			wire |= (uint64(b) & 0x7F) << shift
-			if b < 0x80 {
-				break
-			}
-		}
-		fieldNum := int32(wire >> 3)
-		wireType := int(wire & 0x7)
-		if wireType == 4 {
-			return fmt.Errorf("proto: GetTraceResponseStream: wiretype end group for non-group")
-		}
-		if fieldNum <= 0 {
-			return fmt.Errorf("proto: GetTraceResponseStream: illegal tag %d (wire type %d)", fieldNum, wire)
-		}
-		switch fieldNum {
-		case 1:
-			if wireType != 2 {
-				return fmt.Errorf("proto: wrong wireType = %d for field Spans", wireType)
-			}
-			var msglen int
-			for shift := uint(0); ; shift += 7 {
-				if shift >= 64 {
-					return ErrIntOverflowApiV2
-				}
-				if iNdEx >= l {
-					return io.ErrUnexpectedEOF
-				}
-				b := dAtA[iNdEx]
-				iNdEx++
-				msglen |= (int(b) & 0x7F) << shift
-				if b < 0x80 {
-					break
-				}
-			}
-			if msglen < 0 {
-				return ErrInvalidLengthApiV2
-			}
-			postIndex := iNdEx + msglen
-			if postIndex > l {
-				return io.ErrUnexpectedEOF
-			}
-			m.Spans = append(m.Spans, jaeger_api_v2.Span{})
-			if err := m.Spans[len(m.Spans)-1].Unmarshal(dAtA[iNdEx:postIndex]); err != nil {
-				return err
-			}
-			iNdEx = postIndex
-		default:
-			iNdEx = preIndex
-			skippy, err := skipApiV2(dAtA[iNdEx:])
-			if err != nil {
-				return err
-			}
-			if skippy < 0 {
-				return ErrInvalidLengthApiV2
-			}
-			if (iNdEx + skippy) > l {
-				return io.ErrUnexpectedEOF
-			}
-			iNdEx += skippy
-		}
-	}
-
-	if iNdEx > l {
-		return io.ErrUnexpectedEOF
-	}
-	return nil
-}
 func (m *ProbabilisticSamplingStrategy) Unmarshal(dAtA []byte) error {
 	l := len(dAtA)
 	iNdEx := 0
@@ -1366,14 +1149,6 @@ func (m *ProbabilisticSamplingStrategy) Unmarshal(dAtA []byte) error {
 				return io.ErrUnexpectedEOF
 			}
 			iNdEx += 8
-			v = uint64(dAtA[iNdEx-8])
-			v |= uint64(dAtA[iNdEx-7]) << 8
-			v |= uint64(dAtA[iNdEx-6]) << 16
-			v |= uint64(dAtA[iNdEx-5]) << 24
-			v |= uint64(dAtA[iNdEx-4]) << 32
-			v |= uint64(dAtA[iNdEx-3]) << 40
-			v |= uint64(dAtA[iNdEx-2]) << 48
-			v |= uint64(dAtA[iNdEx-1]) << 56
 			m.SamplingRate = float64(math.Float64frombits(v))
 		default:
 			iNdEx = preIndex
@@ -1630,14 +1405,6 @@ func (m *PerOperationSamplingStrategies) Unmarshal(dAtA []byte) error {
 				return io.ErrUnexpectedEOF
 			}
 			iNdEx += 8
-			v = uint64(dAtA[iNdEx-8])
-			v |= uint64(dAtA[iNdEx-7]) << 8
-			v |= uint64(dAtA[iNdEx-6]) << 16
-			v |= uint64(dAtA[iNdEx-5]) << 24
-			v |= uint64(dAtA[iNdEx-4]) << 32
-			v |= uint64(dAtA[iNdEx-3]) << 40
-			v |= uint64(dAtA[iNdEx-2]) << 48
-			v |= uint64(dAtA[iNdEx-1]) << 56
 			m.DefaultSamplingProbability = float64(math.Float64frombits(v))
 		case 2:
 			if wireType != 1 {
@@ -1648,14 +1415,6 @@ func (m *PerOperationSamplingStrategies) Unmarshal(dAtA []byte) error {
 				return io.ErrUnexpectedEOF
 			}
 			iNdEx += 8
-			v = uint64(dAtA[iNdEx-8])
-			v |= uint64(dAtA[iNdEx-7]) << 8
-			v |= uint64(dAtA[iNdEx-6]) << 16
-			v |= uint64(dAtA[iNdEx-5]) << 24
-			v |= uint64(dAtA[iNdEx-4]) << 32
-			v |= uint64(dAtA[iNdEx-3]) << 40
-			v |= uint64(dAtA[iNdEx-2]) << 48
-			v |= uint64(dAtA[iNdEx-1]) << 56
 			m.DefaultLowerBoundTracesPerSecond = float64(math.Float64frombits(v))
 		case 3:
 			if wireType != 2 {
@@ -1700,14 +1459,6 @@ func (m *PerOperationSamplingStrategies) Unmarshal(dAtA []byte) error {
 				return io.ErrUnexpectedEOF
 			}
 			iNdEx += 8
-			v = uint64(dAtA[iNdEx-8])
-			v |= uint64(dAtA[iNdEx-7]) << 8
-			v |= uint64(dAtA[iNdEx-6]) << 16
-			v |= uint64(dAtA[iNdEx-5]) << 24
-			v |= uint64(dAtA[iNdEx-4]) << 32
-			v |= uint64(dAtA[iNdEx-3]) << 40
-			v |= uint64(dAtA[iNdEx-2]) << 48
-			v |= uint64(dAtA[iNdEx-1]) << 56
 			m.DefaultUpperBoundTracesPerSecond = float64(math.Float64frombits(v))
 		default:
 			iNdEx = preIndex
