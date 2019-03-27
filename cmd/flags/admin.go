@@ -68,7 +68,7 @@ func (s *AdminServer) setLogger(logger *zap.Logger) {
 
 // AddFlags registers CLI flags.
 func (s *AdminServer) AddFlags(flagSet *flag.FlagSet) {
-	flagSet.Int(healthCheckHTTPPort, 0, "(deprecated) The http port for the health check service")
+	flagSet.Int(healthCheckHTTPPort, 0, "(deprecated) see --"+adminHTTPPort)
 	flagSet.Int(adminHTTPPort, s.adminPort, "The http port for the admin server, including health check, /metrics, etc.")
 }
 
