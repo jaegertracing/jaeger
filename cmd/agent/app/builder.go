@@ -17,6 +17,7 @@ package app
 import (
 	"fmt"
 	"net/http"
+	"strconv"
 
 	"github.com/apache/thrift/lib/go/thrift"
 	"github.com/pkg/errors"
@@ -31,6 +32,7 @@ import (
 	"github.com/jaegertracing/jaeger/cmd/agent/app/reporter/tchannel"
 	"github.com/jaegertracing/jaeger/cmd/agent/app/servers"
 	"github.com/jaegertracing/jaeger/cmd/agent/app/servers/thriftudp"
+	"github.com/jaegertracing/jaeger/ports"
 	zipkinThrift "github.com/jaegertracing/jaeger/thrift-gen/agent"
 	jaegerThrift "github.com/jaegertracing/jaeger/thrift-gen/jaeger"
 )
@@ -40,14 +42,14 @@ const (
 	defaultMaxPacketSize = 65000
 	defaultServerWorkers = 10
 
-	defaultHTTPServerHostPort = ":5778"
-
 	jaegerModel Model = "jaeger"
 	zipkinModel       = "zipkin"
 
 	compactProtocol Protocol = "compact"
 	binaryProtocol           = "binary"
 )
+
+var defaultHTTPServerHostPort = ":" + strconv.Itoa(ports.AgentConfigServerHTTP)
 
 // Model used to distinguish the data transfer model
 type Model string

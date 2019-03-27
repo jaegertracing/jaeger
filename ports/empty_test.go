@@ -1,4 +1,4 @@
-// Copyright (c) 2018 Uber Technologies, Inc.
+// Copyright (c) 2019 The Jaeger Authors.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -12,27 +12,4 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package healthcheck
-
-import (
-	"net/http"
-	"net/http/httptest"
-	"testing"
-
-	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/require"
-)
-
-func TestHttpCall(t *testing.T) {
-	hc := New()
-	handler := hc.Handler()
-
-	server := httptest.NewServer(handler)
-	defer server.Close()
-
-	hc.Set(Ready)
-
-	resp, err := http.Get(server.URL + "/")
-	require.NoError(t, err)
-	assert.Equal(t, http.StatusNoContent, resp.StatusCode)
-}
+package ports
