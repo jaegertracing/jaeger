@@ -278,7 +278,7 @@
   revision = "b23578765ee54ff6bceff57f397d833bf4ca6869"
 
 [[projects]]
-  digest = "1:a7ca1a547447a4baef3c16479b5ba2d90967e9615e371a1205b7fc8c8fdcbfe7"
+  digest = "1:2d91858167615bbc9f642045d8f7e38a16b346fcc2523f9dc75b6da4d8b3397c"
   name = "github.com/gogo/protobuf"
   packages = [
     "gogoproto",
@@ -303,6 +303,7 @@
     "protoc-gen-gogo",
     "protoc-gen-gogo/descriptor",
     "protoc-gen-gogo/generator",
+    "protoc-gen-gogo/generator/internal/remap",
     "protoc-gen-gogo/grpc",
     "protoc-gen-gogo/plugin",
     "sortkeys",
@@ -311,7 +312,7 @@
     "vanity/command",
   ]
   pruneopts = "UT"
-  revision = "fd9a4790f3963525fb889cc00e0a8f828e0b3a29"
+  revision = "ba06b47c162d49f2af050fb4c75bcbc86a159d5c"
 
 [[projects]]
   digest = "1:1ba1d79f2810270045c328ae5d674321db34e3aae468eb4233883b473c5c0467"
