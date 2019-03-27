@@ -86,7 +86,7 @@ func (b *Builder) CreateReporter(logger *zap.Logger, mFactory metrics.Factory, a
 	}
 
 	if b.Resolver != nil && b.ResolverTarget != "" {
-		// TODO need to ask if software & networking team already has implemented resolver for dns, current resolver is pretty old
+		// If both resolver&resolverTarget are specified, we will rely on it to resolve collector addresses
 		conn, _ := grpc.Dial(b.ResolverTarget,
 			dialOption,
 			grpc.WithBalancer(grpc.RoundRobin(b.Resolver)),
