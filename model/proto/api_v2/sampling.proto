@@ -1,3 +1,4 @@
+// Copyright (c) 2019 The Jaeger Authors.
 // Copyright (c) 2018 Uber Technologies, Inc.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
@@ -16,7 +17,6 @@ syntax="proto3";
 
 package jaeger.api_v2;
 
-import "model.proto";
 import "gogoproto/gogo.proto";
 import "google/api/annotations.proto";
 import "protoc-gen-swagger/options/annotations.proto";
@@ -45,24 +45,6 @@ option (grpc.gateway.protoc_gen_swagger.options.openapiv2_swagger) = {
   schemes: HTTP;
   schemes: HTTPS;
 };
-
-message PostSpansRequest {
-    Batch batch = 1 [
-        (gogoproto.nullable) = false
-    ];
-}
-
-message PostSpansResponse {
-}
-
-service CollectorService {
-    rpc PostSpans(PostSpansRequest) returns (PostSpansResponse) {
-        option (google.api.http) = {
-            post: "/api/v2/spans"
-            body: "*"
-        };
-    }
-}
 
 enum SamplingStrategyType {
   PROBABILISTIC = 0;
@@ -108,4 +90,3 @@ service SamplingManager {
         };
   }
 }
-

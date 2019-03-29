@@ -55,15 +55,15 @@ func AddFlags(flags *flag.FlagSet) {
 	flags.String(
 		collectorHostPort,
 		"",
-		"Deprecated; comma-separated string representing host:ports of a static list of collectors to connect to directly (e.g. when not using service discovery)")
+		"(deprecated) see --"+tchannelPrefix+hostPort)
 	flags.Int(
 		discoveryMinPeers,
 		defaultMinPeers,
-		"Deprecated; if using service discovery, the min number of connections to maintain to the backend")
+		"(deprecated) see --"+tchannelPrefix+discoveryMinPeers)
 	flags.Duration(
 		discoveryConnCheckTimeout,
 		defaultConnCheckTimeout,
-		"Deprecated; sets the timeout used when establishing new connections")
+		"(deprecated) see --"+tchannelPrefix+discoveryConnCheckTimeout)
 }
 
 // InitFromViper initializes Builder with properties retrieved from Viper.

@@ -34,7 +34,7 @@ func TestOptionsWithFlags(t *testing.T) {
 		"--kafka.consumer.encoding=json",
 		"--ingester.parallelism=5",
 		"--ingester.deadlockInterval=2m",
-		"--ingester.http-port=2345"})
+	})
 	o.InitFromViper(v)
 
 	assert.Equal(t, "topic1", o.Topic)
@@ -43,7 +43,6 @@ func TestOptionsWithFlags(t *testing.T) {
 	assert.Equal(t, 5, o.Parallelism)
 	assert.Equal(t, 2*time.Minute, o.DeadlockInterval)
 	assert.Equal(t, kafka.EncodingJSON, o.Encoding)
-	assert.Equal(t, 2345, o.IngesterHTTPPort)
 }
 
 func TestFlagDefaults(t *testing.T) {

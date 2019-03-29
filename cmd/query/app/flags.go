@@ -18,6 +18,8 @@ import (
 	"flag"
 
 	"github.com/spf13/viper"
+
+	"github.com/jaegertracing/jaeger/ports"
 )
 
 const (
@@ -25,8 +27,6 @@ const (
 	queryBasePath    = "query.base-path"
 	queryStaticFiles = "query.static-files"
 	queryUIConfig    = "query.ui-config"
-	// QueryDefaultHealthCheckHTTPPort is the default HTTP Port for health check
-	QueryDefaultHealthCheckHTTPPort = 16687
 )
 
 // QueryOptions holds configuration for query service
@@ -43,7 +43,7 @@ type QueryOptions struct {
 
 // AddFlags adds flags for QueryOptions
 func AddFlags(flagSet *flag.FlagSet) {
-	flagSet.Int(queryPort, 16686, "The port for the query service")
+	flagSet.Int(queryPort, ports.QueryHTTP, "The port for the query service")
 	flagSet.String(queryBasePath, "/", "The base path for all HTTP routes, e.g. /jaeger; useful when running behind a reverse proxy")
 	flagSet.String(queryStaticFiles, "", "The directory path override for the static assets for the UI")
 	flagSet.String(queryUIConfig, "", "The path to the UI configuration file in JSON format")

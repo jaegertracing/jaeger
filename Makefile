@@ -385,10 +385,10 @@ proto:
 
 	$(PROTOC) \
 		$(PROTO_INCLUDES) \
-		--gogo_out=plugins=grpc,$(PROTO_GOGO_MAPPINGS):$(PWD)/proto-gen/api_v2/ \
-		--grpc-gateway_out=$(PROTO_GOGO_MAPPINGS):$(PWD)/proto-gen/api_v2/ \
-		--swagger_out=$(PWD)/proto-gen/openapi/ \
-		model/proto/api_v2.proto
+		--gogo_out=plugins=grpc,$(PROTO_GOGO_MAPPINGS):$(PWD)/proto-gen/ \
+		--grpc-gateway_out=$(PROTO_GOGO_MAPPINGS):$(PWD)/proto-gen/ \
+		--swagger_out=allow_merge=true:$(PWD)/proto-gen/openapi/ \
+		model/proto/api_v2/*.proto
 
 	$(PROTOC) \
 		$(PROTO_INCLUDES) \

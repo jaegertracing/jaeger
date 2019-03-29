@@ -17,14 +17,11 @@ package main
 import (
 	"fmt"
 	"io"
-	"io/ioutil"
 	"log"
 	"net"
 	"net/http"
 	"os"
-	"os/signal"
 	"strconv"
-	"syscall"
 
 	"github.com/gorilla/mux"
 	"github.com/spf13/cobra"
@@ -35,7 +32,6 @@ import (
 	"go.uber.org/zap"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials"
-	"google.golang.org/grpc/grpclog"
 
 	basicB "github.com/jaegertracing/jaeger/cmd/builder"
 	"github.com/jaegertracing/jaeger/cmd/collector/app"
@@ -48,11 +44,11 @@ import (
 	"github.com/jaegertracing/jaeger/cmd/flags"
 	"github.com/jaegertracing/jaeger/pkg/config"
 	"github.com/jaegertracing/jaeger/pkg/healthcheck"
-	pMetrics "github.com/jaegertracing/jaeger/pkg/metrics"
 	"github.com/jaegertracing/jaeger/pkg/recoveryhandler"
 	"github.com/jaegertracing/jaeger/pkg/version"
 	ss "github.com/jaegertracing/jaeger/plugin/sampling/strategystore"
 	"github.com/jaegertracing/jaeger/plugin/storage"
+	"github.com/jaegertracing/jaeger/ports"
 	jc "github.com/jaegertracing/jaeger/thrift-gen/jaeger"
 	sc "github.com/jaegertracing/jaeger/thrift-gen/sampling"
 	zc "github.com/jaegertracing/jaeger/thrift-gen/zipkincore"
@@ -61,10 +57,7 @@ import (
 const serviceName = "jaeger-collector"
 
 func main() {
-	var signalsChannel = make(chan os.Signal)
-	signal.Notify(signalsChannel, os.Interrupt, syscall.SIGTERM)
-
-	grpclog.SetLoggerV2(grpclog.NewLoggerV2(ioutil.Discard, os.Stderr, os.Stderr))
+	svc := flags.NewService(ports.CollectorAdminHTTP)
 
 	storageFactory, err := storage.NewFactory(storage.FactoryConfigFromEnvAndCLI(os.Args, os.Stderr))
 	if err != nil {
@@ -74,34 +67,19 @@ func main() {
 	if err != nil {
 		log.Fatalf("Cannot initialize sampling strategy store factory: %v", err)
 	}
+
 	v := viper.New()
 	command := &cobra.Command{
 		Use:   "jaeger-collector",
 		Short: "Jaeger collector receives and processes traces from Jaeger agents and clients",
 		Long:  `Jaeger collector receives traces from Jaeger agents and runs them through a processing pipeline.`,
 		RunE: func(cmd *cobra.Command, args []string) error {
-			err := flags.TryLoadConfigFile(v)
-			if err != nil {
+			if err := svc.Start(v); err != nil {
 				return err
 			}
-
-			sFlags := new(flags.SharedFlags).InitFromViper(v)
-			logger, err := sFlags.NewLogger(zap.NewProductionConfig())
-			if err != nil {
-				return err
-			}
-			hc, err := sFlags.NewHealthCheck(logger)
-			if err != nil {
-				logger.Fatal("Could not start the health check server.", zap.Error(err))
-			}
-
-			builderOpts := new(builder.CollectorOptions).InitFromViper(v)
-
-			mBldr := new(pMetrics.Builder).InitFromViper(v)
-			baseFactory, err := mBldr.CreateMetricsFactory("jaeger")
-			if err != nil {
-				logger.Fatal("Cannot create metrics factory.", zap.Error(err))
-			}
+			logger := svc.Logger // shortcut
+			baseFactory := svc.MetricsFactory.Namespace(metrics.NSOptions{Name: "jaeger"})
+			metricsFactory := baseFactory.Namespace(metrics.NSOptions{Name: "collector"})
 
 			storageFactory.InitFromViper(v)
 			if err := storageFactory.Initialize(baseFactory, logger); err != nil {
@@ -112,7 +90,7 @@ func main() {
 				logger.Fatal("Failed to create span writer", zap.Error(err))
 			}
 
-			metricsFactory := baseFactory.Namespace(metrics.NSOptions{Name: "collector", Tags: nil})
+			builderOpts := new(builder.CollectorOptions).InitFromViper(v)
 			handlerBuilder, err := builder.NewSpanHandlerBuilder(
 				builderOpts,
 				spanWriter,
@@ -154,10 +132,6 @@ func main() {
 				r := mux.NewRouter()
 				apiHandler := app.NewAPIHandler(jaegerBatchesHandler)
 				apiHandler.RegisterRoutes(r)
-				if h := mBldr.Handler(); h != nil {
-					logger.Info("Registering metrics handler with HTTP server", zap.String("route", mBldr.HTTPRoute))
-					r.Handle(mBldr.HTTPRoute, h)
-				}
 				httpPortStr := ":" + strconv.Itoa(builderOpts.CollectorHTTPPort)
 				recoveryHandler := recoveryhandler.NewRecoveryHandler(logger, true)
 				httpHandler := recoveryHandler(r)
@@ -169,22 +143,19 @@ func main() {
 					if err := http.ListenAndServe(httpPortStr, httpHandler); err != nil {
 						logger.Fatal("Could not launch service", zap.Error(err))
 					}
-					hc.Set(healthcheck.Unavailable)
+					svc.HC().Set(healthcheck.Unavailable)
 				}()
 			}
 
-			hc.Ready()
-			<-signalsChannel
-			logger.Info("Shutting down")
-			if closer, ok := spanWriter.(io.Closer); ok {
-				server.GracefulStop()
-				err := closer.Close()
-				if err != nil {
-					logger.Error("Failed to close span writer", zap.Error(err))
+			svc.RunAndThen(func() {
+				if closer, ok := spanWriter.(io.Closer); ok {
+					server.GracefulStop()
+					err := closer.Close()
+					if err != nil {
+						logger.Error("Failed to close span writer", zap.Error(err))
+					}
 				}
-			}
-
-			logger.Info("Shutdown complete")
+			})
 			return nil
 		},
 	}
@@ -192,16 +163,12 @@ func main() {
 	command.AddCommand(version.Command())
 	command.AddCommand(env.Command())
 
-	flags.SetDefaultHealthCheckPort(builder.CollectorDefaultHealthCheckHTTPPort)
-
 	config.AddFlags(
 		v,
 		command,
-		flags.AddConfigFileFlag,
-		flags.AddFlags,
+		svc.AddFlags,
 		builder.AddFlags,
 		storageFactory.AddFlags,
-		pMetrics.AddFlags,
 		strategyStoreFactory.AddFlags,
 	)
 
