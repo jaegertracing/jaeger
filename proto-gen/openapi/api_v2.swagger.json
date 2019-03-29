@@ -67,7 +67,7 @@
         ]
       }
     },
-    "/api/v2/traces/{trace_id}": {
+    "/traces/{trace_id}": {
       "get": {
         "operationId": "GetTrace",
         "responses": {
