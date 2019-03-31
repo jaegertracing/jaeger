@@ -49,7 +49,7 @@ func NewGRPCHandler(queryService querysvc.QueryService, logger *zap.Logger, trac
 }
 
 // GetTrace is the GRPC handler to fetch traces.
-func (g *GRPCHandler) GetTrace(ctx context.Context, r *api_v2.GetTraceRequest) (*api_v2.GetTraceResponse, error) {
+func (g *GRPCHandler) GetTrace(ctx context.Context, r *api_v2.GetTraceRequest) (*api_v2.GetTraceResponseStream, error) {
 	ID := r.GetId()
 
 	trace, err := g.queryService.GetTrace(ctx, ID)
@@ -62,5 +62,45 @@ func (g *GRPCHandler) GetTrace(ctx context.Context, r *api_v2.GetTraceRequest) (
 		return nil, err
 	}
 
-	return &api_v2.GetTraceResponse{Trace: trace}, nil
+	return &api_v2.GetTraceResponseStream{Spans: trace.Spans}, nil
+}
+
+// ArchiveTrace is the GRPC handler to archive traces.
+func (g *GRPCHandler) ArchiveTrace(ctx context.Context, r *api_v2.ArchiveTraceRequest) (*api_v2.ArchiveTraceResponse, error) {
+	ID := r.GetId()
+
+	err := g.queryService.ArchiveTrace(ctx, ID)
+	if err == spanstore.ErrTraceNotFound {
+		g.logger.Error("trace not found", zap.Error(err))
+		return nil, err
+	}
+	if err != nil {
+		g.logger.Error("Could not fetch spans from backend", zap.Error(err))
+		return nil, err
+	}
+
+	return &api_v2.ArchiveTraceResponse{}, nil
+}
+
+// GetServices is the GRPC handler to archive traces.
+func (g *GRPCHandler) GetServices(ctx context.Context, r *api_v2.GetServicesRequest) (*api_v2.GetServicesReponse, error) {
+	services, err := g.queryService.GetServices(ctx)
+	if err != nil {
+		g.logger.Error("Error fetching services", zap.Error(err))
+		return nil, err
+	}
+
+	return &api_v2.GetServicesReponse{services:services}, nil
+}
+
+// GetOperations is the GRPC handler to archive traces.
+func (g *GRPCHandler) GetOperations(ctx context.Context, r *api_v2.GetOperationsRequest) (*api_v2.GetOperationsReponse, error) {
+	service := r.GetService()
+	operations, err := g.queryService.GetOperations(ctx, service)
+	if err != nil {
+		g.logger.Error("Error fetching operations", zap.Error(err))
+		return nil, err
+	}
+
+	return &api_v2.GetOperationsReponse{operations:operations}, nil
 }
