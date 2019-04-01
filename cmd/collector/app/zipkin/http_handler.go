@@ -173,7 +173,7 @@ func gunzip(r io.ReadCloser) (*gzip.Reader, error) {
 
 func (aH *APIHandler) saveThriftSpans(tSpans []*zipkincore.Span) error {
 	if len(tSpans) > 0 {
-		opts := app.SubmitBatchOptions{InboundTransport: "http"} // TODO do we have a constant?
+		opts := app.SubmitBatchOptions{InboundTransport: app.HTTPEndpoint}
 		if _, err := aH.zipkinSpansHandler.SubmitZipkinBatch(tSpans, opts); err != nil {
 			return err
 		}

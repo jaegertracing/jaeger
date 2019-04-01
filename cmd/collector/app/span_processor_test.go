@@ -109,21 +109,21 @@ func TestBySvcMetrics(t *testing.T) {
 		expected := []metricstest.ExpectedMetric{}
 		if test.debug {
 			expected = append(expected, metricstest.ExpectedMetric{
-				Name: metricPrefix + ".spans.received|debug=true|format=" + format + "|svc=" + test.serviceName, Value: 2,
+				Name: metricPrefix + ".spans.received|debug=true|format=" + format + "|svc=" + test.serviceName + "|transport=TChannel", Value: 2,
 			})
 		} else {
 			expected = append(expected, metricstest.ExpectedMetric{
-				Name: metricPrefix + ".spans.received|debug=false|format=" + format + "|svc=" + test.serviceName, Value: 2,
+				Name: metricPrefix + ".spans.received|debug=false|format=" + format + "|svc=" + test.serviceName + "|transport=TChannel", Value: 2,
 			})
 		}
 		if test.rootSpan {
 			if test.debug {
 				expected = append(expected, metricstest.ExpectedMetric{
-					Name: metricPrefix + ".traces.received|debug=true|format=" + format + "|svc=" + test.serviceName, Value: 2,
+					Name: metricPrefix + ".traces.received|debug=true|format=" + format + "|svc=" + test.serviceName + "|transport=TChannel", Value: 2,
 				})
 			} else {
 				expected = append(expected, metricstest.ExpectedMetric{
-					Name: metricPrefix + ".traces.received|debug=false|format=" + format + "|svc=" + test.serviceName, Value: 2,
+					Name: metricPrefix + ".traces.received|debug=false|format=" + format + "|svc=" + test.serviceName + "|transport=TChannel", Value: 2,
 				})
 			}
 		}
@@ -137,7 +137,7 @@ func TestBySvcMetrics(t *testing.T) {
 			})
 		} else {
 			expected = append(expected, metricstest.ExpectedMetric{
-				Name: metricPrefix + ".spans.rejected|debug=false|format=" + format + "|svc=" + test.serviceName, Value: 2,
+				Name: metricPrefix + ".spans.rejected|debug=false|format=" + format + "|svc=" + test.serviceName + "|transport=TChannel", Value: 2,
 			})
 		}
 		mb.AssertCounterMetrics(t, expected...)

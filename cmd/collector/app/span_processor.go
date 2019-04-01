@@ -112,11 +112,11 @@ func (sp *spanProcessor) saveSpan(span *model.Span) {
 	startTime := time.Now()
 	if err := sp.spanWriter.WriteSpan(span); err != nil {
 		sp.logger.Error("Failed to save span", zap.Error(err))
-		sp.metrics.SavedErrBySvc.ReportServiceNameForSpan(span)
+		sp.metrics.SavedErrBySvc.ReportServiceNameForSpan(span, "")
 	} else {
 		sp.logger.Debug("Span written to the storage by the collector",
 			zap.Stringer("trace-id", span.TraceID), zap.Stringer("span-id", span.SpanID))
-		sp.metrics.SavedOkBySvc.ReportServiceNameForSpan(span)
+		sp.metrics.SavedOkBySvc.ReportServiceNameForSpan(span, "")
 	}
 	sp.metrics.SaveLatency.Record(time.Since(startTime))
 }
@@ -124,10 +124,9 @@ func (sp *spanProcessor) saveSpan(span *model.Span) {
 func (sp *spanProcessor) ProcessSpans(mSpans []*model.Span, options ProcessSpansOptions) ([]bool, error) {
 	sp.preProcessSpans(mSpans)
 	sp.metrics.BatchSize.Update(int64(len(mSpans)))
-	sp.metrics.countsByEndpoints[options.InboundTransport].Inc(int64(len(mSpans)))
 	retMe := make([]bool, len(mSpans))
 	for i, mSpan := range mSpans {
-		ok := sp.enqueueSpan(mSpan, options.SpanFormat)
+		ok := sp.enqueueSpan(mSpan, options.SpanFormat, options.InboundTransport)
 		if !ok && sp.reportBusy {
 			return nil, tchannel.ErrServerBusy
 		}
@@ -141,12 +140,12 @@ func (sp *spanProcessor) processItemFromQueue(item *queueItem) {
 	sp.metrics.InQueueLatency.Record(time.Since(item.queuedTime))
 }
 
-func (sp *spanProcessor) enqueueSpan(span *model.Span, originalFormat string) bool {
+func (sp *spanProcessor) enqueueSpan(span *model.Span, originalFormat, endpointType string) bool {
 	spanCounts := sp.metrics.GetCountsForFormat(originalFormat)
-	spanCounts.ReceivedBySvc.ReportServiceNameForSpan(span)
+	spanCounts.ReceivedBySvc.ReportServiceNameForSpan(span, endpointType)
 
 	if !sp.filterSpan(span) {
-		spanCounts.RejectedBySvc.ReportServiceNameForSpan(span)
+		spanCounts.RejectedBySvc.ReportServiceNameForSpan(span, endpointType)
 		return true // as in "not dropped", because it's actively rejected
 	}
 	item := &queueItem{

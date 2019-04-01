@@ -45,11 +45,10 @@ type SpanProcessorMetrics struct {
 	// QueueLength measures the size of the internal span queue
 	QueueLength metrics.Gauge
 	// SavedOkBySvc contains span and trace counts by service
-	SavedOkBySvc      metricsBySvc  // spans actually saved
-	SavedErrBySvc     metricsBySvc  // spans failed to save
-	serviceNames      metrics.Gauge // total number of unique service name metrics reported by this collector
-	spanCounts        map[string]CountsBySpanType
-	countsByEndpoints map[string]metrics.Counter // count of spans processed from different endpoints (Http, TChannel, gRPC)
+	SavedOkBySvc  metricsBySvc  // spans actually saved
+	SavedErrBySvc metricsBySvc  // spans failed to save
+	serviceNames  metrics.Gauge // total number of unique service name metrics reported by this collector
+	spanCounts    map[string]CountsBySpanType
 }
 
 type countsBySvc struct {
@@ -84,21 +83,16 @@ func NewSpanProcessorMetrics(serviceMetrics metrics.Factory, hostMetrics metrics
 	for _, otherFormatType := range otherFormatTypes {
 		spanCounts[otherFormatType] = newCountsBySpanType(serviceMetrics.Namespace(metrics.NSOptions{Name: "", Tags: map[string]string{"format": otherFormatType}}))
 	}
-	countsByEndpoints := map[string]metrics.Counter{
-		GrpcEndpoint: serviceMetrics.Counter(metrics.Options{Name: "grpc-endpoint", Tags: nil}),
-		HTTPEndpoint: serviceMetrics.Counter(metrics.Options{Name: "http-endpoint", Tags: nil}),
-	}
 	m := &SpanProcessorMetrics{
-		SaveLatency:       hostMetrics.Timer(metrics.TimerOptions{Name: "save-latency", Tags: nil}),
-		InQueueLatency:    hostMetrics.Timer(metrics.TimerOptions{Name: "in-queue-latency", Tags: nil}),
-		SpansDropped:      hostMetrics.Counter(metrics.Options{Name: "spans.dropped", Tags: nil}),
-		BatchSize:         hostMetrics.Gauge(metrics.Options{Name: "batch-size", Tags: nil}),
-		QueueLength:       hostMetrics.Gauge(metrics.Options{Name: "queue-length", Tags: nil}),
-		SavedOkBySvc:      newMetricsBySvc(serviceMetrics.Namespace(metrics.NSOptions{Name: "", Tags: map[string]string{"result": "ok"}}), "saved-by-svc"),
-		SavedErrBySvc:     newMetricsBySvc(serviceMetrics.Namespace(metrics.NSOptions{Name: "", Tags: map[string]string{"result": "err"}}), "saved-by-svc"),
-		spanCounts:        spanCounts,
-		serviceNames:      hostMetrics.Gauge(metrics.Options{Name: "spans.serviceNames", Tags: nil}),
-		countsByEndpoints: countsByEndpoints,
+		SaveLatency:    hostMetrics.Timer(metrics.TimerOptions{Name: "save-latency", Tags: nil}),
+		InQueueLatency: hostMetrics.Timer(metrics.TimerOptions{Name: "in-queue-latency", Tags: nil}),
+		SpansDropped:   hostMetrics.Counter(metrics.Options{Name: "spans.dropped", Tags: nil}),
+		BatchSize:      hostMetrics.Gauge(metrics.Options{Name: "batch-size", Tags: nil}),
+		QueueLength:    hostMetrics.Gauge(metrics.Options{Name: "queue-length", Tags: nil}),
+		SavedOkBySvc:   newMetricsBySvc(serviceMetrics.Namespace(metrics.NSOptions{Name: "", Tags: map[string]string{"result": "ok"}}), "saved-by-svc"),
+		SavedErrBySvc:  newMetricsBySvc(serviceMetrics.Namespace(metrics.NSOptions{Name: "", Tags: map[string]string{"result": "err"}}), "saved-by-svc"),
+		spanCounts:     spanCounts,
+		serviceNames:   hostMetrics.Gauge(metrics.Options{Name: "spans.serviceNames", Tags: nil}),
 	}
 
 	return m
@@ -146,26 +140,26 @@ func (m *SpanProcessorMetrics) GetCountsForFormat(spanFormat string) CountsBySpa
 
 // reportServiceNameForSpan determines the name of the service that emitted
 // the span and reports a counter stat.
-func (m metricsBySvc) ReportServiceNameForSpan(span *model.Span) {
+func (m metricsBySvc) ReportServiceNameForSpan(span *model.Span, endpoint string) {
 	serviceName := span.Process.ServiceName
 	if serviceName == "" {
 		return
 	}
-	m.countSpansByServiceName(serviceName, span.Flags.IsDebug())
+	m.countSpansByServiceName(serviceName, span.Flags.IsDebug(), endpoint)
 	if span.ParentSpanID() == 0 {
-		m.countTracesByServiceName(serviceName, span.Flags.IsDebug())
+		m.countTracesByServiceName(serviceName, span.Flags.IsDebug(), endpoint)
 	}
 }
 
 // countSpansByServiceName counts how many spans are received per service.
-func (m metricsBySvc) countSpansByServiceName(serviceName string, isDebug bool) {
-	m.spans.countByServiceName(serviceName, isDebug)
+func (m metricsBySvc) countSpansByServiceName(serviceName string, isDebug bool, endpoint string) {
+	m.spans.countByServiceName(serviceName, isDebug, endpoint)
 }
 
 // countTracesByServiceName counts how many traces are received per service,
 // i.e. the counter is only incremented for the root spans.
-func (m metricsBySvc) countTracesByServiceName(serviceName string, isDebug bool) {
-	m.traces.countByServiceName(serviceName, isDebug)
+func (m metricsBySvc) countTracesByServiceName(serviceName string, isDebug bool, endpoint string) {
+	m.traces.countByServiceName(serviceName, isDebug, endpoint)
 }
 
 // countByServiceName maintains a map of counters for each service name it's
@@ -178,7 +172,7 @@ func (m metricsBySvc) countTracesByServiceName(serviceName string, isDebug bool)
 // total number of stored counters, so if it exceeds say the 90% threshold
 // an alert should be raised to investigate what's causing so many unique
 // service names.
-func (m *countsBySvc) countByServiceName(serviceName string, isDebug bool) {
+func (m *countsBySvc) countByServiceName(serviceName string, isDebug bool, endpointType string) {
 	serviceName = NormalizeServiceName(serviceName)
 	counts := m.counts
 	if isDebug {
@@ -193,7 +187,11 @@ func (m *countsBySvc) countByServiceName(serviceName string, isDebug bool) {
 		if isDebug {
 			debugStr = "true"
 		}
-		c := m.factory.Counter(metrics.Options{Name: m.category, Tags: map[string]string{"svc": serviceName, "debug": debugStr}})
+		tags := map[string]string{"svc": serviceName, "debug": debugStr}
+		if endpointType != "" {
+			tags["transport"] = endpointType
+		}
+		c := m.factory.Counter(metrics.Options{Name: m.category, Tags: tags})
 		counts[serviceName] = c
 		counter = c
 	} else {

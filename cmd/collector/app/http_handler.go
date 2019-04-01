@@ -85,7 +85,7 @@ func (aH *APIHandler) saveSpan(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	batches := []*tJaeger.Batch{batch}
-	opts := SubmitBatchOptions{InboundTransport: "http"} // TODO do we have a constant?
+	opts := SubmitBatchOptions{InboundTransport: HTTPEndpoint}
 	if _, err = aH.jaegerBatchesHandler.SubmitBatches(batches, opts); err != nil {
 		http.Error(w, fmt.Sprintf("Cannot submit Jaeger batch: %v", err), http.StatusInternalServerError)
 		return

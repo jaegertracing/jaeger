@@ -44,7 +44,7 @@ func (g *GRPCHandler) PostSpans(ctx context.Context, r *api_v2.PostSpansRequest)
 		}
 	}
 	_, err := g.spanProcessor.ProcessSpans(r.GetBatch().Spans, ProcessSpansOptions{
-		InboundTransport: "grpc", // TODO do we have a constant?
+		InboundTransport: GrpcEndpoint,
 		SpanFormat:       JaegerFormatType,
 	})
 	if err != nil {
