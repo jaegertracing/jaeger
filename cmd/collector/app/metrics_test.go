@@ -42,17 +42,17 @@ func TestProcessorMetrics(t *testing.T) {
 			ServiceName: "fry",
 		},
 	}
-	jFormat.ReceivedBySvc.ReportServiceNameForSpan(&mSpan, "HTTP")
+	jFormat.ReceivedBySvc.ReportServiceNameForSpan(&mSpan, tchannelEndpoint)
 	mSpan.Flags.SetDebug()
-	jFormat.ReceivedBySvc.ReportServiceNameForSpan(&mSpan, "HTTP")
+	jFormat.ReceivedBySvc.ReportServiceNameForSpan(&mSpan, tchannelEndpoint)
 	mSpan.ReplaceParentID(1234)
-	jFormat.ReceivedBySvc.ReportServiceNameForSpan(&mSpan, "HTTP")
+	jFormat.ReceivedBySvc.ReportServiceNameForSpan(&mSpan, tchannelEndpoint)
 	counters, gauges := baseMetrics.Backend.Snapshot()
 
-	assert.EqualValues(t, 1, counters["service.spans.received|debug=false|format=jaeger|svc=fry|transport=HTTP"])
-	assert.EqualValues(t, 2, counters["service.spans.received|debug=true|format=jaeger|svc=fry|transport=HTTP"])
-	assert.EqualValues(t, 1, counters["service.traces.received|debug=false|format=jaeger|svc=fry|transport=HTTP"])
-	assert.EqualValues(t, 1, counters["service.traces.received|debug=true|format=jaeger|svc=fry|transport=HTTP"])
+	assert.EqualValues(t, 1, counters["service.spans.received|debug=false|format=jaeger|svc=fry|transport="+tchannelEndpoint])
+	assert.EqualValues(t, 2, counters["service.spans.received|debug=true|format=jaeger|svc=fry|transport="+tchannelEndpoint])
+	assert.EqualValues(t, 1, counters["service.traces.received|debug=false|format=jaeger|svc=fry|transport="+tchannelEndpoint])
+	assert.EqualValues(t, 1, counters["service.traces.received|debug=true|format=jaeger|svc=fry|transport="+tchannelEndpoint])
 	assert.Empty(t, gauges)
 }
 
@@ -70,13 +70,13 @@ func TestNewCountsBySvc(t *testing.T) {
 	assert.EqualValues(t, 1, counters["not_on_my_level|debug=false|svc=leela"])
 	assert.EqualValues(t, 2, counters["not_on_my_level|debug=false|svc=other-services"])
 
-	metrics.countByServiceName("zoidberg", true, "gRPC")
-	metrics.countByServiceName("bender", true, "gRPC")
-	metrics.countByServiceName("leela", true, "gRPC")
-	metrics.countByServiceName("fry", true, "gRPC")
+	metrics.countByServiceName("zoidberg", true, grpcEndpoint)
+	metrics.countByServiceName("bender", true, grpcEndpoint)
+	metrics.countByServiceName("leela", true, grpcEndpoint)
+	metrics.countByServiceName("fry", true, grpcEndpoint)
 
 	counters, _ = baseMetrics.Backend.Snapshot()
-	assert.EqualValues(t, 1, counters["not_on_my_level|debug=true|svc=zoidberg|transport=gRPC"])
-	assert.EqualValues(t, 1, counters["not_on_my_level|debug=true|svc=bender|transport=gRPC"])
+	assert.EqualValues(t, 1, counters["not_on_my_level|debug=true|svc=zoidberg|transport="+grpcEndpoint])
+	assert.EqualValues(t, 1, counters["not_on_my_level|debug=true|svc=bender|transport="+grpcEndpoint])
 	assert.EqualValues(t, 2, counters["not_on_my_level|debug=true|svc=other-services"])
 }
