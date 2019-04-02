@@ -36,7 +36,7 @@ func TestProcessorMetrics(t *testing.T) {
 	assert.NotNil(t, jFormat)
 	jFormat.ReceivedBySvc.ReportServiceNameForSpan(&model.Span{
 		Process: &model.Process{},
-	}, "HTTP")
+	}, tchannelEndpoint)
 	mSpan := model.Span{
 		Process: &model.Process{
 			ServiceName: "fry",
