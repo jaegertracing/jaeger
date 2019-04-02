@@ -20,6 +20,8 @@ package jaeger.api_v2;
 import "model.proto";
 import "gogoproto/gogo.proto";
 import "google/api/annotations.proto";
+import "google/protobuf/timestamp.proto";
+import "google/protobuf/duration.proto";
 import "protoc-gen-swagger/options/annotations.proto";
 
 option go_package = "api_v2";
@@ -72,63 +74,79 @@ message ArchiveTraceRequest {
 message ArchiveTraceResponse {
 }
 
-// FIXME: Pass all TraceQueryParameters in SearchRequest?
-message SearchRequest {
-  string query = 1 [
-    (gogoproto.nullable) = false,
+message TraceQueryParameters {
+  string service_name = 1;
+  string operation_name = 2;
+  map<string, string> tags = 3;
+  google.protobuf.Timestamp start_time_min = 4 [
+    (gogoproto.stdtime) = true,
+    (gogoproto.nullable) = false
   ];
+  google.protobuf.Timestamp start_time_max = 5 [
+    (gogoproto.stdtime) = true,
+    (gogoproto.nullable) = false
+  ];
+  google.protobuf.Duration duration_min = 6 [
+    (gogoproto.stdduration) = true,
+    (gogoproto.nullable) = false
+  ];
+  google.protobuf.Duration duration_max = 7 [
+    (gogoproto.stdduration) = true,
+    (gogoproto.nullable) = false
+  ];
+  int32 num_traces = 8;
 }
 
-message SearchResponseStream {
-  repeated jaeger.api_v2.Span spans = 1 [
+message FindTracesRequest {
+  TraceQueryParameters query = 1;
+}
+
+message FindTracesResponse {
+  repeated jaeger.api_v2.Span spans = 1  [
     (gogoproto.nullable) = false
   ];
 }
 
-message GetServicesRequest {
-}
+message GetServicesRequest {}
 
 message GetServicesResponse {
-  // nullable = true
-  repeated string services = 1
+  repeated string services = 1;
 }
 
 message GetOperationsRequest {
-  string service = 1 [
-    (gogoproto.nullable) = false,
-  ];
+  string service = 1;
 }
 
 message GetOperationsResponse {
-  // nullable = true
-  repeated string operations = 1
+  repeated string operations = 1;
 }
 
 service QueryService {
-    rpc GetTrace(GetTraceRequest) returns (stream GetTraceResponseStream) {
+    rpc GetTrace(GetTraceRequest) returns (GetTraceResponseStream) {
         option (google.api.http) = {
             get: "/traces/{trace_id}"
-        };
-    }
-    rpc ArchiveTrace(ArchiveTraceRequest) returns (message ArchiveTraceResponse) {
-        option (google.api.http) = {
-            get: "/traces/{trace_id}"
-        };
-    }
-    rpc Search(SearchRequest) returns (message SearchResponseStream) {
-        option (google.api.http) = {
-            get: "/search"
-            body: "*"
         };
     }
 
-    rpc GetServices(GetServicesRequest) returns (message GetServicesResponse) {
+    rpc ArchiveTrace(ArchiveTraceRequest) returns (ArchiveTraceResponse) {
+        option (google.api.http) = {
+            post: "/traces/{trace_id}"
+        };
+    }
+
+    rpc Search(FindTracesRequest) returns (FindTracesResponse) {
+        option (google.api.http) = {
+            get: "/search"
+        };
+    }
+
+    rpc GetServices(GetServicesRequest) returns (GetServicesResponse) {
         option (google.api.http) = {
             get: "/services"
         };
     }
 
-    rpc GetOperations(GetOperationsRequest) returns (message GetOperationsResponse) {
+    rpc GetOperations(GetOperationsRequest) returns (GetOperationsResponse) {
         option (google.api.http) = {
             get: "/operations"
         };

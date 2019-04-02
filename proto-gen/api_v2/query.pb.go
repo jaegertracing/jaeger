@@ -9,6 +9,8 @@ import (
 	_ "github.com/gogo/googleapis/google/api"
 	_ "github.com/gogo/protobuf/gogoproto"
 	proto "github.com/gogo/protobuf/proto"
+	_ "github.com/gogo/protobuf/types"
+	github_com_gogo_protobuf_types "github.com/gogo/protobuf/types"
 	golang_proto "github.com/golang/protobuf/proto"
 	_ "github.com/grpc-ecosystem/grpc-gateway/protoc-gen-swagger/options"
 	github_com_jaegertracing_jaeger_model "github.com/jaegertracing/jaeger/model"
@@ -16,6 +18,7 @@ import (
 	grpc "google.golang.org/grpc"
 	io "io"
 	math "math"
+	time "time"
 )
 
 // Reference imports to suppress errors if they are not otherwise used.
@@ -23,6 +26,7 @@ var _ = proto.Marshal
 var _ = golang_proto.Marshal
 var _ = fmt.Errorf
 var _ = math.Inf
+var _ = time.Kitchen
 
 // This is a compile-time assertion to ensure that this generated file
 // is compatible with the proto package it is being compiled against.
@@ -117,43 +121,548 @@ func (m *GetTraceResponseStream) GetSpans() []model.Span {
 	return nil
 }
 
+type ArchiveTraceRequest struct {
+	TraceId              github_com_jaegertracing_jaeger_model.TraceID `protobuf:"bytes,1,opt,name=trace_id,json=traceId,proto3,customtype=github.com/jaegertracing/jaeger/model.TraceID" json:"trace_id"`
+	XXX_NoUnkeyedLiteral struct{}                                      `json:"-"`
+	XXX_unrecognized     []byte                                        `json:"-"`
+	XXX_sizecache        int32                                         `json:"-"`
+}
+
+func (m *ArchiveTraceRequest) Reset()         { *m = ArchiveTraceRequest{} }
+func (m *ArchiveTraceRequest) String() string { return proto.CompactTextString(m) }
+func (*ArchiveTraceRequest) ProtoMessage()    {}
+func (*ArchiveTraceRequest) Descriptor() ([]byte, []int) {
+	return fileDescriptor_26651706f9f8a4f0, []int{2}
+}
+func (m *ArchiveTraceRequest) XXX_Unmarshal(b []byte) error {
+	return m.Unmarshal(b)
+}
+func (m *ArchiveTraceRequest) XXX_Marshal(b []byte, deterministic bool) ([]byte, error) {
+	if deterministic {
+		return xxx_messageInfo_ArchiveTraceRequest.Marshal(b, m, deterministic)
+	} else {
+		b = b[:cap(b)]
+		n, err := m.MarshalTo(b)
+		if err != nil {
+			return nil, err
+		}
+		return b[:n], nil
+	}
+}
+func (m *ArchiveTraceRequest) XXX_Merge(src proto.Message) {
+	xxx_messageInfo_ArchiveTraceRequest.Merge(m, src)
+}
+func (m *ArchiveTraceRequest) XXX_Size() int {
+	return m.Size()
+}
+func (m *ArchiveTraceRequest) XXX_DiscardUnknown() {
+	xxx_messageInfo_ArchiveTraceRequest.DiscardUnknown(m)
+}
+
+var xxx_messageInfo_ArchiveTraceRequest proto.InternalMessageInfo
+
+type ArchiveTraceResponse struct {
+	XXX_NoUnkeyedLiteral struct{} `json:"-"`
+	XXX_unrecognized     []byte   `json:"-"`
+	XXX_sizecache        int32    `json:"-"`
+}
+
+func (m *ArchiveTraceResponse) Reset()         { *m = ArchiveTraceResponse{} }
+func (m *ArchiveTraceResponse) String() string { return proto.CompactTextString(m) }
+func (*ArchiveTraceResponse) ProtoMessage()    {}
+func (*ArchiveTraceResponse) Descriptor() ([]byte, []int) {
+	return fileDescriptor_26651706f9f8a4f0, []int{3}
+}
+func (m *ArchiveTraceResponse) XXX_Unmarshal(b []byte) error {
+	return m.Unmarshal(b)
+}
+func (m *ArchiveTraceResponse) XXX_Marshal(b []byte, deterministic bool) ([]byte, error) {
+	if deterministic {
+		return xxx_messageInfo_ArchiveTraceResponse.Marshal(b, m, deterministic)
+	} else {
+		b = b[:cap(b)]
+		n, err := m.MarshalTo(b)
+		if err != nil {
+			return nil, err
+		}
+		return b[:n], nil
+	}
+}
+func (m *ArchiveTraceResponse) XXX_Merge(src proto.Message) {
+	xxx_messageInfo_ArchiveTraceResponse.Merge(m, src)
+}
+func (m *ArchiveTraceResponse) XXX_Size() int {
+	return m.Size()
+}
+func (m *ArchiveTraceResponse) XXX_DiscardUnknown() {
+	xxx_messageInfo_ArchiveTraceResponse.DiscardUnknown(m)
+}
+
+var xxx_messageInfo_ArchiveTraceResponse proto.InternalMessageInfo
+
+type TraceQueryParameters struct {
+	ServiceName          string            `protobuf:"bytes,1,opt,name=service_name,json=serviceName,proto3" json:"service_name,omitempty"`
+	OperationName        string            `protobuf:"bytes,2,opt,name=operation_name,json=operationName,proto3" json:"operation_name,omitempty"`
+	Tags                 map[string]string `protobuf:"bytes,3,rep,name=tags,proto3" json:"tags,omitempty" protobuf_key:"bytes,1,opt,name=key,proto3" protobuf_val:"bytes,2,opt,name=value,proto3"`
+	StartTimeMin         time.Time         `protobuf:"bytes,4,opt,name=start_time_min,json=startTimeMin,proto3,stdtime" json:"start_time_min"`
+	StartTimeMax         time.Time         `protobuf:"bytes,5,opt,name=start_time_max,json=startTimeMax,proto3,stdtime" json:"start_time_max"`
+	DurationMin          time.Duration     `protobuf:"bytes,6,opt,name=duration_min,json=durationMin,proto3,stdduration" json:"duration_min"`
+	DurationMax          time.Duration     `protobuf:"bytes,7,opt,name=duration_max,json=durationMax,proto3,stdduration" json:"duration_max"`
+	NumTraces            int32             `protobuf:"varint,8,opt,name=num_traces,json=numTraces,proto3" json:"num_traces,omitempty"`
+	XXX_NoUnkeyedLiteral struct{}          `json:"-"`
+	XXX_unrecognized     []byte            `json:"-"`
+	XXX_sizecache        int32             `json:"-"`
+}
+
+func (m *TraceQueryParameters) Reset()         { *m = TraceQueryParameters{} }
+func (m *TraceQueryParameters) String() string { return proto.CompactTextString(m) }
+func (*TraceQueryParameters) ProtoMessage()    {}
+func (*TraceQueryParameters) Descriptor() ([]byte, []int) {
+	return fileDescriptor_26651706f9f8a4f0, []int{4}
+}
+func (m *TraceQueryParameters) XXX_Unmarshal(b []byte) error {
+	return m.Unmarshal(b)
+}
+func (m *TraceQueryParameters) XXX_Marshal(b []byte, deterministic bool) ([]byte, error) {
+	if deterministic {
+		return xxx_messageInfo_TraceQueryParameters.Marshal(b, m, deterministic)
+	} else {
+		b = b[:cap(b)]
+		n, err := m.MarshalTo(b)
+		if err != nil {
+			return nil, err
+		}
+		return b[:n], nil
+	}
+}
+func (m *TraceQueryParameters) XXX_Merge(src proto.Message) {
+	xxx_messageInfo_TraceQueryParameters.Merge(m, src)
+}
+func (m *TraceQueryParameters) XXX_Size() int {
+	return m.Size()
+}
+func (m *TraceQueryParameters) XXX_DiscardUnknown() {
+	xxx_messageInfo_TraceQueryParameters.DiscardUnknown(m)
+}
+
+var xxx_messageInfo_TraceQueryParameters proto.InternalMessageInfo
+
+func (m *TraceQueryParameters) GetServiceName() string {
+	if m != nil {
+		return m.ServiceName
+	}
+	return ""
+}
+
+func (m *TraceQueryParameters) GetOperationName() string {
+	if m != nil {
+		return m.OperationName
+	}
+	return ""
+}
+
+func (m *TraceQueryParameters) GetTags() map[string]string {
+	if m != nil {
+		return m.Tags
+	}
+	return nil
+}
+
+func (m *TraceQueryParameters) GetStartTimeMin() time.Time {
+	if m != nil {
+		return m.StartTimeMin
+	}
+	return time.Time{}
+}
+
+func (m *TraceQueryParameters) GetStartTimeMax() time.Time {
+	if m != nil {
+		return m.StartTimeMax
+	}
+	return time.Time{}
+}
+
+func (m *TraceQueryParameters) GetDurationMin() time.Duration {
+	if m != nil {
+		return m.DurationMin
+	}
+	return 0
+}
+
+func (m *TraceQueryParameters) GetDurationMax() time.Duration {
+	if m != nil {
+		return m.DurationMax
+	}
+	return 0
+}
+
+func (m *TraceQueryParameters) GetNumTraces() int32 {
+	if m != nil {
+		return m.NumTraces
+	}
+	return 0
+}
+
+type FindTracesRequest struct {
+	Query                *TraceQueryParameters `protobuf:"bytes,1,opt,name=query,proto3" json:"query,omitempty"`
+	XXX_NoUnkeyedLiteral struct{}              `json:"-"`
+	XXX_unrecognized     []byte                `json:"-"`
+	XXX_sizecache        int32                 `json:"-"`
+}
+
+func (m *FindTracesRequest) Reset()         { *m = FindTracesRequest{} }
+func (m *FindTracesRequest) String() string { return proto.CompactTextString(m) }
+func (*FindTracesRequest) ProtoMessage()    {}
+func (*FindTracesRequest) Descriptor() ([]byte, []int) {
+	return fileDescriptor_26651706f9f8a4f0, []int{5}
+}
+func (m *FindTracesRequest) XXX_Unmarshal(b []byte) error {
+	return m.Unmarshal(b)
+}
+func (m *FindTracesRequest) XXX_Marshal(b []byte, deterministic bool) ([]byte, error) {
+	if deterministic {
+		return xxx_messageInfo_FindTracesRequest.Marshal(b, m, deterministic)
+	} else {
+		b = b[:cap(b)]
+		n, err := m.MarshalTo(b)
+		if err != nil {
+			return nil, err
+		}
+		return b[:n], nil
+	}
+}
+func (m *FindTracesRequest) XXX_Merge(src proto.Message) {
+	xxx_messageInfo_FindTracesRequest.Merge(m, src)
+}
+func (m *FindTracesRequest) XXX_Size() int {
+	return m.Size()
+}
+func (m *FindTracesRequest) XXX_DiscardUnknown() {
+	xxx_messageInfo_FindTracesRequest.DiscardUnknown(m)
+}
+
+var xxx_messageInfo_FindTracesRequest proto.InternalMessageInfo
+
+func (m *FindTracesRequest) GetQuery() *TraceQueryParameters {
+	if m != nil {
+		return m.Query
+	}
+	return nil
+}
+
+type FindTracesResponse struct {
+	Spans                []model.Span `protobuf:"bytes,1,rep,name=spans,proto3" json:"spans"`
+	XXX_NoUnkeyedLiteral struct{}     `json:"-"`
+	XXX_unrecognized     []byte       `json:"-"`
+	XXX_sizecache        int32        `json:"-"`
+}
+
+func (m *FindTracesResponse) Reset()         { *m = FindTracesResponse{} }
+func (m *FindTracesResponse) String() string { return proto.CompactTextString(m) }
+func (*FindTracesResponse) ProtoMessage()    {}
+func (*FindTracesResponse) Descriptor() ([]byte, []int) {
+	return fileDescriptor_26651706f9f8a4f0, []int{6}
+}
+func (m *FindTracesResponse) XXX_Unmarshal(b []byte) error {
+	return m.Unmarshal(b)
+}
+func (m *FindTracesResponse) XXX_Marshal(b []byte, deterministic bool) ([]byte, error) {
+	if deterministic {
+		return xxx_messageInfo_FindTracesResponse.Marshal(b, m, deterministic)
+	} else {
+		b = b[:cap(b)]
+		n, err := m.MarshalTo(b)
+		if err != nil {
+			return nil, err
+		}
+		return b[:n], nil
+	}
+}
+func (m *FindTracesResponse) XXX_Merge(src proto.Message) {
+	xxx_messageInfo_FindTracesResponse.Merge(m, src)
+}
+func (m *FindTracesResponse) XXX_Size() int {
+	return m.Size()
+}
+func (m *FindTracesResponse) XXX_DiscardUnknown() {
+	xxx_messageInfo_FindTracesResponse.DiscardUnknown(m)
+}
+
+var xxx_messageInfo_FindTracesResponse proto.InternalMessageInfo
+
+func (m *FindTracesResponse) GetSpans() []model.Span {
+	if m != nil {
+		return m.Spans
+	}
+	return nil
+}
+
+type GetServicesRequest struct {
+	XXX_NoUnkeyedLiteral struct{} `json:"-"`
+	XXX_unrecognized     []byte   `json:"-"`
+	XXX_sizecache        int32    `json:"-"`
+}
+
+func (m *GetServicesRequest) Reset()         { *m = GetServicesRequest{} }
+func (m *GetServicesRequest) String() string { return proto.CompactTextString(m) }
+func (*GetServicesRequest) ProtoMessage()    {}
+func (*GetServicesRequest) Descriptor() ([]byte, []int) {
+	return fileDescriptor_26651706f9f8a4f0, []int{7}
+}
+func (m *GetServicesRequest) XXX_Unmarshal(b []byte) error {
+	return m.Unmarshal(b)
+}
+func (m *GetServicesRequest) XXX_Marshal(b []byte, deterministic bool) ([]byte, error) {
+	if deterministic {
+		return xxx_messageInfo_GetServicesRequest.Marshal(b, m, deterministic)
+	} else {
+		b = b[:cap(b)]
+		n, err := m.MarshalTo(b)
+		if err != nil {
+			return nil, err
+		}
+		return b[:n], nil
+	}
+}
+func (m *GetServicesRequest) XXX_Merge(src proto.Message) {
+	xxx_messageInfo_GetServicesRequest.Merge(m, src)
+}
+func (m *GetServicesRequest) XXX_Size() int {
+	return m.Size()
+}
+func (m *GetServicesRequest) XXX_DiscardUnknown() {
+	xxx_messageInfo_GetServicesRequest.DiscardUnknown(m)
+}
+
+var xxx_messageInfo_GetServicesRequest proto.InternalMessageInfo
+
+type GetServicesResponse struct {
+	Services             []string `protobuf:"bytes,1,rep,name=services,proto3" json:"services,omitempty"`
+	XXX_NoUnkeyedLiteral struct{} `json:"-"`
+	XXX_unrecognized     []byte   `json:"-"`
+	XXX_sizecache        int32    `json:"-"`
+}
+
+func (m *GetServicesResponse) Reset()         { *m = GetServicesResponse{} }
+func (m *GetServicesResponse) String() string { return proto.CompactTextString(m) }
+func (*GetServicesResponse) ProtoMessage()    {}
+func (*GetServicesResponse) Descriptor() ([]byte, []int) {
+	return fileDescriptor_26651706f9f8a4f0, []int{8}
+}
+func (m *GetServicesResponse) XXX_Unmarshal(b []byte) error {
+	return m.Unmarshal(b)
+}
+func (m *GetServicesResponse) XXX_Marshal(b []byte, deterministic bool) ([]byte, error) {
+	if deterministic {
+		return xxx_messageInfo_GetServicesResponse.Marshal(b, m, deterministic)
+	} else {
+		b = b[:cap(b)]
+		n, err := m.MarshalTo(b)
+		if err != nil {
+			return nil, err
+		}
+		return b[:n], nil
+	}
+}
+func (m *GetServicesResponse) XXX_Merge(src proto.Message) {
+	xxx_messageInfo_GetServicesResponse.Merge(m, src)
+}
+func (m *GetServicesResponse) XXX_Size() int {
+	return m.Size()
+}
+func (m *GetServicesResponse) XXX_DiscardUnknown() {
+	xxx_messageInfo_GetServicesResponse.DiscardUnknown(m)
+}
+
+var xxx_messageInfo_GetServicesResponse proto.InternalMessageInfo
+
+func (m *GetServicesResponse) GetServices() []string {
+	if m != nil {
+		return m.Services
+	}
+	return nil
+}
+
+type GetOperationsRequest struct {
+	Service              string   `protobuf:"bytes,1,opt,name=service,proto3" json:"service,omitempty"`
+	XXX_NoUnkeyedLiteral struct{} `json:"-"`
+	XXX_unrecognized     []byte   `json:"-"`
+	XXX_sizecache        int32    `json:"-"`
+}
+
+func (m *GetOperationsRequest) Reset()         { *m = GetOperationsRequest{} }
+func (m *GetOperationsRequest) String() string { return proto.CompactTextString(m) }
+func (*GetOperationsRequest) ProtoMessage()    {}
+func (*GetOperationsRequest) Descriptor() ([]byte, []int) {
+	return fileDescriptor_26651706f9f8a4f0, []int{9}
+}
+func (m *GetOperationsRequest) XXX_Unmarshal(b []byte) error {
+	return m.Unmarshal(b)
+}
+func (m *GetOperationsRequest) XXX_Marshal(b []byte, deterministic bool) ([]byte, error) {
+	if deterministic {
+		return xxx_messageInfo_GetOperationsRequest.Marshal(b, m, deterministic)
+	} else {
+		b = b[:cap(b)]
+		n, err := m.MarshalTo(b)
+		if err != nil {
+			return nil, err
+		}
+		return b[:n], nil
+	}
+}
+func (m *GetOperationsRequest) XXX_Merge(src proto.Message) {
+	xxx_messageInfo_GetOperationsRequest.Merge(m, src)
+}
+func (m *GetOperationsRequest) XXX_Size() int {
+	return m.Size()
+}
+func (m *GetOperationsRequest) XXX_DiscardUnknown() {
+	xxx_messageInfo_GetOperationsRequest.DiscardUnknown(m)
+}
+
+var xxx_messageInfo_GetOperationsRequest proto.InternalMessageInfo
+
+func (m *GetOperationsRequest) GetService() string {
+	if m != nil {
+		return m.Service
+	}
+	return ""
+}
+
+type GetOperationsResponse struct {
+	Operations           []string `protobuf:"bytes,1,rep,name=operations,proto3" json:"operations,omitempty"`
+	XXX_NoUnkeyedLiteral struct{} `json:"-"`
+	XXX_unrecognized     []byte   `json:"-"`
+	XXX_sizecache        int32    `json:"-"`
+}
+
+func (m *GetOperationsResponse) Reset()         { *m = GetOperationsResponse{} }
+func (m *GetOperationsResponse) String() string { return proto.CompactTextString(m) }
+func (*GetOperationsResponse) ProtoMessage()    {}
+func (*GetOperationsResponse) Descriptor() ([]byte, []int) {
+	return fileDescriptor_26651706f9f8a4f0, []int{10}
+}
+func (m *GetOperationsResponse) XXX_Unmarshal(b []byte) error {
+	return m.Unmarshal(b)
+}
+func (m *GetOperationsResponse) XXX_Marshal(b []byte, deterministic bool) ([]byte, error) {
+	if deterministic {
+		return xxx_messageInfo_GetOperationsResponse.Marshal(b, m, deterministic)
+	} else {
+		b = b[:cap(b)]
+		n, err := m.MarshalTo(b)
+		if err != nil {
+			return nil, err
+		}
+		return b[:n], nil
+	}
+}
+func (m *GetOperationsResponse) XXX_Merge(src proto.Message) {
+	xxx_messageInfo_GetOperationsResponse.Merge(m, src)
+}
+func (m *GetOperationsResponse) XXX_Size() int {
+	return m.Size()
+}
+func (m *GetOperationsResponse) XXX_DiscardUnknown() {
+	xxx_messageInfo_GetOperationsResponse.DiscardUnknown(m)
+}
+
+var xxx_messageInfo_GetOperationsResponse proto.InternalMessageInfo
+
+func (m *GetOperationsResponse) GetOperations() []string {
+	if m != nil {
+		return m.Operations
+	}
+	return nil
+}
+
 func init() {
 	proto.RegisterType((*GetTraceRequest)(nil), "jaeger.api_v2.GetTraceRequest")
 	golang_proto.RegisterType((*GetTraceRequest)(nil), "jaeger.api_v2.GetTraceRequest")
 	proto.RegisterType((*GetTraceResponseStream)(nil), "jaeger.api_v2.GetTraceResponseStream")
 	golang_proto.RegisterType((*GetTraceResponseStream)(nil), "jaeger.api_v2.GetTraceResponseStream")
+	proto.RegisterType((*ArchiveTraceRequest)(nil), "jaeger.api_v2.ArchiveTraceRequest")
+	golang_proto.RegisterType((*ArchiveTraceRequest)(nil), "jaeger.api_v2.ArchiveTraceRequest")
+	proto.RegisterType((*ArchiveTraceResponse)(nil), "jaeger.api_v2.ArchiveTraceResponse")
+	golang_proto.RegisterType((*ArchiveTraceResponse)(nil), "jaeger.api_v2.ArchiveTraceResponse")
+	proto.RegisterType((*TraceQueryParameters)(nil), "jaeger.api_v2.TraceQueryParameters")
+	golang_proto.RegisterType((*TraceQueryParameters)(nil), "jaeger.api_v2.TraceQueryParameters")
+	proto.RegisterMapType((map[string]string)(nil), "jaeger.api_v2.TraceQueryParameters.TagsEntry")
+	golang_proto.RegisterMapType((map[string]string)(nil), "jaeger.api_v2.TraceQueryParameters.TagsEntry")
+	proto.RegisterType((*FindTracesRequest)(nil), "jaeger.api_v2.FindTracesRequest")
+	golang_proto.RegisterType((*FindTracesRequest)(nil), "jaeger.api_v2.FindTracesRequest")
+	proto.RegisterType((*FindTracesResponse)(nil), "jaeger.api_v2.FindTracesResponse")
+	golang_proto.RegisterType((*FindTracesResponse)(nil), "jaeger.api_v2.FindTracesResponse")
+	proto.RegisterType((*GetServicesRequest)(nil), "jaeger.api_v2.GetServicesRequest")
+	golang_proto.RegisterType((*GetServicesRequest)(nil), "jaeger.api_v2.GetServicesRequest")
+	proto.RegisterType((*GetServicesResponse)(nil), "jaeger.api_v2.GetServicesResponse")
+	golang_proto.RegisterType((*GetServicesResponse)(nil), "jaeger.api_v2.GetServicesResponse")
+	proto.RegisterType((*GetOperationsRequest)(nil), "jaeger.api_v2.GetOperationsRequest")
+	golang_proto.RegisterType((*GetOperationsRequest)(nil), "jaeger.api_v2.GetOperationsRequest")
+	proto.RegisterType((*GetOperationsResponse)(nil), "jaeger.api_v2.GetOperationsResponse")
+	golang_proto.RegisterType((*GetOperationsResponse)(nil), "jaeger.api_v2.GetOperationsResponse")
 }
 
 func init() { proto.RegisterFile("api_v2/query.proto", fileDescriptor_26651706f9f8a4f0) }
 func init() { golang_proto.RegisterFile("api_v2/query.proto", fileDescriptor_26651706f9f8a4f0) }
 
 var fileDescriptor_26651706f9f8a4f0 = []byte{
-	// 386 bytes of a gzipped FileDescriptorProto
-	0x1f, 0x8b, 0x08, 0x00, 0x00, 0x00, 0x00, 0x00, 0x02, 0xff, 0x84, 0x51, 0x4f, 0x8b, 0x13, 0x31,
-	0x1c, 0x35, 0xad, 0xfd, 0x43, 0x5a, 0x11, 0x62, 0xd1, 0x32, 0xc8, 0xb4, 0x14, 0xc4, 0x22, 0x76,
-	0x52, 0x47, 0xbc, 0x78, 0xb2, 0x83, 0x20, 0xf5, 0xa4, 0xad, 0x27, 0x3d, 0x94, 0x74, 0x1a, 0xd2,
-	0x48, 0x9b, 0xa4, 0x49, 0x5a, 0x11, 0x11, 0xc1, 0x8f, 0xa0, 0x5f, 0xc8, 0x63, 0x8f, 0x82, 0x37,
-	0x0f, 0x65, 0x99, 0xdd, 0x0f, 0xb2, 0xcc, 0x64, 0xca, 0x6e, 0xbb, 0x2c, 0x7b, 0xfa, 0xbd, 0xdf,
-	0xbc, 0x37, 0x2f, 0x2f, 0x2f, 0x10, 0x11, 0xc5, 0x27, 0x9b, 0x10, 0xaf, 0xd6, 0x54, 0x7f, 0x0d,
-	0x94, 0x96, 0x56, 0xa2, 0x3b, 0x9f, 0x09, 0x65, 0x54, 0x07, 0x8e, 0xf2, 0x6a, 0x4b, 0x39, 0xa3,
-	0x0b, 0xc7, 0x79, 0x0d, 0x26, 0x99, 0xcc, 0x20, 0x4e, 0x51, 0xfe, 0xf5, 0x21, 0x93, 0x92, 0x2d,
-	0x28, 0x26, 0x8a, 0x63, 0x22, 0x84, 0xb4, 0xc4, 0x72, 0x29, 0x4c, 0xce, 0x3e, 0xcd, 0x46, 0xdc,
-	0x63, 0x54, 0xf4, 0xcc, 0x17, 0xc2, 0x18, 0xd5, 0x58, 0xaa, 0x4c, 0x71, 0x55, 0xdd, 0x11, 0xf0,
-	0xee, 0x1b, 0x6a, 0x3f, 0x68, 0x12, 0xd3, 0x11, 0x5d, 0xad, 0xa9, 0xb1, 0xe8, 0x13, 0xac, 0xda,
-	0x74, 0x9f, 0xf0, 0x59, 0x13, 0xb4, 0x41, 0xb7, 0x1e, 0xbd, 0xda, 0xee, 0x5a, 0xb7, 0xfe, 0xef,
-	0x5a, 0x3d, 0xc6, 0xed, 0x7c, 0x3d, 0x0d, 0x62, 0xb9, 0xc4, 0x2e, 0x75, 0x2a, 0xe4, 0x82, 0xe5,
-	0x1b, 0x76, 0xd9, 0x33, 0xb7, 0xe1, 0xeb, 0x64, 0xd7, 0xaa, 0x38, 0x38, 0x1b, 0x55, 0xac, 0x03,
-	0x9d, 0x21, 0xbc, 0x7f, 0x71, 0x9e, 0x51, 0x52, 0x18, 0x3a, 0xb6, 0x9a, 0x92, 0x25, 0xc2, 0xb0,
-	0x64, 0x14, 0x11, 0xa6, 0x09, 0xda, 0xc5, 0x6e, 0x2d, 0xbc, 0x17, 0x1c, 0xf4, 0x12, 0x8c, 0x15,
-	0x11, 0xd1, 0xed, 0x34, 0xc8, 0xc8, 0xe9, 0xc2, 0x1f, 0xb0, 0xfe, 0x3e, 0xed, 0x71, 0x4c, 0xf5,
-	0x86, 0xc7, 0x14, 0x49, 0x58, 0xdd, 0x5b, 0x23, 0xff, 0xe8, 0xef, 0xa3, 0x3b, 0x7a, 0x8f, 0xae,
-	0xe5, 0x2f, 0x67, 0xea, 0x78, 0x3f, 0xff, 0x9d, 0xfd, 0x2e, 0x34, 0x10, 0xc2, 0x59, 0x7e, 0x83,
-	0xbf, 0xed, 0x9b, 0xf9, 0xde, 0x07, 0xd1, 0xe6, 0xd7, 0x20, 0x42, 0xa5, 0xb0, 0xf8, 0x2c, 0xe8,
-	0x3f, 0x29, 0x80, 0x82, 0x7e, 0x01, 0xe1, 0xdb, 0xcc, 0xb5, 0x3d, 0x78, 0x37, 0x44, 0x8f, 0xe7,
-	0xd6, 0x2a, 0xf3, 0x12, 0xe3, 0x1b, 0x4a, 0xdb, 0x26, 0x3e, 0xf8, 0x9b, 0xf8, 0xe0, 0x24, 0xf1,
-	0xc1, 0x9f, 0x53, 0x1f, 0xc0, 0x07, 0x5c, 0x06, 0x07, 0xc2, 0x3c, 0xe4, 0xc7, 0xb2, 0x9b, 0xd3,
-	0x72, 0xf6, 0x74, 0xcf, 0xcf, 0x03, 0x00, 0x00, 0xff, 0xff, 0xb5, 0xe6, 0xd1, 0x40, 0x4e, 0x02,
-	0x00, 0x00,
+	// 859 bytes of a gzipped FileDescriptorProto
+	0x1f, 0x8b, 0x08, 0x00, 0x00, 0x00, 0x00, 0x00, 0x02, 0xff, 0xbc, 0x55, 0x41, 0x6f, 0x1b, 0x45,
+	0x14, 0x66, 0x1d, 0x3b, 0xb6, 0xdf, 0x3a, 0x2d, 0x9d, 0x98, 0xb2, 0xac, 0xc0, 0x76, 0x36, 0x54,
+	0x44, 0x88, 0xec, 0xb4, 0x46, 0xa8, 0xd0, 0x13, 0xb1, 0xda, 0x46, 0xa9, 0x44, 0x29, 0x9b, 0x9c,
+	0x40, 0xc2, 0x9a, 0xd8, 0xc3, 0x66, 0x21, 0x3b, 0xbb, 0x9d, 0x99, 0x35, 0x89, 0x10, 0x17, 0x7e,
+	0x01, 0x82, 0x0b, 0x77, 0xae, 0xfc, 0x08, 0x8e, 0x3d, 0x22, 0x71, 0xe3, 0x10, 0x90, 0xe1, 0x87,
+	0xa0, 0x9d, 0x99, 0x75, 0xed, 0x75, 0x30, 0xd0, 0x43, 0x4f, 0x3b, 0x33, 0xef, 0x9b, 0xef, 0x7b,
+	0xf3, 0xde, 0xe7, 0x67, 0x40, 0x24, 0x8d, 0x86, 0x93, 0x3e, 0x7e, 0x9c, 0x51, 0x7e, 0xee, 0xa7,
+	0x3c, 0x91, 0x09, 0xda, 0xf8, 0x9c, 0xd0, 0x90, 0x72, 0x5f, 0x87, 0x5c, 0x3b, 0x4e, 0xc6, 0xf4,
+	0x54, 0xc7, 0xdc, 0x76, 0x98, 0x84, 0x89, 0x5a, 0xe2, 0x7c, 0x65, 0x4e, 0x5f, 0x0d, 0x93, 0x24,
+	0x3c, 0xa5, 0x98, 0xa4, 0x11, 0x26, 0x8c, 0x25, 0x92, 0xc8, 0x28, 0x61, 0xc2, 0x44, 0xbb, 0x26,
+	0xaa, 0x76, 0xc7, 0xd9, 0x67, 0x58, 0x46, 0x31, 0x15, 0x92, 0xc4, 0xa9, 0x01, 0x74, 0xca, 0x80,
+	0x71, 0xc6, 0x15, 0x83, 0x89, 0xbf, 0xa5, 0x3e, 0xa3, 0xdd, 0x90, 0xb2, 0x5d, 0xf1, 0x25, 0x09,
+	0x43, 0xca, 0x71, 0x92, 0x2a, 0x89, 0x65, 0x39, 0x8f, 0xc1, 0xd5, 0x7d, 0x2a, 0x8f, 0x38, 0x19,
+	0xd1, 0x80, 0x3e, 0xce, 0xa8, 0x90, 0xe8, 0x13, 0x68, 0xc8, 0x7c, 0x3f, 0x8c, 0xc6, 0x8e, 0xd5,
+	0xb3, 0x76, 0x5a, 0x83, 0xf7, 0x9f, 0x5c, 0x74, 0x5f, 0xf8, 0xed, 0xa2, 0xbb, 0x1b, 0x46, 0xf2,
+	0x24, 0x3b, 0xf6, 0x47, 0x49, 0x8c, 0xf5, 0xb3, 0x73, 0x60, 0xc4, 0x42, 0xb3, 0xc3, 0xfa, 0xf1,
+	0x8a, 0xed, 0xe0, 0xee, 0xf4, 0xa2, 0x5b, 0xd7, 0xcb, 0x71, 0x50, 0x97, 0x7a, 0xe1, 0x1d, 0xc0,
+	0xf5, 0xa7, 0x7a, 0x22, 0x4d, 0x98, 0xa0, 0x87, 0x92, 0x53, 0x12, 0x23, 0x0c, 0x35, 0x91, 0x12,
+	0x26, 0x1c, 0xab, 0xb7, 0xb6, 0x63, 0xf7, 0x37, 0xfd, 0x85, 0xc2, 0xfa, 0x87, 0x29, 0x61, 0x83,
+	0x6a, 0x9e, 0x48, 0xa0, 0x71, 0x1e, 0x87, 0xcd, 0x3d, 0x3e, 0x3a, 0x89, 0x26, 0xf4, 0xf9, 0xa5,
+	0x7f, 0x1d, 0xda, 0x8b, 0x9a, 0xfa, 0x09, 0xde, 0x8f, 0x55, 0x68, 0xab, 0x93, 0x8f, 0x72, 0x6b,
+	0x3c, 0x22, 0x9c, 0xc4, 0x54, 0x52, 0x2e, 0xd0, 0x16, 0xb4, 0x04, 0xe5, 0x93, 0x68, 0x44, 0x87,
+	0x8c, 0xc4, 0x54, 0x65, 0xd4, 0x0c, 0x6c, 0x73, 0xf6, 0x90, 0xc4, 0x14, 0xdd, 0x80, 0x2b, 0x49,
+	0x4a, 0x75, 0x0f, 0x35, 0xa8, 0xa2, 0x40, 0x1b, 0xb3, 0x53, 0x05, 0xdb, 0x83, 0xaa, 0x24, 0xa1,
+	0x70, 0xd6, 0x54, 0x79, 0x76, 0x4b, 0xe5, 0xb9, 0x4c, 0xdc, 0x3f, 0x22, 0xa1, 0xb8, 0xc7, 0x24,
+	0x3f, 0x0f, 0xd4, 0x55, 0xf4, 0x00, 0xae, 0x08, 0x49, 0xb8, 0x1c, 0xe6, 0x9e, 0x1a, 0xc6, 0x11,
+	0x73, 0xaa, 0x3d, 0x6b, 0xc7, 0xee, 0xbb, 0xbe, 0xf6, 0x94, 0x5f, 0x78, 0xca, 0x3f, 0x2a, 0x4c,
+	0x37, 0x68, 0xe4, 0xc5, 0xfb, 0xf6, 0xf7, 0xae, 0x15, 0xb4, 0xd4, 0xdd, 0x3c, 0xf2, 0x41, 0xc4,
+	0xca, 0x5c, 0xe4, 0xcc, 0xa9, 0x3d, 0x1b, 0x17, 0x39, 0x43, 0xf7, 0xa1, 0x55, 0x98, 0x58, 0x65,
+	0xb5, 0xae, 0x98, 0x5e, 0x59, 0x62, 0xba, 0x6b, 0x40, 0x9a, 0xe8, 0x87, 0x9c, 0xc8, 0x2e, 0x2e,
+	0xe6, 0x39, 0x2d, 0xf0, 0x90, 0x33, 0xa7, 0xfe, 0x2c, 0x3c, 0xe4, 0x0c, 0xbd, 0x06, 0xc0, 0xb2,
+	0x78, 0xa8, 0x9a, 0x2e, 0x9c, 0x46, 0xcf, 0xda, 0xa9, 0x05, 0x4d, 0x96, 0xc5, 0xaa, 0xc8, 0xc2,
+	0xbd, 0x0d, 0xcd, 0x59, 0x65, 0xd1, 0x8b, 0xb0, 0xf6, 0x05, 0x3d, 0x37, 0x7d, 0xcd, 0x97, 0xa8,
+	0x0d, 0xb5, 0x09, 0x39, 0xcd, 0x8a, 0x36, 0xea, 0xcd, 0x9d, 0xca, 0xbb, 0x96, 0xf7, 0x10, 0xae,
+	0xdd, 0x8f, 0xd8, 0x58, 0xd3, 0x14, 0x7e, 0x7d, 0x0f, 0x6a, 0x6a, 0x9e, 0x28, 0x0a, 0xbb, 0xbf,
+	0xfd, 0x1f, 0x1a, 0x1b, 0xe8, 0x1b, 0xde, 0x3d, 0x40, 0xf3, 0x7c, 0xda, 0x8b, 0xff, 0xff, 0x87,
+	0xd4, 0x06, 0xb4, 0x4f, 0xe5, 0xa1, 0xb6, 0x64, 0x91, 0x97, 0x77, 0x0b, 0x36, 0x17, 0x4e, 0x0d,
+	0xbb, 0x0b, 0x0d, 0x63, 0x5e, 0x2d, 0xd0, 0x0c, 0x66, 0x7b, 0xef, 0x26, 0xb4, 0xf7, 0xa9, 0xfc,
+	0xb0, 0xb0, 0xed, 0xec, 0x89, 0x0e, 0xd4, 0x0d, 0xc6, 0xd4, 0xa9, 0xd8, 0x7a, 0xb7, 0xe1, 0xa5,
+	0xd2, 0x0d, 0x23, 0xd3, 0x01, 0x98, 0xd9, 0xbf, 0x10, 0x9a, 0x3b, 0xe9, 0xff, 0x54, 0x85, 0x96,
+	0xaa, 0x8a, 0x49, 0x10, 0xc5, 0xd0, 0x28, 0x06, 0x0b, 0xea, 0x94, 0x9e, 0x5c, 0x9a, 0x70, 0xee,
+	0x8d, 0x7f, 0x8c, 0xcf, 0x4f, 0x24, 0xcf, 0xfd, 0xe6, 0xd7, 0xbf, 0xbe, 0xaf, 0xb4, 0x11, 0xc2,
+	0xda, 0x09, 0xf8, 0xab, 0x62, 0xb0, 0x7c, 0x8d, 0x04, 0xb4, 0xe6, 0x07, 0x01, 0xf2, 0x4a, 0x94,
+	0x97, 0x4c, 0x26, 0x77, 0x7b, 0x25, 0xc6, 0x4c, 0x12, 0x23, 0xea, 0x5d, 0x26, 0xfa, 0x29, 0xac,
+	0x1f, 0x52, 0xc2, 0x47, 0x27, 0xa8, 0x57, 0xa2, 0x5a, 0xb2, 0x95, 0xbb, 0xb5, 0x02, 0x61, 0xa4,
+	0xae, 0x2a, 0xa9, 0x26, 0xaa, 0x63, 0xa1, 0x59, 0x43, 0xb0, 0xe7, 0x5a, 0x8e, 0xb6, 0x96, 0xcb,
+	0x54, 0x32, 0x89, 0xeb, 0xad, 0x82, 0x18, 0x99, 0x6b, 0x4a, 0xc6, 0x46, 0x4d, 0x5c, 0x18, 0x05,
+	0x25, 0xb0, 0xb1, 0xd0, 0x76, 0xb4, 0xbd, 0xcc, 0xb3, 0x64, 0x23, 0xf7, 0xf5, 0xd5, 0x20, 0x23,
+	0xb7, 0xa9, 0xe4, 0x36, 0x90, 0x8d, 0x9f, 0xda, 0x65, 0x30, 0xf9, 0x6e, 0x6f, 0x80, 0x6a, 0xfd,
+	0xb5, 0x5b, 0xfe, 0xcd, 0x37, 0x2b, 0x56, 0x85, 0xbf, 0x03, 0xf0, 0x40, 0x71, 0xf5, 0xf6, 0x1e,
+	0x1d, 0xa0, 0x37, 0x4e, 0xa4, 0x4c, 0xc5, 0x1d, 0x8c, 0xff, 0xe5, 0x0f, 0xe2, 0xc9, 0xb4, 0x63,
+	0xfd, 0x32, 0xed, 0x58, 0x7f, 0x4c, 0x3b, 0xd6, 0xcf, 0x7f, 0x76, 0x2c, 0x78, 0x39, 0x4a, 0xfc,
+	0x05, 0xa0, 0x49, 0xed, 0xe3, 0x75, 0xfd, 0x3d, 0x5e, 0x57, 0x33, 0xe7, 0xed, 0xbf, 0x03, 0x00,
+	0x00, 0xff, 0xff, 0x19, 0x2e, 0xd3, 0x3e, 0x3a, 0x08, 0x00, 0x00,
 }
 
 // Reference imports to suppress errors if they are not otherwise used.
@@ -168,7 +677,11 @@ const _ = grpc.SupportPackageIsVersion4
 //
 // For semantics around ctx use and closing/ending streaming RPCs, please refer to https://godoc.org/google.golang.org/grpc#ClientConn.NewStream.
 type QueryServiceClient interface {
-	GetTrace(ctx context.Context, in *GetTraceRequest, opts ...grpc.CallOption) (QueryService_GetTraceClient, error)
+	GetTrace(ctx context.Context, in *GetTraceRequest, opts ...grpc.CallOption) (*GetTraceResponseStream, error)
+	ArchiveTrace(ctx context.Context, in *ArchiveTraceRequest, opts ...grpc.CallOption) (*ArchiveTraceResponse, error)
+	Search(ctx context.Context, in *FindTracesRequest, opts ...grpc.CallOption) (*FindTracesResponse, error)
+	GetServices(ctx context.Context, in *GetServicesRequest, opts ...grpc.CallOption) (*GetServicesResponse, error)
+	GetOperations(ctx context.Context, in *GetOperationsRequest, opts ...grpc.CallOption) (*GetOperationsResponse, error)
 }
 
 type queryServiceClient struct {
@@ -179,79 +692,180 @@ func NewQueryServiceClient(cc *grpc.ClientConn) QueryServiceClient {
 	return &queryServiceClient{cc}
 }
 
-func (c *queryServiceClient) GetTrace(ctx context.Context, in *GetTraceRequest, opts ...grpc.CallOption) (QueryService_GetTraceClient, error) {
-	stream, err := c.cc.NewStream(ctx, &_QueryService_serviceDesc.Streams[0], "/jaeger.api_v2.QueryService/GetTrace", opts...)
+func (c *queryServiceClient) GetTrace(ctx context.Context, in *GetTraceRequest, opts ...grpc.CallOption) (*GetTraceResponseStream, error) {
+	out := new(GetTraceResponseStream)
+	err := c.cc.Invoke(ctx, "/jaeger.api_v2.QueryService/GetTrace", in, out, opts...)
 	if err != nil {
 		return nil, err
 	}
-	x := &queryServiceGetTraceClient{stream}
-	if err := x.ClientStream.SendMsg(in); err != nil {
-		return nil, err
-	}
-	if err := x.ClientStream.CloseSend(); err != nil {
-		return nil, err
-	}
-	return x, nil
+	return out, nil
 }
 
-type QueryService_GetTraceClient interface {
-	Recv() (*GetTraceResponseStream, error)
-	grpc.ClientStream
-}
-
-type queryServiceGetTraceClient struct {
-	grpc.ClientStream
-}
-
-func (x *queryServiceGetTraceClient) Recv() (*GetTraceResponseStream, error) {
-	m := new(GetTraceResponseStream)
-	if err := x.ClientStream.RecvMsg(m); err != nil {
+func (c *queryServiceClient) ArchiveTrace(ctx context.Context, in *ArchiveTraceRequest, opts ...grpc.CallOption) (*ArchiveTraceResponse, error) {
+	out := new(ArchiveTraceResponse)
+	err := c.cc.Invoke(ctx, "/jaeger.api_v2.QueryService/ArchiveTrace", in, out, opts...)
+	if err != nil {
 		return nil, err
 	}
-	return m, nil
+	return out, nil
+}
+
+func (c *queryServiceClient) Search(ctx context.Context, in *FindTracesRequest, opts ...grpc.CallOption) (*FindTracesResponse, error) {
+	out := new(FindTracesResponse)
+	err := c.cc.Invoke(ctx, "/jaeger.api_v2.QueryService/Search", in, out, opts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *queryServiceClient) GetServices(ctx context.Context, in *GetServicesRequest, opts ...grpc.CallOption) (*GetServicesResponse, error) {
+	out := new(GetServicesResponse)
+	err := c.cc.Invoke(ctx, "/jaeger.api_v2.QueryService/GetServices", in, out, opts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
+}
+
+func (c *queryServiceClient) GetOperations(ctx context.Context, in *GetOperationsRequest, opts ...grpc.CallOption) (*GetOperationsResponse, error) {
+	out := new(GetOperationsResponse)
+	err := c.cc.Invoke(ctx, "/jaeger.api_v2.QueryService/GetOperations", in, out, opts...)
+	if err != nil {
+		return nil, err
+	}
+	return out, nil
 }
 
 // QueryServiceServer is the server API for QueryService service.
 type QueryServiceServer interface {
-	GetTrace(*GetTraceRequest, QueryService_GetTraceServer) error
+	GetTrace(context.Context, *GetTraceRequest) (*GetTraceResponseStream, error)
+	ArchiveTrace(context.Context, *ArchiveTraceRequest) (*ArchiveTraceResponse, error)
+	Search(context.Context, *FindTracesRequest) (*FindTracesResponse, error)
+	GetServices(context.Context, *GetServicesRequest) (*GetServicesResponse, error)
+	GetOperations(context.Context, *GetOperationsRequest) (*GetOperationsResponse, error)
 }
 
 func RegisterQueryServiceServer(s *grpc.Server, srv QueryServiceServer) {
 	s.RegisterService(&_QueryService_serviceDesc, srv)
 }
 
-func _QueryService_GetTrace_Handler(srv interface{}, stream grpc.ServerStream) error {
-	m := new(GetTraceRequest)
-	if err := stream.RecvMsg(m); err != nil {
-		return err
+func _QueryService_GetTrace_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(GetTraceRequest)
+	if err := dec(in); err != nil {
+		return nil, err
 	}
-	return srv.(QueryServiceServer).GetTrace(m, &queryServiceGetTraceServer{stream})
+	if interceptor == nil {
+		return srv.(QueryServiceServer).GetTrace(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: "/jaeger.api_v2.QueryService/GetTrace",
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(QueryServiceServer).GetTrace(ctx, req.(*GetTraceRequest))
+	}
+	return interceptor(ctx, in, info, handler)
 }
 
-type QueryService_GetTraceServer interface {
-	Send(*GetTraceResponseStream) error
-	grpc.ServerStream
+func _QueryService_ArchiveTrace_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(ArchiveTraceRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(QueryServiceServer).ArchiveTrace(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: "/jaeger.api_v2.QueryService/ArchiveTrace",
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(QueryServiceServer).ArchiveTrace(ctx, req.(*ArchiveTraceRequest))
+	}
+	return interceptor(ctx, in, info, handler)
 }
 
-type queryServiceGetTraceServer struct {
-	grpc.ServerStream
+func _QueryService_Search_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(FindTracesRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(QueryServiceServer).Search(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: "/jaeger.api_v2.QueryService/Search",
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(QueryServiceServer).Search(ctx, req.(*FindTracesRequest))
+	}
+	return interceptor(ctx, in, info, handler)
 }
 
-func (x *queryServiceGetTraceServer) Send(m *GetTraceResponseStream) error {
-	return x.ServerStream.SendMsg(m)
+func _QueryService_GetServices_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(GetServicesRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(QueryServiceServer).GetServices(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: "/jaeger.api_v2.QueryService/GetServices",
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(QueryServiceServer).GetServices(ctx, req.(*GetServicesRequest))
+	}
+	return interceptor(ctx, in, info, handler)
+}
+
+func _QueryService_GetOperations_Handler(srv interface{}, ctx context.Context, dec func(interface{}) error, interceptor grpc.UnaryServerInterceptor) (interface{}, error) {
+	in := new(GetOperationsRequest)
+	if err := dec(in); err != nil {
+		return nil, err
+	}
+	if interceptor == nil {
+		return srv.(QueryServiceServer).GetOperations(ctx, in)
+	}
+	info := &grpc.UnaryServerInfo{
+		Server:     srv,
+		FullMethod: "/jaeger.api_v2.QueryService/GetOperations",
+	}
+	handler := func(ctx context.Context, req interface{}) (interface{}, error) {
+		return srv.(QueryServiceServer).GetOperations(ctx, req.(*GetOperationsRequest))
+	}
+	return interceptor(ctx, in, info, handler)
 }
 
 var _QueryService_serviceDesc = grpc.ServiceDesc{
 	ServiceName: "jaeger.api_v2.QueryService",
 	HandlerType: (*QueryServiceServer)(nil),
-	Methods:     []grpc.MethodDesc{},
-	Streams: []grpc.StreamDesc{
+	Methods: []grpc.MethodDesc{
 		{
-			StreamName:    "GetTrace",
-			Handler:       _QueryService_GetTrace_Handler,
-			ServerStreams: true,
+			MethodName: "GetTrace",
+			Handler:    _QueryService_GetTrace_Handler,
+		},
+		{
+			MethodName: "ArchiveTrace",
+			Handler:    _QueryService_ArchiveTrace_Handler,
+		},
+		{
+			MethodName: "Search",
+			Handler:    _QueryService_Search_Handler,
+		},
+		{
+			MethodName: "GetServices",
+			Handler:    _QueryService_GetServices_Handler,
+		},
+		{
+			MethodName: "GetOperations",
+			Handler:    _QueryService_GetOperations_Handler,
 		},
 	},
+	Streams:  []grpc.StreamDesc{},
 	Metadata: "api_v2/query.proto",
 }
 
@@ -317,6 +931,327 @@ func (m *GetTraceResponseStream) MarshalTo(dAtA []byte) (int, error) {
 	return i, nil
 }
 
+func (m *ArchiveTraceRequest) Marshal() (dAtA []byte, err error) {
+	size := m.Size()
+	dAtA = make([]byte, size)
+	n, err := m.MarshalTo(dAtA)
+	if err != nil {
+		return nil, err
+	}
+	return dAtA[:n], nil
+}
+
+func (m *ArchiveTraceRequest) MarshalTo(dAtA []byte) (int, error) {
+	var i int
+	_ = i
+	var l int
+	_ = l
+	dAtA[i] = 0xa
+	i++
+	i = encodeVarintQuery(dAtA, i, uint64(m.TraceId.Size()))
+	n2, err := m.TraceId.MarshalTo(dAtA[i:])
+	if err != nil {
+		return 0, err
+	}
+	i += n2
+	if m.XXX_unrecognized != nil {
+		i += copy(dAtA[i:], m.XXX_unrecognized)
+	}
+	return i, nil
+}
+
+func (m *ArchiveTraceResponse) Marshal() (dAtA []byte, err error) {
+	size := m.Size()
+	dAtA = make([]byte, size)
+	n, err := m.MarshalTo(dAtA)
+	if err != nil {
+		return nil, err
+	}
+	return dAtA[:n], nil
+}
+
+func (m *ArchiveTraceResponse) MarshalTo(dAtA []byte) (int, error) {
+	var i int
+	_ = i
+	var l int
+	_ = l
+	if m.XXX_unrecognized != nil {
+		i += copy(dAtA[i:], m.XXX_unrecognized)
+	}
+	return i, nil
+}
+
+func (m *TraceQueryParameters) Marshal() (dAtA []byte, err error) {
+	size := m.Size()
+	dAtA = make([]byte, size)
+	n, err := m.MarshalTo(dAtA)
+	if err != nil {
+		return nil, err
+	}
+	return dAtA[:n], nil
+}
+
+func (m *TraceQueryParameters) MarshalTo(dAtA []byte) (int, error) {
+	var i int
+	_ = i
+	var l int
+	_ = l
+	if len(m.ServiceName) > 0 {
+		dAtA[i] = 0xa
+		i++
+		i = encodeVarintQuery(dAtA, i, uint64(len(m.ServiceName)))
+		i += copy(dAtA[i:], m.ServiceName)
+	}
+	if len(m.OperationName) > 0 {
+		dAtA[i] = 0x12
+		i++
+		i = encodeVarintQuery(dAtA, i, uint64(len(m.OperationName)))
+		i += copy(dAtA[i:], m.OperationName)
+	}
+	if len(m.Tags) > 0 {
+		for k, _ := range m.Tags {
+			dAtA[i] = 0x1a
+			i++
+			v := m.Tags[k]
+			mapSize := 1 + len(k) + sovQuery(uint64(len(k))) + 1 + len(v) + sovQuery(uint64(len(v)))
+			i = encodeVarintQuery(dAtA, i, uint64(mapSize))
+			dAtA[i] = 0xa
+			i++
+			i = encodeVarintQuery(dAtA, i, uint64(len(k)))
+			i += copy(dAtA[i:], k)
+			dAtA[i] = 0x12
+			i++
+			i = encodeVarintQuery(dAtA, i, uint64(len(v)))
+			i += copy(dAtA[i:], v)
+		}
+	}
+	dAtA[i] = 0x22
+	i++
+	i = encodeVarintQuery(dAtA, i, uint64(github_com_gogo_protobuf_types.SizeOfStdTime(m.StartTimeMin)))
+	n3, err := github_com_gogo_protobuf_types.StdTimeMarshalTo(m.StartTimeMin, dAtA[i:])
+	if err != nil {
+		return 0, err
+	}
+	i += n3
+	dAtA[i] = 0x2a
+	i++
+	i = encodeVarintQuery(dAtA, i, uint64(github_com_gogo_protobuf_types.SizeOfStdTime(m.StartTimeMax)))
+	n4, err := github_com_gogo_protobuf_types.StdTimeMarshalTo(m.StartTimeMax, dAtA[i:])
+	if err != nil {
+		return 0, err
+	}
+	i += n4
+	dAtA[i] = 0x32
+	i++
+	i = encodeVarintQuery(dAtA, i, uint64(github_com_gogo_protobuf_types.SizeOfStdDuration(m.DurationMin)))
+	n5, err := github_com_gogo_protobuf_types.StdDurationMarshalTo(m.DurationMin, dAtA[i:])
+	if err != nil {
+		return 0, err
+	}
+	i += n5
+	dAtA[i] = 0x3a
+	i++
+	i = encodeVarintQuery(dAtA, i, uint64(github_com_gogo_protobuf_types.SizeOfStdDuration(m.DurationMax)))
+	n6, err := github_com_gogo_protobuf_types.StdDurationMarshalTo(m.DurationMax, dAtA[i:])
+	if err != nil {
+		return 0, err
+	}
+	i += n6
+	if m.NumTraces != 0 {
+		dAtA[i] = 0x40
+		i++
+		i = encodeVarintQuery(dAtA, i, uint64(m.NumTraces))
+	}
+	if m.XXX_unrecognized != nil {
+		i += copy(dAtA[i:], m.XXX_unrecognized)
+	}
+	return i, nil
+}
+
+func (m *FindTracesRequest) Marshal() (dAtA []byte, err error) {
+	size := m.Size()
+	dAtA = make([]byte, size)
+	n, err := m.MarshalTo(dAtA)
+	if err != nil {
+		return nil, err
+	}
+	return dAtA[:n], nil
+}
+
+func (m *FindTracesRequest) MarshalTo(dAtA []byte) (int, error) {
+	var i int
+	_ = i
+	var l int
+	_ = l
+	if m.Query != nil {
+		dAtA[i] = 0xa
+		i++
+		i = encodeVarintQuery(dAtA, i, uint64(m.Query.Size()))
+		n7, err := m.Query.MarshalTo(dAtA[i:])
+		if err != nil {
+			return 0, err
+		}
+		i += n7
+	}
+	if m.XXX_unrecognized != nil {
+		i += copy(dAtA[i:], m.XXX_unrecognized)
+	}
+	return i, nil
+}
+
+func (m *FindTracesResponse) Marshal() (dAtA []byte, err error) {
+	size := m.Size()
+	dAtA = make([]byte, size)
+	n, err := m.MarshalTo(dAtA)
+	if err != nil {
+		return nil, err
+	}
+	return dAtA[:n], nil
+}
+
+func (m *FindTracesResponse) MarshalTo(dAtA []byte) (int, error) {
+	var i int
+	_ = i
+	var l int
+	_ = l
+	if len(m.Spans) > 0 {
+		for _, msg := range m.Spans {
+			dAtA[i] = 0xa
+			i++
+			i = encodeVarintQuery(dAtA, i, uint64(msg.Size()))
+			n, err := msg.MarshalTo(dAtA[i:])
+			if err != nil {
+				return 0, err
+			}
+			i += n
+		}
+	}
+	if m.XXX_unrecognized != nil {
+		i += copy(dAtA[i:], m.XXX_unrecognized)
+	}
+	return i, nil
+}
+
+func (m *GetServicesRequest) Marshal() (dAtA []byte, err error) {
+	size := m.Size()
+	dAtA = make([]byte, size)
+	n, err := m.MarshalTo(dAtA)
+	if err != nil {
+		return nil, err
+	}
+	return dAtA[:n], nil
+}
+
+func (m *GetServicesRequest) MarshalTo(dAtA []byte) (int, error) {
+	var i int
+	_ = i
+	var l int
+	_ = l
+	if m.XXX_unrecognized != nil {
+		i += copy(dAtA[i:], m.XXX_unrecognized)
+	}
+	return i, nil
+}
+
+func (m *GetServicesResponse) Marshal() (dAtA []byte, err error) {
+	size := m.Size()
+	dAtA = make([]byte, size)
+	n, err := m.MarshalTo(dAtA)
+	if err != nil {
+		return nil, err
+	}
+	return dAtA[:n], nil
+}
+
+func (m *GetServicesResponse) MarshalTo(dAtA []byte) (int, error) {
+	var i int
+	_ = i
+	var l int
+	_ = l
+	if len(m.Services) > 0 {
+		for _, s := range m.Services {
+			dAtA[i] = 0xa
+			i++
+			l = len(s)
+			for l >= 1<<7 {
+				dAtA[i] = uint8(uint64(l)&0x7f | 0x80)
+				l >>= 7
+				i++
+			}
+			dAtA[i] = uint8(l)
+			i++
+			i += copy(dAtA[i:], s)
+		}
+	}
+	if m.XXX_unrecognized != nil {
+		i += copy(dAtA[i:], m.XXX_unrecognized)
+	}
+	return i, nil
+}
+
+func (m *GetOperationsRequest) Marshal() (dAtA []byte, err error) {
+	size := m.Size()
+	dAtA = make([]byte, size)
+	n, err := m.MarshalTo(dAtA)
+	if err != nil {
+		return nil, err
+	}
+	return dAtA[:n], nil
+}
+
+func (m *GetOperationsRequest) MarshalTo(dAtA []byte) (int, error) {
+	var i int
+	_ = i
+	var l int
+	_ = l
+	if len(m.Service) > 0 {
+		dAtA[i] = 0xa
+		i++
+		i = encodeVarintQuery(dAtA, i, uint64(len(m.Service)))
+		i += copy(dAtA[i:], m.Service)
+	}
+	if m.XXX_unrecognized != nil {
+		i += copy(dAtA[i:], m.XXX_unrecognized)
+	}
+	return i, nil
+}
+
+func (m *GetOperationsResponse) Marshal() (dAtA []byte, err error) {
+	size := m.Size()
+	dAtA = make([]byte, size)
+	n, err := m.MarshalTo(dAtA)
+	if err != nil {
+		return nil, err
+	}
+	return dAtA[:n], nil
+}
+
+func (m *GetOperationsResponse) MarshalTo(dAtA []byte) (int, error) {
+	var i int
+	_ = i
+	var l int
+	_ = l
+	if len(m.Operations) > 0 {
+		for _, s := range m.Operations {
+			dAtA[i] = 0xa
+			i++
+			l = len(s)
+			for l >= 1<<7 {
+				dAtA[i] = uint8(uint64(l)&0x7f | 0x80)
+				l >>= 7
+				i++
+			}
+			dAtA[i] = uint8(l)
+			i++
+			i += copy(dAtA[i:], s)
+		}
+	}
+	if m.XXX_unrecognized != nil {
+		i += copy(dAtA[i:], m.XXX_unrecognized)
+	}
+	return i, nil
+}
+
 func encodeVarintQuery(dAtA []byte, offset int, v uint64) int {
 	for v >= 1<<7 {
 		dAtA[offset] = uint8(v&0x7f | 0x80)
@@ -349,6 +1284,169 @@ func (m *GetTraceResponseStream) Size() (n int) {
 	if len(m.Spans) > 0 {
 		for _, e := range m.Spans {
 			l = e.Size()
+			n += 1 + l + sovQuery(uint64(l))
+		}
+	}
+	if m.XXX_unrecognized != nil {
+		n += len(m.XXX_unrecognized)
+	}
+	return n
+}
+
+func (m *ArchiveTraceRequest) Size() (n int) {
+	if m == nil {
+		return 0
+	}
+	var l int
+	_ = l
+	l = m.TraceId.Size()
+	n += 1 + l + sovQuery(uint64(l))
+	if m.XXX_unrecognized != nil {
+		n += len(m.XXX_unrecognized)
+	}
+	return n
+}
+
+func (m *ArchiveTraceResponse) Size() (n int) {
+	if m == nil {
+		return 0
+	}
+	var l int
+	_ = l
+	if m.XXX_unrecognized != nil {
+		n += len(m.XXX_unrecognized)
+	}
+	return n
+}
+
+func (m *TraceQueryParameters) Size() (n int) {
+	if m == nil {
+		return 0
+	}
+	var l int
+	_ = l
+	l = len(m.ServiceName)
+	if l > 0 {
+		n += 1 + l + sovQuery(uint64(l))
+	}
+	l = len(m.OperationName)
+	if l > 0 {
+		n += 1 + l + sovQuery(uint64(l))
+	}
+	if len(m.Tags) > 0 {
+		for k, v := range m.Tags {
+			_ = k
+			_ = v
+			mapEntrySize := 1 + len(k) + sovQuery(uint64(len(k))) + 1 + len(v) + sovQuery(uint64(len(v)))
+			n += mapEntrySize + 1 + sovQuery(uint64(mapEntrySize))
+		}
+	}
+	l = github_com_gogo_protobuf_types.SizeOfStdTime(m.StartTimeMin)
+	n += 1 + l + sovQuery(uint64(l))
+	l = github_com_gogo_protobuf_types.SizeOfStdTime(m.StartTimeMax)
+	n += 1 + l + sovQuery(uint64(l))
+	l = github_com_gogo_protobuf_types.SizeOfStdDuration(m.DurationMin)
+	n += 1 + l + sovQuery(uint64(l))
+	l = github_com_gogo_protobuf_types.SizeOfStdDuration(m.DurationMax)
+	n += 1 + l + sovQuery(uint64(l))
+	if m.NumTraces != 0 {
+		n += 1 + sovQuery(uint64(m.NumTraces))
+	}
+	if m.XXX_unrecognized != nil {
+		n += len(m.XXX_unrecognized)
+	}
+	return n
+}
+
+func (m *FindTracesRequest) Size() (n int) {
+	if m == nil {
+		return 0
+	}
+	var l int
+	_ = l
+	if m.Query != nil {
+		l = m.Query.Size()
+		n += 1 + l + sovQuery(uint64(l))
+	}
+	if m.XXX_unrecognized != nil {
+		n += len(m.XXX_unrecognized)
+	}
+	return n
+}
+
+func (m *FindTracesResponse) Size() (n int) {
+	if m == nil {
+		return 0
+	}
+	var l int
+	_ = l
+	if len(m.Spans) > 0 {
+		for _, e := range m.Spans {
+			l = e.Size()
+			n += 1 + l + sovQuery(uint64(l))
+		}
+	}
+	if m.XXX_unrecognized != nil {
+		n += len(m.XXX_unrecognized)
+	}
+	return n
+}
+
+func (m *GetServicesRequest) Size() (n int) {
+	if m == nil {
+		return 0
+	}
+	var l int
+	_ = l
+	if m.XXX_unrecognized != nil {
+		n += len(m.XXX_unrecognized)
+	}
+	return n
+}
+
+func (m *GetServicesResponse) Size() (n int) {
+	if m == nil {
+		return 0
+	}
+	var l int
+	_ = l
+	if len(m.Services) > 0 {
+		for _, s := range m.Services {
+			l = len(s)
+			n += 1 + l + sovQuery(uint64(l))
+		}
+	}
+	if m.XXX_unrecognized != nil {
+		n += len(m.XXX_unrecognized)
+	}
+	return n
+}
+
+func (m *GetOperationsRequest) Size() (n int) {
+	if m == nil {
+		return 0
+	}
+	var l int
+	_ = l
+	l = len(m.Service)
+	if l > 0 {
+		n += 1 + l + sovQuery(uint64(l))
+	}
+	if m.XXX_unrecognized != nil {
+		n += len(m.XXX_unrecognized)
+	}
+	return n
+}
+
+func (m *GetOperationsResponse) Size() (n int) {
+	if m == nil {
+		return 0
+	}
+	var l int
+	_ = l
+	if len(m.Operations) > 0 {
+		for _, s := range m.Operations {
+			l = len(s)
 			n += 1 + l + sovQuery(uint64(l))
 		}
 	}
@@ -520,6 +1618,1033 @@ func (m *GetTraceResponseStream) Unmarshal(dAtA []byte) error {
 			if err := m.Spans[len(m.Spans)-1].Unmarshal(dAtA[iNdEx:postIndex]); err != nil {
 				return err
 			}
+			iNdEx = postIndex
+		default:
+			iNdEx = preIndex
+			skippy, err := skipQuery(dAtA[iNdEx:])
+			if err != nil {
+				return err
+			}
+			if skippy < 0 {
+				return ErrInvalidLengthQuery
+			}
+			if (iNdEx + skippy) < 0 {
+				return ErrInvalidLengthQuery
+			}
+			if (iNdEx + skippy) > l {
+				return io.ErrUnexpectedEOF
+			}
+			m.XXX_unrecognized = append(m.XXX_unrecognized, dAtA[iNdEx:iNdEx+skippy]...)
+			iNdEx += skippy
+		}
+	}
+
+	if iNdEx > l {
+		return io.ErrUnexpectedEOF
+	}
+	return nil
+}
+func (m *ArchiveTraceRequest) Unmarshal(dAtA []byte) error {
+	l := len(dAtA)
+	iNdEx := 0
+	for iNdEx < l {
+		preIndex := iNdEx
+		var wire uint64
+		for shift := uint(0); ; shift += 7 {
+			if shift >= 64 {
+				return ErrIntOverflowQuery
+			}
+			if iNdEx >= l {
+				return io.ErrUnexpectedEOF
+			}
+			b := dAtA[iNdEx]
+			iNdEx++
+			wire |= uint64(b&0x7F) << shift
+			if b < 0x80 {
+				break
+			}
+		}
+		fieldNum := int32(wire >> 3)
+		wireType := int(wire & 0x7)
+		if wireType == 4 {
+			return fmt.Errorf("proto: ArchiveTraceRequest: wiretype end group for non-group")
+		}
+		if fieldNum <= 0 {
+			return fmt.Errorf("proto: ArchiveTraceRequest: illegal tag %d (wire type %d)", fieldNum, wire)
+		}
+		switch fieldNum {
+		case 1:
+			if wireType != 2 {
+				return fmt.Errorf("proto: wrong wireType = %d for field TraceId", wireType)
+			}
+			var byteLen int
+			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return ErrIntOverflowQuery
+				}
+				if iNdEx >= l {
+					return io.ErrUnexpectedEOF
+				}
+				b := dAtA[iNdEx]
+				iNdEx++
+				byteLen |= int(b&0x7F) << shift
+				if b < 0x80 {
+					break
+				}
+			}
+			if byteLen < 0 {
+				return ErrInvalidLengthQuery
+			}
+			postIndex := iNdEx + byteLen
+			if postIndex < 0 {
+				return ErrInvalidLengthQuery
+			}
+			if postIndex > l {
+				return io.ErrUnexpectedEOF
+			}
+			if err := m.TraceId.Unmarshal(dAtA[iNdEx:postIndex]); err != nil {
+				return err
+			}
+			iNdEx = postIndex
+		default:
+			iNdEx = preIndex
+			skippy, err := skipQuery(dAtA[iNdEx:])
+			if err != nil {
+				return err
+			}
+			if skippy < 0 {
+				return ErrInvalidLengthQuery
+			}
+			if (iNdEx + skippy) < 0 {
+				return ErrInvalidLengthQuery
+			}
+			if (iNdEx + skippy) > l {
+				return io.ErrUnexpectedEOF
+			}
+			m.XXX_unrecognized = append(m.XXX_unrecognized, dAtA[iNdEx:iNdEx+skippy]...)
+			iNdEx += skippy
+		}
+	}
+
+	if iNdEx > l {
+		return io.ErrUnexpectedEOF
+	}
+	return nil
+}
+func (m *ArchiveTraceResponse) Unmarshal(dAtA []byte) error {
+	l := len(dAtA)
+	iNdEx := 0
+	for iNdEx < l {
+		preIndex := iNdEx
+		var wire uint64
+		for shift := uint(0); ; shift += 7 {
+			if shift >= 64 {
+				return ErrIntOverflowQuery
+			}
+			if iNdEx >= l {
+				return io.ErrUnexpectedEOF
+			}
+			b := dAtA[iNdEx]
+			iNdEx++
+			wire |= uint64(b&0x7F) << shift
+			if b < 0x80 {
+				break
+			}
+		}
+		fieldNum := int32(wire >> 3)
+		wireType := int(wire & 0x7)
+		if wireType == 4 {
+			return fmt.Errorf("proto: ArchiveTraceResponse: wiretype end group for non-group")
+		}
+		if fieldNum <= 0 {
+			return fmt.Errorf("proto: ArchiveTraceResponse: illegal tag %d (wire type %d)", fieldNum, wire)
+		}
+		switch fieldNum {
+		default:
+			iNdEx = preIndex
+			skippy, err := skipQuery(dAtA[iNdEx:])
+			if err != nil {
+				return err
+			}
+			if skippy < 0 {
+				return ErrInvalidLengthQuery
+			}
+			if (iNdEx + skippy) < 0 {
+				return ErrInvalidLengthQuery
+			}
+			if (iNdEx + skippy) > l {
+				return io.ErrUnexpectedEOF
+			}
+			m.XXX_unrecognized = append(m.XXX_unrecognized, dAtA[iNdEx:iNdEx+skippy]...)
+			iNdEx += skippy
+		}
+	}
+
+	if iNdEx > l {
+		return io.ErrUnexpectedEOF
+	}
+	return nil
+}
+func (m *TraceQueryParameters) Unmarshal(dAtA []byte) error {
+	l := len(dAtA)
+	iNdEx := 0
+	for iNdEx < l {
+		preIndex := iNdEx
+		var wire uint64
+		for shift := uint(0); ; shift += 7 {
+			if shift >= 64 {
+				return ErrIntOverflowQuery
+			}
+			if iNdEx >= l {
+				return io.ErrUnexpectedEOF
+			}
+			b := dAtA[iNdEx]
+			iNdEx++
+			wire |= uint64(b&0x7F) << shift
+			if b < 0x80 {
+				break
+			}
+		}
+		fieldNum := int32(wire >> 3)
+		wireType := int(wire & 0x7)
+		if wireType == 4 {
+			return fmt.Errorf("proto: TraceQueryParameters: wiretype end group for non-group")
+		}
+		if fieldNum <= 0 {
+			return fmt.Errorf("proto: TraceQueryParameters: illegal tag %d (wire type %d)", fieldNum, wire)
+		}
+		switch fieldNum {
+		case 1:
+			if wireType != 2 {
+				return fmt.Errorf("proto: wrong wireType = %d for field ServiceName", wireType)
+			}
+			var stringLen uint64
+			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return ErrIntOverflowQuery
+				}
+				if iNdEx >= l {
+					return io.ErrUnexpectedEOF
+				}
+				b := dAtA[iNdEx]
+				iNdEx++
+				stringLen |= uint64(b&0x7F) << shift
+				if b < 0x80 {
+					break
+				}
+			}
+			intStringLen := int(stringLen)
+			if intStringLen < 0 {
+				return ErrInvalidLengthQuery
+			}
+			postIndex := iNdEx + intStringLen
+			if postIndex < 0 {
+				return ErrInvalidLengthQuery
+			}
+			if postIndex > l {
+				return io.ErrUnexpectedEOF
+			}
+			m.ServiceName = string(dAtA[iNdEx:postIndex])
+			iNdEx = postIndex
+		case 2:
+			if wireType != 2 {
+				return fmt.Errorf("proto: wrong wireType = %d for field OperationName", wireType)
+			}
+			var stringLen uint64
+			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return ErrIntOverflowQuery
+				}
+				if iNdEx >= l {
+					return io.ErrUnexpectedEOF
+				}
+				b := dAtA[iNdEx]
+				iNdEx++
+				stringLen |= uint64(b&0x7F) << shift
+				if b < 0x80 {
+					break
+				}
+			}
+			intStringLen := int(stringLen)
+			if intStringLen < 0 {
+				return ErrInvalidLengthQuery
+			}
+			postIndex := iNdEx + intStringLen
+			if postIndex < 0 {
+				return ErrInvalidLengthQuery
+			}
+			if postIndex > l {
+				return io.ErrUnexpectedEOF
+			}
+			m.OperationName = string(dAtA[iNdEx:postIndex])
+			iNdEx = postIndex
+		case 3:
+			if wireType != 2 {
+				return fmt.Errorf("proto: wrong wireType = %d for field Tags", wireType)
+			}
+			var msglen int
+			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return ErrIntOverflowQuery
+				}
+				if iNdEx >= l {
+					return io.ErrUnexpectedEOF
+				}
+				b := dAtA[iNdEx]
+				iNdEx++
+				msglen |= int(b&0x7F) << shift
+				if b < 0x80 {
+					break
+				}
+			}
+			if msglen < 0 {
+				return ErrInvalidLengthQuery
+			}
+			postIndex := iNdEx + msglen
+			if postIndex < 0 {
+				return ErrInvalidLengthQuery
+			}
+			if postIndex > l {
+				return io.ErrUnexpectedEOF
+			}
+			if m.Tags == nil {
+				m.Tags = make(map[string]string)
+			}
+			var mapkey string
+			var mapvalue string
+			for iNdEx < postIndex {
+				entryPreIndex := iNdEx
+				var wire uint64
+				for shift := uint(0); ; shift += 7 {
+					if shift >= 64 {
+						return ErrIntOverflowQuery
+					}
+					if iNdEx >= l {
+						return io.ErrUnexpectedEOF
+					}
+					b := dAtA[iNdEx]
+					iNdEx++
+					wire |= uint64(b&0x7F) << shift
+					if b < 0x80 {
+						break
+					}
+				}
+				fieldNum := int32(wire >> 3)
+				if fieldNum == 1 {
+					var stringLenmapkey uint64
+					for shift := uint(0); ; shift += 7 {
+						if shift >= 64 {
+							return ErrIntOverflowQuery
+						}
+						if iNdEx >= l {
+							return io.ErrUnexpectedEOF
+						}
+						b := dAtA[iNdEx]
+						iNdEx++
+						stringLenmapkey |= uint64(b&0x7F) << shift
+						if b < 0x80 {
+							break
+						}
+					}
+					intStringLenmapkey := int(stringLenmapkey)
+					if intStringLenmapkey < 0 {
+						return ErrInvalidLengthQuery
+					}
+					postStringIndexmapkey := iNdEx + intStringLenmapkey
+					if postStringIndexmapkey < 0 {
+						return ErrInvalidLengthQuery
+					}
+					if postStringIndexmapkey > l {
+						return io.ErrUnexpectedEOF
+					}
+					mapkey = string(dAtA[iNdEx:postStringIndexmapkey])
+					iNdEx = postStringIndexmapkey
+				} else if fieldNum == 2 {
+					var stringLenmapvalue uint64
+					for shift := uint(0); ; shift += 7 {
+						if shift >= 64 {
+							return ErrIntOverflowQuery
+						}
+						if iNdEx >= l {
+							return io.ErrUnexpectedEOF
+						}
+						b := dAtA[iNdEx]
+						iNdEx++
+						stringLenmapvalue |= uint64(b&0x7F) << shift
+						if b < 0x80 {
+							break
+						}
+					}
+					intStringLenmapvalue := int(stringLenmapvalue)
+					if intStringLenmapvalue < 0 {
+						return ErrInvalidLengthQuery
+					}
+					postStringIndexmapvalue := iNdEx + intStringLenmapvalue
+					if postStringIndexmapvalue < 0 {
+						return ErrInvalidLengthQuery
+					}
+					if postStringIndexmapvalue > l {
+						return io.ErrUnexpectedEOF
+					}
+					mapvalue = string(dAtA[iNdEx:postStringIndexmapvalue])
+					iNdEx = postStringIndexmapvalue
+				} else {
+					iNdEx = entryPreIndex
+					skippy, err := skipQuery(dAtA[iNdEx:])
+					if err != nil {
+						return err
+					}
+					if skippy < 0 {
+						return ErrInvalidLengthQuery
+					}
+					if (iNdEx + skippy) > postIndex {
+						return io.ErrUnexpectedEOF
+					}
+					iNdEx += skippy
+				}
+			}
+			m.Tags[mapkey] = mapvalue
+			iNdEx = postIndex
+		case 4:
+			if wireType != 2 {
+				return fmt.Errorf("proto: wrong wireType = %d for field StartTimeMin", wireType)
+			}
+			var msglen int
+			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return ErrIntOverflowQuery
+				}
+				if iNdEx >= l {
+					return io.ErrUnexpectedEOF
+				}
+				b := dAtA[iNdEx]
+				iNdEx++
+				msglen |= int(b&0x7F) << shift
+				if b < 0x80 {
+					break
+				}
+			}
+			if msglen < 0 {
+				return ErrInvalidLengthQuery
+			}
+			postIndex := iNdEx + msglen
+			if postIndex < 0 {
+				return ErrInvalidLengthQuery
+			}
+			if postIndex > l {
+				return io.ErrUnexpectedEOF
+			}
+			if err := github_com_gogo_protobuf_types.StdTimeUnmarshal(&m.StartTimeMin, dAtA[iNdEx:postIndex]); err != nil {
+				return err
+			}
+			iNdEx = postIndex
+		case 5:
+			if wireType != 2 {
+				return fmt.Errorf("proto: wrong wireType = %d for field StartTimeMax", wireType)
+			}
+			var msglen int
+			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return ErrIntOverflowQuery
+				}
+				if iNdEx >= l {
+					return io.ErrUnexpectedEOF
+				}
+				b := dAtA[iNdEx]
+				iNdEx++
+				msglen |= int(b&0x7F) << shift
+				if b < 0x80 {
+					break
+				}
+			}
+			if msglen < 0 {
+				return ErrInvalidLengthQuery
+			}
+			postIndex := iNdEx + msglen
+			if postIndex < 0 {
+				return ErrInvalidLengthQuery
+			}
+			if postIndex > l {
+				return io.ErrUnexpectedEOF
+			}
+			if err := github_com_gogo_protobuf_types.StdTimeUnmarshal(&m.StartTimeMax, dAtA[iNdEx:postIndex]); err != nil {
+				return err
+			}
+			iNdEx = postIndex
+		case 6:
+			if wireType != 2 {
+				return fmt.Errorf("proto: wrong wireType = %d for field DurationMin", wireType)
+			}
+			var msglen int
+			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return ErrIntOverflowQuery
+				}
+				if iNdEx >= l {
+					return io.ErrUnexpectedEOF
+				}
+				b := dAtA[iNdEx]
+				iNdEx++
+				msglen |= int(b&0x7F) << shift
+				if b < 0x80 {
+					break
+				}
+			}
+			if msglen < 0 {
+				return ErrInvalidLengthQuery
+			}
+			postIndex := iNdEx + msglen
+			if postIndex < 0 {
+				return ErrInvalidLengthQuery
+			}
+			if postIndex > l {
+				return io.ErrUnexpectedEOF
+			}
+			if err := github_com_gogo_protobuf_types.StdDurationUnmarshal(&m.DurationMin, dAtA[iNdEx:postIndex]); err != nil {
+				return err
+			}
+			iNdEx = postIndex
+		case 7:
+			if wireType != 2 {
+				return fmt.Errorf("proto: wrong wireType = %d for field DurationMax", wireType)
+			}
+			var msglen int
+			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return ErrIntOverflowQuery
+				}
+				if iNdEx >= l {
+					return io.ErrUnexpectedEOF
+				}
+				b := dAtA[iNdEx]
+				iNdEx++
+				msglen |= int(b&0x7F) << shift
+				if b < 0x80 {
+					break
+				}
+			}
+			if msglen < 0 {
+				return ErrInvalidLengthQuery
+			}
+			postIndex := iNdEx + msglen
+			if postIndex < 0 {
+				return ErrInvalidLengthQuery
+			}
+			if postIndex > l {
+				return io.ErrUnexpectedEOF
+			}
+			if err := github_com_gogo_protobuf_types.StdDurationUnmarshal(&m.DurationMax, dAtA[iNdEx:postIndex]); err != nil {
+				return err
+			}
+			iNdEx = postIndex
+		case 8:
+			if wireType != 0 {
+				return fmt.Errorf("proto: wrong wireType = %d for field NumTraces", wireType)
+			}
+			m.NumTraces = 0
+			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return ErrIntOverflowQuery
+				}
+				if iNdEx >= l {
+					return io.ErrUnexpectedEOF
+				}
+				b := dAtA[iNdEx]
+				iNdEx++
+				m.NumTraces |= int32(b&0x7F) << shift
+				if b < 0x80 {
+					break
+				}
+			}
+		default:
+			iNdEx = preIndex
+			skippy, err := skipQuery(dAtA[iNdEx:])
+			if err != nil {
+				return err
+			}
+			if skippy < 0 {
+				return ErrInvalidLengthQuery
+			}
+			if (iNdEx + skippy) < 0 {
+				return ErrInvalidLengthQuery
+			}
+			if (iNdEx + skippy) > l {
+				return io.ErrUnexpectedEOF
+			}
+			m.XXX_unrecognized = append(m.XXX_unrecognized, dAtA[iNdEx:iNdEx+skippy]...)
+			iNdEx += skippy
+		}
+	}
+
+	if iNdEx > l {
+		return io.ErrUnexpectedEOF
+	}
+	return nil
+}
+func (m *FindTracesRequest) Unmarshal(dAtA []byte) error {
+	l := len(dAtA)
+	iNdEx := 0
+	for iNdEx < l {
+		preIndex := iNdEx
+		var wire uint64
+		for shift := uint(0); ; shift += 7 {
+			if shift >= 64 {
+				return ErrIntOverflowQuery
+			}
+			if iNdEx >= l {
+				return io.ErrUnexpectedEOF
+			}
+			b := dAtA[iNdEx]
+			iNdEx++
+			wire |= uint64(b&0x7F) << shift
+			if b < 0x80 {
+				break
+			}
+		}
+		fieldNum := int32(wire >> 3)
+		wireType := int(wire & 0x7)
+		if wireType == 4 {
+			return fmt.Errorf("proto: FindTracesRequest: wiretype end group for non-group")
+		}
+		if fieldNum <= 0 {
+			return fmt.Errorf("proto: FindTracesRequest: illegal tag %d (wire type %d)", fieldNum, wire)
+		}
+		switch fieldNum {
+		case 1:
+			if wireType != 2 {
+				return fmt.Errorf("proto: wrong wireType = %d for field Query", wireType)
+			}
+			var msglen int
+			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return ErrIntOverflowQuery
+				}
+				if iNdEx >= l {
+					return io.ErrUnexpectedEOF
+				}
+				b := dAtA[iNdEx]
+				iNdEx++
+				msglen |= int(b&0x7F) << shift
+				if b < 0x80 {
+					break
+				}
+			}
+			if msglen < 0 {
+				return ErrInvalidLengthQuery
+			}
+			postIndex := iNdEx + msglen
+			if postIndex < 0 {
+				return ErrInvalidLengthQuery
+			}
+			if postIndex > l {
+				return io.ErrUnexpectedEOF
+			}
+			if m.Query == nil {
+				m.Query = &TraceQueryParameters{}
+			}
+			if err := m.Query.Unmarshal(dAtA[iNdEx:postIndex]); err != nil {
+				return err
+			}
+			iNdEx = postIndex
+		default:
+			iNdEx = preIndex
+			skippy, err := skipQuery(dAtA[iNdEx:])
+			if err != nil {
+				return err
+			}
+			if skippy < 0 {
+				return ErrInvalidLengthQuery
+			}
+			if (iNdEx + skippy) < 0 {
+				return ErrInvalidLengthQuery
+			}
+			if (iNdEx + skippy) > l {
+				return io.ErrUnexpectedEOF
+			}
+			m.XXX_unrecognized = append(m.XXX_unrecognized, dAtA[iNdEx:iNdEx+skippy]...)
+			iNdEx += skippy
+		}
+	}
+
+	if iNdEx > l {
+		return io.ErrUnexpectedEOF
+	}
+	return nil
+}
+func (m *FindTracesResponse) Unmarshal(dAtA []byte) error {
+	l := len(dAtA)
+	iNdEx := 0
+	for iNdEx < l {
+		preIndex := iNdEx
+		var wire uint64
+		for shift := uint(0); ; shift += 7 {
+			if shift >= 64 {
+				return ErrIntOverflowQuery
+			}
+			if iNdEx >= l {
+				return io.ErrUnexpectedEOF
+			}
+			b := dAtA[iNdEx]
+			iNdEx++
+			wire |= uint64(b&0x7F) << shift
+			if b < 0x80 {
+				break
+			}
+		}
+		fieldNum := int32(wire >> 3)
+		wireType := int(wire & 0x7)
+		if wireType == 4 {
+			return fmt.Errorf("proto: FindTracesResponse: wiretype end group for non-group")
+		}
+		if fieldNum <= 0 {
+			return fmt.Errorf("proto: FindTracesResponse: illegal tag %d (wire type %d)", fieldNum, wire)
+		}
+		switch fieldNum {
+		case 1:
+			if wireType != 2 {
+				return fmt.Errorf("proto: wrong wireType = %d for field Spans", wireType)
+			}
+			var msglen int
+			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return ErrIntOverflowQuery
+				}
+				if iNdEx >= l {
+					return io.ErrUnexpectedEOF
+				}
+				b := dAtA[iNdEx]
+				iNdEx++
+				msglen |= int(b&0x7F) << shift
+				if b < 0x80 {
+					break
+				}
+			}
+			if msglen < 0 {
+				return ErrInvalidLengthQuery
+			}
+			postIndex := iNdEx + msglen
+			if postIndex < 0 {
+				return ErrInvalidLengthQuery
+			}
+			if postIndex > l {
+				return io.ErrUnexpectedEOF
+			}
+			m.Spans = append(m.Spans, model.Span{})
+			if err := m.Spans[len(m.Spans)-1].Unmarshal(dAtA[iNdEx:postIndex]); err != nil {
+				return err
+			}
+			iNdEx = postIndex
+		default:
+			iNdEx = preIndex
+			skippy, err := skipQuery(dAtA[iNdEx:])
+			if err != nil {
+				return err
+			}
+			if skippy < 0 {
+				return ErrInvalidLengthQuery
+			}
+			if (iNdEx + skippy) < 0 {
+				return ErrInvalidLengthQuery
+			}
+			if (iNdEx + skippy) > l {
+				return io.ErrUnexpectedEOF
+			}
+			m.XXX_unrecognized = append(m.XXX_unrecognized, dAtA[iNdEx:iNdEx+skippy]...)
+			iNdEx += skippy
+		}
+	}
+
+	if iNdEx > l {
+		return io.ErrUnexpectedEOF
+	}
+	return nil
+}
+func (m *GetServicesRequest) Unmarshal(dAtA []byte) error {
+	l := len(dAtA)
+	iNdEx := 0
+	for iNdEx < l {
+		preIndex := iNdEx
+		var wire uint64
+		for shift := uint(0); ; shift += 7 {
+			if shift >= 64 {
+				return ErrIntOverflowQuery
+			}
+			if iNdEx >= l {
+				return io.ErrUnexpectedEOF
+			}
+			b := dAtA[iNdEx]
+			iNdEx++
+			wire |= uint64(b&0x7F) << shift
+			if b < 0x80 {
+				break
+			}
+		}
+		fieldNum := int32(wire >> 3)
+		wireType := int(wire & 0x7)
+		if wireType == 4 {
+			return fmt.Errorf("proto: GetServicesRequest: wiretype end group for non-group")
+		}
+		if fieldNum <= 0 {
+			return fmt.Errorf("proto: GetServicesRequest: illegal tag %d (wire type %d)", fieldNum, wire)
+		}
+		switch fieldNum {
+		default:
+			iNdEx = preIndex
+			skippy, err := skipQuery(dAtA[iNdEx:])
+			if err != nil {
+				return err
+			}
+			if skippy < 0 {
+				return ErrInvalidLengthQuery
+			}
+			if (iNdEx + skippy) < 0 {
+				return ErrInvalidLengthQuery
+			}
+			if (iNdEx + skippy) > l {
+				return io.ErrUnexpectedEOF
+			}
+			m.XXX_unrecognized = append(m.XXX_unrecognized, dAtA[iNdEx:iNdEx+skippy]...)
+			iNdEx += skippy
+		}
+	}
+
+	if iNdEx > l {
+		return io.ErrUnexpectedEOF
+	}
+	return nil
+}
+func (m *GetServicesResponse) Unmarshal(dAtA []byte) error {
+	l := len(dAtA)
+	iNdEx := 0
+	for iNdEx < l {
+		preIndex := iNdEx
+		var wire uint64
+		for shift := uint(0); ; shift += 7 {
+			if shift >= 64 {
+				return ErrIntOverflowQuery
+			}
+			if iNdEx >= l {
+				return io.ErrUnexpectedEOF
+			}
+			b := dAtA[iNdEx]
+			iNdEx++
+			wire |= uint64(b&0x7F) << shift
+			if b < 0x80 {
+				break
+			}
+		}
+		fieldNum := int32(wire >> 3)
+		wireType := int(wire & 0x7)
+		if wireType == 4 {
+			return fmt.Errorf("proto: GetServicesResponse: wiretype end group for non-group")
+		}
+		if fieldNum <= 0 {
+			return fmt.Errorf("proto: GetServicesResponse: illegal tag %d (wire type %d)", fieldNum, wire)
+		}
+		switch fieldNum {
+		case 1:
+			if wireType != 2 {
+				return fmt.Errorf("proto: wrong wireType = %d for field Services", wireType)
+			}
+			var stringLen uint64
+			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return ErrIntOverflowQuery
+				}
+				if iNdEx >= l {
+					return io.ErrUnexpectedEOF
+				}
+				b := dAtA[iNdEx]
+				iNdEx++
+				stringLen |= uint64(b&0x7F) << shift
+				if b < 0x80 {
+					break
+				}
+			}
+			intStringLen := int(stringLen)
+			if intStringLen < 0 {
+				return ErrInvalidLengthQuery
+			}
+			postIndex := iNdEx + intStringLen
+			if postIndex < 0 {
+				return ErrInvalidLengthQuery
+			}
+			if postIndex > l {
+				return io.ErrUnexpectedEOF
+			}
+			m.Services = append(m.Services, string(dAtA[iNdEx:postIndex]))
+			iNdEx = postIndex
+		default:
+			iNdEx = preIndex
+			skippy, err := skipQuery(dAtA[iNdEx:])
+			if err != nil {
+				return err
+			}
+			if skippy < 0 {
+				return ErrInvalidLengthQuery
+			}
+			if (iNdEx + skippy) < 0 {
+				return ErrInvalidLengthQuery
+			}
+			if (iNdEx + skippy) > l {
+				return io.ErrUnexpectedEOF
+			}
+			m.XXX_unrecognized = append(m.XXX_unrecognized, dAtA[iNdEx:iNdEx+skippy]...)
+			iNdEx += skippy
+		}
+	}
+
+	if iNdEx > l {
+		return io.ErrUnexpectedEOF
+	}
+	return nil
+}
+func (m *GetOperationsRequest) Unmarshal(dAtA []byte) error {
+	l := len(dAtA)
+	iNdEx := 0
+	for iNdEx < l {
+		preIndex := iNdEx
+		var wire uint64
+		for shift := uint(0); ; shift += 7 {
+			if shift >= 64 {
+				return ErrIntOverflowQuery
+			}
+			if iNdEx >= l {
+				return io.ErrUnexpectedEOF
+			}
+			b := dAtA[iNdEx]
+			iNdEx++
+			wire |= uint64(b&0x7F) << shift
+			if b < 0x80 {
+				break
+			}
+		}
+		fieldNum := int32(wire >> 3)
+		wireType := int(wire & 0x7)
+		if wireType == 4 {
+			return fmt.Errorf("proto: GetOperationsRequest: wiretype end group for non-group")
+		}
+		if fieldNum <= 0 {
+			return fmt.Errorf("proto: GetOperationsRequest: illegal tag %d (wire type %d)", fieldNum, wire)
+		}
+		switch fieldNum {
+		case 1:
+			if wireType != 2 {
+				return fmt.Errorf("proto: wrong wireType = %d for field Service", wireType)
+			}
+			var stringLen uint64
+			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return ErrIntOverflowQuery
+				}
+				if iNdEx >= l {
+					return io.ErrUnexpectedEOF
+				}
+				b := dAtA[iNdEx]
+				iNdEx++
+				stringLen |= uint64(b&0x7F) << shift
+				if b < 0x80 {
+					break
+				}
+			}
+			intStringLen := int(stringLen)
+			if intStringLen < 0 {
+				return ErrInvalidLengthQuery
+			}
+			postIndex := iNdEx + intStringLen
+			if postIndex < 0 {
+				return ErrInvalidLengthQuery
+			}
+			if postIndex > l {
+				return io.ErrUnexpectedEOF
+			}
+			m.Service = string(dAtA[iNdEx:postIndex])
+			iNdEx = postIndex
+		default:
+			iNdEx = preIndex
+			skippy, err := skipQuery(dAtA[iNdEx:])
+			if err != nil {
+				return err
+			}
+			if skippy < 0 {
+				return ErrInvalidLengthQuery
+			}
+			if (iNdEx + skippy) < 0 {
+				return ErrInvalidLengthQuery
+			}
+			if (iNdEx + skippy) > l {
+				return io.ErrUnexpectedEOF
+			}
+			m.XXX_unrecognized = append(m.XXX_unrecognized, dAtA[iNdEx:iNdEx+skippy]...)
+			iNdEx += skippy
+		}
+	}
+
+	if iNdEx > l {
+		return io.ErrUnexpectedEOF
+	}
+	return nil
+}
+func (m *GetOperationsResponse) Unmarshal(dAtA []byte) error {
+	l := len(dAtA)
+	iNdEx := 0
+	for iNdEx < l {
+		preIndex := iNdEx
+		var wire uint64
+		for shift := uint(0); ; shift += 7 {
+			if shift >= 64 {
+				return ErrIntOverflowQuery
+			}
+			if iNdEx >= l {
+				return io.ErrUnexpectedEOF
+			}
+			b := dAtA[iNdEx]
+			iNdEx++
+			wire |= uint64(b&0x7F) << shift
+			if b < 0x80 {
+				break
+			}
+		}
+		fieldNum := int32(wire >> 3)
+		wireType := int(wire & 0x7)
+		if wireType == 4 {
+			return fmt.Errorf("proto: GetOperationsResponse: wiretype end group for non-group")
+		}
+		if fieldNum <= 0 {
+			return fmt.Errorf("proto: GetOperationsResponse: illegal tag %d (wire type %d)", fieldNum, wire)
+		}
+		switch fieldNum {
+		case 1:
+			if wireType != 2 {
+				return fmt.Errorf("proto: wrong wireType = %d for field Operations", wireType)
+			}
+			var stringLen uint64
+			for shift := uint(0); ; shift += 7 {
+				if shift >= 64 {
+					return ErrIntOverflowQuery
+				}
+				if iNdEx >= l {
+					return io.ErrUnexpectedEOF
+				}
+				b := dAtA[iNdEx]
+				iNdEx++
+				stringLen |= uint64(b&0x7F) << shift
+				if b < 0x80 {
+					break
+				}
+			}
+			intStringLen := int(stringLen)
+			if intStringLen < 0 {
+				return ErrInvalidLengthQuery
+			}
+			postIndex := iNdEx + intStringLen
+			if postIndex < 0 {
+				return ErrInvalidLengthQuery
+			}
+			if postIndex > l {
+				return io.ErrUnexpectedEOF
+			}
+			m.Operations = append(m.Operations, string(dAtA[iNdEx:postIndex]))
 			iNdEx = postIndex
 		default:
 			iNdEx = preIndex
