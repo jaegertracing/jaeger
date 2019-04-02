@@ -19,8 +19,9 @@ import (
 	"time"
 
 	"github.com/dgraph-io/badger"
-	"github.com/jaegertracing/jaeger/model"
 	"github.com/stretchr/testify/assert"
+
+	"github.com/jaegertracing/jaeger/model"
 )
 
 func TestEncodingTypes(t *testing.T) {

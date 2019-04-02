@@ -19,10 +19,10 @@ import (
 	"testing"
 	"time"
 
-	"github.com/jaegertracing/jaeger/model"
 	"github.com/stretchr/testify/assert"
-
 	"github.com/dgraph-io/badger"
+
+	"github.com/jaegertracing/jaeger/model"
 )
 
 /*
