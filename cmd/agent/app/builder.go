@@ -17,6 +17,7 @@ package app
 import (
 	"fmt"
 	"net/http"
+	"strconv"
 
 	"github.com/apache/thrift/lib/go/thrift"
 	"github.com/pkg/errors"
@@ -27,8 +28,11 @@ import (
 	"github.com/jaegertracing/jaeger/cmd/agent/app/httpserver"
 	"github.com/jaegertracing/jaeger/cmd/agent/app/processors"
 	"github.com/jaegertracing/jaeger/cmd/agent/app/reporter"
+	"github.com/jaegertracing/jaeger/cmd/agent/app/reporter/grpc"
+	"github.com/jaegertracing/jaeger/cmd/agent/app/reporter/tchannel"
 	"github.com/jaegertracing/jaeger/cmd/agent/app/servers"
 	"github.com/jaegertracing/jaeger/cmd/agent/app/servers/thriftudp"
+	"github.com/jaegertracing/jaeger/ports"
 	zipkinThrift "github.com/jaegertracing/jaeger/thrift-gen/agent"
 	jaegerThrift "github.com/jaegertracing/jaeger/thrift-gen/jaeger"
 )
@@ -38,14 +42,14 @@ const (
 	defaultMaxPacketSize = 65000
 	defaultServerWorkers = 10
 
-	defaultHTTPServerHostPort = ":5778"
-
 	jaegerModel Model = "jaeger"
 	zipkinModel       = "zipkin"
 
 	compactProtocol Protocol = "compact"
 	binaryProtocol           = "binary"
 )
+
+var defaultHTTPServerHostPort = ":" + strconv.Itoa(ports.AgentConfigServerHTTP)
 
 // Model used to distinguish the data transfer model
 type Model string
@@ -208,4 +212,30 @@ func defaultInt(value int, defaultVal int) int {
 		value = defaultVal
 	}
 	return value
+}
+
+// CreateCollectorProxy creates collector proxy
+func CreateCollectorProxy(
+	opts *reporter.Options,
+	tchanRep *tchannel.Builder,
+	grpcRepOpts *grpc.Options,
+	logger *zap.Logger,
+	mFactory metrics.Factory,
+) (CollectorProxy, error) {
+	// GRPC type is set as default in viper, but we check for legacy flags
+	// to keep backward compatibility
+	if opts.ReporterType == reporter.GRPC &&
+		len(tchanRep.CollectorHostPorts) > 0 &&
+		len(grpcRepOpts.CollectorHostPort) == 0 {
+		logger.Warn("Using deprecated configuration", zap.String("option", "--collector-host.port"))
+		return tchannel.NewCollectorProxy(tchanRep, mFactory, logger)
+	}
+	switch opts.ReporterType {
+	case reporter.GRPC:
+		return grpc.NewCollectorProxy(grpcRepOpts, opts.AgentTags, mFactory, logger)
+	case reporter.TCHANNEL:
+		return tchannel.NewCollectorProxy(tchanRep, mFactory, logger)
+	default:
+		return nil, errors.New(fmt.Sprintf("unknown reporter type %s", string(opts.ReporterType)))
+	}
 }

@@ -106,7 +106,8 @@ func (f *Factory) CreateSpanWriter() (spanstore.Writer, error) {
 
 // CreateDependencyReader implements storage.Factory
 func (f *Factory) CreateDependencyReader() (dependencystore.Reader, error) {
-	return cDepStore.NewDependencyStore(f.primarySession, f.primaryMetricsFactory, f.logger), nil
+	version := cDepStore.GetDependencyVersion(f.primarySession)
+	return cDepStore.NewDependencyStore(f.primarySession, f.primaryMetricsFactory, f.logger, version)
 }
 
 // CreateArchiveSpanReader implements storage.ArchiveFactory

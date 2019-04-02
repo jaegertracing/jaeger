@@ -17,8 +17,11 @@ package app
 import (
 	"flag"
 	"fmt"
+	"strconv"
 
 	"github.com/spf13/viper"
+
+	"github.com/jaegertracing/jaeger/ports"
 )
 
 const (
@@ -32,21 +35,21 @@ const (
 var defaultProcessors = []struct {
 	model    Model
 	protocol Protocol
-	hostPort string
+	port     int
 }{
-	{model: "zipkin", protocol: "compact", hostPort: ":5775"},
-	{model: "jaeger", protocol: "compact", hostPort: ":6831"},
-	{model: "jaeger", protocol: "binary", hostPort: ":6832"},
+	{model: "zipkin", protocol: "compact", port: ports.AgentZipkinThriftCompactUDP},
+	{model: "jaeger", protocol: "compact", port: ports.AgentJaegerThriftCompactUDP},
+	{model: "jaeger", protocol: "binary", port: ports.AgentJaegerThriftBinaryUDP},
 }
 
 // AddFlags adds flags for Builder.
 func AddFlags(flags *flag.FlagSet) {
-	for _, processor := range defaultProcessors {
-		prefix := fmt.Sprintf("processor.%s-%s.", processor.model, processor.protocol)
+	for _, p := range defaultProcessors {
+		prefix := fmt.Sprintf("processor.%s-%s.", p.model, p.protocol)
 		flags.Int(prefix+suffixWorkers, defaultServerWorkers, "how many workers the processor should run")
 		flags.Int(prefix+suffixServerQueueSize, defaultQueueSize, "length of the queue for the UDP server")
 		flags.Int(prefix+suffixServerMaxPacketSize, defaultMaxPacketSize, "max packet size for the UDP server")
-		flags.String(prefix+suffixServerHostPort, processor.hostPort, "host:port for the UDP server")
+		flags.String(prefix+suffixServerHostPort, ":"+strconv.Itoa(p.port), "host:port for the UDP server")
 	}
 	flags.String(
 		httpServerHostPort,

@@ -168,11 +168,12 @@ func (s *errorTagSanitizer) Sanitize(span *zc.Span) *zc.Span {
 		if binAnno.AnnotationType != zc.AnnotationType_BOOL && strings.EqualFold("error", binAnno.Key) {
 			binAnno.AnnotationType = zc.AnnotationType_BOOL
 
-			if strings.EqualFold("true", string(binAnno.Value)) || len(binAnno.Value) == 0 {
+			switch {
+			case len(binAnno.Value) == 0 || strings.EqualFold("true", string(binAnno.Value)):
 				binAnno.Value = []byte{1}
-			} else if strings.EqualFold("false", string(binAnno.Value)) {
+			case strings.EqualFold("false", string(binAnno.Value)):
 				binAnno.Value = []byte{0}
-			} else {
+			default:
 				// value is different to true/false, create another bin annotation with error message
 				annoErrorMsg := &zc.BinaryAnnotation{
 					Key:            "error.message",

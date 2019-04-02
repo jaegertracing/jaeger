@@ -49,11 +49,12 @@ const (
 	suffixTagsFile          = suffixTagsAsFields + ".config-file"
 	suffixTagDeDotChar      = suffixTagsAsFields + ".dot-replacement"
 	suffixReadAlias         = ".use-aliases"
+	suffixEnabled           = ".enabled"
 )
 
 // TODO this should be moved next to config.Configuration struct (maybe ./flags package)
 
-// Options contains various type of ElasticSearch configs and provides the ability
+// Options contains various type of Elasticsearch configs and provides the ability
 // to bind them to command line flag and apply overlays, so that some configurations
 // (e.g. archive) may be underspecified and infer the rest of its parameters from primary.
 type Options struct {
@@ -89,6 +90,7 @@ func NewOptions(primaryNamespace string, otherNamespaces ...string) *Options {
 				BulkActions:       1000,
 				BulkFlushInterval: time.Millisecond * 200,
 				TagDotReplacement: "@",
+				Enabled:           true,
 			},
 			servers:   "http://127.0.0.1:9200",
 			namespace: primaryNamespace,
@@ -115,23 +117,23 @@ func addFlags(flagSet *flag.FlagSet, nsConfig *namespaceConfig) {
 	flagSet.String(
 		nsConfig.namespace+suffixUsername,
 		nsConfig.Username,
-		"The username required by ElasticSearch")
+		"The username required by Elasticsearch. The basic authentication also loads CA if it is specified.")
 	flagSet.String(
 		nsConfig.namespace+suffixPassword,
 		nsConfig.Password,
-		"The password required by ElasticSearch")
+		"The password required by Elasticsearch")
 	flagSet.String(
 		nsConfig.namespace+suffixTokenPath,
 		nsConfig.TokenFilePath,
-		"Path to a file containing bearer token. This flag also uses CA if it is specified")
+		"Path to a file containing bearer token. This flag also loads CA if it is specified.")
 	flagSet.Bool(
 		nsConfig.namespace+suffixSniffer,
 		nsConfig.Sniffer,
-		"The sniffer config for ElasticSearch; client uses sniffing process to find all nodes automatically, disable if not required")
+		"The sniffer config for Elasticsearch; client uses sniffing process to find all nodes automatically, disable if not required")
 	flagSet.String(
 		nsConfig.namespace+suffixServerURLs,
 		nsConfig.servers,
-		"The comma-separated list of ElasticSearch servers, must be full url i.e. http://localhost:9200")
+		"The comma-separated list of Elasticsearch servers, must be full url i.e. http://localhost:9200")
 	flagSet.Duration(
 		nsConfig.namespace+suffixTimeout,
 		nsConfig.Timeout,
@@ -139,7 +141,7 @@ func addFlags(flagSet *flag.FlagSet, nsConfig *namespaceConfig) {
 	flagSet.Duration(
 		nsConfig.namespace+suffixMaxSpanAge,
 		nsConfig.MaxSpanAge,
-		"The maximum lookback for spans in ElasticSearch")
+		"The maximum lookback for spans in Elasticsearch")
 	flagSet.Int(
 		nsConfig.namespace+suffixMaxNumSpans,
 		nsConfig.MaxNumSpans,
@@ -147,11 +149,11 @@ func addFlags(flagSet *flag.FlagSet, nsConfig *namespaceConfig) {
 	flagSet.Int64(
 		nsConfig.namespace+suffixNumShards,
 		nsConfig.NumShards,
-		"The number of shards per index in ElasticSearch")
+		"The number of shards per index in Elasticsearch")
 	flagSet.Int64(
 		nsConfig.namespace+suffixNumReplicas,
 		nsConfig.NumReplicas,
-		"The number of replicas per index in ElasticSearch")
+		"The number of replicas per index in Elasticsearch")
 	flagSet.Int(
 		nsConfig.namespace+suffixBulkSize,
 		nsConfig.BulkSize,
@@ -167,11 +169,11 @@ func addFlags(flagSet *flag.FlagSet, nsConfig *namespaceConfig) {
 	flagSet.Duration(
 		nsConfig.namespace+suffixBulkFlushInterval,
 		nsConfig.BulkFlushInterval,
-		"A time.Duration after which bulk requests are committed, regardless of other tresholds. Set to zero to disable. By default, this is disabled.")
+		"A time.Duration after which bulk requests are committed, regardless of other thresholds. Set to zero to disable. By default, this is disabled.")
 	flagSet.Bool(
 		nsConfig.namespace+suffixTLS,
 		nsConfig.TLS.Enabled,
-		"Enable TLS")
+		"Enable TLS with client certificates.")
 	flagSet.String(
 		nsConfig.namespace+suffixCert,
 		nsConfig.TLS.CertPath,
@@ -200,14 +202,17 @@ func addFlags(flagSet *flag.FlagSet, nsConfig *namespaceConfig) {
 		nsConfig.namespace+suffixTagDeDotChar,
 		nsConfig.TagDotReplacement,
 		"(experimental) The character used to replace dots (\".\") in tag keys stored as object fields.")
-	// TODO add rollover support for main indices
+	flagSet.Bool(
+		nsConfig.namespace+suffixReadAlias,
+		nsConfig.UseReadWriteAliases,
+		"(experimental) Use read and write aliases for indices. Use this option with Elasticsearch rollover "+
+			"API. It requires an external component to create aliases before startup and then performing its management. "+
+			"Note that "+nsConfig.namespace+suffixMaxSpanAge+" is not taken into the account and has to be substituted by external component managing read alias.")
 	if nsConfig.namespace == archiveNamespace {
 		flagSet.Bool(
-			nsConfig.namespace+suffixReadAlias,
-			nsConfig.UseReadWriteAliases,
-			"Use read and write aliases for indices. Use this option with Elasticsearch rollover "+
-				"API. It requires an external component to create aliases before startup and then performing its management. "+
-				"Note that "+nsConfig.namespace+suffixMaxSpanAge+" is not taken into the account and has to be substituted by external component managing read alias.")
+			nsConfig.namespace+suffixEnabled,
+			nsConfig.Enabled,
+			"Enable extra storage")
 	}
 }
 
@@ -243,6 +248,7 @@ func initFromViper(cfg *namespaceConfig, v *viper.Viper) {
 	cfg.TagsFilePath = v.GetString(cfg.namespace + suffixTagsFile)
 	cfg.TagDotReplacement = v.GetString(cfg.namespace + suffixTagDeDotChar)
 	cfg.UseReadWriteAliases = v.GetBool(cfg.namespace + suffixReadAlias)
+	cfg.Enabled = v.GetBool(cfg.namespace + suffixEnabled)
 }
 
 // GetPrimary returns primary configuration.

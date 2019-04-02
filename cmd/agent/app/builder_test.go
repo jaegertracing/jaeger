@@ -16,16 +16,23 @@ package app
 
 import (
 	"errors"
+	"flag"
 	"fmt"
 	"strings"
 	"testing"
+	"time"
 
+	"github.com/spf13/cobra"
+	"github.com/spf13/viper"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"github.com/uber/jaeger-lib/metrics"
+	"github.com/uber/jaeger-lib/metrics/metricstest"
 	"go.uber.org/zap"
 	"gopkg.in/yaml.v2"
 
+	"github.com/jaegertracing/jaeger/cmd/agent/app/reporter/grpc"
+	"github.com/jaegertracing/jaeger/cmd/agent/app/reporter/tchannel"
 	"github.com/jaegertracing/jaeger/cmd/agent/app/configmanager"
 	"github.com/jaegertracing/jaeger/cmd/agent/app/reporter"
 	"github.com/jaegertracing/jaeger/thrift-gen/baggage"
@@ -178,4 +185,85 @@ func (f fakeCollectorProxy) GetSamplingStrategy(serviceName string) (*sampling.S
 }
 func (fakeCollectorProxy) GetBaggageRestrictions(serviceName string) ([]*baggage.BaggageRestriction, error) {
 	return nil, nil
+}
+
+
+func TestCreateCollectorProxy(t *testing.T) {
+	tests := []struct{
+		flags []string
+		err string
+		metric metricstest.ExpectedMetric
+	}{
+		{
+			err: "could not create collector proxy, address is missing",
+		},
+		{
+			flags: []string{"--collector.host-port=foo"},
+			metric: metricstest.ExpectedMetric{Name: "reporter.batches.failures", Tags: map[string]string{"protocol": "tchannel", "format": "jaeger"}, Value: 1},
+		},
+		{
+			flags: []string{"--reporter.type=tchannel"},
+			metric: metricstest.ExpectedMetric{Name: "reporter.batches.failures", Tags: map[string]string{"protocol": "tchannel", "format": "jaeger"}, Value: 1},
+		},
+		{
+			flags: []string{"--reporter.type=tchannel", "--collector.host-port=foo"},
+			metric: metricstest.ExpectedMetric{Name: "reporter.batches.failures", Tags: map[string]string{"protocol": "tchannel", "format": "jaeger"}, Value: 1},
+		},
+		{
+			flags: []string{"--reporter.type=grpc", "--collector.host-port=foo"},
+			metric: metricstest.ExpectedMetric{Name: "reporter.batches.failures", Tags: map[string]string{"protocol": "tchannel", "format": "jaeger"}, Value: 1},
+		},
+		{
+			flags: []string{"--reporter.type=grpc", "--collector.host-port=foo"},
+			metric: metricstest.ExpectedMetric{Name: "reporter.batches.failures", Tags: map[string]string{"protocol": "tchannel", "format": "jaeger"}, Value: 1},
+		},
+		{
+			flags: []string{"--reporter.type=grpc", "--reporter.grpc.host-port=foo", "--collector.host-port=foo"},
+			metric: metricstest.ExpectedMetric{Name: "reporter.batches.failures", Tags: map[string]string{"protocol": "grpc", "format": "jaeger"}, Value: 1},
+		},
+		{
+			flags: []string{"--reporter.type=grpc", "--reporter.grpc.host-port=foo"},
+			metric: metricstest.ExpectedMetric{Name: "reporter.batches.failures", Tags: map[string]string{"protocol": "grpc", "format": "jaeger"}, Value: 1},
+		},
+	}
+
+	for _, test := range tests {
+		flags := &flag.FlagSet{}
+		tchannel.AddFlags(flags)
+		grpc.AddFlags(flags)
+		reporter.AddFlags(flags)
+
+		command := cobra.Command{}
+		command.PersistentFlags().AddGoFlagSet(flags)
+		v := viper.New()
+		v.BindPFlags(command.PersistentFlags())
+
+		err := command.ParseFlags(test.flags)
+		require.NoError(t, err)
+
+		rOpts := new(reporter.Options).InitFromViper(v)
+		tchan := tchannel.NewBuilder().InitFromViper(v, zap.NewNop())
+		grpcOpts := new(grpc.Options).InitFromViper(v)
+
+		metricsFactory := metricstest.NewFactory(time.Microsecond)
+		proxy, err := CreateCollectorProxy(rOpts, tchan, grpcOpts, zap.NewNop(), metricsFactory)
+		if test.err != "" {
+			assert.EqualError(t, err, test.err)
+			assert.Nil(t, proxy)
+		} else {
+			require.NoError(t, err)
+			proxy.GetReporter().EmitBatch(jaeger.NewBatch())
+			metricsFactory.AssertCounterMetrics(t, test.metric)
+		}
+	}
+}
+
+func TestCreateCollectorProxy_UnknownReporter(t *testing.T) {
+	rOpts := new(reporter.Options)
+	tchan := tchannel.NewBuilder()
+	grpcOpts := new(grpc.Options)
+
+	proxy, err := CreateCollectorProxy(rOpts, tchan, grpcOpts, zap.NewNop(), metrics.NullFactory)
+	assert.Nil(t, proxy)
+	assert.EqualError(t, err, "unknown reporter type ")
 }

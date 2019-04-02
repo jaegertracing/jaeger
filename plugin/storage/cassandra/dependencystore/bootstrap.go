@@ -1,4 +1,4 @@
-// Copyright (c) 2018 The Jaeger Authors.
+// Copyright (c) 2019 Uber Technologies, Inc.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -12,9 +12,17 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-// Package statik is a placeholder for UI assets packaged with github.com/rakyll/statik.
-// See build_ui target in the Makefile.
-//
-// The default statik.go file in this directory is generated with:
-//    (cd cmd/query/app/ui/placeholder; statik -f)
-package statik
+package dependencystore
+
+import (
+	"github.com/jaegertracing/jaeger/pkg/cassandra"
+)
+
+// GetDependencyVersion attempts to determine the version of the dependencies table.
+// TODO: Remove this once we've migrated to V2 permanently. https://github.com/jaegertracing/jaeger/issues/1344
+func GetDependencyVersion(s cassandra.Session) Version {
+	if err := s.Query("SELECT ts from dependencies_v2 limit 1;").Exec(); err != nil {
+		return V1
+	}
+	return V2
+}

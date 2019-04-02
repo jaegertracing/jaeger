@@ -309,7 +309,7 @@
   revision = "b23578765ee54ff6bceff57f397d833bf4ca6869"
 
 [[projects]]
-  digest = "1:a7ca1a547447a4baef3c16479b5ba2d90967e9615e371a1205b7fc8c8fdcbfe7"
+  digest = "1:2d91858167615bbc9f642045d8f7e38a16b346fcc2523f9dc75b6da4d8b3397c"
   name = "github.com/gogo/protobuf"
   packages = [
     "gogoproto",
@@ -334,6 +334,7 @@
     "protoc-gen-gogo",
     "protoc-gen-gogo/descriptor",
     "protoc-gen-gogo/generator",
+    "protoc-gen-gogo/generator/internal/remap",
     "protoc-gen-gogo/grpc",
     "protoc-gen-gogo/plugin",
     "sortkeys",
@@ -342,7 +343,7 @@
     "vanity/command",
   ]
   pruneopts = "UT"
-  revision = "fd9a4790f3963525fb889cc00e0a8f828e0b3a29"
+  revision = "ba06b47c162d49f2af050fb4c75bcbc86a159d5c"
 
 [[projects]]
   digest = "1:1ba1d79f2810270045c328ae5d674321db34e3aae468eb4233883b473c5c0467"
@@ -398,6 +399,18 @@
   pruneopts = "UT"
   revision = "a7962380ca08b5a188038c69871b8d3fbdf31e89"
   version = "v1.7.0"
+
+[[projects]]
+  digest = "1:d84c274ffdfd7ce6b4efd64ee776648459009d1f542440b1faa32cb7ed9aba84"
+  name = "github.com/grpc-ecosystem/go-grpc-middleware"
+  packages = [
+    "retry",
+    "util/backoffutils",
+    "util/metautils",
+  ]
+  pruneopts = "UT"
+  revision = "c250d6563d4d4c20252cd865923440e829844f4e"
+  version = "v1.0.0"
 
 [[projects]]
   digest = "1:e4f2416beca662090d5cfc9489208e9d7e3c17dee87e4fe2c5f2c8fe3cb71aa8"
@@ -606,14 +619,6 @@
   ]
   pruneopts = "UT"
   revision = "f8d8b3f739bd91a7c0462cb55235ef63c79c9abc"
-
-[[projects]]
-  digest = "1:ea0700160aca4ef099f4e06686a665a87691f4248dddd40796925eda2e46bd64"
-  name = "github.com/rakyll/statik"
-  packages = ["fs"]
-  pruneopts = "UT"
-  revision = "1355192d24db2566a83c3914e187e2a7e7679832"
-  version = "v0.1.5"
 
 [[projects]]
   branch = "master"
@@ -967,6 +972,7 @@
     "github.com/golang/protobuf/protoc-gen-go",
     "github.com/gorilla/handlers",
     "github.com/gorilla/mux",
+    "github.com/grpc-ecosystem/go-grpc-middleware/retry",
     "github.com/grpc-ecosystem/grpc-gateway/protoc-gen-grpc-gateway",
     "github.com/grpc-ecosystem/grpc-gateway/protoc-gen-swagger",
     "github.com/grpc-ecosystem/grpc-gateway/protoc-gen-swagger/options",
@@ -980,7 +986,6 @@
     "github.com/pkg/errors",
     "github.com/prometheus/client_golang/prometheus",
     "github.com/prometheus/client_golang/prometheus/promhttp",
-    "github.com/rakyll/statik/fs",
     "github.com/spf13/cobra",
     "github.com/spf13/pflag",
     "github.com/spf13/viper",
@@ -1012,6 +1017,7 @@
     "google.golang.org/grpc",
     "google.golang.org/grpc/balancer/roundrobin",
     "google.golang.org/grpc/codes",
+    "google.golang.org/grpc/credentials",
     "google.golang.org/grpc/grpclog",
     "google.golang.org/grpc/resolver",
     "google.golang.org/grpc/resolver/manual",

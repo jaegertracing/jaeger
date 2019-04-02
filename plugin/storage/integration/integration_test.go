@@ -289,15 +289,6 @@ func getTraceFixtureExact(t *testing.T, fileName string) *model.Trace {
 	return &trace
 }
 
-func getTraceFixtures(t *testing.T, fixtures []string) []*model.Trace {
-	traces := make([]*model.Trace, len(fixtures))
-	for i, fixture := range fixtures {
-		trace := getTraceFixture(t, fixture)
-		traces[i] = trace
-	}
-	return traces
-}
-
 func loadAndParseJSONPB(t *testing.T, path string, object proto.Message) {
 	inStr, err := ioutil.ReadFile(path)
 	require.NoError(t, err, "Not expecting error when loading fixture %s", path)

@@ -12,4 +12,5 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package statik
+// Package assets contains auto-generated UI asset files created during the build.
+package assets

@@ -29,6 +29,7 @@ import (
 
 	"github.com/jaegertracing/jaeger/pkg/es/wrapper"
 	"github.com/jaegertracing/jaeger/pkg/testutils"
+	"github.com/jaegertracing/jaeger/plugin/storage/es"
 	"github.com/jaegertracing/jaeger/plugin/storage/es/dependencystore"
 	"github.com/jaegertracing/jaeger/plugin/storage/es/spanstore"
 )
@@ -87,6 +88,7 @@ func (s *ESStorageIntegration) esCleanUp(allTagsAsFields bool) error {
 func (s *ESStorageIntegration) initSpanstore(allTagsAsFields bool) {
 	bp, _ := s.client.BulkProcessor().BulkActions(1).FlushInterval(time.Nanosecond).Do(context.Background())
 	client := eswrapper.WrapESClient(s.client, bp)
+	spanMapping, serviceMapping := es.GetMappings(5, 1)
 	s.SpanWriter = spanstore.NewSpanWriter(
 		spanstore.SpanWriterParams{
 			Client:            client,
@@ -95,6 +97,8 @@ func (s *ESStorageIntegration) initSpanstore(allTagsAsFields bool) {
 			IndexPrefix:       indexPrefix,
 			AllTagsAsFields:   allTagsAsFields,
 			TagDotReplacement: tagKeyDeDotChar,
+			SpanMapping:         spanMapping,
+			ServiceMapping:      serviceMapping,
 		})
 	s.SpanReader = spanstore.NewSpanReader(spanstore.SpanReaderParams{
 		Client:            client,

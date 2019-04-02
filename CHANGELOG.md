@@ -1,16 +1,146 @@
 Changes by Version
 ==================
 
-1.10.0 (unreleased)
+1.12.0 (unreleased)
 ------------------
 
 #### Backend Changes
+
+##### Breaking Changes
+- The `kafka` flags were removed in favor of `kafka.producer` and `kafka.consumer` flags ([#1424](https://github.com/jaegertracing/jaeger/pull/1424), [@ledor473](https://github.com/ledor473))
+
+    The following flags have been **removed** in the Collector and the Ingester:
+    ```
+    --kafka.brokers
+    --kafka.encoding
+    --kafka.topic
+    --ingester.brokers
+    --ingester.encoding
+    --ingester.topic
+    --ingester.group-id
+    ``` 
+    
+    In the Collector, they are replaced by:
+    ```
+    --kafka.producer.brokers
+    --kafka.producer.encoding
+    --kafka.producer.topic
+    ```
+    
+    In the Ingester, they are replaced by:
+    ```
+    --kafka.consumer.brokers
+    --kafka.consumer.encoding
+    --kafka.consumer.topic
+    --kafka.consumer.group-id
+    ```
+
+##### New Features
+
+##### Bug fixes, Minor Improvements
+
+#### UI Changes
+
+
+1.11.0 (2019-03-07)
+------------------
+
+#### Backend Changes
+
+##### Breaking Changes
+- Introduce `kafka.producer` and `kafka.consumer` flags to replace `kafka` flags ([#1360](https://github.com/jaegertracing/jaeger/pull/1360), [@ledor473](https://github.com/ledor473))
+
+    The following flags have been deprecated in the Collector and the Ingester:
+    ```
+    --kafka.brokers
+    --kafka.encoding
+    --kafka.topic
+    ``` 
+    
+    In the Collector, they are replaced by:
+    ```
+    --kafka.producer.brokers
+    --kafka.producer.encoding
+    --kafka.producer.topic
+    ```
+    
+    In the Ingester, they are replaced by:
+    ```
+    --kafka.consumer.brokers
+    --kafka.consumer.encoding
+    --kafka.consumer.group-id
+    ```
+##### New Features
+
+- Support secure gRPC channel between agent and collector ([#1391](https://github.com/jaegertracing/jaeger/pull/1391), [@ghouscht](https://github.com/ghouscht), [@yurishkuro](https://github.com/yurishkuro))
+- Allow to use TLS with ES basic auth ([#1388](https://github.com/jaegertracing/jaeger/pull/1388), [@pavolloffay](https://github.com/pavolloffay))
+
+##### Bug fixes, Minor Improvements
+
+- Make `esRollover.py init` idempotent ([#1407](https://github.com/jaegertracing/jaeger/pull/1407) and [#1408](https://github.com/jaegertracing/jaeger/pull/1408), [@pavolloffay](https://github.com/pavolloffay))
+- Allow thrift reporter if grpc hosts are not provided ([#1400](https://github.com/jaegertracing/jaeger/pull/1400), [@pavolloffay](https://github.com/pavolloffay))
+- Deprecate colon in index prefix in ES dependency store ([#1386](https://github.com/jaegertracing/jaeger/pull/1386), [@pavolloffay](https://github.com/pavolloffay))
+- Make grpc reporter default and add retry ([#1384](https://github.com/jaegertracing/jaeger/pull/1384), [@pavolloffay](https://github.com/pavolloffay))
+- Use `CQLSH_HOST` in final call to `cqlsh` ([#1372](https://github.com/jaegertracing/jaeger/pull/1372), [@funny-falcon](https://github.com/funny-falcon))
+
+#### UI Changes
+
+* UI pinned to version 1.1.0. The changelog is available here [v1.1.0](https://github.com/jaegertracing/jaeger-ui/blob/master/CHANGELOG.md#v110-march-3-2019)
+
+
+1.10.1 (2019-02-21)
+------------------
+
+#### Backend Changes
+
+- Discover dependencies table version automatically ([#1364](https://github.com/jaegertracing/jaeger/pull/1364), [@black-adder](https://github.com/black-adder))
 
 ##### Breaking Changes
 
 ##### New Features
 
 ##### Bug fixes, Minor Improvements
+
+- Separate query-service functionality from http handler ([#1312](https://github.com/jaegertracing/jaeger/pull/1312), [@annanay25](https://github.com/annanay25))
+
+#### UI Changes
+
+
+1.10.0 (2019-02-15)
+------------------
+
+#### Backend Changes
+
+##### Breaking Changes
+
+- Remove cassandra SASI indices ([#1328](https://github.com/jaegertracing/jaeger/pull/1328), [@black-adder](https://github.com/black-adder))
+
+Migration Path:
+
+1. Run `plugin/storage/cassandra/schema/migration/v001tov002part1.sh` which will copy dependencies into a csv, update the `dependency UDT`, create a new `dependencies_v2` table, and write dependencies from the csv into the `dependencies_v2` table.
+2. Run the collector and query services with the cassandra flag `cassandra.enable-dependencies-v2=true` which will instruct jaeger to write and read to and from the new `dependencies_v2` table.
+3. Update [spark job](https://github.com/jaegertracing/spark-dependencies) to write to the new `dependencies_v2` table. The feature will be done in [#58](https://github.com/jaegertracing/spark-dependencies/issues/58).
+4. Run `plugin/storage/cassandra/schema/migration/v001tov002part2.sh` which will DELETE the old dependency table and the SASI index.
+
+Users who wish to continue to use the v1 table don't have to do anything as the cassandra flag `cassandra.enable-dependencies-v2` will default to false. Users may migrate on their own timeline however new features will be built solely on the `dependencies_v2` table. In the future, we will remove support for v1 completely.
+
+- Remove `ErrorBusy`, it essentially duplicates `SpansDropped` ([#1091](https://github.com/jaegertracing/jaeger/pull/1091), [@cstyan](https://github.com/cstyan))
+
+##### New Features
+
+- Support certificates in elasticsearch scripts ([#1339](https://github.com/jaegertracing/jaeger/pull/1399), [@pavolloffay](https://github.com/pavolloffay))
+- Add ES Rollover support to main indices ([#1309](https://github.com/jaegertracing/jaeger/pull/1309), [@pavolloffay](https://github.com/pavolloffay))
+- Load ES auth token from file ([#1319](https://github.com/jaegertracing/jaeger/pull/1319), [@pavolloffay](https://github.com/pavolloffay))
+- Add username/password authentication to ES index cleaner ([#1318](https://github.com/jaegertracing/jaeger/pull/1318), [@gregoryfranklin](https://github.com/gregoryfranklin))
+- Add implementation of FindTraceIDs function for Elasticsearch reader ([#1280](https://github.com/jaegertracing/jaeger/pull/1280), [@vlamug](https://github.com/vlamug))
+- Support archive traces for ES storage ([#1197](https://github.com/jaegertracing/jaeger/pull/1197), [@pavolloffay](https://github.com/pavolloffay))
+
+##### Bug fixes, Minor Improvements
+
+- Use Zipkin annotations if the timestamp is zero ([#1341](https://github.com/jaegertracing/jaeger/pull/1341), [@geobeau](https://github.com/geobeau))
+- Use GRPC round robin balancing even if only one hostname ([#1329](https://github.com/jaegertracing/jaeger/pull/1329), [@benley](https://github.com/benley))
+- Tolerate whitespaces in ES servers and kafka brokers ([#1305](https://github.com/jaegertracing/jaeger/pull/1305), [@verma-varsha](https://github.com/verma-varsha))
+- Let cassandra servers contain whitespace in config ([#1301](https://github.com/jaegertracing/jaeger/pull/1301), [@karlpokus](https://github.com/karlpokus))
 
 #### UI Changes
 
@@ -155,7 +285,7 @@ jaeger_http_server_errors{source="collector-proxy",status="5xx"}
 
 - Refactor agent configuration ([#1092](https://github.com/jaegertracing/jaeger/pull/1092), [@pavolloffay](https://github.com/pavolloffay))
 
-The following agent flags has has been deprecated in order to support multiple reporters:
+The following agent flags has been deprecated in order to support multiple reporters:
 ```bash
 --collector.host-port
 --discovery.conn-check-timeout

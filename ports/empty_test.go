@@ -1,4 +1,4 @@
-// Copyright (c) 2017 Uber Technologies, Inc.
+// Copyright (c) 2019 The Jaeger Authors.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -12,18 +12,4 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package app
-
-import (
-	"github.com/jaegertracing/jaeger/model/adjuster"
-)
-
-// StandardAdjusters is a list of model adjusters applied by the query service
-// before returning the data to the API clients.
-var StandardAdjusters = []adjuster.Adjuster{
-	adjuster.SpanIDDeduper(),
-	adjuster.ClockSkew(),
-	adjuster.IPTagAdjuster(),
-	adjuster.SortLogFields(),
-	adjuster.SpanReferences(),
-}
+package ports

@@ -24,24 +24,24 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-func TestBingFlags(t *testing.T) {
-	v := viper.New()
-	command := cobra.Command{}
-	flags := &flag.FlagSet{}
-	AddFlags(flags)
-	command.PersistentFlags().AddGoFlagSet(flags)
-	v.BindPFlags(command.PersistentFlags())
-
+func TestBindFlags(t *testing.T) {
 	tests := []struct {
 		cOpts    []string
 		expected *Options
 	}{
-		{cOpts: []string{"--reporter.grpc.host-port=localhost:1111"},
-			expected: &Options{CollectorHostPort: []string{"localhost:1111"}}},
+		{cOpts: []string{"--reporter.grpc.host-port=localhost:1111", "--reporter.grpc.retry.max=15"},
+			expected: &Options{CollectorHostPort: []string{"localhost:1111"}, MaxRetry: 15}},
 		{cOpts: []string{"--reporter.grpc.host-port=localhost:1111,localhost:2222"},
-			expected: &Options{CollectorHostPort: []string{"localhost:1111", "localhost:2222"}}},
+			expected: &Options{CollectorHostPort: []string{"localhost:1111", "localhost:2222"}, MaxRetry: defaultMaxRetry}},
 	}
 	for _, test := range tests {
+		v := viper.New()
+		command := cobra.Command{}
+		flags := &flag.FlagSet{}
+		AddFlags(flags)
+		command.PersistentFlags().AddGoFlagSet(flags)
+		v.BindPFlags(command.PersistentFlags())
+
 		err := command.ParseFlags(test.cOpts)
 		require.NoError(t, err)
 		b := new(Options).InitFromViper(v)

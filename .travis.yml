@@ -7,27 +7,33 @@ dist: trusty
 
 matrix:
   include:
-  - go: "1.11.1"
+  - go: "1.12.1"
     env:
     - TESTS=true
     - COVERAGE=true
-  - go: "1.11.1"
+  - go: "1.12.1"
+    env:
+    - PROTO_GEN_TEST=true
+  - go: "1.12.1"
     env:
     - ALL_IN_ONE=true
-  - go: "1.11.1"
+  - go: "1.12.1"
     env:
     - CROSSDOCK=true
-  - go: "1.11.1"
+  - go: "1.12.1"
     env:
     - DOCKER=true
     - DEPLOY=true
-  - go: "1.11.1"
+  - go: "1.12.1"
     env:
     - ES_INTEGRATION_TEST=true
-  - go: "1.11.1"
+  - go: "1.12.1"
     env:
     - KAFKA_INTEGRATION_TEST=true
-  - go: "1.11.1"
+  - go: "1.12.1"
+    env:
+    - CASSANDRA_INTEGRATION_TEST=true
+  - go: "1.12.1"
     env:
     - HOTROD=true
 
@@ -49,6 +55,12 @@ install:
   - if [ "$ALL_IN_ONE" == true ]; then bash ./scripts/travis/install-ui-deps.sh ; fi
   - if [ "$DOCKER" == true ]; then bash ./scripts/travis/install-ui-deps.sh ; fi
   - if [ "$CROSSDOCK" == true ]; then bash ./scripts/travis/install-crossdock-deps.sh ; fi
+  - |
+    if [ "$PROTO_GEN_TEST" == true ]; then
+        make proto-install
+        curl -L https://github.com/google/protobuf/releases/download/v3.6.1/protoc-3.6.1-linux-x86_64.zip -o /tmp/protoc.zip
+        unzip /tmp/protoc.zip -d "$HOME"/protoc
+    fi
 
 script:
   - export BRANCH=$(if [ "$TRAVIS_PULL_REQUEST" == "false" ]; then echo $TRAVIS_BRANCH; else echo $TRAVIS_PULL_REQUEST_BRANCH; fi)
@@ -58,7 +70,9 @@ script:
   - if [ "$DOCKER" == true ]; then bash ./scripts/travis/build-docker-images.sh ; else echo 'skipping docker images'; fi
   - if [ "$ES_INTEGRATION_TEST" == true ]; then bash ./scripts/travis/es-integration-test.sh ; else echo 'skipping elastic search integration test'; fi
   - if [ "$KAFKA_INTEGRATION_TEST" == true ]; then bash ./scripts/travis/kafka-integration-test.sh ; else echo 'skipping kafka integration test'; fi
+  - if [ "$CASSANDRA_INTEGRATION_TEST" == true ]; then bash ./scripts/travis/cassandra-integration-test.sh ; else echo 'skipping cassandra integration test'; fi
   - if [ "$HOTROD" == true ]; then bash ./scripts/travis/hotrod-integration-test.sh ; else echo 'skipping hotrod example'; fi
+  - if [ "$PROTO_GEN_TEST" == true ]; then make proto PROTOC=$HOME/protoc/bin/protoc && git diff --name-status --exit-code ; else echo 'skipping protoc validation'; fi
 
 after_success:
   - if [ "$COVERAGE" == true ]; then mv cover.out coverage.txt ; else echo 'skipping coverage'; fi
@@ -68,7 +82,7 @@ after_failure:
   - if [ "$CROSSDOCK" == true ]; then make crossdock-logs ; else echo 'skipping crossdock'; fi
 
 before_deploy:
-  - make build-all-platforms && bash ./scripts/travis/package-deploy.sh
+  - if [ "$DEPLOY" == true ]; then make build-all-platforms && bash ./scripts/travis/package-deploy.sh ; else echo 'skipping deploy'; fi
 
 deploy:
   provider: releases

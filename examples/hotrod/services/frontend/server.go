@@ -19,13 +19,11 @@ import (
 	"net/http"
 
 	"github.com/opentracing/opentracing-go"
-	"github.com/rakyll/statik/fs"
 	"go.uber.org/zap"
 
 	"github.com/jaegertracing/jaeger/examples/hotrod/pkg/httperr"
 	"github.com/jaegertracing/jaeger/examples/hotrod/pkg/log"
 	"github.com/jaegertracing/jaeger/examples/hotrod/pkg/tracing"
-	_ "github.com/jaegertracing/jaeger/examples/hotrod/services/frontend/statik" // init static assets
 )
 
 // Server implements jaeger-demo-frontend service
@@ -48,10 +46,7 @@ type ConfigOptions struct {
 
 // NewServer creates a new frontend.Server
 func NewServer(options ConfigOptions, tracer opentracing.Tracer, logger log.Factory) *Server {
-	assetFS, err := fs.New()
-	if err != nil {
-		logger.Bg().Fatal("cannot import web assets", zap.Error(err))
-	}
+	assetFS := FS(false)
 	return &Server{
 		hostPort: options.FrontendHostPort,
 		tracer:   tracer,

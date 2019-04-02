@@ -30,8 +30,8 @@ import (
 const (
 	// ConfigPrefix is a prefix for the ingester flags
 	ConfigPrefix = "ingester"
-	// KafkaConfigPrefix is a prefix for the Kafka flags
-	KafkaConfigPrefix = "kafka"
+	// KafkaConsumerConfigPrefix is a prefix for the Kafka flags
+	KafkaConsumerConfigPrefix = "kafka.consumer"
 	// SuffixBrokers is a suffix for the brokers flag
 	SuffixBrokers = ".brokers"
 	// SuffixTopic is a suffix for the topic flag
@@ -59,63 +59,56 @@ const (
 	DefaultEncoding = kafka.EncodingProto
 	// DefaultDeadlockInterval is the default deadlock interval
 	DefaultDeadlockInterval = 1 * time.Minute
-	// DefaultHTTPPort is the default HTTP port (e.g. for /metrics)
-	DefaultHTTPPort = 14271
-	// IngesterDefaultHealthCheckHTTPPort is the default HTTP Port for health check
-	IngesterDefaultHealthCheckHTTPPort = 14270
 )
 
 // Options stores the configuration options for the Ingester
 type Options struct {
 	kafkaConsumer.Configuration
-	Parallelism int
-	Encoding    string
-	// IngesterHTTPPort is the port that the ingester service listens in on for http requests
-	IngesterHTTPPort int
+	Parallelism      int
+	Encoding         string
 	DeadlockInterval time.Duration
 }
 
 // AddFlags adds flags for Builder
 func AddFlags(flagSet *flag.FlagSet) {
 	flagSet.String(
-		KafkaConfigPrefix+SuffixBrokers,
+		KafkaConsumerConfigPrefix+SuffixBrokers,
 		DefaultBroker,
 		"The comma-separated list of kafka brokers. i.e. '127.0.0.1:9092,0.0.0:1234'")
 	flagSet.String(
-		KafkaConfigPrefix+SuffixTopic,
+		KafkaConsumerConfigPrefix+SuffixTopic,
 		DefaultTopic,
 		"The name of the kafka topic to consume from")
 	flagSet.String(
-		KafkaConfigPrefix+SuffixGroupID,
+		KafkaConsumerConfigPrefix+SuffixGroupID,
 		DefaultGroupID,
 		"The Consumer Group that ingester will be consuming on behalf of")
 	flagSet.String(
-		KafkaConfigPrefix+SuffixEncoding,
+		KafkaConsumerConfigPrefix+SuffixEncoding,
 		DefaultEncoding,
 		fmt.Sprintf(`The encoding of spans ("%s") consumed from kafka`, strings.Join(kafka.AllEncodings, "\", \"")))
 	flagSet.String(
 		ConfigPrefix+SuffixParallelism,
 		strconv.Itoa(DefaultParallelism),
 		"The number of messages to process in parallel")
-	flagSet.Int(
-		ConfigPrefix+SuffixHTTPPort,
-		DefaultHTTPPort,
-		"The http port for the ingester service")
 	flagSet.Duration(
 		ConfigPrefix+SuffixDeadlockInterval,
 		DefaultDeadlockInterval,
 		"Interval to check for deadlocks. If no messages gets processed in given time, ingester app will exit. Value of 0 disables deadlock check.")
-
 }
 
 // InitFromViper initializes Builder with properties from viper
 func (o *Options) InitFromViper(v *viper.Viper) {
-	o.Brokers = strings.Split(v.GetString(KafkaConfigPrefix+SuffixBrokers), ",")
-	o.Topic = v.GetString(KafkaConfigPrefix + SuffixTopic)
-	o.GroupID = v.GetString(KafkaConfigPrefix + SuffixGroupID)
-	o.Encoding = v.GetString(KafkaConfigPrefix + SuffixEncoding)
-	o.Parallelism = v.GetInt(ConfigPrefix + SuffixParallelism)
-	o.IngesterHTTPPort = v.GetInt(ConfigPrefix + SuffixHTTPPort)
+	o.Brokers = strings.Split(stripWhiteSpace(v.GetString(KafkaConsumerConfigPrefix+SuffixBrokers)), ",")
+	o.Topic = v.GetString(KafkaConsumerConfigPrefix + SuffixTopic)
+	o.GroupID = v.GetString(KafkaConsumerConfigPrefix + SuffixGroupID)
+	o.Encoding = v.GetString(KafkaConsumerConfigPrefix + SuffixEncoding)
 
+	o.Parallelism = v.GetInt(ConfigPrefix + SuffixParallelism)
 	o.DeadlockInterval = v.GetDuration(ConfigPrefix + SuffixDeadlockInterval)
+}
+
+// stripWhiteSpace removes all whitespace characters from a string
+func stripWhiteSpace(str string) string {
+	return strings.Replace(str, " ", "", -1)
 }

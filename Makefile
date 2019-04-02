@@ -6,6 +6,7 @@ ALL_SRC := $(shell find . -name '*.go' \
 				   -not -name 'doc.go' \
 				   -not -name '_*' \
 				   -not -name '.*' \
+				   -not -name 'gen_assets.go' \
 				   -not -name 'mocks*' \
 				   -not -name '*_test.go' \
 				   -not -name 'model.pb.go' \
@@ -89,6 +90,9 @@ integration-test: go-gen
 
 .PHONY: storage-integration-test
 storage-integration-test: go-gen
+	# Expire tests results for storage integration tests since the environment might change
+	# even though the code remains the same.
+	go clean -testcache
 	bash -c "set -e; set -o pipefail; $(GOTEST) $(STORAGE_PKGS) | $(COLORIZE)"
 
 all-pkgs:
@@ -149,13 +153,13 @@ install:
 	@which dep > /dev/null || curl https://raw.githubusercontent.com/golang/dep/master/install.sh | sh
 	dep ensure
 
-.PHONY: install-statik
-install-statik:
-	go get -u github.com/rakyll/statik
+.PHONE: elasticsearch-mappings
+elasticsearch-mappings:
+	esc -pkg mappings -o plugin/storage/es/mappings/gen_assets.go -ignore assets -prefix plugin/storage/es/mappings plugin/storage/es/mappings
 
 .PHONY: build-examples
-build-examples: install-statik
-	(cd examples/hotrod/services/frontend/ && statik -f --src web_assets)
+build-examples:
+	esc -pkg frontend -o examples/hotrod/services/frontend/gen_assets.go  -prefix examples/hotrod/services/frontend/web_assets examples/hotrod/services/frontend/web_assets
 	CGO_ENABLED=0 installsuffix=cgo go build -o ./examples/hotrod/hotrod-$(GOOS) ./examples/hotrod/main.go
 
 .PHONE: docker-hotrod
@@ -164,16 +168,17 @@ docker-hotrod:
 	docker build -t $(DOCKER_NAMESPACE)/example-hotrod:${DOCKER_TAG} ./examples/hotrod
 
 .PHONY: build_ui
-build_ui: install-statik
+build_ui:
 	cd jaeger-ui && yarn install && cd packages/jaeger-ui && yarn build
-	(cd cmd/query/app/ui/actual; statik -f -src ../../../../../jaeger-ui/packages/jaeger-ui/build)
+	esc -pkg assets -o cmd/query/app/ui/actual/gen_assets.go -prefix jaeger-ui/packages/jaeger-ui/build jaeger-ui/packages/jaeger-ui/build
+	esc -pkg assets -o cmd/query/app/ui/placeholder/gen_assets.go -prefix cmd/query/app/ui/placeholder/public cmd/query/app/ui/placeholder/public
 
 .PHONY: build-all-in-one-linux
 build-all-in-one-linux: build_ui
 	GOOS=linux $(MAKE) build-all-in-one
 
 .PHONY: build-all-in-one
-build-all-in-one:
+build-all-in-one: elasticsearch-mappings
 	CGO_ENABLED=0 installsuffix=cgo go build -tags ui -o ./cmd/all-in-one/all-in-one-$(GOOS) $(BUILD_INFO) ./cmd/all-in-one/main.go
 
 .PHONY: build-agent
@@ -185,7 +190,7 @@ build-query:
 	CGO_ENABLED=0 installsuffix=cgo go build -tags ui -o ./cmd/query/query-$(GOOS) $(BUILD_INFO) ./cmd/query/main.go
 
 .PHONY: build-collector
-build-collector:
+build-collector: elasticsearch-mappings
 	CGO_ENABLED=0 installsuffix=cgo go build -o ./cmd/collector/collector-$(GOOS) $(BUILD_INFO) ./cmd/collector/main.go
 
 .PHONY: build-ingester
@@ -251,8 +256,8 @@ include crossdock/rules.mk
 
 .PHONY: build-crossdock-ui-placeholder
 build-crossdock-ui-placeholder:
-	mkdir -p cmd/query/app/ui/actual/statik
-	[ -e cmd/query/app/ui/actual/statik/statik.go ] || cp cmd/query/app/ui/placeholder/statik/statik.go cmd/query/app/ui/actual/statik/statik.go
+	mkdir -p cmd/query/app/ui/actual
+	[ -e cmd/query/app/ui/actual/gen_assets.go ] || cp cmd/query/app/ui/placeholder/gen_assets.go cmd/query/app/ui/actual/gen_assets.go
 
 # Crossdock tests do not require fully functioning UI, so we skip it to speed up the build.
 .PHONY: build-crossdock
@@ -271,6 +276,7 @@ install-tools:
 	go get -u github.com/sectioneight/md-to-godoc
 	go get -u github.com/securego/gosec/cmd/gosec/...
 	go get -u honnef.co/go/tools/cmd/gosimple
+	go get -u github.com/mjibson/esc
 
 .PHONY: install-ci
 install-ci: install install-tools
@@ -326,6 +332,7 @@ generate-mocks: install-mockery
 echo-version:
 	@echo $(GIT_CLOSEST_TAG)
 
+PROTOC := protoc
 PROTO_INCLUDES := \
 	-I model/proto \
 	-I vendor/github.com/grpc-ecosystem/grpc-gateway \
@@ -366,19 +373,19 @@ proto:
 	# TODO use Docker container instead of installed protoc
 	# (https://medium.com/@linchenon/generate-grpc-and-protobuf-libraries-with-containers-c15ba4e4f3ad)
 	#
-	protoc \
+	$(PROTOC) \
 		$(PROTO_INCLUDES) \
 		--gogo_out=plugins=grpc,$(PROTO_GOGO_MAPPINGS):$(PWD)/model/ \
 		model/proto/model.proto
 
-	protoc \
+	$(PROTOC) \
 		$(PROTO_INCLUDES) \
-		--gogo_out=plugins=grpc,$(PROTO_GOGO_MAPPINGS):$(PWD)/proto-gen/api_v2/ \
-		--grpc-gateway_out=$(PROTO_GOGO_MAPPINGS):$(PWD)/proto-gen/api_v2/ \
-		--swagger_out=$(PWD)/proto-gen/openapi/ \
-		model/proto/api_v2.proto
+		--gogo_out=plugins=grpc,$(PROTO_GOGO_MAPPINGS):$(PWD)/proto-gen/ \
+		--grpc-gateway_out=$(PROTO_GOGO_MAPPINGS):$(PWD)/proto-gen/ \
+		--swagger_out=allow_merge=true:$(PWD)/proto-gen/openapi/ \
+		model/proto/api_v2/*.proto
 
-	protoc \
+	$(PROTOC) \
 		-I model/proto \
 		--go_out=$(PWD)/model/prototest/ \
 		model/proto/model_test.proto
@@ -391,5 +398,4 @@ proto-install:
 		./vendor/github.com/gogo/protobuf/protoc-gen-gogo \
 		./vendor/github.com/grpc-ecosystem/grpc-gateway/protoc-gen-grpc-gateway \
 		./vendor/github.com/grpc-ecosystem/grpc-gateway/protoc-gen-swagger
-		# ./vendor/github.com/mwitkow/go-proto-validators/protoc-gen-govalidators \
-		# ./vendor/github.com/rakyll/statik
+		# ./vendor/github.com/mwitkow/go-proto-validators/protoc-gen-govalidators

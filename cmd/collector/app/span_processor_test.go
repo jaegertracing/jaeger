@@ -86,13 +86,14 @@ func TestBySvcMetrics(t *testing.T) {
 		ctx := context.Background()
 		tctx := thrift.Wrap(ctx)
 		var metricPrefix, format string
-		if test.format == ZipkinFormatType {
+		switch test.format {
+		case ZipkinFormatType:
 			span := makeZipkinSpan(test.serviceName, test.rootSpan, test.debug)
 			zHandler := NewZipkinSpanHandler(logger, processor, zipkinSanitizer.NewParentIDSanitizer())
 			zHandler.SubmitZipkinBatch(tctx, []*zc.Span{span, span})
 			metricPrefix = "service"
 			format = "zipkin"
-		} else if test.format == JaegerFormatType {
+		case JaegerFormatType:
 			span, process := makeJaegerSpan(test.serviceName, test.rootSpan, test.debug)
 			jHandler := NewJaegerSpanHandler(logger, processor)
 			jHandler.SubmitBatches(tctx, []*jaeger.Batch{
@@ -106,7 +107,7 @@ func TestBySvcMetrics(t *testing.T) {
 			})
 			metricPrefix = "service"
 			format = "jaeger"
-		} else {
+		default:
 			panic("Unknown format")
 		}
 		expected := []metricstest.ExpectedMetric{}

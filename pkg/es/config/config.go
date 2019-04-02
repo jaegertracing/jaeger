@@ -55,6 +55,7 @@ type Configuration struct {
 	TagsFilePath        string
 	AllTagsAsFields     bool
 	TagDotReplacement   string
+	Enabled             bool
 	TLS                 TLSConfig
 	UseReadWriteAliases bool
 }
@@ -80,6 +81,7 @@ type ClientBuilder interface {
 	GetTagDotReplacement() string
 	GetUseReadWriteAliases() bool
 	GetTokenFilePath() string
+	IsEnabled() bool
 }
 
 // NewClient creates a new ElasticSearch client
@@ -233,6 +235,11 @@ func (c *Configuration) GetTokenFilePath() string {
 	return c.TokenFilePath
 }
 
+// IsEnabled determines whether storage is enabled
+func (c *Configuration) IsEnabled() bool {
+	return c.Enabled
+}
+
 // getConfigOptions wraps the configs to feed to the ElasticSearch client init
 func (c *Configuration) getConfigOptions() ([]elastic.ClientOptionFunc, error) {
 	options := []elastic.ClientOptionFunc{elastic.SetURL(c.Servers...), elastic.SetSniff(c.Sniffer)}
@@ -249,25 +256,26 @@ func (c *Configuration) getConfigOptions() ([]elastic.ClientOptionFunc, error) {
 			TLSClientConfig: ctlsConfig,
 		}
 	} else {
+		httpTransport := &http.Transport{}
+		if c.TLS.CaPath != "" {
+			ctls := &TLSConfig{CaPath: c.TLS.CaPath}
+			ca, err := ctls.loadCertificate()
+			if err != nil {
+				return nil, err
+			}
+			httpTransport.TLSClientConfig = &tls.Config{RootCAs: ca}
+		}
 		if c.TokenFilePath != "" {
 			token, err := loadToken(c.TokenFilePath)
 			if err != nil {
 				return nil, err
 			}
-			wrapped := &http.Transport{}
-			if c.TLS.CaPath != "" {
-				ctls := &TLSConfig{CaPath: c.TLS.CaPath}
-				ca, err := ctls.loadCertificate()
-				if err != nil {
-					return nil, err
-				}
-				wrapped.TLSClientConfig = &tls.Config{RootCAs: ca}
-			}
 			httpClient.Transport = &tokenAuthTransport{
 				token:   token,
-				wrapped: wrapped,
+				wrapped: httpTransport,
 			}
 		} else {
+			httpClient.Transport = httpTransport
 			options = append(options, elastic.SetBasicAuth(c.Username, c.Password))
 		}
 	}

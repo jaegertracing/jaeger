@@ -32,7 +32,7 @@ const (
 	// EncodingZipkinThrift is used for spans encoded as Zipkin Thrift.
 	EncodingZipkinThrift = "zipkin-thrift"
 
-	configPrefix   = "kafka"
+	configPrefix   = "kafka.producer"
 	suffixBrokers  = ".brokers"
 	suffixTopic    = ".topic"
 	suffixEncoding = ".encoding"

@@ -19,9 +19,6 @@ import (
 
 	"github.com/opentracing/opentracing-go"
 	"go.uber.org/zap"
-
-	"github.com/jaegertracing/jaeger/model/adjuster"
-	"github.com/jaegertracing/jaeger/storage/spanstore"
 )
 
 // HandlerOption is a function that sets some option on the APIHandler
@@ -37,13 +34,6 @@ type handlerOptions struct{}
 func (handlerOptions) Logger(logger *zap.Logger) HandlerOption {
 	return func(apiHandler *APIHandler) {
 		apiHandler.logger = logger
-	}
-}
-
-// Adjusters creates a HandlerOption that initializes the sequence of Adjusters on the APIHandler,
-func (handlerOptions) Adjusters(adjusters ...adjuster.Adjuster) HandlerOption {
-	return func(apiHandler *APIHandler) {
-		apiHandler.adjuster = adjuster.Sequence(adjusters...)
 	}
 }
 
@@ -65,20 +55,6 @@ func (handlerOptions) Prefix(prefix string) HandlerOption {
 func (handlerOptions) QueryLookbackDuration(queryLookbackDuration time.Duration) HandlerOption {
 	return func(apiHandler *APIHandler) {
 		apiHandler.queryParser.traceQueryLookbackDuration = queryLookbackDuration
-	}
-}
-
-// ArchiveSpanReader creates a HandlerOption that initializes lookback duration
-func (handlerOptions) ArchiveSpanReader(reader spanstore.Reader) HandlerOption {
-	return func(apiHandler *APIHandler) {
-		apiHandler.archiveSpanReader = reader
-	}
-}
-
-// ArchiveSpanWriter creates a HandlerOption that initializes lookback duration
-func (handlerOptions) ArchiveSpanWriter(writer spanstore.Writer) HandlerOption {
-	return func(apiHandler *APIHandler) {
-		apiHandler.archiveSpanWriter = writer
 	}
 }
 
