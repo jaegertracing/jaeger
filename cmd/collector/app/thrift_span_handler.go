@@ -34,6 +34,7 @@ const (
 	UnknownFormatType = "unknown"
 )
 
+// SubmitBatchOptions are passed to Submit methods of the handlers.
 type SubmitBatchOptions struct {
 	InboundTransport string
 }
