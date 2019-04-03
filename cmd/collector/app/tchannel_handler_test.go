@@ -23,6 +23,12 @@ import (
 	"github.com/jaegertracing/jaeger/thrift-gen/zipkincore"
 )
 
+var (
+	// verify API compliance
+	_ jaeger.TChanCollector           = new(TChannelHandler)
+	_ zipkincore.TChanZipkinCollector = new(TChannelHandler)
+)
+
 type mockZipkinHandler struct {
 	spans []*zipkincore.Span
 }

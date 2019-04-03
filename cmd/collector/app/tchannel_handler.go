@@ -21,7 +21,8 @@ import (
 	"github.com/jaegertracing/jaeger/thrift-gen/zipkincore"
 )
 
-type tchannelHandler struct {
+// TChannelHandler implements jaeger.TChanCollector and zipkincore.TChanZipkinCollector.
+type TChannelHandler struct {
 	jaegerHandler JaegerBatchesHandler
 	zipkinHandler ZipkinSpansHandler
 }
@@ -30,21 +31,23 @@ type tchannelHandler struct {
 func NewTChannelHandler(
 	jaegerHandler JaegerBatchesHandler,
 	zipkinHandler ZipkinSpansHandler,
-) *tchannelHandler {
-	return &tchannelHandler{
+) *TChannelHandler {
+	return &TChannelHandler{
 		jaegerHandler: jaegerHandler,
 		zipkinHandler: zipkinHandler,
 	}
 }
 
-func (h *tchannelHandler) SubmitZipkinBatch(
+// SubmitZipkinBatch implements zipkincore.TChanZipkinCollector.
+func (h *TChannelHandler) SubmitZipkinBatch(
 	_ thrift.Context,
 	spans []*zipkincore.Span,
 ) ([]*zipkincore.Response, error) {
 	return h.zipkinHandler.SubmitZipkinBatch(spans, SubmitBatchOptions{InboundTransport: "tchannel"})
 }
 
-func (h *tchannelHandler) SubmitBatches(
+// SubmitBatches implements jaeger.TChanCollector.
+func (h *TChannelHandler) SubmitBatches(
 	_ thrift.Context,
 	batches []*jaeger.Batch,
 ) ([]*jaeger.BatchSubmitResponse, error) {
