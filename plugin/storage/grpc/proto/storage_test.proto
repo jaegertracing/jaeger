@@ -1,4 +1,4 @@
-// Copyright (c) 2017 Uber Technologies, Inc.
+// Copyright (c) 2019 The Jaeger Authors
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -12,17 +12,10 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package model
+syntax="proto3";
 
-const (
-	// JaegerDependencyLinkSource describes a dependency diagram that was generated from Jaeger traces.
-	JaegerDependencyLinkSource = "jaeger"
-)
+package storageprototest;
 
-// ApplyDefaults applies defaults to the DependencyLink.
-func (d DependencyLink) ApplyDefaults() DependencyLink {
-	if d.Source == "" {
-		d.Source = JaegerDependencyLinkSource
-	}
-	return d
+message GetTraceRequest {
+    bytes trace_id = 1;
 }

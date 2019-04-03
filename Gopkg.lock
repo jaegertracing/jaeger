@@ -271,14 +271,14 @@
   revision = "181004e14a3fb735efcc826a4256369d0c96747b"
 
 [[projects]]
-  digest = "1:08fc980336305dcf34156af60e58073ba8326437d64d027fe624fdd9c4ff0ae6"
+  digest = "1:b066682d13a181fe2d34f55e0d05cb53211884725d55bc19468edcc61b8e9290"
   name = "github.com/gogo/googleapis"
   packages = ["google/api"]
-  pruneopts = "UT"
+  pruneopts = "T"
   revision = "b23578765ee54ff6bceff57f397d833bf4ca6869"
 
 [[projects]]
-  digest = "1:2d91858167615bbc9f642045d8f7e38a16b346fcc2523f9dc75b6da4d8b3397c"
+  digest = "1:c6e109ed32d266dea072dd6d00e3ee26fb960f86ed0ba7f6a07e5d2bfdeab868"
   name = "github.com/gogo/protobuf"
   packages = [
     "gogoproto",
@@ -311,7 +311,7 @@
     "vanity",
     "vanity/command",
   ]
-  pruneopts = "UT"
+  pruneopts = "T"
   revision = "ba06b47c162d49f2af050fb4c75bcbc86a159d5c"
 
 [[projects]]
@@ -381,7 +381,7 @@
   version = "v1.0.0"
 
 [[projects]]
-  digest = "1:e4f2416beca662090d5cfc9489208e9d7e3c17dee87e4fe2c5f2c8fe3cb71aa8"
+  digest = "1:babeeaa91ba4ba96ad36f520899ed27bb0120c9f617f75dda0ad3227e91eecac"
   name = "github.com/grpc-ecosystem/grpc-gateway"
   packages = [
     "codegenerator",
@@ -397,7 +397,7 @@
     "runtime",
     "utilities",
   ]
-  pruneopts = "UT"
+  pruneopts = "T"
   revision = "b7a5640779183161e8d6c3e51f60f0859b5559ba"
   version = "v1.7.0"
 
