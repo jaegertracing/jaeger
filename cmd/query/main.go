@@ -160,21 +160,19 @@ func main() {
 			go func() {
 				logger.Info("Starting HTTP server", zap.Int("port", queryOpts.Port))
 				httpServer.Serve(httpL)
-				hc.Set(healthcheck.Unavailable)
+				svc.HC().Set(healthcheck.Unavailable)
 			}()
 
 			go func() {
 				logger.Info("Starting GRPC server", zap.Int("port", queryOpts.Port))
 				grpcServer.Serve(grpcL)
-				hc.Set(healthcheck.Unavailable)
+				svc.HC().Set(healthcheck.Unavailable)
 			}()
 
 			// Start cmux server.
 			s.Serve()
 
-			hc.Ready()
-			<-serverChannel
-			logger.Info("Shutdown complete")
+			svc.RunAndThen(nil)
 			return nil
 		},
 	}
