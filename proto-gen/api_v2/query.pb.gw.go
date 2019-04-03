@@ -83,19 +83,27 @@ func request_QueryService_ArchiveTrace_0(ctx context.Context, marshaler runtime.
 }
 
 var (
-	filter_QueryService_Search_0 = &utilities.DoubleArray{Encoding: map[string]int{}, Base: []int(nil), Check: []int(nil)}
+	filter_QueryService_FindTraces_0 = &utilities.DoubleArray{Encoding: map[string]int{}, Base: []int(nil), Check: []int(nil)}
 )
 
-func request_QueryService_Search_0(ctx context.Context, marshaler runtime.Marshaler, client QueryServiceClient, req *http.Request, pathParams map[string]string) (proto.Message, runtime.ServerMetadata, error) {
+func request_QueryService_FindTraces_0(ctx context.Context, marshaler runtime.Marshaler, client QueryServiceClient, req *http.Request, pathParams map[string]string) (QueryService_FindTracesClient, runtime.ServerMetadata, error) {
 	var protoReq FindTracesRequest
 	var metadata runtime.ServerMetadata
 
-	if err := runtime.PopulateQueryParameters(&protoReq, req.URL.Query(), filter_QueryService_Search_0); err != nil {
+	if err := runtime.PopulateQueryParameters(&protoReq, req.URL.Query(), filter_QueryService_FindTraces_0); err != nil {
 		return nil, metadata, status.Errorf(codes.InvalidArgument, "%v", err)
 	}
 
-	msg, err := client.Search(ctx, &protoReq, grpc.Header(&metadata.HeaderMD), grpc.Trailer(&metadata.TrailerMD))
-	return msg, metadata, err
+	stream, err := client.FindTraces(ctx, &protoReq)
+	if err != nil {
+		return nil, metadata, err
+	}
+	header, err := stream.Header()
+	if err != nil {
+		return nil, metadata, err
+	}
+	metadata.HeaderMD = header
+	return stream, metadata, nil
 
 }
 
@@ -203,7 +211,7 @@ func RegisterQueryServiceHandlerClient(ctx context.Context, mux *runtime.ServeMu
 
 	})
 
-	mux.Handle("GET", pattern_QueryService_Search_0, func(w http.ResponseWriter, req *http.Request, pathParams map[string]string) {
+	mux.Handle("GET", pattern_QueryService_FindTraces_0, func(w http.ResponseWriter, req *http.Request, pathParams map[string]string) {
 		ctx, cancel := context.WithCancel(req.Context())
 		defer cancel()
 		inboundMarshaler, outboundMarshaler := runtime.MarshalerForRequest(mux, req)
@@ -212,14 +220,14 @@ func RegisterQueryServiceHandlerClient(ctx context.Context, mux *runtime.ServeMu
 			runtime.HTTPError(ctx, mux, outboundMarshaler, w, req, err)
 			return
 		}
-		resp, md, err := request_QueryService_Search_0(rctx, inboundMarshaler, client, req, pathParams)
+		resp, md, err := request_QueryService_FindTraces_0(rctx, inboundMarshaler, client, req, pathParams)
 		ctx = runtime.NewServerMetadataContext(ctx, md)
 		if err != nil {
 			runtime.HTTPError(ctx, mux, outboundMarshaler, w, req, err)
 			return
 		}
 
-		forward_QueryService_Search_0(ctx, mux, outboundMarshaler, w, req, resp, mux.GetForwardResponseOptions()...)
+		forward_QueryService_FindTraces_0(ctx, mux, outboundMarshaler, w, req, func() (proto.Message, error) { return resp.Recv() }, mux.GetForwardResponseOptions()...)
 
 	})
 
@@ -271,7 +279,7 @@ var (
 
 	pattern_QueryService_ArchiveTrace_0 = runtime.MustPattern(runtime.NewPattern(1, []int{2, 0, 1, 0, 4, 1, 5, 1}, []string{"traces", "trace_id"}, ""))
 
-	pattern_QueryService_Search_0 = runtime.MustPattern(runtime.NewPattern(1, []int{2, 0}, []string{"search"}, ""))
+	pattern_QueryService_FindTraces_0 = runtime.MustPattern(runtime.NewPattern(1, []int{2, 0}, []string{"search"}, ""))
 
 	pattern_QueryService_GetServices_0 = runtime.MustPattern(runtime.NewPattern(1, []int{2, 0}, []string{"services"}, ""))
 
@@ -283,7 +291,7 @@ var (
 
 	forward_QueryService_ArchiveTrace_0 = runtime.ForwardResponseMessage
 
-	forward_QueryService_Search_0 = runtime.ForwardResponseMessage
+	forward_QueryService_FindTraces_0 = runtime.ForwardResponseStream
 
 	forward_QueryService_GetServices_0 = runtime.ForwardResponseMessage
 

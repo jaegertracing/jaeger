@@ -79,7 +79,7 @@ func (g *GRPCHandler) ArchiveTrace(ctx context.Context, r *api_v2.ArchiveTraceRe
 	return &api_v2.ArchiveTraceResponse{}, nil
 }
 
-// GetServices is the GRPC handler to archive traces.
+// GetServices is the GRPC handler to fetch services.
 func (g *GRPCHandler) GetServices(ctx context.Context, r *api_v2.GetServicesRequest) (*api_v2.GetServicesReponse, error) {
 	services, err := g.queryService.GetServices(ctx)
 	if err != nil {
@@ -90,7 +90,20 @@ func (g *GRPCHandler) GetServices(ctx context.Context, r *api_v2.GetServicesRequ
 	return &api_v2.GetServicesReponse{services:services}, nil
 }
 
-// GetOperations is the GRPC handler to archive traces.
+// GetOperations is the GRPC handler to fetch operations.
+func (g *GRPCHandler) GetOperations(ctx context.Context, r *api_v2.GetOperationsRequest) (*api_v2.GetOperationsReponse, error) {
+	service := r.GetService()
+	operations, err := g.queryService.GetOperations(ctx, service)
+	if err != nil {
+		g.logger.Error("Error fetching operations", zap.Error(err))
+		return nil, err
+	}
+
+	return &api_v2.GetOperationsReponse{operations:operations}, nil
+}
+
+
+// GetOperations is the GRPC handler to fetch operations.
 func (g *GRPCHandler) GetOperations(ctx context.Context, r *api_v2.GetOperationsRequest) (*api_v2.GetOperationsReponse, error) {
 	service := r.GetService()
 	operations, err := g.queryService.GetOperations(ctx, service)

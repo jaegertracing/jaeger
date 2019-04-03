@@ -115,6 +115,23 @@ message GetOperationsResponse {
   repeated string operations = 1;
 }
 
+message GetDependenciesRequest {
+  google.protobuf.Timestamp start_time = 1 [
+    (gogoproto.stdtime) = true,
+    (gogoproto.nullable) = false
+  ];
+  google.protobuf.Timestamp end_time = 2 [
+    (gogoproto.stdtime) = true,
+    (gogoproto.nullable) = false
+  ];
+}
+
+message GetDependenciesResponse {
+  repeated jaeger.api_v2.DependencyLink dependencies = 1 [
+    (gogoproto.nullable) = false
+  ];
+}
+
 service QueryService {
     rpc GetTrace(GetTraceRequest) returns (SpansResponseChunk) {
         option (google.api.http) = {
@@ -143,6 +160,12 @@ service QueryService {
     rpc GetOperations(GetOperationsRequest) returns (GetOperationsResponse) {
         option (google.api.http) = {
             get: "/operations"
+        };
+    }
+
+    rpc GetDependencies(GetDependenciesRequest) returns (GetDependenciesResponse) {
+        option (google.api.http) = {
+            get: "/dependencies"
         };
     }
 }
