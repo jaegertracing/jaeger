@@ -118,6 +118,18 @@ required = [
 [prune]
   go-tests = true
   unused-packages = true
+  [[prune.project]]
+    name = "github.com/gogo/protobuf"
+    non-go = false
+    unused-packages = false
+  [[prune.project]]
+    name = "github.com/grpc-ecosystem/grpc-gateway"
+    non-go = false
+    unused-packages = false
+  [[prune.project]]
+      name = "github.com/gogo/googleapis"
+      non-go = false
+      unused-packages = false
 
 [[constraint]]
   name = "github.com/Shopify/sarama"
