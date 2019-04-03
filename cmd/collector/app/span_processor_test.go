@@ -23,9 +23,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/uber/jaeger-lib/metrics"
 	"github.com/uber/jaeger-lib/metrics/metricstest"
-	"github.com/uber/tchannel-go/thrift"
 	"go.uber.org/zap"
-	"golang.org/x/net/context"
 
 	zipkinSanitizer "github.com/jaegertracing/jaeger/cmd/collector/app/sanitizer/zipkin"
 	"github.com/jaegertracing/jaeger/model"
@@ -83,20 +81,18 @@ func TestBySvcMetrics(t *testing.T) {
 			Options.ReportBusy(false),
 			Options.SpanFilter(isSpanAllowed),
 		)
-		ctx := context.Background()
-		tctx := thrift.Wrap(ctx)
 		var metricPrefix, format string
 		switch test.format {
 		case ZipkinFormatType:
 			span := makeZipkinSpan(test.serviceName, test.rootSpan, test.debug)
 			zHandler := NewZipkinSpanHandler(logger, processor, zipkinSanitizer.NewParentIDSanitizer())
-			zHandler.SubmitZipkinBatch(tctx, []*zc.Span{span, span})
+			zHandler.SubmitZipkinBatch([]*zc.Span{span, span}, SubmitBatchOptions{})
 			metricPrefix = "service"
 			format = "zipkin"
 		case JaegerFormatType:
 			span, process := makeJaegerSpan(test.serviceName, test.rootSpan, test.debug)
 			jHandler := NewJaegerSpanHandler(logger, processor)
-			jHandler.SubmitBatches(tctx, []*jaeger.Batch{
+			jHandler.SubmitBatches([]*jaeger.Batch{
 				{
 					Spans: []*jaeger.Span{
 						span,
@@ -104,7 +100,7 @@ func TestBySvcMetrics(t *testing.T) {
 					},
 					Process: process,
 				},
-			})
+			}, SubmitBatchOptions{})
 			metricPrefix = "service"
 			format = "jaeger"
 		default:
@@ -217,7 +213,7 @@ func TestSpanProcessor(t *testing.T) {
 				ServiceName: "x",
 			},
 		},
-	}, JaegerFormatType)
+	}, ProcessSpansOptions{SpanFormat: JaegerFormatType})
 	assert.NoError(t, err)
 	assert.Equal(t, []bool{true}, res)
 }
@@ -240,7 +236,7 @@ func TestSpanProcessorErrors(t *testing.T) {
 				ServiceName: "x",
 			},
 		},
-	}, JaegerFormatType)
+	}, ProcessSpansOptions{SpanFormat: JaegerFormatType})
 
 	assert.NoError(t, err)
 	assert.Equal(t, []bool{true}, res)
@@ -299,7 +295,7 @@ func TestSpanProcessorBusy(t *testing.T) {
 				ServiceName: "x",
 			},
 		},
-	}, JaegerFormatType)
+	}, ProcessSpansOptions{SpanFormat: JaegerFormatType})
 
 	assert.Error(t, err, "expcting busy error")
 	assert.Nil(t, res)
