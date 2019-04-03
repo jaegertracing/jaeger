@@ -1,8 +1,8 @@
 {
   "swagger": "2.0",
   "info": {
-    "title": "api_v2.proto",
-    "version": "version not set"
+    "title": "api_v2/collector.proto",
+    "version": "1.0"
   },
   "schemes": [
     "http",
@@ -20,7 +20,7 @@
         "operationId": "GetSamplingStrategy",
         "responses": {
           "200": {
-            "description": "",
+            "description": "A successful response.",
             "schema": {
               "$ref": "#/definitions/api_v2SamplingStrategyResponse"
             }
@@ -46,7 +46,7 @@
         "operationId": "PostSpans",
         "responses": {
           "200": {
-            "description": "",
+            "description": "A successful response.",
             "schema": {
               "$ref": "#/definitions/api_v2PostSpansResponse"
             }
@@ -64,6 +64,37 @@
         ],
         "tags": [
           "CollectorService"
+        ]
+      }
+    },
+    "/dependencies": {
+      "get": {
+        "operationId": "GetDependencies",
+        "responses": {
+          "200": {
+            "description": "A successful response.",
+            "schema": {
+              "$ref": "#/definitions/api_v2GetDependenciesResponse"
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "start_time",
+            "in": "query",
+            "required": false,
+            "type": "string",
+            "format": "date-time"
+          },
+          {
+            "name": "lookback",
+            "in": "query",
+            "required": false,
+            "type": "string"
+          }
+        ],
+        "tags": [
+          "QueryService"
         ]
       }
     },
@@ -234,6 +265,35 @@
         },
         "process": {
           "$ref": "#/definitions/api_v2Process"
+        }
+      }
+    },
+    "api_v2DependencyLink": {
+      "type": "object",
+      "properties": {
+        "parent": {
+          "type": "string"
+        },
+        "child": {
+          "type": "string"
+        },
+        "call_count": {
+          "type": "string",
+          "format": "uint64"
+        },
+        "source": {
+          "type": "string"
+        }
+      }
+    },
+    "api_v2GetDependenciesResponse": {
+      "type": "object",
+      "properties": {
+        "dependencies": {
+          "type": "array",
+          "items": {
+            "$ref": "#/definitions/api_v2DependencyLink"
+          }
         }
       }
     },

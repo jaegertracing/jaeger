@@ -120,7 +120,7 @@ message GetDependenciesRequest {
     (gogoproto.stdtime) = true,
     (gogoproto.nullable) = false
   ];
-  google.protobuf.Timestamp end_time = 2 [
+  google.protobuf.Duration lookback = 2 [
     (gogoproto.stdtime) = true,
     (gogoproto.nullable) = false
   ];

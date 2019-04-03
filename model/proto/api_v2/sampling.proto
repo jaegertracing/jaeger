@@ -46,46 +46,6 @@ option (grpc.gateway.protoc_gen_swagger.options.openapiv2_swagger) = {
   schemes: HTTPS;
 };
 
-message PostSpansRequest {
-    Batch batch = 1 [
-        (gogoproto.nullable) = false
-    ];
-}
-
-message PostSpansResponse {
-}
-
-service CollectorService {
-    rpc PostSpans(PostSpansRequest) returns (PostSpansResponse) {
-        option (google.api.http) = {
-            post: "/api/v2/spans"
-            body: "*"
-        };
-    }
-}
-
-message GetTraceRequest {
-  bytes trace_id = 1 [
-    (gogoproto.nullable) = false,
-    (gogoproto.customtype) = "github.com/jaegertracing/jaeger/model.TraceID",
-    (gogoproto.customname) = "TraceID"
-  ];
-}
-
-message GetTraceResponseStream {
-  repeated jaeger.api_v2.Span spans = 1 [
-    (gogoproto.nullable) = false
-  ];
-}
-
-service QueryService {
-    rpc GetTrace(GetTraceRequest) returns (stream GetTraceResponseStream) {
-        option (google.api.http) = {
-            get: "/api/v2/traces/{trace_id}"
-        };
-    }
-}
-
 enum SamplingStrategyType {
   PROBABILISTIC = 0;
   RATE_LIMITING = 1;

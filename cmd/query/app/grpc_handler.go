@@ -45,9 +45,9 @@ func NewGRPCHandler(queryService querysvc.QueryService, logger *zap.Logger, trac
 	return gH
 }
 
-// GetTrace is the GRPC handler to fetch traces.
+// GetTrace is the GRPC handler to fetch traces based on TraceID.
 func (g *GRPCHandler) GetTrace(ctx context.Context, r *api_v2.GetTraceRequest) (*api_v2.GetTraceResponseStream, error) {
-	ID := r.GetId()
+	ID := r.TraceId
 
 	trace, err := g.queryService.GetTrace(ctx, ID)
 	if err == spanstore.ErrTraceNotFound {
@@ -59,12 +59,17 @@ func (g *GRPCHandler) GetTrace(ctx context.Context, r *api_v2.GetTraceRequest) (
 		return nil, err
 	}
 
-	return &api_v2.GetTraceResponseStream{Spans: trace.Spans}, nil
+	spans := make([]model.Span, 0, len(trace.Spans))
+	for _, span := range trace.Spans {
+		spans.append(*span)
+	}
+
+	return &api_v2.SpansResponseChunk{Spans: spans}, nil
 }
 
 // ArchiveTrace is the GRPC handler to archive traces.
 func (g *GRPCHandler) ArchiveTrace(ctx context.Context, r *api_v2.ArchiveTraceRequest) (*api_v2.ArchiveTraceResponse, error) {
-	ID := r.GetId()
+	ID := r.TraceId
 
 	err := g.queryService.ArchiveTrace(ctx, ID)
 	if err == spanstore.ErrTraceNotFound {
@@ -79,6 +84,33 @@ func (g *GRPCHandler) ArchiveTrace(ctx context.Context, r *api_v2.ArchiveTraceRe
 	return &api_v2.ArchiveTraceResponse{}, nil
 }
 
+// FindTraces is the GRPC handler to fetch traces based on TraceQueryParameters.
+func (g *GRPCHandler) FindTraces(ctx context.Context, r *api_v2.FindTracesRequest) (*api_v2.FindTracesResponse, error) {
+	queryParams := spanstore.TraceQueryParameters{
+		ServiceName:   r.service_name,
+		OperationName: r.operation_name,
+		Tags:          r.tags,
+		StartTimeMin:  r.start_time_min,
+		StartTimeMax:  r.start_time_max,
+		DurationMin:   r.duration_min,
+		DurationMax:   r.duration_max,
+		NumTraces:     r.num_traces,
+	}
+	traces, err := g.queryService.FindTraces(ctx, queryParams)
+	if err != nil {
+		g.logger.Error("Error fetching traces", zap.Error(err))
+		return nil, err
+	}
+
+	spans := []model.Span{}
+	for _, trace := range traces {
+		for _, span := range trace.Spans {
+			spans.append(*span)
+		}
+	}
+	return &api_v2.SpansResponseChunk{spans: spans}, nil
+}
+
 // GetServices is the GRPC handler to fetch services.
 func (g *GRPCHandler) GetServices(ctx context.Context, r *api_v2.GetServicesRequest) (*api_v2.GetServicesReponse, error) {
 	services, err := g.queryService.GetServices(ctx)
@@ -87,30 +119,30 @@ func (g *GRPCHandler) GetServices(ctx context.Context, r *api_v2.GetServicesRequ
 		return nil, err
 	}
 
-	return &api_v2.GetServicesReponse{services:services}, nil
+	return &api_v2.GetServicesReponse{services: services}, nil
 }
 
 // GetOperations is the GRPC handler to fetch operations.
 func (g *GRPCHandler) GetOperations(ctx context.Context, r *api_v2.GetOperationsRequest) (*api_v2.GetOperationsReponse, error) {
-	service := r.GetService()
+	service := r.service
 	operations, err := g.queryService.GetOperations(ctx, service)
 	if err != nil {
 		g.logger.Error("Error fetching operations", zap.Error(err))
 		return nil, err
 	}
 
-	return &api_v2.GetOperationsReponse{operations:operations}, nil
+	return &api_v2.GetOperationsReponse{operations: operations}, nil
 }
 
-
-// GetOperations is the GRPC handler to fetch operations.
-func (g *GRPCHandler) GetOperations(ctx context.Context, r *api_v2.GetOperationsRequest) (*api_v2.GetOperationsReponse, error) {
-	service := r.GetService()
-	operations, err := g.queryService.GetOperations(ctx, service)
+// GetDependencies is the GRPC handler to fetch dependencies.
+func (g *GRPCHandler) GetDependencies(ctx context.Context, r *api_v2.GetDependenciesRequest) (*api_v2.GetDependenciesResponse, error) {
+	startTime := r.start_time
+	lookback := r.lookback
+	dependencies, err := g.queryService.GetDependencies(startTime, lookback)
 	if err != nil {
-		g.logger.Error("Error fetching operations", zap.Error(err))
+		g.logger.Error("Error fetching dependencies", zap.Error(err))
 		return nil, err
 	}
 
-	return &api_v2.GetOperationsReponse{operations:operations}, nil
+	return &api_v2.GetDependenciesReponse{dependencies: dependencies}, nil
 }
