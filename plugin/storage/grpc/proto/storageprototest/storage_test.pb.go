@@ -29,7 +29,7 @@ func (m *GetTraceRequest) Reset()         { *m = GetTraceRequest{} }
 func (m *GetTraceRequest) String() string { return proto.CompactTextString(m) }
 func (*GetTraceRequest) ProtoMessage()    {}
 func (*GetTraceRequest) Descriptor() ([]byte, []int) {
-	return fileDescriptor_storage_test_9c088335406789b5, []int{0}
+	return fileDescriptor_storage_test_d286fda188bb5bc8, []int{0}
 }
 func (m *GetTraceRequest) XXX_Unmarshal(b []byte) error {
 	return xxx_messageInfo_GetTraceRequest.Unmarshal(m, b)
@@ -60,9 +60,9 @@ func init() {
 	proto.RegisterType((*GetTraceRequest)(nil), "storageprototest.GetTraceRequest")
 }
 
-func init() { proto.RegisterFile("storage_test.proto", fileDescriptor_storage_test_9c088335406789b5) }
+func init() { proto.RegisterFile("storage_test.proto", fileDescriptor_storage_test_d286fda188bb5bc8) }
 
-var fileDescriptor_storage_test_9c088335406789b5 = []byte{
+var fileDescriptor_storage_test_d286fda188bb5bc8 = []byte{
 	// 97 bytes of a gzipped FileDescriptorProto
 	0x1f, 0x8b, 0x08, 0x00, 0x00, 0x00, 0x00, 0x00, 0x02, 0xff, 0xe2, 0x12, 0x2a, 0x2e, 0xc9, 0x2f,
 	0x4a, 0x4c, 0x4f, 0x8d, 0x2f, 0x49, 0x2d, 0x2e, 0xd1, 0x2b, 0x28, 0xca, 0x2f, 0xc9, 0x17, 0x12,
