@@ -23,12 +23,9 @@ import (
 )
 
 const (
-	maxServiceNames = 2000
-	otherServices   = "other-services"
-	// GrpcEndpoint is the key name for gRPC endpoint metric
-	GrpcEndpoint = "gRPC"
-	// HTTPEndpoint is the key name for HTTP endpoint metric
-	HTTPEndpoint = "HTTP"
+	maxServiceNames      = 2000
+	otherServices        = "other-services"
+	defaultTransportType = "undefined"
 )
 
 // SpanProcessorMetrics contains all the necessary metrics for the SpanProcessor
@@ -187,7 +184,7 @@ func (m *countsBySvc) countByServiceName(serviceName string, isDebug bool, endpo
 		if isDebug {
 			debugStr = "true"
 		}
-		tags := map[string]string{"svc": serviceName, "debug": debugStr}
+		tags := map[string]string{"svc": serviceName, "debug": debugStr, "transport": defaultTransportType}
 		if endpointType != "" {
 			tags["transport"] = endpointType
 		}
