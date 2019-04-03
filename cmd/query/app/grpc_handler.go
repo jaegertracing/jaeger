@@ -16,9 +16,6 @@ package app
 
 import (
 	"context"
-	"net/http"
-	"strings"
-	"time"
 
 	"github.com/opentracing/opentracing-go"
 	"go.uber.org/zap"

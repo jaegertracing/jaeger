@@ -57,7 +57,7 @@ message GetTraceRequest {
   ];
 }
 
-message GetTraceResponseStream {
+message SpansResponseChunk {
   repeated jaeger.api_v2.Span spans = 1 [
     (gogoproto.nullable) = false
   ];
@@ -101,12 +101,6 @@ message FindTracesRequest {
   TraceQueryParameters query = 1;
 }
 
-message FindTracesResponse {
-  repeated jaeger.api_v2.Span spans = 1  [
-    (gogoproto.nullable) = false
-  ];
-}
-
 message GetServicesRequest {}
 
 message GetServicesResponse {
@@ -122,7 +116,7 @@ message GetOperationsResponse {
 }
 
 service QueryService {
-    rpc GetTrace(GetTraceRequest) returns (GetTraceResponseStream) {
+    rpc GetTrace(GetTraceRequest) returns (SpansResponseChunk) {
         option (google.api.http) = {
             get: "/traces/{trace_id}"
         };
@@ -134,7 +128,7 @@ service QueryService {
         };
     }
 
-    rpc Search(FindTracesRequest) returns (FindTracesResponse) {
+    rpc FindTraces(FindTracesRequest) returns (stream SpansResponseChunk) {
         option (google.api.http) = {
             get: "/search"
         };
