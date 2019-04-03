@@ -23,8 +23,8 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/jaegertracing/jaeger/model"
-	"github.com/jaegertracing/jaeger/plugin/storage/grpc/proto/storage_v1"
 	"github.com/jaegertracing/jaeger/plugin/storage/grpc/proto/storageprototest"
+	"github.com/jaegertracing/jaeger/proto-gen/storage_v1"
 )
 
 func TestGetTraceRequestMarshalProto(t *testing.T) {
@@ -43,7 +43,6 @@ func TestGetTraceRequestMarshalProto(t *testing.T) {
 		t.Run(testCase.name, func(t *testing.T) {
 			ref1 := storage_v1.GetTraceRequest{TraceID: model.NewTraceID(2, 3)}
 			ref2 := storageprototest.GetTraceRequest{
-				// TODO: would be cool to fuzz that test
 				TraceId: []byte{0, 0, 0, 0, 0, 0, 0, 2, 0, 0, 0, 0, 0, 0, 0, 3},
 			}
 			d1, err := testCase.marshal(&ref1)
