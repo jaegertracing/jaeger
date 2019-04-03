@@ -11,6 +11,5 @@ python scripts/import-order-cleanup.py -o $1 -t $(git ls-files "*\.go" | \
         -e proto-gen \
         -e model.pb.go \
         -e model_test.pb.go \
-        -e storage.pb.go \
         -e storage_test.pb.go
 )

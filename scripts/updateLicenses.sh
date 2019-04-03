@@ -11,6 +11,5 @@ python scripts/updateLicense.py $(git ls-files "*\.go" | \
         -e model.pb.go \
         -e model.pb.gw.go \
         -e model_test.pb.go \
-        -e storage.pb.go \
         -e storage_test.pb.go
 )
