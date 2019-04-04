@@ -23,9 +23,13 @@ import (
 )
 
 const (
-	maxServiceNames      = 2000
-	otherServices        = "other-services"
-	defaultTransportType = "undefined"
+	maxServiceNames          = 2000
+	defaultTransportType     = "Undefined"
+	otherServices            = "other-services"
+	otherServicesViaHTTP     = "other-services-via-http"
+	otherServicesViaTChannel = "other-services-via-tchannel"
+	otherServicesViaGRPC     = "other-services-via-grpc"
+	otherServicesViaDefault  = "other-services-via-undefined"
 )
 
 // SpanProcessorMetrics contains all the necessary metrics for the SpanProcessor
@@ -105,17 +109,24 @@ func newMetricsBySvc(factory metrics.Factory, category string) metricsBySvc {
 }
 
 func newCountsBySvc(factory metrics.Factory, category string, maxServiceNames int) countsBySvc {
+	// Add 3 to maxServiceNames threshold to compensate for extra slots taken by transport types
+	maxServiceNames = maxServiceNames + 3
 	return countsBySvc{
-		counts: map[string]metrics.Counter{
-			otherServices: factory.Counter(metrics.Options{Name: category, Tags: map[string]string{"svc": otherServices, "debug": "false"}}),
-		},
-		debugCounts: map[string]metrics.Counter{
-			otherServices: factory.Counter(metrics.Options{Name: category, Tags: map[string]string{"svc": otherServices, "debug": "true"}}),
-		},
+		counts:          newCountsByTransport(factory, category, "false"),
+		debugCounts:     newCountsByTransport(factory, category, "true"),
 		factory:         factory,
 		lock:            &sync.Mutex{},
 		maxServiceNames: maxServiceNames,
 		category:        category,
+	}
+}
+
+func newCountsByTransport(factory metrics.Factory, category string, debugFlag string) map[string]metrics.Counter {
+	return map[string]metrics.Counter{
+		otherServicesViaHTTP:     factory.Counter(metrics.Options{Name: category, Tags: map[string]string{"svc": otherServices, "debug": debugFlag, "transport": HTTPEndpoint}}),
+		otherServicesViaTChannel: factory.Counter(metrics.Options{Name: category, Tags: map[string]string{"svc": otherServices, "debug": debugFlag, "transport": TChannelEndpoint}}),
+		otherServicesViaGRPC:     factory.Counter(metrics.Options{Name: category, Tags: map[string]string{"svc": otherServices, "debug": debugFlag, "transport": GRPCEndpoint}}),
+		otherServicesViaDefault:  factory.Counter(metrics.Options{Name: category, Tags: map[string]string{"svc": otherServices, "debug": debugFlag, "transport": defaultTransportType}}),
 	}
 }
 
@@ -192,7 +203,16 @@ func (m *countsBySvc) countByServiceName(serviceName string, isDebug bool, endpo
 		counts[serviceName] = c
 		counter = c
 	} else {
-		counter = counts[otherServices]
+		switch endpointType {
+		case HTTPEndpoint:
+			counter = counts[otherServicesViaHTTP]
+		case TChannelEndpoint:
+			counter = counts[otherServicesViaTChannel]
+		case GRPCEndpoint:
+			counter = counts[otherServicesViaGRPC]
+		default:
+			counter = counts[otherServicesViaDefault]
+		}
 	}
 	m.lock.Unlock()
 	counter.Inc(1)

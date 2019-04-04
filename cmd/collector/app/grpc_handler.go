@@ -22,6 +22,11 @@ import (
 	"github.com/jaegertracing/jaeger/proto-gen/api_v2"
 )
 
+const (
+	// GRPCEndpoint is for gRPC endpoint
+	GRPCEndpoint = "GRPC"
+)
+
 // GRPCHandler implements gRPC CollectorService.
 type GRPCHandler struct {
 	logger        *zap.Logger
@@ -44,7 +49,7 @@ func (g *GRPCHandler) PostSpans(ctx context.Context, r *api_v2.PostSpansRequest)
 		}
 	}
 	_, err := g.spanProcessor.ProcessSpans(r.GetBatch().Spans, ProcessSpansOptions{
-		InboundTransport: GrpcEndpoint,
+		InboundTransport: GRPCEndpoint,
 		SpanFormat:       JaegerFormatType,
 	})
 	if err != nil {

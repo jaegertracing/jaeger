@@ -56,12 +56,12 @@ func TestJaegerSpanHandler(t *testing.T) {
 			assert.True(t, res[0].Ok)
 		}
 
-		res, err = h.SubmitHTTPBatches(ctx, []*jaeger.Batch{
+		res, err = h.SubmitBatches([]*jaeger.Batch{
 			{
 				Process: &jaeger.Process{ServiceName: "someServiceName"},
 				Spans:   []*jaeger.Span{{SpanId: 21345}},
 			},
-		})
+		}, SubmitBatchOptions{})
 		if tc.expectedErr != nil {
 			assert.Nil(t, res)
 			assert.Equal(t, tc.expectedErr, err)
@@ -118,11 +118,11 @@ func TestZipkinSpanHandler(t *testing.T) {
 			assert.True(t, res[0].Ok)
 		}
 
-		res, err = h.SubmitHTTPZipkinBatch(ctx, []*zipkincore.Span{
+		res, err = h.SubmitZipkinBatch([]*zipkincore.Span{
 			{
 				ID: 12345,
 			},
-		})
+		}, SubmitBatchOptions{})
 		if tc.expectedErr != nil {
 			assert.Nil(t, res)
 			assert.Equal(t, tc.expectedErr, err)

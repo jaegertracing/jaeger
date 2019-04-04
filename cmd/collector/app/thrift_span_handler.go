@@ -32,13 +32,6 @@ const (
 	ZipkinFormatType = "zipkin"
 	// UnknownFormatType is for spans that do not have a widely defined/well-known format type
 	UnknownFormatType = "unknown"
-
-	// TChannelEndpoint is for TChannel endpoint
-	tchannelEndpoint = "TChannel"
-	// HTTPEndpoint is for HTTP endpoint
-	httpEndpoint = "HTTP"
-	// GRPCEndpoint is for gRPC endpoint
-	grpcEndpoint = "GRPC"
 )
 
 // SubmitBatchOptions are passed to Submit methods of the handlers.
