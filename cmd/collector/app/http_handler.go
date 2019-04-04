@@ -19,11 +19,9 @@ import (
 	"io/ioutil"
 	"mime"
 	"net/http"
-	"time"
 
 	"github.com/apache/thrift/lib/go/thrift"
 	"github.com/gorilla/mux"
-	tchanThrift "github.com/uber/tchannel-go/thrift"
 
 	tJaeger "github.com/jaegertracing/jaeger/thrift-gen/jaeger"
 )
@@ -86,10 +84,9 @@ func (aH *APIHandler) saveSpan(w http.ResponseWriter, r *http.Request) {
 		http.Error(w, fmt.Sprintf(UnableToReadBodyErrFormat, err), http.StatusBadRequest)
 		return
 	}
-	ctx, cancel := tchanThrift.NewContext(time.Minute)
-	defer cancel()
 	batches := []*tJaeger.Batch{batch}
-	if _, err = aH.jaegerBatchesHandler.SubmitBatches(ctx, batches); err != nil {
+	opts := SubmitBatchOptions{InboundTransport: "http"} // TODO do we have a constant?
+	if _, err = aH.jaegerBatchesHandler.SubmitBatches(batches, opts); err != nil {
 		http.Error(w, fmt.Sprintf("Cannot submit Jaeger batch: %v", err), http.StatusInternalServerError)
 		return
 	}
