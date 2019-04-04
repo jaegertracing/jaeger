@@ -648,6 +648,14 @@
   revision = "3113b8401b8a98917cde58f8bbd42a1b1c03b1fd"
 
 [[projects]]
+  digest = "1:30e06e6d62a1d694e3cdbff29d8a9a96022e05a487d0c6eaf0ef898965ef28fb"
+  name = "github.com/soheilhy/cmux"
+  packages = ["."]
+  pruneopts = "UT"
+  revision = "e09e9389d85d8492d313d73d1469c029e710623f"
+  version = "v0.1.4"
+
+[[projects]]
   digest = "1:bb495ec276ab82d3dd08504bbc0594a65de8c3b22c6f2aaa92d05b73fbf3a82e"
   name = "github.com/spf13/afero"
   packages = [
@@ -896,7 +904,7 @@
     "internal/semver",
   ]
   pruneopts = "UT"
-  revision = "8a44e74612bcf51f0d4407df3d3a8377cb99c2d8"
+  revision = "923d25813098b2ffdf1b4bb7ee4ec425fef796a9"
 
 [[projects]]
   branch = "master"
@@ -909,7 +917,7 @@
     "protobuf/field_mask",
   ]
   pruneopts = "UT"
-  revision = "f467c93bbac2133ff463e1f93d18d8f9f3f04451"
+  revision = "64821d5d210748c883cd2b809589555ae4654203"
 
 [[projects]]
   digest = "1:0a1fea691bda5979304d27194e77e67737a321cab3f584107f1bddc5dc650e43"

@@ -16,15 +16,13 @@ package app
 
 import (
 	"context"
-	"time"
 
 	"github.com/opentracing/opentracing-go"
 	"go.uber.org/zap"
-	"google.golang.org/grpc"
 
+	"github.com/jaegertracing/jaeger/model"
 	"github.com/jaegertracing/jaeger/cmd/query/app/querysvc"
 	"github.com/jaegertracing/jaeger/proto-gen/api_v2"
-	"github.com/jaegertracing/jaeger/storage/dependencystore"
 	"github.com/jaegertracing/jaeger/storage/spanstore"
 )
 
@@ -46,7 +44,7 @@ func NewGRPCHandler(queryService querysvc.QueryService, logger *zap.Logger, trac
 	return gH
 }
 
-// GetTrace is the GRPC handler to fetch traces based on TraceID.
+// GetTrace is the GRPC handler to fetch traces based on TraceId.
 func (g *GRPCHandler) GetTrace(ctx context.Context, r *api_v2.GetTraceRequest) (*api_v2.GetTraceResponseStream, error) {
 	ID := r.TraceId
 
@@ -88,16 +86,16 @@ func (g *GRPCHandler) ArchiveTrace(ctx context.Context, r *api_v2.ArchiveTraceRe
 // FindTraces is the GRPC handler to fetch traces based on TraceQueryParameters.
 func (g *GRPCHandler) FindTraces(ctx context.Context, r *api_v2.FindTracesRequest) (*api_v2.FindTracesResponse, error) {
 	queryParams := spanstore.TraceQueryParameters{
-		ServiceName:   r.service_name,
-		OperationName: r.operation_name,
-		Tags:          r.tags,
-		StartTimeMin:  r.start_time_min,
-		StartTimeMax:  r.start_time_max,
-		DurationMin:   r.duration_min,
-		DurationMax:   r.duration_max,
-		NumTraces:     r.num_traces,
+		ServiceName:   r.ServiceName,
+		OperationName: r.OperationName,
+		Tags:          r.Tags,
+		StartTimeMin:  r.StartTimeMin,
+		StartTimeMax:  r.StartTimeMax,
+		DurationMin:   r.DurationMin,
+		DurationMax:   r.DurationMax,
+		NumTraces:     r.NumTraces,
 	}
-	traces, err := g.queryService.FindTraces(ctx, queryParams)
+	traces, err := g.queryService.FindTraces(ctx, &queryParams)
 	if err != nil {
 		g.logger.Error("Error fetching traces", zap.Error(err))
 		return nil, err
@@ -109,7 +107,7 @@ func (g *GRPCHandler) FindTraces(ctx context.Context, r *api_v2.FindTracesReques
 			spans.append(*span)
 		}
 	}
-	return &api_v2.SpansResponseChunk{spans: spans}, nil
+	return &api_v2.SpansResponseChunk{Spans: spans}, nil
 }
 
 // GetServices is the GRPC handler to fetch services.
@@ -120,30 +118,30 @@ func (g *GRPCHandler) GetServices(ctx context.Context, r *api_v2.GetServicesRequ
 		return nil, err
 	}
 
-	return &api_v2.GetServicesReponse{services: services}, nil
+	return &api_v2.GetServicesReponse{Services: services}, nil
 }
 
 // GetOperations is the GRPC handler to fetch operations.
 func (g *GRPCHandler) GetOperations(ctx context.Context, r *api_v2.GetOperationsRequest) (*api_v2.GetOperationsReponse, error) {
-	service := r.service
+	service := r.Service
 	operations, err := g.queryService.GetOperations(ctx, service)
 	if err != nil {
 		g.logger.Error("Error fetching operations", zap.Error(err))
 		return nil, err
 	}
 
-	return &api_v2.GetOperationsReponse{operations: operations}, nil
+	return &api_v2.GetOperationsReponse{Operations: operations}, nil
 }
 
 // GetDependencies is the GRPC handler to fetch dependencies.
 func (g *GRPCHandler) GetDependencies(ctx context.Context, r *api_v2.GetDependenciesRequest) (*api_v2.GetDependenciesResponse, error) {
-	startTime := r.start_time
-	endTime := r.end_time
+	startTime := r.StartTime
+	endTime := r.EndTime
 	dependencies, err := g.queryService.GetDependencies(startTime, endTime.Sub(startTime))
 	if err != nil {
 		g.logger.Error("Error fetching dependencies", zap.Error(err))
 		return nil, err
 	}
 
-	return &api_v2.GetDependenciesReponse{dependencies: dependencies}, nil
+	return &api_v2.GetDependenciesReponse{Dependencies: dependencies}, nil
 }

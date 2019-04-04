@@ -18,9 +18,9 @@ import (
 	"fmt"
 	"io/ioutil"
 	"log"
+	"net"
 	"net/http"
 	"os"
-	"strconv"
 
 	"github.com/gorilla/handlers"
 	"github.com/opentracing/opentracing-go"
@@ -44,6 +44,7 @@ import (
 	"github.com/jaegertracing/jaeger/pkg/version"
 	"github.com/jaegertracing/jaeger/plugin/storage"
 	"github.com/jaegertracing/jaeger/ports"
+	"github.com/jaegertracing/jaeger/proto-gen/api_v2"
 	istorage "github.com/jaegertracing/jaeger/storage"
 	storageMetrics "github.com/jaegertracing/jaeger/storage/spanstore/metrics"
 )
@@ -120,11 +121,6 @@ func main() {
 			apiHandler.RegisterRoutes(r)
 			app.RegisterStaticHandler(r, logger, queryOpts)
 
-			if h := mBldr.Handler(); h != nil {
-				logger.Info("Registering metrics handler with HTTP server", zap.String("route", mBldr.HTTPRoute))
-				r.Handle(mBldr.HTTPRoute, h)
-			}
-
 			compressHandler := handlers.CompressHandler(r)
 			recoveryHandler := recoveryhandler.NewRecoveryHandler(logger, true)
 
@@ -138,7 +134,7 @@ func main() {
 
 			grpclog.SetLoggerV2(grpclog.NewLoggerV2(ioutil.Discard, os.Stderr, os.Stderr))
 
-			grpcHandler := app.NewGRPCHandler(queryService, logger, tracer)
+			grpcHandler := app.NewGRPCHandler(*queryService, logger, tracer)
 			api_v2.RegisterQueryServiceHandler(grpcServer, grpcHandler)
 
 			// Prepare cmux conn.
