@@ -26,6 +26,18 @@ import (
 	"github.com/jaegertracing/jaeger/storage/spanstore"
 )
 
+// ProcessSpansOptions additional options passed to processor along with the spans.
+type ProcessSpansOptions struct {
+	SpanFormat       string
+	InboundTransport string
+}
+
+// SpanProcessor handles model spans
+type SpanProcessor interface {
+	// ProcessSpans processes model spans and return with either a list of true/false success or an error
+	ProcessSpans(mSpans []*model.Span, options ProcessSpansOptions) ([]bool, error)
+}
+
 type spanProcessor struct {
 	queue           *queue.BoundedQueue
 	metrics         *SpanProcessorMetrics
@@ -109,12 +121,12 @@ func (sp *spanProcessor) saveSpan(span *model.Span) {
 	sp.metrics.SaveLatency.Record(time.Since(startTime))
 }
 
-func (sp *spanProcessor) ProcessSpans(mSpans []*model.Span, spanFormat string) ([]bool, error) {
+func (sp *spanProcessor) ProcessSpans(mSpans []*model.Span, options ProcessSpansOptions) ([]bool, error) {
 	sp.preProcessSpans(mSpans)
 	sp.metrics.BatchSize.Update(int64(len(mSpans)))
 	retMe := make([]bool, len(mSpans))
 	for i, mSpan := range mSpans {
-		ok := sp.enqueueSpan(mSpan, spanFormat)
+		ok := sp.enqueueSpan(mSpan, options.SpanFormat)
 		if !ok && sp.reportBusy {
 			return nil, tchannel.ErrServerBusy
 		}
