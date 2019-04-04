@@ -83,7 +83,9 @@ func (s *Service) Start(v *viper.Viper) error {
 	}
 
 	sFlags := new(SharedFlags).InitFromViper(v)
-	if logger, err := sFlags.NewLogger(zap.NewProductionConfig()); err == nil {
+	newProdConfig := zap.NewProductionConfig()
+	newProdConfig.Sampling = nil
+	if logger, err := sFlags.NewLogger(newProdConfig); err == nil {
 		s.Logger = logger
 	} else {
 		return errors.Wrap(err, "Cannot create logger")
