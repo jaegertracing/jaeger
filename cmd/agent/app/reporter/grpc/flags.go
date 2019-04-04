@@ -31,16 +31,6 @@ const (
 	collectorTLSServerName = gRPCPrefix + "tls.server-name"
 )
 
-// Options Struct to hold configurations
-type Options struct {
-	// CollectorHostPort is list of host:port Jaeger Collectors.
-	CollectorHostPort []string
-	MaxRetry          uint
-	TLS               bool
-	TLSCA             string
-	TLSServerName     string
-}
-
 // AddFlags adds flags for Options.
 func AddFlags(flags *flag.FlagSet) {
 	flags.String(collectorHostPort, "", "Comma-separated string representing host:port of a static list of collectors to connect to directly.")

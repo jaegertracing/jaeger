@@ -1,4 +1,4 @@
-// Copyright (c) 2019 The Jaeger Authors.
+// Copyright (c) 2018-2019 The Jaeger Authors.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -31,7 +31,7 @@ import (
 
 // Builder Struct to hold configurations
 type Builder struct {
-	// CollectorHostPorts are host:ports of a static list of Jaeger Collectors.
+	// CollectorHostPorts is list of host:port Jaeger Collectors.
 	CollectorHostPorts []string `yaml:"collectorHostPorts"`
 
 	// CollectorServiceName is the name that Jaeger Collector's grpc server
@@ -61,10 +61,10 @@ func NewBuilder() *Builder {
 	return &Builder{}
 }
 
-// CreateReporter creates the TChannel-based Reporter
+// CreateReporter creates the gRPC-based Reporter
 func (b *Builder) CreateReporter(logger *zap.Logger, mFactory metrics.Factory, agentTags map[string]string) (*Reporter, error) {
-
-	var dialOption grpc.DialOption
+	var dialOptions []grpc.DialOption
+	var dialTarget string
 	if b.TLS { // user requested a secure connection
 		var creds credentials.TransportCredentials
 		if len(b.TLSCA) == 0 { // no truststore given, use SystemCertPool
@@ -80,40 +80,35 @@ func (b *Builder) CreateReporter(logger *zap.Logger, mFactory metrics.Factory, a
 				return nil, err
 			}
 		}
-		dialOption = grpc.WithTransportCredentials(creds)
+		dialOptions = append(dialOptions, grpc.WithTransportCredentials(creds))
 	} else { // insecure connection
-		dialOption = grpc.WithInsecure()
+		dialOptions = append(dialOptions, grpc.WithInsecure())
 	}
 
 	if b.Resolver != nil && b.ResolverTarget != "" {
-		// If both resolver&resolverTarget are specified, we will rely on it to resolve collector addresses
-		conn, _ := grpc.Dial(b.ResolverTarget,
-			dialOption,
-			grpc.WithBalancer(grpc.RoundRobin(b.Resolver)),
-			grpc.WithUnaryInterceptor(grpc_retry.UnaryClientInterceptor(grpc_retry.WithMax(b.MaxRetry))))
-
-		return NewReporter(conn, agentTags, logger), nil
-	}
-	if b.CollectorHostPorts == nil {
-		return nil, errors.New("at least one collector hostPort address is required when resolver is not available")
-	}
-	var target string
-	if len(b.CollectorHostPorts) > 1 {
-		r, _ := manual.GenerateAndRegisterManualResolver()
-		var resolvedAddrs []resolver.Address
-		for _, addr := range b.CollectorHostPorts {
-			resolvedAddrs = append(resolvedAddrs, resolver.Address{Addr: addr})
-		}
-		r.InitialAddrs(resolvedAddrs)
-		target = r.Scheme() + ":///round_robin"
+		// Use custom Resolver and ResolverTarget if specified
+		dialTarget = b.ResolverTarget
+		dialOptions = append(dialOptions, grpc.WithBalancer(grpc.RoundRobin(b.Resolver)))
 	} else {
-		target = b.CollectorHostPorts[0]
+		if b.CollectorHostPorts == nil {
+			return nil, errors.New("at least one collector hostPort address is required when resolver is not available")
+		}
+		if len(b.CollectorHostPorts) > 1 {
+			r, _ := manual.GenerateAndRegisterManualResolver()
+			var resolvedAddrs []resolver.Address
+			for _, addr := range b.CollectorHostPorts {
+				resolvedAddrs = append(resolvedAddrs, resolver.Address{Addr: addr})
+			}
+			r.InitialAddrs(resolvedAddrs)
+			dialTarget = r.Scheme() + ":///round_robin"
+		} else {
+			dialTarget = b.CollectorHostPorts[0]
+		}
+		dialOptions = append(dialOptions, grpc.WithBalancerName(roundrobin.Name))
 	}
 
+	dialOptions = append(dialOptions, grpc.WithUnaryInterceptor(grpc_retry.UnaryClientInterceptor(grpc_retry.WithMax(b.MaxRetry))))
 	// It does not return error if the collector is not running
-	conn, _ := grpc.Dial(target,
-		dialOption,
-		grpc.WithBalancerName(roundrobin.Name),
-		grpc.WithUnaryInterceptor(grpc_retry.UnaryClientInterceptor(grpc_retry.WithMax(b.MaxRetry))))
+	conn, _ := grpc.Dial(dialTarget, dialOptions...)
 	return NewReporter(conn, agentTags, logger), nil
 }
