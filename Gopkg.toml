@@ -115,6 +115,10 @@ required = [
   name = "github.com/gogo/protobuf"
   revision = "ba06b47c162d49f2af050fb4c75bcbc86a159d5c"
 
+[[constraint]]
+  name = "github.com/dgraph-io/badger"
+  version = "=1.5.3"
+
 [prune]
   go-tests = true
   unused-packages = true
