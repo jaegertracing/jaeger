@@ -16,6 +16,7 @@ package app
 
 import (
 	"context"
+	"time"
 
 	"github.com/opentracing/opentracing-go"
 	"go.uber.org/zap"
@@ -137,8 +138,8 @@ func (g *GRPCHandler) GetOperations(ctx context.Context, r *api_v2.GetOperations
 // GetDependencies is the GRPC handler to fetch dependencies.
 func (g *GRPCHandler) GetDependencies(ctx context.Context, r *api_v2.GetDependenciesRequest) (*api_v2.GetDependenciesResponse, error) {
 	startTime := r.start_time
-	lookback := r.lookback
-	dependencies, err := g.queryService.GetDependencies(startTime, lookback)
+	endTime := r.end_time
+	dependencies, err := g.queryService.GetDependencies(startTime, endTime.Sub(startTime))
 	if err != nil {
 		g.logger.Error("Error fetching dependencies", zap.Error(err))
 		return nil, err
