@@ -21,11 +21,6 @@ import (
 	"github.com/jaegertracing/jaeger/thrift-gen/zipkincore"
 )
 
-const (
-	// TChannelEndpoint is for TChannel endpoint
-	TChannelEndpoint = "TChannel"
-)
-
 // TChannelHandler implements jaeger.TChanCollector and zipkincore.TChanZipkinCollector.
 type TChannelHandler struct {
 	jaegerHandler JaegerBatchesHandler

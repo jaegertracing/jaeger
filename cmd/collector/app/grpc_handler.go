@@ -22,11 +22,6 @@ import (
 	"github.com/jaegertracing/jaeger/proto-gen/api_v2"
 )
 
-const (
-	// GRPCEndpoint is for gRPC endpoint
-	GRPCEndpoint = "GRPC"
-)
-
 // GRPCHandler implements gRPC CollectorService.
 type GRPCHandler struct {
 	logger        *zap.Logger

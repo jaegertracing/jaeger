@@ -29,8 +29,6 @@ import (
 const (
 	// UnableToReadBodyErrFormat is an error message for invalid requests
 	UnableToReadBodyErrFormat = "Unable to process request body: %v"
-	// HTTPEndpoint is for HTTP endpoint
-	HTTPEndpoint = "HTTP"
 )
 
 var (

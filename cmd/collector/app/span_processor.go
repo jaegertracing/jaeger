@@ -112,11 +112,11 @@ func (sp *spanProcessor) saveSpan(span *model.Span) {
 	startTime := time.Now()
 	if err := sp.spanWriter.WriteSpan(span); err != nil {
 		sp.logger.Error("Failed to save span", zap.Error(err))
-		sp.metrics.SavedErrBySvc.ReportServiceNameForSpan(span, "")
+		sp.metrics.SavedErrBySvc.ReportServiceNameForSpan(span)
 	} else {
 		sp.logger.Debug("Span written to the storage by the collector",
 			zap.Stringer("trace-id", span.TraceID), zap.Stringer("span-id", span.SpanID))
-		sp.metrics.SavedOkBySvc.ReportServiceNameForSpan(span, "")
+		sp.metrics.SavedOkBySvc.ReportServiceNameForSpan(span)
 	}
 	sp.metrics.SaveLatency.Record(time.Since(startTime))
 }
@@ -141,11 +141,11 @@ func (sp *spanProcessor) processItemFromQueue(item *queueItem) {
 }
 
 func (sp *spanProcessor) enqueueSpan(span *model.Span, originalFormat, endpointType string) bool {
-	spanCounts := sp.metrics.GetCountsForFormat(originalFormat)
-	spanCounts.ReceivedBySvc.ReportServiceNameForSpan(span, endpointType)
+	spanCounts := sp.metrics.GetCountsForFormat(originalFormat, endpointType)
+	spanCounts.ReceivedBySvc.ReportServiceNameForSpan(span)
 
 	if !sp.filterSpan(span) {
-		spanCounts.RejectedBySvc.ReportServiceNameForSpan(span, endpointType)
+		spanCounts.RejectedBySvc.ReportServiceNameForSpan(span)
 		return true // as in "not dropped", because it's actively rejected
 	}
 	item := &queueItem{

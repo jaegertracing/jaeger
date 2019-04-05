@@ -23,13 +23,9 @@ import (
 )
 
 const (
-	maxServiceNames          = 2000
-	defaultTransportType     = "Undefined"
-	otherServices            = "other-services"
-	otherServicesViaHTTP     = "other-services-via-http"
-	otherServicesViaTChannel = "other-services-via-tchannel"
-	otherServicesViaGRPC     = "other-services-via-grpc"
-	otherServicesViaDefault  = "other-services-via-undefined"
+	maxServiceNames      = 2000
+	unknownTransportType = "Undefined"
+	otherServices        = "other-services"
 )
 
 // SpanProcessorMetrics contains all the necessary metrics for the SpanProcessor
@@ -68,6 +64,13 @@ type metricsBySvc struct {
 
 // CountsBySpanType measures received, rejected, and receivedByService metrics for a format type
 type CountsBySpanType struct {
+	HTTPEndpoint     CountsByTransportType
+	TChannelEndpoint CountsByTransportType
+	GRPCEndpoint     CountsByTransportType
+	UnknownEndpoint  CountsByTransportType
+}
+
+type CountsByTransportType struct {
 	// ReceivedBySvc maintain by-service metrics for a format type
 	ReceivedBySvc metricsBySvc
 	// RejectedBySvc is the number of spans we rejected (usually due to blacklisting) by-service
@@ -109,11 +112,13 @@ func newMetricsBySvc(factory metrics.Factory, category string) metricsBySvc {
 }
 
 func newCountsBySvc(factory metrics.Factory, category string, maxServiceNames int) countsBySvc {
-	// Add 3 to maxServiceNames threshold to compensate for extra slots taken by transport types
-	maxServiceNames = maxServiceNames + 3
 	return countsBySvc{
-		counts:          newCountsByTransport(factory, category, "false"),
-		debugCounts:     newCountsByTransport(factory, category, "true"),
+		counts: map[string]metrics.Counter{
+			otherServices: factory.Counter(metrics.Options{Name: category, Tags: map[string]string{"svc": otherServices, "debug": "false"}}),
+		},
+		debugCounts: map[string]metrics.Counter{
+			otherServices: factory.Counter(metrics.Options{Name: category, Tags: map[string]string{"svc": otherServices, "debug": "true"}}),
+		},
 		factory:         factory,
 		lock:            &sync.Mutex{},
 		maxServiceNames: maxServiceNames,
@@ -121,53 +126,65 @@ func newCountsBySvc(factory metrics.Factory, category string, maxServiceNames in
 	}
 }
 
-func newCountsByTransport(factory metrics.Factory, category string, debugFlag string) map[string]metrics.Counter {
-	return map[string]metrics.Counter{
-		otherServicesViaHTTP:     factory.Counter(metrics.Options{Name: category, Tags: map[string]string{"svc": otherServices, "debug": debugFlag, "transport": HTTPEndpoint}}),
-		otherServicesViaTChannel: factory.Counter(metrics.Options{Name: category, Tags: map[string]string{"svc": otherServices, "debug": debugFlag, "transport": TChannelEndpoint}}),
-		otherServicesViaGRPC:     factory.Counter(metrics.Options{Name: category, Tags: map[string]string{"svc": otherServices, "debug": debugFlag, "transport": GRPCEndpoint}}),
-		otherServicesViaDefault:  factory.Counter(metrics.Options{Name: category, Tags: map[string]string{"svc": otherServices, "debug": debugFlag, "transport": defaultTransportType}}),
+func newCountsBySpanType(factory metrics.Factory) CountsBySpanType {
+	return CountsBySpanType{
+		HTTPEndpoint:     newCountsByTransport(factory.Namespace(metrics.NSOptions{Name: "", Tags: map[string]string{"transport": HTTPEndpoint}})),
+		TChannelEndpoint: newCountsByTransport(factory.Namespace(metrics.NSOptions{Name: "", Tags: map[string]string{"transport": TChannelEndpoint}})),
+		GRPCEndpoint:     newCountsByTransport(factory.Namespace(metrics.NSOptions{Name: "", Tags: map[string]string{"transport": GRPCEndpoint}})),
+		UnknownEndpoint:  newCountsByTransport(factory.Namespace(metrics.NSOptions{Name: "", Tags: map[string]string{"transport": unknownTransportType}})),
 	}
 }
 
-func newCountsBySpanType(factory metrics.Factory) CountsBySpanType {
-	return CountsBySpanType{
+func newCountsByTransport(factory metrics.Factory) CountsByTransportType {
+	return CountsByTransportType{
 		RejectedBySvc: newMetricsBySvc(factory, "rejected"),
 		ReceivedBySvc: newMetricsBySvc(factory, "received"),
 	}
 }
 
 // GetCountsForFormat gets the countsBySpanType for a given format. If none exists, we use the Unknown format.
-func (m *SpanProcessorMetrics) GetCountsForFormat(spanFormat string) CountsBySpanType {
+func (m *SpanProcessorMetrics) GetCountsForFormat(spanFormat, endpointType string) CountsByTransportType {
 	c, ok := m.spanCounts[spanFormat]
 	if !ok {
-		return m.spanCounts[UnknownFormatType]
+		c = m.spanCounts[UnknownFormatType]
 	}
-	return c
+
+	var counter CountsByTransportType
+	switch endpointType {
+	case HTTPEndpoint:
+		counter = c.HTTPEndpoint
+	case TChannelEndpoint:
+		counter = c.TChannelEndpoint
+	case GRPCEndpoint:
+		counter = c.GRPCEndpoint
+	default:
+		counter = c.UnknownEndpoint
+	}
+	return counter
 }
 
 // reportServiceNameForSpan determines the name of the service that emitted
 // the span and reports a counter stat.
-func (m metricsBySvc) ReportServiceNameForSpan(span *model.Span, endpoint string) {
+func (m metricsBySvc) ReportServiceNameForSpan(span *model.Span) {
 	serviceName := span.Process.ServiceName
 	if serviceName == "" {
 		return
 	}
-	m.countSpansByServiceName(serviceName, span.Flags.IsDebug(), endpoint)
+	m.countSpansByServiceName(serviceName, span.Flags.IsDebug())
 	if span.ParentSpanID() == 0 {
-		m.countTracesByServiceName(serviceName, span.Flags.IsDebug(), endpoint)
+		m.countTracesByServiceName(serviceName, span.Flags.IsDebug())
 	}
 }
 
 // countSpansByServiceName counts how many spans are received per service.
-func (m metricsBySvc) countSpansByServiceName(serviceName string, isDebug bool, endpoint string) {
-	m.spans.countByServiceName(serviceName, isDebug, endpoint)
+func (m metricsBySvc) countSpansByServiceName(serviceName string, isDebug bool) {
+	m.spans.countByServiceName(serviceName, isDebug)
 }
 
 // countTracesByServiceName counts how many traces are received per service,
 // i.e. the counter is only incremented for the root spans.
-func (m metricsBySvc) countTracesByServiceName(serviceName string, isDebug bool, endpoint string) {
-	m.traces.countByServiceName(serviceName, isDebug, endpoint)
+func (m metricsBySvc) countTracesByServiceName(serviceName string, isDebug bool) {
+	m.traces.countByServiceName(serviceName, isDebug)
 }
 
 // countByServiceName maintains a map of counters for each service name it's
@@ -180,7 +197,7 @@ func (m metricsBySvc) countTracesByServiceName(serviceName string, isDebug bool,
 // total number of stored counters, so if it exceeds say the 90% threshold
 // an alert should be raised to investigate what's causing so many unique
 // service names.
-func (m *countsBySvc) countByServiceName(serviceName string, isDebug bool, endpointType string) {
+func (m *countsBySvc) countByServiceName(serviceName string, isDebug bool) {
 	serviceName = NormalizeServiceName(serviceName)
 	counts := m.counts
 	if isDebug {
@@ -195,24 +212,12 @@ func (m *countsBySvc) countByServiceName(serviceName string, isDebug bool, endpo
 		if isDebug {
 			debugStr = "true"
 		}
-		tags := map[string]string{"svc": serviceName, "debug": debugStr, "transport": defaultTransportType}
-		if endpointType != "" {
-			tags["transport"] = endpointType
-		}
+		tags := map[string]string{"svc": serviceName, "debug": debugStr}
 		c := m.factory.Counter(metrics.Options{Name: m.category, Tags: tags})
 		counts[serviceName] = c
 		counter = c
 	} else {
-		switch endpointType {
-		case HTTPEndpoint:
-			counter = counts[otherServicesViaHTTP]
-		case TChannelEndpoint:
-			counter = counts[otherServicesViaTChannel]
-		case GRPCEndpoint:
-			counter = counts[otherServicesViaGRPC]
-		default:
-			counter = counts[otherServicesViaDefault]
-		}
+		counter = counts[otherServices]
 	}
 	m.lock.Unlock()
 	counter.Inc(1)
