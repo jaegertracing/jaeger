@@ -28,7 +28,7 @@ import (
 	"google.golang.org/grpc/resolver/manual"
 )
 
-// Builder Struct to hold configurations
+// ConnBuilder Struct to hold configurations
 type ConnBuilder struct {
 	// CollectorHostPorts is list of host:port Jaeger Collectors.
 	CollectorHostPorts []string `yaml:"collectorHostPorts"`
