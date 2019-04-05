@@ -17,72 +17,73 @@ package shared
 import (
 	"context"
 	"fmt"
+	"io"
 	"time"
 
 	"github.com/jaegertracing/jaeger/model"
-	"github.com/jaegertracing/jaeger/plugin/storage/grpc/proto"
+	"github.com/jaegertracing/jaeger/proto-gen/storage_v1"
 	"github.com/jaegertracing/jaeger/storage/spanstore"
 )
 
+// temporary
+const span_batch_size = 1000
+
 type GRPCClient struct {
-	client proto.StoragePluginClient
+	readerClient     storage_v1.SpanReaderPluginClient
+	writerClient     storage_v1.SpanWriterPluginClient
+	depsReaderClient storage_v1.DependenciesReaderPluginClient
 }
 
 func (c *GRPCClient) GetTrace(ctx context.Context, traceID model.TraceID) (*model.Trace, error) {
-	resp, err := c.client.GetTrace(ctx, &proto.GetTraceRequest{
+	stream, err := c.readerClient.GetTrace(ctx, &storage_v1.GetTraceRequest{
 		TraceID: traceID,
 	})
 	if err != nil {
-		return nil, fmt.Errorf("grpc error: %s", err)
+		return nil, fmt.Errorf("plugin error: %s", err)
 	}
 
-	switch t := resp.Response.(type) {
-	case *proto.GetTraceResponse_Success:
-		return t.Success.Trace, nil
-	case *proto.GetTraceResponse_Error:
-		return nil, fmt.Errorf("plugin error: %s", t.Error.Message)
-	default:
-		panic("unreachable")
+	trace := model.Trace{}
+	for {
+		received, err := stream.Recv()
+		if err == io.EOF {
+			break
+		}
+
+		if err != nil {
+			return nil, fmt.Errorf("stream error: %s", err)
+		}
+
+		for _, span := range received.Spans {
+			trace.Spans = append(trace.Spans, &span)
+		}
 	}
+
+	return &trace, nil
 }
 
 func (c *GRPCClient) GetServices(ctx context.Context) ([]string, error) {
-	resp, err := c.client.GetServices(ctx, &proto.GetServicesRequest{})
+	resp, err := c.readerClient.GetServices(ctx, &storage_v1.GetServicesRequest{})
 	if err != nil {
-		return nil, fmt.Errorf("grpc error: %s", err)
+		return nil, fmt.Errorf("plugin error: %s", err)
 	}
 
-	switch t := resp.Response.(type) {
-	case *proto.GetServicesResponse_Success:
-		return t.Success.Services, nil
-	case *proto.GetServicesResponse_Error:
-		return nil, fmt.Errorf("plugin error: %s", t.Error.Message)
-	default:
-		panic("unreachable")
-	}
+	return resp.Services, nil
 }
 
 func (c *GRPCClient) GetOperations(ctx context.Context, service string) ([]string, error) {
-	resp, err := c.client.GetOperations(ctx, &proto.GetOperationsRequest{
+	resp, err := c.readerClient.GetOperations(ctx, &storage_v1.GetOperationsRequest{
 		Service: service,
 	})
 	if err != nil {
 		return nil, fmt.Errorf("grpc error: %s", err)
 	}
 
-	switch t := resp.Response.(type) {
-	case *proto.GetOperationsResponse_Success:
-		return t.Success.Operations, nil
-	case *proto.GetOperationsResponse_Error:
-		return nil, fmt.Errorf("plugin error: %s", t.Error.Message)
-	default:
-		panic("unreachable")
-	}
+	return resp.Operations, nil
 }
 
 func (c *GRPCClient) FindTraces(ctx context.Context, query *spanstore.TraceQueryParameters) ([]*model.Trace, error) {
-	resp, err := c.client.FindTraces(context.Background(), &proto.FindTracesRequest{
-		Query: &proto.TraceQueryParameters{
+	stream, err := c.readerClient.FindTraces(context.Background(), &storage_v1.FindTracesRequest{
+		Query: &storage_v1.TraceQueryParameters{
 			ServiceName:   query.ServiceName,
 			OperationName: query.OperationName,
 			Tags:          query.Tags,
@@ -94,22 +95,42 @@ func (c *GRPCClient) FindTraces(ctx context.Context, query *spanstore.TraceQuery
 		},
 	})
 	if err != nil {
-		return nil, fmt.Errorf("grpc error: %s", err)
+		return nil, fmt.Errorf("plugin error: %s", err)
 	}
 
-	switch t := resp.Response.(type) {
-	case *proto.FindTracesResponse_Success:
-		return t.Success.Traces, nil
-	case *proto.FindTracesResponse_Error:
-		return nil, fmt.Errorf("plugin error: %s", t.Error.Message)
-	default:
-		panic("unreachable")
+	var traces []*model.Trace
+	var trace *model.Trace
+	var traceID model.TraceID
+	for {
+		received, err := stream.Recv()
+		if err == io.EOF {
+			break
+		}
+
+		if err != nil {
+			return nil, fmt.Errorf("stream error: %s", err)
+		}
+
+		for i, span := range received.Spans {
+			if span.TraceID != traceID {
+				if trace != nil {
+					traces = append(traces, trace)
+				}
+				trace = &model.Trace{}
+				traceID = span.TraceID
+			}
+			trace.Spans = append(trace.Spans, &received.Spans[i])
+		}
 	}
+	if trace != nil {
+		traces = append(traces, trace)
+	}
+	return traces, nil
 }
 
 func (c *GRPCClient) FindTraceIDs(ctx context.Context, query *spanstore.TraceQueryParameters) ([]model.TraceID, error) {
-	resp, err := c.client.FindTraceIDs(context.Background(), &proto.FindTraceIDsRequest{
-		Query: &proto.TraceQueryParameters{
+	resp, err := c.readerClient.FindTraceIDs(context.Background(), &storage_v1.FindTraceIDsRequest{
+		Query: &storage_v1.TraceQueryParameters{
 			ServiceName:   query.ServiceName,
 			OperationName: query.OperationName,
 			Tags:          query.Tags,
@@ -121,161 +142,111 @@ func (c *GRPCClient) FindTraceIDs(ctx context.Context, query *spanstore.TraceQue
 		},
 	})
 	if err != nil {
-		return nil, fmt.Errorf("grpc error: %s", err)
+		return nil, fmt.Errorf("plugin error: %s", err)
 	}
 
-	switch t := resp.Response.(type) {
-	case *proto.FindTraceIDsResponse_Success:
-		return t.Success.TraceIDs, nil
-	case *proto.FindTraceIDsResponse_Error:
-		return nil, fmt.Errorf("plugin error: %s", t.Error.Message)
-	default:
-		panic("unreachable")
-	}
+	return resp.TraceIDs, nil
 }
 
 func (c *GRPCClient) WriteSpan(span *model.Span) error {
-	resp, err := c.client.WriteSpan(context.Background(), &proto.WriteSpanRequest{
+	_, err := c.writerClient.WriteSpan(context.Background(), &storage_v1.WriteSpanRequest{
 		Span: span,
 	})
 	if err != nil {
-		return fmt.Errorf("grpc error: %s", err)
+		return fmt.Errorf("plugin error: %s", err)
 	}
 
-	switch t := resp.Response.(type) {
-	case *proto.WriteSpanResponse_Success:
-		return nil
-	case *proto.WriteSpanResponse_Error:
-		return fmt.Errorf("plugin error: %s", t.Error.Message)
-	default:
-		panic("unreachable")
-	}
+	return nil
 }
 
 func (c *GRPCClient) GetDependencies(endTs time.Time, lookback time.Duration) ([]model.DependencyLink, error) {
-	resp, err := c.client.GetDependencies(context.Background(), &proto.GetDependenciesRequest{
-		EndTimestamp: endTs,
-		Lookback:     lookback,
+	resp, err := c.depsReaderClient.GetDependencies(context.Background(), &storage_v1.GetDependenciesRequest{
+		EndTime:   endTs,
+		StartTime: endTs.Add(-lookback),
 	})
 	if err != nil {
 		return nil, fmt.Errorf("grpc error: %s", err)
 	}
 
-	switch t := resp.Response.(type) {
-	case *proto.GetDependenciesResponse_Success:
-		return t.Success.Dependencies, nil
-	case *proto.GetDependenciesResponse_Error:
-		return nil, fmt.Errorf("plugin error: %s", t.Error.Message)
-	default:
-		panic("unreachable")
-	}
+	return resp.Dependencies, nil
 }
 
 type GRPCServer struct {
 	Impl StoragePlugin
 }
 
-
-func (s *GRPCServer) GetDependencies(ctx context.Context, r *proto.GetDependenciesRequest) (*proto.GetDependenciesResponse, error) {
-	deps, err := s.Impl.GetDependencies(r.EndTimestamp, r.Lookback)
+func (s *GRPCServer) GetDependencies(ctx context.Context, r *storage_v1.GetDependenciesRequest) (*storage_v1.GetDependenciesResponse, error) {
+	deps, err := s.Impl.GetDependencies(r.EndTime, r.EndTime.Sub(r.StartTime))
 	if err != nil {
-		return &proto.GetDependenciesResponse{
-			Response: &proto.GetDependenciesResponse_Error{
-				Error: &proto.StoragePluginError{
-					Message: err.Error(),
-				},
-			},
-		}, nil
+		return nil, err
 	}
-	return &proto.GetDependenciesResponse{
-		Response: &proto.GetDependenciesResponse_Success{
-			Success: &proto.GetDependenciesSuccess{
-				Dependencies: deps,
-			},
-		},
+	return &storage_v1.GetDependenciesResponse{
+		Dependencies: deps,
 	}, nil
 }
 
-func (s *GRPCServer) WriteSpan(ctx context.Context, r *proto.WriteSpanRequest) (*proto.WriteSpanResponse, error) {
+func (s *GRPCServer) WriteSpan(ctx context.Context, r *storage_v1.WriteSpanRequest) (*storage_v1.WriteSpanResponse, error) {
 	err := s.Impl.WriteSpan(r.Span)
 	if err != nil {
-		return &proto.WriteSpanResponse{
-			Response: &proto.WriteSpanResponse_Error{
-				Error: &proto.StoragePluginError{
-					Message: err.Error(),
-				},
-			},
-		}, nil
+		return nil, err
 	}
-	return &proto.WriteSpanResponse{
-		Response: &proto.WriteSpanResponse_Success{
-			Success: &proto.EmptyResponse{},
-		},
-	}, nil
+	return &storage_v1.WriteSpanResponse{}, nil
 }
 
-func (s *GRPCServer) GetTrace(ctx context.Context, r *proto.GetTraceRequest) (*proto.GetTraceResponse, error) {
-	trace, err := s.Impl.GetTrace(ctx, r.TraceID)
+func (s *GRPCServer) GetTrace(r *storage_v1.GetTraceRequest, stream storage_v1.SpanReaderPlugin_GetTraceServer) error {
+	trace, err := s.Impl.GetTrace(stream.Context(), r.TraceID)
 	if err != nil {
-		return &proto.GetTraceResponse{
-			Response: &proto.GetTraceResponse_Error{
-				Error: &proto.StoragePluginError{
-					Message: err.Error(),
-				},
-			},
-		}, nil
+		return err
 	}
-	return &proto.GetTraceResponse{
-		Response: &proto.GetTraceResponse_Success{
-			Success: &proto.GetTraceSuccess{
-				Trace: trace,
-			},
-		},
-	}, nil
+
+	var allSpans [][]model.Span
+	currentSpans := make([]model.Span, 0, span_batch_size)
+	i := 0
+	for _, span := range trace.Spans {
+		if i == span_batch_size {
+			i = 0
+			allSpans = append(allSpans, currentSpans)
+			currentSpans = make([]model.Span, 0, span_batch_size)
+		}
+		currentSpans = append(currentSpans, *span)
+		i++
+	}
+	if len(currentSpans) > 0 {
+		allSpans = append(allSpans, currentSpans)
+	}
+
+	for _, spans := range allSpans {
+		err = stream.Send(&storage_v1.SpansResponseChunk{Spans: spans})
+		if err != nil {
+			return err
+		}
+	}
+
+	return nil
 }
 
-func (s *GRPCServer) GetServices(ctx context.Context, r *proto.GetServicesRequest) (*proto.GetServicesResponse, error) {
+func (s *GRPCServer) GetServices(ctx context.Context, r *storage_v1.GetServicesRequest) (*storage_v1.GetServicesResponse, error) {
 	services, err := s.Impl.GetServices(ctx)
 	if err != nil {
-		return &proto.GetServicesResponse{
-			Response: &proto.GetServicesResponse_Error{
-				Error: &proto.StoragePluginError{
-					Message: err.Error(),
-				},
-			},
-		}, nil
+		return nil, err
 	}
-	return &proto.GetServicesResponse{
-		Response: &proto.GetServicesResponse_Success{
-			Success: &proto.GetServicesSuccess{
-				Services: services,
-			},
-		},
+	return &storage_v1.GetServicesResponse{
+		Services: services,
 	}, nil
 }
 
-func (s *GRPCServer) GetOperations(ctx context.Context, r *proto.GetOperationsRequest) (*proto.GetOperationsResponse, error) {
+func (s *GRPCServer) GetOperations(ctx context.Context, r *storage_v1.GetOperationsRequest) (*storage_v1.GetOperationsResponse, error) {
 	operations, err := s.Impl.GetOperations(ctx, r.Service)
 	if err != nil {
-		return &proto.GetOperationsResponse{
-			Response: &proto.GetOperationsResponse_Error{
-				Error: &proto.StoragePluginError{
-					Message: err.Error(),
-				},
-			},
-		}, nil
+		return nil, err
 	}
-	return &proto.GetOperationsResponse{
-		Response: &proto.GetOperationsResponse_Success{
-			Success: &proto.GetOperationsSuccess{
-				Operations: operations,
-			},
-		},
+	return &storage_v1.GetOperationsResponse{
+		Operations: operations,
 	}, nil
 }
 
-func (s *GRPCServer) FindTraces(ctx context.Context, r *proto.FindTracesRequest) (*proto.FindTracesResponse, error) {
-	traces, err := s.Impl.FindTraces(ctx, &spanstore.TraceQueryParameters{
+func (s *GRPCServer) FindTraces(r *storage_v1.FindTracesRequest, stream storage_v1.SpanReaderPlugin_FindTracesServer) error {
+	traces, err := s.Impl.FindTraces(stream.Context(), &spanstore.TraceQueryParameters{
 		ServiceName:   r.Query.ServiceName,
 		OperationName: r.Query.OperationName,
 		Tags:          r.Query.Tags,
@@ -286,24 +257,38 @@ func (s *GRPCServer) FindTraces(ctx context.Context, r *proto.FindTracesRequest)
 		NumTraces:     int(r.Query.NumTraces),
 	})
 	if err != nil {
-		return &proto.FindTracesResponse{
-			Response: &proto.FindTracesResponse_Error{
-				Error: &proto.StoragePluginError{
-					Message: err.Error(),
-				},
-			},
-		}, nil
+		return err
 	}
-	return &proto.FindTracesResponse{
-		Response: &proto.FindTracesResponse_Success{
-			Success: &proto.FindTracesSuccess{
-				Traces: traces,
-			},
-		},
-	}, nil
+
+	var allSpans [][]model.Span
+	currentSpans := make([]model.Span, 0, span_batch_size)
+	i := 0
+	for _, trace := range traces {
+		for _, span := range trace.Spans {
+			if i == span_batch_size {
+				i = 0
+				allSpans = append(allSpans, currentSpans)
+				currentSpans = make([]model.Span, 0, span_batch_size)
+			}
+			currentSpans = append(currentSpans, *span)
+			i++
+		}
+	}
+	if len(currentSpans) > 0 {
+		allSpans = append(allSpans, currentSpans)
+	}
+
+	for _, spans := range allSpans {
+		err = stream.Send(&storage_v1.SpansResponseChunk{Spans: spans})
+		if err != nil {
+			return err
+		}
+	}
+
+	return nil
 }
 
-func (s *GRPCServer) FindTraceIDs(ctx context.Context, r *proto.FindTraceIDsRequest) (*proto.FindTraceIDsResponse, error) {
+func (s *GRPCServer) FindTraceIDs(ctx context.Context, r *storage_v1.FindTraceIDsRequest) (*storage_v1.FindTraceIDsResponse, error) {
 	traceIDs, err := s.Impl.FindTraceIDs(ctx, &spanstore.TraceQueryParameters{
 		ServiceName:   r.Query.ServiceName,
 		OperationName: r.Query.OperationName,
@@ -315,21 +300,9 @@ func (s *GRPCServer) FindTraceIDs(ctx context.Context, r *proto.FindTraceIDsRequ
 		NumTraces:     int(r.Query.NumTraces),
 	})
 	if err != nil {
-		return &proto.FindTraceIDsResponse{
-			Response: &proto.FindTraceIDsResponse_Error{
-				Error: &proto.StoragePluginError{
-					Message: err.Error(),
-				},
-			},
-		}, nil
+		return nil, err
 	}
-	return &proto.FindTraceIDsResponse{
-		Response: &proto.FindTraceIDsResponse_Success{
-			Success: &proto.FindTraceIDsSuccess{
-				TraceIDs: traceIDs,
-			},
-		},
+	return &storage_v1.FindTraceIDsResponse{
+		TraceIDs: traceIDs,
 	}, nil
 }
-
-
