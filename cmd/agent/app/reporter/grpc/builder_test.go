@@ -66,7 +66,7 @@ func (fakeWatcher) Next() ([]*naming.Update, error) {
 func (fakeWatcher) Close() {}
 
 func TestBuilderFromConfig(t *testing.T) {
-	cfg := Builder{}
+	cfg := ConnBuilder{}
 	err := yaml.Unmarshal([]byte(yamlConfig), &cfg)
 	require.NoError(t, err)
 
@@ -74,7 +74,7 @@ func TestBuilderFromConfig(t *testing.T) {
 		t,
 		[]string{"127.0.0.1:14267", "127.0.0.1:14268", "127.0.0.1:14269"},
 		cfg.CollectorHostPorts)
-	r, err := cfg.CreateReporter(zap.NewNop(), metrics.NullFactory, nil)
+	r, err := cfg.CreateConnection(zap.NewNop())
 	require.NoError(t, err)
 	assert.NotNil(t, r)
 
@@ -128,22 +128,22 @@ func TestBuilderWithCollectors(t *testing.T) {
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
 			// Use NewBuilder for code coverage consideration
-			cfg := NewBuilder()
+			cfg := NewConnBuilder()
 			cfg.CollectorHostPorts = test.hostPorts
 			cfg.ResolverTarget = test.resolverTarget
 			cfg.Resolver = test.resolver
 
-			agent, err := cfg.CreateReporter(zap.NewNop(), metrics.NullFactory, nil)
+			conn, err := cfg.CreateConnection(zap.NewNop())
 
 			if err != nil {
 				assert.Equal(t, test.err, err)
 			} else {
-				assert.NotNil(t, agent)
+				assert.NotNil(t, conn)
 
 				if test.checkSuffixOnly {
-					assert.True(t, strings.HasSuffix(agent.conn.Target(), test.target))
+					assert.True(t, strings.HasSuffix(conn.Target(), test.target))
 				} else {
-					assert.True(t, agent.conn.Target() == test.target)
+					assert.True(t, conn.Target() == test.target)
 				}
 			}
 		})
@@ -167,27 +167,27 @@ func TestProxyBuilder(t *testing.T) {
 
 	tests := []struct {
 		name        string
-		grpcBuilder *Builder
+		grpcBuilder *ConnBuilder
 		expectError bool
 	}{
 		{
 			name:        "with insecure grpc connection",
-			grpcBuilder: &Builder{CollectorHostPorts: []string{"localhost:0000"}},
+			grpcBuilder: &ConnBuilder{CollectorHostPorts: []string{"localhost:0000"}},
 			expectError: false,
 		},
 		{
 			name:        "with secure grpc connection",
-			grpcBuilder: &Builder{CollectorHostPorts: []string{"localhost:0000"}, TLS: true},
+			grpcBuilder: &ConnBuilder{CollectorHostPorts: []string{"localhost:0000"}, TLS: true},
 			expectError: false,
 		},
 		{
 			name:        "with secure grpc connection and own CA",
-			grpcBuilder: &Builder{CollectorHostPorts: []string{"localhost:0000"}, TLS: true, TLSCA: tmpfile.Name()},
+			grpcBuilder: &ConnBuilder{CollectorHostPorts: []string{"localhost:0000"}, TLS: true, TLSCA: tmpfile.Name()},
 			expectError: false,
 		},
 		{
 			name:        "with secure grpc connection and a CA file which does not exist",
-			grpcBuilder: &Builder{CollectorHostPorts: []string{"localhost:0000"}, TLS: true, TLSCA: "/not/valid"},
+			grpcBuilder: &ConnBuilder{CollectorHostPorts: []string{"localhost:0000"}, TLS: true, TLSCA: "/not/valid"},
 			expectError: true,
 		},
 	}

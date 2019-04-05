@@ -119,7 +119,7 @@ func main() {
 			aOpts := new(agentApp.Builder).InitFromViper(v)
 			repOpts := new(agentRep.Options).InitFromViper(v)
 			tchannelRepOpts := agentTchanRep.NewBuilder().InitFromViper(v, logger)
-			grpcRepOpts := agentGrpcRep.NewBuilder().InitFromViper(v)
+			grpcRepOpts := agentGrpcRep.NewConnBuilder().InitFromViper(v)
 			cOpts := new(collector.CollectorOptions).InitFromViper(v)
 			qOpts := new(queryApp.QueryOptions).InitFromViper(v)
 
@@ -167,7 +167,7 @@ func startAgent(
 	b *agentApp.Builder,
 	repOpts *agentRep.Options,
 	tchanRep *agentTchanRep.Builder,
-	grpcRep *agentGrpcRep.Builder,
+	grpcRep *agentGrpcRep.ConnBuilder,
 	cOpts *collector.CollectorOptions,
 	logger *zap.Logger,
 	baseFactory metrics.Factory,

@@ -16,10 +16,9 @@ package grpc
 
 import (
 	"errors"
-	"time"
+	"strings"
 
 	grpc_retry "github.com/grpc-ecosystem/go-grpc-middleware/retry"
-	"github.com/uber/jaeger-lib/metrics"
 	"go.uber.org/zap"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/balancer/roundrobin"
@@ -30,25 +29,15 @@ import (
 )
 
 // Builder Struct to hold configurations
-type Builder struct {
+type ConnBuilder struct {
 	// CollectorHostPorts is list of host:port Jaeger Collectors.
 	CollectorHostPorts []string `yaml:"collectorHostPorts"`
-
-	// CollectorServiceName is the name that Jaeger Collector's grpc server
-	// responds to.
-	CollectorServiceName string `yaml:"collectorServiceName"`
-
-	// ConnCheckTimeout is the timeout used when establishing new connections.
-	ConnCheckTimeout time.Duration
-
-	// ReportTimeout is the timeout used when reporting span batches.
-	ReportTimeout time.Duration
 
 	// Resolver is custom resolver provided to grpc client balancer
 	Resolver naming.Resolver
 
-	// ResolverTarget is the dns path for collectors
-	ResolverTarget string
+	// ResolverTarget is the external discovery service path for collectors
+	ResolverTarget string `yaml:"resolverTarget"`
 
 	MaxRetry      uint
 	TLS           bool
@@ -56,16 +45,17 @@ type Builder struct {
 	TLSServerName string
 }
 
-// NewBuilder creates a new reporter builder.
-func NewBuilder() *Builder {
-	return &Builder{}
+// NewConnBuilder creates a new grpc connection builder.
+func NewConnBuilder() *ConnBuilder {
+	return &ConnBuilder{}
 }
 
-// CreateReporter creates the gRPC-based Reporter
-func (b *Builder) CreateReporter(logger *zap.Logger, mFactory metrics.Factory, agentTags map[string]string) (*Reporter, error) {
+// CreateConnection creates the gRPC connection
+func (b *ConnBuilder) CreateConnection(logger *zap.Logger) (*grpc.ClientConn, error) {
 	var dialOptions []grpc.DialOption
 	var dialTarget string
 	if b.TLS { // user requested a secure connection
+		logger.Info("Agent requested secure grpc connection to collector(s)")
 		var creds credentials.TransportCredentials
 		if len(b.TLSCA) == 0 { // no truststore given, use SystemCertPool
 			pool, err := systemCertPool()
@@ -82,11 +72,13 @@ func (b *Builder) CreateReporter(logger *zap.Logger, mFactory metrics.Factory, a
 		}
 		dialOptions = append(dialOptions, grpc.WithTransportCredentials(creds))
 	} else { // insecure connection
+		logger.Info("Agent requested insecure grpc connection to collector(s)")
 		dialOptions = append(dialOptions, grpc.WithInsecure())
 	}
 
 	if b.Resolver != nil && b.ResolverTarget != "" {
 		// Use custom Resolver and ResolverTarget if specified
+		logger.Info("Agent is using external resolver with roundrobin load balancer", zap.String("resolverTarget", b.ResolverTarget))
 		dialTarget = b.ResolverTarget
 		dialOptions = append(dialOptions, grpc.WithBalancer(grpc.RoundRobin(b.Resolver)))
 	} else {
@@ -101,6 +93,7 @@ func (b *Builder) CreateReporter(logger *zap.Logger, mFactory metrics.Factory, a
 			}
 			r.InitialAddrs(resolvedAddrs)
 			dialTarget = r.Scheme() + ":///round_robin"
+			logger.Info("Agent is connecting to a static list of collectors", zap.String("dialTarget", dialTarget), zap.String("collector hosts", strings.Join(b.CollectorHostPorts, ",")))
 		} else {
 			dialTarget = b.CollectorHostPorts[0]
 		}
@@ -108,7 +101,5 @@ func (b *Builder) CreateReporter(logger *zap.Logger, mFactory metrics.Factory, a
 	}
 
 	dialOptions = append(dialOptions, grpc.WithUnaryInterceptor(grpc_retry.UnaryClientInterceptor(grpc_retry.WithMax(b.MaxRetry))))
-	// It does not return error if the collector is not running
-	conn, _ := grpc.Dial(dialTarget, dialOptions...)
-	return NewReporter(conn, agentTags, logger), nil
+	return grpc.Dial(dialTarget, dialOptions...)
 }

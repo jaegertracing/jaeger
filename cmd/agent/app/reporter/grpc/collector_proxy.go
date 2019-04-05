@@ -19,9 +19,10 @@ import (
 
 	"github.com/uber/jaeger-lib/metrics"
 	"go.uber.org/zap"
+	"google.golang.org/grpc"
 
 	"github.com/jaegertracing/jaeger/cmd/agent/app/configmanager"
-	"github.com/jaegertracing/jaeger/cmd/agent/app/configmanager/grpc"
+	grpcManager "github.com/jaegertracing/jaeger/cmd/agent/app/configmanager/grpc"
 	"github.com/jaegertracing/jaeger/cmd/agent/app/reporter"
 	aReporter "github.com/jaegertracing/jaeger/cmd/agent/app/reporter"
 )
@@ -30,22 +31,22 @@ import (
 type ProxyBuilder struct {
 	reporter aReporter.Reporter
 	manager  configmanager.ClientConfigManager
-	grpcRep  *Reporter
+	conn     *grpc.ClientConn
 }
 
 var systemCertPool = x509.SystemCertPool // to allow overriding in unit test
 
 // NewCollectorProxy creates ProxyBuilder
-func NewCollectorProxy(builder *Builder, agentTags map[string]string, mFactory metrics.Factory, logger *zap.Logger) (*ProxyBuilder, error) {
-	r, err := builder.CreateReporter(logger, mFactory, agentTags)
+func NewCollectorProxy(builder *ConnBuilder, agentTags map[string]string, mFactory metrics.Factory, logger *zap.Logger) (*ProxyBuilder, error) {
+	conn, err := builder.CreateConnection(logger)
 	if err != nil {
 		return nil, err
 	}
 	grpcMetrics := mFactory.Namespace(metrics.NSOptions{Name: "", Tags: map[string]string{"protocol": "grpc"}})
 	return &ProxyBuilder{
-		grpcRep:  r,
-		reporter: reporter.WrapWithMetrics(r, grpcMetrics),
-		manager:  configmanager.WrapWithMetrics(grpc.NewConfigManager(r.conn), grpcMetrics),
+		conn:     conn,
+		reporter: reporter.WrapWithMetrics(NewReporter(conn, agentTags, logger), grpcMetrics),
+		manager:  configmanager.WrapWithMetrics(grpcManager.NewConfigManager(conn), grpcMetrics),
 	}, nil
 }
 
@@ -61,5 +62,5 @@ func (b ProxyBuilder) GetManager() configmanager.ClientConfigManager {
 
 // Close closes connections used by proxy.
 func (b ProxyBuilder) Close() error {
-	return b.grpcRep.conn.Close()
+	return b.conn.Close()
 }

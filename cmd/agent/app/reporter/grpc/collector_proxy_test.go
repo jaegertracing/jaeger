@@ -37,10 +37,10 @@ func TestSystemCertPoolError(t *testing.T) {
 	systemCertPool = func() (*x509.CertPool, error) {
 		return nil, fakeErr
 	}
-	_, err := NewCollectorProxy(&Builder{
+	_, err := NewCollectorProxy(&ConnBuilder{
 		CollectorHostPorts: []string{"foo", "bar"},
 		TLS:                true,
-	}, nil, nil, nil)
+	}, nil, nil, zap.NewNop())
 	assert.Equal(t, fakeErr, err)
 }
 
@@ -57,7 +57,7 @@ func TestMultipleCollectors(t *testing.T) {
 	defer s2.Stop()
 
 	mFactory := metricstest.NewFactory(time.Microsecond)
-	proxy, err := NewCollectorProxy(&Builder{CollectorHostPorts: []string{addr1.String(), addr2.String()}}, nil, mFactory, zap.NewNop())
+	proxy, err := NewCollectorProxy(&ConnBuilder{CollectorHostPorts: []string{addr1.String(), addr2.String()}}, nil, mFactory, zap.NewNop())
 	require.NoError(t, err)
 	require.NotNil(t, proxy)
 	assert.NotNil(t, proxy.GetReporter())

@@ -218,7 +218,7 @@ func defaultInt(value int, defaultVal int) int {
 func CreateCollectorProxy(
 	opts *reporter.Options,
 	tchanRep *tchannel.Builder,
-	grpcRep *grpc.Builder,
+	grpcRep *grpc.ConnBuilder,
 	logger *zap.Logger,
 	mFactory metrics.Factory,
 ) (CollectorProxy, error) {

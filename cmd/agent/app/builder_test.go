@@ -242,7 +242,7 @@ func TestCreateCollectorProxy(t *testing.T) {
 
 		rOpts := new(reporter.Options).InitFromViper(v)
 		tchan := tchannel.NewBuilder().InitFromViper(v, zap.NewNop())
-		grpcBuilder := grpc.NewBuilder().InitFromViper(v)
+		grpcBuilder := grpc.NewConnBuilder().InitFromViper(v)
 
 		metricsFactory := metricstest.NewFactory(time.Microsecond)
 		proxy, err := CreateCollectorProxy(rOpts, tchan, grpcBuilder, zap.NewNop(), metricsFactory)
@@ -260,7 +260,7 @@ func TestCreateCollectorProxy(t *testing.T) {
 func TestCreateCollectorProxy_UnknownReporter(t *testing.T) {
 	rOpts := new(reporter.Options)
 	tchan := tchannel.NewBuilder()
-	grpcBuilder := grpc.NewBuilder()
+	grpcBuilder := grpc.NewConnBuilder()
 
 	proxy, err := CreateCollectorProxy(rOpts, tchan, grpcBuilder, zap.NewNop(), metrics.NullFactory)
 	assert.Nil(t, proxy)
