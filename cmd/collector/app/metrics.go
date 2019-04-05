@@ -62,7 +62,7 @@ type metricsBySvc struct {
 	traces countsBySvc // number of traces originated per service
 }
 
-// CountsBySpanType measures received, rejected, and receivedByService metrics for a format type
+// CountsBySpanType measures metrics by different endpoint types (e.g http, grpc, tchannel)
 type CountsBySpanType struct {
 	HTTPEndpoint     CountsByTransportType
 	TChannelEndpoint CountsByTransportType
@@ -70,6 +70,7 @@ type CountsBySpanType struct {
 	UnknownEndpoint  CountsByTransportType
 }
 
+// CountsByTransportType measures received, rejected, and receivedByService metrics for a format type
 type CountsByTransportType struct {
 	// ReceivedBySvc maintain by-service metrics for a format type
 	ReceivedBySvc metricsBySvc
