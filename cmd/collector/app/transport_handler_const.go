@@ -23,4 +23,7 @@ const (
 
 	// HTTPEndpoint is for HTTP endpoint
 	HTTPEndpoint = "HTTP"
+
+	// EmptyEndpoint is for unknown endpoint
+	EmptyEndpoint = ""
 )

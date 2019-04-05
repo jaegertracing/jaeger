@@ -63,14 +63,9 @@ type metricsBySvc struct {
 }
 
 // CountsBySpanType measures metrics by different endpoint types (e.g http, grpc, tchannel)
-type CountsBySpanType struct {
-	HTTPEndpoint     CountsByTransportType
-	TChannelEndpoint CountsByTransportType
-	GRPCEndpoint     CountsByTransportType
-	UnknownEndpoint  CountsByTransportType
-}
+type CountsBySpanType map[string]CountsByTransportType
 
-// CountsByTransportType measures received, rejected, and receivedByService metrics for a format type
+// CountsByTransportType measures received, rejected metrics for a format type
 type CountsByTransportType struct {
 	// ReceivedBySvc maintain by-service metrics for a format type
 	ReceivedBySvc metricsBySvc
@@ -128,11 +123,11 @@ func newCountsBySvc(factory metrics.Factory, category string, maxServiceNames in
 }
 
 func newCountsBySpanType(factory metrics.Factory) CountsBySpanType {
-	return CountsBySpanType{
+	return map[string]CountsByTransportType{
 		HTTPEndpoint:     newCountsByTransport(factory.Namespace(metrics.NSOptions{Name: "", Tags: map[string]string{"transport": HTTPEndpoint}})),
 		TChannelEndpoint: newCountsByTransport(factory.Namespace(metrics.NSOptions{Name: "", Tags: map[string]string{"transport": TChannelEndpoint}})),
 		GRPCEndpoint:     newCountsByTransport(factory.Namespace(metrics.NSOptions{Name: "", Tags: map[string]string{"transport": GRPCEndpoint}})),
-		UnknownEndpoint:  newCountsByTransport(factory.Namespace(metrics.NSOptions{Name: "", Tags: map[string]string{"transport": unknownTransportType}})),
+		EmptyEndpoint:    newCountsByTransport(factory.Namespace(metrics.NSOptions{Name: "", Tags: map[string]string{"transport": unknownTransportType}})),
 	}
 }
 
@@ -149,19 +144,7 @@ func (m *SpanProcessorMetrics) GetCountsForFormat(spanFormat, endpointType strin
 	if !ok {
 		c = m.spanCounts[UnknownFormatType]
 	}
-
-	var counter CountsByTransportType
-	switch endpointType {
-	case HTTPEndpoint:
-		counter = c.HTTPEndpoint
-	case TChannelEndpoint:
-		counter = c.TChannelEndpoint
-	case GRPCEndpoint:
-		counter = c.GRPCEndpoint
-	default:
-		counter = c.UnknownEndpoint
-	}
-	return counter
+	return c[endpointType]
 }
 
 // reportServiceNameForSpan determines the name of the service that emitted
