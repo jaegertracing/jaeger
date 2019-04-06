@@ -19,6 +19,7 @@ import (
 	"flag"
 	"net"
 	"net/http"
+	"net/http/pprof"
 	"strconv"
 
 	"github.com/spf13/viper"
@@ -107,6 +108,7 @@ func (s *AdminServer) serveWithListener(l net.Listener) {
 	s.logger.Info("Mounting health check on admin server", zap.String("route", "/"))
 	s.mux.Handle("/", s.hc.Handler())
 	version.RegisterHandler(s.mux, s.logger)
+	s.registerPprofHandlers()
 	recoveryHandler := recoveryhandler.NewRecoveryHandler(s.logger, true)
 	s.server = &http.Server{Handler: recoveryHandler(s.mux)}
 	s.logger.Info("Starting admin HTTP server", zap.Int("http-port", s.adminPort))
@@ -116,6 +118,18 @@ func (s *AdminServer) serveWithListener(l net.Listener) {
 			s.hc.Set(healthcheck.Broken)
 		}
 	}()
+}
+
+func (s *AdminServer) registerPprofHandlers() {
+	s.mux.HandleFunc("/debug/pprof/", pprof.Index)
+	s.mux.HandleFunc("/debug/pprof/cmdline", pprof.Cmdline)
+	s.mux.HandleFunc("/debug/pprof/profile", pprof.Profile)
+	s.mux.HandleFunc("/debug/pprof/symbol", pprof.Symbol)
+	s.mux.HandleFunc("/debug/pprof/trace", pprof.Trace)
+	s.mux.Handle("/debug/pprof/goroutine", pprof.Handler("goroutine"))
+	s.mux.Handle("/debug/pprof/heap", pprof.Handler("heap"))
+	s.mux.Handle("/debug/pprof/threadcreate", pprof.Handler("threadcreate"))
+	s.mux.Handle("/debug/pprof/block", pprof.Handler("block"))
 }
 
 // Close stops the HTTP server
