@@ -141,13 +141,14 @@ service QueryService {
 
     rpc ArchiveTrace(ArchiveTraceRequest) returns (ArchiveTraceResponse) {
         option (google.api.http) = {
-            post: "/traces/{trace_id}"
+            post: "/archive/{trace_id}"
         };
     }
 
     rpc FindTraces(FindTracesRequest) returns (stream SpansResponseChunk) {
         option (google.api.http) = {
-            get: "/search"
+            post: "/search"
+            body: "*"
         };
     }
 

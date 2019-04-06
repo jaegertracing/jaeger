@@ -67,6 +67,31 @@
         ]
       }
     },
+    "/archive/{trace_id}": {
+      "post": {
+        "operationId": "ArchiveTrace",
+        "responses": {
+          "200": {
+            "description": "A successful response.",
+            "schema": {
+              "$ref": "#/definitions/api_v2ArchiveTraceResponse"
+            }
+          }
+        },
+        "parameters": [
+          {
+            "name": "trace_id",
+            "in": "path",
+            "required": true,
+            "type": "string",
+            "format": "byte"
+          }
+        ],
+        "tags": [
+          "QueryService"
+        ]
+      }
+    },
     "/dependencies": {
       "get": {
         "operationId": "GetDependencies",
@@ -124,7 +149,7 @@
       }
     },
     "/search": {
-      "get": {
+      "post": {
         "operationId": "FindTraces",
         "responses": {
           "200": {
@@ -136,49 +161,12 @@
         },
         "parameters": [
           {
-            "name": "query.service_name",
-            "in": "query",
-            "required": false,
-            "type": "string"
-          },
-          {
-            "name": "query.operation_name",
-            "in": "query",
-            "required": false,
-            "type": "string"
-          },
-          {
-            "name": "query.start_time_min",
-            "in": "query",
-            "required": false,
-            "type": "string",
-            "format": "date-time"
-          },
-          {
-            "name": "query.start_time_max",
-            "in": "query",
-            "required": false,
-            "type": "string",
-            "format": "date-time"
-          },
-          {
-            "name": "query.duration_min",
-            "in": "query",
-            "required": false,
-            "type": "string"
-          },
-          {
-            "name": "query.duration_max",
-            "in": "query",
-            "required": false,
-            "type": "string"
-          },
-          {
-            "name": "query.num_traces",
-            "in": "query",
-            "required": false,
-            "type": "integer",
-            "format": "int32"
+            "name": "body",
+            "in": "body",
+            "required": true,
+            "schema": {
+              "$ref": "#/definitions/api_v2FindTracesRequest"
+            }
           }
         ],
         "tags": [
@@ -210,29 +198,6 @@
             "description": "A successful response.",
             "schema": {
               "$ref": "#/definitions/api_v2SpansResponseChunk"
-            }
-          }
-        },
-        "parameters": [
-          {
-            "name": "trace_id",
-            "in": "path",
-            "required": true,
-            "type": "string",
-            "format": "byte"
-          }
-        ],
-        "tags": [
-          "QueryService"
-        ]
-      },
-      "post": {
-        "operationId": "ArchiveTrace",
-        "responses": {
-          "200": {
-            "description": "A successful response.",
-            "schema": {
-              "$ref": "#/definitions/api_v2ArchiveTraceResponse"
             }
           }
         },
@@ -284,6 +249,14 @@
         },
         "source": {
           "type": "string"
+        }
+      }
+    },
+    "api_v2FindTracesRequest": {
+      "type": "object",
+      "properties": {
+        "query": {
+          "$ref": "#/definitions/api_v2TraceQueryParameters"
         }
       }
     },

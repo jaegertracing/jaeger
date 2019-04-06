@@ -132,8 +132,6 @@ func main() {
 			// Create GRPC Server.
 			grpcServer := grpc.NewServer()
 
-			grpclog.SetLoggerV2(grpclog.NewLoggerV2(ioutil.Discard, os.Stderr, os.Stderr))
-
 			grpcHandler := app.NewGRPCHandler(*queryService, logger, tracer)
 			api_v2.RegisterQueryServiceHandler(grpcServer, grpcHandler)
 
@@ -153,20 +151,31 @@ func main() {
 				cmux.HTTP2HeaderField("content-type", "application/grpc+proto"))
 			httpL := s.Match(cmux.Any())
 
+			// Start HTTP server concurrently
 			go func() {
 				logger.Info("Starting HTTP server", zap.Int("port", queryOpts.Port))
-				httpServer.Serve(httpL)
+				if err := httpServer.Serve(httpL); err != nil {
+					logger.Fatal("Could not start HTTP server", zap.Error(err))
+				}
 				svc.HC().Set(healthcheck.Unavailable)
 			}()
 
+			// Start GRPC server concurrently
 			go func() {
 				logger.Info("Starting GRPC server", zap.Int("port", queryOpts.Port))
-				grpcServer.Serve(grpcL)
+				if err := grpcServer.Serve(grpcL); err != nil {
+					logger.Fatal("Could not start GRPC server", zap.Error(err))
+				}
 				svc.HC().Set(healthcheck.Unavailable)
 			}()
 
-			// Start cmux server.
-			s.Serve()
+			// Start cmux server concurrently.
+			go func() {
+				if err := s.Serve(); err != nil {
+					logger.Fatal("Could not start multiplexed server", zap.Error(err))
+				}
+				svc.HC().Set(healthcheck.Unavailable)
+			}
 
 			svc.RunAndThen(nil)
 			return nil
