@@ -23,8 +23,11 @@ import (
 )
 
 const (
-	maxServiceNames = 2000
-	otherServices   = "other-services"
+	// TODO this needs to be configurable via CLI.
+	maxServiceNames = 4000
+
+	// otherServices is the catch-all label when number of services exceeds maxServiceNames
+	otherServices = "other-services"
 )
 
 // SpanProcessorMetrics contains all the necessary metrics for the SpanProcessor
@@ -65,13 +68,13 @@ type metricsBySvc struct {
 type InboundTransport string
 
 const (
-	// GRPCTransport indicates spans received over gRPC
+	// GRPCTransport indicates spans received over gRPC.
 	GRPCTransport InboundTransport = "grpc"
-	// TChannelTransport indicates spans received over TChannel
+	// TChannelTransport indicates spans received over TChannel.
 	TChannelTransport InboundTransport = "tchannel"
-	// HTTPTransport indicates spans received over HTTP
+	// HTTPTransport indicates spans received over HTTP.
 	HTTPTransport InboundTransport = "http"
-	// UnknownTransport is for unknown transport
+	// UnknownTransport is the fallback/catch-all category.
 	UnknownTransport InboundTransport = "unknown"
 )
 
@@ -79,27 +82,27 @@ const (
 type SpanFormat string
 
 const (
-	// JaegerSpanFormat is for Jaeger Thrift spans
+	// JaegerSpanFormat is for Jaeger Thrift spans.
 	JaegerSpanFormat SpanFormat = "jaeger"
-	// ZipkinSpanFormat is for Zipkin Thrift spans
+	// ZipkinSpanFormat is for Zipkin Thrift spans.
 	ZipkinSpanFormat SpanFormat = "zipkin"
-	// ProtoSpanFormat is for Jaeger protobuf Spans
+	// ProtoSpanFormat is for Jaeger protobuf Spans.
 	ProtoSpanFormat SpanFormat = "proto"
-	// UnknownSpanFormat is for spans that do not have a widely defined/well-known format type
+	// UnknownSpanFormat is the fallback/catch-all category.
 	UnknownSpanFormat SpanFormat = "unknown"
 )
 
-// SpanCountsByFormat measures metrics by different span formats (thrift, proto, etc.)
+// SpanCountsByFormat groups metrics by different span formats (thrift, proto, etc.)
 type SpanCountsByFormat map[SpanFormat]SpanCountsByTransport
 
-// SpanCountsByTransport measures metrics by different endpoint types (e.g http, grpc, tchannel)
+// SpanCountsByTransport groups metrics by inbound transport (e.g http, grpc, tchannel)
 type SpanCountsByTransport map[InboundTransport]SpanCounts
 
-// SpanCounts measures received, rejected metrics
+// SpanCounts contains countrs for received and rejected spans.
 type SpanCounts struct {
-	// ReceivedBySvc maintain by-service metrics
+	// ReceivedBySvc maintain by-service metrics.
 	ReceivedBySvc metricsBySvc
-	// RejectedBySvc is the number of spans we rejected (usually due to blacklisting) by-service
+	// RejectedBySvc is the number of spans we rejected (usually due to blacklisting) by-service.
 	RejectedBySvc metricsBySvc
 }
 
