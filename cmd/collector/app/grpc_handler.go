@@ -44,8 +44,8 @@ func (g *GRPCHandler) PostSpans(ctx context.Context, r *api_v2.PostSpansRequest)
 		}
 	}
 	_, err := g.spanProcessor.ProcessSpans(r.GetBatch().Spans, ProcessSpansOptions{
-		InboundTransport: GRPCEndpoint,
-		SpanFormat:       JaegerFormatType,
+		InboundTransport: GRPCTransport,
+		SpanFormat:       JaegerSpanFormat,
 	})
 	if err != nil {
 		g.logger.Error("cannot process spans", zap.Error(err))

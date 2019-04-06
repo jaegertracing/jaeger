@@ -29,13 +29,13 @@ func TestProcessorMetrics(t *testing.T) {
 	baseMetrics := metricstest.NewFactory(time.Hour)
 	serviceMetrics := baseMetrics.Namespace(jaegerM.NSOptions{Name: "service", Tags: nil})
 	hostMetrics := baseMetrics.Namespace(jaegerM.NSOptions{Name: "host", Tags: nil})
-	spm := NewSpanProcessorMetrics(serviceMetrics, hostMetrics, []string{"scruffy"})
-	benderFormatHTTPMetrics := spm.GetCountsForFormat("bender", HTTPEndpoint)
+	spm := NewSpanProcessorMetrics(serviceMetrics, hostMetrics, []SpanFormat{SpanFormat("scruffy")})
+	benderFormatHTTPMetrics := spm.GetCountsForFormat("bender", HTTPTransport)
 	assert.NotNil(t, benderFormatHTTPMetrics)
-	benderFormatGRPCMetrics := spm.GetCountsForFormat("bender", GRPCEndpoint)
+	benderFormatGRPCMetrics := spm.GetCountsForFormat("bender", GRPCTransport)
 	assert.NotNil(t, benderFormatGRPCMetrics)
 
-	jTChannelFormat := spm.GetCountsForFormat(JaegerFormatType, TChannelEndpoint)
+	jTChannelFormat := spm.GetCountsForFormat(JaegerSpanFormat, TChannelTransport)
 	assert.NotNil(t, jTChannelFormat)
 	jTChannelFormat.ReceivedBySvc.ReportServiceNameForSpan(&model.Span{
 		Process: &model.Process{},
@@ -52,10 +52,10 @@ func TestProcessorMetrics(t *testing.T) {
 	jTChannelFormat.ReceivedBySvc.ReportServiceNameForSpan(&mSpan)
 	counters, gauges := baseMetrics.Backend.Snapshot()
 
-	assert.EqualValues(t, 1, counters["service.spans.received|debug=false|format=jaeger|svc=fry|transport="+TChannelEndpoint])
-	assert.EqualValues(t, 2, counters["service.spans.received|debug=true|format=jaeger|svc=fry|transport="+TChannelEndpoint])
-	assert.EqualValues(t, 1, counters["service.traces.received|debug=false|format=jaeger|svc=fry|transport="+TChannelEndpoint])
-	assert.EqualValues(t, 1, counters["service.traces.received|debug=true|format=jaeger|svc=fry|transport="+TChannelEndpoint])
+	assert.EqualValues(t, 1, counters["service.spans.received|debug=false|format=jaeger|svc=fry|transport=tchannel"])
+	assert.EqualValues(t, 2, counters["service.spans.received|debug=true|format=jaeger|svc=fry|transport=tchannel"])
+	assert.EqualValues(t, 1, counters["service.traces.received|debug=false|format=jaeger|svc=fry|transport=tchannel"])
+	assert.EqualValues(t, 1, counters["service.traces.received|debug=true|format=jaeger|svc=fry|transport=tchannel"])
 	assert.Empty(t, gauges)
 }
 

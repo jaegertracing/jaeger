@@ -28,8 +28,8 @@ import (
 
 // ProcessSpansOptions additional options passed to processor along with the spans.
 type ProcessSpansOptions struct {
-	SpanFormat       string
-	InboundTransport string
+	SpanFormat       SpanFormat
+	InboundTransport InboundTransport
 }
 
 // SpanProcessor handles model spans
@@ -140,8 +140,8 @@ func (sp *spanProcessor) processItemFromQueue(item *queueItem) {
 	sp.metrics.InQueueLatency.Record(time.Since(item.queuedTime))
 }
 
-func (sp *spanProcessor) enqueueSpan(span *model.Span, originalFormat, endpointType string) bool {
-	spanCounts := sp.metrics.GetCountsForFormat(originalFormat, endpointType)
+func (sp *spanProcessor) enqueueSpan(span *model.Span, originalFormat SpanFormat, transport InboundTransport) bool {
+	spanCounts := sp.metrics.GetCountsForFormat(originalFormat, transport)
 	spanCounts.ReceivedBySvc.ReportServiceNameForSpan(span)
 
 	if !sp.filterSpan(span) {

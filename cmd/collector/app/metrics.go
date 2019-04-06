@@ -23,9 +23,8 @@ import (
 )
 
 const (
-	maxServiceNames      = 2000
-	unknownTransportType = "Undefined"
-	otherServices        = "other-services"
+	maxServiceNames = 2000
+	otherServices   = "other-services"
 )
 
 // SpanProcessorMetrics contains all the necessary metrics for the SpanProcessor
@@ -45,7 +44,7 @@ type SpanProcessorMetrics struct {
 	SavedOkBySvc  metricsBySvc  // spans actually saved
 	SavedErrBySvc metricsBySvc  // spans failed to save
 	serviceNames  metrics.Gauge // total number of unique service name metrics reported by this collector
-	spanCounts    map[string]CountsBySpanType
+	spanCounts    SpanCountsByFormat
 }
 
 type countsBySvc struct {
@@ -62,26 +61,58 @@ type metricsBySvc struct {
 	traces countsBySvc // number of traces originated per service
 }
 
-// CountsBySpanType measures metrics by different endpoint types (e.g http, grpc, tchannel)
-type CountsBySpanType map[string]CountsByTransportType
+// InboundTransport identifies the transport used to receive spans.
+type InboundTransport string
 
-// CountsByTransportType measures received, rejected metrics for a format type
-type CountsByTransportType struct {
-	// ReceivedBySvc maintain by-service metrics for a format type
+const (
+	// GRPCTransport indicates spans received over gRPC
+	GRPCTransport InboundTransport = "grpc"
+	// TChannelTransport indicates spans received over TChannel
+	TChannelTransport InboundTransport = "tchannel"
+	// HTTPTransport indicates spans received over HTTP
+	HTTPTransport InboundTransport = "http"
+	// UnknownTransport is for unknown transport
+	UnknownTransport InboundTransport = "unknown"
+)
+
+// SpanFormat identifies the data format in which the span was originally received.
+type SpanFormat string
+
+const (
+	// JaegerSpanFormat is for Jaeger Thrift spans
+	JaegerSpanFormat SpanFormat = "jaeger"
+	// ZipkinSpanFormat is for Zipkin Thrift spans
+	ZipkinSpanFormat SpanFormat = "zipkin"
+	// ProtoSpanFormat is for Jaeger protobuf Spans
+	ProtoSpanFormat SpanFormat = "proto"
+	// UnknownSpanFormat is for spans that do not have a widely defined/well-known format type
+	UnknownSpanFormat SpanFormat = "unknown"
+)
+
+// SpanCountsByFormat measures metrics by different span formats (thrift, proto, etc.)
+type SpanCountsByFormat map[SpanFormat]SpanCountsByTransport
+
+// SpanCountsByTransport measures metrics by different endpoint types (e.g http, grpc, tchannel)
+type SpanCountsByTransport map[InboundTransport]SpanCounts
+
+// SpanCounts measures received, rejected metrics
+type SpanCounts struct {
+	// ReceivedBySvc maintain by-service metrics
 	ReceivedBySvc metricsBySvc
 	// RejectedBySvc is the number of spans we rejected (usually due to blacklisting) by-service
 	RejectedBySvc metricsBySvc
 }
 
 // NewSpanProcessorMetrics returns a SpanProcessorMetrics
-func NewSpanProcessorMetrics(serviceMetrics metrics.Factory, hostMetrics metrics.Factory, otherFormatTypes []string) *SpanProcessorMetrics {
-	spanCounts := map[string]CountsBySpanType{
-		ZipkinFormatType:  newCountsBySpanType(serviceMetrics.Namespace(metrics.NSOptions{Name: "", Tags: map[string]string{"format": ZipkinFormatType}})),
-		JaegerFormatType:  newCountsBySpanType(serviceMetrics.Namespace(metrics.NSOptions{Name: "", Tags: map[string]string{"format": JaegerFormatType}})),
-		UnknownFormatType: newCountsBySpanType(serviceMetrics.Namespace(metrics.NSOptions{Name: "", Tags: map[string]string{"format": UnknownFormatType}})),
+func NewSpanProcessorMetrics(serviceMetrics metrics.Factory, hostMetrics metrics.Factory, otherFormatTypes []SpanFormat) *SpanProcessorMetrics {
+	spanCounts := SpanCountsByFormat{
+		ZipkinSpanFormat:  newCountsByTransport(serviceMetrics, ZipkinSpanFormat),
+		JaegerSpanFormat:  newCountsByTransport(serviceMetrics, JaegerSpanFormat),
+		ProtoSpanFormat:   newCountsByTransport(serviceMetrics, ProtoSpanFormat),
+		UnknownSpanFormat: newCountsByTransport(serviceMetrics, UnknownSpanFormat),
 	}
 	for _, otherFormatType := range otherFormatTypes {
-		spanCounts[otherFormatType] = newCountsBySpanType(serviceMetrics.Namespace(metrics.NSOptions{Name: "", Tags: map[string]string{"format": otherFormatType}}))
+		spanCounts[otherFormatType] = newCountsByTransport(serviceMetrics, otherFormatType)
 	}
 	m := &SpanProcessorMetrics{
 		SaveLatency:    hostMetrics.Timer(metrics.TimerOptions{Name: "save-latency", Tags: nil}),
@@ -122,29 +153,35 @@ func newCountsBySvc(factory metrics.Factory, category string, maxServiceNames in
 	}
 }
 
-func newCountsBySpanType(factory metrics.Factory) CountsBySpanType {
-	return map[string]CountsByTransportType{
-		HTTPEndpoint:     newCountsByTransport(factory.Namespace(metrics.NSOptions{Name: "", Tags: map[string]string{"transport": HTTPEndpoint}})),
-		TChannelEndpoint: newCountsByTransport(factory.Namespace(metrics.NSOptions{Name: "", Tags: map[string]string{"transport": TChannelEndpoint}})),
-		GRPCEndpoint:     newCountsByTransport(factory.Namespace(metrics.NSOptions{Name: "", Tags: map[string]string{"transport": GRPCEndpoint}})),
-		EmptyEndpoint:    newCountsByTransport(factory.Namespace(metrics.NSOptions{Name: "", Tags: map[string]string{"transport": unknownTransportType}})),
+func newCountsByTransport(factory metrics.Factory, format SpanFormat) SpanCountsByTransport {
+	factory = factory.Namespace(metrics.NSOptions{Tags: map[string]string{"format": string(format)}})
+	return SpanCountsByTransport{
+		HTTPTransport:     newCounts(factory, HTTPTransport),
+		TChannelTransport: newCounts(factory, TChannelTransport),
+		GRPCTransport:     newCounts(factory, GRPCTransport),
+		UnknownTransport:  newCounts(factory, UnknownTransport),
 	}
 }
 
-func newCountsByTransport(factory metrics.Factory) CountsByTransportType {
-	return CountsByTransportType{
+func newCounts(factory metrics.Factory, transport InboundTransport) SpanCounts {
+	factory = factory.Namespace(metrics.NSOptions{Tags: map[string]string{"transport": string(transport)}})
+	return SpanCounts{
 		RejectedBySvc: newMetricsBySvc(factory, "rejected"),
 		ReceivedBySvc: newMetricsBySvc(factory, "received"),
 	}
 }
 
-// GetCountsForFormat gets the countsBySpanType for a given format. If none exists, we use the Unknown format.
-func (m *SpanProcessorMetrics) GetCountsForFormat(spanFormat, endpointType string) CountsByTransportType {
+// GetCountsForFormat gets the SpanCounts for a given format and transport. If none exists, we use the Unknown format.
+func (m *SpanProcessorMetrics) GetCountsForFormat(spanFormat SpanFormat, transport InboundTransport) SpanCounts {
 	c, ok := m.spanCounts[spanFormat]
 	if !ok {
-		c = m.spanCounts[UnknownFormatType]
+		c = m.spanCounts[UnknownSpanFormat]
 	}
-	return c[endpointType]
+	t, ok := c[transport]
+	if !ok {
+		t = c[UnknownTransport]
+	}
+	return t
 }
 
 // reportServiceNameForSpan determines the name of the service that emitted
