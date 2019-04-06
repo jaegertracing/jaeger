@@ -86,6 +86,6 @@ func (s mockSamplingStore) GetSamplingStrategy(serviceName string) (*sampling.Sa
 type mockSpanProcessor struct {
 }
 
-func (p *mockSpanProcessor) ProcessSpans(spans []*model.Span, spanFormat string) ([]bool, error) {
+func (p *mockSpanProcessor) ProcessSpans(spans []*model.Span, _ app.ProcessSpansOptions) ([]bool, error) {
 	return []bool{}, nil
 }

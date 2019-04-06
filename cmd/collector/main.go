@@ -111,8 +111,9 @@ func main() {
 					logger.Fatal("Unable to create new TChannel", zap.Error(err))
 				}
 				server := thrift.NewServer(ch)
-				server.Register(jc.NewTChanCollectorServer(jaegerBatchesHandler))
-				server.Register(zc.NewTChanZipkinCollectorServer(zipkinSpansHandler))
+				batchHandler := app.NewTChannelHandler(jaegerBatchesHandler, zipkinSpansHandler)
+				server.Register(jc.NewTChanCollectorServer(batchHandler))
+				server.Register(zc.NewTChanZipkinCollectorServer(batchHandler))
 				server.Register(sc.NewTChanSamplingManagerServer(sampling.NewHandler(strategyStore)))
 				portStr := ":" + strconv.Itoa(builderOpts.CollectorPort)
 				listener, err := net.Listen("tcp", portStr)

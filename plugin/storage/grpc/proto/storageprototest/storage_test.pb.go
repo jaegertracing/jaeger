@@ -3,9 +3,11 @@
 
 package storageprototest
 
-import proto "github.com/golang/protobuf/proto"
-import fmt "fmt"
-import math "math"
+import (
+	fmt "fmt"
+	proto "github.com/golang/protobuf/proto"
+	math "math"
+)
 
 // Reference imports to suppress errors if they are not otherwise used.
 var _ = proto.Marshal
@@ -16,7 +18,7 @@ var _ = math.Inf
 // is compatible with the proto package it is being compiled against.
 // A compilation error at this line likely means your copy of the
 // proto package needs to be updated.
-const _ = proto.ProtoPackageIsVersion2 // please upgrade the proto package
+const _ = proto.ProtoPackageIsVersion3 // please upgrade the proto package
 
 type GetTraceRequest struct {
 	TraceId              []byte   `protobuf:"bytes,1,opt,name=trace_id,json=traceId,proto3" json:"trace_id,omitempty"`
@@ -29,16 +31,17 @@ func (m *GetTraceRequest) Reset()         { *m = GetTraceRequest{} }
 func (m *GetTraceRequest) String() string { return proto.CompactTextString(m) }
 func (*GetTraceRequest) ProtoMessage()    {}
 func (*GetTraceRequest) Descriptor() ([]byte, []int) {
-	return fileDescriptor_storage_test_d286fda188bb5bc8, []int{0}
+	return fileDescriptor_84f9f21738fa9462, []int{0}
 }
+
 func (m *GetTraceRequest) XXX_Unmarshal(b []byte) error {
 	return xxx_messageInfo_GetTraceRequest.Unmarshal(m, b)
 }
 func (m *GetTraceRequest) XXX_Marshal(b []byte, deterministic bool) ([]byte, error) {
 	return xxx_messageInfo_GetTraceRequest.Marshal(b, m, deterministic)
 }
-func (dst *GetTraceRequest) XXX_Merge(src proto.Message) {
-	xxx_messageInfo_GetTraceRequest.Merge(dst, src)
+func (m *GetTraceRequest) XXX_Merge(src proto.Message) {
+	xxx_messageInfo_GetTraceRequest.Merge(m, src)
 }
 func (m *GetTraceRequest) XXX_Size() int {
 	return xxx_messageInfo_GetTraceRequest.Size(m)
@@ -60,9 +63,9 @@ func init() {
 	proto.RegisterType((*GetTraceRequest)(nil), "storageprototest.GetTraceRequest")
 }
 
-func init() { proto.RegisterFile("storage_test.proto", fileDescriptor_storage_test_d286fda188bb5bc8) }
+func init() { proto.RegisterFile("storage_test.proto", fileDescriptor_84f9f21738fa9462) }
 
-var fileDescriptor_storage_test_d286fda188bb5bc8 = []byte{
+var fileDescriptor_84f9f21738fa9462 = []byte{
 	// 97 bytes of a gzipped FileDescriptorProto
 	0x1f, 0x8b, 0x08, 0x00, 0x00, 0x00, 0x00, 0x00, 0x02, 0xff, 0xe2, 0x12, 0x2a, 0x2e, 0xc9, 0x2f,
 	0x4a, 0x4c, 0x4f, 0x8d, 0x2f, 0x49, 0x2d, 0x2e, 0xd1, 0x2b, 0x28, 0xca, 0x2f, 0xc9, 0x17, 0x12,
