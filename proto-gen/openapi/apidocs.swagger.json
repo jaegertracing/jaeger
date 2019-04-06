@@ -1,7 +1,7 @@
 {
   "swagger": "2.0",
   "info": {
-    "title": "api_v2.proto",
+    "title": "api_v2/collector.proto",
     "version": "1.0"
   },
   "schemes": [
@@ -20,7 +20,7 @@
         "operationId": "GetSamplingStrategy",
         "responses": {
           "200": {
-            "description": "",
+            "description": "A successful response.",
             "schema": {
               "$ref": "#/definitions/api_v2SamplingStrategyResponse"
             }
@@ -46,7 +46,7 @@
         "operationId": "PostSpans",
         "responses": {
           "200": {
-            "description": "",
+            "description": "A successful response.",
             "schema": {
               "$ref": "#/definitions/api_v2PostSpansResponse"
             }

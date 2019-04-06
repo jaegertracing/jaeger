@@ -113,11 +113,27 @@ required = [
 
 [[constraint]]
   name = "github.com/gogo/protobuf"
-  revision = "fd9a4790f3963525fb889cc00e0a8f828e0b3a29"
+  revision = "ba06b47c162d49f2af050fb4c75bcbc86a159d5c"
+
+[[constraint]]
+  name = "github.com/dgraph-io/badger"
+  version = "=1.5.3"
 
 [prune]
   go-tests = true
   unused-packages = true
+  [[prune.project]]
+    name = "github.com/gogo/protobuf"
+    non-go = false
+    unused-packages = false
+  [[prune.project]]
+    name = "github.com/grpc-ecosystem/grpc-gateway"
+    non-go = false
+    unused-packages = false
+  [[prune.project]]
+      name = "github.com/gogo/googleapis"
+      non-go = false
+      unused-packages = false
 
 [[constraint]]
   name = "github.com/Shopify/sarama"

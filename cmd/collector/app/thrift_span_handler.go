@@ -15,7 +15,6 @@
 package app
 
 import (
-	"github.com/uber/tchannel-go/thrift"
 	"go.uber.org/zap"
 
 	zipkinS "github.com/jaegertracing/jaeger/cmd/collector/app/sanitizer/zipkin"
@@ -26,31 +25,21 @@ import (
 	"github.com/jaegertracing/jaeger/thrift-gen/zipkincore"
 )
 
-const (
-	// JaegerFormatType is for Jaeger Spans
-	JaegerFormatType = "jaeger"
-	// ZipkinFormatType is for zipkin Spans
-	ZipkinFormatType = "zipkin"
-	// UnknownFormatType is for spans that do not have a widely defined/well-known format type
-	UnknownFormatType = "unknown"
-)
+// SubmitBatchOptions are passed to Submit methods of the handlers.
+type SubmitBatchOptions struct {
+	InboundTransport InboundTransport
+}
 
 // ZipkinSpansHandler consumes and handles zipkin spans
 type ZipkinSpansHandler interface {
 	// SubmitZipkinBatch records a batch of spans in Zipkin Thrift format
-	SubmitZipkinBatch(ctx thrift.Context, spans []*zipkincore.Span) ([]*zipkincore.Response, error)
+	SubmitZipkinBatch(spans []*zipkincore.Span, options SubmitBatchOptions) ([]*zipkincore.Response, error)
 }
 
 // JaegerBatchesHandler consumes and handles Jaeger batches
 type JaegerBatchesHandler interface {
 	// SubmitBatches records a batch of spans in Jaeger Thrift format
-	SubmitBatches(ctx thrift.Context, batches []*jaeger.Batch) ([]*jaeger.BatchSubmitResponse, error)
-}
-
-// SpanProcessor handles model spans
-type SpanProcessor interface {
-	// ProcessSpans processes model spans and return with either a list of true/false success or an error
-	ProcessSpans(mSpans []*model.Span, spanFormat string) ([]bool, error)
+	SubmitBatches(batches []*jaeger.Batch, options SubmitBatchOptions) ([]*jaeger.BatchSubmitResponse, error)
 }
 
 type jaegerBatchesHandler struct {
@@ -66,7 +55,7 @@ func NewJaegerSpanHandler(logger *zap.Logger, modelProcessor SpanProcessor) Jaeg
 	}
 }
 
-func (jbh *jaegerBatchesHandler) SubmitBatches(ctx thrift.Context, batches []*jaeger.Batch) ([]*jaeger.BatchSubmitResponse, error) {
+func (jbh *jaegerBatchesHandler) SubmitBatches(batches []*jaeger.Batch, options SubmitBatchOptions) ([]*jaeger.BatchSubmitResponse, error) {
 	responses := make([]*jaeger.BatchSubmitResponse, 0, len(batches))
 	for _, batch := range batches {
 		mSpans := make([]*model.Span, 0, len(batch.Spans))
@@ -74,7 +63,10 @@ func (jbh *jaegerBatchesHandler) SubmitBatches(ctx thrift.Context, batches []*ja
 			mSpan := jConv.ToDomainSpan(span, batch.Process)
 			mSpans = append(mSpans, mSpan)
 		}
-		oks, err := jbh.modelProcessor.ProcessSpans(mSpans, JaegerFormatType)
+		oks, err := jbh.modelProcessor.ProcessSpans(mSpans, ProcessSpansOptions{
+			InboundTransport: options.InboundTransport,
+			SpanFormat:       JaegerSpanFormat,
+		})
 		if err != nil {
 			jbh.logger.Error("Collector failed to process span batch", zap.Error(err))
 			return nil, err
@@ -112,13 +104,16 @@ func NewZipkinSpanHandler(logger *zap.Logger, modelHandler SpanProcessor, saniti
 }
 
 // SubmitZipkinBatch records a batch of spans already in Zipkin Thrift format.
-func (h *zipkinSpanHandler) SubmitZipkinBatch(ctx thrift.Context, spans []*zipkincore.Span) ([]*zipkincore.Response, error) {
+func (h *zipkinSpanHandler) SubmitZipkinBatch(spans []*zipkincore.Span, options SubmitBatchOptions) ([]*zipkincore.Response, error) {
 	mSpans := make([]*model.Span, 0, len(spans))
 	for _, span := range spans {
 		sanitized := h.sanitizer.Sanitize(span)
 		mSpans = append(mSpans, convertZipkinToModel(sanitized, h.logger)...)
 	}
-	bools, err := h.modelProcessor.ProcessSpans(mSpans, ZipkinFormatType)
+	bools, err := h.modelProcessor.ProcessSpans(mSpans, ProcessSpansOptions{
+		InboundTransport: options.InboundTransport,
+		SpanFormat:       ZipkinSpanFormat,
+	})
 	if err != nil {
 		h.logger.Error("Collector failed to process Zipkin span batch", zap.Error(err))
 		return nil, err

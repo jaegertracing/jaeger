@@ -17,10 +17,8 @@ package app
 import (
 	"errors"
 	"testing"
-	"time"
 
 	"github.com/stretchr/testify/assert"
-	"github.com/uber/tchannel-go/thrift"
 	"go.uber.org/zap"
 
 	"github.com/jaegertracing/jaeger/cmd/collector/app/sanitizer/zipkin"
@@ -43,14 +41,12 @@ func TestJaegerSpanHandler(t *testing.T) {
 	for _, tc := range testChunks {
 		logger := zap.NewNop()
 		h := NewJaegerSpanHandler(logger, &shouldIErrorProcessor{tc.expectedErr != nil})
-		ctx, cancel := thrift.NewContext(time.Minute)
-		defer cancel()
-		res, err := h.SubmitBatches(ctx, []*jaeger.Batch{
+		res, err := h.SubmitBatches([]*jaeger.Batch{
 			{
 				Process: &jaeger.Process{ServiceName: "someServiceName"},
 				Spans:   []*jaeger.Span{{SpanId: 21345}},
 			},
-		})
+		}, SubmitBatchOptions{})
 		if tc.expectedErr != nil {
 			assert.Nil(t, res)
 			assert.Equal(t, tc.expectedErr, err)
@@ -68,7 +64,7 @@ type shouldIErrorProcessor struct {
 
 var errTestError = errors.New("Whoops")
 
-func (s *shouldIErrorProcessor) ProcessSpans(mSpans []*model.Span, format string) ([]bool, error) {
+func (s *shouldIErrorProcessor) ProcessSpans(mSpans []*model.Span, _ ProcessSpansOptions) ([]bool, error) {
 	if s.shouldError {
 		return nil, errTestError
 	}
@@ -93,13 +89,11 @@ func TestZipkinSpanHandler(t *testing.T) {
 	for _, tc := range testChunks {
 		logger := zap.NewNop()
 		h := NewZipkinSpanHandler(logger, &shouldIErrorProcessor{tc.expectedErr != nil}, zipkin.NewParentIDSanitizer())
-		ctx, cancel := thrift.NewContext(time.Minute)
-		defer cancel()
-		res, err := h.SubmitZipkinBatch(ctx, []*zipkincore.Span{
+		res, err := h.SubmitZipkinBatch([]*zipkincore.Span{
 			{
 				ID: 12345,
 			},
-		})
+		}, SubmitBatchOptions{})
 		if tc.expectedErr != nil {
 			assert.Nil(t, res)
 			assert.Equal(t, tc.expectedErr, err)

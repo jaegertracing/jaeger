@@ -115,3 +115,25 @@ import (
 )
 ```
 
+## Testing guidelines
+
+We strive to maintain as high code coverage as possible. Since `go test` command does not generate
+code coverage information for packages that have no test files, we have a build step (`make nocover`)
+that breaks the build when such packages are discovered, with an error like this:
+
+```
+error: at least one *_test.go file must be in all directories with go files
+       so that they are counted for code coverage.
+       If no tests are possible for a package (e.g. it only defines types), create empty_test.go
+```
+
+There are conditions that cannot be tested without external dependencies, such as a function that
+creates a gocql.Session, because it requires an active connection to Cassandra database. It is
+recommended to isolate such functions in a separate package with bare minimum of code and add a
+file `.nocover` to exclude the package from coverage calculations. The file should contain
+a comment explaining why it is there, for example:
+
+```
+$ cat ./pkg/cassandra/config/.nocover
+requires connection to Cassandra
+```

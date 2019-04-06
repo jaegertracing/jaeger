@@ -29,12 +29,12 @@ func TestOptionsWithFlags(t *testing.T) {
 	v, command := config.Viperize(AddFlags)
 	command.ParseFlags([]string{
 		"--kafka.consumer.topic=topic1",
-		"--kafka.consumer.brokers=127.0.0.1:9092,0.0.0:1234",
+		"--kafka.consumer.brokers=127.0.0.1:9092, 0.0.0:1234",
 		"--kafka.consumer.group-id=group1",
 		"--kafka.consumer.encoding=json",
 		"--ingester.parallelism=5",
 		"--ingester.deadlockInterval=2m",
-		"--ingester.http-port=2345"})
+	})
 	o.InitFromViper(v)
 
 	assert.Equal(t, "topic1", o.Topic)
@@ -43,7 +43,6 @@ func TestOptionsWithFlags(t *testing.T) {
 	assert.Equal(t, 5, o.Parallelism)
 	assert.Equal(t, 2*time.Minute, o.DeadlockInterval)
 	assert.Equal(t, kafka.EncodingJSON, o.Encoding)
-	assert.Equal(t, 2345, o.IngesterHTTPPort)
 }
 
 func TestFlagDefaults(t *testing.T) {
@@ -58,40 +57,4 @@ func TestFlagDefaults(t *testing.T) {
 	assert.Equal(t, DefaultParallelism, o.Parallelism)
 	assert.Equal(t, DefaultEncoding, o.Encoding)
 	assert.Equal(t, DefaultDeadlockInterval, o.DeadlockInterval)
-}
-
-func TestOptionsWithDeprecatedFlags(t *testing.T) {
-	o := &Options{}
-	v, command := config.Viperize(AddFlags)
-	command.ParseFlags([]string{
-		"--kafka.topic=topic1",
-		"--kafka.brokers=127.0.0.1:9092,0.0.0:1234",
-		"--kafka.group-id=group1",
-		"--kafka.encoding=json"})
-	o.InitFromViper(v)
-
-	assert.Equal(t, "topic1", o.Topic)
-	assert.Equal(t, []string{"127.0.0.1:9092", "0.0.0:1234"}, o.Brokers)
-	assert.Equal(t, "group1", o.GroupID)
-	assert.Equal(t, kafka.EncodingJSON, o.Encoding)
-}
-
-func TestOptionsWithAllFlags(t *testing.T) {
-	o := &Options{}
-	v, command := config.Viperize(AddFlags)
-	command.ParseFlags([]string{
-		"--kafka.topic=topic1",
-		"--kafka.brokers=127.0.0.1:9092,0.0.0:1234",
-		"--kafka.group-id=group1",
-		"--kafka.encoding=protobuf",
-		"--kafka.consumer.topic=topic2",
-		"--kafka.consumer.brokers=10.0.0.1:9092,10.0.0.2:9092",
-		"--kafka.consumer.group-id=group2",
-		"--kafka.consumer.encoding=json"})
-	o.InitFromViper(v)
-
-	assert.Equal(t, "topic1", o.Topic)
-	assert.Equal(t, []string{"127.0.0.1:9092", "0.0.0:1234"}, o.Brokers)
-	assert.Equal(t, "group1", o.GroupID)
-	assert.Equal(t, kafka.EncodingProto, o.Encoding)
 }

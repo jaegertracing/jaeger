@@ -1,0 +1,147 @@
+// Copyright (c) 2019 The Jaeger Authors
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+// http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
+syntax = "proto3";
+
+package jaeger.storage.v1;
+
+option go_package = "storage_v1";
+
+import "gogoproto/gogo.proto";
+import "google/protobuf/timestamp.proto";
+import "google/protobuf/duration.proto";
+
+import "model.proto";
+
+// Enable gogoprotobuf extensions (https://github.com/gogo/protobuf/blob/master/extensions.md).
+// Enable custom Marshal method.
+option (gogoproto.marshaler_all) = true;
+// Enable custom Unmarshal method.
+option (gogoproto.unmarshaler_all) = true;
+// Enable custom Size method (Required by Marshal and Unmarshal).
+option (gogoproto.sizer_all) = true;
+// Enable registration with golang/protobuf for the grpc-gateway.
+option (gogoproto.goproto_registration) = true;
+
+message GetDependenciesRequest {
+    google.protobuf.Timestamp start_time = 1 [
+      (gogoproto.stdtime) = true,
+      (gogoproto.nullable) = false
+    ];
+    google.protobuf.Timestamp end_time = 2 [
+      (gogoproto.stdtime) = true,
+      (gogoproto.nullable) = false
+    ];
+}
+
+message GetDependenciesResponse {
+    repeated jaeger.api_v2.DependencyLink dependencies = 1 [
+      (gogoproto.nullable) = false
+    ];
+}
+
+message WriteSpanRequest {
+    jaeger.api_v2.Span span = 1;
+}
+
+// empty; extensible in the future
+message WriteSpanResponse {
+
+}
+
+message GetTraceRequest {
+    bytes trace_id = 1 [
+      (gogoproto.nullable) = false,
+      (gogoproto.customtype) = "github.com/jaegertracing/jaeger/model.TraceID",
+      (gogoproto.customname) = "TraceID"
+    ];
+}
+
+message GetServicesRequest {}
+
+message GetServicesResponse {
+    repeated string services = 1;
+}
+
+message GetOperationsRequest {
+    string service = 1;
+}
+
+message GetOperationsResponse {
+    repeated string operations = 1;
+}
+
+message TraceQueryParameters {
+    string service_name = 1;
+    string operation_name = 2;
+    map<string, string> tags = 3;
+    google.protobuf.Timestamp start_time_min = 4 [
+      (gogoproto.stdtime) = true,
+      (gogoproto.nullable) = false
+    ];
+    google.protobuf.Timestamp start_time_max = 5 [
+      (gogoproto.stdtime) = true,
+      (gogoproto.nullable) = false
+    ];
+    google.protobuf.Duration duration_min = 6 [
+      (gogoproto.stdduration) = true,
+      (gogoproto.nullable) = false
+    ];
+    google.protobuf.Duration duration_max = 7 [
+      (gogoproto.stdduration) = true,
+      (gogoproto.nullable) = false
+    ];
+    int32 num_traces = 8;
+}
+
+message FindTracesRequest {
+    TraceQueryParameters query = 1;
+}
+
+message SpansResponseChunk {
+    repeated jaeger.api_v2.Span spans = 1  [
+      (gogoproto.nullable) = false
+    ];
+}
+
+message FindTraceIDsRequest {
+    TraceQueryParameters query = 1;
+}
+
+message FindTraceIDsResponse {
+    repeated bytes trace_ids = 1 [
+      (gogoproto.nullable) = false,
+      (gogoproto.customtype) = "github.com/jaegertracing/jaeger/model.TraceID",
+      (gogoproto.customname) = "TraceIDs"
+    ];
+}
+
+service SpanWriterPlugin {
+    // spanstore/Writer
+    rpc WriteSpan(WriteSpanRequest) returns (WriteSpanResponse);
+}
+
+service SpanReaderPlugin {
+    // spanstore/Reader
+    rpc GetTrace(GetTraceRequest) returns (stream SpansResponseChunk);
+    rpc GetServices(GetServicesRequest) returns (GetServicesResponse);
+    rpc GetOperations(GetOperationsRequest) returns (GetOperationsResponse);
+    rpc FindTraces(FindTracesRequest) returns (stream SpansResponseChunk);
+    rpc FindTraceIDs(FindTraceIDsRequest) returns (FindTraceIDsResponse);
+}
+
+service DependenciesReaderPlugin {
+    // dependencystore/Reader
+    rpc GetDependencies(GetDependenciesRequest) returns (GetDependenciesResponse);
+}
