@@ -20,8 +20,8 @@ import (
 	"github.com/opentracing/opentracing-go"
 	"go.uber.org/zap"
 
-	"github.com/jaegertracing/jaeger/model"
 	"github.com/jaegertracing/jaeger/cmd/query/app/querysvc"
+	"github.com/jaegertracing/jaeger/model"
 	"github.com/jaegertracing/jaeger/proto-gen/api_v2"
 	"github.com/jaegertracing/jaeger/storage/spanstore"
 )
@@ -45,7 +45,7 @@ func NewGRPCHandler(queryService querysvc.QueryService, logger *zap.Logger, trac
 }
 
 // GetTrace is the GRPC handler to fetch traces based on TraceId.
-func (g *GRPCHandler) GetTrace(ctx context.Context, r *api_v2.GetTraceRequest) (*api_v2.GetTraceResponseStream, error) {
+func (g *GRPCHandler) GetTrace(ctx context.Context, r *api_v2.GetTraceRequest) (*api_v2.SpansResponseChunk, error) {
 	ID := r.TraceId
 
 	trace, err := g.queryService.GetTrace(ctx, ID)
@@ -60,7 +60,7 @@ func (g *GRPCHandler) GetTrace(ctx context.Context, r *api_v2.GetTraceRequest) (
 
 	spans := make([]model.Span, 0, len(trace.Spans))
 	for _, span := range trace.Spans {
-		spans.append(*span)
+		spans = append(spans, *span)
 	}
 
 	return &api_v2.SpansResponseChunk{Spans: spans}, nil
@@ -84,16 +84,17 @@ func (g *GRPCHandler) ArchiveTrace(ctx context.Context, r *api_v2.ArchiveTraceRe
 }
 
 // FindTraces is the GRPC handler to fetch traces based on TraceQueryParameters.
-func (g *GRPCHandler) FindTraces(ctx context.Context, r *api_v2.FindTracesRequest) (*api_v2.FindTracesResponse, error) {
+func (g *GRPCHandler) FindTraces(ctx context.Context, r *api_v2.FindTracesRequest) (*api_v2.SpansResponseChunk, error) {
+	query := r.GetQuery()
 	queryParams := spanstore.TraceQueryParameters{
-		ServiceName:   r.ServiceName,
-		OperationName: r.OperationName,
-		Tags:          r.Tags,
-		StartTimeMin:  r.StartTimeMin,
-		StartTimeMax:  r.StartTimeMax,
-		DurationMin:   r.DurationMin,
-		DurationMax:   r.DurationMax,
-		NumTraces:     r.NumTraces,
+		ServiceName:   query.ServiceName,
+		OperationName: query.OperationName,
+		Tags:          query.Tags,
+		StartTimeMin:  query.StartTimeMin,
+		StartTimeMax:  query.StartTimeMax,
+		DurationMin:   query.DurationMin,
+		DurationMax:   query.DurationMax,
+		NumTraces:     query.NumTraces,
 	}
 	traces, err := g.queryService.FindTraces(ctx, &queryParams)
 	if err != nil {
@@ -104,25 +105,25 @@ func (g *GRPCHandler) FindTraces(ctx context.Context, r *api_v2.FindTracesReques
 	spans := []model.Span{}
 	for _, trace := range traces {
 		for _, span := range trace.Spans {
-			spans.append(*span)
+			spans = append(spans, *span)
 		}
 	}
 	return &api_v2.SpansResponseChunk{Spans: spans}, nil
 }
 
 // GetServices is the GRPC handler to fetch services.
-func (g *GRPCHandler) GetServices(ctx context.Context, r *api_v2.GetServicesRequest) (*api_v2.GetServicesReponse, error) {
+func (g *GRPCHandler) GetServices(ctx context.Context, r *api_v2.GetServicesRequest) (*api_v2.GetServicesResponse, error) {
 	services, err := g.queryService.GetServices(ctx)
 	if err != nil {
 		g.logger.Error("Error fetching services", zap.Error(err))
 		return nil, err
 	}
 
-	return &api_v2.GetServicesReponse{Services: services}, nil
+	return &api_v2.GetServicesResponse{Services: services}, nil
 }
 
 // GetOperations is the GRPC handler to fetch operations.
-func (g *GRPCHandler) GetOperations(ctx context.Context, r *api_v2.GetOperationsRequest) (*api_v2.GetOperationsReponse, error) {
+func (g *GRPCHandler) GetOperations(ctx context.Context, r *api_v2.GetOperationsRequest) (*api_v2.GetOperationsResponse, error) {
 	service := r.Service
 	operations, err := g.queryService.GetOperations(ctx, service)
 	if err != nil {
@@ -130,7 +131,7 @@ func (g *GRPCHandler) GetOperations(ctx context.Context, r *api_v2.GetOperations
 		return nil, err
 	}
 
-	return &api_v2.GetOperationsReponse{Operations: operations}, nil
+	return &api_v2.GetOperationsResponse{Operations: operations}, nil
 }
 
 // GetDependencies is the GRPC handler to fetch dependencies.
@@ -143,5 +144,5 @@ func (g *GRPCHandler) GetDependencies(ctx context.Context, r *api_v2.GetDependen
 		return nil, err
 	}
 
-	return &api_v2.GetDependenciesReponse{Dependencies: dependencies}, nil
+	return &api_v2.GetDependenciesResponse{Dependencies: dependencies}, nil
 }

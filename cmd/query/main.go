@@ -15,8 +15,8 @@
 package main
 
 import (
+	"context"
 	"fmt"
-	"io/ioutil"
 	"log"
 	"net"
 	"net/http"
@@ -32,7 +32,6 @@ import (
 	"github.com/uber/jaeger-lib/metrics"
 	"go.uber.org/zap"
 	"google.golang.org/grpc"
-	"google.golang.org/grpc/grpclog"
 
 	"github.com/jaegertracing/jaeger/cmd/env"
 	"github.com/jaegertracing/jaeger/cmd/flags"
@@ -133,7 +132,7 @@ func main() {
 			grpcServer := grpc.NewServer()
 
 			grpcHandler := app.NewGRPCHandler(*queryService, logger, tracer)
-			api_v2.RegisterQueryServiceHandler(grpcServer, grpcHandler)
+			api_v2.RegisterQueryServiceHandler(context.Background(), grpcServer, grpcHandler)
 
 			// Prepare cmux conn.
 			conn, err := net.Listen("tcp", fmt.Sprintf(":%d", queryOpts.Port))
@@ -175,7 +174,7 @@ func main() {
 					logger.Fatal("Could not start multiplexed server", zap.Error(err))
 				}
 				svc.HC().Set(healthcheck.Unavailable)
-			}
+			}()
 
 			svc.RunAndThen(nil)
 			return nil
