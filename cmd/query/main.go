@@ -132,7 +132,7 @@ func main() {
 			grpcServer := grpc.NewServer()
 
 			grpcHandler := app.NewGRPCHandler(*queryService, logger, tracer)
-			api_v2.RegisterQueryServiceHandler(context.Background(), grpcServer, grpcHandler)
+			api_v2.RegisterQueryServiceServer(grpcServer, grpcHandler)
 
 			// Prepare cmux conn.
 			conn, err := net.Listen("tcp", fmt.Sprintf(":%d", queryOpts.Port))

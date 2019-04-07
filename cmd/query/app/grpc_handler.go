@@ -94,7 +94,7 @@ func (g *GRPCHandler) FindTraces(ctx context.Context, r *api_v2.FindTracesReques
 		StartTimeMax:  query.StartTimeMax,
 		DurationMin:   query.DurationMin,
 		DurationMax:   query.DurationMax,
-		NumTraces:     query.NumTraces,
+		NumTraces:     int(query.NumTraces),
 	}
 	traces, err := g.queryService.FindTraces(ctx, &queryParams)
 	if err != nil {
