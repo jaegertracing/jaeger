@@ -19,10 +19,10 @@ import (
 	"strconv"
 )
 
-func truncateFloat(f float64) string {
-	return strconv.FormatFloat(f, 'f', 6, 64)
+func truncateFloat(v float64) string {
+	return strconv.FormatFloat(v, 'f', 6, 64)
 }
 
 func floatEquals(a, b float64) bool {
-	return math.Abs(a-b) < 0.0000000001
+	return math.Abs(a-b) < 1e-10
 }
