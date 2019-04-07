@@ -148,7 +148,7 @@ func TestCalculateQPS(t *testing.T) {
 
 func TestGenerateOperationQPS(t *testing.T) {
 	p := &processor{throughputs: testThroughputBuckets, Options: Options{BucketsForCalculation: 10, AggregationBuckets: 10}}
-	svcOpQPS := p.generateOperationQPS()
+	svcOpQPS := p.throughputToQPS()
 	assert.Len(t, svcOpQPS, 2)
 
 	opQPS, ok := svcOpQPS["svcA"]
@@ -176,7 +176,7 @@ func TestGenerateOperationQPS(t *testing.T) {
 			interval: 60 * time.Second,
 		},
 	)
-	svcOpQPS = p.generateOperationQPS()
+	svcOpQPS = p.throughputToQPS()
 	require.Len(t, svcOpQPS, 2)
 
 	opQPS, ok = svcOpQPS["svcA"]
@@ -196,7 +196,7 @@ func TestGenerateOperationQPS(t *testing.T) {
 
 func TestGenerateOperationQPS_UseMostRecentBucketOnly(t *testing.T) {
 	p := &processor{throughputs: testThroughputBuckets, Options: Options{BucketsForCalculation: 1, AggregationBuckets: 10}}
-	svcOpQPS := p.generateOperationQPS()
+	svcOpQPS := p.throughputToQPS()
 	assert.Len(t, svcOpQPS, 2)
 
 	opQPS, ok := svcOpQPS["svcA"]
@@ -217,7 +217,7 @@ func TestGenerateOperationQPS_UseMostRecentBucketOnly(t *testing.T) {
 		},
 	)
 
-	svcOpQPS = p.generateOperationQPS()
+	svcOpQPS = p.throughputToQPS()
 	require.Len(t, svcOpQPS, 2)
 
 	opQPS, ok = svcOpQPS["svcA"]
@@ -416,10 +416,10 @@ func TestRunUpdateProbabilitiesLoop(t *testing.T) {
 	mockEP.On("IsLeader").Return(false)
 
 	p := &processor{
-		storage:                     mockStorage,
-		shutdown:                    make(chan struct{}),
-		followerProbabilityInterval: time.Millisecond,
-		electionParticipant:         mockEP,
+		storage:                 mockStorage,
+		shutdown:                make(chan struct{}),
+		followerRefreshInterval: time.Millisecond,
+		electionParticipant:     mockEP,
 	}
 	defer close(p.shutdown)
 	require.Nil(t, p.probabilities)
@@ -595,10 +595,9 @@ func TestUsingAdaptiveSampling(t *testing.T) {
 		{expected: false, probability: 0.0100009384, service: "svc", operation: "op"},
 	}
 	for _, test := range tests {
-		assert.Equal(t, test.expected, p.usingAdaptiveSampling(test.probability, test.service, test.operation, throughput))
+		assert.Equal(t, test.expected, p.isUsingAdaptiveSampling(test.probability, test.service, test.operation, throughput))
 	}
 }
-
 func TestPrependServiceCache(t *testing.T) {
 	p := &processor{}
 	for i := 0; i < serviceCacheSize*2; i++ {

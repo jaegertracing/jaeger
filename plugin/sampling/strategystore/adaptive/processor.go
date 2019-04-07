@@ -53,6 +53,18 @@ var (
 // nested map: service -> operation -> throughput.
 type serviceOperationThroughput map[string]map[string]*model.Throughput
 
+func (t serviceOperationThroughput) get(service, operation string) (*model.Throughput, bool) {
+	svcThroughput, ok := t[service]
+	if ok {
+		v, ok := svcThroughput[operation]
+		return v, ok
+	}
+	return nil, false
+}
+
+// nested map: service -> operation -> buckets of QPS values.
+type serviceOperationQPS map[string]map[string][]float64
+
 type throughputBucket struct {
 	throughput serviceOperationThroughput
 	interval   time.Duration
@@ -69,9 +81,8 @@ type processor struct {
 
 	electionParticipant leaderelection.ElectionParticipant
 	storage             samplingstore.Store
-
-	shutdown chan struct{}
-	hostname string
+	logger              *zap.Logger
+	hostname            string
 
 	// probabilities contains the latest calculated sampling probabilities for service operations.
 	probabilities model.ServiceOperationProbabilities
@@ -80,25 +91,26 @@ type processor struct {
 	// throughput / AggregationInterval.
 	qps model.ServiceOperationQPS
 
-	// throughputs slice of `AggregationBuckets` size that stores the aggregated throughput. The latest throughput
-	// is stored at the head of the slice.
+	// throughputs is an  array (of `AggregationBuckets` size) that stores the aggregated throughput.
+	// The latest throughput is stored at the head of the slice.
 	throughputs []*throughputBucket
 
-	// strategyResponses contains the sampling strategies for every service.
+	// strategyResponses is the cache of the sampling strategies for every service, in Thrift format.
+	// TODO change this to work with protobuf model instead, to support gRPC endpoint.
 	strategyResponses map[string]*sampling.SamplingStrategyResponse
-
-	logger *zap.Logger
 
 	weightVectorCache *weightVectorCache
 
 	probabilityCalculator calculationstrategy.ProbabilityCalculator
 
-	// followerProbabilityInterval determines how often the follower processor updates its probabilities.
+	// followerRefreshInterval determines how often the follower processor updates its probabilities.
 	// Given only the leader writes probabilities, the followers need to fetch the probabilities into
 	// cache.
-	followerProbabilityInterval time.Duration
+	followerRefreshInterval time.Duration
 
 	serviceCache []samplingCache
+
+	shutdown chan struct{}
 
 	operationsCalculatedGauge     metrics.Gauge
 	calculateProbabilitiesLatency metrics.Timer
@@ -132,13 +144,14 @@ func NewProcessor(
 		// TODO make weightsCache and probabilityCalculator configurable
 		weightVectorCache:             newWeightVectorCache(),
 		probabilityCalculator:         calculationstrategy.NewPercentageIncreaseCappedCalculator(1.0),
-		followerProbabilityInterval:   defaultFollowerProbabilityInterval,
+		followerRefreshInterval:       defaultFollowerProbabilityInterval,
 		serviceCache:                  []samplingCache{},
 		operationsCalculatedGauge:     metricsFactory.Gauge(metrics.Options{Name: "operations_calculated"}),
 		calculateProbabilitiesLatency: metricsFactory.Timer(metrics.TimerOptions{Name: "calculate_probabilities"}),
 	}, nil
 }
 
+// GetSamplingStrategy implements Thrift endpoint for retrieving sampling strategy for a service.
 func (p *processor) GetSamplingStrategy(service string) (*sampling.SamplingStrategyResponse, error) {
 	p.RLock()
 	defer p.RUnlock()
@@ -150,7 +163,7 @@ func (p *processor) GetSamplingStrategy(service string) (*sampling.SamplingStrat
 
 // Start initializes and starts the sampling processor which regularly calculates sampling probabilities.
 func (p *processor) Start() error {
-	p.logger.Info("starting sampling processor")
+	p.logger.Info("starting adaptive sampling processor")
 	p.shutdown = make(chan struct{})
 	if starter, ok := p.electionParticipant.(jio.Starter); ok {
 		starter.Start()
@@ -164,7 +177,7 @@ func (p *processor) Start() error {
 
 // Close stops the processor from calculating probabilities.
 func (p *processor) Close() error {
-	p.logger.Info("stopping sampling processor")
+	p.logger.Info("stopping adaptive sampling processor")
 	if closer, ok := p.electionParticipant.(io.Closer); ok {
 		closer.Close()
 	}
@@ -184,11 +197,11 @@ func (p *processor) loadProbabilities() {
 	p.probabilities = probabilities
 }
 
-// runUpdateProbabilitiesLoop starts a loop that reads probabilities from storage.
+// runUpdateProbabilitiesLoop is a loop that reads probabilities from storage.
 // The follower updates its local cache with the latest probabilities and serves them.
 func (p *processor) runUpdateProbabilitiesLoop() {
-	addJitter(p.followerProbabilityInterval)
-	ticker := time.NewTicker(p.followerProbabilityInterval)
+	addJitter(p.followerRefreshInterval)
+	ticker := time.NewTicker(p.followerRefreshInterval)
 	defer ticker.Stop()
 	for {
 		select {
@@ -213,8 +226,8 @@ func (p *processor) isLeader() bool {
 // trying to acquire the lock. With jitter, we can reduce the average amount of time before a
 // new leader is elected. Furthermore, jitter can be used to spread out read load on storage.
 func addJitter(jitterAmount time.Duration) {
-	randomTime := (jitterAmount / 2) + time.Duration(rand.Int63n(int64(jitterAmount/2)))
-	time.Sleep(randomTime)
+	delay := (jitterAmount / 2) + time.Duration(rand.Int63n(int64(jitterAmount/2)))
+	time.Sleep(delay)
 }
 
 func (p *processor) runCalculationLoop() {
@@ -283,6 +296,8 @@ func (p *processor) prependThroughputBucket(bucket *throughputBucket) {
 }
 
 // aggregateThroughput aggregates operation throughput from different buckets into one.
+// All input buckets represent a single time range, but there are many of them because
+// they are all independently generated by different collector instances from inbound span traffic.
 func (p *processor) aggregateThroughput(throughputs []*model.Throughput) serviceOperationThroughput {
 	aggregatedThroughput := make(serviceOperationThroughput)
 	for _, throughput := range throughputs {
@@ -293,7 +308,7 @@ func (p *processor) aggregateThroughput(throughputs []*model.Throughput) service
 		}
 		if t, ok := aggregatedThroughput[service][operation]; ok {
 			t.Count += throughput.Count
-			t.Probabilities = combineProbabilities(t.Probabilities, throughput.Probabilities)
+			t.Probabilities = merge(t.Probabilities, throughput.Probabilities)
 		} else {
 			aggregatedThroughput[service][operation] = throughput
 		}
@@ -322,9 +337,8 @@ func (p *processor) initializeThroughput(endTime time.Time) {
 	}
 }
 
-type serviceOperationQPS map[string]map[string][]float64
-
-func (p *processor) generateOperationQPS() serviceOperationQPS {
+// throughputToQPS converts raw throughput counts for all accumulated buckets to QPS values.
+func (p *processor) throughputToQPS() serviceOperationQPS {
 	// TODO previous qps buckets have already been calculated, just need to calculate latest batch
 	// and append them where necessary and throw out the oldest batch.
 	// Edge case #buckets < p.AggregationBuckets, then we shouldn't throw out
@@ -350,8 +364,8 @@ func calculateQPS(count int64, interval time.Duration) float64 {
 	return float64(count) / seconds
 }
 
-// calculateWeightedQPS calculates the weighted qps of the slice allQPS where weights are biased towards more recent
-// qps. This function assumes that the most recent qps is at the head of the slice.
+// calculateWeightedQPS calculates the weighted qps of the slice allQPS where weights are biased
+// towards more recent qps. This function assumes that the most recent qps is at the head of the slice.
 func (p *processor) calculateWeightedQPS(allQPS []float64) float64 {
 	if len(allQPS) == 0 {
 		return 0
@@ -375,7 +389,7 @@ func (p *processor) calculateProbabilitiesAndQPS() (model.ServiceOperationProbab
 	p.prependServiceCache()
 	retProbabilities := make(model.ServiceOperationProbabilities)
 	retQPS := make(model.ServiceOperationQPS)
-	svcOpQPS := p.generateOperationQPS()
+	svcOpQPS := p.throughputToQPS()
 	totalOperations := int64(0)
 	for svc, opQPS := range svcOpQPS {
 		if _, ok := retProbabilities[svc]; !ok {
@@ -407,7 +421,7 @@ func (p *processor) calculateProbability(service, operation string, qps float64)
 	latestThroughput := p.throughputs[0].throughput
 	p.RUnlock()
 
-	usingAdaptiveSampling := p.usingAdaptiveSampling(oldProbability, service, operation, latestThroughput)
+	usingAdaptiveSampling := p.isUsingAdaptiveSampling(oldProbability, service, operation, latestThroughput)
 	p.serviceCache[0].Set(service, operation, &samplingCacheEntry{
 		probability:   oldProbability,
 		usingAdaptive: usingAdaptiveSampling,
@@ -429,32 +443,34 @@ func (p *processor) calculateProbability(service, operation string, qps float64)
 	return math.Min(maxSamplingProbability, math.Max(p.MinSamplingProbability, newProbability))
 }
 
+// is actual value within p.DeltaTolerance percentage of expected value.
 func (p *processor) withinTolerance(actual, expected float64) bool {
 	return math.Abs(actual-expected)/expected < p.DeltaTolerance
 }
 
-func combineProbabilities(p1 map[string]struct{}, p2 map[string]struct{}) map[string]struct{} {
-	for probabilityStr := range p2 {
-		p1[probabilityStr] = struct{}{}
+// merge (union) string set p2 into string set p1
+func merge(p1 map[string]struct{}, p2 map[string]struct{}) map[string]struct{} {
+	for k := range p2 {
+		p1[k] = struct{}{}
 	}
 	return p1
 }
 
-func (p *processor) usingAdaptiveSampling(probability float64, service, operation string, throughput serviceOperationThroughput) bool {
+func (p *processor) isUsingAdaptiveSampling(
+	probability float64,
+	service string,
+	operation string,
+	throughput serviceOperationThroughput,
+) bool {
 	if floatEquals(probability, p.InitialSamplingProbability) {
 		// If the service is seen for the first time, assume it's using adaptive sampling (ie prob == initialProb).
 		// Even if this isn't the case, the next time around this loop, the newly calculated probability will not equal
 		// the initialProb so the logic will fall through.
 		return true
 	}
-	var opThroughput *model.Throughput
-	svcThroughput, ok := throughput[service]
-	if ok {
-		opThroughput = svcThroughput[operation]
-	}
-	if opThroughput != nil {
+	if opThroughput, ok := throughput.get(service, operation); ok {
 		f := truncateFloat(probability)
-		_, ok = opThroughput.Probabilities[f]
+		_, ok := opThroughput.Probabilities[f]
 		return ok
 	}
 	// By this point, we know that there's no recorded throughput for this operation for this round

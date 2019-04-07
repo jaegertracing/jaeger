@@ -35,19 +35,23 @@ func newWeightVectorCache() *weightVectorCache {
 	}
 }
 
-// getWeights returns normalizing weights for the specified length.
+// getWeights returns weights for the specified length { w(i) = i ^ 4, i=1..L }, normalized.
 func (c *weightVectorCache) getWeights(length int) []float64 {
 	c.Lock()
 	defer c.Unlock()
 	if weights, ok := c.cache[length]; ok {
 		return weights
 	}
-	l := float64(length)
-	// Closed form of sum l^4 ie 1^4 + 2^4 + ... + l^4.
-	sum := (l / 30) * (l + 1) * ((2 * l) + 1) * ((3 * l * l) + (3 * l) - 1)
 	weights := make([]float64, 0, length)
+	var sum float64
 	for i := length; i > 0; i-- {
-		weights = append(weights, math.Pow(float64(i), 4)/sum)
+		w := math.Pow(float64(i), 4)
+		weights = append(weights, w)
+		sum += w
+	}
+	// normalize
+	for i := 0; i < length; i++ {
+		weights[i] = weights[i] / sum
 	}
 	c.cache[length] = weights
 	return weights
