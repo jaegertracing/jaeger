@@ -32,9 +32,9 @@ func (s samplingCache) Set(service, operation string, entry *samplingCacheEntry)
 }
 
 func (s samplingCache) Get(service, operation string) *samplingCacheEntry {
-	_, ok := s[service]
+	v, ok := s[service]
 	if !ok {
 		return nil
 	}
-	return s[service][operation]
+	return v[operation]
 }

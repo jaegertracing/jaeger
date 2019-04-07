@@ -68,11 +68,10 @@ type processor struct {
 	Options
 
 	electionParticipant leaderelection.ElectionParticipant
+	storage             samplingstore.Store
 
-	storage                 samplingstore.Store
-	calculationStop         chan struct{}
-	updateProbabilitiesStop chan struct{}
-	hostname                string
+	shutdown chan struct{}
+	hostname string
 
 	// probabilities contains the latest calculated sampling probabilities for service operations.
 	probabilities model.ServiceOperationProbabilities
@@ -152,8 +151,7 @@ func (p *processor) GetSamplingStrategy(service string) (*sampling.SamplingStrat
 // Start initializes and starts the sampling processor which regularly calculates sampling probabilities.
 func (p *processor) Start() error {
 	p.logger.Info("starting sampling processor")
-	p.calculationStop = make(chan struct{})
-	p.updateProbabilitiesStop = make(chan struct{})
+	p.shutdown = make(chan struct{})
 	if starter, ok := p.electionParticipant.(jio.Starter); ok {
 		starter.Start()
 	}
@@ -170,8 +168,7 @@ func (p *processor) Close() error {
 	if closer, ok := p.electionParticipant.(io.Closer); ok {
 		closer.Close()
 	}
-	close(p.calculationStop)
-	close(p.updateProbabilitiesStop)
+	close(p.shutdown)
 	return nil
 }
 
@@ -201,7 +198,7 @@ func (p *processor) runUpdateProbabilitiesLoop() {
 				p.loadProbabilities()
 				p.generateStrategyResponses()
 			}
-		case <-p.updateProbabilitiesStop:
+		case <-p.shutdown:
 			return
 		}
 	}
@@ -264,7 +261,7 @@ func (p *processor) runCalculationLoop() {
 				p.calculateProbabilitiesLatency.Record(time.Since(startTime))
 				go p.saveProbabilitiesAndQPS()
 			}
-		case <-p.calculationStop:
+		case <-p.shutdown:
 			return
 		}
 	}
@@ -328,8 +325,9 @@ func (p *processor) initializeThroughput(endTime time.Time) {
 type serviceOperationQPS map[string]map[string][]float64
 
 func (p *processor) generateOperationQPS() serviceOperationQPS {
-	// TODO previous qps buckets have already been calculated, just need to calculate latest batch and append them
-	// where necessary and throw out the oldest batch. Edge case #buckets < p.AggregationBuckets, then we shouldn't throw out
+	// TODO previous qps buckets have already been calculated, just need to calculate latest batch
+	// and append them where necessary and throw out the oldest batch.
+	// Edge case #buckets < p.AggregationBuckets, then we shouldn't throw out
 	qps := make(serviceOperationQPS)
 	for _, bucket := range p.throughputs {
 		for svc, operations := range bucket.throughput {
@@ -398,7 +396,7 @@ func (p *processor) calculateProbabilitiesAndQPS() (model.ServiceOperationProbab
 }
 
 func (p *processor) calculateProbability(service, operation string, qps float64) float64 {
-	oldProbability := p.DefaultSamplingProbability
+	oldProbability := p.InitialSamplingProbability
 	// TODO: is this loop overly expensive?
 	p.RLock()
 	if opProbabilities, ok := p.probabilities[service]; ok {
@@ -417,7 +415,7 @@ func (p *processor) calculateProbability(service, operation string, qps float64)
 
 	// Short circuit if the qps is close enough to targetQPS or if the service doesn't appear to be using
 	// adaptive sampling.
-	if math.Abs(qps-p.TargetQPS) < p.QPSEquivalenceThreshold || !usingAdaptiveSampling {
+	if p.withinTolerance(qps, p.TargetSamplesPerSecond) || !usingAdaptiveSampling {
 		return oldProbability
 	}
 	var newProbability float64
@@ -426,9 +424,13 @@ func (p *processor) calculateProbability(service, operation string, qps float64)
 		// to at least sample one span probabilistically.
 		newProbability = oldProbability * 2.0
 	} else {
-		newProbability = p.probabilityCalculator.Calculate(p.TargetQPS, qps, oldProbability)
+		newProbability = p.probabilityCalculator.Calculate(p.TargetSamplesPerSecond, qps, oldProbability)
 	}
 	return math.Min(maxSamplingProbability, math.Max(p.MinSamplingProbability, newProbability))
+}
+
+func (p *processor) withinTolerance(actual, expected float64) bool {
+	return math.Abs(actual-expected)/expected < p.DeltaTolerance
 }
 
 func combineProbabilities(p1 map[string]struct{}, p2 map[string]struct{}) map[string]struct{} {
@@ -439,10 +441,10 @@ func combineProbabilities(p1 map[string]struct{}, p2 map[string]struct{}) map[st
 }
 
 func (p *processor) usingAdaptiveSampling(probability float64, service, operation string, throughput serviceOperationThroughput) bool {
-	if floatEquals(probability, p.DefaultSamplingProbability) {
-		// If the service is seen for the first time, assume it's using adaptive sampling (ie prob == defaultProb).
+	if floatEquals(probability, p.InitialSamplingProbability) {
+		// If the service is seen for the first time, assume it's using adaptive sampling (ie prob == initialProb).
 		// Even if this isn't the case, the next time around this loop, the newly calculated probability will not equal
-		// the defaultProb so the logic will fall through.
+		// the initialProb so the logic will fall through.
 		return true
 	}
 	var opThroughput *model.Throughput
@@ -460,7 +462,7 @@ func (p *processor) usingAdaptiveSampling(probability float64, service, operatio
 	// before.
 	if len(p.serviceCache) > 1 {
 		if e := p.serviceCache[1].Get(service, operation); e != nil {
-			return e.usingAdaptive && !floatEquals(e.probability, p.DefaultSamplingProbability)
+			return e.usingAdaptive && !floatEquals(e.probability, p.InitialSamplingProbability)
 		}
 	}
 	return false
@@ -497,8 +499,8 @@ func (p *processor) generateDefaultSamplingStrategyResponse() *sampling.Sampling
 	return &sampling.SamplingStrategyResponse{
 		StrategyType: sampling.SamplingStrategyType_PROBABILISTIC,
 		OperationSampling: &sampling.PerOperationSamplingStrategies{
-			DefaultSamplingProbability:       p.DefaultSamplingProbability,
-			DefaultLowerBoundTracesPerSecond: p.LowerBoundTracesPerSecond,
+			DefaultSamplingProbability:       p.InitialSamplingProbability,
+			DefaultLowerBoundTracesPerSecond: p.MinSamplesPerSecond,
 		},
 	}
 }

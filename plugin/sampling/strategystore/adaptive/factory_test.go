@@ -34,30 +34,30 @@ func TestFactory(t *testing.T) {
 	f := NewFactory()
 	v, command := config.Viperize(f.AddFlags)
 	command.ParseFlags([]string{
-		"--sampling.target-qps=5",
-		"--sampling.equivalence-threshold=0.25",
+		"--sampling.target-samples-per-second=5",
+		"--sampling.delta-tolerance=0.25",
 		"--sampling.buckets-for-calculation=2",
 		"--sampling.calculation-interval=15m",
 		"--sampling.aggregation-buckets=3",
 		"--sampling.delay=3m",
-		"--sampling.default-sampling-probability=0.02",
+		"--sampling.initial-sampling-probability=0.02",
 		"--sampling.min-sampling-probability=0.01",
-		"--sampling.lower-bound-traces-per-second=1",
+		"--sampling.min-samples-per-second=1",
 		"--sampling.leader-lease-refresh-interval=1s",
 		"--sampling.follower-lease-refresh-interval=2s",
 	})
 
 	f.InitFromViper(v)
 
-	assert.Equal(t, 5.0, f.options.TargetQPS)
-	assert.Equal(t, 0.25, f.options.QPSEquivalenceThreshold)
+	assert.Equal(t, 5.0, f.options.TargetSamplesPerSecond)
+	assert.Equal(t, 0.25, f.options.DeltaTolerance)
 	assert.Equal(t, int(2), f.options.BucketsForCalculation)
 	assert.Equal(t, time.Minute*15, f.options.CalculationInterval)
 	assert.Equal(t, int(3), f.options.AggregationBuckets)
 	assert.Equal(t, time.Minute*3, f.options.Delay)
-	assert.Equal(t, 0.02, f.options.DefaultSamplingProbability)
+	assert.Equal(t, 0.02, f.options.InitialSamplingProbability)
 	assert.Equal(t, 0.01, f.options.MinSamplingProbability)
-	assert.Equal(t, 1.0, f.options.LowerBoundTracesPerSecond)
+	assert.Equal(t, 1.0, f.options.MinSamplesPerSecond)
 	assert.Equal(t, time.Second, f.options.LeaderLeaseRefreshInterval)
 	assert.Equal(t, time.Second*2, f.options.FollowerLeaseRefreshInterval)
 

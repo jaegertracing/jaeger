@@ -251,9 +251,9 @@ func TestCalculateProbability(t *testing.T) {
 		},
 	}
 	cfg := Options{
-		TargetQPS:                  1.0,
-		QPSEquivalenceThreshold:    0.2,
-		DefaultSamplingProbability: 0.001,
+		TargetSamplesPerSecond:     1.0,
+		DeltaTolerance:             0.2,
+		InitialSamplingProbability: 0.001,
 		MinSamplingProbability:     0.00001,
 	}
 	p := &processor{
@@ -298,9 +298,9 @@ func TestCalculateProbabilitiesAndQPS(t *testing.T) {
 	mets := metricstest.NewFactory(0)
 	p := &processor{
 		Options: Options{
-			TargetQPS:                  1.0,
-			QPSEquivalenceThreshold:    0.2,
-			DefaultSamplingProbability: 0.001,
+			TargetSamplesPerSecond:     1.0,
+			DeltaTolerance:             0.2,
+			InitialSamplingProbability: 0.001,
 			BucketsForCalculation:      10,
 		},
 		throughputs: testThroughputBuckets, probabilities: prevProbabilities, qps: qps,
@@ -335,9 +335,9 @@ func TestRunCalculationLoop(t *testing.T) {
 	mockEP.On("IsLeader").Return(true)
 
 	cfg := Options{
-		TargetQPS:                    1.0,
-		QPSEquivalenceThreshold:      0.1,
-		DefaultSamplingProbability:   0.001,
+		TargetSamplesPerSecond:       1.0,
+		DeltaTolerance:               0.1,
+		InitialSamplingProbability:   0.001,
 		CalculationInterval:          time.Millisecond * 5,
 		AggregationBuckets:           2,
 		Delay:                        time.Millisecond * 5,
@@ -381,8 +381,8 @@ func TestRunCalculationLoop_GetThroughputError(t *testing.T) {
 	proc, err := NewProcessor(cfg, "host", mockStorage, mockEP, metrics.NullFactory, logger)
 	require.NoError(t, err)
 	p := proc.(*processor)
-	p.calculationStop = make(chan struct{})
-	defer close(p.calculationStop)
+	p.shutdown = make(chan struct{})
+	defer close(p.shutdown)
 	go p.runCalculationLoop()
 
 	for i := 0; i < 1000; i++ {
@@ -417,11 +417,11 @@ func TestRunUpdateProbabilitiesLoop(t *testing.T) {
 
 	p := &processor{
 		storage:                     mockStorage,
-		updateProbabilitiesStop:     make(chan struct{}),
+		shutdown:                    make(chan struct{}),
 		followerProbabilityInterval: time.Millisecond,
 		electionParticipant:         mockEP,
 	}
-	defer close(p.updateProbabilitiesStop)
+	defer close(p.shutdown)
 	require.Nil(t, p.probabilities)
 	require.Nil(t, p.strategyResponses)
 	go p.runUpdateProbabilitiesLoop()
@@ -461,9 +461,9 @@ func TestRealisticRunCalculationLoop(t *testing.T) {
 	mockEP.On("Close").Return(nil)
 	mockEP.On("IsLeader").Return(true)
 	cfg := Options{
-		TargetQPS:                  1.0,
-		QPSEquivalenceThreshold:    0.2,
-		DefaultSamplingProbability: 0.001,
+		TargetSamplesPerSecond:     1.0,
+		DeltaTolerance:             0.2,
+		InitialSamplingProbability: 0.001,
 		CalculationInterval:        time.Second * 10,
 		AggregationBuckets:         1,
 		Delay:                      time.Second * 10,
@@ -519,9 +519,9 @@ func TestConstructorFailure(t *testing.T) {
 	logger := zap.NewNop()
 
 	cfg := Options{
-		TargetQPS:                  1.0,
-		QPSEquivalenceThreshold:    0.2,
-		DefaultSamplingProbability: 0.001,
+		TargetSamplesPerSecond:     1.0,
+		DeltaTolerance:             0.2,
+		InitialSamplingProbability: 0.001,
 		CalculationInterval:        time.Second * 5,
 		AggregationBuckets:         0,
 	}
@@ -545,7 +545,12 @@ func TestGenerateStrategyResponses(t *testing.T) {
 			"GET": 0.5,
 		},
 	}
-	p := &processor{probabilities: probabilities, Options: Options{DefaultSamplingProbability: 0.001, LowerBoundTracesPerSecond: 0.0001}}
+	p := &processor{
+		probabilities: probabilities,
+		Options: Options{
+			InitialSamplingProbability: 0.001,
+			MinSamplesPerSecond:        0.0001,
+		}}
 	p.generateStrategyResponses()
 
 	expectedResponse := map[string]*sampling.SamplingStrategyResponse{
@@ -620,9 +625,9 @@ func TestCalculateProbabilitiesAndQPSMultiple(t *testing.T) {
 
 	p := &processor{
 		Options: Options{
-			TargetQPS:                  1.0,
-			QPSEquivalenceThreshold:    0.002,
-			DefaultSamplingProbability: 0.001,
+			TargetSamplesPerSecond:     1.0,
+			DeltaTolerance:             0.002,
+			InitialSamplingProbability: 0.001,
 			BucketsForCalculation:      5,
 			AggregationBuckets:         10,
 		},
