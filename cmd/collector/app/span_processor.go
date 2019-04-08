@@ -17,7 +17,7 @@ package app
 import (
 	"time"
 
-	"github.com/uber/tchannel-go"
+	tchannel "github.com/uber/tchannel-go"
 	"go.uber.org/zap"
 
 	"github.com/jaegertracing/jaeger/cmd/collector/app/sanitizer"
@@ -28,8 +28,8 @@ import (
 
 // ProcessSpansOptions additional options passed to processor along with the spans.
 type ProcessSpansOptions struct {
-	SpanFormat       string
-	InboundTransport string
+	SpanFormat       SpanFormat
+	InboundTransport InboundTransport
 }
 
 // SpanProcessor handles model spans
@@ -126,7 +126,7 @@ func (sp *spanProcessor) ProcessSpans(mSpans []*model.Span, options ProcessSpans
 	sp.metrics.BatchSize.Update(int64(len(mSpans)))
 	retMe := make([]bool, len(mSpans))
 	for i, mSpan := range mSpans {
-		ok := sp.enqueueSpan(mSpan, options.SpanFormat)
+		ok := sp.enqueueSpan(mSpan, options.SpanFormat, options.InboundTransport)
 		if !ok && sp.reportBusy {
 			return nil, tchannel.ErrServerBusy
 		}
@@ -140,8 +140,8 @@ func (sp *spanProcessor) processItemFromQueue(item *queueItem) {
 	sp.metrics.InQueueLatency.Record(time.Since(item.queuedTime))
 }
 
-func (sp *spanProcessor) enqueueSpan(span *model.Span, originalFormat string) bool {
-	spanCounts := sp.metrics.GetCountsForFormat(originalFormat)
+func (sp *spanProcessor) enqueueSpan(span *model.Span, originalFormat SpanFormat, transport InboundTransport) bool {
+	spanCounts := sp.metrics.GetCountsForFormat(originalFormat, transport)
 	spanCounts.ReceivedBySvc.ReportServiceNameForSpan(span)
 
 	if !sp.filterSpan(span) {

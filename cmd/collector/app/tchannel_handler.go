@@ -43,7 +43,9 @@ func (h *TChannelHandler) SubmitZipkinBatch(
 	_ thrift.Context,
 	spans []*zipkincore.Span,
 ) ([]*zipkincore.Response, error) {
-	return h.zipkinHandler.SubmitZipkinBatch(spans, SubmitBatchOptions{InboundTransport: "tchannel"})
+	return h.zipkinHandler.SubmitZipkinBatch(spans, SubmitBatchOptions{
+		InboundTransport: TChannelTransport,
+	})
 }
 
 // SubmitBatches implements jaeger.TChanCollector.
@@ -51,5 +53,7 @@ func (h *TChannelHandler) SubmitBatches(
 	_ thrift.Context,
 	batches []*jaeger.Batch,
 ) ([]*jaeger.BatchSubmitResponse, error) {
-	return h.jaegerHandler.SubmitBatches(batches, SubmitBatchOptions{InboundTransport: "tchannel"})
+	return h.jaegerHandler.SubmitBatches(batches, SubmitBatchOptions{
+		InboundTransport: TChannelTransport,
+	})
 }

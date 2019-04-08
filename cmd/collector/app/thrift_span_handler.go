@@ -25,18 +25,9 @@ import (
 	"github.com/jaegertracing/jaeger/thrift-gen/zipkincore"
 )
 
-const (
-	// JaegerFormatType is for Jaeger Spans
-	JaegerFormatType = "jaeger"
-	// ZipkinFormatType is for zipkin Spans
-	ZipkinFormatType = "zipkin"
-	// UnknownFormatType is for spans that do not have a widely defined/well-known format type
-	UnknownFormatType = "unknown"
-)
-
 // SubmitBatchOptions are passed to Submit methods of the handlers.
 type SubmitBatchOptions struct {
-	InboundTransport string
+	InboundTransport InboundTransport
 }
 
 // ZipkinSpansHandler consumes and handles zipkin spans
@@ -74,7 +65,7 @@ func (jbh *jaegerBatchesHandler) SubmitBatches(batches []*jaeger.Batch, options 
 		}
 		oks, err := jbh.modelProcessor.ProcessSpans(mSpans, ProcessSpansOptions{
 			InboundTransport: options.InboundTransport,
-			SpanFormat:       JaegerFormatType,
+			SpanFormat:       JaegerSpanFormat,
 		})
 		if err != nil {
 			jbh.logger.Error("Collector failed to process span batch", zap.Error(err))
@@ -121,7 +112,7 @@ func (h *zipkinSpanHandler) SubmitZipkinBatch(spans []*zipkincore.Span, options 
 	}
 	bools, err := h.modelProcessor.ProcessSpans(mSpans, ProcessSpansOptions{
 		InboundTransport: options.InboundTransport,
-		SpanFormat:       ZipkinFormatType,
+		SpanFormat:       ZipkinSpanFormat,
 	})
 	if err != nil {
 		h.logger.Error("Collector failed to process Zipkin span batch", zap.Error(err))
