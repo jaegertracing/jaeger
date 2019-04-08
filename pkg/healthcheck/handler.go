@@ -72,10 +72,7 @@ type HealthCheck struct {
 // New creates a HealthCheck with the specified initial state.
 func New() *HealthCheck {
 	hc := &HealthCheck{
-		state: int32(Unavailable),
-		upTimeStats: upTimeStats{
-			StartedAt: time.Now(),
-		},
+		state:  int32(Unavailable),
 		logger: zap.NewNop(),
 		mapping: map[Status]healthCheckResponse{
 			Unavailable: {
@@ -84,7 +81,7 @@ func New() *HealthCheck {
 			},
 			Ready: {
 				statusCode: http.StatusOK,
-				StatusMsg:  "up",
+				StatusMsg:  "Server available",
 			},
 		},
 		server: nil,
@@ -110,7 +107,6 @@ func (hc *HealthCheck) Handler() http.Handler {
 }
 
 func (hc *HealthCheck) createRespBody(resp healthCheckResponse) []byte {
-
 	timeStats := hc.upTimeStats
 	if resp.statusCode == http.StatusOK {
 		timeStats.UpTime = upTime(timeStats.StartedAt)
@@ -140,5 +136,8 @@ func (hc *HealthCheck) Get() Status {
 
 // Ready is a shortcut for Set(Ready) (kept for backwards compatibility)
 func (hc *HealthCheck) Ready() {
+	hc.upTimeStats = upTimeStats{
+		StartedAt: time.Now(),
+	}
 	hc.Set(Ready)
 }

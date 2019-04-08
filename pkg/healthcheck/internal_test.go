@@ -41,7 +41,7 @@ func TestHttpCall(t *testing.T) {
 
 	hr := getHealthCheckResponse(t, resp, )
 
-	assert.Equal(t, "up", hr.StatusMsg)
+	assert.Equal(t, "Server available", hr.StatusMsg)
 	assert.Equal(t, hc.upTimeStats.UpTime, hr.upTimeStats.UpTime)
 	assert.True(t, hc.upTimeStats.StartedAt.Equal(hr.upTimeStats.StartedAt))
 
