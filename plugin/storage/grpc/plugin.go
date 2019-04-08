@@ -16,11 +16,12 @@ package grpc
 
 import (
 	"context"
+	"time"
+
 	"github.com/jaegertracing/jaeger/model"
 	"github.com/jaegertracing/jaeger/pkg/grpc/config"
 	"github.com/jaegertracing/jaeger/plugin/storage/grpc/shared"
 	"github.com/jaegertracing/jaeger/storage/spanstore"
-	"time"
 )
 
 type Store struct {

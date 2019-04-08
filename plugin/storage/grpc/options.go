@@ -16,6 +16,7 @@ package grpc
 
 import (
 	"flag"
+
 	"github.com/spf13/viper"
 
 	"github.com/jaegertracing/jaeger/pkg/grpc/config"

@@ -17,15 +17,17 @@ package main
 import (
 	"context"
 	"flag"
+	"path"
+	"strings"
+	"time"
+
 	"github.com/hashicorp/go-plugin"
+	"github.com/spf13/viper"
+
 	"github.com/jaegertracing/jaeger/model"
 	"github.com/jaegertracing/jaeger/plugin/storage/grpc/shared"
 	"github.com/jaegertracing/jaeger/plugin/storage/memory"
 	"github.com/jaegertracing/jaeger/storage/spanstore"
-	"github.com/spf13/viper"
-	"path"
-	"strings"
-	"time"
 )
 
 var configPath string
@@ -60,7 +62,6 @@ func main() {
 }
 
 type noopStore struct {
-
 }
 
 func (*noopStore) GetDependencies(endTs time.Time, lookback time.Duration) ([]model.DependencyLink, error) {
@@ -80,7 +81,7 @@ func (*noopStore) GetOperations(ctx context.Context, service string) ([]string, 
 }
 
 func (*noopStore) FindTraces(ctx context.Context, query *spanstore.TraceQueryParameters) ([]*model.Trace, error) {
-	return nil,nil
+	return nil, nil
 }
 
 func (*noopStore) FindTraceIDs(ctx context.Context, query *spanstore.TraceQueryParameters) ([]model.TraceID, error) {

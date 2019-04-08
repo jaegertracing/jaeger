@@ -17,12 +17,11 @@ package shared
 import (
 	"context"
 
-	"github.com/jaegertracing/jaeger/storage/dependencystore"
-
 	"github.com/hashicorp/go-plugin"
 	"google.golang.org/grpc"
 
 	"github.com/jaegertracing/jaeger/proto-gen/storage_v1"
+	"github.com/jaegertracing/jaeger/storage/dependencystore"
 	"github.com/jaegertracing/jaeger/storage/spanstore"
 )
 
