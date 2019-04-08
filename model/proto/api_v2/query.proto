@@ -53,7 +53,7 @@ message GetTraceRequest {
   bytes trace_id = 1 [
     (gogoproto.nullable) = false,
     (gogoproto.customtype) = "github.com/jaegertracing/jaeger/model.TraceID",
-    (gogoproto.customname) = "TraceId"
+    (gogoproto.customname) = "TraceID"
   ];
 }
 
@@ -67,7 +67,7 @@ message ArchiveTraceRequest {
   bytes trace_id = 1 [
     (gogoproto.nullable) = false,
     (gogoproto.customtype) = "github.com/jaegertracing/jaeger/model.TraceID",
-    (gogoproto.customname) = "TraceId"
+    (gogoproto.customname) = "TraceID"
   ];
 }
 
@@ -133,7 +133,7 @@ message GetDependenciesResponse {
 }
 
 service QueryService {
-    rpc GetTrace(GetTraceRequest) returns (SpansResponseChunk) {
+    rpc GetTrace(GetTraceRequest) returns (stream SpansResponseChunk) {
         option (google.api.http) = {
             get: "/traces/{trace_id}"
         };

@@ -44,11 +44,9 @@ func NewGRPCHandler(queryService querysvc.QueryService, logger *zap.Logger, trac
 	return gH
 }
 
-// GetTrace is the GRPC handler to fetch traces based on TraceId.
-func (g *GRPCHandler) GetTrace(ctx context.Context, r *api_v2.GetTraceRequest) (*api_v2.SpansResponseChunk, error) {
-	ID := r.TraceId
-
-	trace, err := g.queryService.GetTrace(ctx, ID)
+// GetTrace is the GRPC handler to fetch traces based on trace-id.
+func (g *GRPCHandler) GetTrace(r *api_v2.GetTraceRequest, w api_v2.QueryService_GetTraceServer) error {
+	trace, err := g.queryService.GetTrace(ctx, r.TraceID)
 	if err == spanstore.ErrTraceNotFound {
 		g.logger.Error("trace not found", zap.Error(err))
 		return nil, err
@@ -68,9 +66,7 @@ func (g *GRPCHandler) GetTrace(ctx context.Context, r *api_v2.GetTraceRequest) (
 
 // ArchiveTrace is the GRPC handler to archive traces.
 func (g *GRPCHandler) ArchiveTrace(ctx context.Context, r *api_v2.ArchiveTraceRequest) (*api_v2.ArchiveTraceResponse, error) {
-	ID := r.TraceId
-
-	err := g.queryService.ArchiveTrace(ctx, ID)
+	err := g.queryService.ArchiveTrace(ctx, r.TraceID)
 	if err == spanstore.ErrTraceNotFound {
 		g.logger.Error("trace not found", zap.Error(err))
 		return nil, err
