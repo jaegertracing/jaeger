@@ -16,26 +16,31 @@ package config
 
 import (
 	"fmt"
-	"github.com/hashicorp/go-hclog"
-	"github.com/hashicorp/go-plugin"
-	"github.com/jaegertracing/jaeger/plugin/storage/grpc/shared"
 	"os/exec"
 	"runtime"
+
+	"github.com/hashicorp/go-hclog"
+	"github.com/hashicorp/go-plugin"
+
+	"github.com/jaegertracing/jaeger/plugin/storage/grpc/shared"
 )
 
 // Configuration describes the options to customize the storage behavior
 type Configuration struct {
-	PluginBinary string `yaml:"binary"`
+	PluginBinary            string `yaml:"binary"`
 	PluginConfigurationFile string `yaml:"configuration-file"`
 }
 
 func (c *Configuration) Build() (shared.StoragePlugin, error) {
+	// #nosec G204
+	cmd := exec.Command(c.PluginBinary, "--config", c.PluginConfigurationFile)
+
 	client := plugin.NewClient(&plugin.ClientConfig{
 		HandshakeConfig: shared.Handshake,
 		VersionedPlugins: map[int]plugin.PluginSet{
 			1: shared.PluginMap,
 		},
-		Cmd:              exec.Command(c.PluginBinary, "--config", c.PluginConfigurationFile),
+		Cmd:              cmd,
 		AllowedProtocols: []plugin.Protocol{plugin.ProtocolGRPC},
 		Logger: hclog.New(&hclog.LoggerOptions{
 			Level: hclog.Warn,
