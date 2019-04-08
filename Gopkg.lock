@@ -355,7 +355,7 @@
   revision = "23def4e6c14b4da8ac2ed8007337bc5eb5007998"
 
 [[projects]]
-  digest = "1:7c6e2e17c5da6470d00b863a6ded369755e02c4efbb1f62784fbba0708abc261"
+  digest = "1:e3bed20f553811662a2b5e6c0d40f1c837b2f1decace8afb1bb1778acb97fd04"
   name = "github.com/golang/protobuf"
   packages = [
     "descriptor",
@@ -372,7 +372,6 @@
     "ptypes/duration",
     "ptypes/struct",
     "ptypes/timestamp",
-    "ptypes/wrappers",
   ]
   pruneopts = "UT"
   revision = "b5d812f8a3706043e23a9cd5babf2e5423744d30"
@@ -395,12 +394,12 @@
   version = "v1.4.0"
 
 [[projects]]
-  digest = "1:ca59b1175189b3f0e9f1793d2c350114be36eaabbe5b9f554b35edee1de50aea"
+  digest = "1:d5f97fc268267ec1b61c3453058c738246fc3e746f14b1ae25161513b7367b0c"
   name = "github.com/gorilla/mux"
   packages = ["."]
   pruneopts = "UT"
-  revision = "a7962380ca08b5a188038c69871b8d3fbdf31e89"
-  version = "v1.7.0"
+  revision = "c5c6c98bc25355028a63748a498942a6398ccd22"
+  version = "v1.7.1"
 
 [[projects]]
   digest = "1:d84c274ffdfd7ce6b4efd64ee776648459009d1f542440b1faa32cb7ed9aba84"
@@ -428,7 +427,6 @@
     "protoc-gen-swagger",
     "protoc-gen-swagger/genswagger",
     "protoc-gen-swagger/options",
-    "runtime",
     "utilities",
   ]
   pruneopts = "T"
@@ -779,7 +777,7 @@
   version = "v2.0.0"
 
 [[projects]]
-  digest = "1:37bca5e5ac0765002e2f5fa2770fec98e4b5a2f345751b480c5b3aeefa090ccd"
+  digest = "1:992341833a2041170ef76a24fbabc2b44667056816add68ff6fdb6e835ab3d38"
   name = "github.com/uber/tchannel-go"
   packages = [
     ".",
@@ -797,8 +795,8 @@
     "typed",
   ]
   pruneopts = "UT"
-  revision = "162ecb0dc97845a0c42aae3899651dba111085e5"
-  version = "v1.12.0"
+  revision = "4e23485fd5de65e8676619a55e711eea7437041e"
+  version = "v1.13.0"
 
 [[projects]]
   digest = "1:3c1a69cdae3501bf75e76d0d86dc6f2b0a7421bc205c0cb7b96b19eed464a34d"
@@ -854,15 +852,15 @@
     "trace",
   ]
   pruneopts = "UT"
-  revision = "b630fd6fe46bcfc98f989005d8b8ec1400e60a6e"
+  revision = "eb5bcb51f2a31c7d5141d810b70815c05d9c9146"
 
 [[projects]]
   branch = "master"
-  digest = "1:e18c1645adfe83d66f80d3676040e478895669f9456ca8bafa6a7290656c1b48"
+  digest = "1:cf353a5a9ffb2d6f850e9c773e25388a425a70c270546480427ed069e87b136a"
   name = "golang.org/x/sys"
   packages = ["unix"]
   pruneopts = "UT"
-  revision = "81d4e9dc473e5e8c933f2aaeba2a3d81efb9aed2"
+  revision = "4b34438f7a67ee5f45cc6132e2bad873a20324e9"
 
 [[projects]]
   digest = "1:0c56024909189aee3364b7f21a95a27459f718aa7c199a5c111c36cfffd9eaef"
@@ -904,17 +902,15 @@
     "internal/semver",
   ]
   pruneopts = "UT"
-  revision = "923d25813098b2ffdf1b4bb7ee4ec425fef796a9"
+  revision = "0fdf0c73855bae8482c5d3907a9e06f33ff70a10"
 
 [[projects]]
   branch = "master"
-  digest = "1:51b95dc2db289865b71364c0da23ca6bcc0b199e0d827c9cfb053b32248b77ad"
+  digest = "1:08aea4eff69cb424f2ce0d69f88c2f0d351fc44e82cab057ddf3946f41f02108"
   name = "google.golang.org/genproto"
   packages = [
     "googleapis/api/annotations",
-    "googleapis/api/httpbody",
     "googleapis/rpc/status",
-    "protobuf/field_mask",
   ]
   pruneopts = "UT"
   revision = "64821d5d210748c883cd2b809589555ae4654203"
@@ -1023,8 +1019,6 @@
     "github.com/grpc-ecosystem/grpc-gateway/protoc-gen-grpc-gateway",
     "github.com/grpc-ecosystem/grpc-gateway/protoc-gen-swagger",
     "github.com/grpc-ecosystem/grpc-gateway/protoc-gen-swagger/options",
-    "github.com/grpc-ecosystem/grpc-gateway/runtime",
-    "github.com/grpc-ecosystem/grpc-gateway/utilities",
     "github.com/kr/pretty",
     "github.com/opentracing-contrib/go-stdlib/nethttp",
     "github.com/opentracing/opentracing-go",
@@ -1064,12 +1058,10 @@
     "golang.org/x/sys/unix",
     "google.golang.org/grpc",
     "google.golang.org/grpc/balancer/roundrobin",
-    "google.golang.org/grpc/codes",
     "google.golang.org/grpc/credentials",
     "google.golang.org/grpc/grpclog",
     "google.golang.org/grpc/resolver",
     "google.golang.org/grpc/resolver/manual",
-    "google.golang.org/grpc/status",
     "google.golang.org/grpc/test/bufconn",
     "gopkg.in/olivere/elastic.v5",
     "gopkg.in/yaml.v2",
