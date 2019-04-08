@@ -105,7 +105,7 @@ func (h *clientHandler) isInitialized() bool {
 func httpHealthCheck(logger *zap.Logger, service, healthURL string) {
 	for i := 0; i < 240; i++ {
 		res, err := http.Get(healthURL)
-		if err == nil && res.StatusCode == 204 {
+		if err == nil && res.StatusCode == 200 {
 			logger.Info("Health check successful", zap.String("service", service))
 			return
 		}
