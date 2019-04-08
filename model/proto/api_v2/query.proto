@@ -94,7 +94,7 @@ message TraceQueryParameters {
     (gogoproto.stdduration) = true,
     (gogoproto.nullable) = false
   ];
-  int32 num_traces = 8;
+  int32 search_depth = 8;
 }
 
 message FindTracesRequest {

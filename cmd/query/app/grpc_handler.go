@@ -26,6 +26,8 @@ import (
 	"github.com/jaegertracing/jaeger/storage/spanstore"
 )
 
+const maxSpanCountInChunk = 10
+
 // GRPCHandler implements the GRPC endpoint of the query service.
 type GRPCHandler struct {
 	queryService querysvc.QueryService
@@ -45,23 +47,17 @@ func NewGRPCHandler(queryService querysvc.QueryService, logger *zap.Logger, trac
 }
 
 // GetTrace is the GRPC handler to fetch traces based on trace-id.
-func (g *GRPCHandler) GetTrace(r *api_v2.GetTraceRequest, w api_v2.QueryService_GetTraceServer) error {
-	trace, err := g.queryService.GetTrace(ctx, r.TraceID)
+func (g *GRPCHandler) GetTrace(r *api_v2.GetTraceRequest, stream api_v2.QueryService_GetTraceServer) error {
+	trace, err := g.queryService.GetTrace(stream.Context(), r.TraceID)
 	if err == spanstore.ErrTraceNotFound {
 		g.logger.Error("trace not found", zap.Error(err))
-		return nil, err
+		return err
 	}
 	if err != nil {
 		g.logger.Error("Could not fetch spans from backend", zap.Error(err))
-		return nil, err
+		return err
 	}
-
-	spans := make([]model.Span, 0, len(trace.Spans))
-	for _, span := range trace.Spans {
-		spans = append(spans, *span)
-	}
-
-	return &api_v2.SpansResponseChunk{Spans: spans}, nil
+	return g.sendSpanChunks(trace.Spans, stream.Send)
 }
 
 // ArchiveTrace is the GRPC handler to archive traces.
@@ -80,7 +76,7 @@ func (g *GRPCHandler) ArchiveTrace(ctx context.Context, r *api_v2.ArchiveTraceRe
 }
 
 // FindTraces is the GRPC handler to fetch traces based on TraceQueryParameters.
-func (g *GRPCHandler) FindTraces(ctx context.Context, r *api_v2.FindTracesRequest) (*api_v2.SpansResponseChunk, error) {
+func (g *GRPCHandler) FindTraces(r *api_v2.FindTracesRequest, stream api_v2.QueryService_FindTracesServer) error {
 	query := r.GetQuery()
 	queryParams := spanstore.TraceQueryParameters{
 		ServiceName:   query.ServiceName,
@@ -90,21 +86,34 @@ func (g *GRPCHandler) FindTraces(ctx context.Context, r *api_v2.FindTracesReques
 		StartTimeMax:  query.StartTimeMax,
 		DurationMin:   query.DurationMin,
 		DurationMax:   query.DurationMax,
-		NumTraces:     int(query.NumTraces),
+		NumTraces:     int(query.SearchDepth),
 	}
-	traces, err := g.queryService.FindTraces(ctx, &queryParams)
+	traces, err := g.queryService.FindTraces(stream.Context(), &queryParams)
 	if err != nil {
 		g.logger.Error("Error fetching traces", zap.Error(err))
-		return nil, err
+		return err
 	}
-
-	spans := []model.Span{}
 	for _, trace := range traces {
-		for _, span := range trace.Spans {
-			spans = append(spans, *span)
+		if err := g.sendSpanChunks(trace.Spans, stream.Send); err != nil {
+			return err
 		}
 	}
-	return &api_v2.SpansResponseChunk{Spans: spans}, nil
+	return nil
+}
+
+func (g *GRPCHandler) sendSpanChunks(spans []*model.Span, sendFn func(*api_v2.SpansResponseChunk) error) error {
+	chunk := make([]model.Span, 0, len(spans))
+	for i := 0; i < len(spans); i += maxSpanCountInChunk {
+		chunk = chunk[:0]
+		for j := i; j < len(spans) && j < i+maxSpanCountInChunk; j++ {
+			chunk = append(chunk, *spans[j])
+		}
+		if err := sendFn(&api_v2.SpansResponseChunk{Spans: chunk}); err != nil {
+			g.logger.Error("failed to send response to client", zap.Error(err))
+			return err
+		}
+	}
+	return nil
 }
 
 // GetServices is the GRPC handler to fetch services.
