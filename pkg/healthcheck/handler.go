@@ -15,8 +15,10 @@
 package healthcheck
 
 import (
+	"encoding/json"
 	"net/http"
 	"sync/atomic"
+	"time"
 
 	"go.uber.org/zap"
 )
@@ -46,23 +48,46 @@ func (s Status) String() string {
 	}
 }
 
+type upTimeStats struct {
+	StartedAt time.Time `json:"startedAt"`
+	UpTime    string    `json:"upTime"`
+}
+
+type healthCheckResponse struct {
+	statusCode int
+	StatusMsg  string `json:"status"`
+	upTimeStats
+}
+
 // HealthCheck provides an HTTP endpoint that returns the health status of the service
 type HealthCheck struct {
-	state   int32 // atomic, keep at the top to be word-aligned
-	logger  *zap.Logger
-	mapping map[Status]int
-	server  *http.Server
+	state       int32 // atomic, keep at the top to be word-aligned
+	status      string
+	upTimeStats upTimeStats
+	logger      *zap.Logger
+	mapping     map[Status]healthCheckResponse
+	server      *http.Server
 }
 
 // New creates a HealthCheck with the specified initial state.
 func New() *HealthCheck {
 	hc := &HealthCheck{
 		state: int32(Unavailable),
-		mapping: map[Status]int{
-			Unavailable: http.StatusServiceUnavailable,
-			Ready:       http.StatusNoContent,
+		upTimeStats: upTimeStats{
+			StartedAt: time.Now(),
 		},
 		logger: zap.NewNop(),
+		mapping: map[Status]healthCheckResponse{
+			Unavailable: {
+				statusCode: http.StatusServiceUnavailable,
+				StatusMsg:  "Server not available",
+			},
+			Ready: {
+				statusCode: http.StatusOK,
+				StatusMsg:  "up",
+			},
+		},
+		server: nil,
 	}
 	return hc
 }
@@ -75,10 +100,31 @@ func (hc *HealthCheck) SetLogger(logger *zap.Logger) {
 // Handler creates a new HTTP handler.
 func (hc *HealthCheck) Handler() http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
-		w.WriteHeader(hc.mapping[hc.Get()])
-		// this is written only for response with an entity, so, it won't be used for a 204 - No content
-		w.Write([]byte("Server not available"))
+
+		resp := hc.mapping[hc.Get()]
+		w.WriteHeader(resp.statusCode)
+
+		w.Header().Set("Content-Type", "application/json")
+		w.Write(hc.createRespBody(resp))
 	})
+}
+
+func (hc *HealthCheck) createRespBody(resp healthCheckResponse) []byte {
+
+	timeStats := hc.upTimeStats
+	if resp.statusCode == http.StatusOK {
+		timeStats.UpTime = upTime(timeStats.StartedAt)
+	}
+
+	hc.upTimeStats = timeStats
+	resp.upTimeStats = timeStats
+
+	healthCheckStatus, _ := json.Marshal(resp)
+	return healthCheckStatus
+}
+
+func upTime(startTime time.Time) string {
+	return time.Since(startTime).String()
 }
 
 // Set a new health check status

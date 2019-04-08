@@ -18,6 +18,9 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"testing"
+	"encoding/json"
+	"io/ioutil"
+	"time"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -34,5 +37,30 @@ func TestHttpCall(t *testing.T) {
 
 	resp, err := http.Get(server.URL + "/")
 	require.NoError(t, err)
-	assert.Equal(t, http.StatusNoContent, resp.StatusCode)
+	assert.Equal(t, http.StatusOK, resp.StatusCode)
+
+	hr := getHealthCheckResponse(t, resp, )
+
+	assert.Equal(t, "up", hr.StatusMsg)
+	assert.Equal(t, hc.upTimeStats.UpTime, hr.upTimeStats.UpTime)
+	assert.True(t, hc.upTimeStats.StartedAt.Equal(hr.upTimeStats.StartedAt))
+
+	time.Sleep(300)
+	hc.Set(Unavailable)
+
+	resp, err = http.Get(server.URL + "/")
+	require.NoError(t, err)
+	assert.Equal(t, http.StatusServiceUnavailable, resp.StatusCode)
+
+	hrNew := getHealthCheckResponse(t, resp)
+	assert.Equal(t, hc.upTimeStats.UpTime, hrNew.upTimeStats.UpTime)
+
+}
+func getHealthCheckResponse(t *testing.T, resp *http.Response) healthCheckResponse {
+	body, err := ioutil.ReadAll(resp.Body)
+	require.NoError(t, err)
+	var hr healthCheckResponse
+	err = json.Unmarshal(body, &hr)
+	require.NoError(t, err)
+	return hr
 }
