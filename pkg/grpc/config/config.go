@@ -31,6 +31,7 @@ type Configuration struct {
 	PluginConfigurationFile string `yaml:"configuration-file"`
 }
 
+// Build instantiates a StoragePlugin
 func (c *Configuration) Build() (shared.StoragePlugin, error) {
 	// #nosec G204
 	cmd := exec.Command(c.PluginBinary, "--config", c.PluginConfigurationFile)
@@ -69,6 +70,7 @@ func (c *Configuration) Build() (shared.StoragePlugin, error) {
 	return storagePlugin, nil
 }
 
+// PluginBuilder is used to create storage plugins
 type PluginBuilder interface {
 	Build() (shared.StoragePlugin, error)
 }

@@ -27,6 +27,7 @@ import (
 	"github.com/jaegertracing/jaeger/storage/spanstore"
 )
 
+// Factory implements storage.Factory and creates storage components backed by a storage plugin.
 type Factory struct {
 	options        Options
 	metricsFactory metrics.Factory

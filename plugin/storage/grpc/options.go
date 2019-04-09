@@ -25,15 +25,19 @@ import (
 const pluginBinary = "grpc-storage-plugin.binary"
 const pluginConfigurationFile = "grpc-storage-plugin.configuration-file"
 
+// Options contains GRPC plugins configs and provides the ability
+// to bind them to command line flags
 type Options struct {
 	Configuration config.Configuration
 }
 
+// AddFlags adds flags for Options
 func (opt *Options) AddFlags(flagSet *flag.FlagSet) {
 	flagSet.String(pluginBinary, "", "The location of the plugin binary")
 	flagSet.String(pluginConfigurationFile, "", "A path pointing to the plugin's configuration file, made available to the plugin with the --config arg")
 }
 
+// InitFromViper initializes Options with properties from viper
 func (opt *Options) InitFromViper(v *viper.Viper) {
 	opt.Configuration.PluginBinary = v.GetString(pluginBinary)
 	opt.Configuration.PluginConfigurationFile = v.GetString(pluginConfigurationFile)
