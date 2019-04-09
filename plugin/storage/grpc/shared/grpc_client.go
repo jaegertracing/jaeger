@@ -20,12 +20,12 @@ import (
 	"io"
 	"time"
 
+	"github.com/pkg/errors"
+
 	"github.com/jaegertracing/jaeger/model"
 	"github.com/jaegertracing/jaeger/proto-gen/storage_v1"
 	"github.com/jaegertracing/jaeger/storage/spanstore"
 )
-
-const spanBatchSize = 1000
 
 // GRPCClient implements shared.StoragePlugin and reads/writes spans and dependencies
 type GRPCClient struct {
@@ -40,7 +40,7 @@ func (c *GRPCClient) GetTrace(ctx context.Context, traceID model.TraceID) (*mode
 		TraceID: traceID,
 	})
 	if err != nil {
-		return nil, fmt.Errorf("plugin error: %s", err)
+		return nil, errors.Wrap(err, "plugin error")
 	}
 
 	trace := model.Trace{}
@@ -66,7 +66,7 @@ func (c *GRPCClient) GetTrace(ctx context.Context, traceID model.TraceID) (*mode
 func (c *GRPCClient) GetServices(ctx context.Context) ([]string, error) {
 	resp, err := c.readerClient.GetServices(ctx, &storage_v1.GetServicesRequest{})
 	if err != nil {
-		return nil, fmt.Errorf("plugin error: %s", err)
+		return nil, errors.Wrap(err, "plugin error")
 	}
 
 	return resp.Services, nil
@@ -78,7 +78,7 @@ func (c *GRPCClient) GetOperations(ctx context.Context, service string) ([]strin
 		Service: service,
 	})
 	if err != nil {
-		return nil, fmt.Errorf("grpc error: %s", err)
+		return nil, errors.Wrap(err, "plugin error")
 	}
 
 	return resp.Operations, nil
@@ -99,7 +99,7 @@ func (c *GRPCClient) FindTraces(ctx context.Context, query *spanstore.TraceQuery
 		},
 	})
 	if err != nil {
-		return nil, fmt.Errorf("plugin error: %s", err)
+		return nil, errors.Wrap(err, "plugin error")
 	}
 
 	var traces []*model.Trace
@@ -112,7 +112,7 @@ func (c *GRPCClient) FindTraces(ctx context.Context, query *spanstore.TraceQuery
 		}
 
 		if err != nil {
-			return nil, fmt.Errorf("stream error: %s", err)
+			return nil, errors.Wrap(err, "stream error")
 		}
 
 		for i, span := range received.Spans {
@@ -147,7 +147,7 @@ func (c *GRPCClient) FindTraceIDs(ctx context.Context, query *spanstore.TraceQue
 		},
 	})
 	if err != nil {
-		return nil, fmt.Errorf("plugin error: %s", err)
+		return nil, errors.Wrap(err, "plugin error")
 	}
 
 	return resp.TraceIDs, nil
@@ -159,7 +159,7 @@ func (c *GRPCClient) WriteSpan(span *model.Span) error {
 		Span: span,
 	})
 	if err != nil {
-		return fmt.Errorf("plugin error: %s", err)
+		return errors.Wrap(err, "plugin error")
 	}
 
 	return nil
@@ -172,7 +172,7 @@ func (c *GRPCClient) GetDependencies(endTs time.Time, lookback time.Duration) ([
 		StartTime: endTs.Add(-lookback),
 	})
 	if err != nil {
-		return nil, fmt.Errorf("grpc error: %s", err)
+		return nil, errors.Wrap(err, "plugin error")
 	}
 
 	return resp.Dependencies, nil
