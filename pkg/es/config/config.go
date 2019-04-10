@@ -114,7 +114,7 @@ func (c *Configuration) NewClient(logger *zap.Logger, metricsFactory metrics.Fac
 			m.Delete(id)
 
 			// log individual errors, note that err might be false and these errors still present
-			if response.Errors {
+			if response != nil && response.Errors {
 				for _, it := range response.Items {
 					for key, val := range it {
 						if val.Error != nil {
@@ -127,13 +127,21 @@ func (c *Configuration) NewClient(logger *zap.Logger, metricsFactory metrics.Fac
 
 			sm.Emit(err, time.Since(start.(time.Time)))
 			if err != nil {
-				failed := len(response.Failed())
+				var failed int
+				var respval interface{}
+				if response == nil {
+					failed = 0
+					respval = "nil"
+				} else {
+					failed = len(response.Failed())
+					respval = response
+				}
 				total := len(requests)
 				logger.Error("Elasticsearch could not process bulk request",
 					zap.Int("request_count", total),
 					zap.Int("failed_count", failed),
 					zap.Error(err),
-					zap.Any("response", response))
+					zap.Any("response", respval))
 			}
 		}).
 		BulkSize(c.BulkSize).
