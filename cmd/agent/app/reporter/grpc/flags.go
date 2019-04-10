@@ -22,14 +22,13 @@ import (
 )
 
 const (
-	gRPCPrefix              = "reporter.grpc."
-	collectorHostPort       = gRPCPrefix + "host-port"
-	retry                   = gRPCPrefix + "retry.max"
-	defaultMaxRetry         = 3
-	collectorTLS            = gRPCPrefix + "tls"
-	collectorTLSCA          = gRPCPrefix + "tls.ca"
-	collectorTLSServerName  = gRPCPrefix + "tls.server-name"
-	collectorResolverTarget = gRPCPrefix + "resolver.target"
+	gRPCPrefix             = "reporter.grpc."
+	collectorHostPort      = gRPCPrefix + "host-port"
+	retry                  = gRPCPrefix + "retry.max"
+	defaultMaxRetry        = 3
+	collectorTLS           = gRPCPrefix + "tls"
+	collectorTLSCA         = gRPCPrefix + "tls.ca"
+	collectorTLSServerName = gRPCPrefix + "tls.server-name"
 )
 
 // AddFlags adds flags for Options.
@@ -39,7 +38,6 @@ func AddFlags(flags *flag.FlagSet) {
 	flags.Bool(collectorTLS, false, "Enable TLS.")
 	flags.String(collectorTLSCA, "", "Path to a TLS CA file. (default use the systems truststore)")
 	flags.String(collectorTLSServerName, "", "Override the TLS server name.")
-	flags.String(collectorResolverTarget, "", "Path to collector resolver")
 }
 
 // InitFromViper initializes Options with properties retrieved from Viper.
@@ -52,6 +50,5 @@ func (b *ConnBuilder) InitFromViper(v *viper.Viper) *ConnBuilder {
 	b.TLS = v.GetBool(collectorTLS)
 	b.TLSCA = v.GetString(collectorTLSCA)
 	b.TLSServerName = v.GetString(collectorTLSServerName)
-	b.ResolverTarget = v.GetString(collectorResolverTarget)
 	return b
 }

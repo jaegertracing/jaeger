@@ -50,20 +50,20 @@ collectorHostPorts:
     - 127.0.0.1:14269
 `
 
-type fakeResolver struct {
+type noopResolver struct {
 }
 
-func (fakeResolver) Resolve(target string) (naming.Watcher, error) {
-	return fakeWatcher{}, nil
+func (noopResolver) Resolve(target string) (naming.Watcher, error) {
+	return noopWatcher{}, nil
 }
 
-type fakeWatcher struct{}
+type noopWatcher struct{}
 
-func (fakeWatcher) Next() ([]*naming.Update, error) {
+func (noopWatcher) Next() ([]*naming.Update, error) {
 	return nil, nil
 }
 
-func (fakeWatcher) Close() {}
+func (noopWatcher) Close() {}
 
 func TestBuilderFromConfig(t *testing.T) {
 	cfg := ConnBuilder{}
@@ -86,7 +86,6 @@ func TestBuilderWithCollectors(t *testing.T) {
 		name            string
 		hostPorts       []string
 		checkSuffixOnly bool
-		resolverTarget  string
 		resolver        naming.Resolver
 		err             error
 	}{
@@ -95,7 +94,6 @@ func TestBuilderWithCollectors(t *testing.T) {
 			name:            "with roundrobin schema",
 			hostPorts:       []string{"127.0.0.1:9876", "127.0.0.1:9877", "127.0.0.1:9878"},
 			checkSuffixOnly: true,
-			resolverTarget:  "",
 			resolver:        nil,
 		},
 		{
@@ -103,23 +101,20 @@ func TestBuilderWithCollectors(t *testing.T) {
 			name:            "with single host",
 			hostPorts:       []string{"127.0.0.1:9876"},
 			checkSuffixOnly: false,
-			resolverTarget:  "",
 			resolver:        nil,
 		},
 		{
 			target:          "dns://random_stuff",
 			name:            "with custom resolver",
-			hostPorts:       []string{},
+			hostPorts:       []string{"dns://random_stuff"},
 			checkSuffixOnly: false,
-			resolverTarget:  "dns://random_stuff",
-			resolver:        fakeResolver{},
+			resolver:        noopResolver{},
 		},
 		{
 			target:          "",
 			name:            "without collectorPorts and resolver",
 			hostPorts:       nil,
 			checkSuffixOnly: false,
-			resolverTarget:  "",
 			resolver:        nil,
 			err:             errors.New("at least one collector hostPort address is required when resolver is not available"),
 		},
@@ -130,11 +125,9 @@ func TestBuilderWithCollectors(t *testing.T) {
 			// Use NewBuilder for code coverage consideration
 			cfg := NewConnBuilder()
 			cfg.CollectorHostPorts = test.hostPorts
-			cfg.ResolverTarget = test.resolverTarget
 			cfg.Resolver = test.resolver
 
 			conn, err := cfg.CreateConnection(zap.NewNop())
-
 			if err != nil {
 				assert.Equal(t, test.err, err)
 			} else {

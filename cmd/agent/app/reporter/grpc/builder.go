@@ -36,9 +36,6 @@ type ConnBuilder struct {
 	// Resolver is custom resolver provided to grpc client balancer
 	Resolver naming.Resolver
 
-	// ResolverTarget is the external discovery service path for collectors
-	ResolverTarget string `yaml:"resolverTarget"`
-
 	MaxRetry      uint
 	TLS           bool
 	TLSCA         string
@@ -76,10 +73,10 @@ func (b *ConnBuilder) CreateConnection(logger *zap.Logger) (*grpc.ClientConn, er
 		dialOptions = append(dialOptions, grpc.WithInsecure())
 	}
 
-	if b.Resolver != nil && b.ResolverTarget != "" {
+	if b.Resolver != nil && len(b.CollectorHostPorts) == 1 {
 		// Use custom Resolver and ResolverTarget if specified
-		logger.Info("Agent is using external resolver with roundrobin load balancer", zap.String("resolverTarget", b.ResolverTarget))
-		dialTarget = b.ResolverTarget
+		logger.Info("Agent is using external resolver with roundrobin load balancer", zap.String("resolverTarget", b.CollectorHostPorts[0]))
+		dialTarget = b.CollectorHostPorts[0]
 		dialOptions = append(dialOptions, grpc.WithBalancer(grpc.RoundRobin(b.Resolver)))
 	} else {
 		if b.CollectorHostPorts == nil {
