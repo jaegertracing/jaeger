@@ -21,22 +21,22 @@ import (
 	"time"
 
 	"github.com/spf13/viper"
+	"github.com/stretchr/testify/assert"
 	"github.com/uber/jaeger-lib/metrics"
 	"go.uber.org/zap"
-	"github.com/stretchr/testify/assert"
 
 	"github.com/jaegertracing/jaeger/model"
-	"github.com/jaegertracing/jaeger/plugin/storage/grpc/shared"
-	"github.com/jaegertracing/jaeger/storage/spanstore"
 	"github.com/jaegertracing/jaeger/pkg/config"
+	"github.com/jaegertracing/jaeger/plugin/storage/grpc/shared"
 	"github.com/jaegertracing/jaeger/storage"
+	"github.com/jaegertracing/jaeger/storage/spanstore"
 )
 
 var _ storage.Factory = new(Factory)
 
 type mockPluginBuilder struct {
 	plugin *mockPlugin
-	err error
+	err    error
 }
 
 func (b *mockPluginBuilder) Build() (shared.StoragePlugin, error) {
@@ -47,7 +47,6 @@ func (b *mockPluginBuilder) Build() (shared.StoragePlugin, error) {
 }
 
 type mockPlugin struct {
-
 }
 
 func (*mockPlugin) GetDependencies(endTs time.Time, lookback time.Duration) ([]model.DependencyLink, error) {
