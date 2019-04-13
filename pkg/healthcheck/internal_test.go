@@ -15,11 +15,11 @@
 package healthcheck
 
 import (
+	"encoding/json"
+	"io/ioutil"
 	"net/http"
 	"net/http/httptest"
 	"testing"
-	"encoding/json"
-	"io/ioutil"
 	"time"
 
 	"github.com/stretchr/testify/assert"
@@ -39,24 +39,29 @@ func TestHttpCall(t *testing.T) {
 	require.NoError(t, err)
 	assert.Equal(t, http.StatusOK, resp.StatusCode)
 
-	hr := getHealthCheckResponse(t, resp, )
-
+	hr := parseHealthCheckResponse(t, resp)
 	assert.Equal(t, "Server available", hr.StatusMsg)
-	assert.Equal(t, hc.upTimeStats.UpTime, hr.upTimeStats.UpTime)
-	assert.True(t, hc.upTimeStats.StartedAt.Equal(hr.upTimeStats.StartedAt))
+	// de-serialized timestamp loses monotonic clock value, so assert.Equals() doesn't work.
+	// https://github.com/stretchr/testify/issues/502
+	if want, have := hc.getState().upSince, hr.UpSince; !assert.True(t, want.Equal(have)) {
+		t.Logf("want='%v', have='%v'", want, have)
+	}
+	assert.NotZero(t, hr.Uptime)
+	t.Logf("uptime=%v", hr.Uptime)
 
-	time.Sleep(300)
+	time.Sleep(time.Millisecond)
 	hc.Set(Unavailable)
 
 	resp, err = http.Get(server.URL + "/")
 	require.NoError(t, err)
 	assert.Equal(t, http.StatusServiceUnavailable, resp.StatusCode)
 
-	hrNew := getHealthCheckResponse(t, resp)
-	assert.Equal(t, hc.upTimeStats.UpTime, hrNew.upTimeStats.UpTime)
-
+	hrNew := parseHealthCheckResponse(t, resp)
+	assert.Zero(t, hrNew.Uptime)
+	assert.Zero(t, hrNew.UpSince)
 }
-func getHealthCheckResponse(t *testing.T, resp *http.Response) healthCheckResponse {
+
+func parseHealthCheckResponse(t *testing.T, resp *http.Response) healthCheckResponse {
 	body, err := ioutil.ReadAll(resp.Body)
 	require.NoError(t, err)
 	var hr healthCheckResponse
