@@ -298,6 +298,7 @@ func (tlsConfig *TLSConfig) createTLSConfig() (*tls.Config, error) {
 	if err != nil {
 		return nil, err
 	}
+	// #nosec
 	return &tls.Config{
 		RootCAs:            rootCerts,
 		Certificates:       []tls.Certificate{*clientPrivateKey},
