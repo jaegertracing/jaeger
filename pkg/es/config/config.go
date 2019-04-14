@@ -62,10 +62,11 @@ type Configuration struct {
 
 // TLSConfig describes the configuration properties to connect tls enabled ElasticSearch cluster
 type TLSConfig struct {
-	Enabled  bool
-	CertPath string
-	KeyPath  string
-	CaPath   string
+	Enabled        bool
+	SkipHostVerify bool
+	CertPath       string
+	KeyPath        string
+	CaPath         string
 }
 
 // ClientBuilder creates new es.Client
@@ -298,8 +299,9 @@ func (tlsConfig *TLSConfig) createTLSConfig() (*tls.Config, error) {
 		return nil, err
 	}
 	return &tls.Config{
-		RootCAs:      rootCerts,
-		Certificates: []tls.Certificate{*clientPrivateKey},
+		RootCAs:            rootCerts,
+		Certificates:       []tls.Certificate{*clientPrivateKey},
+		InsecureSkipVerify: tlsConfig.SkipHostVerify,
 	}, nil
 
 }

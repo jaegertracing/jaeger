@@ -56,6 +56,8 @@ func TestOptionsWithFlags(t *testing.T) {
 		"--es.aux.server-urls=3.3.3.3, 4.4.4.4",
 		"--es.aux.max-span-age=24h",
 		"--es.aux.num-replicas=10",
+		"--es.tls=true",
+		"--es.tls.skip-host-verify=true",
 	})
 	opts.InitFromViper(v)
 
@@ -65,6 +67,8 @@ func TestOptionsWithFlags(t *testing.T) {
 	assert.Equal(t, []string{"1.1.1.1", "2.2.2.2"}, primary.Servers)
 	assert.Equal(t, 48*time.Hour, primary.MaxSpanAge)
 	assert.True(t, primary.Sniffer)
+	assert.Equal(t, true, primary.TLS.Enabled)
+	assert.Equal(t, true, primary.TLS.SkipHostVerify)
 
 	aux := opts.Get("es.aux")
 	assert.Equal(t, []string{"3.3.3.3", "4.4.4.4"}, aux.Servers)

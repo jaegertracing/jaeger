@@ -43,6 +43,7 @@ const (
 	suffixCert              = ".tls.cert"
 	suffixKey               = ".tls.key"
 	suffixCA                = ".tls.ca"
+	suffixSkipHostVerify    = ".tls.skip-host-verify"
 	suffixIndexPrefix       = ".index-prefix"
 	suffixTagsAsFields      = ".tags-as-fields"
 	suffixTagsAsFieldsAll   = suffixTagsAsFields + ".all"
@@ -174,6 +175,10 @@ func addFlags(flagSet *flag.FlagSet, nsConfig *namespaceConfig) {
 		nsConfig.namespace+suffixTLS,
 		nsConfig.TLS.Enabled,
 		"Enable TLS with client certificates.")
+	flagSet.Bool(
+		nsConfig.namespace+suffixSkipHostVerify,
+		nsConfig.TLS.SkipHostVerify,
+		"Skip server's certificate chain and host name verification")
 	flagSet.String(
 		nsConfig.namespace+suffixCert,
 		nsConfig.TLS.CertPath,
@@ -240,6 +245,7 @@ func initFromViper(cfg *namespaceConfig, v *viper.Viper) {
 	cfg.BulkFlushInterval = v.GetDuration(cfg.namespace + suffixBulkFlushInterval)
 	cfg.Timeout = v.GetDuration(cfg.namespace + suffixTimeout)
 	cfg.TLS.Enabled = v.GetBool(cfg.namespace + suffixTLS)
+	cfg.TLS.SkipHostVerify = v.GetBool(cfg.namespace + suffixSkipHostVerify)
 	cfg.TLS.CertPath = v.GetString(cfg.namespace + suffixCert)
 	cfg.TLS.KeyPath = v.GetString(cfg.namespace + suffixKey)
 	cfg.TLS.CaPath = v.GetString(cfg.namespace + suffixCA)
