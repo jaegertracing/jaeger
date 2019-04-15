@@ -178,7 +178,7 @@ func addFlags(flagSet *flag.FlagSet, nsConfig *namespaceConfig) {
 	flagSet.Bool(
 		nsConfig.namespace+suffixSkipHostVerify,
 		nsConfig.TLS.SkipHostVerify,
-		"Skip server's certificate chain and host name verification")
+		"(insecure) Skip server's certificate chain and host name verification")
 	flagSet.String(
 		nsConfig.namespace+suffixCert,
 		nsConfig.TLS.CertPath,
