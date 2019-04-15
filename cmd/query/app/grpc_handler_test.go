@@ -305,7 +305,12 @@ func TestSearchSuccessGRPC(t *testing.T) {
 
 	spanResChunk, _ := res.Recv()
 	assert.NoError(t, err)
-	assert.Equal(t, mockTraceGRPC.Spans, spanResChunk.Spans)
+
+	spansArr := make([]model.Span, 0, len(mockTraceGRPC.Spans))
+	for _, span := range mockTraceGRPC.Spans {
+		spansArr = append(spansArr, *span)
+	}
+	assert.Equal(t, spansArr, spanResChunk.Spans)
 }
 
 func TestSearchSuccess_SpanStreamingGRPC(t *testing.T) {
@@ -356,11 +361,15 @@ func TestSearchFailure_GRPC(t *testing.T) {
 		StartTimeMin:  time.Now().Add(time.Duration(-10) * time.Minute),
 		StartTimeMax:  time.Now(),
 	}
-	_, err := client.FindTraces(context.Background(), &api_v2.FindTracesRequest{
+
+	res, err := client.FindTraces(context.Background(), &api_v2.FindTracesRequest{
 		Query: queryParams,
 	})
+	assert.NoError(t, err)
 
-	assert.Equal(t, err, mockErrorGRPC)
+	spanResChunk, err := res.Recv()
+	assert.Error(t, err)
+	assert.Nil(t, spanResChunk)
 }
 
 func TestGetServicesSuccessGRPC(t *testing.T) {
@@ -387,7 +396,7 @@ func TestGetServicesFailureGRPC(t *testing.T) {
 	defer conn.Close()
 
 	_, err := client.GetServices(context.Background(), &api_v2.GetServicesRequest{})
-	assert.Equal(t, err, errStorageGRPC)
+	assert.Error(t, err)
 }
 
 func TestGetOperationsSuccessGRPC(t *testing.T) {
@@ -432,8 +441,8 @@ func TestGetDependenciesSuccessGRPC(t *testing.T) {
 	defer conn.Close()
 
 	res, err := client.GetDependencies(context.Background(), &api_v2.GetDependenciesRequest{
-		StartTime: time.Now().Add(time.Duration(-10) * time.Minute),
-		EndTime:   time.Now(),
+		StartTime: endTs.Add(time.Duration(-1) * defaultDependencyLookbackDuration),
+		EndTime:   endTs,
 	})
 	assert.NoError(t, err)
 	assert.Equal(t, expectedDependencies, res.Dependencies)
@@ -449,8 +458,8 @@ func TestGetDependenciesFailureGRPC(t *testing.T) {
 	defer conn.Close()
 
 	_, err := client.GetDependencies(context.Background(), &api_v2.GetDependenciesRequest{
-		StartTime: time.Now().Add(time.Duration(-10) * time.Minute),
-		EndTime:   time.Now(),
+		StartTime: endTs.Add(time.Duration(-1) * defaultDependencyLookbackDuration),
+		EndTime:   endTs,
 	})
 	assert.Equal(t, err, errStorageGRPC)
 }
