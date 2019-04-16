@@ -434,7 +434,7 @@ func TestGetDependenciesSuccessGRPC(t *testing.T) {
 	defer server.Stop()
 	expectedDependencies := []model.DependencyLink{{Parent: "killer", Child: "queen", CallCount: 12}}
 	endTs := time.Now().UTC()
-	depsmocks.On("GetDependencies", endTs, defaultDependencyLookbackDuration).
+	depsmocks.On("GetDependencies", endTs.Add(time.Duration(-1) * defaultDependencyLookbackDuration), defaultDependencyLookbackDuration).
 		Return(expectedDependencies, nil).Times(1)
 
 	client, conn := newGRPCClient(t, addr)
@@ -452,7 +452,8 @@ func TestGetDependenciesFailureGRPC(t *testing.T) {
 	server, addr, _, depsmocks := initializeTestServerGRPC(t)
 	defer server.Stop()
 	endTs := time.Now().UTC()
-	depsmocks.On("GetDependencies", endTs, defaultDependencyLookbackDuration).Return(nil, errStorageGRPC).Times(1)
+	depsmocks.On("GetDependencies", endTs.Add(time.Duration(-1) * defaultDependencyLookbackDuration), defaultDependencyLookbackDuration).
+		Return(nil, errStorageGRPC).Times(1)
 
 	client, conn := newGRPCClient(t, addr)
 	defer conn.Close()
@@ -461,5 +462,5 @@ func TestGetDependenciesFailureGRPC(t *testing.T) {
 		StartTime: endTs.Add(time.Duration(-1) * defaultDependencyLookbackDuration),
 		EndTime:   endTs,
 	})
-	assert.Equal(t, err, errStorageGRPC)
+	assert.Error(t, err)
 }
