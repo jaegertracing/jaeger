@@ -434,7 +434,7 @@ func TestGetDependenciesSuccessGRPC(t *testing.T) {
 	defer server.Stop()
 	expectedDependencies := []model.DependencyLink{{Parent: "killer", Child: "queen", CallCount: 12}}
 	endTs := time.Now().UTC()
-	depsmocks.On("GetDependencies", endTs.Add(time.Duration(-1) * defaultDependencyLookbackDuration), defaultDependencyLookbackDuration).
+	depsmocks.On("GetDependencies", endTs.Add(time.Duration(-1)*defaultDependencyLookbackDuration), defaultDependencyLookbackDuration).
 		Return(expectedDependencies, nil).Times(1)
 
 	client, conn := newGRPCClient(t, addr)
@@ -452,7 +452,7 @@ func TestGetDependenciesFailureGRPC(t *testing.T) {
 	server, addr, _, depsmocks := initializeTestServerGRPC(t)
 	defer server.Stop()
 	endTs := time.Now().UTC()
-	depsmocks.On("GetDependencies", endTs.Add(time.Duration(-1) * defaultDependencyLookbackDuration), defaultDependencyLookbackDuration).
+	depsmocks.On("GetDependencies", endTs.Add(time.Duration(-1)*defaultDependencyLookbackDuration), defaultDependencyLookbackDuration).
 		Return(nil, errStorageGRPC).Times(1)
 
 	client, conn := newGRPCClient(t, addr)
@@ -463,4 +463,19 @@ func TestGetDependenciesFailureGRPC(t *testing.T) {
 		EndTime:   endTs,
 	})
 	assert.Error(t, err)
+}
+
+func TestSendSpanChunksError(t *testing.T) {
+	g := &GRPCHandler{
+		logger: zap.NewNop(),
+	}
+	expectedErr := assert.AnError
+	err := g.sendSpanChunks([]*model.Span{
+		{
+			OperationName: "blah",
+		},
+	}, func(*api_v2.SpansResponseChunk) error {
+		return expectedErr
+	})
+	assert.EqualError(t, err, expectedErr.Error())
 }
