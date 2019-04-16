@@ -142,3 +142,8 @@ required = [
 [[constraint]]
   name = "github.com/grpc-ecosystem/go-grpc-middleware"
   version = "1.0.0"
+
+[[constaint]]
+  name = "github.com/rs/cors"
+  version = "1.3.0"
+
