@@ -213,7 +213,7 @@ var _escData = map[string]*_escFile{
 		name:    "index.html",
 		local:   "examples/hotrod/services/frontend/web_assets/index.html",
 		size:    3384,
-		modtime: 1491239234,
+		modtime: 1551364059,
 		compressed: `
 H4sIAAAAAAAC/9RX/1PbOBb/PX/FG23v7FywnRAoNMS54UiX0r0uvUC709vpD7L0YivYkivJgSzD/34j
 2wkJlJv9cZsZQHrfP++LXhhntsgnHYBxgZYCy6g2aGNycXUZHB8fvgkG5JEraYExWQq8LZW2BJiSFqWN
