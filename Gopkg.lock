@@ -129,11 +129,11 @@
 
 [[projects]]
   branch = "master"
-  digest = "1:4f8b6d3cfd2ac1813bddcfee3b954fc5c0315e3917d8b3879d2e1cd09f9a3692"
+  digest = "1:c734f42e5a75563e4482fb00c1e870fccf4d635cf192581d31a45f9068276b7c"
   name = "github.com/dgryski/go-farm"
   packages = ["."]
   pruneopts = "UT"
-  revision = "8198c7b169ec28630587aded52777c5e10a037c2"
+  revision = "e1214b5e05dc9a680734f587f0e1686b3889f983"
 
 [[projects]]
   digest = "1:1f0c7ab489b407a7f8f9ad16c25a504d28ab461517a971d341388a56156c1bd7"
@@ -633,11 +633,11 @@
 
 [[projects]]
   branch = "master"
-  digest = "1:5e412e2a03bd0cfdb102db97212be2e625df74fa8b2d4a8a51f107b1456e256b"
+  digest = "1:49b09905e781d7775c086604cc00083e1832d0783f1f421b79f42657c457d029"
   name = "github.com/prometheus/procfs"
   packages = ["."]
   pruneopts = "UT"
-  revision = "e22ddced71425e65e388b17b7d0289c5ea77d06e"
+  revision = "8368d24ba045f26503eb745b624d930cbe214c79"
 
 [[projects]]
   branch = "master"
@@ -864,7 +864,7 @@
   name = "golang.org/x/sys"
   packages = ["unix"]
   pruneopts = "UT"
-  revision = "3fd5a3612ccd7907f26270fa92579a0f2f76f734"
+  revision = "ebb4019f01c946537c3ea6b99f0eca5283552a8f"
 
 [[projects]]
   digest = "1:0c56024909189aee3364b7f21a95a27459f718aa7c199a5c111c36cfffd9eaef"
@@ -922,7 +922,7 @@
   revision = "d1146b9035b912113a38af3b138eb2af567b2c67"
 
 [[projects]]
-  digest = "1:3338f026da07f8c2900786acf89bd101c02e27f4a63cfca84626bfcbd464ac74"
+  digest = "1:0a1fea691bda5979304d27194e77e67737a321cab3f584107f1bddc5dc650e43"
   name = "google.golang.org/grpc"
   packages = [
     ".",
@@ -939,7 +939,6 @@
     "grpclog",
     "internal",
     "internal/backoff",
-    "internal/balancerload",
     "internal/binarylog",
     "internal/channelz",
     "internal/envconfig",
@@ -961,8 +960,8 @@
     "test/bufconn",
   ]
   pruneopts = "UT"
-  revision = "236199dd5f8031d698fb64091194aecd1c3895b2"
-  version = "v1.20.0"
+  revision = "3507fb8e1a5ad030303c106fef3a47c9fdad16ad"
+  version = "v1.19.1"
 
 [[projects]]
   digest = "1:2d1fbdc6777e5408cabeb02bf336305e724b925ff4546ded0fa8715a7267922a"
