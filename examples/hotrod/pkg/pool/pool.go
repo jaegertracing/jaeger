@@ -49,5 +49,7 @@ func (p *Pool) Execute(job func()) {
 
 // Stop halts all the workers
 func (p *Pool) Stop() {
-	p.stop <- struct{}{}
+	if p.stop != nil {
+		close(p.stop)
+	}
 }
