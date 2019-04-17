@@ -52,6 +52,13 @@ func TestFactoryConfigFromEnv(t *testing.T) {
 	assert.Equal(t, 2, len(f.SpanWriterTypes))
 	assert.Equal(t, []string{elasticsearchStorageType, kafkaStorageType}, f.SpanWriterTypes)
 	assert.Equal(t, elasticsearchStorageType, f.SpanReaderType)
+
+	os.Setenv(SpanStorageTypeEnvVar, badgerStorageType)
+
+	f = FactoryConfigFromEnvAndCLI(nil, nil)
+	assert.Equal(t, 1, len(f.SpanWriterTypes))
+	assert.Equal(t, badgerStorageType, f.SpanWriterTypes[0])
+	assert.Equal(t, badgerStorageType, f.SpanReaderType)
 }
 
 func TestFactoryConfigFromEnvDeprecated(t *testing.T) {

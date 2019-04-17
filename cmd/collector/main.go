@@ -24,6 +24,7 @@ import (
 	"strconv"
 
 	"github.com/gorilla/mux"
+	"github.com/rs/cors"
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
 	"github.com/uber/jaeger-lib/metrics"
@@ -111,8 +112,9 @@ func main() {
 					logger.Fatal("Unable to create new TChannel", zap.Error(err))
 				}
 				server := thrift.NewServer(ch)
-				server.Register(jc.NewTChanCollectorServer(jaegerBatchesHandler))
-				server.Register(zc.NewTChanZipkinCollectorServer(zipkinSpansHandler))
+				batchHandler := app.NewTChannelHandler(jaegerBatchesHandler, zipkinSpansHandler)
+				server.Register(jc.NewTChanCollectorServer(batchHandler))
+				server.Register(zc.NewTChanZipkinCollectorServer(batchHandler))
 				server.Register(sc.NewTChanSamplingManagerServer(sampling.NewHandler(strategyStore)))
 				portStr := ":" + strconv.Itoa(builderOpts.CollectorPort)
 				listener, err := net.Listen("tcp", portStr)
@@ -136,7 +138,7 @@ func main() {
 				recoveryHandler := recoveryhandler.NewRecoveryHandler(logger, true)
 				httpHandler := recoveryHandler(r)
 
-				go startZipkinHTTPAPI(logger, builderOpts.CollectorZipkinHTTPPort, zipkinSpansHandler, recoveryHandler)
+				go startZipkinHTTPAPI(logger, builderOpts.CollectorZipkinHTTPPort, builderOpts.CollectorZipkinAllowedOrigins, builderOpts.CollectorZipkinAllowedHeaders, zipkinSpansHandler, recoveryHandler)
 
 				logger.Info("Starting jaeger-collector HTTP server", zap.Int("http-port", builderOpts.CollectorHTTPPort))
 				go func() {
@@ -213,6 +215,8 @@ func startGRPCServer(
 func startZipkinHTTPAPI(
 	logger *zap.Logger,
 	zipkinPort int,
+	allowedOrigins string,
+	allowedHeaders string,
 	zipkinSpansHandler app.ZipkinSpansHandler,
 	recoveryHandler func(http.Handler) http.Handler,
 ) {
@@ -221,10 +225,16 @@ func startZipkinHTTPAPI(
 		r := mux.NewRouter()
 		zHandler.RegisterRoutes(r)
 
+		c := cors.New(cors.Options{
+			AllowedOrigins: []string{allowedOrigins},
+			AllowedMethods: []string{"POST"}, // Allowing only POST, because that's the only handled one
+			AllowedHeaders: []string{allowedHeaders},
+		})
+
 		httpPortStr := ":" + strconv.Itoa(zipkinPort)
 		logger.Info("Listening for Zipkin HTTP traffic", zap.Int("zipkin.http-port", zipkinPort))
 
-		if err := http.ListenAndServe(httpPortStr, recoveryHandler(r)); err != nil {
+		if err := http.ListenAndServe(httpPortStr, c.Handler(recoveryHandler(r))); err != nil {
 			logger.Fatal("Could not launch service", zap.Error(err))
 		}
 	}

@@ -11,6 +11,7 @@ ALL_SRC := $(shell find . -name '*.go' \
 				   -not -name '*_test.go' \
 				   -not -name 'model.pb.go' \
 				   -not -name 'model_test.pb.go' \
+				   -not -name 'storage_test.pb.go' \
 				   -not -path './examples/*' \
 				   -not -path './vendor/*' \
 				   -not -path '*/mocks/*' \
@@ -151,7 +152,7 @@ install-glide:
 .PHONY: install
 install:
 	@which dep > /dev/null || curl https://raw.githubusercontent.com/golang/dep/master/install.sh | sh
-	dep ensure
+	dep ensure -vendor-only
 
 .PHONE: elasticsearch-mappings
 elasticsearch-mappings:
@@ -337,9 +338,11 @@ PROTO_INCLUDES := \
 	-I model/proto \
 	-I vendor/github.com/grpc-ecosystem/grpc-gateway \
 	-I vendor/github.com/gogo/googleapis \
+	-I vendor/github.com/gogo/protobuf/protobuf \
 	-I vendor/github.com/gogo/protobuf
 # Remapping of std types to gogo types (must not contain spaces)
 PROTO_GOGO_MAPPINGS := $(shell echo \
+		Mgoogle/protobuf/descriptor.proto=github.com/gogo/protobuf/types, \
 		Mgoogle/protobuf/timestamp.proto=github.com/gogo/protobuf/types, \
 		Mgoogle/protobuf/duration.proto=github.com/gogo/protobuf/types, \
 		Mgoogle/protobuf/empty.proto=github.com/gogo/protobuf/types, \
@@ -347,9 +350,10 @@ PROTO_GOGO_MAPPINGS := $(shell echo \
 		Mmodel.proto=github.com/jaegertracing/jaeger/model \
 	| sed 's/ //g')
 
+
 .PHONY: proto
 proto:
-	# Generate gogo, gRPC-Gateway, swagger, go-validators output.
+	# Generate gogo, gRPC-Gateway, swagger, go-validators, gRPC-storage-plugin output.
 	#
 	# -I declares import folders, in order of importance
 	# This is how proto resolves the protofile imports.
@@ -386,9 +390,21 @@ proto:
 		model/proto/api_v2/*.proto
 
 	$(PROTOC) \
+		$(PROTO_INCLUDES) \
+		-I plugin/storage/grpc/proto \
+		--gogo_out=plugins=grpc,$(PROTO_GOGO_MAPPINGS):$(PWD)/proto-gen/storage_v1 \
+		plugin/storage/grpc/proto/storage.proto
+
+	$(PROTOC) \
 		-I model/proto \
 		--go_out=$(PWD)/model/prototest/ \
 		model/proto/model_test.proto
+
+	$(PROTOC) \
+		-I plugin/storage/grpc/proto \
+		--go_out=$(PWD)/plugin/storage/grpc/proto/storageprototest/ \
+		plugin/storage/grpc/proto/storage_test.proto
+
 
 .PHONY: proto-install
 proto-install:
