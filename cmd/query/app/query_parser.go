@@ -44,7 +44,6 @@ const (
 )
 
 var (
-	errCannotQueryTagAndDuration = fmt.Errorf("Cannot query for tags when '%s' is specified", minDurationParam)
 	errMaxDurationGreaterThanMin = fmt.Errorf("'%s' should be greater than '%s'", maxDurationParam, minDurationParam)
 
 	// ErrServiceParameterRequired occurs when no service name is defined
@@ -108,11 +107,6 @@ func (p *queryParser) parse(r *http.Request) (*traceQueryParameters, error) {
 	minDuration, err := p.parseDuration(minDurationParam, r)
 	if err != nil {
 		return nil, err
-	}
-
-	if minDuration != 0 && len(tags) > 0 {
-		// This is because querying for this almost certainly returns no results due to intersections
-		return nil, errCannotQueryTagAndDuration
 	}
 
 	maxDuration, err := p.parseDuration(maxDurationParam, r)
