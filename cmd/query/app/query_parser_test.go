@@ -42,7 +42,6 @@ func TestParseTraceQuery(t *testing.T) {
 		{"x?service=service&limit=string", errParseInt, nil},
 		{"x?service=service&start=0&end=0&operation=operation&limit=200&minDuration=20", "Could not parse minDuration: time: missing unit in duration 20", nil},
 		{"x?service=service&start=0&end=0&operation=operation&limit=200&minDuration=20s&maxDuration=30", "Could not parse maxDuration: time: missing unit in duration 30", nil},
-		{"x?service=service&start=0&end=0&operation=operation&limit=200&tag=k:v&minDuration=1s", `Cannot query for tags when 'minDuration' is specified`, nil},
 		{"x?service=service&start=0&end=0&operation=operation&limit=200&tag=k:v&tag=x:y&tag=k&log=k:v&log=k", `Malformed 'tag' parameter, expecting key:value, received: k`, nil},
 		{"x?service=service&start=0&end=0&operation=operation&limit=200&minDuration=25s&maxDuration=1s", `'maxDuration' should be greater than 'minDuration'`, nil},
 		{"x?service=service&start=0&end=0&operation=operation&limit=200&tag=k:v&tag=x:y", noErr,
