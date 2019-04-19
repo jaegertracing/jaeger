@@ -926,7 +926,7 @@
   revision = "d1146b9035b912113a38af3b138eb2af567b2c67"
 
 [[projects]]
-  digest = "1:0a1fea691bda5979304d27194e77e67737a321cab3f584107f1bddc5dc650e43"
+  digest = "1:dc8cf972a195b981d0f65a9aea547868202e58eeba441821ec7359365f2c2a0e"
   name = "google.golang.org/grpc"
   packages = [
     ".",
@@ -962,6 +962,7 @@
     "status",
     "tap",
     "test/bufconn",
+    "test/grpc_testing",
   ]
   pruneopts = "UT"
   revision = "3507fb8e1a5ad030303c106fef3a47c9fdad16ad"
@@ -1071,9 +1072,12 @@
     "google.golang.org/grpc/balancer/roundrobin",
     "google.golang.org/grpc/credentials",
     "google.golang.org/grpc/grpclog",
+    "google.golang.org/grpc/naming",
+    "google.golang.org/grpc/peer",
     "google.golang.org/grpc/resolver",
     "google.golang.org/grpc/resolver/manual",
     "google.golang.org/grpc/test/bufconn",
+    "google.golang.org/grpc/test/grpc_testing",
     "gopkg.in/olivere/elastic.v5",
     "gopkg.in/yaml.v2",
   ]

@@ -20,12 +20,14 @@ import (
 	"strings"
 	"testing"
 
+	"google.golang.org/grpc/resolver"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"github.com/uber/jaeger-lib/metrics"
 	"go.uber.org/zap"
-	"google.golang.org/grpc/naming"
 	yaml "gopkg.in/yaml.v2"
+
+	"github.com/jaegertracing/jaeger/pkg/discovery"
 )
 
 const certPEM = `
@@ -50,20 +52,11 @@ collectorHostPorts:
     - 127.0.0.1:14269
 `
 
-type noopResolver struct {
-}
+type noopNotifier struct{}
 
-func (noopResolver) Resolve(target string) (naming.Watcher, error) {
-	return noopWatcher{}, nil
-}
+func (noopNotifier) Register(chan<- []string) {}
 
-type noopWatcher struct{}
-
-func (noopWatcher) Next() ([]*naming.Update, error) {
-	return nil, nil
-}
-
-func (noopWatcher) Close() {}
+func (noopNotifier) Unregister(chan<- []string) {}
 
 func TestBuilderFromConfig(t *testing.T) {
 	cfg := ConnBuilder{}
@@ -77,7 +70,22 @@ func TestBuilderFromConfig(t *testing.T) {
 	r, err := cfg.CreateConnection(zap.NewNop())
 	require.NoError(t, err)
 	assert.NotNil(t, r)
+}
 
+type noopResolver struct {
+	scheme string
+}
+
+func (n noopResolver) Close() {}
+
+func (n noopResolver) ResolveNow(option resolver.ResolveNowOption) {}
+
+func (n noopResolver) Build(target resolver.Target, cc resolver.ClientConn, opts resolver.BuildOption) (resolver.Resolver, error) {
+	return n, nil
+}
+
+func (n noopResolver) Scheme() string {
+	return n.scheme
 }
 
 func TestBuilderWithCollectors(t *testing.T) {
@@ -86,14 +94,16 @@ func TestBuilderWithCollectors(t *testing.T) {
 		name            string
 		hostPorts       []string
 		checkSuffixOnly bool
-		resolver        naming.Resolver
+		notifier        discovery.Notifier
 		err             error
+		resolver        resolver.Builder
 	}{
 		{
 			target:          "///round_robin",
 			name:            "with roundrobin schema",
 			hostPorts:       []string{"127.0.0.1:9876", "127.0.0.1:9877", "127.0.0.1:9878"},
 			checkSuffixOnly: true,
+			notifier:        nil,
 			resolver:        nil,
 		},
 		{
@@ -101,6 +111,7 @@ func TestBuilderWithCollectors(t *testing.T) {
 			name:            "with single host",
 			hostPorts:       []string{"127.0.0.1:9876"},
 			checkSuffixOnly: false,
+			notifier:        nil,
 			resolver:        nil,
 		},
 		{
@@ -108,13 +119,17 @@ func TestBuilderWithCollectors(t *testing.T) {
 			name:            "with custom resolver",
 			hostPorts:       []string{"dns://random_stuff"},
 			checkSuffixOnly: false,
-			resolver:        noopResolver{},
+			notifier:        noopNotifier{},
+			resolver: noopResolver{
+				scheme: "dns://random_stuff",
+			},
 		},
 		{
 			target:          "",
 			name:            "without collectorPorts and resolver",
 			hostPorts:       nil,
 			checkSuffixOnly: false,
+			notifier:        nil,
 			resolver:        nil,
 			err:             errors.New("at least one collector hostPort address is required when resolver is not available"),
 		},
@@ -125,7 +140,8 @@ func TestBuilderWithCollectors(t *testing.T) {
 			// Use NewBuilder for code coverage consideration
 			cfg := NewConnBuilder()
 			cfg.CollectorHostPorts = test.hostPorts
-			cfg.Resolver = test.resolver
+			cfg.WithDiscoveryNotifier(test.notifier)
+			cfg.WithGRPCResolver(test.resolver)
 
 			conn, err := cfg.CreateConnection(zap.NewNop())
 			if err != nil {

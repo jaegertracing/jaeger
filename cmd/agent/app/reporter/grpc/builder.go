@@ -23,9 +23,10 @@ import (
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/balancer/roundrobin"
 	"google.golang.org/grpc/credentials"
-	"google.golang.org/grpc/naming"
 	"google.golang.org/grpc/resolver"
 	"google.golang.org/grpc/resolver/manual"
+
+	"github.com/jaegertracing/jaeger/pkg/discovery"
 )
 
 // ConnBuilder Struct to hold configurations
@@ -33,13 +34,28 @@ type ConnBuilder struct {
 	// CollectorHostPorts is list of host:port Jaeger Collectors.
 	CollectorHostPorts []string `yaml:"collectorHostPorts"`
 
-	// Resolver is custom resolver provided to grpc client balancer
-	Resolver naming.Resolver
+	// MinConns is the min number of connections we want agent construct with collectors
+	MinConns int `yaml:"minConns"`
 
 	MaxRetry      uint
 	TLS           bool
 	TLSCA         string
 	TLSServerName string
+
+	notifier     discovery.Notifier
+	grpcResolver resolver.Builder
+}
+
+// WithDiscoveryNotifier sets service discovery notifier
+func (b *ConnBuilder) WithDiscoveryNotifier(n discovery.Notifier) *ConnBuilder {
+	b.notifier = n
+	return b
+}
+
+// WithGRPCResolver sets grpc resolver
+func (b *ConnBuilder) WithGRPCResolver(r resolver.Builder) *ConnBuilder {
+	b.grpcResolver = r
+	return b
 }
 
 // NewConnBuilder creates a new grpc connection builder.
@@ -73,11 +89,12 @@ func (b *ConnBuilder) CreateConnection(logger *zap.Logger) (*grpc.ClientConn, er
 		dialOptions = append(dialOptions, grpc.WithInsecure())
 	}
 
-	if b.Resolver != nil && len(b.CollectorHostPorts) == 1 {
-		// Use custom Resolver and ResolverTarget if specified
-		logger.Info("Agent is using external resolver with roundrobin load balancer", zap.String("resolverTarget", b.CollectorHostPorts[0]))
-		dialTarget = b.CollectorHostPorts[0]
-		dialOptions = append(dialOptions, grpc.WithBalancer(grpc.RoundRobin(b.Resolver)))
+	if b.notifier != nil && b.grpcResolver != nil {
+		// We expect b.grpcResolver to implements both resolver.Resolver and resolver.Builder
+		logger.Info("Using external discovery service with roundrobin load balancer", zap.String("resolverTarget", b.CollectorHostPorts[0]))
+		resolver.Register(b.grpcResolver)
+		dialOptions = append(dialOptions, grpc.WithBalancerName(roundrobin.Name))
+		dialTarget = b.grpcResolver.Scheme()
 	} else {
 		if b.CollectorHostPorts == nil {
 			return nil, errors.New("at least one collector hostPort address is required when resolver is not available")
