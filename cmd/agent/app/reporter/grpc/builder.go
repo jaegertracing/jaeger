@@ -42,8 +42,8 @@ type ConnBuilder struct {
 	TLSCA         string
 	TLSServerName string
 
-	notifier     discovery.Notifier
-	grpcResolver resolver.Builder
+	notifier discovery.Notifier
+	resolver resolver.Builder
 }
 
 // WithDiscoveryNotifier sets service discovery notifier
@@ -54,7 +54,7 @@ func (b *ConnBuilder) WithDiscoveryNotifier(n discovery.Notifier) *ConnBuilder {
 
 // WithGRPCResolver sets grpc resolver
 func (b *ConnBuilder) WithGRPCResolver(r resolver.Builder) *ConnBuilder {
-	b.grpcResolver = r
+	b.resolver = r
 	return b
 }
 
@@ -89,12 +89,12 @@ func (b *ConnBuilder) CreateConnection(logger *zap.Logger) (*grpc.ClientConn, er
 		dialOptions = append(dialOptions, grpc.WithInsecure())
 	}
 
-	if b.notifier != nil && b.grpcResolver != nil {
-		// We expect b.grpcResolver to implements both resolver.Resolver and resolver.Builder
+	if b.notifier != nil && b.resolver != nil {
+		// We expect b.resolver to implements both resolver.Resolver and resolver.Builder interfaces
 		logger.Info("Using external discovery service with roundrobin load balancer", zap.String("resolverTarget", b.CollectorHostPorts[0]))
-		resolver.Register(b.grpcResolver)
+		resolver.Register(b.resolver)
 		dialOptions = append(dialOptions, grpc.WithBalancerName(roundrobin.Name))
-		dialTarget = b.grpcResolver.Scheme()
+		dialTarget = b.resolver.Scheme()
 	} else {
 		if b.CollectorHostPorts == nil {
 			return nil, errors.New("at least one collector hostPort address is required when resolver is not available")
