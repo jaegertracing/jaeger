@@ -20,7 +20,6 @@ import (
 	"strings"
 	"testing"
 
-	"google.golang.org/grpc/resolver"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"github.com/uber/jaeger-lib/metrics"
@@ -72,22 +71,6 @@ func TestBuilderFromConfig(t *testing.T) {
 	assert.NotNil(t, r)
 }
 
-type noopResolver struct {
-	scheme string
-}
-
-func (n noopResolver) Close() {}
-
-func (n noopResolver) ResolveNow(option resolver.ResolveNowOption) {}
-
-func (n noopResolver) Build(target resolver.Target, cc resolver.ClientConn, opts resolver.BuildOption) (resolver.Resolver, error) {
-	return n, nil
-}
-
-func (n noopResolver) Scheme() string {
-	return n.scheme
-}
-
 func TestBuilderWithCollectors(t *testing.T) {
 	tests := []struct {
 		target          string
@@ -96,7 +79,6 @@ func TestBuilderWithCollectors(t *testing.T) {
 		checkSuffixOnly bool
 		notifier        discovery.Notifier
 		err             error
-		resolver        resolver.Builder
 	}{
 		{
 			target:          "///round_robin",
@@ -104,7 +86,6 @@ func TestBuilderWithCollectors(t *testing.T) {
 			hostPorts:       []string{"127.0.0.1:9876", "127.0.0.1:9877", "127.0.0.1:9878"},
 			checkSuffixOnly: true,
 			notifier:        nil,
-			resolver:        nil,
 		},
 		{
 			target:          "127.0.0.1:9876",
@@ -112,7 +93,6 @@ func TestBuilderWithCollectors(t *testing.T) {
 			hostPorts:       []string{"127.0.0.1:9876"},
 			checkSuffixOnly: false,
 			notifier:        nil,
-			resolver:        nil,
 		},
 		{
 			target:          "dns://random_stuff",
@@ -120,9 +100,7 @@ func TestBuilderWithCollectors(t *testing.T) {
 			hostPorts:       []string{"dns://random_stuff"},
 			checkSuffixOnly: false,
 			notifier:        noopNotifier{},
-			resolver: noopResolver{
-				scheme: "dns://random_stuff",
-			},
+			err:             errors.New("not implemented"),
 		},
 		{
 			target:          "",
@@ -130,7 +108,6 @@ func TestBuilderWithCollectors(t *testing.T) {
 			hostPorts:       nil,
 			checkSuffixOnly: false,
 			notifier:        nil,
-			resolver:        nil,
 			err:             errors.New("at least one collector hostPort address is required when resolver is not available"),
 		},
 	}
@@ -141,7 +118,6 @@ func TestBuilderWithCollectors(t *testing.T) {
 			cfg := NewConnBuilder()
 			cfg.CollectorHostPorts = test.hostPorts
 			cfg.WithDiscoveryNotifier(test.notifier)
-			cfg.WithGRPCResolver(test.resolver)
 
 			conn, err := cfg.CreateConnection(zap.NewNop())
 			if err != nil {

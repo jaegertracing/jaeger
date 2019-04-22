@@ -34,9 +34,6 @@ type ConnBuilder struct {
 	// CollectorHostPorts is list of host:port Jaeger Collectors.
 	CollectorHostPorts []string `yaml:"collectorHostPorts"`
 
-	// MinConns is the min number of connections we want agent construct with collectors
-	MinConns int `yaml:"minConns"`
-
 	MaxRetry      uint
 	TLS           bool
 	TLSCA         string
@@ -47,14 +44,10 @@ type ConnBuilder struct {
 }
 
 // WithDiscoveryNotifier sets service discovery notifier
+// TODO User should provide their own notifier so that notifier can push address updates to grpc resolver by invoking notifier.Notify(instances []string)
+// We will add integation code with custom notifier and resolver in next PR
 func (b *ConnBuilder) WithDiscoveryNotifier(n discovery.Notifier) *ConnBuilder {
 	b.notifier = n
-	return b
-}
-
-// WithGRPCResolver sets grpc resolver
-func (b *ConnBuilder) WithGRPCResolver(r resolver.Builder) *ConnBuilder {
-	b.resolver = r
 	return b
 }
 
@@ -89,30 +82,25 @@ func (b *ConnBuilder) CreateConnection(logger *zap.Logger) (*grpc.ClientConn, er
 		dialOptions = append(dialOptions, grpc.WithInsecure())
 	}
 
-	if b.notifier != nil && b.resolver != nil {
-		// We expect b.resolver to implements both resolver.Resolver and resolver.Builder interfaces
-		logger.Info("Using external discovery service with roundrobin load balancer", zap.String("resolverTarget", b.CollectorHostPorts[0]))
-		resolver.Register(b.resolver)
-		dialOptions = append(dialOptions, grpc.WithBalancerName(roundrobin.Name))
-		dialTarget = b.resolver.Scheme()
-	} else {
-		if b.CollectorHostPorts == nil {
-			return nil, errors.New("at least one collector hostPort address is required when resolver is not available")
-		}
-		if len(b.CollectorHostPorts) > 1 {
-			r, _ := manual.GenerateAndRegisterManualResolver()
-			var resolvedAddrs []resolver.Address
-			for _, addr := range b.CollectorHostPorts {
-				resolvedAddrs = append(resolvedAddrs, resolver.Address{Addr: addr})
-			}
-			r.InitialAddrs(resolvedAddrs)
-			dialTarget = r.Scheme() + ":///round_robin"
-			logger.Info("Agent is connecting to a static list of collectors", zap.String("dialTarget", dialTarget), zap.String("collector hosts", strings.Join(b.CollectorHostPorts, ",")))
-		} else {
-			dialTarget = b.CollectorHostPorts[0]
-		}
-		dialOptions = append(dialOptions, grpc.WithBalancerName(roundrobin.Name))
+	if b.notifier != nil {
+		return nil, errors.New("not implemented")
 	}
+	if b.CollectorHostPorts == nil {
+		return nil, errors.New("at least one collector hostPort address is required when resolver is not available")
+	}
+	if len(b.CollectorHostPorts) > 1 {
+		r, _ := manual.GenerateAndRegisterManualResolver()
+		var resolvedAddrs []resolver.Address
+		for _, addr := range b.CollectorHostPorts {
+			resolvedAddrs = append(resolvedAddrs, resolver.Address{Addr: addr})
+		}
+		r.InitialState(resolver.State{Addresses: resolvedAddrs})
+		dialTarget = r.Scheme() + ":///round_robin"
+		logger.Info("Agent is connecting to a static list of collectors", zap.String("dialTarget", dialTarget), zap.String("collector hosts", strings.Join(b.CollectorHostPorts, ",")))
+	} else {
+		dialTarget = b.CollectorHostPorts[0]
+	}
+	dialOptions = append(dialOptions, grpc.WithBalancerName(roundrobin.Name))
 
 	dialOptions = append(dialOptions, grpc.WithUnaryInterceptor(grpc_retry.UnaryClientInterceptor(grpc_retry.WithMax(b.MaxRetry))))
 	return grpc.Dial(dialTarget, dialOptions...)
