@@ -94,7 +94,7 @@ func (b *ConnBuilder) CreateConnection(logger *zap.Logger) (*grpc.ClientConn, er
 		for _, addr := range b.CollectorHostPorts {
 			resolvedAddrs = append(resolvedAddrs, resolver.Address{Addr: addr})
 		}
-		r.InitialState(resolver.State{Addresses: resolvedAddrs})
+		r.InitialAddrs(resolvedAddrs)
 		dialTarget = r.Scheme() + ":///round_robin"
 		logger.Info("Agent is connecting to a static list of collectors", zap.String("dialTarget", dialTarget), zap.String("collector hosts", strings.Join(b.CollectorHostPorts, ",")))
 	} else {
