@@ -355,7 +355,7 @@
   revision = "23def4e6c14b4da8ac2ed8007337bc5eb5007998"
 
 [[projects]]
-  digest = "1:7c6e2e17c5da6470d00b863a6ded369755e02c4efbb1f62784fbba0708abc261"
+  digest = "1:e3bed20f553811662a2b5e6c0d40f1c837b2f1decace8afb1bb1778acb97fd04"
   name = "github.com/golang/protobuf"
   packages = [
     "descriptor",
@@ -372,7 +372,6 @@
     "ptypes/duration",
     "ptypes/struct",
     "ptypes/timestamp",
-    "ptypes/wrappers",
   ]
   pruneopts = "UT"
   revision = "b5d812f8a3706043e23a9cd5babf2e5423744d30"
@@ -428,7 +427,6 @@
     "protoc-gen-swagger",
     "protoc-gen-swagger/genswagger",
     "protoc-gen-swagger/options",
-    "runtime",
     "utilities",
   ]
   pruneopts = "T"
@@ -656,6 +654,14 @@
   version = "v1.6.0"
 
 [[projects]]
+  digest = "1:30e06e6d62a1d694e3cdbff29d8a9a96022e05a487d0c6eaf0ef898965ef28fb"
+  name = "github.com/soheilhy/cmux"
+  packages = ["."]
+  pruneopts = "UT"
+  revision = "e09e9389d85d8492d313d73d1469c029e710623f"
+  version = "v0.1.4"
+
+[[projects]]
   digest = "1:bb495ec276ab82d3dd08504bbc0594a65de8c3b22c6f2aaa92d05b73fbf3a82e"
   name = "github.com/spf13/afero"
   packages = [
@@ -860,11 +866,11 @@
 
 [[projects]]
   branch = "master"
-  digest = "1:3e01c69b34e7c3fa4b7a118ca95a6beaecea00f7f4fb701545d83eacd3badb3c"
+  digest = "1:28d862f4f9bf2d1976d1d320481bff661b7565eb876d4df2a981f79e7f40e4cd"
   name = "golang.org/x/sys"
   packages = ["unix"]
   pruneopts = "UT"
-  revision = "ebb4019f01c946537c3ea6b99f0eca5283552a8f"
+  revision = "12500544f89f9420afe9529ba8940bf72d294972"
 
 [[projects]]
   digest = "1:0c56024909189aee3364b7f21a95a27459f718aa7c199a5c111c36cfffd9eaef"
@@ -906,17 +912,15 @@
     "internal/semver",
   ]
   pruneopts = "UT"
-  revision = "2e9de471ebd3a3af420e4dd35a826936b94da7f6"
+  revision = "dd61c98faef72b3f3887b6e95177b943d9f0f918"
 
 [[projects]]
   branch = "master"
-  digest = "1:51b95dc2db289865b71364c0da23ca6bcc0b199e0d827c9cfb053b32248b77ad"
+  digest = "1:08aea4eff69cb424f2ce0d69f88c2f0d351fc44e82cab057ddf3946f41f02108"
   name = "google.golang.org/genproto"
   packages = [
     "googleapis/api/annotations",
-    "googleapis/api/httpbody",
     "googleapis/rpc/status",
-    "protobuf/field_mask",
   ]
   pruneopts = "UT"
   revision = "d1146b9035b912113a38af3b138eb2af567b2c67"
@@ -1025,8 +1029,6 @@
     "github.com/grpc-ecosystem/grpc-gateway/protoc-gen-grpc-gateway",
     "github.com/grpc-ecosystem/grpc-gateway/protoc-gen-swagger",
     "github.com/grpc-ecosystem/grpc-gateway/protoc-gen-swagger/options",
-    "github.com/grpc-ecosystem/grpc-gateway/runtime",
-    "github.com/grpc-ecosystem/grpc-gateway/utilities",
     "github.com/kr/pretty",
     "github.com/opentracing-contrib/go-stdlib/nethttp",
     "github.com/opentracing/opentracing-go",
@@ -1036,6 +1038,7 @@
     "github.com/prometheus/client_golang/prometheus",
     "github.com/prometheus/client_golang/prometheus/promhttp",
     "github.com/rs/cors",
+    "github.com/soheilhy/cmux",
     "github.com/spf13/cobra",
     "github.com/spf13/pflag",
     "github.com/spf13/viper",
@@ -1066,12 +1069,10 @@
     "golang.org/x/sys/unix",
     "google.golang.org/grpc",
     "google.golang.org/grpc/balancer/roundrobin",
-    "google.golang.org/grpc/codes",
     "google.golang.org/grpc/credentials",
     "google.golang.org/grpc/grpclog",
     "google.golang.org/grpc/resolver",
     "google.golang.org/grpc/resolver/manual",
-    "google.golang.org/grpc/status",
     "google.golang.org/grpc/test/bufconn",
     "gopkg.in/olivere/elastic.v5",
     "gopkg.in/yaml.v2",
