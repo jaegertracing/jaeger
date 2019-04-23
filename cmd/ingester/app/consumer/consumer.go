@@ -110,17 +110,19 @@ func (c *Consumer) Close() error {
 
 func (c *Consumer) handleMessages(pc sc.PartitionConsumer) {
 	c.logger.Info("Starting message handler", zap.Int32("partition", pc.Partition()))
+	c.partitionMapLock.Lock()
 	c.partitionsHeld++
 	c.partitionsHeldGauge.Update(c.partitionsHeld)
-	defer func() {
-		c.partitionsHeld--
-		c.partitionsHeldGauge.Update(c.partitionsHeld)
-	}()
-	c.partitionMapLock.Lock()
 	wg := &c.partitionIDToState[pc.Partition()].wg
 	c.partitionMapLock.Unlock()
-	defer wg.Done()
-	defer c.closePartition(pc)
+	defer func() {
+		c.closePartition(pc)
+		wg.Done()
+		c.partitionMapLock.Lock()
+		c.partitionsHeld--
+		c.partitionsHeldGauge.Update(c.partitionsHeld)
+		c.partitionMapLock.Unlock()
+	}()
 
 	msgMetrics := c.newMsgMetrics(pc.Partition())
 
