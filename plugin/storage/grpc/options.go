@@ -19,7 +19,7 @@ import (
 
 	"github.com/spf13/viper"
 
-	"github.com/jaegertracing/jaeger/pkg/grpc/config"
+	"github.com/jaegertracing/jaeger/plugin/storage/grpc/config"
 )
 
 const pluginBinary = "grpc-storage-plugin.binary"
