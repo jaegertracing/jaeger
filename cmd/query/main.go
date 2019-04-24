@@ -19,7 +19,6 @@ import (
 	"log"
 	"os"
 
-	"github.com/gorilla/handlers"
 	"github.com/opentracing/opentracing-go"
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
@@ -31,10 +30,8 @@ import (
 	"github.com/jaegertracing/jaeger/cmd/env"
 	"github.com/jaegertracing/jaeger/cmd/flags"
 	"github.com/jaegertracing/jaeger/cmd/query/app"
-	"github.com/jaegertracing/jaeger/cmd/query/app/grpcserver"
 	"github.com/jaegertracing/jaeger/cmd/query/app/querysvc"
 	"github.com/jaegertracing/jaeger/pkg/config"
-	"github.com/jaegertracing/jaeger/pkg/recoveryhandler"
 	"github.com/jaegertracing/jaeger/pkg/version"
 	"github.com/jaegertracing/jaeger/plugin/storage"
 	"github.com/jaegertracing/jaeger/ports"
@@ -114,19 +111,11 @@ func main() {
 			apiHandler.RegisterRoutes(r)
 			app.RegisterStaticHandler(r, logger, queryOpts)
 
-			compressHandler := handlers.CompressHandler(r)
-			recoveryHandler := recoveryhandler.NewRecoveryHandler(logger, true)
-
-			grpcConfig := grpcserver.Builder{
-				Svc:             svc,
-				RecoveryHandler: recoveryHandler(compressHandler),
-				QuerySvc:        *queryService,
-				Logger:          logger,
-				Tracer:          tracer,
-				QueryOptions:    queryOpts,
+			grcpServer, err := app.NewServer(svc, r, *queryService, tracer, queryOpts.Port)
+			if err != nil {
+				logger.Fatal("Could not start listener", zap.Error(err))
 			}
 
-			grcpServer := grpcConfig.Build()
 			grcpServer.Start()
 
 			svc.RunAndThen(nil)
