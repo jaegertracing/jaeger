@@ -217,24 +217,24 @@ func defaultInt(value int, defaultVal int) int {
 // CreateCollectorProxy creates collector proxy
 func CreateCollectorProxy(
 	opts *reporter.Options,
-	tchanRep *tchannel.Builder,
-	grpcRepOpts *grpc.Options,
+	tchanBuilder *tchannel.Builder,
+	grpcBuilder *grpc.ConnBuilder,
 	logger *zap.Logger,
 	mFactory metrics.Factory,
 ) (CollectorProxy, error) {
 	// GRPC type is set as default in viper, but we check for legacy flags
 	// to keep backward compatibility
 	if opts.ReporterType == reporter.GRPC &&
-		len(tchanRep.CollectorHostPorts) > 0 &&
-		len(grpcRepOpts.CollectorHostPort) == 0 {
+		len(tchanBuilder.CollectorHostPorts) > 0 &&
+		len(grpcBuilder.CollectorHostPorts) == 0 {
 		logger.Warn("Using deprecated configuration", zap.String("option", "--collector-host.port"))
-		return tchannel.NewCollectorProxy(tchanRep, mFactory, logger)
+		return tchannel.NewCollectorProxy(tchanBuilder, mFactory, logger)
 	}
 	switch opts.ReporterType {
 	case reporter.GRPC:
-		return grpc.NewCollectorProxy(grpcRepOpts, opts.AgentTags, mFactory, logger)
+		return grpc.NewCollectorProxy(grpcBuilder, opts.AgentTags, mFactory, logger)
 	case reporter.TCHANNEL:
-		return tchannel.NewCollectorProxy(tchanRep, mFactory, logger)
+		return tchannel.NewCollectorProxy(tchanBuilder, mFactory, logger)
 	default:
 		return nil, errors.New(fmt.Sprintf("unknown reporter type %s", string(opts.ReporterType)))
 	}
