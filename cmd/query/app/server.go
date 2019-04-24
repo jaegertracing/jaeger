@@ -111,6 +111,7 @@ func (s *Server) Start() {
 
 	// Start cmux server concurrently.
 	go func() {
+		s.svc.Logger.Info("Starting CMUX server", zap.Int("port", s.listenPort))
 		if err := s.muxServer.Serve(); err != nil {
 			s.svc.Logger.Error("Could not start multiplexed server", zap.Error(err))
 		}
