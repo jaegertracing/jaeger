@@ -30,9 +30,11 @@ func TestBindFlags(t *testing.T) {
 		expected *ConnBuilder
 	}{
 		{cOpts: []string{"--reporter.grpc.host-port=localhost:1111", "--reporter.grpc.retry.max=15"},
-			expected: &ConnBuilder{CollectorHostPorts: []string{"localhost:1111"}, MaxRetry: 15}},
+			expected: &ConnBuilder{CollectorHostPorts: []string{"localhost:1111"}, MaxRetry: 15, subsetSize: 3}},
 		{cOpts: []string{"--reporter.grpc.host-port=localhost:1111,localhost:2222"},
-			expected: &ConnBuilder{CollectorHostPorts: []string{"localhost:1111", "localhost:2222"}, MaxRetry: defaultMaxRetry}},
+			expected: &ConnBuilder{CollectorHostPorts: []string{"localhost:1111", "localhost:2222"}, MaxRetry: defaultMaxRetry, subsetSize: 3}},
+		{cOpts: []string{"--reporter.grpc.host-port=localhost:1111,localhost:2222", "--reporter.grpc.connections.per.host=5"},
+			expected: &ConnBuilder{CollectorHostPorts: []string{"localhost:1111", "localhost:2222"}, MaxRetry: defaultMaxRetry, subsetSize: 5}},
 	}
 	for _, test := range tests {
 		v := viper.New()

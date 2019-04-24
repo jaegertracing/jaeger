@@ -1074,6 +1074,7 @@
     "status",
     "tap",
     "test/bufconn",
+    "test/grpc_testing",
   ]
   pruneopts = "UT"
   revision = "25c4f928eaa6d96443009bd842389fb4fa48664e"
@@ -1191,6 +1192,7 @@
     "github.com/stretchr/testify/http",
     "github.com/stretchr/testify/mock",
     "github.com/stretchr/testify/require",
+    "github.com/tysontate/rendezvous",
     "github.com/uber/jaeger-client-go",
     "github.com/uber/jaeger-client-go/config",
     "github.com/uber/jaeger-client-go/log/zap",
@@ -1217,10 +1219,12 @@
     "google.golang.org/grpc/credentials",
     "google.golang.org/grpc/grpclog",
     "google.golang.org/grpc/metadata",
+    "google.golang.org/grpc/peer",
     "google.golang.org/grpc/resolver",
     "google.golang.org/grpc/resolver/manual",
     "google.golang.org/grpc/status",
     "google.golang.org/grpc/test/bufconn",
+    "google.golang.org/grpc/test/grpc_testing",
     "gopkg.in/olivere/elastic.v5",
     "gopkg.in/yaml.v2",
     "honnef.co/go/tools/cmd/staticcheck",

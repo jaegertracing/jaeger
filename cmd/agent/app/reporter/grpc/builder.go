@@ -27,6 +27,7 @@ import (
 	"google.golang.org/grpc/resolver/manual"
 
 	"github.com/jaegertracing/jaeger/pkg/discovery"
+	"github.com/jaegertracing/jaeger/pkg/discovery/grpcresolver"
 )
 
 // ConnBuilder Struct to hold configurations
@@ -38,8 +39,7 @@ type ConnBuilder struct {
 	TLS           bool
 	TLSCA         string
 	TLSServerName string
-
-	notifier discovery.Notifier
+	notifier      discovery.Notifier
 }
 
 // WithDiscoveryNotifier sets service discovery notifier
@@ -82,7 +82,11 @@ func (b *ConnBuilder) CreateConnection(logger *zap.Logger) (*grpc.ClientConn, er
 	}
 
 	if b.notifier != nil {
-		return nil, errors.New("not implemented")
+		logger.Info("Using external discovery service with roundrobin load balancer")
+		grpcResolver := grpcresolver.New(b.notifier, logger, b.subsetSize)
+		resolver.Register(grpcResolver)
+		dialOptions = append(dialOptions, grpc.WithBalancerName(roundrobin.Name))
+		dialTarget = grpcResolver.Scheme() + ":///round_robin"
 	}
 	if b.CollectorHostPorts == nil {
 		return nil, errors.New("at least one collector hostPort address is required when resolver is not available")

@@ -100,7 +100,6 @@ func TestBuilderWithCollectors(t *testing.T) {
 			hostPorts:       []string{"dns://random_stuff"},
 			checkSuffixOnly: false,
 			notifier:        noopNotifier{},
-			err:             errors.New("not implemented"),
 		},
 		{
 			target:          "",
