@@ -46,9 +46,10 @@ type Consumer struct {
 
 	deadlockDetector deadlockDetector
 
-	partitionIDToState map[int32]*consumerState
-	partitionMapLock   sync.Mutex
-	partitionsHeld     metrics.Counter
+	partitionIDToState  map[int32]*consumerState
+	partitionMapLock    sync.Mutex
+	partitionsHeld      int64
+	partitionsHeldGauge metrics.Gauge
 }
 
 type consumerState struct {
@@ -60,13 +61,13 @@ type consumerState struct {
 func New(params Params) (*Consumer, error) {
 	deadlockDetector := newDeadlockDetector(params.MetricsFactory, params.Logger, params.DeadlockCheckInterval)
 	return &Consumer{
-		metricsFactory:     params.MetricsFactory,
-		logger:             params.Logger,
-		internalConsumer:   params.InternalConsumer,
-		processorFactory:   params.ProcessorFactory,
-		deadlockDetector:   deadlockDetector,
-		partitionIDToState: make(map[int32]*consumerState),
-		partitionsHeld:     partitionsHeld(params.MetricsFactory),
+		metricsFactory:      params.MetricsFactory,
+		logger:              params.Logger,
+		internalConsumer:    params.InternalConsumer,
+		processorFactory:    params.ProcessorFactory,
+		deadlockDetector:    deadlockDetector,
+		partitionIDToState:  make(map[int32]*consumerState),
+		partitionsHeldGauge: partitionsHeldGauge(params.MetricsFactory),
 	}, nil
 }
 
@@ -109,13 +110,19 @@ func (c *Consumer) Close() error {
 
 func (c *Consumer) handleMessages(pc sc.PartitionConsumer) {
 	c.logger.Info("Starting message handler", zap.Int32("partition", pc.Partition()))
-	c.partitionsHeld.Inc(1)
-	defer c.partitionsHeld.Inc(-1)
 	c.partitionMapLock.Lock()
+	c.partitionsHeld++
+	c.partitionsHeldGauge.Update(c.partitionsHeld)
 	wg := &c.partitionIDToState[pc.Partition()].wg
 	c.partitionMapLock.Unlock()
-	defer wg.Done()
-	defer c.closePartition(pc)
+	defer func() {
+		c.closePartition(pc)
+		wg.Done()
+		c.partitionMapLock.Lock()
+		c.partitionsHeld--
+		c.partitionsHeldGauge.Update(c.partitionsHeld)
+		c.partitionMapLock.Unlock()
+	}()
 
 	msgMetrics := c.newMsgMetrics(pc.Partition())
 

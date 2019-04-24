@@ -1,0 +1,172 @@
+// Copyright (c) 2019 The Jaeger Authors.
+// Copyright (c) 2018 Uber Technologies, Inc.
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+// http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
+syntax="proto3";
+
+package jaeger.api_v2;
+
+import "model.proto";
+import "gogoproto/gogo.proto";
+import "google/api/annotations.proto";
+import "google/protobuf/timestamp.proto";
+import "google/protobuf/duration.proto";
+import "protoc-gen-swagger/options/annotations.proto";
+
+option go_package = "api_v2";
+option java_package = "io.jaegertracing.api_v2";
+
+// Enable gogoprotobuf extensions (https://github.com/gogo/protobuf/blob/master/extensions.md).
+// Enable custom Marshal method.
+option (gogoproto.marshaler_all) = true;
+// Enable custom Unmarshal method.
+option (gogoproto.unmarshaler_all) = true;
+// Enable custom Size method (Required by Marshal and Unmarshal).
+option (gogoproto.sizer_all) = true;
+// Enable registration with golang/protobuf for the grpc-gateway.
+option (gogoproto.goproto_registration) = true;
+
+option (grpc.gateway.protoc_gen_swagger.options.openapiv2_swagger) = {
+  info: {
+    version: "1.0";
+  };
+  external_docs: {
+    url: "https://github.com/jaegertracing/jaeger";
+    description: "Jaeger API";
+  }
+  schemes: HTTP;
+  schemes: HTTPS;
+};
+
+message GetTraceRequest {
+  bytes trace_id = 1 [
+    (gogoproto.nullable) = false,
+    (gogoproto.customtype) = "github.com/jaegertracing/jaeger/model.TraceID",
+    (gogoproto.customname) = "TraceID"
+  ];
+}
+
+message SpansResponseChunk {
+  repeated jaeger.api_v2.Span spans = 1 [
+    (gogoproto.nullable) = false
+  ];
+}
+
+message ArchiveTraceRequest {
+  bytes trace_id = 1 [
+    (gogoproto.nullable) = false,
+    (gogoproto.customtype) = "github.com/jaegertracing/jaeger/model.TraceID",
+    (gogoproto.customname) = "TraceID"
+  ];
+}
+
+message ArchiveTraceResponse {
+}
+
+message TraceQueryParameters {
+  string service_name = 1;
+  string operation_name = 2;
+  map<string, string> tags = 3;
+  google.protobuf.Timestamp start_time_min = 4 [
+    (gogoproto.stdtime) = true,
+    (gogoproto.nullable) = false
+  ];
+  google.protobuf.Timestamp start_time_max = 5 [
+    (gogoproto.stdtime) = true,
+    (gogoproto.nullable) = false
+  ];
+  google.protobuf.Duration duration_min = 6 [
+    (gogoproto.stdduration) = true,
+    (gogoproto.nullable) = false
+  ];
+  google.protobuf.Duration duration_max = 7 [
+    (gogoproto.stdduration) = true,
+    (gogoproto.nullable) = false
+  ];
+  int32 search_depth = 8;
+}
+
+message FindTracesRequest {
+  TraceQueryParameters query = 1;
+}
+
+message GetServicesRequest {}
+
+message GetServicesResponse {
+  repeated string services = 1;
+}
+
+message GetOperationsRequest {
+  string service = 1;
+}
+
+message GetOperationsResponse {
+  repeated string operations = 1;
+}
+
+message GetDependenciesRequest {
+  google.protobuf.Timestamp start_time = 1 [
+    (gogoproto.stdtime) = true,
+    (gogoproto.nullable) = false
+  ];
+  google.protobuf.Timestamp end_time = 2 [
+    (gogoproto.stdtime) = true,
+    (gogoproto.nullable) = false
+  ];
+}
+
+message GetDependenciesResponse {
+  repeated jaeger.api_v2.DependencyLink dependencies = 1 [
+    (gogoproto.nullable) = false
+  ];
+}
+
+service QueryService {
+    rpc GetTrace(GetTraceRequest) returns (stream SpansResponseChunk) {
+        option (google.api.http) = {
+            get: "/traces/{trace_id}"
+        };
+    }
+
+    rpc ArchiveTrace(ArchiveTraceRequest) returns (ArchiveTraceResponse) {
+        option (google.api.http) = {
+            post: "/archive/{trace_id}"
+        };
+    }
+
+    rpc FindTraces(FindTracesRequest) returns (stream SpansResponseChunk) {
+        option (google.api.http) = {
+            post: "/search"
+            body: "*"
+        };
+    }
+
+    rpc GetServices(GetServicesRequest) returns (GetServicesResponse) {
+        option (google.api.http) = {
+            get: "/services"
+        };
+    }
+
+    rpc GetOperations(GetOperationsRequest) returns (GetOperationsResponse) {
+        option (google.api.http) = {
+            get: "/operations"
+        };
+    }
+
+    rpc GetDependencies(GetDependenciesRequest) returns (GetDependenciesResponse) {
+        option (google.api.http) = {
+            get: "/dependencies"
+        };
+    }
+}

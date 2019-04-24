@@ -17,18 +17,20 @@ package main
 import (
 	"fmt"
 	"log"
+	"net"
 	"net/http"
 	"os"
-	"strconv"
 
 	"github.com/gorilla/handlers"
 	"github.com/opentracing/opentracing-go"
+	"github.com/soheilhy/cmux"
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
 	jaegerClientConfig "github.com/uber/jaeger-client-go/config"
 	jaegerClientZapLog "github.com/uber/jaeger-client-go/log/zap"
 	"github.com/uber/jaeger-lib/metrics"
 	"go.uber.org/zap"
+	"google.golang.org/grpc"
 
 	"github.com/jaegertracing/jaeger/cmd/env"
 	"github.com/jaegertracing/jaeger/cmd/flags"
@@ -40,6 +42,7 @@ import (
 	"github.com/jaegertracing/jaeger/pkg/version"
 	"github.com/jaegertracing/jaeger/plugin/storage"
 	"github.com/jaegertracing/jaeger/ports"
+	"github.com/jaegertracing/jaeger/proto-gen/api_v2"
 	istorage "github.com/jaegertracing/jaeger/storage"
 	storageMetrics "github.com/jaegertracing/jaeger/storage/spanstore/metrics"
 )
@@ -116,14 +119,58 @@ func main() {
 			apiHandler.RegisterRoutes(r)
 			app.RegisterStaticHandler(r, logger, queryOpts)
 
-			portStr := ":" + strconv.Itoa(queryOpts.Port)
 			compressHandler := handlers.CompressHandler(r)
 			recoveryHandler := recoveryhandler.NewRecoveryHandler(logger, true)
 
+			// Create HTTP Server
+			httpServer := &http.Server{
+				Handler: recoveryHandler(compressHandler),
+			}
+
+			// Create GRPC Server.
+			grpcServer := grpc.NewServer()
+
+			grpcHandler := app.NewGRPCHandler(*queryService, logger, tracer)
+			api_v2.RegisterQueryServiceServer(grpcServer, grpcHandler)
+
+			// Prepare cmux conn.
+			conn, err := net.Listen("tcp", fmt.Sprintf(":%d", queryOpts.Port))
+			if err != nil {
+				logger.Fatal("Could not start listener", zap.Error(err))
+			}
+
+			// Create cmux server.
+			// cmux will reverse-proxy between HTTP and GRPC backends.
+			s := cmux.New(conn)
+
+			// Add GRPC and HTTP listeners.
+			grpcL := s.Match(
+				cmux.HTTP2HeaderField("content-type", "application/grpc"),
+				cmux.HTTP2HeaderField("content-type", "application/grpc+proto"))
+			httpL := s.Match(cmux.Any())
+
+			// Start HTTP server concurrently
 			go func() {
 				logger.Info("Starting HTTP server", zap.Int("port", queryOpts.Port))
-				if err := http.ListenAndServe(portStr, recoveryHandler(compressHandler)); err != nil {
-					logger.Fatal("Could not launch service", zap.Error(err))
+				if err := httpServer.Serve(httpL); err != nil {
+					logger.Fatal("Could not start HTTP server", zap.Error(err))
+				}
+				svc.HC().Set(healthcheck.Unavailable)
+			}()
+
+			// Start GRPC server concurrently
+			go func() {
+				logger.Info("Starting GRPC server", zap.Int("port", queryOpts.Port))
+				if err := grpcServer.Serve(grpcL); err != nil {
+					logger.Fatal("Could not start GRPC server", zap.Error(err))
+				}
+				svc.HC().Set(healthcheck.Unavailable)
+			}()
+
+			// Start cmux server concurrently.
+			go func() {
+				if err := s.Serve(); err != nil {
+					logger.Fatal("Could not start multiplexed server", zap.Error(err))
 				}
 				svc.HC().Set(healthcheck.Unavailable)
 			}()

@@ -61,6 +61,6 @@ func (c *Consumer) partitionMetrics(partition int32) partitionMetrics {
 		startCounter: f.Counter(metrics.Options{Name: "partition-start", Tags: nil})}
 }
 
-func partitionsHeld(metricsFactory metrics.Factory) metrics.Counter {
-	return metricsFactory.Namespace(metrics.NSOptions{Name: consumerNamespace, Tags: nil}).Counter(metrics.Options{Name: "partitions-held", Tags: nil})
+func partitionsHeldGauge(metricsFactory metrics.Factory) metrics.Gauge {
+	return metricsFactory.Namespace(metrics.NSOptions{Name: consumerNamespace, Tags: nil}).Gauge(metrics.Options{Name: "partitions-held", Tags: nil})
 }
