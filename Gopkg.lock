@@ -10,12 +10,12 @@
   revision = "e2d15f34fcf99d5dbb871c820ec73f710fca9815"
 
 [[projects]]
-  digest = "1:fa6d2866c3f2426871e3a3adb4ab1b9885801558559b15a8a05698f0a82c1c7d"
+  digest = "1:6d8a3b164679872fa5a4c44559235f7fb109c7b5cd0f456a2159d579b76cc9ba"
   name = "github.com/DataDog/zstd"
   packages = ["."]
   pruneopts = "UT"
-  revision = "69c5189b6513b1503c9c5332fb2e96362e51d547"
-  version = "v1.3.8"
+  revision = "809b919c325d7887bff7bd876162af73db53e878"
+  version = "v1.4.0"
 
 [[projects]]
   digest = "1:a2682518d905d662d984ef9959984ef87cecb777d379bfa9d9fe40e78069b3e4"
@@ -129,11 +129,11 @@
 
 [[projects]]
   branch = "master"
-  digest = "1:c734f42e5a75563e4482fb00c1e870fccf4d635cf192581d31a45f9068276b7c"
+  digest = "1:6e8109ce247a59ab1eeb5330166c12735f6590de99c9647b6162d11518d32c9a"
   name = "github.com/dgryski/go-farm"
   packages = ["."]
   pruneopts = "UT"
-  revision = "e1214b5e05dc9a680734f587f0e1686b3889f983"
+  revision = "6a90982ecee230ff6cba02d5bd386acc030be9d3"
 
 [[projects]]
   digest = "1:1f0c7ab489b407a7f8f9ad16c25a504d28ab461517a971d341388a56156c1bd7"
@@ -842,7 +842,7 @@
 
 [[projects]]
   branch = "master"
-  digest = "1:5d325750ebefe5c7b615cdabacae4832f83bca1d2f37c015496aa650361bcab4"
+  digest = "1:f36482f99cad201dc2dd3fb7ec1f2188ae4fda857c0924e7f2ec6b01de89b66e"
   name = "golang.org/x/net"
   packages = [
     "bpf",
@@ -862,24 +862,26 @@
     "trace",
   ]
   pruneopts = "UT"
-  revision = "1da14a5a36f220ea3f03470682b737b1dfd5de22"
+  revision = "4829fb13d2c62012c17688fa7f629f371014946d"
 
 [[projects]]
   branch = "master"
-  digest = "1:28d862f4f9bf2d1976d1d320481bff661b7565eb876d4df2a981f79e7f40e4cd"
+  digest = "1:41aaf393ca0e2fa523e428b29f58fbc9a4bc9f975da5b9b1cac7cef1436a7b53"
   name = "golang.org/x/sys"
   packages = ["unix"]
   pruneopts = "UT"
-  revision = "12500544f89f9420afe9529ba8940bf72d294972"
+  revision = "18eb32c0e2f0c2bc8d17842ed4ad41486f349ad4"
 
 [[projects]]
-  digest = "1:0c56024909189aee3364b7f21a95a27459f718aa7c199a5c111c36cfffd9eaef"
+  digest = "1:d353d6b67791fda470bf6b9bfa83086ee597febeb808cfc2adec70a2bab99663"
   name = "golang.org/x/text"
   packages = [
     "collate",
     "collate/build",
     "internal/colltab",
     "internal/gen",
+    "internal/language",
+    "internal/language/compact",
     "internal/tag",
     "internal/triegen",
     "internal/ucd",
@@ -893,12 +895,12 @@
     "width",
   ]
   pruneopts = "UT"
-  revision = "f21a4dfb5e38f5895301dc265a8def02365cc3d0"
-  version = "v0.3.0"
+  revision = "c942b20a5d85b458c4dce1589326051d85e25d6d"
+  version = "v0.3.1"
 
 [[projects]]
   branch = "master"
-  digest = "1:e51cac7607e1a755cfe164b6d182e7346dd172707aa2798a757c789e7f9e899f"
+  digest = "1:f5ce0b59aeb99ebb725de7b7a35483600e5f119b4daf081e88329322a2de95bc"
   name = "golang.org/x/tools"
   packages = [
     "go/ast/astutil",
@@ -912,7 +914,7 @@
     "internal/semver",
   ]
   pruneopts = "UT"
-  revision = "dd61c98faef72b3f3887b6e95177b943d9f0f918"
+  revision = "cb2dda6eabdf9160e66ca7293897f984154a7f8b"
 
 [[projects]]
   branch = "master"
@@ -923,10 +925,10 @@
     "googleapis/rpc/status",
   ]
   pruneopts = "UT"
-  revision = "d1146b9035b912113a38af3b138eb2af567b2c67"
+  revision = "e7d98fc518a78c9f8b5ee77be7b0b317475d89e1"
 
 [[projects]]
-  digest = "1:0a1fea691bda5979304d27194e77e67737a321cab3f584107f1bddc5dc650e43"
+  digest = "1:522259a6c3c27bd42604494eb144f40975bebcf51b044e4fddcdef442063c567"
   name = "google.golang.org/grpc"
   packages = [
     ".",
@@ -943,6 +945,7 @@
     "grpclog",
     "internal",
     "internal/backoff",
+    "internal/balancerload",
     "internal/binarylog",
     "internal/channelz",
     "internal/envconfig",
@@ -964,8 +967,8 @@
     "test/bufconn",
   ]
   pruneopts = "UT"
-  revision = "3507fb8e1a5ad030303c106fef3a47c9fdad16ad"
-  version = "v1.19.1"
+  revision = "25c4f928eaa6d96443009bd842389fb4fa48664e"
+  version = "v1.20.1"
 
 [[projects]]
   digest = "1:2d1fbdc6777e5408cabeb02bf336305e724b925ff4546ded0fa8715a7267922a"
