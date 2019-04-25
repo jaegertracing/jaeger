@@ -17,10 +17,12 @@ package grpcresolver
 import (
 	"context"
 	"fmt"
+	"hash/fnv"
 	"net"
 	"testing"
 	"time"
 
+	"google.golang.org/grpc/resolver"
 	"github.com/stretchr/testify/assert"
 	"go.uber.org/zap"
 	"google.golang.org/grpc"
@@ -77,16 +79,28 @@ func startTestServers(count int) (_ *test, err error) {
 	return t, nil
 }
 
+func TestErrorDiscoverer(t *testing.T) {
+	notifier := &discovery.Dispatcher{}
+	discoverer := discovery.ErrorDiscoverer{}
+	r := New(notifier, discoverer, zap.NewNop(), 2)
+	_, err := r.Build(resolver.Target{}, nil, resolver.BuildOption{})
+	assert.Error(t, err)
+}
+
 func TestGRPCResolverRoundRobin(t *testing.T) {
 	backendCount := 5
-	notifier := &discovery.Dispatcher{}
-	re := New(notifier, zap.NewNop(), backendCount)
 
 	test, err := startTestServers(backendCount)
 	if err != nil {
 		t.Fatalf("failed to start servers: %v", err)
 	}
 	defer test.cleanup()
+
+	notifier := &discovery.Dispatcher{}
+	//discoverer := discovery.FixedDiscoverer(test.addresses)
+	discoverer := discovery.FixedDiscoverer{}
+	re := New(notifier, discoverer, zap.NewNop(), backendCount)
+	assert.NoError(t, err)
 
 	cc, err := grpc.Dial(re.Scheme()+":///round_robin", grpc.WithInsecure(), grpc.WithBalancerName(roundrobin.Name))
 	if err != nil {
@@ -96,6 +110,7 @@ func TestGRPCResolverRoundRobin(t *testing.T) {
 	testc := testpb.NewTestServiceClient(cc)
 
 	notifier.Notify(test.addresses)
+
 	var p peer.Peer
 	// Make sure connections to all servers are up.
 	for si := 0; si < backendCount; si++ {
@@ -138,7 +153,9 @@ func TestRendezvousHashR(t *testing.T) {
 	// Rendezvous Hash should return same subset with same addresses & salt string
 	addresses := []string{"127.1.0.3:8080", "127.0.1.1:8080", "127.2.1.2:8080", "127.3.0.4:8080"}
 	sameAddressesDifferentOrder := []string{"127.2.1.2:8080", "127.1.0.3:8080", "127.3.0.4:8080", "127.0.1.1:8080"}
-	subset1 := rendezvousHash(addresses, "example-salt", 2)
-	subset2 := rendezvousHash(sameAddressesDifferentOrder, "example-salt", 2)
+	hasher := fnv.New32()
+	saltByte := []byte("example-salt")
+	subset1 := rendezvousHash(addresses, saltByte, hasher, 2)
+	subset2 := rendezvousHash(sameAddressesDifferentOrder, saltByte, hasher, 2)
 	assert.Equal(t, subset1, subset2)
 }

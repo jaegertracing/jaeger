@@ -35,19 +35,13 @@ type ConnBuilder struct {
 	// CollectorHostPorts is list of host:port Jaeger Collectors.
 	CollectorHostPorts []string `yaml:"collectorHostPorts"`
 
-	MaxRetry      uint
-	TLS           bool
-	TLSCA         string
-	TLSServerName string
-	notifier      discovery.Notifier
-}
-
-// WithDiscoveryNotifier sets service discovery notifier
-// TODO User should provide their own notifier so that notifier can push address updates to grpc resolver by invoking notifier.Notify(instances []string)
-// We will add integation code with custom notifier and resolver in next PR
-func (b *ConnBuilder) WithDiscoveryNotifier(n discovery.Notifier) *ConnBuilder {
-	b.notifier = n
-	return b
+	MaxRetry          uint
+	TLS               bool
+	TLSCA             string
+	TLSServerName     string
+	ConnectionPerHost int
+	Notifier          discovery.Notifier
+	Discoverer        discovery.Discoverer
 }
 
 // NewConnBuilder creates a new grpc connection builder.
@@ -81,10 +75,9 @@ func (b *ConnBuilder) CreateConnection(logger *zap.Logger) (*grpc.ClientConn, er
 		dialOptions = append(dialOptions, grpc.WithInsecure())
 	}
 
-	if b.notifier != nil {
+	if b.Notifier != nil && b.Discoverer != nil {
 		logger.Info("Using external discovery service with roundrobin load balancer")
-		grpcResolver := grpcresolver.New(b.notifier, logger, b.subsetSize)
-		resolver.Register(grpcResolver)
+		grpcResolver := grpcresolver.New(b.Notifier, b.Discoverer, logger, b.ConnectionPerHost)
 		dialOptions = append(dialOptions, grpc.WithBalancerName(roundrobin.Name))
 		dialTarget = grpcResolver.Scheme() + ":///round_robin"
 	}

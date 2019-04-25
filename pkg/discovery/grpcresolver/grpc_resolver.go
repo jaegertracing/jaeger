@@ -15,12 +15,14 @@
 package grpcresolver
 
 import (
+	"hash"
+	"hash/fnv"
 	"math/rand"
+	"sort"
 	"strconv"
 	"sync"
 	"time"
 
-	"github.com/tysontate/rendezvous"
 	"go.uber.org/zap"
 	"google.golang.org/grpc/resolver"
 
@@ -29,37 +31,47 @@ import (
 
 // Resolver uses notifier to fetch list of available hosts
 type Resolver struct {
-	scheme string
-
-	// Fields actually belong to the resolver.
-	cc resolver.ClientConn
-
-	notifier   discovery.Notifier
-	logger     *zap.Logger
-	discoCh    chan []string // used to receive notifications
-	stopCh     chan struct{}
-	subsetSize int
-	mu         sync.Mutex
-	hash       rendezvous.Hash
-	salt       string
+	scheme            string
+	cc                resolver.ClientConn
+	notifier          discovery.Notifier
+	discoverer        discovery.Discoverer
+	logger            *zap.Logger
+	discoCh           chan []string // used to receive notifications
+	connectionPerHost int
+	mu                sync.Mutex
+	salt              []byte
+	hasher            hash.Hash32
+	wg                sync.WaitGroup
 }
+type hostScore struct {
+	address string
+	score   uint32
+}
+
+type hostScores []hostScore
+
+func (s hostScores) Len() int           { return len(s) }
+func (s hostScores) Swap(i, j int)      { s[i], s[j] = s[j], s[i] }
+func (s hostScores) Less(i, j int) bool { return s[i].score < s[j].score }
 
 // New intialize a new grpc resolver with notifier
 func New(
 	notifier discovery.Notifier,
+	discoverer discovery.Discoverer,
 	logger *zap.Logger,
-	subsetSize int,
+	connectionPerHost int,
 ) *Resolver {
-	rand.Seed(time.Now().UTC().UnixNano())
-
+	seed := time.Now().UnixNano()
+	random := rand.New(rand.NewSource(seed))
 	r := &Resolver{
-		notifier:   notifier,
-		discoCh:    make(chan []string, 100), // TODO should this number be configurable? What if the number of collectors exceed 100 from discovery service
-		stopCh:     make(chan struct{}),
-		logger:     logger,
-		subsetSize: subsetSize,
-		salt:       strconv.FormatInt(rand.Int63(), 10),
-		scheme:     strconv.FormatInt(time.Now().UnixNano(), 36),
+		notifier:          notifier,
+		discoverer:        discoverer,
+		discoCh:           make(chan []string, 100),
+		logger:            logger,
+		connectionPerHost: connectionPerHost,
+		salt:              []byte(strconv.FormatInt(random.Int63(), 10)), // random salt for rendezvousHash
+		scheme:            strconv.FormatInt(seed, 36),                   // make random scheme which will be used when registering
+		hasher:            fnv.New32(),
 	}
 	// TODO not sure if there's an equivalent way for grpc to maintain connection like what tchannel did?
 
@@ -74,6 +86,14 @@ func New(
 // Build returns itself for Resolver, because it's both a builder and a resolver.
 func (r *Resolver) Build(target resolver.Target, cc resolver.ClientConn, opts resolver.BuildOption) (resolver.Resolver, error) {
 	r.cc = cc
+
+	// Update conn states if proactively updates already work
+	instances, err := r.discoverer.Instances()
+	if err != nil {
+		return nil, err
+	}
+	r.cc.UpdateState(resolver.State{Addresses: generateAddresses(instances)})
+	r.wg.Add(1)
 	go r.watcher()
 	return r, nil
 }
@@ -84,43 +104,52 @@ func (r *Resolver) Scheme() string {
 }
 
 // ResolveNow is a noop for Resolver.
-func (*Resolver) ResolveNow(o resolver.ResolveNowOption) {}
+func (r *Resolver) ResolveNow(o resolver.ResolveNowOption) {}
 
 func (r *Resolver) watcher() {
-	for {
-		select {
-		case latestHostPorts := <-r.discoCh:
-			r.mu.Lock()
-			defer r.mu.Unlock()
-			r.logger.Info("gRPC naming.Watcher Receives updates", zap.Strings("hostPorts", latestHostPorts))
-			subsetHostPorts := rendezvousHash(latestHostPorts, r.salt, r.subsetSize)
-			var resolvedAddrs []resolver.Address
-			for _, addr := range subsetHostPorts {
-				resolvedAddrs = append(resolvedAddrs, resolver.Address{Addr: addr})
-			}
-			r.cc.UpdateState(resolver.State{Addresses: resolvedAddrs})
-		case <-r.stopCh:
-			return
-		}
+	defer r.wg.Done()
+	for latestHostPorts := range r.discoCh {
+		r.mu.Lock()
+		r.logger.Info("Received updates from notifier", zap.Strings("hostPorts", latestHostPorts))
+		r.cc.UpdateState(resolver.State{Addresses: generateAddresses(rendezvousHash(latestHostPorts, r.salt, r.hasher, r.connectionPerHost))})
+		r.mu.Unlock()
 	}
 }
 
-// Close closes both discoCh and stopCh
+// Close closes both discoCh
 func (r *Resolver) Close() {
-	if r.discoCh != nil {
-		r.notifier.Unregister(r.discoCh)
-		close(r.discoCh)
-		r.discoCh = nil
-	}
-
-	if r.stopCh != nil {
-		close(r.stopCh)
-		r.stopCh = nil
-	}
+	r.notifier.Unregister(r.discoCh)
+	close(r.discoCh)
+	r.wg.Wait()
 }
 
-func rendezvousHash(addresses []string, salt string, subsetSize int) []string {
-	hash := rendezvous.New(addresses...)
-	subset := hash.GetN(subsetSize, salt)
-	return subset
+func rendezvousHash(addresses []string, salt []byte, hasher hash.Hash32, connectionPerHost int) []string {
+	hosts := hostScores{}
+	for _, address := range addresses {
+		hosts = append(hosts, hostScore{
+			address: address,
+			score:   hashAddr(hasher, []byte(address), salt),
+		})
+	}
+	sort.Sort(hosts)
+	addressesPerHost := make([]string, connectionPerHost)
+	for i := 0; i < connectionPerHost; i++ {
+		addressesPerHost[i] = hosts[i].address
+	}
+	return addressesPerHost
+}
+
+func hashAddr(hasher hash.Hash32, node, key []byte) uint32 {
+	hasher.Reset()
+	hasher.Write(key)
+	hasher.Write(node)
+	return hasher.Sum32()
+}
+
+func generateAddresses(instances []string) []resolver.Address {
+	var addrs []resolver.Address
+	for _, instance := range instances {
+		addrs = append(addrs, resolver.Address{Addr: instance})
+	}
+	return addrs
 }

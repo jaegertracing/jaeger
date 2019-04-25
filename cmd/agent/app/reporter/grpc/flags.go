@@ -29,7 +29,7 @@ const (
 	collectorTLS                 = gRPCPrefix + "tls"
 	collectorTLSCA               = gRPCPrefix + "tls.ca"
 	collectorTLSServerName       = gRPCPrefix + "tls.server-name"
-	collectorConnectionsPerAgent = gRPCPrefix + "connections.per.host"
+	collectorConnectionsPerAgent = gRPCPrefix + "connections-per-host"
 )
 
 // AddFlags adds flags for Options.
@@ -52,6 +52,6 @@ func (b *ConnBuilder) InitFromViper(v *viper.Viper) *ConnBuilder {
 	b.TLS = v.GetBool(collectorTLS)
 	b.TLSCA = v.GetString(collectorTLSCA)
 	b.TLSServerName = v.GetString(collectorTLSServerName)
-	b.subsetSize = v.GetInt(collectorConnectionsPerAgent)
+	b.ConnectionPerHost = v.GetInt(collectorConnectionsPerAgent)
 	return b
 }
