@@ -25,11 +25,16 @@
 #   unused-packages = true
 
 required = [
+    "github.com/securego/gosec/cmd/gosec",
     "github.com/golang/protobuf/protoc-gen-go",
     "github.com/gogo/protobuf/protoc-gen-gogo",
     "github.com/grpc-ecosystem/grpc-gateway/protoc-gen-grpc-gateway",
     "github.com/grpc-ecosystem/grpc-gateway/protoc-gen-swagger"
 ]
+
+[[constraint]]
+  name = "github.com/securego/gosec"
+  version = "1.3.0"
 
 [[constraint]]
   name = "github.com/apache/thrift"
@@ -124,15 +129,12 @@ required = [
   unused-packages = true
   [[prune.project]]
     name = "github.com/gogo/protobuf"
-    non-go = false
     unused-packages = false
   [[prune.project]]
     name = "github.com/grpc-ecosystem/grpc-gateway"
-    non-go = false
     unused-packages = false
   [[prune.project]]
       name = "github.com/gogo/googleapis"
-      non-go = false
       unused-packages = false
 
 [[constraint]]
