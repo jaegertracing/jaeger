@@ -49,18 +49,23 @@ type Service struct {
 	MetricsFactory metrics.Factory
 
 	signalsChannel chan os.Signal
+
+	// HcStatusChannel is used for error propagation
+	HcStatusChannel chan healthcheck.Status
 }
 
 // NewService creates a new Service.
 func NewService(adminPort int) *Service {
 	signalsChannel := make(chan os.Signal)
+	hcStatusChannel := make(chan healthcheck.Status)
 	signal.Notify(signalsChannel, os.Interrupt, syscall.SIGTERM)
 
 	grpclog.SetLoggerV2(grpclog.NewLoggerV2(ioutil.Discard, os.Stderr, os.Stderr))
 
 	return &Service{
-		Admin:          NewAdminServer(adminPort),
-		signalsChannel: signalsChannel,
+		Admin:           NewAdminServer(adminPort),
+		signalsChannel:  signalsChannel,
+		HcStatusChannel: hcStatusChannel,
 	}
 }
 
@@ -120,7 +125,13 @@ func (s *Service) HC() *healthcheck.HealthCheck {
 // If then runs the shutdown function and exits.
 func (s *Service) RunAndThen(shutdown func()) {
 	s.HC().Ready()
-	<-s.signalsChannel
+
+	select {
+	case status := <-s.HcStatusChannel:
+		s.HC().Set(status)
+	case <-s.signalsChannel:
+
+	}
 
 	s.Logger.Info("Shutting down")
 	s.HC().Set(healthcheck.Unavailable)

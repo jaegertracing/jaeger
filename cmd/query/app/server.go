@@ -92,12 +92,14 @@ func (s *Server) Start() {
 	h := createHandler(s.querySvc, s.svc.Logger, s.tracker)
 	api_v2.RegisterQueryServiceServer(s.grpcServer, h)
 
+	status := s.svc.HcStatusChannel
+
 	go func() {
 		s.svc.Logger.Info("Starting HTTP server", zap.Int("port", s.listenPort))
 		if err := s.httpServer.Serve(s.httpListener); err != nil {
 			s.svc.Logger.Error("Could not start HTTP server", zap.Error(err))
 		}
-		s.svc.HC().Set(healthcheck.Unavailable)
+		status <- healthcheck.Unavailable
 	}()
 
 	// Start GRPC server concurrently
@@ -106,7 +108,7 @@ func (s *Server) Start() {
 		if err := s.grpcServer.Serve(s.grpcListener); err != nil {
 			s.svc.Logger.Error("Could not start GRPC server", zap.Error(err))
 		}
-		s.svc.HC().Set(healthcheck.Unavailable)
+		status <- healthcheck.Unavailable
 	}()
 
 	// Start cmux server concurrently.
@@ -115,7 +117,7 @@ func (s *Server) Start() {
 		if err := s.muxServer.Serve(); err != nil {
 			s.svc.Logger.Error("Could not start multiplexed server", zap.Error(err))
 		}
-		s.svc.HC().Set(healthcheck.Unavailable)
+		status <- healthcheck.Unavailable
 	}()
 
 }
