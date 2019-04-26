@@ -50,8 +50,7 @@ type Service struct {
 
 	signalsChannel chan os.Signal
 
-	// HcStatusChannel is used for error propagation
-	HcStatusChannel chan healthcheck.Status
+	hcStatusChannel chan healthcheck.Status
 }
 
 // NewService creates a new Service.
@@ -65,7 +64,7 @@ func NewService(adminPort int) *Service {
 	return &Service{
 		Admin:           NewAdminServer(adminPort),
 		signalsChannel:  signalsChannel,
-		HcStatusChannel: hcStatusChannel,
+		hcStatusChannel: hcStatusChannel,
 	}
 }
 
@@ -79,6 +78,11 @@ func (s *Service) AddFlags(flagSet *flag.FlagSet) {
 	}
 	pMetrics.AddFlags(flagSet)
 	s.Admin.AddFlags(flagSet)
+}
+
+// SetHealthCheckStatus sets status of healthcheck
+func (s *Service) SetHealthCheckStatus(status healthcheck.Status) {
+	s.hcStatusChannel <- healthcheck.Unavailable
 }
 
 // Start bootstraps the service and starts the admin server.
@@ -126,11 +130,14 @@ func (s *Service) HC() *healthcheck.HealthCheck {
 func (s *Service) RunAndThen(shutdown func()) {
 	s.HC().Ready()
 
-	select {
-	case status := <-s.HcStatusChannel:
-		s.HC().Set(status)
-	case <-s.signalsChannel:
-
+statusLoop:
+	for {
+		select {
+		case status := <-s.hcStatusChannel:
+			s.HC().Set(status)
+		case <-s.signalsChannel:
+			break statusLoop
+		}
 	}
 
 	s.Logger.Info("Shutting down")

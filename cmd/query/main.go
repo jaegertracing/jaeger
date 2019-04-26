@@ -97,28 +97,16 @@ func main() {
 				queryServiceOptions)
 
 			queryOpts := new(app.QueryOptions).InitFromViper(v)
-			apiHandlerOptions := []app.HandlerOption{
-				app.HandlerOptions.Logger(logger),
-				app.HandlerOptions.Tracer(tracer),
-			}
-			apiHandler := app.NewAPIHandler(
-				queryService,
-				apiHandlerOptions...)
-			r := app.NewRouter()
-			if queryOpts.BasePath != "/" {
-				r = r.PathPrefix(queryOpts.BasePath).Subrouter()
-			}
-			apiHandler.RegisterRoutes(r)
-			app.RegisterStaticHandler(r, logger, queryOpts)
-
-			grcpServer, err := app.NewServer(svc, r, *queryService, tracer, queryOpts.Port)
+			grcpServer, err := app.NewServer(svc, *queryService, tracer, queryOpts)
 			if err != nil {
 				logger.Fatal("Could not start listener", zap.Error(err))
 			}
 
 			grcpServer.Start()
 
-			svc.RunAndThen(nil)
+			svc.RunAndThen(func() {
+				grcpServer.Stop()
+			})
 			return nil
 		},
 	}

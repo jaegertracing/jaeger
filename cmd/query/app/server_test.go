@@ -18,7 +18,6 @@ import (
 	"testing"
 	"time"
 
-	"github.com/gorilla/mux"
 	"github.com/opentracing/opentracing-go"
 	"github.com/stretchr/testify/assert"
 	"go.uber.org/zap"
@@ -37,15 +36,12 @@ func TestServer(t *testing.T) {
 	err := flagsSvc.Admin.Serve()
 	assert.NoError(t, err)
 	flagsSvc.Logger = zap.NewNop()
-	go flagsSvc.RunAndThen(func() {
-		// no op
-	})
+	go flagsSvc.RunAndThen(nil)
 
-	router := mux.NewRouter()
 	querySvc := querysvc.QueryService{}
 	tracker := opentracing.NoopTracer{}
 
-	server, err := NewServer(flagsSvc, router,querySvc, tracker, testPort)
+	server, err := NewServer(flagsSvc, querySvc, tracker, &QueryOptions{Port:testPort})
 	assert.NoError(t, err)
 
 	server.Start()
@@ -55,6 +51,5 @@ func TestServer(t *testing.T) {
 	// wait before server is closed
 	time.Sleep(1 * time.Second)
 
-	// after shutdown is called, status gets changed to Broken
-	assert.Equal(t, healthcheck.Broken, server.svc.HC().Get())
+	assert.Equal(t, healthcheck.Unavailable, server.svc.HC().Get())
 }
