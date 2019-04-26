@@ -97,15 +97,14 @@ func main() {
 				queryServiceOptions)
 
 			queryOpts := new(app.QueryOptions).InitFromViper(v)
-			grcpServer, err := app.NewServer(svc, *queryService, tracer, queryOpts)
-			if err != nil {
-				logger.Fatal("Could not start listener", zap.Error(err))
+			server := app.NewServer(svc, queryService, queryOpts, tracer)
+
+			if err := server.Start(); err != nil {
+				logger.Fatal("Could not start servers", zap.Error(err))
 			}
 
-			grcpServer.Start()
-
 			svc.RunAndThen(func() {
-				grcpServer.Stop()
+				server.Close()
 			})
 			return nil
 		},

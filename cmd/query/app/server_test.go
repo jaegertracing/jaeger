@@ -28,28 +28,34 @@ import (
 	"github.com/jaegertracing/jaeger/ports"
 )
 
+func TestServerError(t *testing.T) {
+	srv := &Server{
+		queryOptions: &QueryOptions{
+			Port: -1,
+		},
+	}
+	assert.Error(t, srv.Start())
+}
+
 func TestServer(t *testing.T) {
-	const testPort = ports.QueryAdminHTTP
-
 	flagsSvc := flags.NewService(ports.AgentAdminHTTP)
-	flagsSvc.HC().Ready()
-	err := flagsSvc.Admin.Serve()
-	assert.NoError(t, err)
 	flagsSvc.Logger = zap.NewNop()
-	go flagsSvc.RunAndThen(nil)
 
-	querySvc := querysvc.QueryService{}
-	tracker := opentracing.NoopTracer{}
+	querySvc := &querysvc.QueryService{}
+	tracer := opentracing.NoopTracer{}
 
-	server, err := NewServer(flagsSvc, querySvc, tracker, &QueryOptions{Port:testPort})
-	assert.NoError(t, err)
+	server := NewServer(flagsSvc, querySvc, &QueryOptions{Port: ports.QueryAdminHTTP}, tracer)
+	assert.NoError(t, server.Start())
 
-	server.Start()
-
-	err = server.httpServer.Close()
-	assert.NoError(t, err)
-	// wait before server is closed
+	// TODO wait for servers to come up and test http and grpc endpoints
 	time.Sleep(1 * time.Second)
 
+	server.Close()
+	for i := 0; i < 10; i++ {
+		if server.svc.HC().Get() == healthcheck.Unavailable {
+			break
+		}
+		time.Sleep(1 * time.Millisecond)
+	}
 	assert.Equal(t, healthcheck.Unavailable, server.svc.HC().Get())
 }

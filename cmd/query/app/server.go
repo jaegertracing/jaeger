@@ -35,22 +35,36 @@ import (
 // Server runs HTTP, Mux and a grpc server
 type Server struct {
 	svc          *flags.Service
-	grpcServer   *grpc.Server
-	grpcListener net.Listener
-	httpListener net.Listener
-	httpServer   *http.Server
-	muxServer    cmux.CMux
-	querySvc     querysvc.QueryService
-	tracer       opentracing.Tracer
-	queryOptions QueryOptions
+	querySvc     *querysvc.QueryService
+	queryOptions *QueryOptions
+
+	tracer opentracing.Tracer // TODO make part of flags.Service
+
+	conn       net.Listener
+	grpcServer *grpc.Server
+	httpServer *http.Server
 }
 
-func createHandler(querySvc querysvc.QueryService, logger *zap.Logger, tracker opentracing.Tracer) *GRPCHandler {
-	return NewGRPCHandler(querySvc, logger, tracker)
+// NewServer creates and initializes Server
+func NewServer(svc *flags.Service, querySvc *querysvc.QueryService, options *QueryOptions, tracer opentracing.Tracer) *Server {
+	return &Server{
+		svc:          svc,
+		querySvc:     querySvc,
+		queryOptions: options,
+		tracer:       tracer,
+		grpcServer:   createGRPCServer(querySvc, svc.Logger, tracer),
+		httpServer:   createHTTPServer(querySvc, options, tracer, svc.Logger),
+	}
 }
 
-func createHTTPServer(querySvc *querysvc.QueryService, tracer opentracing.Tracer, logger *zap.Logger, queryOpts *QueryOptions) *http.Server {
+func createGRPCServer(querySvc *querysvc.QueryService, logger *zap.Logger, tracer opentracing.Tracer) *grpc.Server {
+	srv := grpc.NewServer()
+	handler := NewGRPCHandler(querySvc, logger, tracer)
+	api_v2.RegisterQueryServiceServer(srv, handler)
+	return srv
+}
 
+func createHTTPServer(querySvc *querysvc.QueryService, queryOpts *QueryOptions, tracer opentracing.Tracer, logger *zap.Logger) *http.Server {
 	apiHandlerOptions := []HandlerOption{
 		HandlerOptions.Logger(logger),
 		HandlerOptions.Tracer(tracer),
@@ -73,41 +87,25 @@ func createHTTPServer(querySvc *querysvc.QueryService, tracer opentracing.Tracer
 	}
 }
 
-// NewServer creates and initializes Server
-func NewServer(svc *flags.Service, querySvc querysvc.QueryService, tracer opentracing.Tracer, options *QueryOptions) (*Server, error) {
-
-	// Prepare cmux conn.
-	conn, err := net.Listen("tcp", fmt.Sprintf(":%d", options.Port))
-	if err != nil {
-		return nil, err
-	}
-
-	// Create cmux server.
-	// cmux will reverse-proxy between HTTP and GRPC backends.
-	cmuxServer := cmux.New(conn)
-	return &Server{
-		svc:        svc,
-		grpcServer: grpc.NewServer(),
-		grpcListener: cmuxServer.Match(
-			cmux.HTTP2HeaderField("content-type", "application/grpc"),
-			cmux.HTTP2HeaderField("content-type", "application/grpc+proto")),
-		httpListener: cmuxServer.Match(cmux.Any()),
-		httpServer:   createHTTPServer(&querySvc, tracer, svc.Logger, options),
-		muxServer:    cmuxServer,
-		querySvc:     querySvc,
-		tracer:       tracer,
-	}, nil
-}
-
 // Start http, GRPC and cmux servers concurrently
-func (s *Server) Start() {
-	// Create handler
-	h := createHandler(s.querySvc, s.svc.Logger, s.tracer)
-	api_v2.RegisterQueryServiceServer(s.grpcServer, h)
+func (s *Server) Start() error {
+	conn, err := net.Listen("tcp", fmt.Sprintf(":%d", s.queryOptions.Port))
+	if err != nil {
+		return err
+	}
+	s.conn = conn
+
+	// cmux server acts as a reverse-proxy between HTTP and GRPC backends.
+	cmuxServer := cmux.New(s.conn)
+
+	grpcListener := cmuxServer.Match(
+		cmux.HTTP2HeaderField("content-type", "application/grpc"),
+		cmux.HTTP2HeaderField("content-type", "application/grpc+proto"))
+	httpListener := cmuxServer.Match(cmux.Any())
 
 	go func() {
 		s.svc.Logger.Info("Starting HTTP server", zap.Int("port", s.queryOptions.Port))
-		if err := s.httpServer.Serve(s.httpListener); err != nil {
+		if err := s.httpServer.Serve(httpListener); err != nil {
 			s.svc.Logger.Error("Could not start HTTP server", zap.Error(err))
 		}
 		s.svc.SetHealthCheckStatus(healthcheck.Unavailable)
@@ -116,7 +114,7 @@ func (s *Server) Start() {
 	// Start GRPC server concurrently
 	go func() {
 		s.svc.Logger.Info("Starting GRPC server", zap.Int("port", s.queryOptions.Port))
-		if err := s.grpcServer.Serve(s.grpcListener); err != nil {
+		if err := s.grpcServer.Serve(grpcListener); err != nil {
 			s.svc.Logger.Error("Could not start GRPC server", zap.Error(err))
 		}
 		s.svc.SetHealthCheckStatus(healthcheck.Unavailable)
@@ -125,16 +123,18 @@ func (s *Server) Start() {
 	// Start cmux server concurrently.
 	go func() {
 		s.svc.Logger.Info("Starting CMUX server", zap.Int("port", s.queryOptions.Port))
-		if err := s.muxServer.Serve(); err != nil {
+		if err := cmuxServer.Serve(); err != nil {
 			s.svc.Logger.Error("Could not start multiplexed server", zap.Error(err))
 		}
 		s.svc.SetHealthCheckStatus(healthcheck.Unavailable)
 	}()
 
+	return nil
 }
 
 // Stop http, GRPC servers
-func (s *Server) Stop() {
+func (s *Server) Close() {
 	s.grpcServer.Stop()
 	s.httpServer.Close()
+	s.conn.Close()
 }
