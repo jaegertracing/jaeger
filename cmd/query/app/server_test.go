@@ -13,3 +13,48 @@
 // limitations under the License.
 
 package app
+
+import (
+	"testing"
+	"time"
+
+	"github.com/gorilla/mux"
+	"github.com/opentracing/opentracing-go"
+	"github.com/stretchr/testify/assert"
+	"go.uber.org/zap"
+
+	"github.com/jaegertracing/jaeger/cmd/flags"
+	"github.com/jaegertracing/jaeger/cmd/query/app/querysvc"
+	"github.com/jaegertracing/jaeger/pkg/healthcheck"
+	"github.com/jaegertracing/jaeger/ports"
+)
+
+func TestServer(t *testing.T) {
+	const testPort = ports.QueryAdminHTTP
+
+	flagsSvc := flags.NewService(ports.AgentAdminHTTP)
+	flagsSvc.HC().Ready()
+	err := flagsSvc.Admin.Serve()
+	assert.NoError(t, err)
+	flagsSvc.Logger = zap.NewNop()
+	go flagsSvc.RunAndThen(func() {
+		// no op
+	})
+
+	router := mux.NewRouter()
+	querySvc := querysvc.QueryService{}
+	tracker := opentracing.NoopTracer{}
+
+	server, err := NewServer(flagsSvc, router,querySvc, tracker, testPort)
+	assert.NoError(t, err)
+
+	server.Start()
+
+	err = server.httpServer.Close()
+	assert.NoError(t, err)
+	// wait before server is closed
+	time.Sleep(1 * time.Second)
+
+	// after shutdown is called, status gets changed to Broken
+	assert.Equal(t, healthcheck.Broken, server.svc.HC().Get())
+}
