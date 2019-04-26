@@ -132,7 +132,7 @@ func (s *Server) Start() error {
 	return nil
 }
 
-// Stop http, GRPC servers
+// Close stops http, GRPC servers and closes the port listener.
 func (s *Server) Close() {
 	s.grpcServer.Stop()
 	s.httpServer.Close()
