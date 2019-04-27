@@ -91,7 +91,7 @@ func (f *Factory) getFactoryOfType(factoryType string) (storage.Factory, error) 
 	case badgerStorageType:
 		return badger.NewFactory(), nil
 	default:
-		return nil, fmt.Errorf("Unknown storage type %s. Valid types are %v", factoryType, allStorageTypes)
+		return nil, fmt.Errorf("unknown storage type %s. Valid types are %v", factoryType, allStorageTypes)
 	}
 }
 
@@ -110,7 +110,7 @@ func (f *Factory) Initialize(metricsFactory metrics.Factory, logger *zap.Logger)
 func (f *Factory) CreateSpanReader() (spanstore.Reader, error) {
 	factory, ok := f.factories[f.SpanReaderType]
 	if !ok {
-		return nil, fmt.Errorf("No %s backend registered for span store", f.SpanReaderType)
+		return nil, fmt.Errorf("no %s backend registered for span store", f.SpanReaderType)
 	}
 	return factory.CreateSpanReader()
 }
@@ -121,7 +121,7 @@ func (f *Factory) CreateSpanWriter() (spanstore.Writer, error) {
 	for _, storageType := range f.SpanWriterTypes {
 		factory, ok := f.factories[storageType]
 		if !ok {
-			return nil, fmt.Errorf("No %s backend registered for span store", storageType)
+			return nil, fmt.Errorf("no %s backend registered for span store", storageType)
 		}
 		writer, err := factory.CreateSpanWriter()
 		if err != nil {
@@ -150,7 +150,7 @@ func (f *Factory) CreateSpanWriter() (spanstore.Writer, error) {
 func (f *Factory) CreateDependencyReader() (dependencystore.Reader, error) {
 	factory, ok := f.factories[f.DependenciesStorageType]
 	if !ok {
-		return nil, fmt.Errorf("No %s backend registered for span store", f.DependenciesStorageType)
+		return nil, fmt.Errorf("no %s backend registered for span store", f.DependenciesStorageType)
 	}
 	return factory.CreateDependencyReader()
 }
@@ -202,7 +202,7 @@ func (f *Factory) initDownsamplingFromViper(v *viper.Viper) {
 func (f *Factory) CreateArchiveSpanReader() (spanstore.Reader, error) {
 	factory, ok := f.factories[f.SpanReaderType]
 	if !ok {
-		return nil, fmt.Errorf("No %s backend registered for span store", f.SpanReaderType)
+		return nil, fmt.Errorf("no %s backend registered for span store", f.SpanReaderType)
 	}
 	archive, ok := factory.(storage.ArchiveFactory)
 	if !ok {
@@ -215,7 +215,7 @@ func (f *Factory) CreateArchiveSpanReader() (spanstore.Reader, error) {
 func (f *Factory) CreateArchiveSpanWriter() (spanstore.Writer, error) {
 	factory, ok := f.factories[f.SpanWriterTypes[0]]
 	if !ok {
-		return nil, fmt.Errorf("No %s backend registered for span store", f.SpanWriterTypes[0])
+		return nil, fmt.Errorf("no %s backend registered for span store", f.SpanWriterTypes[0])
 	}
 	archive, ok := factory.(storage.ArchiveFactory)
 	if !ok {

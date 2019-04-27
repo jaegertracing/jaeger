@@ -71,7 +71,7 @@ var (
 		},
 	}
 
-	errTestStorage = errors.New("Storage error")
+	errTestStorage = errors.New("storage error")
 
 	testCalculator = calculationstrategy.CalculateFunc(func(targetQPS, qps, oldProbability float64) float64 {
 		factor := targetQPS / qps

@@ -35,29 +35,25 @@ import (
 
 var (
 	// ErrServiceNameNotSet occurs when attempting to query with an empty service name
-	ErrServiceNameNotSet = errors.New("Service Name must be set")
+	ErrServiceNameNotSet = errors.New("service name must be set")
 
 	// ErrStartTimeMinGreaterThanMax occurs when start time min is above start time max
-	ErrStartTimeMinGreaterThanMax = errors.New("Start Time Minimum is above Maximum")
+	ErrStartTimeMinGreaterThanMax = errors.New("min start time is above max")
 
 	// ErrDurationMinGreaterThanMax occurs when duration min is above duration max
-	ErrDurationMinGreaterThanMax = errors.New("Duration Minimum is above Maximum")
+	ErrDurationMinGreaterThanMax = errors.New("min duration is above max")
 
 	// ErrMalformedRequestObject occurs when a request object is nil
-	ErrMalformedRequestObject = errors.New("Malformed request object")
+	ErrMalformedRequestObject = errors.New("malformed request object")
 
 	// ErrStartAndEndTimeNotSet occurs when start time and end time are not set
-	ErrStartAndEndTimeNotSet = errors.New("Start and End Time must be set")
+	ErrStartAndEndTimeNotSet = errors.New("start and end time must be set")
 
 	// ErrUnableToFindTraceIDAggregation occurs when an aggregation query for TraceIDs fail.
-	ErrUnableToFindTraceIDAggregation = errors.New("Could not find aggregation of traceIDs")
+	ErrUnableToFindTraceIDAggregation = errors.New("could not find aggregation of traceIDs")
 
 	// ErrNotSupported during development, don't support every option - yet
-	ErrNotSupported = errors.New("This query parameter is not supported yet")
-
-	errNoTraces = errors.New("No trace with that ID found")
-
-	defaultMaxDuration = model.DurationAsMicroseconds(time.Hour * 24)
+	ErrNotSupported = errors.New("this query parameter is not supported yet")
 )
 
 const (
@@ -92,7 +88,7 @@ func decodeValue(val []byte, encodeType byte) (*model.Span, error) {
 			return nil, err
 		}
 	default:
-		return nil, fmt.Errorf("Unknown encoding type: %#02x", encodeType)
+		return nil, fmt.Errorf("unknown encoding type: %#02x", encodeType)
 	}
 	return &sp, nil
 }

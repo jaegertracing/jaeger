@@ -242,13 +242,13 @@ func (aH *APIHandler) tracesByIDs(ctx context.Context, traceIDs []model.TraceID)
 
 func (aH *APIHandler) dependencies(w http.ResponseWriter, r *http.Request) {
 	endTsMillis, err := strconv.ParseInt(r.FormValue(endTsParam), 10, 64)
-	if aH.handleError(w, errors.Wrapf(err, "Unable to parse %s", endTimeParam), http.StatusBadRequest) {
+	if aH.handleError(w, errors.Wrapf(err, "unable to parse %s", endTimeParam), http.StatusBadRequest) {
 		return
 	}
 	var lookback time.Duration
 	if formValue := r.FormValue(lookbackParam); len(formValue) > 0 {
 		lookback, err = time.ParseDuration(formValue + "ms")
-		if aH.handleError(w, errors.Wrapf(err, "Unable to parse %s", lookbackParam), http.StatusBadRequest) {
+		if aH.handleError(w, errors.Wrapf(err, "unable to parse %s", lookbackParam), http.StatusBadRequest) {
 			return
 		}
 	}

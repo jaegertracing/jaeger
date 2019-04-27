@@ -183,7 +183,7 @@ func createTraceKV(span *model.Span, encodingType byte) ([]byte, []byte, error) 
 	case jsonEncoding:
 		bb, err = json.Marshal(span)
 	default:
-		return nil, nil, fmt.Errorf("Unknown encoding type: %#02x", encodingType)
+		return nil, nil, fmt.Errorf("unknown encoding type: %#02x", encodingType)
 	}
 
 	return buf.Bytes(), bb, err

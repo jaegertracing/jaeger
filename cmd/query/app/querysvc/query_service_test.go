@@ -33,9 +33,7 @@ import (
 const millisToNanosMultiplier = int64(time.Millisecond / time.Nanosecond)
 
 var (
-	errStorageMsg = "Storage error"
-	errStorage    = errors.New(errStorageMsg)
-	errAdjustment = errors.New("Adjustment error")
+	errAdjustment = errors.New("adjustment error")
 
 	defaultDependencyLookbackDuration = time.Hour * 24
 
@@ -165,11 +163,11 @@ func TestFindTraces(t *testing.T) {
 	ctx := context.Background()
 	duration, _ := time.ParseDuration("20ms")
 	params := &spanstore.TraceQueryParameters{
-		ServiceName: "service",
+		ServiceName:   "service",
 		OperationName: "operation",
-		StartTimeMax: time.Now(),
-		DurationMin: duration,
-		NumTraces: 200,
+		StartTimeMax:  time.Now(),
+		DurationMin:   duration,
+		NumTraces:     200,
 	}
 	traces, err := qs.FindTraces(context.WithValue(ctx, contextKey("foo"), "bar"), params)
 	assert.NoError(t, err)
@@ -244,8 +242,8 @@ func TestGetDependencies(t *testing.T) {
 	qs, _, depsMock := initializeTestService()
 	expectedDependencies := []model.DependencyLink{
 		{
-			Parent: "killer",
-			Child: "queen",
+			Parent:    "killer",
+			Child:     "queen",
 			CallCount: 12,
 		},
 	}

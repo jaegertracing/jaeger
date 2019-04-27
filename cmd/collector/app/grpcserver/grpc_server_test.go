@@ -68,6 +68,7 @@ func TestSpanCollector(t *testing.T) {
 	require.NoError(t, err)
 
 	conn, err := grpc.Dial(addr.String(), grpc.WithInsecure())
+	//lint:ignore SA5001 don't care about errors
 	defer conn.Close()
 	defer server.Stop()
 	require.NoError(t, err)

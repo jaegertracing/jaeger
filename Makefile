@@ -29,7 +29,7 @@ GOLINT=golint
 GOVET=go vet
 GOFMT=gofmt
 GOSEC=gosec -quiet -exclude=G104,G107
-GOSIMPLE=gosimple
+STATICCHECK=staticcheck
 FMT_LOG=fmt.log
 LINT_LOG=lint.log
 IMPORT_LOG=import.log
@@ -126,10 +126,20 @@ fmt:
 lint-gosec:
 	$(GOSEC) ./...
 
+.PHONY: lint-staticcheck
+lint-staticcheck:
+	@echo Running staticcheck...
+	@cat /dev/null > $(LINT_LOG)
+	@$(STATICCHECK) ./... \
+		| grep -v \
+			-e model/model.pb.go \
+			-e thrift-gen/ \
+		>> $(LINT_LOG) || true
+	@[ ! -s "$(LINT_LOG)" ] || (echo "Detected staticcheck failures:" | cat - $(LINT_LOG) && false)
+
 .PHONY: lint
-lint: lint-gosec
+lint: lint-staticcheck lint-gosec
 	$(GOVET) ./...
-	$(GOSIMPLE) ./...
 	$(MAKE) go-lint
 	@$(GOFMT) -e -s -l $(ALL_SRC) > $(FMT_LOG)
 	@./scripts/updateLicenses.sh >> $(FMT_LOG)
@@ -139,7 +149,8 @@ lint: lint-gosec
 .PHONY: go-lint
 go-lint:
 	@cat /dev/null > $(LINT_LOG)
-	$(GOLINT) $(ALL_PKGS) \
+	@echo Running go lint...
+	@$(GOLINT) $(ALL_PKGS) \
 		| grep -v _nolint.go \
 		>> $(LINT_LOG) || true;
 	@[ ! -s "$(LINT_LOG)" ] || (echo "Lint Failures" | cat - $(LINT_LOG) && false)
@@ -278,6 +289,7 @@ install-tools:
 	go get -u honnef.co/go/tools/cmd/gosimple
 	go get -u github.com/mjibson/esc
 	go install ./vendor/github.com/securego/gosec/cmd/gosec/
+	go install ./vendor/honnef.co/go/tools/cmd/staticcheck/
 
 .PHONY: install-ci
 install-ci: install install-tools

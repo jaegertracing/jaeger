@@ -89,7 +89,7 @@ func (s *deadlockDetector) startMonitoringForPartition(partition int32) *partiti
 		closePartition: make(chan struct{}, 1),
 		done:           make(chan struct{}),
 		logger:         s.logger,
-		disabled:       0 == s.interval,
+		disabled:       s.interval == 0,
 
 		incrementAllPartitionMsgCount: func() {
 			s.allPartitionsDeadlockDetector.incrementMsgCount()
@@ -142,7 +142,7 @@ func (s *deadlockDetector) start() {
 		msgConsumed: &msgConsumed,
 		done:        make(chan struct{}),
 		logger:      s.logger,
-		disabled:    0 == s.interval,
+		disabled:    s.interval == 0,
 	}
 
 	if detector.disabled {

@@ -21,7 +21,7 @@ import (
 	"github.com/stretchr/testify/assert"
 )
 
-var filter TagFilter = &LogFieldsFilter{} // Check API compliance
+var _ TagFilter = &LogFieldsFilter{} // Check API compliance
 
 func TestFilterLogTags(t *testing.T) {
 	span := getTestJaegerSpan()
