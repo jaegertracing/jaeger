@@ -37,7 +37,7 @@ type Resolver struct {
 	discoverer        discovery.Discoverer
 	logger            *zap.Logger
 	discoCh           chan []string // used to receive notifications
-	connectionPerHost int
+	discoveryMinPeers int
 	mu                sync.Mutex
 	salt              []byte
 	hasher            hash.Hash32
@@ -59,7 +59,7 @@ func New(
 	notifier discovery.Notifier,
 	discoverer discovery.Discoverer,
 	logger *zap.Logger,
-	connectionPerHost int,
+	discoveryMinPeers int,
 ) *Resolver {
 	seed := time.Now().UnixNano()
 	random := rand.New(rand.NewSource(seed))
@@ -68,7 +68,7 @@ func New(
 		discoverer:        discoverer,
 		discoCh:           make(chan []string, 100),
 		logger:            logger,
-		connectionPerHost: connectionPerHost,
+		discoveryMinPeers: discoveryMinPeers,
 		salt:              []byte(strconv.FormatInt(random.Int63(), 10)), // random salt for rendezvousHash
 		scheme:            strconv.FormatInt(seed, 36),                   // make random scheme which will be used when registering
 		hasher:            fnv.New32(),
@@ -111,7 +111,7 @@ func (r *Resolver) watcher() {
 	for latestHostPorts := range r.discoCh {
 		r.mu.Lock()
 		r.logger.Info("Received updates from notifier", zap.Strings("hostPorts", latestHostPorts))
-		r.cc.UpdateState(resolver.State{Addresses: generateAddresses(rendezvousHash(latestHostPorts, r.salt, r.hasher, r.connectionPerHost))})
+		r.cc.UpdateState(resolver.State{Addresses: generateAddresses(rendezvousHash(latestHostPorts, r.salt, r.hasher, r.discoveryMinPeers))})
 		r.mu.Unlock()
 	}
 }
@@ -123,7 +123,7 @@ func (r *Resolver) Close() {
 	r.wg.Wait()
 }
 
-func rendezvousHash(addresses []string, salt []byte, hasher hash.Hash32, connectionPerHost int) []string {
+func rendezvousHash(addresses []string, salt []byte, hasher hash.Hash32, discoveryMinPeers int) []string {
 	hosts := hostScores{}
 	for _, address := range addresses {
 		hosts = append(hosts, hostScore{
@@ -132,8 +132,8 @@ func rendezvousHash(addresses []string, salt []byte, hasher hash.Hash32, connect
 		})
 	}
 	sort.Sort(hosts)
-	addressesPerHost := make([]string, connectionPerHost)
-	for i := 0; i < connectionPerHost; i++ {
+	addressesPerHost := make([]string, discoveryMinPeers)
+	for i := 0; i < discoveryMinPeers; i++ {
 		addressesPerHost[i] = hosts[i].address
 	}
 	return addressesPerHost

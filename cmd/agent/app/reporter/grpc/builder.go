@@ -35,11 +35,12 @@ type ConnBuilder struct {
 	// CollectorHostPorts is list of host:port Jaeger Collectors.
 	CollectorHostPorts []string `yaml:"collectorHostPorts"`
 
-	MaxRetry          uint
-	TLS               bool
-	TLSCA             string
-	TLSServerName     string
-	ConnectionPerHost int
+	MaxRetry      uint
+	TLS           bool
+	TLSCA         string
+	TLSServerName string
+
+	DiscoveryMinPeers int
 	Notifier          discovery.Notifier
 	Discoverer        discovery.Discoverer
 }
@@ -77,7 +78,7 @@ func (b *ConnBuilder) CreateConnection(logger *zap.Logger) (*grpc.ClientConn, er
 
 	if b.Notifier != nil && b.Discoverer != nil {
 		logger.Info("Using external discovery service with roundrobin load balancer")
-		grpcResolver := grpcresolver.New(b.Notifier, b.Discoverer, logger, b.ConnectionPerHost)
+		grpcResolver := grpcresolver.New(b.Notifier, b.Discoverer, logger, b.DiscoveryMinPeers)
 		dialOptions = append(dialOptions, grpc.WithBalancerName(roundrobin.Name))
 		dialTarget = grpcResolver.Scheme() + ":///round_robin"
 	}
