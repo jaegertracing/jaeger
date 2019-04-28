@@ -42,7 +42,7 @@ func TestFailToListen(t *testing.T) {
 	addr, err := StartGRPCCollector(invalidPort, server, handler, &mockSamplingStore{}, l, func(e error) {
 	})
 	assert.Nil(t, addr)
-	assert.EqualError(t, err, "Failed to listen on gRPC port: listen tcp: address -1: invalid port")
+	assert.EqualError(t, err, "failed to listen on gRPC port: listen tcp: address -1: invalid port")
 }
 
 func TestFailServe(t *testing.T) {

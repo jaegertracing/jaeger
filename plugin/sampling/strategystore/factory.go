@@ -28,8 +28,7 @@ import (
 )
 
 const (
-	staticStrategyStoreType   = "static"
-	adaptiveStrategyStoreType = "adaptive"
+	staticStrategyStoreType = "static"
 )
 
 var allSamplingTypes = []string{staticStrategyStoreType} // TODO support adaptive

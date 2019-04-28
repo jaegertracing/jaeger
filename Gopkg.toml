@@ -39,7 +39,6 @@ required = [
 
 [[constraint]]
   name = "honnef.co/go/tools"
-  # branch = "incr"
   version = "=2019.1.1"
 
 [[constraint]]

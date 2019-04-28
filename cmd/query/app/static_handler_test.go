@@ -135,15 +135,15 @@ func TestLoadUIConfig(t *testing.T) {
 	run("no config", testCase{})
 	run("invalid config", testCase{
 		configFile:    "invalid",
-		expectedError: "Cannot read UI config file invalid: open invalid: no such file or directory",
+		expectedError: "cannot read UI config file invalid: open invalid: no such file or directory",
 	})
 	run("unsupported type", testCase{
 		configFile:    "fixture/ui-config.toml",
-		expectedError: "Unrecognized UI config file format fixture/ui-config.toml",
+		expectedError: "unrecognized UI config file format fixture/ui-config.toml",
 	})
 	run("malformed", testCase{
 		configFile:    "fixture/ui-config-malformed.json",
-		expectedError: "Cannot parse UI config file fixture/ui-config-malformed.json: invalid character '=' after object key",
+		expectedError: "cannot parse UI config file fixture/ui-config-malformed.json: invalid character '=' after object key",
 	})
 	run("json", testCase{
 		configFile: "fixture/ui-config.json",

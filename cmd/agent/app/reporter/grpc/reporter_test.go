@@ -69,7 +69,7 @@ func TestReporter_EmitZipkinBatch(t *testing.T) {
 		expected model.Batch
 		err      string
 	}{
-		{in: &zipkincore.Span{}, err: "Cannot find service name in Zipkin span [traceID=0, spanID=0]"},
+		{in: &zipkincore.Span{}, err: "cannot find service name in Zipkin span [traceID=0, spanID=0]"},
 		{in: &zipkincore.Span{Name: "jonatan", TraceID: 1, ID: 2, Timestamp: &a, Annotations: []*zipkincore.Annotation{{Value: zipkincore.CLIENT_SEND, Host: &zipkincore.Endpoint{ServiceName: "spring"}}}},
 			expected: model.Batch{
 				Spans: []*model.Span{{TraceID: model.NewTraceID(0, 1), SpanID: model.NewSpanID(2), OperationName: "jonatan", Duration: time.Microsecond * 1,

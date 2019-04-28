@@ -119,7 +119,8 @@ nocover:
 .PHONY: fmt
 fmt:
 	./scripts/import-order-cleanup.sh inplace
-	$(GOFMT) -e -s -l -w $(ALL_SRC)
+	@echo Running go fmt...
+	@$(GOFMT) -e -s -l -w $(ALL_SRC)
 	./scripts/updateLicenses.sh
 
 .PHONY: lint-gosec
@@ -286,7 +287,6 @@ install-tools:
 	go get -u golang.org/x/tools/cmd/cover
 	go get -u golang.org/x/lint/golint
 	go get -u github.com/sectioneight/md-to-godoc
-	go get -u honnef.co/go/tools/cmd/gosimple
 	go get -u github.com/mjibson/esc
 	go install ./vendor/github.com/securego/gosec/cmd/gosec/
 	go install ./vendor/honnef.co/go/tools/cmd/staticcheck/
