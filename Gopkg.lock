@@ -496,6 +496,17 @@
   version = "v1.0"
 
 [[projects]]
+  digest = "1:15ec2166e33ef6c60b344a04d050eec79193517e7f5082b6233b2d09ef0d10b8"
+  name = "github.com/kisielk/gotool"
+  packages = [
+    ".",
+    "internal/load",
+  ]
+  pruneopts = "UT"
+  revision = "80517062f582ea3340cd4baf70e86d539ae7d84d"
+  version = "v1.0.0"
+
+[[projects]]
   digest = "1:ca955a9cd5b50b0f43d2cc3aeb35c951473eeca41b34eb67507f1dbcc0542394"
   name = "github.com/kr/pretty"
   packages = ["."]
@@ -577,6 +588,24 @@
   ]
   pruneopts = "UT"
   revision = "2e7d06bc7ada2979f17ccf8ebf486dba23b84fc7"
+
+[[projects]]
+  digest = "1:66b0a65aba488ca6c72f77132d5b8d7e2c5baf07d577dee64502b69a2c90c791"
+  name = "github.com/nbutton23/zxcvbn-go"
+  packages = [
+    ".",
+    "adjacency",
+    "data",
+    "entropy",
+    "frequency",
+    "match",
+    "matching",
+    "scoring",
+    "utils/math",
+  ]
+  pruneopts = "UT"
+  revision = "eafdab6b0663b4b528c35975c8b0e78be6e25261"
+  version = "v0.1"
 
 [[projects]]
   digest = "1:9ec6cf1df5ad1d55cf41a43b6b1e7e118a91bade4f68ff4303379343e40c0e25"
@@ -674,11 +703,11 @@
 
 [[projects]]
   branch = "master"
-  digest = "1:49b09905e781d7775c086604cc00083e1832d0783f1f421b79f42657c457d029"
+  digest = "1:2ea45e71e0198d6b989ed6302cc4f72a83be1e7d6469d08a59e56a2c447aea55"
   name = "github.com/prometheus/procfs"
   packages = ["."]
   pruneopts = "UT"
-  revision = "8368d24ba045f26503eb745b624d930cbe214c79"
+  revision = "87a4384529e0652f5035fb5cc8095faf73ea9b0b"
 
 [[projects]]
   branch = "master"
@@ -695,6 +724,27 @@
   pruneopts = "UT"
   revision = "9a47f48565a795472d43519dd49aac781f3034fb"
   version = "v1.6.0"
+
+[[projects]]
+  branch = "master"
+  digest = "1:6baa565fe16f8657cf93469b2b8a6c61a277827734400d27e44d589547297279"
+  name = "github.com/ryanuber/go-glob"
+  packages = ["."]
+  pruneopts = "UT"
+  revision = "51a8f68e6c24dc43f1e371749c89a267de4ebc53"
+
+[[projects]]
+  digest = "1:4e81982884e82550769431cc66c6af26055642e1be8faae2698bca40bee88f6b"
+  name = "github.com/securego/gosec"
+  packages = [
+    ".",
+    "cmd/gosec",
+    "output",
+    "rules",
+  ]
+  pruneopts = "UT"
+  revision = "62b5195dd9d28bddfa7c4921bbd6ff84ebbb0ecb"
+  version = "1.3.0"
 
 [[projects]]
   digest = "1:30e06e6d62a1d694e3cdbff29d8a9a96022e05a487d0c6eaf0ef898965ef28fb"
@@ -909,14 +959,14 @@
 
 [[projects]]
   branch = "master"
-  digest = "1:41aaf393ca0e2fa523e428b29f58fbc9a4bc9f975da5b9b1cac7cef1436a7b53"
+  digest = "1:dcd2e9de31e20e01b156288ce4fc239498564295bdbb59d8aaf591af94778162"
   name = "golang.org/x/sys"
   packages = ["unix"]
   pruneopts = "UT"
-  revision = "18eb32c0e2f0c2bc8d17842ed4ad41486f349ad4"
+  revision = "804c0c7841b595338f049388006a3945cb3cfad1"
 
 [[projects]]
-  digest = "1:d353d6b67791fda470bf6b9bfa83086ee597febeb808cfc2adec70a2bab99663"
+  digest = "1:66a2f252a58b4fbbad0e4e180e1d85a83c222b6bce09c3dcdef3dc87c72eda7c"
   name = "golang.org/x/text"
   packages = [
     "collate",
@@ -938,18 +988,21 @@
     "width",
   ]
   pruneopts = "UT"
-  revision = "c942b20a5d85b458c4dce1589326051d85e25d6d"
-  version = "v0.3.1"
+  revision = "342b2e1fbaa52c93f31447ad2c6abc048c63e475"
+  version = "v0.3.2"
 
 [[projects]]
   branch = "master"
-  digest = "1:f5ce0b59aeb99ebb725de7b7a35483600e5f119b4daf081e88329322a2de95bc"
+  digest = "1:8fb07ee1b949c26c76a1b49c427a68e62eac186f5333efa49ac530bf1947ac93"
   name = "golang.org/x/tools"
   packages = [
     "go/ast/astutil",
+    "go/buildutil",
     "go/gcexportdata",
+    "go/internal/cgo",
     "go/internal/gcimporter",
     "go/internal/packagesdriver",
+    "go/loader",
     "go/packages",
     "go/types/typeutil",
     "internal/fastwalk",
@@ -957,7 +1010,7 @@
     "internal/semver",
   ]
   pruneopts = "UT"
-  revision = "cb2dda6eabdf9160e66ca7293897f984154a7f8b"
+  revision = "550556f78a900afacb9e8b22219f5e5b5c6106db"
 
 [[projects]]
   branch = "master"
@@ -968,7 +1021,7 @@
     "googleapis/rpc/status",
   ]
   pruneopts = "UT"
-  revision = "e7d98fc518a78c9f8b5ee77be7b0b317475d89e1"
+  revision = "357c62f0e4bbba7e6cc403ae09edcf3e2b9028fe"
 
 [[projects]]
   digest = "1:e35762e90451df6e89c7fc9b42f0f0d8ab882e4931fdcec699482e4471640ec2"
@@ -1088,6 +1141,7 @@
     "github.com/prometheus/client_golang/prometheus",
     "github.com/prometheus/client_golang/prometheus/promhttp",
     "github.com/rs/cors",
+    "github.com/securego/gosec/cmd/gosec",
     "github.com/soheilhy/cmux",
     "github.com/spf13/cobra",
     "github.com/spf13/pflag",
