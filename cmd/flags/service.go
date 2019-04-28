@@ -49,18 +49,22 @@ type Service struct {
 	MetricsFactory metrics.Factory
 
 	signalsChannel chan os.Signal
+
+	hcStatusChannel chan healthcheck.Status
 }
 
 // NewService creates a new Service.
 func NewService(adminPort int) *Service {
 	signalsChannel := make(chan os.Signal)
+	hcStatusChannel := make(chan healthcheck.Status)
 	signal.Notify(signalsChannel, os.Interrupt, syscall.SIGTERM)
 
 	grpclog.SetLoggerV2(grpclog.NewLoggerV2(ioutil.Discard, os.Stderr, os.Stderr))
 
 	return &Service{
-		Admin:          NewAdminServer(adminPort),
-		signalsChannel: signalsChannel,
+		Admin:           NewAdminServer(adminPort),
+		signalsChannel:  signalsChannel,
+		hcStatusChannel: hcStatusChannel,
 	}
 }
 
@@ -74,6 +78,11 @@ func (s *Service) AddFlags(flagSet *flag.FlagSet) {
 	}
 	pMetrics.AddFlags(flagSet)
 	s.Admin.AddFlags(flagSet)
+}
+
+// SetHealthCheckStatus sets status of healthcheck
+func (s *Service) SetHealthCheckStatus(status healthcheck.Status) {
+	s.hcStatusChannel <- healthcheck.Unavailable
 }
 
 // Start bootstraps the service and starts the admin server.
@@ -120,7 +129,16 @@ func (s *Service) HC() *healthcheck.HealthCheck {
 // If then runs the shutdown function and exits.
 func (s *Service) RunAndThen(shutdown func()) {
 	s.HC().Ready()
-	<-s.signalsChannel
+
+statusLoop:
+	for {
+		select {
+		case status := <-s.hcStatusChannel:
+			s.HC().Set(status)
+		case <-s.signalsChannel:
+			break statusLoop
+		}
+	}
 
 	s.Logger.Info("Shutting down")
 	s.HC().Set(healthcheck.Unavailable)

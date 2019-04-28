@@ -30,13 +30,13 @@ const maxSpanCountInChunk = 10
 
 // GRPCHandler implements the GRPC endpoint of the query service.
 type GRPCHandler struct {
-	queryService querysvc.QueryService
+	queryService *querysvc.QueryService
 	logger       *zap.Logger
 	tracer       opentracing.Tracer
 }
 
 // NewGRPCHandler returns a GRPCHandler
-func NewGRPCHandler(queryService querysvc.QueryService, logger *zap.Logger, tracer opentracing.Tracer) *GRPCHandler {
+func NewGRPCHandler(queryService *querysvc.QueryService, logger *zap.Logger, tracer opentracing.Tracer) *GRPCHandler {
 	gH := &GRPCHandler{
 		queryService: queryService,
 		logger:       logger,

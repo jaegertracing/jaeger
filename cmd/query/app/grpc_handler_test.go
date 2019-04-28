@@ -123,7 +123,7 @@ var (
 func newGRPCServer(t *testing.T, q *querysvc.QueryService, logger *zap.Logger, tracer opentracing.Tracer) (*grpc.Server, net.Addr) {
 	lis, _ := net.Listen("tcp", grpcServerPort)
 	grpcServer := grpc.NewServer()
-	grpcHandler := NewGRPCHandler(*q, logger, tracer)
+	grpcHandler := NewGRPCHandler(q, logger, tracer)
 	api_v2.RegisterQueryServiceServer(grpcServer, grpcHandler)
 
 	go func() {

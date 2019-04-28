@@ -275,9 +275,9 @@ install-tools:
 	go get -u golang.org/x/tools/cmd/cover
 	go get -u golang.org/x/lint/golint
 	go get -u github.com/sectioneight/md-to-godoc
-	go get -u github.com/securego/gosec/cmd/gosec/...
 	go get -u honnef.co/go/tools/cmd/gosimple
 	go get -u github.com/mjibson/esc
+	go install ./vendor/github.com/securego/gosec/cmd/gosec/
 
 .PHONY: install-ci
 install-ci: install install-tools
