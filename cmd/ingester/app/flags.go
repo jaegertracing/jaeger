@@ -55,7 +55,7 @@ const (
 	DefaultTopic = "jaeger-spans"
 	// DefaultGroupID is the default consumer Group ID
 	DefaultGroupID = "jaeger-ingester"
-	// DefaultGroupID is the default consumer Client ID
+	// DefaultClientID is the default consumer Client ID
 	DefaultClientID = "jaeger-ingester"
 	// DefaultParallelism is the default parallelism for the span processor
 	DefaultParallelism = 1000
@@ -111,6 +111,7 @@ func (o *Options) InitFromViper(v *viper.Viper) {
 	o.Brokers = strings.Split(stripWhiteSpace(v.GetString(KafkaConsumerConfigPrefix+SuffixBrokers)), ",")
 	o.Topic = v.GetString(KafkaConsumerConfigPrefix + SuffixTopic)
 	o.GroupID = v.GetString(KafkaConsumerConfigPrefix + SuffixGroupID)
+	o.ClientID = v.GetString(KafkaConsumerConfigPrefix + SuffixClientID)
 	o.Encoding = v.GetString(KafkaConsumerConfigPrefix + SuffixEncoding)
 
 	o.Parallelism = v.GetInt(ConfigPrefix + SuffixParallelism)
