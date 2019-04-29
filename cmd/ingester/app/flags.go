@@ -38,6 +38,8 @@ const (
 	SuffixTopic = ".topic"
 	// SuffixGroupID is a suffix for the group-id flag
 	SuffixGroupID = ".group-id"
+	// SuffixClientID is a suffix for the client-id flag
+	SuffixClientID = ".client-id"
 	// SuffixEncoding is a suffix for the encoding flag
 	SuffixEncoding = ".encoding"
 	// SuffixDeadlockInterval is a suffix for deadlock detecor flag
@@ -53,6 +55,8 @@ const (
 	DefaultTopic = "jaeger-spans"
 	// DefaultGroupID is the default consumer Group ID
 	DefaultGroupID = "jaeger-ingester"
+	// DefaultGroupID is the default consumer Client ID
+	DefaultClientID = "jaeger-ingester"
 	// DefaultParallelism is the default parallelism for the span processor
 	DefaultParallelism = 1000
 	// DefaultEncoding is the default span encoding
@@ -64,6 +68,7 @@ const (
 // Options stores the configuration options for the Ingester
 type Options struct {
 	kafkaConsumer.Configuration
+	ClientID         string
 	Parallelism      int
 	Encoding         string
 	DeadlockInterval time.Duration
@@ -83,6 +88,10 @@ func AddFlags(flagSet *flag.FlagSet) {
 		KafkaConsumerConfigPrefix+SuffixGroupID,
 		DefaultGroupID,
 		"The Consumer Group that ingester will be consuming on behalf of")
+	flagSet.String(
+		KafkaConsumerConfigPrefix+SuffixClientID,
+		DefaultClientID,
+		"The Consumer Client ID that ingester will use")
 	flagSet.String(
 		KafkaConsumerConfigPrefix+SuffixEncoding,
 		DefaultEncoding,
