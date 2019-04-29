@@ -41,7 +41,9 @@ type Resolver struct {
 	mu                sync.Mutex
 	salt              []byte
 	hasher            hash.Hash32
-	wg                sync.WaitGroup
+
+	//wg will wait for watcher to exit before firing .Close() to close resolver
+	wg sync.WaitGroup
 }
 type hostScore struct {
 	address string
@@ -111,7 +113,8 @@ func (r *Resolver) watcher() {
 	for latestHostPorts := range r.discoCh {
 		r.mu.Lock()
 		r.logger.Info("Received updates from notifier", zap.Strings("hostPorts", latestHostPorts))
-		r.cc.UpdateState(resolver.State{Addresses: generateAddresses(rendezvousHash(latestHostPorts, r.salt, r.hasher, r.discoveryMinPeers))})
+		updatedAddresses := generateAddresses(r.rendezvousHash(latestHostPorts))
+		r.cc.UpdateState(resolver.State{Addresses: updatedAddresses})
 		r.mu.Unlock()
 	}
 }
@@ -123,25 +126,25 @@ func (r *Resolver) Close() {
 	r.wg.Wait()
 }
 
-func rendezvousHash(addresses []string, salt []byte, hasher hash.Hash32, discoveryMinPeers int) []string {
+func (r *Resolver) rendezvousHash(addresses []string) []string {
 	hosts := hostScores{}
 	for _, address := range addresses {
 		hosts = append(hosts, hostScore{
 			address: address,
-			score:   hashAddr(hasher, []byte(address), salt),
+			score:   hashAddr(r.hasher, []byte(address), r.salt),
 		})
 	}
 	sort.Sort(hosts)
-	addressesPerHost := make([]string, discoveryMinPeers)
-	for i := 0; i < discoveryMinPeers; i++ {
+	addressesPerHost := make([]string, r.discoveryMinPeers)
+	for i := 0; i < r.discoveryMinPeers; i++ {
 		addressesPerHost[i] = hosts[i].address
 	}
 	return addressesPerHost
 }
 
-func hashAddr(hasher hash.Hash32, node, key []byte) uint32 {
+func hashAddr(hasher hash.Hash32, node, saltKey []byte) uint32 {
 	hasher.Reset()
-	hasher.Write(key)
+	hasher.Write(saltKey)
 	hasher.Write(node)
 	return hasher.Sum32()
 }

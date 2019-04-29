@@ -17,17 +17,16 @@ package grpcresolver
 import (
 	"context"
 	"fmt"
-	"hash/fnv"
 	"net"
 	"testing"
 	"time"
 
-	"google.golang.org/grpc/resolver"
 	"github.com/stretchr/testify/assert"
 	"go.uber.org/zap"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/balancer/roundrobin"
 	"google.golang.org/grpc/peer"
+	"google.golang.org/grpc/resolver"
 	testpb "google.golang.org/grpc/test/grpc_testing"
 
 	"github.com/jaegertracing/jaeger/pkg/discovery"
@@ -153,9 +152,10 @@ func TestRendezvousHashR(t *testing.T) {
 	// Rendezvous Hash should return same subset with same addresses & salt string
 	addresses := []string{"127.1.0.3:8080", "127.0.1.1:8080", "127.2.1.2:8080", "127.3.0.4:8080"}
 	sameAddressesDifferentOrder := []string{"127.2.1.2:8080", "127.1.0.3:8080", "127.3.0.4:8080", "127.0.1.1:8080"}
-	hasher := fnv.New32()
-	saltByte := []byte("example-salt")
-	subset1 := rendezvousHash(addresses, saltByte, hasher, 2)
-	subset2 := rendezvousHash(sameAddressesDifferentOrder, saltByte, hasher, 2)
+	notifier := &discovery.Dispatcher{}
+	discoverer := discovery.FixedDiscoverer{}
+	re := New(notifier, discoverer, zap.NewNop(), 2)
+	subset1 := re.rendezvousHash(addresses)
+	subset2 := re.rendezvousHash(sameAddressesDifferentOrder)
 	assert.Equal(t, subset1, subset2)
 }
