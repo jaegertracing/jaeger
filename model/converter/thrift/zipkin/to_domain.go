@@ -253,7 +253,7 @@ func (td toDomain) findServiceNameAndIP(zSpan *zipkincore.Span) (string, int32, 
 		}
 	}
 	err := fmt.Errorf(
-		"Cannot find service name in Zipkin span [traceID=%x, spanID=%x]",
+		"cannot find service name in Zipkin span [traceID=%x, spanID=%x]",
 		uint64(zSpan.TraceID), uint64(zSpan.ID))
 	return UnknownServiceName, 0, err
 }
@@ -336,7 +336,7 @@ func (td toDomain) transformBinaryAnnotation(binaryAnnotation *zipkincore.Binary
 	case zipkincore.AnnotationType_STRING:
 		return model.String(binaryAnnotation.Key, string(binaryAnnotation.Value)), nil
 	}
-	return model.KeyValue{}, fmt.Errorf("Unknown zipkin annotation type: %d", binaryAnnotation.AnnotationType)
+	return model.KeyValue{}, fmt.Errorf("unknown zipkin annotation type: %d", binaryAnnotation.AnnotationType)
 }
 
 func bytesToNumber(b []byte, number interface{}) error {

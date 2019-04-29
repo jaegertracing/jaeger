@@ -71,8 +71,7 @@ func TestTraceIDMarshalJSONPB(t *testing.T) {
 
 func TestTraceIDUnmarshalJSONPBErrors(t *testing.T) {
 	testCases := []struct {
-		in     string
-		hi, lo uint64
+		in string
 	}{
 		{in: ""},
 		{in: "x"},

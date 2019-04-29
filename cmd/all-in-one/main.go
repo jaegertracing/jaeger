@@ -301,14 +301,14 @@ func startZipkinHTTPAPI(
 
 func initTracer(metricsFactory metrics.Factory, logger *zap.Logger) io.Closer {
 	tracer, closer, err := jaegerClientConfig.Configuration{
+		ServiceName: "jaeger-query",
 		Sampler: &jaegerClientConfig.SamplerConfig{
 			Type:  "const",
 			Param: 1.0,
 		},
 		RPCMetrics: true,
-	}.New(
-		"jaeger-query",
-		jaegerClientConfig.Metrics(metricsFactory),
+	}.NewTracer(
+		jaegerClientConfig.Metrics(rootFactory),
 		jaegerClientConfig.Logger(jaegerClientZapLog.NewLogger(logger)),
 	)
 	if err != nil {

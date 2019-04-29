@@ -61,13 +61,13 @@ func main() {
 			metricsFactory := baseFactory.Namespace(metrics.NSOptions{Name: "query"})
 
 			tracer, closer, err := jaegerClientConfig.Configuration{
+				ServiceName: "jaeger-query",
 				Sampler: &jaegerClientConfig.SamplerConfig{
 					Type:  "probabilistic",
 					Param: 1.0,
 				},
 				RPCMetrics: true,
-			}.New(
-				"jaeger-query",
+			}.NewTracer(
 				jaegerClientConfig.Metrics(svc.MetricsFactory),
 				jaegerClientConfig.Logger(jaegerClientZapLog.NewLogger(logger)),
 			)

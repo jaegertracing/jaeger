@@ -26,10 +26,6 @@ import (
 	"github.com/jaegertracing/jaeger/thrift-gen/zipkincore"
 )
 
-const (
-	namespace = "reporter"
-)
-
 type noopReporter struct {
 	err error
 }

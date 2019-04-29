@@ -37,9 +37,7 @@ import (
 const millisToNanosMultiplier = int64(time.Millisecond / time.Nanosecond)
 
 var (
-	errStorageMsg = "Storage error"
-	errStorage    = errors.New(errStorageMsg)
-	errAdjustment = errors.New("Adjustment error")
+	errAdjustment = errors.New("adjustment error")
 
 	defaultDependencyLookbackDuration = time.Hour * 24
 
