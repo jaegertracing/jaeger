@@ -299,25 +299,6 @@ func startZipkinHTTPAPI(
 	}
 }
 
-func initTracer(metricsFactory metrics.Factory, logger *zap.Logger) io.Closer {
-	tracer, closer, err := jaegerClientConfig.Configuration{
-		ServiceName: "jaeger-query",
-		Sampler: &jaegerClientConfig.SamplerConfig{
-			Type:  "const",
-			Param: 1.0,
-		},
-		RPCMetrics: true,
-	}.NewTracer(
-		jaegerClientConfig.Metrics(rootFactory),
-		jaegerClientConfig.Logger(jaegerClientZapLog.NewLogger(logger)),
-	)
-	if err != nil {
-		logger.Fatal("Failed to initialize tracer", zap.Error(err))
-	}
-	opentracing.SetGlobalTracer(tracer)
-	return closer
-}
-
 func startQuery(
 	svc *flags.Service,
 	qOpts *queryApp.QueryOptions,
@@ -357,4 +338,23 @@ func archiveOptions(storageFactory istorage.Factory, logger *zap.Logger) *querys
 		logger.Info("Archive storage not initialized")
 	}
 	return opts
+}
+
+func initTracer(metricsFactory metrics.Factory, logger *zap.Logger) io.Closer {
+	tracer, closer, err := jaegerClientConfig.Configuration{
+		ServiceName: "jaeger-query",
+		Sampler: &jaegerClientConfig.SamplerConfig{
+			Type:  "const",
+			Param: 1.0,
+		},
+		RPCMetrics: true,
+	}.NewTracer(
+		jaegerClientConfig.Metrics(metricsFactory),
+		jaegerClientConfig.Logger(jaegerClientZapLog.NewLogger(logger)),
+	)
+	if err != nil {
+		logger.Fatal("Failed to initialize tracer", zap.Error(err))
+	}
+	opentracing.SetGlobalTracer(tracer)
+	return closer
 }
