@@ -54,11 +54,11 @@ func TestNewFactory(t *testing.T) {
 
 	f.StrategyStoreType = "nonsense"
 	_, err = f.CreateStrategyStore()
-	assert.EqualError(t, err, "No nonsense strategy store registered")
+	assert.EqualError(t, err, "no nonsense strategy store registered")
 
 	_, err = NewFactory(FactoryConfig{StrategyStoreType: "nonsense"})
 	require.Error(t, err)
-	assert.Contains(t, err.Error(), "Unknown sampling strategy store type")
+	assert.Contains(t, err.Error(), "unknown sampling strategy store type")
 }
 
 func TestConfigurable(t *testing.T) {

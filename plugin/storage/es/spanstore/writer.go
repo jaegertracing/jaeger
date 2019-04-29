@@ -49,8 +49,6 @@ type SpanWriter struct {
 	writerMetrics    spanWriterMetrics // TODO: build functions to wrap around each Do fn
 	indexCache       cache.Cache
 	serviceWriter    serviceWriter
-	numShards        int64
-	numReplicas      int64
 	spanConverter    dbmodel.FromDomain
 	spanServiceIndex spanAndServiceIndexFn
 	spanMapping      string

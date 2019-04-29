@@ -37,15 +37,11 @@ import (
 
 const (
 	spanKeyPrefix         byte = 0x80 // All span keys should have first bit set to 1
-	dependencyKeyPrefix   byte = 0xC0 // Dependency keys have first two bits set to 1 (documented here only)
-	secondaryBytePrefix   byte = 0x10 // Reserved, prefix uses more than one byte
 	indexKeyRange         byte = 0x0F // Secondary indexes use last 4 bits
-	primaryKeyPrefix      byte = 0x00 // Primary keys have last 4 bits set to 0
 	serviceNameIndexKey   byte = 0x81
 	operationNameIndexKey byte = 0x82
 	tagIndexKey           byte = 0x83
 	durationIndexKey      byte = 0x84
-	startTimeIndexKey     byte = 0x85 // Reserved
 	jsonEncoding          byte = 0x01 // Last 4 bits of the meta byte are for encoding type
 	protoEncoding         byte = 0x02 // Last 4 bits of the meta byte are for encoding type
 	defaultEncoding       byte = protoEncoding
@@ -183,7 +179,7 @@ func createTraceKV(span *model.Span, encodingType byte) ([]byte, []byte, error) 
 	case jsonEncoding:
 		bb, err = json.Marshal(span)
 	default:
-		return nil, nil, fmt.Errorf("Unknown encoding type: %#02x", encodingType)
+		return nil, nil, fmt.Errorf("unknown encoding type: %#02x", encodingType)
 	}
 
 	return buf.Bytes(), bb, err

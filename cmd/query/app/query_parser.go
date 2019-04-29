@@ -47,7 +47,7 @@ var (
 	errMaxDurationGreaterThanMin = fmt.Errorf("'%s' should be greater than '%s'", maxDurationParam, minDurationParam)
 
 	// ErrServiceParameterRequired occurs when no service name is defined
-	ErrServiceParameterRequired = fmt.Errorf("Parameter '%s' is required", serviceParam)
+	ErrServiceParameterRequired = fmt.Errorf("parameter '%s' is required", serviceParam)
 )
 
 // queryParser handles the parsing of query parameters for traces
@@ -163,7 +163,7 @@ func (p *queryParser) parseDuration(durationParam string, r *http.Request) (time
 	if len(durationInput) > 0 {
 		duration, err := time.ParseDuration(durationInput)
 		if err != nil {
-			return 0, errors.Wrapf(err, "Could not parse %s", durationParam)
+			return 0, errors.Wrapf(err, "cannot not parse %s", durationParam)
 		}
 		return duration, nil
 	}
@@ -189,13 +189,13 @@ func (p *queryParser) parseTags(simpleTags []string, jsonTags []string) (map[str
 		if l := len(keyAndValue); l > 1 {
 			retMe[keyAndValue[0]] = strings.Join(keyAndValue[1:], ":")
 		} else {
-			return nil, fmt.Errorf("Malformed 'tag' parameter, expecting key:value, received: %s", tag)
+			return nil, fmt.Errorf("malformed 'tag' parameter, expecting key:value, received: %s", tag)
 		}
 	}
 	for _, tags := range jsonTags {
 		var fromJSON map[string]string
 		if err := json.Unmarshal([]byte(tags), &fromJSON); err != nil {
-			return nil, fmt.Errorf("Malformed 'tags' parameter, cannot unmarshal JSON: %s", err)
+			return nil, fmt.Errorf("malformed 'tags' parameter, cannot unmarshal JSON: %s", err)
 		}
 		for k, v := range fromJSON {
 			retMe[k] = v

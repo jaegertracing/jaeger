@@ -56,6 +56,7 @@ func TestReporter_EmitZipkinBatch(t *testing.T) {
 	})
 	defer s.Stop()
 	conn, err := grpc.Dial(addr.String(), grpc.WithInsecure())
+	//lint:ignore SA5001 don't care about errors
 	defer conn.Close()
 	require.NoError(t, err)
 
@@ -68,7 +69,7 @@ func TestReporter_EmitZipkinBatch(t *testing.T) {
 		expected model.Batch
 		err      string
 	}{
-		{in: &zipkincore.Span{}, err: "Cannot find service name in Zipkin span [traceID=0, spanID=0]"},
+		{in: &zipkincore.Span{}, err: "cannot find service name in Zipkin span [traceID=0, spanID=0]"},
 		{in: &zipkincore.Span{Name: "jonatan", TraceID: 1, ID: 2, Timestamp: &a, Annotations: []*zipkincore.Annotation{{Value: zipkincore.CLIENT_SEND, Host: &zipkincore.Endpoint{ServiceName: "spring"}}}},
 			expected: model.Batch{
 				Spans: []*model.Span{{TraceID: model.NewTraceID(0, 1), SpanID: model.NewSpanID(2), OperationName: "jonatan", Duration: time.Microsecond * 1,
@@ -93,6 +94,7 @@ func TestReporter_EmitBatch(t *testing.T) {
 	})
 	defer s.Stop()
 	conn, err := grpc.Dial(addr.String(), grpc.WithInsecure())
+	//lint:ignore SA5001 don't care about errors
 	defer conn.Close()
 	require.NoError(t, err)
 	rep := NewReporter(conn, nil, zap.NewNop())
@@ -133,15 +135,15 @@ func TestReporter_AddProcessTags_EmptyTags(t *testing.T) {
 }
 
 func TestReporter_AddProcessTags_ZipkinBatch(t *testing.T) {
-	tags := map[string]string{ "key" : "value" }
+	tags := map[string]string{"key": "value"}
 	spans := []*model.Span{{TraceID: model.NewTraceID(0, 1), SpanID: model.NewSpanID(2), OperationName: "jonatan", Process: &model.Process{ServiceName: "spring"}}}
 
 	expectedSpans := []*model.Span{
 		{
-			TraceID: model.NewTraceID(0, 1),
-			SpanID: model.NewSpanID(2),
+			TraceID:       model.NewTraceID(0, 1),
+			SpanID:        model.NewSpanID(2),
 			OperationName: "jonatan",
-			Process: &model.Process{ServiceName: "spring", Tags: []model.KeyValue{model.String("key", "value")}},
+			Process:       &model.Process{ServiceName: "spring", Tags: []model.KeyValue{model.String("key", "value")}},
 		},
 	}
 	actualSpans, _ := addProcessTags(spans, nil, makeModelKeyValue(tags))
@@ -150,7 +152,7 @@ func TestReporter_AddProcessTags_ZipkinBatch(t *testing.T) {
 }
 
 func TestReporter_AddProcessTags_JaegerBatch(t *testing.T) {
-	tags := map[string]string{ "key" : "value" }
+	tags := map[string]string{"key": "value"}
 	spans := []*model.Span{{TraceID: model.NewTraceID(0, 1), SpanID: model.NewSpanID(2), OperationName: "jonatan"}}
 	process := &model.Process{ServiceName: "spring"}
 
@@ -162,7 +164,7 @@ func TestReporter_AddProcessTags_JaegerBatch(t *testing.T) {
 
 func TestReporter_MakeModelKeyValue(t *testing.T) {
 	expectedTags := []model.KeyValue{model.String("key", "value")}
-	stringTags := map[string]string{ "key" : "value" }
+	stringTags := map[string]string{"key": "value"}
 	actualTags := makeModelKeyValue(stringTags)
 
 	assert.Equal(t, expectedTags, actualTags)

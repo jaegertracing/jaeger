@@ -45,8 +45,6 @@ const (
 	defaultMinSamplesPerSecond          = 1.0 / float64(time.Minute/time.Second) // once every 1 minute
 	defaultLeaderLeaseRefreshInterval   = 5 * time.Second
 	defaultFollowerLeaseRefreshInterval = 60 * time.Second
-
-	samplingLock = "sampling_lock"
 )
 
 // Options holds configuration for the adaptive sampling strategy store.

@@ -49,7 +49,7 @@ func Run(c *Config, logger *zap.Logger) error {
 	if c.Duration > 0 {
 		c.Traces = 0
 	} else if c.Traces <= 0 {
-		return fmt.Errorf("Either `traces` or `duration` must be greater than 0")
+		return fmt.Errorf("either `traces` or `duration` must be greater than 0")
 	}
 
 	wg := sync.WaitGroup{}
