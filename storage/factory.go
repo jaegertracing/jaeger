@@ -47,10 +47,10 @@ type Factory interface {
 
 var (
 	// ErrArchiveStorageNotConfigured can be returned by the ArchiveFactory when the archive storage is not configured.
-	ErrArchiveStorageNotConfigured = errors.New("Archive storage not configured")
+	ErrArchiveStorageNotConfigured = errors.New("archive storage not configured")
 
 	// ErrArchiveStorageNotSupported can be returned by the ArchiveFactory when the archive storage is not supported by the backend.
-	ErrArchiveStorageNotSupported = errors.New("Archive storage not supported")
+	ErrArchiveStorageNotSupported = errors.New("archive storage not supported")
 )
 
 // ArchiveFactory is an additional interface that can be implemented by a factory to support trace archiving.

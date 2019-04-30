@@ -38,7 +38,6 @@ type bestETA struct {
 	route    route.Interface
 	pool     *pool.Pool
 	logger   log.Factory
-	options	 ConfigOptions
 }
 
 // Response contains ETA for a trip.
@@ -100,7 +99,7 @@ func (eta *bestETA) Get(ctx context.Context, customerID string) (*Response, erro
 		}
 	}
 	if resp.Driver == "" {
-		return nil, errors.New("No routes found")
+		return nil, errors.New("no routes found")
 	}
 
 	eta.logger.For(ctx).Info("Dispatch successful", zap.String("driver", resp.Driver), zap.String("eta", resp.ETA.String()))

@@ -40,7 +40,6 @@ type ConnBuilder struct {
 	TLSServerName string
 
 	notifier discovery.Notifier
-	resolver resolver.Builder
 }
 
 // WithDiscoveryNotifier sets service discovery notifier

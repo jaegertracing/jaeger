@@ -33,7 +33,6 @@ type SpanWriter struct {
 	producer   sarama.AsyncProducer
 	marshaller Marshaller
 	topic      string
-	logger     *zap.Logger
 }
 
 // NewSpanWriter initiates and returns a new kafka spanwriter

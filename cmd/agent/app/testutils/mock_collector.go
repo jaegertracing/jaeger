@@ -125,7 +125,7 @@ func (s *MockTCollector) SubmitZipkinBatch(
 	s.mutex.Lock()
 	defer s.mutex.Unlock()
 	if s.ReturnErr {
-		return []*zipkincore.Response{{Ok: false}}, errors.New("Returning error from MockTCollector")
+		return []*zipkincore.Response{{Ok: false}}, errors.New("returning error from MockTCollector")
 	}
 	s.zipkinSpans = append(s.zipkinSpans, spans...)
 	return []*zipkincore.Response{{Ok: true}}, nil
@@ -139,7 +139,7 @@ func (s *MockTCollector) SubmitBatches(
 	s.mutex.Lock()
 	defer s.mutex.Unlock()
 	if s.ReturnErr {
-		return []*jaeger.BatchSubmitResponse{{Ok: false}}, errors.New("Returning error from MockTCollector")
+		return []*jaeger.BatchSubmitResponse{{Ok: false}}, errors.New("returning error from MockTCollector")
 	}
 	s.jaegerBatches = append(s.jaegerBatches, batches...)
 	return []*jaeger.BatchSubmitResponse{{Ok: true}}, nil

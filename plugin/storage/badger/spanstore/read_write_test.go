@@ -99,32 +99,32 @@ func TestValidation(t *testing.T) {
 
 		params.OperationName = "no-service"
 		_, err := sr.FindTraces(context.Background(), params)
-		assert.EqualError(t, err, "Service Name must be set")
+		assert.EqualError(t, err, "service name must be set")
 		params.ServiceName = "find-service"
 
 		_, err = sr.FindTraces(context.Background(), nil)
-		assert.EqualError(t, err, "Malformed request object")
+		assert.EqualError(t, err, "malformed request object")
 
 		params.StartTimeMin = params.StartTimeMax.Add(1 * time.Hour)
 		_, err = sr.FindTraces(context.Background(), params)
-		assert.EqualError(t, err, "Start Time Minimum is above Maximum")
+		assert.EqualError(t, err, "min start time is above max")
 		params.StartTimeMin = tid
 
 		params.DurationMax = time.Duration(1 * time.Millisecond)
 		params.DurationMin = time.Duration(1 * time.Minute)
 		_, err = sr.FindTraces(context.Background(), params)
-		assert.EqualError(t, err, "Duration Minimum is above Maximum")
+		assert.EqualError(t, err, "min duration is above max")
 
 		params = &spanstore.TraceQueryParameters{
 			StartTimeMin: tid,
 		}
 		_, err = sr.FindTraces(context.Background(), params)
-		assert.EqualError(t, err, "Start and End Time must be set")
+		assert.EqualError(t, err, "start and end time must be set")
 
 		params.StartTimeMax = tid.Add(1 * time.Minute)
 		params.Tags = map[string]string{"A": "B"}
 		_, err = sr.FindTraces(context.Background(), params)
-		assert.EqualError(t, err, "Service Name must be set")
+		assert.EqualError(t, err, "service name must be set")
 
 		// Only StartTimeMin and Max (not supported yet)
 		// _, err := sr.FindTraces(context.Background(), params)

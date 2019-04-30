@@ -43,7 +43,7 @@ func TryLoadConfigFile(v *viper.Viper) error {
 		v.SetConfigFile(file)
 		err := v.ReadInConfig()
 		if err != nil {
-			return errors.Wrapf(err, "Error loading config file %s", file)
+			return errors.Wrapf(err, "cannot load config file %s", file)
 		}
 	}
 	return nil

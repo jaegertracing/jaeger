@@ -36,13 +36,13 @@ func TestParseTraceQuery(t *testing.T) {
 		errMsg        string
 		expectedQuery *traceQueryParameters
 	}{
-		{"", "Parameter 'service' is required", nil},
+		{"", "parameter 'service' is required", nil},
 		{"x?service=service&start=string", errParseInt, nil},
 		{"x?service=service&end=string", errParseInt, nil},
 		{"x?service=service&limit=string", errParseInt, nil},
-		{"x?service=service&start=0&end=0&operation=operation&limit=200&minDuration=20", "Could not parse minDuration: time: missing unit in duration 20", nil},
-		{"x?service=service&start=0&end=0&operation=operation&limit=200&minDuration=20s&maxDuration=30", "Could not parse maxDuration: time: missing unit in duration 30", nil},
-		{"x?service=service&start=0&end=0&operation=operation&limit=200&tag=k:v&tag=x:y&tag=k&log=k:v&log=k", `Malformed 'tag' parameter, expecting key:value, received: k`, nil},
+		{"x?service=service&start=0&end=0&operation=operation&limit=200&minDuration=20", "cannot not parse minDuration: time: missing unit in duration 20", nil},
+		{"x?service=service&start=0&end=0&operation=operation&limit=200&minDuration=20s&maxDuration=30", "cannot not parse maxDuration: time: missing unit in duration 30", nil},
+		{"x?service=service&start=0&end=0&operation=operation&limit=200&tag=k:v&tag=x:y&tag=k&log=k:v&log=k", `malformed 'tag' parameter, expecting key:value, received: k`, nil},
 		{"x?service=service&start=0&end=0&operation=operation&limit=200&minDuration=25s&maxDuration=1s", `'maxDuration' should be greater than 'minDuration'`, nil},
 		{"x?service=service&start=0&end=0&operation=operation&limit=200&tag=k:v&tag=x:y", noErr,
 			&traceQueryParameters{
@@ -57,7 +57,7 @@ func TestParseTraceQuery(t *testing.T) {
 			},
 		},
 		// tags=JSON with a non-string value 123
-		{`x?service=service&start=0&end=0&operation=operation&limit=200&tag=k:v&tags={"x":123}`, "Malformed 'tags' parameter, cannot unmarshal JSON: json: cannot unmarshal number into Go value of type string", nil},
+		{`x?service=service&start=0&end=0&operation=operation&limit=200&tag=k:v&tags={"x":123}`, "malformed 'tags' parameter, cannot unmarshal JSON: json: cannot unmarshal number into Go value of type string", nil},
 		// tags=JSON
 		{`x?service=service&start=0&end=0&operation=operation&limit=200&tag=k:v&tags={"x":"y"}`, noErr,
 			&traceQueryParameters{

@@ -55,7 +55,7 @@ type Service struct {
 
 // NewService creates a new Service.
 func NewService(adminPort int) *Service {
-	signalsChannel := make(chan os.Signal)
+	signalsChannel := make(chan os.Signal, 1)
 	hcStatusChannel := make(chan healthcheck.Status)
 	signal.Notify(signalsChannel, os.Interrupt, syscall.SIGTERM)
 
@@ -88,7 +88,7 @@ func (s *Service) SetHealthCheckStatus(status healthcheck.Status) {
 // Start bootstraps the service and starts the admin server.
 func (s *Service) Start(v *viper.Viper) error {
 	if err := TryLoadConfigFile(v); err != nil {
-		return errors.Wrap(err, "Cannot load config file")
+		return errors.Wrap(err, "cannot load config file")
 	}
 
 	sFlags := new(SharedFlags).InitFromViper(v)
@@ -97,13 +97,13 @@ func (s *Service) Start(v *viper.Viper) error {
 	if logger, err := sFlags.NewLogger(newProdConfig); err == nil {
 		s.Logger = logger
 	} else {
-		return errors.Wrap(err, "Cannot create logger")
+		return errors.Wrap(err, "cannot create logger")
 	}
 
 	metricsBuilder := new(pMetrics.Builder).InitFromViper(v)
 	metricsFactory, err := metricsBuilder.CreateMetricsFactory("")
 	if err != nil {
-		return errors.Wrap(err, "Cannot create metrics factory")
+		return errors.Wrap(err, "cannot create metrics factory")
 	}
 	s.MetricsFactory = metricsFactory
 
@@ -114,7 +114,7 @@ func (s *Service) Start(v *viper.Viper) error {
 		s.Admin.Handle(route, h)
 	}
 	if err := s.Admin.Serve(); err != nil {
-		return errors.Wrap(err, "Cannot start the admin server")
+		return errors.Wrap(err, "cannot start the admin server")
 	}
 
 	return nil
