@@ -106,17 +106,12 @@ func (c *GRPCClient) FindTraces(ctx context.Context, query *spanstore.TraceQuery
 
 		for i, span := range received.Spans {
 			if span.TraceID != traceID {
-				if trace != nil {
-					traces = append(traces, trace)
-				}
 				trace = &model.Trace{}
 				traceID = span.TraceID
+				traces = append(traces, trace)
 			}
 			trace.Spans = append(trace.Spans, &received.Spans[i])
 		}
-	}
-	if trace != nil {
-		traces = append(traces, trace)
 	}
 	return traces, nil
 }
