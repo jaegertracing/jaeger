@@ -17,6 +17,8 @@ package shared
 import (
 	"context"
 
+	"github.com/pkg/errors"
+
 	"github.com/jaegertracing/jaeger/model"
 	"github.com/jaegertracing/jaeger/proto-gen/storage_v1"
 	"github.com/jaegertracing/jaeger/storage/spanstore"
@@ -56,27 +58,9 @@ func (s *GRPCServer) GetTrace(r *storage_v1.GetTraceRequest, stream storage_v1.S
 		return err
 	}
 
-	var allSpans [][]model.Span
-	currentSpans := make([]model.Span, 0, spanBatchSize)
-	i := 0
-	for _, span := range trace.Spans {
-		if i == spanBatchSize {
-			i = 0
-			allSpans = append(allSpans, currentSpans)
-			currentSpans = make([]model.Span, 0, spanBatchSize)
-		}
-		currentSpans = append(currentSpans, *span)
-		i++
-	}
-	if len(currentSpans) > 0 {
-		allSpans = append(allSpans, currentSpans)
-	}
-
-	for _, spans := range allSpans {
-		err = stream.Send(&storage_v1.SpansResponseChunk{Spans: spans})
-		if err != nil {
-			return err
-		}
+	err = s.sendSpans(trace.Spans, stream.Send)
+	if err != nil {
+		return err
 	}
 
 	return nil
@@ -120,26 +104,8 @@ func (s *GRPCServer) FindTraces(r *storage_v1.FindTracesRequest, stream storage_
 		return err
 	}
 
-	var allSpans [][]model.Span
-	currentSpans := make([]model.Span, 0, spanBatchSize)
-	i := 0
 	for _, trace := range traces {
-		for _, span := range trace.Spans {
-			if i == spanBatchSize {
-				i = 0
-				allSpans = append(allSpans, currentSpans)
-				currentSpans = make([]model.Span, 0, spanBatchSize)
-			}
-			currentSpans = append(currentSpans, *span)
-			i++
-		}
-	}
-	if len(currentSpans) > 0 {
-		allSpans = append(allSpans, currentSpans)
-	}
-
-	for _, spans := range allSpans {
-		err = stream.Send(&storage_v1.SpansResponseChunk{Spans: spans})
+		err = s.sendSpans(trace.Spans, stream.Send)
 		if err != nil {
 			return err
 		}
@@ -166,4 +132,19 @@ func (s *GRPCServer) FindTraceIDs(ctx context.Context, r *storage_v1.FindTraceID
 	return &storage_v1.FindTraceIDsResponse{
 		TraceIDs: traceIDs,
 	}, nil
+}
+
+func (s *GRPCServer) sendSpans(spans []*model.Span, sendFn func(*storage_v1.SpansResponseChunk) error) error {
+	chunk := make([]model.Span, 0, len(spans))
+	for i := 0; i < len(spans); i += spanBatchSize {
+		chunk = chunk[:0]
+		for j := i; j < len(spans) && j < i+spanBatchSize; j++ {
+			chunk = append(chunk, *spans[j])
+		}
+		if err := sendFn(&storage_v1.SpansResponseChunk{Spans: chunk}); err != nil {
+			return errors.Wrap(err, "grpc plugin failed to send response")
+		}
+	}
+
+	return nil
 }
