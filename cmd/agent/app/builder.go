@@ -43,10 +43,10 @@ const (
 	defaultServerWorkers = 10
 
 	jaegerModel Model = "jaeger"
-	zipkinModel       = "zipkin"
+	zipkinModel Model = "zipkin"
 
 	compactProtocol Protocol = "compact"
-	binaryProtocol           = "binary"
+	binaryProtocol  Protocol = "binary"
 )
 
 var defaultHTTPServerHostPort = ":" + strconv.Itoa(ports.AgentConfigServerHTTP)
@@ -58,8 +58,6 @@ type Model string
 type Protocol string
 
 var (
-	errNoReporters = errors.New("agent requires at least one Reporter")
-
 	protocolFactoryMap = map[Protocol]thrift.TProtocolFactory{
 		compactProtocol: thrift.NewTCompactProtocolFactory(),
 		binaryProtocol:  thrift.NewTBinaryProtocolFactoryDefault(),

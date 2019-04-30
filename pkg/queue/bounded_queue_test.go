@@ -50,6 +50,7 @@ func TestBoundedQueue(t *testing.T) {
 
 		// block further processing until startLock is released
 		startLock.Lock()
+		//lint:ignore SA2001 empty section is ok
 		startLock.Unlock()
 	})
 

@@ -81,7 +81,7 @@ func TestEncodingTypes(t *testing.T) {
 
 		sw.encodingType = 0x04
 		err := sw.WriteSpan(&testSpan)
-		assert.EqualError(t, err, "Unknown encoding type: 0x04")
+		assert.EqualError(t, err, "unknown encoding type: 0x04")
 	})
 
 	// Unknown encoding reader
@@ -106,7 +106,7 @@ func TestEncodingTypes(t *testing.T) {
 		})
 
 		_, err = rw.GetTrace(context.Background(), model.TraceID{Low: 0, High: 1})
-		assert.EqualError(t, err, "Unknown encoding type: 0x04")
+		assert.EqualError(t, err, "unknown encoding type: 0x04")
 	})
 }
 

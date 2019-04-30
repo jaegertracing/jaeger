@@ -27,7 +27,6 @@ import (
 	"github.com/jaegertracing/jaeger/pkg/cache"
 	"github.com/jaegertracing/jaeger/pkg/es"
 	"github.com/jaegertracing/jaeger/plugin/storage/es/spanstore/dbmodel"
-	storageMetrics "github.com/jaegertracing/jaeger/storage/spanstore/metrics"
 )
 
 const (
@@ -41,7 +40,6 @@ const (
 type ServiceOperationStorage struct {
 	ctx          context.Context
 	client       es.Client
-	metrics      *storageMetrics.WriteMetrics
 	logger       *zap.Logger
 	serviceCache cache.Cache
 }

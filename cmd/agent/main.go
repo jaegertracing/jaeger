@@ -66,12 +66,12 @@ func main() {
 			builder := new(app.Builder).InitFromViper(v)
 			agent, err := builder.CreateAgent(cp, logger, mFactory)
 			if err != nil {
-				return errors.Wrap(err, "Unable to initialize Jaeger Agent")
+				return errors.Wrap(err, "unable to initialize Jaeger Agent")
 			}
 
 			logger.Info("Starting agent")
 			if err := agent.Run(); err != nil {
-				return errors.Wrap(err, "Failed to run the agent")
+				return errors.Wrap(err, "failed to run the agent")
 			}
 			svc.RunAndThen(func() {
 				if closer, ok := cp.(io.Closer); ok {

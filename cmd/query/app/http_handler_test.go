@@ -47,9 +47,9 @@ import (
 const millisToNanosMultiplier = int64(time.Millisecond / time.Nanosecond)
 
 var (
-	errStorageMsg = "Storage error"
+	errStorageMsg = "storage error"
 	errStorage    = errors.New(errStorageMsg)
-	errAdjustment = errors.New("Adjustment error")
+	errAdjustment = errors.New("adjustment error")
 
 	httpClient = &http.Client{
 		Timeout: 2 * time.Second,
@@ -430,7 +430,7 @@ func TestSearchFailures(t *testing.T) {
 	}{
 		{
 			`/api/traces?start=0&end=0&operation=operation&limit=200&minDuration=20ms`,
-			parsedError(400, "Parameter 'service' is required"),
+			parsedError(400, "parameter 'service' is required"),
 		},
 		{
 			`/api/traces?service=service&start=0&end=0&operation=operation&maxDuration=10ms&limit=200&minDuration=20ms`,

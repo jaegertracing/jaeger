@@ -105,16 +105,15 @@ type SpanReader struct {
 
 // SpanReaderParams holds constructor params for NewSpanReader
 type SpanReaderParams struct {
-	Client                  es.Client
-	Logger                  *zap.Logger
-	MaxSpanAge              time.Duration
-	MaxNumSpans             int
-	MetricsFactory          metrics.Factory
-	serviceOperationStorage *ServiceOperationStorage
-	IndexPrefix             string
-	TagDotReplacement       string
-	Archive                 bool
-	UseReadWriteAliases     bool
+	Client              es.Client
+	Logger              *zap.Logger
+	MaxSpanAge          time.Duration
+	MaxNumSpans         int
+	MetricsFactory      metrics.Factory
+	IndexPrefix         string
+	TagDotReplacement   string
+	Archive             bool
+	UseReadWriteAliases bool
 }
 
 // NewSpanReader returns a new SpanReader with a metrics.
@@ -227,6 +226,7 @@ func (s *SpanReader) unmarshalJSONSpan(esSpanRaw *elastic.SearchHit) (*dbmodel.S
 
 // GetServices returns all services traced by Jaeger, ordered by frequency
 func (s *SpanReader) GetServices(ctx context.Context) ([]string, error) {
+	//lint:ignore SA4006 failing to re-assign context is worse than unused variable
 	span, ctx := opentracing.StartSpanFromContext(ctx, "GetServices")
 	defer span.Finish()
 	currentTime := time.Now()
@@ -236,6 +236,7 @@ func (s *SpanReader) GetServices(ctx context.Context) ([]string, error) {
 
 // GetOperations returns all operations for a specific service traced by Jaeger
 func (s *SpanReader) GetOperations(ctx context.Context, service string) ([]string, error) {
+	//lint:ignore SA4006 failing to re-assign context is worse than unused variable
 	span, ctx := opentracing.StartSpanFromContext(ctx, "GetOperations")
 	defer span.Finish()
 	currentTime := time.Now()

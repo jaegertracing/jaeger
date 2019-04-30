@@ -85,10 +85,10 @@ func TestCassandraFactory(t *testing.T) {
 	assert.NoError(t, err)
 
 	_, err = f.CreateArchiveSpanReader()
-	assert.EqualError(t, err, "Archive storage not configured")
+	assert.EqualError(t, err, "archive storage not configured")
 
 	_, err = f.CreateArchiveSpanWriter()
-	assert.EqualError(t, err, "Archive storage not configured")
+	assert.EqualError(t, err, "archive storage not configured")
 
 	f.archiveConfig = &mockSessionBuilder{}
 	assert.NoError(t, f.Initialize(metrics.NullFactory, zap.NewNop()))
