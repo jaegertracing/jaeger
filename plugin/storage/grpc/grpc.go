@@ -16,8 +16,9 @@ package grpc
 
 import (
 	"github.com/hashicorp/go-plugin"
-	"github.com/jaegertracing/jaeger/plugin/storage/grpc/shared"
 	"google.golang.org/grpc"
+
+	"github.com/jaegertracing/jaeger/plugin/storage/grpc/shared"
 )
 
 func Serve(implementation shared.StoragePlugin) {

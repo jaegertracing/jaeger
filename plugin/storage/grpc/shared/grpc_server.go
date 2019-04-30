@@ -33,7 +33,7 @@ type GRPCServer struct {
 
 // GetDependencies returns all interservice dependencies
 func (s *GRPCServer) GetDependencies(ctx context.Context, r *storage_v1.GetDependenciesRequest) (*storage_v1.GetDependenciesResponse, error) {
-	deps, err := s.Impl.GetDependencies(r.EndTime, r.EndTime.Sub(r.StartTime))
+	deps, err := s.Impl.DependencyReader().GetDependencies(r.EndTime, r.EndTime.Sub(r.StartTime))
 	if err != nil {
 		return nil, err
 	}
@@ -44,7 +44,7 @@ func (s *GRPCServer) GetDependencies(ctx context.Context, r *storage_v1.GetDepen
 
 // WriteSpan saves the span
 func (s *GRPCServer) WriteSpan(ctx context.Context, r *storage_v1.WriteSpanRequest) (*storage_v1.WriteSpanResponse, error) {
-	err := s.Impl.WriteSpan(r.Span)
+	err := s.Impl.SpanWriter().WriteSpan(r.Span)
 	if err != nil {
 		return nil, err
 	}
@@ -53,7 +53,7 @@ func (s *GRPCServer) WriteSpan(ctx context.Context, r *storage_v1.WriteSpanReque
 
 // GetTrace takes a traceID and streams a Trace associated with that traceID
 func (s *GRPCServer) GetTrace(r *storage_v1.GetTraceRequest, stream storage_v1.SpanReaderPlugin_GetTraceServer) error {
-	trace, err := s.Impl.GetTrace(stream.Context(), r.TraceID)
+	trace, err := s.Impl.SpanReader().GetTrace(stream.Context(), r.TraceID)
 	if err != nil {
 		return err
 	}
@@ -68,7 +68,7 @@ func (s *GRPCServer) GetTrace(r *storage_v1.GetTraceRequest, stream storage_v1.S
 
 // GetServices returns a list of all known services
 func (s *GRPCServer) GetServices(ctx context.Context, r *storage_v1.GetServicesRequest) (*storage_v1.GetServicesResponse, error) {
-	services, err := s.Impl.GetServices(ctx)
+	services, err := s.Impl.SpanReader().GetServices(ctx)
 	if err != nil {
 		return nil, err
 	}
@@ -79,7 +79,7 @@ func (s *GRPCServer) GetServices(ctx context.Context, r *storage_v1.GetServicesR
 
 // GetOperations returns the operations of a given service
 func (s *GRPCServer) GetOperations(ctx context.Context, r *storage_v1.GetOperationsRequest) (*storage_v1.GetOperationsResponse, error) {
-	operations, err := s.Impl.GetOperations(ctx, r.Service)
+	operations, err := s.Impl.SpanReader().GetOperations(ctx, r.Service)
 	if err != nil {
 		return nil, err
 	}
@@ -90,7 +90,7 @@ func (s *GRPCServer) GetOperations(ctx context.Context, r *storage_v1.GetOperati
 
 // FindTraces streams traces that match the traceQuery
 func (s *GRPCServer) FindTraces(r *storage_v1.FindTracesRequest, stream storage_v1.SpanReaderPlugin_FindTracesServer) error {
-	traces, err := s.Impl.FindTraces(stream.Context(), &spanstore.TraceQueryParameters{
+	traces, err := s.Impl.SpanReader().FindTraces(stream.Context(), &spanstore.TraceQueryParameters{
 		ServiceName:   r.Query.ServiceName,
 		OperationName: r.Query.OperationName,
 		Tags:          r.Query.Tags,
@@ -116,7 +116,7 @@ func (s *GRPCServer) FindTraces(r *storage_v1.FindTracesRequest, stream storage_
 
 // FindTraceIDs retrieves traceIDs that match the traceQuery
 func (s *GRPCServer) FindTraceIDs(ctx context.Context, r *storage_v1.FindTraceIDsRequest) (*storage_v1.FindTraceIDsResponse, error) {
-	traceIDs, err := s.Impl.FindTraceIDs(ctx, &spanstore.TraceQueryParameters{
+	traceIDs, err := s.Impl.SpanReader().FindTraceIDs(ctx, &spanstore.TraceQueryParameters{
 		ServiceName:   r.Query.ServiceName,
 		OperationName: r.Query.OperationName,
 		Tags:          r.Query.Tags,

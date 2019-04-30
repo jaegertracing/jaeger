@@ -23,6 +23,7 @@ import (
 
 	"github.com/jaegertracing/jaeger/model"
 	"github.com/jaegertracing/jaeger/proto-gen/storage_v1"
+	"github.com/jaegertracing/jaeger/storage/dependencystore"
 	"github.com/jaegertracing/jaeger/storage/spanstore"
 )
 
@@ -31,6 +32,21 @@ type GRPCClient struct {
 	readerClient     storage_v1.SpanReaderPluginClient
 	writerClient     storage_v1.SpanWriterPluginClient
 	depsReaderClient storage_v1.DependenciesReaderPluginClient
+}
+
+// DependencyReader implements shared.StoragePlugin.
+func (c *GRPCClient) DependencyReader() dependencystore.Reader {
+	return c
+}
+
+// SpanReader implements shared.StoragePlugin.
+func (c *GRPCClient) SpanReader() spanstore.Reader {
+	return c
+}
+
+// SpanWriter implements shared.StoragePlugin.
+func (c *GRPCClient) SpanWriter() spanstore.Writer {
+	return c
 }
 
 // GetTrace takes a traceID and returns a Trace associated with that traceID

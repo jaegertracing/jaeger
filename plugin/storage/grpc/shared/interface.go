@@ -41,9 +41,9 @@ var PluginMap = map[string]plugin.Plugin{
 
 // StoragePlugin is the interface we're exposing as a plugin.
 type StoragePlugin interface {
-	spanstore.Reader
-	spanstore.Writer
-	dependencystore.Reader
+	SpanReader() spanstore.Reader
+	SpanWriter() spanstore.Writer
+	DependencyReader() dependencystore.Reader
 }
 
 // StorageGRPCPlugin is the implementation of plugin.GRPCPlugin so we can serve/consume this.
