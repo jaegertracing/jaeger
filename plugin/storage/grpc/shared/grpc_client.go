@@ -43,12 +43,7 @@ func (c *GRPCClient) GetTrace(ctx context.Context, traceID model.TraceID) (*mode
 	}
 
 	trace := model.Trace{}
-	for {
-		received, err := stream.Recv()
-		if err == io.EOF {
-			break
-		}
-
+	for received, err := stream.Recv(); err != io.EOF; received, err = stream.Recv() {
 		if err != nil {
 			return nil, errors.Wrap(err, "grpc stream error")
 		}
@@ -104,12 +99,7 @@ func (c *GRPCClient) FindTraces(ctx context.Context, query *spanstore.TraceQuery
 	var traces []*model.Trace
 	var trace *model.Trace
 	var traceID model.TraceID
-	for {
-		received, err := stream.Recv()
-		if err == io.EOF {
-			break
-		}
-
+	for received, err := stream.Recv(); err != io.EOF; received, err = stream.Recv() {
 		if err != nil {
 			return nil, errors.Wrap(err, "stream error")
 		}
