@@ -16,7 +16,6 @@ package grpcresolver
 
 import (
 	"context"
-	"fmt"
 	"net"
 	"testing"
 	"time"
@@ -51,31 +50,22 @@ func (t *test) cleanup() {
 	}
 }
 
-func startTestServers(count int) (_ *test, err error) {
-	t := &test{}
-
-	defer func() {
-		if err != nil {
-			t.cleanup()
-		}
-	}()
+func startTestServers(t *testing.T, count int) *test {
+	testInstance := &test{}
 	for i := 0; i < count; i++ {
 		lis, err := net.Listen("tcp", "localhost:0")
-		if err != nil {
-			return nil, fmt.Errorf("failed to listen %v", err)
-		}
-
+		assert.NoError(t, err, "failed to listen on tcp")
 		s := grpc.NewServer()
 		testpb.RegisterTestServiceServer(s, &testServer{})
-		t.servers = append(t.servers, s)
-		t.addresses = append(t.addresses, lis.Addr().String())
+		testInstance.servers = append(testInstance.servers, s)
+		testInstance.addresses = append(testInstance.addresses, lis.Addr().String())
 
 		go func(s *grpc.Server, l net.Listener) {
 			s.Serve(l)
 		}(s, lis)
 	}
 
-	return t, nil
+	return testInstance
 }
 
 func TestErrorDiscoverer(t *testing.T) {
@@ -89,22 +79,15 @@ func TestErrorDiscoverer(t *testing.T) {
 func TestGRPCResolverRoundRobin(t *testing.T) {
 	backendCount := 5
 
-	test, err := startTestServers(backendCount)
-	if err != nil {
-		t.Fatalf("failed to start servers: %v", err)
-	}
+	test := startTestServers(t, backendCount)
 	defer test.cleanup()
 
 	notifier := &discovery.Dispatcher{}
-	//discoverer := discovery.FixedDiscoverer(test.addresses)
 	discoverer := discovery.FixedDiscoverer{}
 	re := New(notifier, discoverer, zap.NewNop(), backendCount)
-	assert.NoError(t, err)
 
 	cc, err := grpc.Dial(re.Scheme()+":///round_robin", grpc.WithInsecure(), grpc.WithBalancerName(roundrobin.Name))
-	if err != nil {
-		t.Fatalf("failed to dial: %v", err)
-	}
+	assert.NoError(t, err, "could not dial using resolver's scheme")
 	defer cc.Close()
 	testc := testpb.NewTestServiceClient(cc)
 
@@ -113,39 +96,26 @@ func TestGRPCResolverRoundRobin(t *testing.T) {
 	var p peer.Peer
 	// Make sure connections to all servers are up.
 	for si := 0; si < backendCount; si++ {
-		var connected bool
+		connected := false
 		for i := 0; i < 100; i++ {
-			if _, err := testc.EmptyCall(context.Background(), &testpb.Empty{}, grpc.Peer(&p)); err != nil {
-				t.Fatalf("EmptyCall() = _, %v, want _, <nil>", err)
-			}
+			_, err := testc.EmptyCall(context.Background(), &testpb.Empty{}, grpc.Peer(&p))
+			assert.NoError(t, err)
 			if p.Addr.String() == test.addresses[si] {
 				connected = true
 				break
 			}
 			time.Sleep(time.Millisecond)
 		}
-		if !connected {
-			t.Fatalf("Connection to %v was still not up", test.addresses[si])
-		}
+		assert.True(t, connected, "Connection was still not up")
 	}
 
-	if _, err := testc.EmptyCall(context.Background(), &testpb.Empty{}, grpc.Peer(&p)); err != nil {
-		t.Fatalf("EmptyCall() = _, %v, want _, <nil>", err)
-	}
-	previousAddr := p
-	firstAddr := p
+	addrs := make(map[string]struct{})
 	for i := 0; i < backendCount; i++ {
-		if _, err := testc.EmptyCall(context.Background(), &testpb.Empty{}, grpc.Peer(&p)); err != nil {
-			t.Fatalf("EmptyCall() = _, %v, want _, <nil>", err)
-		}
-		if previousAddr == p {
-			t.Fatal("Roundrobin balancer shouldn't call same host/port in a row")
-		}
-		previousAddr = p
+		_, err := testc.EmptyCall(context.Background(), &testpb.Empty{}, grpc.Peer(&p))
+		assert.NoError(t, err)
+		addrs[p.Addr.String()] = struct{}{}
 	}
-	if firstAddr != p {
-		t.Fatal("After a full cycle the first host/port should be called again")
-	}
+	assert.Len(t, addrs, backendCount, "must call each of the servers once")
 }
 
 func TestRendezvousHashR(t *testing.T) {
@@ -154,8 +124,8 @@ func TestRendezvousHashR(t *testing.T) {
 	sameAddressesDifferentOrder := []string{"127.2.1.2:8080", "127.1.0.3:8080", "127.3.0.4:8080", "127.0.1.1:8080"}
 	notifier := &discovery.Dispatcher{}
 	discoverer := discovery.FixedDiscoverer{}
-	re := New(notifier, discoverer, zap.NewNop(), 2)
-	subset1 := re.rendezvousHash(addresses)
-	subset2 := re.rendezvousHash(sameAddressesDifferentOrder)
+	resolverInstance := New(notifier, discoverer, zap.NewNop(), 2)
+	subset1 := resolverInstance.rendezvousHash(addresses)
+	subset2 := resolverInstance.rendezvousHash(sameAddressesDifferentOrder)
 	assert.Equal(t, subset1, subset2)
 }

@@ -79,26 +79,25 @@ func (b *ConnBuilder) CreateConnection(logger *zap.Logger) (*grpc.ClientConn, er
 	if b.Notifier != nil && b.Discoverer != nil {
 		logger.Info("Using external discovery service with roundrobin load balancer")
 		grpcResolver := grpcresolver.New(b.Notifier, b.Discoverer, logger, b.DiscoveryMinPeers)
-		dialOptions = append(dialOptions, grpc.WithBalancerName(roundrobin.Name))
 		dialTarget = grpcResolver.Scheme() + ":///round_robin"
-	}
-	if b.CollectorHostPorts == nil {
-		return nil, errors.New("at least one collector hostPort address is required when resolver is not available")
-	}
-	if len(b.CollectorHostPorts) > 1 {
-		r, _ := manual.GenerateAndRegisterManualResolver()
-		var resolvedAddrs []resolver.Address
-		for _, addr := range b.CollectorHostPorts {
-			resolvedAddrs = append(resolvedAddrs, resolver.Address{Addr: addr})
-		}
-		r.InitialState(resolver.State{Addresses: resolvedAddrs})
-		dialTarget = r.Scheme() + ":///round_robin"
-		logger.Info("Agent is connecting to a static list of collectors", zap.String("dialTarget", dialTarget), zap.String("collector hosts", strings.Join(b.CollectorHostPorts, ",")))
 	} else {
-		dialTarget = b.CollectorHostPorts[0]
+		if b.CollectorHostPorts == nil {
+			return nil, errors.New("at least one collector hostPort address is required when resolver is not available")
+		}
+		if len(b.CollectorHostPorts) > 1 {
+			r, _ := manual.GenerateAndRegisterManualResolver()
+			var resolvedAddrs []resolver.Address
+			for _, addr := range b.CollectorHostPorts {
+				resolvedAddrs = append(resolvedAddrs, resolver.Address{Addr: addr})
+			}
+			r.InitialState(resolver.State{Addresses: resolvedAddrs})
+			dialTarget = r.Scheme() + ":///round_robin"
+			logger.Info("Agent is connecting to a static list of collectors", zap.String("dialTarget", dialTarget), zap.String("collector hosts", strings.Join(b.CollectorHostPorts, ",")))
+		} else {
+			dialTarget = b.CollectorHostPorts[0]
+		}
 	}
 	dialOptions = append(dialOptions, grpc.WithBalancerName(roundrobin.Name))
-
 	dialOptions = append(dialOptions, grpc.WithUnaryInterceptor(grpc_retry.UnaryClientInterceptor(grpc_retry.WithMax(b.MaxRetry))))
 	return grpc.Dial(dialTarget, dialOptions...)
 }

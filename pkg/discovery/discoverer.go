@@ -35,5 +35,5 @@ type ErrorDiscoverer []string
 
 // Instances implements Discoverer.
 func (d ErrorDiscoverer) Instances() ([]string, error) {
-	return nil, errors.New("Error discoverer always return error")
+	return nil, errors.New("error discoverer always return error")
 }

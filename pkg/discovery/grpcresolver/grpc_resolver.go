@@ -38,7 +38,6 @@ type Resolver struct {
 	logger            *zap.Logger
 	discoCh           chan []string // used to receive notifications
 	discoveryMinPeers int
-	mu                sync.Mutex
 	salt              []byte
 	hasher            hash.Hash32
 
@@ -111,11 +110,9 @@ func (r *Resolver) ResolveNow(o resolver.ResolveNowOption) {}
 func (r *Resolver) watcher() {
 	defer r.wg.Done()
 	for latestHostPorts := range r.discoCh {
-		r.mu.Lock()
 		r.logger.Info("Received updates from notifier", zap.Strings("hostPorts", latestHostPorts))
 		updatedAddresses := generateAddresses(r.rendezvousHash(latestHostPorts))
 		r.cc.UpdateState(resolver.State{Addresses: updatedAddresses})
-		r.mu.Unlock()
 	}
 }
 

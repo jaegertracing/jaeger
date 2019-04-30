@@ -39,7 +39,7 @@ func AddFlags(flags *flag.FlagSet) {
 	flags.Bool(collectorTLS, false, "Enable TLS.")
 	flags.String(collectorTLSCA, "", "Path to a TLS CA file. (default use the systems truststore)")
 	flags.String(collectorTLSServerName, "", "Override the TLS server name.")
-	flags.Int(discoveryMinPeers, 3, "Override number of connections to collectors per agent")
+	flags.Int(discoveryMinPeers, 3, "Max number of collectors to which the agent will try to connect at any given time")
 }
 
 // InitFromViper initializes Options with properties retrieved from Viper.
