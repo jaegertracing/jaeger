@@ -16,7 +16,6 @@ package shared
 
 import (
 	"context"
-	"fmt"
 	"io"
 	"time"
 
@@ -51,7 +50,7 @@ func (c *GRPCClient) GetTrace(ctx context.Context, traceID model.TraceID) (*mode
 		}
 
 		if err != nil {
-			return nil, fmt.Errorf("stream error: %s", err)
+			return nil, errors.Wrap(err, "grpc stream error")
 		}
 
 		for _, span := range received.Spans {
