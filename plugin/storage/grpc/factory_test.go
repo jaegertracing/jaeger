@@ -25,6 +25,7 @@ import (
 	"github.com/uber/jaeger-lib/metrics"
 	"go.uber.org/zap"
 
+	"github.com/jaegertracing/jaeger/storage/dependencystore"
 	"github.com/jaegertracing/jaeger/model"
 	"github.com/jaegertracing/jaeger/pkg/config"
 	"github.com/jaegertracing/jaeger/plugin/storage/grpc/shared"
@@ -47,6 +48,18 @@ func (b *mockPluginBuilder) Build() (shared.StoragePlugin, error) {
 }
 
 type mockPlugin struct {
+}
+
+func (mp *mockPlugin) SpanReader() spanstore.Reader {
+	return mp
+}
+
+func (mp *mockPlugin) SpanWriter() spanstore.Writer {
+	return mp
+}
+
+func (mp *mockPlugin) DependencyReader() dependencystore.Reader {
+	return mp
 }
 
 func (*mockPlugin) GetDependencies(endTs time.Time, lookback time.Duration) ([]model.DependencyLink, error) {
