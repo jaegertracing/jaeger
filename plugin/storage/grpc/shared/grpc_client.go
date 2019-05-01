@@ -27,30 +27,30 @@ import (
 	"github.com/jaegertracing/jaeger/storage/spanstore"
 )
 
-// GRPCClient implements shared.StoragePlugin and reads/writes spans and dependencies
-type GRPCClient struct {
+// grpcClient implements shared.StoragePlugin and reads/writes spans and dependencies
+type grpcClient struct {
 	readerClient     storage_v1.SpanReaderPluginClient
 	writerClient     storage_v1.SpanWriterPluginClient
 	depsReaderClient storage_v1.DependenciesReaderPluginClient
 }
 
 // DependencyReader implements shared.StoragePlugin.
-func (c *GRPCClient) DependencyReader() dependencystore.Reader {
+func (c *grpcClient) DependencyReader() dependencystore.Reader {
 	return c
 }
 
 // SpanReader implements shared.StoragePlugin.
-func (c *GRPCClient) SpanReader() spanstore.Reader {
+func (c *grpcClient) SpanReader() spanstore.Reader {
 	return c
 }
 
 // SpanWriter implements shared.StoragePlugin.
-func (c *GRPCClient) SpanWriter() spanstore.Writer {
+func (c *grpcClient) SpanWriter() spanstore.Writer {
 	return c
 }
 
 // GetTrace takes a traceID and returns a Trace associated with that traceID
-func (c *GRPCClient) GetTrace(ctx context.Context, traceID model.TraceID) (*model.Trace, error) {
+func (c *grpcClient) GetTrace(ctx context.Context, traceID model.TraceID) (*model.Trace, error) {
 	stream, err := c.readerClient.GetTrace(ctx, &storage_v1.GetTraceRequest{
 		TraceID: traceID,
 	})
@@ -73,7 +73,7 @@ func (c *GRPCClient) GetTrace(ctx context.Context, traceID model.TraceID) (*mode
 }
 
 // GetServices returns a list of all known services
-func (c *GRPCClient) GetServices(ctx context.Context) ([]string, error) {
+func (c *grpcClient) GetServices(ctx context.Context) ([]string, error) {
 	resp, err := c.readerClient.GetServices(ctx, &storage_v1.GetServicesRequest{})
 	if err != nil {
 		return nil, errors.Wrap(err, "plugin error")
@@ -83,7 +83,7 @@ func (c *GRPCClient) GetServices(ctx context.Context) ([]string, error) {
 }
 
 // GetOperations returns the operations of a given service
-func (c *GRPCClient) GetOperations(ctx context.Context, service string) ([]string, error) {
+func (c *grpcClient) GetOperations(ctx context.Context, service string) ([]string, error) {
 	resp, err := c.readerClient.GetOperations(ctx, &storage_v1.GetOperationsRequest{
 		Service: service,
 	})
@@ -95,7 +95,7 @@ func (c *GRPCClient) GetOperations(ctx context.Context, service string) ([]strin
 }
 
 // FindTraces retrieves traces that match the traceQuery
-func (c *GRPCClient) FindTraces(ctx context.Context, query *spanstore.TraceQueryParameters) ([]*model.Trace, error) {
+func (c *grpcClient) FindTraces(ctx context.Context, query *spanstore.TraceQueryParameters) ([]*model.Trace, error) {
 	stream, err := c.readerClient.FindTraces(context.Background(), &storage_v1.FindTracesRequest{
 		Query: &storage_v1.TraceQueryParameters{
 			ServiceName:   query.ServiceName,
@@ -133,7 +133,7 @@ func (c *GRPCClient) FindTraces(ctx context.Context, query *spanstore.TraceQuery
 }
 
 // FindTraceIDs retrieves traceIDs that match the traceQuery
-func (c *GRPCClient) FindTraceIDs(ctx context.Context, query *spanstore.TraceQueryParameters) ([]model.TraceID, error) {
+func (c *grpcClient) FindTraceIDs(ctx context.Context, query *spanstore.TraceQueryParameters) ([]model.TraceID, error) {
 	resp, err := c.readerClient.FindTraceIDs(context.Background(), &storage_v1.FindTraceIDsRequest{
 		Query: &storage_v1.TraceQueryParameters{
 			ServiceName:   query.ServiceName,
@@ -154,7 +154,7 @@ func (c *GRPCClient) FindTraceIDs(ctx context.Context, query *spanstore.TraceQue
 }
 
 // WriteSpan saves the span
-func (c *GRPCClient) WriteSpan(span *model.Span) error {
+func (c *grpcClient) WriteSpan(span *model.Span) error {
 	_, err := c.writerClient.WriteSpan(context.Background(), &storage_v1.WriteSpanRequest{
 		Span: span,
 	})
@@ -166,7 +166,7 @@ func (c *GRPCClient) WriteSpan(span *model.Span) error {
 }
 
 // GetDependencies returns all interservice dependencies
-func (c *GRPCClient) GetDependencies(endTs time.Time, lookback time.Duration) ([]model.DependencyLink, error) {
+func (c *grpcClient) GetDependencies(endTs time.Time, lookback time.Duration) ([]model.DependencyLink, error) {
 	resp, err := c.depsReaderClient.GetDependencies(context.Background(), &storage_v1.GetDependenciesRequest{
 		EndTime:   endTs,
 		StartTime: endTs.Add(-lookback),

@@ -27,7 +27,7 @@ func Serve(implementation shared.StoragePlugin) {
 }
 
 // ServeWithGRPCServer creates a plugin configuration using the implementation of StoragePlugin and
-// function to create GRPCServer, and then serves it.
+// function to create grpcServer, and then serves it.
 func ServeWithGRPCServer(implementation shared.StoragePlugin, grpcServer func([]grpc.ServerOption) *grpc.Server) {
 	plugin.Serve(&plugin.ServeConfig{
 		HandshakeConfig: shared.Handshake,
