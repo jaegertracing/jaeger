@@ -21,20 +21,13 @@ import (
 	"github.com/jaegertracing/jaeger/plugin/storage/grpc/shared"
 )
 
+// Serve creates a plugin configuration using the implementation of StoragePlugin and then serves it.
 func Serve(implementation shared.StoragePlugin) {
-	plugin.Serve(&plugin.ServeConfig{
-		HandshakeConfig: shared.Handshake,
-		VersionedPlugins: map[int]plugin.PluginSet{
-			1: map[string]plugin.Plugin{
-				shared.StoragePluginIdentifier: &shared.StorageGRPCPlugin{
-					Impl: implementation,
-				},
-			},
-		},
-		GRPCServer: plugin.DefaultGRPCServer,
-	})
+	ServeWithGRPCServer(implementation, plugin.DefaultGRPCServer)
 }
 
+// ServeWithGRPCServer creates a plugin configuration using the implementation of StoragePlugin and
+// function to create GRPCServer, and then serves it.
 func ServeWithGRPCServer(implementation shared.StoragePlugin, grpcServer func([]grpc.ServerOption) *grpc.Server) {
 	plugin.Serve(&plugin.ServeConfig{
 		HandshakeConfig: shared.Handshake,
