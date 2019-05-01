@@ -18,11 +18,11 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"google.golang.org/grpc/status"
 	"net"
 	"testing"
 	"time"
 
+	"google.golang.org/grpc/status"
 	"github.com/opentracing/opentracing-go"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
