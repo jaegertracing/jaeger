@@ -68,7 +68,6 @@ const (
 // Options stores the configuration options for the Ingester
 type Options struct {
 	kafkaConsumer.Configuration
-	ClientID         string
 	Parallelism      int
 	Encoding         string
 	DeadlockInterval time.Duration
