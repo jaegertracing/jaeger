@@ -41,8 +41,8 @@ type Resolver struct {
 	salt              []byte
 	hasher            hash.Hash32
 
-	//wg will wait for watcher to exit before firing .Close() to close resolver
-	wg sync.WaitGroup
+	//closing will wait for watcher to exit before firing .Close() to close resolver
+	closing sync.WaitGroup
 }
 type hostScore struct {
 	address string
@@ -94,7 +94,7 @@ func (r *Resolver) Build(target resolver.Target, cc resolver.ClientConn, opts re
 		return nil, err
 	}
 	r.cc.UpdateState(resolver.State{Addresses: generateAddresses(instances)})
-	r.wg.Add(1)
+	r.closing.Add(1)
 	go r.watcher()
 	return r, nil
 }
@@ -108,7 +108,7 @@ func (r *Resolver) Scheme() string {
 func (r *Resolver) ResolveNow(o resolver.ResolveNowOption) {}
 
 func (r *Resolver) watcher() {
-	defer r.wg.Done()
+	defer r.closing.Done()
 	for latestHostPorts := range r.discoCh {
 		r.logger.Info("Received updates from notifier", zap.Strings("hostPorts", latestHostPorts))
 		updatedAddresses := generateAddresses(r.rendezvousHash(latestHostPorts))
@@ -120,7 +120,7 @@ func (r *Resolver) watcher() {
 func (r *Resolver) Close() {
 	r.notifier.Unregister(r.discoCh)
 	close(r.discoCh)
-	r.wg.Wait()
+	r.closing.Wait()
 }
 
 func (r *Resolver) rendezvousHash(addresses []string) []string {
