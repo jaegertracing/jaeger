@@ -22,9 +22,13 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
+	"github.com/uber/jaeger-lib/metrics"
+	"go.uber.org/zap"
 
 	"github.com/jaegertracing/jaeger/model"
 	"github.com/jaegertracing/jaeger/model/adjuster"
+	"github.com/jaegertracing/jaeger/storage"
+	"github.com/jaegertracing/jaeger/storage/dependencystore"
 	depsmocks "github.com/jaegertracing/jaeger/storage/dependencystore/mocks"
 	"github.com/jaegertracing/jaeger/storage/spanstore"
 	spanstoremocks "github.com/jaegertracing/jaeger/storage/spanstore/mocks"
@@ -253,4 +257,64 @@ func TestGetDependencies(t *testing.T) {
 	actualDependencies, err := qs.GetDependencies(time.Unix(0, 1476374248550*millisToNanosMultiplier), defaultDependencyLookbackDuration)
 	assert.NoError(t, err)
 	assert.Equal(t, expectedDependencies, actualDependencies)
+}
+
+type fakeStorageFactory1 struct {
+}
+
+type fakeStorageFactory2 struct {
+	fakeStorageFactory1
+	r    spanstore.Reader
+	w    spanstore.Writer
+	rErr error
+	wErr error
+}
+
+func (*fakeStorageFactory1) Initialize(metricsFactory metrics.Factory, logger *zap.Logger) error {
+	return nil
+}
+func (*fakeStorageFactory1) CreateSpanReader() (spanstore.Reader, error)             { return nil, nil }
+func (*fakeStorageFactory1) CreateSpanWriter() (spanstore.Writer, error)             { return nil, nil }
+func (*fakeStorageFactory1) CreateDependencyReader() (dependencystore.Reader, error) { return nil, nil }
+
+func (f *fakeStorageFactory2) CreateArchiveSpanReader() (spanstore.Reader, error) { return f.r, f.rErr }
+func (f *fakeStorageFactory2) CreateArchiveSpanWriter() (spanstore.Writer, error) { return f.w, f.wErr }
+
+var _ storage.Factory = new(fakeStorageFactory1)
+var _ storage.ArchiveFactory = new(fakeStorageFactory2)
+
+func TestInitArchiveStorageErrors(t *testing.T) {
+	opts := &QueryServiceOptions{}
+	logger := zap.NewNop()
+
+	assert.False(t, opts.InitArchiveStorage(new(fakeStorageFactory1), logger))
+	assert.False(t, opts.InitArchiveStorage(
+		&fakeStorageFactory2{rErr: storage.ErrArchiveStorageNotConfigured},
+		logger,
+	))
+	assert.False(t, opts.InitArchiveStorage(
+		&fakeStorageFactory2{rErr: errors.New("error")},
+		logger,
+	))
+	assert.False(t, opts.InitArchiveStorage(
+		&fakeStorageFactory2{wErr: storage.ErrArchiveStorageNotConfigured},
+		logger,
+	))
+	assert.False(t, opts.InitArchiveStorage(
+		&fakeStorageFactory2{wErr: errors.New("error")},
+		logger,
+	))
+}
+
+func TestInitArchiveStorage(t *testing.T) {
+	opts := &QueryServiceOptions{}
+	logger := zap.NewNop()
+	reader := &spanstoremocks.Reader{}
+	writer := &spanstoremocks.Writer{}
+	assert.True(t, opts.InitArchiveStorage(
+		&fakeStorageFactory2{r: reader, w: writer},
+		logger,
+	))
+	assert.Equal(t, reader, opts.ArchiveSpanReader)
+	assert.Equal(t, writer, opts.ArchiveSpanWriter)
 }
