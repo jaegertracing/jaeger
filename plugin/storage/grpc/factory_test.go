@@ -15,22 +15,21 @@
 package grpc
 
 import (
-	"context"
 	"errors"
 	"testing"
-	"time"
 
 	"github.com/spf13/viper"
 	"github.com/stretchr/testify/assert"
 	"github.com/uber/jaeger-lib/metrics"
 	"go.uber.org/zap"
 
-	"github.com/jaegertracing/jaeger/storage/dependencystore"
-	"github.com/jaegertracing/jaeger/model"
 	"github.com/jaegertracing/jaeger/pkg/config"
 	"github.com/jaegertracing/jaeger/plugin/storage/grpc/shared"
 	"github.com/jaegertracing/jaeger/storage"
+	"github.com/jaegertracing/jaeger/storage/dependencystore"
+	dependencyStoreMocks "github.com/jaegertracing/jaeger/storage/dependencystore/mocks"
 	"github.com/jaegertracing/jaeger/storage/spanstore"
+	spanStoreMocks "github.com/jaegertracing/jaeger/storage/spanstore/mocks"
 )
 
 var _ storage.Factory = new(Factory)
@@ -48,46 +47,21 @@ func (b *mockPluginBuilder) Build() (shared.StoragePlugin, error) {
 }
 
 type mockPlugin struct {
+	spanReader       spanstore.Reader
+	spanWriter       spanstore.Writer
+	dependencyReader dependencystore.Reader
 }
 
 func (mp *mockPlugin) SpanReader() spanstore.Reader {
-	return mp
+	return mp.spanReader
 }
 
 func (mp *mockPlugin) SpanWriter() spanstore.Writer {
-	return mp
+	return mp.spanWriter
 }
 
 func (mp *mockPlugin) DependencyReader() dependencystore.Reader {
-	return mp
-}
-
-func (*mockPlugin) GetDependencies(endTs time.Time, lookback time.Duration) ([]model.DependencyLink, error) {
-	panic("implement me")
-}
-
-func (*mockPlugin) GetTrace(ctx context.Context, traceID model.TraceID) (*model.Trace, error) {
-	panic("implement me")
-}
-
-func (*mockPlugin) GetServices(ctx context.Context) ([]string, error) {
-	panic("implement me")
-}
-
-func (*mockPlugin) GetOperations(ctx context.Context, service string) ([]string, error) {
-	panic("implement me")
-}
-
-func (*mockPlugin) FindTraces(ctx context.Context, query *spanstore.TraceQueryParameters) ([]*model.Trace, error) {
-	panic("implement me")
-}
-
-func (*mockPlugin) FindTraceIDs(ctx context.Context, query *spanstore.TraceQueryParameters) ([]model.TraceID, error) {
-	panic("implement me")
-}
-
-func (*mockPlugin) WriteSpan(span *model.Span) error {
-	panic("implement me")
+	return mp.dependencyReader
 }
 
 func TestGRPCStorageFactory(t *testing.T) {
@@ -103,20 +77,24 @@ func TestGRPCStorageFactory(t *testing.T) {
 	assert.EqualError(t, f.Initialize(metrics.NullFactory, zap.NewNop()), "made-up error")
 
 	f.builder = &mockPluginBuilder{
-		plugin: &mockPlugin{},
+		plugin: &mockPlugin{
+			spanWriter:       new(spanStoreMocks.Writer),
+			spanReader:       new(spanStoreMocks.Reader),
+			dependencyReader: new(dependencyStoreMocks.Reader),
+		},
 	}
 	assert.NoError(t, f.Initialize(metrics.NullFactory, zap.NewNop()))
 
 	assert.NotNil(t, f.store)
 	reader, err := f.CreateSpanReader()
 	assert.NoError(t, err)
-	assert.Equal(t, f.store, reader)
+	assert.Equal(t, f.store.SpanReader(), reader)
 	writer, err := f.CreateSpanWriter()
 	assert.NoError(t, err)
-	assert.Equal(t, f.store, writer)
+	assert.Equal(t, f.store.SpanWriter(), writer)
 	depReader, err := f.CreateDependencyReader()
 	assert.NoError(t, err)
-	assert.Equal(t, f.store, depReader)
+	assert.Equal(t, f.store.DependencyReader(), depReader)
 }
 
 func TestWithConfiguration(t *testing.T) {
