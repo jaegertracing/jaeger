@@ -18,6 +18,7 @@ import (
 	"context"
 	"errors"
 	"fmt"
+	"google.golang.org/grpc/status"
 	"net"
 	"testing"
 	"time"
@@ -38,9 +39,10 @@ import (
 )
 
 var (
-	grpcServerPort    = ":0"
-	errStorageMsgGRPC = "Storage error"
-	errStorageGRPC    = errors.New(errStorageMsgGRPC)
+	grpcServerPort       = ":0"
+	errStorageMsgGRPC    = "Storage error"
+	errStorageGRPC       = errors.New(errStorageMsgGRPC)
+	errStatusStorageGRPC = status.Error(2, errStorageMsgGRPC)
 
 	mockTraceIDgrpc = model.NewTraceID(0, 123456)
 	mockTraceGRPC   = &model.Trace{
@@ -227,7 +229,7 @@ func TestGetTraceDBFailureGRPC(t *testing.T) {
 
 		spanResChunk, err := res.Recv()
 
-		assert.Error(t, err)
+		assert.EqualError(t, err, errStatusStorageGRPC.Error())
 		assert.Nil(t, spanResChunk)
 
 	})
@@ -249,7 +251,7 @@ func TestGetTraceNotFoundGRPC(t *testing.T) {
 		assert.NoError(t, err)
 		spanResChunk, err := res.Recv()
 
-		assert.Error(t, err)
+		assert.Errorf(t, err, spanstore.ErrTraceNotFound.Error())
 		assert.Nil(t, spanResChunk)
 
 	})
@@ -281,7 +283,7 @@ func TestArchiveTraceNotFoundGRPC(t *testing.T) {
 			TraceID: mockTraceIDgrpc,
 		})
 
-		assert.Error(t, err)
+		assert.Errorf(t, err, spanstore.ErrTraceNotFound.Error())
 
 	})
 }
@@ -298,7 +300,8 @@ func TestArchiveTraceFailureGRPC(t *testing.T) {
 			TraceID: mockTraceIDgrpc,
 		})
 
-		assert.Error(t, err)
+		storageErr := status.Error(2, "[Storage error, Storage error]")
+		assert.EqualError(t, err, storageErr.Error())
 
 	})
 }
@@ -402,7 +405,8 @@ func TestGetServicesFailureGRPC(t *testing.T) {
 	withServerAndClient(t, func(server *grpcServer, client *grpcClient) {
 		server.spanReader.On("GetServices", mock.AnythingOfType("*context.valueCtx")).Return(nil, errStorageGRPC).Once()
 		_, err := client.GetServices(context.Background(), &api_v2.GetServicesRequest{})
-		assert.Error(t, err)
+
+		assert.EqualError(t, err, errStatusStorageGRPC.Error())
 	})
 }
 
@@ -427,7 +431,8 @@ func TestGetOperationsFailureGRPC(t *testing.T) {
 		_, err := client.GetOperations(context.Background(), &api_v2.GetOperationsRequest{
 			Service: "trifle",
 		})
-		assert.Error(t, err)
+
+		assert.EqualError(t, err, errStatusStorageGRPC.Error())
 	})
 }
 
@@ -458,7 +463,8 @@ func TestGetDependenciesFailureGRPC(t *testing.T) {
 			StartTime: endTs.Add(time.Duration(-1) * defaultDependencyLookbackDuration),
 			EndTime:   endTs,
 		})
-		assert.Error(t, err)
+
+		assert.EqualError(t, err, errStatusStorageGRPC.Error())
 	})
 }
 
