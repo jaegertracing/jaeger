@@ -26,13 +26,13 @@ import (
 	"google.golang.org/grpc/balancer/roundrobin"
 	"google.golang.org/grpc/peer"
 	"google.golang.org/grpc/resolver"
-	testpb "google.golang.org/grpc/test/grpc_testing"
+	grpctest "google.golang.org/grpc/test/grpc_testing"
 
 	"github.com/jaegertracing/jaeger/pkg/discovery"
 )
 
 type testServer struct {
-	testpb.TestServiceServer
+	grpctest.TestServiceServer
 }
 
 type test struct {
@@ -40,8 +40,8 @@ type test struct {
 	addresses []string
 }
 
-func (s *testServer) EmptyCall(ctx context.Context, in *testpb.Empty) (*testpb.Empty, error) {
-	return &testpb.Empty{}, nil
+func (s *testServer) EmptyCall(ctx context.Context, in *grpctest.Empty) (*grpctest.Empty, error) {
+	return &grpctest.Empty{}, nil
 }
 
 func (t *test) cleanup() {
@@ -56,7 +56,7 @@ func startTestServers(t *testing.T, count int) *test {
 		lis, err := net.Listen("tcp", "localhost:0")
 		assert.NoError(t, err, "failed to listen on tcp")
 		s := grpc.NewServer()
-		testpb.RegisterTestServiceServer(s, &testServer{})
+		grpctest.RegisterTestServiceServer(s, &testServer{})
 		testInstance.servers = append(testInstance.servers, s)
 		testInstance.addresses = append(testInstance.addresses, lis.Addr().String())
 
@@ -85,11 +85,12 @@ func TestGRPCResolverRoundRobin(t *testing.T) {
 	notifier := &discovery.Dispatcher{}
 	discoverer := discovery.FixedDiscoverer{}
 	re := New(notifier, discoverer, zap.NewNop(), backendCount)
+	defer resolver.UnregisterForTesting(re.Scheme())
 
 	cc, err := grpc.Dial(re.Scheme()+":///round_robin", grpc.WithInsecure(), grpc.WithBalancerName(roundrobin.Name))
 	assert.NoError(t, err, "could not dial using resolver's scheme")
 	defer cc.Close()
-	testc := testpb.NewTestServiceClient(cc)
+	testc := grpctest.NewTestServiceClient(cc)
 
 	notifier.Notify(test.addresses)
 
@@ -98,7 +99,7 @@ func TestGRPCResolverRoundRobin(t *testing.T) {
 	for si := 0; si < backendCount; si++ {
 		connected := false
 		for i := 0; i < 100; i++ {
-			_, err := testc.EmptyCall(context.Background(), &testpb.Empty{}, grpc.Peer(&p))
+			_, err := testc.EmptyCall(context.Background(), &grpctest.Empty{}, grpc.Peer(&p))
 			assert.NoError(t, err)
 			if p.Addr.String() == test.addresses[si] {
 				connected = true
@@ -111,14 +112,14 @@ func TestGRPCResolverRoundRobin(t *testing.T) {
 
 	addrs := make(map[string]struct{})
 	for i := 0; i < backendCount; i++ {
-		_, err := testc.EmptyCall(context.Background(), &testpb.Empty{}, grpc.Peer(&p))
+		_, err := testc.EmptyCall(context.Background(), &grpctest.Empty{}, grpc.Peer(&p))
 		assert.NoError(t, err)
 		addrs[p.Addr.String()] = struct{}{}
 	}
 	assert.Len(t, addrs, backendCount, "must call each of the servers once")
 }
 
-func TestRendezvousHashR(t *testing.T) {
+func TestRendezvousHash(t *testing.T) {
 	// Rendezvous Hash should return same subset with same addresses & salt string
 	addresses := []string{"127.1.0.3:8080", "127.0.1.1:8080", "127.2.1.2:8080", "127.3.0.4:8080"}
 	sameAddressesDifferentOrder := []string{"127.2.1.2:8080", "127.1.0.3:8080", "127.3.0.4:8080", "127.0.1.1:8080"}

@@ -15,7 +15,6 @@
 package grpcresolver
 
 import (
-	"hash"
 	"hash/fnv"
 	"math/rand"
 	"sort"
@@ -39,7 +38,6 @@ type Resolver struct {
 	discoCh           chan []string // used to receive notifications
 	discoveryMinPeers int
 	salt              []byte
-	hasher            hash.Hash32
 
 	//closing will wait for watcher to exit before firing .Close() to close resolver
 	closing sync.WaitGroup
@@ -72,7 +70,6 @@ func New(
 		discoveryMinPeers: discoveryMinPeers,
 		salt:              []byte(strconv.FormatInt(random.Int63(), 10)), // random salt for rendezvousHash
 		scheme:            strconv.FormatInt(seed, 36),                   // make random scheme which will be used when registering
-		hasher:            fnv.New32(),
 	}
 	// TODO not sure if there's an equivalent way for grpc to maintain connection like what tchannel did?
 
@@ -93,7 +90,7 @@ func (r *Resolver) Build(target resolver.Target, cc resolver.ClientConn, opts re
 	if err != nil {
 		return nil, err
 	}
-	r.cc.UpdateState(resolver.State{Addresses: generateAddresses(instances)})
+	r.updateAddresses(instances)
 	r.closing.Add(1)
 	go r.watcher()
 	return r, nil
@@ -111,8 +108,7 @@ func (r *Resolver) watcher() {
 	defer r.closing.Done()
 	for latestHostPorts := range r.discoCh {
 		r.logger.Info("Received updates from notifier", zap.Strings("hostPorts", latestHostPorts))
-		updatedAddresses := generateAddresses(r.rendezvousHash(latestHostPorts))
-		r.cc.UpdateState(resolver.State{Addresses: updatedAddresses})
+		r.updateAddresses(latestHostPorts)
 	}
 }
 
@@ -128,22 +124,37 @@ func (r *Resolver) rendezvousHash(addresses []string) []string {
 	for _, address := range addresses {
 		hosts = append(hosts, hostScore{
 			address: address,
-			score:   hashAddr(r.hasher, []byte(address), r.salt),
+			score:   hashAddr([]byte(address), r.salt),
 		})
 	}
 	sort.Sort(hosts)
-	addressesPerHost := make([]string, r.discoveryMinPeers)
-	for i := 0; i < r.discoveryMinPeers; i++ {
+	size := min(r.discoveryMinPeers, len(hosts))
+	addressesPerHost := make([]string, size)
+	for i := 0; i < size; i++ {
 		addressesPerHost[i] = hosts[i].address
 	}
 	return addressesPerHost
 }
 
-func hashAddr(hasher hash.Hash32, node, saltKey []byte) uint32 {
+func min(a, b int) int {
+	if a < b {
+		return a
+	}
+	return b
+}
+
+func hashAddr(node, saltKey []byte) uint32 {
+	hasher := fnv.New32()
 	hasher.Reset()
 	hasher.Write(saltKey)
 	hasher.Write(node)
 	return hasher.Sum32()
+}
+
+func (r *Resolver) updateAddresses(hostPorts []string) {
+	topN := r.rendezvousHash(hostPorts)
+	addresses := generateAddresses(topN)
+	r.cc.UpdateState(resolver.State{Addresses: addresses})
 }
 
 func generateAddresses(instances []string) []resolver.Address {
