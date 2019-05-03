@@ -21,13 +21,13 @@ import (
 	"testing"
 	"time"
 
-	"github.com/stretchr/testify/mock"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/mock"
 
 	"github.com/jaegertracing/jaeger/model"
-	"github.com/jaegertracing/jaeger/storage/spanstore"
 	"github.com/jaegertracing/jaeger/proto-gen/storage_v1"
 	grpcMocks "github.com/jaegertracing/jaeger/proto-gen/storage_v1/mocks"
+	"github.com/jaegertracing/jaeger/storage/spanstore"
 )
 
 var (
@@ -176,18 +176,6 @@ func TestGRPCClientFindTraces(t *testing.T) {
 		r.spanReader.On("FindTraces", mock.Anything, &storage_v1.FindTracesRequest{
 			Query: &storage_v1.TraceQueryParameters{},
 		}).Return(traceClient, nil)
-
-		var expectedTraces []*model.Trace
-		var traceID model.TraceID
-		var trace *model.Trace
-		for i, span := range mockTracesSpans {
-			if span.TraceID != traceID {
-				trace = &model.Trace{}
-				traceID = span.TraceID
-				expectedTraces = append(expectedTraces, trace)
-			}
-			trace.Spans = append(trace.Spans, &mockTracesSpans[i])
-		}
 
 		s, err := r.client.FindTraces(context.Background(), &spanstore.TraceQueryParameters{})
 		assert.NoError(t, err)
