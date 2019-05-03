@@ -18,12 +18,11 @@ import (
 	"os"
 	"testing"
 
-	"github.com/jaegertracing/jaeger/pkg/config"
 	"github.com/uber/jaeger-lib/metrics"
-
 	"github.com/stretchr/testify/require"
 	"go.uber.org/zap"
 
+	"github.com/jaegertracing/jaeger/pkg/config"
 	"github.com/jaegertracing/jaeger/pkg/testutils"
 	"github.com/jaegertracing/jaeger/plugin/storage/grpc"
 )
