@@ -15,6 +15,7 @@
 package grpcresolver
 
 import (
+	"hash"
 	"hash/fnv"
 	"math/rand"
 	"sort"
@@ -39,7 +40,7 @@ type Resolver struct {
 	discoveryMinPeers int
 	salt              []byte
 
-	//closing will wait for watcher to exit before firing .Close() to close resolver
+	// used to block Close() until the watcher goroutine exits its loop
 	closing sync.WaitGroup
 }
 type hostScore struct {
@@ -120,11 +121,12 @@ func (r *Resolver) Close() {
 }
 
 func (r *Resolver) rendezvousHash(addresses []string) []string {
+	hasher := fnv.New32()
 	hosts := hostScores{}
 	for _, address := range addresses {
 		hosts = append(hosts, hostScore{
 			address: address,
-			score:   hashAddr([]byte(address), r.salt),
+			score:   hashAddr(hasher, []byte(address), r.salt),
 		})
 	}
 	sort.Sort(hosts)
@@ -143,8 +145,7 @@ func min(a, b int) int {
 	return b
 }
 
-func hashAddr(node, saltKey []byte) uint32 {
-	hasher := fnv.New32()
+func hashAddr(hasher hash.Hash32, node, saltKey []byte) uint32 {
 	hasher.Reset()
 	hasher.Write(saltKey)
 	hasher.Write(node)
