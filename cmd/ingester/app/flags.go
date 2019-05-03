@@ -38,6 +38,8 @@ const (
 	SuffixTopic = ".topic"
 	// SuffixGroupID is a suffix for the group-id flag
 	SuffixGroupID = ".group-id"
+	// SuffixClientID is a suffix for the client-id flag
+	SuffixClientID = ".client-id"
 	// SuffixEncoding is a suffix for the encoding flag
 	SuffixEncoding = ".encoding"
 	// SuffixDeadlockInterval is a suffix for deadlock detecor flag
@@ -53,6 +55,8 @@ const (
 	DefaultTopic = "jaeger-spans"
 	// DefaultGroupID is the default consumer Group ID
 	DefaultGroupID = "jaeger-ingester"
+	// DefaultClientID is the default consumer Client ID
+	DefaultClientID = "jaeger-ingester"
 	// DefaultParallelism is the default parallelism for the span processor
 	DefaultParallelism = 1000
 	// DefaultEncoding is the default span encoding
@@ -84,6 +88,10 @@ func AddFlags(flagSet *flag.FlagSet) {
 		DefaultGroupID,
 		"The Consumer Group that ingester will be consuming on behalf of")
 	flagSet.String(
+		KafkaConsumerConfigPrefix+SuffixClientID,
+		DefaultClientID,
+		"The Consumer Client ID that ingester will use")
+	flagSet.String(
 		KafkaConsumerConfigPrefix+SuffixEncoding,
 		DefaultEncoding,
 		fmt.Sprintf(`The encoding of spans ("%s") consumed from kafka`, strings.Join(kafka.AllEncodings, "\", \"")))
@@ -102,6 +110,7 @@ func (o *Options) InitFromViper(v *viper.Viper) {
 	o.Brokers = strings.Split(stripWhiteSpace(v.GetString(KafkaConsumerConfigPrefix+SuffixBrokers)), ",")
 	o.Topic = v.GetString(KafkaConsumerConfigPrefix + SuffixTopic)
 	o.GroupID = v.GetString(KafkaConsumerConfigPrefix + SuffixGroupID)
+	o.ClientID = v.GetString(KafkaConsumerConfigPrefix + SuffixClientID)
 	o.Encoding = v.GetString(KafkaConsumerConfigPrefix + SuffixEncoding)
 
 	o.Parallelism = v.GetInt(ConfigPrefix + SuffixParallelism)
