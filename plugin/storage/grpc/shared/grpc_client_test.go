@@ -117,8 +117,8 @@ func TestGRPCClientGetTrace(t *testing.T) {
 		}).Return(traceClient, nil)
 
 		var expectedSpans []*model.Span
-		for _, span := range mockTraceSpans {
-			expectedSpans = append(expectedSpans, &span)
+		for i := range mockTraceSpans {
+			expectedSpans = append(expectedSpans, &mockTraceSpans[i])
 		}
 
 		s, err := r.client.GetTrace(context.Background(), mockTraceID)
@@ -169,13 +169,13 @@ func TestGRPCClientFindTraces(t *testing.T) {
 		var expectedTraces []*model.Trace
 		var traceID model.TraceID
 		var trace *model.Trace
-		for _, span := range mockTracesSpans {
+		for i, span := range mockTracesSpans {
 			if span.TraceID != traceID {
 				trace = &model.Trace{}
 				traceID = span.TraceID
 				expectedTraces = append(expectedTraces, trace)
 			}
-			trace.Spans = append(trace.Spans, &span)
+			trace.Spans = append(trace.Spans, &mockTracesSpans[i])
 		}
 
 		s, err := r.client.FindTraces(context.Background(), &spanstore.TraceQueryParameters{})

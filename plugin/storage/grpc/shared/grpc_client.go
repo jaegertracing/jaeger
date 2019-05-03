@@ -64,8 +64,8 @@ func (c *grpcClient) GetTrace(ctx context.Context, traceID model.TraceID) (*mode
 			return nil, errors.Wrap(err, "grpc stream error")
 		}
 
-		for _, span := range received.Spans {
-			trace.Spans = append(trace.Spans, &span)
+		for i := range received.Spans {
+			trace.Spans = append(trace.Spans, &received.Spans[i])
 		}
 	}
 
