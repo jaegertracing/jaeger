@@ -180,14 +180,14 @@ docker-hotrod:
 	GOOS=linux $(MAKE) build-examples
 	docker build -t $(DOCKER_NAMESPACE)/example-hotrod:${DOCKER_TAG} ./examples/hotrod
 
-.PHONY: build_ui
-build_ui:
+.PHONY: build-ui
+build-ui:
 	cd jaeger-ui && yarn install && cd packages/jaeger-ui && yarn build
 	esc -pkg assets -o cmd/query/app/ui/actual/gen_assets.go -prefix jaeger-ui/packages/jaeger-ui/build jaeger-ui/packages/jaeger-ui/build
 	esc -pkg assets -o cmd/query/app/ui/placeholder/gen_assets.go -prefix cmd/query/app/ui/placeholder/public cmd/query/app/ui/placeholder/public
 
 .PHONY: build-all-in-one-linux
-build-all-in-one-linux: build_ui
+build-all-in-one-linux: build-ui
 	GOOS=linux $(MAKE) build-all-in-one
 
 .PHONY: build-all-in-one
@@ -210,12 +210,8 @@ build-collector: elasticsearch-mappings
 build-ingester:
 	CGO_ENABLED=0 installsuffix=cgo go build -o ./cmd/ingester/ingester-$(GOOS) $(BUILD_INFO) ./cmd/ingester/main.go
 
-.PHONY: docker-no-ui
-docker-no-ui: build-binaries-linux build-crossdock-linux
-	make docker-images-only
-
 .PHONY: docker
-docker: build_ui docker-no-ui
+docker: build-ui build-binaries-linux docker-images-only
 
 .PHONY: build-binaries-linux
 build-binaries-linux:
@@ -235,19 +231,26 @@ build-platform-binaries: build-agent build-collector build-query build-ingester 
 .PHONY: build-all-platforms
 build-all-platforms: build-binaries-linux build-binaries-windows build-binaries-darwin
 
-.PHONY: docker-images-only
-docker-images-only:
+.PHONY: docker-images-cassandra
+docker-images-cassandra:
 	docker build -t $(DOCKER_NAMESPACE)/jaeger-cassandra-schema:${DOCKER_TAG} plugin/storage/cassandra/
 	@echo "Finished building jaeger-cassandra-schema =============="
+
+.PHONY: docker-images-elastic
+docker-images-elastic:
 	docker build -t $(DOCKER_NAMESPACE)/jaeger-es-index-cleaner:${DOCKER_TAG} plugin/storage/es
 	docker build -t $(DOCKER_NAMESPACE)/jaeger-es-rollover:${DOCKER_TAG} plugin/storage/es -f plugin/storage/es/Dockerfile.rollover
 	@echo "Finished building jaeger-es-indices-clean =============="
+
+.PHONY: docker-images-jaeger-backend
+docker-images-jaeger-backend:
 	for component in agent collector query ingester ; do \
 		docker build -t $(DOCKER_NAMESPACE)/jaeger-$$component:${DOCKER_TAG} cmd/$$component ; \
 		echo "Finished building $$component ==============" ; \
 	done
-	docker build -t $(DOCKER_NAMESPACE)/test-driver:${DOCKER_TAG} crossdock/
-	@echo "Finished building test-driver ==============" ; \
+
+.PHONY: docker-images-only
+docker-images-only: docker-images-cassandra docker-images-elastic docker-images-jaeger-backend
 
 .PHONY: docker-push
 docker-push:
@@ -267,14 +270,19 @@ build-crossdock-linux:
 
 include crossdock/rules.mk
 
+# Crossdock tests do not require fully functioning UI, so we skip it to speed up the build.
 .PHONY: build-crossdock-ui-placeholder
 build-crossdock-ui-placeholder:
 	mkdir -p cmd/query/app/ui/actual
 	[ -e cmd/query/app/ui/actual/gen_assets.go ] || cp cmd/query/app/ui/placeholder/gen_assets.go cmd/query/app/ui/actual/gen_assets.go
 
-# Crossdock tests do not require fully functioning UI, so we skip it to speed up the build.
 .PHONY: build-crossdock
-build-crossdock: build-crossdock-ui-placeholder docker-no-ui
+build-crossdock: build-crossdock-ui-placeholder build-binaries-linux build-crossdock-linux docker-images-cassandra docker-images-jaeger-backend 
+	docker build -t $(DOCKER_NAMESPACE)/test-driver:${DOCKER_TAG} crossdock/
+	@echo "Finished building test-driver ==============" ; \
+
+.PHONY: build-and-run-crossdock
+build-and-run-crossdock: build-crossdock
 	make crossdock
 
 .PHONY: build-crossdock-fresh
