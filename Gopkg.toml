@@ -157,3 +157,11 @@ required = [
 [[constraint]]
   name = "github.com/rs/cors"
   version = "1.3.0"
+
+[[constraint]]
+  name = "github.com/hashicorp/go-plugin"
+  version = "1.0.0"
+
+[[constraint]]
+  name = "github.com/hashicorp/go-hclog"
+  version = "0.8.0"

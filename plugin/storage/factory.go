@@ -26,6 +26,7 @@ import (
 	"github.com/jaegertracing/jaeger/plugin/storage/badger"
 	"github.com/jaegertracing/jaeger/plugin/storage/cassandra"
 	"github.com/jaegertracing/jaeger/plugin/storage/es"
+	"github.com/jaegertracing/jaeger/plugin/storage/grpc"
 	"github.com/jaegertracing/jaeger/plugin/storage/kafka"
 	"github.com/jaegertracing/jaeger/plugin/storage/memory"
 	"github.com/jaegertracing/jaeger/storage"
@@ -38,6 +39,7 @@ const (
 	elasticsearchStorageType = "elasticsearch"
 	memoryStorageType        = "memory"
 	kafkaStorageType         = "kafka"
+	grpcPluginStorageType    = "grpc-plugin"
 	badgerStorageType        = "badger"
 	downsamplingRatio        = "downsampling.ratio"
 	downsamplingHashSalt     = "downsampling.hashsalt"
@@ -48,7 +50,7 @@ const (
 	defaultDownsamplingHashSalt = ""
 )
 
-var allStorageTypes = []string{cassandraStorageType, elasticsearchStorageType, memoryStorageType, kafkaStorageType, badgerStorageType}
+var allStorageTypes = []string{cassandraStorageType, elasticsearchStorageType, memoryStorageType, kafkaStorageType, badgerStorageType, grpcPluginStorageType}
 
 // Factory implements storage.Factory interface as a meta-factory for storage components.
 type Factory struct {
@@ -90,6 +92,8 @@ func (f *Factory) getFactoryOfType(factoryType string) (storage.Factory, error) 
 		return kafka.NewFactory(), nil
 	case badgerStorageType:
 		return badger.NewFactory(), nil
+	case grpcPluginStorageType:
+		return grpc.NewFactory(), nil
 	default:
 		return nil, fmt.Errorf("unknown storage type %s. Valid types are %v", factoryType, allStorageTypes)
 	}
