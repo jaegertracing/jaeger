@@ -974,7 +974,7 @@
   name = "golang.org/x/sys"
   packages = ["unix"]
   pruneopts = "UT"
-  revision = "a43fa875dd822b81eb6d2ad538bc1f4caba169bd"
+  revision = "ca7f33d4116e3a1f9425755d6a44e7ed9b4c97df"
 
 [[projects]]
   digest = "1:66a2f252a58b4fbbad0e4e180e1d85a83c222b6bce09c3dcdef3dc87c72eda7c"
@@ -1021,7 +1021,7 @@
     "internal/semver",
   ]
   pruneopts = "UT"
-  revision = "3b6f9c0030f769fa3ded8a7f0d9420c71ac20caf"
+  revision = "2d16b83fe98cd1bed9e2ce9fdc86bd438d14aab7"
 
 [[projects]]
   branch = "master"
@@ -1035,7 +1035,7 @@
   revision = "54afdca5d873f7b529e2ce3def1a99df16feda90"
 
 [[projects]]
-  digest = "1:e35762e90451df6e89c7fc9b42f0f0d8ab882e4931fdcec699482e4471640ec2"
+  digest = "1:8016400c5387900284bbdba32d36e5844f40cb32907b6d736bd4fb91e7cadae6"
   name = "google.golang.org/grpc"
   packages = [
     ".",
@@ -1192,7 +1192,6 @@
     "github.com/stretchr/testify/http",
     "github.com/stretchr/testify/mock",
     "github.com/stretchr/testify/require",
-    "github.com/tysontate/rendezvous",
     "github.com/uber/jaeger-client-go",
     "github.com/uber/jaeger-client-go/config",
     "github.com/uber/jaeger-client-go/log/zap",
