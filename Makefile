@@ -290,13 +290,13 @@ build-crossdock-fresh: build-crossdock-linux
 
 .PHONY: install-tools
 install-tools:
-	go get -u github.com/wadey/gocovmerge
-	go get -u golang.org/x/tools/cmd/cover
-	go get -u golang.org/x/lint/golint
-	go get -u github.com/sectioneight/md-to-godoc
-	go get -u github.com/mjibson/esc
-	go install ./vendor/github.com/securego/gosec/cmd/gosec/
-	go install ./vendor/honnef.co/go/tools/cmd/staticcheck/
+	go install -mod=vendor github.com/wadey/gocovmerge
+	go install -mod=vendor golang.org/x/tools/cmd/cover
+	go install -mod=vendor golang.org/x/lint/golint
+	go install -mod=vendor github.com/sectioneight/md-to-godoc
+	go install -mod=vendor github.com/mjibson/esc
+	go install -mod=vendor github.com/securego/gosec/cmd/gosec/
+	go install -mod=vendor honnef.co/go/tools/cmd/staticcheck/
 
 .PHONY: install-ci
 install-ci: install install-tools

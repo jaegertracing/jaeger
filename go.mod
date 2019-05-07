@@ -40,8 +40,7 @@ require (
 	github.com/inconshreveable/mousetrap v1.0.0 // indirect
 	github.com/kr/pretty v0.1.0
 	github.com/mailru/easyjson v0.0.0-20190403194419-1ea4449da983 // indirect
-	github.com/onsi/ginkgo v0.0.0-20170829012221-11459a886d9c // indirect
-	github.com/onsi/gomega v0.0.0-20170829124025-dcabb60a477c // indirect
+	github.com/mjibson/esc v0.2.0
 	github.com/opentracing-contrib/go-stdlib v0.0.0-20190324214902-3020fec0e66b
 	github.com/opentracing/opentracing-go v1.1.0
 	github.com/pelletier/go-toml v1.3.0 // indirect
@@ -53,6 +52,10 @@ require (
 	github.com/prometheus/common v0.3.0 // indirect
 	github.com/prometheus/procfs v0.0.0-20190425082905-87a4384529e0 // indirect
 	github.com/rs/cors v1.6.0
+	github.com/russross/blackfriday v2.0.0+incompatible // indirect
+	github.com/sectioneight/md-to-godoc v0.0.0-20170519054633-79157ff08f1a
+	github.com/securego/gosec v0.0.0-20190502071918-29cec138dcc9
+	github.com/shurcooL/sanitized_anchor_name v1.0.0 // indirect
 	github.com/soheilhy/cmux v0.1.4
 	github.com/spf13/afero v1.2.2 // indirect
 	github.com/spf13/cobra v0.0.3
@@ -65,15 +68,19 @@ require (
 	github.com/uber/jaeger-client-go v0.0.0-20190116124224-6733ee486c78
 	github.com/uber/jaeger-lib v2.0.0+incompatible
 	github.com/uber/tchannel-go v1.13.0
+	github.com/wadey/gocovmerge v0.0.0-20160331181800-b5bfa59ec0ad
 	go.uber.org/atomic v1.3.2
 	go.uber.org/multierr v1.1.0 // indirect
 	go.uber.org/zap v1.9.1
+	golang.org/x/lint v0.0.0-20190313153728-d0100b6bd8b3
 	golang.org/x/net v0.0.0-20190424112056-4829fb13d2c6
 	golang.org/x/sys v0.0.0-20190426135247-a129542de9ae
 	golang.org/x/text v0.3.2 // indirect
+	golang.org/x/tools v0.0.0-20190422233926-fe54fb35175b
 	google.golang.org/appengine v1.4.0 // indirect
 	google.golang.org/genproto v0.0.0-20190425155659-357c62f0e4bb // indirect
 	google.golang.org/grpc v1.20.1
 	gopkg.in/olivere/elastic.v5 v5.0.80
 	gopkg.in/yaml.v2 v2.2.2
+	honnef.co/go/tools v0.0.0-20190102054323-c2f93a96b099
 )
