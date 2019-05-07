@@ -13,13 +13,13 @@ We gratefully welcome improvements to documentation as well as to code.
 
 ## Getting Started
 
-This library uses [dep](https://golang.github.io/dep) to manage dependencies.
+This library uses [go modules](https://golang.org/cmd/go/#hdr-Modules__module_versions__and_more) to manage dependencies.
 
-To get started, make sure you clone the Git repository into the correct location `github.com/jaegertracing/jaeger` relative to `$GOPATH`:
+To get started, clone the Git repository into your preferred location:
 
 ```
-mkdir -p $GOPATH/src/github.com/jaegertracing
-cd $GOPATH/src/github.com/jaegertracing
+mkdir -p $HOME/devel
+cd $HOME/devel
 git clone git@github.com:jaegertracing/jaeger.git jaeger
 cd jaeger
 ```
@@ -28,7 +28,7 @@ Then install dependencies and run the tests:
 
 ```
 git submodule update --init --recursive
-dep ensure
+go mod download
 make test
 ```
 
@@ -84,7 +84,8 @@ github.com/jaegertracing/jaeger
     jaeger/
     sampling/
     zipkincore/
-  Gopkg.toml                - Dep is the project's dependency manager
+  go.mod                    - Go module definition file
+  go.sum                    - Go module sum file
   mkdocs.yml                - MkDocs builds the documentation in docs/
 ```
 
