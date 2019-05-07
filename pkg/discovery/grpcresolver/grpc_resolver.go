@@ -97,12 +97,13 @@ func (r *Resolver) Build(target resolver.Target, cc resolver.ClientConn, opts re
 	return r, nil
 }
 
-// Scheme returns the test scheme.
+// Scheme returns resolver's scheme.
 func (r *Resolver) Scheme() string {
 	return r.scheme
 }
 
-// ResolveNow is a noop for Resolver.
+// ResolveNow is a noop for Resolver since resolver is already firing r.cc.UpdatesState everytime
+// it receives updates of new instance from discoCh
 func (r *Resolver) ResolveNow(o resolver.ResolveNowOption) {}
 
 func (r *Resolver) watcher() {

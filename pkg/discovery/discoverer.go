@@ -14,8 +14,6 @@
 
 package discovery
 
-import "errors"
-
 // Discoverer listens to a service discovery system and yields a set of
 // identical instance locations. An error indicates a problem with connectivity
 // to the service discovery system, or within the system itself; a subscriber
@@ -29,11 +27,3 @@ type FixedDiscoverer []string
 
 // Instances implements Discoverer.
 func (d FixedDiscoverer) Instances() ([]string, error) { return d, nil }
-
-// ErrorDiscoverer yields a discoverer that returns error
-type ErrorDiscoverer []string
-
-// Instances implements Discoverer.
-func (d ErrorDiscoverer) Instances() ([]string, error) {
-	return nil, errors.New("error discoverer always return error")
-}

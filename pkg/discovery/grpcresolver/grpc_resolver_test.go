@@ -16,10 +16,12 @@ package grpcresolver
 
 import (
 	"context"
+	"fmt"
 	"net"
 	"testing"
 	"time"
 
+	"github.com/pkg/errors"
 	"github.com/stretchr/testify/assert"
 	"go.uber.org/zap"
 	"google.golang.org/grpc"
@@ -50,6 +52,15 @@ func (t *test) cleanup() {
 	}
 }
 
+type erroredDiscoverer struct {
+	err error
+}
+
+// Instances implements Discoverer.
+func (d erroredDiscoverer) Instances() ([]string, error) {
+	return nil, d.err
+}
+
 func startTestServers(t *testing.T, count int) *test {
 	testInstance := &test{}
 	for i := 0; i < count; i++ {
@@ -68,55 +79,90 @@ func startTestServers(t *testing.T, count int) *test {
 	return testInstance
 }
 
+func makeSureConnectionsUp(t *testing.T, count int, testc grpctest.TestServiceClient) {
+	var p peer.Peer
+	addrs := make(map[string]struct{})
+	// Make sure connections to all servers are up.
+	for si := 0; si < count; si++ {
+		connected := false
+		for i := 0; i < 1000; i++ {
+			_, err := testc.EmptyCall(context.Background(), &grpctest.Empty{}, grpc.Peer(&p))
+			if err != nil {
+				continue
+			}
+			if _, ok := addrs[p.Addr.String()]; !ok {
+				addrs[p.Addr.String()] = struct{}{}
+				connected = true
+				break
+			}
+			time.Sleep(time.Millisecond * 10)
+		}
+		assert.True(t, connected, "Connection was still not up")
+	}
+}
+
+func assertRoundRobinCall(t *testing.T, connections int, testc grpctest.TestServiceClient) {
+	addrs := make(map[string]struct{})
+	var p peer.Peer
+	for i := 0; i < connections; i++ {
+		_, err := testc.EmptyCall(context.Background(), &grpctest.Empty{}, grpc.Peer(&p))
+		assert.NoError(t, err)
+		addrs[p.Addr.String()] = struct{}{}
+	}
+	assert.Len(t, addrs, connections, "must call each of the servers once")
+}
+
 func TestErrorDiscoverer(t *testing.T) {
 	notifier := &discovery.Dispatcher{}
-	discoverer := discovery.ErrorDiscoverer{}
+	errMessage := errors.New("error discoverer returns error")
+	discoverer := erroredDiscoverer{
+		err: errMessage,
+	}
 	r := New(notifier, discoverer, zap.NewNop(), 2)
 	_, err := r.Build(resolver.Target{}, nil, resolver.BuildOption{})
-	assert.Error(t, err)
+	assert.Equal(t, errMessage, err)
 }
 
 func TestGRPCResolverRoundRobin(t *testing.T) {
 	backendCount := 5
 
-	test := startTestServers(t, backendCount)
-	defer test.cleanup()
+	testInstances := startTestServers(t, backendCount)
+	defer testInstances.cleanup()
 
 	notifier := &discovery.Dispatcher{}
 	discoverer := discovery.FixedDiscoverer{}
-	re := New(notifier, discoverer, zap.NewNop(), backendCount)
-	defer resolver.UnregisterForTesting(re.Scheme())
 
-	cc, err := grpc.Dial(re.Scheme()+":///round_robin", grpc.WithInsecure(), grpc.WithBalancerName(roundrobin.Name))
-	assert.NoError(t, err, "could not dial using resolver's scheme")
-	defer cc.Close()
-	testc := grpctest.NewTestServiceClient(cc)
+	tests := []struct {
+		minPeers    int
+		connections int
+	}{
+		{3, 5}, {5, 5}, {7, 5},
+	}
+	for _, test := range tests {
+		t.Run(fmt.Sprintf("minPeers=%d", test.minPeers), func(t *testing.T) {
+			res := New(notifier, discoverer, zap.NewNop(), test.minPeers)
+			defer resolver.UnregisterForTesting(res.Scheme())
 
-	notifier.Notify(test.addresses)
+			cc, err := grpc.Dial(res.Scheme()+":///round_robin", grpc.WithInsecure(), grpc.WithBalancerName(roundrobin.Name))
+			assert.NoError(t, err, "could not dial using resolver's scheme")
+			defer cc.Close()
 
-	var p peer.Peer
-	// Make sure connections to all servers are up.
-	for si := 0; si < backendCount; si++ {
-		connected := false
-		for i := 0; i < 100; i++ {
-			_, err := testc.EmptyCall(context.Background(), &grpctest.Empty{}, grpc.Peer(&p))
-			assert.NoError(t, err)
-			if p.Addr.String() == test.addresses[si] {
-				connected = true
-				break
+			testc := grpctest.NewTestServiceClient(cc)
+
+			notifier.Notify(testInstances.addresses)
+
+			connections := test.minPeers
+			if connections > test.connections {
+				connections = test.connections
 			}
-			time.Sleep(time.Millisecond)
-		}
-		assert.True(t, connected, "Connection was still not up")
-	}
 
-	addrs := make(map[string]struct{})
-	for i := 0; i < backendCount; i++ {
-		_, err := testc.EmptyCall(context.Background(), &grpctest.Empty{}, grpc.Peer(&p))
-		assert.NoError(t, err)
-		addrs[p.Addr.String()] = struct{}{}
+			// This extra step is necessary to make sure servers are ready for roundrobin test.
+			// For detailed explanation, see https://github.com/grpc/grpc-go/issues/2808
+			makeSureConnectionsUp(t, connections, testc)
+
+			assertRoundRobinCall(t, connections, testc)
+		})
 	}
-	assert.Len(t, addrs, backendCount, "must call each of the servers once")
 }
 
 func TestRendezvousHash(t *testing.T) {

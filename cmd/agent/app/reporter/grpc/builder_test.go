@@ -106,15 +106,6 @@ func TestBuilderWithCollectors(t *testing.T) {
 			discoverer:      discovery.FixedDiscoverer{},
 		},
 		{
-			target:          "dns://random_stuff",
-			name:            "with resolver and error discoverer",
-			hostPorts:       []string{"dns://random_stuff"},
-			checkSuffixOnly: false,
-			notifier:        noopNotifier{},
-			discoverer:      discovery.ErrorDiscoverer{},
-			err:             errors.New("failed to build resolver: error discoverer always return error"),
-		},
-		{
 			target:          "",
 			name:            "without collectorPorts and resolver",
 			hostPorts:       nil,
