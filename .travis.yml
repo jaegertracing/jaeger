@@ -1,40 +1,31 @@
 sudo: required
 
 language: go
-go_import_path: github.com/jaegertracing/jaeger
+go: 1.12.4
 
 dist: trusty
 
 matrix:
   include:
-  - go: "1.12.1"
-    env:
+  - env:
     - TESTS=true
     - COVERAGE=true
-  - go: "1.12.1"
-    env:
+  - env:
     - PROTO_GEN_TEST=true
-  - go: "1.12.1"
-    env:
+  - env:
     - ALL_IN_ONE=true
-  - go: "1.12.1"
-    env:
+  - env:
     - CROSSDOCK=true
-  - go: "1.12.1"
-    env:
+  - env:
     - DOCKER=true
     - DEPLOY=true
-  - go: "1.12.1"
-    env:
+  - env:
     - ES_INTEGRATION_TEST=true
-  - go: "1.12.1"
-    env:
+  - env:
     - KAFKA_INTEGRATION_TEST=true
-  - go: "1.12.1"
-    env:
+  - env:
     - CASSANDRA_INTEGRATION_TEST=true
-  - go: "1.12.1"
-    env:
+  - env:
     - HOTROD=true
 
 services:
@@ -42,6 +33,7 @@ services:
 
 env:
   global:
+    - GO111MODULE=on
     - DOCKER_COMPOSE_VERSION=1.8.0
     - COMMIT=${TRAVIS_COMMIT::8}
     # DOCKER_USER
