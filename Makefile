@@ -163,8 +163,7 @@ install-glide:
 
 .PHONY: install
 install:
-	@which dep > /dev/null || curl https://raw.githubusercontent.com/golang/dep/master/install.sh | sh
-	dep ensure -vendor-only
+	go mod vendor
 
 .PHONE: elasticsearch-mappings
 elasticsearch-mappings:
