@@ -20,12 +20,12 @@ ALL_SRC := $(shell find . -name '*.go' \
 				   -type f | \
 				sort)
 
-ALL_PKGS = $(eval ALL_PKGS := $$(shell go list $(sort $(dir $(ALL_SRC)))))$(ALL_PKGS)
+ALL_PKGS := $(eval ALL_PKGS := $$(shell go list -mod=vendor $(sort $(dir $(ALL_SRC)))))$(ALL_PKGS)
 
 RACE=-race
-GOTEST=go test -v $(RACE)
+GOTEST=go test -mod=vendor -v $(RACE)
 GOLINT=golint
-GOVET=go vet
+GOVET=go vet -mod=vendor
 GOFMT=gofmt
 GOSEC=gosec -quiet -exclude=G104,G107
 STATICCHECK=staticcheck
@@ -68,7 +68,7 @@ test-and-lint: test fmt lint
 # TODO: no files actually use this right now
 .PHONY: go-gen
 go-gen:
-	@echo skipping go generate ./...
+	@echo skipping go generate -mod=vendor ./...
 
 .PHONY: md-to-godoc-gen
 md-to-godoc-gen:
@@ -92,7 +92,7 @@ integration-test: go-gen
 storage-integration-test: go-gen
 	# Expire tests results for storage integration tests since the environment might change
 	# even though the code remains the same.
-	go clean -testcache
+	go clean -testcache -mod=vendor
 	bash -c "set -e; set -o pipefail; $(GOTEST) $(STORAGE_PKGS) | $(COLORIZE)"
 
 all-pkgs:
@@ -104,8 +104,8 @@ all-srcs:
 .PHONY: cover
 cover: nocover
 	@echo pre-compiling tests
-	@time go test -i $(ALL_PKGS)
-	@./scripts/cover.sh $(shell go list ./...)
+	@time go test -mod=vendor -i $(ALL_PKGS)
+	@./scripts/cover.sh $(shell go list -mod=vendor ./...)
 	grep -E -v 'model.pb.*.go' cover.out > cover-nogen.out
 	mv cover-nogen.out cover.out
 	go tool cover -html=cover.out -o cover.html
@@ -162,7 +162,7 @@ install-glide:
 
 .PHONY: install
 install:
-	go mod download
+	go mod vendor
 
 .PHONE: elasticsearch-mappings
 elasticsearch-mappings:
@@ -171,7 +171,7 @@ elasticsearch-mappings:
 .PHONY: build-examples
 build-examples:
 	esc -pkg frontend -o examples/hotrod/services/frontend/gen_assets.go  -prefix examples/hotrod/services/frontend/web_assets examples/hotrod/services/frontend/web_assets
-	CGO_ENABLED=0 installsuffix=cgo go build -o ./examples/hotrod/hotrod-$(GOOS) ./examples/hotrod/main.go
+	CGO_ENABLED=0 installsuffix=cgo go build -mod=vendor -o ./examples/hotrod/hotrod-$(GOOS) ./examples/hotrod/main.go
 
 .PHONE: docker-hotrod
 docker-hotrod:
@@ -190,23 +190,23 @@ build-all-in-one-linux: build-ui
 
 .PHONY: build-all-in-one
 build-all-in-one: elasticsearch-mappings
-	CGO_ENABLED=0 installsuffix=cgo go build -tags ui -o ./cmd/all-in-one/all-in-one-$(GOOS) $(BUILD_INFO) ./cmd/all-in-one/main.go
+	CGO_ENABLED=0 installsuffix=cgo go build -mod=vendor -tags ui -o ./cmd/all-in-one/all-in-one-$(GOOS) $(BUILD_INFO) ./cmd/all-in-one/main.go
 
 .PHONY: build-agent
 build-agent:
-	CGO_ENABLED=0 installsuffix=cgo go build -o ./cmd/agent/agent-$(GOOS) $(BUILD_INFO) ./cmd/agent/main.go
+	CGO_ENABLED=0 installsuffix=cgo go build -mod=vendor -o ./cmd/agent/agent-$(GOOS) $(BUILD_INFO) ./cmd/agent/main.go
 
 .PHONY: build-query
 build-query:
-	CGO_ENABLED=0 installsuffix=cgo go build -tags ui -o ./cmd/query/query-$(GOOS) $(BUILD_INFO) ./cmd/query/main.go
+	CGO_ENABLED=0 installsuffix=cgo go build -mod=vendor -tags ui -o ./cmd/query/query-$(GOOS) $(BUILD_INFO) ./cmd/query/main.go
 
 .PHONY: build-collector
 build-collector: elasticsearch-mappings
-	CGO_ENABLED=0 installsuffix=cgo go build -o ./cmd/collector/collector-$(GOOS) $(BUILD_INFO) ./cmd/collector/main.go
+	CGO_ENABLED=0 installsuffix=cgo go build -mod=vendor -o ./cmd/collector/collector-$(GOOS) $(BUILD_INFO) ./cmd/collector/main.go
 
 .PHONY: build-ingester
 build-ingester:
-	CGO_ENABLED=0 installsuffix=cgo go build -o ./cmd/ingester/ingester-$(GOOS) $(BUILD_INFO) ./cmd/ingester/main.go
+	CGO_ENABLED=0 installsuffix=cgo go build -mod=vendor -o ./cmd/ingester/ingester-$(GOOS) $(BUILD_INFO) ./cmd/ingester/main.go
 
 .PHONY: docker
 docker: build-ui build-binaries-linux docker-images-only
@@ -264,7 +264,7 @@ docker-push:
 
 .PHONY: build-crossdock-linux
 build-crossdock-linux:
-	CGO_ENABLED=0 GOOS=linux installsuffix=cgo go build -o ./crossdock/crossdock-linux ./crossdock/main.go
+	CGO_ENABLED=0 GOOS=linux installsuffix=cgo go build -mod=vendor -o ./crossdock/crossdock-linux ./crossdock/main.go
 
 include crossdock/rules.mk
 
@@ -289,13 +289,13 @@ build-crossdock-fresh: build-crossdock-linux
 
 .PHONY: install-tools
 install-tools:
-	go install -mod=readonly github.com/wadey/gocovmerge
-	go install -mod=readonly golang.org/x/tools/cmd/cover
-	go install -mod=readonly golang.org/x/lint/golint
-	go install -mod=readonly github.com/sectioneight/md-to-godoc
-	go install -mod=readonly github.com/mjibson/esc
-	go install -mod=readonly github.com/securego/gosec/cmd/gosec/
-	go install -mod=readonly honnef.co/go/tools/cmd/staticcheck/
+	go install -mod=vendor github.com/wadey/gocovmerge
+	go install -mod=vendor golang.org/x/tools/cmd/cover
+	go install -mod=vendor golang.org/x/lint/golint
+	go install -mod=vendor github.com/sectioneight/md-to-godoc
+	go install -mod=vendor github.com/mjibson/esc
+	go install -mod=vendor github.com/securego/gosec/cmd/gosec/
+	go install -mod=vendor honnef.co/go/tools/cmd/staticcheck/
 
 .PHONY: install-ci
 install-ci: install install-tools
@@ -341,7 +341,7 @@ generate-zipkin-swagger: idl-submodule
 
 .PHONY: install-mockery
 install-mockery:
-	go install -mod=readonly github.com/vektra/mockery/cmd/mockery
+	go install -mod=vendor github.com/vektra/mockery/cmd/mockery
 
 .PHONY: generate-mocks
 generate-mocks: install-mockery
@@ -427,7 +427,7 @@ proto:
 
 .PHONY: proto-install
 proto-install:
-	go install -mod=readonly github.com/golang/protobuf/protoc-gen-go \
+	go install -mod=vendor github.com/golang/protobuf/protoc-gen-go \
 		github.com/gogo/protobuf/protoc-gen-gogo \
 		github.com/grpc-ecosystem/grpc-gateway/protoc-gen-grpc-gateway \
 		github.com/grpc-ecosystem/grpc-gateway/protoc-gen-swagger
