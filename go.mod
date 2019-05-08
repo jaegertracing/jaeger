@@ -52,7 +52,7 @@ require (
 	github.com/prometheus/common v0.3.0 // indirect
 	github.com/prometheus/procfs v0.0.0-20190425082905-87a4384529e0 // indirect
 	github.com/rs/cors v1.6.0
-	github.com/russross/blackfriday v2.0.0+incompatible // indirect
+	github.com/russross/blackfriday v0.0.0-20161009072609-52676fb0053f // indirect
 	github.com/sectioneight/md-to-godoc v0.0.0-20170519054633-79157ff08f1a
 	github.com/securego/gosec v0.0.0-20190502071918-29cec138dcc9
 	github.com/shurcooL/sanitized_anchor_name v1.0.0 // indirect
@@ -77,7 +77,6 @@ require (
 	golang.org/x/sys v0.0.0-20190426135247-a129542de9ae
 	golang.org/x/text v0.3.2 // indirect
 	golang.org/x/tools v0.0.0-20190422233926-fe54fb35175b
-	google.golang.org/appengine v1.4.0 // indirect
 	google.golang.org/genproto v0.0.0-20190425155659-357c62f0e4bb // indirect
 	google.golang.org/grpc v1.20.1
 	gopkg.in/olivere/elastic.v5 v5.0.80
