@@ -73,12 +73,11 @@ require (
 	go.uber.org/atomic v1.3.2
 	go.uber.org/multierr v1.1.0 // indirect
 	go.uber.org/zap v1.9.1
-	golang.org/x/lint v0.0.0-20190313153728-d0100b6bd8b3
-	golang.org/x/net v0.0.0-20190424112056-4829fb13d2c6
-	golang.org/x/sys v0.0.0-20190426135247-a129542de9ae
+	golang.org/x/lint v0.0.0-20190409202823-959b441ac422
+	golang.org/x/net v0.0.0-20190503192946-f4e77d36d62c
+	golang.org/x/sys v0.0.0-20190508100423-12bbe5a7a520
 	golang.org/x/text v0.3.2 // indirect
-	golang.org/x/tools v0.0.0-20190422233926-fe54fb35175b
-	google.golang.org/appengine v1.4.0 // indirect
+	golang.org/x/tools v0.0.0-20190508150211-cf84161cff3f
 	google.golang.org/genproto v0.0.0-20190425155659-357c62f0e4bb // indirect
 	google.golang.org/grpc v1.20.1
 	gopkg.in/olivere/elastic.v5 v5.0.80

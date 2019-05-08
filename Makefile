@@ -157,12 +157,13 @@ go-lint:
 
 .PHONY: install-glide
 install-glide:
-	@echo "WARNING: Jaeger has migrated to dep, install-glide is now deprecated" 1>&2
+	@echo "WARNING: Jaeger has migrated to go modules, install-glide is now deprecated" 1>&2
 	$(MAKE) install
 
 .PHONY: install
 install:
 	go mod vendor
+	@echo $(ALL_PKGS)
 
 .PHONE: elasticsearch-mappings
 elasticsearch-mappings:
