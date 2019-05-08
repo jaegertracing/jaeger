@@ -163,7 +163,7 @@ install-glide:
 
 .PHONY: install
 install:
-	go mod vendor
+	go mod download
 
 .PHONE: elasticsearch-mappings
 elasticsearch-mappings:
@@ -290,13 +290,13 @@ build-crossdock-fresh: build-crossdock-linux
 
 .PHONY: install-tools
 install-tools:
-	go install -mod=vendor github.com/wadey/gocovmerge
-	go install -mod=vendor golang.org/x/tools/cmd/cover
-	go install -mod=vendor golang.org/x/lint/golint
-	go install -mod=vendor github.com/sectioneight/md-to-godoc
-	go install -mod=vendor github.com/mjibson/esc
-	go install -mod=vendor github.com/securego/gosec/cmd/gosec/
-	go install -mod=vendor honnef.co/go/tools/cmd/staticcheck/
+	go install -mod=readonly github.com/wadey/gocovmerge
+	go install -mod=readonly golang.org/x/tools/cmd/cover
+	go install -mod=readonly golang.org/x/lint/golint
+	go install -mod=readonly github.com/sectioneight/md-to-godoc
+	go install -mod=readonly github.com/mjibson/esc
+	go install -mod=readonly github.com/securego/gosec/cmd/gosec/
+	go install -mod=readonly honnef.co/go/tools/cmd/staticcheck/
 
 .PHONY: install-ci
 install-ci: install install-tools
@@ -342,7 +342,7 @@ generate-zipkin-swagger: idl-submodule
 
 .PHONY: install-mockery
 install-mockery:
-	go get -u github.com/vektra/mockery
+	go install -mod=readonly github.com/vektra/mockery/cmd/mockery
 
 .PHONY: generate-mocks
 generate-mocks: install-mockery
@@ -428,10 +428,8 @@ proto:
 
 .PHONY: proto-install
 proto-install:
-	go get -u github.com/golang/glog
-	go install \
-		./vendor/github.com/golang/protobuf/protoc-gen-go \
-		./vendor/github.com/gogo/protobuf/protoc-gen-gogo \
-		./vendor/github.com/grpc-ecosystem/grpc-gateway/protoc-gen-grpc-gateway \
-		./vendor/github.com/grpc-ecosystem/grpc-gateway/protoc-gen-swagger
-		# ./vendor/github.com/mwitkow/go-proto-validators/protoc-gen-govalidators
+	go install -mod=readonly github.com/golang/protobuf/protoc-gen-go \
+		github.com/gogo/protobuf/protoc-gen-gogo \
+		github.com/grpc-ecosystem/grpc-gateway/protoc-gen-grpc-gateway \
+		github.com/grpc-ecosystem/grpc-gateway/protoc-gen-swagger
+		# github.com/mwitkow/go-proto-validators/protoc-gen-govalidators

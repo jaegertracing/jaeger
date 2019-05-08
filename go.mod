@@ -34,7 +34,7 @@ require (
 	github.com/gorilla/handlers v1.4.0
 	github.com/gorilla/mux v1.7.1
 	github.com/grpc-ecosystem/go-grpc-middleware v1.0.0
-	github.com/grpc-ecosystem/grpc-gateway v1.8.5
+	github.com/grpc-ecosystem/grpc-gateway v1.8.6
 	github.com/hashicorp/go-hclog v0.9.0
 	github.com/hashicorp/go-plugin v1.0.0
 	github.com/inconshreveable/mousetrap v1.0.0 // indirect
@@ -68,6 +68,7 @@ require (
 	github.com/uber/jaeger-client-go v0.0.0-20190116124224-6733ee486c78
 	github.com/uber/jaeger-lib v2.0.0+incompatible
 	github.com/uber/tchannel-go v1.13.0
+	github.com/vektra/mockery v0.0.0-20181123154057-e78b021dcbb5
 	github.com/wadey/gocovmerge v0.0.0-20160331181800-b5bfa59ec0ad
 	go.uber.org/atomic v1.3.2
 	go.uber.org/multierr v1.1.0 // indirect
@@ -77,6 +78,7 @@ require (
 	golang.org/x/sys v0.0.0-20190426135247-a129542de9ae
 	golang.org/x/text v0.3.2 // indirect
 	golang.org/x/tools v0.0.0-20190422233926-fe54fb35175b
+	google.golang.org/appengine v1.4.0 // indirect
 	google.golang.org/genproto v0.0.0-20190425155659-357c62f0e4bb // indirect
 	google.golang.org/grpc v1.20.1
 	gopkg.in/olivere/elastic.v5 v5.0.80
