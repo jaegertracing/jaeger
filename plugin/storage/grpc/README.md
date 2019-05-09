@@ -1,12 +1,36 @@
 gRPC Storage Plugins
 ====================
-gRPC Storage Plugins currently use the Hashicorp go-plugin. This requires the implementer of a plugin to develop the 
-"server" side of the go-plugin system.
+gRPC Storage Plugins currently use the [Hashicorp go-plugin](https://github.com/hashicorp/go-plugin). This requires the
+implementer of a plugin to develop the "server" side of the go-plugin system. At a high level this looks like:
+
+```
++----------------------------------+                  +-----------------------------+
+|                                  |                  |                             |
+|                  +-------------+ |   unix-socket    | +-------------+             |
+|                  |             | |                  | |             |             |
+| jaeger-component | grpc-client +----------------------> grpc-server | plugin-impl |
+|                  |             | |                  | |             |             |
+|                  +-------------+ |                  | +-------------+             |
+|                                  |                  |                             |
++----------------------------------+                  +-----------------------------+
+
+       parent process                                        child sub-process
+```
 
 Implementing a plugin
 ----------------------
 
-A plugin is a standalone application which calls `grpc.Serve(&plugin)` in its `main` function, where the `grpc` package 
+Although the instructions below are limited to Go, plugins can be implemented any language. Languages other than
+Go would implement a gRPC server using the `storage_v1.proto` interfaces. The `proto` file can be found in `plugin/storage/grpc/proto/`.
+To generate the bindings for your language you would use `protoc` with the appropriate `xx_out=` flag. This is detailed 
+in the [protobuf documentation](https://developers.google.com/protocol-buffers/docs/tutorials) and you can see an example of
+how it is done for Go in the top level Jaeger `Makefile`. 
+
+There are instructions on implementing a `go-plugin` server for non-Go languages in the 
+[go-plugin non-go guide](https://github.com/hashicorp/go-plugin/blob/master/docs/guide-plugin-write-non-go.md).
+Take note of the required [health check service](https://github.com/hashicorp/go-plugin/blob/master/docs/guide-plugin-write-non-go.md#3-add-the-grpc-health-checking-service).
+  
+A Go plugin is a standalone application which calls `grpc.Serve(&plugin)` in its `main` function, where the `grpc` package 
 is `github.com/jaegertracing/jaeger/plugin/storage/grpc`.
  
 ```go
