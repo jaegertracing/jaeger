@@ -134,9 +134,9 @@ func TestGRPCResolverRoundRobin(t *testing.T) {
 
 	tests := []struct {
 		minPeers    int
-		connections int
+		connections int // expected number of unique connections to servers
 	}{
-		{3, 5}, {5, 5}, {7, 5},
+		{3, 3}, {5, 5}, {7, 5},
 	}
 	for _, test := range tests {
 		t.Run(fmt.Sprintf("minPeers=%d", test.minPeers), func(t *testing.T) {
@@ -151,16 +151,11 @@ func TestGRPCResolverRoundRobin(t *testing.T) {
 
 			notifier.Notify(testInstances.addresses)
 
-			connections := test.minPeers
-			if connections > test.connections {
-				connections = test.connections
-			}
+			// This step is necessary to ensure that connections to all min-peers are ready,
+			// otherwise round-robin may loop only through already connected peers.
+			makeSureConnectionsUp(t, test.connections, testc)
 
-			// This extra step is necessary to make sure servers are ready for roundrobin test.
-			// For detailed explanation, see https://github.com/grpc/grpc-go/issues/2808
-			makeSureConnectionsUp(t, connections, testc)
-
-			assertRoundRobinCall(t, connections, testc)
+			assertRoundRobinCall(t, test.connections, testc)
 		})
 	}
 }

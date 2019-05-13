@@ -72,7 +72,6 @@ func New(
 		salt:              []byte(strconv.FormatInt(random.Int63(), 10)), // random salt for rendezvousHash
 		scheme:            strconv.FormatInt(seed, 36),                   // make random scheme which will be used when registering
 	}
-	// TODO not sure if there's an equivalent way for grpc to maintain connection like what tchannel did?
 
 	// Register the resolver with grpc so it's available for grpc.Dial
 	resolver.Register(r)
