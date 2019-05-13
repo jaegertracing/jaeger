@@ -201,7 +201,7 @@ func addFlags(flagSet *flag.FlagSet, nsConfig *namespaceConfig) {
 	flagSet.Bool(
 		nsConfig.namespace+suffixEnableDependenciesV2,
 		nsConfig.EnableDependenciesV2,
-		"DEPRECATED: Jaeger will automatically detect the version of the dependencies table")
+		"(deprecated) Jaeger will automatically detect the version of the dependencies table")
 }
 
 // InitFromViper initializes Options with properties from viper

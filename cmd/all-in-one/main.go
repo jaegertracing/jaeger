@@ -17,28 +17,23 @@ package main
 import (
 	"fmt"
 	"io"
-	"io/ioutil"
 	"log"
 	"net"
 	"net/http"
 	"os"
-	"os/signal"
 	"strconv"
-	"syscall"
 
 	"github.com/gorilla/mux"
-	"github.com/opentracing/opentracing-go"
-	"github.com/pkg/errors"
+	opentracing "github.com/opentracing/opentracing-go"
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
 	jaegerClientConfig "github.com/uber/jaeger-client-go/config"
 	jaegerClientZapLog "github.com/uber/jaeger-client-go/log/zap"
 	"github.com/uber/jaeger-lib/metrics"
-	"github.com/uber/tchannel-go"
+	tchannel "github.com/uber/tchannel-go"
 	"github.com/uber/tchannel-go/thrift"
 	"go.uber.org/zap"
 	"google.golang.org/grpc"
-	"google.golang.org/grpc/grpclog"
 
 	agentApp "github.com/jaegertracing/jaeger/cmd/agent/app"
 	agentRep "github.com/jaegertracing/jaeger/cmd/agent/app/reporter"
@@ -57,11 +52,11 @@ import (
 	"github.com/jaegertracing/jaeger/cmd/query/app/querysvc"
 	"github.com/jaegertracing/jaeger/pkg/config"
 	"github.com/jaegertracing/jaeger/pkg/healthcheck"
-	pMetrics "github.com/jaegertracing/jaeger/pkg/metrics"
 	"github.com/jaegertracing/jaeger/pkg/recoveryhandler"
 	"github.com/jaegertracing/jaeger/pkg/version"
 	ss "github.com/jaegertracing/jaeger/plugin/sampling/strategystore"
 	"github.com/jaegertracing/jaeger/plugin/storage"
+	"github.com/jaegertracing/jaeger/ports"
 	istorage "github.com/jaegertracing/jaeger/storage"
 	"github.com/jaegertracing/jaeger/storage/dependencystore"
 	"github.com/jaegertracing/jaeger/storage/spanstore"
@@ -73,10 +68,7 @@ import (
 
 // all-in-one/main is a standalone full-stack jaeger backend, backed by a memory store
 func main() {
-	var signalsChannel = make(chan os.Signal)
-	signal.Notify(signalsChannel, os.Interrupt, syscall.SIGTERM)
-
-	grpclog.SetLoggerV2(grpclog.NewLoggerV2(ioutil.Discard, os.Stderr, os.Stderr))
+	svc := flags.NewService(ports.CollectorAdminHTTP)
 
 	if os.Getenv(storage.SpanStorageTypeEnvVar) == "" {
 		os.Setenv(storage.SpanStorageTypeEnvVar, "memory") // other storage types default to SpanStorage
@@ -89,6 +81,7 @@ func main() {
 	if err != nil {
 		log.Fatalf("Cannot initialize sampling strategy store factory: %v", err)
 	}
+
 	v := viper.New()
 	command := &cobra.Command{
 		Use:   "jaeger-all-in-one",
@@ -96,27 +89,13 @@ func main() {
 		Long: `Jaeger all-in-one distribution with agent, collector and query. Use with caution this version
 		 uses only in-memory database.`,
 		RunE: func(cmd *cobra.Command, args []string) error {
-			err := flags.TryLoadConfigFile(v)
-			if err != nil {
+			if err := svc.Start(v); err != nil {
 				return err
 			}
-
-			sFlags := new(flags.SharedFlags).InitFromViper(v)
-			logger, err := sFlags.NewLogger(zap.NewProductionConfig())
-			if err != nil {
-				return err
-			}
-			hc, err := sFlags.NewHealthCheck(logger)
-			if err != nil {
-				logger.Fatal("Could not start the health check server.", zap.Error(err))
-			}
-
-			mBldr := new(pMetrics.Builder).InitFromViper(v)
-			rootMetricsFactory, err := mBldr.CreateMetricsFactory("")
-			if err != nil {
-				return errors.Wrap(err, "Cannot create metrics factory")
-			}
-			metricsFactory := rootMetricsFactory.Namespace(metrics.NSOptions{Name: "jaeger", Tags: nil})
+			logger := svc.Logger                     // shortcut
+			rootMetricsFactory := svc.MetricsFactory // shortcut
+			metricsFactory := rootMetricsFactory.Namespace(metrics.NSOptions{Name: "jaeger"})
+			tracerCloser := initTracer(rootMetricsFactory, svc.Logger)
 
 			storageFactory.InitFromViper(v)
 			if err := storageFactory.Initialize(metricsFactory, logger); err != nil {
@@ -141,24 +120,29 @@ func main() {
 			aOpts := new(agentApp.Builder).InitFromViper(v)
 			repOpts := new(agentRep.Options).InitFromViper(v)
 			tchannelRepOpts := agentTchanRep.NewBuilder().InitFromViper(v, logger)
-			grpcRepOpts := new(agentGrpcRep.Options).InitFromViper(v)
+			grpcRepOpts := agentGrpcRep.NewConnBuilder().InitFromViper(v)
 			cOpts := new(collector.CollectorOptions).InitFromViper(v)
 			qOpts := new(queryApp.QueryOptions).InitFromViper(v)
 
 			startAgent(aOpts, repOpts, tchannelRepOpts, grpcRepOpts, cOpts, logger, metricsFactory)
-			grpcServer := startCollector(cOpts, spanWriter, logger, metricsFactory, strategyStore, hc)
-			startQuery(qOpts, spanReader, dependencyReader, logger, rootMetricsFactory, metricsFactory, mBldr, hc, archiveOptions(storageFactory, logger))
-			hc.Ready()
-			<-signalsChannel
-			logger.Info("Shutting down")
-			if closer, ok := spanWriter.(io.Closer); ok {
-				grpcServer.GracefulStop()
-				err := closer.Close()
-				if err != nil {
-					logger.Error("Failed to close span writer", zap.Error(err))
+			collectorSrv := startCollector(cOpts, spanWriter, logger, metricsFactory, strategyStore, svc.HC())
+			querySrv := startQuery(
+				svc, qOpts, archiveOptions(storageFactory, logger),
+				spanReader, dependencyReader,
+				rootMetricsFactory, metricsFactory,
+			)
+
+			svc.RunAndThen(func() {
+				collectorSrv.GracefulStop()
+				querySrv.Close()
+				if closer, ok := spanWriter.(io.Closer); ok {
+					err := closer.Close()
+					if err != nil {
+						logger.Error("Failed to close span writer", zap.Error(err))
+					}
 				}
-			}
-			logger.Info("Shutdown complete")
+				tracerCloser.Close()
+			})
 			return nil
 		},
 	}
@@ -166,13 +150,10 @@ func main() {
 	command.AddCommand(version.Command())
 	command.AddCommand(env.Command())
 
-	flags.SetDefaultHealthCheckPort(collector.CollectorDefaultHealthCheckHTTPPort)
-
 	config.AddFlags(
 		v,
 		command,
-		flags.AddConfigFileFlag,
-		flags.AddFlags,
+		svc.AddFlags,
 		storageFactory.AddFlags,
 		agentApp.AddFlags,
 		agentRep.AddFlags,
@@ -180,7 +161,6 @@ func main() {
 		agentGrpcRep.AddFlags,
 		collector.AddFlags,
 		queryApp.AddFlags,
-		pMetrics.AddFlags,
 		strategyStoreFactory.AddFlags,
 	)
 
@@ -193,16 +173,16 @@ func main() {
 func startAgent(
 	b *agentApp.Builder,
 	repOpts *agentRep.Options,
-	tchanRep *agentTchanRep.Builder,
-	grpcRepOpts *agentGrpcRep.Options,
+	tchanBuilder *agentTchanRep.Builder,
+	grpcBuilder *agentGrpcRep.ConnBuilder,
 	cOpts *collector.CollectorOptions,
 	logger *zap.Logger,
 	baseFactory metrics.Factory,
 ) {
 	metricsFactory := baseFactory.Namespace(metrics.NSOptions{Name: "agent", Tags: nil})
 
-	grpcRepOpts.CollectorHostPort = append(grpcRepOpts.CollectorHostPort, fmt.Sprintf("127.0.0.1:%d", cOpts.CollectorGRPCPort))
-	cp, err := agentApp.CreateCollectorProxy(repOpts, tchanRep, grpcRepOpts, logger, metricsFactory)
+	grpcBuilder.CollectorHostPorts = append(grpcBuilder.CollectorHostPorts, fmt.Sprintf("127.0.0.1:%d", cOpts.CollectorGRPCPort))
+	cp, err := agentApp.CreateCollectorProxy(repOpts, tchanBuilder, grpcBuilder, logger, metricsFactory)
 	if err != nil {
 		logger.Fatal("Could not create collector proxy", zap.Error(err))
 	}
@@ -246,8 +226,9 @@ func startCollector(
 			logger.Fatal("Unable to create new TChannel", zap.Error(err))
 		}
 		server := thrift.NewServer(ch)
-		server.Register(jc.NewTChanCollectorServer(jaegerBatchesHandler))
-		server.Register(zc.NewTChanZipkinCollectorServer(zipkinSpansHandler))
+		batchHandler := collectorApp.NewTChannelHandler(jaegerBatchesHandler, zipkinSpansHandler)
+		server.Register(jc.NewTChanCollectorServer(batchHandler))
+		server.Register(zc.NewTChanZipkinCollectorServer(batchHandler))
 		server.Register(sc.NewTChanSamplingManagerServer(sampling.NewHandler(strategyStore)))
 		portStr := ":" + strconv.Itoa(cOpts.CollectorPort)
 		listener, err := net.Listen("tcp", portStr)
@@ -319,62 +300,21 @@ func startZipkinHTTPAPI(
 }
 
 func startQuery(
+	svc *flags.Service,
 	qOpts *queryApp.QueryOptions,
+	queryOpts *querysvc.QueryServiceOptions,
 	spanReader spanstore.Reader,
 	depReader dependencystore.Reader,
-	logger *zap.Logger,
 	rootFactory metrics.Factory,
 	baseFactory metrics.Factory,
-	metricsBuilder *pMetrics.Builder,
-	hc *healthcheck.HealthCheck,
-	queryOpts querysvc.QueryServiceOptions,
-) {
-	tracer, closer, err := jaegerClientConfig.Configuration{
-		Sampler: &jaegerClientConfig.SamplerConfig{
-			Type:  "const",
-			Param: 1.0,
-		},
-		RPCMetrics: true,
-	}.New(
-		"jaeger-query",
-		jaegerClientConfig.Metrics(rootFactory),
-		jaegerClientConfig.Logger(jaegerClientZapLog.NewLogger(logger)),
-	)
-	if err != nil {
-		logger.Fatal("Failed to initialize tracer", zap.Error(err))
+) *queryApp.Server {
+	spanReader = storageMetrics.NewReadMetricsDecorator(spanReader, baseFactory.Namespace(metrics.NSOptions{Name: "query"}))
+	qs := querysvc.NewQueryService(spanReader, depReader, *queryOpts)
+	server := queryApp.NewServer(svc, qs, qOpts, opentracing.GlobalTracer())
+	if err := server.Start(); err != nil {
+		svc.Logger.Fatal("Could not start jaeger-query service", zap.Error(err))
 	}
-	opentracing.SetGlobalTracer(tracer)
-
-	spanReader = storageMetrics.NewReadMetricsDecorator(spanReader, baseFactory.Namespace(metrics.NSOptions{Name: "query", Tags: nil}))
-
-	qs := querysvc.NewQueryService(spanReader, depReader, queryOpts)
-	handlerOpts := []queryApp.HandlerOption{queryApp.HandlerOptions.Logger(logger), queryApp.HandlerOptions.Tracer(tracer)}
-	apiHandler := queryApp.NewAPIHandler(
-		qs,
-		handlerOpts...)
-
-	r := mux.NewRouter()
-	if qOpts.BasePath != "/" {
-		r = r.PathPrefix(qOpts.BasePath).Subrouter()
-	}
-	apiHandler.RegisterRoutes(r)
-	queryApp.RegisterStaticHandler(r, logger, qOpts)
-
-	if h := metricsBuilder.Handler(); h != nil {
-		logger.Info("Registering metrics handler with jaeger-query HTTP server", zap.String("route", metricsBuilder.HTTPRoute))
-		r.Handle(metricsBuilder.HTTPRoute, h)
-	}
-
-	portStr := ":" + strconv.Itoa(qOpts.Port)
-	recoveryHandler := recoveryhandler.NewRecoveryHandler(logger, true)
-	logger.Info("Starting jaeger-query HTTP server", zap.Int("port", qOpts.Port))
-	go func() {
-		defer closer.Close()
-		if err := http.ListenAndServe(portStr, recoveryHandler(r)); err != nil {
-			logger.Fatal("Could not launch jaeger-query service", zap.Error(err))
-		}
-		hc.Set(healthcheck.Unavailable)
-	}()
+	return server
 }
 
 func initSamplingStrategyStore(
@@ -392,32 +332,29 @@ func initSamplingStrategyStore(
 	return strategyStore
 }
 
-func archiveOptions(storageFactory istorage.Factory, logger *zap.Logger) querysvc.QueryServiceOptions {
-	archiveFactory, ok := storageFactory.(istorage.ArchiveFactory)
-	if !ok {
-		logger.Info("Archive storage not supported by the factory")
-		return querysvc.QueryServiceOptions{}
+func archiveOptions(storageFactory istorage.Factory, logger *zap.Logger) *querysvc.QueryServiceOptions {
+	opts := &querysvc.QueryServiceOptions{}
+	if !opts.InitArchiveStorage(storageFactory, logger) {
+		logger.Info("Archive storage not initialized")
 	}
-	reader, err := archiveFactory.CreateArchiveSpanReader()
-	if err == istorage.ErrArchiveStorageNotConfigured || err == istorage.ErrArchiveStorageNotSupported {
-		logger.Info("Archive storage not created", zap.String("reason", err.Error()))
-		return querysvc.QueryServiceOptions{}
-	}
+	return opts
+}
+
+func initTracer(metricsFactory metrics.Factory, logger *zap.Logger) io.Closer {
+	tracer, closer, err := jaegerClientConfig.Configuration{
+		ServiceName: "jaeger-query",
+		Sampler: &jaegerClientConfig.SamplerConfig{
+			Type:  "const",
+			Param: 1.0,
+		},
+		RPCMetrics: true,
+	}.NewTracer(
+		jaegerClientConfig.Metrics(metricsFactory),
+		jaegerClientConfig.Logger(jaegerClientZapLog.NewLogger(logger)),
+	)
 	if err != nil {
-		logger.Error("Cannot init archive storage reader", zap.Error(err))
-		return querysvc.QueryServiceOptions{}
+		logger.Fatal("Failed to initialize tracer", zap.Error(err))
 	}
-	writer, err := archiveFactory.CreateArchiveSpanWriter()
-	if err == istorage.ErrArchiveStorageNotConfigured || err == istorage.ErrArchiveStorageNotSupported {
-		logger.Info("Archive storage not created", zap.String("reason", err.Error()))
-		return querysvc.QueryServiceOptions{}
-	}
-	if err != nil {
-		logger.Error("Cannot init archive storage writer", zap.Error(err))
-		return querysvc.QueryServiceOptions{}
-	}
-	return querysvc.QueryServiceOptions{
-		ArchiveSpanReader: reader,
-		ArchiveSpanWriter: writer,
-	}
+	opentracing.SetGlobalTracer(tracer)
+	return closer
 }

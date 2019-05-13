@@ -23,18 +23,14 @@ import (
 	"go.uber.org/zap"
 	"go.uber.org/zap/zapcore"
 
-	hc "github.com/jaegertracing/jaeger/pkg/healthcheck"
 	"github.com/jaegertracing/jaeger/plugin/storage"
 )
 
 const (
-	spanStorageType     = "span-storage.type" // deprecated
-	logLevel            = "log-level"
-	configFile          = "config-file"
-	healthCheckHTTPPort = "health-check-http-port"
+	spanStorageType = "span-storage.type" // deprecated
+	logLevel        = "log-level"
+	configFile      = "config-file"
 )
-
-var defaultHealthCheckPort int
 
 // AddConfigFileFlag adds flags for ExternalConfFlags
 func AddConfigFileFlag(flagSet *flag.FlagSet) {
@@ -47,7 +43,7 @@ func TryLoadConfigFile(v *viper.Viper) error {
 		v.SetConfigFile(file)
 		err := v.ReadInConfig()
 		if err != nil {
-			return errors.Wrapf(err, "Error loading config file %s", file)
+			return errors.Wrapf(err, "cannot load config file %s", file)
 		}
 	}
 	return nil
@@ -57,27 +53,15 @@ func TryLoadConfigFile(v *viper.Viper) error {
 type SharedFlags struct {
 	// Logging holds logging configuration
 	Logging logging
-	// HealthCheck holds health check configuration
-	HealthCheck healthCheck
 }
 
 type logging struct {
 	Level string
 }
 
-type healthCheck struct {
-	Port int
-}
-
-// SetDefaultHealthCheckPort sets the default port for health check. Must be called before AddFlags
-func SetDefaultHealthCheckPort(port int) {
-	defaultHealthCheckPort = port
-}
-
 // AddFlags adds flags for SharedFlags
 func AddFlags(flagSet *flag.FlagSet) {
-	flagSet.String(spanStorageType, "", fmt.Sprintf(`Deprecated; please use %s environment variable. Run this binary with "env" command for help.`, storage.SpanStorageTypeEnvVar))
-	flagSet.Int(healthCheckHTTPPort, defaultHealthCheckPort, "The http port for the health check service")
+	flagSet.String(spanStorageType, "", fmt.Sprintf(`(deprecated) please use %s environment variable. Run this binary with "env" command for help.`, storage.SpanStorageTypeEnvVar))
 	AddLoggingFlag(flagSet)
 }
 
@@ -89,7 +73,6 @@ func AddLoggingFlag(flagSet *flag.FlagSet) {
 // InitFromViper initializes SharedFlags with properties from viper
 func (flags *SharedFlags) InitFromViper(v *viper.Viper) *SharedFlags {
 	flags.Logging.Level = v.GetString(logLevel)
-	flags.HealthCheck.Port = v.GetInt(healthCheckHTTPPort)
 	return flags
 }
 
@@ -102,13 +85,4 @@ func (flags *SharedFlags) NewLogger(conf zap.Config, options ...zap.Option) (*za
 	}
 	conf.Level = zap.NewAtomicLevelAt(level)
 	return conf.Build(options...)
-}
-
-// NewHealthCheck returns health check based on configuration in SharedFlags
-func (flags *SharedFlags) NewHealthCheck(logger *zap.Logger) (*hc.HealthCheck, error) {
-	if flags.HealthCheck.Port == 0 {
-		return nil, errors.New("port not specified")
-	}
-	return hc.New(hc.Unavailable, hc.Logger(logger)).
-		Serve(flags.HealthCheck.Port)
 }

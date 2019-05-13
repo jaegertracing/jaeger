@@ -13,6 +13,7 @@ cover.html
 vendor/
 examples/hotrod/hotrod
 examples/hotrod/hotrod-*
+examples/memstore-plugin/memstore-plugin
 cmd/all-in-one/all-in-one-*
 cmd/agent/agent
 cmd/agent/agent-*

@@ -15,7 +15,8 @@
 package healthcheck
 
 import (
-	"net"
+	"encoding/json"
+	"io/ioutil"
 	"net/http"
 	"net/http/httptest"
 	"testing"
@@ -23,13 +24,11 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-
-	"github.com/jaegertracing/jaeger/pkg/testutils"
 )
 
 func TestHttpCall(t *testing.T) {
-	hc := New(Unavailable)
-	handler := hc.httpHandler()
+	hc := New()
+	handler := hc.Handler()
 
 	server := httptest.NewServer(handler)
 	defer server.Close()
@@ -38,25 +37,35 @@ func TestHttpCall(t *testing.T) {
 
 	resp, err := http.Get(server.URL + "/")
 	require.NoError(t, err)
-	assert.Equal(t, http.StatusNoContent, resp.StatusCode)
+	assert.Equal(t, http.StatusOK, resp.StatusCode)
+
+	hr := parseHealthCheckResponse(t, resp)
+	assert.Equal(t, "Server available", hr.StatusMsg)
+	// de-serialized timestamp loses monotonic clock value, so assert.Equals() doesn't work.
+	// https://github.com/stretchr/testify/issues/502
+	if want, have := hc.getState().upSince, hr.UpSince; !assert.True(t, want.Equal(have)) {
+		t.Logf("want='%v', have='%v'", want, have)
+	}
+	assert.NotZero(t, hr.Uptime)
+	t.Logf("uptime=%v", hr.Uptime)
+
+	time.Sleep(time.Millisecond)
+	hc.Set(Unavailable)
+
+	resp, err = http.Get(server.URL + "/")
+	require.NoError(t, err)
+	assert.Equal(t, http.StatusServiceUnavailable, resp.StatusCode)
+
+	hrNew := parseHealthCheckResponse(t, resp)
+	assert.Zero(t, hrNew.Uptime)
+	assert.Zero(t, hrNew.UpSince)
 }
 
-func TestListenerClose(t *testing.T) {
-	logger, logBuf := testutils.NewLogger()
-	hc := New(Unavailable, Logger(logger))
-
-	l, err := net.Listen("tcp", ":0")
-	assert.NoError(t, err)
-	l.Close()
-
-	hc.serveWithListener(l)
-	for i := 0; i < 1000; i++ {
-		if hc.Get() == Broken {
-			break
-		}
-		time.Sleep(time.Millisecond)
-	}
-	assert.Equal(t, Broken, hc.Get())
-	log := logBuf.JSONLine(0)
-	assert.Equal(t, "failed to serve", log["msg"])
+func parseHealthCheckResponse(t *testing.T, resp *http.Response) healthCheckResponse {
+	body, err := ioutil.ReadAll(resp.Body)
+	require.NoError(t, err)
+	var hr healthCheckResponse
+	err = json.Unmarshal(body, &hr)
+	require.NoError(t, err)
+	return hr
 }

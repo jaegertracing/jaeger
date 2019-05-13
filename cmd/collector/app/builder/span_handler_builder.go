@@ -15,7 +15,6 @@
 package builder
 
 import (
-	"errors"
 	"os"
 
 	"github.com/uber/jaeger-lib/metrics"
@@ -26,12 +25,6 @@ import (
 	zs "github.com/jaegertracing/jaeger/cmd/collector/app/sanitizer/zipkin"
 	"github.com/jaegertracing/jaeger/model"
 	"github.com/jaegertracing/jaeger/storage/spanstore"
-)
-
-var (
-	errMissingCassandraConfig     = errors.New("Cassandra not configured")
-	errMissingMemoryStore         = errors.New("MemoryStore is not provided")
-	errMissingElasticSearchConfig = errors.New("ElasticSearch not configured")
 )
 
 // SpanHandlerBuilder holds configuration required for handlers

@@ -65,27 +65,27 @@ func TestSpanWriterIndices(t *testing.T) {
 		indices []string
 		params  SpanWriterParams
 	}{
-		{params:SpanWriterParams{Client: client, Logger: logger, MetricsFactory: metricsFactory,
+		{params: SpanWriterParams{Client: client, Logger: logger, MetricsFactory: metricsFactory,
 			IndexPrefix: "", Archive: false},
-			indices:[]string{spanIndex+dateFormat, serviceIndex+dateFormat}},
-		{params:SpanWriterParams{Client: client, Logger: logger, MetricsFactory: metricsFactory,
+			indices: []string{spanIndex + dateFormat, serviceIndex + dateFormat}},
+		{params: SpanWriterParams{Client: client, Logger: logger, MetricsFactory: metricsFactory,
 			IndexPrefix: "", UseReadWriteAliases: true},
-			indices:[]string{spanIndex+"write", serviceIndex+"write"}},
-		{params:SpanWriterParams{Client: client, Logger: logger, MetricsFactory: metricsFactory,
+			indices: []string{spanIndex + "write", serviceIndex + "write"}},
+		{params: SpanWriterParams{Client: client, Logger: logger, MetricsFactory: metricsFactory,
 			IndexPrefix: "foo:", Archive: false},
-			indices:[]string{"foo:"+indexPrefixSeparator+spanIndex+dateFormat, "foo:"+indexPrefixSeparator+serviceIndex+dateFormat}},
-		{params:SpanWriterParams{Client: client, Logger: logger, MetricsFactory: metricsFactory,
+			indices: []string{"foo:" + indexPrefixSeparator + spanIndex + dateFormat, "foo:" + indexPrefixSeparator + serviceIndex + dateFormat}},
+		{params: SpanWriterParams{Client: client, Logger: logger, MetricsFactory: metricsFactory,
 			IndexPrefix: "foo:", UseReadWriteAliases: true},
-			indices:[]string{"foo:-"+spanIndex+"write", "foo:-"+serviceIndex+"write"}},
-		{params:SpanWriterParams{Client: client, Logger: logger, MetricsFactory: metricsFactory,
+			indices: []string{"foo:-" + spanIndex + "write", "foo:-" + serviceIndex + "write"}},
+		{params: SpanWriterParams{Client: client, Logger: logger, MetricsFactory: metricsFactory,
 			IndexPrefix: "", Archive: true},
-			indices:[]string{spanIndex+archiveIndexSuffix, ""}},
-		{params:SpanWriterParams{Client: client, Logger: logger, MetricsFactory: metricsFactory,
+			indices: []string{spanIndex + archiveIndexSuffix, ""}},
+		{params: SpanWriterParams{Client: client, Logger: logger, MetricsFactory: metricsFactory,
 			IndexPrefix: "foo:", Archive: true},
-			indices:[]string{"foo:"+indexPrefixSeparator+spanIndex+archiveIndexSuffix, ""}},
-		{params:SpanWriterParams{Client: client, Logger: logger, MetricsFactory: metricsFactory,
+			indices: []string{"foo:" + indexPrefixSeparator + spanIndex + archiveIndexSuffix, ""}},
+		{params: SpanWriterParams{Client: client, Logger: logger, MetricsFactory: metricsFactory,
 			IndexPrefix: "foo:", Archive: true, UseReadWriteAliases: true},
-			indices:[]string{"foo:"+indexPrefixSeparator+spanIndex+archiveWriteIndexSuffix, ""}},
+			indices: []string{"foo:" + indexPrefixSeparator + spanIndex + archiveWriteIndexSuffix, ""}},
 	}
 	for _, testCase := range testCases {
 		w := NewSpanWriter(testCase.params)
@@ -111,8 +111,6 @@ func TestSpanWriter_WriteSpan(t *testing.T) {
 		spanIndexExists         bool
 		serviceIndexCreateError error
 		spanIndexCreateError    error
-		servicePutError         error
-		spanPutError            error
 		expectedError           string
 		expectedLogs            []string
 	}{

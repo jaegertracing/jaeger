@@ -25,7 +25,7 @@ import (
 )
 
 func TestAllOptionSet(t *testing.T) {
-	types := []string{"sneh"}
+	types := []SpanFormat{SpanFormat("sneh")}
 	opts := Options.apply(
 		Options.ReportBusy(true),
 		Options.BlockingSubmit(true),

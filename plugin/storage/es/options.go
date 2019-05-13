@@ -43,6 +43,7 @@ const (
 	suffixCert              = ".tls.cert"
 	suffixKey               = ".tls.key"
 	suffixCA                = ".tls.ca"
+	suffixSkipHostVerify    = ".tls.skip-host-verify"
 	suffixIndexPrefix       = ".index-prefix"
 	suffixTagsAsFields      = ".tags-as-fields"
 	suffixTagsAsFieldsAll   = suffixTagsAsFields + ".all"
@@ -54,7 +55,7 @@ const (
 
 // TODO this should be moved next to config.Configuration struct (maybe ./flags package)
 
-// Options contains various type of ElasticSearch configs and provides the ability
+// Options contains various type of Elasticsearch configs and provides the ability
 // to bind them to command line flag and apply overlays, so that some configurations
 // (e.g. archive) may be underspecified and infer the rest of its parameters from primary.
 type Options struct {
@@ -117,11 +118,11 @@ func addFlags(flagSet *flag.FlagSet, nsConfig *namespaceConfig) {
 	flagSet.String(
 		nsConfig.namespace+suffixUsername,
 		nsConfig.Username,
-		"The username required by ElasticSearch. The basic authentication also loads CA if it is specified.")
+		"The username required by Elasticsearch. The basic authentication also loads CA if it is specified.")
 	flagSet.String(
 		nsConfig.namespace+suffixPassword,
 		nsConfig.Password,
-		"The password required by ElasticSearch")
+		"The password required by Elasticsearch")
 	flagSet.String(
 		nsConfig.namespace+suffixTokenPath,
 		nsConfig.TokenFilePath,
@@ -129,11 +130,11 @@ func addFlags(flagSet *flag.FlagSet, nsConfig *namespaceConfig) {
 	flagSet.Bool(
 		nsConfig.namespace+suffixSniffer,
 		nsConfig.Sniffer,
-		"The sniffer config for ElasticSearch; client uses sniffing process to find all nodes automatically, disable if not required")
+		"The sniffer config for Elasticsearch; client uses sniffing process to find all nodes automatically, disable if not required")
 	flagSet.String(
 		nsConfig.namespace+suffixServerURLs,
 		nsConfig.servers,
-		"The comma-separated list of ElasticSearch servers, must be full url i.e. http://localhost:9200")
+		"The comma-separated list of Elasticsearch servers, must be full url i.e. http://localhost:9200")
 	flagSet.Duration(
 		nsConfig.namespace+suffixTimeout,
 		nsConfig.Timeout,
@@ -141,7 +142,7 @@ func addFlags(flagSet *flag.FlagSet, nsConfig *namespaceConfig) {
 	flagSet.Duration(
 		nsConfig.namespace+suffixMaxSpanAge,
 		nsConfig.MaxSpanAge,
-		"The maximum lookback for spans in ElasticSearch")
+		"The maximum lookback for spans in Elasticsearch")
 	flagSet.Int(
 		nsConfig.namespace+suffixMaxNumSpans,
 		nsConfig.MaxNumSpans,
@@ -149,11 +150,11 @@ func addFlags(flagSet *flag.FlagSet, nsConfig *namespaceConfig) {
 	flagSet.Int64(
 		nsConfig.namespace+suffixNumShards,
 		nsConfig.NumShards,
-		"The number of shards per index in ElasticSearch")
+		"The number of shards per index in Elasticsearch")
 	flagSet.Int64(
 		nsConfig.namespace+suffixNumReplicas,
 		nsConfig.NumReplicas,
-		"The number of replicas per index in ElasticSearch")
+		"The number of replicas per index in Elasticsearch")
 	flagSet.Int(
 		nsConfig.namespace+suffixBulkSize,
 		nsConfig.BulkSize,
@@ -169,11 +170,15 @@ func addFlags(flagSet *flag.FlagSet, nsConfig *namespaceConfig) {
 	flagSet.Duration(
 		nsConfig.namespace+suffixBulkFlushInterval,
 		nsConfig.BulkFlushInterval,
-		"A time.Duration after which bulk requests are committed, regardless of other tresholds. Set to zero to disable. By default, this is disabled.")
+		"A time.Duration after which bulk requests are committed, regardless of other thresholds. Set to zero to disable. By default, this is disabled.")
 	flagSet.Bool(
 		nsConfig.namespace+suffixTLS,
 		nsConfig.TLS.Enabled,
 		"Enable TLS with client certificates.")
+	flagSet.Bool(
+		nsConfig.namespace+suffixSkipHostVerify,
+		nsConfig.TLS.SkipHostVerify,
+		"(insecure) Skip server's certificate chain and host name verification")
 	flagSet.String(
 		nsConfig.namespace+suffixCert,
 		nsConfig.TLS.CertPath,
@@ -240,6 +245,7 @@ func initFromViper(cfg *namespaceConfig, v *viper.Viper) {
 	cfg.BulkFlushInterval = v.GetDuration(cfg.namespace + suffixBulkFlushInterval)
 	cfg.Timeout = v.GetDuration(cfg.namespace + suffixTimeout)
 	cfg.TLS.Enabled = v.GetBool(cfg.namespace + suffixTLS)
+	cfg.TLS.SkipHostVerify = v.GetBool(cfg.namespace + suffixSkipHostVerify)
 	cfg.TLS.CertPath = v.GetString(cfg.namespace + suffixCert)
 	cfg.TLS.KeyPath = v.GetString(cfg.namespace + suffixKey)
 	cfg.TLS.CaPath = v.GetString(cfg.namespace + suffixCA)

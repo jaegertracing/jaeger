@@ -20,24 +20,21 @@ import (
 	"github.com/spf13/viper"
 
 	"github.com/jaegertracing/jaeger/cmd/collector/app"
+	"github.com/jaegertracing/jaeger/ports"
 )
 
 const (
-	collectorQueueSize     = "collector.queue-size"
-	collectorNumWorkers    = "collector.num-workers"
-	collectorPort          = "collector.port"
-	collectorHTTPPort      = "collector.http-port"
-	collectorGRPCPort      = "collector.grpc-port"
-	collectorGRPCTLS       = "collector.grpc.tls"
-	collectorGRPCCert      = "collector.grpc.tls.cert"
-	collectorGRPCKey       = "collector.grpc.tls.key"
-	collectorZipkinHTTPort = "collector.zipkin.http-port"
-
-	defaultTChannelPort = 14267
-	defaultHTTPPort     = 14268
-	defaultGRPCPort     = 14250
-	// CollectorDefaultHealthCheckHTTPPort is the default HTTP Port for health check
-	CollectorDefaultHealthCheckHTTPPort = 14269
+	collectorQueueSize            = "collector.queue-size"
+	collectorNumWorkers           = "collector.num-workers"
+	collectorPort                 = "collector.port"
+	collectorHTTPPort             = "collector.http-port"
+	collectorGRPCPort             = "collector.grpc-port"
+	collectorGRPCTLS              = "collector.grpc.tls"
+	collectorGRPCCert             = "collector.grpc.tls.cert"
+	collectorGRPCKey              = "collector.grpc.tls.key"
+	collectorZipkinHTTPort        = "collector.zipkin.http-port"
+	collectorZipkinAllowedOrigins = "collector.zipkin.allowed-origins"
+	collectorZipkinAllowedHeaders = "collector.zipkin.allowed-headers"
 )
 
 // CollectorOptions holds configuration for collector
@@ -60,19 +57,25 @@ type CollectorOptions struct {
 	CollectorGRPCKey string
 	// CollectorZipkinHTTPPort is the port that the Zipkin collector service listens in on for http requests
 	CollectorZipkinHTTPPort int
+	// CollectorZipkinAllowedOrigins is a list of origins a cross-domain request to the Zipkin collector service can be executed from
+	CollectorZipkinAllowedOrigins string
+	// CollectorZipkinAllowedHeaders is a list of headers that the Zipkin collector service allowes the client to use with cross-domain requests
+	CollectorZipkinAllowedHeaders string
 }
 
 // AddFlags adds flags for CollectorOptions
 func AddFlags(flags *flag.FlagSet) {
 	flags.Int(collectorQueueSize, app.DefaultQueueSize, "The queue size of the collector")
 	flags.Int(collectorNumWorkers, app.DefaultNumWorkers, "The number of workers pulling items from the queue")
-	flags.Int(collectorPort, defaultTChannelPort, "The TChannel port for the collector service")
-	flags.Int(collectorHTTPPort, defaultHTTPPort, "The HTTP port for the collector service")
-	flags.Int(collectorGRPCPort, defaultGRPCPort, "The gRPC port for the collector service")
+	flags.Int(collectorPort, ports.CollectorTChannel, "The TChannel port for the collector service")
+	flags.Int(collectorHTTPPort, ports.CollectorHTTP, "The HTTP port for the collector service")
+	flags.Int(collectorGRPCPort, ports.CollectorGRPC, "The gRPC port for the collector service")
 	flags.Int(collectorZipkinHTTPort, 0, "The HTTP port for the Zipkin collector service e.g. 9411")
 	flags.Bool(collectorGRPCTLS, false, "Enable TLS")
 	flags.String(collectorGRPCCert, "", "Path to TLS certificate file")
 	flags.String(collectorGRPCKey, "", "Path to TLS key file")
+	flags.String(collectorZipkinAllowedOrigins, "*", "Allowed origins for the Zipkin collector service, default accepts all")
+	flags.String(collectorZipkinAllowedHeaders, "content-type", "Allowed headers for the Zipkin collector service, default content-type")
 }
 
 // InitFromViper initializes CollectorOptions with properties from viper
@@ -86,5 +89,7 @@ func (cOpts *CollectorOptions) InitFromViper(v *viper.Viper) *CollectorOptions {
 	cOpts.CollectorGRPCCert = v.GetString(collectorGRPCCert)
 	cOpts.CollectorGRPCKey = v.GetString(collectorGRPCKey)
 	cOpts.CollectorZipkinHTTPPort = v.GetInt(collectorZipkinHTTPort)
+	cOpts.CollectorZipkinAllowedOrigins = v.GetString(collectorZipkinAllowedOrigins)
+	cOpts.CollectorZipkinAllowedHeaders = v.GetString(collectorZipkinAllowedHeaders)
 	return cOpts
 }

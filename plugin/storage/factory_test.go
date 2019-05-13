@@ -58,7 +58,7 @@ func TestNewFactory(t *testing.T) {
 	assert.Equal(t, cassandraStorageType, f.DependenciesStorageType)
 
 	f, err = NewFactory(FactoryConfig{
-		SpanWriterTypes:         []string{cassandraStorageType, kafkaStorageType},
+		SpanWriterTypes:         []string{cassandraStorageType, kafkaStorageType, badgerStorageType},
 		SpanReaderType:          elasticsearchStorageType,
 		DependenciesStorageType: memoryStorageType,
 	})
@@ -68,13 +68,13 @@ func TestNewFactory(t *testing.T) {
 	assert.NotNil(t, f.factories[kafkaStorageType])
 	assert.NotEmpty(t, f.factories[elasticsearchStorageType])
 	assert.NotNil(t, f.factories[memoryStorageType])
-	assert.Equal(t, []string{cassandraStorageType, kafkaStorageType}, f.SpanWriterTypes)
+	assert.Equal(t, []string{cassandraStorageType, kafkaStorageType, badgerStorageType}, f.SpanWriterTypes)
 	assert.Equal(t, elasticsearchStorageType, f.SpanReaderType)
 	assert.Equal(t, memoryStorageType, f.DependenciesStorageType)
 
-	f, err = NewFactory(FactoryConfig{SpanWriterTypes: []string{"x"}, DependenciesStorageType: "y", SpanReaderType: "z"})
+	_, err = NewFactory(FactoryConfig{SpanWriterTypes: []string{"x"}, DependenciesStorageType: "y", SpanReaderType: "z"})
 	require.Error(t, err)
-	expected := "Unknown storage type" // could be 'x' or 'y' since code iterates through map.
+	expected := "unknown storage type" // could be 'x' or 'y' since code iterates through map.
 	assert.Equal(t, expected, err.Error()[0:len(expected)])
 }
 
@@ -128,10 +128,10 @@ func TestCreate(t *testing.T) {
 	assert.EqualError(t, err, "dep-reader-error")
 
 	_, err = f.CreateArchiveSpanReader()
-	assert.EqualError(t, err, "Archive storage not supported")
+	assert.EqualError(t, err, "archive storage not supported")
 
 	_, err = f.CreateArchiveSpanWriter()
-	assert.EqualError(t, err, "Archive storage not supported")
+	assert.EqualError(t, err, "archive storage not supported")
 
 	mock.On("CreateSpanWriter").Return(spanWriter, nil)
 	m := metrics.NullFactory
@@ -242,7 +242,7 @@ func TestCreateError(t *testing.T) {
 	assert.NotEmpty(t, f.factories[cassandraStorageType])
 	delete(f.factories, cassandraStorageType)
 
-	expectedErr := "No cassandra backend registered for span store"
+	expectedErr := "no cassandra backend registered for span store"
 	// scope the vars to avoid bugs in the test
 	{
 		r, err := f.CreateSpanReader()

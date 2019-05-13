@@ -27,7 +27,7 @@ import (
 	"github.com/jaegertracing/jaeger/storage/spanstore"
 )
 
-var errTraceNotFound = errors.New("Trace was not found")
+var errTraceNotFound = errors.New("trace was not found")
 
 // Store is an in-memory store of traces
 type Store struct {

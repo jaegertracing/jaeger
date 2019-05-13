@@ -46,6 +46,7 @@ func TestAgentSamplingEndpoint(t *testing.T) {
 		httpClient := &http.Client{
 			Timeout: 100 * time.Millisecond,
 		}
+	wait_loop:
 		for i := 0; i < 1000; i++ {
 			_, err := httpClient.Get(url)
 			if err == nil {
@@ -56,7 +57,7 @@ func TestAgentSamplingEndpoint(t *testing.T) {
 				if err != nil {
 					t.Fatalf("error from agent: %s", err)
 				}
-				break
+				break wait_loop
 			default:
 				time.Sleep(time.Millisecond)
 			}

@@ -30,8 +30,8 @@ import (
 	"github.com/stretchr/testify/require"
 	jaegerClient "github.com/uber/jaeger-client-go"
 	zipkinTransport "github.com/uber/jaeger-client-go/transport/zipkin"
-	tchanThrift "github.com/uber/tchannel-go/thrift"
 
+	"github.com/jaegertracing/jaeger/cmd/collector/app"
 	zipkinTrift "github.com/jaegertracing/jaeger/model/converter/thrift/zipkin"
 	"github.com/jaegertracing/jaeger/thrift-gen/zipkincore"
 )
@@ -44,7 +44,7 @@ type mockZipkinHandler struct {
 	spans []*zipkincore.Span
 }
 
-func (p *mockZipkinHandler) SubmitZipkinBatch(ctx tchanThrift.Context, spans []*zipkincore.Span) ([]*zipkincore.Response, error) {
+func (p *mockZipkinHandler) SubmitZipkinBatch(spans []*zipkincore.Span, opts app.SubmitBatchOptions) ([]*zipkincore.Response, error) {
 	p.mux.Lock()
 	defer p.mux.Unlock()
 	p.spans = append(p.spans, spans...)

@@ -43,7 +43,7 @@ func StartGRPCCollector(
 	grpcPortStr := ":" + strconv.Itoa(port)
 	lis, err := net.Listen("tcp", grpcPortStr)
 	if err != nil {
-		return nil, errors.Wrap(err, "Failed to listen on gRPC port")
+		return nil, errors.Wrap(err, "failed to listen on gRPC port")
 	}
 
 	grpclog.SetLoggerV2(grpclog.NewLoggerV2(ioutil.Discard, os.Stderr, os.Stderr))

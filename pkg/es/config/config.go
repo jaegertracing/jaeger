@@ -62,10 +62,11 @@ type Configuration struct {
 
 // TLSConfig describes the configuration properties to connect tls enabled ElasticSearch cluster
 type TLSConfig struct {
-	Enabled  bool
-	CertPath string
-	KeyPath  string
-	CaPath   string
+	Enabled        bool
+	SkipHostVerify bool
+	CertPath       string
+	KeyPath        string
+	CaPath         string
 }
 
 // ClientBuilder creates new es.Client
@@ -114,7 +115,7 @@ func (c *Configuration) NewClient(logger *zap.Logger, metricsFactory metrics.Fac
 			m.Delete(id)
 
 			// log individual errors, note that err might be false and these errors still present
-			if response.Errors {
+			if response != nil && response.Errors {
 				for _, it := range response.Items {
 					for key, val := range it {
 						if val.Error != nil {
@@ -127,7 +128,12 @@ func (c *Configuration) NewClient(logger *zap.Logger, metricsFactory metrics.Fac
 
 			sm.Emit(err, time.Since(start.(time.Time)))
 			if err != nil {
-				failed := len(response.Failed())
+				var failed int
+				if response == nil {
+					failed = 0
+				} else {
+					failed = len(response.Failed())
+				}
 				total := len(requests)
 				logger.Error("Elasticsearch could not process bulk request",
 					zap.Int("request_count", total),
@@ -292,9 +298,11 @@ func (tlsConfig *TLSConfig) createTLSConfig() (*tls.Config, error) {
 	if err != nil {
 		return nil, err
 	}
+	// #nosec
 	return &tls.Config{
-		RootCAs:      rootCerts,
-		Certificates: []tls.Certificate{*clientPrivateKey},
+		RootCAs:            rootCerts,
+		Certificates:       []tls.Certificate{*clientPrivateKey},
+		InsecureSkipVerify: tlsConfig.SkipHostVerify,
 	}, nil
 
 }

@@ -11,6 +11,7 @@ ALL_SRC := $(shell find . -name '*.go' \
 				   -not -name '*_test.go' \
 				   -not -name 'model.pb.go' \
 				   -not -name 'model_test.pb.go' \
+				   -not -name 'storage_test.pb.go' \
 				   -not -path './examples/*' \
 				   -not -path './vendor/*' \
 				   -not -path '*/mocks/*' \
@@ -28,7 +29,7 @@ GOLINT=golint
 GOVET=go vet
 GOFMT=gofmt
 GOSEC=gosec -quiet -exclude=G104,G107
-GOSIMPLE=gosimple
+STATICCHECK=staticcheck
 FMT_LOG=fmt.log
 LINT_LOG=lint.log
 IMPORT_LOG=import.log
@@ -118,17 +119,28 @@ nocover:
 .PHONY: fmt
 fmt:
 	./scripts/import-order-cleanup.sh inplace
-	$(GOFMT) -e -s -l -w $(ALL_SRC)
+	@echo Running go fmt...
+	@$(GOFMT) -e -s -l -w $(ALL_SRC)
 	./scripts/updateLicenses.sh
 
 .PHONY: lint-gosec
 lint-gosec:
 	$(GOSEC) ./...
 
+.PHONY: lint-staticcheck
+lint-staticcheck:
+	@echo Running staticcheck...
+	@cat /dev/null > $(LINT_LOG)
+	@$(STATICCHECK) ./... \
+		| grep -v \
+			-e model/model.pb.go \
+			-e thrift-gen/ \
+		>> $(LINT_LOG) || true
+	@[ ! -s "$(LINT_LOG)" ] || (echo "Detected staticcheck failures:" | cat - $(LINT_LOG) && false)
+
 .PHONY: lint
-lint: lint-gosec
+lint: lint-staticcheck lint-gosec
 	$(GOVET) ./...
-	$(GOSIMPLE) ./...
 	$(MAKE) go-lint
 	@$(GOFMT) -e -s -l $(ALL_SRC) > $(FMT_LOG)
 	@./scripts/updateLicenses.sh >> $(FMT_LOG)
@@ -138,7 +150,8 @@ lint: lint-gosec
 .PHONY: go-lint
 go-lint:
 	@cat /dev/null > $(LINT_LOG)
-	$(GOLINT) $(ALL_PKGS) \
+	@echo Running go lint...
+	@$(GOLINT) $(ALL_PKGS) \
 		| grep -v _nolint.go \
 		>> $(LINT_LOG) || true;
 	@[ ! -s "$(LINT_LOG)" ] || (echo "Lint Failures" | cat - $(LINT_LOG) && false)
@@ -151,7 +164,7 @@ install-glide:
 .PHONY: install
 install:
 	@which dep > /dev/null || curl https://raw.githubusercontent.com/golang/dep/master/install.sh | sh
-	dep ensure
+	dep ensure -vendor-only
 
 .PHONE: elasticsearch-mappings
 elasticsearch-mappings:
@@ -167,14 +180,14 @@ docker-hotrod:
 	GOOS=linux $(MAKE) build-examples
 	docker build -t $(DOCKER_NAMESPACE)/example-hotrod:${DOCKER_TAG} ./examples/hotrod
 
-.PHONY: build_ui
-build_ui:
+.PHONY: build-ui
+build-ui:
 	cd jaeger-ui && yarn install && cd packages/jaeger-ui && yarn build
 	esc -pkg assets -o cmd/query/app/ui/actual/gen_assets.go -prefix jaeger-ui/packages/jaeger-ui/build jaeger-ui/packages/jaeger-ui/build
 	esc -pkg assets -o cmd/query/app/ui/placeholder/gen_assets.go -prefix cmd/query/app/ui/placeholder/public cmd/query/app/ui/placeholder/public
 
 .PHONY: build-all-in-one-linux
-build-all-in-one-linux: build_ui
+build-all-in-one-linux: build-ui
 	GOOS=linux $(MAKE) build-all-in-one
 
 .PHONY: build-all-in-one
@@ -197,12 +210,8 @@ build-collector: elasticsearch-mappings
 build-ingester:
 	CGO_ENABLED=0 installsuffix=cgo go build -o ./cmd/ingester/ingester-$(GOOS) $(BUILD_INFO) ./cmd/ingester/main.go
 
-.PHONY: docker-no-ui
-docker-no-ui: build-binaries-linux build-crossdock-linux
-	make docker-images-only
-
 .PHONY: docker
-docker: build_ui docker-no-ui
+docker: build-ui build-binaries-linux docker-images-only
 
 .PHONY: build-binaries-linux
 build-binaries-linux:
@@ -222,19 +231,26 @@ build-platform-binaries: build-agent build-collector build-query build-ingester 
 .PHONY: build-all-platforms
 build-all-platforms: build-binaries-linux build-binaries-windows build-binaries-darwin
 
-.PHONY: docker-images-only
-docker-images-only:
+.PHONY: docker-images-cassandra
+docker-images-cassandra:
 	docker build -t $(DOCKER_NAMESPACE)/jaeger-cassandra-schema:${DOCKER_TAG} plugin/storage/cassandra/
 	@echo "Finished building jaeger-cassandra-schema =============="
+
+.PHONY: docker-images-elastic
+docker-images-elastic:
 	docker build -t $(DOCKER_NAMESPACE)/jaeger-es-index-cleaner:${DOCKER_TAG} plugin/storage/es
 	docker build -t $(DOCKER_NAMESPACE)/jaeger-es-rollover:${DOCKER_TAG} plugin/storage/es -f plugin/storage/es/Dockerfile.rollover
 	@echo "Finished building jaeger-es-indices-clean =============="
+
+.PHONY: docker-images-jaeger-backend
+docker-images-jaeger-backend:
 	for component in agent collector query ingester ; do \
 		docker build -t $(DOCKER_NAMESPACE)/jaeger-$$component:${DOCKER_TAG} cmd/$$component ; \
 		echo "Finished building $$component ==============" ; \
 	done
-	docker build -t $(DOCKER_NAMESPACE)/test-driver:${DOCKER_TAG} crossdock/
-	@echo "Finished building test-driver ==============" ; \
+
+.PHONY: docker-images-only
+docker-images-only: docker-images-cassandra docker-images-elastic docker-images-jaeger-backend
 
 .PHONY: docker-push
 docker-push:
@@ -254,14 +270,19 @@ build-crossdock-linux:
 
 include crossdock/rules.mk
 
+# Crossdock tests do not require fully functioning UI, so we skip it to speed up the build.
 .PHONY: build-crossdock-ui-placeholder
 build-crossdock-ui-placeholder:
 	mkdir -p cmd/query/app/ui/actual
 	[ -e cmd/query/app/ui/actual/gen_assets.go ] || cp cmd/query/app/ui/placeholder/gen_assets.go cmd/query/app/ui/actual/gen_assets.go
 
-# Crossdock tests do not require fully functioning UI, so we skip it to speed up the build.
 .PHONY: build-crossdock
-build-crossdock: build-crossdock-ui-placeholder docker-no-ui
+build-crossdock: build-crossdock-ui-placeholder build-binaries-linux build-crossdock-linux docker-images-cassandra docker-images-jaeger-backend 
+	docker build -t $(DOCKER_NAMESPACE)/test-driver:${DOCKER_TAG} crossdock/
+	@echo "Finished building test-driver ==============" ; \
+
+.PHONY: build-and-run-crossdock
+build-and-run-crossdock: build-crossdock
 	make crossdock
 
 .PHONY: build-crossdock-fresh
@@ -274,9 +295,9 @@ install-tools:
 	go get -u golang.org/x/tools/cmd/cover
 	go get -u golang.org/x/lint/golint
 	go get -u github.com/sectioneight/md-to-godoc
-	go get -u github.com/securego/gosec/cmd/gosec/...
-	go get -u honnef.co/go/tools/cmd/gosimple
 	go get -u github.com/mjibson/esc
+	go install ./vendor/github.com/securego/gosec/cmd/gosec/
+	go install ./vendor/honnef.co/go/tools/cmd/staticcheck/
 
 .PHONY: install-ci
 install-ci: install install-tools
@@ -332,13 +353,16 @@ generate-mocks: install-mockery
 echo-version:
 	@echo $(GIT_CLOSEST_TAG)
 
+PROTOC := protoc
 PROTO_INCLUDES := \
 	-I model/proto \
 	-I vendor/github.com/grpc-ecosystem/grpc-gateway \
 	-I vendor/github.com/gogo/googleapis \
+	-I vendor/github.com/gogo/protobuf/protobuf \
 	-I vendor/github.com/gogo/protobuf
 # Remapping of std types to gogo types (must not contain spaces)
 PROTO_GOGO_MAPPINGS := $(shell echo \
+		Mgoogle/protobuf/descriptor.proto=github.com/gogo/protobuf/types, \
 		Mgoogle/protobuf/timestamp.proto=github.com/gogo/protobuf/types, \
 		Mgoogle/protobuf/duration.proto=github.com/gogo/protobuf/types, \
 		Mgoogle/protobuf/empty.proto=github.com/gogo/protobuf/types, \
@@ -346,9 +370,10 @@ PROTO_GOGO_MAPPINGS := $(shell echo \
 		Mmodel.proto=github.com/jaegertracing/jaeger/model \
 	| sed 's/ //g')
 
+
 .PHONY: proto
 proto:
-	# Generate gogo, gRPC-Gateway, swagger, go-validators output.
+	# Generate gogo, gRPC-Gateway, swagger, go-validators, gRPC-storage-plugin output.
 	#
 	# -I declares import folders, in order of importance
 	# This is how proto resolves the protofile imports.
@@ -372,22 +397,35 @@ proto:
 	# TODO use Docker container instead of installed protoc
 	# (https://medium.com/@linchenon/generate-grpc-and-protobuf-libraries-with-containers-c15ba4e4f3ad)
 	#
-	protoc \
+	$(PROTOC) \
 		$(PROTO_INCLUDES) \
 		--gogo_out=plugins=grpc,$(PROTO_GOGO_MAPPINGS):$(PWD)/model/ \
 		model/proto/model.proto
 
-	protoc \
+	$(PROTOC) \
 		$(PROTO_INCLUDES) \
-		--gogo_out=plugins=grpc,$(PROTO_GOGO_MAPPINGS):$(PWD)/proto-gen/api_v2/ \
-		--grpc-gateway_out=$(PROTO_GOGO_MAPPINGS):$(PWD)/proto-gen/api_v2/ \
-		--swagger_out=$(PWD)/proto-gen/openapi/ \
-		model/proto/api_v2.proto
+		--gogo_out=plugins=grpc,$(PROTO_GOGO_MAPPINGS):$(PWD)/proto-gen/ \
+		model/proto/api_v2/*.proto
+		### grpc-gateway generates 'query.pb.gw.go' that does not respect (gogoproto.customname) = "TraceID"
+		### --grpc-gateway_out=$(PROTO_GOGO_MAPPINGS):$(PWD)/proto-gen/ \
+		### --swagger_out=allow_merge=true:$(PWD)/proto-gen/openapi/ \
 
-	protoc \
+	$(PROTOC) \
+		$(PROTO_INCLUDES) \
+		-I plugin/storage/grpc/proto \
+		--gogo_out=plugins=grpc,$(PROTO_GOGO_MAPPINGS):$(PWD)/proto-gen/storage_v1 \
+		plugin/storage/grpc/proto/storage.proto
+
+	$(PROTOC) \
 		-I model/proto \
 		--go_out=$(PWD)/model/prototest/ \
 		model/proto/model_test.proto
+
+	$(PROTOC) \
+		-I plugin/storage/grpc/proto \
+		--go_out=$(PWD)/plugin/storage/grpc/proto/storageprototest/ \
+		plugin/storage/grpc/proto/storage_test.proto
+
 
 .PHONY: proto-install
 proto-install:
@@ -397,5 +435,4 @@ proto-install:
 		./vendor/github.com/gogo/protobuf/protoc-gen-gogo \
 		./vendor/github.com/grpc-ecosystem/grpc-gateway/protoc-gen-grpc-gateway \
 		./vendor/github.com/grpc-ecosystem/grpc-gateway/protoc-gen-swagger
-		# ./vendor/github.com/mwitkow/go-proto-validators/protoc-gen-govalidators \
-		# ./vendor/github.com/rakyll/statik
+		# ./vendor/github.com/mwitkow/go-proto-validators/protoc-gen-govalidators

@@ -29,7 +29,6 @@ import (
 	"github.com/stretchr/testify/assert"
 	jaegerClient "github.com/uber/jaeger-client-go"
 	"github.com/uber/jaeger-client-go/transport"
-	tchanThrift "github.com/uber/tchannel-go/thrift"
 
 	"github.com/jaegertracing/jaeger/thrift-gen/jaeger"
 )
@@ -42,7 +41,7 @@ type mockJaegerHandler struct {
 	batches []*jaeger.Batch
 }
 
-func (p *mockJaegerHandler) SubmitBatches(ctx tchanThrift.Context, batches []*jaeger.Batch) ([]*jaeger.BatchSubmitResponse, error) {
+func (p *mockJaegerHandler) SubmitBatches(batches []*jaeger.Batch, _ SubmitBatchOptions) ([]*jaeger.BatchSubmitResponse, error) {
 	p.mux.Lock()
 	defer p.mux.Unlock()
 	p.batches = append(p.batches, batches...)

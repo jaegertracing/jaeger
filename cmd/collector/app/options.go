@@ -41,7 +41,7 @@ type options struct {
 	blockingSubmit   bool
 	queueSize        int
 	reportBusy       bool
-	extraFormatTypes []string
+	extraFormatTypes []SpanFormat
 }
 
 // Option is a function that sets some option on StorageBuilder.
@@ -128,7 +128,7 @@ func (options) ReportBusy(reportBusy bool) Option {
 }
 
 // ExtraFormatTypes creates an Option that initializes the extra list of format types
-func (options) ExtraFormatTypes(extraFormatTypes []string) Option {
+func (options) ExtraFormatTypes(extraFormatTypes []SpanFormat) Option {
 	return func(b *options) {
 		b.extraFormatTypes = extraFormatTypes
 	}

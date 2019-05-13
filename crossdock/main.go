@@ -16,7 +16,8 @@ package main
 
 import (
 	"net/http"
-	"sync"
+	"os"
+	"sync/atomic"
 	"time"
 
 	"github.com/crossdock/crossdock-go"
@@ -28,24 +29,36 @@ import (
 const (
 	behaviorEndToEnd = "endtoend"
 
-	collectorService = "Collector"
-	queryService     = "Query"
+	envAgentHostPort = "JAEGER_AGENT_HOST_PORT"
+	envQueryHostPort = "JAEGER_QUERY_HOST_PORT"
+
+	envQueryHealthcheckHostPort     = "JAEGER_QUERY_HC_HOST_PORT"
+	envCollectorHealthcheckHostPort = "JAEGER_COLLECTOR_HC_HOST_PORT"
 )
 
 var (
 	logger, _ = zap.NewDevelopment()
+
+	agentHostPort string
+	queryHostPort string
+
+	queryHealthcheckHostPort     string
+	collectorHealthcheckHostPort string
 )
 
 type clientHandler struct {
-	sync.RWMutex
+	// initialized (atomic) is non-zero all components required for the tests are available
+	initialized uint64
 
 	xHandler http.Handler
-
-	// initialized is true if the client has finished initializing all the components required for the tests
-	initialized bool
 }
 
 func main() {
+	agentHostPort = getEnv(envAgentHostPort, "jaeger-agent:5778")
+	queryHostPort = getEnv(envQueryHostPort, "jaeger-query:16686")
+	queryHealthcheckHostPort = getEnv(envQueryHealthcheckHostPort, "jaeger-query:16687")
+	collectorHealthcheckHostPort = getEnv(envCollectorHealthcheckHostPort, "jaeger-collector:14269")
+
 	handler := &clientHandler{}
 	go handler.initialize()
 
@@ -53,7 +66,7 @@ func main() {
 		// when method is HEAD, report back with a 200 when ready to run tests
 		if r.Method == "HEAD" {
 			if !handler.isInitialized() {
-				http.Error(w, "Client not ready", http.StatusServiceUnavailable)
+				http.Error(w, "Components not ready", http.StatusServiceUnavailable)
 			}
 			return
 		}
@@ -62,38 +75,45 @@ func main() {
 	http.ListenAndServe(":8080", nil)
 }
 
+func getEnv(key string, defaultValue string) string {
+	if v, ok := os.LookupEnv(key); ok {
+		return v
+	}
+	return defaultValue
+}
+
 func (h *clientHandler) initialize() {
-	httpHealthCheck(logger, queryService, "http://jaeger-query:16687")
-	logger.Info("Query started")
-	httpHealthCheck(logger, collectorService, "http://jaeger-collector:14269")
-	logger.Info("Collector started")
-	queryService := services.NewQueryService("http://jaeger-query:16686", logger)
-	agentService := services.NewAgentService("http://jaeger-agent:5778", logger)
+	httpHealthCheck(logger, "jaeger-query", "http://"+queryHealthcheckHostPort)
+	httpHealthCheck(logger, "jaeger-collector", "http://"+collectorHealthcheckHostPort)
+
+	queryService := services.NewQueryService("http://"+queryHostPort, logger)
+	agentService := services.NewAgentService("http://"+agentHostPort, logger)
 
 	traceHandler := services.NewTraceHandler(queryService, agentService, logger)
-	h.Lock()
-	defer h.Unlock()
-	h.initialized = true
-
 	behaviors := crossdock.Behaviors{
 		behaviorEndToEnd: traceHandler.EndToEndTest,
 	}
 	h.xHandler = crossdock.Handler(behaviors, true)
+
+	atomic.StoreUint64(&h.initialized, 1)
 }
 
 func (h *clientHandler) isInitialized() bool {
-	h.RLock()
-	defer h.RUnlock()
-	return h.initialized
+	return atomic.LoadUint64(&h.initialized) != 0
+}
+
+func is2xxStatusCode(statusCode int) bool {
+	return statusCode >= 200 && statusCode <= 299
 }
 
 func httpHealthCheck(logger *zap.Logger, service, healthURL string) {
 	for i := 0; i < 240; i++ {
 		res, err := http.Get(healthURL)
-		if err == nil && res.StatusCode == 204 {
+		if err == nil && is2xxStatusCode(res.StatusCode) {
+			logger.Info("Health check successful", zap.String("service", service))
 			return
 		}
-		logger.Warn("Health check failed", zap.String("service", service), zap.Error(err))
+		logger.Info("Health check failed", zap.String("service", service), zap.Error(err))
 		time.Sleep(time.Second)
 	}
 	logger.Fatal("All health checks failed", zap.String("service", service))
