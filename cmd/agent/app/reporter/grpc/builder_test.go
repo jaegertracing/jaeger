@@ -78,6 +78,7 @@ func TestBuilderWithCollectors(t *testing.T) {
 		hostPorts       []string
 		checkSuffixOnly bool
 		notifier        discovery.Notifier
+		discoverer      discovery.Discoverer
 		err             error
 	}{
 		{
@@ -86,6 +87,7 @@ func TestBuilderWithCollectors(t *testing.T) {
 			hostPorts:       []string{"127.0.0.1:9876", "127.0.0.1:9877", "127.0.0.1:9878"},
 			checkSuffixOnly: true,
 			notifier:        nil,
+			discoverer:      nil,
 		},
 		{
 			target:          "127.0.0.1:9876",
@@ -93,14 +95,15 @@ func TestBuilderWithCollectors(t *testing.T) {
 			hostPorts:       []string{"127.0.0.1:9876"},
 			checkSuffixOnly: false,
 			notifier:        nil,
+			discoverer:      nil,
 		},
 		{
-			target:          "dns://random_stuff",
-			name:            "with custom resolver",
+			target:          "///round_robin",
+			name:            "with custom resolver and fixed discoverer",
 			hostPorts:       []string{"dns://random_stuff"},
-			checkSuffixOnly: false,
+			checkSuffixOnly: true,
 			notifier:        noopNotifier{},
-			err:             errors.New("not implemented"),
+			discoverer:      discovery.FixedDiscoverer{},
 		},
 		{
 			target:          "",
@@ -108,6 +111,7 @@ func TestBuilderWithCollectors(t *testing.T) {
 			hostPorts:       nil,
 			checkSuffixOnly: false,
 			notifier:        nil,
+			discoverer:      nil,
 			err:             errors.New("at least one collector hostPort address is required when resolver is not available"),
 		},
 	}
@@ -117,7 +121,8 @@ func TestBuilderWithCollectors(t *testing.T) {
 			// Use NewBuilder for code coverage consideration
 			cfg := NewConnBuilder()
 			cfg.CollectorHostPorts = test.hostPorts
-			cfg.WithDiscoveryNotifier(test.notifier)
+			cfg.Notifier = test.notifier
+			cfg.Discoverer = test.discoverer
 
 			conn, err := cfg.CreateConnection(zap.NewNop())
 			if err != nil {

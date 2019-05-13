@@ -119,12 +119,12 @@ func main() {
 
 			aOpts := new(agentApp.Builder).InitFromViper(v)
 			repOpts := new(agentRep.Options).InitFromViper(v)
-			tchannelRepOpts := agentTchanRep.NewBuilder().InitFromViper(v, logger)
-			grpcRepOpts := agentGrpcRep.NewConnBuilder().InitFromViper(v)
+			tchanBuilder := agentTchanRep.NewBuilder().InitFromViper(v, logger)
+			grpcBuilder := agentGrpcRep.NewConnBuilder().InitFromViper(v)
 			cOpts := new(collector.CollectorOptions).InitFromViper(v)
 			qOpts := new(queryApp.QueryOptions).InitFromViper(v)
 
-			startAgent(aOpts, repOpts, tchannelRepOpts, grpcRepOpts, cOpts, logger, metricsFactory)
+			startAgent(aOpts, repOpts, tchanBuilder, grpcBuilder, cOpts, logger, metricsFactory)
 			collectorSrv := startCollector(cOpts, spanWriter, logger, metricsFactory, strategyStore, svc.HC())
 			querySrv := startQuery(
 				svc, qOpts, archiveOptions(storageFactory, logger),
