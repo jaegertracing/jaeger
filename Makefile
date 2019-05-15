@@ -182,7 +182,7 @@ docker-hotrod:
 
 .PHONY: build-ui
 build-ui:
-	cd jaeger-ui && yarn install && cd packages/jaeger-ui && yarn build
+	cd jaeger-ui && yarn install --frozen-lockfile && cd packages/jaeger-ui && yarn build
 	esc -pkg assets -o cmd/query/app/ui/actual/gen_assets.go -prefix jaeger-ui/packages/jaeger-ui/build jaeger-ui/packages/jaeger-ui/build
 	esc -pkg assets -o cmd/query/app/ui/placeholder/gen_assets.go -prefix cmd/query/app/ui/placeholder/public cmd/query/app/ui/placeholder/public
 
