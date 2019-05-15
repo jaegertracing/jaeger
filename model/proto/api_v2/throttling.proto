@@ -1,0 +1,74 @@
+syntax="proto3";
+
+package jaeger.api_v2;
+
+import "gogoproto/gogo.proto";
+import "google/api/annotations.proto";
+import "protoc-gen-swagger/options/annotations.proto";
+
+
+option go_package = "api_v2";
+option java_package = "io.jaegertracing.api_v2";
+
+// Enable gogoprotobuf extensions (https://github.com/gogo/protobuf/blob/master/extensions.md).
+// Enable custom Marshal method.
+option (gogoproto.marshaler_all) = true;
+// Enable custom Unmarshal method.
+option (gogoproto.unmarshaler_all) = true;
+// Enable custom Size method (Required by Marshal and Unmarshal).
+option (gogoproto.sizer_all) = true;
+// Enable registration with golang/protobuf for the grpc-gateway.
+option (gogoproto.goproto_registration) = true;
+
+option (grpc.gateway.protoc_gen_swagger.options.openapiv2_swagger) = {
+  info: {
+    version: "1.0";
+  };
+external_docs: {
+url: "https://github.com/jaegertracing/jaeger";
+description: "Jaeger API";
+}
+schemes: HTTP;
+schemes: HTTPS;
+};
+
+// ThrottlingConfig describes the throttling behavior for a given service.
+// Throttling is controlled with a credit account per operation that is refilled
+// at a steady rate, like a token bucket. The account may reach a maximum, but
+// will not grow beyond that.
+message ThrottlingConfig {
+    // Max operations to track with individual throttling credit accounts.
+    int32 maxOperations = 1;
+    // Number of credits to refill per second.
+    double creditsPerSecond = 2;
+    // Max balance to cap credits.
+    double maxBalance = 3;
+}
+
+// Mapping of service name to throttling configuration.
+message ServiceThrottlingConfig {
+    string serviceName = 1;
+    ThrottlingConfig config = 2;
+}
+
+// Response mapping service names to specific throttling configs. Any other
+// service not contained in the map should follow the default configuration
+// provided in the response.
+message ThrottlingResponse {
+    ThrottlingConfig defaultConfig = 1;
+    repeated ServiceThrottlingConfig serviceConfigs = 2;
+}
+
+message ThrottlingConfigParameters {
+    repeated string serviceNames = 1;
+};
+
+// Service to provide service throttling configurations to throttling component.
+service ThrottlingService {
+    rpc getThrottlingConfigs(ThrottlingConfigParameters) returns (ThrottlingResponse) {
+        option (google.api.http) = {
+            post: "/api/v2/throttling"
+            body: "*"
+        };
+    }
+}
