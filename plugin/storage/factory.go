@@ -50,6 +50,7 @@ const (
 	defaultDownsamplingHashSalt = ""
 )
 
+// AllStorageTypes defines all available storage backends
 var AllStorageTypes = []string{cassandraStorageType, elasticsearchStorageType, memoryStorageType, kafkaStorageType, badgerStorageType, grpcPluginStorageType}
 
 // Factory implements storage.Factory interface as a meta-factory for storage components.
