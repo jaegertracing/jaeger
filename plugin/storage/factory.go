@@ -50,7 +50,8 @@ const (
 	defaultDownsamplingHashSalt = ""
 )
 
-var allStorageTypes = []string{cassandraStorageType, elasticsearchStorageType, memoryStorageType, kafkaStorageType, badgerStorageType, grpcPluginStorageType}
+// AllStorageTypes defines all available storage backends
+var AllStorageTypes = []string{cassandraStorageType, elasticsearchStorageType, memoryStorageType, kafkaStorageType, badgerStorageType, grpcPluginStorageType}
 
 // Factory implements storage.Factory interface as a meta-factory for storage components.
 type Factory struct {
@@ -95,7 +96,7 @@ func (f *Factory) getFactoryOfType(factoryType string) (storage.Factory, error) 
 	case grpcPluginStorageType:
 		return grpc.NewFactory(), nil
 	default:
-		return nil, fmt.Errorf("unknown storage type %s. Valid types are %v", factoryType, allStorageTypes)
+		return nil, fmt.Errorf("unknown storage type %s. Valid types are %v", factoryType, AllStorageTypes)
 	}
 }
 
