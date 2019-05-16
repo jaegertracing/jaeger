@@ -146,6 +146,12 @@ Please see [ADOPTERS.md](./ADOPTERS.md) for some of the organizations using Jaeg
 If you would like to add your organization to the list, please comment on our
 [survey issue](https://github.com/jaegertracing/jaeger/issues/207).
 
+## Security
+
+### Security Audit
+
+A third party security audit was performed by Cure53, you can see the full report [here](SECURITY_AUDIT.pdf).
+
 ## License
 
 [Apache 2.0 License](./LICENSE).
