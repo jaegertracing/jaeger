@@ -50,6 +50,11 @@ func NewCollectorProxy(builder *ConnBuilder, agentTags map[string]string, mFacto
 	}, nil
 }
 
+// GetConn returns grpc conn
+func (b ProxyBuilder) GetConn() *grpc.ClientConn {
+	return b.conn
+}
+
 // GetReporter returns Reporter
 func (b ProxyBuilder) GetReporter() aReporter.Reporter {
 	return b.reporter
