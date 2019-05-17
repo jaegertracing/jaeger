@@ -148,9 +148,9 @@ If you would like to add your organization to the list, please comment on our
 
 ## Security
 
-### Security Audit
+### Security Audits
 
-A third party security audit was performed by Cure53, you can see the full report [here](SECURITY_AUDIT.pdf).
+Third-party security audits of Jaeger are available in https://github.com/jaegertracing/security-audits.
 
 ## License
 
