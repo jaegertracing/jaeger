@@ -1,0 +1,61 @@
+syntax="proto3";
+
+package jaeger.api_v2;
+
+import "gogoproto/gogo.proto";
+import "google/api/annotations.proto";
+import "protoc-gen-swagger/options/annotations.proto";
+
+
+option go_package = "api_v2";
+option java_package = "io.jaegertracing.api_v2";
+
+// Enable gogoprotobuf extensions (https://github.com/gogo/protobuf/blob/master/extensions.md).
+// Enable custom Marshal method.
+option (gogoproto.marshaler_all) = true;
+// Enable custom Unmarshal method.
+option (gogoproto.unmarshaler_all) = true;
+// Enable custom Size method (Required by Marshal and Unmarshal).
+option (gogoproto.sizer_all) = true;
+// Enable registration with golang/protobuf for the grpc-gateway.
+option (gogoproto.goproto_registration) = true;
+
+option (grpc.gateway.protoc_gen_swagger.options.openapiv2_swagger) = {
+  info: {
+    version: "1.0";
+  };
+external_docs: {
+url: "https://github.com/jaegertracing/jaeger";
+description: "Jaeger API";
+}
+schemes: HTTP;
+schemes: HTTPS;
+};
+
+message BaggageRestrictionParameters {
+    string serviceName = 1;
+}
+
+// BaggageRestriction contains the baggage key and the maximum length of the baggage value.
+message BaggageRestriction {
+    string baggageKey = 1;
+    int32 maxValueLength = 2;
+}
+
+message BaggageRestrictionResponse {
+    repeated BaggageRestriction baggageRestrictions = 1;
+};
+
+service BaggageService {
+    /**
+     * getBaggageRestrictions retrieves the baggage restrictions for a specific service.
+     * Usually, baggageRestrictions apply to all services however there may be situations
+     * where a baggageKey might only be allowed to be set by a specific service.
+     */
+    rpc getBaggageRestrictions(BaggageRestrictionParameters) returns (BaggageRestrictionResponse) {
+        option (google.api.http) = {
+            post: "/api/v2/baggage"
+            body: "*"
+        };
+    }
+}

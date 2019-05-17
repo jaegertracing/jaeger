@@ -16,31 +16,32 @@ package grpc
 
 import (
 	"context"
-	"errors"
 
 	"google.golang.org/grpc"
 
+	"github.com/jaegertracing/jaeger/cmd/agent/app/configmanager"
 	"github.com/jaegertracing/jaeger/model/converter/thrift/jaeger"
 	"github.com/jaegertracing/jaeger/proto-gen/api_v2"
 	"github.com/jaegertracing/jaeger/thrift-gen/baggage"
 	"github.com/jaegertracing/jaeger/thrift-gen/sampling"
 )
 
-// SamplingManager returns sampling decisions from collector over gRPC.
-type SamplingManager struct {
-	client api_v2.SamplingManagerClient
+type collectorProxy struct {
+	samplingClient api_v2.SamplingManagerClient
+	baggageClient  api_v2.BaggageServiceClient
 }
 
-// NewConfigManager creates gRPC sampling manager.
-func NewConfigManager(conn *grpc.ClientConn) *SamplingManager {
-	return &SamplingManager{
-		client: api_v2.NewSamplingManagerClient(conn),
+// NewConfigManager implements Manager by proxying the requests to collector.
+func NewConfigManager(conn *grpc.ClientConn) configmanager.ClientConfigManager {
+	return &collectorProxy{
+		samplingClient: api_v2.NewSamplingManagerClient(conn),
+		baggageClient:  api_v2.NewBaggageServiceClient(conn),
 	}
 }
 
 // GetSamplingStrategy returns sampling strategies from collector.
-func (s *SamplingManager) GetSamplingStrategy(serviceName string) (*sampling.SamplingStrategyResponse, error) {
-	r, err := s.client.GetSamplingStrategy(context.Background(), &api_v2.SamplingStrategyParameters{ServiceName: serviceName})
+func (s *collectorProxy) GetSamplingStrategy(serviceName string) (*sampling.SamplingStrategyResponse, error) {
+	r, err := s.samplingClient.GetSamplingStrategy(context.Background(), &api_v2.SamplingStrategyParameters{ServiceName: serviceName})
 	if err != nil {
 		return nil, err
 	}
@@ -48,6 +49,12 @@ func (s *SamplingManager) GetSamplingStrategy(serviceName string) (*sampling.Sam
 }
 
 // GetBaggageRestrictions returns baggage restrictions from collector.
-func (s *SamplingManager) GetBaggageRestrictions(serviceName string) ([]*baggage.BaggageRestriction, error) {
-	return nil, errors.New("baggage not implemented")
+func (s *collectorProxy) GetBaggageRestrictions(serviceName string) ([]*baggage.BaggageRestriction, error) {
+	r, err := s.baggageClient.GetBaggageRestrictions(context.Background(), &api_v2.BaggageRestrictionParameters{
+		ServiceName: serviceName,
+	})
+	if err != nil {
+		return nil, err
+	}
+	return jaeger.ConvertBaggageRestrictionsResponseFromDomain(r)
 }

@@ -54,10 +54,18 @@ func TestSamplingManager_GetSamplingStrategy_error(t *testing.T) {
 }
 
 func TestSamplingManager_GetBaggageRestrictions(t *testing.T) {
-	manager := NewConfigManager(nil)
+	s, addr := initializeGRPCTestServer(t, func(s *grpc.Server) {
+		api_v2.RegisterBaggageServiceServer(s, &mockBaggageRestrictionHandler{})
+	})
+	conn, err := grpc.Dial(addr.String(), grpc.WithInsecure())
+	//lint:ignore SA5001 don't care about errors
+	defer conn.Close()
+	require.NoError(t, err)
+	defer s.GracefulStop()
+	manager := NewConfigManager(conn)
 	rest, err := manager.GetBaggageRestrictions("foo")
 	require.Nil(t, rest)
-	assert.EqualError(t, err, "baggage not implemented")
+	assert.NoError(t, err)
 }
 
 type mockSamplingHandler struct {
@@ -65,6 +73,13 @@ type mockSamplingHandler struct {
 
 func (*mockSamplingHandler) GetSamplingStrategy(context.Context, *api_v2.SamplingStrategyParameters) (*api_v2.SamplingStrategyResponse, error) {
 	return &api_v2.SamplingStrategyResponse{StrategyType: api_v2.SamplingStrategyType_PROBABILISTIC}, nil
+}
+
+type mockBaggageRestrictionHandler struct {
+}
+
+func (*mockBaggageRestrictionHandler) GetBaggageRestrictions(context.Context, *api_v2.BaggageRestrictionParameters) (*api_v2.BaggageRestrictionResponse, error) {
+	return &api_v2.BaggageRestrictionResponse{}, nil
 }
 
 func initializeGRPCTestServer(t *testing.T, beforeServe func(server *grpc.Server)) (*grpc.Server, net.Addr) {
