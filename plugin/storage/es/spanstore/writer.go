@@ -16,6 +16,7 @@ package spanstore
 
 import (
 	"context"
+	"sync"
 	"time"
 
 	"github.com/pkg/errors"
@@ -48,6 +49,7 @@ type SpanWriter struct {
 	logger           *zap.Logger
 	writerMetrics    spanWriterMetrics // TODO: build functions to wrap around each Do fn
 	indexCache       cache.Cache
+	indexMutex       sync.Mutex
 	serviceWriter    serviceWriter
 	numShards        int64
 	numReplicas      int64
@@ -151,6 +153,14 @@ func (s *SpanWriter) Close() error {
 
 func (s *SpanWriter) createIndex(indexName string, mapping string, jsonSpan *dbmodel.Span) error {
 	if !keyInCache(indexName, s.indexCache) {
+		s.indexMutex.Lock()
+		defer s.indexMutex.Unlock()
+
+		// re-check if index exists in case other goroutine did the job under lock for us
+		if keyInCache(indexName, s.indexCache) {
+			return nil
+		}
+
 		start := time.Now()
 		exists, _ := s.client.IndexExists(indexName).Do(s.ctx) // don't need to check the error because the exists variable will be false anyway if there is an error
 		if !exists {
