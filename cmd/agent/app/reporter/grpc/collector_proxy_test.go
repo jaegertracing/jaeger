@@ -62,6 +62,7 @@ func TestMultipleCollectors(t *testing.T) {
 	require.NotNil(t, proxy)
 	assert.NotNil(t, proxy.GetReporter())
 	assert.NotNil(t, proxy.GetManager())
+	assert.NotNil(t, proxy.GetConn())
 
 	var bothServers = false
 	r := proxy.GetReporter()
