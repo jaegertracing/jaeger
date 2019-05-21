@@ -29,7 +29,7 @@ docker run \
   --name jaeger \
   -p6831:6831/udp \
   -p16686:16686 \
-  jaegertracing/all-in-one:1.6
+  jaegertracing/all-in-one:latest
 ```
 
 Jaeger UI can be accessed at http://localhost:16686.
