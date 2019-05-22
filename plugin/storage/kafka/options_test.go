@@ -28,12 +28,18 @@ func TestOptionsWithFlags(t *testing.T) {
 	command.ParseFlags([]string{
 		"--kafka.producer.topic=topic1",
 		"--kafka.producer.brokers=127.0.0.1:9092, 0.0.0:1234",
-		"--kafka.producer.encoding=protobuf"})
+		"--kafka.producer.encoding=protobuf",
+		"--kafka.producer.required.acks=-1",
+		"--kafka.producer.compression=1",
+		"--kafka.producer.compression.level=6"})
 	opts.InitFromViper(v)
 
 	assert.Equal(t, "topic1", opts.topic)
 	assert.Equal(t, []string{"127.0.0.1:9092", "0.0.0:1234"}, opts.config.Brokers)
 	assert.Equal(t, "protobuf", opts.encoding)
+	assert.Equal(t, -1, opts.config.RequiredAcks)
+	assert.Equal(t, 1, opts.config.Compression)
+	assert.Equal(t, 6, opts.config.CompressionLevel)
 }
 
 func TestFlagDefaults(t *testing.T) {
@@ -45,4 +51,16 @@ func TestFlagDefaults(t *testing.T) {
 	assert.Equal(t, defaultTopic, opts.topic)
 	assert.Equal(t, []string{defaultBroker}, opts.config.Brokers)
 	assert.Equal(t, defaultEncoding, opts.encoding)
+	assert.Equal(t, defaultRequiredAcks, opts.config.RequiredAcks)
+	assert.Equal(t, defaultComression, opts.config.Compression)
+	assert.Equal(t, defaultCompressionLevel, opts.config.CompressionLevel)
+}
+
+func TestCompressionLevelDefaults(t *testing.T)  {
+	assert.Equal(t, -1000, getCompressionLevel(0, -1000))
+	assert.Equal(t, 6, getCompressionLevel(1, -1000))
+	assert.Equal(t, -1000, getCompressionLevel(2, -10000 ))
+	assert.Equal(t, -1000, getCompressionLevel(3, -1000))
+	assert.Equal(t, 3, getCompressionLevel(4, -1000))
+
 }

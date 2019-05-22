@@ -25,12 +25,19 @@ type Builder interface {
 
 // Configuration describes the configuration properties needed to create a Kafka producer
 type Configuration struct {
-	Brokers []string
+	Brokers          []string
+	RequiredAcks     int
+	Compression      int
+	CompressionLevel int
 }
 
 // NewProducer creates a new asynchronous kafka producer
 func (c *Configuration) NewProducer() (sarama.AsyncProducer, error) {
 	saramaConfig := sarama.NewConfig()
+	saramaConfig.Producer.RequiredAcks = sarama.RequiredAcks(c.RequiredAcks)
+	saramaConfig.Producer.Compression = sarama.CompressionCodec(c.Compression)
+	saramaConfig.Producer.CompressionLevel = c.CompressionLevel
 	saramaConfig.Producer.Return.Successes = true
+
 	return sarama.NewAsyncProducer(c.Brokers, saramaConfig)
 }
