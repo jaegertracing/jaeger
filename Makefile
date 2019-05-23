@@ -291,8 +291,8 @@ build-crossdock-fresh: build-crossdock-linux
 
 .PHONY: changelog
 changelog: changelog
-	@echo "Set env variable GH_TOKEN before invoking, https://github.com/settings/tokens/new?description=GitHub%20Changelog%20Generator%20token"
-	docker run --rm  -v "${PWD}:/app" pavolloffay/gch:latest --oauth-token ${GH_TOKEN} --owner jaegertracing --repo jaeger
+	@echo "Set env variable OAUTH_TOKEN before invoking, https://github.com/settings/tokens/new?description=GitHub%20Changelog%20Generator%20token"
+	docker run --rm  -v "${PWD}:/app" pavolloffay/gch:latest --oauth-token ${OAUTH_TOKEN} --owner jaegertracing --repo jaeger
 
 .PHONY: install-tools
 install-tools:
