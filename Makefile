@@ -289,6 +289,11 @@ build-and-run-crossdock: build-crossdock
 build-crossdock-fresh: build-crossdock-linux
 	make crossdock-fresh
 
+.PHONY: changelog
+changelog: changelog
+	@echo "Set env variable OAUTH_TOKEN before invoking, https://github.com/settings/tokens/new?description=GitHub%20Changelog%20Generator%20token"
+	docker run --rm  -v "${PWD}:/app" pavolloffay/gch:latest --oauth-token ${OAUTH_TOKEN} --owner jaegertracing --repo jaeger
+
 .PHONY: install-tools
 install-tools:
 	go get -u github.com/wadey/gocovmerge
