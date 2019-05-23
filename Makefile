@@ -290,7 +290,7 @@ build-crossdock-fresh: build-crossdock-linux
 	make crossdock-fresh
 
 .PHONY: changelog
-changelog: changelog
+changelog:
 	@echo "Set env variable OAUTH_TOKEN before invoking, https://github.com/settings/tokens/new?description=GitHub%20Changelog%20Generator%20token"
 	docker run --rm  -v "${PWD}:/app" pavolloffay/gch:latest --oauth-token ${OAUTH_TOKEN} --owner jaegertracing --repo jaeger
 
