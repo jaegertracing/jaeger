@@ -26,8 +26,8 @@ EXPOSE 14250
 # Web HTTP
 EXPOSE 16686
 
-COPY ./cmd/all-in-one/all-in-one-linux /go/bin/
-COPY ./cmd/all-in-one/sampling_strategies.json /etc/jaeger/
+COPY all-in-one-linux /go/bin/
+COPY sampling_strategies.json /etc/jaeger/
 
 ENTRYPOINT ["/go/bin/all-in-one-linux"]
 CMD ["--sampling.strategies-file=/etc/jaeger/sampling_strategies.json"]
