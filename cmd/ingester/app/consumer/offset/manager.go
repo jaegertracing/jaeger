@@ -51,20 +51,20 @@ type Manager struct {
 type MarkOffset func(offset int64)
 
 // NewManager creates a new Manager
-func NewManager(minOffset int64, markOffset MarkOffset, partition int32, factory metrics.Factory) *Manager {
+func NewManager(minOffset int64, maxOutOfOrderOffsets int, markOffset MarkOffset, partition int32, factory metrics.Factory) *Manager {
 	return &Manager{
 		markOffsetFunction:  markOffset,
 		close:               make(chan struct{}),
 		offsetCommitCount:   factory.Counter(metrics.Options{Name: "offset-commits-total", Tags: map[string]string{"partition": strconv.Itoa(int(partition))}}),
 		lastCommittedOffset: factory.Gauge(metrics.Options{Name: "last-committed-offset", Tags: map[string]string{"partition": strconv.Itoa(int(partition))}}),
-		list:                newConcurrentList(minOffset),
+		list:                newConcurrentList(minOffset, maxOutOfOrderOffsets),
 		minOffset:           minOffset,
 	}
 }
 
 // MarkOffset marks the offset of a consumer message
-func (m *Manager) MarkOffset(offset int64) {
-	m.list.insert(offset)
+func (m *Manager) MarkOffset(offset int64) error {
+	return m.list.insert(offset)
 }
 
 // Start starts the Manager

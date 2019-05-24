@@ -126,7 +126,8 @@ func (c *Consumer) handleMessages(pc sc.PartitionConsumer) {
 
 	msgMetrics := c.newMsgMetrics(pc.Partition())
 
-	var msgProcessor processor.SpanProcessor
+	var msgProcessor processor.ParallelSpanProcessor
+	msgErrors := make(chan error, 1)
 
 	deadlockDetector := c.deadlockDetector.startMonitoringForPartition(pc.Partition())
 	defer deadlockDetector.close()
@@ -149,10 +150,16 @@ func (c *Consumer) handleMessages(pc sc.PartitionConsumer) {
 				defer msgProcessor.Close()
 			}
 
-			msgProcessor.Process(&saramaMessageWrapper{msg})
+			msgProcessor.Process(&saramaMessageWrapper{msg}, func(message processor.Message, e error) {
+				msgErrors <- e
+			})
 
 		case <-deadlockDetector.closePartitionChannel():
 			c.logger.Info("Closing partition due to inactivity", zap.Int32("partition", pc.Partition()))
+			return
+
+		case err := <-msgErrors:
+			c.logger.Warn("Closing partition because of parallel processor error", zap.Error(err))
 			return
 		}
 	}

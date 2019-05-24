@@ -15,25 +15,33 @@
 package offset
 
 import (
+	"errors"
 	"sync"
 )
+
+var errExceededSize = errors.New("list full")
 
 // ConcurrentList is a list that maintains kafka offsets with thread-safe Insert and setToHighestContiguous operations
 type ConcurrentList struct {
 	offsets []int64
+	size    int
 	mutex   sync.Mutex
 }
 
-func newConcurrentList(minOffset int64) *ConcurrentList {
-	return &ConcurrentList{offsets: []int64{minOffset}}
+func newConcurrentList(minOffset int64, size int) *ConcurrentList {
+	return &ConcurrentList{offsets: []int64{minOffset}, size: size}
 }
 
 // Insert into the list in O(1) time.
 // This operation is thread-safe
-func (s *ConcurrentList) insert(offset int64) {
+func (s *ConcurrentList) insert(offset int64) error {
 	s.mutex.Lock()
 	defer s.mutex.Unlock()
 	s.offsets = append(s.offsets, offset)
+	if len(s.offsets) > s.size {
+		return errExceededSize
+	}
+	return nil
 }
 
 // setToHighestContiguous sets head to highestContiguous and returns the message and status.

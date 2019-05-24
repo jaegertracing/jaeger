@@ -28,7 +28,7 @@ type comittingProcessor struct {
 }
 
 type offsetMarker interface {
-	MarkOffset(int64)
+	MarkOffset(int64) error
 }
 
 // NewCommittingProcessor returns a processor that commits message offsets to Kafka
@@ -43,7 +43,7 @@ func (d *comittingProcessor) Process(message processor.Message) error {
 	if msg, ok := message.(Message); ok {
 		err := d.processor.Process(message)
 		if err == nil {
-			d.marker.MarkOffset(msg.Offset())
+			return d.marker.MarkOffset(msg.Offset())
 		}
 		return err
 	}

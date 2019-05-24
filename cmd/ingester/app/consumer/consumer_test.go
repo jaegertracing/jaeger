@@ -98,12 +98,13 @@ func newConsumer(
 		deadlockDetector:    newDeadlockDetector(metricsFactory, logger, time.Second),
 
 		processorFactory: ProcessorFactory{
-			topic:          topic,
-			consumer:       consumer,
-			metricsFactory: metricsFactory,
-			logger:         logger,
-			baseProcessor:  processor,
-			parallelism:    1,
+			topic:                topic,
+			consumer:             consumer,
+			metricsFactory:       metricsFactory,
+			logger:               logger,
+			baseProcessor:        processor,
+			parallelism:          1,
+			maxOutOfOrderOffsets: 10,
 		},
 	}
 }
@@ -247,6 +248,44 @@ func TestHandleClosePartition(t *testing.T) {
 		undertest.deadlockDetector.allPartitionsDeadlockDetector.incrementMsgCount() // Don't trigger panic on all partitions detector
 		time.Sleep(100 * time.Millisecond)
 		c, _ := metricsFactory.Snapshot()
+		if c["sarama-consumer.partition-close|partition=316"] == 1 {
+			return
+		}
+	}
+	assert.Fail(t, "Did not close partition")
+}
+
+func TestSaramaConsumer_MsgProcessorError(t *testing.T) {
+	localFactory := metricstest.NewFactory(0)
+
+	msg := &sarama.ConsumerMessage{}
+
+	isProcessed := sync.WaitGroup{}
+	isProcessed.Add(1)
+	mp := &pmocks.SpanProcessor{}
+	mp.On("Process", &saramaMessageWrapper{msg}).Return(func(msg processor.Message) error {
+		isProcessed.Done()
+		return nil
+	})
+
+	saramaConsumer := smocks.NewConsumer(t, &sarama.Config{})
+	mc := saramaConsumer.ExpectConsumePartition(topic, partition, msgOffset)
+	mc.ExpectMessagesDrainedOnClose()
+
+	saramaPartitionConsumer, e := saramaConsumer.ConsumePartition(topic, partition, msgOffset)
+	require.NoError(t, e)
+
+	undertest := newConsumer(localFactory, topic, mp, newSaramaClusterConsumer(saramaPartitionConsumer))
+	undertest.processorFactory.maxOutOfOrderOffsets = 0 // Ensures that the next insert results in a list full error
+	undertest.Start()
+	defer undertest.Close()
+	mc.YieldMessage(msg)
+	isProcessed.Wait()
+	mp.AssertExpectations(t)
+
+	for i := 0; i < 10; i++ {
+		time.Sleep(100 * time.Millisecond)
+		c, _ := localFactory.Snapshot()
 		if c["sarama-consumer.partition-close|partition=316"] == 1 {
 			return
 		}

@@ -29,8 +29,9 @@ type fakeOffsetMarker struct {
 	capturedOffset int64
 }
 
-func (f *fakeOffsetMarker) MarkOffset(o int64) {
+func (f *fakeOffsetMarker) MarkOffset(o int64) error {
 	f.capturedOffset = o
+	return nil
 }
 
 func TestNewCommittingProcessor(t *testing.T) {

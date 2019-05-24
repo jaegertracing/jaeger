@@ -31,10 +31,15 @@ func insert(list *ConcurrentList, offsets ...int64) {
 func TestInsert(t *testing.T) {
 	for _, testCase := range generatePermutations([]int64{1, 2, 3}) {
 		min, toInsert := extractMin(testCase)
-		s := newConcurrentList(min)
+		s := newConcurrentList(min, 10)
 		insert(s, toInsert...)
 		assert.ElementsMatch(t, testCase, s.offsets)
 	}
+}
+
+func TestInsertError(t *testing.T) {
+	s := newConcurrentList(0, 0)
+	assert.EqualError(t, s.insert(1), "list full")
 }
 
 func TestGetHighestAndReset(t *testing.T) {
@@ -74,7 +79,7 @@ func TestGetHighestAndReset(t *testing.T) {
 		for _, input := range generatePermutations(testCase.input) {
 			t.Run(fmt.Sprintf("%v", input), func(t *testing.T) {
 				min, input := extractMin(input)
-				s := newConcurrentList(min)
+				s := newConcurrentList(min, 10)
 				insert(s, input...)
 				actualOffset := s.setToHighestContiguous()
 				assert.ElementsMatch(t, testCase.expectedList, s.offsets)
@@ -85,7 +90,7 @@ func TestGetHighestAndReset(t *testing.T) {
 }
 
 func TestMultipleInsertsAndResets(t *testing.T) {
-	l := newConcurrentList(100)
+	l := newConcurrentList(100, 1000)
 
 	for i := 101; i < 200; i++ {
 		l.insert(int64(i))
@@ -153,7 +158,7 @@ func extractMin(arr []int64) (int64, []int64) {
 
 // BenchmarkInserts-8   	100000000	        70.6 ns/op	      49 B/op	       0 allocs/op
 func BenchmarkInserts(b *testing.B) {
-	l := newConcurrentList(0)
+	l := newConcurrentList(0, 100000000)
 	for i := 1; i < b.N; i++ {
 		l.insert(int64(i))
 	}
@@ -166,7 +171,7 @@ func BenchmarkResetTwice(b *testing.B) {
 		toInsert = append(toInsert, int64(i))
 	}
 
-	l := newConcurrentList(toInsert[0])
+	l := newConcurrentList(toInsert[0], 100000000)
 
 	// Create a gap
 	toInsert[b.N/2] = 0

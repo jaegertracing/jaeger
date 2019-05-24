@@ -31,6 +31,15 @@ type SpanProcessor interface {
 	io.Closer
 }
 
+// ParallelSpanProcessor processes kafka spans in parallel.
+type ParallelSpanProcessor interface {
+	Process(input Message, onError OnError)
+	io.Closer
+}
+
+// OnError is a callback for handling errors
+type OnError func(Message, error)
+
 // Message contains the fields of the kafka message that the span processor uses
 type Message interface {
 	Value() []byte

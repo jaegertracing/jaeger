@@ -15,9 +15,11 @@
 package processor_test
 
 import (
+	"errors"
+	"sync"
 	"testing"
-	"time"
 
+	"github.com/crossdock/crossdock-go/assert"
 	"go.uber.org/zap"
 
 	"github.com/jaegertracing/jaeger/cmd/ingester/app/processor"
@@ -38,9 +40,31 @@ func TestNewParallelProcessor(t *testing.T) {
 	pp := processor.NewParallelProcessor(mp, 1, zap.NewNop())
 	pp.Start()
 
-	pp.Process(msg)
-	time.Sleep(100 * time.Millisecond)
+	pp.Process(msg, nil)
 	pp.Close()
 
+	mp.AssertExpectations(t)
+}
+
+func TestParallelProcessorError(t *testing.T) {
+	msg := &fakeMessage{}
+	mp := &mockProcessor.SpanProcessor{}
+	err := errors.New("test error")
+	mp.On("Process", msg).Return(err)
+
+	pp := processor.NewParallelProcessor(mp, 1, zap.NewNop())
+	pp.Start()
+	defer pp.Close()
+
+	wg := sync.WaitGroup{}
+	wg.Add(1)
+
+	pp.Process(msg, func(m processor.Message, e error) {
+		assert.Equal(t, msg, m)
+		assert.Equal(t, err, e)
+		wg.Done()
+	})
+
+	wg.Wait()
 	mp.AssertExpectations(t)
 }

@@ -58,7 +58,7 @@ func Test_new(t *testing.T) {
 	processor := pf.new(partition, offset)
 	msg := &kmocks.Message{}
 	msg.On("Offset").Return(offset + 1)
-	processor.Process(msg)
+	processor.Process(msg, nil)
 
 	// This sleep is greater than offset manager's resetInterval to allow it a chance to
 	// call MarkPartitionOffset.
@@ -82,7 +82,7 @@ func (f *fakeService) Close() error {
 
 type fakeProcessor struct {
 	startCalled bool
-	mocks.SpanProcessor
+	mocks.ParallelSpanProcessor
 }
 
 func (f *fakeProcessor) Start() {
@@ -106,9 +106,9 @@ func Test_startedProcessor_Process(t *testing.T) {
 	assert.True(t, processor.startCalled)
 
 	msg := &fakeMsg{}
-	processor.On("Process", msg).Return(nil)
+	processor.On("Process", msg, mock.AnythingOfType("processor.OnError")).Return(nil)
 
-	s.Process(msg)
+	s.Process(msg, nil)
 
 	s.Close()
 	assert.True(t, service.closeCalled)

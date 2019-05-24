@@ -49,6 +49,8 @@ const (
 	SuffixDeadlockInterval = ".deadlockInterval"
 	// SuffixParallelism is a suffix for the parallelism flag
 	SuffixParallelism = ".parallelism"
+	// SuffixMaxOutOfOrderOffsets is a suffix for the max out of order offsets flag
+	SuffixMaxOutOfOrderOffsets = ".maxOutOfOrderOffsets"
 	// SuffixHTTPPort is a suffix for the HTTP port
 	SuffixHTTPPort = ".http-port"
 	// DefaultBroker is the default kafka broker
@@ -65,14 +67,20 @@ const (
 	DefaultEncoding = kafka.EncodingProto
 	// DefaultDeadlockInterval is the default deadlock interval
 	DefaultDeadlockInterval = 1 * time.Minute
+	// DefaultMaxOutOfOrderOffsets is the default max out of order uncommitted offsets to maintain before reprocessing
+	// data for a partition. Setting this number too low would cause the consumer to unnecessarily unsubscribe and
+	// resubscribe to Kafka partitions. On the other hand, setting the number too high will not have any impact during
+	// normal operations, but can increase recovery time if the span writer is being latent and/or throwing errors.
+	DefaultMaxOutOfOrderOffsets = 100000
 )
 
 // Options stores the configuration options for the Ingester
 type Options struct {
 	kafkaConsumer.Configuration
-	Parallelism      int
-	Encoding         string
-	DeadlockInterval time.Duration
+	Parallelism          int
+	MaxOutOfOrderOffsets int
+	Encoding             string
+	DeadlockInterval     time.Duration
 }
 
 // AddFlags adds flags for Builder
@@ -105,6 +113,10 @@ func AddFlags(flagSet *flag.FlagSet) {
 		ConfigPrefix+SuffixParallelism,
 		strconv.Itoa(DefaultParallelism),
 		"The number of messages to process in parallel")
+	flagSet.String(
+		ConfigPrefix+SuffixMaxOutOfOrderOffsets,
+		strconv.Itoa(DefaultMaxOutOfOrderOffsets),
+		"The maximum number of out of order offsets to maintain before restarting processing for a given partition.")
 	flagSet.Duration(
 		ConfigPrefix+SuffixDeadlockInterval,
 		DefaultDeadlockInterval,
@@ -123,6 +135,7 @@ func (o *Options) InitFromViper(v *viper.Viper) {
 	o.Encoding = v.GetString(KafkaConsumerConfigPrefix + SuffixEncoding)
 
 	o.Parallelism = v.GetInt(ConfigPrefix + SuffixParallelism)
+	o.MaxOutOfOrderOffsets = v.GetInt(ConfigPrefix + SuffixMaxOutOfOrderOffsets)
 	o.DeadlockInterval = v.GetDuration(ConfigPrefix + SuffixDeadlockInterval)
 	authenticationOptions := auth.AuthenticationConfig{}
 	authenticationOptions.InitFromViper(KafkaConsumerConfigPrefix, v)

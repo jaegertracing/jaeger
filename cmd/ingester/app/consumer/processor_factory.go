@@ -28,44 +28,47 @@ import (
 
 // ProcessorFactoryParams are the parameters of a ProcessorFactory
 type ProcessorFactoryParams struct {
-	Parallelism    int
-	Topic          string
-	BaseProcessor  processor.SpanProcessor
-	SaramaConsumer consumer.Consumer
-	Factory        metrics.Factory
-	Logger         *zap.Logger
+	Parallelism          int
+	Topic                string
+	MaxOutOfOrderOffsets int
+	BaseProcessor        processor.SpanProcessor
+	SaramaConsumer       consumer.Consumer
+	Factory              metrics.Factory
+	Logger               *zap.Logger
 }
 
 // ProcessorFactory is a factory for creating startedProcessors
 type ProcessorFactory struct {
-	topic          string
-	consumer       consumer.Consumer
-	metricsFactory metrics.Factory
-	logger         *zap.Logger
-	baseProcessor  processor.SpanProcessor
-	parallelism    int
+	topic                string
+	consumer             consumer.Consumer
+	metricsFactory       metrics.Factory
+	logger               *zap.Logger
+	baseProcessor        processor.SpanProcessor
+	parallelism          int
+	maxOutOfOrderOffsets int
 }
 
 // NewProcessorFactory constructs a new ProcessorFactory
 func NewProcessorFactory(params ProcessorFactoryParams) (*ProcessorFactory, error) {
 	return &ProcessorFactory{
-		topic:          params.Topic,
-		consumer:       params.SaramaConsumer,
-		metricsFactory: params.Factory,
-		logger:         params.Logger,
-		baseProcessor:  params.BaseProcessor,
-		parallelism:    params.Parallelism,
+		topic:                params.Topic,
+		consumer:             params.SaramaConsumer,
+		metricsFactory:       params.Factory,
+		logger:               params.Logger,
+		baseProcessor:        params.BaseProcessor,
+		parallelism:          params.Parallelism,
+		maxOutOfOrderOffsets: params.MaxOutOfOrderOffsets,
 	}, nil
 }
 
-func (c *ProcessorFactory) new(partition int32, minOffset int64) processor.SpanProcessor {
+func (c *ProcessorFactory) new(partition int32, minOffset int64) processor.ParallelSpanProcessor {
 	c.logger.Info("Creating new processors", zap.Int32("partition", partition))
 
 	markOffset := func(offset int64) {
 		c.consumer.MarkPartitionOffset(c.topic, partition, offset, "")
 	}
 
-	om := offset.NewManager(minOffset, markOffset, partition, c.metricsFactory)
+	om := offset.NewManager(minOffset, c.maxOutOfOrderOffsets, markOffset, partition, c.metricsFactory)
 
 	retryProcessor := decorator.NewRetryingProcessor(c.metricsFactory, c.baseProcessor)
 	cp := NewCommittingProcessor(retryProcessor, om)
@@ -82,7 +85,7 @@ type service interface {
 
 type startProcessor interface {
 	Start()
-	processor.SpanProcessor
+	processor.ParallelSpanProcessor
 }
 
 type startedProcessor struct {
@@ -90,7 +93,7 @@ type startedProcessor struct {
 	processor startProcessor
 }
 
-func newStartedProcessor(parallelProcessor startProcessor, services ...service) processor.SpanProcessor {
+func newStartedProcessor(parallelProcessor startProcessor, services ...service) processor.ParallelSpanProcessor {
 	s := &startedProcessor{
 		services:  services,
 		processor: parallelProcessor,
@@ -104,8 +107,8 @@ func newStartedProcessor(parallelProcessor startProcessor, services ...service) 
 	return s
 }
 
-func (c *startedProcessor) Process(message processor.Message) error {
-	return c.processor.Process(message)
+func (c *startedProcessor) Process(message processor.Message, onError processor.OnError) {
+	c.processor.Process(message, onError)
 }
 
 func (c *startedProcessor) Close() error {
