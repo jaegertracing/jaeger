@@ -32,6 +32,7 @@ import (
 	"github.com/uber/jaeger-lib/metrics"
 	tchannel "github.com/uber/tchannel-go"
 	"github.com/uber/tchannel-go/thrift"
+	_ "go.uber.org/automaxprocs"
 	"go.uber.org/zap"
 	"google.golang.org/grpc"
 
