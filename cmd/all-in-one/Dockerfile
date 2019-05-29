@@ -29,5 +29,6 @@ EXPOSE 16686
 COPY all-in-one-linux /go/bin/
 COPY sampling_strategies.json /etc/jaeger/
 
+VOLUME ["/tmp"]
 ENTRYPOINT ["/go/bin/all-in-one-linux"]
 CMD ["--sampling.strategies-file=/etc/jaeger/sampling_strategies.json"]
