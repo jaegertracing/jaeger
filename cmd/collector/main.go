@@ -42,6 +42,7 @@ import (
 	"github.com/jaegertracing/jaeger/cmd/collector/app/sampling"
 	"github.com/jaegertracing/jaeger/cmd/collector/app/sampling/strategystore"
 	"github.com/jaegertracing/jaeger/cmd/collector/app/zipkin"
+	"github.com/jaegertracing/jaeger/cmd/docs"
 	"github.com/jaegertracing/jaeger/cmd/env"
 	"github.com/jaegertracing/jaeger/cmd/flags"
 	"github.com/jaegertracing/jaeger/pkg/config"
@@ -165,6 +166,7 @@ func main() {
 
 	command.AddCommand(version.Command())
 	command.AddCommand(env.Command())
+	command.AddCommand(docs.Command())
 
 	config.AddFlags(
 		v,

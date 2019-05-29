@@ -30,7 +30,8 @@ required = [
     "github.com/golang/protobuf/protoc-gen-go",
     "github.com/gogo/protobuf/protoc-gen-gogo",
     "github.com/grpc-ecosystem/grpc-gateway/protoc-gen-grpc-gateway",
-    "github.com/grpc-ecosystem/grpc-gateway/protoc-gen-swagger"
+    "github.com/grpc-ecosystem/grpc-gateway/protoc-gen-swagger",
+    "github.com/russross/blackfriday"
 ]
 
 [[constraint]]
@@ -48,6 +49,11 @@ required = [
 [[constraint]]
   name = "github.com/bsm/sarama-cluster"
   version = "=2.1.13"
+
+[[constraint]]
+  name = "github.com/russross/blackfriday"
+  version = "=1.5"
+
 
 [[constraint]]
   branch = "master"
