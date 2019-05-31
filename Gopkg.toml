@@ -150,7 +150,7 @@ required = [
 
 [[constraint]]
   name = "github.com/Shopify/sarama"
-  version = "1.20.1"
+  revision = "cd910a683f9faa57222e5120d17b60d2e65f7fa9"
 
 [[constraint]]
   name = "github.com/grpc-ecosystem/go-grpc-middleware"
@@ -171,3 +171,7 @@ required = [
 [[constraint]]
   name = "github.com/hashicorp/go-hclog"
   version = "0.8.0"
+
+[[override]]
+  name = "github.com/Shopify/sarama"
+  revision = "cd910a683f9faa57222e5120d17b60d2e65f7fa9"

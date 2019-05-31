@@ -23,6 +23,7 @@ import (
 
 	"github.com/spf13/viper"
 
+	"github.com/jaegertracing/jaeger/pkg/kafka/auth"
 	kafkaConsumer "github.com/jaegertracing/jaeger/pkg/kafka/consumer"
 	"github.com/jaegertracing/jaeger/plugin/storage/kafka"
 )
@@ -48,7 +49,6 @@ const (
 	SuffixParallelism = ".parallelism"
 	// SuffixHTTPPort is a suffix for the HTTP port
 	SuffixHTTPPort = ".http-port"
-
 	// DefaultBroker is the default kafka broker
 	DefaultBroker = "127.0.0.1:9092"
 	// DefaultTopic is the default kafka topic
@@ -103,6 +103,8 @@ func AddFlags(flagSet *flag.FlagSet) {
 		ConfigPrefix+SuffixDeadlockInterval,
 		DefaultDeadlockInterval,
 		"Interval to check for deadlocks. If no messages gets processed in given time, ingester app will exit. Value of 0 disables deadlock check.")
+	// Authentication flags
+	auth.AddFlags(KafkaConsumerConfigPrefix, flagSet)
 }
 
 // InitFromViper initializes Builder with properties from viper
@@ -115,6 +117,9 @@ func (o *Options) InitFromViper(v *viper.Viper) {
 
 	o.Parallelism = v.GetInt(ConfigPrefix + SuffixParallelism)
 	o.DeadlockInterval = v.GetDuration(ConfigPrefix + SuffixDeadlockInterval)
+	authenticationOptions := auth.AuthenticationConfig{}
+	authenticationOptions.InitFromViper(KafkaConsumerConfigPrefix, v)
+	o.AuthenticationConfig = authenticationOptions
 }
 
 // stripWhiteSpace removes all whitespace characters from a string

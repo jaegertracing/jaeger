@@ -51,10 +51,11 @@ func CreateConsumer(logger *zap.Logger, metricsFactory metrics.Factory, spanWrit
 	spanProcessor := processor.NewSpanProcessor(spParams)
 
 	consumerConfig := kafkaConsumer.Configuration{
-		Brokers:  options.Brokers,
-		Topic:    options.Topic,
-		GroupID:  options.GroupID,
-		ClientID: options.ClientID,
+		Brokers:              options.Brokers,
+		Topic:                options.Topic,
+		GroupID:              options.GroupID,
+		ClientID:             options.ClientID,
+		AuthenticationConfig: options.AuthenticationConfig,
 	}
 	saramaConsumer, err := consumerConfig.NewConsumer()
 	if err != nil {
