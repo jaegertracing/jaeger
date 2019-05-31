@@ -54,6 +54,9 @@ func (s *Span) HasSpanKind(kind ext.SpanKindEnum) bool {
 func (s *Span) GetSamplerType() string {
 	// There's no corresponding opentracing-go tag label corresponding to sampler.type
 	if tag, ok := KeyValues(s.Tags).FindByKey(samplerType); ok {
+		if tag.VStr == "" {
+			return samplerTypeUnknown
+		}
 		return tag.VStr
 	}
 	return samplerTypeUnknown

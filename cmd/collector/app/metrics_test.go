@@ -54,8 +54,8 @@ func TestProcessorMetrics(t *testing.T) {
 
 	assert.EqualValues(t, 1, counters["service.spans.received|debug=false|format=jaeger|svc=fry|transport=tchannel"])
 	assert.EqualValues(t, 2, counters["service.spans.received|debug=true|format=jaeger|svc=fry|transport=tchannel"])
-	assert.EqualValues(t, 1, counters["service.traces.received|debug=false|format=jaeger|samplerType=unknown|svc=fry|transport=tchannel"])
-	assert.EqualValues(t, 1, counters["service.traces.received|debug=true|format=jaeger|samplerType=unknown|svc=fry|transport=tchannel"])
+	assert.EqualValues(t, 1, counters["service.traces.received|debug=false|format=jaeger|sampler_type=unknown|svc=fry|transport=tchannel"])
+	assert.EqualValues(t, 1, counters["service.traces.received|debug=true|format=jaeger|sampler_type=unknown|svc=fry|transport=tchannel"])
 	assert.Empty(t, gauges)
 }
 
@@ -69,8 +69,8 @@ func TestNewCountsBySvc(t *testing.T) {
 	metrics.countByServiceName("zoidberg", false, "unknown")
 
 	counters, _ := baseMetrics.Backend.Snapshot()
-	assert.EqualValues(t, 1, counters["not_on_my_level|debug=false|samplerType=unknown|svc=fry"])
-	assert.EqualValues(t, 1, counters["not_on_my_level|debug=false|samplerType=unknown|svc=leela"])
+	assert.EqualValues(t, 1, counters["not_on_my_level|debug=false|sampler_type=unknown|svc=fry"])
+	assert.EqualValues(t, 1, counters["not_on_my_level|debug=false|sampler_type=unknown|svc=leela"])
 	assert.EqualValues(t, 2, counters["not_on_my_level|debug=false|svc=other-services"])
 
 	metrics.countByServiceName("zoidberg", true, "")

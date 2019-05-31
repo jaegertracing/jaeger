@@ -29,7 +29,7 @@ const (
 	// otherServices is the catch-all label when number of services exceeds maxServiceNames
 	otherServices = "other-services"
 
-	samplerTypeKey = "samplerType"
+	samplerTypeKey = "sampler_type"
 )
 
 // SpanProcessorMetrics contains all the necessary metrics for the SpanProcessor

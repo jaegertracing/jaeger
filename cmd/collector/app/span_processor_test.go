@@ -119,11 +119,11 @@ func TestBySvcMetrics(t *testing.T) {
 		if test.rootSpan {
 			if test.debug {
 				expected = append(expected, metricstest.ExpectedMetric{
-					Name: metricPrefix + ".traces.received|debug=true|format=" + format + "|samplerType=unknown|svc=" + test.serviceName + "|transport=unknown", Value: 2,
+					Name: metricPrefix + ".traces.received|debug=true|format=" + format + "|sampler_type=unknown|svc=" + test.serviceName + "|transport=unknown", Value: 2,
 				})
 			} else {
 				expected = append(expected, metricstest.ExpectedMetric{
-					Name: metricPrefix + ".traces.received|debug=false|format=" + format + "|samplerType=unknown|svc=" + test.serviceName + "|transport=unknown", Value: 2,
+					Name: metricPrefix + ".traces.received|debug=false|format=" + format + "|sampler_type=unknown|svc=" + test.serviceName + "|transport=unknown", Value: 2,
 				})
 			}
 		}
