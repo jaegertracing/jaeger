@@ -26,6 +26,9 @@ const (
 	SampledFlag = Flags(1)
 	// DebugFlag is the bit set in Flags in order to define a span as a debug span
 	DebugFlag = Flags(2)
+
+	samplerType        = "sampler.type"
+	samplerTypeUnknown = "unknown"
 )
 
 // Flags is a bit map of flags for a span
@@ -45,6 +48,15 @@ func (s *Span) HasSpanKind(kind ext.SpanKindEnum) bool {
 		return tag.AsString() == string(kind)
 	}
 	return false
+}
+
+// GetSamplerType returns the sampler type for span
+func (s *Span) GetSamplerType() string {
+	// There's no corresponding opentracing-go tag label corresponding to sampler.type
+	if tag, ok := KeyValues(s.Tags).FindByKey(samplerType); ok {
+		return tag.VStr
+	}
+	return samplerTypeUnknown
 }
 
 // IsRPCClient returns true if the span represents a client side of an RPC,

@@ -28,6 +28,8 @@ const (
 
 	// otherServices is the catch-all label when number of services exceeds maxServiceNames
 	otherServices = "other-services"
+
+	samplerTypeKey = "samplerType"
 )
 
 // SpanProcessorMetrics contains all the necessary metrics for the SpanProcessor
@@ -196,19 +198,21 @@ func (m metricsBySvc) ReportServiceNameForSpan(span *model.Span) {
 	}
 	m.countSpansByServiceName(serviceName, span.Flags.IsDebug())
 	if span.ParentSpanID() == 0 {
-		m.countTracesByServiceName(serviceName, span.Flags.IsDebug())
+
+		m.countTracesByServiceName(serviceName, span.Flags.IsDebug(), span.
+			GetSamplerType())
 	}
 }
 
 // countSpansByServiceName counts how many spans are received per service.
 func (m metricsBySvc) countSpansByServiceName(serviceName string, isDebug bool) {
-	m.spans.countByServiceName(serviceName, isDebug)
+	m.spans.countByServiceName(serviceName, isDebug, "")
 }
 
 // countTracesByServiceName counts how many traces are received per service,
 // i.e. the counter is only incremented for the root spans.
-func (m metricsBySvc) countTracesByServiceName(serviceName string, isDebug bool) {
-	m.traces.countByServiceName(serviceName, isDebug)
+func (m metricsBySvc) countTracesByServiceName(serviceName string, isDebug bool, samplerType string) {
+	m.traces.countByServiceName(serviceName, isDebug, samplerType)
 }
 
 // countByServiceName maintains a map of counters for each service name it's
@@ -221,7 +225,7 @@ func (m metricsBySvc) countTracesByServiceName(serviceName string, isDebug bool)
 // total number of stored counters, so if it exceeds say the 90% threshold
 // an alert should be raised to investigate what's causing so many unique
 // service names.
-func (m *countsBySvc) countByServiceName(serviceName string, isDebug bool) {
+func (m *countsBySvc) countByServiceName(serviceName string, isDebug bool, samplerType string) {
 	serviceName = NormalizeServiceName(serviceName)
 	counts := m.counts
 	if isDebug {
@@ -237,6 +241,9 @@ func (m *countsBySvc) countByServiceName(serviceName string, isDebug bool) {
 			debugStr = "true"
 		}
 		tags := map[string]string{"svc": serviceName, "debug": debugStr}
+		if samplerType != "" {
+			tags[samplerTypeKey] = samplerType
+		}
 		c := m.factory.Counter(metrics.Options{Name: m.category, Tags: tags})
 		counts[serviceName] = c
 		counter = c

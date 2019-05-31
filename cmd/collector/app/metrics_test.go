@@ -54,8 +54,8 @@ func TestProcessorMetrics(t *testing.T) {
 
 	assert.EqualValues(t, 1, counters["service.spans.received|debug=false|format=jaeger|svc=fry|transport=tchannel"])
 	assert.EqualValues(t, 2, counters["service.spans.received|debug=true|format=jaeger|svc=fry|transport=tchannel"])
-	assert.EqualValues(t, 1, counters["service.traces.received|debug=false|format=jaeger|svc=fry|transport=tchannel"])
-	assert.EqualValues(t, 1, counters["service.traces.received|debug=true|format=jaeger|svc=fry|transport=tchannel"])
+	assert.EqualValues(t, 1, counters["service.traces.received|debug=false|format=jaeger|samplerType=unknown|svc=fry|transport=tchannel"])
+	assert.EqualValues(t, 1, counters["service.traces.received|debug=true|format=jaeger|samplerType=unknown|svc=fry|transport=tchannel"])
 	assert.Empty(t, gauges)
 }
 
@@ -63,20 +63,20 @@ func TestNewCountsBySvc(t *testing.T) {
 	baseMetrics := metricstest.NewFactory(time.Hour)
 	metrics := newCountsBySvc(baseMetrics, "not_on_my_level", 3)
 
-	metrics.countByServiceName("fry", false)
-	metrics.countByServiceName("leela", false)
-	metrics.countByServiceName("bender", false)
-	metrics.countByServiceName("zoidberg", false)
+	metrics.countByServiceName("fry", false, "unknown")
+	metrics.countByServiceName("leela", false, "unknown")
+	metrics.countByServiceName("bender", false, "unknown")
+	metrics.countByServiceName("zoidberg", false, "unknown")
 
 	counters, _ := baseMetrics.Backend.Snapshot()
-	assert.EqualValues(t, 1, counters["not_on_my_level|debug=false|svc=fry"])
-	assert.EqualValues(t, 1, counters["not_on_my_level|debug=false|svc=leela"])
+	assert.EqualValues(t, 1, counters["not_on_my_level|debug=false|samplerType=unknown|svc=fry"])
+	assert.EqualValues(t, 1, counters["not_on_my_level|debug=false|samplerType=unknown|svc=leela"])
 	assert.EqualValues(t, 2, counters["not_on_my_level|debug=false|svc=other-services"])
 
-	metrics.countByServiceName("zoidberg", true)
-	metrics.countByServiceName("bender", true)
-	metrics.countByServiceName("leela", true)
-	metrics.countByServiceName("fry", true)
+	metrics.countByServiceName("zoidberg", true, "")
+	metrics.countByServiceName("bender", true, "")
+	metrics.countByServiceName("leela", true, "")
+	metrics.countByServiceName("fry", true, "")
 
 	counters, _ = baseMetrics.Backend.Snapshot()
 	assert.EqualValues(t, 1, counters["not_on_my_level|debug=true|svc=zoidberg"])
