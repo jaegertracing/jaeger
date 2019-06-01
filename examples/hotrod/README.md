@@ -19,7 +19,16 @@ to view the traces. A tutorial / walkthough is available:
 
 ## Running
 
-### Run Jaeger Backend
+### Run everything via `docker-compose`
+
+* Download `docker-compose.yml` from https://github.com/jaegertracing/jaeger/blob/master/examples/hotrod/docker-compose.yml
+* Run Jaeger backend and HotROD demo with `docker-compose -f path-to-yml-file up`
+* Access Jaeger UI at http://localhost:16686 and HotROD app at http://localhost:8080
+* Shutdown / cleanup with `docker-compose -f path-to-yml-file down`
+
+Alternatively, you can run each component separately as described below.
+
+### Run Jaeger backend
 
 An all-in-one Jaeger backend is packaged as a Docker container with in-memory storage.
 
