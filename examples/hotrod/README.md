@@ -21,7 +21,7 @@ to view the traces. A tutorial / walkthough is available:
 
 ### Run everything via `docker-compose`
 
-* Download `docker-compose.yml` from https://github.com/jaegertracing/jaeger/blob/master/examples/hotrod/docker-compose.yml.
+* Download `docker-compose.yml` from https://github.com/jaegertracing/jaeger/blob/master/examples/hotrod/docker-compose.yml
 * Run Jaeger backend and HotROD demo with `docker-compose -f path-to-yml-file up`
 * Access Jaeger UI at http://localhost:16686 and HotROD app at http://localhost:8080
 * Shutdown / cleanup with `docker-compose -f path-to-yml-file down`
