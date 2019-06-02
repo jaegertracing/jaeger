@@ -1,6 +1,7 @@
 <img align="right" width="290" height="290" src="https://jaeger.readthedocs.io/en/latest/images/jaeger-vector.svg">
 
-[![Build Status][ci-img]][ci] [![Coverage Status][cov-img]][cov] [![Gitter chat][gitter-img]][gitter] [![OpenTracing-1.0][ot-badge]](https://opentracing.io) [![FOSSA Status](https://app.fossa.io/api/projects/git%2Bgithub.com%2Fjaegertracing%2Fjaeger.svg?type=shield)](https://app.fossa.io/projects/git%2Bgithub.com%2Fjaegertracing%2Fjaeger?ref=badge_shield) [![CII Best Practices](https://bestpractices.coreinfrastructure.org/projects/1273/badge)](https://bestpractices.coreinfrastructure.org/projects/1273) [![Project+Community stats][community-badge]][community-stats]
+[![Build Status][ci-img]][ci] [![Coverage Status][cov-img]][cov] [![Gitter chat][gitter-img]][gitter] [![OpenTracing-1.0][ot-badge]](https://opentracing.io) [![FOSSA Status](https://app.fossa.io/api/projects/git%2Bgithub.com%2Fjaegertracing%2Fjaeger.svg?type=shield)](https://app.fossa.io/projects/git%2Bgithub.com%2Fjaegertracing%2Fjaeger?ref=badge_shield) [![CII Best Practices](https://bestpractices.coreinfrastructure.org/projects/1273/badge)](https://bestpractices.coreinfrastructure.org/projects/1273) [![Project+Community stats][community-badge]][community-stats] [![Backers on Open Collective](https://opencollective.com/jaegertracing/backers/badge.svg)](#backers)
+ [![Sponsors on Open Collective](https://opencollective.com/jaegertracing/sponsors/badge.svg)](#sponsors) 
 
 # Jaeger - a Distributed Tracing System
 
@@ -145,6 +146,36 @@ whether it runs in production or you use it to troubleshoot issues in developmen
 Please see [ADOPTERS.md](./ADOPTERS.md) for some of the organizations using Jaeger today.
 If you would like to add your organization to the list, please comment on our
 [survey issue](https://github.com/jaegertracing/jaeger/issues/207).
+
+## Contributors
+
+This project exists thanks to all the people who contribute. [[Contribute](CONTRIBUTING.md)].
+<a href="https://github.com/jaegertracing/jaeger/graphs/contributors"><img src="https://opencollective.com/jaegertracing/contributors.svg?width=890&button=false" /></a>
+
+
+## Backers
+
+Thank you to all our backers! 🙏 [[Become a backer](https://opencollective.com/jaegertracing#backer)]
+
+<a href="https://opencollective.com/jaegertracing#backers" target="_blank"><img src="https://opencollective.com/jaegertracing/backers.svg?width=890"></a>
+
+
+## Sponsors
+
+Support this project by becoming a sponsor. Your logo will show up here with a link to your website. [[Become a sponsor](https://opencollective.com/jaegertracing#sponsor)]
+
+<a href="https://opencollective.com/jaegertracing/sponsor/0/website" target="_blank"><img src="https://opencollective.com/jaegertracing/sponsor/0/avatar.svg"></a>
+<a href="https://opencollective.com/jaegertracing/sponsor/1/website" target="_blank"><img src="https://opencollective.com/jaegertracing/sponsor/1/avatar.svg"></a>
+<a href="https://opencollective.com/jaegertracing/sponsor/2/website" target="_blank"><img src="https://opencollective.com/jaegertracing/sponsor/2/avatar.svg"></a>
+<a href="https://opencollective.com/jaegertracing/sponsor/3/website" target="_blank"><img src="https://opencollective.com/jaegertracing/sponsor/3/avatar.svg"></a>
+<a href="https://opencollective.com/jaegertracing/sponsor/4/website" target="_blank"><img src="https://opencollective.com/jaegertracing/sponsor/4/avatar.svg"></a>
+<a href="https://opencollective.com/jaegertracing/sponsor/5/website" target="_blank"><img src="https://opencollective.com/jaegertracing/sponsor/5/avatar.svg"></a>
+<a href="https://opencollective.com/jaegertracing/sponsor/6/website" target="_blank"><img src="https://opencollective.com/jaegertracing/sponsor/6/avatar.svg"></a>
+<a href="https://opencollective.com/jaegertracing/sponsor/7/website" target="_blank"><img src="https://opencollective.com/jaegertracing/sponsor/7/avatar.svg"></a>
+<a href="https://opencollective.com/jaegertracing/sponsor/8/website" target="_blank"><img src="https://opencollective.com/jaegertracing/sponsor/8/avatar.svg"></a>
+<a href="https://opencollective.com/jaegertracing/sponsor/9/website" target="_blank"><img src="https://opencollective.com/jaegertracing/sponsor/9/avatar.svg"></a>
+
+
 
 ## License
 
