@@ -23,6 +23,7 @@ import (
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
 	"github.com/uber/jaeger-lib/metrics"
+	_ "go.uber.org/automaxprocs"
 	"go.uber.org/zap"
 
 	"github.com/jaegertracing/jaeger/cmd/agent/app"
@@ -54,9 +55,9 @@ func main() {
 				Namespace(metrics.NSOptions{Name: "agent"})
 
 			rOpts := new(reporter.Options).InitFromViper(v)
-			tChanOpts := new(tchannel.Builder).InitFromViper(v, logger)
-			grpcOpts := new(grpc.Options).InitFromViper(v)
-			cp, err := app.CreateCollectorProxy(rOpts, tChanOpts, grpcOpts, logger, mFactory)
+			tchanBuilder := tchannel.NewBuilder().InitFromViper(v, logger)
+			grpcBuilder := grpc.NewConnBuilder().InitFromViper(v)
+			cp, err := app.CreateCollectorProxy(rOpts, tchanBuilder, grpcBuilder, logger, mFactory)
 			if err != nil {
 				logger.Fatal("Could not create collector proxy", zap.Error(err))
 			}
@@ -66,12 +67,12 @@ func main() {
 			builder := new(app.Builder).InitFromViper(v)
 			agent, err := builder.CreateAgent(cp, logger, mFactory)
 			if err != nil {
-				return errors.Wrap(err, "Unable to initialize Jaeger Agent")
+				return errors.Wrap(err, "unable to initialize Jaeger Agent")
 			}
 
 			logger.Info("Starting agent")
 			if err := agent.Run(); err != nil {
-				return errors.Wrap(err, "Failed to run the agent")
+				return errors.Wrap(err, "failed to run the agent")
 			}
 			svc.RunAndThen(func() {
 				if closer, ok := cp.(io.Closer); ok {

@@ -62,8 +62,8 @@ func (sm *Mutex) Lock(ctx context.Context) {
 	sm.waitersLock.Unlock()
 
 	if activeSpan != nil {
-		activeSpan.LogEvent(
-			fmt.Sprintf("Acquired lock with %d transactions waiting behind", behindLen))
+		activeSpan.LogFields(log.String("event",
+			fmt.Sprintf("Acquired lock with %d transactions waiting behind", behindLen)))
 	}
 }
 

@@ -22,6 +22,7 @@ import (
 	"testing"
 	"time"
 
+	"google.golang.org/grpc/status"
 	"github.com/opentracing/opentracing-go"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
@@ -38,9 +39,10 @@ import (
 )
 
 var (
-	grpcServerPort    = ":14251"
-	errStorageMsgGRPC = "Storage error"
-	errStorageGRPC    = errors.New(errStorageMsgGRPC)
+	grpcServerPort       = ":0"
+	errStorageMsgGRPC    = "Storage error"
+	errStorageGRPC       = errors.New(errStorageMsgGRPC)
+	errStatusStorageGRPC = status.Error(2, errStorageMsgGRPC)
 
 	mockTraceIDgrpc = model.NewTraceID(0, 123456)
 	mockTraceGRPC   = &model.Trace{
@@ -120,10 +122,24 @@ var (
 	}
 )
 
+type grpcServer struct {
+	server            *grpc.Server
+	lisAddr           net.Addr
+	spanReader        *spanstoremocks.Reader
+	depReader         *depsmocks.Reader
+	archiveSpanReader *spanstoremocks.Reader
+	archiveSpanWriter *spanstoremocks.Writer
+}
+
+type grpcClient struct {
+	api_v2.QueryServiceClient
+	conn *grpc.ClientConn
+}
+
 func newGRPCServer(t *testing.T, q *querysvc.QueryService, logger *zap.Logger, tracer opentracing.Tracer) (*grpc.Server, net.Addr) {
 	lis, _ := net.Listen("tcp", grpcServerPort)
 	grpcServer := grpc.NewServer()
-	grpcHandler := NewGRPCHandler(*q, logger, tracer)
+	grpcHandler := NewGRPCHandler(q, logger, tracer)
 	api_v2.RegisterQueryServiceServer(grpcServer, grpcHandler)
 
 	go func() {
@@ -134,335 +150,322 @@ func newGRPCServer(t *testing.T, q *querysvc.QueryService, logger *zap.Logger, t
 	return grpcServer, lis.Addr()
 }
 
-func newGRPCClient(t *testing.T, addr net.Addr) (api_v2.QueryServiceClient, *grpc.ClientConn) {
+func newGRPCClient(t *testing.T, addr net.Addr) *grpcClient {
 	conn, err := grpc.Dial(addr.String(), grpc.WithInsecure())
 	require.NoError(t, err)
-	return api_v2.NewQueryServiceClient(conn), conn
+
+	return &grpcClient{
+		QueryServiceClient: api_v2.NewQueryServiceClient(conn),
+		conn:               conn,
+	}
 }
 
-func newQueryService(options querysvc.QueryServiceOptions) (*querysvc.QueryService, *spanstoremocks.Reader, *depsmocks.Reader) {
-	readStorage := &spanstoremocks.Reader{}
-	dependencyStorage := &depsmocks.Reader{}
-	return querysvc.NewQueryService(readStorage, dependencyStorage, options), readStorage, dependencyStorage
-}
+func initializeTestServerGRPCWithOptions(t *testing.T) *grpcServer {
 
-func initializeTestServerGRPC(t *testing.T) (*grpc.Server, net.Addr, *spanstoremocks.Reader, *depsmocks.Reader) {
-	q, readStorage, dependencyStorage := newQueryService(querysvc.QueryServiceOptions{})
-	logger := zap.NewNop()
-	tracer := opentracing.NoopTracer{}
-
-	grpcServer, addr := newGRPCServer(t, q, logger, tracer)
-
-	return grpcServer, addr, readStorage, dependencyStorage
-}
-
-func initializeTestServerGRPCWithOptions(t *testing.T) (*grpc.Server, net.Addr, *spanstoremocks.Reader, *depsmocks.Reader, *spanstoremocks.Reader, *spanstoremocks.Writer) {
 	archiveSpanReader := &spanstoremocks.Reader{}
 	archiveSpanWriter := &spanstoremocks.Writer{}
-	q, readStorage, dependencyStorage := newQueryService(querysvc.QueryServiceOptions{
-		ArchiveSpanReader: archiveSpanReader,
-		ArchiveSpanWriter: archiveSpanWriter,
-	})
+
+	spanReader := &spanstoremocks.Reader{}
+	dependencyReader := &depsmocks.Reader{}
+
+	q := querysvc.NewQueryService(spanReader, dependencyReader,
+		querysvc.QueryServiceOptions{
+			ArchiveSpanReader: archiveSpanReader,
+			ArchiveSpanWriter: archiveSpanWriter,
+		})
+
 	logger := zap.NewNop()
 	tracer := opentracing.NoopTracer{}
 
-	grpcServer, addr := newGRPCServer(t, q, logger, tracer)
+	server, addr := newGRPCServer(t, q, logger, tracer)
 
-	return grpcServer, addr, readStorage, dependencyStorage, archiveSpanReader, archiveSpanWriter
+	return &grpcServer{
+		server:            server,
+		lisAddr:           addr,
+		spanReader:        spanReader,
+		depReader:         dependencyReader,
+		archiveSpanReader: archiveSpanReader,
+		archiveSpanWriter: archiveSpanWriter,
+	}
+}
+
+func withServerAndClient(t *testing.T, actualTest func(server *grpcServer, client *grpcClient)) {
+	server := initializeTestServerGRPCWithOptions(t)
+	client := newGRPCClient(t, server.lisAddr)
+	defer server.server.Stop()
+	defer client.conn.Close()
+
+	actualTest(server, client)
 }
 
 func TestGetTraceSuccessGRPC(t *testing.T) {
-	server, addr, readMock, _ := initializeTestServerGRPC(t)
-	defer server.Stop()
-	readMock.On("GetTrace", mock.AnythingOfType("*context.valueCtx"), mock.AnythingOfType("model.TraceID")).
-		Return(mockTrace, nil).Once()
+	withServerAndClient(t, func(server *grpcServer, client *grpcClient) {
 
-	client, conn := newGRPCClient(t, addr)
-	defer conn.Close()
+		server.spanReader.On("GetTrace", mock.AnythingOfType("*context.valueCtx"), mock.AnythingOfType("model.TraceID")).
+			Return(mockTrace, nil).Once()
 
-	res, err := client.GetTrace(context.Background(), &api_v2.GetTraceRequest{
-		TraceID: mockTraceIDgrpc,
+		res, err := client.GetTrace(context.Background(), &api_v2.GetTraceRequest{
+			TraceID: mockTraceIDgrpc,
+		})
+
+		spanResChunk, _ := res.Recv()
+
+		assert.NoError(t, err)
+		assert.Equal(t, spanResChunk.Spans[0].TraceID, mockTraceID)
+
 	})
-	spanResChunk, _ := res.Recv()
-
-	assert.NoError(t, err)
-	assert.Equal(t, spanResChunk.Spans[0].TraceID, mockTraceID)
 }
 
 func TestGetTraceDBFailureGRPC(t *testing.T) {
-	server, addr, readMock, _ := initializeTestServerGRPC(t)
-	defer server.Stop()
-	readMock.On("GetTrace", mock.AnythingOfType("*context.valueCtx"), mock.AnythingOfType("model.TraceID")).
-		Return(nil, errStorageGRPC).Once()
+	withServerAndClient(t, func(server *grpcServer, client *grpcClient) {
 
-	client, conn := newGRPCClient(t, addr)
-	defer conn.Close()
+		server.spanReader.On("GetTrace", mock.AnythingOfType("*context.valueCtx"), mock.AnythingOfType("model.TraceID")).
+			Return(nil, errStorageGRPC).Once()
 
-	res, err := client.GetTrace(context.Background(), &api_v2.GetTraceRequest{
-		TraceID: mockTraceIDgrpc,
+		res, err := client.GetTrace(context.Background(), &api_v2.GetTraceRequest{
+			TraceID: mockTraceIDgrpc,
+		})
+		assert.NoError(t, err)
+
+		spanResChunk, err := res.Recv()
+
+		assert.EqualError(t, err, errStatusStorageGRPC.Error())
+		assert.Nil(t, spanResChunk)
+
 	})
-	assert.NoError(t, err)
 
-	spanResChunk, err := res.Recv()
-
-	assert.Error(t, err)
-	assert.Nil(t, spanResChunk)
 }
 
 func TestGetTraceNotFoundGRPC(t *testing.T) {
-	server, addr, readMock, _ := initializeTestServerGRPC(t)
-	defer server.Stop()
-	readMock.On("GetTrace", mock.AnythingOfType("*context.valueCtx"), mock.AnythingOfType("model.TraceID")).
-		Return(nil, spanstore.ErrTraceNotFound).Once()
+	withServerAndClient(t, func(server *grpcServer, client *grpcClient) {
 
-	client, conn := newGRPCClient(t, addr)
-	defer conn.Close()
+		server.spanReader.On("GetTrace", mock.AnythingOfType("*context.valueCtx"), mock.AnythingOfType("model.TraceID")).
+			Return(nil, spanstore.ErrTraceNotFound).Once()
 
-	res, err := client.GetTrace(context.Background(), &api_v2.GetTraceRequest{
-		TraceID: mockTraceIDgrpc,
+		server.archiveSpanReader.On("GetTrace", mock.AnythingOfType("*context.valueCtx"), mock.AnythingOfType("model.TraceID")).
+			Return(nil, spanstore.ErrTraceNotFound).Once()
+
+		res, err := client.GetTrace(context.Background(), &api_v2.GetTraceRequest{
+			TraceID: mockTraceIDgrpc,
+		})
+		assert.NoError(t, err)
+		spanResChunk, err := res.Recv()
+
+		assert.Errorf(t, err, spanstore.ErrTraceNotFound.Error())
+		assert.Nil(t, spanResChunk)
+
 	})
-	assert.NoError(t, err)
-
-	spanResChunk, err := res.Recv()
-
-	assert.Error(t, err)
-	assert.Nil(t, spanResChunk)
 }
 
 func TestArchiveTraceSuccessGRPC(t *testing.T) {
-	server, addr, readMock, _, _, archiveWriteMock := initializeTestServerGRPCWithOptions(t)
-	defer server.Stop()
-	readMock.On("GetTrace", mock.AnythingOfType("*context.valueCtx"), mock.AnythingOfType("model.TraceID")).
-		Return(mockTrace, nil).Once()
-	archiveWriteMock.On("WriteSpan", mock.AnythingOfType("*model.Span")).
-		Return(nil).Times(2)
+	withServerAndClient(t, func(server *grpcServer, client *grpcClient) {
+		server.spanReader.On("GetTrace", mock.AnythingOfType("*context.valueCtx"), mock.AnythingOfType("model.TraceID")).
+			Return(mockTrace, nil).Once()
+		server.archiveSpanWriter.On("WriteSpan", mock.AnythingOfType("*model.Span")).
+			Return(nil).Times(2)
 
-	client, conn := newGRPCClient(t, addr)
-	defer conn.Close()
+		_, err := client.ArchiveTrace(context.Background(), &api_v2.ArchiveTraceRequest{
+			TraceID: mockTraceIDgrpc,
+		})
 
-	_, err := client.ArchiveTrace(context.Background(), &api_v2.ArchiveTraceRequest{
-		TraceID: mockTraceIDgrpc,
+		assert.NoError(t, err)
 	})
-
-	assert.NoError(t, err)
 }
 
 func TestArchiveTraceNotFoundGRPC(t *testing.T) {
-	server, addr, readMock, _, archiveReadMock, _ := initializeTestServerGRPCWithOptions(t)
-	defer server.Stop()
-	readMock.On("GetTrace", mock.AnythingOfType("*context.valueCtx"), mock.AnythingOfType("model.TraceID")).
-		Return(nil, spanstore.ErrTraceNotFound).Once()
-	archiveReadMock.On("GetTrace", mock.AnythingOfType("*context.valueCtx"), mock.AnythingOfType("model.TraceID")).
-		Return(nil, spanstore.ErrTraceNotFound).Once()
+	withServerAndClient(t, func(server *grpcServer, client *grpcClient) {
+		server.spanReader.On("GetTrace", mock.AnythingOfType("*context.valueCtx"), mock.AnythingOfType("model.TraceID")).
+			Return(nil, spanstore.ErrTraceNotFound).Once()
+		server.archiveSpanReader.On("GetTrace", mock.AnythingOfType("*context.valueCtx"), mock.AnythingOfType("model.TraceID")).
+			Return(nil, spanstore.ErrTraceNotFound).Once()
 
-	client, conn := newGRPCClient(t, addr)
-	defer conn.Close()
+		_, err := client.ArchiveTrace(context.Background(), &api_v2.ArchiveTraceRequest{
+			TraceID: mockTraceIDgrpc,
+		})
 
-	_, err := client.ArchiveTrace(context.Background(), &api_v2.ArchiveTraceRequest{
-		TraceID: mockTraceIDgrpc,
+		assert.Errorf(t, err, spanstore.ErrTraceNotFound.Error())
+
 	})
-
-	assert.Error(t, err)
 }
 
 func TestArchiveTraceFailureGRPC(t *testing.T) {
-	server, addr, readMock, _, _, archiveWriteMock := initializeTestServerGRPCWithOptions(t)
-	defer server.Stop()
-	readMock.On("GetTrace", mock.AnythingOfType("*context.valueCtx"), mock.AnythingOfType("model.TraceID")).
-		Return(mockTrace, nil).Once()
-	archiveWriteMock.On("WriteSpan", mock.AnythingOfType("*model.Span")).
-		Return(errStorageGRPC).Times(2)
+	withServerAndClient(t, func(server *grpcServer, client *grpcClient) {
 
-	client, conn := newGRPCClient(t, addr)
-	defer conn.Close()
+		server.spanReader.On("GetTrace", mock.AnythingOfType("*context.valueCtx"), mock.AnythingOfType("model.TraceID")).
+			Return(mockTrace, nil).Once()
+		server.archiveSpanWriter.On("WriteSpan", mock.AnythingOfType("*model.Span")).
+			Return(errStorageGRPC).Times(2)
 
-	_, err := client.ArchiveTrace(context.Background(), &api_v2.ArchiveTraceRequest{
-		TraceID: mockTraceIDgrpc,
+		_, err := client.ArchiveTrace(context.Background(), &api_v2.ArchiveTraceRequest{
+			TraceID: mockTraceIDgrpc,
+		})
+
+		storageErr := status.Error(2, "[Storage error, Storage error]")
+		assert.EqualError(t, err, storageErr.Error())
+
 	})
-
-	assert.Error(t, err)
 }
 
 func TestSearchSuccessGRPC(t *testing.T) {
-	server, addr, readMock, _ := initializeTestServerGRPC(t)
-	defer server.Stop()
-	readMock.On("FindTraces", mock.AnythingOfType("*context.valueCtx"), mock.AnythingOfType("*spanstore.TraceQueryParameters")).
-		Return([]*model.Trace{mockTraceGRPC}, nil).Once()
+	withServerAndClient(t, func(server *grpcServer, client *grpcClient) {
+		server.spanReader.On("FindTraces", mock.AnythingOfType("*context.valueCtx"), mock.AnythingOfType("*spanstore.TraceQueryParameters")).
+			Return([]*model.Trace{mockTraceGRPC}, nil).Once()
 
-	client, conn := newGRPCClient(t, addr)
-	defer conn.Close()
+		// Trace query parameters.
+		queryParams := &api_v2.TraceQueryParameters{
+			ServiceName:   "service",
+			OperationName: "operation",
+			StartTimeMin:  time.Now().Add(time.Duration(-10) * time.Minute),
+			StartTimeMax:  time.Now(),
+		}
+		res, err := client.FindTraces(context.Background(), &api_v2.FindTracesRequest{
+			Query: queryParams,
+		})
 
-	// Trace query parameters.
-	queryParams := &api_v2.TraceQueryParameters{
-		ServiceName:   "service",
-		OperationName: "operation",
-		StartTimeMin:  time.Now().Add(time.Duration(-10) * time.Minute),
-		StartTimeMax:  time.Now(),
-	}
-	res, err := client.FindTraces(context.Background(), &api_v2.FindTracesRequest{
-		Query: queryParams,
+		spanResChunk, _ := res.Recv()
+		assert.NoError(t, err)
+
+		spansArr := make([]model.Span, 0, len(mockTraceGRPC.Spans))
+		for _, span := range mockTraceGRPC.Spans {
+			spansArr = append(spansArr, *span)
+		}
+		assert.Equal(t, spansArr, spanResChunk.Spans)
+
 	})
-
-	spanResChunk, _ := res.Recv()
-	assert.NoError(t, err)
-
-	spansArr := make([]model.Span, 0, len(mockTraceGRPC.Spans))
-	for _, span := range mockTraceGRPC.Spans {
-		spansArr = append(spansArr, *span)
-	}
-	assert.Equal(t, spansArr, spanResChunk.Spans)
 }
 
 func TestSearchSuccess_SpanStreamingGRPC(t *testing.T) {
-	server, addr, readMock, _ := initializeTestServerGRPC(t)
-	defer server.Stop()
-	readMock.On("FindTraces", mock.AnythingOfType("*context.valueCtx"), mock.AnythingOfType("*spanstore.TraceQueryParameters")).
-		Return([]*model.Trace{mockLargeTraceGRPC}, nil).Once()
+	withServerAndClient(t, func(server *grpcServer, client *grpcClient) {
 
-	client, conn := newGRPCClient(t, addr)
-	defer conn.Close()
+		server.spanReader.On("FindTraces", mock.AnythingOfType("*context.valueCtx"), mock.AnythingOfType("*spanstore.TraceQueryParameters")).
+			Return([]*model.Trace{mockLargeTraceGRPC}, nil).Once()
 
-	// Trace query parameters.
-	queryParams := &api_v2.TraceQueryParameters{
-		ServiceName:   "service",
-		OperationName: "operation",
-		StartTimeMin:  time.Now().Add(time.Duration(-10) * time.Minute),
-		StartTimeMax:  time.Now(),
-	}
-	res, err := client.FindTraces(context.Background(), &api_v2.FindTracesRequest{
-		Query: queryParams,
+		// Trace query parameters.
+		queryParams := &api_v2.TraceQueryParameters{
+			ServiceName:   "service",
+			OperationName: "operation",
+			StartTimeMin:  time.Now().Add(time.Duration(-10) * time.Minute),
+			StartTimeMax:  time.Now(),
+		}
+		res, err := client.FindTraces(context.Background(), &api_v2.FindTracesRequest{
+			Query: queryParams,
+		})
+		assert.NoError(t, err)
+
+		spanResChunk, err := res.Recv()
+		assert.NoError(t, err)
+		assert.Len(t, spanResChunk.Spans, 10)
+
+		spanResChunk, err = res.Recv()
+		assert.NoError(t, err)
+		assert.Len(t, spanResChunk.Spans, 1)
+
 	})
-	assert.NoError(t, err)
-
-	spanResChunk, err := res.Recv()
-	assert.NoError(t, err)
-	assert.Len(t, spanResChunk.Spans, 10)
-
-	spanResChunk, err = res.Recv()
-	assert.NoError(t, err)
-	assert.Len(t, spanResChunk.Spans, 1)
 }
 
 func TestSearchFailure_GRPC(t *testing.T) {
-	server, addr, readMock, _ := initializeTestServerGRPC(t)
-	defer server.Stop()
-	mockErrorGRPC := fmt.Errorf("whatsamattayou")
+	withServerAndClient(t, func(server *grpcServer, client *grpcClient) {
+		mockErrorGRPC := fmt.Errorf("whatsamattayou")
 
-	readMock.On("FindTraces", mock.AnythingOfType("*context.valueCtx"), mock.AnythingOfType("*spanstore.TraceQueryParameters")).
-		Return(nil, mockErrorGRPC).Once()
+		server.spanReader.On("FindTraces", mock.AnythingOfType("*context.valueCtx"), mock.AnythingOfType("*spanstore.TraceQueryParameters")).
+			Return(nil, mockErrorGRPC).Once()
 
-	client, conn := newGRPCClient(t, addr)
-	defer conn.Close()
+		// Trace query parameters.
+		queryParams := &api_v2.TraceQueryParameters{
+			ServiceName:   "service",
+			OperationName: "operation",
+			StartTimeMin:  time.Now().Add(time.Duration(-10) * time.Minute),
+			StartTimeMax:  time.Now(),
+		}
 
-	// Trace query parameters.
-	queryParams := &api_v2.TraceQueryParameters{
-		ServiceName:   "service",
-		OperationName: "operation",
-		StartTimeMin:  time.Now().Add(time.Duration(-10) * time.Minute),
-		StartTimeMax:  time.Now(),
-	}
+		res, err := client.FindTraces(context.Background(), &api_v2.FindTracesRequest{
+			Query: queryParams,
+		})
+		assert.NoError(t, err)
 
-	res, err := client.FindTraces(context.Background(), &api_v2.FindTracesRequest{
-		Query: queryParams,
+		spanResChunk, err := res.Recv()
+		assert.Error(t, err)
+		assert.Nil(t, spanResChunk)
 	})
-	assert.NoError(t, err)
-
-	spanResChunk, err := res.Recv()
-	assert.Error(t, err)
-	assert.Nil(t, spanResChunk)
 }
 
 func TestGetServicesSuccessGRPC(t *testing.T) {
-	server, addr, readMock, _ := initializeTestServerGRPC(t)
-	defer server.Stop()
-	expectedServices := []string{"trifle", "bling"}
-	readMock.On("GetServices", mock.AnythingOfType("*context.valueCtx")).Return(expectedServices, nil).Once()
+	withServerAndClient(t, func(server *grpcServer, client *grpcClient) {
+		expectedServices := []string{"trifle", "bling"}
+		server.spanReader.On("GetServices", mock.AnythingOfType("*context.valueCtx")).Return(expectedServices, nil).Once()
 
-	client, conn := newGRPCClient(t, addr)
-	defer conn.Close()
-
-	res, err := client.GetServices(context.Background(), &api_v2.GetServicesRequest{})
-	assert.NoError(t, err)
-	actualServices := res.Services
-	assert.Equal(t, expectedServices, actualServices)
+		res, err := client.GetServices(context.Background(), &api_v2.GetServicesRequest{})
+		assert.NoError(t, err)
+		actualServices := res.Services
+		assert.Equal(t, expectedServices, actualServices)
+	})
 }
 
 func TestGetServicesFailureGRPC(t *testing.T) {
-	server, addr, readMock, _ := initializeTestServerGRPC(t)
-	defer server.Stop()
-	readMock.On("GetServices", mock.AnythingOfType("*context.valueCtx")).Return(nil, errStorageGRPC).Once()
+	withServerAndClient(t, func(server *grpcServer, client *grpcClient) {
+		server.spanReader.On("GetServices", mock.AnythingOfType("*context.valueCtx")).Return(nil, errStorageGRPC).Once()
+		_, err := client.GetServices(context.Background(), &api_v2.GetServicesRequest{})
 
-	client, conn := newGRPCClient(t, addr)
-	defer conn.Close()
-
-	_, err := client.GetServices(context.Background(), &api_v2.GetServicesRequest{})
-	assert.Error(t, err)
+		assert.EqualError(t, err, errStatusStorageGRPC.Error())
+	})
 }
 
 func TestGetOperationsSuccessGRPC(t *testing.T) {
-	server, addr, readMock, _ := initializeTestServerGRPC(t)
-	defer server.Stop()
-	expectedOperations := []string{"", "get"}
-	readMock.On("GetOperations", mock.AnythingOfType("*context.valueCtx"), "abc/trifle").Return(expectedOperations, nil).Once()
+	withServerAndClient(t, func(server *grpcServer, client *grpcClient) {
 
-	client, conn := newGRPCClient(t, addr)
-	defer conn.Close()
+		expectedOperations := []string{"", "get"}
+		server.spanReader.On("GetOperations", mock.AnythingOfType("*context.valueCtx"), "abc/trifle").Return(expectedOperations, nil).Once()
 
-	res, err := client.GetOperations(context.Background(), &api_v2.GetOperationsRequest{
-		Service: "abc/trifle",
+		res, err := client.GetOperations(context.Background(), &api_v2.GetOperationsRequest{
+			Service: "abc/trifle",
+		})
+		assert.NoError(t, err)
+		assert.Equal(t, expectedOperations, res.Operations)
 	})
-	assert.NoError(t, err)
-	assert.Equal(t, expectedOperations, res.Operations)
 }
 
 func TestGetOperationsFailureGRPC(t *testing.T) {
-	server, addr, readMock, _ := initializeTestServerGRPC(t)
-	defer server.Stop()
-	readMock.On("GetOperations", mock.AnythingOfType("*context.valueCtx"), "trifle").Return(nil, errStorageGRPC).Once()
+	withServerAndClient(t, func(server *grpcServer, client *grpcClient) {
+		server.spanReader.On("GetOperations", mock.AnythingOfType("*context.valueCtx"), "trifle").Return(nil, errStorageGRPC).Once()
 
-	client, conn := newGRPCClient(t, addr)
-	defer conn.Close()
+		_, err := client.GetOperations(context.Background(), &api_v2.GetOperationsRequest{
+			Service: "trifle",
+		})
 
-	_, err := client.GetOperations(context.Background(), &api_v2.GetOperationsRequest{
-		Service: "trifle",
+		assert.EqualError(t, err, errStatusStorageGRPC.Error())
 	})
-	assert.Error(t, err)
 }
 
 func TestGetDependenciesSuccessGRPC(t *testing.T) {
-	server, addr, _, depsmocks := initializeTestServerGRPC(t)
-	defer server.Stop()
-	expectedDependencies := []model.DependencyLink{{Parent: "killer", Child: "queen", CallCount: 12}}
-	endTs := time.Now().UTC()
-	depsmocks.On("GetDependencies", endTs.Add(time.Duration(-1)*defaultDependencyLookbackDuration), defaultDependencyLookbackDuration).
-		Return(expectedDependencies, nil).Times(1)
+	withServerAndClient(t, func(server *grpcServer, client *grpcClient) {
+		expectedDependencies := []model.DependencyLink{{Parent: "killer", Child: "queen", CallCount: 12}}
+		endTs := time.Now().UTC()
+		server.depReader.On("GetDependencies", endTs.Add(time.Duration(-1)*defaultDependencyLookbackDuration), defaultDependencyLookbackDuration).
+			Return(expectedDependencies, nil).Times(1)
 
-	client, conn := newGRPCClient(t, addr)
-	defer conn.Close()
+		res, err := client.GetDependencies(context.Background(), &api_v2.GetDependenciesRequest{
+			StartTime: endTs.Add(time.Duration(-1) * defaultDependencyLookbackDuration),
+			EndTime:   endTs,
+		})
+		assert.NoError(t, err)
+		assert.Equal(t, expectedDependencies, res.Dependencies)
 
-	res, err := client.GetDependencies(context.Background(), &api_v2.GetDependenciesRequest{
-		StartTime: endTs.Add(time.Duration(-1) * defaultDependencyLookbackDuration),
-		EndTime:   endTs,
 	})
-	assert.NoError(t, err)
-	assert.Equal(t, expectedDependencies, res.Dependencies)
 }
 
 func TestGetDependenciesFailureGRPC(t *testing.T) {
-	server, addr, _, depsmocks := initializeTestServerGRPC(t)
-	defer server.Stop()
-	endTs := time.Now().UTC()
-	depsmocks.On("GetDependencies", endTs.Add(time.Duration(-1)*defaultDependencyLookbackDuration), defaultDependencyLookbackDuration).
-		Return(nil, errStorageGRPC).Times(1)
+	withServerAndClient(t, func(server *grpcServer, client *grpcClient) {
+		endTs := time.Now().UTC()
+		server.depReader.On("GetDependencies", endTs.Add(time.Duration(-1)*defaultDependencyLookbackDuration), defaultDependencyLookbackDuration).
+			Return(nil, errStorageGRPC).Times(1)
 
-	client, conn := newGRPCClient(t, addr)
-	defer conn.Close()
+		_, err := client.GetDependencies(context.Background(), &api_v2.GetDependenciesRequest{
+			StartTime: endTs.Add(time.Duration(-1) * defaultDependencyLookbackDuration),
+			EndTime:   endTs,
+		})
 
-	_, err := client.GetDependencies(context.Background(), &api_v2.GetDependenciesRequest{
-		StartTime: endTs.Add(time.Duration(-1) * defaultDependencyLookbackDuration),
-		EndTime:   endTs,
+		assert.EqualError(t, err, errStatusStorageGRPC.Error())
 	})
-	assert.Error(t, err)
 }
 
 func TestSendSpanChunksError(t *testing.T) {

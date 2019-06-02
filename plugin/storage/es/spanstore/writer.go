@@ -51,8 +51,6 @@ type SpanWriter struct {
 	indexCache       cache.Cache
 	indexMutex       sync.Mutex
 	serviceWriter    serviceWriter
-	numShards        int64
-	numReplicas      int64
 	spanConverter    dbmodel.FromDomain
 	spanServiceIndex spanAndServiceIndexFn
 	spanMapping      string

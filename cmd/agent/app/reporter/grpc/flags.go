@@ -29,17 +29,8 @@ const (
 	collectorTLS           = gRPCPrefix + "tls"
 	collectorTLSCA         = gRPCPrefix + "tls.ca"
 	collectorTLSServerName = gRPCPrefix + "tls.server-name"
+	discoveryMinPeers      = gRPCPrefix + "discovery.min-peers"
 )
-
-// Options Struct to hold configurations
-type Options struct {
-	// CollectorHostPort is list of host:port Jaeger Collectors.
-	CollectorHostPort []string
-	MaxRetry          uint
-	TLS               bool
-	TLSCA             string
-	TLSServerName     string
-}
 
 // AddFlags adds flags for Options.
 func AddFlags(flags *flag.FlagSet) {
@@ -48,17 +39,19 @@ func AddFlags(flags *flag.FlagSet) {
 	flags.Bool(collectorTLS, false, "Enable TLS.")
 	flags.String(collectorTLSCA, "", "Path to a TLS CA file. (default use the systems truststore)")
 	flags.String(collectorTLSServerName, "", "Override the TLS server name.")
+	flags.Int(discoveryMinPeers, 3, "Max number of collectors to which the agent will try to connect at any given time")
 }
 
 // InitFromViper initializes Options with properties retrieved from Viper.
-func (o *Options) InitFromViper(v *viper.Viper) *Options {
+func (b *ConnBuilder) InitFromViper(v *viper.Viper) *ConnBuilder {
 	hostPorts := v.GetString(collectorHostPort)
 	if hostPorts != "" {
-		o.CollectorHostPort = strings.Split(hostPorts, ",")
+		b.CollectorHostPorts = strings.Split(hostPorts, ",")
 	}
-	o.MaxRetry = uint(v.GetInt(retry))
-	o.TLS = v.GetBool(collectorTLS)
-	o.TLSCA = v.GetString(collectorTLSCA)
-	o.TLSServerName = v.GetString(collectorTLSServerName)
-	return o
+	b.MaxRetry = uint(v.GetInt(retry))
+	b.TLS = v.GetBool(collectorTLS)
+	b.TLSCA = v.GetString(collectorTLSCA)
+	b.TLSServerName = v.GetString(collectorTLSServerName)
+	b.DiscoveryMinPeers = v.GetInt(discoveryMinPeers)
+	return b
 }

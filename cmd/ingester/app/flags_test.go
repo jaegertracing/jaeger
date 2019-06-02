@@ -31,6 +31,7 @@ func TestOptionsWithFlags(t *testing.T) {
 		"--kafka.consumer.topic=topic1",
 		"--kafka.consumer.brokers=127.0.0.1:9092, 0.0.0:1234",
 		"--kafka.consumer.group-id=group1",
+		"--kafka.consumer.client-id=client-id1",
 		"--kafka.consumer.encoding=json",
 		"--ingester.parallelism=5",
 		"--ingester.deadlockInterval=2m",
@@ -40,6 +41,7 @@ func TestOptionsWithFlags(t *testing.T) {
 	assert.Equal(t, "topic1", o.Topic)
 	assert.Equal(t, []string{"127.0.0.1:9092", "0.0.0:1234"}, o.Brokers)
 	assert.Equal(t, "group1", o.GroupID)
+	assert.Equal(t, "client-id1", o.ClientID)
 	assert.Equal(t, 5, o.Parallelism)
 	assert.Equal(t, 2*time.Minute, o.DeadlockInterval)
 	assert.Equal(t, kafka.EncodingJSON, o.Encoding)
@@ -54,6 +56,7 @@ func TestFlagDefaults(t *testing.T) {
 	assert.Equal(t, DefaultTopic, o.Topic)
 	assert.Equal(t, []string{DefaultBroker}, o.Brokers)
 	assert.Equal(t, DefaultGroupID, o.GroupID)
+	assert.Equal(t, DefaultClientID, o.ClientID)
 	assert.Equal(t, DefaultParallelism, o.Parallelism)
 	assert.Equal(t, DefaultEncoding, o.Encoding)
 	assert.Equal(t, DefaultDeadlockInterval, o.DeadlockInterval)

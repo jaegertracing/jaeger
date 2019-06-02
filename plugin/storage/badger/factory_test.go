@@ -113,7 +113,7 @@ func TestMaintenanceRun(t *testing.T) {
 	currSize := vlogSize.Value()
 	vlogSize.Set(currSize + 1<<31)
 
-	runtime = waiter(runtime)
+	waiter(runtime)
 	_, gs = mFactory.Snapshot()
 	assert.True(t, gs[lastValueLogCleanedName] > 0)
 

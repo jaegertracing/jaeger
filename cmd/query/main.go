@@ -17,32 +17,25 @@ package main
 import (
 	"fmt"
 	"log"
-	"net"
-	"net/http"
 	"os"
 
-	"github.com/gorilla/handlers"
 	"github.com/opentracing/opentracing-go"
-	"github.com/soheilhy/cmux"
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
 	jaegerClientConfig "github.com/uber/jaeger-client-go/config"
 	jaegerClientZapLog "github.com/uber/jaeger-client-go/log/zap"
 	"github.com/uber/jaeger-lib/metrics"
+	_ "go.uber.org/automaxprocs"
 	"go.uber.org/zap"
-	"google.golang.org/grpc"
 
 	"github.com/jaegertracing/jaeger/cmd/env"
 	"github.com/jaegertracing/jaeger/cmd/flags"
 	"github.com/jaegertracing/jaeger/cmd/query/app"
 	"github.com/jaegertracing/jaeger/cmd/query/app/querysvc"
 	"github.com/jaegertracing/jaeger/pkg/config"
-	"github.com/jaegertracing/jaeger/pkg/healthcheck"
-	"github.com/jaegertracing/jaeger/pkg/recoveryhandler"
 	"github.com/jaegertracing/jaeger/pkg/version"
 	"github.com/jaegertracing/jaeger/plugin/storage"
 	"github.com/jaegertracing/jaeger/ports"
-	"github.com/jaegertracing/jaeger/proto-gen/api_v2"
 	istorage "github.com/jaegertracing/jaeger/storage"
 	storageMetrics "github.com/jaegertracing/jaeger/storage/spanstore/metrics"
 )
@@ -69,13 +62,13 @@ func main() {
 			metricsFactory := baseFactory.Namespace(metrics.NSOptions{Name: "query"})
 
 			tracer, closer, err := jaegerClientConfig.Configuration{
+				ServiceName: "jaeger-query",
 				Sampler: &jaegerClientConfig.SamplerConfig{
 					Type:  "probabilistic",
 					Param: 1.0,
 				},
 				RPCMetrics: true,
-			}.New(
-				"jaeger-query",
+			}.NewTracer(
 				jaegerClientConfig.Metrics(svc.MetricsFactory),
 				jaegerClientConfig.Logger(jaegerClientZapLog.NewLogger(logger)),
 			)
@@ -102,80 +95,18 @@ func main() {
 			queryService := querysvc.NewQueryService(
 				spanReader,
 				dependencyReader,
-				queryServiceOptions)
+				*queryServiceOptions)
 
 			queryOpts := new(app.QueryOptions).InitFromViper(v)
-			apiHandlerOptions := []app.HandlerOption{
-				app.HandlerOptions.Logger(logger),
-				app.HandlerOptions.Tracer(tracer),
-			}
-			apiHandler := app.NewAPIHandler(
-				queryService,
-				apiHandlerOptions...)
-			r := app.NewRouter()
-			if queryOpts.BasePath != "/" {
-				r = r.PathPrefix(queryOpts.BasePath).Subrouter()
-			}
-			apiHandler.RegisterRoutes(r)
-			app.RegisterStaticHandler(r, logger, queryOpts)
+			server := app.NewServer(svc, queryService, queryOpts, tracer)
 
-			compressHandler := handlers.CompressHandler(r)
-			recoveryHandler := recoveryhandler.NewRecoveryHandler(logger, true)
-
-			// Create HTTP Server
-			httpServer := &http.Server{
-				Handler: recoveryHandler(compressHandler),
+			if err := server.Start(); err != nil {
+				logger.Fatal("Could not start servers", zap.Error(err))
 			}
 
-			// Create GRPC Server.
-			grpcServer := grpc.NewServer()
-
-			grpcHandler := app.NewGRPCHandler(*queryService, logger, tracer)
-			api_v2.RegisterQueryServiceServer(grpcServer, grpcHandler)
-
-			// Prepare cmux conn.
-			conn, err := net.Listen("tcp", fmt.Sprintf(":%d", queryOpts.Port))
-			if err != nil {
-				logger.Fatal("Could not start listener", zap.Error(err))
-			}
-
-			// Create cmux server.
-			// cmux will reverse-proxy between HTTP and GRPC backends.
-			s := cmux.New(conn)
-
-			// Add GRPC and HTTP listeners.
-			grpcL := s.Match(
-				cmux.HTTP2HeaderField("content-type", "application/grpc"),
-				cmux.HTTP2HeaderField("content-type", "application/grpc+proto"))
-			httpL := s.Match(cmux.Any())
-
-			// Start HTTP server concurrently
-			go func() {
-				logger.Info("Starting HTTP server", zap.Int("port", queryOpts.Port))
-				if err := httpServer.Serve(httpL); err != nil {
-					logger.Fatal("Could not start HTTP server", zap.Error(err))
-				}
-				svc.HC().Set(healthcheck.Unavailable)
-			}()
-
-			// Start GRPC server concurrently
-			go func() {
-				logger.Info("Starting GRPC server", zap.Int("port", queryOpts.Port))
-				if err := grpcServer.Serve(grpcL); err != nil {
-					logger.Fatal("Could not start GRPC server", zap.Error(err))
-				}
-				svc.HC().Set(healthcheck.Unavailable)
-			}()
-
-			// Start cmux server concurrently.
-			go func() {
-				if err := s.Serve(); err != nil {
-					logger.Fatal("Could not start multiplexed server", zap.Error(err))
-				}
-				svc.HC().Set(healthcheck.Unavailable)
-			}()
-
-			svc.RunAndThen(nil)
+			svc.RunAndThen(func() {
+				server.Close()
+			})
 			return nil
 		},
 	}
@@ -197,32 +128,10 @@ func main() {
 	}
 }
 
-func archiveOptions(storageFactory istorage.Factory, logger *zap.Logger) querysvc.QueryServiceOptions {
-	archiveFactory, ok := storageFactory.(istorage.ArchiveFactory)
-	if !ok {
-		logger.Info("Archive storage not supported by the factory")
-		return querysvc.QueryServiceOptions{}
+func archiveOptions(storageFactory istorage.Factory, logger *zap.Logger) *querysvc.QueryServiceOptions {
+	opts := &querysvc.QueryServiceOptions{}
+	if !opts.InitArchiveStorage(storageFactory, logger) {
+		logger.Info("Archive storage not initialized")
 	}
-	reader, err := archiveFactory.CreateArchiveSpanReader()
-	if err == istorage.ErrArchiveStorageNotConfigured || err == istorage.ErrArchiveStorageNotSupported {
-		logger.Info("Archive storage not created", zap.String("reason", err.Error()))
-		return querysvc.QueryServiceOptions{}
-	}
-	if err != nil {
-		logger.Error("Cannot init archive storage reader", zap.Error(err))
-		return querysvc.QueryServiceOptions{}
-	}
-	writer, err := archiveFactory.CreateArchiveSpanWriter()
-	if err == istorage.ErrArchiveStorageNotConfigured || err == istorage.ErrArchiveStorageNotSupported {
-		logger.Info("Archive storage not created", zap.String("reason", err.Error()))
-		return querysvc.QueryServiceOptions{}
-	}
-	if err != nil {
-		logger.Error("Cannot init archive storage writer", zap.Error(err))
-		return querysvc.QueryServiceOptions{}
-	}
-	return querysvc.QueryServiceOptions{
-		ArchiveSpanReader: reader,
-		ArchiveSpanWriter: writer,
-	}
+	return opts
 }

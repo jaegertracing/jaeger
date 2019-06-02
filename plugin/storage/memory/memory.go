@@ -17,6 +17,7 @@ package memory
 import (
 	"context"
 	"errors"
+	"sort"
 	"sync"
 	"time"
 
@@ -26,7 +27,7 @@ import (
 	"github.com/jaegertracing/jaeger/storage/spanstore"
 )
 
-var errTraceNotFound = errors.New("Trace was not found")
+var errTraceNotFound = errors.New("trace was not found")
 
 // Store is an in-memory store of traces
 type Store struct {
@@ -188,13 +189,20 @@ func (m *Store) FindTraces(ctx context.Context, query *spanstore.TraceQueryParam
 	defer m.RUnlock()
 	var retMe []*model.Trace
 	for _, trace := range m.traces {
-		if len(retMe) >= query.NumTraces {
-			return retMe, nil
-		}
 		if m.validTrace(trace, query) {
 			retMe = append(retMe, trace)
 		}
 	}
+
+	// Query result order doesn't matter, as the query frontend will sort them anyway.
+	// However, if query.NumTraces < results, then we should return the newest traces.
+	if query.NumTraces > 0 && len(retMe) > query.NumTraces {
+		sort.Slice(retMe, func(i, j int) bool {
+			return retMe[i].Spans[0].StartTime.Before(retMe[j].Spans[0].StartTime)
+		})
+		retMe = retMe[len(retMe)-query.NumTraces:]
+	}
+
 	return retMe, nil
 }
 

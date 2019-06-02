@@ -59,7 +59,7 @@ func NewThriftProcessor(
 ) (*ThriftProcessor, error) {
 	if numProcessors <= 0 {
 		return nil, fmt.Errorf(
-			"Number of processors must be greater than 0, called with %d", numProcessors)
+			"number of processors must be greater than 0, called with %d", numProcessors)
 	}
 	var protocolPool = &sync.Pool{
 		New: func() interface{} {
