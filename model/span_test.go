@@ -213,7 +213,6 @@ func TestSamplerType(t *testing.T) {
 	assert.Equal(t, "unknown", span.GetSamplerType())
 	span = makeSpan(model.KeyValue{})
 	assert.Equal(t, "unknown", span.GetSamplerType())
-
 }
 
 func TestIsSampled(t *testing.T) {
