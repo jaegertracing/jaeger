@@ -49,16 +49,14 @@ func Command(v *viper.Viper) *cobra.Command {
 			dir := v.GetString(dirFlag)
 			switch v.GetString(formatFlag) {
 			case "md":
-				doc.GenMarkdownTree(cmd, dir)
+				return doc.GenMarkdownTree(cmd, dir)
 			case "man":
 				return man(cmd, dir)
 			case "rst":
-				doc.GenReSTTree(cmd, dir)
+				return doc.GenReSTTree(cmd, dir)
 			default:
 				return errors.New(fmt.Sprintf("undefined value of %v, possible values are: %v", formatFlag, formats))
 			}
-
-			return nil
 		},
 	}
 	c.Flags().AddGoFlagSet(flags(&flag.FlagSet{}))
