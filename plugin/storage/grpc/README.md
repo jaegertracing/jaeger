@@ -52,7 +52,11 @@ is `github.com/jaegertracing/jaeger/plugin/storage/grpc`.
     }
 ```
  
- A plugin must implement the StoragePlugin interface of:
+Note that `grpc.Serve` is called as the final part of the main. This should be called after you have carried out any necessary
+setup for your plugin, as once running Jaeger may start calling to read/write spans straight away. You could defer
+setup until the first read/write but that could make the first operation slow and also lead to racing behaviours.
+
+A plugin must implement the StoragePlugin interface of:
 
 ```go
 type StoragePlugin interface {
@@ -90,8 +94,21 @@ from within your plugin, this is useful if using Docker.
 
 Logging
 -------
-If the plugin uses a `hclog` (`"github.com/hashicorp/go-hclog"`) logger then any logs created at the `WARN` or above level will be
-included in the log output of the `all-in-one` application. Bear in mind that any logging performed before `grpc.Serve`
-is called will not be included. As well as this `grpc.Serve` should likely be called at the end of your `main` function
-as once running Jaeger may start calling to read/write spans straight away. This can mean that logging output during any
-setup can be challenging.
+In order for Jaeger to include the log output from your plugin you need to use `hclog` (`"github.com/hashicorp/go-hclog"`).
+The plugin framework will only include any log output created at the the `WARN` or above levels. If you log output in this
+way before calling `grpc.Serve` then it will still be included in the Jaeger output. 
+
+An example logger instantiation could look like:
+ 
+ ```
+logger := hclog.New(&hclog.LoggerOptions{
+    Level:      hclog.Warn,
+    Name:       "my-jaeger-plugin",
+    JSONFormat: true,
+})
+```
+
+There are more logger options that can be used with `hclog` listed on [godoc](https://godoc.org/github.com/hashicorp/go-hclog#LoggerOptions).
+
+Note: Setting the `Output` option to `os.Stdout` can confuse the `go-plugin` framework and lead it to consider the plugin
+errored.
