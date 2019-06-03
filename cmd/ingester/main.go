@@ -92,7 +92,7 @@ func main() {
 
 	command.AddCommand(version.Command())
 	command.AddCommand(env.Command())
-	command.AddCommand(docs.Command())
+	command.AddCommand(docs.Command(v))
 
 	config.AddFlags(
 		v,

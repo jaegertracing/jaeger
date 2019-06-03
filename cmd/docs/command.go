@@ -27,6 +27,7 @@ import (
 
 const (
 	formatFlag = "format"
+	dirFlag    = "dir"
 )
 
 var (
@@ -45,13 +46,14 @@ func Command(v *viper.Viper) *cobra.Command {
 				cmd = cmd.Parent()
 			}
 			log.Println("Generating documentation in the current working directory")
+			dir := v.GetString(dirFlag)
 			switch v.GetString(formatFlag) {
 			case "md":
-				doc.GenMarkdownTree(cmd, "./")
+				doc.GenMarkdownTree(cmd, dir)
 			case "man":
-				return man(cmd)
+				return man(cmd, dir)
 			case "rst":
-				doc.GenReSTTree(cmd, "./")
+				doc.GenReSTTree(cmd, dir)
 			default:
 				return errors.New(fmt.Sprintf("undefined value of %v, possible values are: %v", formatFlag, formats))
 			}
@@ -69,13 +71,17 @@ func flags(flagSet *flag.FlagSet) *flag.FlagSet {
 		formatFlag,
 		formats[0],
 		fmt.Sprintf("Supported formats: %v.", formats))
+	flagSet.String(
+		dirFlag,
+		"./",
+		"Directory where generate the documentation.")
 	return flagSet
 }
 
-func man(cmd *cobra.Command) error {
+func man(cmd *cobra.Command, dir string) error {
 	header := &doc.GenManHeader{
 		Title:   cmd.Use,
 		Section: "1",
 	}
-	return doc.GenManTree(cmd, header, "./")
+	return doc.GenManTree(cmd, header, dir)
 }
