@@ -50,7 +50,7 @@ func Command(v *viper.Viper) *cobra.Command {
 			case "md":
 				return doc.GenMarkdownTree(cmd, dir)
 			case "man":
-				return man(cmd, dir)
+				return genMan(cmd, dir)
 			case "rst":
 				return doc.GenReSTTree(cmd, dir)
 			case "yaml":
@@ -77,7 +77,7 @@ func flags(flagSet *flag.FlagSet) *flag.FlagSet {
 	return flagSet
 }
 
-func man(cmd *cobra.Command, dir string) error {
+func genMan(cmd *cobra.Command, dir string) error {
 	header := &doc.GenManHeader{
 		Title:   cmd.Use,
 		Section: "1",
