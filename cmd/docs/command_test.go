@@ -15,6 +15,7 @@
 package docs
 
 import (
+	"github.com/spf13/cobra"
 	"io/ioutil"
 	"strings"
 	"testing"
@@ -24,7 +25,7 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-func TestCommand(t *testing.T) {
+func TestOutputFormats(t *testing.T) {
 	tests := []struct{
 		file string
 		flag string
@@ -51,11 +52,17 @@ func TestCommand(t *testing.T) {
 	}
 }
 
-func Test(t *testing.T) {
+func TestDocsForParent(t *testing.T) {
+	parent := &cobra.Command{
+		Use: "root_command",
+		Short: "some description",
+	}
 	v := viper.New()
-	cmd := Command(v)
-	cmd.RunE(cmd, []string{})
-	f, err := ioutil.ReadFile("docs.md")
+	docs := Command(v)
+	parent.AddCommand(docs)
+	err := docs.RunE(docs, []string{})
 	require.NoError(t, err)
-	assert.True(t, strings.Contains(string(f), "documentation"))
+	f, err := ioutil.ReadFile("root_command.md")
+	require.NoError(t, err)
+	assert.True(t, strings.Contains(string(f), "some description"))
 }
