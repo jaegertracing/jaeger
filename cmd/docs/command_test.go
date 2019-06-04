@@ -33,7 +33,8 @@ func TestCommand(t *testing.T) {
 		{file: "docs.md"},
 		{file: "docs.1", flag: "--format=man"},
 		{file: "docs.rst", flag: "--format=rst"},
-		{flag: "--format=foo", err: "undefined value of format, possible values are: [md man rst]"},
+		{file: "docs.yaml", flag: "--format=yaml"},
+		{flag: "--format=foo", err: "undefined value of format, possible values are: [md man rst yaml]"},
 	}
 	for _, test := range tests {
 		v := viper.New()

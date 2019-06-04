@@ -31,7 +31,7 @@ const (
 )
 
 var (
-	formats = []string{"md", "man", "rst"}
+	formats = []string{"md", "man", "rst", "yaml"}
 )
 
 // Command for generating flags/commands documentation.
@@ -45,8 +45,8 @@ func Command(v *viper.Viper) *cobra.Command {
 			for cmd.Parent() != nil {
 				cmd = cmd.Parent()
 			}
-			log.Println("Generating documentation in the current working directory")
 			dir := v.GetString(dirFlag)
+			log.Printf("Generating documentation in %v", dir)
 			switch v.GetString(formatFlag) {
 			case "md":
 				return doc.GenMarkdownTree(cmd, dir)
@@ -54,6 +54,8 @@ func Command(v *viper.Viper) *cobra.Command {
 				return man(cmd, dir)
 			case "rst":
 				return doc.GenReSTTree(cmd, dir)
+			case "yaml":
+				return doc.GenYamlTree(cmd, dir)
 			default:
 				return errors.New(fmt.Sprintf("undefined value of %v, possible values are: %v", formatFlag, formats))
 			}
