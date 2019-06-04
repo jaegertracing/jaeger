@@ -24,13 +24,13 @@ import (
 	"strconv"
 
 	"github.com/gorilla/mux"
-	opentracing "github.com/opentracing/opentracing-go"
+	"github.com/opentracing/opentracing-go"
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
 	jaegerClientConfig "github.com/uber/jaeger-client-go/config"
 	jaegerClientZapLog "github.com/uber/jaeger-client-go/log/zap"
 	"github.com/uber/jaeger-lib/metrics"
-	tchannel "github.com/uber/tchannel-go"
+	"github.com/uber/tchannel-go"
 	"github.com/uber/tchannel-go/thrift"
 	_ "go.uber.org/automaxprocs"
 	"go.uber.org/zap"
@@ -47,6 +47,7 @@ import (
 	"github.com/jaegertracing/jaeger/cmd/collector/app/sampling"
 	"github.com/jaegertracing/jaeger/cmd/collector/app/sampling/strategystore"
 	"github.com/jaegertracing/jaeger/cmd/collector/app/zipkin"
+	"github.com/jaegertracing/jaeger/cmd/docs"
 	"github.com/jaegertracing/jaeger/cmd/env"
 	"github.com/jaegertracing/jaeger/cmd/flags"
 	queryApp "github.com/jaegertracing/jaeger/cmd/query/app"
@@ -150,6 +151,7 @@ func main() {
 
 	command.AddCommand(version.Command())
 	command.AddCommand(env.Command())
+	command.AddCommand(docs.Command(v))
 
 	config.AddFlags(
 		v,

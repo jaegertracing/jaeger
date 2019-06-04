@@ -23,5 +23,9 @@ cmd/ingester/ingester
 cmd/ingester/ingester-*
 cmd/query/query
 cmd/query/query-*
+cmd/docs/*.md
+cmd/docs/*.rst
+cmd/docs/*.1
+cmd/docs/*.yaml
 crossdock/crossdock-*
 run-crossdock.log
