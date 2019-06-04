@@ -138,18 +138,26 @@ func newMetricsBySvc(factory metrics.Factory, category string) metricsBySvc {
 	spansFactory := factory.Namespace(metrics.NSOptions{Name: "spans", Tags: nil})
 	tracesFactory := factory.Namespace(metrics.NSOptions{Name: "traces", Tags: nil})
 	return metricsBySvc{
-		spans:  newCountsBySvc(spansFactory, category, maxServiceNames),
-		traces: newCountsBySvc(tracesFactory, category, maxServiceNames),
+		spans:  newCountsBySvc(spansFactory, category, maxServiceNames, false),
+		traces: newCountsBySvc(tracesFactory, category, maxServiceNames, true),
 	}
 }
 
-func newCountsBySvc(factory metrics.Factory, category string, maxServiceNames int) countsBySvc {
+func newCountsBySvc(factory metrics.Factory, category string, maxServiceNames int, isTraceMetric bool) countsBySvc {
+	countsTags := map[string]string{"svc": otherServices, "debug": "false"}
+	debugCountsTags := map[string]string{"svc": otherServices, "debug": "true"}
+	if isTraceMetric {
+		// The `samplerTypeKey` tag needs be added to otherServices trace metric counter so prometheus
+		// won't panic because `otherServices` share different tags with normal service.
+		countsTags[samplerTypeKey] = "unknown"
+		debugCountsTags[samplerTypeKey] = "unknown"
+	}
 	return countsBySvc{
 		counts: map[string]metrics.Counter{
-			otherServices: factory.Counter(metrics.Options{Name: category, Tags: map[string]string{"svc": otherServices, "debug": "false"}}),
+			otherServices: factory.Counter(metrics.Options{Name: category, Tags: countsTags}),
 		},
 		debugCounts: map[string]metrics.Counter{
-			otherServices: factory.Counter(metrics.Options{Name: category, Tags: map[string]string{"svc": otherServices, "debug": "true"}}),
+			otherServices: factory.Counter(metrics.Options{Name: category, Tags: debugCountsTags}),
 		},
 		factory:         factory,
 		lock:            &sync.Mutex{},

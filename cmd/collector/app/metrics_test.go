@@ -61,7 +61,7 @@ func TestProcessorMetrics(t *testing.T) {
 
 func TestNewCountsBySvc(t *testing.T) {
 	baseMetrics := metricstest.NewFactory(time.Hour)
-	metrics := newCountsBySvc(baseMetrics, "not_on_my_level", 3)
+	metrics := newCountsBySvc(baseMetrics, "not_on_my_level", 3, true)
 
 	metrics.countByServiceName("fry", false, "unknown")
 	metrics.countByServiceName("leela", false, "unknown")
@@ -71,7 +71,7 @@ func TestNewCountsBySvc(t *testing.T) {
 	counters, _ := baseMetrics.Backend.Snapshot()
 	assert.EqualValues(t, 1, counters["not_on_my_level|debug=false|sampler_type=unknown|svc=fry"])
 	assert.EqualValues(t, 1, counters["not_on_my_level|debug=false|sampler_type=unknown|svc=leela"])
-	assert.EqualValues(t, 2, counters["not_on_my_level|debug=false|svc=other-services"])
+	assert.EqualValues(t, 2, counters["not_on_my_level|debug=false|sampler_type=unknown|svc=other-services"])
 
 	metrics.countByServiceName("zoidberg", true, "")
 	metrics.countByServiceName("bender", true, "")
@@ -81,5 +81,5 @@ func TestNewCountsBySvc(t *testing.T) {
 	counters, _ = baseMetrics.Backend.Snapshot()
 	assert.EqualValues(t, 1, counters["not_on_my_level|debug=true|svc=zoidberg"])
 	assert.EqualValues(t, 1, counters["not_on_my_level|debug=true|svc=bender"])
-	assert.EqualValues(t, 2, counters["not_on_my_level|debug=true|svc=other-services"])
+	assert.EqualValues(t, 2, counters["not_on_my_level|debug=true|sampler_type=unknown|svc=other-services"])
 }
