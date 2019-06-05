@@ -96,7 +96,6 @@ func TestNewTraceCountsBySvc(t *testing.T) {
 func TestNewSpanCountsBySvc(t *testing.T) {
 	baseMetrics := metricstest.NewFactory(time.Hour)
 	metrics := newSpanCountsBySvc(baseMetrics, "not_on_my_level", 3)
-	const spanSamplerType = ""
 	metrics.countByServiceName("fry", false)
 	metrics.countByServiceName("leela", false)
 	metrics.countByServiceName("bender", false)
