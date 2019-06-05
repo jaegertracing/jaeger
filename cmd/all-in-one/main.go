@@ -89,7 +89,7 @@ func main() {
 		Use:   "jaeger-all-in-one",
 		Short: "Jaeger all-in-one distribution with agent, collector and query in one process.",
 		Long: `Jaeger all-in-one distribution with agent, collector and query. Use with caution this version
-		 uses only in-memory database.`,
+by default uses only in-memory database.`,
 		RunE: func(cmd *cobra.Command, args []string) error {
 			if err := svc.Start(v); err != nil {
 				return err
