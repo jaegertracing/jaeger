@@ -70,7 +70,7 @@ type SpanProcessorMetrics struct {
 	spanCounts    SpanCountsByFormat
 }
 
-type spanCountsBySvc struct {
+type countsBySvc struct {
 	counts          map[string]metrics.Counter // counters per service
 	debugCounts     map[string]metrics.Counter // debug counters per service
 	factory         metrics.Factory
@@ -79,13 +79,12 @@ type spanCountsBySvc struct {
 	category        string
 }
 
+type spanCountsBySvc struct {
+	countsBySvc
+}
+
 type traceCountsBySvc struct {
-	counts            map[string]metrics.Counter // counters per service
-	debugCounts       map[string]metrics.Counter // debug counters per service
-	factory           metrics.Factory
-	lock              *sync.Mutex
-	maxServices       int // servicesNames * samplerTypes
-	category          string
+	countsBySvc
 	stringBuilderPool *sync.Pool
 }
 
@@ -173,12 +172,14 @@ func newMetricsBySvc(factory metrics.Factory, category string) metricsBySvc {
 
 func newTraceCountsBySvc(factory metrics.Factory, category string, maxServices int) traceCountsBySvc {
 	return traceCountsBySvc{
-		counts:      newTraceCountsOtherServices(factory, category, "false"),
-		debugCounts: newTraceCountsOtherServices(factory, category, "true"),
-		factory:     factory,
-		lock:        &sync.Mutex{},
-		maxServices: maxServices + numOfSamplerTypes, // numOfSamplerType is the offset added to maxServices threshold
-		category:    category,
+		countsBySvc: countsBySvc{
+			counts:          newTraceCountsOtherServices(factory, category, "false"),
+			debugCounts:     newTraceCountsOtherServices(factory, category, "true"),
+			factory:         factory,
+			lock:            &sync.Mutex{},
+			maxServiceNames: maxServices + numOfSamplerTypes, // numOfSamplerType is the offset added to maxServices threshold
+			category:        category,
+		},
 		// use sync.Pool to reduce allocation of stringBuilder
 		stringBuilderPool: &sync.Pool{
 			New: func() interface{} {
@@ -201,12 +202,14 @@ func newTraceCountsOtherServices(factory metrics.Factory, category string, isDeb
 
 func newSpanCountsBySvc(factory metrics.Factory, category string, maxServiceNames int) spanCountsBySvc {
 	return spanCountsBySvc{
-		counts:          map[string]metrics.Counter{otherServices: factory.Counter(metrics.Options{Name: category, Tags: map[string]string{"svc": otherServices, "debug": "false"}})},
-		debugCounts:     map[string]metrics.Counter{otherServices: factory.Counter(metrics.Options{Name: category, Tags: map[string]string{"svc": otherServices, "debug": "true"}})},
-		factory:         factory,
-		lock:            &sync.Mutex{},
-		maxServiceNames: maxServiceNames,
-		category:        category,
+		countsBySvc: countsBySvc{
+			counts:          map[string]metrics.Counter{otherServices: factory.Counter(metrics.Options{Name: category, Tags: map[string]string{"svc": otherServices, "debug": "false"}})},
+			debugCounts:     map[string]metrics.Counter{otherServices: factory.Counter(metrics.Options{Name: category, Tags: map[string]string{"svc": otherServices, "debug": "true"}})},
+			factory:         factory,
+			lock:            &sync.Mutex{},
+			maxServiceNames: maxServiceNames,
+			category:        category,
+		},
 	}
 }
 
@@ -291,7 +294,7 @@ func (m *traceCountsBySvc) countByServiceName(serviceName string, isDebug bool, 
 
 	if c, ok := counts[key]; ok {
 		counter = c
-	} else if len(counts) < m.maxServices {
+	} else if len(counts) < m.maxServiceNames {
 		debugStr := "false"
 		if isDebug {
 			debugStr = "true"
