@@ -59,9 +59,9 @@ func TestProcessorMetrics(t *testing.T) {
 	assert.Empty(t, gauges)
 }
 
-func TestNewCountsBySvc(t *testing.T) {
+func TestNewTraceCountsBySvc(t *testing.T) {
 	baseMetrics := metricstest.NewFactory(time.Hour)
-	metrics := newCountsBySvc(baseMetrics, "not_on_my_level", 3, true)
+	metrics := newTraceCountsBySvc(baseMetrics, "not_on_my_level", 3)
 
 	metrics.countByServiceName("fry", false, "unknown")
 	metrics.countByServiceName("leela", false, "unknown")
@@ -73,13 +73,56 @@ func TestNewCountsBySvc(t *testing.T) {
 	assert.EqualValues(t, 1, counters["not_on_my_level|debug=false|sampler_type=unknown|svc=leela"])
 	assert.EqualValues(t, 2, counters["not_on_my_level|debug=false|sampler_type=unknown|svc=other-services"])
 
-	metrics.countByServiceName("zoidberg", true, "")
-	metrics.countByServiceName("bender", true, "")
-	metrics.countByServiceName("leela", true, "")
-	metrics.countByServiceName("fry", true, "")
+	metrics.countByServiceName("zoidberg", true, "remote")
+	metrics.countByServiceName("bender", true, "const")
+	metrics.countByServiceName("leela", true, "probabilistic")
+	metrics.countByServiceName("fry", true, "ratelimiting")
+	metrics.countByServiceName("leela", true, "remote")
+	metrics.countByServiceName("fry", true, "const")
+	metrics.countByServiceName("elzar", true, "lowerbound")
+	metrics.countByServiceName("url", true, "unknown")
+
+	counters, _ = baseMetrics.Backend.Snapshot()
+	assert.EqualValues(t, 1, counters["not_on_my_level|debug=true|sampler_type=remote|svc=zoidberg"])
+	assert.EqualValues(t, 1, counters["not_on_my_level|debug=true|sampler_type=const|svc=bender"])
+	assert.EqualValues(t, 1, counters["not_on_my_level|debug=true|sampler_type=probabilistic|svc=other-services"])
+	assert.EqualValues(t, 1, counters["not_on_my_level|debug=true|sampler_type=ratelimiting|svc=other-services"])
+	assert.EqualValues(t, 1, counters["not_on_my_level|debug=true|sampler_type=remote|svc=other-services"])
+	assert.EqualValues(t, 1, counters["not_on_my_level|debug=true|sampler_type=const|svc=other-services"])
+	assert.EqualValues(t, 1, counters["not_on_my_level|debug=true|sampler_type=lowerbound|svc=other-services"])
+	assert.EqualValues(t, 1, counters["not_on_my_level|debug=true|sampler_type=unknown|svc=other-services"])
+}
+
+func TestNewSpanCountsBySvc(t *testing.T) {
+	baseMetrics := metricstest.NewFactory(time.Hour)
+	metrics := newSpanCountsBySvc(baseMetrics, "not_on_my_level", 3)
+	const spanSamplerType = ""
+	metrics.countByServiceName("fry", false)
+	metrics.countByServiceName("leela", false)
+	metrics.countByServiceName("bender", false)
+	metrics.countByServiceName("zoidberg", false)
+
+	counters, _ := baseMetrics.Backend.Snapshot()
+	assert.EqualValues(t, 1, counters["not_on_my_level|debug=false|svc=fry"])
+	assert.EqualValues(t, 1, counters["not_on_my_level|debug=false|svc=leela"])
+	assert.EqualValues(t, 2, counters["not_on_my_level|debug=false|svc=other-services"])
+
+	metrics.countByServiceName("zoidberg", true)
+	metrics.countByServiceName("bender", true)
+	metrics.countByServiceName("leela", true)
+	metrics.countByServiceName("fry", true)
 
 	counters, _ = baseMetrics.Backend.Snapshot()
 	assert.EqualValues(t, 1, counters["not_on_my_level|debug=true|svc=zoidberg"])
 	assert.EqualValues(t, 1, counters["not_on_my_level|debug=true|svc=bender"])
-	assert.EqualValues(t, 2, counters["not_on_my_level|debug=true|sampler_type=unknown|svc=other-services"])
+	assert.EqualValues(t, 2, counters["not_on_my_level|debug=true|svc=other-services"])
+}
+
+func TestBuildKey(t *testing.T) {
+	// This test checks if stringBuilder is reset every time buildKey is called.
+	tc := newTraceCountsBySvc(jaegerM.NullFactory, "received", 100)
+	key := tc.buildKey("sample-service", "unknown")
+	assert.Equal(t, "sample-service$_$unknown", key)
+	key = tc.buildKey("sample-service2", "const")
+	assert.Equal(t, "sample-service2$_$const", key)
 }
