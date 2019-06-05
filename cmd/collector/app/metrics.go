@@ -32,18 +32,16 @@ const (
 
 	samplerTypeKey           = "sampler_type"
 	samplerTypeConst         = "const"
-	samplerTypeRemote        = "remote"
 	samplerTypeProbabilistic = "probabilistic"
 	samplerTypeRateLimiting  = "ratelimiting"
 	samplerTypeLowerBound    = "lowerbound"
 	samplerTypeUnknown       = "unknown"
-	// types of samplers: const, remote, probabilistic, ratelimiting, lowerbound
-	numOfSamplerTypes = 5
+	// types of samplers: const, probabilistic, ratelimiting, lowerbound
+	numOfSamplerTypes = 4
 
 	concatenation = "$_$"
 
 	otherServicesConstSampler         = otherServices + concatenation + samplerTypeConst
-	otherServicesRemoteSampler        = otherServices + concatenation + samplerTypeRemote
 	otherServicesProbabilisticSampler = otherServices + concatenation + samplerTypeProbabilistic
 	otherServicesRateLimitingSampler  = otherServices + concatenation + samplerTypeRateLimiting
 	otherServicesLowerBoundSampler    = otherServices + concatenation + samplerTypeLowerBound
@@ -195,7 +193,6 @@ func newTraceCountsOtherServices(factory metrics.Factory, category string, isDeb
 		otherServicesLowerBoundSampler:    factory.Counter(metrics.Options{Name: category, Tags: map[string]string{"svc": otherServices, "debug": isDebug, samplerTypeKey: samplerTypeLowerBound}}),
 		otherServicesProbabilisticSampler: factory.Counter(metrics.Options{Name: category, Tags: map[string]string{"svc": otherServices, "debug": isDebug, samplerTypeKey: samplerTypeProbabilistic}}),
 		otherServicesRateLimitingSampler:  factory.Counter(metrics.Options{Name: category, Tags: map[string]string{"svc": otherServices, "debug": isDebug, samplerTypeKey: samplerTypeRateLimiting}}),
-		otherServicesRemoteSampler:        factory.Counter(metrics.Options{Name: category, Tags: map[string]string{"svc": otherServices, "debug": isDebug, samplerTypeKey: samplerTypeRemote}}),
 		otherServicesUnknownSampler:       factory.Counter(metrics.Options{Name: category, Tags: map[string]string{"svc": otherServices, "debug": isDebug, samplerTypeKey: samplerTypeUnknown}}),
 	}
 }
@@ -309,8 +306,6 @@ func (m *traceCountsBySvc) countByServiceName(serviceName string, isDebug bool, 
 		switch samplerType {
 		case samplerTypeConst:
 			counter = counts[otherServicesConstSampler]
-		case samplerTypeRemote:
-			counter = counts[otherServicesRemoteSampler]
 		case samplerTypeLowerBound:
 			counter = counts[otherServicesLowerBoundSampler]
 		case samplerTypeProbabilistic:
