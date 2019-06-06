@@ -14,9 +14,9 @@ docker build -f cmd/all-in-one/Dockerfile -t $REPO:latest cmd/all-in-one
 export CID=$(docker run -d -p 16686:16686 -p 5778:5778 $REPO:latest)
 make integration-test
 
-if [ -z "$( docker ps | grep jaeger )" ] ; then
-    echo "---- jaeger stopped unexpectedly during test ---------"
-    echo "---- please check the following log for details ----"
+if [ $? -ne 0 ] ; then
+    echo "---- integration test failed unexpectedly ----"
+    echo "--- check the docker log below for details ---"
     docker logs $CID
     exit 1
 fi
