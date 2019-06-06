@@ -206,6 +206,15 @@ func TestIsDebug(t *testing.T) {
 	assert.True(t, flags.IsDebug())
 }
 
+func TestSamplerType(t *testing.T) {
+	span := makeSpan(model.String("sampler.type", "lowerbound"))
+	assert.Equal(t, "lowerbound", span.GetSamplerType())
+	span = makeSpan(model.String("sampler.type", ""))
+	assert.Equal(t, "unknown", span.GetSamplerType())
+	span = makeSpan(model.KeyValue{})
+	assert.Equal(t, "unknown", span.GetSamplerType())
+}
+
 func TestIsSampled(t *testing.T) {
 	flags := model.Flags(0)
 	flags.SetSampled()
