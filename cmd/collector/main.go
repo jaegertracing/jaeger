@@ -192,16 +192,15 @@ func startGRPCServer(
 	var server *grpc.Server
 
 	if opts.CollectorGRPCTLS { // user requested a server with TLS, setup creds
-		if opts.CollectorGRPCCert == "" || opts.CollectorGRPCKey == "" {
-			return nil, fmt.Errorf("you requested TLS but configuration does not include a path to cert and/or key")
-		}
-		creds, err := credentials.NewServerTLSFromFile(
+		tlsCfg, err := grpcserver.TLSConfig(
 			opts.CollectorGRPCCert,
 			opts.CollectorGRPCKey,
-		)
+			opts.CollectorGRPCClientCA)
 		if err != nil {
-			return nil, fmt.Errorf("failed to load TLS keys: %s", err)
+			return nil, err
 		}
+
+		creds := credentials.NewTLS(tlsCfg)
 		server = grpc.NewServer(grpc.Creds(creds))
 	} else { // server without TLS
 		server = grpc.NewServer()
