@@ -6,6 +6,10 @@ Changes by Version
 
 #### Backend Changes
 
+- The traces related metrics on collector now have a new tag `sampler_type` ([#1576](https://github.com/jaegertracing/jaeger/pull/1576))
+
+  this might break some existing metrics dashboard (if so, users need to update query to aggregate over this new tag).
+
 ##### Breaking Changes
 
 ##### New Features
