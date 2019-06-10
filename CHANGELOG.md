@@ -49,9 +49,9 @@ Changes by Version
     --kafka.consumer.group-id
     ```
 
-- Add Admin port and group all ports in one file (#1442, @yurishkuro)
+* Add Admin port and group all ports in one file ([#1442](https://github.com/jaegertracing/jaeger/pull/1442), [@yurishkuro](https://github.com/yurishkuro))
 
-    This change fixes issues #1428, #1332 and moves all metrics endpoints from API ports to admin ports. It may require re-configuring Prometheus scraping rules.
+    This change fixes issues [#1428](https://github.com/jaegertracing/jaeger/issues/1428), [#1332](https://github.com/jaegertracing/jaeger/issues/1332) and moves all metrics endpoints from API ports to admin ports. It may require re-configuring Prometheus scraping rules.
 
 ##### New Features
 
