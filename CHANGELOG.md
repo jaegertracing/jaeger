@@ -49,6 +49,10 @@ Changes by Version
     --kafka.consumer.group-id
     ```
 
+- Add Admin port and group all ports in one file (#1442, @yurishkuro)
+
+    This change fixes issues #1428, #1332 and moves all metrics endpoints from API ports to admin ports. It may require re-configuring Prometheus scraping rules.
+
 ##### New Features
 
 * Add gRPC resolver using external discovery service ([#1498](https://github.com/jaegertracing/jaeger/pull/1498), [@guanw](https://github.com/guanw))
