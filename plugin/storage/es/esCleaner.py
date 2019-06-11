@@ -1,4 +1,4 @@
-#!/usr/bin/env python
+#!/usr/bin/env python3
 
 import curator
 import elasticsearch
@@ -59,6 +59,7 @@ def main():
 
 def filter_main_indices(ilo, prefix):
     ilo.filter_by_regex(kind='prefix', value=prefix + "jaeger")
+    empty_list(ilo, "No indices to delete")
     # This excludes archive index as we use source='name'
     # source `creation_date` would include archive index
     ilo.filter_by_age(source='name', direction='older', timestring='%Y-%m-%d', unit='days', unit_count=int(sys.argv[1]))

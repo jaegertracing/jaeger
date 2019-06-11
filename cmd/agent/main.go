@@ -23,12 +23,14 @@ import (
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
 	"github.com/uber/jaeger-lib/metrics"
+	_ "go.uber.org/automaxprocs"
 	"go.uber.org/zap"
 
 	"github.com/jaegertracing/jaeger/cmd/agent/app"
 	"github.com/jaegertracing/jaeger/cmd/agent/app/reporter"
 	"github.com/jaegertracing/jaeger/cmd/agent/app/reporter/grpc"
 	"github.com/jaegertracing/jaeger/cmd/agent/app/reporter/tchannel"
+	"github.com/jaegertracing/jaeger/cmd/docs"
 	"github.com/jaegertracing/jaeger/cmd/flags"
 	"github.com/jaegertracing/jaeger/pkg/config"
 	"github.com/jaegertracing/jaeger/pkg/version"
@@ -54,9 +56,9 @@ func main() {
 				Namespace(metrics.NSOptions{Name: "agent"})
 
 			rOpts := new(reporter.Options).InitFromViper(v)
-			tChanOpts := tchannel.NewBuilder().InitFromViper(v, logger)
-			grpcOpts := grpc.NewConnBuilder().InitFromViper(v)
-			cp, err := app.CreateCollectorProxy(rOpts, tChanOpts, grpcOpts, logger, mFactory)
+			tchanBuilder := tchannel.NewBuilder().InitFromViper(v, logger)
+			grpcBuilder := grpc.NewConnBuilder().InitFromViper(v)
+			cp, err := app.CreateCollectorProxy(rOpts, tchanBuilder, grpcBuilder, logger, mFactory)
 			if err != nil {
 				logger.Fatal("Could not create collector proxy", zap.Error(err))
 			}
@@ -83,6 +85,7 @@ func main() {
 	}
 
 	command.AddCommand(version.Command())
+	command.AddCommand(docs.Command(v))
 
 	config.AddFlags(
 		v,

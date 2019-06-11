@@ -1,4 +1,9 @@
+FROM alpine:latest as certs
+RUN apk add --update --no-cache ca-certificates
+
 FROM scratch
+
+COPY --from=certs /etc/ssl/certs/ca-certificates.crt /etc/ssl/certs/ca-certificates.crt
 
 # Agent zipkin.thrift compact
 EXPOSE 5775/udp
@@ -21,8 +26,9 @@ EXPOSE 14250
 # Web HTTP
 EXPOSE 16686
 
-COPY ./cmd/all-in-one/all-in-one-linux /go/bin/
-COPY ./cmd/all-in-one/sampling_strategies.json /etc/jaeger/
+COPY all-in-one-linux /go/bin/
+COPY sampling_strategies.json /etc/jaeger/
 
+VOLUME ["/tmp"]
 ENTRYPOINT ["/go/bin/all-in-one-linux"]
 CMD ["--sampling.strategies-file=/etc/jaeger/sampling_strategies.json"]

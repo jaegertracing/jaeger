@@ -4,7 +4,7 @@ set -e
 
 BRANCH=${BRANCH:?'missing BRANCH env var'}
 
-make build-crossdock
+make build-and-run-crossdock
 
 # Only push the docker container to Docker Hub for master branch
 if [[ "$BRANCH" == "master" && "$TRAVIS_SECURE_ENV_VARS" == "true" ]]; then

@@ -24,27 +24,33 @@ import (
 	"github.com/jaegertracing/jaeger/plugin/storage"
 )
 
+const (
+	longTemplate = `
+All command line options can be provided via environment variables by converting
+their names to upper case and replacing punctuation with underscores. For example:
+
+command line option                 environment variable
+------------------------------------------------------------------
+--cassandra.connections-per-host    CASSANDRA_CONNECTIONS_PER_HOST
+--metrics-backend                   METRICS_BACKEND
+
+The following configuration options are only available via environment variables:
+%s
+`
+)
+
 // Command creates `env` command
 func Command() *cobra.Command {
+	fs := new(pflag.FlagSet)
+	fs.String(storage.SpanStorageTypeEnvVar, "cassandra", fmt.Sprintf("The type of backend %s used for trace storage. Multiple backends can be specified (currently only for writing spans) as comma-separated list, e.g. \"cassandra,kafka\".", storage.AllStorageTypes))
+	fs.String(storage.DependencyStorageTypeEnvVar, "${SPAN_STORAGE}", "The type of backend used for service dependencies storage.")
+	long := fmt.Sprintf(longTemplate, strings.Replace(fs.FlagUsagesWrapped(0), "      --", "", -1))
 	return &cobra.Command{
 		Use:   "env",
-		Short: "Help about environment variables",
-		Long:  `Help about environment variables`,
+		Short: "Help about environment variables.",
+		Long:  long,
 		Run: func(cmd *cobra.Command, args []string) {
-			fmt.Fprintln(cmd.OutOrStdout(), `
-All command line options can be provided via environment variables by converting
-their names to upper case and replacing punctuation with underscores. For example,
-
-      command line option                 environment variable
-      ------------------------------------------------------------------
-      --cassandra.connections-per-host    CASSANDRA_CONNECTIONS_PER_HOST
-      --metrics-backend                   METRICS_BACKEND
-
-The following configuration options are only available via environment variables:`+"\n")
-			fs := new(pflag.FlagSet)
-			fs.String(storage.SpanStorageTypeEnvVar, "cassandra", `The type of backend (cassandra, elasticsearch, kafka, memory) used for trace storage. Multiple backends can be specified (currently only for writing spans) as comma-separated list, e.g. "cassandra,kafka".`)
-			fs.String(storage.DependencyStorageTypeEnvVar, "${SPAN_STORAGE}", "The type of backend used for service dependencies storage.")
-			fmt.Fprintln(cmd.OutOrStdout(), strings.Replace(fs.FlagUsagesWrapped(1000), "      --", "      ", -1))
+			fmt.Fprintf(cmd.OutOrStdout(), long)
 		},
 	}
 }

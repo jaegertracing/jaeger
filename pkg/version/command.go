@@ -25,8 +25,8 @@ import (
 func Command() *cobra.Command {
 	return &cobra.Command{
 		Use:   "version",
-		Short: "Print the version",
-		Long:  `Print the version and build information`,
+		Short: "Print the version.",
+		Long:  `Print the version and build information.`,
 		RunE: func(cmd *cobra.Command, args []string) error {
 			info := Get()
 			json, err := json.Marshal(info)

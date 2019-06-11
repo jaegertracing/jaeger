@@ -29,6 +29,7 @@ const (
 	collectorTLS           = gRPCPrefix + "tls"
 	collectorTLSCA         = gRPCPrefix + "tls.ca"
 	collectorTLSServerName = gRPCPrefix + "tls.server-name"
+	discoveryMinPeers      = gRPCPrefix + "discovery.min-peers"
 )
 
 // AddFlags adds flags for Options.
@@ -38,6 +39,7 @@ func AddFlags(flags *flag.FlagSet) {
 	flags.Bool(collectorTLS, false, "Enable TLS.")
 	flags.String(collectorTLSCA, "", "Path to a TLS CA file. (default use the systems truststore)")
 	flags.String(collectorTLSServerName, "", "Override the TLS server name.")
+	flags.Int(discoveryMinPeers, 3, "Max number of collectors to which the agent will try to connect at any given time")
 }
 
 // InitFromViper initializes Options with properties retrieved from Viper.
@@ -50,5 +52,6 @@ func (b *ConnBuilder) InitFromViper(v *viper.Viper) *ConnBuilder {
 	b.TLS = v.GetBool(collectorTLS)
 	b.TLSCA = v.GetString(collectorTLSCA)
 	b.TLSServerName = v.GetString(collectorTLSServerName)
+	b.DiscoveryMinPeers = v.GetInt(discoveryMinPeers)
 	return b
 }
