@@ -20,6 +20,7 @@ import (
 	"errors"
 	"fmt"
 	"io/ioutil"
+	"reflect"
 	"testing"
 	"time"
 
@@ -749,7 +750,10 @@ func mockSearchService(r *spanReaderTest) *mock.Call {
 	searchService.On("Aggregation", stringMatcher(operationsAggregation), mock.AnythingOfType("*elastic.TermsAggregation")).Return(searchService)
 	searchService.On("Aggregation", stringMatcher(traceIDAggregation), mock.AnythingOfType("*elastic.TermsAggregation")).Return(searchService)
 	r.client.On("Search", mock.AnythingOfType("string"), mock.AnythingOfType("string"), mock.AnythingOfType("string"), mock.AnythingOfType("string"), mock.AnythingOfType("string")).Return(searchService)
-	return searchService.On("Do", mock.AnythingOfType("*context.emptyCtx"))
+	return searchService.On("Do", mock.MatchedBy(func(ctx context.Context) bool{
+		t :=  reflect.TypeOf(ctx).String()
+		return t == "*context.valueCtx" || t == "*context.emptyCtx"
+	}))
 }
 
 func TestTraceQueryParameterValidation(t *testing.T) {

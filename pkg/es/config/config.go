@@ -32,32 +32,34 @@ import (
 
 	"github.com/jaegertracing/jaeger/pkg/es"
 	"github.com/jaegertracing/jaeger/pkg/es/wrapper"
+	"github.com/jaegertracing/jaeger/storage/spanstore"
 	storageMetrics "github.com/jaegertracing/jaeger/storage/spanstore/metrics"
 )
 
 // Configuration describes the configuration properties needed to connect to an ElasticSearch cluster
 type Configuration struct {
-	Servers             []string
-	Username            string
-	Password            string
-	TokenFilePath       string
-	Sniffer             bool          // https://github.com/olivere/elastic/wiki/Sniffing
-	MaxNumSpans         int           // defines maximum number of spans to fetch from storage per query
-	MaxSpanAge          time.Duration `yaml:"max_span_age"` // configures the maximum lookback on span reads
-	NumShards           int64         `yaml:"shards"`
-	NumReplicas         int64         `yaml:"replicas"`
-	Timeout             time.Duration `validate:"min=500"`
-	BulkSize            int
-	BulkWorkers         int
-	BulkActions         int
-	BulkFlushInterval   time.Duration
-	IndexPrefix         string
-	TagsFilePath        string
-	AllTagsAsFields     bool
-	TagDotReplacement   string
-	Enabled             bool
-	TLS                 TLSConfig
-	UseReadWriteAliases bool
+	Servers               []string
+	Username              string
+	Password              string
+	TokenFilePath         string
+	AllowTokenFromContext bool
+	Sniffer               bool          // https://github.com/olivere/elastic/wiki/Sniffing
+	MaxNumSpans           int           // defines maximum number of spans to fetch from storage per query
+	MaxSpanAge            time.Duration `yaml:"max_span_age"` // configures the maximum lookback on span reads
+	NumShards             int64         `yaml:"shards"`
+	NumReplicas           int64         `yaml:"replicas"`
+	Timeout               time.Duration `validate:"min=500"`
+	BulkSize              int
+	BulkWorkers           int
+	BulkActions           int
+	BulkFlushInterval     time.Duration
+	IndexPrefix           string
+	TagsFilePath          string
+	AllTagsAsFields       bool
+	TagDotReplacement     string
+	Enabled               bool
+	TLS                   TLSConfig
+	UseReadWriteAliases   bool
 }
 
 // TLSConfig describes the configuration properties to connect tls enabled ElasticSearch cluster
@@ -90,7 +92,7 @@ func (c *Configuration) NewClient(logger *zap.Logger, metricsFactory metrics.Fac
 	if len(c.Servers) < 1 {
 		return nil, errors.New("No servers specified")
 	}
-	options, err := c.getConfigOptions()
+	options, err := c.getConfigOptions(logger)
 	if err != nil {
 		return nil, err
 	}
@@ -247,8 +249,13 @@ func (c *Configuration) IsEnabled() bool {
 }
 
 // getConfigOptions wraps the configs to feed to the ElasticSearch client init
-func (c *Configuration) getConfigOptions() ([]elastic.ClientOptionFunc, error) {
-	options := []elastic.ClientOptionFunc{elastic.SetURL(c.Servers...), elastic.SetSniff(c.Sniffer)}
+func (c *Configuration) getConfigOptions(logger *zap.Logger) ([]elastic.ClientOptionFunc, error) {
+
+	options := []elastic.ClientOptionFunc{elastic.SetURL(c.Servers...), elastic.SetSniff(c.Sniffer),
+		// Disable health check when token from context is allowed, this is because at this time
+		// we don' have a valid token to do the check ad if we don't disable the check the service that
+		// uses this won't start.
+		elastic.SetHealthcheck(!c.AllowTokenFromContext)}
 	httpClient := &http.Client{
 		Timeout: c.Timeout,
 	}
@@ -271,14 +278,24 @@ func (c *Configuration) getConfigOptions() ([]elastic.ClientOptionFunc, error) {
 			}
 			httpTransport.TLSClientConfig = &tls.Config{RootCAs: ca}
 		}
+
+		token := ""
 		if c.TokenFilePath != "" {
-			token, err := loadToken(c.TokenFilePath)
+			if c.AllowTokenFromContext {
+				logger.Warn("Token file and token propagation are both enabled, token from file won't be used")
+			}
+			tokenFromFile, err := loadToken(c.TokenFilePath)
 			if err != nil {
 				return nil, err
 			}
+			token = tokenFromFile
+		}
+
+		if token != "" || c.AllowTokenFromContext {
 			httpClient.Transport = &tokenAuthTransport{
-				token:   token,
-				wrapped: httpTransport,
+				token:                token,
+				allowOverrideFromCtx: c.AllowTokenFromContext,
+				wrapped:              httpTransport,
 			}
 		} else {
 			httpClient.Transport = httpTransport
@@ -329,12 +346,20 @@ func (tlsConfig *TLSConfig) loadPrivateKey() (*tls.Certificate, error) {
 
 // TokenAuthTransport
 type tokenAuthTransport struct {
-	token   string
-	wrapped *http.Transport
+	token                string
+	allowOverrideFromCtx bool
+	wrapped              *http.Transport
 }
 
 func (tr *tokenAuthTransport) RoundTrip(r *http.Request) (*http.Response, error) {
-	r.Header.Set("Authorization", "Bearer "+tr.token)
+	token := tr.token
+	if tr.allowOverrideFromCtx {
+		headerToken, _ := spanstore.GetBearerToken(r.Context())
+		if headerToken != "" {
+			token = headerToken
+		}
+	}
+	r.Header.Set("Authorization", "Bearer "+token)
 	return tr.wrapped.RoundTrip(r)
 }
 

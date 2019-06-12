@@ -23,10 +23,11 @@ import (
 )
 
 const (
-	queryPort        = "query.port"
-	queryBasePath    = "query.base-path"
-	queryStaticFiles = "query.static-files"
-	queryUIConfig    = "query.ui-config"
+	queryPort             = "query.port"
+	queryBasePath         = "query.base-path"
+	queryStaticFiles      = "query.static-files"
+	queryUIConfig         = "query.ui-config"
+	queryTokenPropagation = "query.bearer-token-propagation"
 )
 
 // QueryOptions holds configuration for query service
@@ -39,6 +40,8 @@ type QueryOptions struct {
 	StaticAssets string
 	// UIConfig is the path to a configuration file for the UI
 	UIConfig string
+	// BearerTokenPropagation activate/deactivate bearer token propagation to storage
+	BearerTokenPropagation bool
 }
 
 // AddFlags adds flags for QueryOptions
@@ -47,6 +50,8 @@ func AddFlags(flagSet *flag.FlagSet) {
 	flagSet.String(queryBasePath, "/", "The base path for all HTTP routes, e.g. /jaeger; useful when running behind a reverse proxy")
 	flagSet.String(queryStaticFiles, "", "The directory path override for the static assets for the UI")
 	flagSet.String(queryUIConfig, "", "The path to the UI configuration file in JSON format")
+	flagSet.Bool(queryTokenPropagation, true, "Allow propagation of bearer token to be used by storage plugins")
+
 }
 
 // InitFromViper initializes QueryOptions with properties from viper
@@ -55,5 +60,6 @@ func (qOpts *QueryOptions) InitFromViper(v *viper.Viper) *QueryOptions {
 	qOpts.BasePath = v.GetString(queryBasePath)
 	qOpts.StaticAssets = v.GetString(queryStaticFiles)
 	qOpts.UIConfig = v.GetString(queryUIConfig)
+	qOpts.BearerTokenPropagation = v.GetBool(queryTokenPropagation)
 	return qOpts
 }

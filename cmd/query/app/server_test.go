@@ -46,7 +46,8 @@ func TestServer(t *testing.T) {
 	querySvc := &querysvc.QueryService{}
 	tracer := opentracing.NoopTracer{}
 
-	server := NewServer(flagsSvc, querySvc, &QueryOptions{Port: ports.QueryAdminHTTP}, tracer)
+	server := NewServer(flagsSvc, querySvc, &QueryOptions{Port: ports.QueryAdminHTTP,
+		BearerTokenPropagation: true}, tracer)
 	assert.NoError(t, server.Start())
 
 	// TODO wait for servers to come up and test http and grpc endpoints

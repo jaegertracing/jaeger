@@ -22,6 +22,7 @@ import (
 	"github.com/spf13/viper"
 
 	"github.com/jaegertracing/jaeger/pkg/es/config"
+	"github.com/jaegertracing/jaeger/storage/spanstore"
 )
 
 const (
@@ -255,6 +256,8 @@ func initFromViper(cfg *namespaceConfig, v *viper.Viper) {
 	cfg.TagDotReplacement = v.GetString(cfg.namespace + suffixTagDeDotChar)
 	cfg.UseReadWriteAliases = v.GetBool(cfg.namespace + suffixReadAlias)
 	cfg.Enabled = v.GetBool(cfg.namespace + suffixEnabled)
+	// TODO: Need to figure out a better way for do this.
+	cfg.AllowTokenFromContext = v.GetBool(spanstore.StoragePropagationKey)
 }
 
 // GetPrimary returns primary configuration.
