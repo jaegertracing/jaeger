@@ -82,7 +82,7 @@ func (s *Service) AddFlags(flagSet *flag.FlagSet) {
 
 // SetHealthCheckStatus sets status of healthcheck
 func (s *Service) SetHealthCheckStatus(status healthcheck.Status) {
-	s.hcStatusChannel <- healthcheck.Unavailable
+	s.hcStatusChannel <- status
 }
 
 // Start bootstraps the service and starts the admin server.
