@@ -61,6 +61,8 @@ type SpanProcessorMetrics struct {
 	BatchSize metrics.Gauge // size of span batch
 	// QueueLength measures the size of the internal span queue
 	QueueLength metrics.Gauge
+	// SvcLatency tracks latency of a service
+	SvcLatency latencyMetricsBySvc
 	// SavedOkBySvc contains span and trace counts by service
 	SavedOkBySvc  metricsBySvc  // spans actually saved
 	SavedErrBySvc metricsBySvc  // spans failed to save
@@ -89,6 +91,12 @@ type traceCountsBySvc struct {
 type metricsBySvc struct {
 	spans  spanCountsBySvc  // number of spans received per service
 	traces traceCountsBySvc // number of traces originated per service
+}
+
+type latencyMetricsBySvc struct {
+	svcLatency map[string]metrics.Timer  // per service latency
+	category   string
+	factory    metrics.Factory
 }
 
 // InboundTransport identifies the transport used to receive spans.
@@ -152,11 +160,23 @@ func NewSpanProcessorMetrics(serviceMetrics metrics.Factory, hostMetrics metrics
 		QueueLength:    hostMetrics.Gauge(metrics.Options{Name: "queue-length", Tags: nil}),
 		SavedOkBySvc:   newMetricsBySvc(serviceMetrics.Namespace(metrics.NSOptions{Name: "", Tags: map[string]string{"result": "ok"}}), "saved-by-svc"),
 		SavedErrBySvc:  newMetricsBySvc(serviceMetrics.Namespace(metrics.NSOptions{Name: "", Tags: map[string]string{"result": "err"}}), "saved-by-svc"),
+		SvcLatency:     newLatencyMetricsBySvc(serviceMetrics.Namespace(metrics.NSOptions{Name: "", Tags: nil}), "svc-latency"),
 		spanCounts:     spanCounts,
 		serviceNames:   hostMetrics.Gauge(metrics.Options{Name: "spans.serviceNames", Tags: nil}),
 	}
 
 	return m
+}
+
+func newLatencyMetricsBySvc(factory metrics.Factory, category string) latencyMetricsBySvc {
+	return latencyMetricsBySvc{
+		// Register "otherSerives" key - incase we exceed "maxServiceNames" number of services
+		svcLatency: map[string]metrics.Timer{
+			otherServices: factory.Timer(metrics.TimerOptions{Name: category, Tags: map[string]string{"svc": otherServices}}),
+		},
+		factory:  factory,
+		category: category,
+	}
 }
 
 func newMetricsBySvc(factory metrics.Factory, category string) metricsBySvc {
@@ -366,4 +386,19 @@ func (m *traceCountsBySvc) buildKey(serviceName, samplerType string) string {
 	key := keyBuilder.String()
 	m.stringBuilderPool.Put(keyBuilder)
 	return key
+}
+
+// Record latency of each service in a map the latencyMetricsBySvc map
+func (m *latencyMetricsBySvc) RecordLatencyByServiceName(span *model.Span) {
+	serviceName := NormalizeServiceName(span.Process.ServiceName)
+	if l, ok := m.svcLatency[serviceName]; ok {
+		l.Record(span.Duration)
+	} else if len(m.svcLatency) < maxServiceNames - 1 { // one key is reserved for otherServices
+		tags := map[string]string{"svc": serviceName}
+		l := m.factory.Timer(metrics.TimerOptions{Name: m.category, Tags: tags})
+		m.svcLatency[serviceName] = l
+		m.svcLatency[serviceName].Record(span.Duration)
+	} else {
+		m.svcLatency[otherServices].Record(span.Duration)
+	}
 }

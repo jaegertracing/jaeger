@@ -118,6 +118,7 @@ func (sp *spanProcessor) saveSpan(span *model.Span) {
 			zap.Stringer("trace-id", span.TraceID), zap.Stringer("span-id", span.SpanID))
 		sp.metrics.SavedOkBySvc.ReportServiceNameForSpan(span)
 	}
+	sp.metrics.SvcLatency.RecordLatencyByServiceName(span)
 	sp.metrics.SaveLatency.Record(time.Since(startTime))
 }
 
