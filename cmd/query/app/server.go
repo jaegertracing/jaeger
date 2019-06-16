@@ -18,9 +18,10 @@ import (
 	"fmt"
 	"net"
 	"net/http"
+	"strings"
 
 	"github.com/gorilla/handlers"
-	"github.com/opentracing/opentracing-go"
+	opentracing "github.com/opentracing/opentracing-go"
 	"github.com/soheilhy/cmux"
 	"go.uber.org/zap"
 	"google.golang.org/grpc"
@@ -105,7 +106,11 @@ func (s *Server) Start() error {
 
 	go func() {
 		s.svc.Logger.Info("Starting HTTP server", zap.Int("port", s.queryOptions.Port))
-		if err := s.httpServer.Serve(httpListener); err != nil {
+
+		switch err := s.httpServer.Serve(httpListener); err {
+		case nil, http.ErrServerClosed, cmux.ErrListenerClosed:
+			// normal exit, nothing to do
+		default:
 			s.svc.Logger.Error("Could not start HTTP server", zap.Error(err))
 		}
 		s.svc.SetHealthCheckStatus(healthcheck.Unavailable)
@@ -114,6 +119,7 @@ func (s *Server) Start() error {
 	// Start GRPC server concurrently
 	go func() {
 		s.svc.Logger.Info("Starting GRPC server", zap.Int("port", s.queryOptions.Port))
+
 		if err := s.grpcServer.Serve(grpcListener); err != nil {
 			s.svc.Logger.Error("Could not start GRPC server", zap.Error(err))
 		}
@@ -123,7 +129,10 @@ func (s *Server) Start() error {
 	// Start cmux server concurrently.
 	go func() {
 		s.svc.Logger.Info("Starting CMUX server", zap.Int("port", s.queryOptions.Port))
-		if err := cmuxServer.Serve(); err != nil {
+
+		err := cmuxServer.Serve()
+		// TODO: Remove string comparision when https://github.com/soheilhy/cmux/pull/69 is merged
+		if err != nil && !strings.Contains(err.Error(), "use of closed network connection") {
 			s.svc.Logger.Error("Could not start multiplexed server", zap.Error(err))
 		}
 		s.svc.SetHealthCheckStatus(healthcheck.Unavailable)
