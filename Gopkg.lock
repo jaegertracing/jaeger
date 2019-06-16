@@ -371,7 +371,8 @@
   revision = "23def4e6c14b4da8ac2ed8007337bc5eb5007998"
 
 [[projects]]
-  digest = "1:e3bed20f553811662a2b5e6c0d40f1c837b2f1decace8afb1bb1778acb97fd04"
+  branch = "master"
+  digest = "1:5ab3bec64c76669f1d55ecc42e665350df94e5e1f8570a90715f3b7b024ea523"
   name = "github.com/golang/protobuf"
   packages = [
     "descriptor",
@@ -390,8 +391,7 @@
     "ptypes/timestamp",
   ]
   pruneopts = "UT"
-  revision = "b5d812f8a3706043e23a9cd5babf2e5423744d30"
-  version = "v1.3.1"
+  revision = "b285ee9cfc6c881bb20c0d8dc73370ea9b9ec90f"
 
 [[projects]]
   digest = "1:e4f5819333ac698d294fe04dbf640f84719658d5c7ce195b10060cc37292ce79"
@@ -418,10 +418,16 @@
   version = "v1.7.1"
 
 [[projects]]
-  digest = "1:d84c274ffdfd7ce6b4efd64ee776648459009d1f542440b1faa32cb7ed9aba84"
+  digest = "1:f053e09da1c565313cbe0f999af92a690b1e1f5709dfb9aca4dcf70cb89f3cec"
   name = "github.com/grpc-ecosystem/go-grpc-middleware"
   packages = [
+    ".",
+    "logging",
+    "logging/zap",
+    "logging/zap/ctxzap",
     "retry",
+    "tags",
+    "tags/zap",
     "util/backoffutils",
     "util/metautils",
   ]
@@ -1200,6 +1206,7 @@
     "github.com/golang/protobuf/protoc-gen-go",
     "github.com/gorilla/handlers",
     "github.com/gorilla/mux",
+    "github.com/grpc-ecosystem/go-grpc-middleware/logging/zap",
     "github.com/grpc-ecosystem/go-grpc-middleware/retry",
     "github.com/grpc-ecosystem/grpc-gateway/protoc-gen-grpc-gateway",
     "github.com/grpc-ecosystem/grpc-gateway/protoc-gen-swagger",

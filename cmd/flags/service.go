@@ -16,16 +16,15 @@ package flags
 
 import (
 	"flag"
-	"io/ioutil"
 	"os"
 	"os/signal"
 	"syscall"
 
+	grpcZap "github.com/grpc-ecosystem/go-grpc-middleware/logging/zap"
 	"github.com/pkg/errors"
 	"github.com/spf13/viper"
 	"github.com/uber/jaeger-lib/metrics"
 	"go.uber.org/zap"
-	"google.golang.org/grpc/grpclog"
 
 	"github.com/jaegertracing/jaeger/pkg/healthcheck"
 	pMetrics "github.com/jaegertracing/jaeger/pkg/metrics"
@@ -58,8 +57,6 @@ func NewService(adminPort int) *Service {
 	signalsChannel := make(chan os.Signal, 1)
 	hcStatusChannel := make(chan healthcheck.Status)
 	signal.Notify(signalsChannel, os.Interrupt, syscall.SIGTERM)
-
-	grpclog.SetLoggerV2(grpclog.NewLoggerV2(ioutil.Discard, os.Stderr, os.Stderr))
 
 	return &Service{
 		Admin:           NewAdminServer(adminPort),
@@ -96,6 +93,11 @@ func (s *Service) Start(v *viper.Viper) error {
 	newProdConfig.Sampling = nil
 	if logger, err := sFlags.NewLogger(newProdConfig); err == nil {
 		s.Logger = logger
+		grpcZap.ReplaceGrpcLogger(logger.WithOptions(
+			// grpclog is not consistent with the depth of call tree before it's dispatched to zap,
+			// but Skip(2) still shows grpclog as caller, while Skip(3) shows actual grpc packages.
+			zap.AddCallerSkip(3),
+		))
 	} else {
 		return errors.Wrap(err, "cannot create logger")
 	}
