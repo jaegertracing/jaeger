@@ -113,7 +113,10 @@ func (s *AdminServer) serveWithListener(l net.Listener) {
 	s.server = &http.Server{Handler: recoveryHandler(s.mux)}
 	s.logger.Info("Starting admin HTTP server", zap.Int("http-port", s.adminPort))
 	go func() {
-		if err := s.server.Serve(l); err != nil {
+		switch err := s.server.Serve(l); err {
+		case nil, http.ErrServerClosed:
+			// normal exit, nothing to do
+		default:
 			s.logger.Error("failed to serve", zap.Error(err))
 			s.hc.Set(healthcheck.Broken)
 		}
