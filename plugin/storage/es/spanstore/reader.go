@@ -15,6 +15,7 @@
 package spanstore
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 	"fmt"
@@ -218,7 +219,10 @@ func (s *SpanReader) unmarshalJSONSpan(esSpanRaw *elastic.SearchHit) (*dbmodel.S
 	esSpanInByteArray := esSpanRaw.Source
 
 	var jsonSpan dbmodel.Span
-	if err := json.Unmarshal(*esSpanInByteArray, &jsonSpan); err != nil {
+
+	d := json.NewDecoder(bytes.NewReader(*esSpanInByteArray))
+	d.UseNumber()
+	if err := d.Decode(&jsonSpan); err != nil {
 		return nil, err
 	}
 	return &jsonSpan, nil

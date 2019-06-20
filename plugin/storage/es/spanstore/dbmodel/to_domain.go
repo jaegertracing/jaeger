@@ -16,6 +16,7 @@ package dbmodel
 
 import (
 	"encoding/hex"
+	"encoding/json"
 	"fmt"
 	"strconv"
 	"strings"
@@ -161,12 +162,9 @@ func (td ToDomain) convertTagFields(tagsMap map[string]interface{}) ([]model.Key
 
 func (td ToDomain) convertTagField(k string, v interface{}) (model.KeyValue, error) {
 	dKey := td.ReplaceDotReplacement(k)
-	// The number is always a float64 therefore type assertion on int (v.(int/64/32)) does not work.
-	// If 1.0, 2.0.. was stored as float it will be read as int
-	if pInt, err := strconv.ParseInt(fmt.Sprintf("%v", v), 10, 64); err == nil {
-		return model.Int64(dKey, pInt), nil
-	}
 	switch val := v.(type) {
+	case int64:
+		return model.Int64(dKey, val), nil
 	case float64:
 		return model.Float64(dKey, val), nil
 	case bool:
@@ -176,6 +174,18 @@ func (td ToDomain) convertTagField(k string, v interface{}) (model.KeyValue, err
 	// the binary is never returned, ES returns it as string with base64 encoding
 	case []byte:
 		return model.Binary(dKey, val), nil
+	// in spans are decoded using json.UseNumber() to preserve the type
+	// however note that float(1) will be parsed as int as ES does not store decimal point
+	case json.Number:
+		n, err := val.Int64()
+		if err == nil {
+			return model.Int64(dKey, n), nil
+		}
+		f, err := val.Float64()
+		if err == nil {
+			return model.Float64(dKey, f), nil
+		}
+		return model.String("", ""), err
 	default:
 		return model.String("", ""), fmt.Errorf("invalid tag type in %+v", v)
 	}
