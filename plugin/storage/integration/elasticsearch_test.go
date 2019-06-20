@@ -45,6 +45,7 @@ const (
 	password        = "changeme" // the elasticsearch default password
 	indexPrefix     = "integration-test"
 	tagKeyDeDotChar = "@"
+	maxSpanAge = time.Hour * 72
 )
 
 type ESStorageIntegration struct {
@@ -108,7 +109,7 @@ func (s *ESStorageIntegration) initSpanstore(allTagsAsFields, archive bool) {
 		Logger:            s.logger,
 		MetricsFactory:    metrics.NullFactory,
 		IndexPrefix:       indexPrefix,
-		MaxSpanAge:        72 * time.Hour,
+		MaxSpanAge:        maxSpanAge,
 		TagDotReplacement: tagKeyDeDotChar,
 		Archive: archive,
 	})
@@ -167,7 +168,7 @@ func (s *StorageIntegration) testArchiveTrace(t *testing.T) {
 	tId := model.NewTraceID(uint64(11), uint64(22))
 	expected := &model.Span{
 		OperationName:    "archive_span",
-		StartTime: time.Now().Add(- time.Hour*24*150),
+		StartTime: time.Now().Add(-maxSpanAge*5),
 		TraceID: tId,
 		SpanID: model.NewSpanID(55),
 		References: []model.SpanRef{},
