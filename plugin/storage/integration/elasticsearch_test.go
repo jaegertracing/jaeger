@@ -16,8 +16,9 @@ package integration
 
 import (
 	"context"
+	"github.com/jaegertracing/jaeger/model"
+	"github.com/stretchr/testify/assert"
 	"net/http"
-	"os"
 	"testing"
 	"time"
 
@@ -53,7 +54,7 @@ type ESStorageIntegration struct {
 	logger        *zap.Logger
 }
 
-func (s *ESStorageIntegration) initializeES(allTagsAsFields bool) error {
+func (s *ESStorageIntegration) initializeES(allTagsAsFields, archive bool) error {
 	rawClient, err := elastic.NewClient(
 		elastic.SetURL(queryURL),
 		elastic.SetBasicAuth(username, password),
@@ -70,22 +71,22 @@ func (s *ESStorageIntegration) initializeES(allTagsAsFields bool) error {
 	dependencyStore := dependencystore.NewDependencyStore(client, s.logger, indexPrefix)
 	s.DependencyReader = dependencyStore
 	s.DependencyWriter = dependencyStore
-	s.initSpanstore(allTagsAsFields)
+	s.initSpanstore(allTagsAsFields, archive)
 	s.CleanUp = func() error {
-		return s.esCleanUp(allTagsAsFields)
+		return s.esCleanUp(allTagsAsFields, archive)
 	}
 	s.Refresh = s.esRefresh
-	s.esCleanUp(allTagsAsFields)
+	s.esCleanUp(allTagsAsFields, archive)
 	return nil
 }
 
-func (s *ESStorageIntegration) esCleanUp(allTagsAsFields bool) error {
+func (s *ESStorageIntegration) esCleanUp(allTagsAsFields, archive bool) error {
 	_, err := s.client.DeleteIndex("*").Do(context.Background())
-	s.initSpanstore(allTagsAsFields)
+	s.initSpanstore(allTagsAsFields, archive)
 	return err
 }
 
-func (s *ESStorageIntegration) initSpanstore(allTagsAsFields bool) {
+func (s *ESStorageIntegration) initSpanstore(allTagsAsFields, archive bool) {
 	bp, _ := s.client.BulkProcessor().BulkActions(1).FlushInterval(time.Nanosecond).Do(context.Background())
 	client := eswrapper.WrapESClient(s.client, bp)
 	spanMapping, serviceMapping := es.GetMappings(5, 1)
@@ -99,6 +100,7 @@ func (s *ESStorageIntegration) initSpanstore(allTagsAsFields bool) {
 			TagDotReplacement: tagKeyDeDotChar,
 			SpanMapping:         spanMapping,
 			ServiceMapping:      serviceMapping,
+			Archive: archive,
 		})
 	s.SpanReader = spanstore.NewSpanReader(spanstore.SpanReaderParams{
 		Client:            client,
@@ -107,6 +109,7 @@ func (s *ESStorageIntegration) initSpanstore(allTagsAsFields bool) {
 		IndexPrefix:       indexPrefix,
 		MaxSpanAge:        72 * time.Hour,
 		TagDotReplacement: tagKeyDeDotChar,
+		Archive: archive,
 	})
 }
 
@@ -129,22 +132,69 @@ func healthCheck() error {
 	return errors.New("elastic search is not ready")
 }
 
-func testElasticsearchStorage(t *testing.T, allTagsAsFields bool) {
-	if os.Getenv("STORAGE") != "elasticsearch" {
-		t.Skip("Integration test against ElasticSearch skipped; set STORAGE env var to elasticsearch to run this")
-	}
+func testElasticsearchStorage(t *testing.T, allTagsAsFields, archive bool) {
+	//if os.Getenv("STORAGE") != "elasticsearch" {
+	//	t.Skip("Integration test against ElasticSearch skipped; set STORAGE env var to elasticsearch to run this")
+	//}
 	if err := healthCheck(); err != nil {
 		t.Fatal(err)
 	}
 	s := &ESStorageIntegration{}
-	require.NoError(t, s.initializeES(allTagsAsFields))
-	s.IntegrationTestAll(t)
+	//require.NoError(t, s.initializeES(allTagsAsFields, archive))
+	//s.IntegrationTestAll(t)
+
+	if archive {
+		require.NoError(t, s.initializeES(allTagsAsFields, true))
+		t.Run("ArchiveTrace", s.testArchiveTrace)
+	}
 }
 
-func TestElasticsearchStorage(t *testing.T) {
-	testElasticsearchStorage(t, false)
+//func TestElasticsearchStorage(t *testing.T) {
+//	testElasticsearchStorage(t, false, false)
+//}
+//
+//func TestElasticsearchStorage_AllTagsAsObjectFields(t *testing.T) {
+//	testElasticsearchStorage(t, true, false)
+//}
+
+func TestElasticsearchStorage_Archive(t *testing.T) {
+	testElasticsearchStorage(t, false, true)
 }
 
-func TestElasticsearchStorageAllTagsAsObjectFields(t *testing.T) {
-	testElasticsearchStorage(t, true)
+func (s *StorageIntegration) testArchiveTrace(t *testing.T) {
+	//defer s.cleanUp(t)
+	tId := model.NewTraceID(uint64(22), uint64(44))
+	//expected := s.loadParseAndWriteExampleTrace(t)
+	//expectedTraceID := expected.Spans[0].TraceID
+	//for i := 0; i < len(expected.Spans); i++ {
+	//	expected.Spans[i].StartTime = time.Now().Add(-time.Hour*24*150)
+	//	require.NoError(t, s.SpanWriter.WriteSpan(expected.Spans[i]))
+	//}
+	expected := &model.Span{
+		OperationName:    "archive_span",
+		StartTime: time.Now(),
+		//StartTime: time.Now().Add(- time.Hour*24*5),
+
+		TraceID: tId,
+		SpanID: model.NewSpanID(1111),
+		Process: model.NewProcess("archived_service", model.KeyValues{}),
+	}
+
+	//var actual *model.Trace
+	//found := s.waitForCondition(t, func(t *testing.T) bool {
+	//	var err error
+	//	actual, err = s.SpanReader.GetTrace(context.Background(), expectedTraceID)
+	//	if err != nil {
+	//		t.Log(err)
+	//	}
+	//	return err == nil && len(actual.Spans) == len(expected.Spans)
+	//})
+	//if !assert.True(t, found) {
+	//	CompareTraces(t, expected, actual)
+	//}
+
+	s.refresh(t)
+	actual, err := s.SpanReader.GetTrace(context.Background(), tId)
+	require.NoError(t, err)
+	assert.EqualValues(t, expected, actual)
 }
