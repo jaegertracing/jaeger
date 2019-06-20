@@ -16,18 +16,19 @@ package integration
 
 import (
 	"context"
-	"github.com/jaegertracing/jaeger/model"
-	"github.com/stretchr/testify/assert"
 	"net/http"
+	"os"
 	"testing"
 	"time"
 
+	"github.com/stretchr/testify/assert"
 	"github.com/pkg/errors"
 	"github.com/stretchr/testify/require"
 	"github.com/uber/jaeger-lib/metrics"
 	"go.uber.org/zap"
 	"gopkg.in/olivere/elastic.v5"
 
+	"github.com/jaegertracing/jaeger/model"
 	"github.com/jaegertracing/jaeger/pkg/es/wrapper"
 	"github.com/jaegertracing/jaeger/pkg/testutils"
 	"github.com/jaegertracing/jaeger/plugin/storage/es"
@@ -133,68 +134,56 @@ func healthCheck() error {
 }
 
 func testElasticsearchStorage(t *testing.T, allTagsAsFields, archive bool) {
-	//if os.Getenv("STORAGE") != "elasticsearch" {
-	//	t.Skip("Integration test against ElasticSearch skipped; set STORAGE env var to elasticsearch to run this")
-	//}
+	if os.Getenv("STORAGE") != "elasticsearch" {
+		t.Skip("Integration test against ElasticSearch skipped; set STORAGE env var to elasticsearch to run this")
+	}
 	if err := healthCheck(); err != nil {
 		t.Fatal(err)
 	}
 	s := &ESStorageIntegration{}
-	//require.NoError(t, s.initializeES(allTagsAsFields, archive))
-	//s.IntegrationTestAll(t)
+	require.NoError(t, s.initializeES(allTagsAsFields, archive))
 
 	if archive {
-		require.NoError(t, s.initializeES(allTagsAsFields, true))
 		t.Run("ArchiveTrace", s.testArchiveTrace)
+	} else {
+		s.IntegrationTestAll(t)
 	}
 }
 
-//func TestElasticsearchStorage(t *testing.T) {
-//	testElasticsearchStorage(t, false, false)
-//}
-//
-//func TestElasticsearchStorage_AllTagsAsObjectFields(t *testing.T) {
-//	testElasticsearchStorage(t, true, false)
-//}
+func TestElasticsearchStorage(t *testing.T) {
+	testElasticsearchStorage(t, false, false)
+}
+
+func TestElasticsearchStorage_AllTagsAsObjectFields(t *testing.T) {
+	testElasticsearchStorage(t, true, false)
+}
 
 func TestElasticsearchStorage_Archive(t *testing.T) {
 	testElasticsearchStorage(t, false, true)
 }
 
 func (s *StorageIntegration) testArchiveTrace(t *testing.T) {
-	//defer s.cleanUp(t)
-	tId := model.NewTraceID(uint64(22), uint64(44))
-	//expected := s.loadParseAndWriteExampleTrace(t)
-	//expectedTraceID := expected.Spans[0].TraceID
-	//for i := 0; i < len(expected.Spans); i++ {
-	//	expected.Spans[i].StartTime = time.Now().Add(-time.Hour*24*150)
-	//	require.NoError(t, s.SpanWriter.WriteSpan(expected.Spans[i]))
-	//}
+	defer s.cleanUp(t)
+	tId := model.NewTraceID(uint64(11), uint64(22))
 	expected := &model.Span{
 		OperationName:    "archive_span",
-		StartTime: time.Now(),
-		//StartTime: time.Now().Add(- time.Hour*24*5),
-
+		StartTime: time.Now().Add(- time.Hour*24*150),
 		TraceID: tId,
-		SpanID: model.NewSpanID(1111),
+		SpanID: model.NewSpanID(55),
+		References: []model.SpanRef{},
 		Process: model.NewProcess("archived_service", model.KeyValues{}),
 	}
 
-	//var actual *model.Trace
-	//found := s.waitForCondition(t, func(t *testing.T) bool {
-	//	var err error
-	//	actual, err = s.SpanReader.GetTrace(context.Background(), expectedTraceID)
-	//	if err != nil {
-	//		t.Log(err)
-	//	}
-	//	return err == nil && len(actual.Spans) == len(expected.Spans)
-	//})
-	//if !assert.True(t, found) {
-	//	CompareTraces(t, expected, actual)
-	//}
-
+	require.NoError(t, s.SpanWriter.WriteSpan(expected))
 	s.refresh(t)
-	actual, err := s.SpanReader.GetTrace(context.Background(), tId)
-	require.NoError(t, err)
-	assert.EqualValues(t, expected, actual)
+
+	var actual *model.Trace
+	found := s.waitForCondition(t, func(t *testing.T) bool {
+		var err error
+		actual, err = s.SpanReader.GetTrace(context.Background(), tId)
+		return err == nil && len(actual.Spans) == 1
+	})
+	if !assert.True(t, found) {
+		CompareTraces(t, &model.Trace{Spans: []*model.Span{expected}}, actual)
+	}
 }

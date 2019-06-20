@@ -100,7 +100,7 @@ type SpanReader struct {
 	serviceIndexPrefix      []string
 	spanConverter           dbmodel.ToDomain
 	timeRangeIndices        timeRangeIndexFn
-	sourceFn sourceFn
+	sourceFn                sourceFn
 }
 
 // SpanReaderParams holds constructor params for NewSpanReader
@@ -129,7 +129,7 @@ func NewSpanReader(p SpanReaderParams) *SpanReader {
 		serviceIndexPrefix:      indexNames(p.IndexPrefix, serviceIndex),
 		spanConverter:           dbmodel.NewToDomain(p.TagDotReplacement),
 		timeRangeIndices:        getTimeRangeIndexFn(p.Archive, p.UseReadWriteAliases),
-		sourceFn: getSourceFn(p.Archive, p.MaxNumSpans),
+		sourceFn:                getSourceFn(p.Archive, p.MaxNumSpans),
 	}
 }
 
