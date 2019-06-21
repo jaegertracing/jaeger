@@ -18,6 +18,7 @@ import (
 	"encoding/hex"
 	"encoding/json"
 	"fmt"
+	"github.com/pkg/errors"
 	"strconv"
 	"strings"
 
@@ -185,7 +186,7 @@ func (td ToDomain) convertTagField(k string, v interface{}) (model.KeyValue, err
 		if err == nil {
 			return model.Float64(dKey, f), nil
 		}
-		return model.String("", ""), err
+		return model.String("", ""), errors.Wrapf(err, "invalid tag type in %+v", v)
 	default:
 		return model.String("", ""), fmt.Errorf("invalid tag type in %+v", v)
 	}
