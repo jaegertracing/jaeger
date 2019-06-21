@@ -321,7 +321,6 @@ func (s *SpanReader) multiRead(ctx context.Context, traceIDs []model.TraceID, st
 	indices := s.timeRangeIndices(s.spanIndexPrefix, startTime.Add(-time.Hour), endTime.Add(time.Hour))
 	nextTime := model.TimeAsEpochMicroseconds(startTime.Add(-time.Hour))
 
-	fmt.Println(indices)
 	searchAfterTime := make(map[model.TraceID]uint64)
 	totalDocumentsFetched := make(map[model.TraceID]int)
 	tracesMap := make(map[model.TraceID]*model.Trace)
