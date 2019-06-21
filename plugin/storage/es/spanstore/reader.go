@@ -35,14 +35,13 @@ import (
 )
 
 const (
-	spanIndex                      = "jaeger-span-"
-	serviceIndex                   = "jaeger-service-"
-	archiveIndexSuffix             = "archive"
-	archiveReadIndexSuffix         = archiveIndexSuffix + "-read"
-	archiveWriteIndexSuffix        = archiveIndexSuffix + "-write"
-	traceIDAggregation             = "traceIDs"
-	indexPrefixSeparator           = "-"
-	indexPrefixSeparatorDeprecated = ":"
+	spanIndex               = "jaeger-span-"
+	serviceIndex            = "jaeger-service-"
+	archiveIndexSuffix      = "archive"
+	archiveReadIndexSuffix  = archiveIndexSuffix + "-read"
+	archiveWriteIndexSuffix = archiveIndexSuffix + "-write"
+	traceIDAggregation      = "traceIDs"
+	indexPrefixSeparator    = "-"
 
 	traceIDField           = "traceID"
 	durationField          = "duration"
@@ -97,8 +96,8 @@ type SpanReader struct {
 	maxSpanAge              time.Duration
 	maxNumSpans             int
 	serviceOperationStorage *ServiceOperationStorage
-	spanIndexPrefix         []string
-	serviceIndexPrefix      []string
+	spanIndexPrefix         string
+	serviceIndexPrefix      string
 	spanConverter           dbmodel.ToDomain
 	timeRangeIndices        timeRangeIndexFn
 }
@@ -133,7 +132,7 @@ func NewSpanReader(p SpanReaderParams) *SpanReader {
 	}
 }
 
-type timeRangeIndexFn func(indexName []string, startTime time.Time, endTime time.Time) []string
+type timeRangeIndexFn func(indexName string, startTime time.Time, endTime time.Time) []string
 
 func getTimeRangeIndexFn(archive, useReadWriteAliases bool) timeRangeIndexFn {
 	if archive {
@@ -143,43 +142,37 @@ func getTimeRangeIndexFn(archive, useReadWriteAliases bool) timeRangeIndexFn {
 		} else {
 			archivePrefix = archiveIndexSuffix
 		}
-		return func(indexName []string, startTime time.Time, endTime time.Time) []string {
-			return []string{archiveIndex(indexName[0], archivePrefix)}
+		return func(indexName string, startTime time.Time, endTime time.Time) []string {
+			return []string{archiveIndex(indexName, archivePrefix)}
 		}
 	}
 	if useReadWriteAliases {
-		return func(indices []string, startTime time.Time, endTime time.Time) []string {
-			var indexAliases []string
-			for _, n := range indices {
-				indexAliases = append(indexAliases, n+"read")
-			}
-			return indexAliases
+		return func(indices string, startTime time.Time, endTime time.Time) []string {
+			return []string{indices + "read"}
 		}
 	}
 	return timeRangeIndices
 }
 
 // timeRangeIndices returns the array of indices that we need to query, based on query params
-func timeRangeIndices(indexNames []string, startTime time.Time, endTime time.Time) []string {
+func timeRangeIndices(indexName string, startTime time.Time, endTime time.Time) []string {
 	var indices []string
-	for _, indexName := range indexNames {
-		firstIndex := indexWithDate(indexName, startTime)
-		currentIndex := indexWithDate(indexName, endTime)
-		for currentIndex != firstIndex {
-			indices = append(indices, currentIndex)
-			endTime = endTime.Add(-24 * time.Hour)
-			currentIndex = indexWithDate(indexName, endTime)
-		}
-		indices = append(indices, firstIndex)
+	firstIndex := indexWithDate(indexName, startTime)
+	currentIndex := indexWithDate(indexName, endTime)
+	for currentIndex != firstIndex {
+		indices = append(indices, currentIndex)
+		endTime = endTime.Add(-24 * time.Hour)
+		currentIndex = indexWithDate(indexName, endTime)
 	}
+	indices = append(indices, firstIndex)
 	return indices
 }
 
-func indexNames(prefix, index string) []string {
+func indexNames(prefix, index string) string {
 	if prefix != "" {
-		return []string{prefix + indexPrefixSeparator + index, prefix + indexPrefixSeparatorDeprecated + index}
+		return prefix + indexPrefixSeparator + index
 	}
-	return []string{index}
+	return index
 }
 
 // GetTrace takes a traceID and returns a Trace associated with that traceID
