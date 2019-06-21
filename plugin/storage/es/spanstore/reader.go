@@ -94,12 +94,12 @@ type SpanReader struct {
 	// The age of the oldest service/operation we will look for. Because indices in ElasticSearch are by day,
 	// this will be rounded down to UTC 00:00 of that day.
 	maxSpanAge              time.Duration
-	maxNumSpans             int
 	serviceOperationStorage *ServiceOperationStorage
 	spanIndexPrefix         string
 	serviceIndexPrefix      string
 	spanConverter           dbmodel.ToDomain
 	timeRangeIndices        timeRangeIndexFn
+	sourceFn                sourceFn
 }
 
 // SpanReaderParams holds constructor params for NewSpanReader
@@ -123,16 +123,18 @@ func NewSpanReader(p SpanReaderParams) *SpanReader {
 		client:                  p.Client,
 		logger:                  p.Logger,
 		maxSpanAge:              p.MaxSpanAge,
-		maxNumSpans:             p.MaxNumSpans,
 		serviceOperationStorage: NewServiceOperationStorage(ctx, p.Client, p.Logger, 0), // the decorator takes care of metrics
 		spanIndexPrefix:         indexNames(p.IndexPrefix, spanIndex),
 		serviceIndexPrefix:      indexNames(p.IndexPrefix, serviceIndex),
 		spanConverter:           dbmodel.NewToDomain(p.TagDotReplacement),
 		timeRangeIndices:        getTimeRangeIndexFn(p.Archive, p.UseReadWriteAliases),
+		sourceFn:                getSourceFn(p.Archive, p.MaxNumSpans),
 	}
 }
 
 type timeRangeIndexFn func(indexName string, startTime time.Time, endTime time.Time) []string
+
+type sourceFn func(query elastic.Query, nextTime uint64) *elastic.SearchSource
 
 func getTimeRangeIndexFn(archive, useReadWriteAliases bool) timeRangeIndexFn {
 	if archive {
@@ -152,6 +154,20 @@ func getTimeRangeIndexFn(archive, useReadWriteAliases bool) timeRangeIndexFn {
 		}
 	}
 	return timeRangeIndices
+}
+
+func getSourceFn(archive bool, maxNumSpans int) sourceFn {
+	return func(query elastic.Query, nextTime uint64) *elastic.SearchSource {
+		s := elastic.NewSearchSource().
+			Query(query).
+			Size(defaultDocCount).
+			TerminateAfter(maxNumSpans)
+		if !archive {
+			s.Sort("startTime", true).
+				SearchAfter(nextTime)
+		}
+		return s
+	}
 }
 
 // timeRangeIndices returns the array of indices that we need to query, based on query params
@@ -311,16 +327,13 @@ func (s *SpanReader) multiRead(ctx context.Context, traceIDs []model.TraceID, st
 			if val, ok := searchAfterTime[traceID]; ok {
 				nextTime = val
 			}
+
+			s := s.sourceFn(query, nextTime)
+
 			searchRequests[i] = elastic.NewSearchRequest().
 				IgnoreUnavailable(true).
 				Type(spanType).
-				Source(
-					elastic.NewSearchSource().
-						Query(query).
-						Size(defaultDocCount).
-						TerminateAfter(s.maxNumSpans).
-						Sort("startTime", true).
-						SearchAfter(nextTime))
+				Source(s)
 		}
 		// set traceIDs to empty
 		traceIDs = nil
