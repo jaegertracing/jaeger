@@ -169,7 +169,7 @@ func getSourceFn(archive bool, maxNumSpans int) sourceFn {
 			TerminateAfter(maxNumSpans)
 		if !archive {
 			s.Sort("startTime", true).
-			SearchAfter(nextTime)
+				SearchAfter(nextTime)
 		}
 		return s
 	}
