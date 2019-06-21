@@ -319,10 +319,12 @@ func TestTagsMap(t *testing.T) {
 		{fieldTags: map[string]interface{}{"int.int": int64(1)}, expected: []model.KeyValue{model.Int64("int.int", 1)}},
 		{fieldTags: map[string]interface{}{"int:int": int64(2)}, expected: []model.KeyValue{model.Int64("int.int", 2)}},
 		{fieldTags: map[string]interface{}{"float": float64(1.1)}, expected: []model.KeyValue{model.Float64("float", 1.1)}},
-		// we are not able to reproduce type for float 123 or any N.0 number therefore returning int
-		{fieldTags: map[string]interface{}{"float": float64(123)}, expected: []model.KeyValue{model.Int64("float", 123)}},
-		{fieldTags: map[string]interface{}{"float": float64(123.0)}, expected: []model.KeyValue{model.Int64("float", 123)}},
-		{fieldTags: map[string]interface{}{"float:float": float64(123)}, expected: []model.KeyValue{model.Int64("float.float", 123)}},
+		{fieldTags: map[string]interface{}{"float": float64(123)}, expected: []model.KeyValue{model.Float64("float", float64(123))}},
+		{fieldTags: map[string]interface{}{"float": float64(123.0)}, expected: []model.KeyValue{model.Float64("float", float64(123.0))}},
+		{fieldTags: map[string]interface{}{"float:float": float64(123)}, expected: []model.KeyValue{model.Float64("float.float", float64(123))}},
+		{fieldTags: map[string]interface{}{"json_number:int": json.Number("123")}, expected: []model.KeyValue{model.Int64("json_number.int", 123)}},
+		{fieldTags: map[string]interface{}{"json_number:float": json.Number("123.0")}, expected: []model.KeyValue{model.Float64("json_number.float", float64(123.0))}},
+		{fieldTags: map[string]interface{}{"json_number:err": json.Number("foo")}, err: fmt.Errorf("invalid tag type in foo: strconv.ParseFloat: parsing \"foo\": invalid syntax")},
 		{fieldTags: map[string]interface{}{"str": "foo"}, expected: []model.KeyValue{model.String("str", "foo")}},
 		{fieldTags: map[string]interface{}{"str:str": "foo"}, expected: []model.KeyValue{model.String("str.str", "foo")}},
 		{fieldTags: map[string]interface{}{"binary": []byte("foo")}, expected: []model.KeyValue{model.Binary("binary", []byte("foo"))}},
@@ -333,8 +335,16 @@ func TestTagsMap(t *testing.T) {
 	for i, test := range tests {
 		t.Run(fmt.Sprintf("%d, %s", i, test.fieldTags), func(t *testing.T) {
 			tags, err := converter.convertTagFields(test.fieldTags)
-			assert.Equal(t, test.expected, tags)
-			assert.Equal(t, test.err, err)
+			if err != nil {
+				fmt.Println(err.Error())
+			}
+			if test.err != nil {
+				assert.Equal(t, test.err.Error(), err.Error())
+				require.Nil(t, tags)
+			} else  {
+				require.NoError(t, err)
+				assert.Equal(t, test.expected, tags)
+			}
 		})
 	}
 }
