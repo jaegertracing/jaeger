@@ -166,10 +166,10 @@ func getSourceFn(archive bool, maxNumSpans int) sourceFn {
 		s := elastic.NewSearchSource().
 			Query(query).
 			Size(defaultDocCount).
-			TerminateAfter(maxNumSpans).
-			Sort("startTime", true)
+			TerminateAfter(maxNumSpans)
 		if !archive {
-			s.SearchAfter(nextTime)
+			s.Sort("startTime", true).
+			SearchAfter(nextTime)
 		}
 		return s
 	}
