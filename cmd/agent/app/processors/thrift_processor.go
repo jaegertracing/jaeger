@@ -22,7 +22,7 @@ import (
 	"github.com/uber/jaeger-lib/metrics"
 	"go.uber.org/zap"
 
-	"github.com/jaegertracing/jaeger/cmd/agent/app/customtransports"
+	customtransport "github.com/jaegertracing/jaeger/cmd/agent/app/customtransports"
 	"github.com/jaegertracing/jaeger/cmd/agent/app/servers"
 )
 
@@ -76,12 +76,12 @@ func NewThriftProcessor(
 		numProcessors: numProcessors,
 	}
 	metrics.Init(&res.metrics, mFactory, nil)
+	res.processing.Add(res.numProcessors)
 	return res, nil
 }
 
 // Serve initiates the readers and starts serving traffic
 func (s *ThriftProcessor) Serve() {
-	s.processing.Add(s.numProcessors)
 	for i := 0; i < s.numProcessors; i++ {
 		go s.processBuffer()
 	}
