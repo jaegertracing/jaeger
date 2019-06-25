@@ -89,7 +89,7 @@ func (s *ESStorageIntegration) initSpanstore(allTagsAsFields, archive bool) {
 	bp, _ := s.client.BulkProcessor().BulkActions(1).FlushInterval(time.Nanosecond).Do(context.Background())
 	client := eswrapper.WrapESClient(s.client, bp)
 	spanMapping, serviceMapping := es.GetMappings(5, 1)
-	s.SpanWriter = spanstore.NewSpanWriter(
+	w := spanstore.NewSpanWriter(
 		spanstore.SpanWriterParams{
 			Client:            client,
 			Logger:            s.logger,
@@ -97,10 +97,10 @@ func (s *ESStorageIntegration) initSpanstore(allTagsAsFields, archive bool) {
 			IndexPrefix:       indexPrefix,
 			AllTagsAsFields:   allTagsAsFields,
 			TagDotReplacement: tagKeyDeDotChar,
-			SpanMapping:         spanMapping,
-			ServiceMapping:      serviceMapping,
 			Archive: archive,
 		})
+	w.CreateTemplates(spanMapping, serviceMapping)
+	s.SpanWriter = w
 	s.SpanReader = spanstore.NewSpanReader(spanstore.SpanReaderParams{
 		Client:            client,
 		Logger:            s.logger,

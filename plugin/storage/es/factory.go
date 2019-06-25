@@ -126,20 +126,18 @@ func loadTagsFromFile(filePath string) ([]string, error) {
 
 // CreateArchiveSpanReader implements storage.ArchiveFactory
 func (f *Factory) CreateArchiveSpanReader() (spanstore.Reader, error) {
-	cfg := f.Options.Get(archiveNamespace)
-	if !cfg.Enabled {
+	if !f.archiveConfig.IsEnabled() {
 		return nil, nil
 	}
-	return createSpanReader(f.metricsFactory, f.logger, f.archiveClient, cfg, true)
+	return createSpanReader(f.metricsFactory, f.logger, f.archiveClient, f.archiveConfig, true)
 }
 
 // CreateArchiveSpanWriter implements storage.ArchiveFactory
 func (f *Factory) CreateArchiveSpanWriter() (spanstore.Writer, error) {
-	cfg := f.Options.Get(archiveNamespace)
-	if !cfg.Enabled {
+	if !f.archiveConfig.IsEnabled() {
 		return nil, nil
 	}
-	return createSpanWriter(f.metricsFactory, f.logger, f.archiveClient, cfg, true)
+	return createSpanWriter(f.metricsFactory, f.logger, f.archiveClient, f.archiveConfig, true)
 }
 
 func createSpanReader(
@@ -179,7 +177,7 @@ func createSpanWriter(
 	}
 
 	spanMapping, serviceMapping := GetMappings(cfg.GetNumShards(), cfg.GetNumReplicas())
-	return esSpanStore.NewSpanWriter(esSpanStore.SpanWriterParams{
+	writer := esSpanStore.NewSpanWriter(esSpanStore.SpanWriterParams{
 		Client:              client,
 		Logger:              logger,
 		MetricsFactory:      mFactory,
@@ -189,9 +187,12 @@ func createSpanWriter(
 		TagDotReplacement:   cfg.GetTagDotReplacement(),
 		Archive:             archive,
 		UseReadWriteAliases: cfg.GetUseReadWriteAliases(),
-		SpanMapping:         spanMapping,
-		ServiceMapping:      serviceMapping,
-	}), nil
+	})
+	err := writer.CreateTemplates(spanMapping, serviceMapping)
+	if err != nil {
+		return nil, err
+	}
+	return writer, nil
 }
 
 // GetMappings returns span and service mappings
