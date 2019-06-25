@@ -28,13 +28,14 @@ Then install dependencies and run the tests:
 
 ```
 git submodule update --init --recursive
+make install-tools
 dep ensure
 make test
 ```
 
 ### Running local build with the UI
 
-The `jaeger-ui` submodule contains the source code for the UI assets (requires Node.js 6+). The assets must be compiled first with `make build_ui`, which runs Node.js build and then packages the assets into a Go file that is `.gitignore`-ed. The packaged assets can be enabled by providing a build tag `ui`, e.g.:
+The `jaeger-ui` submodule contains the source code for the UI assets (requires Node.js 6+). The assets must be compiled first with `make build-ui`, which runs Node.js build and then packages the assets into a Go file that is `.gitignore`-ed. The packaged assets can be enabled by providing a build tag `ui`, e.g.:
 
 ```
 $ go run -tags ui ./cmd/all-in-one/main.go
@@ -88,18 +89,19 @@ github.com/jaegertracing/jaeger
   mkdocs.yml                - MkDocs builds the documentation in docs/
 ```
 
-  * Note 1: `pkg` is a collection of utility packages used by the Jaeger components
-    without being specific to its internals. Utility packages are kept separate from
-    the Jaeger core codebase to keep it as small and concise as possible. If some
-    utilities grow larger and their APIs stabilize, they may be moved to their own
-    repository, to facilitate re-use by other projects.
+- Note 1: `pkg` is a collection of utility packages used by the Jaeger components
+  without being specific to its internals. Utility packages are kept separate from
+  the Jaeger core codebase to keep it as small and concise as possible. If some
+  utilities grow larger and their APIs stabilize, they may be moved to their own
+  repository, to facilitate re-use by other projects.
 
 ## Imports grouping
 
 This projects follows the following pattern for grouping imports in Go files:
-  * imports from standard library
-  * imports from other projects
-  * imports from `jaeger` project
+
+- imports from standard library
+- imports from other projects
+- imports from `jaeger` project
 
 For example:
 
