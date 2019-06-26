@@ -1,6 +1,19 @@
 Changes by Version
 ==================
 
+1.14.0 (unreleased)
+------------------
+
+#### Backend Changes
+
+##### Breaking Changes
+
+##### New Features
+
+##### Bug fixes, Minor Improvements
+
+#### UI Changes
+
 1.13.0 (2019-06-27)
 ------------------
 
