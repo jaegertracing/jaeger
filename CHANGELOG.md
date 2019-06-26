@@ -8,6 +8,12 @@ Changes by Version
 
 ##### Breaking Changes
 
+- The traces related metrics on collector now have a new tag `sampler_type` ([#1576](https://github.com/jaegertracing/jaeger/pull/1576))
+
+  this might break some existing metrics dashboard (if so, users need to update query to aggregate over this new tag).
+
+  The list of metrics affected: traces.received, traces.rejected, traces.saved-by-svc.
+
 ##### New Features
 
 ##### Bug fixes, Minor Improvements
