@@ -76,16 +76,18 @@ func NewThriftProcessor(
 		numProcessors: numProcessors,
 	}
 	metrics.Init(&res.metrics, mFactory, nil)
+	res.processing.Add(res.numProcessors)
+	for i := 0; i < res.numProcessors; i++ {
+		go func() {
+			res.processBuffer()
+			res.processing.Done()
+		}()
+	}
 	return res, nil
 }
 
-// Serve initiates the readers and starts serving traffic
+// Serve starts serving traffic
 func (s *ThriftProcessor) Serve() {
-	s.processing.Add(s.numProcessors)
-	for i := 0; i < s.numProcessors; i++ {
-		go s.processBuffer()
-	}
-
 	s.server.Serve()
 }
 
@@ -119,5 +121,4 @@ func (s *ThriftProcessor) processBuffer() {
 		s.protocolPool.Put(protocol)
 		s.server.DataRecd(readBuf) // acknowledge receipt and release the buffer
 	}
-	s.processing.Done()
 }
