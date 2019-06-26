@@ -28,8 +28,8 @@ Then install dependencies and run the tests:
 
 ```
 git submodule update --init --recursive
-make install-tools
 dep ensure
+make install-tools
 make test
 ```
 
