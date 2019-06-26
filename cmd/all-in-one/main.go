@@ -24,14 +24,15 @@ import (
 	"strconv"
 
 	"github.com/gorilla/mux"
-	opentracing "github.com/opentracing/opentracing-go"
+	"github.com/opentracing/opentracing-go"
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
 	jaegerClientConfig "github.com/uber/jaeger-client-go/config"
 	jaegerClientZapLog "github.com/uber/jaeger-client-go/log/zap"
 	"github.com/uber/jaeger-lib/metrics"
-	tchannel "github.com/uber/tchannel-go"
+	"github.com/uber/tchannel-go"
 	"github.com/uber/tchannel-go/thrift"
+	_ "go.uber.org/automaxprocs"
 	"go.uber.org/zap"
 	"google.golang.org/grpc"
 
@@ -46,6 +47,7 @@ import (
 	"github.com/jaegertracing/jaeger/cmd/collector/app/sampling"
 	"github.com/jaegertracing/jaeger/cmd/collector/app/sampling/strategystore"
 	"github.com/jaegertracing/jaeger/cmd/collector/app/zipkin"
+	"github.com/jaegertracing/jaeger/cmd/docs"
 	"github.com/jaegertracing/jaeger/cmd/env"
 	"github.com/jaegertracing/jaeger/cmd/flags"
 	queryApp "github.com/jaegertracing/jaeger/cmd/query/app"
@@ -87,7 +89,7 @@ func main() {
 		Use:   "jaeger-all-in-one",
 		Short: "Jaeger all-in-one distribution with agent, collector and query in one process.",
 		Long: `Jaeger all-in-one distribution with agent, collector and query. Use with caution this version
-		 uses only in-memory database.`,
+by default uses only in-memory database.`,
 		RunE: func(cmd *cobra.Command, args []string) error {
 			if err := svc.Start(v); err != nil {
 				return err
@@ -149,6 +151,7 @@ func main() {
 
 	command.AddCommand(version.Command())
 	command.AddCommand(env.Command())
+	command.AddCommand(docs.Command(v))
 
 	config.AddFlags(
 		v,

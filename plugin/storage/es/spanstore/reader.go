@@ -15,6 +15,7 @@
 package spanstore
 
 import (
+	"bytes"
 	"context"
 	"encoding/json"
 	"fmt"
@@ -35,14 +36,13 @@ import (
 )
 
 const (
-	spanIndex                      = "jaeger-span-"
-	serviceIndex                   = "jaeger-service-"
-	archiveIndexSuffix             = "archive"
-	archiveReadIndexSuffix         = archiveIndexSuffix + "-read"
-	archiveWriteIndexSuffix        = archiveIndexSuffix + "-write"
-	traceIDAggregation             = "traceIDs"
-	indexPrefixSeparator           = "-"
-	indexPrefixSeparatorDeprecated = ":"
+	spanIndex               = "jaeger-span-"
+	serviceIndex            = "jaeger-service-"
+	archiveIndexSuffix      = "archive"
+	archiveReadIndexSuffix  = archiveIndexSuffix + "-read"
+	archiveWriteIndexSuffix = archiveIndexSuffix + "-write"
+	traceIDAggregation      = "traceIDs"
+	indexPrefixSeparator    = "-"
 
 	traceIDField           = "traceID"
 	durationField          = "duration"
@@ -95,12 +95,12 @@ type SpanReader struct {
 	// The age of the oldest service/operation we will look for. Because indices in ElasticSearch are by day,
 	// this will be rounded down to UTC 00:00 of that day.
 	maxSpanAge              time.Duration
-	maxNumSpans             int
 	serviceOperationStorage *ServiceOperationStorage
-	spanIndexPrefix         []string
-	serviceIndexPrefix      []string
+	spanIndexPrefix         string
+	serviceIndexPrefix      string
 	spanConverter           dbmodel.ToDomain
 	timeRangeIndices        timeRangeIndexFn
+	sourceFn                sourceFn
 }
 
 // SpanReaderParams holds constructor params for NewSpanReader
@@ -124,16 +124,18 @@ func NewSpanReader(p SpanReaderParams) *SpanReader {
 		client:                  p.Client,
 		logger:                  p.Logger,
 		maxSpanAge:              p.MaxSpanAge,
-		maxNumSpans:             p.MaxNumSpans,
 		serviceOperationStorage: NewServiceOperationStorage(ctx, p.Client, p.Logger, 0), // the decorator takes care of metrics
 		spanIndexPrefix:         indexNames(p.IndexPrefix, spanIndex),
 		serviceIndexPrefix:      indexNames(p.IndexPrefix, serviceIndex),
 		spanConverter:           dbmodel.NewToDomain(p.TagDotReplacement),
 		timeRangeIndices:        getTimeRangeIndexFn(p.Archive, p.UseReadWriteAliases),
+		sourceFn:                getSourceFn(p.Archive, p.MaxNumSpans),
 	}
 }
 
-type timeRangeIndexFn func(indexName []string, startTime time.Time, endTime time.Time) []string
+type timeRangeIndexFn func(indexName string, startTime time.Time, endTime time.Time) []string
+
+type sourceFn func(query elastic.Query, nextTime uint64) *elastic.SearchSource
 
 func getTimeRangeIndexFn(archive, useReadWriteAliases bool) timeRangeIndexFn {
 	if archive {
@@ -143,43 +145,51 @@ func getTimeRangeIndexFn(archive, useReadWriteAliases bool) timeRangeIndexFn {
 		} else {
 			archivePrefix = archiveIndexSuffix
 		}
-		return func(indexName []string, startTime time.Time, endTime time.Time) []string {
-			return []string{archiveIndex(indexName[0], archivePrefix)}
+		return func(indexName string, startTime time.Time, endTime time.Time) []string {
+			return []string{archiveIndex(indexName, archivePrefix)}
 		}
 	}
 	if useReadWriteAliases {
-		return func(indices []string, startTime time.Time, endTime time.Time) []string {
-			var indexAliases []string
-			for _, n := range indices {
-				indexAliases = append(indexAliases, n+"read")
-			}
-			return indexAliases
+		return func(indices string, startTime time.Time, endTime time.Time) []string {
+			return []string{indices + "read"}
 		}
 	}
 	return timeRangeIndices
 }
 
-// timeRangeIndices returns the array of indices that we need to query, based on query params
-func timeRangeIndices(indexNames []string, startTime time.Time, endTime time.Time) []string {
-	var indices []string
-	for _, indexName := range indexNames {
-		firstIndex := indexWithDate(indexName, startTime)
-		currentIndex := indexWithDate(indexName, endTime)
-		for currentIndex != firstIndex {
-			indices = append(indices, currentIndex)
-			endTime = endTime.Add(-24 * time.Hour)
-			currentIndex = indexWithDate(indexName, endTime)
+func getSourceFn(archive bool, maxNumSpans int) sourceFn {
+	return func(query elastic.Query, nextTime uint64) *elastic.SearchSource {
+		s := elastic.NewSearchSource().
+			Query(query).
+			Size(defaultDocCount).
+			TerminateAfter(maxNumSpans)
+		if !archive {
+			s.Sort("startTime", true).
+				SearchAfter(nextTime)
 		}
-		indices = append(indices, firstIndex)
+		return s
 	}
+}
+
+// timeRangeIndices returns the array of indices that we need to query, based on query params
+func timeRangeIndices(indexName string, startTime time.Time, endTime time.Time) []string {
+	var indices []string
+	firstIndex := indexWithDate(indexName, startTime)
+	currentIndex := indexWithDate(indexName, endTime)
+	for currentIndex != firstIndex {
+		indices = append(indices, currentIndex)
+		endTime = endTime.Add(-24 * time.Hour)
+		currentIndex = indexWithDate(indexName, endTime)
+	}
+	indices = append(indices, firstIndex)
 	return indices
 }
 
-func indexNames(prefix, index string) []string {
+func indexNames(prefix, index string) string {
 	if prefix != "" {
-		return []string{prefix + indexPrefixSeparator + index, prefix + indexPrefixSeparatorDeprecated + index}
+		return prefix + indexPrefixSeparator + index
 	}
-	return []string{index}
+	return index
 }
 
 // GetTrace takes a traceID and returns a Trace associated with that traceID
@@ -218,7 +228,10 @@ func (s *SpanReader) unmarshalJSONSpan(esSpanRaw *elastic.SearchHit) (*dbmodel.S
 	esSpanInByteArray := esSpanRaw.Source
 
 	var jsonSpan dbmodel.Span
-	if err := json.Unmarshal(*esSpanInByteArray, &jsonSpan); err != nil {
+
+	d := json.NewDecoder(bytes.NewReader(*esSpanInByteArray))
+	d.UseNumber()
+	if err := d.Decode(&jsonSpan); err != nil {
 		return nil, err
 	}
 	return &jsonSpan, nil
@@ -318,16 +331,13 @@ func (s *SpanReader) multiRead(ctx context.Context, traceIDs []model.TraceID, st
 			if val, ok := searchAfterTime[traceID]; ok {
 				nextTime = val
 			}
+
+			s := s.sourceFn(query, nextTime)
+
 			searchRequests[i] = elastic.NewSearchRequest().
 				IgnoreUnavailable(true).
 				Type(spanType).
-				Source(
-					elastic.NewSearchSource().
-						Query(query).
-						Size(defaultDocCount).
-						TerminateAfter(s.maxNumSpans).
-						Sort("startTime", true).
-						SearchAfter(nextTime))
+				Source(s)
 		}
 		// set traceIDs to empty
 		traceIDs = nil

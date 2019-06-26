@@ -23,8 +23,10 @@ import (
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
 	"github.com/uber/jaeger-lib/metrics"
+	_ "go.uber.org/automaxprocs"
 	"go.uber.org/zap"
 
+	"github.com/jaegertracing/jaeger/cmd/docs"
 	"github.com/jaegertracing/jaeger/cmd/env"
 	"github.com/jaegertracing/jaeger/cmd/flags"
 	"github.com/jaegertracing/jaeger/cmd/ingester/app"
@@ -45,9 +47,9 @@ func main() {
 
 	v := viper.New()
 	command := &cobra.Command{
-		Use:   "(experimental) jaeger-ingester",
-		Short: "Jaeger ingester consumes from Kafka and writes to storage",
-		Long:  `Jaeger ingester consumes spans from a particular Kafka topic and writes them to all configured storage types.`,
+		Use:   "jaeger-ingester",
+		Short: "(experimental) Jaeger ingester consumes from Kafka and writes to storage.",
+		Long:  `Jaeger ingester consumes spans from a particular Kafka topic and writes them to a configured storage.`,
 		RunE: func(cmd *cobra.Command, args []string) error {
 			if err := svc.Start(v); err != nil {
 				return err
@@ -90,6 +92,7 @@ func main() {
 
 	command.AddCommand(version.Command())
 	command.AddCommand(env.Command())
+	command.AddCommand(docs.Command(v))
 
 	config.AddFlags(
 		v,

@@ -65,6 +65,8 @@
           "type":"integer"
         },
         "logs":{
+          "type":"nested",
+          "dynamic":false,
           "properties":{
             "timestamp":{
               "type":"long"

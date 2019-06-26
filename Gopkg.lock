@@ -101,6 +101,14 @@
   revision = "3a0bb77429bd3a61596f5e8a3172445844342120"
 
 [[projects]]
+  digest = "1:7cb4fdca4c251b3ef8027c90ea35f70c7b661a593b9eeae34753c65499098bb1"
+  name = "github.com/cpuguy83/go-md2man"
+  packages = ["md2man"]
+  pruneopts = "UT"
+  revision = "7762f7e404f8416dfa1d9bb6a8c192aa9acb4d19"
+  version = "v1.0.10"
+
+[[projects]]
   branch = "master"
   digest = "1:a382acd6150713655ded76ab5fbcbc7924a7808dab4312dda5d1f23dd8ce5277"
   name = "github.com/crossdock/crossdock-go"
@@ -363,7 +371,8 @@
   revision = "23def4e6c14b4da8ac2ed8007337bc5eb5007998"
 
 [[projects]]
-  digest = "1:e3bed20f553811662a2b5e6c0d40f1c837b2f1decace8afb1bb1778acb97fd04"
+  branch = "master"
+  digest = "1:5ab3bec64c76669f1d55ecc42e665350df94e5e1f8570a90715f3b7b024ea523"
   name = "github.com/golang/protobuf"
   packages = [
     "descriptor",
@@ -382,8 +391,7 @@
     "ptypes/timestamp",
   ]
   pruneopts = "UT"
-  revision = "b5d812f8a3706043e23a9cd5babf2e5423744d30"
-  version = "v1.3.1"
+  revision = "b285ee9cfc6c881bb20c0d8dc73370ea9b9ec90f"
 
 [[projects]]
   digest = "1:e4f5819333ac698d294fe04dbf640f84719658d5c7ce195b10060cc37292ce79"
@@ -410,10 +418,16 @@
   version = "v1.7.1"
 
 [[projects]]
-  digest = "1:d84c274ffdfd7ce6b4efd64ee776648459009d1f542440b1faa32cb7ed9aba84"
+  digest = "1:f053e09da1c565313cbe0f999af92a690b1e1f5709dfb9aca4dcf70cb89f3cec"
   name = "github.com/grpc-ecosystem/go-grpc-middleware"
   packages = [
+    ".",
+    "logging",
+    "logging/zap",
+    "logging/zap/ctxzap",
     "retry",
+    "tags",
+    "tags/zap",
     "util/backoffutils",
     "util/metautils",
   ]
@@ -737,6 +751,14 @@
   version = "v1.6.0"
 
 [[projects]]
+  digest = "1:9945e4ef330ecb1ca328916effe63b46453c3f39c420c0db97dbdbe832b77662"
+  name = "github.com/russross/blackfriday"
+  packages = ["."]
+  pruneopts = "UT"
+  revision = "4048872b16cc0fc2c5fd9eacf0ed2c2fedaa0c8c"
+  version = "v1.5"
+
+[[projects]]
   branch = "master"
   digest = "1:6baa565fe16f8657cf93469b2b8a6c61a277827734400d27e44d589547297279"
   name = "github.com/ryanuber/go-glob"
@@ -785,9 +807,12 @@
   version = "v1.3.0"
 
 [[projects]]
-  digest = "1:645cabccbb4fa8aab25a956cbcbdf6a6845ca736b2c64e197ca7cbb9d210b939"
+  digest = "1:e01b05ba901239c783dfe56450bcde607fc858908529868259c9a8765dc176d0"
   name = "github.com/spf13/cobra"
-  packages = ["."]
+  packages = [
+    ".",
+    "doc",
+  ]
   pruneopts = "UT"
   revision = "ef82de70bb3f60c65fb8eebacbb2d122ef517385"
   version = "v0.0.3"
@@ -838,12 +863,12 @@
   version = "v1.3.0"
 
 [[projects]]
-  digest = "1:a5158647b553c61877aa9ae74f4015000294e47981e6b8b07525edcbb0747c81"
+  digest = "1:3c1a69cdae3501bf75e76d0d86dc6f2b0a7421bc205c0cb7b96b19eed464a34d"
   name = "github.com/uber-go/atomic"
   packages = ["."]
   pruneopts = "UT"
-  revision = "df976f2515e274675050de7b3f42545de80594fd"
-  version = "v1.4.0"
+  revision = "1ea20fb1cbb1cc08cbd0d913a96dead89aa18289"
+  version = "v1.3.2"
 
 [[projects]]
   digest = "1:359519fad3780843e57c5117ddf751284a9e0e3c050753ad362476cf1e10ef49"
@@ -917,6 +942,19 @@
   pruneopts = "UT"
   revision = "df976f2515e274675050de7b3f42545de80594fd"
   version = "v1.4.0"
+
+[[projects]]
+  digest = "1:a51a1c97b728b00cc514dfe5f78aad3354491792e69b881ea88176dd3fa30ef6"
+  name = "go.uber.org/automaxprocs"
+  packages = [
+    ".",
+    "internal/cgroups",
+    "internal/runtime",
+    "maxprocs",
+  ]
+  pruneopts = "UT"
+  revision = "946a8391268aea0a60a86403988ff3ab4b604a83"
+  version = "v1.2.0"
 
 [[projects]]
   digest = "1:60bf2a5e347af463c42ed31a493d817f8a72f102543060ed992754e689805d1a"
@@ -1168,6 +1206,7 @@
     "github.com/golang/protobuf/protoc-gen-go",
     "github.com/gorilla/handlers",
     "github.com/gorilla/mux",
+    "github.com/grpc-ecosystem/go-grpc-middleware/logging/zap",
     "github.com/grpc-ecosystem/go-grpc-middleware/retry",
     "github.com/grpc-ecosystem/grpc-gateway/protoc-gen-grpc-gateway",
     "github.com/grpc-ecosystem/grpc-gateway/protoc-gen-swagger",
@@ -1183,9 +1222,11 @@
     "github.com/prometheus/client_golang/prometheus",
     "github.com/prometheus/client_golang/prometheus/promhttp",
     "github.com/rs/cors",
+    "github.com/russross/blackfriday",
     "github.com/securego/gosec/cmd/gosec",
     "github.com/soheilhy/cmux",
     "github.com/spf13/cobra",
+    "github.com/spf13/cobra/doc",
     "github.com/spf13/pflag",
     "github.com/spf13/viper",
     "github.com/stretchr/testify/assert",
@@ -1207,6 +1248,7 @@
     "github.com/uber/tchannel-go/testutils",
     "github.com/uber/tchannel-go/thrift",
     "go.uber.org/atomic",
+    "go.uber.org/automaxprocs",
     "go.uber.org/zap",
     "go.uber.org/zap/zapcore",
     "go.uber.org/zap/zaptest",

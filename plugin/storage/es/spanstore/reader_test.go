@@ -144,35 +144,35 @@ func TestSpanReaderIndices(t *testing.T) {
 	date := time.Now()
 	dateFormat := date.UTC().Format("2006-01-02")
 	testCases := []struct {
-		indices []string
+		index string
 		params  SpanReaderParams
 	}{
 		{params:SpanReaderParams{Client:client, Logger: logger, MetricsFactory: metricsFactory,
 			IndexPrefix:"", Archive: false},
-			indices: []string{spanIndex+dateFormat}},
+			index: spanIndex+dateFormat},
 		{params:SpanReaderParams{Client:client, Logger: logger, MetricsFactory: metricsFactory,
 			IndexPrefix:"", UseReadWriteAliases: true},
-			indices: []string{spanIndex+"read"}},
+			index: spanIndex+"read"},
 		{params:SpanReaderParams{Client:client, Logger: logger, MetricsFactory: metricsFactory,
 			IndexPrefix:"foo:", Archive: false},
-			indices: []string{"foo:"+indexPrefixSeparator+spanIndex+dateFormat,"foo:"+indexPrefixSeparatorDeprecated+spanIndex+dateFormat}},
+			index: "foo:"+indexPrefixSeparator+spanIndex+dateFormat},
 		{params:SpanReaderParams{Client:client, Logger: logger, MetricsFactory: metricsFactory,
 			IndexPrefix:"foo:", UseReadWriteAliases: true},
-			indices: []string{"foo:-"+spanIndex+"read", "foo::"+spanIndex+"read"}},
+			index: "foo:-"+spanIndex+"read"},
 		{params:SpanReaderParams{Client:client, Logger: logger, MetricsFactory: metricsFactory,
 			IndexPrefix:"", Archive: true},
-			indices: []string{spanIndex+archiveIndexSuffix}},
+			index: spanIndex+archiveIndexSuffix},
 		{params:SpanReaderParams{Client:client, Logger: logger, MetricsFactory: metricsFactory,
 			IndexPrefix:"foo:", Archive: true},
-			indices: []string{"foo:"+indexPrefixSeparator+spanIndex+archiveIndexSuffix}},
+			index: "foo:"+indexPrefixSeparator+spanIndex+archiveIndexSuffix},
 		{params:SpanReaderParams{Client:client, Logger: logger, MetricsFactory: metricsFactory,
 			IndexPrefix:"foo:", Archive: true, UseReadWriteAliases:true},
-			indices: []string{"foo:"+indexPrefixSeparator+spanIndex+archiveReadIndexSuffix}},
+			index: "foo:"+indexPrefixSeparator+spanIndex+archiveReadIndexSuffix},
 	}
 	for _, testCase := range testCases {
 		r := NewSpanReader(testCase.params)
 		actual := r.timeRangeIndices(r.spanIndexPrefix, date, date)
-		assert.Equal(t, testCase.indices, actual)
+		assert.Equal(t, []string{testCase.index}, actual)
 	}
 }
 
@@ -383,7 +383,7 @@ func TestSpanReaderFindIndices(t *testing.T) {
 	}
 	withSpanReader(func(r *spanReaderTest) {
 		for _, testCase := range testCases {
-			actual := r.reader.timeRangeIndices([]string{spanIndex}, testCase.startTime, testCase.endTime)
+			actual := r.reader.timeRangeIndices(spanIndex, testCase.startTime, testCase.endTime)
 			assert.EqualValues(t, testCase.expected, actual)
 		}
 	})

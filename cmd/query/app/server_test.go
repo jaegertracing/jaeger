@@ -15,12 +15,14 @@
 package app
 
 import (
+	"fmt"
 	"testing"
 	"time"
 
-	"github.com/opentracing/opentracing-go"
+	opentracing "github.com/opentracing/opentracing-go"
 	"github.com/stretchr/testify/assert"
 	"go.uber.org/zap"
+	"go.uber.org/zap/zaptest/observer"
 
 	"github.com/jaegertracing/jaeger/cmd/flags"
 	"github.com/jaegertracing/jaeger/cmd/query/app/querysvc"
@@ -58,4 +60,27 @@ func TestServer(t *testing.T) {
 		time.Sleep(1 * time.Millisecond)
 	}
 	assert.Equal(t, healthcheck.Unavailable, server.svc.HC().Get())
+}
+
+func TestServerGracefulExit(t *testing.T) {
+	flagsSvc := flags.NewService(ports.AgentAdminHTTP)
+
+	zapCore, logs := observer.New(zap.ErrorLevel)
+	assert.Equal(t, 0, logs.Len(), "Expected initial ObservedLogs to have zero length.")
+
+	flagsSvc.Logger = zap.New(zapCore)
+
+	querySvc := &querysvc.QueryService{}
+	tracer := opentracing.NoopTracer{}
+	server := NewServer(flagsSvc, querySvc, &QueryOptions{Port: ports.QueryAdminHTTP}, tracer)
+	assert.NoError(t, server.Start())
+
+	// Wait for servers to come up before we can call .Close()
+	time.Sleep(1 * time.Second)
+	server.Close()
+
+	for _, logEntry := range logs.All() {
+		assert.True(t, logEntry.Level != zap.ErrorLevel,
+			fmt.Sprintf("Error log found on server exit: %v", logEntry))
+	}
 }

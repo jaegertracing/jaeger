@@ -8,6 +8,12 @@ Changes by Version
 
 ##### Breaking Changes
 
+- The traces related metrics on collector now have a new tag `sampler_type` ([#1576](https://github.com/jaegertracing/jaeger/pull/1576))
+
+  this might break some existing metrics dashboard (if so, users need to update query to aggregate over this new tag).
+
+  The list of metrics affected: traces.received, traces.rejected, traces.saved-by-svc.
+
 ##### New Features
 
 ##### Bug fixes, Minor Improvements
@@ -48,6 +54,10 @@ Changes by Version
     --kafka.consumer.topic
     --kafka.consumer.group-id
     ```
+
+* Add Admin port and group all ports in one file ([#1442](https://github.com/jaegertracing/jaeger/pull/1442), [@yurishkuro](https://github.com/yurishkuro))
+
+    This change fixes issues [#1428](https://github.com/jaegertracing/jaeger/issues/1428), [#1332](https://github.com/jaegertracing/jaeger/issues/1332) and moves all metrics endpoints from API ports to **admin ports**. It requires re-configuring Prometheus scraping rules. Each Jaeger binary has its own admin port that can be found under `--admin-http-port` command line flag by running the `${binary} help` command.
 
 ##### New Features
 
