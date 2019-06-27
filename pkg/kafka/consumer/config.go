@@ -17,6 +17,7 @@ package consumer
 import (
 	"io"
 
+	"github.com/Shopify/sarama"
 	"github.com/bsm/sarama-cluster"
 
 	"github.com/jaegertracing/jaeger/pkg/kafka/auth"
@@ -40,6 +41,7 @@ type Configuration struct {
 	Topic    string
 	GroupID  string
 	ClientID string
+	Version  string
 	Consumer
 	auth.AuthenticationConfig
 }
@@ -49,6 +51,13 @@ func (c *Configuration) NewConsumer() (Consumer, error) {
 	saramaConfig := cluster.NewConfig()
 	saramaConfig.Group.Mode = cluster.ConsumerModePartitions
 	saramaConfig.ClientID = c.ClientID
+	if len(c.Version) > 0 {
+		ver, err := sarama.ParseKafkaVersion(c.Version)
+		if err != nil {
+			return nil, err
+		}
+		saramaConfig.Config.Version = ver
+	}
 	c.AuthenticationConfig.SetConfiguration(&saramaConfig.Config)
 	return cluster.NewConsumer(c.Brokers, c.GroupID, []string{c.Topic}, saramaConfig)
 }
