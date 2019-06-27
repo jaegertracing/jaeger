@@ -11,6 +11,8 @@ DATACENTER=${DATACENTER:-"dc1"}
 KEYSPACE=${KEYSPACE:-"jaeger_v1_${DATACENTER}"}
 MODE=${MODE:-"test"}
 TEMPLATE=${TEMPLATE:-""}
+USER=${CASSANDRA_USERNAME:-""}
+PASSWORD=${CASSANDRA_PASSWORD:-""}
 
 total_wait=0
 while true
@@ -31,4 +33,9 @@ done
 
 echo "Generating the schema for the keyspace ${KEYSPACE} and datacenter ${DATACENTER}"
 
-MODE="${MODE}" DATACENTER="${DATACENTER}" KEYSPACE="${KEYSPACE}" /cassandra-schema/create.sh "${TEMPLATE}" | ${CQLSH} ${CQLSH_SSL} ${CQLSH_HOST}
+
+if [ -z "$PASSWORD" ]; then
+  MODE="${MODE}" DATACENTER="${DATACENTER}" KEYSPACE="${KEYSPACE}" /cassandra-schema/create.sh "${TEMPLATE}" | ${CQLSH} ${CQLSH_SSL} ${CQLSH_HOST}
+else
+  MODE="${MODE}" DATACENTER="${DATACENTER}" KEYSPACE="${KEYSPACE}" /cassandra-schema/create.sh "${TEMPLATE}" | ${CQLSH} ${CQLSH_SSL} ${CQLSH_HOST} -u ${USER} -p ${PASSWORD}
+fi
