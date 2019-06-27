@@ -77,7 +77,7 @@ func NewSpanWriter(p SpanWriterParams) *SpanWriter {
 	ctx := context.Background()
 
 	// TODO: Configurable TTL
-	serviceOperationStorage := NewServiceOperationStorage(ctx, p.Client, p.Logger, time.Hour*12)
+	serviceOperationStorage := NewServiceOperationStorage(p.Client, p.Logger, time.Hour*12)
 	return &SpanWriter{
 		ctx:    ctx,
 		client: p.Client,

@@ -38,6 +38,7 @@ import (
 	"github.com/jaegertracing/jaeger/plugin/storage"
 	"github.com/jaegertracing/jaeger/ports"
 	istorage "github.com/jaegertracing/jaeger/storage"
+	"github.com/jaegertracing/jaeger/storage/spanstore"
 	storageMetrics "github.com/jaegertracing/jaeger/storage/spanstore/metrics"
 )
 
@@ -78,7 +79,9 @@ func main() {
 			}
 			defer closer.Close()
 			opentracing.SetGlobalTracer(tracer)
-
+			queryOpts := new(app.QueryOptions).InitFromViper(v)
+			// TODO: Need to figure out set enable/disable propagation on storage plugins.
+			v.Set(spanstore.StoragePropagationKey, queryOpts.BearerTokenPropagation)
 			storageFactory.InitFromViper(v)
 			if err := storageFactory.Initialize(baseFactory, logger); err != nil {
 				logger.Fatal("Failed to init storage factory", zap.Error(err))
@@ -98,7 +101,6 @@ func main() {
 				dependencyReader,
 				*queryServiceOptions)
 
-			queryOpts := new(app.QueryOptions).InitFromViper(v)
 			server := app.NewServer(svc, queryService, queryOpts, tracer)
 
 			if err := server.Start(); err != nil {

@@ -21,7 +21,7 @@ import (
 	"strings"
 
 	"github.com/gorilla/handlers"
-	opentracing "github.com/opentracing/opentracing-go"
+	"github.com/opentracing/opentracing-go"
 	"github.com/soheilhy/cmux"
 	"go.uber.org/zap"
 	"google.golang.org/grpc"
@@ -80,11 +80,14 @@ func createHTTPServer(querySvc *querysvc.QueryService, queryOpts *QueryOptions, 
 
 	apiHandler.RegisterRoutes(r)
 	RegisterStaticHandler(r, logger, queryOpts)
-	compressHandler := handlers.CompressHandler(r)
+	var handler http.Handler = r
+	if queryOpts.BearerTokenPropagation {
+		handler = bearerTokenPropagationHandler(logger, r)
+	}
+	handler = handlers.CompressHandler(handler)
 	recoveryHandler := recoveryhandler.NewRecoveryHandler(logger, true)
-
 	return &http.Server{
-		Handler: recoveryHandler(compressHandler),
+		Handler: recoveryHandler(handler),
 	}
 }
 
