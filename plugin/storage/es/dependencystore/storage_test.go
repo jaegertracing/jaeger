@@ -66,7 +66,7 @@ func TestNewSpanReaderIndexPrefix(t *testing.T) {
 	for _, testCase := range testCases {
 		client := &mocks.Client{}
 		r := NewDependencyStore(client, zap.NewNop(), testCase.prefix)
-		assert.Equal(t, testCase.expected+dependencyIndex, r.dependencyIndexPrefix)
+		assert.Equal(t, testCase.expected+dependencyIndex, r.indexPrefix)
 	}
 }
 
@@ -157,8 +157,7 @@ func TestGetDependencies(t *testing.T) {
 			searchError:   errors.New("search failure"),
 			expectedError: "Failed to search for dependencies: search failure",
 			indexPrefix: "foo",
-			indices: []interface{}{"foo-jaeger-dependencies-1995-04-21", "foo-jaeger-dependencies-1995-04-20",
-				"foo:jaeger-dependencies-1995-04-21", "foo:jaeger-dependencies-1995-04-20"},
+			indices: []interface{}{"foo-jaeger-dependencies-1995-04-21", "foo-jaeger-dependencies-1995-04-20"},
 		},
 	}
 	for _, testCase := range testCases {
