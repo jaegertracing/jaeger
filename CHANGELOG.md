@@ -30,13 +30,16 @@ Changes by Version
 * Remove deprecated index prefix separator `:` from Elastic ([#1620](https://github.com/jaegertracing/jaeger/pull/1620), [@pavolloffay](https://github.com/pavolloffay))
 
   In Jaeger 1.9.0 release the Elasticsearch index separator was changed from `:` to `-`. To keep backwards
-  compatibility the query service kep querying indices with `:` separator, however the new indices
+  compatibility the query service kept querying indices with `:` separator, however the new indices
   were created only with `-`. This release of Jaeger removes the query capability for indices containing `:`,
   therefore it's recommended to keep using older version until indices containing old separator are
   not queried anymore.
 
 ##### New Features
 
+* Passthrough OAuth bearer token supplied to Query service through to ES storage ([#1599](https://github.com/jaegertracing/jaeger/pull/1599), [@rubenvp8510](https://github.com/rubenvp8510))
+* Kafka kerberos authentication support for collector/ingester ([#1589](https://github.com/jaegertracing/jaeger/pull/1589), [@rubenvp8510](https://github.com/rubenvp8510))
+* Allow Cassandra schema builder to use credentials ([#1635](https://github.com/jaegertracing/jaeger/pull/1635), [@PS-EGHornbostel](https://github.com/PS-EGHornbostel))
 * Add docs generation command ([#1572](https://github.com/jaegertracing/jaeger/pull/1572), [@pavolloffay](https://github.com/pavolloffay))
 
 ##### Bug fixes, Minor Improvements
