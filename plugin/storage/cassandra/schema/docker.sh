@@ -34,7 +34,7 @@ done
 echo "Generating the schema for the keyspace ${KEYSPACE} and datacenter ${DATACENTER}"
 
 
-if [ -z "$PASSWORD" ] then
+if [ -z "$PASSWORD" ]; then
   MODE="${MODE}" DATACENTER="${DATACENTER}" KEYSPACE="${KEYSPACE}" /cassandra-schema/create.sh "${TEMPLATE}" | ${CQLSH} ${CQLSH_SSL} ${CQLSH_HOST}
 else
   MODE="${MODE}" DATACENTER="${DATACENTER}" KEYSPACE="${KEYSPACE}" /cassandra-schema/create.sh "${TEMPLATE}" | ${CQLSH} ${CQLSH_SSL} ${CQLSH_HOST} -u ${USER} -p ${PASSWORD}
