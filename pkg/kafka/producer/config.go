@@ -16,6 +16,8 @@ package producer
 
 import (
 	"github.com/Shopify/sarama"
+
+	"github.com/jaegertracing/jaeger/pkg/kafka/auth"
 )
 
 // Builder builds a new kafka producer
@@ -26,11 +28,13 @@ type Builder interface {
 // Configuration describes the configuration properties needed to create a Kafka producer
 type Configuration struct {
 	Brokers []string
+	auth.AuthenticationConfig
 }
 
 // NewProducer creates a new asynchronous kafka producer
 func (c *Configuration) NewProducer() (sarama.AsyncProducer, error) {
 	saramaConfig := sarama.NewConfig()
 	saramaConfig.Producer.Return.Successes = true
+	c.AuthenticationConfig.SetConfiguration(saramaConfig)
 	return sarama.NewAsyncProducer(c.Brokers, saramaConfig)
 }
