@@ -14,6 +14,21 @@ Changes by Version
 
 #### UI Changes
 
+1.13.1 (2019-06-28)
+------------------
+
+#### Backend Changes
+
+##### Breaking Changes
+
+##### New Features
+
+##### Bug fixes, Minor Improvements
+
+Change default for bearer-token-propagation to false ([#1642](https://github.com/jaegertracing/jaeger/pull/1642), [@wsoula](https://github.com/wsoula))
+
+#### UI Changes
+
 1.13.0 (2019-06-27)
 ------------------
 
