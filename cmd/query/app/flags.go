@@ -50,7 +50,7 @@ func AddFlags(flagSet *flag.FlagSet) {
 	flagSet.String(queryBasePath, "/", "The base path for all HTTP routes, e.g. /jaeger; useful when running behind a reverse proxy")
 	flagSet.String(queryStaticFiles, "", "The directory path override for the static assets for the UI")
 	flagSet.String(queryUIConfig, "", "The path to the UI configuration file in JSON format")
-	flagSet.Bool(queryTokenPropagation, true, "Allow propagation of bearer token to be used by storage plugins")
+	flagSet.Bool(queryTokenPropagation, false, "Allow propagation of bearer token to be used by storage plugins")
 
 }
 
