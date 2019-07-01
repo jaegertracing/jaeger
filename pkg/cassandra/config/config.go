@@ -32,6 +32,7 @@ type Configuration struct {
 	LocalDC              string        `yaml:"local_dc"`
 	ConnectionsPerHost   int           `validate:"min=1" yaml:"connections_per_host"`
 	Timeout              time.Duration `validate:"min=500"`
+	ConnectTimeout       time.Duration `validate:"min=600"`
 	ReconnectInterval    time.Duration `validate:"min=500" yaml:"reconnect_interval"`
 	SocketKeepAlive      time.Duration `validate:"min=0" yaml:"socket_keep_alive"`
 	MaxRetryAttempts     int           `validate:"min=0" yaml:"max_retry_attempt"`
@@ -115,6 +116,7 @@ func (c *Configuration) NewCluster() *gocql.ClusterConfig {
 	cluster.Keyspace = c.Keyspace
 	cluster.NumConns = c.ConnectionsPerHost
 	cluster.Timeout = c.Timeout
+	cluster.ConnectTimeout = c.ConnectTimeout
 	cluster.ReconnectInterval = c.ReconnectInterval
 	cluster.SocketKeepalive = c.SocketKeepAlive
 	if c.ProtoVersion > 0 {
