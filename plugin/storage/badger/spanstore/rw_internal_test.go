@@ -14,7 +14,9 @@
 package spanstore
 
 import (
+	"bytes"
 	"context"
+	"encoding/binary"
 	"testing"
 	"time"
 
@@ -22,44 +24,14 @@ import (
 	"github.com/stretchr/testify/assert"
 
 	"github.com/jaegertracing/jaeger/model"
+	"github.com/jaegertracing/jaeger/storage/spanstore"
 )
 
 func TestEncodingTypes(t *testing.T) {
-
-	tid := time.Now()
-
-	dummyKv := []model.KeyValue{
-		model.KeyValue{
-			Key:   "key",
-			VType: model.StringType,
-			VStr:  "value",
-		},
-	}
-
-	testSpan := model.Span{
-		TraceID: model.TraceID{
-			Low:  uint64(0),
-			High: 1,
-		},
-		SpanID:        model.SpanID(0),
-		OperationName: "operation",
-		Process: &model.Process{
-			ServiceName: "service",
-			Tags:        dummyKv,
-		},
-		StartTime: tid.Add(time.Duration(1 * time.Millisecond)),
-		Duration:  time.Duration(1 * time.Millisecond),
-		Tags:      dummyKv,
-		Logs: []model.Log{
-			model.Log{
-				Timestamp: tid,
-				Fields:    dummyKv,
-			},
-		},
-	}
-
 	// JSON encoding
 	runWithBadger(t, func(store *badger.DB, t *testing.T) {
+		testSpan := createDummySpan()
+
 		cache := NewCacheStore(store, time.Duration(1*time.Hour), true)
 		sw := NewSpanWriter(store, cache, time.Duration(1*time.Hour), nil)
 		rw := NewTraceReader(store, cache)
@@ -75,6 +47,8 @@ func TestEncodingTypes(t *testing.T) {
 
 	// Unknown encoding write
 	runWithBadger(t, func(store *badger.DB, t *testing.T) {
+		testSpan := createDummySpan()
+
 		cache := NewCacheStore(store, time.Duration(1*time.Hour), true)
 		sw := NewSpanWriter(store, cache, time.Duration(1*time.Hour), nil)
 		// rw := NewTraceReader(store, cache)
@@ -86,6 +60,8 @@ func TestEncodingTypes(t *testing.T) {
 
 	// Unknown encoding reader
 	runWithBadger(t, func(store *badger.DB, t *testing.T) {
+		testSpan := createDummySpan()
+
 		cache := NewCacheStore(store, time.Duration(1*time.Hour), true)
 		sw := NewSpanWriter(store, cache, time.Duration(1*time.Hour), nil)
 		rw := NewTraceReader(store, cache)
@@ -118,4 +94,85 @@ func TestDecodeErrorReturns(t *testing.T) {
 
 	_, err = decodeValue(garbage, jsonEncoding)
 	assert.Error(t, err)
+}
+
+func TestSortMergeIdsDuplicateDetection(t *testing.T) {
+	// Different IndexSeeks return the same results
+	ids := make([][][]byte, 2)
+	ids[0] = make([][]byte, 1)
+	ids[1] = make([][]byte, 1)
+	buf := new(bytes.Buffer)
+	binary.Write(buf, binary.BigEndian, uint64(0))
+	binary.Write(buf, binary.BigEndian, uint64(156697987635))
+	b := buf.Bytes()
+	ids[0][0] = b
+	ids[1][0] = b
+
+	query := &spanstore.TraceQueryParameters{
+		NumTraces: 64,
+	}
+
+	traces := sortMergeIds(query, ids)
+	assert.Equal(t, 1, len(traces))
+}
+
+func TestDuplicateTraceIDDetection(t *testing.T) {
+	runWithBadger(t, func(store *badger.DB, t *testing.T) {
+		testSpan := createDummySpan()
+		cache := NewCacheStore(store, time.Duration(1*time.Hour), true)
+		sw := NewSpanWriter(store, cache, time.Duration(1*time.Hour), nil)
+		rw := NewTraceReader(store, cache)
+
+		for i := 0; i < 8; i++ {
+			testSpan.SpanID = model.SpanID(i)
+			testSpan.StartTime = testSpan.StartTime.Add(time.Millisecond)
+			err := sw.WriteSpan(&testSpan)
+			assert.NoError(t, err)
+		}
+
+		traces, err := rw.FindTraceIDs(context.Background(), &spanstore.TraceQueryParameters{
+			ServiceName:  "service",
+			StartTimeMax: time.Now().Add(time.Hour),
+			StartTimeMin: testSpan.StartTime.Add(-1 * time.Hour),
+		})
+
+		assert.NoError(t, err)
+		assert.Equal(t, 1, len(traces))
+	})
+}
+
+func createDummySpan() model.Span {
+	tid := time.Now()
+
+	dummyKv := []model.KeyValue{
+		model.KeyValue{
+			Key:   "key",
+			VType: model.StringType,
+			VStr:  "value",
+		},
+	}
+
+	testSpan := model.Span{
+		TraceID: model.TraceID{
+			Low:  uint64(0),
+			High: 1,
+		},
+		SpanID:        model.SpanID(0),
+		OperationName: "operation",
+		Process: &model.Process{
+			ServiceName: "service",
+			Tags:        dummyKv,
+		},
+		StartTime: tid.Add(time.Duration(1 * time.Millisecond)),
+		Duration:  time.Duration(1 * time.Millisecond),
+		Tags:      dummyKv,
+		Logs: []model.Log{
+			model.Log{
+				Timestamp: tid,
+				Fields:    dummyKv,
+			},
+		},
+	}
+
+	return testSpan
 }
