@@ -33,7 +33,7 @@ func TestOptionsWithFlags(t *testing.T) {
 		"--kafka.consumer.group-id=group1",
 		"--kafka.consumer.client-id=client-id1",
 		"--kafka.consumer.encoding=json",
-		"--kafka.consumer.version=1.0.0",
+		"--kafka.consumer.protocol-version=1.0.0",
 		"--ingester.parallelism=5",
 		"--ingester.deadlockInterval=2m",
 	})
@@ -43,7 +43,7 @@ func TestOptionsWithFlags(t *testing.T) {
 	assert.Equal(t, []string{"127.0.0.1:9092", "0.0.0:1234"}, o.Brokers)
 	assert.Equal(t, "group1", o.GroupID)
 	assert.Equal(t, "client-id1", o.ClientID)
-	assert.Equal(t, "1.0.0", o.Version)
+	assert.Equal(t, "1.0.0", o.ProtocolVersion)
 	assert.Equal(t, 5, o.Parallelism)
 	assert.Equal(t, 2*time.Minute, o.DeadlockInterval)
 	assert.Equal(t, kafka.EncodingJSON, o.Encoding)
