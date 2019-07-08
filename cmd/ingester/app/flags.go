@@ -41,6 +41,8 @@ const (
 	SuffixGroupID = ".group-id"
 	// SuffixClientID is a suffix for the client-id flag
 	SuffixClientID = ".client-id"
+	// SuffixProtocolVersion Kafka protocol version - must be supported by kafka server
+	SuffixProtocolVersion = ".protocol-version"
 	// SuffixEncoding is a suffix for the encoding flag
 	SuffixEncoding = ".encoding"
 	// SuffixDeadlockInterval is a suffix for deadlock detecor flag
@@ -92,6 +94,10 @@ func AddFlags(flagSet *flag.FlagSet) {
 		DefaultClientID,
 		"The Consumer Client ID that ingester will use")
 	flagSet.String(
+		KafkaConsumerConfigPrefix+SuffixProtocolVersion,
+		"",
+		"Kafka protocol version - must be supported by kafka server")
+	flagSet.String(
 		KafkaConsumerConfigPrefix+SuffixEncoding,
 		DefaultEncoding,
 		fmt.Sprintf(`The encoding of spans ("%s") consumed from kafka`, strings.Join(kafka.AllEncodings, "\", \"")))
@@ -113,6 +119,7 @@ func (o *Options) InitFromViper(v *viper.Viper) {
 	o.Topic = v.GetString(KafkaConsumerConfigPrefix + SuffixTopic)
 	o.GroupID = v.GetString(KafkaConsumerConfigPrefix + SuffixGroupID)
 	o.ClientID = v.GetString(KafkaConsumerConfigPrefix + SuffixClientID)
+	o.ProtocolVersion = v.GetString(KafkaConsumerConfigPrefix + SuffixProtocolVersion)
 	o.Encoding = v.GetString(KafkaConsumerConfigPrefix + SuffixEncoding)
 
 	o.Parallelism = v.GetInt(ConfigPrefix + SuffixParallelism)
