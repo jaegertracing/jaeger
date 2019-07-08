@@ -17,7 +17,11 @@ PASSWORD=${CASSANDRA_PASSWORD:-""}
 total_wait=0
 while true
 do
-  ${CQLSH} ${CQLSH_SSL} ${CQLSH_HOST} -e "describe keyspaces"
+  if [ -z "$PASSWORD" ]; then
+    ${CQLSH} ${CQLSH_SSL} ${CQLSH_HOST} -e "describe keyspaces"
+  else
+    ${CQLSH} ${CQLSH_SSL} ${CQLSH_HOST} -u ${USER} -p ${PASSWORD} -e "describe keyspaces"
+  fi
   if (( $? == 0 )); then
     break
   else
