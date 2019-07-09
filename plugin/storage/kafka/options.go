@@ -33,13 +33,14 @@ const (
 	// EncodingZipkinThrift is used for spans encoded as Zipkin Thrift.
 	EncodingZipkinThrift = "zipkin-thrift"
 
-	configPrefix    = "kafka.producer"
-	suffixBrokers   = ".brokers"
-	suffixTopic     = ".topic"
-	suffixEncoding  = ".encoding"
-	defaultBroker   = "127.0.0.1:9092"
-	defaultTopic    = "jaeger-spans"
-	defaultEncoding = EncodingProto
+	configPrefix          = "kafka.producer"
+	suffixBrokers         = ".brokers"
+	suffixTopic           = ".topic"
+	suffixProtocolVersion = ".protocol-version"
+	suffixEncoding        = ".encoding"
+	defaultBroker         = "127.0.0.1:9092"
+	defaultTopic          = "jaeger-spans"
+	defaultEncoding       = EncodingProto
 )
 
 var (
@@ -65,6 +66,10 @@ func (opt *Options) AddFlags(flagSet *flag.FlagSet) {
 		defaultTopic,
 		"(experimental) The name of the kafka topic")
 	flagSet.String(
+		configPrefix+suffixProtocolVersion,
+		"",
+		"(experimental) Kafka protocol version - must be supported by kafka server")
+	flagSet.String(
 		configPrefix+suffixEncoding,
 		defaultEncoding,
 		fmt.Sprintf(`(experimental) Encoding of spans ("%s" or "%s") sent to kafka.`, EncodingJSON, EncodingProto),
@@ -78,6 +83,7 @@ func (opt *Options) InitFromViper(v *viper.Viper) {
 	authenticationOptions.InitFromViper(configPrefix, v)
 	opt.config = producer.Configuration{
 		Brokers:              strings.Split(stripWhiteSpace(v.GetString(configPrefix+suffixBrokers)), ","),
+		ProtocolVersion:      v.GetString(configPrefix + suffixProtocolVersion),
 		AuthenticationConfig: authenticationOptions,
 	}
 	opt.topic = v.GetString(configPrefix + suffixTopic)

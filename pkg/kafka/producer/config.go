@@ -27,7 +27,8 @@ type Builder interface {
 
 // Configuration describes the configuration properties needed to create a Kafka producer
 type Configuration struct {
-	Brokers []string
+	Brokers         []string
+	ProtocolVersion string
 	auth.AuthenticationConfig
 }
 
@@ -36,5 +37,12 @@ func (c *Configuration) NewProducer() (sarama.AsyncProducer, error) {
 	saramaConfig := sarama.NewConfig()
 	saramaConfig.Producer.Return.Successes = true
 	c.AuthenticationConfig.SetConfiguration(saramaConfig)
+	if len(c.ProtocolVersion) > 0 {
+		ver, err := sarama.ParseKafkaVersion(c.ProtocolVersion)
+		if err != nil {
+			return nil, err
+		}
+		saramaConfig.Version = ver
+	}
 	return sarama.NewAsyncProducer(c.Brokers, saramaConfig)
 }
