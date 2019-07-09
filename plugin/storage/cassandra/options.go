@@ -30,6 +30,7 @@ const (
 	suffixConnPerHost          = ".connections-per-host"
 	suffixMaxRetryAttempts     = ".max-retry-attempts"
 	suffixTimeout              = ".timeout"
+	suffixConnectTimeout       = ".connect-timeout"
 	suffixReconnectInterval    = ".reconnect-interval"
 	suffixServers              = ".servers"
 	suffixPort                 = ".port"
@@ -135,6 +136,10 @@ func addFlags(flagSet *flag.FlagSet, nsConfig *namespaceConfig) {
 		nsConfig.Timeout,
 		"Timeout used for queries. A Timeout of zero means no timeout")
 	flagSet.Duration(
+		nsConfig.namespace+suffixConnectTimeout,
+		nsConfig.ConnectTimeout,
+		"Timeout used for connections to Cassandra Servers")
+	flagSet.Duration(
 		nsConfig.namespace+suffixReconnectInterval,
 		nsConfig.ReconnectInterval,
 		"Reconnect interval to retry connecting to downed hosts")
@@ -220,6 +225,7 @@ func (cfg *namespaceConfig) initFromViper(v *viper.Viper) {
 	cfg.ConnectionsPerHost = v.GetInt(cfg.namespace + suffixConnPerHost)
 	cfg.MaxRetryAttempts = v.GetInt(cfg.namespace + suffixMaxRetryAttempts)
 	cfg.Timeout = v.GetDuration(cfg.namespace + suffixTimeout)
+	cfg.ConnectTimeout = v.GetDuration(cfg.namespace + suffixConnectTimeout)
 	cfg.ReconnectInterval = v.GetDuration(cfg.namespace + suffixReconnectInterval)
 	cfg.servers = stripWhiteSpace(v.GetString(cfg.namespace + suffixServers))
 	cfg.Port = v.GetInt(cfg.namespace + suffixPort)
