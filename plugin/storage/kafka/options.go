@@ -60,19 +60,19 @@ func (opt *Options) AddFlags(flagSet *flag.FlagSet) {
 	flagSet.String(
 		configPrefix+suffixBrokers,
 		defaultBroker,
-		"(experimental) The comma-separated list of kafka brokers. i.e. '127.0.0.1:9092,0.0.0:1234'")
+		"The comma-separated list of kafka brokers. i.e. '127.0.0.1:9092,0.0.0:1234'")
 	flagSet.String(
 		configPrefix+suffixTopic,
 		defaultTopic,
-		"(experimental) The name of the kafka topic")
+		"The name of the kafka topic")
 	flagSet.String(
 		configPrefix+suffixProtocolVersion,
 		"",
-		"(experimental) Kafka protocol version - must be supported by kafka server")
+		"Kafka protocol version - must be supported by kafka server")
 	flagSet.String(
 		configPrefix+suffixEncoding,
 		defaultEncoding,
-		fmt.Sprintf(`(experimental) Encoding of spans ("%s" or "%s") sent to kafka.`, EncodingJSON, EncodingProto),
+		fmt.Sprintf(`Encoding of spans ("%s" or "%s") sent to kafka.`, EncodingJSON, EncodingProto),
 	)
 	auth.AddFlags(configPrefix, flagSet)
 }
