@@ -45,11 +45,9 @@ type downsamplingWriterMetrics struct {
 
 // DownsamplingWriter is a span Writer that drops spans with a predefined downsamplingRatio.
 type DownsamplingWriter struct {
-	spanWriter   Writer
-	threshold    uint64
-	lengthOfSalt int
-	hasherPool   *sync.Pool
-	metrics      downsamplingWriterMetrics
+	spanWriter       Writer
+	metrics          downsamplingWriterMetrics
+	samplingExecutor SamplingExecutor
 }
 
 // DownsamplingOptions contains the options for constructing a DownsamplingWriter.
@@ -61,14 +59,48 @@ type DownsamplingOptions struct {
 
 // NewDownsamplingWriter creates a DownsamplingWriter.
 func NewDownsamplingWriter(spanWriter Writer, downsamplingOptions DownsamplingOptions) *DownsamplingWriter {
-	threshold := uint64(downsamplingOptions.Ratio * float64(math.MaxUint64))
 	writeMetrics := &downsamplingWriterMetrics{}
 	metrics.Init(writeMetrics, downsamplingOptions.MetricsFactory, nil)
-	salt := downsamplingOptions.HashSalt
-	if salt == "" {
-		salt = defaultHashSalt
+	return &DownsamplingWriter{
+		samplingExecutor: NewSamplingExecutor(downsamplingOptions.Ratio, downsamplingOptions.HashSalt),
+		spanWriter:       spanWriter,
+		metrics:          *writeMetrics,
 	}
-	hashSaltBytes := []byte(salt)
+}
+
+// WriteSpan calls WriteSpan on wrapped span writer.
+func (ds *DownsamplingWriter) WriteSpan(span *model.Span) error {
+	if !ds.samplingExecutor.ShouldDownsample(span) {
+		// Drops spans when hashVal falls beyond computed threshold.
+		ds.metrics.SpansDropped.Inc(1)
+		return nil
+	}
+	ds.metrics.SpansAccepted.Inc(1)
+	return ds.spanWriter.WriteSpan(span)
+}
+
+// hashBytes returns the uint64 hash value of byte slice.
+func (h *hasher) hashBytes() uint64 {
+	h.hash.Reset()
+	// Currently fnv.Write() implementation doesn't throw any error so metric is not necessary here.
+	_, _ = h.hash.Write(h.buffer)
+	return h.hash.Sum64()
+}
+
+// SamplingExecutor decides if we should sample a span
+type SamplingExecutor struct {
+	hasherPool   *sync.Pool
+	lengthOfSalt int
+	threshold    uint64
+}
+
+// NewSamplingExecutor creates SamplingExecutor
+func NewSamplingExecutor(ratio float64, hashSalt string) SamplingExecutor {
+	threshold := uint64(ratio * float64(math.MaxUint64))
+	if hashSalt == "" {
+		hashSalt = defaultHashSalt
+	}
+	hashSaltBytes := []byte(hashSalt)
 	pool := &sync.Pool{
 		New: func() interface{} {
 			buffer := make([]byte, len(hashSaltBytes)+traceIDByteSize)
@@ -79,42 +111,20 @@ func NewDownsamplingWriter(spanWriter Writer, downsamplingOptions DownsamplingOp
 			}
 		},
 	}
-
-	return &DownsamplingWriter{
-		spanWriter:   spanWriter,
+	return SamplingExecutor{
 		threshold:    threshold,
 		hasherPool:   pool,
-		metrics:      *writeMetrics,
 		lengthOfSalt: len(hashSaltBytes),
 	}
 }
 
-// WriteSpan calls WriteSpan on wrapped span writer.
-func (ds *DownsamplingWriter) WriteSpan(span *model.Span) error {
-	if !ds.ShouldDownsample(span) {
-		// Drops spans when hashVal falls beyond computed threshold.
-		ds.metrics.SpansDropped.Inc(1)
-		return nil
-	}
-	ds.metrics.SpansAccepted.Inc(1)
-	return ds.spanWriter.WriteSpan(span)
-}
-
-// ShouldDownsample returns if the span should be sampled or not
-func (ds *DownsamplingWriter) ShouldDownsample(span *model.Span) bool {
-	hasherInstance := ds.hasherPool.Get().(*hasher)
+// ShouldDownsample decides if a span should be sampled or not
+func (s *SamplingExecutor) ShouldDownsample(span *model.Span) bool {
+	hasherInstance := s.hasherPool.Get().(*hasher)
 	// Currently MarshalTo will only return err if size of traceIDBytes is smaller than 16
 	// Since we force traceIDBytes to be size of 16 metrics is not necessary here.
-	_, _ = span.TraceID.MarshalTo(hasherInstance.buffer[ds.lengthOfSalt:])
+	_, _ = span.TraceID.MarshalTo(hasherInstance.buffer[s.lengthOfSalt:])
 	hashVal := hasherInstance.hashBytes()
-	ds.hasherPool.Put(hasherInstance)
-	return hashVal <= ds.threshold
-}
-
-// hashBytes returns the uint64 hash value of byte slice.
-func (h *hasher) hashBytes() uint64 {
-	h.hash.Reset()
-	// Currently fnv.Write() implementation doesn't throw any error so metric is not necessary here.
-	_, _ = h.hash.Write(h.buffer)
-	return h.hash.Sum64()
+	s.hasherPool.Put(hasherInstance)
+	return hashVal <= s.threshold
 }
