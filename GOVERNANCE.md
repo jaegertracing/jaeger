@@ -5,7 +5,7 @@ This document defines governance policies for the Jaeger project.
 ## Maintainers
 
 Jaeger Maintainers have write access to the Jaeger GitHub repository https://github.com/jaegertracing/jaeger.
-They can merge their own patches or patches from others.
+They can merge their own patches or patches from others. The current maintainers can be found in [CODEOWNERS](./CODEOWNERS).
 
 This privilege is granted with some expectation of responsibility: maintainers are people who care about the Jaeger project and want to help it grow and improve. A maintainer is not just someone who can make changes, but someone who has demonstrated his or her ability to collaborate with the team, get the most knowledgeable people to review code, contribute high-quality code, and follow through to fix issues (in code or tests).
 
