@@ -91,7 +91,7 @@ func NewDownsamplingWriter(spanWriter Writer, downsamplingOptions DownsamplingOp
 
 // WriteSpan calls WriteSpan on wrapped span writer.
 func (ds *DownsamplingWriter) WriteSpan(span *model.Span) error {
-	if !ds.shouldDownsample(span) {
+	if !ds.ShouldDownsample(span) {
 		// Drops spans when hashVal falls beyond computed threshold.
 		ds.metrics.SpansDropped.Inc(1)
 		return nil
@@ -100,7 +100,8 @@ func (ds *DownsamplingWriter) WriteSpan(span *model.Span) error {
 	return ds.spanWriter.WriteSpan(span)
 }
 
-func (ds *DownsamplingWriter) shouldDownsample(span *model.Span) bool {
+// ShouldDownsample returns if the span should be sampled or not
+func (ds *DownsamplingWriter) ShouldDownsample(span *model.Span) bool {
 	hasherInstance := ds.hasherPool.Get().(*hasher)
 	// Currently MarshalTo will only return err if size of traceIDBytes is smaller than 16
 	// Since we force traceIDBytes to be size of 16 metrics is not necessary here.
