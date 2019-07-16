@@ -16,6 +16,7 @@ package spanstore
 
 import (
 	"errors"
+	"math"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -79,4 +80,9 @@ func TestDownSamplingWriter_hashBytes(t *testing.T) {
 	_, _ = span.TraceID.MarshalTo(h.buffer)
 	// Same traceID should always be hashed to same uint64 in DownSamplingWriter.
 	assert.Equal(t, h.hashBytes(), h.hashBytes())
+}
+
+func TestDownsamplingWriter_calculateThreshold(t *testing.T) {
+	var maxUint64 uint64 = math.MaxUint64
+	assert.Equal(t, maxUint64, calculateThreshold(1.0))
 }
