@@ -45,9 +45,9 @@ type downsamplingWriterMetrics struct {
 
 // DownsamplingWriter is a span Writer that drops spans with a predefined downsamplingRatio.
 type DownsamplingWriter struct {
-	spanWriter       Writer
-	metrics          downsamplingWriterMetrics
-	samplingExecutor SamplingExecutor
+	spanWriter Writer
+	metrics    downsamplingWriterMetrics
+	sampler    Sampler
 }
 
 // DownsamplingOptions contains the options for constructing a DownsamplingWriter.
@@ -62,15 +62,15 @@ func NewDownsamplingWriter(spanWriter Writer, downsamplingOptions DownsamplingOp
 	writeMetrics := &downsamplingWriterMetrics{}
 	metrics.Init(writeMetrics, downsamplingOptions.MetricsFactory, nil)
 	return &DownsamplingWriter{
-		samplingExecutor: NewSamplingExecutor(downsamplingOptions.Ratio, downsamplingOptions.HashSalt),
-		spanWriter:       spanWriter,
-		metrics:          *writeMetrics,
+		sampler:    NewSampler(downsamplingOptions.Ratio, downsamplingOptions.HashSalt),
+		spanWriter: spanWriter,
+		metrics:    *writeMetrics,
 	}
 }
 
 // WriteSpan calls WriteSpan on wrapped span writer.
 func (ds *DownsamplingWriter) WriteSpan(span *model.Span) error {
-	if !ds.samplingExecutor.ShouldDownsample(span) {
+	if !ds.sampler.ShouldSample(span) {
 		// Drops spans when hashVal falls beyond computed threshold.
 		ds.metrics.SpansDropped.Inc(1)
 		return nil
@@ -87,15 +87,15 @@ func (h *hasher) hashBytes() uint64 {
 	return h.hash.Sum64()
 }
 
-// SamplingExecutor decides if we should sample a span
-type SamplingExecutor struct {
+// Sampler decides if we should sample a span
+type Sampler struct {
 	hasherPool   *sync.Pool
 	lengthOfSalt int
 	threshold    uint64
 }
 
-// NewSamplingExecutor creates SamplingExecutor
-func NewSamplingExecutor(ratio float64, hashSalt string) SamplingExecutor {
+// NewSampler creates SamplingExecutor
+func NewSampler(ratio float64, hashSalt string) Sampler {
 	threshold := uint64(ratio * float64(math.MaxUint64))
 	if hashSalt == "" {
 		hashSalt = defaultHashSalt
@@ -111,15 +111,15 @@ func NewSamplingExecutor(ratio float64, hashSalt string) SamplingExecutor {
 			}
 		},
 	}
-	return SamplingExecutor{
+	return Sampler{
 		threshold:    threshold,
 		hasherPool:   pool,
 		lengthOfSalt: len(hashSaltBytes),
 	}
 }
 
-// ShouldDownsample decides if a span should be sampled or not
-func (s *SamplingExecutor) ShouldDownsample(span *model.Span) bool {
+// ShouldSample decides if a span should be sampled
+func (s *Sampler) ShouldSample(span *model.Span) bool {
 	hasherInstance := s.hasherPool.Get().(*hasher)
 	// Currently MarshalTo will only return err if size of traceIDBytes is smaller than 16
 	// Since we force traceIDBytes to be size of 16 metrics is not necessary here.

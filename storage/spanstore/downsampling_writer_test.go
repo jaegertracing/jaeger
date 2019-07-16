@@ -66,9 +66,9 @@ func TestDownSamplingWriter_hashBytes(t *testing.T) {
 		MetricsFactory: nil,
 	}
 	c := NewDownsamplingWriter(&noopWriteSpanStore{}, downsamplingOptions)
-	h := c.samplingExecutor.hasherPool.Get().(*hasher)
+	h := c.sampler.hasherPool.Get().(*hasher)
 	assert.Equal(t, h.hashBytes(), h.hashBytes())
-	c.samplingExecutor.hasherPool.Put(h)
+	c.sampler.hasherPool.Put(h)
 	trace := model.TraceID{
 		Low:  uint64(0),
 		High: uint64(1),
