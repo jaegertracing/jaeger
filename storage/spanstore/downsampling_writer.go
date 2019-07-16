@@ -18,6 +18,7 @@ import (
 	"hash"
 	"hash/fnv"
 	"math"
+	"math/big"
 	"sync"
 
 	"github.com/uber/jaeger-lib/metrics"
@@ -96,7 +97,6 @@ type Sampler struct {
 
 // NewSampler creates SamplingExecutor
 func NewSampler(ratio float64, hashSalt string) Sampler {
-	threshold := uint64(ratio * float64(math.MaxUint64))
 	if hashSalt == "" {
 		hashSalt = defaultHashSalt
 	}
@@ -112,10 +112,19 @@ func NewSampler(ratio float64, hashSalt string) Sampler {
 		},
 	}
 	return Sampler{
-		threshold:    threshold,
+		threshold:    calculateThreshold(ratio),
 		hasherPool:   pool,
 		lengthOfSalt: len(hashSaltBytes),
 	}
+}
+
+func calculateThreshold(ratio float64) uint64 {
+	// Use big.Float and big.Int to calculate threshold because directly convert
+	// math.MaxUint64 to float64 will cause digits/bits to be cut off if the converted value
+	// doesn't fit into bits that are used to store digits for float64 in Golang
+	boundary := new(big.Float).SetInt(new(big.Int).SetUint64(math.MaxUint64))
+	res, _ := boundary.Mul(boundary, big.NewFloat(ratio)).Uint64()
+	return res
 }
 
 // ShouldSample decides if a span should be sampled
