@@ -48,7 +48,7 @@ type downsamplingWriterMetrics struct {
 type DownsamplingWriter struct {
 	spanWriter Writer
 	metrics    downsamplingWriterMetrics
-	sampler    Sampler
+	sampler    *Sampler
 }
 
 // DownsamplingOptions contains the options for constructing a DownsamplingWriter.
@@ -96,7 +96,7 @@ type Sampler struct {
 }
 
 // NewSampler creates SamplingExecutor
-func NewSampler(ratio float64, hashSalt string) Sampler {
+func NewSampler(ratio float64, hashSalt string) *Sampler {
 	if hashSalt == "" {
 		hashSalt = defaultHashSalt
 	}
@@ -111,7 +111,7 @@ func NewSampler(ratio float64, hashSalt string) Sampler {
 			}
 		},
 	}
-	return Sampler{
+	return &Sampler{
 		threshold:    calculateThreshold(ratio),
 		hasherPool:   pool,
 		lengthOfSalt: len(hashSaltBytes),
