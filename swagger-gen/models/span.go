@@ -118,7 +118,7 @@ type Span struct {
 	//  * The span's start event was lost
 	//  * Data about a completed span (ex tags) were sent after the fact
 	//
-	Timestamp int64 `json:"timestamp,omitempty"`
+	Timestamp json.Number `json:"timestamp,omitempty"`
 
 	// Randomly generated, unique identifier for a trace, set on all spans within it.
 	//

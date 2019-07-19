@@ -41,12 +41,20 @@ func spanV2ToThrift(s *models.Span) (*zipkincore.Span, error) {
 	if err != nil {
 		return nil, err
 	}
+	ts, err := s.Timestamp.Int64()
+	if err != nil {
+		tsF, err :=  s.Timestamp.Float64()
+		if err != nil {
+		} else {
+			ts = int64(tsF)
+		}
+	}
 	tSpan := &zipkincore.Span{
 		ID:        int64(id),
 		TraceID:   int64(traceID.Low),
 		Name:      s.Name,
 		Debug:     s.Debug,
-		Timestamp: &s.Timestamp,
+		Timestamp: &ts,
 		Duration:  &s.Duration,
 	}
 	if traceID.High != 0 {
@@ -77,7 +85,7 @@ func spanV2ToThrift(s *models.Span) (*zipkincore.Span, error) {
 	}
 
 	tSpan.BinaryAnnotations = append(tSpan.BinaryAnnotations, tagsToThrift(s.Tags, localE)...)
-	tSpan.Annotations = append(tSpan.Annotations, kindToThrift(s.Timestamp, s.Duration, s.Kind, localE)...)
+	tSpan.Annotations = append(tSpan.Annotations, kindToThrift(ts, s.Duration, s.Kind, localE)...)
 
 	if s.RemoteEndpoint != nil {
 		rAddrAnno, err := remoteEndpToThrift(s.RemoteEndpoint, s.Kind)
