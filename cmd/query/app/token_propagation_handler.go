@@ -15,6 +15,7 @@
 package app
 
 import (
+	"log"
 	"net/http"
 	"strings"
 
@@ -26,11 +27,15 @@ import (
 func bearerTokenPropagationHandler(logger *zap.Logger, h http.Handler) http.Handler {
 	return http.HandlerFunc(func(w http.ResponseWriter, r *http.Request) {
 		ctx := r.Context()
+		logger.Info("Propagating bearer token")
+		log.Print(r)
 		authHeaderValue := r.Header.Get("Authorization")
 		// If no Authorization header is present, try with X-Forwarded-Access-Token
 		if authHeaderValue == "" {
 			authHeaderValue = r.Header.Get("X-Forwarded-Access-Token")
 		}
+		logger.Info("Token: " + authHeaderValue)
+
 		if authHeaderValue != "" {
 			headerValue := strings.Split(authHeaderValue, " ")
 			token := ""
@@ -39,7 +44,11 @@ func bearerTokenPropagationHandler(logger *zap.Logger, h http.Handler) http.Hand
 				if headerValue[0] == "Bearer" {
 					token = headerValue[1]
 				}
-			} else {
+			} else if len(headerValue) == 1 {
+				// Tread all value as a token
+				logger.Info("Token schema does not specified in header, treating all value as a token")
+				token = authHeaderValue
+			} 	else {
 				logger.Warn("Invalid authorization header, skipping bearer token propagation")
 			}
 			h.ServeHTTP(w, r.WithContext(spanstore.ContextWithBearerToken(ctx, token)))

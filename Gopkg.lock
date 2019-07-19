@@ -1013,12 +1013,14 @@
 
 [[projects]]
   branch = "master"
-  digest = "1:6bf120070ed448fd0a139da7b9514006b3390bd815a0013c50cc672c24a74fa1"
+  digest = "1:c9cebc5e72db1db7406ef75233b62451d7778fc590dd7b2d5f6e76acceb91a1d"
   name = "golang.org/x/net"
   packages = [
     "bpf",
     "context",
     "context/ctxhttp",
+    "html",
+    "html/atom",
     "http/httpguts",
     "http2",
     "http2/hpack",
@@ -1349,6 +1351,7 @@
     "go.uber.org/zap/zaptest",
     "go.uber.org/zap/zaptest/observer",
     "golang.org/x/net/context",
+    "golang.org/x/net/html",
     "golang.org/x/sys/unix",
     "google.golang.org/grpc",
     "google.golang.org/grpc/balancer/roundrobin",

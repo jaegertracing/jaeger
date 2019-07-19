@@ -9,33 +9,7 @@ matrix:
   include:
   - go: "1.12.1"
     env:
-    - TESTS=true
-    - COVERAGE=true
-  - go: "1.12.1"
-    env:
-    - PROTO_GEN_TEST=true
-  - go: "1.12.1"
-    env:
-    - ALL_IN_ONE=true
-  - go: "1.12.1"
-    env:
-    - CROSSDOCK=true
-  - go: "1.12.1"
-    env:
-    - DOCKER=true
-    - DEPLOY=true
-  - go: "1.12.1"
-    env:
-    - ES_INTEGRATION_TEST=true
-  - go: "1.12.1"
-    env:
-    - KAFKA_INTEGRATION_TEST=true
-  - go: "1.12.1"
-    env:
-    - CASSANDRA_INTEGRATION_TEST=true
-  - go: "1.12.1"
-    env:
-    - HOTROD=true
+    - ES_TOKEN_PROPAGATION=true
 
 services:
   - docker
@@ -51,6 +25,12 @@ env:
     # override default yarn
     - PATH=$HOME/.yarn/bin:$PATH
 
+before_install:
+  # add 172.16.0.0/12 as insecure registry (OpenShift internal registry)
+  - sudo sed -i "s/\DOCKER_OPTS=\"/DOCKER_OPTS=\"--insecure-registry=172.16.0.0\/12 /g" /etc/default/docker
+  - sudo cat /etc/default/docker
+  - sudo service docker restart
+
 install:
   - docker rmi $(docker images -q) || true
   - make install-ci
@@ -63,6 +43,9 @@ install:
         curl -L https://github.com/google/protobuf/releases/download/v3.6.1/protoc-3.6.1-linux-x86_64.zip -o /tmp/protoc.zip
         unzip /tmp/protoc.zip -d "$HOME"/protoc
     fi
+  - rm -rf ~/.nvm && git clone https://github.com/creationix/nvm.git ~/.nvm && (cd ~/.nvm && git checkout `git describe --abbrev=0 --tags`) && source ~/.nvm/nvm.sh && nvm install 8.16.0
+  - npm install
+  - curl -o- -L https://yarnpkg.com/install.sh | bash
 
 script:
   - export BRANCH=$(if [ "$TRAVIS_PULL_REQUEST" == "false" ]; then echo $TRAVIS_BRANCH; else echo $TRAVIS_PULL_REQUEST_BRANCH; fi)
@@ -71,6 +54,7 @@ script:
   - if [ "$CROSSDOCK" == true ]; then bash ./scripts/travis/build-crossdock.sh ; else echo 'skipping crossdock'; fi
   - if [ "$DOCKER" == true ]; then bash ./scripts/travis/build-docker-images.sh ; else echo 'skipping docker images'; fi
   - if [ "$ES_INTEGRATION_TEST" == true ]; then bash ./scripts/travis/es-integration-test.sh ; else echo 'skipping elastic search integration test'; fi
+  - if [ "$ES_TOKEN_PROPAGATION" == true ]; then bash ./scripts/travis/es-token-propagation-test.sh ; else echo 'skipping elastic search token propagation integration test'; fi
   - if [ "$KAFKA_INTEGRATION_TEST" == true ]; then bash ./scripts/travis/kafka-integration-test.sh ; else echo 'skipping kafka integration test'; fi
   - if [ "$CASSANDRA_INTEGRATION_TEST" == true ]; then bash ./scripts/travis/cassandra-integration-test.sh ; else echo 'skipping cassandra integration test'; fi
   - if [ "$HOTROD" == true ]; then bash ./scripts/travis/hotrod-integration-test.sh ; else echo 'skipping hotrod example'; fi

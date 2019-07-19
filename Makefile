@@ -96,6 +96,11 @@ storage-integration-test: go-gen
 	go clean -testcache
 	bash -c "set -e; set -o pipefail; $(GOTEST) $(STORAGE_PKGS) | $(COLORIZE)"
 
+.PHONY: token-propagation-test
+token-propagation-test: go-gen
+	go clean -testcache
+	bash -c "set -e; set -o pipefail; $(GOTEST) ./cmd/query/app/integration/... | $(COLORIZE)"
+
 all-pkgs:
 	@echo $(ALL_PKGS) | tr ' ' '\n' | sort
 
