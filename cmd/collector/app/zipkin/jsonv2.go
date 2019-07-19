@@ -43,7 +43,7 @@ func spanV2ToThrift(s *models.Span) (*zipkincore.Span, error) {
 	}
 	ts, err := s.Timestamp.Int64()
 	if err != nil {
-		tsF, err :=  s.Timestamp.Float64()
+		tsF, err := s.Timestamp.Float64()
 		if err != nil {
 		} else {
 			ts = int64(tsF)
