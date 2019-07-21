@@ -278,9 +278,16 @@ func (r *TraceReader) indexSeeksToTraceIDs(query *spanstore.TraceQueryParameters
 		if err != nil {
 			return nil, err
 		}
+
+		// Same traceID can be returned multiple times, but always in sorted order so checking the previous key is enough
+		prevTraceID := []byte{}
 		ids = append(ids, make([][]byte, 0, len(indexResults)))
 		for _, k := range indexResults {
-			ids[i] = append(ids[i], k[len(k)-sizeOfTraceID:])
+			traceID := k[len(k)-sizeOfTraceID:]
+			if !bytes.Equal(prevTraceID, traceID) {
+				ids[i] = append(ids[i], traceID)
+				prevTraceID = traceID
+			}
 		}
 	}
 	return ids, nil

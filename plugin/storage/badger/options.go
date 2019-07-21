@@ -52,14 +52,15 @@ const (
 	suffixSpanstoreTTL        = ".span-store-ttl"
 	suffixSyncWrite           = ".consistency"
 	suffixMaintenanceInterval = ".maintenance-interval"
-	defaultValueDir           = "/data/values"
-	defaultKeysDir            = "/data/keys"
+	defaultDataDir            = string(os.PathSeparator) + "data"
+	defaultValueDir           = defaultDataDir + string(os.PathSeparator) + "values"
+	defaultKeysDir            = defaultDataDir + string(os.PathSeparator) + "keys"
 )
 
 // NewOptions creates a new Options struct.
 func NewOptions(primaryNamespace string, otherNamespaces ...string) *Options {
 
-	defaultDataDir := getCurrentExecutableDir()
+	defaultBadgerDataDir := getCurrentExecutableDir()
 
 	options := &Options{
 		primary: &NamespaceConfig{
@@ -67,8 +68,8 @@ func NewOptions(primaryNamespace string, otherNamespaces ...string) *Options {
 			SpanStoreTTL:        defaultTTL,
 			SyncWrites:          false, // Performance over durability
 			Ephemeral:           true,  // Default is ephemeral storage
-			ValueDirectory:      defaultDataDir + defaultValueDir,
-			KeyDirectory:        defaultDataDir + defaultKeysDir,
+			ValueDirectory:      defaultBadgerDataDir + defaultValueDir,
+			KeyDirectory:        defaultBadgerDataDir + defaultKeysDir,
 			MaintenanceInterval: defaultMaintenanceInterval,
 		},
 	}

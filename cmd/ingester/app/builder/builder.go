@@ -55,6 +55,7 @@ func CreateConsumer(logger *zap.Logger, metricsFactory metrics.Factory, spanWrit
 		Topic:                options.Topic,
 		GroupID:              options.GroupID,
 		ClientID:             options.ClientID,
+		ProtocolVersion:      options.ProtocolVersion,
 		AuthenticationConfig: options.AuthenticationConfig,
 	}
 	saramaConsumer, err := consumerConfig.NewConsumer()

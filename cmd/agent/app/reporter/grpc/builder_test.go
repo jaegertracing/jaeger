@@ -15,34 +15,25 @@ package grpc
 
 import (
 	"errors"
-	"io/ioutil"
-	"os"
+	"net"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"github.com/uber/jaeger-lib/metrics"
+	"github.com/uber/jaeger-lib/metrics/metricstest"
 	"go.uber.org/zap"
+	"google.golang.org/grpc"
+	"google.golang.org/grpc/credentials"
 	yaml "gopkg.in/yaml.v2"
 
+	"github.com/jaegertracing/jaeger/cmd/collector/app/grpcserver"
 	"github.com/jaegertracing/jaeger/pkg/discovery"
+	"github.com/jaegertracing/jaeger/proto-gen/api_v2"
+	"github.com/jaegertracing/jaeger/thrift-gen/jaeger"
 )
-
-const certPEM = `
------BEGIN CERTIFICATE-----
-MIICBzCCAXCgAwIBAgIQNkTaUtOczDHvL2YT/kqScTANBgkqhkiG9w0BAQsFADAX
-MRUwEwYDVQQKEwxqYWdlcnRyYWNpbmcwHhcNMTkwMjA4MDYyODAyWhcNMTkwMjA4
-MDcyODAyWjAXMRUwEwYDVQQKEwxqYWdlcnRyYWNpbmcwgZ8wDQYJKoZIhvcNAQEB
-BQADgY0AMIGJAoGBAMcOLYflHGbqC1f7+tbnsdfcpd0rEuX65+ab0WzelAgvo988
-yD+j7LDLPIE8IPk/tfqaETZ8h0LRUUTn8F2rW/wgrl/G8Onz0utog38N0elfTifG
-Mu7GJCr/+aYM5xbQMDj4Brb4vhnkJF8UBe49fWILhIltUcm1SeKqVX3d1FvpAgMB
-AAGjVDBSMA4GA1UdDwEB/wQEAwICpDATBgNVHSUEDDAKBggrBgEFBQcDATAPBgNV
-HRMBAf8EBTADAQH/MBoGA1UdEQQTMBGCCWxvY2FsaG9zdIcEfwAAATANBgkqhkiG
-9w0BAQsFAAOBgQCreFjwpAn1HqJT812JOwoWKrt1NjOKGcz7pvIs1k3DfQVLH2aZ
-iPKnCkzNgxMzQtwdgpAOXIAqXyNibvyOAv1C+3QSMLKbuPEHaIxlCuvl1suX/g25
-17x1o3Q64AnPCWOLpN2wjkfZqX7gZ84nsxpqb9Sbw1+2+kqX7dSZ3mfVxQ==
------END CERTIFICATE-----`
 
 var yamlConfig = `
 collectorHostPorts:
@@ -141,20 +132,6 @@ func TestBuilderWithCollectors(t *testing.T) {
 }
 
 func TestProxyBuilder(t *testing.T) {
-	tmpfile, err := ioutil.TempFile("", "cert*.pem")
-	if err != nil {
-		t.Fatalf("failed to create tempfile: %s", err)
-	}
-
-	defer func() {
-		tmpfile.Close()
-		os.Remove(tmpfile.Name())
-	}()
-
-	if _, err := tmpfile.Write([]byte(certPEM)); err != nil {
-		t.Fatalf("failed to write cert to tempfile: %s", err)
-	}
-
 	tests := []struct {
 		name        string
 		grpcBuilder *ConnBuilder
@@ -172,12 +149,45 @@ func TestProxyBuilder(t *testing.T) {
 		},
 		{
 			name:        "with secure grpc connection and own CA",
-			grpcBuilder: &ConnBuilder{CollectorHostPorts: []string{"localhost:0000"}, TLS: true, TLSCA: tmpfile.Name()},
+			grpcBuilder: &ConnBuilder{CollectorHostPorts: []string{"localhost:0000"}, TLS: true, TLSCA: "testdata/testCA.pem"},
 			expectError: false,
 		},
 		{
 			name:        "with secure grpc connection and a CA file which does not exist",
 			grpcBuilder: &ConnBuilder{CollectorHostPorts: []string{"localhost:0000"}, TLS: true, TLSCA: "/not/valid"},
+			expectError: true,
+		},
+		{
+			name: "with secure grpc connection and valid TLS Client settings",
+			grpcBuilder: &ConnBuilder{
+				CollectorHostPorts: []string{"localhost:0000"},
+				TLS:                true,
+				TLSCA:              "testdata/testCA.pem",
+				TLSCert:            "testdata/client.jaeger.io-client.pem",
+				TLSKey:             "testdata/client.jaeger.io-client-key.pem",
+			},
+			expectError: false,
+		},
+		{
+			name: "with secure grpc connection and valid TLS Client settings",
+			grpcBuilder: &ConnBuilder{
+				CollectorHostPorts: []string{"localhost:0000"},
+				TLS:                true,
+				TLSCA:              "testdata/testCA.pem",
+				TLSCert:            "testdata/client.jaeger.io-client.pem",
+				TLSKey:             "",
+			},
+			expectError: true,
+		},
+		{
+			name: "with secure grpc connection and valid TLS Client key setting",
+			grpcBuilder: &ConnBuilder{
+				CollectorHostPorts: []string{"localhost:0000"},
+				TLS:                true,
+				TLSCA:              "testdata/testCA.pem",
+				TLSCert:            "testdata/client.jaeger.io-client.pem",
+				TLSKey:             "/not/valid",
+			},
 			expectError: true,
 		},
 	}
@@ -197,6 +207,159 @@ func TestProxyBuilder(t *testing.T) {
 				assert.Nil(t, proxy.Close())
 				assert.EqualError(t, proxy.Close(), "rpc error: code = Canceled desc = grpc: the client connection is closing")
 			}
+		})
+	}
+}
+
+func TestProxyClientTLS(t *testing.T) {
+	tests := []struct {
+		name              string
+		grpcBuilder       *ConnBuilder
+		serverTLS         bool
+		serverTLSCert     string
+		serverTLSKey      string
+		serverTLSClientCA string
+		expectError       bool
+	}{
+		{
+			name:        "insecure grpc connection",
+			serverTLS:   false,
+			grpcBuilder: &ConnBuilder{},
+			expectError: false,
+		},
+		{
+			name: "TLS client to non-TLS server should fail",
+			grpcBuilder: &ConnBuilder{
+				TLS: true,
+			},
+			expectError: true,
+		},
+		{
+			name:          "TLS client to untrusted TLS server should fail",
+			serverTLS:     true,
+			serverTLSCert: "testdata/server.jaeger.io.pem",
+			serverTLSKey:  "testdata/server.jaeger.io-key.pem",
+			grpcBuilder: &ConnBuilder{
+				TLS:           true,
+				TLSServerName: "server.jaeger.io",
+			},
+			expectError: true,
+		},
+		{
+			name:          "TLS client to trusted TLS server with incorrect hostname should fail",
+			serverTLS:     true,
+			serverTLSCert: "testdata/server.jaeger.io.pem",
+			serverTLSKey:  "testdata/server.jaeger.io-key.pem",
+			grpcBuilder: &ConnBuilder{
+				TLS:   true,
+				TLSCA: "testdata/rootCA.pem",
+			},
+			expectError: true,
+		},
+		{
+			name:          "TLS client to trusted TLS server with correct hostname",
+			serverTLS:     true,
+			serverTLSCert: "testdata/server.jaeger.io.pem",
+			serverTLSKey:  "testdata/server.jaeger.io-key.pem",
+			grpcBuilder: &ConnBuilder{
+				TLS:           true,
+				TLSCA:         "testdata/rootCA.pem",
+				TLSServerName: "server.jaeger.io",
+			},
+			expectError: false,
+		},
+		{
+			name:              "TLS client without cert to trusted TLS server requiring cert should fail",
+			serverTLS:         true,
+			serverTLSCert:     "testdata/server.jaeger.io.pem",
+			serverTLSKey:      "testdata/server.jaeger.io-key.pem",
+			serverTLSClientCA: "testdata/rootCA.pem",
+			grpcBuilder: &ConnBuilder{
+				TLS:           true,
+				TLSCA:         "testdata/rootCA.pem",
+				TLSServerName: "server.jaeger.io",
+			},
+			expectError: true,
+		},
+		{
+			name:              "TLS client without cert to trusted TLS server requiring cert from a differe CA should fail",
+			serverTLS:         true,
+			serverTLSCert:     "testdata/server.jaeger.io.pem",
+			serverTLSKey:      "testdata/server.jaeger.io-key.pem",
+			serverTLSClientCA: "testdata/testCA.pem",
+			grpcBuilder: &ConnBuilder{
+				TLS:           true,
+				TLSCA:         "testdata/rootCA.pem",
+				TLSServerName: "server.jaeger.io",
+				TLSCert:       "testdata/client.jaeger.io-client.pem",
+				TLSKey:        "testdata/client.jaeger.io-client-key.pem",
+			},
+			expectError: true,
+		},
+		{
+			name:              "TLS client without cert to trusted TLS server requiring cert should fail",
+			serverTLS:         true,
+			serverTLSCert:     "testdata/server.jaeger.io.pem",
+			serverTLSKey:      "testdata/server.jaeger.io-key.pem",
+			serverTLSClientCA: "testdata/rootCA.pem",
+			grpcBuilder: &ConnBuilder{
+				TLS:           true,
+				TLSCA:         "testdata/rootCA.pem",
+				TLSServerName: "server.jaeger.io",
+				TLSCert:       "testdata/client.jaeger.io-client.pem",
+				TLSKey:        "testdata/client.jaeger.io-client-key.pem",
+			},
+			expectError: false,
+		},
+	}
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			var opts []grpc.ServerOption
+			if test.serverTLS {
+				tlsCfg, err := grpcserver.TLSConfig(
+					test.serverTLSCert,
+					test.serverTLSKey,
+					test.serverTLSClientCA)
+				if err != nil {
+					require.NoError(t, err)
+				}
+
+				opts = []grpc.ServerOption{grpc.Creds(credentials.NewTLS(tlsCfg))}
+			}
+
+			spanHandler := &mockSpanHandler{}
+			s, addr := initializeGRPCTestServer(t, func(s *grpc.Server) {
+				api_v2.RegisterCollectorServiceServer(s, spanHandler)
+			}, opts...)
+			defer s.Stop()
+
+			mFactory := metricstest.NewFactory(time.Microsecond)
+			_, port, _ := net.SplitHostPort(addr.String())
+
+			test.grpcBuilder.CollectorHostPorts = []string{net.JoinHostPort("localhost", port)}
+			proxy, err := NewCollectorProxy(
+				test.grpcBuilder,
+				nil,
+				mFactory,
+				zap.NewNop())
+
+			require.NoError(t, err)
+			require.NotNil(t, proxy)
+			assert.NotNil(t, proxy.GetReporter())
+			assert.NotNil(t, proxy.GetManager())
+			assert.NotNil(t, proxy.GetConn())
+
+			r := proxy.GetReporter()
+
+			err = r.EmitBatch(&jaeger.Batch{Spans: []*jaeger.Span{{OperationName: "op"}}, Process: &jaeger.Process{ServiceName: "service"}})
+
+			if test.expectError {
+				require.Error(t, err)
+			} else {
+				require.NoError(t, err)
+			}
+
+			require.Nil(t, proxy.Close())
 		})
 	}
 }

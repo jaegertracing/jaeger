@@ -96,6 +96,10 @@ func (f *Factory) Initialize(metricsFactory metrics.Factory, logger *zap.Logger)
 		f.Options.primary.KeyDirectory = f.tmpDir
 		f.Options.primary.ValueDirectory = f.tmpDir
 	} else {
+		// Errors are ignored as they're catched in the Open call
+		initializeDir(f.Options.primary.KeyDirectory)
+		initializeDir(f.Options.primary.ValueDirectory)
+
 		opts.SyncWrites = f.Options.primary.SyncWrites
 		opts.Dir = f.Options.primary.KeyDirectory
 		opts.ValueDir = f.Options.primary.ValueDirectory
@@ -119,6 +123,13 @@ func (f *Factory) Initialize(metricsFactory metrics.Factory, logger *zap.Logger)
 	logger.Info("Badger storage configuration", zap.Any("configuration", opts))
 
 	return nil
+}
+
+// initializeDir makes the directory and parent directories if the path doesn't exists yet.
+func initializeDir(path string) {
+	if _, err := os.Stat(path); err != nil && os.IsNotExist(err) {
+		os.MkdirAll(path, 0700)
+	}
 }
 
 // CreateSpanReader implements storage.Factory

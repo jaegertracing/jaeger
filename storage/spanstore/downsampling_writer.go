@@ -18,6 +18,7 @@ import (
 	"hash"
 	"hash/fnv"
 	"math"
+	"math/big"
 	"sync"
 
 	"github.com/uber/jaeger-lib/metrics"
@@ -45,11 +46,9 @@ type downsamplingWriterMetrics struct {
 
 // DownsamplingWriter is a span Writer that drops spans with a predefined downsamplingRatio.
 type DownsamplingWriter struct {
-	spanWriter   Writer
-	threshold    uint64
-	lengthOfSalt int
-	hasherPool   *sync.Pool
-	metrics      downsamplingWriterMetrics
+	spanWriter Writer
+	metrics    downsamplingWriterMetrics
+	sampler    *Sampler
 }
 
 // DownsamplingOptions contains the options for constructing a DownsamplingWriter.
@@ -61,14 +60,47 @@ type DownsamplingOptions struct {
 
 // NewDownsamplingWriter creates a DownsamplingWriter.
 func NewDownsamplingWriter(spanWriter Writer, downsamplingOptions DownsamplingOptions) *DownsamplingWriter {
-	threshold := uint64(downsamplingOptions.Ratio * float64(math.MaxUint64))
 	writeMetrics := &downsamplingWriterMetrics{}
 	metrics.Init(writeMetrics, downsamplingOptions.MetricsFactory, nil)
-	salt := downsamplingOptions.HashSalt
-	if salt == "" {
-		salt = defaultHashSalt
+	return &DownsamplingWriter{
+		sampler:    NewSampler(downsamplingOptions.Ratio, downsamplingOptions.HashSalt),
+		spanWriter: spanWriter,
+		metrics:    *writeMetrics,
 	}
-	hashSaltBytes := []byte(salt)
+}
+
+// WriteSpan calls WriteSpan on wrapped span writer.
+func (ds *DownsamplingWriter) WriteSpan(span *model.Span) error {
+	if !ds.sampler.ShouldSample(span) {
+		// Drops spans when hashVal falls beyond computed threshold.
+		ds.metrics.SpansDropped.Inc(1)
+		return nil
+	}
+	ds.metrics.SpansAccepted.Inc(1)
+	return ds.spanWriter.WriteSpan(span)
+}
+
+// hashBytes returns the uint64 hash value of byte slice.
+func (h *hasher) hashBytes() uint64 {
+	h.hash.Reset()
+	// Currently fnv.Write() implementation doesn't throw any error so metric is not necessary here.
+	_, _ = h.hash.Write(h.buffer)
+	return h.hash.Sum64()
+}
+
+// Sampler decides if we should sample a span
+type Sampler struct {
+	hasherPool   *sync.Pool
+	lengthOfSalt int
+	threshold    uint64
+}
+
+// NewSampler creates SamplingExecutor
+func NewSampler(ratio float64, hashSalt string) *Sampler {
+	if hashSalt == "" {
+		hashSalt = defaultHashSalt
+	}
+	hashSaltBytes := []byte(hashSalt)
 	pool := &sync.Pool{
 		New: func() interface{} {
 			buffer := make([]byte, len(hashSaltBytes)+traceIDByteSize)
@@ -79,41 +111,29 @@ func NewDownsamplingWriter(spanWriter Writer, downsamplingOptions DownsamplingOp
 			}
 		},
 	}
-
-	return &DownsamplingWriter{
-		spanWriter:   spanWriter,
-		threshold:    threshold,
+	return &Sampler{
+		threshold:    calculateThreshold(ratio),
 		hasherPool:   pool,
-		metrics:      *writeMetrics,
 		lengthOfSalt: len(hashSaltBytes),
 	}
 }
 
-// WriteSpan calls WriteSpan on wrapped span writer.
-func (ds *DownsamplingWriter) WriteSpan(span *model.Span) error {
-	if !ds.shouldDownsample(span) {
-		// Drops spans when hashVal falls beyond computed threshold.
-		ds.metrics.SpansDropped.Inc(1)
-		return nil
-	}
-	ds.metrics.SpansAccepted.Inc(1)
-	return ds.spanWriter.WriteSpan(span)
+func calculateThreshold(ratio float64) uint64 {
+	// Use big.Float and big.Int to calculate threshold because directly convert
+	// math.MaxUint64 to float64 will cause digits/bits to be cut off if the converted value
+	// doesn't fit into bits that are used to store digits for float64 in Golang
+	boundary := new(big.Float).SetInt(new(big.Int).SetUint64(math.MaxUint64))
+	res, _ := boundary.Mul(boundary, big.NewFloat(ratio)).Uint64()
+	return res
 }
 
-func (ds *DownsamplingWriter) shouldDownsample(span *model.Span) bool {
-	hasherInstance := ds.hasherPool.Get().(*hasher)
+// ShouldSample decides if a span should be sampled
+func (s *Sampler) ShouldSample(span *model.Span) bool {
+	hasherInstance := s.hasherPool.Get().(*hasher)
 	// Currently MarshalTo will only return err if size of traceIDBytes is smaller than 16
 	// Since we force traceIDBytes to be size of 16 metrics is not necessary here.
-	_, _ = span.TraceID.MarshalTo(hasherInstance.buffer[ds.lengthOfSalt:])
+	_, _ = span.TraceID.MarshalTo(hasherInstance.buffer[s.lengthOfSalt:])
 	hashVal := hasherInstance.hashBytes()
-	ds.hasherPool.Put(hasherInstance)
-	return hashVal <= ds.threshold
-}
-
-// hashBytes returns the uint64 hash value of byte slice.
-func (h *hasher) hashBytes() uint64 {
-	h.hash.Reset()
-	// Currently fnv.Write() implementation doesn't throw any error so metric is not necessary here.
-	_, _ = h.hash.Write(h.buffer)
-	return h.hash.Sum64()
+	s.hasherPool.Put(hasherInstance)
+	return hashVal <= s.threshold
 }
