@@ -76,6 +76,7 @@ func (d *database) Get(ctx context.Context, customerID string) (*Customer, error
 		span := d.tracer.StartSpan("SQL SELECT", opentracing.ChildOf(span.Context()))
 		tags.SpanKindRPCClient.Set(span)
 		tags.PeerService.Set(span, "mysql")
+		// #nosec
 		span.SetTag("sql.query", "SELECT * FROM customer WHERE customer_id="+customerID)
 		defer span.Finish()
 		ctx = opentracing.ContextWithSpan(ctx, span)

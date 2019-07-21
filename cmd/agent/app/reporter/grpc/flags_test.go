@@ -24,27 +24,29 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-func TestBingFlags(t *testing.T) {
-	v := viper.New()
-	command := cobra.Command{}
-	flags := &flag.FlagSet{}
-	AddFlags(flags)
-	command.PersistentFlags().AddGoFlagSet(flags)
-	v.BindPFlags(command.PersistentFlags())
-
+func TestBindFlags(t *testing.T) {
 	tests := []struct {
 		cOpts    []string
-		expected *Options
+		expected *ConnBuilder
 	}{
-		{cOpts: []string{"--reporter.grpc.host-port=localhost:1111"},
-			expected: &Options{CollectorHostPort: []string{"localhost:1111"}}},
+		{cOpts: []string{"--reporter.grpc.host-port=localhost:1111", "--reporter.grpc.retry.max=15"},
+			expected: &ConnBuilder{CollectorHostPorts: []string{"localhost:1111"}, MaxRetry: 15, DiscoveryMinPeers: 3}},
 		{cOpts: []string{"--reporter.grpc.host-port=localhost:1111,localhost:2222"},
-			expected: &Options{CollectorHostPort: []string{"localhost:1111", "localhost:2222"}}},
+			expected: &ConnBuilder{CollectorHostPorts: []string{"localhost:1111", "localhost:2222"}, MaxRetry: defaultMaxRetry, DiscoveryMinPeers: 3}},
+		{cOpts: []string{"--reporter.grpc.host-port=localhost:1111,localhost:2222", "--reporter.grpc.discovery.min-peers=5"},
+			expected: &ConnBuilder{CollectorHostPorts: []string{"localhost:1111", "localhost:2222"}, MaxRetry: defaultMaxRetry, DiscoveryMinPeers: 5}},
 	}
 	for _, test := range tests {
+		v := viper.New()
+		command := cobra.Command{}
+		flags := &flag.FlagSet{}
+		AddFlags(flags)
+		command.PersistentFlags().AddGoFlagSet(flags)
+		v.BindPFlags(command.PersistentFlags())
+
 		err := command.ParseFlags(test.cOpts)
 		require.NoError(t, err)
-		b := new(Options).InitFromViper(v)
+		b := new(ConnBuilder).InitFromViper(v)
 		assert.Equal(t, test.expected, b)
 	}
 }

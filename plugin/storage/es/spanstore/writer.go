@@ -16,8 +16,7 @@ package spanstore
 
 import (
 	"context"
-	"strconv"
-	"strings"
+	"sync"
 	"time"
 
 	"github.com/pkg/errors"
@@ -35,8 +34,6 @@ import (
 const (
 	spanType    = "span"
 	serviceType = "service"
-
-	defaultNumShards = 5
 )
 
 type spanWriterMetrics struct {
@@ -47,44 +44,40 @@ type serviceWriter func(string, *dbmodel.Span)
 
 // SpanWriter is a wrapper around elastic.Client
 type SpanWriter struct {
-	ctx                context.Context
-	client             es.Client
-	logger             *zap.Logger
-	writerMetrics      spanWriterMetrics // TODO: build functions to wrap around each Do fn
-	indexCache         cache.Cache
-	serviceWriter      serviceWriter
-	numShards          int64
-	numReplicas        int64
-	spanIndexPrefix    string
-	serviceIndexPrefix string
-	spanConverter      dbmodel.FromDomain
+	ctx              context.Context
+	client           es.Client
+	logger           *zap.Logger
+	writerMetrics    spanWriterMetrics // TODO: build functions to wrap around each Do fn
+	indexCache       cache.Cache
+	indexMutex       sync.Mutex
+	serviceWriter    serviceWriter
+	spanConverter    dbmodel.FromDomain
+	spanServiceIndex spanAndServiceIndexFn
+	spanMapping      string
+	serviceMapping   string
 }
 
 // SpanWriterParams holds constructor parameters for NewSpanWriter
 type SpanWriterParams struct {
-	Client            es.Client
-	Logger            *zap.Logger
-	MetricsFactory    metrics.Factory
-	NumShards         int64
-	NumReplicas       int64
-	IndexPrefix       string
-	AllTagsAsFields   bool
-	TagKeysAsFields   []string
-	TagDotReplacement string
+	Client              es.Client
+	Logger              *zap.Logger
+	MetricsFactory      metrics.Factory
+	IndexPrefix         string
+	AllTagsAsFields     bool
+	TagKeysAsFields     []string
+	TagDotReplacement   string
+	Archive             bool
+	UseReadWriteAliases bool
+	SpanMapping         string
+	ServiceMapping      string
 }
 
 // NewSpanWriter creates a new SpanWriter for use
 func NewSpanWriter(p SpanWriterParams) *SpanWriter {
 	ctx := context.Background()
-	if p.NumShards == 0 {
-		p.NumShards = defaultNumShards
-	}
 
 	// TODO: Configurable TTL
-	serviceOperationStorage := NewServiceOperationStorage(ctx, p.Client, p.Logger, time.Hour*12)
-	if p.IndexPrefix != "" {
-		p.IndexPrefix += ":"
-	}
+	serviceOperationStorage := NewServiceOperationStorage(p.Client, p.Logger, time.Hour*12)
 	return &SpanWriter{
 		ctx:    ctx,
 		client: p.Client,
@@ -99,26 +92,52 @@ func NewSpanWriter(p SpanWriterParams) *SpanWriter {
 				TTL: 48 * time.Hour,
 			},
 		),
-		numShards:          p.NumShards,
-		numReplicas:        p.NumReplicas,
-		spanIndexPrefix:    p.IndexPrefix + spanIndex,
-		serviceIndexPrefix: p.IndexPrefix + serviceIndex,
-		spanConverter:      dbmodel.NewFromDomain(p.AllTagsAsFields, p.TagKeysAsFields, p.TagDotReplacement),
+		spanMapping:      p.SpanMapping,
+		serviceMapping:   p.ServiceMapping,
+		spanConverter:    dbmodel.NewFromDomain(p.AllTagsAsFields, p.TagKeysAsFields, p.TagDotReplacement),
+		spanServiceIndex: getSpanAndServiceIndexFn(p.Archive, p.UseReadWriteAliases, p.IndexPrefix),
+	}
+}
+
+// spanAndServiceIndexFn returns names of span and service indices
+type spanAndServiceIndexFn func(spanTime time.Time) (string, string)
+
+func getSpanAndServiceIndexFn(archive, useReadWriteAliases bool, prefix string) spanAndServiceIndexFn {
+	if prefix != "" {
+		prefix += indexPrefixSeparator
+	}
+	spanIndexPrefix := prefix + spanIndex
+	serviceIndexPrefix := prefix + serviceIndex
+	if archive {
+		return func(date time.Time) (string, string) {
+			if useReadWriteAliases {
+				return archiveIndex(spanIndexPrefix, archiveWriteIndexSuffix), ""
+			}
+			return archiveIndex(spanIndexPrefix, archiveIndexSuffix), ""
+		}
+	}
+
+	if useReadWriteAliases {
+		return func(spanTime time.Time) (string, string) {
+			return spanIndexPrefix + "write", serviceIndexPrefix + "write"
+		}
+	}
+	return func(date time.Time) (string, string) {
+		return indexWithDate(spanIndexPrefix, date), indexWithDate(serviceIndexPrefix, date)
 	}
 }
 
 // WriteSpan writes a span and its corresponding service:operation in ElasticSearch
 func (s *SpanWriter) WriteSpan(span *model.Span) error {
-	spanIndexName := indexWithDate(s.spanIndexPrefix, span.StartTime)
-	serviceIndexName := indexWithDate(s.serviceIndexPrefix, span.StartTime)
-
+	spanIndexName, serviceIndexName := s.spanServiceIndex(span.StartTime)
 	jsonSpan := s.spanConverter.FromDomainEmbedProcess(span)
-
-	if err := s.createIndex(serviceIndexName, serviceMapping, jsonSpan); err != nil {
-		return err
+	if serviceIndexName != "" {
+		if err := s.createIndex(serviceIndexName, s.serviceMapping, jsonSpan); err != nil {
+			return err
+		}
+		s.writeService(serviceIndexName, jsonSpan)
 	}
-	s.writeService(serviceIndexName, jsonSpan)
-	if err := s.createIndex(spanIndexName, spanMapping, jsonSpan); err != nil {
+	if err := s.createIndex(spanIndexName, s.spanMapping, jsonSpan); err != nil {
 		return err
 	}
 	s.writeSpan(spanIndexName, jsonSpan)
@@ -130,19 +149,22 @@ func (s *SpanWriter) Close() error {
 	return s.client.Close()
 }
 
-func indexWithDate(indexPrefix string, date time.Time) string {
-	spanDate := date.UTC().Format("2006-01-02")
-	return indexPrefix + spanDate
-}
-
 func (s *SpanWriter) createIndex(indexName string, mapping string, jsonSpan *dbmodel.Span) error {
 	if !keyInCache(indexName, s.indexCache) {
+		s.indexMutex.Lock()
+		defer s.indexMutex.Unlock()
+
+		// re-check if index exists in case other goroutine did the job under lock for us
+		if keyInCache(indexName, s.indexCache) {
+			return nil
+		}
+
 		start := time.Now()
 		exists, _ := s.client.IndexExists(indexName).Do(s.ctx) // don't need to check the error because the exists variable will be false anyway if there is an error
 		if !exists {
 			// if there are multiple collectors writing to the same elasticsearch host a race condition can occur - create the index multiple times
 			// we check for the error type to minimize errors
-			_, err := s.client.CreateIndex(indexName).Body(s.fixMapping(mapping)).Do(s.ctx)
+			_, err := s.client.CreateIndex(indexName).Body(mapping).Do(s.ctx)
 			s.writerMetrics.indexCreate.Emit(err, time.Since(start))
 			if err != nil {
 				eErr, ok := err.(*elastic.Error)
@@ -166,12 +188,6 @@ func keyInCache(key string, c cache.Cache) bool {
 
 func writeCache(key string, c cache.Cache) {
 	c.Put(key, key)
-}
-
-func (s *SpanWriter) fixMapping(mapping string) string {
-	mapping = strings.Replace(mapping, "${__NUMBER_OF_SHARDS__}", strconv.FormatInt(s.numShards, 10), 1)
-	mapping = strings.Replace(mapping, "${__NUMBER_OF_REPLICAS__}", strconv.FormatInt(s.numReplicas, 10), 1)
-	return mapping
 }
 
 func (s *SpanWriter) writeService(indexName string, jsonSpan *dbmodel.Span) {

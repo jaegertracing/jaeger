@@ -51,19 +51,19 @@ func AddFlags(flags *flag.FlagSet) {
 		tchannelPrefix+reportTimeout,
 		time.Second,
 		"sets the timeout used when reporting spans")
-	// TODO remove deprecated in 1.9
+	// TODO remove deprecated in 2.0
 	flags.String(
 		collectorHostPort,
 		"",
-		"Deprecated; comma-separated string representing host:ports of a static list of collectors to connect to directly (e.g. when not using service discovery)")
+		"(deprecated) see --"+tchannelPrefix+hostPort)
 	flags.Int(
 		discoveryMinPeers,
 		defaultMinPeers,
-		"Deprecated; if using service discovery, the min number of connections to maintain to the backend")
+		"(deprecated) see --"+tchannelPrefix+discoveryMinPeers)
 	flags.Duration(
 		discoveryConnCheckTimeout,
 		defaultConnCheckTimeout,
-		"Deprecated; sets the timeout used when establishing new connections")
+		"(deprecated) see --"+tchannelPrefix+discoveryConnCheckTimeout)
 }
 
 // InitFromViper initializes Builder with properties retrieved from Viper.

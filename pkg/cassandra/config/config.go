@@ -29,6 +29,7 @@ import (
 type Configuration struct {
 	Servers              []string      `validate:"nonzero"`
 	Keyspace             string        `validate:"nonzero"`
+	LocalDC              string        `yaml:"local_dc"`
 	ConnectionsPerHost   int           `validate:"min=1" yaml:"connections_per_host"`
 	Timeout              time.Duration `validate:"min=500"`
 	ReconnectInterval    time.Duration `validate:"min=500" yaml:"reconnect_interval"`
@@ -39,6 +40,7 @@ type Configuration struct {
 	Port                 int           `yaml:"port"`
 	Authenticator        Authenticator `yaml:"authenticator"`
 	DisableAutoDiscovery bool          `yaml:"disable_auto_discovery"`
+	EnableDependenciesV2 bool          `yaml:"enable_dependencies_v2"`
 	TLS                  TLS
 }
 
@@ -130,7 +132,13 @@ func (c *Configuration) NewCluster() *gocql.ClusterConfig {
 	} else {
 		cluster.Consistency = gocql.ParseConsistency(c.Consistency)
 	}
-	cluster.PoolConfig.HostSelectionPolicy = gocql.TokenAwareHostPolicy(gocql.RoundRobinHostPolicy())
+
+	fallbackHostSelectionPolicy := gocql.RoundRobinHostPolicy()
+	if c.LocalDC != "" {
+		fallbackHostSelectionPolicy = gocql.DCAwareRoundRobinPolicy(c.LocalDC)
+	}
+	cluster.PoolConfig.HostSelectionPolicy = gocql.TokenAwareHostPolicy(fallbackHostSelectionPolicy, gocql.ShuffleReplicas())
+
 	if c.Authenticator.Basic.Username != "" && c.Authenticator.Basic.Password != "" {
 		cluster.Authenticator = gocql.PasswordAuthenticator{
 			Username: c.Authenticator.Basic.Username,

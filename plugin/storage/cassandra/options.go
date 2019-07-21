@@ -26,25 +26,27 @@ import (
 
 const (
 	// session settings
-	suffixEnabled           = ".enabled"
-	suffixConnPerHost       = ".connections-per-host"
-	suffixMaxRetryAttempts  = ".max-retry-attempts"
-	suffixTimeout           = ".timeout"
-	suffixReconnectInterval = ".reconnect-interval"
-	suffixServers           = ".servers"
-	suffixPort              = ".port"
-	suffixKeyspace          = ".keyspace"
-	suffixConsistency       = ".consistency"
-	suffixProtoVer          = ".proto-version"
-	suffixSocketKeepAlive   = ".socket-keep-alive"
-	suffixUsername          = ".username"
-	suffixPassword          = ".password"
-	suffixTLS               = ".tls"
-	suffixCert              = ".tls.cert"
-	suffixKey               = ".tls.key"
-	suffixCA                = ".tls.ca"
-	suffixServerName        = ".tls.server-name"
-	suffixVerifyHost        = ".tls.verify-host"
+	suffixEnabled              = ".enabled"
+	suffixConnPerHost          = ".connections-per-host"
+	suffixMaxRetryAttempts     = ".max-retry-attempts"
+	suffixTimeout              = ".timeout"
+	suffixReconnectInterval    = ".reconnect-interval"
+	suffixServers              = ".servers"
+	suffixPort                 = ".port"
+	suffixKeyspace             = ".keyspace"
+	suffixDC                   = ".local-dc"
+	suffixConsistency          = ".consistency"
+	suffixProtoVer             = ".proto-version"
+	suffixSocketKeepAlive      = ".socket-keep-alive"
+	suffixUsername             = ".username"
+	suffixPassword             = ".password"
+	suffixTLS                  = ".tls"
+	suffixCert                 = ".tls.cert"
+	suffixKey                  = ".tls.key"
+	suffixCA                   = ".tls.ca"
+	suffixServerName           = ".tls.server-name"
+	suffixVerifyHost           = ".tls.verify-host"
+	suffixEnableDependenciesV2 = ".enable-dependencies-v2"
 
 	// common storage settings
 	suffixSpanStoreWriteCacheTTL = ".span-store-write-cache-ttl"
@@ -149,6 +151,10 @@ func addFlags(flagSet *flag.FlagSet, nsConfig *namespaceConfig) {
 		nsConfig.Keyspace,
 		"The Cassandra keyspace for Jaeger data")
 	flagSet.String(
+		nsConfig.namespace+suffixDC,
+		nsConfig.LocalDC,
+		"The name of the Cassandra local data center for DC Aware host selection")
+	flagSet.String(
 		nsConfig.namespace+suffixConsistency,
 		nsConfig.Consistency,
 		"The Cassandra consistency level, e.g. ANY, ONE, TWO, THREE, QUORUM, ALL, LOCAL_QUORUM, EACH_QUORUM, LOCAL_ONE (default LOCAL_ONE)")
@@ -192,6 +198,10 @@ func addFlags(flagSet *flag.FlagSet, nsConfig *namespaceConfig) {
 		nsConfig.namespace+suffixVerifyHost,
 		nsConfig.TLS.EnableHostVerification,
 		"Enable (or disable) host key verification")
+	flagSet.Bool(
+		nsConfig.namespace+suffixEnableDependenciesV2,
+		nsConfig.EnableDependenciesV2,
+		"(deprecated) Jaeger will automatically detect the version of the dependencies table")
 }
 
 // InitFromViper initializes Options with properties from viper
@@ -211,9 +221,10 @@ func (cfg *namespaceConfig) initFromViper(v *viper.Viper) {
 	cfg.MaxRetryAttempts = v.GetInt(cfg.namespace + suffixMaxRetryAttempts)
 	cfg.Timeout = v.GetDuration(cfg.namespace + suffixTimeout)
 	cfg.ReconnectInterval = v.GetDuration(cfg.namespace + suffixReconnectInterval)
-	cfg.servers = v.GetString(cfg.namespace + suffixServers)
+	cfg.servers = stripWhiteSpace(v.GetString(cfg.namespace + suffixServers))
 	cfg.Port = v.GetInt(cfg.namespace + suffixPort)
 	cfg.Keyspace = v.GetString(cfg.namespace + suffixKeyspace)
+	cfg.LocalDC = v.GetString(cfg.namespace + suffixDC)
 	cfg.Consistency = v.GetString(cfg.namespace + suffixConsistency)
 	cfg.ProtoVersion = v.GetInt(cfg.namespace + suffixProtoVer)
 	cfg.SocketKeepAlive = v.GetDuration(cfg.namespace + suffixSocketKeepAlive)
@@ -225,6 +236,7 @@ func (cfg *namespaceConfig) initFromViper(v *viper.Viper) {
 	cfg.TLS.CaPath = v.GetString(cfg.namespace + suffixCA)
 	cfg.TLS.ServerName = v.GetString(cfg.namespace + suffixServerName)
 	cfg.TLS.EnableHostVerification = v.GetBool(cfg.namespace + suffixVerifyHost)
+	cfg.EnableDependenciesV2 = v.GetBool(cfg.namespace + suffixEnableDependenciesV2)
 }
 
 // GetPrimary returns primary configuration.
@@ -249,4 +261,9 @@ func (opt *Options) Get(namespace string) *config.Configuration {
 	}
 	nsCfg.Servers = strings.Split(nsCfg.servers, ",")
 	return &nsCfg.Configuration
+}
+
+// stripWhiteSpace removes all whitespace characters from a string
+func stripWhiteSpace(str string) string {
+	return strings.Replace(str, " ", "", -1)
 }

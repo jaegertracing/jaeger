@@ -17,7 +17,7 @@ package app
 import (
 	"time"
 
-	"github.com/uber/tchannel-go"
+	tchannel "github.com/uber/tchannel-go"
 	"go.uber.org/zap"
 
 	"github.com/jaegertracing/jaeger/cmd/collector/app/sanitizer"
@@ -25,6 +25,18 @@ import (
 	"github.com/jaegertracing/jaeger/pkg/queue"
 	"github.com/jaegertracing/jaeger/storage/spanstore"
 )
+
+// ProcessSpansOptions additional options passed to processor along with the spans.
+type ProcessSpansOptions struct {
+	SpanFormat       SpanFormat
+	InboundTransport InboundTransport
+}
+
+// SpanProcessor handles model spans
+type SpanProcessor interface {
+	// ProcessSpans processes model spans and return with either a list of true/false success or an error
+	ProcessSpans(mSpans []*model.Span, options ProcessSpansOptions) ([]bool, error)
+}
 
 type spanProcessor struct {
 	queue           *queue.BoundedQueue
@@ -109,12 +121,12 @@ func (sp *spanProcessor) saveSpan(span *model.Span) {
 	sp.metrics.SaveLatency.Record(time.Since(startTime))
 }
 
-func (sp *spanProcessor) ProcessSpans(mSpans []*model.Span, spanFormat string) ([]bool, error) {
+func (sp *spanProcessor) ProcessSpans(mSpans []*model.Span, options ProcessSpansOptions) ([]bool, error) {
 	sp.preProcessSpans(mSpans)
 	sp.metrics.BatchSize.Update(int64(len(mSpans)))
 	retMe := make([]bool, len(mSpans))
 	for i, mSpan := range mSpans {
-		ok := sp.enqueueSpan(mSpan, spanFormat)
+		ok := sp.enqueueSpan(mSpan, options.SpanFormat, options.InboundTransport)
 		if !ok && sp.reportBusy {
 			return nil, tchannel.ErrServerBusy
 		}
@@ -128,21 +140,21 @@ func (sp *spanProcessor) processItemFromQueue(item *queueItem) {
 	sp.metrics.InQueueLatency.Record(time.Since(item.queuedTime))
 }
 
-func (sp *spanProcessor) enqueueSpan(span *model.Span, originalFormat string) bool {
-	spanCounts := sp.metrics.GetCountsForFormat(originalFormat)
+func (sp *spanProcessor) enqueueSpan(span *model.Span, originalFormat SpanFormat, transport InboundTransport) bool {
+	spanCounts := sp.metrics.GetCountsForFormat(originalFormat, transport)
 	spanCounts.ReceivedBySvc.ReportServiceNameForSpan(span)
 
 	if !sp.filterSpan(span) {
 		spanCounts.RejectedBySvc.ReportServiceNameForSpan(span)
 		return true // as in "not dropped", because it's actively rejected
 	}
+
+	//add format tag
+	span.Tags = append(span.Tags, model.String("internal.span.format", string(originalFormat)))
+
 	item := &queueItem{
 		queuedTime: time.Now(),
 		span:       span,
 	}
-	addedToQueue := sp.queue.Produce(item)
-	if !addedToQueue {
-		sp.metrics.ErrorBusy.Inc(1)
-	}
-	return addedToQueue
+	return sp.queue.Produce(item)
 }

@@ -97,10 +97,10 @@ func NewRetryingProcessor(f metrics.Factory, processor processor.SpanProcessor, 
 		opt(&options)
 	}
 
-	m := f.Namespace("span-processor", nil)
+	m := f.Namespace(metrics.NSOptions{Name: "span-processor", Tags: nil})
 	return &retryDecorator{
-		retryAttempts: m.Counter("retry-attempts", nil),
-		exhausted:     m.Counter("retry-exhausted", nil),
+		retryAttempts: m.Counter(metrics.Options{Name: "retry-attempts", Tags: nil}),
+		exhausted:     m.Counter(metrics.Options{Name: "retry-exhausted", Tags: nil}),
 		processor:     processor,
 		options:       options,
 	}

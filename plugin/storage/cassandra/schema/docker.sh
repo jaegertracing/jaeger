@@ -1,4 +1,4 @@
-#!/bin/bash
+#!/usr/bin/env bash
 #
 # This script is used in the Docker image jaegertracing/jaeger-cassandra-schema
 # that allows installing Jaeger keyspace and schema without installing cqlsh.
@@ -10,11 +10,14 @@ CASSANDRA_WAIT_TIMEOUT=${CASSANDRA_WAIT_TIMEOUT:-"60"}
 DATACENTER=${DATACENTER:-"dc1"}
 KEYSPACE=${KEYSPACE:-"jaeger_v1_${DATACENTER}"}
 MODE=${MODE:-"test"}
+TEMPLATE=${TEMPLATE:-""}
+USER=${CASSANDRA_USERNAME:-""}
+PASSWORD=${CASSANDRA_PASSWORD:-""}
 
 total_wait=0
 while true
 do
-  ${CQLSH} ${CQLSH_SSL} -e "describe keyspaces"
+  ${CQLSH} ${CQLSH_SSL} ${CQLSH_HOST} -e "describe keyspaces"
   if (( $? == 0 )); then
     break
   else
@@ -30,4 +33,9 @@ done
 
 echo "Generating the schema for the keyspace ${KEYSPACE} and datacenter ${DATACENTER}"
 
-MODE="${MODE}" DATACENTER="${DATACENTER}" KEYSPACE="${KEYSPACE}" /cassandra-schema/create.sh | ${CQLSH} ${CQLSH_SSL}
+
+if [ -z "$PASSWORD" ]; then
+  MODE="${MODE}" DATACENTER="${DATACENTER}" KEYSPACE="${KEYSPACE}" /cassandra-schema/create.sh "${TEMPLATE}" | ${CQLSH} ${CQLSH_SSL} ${CQLSH_HOST}
+else
+  MODE="${MODE}" DATACENTER="${DATACENTER}" KEYSPACE="${KEYSPACE}" /cassandra-schema/create.sh "${TEMPLATE}" | ${CQLSH} ${CQLSH_SSL} ${CQLSH_HOST} -u ${USER} -p ${PASSWORD}
+fi

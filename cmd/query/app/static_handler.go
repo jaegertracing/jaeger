@@ -25,10 +25,9 @@ import (
 
 	"github.com/gorilla/mux"
 	"github.com/pkg/errors"
-	"github.com/rakyll/statik/fs"
 	"go.uber.org/zap"
 
-	_ "github.com/jaegertracing/jaeger/cmd/query/app/ui" // init static assets
+	"github.com/jaegertracing/jaeger/cmd/query/app/ui"
 )
 
 var (
@@ -67,13 +66,13 @@ type StaticAssetsHandlerOptions struct {
 
 // NewStaticAssetsHandler returns a StaticAssetsHandler
 func NewStaticAssetsHandler(staticAssetsRoot string, options StaticAssetsHandlerOptions) (*StaticAssetsHandler, error) {
-	assetsFS, _ := fs.New()
+	assetsFS := ui.StaticFiles
 	if staticAssetsRoot != "" {
 		assetsFS = http.Dir(staticAssetsRoot)
 	}
 	indexBytes, err := loadIndexHTML(assetsFS.Open)
 	if err != nil {
-		return nil, errors.Wrap(err, "Cannot load index.html")
+		return nil, errors.Wrap(err, "cannot load index.html")
 	}
 	configString := "JAEGER_CONFIG = DEFAULT_CONFIG"
 	if config, err := loadUIConfig(options.UIConfigPath); err != nil {
@@ -105,12 +104,12 @@ func NewStaticAssetsHandler(staticAssetsRoot string, options StaticAssetsHandler
 func loadIndexHTML(open func(string) (http.File, error)) ([]byte, error) {
 	indexFile, err := open("/index.html")
 	if err != nil {
-		return nil, errors.Wrap(err, "Cannot open index.html")
+		return nil, errors.Wrap(err, "cannot open index.html")
 	}
 	defer indexFile.Close()
 	indexBytes, err := ioutil.ReadAll(indexFile)
 	if err != nil {
-		return nil, errors.Wrap(err, "Cannot read from index.html")
+		return nil, errors.Wrap(err, "cannot read from index.html")
 	}
 	return indexBytes, nil
 }
@@ -122,7 +121,7 @@ func loadUIConfig(uiConfig string) (map[string]interface{}, error) {
 	ext := filepath.Ext(uiConfig)
 	bytes, err := ioutil.ReadFile(uiConfig) /* nolint #nosec , this comes from an admin, not user */
 	if err != nil {
-		return nil, errors.Wrapf(err, "Cannot read UI config file %v", uiConfig)
+		return nil, errors.Wrapf(err, "cannot read UI config file %v", uiConfig)
 	}
 
 	var c map[string]interface{}
@@ -132,11 +131,11 @@ func loadUIConfig(uiConfig string) (map[string]interface{}, error) {
 	case ".json":
 		unmarshal = json.Unmarshal
 	default:
-		return nil, fmt.Errorf("Unrecognized UI config file format %v", uiConfig)
+		return nil, fmt.Errorf("unrecognized UI config file format %v", uiConfig)
 	}
 
 	if err := unmarshal(bytes, &c); err != nil {
-		return nil, errors.Wrapf(err, "Cannot parse UI config file %v", uiConfig)
+		return nil, errors.Wrapf(err, "cannot parse UI config file %v", uiConfig)
 	}
 	return c, nil
 }

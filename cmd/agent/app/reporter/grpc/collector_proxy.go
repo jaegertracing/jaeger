@@ -15,17 +15,15 @@
 package grpc
 
 import (
-	"errors"
+	"crypto/x509"
 
 	"github.com/uber/jaeger-lib/metrics"
 	"go.uber.org/zap"
 	"google.golang.org/grpc"
-	"google.golang.org/grpc/balancer/roundrobin"
-	"google.golang.org/grpc/resolver"
-	"google.golang.org/grpc/resolver/manual"
 
 	"github.com/jaegertracing/jaeger/cmd/agent/app/configmanager"
 	grpcManager "github.com/jaegertracing/jaeger/cmd/agent/app/configmanager/grpc"
+	"github.com/jaegertracing/jaeger/cmd/agent/app/reporter"
 	aReporter "github.com/jaegertracing/jaeger/cmd/agent/app/reporter"
 )
 
@@ -36,29 +34,25 @@ type ProxyBuilder struct {
 	conn     *grpc.ClientConn
 }
 
+var systemCertPool = x509.SystemCertPool // to allow overriding in unit test
+
 // NewCollectorProxy creates ProxyBuilder
-func NewCollectorProxy(o *Options, mFactory metrics.Factory, logger *zap.Logger) (*ProxyBuilder, error) {
-	if len(o.CollectorHostPort) == 0 {
-		return nil, errors.New("could not create collector proxy, address is missing")
+func NewCollectorProxy(builder *ConnBuilder, agentTags map[string]string, mFactory metrics.Factory, logger *zap.Logger) (*ProxyBuilder, error) {
+	conn, err := builder.CreateConnection(logger)
+	if err != nil {
+		return nil, err
 	}
-	var conn *grpc.ClientConn
-	if len(o.CollectorHostPort) > 1 {
-		r, _ := manual.GenerateAndRegisterManualResolver()
-		var resolvedAddrs []resolver.Address
-		for _, addr := range o.CollectorHostPort {
-			resolvedAddrs = append(resolvedAddrs, resolver.Address{Addr: addr})
-		}
-		r.InitialAddrs(resolvedAddrs)
-		conn, _ = grpc.Dial(r.Scheme()+":///round_robin", grpc.WithInsecure(), grpc.WithBalancerName(roundrobin.Name))
-	} else {
-		// It does not return error if the collector is not running
-		conn, _ = grpc.Dial(o.CollectorHostPort[0], grpc.WithInsecure())
-	}
-	grpcMetrics := mFactory.Namespace("", map[string]string{"protocol": "grpc"})
+	grpcMetrics := mFactory.Namespace(metrics.NSOptions{Name: "", Tags: map[string]string{"protocol": "grpc"}})
 	return &ProxyBuilder{
 		conn:     conn,
-		reporter: aReporter.WrapWithMetrics(NewReporter(conn, logger), grpcMetrics),
-		manager:  configmanager.WrapWithMetrics(grpcManager.NewConfigManager(conn), grpcMetrics)}, nil
+		reporter: reporter.WrapWithMetrics(NewReporter(conn, agentTags, logger), grpcMetrics),
+		manager:  configmanager.WrapWithMetrics(grpcManager.NewConfigManager(conn), grpcMetrics),
+	}, nil
+}
+
+// GetConn returns grpc conn
+func (b ProxyBuilder) GetConn() *grpc.ClientConn {
+	return b.conn
 }
 
 // GetReporter returns Reporter

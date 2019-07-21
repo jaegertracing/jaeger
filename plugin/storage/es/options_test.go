@@ -44,25 +44,31 @@ func TestOptionsWithFlags(t *testing.T) {
 	opts := NewOptions("es", "es.aux")
 	v, command := config.Viperize(opts.AddFlags)
 	command.ParseFlags([]string{
-		"--es.server-urls=1.1.1.1,2.2.2.2",
+		"--es.server-urls=1.1.1.1, 2.2.2.2",
 		"--es.username=hello",
 		"--es.password=world",
+		"--es.token-file=/foo/bar",
 		"--es.sniffer=true",
 		"--es.max-span-age=48h",
 		"--es.num-shards=20",
 		"--es.num-replicas=10",
 		// a couple overrides
-		"--es.aux.server-urls=3.3.3.3,4.4.4.4",
+		"--es.aux.server-urls=3.3.3.3, 4.4.4.4",
 		"--es.aux.max-span-age=24h",
 		"--es.aux.num-replicas=10",
+		"--es.tls=true",
+		"--es.tls.skip-host-verify=true",
 	})
 	opts.InitFromViper(v)
 
 	primary := opts.GetPrimary()
 	assert.Equal(t, "hello", primary.Username)
+	assert.Equal(t, "/foo/bar", primary.TokenFilePath)
 	assert.Equal(t, []string{"1.1.1.1", "2.2.2.2"}, primary.Servers)
 	assert.Equal(t, 48*time.Hour, primary.MaxSpanAge)
 	assert.True(t, primary.Sniffer)
+	assert.Equal(t, true, primary.TLS.Enabled)
+	assert.Equal(t, true, primary.TLS.SkipHostVerify)
 
 	aux := opts.Get("es.aux")
 	assert.Equal(t, []string{"3.3.3.3", "4.4.4.4"}, aux.Servers)

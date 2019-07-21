@@ -31,7 +31,7 @@ import (
 )
 
 var (
-	errTestLock = errors.New("Lock error")
+	errTestLock = errors.New("lock error")
 )
 
 var _ io.Closer = &electionParticipant{}

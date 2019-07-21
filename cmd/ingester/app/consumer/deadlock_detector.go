@@ -64,7 +64,7 @@ type allPartitionsDeadlockDetector struct {
 
 func newDeadlockDetector(metricsFactory metrics.Factory, logger *zap.Logger, interval time.Duration) deadlockDetector {
 	panicFunc := func(partition int32) {
-		metricsFactory.Counter("deadlockdetector.panic-issued", map[string]string{"partition": strconv.Itoa(int(partition))}).Inc(1)
+		metricsFactory.Counter(metrics.Options{Name: "deadlockdetector.panic-issued", Tags: map[string]string{"partition": strconv.Itoa(int(partition))}}).Inc(1)
 		time.Sleep(time.Second) // Allow time to flush metric
 
 		buf := make([]byte, 1<<20)
@@ -89,7 +89,7 @@ func (s *deadlockDetector) startMonitoringForPartition(partition int32) *partiti
 		closePartition: make(chan struct{}, 1),
 		done:           make(chan struct{}),
 		logger:         s.logger,
-		disabled:       0 == s.interval,
+		disabled:       s.interval == 0,
 
 		incrementAllPartitionMsgCount: func() {
 			s.allPartitionsDeadlockDetector.incrementMsgCount()
@@ -118,7 +118,7 @@ func (s *deadlockDetector) monitorForPartition(w *partitionDeadlockDetector, par
 			if atomic.LoadUint64(w.msgConsumed) == 0 {
 				select {
 				case w.closePartition <- struct{}{}:
-					s.metricsFactory.Counter("deadlockdetector.close-signalled", map[string]string{"partition": strconv.Itoa(int(partition))}).Inc(1)
+					s.metricsFactory.Counter(metrics.Options{Name: "deadlockdetector.close-signalled", Tags: map[string]string{"partition": strconv.Itoa(int(partition))}}).Inc(1)
 					s.logger.Warn("Signalling partition close due to inactivity", zap.Int32("partition", partition))
 				default:
 					// If closePartition is blocked, the consumer might have deadlocked - kill the process
@@ -142,7 +142,7 @@ func (s *deadlockDetector) start() {
 		msgConsumed: &msgConsumed,
 		done:        make(chan struct{}),
 		logger:      s.logger,
-		disabled:    0 == s.interval,
+		disabled:    s.interval == 0,
 	}
 
 	if detector.disabled {

@@ -24,7 +24,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
 	"github.com/stretchr/testify/require"
-	"github.com/uber/jaeger-lib/metrics"
+	"github.com/uber/jaeger-lib/metrics/metricstest"
 	"go.uber.org/zap"
 
 	"github.com/jaegertracing/jaeger/model"
@@ -45,7 +45,7 @@ type spanReaderTest struct {
 func withSpanReader(fn func(r *spanReaderTest)) {
 	session := &mocks.Session{}
 	logger, logBuffer := testutils.NewLogger()
-	metricsFactory := metrics.NewLocalFactory(0)
+	metricsFactory := metricstest.NewFactory(0)
 	r := &spanReaderTest{
 		session:   session,
 		logger:    logger,
@@ -305,6 +305,7 @@ func TestSpanReaderFindTraces(t *testing.T) {
 					query.On("Consistency", cassandra.One).Return(query)
 					query.On("PageSize", 0).Return(query)
 					query.On("Iter").Return(iter)
+					query.On("String").Return("queryString")
 
 					return query
 				}

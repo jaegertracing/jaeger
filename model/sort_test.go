@@ -118,3 +118,24 @@ func TestSortListOfTraces(t *testing.T) {
 	SortTraces(list2)
 	assert.EqualValues(t, list1, list2)
 }
+
+func TestSortByTraceID(t *testing.T) {
+	traceID := &TraceID{
+		High: uint64(1),
+		Low:  uint64(1),
+	}
+	traceID2 := &TraceID{
+		High: uint64(2),
+		Low:  uint64(0),
+	}
+	traceID3 := &TraceID{
+		High: uint64(1),
+		Low:  uint64(0),
+	}
+
+	traces := []*TraceID{traceID, traceID2, traceID3}
+	// Expect ascending order
+	tracesExpected := []*TraceID{traceID3, traceID, traceID2}
+	SortTraceIDs(traces)
+	assert.EqualValues(t, tracesExpected, traces)
+}

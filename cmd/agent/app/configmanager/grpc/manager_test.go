@@ -32,6 +32,7 @@ func TestSamplingManager_GetSamplingStrategy(t *testing.T) {
 		api_v2.RegisterSamplingManagerServer(s, &mockSamplingHandler{})
 	})
 	conn, err := grpc.Dial(addr.String(), grpc.WithInsecure())
+	//lint:ignore SA5001 don't care about errors
 	defer conn.Close()
 	require.NoError(t, err)
 	defer s.GracefulStop()
@@ -43,6 +44,7 @@ func TestSamplingManager_GetSamplingStrategy(t *testing.T) {
 
 func TestSamplingManager_GetSamplingStrategy_error(t *testing.T) {
 	conn, err := grpc.Dial("foo", grpc.WithInsecure())
+	//lint:ignore SA5001 don't care about errors
 	defer conn.Close()
 	require.NoError(t, err)
 	manager := NewConfigManager(conn)

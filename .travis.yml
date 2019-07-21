@@ -7,27 +7,33 @@ dist: trusty
 
 matrix:
   include:
-  - go: "1.11.1"
+  - go: "1.12.1"
     env:
     - TESTS=true
     - COVERAGE=true
-  - go: "1.11.1"
+  - go: "1.12.1"
+    env:
+    - PROTO_GEN_TEST=true
+  - go: "1.12.1"
     env:
     - ALL_IN_ONE=true
-  - go: "1.11.1"
+  - go: "1.12.1"
     env:
     - CROSSDOCK=true
-  - go: "1.11.1"
+  - go: "1.12.1"
     env:
     - DOCKER=true
     - DEPLOY=true
-  - go: "1.11.1"
+  - go: "1.12.1"
     env:
     - ES_INTEGRATION_TEST=true
-  - go: "1.11.1"
+  - go: "1.12.1"
     env:
     - KAFKA_INTEGRATION_TEST=true
-  - go: "1.11.1"
+  - go: "1.12.1"
+    env:
+    - CASSANDRA_INTEGRATION_TEST=true
+  - go: "1.12.1"
     env:
     - HOTROD=true
 
@@ -42,6 +48,8 @@ env:
     - secure: TNvbr5/d7raSovEtttxdrZl8tP7vCCzL56gKKhr2wF4ET5/iRbcfSP9zoFPEOlIdgmCHZhGTh+fED1Eqgyswv6HPOAfEuov5vtzNB9fkcI46/nRk7KbiDlcEuE2IFtwkijFDz6YdJlbPCozHa81/Ih6G20H61tgv6f0AsGGT9MR7DQ71cCu8xZykNDjEKTo7RF6GiqG2VYa+S1P3vCOKRv31ouo/a5SPP+1AIvAg8u++qWVC8WJixmkXnw2OplvCFgHS0dlT3FvUPjYtUtLens5gpBDo7kn7+Ba27m2D0IzkzDPW5sK0YMMZW61LLn8GLPiJtLqzUHovaJ2NcFfi07RQ4GSMnwnjP0nLQbgd0CzM2zJGJRcOTkYe7IEDrdcTBcljZdZAJdoJEzrGYYWRQcX0Kyjc83ghX3A5s+CQWlPElQrkBB7KhNZ+w2Cn4+Mr6zOiRnBYg1NIUV2eGHMNnC4HI9RqgvA1QqcT5YHWqpz20sddHx1kgzgh8vOW8csiFon/Wrvyb2TaemzsKxIlT/UZZfDuyWG/Lvm4oxmTp1GrgQsC2iJjox4z6VIxbhykZEqNU1dhY6KuvgjEGetxk2j/NVfI8Qb4tvWqKoXq5Buap/J0AWjxWjGbrIGZbz5FgzfEP33WR8X2Oh5Cy+TMl1v0+YBAB3OaMpe/Qe2rGlk=  # DOCKER_PASS
     # DOCKER_PASS
     - secure: XNFxKWRKZLqcM7cceyN3jGZmaisdwNCSG+9b4eq3h022llrRd11Zaxp3JDbVqXtsHDiC9lzuI41dyiRphO4KwXKysawpJicNS1ZymkiITaF/blNAcncIS5NMsEbszDbwiP+FjqHdnMloGpSa3aEz2ehVEBaW7kiH49ayRWVs7GKV2OeH7V16B1116y5KvFiniDY/m/ycBd3K7HqKRuGx4EvlMIUbq0IFpl2N1dcrOFTDGTm8qzGTOwGqCQc/1NfllB7Iv2mkdu6dWhEyhRVOdXEWbwqU4Hjn/ugnAKQ1NnukaYmwgKM1WUba5cu1nFpCyMwp5tiGSef1UqXM380wrQkUvPNyiM4MD4hX0ab3bZxtd8TmlTLyDBE4Q+CaJoZzcbqRwi0B4CSFCLvm17GRmjB9iY8w/ig3bEndDFzLua7tx0MMPQVHOG0fjB1chCdOOfzcmdvIiCpVmmVKfuodulHN/6yWCi8XHWLee8L20zNxyVPbPT0XOnlkQZrnjZMyYvrpFaw3J6EKCnduk3GhHYI5RigJk2xorRiXgeN9DkFw/TuBIV3CMHi6sbgiNIv15CLO0ZGlUJnF+q4u5o9qUT/XSykNn0+Z/2ABMIJvS496gU3OT7RbjmuZforqyvCniMow4hDiE8MtZMBYOSmM1CiHQb413/kPgUjYQ2ajnuU=
+    # override default yarn
+    - PATH=$HOME/.yarn/bin:$PATH
 
 install:
   - docker rmi $(docker images -q) || true
@@ -49,6 +57,12 @@ install:
   - if [ "$ALL_IN_ONE" == true ]; then bash ./scripts/travis/install-ui-deps.sh ; fi
   - if [ "$DOCKER" == true ]; then bash ./scripts/travis/install-ui-deps.sh ; fi
   - if [ "$CROSSDOCK" == true ]; then bash ./scripts/travis/install-crossdock-deps.sh ; fi
+  - |
+    if [ "$PROTO_GEN_TEST" == true ]; then
+        make proto-install
+        curl -L https://github.com/google/protobuf/releases/download/v3.6.1/protoc-3.6.1-linux-x86_64.zip -o /tmp/protoc.zip
+        unzip /tmp/protoc.zip -d "$HOME"/protoc
+    fi
 
 script:
   - export BRANCH=$(if [ "$TRAVIS_PULL_REQUEST" == "false" ]; then echo $TRAVIS_BRANCH; else echo $TRAVIS_PULL_REQUEST_BRANCH; fi)
@@ -58,7 +72,9 @@ script:
   - if [ "$DOCKER" == true ]; then bash ./scripts/travis/build-docker-images.sh ; else echo 'skipping docker images'; fi
   - if [ "$ES_INTEGRATION_TEST" == true ]; then bash ./scripts/travis/es-integration-test.sh ; else echo 'skipping elastic search integration test'; fi
   - if [ "$KAFKA_INTEGRATION_TEST" == true ]; then bash ./scripts/travis/kafka-integration-test.sh ; else echo 'skipping kafka integration test'; fi
+  - if [ "$CASSANDRA_INTEGRATION_TEST" == true ]; then bash ./scripts/travis/cassandra-integration-test.sh ; else echo 'skipping cassandra integration test'; fi
   - if [ "$HOTROD" == true ]; then bash ./scripts/travis/hotrod-integration-test.sh ; else echo 'skipping hotrod example'; fi
+  - if [ "$PROTO_GEN_TEST" == true ]; then make proto PROTOC=$HOME/protoc/bin/protoc && git diff --name-status --exit-code ; else echo 'skipping protoc validation'; fi
 
 after_success:
   - if [ "$COVERAGE" == true ]; then mv cover.out coverage.txt ; else echo 'skipping coverage'; fi
@@ -68,7 +84,7 @@ after_failure:
   - if [ "$CROSSDOCK" == true ]; then make crossdock-logs ; else echo 'skipping crossdock'; fi
 
 before_deploy:
-  - make build-all-platforms && bash ./scripts/travis/package-deploy.sh
+  - if [ "$DEPLOY" == true ]; then make build-all-platforms && bash ./scripts/travis/package-deploy.sh ; else echo 'skipping deploy'; fi
 
 deploy:
   provider: releases

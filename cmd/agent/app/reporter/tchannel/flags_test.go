@@ -26,7 +26,7 @@ import (
 	"go.uber.org/zap"
 )
 
-func TestBingFlags(t *testing.T) {
+func TestBindFlags(t *testing.T) {
 	tests := []struct {
 		flags   []string
 		builder Builder

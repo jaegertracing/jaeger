@@ -79,13 +79,14 @@ func init() {
 
 // onInitialize is called before the command is executed.
 func onInitialize() {
-	if metricsBackend == "expvar" {
+	switch metricsBackend {
+	case "expvar":
 		metricsFactory = jexpvar.NewFactory(10) // 10 buckets for histograms
 		logger.Info("Using expvar as metrics backend")
-	} else if metricsBackend == "prometheus" {
-		metricsFactory = jprom.New().Namespace("hotrod", nil)
+	case "prometheus":
+		metricsFactory = jprom.New().Namespace(metrics.NSOptions{Name: "hotrod", Tags: nil})
 		logger.Info("Using Prometheus as metrics backend")
-	} else {
+	default:
 		logger.Fatal("unsupported metrics backend " + metricsBackend)
 	}
 	if config.MySQLGetDelay != fixDBConnDelay {

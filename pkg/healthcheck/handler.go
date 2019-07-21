@@ -15,15 +15,13 @@
 package healthcheck
 
 import (
-	"context"
-	"net"
+	"encoding/json"
+	"fmt"
 	"net/http"
-	"strconv"
 	"sync/atomic"
+	"time"
 
 	"go.uber.org/zap"
-
-	"github.com/jaegertracing/jaeger/pkg/version"
 )
 
 // Status represents the state of the service.
@@ -51,91 +49,93 @@ func (s Status) String() string {
 	}
 }
 
-// HealthCheck provides an HTTP endpoint that returns the health status of the service
-type HealthCheck struct {
-	state   int32 // atomic, keep at the top to be word-aligned
-	logger  *zap.Logger
-	mapping map[Status]int
-	server  *http.Server
+type healthCheckResponse struct {
+	statusCode int
+	StatusMsg  string    `json:"status"`
+	UpSince    time.Time `json:"upSince"`
+	Uptime     string    `json:"uptime"`
 }
 
-// Option is a functional option for passing parameters to New()
-type Option func(*HealthCheck)
+type state struct {
+	status  Status
+	upSince time.Time
+}
 
-// Logger creates an option to set the logger. If not specified, Nop logger is used.
-func Logger(logger *zap.Logger) Option {
-	return func(hc *HealthCheck) {
-		hc.logger = logger
-	}
+// HealthCheck provides an HTTP endpoint that returns the health status of the service
+type HealthCheck struct {
+	state     atomic.Value // stores state struct
+	logger    *zap.Logger
+	responses map[Status]healthCheckResponse
+	server    *http.Server
 }
 
 // New creates a HealthCheck with the specified initial state.
-func New(state Status, options ...Option) *HealthCheck {
+func New() *HealthCheck {
 	hc := &HealthCheck{
-		state: int32(state),
-		mapping: map[Status]int{
-			Unavailable: http.StatusServiceUnavailable,
-			Ready:       http.StatusNoContent,
+		logger: zap.NewNop(),
+		responses: map[Status]healthCheckResponse{
+			Unavailable: {
+				statusCode: http.StatusServiceUnavailable,
+				StatusMsg:  "Server not available",
+			},
+			Ready: {
+				statusCode: http.StatusOK,
+				StatusMsg:  "Server available",
+			},
 		},
+		server: nil,
 	}
-	for _, option := range options {
-		option(hc)
-	}
-	if hc.logger == nil {
-		hc.logger = zap.NewNop()
-	}
+	hc.state.Store(state{status: Unavailable})
 	return hc
 }
 
-// Serve starts HTTP server on the specified port.
-func (hc *HealthCheck) Serve(port int) (*HealthCheck, error) {
-	portStr := ":" + strconv.Itoa(port)
-	l, err := net.Listen("tcp", portStr)
-	if err != nil {
-		hc.logger.Error("Health Check server failed to listen", zap.Error(err))
-		return nil, err
-	}
-	hc.serveWithListener(l)
-	hc.logger.Info("Health Check server started", zap.Int("http-port", port), zap.Stringer("status", hc.Get()))
-	return hc, nil
+// SetLogger initializes a logger.
+func (hc *HealthCheck) SetLogger(logger *zap.Logger) {
+	hc.logger = logger
 }
 
-func (hc *HealthCheck) serveWithListener(l net.Listener) {
-	hc.server = &http.Server{Handler: hc.httpHandler()}
-	go func() {
-		if err := hc.server.Serve(l); err != nil {
-			hc.logger.Error("failed to serve", zap.Error(err))
-			hc.Set(Broken)
-		}
-	}()
-}
+// Handler creates a new HTTP handler.
+func (hc *HealthCheck) Handler() http.Handler {
+	return http.HandlerFunc(func(w http.ResponseWriter, _ *http.Request) {
+		state := hc.getState()
+		template := hc.responses[state.status]
+		w.WriteHeader(template.statusCode)
 
-// Close stops the HTTP server
-func (hc *HealthCheck) Close() error {
-	return hc.server.Shutdown(context.Background())
-}
-
-// httpHandler creates a new HTTP handler.
-func (hc *HealthCheck) httpHandler() http.Handler {
-	mux := http.NewServeMux()
-	mux.HandleFunc("/", func(w http.ResponseWriter, _ *http.Request) {
-		w.WriteHeader(hc.mapping[hc.Get()])
-		// this is written only for response with an entity, so, it won't be used for a 204 - No content
-		w.Write([]byte("Server not available"))
+		w.Header().Set("Content-Type", "application/json")
+		w.Write(hc.createRespBody(state, template))
 	})
-	version.RegisterHandler(mux, hc.logger)
-	return mux
+}
+
+func (hc *HealthCheck) createRespBody(state state, template healthCheckResponse) []byte {
+	resp := template // clone
+	if state.status == Ready {
+		resp.UpSince = state.upSince
+		resp.Uptime = fmt.Sprintf("%v", time.Since(state.upSince))
+	}
+	healthCheckStatus, _ := json.Marshal(resp)
+	return healthCheckStatus
 }
 
 // Set a new health check status
-func (hc *HealthCheck) Set(state Status) {
-	atomic.StoreInt32(&hc.state, int32(state))
-	hc.logger.Info("Health Check state change", zap.Stringer("status", hc.Get()))
+func (hc *HealthCheck) Set(status Status) {
+	oldState := hc.getState()
+	newState := state{status: status}
+	if status == Ready {
+		if oldState.status != Ready {
+			newState.upSince = time.Now()
+		}
+	}
+	hc.state.Store(newState)
+	hc.logger.Info("Health Check state change", zap.Stringer("status", status))
 }
 
 // Get the current status of this health check
 func (hc *HealthCheck) Get() Status {
-	return Status(atomic.LoadInt32(&hc.state))
+	return hc.getState().status
+}
+
+func (hc *HealthCheck) getState() state {
+	return hc.state.Load().(state)
 }
 
 // Ready is a shortcut for Set(Ready) (kept for backwards compatibility)

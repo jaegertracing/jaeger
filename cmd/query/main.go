@@ -17,36 +17,33 @@ package main
 import (
 	"fmt"
 	"log"
-	"net/http"
 	"os"
-	"os/signal"
-	"strconv"
-	"syscall"
 
-	"github.com/gorilla/handlers"
 	"github.com/opentracing/opentracing-go"
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
 	jaegerClientConfig "github.com/uber/jaeger-client-go/config"
 	jaegerClientZapLog "github.com/uber/jaeger-client-go/log/zap"
+	"github.com/uber/jaeger-lib/metrics"
+	_ "go.uber.org/automaxprocs"
 	"go.uber.org/zap"
 
+	"github.com/jaegertracing/jaeger/cmd/docs"
 	"github.com/jaegertracing/jaeger/cmd/env"
 	"github.com/jaegertracing/jaeger/cmd/flags"
 	"github.com/jaegertracing/jaeger/cmd/query/app"
+	"github.com/jaegertracing/jaeger/cmd/query/app/querysvc"
 	"github.com/jaegertracing/jaeger/pkg/config"
-	"github.com/jaegertracing/jaeger/pkg/healthcheck"
-	pMetrics "github.com/jaegertracing/jaeger/pkg/metrics"
-	"github.com/jaegertracing/jaeger/pkg/recoveryhandler"
 	"github.com/jaegertracing/jaeger/pkg/version"
 	"github.com/jaegertracing/jaeger/plugin/storage"
+	"github.com/jaegertracing/jaeger/ports"
 	istorage "github.com/jaegertracing/jaeger/storage"
+	"github.com/jaegertracing/jaeger/storage/spanstore"
 	storageMetrics "github.com/jaegertracing/jaeger/storage/spanstore/metrics"
 )
 
 func main() {
-	var serverChannel = make(chan os.Signal)
-	signal.Notify(serverChannel, os.Interrupt, syscall.SIGTERM)
+	svc := flags.NewService(ports.QueryAdminHTTP)
 
 	storageFactory, err := storage.NewFactory(storage.FactoryConfigFromEnvAndCLI(os.Args, os.Stderr))
 	if err != nil {
@@ -54,44 +51,27 @@ func main() {
 	}
 
 	v := viper.New()
-
 	var command = &cobra.Command{
 		Use:   "jaeger-query",
 		Short: "Jaeger query service provides a Web UI and an API for accessing trace data.",
 		Long:  `Jaeger query service provides a Web UI and an API for accessing trace data.`,
 		RunE: func(cmd *cobra.Command, args []string) error {
-			err := flags.TryLoadConfigFile(v)
-			if err != nil {
+			if err := svc.Start(v); err != nil {
 				return err
 			}
-
-			sFlags := new(flags.SharedFlags).InitFromViper(v)
-			logger, err := sFlags.NewLogger(zap.NewProductionConfig())
-			if err != nil {
-				return err
-			}
-			hc, err := sFlags.NewHealthCheck(logger)
-			if err != nil {
-				logger.Fatal("Could not start the health check server.", zap.Error(err))
-			}
-
-			queryOpts := new(app.QueryOptions).InitFromViper(v)
-
-			mBldr := new(pMetrics.Builder).InitFromViper(v)
-			baseFactory, err := mBldr.CreateMetricsFactory("jaeger")
-			if err != nil {
-				logger.Fatal("Cannot create metrics factory.", zap.Error(err))
-			}
+			logger := svc.Logger // shortcut
+			baseFactory := svc.MetricsFactory.Namespace(metrics.NSOptions{Name: "jaeger"})
+			metricsFactory := baseFactory.Namespace(metrics.NSOptions{Name: "query"})
 
 			tracer, closer, err := jaegerClientConfig.Configuration{
+				ServiceName: "jaeger-query",
 				Sampler: &jaegerClientConfig.SamplerConfig{
 					Type:  "probabilistic",
 					Param: 1.0,
 				},
 				RPCMetrics: true,
-			}.New(
-				"jaeger-query",
-				jaegerClientConfig.Metrics(baseFactory.Namespace("client", nil)),
+			}.NewTracer(
+				jaegerClientConfig.Metrics(svc.MetricsFactory),
 				jaegerClientConfig.Logger(jaegerClientZapLog.NewLogger(logger)),
 			)
 			if err != nil {
@@ -99,7 +79,9 @@ func main() {
 			}
 			defer closer.Close()
 			opentracing.SetGlobalTracer(tracer)
-
+			queryOpts := new(app.QueryOptions).InitFromViper(v)
+			// TODO: Need to figure out set enable/disable propagation on storage plugins.
+			v.Set(spanstore.StoragePropagationKey, queryOpts.BearerTokenPropagation)
 			storageFactory.InitFromViper(v)
 			if err := storageFactory.Initialize(baseFactory, logger); err != nil {
 				logger.Fatal("Failed to init storage factory", zap.Error(err))
@@ -108,64 +90,39 @@ func main() {
 			if err != nil {
 				logger.Fatal("Failed to create span reader", zap.Error(err))
 			}
-			spanReader = storageMetrics.NewReadMetricsDecorator(spanReader, baseFactory.Namespace("query", nil))
+			spanReader = storageMetrics.NewReadMetricsDecorator(spanReader, metricsFactory)
 			dependencyReader, err := storageFactory.CreateDependencyReader()
 			if err != nil {
 				logger.Fatal("Failed to create dependency reader", zap.Error(err))
 			}
-
-			apiHandlerOptions := []app.HandlerOption{
-				app.HandlerOptions.Logger(logger),
-				app.HandlerOptions.Tracer(tracer),
-			}
-			apiHandlerOptions = append(apiHandlerOptions, archiveOptions(storageFactory, logger)...)
-			apiHandler := app.NewAPIHandler(
+			queryServiceOptions := archiveOptions(storageFactory, logger)
+			queryService := querysvc.NewQueryService(
 				spanReader,
 				dependencyReader,
-				apiHandlerOptions...)
-			r := app.NewRouter()
-			if queryOpts.BasePath != "/" {
-				r = r.PathPrefix(queryOpts.BasePath).Subrouter()
-			}
-			apiHandler.RegisterRoutes(r)
-			app.RegisterStaticHandler(r, logger, queryOpts)
+				*queryServiceOptions)
 
-			if h := mBldr.Handler(); h != nil {
-				logger.Info("Registering metrics handler with HTTP server", zap.String("route", mBldr.HTTPRoute))
-				r.Handle(mBldr.HTTPRoute, h)
+			server := app.NewServer(svc, queryService, queryOpts, tracer)
+
+			if err := server.Start(); err != nil {
+				logger.Fatal("Could not start servers", zap.Error(err))
 			}
 
-			portStr := ":" + strconv.Itoa(queryOpts.Port)
-			compressHandler := handlers.CompressHandler(r)
-			recoveryHandler := recoveryhandler.NewRecoveryHandler(logger, true)
-
-			go func() {
-				logger.Info("Starting HTTP server", zap.Int("port", queryOpts.Port))
-				if err := http.ListenAndServe(portStr, recoveryHandler(compressHandler)); err != nil {
-					logger.Fatal("Could not launch service", zap.Error(err))
-				}
-				hc.Set(healthcheck.Unavailable)
-			}()
-
-			hc.Ready()
-			<-serverChannel
-			logger.Info("Shutdown complete")
+			svc.RunAndThen(func() {
+				server.Close()
+			})
 			return nil
 		},
 	}
 
 	command.AddCommand(version.Command())
 	command.AddCommand(env.Command())
-
-	flags.SetDefaultHealthCheckPort(app.QueryDefaultHealthCheckHTTPPort)
+	command.AddCommand(docs.Command(v))
 
 	config.AddFlags(
 		v,
 		command,
-		flags.AddConfigFileFlag,
-		flags.AddFlags,
+		svc.AddFlags,
 		storageFactory.AddFlags,
-		pMetrics.AddFlags,
 		app.AddFlags,
 	)
 
@@ -175,32 +132,10 @@ func main() {
 	}
 }
 
-func archiveOptions(storageFactory istorage.Factory, logger *zap.Logger) []app.HandlerOption {
-	archiveFactory, ok := storageFactory.(istorage.ArchiveFactory)
-	if !ok {
-		logger.Info("Archive storage not supported by the factory")
-		return nil
+func archiveOptions(storageFactory istorage.Factory, logger *zap.Logger) *querysvc.QueryServiceOptions {
+	opts := &querysvc.QueryServiceOptions{}
+	if !opts.InitArchiveStorage(storageFactory, logger) {
+		logger.Info("Archive storage not initialized")
 	}
-	reader, err := archiveFactory.CreateArchiveSpanReader()
-	if err == istorage.ErrArchiveStorageNotConfigured || err == istorage.ErrArchiveStorageNotSupported {
-		logger.Info("Archive storage not created", zap.String("reason", err.Error()))
-		return nil
-	}
-	if err != nil {
-		logger.Error("Cannot init archive storage reader", zap.Error(err))
-		return nil
-	}
-	writer, err := archiveFactory.CreateArchiveSpanWriter()
-	if err == istorage.ErrArchiveStorageNotConfigured || err == istorage.ErrArchiveStorageNotSupported {
-		logger.Info("Archive storage not created", zap.String("reason", err.Error()))
-		return nil
-	}
-	if err != nil {
-		logger.Error("Cannot init archive storage writer", zap.Error(err))
-		return nil
-	}
-	return []app.HandlerOption{
-		app.HandlerOptions.ArchiveSpanReader(reader),
-		app.HandlerOptions.ArchiveSpanWriter(writer),
-	}
+	return opts
 }

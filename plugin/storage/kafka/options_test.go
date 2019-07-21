@@ -26,9 +26,9 @@ func TestOptionsWithFlags(t *testing.T) {
 	opts := &Options{}
 	v, command := config.Viperize(opts.AddFlags)
 	command.ParseFlags([]string{
-		"--kafka.topic=topic1",
-		"--kafka.brokers=127.0.0.1:9092,0.0.0:1234",
-		"--kafka.encoding=protobuf"})
+		"--kafka.producer.topic=topic1",
+		"--kafka.producer.brokers=127.0.0.1:9092, 0.0.0:1234",
+		"--kafka.producer.encoding=protobuf"})
 	opts.InitFromViper(v)
 
 	assert.Equal(t, "topic1", opts.topic)

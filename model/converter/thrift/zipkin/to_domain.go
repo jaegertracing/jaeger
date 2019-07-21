@@ -136,15 +136,17 @@ func (td toDomain) transformSpan(zSpan *zipkincore.Span) []*model.Span {
 	}
 
 	flags := td.getFlags(zSpan)
-	// TODO StartTime and Duration could theoretically be defined only via cs/cr/sr/ss annotations.
+
+	startTime, duration := td.getStartTimeAndDuration(zSpan)
+
 	result := []*model.Span{{
 		TraceID:       traceID,
 		SpanID:        model.NewSpanID(uint64(zSpan.ID)),
 		OperationName: zSpan.Name,
 		References:    refs,
 		Flags:         flags,
-		StartTime:     model.EpochMicrosecondsAsTime(uint64(zSpan.GetTimestamp())),
-		Duration:      model.MicrosecondsAsDuration(uint64(zSpan.GetDuration())),
+		StartTime:     model.EpochMicrosecondsAsTime(uint64(startTime)),
+		Duration:      model.MicrosecondsAsDuration(uint64(duration)),
 		Tags:          tags,
 		Logs:          td.getLogs(zSpan.Annotations),
 	}}
@@ -188,6 +190,30 @@ func (td toDomain) getFlags(zSpan *zipkincore.Span) model.Flags {
 	return f
 }
 
+// Get a correct start time to use for the span if it's not set directly
+func (td toDomain) getStartTimeAndDuration(zSpan *zipkincore.Span) (int64, int64) {
+	timestamp := zSpan.GetTimestamp()
+	duration := zSpan.GetDuration()
+	if timestamp == 0 {
+		cs := td.findAnnotation(zSpan, zipkincore.CLIENT_SEND)
+		sr := td.findAnnotation(zSpan, zipkincore.SERVER_RECV)
+		if cs != nil {
+			timestamp = cs.Timestamp
+			cr := td.findAnnotation(zSpan, zipkincore.CLIENT_RECV)
+			if cr != nil && duration == 0 {
+				duration = cr.Timestamp - cs.Timestamp
+			}
+		} else if sr != nil {
+			timestamp = sr.Timestamp
+			ss := td.findAnnotation(zSpan, zipkincore.SERVER_SEND)
+			if ss != nil && duration == 0 {
+				duration = ss.Timestamp - sr.Timestamp
+			}
+		}
+	}
+	return timestamp, duration
+}
+
 // generateProcess takes a Zipkin Span and produces a model.Process.
 // An optional error may also be returned, but it is not fatal.
 func (td toDomain) generateProcess(zSpan *zipkincore.Span) (*model.Process, error) {
@@ -227,7 +253,7 @@ func (td toDomain) findServiceNameAndIP(zSpan *zipkincore.Span) (string, int32, 
 		}
 	}
 	err := fmt.Errorf(
-		"Cannot find service name in Zipkin span [traceID=%x, spanID=%x]",
+		"cannot find service name in Zipkin span [traceID=%x, spanID=%x]",
 		uint64(zSpan.TraceID), uint64(zSpan.ID))
 	return UnknownServiceName, 0, err
 }
@@ -310,7 +336,7 @@ func (td toDomain) transformBinaryAnnotation(binaryAnnotation *zipkincore.Binary
 	case zipkincore.AnnotationType_STRING:
 		return model.String(binaryAnnotation.Key, string(binaryAnnotation.Value)), nil
 	}
-	return model.KeyValue{}, fmt.Errorf("Unknown zipkin annotation type: %d", binaryAnnotation.AnnotationType)
+	return model.KeyValue{}, fmt.Errorf("unknown zipkin annotation type: %d", binaryAnnotation.AnnotationType)
 }
 
 func bytesToNumber(b []byte, number interface{}) error {

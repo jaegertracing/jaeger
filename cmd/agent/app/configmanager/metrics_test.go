@@ -21,8 +21,7 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-	"github.com/uber/jaeger-lib/metrics"
-	mTestutils "github.com/uber/jaeger-lib/metrics/testutils"
+	"github.com/uber/jaeger-lib/metrics/metricstest"
 
 	"github.com/jaegertracing/jaeger/thrift-gen/baggage"
 	"github.com/jaegertracing/jaeger/thrift-gen/sampling"
@@ -46,16 +45,16 @@ func (noopManager) GetBaggageRestrictions(s string) ([]*baggage.BaggageRestricti
 
 func TestMetrics(t *testing.T) {
 	tests := []struct {
-		expected []mTestutils.ExpectedMetric
+		expected []metricstest.ExpectedMetric
 		err      error
 	}{
-		{expected: []mTestutils.ExpectedMetric{
+		{expected: []metricstest.ExpectedMetric{
 			{Name: "collector-proxy", Tags: map[string]string{"result": "ok", "endpoint": "sampling"}, Value: 1},
 			{Name: "collector-proxy", Tags: map[string]string{"result": "err", "endpoint": "sampling"}, Value: 0},
 			{Name: "collector-proxy", Tags: map[string]string{"result": "ok", "endpoint": "baggage"}, Value: 1},
 			{Name: "collector-proxy", Tags: map[string]string{"result": "err", "endpoint": "baggage"}, Value: 0},
 		}},
-		{expected: []mTestutils.ExpectedMetric{
+		{expected: []metricstest.ExpectedMetric{
 			{Name: "collector-proxy", Tags: map[string]string{"result": "ok", "endpoint": "sampling"}, Value: 0},
 			{Name: "collector-proxy", Tags: map[string]string{"result": "err", "endpoint": "sampling"}, Value: 1},
 			{Name: "collector-proxy", Tags: map[string]string{"result": "ok", "endpoint": "baggage"}, Value: 0},
@@ -64,7 +63,7 @@ func TestMetrics(t *testing.T) {
 	}
 
 	for _, test := range tests {
-		metricsFactory := metrics.NewLocalFactory(time.Microsecond)
+		metricsFactory := metricstest.NewFactory(time.Microsecond)
 		mgr := WrapWithMetrics(&noopManager{}, metricsFactory)
 
 		if test.err != nil {
@@ -82,6 +81,6 @@ func TestMetrics(t *testing.T) {
 			require.NoError(t, err)
 			require.NotNil(t, b)
 		}
-		mTestutils.AssertCounterMetrics(t, metricsFactory, test.expected...)
+		metricsFactory.AssertCounterMetrics(t, test.expected...)
 	}
 }

@@ -22,16 +22,14 @@ import (
 	"mime"
 	"net/http"
 	"strings"
-	"time"
 
-	"github.com/apache/thrift/lib/go/thrift"
 	"github.com/go-openapi/loads"
 	"github.com/go-openapi/strfmt"
 	"github.com/go-openapi/swag"
 	"github.com/gorilla/mux"
-	tchanThrift "github.com/uber/tchannel-go/thrift"
 
 	"github.com/jaegertracing/jaeger/cmd/collector/app"
+	"github.com/jaegertracing/jaeger/model/converter/thrift/zipkin"
 	"github.com/jaegertracing/jaeger/swagger-gen/models"
 	"github.com/jaegertracing/jaeger/swagger-gen/restapi"
 	"github.com/jaegertracing/jaeger/swagger-gen/restapi/operations"
@@ -88,11 +86,12 @@ func (aH *APIHandler) saveSpans(w http.ResponseWriter, r *http.Request) {
 	}
 
 	var tSpans []*zipkincore.Span
-	if contentType == "application/x-thrift" {
-		tSpans, err = deserializeThrift(bodyBytes)
-	} else if contentType == "application/json" {
+	switch contentType {
+	case "application/x-thrift":
+		tSpans, err = zipkin.DeserializeThrift(bodyBytes)
+	case "application/json":
 		tSpans, err = DeserializeJSON(bodyBytes)
-	} else {
+	default:
 		http.Error(w, "Unsupported Content-Type", http.StatusBadRequest)
 		return
 	}
@@ -174,34 +173,10 @@ func gunzip(r io.ReadCloser) (*gzip.Reader, error) {
 
 func (aH *APIHandler) saveThriftSpans(tSpans []*zipkincore.Span) error {
 	if len(tSpans) > 0 {
-		ctx, _ := tchanThrift.NewContext(time.Minute)
-		if _, err := aH.zipkinSpansHandler.SubmitZipkinBatch(ctx, tSpans); err != nil {
+		opts := app.SubmitBatchOptions{InboundTransport: app.HTTPTransport}
+		if _, err := aH.zipkinSpansHandler.SubmitZipkinBatch(tSpans, opts); err != nil {
 			return err
 		}
 	}
 	return nil
-}
-
-func deserializeThrift(b []byte) ([]*zipkincore.Span, error) {
-	buffer := thrift.NewTMemoryBuffer()
-	buffer.Write(b)
-
-	transport := thrift.NewTBinaryProtocolTransport(buffer)
-	_, size, err := transport.ReadListBegin() // Ignore the returned element type
-	if err != nil {
-		return nil, err
-	}
-
-	// We don't depend on the size returned by ReadListBegin to preallocate the array because it
-	// sometimes returns a nil error on bad input and provides an unreasonably large int for size
-	var spans []*zipkincore.Span
-	for i := 0; i < size; i++ {
-		zs := &zipkincore.Span{}
-		if err = zs.Read(transport); err != nil {
-			return nil, err
-		}
-		spans = append(spans, zs)
-	}
-
-	return spans, nil
 }

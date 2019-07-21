@@ -28,8 +28,7 @@ import (
 )
 
 const (
-	staticStrategyStoreType   = "static"
-	adaptiveStrategyStoreType = "adaptive"
+	staticStrategyStoreType = "static"
 )
 
 var allSamplingTypes = []string{staticStrategyStoreType} // TODO support adaptive
@@ -63,7 +62,7 @@ func (f *Factory) getFactoryOfType(factoryType string) (strategystore.Factory, e
 	case staticStrategyStoreType:
 		return static.NewFactory(), nil
 	default:
-		return nil, fmt.Errorf("Unknown sampling strategy store type %s. Valid types are %v", factoryType, allSamplingTypes)
+		return nil, fmt.Errorf("unknown sampling strategy store type %s. Valid types are %v", factoryType, allSamplingTypes)
 	}
 }
 
@@ -99,7 +98,7 @@ func (f *Factory) Initialize(metricsFactory metrics.Factory, logger *zap.Logger)
 func (f *Factory) CreateStrategyStore() (strategystore.StrategyStore, error) {
 	factory, ok := f.factories[f.StrategyStoreType]
 	if !ok {
-		return nil, fmt.Errorf("No %s strategy store registered", f.StrategyStoreType)
+		return nil, fmt.Errorf("no %s strategy store registered", f.StrategyStoreType)
 	}
 	return factory.CreateStrategyStore()
 }

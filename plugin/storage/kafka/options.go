@@ -21,21 +21,30 @@ import (
 
 	"github.com/spf13/viper"
 
+	"github.com/jaegertracing/jaeger/pkg/kafka/auth"
 	"github.com/jaegertracing/jaeger/pkg/kafka/producer"
 )
 
 const (
-	configPrefix   = "kafka"
-	suffixBrokers  = ".brokers"
-	suffixTopic    = ".topic"
-	suffixEncoding = ".encoding"
+	// EncodingJSON is used for spans encoded as Protobuf-based JSON.
+	EncodingJSON = "json"
+	// EncodingProto is used for spans encoded as Protobuf.
+	EncodingProto = "protobuf"
+	// EncodingZipkinThrift is used for spans encoded as Zipkin Thrift.
+	EncodingZipkinThrift = "zipkin-thrift"
 
-	encodingJSON  = "json"
-	encodingProto = "protobuf"
-
+	configPrefix    = "kafka.producer"
+	suffixBrokers   = ".brokers"
+	suffixTopic     = ".topic"
+	suffixEncoding  = ".encoding"
 	defaultBroker   = "127.0.0.1:9092"
 	defaultTopic    = "jaeger-spans"
-	defaultEncoding = encodingProto
+	defaultEncoding = EncodingProto
+)
+
+var (
+	// AllEncodings is a list of all supported encodings.
+	AllEncodings = []string{EncodingJSON, EncodingProto, EncodingZipkinThrift}
 )
 
 // Options stores the configuration options for Kafka
@@ -58,15 +67,24 @@ func (opt *Options) AddFlags(flagSet *flag.FlagSet) {
 	flagSet.String(
 		configPrefix+suffixEncoding,
 		defaultEncoding,
-		fmt.Sprintf(`(experimental) Encoding of spans ("%s" or "%s") sent to kafka.`, encodingProto, encodingJSON),
+		fmt.Sprintf(`(experimental) Encoding of spans ("%s" or "%s") sent to kafka.`, EncodingJSON, EncodingProto),
 	)
+	auth.AddFlags(configPrefix, flagSet)
 }
 
 // InitFromViper initializes Options with properties from viper
 func (opt *Options) InitFromViper(v *viper.Viper) {
+	authenticationOptions := auth.AuthenticationConfig{}
+	authenticationOptions.InitFromViper(configPrefix, v)
 	opt.config = producer.Configuration{
-		Brokers: strings.Split(v.GetString(configPrefix+suffixBrokers), ","),
+		Brokers:              strings.Split(stripWhiteSpace(v.GetString(configPrefix+suffixBrokers)), ","),
+		AuthenticationConfig: authenticationOptions,
 	}
 	opt.topic = v.GetString(configPrefix + suffixTopic)
 	opt.encoding = v.GetString(configPrefix + suffixEncoding)
+}
+
+// stripWhiteSpace removes all whitespace characters from a string
+func stripWhiteSpace(str string) string {
+	return strings.Replace(str, " ", "", -1)
 }

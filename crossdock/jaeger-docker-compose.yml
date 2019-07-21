@@ -1,0 +1,52 @@
+version: '2'
+
+services:
+    jaeger-collector:
+      image: jaegertracing/jaeger-collector
+      command: ["--cassandra.keyspace=jaeger_v1_dc1", "--cassandra.servers=cassandra", "--collector.zipkin.http-port=9411"]
+      ports:
+        - "14269"
+        - "14268:14268"
+        - "14267"
+        - "14250"
+        - "9411:9411"
+      environment:
+        - LOG_LEVEL=debug
+      restart: on-failure
+      depends_on:
+        - cassandra-schema
+
+    jaeger-query:
+      image: jaegertracing/jaeger-query
+      command: ["--cassandra.keyspace=jaeger_v1_dc1", "--cassandra.servers=cassandra"]
+      ports:
+        - "16686:16686"
+        - "16687"
+      environment:
+        - LOG_LEVEL=debug
+      restart: on-failure
+      depends_on:
+        - cassandra-schema
+
+    jaeger-agent:
+      image: jaegertracing/jaeger-agent
+      command: ["--reporter.grpc.host-port=jaeger-collector:14250", "--reporter.grpc.retry.max=1000"]
+      ports:
+        - "5775:5775/udp"
+        - "6831:6831/udp"
+        - "6832:6832/udp"
+        - "5778:5778"
+      environment:
+        - LOG_LEVEL=debug
+      restart: on-failure
+      depends_on:
+        - jaeger-collector
+
+    cassandra:
+      image: cassandra:3.9
+
+    cassandra-schema:
+      image: jaegertracing/jaeger-cassandra-schema
+      depends_on:
+        - cassandra
+

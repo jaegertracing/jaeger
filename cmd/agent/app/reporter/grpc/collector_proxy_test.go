@@ -15,13 +15,15 @@
 package grpc
 
 import (
+	"crypto/x509"
+	"errors"
 	"net"
 	"testing"
 	"time"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-	"github.com/uber/jaeger-lib/metrics"
+	"github.com/uber/jaeger-lib/metrics/metricstest"
 	"go.uber.org/zap"
 	"google.golang.org/grpc"
 
@@ -29,20 +31,17 @@ import (
 	"github.com/jaegertracing/jaeger/thrift-gen/jaeger"
 )
 
-func TestProxyBuilderMissingAddress(t *testing.T) {
-	proxy, err := NewCollectorProxy(&Options{}, metrics.NullFactory, zap.NewNop())
-	require.Nil(t, proxy)
-	assert.EqualError(t, err, "could not create collector proxy, address is missing")
-}
-
-func TestProxyBuilder(t *testing.T) {
-	proxy, err := NewCollectorProxy(&Options{CollectorHostPort: []string{"localhost:0000"}}, metrics.NullFactory, zap.NewNop())
-	require.NoError(t, err)
-	require.NotNil(t, proxy)
-	assert.NotNil(t, proxy.GetReporter())
-	assert.NotNil(t, proxy.GetManager())
-	assert.Nil(t, proxy.Close())
-	assert.EqualError(t, proxy.Close(), "rpc error: code = Canceled desc = grpc: the client connection is closing")
+// This test is only for coverage.
+func TestSystemCertPoolError(t *testing.T) {
+	fakeErr := errors.New("fake error")
+	systemCertPool = func() (*x509.CertPool, error) {
+		return nil, fakeErr
+	}
+	_, err := NewCollectorProxy(&ConnBuilder{
+		CollectorHostPorts: []string{"foo", "bar"},
+		TLS:                true,
+	}, nil, nil, zap.NewNop())
+	assert.Equal(t, fakeErr, err)
 }
 
 func TestMultipleCollectors(t *testing.T) {
@@ -57,12 +56,13 @@ func TestMultipleCollectors(t *testing.T) {
 	})
 	defer s2.Stop()
 
-	mFactory := metrics.NewLocalFactory(time.Microsecond)
-	proxy, err := NewCollectorProxy(&Options{CollectorHostPort: []string{addr1.String(), addr2.String()}}, mFactory, zap.NewNop())
+	mFactory := metricstest.NewFactory(time.Microsecond)
+	proxy, err := NewCollectorProxy(&ConnBuilder{CollectorHostPorts: []string{addr1.String(), addr2.String()}}, nil, mFactory, zap.NewNop())
 	require.NoError(t, err)
 	require.NotNil(t, proxy)
 	assert.NotNil(t, proxy.GetReporter())
 	assert.NotNil(t, proxy.GetManager())
+	assert.NotNil(t, proxy.GetConn())
 
 	var bothServers = false
 	r := proxy.GetReporter()

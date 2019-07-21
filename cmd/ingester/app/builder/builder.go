@@ -16,6 +16,7 @@ package builder
 
 import (
 	"fmt"
+	"strings"
 
 	"github.com/uber/jaeger-lib/metrics"
 	"go.uber.org/zap"
@@ -31,13 +32,16 @@ import (
 // CreateConsumer creates a new span consumer for the ingester
 func CreateConsumer(logger *zap.Logger, metricsFactory metrics.Factory, spanWriter spanstore.Writer, options app.Options) (*consumer.Consumer, error) {
 	var unmarshaller kafka.Unmarshaller
-	if options.Encoding == app.EncodingJSON {
+	switch options.Encoding {
+	case kafka.EncodingJSON:
 		unmarshaller = kafka.NewJSONUnmarshaller()
-	} else if options.Encoding == app.EncodingProto {
+	case kafka.EncodingProto:
 		unmarshaller = kafka.NewProtobufUnmarshaller()
-	} else {
-		return nil, fmt.Errorf(`encoding '%s' not recognised, use one of ("%s" or "%s")`,
-			options.Encoding, app.EncodingProto, app.EncodingJSON)
+	case kafka.EncodingZipkinThrift:
+		unmarshaller = kafka.NewZipkinThriftUnmarshaller()
+	default:
+		return nil, fmt.Errorf(`encoding '%s' not recognised, use one of ("%s")`,
+			options.Encoding, strings.Join(kafka.AllEncodings, "\", \""))
 	}
 
 	spParams := processor.SpanProcessorParams{
@@ -47,9 +51,11 @@ func CreateConsumer(logger *zap.Logger, metricsFactory metrics.Factory, spanWrit
 	spanProcessor := processor.NewSpanProcessor(spParams)
 
 	consumerConfig := kafkaConsumer.Configuration{
-		Brokers: options.Brokers,
-		Topic:   options.Topic,
-		GroupID: options.GroupID,
+		Brokers:              options.Brokers,
+		Topic:                options.Topic,
+		GroupID:              options.GroupID,
+		ClientID:             options.ClientID,
+		AuthenticationConfig: options.AuthenticationConfig,
 	}
 	saramaConsumer, err := consumerConfig.NewConsumer()
 	if err != nil {

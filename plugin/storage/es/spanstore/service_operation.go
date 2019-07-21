@@ -27,7 +27,6 @@ import (
 	"github.com/jaegertracing/jaeger/pkg/cache"
 	"github.com/jaegertracing/jaeger/pkg/es"
 	"github.com/jaegertracing/jaeger/plugin/storage/es/spanstore/dbmodel"
-	storageMetrics "github.com/jaegertracing/jaeger/storage/spanstore/metrics"
 )
 
 const (
@@ -39,22 +38,18 @@ const (
 
 // ServiceOperationStorage stores service to operation pairs.
 type ServiceOperationStorage struct {
-	ctx          context.Context
 	client       es.Client
-	metrics      *storageMetrics.WriteMetrics
 	logger       *zap.Logger
 	serviceCache cache.Cache
 }
 
 // NewServiceOperationStorage returns a new ServiceOperationStorage.
 func NewServiceOperationStorage(
-	ctx context.Context,
 	client es.Client,
 	logger *zap.Logger,
 	cacheTTL time.Duration,
 ) *ServiceOperationStorage {
 	return &ServiceOperationStorage{
-		ctx:    ctx,
 		client: client,
 		logger: logger,
 		serviceCache: cache.NewLRUWithOptions(
@@ -81,7 +76,7 @@ func (s *ServiceOperationStorage) Write(indexName string, jsonSpan *dbmodel.Span
 	}
 }
 
-func (s *ServiceOperationStorage) getServices(indices []string) ([]string, error) {
+func (s *ServiceOperationStorage) getServices(context context.Context, indices []string) ([]string, error) {
 	serviceAggregation := getServicesAggregation()
 
 	searchService := s.client.Search(indices...).
@@ -90,7 +85,7 @@ func (s *ServiceOperationStorage) getServices(indices []string) ([]string, error
 		IgnoreUnavailable(true).
 		Aggregation(servicesAggregation, serviceAggregation)
 
-	searchResult, err := searchService.Do(s.ctx)
+	searchResult, err := searchService.Do(context)
 	if err != nil {
 		return nil, errors.Wrap(err, "Search service failed")
 	}
@@ -111,7 +106,7 @@ func getServicesAggregation() elastic.Query {
 		Size(defaultDocCount) // Must set to some large number. ES deprecated size omission for aggregating all. https://github.com/elastic/elasticsearch/issues/18838
 }
 
-func (s *ServiceOperationStorage) getOperations(indices []string, service string) ([]string, error) {
+func (s *ServiceOperationStorage) getOperations(context context.Context, indices []string, service string) ([]string, error) {
 	serviceQuery := elastic.NewTermQuery(serviceName, service)
 	serviceFilter := getOperationsAggregation()
 
@@ -122,7 +117,7 @@ func (s *ServiceOperationStorage) getOperations(indices []string, service string
 		IgnoreUnavailable(true).
 		Aggregation(operationsAggregation, serviceFilter)
 
-	searchResult, err := searchService.Do(s.ctx)
+	searchResult, err := searchService.Do(context)
 	if err != nil {
 		return nil, errors.Wrap(err, "Search service failed")
 	}

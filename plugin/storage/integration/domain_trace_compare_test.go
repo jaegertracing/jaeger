@@ -32,9 +32,9 @@ func CompareSliceOfTraces(t *testing.T, expected []*model.Trace, actual []*model
 	for i := range expected {
 		checkSize(t, expected[i], actual[i])
 	}
-	if !assert.EqualValues(t, expected, actual) {
-		for _, err := range pretty.Diff(expected, actual) {
-			t.Log(err)
+	if diff := pretty.Diff(expected, actual); len(diff) > 0 {
+		for _, d := range diff {
+			t.Logf("Expected and actual differ: %s\n", d)
 		}
 		out, err := json.Marshal(actual)
 		out2, err2 := json.Marshal(expected)
@@ -42,6 +42,7 @@ func CompareSliceOfTraces(t *testing.T, expected []*model.Trace, actual []*model
 		assert.NoError(t, err2)
 		t.Logf("Actual traces: %s", string(out))
 		t.Logf("Expected traces: %s", string(out2))
+		t.Fail()
 	}
 }
 

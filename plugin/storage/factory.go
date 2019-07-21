@@ -23,8 +23,10 @@ import (
 	"go.uber.org/zap"
 
 	"github.com/jaegertracing/jaeger/plugin"
+	"github.com/jaegertracing/jaeger/plugin/storage/badger"
 	"github.com/jaegertracing/jaeger/plugin/storage/cassandra"
 	"github.com/jaegertracing/jaeger/plugin/storage/es"
+	"github.com/jaegertracing/jaeger/plugin/storage/grpc"
 	"github.com/jaegertracing/jaeger/plugin/storage/kafka"
 	"github.com/jaegertracing/jaeger/plugin/storage/memory"
 	"github.com/jaegertracing/jaeger/storage"
@@ -37,15 +39,25 @@ const (
 	elasticsearchStorageType = "elasticsearch"
 	memoryStorageType        = "memory"
 	kafkaStorageType         = "kafka"
+	grpcPluginStorageType    = "grpc-plugin"
+	badgerStorageType        = "badger"
+	downsamplingRatio        = "downsampling.ratio"
+	downsamplingHashSalt     = "downsampling.hashsalt"
+
+	// defaultDownsamplingRatio is the default downsampling ratio.
+	defaultDownsamplingRatio = 1.0
+	// defaultDownsamplingHashSalt is the default downsampling hashsalt.
+	defaultDownsamplingHashSalt = ""
 )
 
-var allStorageTypes = []string{cassandraStorageType, elasticsearchStorageType, memoryStorageType, kafkaStorageType}
+// AllStorageTypes defines all available storage backends
+var AllStorageTypes = []string{cassandraStorageType, elasticsearchStorageType, memoryStorageType, kafkaStorageType, badgerStorageType, grpcPluginStorageType}
 
 // Factory implements storage.Factory interface as a meta-factory for storage components.
 type Factory struct {
 	FactoryConfig
-
-	factories map[string]storage.Factory
+	metricsFactory metrics.Factory
+	factories      map[string]storage.Factory
 }
 
 // NewFactory creates the meta-factory.
@@ -79,13 +91,18 @@ func (f *Factory) getFactoryOfType(factoryType string) (storage.Factory, error) 
 		return memory.NewFactory(), nil
 	case kafkaStorageType:
 		return kafka.NewFactory(), nil
+	case badgerStorageType:
+		return badger.NewFactory(), nil
+	case grpcPluginStorageType:
+		return grpc.NewFactory(), nil
 	default:
-		return nil, fmt.Errorf("Unknown storage type %s. Valid types are %v", factoryType, allStorageTypes)
+		return nil, fmt.Errorf("unknown storage type %s. Valid types are %v", factoryType, AllStorageTypes)
 	}
 }
 
-// Initialize implements storage.Factory
+// Initialize implements storage.Factory.
 func (f *Factory) Initialize(metricsFactory metrics.Factory, logger *zap.Logger) error {
+	f.metricsFactory = metricsFactory
 	for _, factory := range f.factories {
 		if err := factory.Initialize(metricsFactory, logger); err != nil {
 			return err
@@ -94,22 +111,22 @@ func (f *Factory) Initialize(metricsFactory metrics.Factory, logger *zap.Logger)
 	return nil
 }
 
-// CreateSpanReader implements storage.Factory
+// CreateSpanReader implements storage.Factory.
 func (f *Factory) CreateSpanReader() (spanstore.Reader, error) {
 	factory, ok := f.factories[f.SpanReaderType]
 	if !ok {
-		return nil, fmt.Errorf("No %s backend registered for span store", f.SpanReaderType)
+		return nil, fmt.Errorf("no %s backend registered for span store", f.SpanReaderType)
 	}
 	return factory.CreateSpanReader()
 }
 
-// CreateSpanWriter implements storage.Factory
+// CreateSpanWriter implements storage.Factory.
 func (f *Factory) CreateSpanWriter() (spanstore.Writer, error) {
 	var writers []spanstore.Writer
 	for _, storageType := range f.SpanWriterTypes {
 		factory, ok := f.factories[storageType]
 		if !ok {
-			return nil, fmt.Errorf("No %s backend registered for span store", storageType)
+			return nil, fmt.Errorf("no %s backend registered for span store", storageType)
 		}
 		writer, err := factory.CreateSpanWriter()
 		if err != nil {
@@ -117,17 +134,28 @@ func (f *Factory) CreateSpanWriter() (spanstore.Writer, error) {
 		}
 		writers = append(writers, writer)
 	}
+	var spanWriter spanstore.Writer
 	if len(f.SpanWriterTypes) == 1 {
-		return writers[0], nil
+		spanWriter = writers[0]
+	} else {
+		spanWriter = spanstore.NewCompositeWriter(writers...)
 	}
-	return spanstore.NewCompositeWriter(writers...), nil
+	// Turn off DownsamplingWriter entirely if ratio == defaultDownsamplingRatio.
+	if f.DownsamplingRatio == defaultDownsamplingRatio {
+		return spanWriter, nil
+	}
+	return spanstore.NewDownsamplingWriter(spanWriter, spanstore.DownsamplingOptions{
+		Ratio:          f.DownsamplingRatio,
+		HashSalt:       f.DownsamplingHashSalt,
+		MetricsFactory: f.metricsFactory.Namespace(metrics.NSOptions{Name: "downsampling_writer"}),
+	}), nil
 }
 
 // CreateDependencyReader implements storage.Factory
 func (f *Factory) CreateDependencyReader() (dependencystore.Reader, error) {
 	factory, ok := f.factories[f.DependenciesStorageType]
 	if !ok {
-		return nil, fmt.Errorf("No %s backend registered for span store", f.DependenciesStorageType)
+		return nil, fmt.Errorf("no %s backend registered for span store", f.DependenciesStorageType)
 	}
 	return factory.CreateDependencyReader()
 }
@@ -139,6 +167,21 @@ func (f *Factory) AddFlags(flagSet *flag.FlagSet) {
 			conf.AddFlags(flagSet)
 		}
 	}
+	addDownsamplingFlags(flagSet)
+}
+
+// addDownsamplingFlags add flags for Downsampling params
+func addDownsamplingFlags(flagSet *flag.FlagSet) {
+	flagSet.Float64(
+		downsamplingRatio,
+		defaultDownsamplingRatio,
+		"Ratio of spans passed to storage after downsampling (between 0 and 1), e.g ratio = 0.3 means we are keeping 30% of spans and dropping 70% of spans; ratio = 1.0 disables downsampling.",
+	)
+	flagSet.String(
+		downsamplingHashSalt,
+		defaultDownsamplingHashSalt,
+		"Salt used when hashing trace id for downsampling.",
+	)
 }
 
 // InitFromViper implements plugin.Configurable
@@ -148,13 +191,23 @@ func (f *Factory) InitFromViper(v *viper.Viper) {
 			conf.InitFromViper(v)
 		}
 	}
+	f.initDownsamplingFromViper(v)
+}
+
+func (f *Factory) initDownsamplingFromViper(v *viper.Viper) {
+	f.FactoryConfig.DownsamplingRatio = v.GetFloat64(downsamplingRatio)
+	if f.FactoryConfig.DownsamplingRatio < 0 || f.FactoryConfig.DownsamplingRatio > 1 {
+		// Values not in the range of 0 ~ 1.0 will be set to default.
+		f.FactoryConfig.DownsamplingRatio = 1.0
+	}
+	f.FactoryConfig.DownsamplingHashSalt = v.GetString(downsamplingHashSalt)
 }
 
 // CreateArchiveSpanReader implements storage.ArchiveFactory
 func (f *Factory) CreateArchiveSpanReader() (spanstore.Reader, error) {
 	factory, ok := f.factories[f.SpanReaderType]
 	if !ok {
-		return nil, fmt.Errorf("No %s backend registered for span store", f.SpanReaderType)
+		return nil, fmt.Errorf("no %s backend registered for span store", f.SpanReaderType)
 	}
 	archive, ok := factory.(storage.ArchiveFactory)
 	if !ok {
@@ -167,7 +220,7 @@ func (f *Factory) CreateArchiveSpanReader() (spanstore.Reader, error) {
 func (f *Factory) CreateArchiveSpanWriter() (spanstore.Writer, error) {
 	factory, ok := f.factories[f.SpanWriterTypes[0]]
 	if !ok {
-		return nil, fmt.Errorf("No %s backend registered for span store", f.SpanWriterTypes[0])
+		return nil, fmt.Errorf("no %s backend registered for span store", f.SpanWriterTypes[0])
 	}
 	archive, ok := factory.(storage.ArchiveFactory)
 	if !ok {

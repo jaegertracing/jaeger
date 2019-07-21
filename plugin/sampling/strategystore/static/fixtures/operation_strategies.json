@@ -35,6 +35,11 @@
           "operation": "op4",
           "type": "ratelimiting",
           "param": 100
+        },
+        {
+          "operation": "op5",
+          "type": "probabilistic",
+          "param": 0.4
         }
       ]
     }

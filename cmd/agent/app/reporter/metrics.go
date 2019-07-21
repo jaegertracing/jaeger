@@ -55,7 +55,7 @@ func WrapWithMetrics(reporter Reporter, mFactory metrics.Factory) *MetricsReport
 	batchesMetrics := map[string]batchMetrics{}
 	for _, s := range []string{zipkinBatches, jaegerBatches} {
 		bm := batchMetrics{}
-		metrics.Init(&bm, mFactory.Namespace("reporter", map[string]string{"format": s}), nil)
+		metrics.Init(&bm, mFactory.Namespace(metrics.NSOptions{Name: "reporter", Tags: map[string]string{"format": s}}), nil)
 		batchesMetrics[s] = bm
 	}
 	return &MetricsReporter{wrapped: reporter, metrics: batchesMetrics}

@@ -72,8 +72,8 @@ func (f *Factory) InitFromViper(v *viper.Viper) {
 
 // Initialize implements storage.Factory
 func (f *Factory) Initialize(metricsFactory metrics.Factory, logger *zap.Logger) error {
-	f.primaryMetricsFactory = metricsFactory.Namespace("cassandra", nil)
-	f.archiveMetricsFactory = metricsFactory.Namespace("cassandra-archive", nil)
+	f.primaryMetricsFactory = metricsFactory.Namespace(metrics.NSOptions{Name: "cassandra", Tags: nil})
+	f.archiveMetricsFactory = metricsFactory.Namespace(metrics.NSOptions{Name: "cassandra-archive", Tags: nil})
 	f.logger = logger
 
 	primarySession, err := f.primaryConfig.NewSession()
@@ -106,7 +106,8 @@ func (f *Factory) CreateSpanWriter() (spanstore.Writer, error) {
 
 // CreateDependencyReader implements storage.Factory
 func (f *Factory) CreateDependencyReader() (dependencystore.Reader, error) {
-	return cDepStore.NewDependencyStore(f.primarySession, f.primaryMetricsFactory, f.logger), nil
+	version := cDepStore.GetDependencyVersion(f.primarySession)
+	return cDepStore.NewDependencyStore(f.primarySession, f.primaryMetricsFactory, f.logger, version)
 }
 
 // CreateArchiveSpanReader implements storage.ArchiveFactory

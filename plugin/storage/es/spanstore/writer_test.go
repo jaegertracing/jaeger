@@ -23,7 +23,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
 	"github.com/stretchr/testify/require"
-	"github.com/uber/jaeger-lib/metrics"
+	"github.com/uber/jaeger-lib/metrics/metricstest"
 	"go.uber.org/zap"
 
 	"github.com/jaegertracing/jaeger/model"
@@ -43,7 +43,7 @@ type spanWriterTest struct {
 func withSpanWriter(fn func(w *spanWriterTest)) {
 	client := &mocks.Client{}
 	logger, logBuffer := testutils.NewLogger()
-	metricsFactory := metrics.NewLocalFactory(0)
+	metricsFactory := metricstest.NewFactory(0)
 	w := &spanWriterTest{
 		client:    client,
 		logger:    logger,
@@ -55,23 +55,42 @@ func withSpanWriter(fn func(w *spanWriterTest)) {
 
 var _ spanstore.Writer = &SpanWriter{} // check API conformance
 
-func TestNewSpanWriterIndexPrefix(t *testing.T) {
-	testCases := []struct {
-		prefix   string
-		expected string
-	}{
-		{prefix: "", expected: ""},
-		{prefix: "foo", expected: "foo:"},
-		{prefix: ":", expected: "::"},
-	}
+func TestSpanWriterIndices(t *testing.T) {
 	client := &mocks.Client{}
 	logger, _ := testutils.NewLogger()
-	metricsFactory := metrics.NewLocalFactory(0)
+	metricsFactory := metricstest.NewFactory(0)
+	date := time.Now()
+	dateFormat := date.UTC().Format("2006-01-02")
+	testCases := []struct {
+		indices []string
+		params  SpanWriterParams
+	}{
+		{params: SpanWriterParams{Client: client, Logger: logger, MetricsFactory: metricsFactory,
+			IndexPrefix: "", Archive: false},
+			indices: []string{spanIndex + dateFormat, serviceIndex + dateFormat}},
+		{params: SpanWriterParams{Client: client, Logger: logger, MetricsFactory: metricsFactory,
+			IndexPrefix: "", UseReadWriteAliases: true},
+			indices: []string{spanIndex + "write", serviceIndex + "write"}},
+		{params: SpanWriterParams{Client: client, Logger: logger, MetricsFactory: metricsFactory,
+			IndexPrefix: "foo:", Archive: false},
+			indices: []string{"foo:" + indexPrefixSeparator + spanIndex + dateFormat, "foo:" + indexPrefixSeparator + serviceIndex + dateFormat}},
+		{params: SpanWriterParams{Client: client, Logger: logger, MetricsFactory: metricsFactory,
+			IndexPrefix: "foo:", UseReadWriteAliases: true},
+			indices: []string{"foo:-" + spanIndex + "write", "foo:-" + serviceIndex + "write"}},
+		{params: SpanWriterParams{Client: client, Logger: logger, MetricsFactory: metricsFactory,
+			IndexPrefix: "", Archive: true},
+			indices: []string{spanIndex + archiveIndexSuffix, ""}},
+		{params: SpanWriterParams{Client: client, Logger: logger, MetricsFactory: metricsFactory,
+			IndexPrefix: "foo:", Archive: true},
+			indices: []string{"foo:" + indexPrefixSeparator + spanIndex + archiveIndexSuffix, ""}},
+		{params: SpanWriterParams{Client: client, Logger: logger, MetricsFactory: metricsFactory,
+			IndexPrefix: "foo:", Archive: true, UseReadWriteAliases: true},
+			indices: []string{"foo:" + indexPrefixSeparator + spanIndex + archiveWriteIndexSuffix, ""}},
+	}
 	for _, testCase := range testCases {
-		w := NewSpanWriter(SpanWriterParams{Client: client, Logger: logger, MetricsFactory: metricsFactory,
-			IndexPrefix: testCase.prefix})
-		assert.Equal(t, testCase.expected+spanIndex, w.spanIndexPrefix)
-		assert.Equal(t, testCase.expected+serviceIndex, w.serviceIndexPrefix)
+		w := NewSpanWriter(testCase.params)
+		spanIndexName, serviceIndexName := w.spanServiceIndex(date)
+		assert.Equal(t, testCase.indices, []string{spanIndexName, serviceIndexName})
 	}
 }
 
@@ -92,8 +111,6 @@ func TestSpanWriter_WriteSpan(t *testing.T) {
 		spanIndexExists         bool
 		serviceIndexCreateError error
 		spanIndexCreateError    error
-		servicePutError         error
-		spanPutError            error
 		expectedError           string
 		expectedLogs            []string
 	}{
@@ -163,11 +180,11 @@ func TestSpanWriter_WriteSpan(t *testing.T) {
 				spanExistsService.On("Do", mock.AnythingOfType("*context.emptyCtx")).Return(testCase.spanIndexExists, nil)
 
 				serviceCreateService := &mocks.IndicesCreateService{}
-				serviceCreateService.On("Body", stringMatcher(w.writer.fixMapping(serviceMapping))).Return(serviceCreateService)
+				serviceCreateService.On("Body", mock.AnythingOfType("string")).Return(serviceCreateService)
 				serviceCreateService.On("Do", mock.AnythingOfType("*context.emptyCtx")).Return(nil, testCase.serviceIndexCreateError)
 
 				spanCreateService := &mocks.IndicesCreateService{}
-				spanCreateService.On("Body", stringMatcher(w.writer.fixMapping(spanMapping))).Return(spanCreateService)
+				spanCreateService.On("Body", mock.AnythingOfType("string")).Return(spanCreateService)
 				spanCreateService.On("Do", mock.AnythingOfType("*context.emptyCtx")).Return(nil, testCase.spanIndexCreateError)
 
 				indexService := &mocks.IndexService{}
@@ -227,45 +244,6 @@ func TestSpanIndexName(t *testing.T) {
 	assert.Equal(t, "jaeger-service-1995-04-21", serviceIndexName)
 }
 
-func TestFixMapping(t *testing.T) {
-	withSpanWriter(func(w *spanWriterTest) {
-		testMapping := `{
-		   "settings":{
-		      "index.number_of_shards": ${__NUMBER_OF_SHARDS__},
-      		      "index.number_of_replicas": ${__NUMBER_OF_REPLICAS__},
-		      "index.mapping.nested_fields.limit":50,
-		      "index.requests.cache.enable":true,
-		      "index.mapper.dynamic":false
-		   },
-		   "mappings":{
-		      "_default_":{
-			 "_all":{
-			    "enabled":false
-			 }
-		      }
-		   }
-		}`
-		expectedMapping := `{
-		   "settings":{
-		      "index.number_of_shards": 5,
-      		      "index.number_of_replicas": 0,
-		      "index.mapping.nested_fields.limit":50,
-		      "index.requests.cache.enable":true,
-		      "index.mapper.dynamic":false
-		   },
-		   "mappings":{
-		      "_default_":{
-			 "_all":{
-			    "enabled":false
-			 }
-		      }
-		   }
-		}`
-
-		assert.Equal(t, expectedMapping, w.writer.fixMapping(testMapping))
-	})
-}
-
 func TestWriteSpanInternal(t *testing.T) {
 	withSpanWriter(func(w *spanWriterTest) {
 		indexService := &mocks.IndexService{}
@@ -311,7 +289,7 @@ func TestWriteSpanInternalError(t *testing.T) {
 func TestNewSpanTags(t *testing.T) {
 	client := &mocks.Client{}
 	logger, _ := testutils.NewLogger()
-	metricsFactory := metrics.NewLocalFactory(0)
+	metricsFactory := metricstest.NewFactory(0)
 	testCases := []struct {
 		writer   *SpanWriter
 		expected dbmodel.Span

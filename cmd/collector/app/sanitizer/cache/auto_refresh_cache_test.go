@@ -29,7 +29,7 @@ import (
 var (
 	testCache1 = map[string]string{"supply": "rt-supply"}
 	testCache2 = map[string]string{"demand": "rt-demand"}
-	errDefault = errors.New("Test error")
+	errDefault = errors.New("test error")
 )
 
 // Generate the serviceAliasMapping mocks using go generate. Run "make build-mocks" to regenerate mocks

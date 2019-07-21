@@ -22,10 +22,8 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"github.com/uber/jaeger-lib/metrics"
-	metricsTest "github.com/uber/jaeger-lib/metrics/testutils"
-	"github.com/uber/tchannel-go/thrift"
+	"github.com/uber/jaeger-lib/metrics/metricstest"
 	"go.uber.org/zap"
-	"golang.org/x/net/context"
 
 	zipkinSanitizer "github.com/jaegertracing/jaeger/cmd/collector/app/sanitizer/zipkin"
 	"github.com/jaegertracing/jaeger/model"
@@ -40,13 +38,13 @@ func TestBySvcMetrics(t *testing.T) {
 	allowedService := "bender"
 
 	type TestCase struct {
-		format      string
+		format      SpanFormat
 		serviceName string
 		rootSpan    bool
 		debug       bool
 	}
 
-	spanFormat := [2]string{ZipkinFormatType, JaegerFormatType}
+	spanFormat := [2]SpanFormat{ZipkinSpanFormat, JaegerSpanFormat}
 	serviceNames := [2]string{allowedService, blackListedService}
 	rootSpanEnabled := [2]bool{true, false}
 	debugEnabled := [2]bool{true, false}
@@ -69,10 +67,10 @@ func TestBySvcMetrics(t *testing.T) {
 	}
 
 	for _, test := range tests {
-		mb := metrics.NewLocalFactory(time.Hour)
+		mb := metricstest.NewFactory(time.Hour)
 		logger := zap.NewNop()
-		serviceMetrics := mb.Namespace("service", nil)
-		hostMetrics := mb.Namespace("host", nil)
+		serviceMetrics := mb.Namespace(metrics.NSOptions{Name: "service", Tags: nil})
+		hostMetrics := mb.Namespace(metrics.NSOptions{Name: "host", Tags: nil})
 		processor := newSpanProcessor(
 			&fakeSpanWriter{},
 			Options.ServiceMetrics(serviceMetrics),
@@ -83,19 +81,18 @@ func TestBySvcMetrics(t *testing.T) {
 			Options.ReportBusy(false),
 			Options.SpanFilter(isSpanAllowed),
 		)
-		ctx := context.Background()
-		tctx := thrift.Wrap(ctx)
 		var metricPrefix, format string
-		if test.format == ZipkinFormatType {
+		switch test.format {
+		case ZipkinSpanFormat:
 			span := makeZipkinSpan(test.serviceName, test.rootSpan, test.debug)
 			zHandler := NewZipkinSpanHandler(logger, processor, zipkinSanitizer.NewParentIDSanitizer())
-			zHandler.SubmitZipkinBatch(tctx, []*zc.Span{span, span})
+			zHandler.SubmitZipkinBatch([]*zc.Span{span, span}, SubmitBatchOptions{})
 			metricPrefix = "service"
 			format = "zipkin"
-		} else if test.format == JaegerFormatType {
+		case JaegerSpanFormat:
 			span, process := makeJaegerSpan(test.serviceName, test.rootSpan, test.debug)
 			jHandler := NewJaegerSpanHandler(logger, processor)
-			jHandler.SubmitBatches(tctx, []*jaeger.Batch{
+			jHandler.SubmitBatches([]*jaeger.Batch{
 				{
 					Spans: []*jaeger.Span{
 						span,
@@ -103,30 +100,30 @@ func TestBySvcMetrics(t *testing.T) {
 					},
 					Process: process,
 				},
-			})
+			}, SubmitBatchOptions{})
 			metricPrefix = "service"
 			format = "jaeger"
-		} else {
+		default:
 			panic("Unknown format")
 		}
-		expected := []metricsTest.ExpectedMetric{}
+		expected := []metricstest.ExpectedMetric{}
 		if test.debug {
-			expected = append(expected, metricsTest.ExpectedMetric{
-				Name: metricPrefix + ".spans.received|debug=true|format=" + format + "|svc=" + test.serviceName, Value: 2,
+			expected = append(expected, metricstest.ExpectedMetric{
+				Name: metricPrefix + ".spans.received|debug=true|format=" + format + "|svc=" + test.serviceName + "|transport=unknown", Value: 2,
 			})
 		} else {
-			expected = append(expected, metricsTest.ExpectedMetric{
-				Name: metricPrefix + ".spans.received|debug=false|format=" + format + "|svc=" + test.serviceName, Value: 2,
+			expected = append(expected, metricstest.ExpectedMetric{
+				Name: metricPrefix + ".spans.received|debug=false|format=" + format + "|svc=" + test.serviceName + "|transport=unknown", Value: 2,
 			})
 		}
 		if test.rootSpan {
 			if test.debug {
-				expected = append(expected, metricsTest.ExpectedMetric{
-					Name: metricPrefix + ".traces.received|debug=true|format=" + format + "|svc=" + test.serviceName, Value: 2,
+				expected = append(expected, metricstest.ExpectedMetric{
+					Name: metricPrefix + ".traces.received|debug=true|format=" + format + "|sampler_type=unknown|svc=" + test.serviceName + "|transport=unknown", Value: 2,
 				})
 			} else {
-				expected = append(expected, metricsTest.ExpectedMetric{
-					Name: metricPrefix + ".traces.received|debug=false|format=" + format + "|svc=" + test.serviceName, Value: 2,
+				expected = append(expected, metricstest.ExpectedMetric{
+					Name: metricPrefix + ".traces.received|debug=false|format=" + format + "|sampler_type=unknown|svc=" + test.serviceName + "|transport=unknown", Value: 2,
 				})
 			}
 		}
@@ -135,17 +132,15 @@ func TestBySvcMetrics(t *testing.T) {
 			// because both are emitted when attempting to add span to the queue, and since
 			// we defined the queue capacity as 0, all submitted items are dropped.
 			// The debug spans are always accepted.
-			expected = append(expected, metricsTest.ExpectedMetric{
-				Name: "host.error.busy", Value: 2,
-			}, metricsTest.ExpectedMetric{
+			expected = append(expected, metricstest.ExpectedMetric{
 				Name: "host.spans.dropped", Value: 2,
 			})
 		} else {
-			expected = append(expected, metricsTest.ExpectedMetric{
-				Name: metricPrefix + ".spans.rejected|debug=false|format=" + format + "|svc=" + test.serviceName, Value: 2,
+			expected = append(expected, metricstest.ExpectedMetric{
+				Name: metricPrefix + ".spans.rejected|debug=false|format=" + format + "|svc=" + test.serviceName + "|transport=unknown", Value: 2,
 			})
 		}
-		metricsTest.AssertCounterMetrics(t, mb, expected...)
+		mb.AssertCounterMetrics(t, expected...)
 	}
 }
 
@@ -218,7 +213,7 @@ func TestSpanProcessor(t *testing.T) {
 				ServiceName: "x",
 			},
 		},
-	}, JaegerFormatType)
+	}, ProcessSpansOptions{SpanFormat: JaegerSpanFormat})
 	assert.NoError(t, err)
 	assert.Equal(t, []bool{true}, res)
 }
@@ -228,8 +223,8 @@ func TestSpanProcessorErrors(t *testing.T) {
 	w := &fakeSpanWriter{
 		err: fmt.Errorf("some-error"),
 	}
-	mb := metrics.NewLocalFactory(time.Hour)
-	serviceMetrics := mb.Namespace("service", nil)
+	mb := metricstest.NewFactory(time.Hour)
+	serviceMetrics := mb.Namespace(metrics.NSOptions{Name: "service", Tags: nil})
 	p := NewSpanProcessor(w,
 		Options.Logger(logger),
 		Options.ServiceMetrics(serviceMetrics),
@@ -241,8 +236,7 @@ func TestSpanProcessorErrors(t *testing.T) {
 				ServiceName: "x",
 			},
 		},
-	}, JaegerFormatType)
-
+	}, ProcessSpansOptions{SpanFormat: JaegerSpanFormat})
 	assert.NoError(t, err)
 	assert.Equal(t, []bool{true}, res)
 
@@ -254,10 +248,10 @@ func TestSpanProcessorErrors(t *testing.T) {
 		"error": "some-error",
 	}, logBuf.JSONLine(0))
 
-	expected := []metricsTest.ExpectedMetric{{
+	expected := []metricstest.ExpectedMetric{{
 		Name: "service.spans.saved-by-svc|debug=false|result=err|svc=x", Value: 1,
 	}}
-	metricsTest.AssertCounterMetrics(t, mb, expected...)
+	mb.AssertCounterMetrics(t, expected...)
 }
 
 type blockingWriter struct {
@@ -300,7 +294,7 @@ func TestSpanProcessorBusy(t *testing.T) {
 				ServiceName: "x",
 			},
 		},
-	}, JaegerFormatType)
+	}, ProcessSpansOptions{SpanFormat: JaegerSpanFormat})
 
 	assert.Error(t, err, "expcting busy error")
 	assert.Nil(t, res)

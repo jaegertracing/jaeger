@@ -20,6 +20,8 @@ import (
 	"crypto/x509"
 	"io/ioutil"
 	"net/http"
+	"path/filepath"
+	"strings"
 	"sync"
 	"time"
 
@@ -29,36 +31,44 @@ import (
 	"gopkg.in/olivere/elastic.v5"
 
 	"github.com/jaegertracing/jaeger/pkg/es"
+	"github.com/jaegertracing/jaeger/pkg/es/wrapper"
+	"github.com/jaegertracing/jaeger/storage/spanstore"
 	storageMetrics "github.com/jaegertracing/jaeger/storage/spanstore/metrics"
 )
 
 // Configuration describes the configuration properties needed to connect to an ElasticSearch cluster
 type Configuration struct {
-	Servers           []string
-	Username          string
-	Password          string
-	Sniffer           bool          // https://github.com/olivere/elastic/wiki/Sniffing
-	MaxSpanAge        time.Duration `yaml:"max_span_age"` // configures the maximum lookback on span reads
-	NumShards         int64         `yaml:"shards"`
-	NumReplicas       int64         `yaml:"replicas"`
-	Timeout           time.Duration `validate:"min=500"`
-	BulkSize          int
-	BulkWorkers       int
-	BulkActions       int
-	BulkFlushInterval time.Duration
-	IndexPrefix       string
-	TagsFilePath      string
-	AllTagsAsFields   bool
-	TagDotReplacement string
-	TLS               TLSConfig
+	Servers               []string
+	Username              string
+	Password              string
+	TokenFilePath         string
+	AllowTokenFromContext bool
+	Sniffer               bool          // https://github.com/olivere/elastic/wiki/Sniffing
+	MaxNumSpans           int           // defines maximum number of spans to fetch from storage per query
+	MaxSpanAge            time.Duration `yaml:"max_span_age"` // configures the maximum lookback on span reads
+	NumShards             int64         `yaml:"shards"`
+	NumReplicas           int64         `yaml:"replicas"`
+	Timeout               time.Duration `validate:"min=500"`
+	BulkSize              int
+	BulkWorkers           int
+	BulkActions           int
+	BulkFlushInterval     time.Duration
+	IndexPrefix           string
+	TagsFilePath          string
+	AllTagsAsFields       bool
+	TagDotReplacement     string
+	Enabled               bool
+	TLS                   TLSConfig
+	UseReadWriteAliases   bool
 }
 
 // TLSConfig describes the configuration properties to connect tls enabled ElasticSearch cluster
 type TLSConfig struct {
-	Enabled  bool
-	CertPath string
-	KeyPath  string
-	CaPath   string
+	Enabled        bool
+	SkipHostVerify bool
+	CertPath       string
+	KeyPath        string
+	CaPath         string
 }
 
 // ClientBuilder creates new es.Client
@@ -67,10 +77,14 @@ type ClientBuilder interface {
 	GetNumShards() int64
 	GetNumReplicas() int64
 	GetMaxSpanAge() time.Duration
+	GetMaxNumSpans() int
 	GetIndexPrefix() string
 	GetTagsFilePath() string
 	GetAllTagsAsFields() bool
 	GetTagDotReplacement() string
+	GetUseReadWriteAliases() bool
+	GetTokenFilePath() string
+	IsEnabled() bool
 }
 
 // NewClient creates a new ElasticSearch client
@@ -78,7 +92,7 @@ func (c *Configuration) NewClient(logger *zap.Logger, metricsFactory metrics.Fac
 	if len(c.Servers) < 1 {
 		return nil, errors.New("No servers specified")
 	}
-	options, err := c.getConfigOptions()
+	options, err := c.getConfigOptions(logger)
 	if err != nil {
 		return nil, err
 	}
@@ -103,7 +117,7 @@ func (c *Configuration) NewClient(logger *zap.Logger, metricsFactory metrics.Fac
 			m.Delete(id)
 
 			// log individual errors, note that err might be false and these errors still present
-			if response.Errors {
+			if response != nil && response.Errors {
 				for _, it := range response.Items {
 					for key, val := range it {
 						if val.Error != nil {
@@ -116,7 +130,12 @@ func (c *Configuration) NewClient(logger *zap.Logger, metricsFactory metrics.Fac
 
 			sm.Emit(err, time.Since(start.(time.Time)))
 			if err != nil {
-				failed := len(response.Failed())
+				var failed int
+				if response == nil {
+					failed = 0
+				} else {
+					failed = len(response.Failed())
+				}
 				total := len(requests)
 				logger.Error("Elasticsearch could not process bulk request",
 					zap.Int("request_count", total),
@@ -133,7 +152,7 @@ func (c *Configuration) NewClient(logger *zap.Logger, metricsFactory metrics.Fac
 	if err != nil {
 		return nil, err
 	}
-	return es.WrapESClient(rawClient, service), nil
+	return eswrapper.WrapESClient(rawClient, service), nil
 }
 
 // ApplyDefaults copies settings from source unless its own value is non-zero.
@@ -149,6 +168,9 @@ func (c *Configuration) ApplyDefaults(source *Configuration) {
 	}
 	if c.MaxSpanAge == 0 {
 		c.MaxSpanAge = source.MaxSpanAge
+	}
+	if c.MaxNumSpans == 0 {
+		c.MaxNumSpans = source.MaxNumSpans
 	}
 	if c.NumShards == 0 {
 		c.NumShards = source.NumShards
@@ -185,6 +207,11 @@ func (c *Configuration) GetMaxSpanAge() time.Duration {
 	return c.MaxSpanAge
 }
 
+// GetMaxNumSpans returns max spans allowed per query from Configuration
+func (c *Configuration) GetMaxNumSpans() int {
+	return c.MaxNumSpans
+}
+
 // GetIndexPrefix returns index prefix
 func (c *Configuration) GetIndexPrefix() string {
 	return c.IndexPrefix
@@ -206,9 +233,29 @@ func (c *Configuration) GetTagDotReplacement() string {
 	return c.TagDotReplacement
 }
 
+// GetUseReadWriteAliases indicates whether read alias should be used
+func (c *Configuration) GetUseReadWriteAliases() bool {
+	return c.UseReadWriteAliases
+}
+
+// GetTokenFilePath returns file path containing the bearer token
+func (c *Configuration) GetTokenFilePath() string {
+	return c.TokenFilePath
+}
+
+// IsEnabled determines whether storage is enabled
+func (c *Configuration) IsEnabled() bool {
+	return c.Enabled
+}
+
 // getConfigOptions wraps the configs to feed to the ElasticSearch client init
-func (c *Configuration) getConfigOptions() ([]elastic.ClientOptionFunc, error) {
-	options := []elastic.ClientOptionFunc{elastic.SetURL(c.Servers...), elastic.SetSniff(c.Sniffer)}
+func (c *Configuration) getConfigOptions(logger *zap.Logger) ([]elastic.ClientOptionFunc, error) {
+
+	options := []elastic.ClientOptionFunc{elastic.SetURL(c.Servers...), elastic.SetSniff(c.Sniffer),
+		// Disable health check when token from context is allowed, this is because at this time
+		// we don' have a valid token to do the check ad if we don't disable the check the service that
+		// uses this won't start.
+		elastic.SetHealthcheck(!c.AllowTokenFromContext)}
 	httpClient := &http.Client{
 		Timeout: c.Timeout,
 	}
@@ -222,7 +269,38 @@ func (c *Configuration) getConfigOptions() ([]elastic.ClientOptionFunc, error) {
 			TLSClientConfig: ctlsConfig,
 		}
 	} else {
-		options = append(options, elastic.SetBasicAuth(c.Username, c.Password))
+		httpTransport := &http.Transport{}
+		if c.TLS.CaPath != "" {
+			ctls := &TLSConfig{CaPath: c.TLS.CaPath}
+			ca, err := ctls.loadCertificate()
+			if err != nil {
+				return nil, err
+			}
+			httpTransport.TLSClientConfig = &tls.Config{RootCAs: ca}
+		}
+
+		token := ""
+		if c.TokenFilePath != "" {
+			if c.AllowTokenFromContext {
+				logger.Warn("Token file and token propagation are both enabled, token from file won't be used")
+			}
+			tokenFromFile, err := loadToken(c.TokenFilePath)
+			if err != nil {
+				return nil, err
+			}
+			token = tokenFromFile
+		}
+
+		if token != "" || c.AllowTokenFromContext {
+			httpClient.Transport = &tokenAuthTransport{
+				token:                token,
+				allowOverrideFromCtx: c.AllowTokenFromContext,
+				wrapped:              httpTransport,
+			}
+		} else {
+			httpClient.Transport = httpTransport
+			options = append(options, elastic.SetBasicAuth(c.Username, c.Password))
+		}
 	}
 	return options, nil
 }
@@ -237,9 +315,11 @@ func (tlsConfig *TLSConfig) createTLSConfig() (*tls.Config, error) {
 	if err != nil {
 		return nil, err
 	}
+	// #nosec
 	return &tls.Config{
-		RootCAs:      rootCerts,
-		Certificates: []tls.Certificate{*clientPrivateKey},
+		RootCAs:            rootCerts,
+		Certificates:       []tls.Certificate{*clientPrivateKey},
+		InsecureSkipVerify: tlsConfig.SkipHostVerify,
 	}, nil
 
 }
@@ -262,4 +342,31 @@ func (tlsConfig *TLSConfig) loadPrivateKey() (*tls.Certificate, error) {
 		return nil, err
 	}
 	return &privateKey, nil
+}
+
+// TokenAuthTransport
+type tokenAuthTransport struct {
+	token                string
+	allowOverrideFromCtx bool
+	wrapped              *http.Transport
+}
+
+func (tr *tokenAuthTransport) RoundTrip(r *http.Request) (*http.Response, error) {
+	token := tr.token
+	if tr.allowOverrideFromCtx {
+		headerToken, _ := spanstore.GetBearerToken(r.Context())
+		if headerToken != "" {
+			token = headerToken
+		}
+	}
+	r.Header.Set("Authorization", "Bearer "+token)
+	return tr.wrapped.RoundTrip(r)
+}
+
+func loadToken(path string) (string, error) {
+	b, err := ioutil.ReadFile(filepath.Clean(path))
+	if err != nil {
+		return "", err
+	}
+	return strings.TrimRight(string(b), "\r\n"), nil
 }
