@@ -33,7 +33,7 @@
         }
       ]
     },
-    "span":{
+    "_doc":{
       "properties":{
         "traceID":{
           "type":"keyword",

@@ -29,7 +29,7 @@ import (
 )
 
 const (
-	dependencyType  = "dependencies"
+	dependencyType  = "_doc"
 	dependencyIndex = "jaeger-dependencies-"
 )
 

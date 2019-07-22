@@ -33,7 +33,7 @@
         }
       ]
     },
-    "service":{
+    "_doc":{
       "properties":{
         "serviceName":{
           "type":"keyword",

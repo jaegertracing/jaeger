@@ -29,8 +29,8 @@ import (
 )
 
 const (
-	spanType    = "span"
-	serviceType = "service"
+	spanType    = "_doc"
+	serviceType = "_doc"
 )
 
 type spanWriterMetrics struct {
