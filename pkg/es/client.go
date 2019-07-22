@@ -41,6 +41,7 @@ type IndicesExistsService interface {
 type IndicesCreateService interface {
 	Body(mapping string) IndicesCreateService
 	Do(ctx context.Context) (*elastic.IndicesCreateResult, error)
+	IncludeTypeName(include bool) IndicesCreateService
 }
 
 // TemplateCreateService is an abstraction for creating a mapping

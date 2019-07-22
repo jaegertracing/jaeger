@@ -105,6 +105,11 @@ func (c IndicesCreateServiceWrapper) Body(mapping string) es.IndicesCreateServic
 	return WrapESIndicesCreateService(c.indicesCreateService.Body(mapping))
 }
 
+// IncludeTypeName calls this function to internal service.
+func (c IndicesCreateServiceWrapper) IncludeTypeName(include bool) es.IndicesCreateService {
+	return WrapESIndicesCreateService(c.indicesCreateService.IncludeTypeName(include))
+}
+
 // Do calls this function to internal service.
 func (c IndicesCreateServiceWrapper) Do(ctx context.Context) (*elastic.IndicesCreateResult, error) {
 	return c.indicesCreateService.Do(ctx)

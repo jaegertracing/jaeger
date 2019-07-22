@@ -19,9 +19,9 @@ import (
 	"encoding/json"
 	"time"
 
+	"github.com/olivere/elastic"
 	"github.com/pkg/errors"
 	"go.uber.org/zap"
-	"github.com/olivere/elastic"
 
 	"github.com/jaegertracing/jaeger/model"
 	"github.com/jaegertracing/jaeger/pkg/es"
@@ -66,7 +66,7 @@ func (s *DependencyStore) WriteDependencies(ts time.Time, dependencies []model.D
 }
 
 func (s *DependencyStore) createIndex(indexName string) error {
-	_, err := s.client.CreateIndex(indexName).Body(dependenciesMapping).Do(s.ctx)
+	_, err := s.client.CreateIndex(indexName).Body(dependenciesMapping).IncludeTypeName(true).Do(s.ctx)
 	if err != nil {
 		return errors.Wrap(err, "Failed to create index")
 	}
