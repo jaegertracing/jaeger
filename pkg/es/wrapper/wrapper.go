@@ -17,7 +17,7 @@ package eswrapper
 import (
 	"context"
 
-	"gopkg.in/olivere/elastic.v5"
+	"github.com/olivere/elastic"
 
 	"github.com/jaegertracing/jaeger/pkg/es"
 )
