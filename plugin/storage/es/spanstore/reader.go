@@ -308,9 +308,7 @@ func (s *SpanReader) multiRead(ctx context.Context, traceIDs []model.TraceID, st
 	if len(traceIDs) == 0 {
 		return []*model.Trace{}, nil
 	}
-	searchRequests := make([]*elastic.SearchRequest, len(traceIDs))
 
-	var traces []*model.Trace
 	// Add an hour in both directions so that traces that straddle two indexes are retrieved.
 	// i.e starts in one and ends in another.
 	indices := s.timeRangeIndices(s.spanIndexPrefix, startTime.Add(-time.Hour), endTime.Add(time.Hour))
@@ -323,7 +321,7 @@ func (s *SpanReader) multiRead(ctx context.Context, traceIDs []model.TraceID, st
 		if len(traceIDs) == 0 {
 			break
 		}
-
+		searchRequests := make([]*elastic.SearchRequest, len(traceIDs))
 		for i, traceID := range traceIDs {
 			query := elastic.NewTermQuery("traceID", traceID.String())
 			if val, ok := searchAfterTime[traceID]; ok {
@@ -375,6 +373,7 @@ func (s *SpanReader) multiRead(ctx context.Context, traceIDs []model.TraceID, st
 		}
 	}
 
+	var traces []*model.Trace
 	for _, trace := range tracesMap {
 		traces = append(traces, trace)
 	}
