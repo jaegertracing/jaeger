@@ -19,7 +19,7 @@ import (
 	"errors"
 
 	"google.golang.org/grpc"
-
+	"google.golang.org/grpc/metadata"
 	"github.com/jaegertracing/jaeger/model/converter/thrift/jaeger"
 	"github.com/jaegertracing/jaeger/proto-gen/api_v2"
 	"github.com/jaegertracing/jaeger/thrift-gen/baggage"
@@ -29,18 +29,20 @@ import (
 // SamplingManager returns sampling decisions from collector over gRPC.
 type SamplingManager struct {
 	client api_v2.SamplingManagerClient
+	md  metadata.MD;
 }
 
 // NewConfigManager creates gRPC sampling manager.
-func NewConfigManager(conn *grpc.ClientConn) *SamplingManager {
+func NewConfigManager(conn *grpc.ClientConn, agentTags map[string]string) *SamplingManager {
 	return &SamplingManager{
 		client: api_v2.NewSamplingManagerClient(conn),
+		md: metadata.New(agentTags),
 	}
 }
 
 // GetSamplingStrategy returns sampling strategies from collector.
 func (s *SamplingManager) GetSamplingStrategy(serviceName string) (*sampling.SamplingStrategyResponse, error) {
-	r, err := s.client.GetSamplingStrategy(context.Background(), &api_v2.SamplingStrategyParameters{ServiceName: serviceName})
+	r, err := s.client.GetSamplingStrategy(metadata.NewOutgoingContext(context.Background(), s.md), &api_v2.SamplingStrategyParameters{ServiceName: serviceName})
 	if err != nil {
 		return nil, err
 	}

@@ -46,7 +46,7 @@ func NewCollectorProxy(builder *ConnBuilder, agentTags map[string]string, mFacto
 	return &ProxyBuilder{
 		conn:     conn,
 		reporter: reporter.WrapWithMetrics(NewReporter(conn, agentTags, logger), grpcMetrics),
-		manager:  configmanager.WrapWithMetrics(grpcManager.NewConfigManager(conn), grpcMetrics),
+		manager:  configmanager.WrapWithMetrics(grpcManager.NewConfigManager(conn, agentTags), grpcMetrics),
 	}, nil
 }
 

@@ -25,7 +25,11 @@ import (
 
 	"github.com/jaegertracing/jaeger/proto-gen/api_v2"
 	"github.com/jaegertracing/jaeger/thrift-gen/sampling"
+	"google.golang.org/grpc/metadata"
 )
+
+const tagKey = "region"
+const tagVal = "CA"
 
 func TestSamplingManager_GetSamplingStrategy(t *testing.T) {
 	s, addr := initializeGRPCTestServer(t, func(s *grpc.Server) {
@@ -36,10 +40,25 @@ func TestSamplingManager_GetSamplingStrategy(t *testing.T) {
 	defer conn.Close()
 	require.NoError(t, err)
 	defer s.GracefulStop()
-	manager := NewConfigManager(conn)
+	manager := NewConfigManager(conn, nil)
 	resp, err := manager.GetSamplingStrategy("any")
 	require.NoError(t, err)
 	assert.Equal(t, &sampling.SamplingStrategyResponse{StrategyType: sampling.SamplingStrategyType_PROBABILISTIC}, resp)
+}
+
+func TestSamplingManager_GetSamplingStrategy_tag(t *testing.T) {
+	s, addr := initializeGRPCTestServer(t, func(s *grpc.Server) {
+		api_v2.RegisterSamplingManagerServer(s, &mockSamplingHandler{})
+	})
+	conn, err := grpc.Dial(addr.String(), grpc.WithInsecure())
+	//lint:ignore SA5001 don't care about errors
+	defer conn.Close()
+	require.NoError(t, err)
+	defer s.GracefulStop()
+	manager := NewConfigManager(conn, map[string]string{tagKey: tagVal})
+	resp, err := manager.GetSamplingStrategy("any")
+	require.NoError(t, err)
+	assert.Equal(t, &sampling.SamplingStrategyResponse{StrategyType: sampling.SamplingStrategyType_RATE_LIMITING}, resp)
 }
 
 func TestSamplingManager_GetSamplingStrategy_error(t *testing.T) {
@@ -47,23 +66,36 @@ func TestSamplingManager_GetSamplingStrategy_error(t *testing.T) {
 	//lint:ignore SA5001 don't care about errors
 	defer conn.Close()
 	require.NoError(t, err)
-	manager := NewConfigManager(conn)
+	manager := NewConfigManager(conn, nil)
 	resp, err := manager.GetSamplingStrategy("any")
 	require.Nil(t, resp)
 	assert.EqualError(t, err, "rpc error: code = Unavailable desc = all SubConns are in TransientFailure, latest connection error: connection error: desc = \"transport: Error while dialing dial tcp: address foo: missing port in address\"")
 }
 
 func TestSamplingManager_GetBaggageRestrictions(t *testing.T) {
-	manager := NewConfigManager(nil)
+	manager := NewConfigManager(nil, nil)
 	rest, err := manager.GetBaggageRestrictions("foo")
 	require.Nil(t, rest)
 	assert.EqualError(t, err, "baggage not implemented")
 }
 
+
+
 type mockSamplingHandler struct {
 }
 
-func (*mockSamplingHandler) GetSamplingStrategy(context.Context, *api_v2.SamplingStrategyParameters) (*api_v2.SamplingStrategyResponse, error) {
+func (*mockSamplingHandler) GetSamplingStrategy(ctx context.Context, param *api_v2.SamplingStrategyParameters) (*api_v2.SamplingStrategyResponse, error) {
+	md, ok := metadata.FromIncomingContext(ctx)
+
+	if (ok) {
+		if (len(md[tagKey]) > 0) {
+			for _, s := range md[tagKey] {
+				if (s == tagVal) {
+					return &api_v2.SamplingStrategyResponse{StrategyType: api_v2.SamplingStrategyType_RATE_LIMITING}, nil
+				}
+			}
+		}
+	}
 	return &api_v2.SamplingStrategyResponse{StrategyType: api_v2.SamplingStrategyType_PROBABILISTIC}, nil
 }
 
