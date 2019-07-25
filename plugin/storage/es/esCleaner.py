@@ -15,7 +15,8 @@ def main():
         print('HOSTNAME ... specifies which Elasticsearch hosts URL to search and delete indices from.')
         print('TIMEOUT ...  number of seconds to wait for master node response.'.format(TIMEOUT))
         print('INDEX_PREFIX ... specifies index prefix.')
-        print('ARCHIVE ... specifies whether to remove archive indices (default false).')
+        print('ARCHIVE ... specifies whether to remove archive indices (only works for rollover) (default false).')
+        print('ROLLOVER ... specifies whether to remove indices created by rollover (default false).')
         print('ES_USERNAME ... The username required by Elasticsearch.')
         print('ES_PASSWORD ... The password required by Elasticsearch.')
         print('ES_TLS ... enable TLS (default false).')
@@ -46,7 +47,10 @@ def main():
     if str2bool(os.getenv("ARCHIVE", 'false')):
         filter_archive_indices(ilo, prefix)
     else:
-        filter_main_indices(ilo, prefix)
+        if str2bool(os.getenv("ROLLOVER", 'false')):
+            filter_main_indices_rollover(ilo, prefix)
+        else:
+            filter_main_indices(ilo, prefix)
 
     empty_list(ilo, 'No indices to delete')
 
@@ -60,13 +64,36 @@ def main():
 def filter_main_indices(ilo, prefix):
     ilo.filter_by_regex(kind='prefix', value=prefix + "jaeger")
     empty_list(ilo, "No indices to delete")
+    ilo.filter_by_alias(aliases=[prefix + 'jaeger-span-read'], exclude=True)
+    ilo.filter_by_alias(aliases=[prefix + 'jaeger-span-write'], exclude=True)
+    ilo.filter_by_alias(aliases=[prefix + 'jaeger-service-read'], exclude=True)
+    ilo.filter_by_alias(aliases=[prefix + 'jaeger-service-write'], exclude=True)
+    ilo.filter_by_alias(aliases=[prefix + 'jaeger-span-archive-read'], exclude=True)
+    ilo.filter_by_alias(aliases=[prefix + 'jaeger-span-archive-write'], exclude=True)
+    empty_list(ilo, "No indices to delete")
     # This excludes archive index as we use source='name'
     # source `creation_date` would include archive index
     ilo.filter_by_age(source='name', direction='older', timestring='%Y-%m-%d', unit='days', unit_count=int(sys.argv[1]))
 
 
+def filter_main_indices_rollover(ilo, prefix):
+    ilo.filter_by_alias(aliases=[prefix + 'jaeger-*-read'])
+    empty_list(ilo, "No indices to delete")
+    # do not remove active write indices
+    ilo.filter_by_alias(aliases=[prefix + 'jaeger-span-write'], exclude=True)
+    empty_list(ilo, "No indices to delete")
+    ilo.filter_by_alias(aliases=[prefix + 'jaeger-service-write'], exclude=True)
+    empty_list(ilo, "No indices to delete")
+    ilo.filter_by_regex(kind='prefix', value=prefix + 'jaeger-span-archive*', exclude=True)
+    empty_list(ilo, "No indices to delete")
+    # This excludes archive index as we use source='name'
+    # source `creation_date` would include archive index
+    # TODO it might be useful to allow filter_by_space
+    ilo.filter_by_age(source='creation_date', direction='older', unit='days', unit_count=int(sys.argv[1]))
+
+
 def filter_archive_indices(ilo, prefix):
-    # Remove only archive indices when aliases are used
+    # Remove only archive indices when aliases/rollover are used
     # Do not remove active write archive index
     ilo.filter_by_alias(aliases=[prefix + 'jaeger-span-archive-write'], exclude=True)
     ilo.filter_by_alias(aliases=[prefix + 'jaeger-span-archive-read'])
