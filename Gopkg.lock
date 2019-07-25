@@ -676,6 +676,17 @@
   version = "v1.1.0"
 
 [[projects]]
+  digest = "1:ed851b681785087f298d5f8bca1fce39628647c6273712eb77d545884e122a87"
+  name = "github.com/openzipkin/zipkin-go"
+  packages = [
+    "model",
+    "proto/v2",
+  ]
+  pruneopts = "UT"
+  revision = "1277a5f30075b9c13d37775aed4f0f3b44d1a710"
+  version = "v0.2.0"
+
+[[projects]]
   digest = "1:93131d8002d7025da13582877c32d1fc302486775a1b06f62241741006428c5e"
   name = "github.com/pelletier/go-toml"
   packages = ["."]
@@ -1313,6 +1324,8 @@
     "github.com/opentracing/opentracing-go",
     "github.com/opentracing/opentracing-go/ext",
     "github.com/opentracing/opentracing-go/log",
+    "github.com/openzipkin/zipkin-go/model",
+    "github.com/openzipkin/zipkin-go/proto/v2",
     "github.com/pkg/errors",
     "github.com/prometheus/client_golang/prometheus",
     "github.com/prometheus/client_golang/prometheus/promhttp",
