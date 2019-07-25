@@ -6,10 +6,7 @@
     "index.requests.cache.enable":true
   },
   "mappings":{
-    "_default_":{
-      "_all":{
-        "enabled":false
-      },
+    "_doc":{
       "dynamic_templates":[
         {
           "span_tags_map":{
@@ -29,9 +26,7 @@
             "path_match":"process.tag.*"
           }
         }
-      ]
-    },
-    "_doc":{
+      ],
       "properties":{
         "traceID":{
           "type":"keyword",
