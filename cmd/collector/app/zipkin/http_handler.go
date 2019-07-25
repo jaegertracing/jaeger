@@ -34,6 +34,7 @@ import (
 	"github.com/jaegertracing/jaeger/swagger-gen/restapi"
 	"github.com/jaegertracing/jaeger/swagger-gen/restapi/operations"
 	"github.com/jaegertracing/jaeger/thrift-gen/zipkincore"
+	protov2 "github.com/openzipkin/zipkin-go/proto/v2"
 )
 
 // APIHandler handles all HTTP calls to the collector
@@ -134,29 +135,46 @@ func (aH *APIHandler) saveSpansV2(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if contentType != "application/json" {
+	// TODO refactor these conditional block into seperate funcs
+	if contentType == "application/x-protobuf" {
+		spans, err := protov2.ParseSpans(bodyBytes, false)
+		if err != nil {
+			http.Error(w, fmt.Sprintf(app.UnableToReadBodyErrFormat, err), http.StatusBadRequest)
+			return
+		}
+
+		tSpans, err := protoSpansV2ToThrift(spans)
+		if err != nil {
+			http.Error(w, fmt.Sprintf(app.UnableToReadBodyErrFormat, err), http.StatusBadRequest)
+			return
+		}
+		if err := aH.saveThriftSpans(tSpans); err != nil {
+			http.Error(w, fmt.Sprintf("Cannot submit Zipkin batch: %v", err), http.StatusInternalServerError)
+			return
+		}
+	} else if contentType == "application/json" {
+		var spans models.ListOfSpans
+		if err = swag.ReadJSON(bodyBytes, &spans); err != nil {
+			http.Error(w, fmt.Sprintf(app.UnableToReadBodyErrFormat, err), http.StatusBadRequest)
+			return
+		}
+		if err = spans.Validate(aH.zipkinV2Formats); err != nil {
+			http.Error(w, fmt.Sprintf(app.UnableToReadBodyErrFormat, err), http.StatusBadRequest)
+			return
+		}
+
+		tSpans, err := spansV2ToThrift(spans)
+		if err != nil {
+			http.Error(w, fmt.Sprintf(app.UnableToReadBodyErrFormat, err), http.StatusBadRequest)
+			return
+		}
+
+		if err := aH.saveThriftSpans(tSpans); err != nil {
+			http.Error(w, fmt.Sprintf("Cannot submit Zipkin batch: %v", err), http.StatusInternalServerError)
+			return
+		}
+	} else {
 		http.Error(w, "Unsupported Content-Type", http.StatusBadRequest)
-		return
-	}
-
-	var spans models.ListOfSpans
-	if err = swag.ReadJSON(bodyBytes, &spans); err != nil {
-		http.Error(w, fmt.Sprintf(app.UnableToReadBodyErrFormat, err), http.StatusBadRequest)
-		return
-	}
-	if err = spans.Validate(aH.zipkinV2Formats); err != nil {
-		http.Error(w, fmt.Sprintf(app.UnableToReadBodyErrFormat, err), http.StatusBadRequest)
-		return
-	}
-
-	tSpans, err := spansV2ToThrift(spans)
-	if err != nil {
-		http.Error(w, fmt.Sprintf(app.UnableToReadBodyErrFormat, err), http.StatusBadRequest)
-		return
-	}
-
-	if err := aH.saveThriftSpans(tSpans); err != nil {
-		http.Error(w, fmt.Sprintf("Cannot submit Zipkin batch: %v", err), http.StatusInternalServerError)
 		return
 	}
 
