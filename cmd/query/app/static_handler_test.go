@@ -20,6 +20,7 @@ import (
 	"net/http"
 	"net/http/httptest"
 	"os"
+	"strings"
 	"testing"
 	"time"
 
@@ -62,7 +63,7 @@ func TestRegisterStaticHandler(t *testing.T) {
 	}
 	for _, testCase := range testCases {
 		t.Run("basePath="+testCase.basePath, func(t *testing.T) {
-			logger, buf := testutils.NewLogger()
+			logger, _ := testutils.NewLogger()
 			r := mux.NewRouter()
 			if testCase.subroute {
 				r = r.PathPrefix(testCase.basePath).Subrouter()
@@ -72,7 +73,6 @@ func TestRegisterStaticHandler(t *testing.T) {
 				BasePath:     testCase.basePath,
 				UIConfig:     "fixture/ui-config.json",
 			})
-			assert.Empty(t, buf.String(), "no logs during construction")
 
 			server := httptest.NewServer(r)
 			defer server.Close()
@@ -110,6 +110,52 @@ func TestNewStaticAssetsHandlerErrors(t *testing.T) {
 		_, err := NewStaticAssetsHandler("fixture", StaticAssetsHandlerOptions{UIConfigPath: "fixture/ui-config.json", BasePath: base})
 		require.Errorf(t, err, "basePath=%s", base)
 		assert.Contains(t, err.Error(), "Invalid base path")
+	}
+}
+
+// This test is potentially intermittent
+func TestHotReloadUIConfigTempFile(t *testing.T) {
+	tmpfile, err := ioutil.TempFile("", "ui-config-hotreload.*.json")
+	assert.NoError(t, err)
+
+	tmpFileName := tmpfile.Name()
+	defer os.Remove(tmpFileName)
+
+	content, err := ioutil.ReadFile("fixture/ui-config-hotreload.json")
+	assert.NoError(t, err)
+
+	err = ioutil.WriteFile(tmpFileName, content, 0644)
+	assert.NoError(t, err)
+
+	h, err := NewStaticAssetsHandler("fixture", StaticAssetsHandlerOptions{
+		UIConfigPath: tmpFileName,
+	})
+	assert.NoError(t, err)
+
+	c := string(h.indexHTML.Load().([]byte))
+	assert.Contains(t, c, "About Jaeger")
+
+	newContent := strings.Replace(string(content), "About Jaeger", "About a new Jaeger", 1)
+	err = ioutil.WriteFile(tmpFileName, []byte(newContent), 0644)
+	assert.NoError(t, err)
+
+	done := make(chan bool)
+	go func() {
+		for {
+			i := string(h.indexHTML.Load().([]byte))
+
+			if strings.Contains(i, "About a new Jaeger") {
+				done <- true
+			}
+			time.Sleep(10 * time.Millisecond)
+		}
+	}()
+
+	select {
+	case <-done:
+		assert.Contains(t, string(h.indexHTML.Load().([]byte)), "About a new Jaeger")
+	case <-time.After(time.Second):
+		assert.Fail(t, "timed out waiting for the hot reload to kick in")
 	}
 }
 
