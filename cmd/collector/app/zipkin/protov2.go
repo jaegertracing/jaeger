@@ -1,6 +1,8 @@
 package zipkin
 
 import (
+	"time"
+
 	"github.com/jaegertracing/jaeger/thrift-gen/zipkincore"
 	"github.com/openzipkin/zipkin-go/model"
 )
@@ -21,13 +23,15 @@ func protoSpansV2ToThrift(zss []*model.SpanModel) ([]*zipkincore.Span, error) {
 func protoSpanV2ToThrift(s *model.SpanModel) (*zipkincore.Span, error) {
 	// TODO
 	sc := s.SpanContext
+	ts := s.Timestamp.UnixNano() / int64(time.Millisecond)
+	d := s.Duration.Nanoseconds() / int64(time.Millisecond)
 	tSpan := &zipkincore.Span{
 		ID:        int64(sc.ID),
 		TraceID:   int64(sc.TraceID.Low),
 		Name:      s.Name,
 		Debug:     s.Debug,
-		Timestamp: s.Timestamp, // us
-		Duration:  s.Duration,  // us
+		Timestamp: &ts,
+		Duration:  &d,
 	}
 	if sc.TraceID.High != 0 {
 		help := int64(sc.TraceID.High)
@@ -53,10 +57,10 @@ func protoSpanV2ToThrift(s *model.SpanModel) (*zipkincore.Span, error) {
 	}
 
 	tSpan.BinaryAnnotations = append(tSpan.BinaryAnnotations, tagsToThrift(s.Tags, localE)...)
-	tSpan.Annotations = append(tSpan.Annotations, kindToThrift(s.Timestamp, s.Duration, s.Kind, localE)...)
+	tSpan.Annotations = append(tSpan.Annotations, kindToThrift(ts, d, string(s.Kind), localE)...)
 
 	if s.RemoteEndpoint != nil {
-		rAddrAnno, err := remoteEndpToThrift(s.RemoteEndpoint, s.Kind)
+		rAddrAnno, err := remoteEndpToThrift(s.RemoteEndpoint, string(s.Kind))
 		if err != nil {
 			return nil, err
 		}
