@@ -175,3 +175,6 @@ required = [
 [[override]]
   name = "github.com/Shopify/sarama"
   revision = "cd910a683f9faa57222e5120d17b60d2e65f7fa9"
+[[constraint]]
+  name = "github.com/openzipkin/zipkin-go"
+  version = "0.2.0"
