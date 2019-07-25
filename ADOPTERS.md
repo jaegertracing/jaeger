@@ -5,6 +5,7 @@
 * [GrafanaLabs](https://grafana.com/)
 * [Kausal](https://kausal.co)
 * [Massachusetts Open Cloud](https://www.bu.edu/hic/research/highlighted-sponsored-projects/massachusetts-open-cloud/)
+* [Matrix](https://matrix.org/)
 * [Northwestern Mutual](https://www.northwesternmutual.com/)
 * [Nets](https://www.nets.eu/)
 * [Stagemonitor](https://www.stagemonitor.org/)
