@@ -51,16 +51,19 @@ func Test_bearTokenPropagationHandler(t *testing.T)  {
 	}
 
 	testCases := []struct {
-		name		string
-		sendHeader bool
-		header 		string
-		handler 	func(stop *sync.WaitGroup) http.HandlerFunc
+		name        string
+		sendHeader  bool
+		headerValue string
+		headerName  string
+		handler     func(stop *sync.WaitGroup) http.HandlerFunc
 	}{
-		{ name:"Bearer token", sendHeader: true, header: "Bearer " + bearerToken, handler:validTokenHandler},
-		{ name:"Invalid header",sendHeader: true, header: bearerToken, handler:emptyHandler},
-		{ name:"No header", sendHeader: false, handler:emptyHandler},
-		{ name:"Basic Auth", sendHeader: true, header: "Basic " + bearerToken, handler:emptyHandler},
-		{ name:"X-Forwarded-Access-Token", sendHeader: true, header: "Bearer " + bearerToken, handler:validTokenHandler},
+		{ name:"Bearer token", sendHeader: true, headerName:"Authorization", headerValue: "Bearer " + bearerToken, handler:validTokenHandler},
+		{ name:"Raw bearer token",sendHeader: true, headerName:"Authorization", headerValue: bearerToken, handler:validTokenHandler},
+		{ name:"No headerValue", sendHeader: false, headerName:"Authorization", handler:emptyHandler},
+		{ name:"Basic Auth", sendHeader: true, headerName:"Authorization", headerValue: "Basic " + bearerToken, handler:emptyHandler},
+		{ name:"X-Forwarded-Access-Token", headerName:"X-Forwarded-Access-Token", sendHeader: true, headerValue: "Bearer " + bearerToken, handler:validTokenHandler},
+		{ name:"Invalid header", headerName:"X-Forwarded-Access-Token", sendHeader: true, headerValue: "Bearer " + bearerToken + " another stuff", handler:emptyHandler},
+
 	}
 
 	for _, testCase := range testCases {
@@ -73,7 +76,7 @@ func Test_bearTokenPropagationHandler(t *testing.T)  {
 			req , err := http.NewRequest("GET", server.URL, nil)
 			assert.Nil(t,err)
 			if testCase.sendHeader {
-				req.Header.Add("Authorization", testCase.header)
+				req.Header.Add(testCase.headerName, testCase.headerValue)
 			}
 			_, err = httpClient.Do(req)
 			assert.Nil(t, err)
