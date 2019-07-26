@@ -27,9 +27,6 @@ import (
 	"gopkg.in/olivere/elastic.v5"
 )
 
-// 1. removes daily indices, but does not remove rollover or archive
-// 2. removes rollover but does not remove daily or archive
-
 const (
 	archiveIndexName      = "jaeger-span-archive"
 	dependenciesIndexName = "jaeger-dependencies-2019-01-01"
@@ -55,6 +52,26 @@ func TestIndexCleaner_doNotFailOnEmptyStorage(t *testing.T) {
 	}
 	for _, test := range tests {
 		err := runEsCleaner(7, test.envs)
+		require.NoError(t, err)
+	}
+}
+
+func TestIndexCleaner_doNotFailOnFullStorage(t *testing.T) {
+	client, err := createESClient()
+	require.NoError(t, err)
+	tests := []struct{
+		envs []string
+	}{
+		{envs:[]string{"ROLLOVER=false"}},
+		{envs:[]string{"ROLLOVER=true"}},
+		{envs:[]string{"ARCHIVE=true"}},
+	}
+	for _, test := range tests {
+		_, err = client.DeleteIndex("*").Do(context.Background())
+		require.NoError(t, err)
+		err := createAllIndices(client, "")
+		require.NoError(t, err)
+		err = runEsCleaner(1500, test.envs)
 		require.NoError(t, err)
 	}
 }
@@ -97,7 +114,7 @@ func TestIndexCleaner(t *testing.T) {
 		},
 	}
 	for _, test := range tests {
-		t.Run(fmt.Sprintf("IndexCleanerRunWith[%v]_no_prefix", test.envVars), func(t *testing.T) {
+		t.Run(fmt.Sprintf("%s_no_prefix", test.name), func(t *testing.T) {
 			runIndexCleanerTest(t, client, "", test.expectedIndices, test.envVars)
 		})
 		t.Run(fmt.Sprintf("%s_prefix", test.name), func(t *testing.T) {
@@ -125,7 +142,7 @@ func runIndexCleanerTest(t *testing.T, client *elastic.Client, prefix string, ex
 	for _, index := range expectedIndices {
 		expected = append(expected, prefix + index)
 	}
-	assert.ElementsMatch(t, indices, expected)
+	assert.ElementsMatch(t, indices, expected, fmt.Sprintf("indices found: %v, expected: %v", indices, expected))
 }
 
 func createAllIndices(client *elastic.Client, prefix string) error {
