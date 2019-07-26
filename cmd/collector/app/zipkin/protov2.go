@@ -23,8 +23,8 @@ func protoSpansV2ToThrift(zss []*model.SpanModel) ([]*zipkincore.Span, error) {
 func protoSpanV2ToThrift(s *model.SpanModel) (*zipkincore.Span, error) {
 	// TODO
 	sc := s.SpanContext
-	ts := s.Timestamp.UnixNano() / int64(time.Millisecond)
-	d := s.Duration.Nanoseconds() / int64(time.Millisecond)
+	ts := nanoToMicroSecs(s.Timestamp.UnixNano())
+	d := nanoToMicroSecs(s.Duration.Nanoseconds())
 	tSpan := &zipkincore.Span{
 		ID:        int64(sc.ID),
 		TraceID:   int64(sc.TraceID.Low),
@@ -45,14 +45,15 @@ func protoSpanV2ToThrift(s *model.SpanModel) (*zipkincore.Span, error) {
 
 	var localE *zipkincore.Endpoint
 	if s.LocalEndpoint != nil {
-		localE, err = endpointV2ToThrift(s.LocalEndpoint)
+		var err error
+		localE, err = protoEndpointV2ToThrift(s.LocalEndpoint)
 		if err != nil {
 			return nil, err
 		}
 	}
 
 	for _, a := range s.Annotations {
-		tA := annoV2ToThrift(a, localE)
+		tA := protoAnnoV2ToThrift(&a, localE)
 		tSpan.Annotations = append(tSpan.Annotations, tA)
 	}
 
@@ -60,7 +61,7 @@ func protoSpanV2ToThrift(s *model.SpanModel) (*zipkincore.Span, error) {
 	tSpan.Annotations = append(tSpan.Annotations, kindToThrift(ts, d, string(s.Kind), localE)...)
 
 	if s.RemoteEndpoint != nil {
-		rAddrAnno, err := remoteEndpToThrift(s.RemoteEndpoint, string(s.Kind))
+		rAddrAnno, err := protoRemoteEndpToThrift(s.RemoteEndpoint, s.Kind)
 		if err != nil {
 			return nil, err
 		}
@@ -77,4 +78,46 @@ func protoSpanV2ToThrift(s *model.SpanModel) (*zipkincore.Span, error) {
 		})
 	}
 	return tSpan, nil
+}
+
+func protoEndpointV2ToThrift(e *model.Endpoint) (*zipkincore.Endpoint, error) {
+	if e == nil {
+		return nil, nil
+	}
+	return eToThrift(string(e.IPv4), string(e.IPv6), int32(e.Port), e.ServiceName)
+}
+
+func protoAnnoV2ToThrift(a *model.Annotation, e *zipkincore.Endpoint) *zipkincore.Annotation {
+	ts := nanoToMicroSecs(a.Timestamp.UnixNano())
+	return &zipkincore.Annotation{
+		Value:     a.Value,
+		Timestamp: ts,
+		Host:      e,
+	}
+}
+
+func protoRemoteEndpToThrift(e *model.Endpoint, kind model.Kind) (*zipkincore.BinaryAnnotation, error) {
+	rEndp, err := protoEndpointV2ToThrift(e)
+	if err != nil {
+		return nil, err
+	}
+	var key string
+	switch kind {
+	case model.Server:
+		key = zipkincore.SERVER_ADDR
+	case model.Client:
+		key = zipkincore.CLIENT_ADDR
+	case model.Consumer, model.Producer:
+		key = zipkincore.MESSAGE_ADDR
+	}
+
+	return &zipkincore.BinaryAnnotation{
+		Key:            key,
+		Host:           rEndp,
+		AnnotationType: zipkincore.AnnotationType_BOOL,
+	}, nil
+}
+
+func nanoToMicroSecs(ns int64) int64 {
+	return ns / int64(time.Millisecond)
 }
