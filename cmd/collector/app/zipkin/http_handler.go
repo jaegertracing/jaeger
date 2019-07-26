@@ -135,50 +135,50 @@ func (aH *APIHandler) saveSpansV2(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	// TODO refactor these conditional block into seperate funcs
-	if contentType == "application/x-protobuf" {
-		spans, err := protov2.ParseSpans(bodyBytes, false)
-		if err != nil {
-			http.Error(w, fmt.Sprintf(app.UnableToReadBodyErrFormat, err), http.StatusBadRequest)
-			return
-		}
-
-		tSpans, err := protoSpansV2ToThrift(spans)
-		if err != nil {
-			http.Error(w, fmt.Sprintf(app.UnableToReadBodyErrFormat, err), http.StatusBadRequest)
-			return
-		}
-		if err := aH.saveThriftSpans(tSpans); err != nil {
-			http.Error(w, fmt.Sprintf("Cannot submit Zipkin batch: %v", err), http.StatusInternalServerError)
-			return
-		}
-	} else if contentType == "application/json" {
-		var spans models.ListOfSpans
-		if err = swag.ReadJSON(bodyBytes, &spans); err != nil {
-			http.Error(w, fmt.Sprintf(app.UnableToReadBodyErrFormat, err), http.StatusBadRequest)
-			return
-		}
-		if err = spans.Validate(aH.zipkinV2Formats); err != nil {
-			http.Error(w, fmt.Sprintf(app.UnableToReadBodyErrFormat, err), http.StatusBadRequest)
-			return
-		}
-
-		tSpans, err := spansV2ToThrift(spans)
-		if err != nil {
-			http.Error(w, fmt.Sprintf(app.UnableToReadBodyErrFormat, err), http.StatusBadRequest)
-			return
-		}
-
-		if err := aH.saveThriftSpans(tSpans); err != nil {
-			http.Error(w, fmt.Sprintf("Cannot submit Zipkin batch: %v", err), http.StatusInternalServerError)
-			return
-		}
-	} else {
+	var tSpans []*zipkincore.Span
+	switch contentType {
+	case "application/json":
+		tSpans, err = aH.jsonToThriftSpansV2(bodyBytes)
+	case "application/x-protobuf":
+		tSpans, err = aH.protoToThriftSpansV2(bodyBytes)
+	default:
 		http.Error(w, "Unsupported Content-Type", http.StatusBadRequest)
 		return
 	}
 
+	if err := aH.saveThriftSpans(tSpans); err != nil {
+		http.Error(w, fmt.Sprintf("Cannot submit Zipkin batch: %v", err), http.StatusInternalServerError)
+		return
+	}
+
 	w.WriteHeader(operations.PostSpansAcceptedCode)
+}
+
+func (aH *APIHandler) jsonToThriftSpansV2(bodyBytes []byte) ([]*zipkincore.Span, error) {
+	var spans models.ListOfSpans
+	if err := swag.ReadJSON(bodyBytes, &spans); err != nil {
+		return nil, err
+	}
+	if err := spans.Validate(aH.zipkinV2Formats); err != nil {
+		return nil, err
+	}
+	tSpans, err := spansV2ToThrift(spans)
+	if err != nil {
+		return nil, err
+	}
+	return tSpans, nil
+}
+
+func (aH *APIHandler) protoToThriftSpansV2(bodyBytes []byte) ([]*zipkincore.Span, error) {
+	spans, err := protov2.ParseSpans(bodyBytes, false)
+	if err != nil {
+		return nil, err
+	}
+	tSpans, err := protoSpansV2ToThrift(spans)
+	if err != nil {
+		return nil, err
+	}
+	return tSpans, nil
 }
 
 func gunzip(r io.ReadCloser) (*gzip.Reader, error) {

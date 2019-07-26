@@ -21,7 +21,6 @@ func protoSpansV2ToThrift(zss []*model.SpanModel) ([]*zipkincore.Span, error) {
 }
 
 func protoSpanV2ToThrift(s *model.SpanModel) (*zipkincore.Span, error) {
-	// TODO
 	sc := s.SpanContext
 	ts := nanoToMicroSecs(s.Timestamp.UnixNano())
 	d := nanoToMicroSecs(s.Duration.Nanoseconds())
