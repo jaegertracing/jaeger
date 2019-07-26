@@ -37,7 +37,7 @@ const (
 	suffixKeyspace             = ".keyspace"
 	suffixDC                   = ".local-dc"
 	suffixConsistency          = ".consistency"
-	suffixEnableCompression    = ".enable-compression"
+	suffixDisableCompression   = ".disable-compression"
 	suffixProtoVer             = ".proto-version"
 	suffixSocketKeepAlive      = ".socket-keep-alive"
 	suffixUsername             = ".username"
@@ -165,9 +165,9 @@ func addFlags(flagSet *flag.FlagSet, nsConfig *namespaceConfig) {
 		nsConfig.Consistency,
 		"The Cassandra consistency level, e.g. ANY, ONE, TWO, THREE, QUORUM, ALL, LOCAL_QUORUM, EACH_QUORUM, LOCAL_ONE (default LOCAL_ONE)")
 	flagSet.Bool(
-		nsConfig.namespace+suffixEnableCompression,
-		true,
-		"Enable the use of Compression while connecting to Cassandra API based Storage backend. Uses SnappyCompression by default")
+		nsConfig.namespace+suffixDisableCompression,
+		false,
+		"Disables the use of the default Snappy Compression while connecting to the Cassandra Cluster if set to true")
 	flagSet.Int(
 		nsConfig.namespace+suffixProtoVer,
 		nsConfig.ProtoVersion,
@@ -248,7 +248,7 @@ func (cfg *namespaceConfig) initFromViper(v *viper.Viper) {
 	cfg.TLS.ServerName = v.GetString(cfg.namespace + suffixServerName)
 	cfg.TLS.EnableHostVerification = v.GetBool(cfg.namespace + suffixVerifyHost)
 	cfg.EnableDependenciesV2 = v.GetBool(cfg.namespace + suffixEnableDependenciesV2)
-	cfg.EnableCompression = v.GetBool(cfg.namespace + suffixEnableCompression)
+	cfg.DisableCompression = v.GetBool(cfg.namespace + suffixDisableCompression)
 }
 
 // GetPrimary returns primary configuration.

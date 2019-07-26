@@ -38,7 +38,7 @@ type Configuration struct {
 	MaxRetryAttempts     int           `validate:"min=0" yaml:"max_retry_attempt"`
 	ProtoVersion         int           `yaml:"proto_version"`
 	Consistency          string        `yaml:"consistency"`
-	EnableCompression    bool          `yaml:"enable-compression"`
+	DisableCompression   bool          `yaml:"disable-compression"`
 	Port                 int           `yaml:"port"`
 	Authenticator        Authenticator `yaml:"authenticator"`
 	DisableAutoDiscovery bool          `yaml:"disable_auto_discovery"`
@@ -130,9 +130,14 @@ func (c *Configuration) NewCluster() *gocql.ClusterConfig {
 		cluster.Port = c.Port
 	}
 
-	if c.EnableCompression {
+	fmt.Println("Disable Compression Flag is: ")
+	fmt.Println(c.DisableCompression)
+	if !c.DisableCompression {
 		cluster.Compressor = gocql.SnappyCompressor{}
 	}
+
+	fmt.Println("Compression is:")
+	fmt.Println(cluster.Compressor)
 
 	if c.Consistency == "" {
 		cluster.Consistency = gocql.LocalOne
