@@ -41,8 +41,6 @@ const (
 	queryPort       = "9200"
 	queryHostPort   = host + ":" + queryPort
 	queryURL        = "http://" + queryHostPort
-	username        = "elastic"  // the elasticsearch default username
-	password        = "changeme" // the elasticsearch default password
 	indexPrefix     = "integration-test"
 	tagKeyDeDotChar = "@"
 	maxSpanAge = time.Hour * 72
@@ -59,7 +57,6 @@ type ESStorageIntegration struct {
 func (s *ESStorageIntegration) initializeES(allTagsAsFields, archive bool) error {
 	rawClient, err := elastic.NewClient(
 		elastic.SetURL(queryURL),
-		elastic.SetBasicAuth(username, password),
 		elastic.SetSniff(false))
 	if err != nil {
 		return err

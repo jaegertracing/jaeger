@@ -96,6 +96,13 @@ storage-integration-test: go-gen
 	go clean -testcache
 	bash -c "set -e; set -o pipefail; $(GOTEST) $(STORAGE_PKGS) | $(COLORIZE)"
 
+.PHONY: index-cleaner-integration-test
+index-cleaner-integration-test: docker-images-elastic
+	# Expire tests results for storage integration tests since the environment might change
+	# even though the code remains the same.
+	go clean -testcache
+	bash -c "set -e; set -o pipefail; $(GOTEST) -tags index_cleaner $(STORAGE_PKGS) | $(COLORIZE)"
+
 all-pkgs:
 	@echo $(ALL_PKGS) | tr ' ' '\n' | sort
 

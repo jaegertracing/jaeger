@@ -39,8 +39,11 @@ func bearerTokenPropagationHandler(logger *zap.Logger, h http.Handler) http.Hand
 				if headerValue[0] == "Bearer" {
 					token = headerValue[1]
 				}
+			} else if len(headerValue) == 1 {
+				// Tread all value as a token
+				token = authHeaderValue
 			} else {
-				logger.Warn("Invalid authorization header, skipping bearer token propagation")
+				logger.Warn("Invalid authorization header value, skipping token propagation")
 			}
 			h.ServeHTTP(w, r.WithContext(spanstore.ContextWithBearerToken(ctx, token)))
 		} else {
