@@ -146,7 +146,12 @@ func (aH *APIHandler) saveSpansV2(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 
-	if err := aH.saveThriftSpans(tSpans); err != nil {
+	if err != nil {
+		http.Error(w, fmt.Sprintf(app.UnableToReadBodyErrFormat, err), http.StatusBadRequest)
+		return
+	}
+
+	if err = aH.saveThriftSpans(tSpans); err != nil {
 		http.Error(w, fmt.Sprintf("Cannot submit Zipkin batch: %v", err), http.StatusInternalServerError)
 		return
 	}
