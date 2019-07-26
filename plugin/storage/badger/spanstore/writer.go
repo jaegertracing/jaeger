@@ -42,6 +42,7 @@ const (
 	operationNameIndexKey byte = 0x82
 	tagIndexKey           byte = 0x83
 	durationIndexKey      byte = 0x84
+	depIndexKey           byte = 0x85
 	jsonEncoding          byte = 0x01 // Last 4 bits of the meta byte are for encoding type
 	protoEncoding         byte = 0x02 // Last 4 bits of the meta byte are for encoding type
 	defaultEncoding       byte = protoEncoding
@@ -103,6 +104,9 @@ func (w *SpanWriter) WriteSpan(span *model.Span) error {
 		}
 	}
 
+	// For dependency processing
+	entriesToStore = append(entriesToStore, w.createBadgerEntry(createDependencyIndexKey(span), nil))
+
 	err = w.store.Update(func(txn *badger.Txn) error {
 		// Write the entries
 		for i := range entriesToStore {
@@ -123,6 +127,23 @@ func (w *SpanWriter) WriteSpan(span *model.Span) error {
 	w.cache.Update(span.Process.ServiceName, span.OperationName)
 
 	return err
+}
+
+func createDependencyIndexKey(span *model.Span) []byte {
+	// I need (for sorting purposes and optimization of reads):
+	// depIndex<traceId><startTime><spanId><serviceName><parentSpanId> (if parentSpanId exists)
+
+	buf := new(bytes.Buffer)
+
+	buf.WriteByte(depIndexKey)
+	binary.Write(buf, binary.BigEndian, span.TraceID.High)
+	binary.Write(buf, binary.BigEndian, span.TraceID.Low)
+	binary.Write(buf, binary.BigEndian, model.TimeAsEpochMicroseconds(span.StartTime))
+	binary.Write(buf, binary.BigEndian, span.SpanID)
+	binary.Write(buf, binary.BigEndian, []byte(span.Process.ServiceName))
+	binary.Write(buf, binary.BigEndian, span.ParentSpanID())
+
+	return buf.Bytes()
 }
 
 func createIndexKey(indexPrefixKey byte, value []byte, startTime time.Time, traceID model.TraceID) []byte {

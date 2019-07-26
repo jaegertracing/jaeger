@@ -580,3 +580,96 @@ func traceIDToComparableBytes(traceID *model.TraceID) []byte {
 
 	return buf.Bytes()
 }
+
+// Link is used instead of model.DependencyLink, since latter can't be used as a map key
+type Link struct {
+	From string
+	To   string
+}
+
+// ScanDependencyIndex scans the dependency tree index and returns the aggregated results using Link struct as key
+// Scans all the index keys, uses sorting order for merging of traces and then does hash matching to aggregate the counts
+func (r *TraceReader) ScanDependencyIndex(startTimeMin time.Time, startTimeMax time.Time) (map[Link]uint64, error) {
+	countMap := make(map[Link]uint64)
+
+	startTs := model.TimeAsEpochMicroseconds(startTimeMin)
+	endTs := model.TimeAsEpochMicroseconds(startTimeMax)
+
+	err := r.store.View(func(txn *badger.Txn) error {
+		opts := badger.DefaultIteratorOptions
+		opts.PrefetchValues = false // Don't fetch values since we're only interested in the keys
+		it := txn.NewIterator(opts)
+		defer it.Close()
+
+		indexKey := []byte{depIndexKey}
+
+		prevTraceID := make([]byte, sizeOfTraceID)
+		currentTraceSpans := make([]model.Span, 0, 64)
+
+		for it.Seek(indexKey); it.ValidForPrefix(indexKey); it.Next() {
+			item := it.Item()
+			key := []byte{}
+			key = item.KeyCopy(key)
+
+			timestamp := binary.BigEndian.Uint64(key[sizeOfTraceID+1 : sizeOfTraceID+1+8])
+			if timestamp > endTs || timestamp < startTs {
+				continue
+			}
+
+			traceID := key[1 : sizeOfTraceID+1] // First byte is reserved for the depIndexKey
+			spanID := key[sizeOfTraceID+1+8 : sizeOfTraceID+1+8+8]
+			parentSpanID := key[len(key)-8:]
+			serviceName := string(key[sizeOfTraceID+1+8+8 : len(key)-8])
+
+			// Keep appending to the trace data
+			if !bytes.Equal(prevTraceID, traceID) {
+				// Process the spans and add to intermediate counting results
+				processCountSpans(countMap, currentTraceSpans)
+				currentTraceSpans = currentTraceSpans[:0] // Reset the slice position, but keep the allocated memory
+			}
+			prevTraceID = traceID
+			currentTraceSpans = append(currentTraceSpans,
+				model.Span{
+					SpanID: model.SpanID(binary.BigEndian.Uint64(spanID)),
+					Process: &model.Process{
+						ServiceName: serviceName,
+					},
+					References: []model.SpanRef{
+						model.SpanRef{
+							SpanID: model.SpanID(binary.BigEndian.Uint64(parentSpanID)),
+						},
+					},
+				})
+		}
+
+		processCountSpans(countMap, currentTraceSpans)
+		return nil
+	})
+	return countMap, err
+}
+
+func processCountSpans(countMap map[Link]uint64, currentTraceSpans []model.Span) {
+	for i := 0; i < len(currentTraceSpans); i++ {
+		var parentSpan model.Span
+		for j := 0; j < len(currentTraceSpans); j++ {
+			if currentTraceSpans[j].SpanID == currentTraceSpans[i].References[0].SpanID {
+				parentSpan = currentTraceSpans[j]
+				break
+			}
+		}
+
+		if parentSpan.Process.ServiceName == currentTraceSpans[i].Process.ServiceName {
+			continue
+		}
+
+		link := Link{
+			From: parentSpan.Process.ServiceName,
+			To:   currentTraceSpans[i].Process.ServiceName,
+		}
+		if entry, found := countMap[link]; !found {
+			countMap[link] = 1
+		} else {
+			countMap[link] = entry + 1
+		}
+	}
+}

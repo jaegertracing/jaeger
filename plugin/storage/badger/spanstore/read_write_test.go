@@ -436,3 +436,40 @@ func runFactoryTest(tb testing.TB, test func(tb testing.TB, sw spanstore.Writer,
 	}()
 	test(tb, sw, sr)
 }
+
+func BenchmarkWrites(b *testing.B) {
+	runFactoryTest(b, func(tb testing.TB, sw spanstore.Writer, sr spanstore.Reader) {
+		tid := time.Now()
+		traces := 100000
+		services := 4
+		spans := 3
+		b.StartTimer()
+		b.SetParallelism(4)
+		b.RunParallel(func(pb *testing.PB) {
+			for pb.Next() {
+				for a := 0; a < b.N; a++ {
+					for i := 0; i < traces; i++ {
+						for j := 0; j < spans; j++ {
+							s := model.Span{
+								TraceID: model.TraceID{
+									Low:  uint64(i),
+									High: 1,
+								},
+								SpanID:        model.SpanID(j),
+								OperationName: fmt.Sprintf("operation-%d", j),
+								Process: &model.Process{
+									ServiceName: fmt.Sprintf("service-%d", i%services),
+								},
+								StartTime: tid.Add(time.Duration(i)),
+								Duration:  time.Duration(i + j),
+							}
+							_ = sw.WriteSpan(&s)
+							// assert.NoError(tb, err)
+						}
+					}
+				}
+			}
+		})
+		b.StopTimer()
+	})
+}

@@ -17,6 +17,9 @@ package dependencystore_test
 import (
 	"fmt"
 	"io"
+	"log"
+	"os"
+	"runtime/pprof"
 	"testing"
 	"time"
 
@@ -99,5 +102,53 @@ func TestDependencyReader(t *testing.T) {
 		assert.NotEmpty(t, links)
 		assert.Equal(t, spans-1, len(links))                // First span does not create a dependency
 		assert.Equal(t, uint64(traces), links[0].CallCount) // Each trace calls the same services
+	})
+}
+
+func BenchmarkDependencyReader(b *testing.B) {
+	runFactoryTest(b, func(tb testing.TB, sw spanstore.Writer, dr dependencystore.Reader) {
+		tid := time.Now()
+		dr.GetDependencies(tid, time.Hour)
+
+		traces := 100000
+		spans := 16
+		for i := 0; i < traces; i++ {
+			for j := 0; j < spans; j++ {
+				s := model.Span{
+					TraceID: model.TraceID{
+						Low:  uint64(i),
+						High: 1,
+					},
+					SpanID:        model.SpanID(j),
+					OperationName: fmt.Sprintf("operation-a"),
+					Process: &model.Process{
+						ServiceName: fmt.Sprintf("service-%d", j),
+					},
+					StartTime: tid.Add(time.Duration(i)),
+					Duration:  time.Duration(i + j),
+				}
+				if j > 0 {
+					s.References = []model.SpanRef{model.NewChildOfRef(s.TraceID, model.SpanID(j-1))}
+				}
+				_ = sw.WriteSpan(&s)
+			}
+		}
+
+		// The above insert triggers backend compaction.. let it finish before benchmarking
+		time.Sleep(5 * time.Second)
+
+		f, err := os.Create("profile.out")
+		if err != nil {
+			log.Fatal("could not create CPU profile: ", err)
+		}
+		if err := pprof.StartCPUProfile(f); err != nil {
+			log.Fatal("could not start CPU profile: ", err)
+		}
+		defer pprof.StopCPUProfile()
+
+		b.ResetTimer()
+		for a := 0; a < b.N; a++ {
+			dr.GetDependencies(time.Now(), time.Hour)
+		}
 	})
 }
