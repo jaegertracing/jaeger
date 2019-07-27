@@ -167,7 +167,7 @@ func addFlags(flagSet *flag.FlagSet, nsConfig *namespaceConfig) {
 	flagSet.Bool(
 		nsConfig.namespace+suffixDisableCompression,
 		false,
-		"Disables the use of the default Snappy Compression while connecting to the Cassandra Cluster if set to true")
+		"Disables the use of the default Snappy Compression while connecting to the Cassandra Cluster if set to true. This is useful for connecting to Cassandra Clusters(like Azure Cosmos Db with Cassandra API) that do not support SnappyCompression")
 	flagSet.Int(
 		nsConfig.namespace+suffixProtoVer,
 		nsConfig.ProtoVersion,

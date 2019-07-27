@@ -130,14 +130,9 @@ func (c *Configuration) NewCluster() *gocql.ClusterConfig {
 		cluster.Port = c.Port
 	}
 
-	fmt.Println("Disable Compression Flag is: ")
-	fmt.Println(c.DisableCompression)
 	if !c.DisableCompression {
 		cluster.Compressor = gocql.SnappyCompressor{}
 	}
-
-	fmt.Println("Compression is:")
-	fmt.Println(cluster.Compressor)
 
 	if c.Consistency == "" {
 		cluster.Consistency = gocql.LocalOne
