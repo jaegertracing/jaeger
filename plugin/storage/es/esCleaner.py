@@ -83,10 +83,9 @@ def filter_main_indices_rollover(ilo, prefix):
 def filter_archive_indices_rollover(ilo, prefix):
     # Remove only rollover archive indices
     # Do not remove active write archive index
-    ilo.filter_by_regex(kind='regex', value=prefix + "jaeger-span-archive-\d{6}")
-    empty_list(ilo, "No indices to delete")
     ilo.filter_by_alias(aliases=[prefix + 'jaeger-span-archive-write'], exclude=True)
     empty_list(ilo, "No indices to delete")
+    ilo.filter_by_alias(aliases=[prefix + 'jaeger-span-archive-read'])
     ilo.filter_by_age(source='creation_date', direction='older', unit='days', unit_count=int(sys.argv[1]))
 
 
