@@ -135,7 +135,7 @@ func createDependencyIndexKey(span *model.Span) []byte {
 
 	buf := new(bytes.Buffer)
 
-	buf.WriteByte(depIndexKey)
+	buf.WriteByte((depIndexKey & indexKeyRange) | spanKeyPrefix)
 	binary.Write(buf, binary.BigEndian, span.TraceID.High)
 	binary.Write(buf, binary.BigEndian, span.TraceID.Low)
 	binary.Write(buf, binary.BigEndian, model.TimeAsEpochMicroseconds(span.StartTime))

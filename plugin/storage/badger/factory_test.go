@@ -15,6 +15,8 @@
 package badger
 
 import (
+	"bytes"
+	"encoding/binary"
 	"expvar"
 	"fmt"
 	"io"
@@ -22,6 +24,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/dgraph-io/badger"
 	assert "github.com/stretchr/testify/require"
 	"github.com/uber/jaeger-lib/metrics"
 	"github.com/uber/jaeger-lib/metrics/metricstest"
@@ -144,6 +147,37 @@ func TestMaintenanceCodecov(t *testing.T) {
 	err := f.store.Close()
 	assert.NoError(t, err)
 	waiter() // This should trigger the logging of error
+}
+
+// TestSchemaVersionWritten ensures that the Factory does call the SchemaManager correctly
+func TestSchemaVersionWritten(t *testing.T) {
+	f := NewFactory()
+	v, _ := config.Viperize(f.AddFlags)
+	f.InitFromViper(v)
+	mFactory := metricstest.NewFactory(0)
+	f.Initialize(mFactory, zap.NewNop())
+
+	schemaVersion := -1
+	err := f.store.View(func(txn *badger.Txn) error {
+		opts := badger.DefaultIteratorOptions
+		it := txn.NewIterator(opts)
+		defer it.Close()
+
+		schemaKey := []byte{0x11}
+		it.Seek(schemaKey)
+		if it.Item() != nil && bytes.Equal(schemaKey, it.Item().Key()) {
+			val, err := it.Item().Value()
+			if err != nil {
+				return err
+			}
+			schemaVersion = int(binary.BigEndian.Uint32(val))
+			return nil
+		}
+		return nil
+	})
+
+	assert.NoError(t, err)
+	assert.True(t, schemaVersion > 0)
 }
 
 func TestBadgerMetrics(t *testing.T) {

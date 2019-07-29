@@ -118,6 +118,13 @@ func (f *Factory) Initialize(metricsFactory metrics.Factory, logger *zap.Logger)
 	}
 	f.store = store
 
+	err = badgerStore.SchemaUpdate(store, logger)
+	if err != nil {
+		logger.Error("Failed to update the schema, badger storage failed to start: " + err.Error())
+		store.Close()
+		return err
+	}
+
 	f.cache = badgerStore.NewCacheStore(f.store, f.Options.primary.SpanStoreTTL, true)
 
 	f.metrics.ValueLogSpaceAvailable = metricsFactory.Gauge(metrics.Options{Name: valueLogSpaceAvailableName})
