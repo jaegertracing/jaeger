@@ -109,30 +109,6 @@ local percentErrsWithTotal(metric_errs, metric_total) = '100 * sum(rate(%(metric
               {{ $labels.job }} {{ $labels.instance }} is seeing {{ printf "%.2f" $value }}% query errors on {{ $labels.operation }}.
             |||,
           },
-        }, {
-          alert: 'JaegerCassandraWritesFailing',
-          expr: percentErrsWithTotal('jaeger_cassandra_errors_total', 'jaeger_cassandra_attempts_total') + '> 1',
-          'for': '15m',
-          labels: {
-            severity: 'warning',
-          },
-          annotations: {
-            message: |||
-              {{ $labels.job }} {{ $labels.instance }} is seeing {{ printf "%.2f" $value }}% query errors on {{ $labels.operation }}.
-            |||,
-          },
-        }, {
-          alert: 'JaegerCassandraReadsFailing',
-          expr: percentErrsWithTotal('jaeger_cassandra_read_errors_total', 'jaeger_cassandra_read_attempts_total') + '> 1',
-          'for': '15m',
-          labels: {
-            severity: 'warning',
-          },
-          annotations: {
-            message: |||
-              {{ $labels.job }} {{ $labels.instance }} is seeing {{ printf "%.2f" $value }}% query errors on {{ $labels.operation }}.
-            |||,
-          },
         }],
       },
     ],

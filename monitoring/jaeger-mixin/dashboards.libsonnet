@@ -29,8 +29,8 @@ local g = (import 'grafana-builder/grafana.libsonnet') + {
 
 {
   grafanaDashboards+: {
-    'jaeger-write.json':
-      g.dashboard('Jaeger / Write')
+    'jaeger.json':
+      g.dashboard('Jaeger')
       .addRow(
         g.row('Services')
         .addPanel(
@@ -74,7 +74,7 @@ local g = (import 'grafana-builder/grafana.libsonnet') + {
         )
       )
       .addRow(
-        g.row('Collector - Queue Stats')
+        g.row('Collector Queue')
         .addPanel(
           g.panel('span queue length') +
           g.queryPanel('jaeger_collector_queue_length', '{{instance}}') +
@@ -86,23 +86,6 @@ local g = (import 'grafana-builder/grafana.libsonnet') + {
         )
       )
       .addRow(
-        g.row('Cassandra')
-        .addPanel(
-          g.panel('insert attempt rate') +
-          g.qpsPanelErrTotal('jaeger_cassandra_errors_total', 'jaeger_cassandra_attempts_total') +
-          g.stack
-        )
-        .addPanel(
-          g.panel('% inserts erroring') +
-          g.queryPanel('sum(rate(jaeger_cassandra_errors_total[1m])) by (instance) / sum(rate(jaeger_cassandra_attempts_total[1m])) by (instance)', '{{instance}}') +
-          { yaxes: g.yaxes({ format: 'percentunit', max: 1 }) } +
-          g.stack,
-        )
-      ),
-
-    'jaeger-read.json':
-      g.dashboard('Jaeger / Read')
-      .addRow(
         g.row('Query')
         .addPanel(
           g.panel('qps') +
@@ -113,19 +96,6 @@ local g = (import 'grafana-builder/grafana.libsonnet') + {
           g.panel('latency - 99 percentile') +
           g.queryPanel('histogram_quantile(0.99, sum(rate(jaeger_query_latency_bucket[1m])) by (le, instance))', '{{instance}}') +
           g.stack
-        )
-      )
-      .addRow(
-        g.row('Cassandra')
-        .addPanel(
-          g.panel('qps') +
-          g.qpsPanelErrTotal('jaeger_cassandra_read_errors_total', 'jaeger_cassandra_read_attempts_total') +
-          g.stack
-        )
-        .addPanel(
-          g.panel('latency - 99 percentile') +
-          g.queryPanel('histogram_quantile(0.99, sum(rate(jaeger_cassandra_read_latency_ok_bucket[1m])) by (le, instance))', '{{instance}}') +
-          g.stack,
         )
       ),
   },
