@@ -15,7 +15,6 @@
 package badger
 
 import (
-	"bytes"
 	"encoding/binary"
 	"expvar"
 	"fmt"
@@ -159,20 +158,17 @@ func TestSchemaVersionWritten(t *testing.T) {
 
 	schemaVersion := -1
 	err := f.store.View(func(txn *badger.Txn) error {
-		opts := badger.DefaultIteratorOptions
-		it := txn.NewIterator(opts)
-		defer it.Close()
-
 		schemaKey := []byte{0x11}
-		it.Seek(schemaKey)
-		if it.Item() != nil && bytes.Equal(schemaKey, it.Item().Key()) {
-			val, err := it.Item().Value()
-			if err != nil {
-				return err
-			}
-			schemaVersion = int(binary.BigEndian.Uint32(val))
-			return nil
+		item, err := txn.Get(schemaKey)
+		if err != nil {
+			return err
 		}
+
+		val, err := item.Value()
+		if err != nil {
+			return err
+		}
+		schemaVersion = int(binary.BigEndian.Uint32(val))
 		return nil
 	})
 

@@ -37,22 +37,25 @@ func SchemaUpdate(store *badger.DB, logger *zap.Logger) error {
 
 		schemaKey := []byte{schemaVersionKey & metadataRange}
 
-		it.Seek(schemaKey)
-		if it.Item() != nil && bytes.Equal(schemaKey, it.Item().Key()) {
-			val, err := it.Item().Value()
-			if err != nil {
-				return err
+		item, err := txn.Get(schemaKey)
+		if err != nil && err != badger.ErrKeyNotFound {
+			return err
+		} else if err == badger.ErrKeyNotFound {
+			// No key found, meaning we're running the original version or empty storage
+			spanKey := []byte{spanKeyPrefixVer0}
+			it.Seek(spanKey)
+			if it.Item() != nil && bytes.HasPrefix(it.Item().Key(), spanKey) {
+				// Spans exists, original version
+				schemaVersion = 0
 			}
-			schemaVersion = binary.BigEndian.Uint32(val)
+			// Empty database
 			return nil
 		}
-		// No key found, meaning we're running the original version or empty storage
-		spanKey := []byte{spanKeyPrefixVer0}
-		it.Seek(spanKey)
-		if it.Item() != nil && bytes.HasPrefix(spanKey, it.Item().Key()) {
-			schemaVersion = 0
+		val, err := item.Value()
+		if err != nil {
+			return err
 		}
-		// Empty database
+		schemaVersion = binary.BigEndian.Uint32(val)
 		return nil
 	})
 
