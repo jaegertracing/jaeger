@@ -361,6 +361,7 @@ echo-version:
 PROTOC := protoc
 PROTO_INCLUDES := \
 	-I model/proto \
+	-I idl/proto \
 	-I vendor/github.com/grpc-ecosystem/grpc-gateway \
 	-I vendor/github.com/gogo/googleapis \
 	-I vendor/github.com/gogo/protobuf/protobuf \
@@ -430,6 +431,11 @@ proto:
 		-I plugin/storage/grpc/proto \
 		--go_out=$(PWD)/plugin/storage/grpc/proto/storageprototest/ \
 		plugin/storage/grpc/proto/storage_test.proto
+
+	$(PROTOC) \
+		$(PROTO_INCLUDES) \
+		--gogo_out=plugins=grpc,$(PROTO_GOGO_MAPPINGS):$(PWD)/proto-gen/zipkin \
+		idl/proto/zipkin.proto
 
 
 .PHONY: proto-install
