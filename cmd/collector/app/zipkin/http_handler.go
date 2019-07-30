@@ -28,13 +28,14 @@ import (
 	"github.com/go-openapi/swag"
 	"github.com/gorilla/mux"
 
+	"github.com/golang/protobuf/proto"
 	"github.com/jaegertracing/jaeger/cmd/collector/app"
 	"github.com/jaegertracing/jaeger/model/converter/thrift/zipkin"
+	zmodel "github.com/jaegertracing/jaeger/proto-gen/zipkin"
 	"github.com/jaegertracing/jaeger/swagger-gen/models"
 	"github.com/jaegertracing/jaeger/swagger-gen/restapi"
 	"github.com/jaegertracing/jaeger/swagger-gen/restapi/operations"
 	"github.com/jaegertracing/jaeger/thrift-gen/zipkincore"
-	protov2 "github.com/openzipkin/zipkin-go/proto/v2"
 )
 
 // APIHandler handles all HTTP calls to the collector
@@ -167,6 +168,7 @@ func (aH *APIHandler) jsonToThriftSpansV2(bodyBytes []byte) ([]*zipkincore.Span,
 	if err := spans.Validate(aH.zipkinV2Formats); err != nil {
 		return nil, err
 	}
+
 	tSpans, err := spansV2ToThrift(spans)
 	if err != nil {
 		return nil, err
@@ -175,11 +177,12 @@ func (aH *APIHandler) jsonToThriftSpansV2(bodyBytes []byte) ([]*zipkincore.Span,
 }
 
 func (aH *APIHandler) protoToThriftSpansV2(bodyBytes []byte) ([]*zipkincore.Span, error) {
-	spans, err := protov2.ParseSpans(bodyBytes, false)
-	if err != nil {
+	var spans zmodel.ListOfSpans
+	if err := proto.Unmarshal(bodyBytes, &spans); err != nil {
 		return nil, err
 	}
-	tSpans, err := protoSpansV2ToThrift(spans)
+
+	tSpans, err := protoSpansV2ToThrift(&spans)
 	if err != nil {
 		return nil, err
 	}
