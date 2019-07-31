@@ -250,7 +250,7 @@ func (c *Configuration) IsEnabled() bool {
 	return c.Enabled
 }
 
-// IsEnabled determines whether storage is enabled
+// IsCreateIndexTemplates determines whether index templates should be created or not
 func (c *Configuration) IsCreateIndexTemplates() bool {
 	return c.CreateIndexTemplates
 }

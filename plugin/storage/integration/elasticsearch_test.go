@@ -81,11 +81,13 @@ func (s *ESStorageIntegration) initializeES(allTagsAsFields, archive bool) error
 
 func (s *ESStorageIntegration) esCleanUp(allTagsAsFields, archive bool) error {
 	_, err := s.client.DeleteIndex("*").Do(context.Background())
-	s.initSpanstore(allTagsAsFields, archive)
-	return err
+	if err != nil {
+		return err
+	}
+	return s.initSpanstore(allTagsAsFields, archive)
 }
 
-func (s *ESStorageIntegration) initSpanstore(allTagsAsFields, archive bool) {
+func (s *ESStorageIntegration) initSpanstore(allTagsAsFields, archive bool) error {
 	bp, _ := s.client.BulkProcessor().BulkActions(1).FlushInterval(time.Nanosecond).Do(context.Background())
 	client := eswrapper.WrapESClient(s.client, bp)
 	spanMapping, serviceMapping := es.GetMappings(5, 1)
@@ -99,7 +101,10 @@ func (s *ESStorageIntegration) initSpanstore(allTagsAsFields, archive bool) {
 			TagDotReplacement: tagKeyDeDotChar,
 			Archive: archive,
 		})
-	w.CreateTemplates(spanMapping, serviceMapping)
+	err := w.CreateTemplates(spanMapping, serviceMapping)
+	if err != nil {
+		return err
+	}
 	s.SpanWriter = w
 	s.SpanReader = spanstore.NewSpanReader(spanstore.SpanReaderParams{
 		Client:            client,
@@ -110,6 +115,7 @@ func (s *ESStorageIntegration) initSpanstore(allTagsAsFields, archive bool) {
 		TagDotReplacement: tagKeyDeDotChar,
 		Archive: archive,
 	})
+	return nil
 }
 
 func (s *ESStorageIntegration) esRefresh() error {
