@@ -97,7 +97,7 @@ func TestDependencyReader(t *testing.T) {
 				assert.NoError(t, err)
 			}
 		}
-		links, err = dr.GetDependencies(time.Now(), time.Hour)
+		links, err = dr.GetDependencies(tid.Add(time.Hour), time.Hour)
 		assert.NoError(t, err)
 		assert.NotEmpty(t, links)
 		assert.Equal(t, spans-1, len(links))                // First span does not create a dependency

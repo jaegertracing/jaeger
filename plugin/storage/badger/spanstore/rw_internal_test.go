@@ -17,6 +17,7 @@ import (
 	"bytes"
 	"context"
 	"encoding/binary"
+	"fmt"
 	"testing"
 	"time"
 
@@ -51,7 +52,6 @@ func TestEncodingTypes(t *testing.T) {
 
 		cache := NewCacheStore(store, time.Duration(1*time.Hour), true)
 		sw := NewSpanWriter(store, cache, time.Duration(1*time.Hour), nil)
-		// rw := NewTraceReader(store, cache)
 
 		sw.encodingType = 0x04
 		err := sw.WriteSpan(&testSpan)
@@ -83,6 +83,61 @@ func TestEncodingTypes(t *testing.T) {
 
 		_, err = rw.GetTrace(context.Background(), model.TraceID{Low: 0, High: 1})
 		assert.EqualError(t, err, "unknown encoding type: 0x04")
+	})
+}
+
+func TestScanIndexKey(t *testing.T) {
+	// This functionality is tested through dependencystore's storage_test.go, but the codecov
+	// can't detect that correctly so we have to have test here also. Don't remove either one.
+	assert := assert.New(t)
+
+	runWithBadger(t, func(store *badger.DB, t *testing.T) {
+		cache := NewCacheStore(store, time.Duration(1*time.Hour), true)
+		sw := NewSpanWriter(store, cache, time.Duration(1*time.Hour), nil)
+		rw := NewTraceReader(store, cache)
+
+		ts := time.Now()
+		links, err := rw.ScanDependencyIndex(ts.Add(-1*time.Hour), ts)
+		assert.NoError(err)
+		assert.Empty(links)
+
+		traces := 80
+		spans := 3
+		for i := 0; i < traces; i++ {
+			for j := 0; j < spans; j++ {
+				s := model.Span{
+					TraceID: model.TraceID{
+						Low:  uint64(i),
+						High: 1,
+					},
+					SpanID:        model.SpanID(j),
+					OperationName: fmt.Sprintf("operation-a"),
+					Process: &model.Process{
+						ServiceName: fmt.Sprintf("service-%d", j),
+					},
+					StartTime: ts.Add(time.Minute * time.Duration(i)),
+					Duration:  time.Duration(i + j),
+				}
+				if j > 0 {
+					s.References = []model.SpanRef{model.NewChildOfRef(s.TraceID, model.SpanID(j-1))}
+				}
+				err := sw.WriteSpan(&s)
+				assert.NoError(err)
+			}
+		}
+		links, err = rw.ScanDependencyIndex(ts.Add(-1*time.Hour), ts.Add(time.Hour))
+		assert.NoError(err)
+		assert.NotEmpty(links)
+		assert.Equal(spans-1, len(links)) // First span does not create a link
+
+		l := Link{
+			From: "service-0",
+			To:   "service-1",
+		}
+
+		count, found := links[l]
+		assert.True(found)
+		assert.Equal(61, int(count)) // Traces 0 -> 60 are in the calculation, but 61 -> 79 are not.
 	})
 }
 
