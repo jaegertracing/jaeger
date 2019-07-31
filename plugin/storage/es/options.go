@@ -51,7 +51,7 @@ const (
 	suffixTagsFile            = suffixTagsAsFields + ".config-file"
 	suffixTagDeDotChar        = suffixTagsAsFields + ".dot-replacement"
 	suffixReadAlias           = ".use-aliases"
-	suffixCreateIndexTemplate = ".create-index-template"
+	suffixCreateIndexTemplate = ".create-index-templates"
 	suffixEnabled             = ".enabled"
 )
 
@@ -219,7 +219,7 @@ func addFlags(flagSet *flag.FlagSet, nsConfig *namespaceConfig) {
 	flagSet.Bool(
 		nsConfig.namespace+suffixCreateIndexTemplate,
 		nsConfig.CreateIndexTemplates,
-		"Create index templates at application startup")
+		"Create index templates at application startup. Set to false when templates are installed manually.")
 	if nsConfig.namespace == archiveNamespace {
 		flagSet.Bool(
 			nsConfig.namespace+suffixEnabled,
