@@ -188,9 +188,11 @@ func createSpanWriter(
 		Archive:             archive,
 		UseReadWriteAliases: cfg.GetUseReadWriteAliases(),
 	})
-	err := writer.CreateTemplates(spanMapping, serviceMapping)
-	if err != nil {
-		return nil, err
+	if cfg.IsCreateIndexTemplates() {
+		err := writer.CreateTemplates(spanMapping, serviceMapping)
+		if err != nil {
+			return nil, err
+		}
 	}
 	return writer, nil
 }

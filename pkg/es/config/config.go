@@ -60,6 +60,7 @@ type Configuration struct {
 	Enabled               bool
 	TLS                   TLSConfig
 	UseReadWriteAliases   bool
+	CreateIndexTemplates  bool
 }
 
 // TLSConfig describes the configuration properties to connect tls enabled ElasticSearch cluster
@@ -85,6 +86,7 @@ type ClientBuilder interface {
 	GetUseReadWriteAliases() bool
 	GetTokenFilePath() string
 	IsEnabled() bool
+	IsCreateIndexTemplates() bool
 }
 
 // NewClient creates a new ElasticSearch client
@@ -246,6 +248,11 @@ func (c *Configuration) GetTokenFilePath() string {
 // IsEnabled determines whether storage is enabled
 func (c *Configuration) IsEnabled() bool {
 	return c.Enabled
+}
+
+// IsEnabled determines whether storage is enabled
+func (c *Configuration) IsCreateIndexTemplates() bool {
+	return c.CreateIndexTemplates
 }
 
 // getConfigOptions wraps the configs to feed to the ElasticSearch client init

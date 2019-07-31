@@ -159,7 +159,7 @@ func TestFactory_LoadMapping(t *testing.T) {
 
 func TestCreateTemplateError(t *testing.T) {
 	f := NewFactory()
-	f.primaryConfig = &mockClientBuilder{createTemplateError: errors.New("template-error"), Configuration: escfg.Configuration{Enabled: true}}
+	f.primaryConfig = &mockClientBuilder{createTemplateError: errors.New("template-error"), Configuration: escfg.Configuration{Enabled: true, CreateIndexTemplates: true}}
 	f.archiveConfig = &mockClientBuilder{}
 	err := f.Initialize(metrics.NullFactory, zap.NewNop())
 	require.NoError(t, err)
