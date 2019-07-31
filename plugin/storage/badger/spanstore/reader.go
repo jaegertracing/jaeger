@@ -635,7 +635,7 @@ func (r *TraceReader) ScanDependencyIndex(startTimeMin time.Time, startTimeMax t
 						ServiceName: serviceName,
 					},
 					References: []model.SpanRef{
-						model.SpanRef{
+						{
 							SpanID: model.SpanID(binary.BigEndian.Uint64(parentSpanID)),
 						},
 					},
