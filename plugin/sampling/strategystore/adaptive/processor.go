@@ -28,8 +28,8 @@ import (
 	"github.com/jaegertracing/jaeger/cmd/collector/app/sampling/model"
 	ss "github.com/jaegertracing/jaeger/cmd/collector/app/sampling/strategystore"
 	jio "github.com/jaegertracing/jaeger/pkg/io"
-	"github.com/jaegertracing/jaeger/plugin/sampling/internal/calculationstrategy"
-	"github.com/jaegertracing/jaeger/plugin/sampling/internal/leaderelection"
+	"github.com/jaegertracing/jaeger/plugin/sampling/calculationstrategy"
+	"github.com/jaegertracing/jaeger/plugin/sampling/leaderelection"
 	"github.com/jaegertracing/jaeger/storage/samplingstore"
 	"github.com/jaegertracing/jaeger/thrift-gen/sampling"
 )
