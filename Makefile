@@ -102,6 +102,11 @@ index-cleaner-integration-test: docker-images-elastic
 	go clean -testcache
 	bash -c "set -e; set -o pipefail; $(GOTEST) -tags index_cleaner $(STORAGE_PKGS) | $(COLORIZE)"
 
+.PHONY: token-propagation-integration-test
+token-propagation-integration-test:
+	go clean -testcache
+	bash -c "set -e; set -o pipefail; $(GOTEST) -tags token_propagation -run TestBearTokenPropagation $(STORAGE_PKGS) | $(COLORIZE)"
+
 all-pkgs:
 	@echo $(ALL_PKGS) | tr ' ' '\n' | sort
 

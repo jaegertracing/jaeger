@@ -9,3 +9,17 @@ STORAGE=elasticsearch make storage-integration-test
 make index-cleaner-integration-test
 
 docker kill $CID
+
+echo "Executing token propatagion test"
+
+# Mock UI, needed only for build query service.
+make build-crossdock-ui-placeholder
+GOOS=linux make build-query
+
+SPAN_STORAGE_TYPE=elasticsearch ./cmd/query/query-linux --es.server-urls=http://127.0.0.1:9200 --es.tls=false --query.bearer-token-propagation=true &
+
+PID=$(echo $!)
+
+make token-propagation-integration-test
+
+kill -9 ${PID}
