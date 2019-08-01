@@ -41,7 +41,7 @@ type NamespaceConfig struct {
 }
 
 const (
-	defaultMaintenanceInterval time.Duration = 5 * time.Minute
+	defaultMaintenanceInterval time.Duration = 5 * time.Second
 	defaultTTL                 time.Duration = time.Hour * 72
 )
 
