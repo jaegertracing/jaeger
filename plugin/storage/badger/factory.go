@@ -23,6 +23,7 @@ import (
 	"time"
 
 	"github.com/dgraph-io/badger"
+	"github.com/dgraph-io/badger/options"
 
 	// init() badger's metrics to make them available in Initialize()
 	_ "github.com/dgraph-io/badger/y"
@@ -92,6 +93,7 @@ func (f *Factory) Initialize(metricsFactory metrics.Factory, logger *zap.Logger)
 	f.logger = logger
 
 	opts := badger.DefaultOptions
+	opts.TableLoadingMode = options.MemoryMap
 
 	if f.Options.primary.Ephemeral {
 		opts.SyncWrites = false
@@ -205,7 +207,7 @@ func (f *Factory) maintenance() {
 }
 
 func (f *Factory) metricsCopier() {
-	metricsTicker := time.NewTicker(10 * time.Second)
+	metricsTicker := time.NewTicker(f.Options.primary.MetricsUpdateInterval)
 	defer metricsTicker.Stop()
 	for {
 		select {
