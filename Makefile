@@ -355,7 +355,7 @@ generate-zipkin-swagger: idl-submodule
 
 .PHONY: install-mockery
 install-mockery:
-	go get -u github.com/vektra/mockery
+	go get -u github.com/vektra/mockery/.../
 
 .PHONY: generate-mocks
 generate-mocks: install-mockery

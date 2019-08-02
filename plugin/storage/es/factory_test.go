@@ -15,6 +15,7 @@
 package es
 
 import (
+	"context"
 	"errors"
 	"io/ioutil"
 	"os"
@@ -22,6 +23,7 @@ import (
 	"strings"
 	"testing"
 
+	"github.com/stretchr/testify/mock"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"github.com/uber/jaeger-lib/metrics"
@@ -39,11 +41,17 @@ var _ storage.Factory = new(Factory)
 type mockClientBuilder struct {
 	escfg.Configuration
 	err error
+	createTemplateError error
 }
 
 func (m *mockClientBuilder) NewClient(logger *zap.Logger, metricsFactory metrics.Factory) (es.Client, error) {
 	if m.err == nil {
-		return &mocks.Client{}, nil
+		c := &mocks.Client{}
+		tService := &mocks.TemplateCreateService{}
+		tService.On("Body", mock.Anything).Return(tService)
+		tService.On("Do", context.Background()).Return(nil, m.createTemplateError)
+		c.On("CreateTemplate", mock.Anything).Return(tService)
+		return c, nil
 	}
 	return nil, m.err
 }
@@ -149,9 +157,20 @@ func TestFactory_LoadMapping(t *testing.T) {
 	}
 }
 
+func TestCreateTemplateError(t *testing.T) {
+	f := NewFactory()
+	f.primaryConfig = &mockClientBuilder{createTemplateError: errors.New("template-error"), Configuration: escfg.Configuration{Enabled: true, CreateIndexTemplates: true}}
+	f.archiveConfig = &mockClientBuilder{}
+	err := f.Initialize(metrics.NullFactory, zap.NewNop())
+	require.NoError(t, err)
+	w, err := f.CreateSpanWriter()
+	assert.Nil(t, w)
+	assert.Error(t, err, "template-error")
+}
+
 func TestArchiveDisabled(t *testing.T) {
 	f := NewFactory()
-	f.Options.Get(archiveNamespace).Enabled = false
+	f.archiveConfig = &mockClientBuilder{Configuration: escfg.Configuration{Enabled: false}}
 	w, err := f.CreateArchiveSpanWriter()
 	assert.Nil(t, w)
 	assert.Nil(t, err)
@@ -163,10 +182,9 @@ func TestArchiveDisabled(t *testing.T) {
 func TestArchiveEnabled(t *testing.T) {
 	f := NewFactory()
 	f.primaryConfig = &mockClientBuilder{}
-	f.archiveConfig = &mockClientBuilder{}
+	f.archiveConfig = &mockClientBuilder{Configuration: escfg.Configuration{Enabled: true}}
 	err := f.Initialize(metrics.NullFactory, zap.NewNop())
 	require.NoError(t, err)
-	f.Options.Get(archiveNamespace).Enabled = true
 	w, err := f.CreateArchiveSpanWriter()
 	require.NoError(t, err)
 	assert.NotNil(t, w)
