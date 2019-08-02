@@ -276,8 +276,11 @@ func TestSpanReader_multiRead_followUp_query(t *testing.T) {
 		require.NoError(t, err)
 		sModel2, err := toDomain.SpanToDomain(&spanID2)
 		require.NoError(t, err)
-		assert.EqualValues(t, traces[0].Spans[0], sModel1)
-		assert.EqualValues(t, traces[1].Spans[0], sModel2)
+
+		for _, s := range []*model.Span{sModel1, sModel2} {
+			found := reflect.DeepEqual(traces[0].Spans[0], s) || reflect.DeepEqual(traces[1].Spans[0], s)
+			assert.True(t, found, "span was expected to be within one of the traces but was not: %v", s)
+		}
 	})
 }
 
