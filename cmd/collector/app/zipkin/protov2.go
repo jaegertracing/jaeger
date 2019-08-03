@@ -151,7 +151,14 @@ func protoEndpointV2ToThrift(e *zmodel.Endpoint) (*zipkincore.Endpoint, error) {
 	if e == nil {
 		return nil, nil
 	}
-	return eToThrift(string(e.Ipv4), string(e.Ipv6), int32(e.Port), e.ServiceName)
+	ipv4 := binary.BigEndian.Uint32(e.Ipv4)
+	port := port(int32(e.Port))
+	return &zipkincore.Endpoint{
+		ServiceName: e.ServiceName,
+		Port:        int16(port),
+		Ipv4:        int32(ipv4),
+		Ipv6:        e.Ipv6,
+	}, nil
 }
 
 func protoAnnoV2ToThrift(a *zmodel.Annotation, e *zipkincore.Endpoint) *zipkincore.Annotation {
