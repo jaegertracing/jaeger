@@ -168,11 +168,11 @@ func TestElasticsearchStorage_Archive(t *testing.T) {
 
 func (s *StorageIntegration) testArchiveTrace(t *testing.T) {
 	defer s.cleanUp(t)
-	tId := model.NewTraceID(uint64(11), uint64(22))
+	tID := model.NewTraceID(uint64(11), uint64(22))
 	expected := &model.Span{
 		OperationName: "archive_span",
 		StartTime:     time.Now().Add(-maxSpanAge * 5),
-		TraceID:       tId,
+		TraceID:       tID,
 		SpanID:        model.NewSpanID(55),
 		References:    []model.SpanRef{},
 		Process:       model.NewProcess("archived_service", model.KeyValues{}),
@@ -184,7 +184,7 @@ func (s *StorageIntegration) testArchiveTrace(t *testing.T) {
 	var actual *model.Trace
 	found := s.waitForCondition(t, func(t *testing.T) bool {
 		var err error
-		actual, err = s.SpanReader.GetTrace(context.Background(), tId)
+		actual, err = s.SpanReader.GetTrace(context.Background(), tID)
 		return err == nil && len(actual.Spans) == 1
 	})
 	if !assert.True(t, found) {
