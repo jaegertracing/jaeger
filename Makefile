@@ -1,8 +1,6 @@
 PROJECT_ROOT=github.com/jaegertracing/jaeger
 STORAGE_PKGS = ./plugin/storage/integration/...
 
-#				   -not -name '*_test.go' \
-
 # all .go files that are not auto-generated and should be auto-formatted and linted.
 ALL_SRC := $(shell find . -name '*.go' \
 				   -not -name 'doc.go' \
