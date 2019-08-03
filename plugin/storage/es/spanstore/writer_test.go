@@ -107,10 +107,10 @@ func TestClientClose(t *testing.T) {
 // Extra tests for individual functions are below.
 func TestSpanWriter_WriteSpan(t *testing.T) {
 	testCases := []struct {
-		caption                 string
-		serviceIndexExists      bool
-		expectedError           string
-		expectedLogs            []string
+		caption            string
+		serviceIndexExists bool
+		expectedError      string
+		expectedLogs       []string
 	}{
 		{
 			caption: "span insertion error",
@@ -184,9 +184,9 @@ func TestSpanWriter_WriteSpan(t *testing.T) {
 }
 
 func TestCreateTemplates(t *testing.T) {
-	tests := []struct{
-		err string
-		spanTemplateService func() *mocks.TemplateCreateService
+	tests := []struct {
+		err                    string
+		spanTemplateService    func() *mocks.TemplateCreateService
 		serviceTemplateService func() *mocks.TemplateCreateService
 	}{
 		{

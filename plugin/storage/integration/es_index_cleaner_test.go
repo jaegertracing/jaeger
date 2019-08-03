@@ -30,8 +30,8 @@ import (
 const (
 	archiveIndexName      = "jaeger-span-archive"
 	dependenciesIndexName = "jaeger-dependencies-2019-01-01"
-	spanIndexName = "jaeger-span-2019-01-01"
-	serviceIndexName = "jaeger-service-2019-01-01"
+	spanIndexName         = "jaeger-span-2019-01-01"
+	serviceIndexName      = "jaeger-service-2019-01-01"
 	indexCleanerImage     = "jaegertracing/jaeger-es-index-cleaner:latest"
 	rolloverImage         = "jaegertracing/jaeger-es-rollover:latest"
 	rolloverNowEnvVar     = "CONDITIONS='{\"max_age\":\"0s\"}'"
@@ -43,12 +43,12 @@ func TestIndexCleaner_doNotFailOnEmptyStorage(t *testing.T) {
 	_, err = client.DeleteIndex("*").Do(context.Background())
 	require.NoError(t, err)
 
-	tests := []struct{
+	tests := []struct {
 		envs []string
 	}{
-		{envs:[]string{"ROLLOVER=false"}},
-		{envs:[]string{"ROLLOVER=true"}},
-		{envs:[]string{"ARCHIVE=true"}},
+		{envs: []string{"ROLLOVER=false"}},
+		{envs: []string{"ROLLOVER=true"}},
+		{envs: []string{"ARCHIVE=true"}},
 	}
 	for _, test := range tests {
 		err := runEsCleaner(7, test.envs)
@@ -59,12 +59,12 @@ func TestIndexCleaner_doNotFailOnEmptyStorage(t *testing.T) {
 func TestIndexCleaner_doNotFailOnFullStorage(t *testing.T) {
 	client, err := createESClient()
 	require.NoError(t, err)
-	tests := []struct{
+	tests := []struct {
 		envs []string
 	}{
-		{envs:[]string{"ROLLOVER=false"}},
-		{envs:[]string{"ROLLOVER=true"}},
-		{envs:[]string{"ARCHIVE=true"}},
+		{envs: []string{"ROLLOVER=false"}},
+		{envs: []string{"ROLLOVER=true"}},
+		{envs: []string{"ARCHIVE=true"}},
 	}
 	for _, test := range tests {
 		_, err = client.DeleteIndex("*").Do(context.Background())
@@ -80,13 +80,13 @@ func TestIndexCleaner(t *testing.T) {
 	client, err := createESClient()
 	require.NoError(t, err)
 
-	tests := []struct{
-		name string
-		envVars []string
+	tests := []struct {
+		name            string
+		envVars         []string
 		expectedIndices []string
 	}{
 		{
-			name: "RemoveDailyIndices",
+			name:    "RemoveDailyIndices",
 			envVars: []string{},
 			expectedIndices: []string{
 				archiveIndexName,
@@ -95,7 +95,7 @@ func TestIndexCleaner(t *testing.T) {
 			},
 		},
 		{
-			name: "RemoveRolloverIndices",
+			name:    "RemoveRolloverIndices",
 			envVars: []string{"ROLLOVER=true"},
 			expectedIndices: []string{
 				archiveIndexName, spanIndexName, serviceIndexName, dependenciesIndexName,
@@ -104,7 +104,7 @@ func TestIndexCleaner(t *testing.T) {
 			},
 		},
 		{
-			name: "RemoveArchiveIndices",
+			name:    "RemoveArchiveIndices",
 			envVars: []string{"ARCHIVE=true"},
 			expectedIndices: []string{
 				archiveIndexName, spanIndexName, serviceIndexName, dependenciesIndexName,
@@ -140,7 +140,7 @@ func runIndexCleanerTest(t *testing.T, client *elastic.Client, prefix string, ex
 	}
 	var expected []string
 	for _, index := range expectedIndices {
-		expected = append(expected, prefix + index)
+		expected = append(expected, prefix+index)
 	}
 	assert.ElementsMatch(t, indices, expected, fmt.Sprintf("indices found: %v, expected: %v", indices, expected))
 }
@@ -212,7 +212,7 @@ func runEsRollover(action string, envs []string) error {
 }
 
 func createESClient() (*elastic.Client, error) {
-	 return elastic.NewClient(
+	return elastic.NewClient(
 		elastic.SetURL(queryURL),
 		elastic.SetSniff(false))
 }

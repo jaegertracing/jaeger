@@ -21,8 +21,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/stretchr/testify/assert"
 	"github.com/pkg/errors"
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"github.com/uber/jaeger-lib/metrics"
 	"go.uber.org/zap"
@@ -43,7 +43,7 @@ const (
 	queryURL        = "http://" + queryHostPort
 	indexPrefix     = "integration-test"
 	tagKeyDeDotChar = "@"
-	maxSpanAge = time.Hour * 72
+	maxSpanAge      = time.Hour * 72
 )
 
 type ESStorageIntegration struct {
@@ -99,7 +99,7 @@ func (s *ESStorageIntegration) initSpanstore(allTagsAsFields, archive bool) erro
 			IndexPrefix:       indexPrefix,
 			AllTagsAsFields:   allTagsAsFields,
 			TagDotReplacement: tagKeyDeDotChar,
-			Archive: archive,
+			Archive:           archive,
 		})
 	err := w.CreateTemplates(spanMapping, serviceMapping)
 	if err != nil {
@@ -113,7 +113,7 @@ func (s *ESStorageIntegration) initSpanstore(allTagsAsFields, archive bool) erro
 		IndexPrefix:       indexPrefix,
 		MaxSpanAge:        maxSpanAge,
 		TagDotReplacement: tagKeyDeDotChar,
-		Archive: archive,
+		Archive:           archive,
 	})
 	return nil
 }
@@ -170,12 +170,12 @@ func (s *StorageIntegration) testArchiveTrace(t *testing.T) {
 	defer s.cleanUp(t)
 	tId := model.NewTraceID(uint64(11), uint64(22))
 	expected := &model.Span{
-		OperationName:    "archive_span",
-		StartTime: time.Now().Add(-maxSpanAge*5),
-		TraceID: tId,
-		SpanID: model.NewSpanID(55),
-		References: []model.SpanRef{},
-		Process: model.NewProcess("archived_service", model.KeyValues{}),
+		OperationName: "archive_span",
+		StartTime:     time.Now().Add(-maxSpanAge * 5),
+		TraceID:       tId,
+		SpanID:        model.NewSpanID(55),
+		References:    []model.SpanRef{},
+		Process:       model.NewProcess("archived_service", model.KeyValues{}),
 	}
 
 	require.NoError(t, s.SpanWriter.WriteSpan(expected))
