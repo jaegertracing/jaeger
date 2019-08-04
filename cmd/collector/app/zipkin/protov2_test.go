@@ -27,8 +27,8 @@ func mockListOfSpans() zmodel.ListOfSpans {
 		ParentId:  pid,
 		Name:      "foo",
 		Debug:     true,
-		Duration:  d,
 		Timestamp: ts,
+		Duration:  d,
 		LocalEndpoint: &zmodel.Endpoint{
 			ServiceName: "bar",
 			Ipv4:        ipv4,

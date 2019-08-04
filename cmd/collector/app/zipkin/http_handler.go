@@ -139,9 +139,9 @@ func (aH *APIHandler) saveSpansV2(w http.ResponseWriter, r *http.Request) {
 	var tSpans []*zipkincore.Span
 	switch contentType {
 	case "application/json":
-		tSpans, err = aH.jsonToThriftSpansV2(bodyBytes)
+		tSpans, err = jsonToThriftSpansV2(bodyBytes, aH.zipkinV2Formats)
 	case "application/x-protobuf":
-		tSpans, err = aH.protoToThriftSpansV2(bodyBytes)
+		tSpans, err = protoToThriftSpansV2(bodyBytes)
 	default:
 		http.Error(w, "Unsupported Content-Type", http.StatusBadRequest)
 		return
@@ -160,12 +160,12 @@ func (aH *APIHandler) saveSpansV2(w http.ResponseWriter, r *http.Request) {
 	w.WriteHeader(operations.PostSpansAcceptedCode)
 }
 
-func (aH *APIHandler) jsonToThriftSpansV2(bodyBytes []byte) ([]*zipkincore.Span, error) {
+func jsonToThriftSpansV2(bodyBytes []byte, zipkinV2Formats strfmt.Registry) ([]*zipkincore.Span, error) {
 	var spans models.ListOfSpans
 	if err := swag.ReadJSON(bodyBytes, &spans); err != nil {
 		return nil, err
 	}
-	if err := spans.Validate(aH.zipkinV2Formats); err != nil {
+	if err := spans.Validate(zipkinV2Formats); err != nil {
 		return nil, err
 	}
 
@@ -176,7 +176,7 @@ func (aH *APIHandler) jsonToThriftSpansV2(bodyBytes []byte) ([]*zipkincore.Span,
 	return tSpans, nil
 }
 
-func (aH *APIHandler) protoToThriftSpansV2(bodyBytes []byte) ([]*zipkincore.Span, error) {
+func protoToThriftSpansV2(bodyBytes []byte) ([]*zipkincore.Span, error) {
 	var spans zmodel.ListOfSpans
 	if err := proto.Unmarshal(bodyBytes, &spans); err != nil {
 		return nil, err
