@@ -54,8 +54,9 @@ func (l *Lock) Acquire(resource string, ttl time.Duration) (bool, error) {
 	if ttl == 0 {
 		ttl = defaultTTL
 	}
+	ttlSec := int(ttl.Seconds())
 	var name, owner string
-	applied, err := l.session.Query(cqlInsertLock, resource, l.tenantID, ttl.Seconds()).ScanCAS(&name, &owner)
+	applied, err := l.session.Query(cqlInsertLock, resource, l.tenantID, ttlSec).ScanCAS(&name, &owner)
 	if err != nil {
 		return false, errors.Wrap(err, "Failed to acquire resource lock due to cassandra error")
 	}
@@ -89,8 +90,9 @@ func (l *Lock) Forfeit(resource string) (bool, error) {
 
 // extendLease will attempt to extend the lease of an existing lock on a given resource.
 func (l *Lock) extendLease(resource string, ttl time.Duration) error {
+	ttlSec := int(ttl.Seconds())
 	var owner string
-	applied, err := l.session.Query(cqlUpdateLock, ttl.Seconds(), l.tenantID, resource, l.tenantID).ScanCAS(&owner)
+	applied, err := l.session.Query(cqlUpdateLock, ttlSec, l.tenantID, resource, l.tenantID).ScanCAS(&owner)
 	if err != nil {
 		return err
 	}

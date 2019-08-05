@@ -92,27 +92,8 @@ func TestExtendLease(t *testing.T) {
 					assert.EqualError(t, err, testCase.expectedErrMsg)
 				}
 
-				assert.Len(t, args, 4)
-				if d, ok := args[0].(float64); ok {
-					assert.EqualValues(t, 60, d)
-				} else {
-					assert.Fail(t, "expecting first arg as int64", "received: %+v", args)
-				}
-				if d, ok := args[1].(string); ok {
-					assert.Equal(t, localhost, d)
-				} else {
-					assert.Fail(t, "expecting second arg as string", "received: %+v", args)
-				}
-				if d, ok := args[2].(string); ok {
-					assert.Equal(t, samplingLock, d)
-				} else {
-					assert.Fail(t, "expecting third arg as string", "received: %+v", args)
-				}
-				if d, ok := args[3].(string); ok {
-					assert.Equal(t, localhost, d)
-				} else {
-					assert.Fail(t, "expecting fourth arg as string", "received: %+v", args)
-				}
+				expectedArgs := []interface{}{60, localhost, samplingLock, localhost}
+				assert.Equal(t, expectedArgs, args)
 			})
 		})
 	}
