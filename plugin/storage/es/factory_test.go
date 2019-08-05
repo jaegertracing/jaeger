@@ -135,13 +135,19 @@ func TestLoadTagsFromFile(t *testing.T) {
 }
 
 func TestFactory_LoadMapping(t *testing.T) {
-	spanMapping, serviceMapping := GetMappings(10, 0, 6)
+	spanMapping5, serviceMapping5 := GetMappings(10, 0, 5)
+	spanMapping6, serviceMapping6 := GetMappings(10, 0, 6)
+	spanMapping7, serviceMapping7 := GetMappings(10, 0, 7)
 	tests := []struct {
 		name   string
 		toTest string
 	}{
-		{name: "/jaeger-span-6.json", toTest: spanMapping},
-		{name: "/jaeger-service-6.json", toTest: serviceMapping},
+		{name: "/jaeger-span-5.json", toTest: spanMapping5},
+		{name: "/jaeger-service-5.json", toTest: serviceMapping5},
+		{name: "/jaeger-span-6.json", toTest: spanMapping6},
+		{name: "/jaeger-service-6.json", toTest: serviceMapping6},
+		{name: "/jaeger-span-7.json", toTest: spanMapping7},
+		{name: "/jaeger-service-7.json", toTest: serviceMapping7},
 	}
 	for _, test := range tests {
 		mapping := loadMapping(test.name)
