@@ -656,7 +656,7 @@
   version = "v1.0.0"
 
 [[projects]]
-  digest = "1:2bf1079dc711508d423f2d1bcb97078f0a015152433b02858e681006fcb1147f"
+  digest = "1:c2d643e8b2c25cf18d6e1237233df6457729d9491bbad6fa9598cad8d01466a6"
   name = "github.com/olivere/elastic"
   packages = [
     ".",
@@ -664,8 +664,8 @@
     "uritemplates",
   ]
   pruneopts = "UT"
-  revision = "2ce6dee3af14e17dc059746a1de4f983169030e9"
-  version = "v6.2.21"
+  revision = "8ebe6a0fc23d9d53fbd8890da8ae7ee7cea78dbe"
+  version = "v6.2.22"
 
 [[projects]]
   branch = "master"

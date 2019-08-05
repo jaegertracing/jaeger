@@ -74,7 +74,7 @@ func (c ClientWrapper) Index() es.IndexService {
 func (c ClientWrapper) Search(indices ...string) es.SearchService {
 	searchService := c.client.Search(indices...)
 	if c.esVersion == 7 {
-		// searchService = searchService.RestTotalHitsAsInt(true)
+		searchService = searchService.RestTotalHitsAsInt(true)
 	}
 	return WrapESSearchService(searchService)
 }
@@ -83,7 +83,7 @@ func (c ClientWrapper) Search(indices ...string) es.SearchService {
 func (c ClientWrapper) MultiSearch() es.MultiSearchService {
 	multiSearchService := c.client.MultiSearch()
 	if c.esVersion == 7 {
-		// multiSearchService = multiSearchService.RestTotalHitsAsInt(true)
+		multiSearchService = multiSearchService.RestTotalHitsAsInt(true)
 	}
 	return WrapESMultiSearchService(multiSearchService)
 }
