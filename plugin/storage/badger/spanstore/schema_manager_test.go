@@ -17,6 +17,8 @@ package spanstore
 import (
 	"bytes"
 	"encoding/binary"
+	"io/ioutil"
+	"os"
 	"testing"
 
 	"github.com/dgraph-io/badger"
@@ -72,6 +74,83 @@ func TestSchemaMigrate(t *testing.T) {
 	})
 }
 
+func TestForSchemaErrorWithReadOnly(t *testing.T) {
+	opts := badger.DefaultOptions
+	opts.ValueLogMaxEntries = 0
+
+	opts.SyncWrites = false
+	dir, _ := ioutil.TempDir("", "badger")
+	opts.Dir = dir
+	opts.ValueDir = dir
+
+	store, err := badger.Open(opts)
+	defer func() {
+		os.RemoveAll(dir)
+	}()
+
+	assert.NoError(t, err)
+
+	testSpan := createDummySpan()
+	key, value, err := createVer0Span(testSpan)
+	assert.NoError(t, err)
+
+	err = store.Update(func(txn *badger.Txn) error {
+		err := txn.Set(key, value)
+		return err
+	})
+
+	assert.NoError(t, err)
+
+	err = store.Close()
+	assert.NoError(t, err)
+
+	// As this isn't exposed option.. testing this is silly, but it improves codecov coverage for diff which is the point
+	opts.ReadOnly = true
+	store, err = badger.Open(opts)
+	assert.NoError(t, err)
+
+	err = SchemaUpdate(store, zap.NewNop())
+	assert.Error(t, err)
+}
+
+func TestCorruptedSpan(t *testing.T) {
+	runWithBadger(t, func(store *badger.DB, t *testing.T) {
+		// Write Ver0 data (not everything, but important parts)
+		testSpan := createDummySpan()
+		key, _, err := createVer0Span(testSpan)
+		assert.NoError(t, err)
+
+		err = store.Update(func(txn *badger.Txn) error {
+			err := txn.Set(key, nil)
+			return err
+		})
+		assert.NoError(t, err)
+
+		err = SchemaUpdate(store, zap.NewNop())
+		assert.NoError(t, err)
+	})
+}
+
+func TestCorruptedUmarshalSpan(t *testing.T) {
+	runWithBadger(t, func(store *badger.DB, t *testing.T) {
+		// Write Ver0 data (not everything, but important parts)
+		testSpan := createDummySpan()
+		key, value, err := createVer0Span(testSpan)
+		assert.NoError(t, err)
+
+		value[0] = 0
+
+		err = store.Update(func(txn *badger.Txn) error {
+			err := txn.Set(key, value)
+			return err
+		})
+		assert.NoError(t, err)
+
+		err = SchemaUpdate(store, zap.NewNop())
+		assert.Error(t, err)
+	})
+}
+
 func createVer0Span(span model.Span) ([]byte, []byte, error) {
 	buf := new(bytes.Buffer)
 
@@ -87,7 +166,6 @@ func createVer0Span(span model.Span) ([]byte, []byte, error) {
 	bb, err = proto.Marshal(&span)
 
 	return buf.Bytes(), bb, err
-
 }
 
 func createVer1DepKey(span model.Span) []byte {

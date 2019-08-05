@@ -118,16 +118,28 @@ func updateTo1(store *badger.DB) error {
 				return err
 			}
 
+			if sp.Process == nil {
+				// Corrupted span, ignore it
+				continue
+			}
+
 			newKey := createDependencyIndexKeyVer1(&sp)
-			txn.SetEntry(&badger.Entry{
+			err = txn.SetEntry(&badger.Entry{
 				Key:       newKey,
 				Value:     nil,
 				ExpiresAt: item.ExpiresAt(), // Same expiration time as the span we read in
 			})
+			if err != nil {
+				return err
+			}
 		}
 		return nil
 	})
 
+	if err == nil {
+		// Next time we can continue from this version
+		setSchemaVersion(store, uint32(1))
+	}
 	return err
 }
 
@@ -137,14 +149,14 @@ func setSchemaVersion(store *badger.DB, version uint32) error {
 	value := make([]byte, 4)
 	binary.BigEndian.PutUint32(value, version)
 
-	store.Update(func(txn *badger.Txn) error {
+	err := store.Update(func(txn *badger.Txn) error {
 		err := txn.Set(key, value)
 		if err != nil {
 			return err
 		}
 		return nil
 	})
-	return nil
+	return err
 }
 
 func createDependencyIndexKeyVer1(span *model.Span) []byte {

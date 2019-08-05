@@ -217,3 +217,109 @@ func TestBadgerMetrics(t *testing.T) {
 	err := f.Close()
 	assert.NoError(t, err)
 }
+
+func TestFailToInitializeByCorruptingDB(t *testing.T) {
+	f := NewFactory()
+	v, command := config.Viperize(f.AddFlags)
+	dir, _ := ioutil.TempDir("", "badger")
+	// defer os.RemoveAll(dir)
+
+	keyParam := fmt.Sprintf("--badger.directory-key=%s", dir)
+	valueParam := fmt.Sprintf("--badger.directory-value=%s", dir)
+
+	command.ParseFlags([]string{
+		"--badger.ephemeral=false",
+		"--badger.consistency=true",
+		keyParam,
+		valueParam,
+	})
+	f.InitFromViper(v)
+
+	err := f.Initialize(metrics.NullFactory, zap.NewNop())
+	assert.NoError(t, err)
+
+	sw, err := f.CreateSpanWriter()
+	assert.NoError(t, err)
+
+	err = sw.WriteSpan(createDummySpan())
+	assert.NoError(t, err)
+
+	err = f.Close()
+	assert.NoError(t, err)
+
+	opts := badger.DefaultOptions
+	opts.Dir = dir
+	opts.ValueDir = dir
+	store, err := badger.Open(opts)
+	assert.NoError(t, err)
+
+	// Corrupt the data
+	err = store.Update(func(txn *badger.Txn) error {
+		opts := badger.DefaultIteratorOptions
+		it := txn.NewIterator(opts)
+		defer it.Close()
+
+		spanKey := []byte{0x80}
+		it.Seek(spanKey)
+		if it.Item() != nil && bytes.HasPrefix(it.Item().Key(), spanKey) {
+			val := []byte{}
+			val, err = it.Item().ValueCopy(val)
+			assert.NoError(t, err)
+
+			val[0] = 0 // Corrupt the proto
+			keyCopy := []byte{}
+			keyCopy = it.Item().KeyCopy(keyCopy)
+			err = txn.Set(keyCopy, val)
+			assert.NoError(t, err)
+		}
+
+		// Delete the schema key to cause proto unmarshalling
+		err = txn.Delete([]byte{0x11})
+		assert.NoError(t, err)
+
+		return nil
+	})
+	assert.NoError(t, err)
+
+	err = store.Close()
+	assert.NoError(t, err)
+
+	err = f.Initialize(metrics.NullFactory, zap.NewNop())
+	assert.Error(t, err)
+}
+
+func createDummySpan() *model.Span {
+	tid := time.Now()
+
+	dummyKv := []model.KeyValue{
+		{
+			Key:   "key",
+			VType: model.StringType,
+			VStr:  "value",
+		},
+	}
+
+	testSpan := model.Span{
+		TraceID: model.TraceID{
+			Low:  uint64(0),
+			High: 1,
+		},
+		SpanID:        model.SpanID(0),
+		OperationName: "operation",
+		Process: &model.Process{
+			ServiceName: "service",
+			Tags:        dummyKv,
+		},
+		StartTime: tid.Add(time.Duration(1 * time.Millisecond)),
+		Duration:  time.Duration(1 * time.Millisecond),
+		Tags:      dummyKv,
+		Logs: []model.Log{
+			{
+				Timestamp: tid,
+				Fields:    dummyKv,
+			},
+		},
+	}
+
+	return &testSpan
+}
