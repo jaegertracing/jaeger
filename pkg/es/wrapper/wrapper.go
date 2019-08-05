@@ -28,11 +28,17 @@ import (
 type ClientWrapper struct {
 	client      *elastic.Client
 	bulkService *elastic.BulkProcessor
+	esVersion   int
+}
+
+// GetVersion returns the ElasticSearch Version
+func (c ClientWrapper) GetVersion() int {
+	return c.esVersion
 }
 
 // WrapESClient creates a ESClient out of *elastic.Client.
-func WrapESClient(client *elastic.Client, s *elastic.BulkProcessor) ClientWrapper {
-	return ClientWrapper{client: client, bulkService: s}
+func WrapESClient(client *elastic.Client, s *elastic.BulkProcessor, esVersion int) ClientWrapper {
+	return ClientWrapper{client: client, bulkService: s, esVersion: esVersion}
 }
 
 // IndexExists calls this function to internal client.
@@ -42,12 +48,20 @@ func (c ClientWrapper) IndexExists(index string) es.IndicesExistsService {
 
 // CreateIndex calls this function to internal client.
 func (c ClientWrapper) CreateIndex(index string) es.IndicesCreateService {
-	return WrapESIndicesCreateService(c.client.CreateIndex(index))
+	indicesCreateService := c.client.CreateIndex(index)
+	if c.esVersion == 7 {
+		indicesCreateService = indicesCreateService.IncludeTypeName(true)
+	}
+	return WrapESIndicesCreateService(indicesCreateService)
 }
 
 // CreateTemplate calls this function to internal client.
 func (c ClientWrapper) CreateTemplate(ttype string) es.TemplateCreateService {
-	return WrapESTemplateCreateService(c.client.IndexPutTemplate(ttype))
+	mappingCreateService := c.client.IndexPutTemplate(ttype)
+	if c.esVersion == 7 {
+		mappingCreateService = mappingCreateService.IncludeTypeName(true)
+	}
+	return WrapESTemplateCreateService(mappingCreateService)
 }
 
 // Index calls this function to internal client.
@@ -58,12 +72,20 @@ func (c ClientWrapper) Index() es.IndexService {
 
 // Search calls this function to internal client.
 func (c ClientWrapper) Search(indices ...string) es.SearchService {
-	return WrapESSearchService(c.client.Search(indices...))
+	searchService := c.client.Search(indices...)
+	if c.esVersion == 7 {
+		// searchService = searchService.RestTotalHitsAsInt(true)
+	}
+	return WrapESSearchService(searchService)
 }
 
 // MultiSearch calls this function to internal client.
 func (c ClientWrapper) MultiSearch() es.MultiSearchService {
-	return WrapESMultiSearchService(c.client.MultiSearch())
+	multiSearchService := c.client.MultiSearch()
+	if c.esVersion == 7 {
+		// multiSearchService = multiSearchService.RestTotalHitsAsInt(true)
+	}
+	return WrapESMultiSearchService(multiSearchService)
 }
 
 // Close closes ESClient and flushes all data to the storage.
@@ -103,11 +125,6 @@ func WrapESIndicesCreateService(indicesCreateService *elastic.IndicesCreateServi
 // Body calls this function to internal service.
 func (c IndicesCreateServiceWrapper) Body(mapping string) es.IndicesCreateService {
 	return WrapESIndicesCreateService(c.indicesCreateService.Body(mapping))
-}
-
-// IncludeTypeName calls this function to internal service.
-func (c IndicesCreateServiceWrapper) IncludeTypeName(include bool) es.IndicesCreateService {
-	return WrapESIndicesCreateService(c.indicesCreateService.IncludeTypeName(include))
 }
 
 // Do calls this function to internal service.

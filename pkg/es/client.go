@@ -30,6 +30,7 @@ type Client interface {
 	Search(indices ...string) SearchService
 	MultiSearch() MultiSearchService
 	io.Closer
+	GetVersion() int
 }
 
 // IndicesExistsService is an abstraction for elastic.IndicesExistsService
@@ -41,7 +42,6 @@ type IndicesExistsService interface {
 type IndicesCreateService interface {
 	Body(mapping string) IndicesCreateService
 	Do(ctx context.Context) (*elastic.IndicesCreateResult, error)
-	IncludeTypeName(include bool) IndicesCreateService
 }
 
 // TemplateCreateService is an abstraction for creating a mapping

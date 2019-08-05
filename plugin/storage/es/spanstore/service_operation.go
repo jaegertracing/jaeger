@@ -20,9 +20,9 @@ import (
 	"hash/fnv"
 	"time"
 
+	"github.com/olivere/elastic"
 	"github.com/pkg/errors"
 	"go.uber.org/zap"
-	"github.com/olivere/elastic"
 
 	"github.com/jaegertracing/jaeger/pkg/cache"
 	"github.com/jaegertracing/jaeger/pkg/es"

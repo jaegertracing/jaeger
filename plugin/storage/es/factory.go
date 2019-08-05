@@ -17,6 +17,7 @@ package es
 import (
 	"bufio"
 	"flag"
+	"fmt"
 	"os"
 	"path/filepath"
 	"strconv"
@@ -176,7 +177,7 @@ func createSpanWriter(
 		}
 	}
 
-	spanMapping, serviceMapping := GetMappings(cfg.GetNumShards(), cfg.GetNumReplicas())
+	spanMapping, serviceMapping := GetMappings(cfg.GetNumShards(), cfg.GetNumReplicas(), client.GetVersion())
 	writer := esSpanStore.NewSpanWriter(esSpanStore.SpanWriterParams{
 		Client:              client,
 		Logger:              logger,
@@ -198,9 +199,9 @@ func createSpanWriter(
 }
 
 // GetMappings returns span and service mappings
-func GetMappings(shards, replicas int64) (string, string) {
-	return fixMapping(loadMapping("/jaeger-span.json"), shards, replicas),
-		fixMapping(loadMapping("/jaeger-service.json"), shards, replicas)
+func GetMappings(shards, replicas int64, version int) (string, string) {
+	return fixMapping(loadMapping(fmt.Sprintf("/jaeger-span-%d.json", version)), shards, replicas),
+		fixMapping(loadMapping(fmt.Sprintf("/jaeger-service-%d.json", version)), shards, replicas)
 }
 
 func loadMapping(name string) string {

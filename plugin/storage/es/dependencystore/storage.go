@@ -29,7 +29,7 @@ import (
 )
 
 const (
-	dependencyType  = "_doc"
+	dependencyType  = "dependencies"
 	dependencyIndex = "jaeger-dependencies-"
 )
 
@@ -66,7 +66,7 @@ func (s *DependencyStore) WriteDependencies(ts time.Time, dependencies []model.D
 }
 
 func (s *DependencyStore) createIndex(indexName string) error {
-	_, err := s.client.CreateIndex(indexName).Body(dependenciesMapping).IncludeTypeName(true).Do(s.ctx)
+	_, err := s.client.CreateIndex(indexName).Body(dependenciesMapping).Do(s.ctx)
 	if err != nil {
 		return errors.Wrap(err, "Failed to create index")
 	}

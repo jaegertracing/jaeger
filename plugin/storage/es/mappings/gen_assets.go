@@ -220,37 +220,111 @@ IKK1KwAAAA==
 `,
 	},
 
-	"/jaeger-service.json": {
-		name:    "jaeger-service.json",
-		local:   "plugin/storage/es/mappings/jaeger-service.json",
-		size:    916,
-		modtime: 1563884923,
+	"/jaeger-service-5.json": {
+		name:    "jaeger-service-5.json",
+		local:   "plugin/storage/es/mappings/jaeger-service-5.json",
+		size:    1060,
+		modtime: 1564848904,
 		compressed: `
-H4sIAAAAAAAC/8xQQUszMRC9768Iw3f6KIsI9ZBb1YqCVmnxJBKm2elucJONybRayv53Wdna3bb05MFL
-MpN578172SRCQCRm4/IIsmmFAOMy+kzd0s4pqGqhYoEhiyDFv41Sk+eHy/FUPd6o2e1oej1Tqh4cpwXy
-pdF4SJyOn+7vrkYHVIveG5enjiJTphaGyiympbGGQQ7PethA70uKHFONuqCUHM5LAslhSYkQ37rQ6u2C
-qazS20YIyNYOrdGKyfoSmSLIl3YmxOanar7Io1OMeVQW/U6hnbZ79t+FAF57AglvtP6oQgaD/bnJXRVI
-4bxaEcjz4UUPUPfx4JELZZF1ARIY8/Q/dAB1coTXS+FDpSnGPxakdZWeCtRWr1udhuQpsKHYNQuRwspo
-mqClfohTAU6Y7xiHZiGyqdzvqSfduznrpE6+AgAA//8cbA7YlAMAAA==
+H4sIAAAAAAAC/8yTT2/UMBDF7/kU1ojTamshpHLwrUARSFDQVpwQGs3Gs1mD7RjbKayqfHfk4pKkW+2J
+Q3PIn/F78/xz7NtGCMjsgqXMoASsvhN3HM8SxxvT8tkK1kWSOGfjuwSqOIQA4zX/ln5wW47Y7zDtKeoE
+Sjy7Rbz68vHV5QY/vcXrdxebN9eI4/pxW+RgTUvHxs3l5w/vX18cWR2FYHwnPafMGneGrU7SGmcyqPPn
+C23knwOnnGRL7Z4le9paBpXjwEc9OUp98ORMC2pHNnEjxF0y1MQJHTXvaLAZ7yulRtZOn0LA3zA9NStX
+RRECahbeL30C9fWfeWpTVj6Qx0xdQkdhHnE3Wif3sF5+6iEwKPjBh1991LB+OG4630dG2vY3DOrF+cuF
+YFzqIVDeo6Pc7kFBpk6uYCYYm0d8C4oQ+5ZTemIgdVbyFFB9+9bMukE9HbMNEGIfOGbDabENqvCKHC/R
+TmGdQJrhQAmkbHr//7o382e5j83Y/AkAAP//qd2MzCQEAAA=
 `,
 	},
 
-	"/jaeger-span.json": {
-		name:    "jaeger-span.json",
-		local:   "plugin/storage/es/mappings/jaeger-span.json",
-		size:    3692,
-		modtime: 1563884910,
+	"/jaeger-service-6.json": {
+		name:    "jaeger-service-6.json",
+		local:   "plugin/storage/es/mappings/jaeger-service-6.json",
+		size:    1060,
+		modtime: 1564848907,
 		compressed: `
-H4sIAAAAAAAC/+xWT28TPxC951NYo9/pp2qFkMphb4UWUYkW1JYTQtbEO7sx9T/sSSGq8t1Rki3tJt4N
-SFmEBJdkvfZ788Y78+z7iRCQiFm7JkG5GgoB2lX0rXBzO6UofS3TDGOVoBT/3Ut5+eHi5dmVfPdaXr85
-uTq9lnJ5lIdFCkYr3AVenb1/e/7qZAdqMQTtmsJRYqpkrclUqTDaaoby+FlnbaQvc0qcCoVqRgU5nBqC
-kuOcJkKseaHle0xMVl49DISAauHQaiWZbDDIlKD82M4Jcf/jabVFAZ1kbJK0GB4Z2tk2zvZ7IYAXgaCE
-W1p89bGCo+153TgfSeLU3xGUz49fdBYsu+shIM+kRVYzKIGxKf6HJwuWkwyuk0WIXlFKf1girapiKKH2
-6dMDzwoUKLKm9FQscERF56fdBIbEDwh/IhoCRnJ8HdCNQJ7GoV1tELL27hItHV40Y+Qb3cdsvGtgGHih
-jdEpD6+Qqauq9tEiQwkUvJpJuwFnI1TzTd6/qqw22PTo0Y6poZjHGd8H2xhZN5HWdKCs0SQ62urPTFFv
-CLWlxGhDf292E8u13cZQ+xkycvdI3iN7PX1Li9z7/abyE8aSyXKNukMzp98elbG5WZOPGXcyNF7uOw8e
-3HarXgcqL1G804p2TWSEc4Fx4Ozx08+kGPYR/Kvvv7q+I9UUySka3ZIj1fndOHRT5O40I8TJXUMOEWbv
-J9vp+r6O3wKN/oWznX3gXe/p5MMb6zi1Onhd3/yvfpeT5eR7AAAA///c0Vx8bA4AAA==
+H4sIAAAAAAAC/8yTT2/UMBDF7/kU1ojTamshpHLwrUARSFDQVpwQGs3Gs1mD7RjbKayqfHfk4pKkW+2J
+Q3PIn/F78/xz7NtGCMjsgqXMoASsvhN3HM8SxxvT8tkK1kWSOGfjuwSqOIQA4zX/ln5wW47Y7zDtKeoE
+Sjy7Rbz68vHV5QY/vcXrdxebN9eI4/pxW+RgTUvHxs3l5w/vX18cWR2FYHwnPafMGneGrU7SGmcyqPPn
+C23knwOnnGRL7Z4le9paBpXjwEc9OUp98ORMC2pHNnEjxF0y1MQJHTXvaLAZ7yulRtZOn0LA3zA9NStX
+RRECahbeL30C9fWfeWpTVj6Qx0xdQkdhHnE3Wif3sF5+6iEwKPjBh1991LB+OG4630dG2vY3DOrF+cuF
+YFzqIVDeo6Pc7kFBpk6uYCYYm0d8C4oQ+5ZTemIgdVbyFFB9+9bMukE9HbMNEGIfOGbDabENqvCKHC/R
+TmGdQJrhQAmkbHr//7o382e5j83Y/AkAAP//qd2MzCQEAAA=
+`,
+	},
+
+	"/jaeger-service-7.json": {
+		name:    "jaeger-service-7.json",
+		local:   "plugin/storage/es/mappings/jaeger-service-7.json",
+		size:    960,
+		modtime: 1565004475,
+		compressed: `
+H4sIAAAAAAAC/8yRQU/jMBCF7/kV1mhPVRutVuoefOsuRSBBQa04IWRNk2liiB1jTwtVlf+OghKatFVP
+HLgkTuZ9b96Td5EQoG1K78ohM3kbQAoYPCNl5EeB/EYnNBrAsBYGYtY2CyBrriVjuzZL8qpcqZCjT2uH
+XzulZg+3/6ZzdXepFleT+cVCqWp4GvPkCp3gMTif3t9c/58coQad0zaLLQWmVK00FWmIC200gxz/7mk9
+va4pcIgTTHKKyeKyIJDs1xQJ8ekLjd++WFO8/RYC0q1FoxPFZFyBTAHkYzMTYvd1qlmHVjFmQRl0e4dm
+2qw6/C8E8NYRSHih7VvpUxgeznVmS08Kl+WGQP4Z/+0Jqr4eHHKuDHKSgwTGLB5AR1BFJ7heC+fLhEL4
+YUWaVPG5Qs3pqfWpIUeeNYVu2PaOZ2ioX+JcgTPhO8GhXoisS/t97lH3XT+rqIo+AgAA///PjhCUwAMA
+AA==
+`,
+	},
+
+	"/jaeger-span-5.json": {
+		name:    "jaeger-span-5.json",
+		local:   "plugin/storage/es/mappings/jaeger-span-5.json",
+		size:    3830,
+		modtime: 1564848930,
+		compressed: `
+H4sIAAAAAAAC/+xW0W/TPhB+z18RnX5PUxf9hDQe8jbYEJPYQNt4Qsi6JpfUm2Mb+zqopv7vKE1Lm9ZJ
+QGoQEvShbWx/391n333xcxTHwFRZhUyQxnDygFSSO/UW9ekJTOp5T8xSlx7Senkcg9Q5fUv0vJqSE6YQ
+foYu95DG/z0LcfPx+tXlrXj/Rty9Pb+9uBNiOQnDHFklMzwE3l5+eHf1+vwAWqG1UpeJJs+Ui0KSyn2i
+ZCUZ0rP/W2sdfZmTZ59kmM0oIY1TRZCym9MBJ7kkX2isZAZpgcpTFMeryLCOuJUucipwrlhsRuoxVGr7
+GMfQBMu3ZPVnLSWOYR1LbPbdQ/rpB3hLU++8RS0YSy8qtLshVrPr5PbH6xNdWIIUHmnx1bgcJvvzstTG
+kcCpeSJIX5y9bC1YtteDRZ6JCjmbQQqMZXICOwuWUQDXUmGdycj7P0zIOqukT9D63+doh211KDunb52x
+5FiSb9UAO8zo6qKtqU9Pj5YdHWDRkeY7i3oEcj8Obb1ByNLoG6zo+EkzOr6XXczK6BL6gddSKenD8Lw2
+xlZWhXEVMqRA1mQzUTXgYIR83uj+1cwKhWVHPlJzbdBhnDJdsMYy20LanjfZa9lAUTeEsiLPWNnudm0L
+C3ViY93dDIF0B1IeSHs1/UiL0Piwz/yE1wRUrlBPqOb026Mylvcr8jHjRn3Py6FXxMaA9+q1p/I8uSeZ
+0aGJjPCqYOx5HZnpA2UMQwT/6vuvrm9HBTnSGY1uyY6K8G4cuylCd5oR4oSuIccIM3hkB13f1fF7oNFP
+ONjZR971jk4+vrGOU6u9N/jmt/5eRsvoewAAAP//W45CgfYOAAA=
+`,
+	},
+
+	"/jaeger-span-6.json": {
+		name:    "jaeger-span-6.json",
+		local:   "plugin/storage/es/mappings/jaeger-span-6.json",
+		size:    3830,
+		modtime: 1564848933,
+		compressed: `
+H4sIAAAAAAAC/+xW0W/TPhB+z18RnX5PUxf9hDQe8jbYEJPYQNt4Qsi6JpfUm2Mb+zqopv7vKE1Lm9ZJ
+QGoQEvShbWx/391n333xcxTHwFRZhUyQxnDygFSSO/UW9ekJTOp5T8xSlx7Senkcg9Q5fUv0vJqSE6YQ
+foYu95DG/z0LcfPx+tXlrXj/Rty9Pb+9uBNiOQnDHFklMzwE3l5+eHf1+vwAWqG1UpeJJs+Ui0KSyn2i
+ZCUZ0rP/W2sdfZmTZ59kmM0oIY1TRZCym9MBJ7kkX2isZAZpgcpTFMeryLCOuJUucipwrlhsRuoxVGr7
+GMfQBMu3ZPVnLSWOYR1LbPbdQ/rpB3hLU++8RS0YSy8qtLshVrPr5PbH6xNdWIIUHmnx1bgcJvvzstTG
+kcCpeSJIX5y9bC1YtteDRZ6JCjmbQQqMZXICOwuWUQDXUmGdycj7P0zIOqukT9D63+doh211KDunb52x
+5FiSb9UAO8zo6qKtqU9Pj5YdHWDRkeY7i3oEcj8Obb1ByNLoG6zo+EkzOr6XXczK6BL6gddSKenD8Lw2
+xlZWhXEVMqRA1mQzUTXgYIR83uj+1cwKhWVHPlJzbdBhnDJdsMYy20LanjfZa9lAUTeEsiLPWNnudm0L
+C3ViY93dDIF0B1IeSHs1/UiL0Piwz/yE1wRUrlBPqOb026Mylvcr8jHjRn3Py6FXxMaA9+q1p/I8uSeZ
+0aGJjPCqYOx5HZnpA2UMQwT/6vuvrm9HBTnSGY1uyY6K8G4cuylCd5oR4oSuIccIM3hkB13f1fF7oNFP
+ONjZR971jk4+vrGOU6u9N/jmt/5eRsvoewAAAP//W45CgfYOAAA=
+`,
+	},
+
+	"/jaeger-span-7.json": {
+		name:    "jaeger-span-7.json",
+		local:   "plugin/storage/es/mappings/jaeger-span-7.json",
+		size:    3731,
+		modtime: 1565004460,
+		compressed: `
+H4sIAAAAAAAC/+xWQW/TTBC951esRt+pSq1PSOXgW6FFVKIFteWE0Gpij51td9fL7qQQVfnvyIlD62Rt
+gxQjJLgktnfemzf2zNt9nAgByub0TTpkJm8DpAKO7pBK8sfBoT0+gqmowwIxK1sGSGvUFpfYhZmRl1Uh
+wxx9XuP/e5Ty6uPlq/Nr+f6NvHl7en12I+VqGod5clpluA+8Pv/w7uL16R7UoHPKlomlwJTLQpHOQ6KV
+UQzpyf+tWE9fFhQ4JBlmc0rI4kwTpOwXNBFizQsN31NhddnbGyEgX1o0KpNMxmlkCpB+ataEePxx1QAl
+YxmkQffE0Kw2eXafCwG8dAQp3NPya+VzmO6uq9JWniTOqgeC9MXJy1bAqh0PDnkuDXI2hxQYy+QIngWs
+JhFcqwrnq4xC+MMKaVQlfQU1V5+3PDXIkWdF4blYYI8ZXZy1C+gT3yP8mWhw6MnyjUM7AnkYh7Z+Qciq
+sldo6PCiGT3fqi5mXdkS+oGXSmsV4vAcmdqqisobZEiBXJXNpdmAoxnyxabuX1VWaCw79CjLtW/Gcbrq
+gm2MrF1IYzqQFqgDTXfmM9LUG0JlKDAa1z2b7cJiY7cx1G6GiNwByQOy18v3tIw9HzaVnzCWSJVr1APq
+Bf32rIzl7Zp8zLyTvvvV0H6wddudfu3pvED+QWW0byIj7AuMPXtPNbujjGGI4F9//9X97akgTzaj0S3Z
+UxF/G4ceitiZZoQ8sWPIIdIMfrK9qe+a+B3Q6F84OtkHfusdk3x4Yx2nV3uP65v/+nc1WU2+BwAA//+A
+l1aQkw4AAA==
 `,
 	},
 
@@ -265,7 +339,11 @@ var _escDirs = map[string][]os.FileInfo{
 
 	"plugin/storage/es/mappings": {
 		_escData["/.nocover"],
-		_escData["/jaeger-service.json"],
-		_escData["/jaeger-span.json"],
+		_escData["/jaeger-service-5.json"],
+		_escData["/jaeger-service-6.json"],
+		_escData["/jaeger-service-7.json"],
+		_escData["/jaeger-span-5.json"],
+		_escData["/jaeger-span-6.json"],
+		_escData["/jaeger-span-7.json"],
 	},
 }

@@ -21,14 +21,15 @@ import (
 	"io/ioutil"
 	"net/http"
 	"path/filepath"
+	"strconv"
 	"strings"
 	"sync"
 	"time"
 
+	"github.com/olivere/elastic"
 	"github.com/pkg/errors"
 	"github.com/uber/jaeger-lib/metrics"
 	"go.uber.org/zap"
-	"github.com/olivere/elastic"
 
 	"github.com/jaegertracing/jaeger/pkg/es"
 	"github.com/jaegertracing/jaeger/pkg/es/wrapper"
@@ -154,7 +155,18 @@ func (c *Configuration) NewClient(logger *zap.Logger, metricsFactory metrics.Fac
 	if err != nil {
 		return nil, err
 	}
-	return eswrapper.WrapESClient(rawClient, service), nil
+
+	// Determine ElasticSearch Version
+	pingResult, _, err := rawClient.Ping("/").Do(context.Background())
+	if err != nil {
+		return nil, err
+	}
+	esVersion, err := strconv.Atoi(string(pingResult.Version.Number[0]))
+	if err != nil {
+		return nil, err
+	}
+
+	return eswrapper.WrapESClient(rawClient, service, esVersion), nil
 }
 
 // ApplyDefaults copies settings from source unless its own value is non-zero.
