@@ -8,6 +8,11 @@ Changes by Version
 
 ##### Breaking Changes
 
+* Create ES index templates instead of indices ([#1627](https://github.com/jaegertracing/jaeger/pull/1627), [@pavolloffay](https://github.com/pavolloffay))
+
+  This can break existing Elasticsearch deployments if security policies are applied. 
+  For instance Jaeger `X-Pack` configuration now requires permission to create index templates - `manage_index_templates`.
+
 ##### New Features
 
 ##### Bug fixes, Minor Improvements
@@ -25,7 +30,7 @@ Changes by Version
 
 ##### Bug fixes, Minor Improvements
 
-Change default for bearer-token-propagation to false ([#1642](https://github.com/jaegertracing/jaeger/pull/1642), [@wsoula](https://github.com/wsoula))
+* Change default for bearer-token-propagation to false ([#1642](https://github.com/jaegertracing/jaeger/pull/1642), [@wsoula](https://github.com/wsoula))
 
 #### UI Changes
 

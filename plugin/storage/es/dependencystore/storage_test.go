@@ -129,8 +129,8 @@ func TestGetDependencies(t *testing.T) {
 		searchError    error
 		expectedError  string
 		expectedOutput []model.DependencyLink
-		indexPrefix string
-		indices []interface{}
+		indexPrefix    string
+		indices        []interface{}
 	}{
 		{
 			searchResult: createSearchResult(goodDependencies),
@@ -146,18 +146,18 @@ func TestGetDependencies(t *testing.T) {
 		{
 			searchResult:  createSearchResult(badDependencies),
 			expectedError: "Unmarshalling ElasticSearch documents failed",
-			indices: []interface{}{"jaeger-dependencies-1995-04-21", "jaeger-dependencies-1995-04-20"},
+			indices:       []interface{}{"jaeger-dependencies-1995-04-21", "jaeger-dependencies-1995-04-20"},
 		},
 		{
 			searchError:   errors.New("search failure"),
 			expectedError: "Failed to search for dependencies: search failure",
-			indices: []interface{}{"jaeger-dependencies-1995-04-21", "jaeger-dependencies-1995-04-20"},
+			indices:       []interface{}{"jaeger-dependencies-1995-04-21", "jaeger-dependencies-1995-04-20"},
 		},
 		{
 			searchError:   errors.New("search failure"),
 			expectedError: "Failed to search for dependencies: search failure",
-			indexPrefix: "foo",
-			indices: []interface{}{"foo-jaeger-dependencies-1995-04-21", "foo-jaeger-dependencies-1995-04-20"},
+			indexPrefix:   "foo",
+			indices:       []interface{}{"foo-jaeger-dependencies-1995-04-21", "foo-jaeger-dependencies-1995-04-20"},
 		},
 	}
 	for _, testCase := range testCases {
