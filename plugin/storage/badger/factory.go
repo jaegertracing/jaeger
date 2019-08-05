@@ -24,9 +24,6 @@ import (
 
 	"github.com/dgraph-io/badger"
 	"github.com/dgraph-io/badger/options"
-
-	// init() badger's metrics to make them available in Initialize()
-	_ "github.com/dgraph-io/badger/y"
 	"github.com/spf13/viper"
 	"github.com/uber/jaeger-lib/metrics"
 	"go.uber.org/zap"
@@ -163,9 +160,7 @@ func (f *Factory) CreateDependencyReader() (dependencystore.Reader, error) {
 
 // Close Implements io.Closer and closes the underlying storage
 func (f *Factory) Close() error {
-	f.maintenanceDone <- true // maintenance close
-	f.maintenanceDone <- true // metrics close
-
+	close(f.maintenanceDone)
 	err := f.store.Close()
 
 	// Remove tmp files if this was ephemeral storage
@@ -250,7 +245,7 @@ func (f *Factory) registerBadgerExpvarMetrics(metricsFactory metrics.Factory) {
 					// The metrics we're interested in have only a single inner key (dynamic name)
 					// and we're only interested in its value
 					if _, ok = innerKv.Value.(*expvar.Int); ok {
-						g := metricsFactory.Gauge(metrics.Options{Name: kv.Key})
+						g := metricsFactory.Gauge(metrics.Options{Name: kv.Key, Tags: map[string]string{"directory": innerKv.Key}})
 						f.metrics.badgerMetrics[kv.Key] = g
 					}
 				})
