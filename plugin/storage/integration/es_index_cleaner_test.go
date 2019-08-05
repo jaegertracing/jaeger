@@ -22,9 +22,9 @@ import (
 	"os/exec"
 	"testing"
 
+	"github.com/olivere/elastic"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-	"gopkg.in/olivere/elastic.v5"
 )
 
 const (
@@ -192,7 +192,7 @@ func runEsCleaner(days int, envs []string) error {
 	for _, e := range envs {
 		dockerEnv += fmt.Sprintf(" -e %s", e)
 	}
-	args := fmt.Sprintf("sudo docker run %s --net=host %s %d http://%s", dockerEnv, indexCleanerImage, days, queryHostPort)
+	args := fmt.Sprintf("docker run %s --net=host %s %d http://%s", dockerEnv, indexCleanerImage, days, queryHostPort)
 	cmd := exec.Command("/bin/sh", "-c", args)
 	out, err := cmd.CombinedOutput()
 	fmt.Println(string(out))
@@ -204,7 +204,7 @@ func runEsRollover(action string, envs []string) error {
 	for _, e := range envs {
 		dockerEnv += fmt.Sprintf(" -e %s", e)
 	}
-	args := fmt.Sprintf("sudo docker run %s --rm --net=host %s %s http://%s", dockerEnv, rolloverImage, action, queryHostPort)
+	args := fmt.Sprintf("docker run %s --rm --net=host %s %s http://%s", dockerEnv, rolloverImage, action, queryHostPort)
 	cmd := exec.Command("/bin/sh", "-c", args)
 	out, err := cmd.CombinedOutput()
 	fmt.Println(string(out))

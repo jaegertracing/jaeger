@@ -80,7 +80,8 @@ def perform_action(action, client, write_alias, read_alias, index_to_rollover, t
     if action == 'init':
         shards = os.getenv('SHARDS', SHARDS)
         replicas = os.getenv('REPLICAS', REPLICAS)
-        mapping = Path('./mappings/'+template_name+'.json').read_text()
+        esVersion = get_version(client)
+        mapping = Path('./mappings/'+template_name+'-'+esVersion+'.json').read_text()
         create_index_template(fix_mapping(mapping, shards, replicas), template_name)
 
         index = index_to_rollover + '-000001'
@@ -205,6 +206,10 @@ def get_request_session(username, password, tls, ca, cert, key):
         session.verify = ca
         session.cert = (cert, key)
     return session
+
+
+def get_version(client):
+    return client.info()['version']['number'][0]
 
 
 if __name__ == "__main__":
