@@ -8,7 +8,6 @@ ALL_SRC := $(shell find . -name '*.go' \
 				   -not -name '.*' \
 				   -not -name 'gen_assets.go' \
 				   -not -name 'mocks*' \
-				   -not -name '*_test.go' \
 				   -not -name 'model.pb.go' \
 				   -not -name 'model_test.pb.go' \
 				   -not -name 'storage_test.pb.go' \
@@ -126,7 +125,7 @@ nocover:
 .PHONY: fmt
 fmt:
 	./scripts/import-order-cleanup.sh inplace
-	@echo Running go fmt...
+	@echo Running go fmt on ALL_SRC ...
 	@$(GOFMT) -e -s -l -w $(ALL_SRC)
 	./scripts/updateLicenses.sh
 
@@ -149,6 +148,7 @@ lint-staticcheck:
 lint: lint-staticcheck lint-gosec
 	$(GOVET) ./...
 	$(MAKE) go-lint
+	@echo Running go fmt on ALL_SRC ...
 	@$(GOFMT) -e -s -l $(ALL_SRC) > $(FMT_LOG)
 	@./scripts/updateLicenses.sh >> $(FMT_LOG)
 	@./scripts/import-order-cleanup.sh stdout > $(IMPORT_LOG)
@@ -284,7 +284,7 @@ build-crossdock-ui-placeholder:
 	[ -e cmd/query/app/ui/actual/gen_assets.go ] || cp cmd/query/app/ui/placeholder/gen_assets.go cmd/query/app/ui/actual/gen_assets.go
 
 .PHONY: build-crossdock
-build-crossdock: build-crossdock-ui-placeholder build-binaries-linux build-crossdock-linux docker-images-cassandra docker-images-jaeger-backend 
+build-crossdock: build-crossdock-ui-placeholder build-binaries-linux build-crossdock-linux docker-images-cassandra docker-images-jaeger-backend
 	docker build -t $(DOCKER_NAMESPACE)/test-driver:${DOCKER_TAG} crossdock/
 	@echo "Finished building test-driver ==============" ; \
 

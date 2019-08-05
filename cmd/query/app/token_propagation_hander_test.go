@@ -26,8 +26,7 @@ import (
 	"github.com/jaegertracing/jaeger/storage/spanstore"
 )
 
-
-func Test_bearTokenPropagationHandler(t *testing.T)  {
+func Test_bearTokenPropagationHandler(t *testing.T) {
 	logger := zap.NewNop()
 	bearerToken := "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiJhZG1pbiIsIm5hbWUiOiJKb2huIERvZSIsImlhdCI"
 
@@ -57,13 +56,12 @@ func Test_bearTokenPropagationHandler(t *testing.T)  {
 		headerName  string
 		handler     func(stop *sync.WaitGroup) http.HandlerFunc
 	}{
-		{ name:"Bearer token", sendHeader: true, headerName:"Authorization", headerValue: "Bearer " + bearerToken, handler:validTokenHandler},
-		{ name:"Raw bearer token",sendHeader: true, headerName:"Authorization", headerValue: bearerToken, handler:validTokenHandler},
-		{ name:"No headerValue", sendHeader: false, headerName:"Authorization", handler:emptyHandler},
-		{ name:"Basic Auth", sendHeader: true, headerName:"Authorization", headerValue: "Basic " + bearerToken, handler:emptyHandler},
-		{ name:"X-Forwarded-Access-Token", headerName:"X-Forwarded-Access-Token", sendHeader: true, headerValue: "Bearer " + bearerToken, handler:validTokenHandler},
-		{ name:"Invalid header", headerName:"X-Forwarded-Access-Token", sendHeader: true, headerValue: "Bearer " + bearerToken + " another stuff", handler:emptyHandler},
-
+		{name: "Bearer token", sendHeader: true, headerName: "Authorization", headerValue: "Bearer " + bearerToken, handler: validTokenHandler},
+		{name: "Raw bearer token", sendHeader: true, headerName: "Authorization", headerValue: bearerToken, handler: validTokenHandler},
+		{name: "No headerValue", sendHeader: false, headerName: "Authorization", handler: emptyHandler},
+		{name: "Basic Auth", sendHeader: true, headerName: "Authorization", headerValue: "Basic " + bearerToken, handler: emptyHandler},
+		{name: "X-Forwarded-Access-Token", headerName: "X-Forwarded-Access-Token", sendHeader: true, headerValue: "Bearer " + bearerToken, handler: validTokenHandler},
+		{name: "Invalid header", headerName: "X-Forwarded-Access-Token", sendHeader: true, headerValue: "Bearer " + bearerToken + " another stuff", handler: emptyHandler},
 	}
 
 	for _, testCase := range testCases {
@@ -73,8 +71,8 @@ func Test_bearTokenPropagationHandler(t *testing.T)  {
 			r := bearerTokenPropagationHandler(logger, testCase.handler(&stop))
 			server := httptest.NewServer(r)
 			defer server.Close()
-			req , err := http.NewRequest("GET", server.URL, nil)
-			assert.Nil(t,err)
+			req, err := http.NewRequest("GET", server.URL, nil)
+			assert.Nil(t, err)
 			if testCase.sendHeader {
 				req.Header.Add(testCase.headerName, testCase.headerValue)
 			}

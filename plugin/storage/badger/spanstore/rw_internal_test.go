@@ -145,7 +145,7 @@ func createDummySpan() model.Span {
 	tid := time.Now()
 
 	dummyKv := []model.KeyValue{
-		model.KeyValue{
+		{
 			Key:   "key",
 			VType: model.StringType,
 			VStr:  "value",
@@ -167,7 +167,7 @@ func createDummySpan() model.Span {
 		Duration:  time.Duration(1 * time.Millisecond),
 		Tags:      dummyKv,
 		Logs: []model.Log{
-			model.Log{
+			{
 				Timestamp: tid,
 				Fields:    dummyKv,
 			},

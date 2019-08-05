@@ -26,10 +26,10 @@ import (
 )
 
 func TestOutputFormats(t *testing.T) {
-	tests := []struct{
+	tests := []struct {
 		file string
 		flag string
-		err string
+		err  string
 	}{
 		{file: "docs.md"},
 		{file: "docs.1", flag: "--format=man"},
@@ -54,7 +54,7 @@ func TestOutputFormats(t *testing.T) {
 
 func TestDocsForParent(t *testing.T) {
 	parent := &cobra.Command{
-		Use: "root_command",
+		Use:   "root_command",
 		Short: "some description",
 	}
 	v := viper.New()

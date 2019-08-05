@@ -23,8 +23,8 @@ import (
 	"strings"
 	"testing"
 
-	"github.com/stretchr/testify/mock"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/mock"
 	"github.com/stretchr/testify/require"
 	"github.com/uber/jaeger-lib/metrics"
 	"go.uber.org/zap"
@@ -40,7 +40,7 @@ var _ storage.Factory = new(Factory)
 
 type mockClientBuilder struct {
 	escfg.Configuration
-	err error
+	err                 error
 	createTemplateError error
 }
 
@@ -68,7 +68,7 @@ func TestElasticsearchFactory(t *testing.T) {
 	assert.EqualError(t, f.Initialize(metrics.NullFactory, zap.NewNop()), "failed to create primary Elasticsearch client: made-up error")
 
 	f.primaryConfig = &mockClientBuilder{}
-	f.archiveConfig = &mockClientBuilder{err: errors.New("made-up error2"), Configuration:escfg.Configuration{Enabled:true}}
+	f.archiveConfig = &mockClientBuilder{err: errors.New("made-up error2"), Configuration: escfg.Configuration{Enabled: true}}
 	assert.EqualError(t, f.Initialize(metrics.NullFactory, zap.NewNop()), "failed to create archive Elasticsearch client: made-up error2")
 
 	f.archiveConfig = &mockClientBuilder{}
