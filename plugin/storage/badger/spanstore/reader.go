@@ -658,7 +658,7 @@ func processCountSpans(countMap map[Link]uint64, currentTraceSpans []model.Span)
 			}
 		}
 
-		if parentSpan.Process.ServiceName == currentTraceSpans[i].Process.ServiceName {
+		if parentSpan.Process == nil || parentSpan.Process.ServiceName == currentTraceSpans[i].Process.ServiceName {
 			continue
 		}
 
