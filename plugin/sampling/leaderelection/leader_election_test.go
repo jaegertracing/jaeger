@@ -22,11 +22,9 @@ import (
 	"time"
 
 	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/mock"
 	"go.uber.org/atomic"
 
 	lmocks "github.com/jaegertracing/jaeger/pkg/distributedlock/mocks"
-	jio "github.com/jaegertracing/jaeger/pkg/io"
 	"github.com/jaegertracing/jaeger/pkg/testutils"
 )
 
@@ -34,11 +32,13 @@ var (
 	errTestLock = errors.New("lock error")
 )
 
-var _ io.Closer = &electionParticipant{}
+var _ io.Closer = new(DistributedElectionParticipant)
 
 func TestAcquireLock(t *testing.T) {
-	leaderInterval := time.Millisecond
-	followerInterval := 5 * time.Millisecond
+	const (
+		leaderInterval   = time.Millisecond
+		followerInterval = 5 * time.Millisecond
+	)
 	tests := []struct {
 		isLeader         bool
 		acquiredLock     bool
@@ -58,9 +58,9 @@ func TestAcquireLock(t *testing.T) {
 		t.Run(fmt.Sprintf("%v", i), func(t *testing.T) {
 			logger, logBuffer := testutils.NewLogger()
 			mockLock := &lmocks.Lock{}
-			mockLock.On("Acquire", "sampling_lock", mock.AnythingOfType("time.Duration")).Return(test.acquiredLock, test.err)
+			mockLock.On("Acquire", "sampling_lock", followerInterval).Return(test.acquiredLock, test.err)
 
-			p := &electionParticipant{
+			p := &DistributedElectionParticipant{
 				ElectionParticipantOptions: ElectionParticipantOptions{
 					LeaderLeaseRefreshInterval:   leaderInterval,
 					FollowerLeaseRefreshInterval: followerInterval,
@@ -82,7 +82,7 @@ func TestAcquireLock(t *testing.T) {
 func TestRunAcquireLockLoop_followerOnly(t *testing.T) {
 	logger, logBuffer := testutils.NewLogger()
 	mockLock := &lmocks.Lock{}
-	mockLock.On("Acquire", "sampling_lock", mock.AnythingOfType("time.Duration")).Return(false, errTestLock)
+	mockLock.On("Acquire", "sampling_lock", time.Duration(5*time.Millisecond)).Return(false, errTestLock)
 
 	p := NewElectionParticipant(mockLock, "sampling_lock", ElectionParticipantOptions{
 		LeaderLeaseRefreshInterval:   time.Millisecond,
@@ -92,9 +92,9 @@ func TestRunAcquireLockLoop_followerOnly(t *testing.T) {
 	)
 
 	defer func() {
-		assert.NoError(t, p.(io.Closer).Close())
+		assert.NoError(t, p.Close())
 	}()
-	go p.(jio.Starter).Start()
+	go p.Start()
 
 	expectedErrorMsg := "Failed to acquire lock"
 	for i := 0; i < 1000; i++ {
