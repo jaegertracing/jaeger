@@ -181,8 +181,7 @@ func TestBadgerMetrics(t *testing.T) {
 	assert.True(t, vlogSize > 0)
 	assert.True(t, gs["badger_memtable_gets_total"] > 0) // IntVal metric
 
-	mapKey := fmt.Sprintf("badger_lsm_size_bytes|directory=%s", f.tmpDir)
-	_, found = gs[mapKey] // Map metric
+	_, found = gs["badger_lsm_size_bytes"] // Map metric
 	assert.True(t, found)
 
 	err := f.Close()

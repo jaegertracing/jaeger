@@ -245,7 +245,7 @@ func (f *Factory) registerBadgerExpvarMetrics(metricsFactory metrics.Factory) {
 					// The metrics we're interested in have only a single inner key (dynamic name)
 					// and we're only interested in its value
 					if _, ok = innerKv.Value.(*expvar.Int); ok {
-						g := metricsFactory.Gauge(metrics.Options{Name: kv.Key, Tags: map[string]string{"directory": innerKv.Key}})
+						g := metricsFactory.Gauge(metrics.Options{Name: kv.Key})
 						f.metrics.badgerMetrics[kv.Key] = g
 					}
 				})
