@@ -45,6 +45,11 @@ func (c ClientWrapper) CreateIndex(index string) es.IndicesCreateService {
 	return WrapESIndicesCreateService(c.client.CreateIndex(index))
 }
 
+// CreateTemplate calls this function to internal client.
+func (c ClientWrapper) CreateTemplate(ttype string) es.TemplateCreateService {
+	return WrapESTemplateCreateService(c.client.IndexPutTemplate(ttype))
+}
+
 // Index calls this function to internal client.
 func (c ClientWrapper) Index() es.IndexService {
 	r := elastic.NewBulkIndexRequest()
@@ -103,6 +108,26 @@ func (c IndicesCreateServiceWrapper) Body(mapping string) es.IndicesCreateServic
 // Do calls this function to internal service.
 func (c IndicesCreateServiceWrapper) Do(ctx context.Context) (*elastic.IndicesCreateResult, error) {
 	return c.indicesCreateService.Do(ctx)
+}
+
+// TemplateCreateServiceWrapper is a wrapper around elastic.IndicesPutTemplateService.
+type TemplateCreateServiceWrapper struct {
+	mappingCreateService *elastic.IndicesPutTemplateService
+}
+
+// WrapESTemplateCreateService creates an TemplateCreateService out of *elastic.IndicesPutTemplateService.
+func WrapESTemplateCreateService(mappingCreateService *elastic.IndicesPutTemplateService) TemplateCreateServiceWrapper {
+	return TemplateCreateServiceWrapper{mappingCreateService: mappingCreateService}
+}
+
+// Body calls this function to internal service.
+func (c TemplateCreateServiceWrapper) Body(mapping string) es.TemplateCreateService {
+	return WrapESTemplateCreateService(c.mappingCreateService.BodyString(mapping))
+}
+
+// Do calls this function to internal service.
+func (c TemplateCreateServiceWrapper) Do(ctx context.Context) (*elastic.IndicesPutTemplateResponse, error) {
+	return c.mappingCreateService.Do(ctx)
 }
 
 // ---

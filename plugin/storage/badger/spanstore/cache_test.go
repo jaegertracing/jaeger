@@ -19,8 +19,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/stretchr/testify/assert"
 	"github.com/dgraph-io/badger"
+	"github.com/stretchr/testify/assert"
 
 	"github.com/jaegertracing/jaeger/model"
 )

@@ -145,30 +145,30 @@ func TestSpanReaderIndices(t *testing.T) {
 	date := time.Now()
 	dateFormat := date.UTC().Format("2006-01-02")
 	testCases := []struct {
-		index string
-		params  SpanReaderParams
+		index  string
+		params SpanReaderParams
 	}{
-		{params:SpanReaderParams{Client:client, Logger: logger, MetricsFactory: metricsFactory,
-			IndexPrefix:"", Archive: false},
-			index: spanIndex+dateFormat},
-		{params:SpanReaderParams{Client:client, Logger: logger, MetricsFactory: metricsFactory,
-			IndexPrefix:"", UseReadWriteAliases: true},
-			index: spanIndex+"read"},
-		{params:SpanReaderParams{Client:client, Logger: logger, MetricsFactory: metricsFactory,
-			IndexPrefix:"foo:", Archive: false},
-			index: "foo:"+indexPrefixSeparator+spanIndex+dateFormat},
-		{params:SpanReaderParams{Client:client, Logger: logger, MetricsFactory: metricsFactory,
-			IndexPrefix:"foo:", UseReadWriteAliases: true},
-			index: "foo:-"+spanIndex+"read"},
-		{params:SpanReaderParams{Client:client, Logger: logger, MetricsFactory: metricsFactory,
-			IndexPrefix:"", Archive: true},
-			index: spanIndex+archiveIndexSuffix},
-		{params:SpanReaderParams{Client:client, Logger: logger, MetricsFactory: metricsFactory,
-			IndexPrefix:"foo:", Archive: true},
-			index: "foo:"+indexPrefixSeparator+spanIndex+archiveIndexSuffix},
-		{params:SpanReaderParams{Client:client, Logger: logger, MetricsFactory: metricsFactory,
-			IndexPrefix:"foo:", Archive: true, UseReadWriteAliases:true},
-			index: "foo:"+indexPrefixSeparator+spanIndex+archiveReadIndexSuffix},
+		{params: SpanReaderParams{Client: client, Logger: logger, MetricsFactory: metricsFactory,
+			IndexPrefix: "", Archive: false},
+			index: spanIndex + dateFormat},
+		{params: SpanReaderParams{Client: client, Logger: logger, MetricsFactory: metricsFactory,
+			IndexPrefix: "", UseReadWriteAliases: true},
+			index: spanIndex + "read"},
+		{params: SpanReaderParams{Client: client, Logger: logger, MetricsFactory: metricsFactory,
+			IndexPrefix: "foo:", Archive: false},
+			index: "foo:" + indexPrefixSeparator + spanIndex + dateFormat},
+		{params: SpanReaderParams{Client: client, Logger: logger, MetricsFactory: metricsFactory,
+			IndexPrefix: "foo:", UseReadWriteAliases: true},
+			index: "foo:-" + spanIndex + "read"},
+		{params: SpanReaderParams{Client: client, Logger: logger, MetricsFactory: metricsFactory,
+			IndexPrefix: "", Archive: true},
+			index: spanIndex + archiveIndexSuffix},
+		{params: SpanReaderParams{Client: client, Logger: logger, MetricsFactory: metricsFactory,
+			IndexPrefix: "foo:", Archive: true},
+			index: "foo:" + indexPrefixSeparator + spanIndex + archiveIndexSuffix},
+		{params: SpanReaderParams{Client: client, Logger: logger, MetricsFactory: metricsFactory,
+			IndexPrefix: "foo:", Archive: true, UseReadWriteAliases: true},
+			index: "foo:" + indexPrefixSeparator + spanIndex + archiveReadIndexSuffix},
 	}
 	for _, testCase := range testCases {
 		r := NewSpanReader(testCase.params)
@@ -208,19 +208,19 @@ func TestSpanReader_GetTrace(t *testing.T) {
 func TestSpanReader_multiRead_followUp_query(t *testing.T) {
 	withSpanReader(func(r *spanReaderTest) {
 		now := time.Now()
-		spanID1 := dbmodel.Span{SpanID: "0", TraceID:"1", StartTime: model.TimeAsEpochMicroseconds(now)}
+		spanID1 := dbmodel.Span{SpanID: "0", TraceID: "1", StartTime: model.TimeAsEpochMicroseconds(now)}
 		spanBytesID1, err := json.Marshal(spanID1)
 		require.NoError(t, err)
-		spanID2 := dbmodel.Span{SpanID: "0", TraceID:"2", StartTime: model.TimeAsEpochMicroseconds(now)}
+		spanID2 := dbmodel.Span{SpanID: "0", TraceID: "2", StartTime: model.TimeAsEpochMicroseconds(now)}
 		spanBytesID2, err := json.Marshal(spanID2)
 		require.NoError(t, err)
 
-		id1Query := elastic.NewTermQuery("traceID", model.TraceID{High: 0, Low:1}.String())
+		id1Query := elastic.NewTermQuery("traceID", model.TraceID{High: 0, Low: 1}.String())
 		id1Search := elastic.NewSearchRequest().
 			IgnoreUnavailable(true).
 			Type(spanType).
 			Source(r.reader.sourceFn(id1Query, model.TimeAsEpochMicroseconds(now.Add(-time.Hour))))
-		id2Query := elastic.NewTermQuery("traceID", model.TraceID{High: 0, Low:2}.String())
+		id2Query := elastic.NewTermQuery("traceID", model.TraceID{High: 0, Low: 2}.String())
 		id2Search := elastic.NewSearchRequest().
 			IgnoreUnavailable(true).
 			Type(spanType).
@@ -266,7 +266,7 @@ func TestSpanReader_multiRead_followUp_query(t *testing.T) {
 				},
 			}, nil)
 
-		traces, err := r.reader.multiRead(context.Background(), []model.TraceID{{High:0, Low:1}, {High:0, Low:2}}, now, now)
+		traces, err := r.reader.multiRead(context.Background(), []model.TraceID{{High: 0, Low: 1}, {High: 0, Low: 2}}, now, now)
 		require.NoError(t, err)
 		require.NotNil(t, traces)
 		require.Len(t, traces, 2)
@@ -276,8 +276,11 @@ func TestSpanReader_multiRead_followUp_query(t *testing.T) {
 		require.NoError(t, err)
 		sModel2, err := toDomain.SpanToDomain(&spanID2)
 		require.NoError(t, err)
-		assert.EqualValues(t, traces[0].Spans[0], sModel1)
-		assert.EqualValues(t, traces[1].Spans[0], sModel2)
+
+		for _, s := range []*model.Span{sModel1, sModel2} {
+			found := reflect.DeepEqual(traces[0].Spans[0], s) || reflect.DeepEqual(traces[1].Spans[0], s)
+			assert.True(t, found, "span was expected to be within one of the traces but was not: %v", s)
+		}
 	})
 }
 
@@ -826,8 +829,8 @@ func mockSearchService(r *spanReaderTest) *mock.Call {
 	searchService.On("Aggregation", stringMatcher(operationsAggregation), mock.AnythingOfType("*elastic.TermsAggregation")).Return(searchService)
 	searchService.On("Aggregation", stringMatcher(traceIDAggregation), mock.AnythingOfType("*elastic.TermsAggregation")).Return(searchService)
 	r.client.On("Search", mock.AnythingOfType("string"), mock.AnythingOfType("string"), mock.AnythingOfType("string"), mock.AnythingOfType("string"), mock.AnythingOfType("string")).Return(searchService)
-	return searchService.On("Do", mock.MatchedBy(func(ctx context.Context) bool{
-		t :=  reflect.TypeOf(ctx).String()
+	return searchService.On("Do", mock.MatchedBy(func(ctx context.Context) bool {
+		t := reflect.TypeOf(ctx).String()
 		return t == "*context.valueCtx" || t == "*context.emptyCtx"
 	}))
 }

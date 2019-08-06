@@ -341,7 +341,7 @@ func TestTagsMap(t *testing.T) {
 			if test.err != nil {
 				assert.Equal(t, test.err.Error(), err.Error())
 				require.Nil(t, tags)
-			} else  {
+			} else {
 				require.NoError(t, err)
 				assert.Equal(t, test.expected, tags)
 			}

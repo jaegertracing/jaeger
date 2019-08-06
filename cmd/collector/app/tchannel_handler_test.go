@@ -43,15 +43,15 @@ func TestTChannelHandler(t *testing.T) {
 	zh := &mockZipkinHandler{}
 	h := NewTChannelHandler(jh, zh)
 	h.SubmitBatches(nil, []*jaeger.Batch{
-		&jaeger.Batch{
+		{
 			Spans: []*jaeger.Span{
-				&jaeger.Span{OperationName: "jaeger"},
+				{OperationName: "jaeger"},
 			},
 		},
 	})
 	assert.Len(t, jh.getBatches(), 1)
 	h.SubmitZipkinBatch(nil, []*zipkincore.Span{
-		&zipkincore.Span{
+		{
 			Name: "zipkin",
 		},
 	})
