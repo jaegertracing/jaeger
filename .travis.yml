@@ -53,7 +53,7 @@ env:
 
 install:
   - docker rmi $(docker images -q) || true
-  - make install-ci
+  - travis_retry make install-ci
   - if [ "$ALL_IN_ONE" == true ]; then bash ./scripts/travis/install-ui-deps.sh ; fi
   - if [ "$DOCKER" == true ]; then bash ./scripts/travis/install-ui-deps.sh ; fi
   - if [ "$CROSSDOCK" == true ]; then bash ./scripts/travis/install-crossdock-deps.sh ; fi
