@@ -25,7 +25,7 @@ func protoSpansV2ToThrift(listOfSpans *zmodel.ListOfSpans) ([]*zipkincore.Span, 
 
 func protoSpanV2ToThrift(s *zmodel.Span) (*zipkincore.Span, error) {
 	if len(s.Id) != model.TraceIDShortBytesLen {
-		return nil, fmt.Errorf("Invalid length for Span ID")
+		return nil, fmt.Errorf("invalid length for Span ID")
 	}
 	id := binary.BigEndian.Uint64(s.Id)
 	traceID, err := traceIDFromBytes(s.TraceId)
@@ -48,7 +48,7 @@ func protoSpanV2ToThrift(s *zmodel.Span) (*zipkincore.Span, error) {
 
 	if len(s.ParentId) > 0 {
 		if len(s.ParentId) != model.TraceIDShortBytesLen {
-			return nil, fmt.Errorf("Invalid length for Parent ID")
+			return nil, fmt.Errorf("invalid length for Parent ID")
 		}
 		parentID := binary.BigEndian.Uint64(s.ParentId)
 		signed := int64(parentID)
@@ -95,7 +95,7 @@ func traceIDFromBytes(tid []byte) (model.TraceID, error) {
 	var hi, lo uint64
 	switch {
 	case len(tid) > model.TraceIDLongBytesLen:
-		return model.TraceID{}, fmt.Errorf("TraceID cannot be longer than %d bytes", model.TraceIDLongBytesLen)
+		return model.TraceID{}, fmt.Errorf("traceID cannot be longer than %d bytes", model.TraceIDLongBytesLen)
 	case len(tid) > model.TraceIDShortBytesLen:
 		hiLen := len(tid) - model.TraceIDShortBytesLen
 		hi = binary.BigEndian.Uint64(tid[:hiLen])
@@ -172,11 +172,11 @@ func protoKindToThrift(ts int64, d int64, kind zmodel.Span_Kind, localE *zipkinc
 func protoEndpointV2ToThrift(e *zmodel.Endpoint) (*zipkincore.Endpoint, error) {
 	lv4 := len(e.Ipv4)
 	if lv4 > 0 && lv4 != net.IPv4len {
-		return nil, fmt.Errorf("Invalid length for Endpoint Ipv4")
+		return nil, fmt.Errorf("invalid length for Endpoint Ipv4")
 	}
 	lv6 := len(e.Ipv6)
 	if lv6 > 0 && lv6 != net.IPv6len {
-		return nil, fmt.Errorf("Invalid length for Endpoint Ipv6")
+		return nil, fmt.Errorf("invalid length for Endpoint Ipv6")
 	}
 	ipv4 := binary.BigEndian.Uint32(e.Ipv4)
 	port := port(e.Port)

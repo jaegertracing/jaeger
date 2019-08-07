@@ -76,15 +76,15 @@ func TestIdErrs(t *testing.T) {
 	}{
 		{
 			span:   zmodel.Span{Id: randBytesOfLen(16)},
-			errMsg: "Invalid length for Span ID",
+			errMsg: "invalid length for Span ID",
 		},
 		{
 			span:   zmodel.Span{Id: validID, TraceId: invalidTraceID},
-			errMsg: "TraceID cannot be longer than 16 bytes",
+			errMsg: "traceID cannot be longer than 16 bytes",
 		},
 		{
 			span:   zmodel.Span{Id: validID, TraceId: validTraceID, ParentId: invalidParentID},
-			errMsg: "Invalid length for Parent ID",
+			errMsg: "invalid length for Parent ID",
 		},
 	}
 
@@ -107,11 +107,11 @@ func TestEndpointValueErrs(t *testing.T) {
 	}{
 		{
 			span:   zmodel.Span{Id: validID, TraceId: validTraceID, LocalEndpoint: &invalidLocalEp},
-			errMsg: "Invalid length for Endpoint Ipv4",
+			errMsg: "invalid length for Endpoint Ipv4",
 		},
 		{
 			span:   zmodel.Span{Id: validID, TraceId: validTraceID, RemoteEndpoint: &invalidRemoteEp},
-			errMsg: "Invalid length for Endpoint Ipv6",
+			errMsg: "invalid length for Endpoint Ipv6",
 		},
 	}
 
@@ -127,12 +127,3 @@ func randBytesOfLen(n int) []byte {
 	rand.Read(b)
 	return b
 }
-
-// 1. Test list of spans
-
-// 2. Test single span convertor
-// Various cases to err
-
-// 3. Test protoEndpointV2ToThrift
-
-// 4. Check if other functions needs testing
