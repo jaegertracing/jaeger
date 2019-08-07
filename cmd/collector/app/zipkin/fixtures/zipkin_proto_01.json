@@ -1,0 +1,31 @@
+{
+  "spans": [
+    {
+      "trace_id":"AAAAAAAAAABChWi6qglGfg==",
+      "id":"AAAAAAAAAAI=",
+      "parent_id": "AAAAAAAAAAE=",
+      "name":"foo",
+      "kind": 1,
+      "debug": true,
+      "shared": true,
+      "timestamp": 1,
+      "duration": 10,
+      "local_endpoint":{
+        "service_name":"foo",
+        "ipv4":"CisRKg=="
+      },
+      "remote_endpoint":{
+        "service_name":"bar",
+        "ipv4":"CisRKw=="
+      },
+      "annotations": [{
+        "value": "foo",
+        "timestamp": 1
+      }],
+      "tags": {
+        "foo": "bar"
+      }
+    }
+  ]
+}
+  

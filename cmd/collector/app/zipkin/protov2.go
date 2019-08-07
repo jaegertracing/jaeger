@@ -4,7 +4,7 @@ import (
 	"encoding/binary"
 	"fmt"
 
-	"github.com/jaegertracing/jaeger/model"
+	model "github.com/jaegertracing/jaeger/model"
 	zmodel "github.com/jaegertracing/jaeger/proto-gen/zipkin"
 	"github.com/jaegertracing/jaeger/thrift-gen/zipkincore"
 )
@@ -23,15 +23,18 @@ func protoSpansV2ToThrift(listOfSpans *zmodel.ListOfSpans) ([]*zipkincore.Span, 
 }
 
 func protoSpanV2ToThrift(s *zmodel.Span) (*zipkincore.Span, error) {
+	if len(s.Id) != 8 {
+		return nil, fmt.Errorf("Invalid length for Span ID")
+	}
 	id := binary.BigEndian.Uint64(s.Id)
-	traceID, err := model.TraceIDFromString(fmt.Sprintf("%x", s.TraceId))
+	traceID, err := traceIDFromBytes(s.TraceId)
 	if err != nil {
 		return nil, err
 	}
 	ts, d := int64(s.Timestamp), int64(s.Duration)
 	tSpan := &zipkincore.Span{
 		ID:        int64(id),
-		TraceID:   int64(traceID.Low),
+		TraceID:   int64(traceID.High),
 		Name:      s.Name,
 		Debug:     s.Debug,
 		Timestamp: &ts,
@@ -43,6 +46,9 @@ func protoSpanV2ToThrift(s *zmodel.Span) (*zipkincore.Span, error) {
 	}
 
 	if len(s.ParentId) > 0 {
+		if len(s.ParentId) != 8 {
+			return nil, fmt.Errorf("Invalid length for Parent ID")
+		}
 		parentID := binary.BigEndian.Uint64(s.ParentId)
 		signed := int64(parentID)
 		tSpan.ParentID = &signed
@@ -65,7 +71,7 @@ func protoSpanV2ToThrift(s *zmodel.Span) (*zipkincore.Span, error) {
 	tSpan.Annotations = append(tSpan.Annotations, protoKindToThrift(ts, d, s.Kind, localE)...)
 
 	if s.RemoteEndpoint != nil {
-		rAddrAnno, err := protoRemoteEndpToThrift(s.RemoteEndpoint, s.Kind)
+		rAddrAnno, err := protoRemoteEndpToAddrAnno(s.RemoteEndpoint, s.Kind)
 		if err != nil {
 			return nil, err
 		}
@@ -84,7 +90,22 @@ func protoSpanV2ToThrift(s *zmodel.Span) (*zipkincore.Span, error) {
 	return tSpan, nil
 }
 
-func protoRemoteEndpToThrift(e *zmodel.Endpoint, kind zmodel.Span_Kind) (*zipkincore.BinaryAnnotation, error) {
+func traceIDFromBytes(tid []byte) (model.TraceID, error) {
+	var hi, lo uint64
+	switch {
+	case len(tid) > 16:
+		return model.TraceID{}, fmt.Errorf("TraceID cannot be longer than 16 bytes")
+	case len(tid) > 8:
+		hiLen := len(tid) - 8
+		hi = binary.BigEndian.Uint64(tid[:hiLen])
+		lo = binary.BigEndian.Uint64(tid[hiLen:])
+	default:
+		lo = binary.BigEndian.Uint64(tid)
+	}
+	return model.TraceID{High: hi, Low: lo}, nil
+}
+
+func protoRemoteEndpToAddrAnno(e *zmodel.Endpoint, kind zmodel.Span_Kind) (*zipkincore.BinaryAnnotation, error) {
 	rEndp, err := protoEndpointV2ToThrift(e)
 	if err != nil {
 		return nil, err
@@ -148,11 +169,16 @@ func protoKindToThrift(ts int64, d int64, kind zmodel.Span_Kind, localE *zipkinc
 }
 
 func protoEndpointV2ToThrift(e *zmodel.Endpoint) (*zipkincore.Endpoint, error) {
-	if e == nil {
-		return nil, nil
+	lv4 := len(e.Ipv4)
+	if lv4 > 0 && lv4 != 4 {
+		return nil, fmt.Errorf("Invalid length for Endpoint Ipv4")
+	}
+	lv6 := len(e.Ipv6)
+	if lv6 > 0 && lv6 != 16 {
+		return nil, fmt.Errorf("Invalid length for Endpoint Ipv6")
 	}
 	ipv4 := binary.BigEndian.Uint32(e.Ipv4)
-	port := port(int32(e.Port))
+	port := port(e.Port)
 	return &zipkincore.Endpoint{
 		ServiceName: e.ServiceName,
 		Port:        int16(port),

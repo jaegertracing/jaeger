@@ -1,0 +1,16 @@
+{
+  "spans": [
+    {
+      "trace_id": "AAAAAAAAAAI=",
+      "id": "AAAAAAAAAAI=",
+      "name": "foo",
+      "timestamp": 1,
+      "duration": 10,
+      "local_endpoint": {
+        "service_name": "bar",
+        "ipv4": "CisRKg==",
+        "port": 8080
+      }
+    }
+  ]
+}
