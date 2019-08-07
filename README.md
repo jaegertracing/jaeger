@@ -66,6 +66,10 @@ and a [Helm chart](https://github.com/kubernetes/charts/tree/master/incubator/ja
 All Jaeger backend components expose [Prometheus](https://prometheus.io/) metrics by default (other metrics backends are
 also supported). Logs are written to standard out using the structured logging library [zap](https://github.com/uber-go/zap).
 
+### Security
+
+Third-party security audits of Jaeger are available in https://github.com/jaegertracing/security-audits. Please see [Issue #1718](https://github.com/jaegertracing/jaeger/issues/1718) for the summary of available security mechanisms in Jaeger.
+
 ### Backwards compatibility with Zipkin
 
 Although we recommend instrumenting applications with OpenTracing API and binding to Jaeger client libraries to benefit
