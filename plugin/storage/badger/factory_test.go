@@ -141,6 +141,49 @@ func TestMaintenanceCodecov(t *testing.T) {
 		}
 	}
 
-	_ = f.store.Close()
+	err := f.store.Close()
+	assert.NoError(t, err)
 	waiter() // This should trigger the logging of error
+}
+
+func TestBadgerMetrics(t *testing.T) {
+	// The expvar is leaking keyparams between tests. We need to clean up a bit..
+	eMap := expvar.Get("badger_lsm_size_bytes").(*expvar.Map)
+	eMap.Init()
+
+	f := NewFactory()
+	v, command := config.Viperize(f.AddFlags)
+	command.ParseFlags([]string{
+		"--badger.metrics-update-interval=10ms",
+	})
+	f.InitFromViper(v)
+	mFactory := metricstest.NewFactory(0)
+	f.Initialize(mFactory, zap.NewNop())
+	assert.NotNil(t, f.metrics.badgerMetrics)
+	_, found := f.metrics.badgerMetrics["badger_memtable_gets_total"]
+	assert.True(t, found)
+
+	waiter := func(previousValue int64) int64 {
+		sleeps := 0
+		_, gs := mFactory.Snapshot()
+		for gs["badger_memtable_gets_total"] == previousValue && sleeps < 8 {
+			// Wait for the scheduler
+			time.Sleep(time.Duration(50) * time.Millisecond)
+			sleeps++
+			_, gs = mFactory.Snapshot()
+		}
+		assert.True(t, gs["badger_memtable_gets_total"] > previousValue)
+		return gs["badger_memtable_gets_total"]
+	}
+
+	vlogSize := waiter(0)
+	_, gs := mFactory.Snapshot()
+	assert.True(t, vlogSize > 0)
+	assert.True(t, gs["badger_memtable_gets_total"] > 0) // IntVal metric
+
+	_, found = gs["badger_lsm_size_bytes"] // Map metric
+	assert.True(t, found)
+
+	err := f.Close()
+	assert.NoError(t, err)
 }

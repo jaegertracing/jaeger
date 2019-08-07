@@ -31,18 +31,20 @@ type Options struct {
 
 // NamespaceConfig is badger's internal configuration data
 type NamespaceConfig struct {
-	namespace           string
-	SpanStoreTTL        time.Duration
-	ValueDirectory      string
-	KeyDirectory        string
-	Ephemeral           bool // Setting this to true will ignore ValueDirectory and KeyDirectory
-	SyncWrites          bool
-	MaintenanceInterval time.Duration
+	namespace             string
+	SpanStoreTTL          time.Duration
+	ValueDirectory        string
+	KeyDirectory          string
+	Ephemeral             bool // Setting this to true will ignore ValueDirectory and KeyDirectory
+	SyncWrites            bool
+	MaintenanceInterval   time.Duration
+	MetricsUpdateInterval time.Duration
 }
 
 const (
-	defaultMaintenanceInterval time.Duration = 5 * time.Minute
-	defaultTTL                 time.Duration = time.Hour * 72
+	defaultMaintenanceInterval   time.Duration = 5 * time.Minute
+	defaultMetricsUpdateInterval time.Duration = 10 * time.Second
+	defaultTTL                   time.Duration = time.Hour * 72
 )
 
 const (
@@ -52,6 +54,7 @@ const (
 	suffixSpanstoreTTL        = ".span-store-ttl"
 	suffixSyncWrite           = ".consistency"
 	suffixMaintenanceInterval = ".maintenance-interval"
+	suffixMetricsInterval     = ".metrics-update-interval" // Intended only for testing purposes
 	defaultDataDir            = string(os.PathSeparator) + "data"
 	defaultValueDir           = defaultDataDir + string(os.PathSeparator) + "values"
 	defaultKeysDir            = defaultDataDir + string(os.PathSeparator) + "keys"
@@ -64,13 +67,14 @@ func NewOptions(primaryNamespace string, otherNamespaces ...string) *Options {
 
 	options := &Options{
 		primary: &NamespaceConfig{
-			namespace:           primaryNamespace,
-			SpanStoreTTL:        defaultTTL,
-			SyncWrites:          false, // Performance over durability
-			Ephemeral:           true,  // Default is ephemeral storage
-			ValueDirectory:      defaultBadgerDataDir + defaultValueDir,
-			KeyDirectory:        defaultBadgerDataDir + defaultKeysDir,
-			MaintenanceInterval: defaultMaintenanceInterval,
+			namespace:             primaryNamespace,
+			SpanStoreTTL:          defaultTTL,
+			SyncWrites:            false, // Performance over durability
+			Ephemeral:             true,  // Default is ephemeral storage
+			ValueDirectory:        defaultBadgerDataDir + defaultValueDir,
+			KeyDirectory:          defaultBadgerDataDir + defaultKeysDir,
+			MaintenanceInterval:   defaultMaintenanceInterval,
+			MetricsUpdateInterval: defaultMetricsUpdateInterval,
 		},
 	}
 
@@ -112,12 +116,17 @@ func addFlags(flagSet *flag.FlagSet, nsConfig *NamespaceConfig) {
 	flagSet.Bool(
 		nsConfig.namespace+suffixSyncWrite,
 		nsConfig.SyncWrites,
-		"If all writes should be synced immediately. This will greatly reduce write performance.",
+		"If all writes should be synced immediately. This can impact write performance.",
 	)
 	flagSet.Duration(
 		nsConfig.namespace+suffixMaintenanceInterval,
 		nsConfig.MaintenanceInterval,
 		"How often the maintenance thread for values is ran. Format is time.Duration (https://golang.org/pkg/time/#Duration)",
+	)
+	flagSet.Duration(
+		nsConfig.namespace+suffixMetricsInterval,
+		nsConfig.MetricsUpdateInterval,
+		"How often the badger metrics are collected by Jaeger. Format is time.Duration (https://golang.org/pkg/time/#Duration)",
 	)
 }
 
@@ -133,6 +142,7 @@ func initFromViper(cfg *NamespaceConfig, v *viper.Viper) {
 	cfg.SyncWrites = v.GetBool(cfg.namespace + suffixSyncWrite)
 	cfg.SpanStoreTTL = v.GetDuration(cfg.namespace + suffixSpanstoreTTL)
 	cfg.MaintenanceInterval = v.GetDuration(cfg.namespace + suffixMaintenanceInterval)
+	cfg.MetricsUpdateInterval = v.GetDuration(cfg.namespace + suffixMetricsInterval)
 }
 
 // GetPrimary returns the primary namespace configuration
