@@ -23,6 +23,13 @@ import (
 	"github.com/gogo/protobuf/jsonpb"
 )
 
+const (
+	// TraceIDShortBytesLen indicates length of 64bit traceID when represented as list of bytes
+	TraceIDShortBytesLen = 8
+	// TraceIDLongBytesLen indicates length of 128bit traceID when represented as list of bytes
+	TraceIDLongBytesLen = 16
+)
+
 // TraceID is a random 128bit identifier for a trace
 type TraceID struct {
 	Low  uint64 `json:"lo"`

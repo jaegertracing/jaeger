@@ -33,15 +33,13 @@ func protoSpanV2ToThrift(s *zmodel.Span) (*zipkincore.Span, error) {
 		return nil, err
 	}
 	ts, d := int64(s.Timestamp), int64(s.Duration)
-	traceIDHigh := int64(traceID.High)
 	tSpan := &zipkincore.Span{
-		ID:          int64(id),
-		TraceID:     int64(traceID.Low),
-		TraceIDHigh: &traceIDHigh,
-		Name:        s.Name,
-		Debug:       s.Debug,
-		Timestamp:   &ts,
-		Duration:    &d,
+		ID:        int64(id),
+		TraceID:   int64(traceID.Low),
+		Name:      s.Name,
+		Debug:     s.Debug,
+		Timestamp: &ts,
+		Duration:  &d,
 	}
 	if traceID.High != 0 {
 		help := int64(traceID.High)
