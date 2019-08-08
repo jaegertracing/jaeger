@@ -74,18 +74,9 @@ func TestIdErrs(t *testing.T) {
 		span   zmodel.Span
 		errMsg string
 	}{
-		{
-			span:   zmodel.Span{Id: randBytesOfLen(16)},
-			errMsg: "invalid length for Span ID",
-		},
-		{
-			span:   zmodel.Span{Id: validID, TraceId: invalidTraceID},
-			errMsg: "traceID cannot be longer than 16 bytes",
-		},
-		{
-			span:   zmodel.Span{Id: validID, TraceId: validTraceID, ParentId: invalidParentID},
-			errMsg: "invalid length for Parent ID",
-		},
+		{span: zmodel.Span{Id: randBytesOfLen(16)}, errMsg: "invalid Span ID"},
+		{span: zmodel.Span{Id: validID, TraceId: invalidTraceID}, errMsg: "invalid traceId"},
+		{span: zmodel.Span{Id: validID, TraceId: validTraceID, ParentId: invalidParentID}, errMsg: "invalid parentId"},
 	}
 
 	for _, test := range tests {
@@ -105,14 +96,8 @@ func TestEndpointValueErrs(t *testing.T) {
 		span   zmodel.Span
 		errMsg string
 	}{
-		{
-			span:   zmodel.Span{Id: validID, TraceId: validTraceID, LocalEndpoint: &invalidLocalEp},
-			errMsg: "invalid length for Endpoint Ipv4",
-		},
-		{
-			span:   zmodel.Span{Id: validID, TraceId: validTraceID, RemoteEndpoint: &invalidRemoteEp},
-			errMsg: "invalid length for Endpoint Ipv6",
-		},
+		{span: zmodel.Span{Id: validID, TraceId: validTraceID, LocalEndpoint: &invalidLocalEp}, errMsg: "wrong Ipv4"},
+		{span: zmodel.Span{Id: validID, TraceId: validTraceID, RemoteEndpoint: &invalidRemoteEp}, errMsg: "wrong Ipv6"},
 	}
 
 	for _, test := range tests {
