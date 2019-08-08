@@ -140,7 +140,10 @@ func createDependencyIndexKey(span *model.Span) []byte {
 	binary.Write(buf, binary.BigEndian, span.TraceID.Low)
 	binary.Write(buf, binary.BigEndian, model.TimeAsEpochMicroseconds(span.StartTime))
 	binary.Write(buf, binary.BigEndian, span.SpanID)
+	binary.Write(buf, binary.BigEndian, uint32(len(span.Process.ServiceName))) // Find the servicename correctly
 	binary.Write(buf, binary.BigEndian, []byte(span.Process.ServiceName))
+	binary.Write(buf, binary.BigEndian, []byte(span.OperationName))
+	binary.Write(buf, binary.BigEndian, model.DurationAsMicroseconds(span.Duration))
 	binary.Write(buf, binary.BigEndian, span.ParentSpanID())
 
 	return buf.Bytes()

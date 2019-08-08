@@ -86,7 +86,7 @@ func TestEncodingTypes(t *testing.T) {
 	})
 }
 
-func TestScanIndexKey(t *testing.T) {
+func TestScanDependencyIndexKey(t *testing.T) {
 	// This functionality is tested through dependencystore's storage_test.go, but the codecov
 	// can't detect that correctly so we have to have test here also. Don't remove either one.
 	assert := assert.New(t)
@@ -97,12 +97,17 @@ func TestScanIndexKey(t *testing.T) {
 		rw := NewTraceReader(store, cache)
 
 		ts := time.Now()
-		links, err := rw.ScanDependencyIndex(ts.Add(-1*time.Hour), ts)
+		q := &spanstore.TraceQueryParameters{
+			StartTimeMax: ts,
+			StartTimeMin: ts.Add(-1 * time.Hour),
+		}
+		links, err := rw.ScanDependencyIndex(q)
 		assert.NoError(err)
 		assert.Empty(links)
 
 		traces := 80
 		spans := 3
+		s5c := 0
 		for i := 0; i < traces; i++ {
 			for j := 0; j < spans; j++ {
 				s := model.Span{
@@ -116,19 +121,36 @@ func TestScanIndexKey(t *testing.T) {
 						ServiceName: fmt.Sprintf("service-%d", j),
 					},
 					StartTime: ts.Add(time.Minute * time.Duration(i)),
-					Duration:  time.Duration(i + j),
+					Duration:  time.Duration(time.Millisecond * time.Duration(i+j)),
 				}
 				if j > 0 {
 					s.References = []model.SpanRef{model.NewChildOfRef(s.TraceID, model.SpanID(j-1))}
+				}
+				if i%4 == 0 && j == 2 {
+					s5c++
+					s.Process.ServiceName = "service-5"
+					if i%8 == 0 {
+						s.OperationName = "operation-b"
+					}
+				}
+				if i%8 == 0 {
+					s.Tags = []model.KeyValue{
+						model.KeyValue{
+							Key:   "error",
+							VBool: true,
+							VType: model.ValueType_BOOL,
+						},
+					}
 				}
 				err := sw.WriteSpan(&s)
 				assert.NoError(err)
 			}
 		}
-		links, err = rw.ScanDependencyIndex(ts.Add(-1*time.Hour), ts.Add(time.Hour))
+		q.StartTimeMax = q.StartTimeMax.Add(time.Hour)
+		links, err = rw.ScanDependencyIndex(q)
 		assert.NoError(err)
 		assert.NotEmpty(links)
-		assert.Equal(spans-1, len(links)) // First span does not create a link
+		assert.Equal(spans, len(links))
 
 		l := Link{
 			From: "service-0",
@@ -138,6 +160,72 @@ func TestScanIndexKey(t *testing.T) {
 		count, found := links[l]
 		assert.True(found)
 		assert.Equal(61, int(count)) // Traces 0 -> 60 are in the calculation, but 61 -> 79 are not.
+
+		q.ServiceName = "service-5"
+		links, err = rw.ScanDependencyIndex(q)
+		assert.NoError(err)
+		assert.NotEmpty(links)
+
+		count, found = links[l]
+		assert.True(found)
+		assert.Equal(16, int(count)) // Every fourth trace had the service only between traces 0 -> 60 (including 0 which is why it's 15+1)
+
+		q.DurationMin = time.Duration(4) * time.Millisecond
+		links, err = rw.ScanDependencyIndex(q)
+		assert.NoError(err)
+		assert.NotEmpty(links)
+
+		count, found = links[l]
+		assert.True(found)
+		assert.Equal(15, int(count)) // Every fourth trace had the service only between traces 0 -> 60 (but 0 is excluded since its duration is not enough)
+
+		q.OperationName = "operation-b"
+		links, err = rw.ScanDependencyIndex(q)
+		assert.NoError(err)
+		assert.NotEmpty(links)
+
+		count, found = links[l]
+		assert.True(found)
+		assert.Equal(7, int(count)) // Every eight trace had the service only between traces 0 -> 60 (excluding 0 because of duration min)
+
+		// New scan, larger timeframe
+
+		q = &spanstore.TraceQueryParameters{
+			StartTimeMax: ts.Add(2 * time.Hour),
+			StartTimeMin: ts.Add(-4 * time.Hour),
+		}
+
+		links, err = rw.ScanDependencyIndex(q)
+		assert.NoError(err)
+		assert.NotEmpty(links)
+		assert.Equal(spans, len(links))
+
+		count, found = links[l]
+		assert.True(found)
+		assert.Equal(80, int(count))
+
+		q.Tags = map[string]string{
+			"error": "true",
+		}
+
+		links, err = rw.ScanDependencyIndex(q)
+		assert.NoError(err)
+		assert.NotEmpty(links)
+		assert.Equal(spans, len(links))
+
+		count, found = links[l]
+		assert.True(found)
+		assert.Equal(80, int(count)) // No service defined, so tags filtering is ignored
+
+		q.ServiceName = "service-5"
+		links, err = rw.ScanDependencyIndex(q)
+		assert.NoError(err)
+		assert.NotEmpty(links)
+		assert.Equal(spans, len(links))
+
+		count, found = links[l]
+		assert.True(found)
+		assert.Equal(10, int(count)) // No service defined, so tags filtering is ignored
 	})
 }
 
@@ -230,4 +318,38 @@ func createDummySpan() model.Span {
 	}
 
 	return testSpan
+}
+
+func TestMergeJoin(t *testing.T) {
+	assert := assert.New(t)
+
+	// Test equals
+
+	left := make([][]byte, 16)
+	right := make([][]byte, 16)
+
+	for i := 0; i < 16; i++ {
+		left[i] = make([]byte, 4)
+		binary.BigEndian.PutUint32(left[i], uint32(i))
+
+		right[i] = make([]byte, 4)
+		binary.BigEndian.PutUint32(right[i], uint32(i))
+	}
+
+	merged := mergeJoinIds(left, right)
+	assert.Equal(16, len(merged))
+
+	// Check order
+	assert.Equal(uint32(15), binary.BigEndian.Uint32(merged[15]))
+
+	// Test simple non-equality different size
+
+	merged = mergeJoinIds(left[1:2], right[13:])
+	assert.Empty(merged)
+
+	// Different size, some equalities
+
+	merged = mergeJoinIds(left[0:3], right[1:7])
+	assert.Equal(2, len(merged))
+	assert.Equal(uint32(2), binary.BigEndian.Uint32(merged[1]))
 }

@@ -37,7 +37,11 @@ func NewDependencyStore(store spanstore.Reader) *DependencyStore {
 // GetDependencies returns all interservice dependencies, implements DependencyReader
 func (s *DependencyStore) GetDependencies(endTs time.Time, lookback time.Duration) ([]model.DependencyLink, error) {
 	br := s.reader.(*badgerStore.TraceReader)
-	resultMap, err := br.ScanDependencyIndex(endTs.Add(-1*lookback), endTs)
+	query := &spanstore.TraceQueryParameters{
+		StartTimeMax: endTs,
+		StartTimeMin: endTs.Add(-1 * lookback),
+	}
+	resultMap, err := br.ScanDependencyIndex(query)
 	if err != nil {
 		return nil, err
 	}

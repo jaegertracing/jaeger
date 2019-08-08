@@ -105,13 +105,12 @@ func (r *TraceReader) getTraces(traceIDs []model.TraceID) ([]*model.Trace, error
 
 	err := r.store.View(func(txn *badger.Txn) error {
 		opts := badger.DefaultIteratorOptions
-		opts.PrefetchSize = 10 // TraceIDs are not sorted, pointless to prefetch large amount of values
 		it := txn.NewIterator(opts)
 		defer it.Close()
 
 		val := []byte{}
 		for _, prefix := range prefixes {
-			spans := make([]*model.Span, 0, 4) // reduce reallocation requirements by defining some initial length
+			spans := make([]*model.Span, 0, 32) // reduce reallocation requirements by defining some initial length
 
 			for it.Seek(prefix); it.ValidForPrefix(prefix); it.Next() {
 				// Add value to the span store (decode from JSON / defined encoding first)
@@ -346,53 +345,59 @@ func (r *TraceReader) durationQueries(query *spanstore.TraceQueryParameters, ids
 	return ids
 }
 
+func mergeJoinIds(left, right [][]byte) [][]byte {
+	merged := make([][]byte, 0, len(left)) // len(left) or len(right) is the maximum, whichever is smallest
+
+	lMax := len(left) - 1
+	rMax := len(right) - 1
+	for r, l := 0, 0; r <= rMax && l <= lMax; {
+		switch bytes.Compare(left[l], right[r]) {
+		case 0:
+			// Left matches right - merge
+			merged = append(merged, left[l])
+			// Advance both
+			l++
+			r++
+		case 1:
+			// left > right, increase right one
+			r++
+		case -1:
+			// left < right, increase left one
+			l++
+		}
+	}
+	return merged
+}
+
 // sortMergeIds does a sort-merge join operation to the list of TraceIDs to remove duplicates
 func sortMergeIds(query *spanstore.TraceQueryParameters, ids [][][]byte) []model.TraceID {
 	// Key only scan is a lot faster in the badger - use sort-merge join algorithm instead of hash join since we have the keys in sorted order already
-	intersected := ids[0]
-	mergeIntersected := make([][]byte, 0, len(intersected)) // intersected is the maximum size
+
+	merged := [][]byte{}
 
 	if len(ids) > 1 {
-		for i := 1; i < len(ids); i++ {
-			mergeIntersected = make([][]byte, 0, len(intersected)) // intersected is the maximum size
-			k := len(intersected) - 1
-			for j := len(ids[i]) - 1; j >= 0 && k >= 0; {
-				// The result will be 0 if a==b, -1 if a < b, and +1 if a > b.
-				switch bytes.Compare(intersected[k], ids[i][j]) {
-				case 1:
-					k-- // Move on to the next item in the intersected list
-					// a > b
-				case -1:
-					j--
-					// a < b
-					// Move on to next iteration of j
-				case 0:
-					mergeIntersected = append(mergeIntersected, intersected[k])
-					k-- // Move on to next item
-					// Match
-				}
-			}
-			intersected = mergeIntersected
+		merged = mergeJoinIds(ids[0], ids[1])
+		for i := 2; i < len(ids); i++ {
+			merged = mergeJoinIds(merged, ids[i])
 		}
-
 	} else {
-		// mergeIntersected should be reversed intersected
-		for i, j := 0, len(intersected)-1; j >= 0; i, j = i+1, j-1 {
-			mergeIntersected = append(mergeIntersected, intersected[j])
-		}
-		intersected = mergeIntersected
+		merged = ids[0]
 	}
 
-	// Get top query.NumTraces results (note, the slice is now in descending timestamp order)
-	if query.NumTraces < len(intersected) {
-		intersected = intersected[:query.NumTraces]
+	// Get top query.NumTraces results (order in DESC)
+	if query.NumTraces < len(merged) {
+		merged = merged[len(merged)-query.NumTraces:]
 	}
 
-	// Enrich the traceIds to model.Trace
-	// result := make([]*model.Trace, 0, len(intersected))
-	keys := make([]model.TraceID, 0, len(intersected))
+	// Results are in ASC (badger's default order), but Jaeger uses DESC, thus we need to reverse the array
+	for left, right := 0, len(merged)-1; left < right; left, right = left+1, right-1 {
+		merged[left], merged[right] = merged[right], merged[left]
+	}
 
-	for _, key := range intersected {
+	// Create the structs from [][]byte to TraceID
+	keys := make([]model.TraceID, 0, len(merged))
+
+	for _, key := range merged {
 		keys = append(keys, model.TraceID{
 			High: binary.BigEndian.Uint64(key[:8]),
 			Low:  binary.BigEndian.Uint64(key[8:]),
@@ -508,6 +513,7 @@ func (r *TraceReader) scanIndexKeys(indexKeyValue []byte, startTimeMin time.Time
 		}
 		return nil
 	})
+
 	return indexResults, err
 }
 
@@ -589,11 +595,21 @@ type Link struct {
 
 // ScanDependencyIndex scans the dependency tree index and returns the aggregated results using Link struct as key
 // Scans all the index keys, uses sorting order for merging of traces and then does hash matching to aggregate the counts
-func (r *TraceReader) ScanDependencyIndex(startTimeMin time.Time, startTimeMax time.Time) (map[Link]uint64, error) {
+func (r *TraceReader) ScanDependencyIndex(query *spanstore.TraceQueryParameters) (map[Link]uint64, error) {
 	countMap := make(map[Link]uint64)
 
-	startTs := model.TimeAsEpochMicroseconds(startTimeMin)
-	endTs := model.TimeAsEpochMicroseconds(startTimeMax)
+	startTs := model.TimeAsEpochMicroseconds(query.StartTimeMin)
+	endTs := model.TimeAsEpochMicroseconds(query.StartTimeMax)
+
+	tagsJoin := make(map[model.TraceID]struct{})
+
+	// To check for Tags, we can scan the tags indexKey and make hash join - actually we could do that with other params also..
+	if len(query.Tags) > 0 && query.ServiceName != "" {
+		err := r.hashFromTagsIndexes(query, tagsJoin)
+		if err != nil {
+			return nil, err
+		}
+	}
 
 	err := r.store.View(func(txn *badger.Txn) error {
 		opts := badger.DefaultIteratorOptions
@@ -619,18 +635,23 @@ func (r *TraceReader) ScanDependencyIndex(startTimeMin time.Time, startTimeMax t
 			traceID := key[1 : sizeOfTraceID+1] // First byte is reserved for the depIndexKey
 			spanID := key[sizeOfTraceID+1+8 : sizeOfTraceID+1+8+8]
 			parentSpanID := key[len(key)-8:]
-			serviceName := string(key[sizeOfTraceID+1+8+8 : len(key)-8])
+			serviceNameLength := binary.BigEndian.Uint32(key[sizeOfTraceID+1+8+8 : sizeOfTraceID+1+8+8+4])
+			serviceName := string(key[sizeOfTraceID+1+8+8+4 : sizeOfTraceID+1+8+8+4+serviceNameLength])
+			operationName := string(key[sizeOfTraceID+1+8+8+4+serviceNameLength : len(key)-8-8])
+			duration := binary.BigEndian.Uint64(key[len(key)-8-8 : len(key)-8])
 
 			// Keep appending to the trace data
 			if !bytes.Equal(prevTraceID, traceID) {
 				// Process the spans and add to intermediate counting results
+				currentTraceSpans = filterSpans(query, currentTraceSpans, tagsJoin)
 				processCountSpans(countMap, currentTraceSpans)
 				currentTraceSpans = currentTraceSpans[:0] // Reset the slice position, but keep the allocated memory
 			}
 			prevTraceID = traceID
 			currentTraceSpans = append(currentTraceSpans,
 				model.Span{
-					SpanID: model.SpanID(binary.BigEndian.Uint64(spanID)),
+					SpanID:        model.SpanID(binary.BigEndian.Uint64(spanID)),
+					OperationName: operationName,
 					Process: &model.Process{
 						ServiceName: serviceName,
 					},
@@ -639,13 +660,111 @@ func (r *TraceReader) ScanDependencyIndex(startTimeMin time.Time, startTimeMax t
 							SpanID: model.SpanID(binary.BigEndian.Uint64(parentSpanID)),
 						},
 					},
+					Duration: model.MicrosecondsAsDuration(duration),
 				})
 		}
 
+		currentTraceSpans = filterSpans(query, currentTraceSpans, tagsJoin)
 		processCountSpans(countMap, currentTraceSpans)
 		return nil
 	})
 	return countMap, err
+}
+
+func filterSpans(query *spanstore.TraceQueryParameters, currentTraceSpans []model.Span, tagsJoin map[model.TraceID]struct{}) []model.Span {
+	// Verify durations
+	if query.DurationMax != 0 || query.DurationMin != 0 {
+		matched := false
+		durMax := model.DurationAsMicroseconds(query.DurationMax)
+		durMin := model.DurationAsMicroseconds(query.DurationMin)
+		if query.DurationMax == 0 {
+			durMax = math.MaxUint64
+		}
+
+		// At least one span must have a query in this range..
+		for i := 0; i < len(currentTraceSpans); i++ {
+			dur := model.DurationAsMicroseconds(currentTraceSpans[i].Duration)
+			if dur <= durMax && dur >= durMin {
+				matched = true
+				break
+			}
+		}
+
+		if !matched {
+			return []model.Span{}
+		}
+	}
+
+	// Verify serviceName + operationName
+	if query.ServiceName != "" {
+		matched := false
+		for i := 0; i < len(currentTraceSpans); i++ {
+			if currentTraceSpans[i].Process.ServiceName == query.ServiceName {
+				if query.OperationName != "" {
+					if currentTraceSpans[i].OperationName == query.OperationName {
+						matched = true
+						break
+					}
+				} else {
+					matched = true
+					break
+				}
+			}
+		}
+
+		if !matched {
+			return []model.Span{}
+		}
+	}
+
+	if len(query.Tags) > 0 && query.ServiceName != "" {
+		matched := false
+		for i := 0; i < len(currentTraceSpans); i++ {
+			if _, found := tagsJoin[currentTraceSpans[0].TraceID]; found {
+				matched = true
+				break
+			}
+		}
+		if !matched {
+			return []model.Span{}
+		}
+	}
+
+	return currentTraceSpans
+}
+
+func (r *TraceReader) hashFromTagsIndexes(query *spanstore.TraceQueryParameters, tagsJoin map[model.TraceID]struct{}) error {
+	var empty struct{}
+	if len(query.Tags) > 0 {
+		indexSeeks := make([][]byte, 0, len(query.Tags))
+		// TODO Following is repeated code from serviceQuery..
+		for k, v := range query.Tags {
+			tagSearch := []byte(query.ServiceName + k + v)
+			tagSearchKey := make([]byte, 0, len(tagSearch)+1)
+			tagSearchKey = append(tagSearchKey, tagIndexKey)
+			tagSearchKey = append(tagSearchKey, tagSearch...)
+			indexSeeks = append(indexSeeks, tagSearchKey)
+		}
+		ids := make([][][]byte, 0, len(indexSeeks)+1)
+		ids, err := r.indexSeeksToTraceIDs(query, indexSeeks, ids)
+		if err != nil {
+			return err
+		}
+
+		tagsJoin = make(map[model.TraceID]struct{}, len(ids))
+
+		for _, index := range ids {
+			for _, key := range index {
+				tr := model.TraceID{
+					High: binary.BigEndian.Uint64(key[:8]),
+					Low:  binary.BigEndian.Uint64(key[8:]),
+				}
+				tagsJoin[tr] = empty
+			}
+		}
+	}
+
+	return nil
 }
 
 func processCountSpans(countMap map[Link]uint64, currentTraceSpans []model.Span) {
