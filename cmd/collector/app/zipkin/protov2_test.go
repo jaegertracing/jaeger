@@ -69,7 +69,6 @@ func TestIdErrs(t *testing.T) {
 	validTraceID := randBytesOfLen(16)
 	invalidTraceID := randBytesOfLen(32)
 	invalidParentID := randBytesOfLen(32)
-
 	tests := []struct {
 		span   zmodel.Span
 		errMsg string
@@ -78,7 +77,6 @@ func TestIdErrs(t *testing.T) {
 		{span: zmodel.Span{Id: validID, TraceId: invalidTraceID}, errMsg: "invalid traceId"},
 		{span: zmodel.Span{Id: validID, TraceId: validTraceID, ParentId: invalidParentID}, errMsg: "invalid parentId"},
 	}
-
 	for _, test := range tests {
 		_, err := protoSpanV2ToThrift(&test.span)
 		require.Error(t, err)
@@ -91,7 +89,6 @@ func TestEndpointValueErrs(t *testing.T) {
 	validTraceID := randBytesOfLen(16)
 	invalidLocalEp := zmodel.Endpoint{Ipv4: randBytesOfLen(8)}
 	invalidRemoteEp := zmodel.Endpoint{Ipv6: randBytesOfLen(8)}
-
 	tests := []struct {
 		span   zmodel.Span
 		errMsg string
@@ -99,7 +96,6 @@ func TestEndpointValueErrs(t *testing.T) {
 		{span: zmodel.Span{Id: validID, TraceId: validTraceID, LocalEndpoint: &invalidLocalEp}, errMsg: "wrong Ipv4"},
 		{span: zmodel.Span{Id: validID, TraceId: validTraceID, RemoteEndpoint: &invalidRemoteEp}, errMsg: "wrong Ipv6"},
 	}
-
 	for _, test := range tests {
 		_, err := protoSpanV2ToThrift(&test.span)
 		require.Error(t, err)

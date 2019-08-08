@@ -300,8 +300,7 @@ func TestSaveProtoSpansV2(t *testing.T) {
 		{Span: zipkinProto.Span{Id: validID, TraceId: validTraceID, LocalEndpoint: &zipkinProto.Endpoint{Ipv4: randBytesOfLen(2)}}, StatusCode: http.StatusBadRequest, resBody: "Unable to process request body: wrong Ipv4\n"},
 	}
 	for _, test := range tests {
-		var l zipkinProto.ListOfSpans
-		l = zipkinProto.ListOfSpans{
+		l := zipkinProto.ListOfSpans{
 			Spans: []*zipkinProto.Span{&test.Span},
 		}
 		reqBytes, err := proto.Marshal(&l)
