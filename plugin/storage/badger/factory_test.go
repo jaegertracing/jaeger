@@ -15,10 +15,12 @@
 package badger
 
 import (
+	"bytes"
 	"encoding/binary"
 	"expvar"
 	"fmt"
 	"io"
+	"io/ioutil"
 	"os"
 	"testing"
 	"time"
@@ -29,6 +31,7 @@ import (
 	"github.com/uber/jaeger-lib/metrics/metricstest"
 	"go.uber.org/zap"
 
+	"github.com/jaegertracing/jaeger/model"
 	"github.com/jaegertracing/jaeger/pkg/config"
 )
 
@@ -222,7 +225,7 @@ func TestFailToInitializeByCorruptingDB(t *testing.T) {
 	f := NewFactory()
 	v, command := config.Viperize(f.AddFlags)
 	dir, _ := ioutil.TempDir("", "badger")
-	// defer os.RemoveAll(dir)
+	defer os.RemoveAll(dir)
 
 	keyParam := fmt.Sprintf("--badger.directory-key=%s", dir)
 	valueParam := fmt.Sprintf("--badger.directory-value=%s", dir)
