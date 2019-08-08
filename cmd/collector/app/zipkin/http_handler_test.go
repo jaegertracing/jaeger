@@ -303,7 +303,7 @@ func TestSaveProtoSpansV2(t *testing.T) {
 		l := zipkinProto.ListOfSpans{
 			Spans: []*zipkinProto.Span{&test.Span},
 		}
-		reqBytes, err := proto.Marshal(&l)
+		reqBytes, _ := proto.Marshal(&l)
 		statusCode, resBody, err := postBytes(server.URL+`/api/v2/spans`, reqBytes, createHeader("application/x-protobuf"))
 		require.NoError(t, err)
 		assert.EqualValues(t, test.StatusCode, statusCode)
@@ -311,19 +311,19 @@ func TestSaveProtoSpansV2(t *testing.T) {
 	}
 
 	l := zipkinProto.ListOfSpans{}
-	reqBytes, err := proto.Marshal(&l)
-	statusCode, resBody, err := postBytes(server.URL+`/api/v2/spans`, reqBytes, createHeader("application/x-protobuf"))
+	reqBytes, _ := proto.Marshal(&l)
+	statusCode, _, err := postBytes(server.URL+`/api/v2/spans`, reqBytes, createHeader("application/x-protobuf"))
 	require.NoError(t, err)
 	assert.EqualValues(t, http.StatusAccepted, statusCode)
 
 	invalidSpans := struct{ key string }{key: "foo"}
-	reqBytes, err = json.Marshal(&invalidSpans)
-	statusCode, resBody, err = postBytes(server.URL+`/api/v2/spans`, reqBytes, createHeader("application/x-protobuf"))
+	reqBytes, _ = json.Marshal(&invalidSpans)
+	statusCode, resBody, err := postBytes(server.URL+`/api/v2/spans`, reqBytes, createHeader("application/x-protobuf"))
 	require.NoError(t, err)
 	assert.EqualValues(t, http.StatusBadRequest, statusCode)
 	assert.EqualValues(t, "Unable to process request body: unexpected EOF\n", resBody)
 
-	reqBytes, err = proto.Marshal(&zipkinProto.ListOfSpans{Spans: []*zipkinProto.Span{&zipkinProto.Span{Id: validID, TraceId: validTraceID}}})
+	reqBytes, _ = proto.Marshal(&zipkinProto.ListOfSpans{Spans: []*zipkinProto.Span{&zipkinProto.Span{Id: validID, TraceId: validTraceID}}})
 	handler.zipkinSpansHandler.(*mockZipkinHandler).err = fmt.Errorf("Bad times ahead")
 	statusCode, resBody, err = postBytes(server.URL+`/api/v2/spans`, reqBytes, createHeader("application/x-protobuf"))
 	require.NoError(t, err)
