@@ -109,6 +109,12 @@ func (sp *spanProcessor) Stop() {
 }
 
 func (sp *spanProcessor) saveSpan(span *model.Span) {
+	if nil == span.Process {
+		sp.logger.Error("process is empty for the span")
+		sp.metrics.SavedErrBySvc.ReportServiceNameForSpan(span)
+		return
+	}
+
 	startTime := time.Now()
 	if err := sp.spanWriter.WriteSpan(span); err != nil {
 		sp.logger.Error("Failed to save span", zap.Error(err))
