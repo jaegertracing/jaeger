@@ -26,9 +26,9 @@ import (
 	"github.com/go-openapi/loads"
 	"github.com/go-openapi/strfmt"
 	"github.com/go-openapi/swag"
+	"github.com/golang/protobuf/proto"
 	"github.com/gorilla/mux"
 
-	"github.com/golang/protobuf/proto"
 	"github.com/jaegertracing/jaeger/cmd/collector/app"
 	"github.com/jaegertracing/jaeger/model/converter/thrift/zipkin"
 	zipkinProto "github.com/jaegertracing/jaeger/proto-gen/zipkin"
