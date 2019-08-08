@@ -6,12 +6,12 @@ import (
 	"net"
 
 	model "github.com/jaegertracing/jaeger/model"
-	zmodel "github.com/jaegertracing/jaeger/proto-gen/zipkin"
+	zipkinProto "github.com/jaegertracing/jaeger/proto-gen/zipkin"
 	"github.com/jaegertracing/jaeger/thrift-gen/zipkincore"
 )
 
 // Converts Zipkin Protobuf spans to Thrift model
-func protoSpansV2ToThrift(listOfSpans *zmodel.ListOfSpans) ([]*zipkincore.Span, error) {
+func protoSpansV2ToThrift(listOfSpans *zipkinProto.ListOfSpans) ([]*zipkincore.Span, error) {
 	tSpans := make([]*zipkincore.Span, 0, len(listOfSpans.Spans))
 	for _, span := range listOfSpans.Spans {
 		tSpan, err := protoSpanV2ToThrift(span)
@@ -23,7 +23,7 @@ func protoSpansV2ToThrift(listOfSpans *zmodel.ListOfSpans) ([]*zipkincore.Span, 
 	return tSpans, nil
 }
 
-func protoSpanV2ToThrift(s *zmodel.Span) (*zipkincore.Span, error) {
+func protoSpanV2ToThrift(s *zipkinProto.Span) (*zipkincore.Span, error) {
 	if len(s.Id) != model.TraceIDShortBytesLen {
 		return nil, fmt.Errorf("invalid Span ID")
 	}
@@ -106,18 +106,18 @@ func traceIDFromBytes(tid []byte) (model.TraceID, error) {
 	return model.TraceID{High: hi, Low: lo}, nil
 }
 
-func protoRemoteEndpToAddrAnno(e *zmodel.Endpoint, kind zmodel.Span_Kind) (*zipkincore.BinaryAnnotation, error) {
+func protoRemoteEndpToAddrAnno(e *zipkinProto.Endpoint, kind zipkinProto.Span_Kind) (*zipkincore.BinaryAnnotation, error) {
 	rEndp, err := protoEndpointV2ToThrift(e)
 	if err != nil {
 		return nil, err
 	}
 	var key string
 	switch kind {
-	case zmodel.Span_CLIENT:
+	case zipkinProto.Span_CLIENT:
 		key = zipkincore.SERVER_ADDR
-	case zmodel.Span_SERVER:
+	case zipkinProto.Span_SERVER:
 		key = zipkincore.CLIENT_ADDR
-	case zmodel.Span_CONSUMER, zmodel.Span_PRODUCER:
+	case zipkinProto.Span_CONSUMER, zipkinProto.Span_PRODUCER:
 		key = zipkincore.MESSAGE_ADDR
 	}
 
@@ -128,10 +128,10 @@ func protoRemoteEndpToAddrAnno(e *zmodel.Endpoint, kind zmodel.Span_Kind) (*zipk
 	}, nil
 }
 
-func protoKindToThrift(ts int64, d int64, kind zmodel.Span_Kind, localE *zipkincore.Endpoint) []*zipkincore.Annotation {
+func protoKindToThrift(ts int64, d int64, kind zipkinProto.Span_Kind, localE *zipkincore.Endpoint) []*zipkincore.Annotation {
 	var annos []*zipkincore.Annotation
 	switch kind {
-	case zmodel.Span_SERVER:
+	case zipkinProto.Span_SERVER:
 		annos = append(annos, &zipkincore.Annotation{
 			Value:     zipkincore.SERVER_RECV,
 			Host:      localE,
@@ -142,7 +142,7 @@ func protoKindToThrift(ts int64, d int64, kind zmodel.Span_Kind, localE *zipkinc
 			Host:      localE,
 			Timestamp: ts + d,
 		})
-	case zmodel.Span_CLIENT:
+	case zipkinProto.Span_CLIENT:
 		annos = append(annos, &zipkincore.Annotation{
 			Value:     zipkincore.CLIENT_SEND,
 			Host:      localE,
@@ -153,13 +153,13 @@ func protoKindToThrift(ts int64, d int64, kind zmodel.Span_Kind, localE *zipkinc
 			Host:      localE,
 			Timestamp: ts + d,
 		})
-	case zmodel.Span_PRODUCER:
+	case zipkinProto.Span_PRODUCER:
 		annos = append(annos, &zipkincore.Annotation{
 			Value:     zipkincore.MESSAGE_SEND,
 			Host:      localE,
 			Timestamp: ts,
 		})
-	case zmodel.Span_CONSUMER:
+	case zipkinProto.Span_CONSUMER:
 		annos = append(annos, &zipkincore.Annotation{
 			Value:     zipkincore.MESSAGE_RECV,
 			Host:      localE,
@@ -169,7 +169,7 @@ func protoKindToThrift(ts int64, d int64, kind zmodel.Span_Kind, localE *zipkinc
 	return annos
 }
 
-func protoEndpointV2ToThrift(e *zmodel.Endpoint) (*zipkincore.Endpoint, error) {
+func protoEndpointV2ToThrift(e *zipkinProto.Endpoint) (*zipkincore.Endpoint, error) {
 	lv4 := len(e.Ipv4)
 	if lv4 > 0 && lv4 != net.IPv4len {
 		return nil, fmt.Errorf("wrong Ipv4")
@@ -188,7 +188,7 @@ func protoEndpointV2ToThrift(e *zmodel.Endpoint) (*zipkincore.Endpoint, error) {
 	}, nil
 }
 
-func protoAnnoV2ToThrift(a *zmodel.Annotation, e *zipkincore.Endpoint) *zipkincore.Annotation {
+func protoAnnoV2ToThrift(a *zipkinProto.Annotation, e *zipkincore.Endpoint) *zipkincore.Annotation {
 	return &zipkincore.Annotation{
 		Value:     a.Value,
 		Timestamp: int64(a.Timestamp),

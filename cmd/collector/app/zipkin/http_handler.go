@@ -31,7 +31,7 @@ import (
 	"github.com/golang/protobuf/proto"
 	"github.com/jaegertracing/jaeger/cmd/collector/app"
 	"github.com/jaegertracing/jaeger/model/converter/thrift/zipkin"
-	zmodel "github.com/jaegertracing/jaeger/proto-gen/zipkin"
+	zipkinProto "github.com/jaegertracing/jaeger/proto-gen/zipkin"
 	"github.com/jaegertracing/jaeger/swagger-gen/models"
 	"github.com/jaegertracing/jaeger/swagger-gen/restapi"
 	"github.com/jaegertracing/jaeger/swagger-gen/restapi/operations"
@@ -177,7 +177,7 @@ func jsonToThriftSpansV2(bodyBytes []byte, zipkinV2Formats strfmt.Registry) ([]*
 }
 
 func protoToThriftSpansV2(bodyBytes []byte) ([]*zipkincore.Span, error) {
-	var spans zmodel.ListOfSpans
+	var spans zipkinProto.ListOfSpans
 	if err := proto.Unmarshal(bodyBytes, &spans); err != nil {
 		return nil, err
 	}
