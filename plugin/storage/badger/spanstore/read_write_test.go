@@ -161,6 +161,11 @@ func TestIndexSeeks(t *testing.T) {
 							VStr:  fmt.Sprintf("val%d", j),
 							VType: model.StringType,
 						},
+						{
+							Key:   "error",
+							VType: model.BoolType,
+							VBool: true,
+						},
 					},
 				}
 				err := sw.WriteSpan(&s)
@@ -200,6 +205,7 @@ func TestIndexSeeks(t *testing.T) {
 		params.OperationName = "operation-1"
 		tags := make(map[string]string)
 		tags["k11"] = "val0"
+		tags["error"] = "true"
 		params.Tags = tags
 		params.DurationMin = time.Duration(1 * time.Millisecond)
 		// params.DurationMax = time.Duration(1 * time.Hour)
