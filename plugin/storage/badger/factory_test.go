@@ -126,31 +126,6 @@ func TestMaintenanceRun(t *testing.T) {
 	assert.NoError(t, err)
 }
 
-// TestMaintenanceCodecov this test is not intended to test anything, but hopefully increase coverage by triggering a log line
-func TestMaintenanceCodecov(t *testing.T) {
-	// For Codecov - this does not test anything
-	f := NewFactory()
-	v, command := config.Viperize(f.AddFlags)
-	// Lets speed up the maintenance ticker..
-	command.ParseFlags([]string{
-		"--badger.maintenance-interval=10ms",
-	})
-	f.InitFromViper(v)
-	mFactory := metricstest.NewFactory(0)
-	f.Initialize(mFactory, zap.NewNop())
-
-	waiter := func() {
-		for sleeps := 0; sleeps < 8; sleeps++ {
-			// Wait for the scheduler
-			time.Sleep(time.Duration(50) * time.Millisecond)
-		}
-	}
-
-	err := f.store.Close()
-	assert.NoError(t, err)
-	waiter() // This should trigger the logging of error
-}
-
 // TestSchemaVersionWritten ensures that the Factory does call the SchemaManager correctly
 func TestSchemaVersionWritten(t *testing.T) {
 	f := NewFactory()

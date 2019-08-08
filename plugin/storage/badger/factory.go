@@ -198,8 +198,6 @@ func (f *Factory) maintenance() {
 			}
 			if err == badger.ErrNoRewrite {
 				f.metrics.LastValueLogCleaned.Update(t.UnixNano())
-			} else {
-				f.logger.Error("Failed to run ValueLogGC", zap.Error(err))
 			}
 
 			f.metrics.LastMaintenanceRun.Update(t.UnixNano())
