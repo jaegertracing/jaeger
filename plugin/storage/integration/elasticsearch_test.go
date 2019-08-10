@@ -21,8 +21,8 @@ import (
 	"testing"
 	"time"
 
-	"github.com/stretchr/testify/assert"
 	"github.com/pkg/errors"
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"github.com/uber/jaeger-lib/metrics"
 	"go.uber.org/zap"
@@ -41,11 +41,9 @@ const (
 	queryPort       = "9200"
 	queryHostPort   = host + ":" + queryPort
 	queryURL        = "http://" + queryHostPort
-	username        = "elastic"  // the elasticsearch default username
-	password        = "changeme" // the elasticsearch default password
 	indexPrefix     = "integration-test"
 	tagKeyDeDotChar = "@"
-	maxSpanAge = time.Hour * 72
+	maxSpanAge      = time.Hour * 72
 )
 
 type ESStorageIntegration struct {
@@ -59,7 +57,6 @@ type ESStorageIntegration struct {
 func (s *ESStorageIntegration) initializeES(allTagsAsFields, archive bool) error {
 	rawClient, err := elastic.NewClient(
 		elastic.SetURL(queryURL),
-		elastic.SetBasicAuth(username, password),
 		elastic.SetSniff(false))
 	if err != nil {
 		return err
@@ -84,15 +81,17 @@ func (s *ESStorageIntegration) initializeES(allTagsAsFields, archive bool) error
 
 func (s *ESStorageIntegration) esCleanUp(allTagsAsFields, archive bool) error {
 	_, err := s.client.DeleteIndex("*").Do(context.Background())
-	s.initSpanstore(allTagsAsFields, archive)
-	return err
+	if err != nil {
+		return err
+	}
+	return s.initSpanstore(allTagsAsFields, archive)
 }
 
-func (s *ESStorageIntegration) initSpanstore(allTagsAsFields, archive bool) {
+func (s *ESStorageIntegration) initSpanstore(allTagsAsFields, archive bool) error {
 	bp, _ := s.client.BulkProcessor().BulkActions(1).FlushInterval(time.Nanosecond).Do(context.Background())
 	client := eswrapper.WrapESClient(s.client, bp)
 	spanMapping, serviceMapping := es.GetMappings(5, 1)
-	s.SpanWriter = spanstore.NewSpanWriter(
+	w := spanstore.NewSpanWriter(
 		spanstore.SpanWriterParams{
 			Client:            client,
 			Logger:            s.logger,
@@ -100,10 +99,13 @@ func (s *ESStorageIntegration) initSpanstore(allTagsAsFields, archive bool) {
 			IndexPrefix:       indexPrefix,
 			AllTagsAsFields:   allTagsAsFields,
 			TagDotReplacement: tagKeyDeDotChar,
-			SpanMapping:         spanMapping,
-			ServiceMapping:      serviceMapping,
-			Archive: archive,
+			Archive:           archive,
 		})
+	err := w.CreateTemplates(spanMapping, serviceMapping)
+	if err != nil {
+		return err
+	}
+	s.SpanWriter = w
 	s.SpanReader = spanstore.NewSpanReader(spanstore.SpanReaderParams{
 		Client:            client,
 		Logger:            s.logger,
@@ -111,8 +113,9 @@ func (s *ESStorageIntegration) initSpanstore(allTagsAsFields, archive bool) {
 		IndexPrefix:       indexPrefix,
 		MaxSpanAge:        maxSpanAge,
 		TagDotReplacement: tagKeyDeDotChar,
-		Archive: archive,
+		Archive:           archive,
 	})
+	return nil
 }
 
 func (s *ESStorageIntegration) esRefresh() error {
@@ -165,14 +168,14 @@ func TestElasticsearchStorage_Archive(t *testing.T) {
 
 func (s *StorageIntegration) testArchiveTrace(t *testing.T) {
 	defer s.cleanUp(t)
-	tId := model.NewTraceID(uint64(11), uint64(22))
+	tID := model.NewTraceID(uint64(11), uint64(22))
 	expected := &model.Span{
-		OperationName:    "archive_span",
-		StartTime: time.Now().Add(-maxSpanAge*5),
-		TraceID: tId,
-		SpanID: model.NewSpanID(55),
-		References: []model.SpanRef{},
-		Process: model.NewProcess("archived_service", model.KeyValues{}),
+		OperationName: "archive_span",
+		StartTime:     time.Now().Add(-maxSpanAge * 5),
+		TraceID:       tID,
+		SpanID:        model.NewSpanID(55),
+		References:    []model.SpanRef{},
+		Process:       model.NewProcess("archived_service", model.KeyValues{}),
 	}
 
 	require.NoError(t, s.SpanWriter.WriteSpan(expected))
@@ -181,7 +184,7 @@ func (s *StorageIntegration) testArchiveTrace(t *testing.T) {
 	var actual *model.Trace
 	found := s.waitForCondition(t, func(t *testing.T) bool {
 		var err error
-		actual, err = s.SpanReader.GetTrace(context.Background(), tId)
+		actual, err = s.SpanReader.GetTrace(context.Background(), tID)
 		return err == nil && len(actual.Spans) == 1
 	})
 	if !assert.True(t, found) {

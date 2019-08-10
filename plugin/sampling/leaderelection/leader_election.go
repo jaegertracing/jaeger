@@ -33,7 +33,8 @@ type ElectionParticipant interface {
 	IsLeader() bool
 }
 
-type electionParticipant struct {
+// DistributedElectionParticipant implements ElectionParticipant on top of a distributed lock.
+type DistributedElectionParticipant struct {
 	ElectionParticipantOptions
 	lock         dl.Lock
 	isLeader     *atomic.Bool
@@ -50,8 +51,8 @@ type ElectionParticipantOptions struct {
 }
 
 // NewElectionParticipant returns a ElectionParticipant which attempts to become leader.
-func NewElectionParticipant(lock dl.Lock, resourceName string, options ElectionParticipantOptions) ElectionParticipant {
-	return &electionParticipant{
+func NewElectionParticipant(lock dl.Lock, resourceName string, options ElectionParticipantOptions) *DistributedElectionParticipant {
+	return &DistributedElectionParticipant{
 		ElectionParticipantOptions: options,
 		lock:                       lock,
 		resourceName:               resourceName,
@@ -61,27 +62,27 @@ func NewElectionParticipant(lock dl.Lock, resourceName string, options ElectionP
 }
 
 // Start runs a background thread which attempts to acquire the leader lock.
-func (p *electionParticipant) Start() error {
+func (p *DistributedElectionParticipant) Start() error {
 	p.wg.Add(1)
 	go p.runAcquireLockLoop()
 	return nil
 }
 
 // Close implements io.Closer.
-func (p *electionParticipant) Close() error {
+func (p *DistributedElectionParticipant) Close() error {
 	close(p.closeChan)
 	p.wg.Wait()
 	return nil
 }
 
 // IsLeader returns true if this process is the leader.
-func (p *electionParticipant) IsLeader() bool {
+func (p *DistributedElectionParticipant) IsLeader() bool {
 	return p.isLeader.Load()
 }
 
 // runAcquireLockLoop attempts to acquire the leader lock. If it succeeds, it will attempt to retain it,
 // otherwise it sleeps and attempts to gain the lock again.
-func (p *electionParticipant) runAcquireLockLoop() {
+func (p *DistributedElectionParticipant) runAcquireLockLoop() {
 	defer p.wg.Done()
 	ticker := time.NewTicker(p.acquireLock())
 	for {
@@ -97,7 +98,7 @@ func (p *electionParticipant) runAcquireLockLoop() {
 }
 
 // acquireLock attempts to acquire the lock and returns the interval to sleep before the next retry.
-func (p *electionParticipant) acquireLock() time.Duration {
+func (p *DistributedElectionParticipant) acquireLock() time.Duration {
 	if acquiredLeaderLock, err := p.lock.Acquire(p.resourceName, p.FollowerLeaseRefreshInterval); err == nil {
 		p.setLeader(acquiredLeaderLock)
 	} else {
@@ -112,6 +113,6 @@ func (p *electionParticipant) acquireLock() time.Duration {
 	return p.FollowerLeaseRefreshInterval
 }
 
-func (p *electionParticipant) setLeader(isLeader bool) {
+func (p *DistributedElectionParticipant) setLeader(isLeader bool) {
 	p.isLeader.Store(isLeader)
 }

@@ -8,7 +8,6 @@ ALL_SRC := $(shell find . -name '*.go' \
 				   -not -name '.*' \
 				   -not -name 'gen_assets.go' \
 				   -not -name 'mocks*' \
-				   -not -name '*_test.go' \
 				   -not -name 'model.pb.go' \
 				   -not -name 'model_test.pb.go' \
 				   -not -name 'storage_test.pb.go' \
@@ -96,6 +95,13 @@ storage-integration-test: go-gen
 	go clean -testcache
 	bash -c "set -e; set -o pipefail; $(GOTEST) $(STORAGE_PKGS) | $(COLORIZE)"
 
+.PHONY: index-cleaner-integration-test
+index-cleaner-integration-test: docker-images-elastic
+	# Expire tests results for storage integration tests since the environment might change
+	# even though the code remains the same.
+	go clean -testcache
+	bash -c "set -e; set -o pipefail; $(GOTEST) -tags index_cleaner $(STORAGE_PKGS) | $(COLORIZE)"
+
 all-pkgs:
 	@echo $(ALL_PKGS) | tr ' ' '\n' | sort
 
@@ -119,7 +125,7 @@ nocover:
 .PHONY: fmt
 fmt:
 	./scripts/import-order-cleanup.sh inplace
-	@echo Running go fmt...
+	@echo Running go fmt on ALL_SRC ...
 	@$(GOFMT) -e -s -l -w $(ALL_SRC)
 	./scripts/updateLicenses.sh
 
@@ -142,6 +148,7 @@ lint-staticcheck:
 lint: lint-staticcheck lint-gosec
 	$(GOVET) ./...
 	$(MAKE) go-lint
+	@echo Running go fmt on ALL_SRC ...
 	@$(GOFMT) -e -s -l $(ALL_SRC) > $(FMT_LOG)
 	@./scripts/updateLicenses.sh >> $(FMT_LOG)
 	@./scripts/import-order-cleanup.sh stdout > $(IMPORT_LOG)
@@ -277,7 +284,7 @@ build-crossdock-ui-placeholder:
 	[ -e cmd/query/app/ui/actual/gen_assets.go ] || cp cmd/query/app/ui/placeholder/gen_assets.go cmd/query/app/ui/actual/gen_assets.go
 
 .PHONY: build-crossdock
-build-crossdock: build-crossdock-ui-placeholder build-binaries-linux build-crossdock-linux docker-images-cassandra docker-images-jaeger-backend 
+build-crossdock: build-crossdock-ui-placeholder build-binaries-linux build-crossdock-linux docker-images-cassandra docker-images-jaeger-backend
 	docker build -t $(DOCKER_NAMESPACE)/test-driver:${DOCKER_TAG} crossdock/
 	@echo "Finished building test-driver ==============" ; \
 
@@ -348,7 +355,7 @@ generate-zipkin-swagger: idl-submodule
 
 .PHONY: install-mockery
 install-mockery:
-	go get -u github.com/vektra/mockery
+	go get -u github.com/vektra/mockery/.../
 
 .PHONY: generate-mocks
 generate-mocks: install-mockery

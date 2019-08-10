@@ -28,10 +28,9 @@ import (
 	"go.uber.org/zap"
 
 	"github.com/jaegertracing/jaeger/cmd/collector/app/sampling/model"
-	jio "github.com/jaegertracing/jaeger/pkg/io"
 	"github.com/jaegertracing/jaeger/pkg/testutils"
-	"github.com/jaegertracing/jaeger/plugin/sampling/internal/calculationstrategy"
-	epmocks "github.com/jaegertracing/jaeger/plugin/sampling/internal/leaderelection/mocks"
+	"github.com/jaegertracing/jaeger/plugin/sampling/calculationstrategy"
+	epmocks "github.com/jaegertracing/jaeger/plugin/sampling/leaderelection/mocks"
 	smocks "github.com/jaegertracing/jaeger/storage/samplingstore/mocks"
 	"github.com/jaegertracing/jaeger/thrift-gen/sampling"
 )
@@ -347,7 +346,7 @@ func TestRunCalculationLoop(t *testing.T) {
 	}
 	p, err := NewProcessor(cfg, "host", mockStorage, mockEP, metrics.NullFactory, logger)
 	require.NoError(t, err)
-	p.(jio.Starter).Start()
+	p.(*processor).Start()
 
 	for i := 0; i < 1000; i++ {
 		strategy, _ := p.GetSamplingStrategy("svcA")
@@ -356,7 +355,7 @@ func TestRunCalculationLoop(t *testing.T) {
 		}
 		time.Sleep(time.Millisecond)
 	}
-	p.(io.Closer).Close()
+	p.(*processor).Close()
 
 	strategy, err := p.GetSamplingStrategy("svcA")
 	assert.NoError(t, err)
@@ -470,7 +469,7 @@ func TestRealisticRunCalculationLoop(t *testing.T) {
 	}
 	p, err := NewProcessor(cfg, "host", mockStorage, mockEP, metrics.NullFactory, logger)
 	require.NoError(t, err)
-	p.(jio.Starter).Start()
+	p.(*processor).Start()
 
 	for i := 0; i < 100; i++ {
 		strategy, _ := p.GetSamplingStrategy("svcA")

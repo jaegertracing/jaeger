@@ -27,9 +27,8 @@ import (
 
 	"github.com/jaegertracing/jaeger/cmd/collector/app/sampling/model"
 	ss "github.com/jaegertracing/jaeger/cmd/collector/app/sampling/strategystore"
-	jio "github.com/jaegertracing/jaeger/pkg/io"
-	"github.com/jaegertracing/jaeger/plugin/sampling/internal/calculationstrategy"
-	"github.com/jaegertracing/jaeger/plugin/sampling/internal/leaderelection"
+	"github.com/jaegertracing/jaeger/plugin/sampling/calculationstrategy"
+	"github.com/jaegertracing/jaeger/plugin/sampling/leaderelection"
 	"github.com/jaegertracing/jaeger/storage/samplingstore"
 	"github.com/jaegertracing/jaeger/thrift-gen/sampling"
 )
@@ -116,7 +115,7 @@ type processor struct {
 	calculateProbabilitiesLatency metrics.Timer
 }
 
-// NewProcessor creates a new sampling processor that generates sampling rates for service operations
+// NewProcessor creates a new sampling processor that generates sampling rates for service operations.
 func NewProcessor(
 	opts Options,
 	hostname string,
@@ -165,9 +164,6 @@ func (p *processor) GetSamplingStrategy(service string) (*sampling.SamplingStrat
 func (p *processor) Start() error {
 	p.logger.Info("starting adaptive sampling processor")
 	p.shutdown = make(chan struct{})
-	if starter, ok := p.electionParticipant.(jio.Starter); ok {
-		starter.Start()
-	}
 	p.loadProbabilities()
 	p.generateStrategyResponses()
 	go p.runCalculationLoop()

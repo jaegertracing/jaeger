@@ -59,11 +59,11 @@ func BenchmarkDownSamplingWriter_HashBytes(b *testing.B) {
 	}
 	b.ResetTimer()
 	b.ReportAllocs()
-	h := c.hasherPool.Get().(*hasher)
+	h := c.sampler.hasherPool.Get().(*hasher)
 	for it := 0; it < b.N; it++ {
 		h.hashBytes()
 	}
-	c.hasherPool.Put(h)
+	c.sampler.hasherPool.Put(h)
 }
 
 func BenchmarkDownsamplingWriter_RandomHash(b *testing.B) {
@@ -76,7 +76,7 @@ func BenchmarkDownsamplingWriter_RandomHash(b *testing.B) {
 		MetricsFactory: metrics.NullFactory,
 	}
 	c := NewDownsamplingWriter(&noopWriteSpanStore{}, downsamplingOptions)
-	h := c.hasherPool.Get().(*hasher)
+	h := c.sampler.hasherPool.Get().(*hasher)
 	for it := 0; it < b.N; it++ {
 		countSmallerThanRatio = 0
 		for i := 0; i < numberActions; i++ {
@@ -96,5 +96,5 @@ func BenchmarkDownsamplingWriter_RandomHash(b *testing.B) {
 		}
 		fmt.Printf("Random hash ratio %f should be close to 0.5, inspect the implementation of hashBytes if not\n", math.Abs(float64(countSmallerThanRatio)/float64(numberActions)))
 	}
-	c.hasherPool.Put(h)
+	c.sampler.hasherPool.Put(h)
 }

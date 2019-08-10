@@ -82,8 +82,8 @@ func TestMultipleCollectors(t *testing.T) {
 	require.Nil(t, proxy.Close())
 }
 
-func initializeGRPCTestServer(t *testing.T, beforeServe func(server *grpc.Server)) (*grpc.Server, net.Addr) {
-	server := grpc.NewServer()
+func initializeGRPCTestServer(t *testing.T, beforeServe func(server *grpc.Server), opts ...grpc.ServerOption) (*grpc.Server, net.Addr) {
+	server := grpc.NewServer(opts...)
 	lis, err := net.Listen("tcp", "localhost:0")
 	require.NoError(t, err)
 	beforeServe(server)

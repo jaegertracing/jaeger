@@ -63,9 +63,9 @@ func TestBindFlags(t *testing.T) {
 	b.InitFromViper(v)
 
 	expectedTags := map[string]string{
-		"key"     : "value",
-		"envVar1" : "envVal1",
-		"envVar2" : "defaultVal2",
+		"key":     "value",
+		"envVar1": "envVal1",
+		"envVar2": "defaultVal2",
 	}
 
 	assert.Equal(t, Type("grpc"), b.ReporterType)

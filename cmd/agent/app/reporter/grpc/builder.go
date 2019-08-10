@@ -15,7 +15,11 @@
 package grpc
 
 import (
+	"crypto/tls"
+	"crypto/x509"
 	"errors"
+	"fmt"
+	"io/ioutil"
 	"strings"
 
 	grpc_retry "github.com/grpc-ecosystem/go-grpc-middleware/retry"
@@ -39,6 +43,8 @@ type ConnBuilder struct {
 	TLS           bool
 	TLSCA         string
 	TLSServerName string
+	TLSCert       string
+	TLSKey        string
 
 	DiscoveryMinPeers int
 	Notifier          discovery.Notifier
@@ -56,20 +62,47 @@ func (b *ConnBuilder) CreateConnection(logger *zap.Logger) (*grpc.ClientConn, er
 	var dialTarget string
 	if b.TLS { // user requested a secure connection
 		logger.Info("Agent requested secure grpc connection to collector(s)")
-		var creds credentials.TransportCredentials
+		var err error
+		var certPool *x509.CertPool
 		if len(b.TLSCA) == 0 { // no truststore given, use SystemCertPool
-			pool, err := systemCertPool()
+			certPool, err = systemCertPool()
 			if err != nil {
 				return nil, err
 			}
-			creds = credentials.NewClientTLSFromCert(pool, b.TLSServerName)
 		} else { // setup user specified truststore
-			var err error
-			creds, err = credentials.NewClientTLSFromFile(b.TLSCA, b.TLSServerName)
+			caPEM, err := ioutil.ReadFile(b.TLSCA)
 			if err != nil {
-				return nil, err
+				return nil, fmt.Errorf("reading client CA failed, %v", err)
+			}
+
+			certPool = x509.NewCertPool()
+			if !certPool.AppendCertsFromPEM(caPEM) {
+				return nil, fmt.Errorf("building client CA failed, %v", err)
 			}
 		}
+
+		tlsCfg := &tls.Config{
+			MinVersion: tls.VersionTLS12,
+			RootCAs:    certPool,
+			ServerName: b.TLSServerName,
+		}
+
+		if (b.TLSKey == "" || b.TLSCert == "") &&
+			(b.TLSKey != "" || b.TLSCert != "") {
+			return nil, fmt.Errorf("for client auth, both client certificate and key must be supplied")
+		}
+
+		if b.TLSKey != "" && b.TLSCert != "" {
+			tlsCert, err := tls.LoadX509KeyPair(b.TLSCert, b.TLSKey)
+			if err != nil {
+				return nil, fmt.Errorf("could not load server TLS cert and key, %v", err)
+			}
+
+			logger.Info("client TLS authentication enabled")
+			tlsCfg.Certificates = []tls.Certificate{tlsCert}
+		}
+
+		creds := credentials.NewTLS(tlsCfg)
 		dialOptions = append(dialOptions, grpc.WithTransportCredentials(creds))
 	} else { // insecure connection
 		logger.Info("Agent requested insecure grpc connection to collector(s)")

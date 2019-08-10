@@ -15,12 +15,15 @@
 package badger
 
 import (
+	"expvar"
 	"flag"
 	"io/ioutil"
 	"os"
+	"strings"
 	"time"
 
 	"github.com/dgraph-io/badger"
+	"github.com/dgraph-io/badger/options"
 	"github.com/spf13/viper"
 	"github.com/uber/jaeger-lib/metrics"
 	"go.uber.org/zap"
@@ -58,6 +61,9 @@ type Factory struct {
 		LastMaintenanceRun metrics.Gauge
 		// LastValueLogCleaned stores the timestamp (UnixNano) of the previous ValueLogGC run
 		LastValueLogCleaned metrics.Gauge
+
+		// Expose badger's internal expvar metrics, which are all gauge's at this point
+		badgerMetrics map[string]metrics.Gauge
 	}
 }
 
@@ -84,6 +90,7 @@ func (f *Factory) Initialize(metricsFactory metrics.Factory, logger *zap.Logger)
 	f.logger = logger
 
 	opts := badger.DefaultOptions
+	opts.TableLoadingMode = options.MemoryMap
 
 	if f.Options.primary.Ephemeral {
 		opts.SyncWrites = false
@@ -118,7 +125,10 @@ func (f *Factory) Initialize(metricsFactory metrics.Factory, logger *zap.Logger)
 	f.metrics.LastMaintenanceRun = metricsFactory.Gauge(metrics.Options{Name: lastMaintenanceRunName})
 	f.metrics.LastValueLogCleaned = metricsFactory.Gauge(metrics.Options{Name: lastValueLogCleanedName})
 
+	f.registerBadgerExpvarMetrics(metricsFactory)
+
 	go f.maintenance()
+	go f.metricsCopier()
 
 	logger.Info("Badger storage configuration", zap.Any("configuration", opts))
 
@@ -150,8 +160,7 @@ func (f *Factory) CreateDependencyReader() (dependencystore.Reader, error) {
 
 // Close Implements io.Closer and closes the underlying storage
 func (f *Factory) Close() error {
-	f.maintenanceDone <- true
-
+	close(f.maintenanceDone)
 	err := f.store.Close()
 
 	// Remove tmp files if this was ephemeral storage
@@ -175,6 +184,7 @@ func (f *Factory) maintenance() {
 			return
 		case t := <-maintenanceTicker.C:
 			var err error
+
 			// After there's nothing to clean, the err is raised
 			for err == nil {
 				err = f.store.RunValueLogGC(0.5) // 0.5 is selected to rewrite a file if half of it can be discarded
@@ -189,4 +199,57 @@ func (f *Factory) maintenance() {
 			f.diskStatisticsUpdate()
 		}
 	}
+}
+
+func (f *Factory) metricsCopier() {
+	metricsTicker := time.NewTicker(f.Options.primary.MetricsUpdateInterval)
+	defer metricsTicker.Stop()
+	for {
+		select {
+		case <-f.maintenanceDone:
+			return
+		case <-metricsTicker.C:
+			expvar.Do(func(kv expvar.KeyValue) {
+				if strings.HasPrefix(kv.Key, "badger") {
+					if intVal, ok := kv.Value.(*expvar.Int); ok {
+						if g, found := f.metrics.badgerMetrics[kv.Key]; found {
+							g.Update(intVal.Value())
+						}
+					} else if mapVal, ok := kv.Value.(*expvar.Map); ok {
+						mapVal.Do(func(innerKv expvar.KeyValue) {
+							// The metrics we're interested in have only a single inner key (dynamic name)
+							// and we're only interested in its value
+							if intVal, ok := innerKv.Value.(*expvar.Int); ok {
+								if g, found := f.metrics.badgerMetrics[kv.Key]; found {
+									g.Update(intVal.Value())
+								}
+							}
+						})
+					}
+				}
+			})
+		}
+	}
+}
+
+func (f *Factory) registerBadgerExpvarMetrics(metricsFactory metrics.Factory) {
+	f.metrics.badgerMetrics = make(map[string]metrics.Gauge)
+
+	expvar.Do(func(kv expvar.KeyValue) {
+		if strings.HasPrefix(kv.Key, "badger") {
+			if _, ok := kv.Value.(*expvar.Int); ok {
+				g := metricsFactory.Gauge(metrics.Options{Name: kv.Key})
+				f.metrics.badgerMetrics[kv.Key] = g
+			} else if mapVal, ok := kv.Value.(*expvar.Map); ok {
+				mapVal.Do(func(innerKv expvar.KeyValue) {
+					// The metrics we're interested in have only a single inner key (dynamic name)
+					// and we're only interested in its value
+					if _, ok = innerKv.Value.(*expvar.Int); ok {
+						g := metricsFactory.Gauge(metrics.Options{Name: kv.Key})
+						f.metrics.badgerMetrics[kv.Key] = g
+					}
+				})
+			}
+		}
+	})
 }

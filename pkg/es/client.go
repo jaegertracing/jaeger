@@ -25,6 +25,7 @@ import (
 type Client interface {
 	IndexExists(index string) IndicesExistsService
 	CreateIndex(index string) IndicesCreateService
+	CreateTemplate(id string) TemplateCreateService
 	Index() IndexService
 	Search(indices ...string) SearchService
 	MultiSearch() MultiSearchService
@@ -40,6 +41,12 @@ type IndicesExistsService interface {
 type IndicesCreateService interface {
 	Body(mapping string) IndicesCreateService
 	Do(ctx context.Context) (*elastic.IndicesCreateResult, error)
+}
+
+// TemplateCreateService is an abstraction for creating a mapping
+type TemplateCreateService interface {
+	Body(mapping string) TemplateCreateService
+	Do(ctx context.Context) (*elastic.IndicesPutTemplateResponse, error)
 }
 
 // IndexService is an abstraction for elastic BulkService

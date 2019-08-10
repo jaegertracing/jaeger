@@ -42,7 +42,7 @@ func TestWriteReadBack(t *testing.T) {
 		spans := 3
 
 		dummyKv := []model.KeyValue{
-			model.KeyValue{
+			{
 				Key:   "key",
 				VType: model.StringType,
 				VStr:  "value",
@@ -66,7 +66,7 @@ func TestWriteReadBack(t *testing.T) {
 					Duration:  time.Duration(i + j),
 					Tags:      dummyKv,
 					Logs: []model.Log{
-						model.Log{
+						{
 							Timestamp: tid,
 							Fields:    dummyKv,
 						},

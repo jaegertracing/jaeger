@@ -38,6 +38,10 @@ Jaeger backend, Web UI, and instrumentation libraries have been designed from gr
   * Support strongly typed span _tags_ and _structured logs_
   * Support general distributed context propagation mechanism via _baggage_
 
+#### OpenTelemetry
+
+On 28-May-2019, [the OpenTracing and OpenCensus projects announced](https://medium.com/opentracing/merging-opentracing-and-opencensus-f0fe9c7ca6f0) their intention to merge into a new CNCF project called [OpenTelemetry](https://opentelemetry.io). OpenTelemetry will natively support Jaeger as a tracing backend, and eventually might make Jaeger native clients unnecessary. For more information please refer to a blog post [Jaeger and OpenTelemetry](https://medium.com/jaegertracing/jaeger-and-opentelemetry-1846f701d9f2).
+
 ### Multiple storage backends
 
 Jaeger supports two popular open source NoSQL databases as trace storage backends: Cassandra 3.4+ and Elasticsearch 5.x/6.x.
@@ -61,6 +65,10 @@ and a [Helm chart](https://github.com/kubernetes/charts/tree/master/incubator/ja
 
 All Jaeger backend components expose [Prometheus](https://prometheus.io/) metrics by default (other metrics backends are
 also supported). Logs are written to standard out using the structured logging library [zap](https://github.com/uber-go/zap).
+
+### Security
+
+Third-party security audits of Jaeger are available in https://github.com/jaegertracing/security-audits. Please see [Issue #1718](https://github.com/jaegertracing/jaeger/issues/1718) for the summary of available security mechanisms in Jaeger.
 
 ### Backwards compatibility with Zipkin
 
