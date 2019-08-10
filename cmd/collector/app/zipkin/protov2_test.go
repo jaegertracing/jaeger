@@ -25,12 +25,11 @@ import (
 	"github.com/stretchr/testify/require"
 
 	zipkinProto "github.com/jaegertracing/jaeger/proto-gen/zipkin"
-	zmodel "github.com/jaegertracing/jaeger/proto-gen/zipkin"
 	"github.com/jaegertracing/jaeger/thrift-gen/zipkincore"
 )
 
 func TestProtoSpanFixtures(t *testing.T) {
-	var spans zmodel.ListOfSpans
+	var spans zipkinProto.ListOfSpans
 	loadJSON(t, "fixtures/zipkin_proto_01.json", &spans)
 	fmt.Println(spans)
 	tSpans, err := protoSpansV2ToThrift(&spans)
@@ -56,7 +55,7 @@ func TestProtoSpanFixtures(t *testing.T) {
 }
 
 func TestLCFromProtoSpanLocalEndpoint(t *testing.T) {
-	var spans zmodel.ListOfSpans
+	var spans zipkinProto.ListOfSpans
 	loadProto(t, "fixtures/zipkin_proto_02.json", &spans)
 	tSpans, err := protoSpansV2ToThrift(&spans)
 	fmt.Println(tSpans)
@@ -72,7 +71,7 @@ func TestLCFromProtoSpanLocalEndpoint(t *testing.T) {
 	assert.Equal(t, tSpan, tSpans[0])
 }
 
-func loadProto(t *testing.T, fname string, spans *zmodel.ListOfSpans) {
+func loadProto(t *testing.T, fname string, spans *zipkinProto.ListOfSpans) {
 	b, err := ioutil.ReadFile(fname)
 	require.NoError(t, err)
 	err = json.Unmarshal(b, spans)
@@ -85,12 +84,12 @@ func TestIdErrs(t *testing.T) {
 	invalidTraceID := randBytesOfLen(32)
 	invalidParentID := randBytesOfLen(32)
 	tests := []struct {
-		span   zmodel.Span
+		span   zipkinProto.Span
 		errMsg string
 	}{
-		{span: zmodel.Span{Id: randBytesOfLen(16)}, errMsg: "invalid Span ID"},
-		{span: zmodel.Span{Id: validID, TraceId: invalidTraceID}, errMsg: "invalid traceId"},
-		{span: zmodel.Span{Id: validID, TraceId: validTraceID, ParentId: invalidParentID}, errMsg: "invalid parentId"},
+		{span: zipkinProto.Span{Id: randBytesOfLen(16)}, errMsg: "invalid Span ID"},
+		{span: zipkinProto.Span{Id: validID, TraceId: invalidTraceID}, errMsg: "invalid traceId"},
+		{span: zipkinProto.Span{Id: validID, TraceId: validTraceID, ParentId: invalidParentID}, errMsg: "invalid parentId"},
 	}
 	for _, test := range tests {
 		_, err := protoSpanV2ToThrift(&test.span)
@@ -102,14 +101,14 @@ func TestIdErrs(t *testing.T) {
 func TestEndpointValueErrs(t *testing.T) {
 	validID := randBytesOfLen(8)
 	validTraceID := randBytesOfLen(16)
-	invalidLocalEp := zmodel.Endpoint{Ipv4: randBytesOfLen(8)}
-	invalidRemoteEp := zmodel.Endpoint{Ipv6: randBytesOfLen(8)}
+	invalidLocalEp := zipkinProto.Endpoint{Ipv4: randBytesOfLen(8)}
+	invalidRemoteEp := zipkinProto.Endpoint{Ipv6: randBytesOfLen(8)}
 	tests := []struct {
-		span   zmodel.Span
+		span   zipkinProto.Span
 		errMsg string
 	}{
-		{span: zmodel.Span{Id: validID, TraceId: validTraceID, LocalEndpoint: &invalidLocalEp}, errMsg: "wrong Ipv4"},
-		{span: zmodel.Span{Id: validID, TraceId: validTraceID, RemoteEndpoint: &invalidRemoteEp}, errMsg: "wrong Ipv6"},
+		{span: zipkinProto.Span{Id: validID, TraceId: validTraceID, LocalEndpoint: &invalidLocalEp}, errMsg: "wrong Ipv4"},
+		{span: zipkinProto.Span{Id: validID, TraceId: validTraceID, RemoteEndpoint: &invalidRemoteEp}, errMsg: "wrong Ipv6"},
 	}
 	for _, test := range tests {
 		_, err := protoSpanV2ToThrift(&test.span)
