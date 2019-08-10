@@ -323,7 +323,7 @@ func TestSaveProtoSpansV2(t *testing.T) {
 	assert.EqualValues(t, http.StatusBadRequest, statusCode)
 	assert.EqualValues(t, "Unable to process request body: unexpected EOF\n", resBody)
 
-	reqBytes, _ = proto.Marshal(&zipkinProto.ListOfSpans{Spans: []*zipkinProto.Span{&zipkinProto.Span{Id: validID, TraceId: validTraceID}}})
+	reqBytes, _ = proto.Marshal(&zipkinProto.ListOfSpans{Spans: []*zipkinProto.Span{{Id: validID, TraceId: validTraceID}}})
 	handler.zipkinSpansHandler.(*mockZipkinHandler).err = fmt.Errorf("Bad times ahead")
 	statusCode, resBody, err = postBytes(server.URL+`/api/v2/spans`, reqBytes, createHeader("application/x-protobuf"))
 	require.NoError(t, err)
