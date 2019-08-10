@@ -299,3 +299,19 @@ func TestSpanProcessorBusy(t *testing.T) {
 	assert.Error(t, err, "expcting busy error")
 	assert.Nil(t, res)
 }
+
+func TestSpanProcessorWithNilProcess(t *testing.T) {
+	mb := metricstest.NewFactory(time.Hour)
+	serviceMetrics := mb.Namespace(metrics.NSOptions{Name: "service", Tags: nil})
+
+	w := &fakeSpanWriter{}
+	p := NewSpanProcessor(w, Options.ServiceMetrics(serviceMetrics)).(*spanProcessor)
+	defer p.Stop()
+
+	p.saveSpan(&model.Span{})
+
+	expected := []metricstest.ExpectedMetric{{
+		Name: "service.spans.saved-by-svc|debug=false|result=err|svc=__unknown", Value: 1,
+	}}
+	mb.AssertCounterMetrics(t, expected...)
+}

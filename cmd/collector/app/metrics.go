@@ -244,10 +244,13 @@ func (m *SpanProcessorMetrics) GetCountsForFormat(spanFormat SpanFormat, transpo
 // reportServiceNameForSpan determines the name of the service that emitted
 // the span and reports a counter stat.
 func (m metricsBySvc) ReportServiceNameForSpan(span *model.Span) {
-	serviceName := span.Process.ServiceName
-	if serviceName == "" {
-		return
+	var serviceName string
+	if nil == span.Process || len(span.Process.ServiceName) == 0 {
+		serviceName = "__unknown"
+	} else {
+		serviceName = span.Process.ServiceName
 	}
+
 	m.countSpansByServiceName(serviceName, span.Flags.IsDebug())
 	if span.ParentSpanID() == 0 {
 
