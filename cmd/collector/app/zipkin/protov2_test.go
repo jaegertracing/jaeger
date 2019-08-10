@@ -24,6 +24,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	zipkinProto "github.com/jaegertracing/jaeger/proto-gen/zipkin"
 	zmodel "github.com/jaegertracing/jaeger/proto-gen/zipkin"
 	"github.com/jaegertracing/jaeger/thrift-gen/zipkincore"
 )
@@ -114,6 +115,24 @@ func TestEndpointValueErrs(t *testing.T) {
 		_, err := protoSpanV2ToThrift(&test.span)
 		require.Error(t, err)
 		assert.Equal(t, err.Error(), test.errMsg)
+	}
+}
+
+func TestProtoKindToThrift(t *testing.T) {
+	tests := []struct {
+		ts       int64
+		d        int64
+		kind     zipkinProto.Span_Kind
+		expected []*zipkincore.Annotation
+	}{
+		{kind: zipkinProto.Span_CLIENT, ts: 0, d: 1, expected: []*zipkincore.Annotation{{Value: zipkincore.CLIENT_SEND, Timestamp: 0}, {Value: zipkincore.CLIENT_RECV, Timestamp: 1}}},
+		{kind: zipkinProto.Span_SERVER, ts: 0, d: 1, expected: []*zipkincore.Annotation{{Value: zipkincore.SERVER_RECV, Timestamp: 0}, {Value: zipkincore.SERVER_SEND, Timestamp: 1}}},
+		{kind: zipkinProto.Span_PRODUCER, ts: 0, d: 1, expected: []*zipkincore.Annotation{{Value: zipkincore.MESSAGE_SEND, Timestamp: 0}}},
+		{kind: zipkinProto.Span_CONSUMER, ts: 0, d: 1, expected: []*zipkincore.Annotation{{Value: zipkincore.MESSAGE_RECV, Timestamp: 0}}},
+	}
+	for _, test := range tests {
+		banns := protoKindToThrift(test.ts, test.d, test.kind, nil)
+		assert.Equal(t, banns, test.expected)
 	}
 }
 
