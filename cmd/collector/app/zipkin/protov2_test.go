@@ -17,7 +17,6 @@ package zipkin
 import (
 	"crypto/rand"
 	"encoding/json"
-	"fmt"
 	"io/ioutil"
 	"testing"
 
@@ -31,18 +30,15 @@ import (
 func TestProtoSpanFixtures(t *testing.T) {
 	var spans zipkinProto.ListOfSpans
 	loadJSON(t, "fixtures/zipkin_proto_01.json", &spans)
-	fmt.Println(spans)
 	tSpans, err := protoSpansV2ToThrift(&spans)
 	require.NoError(t, err)
 	assert.Equal(t, len(tSpans), 1)
 	var pid int64 = 1
 	var ts int64 = 1
 	var d int64 = 10
-	fmt.Println(tSpans)
 	localE := &zipkincore.Endpoint{ServiceName: "foo", Ipv4: 170594602}
 	remoteE := &zipkincore.Endpoint{ServiceName: "bar", Ipv4: 170594603}
 	var highID = int64(4793352529331701374)
-	fmt.Println(highID)
 	tSpan := &zipkincore.Span{ID: 2, TraceID: int64(4795885597963667071), TraceIDHigh: &highID, ParentID: &pid, Name: "foo", Debug: true, Duration: &d, Timestamp: &ts,
 		Annotations: []*zipkincore.Annotation{
 			{Value: "foo", Timestamp: 1, Host: localE},
@@ -58,7 +54,6 @@ func TestLCFromProtoSpanLocalEndpoint(t *testing.T) {
 	var spans zipkinProto.ListOfSpans
 	loadProto(t, "fixtures/zipkin_proto_02.json", &spans)
 	tSpans, err := protoSpansV2ToThrift(&spans)
-	fmt.Println(tSpans)
 	require.NoError(t, err)
 	assert.Equal(t, len(tSpans), 1)
 	var ts int64 = 1
@@ -87,9 +82,9 @@ func TestIdErrs(t *testing.T) {
 		span   zipkinProto.Span
 		errMsg string
 	}{
-		{span: zipkinProto.Span{Id: randBytesOfLen(16)}, errMsg: "invalid Span ID"},
-		{span: zipkinProto.Span{Id: validID, TraceId: invalidTraceID}, errMsg: "invalid traceId"},
-		{span: zipkinProto.Span{Id: validID, TraceId: validTraceID, ParentId: invalidParentID}, errMsg: "invalid parentId"},
+		{span: zipkinProto.Span{Id: randBytesOfLen(16)}, errMsg: "invalid length for Span ID"},
+		{span: zipkinProto.Span{Id: validID, TraceId: invalidTraceID}, errMsg: "invalid length for traceId"},
+		{span: zipkinProto.Span{Id: validID, TraceId: validTraceID, ParentId: invalidParentID}, errMsg: "invalid length for parentId"},
 	}
 	for _, test := range tests {
 		_, err := protoSpanV2ToThrift(&test.span)

@@ -39,7 +39,7 @@ func protoSpansV2ToThrift(listOfSpans *zipkinProto.ListOfSpans) ([]*zipkincore.S
 
 func protoSpanV2ToThrift(s *zipkinProto.Span) (*zipkincore.Span, error) {
 	if len(s.Id) != model.TraceIDShortBytesLen {
-		return nil, fmt.Errorf("invalid Span ID")
+		return nil, fmt.Errorf("invalid length for Span ID")
 	}
 	id := binary.BigEndian.Uint64(s.Id)
 	traceID, err := traceIDFromBytes(s.TraceId)
@@ -62,7 +62,7 @@ func protoSpanV2ToThrift(s *zipkinProto.Span) (*zipkincore.Span, error) {
 
 	if len(s.ParentId) > 0 {
 		if len(s.ParentId) != model.TraceIDShortBytesLen {
-			return nil, fmt.Errorf("invalid parentId")
+			return nil, fmt.Errorf("invalid length for parentId")
 		}
 		parentID := binary.BigEndian.Uint64(s.ParentId)
 		signed := int64(parentID)
@@ -109,7 +109,7 @@ func traceIDFromBytes(tid []byte) (model.TraceID, error) {
 	var hi, lo uint64
 	switch {
 	case len(tid) > model.TraceIDLongBytesLen:
-		return model.TraceID{}, fmt.Errorf("invalid traceId")
+		return model.TraceID{}, fmt.Errorf("invalid length for traceId")
 	case len(tid) > model.TraceIDShortBytesLen:
 		hiLen := len(tid) - model.TraceIDShortBytesLen
 		hi = binary.BigEndian.Uint64(tid[:hiLen])
