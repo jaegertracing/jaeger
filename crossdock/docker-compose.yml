@@ -71,7 +71,7 @@ services:
             - JSON_ENCODER=JSON_V2
 
     zipkin-brave-proto-v2:
-        build: jaegertracing/xdock-zipkin-brave
+        image: jaegertracing/xdock-zipkin-brave
         ports:
             - "8080-8081"
         environment:
