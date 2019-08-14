@@ -75,12 +75,18 @@ func TestWriteDependencies(t *testing.T) {
 		createIndexError error
 		writeError       error
 		expectedError    string
+		esVersion        int
 	}{
 		{
 			createIndexError: errors.New("index not created"),
 			expectedError:    "Failed to create index: index not created",
+			esVersion:        6,
 		},
-		{},
+		{
+			createIndexError: errors.New("index not created"),
+			expectedError:    "Failed to create index: index not created",
+			esVersion:        7,
+		},
 	}
 	for _, testCase := range testCases {
 		withDepStorage("", func(r *depStorageTest) {
@@ -90,9 +96,14 @@ func TestWriteDependencies(t *testing.T) {
 			indexService := &mocks.IndicesCreateService{}
 			writeService := &mocks.IndexService{}
 			r.client.On("Index").Return(writeService)
+			r.client.On("GetVersion").Return(testCase.esVersion)
 			r.client.On("CreateIndex", stringMatcher(indexName)).Return(indexService)
 
-			indexService.On("Body", stringMatcher(dependenciesMapping)).Return(indexService)
+			if testCase.esVersion == 7 {
+				indexService.On("Body", stringMatcher(dependenciesMapping7)).Return(indexService)
+			} else {
+				indexService.On("Body", stringMatcher(dependenciesMapping)).Return(indexService)
+			}
 			indexService.On("Do", mock.Anything).Return(nil, testCase.createIndexError)
 
 			writeService.On("Index", stringMatcher(indexName)).Return(writeService)
