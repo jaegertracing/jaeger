@@ -419,8 +419,8 @@ func (p *processor) calculateProbability(service, operation string, qps float64)
 
 	usingAdaptiveSampling := p.isUsingAdaptiveSampling(oldProbability, service, operation, latestThroughput)
 	p.serviceCache[0].Set(service, operation, &SamplingCacheEntry{
-		probability:   oldProbability,
-		usingAdaptive: usingAdaptiveSampling,
+		Probability:   oldProbability,
+		UsingAdaptive: usingAdaptiveSampling,
 	})
 
 	// Short circuit if the qps is close enough to targetQPS or if the service doesn't appear to be using
@@ -474,7 +474,7 @@ func (p *processor) isUsingAdaptiveSampling(
 	// before.
 	if len(p.serviceCache) > 1 {
 		if e := p.serviceCache[1].Get(service, operation); e != nil {
-			return e.usingAdaptive && !FloatEquals(e.probability, p.InitialSamplingProbability)
+			return e.UsingAdaptive && !FloatEquals(e.Probability, p.InitialSamplingProbability)
 		}
 	}
 	return false

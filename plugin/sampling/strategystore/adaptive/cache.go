@@ -17,8 +17,8 @@ package adaptive
 // SamplingCacheEntry keeps track of the probability and whether a service-operation is observed
 // using adaptive sampling.
 type SamplingCacheEntry struct {
-	probability   float64
-	usingAdaptive bool
+	Probability   float64
+	UsingAdaptive bool
 }
 
 // SamplingCache is a nested map: service -> operation -> cache entry.
