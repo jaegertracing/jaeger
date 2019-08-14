@@ -21,10 +21,10 @@ import "github.com/jaegertracing/jaeger/pkg/es"
 
 // Id calls this function to internal service.
 func (i IndexServiceWrapper) Id(id string) es.IndexService {
-	return WrapESIndexService(i.bulkIndexReq.Id(id), i.bulkService)
+	return WrapESIndexService(i.bulkIndexReq.Id(id), i.bulkService, i.esVersion)
 }
 
 // BodyJson calls this function to internal service.
 func (i IndexServiceWrapper) BodyJson(body interface{}) es.IndexService {
-	return WrapESIndexService(i.bulkIndexReq.Doc(body), i.bulkService)
+	return WrapESIndexService(i.bulkIndexReq.Doc(body), i.bulkService, i.esVersion)
 }

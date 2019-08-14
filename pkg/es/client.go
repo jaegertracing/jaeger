@@ -61,7 +61,6 @@ type IndexService interface {
 
 // SearchService is an abstraction for elastic.SearchService
 type SearchService interface {
-	Type(typ string) SearchService
 	Size(size int) SearchService
 	Aggregation(name string, aggregation elastic.Aggregation) SearchService
 	IgnoreUnavailable(ignoreUnavailable bool) SearchService

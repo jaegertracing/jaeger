@@ -22,3 +22,18 @@ const dependenciesMapping = `{
       "` + dependencyType + `":{}
    }
 }`
+
+const dependenciesMapping7 = `{
+   "settings":{
+      "index.requests.cache.enable":true
+   },
+   "mappings":{}
+}`
+
+func getMapping(version int) string {
+	if version == 7 {
+		return dependenciesMapping7
+	} else {
+		return dependenciesMapping
+	}
+}

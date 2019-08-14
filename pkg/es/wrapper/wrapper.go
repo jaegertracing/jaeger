@@ -48,26 +48,18 @@ func (c ClientWrapper) IndexExists(index string) es.IndicesExistsService {
 
 // CreateIndex calls this function to internal client.
 func (c ClientWrapper) CreateIndex(index string) es.IndicesCreateService {
-	indicesCreateService := c.client.CreateIndex(index)
-	if c.esVersion == 7 {
-		indicesCreateService = indicesCreateService.IncludeTypeName(true)
-	}
-	return WrapESIndicesCreateService(indicesCreateService)
+	return WrapESIndicesCreateService(c.client.CreateIndex(index))
 }
 
 // CreateTemplate calls this function to internal client.
 func (c ClientWrapper) CreateTemplate(ttype string) es.TemplateCreateService {
-	mappingCreateService := c.client.IndexPutTemplate(ttype)
-	if c.esVersion == 7 {
-		mappingCreateService = mappingCreateService.IncludeTypeName(true)
-	}
-	return WrapESTemplateCreateService(mappingCreateService)
+	return WrapESTemplateCreateService(c.client.IndexPutTemplate(ttype))
 }
 
 // Index calls this function to internal client.
 func (c ClientWrapper) Index() es.IndexService {
 	r := elastic.NewBulkIndexRequest()
-	return WrapESIndexService(r, c.bulkService)
+	return WrapESIndexService(r, c.bulkService, c.esVersion)
 }
 
 // Search calls this function to internal client.
@@ -159,21 +151,25 @@ func (c TemplateCreateServiceWrapper) Do(ctx context.Context) (*elastic.IndicesP
 type IndexServiceWrapper struct {
 	bulkIndexReq *elastic.BulkIndexRequest
 	bulkService  *elastic.BulkProcessor
+	esVersion    int
 }
 
 // WrapESIndexService creates an ESIndexService out of *elastic.ESIndexService.
-func WrapESIndexService(indexService *elastic.BulkIndexRequest, bulkService *elastic.BulkProcessor) IndexServiceWrapper {
-	return IndexServiceWrapper{bulkIndexReq: indexService, bulkService: bulkService}
+func WrapESIndexService(indexService *elastic.BulkIndexRequest, bulkService *elastic.BulkProcessor, esVersion int) IndexServiceWrapper {
+	return IndexServiceWrapper{bulkIndexReq: indexService, bulkService: bulkService, esVersion: esVersion}
 }
 
 // Index calls this function to internal service.
 func (i IndexServiceWrapper) Index(index string) es.IndexService {
-	return WrapESIndexService(i.bulkIndexReq.Index(index), i.bulkService)
+	return WrapESIndexService(i.bulkIndexReq.Index(index), i.bulkService, i.esVersion)
 }
 
 // Type calls this function to internal service.
 func (i IndexServiceWrapper) Type(typ string) es.IndexService {
-	return WrapESIndexService(i.bulkIndexReq.Type(typ), i.bulkService)
+	if i.esVersion == 7 {
+		return WrapESIndexService(i.bulkIndexReq, i.bulkService, i.esVersion)
+	}
+	return WrapESIndexService(i.bulkIndexReq.Type(typ), i.bulkService, i.esVersion)
 }
 
 // Add adds the request to bulk service
@@ -191,11 +187,6 @@ type SearchServiceWrapper struct {
 // WrapESSearchService creates an ESSearchService out of *elastic.ESSearchService.
 func WrapESSearchService(searchService *elastic.SearchService) SearchServiceWrapper {
 	return SearchServiceWrapper{searchService: searchService}
-}
-
-// Type calls this function to internal service.
-func (s SearchServiceWrapper) Type(typ string) es.SearchService {
-	return WrapESSearchService(s.searchService.Type(typ))
 }
 
 // Size calls this function to internal service.

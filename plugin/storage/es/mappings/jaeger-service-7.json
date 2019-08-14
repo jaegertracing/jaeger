@@ -7,36 +7,34 @@
     "index.requests.cache.enable":true
   },
   "mappings":{
-    "service":{
-      "dynamic_templates":[
-        {
-          "span_tags_map":{
-            "mapping":{
-              "type":"keyword",
-              "ignore_above":256
-            },
-            "path_match":"tag.*"
-          }
-        },
-        {
-          "process_tags_map":{
-            "mapping":{
-              "type":"keyword",
-              "ignore_above":256
-            },
-            "path_match":"process.tag.*"
-          }
+    "dynamic_templates":[
+      {
+        "span_tags_map":{
+          "mapping":{
+            "type":"keyword",
+            "ignore_above":256
+          },
+          "path_match":"tag.*"
         }
-      ],
-      "properties":{
-        "serviceName":{
-          "type":"keyword",
-          "ignore_above":256
-        },
-        "operationName":{
-          "type":"keyword",
-          "ignore_above":256
+      },
+      {
+        "process_tags_map":{
+          "mapping":{
+            "type":"keyword",
+            "ignore_above":256
+          },
+          "path_match":"process.tag.*"
         }
+      }
+    ],
+    "properties":{
+      "serviceName":{
+        "type":"keyword",
+        "ignore_above":256
+      },
+      "operationName":{
+        "type":"keyword",
+        "ignore_above":256
       }
     }
   }

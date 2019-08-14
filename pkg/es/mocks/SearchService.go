@@ -113,19 +113,3 @@ func (_m *SearchService) Size(size int) es.SearchService {
 
 	return r0
 }
-
-// Type provides a mock function with given fields: typ
-func (_m *SearchService) Type(typ string) es.SearchService {
-	ret := _m.Called(typ)
-
-	var r0 es.SearchService
-	if rf, ok := ret.Get(0).(func(string) es.SearchService); ok {
-		r0 = rf(typ)
-	} else {
-		if ret.Get(0) != nil {
-			r0 = ret.Get(0).(es.SearchService)
-		}
-	}
-
-	return r0
-}

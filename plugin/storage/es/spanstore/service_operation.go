@@ -80,7 +80,6 @@ func (s *ServiceOperationStorage) getServices(context context.Context, indices [
 	serviceAggregation := getServicesAggregation()
 
 	searchService := s.client.Search(indices...).
-		Type(serviceType).
 		Size(0). // set to 0 because we don't want actual documents.
 		IgnoreUnavailable(true).
 		Aggregation(servicesAggregation, serviceAggregation)
@@ -111,7 +110,6 @@ func (s *ServiceOperationStorage) getOperations(context context.Context, indices
 	serviceFilter := getOperationsAggregation()
 
 	searchService := s.client.Search(indices...).
-		Type(serviceType).
 		Size(0).
 		Query(serviceQuery).
 		IgnoreUnavailable(true).

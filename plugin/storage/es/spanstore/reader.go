@@ -332,7 +332,6 @@ func (s *SpanReader) multiRead(ctx context.Context, traceIDs []model.TraceID, st
 
 			searchRequests[i] = elastic.NewSearchRequest().
 				IgnoreUnavailable(true).
-				Type(spanType).
 				Source(s)
 		}
 		// set traceIDs to empty
@@ -475,7 +474,6 @@ func (s *SpanReader) findTraceIDs(ctx context.Context, traceQuery *spanstore.Tra
 	jaegerIndices := s.timeRangeIndices(s.spanIndexPrefix, traceQuery.StartTimeMin, traceQuery.StartTimeMax)
 
 	searchService := s.client.Search(jaegerIndices...).
-		Type(spanType).
 		Size(0). // set to 0 because we don't want actual documents.
 		Aggregation(traceIDAggregation, aggregation).
 		IgnoreUnavailable(true).

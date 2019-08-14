@@ -167,7 +167,6 @@ func TestGetDependencies(t *testing.T) {
 			searchService := &mocks.SearchService{}
 			r.client.On("Search", testCase.indices...).Return(searchService)
 
-			searchService.On("Type", stringMatcher(dependencyType)).Return(searchService)
 			searchService.On("Size", mock.Anything).Return(searchService)
 			searchService.On("Query", mock.Anything).Return(searchService)
 			searchService.On("IgnoreUnavailable", mock.AnythingOfType("bool")).Return(searchService)
