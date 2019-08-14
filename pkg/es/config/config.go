@@ -157,7 +157,7 @@ func (c *Configuration) NewClient(logger *zap.Logger, metricsFactory metrics.Fac
 	}
 
 	// Determine ElasticSearch Version
-	pingResult, _, err := rawClient.Ping("/").Do(context.Background())
+	pingResult, _, err := rawClient.Ping(c.Servers[0]).Do(context.Background())
 	if err != nil {
 		return nil, err
 	}
