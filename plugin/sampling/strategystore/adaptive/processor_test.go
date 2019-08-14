@@ -228,7 +228,7 @@ func TestGenerateOperationQPS_UseMostRecentBucketOnly(t *testing.T) {
 }
 
 func TestCalculateWeightedQPS(t *testing.T) {
-	p := processor{weightVectorCache: newWeightVectorCache()}
+	p := processor{weightVectorCache: NewWeightVectorCache()}
 	assert.InDelta(t, 0.86735, p.calculateWeightedQPS([]float64{0.8, 1.2, 1.0}), 0.001)
 	assert.InDelta(t, 0.95197, p.calculateWeightedQPS([]float64{1.0, 1.0, 0.0, 0.0}), 0.001)
 	assert.Equal(t, 0.0, p.calculateWeightedQPS([]float64{}))
@@ -260,7 +260,7 @@ func TestCalculateProbability(t *testing.T) {
 		probabilities:         probabilities,
 		probabilityCalculator: testCalculator,
 		throughputs:           throughputs,
-		serviceCache:          []samplingCache{{"svcA": {}, "svcB": {}}},
+		serviceCache:          []SamplingCache{{"svcA": {}, "svcB": {}}},
 	}
 	tests := []struct {
 		service             string
@@ -303,7 +303,7 @@ func TestCalculateProbabilitiesAndQPS(t *testing.T) {
 			BucketsForCalculation:      10,
 		},
 		throughputs: testThroughputBuckets, probabilities: prevProbabilities, qps: qps,
-		weightVectorCache: newWeightVectorCache(), probabilityCalculator: testCalculator,
+		weightVectorCache: NewWeightVectorCache(), probabilityCalculator: testCalculator,
 		operationsCalculatedGauge: mets.Gauge(metrics.Options{Name: "test"}),
 	}
 	probabilities, qps := p.calculateProbabilitiesAndQPS()
@@ -630,9 +630,9 @@ func TestCalculateProbabilitiesAndQPSMultiple(t *testing.T) {
 			AggregationBuckets:         10,
 		},
 		throughputs: buckets, probabilities: make(model.ServiceOperationProbabilities),
-		qps: make(model.ServiceOperationQPS), weightVectorCache: newWeightVectorCache(),
+		qps: make(model.ServiceOperationQPS), weightVectorCache: NewWeightVectorCache(),
 		probabilityCalculator:     calculationstrategy.NewPercentageIncreaseCappedCalculator(1.0),
-		serviceCache:              []samplingCache{},
+		serviceCache:              []SamplingCache{},
 		operationsCalculatedGauge: metrics.NullFactory.Gauge(metrics.Options{}),
 	}
 

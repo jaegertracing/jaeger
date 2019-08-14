@@ -98,7 +98,7 @@ type processor struct {
 	// TODO change this to work with protobuf model instead, to support gRPC endpoint.
 	strategyResponses map[string]*sampling.SamplingStrategyResponse
 
-	weightVectorCache *weightVectorCache
+	weightVectorCache *WeightVectorCache
 
 	probabilityCalculator calculationstrategy.ProbabilityCalculator
 
@@ -107,7 +107,7 @@ type processor struct {
 	// cache.
 	followerRefreshInterval time.Duration
 
-	serviceCache []samplingCache
+	serviceCache []SamplingCache
 
 	shutdown chan struct{}
 
@@ -141,10 +141,10 @@ func NewProcessor(
 		logger:              logger,
 		electionParticipant: electionParticipant,
 		// TODO make weightsCache and probabilityCalculator configurable
-		weightVectorCache:             newWeightVectorCache(),
+		weightVectorCache:             NewWeightVectorCache(),
 		probabilityCalculator:         calculationstrategy.NewPercentageIncreaseCappedCalculator(1.0),
 		followerRefreshInterval:       defaultFollowerProbabilityInterval,
-		serviceCache:                  []samplingCache{},
+		serviceCache:                  []SamplingCache{},
 		operationsCalculatedGauge:     metricsFactory.Gauge(metrics.Options{Name: "operations_calculated"}),
 		calculateProbabilitiesLatency: metricsFactory.Timer(metrics.TimerOptions{Name: "calculate_probabilities"}),
 	}, nil
@@ -366,7 +366,7 @@ func (p *processor) calculateWeightedQPS(allQPS []float64) float64 {
 	if len(allQPS) == 0 {
 		return 0
 	}
-	weights := p.weightVectorCache.getWeights(len(allQPS))
+	weights := p.weightVectorCache.GetWeights(len(allQPS))
 	var qps float64
 	for i := 0; i < len(allQPS); i++ {
 		qps += allQPS[i] * weights[i]
@@ -375,7 +375,7 @@ func (p *processor) calculateWeightedQPS(allQPS []float64) float64 {
 }
 
 func (p *processor) prependServiceCache() {
-	p.serviceCache = append([]samplingCache{make(samplingCache)}, p.serviceCache...)
+	p.serviceCache = append([]SamplingCache{make(SamplingCache)}, p.serviceCache...)
 	if len(p.serviceCache) > serviceCacheSize {
 		p.serviceCache = p.serviceCache[0:serviceCacheSize]
 	}
@@ -418,7 +418,7 @@ func (p *processor) calculateProbability(service, operation string, qps float64)
 	p.RUnlock()
 
 	usingAdaptiveSampling := p.isUsingAdaptiveSampling(oldProbability, service, operation, latestThroughput)
-	p.serviceCache[0].Set(service, operation, &samplingCacheEntry{
+	p.serviceCache[0].Set(service, operation, &SamplingCacheEntry{
 		probability:   oldProbability,
 		usingAdaptive: usingAdaptiveSampling,
 	})
@@ -429,7 +429,7 @@ func (p *processor) calculateProbability(service, operation string, qps float64)
 		return oldProbability
 	}
 	var newProbability float64
-	if floatEquals(qps, 0) {
+	if FloatEquals(qps, 0) {
 		// Edge case; we double the sampling probability if the QPS is 0 so that we force the service
 		// to at least sample one span probabilistically.
 		newProbability = oldProbability * 2.0
@@ -458,14 +458,14 @@ func (p *processor) isUsingAdaptiveSampling(
 	operation string,
 	throughput serviceOperationThroughput,
 ) bool {
-	if floatEquals(probability, p.InitialSamplingProbability) {
+	if FloatEquals(probability, p.InitialSamplingProbability) {
 		// If the service is seen for the first time, assume it's using adaptive sampling (ie prob == initialProb).
 		// Even if this isn't the case, the next time around this loop, the newly calculated probability will not equal
 		// the initialProb so the logic will fall through.
 		return true
 	}
 	if opThroughput, ok := throughput.get(service, operation); ok {
-		f := truncateFloat(probability)
+		f := TruncateFloat(probability)
 		_, ok := opThroughput.Probabilities[f]
 		return ok
 	}
@@ -474,7 +474,7 @@ func (p *processor) isUsingAdaptiveSampling(
 	// before.
 	if len(p.serviceCache) > 1 {
 		if e := p.serviceCache[1].Get(service, operation); e != nil {
-			return e.usingAdaptive && !floatEquals(e.probability, p.InitialSamplingProbability)
+			return e.usingAdaptive && !FloatEquals(e.probability, p.InitialSamplingProbability)
 		}
 	}
 	return false
