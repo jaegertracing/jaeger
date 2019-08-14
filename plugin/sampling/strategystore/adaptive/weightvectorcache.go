@@ -19,24 +19,24 @@ import (
 	"sync"
 )
 
-// weightVectorCache stores normalizing weights of different lengths. The head of the weights slice
-// contains the largest weight.
-type weightVectorCache struct {
+// WeightVectorCache stores normalizing weight vectors of different lengths.
+// The head of each weight vector contains the largest weight.
+type WeightVectorCache struct {
 	sync.Mutex
 
 	cache map[int][]float64
 }
 
-// newweightVectorCache returns a new weights vector cache.
-func newWeightVectorCache() *weightVectorCache {
+// NewWeightVectorCache returns a new weights vector cache.
+func NewWeightVectorCache() *WeightVectorCache {
 	// TODO allow users to plugin different weighting algorithms
-	return &weightVectorCache{
+	return &WeightVectorCache{
 		cache: make(map[int][]float64),
 	}
 }
 
-// getWeights returns weights for the specified length { w(i) = i ^ 4, i=1..L }, normalized.
-func (c *weightVectorCache) getWeights(length int) []float64 {
+// GetWeights returns weights for the specified length { w(i) = i ^ 4, i=1..L }, normalized.
+func (c *WeightVectorCache) GetWeights(length int) []float64 {
 	c.Lock()
 	defer c.Unlock()
 	if weights, ok := c.cache[length]; ok {

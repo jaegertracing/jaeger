@@ -22,11 +22,11 @@ import (
 
 func TestSamplingCache(t *testing.T) {
 	var (
-		c         = samplingCache{}
+		c         = SamplingCache{}
 		service   = "svc"
 		operation = "op"
 	)
-	c.Set(service, operation, &samplingCacheEntry{})
+	c.Set(service, operation, &SamplingCacheEntry{})
 	assert.NotNil(t, c.Get(service, operation))
 	assert.Nil(t, c.Get("blah", "blah"))
 }
