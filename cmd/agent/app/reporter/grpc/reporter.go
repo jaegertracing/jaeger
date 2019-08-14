@@ -20,6 +20,8 @@ import (
 
 	"go.uber.org/zap"
 	"google.golang.org/grpc"
+	"google.golang.org/grpc/codes"
+	"google.golang.org/grpc/status"
 
 	zipkin2 "github.com/jaegertracing/jaeger/cmd/collector/app/sanitizer/zipkin"
 	"github.com/jaegertracing/jaeger/model"
@@ -70,7 +72,7 @@ func (r *Reporter) send(spans []*model.Span, process *model.Process) error {
 	batch := model.Batch{Spans: spans, Process: process}
 	req := &api_v2.PostSpansRequest{Batch: batch}
 	_, err := r.collector.PostSpans(context.Background(), req)
-	if err != nil {
+	if err != nil && !r.Retryable(err) {
 		r.logger.Error("Could not send spans over gRPC", zap.Error(err))
 	}
 	return err
@@ -100,4 +102,15 @@ func makeModelKeyValue(agentTags map[string]string) []model.KeyValue {
 	}
 
 	return tags
+}
+
+func (r *Reporter) Retryable(err error) bool {
+	state := status.Convert(err)
+	switch state.Code() {
+	case codes.DeadlineExceeded:
+		fallthrough
+	case codes.Unavailable:
+		return true
+	}
+	return false
 }

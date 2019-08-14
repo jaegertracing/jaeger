@@ -18,7 +18,7 @@ package tchannel
 import (
 	"time"
 
-	"github.com/uber/tchannel-go"
+	tchannel "github.com/uber/tchannel-go"
 	"github.com/uber/tchannel-go/thrift"
 	"go.uber.org/zap"
 
@@ -106,4 +106,8 @@ func (r *Reporter) submitAndReport(submissionFunc func(ctx thrift.Context) error
 // CollectorServiceName returns collector service name.
 func (r *Reporter) CollectorServiceName() string {
 	return r.serviceName
+}
+
+func (r *Reporter) Retryable(err error) bool {
+	return false
 }

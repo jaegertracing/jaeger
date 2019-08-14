@@ -23,7 +23,7 @@ import (
 	"github.com/uber/jaeger-lib/metrics"
 	"go.uber.org/zap"
 
-	"github.com/jaegertracing/jaeger/cmd/agent/app/customtransports"
+	customtransport "github.com/jaegertracing/jaeger/cmd/agent/app/customtransports"
 	"github.com/jaegertracing/jaeger/cmd/agent/app/servers"
 )
 
