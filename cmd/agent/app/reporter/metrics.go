@@ -89,3 +89,7 @@ func withMetrics(m batchMetrics, size int64, err error) {
 		m.SpansSubmitted.Inc(size)
 	}
 }
+
+func (r *MetricsReporter) Retryable(err error) bool {
+	return r.wrapped.Retryable(err)
+}
