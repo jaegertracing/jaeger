@@ -78,8 +78,8 @@ func AddFlags(flags *flag.FlagSet) {
 	flags.String(collectorGRPCCert, "", "Path to TLS certificate for the gRPC collector TLS service")
 	flags.String(collectorGRPCKey, "", "Path to TLS key for the gRPC collector TLS cert")
 	flags.String(collectorGRPCClientCA, "", "Path to a TLS CA to verify certificates presented by clients (if unset, all clients are permitted)")
-	flags.String(collectorZipkinAllowedOrigins, "*", "Allowed origins for the Zipkin collector service, default accepts all")
-	flags.String(collectorZipkinAllowedHeaders, "content-type", "Allowed headers for the Zipkin collector service, default content-type")
+	flags.String(collectorZipkinAllowedOrigins, "*", "Comma separated list of allowed origins for the Zipkin collector service, default accepts all")
+	flags.String(collectorZipkinAllowedHeaders, "content-type", "Comma separated list of allowed headers for the Zipkin collector service, default content-type")
 }
 
 // InitFromViper initializes CollectorOptions with properties from viper
