@@ -42,7 +42,8 @@ func protoSpanV2ToThrift(s *zipkinProto.Span) (*zipkincore.Span, error) {
 		return nil, fmt.Errorf("invalid length for Span ID")
 	}
 	id := binary.BigEndian.Uint64(s.Id)
-	traceID, err := traceIDFromBytes(s.TraceId)
+	traceID := model.TraceID{}
+	err := traceID.Unmarshal(s.TraceId)
 	if err != nil {
 		return nil, err
 	}
@@ -103,21 +104,6 @@ func protoSpanV2ToThrift(s *zipkinProto.Span) (*zipkincore.Span, error) {
 		})
 	}
 	return tSpan, nil
-}
-
-func traceIDFromBytes(tid []byte) (model.TraceID, error) {
-	var hi, lo uint64
-	switch {
-	case len(tid) > model.TraceIDLongBytesLen:
-		return model.TraceID{}, fmt.Errorf("invalid length for traceId")
-	case len(tid) > model.TraceIDShortBytesLen:
-		hiLen := len(tid) - model.TraceIDShortBytesLen
-		hi = binary.BigEndian.Uint64(tid[:hiLen])
-		lo = binary.BigEndian.Uint64(tid[hiLen:])
-	default:
-		lo = binary.BigEndian.Uint64(tid)
-	}
-	return model.TraceID{High: hi, Low: lo}, nil
 }
 
 func protoRemoteEndpToAddrAnno(e *zipkinProto.Endpoint, kind zipkinProto.Span_Kind) (*zipkincore.BinaryAnnotation, error) {

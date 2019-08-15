@@ -25,10 +25,10 @@ import (
 )
 
 const (
-	// TraceIDShortBytesLen indicates length of 64bit traceID when represented as list of bytes
-	TraceIDShortBytesLen = 8
-	// TraceIDLongBytesLen indicates length of 128bit traceID when represented as list of bytes
-	TraceIDLongBytesLen = 16
+	// traceIDShortBytesLen indicates length of 64bit traceID when represented as list of bytes
+	traceIDShortBytesLen = 8
+	// traceIDLongBytesLen indicates length of 128bit traceID when represented as list of bytes
+	traceIDLongBytesLen = 16
 )
 
 // TraceID is a random 128bit identifier for a trace
@@ -102,11 +102,18 @@ func (t *TraceID) MarshalTo(data []byte) (n int, err error) {
 
 // Unmarshal inflates this trace ID from binary representation. Called by protobuf serialization.
 func (t *TraceID) Unmarshal(data []byte) error {
-	if len(data) < 16 {
-		return fmt.Errorf("buffer is too short")
+	var hi, lo uint64
+	switch {
+	case len(data) > traceIDLongBytesLen:
+		return fmt.Errorf("invalid length for TraceID")
+	case len(data) > traceIDShortBytesLen:
+		hiLen := len(data) - traceIDShortBytesLen
+		hi = binary.BigEndian.Uint64(data[:hiLen])
+		lo = binary.BigEndian.Uint64(data[hiLen:])
+	default:
+		lo = binary.BigEndian.Uint64(data)
 	}
-	t.High = binary.BigEndian.Uint64(data[:8])
-	t.Low = binary.BigEndian.Uint64(data[8:])
+	t.High, t.Low = hi, lo
 	return nil
 }
 
