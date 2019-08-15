@@ -22,6 +22,7 @@ import (
 	"net/http"
 	"os"
 	"strconv"
+	"strings"
 
 	"github.com/gorilla/mux"
 	"github.com/rs/cors"
@@ -227,10 +228,13 @@ func startZipkinHTTPAPI(
 		r := mux.NewRouter()
 		zHandler.RegisterRoutes(r)
 
+		origins := strings.Split(strings.Replace(allowedOrigins, " ", "", -1), ",")
+		headers := strings.Split(strings.Replace(allowedHeaders, " ", "", -1), ",")
+
 		c := cors.New(cors.Options{
-			AllowedOrigins: []string{allowedOrigins},
+			AllowedOrigins: origins,
 			AllowedMethods: []string{"POST"}, // Allowing only POST, because that's the only handled one
-			AllowedHeaders: []string{allowedHeaders},
+			AllowedHeaders: headers,
 		})
 
 		httpPortStr := ":" + strconv.Itoa(zipkinPort)
