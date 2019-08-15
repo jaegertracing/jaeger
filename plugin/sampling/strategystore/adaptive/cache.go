@@ -14,24 +14,26 @@
 
 package adaptive
 
-// samplingCacheEntry keeps track of the probability and whether a service-operation is observed
+// SamplingCacheEntry keeps track of the probability and whether a service-operation is observed
 // using adaptive sampling.
-type samplingCacheEntry struct {
-	probability   float64
-	usingAdaptive bool
+type SamplingCacheEntry struct {
+	Probability   float64
+	UsingAdaptive bool
 }
 
-// nested map: service -> operation -> cache entry.
-type samplingCache map[string]map[string]*samplingCacheEntry
+// SamplingCache is a nested map: service -> operation -> cache entry.
+type SamplingCache map[string]map[string]*SamplingCacheEntry
 
-func (s samplingCache) Set(service, operation string, entry *samplingCacheEntry) {
+// Set adds a new entry for given service/operation.
+func (s SamplingCache) Set(service, operation string, entry *SamplingCacheEntry) {
 	if _, ok := s[service]; !ok {
-		s[service] = make(map[string]*samplingCacheEntry)
+		s[service] = make(map[string]*SamplingCacheEntry)
 	}
 	s[service][operation] = entry
 }
 
-func (s samplingCache) Get(service, operation string) *samplingCacheEntry {
+// Get retrieves the entry for given service/operation. Returns nil if not found.
+func (s SamplingCache) Get(service, operation string) *SamplingCacheEntry {
 	v, ok := s[service]
 	if !ok {
 		return nil

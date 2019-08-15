@@ -21,16 +21,16 @@ import (
 )
 
 func TestGetWeights(t *testing.T) {
-	c := newWeightVectorCache()
+	c := NewWeightVectorCache()
 
-	weights := c.getWeights(1)
+	weights := c.GetWeights(1)
 	assert.Len(t, weights, 1)
 
-	weights = c.getWeights(3)
+	weights = c.GetWeights(3)
 	assert.Len(t, weights, 3)
 	assert.InDelta(t, 0.8265306122448979, weights[0], 0.001)
 
-	weights = c.getWeights(5)
+	weights = c.GetWeights(5)
 	assert.Len(t, weights, 5)
 	assert.InDelta(t, 0.6384, weights[0], 0.001)
 	assert.InDelta(t, 0.0010, weights[4], 0.001)
