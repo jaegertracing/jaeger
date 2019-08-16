@@ -42,23 +42,33 @@ type batchMetrics struct {
 
 	// Number of failed span submissions to collector
 	SpansFailures metrics.Counter `metric:"spans.failures"`
+
+	// Number of retries required to reach collector
+	BatchesRetries metrics.Counter `metric:"batches.retries"`
+
+	// Current queue size for reporter
+	QueueSize metrics.Gauge `metric:"reporter.queuesize"`
+
+	// Current waiting time for reporter failures
+	RetryInterval metrics.Gauge `metric:"reporter.retry-interval-ns"`
 }
 
 // MetricsReporter is reporter with metrics integration.
 type MetricsReporter struct {
-	wrapped Reporter
-	metrics map[string]batchMetrics
+	wrapped      Reporter
+	metrics      map[string]batchMetrics
+	BatchMetrics batchMetrics
 }
 
-// WrapWithMetrics wraps Reporter and creates metrics for its invocations.
-func WrapWithMetrics(reporter Reporter, mFactory metrics.Factory) *MetricsReporter {
+// NewMetricsReporter wraps Reporter and creates metrics for reporter invocations
+func NewMetricsReporter(reporter Reporter, mFactory metrics.Factory) *MetricsReporter {
 	batchesMetrics := map[string]batchMetrics{}
 	for _, s := range []string{zipkinBatches, jaegerBatches} {
 		bm := batchMetrics{}
 		metrics.Init(&bm, mFactory.Namespace(metrics.NSOptions{Name: "reporter", Tags: map[string]string{"format": s}}), nil)
 		batchesMetrics[s] = bm
 	}
-	return &MetricsReporter{wrapped: reporter, metrics: batchesMetrics}
+	return &MetricsReporter{wrapped: reporter, metrics: batchesMetrics, BatchMetrics: batchesMetrics[jaegerBatches]}
 }
 
 // EmitZipkinBatch emits batch to collector.
@@ -68,7 +78,7 @@ func (r *MetricsReporter) EmitZipkinBatch(spans []*zipkincore.Span) error {
 	return err
 }
 
-// EmitBatch emits batch to collector.
+// EmitBatch emits batch to collector. Deprecated.
 func (r *MetricsReporter) EmitBatch(batch *jaeger.Batch) error {
 	size := int64(0)
 	if batch != nil {

@@ -45,7 +45,7 @@ func NewCollectorProxy(builder *ConnBuilder, agentTags map[string]string, mFacto
 	grpcMetrics := mFactory.Namespace(metrics.NSOptions{Name: "", Tags: map[string]string{"protocol": "grpc"}})
 	return &ProxyBuilder{
 		conn:     conn,
-		reporter: reporter.WrapWithQueue(reporter.WrapWithMetrics(NewReporter(conn, agentTags, logger), grpcMetrics), logger),
+		reporter: reporter.WrapWithQueue(NewReporter(conn, agentTags, logger), logger, grpcMetrics),
 		manager:  configmanager.WrapWithMetrics(grpcManager.NewConfigManager(conn), grpcMetrics),
 	}, nil
 }
