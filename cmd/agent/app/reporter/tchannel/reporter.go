@@ -107,7 +107,3 @@ func (r *Reporter) submitAndReport(submissionFunc func(ctx thrift.Context) error
 func (r *Reporter) CollectorServiceName() string {
 	return r.serviceName
 }
-
-func (r *Reporter) Retryable(err error) bool {
-	return false
-}

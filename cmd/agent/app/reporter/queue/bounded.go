@@ -23,7 +23,7 @@ func NewBoundQueue(bufSize int, processor func(*jaeger.Batch) error, logger *zap
 		// This queue does not have persistence, thus we don't handle transactionality
 		err := processor(item.(*jaeger.Batch))
 		if err != nil {
-			b.logger.Error("Could not transmit span", zap.Error(err))
+			b.logger.Error("Could not transmit batch", zap.Error(err))
 		}
 	})
 

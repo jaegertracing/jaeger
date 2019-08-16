@@ -72,10 +72,7 @@ func (r *Reporter) send(spans []*model.Span, process *model.Process) error {
 	batch := model.Batch{Spans: spans, Process: process}
 	req := &api_v2.PostSpansRequest{Batch: batch}
 	_, err := r.collector.PostSpans(context.Background(), req)
-	if err != nil && !r.Retryable(err) {
-		r.logger.Error("Could not send spans over gRPC", zap.Error(err))
-	}
-	return err
+	return &gRPCReporterError{err}
 }
 
 // addTags appends jaeger tags for the agent to every span it sends to the collector.
@@ -104,10 +101,24 @@ func makeModelKeyValue(agentTags map[string]string) []model.KeyValue {
 	return tags
 }
 
-func (r *Reporter) Retryable(err error) bool {
-	state := status.Convert(err)
+// gRPCReporterError is capsulated error coming from the gRPC interface
+type gRPCReporterError struct {
+	Err error
+}
+
+func (g *gRPCReporterError) Error() string {
+	return g.Err.Error()
+}
+
+// IsRetryable checks if the gRPC errors are temporary errors
+func (g *gRPCReporterError) IsRetryable() bool {
+	state := status.Convert(g)
 	switch state.Code() {
 	case codes.DeadlineExceeded:
+		fallthrough
+	case codes.Unknown:
+		// Sadly codes.Unknown is also returned occasionally when the collector is down, thus we must consider
+		// it as retryable error.
 		fallthrough
 	case codes.Unavailable:
 		return true
