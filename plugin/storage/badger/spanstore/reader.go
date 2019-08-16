@@ -346,7 +346,13 @@ func (r *TraceReader) durationQueries(query *spanstore.TraceQueryParameters, ids
 }
 
 func mergeJoinIds(left, right [][]byte) [][]byte {
-	merged := make([][]byte, 0, len(left)) // len(left) or len(right) is the maximum, whichever is smallest
+	// len(left) or len(right) is the maximum, whichever is the smallest
+	allocateSize := len(left)
+	if len(right) < allocateSize {
+		allocateSize = len(right)
+	}
+
+	merged := make([][]byte, 0, allocateSize)
 
 	lMax := len(left) - 1
 	rMax := len(right) - 1
@@ -382,7 +388,6 @@ func sortMergeIds(query *spanstore.TraceQueryParameters, ids [][][]byte) []model
 		}
 	} else {
 		merged = ids[0]
-
 	}
 
 	// Get top query.NumTraces results (order in DESC)
