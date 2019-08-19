@@ -40,7 +40,7 @@ Jaeger backend, Web UI, and instrumentation libraries have been designed from gr
 
 #### OpenTelemetry
 
-On 28-May-2019, [the OpenTracing and OpenCensus projects announced](https://medium.com/opentracing/merging-opentracing-and-opencensus-f0fe9c7ca6f0) their intention to merge into a new CNCF project called [OpenTelemetry](https://opentelemetry.io). OpenTelemetry will natively support Jaeger as a tracing backend, and eventually might make Jaeger native clients unnecessary. For more information please refer to a blog post [Jaeger and OpenTelemetry](https://medium.com/jaegertracing/jaeger-and-opentelemetry-1846f701d9f2).
+On 28-May-2019, [the OpenTracing and OpenCensus projects announced](https://medium.com/opentracing/merging-opentracing-and-opencensus-f0fe9c7ca6f0) their intention to merge into a new CNCF project called [OpenTelemetry](https://opentelemetry.io). The Jaeger and OpenTelemetry projects have different goals. OpenTelemetry aims to provide APIs and SDKs in multiple languages to allow applications export various telemetry data out of process, to any number of metrics and tracing backends. The Jaeger project is primarily the tracing backend that receives tracing telemetry data and provides processing, aggregation, data mining, and visualizations of that data. The Jaeger client libraries do overlap with OpenTelemetry in functionality. OpenTelemetry will natively support Jaeger as a tracing backend, and eventually might make Jaeger native clients unnecessary. For more information please refer to a blog post [Jaeger and OpenTelemetry](https://medium.com/jaegertracing/jaeger-and-opentelemetry-1846f701d9f2).
 
 ### Multiple storage backends
 
