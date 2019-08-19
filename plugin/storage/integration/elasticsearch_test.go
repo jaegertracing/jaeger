@@ -153,7 +153,7 @@ func testElasticsearchStorage(t *testing.T, allTagsAsFields, archive bool) {
 	if archive {
 		t.Run("ArchiveTrace", s.testArchiveTrace)
 	} else {
-		t.Run("LargeTrace_search_after", s.testLargeTrace_SearchAfter)
+		t.Run("LargeTrace_search_after", s.testLargeTraceSearchAfter)
 		s.IntegrationTestAll(t)
 	}
 }
@@ -196,7 +196,7 @@ func (s *StorageIntegration) testArchiveTrace(t *testing.T) {
 	}
 }
 
-func (s *StorageIntegration) testLargeTrace_SearchAfter(t *testing.T) {
+func (s *StorageIntegration) testLargeTraceSearchAfter(t *testing.T) {
 	defer s.cleanUp(t)
 
 	var expected []*model.Span

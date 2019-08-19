@@ -166,7 +166,6 @@ func getTimeRangeIndexFn(archive, useReadWriteAliases bool) timeRangeIndexFn {
 
 func getSourceFn(archive bool, maxNumSpans int) sourceFn {
 	return func(query elastic.Query, fields searchAfterFields) *elastic.SearchSource {
-		fmt.Println(fields)
 		s := elastic.NewSearchSource().
 			Query(query).
 			Size(defaultDocCount).
