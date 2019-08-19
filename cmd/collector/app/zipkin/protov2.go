@@ -38,15 +38,17 @@ func protoSpansV2ToThrift(listOfSpans *zipkinProto.ListOfSpans) ([]*zipkincore.S
 }
 
 func protoSpanV2ToThrift(s *zipkinProto.Span) (*zipkincore.Span, error) {
-	if len(s.Id) != model.TraceIDShortBytesLen {
-		return nil, fmt.Errorf("invalid length for Span ID")
-	}
-	id := binary.BigEndian.Uint64(s.Id)
-	traceID := model.TraceID{}
-	err := traceID.Unmarshal(s.TraceId)
-	if err != nil {
+	var id model.SpanID
+	var err error
+	if id, err = model.SpanIDFromBytes(s.Id); err != nil {
 		return nil, err
 	}
+
+	traceID := model.TraceID{}
+	if err = traceID.Unmarshal(s.TraceId); err != nil {
+		return nil, err
+	}
+
 	ts, d := int64(s.Timestamp), int64(s.Duration)
 	tSpan := &zipkincore.Span{
 		ID:        int64(id),
@@ -62,18 +64,17 @@ func protoSpanV2ToThrift(s *zipkinProto.Span) (*zipkincore.Span, error) {
 	}
 
 	if len(s.ParentId) > 0 {
-		if len(s.ParentId) != model.TraceIDShortBytesLen {
-			return nil, fmt.Errorf("invalid length for parentId")
+		var parentID model.SpanID
+		if parentID, err = model.SpanIDFromBytes(s.ParentId); err != nil {
+			return nil, err
 		}
-		parentID := binary.BigEndian.Uint64(s.ParentId)
 		signed := int64(parentID)
 		tSpan.ParentID = &signed
 	}
 
 	var localE *zipkincore.Endpoint
 	if s.LocalEndpoint != nil {
-		localE, err = protoEndpointV2ToThrift(s.LocalEndpoint)
-		if err != nil {
+		if localE, err = protoEndpointV2ToThrift(s.LocalEndpoint); err != nil {
 			return nil, err
 		}
 	}
