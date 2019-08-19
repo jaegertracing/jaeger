@@ -165,7 +165,7 @@ func (c *Configuration) NewClient(logger *zap.Logger, metricsFactory metrics.Fac
 	if err != nil {
 		return nil, err
 	}
-	logger.Sugar().Infof("Detected elasticsearch %d", esVersion)
+	logger.Info("Elasticsearch detected", zap.Int("version", esVersion))
 
 	return eswrapper.WrapESClient(rawClient, service, esVersion), nil
 }
