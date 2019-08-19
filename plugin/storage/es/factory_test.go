@@ -142,10 +142,10 @@ func TestFactory_LoadMapping(t *testing.T) {
 		name   string
 		toTest string
 	}{
-		{name: "/jaeger-span-5.json", toTest: spanMapping5},
-		{name: "/jaeger-service-5.json", toTest: serviceMapping5},
-		{name: "/jaeger-span-6.json", toTest: spanMapping6},
-		{name: "/jaeger-service-6.json", toTest: serviceMapping6},
+		{name: "/jaeger-span.json", toTest: spanMapping5},
+		{name: "/jaeger-service.json", toTest: serviceMapping5},
+		{name: "/jaeger-span.json", toTest: spanMapping6},
+		{name: "/jaeger-service.json", toTest: serviceMapping6},
 		{name: "/jaeger-span-7.json", toTest: spanMapping7},
 		{name: "/jaeger-service-7.json", toTest: serviceMapping7},
 	}

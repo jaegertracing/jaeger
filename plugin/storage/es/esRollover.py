@@ -81,7 +81,10 @@ def perform_action(action, client, write_alias, read_alias, index_to_rollover, t
         shards = os.getenv('SHARDS', SHARDS)
         replicas = os.getenv('REPLICAS', REPLICAS)
         esVersion = get_version(client)
-        mapping = Path('./mappings/'+template_name+'-'+esVersion+'.json').read_text()
+        if esVersion == 7:
+            mapping = Path('./mappings/'+template_name+'-7.json').read_text()
+        else:
+            mapping = Path('./mappings/'+template_name+'.json').read_text()
         create_index_template(fix_mapping(mapping, shards, replicas), template_name, esVersion)
 
         index = index_to_rollover + '-000001'
@@ -211,7 +214,7 @@ def get_request_session(username, password, tls, ca, cert, key):
 def get_version(client):
     esVersion = client.info()['version']['number'][0]
     print('Detected ElasticSearch Version {}'.format(esVersion))
-    return esVersion
+    return int(esVersion)
 
 
 if __name__ == "__main__":
