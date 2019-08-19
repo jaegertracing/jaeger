@@ -17,6 +17,7 @@ package integration
 
 import (
 	"context"
+	"math/rand"
 	"net/http"
 	"os"
 	"testing"
@@ -115,6 +116,7 @@ func (s *ESStorageIntegration) initSpanstore(allTagsAsFields, archive bool) erro
 		MaxSpanAge:        maxSpanAge,
 		TagDotReplacement: tagKeyDeDotChar,
 		Archive:           archive,
+		MaxNumSpans:       10000,
 	})
 	return nil
 }
@@ -151,6 +153,7 @@ func testElasticsearchStorage(t *testing.T, allTagsAsFields, archive bool) {
 	if archive {
 		t.Run("ArchiveTrace", s.testArchiveTrace)
 	} else {
+		t.Run("LargeTrace_search_after", s.testLargeTrace_SearchAfter)
 		s.IntegrationTestAll(t)
 	}
 }
@@ -190,5 +193,51 @@ func (s *StorageIntegration) testArchiveTrace(t *testing.T) {
 	})
 	if !assert.True(t, found) {
 		CompareTraces(t, &model.Trace{Spans: []*model.Span{expected}}, actual)
+	}
+}
+
+func (s *StorageIntegration) testLargeTrace_SearchAfter(t *testing.T) {
+	defer s.cleanUp(t)
+
+	var expected []*model.Span
+	p := model.NewProcess("large_trace", model.KeyValues{})
+	now := time.Now()
+	tID := model.NewTraceID(rand.Uint64(), rand.Uint64())
+	parent := &model.Span{
+		OperationName: "parent",
+		StartTime:     now,
+		TraceID:       tID,
+		SpanID:        model.NewSpanID(rand.Uint64()),
+		References:    []model.SpanRef{},
+		Process:       p,
+	}
+	expected = append(expected, parent)
+
+	// Report large number of spans per trace to trigger search_after/pagination
+	// Use the same timestamp to test sorting works
+	for i := 0; i < 11000; i++ {
+		child := &model.Span{
+			OperationName: "child",
+			StartTime:     now,
+			TraceID:       tID,
+			SpanID:        model.NewSpanID(rand.Uint64()),
+			References:    []model.SpanRef{{TraceID: parent.TraceID, SpanID: parent.SpanID}},
+			Process:       p,
+		}
+		require.NoError(t, s.SpanWriter.WriteSpan(child))
+		expected = append(expected, parent)
+	}
+
+	require.NoError(t, s.SpanWriter.WriteSpan(parent))
+	s.refresh(t)
+
+	var actual *model.Trace
+	found := s.waitForCondition(t, func(t *testing.T) bool {
+		var err error
+		actual, err = s.SpanReader.GetTrace(context.Background(), tID)
+		return err == nil && len(actual.Spans) == len(expected)
+	})
+	if !assert.True(t, found) {
+		CompareTraces(t, &model.Trace{Spans: expected}, actual)
 	}
 }

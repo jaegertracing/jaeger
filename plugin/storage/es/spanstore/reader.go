@@ -46,6 +46,7 @@ const (
 	indexPrefixSeparator    = "-"
 
 	traceIDField           = "traceID"
+	spanIDField            = "spanID"
 	durationField          = "duration"
 	startTimeField         = "startTime"
 	serviceNameField       = "process.serviceName"
@@ -136,7 +137,12 @@ func NewSpanReader(p SpanReaderParams) *SpanReader {
 
 type timeRangeIndexFn func(indexName string, startTime time.Time, endTime time.Time) []string
 
-type sourceFn func(query elastic.Query, nextTime uint64) *elastic.SearchSource
+type searchAfterFields struct {
+	timestamp uint64
+	spanID    string
+}
+
+type sourceFn func(query elastic.Query, fields searchAfterFields) *elastic.SearchSource
 
 func getTimeRangeIndexFn(archive, useReadWriteAliases bool) timeRangeIndexFn {
 	if archive {
@@ -159,14 +165,18 @@ func getTimeRangeIndexFn(archive, useReadWriteAliases bool) timeRangeIndexFn {
 }
 
 func getSourceFn(archive bool, maxNumSpans int) sourceFn {
-	return func(query elastic.Query, nextTime uint64) *elastic.SearchSource {
+	return func(query elastic.Query, fields searchAfterFields) *elastic.SearchSource {
+		fmt.Println(fields)
 		s := elastic.NewSearchSource().
 			Query(query).
 			Size(defaultDocCount).
 			TerminateAfter(maxNumSpans)
 		if !archive {
-			s.Sort("startTime", true).
-				SearchAfter(nextTime)
+			s.Sort(startTimeField, true).
+				// SpanID is used as tiebreaker of the sort specification.
+				// Otherwise the sort order for documents that have the same sort values would be undefined.
+				Sort(spanIDField, true).
+				SearchAfter(fields.timestamp, fields.spanID)
 		}
 		return s
 	}
@@ -313,9 +323,12 @@ func (s *SpanReader) multiRead(ctx context.Context, traceIDs []model.TraceID, st
 	// Add an hour in both directions so that traces that straddle two indexes are retrieved.
 	// i.e starts in one and ends in another.
 	indices := s.timeRangeIndices(s.spanIndexPrefix, startTime.Add(-time.Hour), endTime.Add(time.Hour))
-	nextTime := model.TimeAsEpochMicroseconds(startTime.Add(-time.Hour))
+	sAfterFields := searchAfterFields{
+		timestamp: model.TimeAsEpochMicroseconds(startTime.Add(-time.Hour)),
+		spanID:    "",
+	}
 
-	searchAfterTime := make(map[model.TraceID]uint64)
+	searchAfterTime := make(map[model.TraceID]searchAfterFields)
 	totalDocumentsFetched := make(map[model.TraceID]int)
 	tracesMap := make(map[model.TraceID]*model.Trace)
 	for {
@@ -326,10 +339,10 @@ func (s *SpanReader) multiRead(ctx context.Context, traceIDs []model.TraceID, st
 		for i, traceID := range traceIDs {
 			query := elastic.NewTermQuery("traceID", traceID.String())
 			if val, ok := searchAfterTime[traceID]; ok {
-				nextTime = val
+				sAfterFields = val
 			}
 
-			s := s.sourceFn(query, nextTime)
+			s := s.sourceFn(query, sAfterFields)
 
 			searchRequests[i] = elastic.NewSearchRequest().
 				IgnoreUnavailable(true).
@@ -369,7 +382,10 @@ func (s *SpanReader) multiRead(ctx context.Context, traceIDs []model.TraceID, st
 			totalDocumentsFetched[lastSpan.TraceID] = totalDocumentsFetched[lastSpan.TraceID] + len(result.Hits.Hits)
 			if totalDocumentsFetched[lastSpan.TraceID] < int(result.TotalHits()) {
 				traceIDs = append(traceIDs, lastSpan.TraceID)
-				searchAfterTime[lastSpan.TraceID] = model.TimeAsEpochMicroseconds(lastSpan.StartTime)
+				searchAfterTime[lastSpan.TraceID] = searchAfterFields{
+					timestamp: model.TimeAsEpochMicroseconds(lastSpan.StartTime),
+					spanID:    lastSpan.SpanID.String(),
+				}
 			}
 		}
 	}
