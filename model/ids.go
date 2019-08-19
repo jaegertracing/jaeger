@@ -77,6 +77,24 @@ func TraceIDFromString(s string) (TraceID, error) {
 	return TraceID{High: hi, Low: lo}, nil
 }
 
+// TraceIDFromBytes creates a TraceID from list of bytes
+func TraceIDFromBytes(data []byte) (TraceID, error) {
+	var t TraceID
+	var hi, lo uint64
+	switch {
+	case len(data) > traceIDLongBytesLen:
+		return TraceID{}, fmt.Errorf("invalid length for TraceID")
+	case len(data) > traceIDShortBytesLen:
+		hiLen := len(data) - traceIDShortBytesLen
+		hi = binary.BigEndian.Uint64(data[:hiLen])
+		lo = binary.BigEndian.Uint64(data[hiLen:])
+	default:
+		lo = binary.BigEndian.Uint64(data)
+	}
+	t.High, t.Low = hi, lo
+	return t, nil
+}
+
 // MarshalText is called by encoding/json, which we do not want people to use.
 func (t TraceID) MarshalText() ([]byte, error) {
 	return nil, fmt.Errorf("unsupported method TraceID.MarshalText; please use github.com/gogo/protobuf/jsonpb for marshalling")
@@ -102,18 +120,11 @@ func (t *TraceID) MarshalTo(data []byte) (n int, err error) {
 
 // Unmarshal inflates this trace ID from binary representation. Called by protobuf serialization.
 func (t *TraceID) Unmarshal(data []byte) error {
-	var hi, lo uint64
-	switch {
-	case len(data) > traceIDLongBytesLen:
-		return fmt.Errorf("invalid length for TraceID")
-	case len(data) > traceIDShortBytesLen:
-		hiLen := len(data) - traceIDShortBytesLen
-		hi = binary.BigEndian.Uint64(data[:hiLen])
-		lo = binary.BigEndian.Uint64(data[hiLen:])
-	default:
-		lo = binary.BigEndian.Uint64(data)
+	if len(data) < 16 {
+		return fmt.Errorf("buffer is too short")
 	}
-	t.High, t.Low = hi, lo
+	t.High = binary.BigEndian.Uint64(data[:8])
+	t.Low = binary.BigEndian.Uint64(data[8:])
 	return nil
 }
 

@@ -44,8 +44,8 @@ func protoSpanV2ToThrift(s *zipkinProto.Span) (*zipkincore.Span, error) {
 		return nil, err
 	}
 
-	traceID := model.TraceID{}
-	if err = traceID.Unmarshal(s.TraceId); err != nil {
+	var traceID model.TraceID
+	if traceID, err = model.TraceIDFromBytes(s.TraceId); err != nil {
 		return nil, err
 	}
 
