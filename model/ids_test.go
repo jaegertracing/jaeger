@@ -88,17 +88,14 @@ func TestTraceSpanIDMarshalProto(t *testing.T) {
 }
 
 func TestSpanIDFromBytes(t *testing.T) {
-	tests := []struct {
-		data   []byte
-		errMsg string
-	}{
-		{data: []byte{0, 0, 0, 0}, errMsg: "invalid length for SpanID"},
-		{data: []byte{0, 0, 0, 0, 0, 0, 0, 13, 0}, errMsg: "invalid length for SpanID"},
+	errTests := [][]byte{
+		{0, 0, 0, 0},
+		{0, 0, 0, 0, 0, 0, 0, 13, 0},
 	}
-	for _, test := range tests {
-		_, err := model.SpanIDFromBytes(test.data)
+	for _, data := range errTests {
+		_, err := model.SpanIDFromBytes(data)
 		require.Error(t, err)
-		assert.Equal(t, err.Error(), test.errMsg)
+		assert.Equal(t, err.Error(), "invalid length for SpanID")
 	}
 
 	spanID, err := model.SpanIDFromBytes([]byte{0, 0, 0, 0, 0, 0, 0, 13})
