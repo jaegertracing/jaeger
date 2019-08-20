@@ -83,12 +83,33 @@ func (h *strategyStore) parseStrategies(strategies *strategies) {
 		h.defaultStrategy = h.parseStrategy(strategies.DefaultStrategy)
 	}
 	for _, s := range strategies.ServiceStrategies {
-		h.serviceStrategies[s.Service] = h.parseServiceStrategies(s)
+		h.serviceStrategies[s.Service] = h.parseStrategy(s)
 	}
 }
 
-func (h *strategyStore) parseServiceStrategies(strategy *serviceStrategy) *sampling.SamplingStrategyResponse {
-	resp := h.parseStrategy(&strategy.strategy)
+func (h *strategyStore) parseStrategy(strategy *strategy) *sampling.SamplingStrategyResponse {
+	var resp *sampling.SamplingStrategyResponse
+
+	switch strategy.Type {
+	case samplerTypeProbabilistic:
+		resp = &sampling.SamplingStrategyResponse{
+			StrategyType: sampling.SamplingStrategyType_PROBABILISTIC,
+			ProbabilisticSampling: &sampling.ProbabilisticSamplingStrategy{
+				SamplingRate: strategy.Param,
+			},
+		}
+	case samplerTypeRateLimiting:
+		resp = &sampling.SamplingStrategyResponse{
+			StrategyType: sampling.SamplingStrategyType_RATE_LIMITING,
+			RateLimitingSampling: &sampling.RateLimitingSamplingStrategy{
+				MaxTracesPerSecond: int16(strategy.Param),
+			},
+		}
+	default:
+		h.logger.Warn("Failed to parse sampling strategy", zap.Any("strategy", strategy))
+		resp = deepCopy(&defaultStrategy)
+	}
+
 	if len(strategy.OperationStrategies) == 0 {
 		return resp
 	}
@@ -118,28 +139,6 @@ func (h *strategyStore) parseServiceStrategies(strategy *serviceStrategy) *sampl
 	}
 	resp.OperationSampling = opS
 	return resp
-}
-
-func (h *strategyStore) parseStrategy(strategy *strategy) *sampling.SamplingStrategyResponse {
-	switch strategy.Type {
-	case samplerTypeProbabilistic:
-		return &sampling.SamplingStrategyResponse{
-			StrategyType: sampling.SamplingStrategyType_PROBABILISTIC,
-			ProbabilisticSampling: &sampling.ProbabilisticSamplingStrategy{
-				SamplingRate: strategy.Param,
-			},
-		}
-	case samplerTypeRateLimiting:
-		return &sampling.SamplingStrategyResponse{
-			StrategyType: sampling.SamplingStrategyType_RATE_LIMITING,
-			RateLimitingSampling: &sampling.RateLimitingSamplingStrategy{
-				MaxTracesPerSecond: int16(strategy.Param),
-			},
-		}
-	default:
-		h.logger.Warn("Failed to parse sampling strategy", zap.Any("strategy", strategy))
-		return deepCopy(&defaultStrategy)
-	}
 }
 
 func deepCopy(s *sampling.SamplingStrategyResponse) *sampling.SamplingStrategyResponse {

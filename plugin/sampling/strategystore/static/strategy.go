@@ -19,6 +19,7 @@ package static
 type strategy struct {
 	Type  string  `json:"type"`
 	Param float64 `json:"param"`
+	OperationStrategies []*operationStrategy `json:"operation_strategies"`
 }
 
 // operationStrategy defines an operation specific sampling strategy.
@@ -30,7 +31,6 @@ type operationStrategy struct {
 // serviceStrategy defines a service specific sampling strategy.
 type serviceStrategy struct {
 	Service             string               `json:"service"`
-	OperationStrategies []*operationStrategy `json:"operation_strategies"`
 	strategy
 }
 
