@@ -17,8 +17,8 @@ package static
 // strategy defines a sampling strategy. Type can be "probabilistic" or "ratelimiting"
 // and Param will represent "sampling probability" and "max traces per second" respectively.
 type strategy struct {
-	Type  string  `json:"type"`
-	Param float64 `json:"param"`
+	Type                string               `json:"type"`
+	Param               float64              `json:"param"`
 	OperationStrategies []*operationStrategy `json:"operation_strategies"`
 }
 
@@ -30,7 +30,7 @@ type operationStrategy struct {
 
 // serviceStrategy defines a service specific sampling strategy.
 type serviceStrategy struct {
-	Service             string               `json:"service"`
+	Service string `json:"service"`
 	strategy
 }
 
