@@ -108,9 +108,9 @@ func TestSpanIDFromBytes(t *testing.T) {
 
 func TestTraceIDFromBytes(t *testing.T) {
 	errTests := [][]byte{
-		[]byte{0, 0, 0, 0, 0, 0, 0, 13, 0, 0, 0, 0, 0, 0, 0, 0, 13},
-		[]byte{0, 0, 0, 0, 0, 0, 0, 13, 0, 0, 0, 0, 0, 0, 13},
-		[]byte{0, 0, 0, 0, 0, 0, 13},
+		{0, 0, 0, 0, 0, 0, 0, 13, 0, 0, 0, 0, 0, 0, 0, 0, 13},
+		{0, 0, 0, 0, 0, 0, 0, 13, 0, 0, 0, 0, 0, 0, 13},
+		{0, 0, 0, 0, 0, 0, 13},
 	}
 	for _, data := range errTests {
 		_, err := model.TraceIDFromBytes(data)
