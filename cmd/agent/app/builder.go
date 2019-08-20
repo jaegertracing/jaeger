@@ -80,7 +80,6 @@ type Builder struct {
 
 // ProcessorConfiguration holds config for a processor that receives spans from Server
 type ProcessorConfiguration struct {
-	Workers  int                 `yaml:"workers"`
 	Model    Model               `yaml:"model"`
 	Protocol Protocol            `yaml:"protocol"`
 	Server   ServerConfiguration `yaml:"server"`
@@ -88,7 +87,6 @@ type ProcessorConfiguration struct {
 
 // ServerConfiguration holds config for a server that receives spans from the network
 type ServerConfiguration struct {
-	QueueSize     int    `yaml:"queueSize"`
 	MaxPacketSize int    `yaml:"maxPacketSize"`
 	HostPort      string `yaml:"hostPort" validate:"nonzero"`
 }
@@ -178,15 +176,13 @@ func (c *ProcessorConfiguration) GetThriftProcessor(
 		return nil, err
 	}
 
-	return processors.NewThriftProcessor(server, c.Workers, mFactory, factory, handler, logger)
+	return processors.NewThriftProcessor(server, mFactory, factory, handler, logger)
 }
 
 func (c *ProcessorConfiguration) applyDefaults() {
-	c.Workers = defaultInt(c.Workers, defaultServerWorkers)
 }
 
 func (c *ServerConfiguration) applyDefaults() {
-	c.QueueSize = defaultInt(c.QueueSize, defaultQueueSize)
 	c.MaxPacketSize = defaultInt(c.MaxPacketSize, defaultMaxPacketSize)
 }
 
@@ -202,7 +198,7 @@ func (c *ServerConfiguration) getUDPServer(mFactory metrics.Factory) (servers.Se
 		return nil, err
 	}
 
-	return servers.NewTBufferedServer(transport, c.QueueSize, c.MaxPacketSize, mFactory)
+	return servers.NewTBufferedServer(transport, c.MaxPacketSize, mFactory)
 }
 
 func defaultInt(value int, defaultVal int) int {
@@ -226,13 +222,13 @@ func CreateCollectorProxy(
 		len(tchanBuilder.CollectorHostPorts) > 0 &&
 		len(grpcBuilder.CollectorHostPorts) == 0 {
 		logger.Warn("Using deprecated configuration", zap.String("option", "--collector-host.port"))
-		return tchannel.NewCollectorProxy(tchanBuilder, mFactory, logger)
+		return tchannel.NewCollectorProxy(tchanBuilder, opts, mFactory, logger)
 	}
 	switch opts.ReporterType {
 	case reporter.GRPC:
-		return grpc.NewCollectorProxy(grpcBuilder, opts.AgentTags, mFactory, logger)
+		return grpc.NewCollectorProxy(grpcBuilder, opts, mFactory, logger)
 	case reporter.TCHANNEL:
-		return tchannel.NewCollectorProxy(tchanBuilder, mFactory, logger)
+		return tchannel.NewCollectorProxy(tchanBuilder, opts, mFactory, logger)
 	default:
 		return nil, fmt.Errorf("unknown reporter type %s", string(opts.ReporterType))
 	}

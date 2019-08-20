@@ -16,7 +16,6 @@
 package processors
 
 import (
-	"fmt"
 	"sync"
 
 	"github.com/apache/thrift/lib/go/thrift"
@@ -29,13 +28,12 @@ import (
 
 // ThriftProcessor is a server that processes spans using a TBuffered Server
 type ThriftProcessor struct {
-	server        servers.Server
-	handler       AgentProcessor
-	protocolPool  *sync.Pool
-	numProcessors int
-	processing    sync.WaitGroup
-	logger        *zap.Logger
-	metrics       struct {
+	server       servers.Server
+	handler      AgentProcessor
+	protocolPool *sync.Pool
+	logger       *zap.Logger
+	processing   sync.WaitGroup
+	metrics      struct {
 		// Amount of time taken for processor to close
 		ProcessorCloseTimer metrics.Timer `metric:"thrift.udp.t-processor.close-time"`
 
@@ -52,16 +50,11 @@ type AgentProcessor interface {
 // NewThriftProcessor creates a TBufferedServer backed ThriftProcessor
 func NewThriftProcessor(
 	server servers.Server,
-	numProcessors int,
 	mFactory metrics.Factory,
 	factory thrift.TProtocolFactory,
 	handler AgentProcessor,
 	logger *zap.Logger,
 ) (*ThriftProcessor, error) {
-	if numProcessors <= 0 {
-		return nil, fmt.Errorf(
-			"number of processors must be greater than 0, called with %d", numProcessors)
-	}
 	var protocolPool = &sync.Pool{
 		New: func() interface{} {
 			trans := &customtransport.TBufferedReadTransport{}
@@ -70,25 +63,18 @@ func NewThriftProcessor(
 	}
 
 	res := &ThriftProcessor{
-		server:        server,
-		handler:       handler,
-		protocolPool:  protocolPool,
-		logger:        logger,
-		numProcessors: numProcessors,
+		server:       server,
+		handler:      handler,
+		protocolPool: protocolPool,
+		logger:       logger,
 	}
 	metrics.Init(&res.metrics, mFactory, nil)
-	res.processing.Add(res.numProcessors)
-	for i := 0; i < res.numProcessors; i++ {
-		go func() {
-			res.processBuffer()
-			res.processing.Done()
-		}()
-	}
 	return res, nil
 }
 
 // Serve starts serving traffic
 func (s *ThriftProcessor) Serve() {
+	s.server.RegisterProcessor(s.processBuffer)
 	s.server.Serve()
 }
 
@@ -106,20 +92,20 @@ func (s *ThriftProcessor) Stop() {
 	stopwatch.Stop()
 }
 
-// processBuffer reads data off the channel and puts it into a custom transport for
+// processBuffer reads data off the buffer and puts it into a custom transport for
 // the processor to process
-func (s *ThriftProcessor) processBuffer() {
-	for readBuf := range s.server.DataChan() {
-		protocol := s.protocolPool.Get().(thrift.TProtocol)
-		payload := readBuf.GetBytes()
-		protocol.Transport().Write(payload)
-		s.logger.Debug("Span(s) received by the agent", zap.Int("bytes-received", len(payload)))
+func (s *ThriftProcessor) processBuffer(readBuf *servers.ReadBuf) {
+	s.processing.Add(1)
+	defer s.processing.Done()
 
-		if ok, err := s.handler.Process(protocol, protocol); !ok {
-			s.logger.Error("Processor failed", zap.Error(err))
-			s.metrics.HandlerProcessError.Inc(1)
-		}
-		s.protocolPool.Put(protocol)
-		s.server.DataRecd(readBuf) // acknowledge receipt and release the buffer
+	protocol := s.protocolPool.Get().(thrift.TProtocol)
+	payload := readBuf.GetBytes()
+	protocol.Transport().Write(payload)
+	s.logger.Debug("Span(s) received by the agent", zap.Int("bytes-received", len(payload)))
+
+	if ok, err := s.handler.Process(protocol, protocol); !ok {
+		s.logger.Error("Processor failed", zap.Error(err))
+		s.metrics.HandlerProcessError.Inc(1)
 	}
+	s.protocolPool.Put(protocol)
 }

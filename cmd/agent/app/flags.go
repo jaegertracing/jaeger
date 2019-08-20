@@ -47,8 +47,8 @@ var defaultProcessors = []struct {
 func AddFlags(flags *flag.FlagSet) {
 	for _, p := range defaultProcessors {
 		prefix := fmt.Sprintf("processor.%s-%s.", p.model, p.protocol)
-		flags.Int(prefix+suffixWorkers, defaultServerWorkers, "how many workers the processor should run")
-		flags.Int(prefix+suffixServerQueueSize, defaultQueueSize, "length of the queue for the UDP server")
+		flags.Int(prefix+suffixWorkers, defaultServerWorkers, "how many workers the processor should run, deprecated - use reporter config")
+		flags.Int(prefix+suffixServerQueueSize, defaultQueueSize, "length of the queue for the UDP server, deprecated - use reporter config")
 		flags.Int(prefix+suffixServerMaxPacketSize, defaultMaxPacketSize, "max packet size for the UDP server")
 		flags.String(prefix+suffixServerHostPort, ":"+strconv.Itoa(p.port), "host:port for the UDP server")
 	}
@@ -63,8 +63,6 @@ func (b *Builder) InitFromViper(v *viper.Viper) *Builder {
 	for _, processor := range defaultProcessors {
 		prefix := fmt.Sprintf("processor.%s-%s.", processor.model, processor.protocol)
 		p := &ProcessorConfiguration{Model: processor.model, Protocol: processor.protocol}
-		p.Workers = v.GetInt(prefix + suffixWorkers)
-		p.Server.QueueSize = v.GetInt(prefix + suffixServerQueueSize)
 		p.Server.MaxPacketSize = v.GetInt(prefix + suffixServerMaxPacketSize)
 		p.Server.HostPort = v.GetString(prefix + suffixServerHostPort)
 		b.Processors = append(b.Processors, *p)

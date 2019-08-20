@@ -29,16 +29,12 @@ type TBufferedServer struct {
 	// NB. queueLength HAS to be at the top of the struct or it will SIGSEV for certain architectures.
 	// See https://github.com/golang/go/issues/13868
 	queueSize     int64
-	dataChan      chan *ReadBuf
+	processor     func(*ReadBuf)
 	maxPacketSize int
-	maxQueueSize  int
 	serving       uint32
 	transport     thrift.TTransport
 	readBufPool   *sync.Pool
 	metrics       struct {
-		// Size of the current server queue
-		QueueSize metrics.Gauge `metric:"thrift.udp.server.queue_size"`
-
 		// Size (in bytes) of packets received by server
 		PacketSize metrics.Gauge `metric:"thrift.udp.server.packet_size"`
 
@@ -56,21 +52,17 @@ type TBufferedServer struct {
 // NewTBufferedServer creates a TBufferedServer
 func NewTBufferedServer(
 	transport thrift.TTransport,
-	maxQueueSize int,
 	maxPacketSize int,
 	mFactory metrics.Factory,
 ) (*TBufferedServer, error) {
-	dataChan := make(chan *ReadBuf, maxQueueSize)
-
 	var readBufPool = &sync.Pool{
 		New: func() interface{} {
 			return &ReadBuf{bytes: make([]byte, maxPacketSize)}
 		},
 	}
 
-	res := &TBufferedServer{dataChan: dataChan,
+	res := &TBufferedServer{
 		transport:     transport,
-		maxQueueSize:  maxQueueSize,
 		maxPacketSize: maxPacketSize,
 		readBufPool:   readBufPool,
 	}
@@ -80,6 +72,9 @@ func NewTBufferedServer(
 
 // Serve initiates the readers and starts serving traffic
 func (s *TBufferedServer) Serve() {
+	if s.processor == nil {
+		panic("Invalid configuration for TBufferedServer, no processor defined")
+	}
 	atomic.StoreUint32(&s.serving, 1)
 	for s.IsServing() {
 		readBuf := s.readBufPool.Get().(*ReadBuf)
@@ -87,22 +82,14 @@ func (s *TBufferedServer) Serve() {
 		if err == nil {
 			readBuf.n = n
 			s.metrics.PacketSize.Update(int64(n))
-			select {
-			case s.dataChan <- readBuf:
-				s.metrics.PacketsProcessed.Inc(1)
-				s.updateQueueSize(1)
-			default:
-				s.metrics.PacketsDropped.Inc(1)
-			}
+			go func() {
+				s.processor(readBuf)
+				s.readBufPool.Put(readBuf)
+			}()
 		} else {
 			s.metrics.ReadError.Inc(1)
 		}
 	}
-}
-
-func (s *TBufferedServer) updateQueueSize(delta int64) {
-	atomic.AddInt64(&s.queueSize, delta)
-	s.metrics.QueueSize.Update(atomic.LoadInt64(&s.queueSize))
 }
 
 // IsServing indicates whether the server is currently serving traffic
@@ -115,16 +102,8 @@ func (s *TBufferedServer) IsServing() bool {
 func (s *TBufferedServer) Stop() {
 	atomic.StoreUint32(&s.serving, 0)
 	s.transport.Close()
-	close(s.dataChan)
 }
 
-// DataChan returns the data chan of the buffered server
-func (s *TBufferedServer) DataChan() chan *ReadBuf {
-	return s.dataChan
-}
-
-// DataRecd is called by the consumers every time they read a data item from DataChan
-func (s *TBufferedServer) DataRecd(buf *ReadBuf) {
-	s.updateQueueSize(-1)
-	s.readBufPool.Put(buf)
+func (s *TBufferedServer) RegisterProcessor(process func(*ReadBuf)) {
+	s.processor = process
 }

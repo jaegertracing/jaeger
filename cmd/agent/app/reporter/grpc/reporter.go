@@ -72,7 +72,10 @@ func (r *Reporter) send(spans []*model.Span, process *model.Process) error {
 	batch := model.Batch{Spans: spans, Process: process}
 	req := &api_v2.PostSpansRequest{Batch: batch}
 	_, err := r.collector.PostSpans(context.Background(), req)
-	return &gRPCReporterError{err}
+	if err != nil {
+		return &gRPCReporterError{err}
+	}
+	return nil
 }
 
 // addTags appends jaeger tags for the agent to every span it sends to the collector.

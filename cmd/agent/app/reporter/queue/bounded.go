@@ -21,14 +21,14 @@ type Bound struct {
 	metrics queueMetrics
 }
 
-func NewBoundQueue(bufSize int, processor func(*jaeger.Batch) error, logger *zap.Logger, mFactory metrics.Factory) *Bound {
+func NewBoundQueue(bufSize, concurrency int, processor func(*jaeger.Batch) error, logger *zap.Logger, mFactory metrics.Factory) *Bound {
 	b := &Bound{
 		queue:   queue.NewBoundedQueue(bufSize, nil),
 		logger:  logger,
 		metrics: queueMetrics{},
 	}
 
-	b.queue.StartConsumers(1, func(item interface{}) {
+	b.queue.StartConsumers(concurrency, func(item interface{}) {
 		// This queue does not have persistence, thus we don't handle transactionality
 		err := processor(item.(*jaeger.Batch))
 		if err != nil {

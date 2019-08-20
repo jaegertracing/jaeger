@@ -31,7 +31,7 @@ type ProxyBuilder struct {
 }
 
 // NewCollectorProxy creates ProxyBuilder
-func NewCollectorProxy(builder *Builder, mFactory metrics.Factory, logger *zap.Logger) (*ProxyBuilder, error) {
+func NewCollectorProxy(builder *Builder, opts *reporter.Options, mFactory metrics.Factory, logger *zap.Logger) (*ProxyBuilder, error) {
 	r, err := builder.CreateReporter(logger)
 	if err != nil {
 		return nil, err
@@ -39,7 +39,7 @@ func NewCollectorProxy(builder *Builder, mFactory metrics.Factory, logger *zap.L
 	tchannelMetrics := mFactory.Namespace(metrics.NSOptions{Name: "", Tags: map[string]string{"protocol": "tchannel"}})
 	return &ProxyBuilder{
 		tchanRep: r,
-		reporter: reporter.WrapWithQueue(r, logger, tchannelMetrics),
+		reporter: reporter.WrapWithQueue(opts, r, logger, tchannelMetrics),
 		manager:  configmanager.WrapWithMetrics(tchannel.NewConfigManager(r.CollectorServiceName(), r.Channel()), tchannelMetrics),
 	}, nil
 }
