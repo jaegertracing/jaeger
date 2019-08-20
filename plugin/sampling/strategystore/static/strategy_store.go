@@ -83,7 +83,7 @@ func (h *strategyStore) parseStrategies(strategies *strategies) {
 		h.defaultStrategy = h.parseStrategy(strategies.DefaultStrategy)
 	}
 	for _, s := range strategies.ServiceStrategies {
-		h.serviceStrategies[s.Service] = h.parseStrategy(s)
+		h.serviceStrategies[s.Service] = h.parseStrategy(&s.strategy)
 	}
 }
 
