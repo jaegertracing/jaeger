@@ -80,18 +80,15 @@ func TraceIDFromString(s string) (TraceID, error) {
 // TraceIDFromBytes creates a TraceID from list of bytes
 func TraceIDFromBytes(data []byte) (TraceID, error) {
 	var t TraceID
-	var hi, lo uint64
 	switch {
-	case len(data) > traceIDLongBytesLen:
-		return TraceID{}, fmt.Errorf("invalid length for TraceID")
-	case len(data) > traceIDShortBytesLen:
-		hiLen := len(data) - traceIDShortBytesLen
-		hi = binary.BigEndian.Uint64(data[:hiLen])
-		lo = binary.BigEndian.Uint64(data[hiLen:])
+	case len(data) == traceIDLongBytesLen:
+		t.High = binary.BigEndian.Uint64(data[:traceIDShortBytesLen])
+		t.Low = binary.BigEndian.Uint64(data[traceIDShortBytesLen:])
+	case len(data) == traceIDShortBytesLen:
+		t.Low = binary.BigEndian.Uint64(data)
 	default:
-		lo = binary.BigEndian.Uint64(data)
+		return TraceID{}, fmt.Errorf("invalid length for TraceID")
 	}
-	t.High, t.Low = hi, lo
 	return t, nil
 }
 
