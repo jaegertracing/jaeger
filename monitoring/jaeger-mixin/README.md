@@ -90,6 +90,13 @@ This `PodMonitor` tells Prometheus to scrape the port `14269` from all pods cont
 
 This mixin was originally developed by [Grafana Labs](https://github.com/grafana/jsonnet-libs/tree/master/jaeger-mixin).
 
+## Pre-built dashboard and alert rules
+
+This repository contains also a pre-built dashboard for Grafana and alert rules for Alertmanager. While we recommend that you generate those resources following the steps above, the following files can be used for quick tests.
+
+- [Dashboard](./dashboard-for-grafana.json)
+- [Alerts](./prometheus_alerts.yml)
+
 ## Background
 
 * For more information about monitoring mixins, see this [design doc](https://docs.google.com/document/d/1A9xvzwqnFVSOZ5fD3blKODXfsat5fg6ZhnKu9LK3lB4/view).
