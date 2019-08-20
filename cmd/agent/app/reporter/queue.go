@@ -13,6 +13,13 @@ import (
 	"github.com/jaegertracing/jaeger/thrift-gen/zipkincore"
 )
 
+const (
+	defaultQueueType        = "memory"
+	defaultBoundedQueueSize = 1000
+	defaultMaxRetryInterval = 20 * time.Second
+	defaultQueueWorkers     = 8
+)
+
 type Queue interface {
 	Enqueue(*jaeger.Batch) error
 }
@@ -33,17 +40,22 @@ type QueuedReporter struct {
 }
 
 // WrapWithQueue wraps the destination reporter with a queueing capabilities for retries
-func WrapWithQueue(reporter Reporter, logger *zap.Logger, mFactory metrics.Factory) *QueuedReporter {
+func WrapWithQueue(opts *Options, reporter Reporter, logger *zap.Logger, mFactory metrics.Factory) *QueuedReporter {
 	q := &QueuedReporter{
 		wrapped:                 reporter,
 		logger:                  logger,
 		lastRetryIntervalChange: time.Now(),
 		initialRetryInterval:    time.Millisecond * 100,
-		maxRetryInterval:        20 * time.Second,
+		maxRetryInterval:        opts.ReporterMaxRetryInterval,
 		reporterMetrics:         NewMetricsReporter(reporter, mFactory),
 	}
 	q.currentRetryInterval = q.initialRetryInterval
-	q.queue = queue.NewBoundQueue(1000, q.batchProcessor, logger, mFactory)
+
+	switch opts.QueueType {
+	case MEMORY:
+		q.queue = queue.NewBoundQueue(opts.BoundedQueueSize, opts.ReporterConcurrency, q.batchProcessor, logger, mFactory)
+	}
+
 	return q
 }
 

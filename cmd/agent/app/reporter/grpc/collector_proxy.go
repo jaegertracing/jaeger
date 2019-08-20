@@ -37,15 +37,16 @@ type ProxyBuilder struct {
 var systemCertPool = x509.SystemCertPool // to allow overriding in unit test
 
 // NewCollectorProxy creates ProxyBuilder
-func NewCollectorProxy(builder *ConnBuilder, agentTags map[string]string, mFactory metrics.Factory, logger *zap.Logger) (*ProxyBuilder, error) {
+func NewCollectorProxy(builder *ConnBuilder, opts *reporter.Options, mFactory metrics.Factory, logger *zap.Logger) (*ProxyBuilder, error) {
 	conn, err := builder.CreateConnection(logger)
 	if err != nil {
 		return nil, err
 	}
+	agentTags := opts.AgentTags
 	grpcMetrics := mFactory.Namespace(metrics.NSOptions{Name: "", Tags: map[string]string{"protocol": "grpc"}})
 	return &ProxyBuilder{
 		conn:     conn,
-		reporter: reporter.WrapWithQueue(NewReporter(conn, agentTags, logger), logger, grpcMetrics),
+		reporter: reporter.WrapWithQueue(opts, NewReporter(conn, agentTags, logger), logger, grpcMetrics),
 		manager:  configmanager.WrapWithMetrics(grpcManager.NewConfigManager(conn), grpcMetrics),
 	}, nil
 }

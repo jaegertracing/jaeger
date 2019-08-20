@@ -19,39 +19,68 @@ import (
 	"fmt"
 	"os"
 	"strings"
+	"time"
 
 	"github.com/spf13/viper"
 )
 
 const (
+	prefix = "reporter."
 	// Whether to use grpc or tchannel reporter.
-	reporterType = "reporter.type"
+	reporterType = "type"
+	// Queue implementation to use
+	reporterQueueType = "queue.type"
+	// Bounded-queue size
+	boundedQueueSize = "queue.memory.size"
+	// Max retry interval
+	reporterMaxInterval = "max-retry-interval"
+	// Amount of workers for reporter
+	reporterQueueWorkers = "queue.workers"
 	// Agent tags
 	agentTags = "jaeger.tags"
 	// TCHANNEL is name of tchannel reporter.
 	TCHANNEL Type = "tchannel"
 	// GRPC is name of gRPC reporter.
 	GRPC Type = "grpc"
+
+	// MEMORY is the default reporter queue
+	MEMORY QueueType = "memory"
 )
 
 // Type defines type of reporter.
 type Type string
 
+// QueueType defines the type of queue in reporter
+type QueueType string
+
 // Options holds generic reporter configuration.
 type Options struct {
-	ReporterType Type
-	AgentTags    map[string]string
+	ReporterType             Type
+	QueueType                QueueType
+	ReporterConcurrency      int
+	BoundedQueueSize         int
+	ReporterMaxRetryInterval time.Duration
+	AgentTags                map[string]string
 }
 
 // AddFlags adds flags for Options.
 func AddFlags(flags *flag.FlagSet) {
-	flags.String(reporterType, string(GRPC), fmt.Sprintf("Reporter type to use e.g. %s, %s", string(GRPC), string(TCHANNEL)))
+	flags.String(prefix+reporterType, string(GRPC), fmt.Sprintf("Reporter type to use e.g. %s, %s", string(GRPC), string(TCHANNEL)))
+	flags.String(prefix+reporterQueueType, string(MEMORY), "queue implementation to use in the reporter. Available options: memory")
+	flags.Int(prefix+boundedQueueSize, defaultBoundedQueueSize, "maximum size of bounded in-memory queue")
+	flags.Int(prefix+reporterQueueWorkers, defaultQueueWorkers, "the amount of concurrent reporter connections to use")
+	flags.Duration(prefix+reporterMaxInterval, defaultMaxRetryInterval, "longest period of time to wait before retry. Format is time.Duration (https://golang.org/pkg/time/#Duration).")
+
 	flags.String(agentTags, "", "One or more tags to be added to the Process tags of all spans passing through this agent. Ex: key1=value1,key2=${envVar:defaultValue}")
 }
 
 // InitFromViper initializes Options with properties retrieved from Viper.
 func (b *Options) InitFromViper(v *viper.Viper) *Options {
-	b.ReporterType = Type(v.GetString(reporterType))
+	b.ReporterType = Type(v.GetString(prefix + reporterType))
+	b.QueueType = QueueType(v.GetString(prefix + reporterQueueType))
+	b.BoundedQueueSize = v.GetInt(prefix + boundedQueueSize)
+	b.ReporterConcurrency = v.GetInt(prefix + reporterQueueWorkers)
+	b.ReporterMaxRetryInterval = v.GetDuration(prefix + reporterMaxInterval)
 	b.AgentTags = parseAgentTags(v.GetString(agentTags))
 	return b
 }
