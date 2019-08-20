@@ -295,9 +295,9 @@ func TestSaveProtoSpansV2(t *testing.T) {
 		resBody    string
 	}{
 		{Span: zipkinProto.Span{Id: validID, TraceId: validTraceID, LocalEndpoint: &zipkinProto.Endpoint{Ipv4: randBytesOfLen(4)}, Kind: zipkinProto.Span_CLIENT}, StatusCode: http.StatusAccepted},
-		{Span: zipkinProto.Span{Id: randBytesOfLen(4)}, StatusCode: http.StatusBadRequest, resBody: "Unable to process request body: invalid length for Span ID\n"},
-		{Span: zipkinProto.Span{Id: validID, TraceId: randBytesOfLen(32)}, StatusCode: http.StatusBadRequest, resBody: "Unable to process request body: invalid length for traceId\n"},
-		{Span: zipkinProto.Span{Id: validID, TraceId: validTraceID, ParentId: randBytesOfLen(16)}, StatusCode: http.StatusBadRequest, resBody: "Unable to process request body: invalid length for parentId\n"},
+		{Span: zipkinProto.Span{Id: randBytesOfLen(4)}, StatusCode: http.StatusBadRequest, resBody: "Unable to process request body: invalid length for SpanID\n"},
+		{Span: zipkinProto.Span{Id: validID, TraceId: randBytesOfLen(32)}, StatusCode: http.StatusBadRequest, resBody: "Unable to process request body: invalid length for TraceID\n"},
+		{Span: zipkinProto.Span{Id: validID, TraceId: validTraceID, ParentId: randBytesOfLen(16)}, StatusCode: http.StatusBadRequest, resBody: "Unable to process request body: invalid length for SpanID\n"},
 		{Span: zipkinProto.Span{Id: validID, TraceId: validTraceID, LocalEndpoint: &zipkinProto.Endpoint{Ipv4: randBytesOfLen(2)}}, StatusCode: http.StatusBadRequest, resBody: "Unable to process request body: wrong Ipv4\n"},
 	}
 	for _, test := range tests {
