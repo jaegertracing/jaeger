@@ -175,7 +175,7 @@ func TestSpanIDUnmarshalJSONErrors(t *testing.T) {
 
 	err = id.UnmarshalJSONPB(nil, []byte(""))
 	require.Error(t, err)
-	assert.Contains(t, err.Error(), "buffer is too short")
+	assert.Contains(t, err.Error(), "invalid length for SpanID")
 	err = id.UnmarshalJSONPB(nil, []byte("123"))
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "illegal base64 data")

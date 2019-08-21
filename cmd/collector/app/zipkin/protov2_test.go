@@ -82,9 +82,9 @@ func TestIdErrs(t *testing.T) {
 		span   zipkinProto.Span
 		errMsg string
 	}{
-		{span: zipkinProto.Span{Id: randBytesOfLen(16)}, errMsg: "invalid length for Span ID"},
-		{span: zipkinProto.Span{Id: validID, TraceId: invalidTraceID}, errMsg: "invalid length for traceId"},
-		{span: zipkinProto.Span{Id: validID, TraceId: validTraceID, ParentId: invalidParentID}, errMsg: "invalid length for parentId"},
+		{span: zipkinProto.Span{Id: randBytesOfLen(16)}, errMsg: "invalid length for SpanID"},
+		{span: zipkinProto.Span{Id: validID, TraceId: invalidTraceID}, errMsg: "invalid length for TraceID"},
+		{span: zipkinProto.Span{Id: validID, TraceId: validTraceID, ParentId: invalidParentID}, errMsg: "invalid length for SpanID"},
 	}
 	for _, test := range tests {
 		_, err := protoSpanV2ToThrift(&test.span)
