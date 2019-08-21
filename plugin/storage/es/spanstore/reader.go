@@ -324,7 +324,6 @@ func (s *SpanReader) multiRead(ctx context.Context, traceIDs []model.TraceID, st
 	indices := s.timeRangeIndices(s.spanIndexPrefix, startTime.Add(-time.Hour), endTime.Add(time.Hour))
 	sAfterFields := searchAfterFields{
 		timestamp: model.TimeAsEpochMicroseconds(startTime.Add(-time.Hour)),
-		spanID:    "",
 	}
 
 	searchAfterTime := make(map[model.TraceID]searchAfterFields)
