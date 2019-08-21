@@ -110,7 +110,7 @@ func (q *BoundedQueue) Capacity() int {
 	return q.capacity
 }
 
-// StartLengthReporting starts a timer-based gorouting that periodically reports
+// StartLengthReporting starts a timer-based goroutine that periodically reports
 // current queue length to a given metrics gauge.
 func (q *BoundedQueue) StartLengthReporting(reportPeriod time.Duration, gauge metrics.Gauge) {
 	ticker := time.NewTicker(reportPeriod)
