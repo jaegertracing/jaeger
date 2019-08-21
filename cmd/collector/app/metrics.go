@@ -126,7 +126,7 @@ type SpanCountsByFormat map[SpanFormat]SpanCountsByTransport
 // SpanCountsByTransport groups metrics by inbound transport (e.g http, grpc, tchannel)
 type SpanCountsByTransport map[InboundTransport]SpanCounts
 
-// SpanCounts contains countrs for received and rejected spans.
+// SpanCounts contains counts for received and rejected spans.
 type SpanCounts struct {
 	// ReceivedBySvc maintain by-service metrics.
 	ReceivedBySvc metricsBySvc
