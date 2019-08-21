@@ -117,12 +117,9 @@ func (t *TraceID) MarshalTo(data []byte) (n int, err error) {
 
 // Unmarshal inflates this trace ID from binary representation. Called by protobuf serialization.
 func (t *TraceID) Unmarshal(data []byte) error {
-	if len(data) < 16 {
-		return fmt.Errorf("buffer is too short")
-	}
-	t.High = binary.BigEndian.Uint64(data[:8])
-	t.Low = binary.BigEndian.Uint64(data[8:])
-	return nil
+	var err error
+	*t, err = TraceIDFromBytes(data)
+	return err
 }
 
 func marshalBytes(dst []byte, src []byte) (n int, err error) {
@@ -183,11 +180,10 @@ func SpanIDFromString(s string) (SpanID, error) {
 
 // SpanIDFromBytes creates a SpandID from list of bytes
 func SpanIDFromBytes(data []byte) (SpanID, error) {
-	id := SpanID(0)
-	if err := id.Unmarshal(data); err != nil {
-		return SpanID(0), err
+	if len(data) != traceIDShortBytesLen {
+		return SpanID(0), fmt.Errorf("invalid length for SpanID")
 	}
-	return id, nil
+	return NewSpanID(binary.BigEndian.Uint64(data)), nil
 }
 
 // MarshalText is called by encoding/json, which we do not want people to use.
@@ -214,11 +210,9 @@ func (s *SpanID) MarshalTo(data []byte) (n int, err error) {
 
 // Unmarshal inflates span ID from a binary representation. Called by protobuf serialization.
 func (s *SpanID) Unmarshal(data []byte) error {
-	if len(data) != traceIDShortBytesLen {
-		return fmt.Errorf("invalid length for SpanID")
-	}
-	*s = NewSpanID(binary.BigEndian.Uint64(data))
-	return nil
+	var err error
+	*s, err = SpanIDFromBytes(data)
+	return err
 }
 
 // MarshalJSON converts span id into a base64 string enclosed in quotes.
