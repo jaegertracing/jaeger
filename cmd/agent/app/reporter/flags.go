@@ -45,6 +45,9 @@ const (
 
 	// MEMORY is the default reporter queue
 	MEMORY QueueType = "memory"
+
+	// DIRECT is the reporter queue for testing (no queue at all)
+	DIRECT QueueType = "direct"
 )
 
 // Type defines type of reporter.

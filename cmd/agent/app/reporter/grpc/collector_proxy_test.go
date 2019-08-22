@@ -25,6 +25,7 @@ import (
 	"go.uber.org/zap"
 	"google.golang.org/grpc"
 
+	"github.com/jaegertracing/jaeger/cmd/agent/app/reporter"
 	"github.com/jaegertracing/jaeger/proto-gen/api_v2"
 	"github.com/jaegertracing/jaeger/thrift-gen/jaeger"
 )
@@ -42,7 +43,7 @@ func TestMultipleCollectors(t *testing.T) {
 	defer s2.Stop()
 
 	mFactory := metricstest.NewFactory(time.Microsecond)
-	proxy, err := NewCollectorProxy(&ConnBuilder{CollectorHostPorts: []string{addr1.String(), addr2.String()}}, nil, mFactory, zap.NewNop())
+	proxy, err := NewCollectorProxy(&ConnBuilder{CollectorHostPorts: []string{addr1.String(), addr2.String()}}, &reporter.Options{QueueType: reporter.DIRECT}, mFactory, zap.NewNop())
 	require.NoError(t, err)
 	require.NotNil(t, proxy)
 	assert.NotNil(t, proxy.GetReporter())

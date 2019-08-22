@@ -28,6 +28,7 @@ import (
 	"google.golang.org/grpc/credentials"
 	yaml "gopkg.in/yaml.v2"
 
+	"github.com/jaegertracing/jaeger/cmd/agent/app/reporter"
 	"github.com/jaegertracing/jaeger/pkg/config/tlscfg"
 	"github.com/jaegertracing/jaeger/pkg/discovery"
 	"github.com/jaegertracing/jaeger/proto-gen/api_v2"
@@ -142,6 +143,10 @@ func TestProxyBuilder(t *testing.T) {
 			name: "should pass with insecure grpc connection",
 			grpcBuilder: &ConnBuilder{
 				CollectorHostPorts: []string{"localhost:0000"},
+				TLS:                true,
+				TLSCA:              "testdata/testCA.pem",
+				TLSCert:            "testdata/client.jaeger.io-client.pem",
+				TLSKey:             "testdata/client.jaeger.io-client-key.pem",
 			},
 			expectError: false,
 		},
@@ -173,7 +178,7 @@ func TestProxyBuilder(t *testing.T) {
 
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
-			proxy, err := NewCollectorProxy(test.grpcBuilder, nil, metrics.NullFactory, zap.NewNop())
+			proxy, err := NewCollectorProxy(test.grpcBuilder, &reporter.Options{}, metrics.NullFactory, zap.NewNop())
 			if test.expectError {
 				require.Error(t, err)
 			} else {
@@ -319,8 +324,8 @@ func TestProxyClientTLS(t *testing.T) {
 				TLS:                test.clientTLS,
 			}
 			proxy, err := NewCollectorProxy(
-				grpcBuilder,
-				nil,
+				test.grpcBuilder,
+				&reporter.Options{QueueType: reporter.DIRECT},
 				mFactory,
 				zap.NewNop())
 
