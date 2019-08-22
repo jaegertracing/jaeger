@@ -16,6 +16,7 @@
 package servers
 
 import (
+	"sync"
 	"testing"
 	"time"
 
@@ -24,7 +25,7 @@ import (
 	"github.com/stretchr/testify/require"
 	"github.com/uber/jaeger-lib/metrics/metricstest"
 
-	"github.com/jaegertracing/jaeger/cmd/agent/app/customtransports"
+	customtransport "github.com/jaegertracing/jaeger/cmd/agent/app/customtransports"
 	"github.com/jaegertracing/jaeger/cmd/agent/app/servers/thriftudp"
 	"github.com/jaegertracing/jaeger/cmd/agent/app/testutils"
 	"github.com/jaegertracing/jaeger/thrift-gen/agent"
@@ -32,23 +33,31 @@ import (
 )
 
 func TestTBufferedServer(t *testing.T) {
-	t.Run("processed", func(t *testing.T) {
-		testTBufferedServer(t, 10, false)
-	})
-	t.Run("dropped", func(t *testing.T) {
-		testTBufferedServer(t, 1, true)
-	})
-}
-
-func testTBufferedServer(t *testing.T, queueSize int, testDroppedPackets bool) {
 	metricsFactory := metricstest.NewFactory(0)
 
 	transport, err := thriftudp.NewTUDPServerTransport("127.0.0.1:0")
 	require.NoError(t, err)
 
 	maxPacketSize := 65000
-	server, err := NewTBufferedServer(transport, queueSize, maxPacketSize, metricsFactory)
+	server, err := NewTBufferedServer(transport, maxPacketSize, metricsFactory)
 	require.NoError(t, err)
+
+	inMemReporter := testutils.NewInMemoryReporter()
+	wg := sync.WaitGroup{}
+
+	pr := func(readBuf *ReadBuf) {
+		wg.Done()
+		assert.NotEqual(t, 0, len(readBuf.GetBytes()))
+		protoFact := athrift.NewTCompactProtocolFactory()
+		trans := &customtransport.TBufferedReadTransport{}
+		protocol := protoFact.GetProtocol(trans)
+		protocol.Transport().Write(readBuf.GetBytes())
+		handler := agent.NewAgentProcessor(inMemReporter)
+		handler.Process(protocol, protocol)
+	}
+
+	server.RegisterProcessor(pr)
+
 	go server.Serve()
 	defer server.Stop()
 	time.Sleep(10 * time.Millisecond) // wait for server to start serving
@@ -61,37 +70,20 @@ func testTBufferedServer(t *testing.T, queueSize int, testDroppedPackets bool) {
 	span := zipkincore.NewSpan()
 	span.Name = "span1"
 
+	wg.Add(1)
 	err = client.EmitZipkinBatch([]*zipkincore.Span{span})
 	require.NoError(t, err)
 
-	if testDroppedPackets {
-		// because queueSize == 1 for this test, and we're not reading from data chan,
-		// the second packet we send will be dropped by the server
-		err = client.EmitZipkinBatch([]*zipkincore.Span{span})
-		require.NoError(t, err)
+	waitChan := make(chan struct{})
 
-		for i := 0; i < 50; i++ {
-			c, _ := metricsFactory.Snapshot()
-			if c["thrift.udp.server.packets.dropped"] == 1 {
-				return
-			}
-			time.Sleep(time.Millisecond)
-		}
-		c, _ := metricsFactory.Snapshot()
-		assert.FailNow(t, "Dropped packets counter not incremented", "Counters: %+v", c)
-	}
+	go func() {
+		wg.Wait()
+		close(waitChan)
+	}()
 
-	inMemReporter := testutils.NewInMemoryReporter()
 	select {
-	case readBuf := <-server.DataChan():
-		assert.NotEqual(t, 0, len(readBuf.GetBytes()))
-		protoFact := athrift.NewTCompactProtocolFactory()
-		trans := &customtransport.TBufferedReadTransport{}
-		protocol := protoFact.GetProtocol(trans)
-		protocol.Transport().Write(readBuf.GetBytes())
-		server.DataRecd(readBuf)
-		handler := agent.NewAgentProcessor(inMemReporter)
-		handler.Process(protocol, protocol)
+	case <-waitChan:
+		break
 	case <-time.After(time.Second * 1):
 		t.Fatalf("Server should have received span submission")
 	}
@@ -102,10 +94,8 @@ func testTBufferedServer(t *testing.T, queueSize int, testDroppedPackets bool) {
 	// server must emit metrics
 	metricsFactory.AssertCounterMetrics(t,
 		metricstest.ExpectedMetric{Name: "thrift.udp.server.packets.processed", Value: 1},
-		metricstest.ExpectedMetric{Name: "thrift.udp.server.packets.dropped", Value: 0},
 	)
 	metricsFactory.AssertGaugeMetrics(t,
 		metricstest.ExpectedMetric{Name: "thrift.udp.server.packet_size", Value: 38},
-		metricstest.ExpectedMetric{Name: "thrift.udp.server.queue_size", Value: 0},
 	)
 }

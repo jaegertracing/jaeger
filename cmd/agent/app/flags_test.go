@@ -48,6 +48,4 @@ func TestBindFlags(t *testing.T) {
 	assert.Equal(t, ":8080", b.HTTPServer.HostPort)
 	assert.Equal(t, ":1111", b.Processors[2].Server.HostPort)
 	assert.Equal(t, 4242, b.Processors[2].Server.MaxPacketSize)
-	assert.Equal(t, 42, b.Processors[2].Server.QueueSize)
-	assert.Equal(t, 42, b.Processors[2].Workers)
 }

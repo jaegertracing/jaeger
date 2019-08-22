@@ -83,6 +83,7 @@ func (s *TBufferedServer) Serve() {
 			readBuf.n = n
 			s.metrics.PacketSize.Update(int64(n))
 			go func() {
+				s.metrics.PacketsProcessed.Inc(1)
 				s.processor(readBuf)
 				s.readBufPool.Put(readBuf)
 			}()

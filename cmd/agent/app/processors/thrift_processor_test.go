@@ -55,13 +55,11 @@ func createProcessor(t *testing.T, mFactory metrics.Factory, tFactory thrift.TPr
 	transport, err := thriftudp.NewTUDPServerTransport("127.0.0.1:0")
 	require.NoError(t, err)
 
-	queueSize := 10
 	maxPacketSize := 65000
-	server, err := servers.NewTBufferedServer(transport, queueSize, maxPacketSize, mFactory)
+	server, err := servers.NewTBufferedServer(transport, maxPacketSize, mFactory)
 	require.NoError(t, err)
 
-	numProcessors := 1
-	processor, err := NewThriftProcessor(server, numProcessors, mFactory, tFactory, handler, zap.NewNop())
+	processor, err := NewThriftProcessor(server, mFactory, tFactory, handler, zap.NewNop())
 	require.NoError(t, err)
 
 	go processor.Serve()
@@ -78,13 +76,10 @@ func createProcessor(t *testing.T, mFactory metrics.Factory, tFactory thrift.TPr
 
 func initCollectorAndReporter(t *testing.T) (*metricstest.Factory, *testutils.MockTCollector, reporter.Reporter) {
 	metricsFactory, collector := testutils.InitMockCollector(t)
-	reporter := reporter.WrapWithMetrics(tchreporter.New("jaeger-collector", collector.Channel, time.Second, nil, zap.NewNop()), metricsFactory)
-	return metricsFactory, collector, reporter
-}
 
-func TestNewThriftProcessor_ZeroCount(t *testing.T) {
-	_, err := NewThriftProcessor(nil, 0, nil, nil, nil, zap.NewNop())
-	assert.EqualError(t, err, "number of processors must be greater than 0, called with 0")
+	reporter := reporter.WrapWithQueue(&reporter.Options{QueueType: reporter.DIRECT}, tchreporter.New("jaeger-collector", collector.Channel, time.Second, nil, zap.NewNop()), zap.NewNop(), metricsFactory)
+
+	return metricsFactory, collector, reporter
 }
 
 func TestProcessorWithCompactZipkin(t *testing.T) {

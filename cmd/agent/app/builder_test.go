@@ -78,9 +78,7 @@ func TestBuilderFromConfig(t *testing.T) {
 	assert.Equal(t, ProcessorConfiguration{
 		Model:    zipkinModel,
 		Protocol: compactProtocol,
-		Workers:  10,
 		Server: ServerConfiguration{
-			QueueSize:     1000,
 			MaxPacketSize: 65000,
 			HostPort:      "1.1.1.1:5775",
 		},
@@ -88,9 +86,7 @@ func TestBuilderFromConfig(t *testing.T) {
 	assert.Equal(t, ProcessorConfiguration{
 		Model:    jaegerModel,
 		Protocol: compactProtocol,
-		Workers:  10,
 		Server: ServerConfiguration{
-			QueueSize:     1000,
 			MaxPacketSize: 65000,
 			HostPort:      "2.2.2.2:6831",
 		},
@@ -98,9 +94,7 @@ func TestBuilderFromConfig(t *testing.T) {
 	assert.Equal(t, ProcessorConfiguration{
 		Model:    jaegerModel,
 		Protocol: binaryProtocol,
-		Workers:  20,
 		Server: ServerConfiguration{
-			QueueSize:     2000,
 			MaxPacketSize: 65001,
 			HostPort:      "3.3.3.3:6832",
 		},
@@ -125,7 +119,7 @@ func TestBuilderWithProcessorErrors(t *testing.T) {
 	}{
 		{protocol: Protocol("bad"), err: "cannot find protocol factory for protocol bad"},
 		{protocol: compactProtocol, model: Model("bad"), err: "cannot find agent processor for data model bad"},
-		{protocol: compactProtocol, model: jaegerModel, err: "no host:port provided for udp server: {QueueSize:1000 MaxPacketSize:65000 HostPort:}"},
+		{protocol: compactProtocol, model: jaegerModel, err: "no host:port provided for udp server: {MaxPacketSize:65000 HostPort:}"},
 		{protocol: compactProtocol, model: zipkinModel, hostPort: "bad-host-port", errContains: "bad-host-port"},
 	}
 	for _, tc := range testCases {
@@ -217,13 +211,14 @@ func TestCreateCollectorProxy(t *testing.T) {
 			flags:  []string{"--reporter.type=grpc", "--collector.host-port=foo"},
 			metric: metricstest.ExpectedMetric{Name: "reporter.batches.failures", Tags: map[string]string{"protocol": "tchannel", "format": "jaeger"}, Value: 1},
 		},
+		// grpc.host-port=foo actually returns a transient error (Unavailable) and as such will be retried
 		{
 			flags:  []string{"--reporter.type=grpc", "--reporter.grpc.host-port=foo", "--collector.host-port=foo"},
-			metric: metricstest.ExpectedMetric{Name: "reporter.batches.failures", Tags: map[string]string{"protocol": "grpc", "format": "jaeger"}, Value: 1},
+			metric: metricstest.ExpectedMetric{Name: "reporter.batches.retries", Tags: map[string]string{"protocol": "grpc", "format": "jaeger"}, Value: 1},
 		},
 		{
 			flags:  []string{"--reporter.type=grpc", "--reporter.grpc.host-port=foo"},
-			metric: metricstest.ExpectedMetric{Name: "reporter.batches.failures", Tags: map[string]string{"protocol": "grpc", "format": "jaeger"}, Value: 1},
+			metric: metricstest.ExpectedMetric{Name: "reporter.batches.retries", Tags: map[string]string{"protocol": "grpc", "format": "jaeger"}, Value: 1},
 		},
 	}
 
@@ -247,12 +242,21 @@ func TestCreateCollectorProxy(t *testing.T) {
 
 		metricsFactory := metricstest.NewFactory(time.Microsecond)
 		proxy, err := CreateCollectorProxy(rOpts, tchan, grpcBuilder, zap.NewNop(), metricsFactory)
+
 		if test.err != "" {
 			assert.EqualError(t, err, test.err)
 			assert.Nil(t, proxy)
 		} else {
 			require.NoError(t, err)
 			proxy.GetReporter().EmitBatch(jaeger.NewBatch())
+			tries := 0
+
+			counters, _ := metricsFactory.Snapshot()
+			for counters[metrics.GetKey(test.metric.Name, test.metric.Tags, "|", "=")] != int64(test.metric.Value) && tries < 64 {
+				time.Sleep(10 * time.Millisecond)
+				counters, _ = metricsFactory.Snapshot()
+				tries++
+			}
 			metricsFactory.AssertCounterMetrics(t, test.metric)
 		}
 	}

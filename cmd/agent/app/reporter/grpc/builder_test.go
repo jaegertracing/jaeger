@@ -29,6 +29,7 @@ import (
 	"google.golang.org/grpc/credentials"
 	yaml "gopkg.in/yaml.v2"
 
+	"github.com/jaegertracing/jaeger/cmd/agent/app/reporter"
 	"github.com/jaegertracing/jaeger/cmd/collector/app/grpcserver"
 	"github.com/jaegertracing/jaeger/pkg/discovery"
 	"github.com/jaegertracing/jaeger/proto-gen/api_v2"
@@ -194,7 +195,7 @@ func TestProxyBuilder(t *testing.T) {
 
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
-			proxy, err := NewCollectorProxy(test.grpcBuilder, nil, metrics.NullFactory, zap.NewNop())
+			proxy, err := NewCollectorProxy(test.grpcBuilder, &reporter.Options{}, metrics.NullFactory, zap.NewNop())
 			if test.expectError {
 				require.Error(t, err)
 			} else {
@@ -339,7 +340,7 @@ func TestProxyClientTLS(t *testing.T) {
 			test.grpcBuilder.CollectorHostPorts = []string{net.JoinHostPort("localhost", port)}
 			proxy, err := NewCollectorProxy(
 				test.grpcBuilder,
-				nil,
+				&reporter.Options{QueueType: reporter.DIRECT},
 				mFactory,
 				zap.NewNop())
 

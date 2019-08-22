@@ -21,6 +21,7 @@ import (
 
 	"github.com/stretchr/testify/require"
 	"github.com/uber/jaeger-lib/metrics/metricstest"
+	"go.uber.org/zap"
 
 	"github.com/jaegertracing/jaeger/thrift-gen/jaeger"
 	"github.com/jaegertracing/jaeger/thrift-gen/zipkincore"
@@ -46,7 +47,7 @@ func TestMetricsReporter(t *testing.T) {
 		rep              *noopReporter
 	}{
 		{expectedCounters: []metricstest.ExpectedMetric{
-			{Name: "reporter.batches.submitted", Tags: map[string]string{"format": "jaeger"}, Value: 1},
+			{Name: "reporter.batches.submitted", Tags: map[string]string{"format": "jaeger"}, Value: 0},
 			{Name: "reporter.batches.failures", Tags: map[string]string{"format": "jaeger"}, Value: 0},
 			{Name: "reporter.spans.submitted", Tags: map[string]string{"format": "jaeger"}, Value: 0},
 			{Name: "reporter.spans.failures", Tags: map[string]string{"format": "jaeger"}, Value: 0},
@@ -113,7 +114,7 @@ func TestMetricsReporter(t *testing.T) {
 
 	for _, test := range tests {
 		metricsFactory := metricstest.NewFactory(time.Microsecond)
-		r := WrapWithMetrics(test.rep, metricsFactory)
+		r := WrapWithQueue(&Options{QueueType: DIRECT}, test.rep, zap.NewNop(), metricsFactory)
 		test.action(r)
 		metricsFactory.AssertCounterMetrics(t, test.expectedCounters...)
 		metricsFactory.AssertGaugeMetrics(t, test.expectedGauges...)
