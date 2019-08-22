@@ -31,7 +31,7 @@ const dependenciesMapping7 = `{
    "mappings":{}
 }`
 
-func getMapping(version int) string {
+func getMapping(version uint) string {
 	if version == 7 {
 		return dependenciesMapping7
 	}

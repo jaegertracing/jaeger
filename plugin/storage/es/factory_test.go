@@ -52,7 +52,7 @@ func (m *mockClientBuilder) NewClient(logger *zap.Logger, metricsFactory metrics
 		tService.On("Body", mock.Anything).Return(tService)
 		tService.On("Do", context.Background()).Return(nil, m.createTemplateError)
 		c.On("CreateTemplate", mock.Anything).Return(tService)
-		c.On("GetVersion").Return(6)
+		c.On("GetVersion").Return(uint(6))
 		return c, nil
 	}
 	return nil, m.err

@@ -29,16 +29,16 @@ import (
 type ClientWrapper struct {
 	client      *elastic.Client
 	bulkService *elastic.BulkProcessor
-	esVersion   int
+	esVersion   uint
 }
 
 // GetVersion returns the ElasticSearch Version
-func (c ClientWrapper) GetVersion() int {
+func (c ClientWrapper) GetVersion() uint {
 	return c.esVersion
 }
 
 // WrapESClient creates a ESClient out of *elastic.Client.
-func WrapESClient(client *elastic.Client, s *elastic.BulkProcessor, esVersion int) ClientWrapper {
+func WrapESClient(client *elastic.Client, s *elastic.BulkProcessor, esVersion uint) ClientWrapper {
 	return ClientWrapper{client: client, bulkService: s, esVersion: esVersion}
 }
 
@@ -152,11 +152,11 @@ func (c TemplateCreateServiceWrapper) Do(ctx context.Context) (*elastic.IndicesP
 type IndexServiceWrapper struct {
 	bulkIndexReq *elastic.BulkIndexRequest
 	bulkService  *elastic.BulkProcessor
-	esVersion    int
+	esVersion    uint
 }
 
 // WrapESIndexService creates an ESIndexService out of *elastic.ESIndexService.
-func WrapESIndexService(indexService *elastic.BulkIndexRequest, bulkService *elastic.BulkProcessor, esVersion int) IndexServiceWrapper {
+func WrapESIndexService(indexService *elastic.BulkIndexRequest, bulkService *elastic.BulkProcessor, esVersion uint) IndexServiceWrapper {
 	return IndexServiceWrapper{bulkIndexReq: indexService, bulkService: bulkService, esVersion: esVersion}
 }
 
