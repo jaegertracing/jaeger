@@ -80,8 +80,12 @@ def perform_action(action, client, write_alias, read_alias, index_to_rollover, t
     if action == 'init':
         shards = os.getenv('SHARDS', SHARDS)
         replicas = os.getenv('REPLICAS', REPLICAS)
-        mapping = Path('./mappings/'+template_name+'.json').read_text()
-        create_index_template(fix_mapping(mapping, shards, replicas), template_name)
+        esVersion = get_version(client)
+        if esVersion == 7:
+            mapping = Path('./mappings/'+template_name+'-7.json').read_text()
+        else:
+            mapping = Path('./mappings/'+template_name+'.json').read_text()
+        create_index_template(fix_mapping(mapping, shards, replicas), template_name, esVersion)
 
         index = index_to_rollover + '-000001'
         create_index(client, index)
@@ -99,7 +103,7 @@ def perform_action(action, client, write_alias, read_alias, index_to_rollover, t
         sys.exit(1)
 
 
-def create_index_template(template, template_name):
+def create_index_template(template, template_name, esVersion):
     print('Creating index template {}'.format(template_name))
     headers = {'Content-Type': 'application/json'}
     s = get_request_session(os.getenv("ES_USERNAME"), os.getenv("ES_PASSWORD"), str2bool(os.getenv("ES_TLS", 'false')), os.getenv("ES_TLS_CA"), os.getenv("ES_TLS_CERT"), os.getenv("ES_TLS_KEY"))
@@ -205,6 +209,12 @@ def get_request_session(username, password, tls, ca, cert, key):
         session.verify = ca
         session.cert = (cert, key)
     return session
+
+
+def get_version(client):
+    esVersion = client.info()['version']['number'][0]
+    print('Detected ElasticSearch Version {}'.format(esVersion))
+    return int(esVersion)
 
 
 if __name__ == "__main__":

@@ -71,6 +71,20 @@ func (_m *Client) CreateTemplate(id string) es.TemplateCreateService {
 	return r0
 }
 
+// GetVersion provides a mock function with given fields:
+func (_m *Client) GetVersion() int {
+	ret := _m.Called()
+
+	var r0 int
+	if rf, ok := ret.Get(0).(func() int); ok {
+		r0 = rf()
+	} else {
+		r0 = ret.Get(0).(int)
+	}
+
+	return r0
+}
+
 // Index provides a mock function with given fields:
 func (_m *Client) Index() es.IndexService {
 	ret := _m.Called()

@@ -18,7 +18,7 @@
 package mocks
 
 import context "context"
-import elastic "gopkg.in/olivere/elastic.v5"
+import elastic "github.com/olivere/elastic"
 import es "github.com/jaegertracing/jaeger/pkg/es"
 import mock "github.com/stretchr/testify/mock"
 

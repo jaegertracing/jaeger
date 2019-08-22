@@ -25,13 +25,13 @@ import (
 	"testing"
 	"time"
 
+	"github.com/olivere/elastic"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
 	"github.com/stretchr/testify/require"
 	"github.com/uber/jaeger-lib/metrics"
 	"github.com/uber/jaeger-lib/metrics/metricstest"
 	"go.uber.org/zap"
-	"gopkg.in/olivere/elastic.v5"
 
 	"github.com/jaegertracing/jaeger/model"
 	"github.com/jaegertracing/jaeger/pkg/es/mocks"
@@ -219,16 +219,13 @@ func TestSpanReader_multiRead_followUp_query(t *testing.T) {
 		id1Query := elastic.NewTermQuery("traceID", model.TraceID{High: 0, Low: 1}.String())
 		id1Search := elastic.NewSearchRequest().
 			IgnoreUnavailable(true).
-			Type(spanType).
 			Source(r.reader.sourceFn(id1Query, model.TimeAsEpochMicroseconds(now.Add(-time.Hour))))
 		id2Query := elastic.NewTermQuery("traceID", model.TraceID{High: 0, Low: 2}.String())
 		id2Search := elastic.NewSearchRequest().
 			IgnoreUnavailable(true).
-			Type(spanType).
 			Source(r.reader.sourceFn(id2Query, model.TimeAsEpochMicroseconds(now.Add(-time.Hour))))
 		id1SearchSpanTime := elastic.NewSearchRequest().
 			IgnoreUnavailable(true).
-			Type(spanType).
 			Source(r.reader.sourceFn(id1Query, spanID1.StartTime))
 
 		multiSearchService := &mocks.MultiSearchService{}
@@ -819,8 +816,6 @@ func mockArchiveMultiSearchService(r *spanReaderTest, indexName string) *mock.Ca
 
 func mockSearchService(r *spanReaderTest) *mock.Call {
 	searchService := &mocks.SearchService{}
-	searchService.On("Type", stringMatcher(serviceType)).Return(searchService)
-	searchService.On("Type", stringMatcher(spanType)).Return(searchService)
 	searchService.On("Query", mock.Anything).Return(searchService)
 	searchService.On("IgnoreUnavailable", mock.AnythingOfType("bool")).Return(searchService)
 	searchService.On("Size", mock.MatchedBy(func(i int) bool {

@@ -19,7 +19,7 @@ import (
 	"context"
 	"io"
 
-	"gopkg.in/olivere/elastic.v5"
+	"github.com/olivere/elastic"
 )
 
 // Client is an abstraction for elastic.Client
@@ -31,6 +31,7 @@ type Client interface {
 	Search(indices ...string) SearchService
 	MultiSearch() MultiSearchService
 	io.Closer
+	GetVersion() int
 }
 
 // IndicesExistsService is an abstraction for elastic.IndicesExistsService
@@ -61,7 +62,6 @@ type IndexService interface {
 
 // SearchService is an abstraction for elastic.SearchService
 type SearchService interface {
-	Type(typ string) SearchService
 	Size(size int) SearchService
 	Aggregation(name string, aggregation elastic.Aggregation) SearchService
 	IgnoreUnavailable(ignoreUnavailable bool) SearchService

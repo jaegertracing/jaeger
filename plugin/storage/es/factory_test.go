@@ -52,6 +52,7 @@ func (m *mockClientBuilder) NewClient(logger *zap.Logger, metricsFactory metrics
 		tService.On("Body", mock.Anything).Return(tService)
 		tService.On("Do", context.Background()).Return(nil, m.createTemplateError)
 		c.On("CreateTemplate", mock.Anything).Return(tService)
+		c.On("GetVersion").Return(6)
 		return c, nil
 	}
 	return nil, m.err
@@ -135,13 +136,19 @@ func TestLoadTagsFromFile(t *testing.T) {
 }
 
 func TestFactory_LoadMapping(t *testing.T) {
-	spanMapping, serviceMapping := GetMappings(10, 0)
+	spanMapping5, serviceMapping5 := GetMappings(10, 0, 5)
+	spanMapping6, serviceMapping6 := GetMappings(10, 0, 6)
+	spanMapping7, serviceMapping7 := GetMappings(10, 0, 7)
 	tests := []struct {
 		name   string
 		toTest string
 	}{
-		{name: "/jaeger-span.json", toTest: spanMapping},
-		{name: "/jaeger-service.json", toTest: serviceMapping},
+		{name: "/jaeger-span.json", toTest: spanMapping5},
+		{name: "/jaeger-service.json", toTest: serviceMapping5},
+		{name: "/jaeger-span.json", toTest: spanMapping6},
+		{name: "/jaeger-service.json", toTest: serviceMapping6},
+		{name: "/jaeger-span-7.json", toTest: spanMapping7},
+		{name: "/jaeger-service-7.json", toTest: serviceMapping7},
 	}
 	for _, test := range tests {
 		mapping := loadMapping(test.name)

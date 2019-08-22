@@ -18,7 +18,7 @@
 package mocks
 
 import context "context"
-import elastic "gopkg.in/olivere/elastic.v5"
+import elastic "github.com/olivere/elastic"
 import es "github.com/jaegertracing/jaeger/pkg/es"
 import mock "github.com/stretchr/testify/mock"
 
@@ -105,22 +105,6 @@ func (_m *SearchService) Size(size int) es.SearchService {
 	var r0 es.SearchService
 	if rf, ok := ret.Get(0).(func(int) es.SearchService); ok {
 		r0 = rf(size)
-	} else {
-		if ret.Get(0) != nil {
-			r0 = ret.Get(0).(es.SearchService)
-		}
-	}
-
-	return r0
-}
-
-// Type provides a mock function with given fields: typ
-func (_m *SearchService) Type(typ string) es.SearchService {
-	ret := _m.Called(typ)
-
-	var r0 es.SearchService
-	if rf, ok := ret.Get(0).(func(string) es.SearchService); ok {
-		r0 = rf(typ)
 	} else {
 		if ret.Get(0) != nil {
 			r0 = ret.Get(0).(es.SearchService)

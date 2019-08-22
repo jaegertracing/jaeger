@@ -656,6 +656,18 @@
   version = "v1.0.0"
 
 [[projects]]
+  digest = "1:c2d643e8b2c25cf18d6e1237233df6457729d9491bbad6fa9598cad8d01466a6"
+  name = "github.com/olivere/elastic"
+  packages = [
+    ".",
+    "config",
+    "uritemplates",
+  ]
+  pruneopts = "UT"
+  revision = "8ebe6a0fc23d9d53fbd8890da8ae7ee7cea78dbe"
+  version = "v6.2.22"
+
+[[projects]]
   branch = "master"
   digest = "1:bccaead3121ab7964fd80fab704f612e5893fb5a2c581d520ec847ed8cfac27e"
   name = "github.com/opentracing-contrib/go-stdlib"
@@ -1222,18 +1234,6 @@
   version = "v1.1.0"
 
 [[projects]]
-  digest = "1:9a1d716749c77399bfa71792d77eef3278586423947f3431dbac6d6049c24787"
-  name = "gopkg.in/olivere/elastic.v5"
-  packages = [
-    ".",
-    "config",
-    "uritemplates",
-  ]
-  pruneopts = "UT"
-  revision = "f72acaba629a7ec879103d17b7426a31bc38e199"
-  version = "v5.0.80"
-
-[[projects]]
   digest = "1:4d2e5a73dc1500038e504a8d78b986630e3626dc027bc030ba5c75da257cdb96"
   name = "gopkg.in/yaml.v2"
   packages = ["."]
@@ -1309,6 +1309,7 @@
     "github.com/hashicorp/go-hclog",
     "github.com/hashicorp/go-plugin",
     "github.com/kr/pretty",
+    "github.com/olivere/elastic",
     "github.com/opentracing-contrib/go-stdlib/nethttp",
     "github.com/opentracing/opentracing-go",
     "github.com/opentracing/opentracing-go/ext",
@@ -1361,7 +1362,6 @@
     "google.golang.org/grpc/status",
     "google.golang.org/grpc/test/bufconn",
     "google.golang.org/grpc/test/grpc_testing",
-    "gopkg.in/olivere/elastic.v5",
     "gopkg.in/yaml.v2",
     "honnef.co/go/tools/cmd/staticcheck",
   ]

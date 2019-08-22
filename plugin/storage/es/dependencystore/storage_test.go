@@ -21,11 +21,11 @@ import (
 	"testing"
 	"time"
 
+	"github.com/olivere/elastic"
 	"github.com/pkg/errors"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
 	"go.uber.org/zap"
-	"gopkg.in/olivere/elastic.v5"
 
 	"github.com/jaegertracing/jaeger/model"
 	"github.com/jaegertracing/jaeger/pkg/es/mocks"
@@ -76,12 +76,18 @@ func TestWriteDependencies(t *testing.T) {
 		createIndexError error
 		writeError       error
 		expectedError    string
+		esVersion        int
 	}{
 		{
 			createIndexError: errors.New("index not created"),
 			expectedError:    "Failed to create index: index not created",
+			esVersion:        6,
 		},
-		{},
+		{
+			createIndexError: errors.New("index not created"),
+			expectedError:    "Failed to create index: index not created",
+			esVersion:        7,
+		},
 	}
 	for _, testCase := range testCases {
 		withDepStorage("", func(r *depStorageTest) {
@@ -91,9 +97,14 @@ func TestWriteDependencies(t *testing.T) {
 			indexService := &mocks.IndicesCreateService{}
 			writeService := &mocks.IndexService{}
 			r.client.On("Index").Return(writeService)
+			r.client.On("GetVersion").Return(testCase.esVersion)
 			r.client.On("CreateIndex", stringMatcher(indexName)).Return(indexService)
 
-			indexService.On("Body", stringMatcher(dependenciesMapping)).Return(indexService)
+			if testCase.esVersion == 7 {
+				indexService.On("Body", stringMatcher(dependenciesMapping7)).Return(indexService)
+			} else {
+				indexService.On("Body", stringMatcher(dependenciesMapping)).Return(indexService)
+			}
 			indexService.On("Do", mock.Anything).Return(nil, testCase.createIndexError)
 
 			writeService.On("Index", stringMatcher(indexName)).Return(writeService)
@@ -168,7 +179,6 @@ func TestGetDependencies(t *testing.T) {
 			searchService := &mocks.SearchService{}
 			r.client.On("Search", testCase.indices...).Return(searchService)
 
-			searchService.On("Type", stringMatcher(dependencyType)).Return(searchService)
 			searchService.On("Size", mock.Anything).Return(searchService)
 			searchService.On("Query", mock.Anything).Return(searchService)
 			searchService.On("IgnoreUnavailable", mock.AnythingOfType("bool")).Return(searchService)

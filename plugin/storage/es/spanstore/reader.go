@@ -22,13 +22,13 @@ import (
 	"fmt"
 	"time"
 
+	"github.com/olivere/elastic"
 	"github.com/opentracing/opentracing-go"
 	ottag "github.com/opentracing/opentracing-go/ext"
 	otlog "github.com/opentracing/opentracing-go/log"
 	"github.com/pkg/errors"
 	"github.com/uber/jaeger-lib/metrics"
 	"go.uber.org/zap"
-	"gopkg.in/olivere/elastic.v5"
 
 	"github.com/jaegertracing/jaeger/model"
 	"github.com/jaegertracing/jaeger/pkg/es"
@@ -333,7 +333,6 @@ func (s *SpanReader) multiRead(ctx context.Context, traceIDs []model.TraceID, st
 
 			searchRequests[i] = elastic.NewSearchRequest().
 				IgnoreUnavailable(true).
-				Type(spanType).
 				Source(s)
 		}
 		// set traceIDs to empty
@@ -476,7 +475,6 @@ func (s *SpanReader) findTraceIDs(ctx context.Context, traceQuery *spanstore.Tra
 	jaegerIndices := s.timeRangeIndices(s.spanIndexPrefix, traceQuery.StartTimeMin, traceQuery.StartTimeMax)
 
 	searchService := s.client.Search(jaegerIndices...).
-		Type(spanType).
 		Size(0). // set to 0 because we don't want actual documents.
 		Aggregation(traceIDAggregation, aggregation).
 		IgnoreUnavailable(true).

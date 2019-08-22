@@ -20,12 +20,15 @@ import (
 	"context"
 	"encoding/json"
 	"net/http"
+	"os"
+	"os/exec"
 	"strings"
 	"testing"
+	"time"
 
+	"github.com/olivere/elastic"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-	"gopkg.in/olivere/elastic.v5"
 )
 
 const bearerToken = "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9.eyJzdWIiOiJhZG1pbiIsIm5hbWUiOiJKb2huIERvZSIsImlhdCI"
@@ -37,6 +40,16 @@ type esTokenPropagationTestHandler struct {
 }
 
 func (h *esTokenPropagationTestHandler) ServeHTTP(w http.ResponseWriter, r *http.Request) {
+	// Return the elasticsearch version
+	if r.URL.Path == "/" {
+		ret := new(elastic.PingResult)
+		ret.Version.Number = "7.3.0"
+		json_ret, _ := json.Marshal(ret)
+		w.Header().Add("Content-Type", "application/json; charset=UTF-8")
+		w.Write(json_ret)
+		return
+	}
+
 	authValue := r.Header.Get("Authorization")
 	if authValue != "" {
 		headerValue := strings.Split(authValue, " ")
@@ -89,6 +102,19 @@ func TestBearTokenPropagation(t *testing.T) {
 	defer srv.Shutdown(context.Background())
 
 	go createElasticSearchMock(srv, t)
+	// Wait for http server to start
+	time.Sleep(100 * time.Millisecond)
+
+	// Path relative to plugin/storage/integration/token_propagation_test.go
+	cmd := exec.Command("../../../cmd/query/query-linux", "--es.server-urls=http://127.0.0.1:9200", "--es.tls=false", "--query.bearer-token-propagation=true")
+	cmd.Env = []string{"SPAN_STORAGE_TYPE=elasticsearch"}
+	cmd.Stdout = os.Stdout
+	cmd.Stderr = os.Stderr
+	err := cmd.Start()
+	assert.NoError(t, err)
+
+	// Wait for query service to start
+	time.Sleep(100 * time.Millisecond)
 
 	// Test cases.
 	for _, testCase := range testCases {
@@ -104,4 +130,6 @@ func TestBearTokenPropagation(t *testing.T) {
 			assert.Equal(t, resp.StatusCode, http.StatusOK)
 		}
 	}
+
+	cmd.Process.Kill()
 }
