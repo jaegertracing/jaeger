@@ -97,7 +97,7 @@ func NewOptions(primaryNamespace string, otherNamespaces ...string) *Options {
 				TagDotReplacement:    "@",
 				Enabled:              true,
 				CreateIndexTemplates: true,
-				Version: 0,
+				Version:              0,
 			},
 			servers:   "http://127.0.0.1:9200",
 			namespace: primaryNamespace,
@@ -226,7 +226,7 @@ func addFlags(flagSet *flag.FlagSet, nsConfig *namespaceConfig) {
 	flagSet.Uint(
 		nsConfig.namespace+suffixVersion,
 		0,
-		"The major Elasticsearch version. The not specified value enables auto-detection from Elasticsearch API.")
+		"The major Elasticsearch version. If not specified, the value will be auto-detected from Elasticsearch.")
 	if nsConfig.namespace == archiveNamespace {
 		flagSet.Bool(
 			nsConfig.namespace+suffixEnabled,

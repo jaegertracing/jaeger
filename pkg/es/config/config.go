@@ -63,7 +63,7 @@ type Configuration struct {
 	TLS                   TLSConfig
 	UseReadWriteAliases   bool
 	CreateIndexTemplates  bool
-	Version  uint
+	Version               uint
 }
 
 // TLSConfig describes the configuration properties to connect tls enabled ElasticSearch cluster
