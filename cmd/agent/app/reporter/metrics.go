@@ -47,10 +47,10 @@ type batchMetrics struct {
 	BatchesRetries metrics.Counter `metric:"batches.retries"`
 
 	// Current queue size for reporter
-	QueueSize metrics.Gauge `metric:"reporter.queuesize"`
+	QueueSize metrics.Gauge `metric:"queuesize"`
 
 	// Current waiting time for reporter failures
-	RetryInterval metrics.Gauge `metric:"reporter.retry-interval-ns"`
+	RetryInterval metrics.Gauge `metric:"retry-interval-ns"`
 }
 
 // MetricsReporter is reporter with metrics integration.

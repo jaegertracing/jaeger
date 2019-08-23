@@ -120,3 +120,29 @@ func TestMetricsReporter(t *testing.T) {
 		metricsFactory.AssertGaugeMetrics(t, test.expectedGauges...)
 	}
 }
+
+func TestMetricsReporterDeprecated(t *testing.T) {
+	expectedCounters := []metricstest.ExpectedMetric{
+		{Name: "reporter.batches.submitted", Tags: map[string]string{"format": "jaeger"}, Value: 0},
+		{Name: "reporter.batches.failures", Tags: map[string]string{"format": "jaeger"}, Value: 1},
+		{Name: "reporter.spans.submitted", Tags: map[string]string{"format": "jaeger"}, Value: 0},
+		{Name: "reporter.spans.failures", Tags: map[string]string{"format": "jaeger"}, Value: 1},
+	}
+	expectedGauge :=
+		metricstest.ExpectedMetric{
+			Name: "reporter.batch_size", Tags: map[string]string{"format": "jaeger"}, Value: 0}
+	action :=
+		func(reporter Reporter) {
+			err := reporter.EmitBatch(&jaeger.Batch{Spans: []*jaeger.Span{{}}})
+			require.Error(t, err)
+		}
+	rep :=
+		&noopReporter{err: errors.New("foo")}
+
+	metricsFactory := metricstest.NewFactory(time.Microsecond)
+	r := NewMetricsReporter(rep, metricsFactory)
+	action(r)
+	metricsFactory.AssertCounterMetrics(t, expectedCounters...)
+	metricsFactory.AssertGaugeMetrics(t, expectedGauge)
+
+}

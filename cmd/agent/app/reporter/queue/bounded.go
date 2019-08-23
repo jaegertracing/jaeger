@@ -30,7 +30,7 @@ type queueMetrics struct {
 	QueueSize metrics.Gauge `metric:"boundqueue.queuesize"`
 
 	// BatchesDropped indicates the number of batches dropped by server
-	BatchesDropped metrics.Counter `metric:"reporter.batches.dropped"`
+	BatchesDropped metrics.Counter `metric:"batches.dropped"`
 }
 
 type Bound struct {
@@ -67,7 +67,7 @@ func (b *Bound) droppedItem(item interface{}) {
 func (b *Bound) Enqueue(batch *jaeger.Batch) error {
 	success := b.queue.Produce(batch)
 	if !success {
-		return fmt.Errorf("Destination queue could not accept new entries")
+		return fmt.Errorf("destination queue could not accept new entries")
 	}
 	return nil
 }
