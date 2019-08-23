@@ -27,6 +27,8 @@ const (
 	SampledFlag = Flags(1)
 	// DebugFlag is the bit set in Flags in order to define a span as a debug span
 	DebugFlag = Flags(2)
+	//FirehoseFlag is the bit in Flags in order to define a span as a firehose span
+	FirehoseFlag = Flags(8)
 
 	samplerType        = "sampler.type"
 	samplerTypeUnknown = "unknown"
@@ -120,6 +122,11 @@ func (f *Flags) SetDebug() {
 	f.setFlags(DebugFlag)
 }
 
+// SetFirehose set the Flags as firehose enabled
+func (f *Flags) SetFirehose() {
+	f.setFlags(FirehoseFlag)
+}
+
 func (f *Flags) setFlags(bit Flags) {
 	*f = *f | bit
 }
@@ -133,6 +140,12 @@ func (f Flags) IsSampled() bool {
 // Debugging can be useful in testing tracing availability or correctness
 func (f Flags) IsDebug() bool {
 	return f.checkFlags(DebugFlag)
+}
+
+// IsFirehoseEnabled returns true if firehose is enabled
+// Firehose is used to decide whether to index a span or not
+func (f Flags) IsFirehoseEnabled() bool {
+	return f.checkFlags(FirehoseFlag)
 }
 
 func (f Flags) checkFlags(bit Flags) bool {

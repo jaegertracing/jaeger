@@ -141,7 +141,7 @@ func (s *SpanWriter) WriteSpan(span *model.Span) error {
 			return err
 		}
 	}
-	if s.storageMode&indexFlag == indexFlag {
+	if s.storageMode&indexFlag == indexFlag && !span.Flags.IsFirehoseEnabled() {
 		if err := s.writeIndexes(span, ds); err != nil {
 			return err
 		}
