@@ -24,6 +24,8 @@ import (
 	"github.com/stretchr/testify/require"
 	"go.uber.org/zap"
 	"google.golang.org/grpc"
+	"google.golang.org/grpc/codes"
+	"google.golang.org/grpc/status"
 
 	"github.com/jaegertracing/jaeger/model"
 	"github.com/jaegertracing/jaeger/proto-gen/api_v2"
@@ -168,4 +170,22 @@ func TestReporter_MakeModelKeyValue(t *testing.T) {
 	actualTags := makeModelKeyValue(stringTags)
 
 	assert.Equal(t, expectedTags, actualTags)
+}
+
+func TestRetryableLogic(t *testing.T) {
+	assert := assert.New(t)
+	acceptable := []codes.Code{
+		codes.DeadlineExceeded,
+		codes.Unavailable,
+		codes.Unknown,
+	}
+	for _, a := range acceptable {
+		s := status.Error(a, "Retryable")
+		gerr := gRPCReporterError{s}
+		assert.True(gerr.IsRetryable())
+	}
+
+	unacceptable := status.Error(codes.InvalidArgument, "NotRetryable")
+	gerr := gRPCReporterError{unacceptable}
+	assert.False(gerr.IsRetryable())
 }

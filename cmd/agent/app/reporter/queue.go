@@ -28,7 +28,7 @@ import (
 )
 
 const (
-	defaultQueueType        = "memory"
+	defaultQueueType        = MEMORY
 	defaultBoundedQueueSize = 1000
 	defaultMaxRetryInterval = 20 * time.Second
 	defaultQueueWorkers     = 8
@@ -94,22 +94,19 @@ func (q *QueuedReporter) backOffTimer() time.Duration {
 	// Has to be more than previous time from previous increase before we can reincrease
 	// otherwise simultaneous threads could race to increase the sleep time too quickly
 	t := time.Now()
+	q.retryMutex.Lock()
 	if q.lastRetryIntervalChange.Add(q.currentRetryInterval).Before(t) && q.currentRetryInterval < q.maxRetryInterval {
-		// We can increase, more than the previous timer has been spent
-		q.retryMutex.Lock()
-		if q.lastRetryIntervalChange.Add(q.currentRetryInterval).Before(t) {
-			// We have to do the recheck because someone could have changed the time between check and mutex locking
-			newWait := q.currentRetryInterval * 2
-			if newWait > q.maxRetryInterval {
-				q.currentRetryInterval = q.maxRetryInterval
-			} else {
-				q.currentRetryInterval = newWait
-			}
-			q.lastRetryIntervalChange = time.Now()
-			q.reporterMetrics.BatchMetrics.RetryInterval.Update(int64(q.currentRetryInterval))
+		// We have to do the recheck because someone could have changed the time between check and mutex locking
+		newWait := q.currentRetryInterval * 2
+		if newWait > q.maxRetryInterval {
+			q.currentRetryInterval = q.maxRetryInterval
+		} else {
+			q.currentRetryInterval = newWait
 		}
-		q.retryMutex.Unlock()
+		q.lastRetryIntervalChange = time.Now()
+		q.reporterMetrics.BatchMetrics.RetryInterval.Update(int64(q.currentRetryInterval))
 	}
+	q.retryMutex.Unlock()
 
 	return q.currentRetryInterval
 }

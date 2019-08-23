@@ -28,7 +28,6 @@ import (
 type TBufferedServer struct {
 	// NB. queueLength HAS to be at the top of the struct or it will SIGSEV for certain architectures.
 	// See https://github.com/golang/go/issues/13868
-	queueSize     int64
 	processor     func(*ReadBuf)
 	maxPacketSize int
 	serving       uint32

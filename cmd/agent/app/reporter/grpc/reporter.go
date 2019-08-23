@@ -113,18 +113,19 @@ func (g *gRPCReporterError) Error() string {
 	return g.Err.Error()
 }
 
-// IsRetryable checks if the gRPC errors are temporary errors
+// IsRetryable checks if the gRPC errors are temporary errors and are errors from the status package
 func (g *gRPCReporterError) IsRetryable() bool {
-	state := status.Convert(g)
-	switch state.Code() {
-	case codes.DeadlineExceeded:
-		fallthrough
-	case codes.Unknown:
-		// Sadly codes.Unknown is also returned occasionally when the collector is down, thus we must consider
-		// it as retryable error.
-		fallthrough
-	case codes.Unavailable:
-		return true
+	if state, ok := status.FromError(g.Err); ok {
+		switch state.Code() {
+		case codes.DeadlineExceeded:
+			return true
+		case codes.Unknown:
+			// Sadly codes.Unknown is also returned occasionally when the collector is down, thus we must consider
+			// it as retryable error.
+			return true
+		case codes.Unavailable:
+			return true
+		}
 	}
 	return false
 }
