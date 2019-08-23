@@ -207,6 +207,19 @@ func TestIsDebug(t *testing.T) {
 	assert.True(t, flags.IsDebug())
 }
 
+func TestIsFirehoseEnabled(t *testing.T) {
+	flags := model.Flags(0)
+	assert.False(t, flags.IsFirehoseEnabled())
+	flags.SetDebug()
+	flags.SetSampled()
+	assert.False(t, flags.IsFirehoseEnabled())
+	flags.SetFirehose()
+	assert.True(t, flags.IsFirehoseEnabled())
+
+	flags = model.Flags(8)
+	assert.True(t, flags.IsFirehoseEnabled())
+}
+
 func TestSamplerType(t *testing.T) {
 	span := makeSpan(model.String("sampler.type", "lowerbound"))
 	assert.Equal(t, "lowerbound", span.GetSamplerType())
