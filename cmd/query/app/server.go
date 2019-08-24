@@ -104,7 +104,12 @@ func (s *Server) Start() error {
 
 	grpcListener := cmuxServer.Match(
 		cmux.HTTP2HeaderField("content-type", "application/grpc"),
-		cmux.HTTP2HeaderField("content-type", "application/grpc+proto"))
+		cmux.HTTP2HeaderField("content-type", "application/grpc+proto"),
+	)
+	// grpcListener := cmuxServer.MatchWithWriters(
+	// 	cmux.HTTP2MatchHeaderFieldSendSettings("content-type", "application/grpc"),
+	// 	cmux.HTTP2MatchHeaderFieldSendSettings("content-type", "application/grpc+proto"),
+	// )
 	httpListener := cmuxServer.Match(cmux.Any())
 
 	go func() {

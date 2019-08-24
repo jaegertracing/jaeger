@@ -15,6 +15,7 @@
 package app
 
 import (
+	"context"
 	"fmt"
 	"testing"
 	"time"
@@ -28,6 +29,9 @@ import (
 	"github.com/jaegertracing/jaeger/cmd/query/app/querysvc"
 	"github.com/jaegertracing/jaeger/pkg/healthcheck"
 	"github.com/jaegertracing/jaeger/ports"
+	"github.com/jaegertracing/jaeger/proto-gen/api_v2"
+	depsmocks "github.com/jaegertracing/jaeger/storage/dependencystore/mocks"
+	spanstoremocks "github.com/jaegertracing/jaeger/storage/spanstore/mocks"
 )
 
 func TestServerError(t *testing.T) {
@@ -43,12 +47,39 @@ func TestServer(t *testing.T) {
 	flagsSvc := flags.NewService(ports.AgentAdminHTTP)
 	flagsSvc.Logger = zap.NewNop()
 
-	querySvc := &querysvc.QueryService{}
+	spanReader := &spanstoremocks.Reader{}
+	dependencyReader := &depsmocks.Reader{}
+
+	querySvc := querysvc.NewQueryService(spanReader, dependencyReader, querysvc.QueryServiceOptions{})
+
 	tracer := opentracing.NoopTracer{}
 
-	server := NewServer(flagsSvc, querySvc, &QueryOptions{Port: ports.QueryAdminHTTP,
-		BearerTokenPropagation: true}, tracer)
+	server := NewServer(flagsSvc, querySvc,
+		&QueryOptions{Port: ports.QueryAdminHTTP, BearerTokenPropagation: true},
+		tracer)
 	assert.NoError(t, server.Start())
+
+	client := newGRPCClient(t, fmt.Sprintf(":%d", ports.QueryHTTP))
+	defer client.conn.Close()
+
+	var queryErr error
+	for i := 0; i < 10; i++ {
+		queryErr = func() error {
+			ctx, cancel := context.WithTimeout(context.Background(), 2000*time.Millisecond)
+			defer cancel()
+
+			_, err := client.GetTrace(ctx, &api_v2.GetTraceRequest{})
+			if err != nil {
+				t.Log("cannot GetTrace", err)
+			}
+			return err
+		}()
+		if queryErr == nil {
+			break
+		}
+		time.Sleep(100 * time.Millisecond)
+	}
+	assert.NoError(t, queryErr, "Connection test did not succeed")
 
 	// TODO wait for servers to come up and test http and grpc endpoints
 	time.Sleep(1 * time.Second)
@@ -82,6 +113,6 @@ func TestServerGracefulExit(t *testing.T) {
 
 	for _, logEntry := range logs.All() {
 		assert.True(t, logEntry.Level != zap.ErrorLevel,
-			fmt.Sprintf("Error log found on server exit: %v", logEntry))
+			"Error log found on server exit: %v", logEntry)
 	}
 }

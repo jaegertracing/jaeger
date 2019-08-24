@@ -40,7 +40,6 @@ import (
 )
 
 var (
-	grpcServerPort       = ":0"
 	errStorageMsgGRPC    = "Storage error"
 	errStorageGRPC       = errors.New(errStorageMsgGRPC)
 	errStatusStorageGRPC = status.Error(2, errStorageMsgGRPC)
@@ -138,7 +137,7 @@ type grpcClient struct {
 }
 
 func newGRPCServer(t *testing.T, q *querysvc.QueryService, logger *zap.Logger, tracer opentracing.Tracer) (*grpc.Server, net.Addr) {
-	lis, _ := net.Listen("tcp", grpcServerPort)
+	lis, _ := net.Listen("tcp", ":0")
 	grpcServer := grpc.NewServer()
 	grpcHandler := NewGRPCHandler(q, logger, tracer)
 	api_v2.RegisterQueryServiceServer(grpcServer, grpcHandler)
@@ -151,8 +150,8 @@ func newGRPCServer(t *testing.T, q *querysvc.QueryService, logger *zap.Logger, t
 	return grpcServer, lis.Addr()
 }
 
-func newGRPCClient(t *testing.T, addr net.Addr) *grpcClient {
-	conn, err := grpc.Dial(addr.String(), grpc.WithInsecure())
+func newGRPCClient(t *testing.T, addr string) *grpcClient {
+	conn, err := grpc.Dial(addr, grpc.WithInsecure())
 	require.NoError(t, err)
 
 	return &grpcClient{
@@ -192,7 +191,7 @@ func initializeTestServerGRPCWithOptions(t *testing.T) *grpcServer {
 
 func withServerAndClient(t *testing.T, actualTest func(server *grpcServer, client *grpcClient)) {
 	server := initializeTestServerGRPCWithOptions(t)
-	client := newGRPCClient(t, server.lisAddr)
+	client := newGRPCClient(t, server.lisAddr.String())
 	defer server.server.Stop()
 	defer client.conn.Close()
 
