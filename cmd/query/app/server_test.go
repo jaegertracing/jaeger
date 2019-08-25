@@ -60,14 +60,10 @@ func TestServer(t *testing.T) {
 		opentracing.NoopTracer{})
 	assert.NoError(t, server.Start())
 
-	// wait for the server to come up
-	// TODO find a way to not wait full 1s, only as long as needed
-	time.Sleep(1 * time.Second)
-
 	client := newGRPCClient(t, fmt.Sprintf(":%d", ports.QueryHTTP))
 	defer client.conn.Close()
 
-	ctx, cancel := context.WithTimeout(context.Background(), 2000*time.Millisecond)
+	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
 	defer cancel()
 
 	res, err := client.GetServices(ctx, &api_v2.GetServicesRequest{})
@@ -98,6 +94,7 @@ func TestServerGracefulExit(t *testing.T) {
 	assert.NoError(t, server.Start())
 
 	// Wait for servers to come up before we can call .Close()
+	// TODO Find a way to wait only as long as necessary. Unconditional sleep slows down the tests.
 	time.Sleep(1 * time.Second)
 	server.Close()
 
