@@ -33,12 +33,14 @@ type queueMetrics struct {
 	BatchesDropped metrics.Counter `metric:"batches.dropped"`
 }
 
+// Bound is using BoundedQueue (from bounded_queue.go) for QueueReporter
 type Bound struct {
 	queue   *queue.BoundedQueue
 	logger  *zap.Logger
 	metrics queueMetrics
 }
 
+// NewBoundQueue creates a new bounded queue with non-transactional processing
 func NewBoundQueue(bufSize, concurrency int, processor func(*jaeger.Batch) error, logger *zap.Logger, mFactory metrics.Factory) *Bound {
 	b := &Bound{
 		logger:  logger,
@@ -64,6 +66,7 @@ func (b *Bound) droppedItem(item interface{}) {
 	b.metrics.BatchesDropped.Inc(1)
 }
 
+// Enqueue pushes the batch to the queue or returns and error if the queue is full
 func (b *Bound) Enqueue(batch *jaeger.Batch) error {
 	success := b.queue.Produce(batch)
 	if !success {

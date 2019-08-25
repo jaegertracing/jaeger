@@ -34,10 +34,14 @@ const (
 	defaultQueueWorkers     = 8
 )
 
+// Queue is generic interface which includes methods common to all implemented queues
 type Queue interface {
 	Enqueue(*jaeger.Batch) error
 }
 
+// QueuedReporter is a reporter that uses push-pull method that queues all incoming requests and then
+// lets the wrapped reporter do the actual pushing to the server (such as gRPC). If the requests fails
+// with retryable error the transaction is tried again.
 type QueuedReporter struct {
 	wrapped Reporter
 	queue   Queue
@@ -162,6 +166,7 @@ func (q *QueuedReporter) updateSuccessStats(spansCount int64) {
 	q.reporterMetrics.BatchMetrics.BatchSize.Update(spansCount)
 }
 
+// IsRetryable checks whether the error is implementing RetryableError and returns the value of error's IsRetryable
 func IsRetryable(err error) bool {
 	if r, ok := err.(RetryableError); ok {
 		return r.IsRetryable()

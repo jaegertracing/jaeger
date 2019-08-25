@@ -104,6 +104,7 @@ func (s *TBufferedServer) Stop() {
 	s.transport.Close()
 }
 
+// RegisterProcessor sets a function that is run whenever there's a readable buffer received by the server
 func (s *TBufferedServer) RegisterProcessor(process func(*ReadBuf)) {
 	s.processor = process
 }
