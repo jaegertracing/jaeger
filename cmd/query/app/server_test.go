@@ -22,6 +22,7 @@ import (
 
 	opentracing "github.com/opentracing/opentracing-go"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/mock"
 	"go.uber.org/zap"
 	"go.uber.org/zap/zaptest/observer"
 
@@ -44,33 +45,35 @@ func TestServerError(t *testing.T) {
 }
 
 func TestServer(t *testing.T) {
-	flagsSvc := flags.NewService(ports.AgentAdminHTTP)
+	flagsSvc := flags.NewService(ports.QueryAdminHTTP)
 	flagsSvc.Logger = zap.NewNop()
 
 	spanReader := &spanstoremocks.Reader{}
 	dependencyReader := &depsmocks.Reader{}
+	expectedServices := []string{"test"}
+	spanReader.On("GetServices", mock.AnythingOfType("*context.valueCtx")).Return(expectedServices, nil)
 
 	querySvc := querysvc.NewQueryService(spanReader, dependencyReader, querysvc.QueryServiceOptions{})
 
-	tracer := opentracing.NoopTracer{}
-
 	server := NewServer(flagsSvc, querySvc,
-		&QueryOptions{Port: ports.QueryAdminHTTP, BearerTokenPropagation: true},
-		tracer)
+		&QueryOptions{Port: ports.QueryHTTP, BearerTokenPropagation: true},
+		opentracing.NoopTracer{})
 	assert.NoError(t, server.Start())
+
+	time.Sleep(1 * time.Second)
 
 	client := newGRPCClient(t, fmt.Sprintf(":%d", ports.QueryHTTP))
 	defer client.conn.Close()
 
 	var queryErr error
-	for i := 0; i < 10; i++ {
+	for i := 0; i < 1; i++ {
 		queryErr = func() error {
 			ctx, cancel := context.WithTimeout(context.Background(), 2000*time.Millisecond)
 			defer cancel()
 
-			_, err := client.GetTrace(ctx, &api_v2.GetTraceRequest{})
+			_, err := client.GetServices(ctx, &api_v2.GetServicesRequest{})
 			if err != nil {
-				t.Log("cannot GetTrace", err)
+				t.Log("cannot GetServices", err)
 			}
 			return err
 		}()
@@ -95,7 +98,7 @@ func TestServer(t *testing.T) {
 }
 
 func TestServerGracefulExit(t *testing.T) {
-	flagsSvc := flags.NewService(ports.AgentAdminHTTP)
+	flagsSvc := flags.NewService(ports.QueryAdminHTTP)
 
 	zapCore, logs := observer.New(zap.ErrorLevel)
 	assert.Equal(t, 0, logs.Len(), "Expected initial ObservedLogs to have zero length.")
