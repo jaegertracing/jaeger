@@ -60,32 +60,19 @@ func TestServer(t *testing.T) {
 		opentracing.NoopTracer{})
 	assert.NoError(t, server.Start())
 
+	// wait for the server to come up
+	// TODO find a way to not wait full 1s, only as long as needed
 	time.Sleep(1 * time.Second)
 
 	client := newGRPCClient(t, fmt.Sprintf(":%d", ports.QueryHTTP))
 	defer client.conn.Close()
 
-	var queryErr error
-	for i := 0; i < 1; i++ {
-		queryErr = func() error {
-			ctx, cancel := context.WithTimeout(context.Background(), 2000*time.Millisecond)
-			defer cancel()
+	ctx, cancel := context.WithTimeout(context.Background(), 2000*time.Millisecond)
+	defer cancel()
 
-			_, err := client.GetServices(ctx, &api_v2.GetServicesRequest{})
-			if err != nil {
-				t.Log("cannot GetServices", err)
-			}
-			return err
-		}()
-		if queryErr == nil {
-			break
-		}
-		time.Sleep(100 * time.Millisecond)
-	}
-	assert.NoError(t, queryErr, "Connection test did not succeed")
-
-	// TODO wait for servers to come up and test http and grpc endpoints
-	time.Sleep(1 * time.Second)
+	res, err := client.GetServices(ctx, &api_v2.GetServicesRequest{})
+	assert.NoError(t, err)
+	assert.Equal(t, expectedServices, res.Services)
 
 	server.Close()
 	for i := 0; i < 10; i++ {
