@@ -15,6 +15,7 @@
 * [RiksTV](https://www.rikstv.no/)
 * [SeatGeek](https://seatgeek.com/)
 * [SpotHero](https://spothero.com/)
+* [Tencent](https://www.tencent.com/en-us/index.html)
 * [UBER](https://uber.com)
   * https://eng.uber.com/distributed-tracing/
 * [Under Armour](https://www.underarmour.com)
