@@ -46,7 +46,6 @@ func TestTBufferedServer(t *testing.T) {
 	wg := sync.WaitGroup{}
 
 	pr := func(readBuf *ReadBuf) {
-		wg.Done()
 		assert.NotEqual(t, 0, len(readBuf.GetBytes()))
 		protoFact := athrift.NewTCompactProtocolFactory()
 		trans := &customtransport.TBufferedReadTransport{}
@@ -54,6 +53,7 @@ func TestTBufferedServer(t *testing.T) {
 		protocol.Transport().Write(readBuf.GetBytes())
 		handler := agent.NewAgentProcessor(inMemReporter)
 		handler.Process(protocol, protocol)
+		wg.Done()
 	}
 
 	server.RegisterProcessor(pr)
