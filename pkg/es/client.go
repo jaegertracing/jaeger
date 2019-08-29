@@ -31,7 +31,7 @@ type Client interface {
 	Search(indices ...string) SearchService
 	MultiSearch() MultiSearchService
 	io.Closer
-	GetVersion() int
+	GetVersion() uint
 }
 
 // IndicesExistsService is an abstraction for elastic.IndicesExistsService

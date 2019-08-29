@@ -199,7 +199,7 @@ func createSpanWriter(
 }
 
 // GetMappings returns span and service mappings
-func GetMappings(shards, replicas int64, esVersion int) (string, string) {
+func GetMappings(shards, replicas int64, esVersion uint) (string, string) {
 	if esVersion == 7 {
 		return fixMapping(loadMapping("/jaeger-span-7.json"), shards, replicas),
 			fixMapping(loadMapping("/jaeger-service-7.json"), shards, replicas)
