@@ -21,6 +21,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/jaegertracing/jaeger/cmd/agent/app/reporter/queue"
 	"github.com/spf13/viper"
 )
 
@@ -36,6 +37,10 @@ const (
 	reporterMaxInterval = "max-retry-interval"
 	// Amount of workers for reporter
 	reporterQueueWorkers = "queue.workers"
+	// Badger's directory
+	badgerDirectory = "queue.badger.directory"
+	// Badger's sync writes
+	badgerSyncWrites = "queue.badger.fsync"
 	// Agent tags
 	agentTags = "jaeger.tags"
 	// TCHANNEL is name of tchannel reporter.
@@ -48,6 +53,9 @@ const (
 
 	// DIRECT is the reporter queue for testing (no queue at all)
 	DIRECT QueueType = "direct"
+
+	// BADGER is persisted reporter queue
+	BADGER QueueType = "badger"
 )
 
 // Type defines type of reporter.
@@ -64,15 +72,18 @@ type Options struct {
 	BoundedQueueSize         int
 	ReporterMaxRetryInterval time.Duration
 	AgentTags                map[string]string
+	BadgerOptions            *queue.BadgerOptions
 }
 
 // AddFlags adds flags for Options.
 func AddFlags(flags *flag.FlagSet) {
 	flags.String(prefix+reporterType, string(GRPC), fmt.Sprintf("Reporter type to use e.g. %s, %s", string(GRPC), string(TCHANNEL)))
-	flags.String(prefix+reporterQueueType, string(defaultQueueType), "queue implementation to use in the reporter. Available options: memory")
+	flags.String(prefix+reporterQueueType, string(defaultQueueType), "queue implementation to use in the reporter. Available options: memory, direct (no queue), badger")
+	flags.String(prefix+badgerDirectory, "", "directory to store the badger queues journal files")
 	flags.Int(prefix+boundedQueueSize, defaultBoundedQueueSize, "maximum size of bounded in-memory queue")
 	flags.Int(prefix+reporterQueueWorkers, defaultQueueWorkers, "the amount of concurrent reporter connections to use")
 	flags.Duration(prefix+reporterMaxInterval, defaultMaxRetryInterval, "longest period of time to wait before retry. Format is time.Duration (https://golang.org/pkg/time/#Duration).")
+	flags.Bool(prefix+badgerSyncWrites, false, "setting to true will force fsync after every span. Will reduce performance a lot.")
 
 	flags.String(agentTags, "", "One or more tags to be added to the Process tags of all spans passing through this agent. Ex: key1=value1,key2=${envVar:defaultValue}")
 }
@@ -85,6 +96,10 @@ func (b *Options) InitFromViper(v *viper.Viper) *Options {
 	b.ReporterConcurrency = v.GetInt(prefix + reporterQueueWorkers)
 	b.ReporterMaxRetryInterval = v.GetDuration(prefix + reporterMaxInterval)
 	b.AgentTags = parseAgentTags(v.GetString(agentTags))
+	b.BadgerOptions = &queue.BadgerOptions{
+		Directory:  v.GetString(prefix + badgerDirectory),
+		SyncWrites: v.GetBool(prefix + badgerSyncWrites),
+	}
 	return b
 }
 

@@ -119,7 +119,7 @@ func TestMetricsReporter(t *testing.T) {
 
 	for _, test := range tests {
 		metricsFactory := metricstest.NewFactory(time.Microsecond)
-		r := WrapWithQueue(&Options{QueueType: DIRECT}, test.rep, zap.NewNop(), metricsFactory)
+		r, _ := WrapWithQueue(&Options{QueueType: DIRECT}, test.rep, zap.NewNop(), metricsFactory)
 		test.action(r)
 		metricsFactory.AssertCounterMetrics(t, test.expectedCounters...)
 		metricsFactory.AssertGaugeMetrics(t, test.expectedGauges...)

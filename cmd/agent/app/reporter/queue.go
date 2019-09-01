@@ -67,7 +67,7 @@ type QueuedReporter struct {
 }
 
 // WrapWithQueue wraps the destination reporter with a queueing capabilities for retries
-func WrapWithQueue(opts *Options, forwarder Forwarder, logger *zap.Logger, mFactory metrics.Factory) *QueuedReporter {
+func WrapWithQueue(opts *Options, forwarder Forwarder, logger *zap.Logger, mFactory metrics.Factory) (*QueuedReporter, error) {
 	q := &QueuedReporter{
 		wrapped:                 forwarder,
 		logger:                  logger,
@@ -94,9 +94,16 @@ func WrapWithQueue(opts *Options, forwarder Forwarder, logger *zap.Logger, mFact
 		q.queue = queue.NewBoundQueue(opts.BoundedQueueSize, opts.ReporterConcurrency, q.batchProcessor, logger, mFactory)
 	case DIRECT:
 		q.queue = queue.NewNonQueue(q.directProcessor)
+	case BADGER:
+		opts.BadgerOptions.Concurrency = opts.ReporterConcurrency
+		queue, err := queue.NewBadgerQueue(opts.BadgerOptions, q.batchProcessor, logger)
+		if err != nil {
+			return nil, err
+		}
+		q.queue = queue
 	}
 
-	return q
+	return q, nil
 }
 
 // EmitZipkinBatch forwards the spans to the wrapped reporter (without queue)

@@ -16,6 +16,8 @@ package reporter
 
 import (
 	"fmt"
+	"io/ioutil"
+	"os"
 	"sync"
 	"sync/atomic"
 	"testing"
@@ -73,9 +75,10 @@ func TestDefaultOptions(t *testing.T) {
 	assert := assert.New(t)
 	gr := &gRPCErrorReporter{}
 	metricsFactory := metricstest.NewFactory(time.Microsecond)
-	q := WrapWithQueue(&Options{}, gr, zap.NewNop(), metricsFactory)
+	q, err := WrapWithQueue(&Options{}, gr, zap.NewNop(), metricsFactory)
+	assert.NoError(err)
 
-	err := q.EmitBatch(&jaeger.Batch{})
+	err = q.EmitBatch(&jaeger.Batch{})
 	assert.NoError(err)
 
 	for i := 0; i < 100 && atomic.LoadInt32(&gr.processed) == 0; i++ {
@@ -91,9 +94,10 @@ func TestMemoryQueueZipkin(t *testing.T) {
 	assert := assert.New(t)
 	gr := &gRPCErrorReporter{}
 	metricsFactory := metricstest.NewFactory(time.Microsecond)
-	q := WrapWithQueue(&Options{QueueType: MEMORY, BoundedQueueSize: defaultBoundedQueueSize, ReporterConcurrency: 1}, gr, zap.NewNop(), metricsFactory)
+	q, err := WrapWithQueue(&Options{QueueType: MEMORY, BoundedQueueSize: defaultBoundedQueueSize, ReporterConcurrency: 1}, gr, zap.NewNop(), metricsFactory)
+	assert.NoError(err)
 
-	err := q.EmitZipkinBatch([]*zipkincore.Span{{}})
+	err = q.EmitZipkinBatch([]*zipkincore.Span{{}})
 	assert.NoError(err)
 	assert.Equal(int32(1), atomic.LoadInt32(&gr.processed))
 
@@ -105,9 +109,10 @@ func TestMemoryQueueSuccess(t *testing.T) {
 	assert := assert.New(t)
 	gr := &gRPCErrorReporter{}
 	metricsFactory := metricstest.NewFactory(time.Microsecond)
-	q := WrapWithQueue(&Options{QueueType: MEMORY, BoundedQueueSize: defaultBoundedQueueSize, ReporterConcurrency: 1}, gr, zap.NewNop(), metricsFactory)
+	q, err := WrapWithQueue(&Options{QueueType: MEMORY, BoundedQueueSize: defaultBoundedQueueSize, ReporterConcurrency: 1}, gr, zap.NewNop(), metricsFactory)
+	assert.NoError(err)
 
-	err := q.EmitBatch(&jaeger.Batch{})
+	err = q.EmitBatch(&jaeger.Batch{})
 	assert.NoError(err)
 
 	for i := 0; i < 100 && atomic.LoadInt32(&gr.processed) == 0; i++ {
@@ -123,9 +128,10 @@ func TestMemoryQueueFail(t *testing.T) {
 	assert := assert.New(t)
 	gr := &gRPCErrorReporter{createFatalError: true}
 	metricsFactory := metricstest.NewFactory(time.Microsecond)
-	q := WrapWithQueue(&Options{QueueType: MEMORY, BoundedQueueSize: defaultBoundedQueueSize, ReporterConcurrency: 1}, gr, zap.NewNop(), metricsFactory)
+	q, err := WrapWithQueue(&Options{QueueType: MEMORY, BoundedQueueSize: defaultBoundedQueueSize, ReporterConcurrency: 1}, gr, zap.NewNop(), metricsFactory)
+	assert.NoError(err)
 
-	err := q.EmitBatch(&jaeger.Batch{})
+	err = q.EmitBatch(&jaeger.Batch{})
 	assert.NoError(err)
 
 	for i := 0; i < 100 && atomic.LoadInt32(&gr.errors) == 0; i++ {
@@ -145,13 +151,14 @@ func TestMemoryQueueRetries(t *testing.T) {
 	assert := assert.New(t)
 	gr := &gRPCErrorReporter{}
 	metricsFactory := metricstest.NewFactory(time.Microsecond)
-	q := WrapWithQueue(&Options{QueueType: MEMORY, BoundedQueueSize: defaultBoundedQueueSize, ReporterConcurrency: 1}, gr, zap.NewNop(), metricsFactory)
+	q, err := WrapWithQueue(&Options{QueueType: MEMORY, BoundedQueueSize: defaultBoundedQueueSize, ReporterConcurrency: 1}, gr, zap.NewNop(), metricsFactory)
+	assert.NoError(err)
 
 	gr.testMutex.Lock()
 	gr.createRetryError = true
 	gr.testMutex.Unlock()
 
-	err := q.EmitBatch(&jaeger.Batch{})
+	err = q.EmitBatch(&jaeger.Batch{})
 	assert.NoError(err)
 
 	for i := 0; i < 100 && atomic.LoadInt32(&gr.retries) == 0; i++ {
@@ -178,7 +185,8 @@ func TestBackoffTimer(t *testing.T) {
 	assert := assert.New(t)
 
 	metricsFactory := metricstest.NewFactory(time.Microsecond)
-	q := WrapWithQueue(&Options{QueueType: MEMORY, ReporterMaxRetryInterval: time.Duration(time.Second)}, nil, zap.NewNop(), metricsFactory)
+	q, err := WrapWithQueue(&Options{QueueType: MEMORY, ReporterMaxRetryInterval: time.Duration(time.Second)}, nil, zap.NewNop(), metricsFactory)
+	assert.NoError(err)
 
 	dur := q.backOffTimer()
 	assert.True(q.initialRetryInterval == dur)
@@ -200,6 +208,53 @@ func TestBackoffTimer(t *testing.T) {
 	assert.Equal(int64(q.currentRetryInterval), g["reporter.retry-interval-ns|format=jaeger"])
 }
 
+func TestBadgerPersistence(t *testing.T) {
+	dir, _ := ioutil.TempDir("", "badger")
+	bo := &queue.BadgerOptions{
+		Directory: dir,
+	}
+	defer os.RemoveAll(dir)
+
+	assert := assert.New(t)
+	gr := &gRPCErrorReporter{}
+	metricsFactory := metricstest.NewFactory(time.Microsecond)
+	q, err := WrapWithQueue(&Options{QueueType: BADGER, ReporterConcurrency: 1, BadgerOptions: bo}, gr, zap.NewNop(), metricsFactory)
+	assert.NoError(err)
+
+	gr.testMutex.Lock()
+	gr.createRetryError = true
+	gr.testMutex.Unlock()
+
+	err = q.EmitBatch(&jaeger.Batch{})
+	assert.NoError(err)
+
+	for i := 0; i < 100 && atomic.LoadInt32(&gr.retries) == 0; i++ {
+		time.Sleep(10 * time.Millisecond)
+	}
+
+	assert.True(atomic.LoadInt32(&gr.retries) > 0)
+
+	err = q.Close()
+	assert.NoError(err)
+
+	// Now verify it is resent after restart
+	gr2 := &gRPCErrorReporter{}
+	metricsFactory2 := metricstest.NewFactory(time.Microsecond)
+	q2, err := WrapWithQueue(&Options{QueueType: BADGER, ReporterConcurrency: 1, BadgerOptions: bo}, gr2, zap.NewNop(), metricsFactory2)
+	assert.NoError(err)
+
+	for i := 0; i < 300 && atomic.LoadInt32(&gr2.processed) == 0; i++ {
+		time.Sleep(10 * time.Millisecond)
+	}
+	assert.Equal(int32(1), atomic.LoadInt32(&gr2.processed))
+
+	c, _ := metricsFactory2.Snapshot()
+	assert.True(c["reporter.batches.submitted|format=jaeger"] > int64(0))
+
+	err = q2.Close()
+	assert.NoError(err)
+}
+
 func TestIsRetryable(t *testing.T) {
 	assert := assert.New(t)
 	err := fmt.Errorf("NoInterface")
@@ -213,9 +268,10 @@ func TestClose(t *testing.T) {
 	assert := assert.New(t)
 	gr := &gRPCErrorReporter{createRetryError: true}
 	metricsFactory := metricstest.NewFactory(time.Microsecond)
-	q := WrapWithQueue(&Options{QueueType: MEMORY, BoundedQueueSize: defaultBoundedQueueSize, ReporterConcurrency: 1}, gr, zap.NewNop(), metricsFactory)
+	q, err := WrapWithQueue(&Options{QueueType: MEMORY, BoundedQueueSize: defaultBoundedQueueSize, ReporterConcurrency: 1}, gr, zap.NewNop(), metricsFactory)
+	assert.NoError(err)
 
-	err := q.EmitBatch(&jaeger.Batch{})
+	err = q.EmitBatch(&jaeger.Batch{})
 	assert.NoError(err)
 
 	// There should be one inflight transaction
