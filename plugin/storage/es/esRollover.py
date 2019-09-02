@@ -86,7 +86,7 @@ def perform_action(action, client, write_alias, read_alias, index_to_rollover, t
             mapping = Path('./mappings/'+template_name+'-7.json').read_text()
         else:
             mapping = Path('./mappings/'+template_name+'.json').read_text()
-        create_index_template(fix_mapping(mapping, shards, replicas), template_name, esVersion)
+        create_index_template(fix_mapping(mapping, shards, replicas), template_name)
 
         index = index_to_rollover + '-000001'
         create_index(client, index)
