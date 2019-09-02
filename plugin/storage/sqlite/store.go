@@ -19,10 +19,12 @@ import (
 	"context"
 	"database/sql"
 	"fmt"
+	"math"
 	"os"
 	"strings"
 	"time"
 
+	"github.com/gogo/protobuf/proto"
 	"github.com/jaegertracing/jaeger/model"
 	"github.com/jaegertracing/jaeger/plugin/storage/sqlite/schema"
 	"github.com/jaegertracing/jaeger/storage/spanstore"
@@ -43,7 +45,7 @@ type Store struct {
 }
 
 var (
-	insertSpanQuery    = "INSERT OR IGNORE INTO spans (trace_id, span_id, parent_id, service_name, operation_name, flags, start_time, duration, warnings) VALUES (?,?,?,?,?,?,?,?,?)"
+	insertSpanQuery    = "INSERT OR IGNORE INTO spans (trace_id, span_id, parent_id, service_name, operation_name, start_time, duration, span) VALUES (?,?,?,?,?,?,?,?)"
 	insertSpanTagQuery = "INSERT OR IGNORE INTO span_tags (trace_id, span_id, tag) VALUES (?,?,?)"
 	insertSpanStmt     *sql.Stmt
 	insertSpanTagsStmt *sql.Stmt
@@ -62,20 +64,12 @@ func initDB(path string) (*sql.DB, error) {
 
 	db.SetMaxOpenConns(1)
 
-	if _, err := db.Exec("PRAGMA journal_mode = WAL;", nil); err != nil {
-		return nil, errors.Wrap(err, "cannot set cache size")
-	}
-
-	if _, err := db.Exec("PRAGMA cache_size = 200000;", nil); err != nil {
-		return nil, errors.Wrap(err, "cannot set cache size")
+	if _, err := db.Exec("PRAGMA journal_mode = MEMORY;", nil); err != nil {
+		return nil, errors.Wrap(err, "cannot set journal mode")
 	}
 
 	if _, err := db.Exec("PRAGMA synchronous = OFF;", nil); err != nil {
-		return nil, errors.Wrap(err, "cannot set cache size")
-	}
-
-	if _, err := db.Exec("PRAGMA journal_mode = MEMORY;", nil); err != nil {
-		return nil, errors.Wrap(err, "cannot set cache size")
+		return nil, errors.Wrap(err, "cannot set synchronous mode")
 	}
 
 	if _, err := db.Exec("PRAGMA foreign_keys = ON;", nil); err != nil {
@@ -137,15 +131,23 @@ func (s *Store) startCleaner() {
 }
 
 func (s *Store) findTraceIDs(ctx context.Context, tqp *spanstore.TraceQueryParameters, tx *sql.Tx) ([]model.TraceID, error) {
+	if tqp.DurationMax == 0 {
+		tqp.DurationMax = time.Duration(math.MaxInt64)
+	}
+	s.logger.Info("tqp", zap.String("tqp", fmt.Sprintf("%+v", tqp)))
+
 	whereClauses := []string{
 		"service_name=?",
 		"start_time BETWEEN ? AND ?",
+		"duration BETWEEN ? AND ?",
 	}
 
 	queryValues := []interface{}{
 		tqp.ServiceName,
 		tqp.StartTimeMin.UTC(),
 		tqp.StartTimeMax.UTC(),
+		tqp.DurationMin.Nanoseconds(),
+		tqp.DurationMax.Nanoseconds(),
 	}
 
 	if tqp.OperationName != "" {
@@ -223,73 +225,25 @@ func (s *Store) FindTraces(ctx context.Context, tqp *spanstore.TraceQueryParamet
 }
 
 func (s *Store) getTraceByID(ctx context.Context, traceID string, tx *sql.Tx) (*model.Trace, error) {
-	query := "SELECT trace_id, span_id, parent_id, service_name, operation_name, start_time, duration, warnings FROM spans WHERE trace_id=?"
+	query := "SELECT span FROM spans WHERE trace_id=?"
 	rows, err := tx.QueryContext(ctx, query, traceID)
 	if err != nil {
 		return nil, errors.Wrapf(err, "error retrieving spans for trace '%s'", traceID)
 	}
 	defer rows.Close()
 
-	allWarnings := []string{}
 	spans := []*model.Span{}
 
-	var (
-		spanID        string
-		parentID      string
-		serviceName   string
-		operationName string
-		warnings      sql.NullString
-		startTime     time.Time
-		duration      int64
-	)
 	for rows.Next() {
-		iErr := rows.Scan(&traceID, &spanID, &parentID, &serviceName, &operationName, &startTime, &duration, &warnings)
+		span := &model.Span{}
+		var spanBytes []byte
+		iErr := rows.Scan(&spanBytes)
 		if iErr != nil {
 			return nil, errors.Wrapf(iErr, "error reading spans for trace '%s'", traceID)
 		}
-
-		mTraceID, iErr := model.TraceIDFromString(traceID)
+		iErr = span.Unmarshal(spanBytes)
 		if iErr != nil {
-			return nil, errors.Wrapf(iErr, "error parsing trace id '%s'", traceID)
-		}
-
-		mSpanID, iErr := model.SpanIDFromString(spanID)
-		if iErr != nil {
-			return nil, errors.Wrapf(iErr, "error parsing span id '%s'", spanID)
-		}
-
-		span := &model.Span{
-			TraceID:       mTraceID,
-			SpanID:        mSpanID,
-			OperationName: operationName,
-			StartTime:     startTime,
-			Duration:      time.Duration(duration) * time.Nanosecond,
-			ProcessID:     "123",
-			Tags:          []model.KeyValue{},
-			Process: &model.Process{
-				Tags:        []model.KeyValue{},
-				ServiceName: serviceName,
-			},
-		}
-
-		if warnings.Valid {
-			span.Warnings = strings.Split(warnings.String, ":::")
-			allWarnings = append(allWarnings, span.Warnings...)
-		}
-
-		if parentID != "0" {
-			mParentSpanID, iErr := model.SpanIDFromString(parentID)
-			if iErr != nil {
-				return nil, errors.Wrapf(iErr, "error parsing span id '%s'", parentID)
-			}
-
-			span.References = []model.SpanRef{
-				model.SpanRef{
-					TraceID: mTraceID,
-					SpanID:  mParentSpanID,
-					RefType: model.SpanRefType_CHILD_OF,
-				},
-			}
+			return nil, errors.Wrapf(iErr, "error unmarshaling span from proto '%s'", traceID)
 		}
 
 		spans = append(spans, span)
@@ -307,8 +261,7 @@ func (s *Store) getTraceByID(ctx context.Context, traceID string, tx *sql.Tx) (*
 	}
 
 	return &model.Trace{
-		Spans:    spans,
-		Warnings: allWarnings,
+		Spans: spans,
 		ProcessMap: []model.Trace_ProcessMapping{
 			model.Trace_ProcessMapping{
 				ProcessID: spans[0].ProcessID,
@@ -407,11 +360,9 @@ func (s *Store) GetTrace(ctx context.Context, traceID model.TraceID) (*model.Tra
 }
 
 func (s *Store) WriteSpan(span *model.Span) error {
-	warnings := func() interface{} {
-		if len(span.Warnings) == 0 {
-			return nil
-		}
-		return strings.Join(span.Warnings, ":::")
+	spanProto, err := proto.Marshal(span)
+	if err != nil {
+		return errors.Wrap(err, "error marshaling span to protobuf")
 	}
 
 	tx, err := s.db.Begin()
@@ -422,8 +373,7 @@ func (s *Store) WriteSpan(span *model.Span) error {
 
 	stmt := tx.Stmt(insertSpanStmt)
 	_, err = stmt.Exec(span.TraceID.String(), span.SpanID.String(), span.ParentSpanID().String(),
-		span.Process.ServiceName, span.OperationName, span.Flags,
-		span.StartTime, span.Duration.Nanoseconds(), warnings())
+		span.Process.ServiceName, span.OperationName, span.StartTime, span.Duration.Nanoseconds(), spanProto)
 	if err != nil {
 		return errors.Wrap(err, "error saving span")
 	}

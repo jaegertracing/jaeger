@@ -8,10 +8,9 @@ CREATE TABLE IF NOT EXISTS spans (
     parent_id TEXT,
     service_name TEXT,
     operation_name TEXT,
-    flags INT,
     start_time DATETIME,
     duration INT,
-    warnings TEXT,
+    span BLOB,
     PRIMARY KEY (trace_id, span_id)
 );
 
@@ -24,8 +23,8 @@ CREATE INDEX IF NOT EXISTS SPANS_BY_SERVICE_NAME_IDX ON spans(service_name);
 -- index spans by service_name, start_time
 CREATE INDEX IF NOT EXISTS SPANS_BY_SERVICE_NAME_START_TIME_IDX ON spans(service_name, start_time);
 
--- index spans by service_name, operation_name, start_time
-CREATE INDEX IF NOT EXISTS SPANS_BY_SERVICE_NAME_OPERATION_NAME_START_TIME_IDX ON spans(service_name, operation_name);
+-- index spans by service_name, operation_name, start_time, duration
+CREATE INDEX IF NOT EXISTS SPANS_BY_SERVICE_NAME_OPERATION_NAME_START_TIME_IDX ON spans(service_name, operation_name, start_time, duration);
 
 -- table to store span tags
 CREATE TABLE IF NOT EXISTS span_tags (
