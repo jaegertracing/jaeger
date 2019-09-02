@@ -33,14 +33,13 @@ Changes by Version
 * Add Elasticsearch 7 support ([#1690](https://github.com/jaegertracing/jaeger/pull/1690), [@gregoryfranklin](https://github.com/gregoryfranklin))
 
   The index mappings in Elasticsearch 7 are not backwards compatible with the older versions. 
-  Therefore starting Elasticsearch 7 with data created with older version would not work.
+  Therefore using Elasticsearch 7 with data created with older version would not work.
   Elasticsearch 6.8 supports 7.x, 6.x, 5.x compatible mappings. The upgrade has to be done
   first to ES 6.8, then apply data migration or wait until old daily indices are removed (this requires
   to start Jaeger with `--es.version=7` to force using ES 7.x mappings for newly created indices).
   
-  Jaeger by default uses Elasticsearch ping endpoint (`/`) to derive the version which is necessary
+  Jaeger by default uses Elasticsearch ping endpoint (`/`) to derive the version which is used
   for index mappings selection. The version can be overridden by flag `--es.version`.
-  Jaeger maintains backward compatibility with older Elasticsearch versions (5.x and 6.x). 
 
 * Support for Zipkin Protobuf spans over HTTP ([#1695](https://github.com/jaegertracing/jaeger/pull/1695), [@jan25](https://github.com/jan25))
 * Added support for hot reload of UI config ([#1688](https://github.com/jaegertracing/jaeger/pull/1688), [@jpkrohling](https://github.com/jpkrohling))
@@ -58,7 +57,6 @@ Changes by Version
 
 * Fix gRPC over cmux and add unit tests ([#1758](https://github.com/jaegertracing/jaeger/pull/1758), [@yurishkuro](https://github.com/yurishkuro))
 * Add CA certificates to agent image ([#1764](https://github.com/jaegertracing/jaeger/pull/1764), [@yurishkuro](https://github.com/yurishkuro))
-* Added base Grafana dashboard and Alert rules ([#1745](https://github.com/jaegertracing/jaeger/pull/1745), [@jpkrohling](https://github.com/jpkrohling))
 * Fix badger merge-join algorithm to correctly filter indexes ([#1721](https://github.com/jaegertracing/jaeger/pull/1721), [@burmanm](https://github.com/burmanm))
 * Change Zipkin CORS origins and headers to comma separated list ([#1556](https://github.com/jaegertracing/jaeger/pull/1556), [@JonasVerhofste](https://github.com/JonasVerhofste))
 * Added null guards to 'Process' when processing an incoming span ([#1723](https://github.com/jaegertracing/jaeger/pull/1723), [@jpkrohling](https://github.com/jpkrohling))
