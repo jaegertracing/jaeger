@@ -33,10 +33,12 @@ func TestExpiredItems(t *testing.T) {
 	runWithBadger(t, func(store *badger.DB, t *testing.T) {
 		cache := NewCacheStore(store, time.Duration(-1*time.Hour), false)
 
+		expireTime := uint64(time.Now().Add(cache.ttl).Unix())
+
 		// Expired service
 
-		cache.Update("service1", "op1")
-		cache.Update("service1", "op2")
+		cache.Update("service1", "op1", expireTime)
+		cache.Update("service1", "op2", expireTime)
 
 		services, err := cache.GetServices()
 		assert.NoError(t, err)
@@ -44,8 +46,8 @@ func TestExpiredItems(t *testing.T) {
 
 		// Expired service for operations
 
-		cache.Update("service1", "op1")
-		cache.Update("service1", "op2")
+		cache.Update("service1", "op1", expireTime)
+		cache.Update("service1", "op2", expireTime)
 
 		operations, err := cache.GetOperations("service1")
 		assert.NoError(t, err)
@@ -53,10 +55,10 @@ func TestExpiredItems(t *testing.T) {
 
 		// Expired operations, stable service
 
-		cache.Update("service1", "op1")
-		cache.Update("service1", "op2")
+		cache.Update("service1", "op1", expireTime)
+		cache.Update("service1", "op2", expireTime)
 
-		cache.services["service1"] = time.Now().Unix() + 1e10
+		cache.services["service1"] = uint64(time.Now().Unix() + 1e10)
 
 		operations, err = cache.GetOperations("service1")
 		assert.NoError(t, err)
@@ -66,8 +68,9 @@ func TestExpiredItems(t *testing.T) {
 
 func TestOldReads(t *testing.T) {
 	runWithBadger(t, func(store *badger.DB, t *testing.T) {
-		s1Key := createIndexKey(serviceNameIndexKey, []byte("service1"), time.Now(), model.TraceID{High: 0, Low: 0})
-		s1o1Key := createIndexKey(operationNameIndexKey, []byte("service1operation1"), time.Now(), model.TraceID{High: 0, Low: 0})
+		timeNow := model.TimeAsEpochMicroseconds(time.Now())
+		s1Key := createIndexKey(serviceNameIndexKey, []byte("service1"), timeNow, model.TraceID{High: 0, Low: 0})
+		s1o1Key := createIndexKey(operationNameIndexKey, []byte("service1operation1"), timeNow, model.TraceID{High: 0, Low: 0})
 
 		tid := time.Now().Add(1 * time.Minute)
 
@@ -90,15 +93,15 @@ func TestOldReads(t *testing.T) {
 
 		nuTid := tid.Add(1 * time.Hour)
 
-		cache.Update("service1", "operation1")
-		cache.services["service1"] = nuTid.Unix()
-		cache.operations["service1"]["operation1"] = nuTid.Unix()
+		cache.Update("service1", "operation1", uint64(tid.Unix()))
+		cache.services["service1"] = uint64(nuTid.Unix())
+		cache.operations["service1"]["operation1"] = uint64(nuTid.Unix())
 
 		cache.populateCaches()
 
 		// Now make sure we didn't use the older timestamps from the DB
-		assert.Equal(t, nuTid.Unix(), cache.services["service1"])
-		assert.Equal(t, nuTid.Unix(), cache.operations["service1"]["operation1"])
+		assert.Equal(t, uint64(nuTid.Unix()), cache.services["service1"])
+		assert.Equal(t, uint64(nuTid.Unix()), cache.operations["service1"]["operation1"])
 	})
 }
 
