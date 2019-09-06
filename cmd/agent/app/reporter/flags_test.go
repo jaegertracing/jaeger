@@ -54,21 +54,22 @@ func TestBindFlags(t *testing.T) {
 
 	err := command.ParseFlags([]string{
 		"--reporter.type=grpc",
-		"--jaeger.tags=key=value,envVar1=${envKey1:defaultVal1},envVar2=${envKey2:defaultVal2}",
+		"--jaeger.tags=key=value,envVar1=${envKey1:defaultVal1},envVar2=${envKey2:defaultVal2},envVar3=${envKey3}",
 	})
 	require.NoError(t, err)
 
 	b := &Options{}
 	os.Setenv("envKey1", "envVal1")
+	defer os.Unsetenv("envKey1")
 	b.InitFromViper(v)
 
 	expectedTags := map[string]string{
 		"key":     "value",
 		"envVar1": "envVal1",
 		"envVar2": "defaultVal2",
+		"envVar3": "",
 	}
 
 	assert.Equal(t, Type("grpc"), b.ReporterType)
 	assert.Equal(t, expectedTags, b.AgentTags)
-	os.Unsetenv("envKey1")
 }

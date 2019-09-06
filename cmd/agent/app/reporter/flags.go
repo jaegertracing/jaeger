@@ -69,6 +69,11 @@ func parseAgentTags(agentTags string) map[string]string {
 
 		if strings.HasPrefix(v, "${") && strings.HasSuffix(v, "}") {
 			ed := strings.SplitN(string(v[2:len(v)-1]), ":", 2)
+			if (len(ed) == 1) {
+				// no default value specified, set to empty
+				ed = append(ed, "")
+			}
+
 			e, d := ed[0], ed[1]
 			v = os.Getenv(e)
 			if v == "" && d != "" {
