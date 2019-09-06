@@ -16,12 +16,11 @@
 
 package zipkin
 
-// Fuzz tests zipkin deserialization.
+// Fuzz tests JSON deserialization.
 func Fuzz(fuzz []byte) int {
-	spans, err := DeserializeThrift(fuzz)
+	_, err := DeserializeJSON(fuzz)
 	if err != nil {
 		return 0
 	}
-	SerializeThrift(spans)
 	return 1
 }
