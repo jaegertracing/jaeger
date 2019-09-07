@@ -69,7 +69,9 @@ func TestEncodingTypes(t *testing.T) {
 		err := sw.WriteSpan(&testSpan)
 		assert.NoError(t, err)
 
-		key, _, _ := createTraceKV(&testSpan, protoEncoding)
+		startTime := model.TimeAsEpochMicroseconds(testSpan.StartTime)
+
+		key, _, _ := createTraceKV(&testSpan, protoEncoding, startTime)
 		e := &badger.Entry{
 			Key:       key,
 			ExpiresAt: uint64(time.Now().Add(1 * time.Hour).Unix()),
