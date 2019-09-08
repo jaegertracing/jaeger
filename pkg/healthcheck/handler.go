@@ -67,7 +67,6 @@ type HealthCheck struct {
 	state     atomic.Value // stores state struct
 	logger    *zap.Logger
 	responses map[Status]healthCheckResponse
-	server    *http.Server
 }
 
 // New creates a HealthCheck with the specified initial state.
@@ -84,7 +83,6 @@ func New() *HealthCheck {
 				StatusMsg:  "Server available",
 			},
 		},
-		server: nil,
 	}
 	hc.state.Store(state{status: Unavailable})
 	return hc
