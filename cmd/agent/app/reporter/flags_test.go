@@ -16,6 +16,7 @@ package reporter
 
 import (
 	"flag"
+	"fmt"
 	"os"
 	"testing"
 
@@ -52,23 +53,38 @@ func TestBindFlags(t *testing.T) {
 	command.PersistentFlags().AddGoFlagSet(flags)
 	v.BindPFlags(command.PersistentFlags())
 
+	jaegerTags := fmt.Sprintf("%s,%s,%s,%s,%s,%s",
+		"key=value",
+		"envVar1=${envKey1:defaultVal1}",
+		"envVar2=${envKey2:defaultVal2}",
+		"envVar3=${envKey3}",
+		"envVar4=${envKey4}",
+		"envVar5=${envVar5:}",
+	)
+
 	err := command.ParseFlags([]string{
 		"--reporter.type=grpc",
-		"--jaeger.tags=key=value,envVar1=${envKey1:defaultVal1},envVar2=${envKey2:defaultVal2}",
+		"--jaeger.tags=" + jaegerTags,
 	})
 	require.NoError(t, err)
 
 	b := &Options{}
 	os.Setenv("envKey1", "envVal1")
+	defer os.Unsetenv("envKey1")
+
+	os.Setenv("envKey4", "envVal4")
+	defer os.Unsetenv("envKey4")
+
 	b.InitFromViper(v)
 
 	expectedTags := map[string]string{
 		"key":     "value",
 		"envVar1": "envVal1",
 		"envVar2": "defaultVal2",
+		"envVar4": "envVal4",
+		"envVar5": "",
 	}
 
 	assert.Equal(t, Type("grpc"), b.ReporterType)
 	assert.Equal(t, expectedTags, b.AgentTags)
-	os.Unsetenv("envKey1")
 }
