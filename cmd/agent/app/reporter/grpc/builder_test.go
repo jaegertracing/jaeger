@@ -19,6 +19,8 @@ import (
 	"testing"
 	"time"
 
+	"github.com/jaegertracing/jaeger/cmd/agent/app/reporter"
+
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"github.com/uber/jaeger-lib/metrics"
@@ -173,7 +175,7 @@ func TestProxyBuilder(t *testing.T) {
 
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
-			proxy, err := NewCollectorProxy(test.grpcBuilder, nil, metrics.NullFactory, zap.NewNop())
+			proxy, err := NewCollectorProxy(test.grpcBuilder, nil, reporter.Duplicate, metrics.NullFactory, zap.NewNop())
 			if test.expectError {
 				require.Error(t, err)
 			} else {
@@ -321,6 +323,7 @@ func TestProxyClientTLS(t *testing.T) {
 			proxy, err := NewCollectorProxy(
 				grpcBuilder,
 				nil,
+				reporter.Duplicate,
 				mFactory,
 				zap.NewNop())
 
