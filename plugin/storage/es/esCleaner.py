@@ -13,6 +13,7 @@ def main():
         print('USAGE: [INDEX_PREFIX=(default "")] [ARCHIVE=(default false)] ... {} NUM_OF_DAYS http://HOSTNAME[:PORT]'.format(sys.argv[0]))
         print('NUM_OF_DAYS ... delete indices that are older than the given number of days.')
         print('HOSTNAME ... specifies which Elasticsearch hosts URL to search and delete indices from.')
+        print('SCHEME ... http/https (default: http)')
         print('TIMEOUT ...  number of seconds to wait for master node response.'.format(TIMEOUT))
         print('INDEX_PREFIX ... specifies index prefix.')
         print('ARCHIVE ... specifies whether to remove archive indices (only works for rollover) (default false).')
@@ -27,15 +28,16 @@ def main():
 
     username = os.getenv("ES_USERNAME")
     password = os.getenv("ES_PASSWORD")
+    scheme = os.getenv("SCHEME", "http")
 
     if username is not None and password is not None:
-        client = elasticsearch.Elasticsearch(sys.argv[2:], http_auth=(username, password))
+        client = elasticsearch.Elasticsearch(sys.argv[2:], http_auth=(username, password), scheme=scheme)
     elif str2bool(os.getenv("ES_TLS", 'false')):
         context = ssl.create_default_context(ssl.Purpose.SERVER_AUTH, cafile=os.getenv("ES_TLS_CA"))
         context.load_cert_chain(certfile=os.getenv("ES_TLS_CERT"), keyfile=os.getenv("ES_TLS_KEY"))
-        client = elasticsearch.Elasticsearch(sys.argv[2:], ssl_context=context)
+        client = elasticsearch.Elasticsearch(sys.argv[2:], ssl_context=context, scheme=scheme)
     else:
-        client = elasticsearch.Elasticsearch(sys.argv[2:])
+        client = elasticsearch.Elasticsearch(sys.argv[2:], scheme=scheme)
 
     ilo = curator.IndexList(client)
     empty_list(ilo, 'Elasticsearch has no indices')

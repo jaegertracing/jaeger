@@ -27,6 +27,7 @@ def main():
         print('\trollover - rollover to new write index')
         print('\tlookback - removes old indices from read alias')
         print('HOSTNAME ... specifies which Elasticsearch hosts URL to search and delete indices from.')
+        print('SCHEME ... http/https (default: http)')
         print('INDEX_PREFIX ... specifies index prefix.')
         print('ARCHIVE ... handle archive indices (default false).')
         print('ES_USERNAME ... The username required by Elasticsearch.')
@@ -48,15 +49,16 @@ def main():
 
     username = os.getenv("ES_USERNAME")
     password = os.getenv("ES_PASSWORD")
+    scheme = os.getenv("SCHEME", "http")
 
     if username is not None and password is not None:
-        client = elasticsearch.Elasticsearch(sys.argv[2:], http_auth=(username, password))
+        client = elasticsearch.Elasticsearch(sys.argv[2:], http_auth=(username, password), scheme=scheme)
     elif str2bool(os.getenv("ES_TLS", 'false')):
         context = ssl.create_default_context(ssl.Purpose.SERVER_AUTH, cafile=os.getenv("ES_TLS_CA"))
         context.load_cert_chain(certfile=os.getenv("ES_TLS_CERT"), keyfile=os.getenv("ES_TLS_KEY"))
         client = elasticsearch.Elasticsearch(sys.argv[2:], ssl_context=context)
     else:
-        client = elasticsearch.Elasticsearch(sys.argv[2:])
+        client = elasticsearch.Elasticsearch(sys.argv[2:], scheme=scheme)
 
     prefix = os.getenv('INDEX_PREFIX', '')
     if prefix != '':
