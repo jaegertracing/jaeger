@@ -18,6 +18,8 @@ package grpc
 import (
 	"context"
 
+	"github.com/jaegertracing/jaeger/cmd/agent/app/reporter"
+
 	"go.uber.org/zap"
 	"google.golang.org/grpc"
 
@@ -32,19 +34,21 @@ import (
 
 // Reporter reports data to collector over gRPC.
 type Reporter struct {
-	collector api_v2.CollectorServiceClient
-	agentTags []model.KeyValue
-	logger    *zap.Logger
-	sanitizer zipkin2.Sanitizer
+	collector           api_v2.CollectorServiceClient
+	agentTags           []model.KeyValue
+	duplicateTagsPolicy string
+	logger              *zap.Logger
+	sanitizer           zipkin2.Sanitizer
 }
 
 // NewReporter creates gRPC reporter.
-func NewReporter(conn *grpc.ClientConn, agentTags map[string]string, logger *zap.Logger) *Reporter {
+func NewReporter(conn *grpc.ClientConn, agentTags map[string]string, duplicateTagsPolicy string, logger *zap.Logger) *Reporter {
 	return &Reporter{
-		collector: api_v2.NewCollectorServiceClient(conn),
-		agentTags: makeModelKeyValue(agentTags),
-		logger:    logger,
-		sanitizer: zipkin2.NewChainedSanitizer(zipkin2.StandardSanitizers...),
+		collector:           api_v2.NewCollectorServiceClient(conn),
+		agentTags:           makeModelKeyValue(agentTags),
+		duplicateTagsPolicy: duplicateTagsPolicy,
+		logger:              logger,
+		sanitizer:           zipkin2.NewChainedSanitizer(zipkin2.StandardSanitizers...),
 	}
 }
 
@@ -66,7 +70,7 @@ func (r *Reporter) EmitZipkinBatch(zSpans []*zipkincore.Span) error {
 }
 
 func (r *Reporter) send(spans []*model.Span, process *model.Process) error {
-	spans, process = addProcessTags(spans, process, r.agentTags)
+	spans, process = addProcessTags(spans, process, r.agentTags, r.duplicateTagsPolicy)
 	batch := model.Batch{Spans: spans, Process: process}
 	req := &api_v2.PostSpansRequest{Batch: batch}
 	_, err := r.collector.PostSpans(context.Background(), req)
@@ -77,7 +81,7 @@ func (r *Reporter) send(spans []*model.Span, process *model.Process) error {
 }
 
 // addTags appends jaeger tags for the agent to every span it sends to the collector.
-func addProcessTags(spans []*model.Span, process *model.Process, agentTags []model.KeyValue) ([]*model.Span, *model.Process) {
+func addProcessTags(spans []*model.Span, process *model.Process, agentTags []model.KeyValue, duplicateTagsPolicy string) ([]*model.Span, *model.Process) {
 	if len(agentTags) == 0 {
 		return spans, process
 	}
@@ -86,10 +90,37 @@ func addProcessTags(spans []*model.Span, process *model.Process, agentTags []mod
 	}
 	for _, span := range spans {
 		if span.Process != nil {
-			span.Process.Tags = append(span.Process.Tags, agentTags...)
+			if duplicateTagsPolicy != reporter.Duplicate {
+				for _, agentTag := range agentTags {
+					index, alreadyPresent := checkIfPresentAlready(span.Process.Tags, agentTag)
+					if alreadyPresent {
+						// If Policy is Agent, remove and add else do nothing as client is already present
+						if duplicateTagsPolicy == reporter.Agent {
+							// remove i from Tags and add agentTag
+							span.Process.Tags = append(span.Process.Tags[:index], span.Process.Tags[index+1:]...)
+							span.Process.Tags = append(span.Process.Tags, agentTag)
+						}
+					} else {
+						span.Process.Tags = append(span.Process.Tags, agentTag)
+					}
+				}
+			} else {
+				span.Process.Tags = append(span.Process.Tags, agentTags...)
+			}
 		}
 	}
 	return spans, process
+}
+
+func checkIfPresentAlready(tags []model.KeyValue, agentTag model.KeyValue) (int, bool) {
+	i := 0
+	for _, tag := range tags {
+		if tag.Key == agentTag.Key {
+			return i, true
+		}
+		i++
+	}
+	return -1, false
 }
 
 func makeModelKeyValue(agentTags map[string]string) []model.KeyValue {

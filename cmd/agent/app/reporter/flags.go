@@ -28,6 +28,12 @@ const (
 	reporterType = "reporter.type"
 	// Agent tags
 	agentTags = "jaeger.tags"
+	// Jaeger Tags override policy
+	duplicateTags = "jaeger.duplicate-tags"
+	// Options for Jaeger Tag override policy
+	Client    string = "client"
+	Agent     string = "agent"
+	Duplicate string = "duplicate"
 	// TCHANNEL is name of tchannel reporter.
 	TCHANNEL Type = "tchannel"
 	// GRPC is name of gRPC reporter.
@@ -39,12 +45,14 @@ type Type string
 
 // Options holds generic reporter configuration.
 type Options struct {
-	ReporterType Type
-	AgentTags    map[string]string
+	ReporterType        Type
+	DuplicateTagsPolicy string
+	AgentTags           map[string]string
 }
 
 // AddFlags adds flags for Options.
 func AddFlags(flags *flag.FlagSet) {
+	flags.String(duplicateTags, Client, "Jaeger Tags override policy. Accepted values are client, agent, duplicate.")
 	flags.String(reporterType, string(GRPC), fmt.Sprintf("Reporter type to use e.g. %s, %s", string(GRPC), string(TCHANNEL)))
 	flags.String(agentTags, "", "One or more tags to be added to the Process tags of all spans passing through this agent. Ex: key1=value1,key2=${envVar:defaultValue}")
 }
@@ -53,6 +61,7 @@ func AddFlags(flags *flag.FlagSet) {
 func (b *Options) InitFromViper(v *viper.Viper) *Options {
 	b.ReporterType = Type(v.GetString(reporterType))
 	b.AgentTags = parseAgentTags(v.GetString(agentTags))
+	b.DuplicateTagsPolicy = v.GetString(duplicateTags)
 	return b
 }
 

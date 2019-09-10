@@ -230,7 +230,7 @@ func CreateCollectorProxy(
 	}
 	switch opts.ReporterType {
 	case reporter.GRPC:
-		return grpc.NewCollectorProxy(grpcBuilder, opts.AgentTags, mFactory, logger)
+		return grpc.NewCollectorProxy(grpcBuilder, opts.AgentTags, opts.DuplicateTagsPolicy, mFactory, logger)
 	case reporter.TCHANNEL:
 		return tchannel.NewCollectorProxy(tchanBuilder, mFactory, logger)
 	default:

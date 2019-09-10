@@ -33,7 +33,7 @@ type ProxyBuilder struct {
 }
 
 // NewCollectorProxy creates ProxyBuilder
-func NewCollectorProxy(builder *ConnBuilder, agentTags map[string]string, mFactory metrics.Factory, logger *zap.Logger) (*ProxyBuilder, error) {
+func NewCollectorProxy(builder *ConnBuilder, agentTags map[string]string, duplicateTagsPolicy string, mFactory metrics.Factory, logger *zap.Logger) (*ProxyBuilder, error) {
 	conn, err := builder.CreateConnection(logger)
 	if err != nil {
 		return nil, err
@@ -41,7 +41,7 @@ func NewCollectorProxy(builder *ConnBuilder, agentTags map[string]string, mFacto
 	grpcMetrics := mFactory.Namespace(metrics.NSOptions{Name: "", Tags: map[string]string{"protocol": "grpc"}})
 	return &ProxyBuilder{
 		conn:     conn,
-		reporter: reporter.WrapWithMetrics(NewReporter(conn, agentTags, logger), grpcMetrics),
+		reporter: reporter.WrapWithMetrics(NewReporter(conn, agentTags, duplicateTagsPolicy, logger), grpcMetrics),
 		manager:  configmanager.WrapWithMetrics(grpcManager.NewConfigManager(conn), grpcMetrics),
 	}, nil
 }
