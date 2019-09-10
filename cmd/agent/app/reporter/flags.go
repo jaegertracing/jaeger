@@ -31,9 +31,9 @@ const (
 	// duplicateTags is the override policy for tags when duplicates are present
 	duplicateTags = "jaeger.duplicate-tags"
 	// Client to honour client's i.e library's tag
-	Client    string = "client"
+	Client string = "client"
 	// Agent to honour agent's tag
-	Agent     string = "agent"
+	Agent string = "agent"
 	// Duplicate to keep both
 	Duplicate string = "duplicate"
 	// TCHANNEL is name of tchannel reporter.

@@ -18,11 +18,10 @@ package grpc
 import (
 	"context"
 
-	"github.com/jaegertracing/jaeger/cmd/agent/app/reporter"
-
 	"go.uber.org/zap"
 	"google.golang.org/grpc"
 
+	"github.com/jaegertracing/jaeger/cmd/agent/app/reporter"
 	zipkin2 "github.com/jaegertracing/jaeger/cmd/collector/app/sanitizer/zipkin"
 	"github.com/jaegertracing/jaeger/model"
 	jConverter "github.com/jaegertracing/jaeger/model/converter/thrift/jaeger"

@@ -20,13 +20,12 @@ import (
 	"testing"
 	"time"
 
-	"github.com/jaegertracing/jaeger/cmd/agent/app/reporter"
-
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"go.uber.org/zap"
 	"google.golang.org/grpc"
 
+	"github.com/jaegertracing/jaeger/cmd/agent/app/reporter"
 	"github.com/jaegertracing/jaeger/model"
 	"github.com/jaegertracing/jaeger/proto-gen/api_v2"
 	jThrift "github.com/jaegertracing/jaeger/thrift-gen/jaeger"
