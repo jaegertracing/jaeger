@@ -62,7 +62,7 @@ func newDatabase(tracer opentracing.Tracer, logger log.Factory) *database {
 			},
 			"731": {
 				ID:       "731",
-				Name:     "Japanese Deserts",
+				Name:     "Japanese Desserts",
 				Location: "728,326",
 			},
 		},
