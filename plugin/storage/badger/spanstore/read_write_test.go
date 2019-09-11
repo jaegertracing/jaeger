@@ -416,7 +416,7 @@ func TestPersist(t *testing.T) {
 	})
 }
 
-// Opens a badger db and runs a a test on it.
+// Opens a badger db and runs a test on it.
 func runFactoryTest(tb testing.TB, test func(tb testing.TB, sw spanstore.Writer, sr spanstore.Reader)) {
 	f := badger.NewFactory()
 	opts := badger.NewOptions("badger")
@@ -585,7 +585,7 @@ func BenchmarkServiceIndexLimitFetch(b *testing.B) {
 	makeReadBenchmark(b, tid, params, "serviceindexlimit.out")
 }
 
-// Opens a badger db and runs a a test on it.
+// Opens a badger db and runs a test on it.
 func runLargeFactoryTest(tb testing.TB, test func(tb testing.TB, sw spanstore.Writer, sr spanstore.Reader)) {
 	f := badger.NewFactory()
 	opts := badger.NewOptions("badger")

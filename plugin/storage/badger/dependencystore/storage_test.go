@@ -31,7 +31,7 @@ import (
 	"github.com/jaegertracing/jaeger/storage/spanstore"
 )
 
-// Opens a badger db and runs a a test on it.
+// Opens a badger db and runs a test on it.
 func runFactoryTest(tb testing.TB, test func(tb testing.TB, sw spanstore.Writer, dr dependencystore.Reader)) {
 	f := badger.NewFactory()
 	opts := badger.NewOptions("badger")

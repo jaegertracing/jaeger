@@ -95,7 +95,7 @@ from within your plugin, this is useful if using Docker.
 Logging
 -------
 In order for Jaeger to include the log output from your plugin you need to use `hclog` (`"github.com/hashicorp/go-hclog"`).
-The plugin framework will only include any log output created at the the `WARN` or above levels. If you log output in this
+The plugin framework will only include any log output created at the `WARN` or above levels. If you log output in this
 way before calling `grpc.Serve` then it will still be included in the Jaeger output. 
 
 An example logger instantiation could look like:
