@@ -12,23 +12,36 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package queue
+package common_test
 
 import (
-	"fmt"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
 
+	"github.com/jaegertracing/jaeger/cmd/agent/app/reporter/common"
 	"github.com/jaegertracing/jaeger/model"
 )
 
-func TestDirectProcessing(t *testing.T) {
+func TestAddProcessTagsToAllParts(t *testing.T) {
 	assert := assert.New(t)
-	n := NewNonQueue(func(batch model.Batch) error {
-		return fmt.Errorf("Error")
-	})
 
-	err := n.Enqueue(model.Batch{})
-	assert.Error(err, "Error")
+	process := &model.Process{}
+
+	spans := []*model.Span{
+		{
+			Process: &model.Process{},
+		},
+	}
+
+	tags := map[string]string{
+		"a": "b",
+	}
+
+	spans2, process2 := common.AddProcessTags(spans, process, []model.KeyValue{})
+	assert.Equal(process, process2)
+	assert.Equal(spans, spans2)
+
+	_, process2 = common.AddProcessTags(spans, process, model.KeyValueFromMap(tags))
+	assert.Equal("b", process2.Tags[0].VStr)
 }

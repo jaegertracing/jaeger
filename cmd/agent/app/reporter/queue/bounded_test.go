@@ -24,19 +24,19 @@ import (
 	"github.com/uber/jaeger-lib/metrics/metricstest"
 	"go.uber.org/zap"
 
-	"github.com/jaegertracing/jaeger/thrift-gen/jaeger"
+	"github.com/jaegertracing/jaeger/model"
 )
 
 func TestErrorConsumerLogging(t *testing.T) {
 	// For codecov
 	metricsFactory := metricstest.NewFactory(time.Microsecond)
-	b := NewBoundQueue(1, 1, func(batch *jaeger.Batch) error {
+	b := NewBoundQueue(1, 1, func(batch model.Batch) error {
 		return fmt.Errorf("Logging error")
 	}, zap.NewNop(), metricsFactory)
 
 	for i := 0; i < 2; i++ {
-		b.Enqueue(&jaeger.Batch{
-			Process: &jaeger.Process{
+		b.Enqueue(model.Batch{
+			Process: &model.Process{
 				ServiceName: fmt.Sprintf("error_%d", i),
 			},
 		})
@@ -53,8 +53,7 @@ func TestDroppedItems(t *testing.T) {
 	processNames := make([]string, 0, 2)
 
 	metricsFactory := metricstest.NewFactory(time.Microsecond)
-	b := NewBoundQueue(1, 1, func(batch *jaeger.Batch) error {
-		fmt.Printf("%s\n", batch.GetProcess().ServiceName)
+	b := NewBoundQueue(1, 1, func(batch model.Batch) error {
 		mut.Lock() // Block processing until we let it go
 		processNames = append(processNames, batch.GetProcess().ServiceName)
 		mut.Unlock()
@@ -64,8 +63,8 @@ func TestDroppedItems(t *testing.T) {
 
 	for i := 0; i < 2; i++ {
 		// First one goes to processing, second to queue..
-		assert.NoError(b.Enqueue(&jaeger.Batch{
-			Process: &jaeger.Process{
+		assert.NoError(b.Enqueue(model.Batch{
+			Process: &model.Process{
 				ServiceName: fmt.Sprintf("success_%d", i),
 			},
 		}))
@@ -73,8 +72,8 @@ func TestDroppedItems(t *testing.T) {
 
 	// These should start throwing errors as the queue is full
 	for i := 0; i < 2; i++ {
-		assert.Error(b.Enqueue(&jaeger.Batch{
-			Process: &jaeger.Process{
+		assert.Error(b.Enqueue(model.Batch{
+			Process: &model.Process{
 				ServiceName: fmt.Sprintf("error_%d", i),
 			},
 		}))

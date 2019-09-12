@@ -22,7 +22,10 @@ import (
 	"github.com/uber/jaeger-lib/metrics"
 	"go.uber.org/zap"
 
+	"github.com/jaegertracing/jaeger/cmd/agent/app/reporter/common"
 	"github.com/jaegertracing/jaeger/cmd/agent/app/reporter/queue"
+	"github.com/jaegertracing/jaeger/model"
+	jConverter "github.com/jaegertracing/jaeger/model/converter/thrift/jaeger"
 	"github.com/jaegertracing/jaeger/thrift-gen/jaeger"
 	"github.com/jaegertracing/jaeger/thrift-gen/zipkincore"
 )
@@ -36,14 +39,14 @@ const (
 
 // Queue is generic interface which includes methods common to all implemented queues
 type Queue interface {
-	Enqueue(*jaeger.Batch) error
+	Enqueue(model.Batch) error
 }
 
 // QueuedReporter is a reporter that uses push-pull method that queues all incoming requests and then
 // lets the wrapped reporter do the actual pushing to the server (such as gRPC). If the requests fails
 // with retryable error the transaction is tried again.
 type QueuedReporter struct {
-	wrapped Reporter
+	wrapped Forwarder
 	queue   Queue
 	logger  *zap.Logger
 
@@ -55,17 +58,19 @@ type QueuedReporter struct {
 	initialRetryInterval    time.Duration
 
 	reporterMetrics *MetricsReporter
+	agentTags       []model.KeyValue
 }
 
 // WrapWithQueue wraps the destination reporter with a queueing capabilities for retries
-func WrapWithQueue(opts *Options, reporter Reporter, logger *zap.Logger, mFactory metrics.Factory) *QueuedReporter {
+func WrapWithQueue(opts *Options, forwarder Forwarder, logger *zap.Logger, mFactory metrics.Factory) *QueuedReporter {
 	q := &QueuedReporter{
-		wrapped:                 reporter,
+		wrapped:                 forwarder,
 		logger:                  logger,
 		lastRetryIntervalChange: time.Now(),
 		initialRetryInterval:    time.Millisecond * 100,
 		maxRetryInterval:        opts.ReporterMaxRetryInterval,
-		reporterMetrics:         NewMetricsReporter(reporter, mFactory),
+		reporterMetrics:         NewMetricsReporter(forwarder, mFactory),
+		agentTags:               model.KeyValueFromMap(opts.AgentTags),
 	}
 	q.currentRetryInterval = q.initialRetryInterval
 
@@ -82,13 +87,18 @@ func WrapWithQueue(opts *Options, reporter Reporter, logger *zap.Logger, mFactor
 // EmitZipkinBatch forwards the spans to the wrapped reporter (without queue)
 func (q *QueuedReporter) EmitZipkinBatch(spans []*zipkincore.Span) error {
 	// EmitZipkinBatch does not use queue, instead it uses the older metrics passthrough
+	// This method should not be called
 	return q.reporterMetrics.EmitZipkinBatch(spans)
 }
 
 // EmitBatch sends the batch to the queue for async processing
 func (q *QueuedReporter) EmitBatch(batch *jaeger.Batch) error {
 	if batch != nil {
-		err := q.queue.Enqueue(batch)
+		spans := jConverter.ToDomain(batch.Spans, nil)
+		process := jConverter.ToDomainProcess(batch.Process)
+		spans, process = common.AddProcessTags(spans, process, q.agentTags)
+		forwardBatch := model.Batch{Spans: spans, Process: process}
+		err := q.queue.Enqueue(forwardBatch)
 		return err
 	}
 	return nil
@@ -115,10 +125,10 @@ func (q *QueuedReporter) backOffTimer() time.Duration {
 	return q.currentRetryInterval
 }
 
-func (q *QueuedReporter) batchProcessor(batch *jaeger.Batch) error {
+func (q *QueuedReporter) batchProcessor(batch model.Batch) error {
 	spansCount := int64(len(batch.GetSpans()))
 
-	err := q.wrapped.EmitBatch(batch)
+	err := q.wrapped.ForwardBatch(batch)
 	if err != nil {
 		for IsRetryable(err) {
 			q.reporterMetrics.BatchMetrics.BatchesRetries.Inc(1)
@@ -126,7 +136,7 @@ func (q *QueuedReporter) batchProcessor(batch *jaeger.Batch) error {
 			sleepTime := q.backOffTimer()
 			q.logger.Info(fmt.Sprintf("Failed to contact the collector, waiting %s before retry", sleepTime.String()))
 			time.Sleep(sleepTime)
-			err = q.wrapped.EmitBatch(batch)
+			err = q.wrapped.ForwardBatch(batch)
 			if err == nil {
 				q.retryMutex.Lock()
 				q.currentRetryInterval = q.initialRetryInterval
@@ -146,11 +156,11 @@ func (q *QueuedReporter) batchProcessor(batch *jaeger.Batch) error {
 	return nil
 }
 
-func (q *QueuedReporter) directProcessor(batch *jaeger.Batch) error {
+func (q *QueuedReporter) directProcessor(batch model.Batch) error {
 	// No retries, report error directly back. Useful for testing to bypass the queue
 	spansCount := int64(len(batch.GetSpans()))
 
-	err := q.wrapped.EmitBatch(batch)
+	err := q.wrapped.ForwardBatch(batch)
 	if err != nil {
 		q.reporterMetrics.BatchMetrics.BatchesFailures.Inc(1)
 		q.reporterMetrics.BatchMetrics.SpansFailures.Inc(spansCount)

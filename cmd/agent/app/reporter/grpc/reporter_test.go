@@ -27,6 +27,7 @@ import (
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 
+	"github.com/jaegertracing/jaeger/cmd/agent/app/reporter/common"
 	"github.com/jaegertracing/jaeger/model"
 	"github.com/jaegertracing/jaeger/proto-gen/api_v2"
 	jThrift "github.com/jaegertracing/jaeger/thrift-gen/jaeger"
@@ -132,7 +133,7 @@ func TestReporter_SendFailure(t *testing.T) {
 func TestReporter_AddProcessTags_EmptyTags(t *testing.T) {
 	tags := map[string]string{}
 	spans := []*model.Span{{TraceID: model.NewTraceID(0, 1), SpanID: model.NewSpanID(2), OperationName: "jonatan"}}
-	actualSpans, _ := addProcessTags(spans, nil, makeModelKeyValue(tags))
+	actualSpans, _ := common.AddProcessTags(spans, nil, model.KeyValueFromMap(tags))
 	assert.Equal(t, spans, actualSpans)
 }
 
@@ -148,7 +149,7 @@ func TestReporter_AddProcessTags_ZipkinBatch(t *testing.T) {
 			Process:       &model.Process{ServiceName: "spring", Tags: []model.KeyValue{model.String("key", "value")}},
 		},
 	}
-	actualSpans, _ := addProcessTags(spans, nil, makeModelKeyValue(tags))
+	actualSpans, _ := common.AddProcessTags(spans, nil, model.KeyValueFromMap(tags))
 
 	assert.Equal(t, expectedSpans, actualSpans)
 }
@@ -159,7 +160,7 @@ func TestReporter_AddProcessTags_JaegerBatch(t *testing.T) {
 	process := &model.Process{ServiceName: "spring"}
 
 	expectedProcess := &model.Process{ServiceName: "spring", Tags: []model.KeyValue{model.String("key", "value")}}
-	_, actualProcess := addProcessTags(spans, process, makeModelKeyValue(tags))
+	_, actualProcess := common.AddProcessTags(spans, process, model.KeyValueFromMap(tags))
 
 	assert.Equal(t, expectedProcess, actualProcess)
 }
@@ -167,7 +168,7 @@ func TestReporter_AddProcessTags_JaegerBatch(t *testing.T) {
 func TestReporter_MakeModelKeyValue(t *testing.T) {
 	expectedTags := []model.KeyValue{model.String("key", "value")}
 	stringTags := map[string]string{"key": "value"}
-	actualTags := makeModelKeyValue(stringTags)
+	actualTags := model.KeyValueFromMap(stringTags)
 
 	assert.Equal(t, expectedTags, actualTags)
 }
