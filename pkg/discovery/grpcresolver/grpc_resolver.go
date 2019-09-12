@@ -29,6 +29,9 @@ import (
 	"github.com/jaegertracing/jaeger/pkg/discovery"
 )
 
+// GRPCServiceConfig provides grpc service config
+const GRPCServiceConfig = `{"loadBalancingPolicy":"round_robin"}`
+
 // Resolver uses notifier to fetch list of available hosts
 type Resolver struct {
 	scheme            string
