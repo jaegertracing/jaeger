@@ -109,8 +109,9 @@ def perform_action(action, client, write_alias, read_alias, index_to_rollover, t
 def create_index_template(template, template_name):
     print('Creating index template {}'.format(template_name))
     headers = {'Content-Type': 'application/json'}
+    scheme = os.getenv("SCHEME", "http")
     s = get_request_session(os.getenv("ES_USERNAME"), os.getenv("ES_PASSWORD"), str2bool(os.getenv("ES_TLS", 'false')), os.getenv("ES_TLS_CA"), os.getenv("ES_TLS_CERT"), os.getenv("ES_TLS_KEY"))
-    r = s.put(sys.argv[2] + '/_template/' + template_name, headers=headers, data=template)
+    r = s.put(scheme + '://' + sys.argv[2] + '/_template/' + template_name, headers=headers, data=template)
     print(r.text)
     r.raise_for_status()
 
