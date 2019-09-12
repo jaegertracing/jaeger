@@ -23,6 +23,7 @@ import (
 	"github.com/uber/jaeger-lib/metrics/metricstest"
 	"go.uber.org/zap"
 
+	"github.com/jaegertracing/jaeger/model"
 	"github.com/jaegertracing/jaeger/thrift-gen/jaeger"
 	"github.com/jaegertracing/jaeger/thrift-gen/zipkincore"
 )
@@ -36,6 +37,10 @@ func (r *noopReporter) EmitZipkinBatch(spans []*zipkincore.Span) error {
 }
 
 func (r *noopReporter) EmitBatch(batch *jaeger.Batch) error {
+	return r.err
+}
+
+func (r *noopReporter) ForwardBatch(batch model.Batch) error {
 	return r.err
 }
 

@@ -12,21 +12,22 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package queue
+package common
 
 import "github.com/jaegertracing/jaeger/model"
 
-// NonQueue sends stuff directly without queueing. Useful for testing purposes
-type NonQueue struct {
-	processor func(model.Batch) error
-}
-
-// NewNonQueue returns direct processing "queue"
-func NewNonQueue(processor func(model.Batch) error) *NonQueue {
-	return &NonQueue{processor}
-}
-
-// Enqueue calls processor instead of queueing
-func (n *NonQueue) Enqueue(batch model.Batch) error {
-	return n.processor(batch)
+// AddProcessTags appends jaeger tags for the agent to every span it sends to the collector.
+func AddProcessTags(spans []*model.Span, process *model.Process, agentTags []model.KeyValue) ([]*model.Span, *model.Process) {
+	if len(agentTags) == 0 {
+		return spans, process
+	}
+	if process != nil {
+		process.Tags = append(process.Tags, agentTags...)
+	}
+	for _, span := range spans {
+		if span.Process != nil {
+			span.Process.Tags = append(span.Process.Tags, agentTags...)
+		}
+	}
+	return spans, process
 }

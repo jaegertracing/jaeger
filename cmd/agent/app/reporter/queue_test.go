@@ -26,6 +26,7 @@ import (
 	"go.uber.org/zap"
 
 	"github.com/jaegertracing/jaeger/cmd/agent/app/reporter/queue"
+	"github.com/jaegertracing/jaeger/model"
 	"github.com/jaegertracing/jaeger/thrift-gen/jaeger"
 	"github.com/jaegertracing/jaeger/thrift-gen/zipkincore"
 )
@@ -50,6 +51,10 @@ func (g *gRPCErrorReporter) EmitZipkinBatch(spans []*zipkincore.Span) error {
 }
 
 func (g *gRPCErrorReporter) EmitBatch(batch *jaeger.Batch) error {
+	return g.ForwardBatch(model.Batch{})
+}
+
+func (g *gRPCErrorReporter) ForwardBatch(batch model.Batch) error {
 	g.testMutex.Lock()
 	defer g.testMutex.Unlock()
 

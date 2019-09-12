@@ -16,6 +16,7 @@
 package reporter
 
 import (
+	"github.com/jaegertracing/jaeger/model"
 	"github.com/jaegertracing/jaeger/pkg/multierror"
 	"github.com/jaegertracing/jaeger/thrift-gen/jaeger"
 	"github.com/jaegertracing/jaeger/thrift-gen/zipkincore"
@@ -26,6 +27,12 @@ import (
 type Reporter interface {
 	EmitZipkinBatch(spans []*zipkincore.Span) (err error)
 	EmitBatch(batch *jaeger.Batch) (err error)
+}
+
+// Forwarder is a replacement for Reporter interface, behind a retryable queue
+type Forwarder interface {
+	Reporter
+	ForwardBatch(batch model.Batch) error
 }
 
 // RetryableError indicates if the error coming from a reporter can be retried for sending

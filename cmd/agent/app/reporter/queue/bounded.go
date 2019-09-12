@@ -21,8 +21,8 @@ import (
 	"github.com/uber/jaeger-lib/metrics"
 	"go.uber.org/zap"
 
+	"github.com/jaegertracing/jaeger/model"
 	"github.com/jaegertracing/jaeger/pkg/queue"
-	"github.com/jaegertracing/jaeger/thrift-gen/jaeger"
 )
 
 type queueMetrics struct {
@@ -41,7 +41,7 @@ type Bound struct {
 }
 
 // NewBoundQueue creates a new bounded queue with non-transactional processing
-func NewBoundQueue(bufSize, concurrency int, processor func(*jaeger.Batch) error, logger *zap.Logger, mFactory metrics.Factory) *Bound {
+func NewBoundQueue(bufSize, concurrency int, processor func(model.Batch) error, logger *zap.Logger, mFactory metrics.Factory) *Bound {
 	b := &Bound{
 		logger:  logger,
 		metrics: queueMetrics{},
@@ -50,7 +50,7 @@ func NewBoundQueue(bufSize, concurrency int, processor func(*jaeger.Batch) error
 
 	b.queue.StartConsumers(concurrency, func(item interface{}) {
 		// This queue does not have persistence, thus we don't handle transactionality
-		err := processor(item.(*jaeger.Batch))
+		err := processor(item.(model.Batch))
 		if err != nil {
 			b.logger.Error("Could not transmit batch", zap.Error(err))
 		}
@@ -67,7 +67,7 @@ func (b *Bound) droppedItem(item interface{}) {
 }
 
 // Enqueue pushes the batch to the queue or returns and error if the queue is full
-func (b *Bound) Enqueue(batch *jaeger.Batch) error {
+func (b *Bound) Enqueue(batch model.Batch) error {
 	success := b.queue.Produce(batch)
 	if !success {
 		return fmt.Errorf("destination queue could not accept new entries")

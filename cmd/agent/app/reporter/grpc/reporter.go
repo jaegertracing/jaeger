@@ -23,6 +23,7 @@ import (
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 
+	"github.com/jaegertracing/jaeger/cmd/agent/app/reporter/common"
 	zipkin2 "github.com/jaegertracing/jaeger/cmd/collector/app/sanitizer/zipkin"
 	"github.com/jaegertracing/jaeger/model"
 	jConverter "github.com/jaegertracing/jaeger/model/converter/thrift/jaeger"
@@ -44,10 +45,20 @@ type Reporter struct {
 func NewReporter(conn *grpc.ClientConn, agentTags map[string]string, logger *zap.Logger) *Reporter {
 	return &Reporter{
 		collector: api_v2.NewCollectorServiceClient(conn),
-		agentTags: makeModelKeyValue(agentTags),
+		agentTags: model.KeyValueFromMap(agentTags),
 		logger:    logger,
 		sanitizer: zipkin2.NewChainedSanitizer(zipkin2.StandardSanitizers...),
 	}
+}
+
+// ForwardBatch sends the model.Batch to the gRPC target, implements Forwarder
+func (r *Reporter) ForwardBatch(batch model.Batch) error {
+	req := &api_v2.PostSpansRequest{Batch: batch}
+	_, err := r.collector.PostSpans(context.Background(), req)
+	if err != nil {
+		return &gRPCReporterError{err}
+	}
+	return nil
 }
 
 // EmitBatch implements EmitBatch() of Reporter
@@ -68,40 +79,9 @@ func (r *Reporter) EmitZipkinBatch(zSpans []*zipkincore.Span) error {
 }
 
 func (r *Reporter) send(spans []*model.Span, process *model.Process) error {
-	spans, process = addProcessTags(spans, process, r.agentTags)
+	spans, process = common.AddProcessTags(spans, process, r.agentTags)
 	batch := model.Batch{Spans: spans, Process: process}
-	req := &api_v2.PostSpansRequest{Batch: batch}
-	_, err := r.collector.PostSpans(context.Background(), req)
-	if err != nil {
-		return &gRPCReporterError{err}
-	}
-	return nil
-}
-
-// addTags appends jaeger tags for the agent to every span it sends to the collector.
-func addProcessTags(spans []*model.Span, process *model.Process, agentTags []model.KeyValue) ([]*model.Span, *model.Process) {
-	if len(agentTags) == 0 {
-		return spans, process
-	}
-	if process != nil {
-		process.Tags = append(process.Tags, agentTags...)
-	}
-	for _, span := range spans {
-		if span.Process != nil {
-			span.Process.Tags = append(span.Process.Tags, agentTags...)
-		}
-	}
-	return spans, process
-}
-
-func makeModelKeyValue(agentTags map[string]string) []model.KeyValue {
-	tags := make([]model.KeyValue, 0, len(agentTags))
-	for k, v := range agentTags {
-		tag := model.String(k, v)
-		tags = append(tags, tag)
-	}
-
-	return tags
+	return r.ForwardBatch(batch)
 }
 
 // gRPCReporterError is capsulated error coming from the gRPC interface

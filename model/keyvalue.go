@@ -221,3 +221,14 @@ func (kv KeyValue) Hash(w io.Writer) error {
 	}
 	return err
 }
+
+// KeyValueFromMap transforms map[string]string to []KeyValue
+func KeyValueFromMap(tags map[string]string) []KeyValue {
+	kvs := make([]KeyValue, 0, len(tags))
+	for k, v := range tags {
+		kv := String(k, v)
+		kvs = append(kvs, kv)
+	}
+
+	return kvs
+}
