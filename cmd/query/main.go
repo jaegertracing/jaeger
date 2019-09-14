@@ -64,14 +64,11 @@ func main() {
 			baseFactory := svc.MetricsFactory.Namespace(metrics.NSOptions{Name: "jaeger"})
 			metricsFactory := baseFactory.Namespace(metrics.NSOptions{Name: "query"})
 
-			tracer, closer, err := jaegerClientConfig.Configuration{
-				ServiceName: "jaeger-query",
-				Sampler: &jaegerClientConfig.SamplerConfig{
-					Type:  "probabilistic",
-					Param: 1.0,
-				},
-				RPCMetrics: true,
-			}.NewTracer(
+			cfg, err := app.TracerConfig()
+			if err != nil {
+				logger.Fatal("Failed to read tracer config from env", zap.Error(err))
+			}
+			closer, err := cfg.InitGlobalTracer("jaeger-query",
 				jaegerClientConfig.Metrics(svc.MetricsFactory),
 				jaegerClientConfig.Logger(jaegerClientZapLog.NewLogger(logger)),
 			)
@@ -79,7 +76,6 @@ func main() {
 				logger.Fatal("Failed to initialize tracer", zap.Error(err))
 			}
 			defer closer.Close()
-			opentracing.SetGlobalTracer(tracer)
 			queryOpts := new(app.QueryOptions).InitFromViper(v)
 			// TODO: Need to figure out set enable/disable propagation on storage plugins.
 			v.Set(spanstore.StoragePropagationKey, queryOpts.BearerTokenPropagation)
@@ -102,7 +98,7 @@ func main() {
 				dependencyReader,
 				*queryServiceOptions)
 
-			server := app.NewServer(svc, queryService, queryOpts, tracer)
+			server := app.NewServer(svc, queryService, queryOpts, opentracing.GlobalTracer())
 
 			if err := server.Start(); err != nil {
 				logger.Fatal("Could not start servers", zap.Error(err))
