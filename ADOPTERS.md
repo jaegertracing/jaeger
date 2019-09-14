@@ -18,7 +18,7 @@
 * [Ticketmaster](https://www.ticketmaster.com)
   * Case study: [Ticketmaster Traces 100 Million Transactions per Day with Jaeger](https://medium.com/jaegertracing/ticketmaster-traces-100-million-transactions-per-day-with-jaeger-38ec6cf599f0)
   * Talk: [Deploy, Scale and Extend Jaeger](https://www.youtube.com/watch?v=JloanFIc-ms)
-* [UBER](https://uber.com
+* [UBER](https://uber.com)
   * Blog post: [Evolving Distributed Tracing at Uber Engineering](https://eng.uber.com/distributed-tracing/)
 * [Under Armour](https://www.underarmour.com)
 * [Vistar Media](https://www.vistarmedia.com)
