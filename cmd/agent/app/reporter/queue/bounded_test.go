@@ -30,8 +30,8 @@ import (
 func TestErrorConsumerLogging(t *testing.T) {
 	// For codecov
 	metricsFactory := metricstest.NewFactory(time.Microsecond)
-	b := NewBoundQueue(1, 1, func(batch model.Batch) error {
-		return fmt.Errorf("Logging error")
+	b := NewBoundQueue(1, 1, func(batch model.Batch) (bool, error) {
+		return false, fmt.Errorf("error")
 	}, zap.NewNop(), metricsFactory)
 
 	for i := 0; i < 2; i++ {
@@ -53,12 +53,12 @@ func TestDroppedItems(t *testing.T) {
 	processNames := make([]string, 0, 2)
 
 	metricsFactory := metricstest.NewFactory(time.Microsecond)
-	b := NewBoundQueue(1, 1, func(batch model.Batch) error {
+	b := NewBoundQueue(1, 1, func(batch model.Batch) (bool, error) {
 		mut.Lock() // Block processing until we let it go
 		processNames = append(processNames, batch.GetProcess().ServiceName)
 		mut.Unlock()
 		wg.Done()
-		return nil
+		return true, nil
 	}, zap.NewNop(), metricsFactory)
 
 	for i := 0; i < 2; i++ {
@@ -87,4 +87,6 @@ func TestDroppedItems(t *testing.T) {
 	assert.Equal(2, len(processNames))
 	assert.Equal("success_0", processNames[0])
 	assert.Equal("success_1", processNames[1])
+
+	assert.NoError(b.Close())
 }

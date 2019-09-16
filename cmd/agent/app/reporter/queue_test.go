@@ -69,7 +69,25 @@ func (g *gRPCErrorReporter) ForwardBatch(batch model.Batch) error {
 	return nil
 }
 
-func TestMemoryQueue(t *testing.T) {
+func TestDefaultOptions(t *testing.T) {
+	assert := assert.New(t)
+	gr := &gRPCErrorReporter{}
+	metricsFactory := metricstest.NewFactory(time.Microsecond)
+	q := WrapWithQueue(&Options{}, gr, zap.NewNop(), metricsFactory)
+
+	err := q.EmitBatch(&jaeger.Batch{})
+	assert.NoError(err)
+
+	for i := 0; i < 100 && atomic.LoadInt32(&gr.processed) == 0; i++ {
+		time.Sleep(10 * time.Millisecond)
+	}
+	assert.Equal(int32(1), atomic.LoadInt32(&gr.processed))
+
+	c, _ := metricsFactory.Snapshot()
+	assert.Equal(int64(1), c["reporter.batches.submitted|format=jaeger"])
+}
+
+func TestMemoryQueueZipkin(t *testing.T) {
 	assert := assert.New(t)
 	gr := &gRPCErrorReporter{}
 	metricsFactory := metricstest.NewFactory(time.Microsecond)
@@ -118,6 +136,9 @@ func TestMemoryQueueFail(t *testing.T) {
 
 	c, _ := metricsFactory.Snapshot()
 	assert.Equal(int64(1), c["reporter.batches.failures|format=jaeger"])
+
+	err = q.Close()
+	assert.NoError(err)
 }
 
 func TestMemoryQueueRetries(t *testing.T) {
@@ -186,6 +207,20 @@ func TestIsRetryable(t *testing.T) {
 
 	rerr := &retryableError{err}
 	assert.True(IsRetryable(rerr))
+}
+
+func TestClose(t *testing.T) {
+	assert := assert.New(t)
+	gr := &gRPCErrorReporter{createRetryError: true}
+	metricsFactory := metricstest.NewFactory(time.Microsecond)
+	q := WrapWithQueue(&Options{QueueType: MEMORY, BoundedQueueSize: defaultBoundedQueueSize, ReporterConcurrency: 1}, gr, zap.NewNop(), metricsFactory)
+
+	err := q.EmitBatch(&jaeger.Batch{})
+	assert.NoError(err)
+
+	// There should be one inflight transaction
+	err = q.Close()
+	assert.NoError(err)
 }
 
 // gRPCReporterError is capsulated error coming from the gRPC interface

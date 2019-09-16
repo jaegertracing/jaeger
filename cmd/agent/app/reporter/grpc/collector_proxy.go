@@ -38,11 +38,10 @@ func NewCollectorProxy(builder *ConnBuilder, opts *reporter.Options, mFactory me
 	if err != nil {
 		return nil, err
 	}
-	agentTags := opts.AgentTags
 	grpcMetrics := mFactory.Namespace(metrics.NSOptions{Name: "", Tags: map[string]string{"protocol": "grpc"}})
 	return &ProxyBuilder{
 		conn:     conn,
-		reporter: reporter.WrapWithQueue(opts, NewReporter(conn, agentTags, logger), logger, grpcMetrics),
+		reporter: reporter.WrapWithQueue(opts, NewReporter(conn, opts, logger), logger, grpcMetrics),
 		manager:  configmanager.WrapWithMetrics(grpcManager.NewConfigManager(conn), grpcMetrics),
 	}, nil
 }
@@ -64,5 +63,14 @@ func (b ProxyBuilder) GetManager() configmanager.ClientConfigManager {
 
 // Close closes connections used by proxy.
 func (b ProxyBuilder) Close() error {
-	return b.conn.Close()
+	var err error
+	if closer, ok := b.reporter.(io.Closer); ok {
+		err = closer.Close()
+	}
+	// Even if the previous errored, we want to close the conn
+	err2 := b.conn.Close()
+	if err != nil {
+		return err
+	}
+	return err2
 }
