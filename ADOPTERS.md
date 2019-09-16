@@ -3,23 +3,28 @@
 * [ContaAzul](https://contaazul.com/)
 * [FarmersEdge](https://www.farmersedge.ca/)
 * [GrafanaLabs](https://grafana.com/)
-* [Kausal](https://kausal.co)
+  * Case study: [Grafana Labs Teams Use Jaeger to Improve Query Performance Up to 10x](https://medium.com/jaegertracing/grafana-labs-teams-observed-query-performance-improvements-up-to-10x-with-jaeger-cec84b0e3609)
 * [Massachusetts Open Cloud](https://www.bu.edu/hic/research/highlighted-sponsored-projects/massachusetts-open-cloud/)
 * [Matrix](https://matrix.org/)
 * [Northwestern Mutual](https://www.northwesternmutual.com/)
 * [Nets](https://www.nets.eu/)
-* [Stagemonitor](https://www.stagemonitor.org/)
 * [Red Hat](https://www.redhat.com/)
   * https://github.com/jaegertracing/jaeger-openshift
   * https://www.hawkular.org/blog/2017/04/19/hawkular-apm-jaeger.html
 * [RiksTV](https://www.rikstv.no/)
 * [SeatGeek](https://seatgeek.com/)
 * [SpotHero](https://spothero.com/)
+* [Stagemonitor](https://www.stagemonitor.org/)
+* [Ticketmaster](https://www.ticketmaster.com)
+  * Case study: [Ticketmaster Traces 100 Million Transactions per Day with Jaeger](https://medium.com/jaegertracing/ticketmaster-traces-100-million-transactions-per-day-with-jaeger-38ec6cf599f0)
+  * Talk: [Deploy, Scale and Extend Jaeger](https://www.youtube.com/watch?v=JloanFIc-ms)
 * [UBER](https://uber.com)
-  * https://eng.uber.com/distributed-tracing/
+  * Blog post: [Evolving Distributed Tracing at Uber Engineering](https://eng.uber.com/distributed-tracing/)
 * [Under Armour](https://www.underarmour.com)
 * [Vistar Media](https://www.vistarmedia.com)
-  * http://labs.vistarmedia.com/2018/10/31/deploying-jaeger-with-cloudformation-via-bazel.html
+  * Blog post: [Deploying Jaeger with CloudFormation via Bazel](http://labs.vistarmedia.com/2018/10/31/deploying-jaeger-with-cloudformation-via-bazel.html)
 * [Weave](https://www.getweave.com)
 * [Weaveworks](https://www.weave.works/)
+  * Case study: coming soon...
+  * Talk: [How We Used Jaeger and Prometheus to Deliver Lightning-Fast User Queries](https://www.youtube.com/watch?v=qg0ENOdP1Lo)
 * [Zenly](https://zen.ly/)
