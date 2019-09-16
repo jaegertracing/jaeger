@@ -16,7 +16,9 @@ package reporter
 
 import (
 	"fmt"
+	"io"
 	"sync"
+	"sync/atomic"
 	"time"
 
 	"github.com/uber/jaeger-lib/metrics"
@@ -40,12 +42,15 @@ const (
 // Queue is generic interface which includes methods common to all implemented queues
 type Queue interface {
 	Enqueue(model.Batch) error
+	io.Closer
 }
 
 // QueuedReporter is a reporter that uses push-pull method that queues all incoming requests and then
 // lets the wrapped reporter do the actual pushing to the server (such as gRPC). If the requests fails
 // with retryable error the transaction is tried again.
 type QueuedReporter struct {
+	close uint32
+
 	wrapped Forwarder
 	queue   Queue
 	logger  *zap.Logger
@@ -71,8 +76,18 @@ func WrapWithQueue(opts *Options, forwarder Forwarder, logger *zap.Logger, mFact
 		maxRetryInterval:        opts.ReporterMaxRetryInterval,
 		reporterMetrics:         NewMetricsReporter(forwarder, mFactory),
 		agentTags:               model.KeyValueFromMap(opts.AgentTags),
+		close:                   uint32(0),
 	}
 	q.currentRetryInterval = q.initialRetryInterval
+
+	// Some sanity checks
+	if opts.QueueType == "" {
+		opts.QueueType = MEMORY
+	}
+
+	if opts.ReporterConcurrency < 1 {
+		opts.ReporterConcurrency = 1
+	}
 
 	switch opts.QueueType {
 	case MEMORY:
@@ -125,16 +140,22 @@ func (q *QueuedReporter) backOffTimer() time.Duration {
 	return q.currentRetryInterval
 }
 
-func (q *QueuedReporter) batchProcessor(batch model.Batch) error {
+// batchProcessor retries the batch until it succeeds or gives up. Return value indicates if the
+// processing was completed (a non retryable failure is considered complete). It's up to the
+// queue implementation to process the processed flag.
+func (q *QueuedReporter) batchProcessor(batch model.Batch) (bool, error) {
 	spansCount := int64(len(batch.GetSpans()))
 
 	err := q.wrapped.ForwardBatch(batch)
 	if err != nil {
 		for IsRetryable(err) {
+			if q.closed() {
+				return false, err
+			}
 			q.reporterMetrics.BatchMetrics.BatchesRetries.Inc(1)
 			// Block this processing instance before returning
 			sleepTime := q.backOffTimer()
-			q.logger.Info(fmt.Sprintf("Failed to contact the collector, waiting %s before retry", sleepTime.String()))
+			q.logger.Error(fmt.Sprintf("Failed to contact the collector, waiting %s before retry", sleepTime.String()))
 			time.Sleep(sleepTime)
 			err = q.wrapped.ForwardBatch(batch)
 			if err == nil {
@@ -144,19 +165,25 @@ func (q *QueuedReporter) batchProcessor(batch model.Batch) error {
 				q.lastRetryIntervalChange = time.Now()
 				q.retryMutex.Unlock()
 				q.updateSuccessStats(spansCount)
-				return nil
+				return true, nil
 			}
 		}
 		q.reporterMetrics.BatchMetrics.BatchesFailures.Inc(1)
 		q.reporterMetrics.BatchMetrics.SpansFailures.Inc(spansCount)
 		q.logger.Error("Could not send batch", zap.Error(err))
-		return err
+		return true, err
 	}
 	q.updateSuccessStats(spansCount)
-	return nil
+	return true, nil
 }
 
-func (q *QueuedReporter) directProcessor(batch model.Batch) error {
+func (q *QueuedReporter) closed() bool {
+	return atomic.LoadUint32(&q.close) == 1
+}
+
+// directProcessor is only forwarding the item for processing and does not have
+// any queueing capabilities.
+func (q *QueuedReporter) directProcessor(batch model.Batch) (bool, error) {
 	// No retries, report error directly back. Useful for testing to bypass the queue
 	spansCount := int64(len(batch.GetSpans()))
 
@@ -164,10 +191,10 @@ func (q *QueuedReporter) directProcessor(batch model.Batch) error {
 	if err != nil {
 		q.reporterMetrics.BatchMetrics.BatchesFailures.Inc(1)
 		q.reporterMetrics.BatchMetrics.SpansFailures.Inc(spansCount)
-		return err
+		return true, err
 	}
 	q.updateSuccessStats(spansCount)
-	return nil
+	return true, nil
 }
 
 func (q *QueuedReporter) updateSuccessStats(spansCount int64) {
@@ -182,4 +209,10 @@ func IsRetryable(err error) bool {
 		return r.IsRetryable()
 	}
 	return false
+}
+
+// Close implements io.Closer
+func (q *QueuedReporter) Close() error {
+	atomic.StoreUint32(&q.close, 1)
+	return q.queue.Close()
 }

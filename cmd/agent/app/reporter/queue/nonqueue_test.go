@@ -25,10 +25,12 @@ import (
 
 func TestDirectProcessing(t *testing.T) {
 	assert := assert.New(t)
-	n := NewNonQueue(func(batch model.Batch) error {
-		return fmt.Errorf("Error")
+	n := NewNonQueue(func(batch model.Batch) (bool, error) {
+		return false, fmt.Errorf("error")
 	})
 
 	err := n.Enqueue(model.Batch{})
-	assert.Error(err, "Error")
+	assert.Error(err)
+
+	assert.NoError(n.Close())
 }

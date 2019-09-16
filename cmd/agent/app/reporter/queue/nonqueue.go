@@ -14,19 +14,27 @@
 
 package queue
 
-import "github.com/jaegertracing/jaeger/model"
+import (
+	"github.com/jaegertracing/jaeger/model"
+)
 
 // NonQueue sends stuff directly without queueing. Useful for testing purposes
 type NonQueue struct {
-	processor func(model.Batch) error
+	processor func(model.Batch) (bool, error)
 }
 
 // NewNonQueue returns direct processing "queue"
-func NewNonQueue(processor func(model.Batch) error) *NonQueue {
+func NewNonQueue(processor func(model.Batch) (bool, error)) *NonQueue {
 	return &NonQueue{processor}
 }
 
 // Enqueue calls processor instead of queueing
 func (n *NonQueue) Enqueue(batch model.Batch) error {
-	return n.processor(batch)
+	_, err := n.processor(batch)
+	return err
+}
+
+// Close implements io.Closer
+func (n *NonQueue) Close() error {
+	return nil
 }

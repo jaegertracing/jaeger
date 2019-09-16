@@ -27,6 +27,7 @@ import (
 	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 
+	"github.com/jaegertracing/jaeger/cmd/agent/app/reporter"
 	"github.com/jaegertracing/jaeger/cmd/agent/app/reporter/common"
 	"github.com/jaegertracing/jaeger/model"
 	"github.com/jaegertracing/jaeger/proto-gen/api_v2"
@@ -63,7 +64,7 @@ func TestReporter_EmitZipkinBatch(t *testing.T) {
 	defer conn.Close()
 	require.NoError(t, err)
 
-	rep := NewReporter(conn, nil, zap.NewNop())
+	rep := NewReporter(conn, &reporter.Options{}, zap.NewNop())
 
 	tm := time.Unix(158, 0)
 	a := tm.Unix() * 1000 * 1000
@@ -100,7 +101,7 @@ func TestReporter_EmitBatch(t *testing.T) {
 	//lint:ignore SA5001 don't care about errors
 	defer conn.Close()
 	require.NoError(t, err)
-	rep := NewReporter(conn, nil, zap.NewNop())
+	rep := NewReporter(conn, &reporter.Options{}, zap.NewNop())
 
 	tm := time.Unix(158, 0)
 	tests := []struct {
@@ -125,7 +126,7 @@ func TestReporter_EmitBatch(t *testing.T) {
 func TestReporter_SendFailure(t *testing.T) {
 	conn, err := grpc.Dial("", grpc.WithInsecure())
 	require.NoError(t, err)
-	rep := NewReporter(conn, nil, zap.NewNop())
+	rep := NewReporter(conn, &reporter.Options{}, zap.NewNop())
 	err = rep.send(nil, nil)
 	assert.EqualError(t, err, "rpc error: code = Unavailable desc = all SubConns are in TransientFailure, latest connection error: connection error: desc = \"transport: Error while dialing dial tcp: missing address\"")
 }

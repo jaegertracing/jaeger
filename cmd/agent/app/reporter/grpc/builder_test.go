@@ -206,7 +206,6 @@ func TestProxyBuilder(t *testing.T) {
 				assert.NotNil(t, proxy.GetManager())
 
 				assert.Nil(t, proxy.Close())
-				assert.EqualError(t, proxy.Close(), "rpc error: code = Canceled desc = grpc: the client connection is closing")
 			}
 		})
 	}

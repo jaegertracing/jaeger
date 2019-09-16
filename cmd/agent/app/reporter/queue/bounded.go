@@ -41,7 +41,7 @@ type Bound struct {
 }
 
 // NewBoundQueue creates a new bounded queue with non-transactional processing
-func NewBoundQueue(bufSize, concurrency int, processor func(model.Batch) error, logger *zap.Logger, mFactory metrics.Factory) *Bound {
+func NewBoundQueue(bufSize, concurrency int, processor func(model.Batch) (bool, error), logger *zap.Logger, mFactory metrics.Factory) *Bound {
 	b := &Bound{
 		logger:  logger,
 		metrics: queueMetrics{},
@@ -50,10 +50,7 @@ func NewBoundQueue(bufSize, concurrency int, processor func(model.Batch) error, 
 
 	b.queue.StartConsumers(concurrency, func(item interface{}) {
 		// This queue does not have persistence, thus we don't handle transactionality
-		err := processor(item.(model.Batch))
-		if err != nil {
-			b.logger.Error("Could not transmit batch", zap.Error(err))
-		}
+		processor(item.(model.Batch))
 	})
 
 	metrics.Init(&b.metrics, mFactory.Namespace(metrics.NSOptions{Name: "reporter"}), nil)
@@ -72,5 +69,11 @@ func (b *Bound) Enqueue(batch model.Batch) error {
 	if !success {
 		return fmt.Errorf("destination queue could not accept new entries")
 	}
+	return nil
+}
+
+// Close implements io.Closer
+func (b *Bound) Close() error {
+	b.queue.Stop()
 	return nil
 }
