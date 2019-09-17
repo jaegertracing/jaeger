@@ -23,13 +23,13 @@ var errExceededSize = errors.New("list full")
 
 // ConcurrentList is a list that maintains kafka offsets with thread-safe Insert and setToHighestContiguous operations
 type ConcurrentList struct {
-	offsets []int64
-	size    int
-	mutex   sync.Mutex
+	offsets  []int64
+	capacity int
+	mutex    sync.Mutex
 }
 
-func newConcurrentList(minOffset int64, size int) *ConcurrentList {
-	return &ConcurrentList{offsets: []int64{minOffset}, size: size}
+func newConcurrentList(minOffset int64, capacity int) *ConcurrentList {
+	return &ConcurrentList{offsets: []int64{minOffset}, capacity: capacity}
 }
 
 // Insert into the list in O(1) time.
@@ -38,7 +38,7 @@ func (s *ConcurrentList) insert(offset int64) error {
 	s.mutex.Lock()
 	defer s.mutex.Unlock()
 	s.offsets = append(s.offsets, offset)
-	if len(s.offsets) > s.size {
+	if len(s.offsets) > s.capacity {
 		return errExceededSize
 	}
 	return nil
