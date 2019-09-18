@@ -133,7 +133,8 @@ func (s *ESStorageIntegration) initSpanstore(allTagsAsFields, archive bool) erro
 		Logger:            s.logger,
 		MetricsFactory:    metrics.NullFactory,
 		IndexPrefix:       indexPrefix,
-		MaxSpanAge:        maxSpanAge,
+		MaxNumSpans:       1000,
+		MaxSpanAge:        72 * time.Hour,
 		TagDotReplacement: tagKeyDeDotChar,
 		Archive:           archive,
 	})

@@ -210,6 +210,11 @@ func (s SearchServiceWrapper) Query(query elastic.Query) es.SearchService {
 	return WrapESSearchService(s.searchService.Query(query))
 }
 
+// Source calls this function to internal service.
+func (s SearchServiceWrapper) Source(source interface{}) es.SearchService {
+	return WrapESSearchService(s.searchService.Source(source))
+}
+
 // Do calls this function to internal service.
 func (s SearchServiceWrapper) Do(ctx context.Context) (*elastic.SearchResult, error) {
 	return s.searchService.Do(ctx)

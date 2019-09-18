@@ -96,6 +96,7 @@ type SpanReader struct {
 	// The age of the oldest service/operation we will look for. Because indices in ElasticSearch are by day,
 	// this will be rounded down to UTC 00:00 of that day.
 	maxSpanAge              time.Duration
+	maxNumSpans             int
 	serviceOperationStorage *ServiceOperationStorage
 	spanIndexPrefix         string
 	serviceIndexPrefix      string
@@ -125,6 +126,7 @@ func NewSpanReader(p SpanReaderParams) *SpanReader {
 		client:                  p.Client,
 		logger:                  p.Logger,
 		maxSpanAge:              p.MaxSpanAge,
+		maxNumSpans:             p.MaxNumSpans,
 		serviceOperationStorage: NewServiceOperationStorage(p.Client, p.Logger, 0), // the decorator takes care of metrics
 		spanIndexPrefix:         indexNames(p.IndexPrefix, spanIndex),
 		serviceIndexPrefix:      indexNames(p.IndexPrefix, serviceIndex),
@@ -377,6 +379,7 @@ func (s *SpanReader) multiRead(ctx context.Context, traceIDs []model.TraceID, st
 	for _, trace := range tracesMap {
 		traces = append(traces, trace)
 	}
+
 	return traces, nil
 }
 
@@ -418,7 +421,7 @@ func (s *SpanReader) findTraceIDs(ctx context.Context, traceQuery *spanstore.Tra
 	defer childSpan.Finish()
 	//  Below is the JSON body to our HTTP GET request to ElasticSearch. This function creates this.
 	// {
-	//      "size": 0,
+	//      "size": 10000,
 	//      "query": {
 	//        "bool": {
 	//          "must": [
@@ -467,46 +470,67 @@ func (s *SpanReader) findTraceIDs(ctx context.Context, traceQuery *spanstore.Tra
 	//          ]
 	//        }
 	//      },
-	//      "aggs": { "traceIDs" : { "terms" : {"size": 100,"field": "traceID" }}}
+	//      "track_total_hits": false
 	//  }
-	aggregation := s.buildTraceIDAggregation(traceQuery.NumTraces)
 	boolQuery := s.buildFindTraceIDsQuery(traceQuery)
 
 	jaegerIndices := s.timeRangeIndices(s.spanIndexPrefix, traceQuery.StartTimeMin, traceQuery.StartTimeMax)
 
+	// cap size at 10000 to keep elasticsearch happy
+	size := s.maxNumSpans * traceQuery.NumTraces
+	if size > 10000 {
+		size = 10000
+	}
+
+	source, err := elastic.NewSearchSource().
+		Query(boolQuery).
+		Size(size).
+		Sort("startTime", true).
+		TrackTotalHits(false).
+		Source()
+
+	if err != nil {
+		return nil, errors.Wrap(err, "Search source creation failed")
+	}
+
 	searchService := s.client.Search(jaegerIndices...).
-		Size(0). // set to 0 because we don't want actual documents.
-		Aggregation(traceIDAggregation, aggregation).
 		IgnoreUnavailable(true).
-		Query(boolQuery)
+		Source(source)
 
 	searchResult, err := searchService.Do(s.ctx)
 	if err != nil {
 		return nil, errors.Wrap(err, "Search service failed")
 	}
-	if searchResult.Aggregations == nil {
+
+	if searchResult.Hits == nil || searchResult.Hits.TotalHits == 0 {
 		return []string{}, nil
 	}
-	bucket, found := searchResult.Aggregations.Terms(traceIDAggregation)
-	if !found {
-		return nil, ErrUnableToFindTraceIDAggregation
+
+	traceIDs := map[string]struct{}{}
+
+	var aux struct {
+		TraceID string `json:"traceID"`
 	}
 
-	traceIDBuckets := bucket.Buckets
-	return bucketToStringArray(traceIDBuckets)
-}
+	for _, hit := range searchResult.Hits.Hits {
+		if err = json.Unmarshal(*hit.Source, &aux); err != nil {
+			return nil, errors.Wrap(err, "elasticsearch result is invalid")
+		}
 
-func (s *SpanReader) buildTraceIDAggregation(numOfTraces int) elastic.Aggregation {
-	return elastic.NewTermsAggregation().
-		Size(numOfTraces).
-		Field(traceIDField).
-		Order(startTimeField, false).
-		SubAggregation(startTimeField, s.buildTraceIDSubAggregation())
-}
+		traceIDs[aux.TraceID] = struct{}{}
+	}
 
-func (s *SpanReader) buildTraceIDSubAggregation() elastic.Aggregation {
-	return elastic.NewMaxAggregation().
-		Field(startTimeField)
+	uniqueTraceIDs := []string{}
+
+	for traceID := range traceIDs {
+		uniqueTraceIDs = append(uniqueTraceIDs, traceID)
+	}
+
+	if len(uniqueTraceIDs) > traceQuery.NumTraces {
+		return uniqueTraceIDs[0:traceQuery.NumTraces], nil
+	}
+
+	return uniqueTraceIDs, nil
 }
 
 func (s *SpanReader) buildFindTraceIDsQuery(traceQuery *spanstore.TraceQueryParameters) elastic.Query {

@@ -14,7 +14,6 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-
 package mocks
 
 import (
@@ -93,6 +92,22 @@ func (_m *SearchService) Query(query elastic.Query) es.SearchService {
 	var r0 es.SearchService
 	if rf, ok := ret.Get(0).(func(elastic.Query) es.SearchService); ok {
 		r0 = rf(query)
+	} else {
+		if ret.Get(0) != nil {
+			r0 = ret.Get(0).(es.SearchService)
+		}
+	}
+
+	return r0
+}
+
+// Sort provides a mock function with given fields: source
+func (_m *SearchService) Source(source interface{}) es.SearchService {
+	ret := _m.Called(source)
+
+	var r0 es.SearchService
+	if rf, ok := ret.Get(0).(func(interface{}) es.SearchService); ok {
+		r0 = rf(source)
 	} else {
 		if ret.Get(0) != nil {
 			r0 = ret.Get(0).(es.SearchService)

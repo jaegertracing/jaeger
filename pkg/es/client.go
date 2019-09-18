@@ -66,6 +66,7 @@ type SearchService interface {
 	Aggregation(name string, aggregation elastic.Aggregation) SearchService
 	IgnoreUnavailable(ignoreUnavailable bool) SearchService
 	Query(query elastic.Query) SearchService
+	Source(source interface{}) SearchService
 	Do(ctx context.Context) (*elastic.SearchResult, error)
 }
 
