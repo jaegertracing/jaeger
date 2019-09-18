@@ -49,7 +49,7 @@ func (p *TBufferedReadTransport) Close() error {
 	return nil
 }
 
-// Read reads bytes from the local buffer and puts them in the specified buf
+// Read bytes from the local buffer and puts them in the specified buf
 func (p *TBufferedReadTransport) Read(buf []byte) (int, error) {
 	in, err := p.readBuf.Read(buf)
 	return in, thrift.NewTTransportExceptionFromError(err)
@@ -60,7 +60,7 @@ func (p *TBufferedReadTransport) RemainingBytes() uint64 {
 	return uint64(p.readBuf.Len())
 }
 
-// Write writes bytes into the read buffer
+// Write bytes into the read buffer
 // Required to maintain thrift.TTransport interface
 func (p *TBufferedReadTransport) Write(buf []byte) (int, error) {
 	p.readBuf = bytes.NewBuffer(buf)

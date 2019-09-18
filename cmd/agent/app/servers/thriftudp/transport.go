@@ -112,7 +112,7 @@ func (p *TUDPTransport) Addr() net.Addr {
 	return p.addr
 }
 
-// Read reads one UDP packet and puts it in the specified buf
+// Read one UDP packet and puts it in the specified buf
 func (p *TUDPTransport) Read(buf []byte) (int, error) {
 	if !p.IsOpen() {
 		return 0, thrift.NewTTransportException(thrift.NOT_OPEN, "Connection not open")
@@ -128,7 +128,7 @@ func (p *TUDPTransport) RemainingBytes() uint64 {
 	return maxSize
 }
 
-// Write writes specified buf to the write buffer
+// Write specified buf to the write buffer
 func (p *TUDPTransport) Write(buf []byte) (int, error) {
 	if !p.IsOpen() {
 		return 0, thrift.NewTTransportException(thrift.NOT_OPEN, "Connection not open")
