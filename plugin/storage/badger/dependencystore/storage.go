@@ -43,7 +43,7 @@ func (s *DependencyStore) GetDependencies(endTs time.Time, lookback time.Duratio
 		StartTimeMax: endTs,
 	}
 
-	// We need to do a full table scan - if this becomes a bottleneck, we can write write an index that describes
+	// We need to do a full table scan - if this becomes a bottleneck, we can write an index that describes
 	// dependencyKeyPrefix + timestamp + parent + child key and do a key-only seek (which is fast - but requires additional writes)
 
 	// GetDependencies is not shipped with a context like the SpanReader / SpanWriter
