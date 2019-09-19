@@ -30,6 +30,7 @@ type Config struct {
 	Traces   int
 	Marshal  bool
 	Debug    bool
+	Firehose bool
 	Pause    time.Duration
 	Duration time.Duration
 }
@@ -40,6 +41,7 @@ func (c *Config) Flags(fs *flag.FlagSet) {
 	fs.IntVar(&c.Traces, "traces", 1, "Number of traces to generate in each worker (ignored if duration is provided")
 	fs.BoolVar(&c.Marshal, "marshal", false, "Whether to marshal trace context via HTTP headers")
 	fs.BoolVar(&c.Debug, "debug", false, "Whether to set DEBUG flag on the spans to force sampling")
+	fs.BoolVar(&c.Firehose, "firehose", false, "Whether to set FIREHOSE flag on the spans to skip indexing")
 	fs.DurationVar(&c.Pause, "pause", time.Microsecond, "How long to pause before finishing trace")
 	fs.DurationVar(&c.Duration, "duration", 0, "For how long to run the test")
 }
@@ -61,6 +63,7 @@ func Run(c *Config, logger *zap.Logger) error {
 			traces:   c.Traces,
 			marshal:  c.Marshal,
 			debug:    c.Debug,
+			firehose: c.Firehose,
 			pause:    c.Pause,
 			duration: c.Duration,
 			running:  &running,
