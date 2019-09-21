@@ -16,6 +16,7 @@ package producer
 
 import (
 	"github.com/Shopify/sarama"
+
 	"github.com/jaegertracing/jaeger/pkg/kafka/auth"
 )
 

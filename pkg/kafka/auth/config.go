@@ -15,10 +15,10 @@
 package auth
 
 import (
-	"github.com/pkg/errors"
 	"strings"
 
 	"github.com/Shopify/sarama"
+	"github.com/pkg/errors"
 	"github.com/spf13/viper"
 )
 

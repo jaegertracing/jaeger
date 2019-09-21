@@ -17,10 +17,11 @@ package auth
 import (
 	gotls "crypto/tls"
 	"crypto/x509"
-	"github.com/Shopify/sarama"
-	"github.com/pkg/errors"
 	"io/ioutil"
 	"path/filepath"
+
+	"github.com/Shopify/sarama"
+	"github.com/pkg/errors"
 )
 
 // TLSConfig describes the configuration properties for TLS Connections to the Kafka Brokers
@@ -46,7 +47,7 @@ func (tlsConfig TLSConfig) getTLS() (*gotls.Config, error) {
 		return nil, errors.Wrapf(err, "error reading ca")
 	}
 
-	cert, err := gotls.LoadX509KeyPair(filepath.Clean(tlsConfig.KeyPath), filepath.Clean(tlsConfig.CertPath))
+	cert, err := gotls.LoadX509KeyPair(filepath.Clean(tlsConfig.CertPath), filepath.Clean(tlsConfig.KeyPath))
 	if err != nil {
 		return nil, errors.Wrap(err, "error loading certificate")
 	}

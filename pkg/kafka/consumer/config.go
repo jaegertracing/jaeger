@@ -19,6 +19,7 @@ import (
 
 	"github.com/Shopify/sarama"
 	"github.com/bsm/sarama-cluster"
+
 	"github.com/jaegertracing/jaeger/pkg/kafka/auth"
 )
 
