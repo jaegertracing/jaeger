@@ -50,6 +50,7 @@ required = [
   name = "github.com/bsm/sarama-cluster"
   version = "=2.1.13"
 
+# blackfriday has 2.x release that conflicts with spf13/cobra
 [[override]]
   name = "github.com/russross/blackfriday"
   version = "^1"
