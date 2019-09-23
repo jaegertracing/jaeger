@@ -50,10 +50,9 @@ required = [
   name = "github.com/bsm/sarama-cluster"
   version = "=2.1.13"
 
-[[constraint]]
+[[override]]
   name = "github.com/russross/blackfriday"
-  version = "=1.5"
-
+  version = "^1"
 
 [[constraint]]
   branch = "master"
@@ -77,7 +76,7 @@ required = [
 
 [[constraint]]
   name = "github.com/prometheus/client_golang"
-  version = "^0.8.0"
+  version = "^1"
 
 [[constraint]]
   name = "github.com/spf13/cobra"
@@ -97,11 +96,11 @@ required = [
 
 [[constraint]]
   name = "github.com/uber/jaeger-client-go"
-  version = "^2.17.0"
+  version = "^2.19.0"
 
 [[constraint]]
   name = "github.com/uber/jaeger-lib"
-  version = "^2.0.0"
+  version = "^2.2"
 
 [[constraint]]
   name = "github.com/uber/tchannel-go"
