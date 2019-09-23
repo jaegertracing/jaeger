@@ -22,6 +22,7 @@ import (
 
 	"github.com/opentracing/opentracing-go"
 	"github.com/opentracing/opentracing-go/ext"
+	"github.com/uber/jaeger-client-go"
 	"go.uber.org/zap"
 )
 
@@ -31,6 +32,7 @@ type worker struct {
 	traces   int             // how many traces the worker has to generate (only when duration==0)
 	marshal  bool            // whether the worker needs to marshal trace context via HTTP headers
 	debug    bool            // whether to set DEBUG flag on the spans
+	firehose bool            // whether to set FIREHOSE flag on the spans
 	duration time.Duration   // how long to run the test for (overrides `traces`)
 	pause    time.Duration   // how long to pause before finishing the trace
 	wg       *sync.WaitGroup // notify when done
@@ -53,6 +55,10 @@ func (w worker) simulateTraces() {
 		ext.PeerService.Set(sp, "tracegen-server")
 		if w.debug {
 			ext.SamplingPriority.Set(sp, 100)
+		}
+
+		if w.firehose {
+			jaeger.EnableFirehose(sp.(*jaeger.Span))
 		}
 
 		childCtx := sp.Context()
