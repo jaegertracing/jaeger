@@ -25,7 +25,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/stretchr/testify/assert"
+	assert "github.com/stretchr/testify/require"
 	"github.com/uber/jaeger-lib/metrics"
 	"go.uber.org/zap"
 
@@ -587,14 +587,14 @@ func BenchmarkServiceIndexLimitFetch(b *testing.B) {
 
 // Opens a badger db and runs a test on it.
 func runLargeFactoryTest(tb testing.TB, test func(tb testing.TB, sw spanstore.Writer, sr spanstore.Reader)) {
+	assert := assert.New(tb)
 	f := badger.NewFactory()
 	opts := badger.NewOptions("badger")
 	v, command := config.Viperize(opts.AddFlags)
 
 	dir := "/mnt/ssd/badger/testRun"
 	err := os.MkdirAll(dir, 0700)
-	defer os.RemoveAll(dir)
-	assert.NoError(tb, err)
+	assert.NoError(err)
 	keyParam := fmt.Sprintf("--badger.directory-key=%s", dir)
 	valueParam := fmt.Sprintf("--badger.directory-value=%s", dir)
 
@@ -608,22 +608,87 @@ func runLargeFactoryTest(tb testing.TB, test func(tb testing.TB, sw spanstore.Wr
 	f.InitFromViper(v)
 
 	err = f.Initialize(metrics.NullFactory, zap.NewNop())
-	assert.NoError(tb, err)
+	assert.NoError(err)
 
 	sw, err := f.CreateSpanWriter()
-	assert.NoError(tb, err)
+	assert.NoError(err)
 
 	sr, err := f.CreateSpanReader()
-	assert.NoError(tb, err)
+	assert.NoError(err)
 
 	defer func() {
 		if closer, ok := sw.(io.Closer); ok {
 			err := closer.Close()
-			assert.NoError(tb, err)
+			os.RemoveAll(dir)
+			assert.NoError(err)
 		} else {
-			tb.FailNow()
+			assert.FailNow("io.Closer not implemented by SpanWriter")
 		}
-
 	}()
 	test(tb, sw, sr)
+}
+
+// TestRandomTraceID from issue #1808
+func TestRandomTraceID(t *testing.T) {
+	runFactoryTest(t, func(tb testing.TB, sw spanstore.Writer, sr spanstore.Reader) {
+		s1 := model.Span{
+			TraceID: model.TraceID{
+				Low:  uint64(14767110704788176287),
+				High: 0,
+			},
+			SpanID:        model.SpanID(14976775253976086374),
+			OperationName: "/",
+			Process: &model.Process{
+				ServiceName: "nginx",
+			},
+			Tags: model.KeyValues{
+				model.KeyValue{
+					Key:   "http.request_id",
+					VStr:  "first",
+					VType: model.StringType,
+				},
+			},
+			StartTime: time.Now(),
+			Duration:  1 * time.Second,
+		}
+		err := sw.WriteSpan(&s1)
+		assert.NoError(t, err)
+
+		s2 := model.Span{
+			TraceID: model.TraceID{
+				Low:  uint64(4775132888371984950),
+				High: 0,
+			},
+			SpanID:        model.SpanID(13576481569227028654),
+			OperationName: "/",
+			Process: &model.Process{
+				ServiceName: "nginx",
+			},
+			Tags: model.KeyValues{
+				model.KeyValue{
+					Key:   "http.request_id",
+					VStr:  "second",
+					VType: model.StringType,
+				},
+			},
+			StartTime: time.Now(),
+			Duration:  1 * time.Second,
+		}
+		err = sw.WriteSpan(&s2)
+		assert.NoError(t, err)
+
+		params := &spanstore.TraceQueryParameters{
+			StartTimeMin: time.Now().Add(-1 * time.Minute),
+			StartTimeMax: time.Now(),
+			ServiceName:  "nginx",
+			Tags: map[string]string{
+				"http.request_id": "second",
+			},
+		}
+		traces, err := sr.FindTraces(context.Background(), params)
+		assert.NoError(t, err)
+
+		// failed with `second` tag query, but success with `first`
+		assert.Equal(t, 1, len(traces))
+	})
 }
