@@ -37,10 +37,10 @@ func newConcurrentList(minOffset int64, capacity int) *ConcurrentList {
 func (s *ConcurrentList) insert(offset int64) error {
 	s.mutex.Lock()
 	defer s.mutex.Unlock()
-	s.offsets = append(s.offsets, offset)
 	if len(s.offsets) > s.capacity {
 		return errExceededSize
 	}
+	s.offsets = append(s.offsets, offset)
 	return nil
 }
 

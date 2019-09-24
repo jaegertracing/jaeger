@@ -150,9 +150,10 @@ func (c *Consumer) handleMessages(pc sc.PartitionConsumer) {
 				defer msgProcessor.Close()
 			}
 
-			msgProcessor.Process(&saramaMessageWrapper{msg}, func(message processor.Message, e error) {
-				msgErrors <- e
-			})
+			msgProcessor.Process(&saramaMessageWrapper{msg},
+				func(message processor.Message, err error) {
+					msgErrors <- err
+				})
 
 		case <-deadlockDetector.closePartitionChannel():
 			c.logger.Info("Closing partition due to inactivity", zap.Int32("partition", pc.Partition()))

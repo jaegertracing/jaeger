@@ -40,6 +40,7 @@ func TestInsert(t *testing.T) {
 func TestInsertError(t *testing.T) {
 	s := newConcurrentList(0, 0)
 	assert.EqualError(t, s.insert(1), "list full")
+	assert.Equal(t, 1, len(s.offsets))
 }
 
 func TestGetHighestAndReset(t *testing.T) {

@@ -34,13 +34,13 @@ type ParallelProcessor struct {
 
 type message struct {
 	message Message
-	error   error
+	err     error
 	onError OnError
 }
 
 func (m *message) handleError() {
 	if m.onError != nil {
-		m.onError(m.message, m.error)
+		m.onError(m.message, m.err)
 	}
 }
 
@@ -73,7 +73,7 @@ func (k *ParallelProcessor) Start() {
 				case msg := <-k.messages:
 					err := k.processor.Process(msg.message)
 					if err != nil {
-						msg.error = err
+						msg.err = err
 						k.errors <- msg
 					}
 				case <-k.closed:
