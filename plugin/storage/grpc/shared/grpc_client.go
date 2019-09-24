@@ -61,7 +61,7 @@ func (c *grpcClient) GetTrace(ctx context.Context, traceID model.TraceID) (*mode
 	trace := model.Trace{}
 	for received, err := stream.Recv(); err != io.EOF; received, err = stream.Recv() {
 		if err != nil {
-			return nil, errors.Wrap(err, "grpc stream error")
+			return nil, spanstore.ErrTraceNotFound
 		}
 
 		for i := range received.Spans {
