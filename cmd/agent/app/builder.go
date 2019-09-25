@@ -38,9 +38,7 @@ import (
 )
 
 const (
-	defaultQueueSize     = 1000
 	defaultMaxPacketSize = 65000
-	defaultServerWorkers = 10
 
 	jaegerModel Model = "jaeger"
 	zipkinModel Model = "zipkin"

@@ -121,7 +121,7 @@ by default uses only in-memory database.`,
 			strategyStore := initSamplingStrategyStore(strategyStoreFactory, metricsFactory, logger)
 
 			aOpts := new(agentApp.Builder).InitFromViper(v)
-			repOpts := new(agentRep.Options).InitFromViper(v)
+			repOpts := new(agentRep.Options).InitFromViper(v, logger)
 			tchanBuilder := agentTchanRep.NewBuilder().InitFromViper(v, logger)
 			grpcBuilder := agentGrpcRep.NewConnBuilder().InitFromViper(v)
 			cOpts := new(collector.CollectorOptions).InitFromViper(v)

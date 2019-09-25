@@ -22,6 +22,7 @@ import (
 	"time"
 
 	"github.com/spf13/viper"
+	"go.uber.org/zap"
 )
 
 const (
@@ -46,7 +47,7 @@ const (
 	// MEMORY is the default reporter queue
 	MEMORY QueueType = "memory"
 
-	// DIRECT is the reporter queue for testing (no queue at all)
+	// DIRECT is the reporter queue (no queue at all)
 	DIRECT QueueType = "direct"
 )
 
@@ -69,7 +70,7 @@ type Options struct {
 // AddFlags adds flags for Options.
 func AddFlags(flags *flag.FlagSet) {
 	flags.String(prefix+reporterType, string(GRPC), fmt.Sprintf("Reporter type to use e.g. %s, %s", string(GRPC), string(TCHANNEL)))
-	flags.String(prefix+reporterQueueType, string(defaultQueueType), "queue implementation to use in the reporter. Available options: memory")
+	flags.String(prefix+reporterQueueType, string(defaultQueueType), "queue implementation to use in the reporter. Available options: memory, direct")
 	flags.Int(prefix+boundedQueueSize, defaultBoundedQueueSize, "maximum size of bounded in-memory queue")
 	flags.Int(prefix+reporterQueueWorkers, defaultQueueWorkers, "the amount of concurrent reporter connections to use")
 	flags.Duration(prefix+reporterMaxInterval, defaultMaxRetryInterval, "longest period of time to wait before retry. Format is time.Duration (https://golang.org/pkg/time/#Duration).")
@@ -78,13 +79,32 @@ func AddFlags(flags *flag.FlagSet) {
 }
 
 // InitFromViper initializes Options with properties retrieved from Viper.
-func (b *Options) InitFromViper(v *viper.Viper) *Options {
+func (b *Options) InitFromViper(v *viper.Viper, logger *zap.Logger) *Options {
 	b.ReporterType = Type(v.GetString(prefix + reporterType))
 	b.QueueType = QueueType(v.GetString(prefix + reporterQueueType))
 	b.BoundedQueueSize = v.GetInt(prefix + boundedQueueSize)
 	b.ReporterConcurrency = v.GetInt(prefix + reporterQueueWorkers)
 	b.ReporterMaxRetryInterval = v.GetDuration(prefix + reporterMaxInterval)
 	b.AgentTags = parseAgentTags(v.GetString(agentTags))
+
+	// Check for deprecated flags
+	for _, key := range v.AllKeys() {
+		if strings.HasPrefix(key, "processor") {
+			if strings.HasSuffix(key, "server-queue-size") {
+				queueSize := v.GetInt(key)
+				if queueSize > 0 && b.QueueType == MEMORY && b.BoundedQueueSize == defaultBoundedQueueSize {
+					logger.Warn("Using deprecated configuration", zap.String("option", fmt.Sprintf("--%s", key)))
+					b.BoundedQueueSize = queueSize
+				}
+			} else if strings.HasSuffix(key, "workers") {
+				workerCount := v.GetInt(key)
+				if workerCount > 0 && b.ReporterConcurrency == defaultQueueWorkers {
+					logger.Warn("Using deprecated configuration", zap.String("option", fmt.Sprintf("--%s", key)))
+					b.ReporterConcurrency = workerCount
+				}
+			}
+		}
+	}
 	return b
 }
 

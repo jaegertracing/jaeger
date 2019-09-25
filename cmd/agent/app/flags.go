@@ -47,8 +47,8 @@ var defaultProcessors = []struct {
 func AddFlags(flags *flag.FlagSet) {
 	for _, p := range defaultProcessors {
 		prefix := fmt.Sprintf("processor.%s-%s.", p.model, p.protocol)
-		flags.Int(prefix+suffixWorkers, defaultServerWorkers, "how many workers the processor should run, deprecated - use reporter config")
-		flags.Int(prefix+suffixServerQueueSize, defaultQueueSize, "length of the queue for the UDP server, deprecated - use reporter config")
+		flags.Int(prefix+suffixWorkers, 0, "(deprecated) see --reporter.queue.workers")
+		flags.Int(prefix+suffixServerQueueSize, 0, "(deprecated) see --reporter.queue.memory.size")
 		flags.Int(prefix+suffixServerMaxPacketSize, defaultMaxPacketSize, "max packet size for the UDP server")
 		flags.String(prefix+suffixServerHostPort, ":"+strconv.Itoa(p.port), "host:port for the UDP server")
 	}

@@ -12,11 +12,10 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package reporter
+package reporter_test
 
 import (
 	"flag"
-	"fmt"
 	"os"
 	"testing"
 
@@ -24,13 +23,17 @@ import (
 	"github.com/spf13/viper"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"go.uber.org/zap"
+
+	"github.com/jaegertracing/jaeger/cmd/agent/app"
+	"github.com/jaegertracing/jaeger/cmd/agent/app/reporter"
 )
 
 func TestBindFlags_NoJaegerTags(t *testing.T) {
 	v := viper.New()
 	command := cobra.Command{}
 	flags := &flag.FlagSet{}
-	AddFlags(flags)
+	reporter.AddFlags(flags)
 	command.PersistentFlags().AddGoFlagSet(flags)
 	v.BindPFlags(command.PersistentFlags())
 
@@ -39,9 +42,9 @@ func TestBindFlags_NoJaegerTags(t *testing.T) {
 	})
 	require.NoError(t, err)
 
-	b := &Options{}
-	b.InitFromViper(v)
-	assert.Equal(t, Type("grpc"), b.ReporterType)
+	b := &reporter.Options{}
+	b.InitFromViper(v, zap.NewNop())
+	assert.Equal(t, reporter.Type("grpc"), b.ReporterType)
 	assert.Len(t, b.AgentTags, 0)
 }
 
@@ -49,7 +52,7 @@ func TestBindFlags(t *testing.T) {
 	v := viper.New()
 	command := cobra.Command{}
 	flags := &flag.FlagSet{}
-	AddFlags(flags)
+	reporter.AddFlags(flags)
 	command.PersistentFlags().AddGoFlagSet(flags)
 	v.BindPFlags(command.PersistentFlags())
 
@@ -68,14 +71,14 @@ func TestBindFlags(t *testing.T) {
 	})
 	require.NoError(t, err)
 
-	b := &Options{}
+	b := &reporter.Options{}
 	os.Setenv("envKey1", "envVal1")
 	defer os.Unsetenv("envKey1")
 
 	os.Setenv("envKey4", "envVal4")
 	defer os.Unsetenv("envKey4")
 
-	b.InitFromViper(v)
+	b.InitFromViper(v, zap.NewNop())
 
 	expectedTags := map[string]string{
 		"key":     "value",
@@ -85,6 +88,6 @@ func TestBindFlags(t *testing.T) {
 		"envVar5": "",
 	}
 
-	assert.Equal(t, Type("grpc"), b.ReporterType)
+	assert.Equal(t, reporter.Type("grpc"), b.ReporterType)
 	assert.Equal(t, expectedTags, b.AgentTags)
 }

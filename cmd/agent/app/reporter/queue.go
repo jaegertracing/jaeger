@@ -15,7 +15,6 @@
 package reporter
 
 import (
-	"fmt"
 	"io"
 	"sync"
 	"sync/atomic"
@@ -155,7 +154,7 @@ func (q *QueuedReporter) batchProcessor(batch model.Batch) (bool, error) {
 			q.reporterMetrics.BatchMetrics.BatchesRetries.Inc(1)
 			// Block this processing instance before returning
 			sleepTime := q.backOffTimer()
-			q.logger.Error(fmt.Sprintf("Failed to contact the collector, waiting %s before retry", sleepTime.String()))
+			q.logger.Error("Failed to contact the collector, waiting before retry", zap.String("time", sleepTime.String()))
 			time.Sleep(sleepTime)
 			err = q.wrapped.ForwardBatch(batch)
 			if err == nil {

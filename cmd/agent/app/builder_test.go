@@ -18,7 +18,6 @@ package app
 import (
 	"errors"
 	"flag"
-	"fmt"
 	"strings"
 	"testing"
 	"time"
@@ -153,7 +152,6 @@ func TestMultipleCollectorProxies(t *testing.T) {
 	r := b.getReporter(rb)
 	mr, ok := r.(reporter.MultiReporter)
 	require.True(t, ok)
-	fmt.Println(mr)
 	assert.Equal(t, rb, mr[0])
 	assert.Equal(t, ra, mr[1])
 }
@@ -236,7 +234,7 @@ func TestCreateCollectorProxy(t *testing.T) {
 		err := command.ParseFlags(test.flags)
 		require.NoError(t, err)
 
-		rOpts := new(reporter.Options).InitFromViper(v)
+		rOpts := new(reporter.Options).InitFromViper(v, zap.NewNop())
 		tchan := tchannel.NewBuilder().InitFromViper(v, zap.NewNop())
 		grpcBuilder := grpc.NewConnBuilder().InitFromViper(v)
 
