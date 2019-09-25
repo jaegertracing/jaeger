@@ -104,7 +104,7 @@ func (r *Resolver) Scheme() string {
 	return r.scheme
 }
 
-// ResolveNow is a noop for Resolver since resolver is already firing r.cc.UpdatesState everytime
+// ResolveNow is a noop for Resolver since resolver is already firing r.cc.UpdatesState every time
 // it receives updates of new instance from discoCh
 func (r *Resolver) ResolveNow(o resolver.ResolveNowOption) {}
 
