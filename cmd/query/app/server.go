@@ -135,7 +135,7 @@ func (s *Server) Start() error {
 		s.svc.Logger.Info("Starting CMUX server", zap.Int("port", s.queryOptions.Port))
 
 		err := cmuxServer.Serve()
-		// TODO: Remove string comparision when https://github.com/soheilhy/cmux/pull/69 is merged
+		// TODO: Remove string comparison when https://github.com/soheilhy/cmux/pull/69 is merged
 		if err != nil && !strings.Contains(err.Error(), "use of closed network connection") {
 			s.svc.Logger.Error("Could not start multiplexed server", zap.Error(err))
 		}
