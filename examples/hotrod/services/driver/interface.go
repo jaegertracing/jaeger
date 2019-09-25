@@ -19,7 +19,7 @@ import (
 	"context"
 )
 
-// Driver describes a driver and the currentl car location.
+// Driver describes a driver and the current car location.
 type Driver struct {
 	DriverID string
 	Location string
