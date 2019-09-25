@@ -64,3 +64,26 @@ This script requires Docker to be running.
 Integration test framework for storage lie under `../integration`. 
 Add to `../integration/fixtures/traces/*.json` and `../integration/fixtures/queries.json` to add more
 trace cases.
+
+## Example of cleaner job configuration for Kubernetes
+
+```yaml
+apiVersion: batch/v1beta1
+kind: CronJob
+metadata:
+  name: jaeger-elastic-cleaner
+  namespace: demo
+spec:
+  schedule: "0 * * * *" # https://crontab.guru/#0_*_*_*_*
+  jobTemplate:
+    spec:
+      template:
+        spec:
+          containers:
+          - name: jaeger-elastic-cleaner
+            image: jaegertracing/jaeger-es-index-cleaner
+            args:
+            - "7" # days
+            - "elasticsearch-tracing:9200" # service defined elsewhere
+          restartPolicy: OnFailure
+```
