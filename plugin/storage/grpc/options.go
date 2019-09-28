@@ -17,6 +17,7 @@ package grpc
 import (
 	"flag"
 
+	"github.com/jaegertracing/jaeger/storage/spanstore"
 	"github.com/spf13/viper"
 
 	"github.com/jaegertracing/jaeger/plugin/storage/grpc/config"
@@ -41,4 +42,6 @@ func (opt *Options) AddFlags(flagSet *flag.FlagSet) {
 func (opt *Options) InitFromViper(v *viper.Viper) {
 	opt.Configuration.PluginBinary = v.GetString(pluginBinary)
 	opt.Configuration.PluginConfigurationFile = v.GetString(pluginConfigurationFile)
+	// TODO: Need to figure out a better way for do this. (same as ElasticSearch storage)
+	opt.Configuration.AllowTokenFromContext = v.GetBool(spanstore.StoragePropagationKey)
 }

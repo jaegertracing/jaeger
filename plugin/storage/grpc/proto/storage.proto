@@ -66,9 +66,12 @@ message GetTraceRequest {
       (gogoproto.customtype) = "github.com/jaegertracing/jaeger/model.TraceID",
       (gogoproto.customname) = "TraceID"
     ];
+    string bearerToken = 2;
 }
 
-message GetServicesRequest {}
+message GetServicesRequest {
+    string bearerToken = 1;
+}
 
 message GetServicesResponse {
     repeated string services = 1;
@@ -76,6 +79,7 @@ message GetServicesResponse {
 
 message GetOperationsRequest {
     string service = 1;
+    string bearerToken = 2;
 }
 
 message GetOperationsResponse {
@@ -107,6 +111,7 @@ message TraceQueryParameters {
 
 message FindTracesRequest {
     TraceQueryParameters query = 1;
+    string bearerToken = 2;
 }
 
 message SpansResponseChunk {
@@ -117,6 +122,7 @@ message SpansResponseChunk {
 
 message FindTraceIDsRequest {
     TraceQueryParameters query = 1;
+    string bearerToken = 2;
 }
 
 message FindTraceIDsResponse {

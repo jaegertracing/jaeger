@@ -29,9 +29,20 @@ import (
 
 // grpcClient implements shared.StoragePlugin and reads/writes spans and dependencies
 type grpcClient struct {
-	readerClient     storage_v1.SpanReaderPluginClient
-	writerClient     storage_v1.SpanWriterPluginClient
-	depsReaderClient storage_v1.DependenciesReaderPluginClient
+	allowTokenFromContext bool
+	readerClient          storage_v1.SpanReaderPluginClient
+	writerClient          storage_v1.SpanWriterPluginClient
+	depsReaderClient      storage_v1.DependenciesReaderPluginClient
+}
+
+// getBearerTokenToForward determines is there is a bearer token to forward
+// and returns it only when it, only when bearer token forward is allowed.
+func (c *grpcClient) getBearerTokenToForward(ctx context.Context) string {
+	ctxBearerToken, hasToken := spanstore.GetBearerToken(ctx)
+	if hasToken && c.allowTokenFromContext {
+		return ctxBearerToken
+	}
+	return ""
 }
 
 // DependencyReader implements shared.StoragePlugin.
@@ -51,8 +62,10 @@ func (c *grpcClient) SpanWriter() spanstore.Writer {
 
 // GetTrace takes a traceID and returns a Trace associated with that traceID
 func (c *grpcClient) GetTrace(ctx context.Context, traceID model.TraceID) (*model.Trace, error) {
+
 	stream, err := c.readerClient.GetTrace(ctx, &storage_v1.GetTraceRequest{
-		TraceID: traceID,
+		TraceID:     traceID,
+		BearerToken: c.getBearerTokenToForward(ctx),
 	})
 	if err != nil {
 		return nil, errors.Wrap(err, "plugin error")
@@ -74,7 +87,9 @@ func (c *grpcClient) GetTrace(ctx context.Context, traceID model.TraceID) (*mode
 
 // GetServices returns a list of all known services
 func (c *grpcClient) GetServices(ctx context.Context) ([]string, error) {
-	resp, err := c.readerClient.GetServices(ctx, &storage_v1.GetServicesRequest{})
+	resp, err := c.readerClient.GetServices(ctx, &storage_v1.GetServicesRequest{
+		BearerToken: c.getBearerTokenToForward(ctx),
+	})
 	if err != nil {
 		return nil, errors.Wrap(err, "plugin error")
 	}
@@ -85,7 +100,8 @@ func (c *grpcClient) GetServices(ctx context.Context) ([]string, error) {
 // GetOperations returns the operations of a given service
 func (c *grpcClient) GetOperations(ctx context.Context, service string) ([]string, error) {
 	resp, err := c.readerClient.GetOperations(ctx, &storage_v1.GetOperationsRequest{
-		Service: service,
+		Service:     service,
+		BearerToken: c.getBearerTokenToForward(ctx),
 	})
 	if err != nil {
 		return nil, errors.Wrap(err, "plugin error")
@@ -107,6 +123,7 @@ func (c *grpcClient) FindTraces(ctx context.Context, query *spanstore.TraceQuery
 			DurationMax:   query.DurationMax,
 			NumTraces:     int32(query.NumTraces),
 		},
+		BearerToken: c.getBearerTokenToForward(ctx),
 	})
 	if err != nil {
 		return nil, errors.Wrap(err, "plugin error")
@@ -145,6 +162,7 @@ func (c *grpcClient) FindTraceIDs(ctx context.Context, query *spanstore.TraceQue
 			DurationMax:   query.DurationMax,
 			NumTraces:     int32(query.NumTraces),
 		},
+		BearerToken: c.getBearerTokenToForward(ctx),
 	})
 	if err != nil {
 		return nil, errors.Wrap(err, "plugin error")
