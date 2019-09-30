@@ -93,9 +93,9 @@ func addProcessTags(spans []*model.Span, process *model.Process, agentTags []mod
 				for _, agentTag := range agentTags {
 					index, alreadyPresent := checkIfPresentAlready(span.Process.Tags, agentTag)
 					if alreadyPresent {
-						// If Policy is Agent, remove and add else do nothing as client is already present
+						// If Policy is to keep agent tags, purge duplicate client tag and add AgentTag. Else Do Nothing
 						if duplicateTagsPolicy == reporter.Agent {
-							// remove i from Tags and add agentTag
+							// remove index from Tags and add agentTag
 							span.Process.Tags = append(span.Process.Tags[:index], span.Process.Tags[index+1:]...)
 							span.Process.Tags = append(span.Process.Tags, agentTag)
 						}
