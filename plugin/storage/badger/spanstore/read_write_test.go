@@ -25,7 +25,8 @@ import (
 	"testing"
 	"time"
 
-	assert "github.com/stretchr/testify/require"
+	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 	"github.com/uber/jaeger-lib/metrics"
 	"go.uber.org/zap"
 
@@ -587,7 +588,7 @@ func BenchmarkServiceIndexLimitFetch(b *testing.B) {
 
 // Opens a badger db and runs a test on it.
 func runLargeFactoryTest(tb testing.TB, test func(tb testing.TB, sw spanstore.Writer, sr spanstore.Reader)) {
-	assert := assert.New(tb)
+	assert := require.New(tb)
 	f := badger.NewFactory()
 	opts := badger.NewOptions("badger")
 	v, command := config.Viperize(opts.AddFlags)
@@ -687,8 +688,6 @@ func TestRandomTraceID(t *testing.T) {
 		}
 		traces, err := sr.FindTraces(context.Background(), params)
 		assert.NoError(t, err)
-
-		// failed with `second` tag query, but success with `first`
 		assert.Equal(t, 1, len(traces))
 	})
 }
