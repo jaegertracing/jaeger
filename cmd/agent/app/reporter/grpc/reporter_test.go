@@ -61,7 +61,7 @@ func TestReporter_EmitZipkinBatch(t *testing.T) {
 	defer conn.Close()
 	require.NoError(t, err)
 
-	rep := NewReporter(conn, nil, reporter.Duplicate, zap.NewNop())
+	rep := NewReporter(conn, &tagsMerger{nil, reporter.Duplicate}, zap.NewNop())
 
 	tm := time.Unix(158, 0)
 	a := tm.Unix() * 1000 * 1000
@@ -98,7 +98,7 @@ func TestReporter_EmitBatch(t *testing.T) {
 	//lint:ignore SA5001 don't care about errors
 	defer conn.Close()
 	require.NoError(t, err)
-	rep := NewReporter(conn, nil, reporter.Duplicate, zap.NewNop())
+	rep := NewReporter(conn, &tagsMerger{nil, reporter.Duplicate}, zap.NewNop())
 
 	tm := time.Unix(158, 0)
 	tests := []struct {
@@ -123,87 +123,9 @@ func TestReporter_EmitBatch(t *testing.T) {
 func TestReporter_SendFailure(t *testing.T) {
 	conn, err := grpc.Dial("", grpc.WithInsecure())
 	require.NoError(t, err)
-	rep := NewReporter(conn, nil, reporter.Duplicate, zap.NewNop())
+	rep := NewReporter(conn, &tagsMerger{nil, reporter.Duplicate}, zap.NewNop())
 	err = rep.send(nil, nil)
 	assert.EqualError(t, err, "rpc error: code = Unavailable desc = all SubConns are in TransientFailure, latest connection error: connection error: desc = \"transport: Error while dialing dial tcp: missing address\"")
-}
-
-func TestReporter_AddProcessTags_EmptyTags(t *testing.T) {
-	tags := map[string]string{}
-	spans := []*model.Span{{TraceID: model.NewTraceID(0, 1), SpanID: model.NewSpanID(2), OperationName: "jonatan"}}
-	actualSpans, _ := addProcessTags(spans, nil, makeModelKeyValue(tags), reporter.Duplicate)
-	assert.Equal(t, spans, actualSpans)
-}
-
-func TestReporter_AddProcessTags_ZipkinBatch(t *testing.T) {
-	tags := map[string]string{"key": "value"}
-	spans := []*model.Span{{TraceID: model.NewTraceID(0, 1), SpanID: model.NewSpanID(2), OperationName: "jonatan", Process: &model.Process{ServiceName: "spring"}}}
-
-	expectedSpans := []*model.Span{
-		{
-			TraceID:       model.NewTraceID(0, 1),
-			SpanID:        model.NewSpanID(2),
-			OperationName: "jonatan",
-			Process:       &model.Process{ServiceName: "spring", Tags: []model.KeyValue{model.String("key", "value")}},
-		},
-	}
-	actualSpans, _ := addProcessTags(spans, nil, makeModelKeyValue(tags), reporter.Duplicate)
-
-	assert.Equal(t, expectedSpans, actualSpans)
-}
-
-func TestReporter_AddProcessTags_JaegerBatch(t *testing.T) {
-	tags := map[string]string{"key": "value"}
-	spans := []*model.Span{{TraceID: model.NewTraceID(0, 1), SpanID: model.NewSpanID(2), OperationName: "jonatan"}}
-	process := &model.Process{ServiceName: "spring"}
-
-	expectedProcess := &model.Process{ServiceName: "spring", Tags: []model.KeyValue{model.String("key", "value")}}
-	_, actualProcess := addProcessTags(spans, process, makeModelKeyValue(tags), reporter.Duplicate)
-
-	assert.Equal(t, expectedProcess, actualProcess)
-}
-
-func TestReporter_AddProcessTags_JaegerBatchWithClientOverride(t *testing.T) {
-	agentTags := map[string]string{"agentKey1": "agentValue1", "commonKey": "commonValue1"}
-	clientTags := map[string]string{"clientKey1": "clientValue1", "commonKey": "commonValue2"}
-
-	process := &model.Process{Tags: makeModelKeyValue(clientTags)}
-	spans := []*model.Span{{TraceID: model.NewTraceID(0, 1), SpanID: model.NewSpanID(2), Process: process, OperationName: "jonatan"}}
-
-	expectedTags := map[string]string{"clientKey1": "clientValue1", "commonKey": "commonValue2", "agentKey1": "agentValue1"}
-
-	actualSpans, _ := addProcessTags(spans, nil, makeModelKeyValue(agentTags), reporter.Client)
-
-	assert.ElementsMatch(t, actualSpans[0].Process.Tags, makeModelKeyValue(expectedTags))
-}
-
-func TestReporter_AddProcessTags_JaegerBatchWithAgentOverride(t *testing.T) {
-	agentTags := map[string]string{"agentKey1": "agentValue1", "commonKey": "commonValue1"}
-	clientTags := map[string]string{"clientKey1": "clientValue1", "commonKey": "commonValue2"}
-
-	process := &model.Process{Tags: makeModelKeyValue(clientTags)}
-	spans := []*model.Span{{TraceID: model.NewTraceID(0, 1), SpanID: model.NewSpanID(2), Process: process, OperationName: "jonatan"}}
-
-	expectedTags := map[string]string{"clientKey1": "clientValue1", "commonKey": "commonValue1", "agentKey1": "agentValue1"}
-
-	actualSpans, _ := addProcessTags(spans, nil, makeModelKeyValue(agentTags), reporter.Agent)
-
-	assert.ElementsMatch(t, actualSpans[0].Process.Tags, makeModelKeyValue(expectedTags))
-}
-
-func TestReporter_AddProcessTags_JaegerBatchWithDuplicates(t *testing.T) {
-	agentTags := map[string]string{"agentKey1": "agentValue1", "commonKey": "commonValue1"}
-	clientTags := map[string]string{"clientKey1": "clientValue1", "commonKey": "commonValue2"}
-
-	process := &model.Process{Tags: makeModelKeyValue(clientTags)}
-	spans := []*model.Span{{TraceID: model.NewTraceID(0, 1), SpanID: model.NewSpanID(2), Process: process, OperationName: "jonatan"}}
-
-	expectedTags := map[string]string{"clientKey1": "clientValue1", "agentKey1": "agentValue1", "commonKey": "commonValue1"}
-	expectedModelKeyValue := append(makeModelKeyValue(expectedTags), []model.KeyValue{model.String("commonKey", "commonValue2")}...)
-
-	actualSpans, _ := addProcessTags(spans, nil, makeModelKeyValue(agentTags), reporter.Duplicate)
-
-	assert.ElementsMatch(t, actualSpans[0].Process.Tags, expectedModelKeyValue)
 }
 
 func TestReporter_MakeModelKeyValue(t *testing.T) {
