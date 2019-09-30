@@ -19,8 +19,8 @@ import (
 	"os/exec"
 	"runtime"
 
-	hclog "github.com/hashicorp/go-hclog"
-	plugin "github.com/hashicorp/go-plugin"
+	"github.com/hashicorp/go-hclog"
+	"github.com/hashicorp/go-plugin"
 
 	"github.com/jaegertracing/jaeger/plugin/storage/grpc/shared"
 )
@@ -29,7 +29,6 @@ import (
 type Configuration struct {
 	PluginBinary            string `yaml:"binary"`
 	PluginConfigurationFile string `yaml:"configuration-file"`
-	AllowTokenFromContext   bool   `yaml:"allow-token-from-context"`
 }
 
 // Build instantiates a StoragePlugin
@@ -40,7 +39,7 @@ func (c *Configuration) Build() (shared.StoragePlugin, error) {
 	client := plugin.NewClient(&plugin.ClientConfig{
 		HandshakeConfig: shared.Handshake,
 		VersionedPlugins: map[int]plugin.PluginSet{
-			1: shared.GetPluginMap(c.AllowTokenFromContext),
+			1: shared.PluginMap,
 		},
 		Cmd:              cmd,
 		AllowedProtocols: []plugin.Protocol{plugin.ProtocolGRPC},

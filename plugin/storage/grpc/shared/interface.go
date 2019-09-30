@@ -17,7 +17,7 @@ package shared
 import (
 	"context"
 
-	plugin "github.com/hashicorp/go-plugin"
+	"github.com/hashicorp/go-plugin"
 	"google.golang.org/grpc"
 
 	"github.com/jaegertracing/jaeger/proto-gen/storage_v1"
@@ -34,13 +34,9 @@ var Handshake = plugin.HandshakeConfig{
 	MagicCookieValue: "jaeger",
 }
 
-// GetPluginMap returns a plugin map.
-func GetPluginMap(allowTokenFromContext bool) map[string]plugin.Plugin {
-	return map[string]plugin.Plugin{
-		StoragePluginIdentifier: &StorageGRPCPlugin{
-			allowTokenFromContext: allowTokenFromContext,
-		},
-	}
+// PluginMap is the map of plugins we can dispense.
+var PluginMap = map[string]plugin.Plugin{
+	StoragePluginIdentifier: &StorageGRPCPlugin{},
 }
 
 // StoragePlugin is the interface we're exposing as a plugin.
@@ -52,7 +48,6 @@ type StoragePlugin interface {
 
 // StorageGRPCPlugin is the implementation of plugin.GRPCPlugin so we can serve/consume this.
 type StorageGRPCPlugin struct {
-	allowTokenFromContext bool
 	plugin.Plugin
 	// Concrete implementation, written in Go. This is only used for plugins
 	// that are written in Go.
@@ -69,11 +64,10 @@ func (p *StorageGRPCPlugin) GRPCServer(broker *plugin.GRPCBroker, s *grpc.Server
 }
 
 // GRPCClient is used by go-plugin to create a grpc plugin client
-func (p *StorageGRPCPlugin) GRPCClient(ctx context.Context, broker *plugin.GRPCBroker, c *grpc.ClientConn) (interface{}, error) {
+func (*StorageGRPCPlugin) GRPCClient(ctx context.Context, broker *plugin.GRPCBroker, c *grpc.ClientConn) (interface{}, error) {
 	return &grpcClient{
-		allowTokenFromContext: p.allowTokenFromContext,
-		readerClient:          storage_v1.NewSpanReaderPluginClient(c),
-		writerClient:          storage_v1.NewSpanWriterPluginClient(c),
-		depsReaderClient:      storage_v1.NewDependenciesReaderPluginClient(c),
+		readerClient:     storage_v1.NewSpanReaderPluginClient(c),
+		writerClient:     storage_v1.NewSpanWriterPluginClient(c),
+		depsReaderClient: storage_v1.NewDependenciesReaderPluginClient(c),
 	}, nil
 }

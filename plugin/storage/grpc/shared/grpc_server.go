@@ -31,17 +31,6 @@ type grpcServer struct {
 	Impl StoragePlugin
 }
 
-// getMaybeBearerTokenContext returns a context with bearer token, if token string is not empty
-// the assumption is that if the token has arrived on the wire, the grpcClient
-// verified that bearer token forward was enabled.
-// If token is empty, returns original context.
-func (s *grpcServer) getMaybeBearerTokenContext(ctx context.Context, token string) context.Context {
-	if token != "" {
-		return spanstore.ContextWithBearerToken(ctx, token)
-	}
-	return ctx
-}
-
 // GetDependencies returns all interservice dependencies
 func (s *grpcServer) GetDependencies(ctx context.Context, r *storage_v1.GetDependenciesRequest) (*storage_v1.GetDependenciesResponse, error) {
 	deps, err := s.Impl.DependencyReader().GetDependencies(r.EndTime, r.EndTime.Sub(r.StartTime))
@@ -64,8 +53,7 @@ func (s *grpcServer) WriteSpan(ctx context.Context, r *storage_v1.WriteSpanReque
 
 // GetTrace takes a traceID and streams a Trace associated with that traceID
 func (s *grpcServer) GetTrace(r *storage_v1.GetTraceRequest, stream storage_v1.SpanReaderPlugin_GetTraceServer) error {
-	opCtx := s.getMaybeBearerTokenContext(stream.Context(), r.BearerToken)
-	trace, err := s.Impl.SpanReader().GetTrace(opCtx, r.TraceID)
+	trace, err := s.Impl.SpanReader().GetTrace(stream.Context(), r.TraceID)
 	if err != nil {
 		return err
 	}
@@ -80,8 +68,7 @@ func (s *grpcServer) GetTrace(r *storage_v1.GetTraceRequest, stream storage_v1.S
 
 // GetServices returns a list of all known services
 func (s *grpcServer) GetServices(ctx context.Context, r *storage_v1.GetServicesRequest) (*storage_v1.GetServicesResponse, error) {
-	opCtx := s.getMaybeBearerTokenContext(ctx, r.BearerToken)
-	services, err := s.Impl.SpanReader().GetServices(opCtx)
+	services, err := s.Impl.SpanReader().GetServices(ctx)
 	if err != nil {
 		return nil, err
 	}
@@ -92,8 +79,7 @@ func (s *grpcServer) GetServices(ctx context.Context, r *storage_v1.GetServicesR
 
 // GetOperations returns the operations of a given service
 func (s *grpcServer) GetOperations(ctx context.Context, r *storage_v1.GetOperationsRequest) (*storage_v1.GetOperationsResponse, error) {
-	opCtx := s.getMaybeBearerTokenContext(ctx, r.BearerToken)
-	operations, err := s.Impl.SpanReader().GetOperations(opCtx, r.Service)
+	operations, err := s.Impl.SpanReader().GetOperations(ctx, r.Service)
 	if err != nil {
 		return nil, err
 	}
@@ -104,8 +90,7 @@ func (s *grpcServer) GetOperations(ctx context.Context, r *storage_v1.GetOperati
 
 // FindTraces streams traces that match the traceQuery
 func (s *grpcServer) FindTraces(r *storage_v1.FindTracesRequest, stream storage_v1.SpanReaderPlugin_FindTracesServer) error {
-	opCtx := s.getMaybeBearerTokenContext(stream.Context(), r.BearerToken)
-	traces, err := s.Impl.SpanReader().FindTraces(opCtx, &spanstore.TraceQueryParameters{
+	traces, err := s.Impl.SpanReader().FindTraces(stream.Context(), &spanstore.TraceQueryParameters{
 		ServiceName:   r.Query.ServiceName,
 		OperationName: r.Query.OperationName,
 		Tags:          r.Query.Tags,
@@ -131,8 +116,7 @@ func (s *grpcServer) FindTraces(r *storage_v1.FindTracesRequest, stream storage_
 
 // FindTraceIDs retrieves traceIDs that match the traceQuery
 func (s *grpcServer) FindTraceIDs(ctx context.Context, r *storage_v1.FindTraceIDsRequest) (*storage_v1.FindTraceIDsResponse, error) {
-	opCtx := s.getMaybeBearerTokenContext(ctx, r.BearerToken)
-	traceIDs, err := s.Impl.SpanReader().FindTraceIDs(opCtx, &spanstore.TraceQueryParameters{
+	traceIDs, err := s.Impl.SpanReader().FindTraceIDs(ctx, &spanstore.TraceQueryParameters{
 		ServiceName:   r.Query.ServiceName,
 		OperationName: r.Query.OperationName,
 		Tags:          r.Query.Tags,
