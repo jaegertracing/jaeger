@@ -18,6 +18,8 @@ import "context"
 
 type contextKey string
 
+// BearerTokenKey is the string literal used internally in the implementation of this context.
+const BearerTokenKey = "bearer.token"
 const bearerToken = contextKey("bearer.token")
 
 // StoragePropagationKey is a key for viper configuration to pass this option to storage plugins.

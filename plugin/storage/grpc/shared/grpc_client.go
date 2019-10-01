@@ -40,7 +40,7 @@ func (c *grpcClient) updateContextWithBearerToken(outgoing context.Context, sour
 	bearerToken, hasToken := spanstore.GetBearerToken(source)
 	if hasToken {
 		requestMetadata := metadata.New(map[string]string{
-			"bearerToken": bearerToken,
+			spanstore.BearerTokenKey: bearerToken,
 		})
 		return metadata.NewOutgoingContext(outgoing, requestMetadata)
 	}
@@ -147,7 +147,7 @@ func (c *grpcClient) FindTraces(ctx context.Context, query *spanstore.TraceQuery
 
 // FindTraceIDs retrieves traceIDs that match the traceQuery
 func (c *grpcClient) FindTraceIDs(ctx context.Context, query *spanstore.TraceQueryParameters) ([]model.TraceID, error) {
-	resp, err := c.readerClient.FindTraceIDs(c.updateContextWithBearerToken(context.Background(), ctx), &storage_v1.FindTraceIDsRequest{
+	resp, err := c.readerClient.FindTraceIDs(c.updateContextWithBearerToken(ctx, ctx), &storage_v1.FindTraceIDsRequest{
 		Query: &storage_v1.TraceQueryParameters{
 			ServiceName:   query.ServiceName,
 			OperationName: query.OperationName,
