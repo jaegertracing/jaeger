@@ -34,6 +34,7 @@ type ProcessorFactoryParams struct {
 	SaramaConsumer consumer.Consumer
 	Factory        metrics.Factory
 	Logger         *zap.Logger
+	RetryOptions   []decorator.RetryOption
 }
 
 // ProcessorFactory is a factory for creating startedProcessors
@@ -44,6 +45,7 @@ type ProcessorFactory struct {
 	logger         *zap.Logger
 	baseProcessor  processor.SpanProcessor
 	parallelism    int
+	retryOptions   []decorator.RetryOption
 }
 
 // NewProcessorFactory constructs a new ProcessorFactory
@@ -55,6 +57,7 @@ func NewProcessorFactory(params ProcessorFactoryParams) (*ProcessorFactory, erro
 		logger:         params.Logger,
 		baseProcessor:  params.BaseProcessor,
 		parallelism:    params.Parallelism,
+		retryOptions:   params.RetryOptions,
 	}, nil
 }
 
@@ -67,7 +70,7 @@ func (c *ProcessorFactory) new(partition int32, minOffset int64) processor.SpanP
 
 	om := offset.NewManager(minOffset, markOffset, partition, c.metricsFactory)
 
-	retryProcessor := decorator.NewRetryingProcessor(c.metricsFactory, c.baseProcessor)
+	retryProcessor := decorator.NewRetryingProcessor(c.metricsFactory, c.baseProcessor, c.retryOptions...)
 	cp := NewCommittingProcessor(retryProcessor, om)
 	spanProcessor := processor.NewDecoratedProcessor(c.metricsFactory, cp)
 	pp := processor.NewParallelProcessor(spanProcessor, c.parallelism, c.logger)
