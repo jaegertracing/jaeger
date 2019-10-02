@@ -233,7 +233,9 @@ func startCollector(
 		server.Register(jc.NewTChanCollectorServer(batchHandler))
 		server.Register(zc.NewTChanZipkinCollectorServer(batchHandler))
 		server.Register(sc.NewTChanSamplingManagerServer(sampling.NewHandler(strategyStore)))
-		listener, err := net.Listen("tcp", cOpts.CollectorTChanAddr)
+
+		tchanAddr := getAddressFromCLIOptions(cOpts.CollectorPort, cOpts.CollectorTChanAddr, "collector.http-port", logger)
+		listener, err := net.Listen("tcp", tchanAddr)
 		if err != nil {
 			logger.Fatal("Unable to start listening on channel", zap.Error(err))
 		}
@@ -241,7 +243,8 @@ func startCollector(
 		ch.Serve(listener)
 	}
 
-	server, err := startGRPCServer(cOpts.CollectorGRPCAddr, grpcHandler, strategyStore, logger)
+	grpcAddr := getAddressFromCLIOptions(cOpts.CollectorGRPCPort, cOpts.CollectorGRPCAddr, "collector.grpc-port", logger)
+	server, err := startGRPCServer(grpcAddr, grpcHandler, strategyStore, logger)
 	if err != nil {
 		logger.Fatal("Could not start gRPC collector", zap.Error(err))
 	}
@@ -252,11 +255,14 @@ func startCollector(
 		apiHandler.RegisterRoutes(r)
 		recoveryHandler := recoveryhandler.NewRecoveryHandler(logger, true)
 
-		go startZipkinHTTPAPI(logger, cOpts.CollectorZipkinHTTPAddr, zipkinSpansHandler, recoveryHandler)
+		zipkinAddr := getAddressFromCLIOptions(cOpts.CollectorZipkinHTTPPort, cOpts.CollectorZipkinHTTPAddr, "collector.zipkin.http-port", logger)
+
+		go startZipkinHTTPAPI(logger, zipkinAddr, zipkinSpansHandler, recoveryHandler)
 
 		logger.Info("Starting jaeger-collector HTTP server", zap.String("http-addr", cOpts.CollectorHTTPAddr))
 		go func() {
-			if err := http.ListenAndServe(cOpts.CollectorHTTPAddr, recoveryHandler(r)); err != nil {
+			httpAddr := getAddressFromCLIOptions(cOpts.CollectorHTTPPort, cOpts.CollectorHTTPAddr, "collector.http-port", logger)
+			if err := http.ListenAndServe(httpAddr, recoveryHandler(r)); err != nil {
 				logger.Fatal("Could not launch jaeger-collector HTTP server", zap.Error(err))
 			}
 			hc.Set(healthcheck.Unavailable)
@@ -357,4 +363,14 @@ func initTracer(metricsFactory metrics.Factory, logger *zap.Logger) io.Closer {
 	}
 	opentracing.SetGlobalTracer(tracer)
 	return closer
+}
+
+// Utility function to decide listening address based on port (deprecated flags) or host:port (new flags)
+func getAddressFromCLIOptions(port int, addr string, deprecatedFlag string, logger *zap.Logger) string {
+	if port != 0 {
+		logger.Warn("Using deprecated configuration", zap.String("option", deprecatedFlag))
+		return ports.PortToHostPort(port)
+	}
+
+	return addr
 }
