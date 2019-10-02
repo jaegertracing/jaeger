@@ -20,12 +20,12 @@ import (
 	"time"
 
 	"github.com/pkg/errors"
+	"google.golang.org/grpc/metadata"
 
 	"github.com/jaegertracing/jaeger/model"
 	"github.com/jaegertracing/jaeger/proto-gen/storage_v1"
 	"github.com/jaegertracing/jaeger/storage/dependencystore"
 	"github.com/jaegertracing/jaeger/storage/spanstore"
-	"google.golang.org/grpc/metadata"
 )
 
 // grpcClient implements shared.StoragePlugin and reads/writes spans and dependencies
