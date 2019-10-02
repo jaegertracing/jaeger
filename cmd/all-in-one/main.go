@@ -184,7 +184,8 @@ func startAgent(
 ) {
 	metricsFactory := baseFactory.Namespace(metrics.NSOptions{Name: "agent", Tags: nil})
 
-	grpcBuilder.CollectorHostPorts = append(grpcBuilder.CollectorHostPorts, cOpts.CollectorGRPCAddr)
+	addr := getAddressFromCLIOptions(cOpts.CollectorGRPCPort, cOpts.CollectorGRPCAddr, "collector.grpc-port", logger)
+	grpcBuilder.CollectorHostPorts = append(grpcBuilder.CollectorHostPorts, addr)
 	cp, err := agentApp.CreateCollectorProxy(repOpts, tchanBuilder, grpcBuilder, logger, metricsFactory)
 	if err != nil {
 		logger.Fatal("Could not create collector proxy", zap.Error(err))
@@ -239,7 +240,7 @@ func startCollector(
 		if err != nil {
 			logger.Fatal("Unable to start listening on channel", zap.Error(err))
 		}
-		logger.Info("Starting jaeger-collector TChannel server", zap.String("addr", cOpts.CollectorTChanAddr))
+		logger.Info("Starting jaeger-collector TChannel server", zap.String("addr", tchanAddr))
 		ch.Serve(listener)
 	}
 
@@ -259,9 +260,9 @@ func startCollector(
 
 		go startZipkinHTTPAPI(logger, zipkinAddr, zipkinSpansHandler, recoveryHandler)
 
-		logger.Info("Starting jaeger-collector HTTP server", zap.String("http-addr", cOpts.CollectorHTTPAddr))
+		httpAddr := getAddressFromCLIOptions(cOpts.CollectorHTTPPort, cOpts.CollectorHTTPAddr, "collector.http-port", logger)
+		logger.Info("Starting jaeger-collector HTTP server", zap.String("http-addr", httpAddr))
 		go func() {
-			httpAddr := getAddressFromCLIOptions(cOpts.CollectorHTTPPort, cOpts.CollectorHTTPAddr, "collector.http-port", logger)
 			if err := http.ListenAndServe(httpAddr, recoveryHandler(r)); err != nil {
 				logger.Fatal("Could not launch jaeger-collector HTTP server", zap.Error(err))
 			}
