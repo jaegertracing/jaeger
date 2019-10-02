@@ -79,7 +79,7 @@ func (s *AdminServer) initFromViper(v *viper.Viper, logger *zap.Logger) {
 	s.adminAddr = v.GetString(adminHTTPAddr)
 	if v := v.GetInt(healthCheckHTTPPort); v != 0 {
 		logger.Sugar().Warnf("Using deprecated flag %s, please upgrade to %s", healthCheckHTTPPort, adminHTTPAddr)
-		s.adminAddr = ports.GetAddressFromPort(v)
+		s.adminAddr = ports.PortToHostPort(v)
 	}
 }
 

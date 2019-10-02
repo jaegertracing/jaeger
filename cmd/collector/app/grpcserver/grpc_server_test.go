@@ -64,7 +64,7 @@ func TestSpanCollector(t *testing.T) {
 	l, _ := zap.NewDevelopment()
 	handler := app.NewGRPCHandler(l, &mockSpanProcessor{})
 	server := grpc.NewServer()
-	addr, err := StartGRPCCollector(ports.GetAddressFromPort(0), server, handler, &mockSamplingStore{}, l, func(e error) {
+	addr, err := StartGRPCCollector(ports.PortToHostPort(0), server, handler, &mockSamplingStore{}, l, func(e error) {
 	})
 	require.NoError(t, err)
 

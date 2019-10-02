@@ -48,7 +48,7 @@ const (
 	IngesterAdminHTTP = 14270
 )
 
-// GetAddressFromPort converts the port into a host:port address string
-func GetAddressFromPort(port int) string {
+// PortToHostPort converts the port into a host:port address string
+func PortToHostPort(port int) string {
 	return ":" + strconv.Itoa(port)
 }

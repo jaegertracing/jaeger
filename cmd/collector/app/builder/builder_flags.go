@@ -27,14 +27,18 @@ import (
 const (
 	collectorQueueSize            = "collector.queue-size"
 	collectorNumWorkers           = "collector.num-workers"
-	collectorTChanAddr            = "collector.tchan-addr"
-	collectorHTTPAddr             = "collector.http-addr"
-	collectorGRPCAddr             = "collector.grpc-addr"
+	collectorPort                 = "collector.port"
+	collectorHTTPPort             = "collector.http-port"
+	collectorGRPCPort             = "collector.grpc-port"
+	collectorTChanAddr            = "collector.tchan-server.host-port"
+	collectorHTTPAddr             = "collector.http-server.host-port"
+	collectorGRPCAddr             = "collector.grpc-server.host-port"
 	collectorGRPCTLS              = "collector.grpc.tls"
 	collectorGRPCCert             = "collector.grpc.tls.cert"
 	collectorGRPCKey              = "collector.grpc.tls.key"
 	collectorGRPCClientCA         = "collector.grpc.tls.client.ca"
-	collectorZipkinHTTPAddr       = "collector.zipkin.http-addr"
+	collectorZipkinHTTPPort       = "collector.zipkin.http-port"
+	collectorZipkinHTTPAddr       = "collector.zipkin.host-port"
 	collectorZipkinAllowedOrigins = "collector.zipkin.allowed-origins"
 	collectorZipkinAllowedHeaders = "collector.zipkin.allowed-headers"
 )
@@ -45,6 +49,12 @@ type CollectorOptions struct {
 	QueueSize int
 	// NumWorkers is the number of internal workers in a collector
 	NumWorkers int
+	// CollectorPort is the port that the collector service listens in on for tchannel requests
+	CollectorPort int
+	// CollectorHTTPPort is the port that the collector service listens in on for http requests
+	CollectorHTTPPort int
+	// CollectorGRPCPort is the port that the collector service listens in on for gRPC requests
+	CollectorGRPCPort int
 	// CollectorTChanAddr is the host:port address that the collector service listens in on for tchannel requests
 	CollectorTChanAddr string
 	// CollectorHTTPAddr is the host:port address that the collector service listens in on for http requests
@@ -59,6 +69,8 @@ type CollectorOptions struct {
 	CollectorGRPCClientCA string
 	// CollectorGRPCKey is the path to a TLS key file for the server
 	CollectorGRPCKey string
+	// CollectorZipkinHTTPPort is the port that the Zipkin collector service listens in on for http requests
+	CollectorZipkinHTTPPort int
 	// CollectorZipkinHTTPAddr is the host:port address that the Zipkin collector service listens in on for http requests
 	CollectorZipkinHTTPAddr string
 	// CollectorZipkinAllowedOrigins is a list of origins a cross-domain request to the Zipkin collector service can be executed from
@@ -71,10 +83,14 @@ type CollectorOptions struct {
 func AddFlags(flags *flag.FlagSet) {
 	flags.Int(collectorQueueSize, app.DefaultQueueSize, "The queue size of the collector")
 	flags.Int(collectorNumWorkers, app.DefaultNumWorkers, "The number of workers pulling items from the queue")
-	flags.String(collectorTChanAddr, ports.GetAddressFromPort(ports.CollectorTChannel), "The TChannel address for the collector service")
-	flags.String(collectorHTTPAddr, ports.GetAddressFromPort(ports.CollectorHTTP), "The HTTP address for the collector service")
-	flags.String(collectorGRPCAddr, ports.GetAddressFromPort(ports.CollectorGRPC), "The gRPC address for the collector service")
-	flags.String(collectorZipkinHTTPAddr, ports.GetAddressFromPort(0), "The HTTP address for the Zipkin collector service")
+	flags.Int(collectorPort, ports.CollectorTChannel, "The TChannel port for the collector service - (deprecated) see - "+collectorTChanAddr)
+	flags.Int(collectorHTTPPort, ports.CollectorHTTP, "The HTTP port for the collector service - (deprecated) see -"+collectorHTTPAddr)
+	flags.Int(collectorGRPCPort, ports.CollectorGRPC, "The gRPC port for the collector service - (deprecated) see -"+collectorGRPCAddr)
+	flags.Int(collectorZipkinHTTPPort, 0, "The HTTP port for the Zipkin collector service e.g. 9411 - (deprecated) see -"+collectorZipkinHTTPAddr)
+	flags.String(collectorTChanAddr, ports.PortToHostPort(ports.CollectorTChannel), "The host:port (e.g. 127.0.0.1:5555 or :5555) of the collector's TChannel server")
+	flags.String(collectorHTTPAddr, ports.PortToHostPort(ports.CollectorHTTP), "The host:port (e.g. 127.0.0.1:5555 or :5555) of the collector's HTTP server")
+	flags.String(collectorGRPCAddr, ports.PortToHostPort(ports.CollectorGRPC), "The host:port (e.g. 127.0.0.1:5555 or :5555) of the collector's GRPC server")
+	flags.String(collectorZipkinHTTPAddr, ports.PortToHostPort(0), "The host:port (e.g. 127.0.0.1:5555 or :5555) of the collector's Zipkin server")
 	flags.Bool(collectorGRPCTLS, false, "Enable TLS for the gRPC collector endpoint")
 	flags.String(collectorGRPCCert, "", "Path to TLS certificate for the gRPC collector TLS service")
 	flags.String(collectorGRPCKey, "", "Path to TLS key for the gRPC collector TLS cert")
@@ -87,6 +103,9 @@ func AddFlags(flags *flag.FlagSet) {
 func (cOpts *CollectorOptions) InitFromViper(v *viper.Viper) *CollectorOptions {
 	cOpts.QueueSize = v.GetInt(collectorQueueSize)
 	cOpts.NumWorkers = v.GetInt(collectorNumWorkers)
+	cOpts.CollectorPort = v.GetInt(collectorPort)
+	cOpts.CollectorHTTPPort = v.GetInt(collectorHTTPPort)
+	cOpts.CollectorGRPCPort = v.GetInt(collectorGRPCPort)
 	cOpts.CollectorTChanAddr = v.GetString(collectorTChanAddr)
 	cOpts.CollectorHTTPAddr = v.GetString(collectorHTTPAddr)
 	cOpts.CollectorGRPCAddr = v.GetString(collectorGRPCAddr)
@@ -94,6 +113,7 @@ func (cOpts *CollectorOptions) InitFromViper(v *viper.Viper) *CollectorOptions {
 	cOpts.CollectorGRPCCert = v.GetString(collectorGRPCCert)
 	cOpts.CollectorGRPCClientCA = v.GetString(collectorGRPCClientCA)
 	cOpts.CollectorGRPCKey = v.GetString(collectorGRPCKey)
+	cOpts.CollectorZipkinHTTPPort = v.GetInt(collectorZipkinHTTPPort)
 	cOpts.CollectorZipkinHTTPAddr = v.GetString(collectorZipkinHTTPAddr)
 	cOpts.CollectorZipkinAllowedOrigins = v.GetString(collectorZipkinAllowedOrigins)
 	cOpts.CollectorZipkinAllowedHeaders = v.GetString(collectorZipkinAllowedHeaders)

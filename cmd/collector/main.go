@@ -119,11 +119,13 @@ func main() {
 				server.Register(jc.NewTChanCollectorServer(batchHandler))
 				server.Register(zc.NewTChanZipkinCollectorServer(batchHandler))
 				server.Register(sc.NewTChanSamplingManagerServer(sampling.NewHandler(strategyStore)))
-				listener, err := net.Listen("tcp", builderOpts.CollectorTChanAddr)
+
+				addr := getAddressFromCLIOptions(builderOpts.CollectorPort, builderOpts.CollectorTChanAddr, "collector.http-port", logger)
+				listener, err := net.Listen("tcp", addr)
 				if err != nil {
 					logger.Fatal("Unable to start listening on channel", zap.Error(err))
 				}
-				logger.Info("Starting jaeger-collector TChannel server", zap.String("tchan-addr", builderOpts.CollectorTChanAddr))
+				logger.Info("Starting jaeger-collector TChannel server", zap.String("tchan-addr", addr))
 				ch.Serve(listener)
 			}
 
@@ -139,11 +141,14 @@ func main() {
 				recoveryHandler := recoveryhandler.NewRecoveryHandler(logger, true)
 				httpHandler := recoveryHandler(r)
 
-				go startZipkinHTTPAPI(logger, builderOpts.CollectorZipkinHTTPAddr, builderOpts.CollectorZipkinAllowedOrigins, builderOpts.CollectorZipkinAllowedHeaders, zipkinSpansHandler, recoveryHandler)
+				zipkinAddr := getAddressFromCLIOptions(builderOpts.CollectorZipkinHTTPPort, builderOpts.CollectorZipkinHTTPAddr, "collector.zipkin.http-port", logger)
 
-				logger.Info("Starting jaeger-collector HTTP server", zap.String("http-addr", builderOpts.CollectorHTTPAddr))
+				go startZipkinHTTPAPI(logger, zipkinAddr, builderOpts.CollectorZipkinAllowedOrigins, builderOpts.CollectorZipkinAllowedHeaders, zipkinSpansHandler, recoveryHandler)
+
+				httpAddr := getAddressFromCLIOptions(builderOpts.CollectorHTTPPort, builderOpts.CollectorHTTPAddr, "collector.http-port", logger)
+				logger.Info("Starting jaeger-collector HTTP server", zap.String("http-addr", httpAddr))
 				go func() {
-					if err := http.ListenAndServe(builderOpts.CollectorHTTPAddr, httpHandler); err != nil {
+					if err := http.ListenAndServe(httpAddr, httpHandler); err != nil {
 						logger.Fatal("Could not launch service", zap.Error(err))
 					}
 					svc.HC().Set(healthcheck.Unavailable)
@@ -204,7 +209,9 @@ func startGRPCServer(
 	} else { // server without TLS
 		server = grpc.NewServer()
 	}
-	_, err := grpcserver.StartGRPCCollector(opts.CollectorGRPCAddr, server, handler, samplingStore, logger, func(err error) {
+
+	addr := getAddressFromCLIOptions(opts.CollectorGRPCPort, opts.CollectorGRPCAddr, "collector.grpc-port", logger)
+	_, err := grpcserver.StartGRPCCollector(addr, server, handler, samplingStore, logger, func(err error) {
 		logger.Fatal("gRPC collector failed", zap.Error(err))
 	})
 	if err != nil {
@@ -221,7 +228,7 @@ func startZipkinHTTPAPI(
 	zipkinSpansHandler app.ZipkinSpansHandler,
 	recoveryHandler func(http.Handler) http.Handler,
 ) {
-	if zipkinAddr != ":0" {
+	if zipkinAddr != "" {
 		zHandler := zipkin.NewAPIHandler(zipkinSpansHandler)
 		r := mux.NewRouter()
 		zHandler.RegisterRoutes(r)
@@ -256,4 +263,14 @@ func initSamplingStrategyStore(
 		logger.Fatal("Failed to create sampling strategy store", zap.Error(err))
 	}
 	return strategyStore
+}
+
+// Utility function to decide listening address based on port (deprecated flags) or host:port (new flags)
+func getAddressFromCLIOptions(port int, addr string, deprecatedFlag string, logger *zap.Logger) string {
+	if port != 0 {
+		logger.Warn("Using deprecated configuration", zap.String("option", deprecatedFlag))
+		return ports.PortToHostPort(port)
+	}
+
+	return addr
 }

@@ -287,7 +287,7 @@ func startZipkinHTTPAPI(
 	zipkinSpansHandler collectorApp.ZipkinSpansHandler,
 	recoveryHandler func(http.Handler) http.Handler,
 ) {
-	if zipkinAddr != ":0" {
+	if zipkinAddr != "" {
 		r := mux.NewRouter()
 		zHandler := zipkin.NewAPIHandler(zipkinSpansHandler)
 		zHandler.RegisterRoutes(r)
