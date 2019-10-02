@@ -29,6 +29,7 @@ import (
 
 	"github.com/jaegertracing/jaeger/cmd/collector/app"
 	"github.com/jaegertracing/jaeger/model"
+	"github.com/jaegertracing/jaeger/ports"
 	"github.com/jaegertracing/jaeger/proto-gen/api_v2"
 	"github.com/jaegertracing/jaeger/thrift-gen/sampling"
 )
@@ -38,8 +39,8 @@ func TestFailToListen(t *testing.T) {
 	l, _ := zap.NewDevelopment()
 	handler := app.NewGRPCHandler(l, &mockSpanProcessor{})
 	server := grpc.NewServer()
-	const invalidPort = -1
-	addr, err := StartGRPCCollector(invalidPort, server, handler, &mockSamplingStore{}, l, func(e error) {
+	const invalidAddr = ":-1"
+	addr, err := StartGRPCCollector(invalidAddr, server, handler, &mockSamplingStore{}, l, func(e error) {
 	})
 	assert.Nil(t, addr)
 	assert.EqualError(t, err, "failed to listen on gRPC port: listen tcp: address -1: invalid port")
@@ -63,7 +64,7 @@ func TestSpanCollector(t *testing.T) {
 	l, _ := zap.NewDevelopment()
 	handler := app.NewGRPCHandler(l, &mockSpanProcessor{})
 	server := grpc.NewServer()
-	addr, err := StartGRPCCollector(0, server, handler, &mockSamplingStore{}, l, func(e error) {
+	addr, err := StartGRPCCollector(ports.GetAddressFromPort(0), server, handler, &mockSamplingStore{}, l, func(e error) {
 	})
 	require.NoError(t, err)
 

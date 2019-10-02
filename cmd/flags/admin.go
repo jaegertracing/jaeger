@@ -20,7 +20,6 @@ import (
 	"net"
 	"net/http"
 	"net/http/pprof"
-	"strconv"
 
 	"github.com/spf13/viper"
 	"go.uber.org/zap"
@@ -28,17 +27,18 @@ import (
 	"github.com/jaegertracing/jaeger/pkg/healthcheck"
 	"github.com/jaegertracing/jaeger/pkg/recoveryhandler"
 	"github.com/jaegertracing/jaeger/pkg/version"
+	"github.com/jaegertracing/jaeger/ports"
 )
 
 const (
-	adminHTTPPort       = "admin-http-port"
+	adminHTTPAddr       = "admin-http-addr"
 	healthCheckHTTPPort = "health-check-http-port"
 )
 
 // AdminServer runs an HTTP server with admin endpoints, such as healthcheck at /, /metrics, etc.
 type AdminServer struct {
 	logger    *zap.Logger
-	adminPort int
+	adminAddr string
 
 	hc *healthcheck.HealthCheck
 
@@ -47,9 +47,9 @@ type AdminServer struct {
 }
 
 // NewAdminServer creates a new admin server.
-func NewAdminServer(defaultPort int) *AdminServer {
+func NewAdminServer(defaultAddr string) *AdminServer {
 	return &AdminServer{
-		adminPort: defaultPort,
+		adminAddr: defaultAddr,
 		logger:    zap.NewNop(),
 		hc:        healthcheck.New(),
 		mux:       http.NewServeMux(),
@@ -69,17 +69,17 @@ func (s *AdminServer) setLogger(logger *zap.Logger) {
 
 // AddFlags registers CLI flags.
 func (s *AdminServer) AddFlags(flagSet *flag.FlagSet) {
-	flagSet.Int(healthCheckHTTPPort, 0, "(deprecated) see --"+adminHTTPPort)
-	flagSet.Int(adminHTTPPort, s.adminPort, "The http port for the admin server, including health check, /metrics, etc.")
+	flagSet.Int(healthCheckHTTPPort, 0, "(deprecated) see --"+adminHTTPAddr)
+	flagSet.String(adminHTTPAddr, s.adminAddr, "The http addr for the admin server, including health check, /metrics, etc.")
 }
 
 // InitFromViper initializes the server with properties retrieved from Viper.
 func (s *AdminServer) initFromViper(v *viper.Viper, logger *zap.Logger) {
 	s.setLogger(logger)
-	s.adminPort = v.GetInt(adminHTTPPort)
+	s.adminAddr = v.GetString(adminHTTPAddr)
 	if v := v.GetInt(healthCheckHTTPPort); v != 0 {
-		logger.Sugar().Warnf("Using deprecated flag %s, please upgrade to %s", healthCheckHTTPPort, adminHTTPPort)
-		s.adminPort = v
+		logger.Sugar().Warnf("Using deprecated flag %s, please upgrade to %s", healthCheckHTTPPort, adminHTTPAddr)
+		s.adminAddr = ports.GetAddressFromPort(v)
 	}
 }
 
@@ -90,8 +90,7 @@ func (s *AdminServer) Handle(path string, handler http.Handler) {
 
 // Serve starts HTTP server.
 func (s *AdminServer) Serve() error {
-	portStr := ":" + strconv.Itoa(s.adminPort)
-	l, err := net.Listen("tcp", portStr)
+	l, err := net.Listen("tcp", s.adminAddr)
 	if err != nil {
 		s.logger.Error("Admin server failed to listen", zap.Error(err))
 		return err
@@ -99,7 +98,7 @@ func (s *AdminServer) Serve() error {
 	s.serveWithListener(l)
 	s.logger.Info(
 		"Admin server started",
-		zap.Int("http-port", s.adminPort),
+		zap.String("http-addr", s.adminAddr),
 		zap.Stringer("health-status", s.hc.Get()))
 	return nil
 }
@@ -111,7 +110,7 @@ func (s *AdminServer) serveWithListener(l net.Listener) {
 	s.registerPprofHandlers()
 	recoveryHandler := recoveryhandler.NewRecoveryHandler(s.logger, true)
 	s.server = &http.Server{Handler: recoveryHandler(s.mux)}
-	s.logger.Info("Starting admin HTTP server", zap.Int("http-port", s.adminPort))
+	s.logger.Info("Starting admin HTTP server", zap.String("http-addr", s.adminAddr))
 	go func() {
 		switch err := s.server.Serve(l); err {
 		case nil, http.ErrServerClosed:

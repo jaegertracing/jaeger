@@ -22,7 +22,6 @@ import (
 	"net"
 	"net/http"
 	"os"
-	"strconv"
 	"strings"
 
 	"github.com/gorilla/mux"
@@ -120,12 +119,11 @@ func main() {
 				server.Register(jc.NewTChanCollectorServer(batchHandler))
 				server.Register(zc.NewTChanZipkinCollectorServer(batchHandler))
 				server.Register(sc.NewTChanSamplingManagerServer(sampling.NewHandler(strategyStore)))
-				portStr := ":" + strconv.Itoa(builderOpts.CollectorPort)
-				listener, err := net.Listen("tcp", portStr)
+				listener, err := net.Listen("tcp", builderOpts.CollectorTChanAddr)
 				if err != nil {
 					logger.Fatal("Unable to start listening on channel", zap.Error(err))
 				}
-				logger.Info("Starting jaeger-collector TChannel server", zap.Int("port", builderOpts.CollectorPort))
+				logger.Info("Starting jaeger-collector TChannel server", zap.String("tchan-addr", builderOpts.CollectorTChanAddr))
 				ch.Serve(listener)
 			}
 
@@ -138,15 +136,14 @@ func main() {
 				r := mux.NewRouter()
 				apiHandler := app.NewAPIHandler(jaegerBatchesHandler)
 				apiHandler.RegisterRoutes(r)
-				httpPortStr := ":" + strconv.Itoa(builderOpts.CollectorHTTPPort)
 				recoveryHandler := recoveryhandler.NewRecoveryHandler(logger, true)
 				httpHandler := recoveryHandler(r)
 
-				go startZipkinHTTPAPI(logger, builderOpts.CollectorZipkinHTTPPort, builderOpts.CollectorZipkinAllowedOrigins, builderOpts.CollectorZipkinAllowedHeaders, zipkinSpansHandler, recoveryHandler)
+				go startZipkinHTTPAPI(logger, builderOpts.CollectorZipkinHTTPAddr, builderOpts.CollectorZipkinAllowedOrigins, builderOpts.CollectorZipkinAllowedHeaders, zipkinSpansHandler, recoveryHandler)
 
-				logger.Info("Starting jaeger-collector HTTP server", zap.Int("http-port", builderOpts.CollectorHTTPPort))
+				logger.Info("Starting jaeger-collector HTTP server", zap.String("http-addr", builderOpts.CollectorHTTPAddr))
 				go func() {
-					if err := http.ListenAndServe(httpPortStr, httpHandler); err != nil {
+					if err := http.ListenAndServe(builderOpts.CollectorHTTPAddr, httpHandler); err != nil {
 						logger.Fatal("Could not launch service", zap.Error(err))
 					}
 					svc.HC().Set(healthcheck.Unavailable)
@@ -207,7 +204,7 @@ func startGRPCServer(
 	} else { // server without TLS
 		server = grpc.NewServer()
 	}
-	_, err := grpcserver.StartGRPCCollector(opts.CollectorGRPCPort, server, handler, samplingStore, logger, func(err error) {
+	_, err := grpcserver.StartGRPCCollector(opts.CollectorGRPCAddr, server, handler, samplingStore, logger, func(err error) {
 		logger.Fatal("gRPC collector failed", zap.Error(err))
 	})
 	if err != nil {
@@ -218,13 +215,13 @@ func startGRPCServer(
 
 func startZipkinHTTPAPI(
 	logger *zap.Logger,
-	zipkinPort int,
+	zipkinAddr string,
 	allowedOrigins string,
 	allowedHeaders string,
 	zipkinSpansHandler app.ZipkinSpansHandler,
 	recoveryHandler func(http.Handler) http.Handler,
 ) {
-	if zipkinPort != 0 {
+	if zipkinAddr != ":0" {
 		zHandler := zipkin.NewAPIHandler(zipkinSpansHandler)
 		r := mux.NewRouter()
 		zHandler.RegisterRoutes(r)
@@ -238,10 +235,9 @@ func startZipkinHTTPAPI(
 			AllowedHeaders: headers,
 		})
 
-		httpPortStr := ":" + strconv.Itoa(zipkinPort)
-		logger.Info("Listening for Zipkin HTTP traffic", zap.Int("zipkin.http-port", zipkinPort))
+		logger.Info("Listening for Zipkin HTTP traffic", zap.String("zipkin.http-addr", zipkinAddr))
 
-		if err := http.ListenAndServe(httpPortStr, c.Handler(recoveryHandler(r))); err != nil {
+		if err := http.ListenAndServe(zipkinAddr, c.Handler(recoveryHandler(r))); err != nil {
 			logger.Fatal("Could not launch service", zap.Error(err))
 		}
 	}

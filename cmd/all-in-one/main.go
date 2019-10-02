@@ -22,7 +22,6 @@ import (
 	"net"
 	"net/http"
 	"os"
-	"strconv"
 
 	"github.com/gorilla/mux"
 	"github.com/opentracing/opentracing-go"
@@ -185,7 +184,7 @@ func startAgent(
 ) {
 	metricsFactory := baseFactory.Namespace(metrics.NSOptions{Name: "agent", Tags: nil})
 
-	grpcBuilder.CollectorHostPorts = append(grpcBuilder.CollectorHostPorts, fmt.Sprintf("127.0.0.1:%d", cOpts.CollectorGRPCPort))
+	grpcBuilder.CollectorHostPorts = append(grpcBuilder.CollectorHostPorts, cOpts.CollectorGRPCAddr)
 	cp, err := agentApp.CreateCollectorProxy(repOpts, tchanBuilder, grpcBuilder, logger, metricsFactory)
 	if err != nil {
 		logger.Fatal("Could not create collector proxy", zap.Error(err))
@@ -234,16 +233,15 @@ func startCollector(
 		server.Register(jc.NewTChanCollectorServer(batchHandler))
 		server.Register(zc.NewTChanZipkinCollectorServer(batchHandler))
 		server.Register(sc.NewTChanSamplingManagerServer(sampling.NewHandler(strategyStore)))
-		portStr := ":" + strconv.Itoa(cOpts.CollectorPort)
-		listener, err := net.Listen("tcp", portStr)
+		listener, err := net.Listen("tcp", cOpts.CollectorTChanAddr)
 		if err != nil {
 			logger.Fatal("Unable to start listening on channel", zap.Error(err))
 		}
-		logger.Info("Starting jaeger-collector TChannel server", zap.Int("port", cOpts.CollectorPort))
+		logger.Info("Starting jaeger-collector TChannel server", zap.String("addr", cOpts.CollectorTChanAddr))
 		ch.Serve(listener)
 	}
 
-	server, err := startGRPCServer(cOpts.CollectorGRPCPort, grpcHandler, strategyStore, logger)
+	server, err := startGRPCServer(cOpts.CollectorGRPCAddr, grpcHandler, strategyStore, logger)
 	if err != nil {
 		logger.Fatal("Could not start gRPC collector", zap.Error(err))
 	}
@@ -252,14 +250,13 @@ func startCollector(
 		r := mux.NewRouter()
 		apiHandler := collectorApp.NewAPIHandler(jaegerBatchesHandler)
 		apiHandler.RegisterRoutes(r)
-		httpPortStr := ":" + strconv.Itoa(cOpts.CollectorHTTPPort)
 		recoveryHandler := recoveryhandler.NewRecoveryHandler(logger, true)
 
-		go startZipkinHTTPAPI(logger, cOpts.CollectorZipkinHTTPPort, zipkinSpansHandler, recoveryHandler)
+		go startZipkinHTTPAPI(logger, cOpts.CollectorZipkinHTTPAddr, zipkinSpansHandler, recoveryHandler)
 
-		logger.Info("Starting jaeger-collector HTTP server", zap.Int("http-port", cOpts.CollectorHTTPPort))
+		logger.Info("Starting jaeger-collector HTTP server", zap.String("http-addr", cOpts.CollectorHTTPAddr))
 		go func() {
-			if err := http.ListenAndServe(httpPortStr, recoveryHandler(r)); err != nil {
+			if err := http.ListenAndServe(cOpts.CollectorHTTPAddr, recoveryHandler(r)); err != nil {
 				logger.Fatal("Could not launch jaeger-collector HTTP server", zap.Error(err))
 			}
 			hc.Set(healthcheck.Unavailable)
@@ -269,13 +266,13 @@ func startCollector(
 }
 
 func startGRPCServer(
-	port int,
+	addr string,
 	handler *collectorApp.GRPCHandler,
 	samplingStore strategystore.StrategyStore,
 	logger *zap.Logger,
 ) (*grpc.Server, error) {
 	server := grpc.NewServer()
-	_, err := grpcserver.StartGRPCCollector(port, server, handler, samplingStore, logger, func(err error) {
+	_, err := grpcserver.StartGRPCCollector(addr, server, handler, samplingStore, logger, func(err error) {
 		logger.Fatal("gRPC collector failed", zap.Error(err))
 	})
 	if err != nil {
@@ -286,18 +283,17 @@ func startGRPCServer(
 
 func startZipkinHTTPAPI(
 	logger *zap.Logger,
-	zipkinPort int,
+	zipkinAddr string,
 	zipkinSpansHandler collectorApp.ZipkinSpansHandler,
 	recoveryHandler func(http.Handler) http.Handler,
 ) {
-	if zipkinPort != 0 {
+	if zipkinAddr != ":0" {
 		r := mux.NewRouter()
 		zHandler := zipkin.NewAPIHandler(zipkinSpansHandler)
 		zHandler.RegisterRoutes(r)
-		httpPortStr := ":" + strconv.Itoa(zipkinPort)
-		logger.Info("Listening for Zipkin HTTP traffic", zap.Int("zipkin.http-port", zipkinPort))
+		logger.Info("Listening for Zipkin HTTP traffic", zap.String("zipkin.http-addr", zipkinAddr))
 
-		if err := http.ListenAndServe(httpPortStr, recoveryHandler(r)); err != nil {
+		if err := http.ListenAndServe(zipkinAddr, recoveryHandler(r)); err != nil {
 			logger.Fatal("Could not launch service", zap.Error(err))
 		}
 	}

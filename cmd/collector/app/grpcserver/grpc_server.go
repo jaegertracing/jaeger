@@ -71,15 +71,14 @@ func TLSConfig(cert, key, clientCA string) (*tls.Config, error) {
 
 // StartGRPCCollector configures and starts gRPC endpoints exposed by collector.
 func StartGRPCCollector(
-	port int,
+	addr string,
 	server *grpc.Server,
 	handler *app.GRPCHandler,
 	samplingStrategy strategystore.StrategyStore,
 	logger *zap.Logger,
 	serveErr func(error),
 ) (net.Addr, error) {
-	grpcPortStr := ":" + strconv.Itoa(port)
-	lis, err := net.Listen("tcp", grpcPortStr)
+	lis, err := net.Listen("tcp", addr)
 	if err != nil {
 		return nil, errors.Wrap(err, "failed to listen on gRPC port")
 	}
