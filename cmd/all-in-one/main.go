@@ -184,7 +184,7 @@ func startAgent(
 ) {
 	metricsFactory := baseFactory.Namespace(metrics.NSOptions{Name: "agent", Tags: nil})
 
-	addr := getAddressFromCLIOptions(cOpts.CollectorGRPCPort, cOpts.CollectorGRPCAddr, "collector.grpc-port", logger)
+	addr := getAddressFromCLIOptions(cOpts.CollectorGRPCPort, cOpts.CollectorGRPCHostPort, "collector.grpc-port", logger)
 	grpcBuilder.CollectorHostPorts = append(grpcBuilder.CollectorHostPorts, addr)
 	cp, err := agentApp.CreateCollectorProxy(repOpts, tchanBuilder, grpcBuilder, logger, metricsFactory)
 	if err != nil {
@@ -235,7 +235,7 @@ func startCollector(
 		server.Register(zc.NewTChanZipkinCollectorServer(batchHandler))
 		server.Register(sc.NewTChanSamplingManagerServer(sampling.NewHandler(strategyStore)))
 
-		tchanAddr := getAddressFromCLIOptions(cOpts.CollectorPort, cOpts.CollectorTChanAddr, "collector.http-port", logger)
+		tchanAddr := getAddressFromCLIOptions(cOpts.CollectorPort, cOpts.CollectorTChanHostPort, "collector.http-port", logger)
 		listener, err := net.Listen("tcp", tchanAddr)
 		if err != nil {
 			logger.Fatal("Unable to start listening on channel", zap.Error(err))
@@ -244,7 +244,7 @@ func startCollector(
 		ch.Serve(listener)
 	}
 
-	grpcAddr := getAddressFromCLIOptions(cOpts.CollectorGRPCPort, cOpts.CollectorGRPCAddr, "collector.grpc-port", logger)
+	grpcAddr := getAddressFromCLIOptions(cOpts.CollectorGRPCPort, cOpts.CollectorGRPCHostPort, "collector.grpc-port", logger)
 	server, err := startGRPCServer(grpcAddr, grpcHandler, strategyStore, logger)
 	if err != nil {
 		logger.Fatal("Could not start gRPC collector", zap.Error(err))
@@ -256,11 +256,11 @@ func startCollector(
 		apiHandler.RegisterRoutes(r)
 		recoveryHandler := recoveryhandler.NewRecoveryHandler(logger, true)
 
-		zipkinAddr := getAddressFromCLIOptions(cOpts.CollectorZipkinHTTPPort, cOpts.CollectorZipkinHTTPAddr, "collector.zipkin.http-port", logger)
+		zipkinAddr := getAddressFromCLIOptions(cOpts.CollectorZipkinHTTPPort, cOpts.CollectorZipkinHTTPHostPort, "collector.zipkin.http-port", logger)
 
 		go startZipkinHTTPAPI(logger, zipkinAddr, zipkinSpansHandler, recoveryHandler)
 
-		httpAddr := getAddressFromCLIOptions(cOpts.CollectorHTTPPort, cOpts.CollectorHTTPAddr, "collector.http-port", logger)
+		httpAddr := getAddressFromCLIOptions(cOpts.CollectorHTTPPort, cOpts.CollectorHTTPHostPort, "collector.http-port", logger)
 		logger.Info("Starting jaeger-collector HTTP server", zap.String("http-addr", httpAddr))
 		go func() {
 			if err := http.ListenAndServe(httpAddr, recoveryHandler(r)); err != nil {

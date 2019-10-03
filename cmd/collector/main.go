@@ -120,7 +120,7 @@ func main() {
 				server.Register(zc.NewTChanZipkinCollectorServer(batchHandler))
 				server.Register(sc.NewTChanSamplingManagerServer(sampling.NewHandler(strategyStore)))
 
-				addr := getAddressFromCLIOptions(builderOpts.CollectorPort, builderOpts.CollectorTChanAddr, "collector.http-port", logger)
+				addr := getAddressFromCLIOptions(builderOpts.CollectorPort, builderOpts.CollectorTChanHostPort, "collector.http-port", logger)
 				listener, err := net.Listen("tcp", addr)
 				if err != nil {
 					logger.Fatal("Unable to start listening on channel", zap.Error(err))
@@ -141,11 +141,11 @@ func main() {
 				recoveryHandler := recoveryhandler.NewRecoveryHandler(logger, true)
 				httpHandler := recoveryHandler(r)
 
-				zipkinAddr := getAddressFromCLIOptions(builderOpts.CollectorZipkinHTTPPort, builderOpts.CollectorZipkinHTTPAddr, "collector.zipkin.http-port", logger)
+				zipkinAddr := getAddressFromCLIOptions(builderOpts.CollectorZipkinHTTPPort, builderOpts.CollectorZipkinHTTPHostPort, "collector.zipkin.http-port", logger)
 
 				go startZipkinHTTPAPI(logger, zipkinAddr, builderOpts.CollectorZipkinAllowedOrigins, builderOpts.CollectorZipkinAllowedHeaders, zipkinSpansHandler, recoveryHandler)
 
-				httpAddr := getAddressFromCLIOptions(builderOpts.CollectorHTTPPort, builderOpts.CollectorHTTPAddr, "collector.http-port", logger)
+				httpAddr := getAddressFromCLIOptions(builderOpts.CollectorHTTPPort, builderOpts.CollectorHTTPHostPort, "collector.http-port", logger)
 				logger.Info("Starting jaeger-collector HTTP server", zap.String("http-addr", httpAddr))
 				go func() {
 					if err := http.ListenAndServe(httpAddr, httpHandler); err != nil {
@@ -210,7 +210,7 @@ func startGRPCServer(
 		server = grpc.NewServer()
 	}
 
-	addr := getAddressFromCLIOptions(opts.CollectorGRPCPort, opts.CollectorGRPCAddr, "collector.grpc-port", logger)
+	addr := getAddressFromCLIOptions(opts.CollectorGRPCPort, opts.CollectorGRPCHostPort, "collector.grpc-port", logger)
 	_, err := grpcserver.StartGRPCCollector(addr, server, handler, samplingStore, logger, func(err error) {
 		logger.Fatal("gRPC collector failed", zap.Error(err))
 	})
