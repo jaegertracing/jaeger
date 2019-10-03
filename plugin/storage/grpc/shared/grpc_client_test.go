@@ -23,7 +23,6 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
-
 	"google.golang.org/grpc/metadata"
 
 	"github.com/jaegertracing/jaeger/model"
