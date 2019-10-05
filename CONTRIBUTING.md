@@ -40,6 +40,7 @@ The `jaeger-ui` submodule contains the source code for the UI assets (requires N
 ```
 $ go run -tags ui ./cmd/all-in-one/main.go
 ```
+After the command, all the components will running and shown on the terminal screen. Jaeger UI can be opened here http://localhost:16686.
 
 Alternatively, the path to the built UI assets can be provided via `--query.static-files` flag:
 
