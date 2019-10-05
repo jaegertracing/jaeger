@@ -5,7 +5,7 @@
 # Jaeger - a Distributed Tracing System
 
 Jaeger, inspired by [Dapper][dapper] and [OpenZipkin](https://zipkin.io),
-is a distributed tracing system released as open source by [Uber Technologies][ubeross].
+is a distributed tracing system released as an open-source by [Uber Technologies][ubeross].
 It can be used for monitoring microservices-based distributed systems:
 
   * Distributed context propagation
@@ -33,28 +33,28 @@ For example, any given Jaeger installation at Uber is typically processing sever
 
 ### Native support for OpenTracing
 
-Jaeger backend, Web UI, and instrumentation libraries have been designed from ground up to support the [OpenTracing standard](https://opentracing.io/specification/).
+Jaeger backend, Web UI, and instrumentation libraries have been designed from the ground up to support the [OpenTracing standard](https://opentracing.io/specification/).
   * Represent traces as directed acyclic graphs (not just trees) via [span references](https://github.com/opentracing/specification/blob/master/specification.md#references-between-spans)
   * Support strongly typed span _tags_ and _structured logs_
   * Support general distributed context propagation mechanism via _baggage_
 
 #### OpenTelemetry
 
-On 28-May-2019, [the OpenTracing and OpenCensus projects announced](https://medium.com/opentracing/merging-opentracing-and-opencensus-f0fe9c7ca6f0) their intention to merge into a new CNCF project called [OpenTelemetry](https://opentelemetry.io). The Jaeger and OpenTelemetry projects have different goals. OpenTelemetry aims to provide APIs and SDKs in multiple languages to allow applications export various telemetry data out of process, to any number of metrics and tracing backends. The Jaeger project is primarily the tracing backend that receives tracing telemetry data and provides processing, aggregation, data mining, and visualizations of that data. The Jaeger client libraries do overlap with OpenTelemetry in functionality. OpenTelemetry will natively support Jaeger as a tracing backend, and eventually might make Jaeger native clients unnecessary. For more information please refer to a blog post [Jaeger and OpenTelemetry](https://medium.com/jaegertracing/jaeger-and-opentelemetry-1846f701d9f2).
+On 28-May-2019, [the OpenTracing and OpenCensus projects announced](https://medium.com/opentracing/merging-opentracing-and-opencensus-f0fe9c7ca6f0) their intention to merge into a new CNCF project called [OpenTelemetry](https://opentelemetry.io). The Jaeger and OpenTelemetry projects have different goals. OpenTelemetry aims to provide APIs and SDKs in multiple languages to allow applications to export various telemetry data out of the process, to any number of metrics and tracing backends. The Jaeger project is primarily the tracing backend that receives tracing telemetry data and provides processing, aggregation, data mining, and visualizations of that data. The Jaeger client libraries do overlap with OpenTelemetry in functionality. OpenTelemetry will natively support Jaeger as a tracing backend and eventually might make Jaeger native clients unnecessary. For more information please refer to a blog post [Jaeger and OpenTelemetry](https://medium.com/jaegertracing/jaeger-and-opentelemetry-1846f701d9f2).
 
 ### Multiple storage backends
 
-Jaeger supports two popular open source NoSQL databases as trace storage backends: Cassandra 3.4+ and Elasticsearch 5.x/6.x.
+Jaeger supports two popular open-source NoSQL databases as trace storage backends: Cassandra 3.4+ and Elasticsearch 5.x/6.x.
 There are ongoing community experiments using other databases, such as ScyllaDB, InfluxDB, Amazon DynamoDB. Jaeger also ships
 with a simple in-memory storage for testing setups.
 
 ### Modern Web UI
 
-Jaeger Web UI is implemented in Javascript using popular open source frameworks like React. Several performance
-improvements have been released in v1.0 to allow the UI to efficiently deal with large volumes of data, and to display
+Jaeger Web UI is implemented in Javascript using popular open-source frameworks like React. Several performance
+improvements have been released in v1.0 to allow the UI to efficiently deal with large volumes of data and to display
 traces with tens of thousands of spans (e.g. we tried a trace with 80,000 spans).
 
-### Cloud Native Deployment
+### Cloud-Native Deployment
 
 Jaeger backend is distributed as a collection of Docker images. The binaries support various configuration methods,
 including command line options, environment variables, and configuration files in multiple formats (yaml, toml, etc.)
@@ -70,11 +70,11 @@ also supported). Logs are written to standard out using the structured logging l
 
 Third-party security audits of Jaeger are available in https://github.com/jaegertracing/security-audits. Please see [Issue #1718](https://github.com/jaegertracing/jaeger/issues/1718) for the summary of available security mechanisms in Jaeger.
 
-### Backwards compatibility with Zipkin
+### Backward compatibility with Zipkin
 
 Although we recommend instrumenting applications with OpenTracing API and binding to Jaeger client libraries to benefit
 from advanced features not available elsewhere, if your organization has already invested in the instrumentation
-using Zipkin libraries, you do not have to rewrite all that code. Jaeger provides backwards compatibility with Zipkin
+using Zipkin libraries, you do not have to rewrite all that code. Jaeger provides backward compatibility with Zipkin
 by accepting spans in Zipkin formats (Thrift or JSON v1/v2) over HTTP. Switching from Zipkin backend is just a matter
 of routing the traffic from Zipkin libraries to the Jaeger backend.
 
