@@ -21,7 +21,6 @@ import (
 	"strconv"
 
 	"github.com/apache/thrift/lib/go/thrift"
-	"github.com/pkg/errors"
 	"github.com/uber/jaeger-lib/metrics"
 	"go.uber.org/zap"
 
@@ -235,6 +234,6 @@ func CreateCollectorProxy(
 	case reporter.TCHANNEL:
 		return tchannel.NewCollectorProxy(tchanBuilder, mFactory, logger)
 	default:
-		return nil, errors.New(fmt.Sprintf("unknown reporter type %s", string(opts.ReporterType)))
+		return nil, fmt.Errorf("unknown reporter type %s", string(opts.ReporterType))
 	}
 }

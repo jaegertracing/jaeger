@@ -42,13 +42,15 @@ func (c *Configuration) NewProducer() (sarama.AsyncProducer, error) {
 	saramaConfig.Producer.Compression = c.Compression
 	saramaConfig.Producer.CompressionLevel = c.CompressionLevel
 	saramaConfig.Producer.Return.Successes = true
-	c.AuthenticationConfig.SetConfiguration(saramaConfig)
 	if len(c.ProtocolVersion) > 0 {
 		ver, err := sarama.ParseKafkaVersion(c.ProtocolVersion)
 		if err != nil {
 			return nil, err
 		}
 		saramaConfig.Version = ver
+	}
+	if err := c.AuthenticationConfig.SetConfiguration(saramaConfig); err != nil {
+		return nil, err
 	}
 	return sarama.NewAsyncProducer(c.Brokers, saramaConfig)
 }
