@@ -110,6 +110,10 @@ func (f *Factory) Initialize(metricsFactory metrics.Factory, logger *zap.Logger)
 		opts.SyncWrites = f.Options.primary.SyncWrites
 		opts.Dir = f.Options.primary.KeyDirectory
 		opts.ValueDir = f.Options.primary.ValueDirectory
+
+		// These options make no sense with ephemeral data
+		opts.Truncate = f.Options.primary.Truncate
+		opts.ReadOnly = f.Options.primary.ReadOnly
 	}
 
 	store, err := badger.Open(opts)

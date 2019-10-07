@@ -39,6 +39,8 @@ type NamespaceConfig struct {
 	SyncWrites            bool
 	MaintenanceInterval   time.Duration
 	MetricsUpdateInterval time.Duration
+	Truncate              bool
+	ReadOnly              bool
 }
 
 const (
@@ -55,6 +57,8 @@ const (
 	suffixSyncWrite           = ".consistency"
 	suffixMaintenanceInterval = ".maintenance-interval"
 	suffixMetricsInterval     = ".metrics-update-interval" // Intended only for testing purposes
+	suffixTruncate            = ".truncate"
+	suffixReadOnly            = ".read-only"
 	defaultDataDir            = string(os.PathSeparator) + "data"
 	defaultValueDir           = defaultDataDir + string(os.PathSeparator) + "values"
 	defaultKeysDir            = defaultDataDir + string(os.PathSeparator) + "keys"
@@ -116,7 +120,7 @@ func addFlags(flagSet *flag.FlagSet, nsConfig *NamespaceConfig) {
 	flagSet.Bool(
 		nsConfig.namespace+suffixSyncWrite,
 		nsConfig.SyncWrites,
-		"If all writes should be synced immediately. This can impact write performance.",
+		"If all writes should be synced immediately to physical disk. This will impact write performance.",
 	)
 	flagSet.Duration(
 		nsConfig.namespace+suffixMaintenanceInterval,
@@ -127,6 +131,16 @@ func addFlags(flagSet *flag.FlagSet, nsConfig *NamespaceConfig) {
 		nsConfig.namespace+suffixMetricsInterval,
 		nsConfig.MetricsUpdateInterval,
 		"How often the badger metrics are collected by Jaeger. Format is time.Duration (https://golang.org/pkg/time/#Duration)",
+	)
+	flagSet.Bool(
+		nsConfig.namespace+suffixTruncate,
+		nsConfig.Truncate,
+		"If write-ahead-log should be truncated on restart. this will cause data loss.",
+	)
+	flagSet.Bool(
+		nsConfig.namespace+suffixReadOnly,
+		nsConfig.ReadOnly,
+		"Allows to open badger database in read only mode. Multiple instances can open same database in read-only mode. Values still in the write-ahead-log must be replayed before opening.",
 	)
 }
 
@@ -143,6 +157,8 @@ func initFromViper(cfg *NamespaceConfig, v *viper.Viper) {
 	cfg.SpanStoreTTL = v.GetDuration(cfg.namespace + suffixSpanstoreTTL)
 	cfg.MaintenanceInterval = v.GetDuration(cfg.namespace + suffixMaintenanceInterval)
 	cfg.MetricsUpdateInterval = v.GetDuration(cfg.namespace + suffixMetricsInterval)
+	cfg.Truncate = v.GetBool(cfg.namespace + suffixTruncate)
+	cfg.ReadOnly = v.GetBool(cfg.namespace + suffixReadOnly)
 }
 
 // GetPrimary returns the primary namespace configuration
