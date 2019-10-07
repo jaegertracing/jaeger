@@ -11,7 +11,8 @@
 // WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
 // See the License for the specific language governing permissions and
 // limitations under the License.
-package tls
+
+package tlscfg
 
 import (
 	"crypto/x509"
@@ -108,7 +109,7 @@ func TestProxyBuilder(t *testing.T) {
 					systemCertPool = saveSystemCertPool
 				}()
 			}
-			cfg, err := test.options.Load()
+			cfg, err := test.options.Config()
 			if test.expectError != "" {
 				require.Error(t, err)
 				assert.Contains(t, err.Error(), test.expectError)

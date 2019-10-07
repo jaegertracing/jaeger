@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package tls
+package tlscfg
 
 import (
 	"crypto/tls"
@@ -32,17 +32,10 @@ type Options struct {
 	ServerName string
 }
 
-// Config structure is used to configure a TLS client or server.
-type Config struct {
-	RootCAs      *x509.CertPool
-	Certificates []tls.Certificate
-	ServerName   string
-}
-
 var systemCertPool = x509.SystemCertPool // to allow overriding in unit test
 
-// Load loads TLS certificates and returns a TLS Config.
-func (p Options) Load() (*Config, error) {
+// Config loads TLS certificates and returns a TLS Config.
+func (p Options) Config() (*tls.Config, error) {
 	certPool, err := p.loadCertPool()
 	if err != nil {
 		return nil, errors.Wrap(err, "failed to load CA CertPool")
@@ -60,7 +53,7 @@ func (p Options) Load() (*Config, error) {
 		certificates = append(certificates, tlsCert)
 	}
 
-	return &Config{
+	return &tls.Config{
 		RootCAs:      certPool,
 		ServerName:   p.ServerName,
 		Certificates: certificates,
