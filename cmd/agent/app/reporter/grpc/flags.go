@@ -19,31 +19,30 @@ import (
 	"strings"
 
 	"github.com/spf13/viper"
+
+	"github.com/jaegertracing/jaeger/pkg/config/tlscfg"
 )
 
 const (
-	gRPCPrefix             = "reporter.grpc."
-	collectorHostPort      = gRPCPrefix + "host-port"
-	retry                  = gRPCPrefix + "retry.max"
-	defaultMaxRetry        = 3
-	collectorTLS           = gRPCPrefix + "tls"
-	collectorTLSCA         = gRPCPrefix + "tls.ca"
-	agentCert              = gRPCPrefix + "tls.cert"
-	agentKey               = gRPCPrefix + "tls.key"
-	collectorTLSServerName = gRPCPrefix + "tls.server-name"
-	discoveryMinPeers      = gRPCPrefix + "discovery.min-peers"
+	gRPCPrefix        = "reporter.grpc."
+	collectorHostPort = gRPCPrefix + "host-port"
+	retry             = gRPCPrefix + "retry.max"
+	defaultMaxRetry   = 3
+	discoveryMinPeers = gRPCPrefix + "discovery.min-peers"
 )
+
+var tlsFlagsConfig = tlscfg.FlagsConfig{
+	Prefix:         gRPCPrefix,
+	ShowEnabled:    true,
+	ShowServerName: true,
+}
 
 // AddFlags adds flags for Options.
 func AddFlags(flags *flag.FlagSet) {
 	flags.String(collectorHostPort, "", "Comma-separated string representing host:port of a static list of collectors to connect to directly")
 	flags.Uint(retry, defaultMaxRetry, "Sets the maximum number of retries for a call")
-	flags.Bool(collectorTLS, false, "Use TLS when talking to the remote collector")
-	flags.String(collectorTLSCA, "", "Path to a TLS CA file used to verify the remote server. (default use the systems truststore)")
-	flags.String(collectorTLSServerName, "", "Override the TLS server name we expected in the remote certificate")
-	flags.String(agentCert, "", "Path to a TLS client certificate file, used to identify this agent to the collector")
-	flags.String(agentKey, "", "Path to the TLS client key for the client certificate")
 	flags.Int(discoveryMinPeers, 3, "Max number of collectors to which the agent will try to connect at any given time")
+	tlsFlagsConfig.AddFlags(flags)
 }
 
 // InitFromViper initializes Options with properties retrieved from Viper.
@@ -53,11 +52,7 @@ func (b *ConnBuilder) InitFromViper(v *viper.Viper) *ConnBuilder {
 		b.CollectorHostPorts = strings.Split(hostPorts, ",")
 	}
 	b.MaxRetry = uint(v.GetInt(retry))
-	b.TLS = v.GetBool(collectorTLS)
-	b.TLSCA = v.GetString(collectorTLSCA)
-	b.TLSServerName = v.GetString(collectorTLSServerName)
-	b.TLSCert = v.GetString(agentCert)
-	b.TLSKey = v.GetString(agentKey)
+	b.TLS = tlsFlagsConfig.InitFromViper(v)
 	b.DiscoveryMinPeers = v.GetInt(discoveryMinPeers)
 	return b
 }
