@@ -26,7 +26,6 @@ import (
 	"time"
 
 	"github.com/stretchr/testify/assert"
-	"github.com/stretchr/testify/require"
 	"github.com/uber/jaeger-lib/metrics"
 	"go.uber.org/zap"
 
@@ -588,7 +587,7 @@ func BenchmarkServiceIndexLimitFetch(b *testing.B) {
 
 // Opens a badger db and runs a test on it.
 func runLargeFactoryTest(tb testing.TB, test func(tb testing.TB, sw spanstore.Writer, sr spanstore.Reader)) {
-	assert := require.New(tb)
+	assert := assert.New(tb)
 	f := badger.NewFactory()
 	opts := badger.NewOptions("badger")
 	v, command := config.Viperize(opts.AddFlags)
