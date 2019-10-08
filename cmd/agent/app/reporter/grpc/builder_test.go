@@ -138,33 +138,25 @@ func TestProxyBuilder(t *testing.T) {
 		expectError bool
 	}{
 		{
-			name:        "with insecure grpc connection",
-			grpcBuilder: &ConnBuilder{CollectorHostPorts: []string{"localhost:0000"}},
+			name: "should pass with insecure grpc connection",
+			grpcBuilder: &ConnBuilder{
+				CollectorHostPorts: []string{"localhost:0000"},
+			},
 			expectError: false,
 		},
-		// {
-		// 	name:        "with secure grpc connection",
-		// 	grpcBuilder: &ConnBuilder{CollectorHostPorts: []string{"localhost:0000"}, TLS: true},
-		// 	expectError: false,
-		// },
-		// {
-		// 	name:        "with secure grpc connection and own CA",
-		// 	grpcBuilder: &ConnBuilder{CollectorHostPorts: []string{"localhost:0000"}, TLS: true, TLSCA: "testdata/testCA.pem"},
-		// 	expectError: false,
-		// },
 		{
-			name: "with secure grpc connection and a CA file which does not exist",
+			name: "should fail with secure grpc connection and a CA file which does not exist",
 			grpcBuilder: &ConnBuilder{
 				CollectorHostPorts: []string{"localhost:0000"},
 				TLS: tlscfg.Options{
 					Enabled: true,
-					CAPath:  "/not/valid",
+					CAPath:  "testdata/not/valid",
 				},
 			},
 			expectError: true,
 		},
 		{
-			name: "with secure grpc connection and valid TLS Client settings",
+			name: "should pass with secure grpc connection and valid TLS Client settings",
 			grpcBuilder: &ConnBuilder{
 				CollectorHostPorts: []string{"localhost:0000"},
 				TLS: tlscfg.Options{
@@ -176,28 +168,6 @@ func TestProxyBuilder(t *testing.T) {
 			},
 			expectError: false,
 		},
-		// {
-		// 	name: "with secure grpc connection and valid TLS Client settings",
-		// 	grpcBuilder: &ConnBuilder{
-		// 		CollectorHostPorts: []string{"localhost:0000"},
-		// 		TLS:                true,
-		// 		TLSCA:              "testdata/testCA.pem",
-		// 		TLSCert:            "testdata/client.jaeger.io-client.pem",
-		// 		TLSKey:             "",
-		// 	},
-		// 	expectError: true,
-		// },
-		// {
-		// 	name: "with secure grpc connection and valid TLS Client key setting",
-		// 	grpcBuilder: &ConnBuilder{
-		// 		CollectorHostPorts: []string{"localhost:0000"},
-		// 		TLS:                true,
-		// 		TLSCA:              "testdata/testCA.pem",
-		// 		TLSCert:            "testdata/client.jaeger.io-client.pem",
-		// 		TLSKey:             "/not/valid",
-		// 	},
-		// 	expectError: true,
-		// },
 	}
 
 	for _, test := range tests {
@@ -227,94 +197,103 @@ func TestProxyClientTLS(t *testing.T) {
 		expectError bool
 	}{
 		{
-			name:        "insecure grpc connection",
-			serverTLS:   tlscfg.Options{Enabled: false},
+			name:        "should pass with insecure grpc connection",
 			expectError: false,
 		},
-		// {
-		// 	name: "TLS client to non-TLS server should fail",
-		// 	grpcBuilder: &ConnBuilder{
-		// 		TLS: true,
-		// 	},
-		// 	expectError: true,
-		// },
-		// {
-		// 	name:          "TLS client to untrusted TLS server should fail",
-		// 	serverTLS:     true,
-		// 	serverTLSCert: "testdata/server.jaeger.io.pem",
-		// 	serverTLSKey:  "testdata/server.jaeger.io-key.pem",
-		// 	grpcBuilder: &ConnBuilder{
-		// 		TLS:           true,
-		// 		TLSServerName: "server.jaeger.io",
-		// 	},
-		// 	expectError: true,
-		// },
-		// {
-		// 	name:          "TLS client to trusted TLS server with incorrect hostname should fail",
-		// 	serverTLS:     true,
-		// 	serverTLSCert: "testdata/server.jaeger.io.pem",
-		// 	serverTLSKey:  "testdata/server.jaeger.io-key.pem",
-		// 	grpcBuilder: &ConnBuilder{
-		// 		TLS:   true,
-		// 		TLSCA: "testdata/rootCA.pem",
-		// 	},
-		// 	expectError: true,
-		// },
-		// {
-		// 	name:          "TLS client to trusted TLS server with correct hostname",
-		// 	serverTLS:     true,
-		// 	serverTLSCert: "testdata/server.jaeger.io.pem",
-		// 	serverTLSKey:  "testdata/server.jaeger.io-key.pem",
-		// 	grpcBuilder: &ConnBuilder{
-		// 		TLS:           true,
-		// 		TLSCA:         "testdata/rootCA.pem",
-		// 		TLSServerName: "server.jaeger.io",
-		// 	},
-		// 	expectError: false,
-		// },
-		// {
-		// 	name:              "TLS client without cert to trusted TLS server requiring cert should fail",
-		// 	serverTLS:         true,
-		// 	serverTLSCert:     "testdata/server.jaeger.io.pem",
-		// 	serverTLSKey:      "testdata/server.jaeger.io-key.pem",
-		// 	serverTLSClientCA: "testdata/rootCA.pem",
-		// 	grpcBuilder: &ConnBuilder{
-		// 		TLS:           true,
-		// 		TLSCA:         "testdata/rootCA.pem",
-		// 		TLSServerName: "server.jaeger.io",
-		// 	},
-		// 	expectError: true,
-		// },
-		// {
-		// 	name:              "TLS client without cert to trusted TLS server requiring cert from a differe CA should fail",
-		// 	serverTLS:         true,
-		// 	serverTLSCert:     "testdata/server.jaeger.io.pem",
-		// 	serverTLSKey:      "testdata/server.jaeger.io-key.pem",
-		// 	serverTLSClientCA: "testdata/testCA.pem",
-		// 	grpcBuilder: &ConnBuilder{
-		// 		TLS:           true,
-		// 		TLSCA:         "testdata/rootCA.pem",
-		// 		TLSServerName: "server.jaeger.io",
-		// 		TLSCert:       "testdata/client.jaeger.io-client.pem",
-		// 		TLSKey:        "testdata/client.jaeger.io-client-key.pem",
-		// 	},
-		// 	expectError: true,
-		// },
-		// {
-		// 	name:              "TLS client without cert to trusted TLS server requiring cert should fail",
-		// 	serverTLS:         true,
-		// 	serverTLSCert:     "testdata/server.jaeger.io.pem",
-		// 	serverTLSKey:      "testdata/server.jaeger.io-key.pem",
-		// 	serverTLSClientCA: "testdata/rootCA.pem",
-		// 	grpcBuilder: &ConnBuilder{
-		// 		TLS:           true,
-		// 		TLSCA:         "testdata/rootCA.pem",
-		// 		TLSServerName: "server.jaeger.io",
-		// 		TLSCert:       "testdata/client.jaeger.io-client.pem",
-		// 		TLSKey:        "testdata/client.jaeger.io-client-key.pem",
-		// 	},
-		// 	expectError: false,
-		// },
+		{
+			name:        "should fail with TLS client to non-TLS server",
+			clientTLS:   tlscfg.Options{Enabled: true},
+			expectError: true,
+		},
+		{
+			name: "should fail with TLS client to untrusted TLS server",
+			serverTLS: tlscfg.Options{
+				Enabled:  true,
+				CertPath: "testdata/server.jaeger.io.pem",
+				KeyPath:  "testdata/server.jaeger.io-key.pem",
+			},
+			clientTLS: tlscfg.Options{
+				Enabled:    true,
+				ServerName: "server.jaeger.io",
+			},
+			expectError: true,
+		},
+		{
+			name: "should fail with TLS client to trusted TLS server with incorrect hostname",
+			serverTLS: tlscfg.Options{
+				Enabled:  true,
+				CertPath: "testdata/server.jaeger.io.pem",
+				KeyPath:  "testdata/server.jaeger.io-key.pem",
+			},
+			clientTLS: tlscfg.Options{
+				Enabled: true,
+				CAPath:  "testdata/rootCA.pem",
+			},
+			expectError: true,
+		},
+		{
+			name: "should pass with TLS client to trusted TLS server with correct hostname",
+			serverTLS: tlscfg.Options{
+				Enabled:  true,
+				CertPath: "testdata/server.jaeger.io.pem",
+				KeyPath:  "testdata/server.jaeger.io-key.pem",
+			},
+			clientTLS: tlscfg.Options{
+				Enabled:    true,
+				CAPath:     "testdata/rootCA.pem",
+				ServerName: "server.jaeger.io",
+			},
+			expectError: false,
+		},
+		{
+			name: "should fail with TLS client without cert to trusted TLS server requiring cert",
+			serverTLS: tlscfg.Options{
+				Enabled:      true,
+				CertPath:     "testdata/server.jaeger.io.pem",
+				KeyPath:      "testdata/server.jaeger.io-key.pem",
+				ClientCAPath: "testdata/rootCA.pem",
+			},
+			clientTLS: tlscfg.Options{
+				Enabled:    true,
+				CAPath:     "testdata/rootCA.pem",
+				ServerName: "server.jaeger.io",
+			},
+			expectError: true,
+		},
+		{
+			name: "should fail with TLS client without cert to trusted TLS server requiring cert from a different CA",
+			serverTLS: tlscfg.Options{
+				Enabled:      true,
+				CertPath:     "testdata/server.jaeger.io.pem",
+				KeyPath:      "testdata/server.jaeger.io-key.pem",
+				ClientCAPath: "testdata/testCA.pem", // NB: wrong CA
+			},
+			clientTLS: tlscfg.Options{
+				Enabled:    true,
+				CAPath:     "testdata/rootCA.pem",
+				ServerName: "server.jaeger.io",
+				CertPath:   "testdata/client.jaeger.io-client.pem",
+				KeyPath:    "testdata/client.jaeger.io-client-key.pem",
+			},
+			expectError: true,
+		},
+		{
+			name: "should pass with TLS client with cert to trusted TLS server requiring cert",
+			serverTLS: tlscfg.Options{
+				Enabled:      true,
+				CertPath:     "testdata/server.jaeger.io.pem",
+				KeyPath:      "testdata/server.jaeger.io-key.pem",
+				ClientCAPath: "testdata/rootCA.pem",
+			},
+			clientTLS: tlscfg.Options{
+				Enabled:    true,
+				CAPath:     "testdata/rootCA.pem",
+				ServerName: "server.jaeger.io",
+				CertPath:   "testdata/client.jaeger.io-client.pem",
+				KeyPath:    "testdata/client.jaeger.io-client-key.pem",
+			},
+			expectError: false,
+		},
 	}
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
