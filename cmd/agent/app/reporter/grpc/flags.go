@@ -31,10 +31,9 @@ const (
 	discoveryMinPeers = gRPCPrefix + "discovery.min-peers"
 )
 
-var tlsFlagsConfig = tlscfg.FlagsConfig{
+var tlsFlagsConfig = tlscfg.ClientFlagsConfig{
 	Prefix:         gRPCPrefix,
 	ShowEnabled:    true,
-	ShowCA:         true,
 	ShowServerName: true,
 }
 

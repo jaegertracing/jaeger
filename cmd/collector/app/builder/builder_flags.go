@@ -36,7 +36,7 @@ const (
 	collectorZipkinAllowedHeaders = "collector.zipkin.allowed-headers"
 )
 
-var tlsFlagsConfig = tlscfg.FlagsConfig{
+var tlsFlagsConfig = tlscfg.ServerFlagsConfig{
 	Prefix:       "collector.grpc.",
 	ShowEnabled:  true,
 	ShowClientCA: true,
