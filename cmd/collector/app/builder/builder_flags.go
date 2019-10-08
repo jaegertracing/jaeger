@@ -21,6 +21,7 @@ import (
 	"github.com/spf13/viper"
 
 	"github.com/jaegertracing/jaeger/cmd/collector/app"
+	"github.com/jaegertracing/jaeger/pkg/config/tlscfg"
 	"github.com/jaegertracing/jaeger/ports"
 )
 
@@ -30,14 +31,17 @@ const (
 	collectorPort                 = "collector.port"
 	collectorHTTPPort             = "collector.http-port"
 	collectorGRPCPort             = "collector.grpc-port"
-	collectorGRPCTLS              = "collector.grpc.tls"
-	collectorGRPCCert             = "collector.grpc.tls.cert"
-	collectorGRPCKey              = "collector.grpc.tls.key"
-	collectorGRPCClientCA         = "collector.grpc.tls.client.ca"
 	collectorZipkinHTTPort        = "collector.zipkin.http-port"
 	collectorZipkinAllowedOrigins = "collector.zipkin.allowed-origins"
 	collectorZipkinAllowedHeaders = "collector.zipkin.allowed-headers"
 )
+
+var tlsFlagsConfig = tlscfg.FlagsConfig{
+	Prefix:         "collector.grpc.",
+	ShowEnabled:    true,
+	ShowServerName: true,
+	ShowClientCA:   true,
+}
 
 // CollectorOptions holds configuration for collector
 type CollectorOptions struct {
@@ -51,14 +55,8 @@ type CollectorOptions struct {
 	CollectorHTTPPort int
 	// CollectorGRPCPort is the port that the collector service listens in on for gRPC requests
 	CollectorGRPCPort int
-	// CollectorGRPCTLS defines if the server is setup with TLS
-	CollectorGRPCTLS bool
-	// CollectorGRPCCert is the path to a TLS certificate file for the server
-	CollectorGRPCCert string
-	// CollectorGRPCClientCA is the path to a TLS certificate file for authenticating clients
-	CollectorGRPCClientCA string
-	// CollectorGRPCKey is the path to a TLS key file for the server
-	CollectorGRPCKey string
+	// TLS configures secure transport
+	TLS tlscfg.Options
 	// CollectorZipkinHTTPPort is the port that the Zipkin collector service listens in on for http requests
 	CollectorZipkinHTTPPort int
 	// CollectorZipkinAllowedOrigins is a list of origins a cross-domain request to the Zipkin collector service can be executed from
@@ -75,12 +73,9 @@ func AddFlags(flags *flag.FlagSet) {
 	flags.Int(collectorHTTPPort, ports.CollectorHTTP, "The HTTP port for the collector service")
 	flags.Int(collectorGRPCPort, ports.CollectorGRPC, "The gRPC port for the collector service")
 	flags.Int(collectorZipkinHTTPort, 0, "The HTTP port for the Zipkin collector service e.g. 9411")
-	flags.Bool(collectorGRPCTLS, false, "Enable TLS for the gRPC collector port")
-	flags.String(collectorGRPCCert, "", "Path to TLS certificate for the gRPC collector TLS service")
-	flags.String(collectorGRPCKey, "", "Path to TLS key for the gRPC collector TLS cert")
-	flags.String(collectorGRPCClientCA, "", "Path to a TLS CA to verify certificates presented by clients (if unset, all clients are permitted)")
 	flags.String(collectorZipkinAllowedOrigins, "*", "Comma separated list of allowed origins for the Zipkin collector service, default accepts all")
 	flags.String(collectorZipkinAllowedHeaders, "content-type", "Comma separated list of allowed headers for the Zipkin collector service, default content-type")
+	tlsFlagsConfig.AddFlags(flags)
 }
 
 // InitFromViper initializes CollectorOptions with properties from viper
@@ -90,12 +85,9 @@ func (cOpts *CollectorOptions) InitFromViper(v *viper.Viper) *CollectorOptions {
 	cOpts.CollectorPort = v.GetInt(collectorPort)
 	cOpts.CollectorHTTPPort = v.GetInt(collectorHTTPPort)
 	cOpts.CollectorGRPCPort = v.GetInt(collectorGRPCPort)
-	cOpts.CollectorGRPCTLS = v.GetBool(collectorGRPCTLS)
-	cOpts.CollectorGRPCCert = v.GetString(collectorGRPCCert)
-	cOpts.CollectorGRPCClientCA = v.GetString(collectorGRPCClientCA)
-	cOpts.CollectorGRPCKey = v.GetString(collectorGRPCKey)
 	cOpts.CollectorZipkinHTTPPort = v.GetInt(collectorZipkinHTTPort)
 	cOpts.CollectorZipkinAllowedOrigins = v.GetString(collectorZipkinAllowedOrigins)
 	cOpts.CollectorZipkinAllowedHeaders = v.GetString(collectorZipkinAllowedHeaders)
+	cOpts.TLS = tlsFlagsConfig.InitFromViper(v)
 	return cOpts
 }
