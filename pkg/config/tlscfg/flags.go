@@ -34,6 +34,7 @@ const (
 type FlagsConfig struct {
 	Prefix         string
 	ShowEnabled    bool
+	ShowCA         bool
 	ShowServerName bool
 	ShowClientCA   bool
 }
@@ -43,7 +44,9 @@ func (c FlagsConfig) AddFlags(flags *flag.FlagSet) {
 	if c.ShowEnabled {
 		flags.Bool(c.Prefix+tlsEnabled, false, "Use TLS when talking to the remote server(s)")
 	}
-	flags.String(c.Prefix+tlsCA, "", "Path to a TLS CA (Certification Authority) file used to verify the remote(s) server (by default will use the system truststore)")
+	if c.ShowCA {
+		flags.String(c.Prefix+tlsCA, "", "Path to a TLS CA (Certification Authority) file used to verify the remote(s) server (by default will use the system truststore)")
+	}
 	flags.String(c.Prefix+tlsCert, "", "Path to a TLS Client Certificate file, used to identify this process to the remote server(s)")
 	flags.String(c.Prefix+tlsKey, "", "Path to the TLS Private Key for the Client Certificate")
 	if c.ShowServerName {
@@ -61,7 +64,9 @@ func (c FlagsConfig) InitFromViper(v *viper.Viper) Options {
 	if c.ShowEnabled {
 		p.Enabled = v.GetBool(c.Prefix + tlsEnabled)
 	}
-	p.CAPath = v.GetString(c.Prefix + tlsCA)
+	if c.ShowCA {
+		p.CAPath = v.GetString(c.Prefix + tlsCA)
+	}
 	p.CertPath = v.GetString(c.Prefix + tlsCert)
 	p.KeyPath = v.GetString(c.Prefix + tlsKey)
 	if c.ShowServerName {

@@ -116,7 +116,8 @@ func TestBuilderWithCollectors(t *testing.T) {
 
 			conn, err := cfg.CreateConnection(zap.NewNop())
 			if test.expectedError == "" {
-				assert.NotNil(t, conn)
+				require.NoError(t, err)
+				require.NotNil(t, conn)
 
 				if test.checkSuffixOnly {
 					assert.True(t, strings.HasSuffix(conn.Target(), test.target))

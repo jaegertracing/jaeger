@@ -33,6 +33,7 @@ const (
 
 var tlsFlagsConfig = tlscfg.FlagsConfig{
 	Prefix:         gRPCPrefix,
+	ShowCA:         true,
 	ShowEnabled:    true,
 	ShowServerName: true,
 }
