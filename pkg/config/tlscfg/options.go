@@ -84,7 +84,7 @@ func (p Options) loadCertPool() (*x509.CertPool, error) {
 }
 
 func (p Options) loadCert(caPath string) (*x509.CertPool, error) {
-	caPEM, err := ioutil.ReadFile(caPath)
+	caPEM, err := ioutil.ReadFile(filepath.Clean(caPath))
 	if err != nil {
 		return nil, errors.Wrapf(err, "failed to load CA %s", caPath)
 	}

@@ -23,7 +23,7 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-func TestProxyBuilder(t *testing.T) {
+func TestOptionsToConfig(t *testing.T) {
 	tests := []struct {
 		name        string
 		options     Options
