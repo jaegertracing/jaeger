@@ -24,7 +24,7 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
-func TestFlags(t *testing.T) {
+func TestClientFlags(t *testing.T) {
 	cmdLine := []string{
 		"--prefix.tls=true",
 		"--prefix.tls.ca=ca-file",
@@ -36,7 +36,7 @@ func TestFlags(t *testing.T) {
 	v := viper.New()
 	command := cobra.Command{}
 	flagSet := &flag.FlagSet{}
-	flagCfg := FlagsConfig{
+	flagCfg := ClientFlagsConfig{
 		Prefix:         "prefix.",
 		ShowEnabled:    true,
 		ShowServerName: true,
@@ -55,4 +55,54 @@ func TestFlags(t *testing.T) {
 		KeyPath:    "key-file",
 		ServerName: "HAL1",
 	}, tlsOpts)
+}
+
+func TestServerFlags(t *testing.T) {
+	cmdLine := []string{
+		"##placeholder##", // replaced in each test below
+		"--prefix.tls=true",
+		"--prefix.tls.cert=cert-file",
+		"--prefix.tls.key=key-file",
+	}
+
+	tests := []struct {
+		option string
+		file   string
+	}{
+		{
+			option: "--prefix.tls.client-ca=client-ca-file",
+			file:   "client-ca-file",
+		},
+		{
+			option: "--prefix.tls.client.ca=legacy-client-ca-file",
+			file:   "legacy-client-ca-file",
+		},
+	}
+
+	for _, test := range tests {
+		t.Run(test.file, func(t *testing.T) {
+			v := viper.New()
+			command := cobra.Command{}
+			flagSet := &flag.FlagSet{}
+			flagCfg := ServerFlagsConfig{
+				Prefix:       "prefix.",
+				ShowEnabled:  true,
+				ShowClientCA: true,
+			}
+			flagCfg.AddFlags(flagSet)
+			command.PersistentFlags().AddGoFlagSet(flagSet)
+			v.BindPFlags(command.PersistentFlags())
+
+			cmdLine[0] = test.option
+			err := command.ParseFlags(cmdLine)
+			require.NoError(t, err)
+			tlsOpts := flagCfg.InitFromViper(v)
+			assert.Equal(t, Options{
+				Enabled:      true,
+				CertPath:     "cert-file",
+				KeyPath:      "key-file",
+				ClientCAPath: test.file,
+			}, tlsOpts)
+		})
+	}
 }

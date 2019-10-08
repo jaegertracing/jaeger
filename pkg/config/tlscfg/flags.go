@@ -30,48 +30,67 @@ const (
 	tlsClientCAOld = "tls.client.ca"
 )
 
-// FlagsConfig describes which CLI flags should be generated.
-type FlagsConfig struct {
+// ClientFlagsConfig describes which CLI flags for TLS client should be generated.
+type ClientFlagsConfig struct {
 	Prefix         string
 	ShowEnabled    bool
-	ShowCA         bool
 	ShowServerName bool
-	ShowClientCA   bool
+}
+
+// ServerFlagsConfig describes which CLI flags for TLS server should be generated.
+type ServerFlagsConfig struct {
+	Prefix       string
+	ShowEnabled  bool
+	ShowClientCA bool
 }
 
 // AddFlags adds flags for TLS to the FlagSet.
-func (c FlagsConfig) AddFlags(flags *flag.FlagSet) {
+func (c ClientFlagsConfig) AddFlags(flags *flag.FlagSet) {
 	if c.ShowEnabled {
-		flags.Bool(c.Prefix+tlsEnabled, false, "Use TLS when talking to the remote server(s)")
+		flags.Bool(c.Prefix+tlsEnabled, false, "Enable TLS when talking to the remote server(s)")
 	}
-	if c.ShowCA {
-		flags.String(c.Prefix+tlsCA, "", "Path to a TLS CA (Certification Authority) file used to verify the remote(s) server (by default will use the system truststore)")
-	}
-	flags.String(c.Prefix+tlsCert, "", "Path to a TLS Client Certificate file, used to identify this process to the remote server(s)")
-	flags.String(c.Prefix+tlsKey, "", "Path to the TLS Private Key for the Client Certificate")
+	flags.String(c.Prefix+tlsCA, "", "Path to a TLS CA (Certification Authority) file used to verify the remote server(s) (by default will use the system truststore)")
+	flags.String(c.Prefix+tlsCert, "", "Path to a TLS Certificate file, used to identify this process to the remote server(s)")
+	flags.String(c.Prefix+tlsKey, "", "Path to a TLS Private Key file, used to identify this process to the remote server(s)")
 	if c.ShowServerName {
 		flags.String(c.Prefix+tlsServerName, "", "Override the TLS server name we expect in the certificate of the remove server(s)")
 	}
-	if c.ShowClientCA {
-		flags.String(c.Prefix+tlsClientCA, "", "Path to a TLS CA file used to verify certificates presented by clients (if unset, all clients are permitted)")
-		flags.String(c.Prefix+tlsClientCAOld, "", "(deprecated) see --"+c.Prefix+tlsClientCA)
+}
+
+// AddFlags adds flags for TLS to the FlagSet.
+func (c ServerFlagsConfig) AddFlags(flags *flag.FlagSet) {
+	if c.ShowEnabled {
+		flags.Bool(c.Prefix+tlsEnabled, false, "Enable TLS on the server")
 	}
+	flags.String(c.Prefix+tlsCert, "", "Path to a TLS Certificate file, used to identify this server to clients")
+	flags.String(c.Prefix+tlsKey, "", "Path to a TLS Private Key file, used to identify this server to clients")
+	flags.String(c.Prefix+tlsClientCA, "", "Path to a TLS CA (Certification Authority) file used to verify certificates presented by clients (if unset, all clients are permitted)")
+	flags.String(c.Prefix+tlsClientCAOld, "", "(deprecated) see --"+c.Prefix+tlsClientCA)
 }
 
 // InitFromViper creates tls.Config populated with values retrieved from Viper.
-func (c FlagsConfig) InitFromViper(v *viper.Viper) Options {
+func (c ClientFlagsConfig) InitFromViper(v *viper.Viper) Options {
 	var p Options
 	if c.ShowEnabled {
 		p.Enabled = v.GetBool(c.Prefix + tlsEnabled)
 	}
-	if c.ShowCA {
-		p.CAPath = v.GetString(c.Prefix + tlsCA)
-	}
+	p.CAPath = v.GetString(c.Prefix + tlsCA)
 	p.CertPath = v.GetString(c.Prefix + tlsCert)
 	p.KeyPath = v.GetString(c.Prefix + tlsKey)
 	if c.ShowServerName {
 		p.ServerName = v.GetString(c.Prefix + tlsServerName)
 	}
+	return p
+}
+
+// InitFromViper creates tls.Config populated with values retrieved from Viper.
+func (c ServerFlagsConfig) InitFromViper(v *viper.Viper) Options {
+	var p Options
+	if c.ShowEnabled {
+		p.Enabled = v.GetBool(c.Prefix + tlsEnabled)
+	}
+	p.CertPath = v.GetString(c.Prefix + tlsCert)
+	p.KeyPath = v.GetString(c.Prefix + tlsKey)
 	if c.ShowClientCA {
 		p.ClientCAPath = v.GetString(c.Prefix + tlsClientCA)
 		if s := v.GetString(c.Prefix + tlsClientCAOld); s != "" {

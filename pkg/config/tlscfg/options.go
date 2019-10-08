@@ -60,14 +60,9 @@ func (p Options) Config() (*tls.Config, error) {
 	}
 
 	if p.ClientCAPath != "" {
-		caPEM, err := ioutil.ReadFile(filepath.Clean(p.ClientCAPath))
+		certPool, err := p.loadCert(p.ClientCAPath)
 		if err != nil {
-			return nil, errors.Wrap(err, "failed to load TLS client CA")
-		}
-
-		certPool := x509.NewCertPool()
-		if !certPool.AppendCertsFromPEM(caPEM) {
-			return nil, errors.Wrap(err, "failed to build TLS client CA")
+			return nil, err
 		}
 		tlsCfg.ClientCAs = certPool
 		tlsCfg.ClientAuth = tls.RequireAndVerifyClientCert
@@ -84,16 +79,19 @@ func (p Options) loadCertPool() (*x509.CertPool, error) {
 		}
 		return certPool, nil
 	}
-
 	// setup user specified truststore
-	caPEM, err := ioutil.ReadFile(p.CAPath)
+	return p.loadCert(p.CAPath)
+}
+
+func (p Options) loadCert(caPath string) (*x509.CertPool, error) {
+	caPEM, err := ioutil.ReadFile(caPath)
 	if err != nil {
-		return nil, errors.Wrap(err, "failed to read client CAs")
+		return nil, errors.Wrapf(err, "failed to load CA %s", caPath)
 	}
 
 	certPool := x509.NewCertPool()
 	if !certPool.AppendCertsFromPEM(caPEM) {
-		return nil, fmt.Errorf("failed to build client CAs")
+		return nil, fmt.Errorf("failed to parse CA %s", caPath)
 	}
 	return certPool, nil
 }
