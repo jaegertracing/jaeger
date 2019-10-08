@@ -20,7 +20,8 @@ import (
 )
 
 const (
-	suffixAuthentication = ".authentication"
+	suffixAuthentication  = ".authentication"
+	defaultAuthentication = none
 
 	// Kerberos configuration options
 	kerberosPrefix            = ".kerberos"
@@ -32,7 +33,6 @@ const (
 	suffixKerberosConfig      = ".config-file"
 	suffixKerberosKeyTab      = ".keytab-file"
 
-	defaultAuthentication      = none
 	defaultKerberosConfig      = "/etc/krb5.conf"
 	defaultKerberosUseKeyTab   = false
 	defaultKerberosServiceName = "kafka"
@@ -40,6 +40,16 @@ const (
 	defaultKerberosPassword    = ""
 	defaultKerberosUsername    = ""
 	defaultKerberosKeyTab      = "/etc/security/kafka.keytab"
+
+	// TLS configuration options
+	tlsPrefix     = ".tls"
+	suffixTLSCert = ".cert"
+	suffixTLSKey  = ".key"
+	suffixTLSCA   = ".ca"
+
+	defaultCAPath   = ""
+	defaultCertPath = ""
+	defaultKeyPath  = ""
 )
 
 func addKerberosFlags(configPrefix string, flagSet *flag.FlagSet) {
@@ -73,6 +83,22 @@ func addKerberosFlags(configPrefix string, flagSet *flag.FlagSet) {
 		"Path to keytab file. i.e /etc/security/kafka.keytab")
 }
 
+// AddFlags adds the flags for this package to the flagSet
+func addTLSFlags(configPrefix string, flagSet *flag.FlagSet) {
+	flagSet.String(
+		configPrefix+tlsPrefix+suffixTLSCA,
+		defaultCAPath,
+		"Path to the TLS CA for the Kafka connection")
+	flagSet.String(
+		configPrefix+tlsPrefix+suffixTLSCert,
+		defaultCertPath,
+		"Path to the TLS Certificate for the Kafka connection")
+	flagSet.String(
+		configPrefix+tlsPrefix+suffixTLSKey,
+		defaultKeyPath,
+		"Path to the TLS Key for the Kafka connection")
+}
+
 // AddFlags add configuration flags to a flagSet.
 func AddFlags(configPrefix string, flagSet *flag.FlagSet) {
 	flagSet.String(
@@ -81,4 +107,5 @@ func AddFlags(configPrefix string, flagSet *flag.FlagSet) {
 		"Authentication type used to authenticate with kafka cluster. e.g. "+strings.Join(authTypes, ", "),
 	)
 	addKerberosFlags(configPrefix, flagSet)
+	addTLSFlags(configPrefix, flagSet)
 }

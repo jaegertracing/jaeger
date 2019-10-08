@@ -37,13 +37,14 @@ type Builder interface {
 
 // Configuration describes the configuration properties needed to create a Kafka consumer
 type Configuration struct {
+	auth.AuthenticationConfig
+	Consumer
+
 	Brokers         []string
 	Topic           string
 	GroupID         string
 	ClientID        string
 	ProtocolVersion string
-	Consumer
-	auth.AuthenticationConfig
 }
 
 // NewConsumer creates a new kafka consumer
@@ -58,6 +59,8 @@ func (c *Configuration) NewConsumer() (Consumer, error) {
 		}
 		saramaConfig.Config.Version = ver
 	}
-	c.AuthenticationConfig.SetConfiguration(&saramaConfig.Config)
+	if err := c.AuthenticationConfig.SetConfiguration(&saramaConfig.Config); err != nil {
+		return nil, err
+	}
 	return cluster.NewConsumer(c.Brokers, c.GroupID, []string{c.Topic}, saramaConfig)
 }
