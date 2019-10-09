@@ -210,7 +210,7 @@ func TestStoreGetTraceSuccess(t *testing.T) {
 func TestStoreGetTraceFailure(t *testing.T) {
 	withPopulatedMemoryStore(func(store *Store) {
 		trace, err := store.GetTrace(context.Background(), model.TraceID{})
-		assert.EqualError(t, err, errTraceNotFound.Error())
+		assert.EqualError(t, err, spanstore.ErrTraceNotFound.Error())
 		assert.Nil(t, trace)
 	})
 }
