@@ -17,10 +17,10 @@ package reporter
 import (
 	"flag"
 	"fmt"
-	"os"
-	"strings"
 
 	"github.com/spf13/viper"
+
+	"github.com/jaegertracing/jaeger/cmd/flags"
 )
 
 const (
@@ -52,45 +52,6 @@ func AddFlags(flags *flag.FlagSet) {
 // InitFromViper initializes Options with properties retrieved from Viper.
 func (b *Options) InitFromViper(v *viper.Viper) *Options {
 	b.ReporterType = Type(v.GetString(reporterType))
-	b.AgentTags = parseAgentTags(v.GetString(agentTags))
+	b.AgentTags = flags.ParseJaegerTags(v.GetString(agentTags))
 	return b
-}
-
-// Parsing logic borrowed from jaegertracing/jaeger-client-go
-func parseAgentTags(agentTags string) map[string]string {
-	if agentTags == "" {
-		return nil
-	}
-	tagPairs := strings.Split(string(agentTags), ",")
-	tags := make(map[string]string)
-	for _, p := range tagPairs {
-		kv := strings.SplitN(p, "=", 2)
-		k, v := strings.TrimSpace(kv[0]), strings.TrimSpace(kv[1])
-
-		if strings.HasPrefix(v, "${") && strings.HasSuffix(v, "}") {
-			skipWhenEmpty := false
-
-			ed := strings.SplitN(string(v[2:len(v)-1]), ":", 2)
-			if len(ed) == 1 {
-				// no default value specified, set to empty
-				skipWhenEmpty = true
-				ed = append(ed, "")
-			}
-
-			e, d := ed[0], ed[1]
-			v = os.Getenv(e)
-			if v == "" && d != "" {
-				v = d
-			}
-
-			// no value is set, skip this entry
-			if v == "" && skipWhenEmpty {
-				continue
-			}
-		}
-
-		tags[k] = v
-	}
-
-	return tags
 }

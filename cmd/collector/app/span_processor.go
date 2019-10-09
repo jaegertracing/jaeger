@@ -50,6 +50,7 @@ type spanProcessor struct {
 	spanWriter      spanstore.Writer
 	reportBusy      bool
 	numWorkers      int
+	collectorTags   map[string]string
 }
 
 type queueItem struct {
@@ -95,6 +96,7 @@ func newSpanProcessor(spanWriter spanstore.Writer, opts ...Option) *spanProcesso
 		reportBusy:      options.reportBusy,
 		numWorkers:      options.numWorkers,
 		spanWriter:      spanWriter,
+		collectorTags:   options.collectorTags,
 	}
 	sp.processSpan = ChainedProcessSpan(
 		options.preSave,
@@ -158,6 +160,11 @@ func (sp *spanProcessor) enqueueSpan(span *model.Span, originalFormat SpanFormat
 
 	//add format tag
 	span.Tags = append(span.Tags, model.String("internal.span.format", string(originalFormat)))
+
+	// append the collector tags
+	for k, v := range sp.collectorTags {
+		span.Tags = append(span.Tags, model.String(k, v))
+	}
 
 	item := &queueItem{
 		queuedTime: time.Now(),
