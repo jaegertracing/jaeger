@@ -30,7 +30,7 @@ import (
 )
 
 const (
-	// UnknownServiceName is serviceName we give to model.Proces if we cannot find it anywhere in a Zipkin span
+	// UnknownServiceName is serviceName we give to model.Process if we cannot find it anywhere in a Zipkin span
 	UnknownServiceName = "unknown-service-name"
 )
 
