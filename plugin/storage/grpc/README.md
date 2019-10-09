@@ -112,3 +112,36 @@ There are more logger options that can be used with `hclog` listed on [godoc](ht
 
 Note: Setting the `Output` option to `os.Stdout` can confuse the `go-plugin` framework and lead it to consider the plugin
 errored.
+
+Bearer token propagation from the UI
+------------------------------------
+When using `--query.bearer-token-propagation=true`, the bearer token will be properly passed on to the gRPC plugin server. To get access to the bearer token in your plugin, use a method similar to:
+
+```golang
+import (
+    // ... other imports
+    "fmt"
+    "github.com/jaegertracing/jaeger/storage/spanstore"
+    "google.golang.org/grpc/metadata"
+)
+
+// ... spanReader type declared here
+
+func (r *spanReader) extractBearerToken(ctx context.Context) (string, bool) {
+	if md, ok := metadata.FromIncomingContext(ctx); ok {
+		values := md.Get(spanstore.BearerTokenKey)
+		if len(values) > 0 {
+			return values[0], true
+		}
+	}
+	return "", false
+}
+
+// ... spanReader interface implementation
+
+func (r *spanReader) GetServices(ctx context.Context) ([]string, error) {
+    str, ok := r.extractBearerToken(ctx)
+    fmt.Println(fmt.Sprintf("spanReader.GetServices: bearer-token: '%s', wasGiven: '%t'" str, ok))
+    // ...
+}
+```

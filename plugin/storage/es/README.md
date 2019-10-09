@@ -37,10 +37,6 @@ about choosing how many shards should be chosen for optimization.
 
 ## Limitations
 
-### Separation of Spans and Service:Operation Pairs
-The current commit has `span` and `service:operation` documents under the same index for a given date.
-This is to be separated into two indices in the near future in preparation for ElasticSearch v6.0. (#292)
-
 ### Tag query over multiple spans
 This plugin queries against spans. This means that all tags in a query must lie under the same span for a
 query to successfully return a trace.

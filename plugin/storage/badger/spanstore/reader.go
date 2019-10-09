@@ -22,6 +22,7 @@ import (
 	"errors"
 	"fmt"
 	"math"
+	"sort"
 	"time"
 
 	"github.com/dgraph-io/badger"
@@ -291,6 +292,9 @@ func (r *TraceReader) indexSeeksToTraceIDs(query *spanstore.TraceQueryParameters
 				prevTraceID = traceID
 			}
 		}
+		sort.Slice(ids[i], func(k, h int) bool {
+			return bytes.Compare(ids[i][k], ids[i][h]) < 0
+		})
 	}
 	return ids, nil
 }
@@ -522,6 +526,7 @@ func (r *TraceReader) scanIndexKeys(indexKeyValue []byte, startTimeMin time.Time
 		}
 		return nil
 	})
+
 	return indexResults, err
 }
 
