@@ -143,7 +143,7 @@ func TestSpanReaderIndices(t *testing.T) {
 	client := &mocks.Client{}
 	logger, _ := testutils.NewLogger()
 	metricsFactory := metricstest.NewFactory(0)
-	date := time.Date(2019, 10, 10, 5, 0 ,0 , 0, time.UTC)
+	date := time.Date(2019, 10, 10, 5, 0, 0, 0, time.UTC)
 	dateFormat := date.UTC().Format("2006-01-02")
 	testCases := []struct {
 		index  string
@@ -208,7 +208,7 @@ func TestSpanReader_GetTrace(t *testing.T) {
 
 func TestSpanReader_multiRead_followUp_query(t *testing.T) {
 	withSpanReader(func(r *spanReaderTest) {
-		date := time.Date(2019, 10, 10, 5, 0 ,0 , 0, time.UTC)
+		date := time.Date(2019, 10, 10, 5, 0, 0, 0, time.UTC)
 		spanID1 := dbmodel.Span{SpanID: "0", TraceID: "1", StartTime: model.TimeAsEpochMicroseconds(date)}
 		spanBytesID1, err := json.Marshal(spanID1)
 		require.NoError(t, err)
