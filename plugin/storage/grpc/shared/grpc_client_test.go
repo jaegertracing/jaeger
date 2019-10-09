@@ -166,6 +166,20 @@ func TestGRPCClientGetTrace_NoTrace(t *testing.T) {
 	})
 }
 
+func TestGRPCClientGetTrace_StreamErrorTraceNotFound(t *testing.T) {
+	withGRPCClient(func(r *grpcClientTest) {
+		traceClient := new(grpcMocks.SpanReaderPlugin_GetTraceClient)
+		traceClient.On("Recv").Return(nil, spanstore.ErrTraceNotFound)
+		r.spanReader.On("GetTrace", mock.Anything, &storage_v1.GetTraceRequest{
+			TraceID: mockTraceID,
+		}).Return(traceClient, nil)
+
+		s, err := r.client.GetTrace(context.Background(), mockTraceID)
+		assert.Error(t, err)
+		assert.Nil(t, s)
+	})
+}
+
 func TestGRPCClientFindTraces(t *testing.T) {
 	withGRPCClient(func(r *grpcClientTest) {
 		traceClient := new(grpcMocks.SpanReaderPlugin_FindTracesClient)
