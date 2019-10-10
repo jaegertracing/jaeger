@@ -1,6 +1,8 @@
 <img align="right" width="290" height="290" src="https://jaeger.readthedocs.io/en/latest/images/jaeger-vector.svg">
 
-[![Build Status][ci-img]][ci] [![Coverage Status][cov-img]][cov] [![Gitter chat][gitter-img]][gitter] [![OpenTracing-1.0][ot-badge]](https://opentracing.io) [![FOSSA Status](https://app.fossa.io/api/projects/git%2Bgithub.com%2Fjaegertracing%2Fjaeger.svg?type=shield)](https://app.fossa.io/projects/git%2Bgithub.com%2Fjaegertracing%2Fjaeger?ref=badge_shield) [![Fuzzit Status](https://app.fuzzit.dev/badge?org_id=jaeger)](https://app.fuzzit.dev/orgs/jaeger/dashboard) [![CII Best Practices](https://bestpractices.coreinfrastructure.org/projects/1273/badge)](https://bestpractices.coreinfrastructure.org/projects/1273) [![Project+Community stats][community-badge]][community-stats]
+[![Gitter chat][gitter-img]][gitter] [![OpenTracing-1.0][ot-badge]](https://opentracing.io) [![Project+Community stats][community-badge]][community-stats]
+
+[![Build Status][ci-img]][ci] [![Coverage Status][cov-img]][cov] [![FOSSA Status](https://app.fossa.io/api/projects/git%2Bgithub.com%2Fjaegertracing%2Fjaeger.svg?type=shield)](https://app.fossa.io/projects/git%2Bgithub.com%2Fjaegertracing%2Fjaeger?ref=badge_shield) [![Fuzzit Status](https://app.fuzzit.dev/badge?org_id=jaeger)](https://app.fuzzit.dev/orgs/jaeger/dashboard) [![CII Best Practices](https://bestpractices.coreinfrastructure.org/projects/1273/badge)](https://bestpractices.coreinfrastructure.org/projects/1273)
 
 # Jaeger - a Distributed Tracing System
 
