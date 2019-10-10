@@ -5,7 +5,7 @@ go_import_path: github.com/jaegertracing/jaeger
 
 dist: trusty
 
-matrix:
+jobs:
   include:
   - go: "1.12.1"
     env:
@@ -36,6 +36,15 @@ matrix:
   - go: "1.12.1"
     env:
     - HOTROD=true
+  - stage: Fuzz regression
+    dist: bionic
+    go: 1.12.x
+    script: ./scripts/travis/fuzzit.sh local-regression
+  - stage: Fuzz
+    if: branch = master AND type IN (push)
+    dist: bionic
+    go: 1.12.x
+    script: ./scripts/travis/fuzzit.sh fuzzing
 
 services:
   - docker
