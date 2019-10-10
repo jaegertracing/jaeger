@@ -21,6 +21,7 @@ import (
 
 	"github.com/pkg/errors"
 	"google.golang.org/grpc/metadata"
+	"google.golang.org/grpc/status"
 
 	"github.com/jaegertracing/jaeger/model"
 	"github.com/jaegertracing/jaeger/proto-gen/storage_v1"
@@ -76,6 +77,11 @@ func (c *grpcClient) GetTrace(ctx context.Context, traceID model.TraceID) (*mode
 	trace := model.Trace{}
 	for received, err := stream.Recv(); err != io.EOF; received, err = stream.Recv() {
 		if err != nil {
+			if e, ok := status.FromError(err); !ok {
+				if e.Message() == spanstore.ErrTraceNotFound.Error() {
+					return nil, spanstore.ErrTraceNotFound
+				}
+			}
 			return nil, errors.Wrap(err, "grpc stream error")
 		}
 
