@@ -803,7 +803,7 @@ func mockMultiSearchService(r *spanReaderTest) *mock.Call {
 	multiSearchService.On("Index", mock.AnythingOfType("string"), mock.AnythingOfType("string"),
 		mock.AnythingOfType("string"), mock.AnythingOfType("string"), mock.AnythingOfType("string")).Return(multiSearchService)
 	r.client.On("MultiSearch").Return(multiSearchService)
-	return multiSearchService.On("Do", mock.AnythingOfType("*context.emptyCtx"))
+	return multiSearchService.On("Do", mock.AnythingOfType("*context.valueCtx"))
 }
 
 func mockArchiveMultiSearchService(r *spanReaderTest, indexName string) *mock.Call {
@@ -811,7 +811,7 @@ func mockArchiveMultiSearchService(r *spanReaderTest, indexName string) *mock.Ca
 	multiSearchService.On("Add", mock.Anything, mock.Anything, mock.Anything).Return(multiSearchService)
 	multiSearchService.On("Index", indexName).Return(multiSearchService)
 	r.client.On("MultiSearch").Return(multiSearchService)
-	return multiSearchService.On("Do", mock.AnythingOfType("*context.emptyCtx"))
+	return multiSearchService.On("Do", mock.AnythingOfType("*context.valueCtx"))
 }
 
 func mockSearchService(r *spanReaderTest) *mock.Call {
