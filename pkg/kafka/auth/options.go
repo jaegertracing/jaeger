@@ -52,11 +52,11 @@ const (
 	defaultKeyPath  = ""
 
 	// SASL Plain configuration options
-	saslPlainPrefix           = ".sasl.plain"
-	suffixSASLUsername 		  = ".username"
-	suffixSASLPassword 		  = ".password"
-	defaultSASLUsername       = ""
-	defaultSASLPassword       = ""
+	saslPlainPrefix     = ".sasl.plain"
+	suffixSASLUsername  = ".username"
+	suffixSASLPassword  = ".password"
+	defaultSASLUsername = ""
+	defaultSASLPassword = ""
 )
 
 func addKerberosFlags(configPrefix string, flagSet *flag.FlagSet) {

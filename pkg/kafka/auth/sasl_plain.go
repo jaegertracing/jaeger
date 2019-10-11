@@ -26,15 +26,12 @@ type SASLPlainConfig struct {
 }
 
 func setSASLPlainConfiguration(config *SASLPlainConfig, saramaConfig *sarama.Config) error {
-	saramaConfig.Net.SASL.Mechanism = sarama.SASLTypePlaintext
+	if len(config.UserName) == 0 || len(config.Password) == 0 {
+		return errors.New("invalid username/password supplied for SASL Plain authentication. username/password cannot be empty")
+	}
 	saramaConfig.Net.SASL.Enable = true
-	if len(config.UserName) == 0 {
-		return errors.New("no username provided for SASL Plain authentication")
-	}
+	saramaConfig.Net.SASL.Mechanism = sarama.SASLTypePlaintext
 	saramaConfig.Net.SASL.User = config.UserName
-	if len(config.Password) == 0 {
-		return errors.New("no password provided for SASL Plain authentication")
-	}
 	saramaConfig.Net.SASL.Password = config.Password
 	return nil
 }
