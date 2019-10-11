@@ -149,6 +149,13 @@ func (sp *spanProcessor) processItemFromQueue(item *queueItem) {
 	sp.metrics.InQueueLatency.Record(time.Since(item.queuedTime))
 }
 
+func (sp *spanProcessor) addCollectorTags(span *model.Span) {
+	// TODO add support for deduping tags, https://github.com/jaegertracing/jaeger/issues/1778
+	for k, v := range sp.collectorTags {
+		span.Tags = append(span.Tags, model.String(k, v))
+	}
+}
+
 func (sp *spanProcessor) enqueueSpan(span *model.Span, originalFormat SpanFormat, transport InboundTransport) bool {
 	spanCounts := sp.metrics.GetCountsForFormat(originalFormat, transport)
 	spanCounts.ReceivedBySvc.ReportServiceNameForSpan(span)
@@ -162,9 +169,7 @@ func (sp *spanProcessor) enqueueSpan(span *model.Span, originalFormat SpanFormat
 	span.Tags = append(span.Tags, model.String("internal.span.format", string(originalFormat)))
 
 	// append the collector tags
-	for k, v := range sp.collectorTags {
-		span.Tags = append(span.Tags, model.String(k, v))
-	}
+	sp.addCollectorTags(span)
 
 	item := &queueItem{
 		queuedTime: time.Now(),

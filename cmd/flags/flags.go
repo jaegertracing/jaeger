@@ -53,11 +53,11 @@ func TryLoadConfigFile(v *viper.Viper) error {
 }
 
 // ParseJaegerTags parses the Jaeger tags string into a map.
-func ParseJaegerTags(agentTags string) map[string]string {
-	if agentTags == "" {
+func ParseJaegerTags(jaegerTags string) map[string]string {
+	if jaegerTags == "" {
 		return nil
 	}
-	tagPairs := strings.Split(string(agentTags), ",")
+	tagPairs := strings.Split(string(jaegerTags), ",")
 	tags := make(map[string]string)
 	for _, p := range tagPairs {
 		kv := strings.SplitN(p, "=", 2)

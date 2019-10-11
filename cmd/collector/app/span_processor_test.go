@@ -316,3 +316,30 @@ func TestSpanProcessorWithNilProcess(t *testing.T) {
 	}}
 	mb.AssertCounterMetrics(t, expected...)
 }
+
+func TestSpanProcessorWithCollectorTags(t *testing.T) {
+
+	testCollectorTags := map[string]string{
+		"extra": "tag",
+	}
+
+	w := &fakeSpanWriter{}
+	p := NewSpanProcessor(w, Options.CollectorTags(testCollectorTags)).(*spanProcessor)
+	defer p.Stop()
+
+	span := &model.Span{}
+
+	p.addCollectorTags(span)
+
+	for k, v := range testCollectorTags {
+		var foundTag bool
+		for _, tag := range span.Tags {
+			if tag.GetKey() == k {
+				assert.Equal(t, v, tag.AsString())
+				foundTag = true
+				break
+			}
+		}
+		assert.True(t, foundTag)
+	}
+}
