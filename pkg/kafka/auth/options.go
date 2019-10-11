@@ -52,7 +52,7 @@ const (
 	defaultKeyPath  = ""
 
 	// SASL Plain configuration options
-	saslPlainPrefix           = ".plain"
+	saslPlainPrefix           = ".sasl.plain"
 	suffixSASLUsername 		  = ".username"
 	suffixSASLPassword 		  = ".password"
 	defaultSASLUsername       = ""
