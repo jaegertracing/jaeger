@@ -23,15 +23,17 @@ import (
 )
 
 const (
-	none     = "none"
-	kerberos = "kerberos"
-	tls      = "tls"
+	none      = "none"
+	kerberos  = "kerberos"
+	tls       = "tls"
+	saslPlain = "plain"
 )
 
 var authTypes = []string{
 	none,
 	kerberos,
 	tls,
+	saslPlain,
 }
 
 // AuthenticationConfig describes the configuration properties needed authenticate with kafka cluster
@@ -39,6 +41,7 @@ type AuthenticationConfig struct {
 	Authentication string
 	Kerberos       KerberosConfig
 	TLS            TLSConfig
+	SASLPlain      SASLPlainConfig
 }
 
 //SetConfiguration set configure authentication into sarama config structure
@@ -55,6 +58,8 @@ func (config *AuthenticationConfig) SetConfiguration(saramaConfig *sarama.Config
 		return nil
 	case tls:
 		return setTLSConfiguration(&config.TLS, saramaConfig)
+	case saslPlain:
+		return setSASLPlainConfiguration(&config.SASLPlain, saramaConfig)
 	default:
 		return errors.Errorf("Unknown/Unsupported authentication method %s to kafka cluster.", config.Authentication)
 	}
@@ -74,4 +79,7 @@ func (config *AuthenticationConfig) InitFromViper(configPrefix string, v *viper.
 	config.TLS.CaPath = v.GetString(configPrefix + tlsPrefix + suffixTLSCA)
 	config.TLS.CertPath = v.GetString(configPrefix + tlsPrefix + suffixTLSCert)
 	config.TLS.KeyPath = v.GetString(configPrefix + tlsPrefix + suffixTLSKey)
+
+	config.SASLPlain.UserName = v.GetString(configPrefix + saslPlainPrefix + suffixSASLUsername)
+	config.SASLPlain.Password = v.GetString(configPrefix + saslPlainPrefix + suffixSASLPassword)
 }

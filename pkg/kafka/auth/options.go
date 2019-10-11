@@ -50,6 +50,13 @@ const (
 	defaultCAPath   = ""
 	defaultCertPath = ""
 	defaultKeyPath  = ""
+
+	// SASL Plain configuration options
+	saslPlainPrefix           = ".plain"
+	suffixSASLUsername 		  = ".username"
+	suffixSASLPassword 		  = ".password"
+	defaultSASLUsername       = ""
+	defaultSASLPassword       = ""
 )
 
 func addKerberosFlags(configPrefix string, flagSet *flag.FlagSet) {
@@ -99,6 +106,18 @@ func addTLSFlags(configPrefix string, flagSet *flag.FlagSet) {
 		"Path to the TLS Key for the Kafka connection")
 }
 
+// Flags for SASL Plain authentication options
+func addSASLPlainFlags(configPrefix string, flagSet *flag.FlagSet) {
+	flagSet.String(
+		configPrefix+saslPlainPrefix+suffixSASLUsername,
+		defaultSASLUsername,
+		"Username for SASL Plain authentication")
+	flagSet.String(
+		configPrefix+saslPlainPrefix+suffixSASLPassword,
+		defaultSASLPassword,
+		"Password for SASL Plain authentication")
+}
+
 // AddFlags add configuration flags to a flagSet.
 func AddFlags(configPrefix string, flagSet *flag.FlagSet) {
 	flagSet.String(
@@ -108,4 +127,5 @@ func AddFlags(configPrefix string, flagSet *flag.FlagSet) {
 	)
 	addKerberosFlags(configPrefix, flagSet)
 	addTLSFlags(configPrefix, flagSet)
+	addSASLPlainFlags(configPrefix, flagSet)
 }
