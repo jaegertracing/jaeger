@@ -173,7 +173,8 @@ func TestProxyBuilder(t *testing.T) {
 
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
-			proxy, err := NewCollectorProxy(test.grpcBuilder, nil, reporter.Duplicate, metrics.NullFactory, zap.NewNop())
+			params := CollectorProxyParams{Builder: test.grpcBuilder, AgentTags: nil, DedupeTagPolicy: reporter.Duplicate, MFactory: metrics.NullFactory, Logger: zap.NewNop()}
+			proxy, err := NewCollectorProxy(params)
 			if test.expectError {
 				require.Error(t, err)
 			} else {
@@ -318,13 +319,15 @@ func TestProxyClientTLS(t *testing.T) {
 				CollectorHostPorts: []string{net.JoinHostPort("localhost", port)},
 				TLS:                test.clientTLS,
 			}
-			proxy, err := NewCollectorProxy(
-				grpcBuilder,
-				nil,
-				reporter.Duplicate,
-				mFactory,
-				zap.NewNop())
+			params := CollectorProxyParams{
+				Builder:         grpcBuilder,
+				AgentTags:       nil,
+				DedupeTagPolicy: reporter.Duplicate,
+				MFactory:        mFactory,
+				Logger:          zap.NewNop(),
+			}
 
+			proxy, err := NewCollectorProxy(params)
 			require.NoError(t, err)
 			require.NotNil(t, proxy)
 			assert.NotNil(t, proxy.GetReporter())

@@ -25,6 +25,14 @@ import (
 	aReporter "github.com/jaegertracing/jaeger/cmd/agent/app/reporter"
 )
 
+type CollectorProxyParams struct {
+	Builder         *ConnBuilder
+	AgentTags       map[string]string
+	DedupeTagPolicy string
+	MFactory        metrics.Factory
+	Logger          *zap.Logger
+}
+
 // ProxyBuilder holds objects communicating with collector
 type ProxyBuilder struct {
 	reporter aReporter.Reporter
@@ -33,15 +41,24 @@ type ProxyBuilder struct {
 }
 
 // NewCollectorProxy creates ProxyBuilder
-func NewCollectorProxy(builder *ConnBuilder, agentTags map[string]string, duplicateTagsPolicy string, mFactory metrics.Factory, logger *zap.Logger) (*ProxyBuilder, error) {
-	conn, err := builder.CreateConnection(logger)
+func NewCollectorProxy(params CollectorProxyParams) (*ProxyBuilder, error) {
+	conn, err := params.Builder.CreateConnection(params.Logger)
 	if err != nil {
 		return nil, err
 	}
-	grpcMetrics := mFactory.Namespace(metrics.NSOptions{Name: "", Tags: map[string]string{"protocol": "grpc"}})
+	grpcMetrics := params.MFactory.Namespace(metrics.NSOptions{Name: "", Tags: map[string]string{"protocol": "grpc"}})
+	var tagsMerger TagsMerger
+	switch params.DedupeTagPolicy {
+	case reporter.Client:
+		tagsMerger = DeDupeClientTagsMerger()
+	case reporter.Agent:
+		tagsMerger = DeDupeAgentTagsMerger()
+	default:
+		tagsMerger = SimpleTagsMerger()
+	}
 	return &ProxyBuilder{
 		conn:     conn,
-		reporter: reporter.WrapWithMetrics(NewReporter(conn, &tagsMerger{agentTags: makeModelKeyValue(agentTags), duplicateTagsPolicy: duplicateTagsPolicy}, logger), grpcMetrics),
+		reporter: reporter.WrapWithMetrics(NewReporter(conn, params.AgentTags, tagsMerger, params.Logger), grpcMetrics),
 		manager:  configmanager.WrapWithMetrics(grpcManager.NewConfigManager(conn), grpcMetrics),
 	}, nil
 }

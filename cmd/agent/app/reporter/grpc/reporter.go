@@ -33,15 +33,17 @@ import (
 // Reporter reports data to collector over gRPC.
 type Reporter struct {
 	collector  api_v2.CollectorServiceClient
+	agentTags  []model.KeyValue
 	tagsMerger TagsMerger
 	logger     *zap.Logger
 	sanitizer  zipkin2.Sanitizer
 }
 
 // NewReporter creates gRPC reporter.
-func NewReporter(conn *grpc.ClientConn, tagsMerger TagsMerger, logger *zap.Logger) *Reporter {
+func NewReporter(conn *grpc.ClientConn, agentTags map[string]string, tagsMerger TagsMerger, logger *zap.Logger) *Reporter {
 	return &Reporter{
 		collector:  api_v2.NewCollectorServiceClient(conn),
+		agentTags:  makeModelKeyValue(agentTags),
 		tagsMerger: tagsMerger,
 		logger:     logger,
 		sanitizer:  zipkin2.NewChainedSanitizer(zipkin2.StandardSanitizers...),
@@ -66,7 +68,7 @@ func (r *Reporter) EmitZipkinBatch(zSpans []*zipkincore.Span) error {
 }
 
 func (r *Reporter) send(spans []*model.Span, process *model.Process) error {
-	spans, process = r.tagsMerger.Merge(spans, process)
+	spans, process = addProcessTags(spans, process, r.agentTags, r.tagsMerger)
 	batch := model.Batch{Spans: spans, Process: process}
 	req := &api_v2.PostSpansRequest{Batch: batch}
 	_, err := r.collector.PostSpans(context.Background(), req)
@@ -76,15 +78,23 @@ func (r *Reporter) send(spans []*model.Span, process *model.Process) error {
 	return err
 }
 
-func checkIfPresentAlready(tags []model.KeyValue, agentTag model.KeyValue) (int, bool) {
-	i := 0
-	for _, tag := range tags {
-		if tag.Key == agentTag.Key {
-			return i, true
-		}
-		i++
+// addTags appends jaeger tags for the agent to every span it sends to the collector.
+func addProcessTags(spans []*model.Span, process *model.Process, agentTags []model.KeyValue, merger TagsMerger) ([]*model.Span, *model.Process) {
+	if len(agentTags) == 0 {
+		return spans, process
 	}
-	return -1, false
+	if process != nil {
+		process.Tags = append(process.Tags, agentTags...)
+	}
+
+	for _, span := range spans {
+		if span.Process != nil {
+			span.Process.Tags = merger.Merge(span.Process.Tags, agentTags)
+		}
+	}
+
+	return spans, process
+
 }
 
 func makeModelKeyValue(agentTags map[string]string) []model.KeyValue {

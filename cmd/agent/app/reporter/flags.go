@@ -28,8 +28,8 @@ const (
 	reporterType = "reporter.type"
 	// Agent tags
 	agentTags = "jaeger.tags"
-	// duplicateTags is the override policy for tags when duplicates are present
-	duplicateTags = "dedupe-tags"
+	// dedupeTags is the override policy for tags when duplicates are present
+	dedupeTags = "dedupe-tags"
 	// Client to honour client's i.e library's tag
 	Client string = "client"
 	// Agent to honour agent's tag
@@ -54,7 +54,7 @@ type Options struct {
 
 // AddFlags adds flags for Options.
 func AddFlags(flags *flag.FlagSet) {
-	flags.String(duplicateTags, Duplicate, "The tag override policy, defining what to do when the same process tag is added by the client and the agent. Accepted values are 'client' (keep client's value), 'agent' (keep agent's value) and 'duplicate' (keep both).")
+	flags.String(dedupeTags, Duplicate, "The tag override policy, defining what to do when the same process tag is added by the client and the agent. Accepted values are 'client' (keep client's value), 'agent' (keep agent's value) and 'duplicate' (keep both).")
 	flags.String(reporterType, string(GRPC), fmt.Sprintf("Reporter type to use e.g. %s, %s", string(GRPC), string(TCHANNEL)))
 	flags.String(agentTags, "", "One or more tags to be added to the Process tags of all spans passing through this agent. Ex: key1=value1,key2=${envVar:defaultValue}")
 }
@@ -63,7 +63,7 @@ func AddFlags(flags *flag.FlagSet) {
 func (b *Options) InitFromViper(v *viper.Viper) *Options {
 	b.ReporterType = Type(v.GetString(reporterType))
 	b.AgentTags = parseAgentTags(v.GetString(agentTags))
-	b.DuplicateTagsPolicy = v.GetString(duplicateTags)
+	b.DuplicateTagsPolicy = v.GetString(dedupeTags)
 	return b
 }
 
