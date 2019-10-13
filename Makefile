@@ -84,8 +84,8 @@ clean:
 test: go-gen
 	bash -c "set -e; set -o pipefail; $(GOTEST) ./... | $(COLORIZE)"
 
-.PHONY: integration-test
-integration-test: go-gen
+.PHONY: all-in-one-integration-test
+all-in-one-integration-test: go-gen
 	$(GOTEST) -tags=integration ./cmd/all-in-one/...
 
 .PHONY: storage-integration-test
