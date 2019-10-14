@@ -100,6 +100,14 @@
   revision = "3a0bb77429bd3a61596f5e8a3172445844342120"
 
 [[projects]]
+  digest = "1:05ffeeed3f0f05520de0679f6aa3219ffee69cfd6d9fb6c194879d4c818ad670"
+  name = "github.com/coreos/go-semver"
+  packages = ["semver"]
+  pruneopts = "UT"
+  revision = "e214231b295a8ea9479f11b70b35d5acf3556d9b"
+  version = "v0.3.0"
+
+[[projects]]
   digest = "1:7cb4fdca4c251b3ef8027c90ea35f70c7b661a593b9eeae34753c65499098bb1"
   name = "github.com/cpuguy83/go-md2man"
   packages = ["md2man"]
@@ -1300,6 +1308,7 @@
     "github.com/Shopify/sarama/mocks",
     "github.com/apache/thrift/lib/go/thrift",
     "github.com/bsm/sarama-cluster",
+    "github.com/coreos/go-semver/semver",
     "github.com/crossdock/crossdock-go",
     "github.com/dgraph-io/badger",
     "github.com/dgraph-io/badger/options",
