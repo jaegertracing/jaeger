@@ -32,7 +32,7 @@ const (
 	collectorPort                 = "collector.port"
 	collectorHTTPPort             = "collector.http-port"
 	collectorGRPCPort             = "collector.grpc-port"
-	collectorTags                 = "jaeger.tags"
+	collectorTags                 = "collector.jaeger.tags"
 	collectorZipkinHTTPort        = "collector.zipkin.http-port"
 	collectorZipkinAllowedOrigins = "collector.zipkin.allowed-origins"
 	collectorZipkinAllowedHeaders = "collector.zipkin.allowed-headers"
