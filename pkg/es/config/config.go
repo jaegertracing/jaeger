@@ -22,10 +22,11 @@ import (
 	"io/ioutil"
 	"net/http"
 	"path/filepath"
-	"strconv"
 	"strings"
 	"sync"
 	"time"
+
+	"github.com/coreos/go-semver/semver"
 
 	"github.com/olivere/elastic"
 	"github.com/pkg/errors"
@@ -33,7 +34,7 @@ import (
 	"go.uber.org/zap"
 
 	"github.com/jaegertracing/jaeger/pkg/es"
-	"github.com/jaegertracing/jaeger/pkg/es/wrapper"
+	eswrapper "github.com/jaegertracing/jaeger/pkg/es/wrapper"
 	"github.com/jaegertracing/jaeger/storage/spanstore"
 	storageMetrics "github.com/jaegertracing/jaeger/storage/spanstore/metrics"
 )
@@ -165,12 +166,19 @@ func (c *Configuration) NewClient(logger *zap.Logger, metricsFactory metrics.Fac
 		if err != nil {
 			return nil, err
 		}
-		esVersion, err := strconv.Atoi(string(pingResult.Version.Number[0]))
+		esVersion, err := semver.NewVersion(pingResult.Version.Number)
 		if err != nil {
 			return nil, err
 		}
-		logger.Info("Elasticsearch detected", zap.Int("version", esVersion))
-		c.Version = uint(esVersion)
+
+		// ES 6.8.x mappings are compatible with ES 7.x.x
+		if esVersion.Compare(*semver.New("6.8.0")) >= 0 {
+			c.Version = 7
+		} else {
+			c.Version = uint(esVersion.Slice()[0]) // Major version
+		}
+		logger.Info("Elasticsearch detected",
+			zap.String("version", esVersion.String()), zap.Uint("mappingsVersion", c.Version))
 	}
 
 	return eswrapper.WrapESClient(rawClient, service, c.Version), nil
