@@ -170,7 +170,7 @@ func (c *Configuration) NewClient(logger *zap.Logger, metricsFactory metrics.Fac
 			return nil, err
 		}
 
-		// ES 6.8.x mappings are compatible with ES 7.x.x
+		// ES 7.x.x mappings are compatible with ES >=6.8.0
 		if esVersion.Compare(*semver.New("6.8.0")) >= 0 {
 			c.Version = 7
 		} else {
