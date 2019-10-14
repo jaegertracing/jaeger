@@ -27,7 +27,6 @@ import (
 	"time"
 
 	"github.com/coreos/go-semver/semver"
-
 	"github.com/olivere/elastic"
 	"github.com/pkg/errors"
 	"github.com/uber/jaeger-lib/metrics"
