@@ -23,6 +23,7 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
+	"google.golang.org/grpc/metadata"
 
 	"github.com/jaegertracing/jaeger/model"
 	"github.com/jaegertracing/jaeger/proto-gen/storage_v1"
@@ -89,6 +90,22 @@ func withGRPCClient(fn func(r *grpcClientTest)) {
 		depsReader: depReader,
 	}
 	fn(r)
+}
+
+func TestContextUpgradeWithToken(t *testing.T) {
+	testBearerToken := "test-bearer-token"
+	ctx := spanstore.ContextWithBearerToken(context.Background(), testBearerToken)
+	upgradedToken := upgradeContextWithBearerToken(ctx)
+	md, ok := metadata.FromOutgoingContext(upgradedToken)
+	assert.Truef(t, ok, "Expected metadata in context")
+	bearerTokenFromMetadata := md.Get(spanstore.BearerTokenKey)
+	assert.Equal(t, []string{testBearerToken}, bearerTokenFromMetadata)
+}
+
+func TestContextUpgradeWithoutToken(t *testing.T) {
+	upgradedToken := upgradeContextWithBearerToken(context.Background())
+	_, ok := metadata.FromOutgoingContext(upgradedToken)
+	assert.Falsef(t, ok, "Expected no metadata in context")
 }
 
 func TestGRPCClientGetServices(t *testing.T) {
@@ -162,6 +179,20 @@ func TestGRPCClientGetTrace_NoTrace(t *testing.T) {
 
 		s, err := r.client.GetTrace(context.Background(), mockTraceID)
 		assert.Error(t, err)
+		assert.Nil(t, s)
+	})
+}
+
+func TestGRPCClientGetTrace_StreamErrorTraceNotFound(t *testing.T) {
+	withGRPCClient(func(r *grpcClientTest) {
+		traceClient := new(grpcMocks.SpanReaderPlugin_GetTraceClient)
+		traceClient.On("Recv").Return(nil, spanstore.ErrTraceNotFound)
+		r.spanReader.On("GetTrace", mock.Anything, &storage_v1.GetTraceRequest{
+			TraceID: mockTraceID,
+		}).Return(traceClient, nil)
+
+		s, err := r.client.GetTrace(context.Background(), mockTraceID)
+		assert.Equal(t, spanstore.ErrTraceNotFound, err)
 		assert.Nil(t, s)
 	})
 }

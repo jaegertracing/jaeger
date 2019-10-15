@@ -13,9 +13,12 @@ We gratefully welcome improvements to documentation as well as to code.
 
 ## Getting Started
 
+### Pre-requisites
+* Install [Go](https://golang.org/doc/install) and setup GOPATH and add $GOPATH/bin in PATH 
+
 This library uses [dep](https://golang.github.io/dep) to manage dependencies.
 
-To get started, make sure you clone the Git repository into the correct location `github.com/jaegertracing/jaeger` relative to `$GOPATH`:
+To get started, make sure you clone the Git repository into the correct location `$GOPATH/github.com/jaegertracing/jaeger`:
 
 ```
 mkdir -p $GOPATH/src/github.com/jaegertracing

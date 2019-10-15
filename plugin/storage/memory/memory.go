@@ -28,8 +28,6 @@ import (
 	"github.com/jaegertracing/jaeger/storage/spanstore"
 )
 
-var errTraceNotFound = errors.New("trace was not found")
-
 // Store is an in-memory store of traces
 type Store struct {
 	sync.RWMutex
@@ -154,7 +152,7 @@ func (m *Store) GetTrace(ctx context.Context, traceID model.TraceID) (*model.Tra
 	defer m.RUnlock()
 	retMe := m.traces[traceID]
 	if retMe == nil {
-		return nil, errTraceNotFound
+		return nil, spanstore.ErrTraceNotFound
 	}
 	return retMe, nil
 }

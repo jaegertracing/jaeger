@@ -120,11 +120,14 @@ func getSamplingStrategy(t *testing.T) {
 }
 
 func healthCheck() error {
-	for i := 0; i < 100; i++ {
+	println("Health-checking all-in-one...")
+	for i := 0; i < 10; i++ {
 		if _, err := http.Get(queryURL); err == nil {
+			println("Health-check successful")
 			return nil
 		}
-		time.Sleep(100 * time.Millisecond)
+		println("Health-check unsuccessful, waiting 1sec...")
+		time.Sleep(time.Second)
 	}
 	return fmt.Errorf("query service is not ready")
 }
