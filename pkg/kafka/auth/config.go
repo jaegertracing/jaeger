@@ -39,7 +39,6 @@ var authTypes = []string{
 // AuthenticationConfig describes the configuration properties needed authenticate with kafka cluster
 type AuthenticationConfig struct {
 	Authentication string
-	TlsEnabled	   bool
 	Kerberos       KerberosConfig
 	TLS            TLSConfig
 	SASLPlain      SASLPlainConfig
@@ -51,7 +50,6 @@ func (config *AuthenticationConfig) SetConfiguration(saramaConfig *sarama.Config
 	if strings.Trim(authentication, " ") == "" {
 		authentication = none
 	}
-	saramaConfig.Net.TLS.Enable = config.TlsEnabled
 	switch authentication {
 	case none:
 		return nil
@@ -70,7 +68,6 @@ func (config *AuthenticationConfig) SetConfiguration(saramaConfig *sarama.Config
 // InitFromViper loads authentication configuration from viper flags.
 func (config *AuthenticationConfig) InitFromViper(configPrefix string, v *viper.Viper) {
 	config.Authentication = v.GetString(configPrefix + suffixAuthentication)
-	config.TlsEnabled = v.GetBool(configPrefix+suffixTlsTransportEnabled)
 	config.Kerberos.ServiceName = v.GetString(configPrefix + kerberosPrefix + suffixKerberosServiceName)
 	config.Kerberos.Realm = v.GetString(configPrefix + kerberosPrefix + suffixKerberosRealm)
 	config.Kerberos.UseKeyTab = v.GetBool(configPrefix + kerberosPrefix + suffixKerberosUseKeyTab)

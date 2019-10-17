@@ -20,10 +20,8 @@ import (
 )
 
 const (
-	suffixAuthentication      = ".authentication"
-	defaultAuthentication     = none
-	suffixTlsTransportEnabled = ".tls.enabled"
-	defaultTlsEnabled         = false
+	suffixAuthentication  = ".authentication"
+	defaultAuthentication = none
 
 	// Kerberos configuration options
 	kerberosPrefix            = ".kerberos"
@@ -127,10 +125,6 @@ func AddFlags(configPrefix string, flagSet *flag.FlagSet) {
 		defaultAuthentication,
 		"Authentication type used to authenticate with kafka cluster. e.g. "+strings.Join(authTypes, ", "),
 	)
-	flagSet.Bool(
-		configPrefix+suffixTlsTransportEnabled,
-		defaultTlsEnabled,
-		"TLS enabled or disabled for communication")
 	addKerberosFlags(configPrefix, flagSet)
 	addTLSFlags(configPrefix, flagSet)
 	addSASLPlainFlags(configPrefix, flagSet)
