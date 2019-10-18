@@ -21,6 +21,7 @@ import (
 	"github.com/spf13/viper"
 
 	"github.com/jaegertracing/jaeger/cmd/collector/app"
+	"github.com/jaegertracing/jaeger/pkg/config/tlscfg"
 	"github.com/jaegertracing/jaeger/ports"
 )
 
@@ -42,6 +43,12 @@ const (
 	collectorZipkinAllowedOrigins = "collector.zipkin.allowed-origins"
 	collectorZipkinAllowedHeaders = "collector.zipkin.allowed-headers"
 )
+
+var tlsFlagsConfig = tlscfg.ServerFlagsConfig{
+	Prefix:       "collector.grpc.",
+	ShowEnabled:  true,
+	ShowClientCA: true,
+}
 
 // CollectorOptions holds configuration for collector
 type CollectorOptions struct {
@@ -69,6 +76,8 @@ type CollectorOptions struct {
 	CollectorGRPCClientCA string
 	// CollectorGRPCKey is the path to a TLS key file for the server
 	CollectorGRPCKey string
+	// TLS configures secure transport
+	TLS tlscfg.Options
 	// CollectorZipkinHTTPPort is the port that the Zipkin collector service listens in on for http requests
 	CollectorZipkinHTTPPort int
 	// CollectorZipkinHTTPHostPort is the host:port address that the Zipkin collector service listens in on for http requests
@@ -97,6 +106,7 @@ func AddFlags(flags *flag.FlagSet) {
 	flags.String(collectorGRPCClientCA, "", "Path to a TLS CA to verify certificates presented by clients (if unset, all clients are permitted)")
 	flags.String(collectorZipkinAllowedOrigins, "*", "Comma separated list of allowed origins for the Zipkin collector service, default accepts all")
 	flags.String(collectorZipkinAllowedHeaders, "content-type", "Comma separated list of allowed headers for the Zipkin collector service, default content-type")
+	tlsFlagsConfig.AddFlags(flags)
 }
 
 // InitFromViper initializes CollectorOptions with properties from viper
@@ -117,5 +127,6 @@ func (cOpts *CollectorOptions) InitFromViper(v *viper.Viper) *CollectorOptions {
 	cOpts.CollectorZipkinHTTPHostPort = v.GetString(collectorZipkinHTTPHostPort)
 	cOpts.CollectorZipkinAllowedOrigins = v.GetString(collectorZipkinAllowedOrigins)
 	cOpts.CollectorZipkinAllowedHeaders = v.GetString(collectorZipkinAllowedHeaders)
+	cOpts.TLS = tlsFlagsConfig.InitFromViper(v)
 	return cOpts
 }

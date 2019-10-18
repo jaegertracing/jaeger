@@ -195,11 +195,8 @@ func startGRPCServer(
 ) (*grpc.Server, error) {
 	var server *grpc.Server
 
-	if opts.CollectorGRPCTLS { // user requested a server with TLS, setup creds
-		tlsCfg, err := grpcserver.TLSConfig(
-			opts.CollectorGRPCCert,
-			opts.CollectorGRPCKey,
-			opts.CollectorGRPCClientCA)
+	if opts.TLS.Enabled { // user requested a server with TLS, setup creds
+		tlsCfg, err := opts.TLS.Config()
 		if err != nil {
 			return nil, err
 		}

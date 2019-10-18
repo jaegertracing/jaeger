@@ -51,4 +51,19 @@ func TestParseOptions(t *testing.T) {
 	assert.Equal(t, time.Duration(168*time.Hour), opts.GetPrimary().SpanStoreTTL)
 	assert.Equal(t, "/var/lib/badger", opts.GetPrimary().KeyDirectory)
 	assert.Equal(t, "/mnt/slow/badger", opts.GetPrimary().ValueDirectory)
+	assert.False(t, opts.GetPrimary().ReadOnly)
+	assert.False(t, opts.GetPrimary().Truncate)
+}
+
+func TestTruncateAndReadOnlyOptions(t *testing.T) {
+	opts := NewOptions("badger")
+	v, command := config.Viperize(opts.AddFlags)
+	command.ParseFlags([]string{
+		"--badger.truncate=true",
+		"--badger.read-only=true",
+	})
+	opts.InitFromViper(v)
+
+	assert.True(t, opts.GetPrimary().ReadOnly)
+	assert.True(t, opts.GetPrimary().Truncate)
 }

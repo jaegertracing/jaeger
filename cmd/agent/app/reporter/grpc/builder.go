@@ -15,20 +15,17 @@
 package grpc
 
 import (
-	"crypto/tls"
-	"crypto/x509"
-	"errors"
-	"fmt"
-	"io/ioutil"
 	"strings"
 
 	grpc_retry "github.com/grpc-ecosystem/go-grpc-middleware/retry"
+	"github.com/pkg/errors"
 	"go.uber.org/zap"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials"
 	"google.golang.org/grpc/resolver"
 	"google.golang.org/grpc/resolver/manual"
 
+	"github.com/jaegertracing/jaeger/pkg/config/tlscfg"
 	"github.com/jaegertracing/jaeger/pkg/discovery"
 	"github.com/jaegertracing/jaeger/pkg/discovery/grpcresolver"
 )
@@ -38,12 +35,8 @@ type ConnBuilder struct {
 	// CollectorHostPorts is list of host:port Jaeger Collectors.
 	CollectorHostPorts []string `yaml:"collectorHostPorts"`
 
-	MaxRetry      uint
-	TLS           bool
-	TLSCA         string
-	TLSServerName string
-	TLSCert       string
-	TLSKey        string
+	MaxRetry uint
+	TLS      tlscfg.Options
 
 	DiscoveryMinPeers int
 	Notifier          discovery.Notifier
@@ -59,49 +52,14 @@ func NewConnBuilder() *ConnBuilder {
 func (b *ConnBuilder) CreateConnection(logger *zap.Logger) (*grpc.ClientConn, error) {
 	var dialOptions []grpc.DialOption
 	var dialTarget string
-	if b.TLS { // user requested a secure connection
+	if b.TLS.Enabled { // user requested a secure connection
 		logger.Info("Agent requested secure grpc connection to collector(s)")
-		var err error
-		var certPool *x509.CertPool
-		if len(b.TLSCA) == 0 { // no truststore given, use SystemCertPool
-			certPool, err = systemCertPool()
-			if err != nil {
-				return nil, err
-			}
-		} else { // setup user specified truststore
-			caPEM, err := ioutil.ReadFile(b.TLSCA)
-			if err != nil {
-				return nil, fmt.Errorf("reading client CA failed, %v", err)
-			}
-
-			certPool = x509.NewCertPool()
-			if !certPool.AppendCertsFromPEM(caPEM) {
-				return nil, fmt.Errorf("building client CA failed, %v", err)
-			}
+		tlsConf, err := b.TLS.Config()
+		if err != nil {
+			return nil, errors.Wrap(err, "failed to load TLS config")
 		}
 
-		tlsCfg := &tls.Config{
-			MinVersion: tls.VersionTLS12,
-			RootCAs:    certPool,
-			ServerName: b.TLSServerName,
-		}
-
-		if (b.TLSKey == "" || b.TLSCert == "") &&
-			(b.TLSKey != "" || b.TLSCert != "") {
-			return nil, fmt.Errorf("for client auth, both client certificate and key must be supplied")
-		}
-
-		if b.TLSKey != "" && b.TLSCert != "" {
-			tlsCert, err := tls.LoadX509KeyPair(b.TLSCert, b.TLSKey)
-			if err != nil {
-				return nil, fmt.Errorf("could not load server TLS cert and key, %v", err)
-			}
-
-			logger.Info("client TLS authentication enabled")
-			tlsCfg.Certificates = []tls.Certificate{tlsCert}
-		}
-
-		creds := credentials.NewTLS(tlsCfg)
+		creds := credentials.NewTLS(tlsConf)
 		dialOptions = append(dialOptions, grpc.WithTransportCredentials(creds))
 	} else { // insecure connection
 		logger.Info("Agent requested insecure grpc connection to collector(s)")

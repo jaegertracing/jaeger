@@ -15,13 +15,9 @@
 package grpcserver
 
 import (
-	"crypto/tls"
-	"crypto/x509"
-	"fmt"
 	"io/ioutil"
 	"net"
 	"os"
-	"path/filepath"
 	"strconv"
 
 	"github.com/pkg/errors"
@@ -34,40 +30,6 @@ import (
 	"github.com/jaegertracing/jaeger/cmd/collector/app/sampling/strategystore"
 	"github.com/jaegertracing/jaeger/proto-gen/api_v2"
 )
-
-// TLSConfig creates a *tls.Config from the user specified file paths.
-func TLSConfig(cert, key, clientCA string) (*tls.Config, error) {
-	if cert == "" || key == "" {
-		return nil, fmt.Errorf("you requested TLS but configuration does not include a path to cert and/or key")
-	}
-
-	tlsCfg := &tls.Config{
-		MinVersion: tls.VersionTLS12,
-	}
-
-	tlsCert, err := tls.LoadX509KeyPair(filepath.Clean(cert), filepath.Clean(key))
-	if err != nil {
-		return nil, fmt.Errorf("could not load server TLS cert and key, %v", err)
-	}
-
-	tlsCfg.Certificates = []tls.Certificate{tlsCert}
-
-	if clientCA != "" {
-		caPEM, err := ioutil.ReadFile(filepath.Clean(clientCA))
-		if err != nil {
-			return nil, fmt.Errorf("load TLS client CA, %v", err)
-		}
-
-		certPool := x509.NewCertPool()
-		if !certPool.AppendCertsFromPEM(caPEM) {
-			return nil, fmt.Errorf("building TLS client CA, %v", err)
-		}
-		tlsCfg.ClientCAs = certPool
-		tlsCfg.ClientAuth = tls.RequireAndVerifyClientCert
-	}
-
-	return tlsCfg, nil
-}
 
 // StartGRPCCollector configures and starts gRPC endpoints exposed by collector.
 func StartGRPCCollector(
