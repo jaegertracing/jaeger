@@ -8,6 +8,8 @@ Changes by Version
 
 ##### Breaking Changes
 
+* The default value for the Ingester's flag `ingester.deadlockInterval` has been changed to `0`. With the new default, the ingester won't `panic` if there are no messages for the last minute. To restore the previous behavior, set the flag's value to `1m`.
+
 ##### New Features
 
 ##### Bug fixes, Minor Improvements

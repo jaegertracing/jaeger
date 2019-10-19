@@ -64,7 +64,7 @@ const (
 	// DefaultEncoding is the default span encoding
 	DefaultEncoding = kafka.EncodingProto
 	// DefaultDeadlockInterval is the default deadlock interval
-	DefaultDeadlockInterval = 1 * time.Minute
+	DefaultDeadlockInterval = time.Duration(0)
 )
 
 // Options stores the configuration options for the Ingester
