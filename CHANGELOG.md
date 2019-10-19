@@ -8,6 +8,10 @@ Changes by Version
 
 ##### Breaking Changes
 
+* Changed the default value for the flag `ingester.deadlockInterval` ([1868](https://github.com/jaegertracing/jaeger/pull/1868), [@jpkrohling](https://github.com/jpkrohling))
+
+  The default value for the Ingester's flag `ingester.deadlockInterval` has been changed to `0`. With the new default, the ingester won't `panic` if there are no messages for the last minute. To restore the previous behavior, set the flag's value to `1m`.
+
 * Normalize CLI flags to use host:port addresses ([#1827](https://github.com/jaegertracing/jaeger/pull/1827), [@annanay25](https://github.com/annanay25))
 
   Jaeger now uses standard host:port addresses as CLI flags. Flags previous accepting listen addresses in any other format have now been deprecated.
