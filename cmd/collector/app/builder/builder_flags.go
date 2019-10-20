@@ -34,10 +34,6 @@ const (
 	collectorTChanHostPort        = "collector.tchan-server.host-port"
 	collectorHTTPHostPort         = "collector.http-server.host-port"
 	collectorGRPCHostPort         = "collector.grpc-server.host-port"
-	collectorGRPCTLS              = "collector.grpc.tls"
-	collectorGRPCCert             = "collector.grpc.tls.cert"
-	collectorGRPCKey              = "collector.grpc.tls.key"
-	collectorGRPCClientCA         = "collector.grpc.tls.client.ca"
 	collectorZipkinHTTPPort       = "collector.zipkin.http-port"
 	collectorZipkinHTTPHostPort   = "collector.zipkin.host-port"
 	collectorZipkinAllowedOrigins = "collector.zipkin.allowed-origins"
@@ -68,14 +64,6 @@ type CollectorOptions struct {
 	CollectorHTTPHostPort string
 	// CollectorGRPCHostPort is the host:port address that the collector service listens in on for gRPC requests
 	CollectorGRPCHostPort string
-	// CollectorGRPCTLS defines if the server is setup with TLS
-	CollectorGRPCTLS bool
-	// CollectorGRPCCert is the path to a TLS certificate file for the server
-	CollectorGRPCCert string
-	// CollectorGRPCClientCA is the path to a TLS certificate file for authenticating clients
-	CollectorGRPCClientCA string
-	// CollectorGRPCKey is the path to a TLS key file for the server
-	CollectorGRPCKey string
 	// TLS configures secure transport
 	TLS tlscfg.Options
 	// CollectorZipkinHTTPPort is the port that the Zipkin collector service listens in on for http requests
@@ -100,10 +88,6 @@ func AddFlags(flags *flag.FlagSet) {
 	flags.String(collectorHTTPHostPort, ports.PortToHostPort(ports.CollectorHTTP), "The host:port (e.g. 127.0.0.1:5555 or :5555) of the collector's HTTP server")
 	flags.String(collectorGRPCHostPort, ports.PortToHostPort(ports.CollectorGRPC), "The host:port (e.g. 127.0.0.1:5555 or :5555) of the collector's GRPC server")
 	flags.String(collectorZipkinHTTPHostPort, ports.PortToHostPort(0), "The host:port (e.g. 127.0.0.1:5555 or :5555) of the collector's Zipkin server")
-	flags.Bool(collectorGRPCTLS, false, "Enable TLS for the gRPC collector endpoint")
-	flags.String(collectorGRPCCert, "", "Path to TLS certificate for the gRPC collector TLS service")
-	flags.String(collectorGRPCKey, "", "Path to TLS key for the gRPC collector TLS cert")
-	flags.String(collectorGRPCClientCA, "", "Path to a TLS CA to verify certificates presented by clients (if unset, all clients are permitted)")
 	flags.String(collectorZipkinAllowedOrigins, "*", "Comma separated list of allowed origins for the Zipkin collector service, default accepts all")
 	flags.String(collectorZipkinAllowedHeaders, "content-type", "Comma separated list of allowed headers for the Zipkin collector service, default content-type")
 	tlsFlagsConfig.AddFlags(flags)
@@ -119,10 +103,6 @@ func (cOpts *CollectorOptions) InitFromViper(v *viper.Viper) *CollectorOptions {
 	cOpts.CollectorTChanHostPort = v.GetString(collectorTChanHostPort)
 	cOpts.CollectorHTTPHostPort = v.GetString(collectorHTTPHostPort)
 	cOpts.CollectorGRPCHostPort = v.GetString(collectorGRPCHostPort)
-	cOpts.CollectorGRPCTLS = v.GetBool(collectorGRPCTLS)
-	cOpts.CollectorGRPCCert = v.GetString(collectorGRPCCert)
-	cOpts.CollectorGRPCClientCA = v.GetString(collectorGRPCClientCA)
-	cOpts.CollectorGRPCKey = v.GetString(collectorGRPCKey)
 	cOpts.CollectorZipkinHTTPPort = v.GetInt(collectorZipkinHTTPPort)
 	cOpts.CollectorZipkinHTTPHostPort = v.GetString(collectorZipkinHTTPHostPort)
 	cOpts.CollectorZipkinAllowedOrigins = v.GetString(collectorZipkinAllowedOrigins)
