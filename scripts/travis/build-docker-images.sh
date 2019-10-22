@@ -18,7 +18,7 @@ else
 fi
 
 source ~/.nvm/nvm.sh
-nvm use 8
+nvm use 10
 
 export DOCKER_NAMESPACE=jaegertracing
 make docker
