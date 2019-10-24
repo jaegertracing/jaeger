@@ -25,6 +25,8 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"go.uber.org/zap"
+
+	"github.com/jaegertracing/jaeger/cmd/all-in-one/setupcontext"
 )
 
 func TestBindFlags_NoJaegerTags(t *testing.T) {
@@ -88,4 +90,32 @@ func TestBindFlags(t *testing.T) {
 
 	assert.Equal(t, Type("grpc"), b.ReporterType)
 	assert.Equal(t, expectedTags, b.AgentTags)
+}
+
+func TestBindFlagsAllInOne(t *testing.T) {
+
+	setupcontext.SetAllInOne()
+	defer setupcontext.UnsetAllInOne(t)
+
+	v := viper.New()
+	command := cobra.Command{}
+	flags := &flag.FlagSet{}
+	AddFlags(flags)
+	command.PersistentFlags().AddGoFlagSet(flags)
+	v.BindPFlags(command.PersistentFlags())
+
+	agentTags := fmt.Sprintf("%s,%s,%s,%s,%s,%s",
+		"key=value",
+		"envVar1=${envKey1:defaultVal1}",
+		"envVar2=${envKey2:defaultVal2}",
+		"envVar3=${envKey3}",
+		"envVar4=${envKey4}",
+		"envVar5=${envVar5:}",
+	)
+
+	err := command.ParseFlags([]string{
+		"--reporter.type=grpc",
+		"--agent.tags=" + agentTags,
+	})
+	require.Error(t, err)
 }
