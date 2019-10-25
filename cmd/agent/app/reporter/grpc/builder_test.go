@@ -143,10 +143,6 @@ func TestProxyBuilder(t *testing.T) {
 			name: "should pass with insecure grpc connection",
 			grpcBuilder: &ConnBuilder{
 				CollectorHostPorts: []string{"localhost:0000"},
-				TLS:                true,
-				TLSCA:              "testdata/testCA.pem",
-				TLSCert:            "testdata/client.jaeger.io-client.pem",
-				TLSKey:             "testdata/client.jaeger.io-client-key.pem",
 			},
 			expectError: false,
 		},
@@ -323,7 +319,7 @@ func TestProxyClientTLS(t *testing.T) {
 				TLS:                test.clientTLS,
 			}
 			proxy, err := NewCollectorProxy(
-				test.grpcBuilder,
+				grpcBuilder,
 				&reporter.Options{QueueType: reporter.DIRECT},
 				mFactory,
 				zap.NewNop())

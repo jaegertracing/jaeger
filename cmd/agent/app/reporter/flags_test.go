@@ -16,6 +16,7 @@ package reporter_test
 
 import (
 	"flag"
+	"fmt"
 	"os"
 	"testing"
 
@@ -25,7 +26,6 @@ import (
 	"github.com/stretchr/testify/require"
 	"go.uber.org/zap"
 
-	"github.com/jaegertracing/jaeger/cmd/agent/app"
 	"github.com/jaegertracing/jaeger/cmd/agent/app/reporter"
 )
 
