@@ -26,6 +26,7 @@ import (
 	"github.com/stretchr/testify/require"
 	"go.uber.org/zap"
 
+	"github.com/jaegertracing/jaeger/cmd/agent/app"
 	"github.com/jaegertracing/jaeger/cmd/agent/app/reporter"
 )
 
@@ -90,4 +91,43 @@ func TestBindFlags(t *testing.T) {
 
 	assert.Equal(t, reporter.Type("grpc"), b.ReporterType)
 	assert.Equal(t, expectedTags, b.AgentTags)
+}
+
+func TestDeprecatedFlags(t *testing.T) {
+	assert := assert.New(t)
+
+	v := viper.New()
+	command := cobra.Command{}
+	flags := &flag.FlagSet{}
+	reporter.AddFlags(flags)
+	app.AddFlags(flags)
+	command.PersistentFlags().AddGoFlagSet(flags)
+	v.BindPFlags(command.PersistentFlags())
+
+	err := command.ParseFlags([]string{
+		"--processor.jaeger-compact.server-queue-size=400",
+		"--processor.jaeger-compact.workers=4",
+	})
+	require.NoError(t, err)
+	b := &reporter.Options{}
+	b.InitFromViper(v, zap.NewNop())
+
+	assert.Equal(b.QueueType, reporter.MEMORY)
+	assert.Equal(b.ReporterConcurrency, 4)
+	assert.Equal(b.BoundedQueueSize, 400)
+
+	// New flags should override the deprecated settings
+	err = command.ParseFlags([]string{
+		"--processor.jaeger-compact.server-queue-size=400",
+		"--processor.jaeger-compact.workers=4",
+		"--reporter.queue.memory.size=500",
+		"--reporter.queue.workers=5",
+	})
+	require.NoError(t, err)
+	b = &reporter.Options{}
+	b.InitFromViper(v, zap.NewNop())
+
+	assert.Equal(b.QueueType, reporter.MEMORY)
+	assert.Equal(b.ReporterConcurrency, 5)
+	assert.Equal(b.BoundedQueueSize, 500)
 }

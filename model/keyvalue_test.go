@@ -159,3 +159,13 @@ func TestKeyValueHash(t *testing.T) {
 		})
 	}
 }
+
+func TestKeyValueFromMap(t *testing.T) {
+	testMap := map[string]string{
+		"a": "b",
+		"c": "d",
+	}
+
+	kvMap := model.KeyValueFromMap(testMap)
+	assert.Equal(t, 2, len(kvMap))
+}
