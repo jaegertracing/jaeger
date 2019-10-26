@@ -90,7 +90,7 @@ func (w *SpanWriter) WriteSpan(span *model.Span) error {
 
 	for _, kv := range span.Tags {
 		// Convert everything to string since queries are done that way also
-		// KEY: it<serviceName><tagsKey><traceId> VALUE: <tagsValue>
+		// KEY: it<serviceName><tagsKey><tagsValue><traceId> VALUE: nil
 		entriesToStore = append(entriesToStore, w.createBadgerEntry(createIndexKey(tagIndexKey, []byte(span.Process.ServiceName+kv.Key+kv.AsString()), startTime, span.TraceID), nil, expireTime))
 	}
 
