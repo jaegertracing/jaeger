@@ -8,6 +8,8 @@ import (
 	fmt "fmt"
 	proto "github.com/gogo/protobuf/proto"
 	grpc "google.golang.org/grpc"
+	codes "google.golang.org/grpc/codes"
+	status "google.golang.org/grpc/status"
 	math "math"
 )
 
@@ -20,7 +22,7 @@ var _ = math.Inf
 // is compatible with the proto package it is being compiled against.
 // A compilation error at this line likely means your copy of the
 // proto package needs to be updated.
-const _ = proto.GoGoProtoPackageIsVersion2 // please upgrade the proto package
+const _ = proto.GoGoProtoPackageIsVersion3 // please upgrade the proto package
 
 // When present, kind clarifies timestamp, duration and remote_endpoint. When
 // absent, the span is local or incomplete. Unlike client and server, there
@@ -616,6 +618,14 @@ type SpanServiceServer interface {
 	// /api/v2/spans endpoint. Spans are not required to be complete or belonging
 	// to the same trace.
 	Report(context.Context, *ListOfSpans) (*ReportResponse, error)
+}
+
+// UnimplementedSpanServiceServer can be embedded to have forward compatible implementations.
+type UnimplementedSpanServiceServer struct {
+}
+
+func (*UnimplementedSpanServiceServer) Report(ctx context.Context, req *ListOfSpans) (*ReportResponse, error) {
+	return nil, status.Errorf(codes.Unimplemented, "method Report not implemented")
 }
 
 func RegisterSpanServiceServer(s *grpc.Server, srv SpanServiceServer) {
