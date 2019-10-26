@@ -388,9 +388,12 @@ PROTO_GOGO_MAPPINGS := $(shell echo \
 		Mmodel.proto=github.com/jaegertracing/jaeger/model \
 	| sed 's/ //g')
 
+.PHONY: protoc-image
+protoc-image:
+	docker build -f idl/proto/Dockerfile -t jaegertracing/jaeger-idl-protoc .
 
 .PHONY: proto
-proto:
+proto: protoc-image
 	# Generate gogo, gRPC-Gateway, swagger, go-validators, gRPC-storage-plugin output.
 	#
 	# -I declares import folders, in order of importance
@@ -415,38 +418,63 @@ proto:
 	# TODO use Docker container instead of installed protoc
 	# (https://medium.com/@linchenon/generate-grpc-and-protobuf-libraries-with-containers-c15ba4e4f3ad)
 	#
-	$(PROTOC) \
-		$(PROTO_INCLUDES) \
-		--gogo_out=plugins=grpc,$(PROTO_GOGO_MAPPINGS):$(PWD)/model/ \
-		model/proto/model.proto
+	# $(PROTOC) \
+	# 	$(PROTO_INCLUDES) \
+	# 	--gogo_out=plugins=grpc,$(PROTO_GOGO_MAPPINGS):$(PWD)/model/ \
+	# 	model/proto/model.proto
+	docker run -it --rm -v ${PWD}:/work jaegertracing/jaeger-idl-protoc \
+		"-I=./idl/proto" \
+		"--gogo_out=plugins=grpc,$(PROTO_GOGO_MAPPINGS):/work/model/" \
+		idl/proto/model.proto
 
-	$(PROTOC) \
-		$(PROTO_INCLUDES) \
-		--gogo_out=plugins=grpc,$(PROTO_GOGO_MAPPINGS):$(PWD)/proto-gen/ \
-		model/proto/api_v2/*.proto
-		### grpc-gateway generates 'query.pb.gw.go' that does not respect (gogoproto.customname) = "TraceID"
-		### --grpc-gateway_out=$(PROTO_GOGO_MAPPINGS):$(PWD)/proto-gen/ \
-		### --swagger_out=allow_merge=true:$(PWD)/proto-gen/openapi/ \
+	# $(PROTOC) \
+	# 	$(PROTO_INCLUDES) \
+	# 	--gogo_out=plugins=grpc,$(PROTO_GOGO_MAPPINGS):$(PWD)/proto-gen/ \
+	# 	model/proto/api_v2/*.proto
+	# 	### grpc-gateway generates 'query.pb.gw.go' that does not respect (gogoproto.customname) = "TraceID"
+	# 	### --grpc-gateway_out=$(PROTO_GOGO_MAPPINGS):$(PWD)/proto-gen/ \
+	# 	### --swagger_out=allow_merge=true:$(PWD)/proto-gen/openapi/
+	docker run -it --rm -v ${PWD}:/work jaegertracing/jaeger-idl-protoc \
+		"-I=./idl/proto" \
+		"--gogo_out=plugins=grpc,$(PROTO_GOGO_MAPPINGS):/work/proto-gen" \
+		idl/proto/api_v2/*.proto
 
-	$(PROTOC) \
-		$(PROTO_INCLUDES) \
-		-I plugin/storage/grpc/proto \
-		--gogo_out=plugins=grpc,$(PROTO_GOGO_MAPPINGS):$(PWD)/proto-gen/storage_v1 \
+	# $(PROTOC) \
+	# 	$(PROTO_INCLUDES) \
+	# 	-I plugin/storage/grpc/proto \
+	# 	--gogo_out=plugins=grpc,$(PROTO_GOGO_MAPPINGS):$(PWD)/proto-gen/storage_v1 \
+	# 	plugin/storage/grpc/proto/storage.proto
+	docker run -it --rm -v ${PWD}:/work jaegertracing/jaeger-idl-protoc \
+		"-I=./idl/proto" \
+		"-I=./plugin/storage/grpc/proto" \
+		"--gogo_out=plugins=grpc,$(PROTO_GOGO_MAPPINGS):/work/proto-gen/storage_v1" \
 		plugin/storage/grpc/proto/storage.proto
 
-	$(PROTOC) \
-		-I model/proto \
-		--go_out=$(PWD)/model/prototest/ \
+	# $(PROTOC) \
+	# 	-I model/proto \
+	# 	--go_out=$(PWD)/model/prototest/ \
+	# 	model/proto/model_test.proto
+	docker run -it --rm -v ${PWD}:/work jaegertracing/jaeger-idl-protoc \
+		"-I=./model/proto" \
+		"--gogo_out=/work/model/prototest" \
 		model/proto/model_test.proto
 
-	$(PROTOC) \
-		-I plugin/storage/grpc/proto \
-		--go_out=$(PWD)/plugin/storage/grpc/proto/storageprototest/ \
+	# $(PROTOC) \
+	# 	-I plugin/storage/grpc/proto \
+	# 	--go_out=$(PWD)/plugin/storage/grpc/proto/storageprototest/ \
+	# 	plugin/storage/grpc/proto/storage_test.proto
+	docker run -it --rm -v ${PWD}:/work jaegertracing/jaeger-idl-protoc \
+		"-I=./plugin/storage/grpc/proto" \
+		"--gogo_out=/work/plugin/storage/grpc/proto/storageprototest" \
 		plugin/storage/grpc/proto/storage_test.proto
 
-	$(PROTOC) \
-		$(PROTO_INCLUDES) \
-		--gogo_out=plugins=grpc,$(PROTO_GOGO_MAPPINGS):$(PWD)/proto-gen/zipkin \
+	# $(PROTOC) \
+	# 	$(PROTO_INCLUDES) \
+	# 	--gogo_out=plugins=grpc,$(PROTO_GOGO_MAPPINGS):$(PWD)/proto-gen/zipkin \
+	# 	idl/proto/zipkin.proto
+	docker run -it --rm -v ${PWD}:/work jaegertracing/jaeger-idl-protoc \
+		"-I=./idl/proto" \
+		"--gogo_out=plugins=grpc,$(PROTO_GOGO_MAPPINGS):/work/proto-gen/zipkin" \
 		idl/proto/zipkin.proto
 
 
