@@ -327,13 +327,15 @@ func TestSpanProcessorWithCollectorTags(t *testing.T) {
 	p := NewSpanProcessor(w, Options.CollectorTags(testCollectorTags)).(*spanProcessor)
 	defer p.Stop()
 
-	span := &model.Span{}
+	span := &model.Span{
+		Process: model.NewProcess("unit-test-service", []model.KeyValue{}),
+	}
 
 	p.addCollectorTags(span)
 
 	for k, v := range testCollectorTags {
 		var foundTag bool
-		for _, tag := range span.Tags {
+		for _, tag := range span.Process.Tags {
 			if tag.GetKey() == k {
 				assert.Equal(t, v, tag.AsString())
 				foundTag = true
