@@ -152,7 +152,7 @@ func (sp *spanProcessor) processItemFromQueue(item *queueItem) {
 func (sp *spanProcessor) addCollectorTags(span *model.Span) {
 	// TODO add support for deduping tags, https://github.com/jaegertracing/jaeger/issues/1778
 	for k, v := range sp.collectorTags {
-		span.Tags = append(span.Tags, model.String(k, v))
+		span.Process.Tags = append(span.Process.Tags, model.String(k, v))
 	}
 }
 

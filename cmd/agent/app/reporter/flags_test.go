@@ -95,7 +95,7 @@ func TestBindFlags(t *testing.T) {
 func TestBindFlagsAllInOne(t *testing.T) {
 
 	setupcontext.SetAllInOne()
-	defer setupcontext.UnsetAllInOne(t)
+	defer setupcontext.UnsetAllInOne()
 
 	v := viper.New()
 	command := cobra.Command{}
