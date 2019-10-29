@@ -1310,7 +1310,6 @@
     "github.com/bsm/sarama-cluster",
     "github.com/crossdock/crossdock-go",
     "github.com/dgraph-io/badger",
-    "github.com/dgraph-io/badger/options",
     "github.com/fsnotify/fsnotify",
     "github.com/go-openapi/errors",
     "github.com/go-openapi/loads",
