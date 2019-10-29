@@ -137,7 +137,7 @@ required = [
 
 [[constraint]]
   name = "github.com/dgraph-io/badger"
-  version = "^1.6.0"
+  version = "=1.6.0"
 
 [prune]
   go-tests = true
