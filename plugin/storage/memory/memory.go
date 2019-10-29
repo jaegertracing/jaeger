@@ -150,11 +150,19 @@ func (m *Store) WriteSpan(span *model.Span) error {
 func (m *Store) GetTrace(ctx context.Context, traceID model.TraceID) (*model.Trace, error) {
 	m.RLock()
 	defer m.RUnlock()
-	retMe := m.traces[traceID]
-	if retMe == nil {
+	trace, ok := m.traces[traceID]
+	if !ok {
 		return nil, spanstore.ErrTraceNotFound
 	}
-	return retMe, nil
+	return m.copyTrace(trace), nil
+}
+
+// Spans may still be added to traces after they are returned to user code, so make copies.
+func (m *Store) copyTrace(trace *model.Trace) *model.Trace {
+	return &model.Trace{
+		Spans:    append([]*model.Span(nil), trace.Spans...),
+		Warnings: append([]string(nil), trace.Warnings...),
+	}
 }
 
 // GetServices returns a list of all known services
@@ -172,14 +180,13 @@ func (m *Store) GetServices(ctx context.Context) ([]string, error) {
 func (m *Store) GetOperations(ctx context.Context, service string) ([]string, error) {
 	m.RLock()
 	defer m.RUnlock()
+	var retMe []string
 	if operations, ok := m.operations[service]; ok {
-		var retMe []string
 		for ops := range operations {
 			retMe = append(retMe, ops)
 		}
-		return retMe, nil
 	}
-	return []string{}, nil
+	return retMe, nil
 }
 
 // FindTraces returns all traces in the query parameters are satisfied by a trace's span
@@ -189,7 +196,7 @@ func (m *Store) FindTraces(ctx context.Context, query *spanstore.TraceQueryParam
 	var retMe []*model.Trace
 	for _, trace := range m.traces {
 		if m.validTrace(trace, query) {
-			retMe = append(retMe, trace)
+			retMe = append(retMe, m.copyTrace(trace))
 		}
 	}
 
