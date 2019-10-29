@@ -23,7 +23,6 @@ import (
 	"time"
 
 	"github.com/dgraph-io/badger"
-	"github.com/dgraph-io/badger/options"
 	"github.com/spf13/viper"
 	"github.com/uber/jaeger-lib/metrics"
 	"go.uber.org/zap"
@@ -89,16 +88,14 @@ func (f *Factory) InitFromViper(v *viper.Viper) {
 func (f *Factory) Initialize(metricsFactory metrics.Factory, logger *zap.Logger) error {
 	f.logger = logger
 
-	opts := badger.DefaultOptions
-	opts.TableLoadingMode = options.MemoryMap
+	var opts badger.Options
 
 	if f.Options.primary.Ephemeral {
-		opts.SyncWrites = false
 		// Error from TempDir is ignored to satisfy Codecov
 		dir, _ := ioutil.TempDir("", "badger")
 		f.tmpDir = dir
-		opts.Dir = f.tmpDir
-		opts.ValueDir = f.tmpDir
+		opts = badger.DefaultOptions(f.tmpDir)
+		opts.SyncWrites = false
 
 		f.Options.primary.KeyDirectory = f.tmpDir
 		f.Options.primary.ValueDirectory = f.tmpDir
@@ -107,8 +104,9 @@ func (f *Factory) Initialize(metricsFactory metrics.Factory, logger *zap.Logger)
 		initializeDir(f.Options.primary.KeyDirectory)
 		initializeDir(f.Options.primary.ValueDirectory)
 
+		opts = badger.DefaultOptions(f.Options.primary.KeyDirectory)
+
 		opts.SyncWrites = f.Options.primary.SyncWrites
-		opts.Dir = f.Options.primary.KeyDirectory
 		opts.ValueDir = f.Options.primary.ValueDirectory
 
 		// These options make no sense with ephemeral data
