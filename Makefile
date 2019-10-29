@@ -136,13 +136,13 @@ fmt:
 
 .PHONY: lint-gosec
 lint-gosec:
-	$(GOSEC) ./...
+	time $(GOSEC) ./...
 
 .PHONY: lint-staticcheck
 lint-staticcheck:
 	@echo Running staticcheck...
 	@cat /dev/null > $(LINT_LOG)
-	@$(STATICCHECK) ./... \
+	@time $(STATICCHECK) ./... \
 		| grep -v \
 			-e model/model.pb.go \
 			-e thrift-gen/ \
