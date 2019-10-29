@@ -62,7 +62,7 @@ type logging struct {
 
 // AddFlags adds flags for SharedFlags
 func AddFlags(flagSet *flag.FlagSet) {
-	flagSet.String(spanStorageType, "", fmt.Sprintf(`(deprecated) please use %s environment variable. Run this binary with "env" command for help.`, storage.SpanStorageTypeEnvVar))
+	flagSet.String(spanStorageType, "", "(deprecated) please use SPAN_STORAGE_TYPE environment variable. Run this binary with "env" command for help.")
 	AddLoggingFlag(flagSet)
 }
 
