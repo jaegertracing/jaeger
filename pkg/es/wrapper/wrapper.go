@@ -54,7 +54,11 @@ func (c ClientWrapper) CreateIndex(index string) es.IndicesCreateService {
 
 // CreateTemplate calls this function to internal client.
 func (c ClientWrapper) CreateTemplate(ttype string) es.TemplateCreateService {
-	return WrapESTemplateCreateService(c.client.IndexPutTemplate(ttype))
+	t := c.client.IndexPutTemplate(ttype)
+	if c.GetVersion() == 7 {
+		t.IncludeTypeName(true)
+	}
+	return WrapESTemplateCreateService(t)
 }
 
 // Index calls this function to internal client.
@@ -168,7 +172,13 @@ func (i IndexServiceWrapper) Index(index string) es.IndexService {
 // Type calls this function to internal service.
 func (i IndexServiceWrapper) Type(typ string) es.IndexService {
 	if i.esVersion == 7 {
-		return WrapESIndexService(i.bulkIndexReq, i.bulkService, i.esVersion)
+		// Use '_doc' as type
+		// Indices created in 6.x only allow a single-type per index.
+		// Any name can be used for the type, but there can be only one.
+		// The preferred type name is _doc, so that index APIs have
+		// the same path as they will have in 7.0: PUT {index}/_doc/{id} and POST {index}/_doc
+		// https://www.elastic.co/guide/en/elasticsearch/reference/current/removal-of-types.html
+		typ = "_doc"
 	}
 	return WrapESIndexService(i.bulkIndexReq.Type(typ), i.bulkService, i.esVersion)
 }

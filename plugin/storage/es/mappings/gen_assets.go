@@ -223,15 +223,16 @@ IKK1KwAAAA==
 	"/jaeger-service-7.json": {
 		name:    "jaeger-service-7.json",
 		local:   "plugin/storage/es/mappings/jaeger-service-7.json",
-		size:    878,
-		modtime: 1566472262,
+		size:    958,
+		modtime: 1571149754,
 		compressed: `
-H4sIAAAAAAAC/8ySwW7aQBCG736K1agnBFZViR72RluqVmppBcopikaDPdibeNeb3YEEIb97ZGTAhHDL
-IReP5H++35/t3SVKgXE5P6MnEQ4uglYwuCcuOIwih43JeDSAYbsYWcS4IoJuuQOZurVdcsB6hbGkkLcN
-n3aIs5u/36Zz/PcTF78m8x8LxGb4NhbYVyajS3A+/f/n9/fJBWrJe+OK1HEUznFluMpjWhlrBPT489lu
-4Mc1R4lpRlnJKTtaVgxawpoTpfa90PWdXizfOrImQ2HrKxKOoG/3iVK7brbfw5NDoSKiJX9gu6yrPL+r
-FMjWM2h44O1THXIYnqemcHVgpGW9YdBfxl97cdPfBU9SoiXJStAgVKQDOMZN8oroOftQZxzjh9DuXNJr
-+vt51/1NH2rPQQzHkxx0B3RGlvvK13Wvqh41oX0Miande7Qmh2uTNMlLAAAA//8YcMrbbgMAAA==
+H4sIAAAAAAAC/8yST6/TMBDE7/kU1opT1RchpMfBtwJFIEFBrTghtNo628QQO8beFqoq3x2lpCVpq544
+vEv+eOc3OyP5kCkF1hf8GwOJcPQJtILJd+KS40PiuLOGHyYw7YSJRawvE+iOO5G537o1R2w2mCqKRefw
+7IC4+PLx1XyJn97i6t1s+WaF2E5vY5FDbQ1dg8v55w/vX8+uUEchWF/mnpNwgRvLdZHy2joroB+fj7SR
+f245ScoNmYpz9rSuGbTELWdKHX2h9/tXDIvGgFZ//5SCYu/JWYPCLtQknEB/7WfqrDoqUyCPQmVCR+Hk
+d572iy7PlQLZBwYNP3j/q4kFTC/ntvRNZKR1s2PQLx5fjgTtWA+BpEJHYirQIFTmExgI2uwGN2oRYmM4
+pSdWpE+V3yvUf307+XRQ4CiW0zAs9Fd7QY7HJe4VuBN+EBy6hSS28f/PPRu+u2ebtdmfAAAA///hz8GK
+vgMAAA==
 `,
 	},
 
@@ -254,19 +255,20 @@ TmGdQJrhQAmkbHr//7o382e5j83Y/AkAAP//qd2MzCQEAAA=
 	"/jaeger-span-7.json": {
 		name:    "jaeger-span-7.json",
 		local:   "plugin/storage/es/mappings/jaeger-span-7.json",
-		size:    3420,
-		modtime: 1566472262,
+		size:    3732,
+		modtime: 1571149784,
 		compressed: `
-H4sIAAAAAAAC/+xWXW+UQBR951eQG5+aLTEm9YG3amtsYqtp65Mxk7twYaedL2fuVjcN/93A0hYKbE2k
-xhhflix3zuHcmXsO3EZxDNLk9EM4ZCZvAqQx7F0hleT3g0OzvweLuF4WiFmaMkBao+5wiVnrJXlhCxFW
-6PMa/+JWiLPPp2+Oz8XHd+Li/eH50YUQ1WIc5skpmeEQeH786cPJ28MBVKNz0pSJocCUi0KSykOipJYM
-6cHL3lpP39YUOCQZZitKyOBSEaTs1xTFccMLLd9DY/nGoJaZYNJOIVOA9EtTiePb9lrvh0MjGMsgNLo7
-bFtrKft34xh44whSuKbNd+tzWPSrsjTWk8ClvSFIXx287pSr7lpwyCuhkbMVpMBYJntwX66iR4iOZudt
-RiH8FbJbLcmU/Ob6tT1N560jz5LCgzhgjxmdHHXlTkudlHkvERx6Mnzh0MxIGualq7cBWVpzhprmE8no
-+VKOMyprSpiGnEqlZBgD5sjU1VFYr5EhBXI2Wwm9BQ6Y8/W2w1/XUigsRxVIw3WQDRHKjgO2mdIV3YYB
-pAWqQIuelwYjuaWSmgKjdlM+6jYxNMk2z6awA4E7Re4U2hSvaTO8+5Tln7T9oKsGcYNqTX/saYzlZUP7
-PM+Lpv5V00l8l3m9yZuco0D+Rmb02OizJjLjZNrb5RVlDLug/6f0n5xSTwV5Mhk9W0R6Ksa6nm+sh18G
-s/IPX+q/S7/jOB55dNyfveXPdm4jPpxtT0d9N2fQzT1xE5+s9W8VVdHPAAAA//+SuQbQXA0AAA==
+H4sIAAAAAAAC/+xWT2/TThC951NYo9+pSq2fkMrBt0KLqEQLassJodXEHjvb7j92J4WoyndHjpNSJ2sb
+pBghwaWNvfPevFnPvN3HSZKANAV9Ew6ZyZsAWQJHd0gV+ePg0BwfwTSpwwIxS1MFyGrUFpeahZ6RF7YU
+YY6+qPH/PQpx9fHy1fm1eP9G3Lw9vT67EWI1jcM8OSVz3Aden394d/H6dA+q0TlpqtRQYCpEKUkVIVVS
+S4bs5P9WrKcvCwoc0hzzOaVkcKYIMvYLmiTJmhc2fD8KE4XNIUuapySBYmlQy1wwaaeQKUD2abOWPEWt
+I+sNE4xVEBrdlu9pdZNo932SAC8dQQb3tPxqfQHT3XVZGetJ4Mw+EGQvTl62AlbteHDIc6GR8zlkwFil
+R/AsYDWJ4FpVOG9zCuEPK2SjKu0raPPr85anBjnyLCk8FwvsMaeLs3YBfeJ7hD8TDQ49Gb5xaEYgD+PQ
+1huELK25Qk2HF83o+VZ2MStrKugHXkqlZIjDC2Rqqyqt18iQATmbz4VuwNEMxaKp+1eVlQqrDj3ScG2c
+cZyyXbDGydqFbEwHshJVoOnOfEaauiGUmgKjdt2z2S4sNnaNo3YzROQOSB6QvV6+p2Xs/bCp/ISxRKpc
+ox5QLei3Z2WsbtfkY+ad9D2vhs6Drdvu9GtP5wXyDzKnfRMZ4Vxg7Dl77OyOcoYhgn/9/Vf3t6eSPJmc
+RrdkT2V8Nw49FLE7zQh5YteQQ6QZ/GR7U9818Tug0b9wdLIPvOsdk3x4Yx2nV3uv683/+u9qspp8DwAA
+///83A3ilA4AAA==
 `,
 	},
 

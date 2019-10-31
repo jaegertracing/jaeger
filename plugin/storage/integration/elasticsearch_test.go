@@ -57,13 +57,23 @@ type ESStorageIntegration struct {
 }
 
 func (s *ESStorageIntegration) getVersion() (uint, error) {
-	pingResult, _, err := s.client.Ping(queryURL).Do(context.Background())
-	if err != nil {
-		return 0, err
-	}
-	esVersion, err := strconv.Atoi(string(pingResult.Version.Number[0]))
-	if err != nil {
-		return 0, err
+	var esVersion int
+	envVersion := os.Getenv("ES_VERSION")
+	if envVersion != "" {
+		var err error
+		esVersion, err = strconv.Atoi(envVersion)
+		if err != nil {
+			return 0, err
+		}
+	} else {
+		pingResult, _, err := s.client.Ping(queryURL).Do(context.Background())
+		if err != nil {
+			return 0, err
+		}
+		esVersion, err = strconv.Atoi(string(pingResult.Version.Number[0]))
+		if err != nil {
+			return 0, err
+		}
 	}
 	return uint(esVersion), nil
 }
@@ -83,6 +93,7 @@ func (s *ESStorageIntegration) initializeES(allTagsAsFields, archive bool) error
 	if err != nil {
 		return err
 	}
+	s.logger.With(zap.Uint("version", esVersion)).Info("Elasticsearch version")
 	s.bulkProcessor, _ = s.client.BulkProcessor().Do(context.Background())
 	client := eswrapper.WrapESClient(s.client, s.bulkProcessor, esVersion)
 	dependencyStore := dependencystore.NewDependencyStore(client, s.logger, indexPrefix)
@@ -111,6 +122,7 @@ func (s *ESStorageIntegration) initSpanstore(allTagsAsFields, archive bool) erro
 	if err != nil {
 		return err
 	}
+	s.logger.With(zap.Uint("version", esVersion)).Info("Elasticsearch version")
 	client := eswrapper.WrapESClient(s.client, bp, esVersion)
 	spanMapping, serviceMapping := es.GetMappings(5, 1, client.GetVersion())
 	w := spanstore.NewSpanWriter(

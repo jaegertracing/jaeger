@@ -1,0 +1,43 @@
+{
+  "index_patterns": "*jaeger-service-*",
+  "settings":{
+    "index.number_of_shards": ${__NUMBER_OF_SHARDS__},
+    "index.number_of_replicas": ${__NUMBER_OF_REPLICAS__},
+    "index.mapping.nested_fields.limit":50,
+    "index.requests.cache.enable":true
+  },
+  "mappings":{
+    "_doc": {
+      "dynamic_templates":[
+        {
+          "span_tags_map":{
+            "mapping":{
+              "type":"keyword",
+              "ignore_above":256
+            },
+            "path_match":"tag.*"
+          }
+        },
+        {
+          "process_tags_map":{
+            "mapping":{
+              "type":"keyword",
+              "ignore_above":256
+            },
+            "path_match":"process.tag.*"
+          }
+        }
+      ],
+      "properties":{
+        "serviceName":{
+          "type":"keyword",
+          "ignore_above":256
+        },
+        "operationName":{
+          "type":"keyword",
+          "ignore_above":256
+        }
+      }
+    }
+  }
+}
