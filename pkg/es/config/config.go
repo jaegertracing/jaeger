@@ -41,6 +41,7 @@ import (
 // Configuration describes the configuration properties needed to connect to an ElasticSearch cluster
 type Configuration struct {
 	Servers               []string
+	RemoteReadClusters    []string
 	Username              string
 	Password              string
 	TokenFilePath         string
@@ -78,6 +79,7 @@ type TLSConfig struct {
 // ClientBuilder creates new es.Client
 type ClientBuilder interface {
 	NewClient(logger *zap.Logger, metricsFactory metrics.Factory) (es.Client, error)
+	GetRemoteReadClusters() []string
 	GetNumShards() int64
 	GetNumReplicas() int64
 	GetMaxSpanAge() time.Duration
@@ -178,6 +180,9 @@ func (c *Configuration) NewClient(logger *zap.Logger, metricsFactory metrics.Fac
 
 // ApplyDefaults copies settings from source unless its own value is non-zero.
 func (c *Configuration) ApplyDefaults(source *Configuration) {
+	if len(c.RemoteReadClusters) == 0 {
+		c.RemoteReadClusters = source.RemoteReadClusters
+	}
 	if c.Username == "" {
 		c.Username = source.Username
 	}
@@ -211,6 +216,11 @@ func (c *Configuration) ApplyDefaults(source *Configuration) {
 	if c.BulkFlushInterval == 0 {
 		c.BulkFlushInterval = source.BulkFlushInterval
 	}
+}
+
+// GetRemoteReadClusters returns list of remote read clusters
+func (c *Configuration) GetRemoteReadClusters() []string {
+	return c.RemoteReadClusters
 }
 
 // GetNumShards returns number of shards from Configuration

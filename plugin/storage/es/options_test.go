@@ -30,6 +30,7 @@ func TestOptions(t *testing.T) {
 	assert.Empty(t, primary.Username)
 	assert.Empty(t, primary.Password)
 	assert.NotEmpty(t, primary.Servers)
+	assert.Equal(t, []string{}, primary.RemoteReadClusters)
 	assert.Equal(t, int64(5), primary.NumShards)
 	assert.Equal(t, int64(1), primary.NumReplicas)
 	assert.Equal(t, 72*time.Hour, primary.MaxSpanAge)
@@ -46,6 +47,7 @@ func TestOptionsWithFlags(t *testing.T) {
 	v, command := config.Viperize(opts.AddFlags)
 	command.ParseFlags([]string{
 		"--es.server-urls=1.1.1.1, 2.2.2.2",
+		"--es.remote-read-clusters=cluster_one,cluster_two",
 		"--es.username=hello",
 		"--es.password=world",
 		"--es.token-file=/foo/bar",
@@ -66,6 +68,7 @@ func TestOptionsWithFlags(t *testing.T) {
 	assert.Equal(t, "hello", primary.Username)
 	assert.Equal(t, "/foo/bar", primary.TokenFilePath)
 	assert.Equal(t, []string{"1.1.1.1", "2.2.2.2"}, primary.Servers)
+	assert.Equal(t, []string{"cluster_one", "cluster_two"}, primary.RemoteReadClusters)
 	assert.Equal(t, 48*time.Hour, primary.MaxSpanAge)
 	assert.True(t, primary.Sniffer)
 	assert.Equal(t, true, primary.TLS.Enabled)

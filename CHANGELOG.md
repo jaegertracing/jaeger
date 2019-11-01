@@ -12,6 +12,8 @@ Changes by Version
 
 ##### New Features
 
+Add Elasticsearch remote read clusters setting that enables [cross-cluster querying](https://www.elastic.co/guide/en/elasticsearch/reference/current/modules-cross-cluster-search.html) `--es.remote-read-clusters=cluster_one,cluster_two` [#1833](https://github.com/jaegertracing/jaeger/issues/1883)
+
 ##### Bug fixes, Minor Improvements
 
 #### UI Changes

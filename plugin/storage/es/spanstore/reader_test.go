@@ -146,35 +146,38 @@ func TestSpanReaderIndices(t *testing.T) {
 	date := time.Date(2019, 10, 10, 5, 0, 0, 0, time.UTC)
 	dateFormat := date.UTC().Format("2006-01-02")
 	testCases := []struct {
-		index  string
-		params SpanReaderParams
+		indices []string
+		params  SpanReaderParams
 	}{
 		{params: SpanReaderParams{Client: client, Logger: logger, MetricsFactory: metricsFactory,
 			IndexPrefix: "", Archive: false},
-			index: spanIndex + dateFormat},
+			indices: []string{spanIndex + dateFormat}},
 		{params: SpanReaderParams{Client: client, Logger: logger, MetricsFactory: metricsFactory,
 			IndexPrefix: "", UseReadWriteAliases: true},
-			index: spanIndex + "read"},
+			indices: []string{spanIndex + "read"}},
 		{params: SpanReaderParams{Client: client, Logger: logger, MetricsFactory: metricsFactory,
 			IndexPrefix: "foo:", Archive: false},
-			index: "foo:" + indexPrefixSeparator + spanIndex + dateFormat},
+			indices: []string{"foo:" + indexPrefixSeparator + spanIndex + dateFormat}},
 		{params: SpanReaderParams{Client: client, Logger: logger, MetricsFactory: metricsFactory,
 			IndexPrefix: "foo:", UseReadWriteAliases: true},
-			index: "foo:-" + spanIndex + "read"},
+			indices: []string{"foo:-" + spanIndex + "read"}},
 		{params: SpanReaderParams{Client: client, Logger: logger, MetricsFactory: metricsFactory,
 			IndexPrefix: "", Archive: true},
-			index: spanIndex + archiveIndexSuffix},
+			indices: []string{spanIndex + archiveIndexSuffix}},
 		{params: SpanReaderParams{Client: client, Logger: logger, MetricsFactory: metricsFactory,
 			IndexPrefix: "foo:", Archive: true},
-			index: "foo:" + indexPrefixSeparator + spanIndex + archiveIndexSuffix},
+			indices: []string{"foo:" + indexPrefixSeparator + spanIndex + archiveIndexSuffix}},
 		{params: SpanReaderParams{Client: client, Logger: logger, MetricsFactory: metricsFactory,
 			IndexPrefix: "foo:", Archive: true, UseReadWriteAliases: true},
-			index: "foo:" + indexPrefixSeparator + spanIndex + archiveReadIndexSuffix},
+			indices: []string{"foo:" + indexPrefixSeparator + spanIndex + archiveReadIndexSuffix}},
+		{params: SpanReaderParams{Client: client, Logger: logger, MetricsFactory: metricsFactory,
+			IndexPrefix: "", Archive: false, RemoteReadClusters: []string{"cluster_one", "cluster_two"}},
+			indices: []string{spanIndex + dateFormat, "cluster_one:" + spanIndex + dateFormat, "cluster_two:" + spanIndex + dateFormat}},
 	}
 	for _, testCase := range testCases {
 		r := NewSpanReader(testCase.params)
 		actual := r.timeRangeIndices(r.spanIndexPrefix, date, date)
-		assert.Equal(t, []string{testCase.index}, actual)
+		assert.Equal(t, testCase.indices, actual)
 	}
 }
 

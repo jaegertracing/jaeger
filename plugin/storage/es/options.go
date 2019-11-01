@@ -32,6 +32,7 @@ const (
 	suffixSniffer             = ".sniffer"
 	suffixTokenPath           = ".token-file"
 	suffixServerURLs          = ".server-urls"
+	suffixRemoteReadClusters  = ".remote-read-clusters"
 	suffixMaxSpanAge          = ".max-span-age"
 	suffixMaxNumSpans         = ".max-num-spans"
 	suffixNumShards           = ".num-shards"
@@ -73,8 +74,9 @@ type Options struct {
 // preparing the actual config.Configuration.
 type namespaceConfig struct {
 	config.Configuration
-	servers   string
-	namespace string
+	servers            string
+	remoteReadClusters string
+	namespace          string
 }
 
 // NewOptions creates a new Options struct.
@@ -99,8 +101,9 @@ func NewOptions(primaryNamespace string, otherNamespaces ...string) *Options {
 				CreateIndexTemplates: true,
 				Version:              0,
 			},
-			servers:   "http://127.0.0.1:9200",
-			namespace: primaryNamespace,
+			servers:            "http://127.0.0.1:9200",
+			remoteReadClusters: "",
+			namespace:          primaryNamespace,
 		},
 		others: make(map[string]*namespaceConfig, len(otherNamespaces)),
 	}
@@ -141,6 +144,11 @@ func addFlags(flagSet *flag.FlagSet, nsConfig *namespaceConfig) {
 		nsConfig.namespace+suffixServerURLs,
 		nsConfig.servers,
 		"The comma-separated list of Elasticsearch servers, must be full url i.e. http://localhost:9200")
+	flagSet.String(
+		nsConfig.namespace+suffixRemoteReadClusters,
+		nsConfig.remoteReadClusters,
+		"Comma-separated list of Elasticsearch remote cluster names for cross-cluster querying."+
+			"See Elasticsearch remote clusters and cross-cluster query api.")
 	flagSet.Duration(
 		nsConfig.namespace+suffixTimeout,
 		nsConfig.Timeout,
@@ -249,6 +257,7 @@ func initFromViper(cfg *namespaceConfig, v *viper.Viper) {
 	cfg.TokenFilePath = v.GetString(cfg.namespace + suffixTokenPath)
 	cfg.Sniffer = v.GetBool(cfg.namespace + suffixSniffer)
 	cfg.servers = stripWhiteSpace(v.GetString(cfg.namespace + suffixServerURLs))
+	cfg.remoteReadClusters = stripWhiteSpace(v.GetString(cfg.namespace + suffixRemoteReadClusters))
 	cfg.MaxSpanAge = v.GetDuration(cfg.namespace + suffixMaxSpanAge)
 	cfg.MaxNumSpans = v.GetInt(cfg.namespace + suffixMaxNumSpans)
 	cfg.NumShards = v.GetInt64(cfg.namespace + suffixNumShards)
@@ -278,6 +287,13 @@ func initFromViper(cfg *namespaceConfig, v *viper.Viper) {
 // GetPrimary returns primary configuration.
 func (opt *Options) GetPrimary() *config.Configuration {
 	opt.primary.Servers = strings.Split(opt.primary.servers, ",")
+
+	if opt.primary.remoteReadClusters == "" {
+		opt.primary.RemoteReadClusters = []string{}
+	} else {
+		opt.primary.RemoteReadClusters = strings.Split(opt.primary.remoteReadClusters, ",")
+	}
+
 	return &opt.primary.Configuration
 }
 
@@ -293,6 +309,13 @@ func (opt *Options) Get(namespace string) *config.Configuration {
 		nsCfg.servers = opt.primary.servers
 	}
 	nsCfg.Servers = strings.Split(nsCfg.servers, ",")
+
+	if nsCfg.remoteReadClusters == "" {
+		nsCfg.RemoteReadClusters = []string{}
+	} else {
+		nsCfg.RemoteReadClusters = strings.Split(nsCfg.remoteReadClusters, ",")
+	}
+
 	return &nsCfg.Configuration
 }
 
