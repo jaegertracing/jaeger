@@ -34,6 +34,7 @@ type Server struct {
 	logger   log.Factory
 	bestETA  *bestETA
 	assetFS  http.FileSystem
+	basepath string
 }
 
 // ConfigOptions used to make sure service clients
@@ -43,31 +44,40 @@ type ConfigOptions struct {
 	DriverHostPort   string
 	CustomerHostPort string
 	RouteHostPort    string
+	Basepath 		 string
 }
 
 // NewServer creates a new frontend.Server
 func NewServer(options ConfigOptions, tracer opentracing.Tracer, logger log.Factory) *Server {
 	assetFS := FS(false)
+	basepath := options.Basepath
 	return &Server{
 		hostPort: options.FrontendHostPort,
 		tracer:   tracer,
 		logger:   logger,
 		bestETA:  newBestETA(tracer, logger, options),
 		assetFS:  assetFS,
+		basepath: basepath,
 	}
 }
 
 // Run starts the frontend server
 func (s *Server) Run() error {
 	mux := s.createServeMux()
-	s.logger.Bg().Info("Starting", zap.String("address", "http://"+s.hostPort))
+	s.logger.Bg().Info("Starting", zap.String("address", "http://"+s.hostPort+s.basepath))
 	return http.ListenAndServe(s.hostPort, mux)
 }
 
 func (s *Server) createServeMux() http.Handler {
 	mux := tracing.NewServeMux(s.tracer)
-	mux.Handle("/", http.FileServer(s.assetFS))
-	mux.Handle("/dispatch", http.HandlerFunc(s.dispatch))
+	switch {
+	case s.basepath != "/":
+		mux.Handle(s.basepath, http.StripPrefix(s.basepath, http.FileServer(s.assetFS)))
+		mux.Handle(s.basepath + "/dispatch", http.HandlerFunc(s.dispatch))
+	default:
+		mux.Handle("/", http.FileServer(s.assetFS))
+		mux.Handle("/dispatch", http.HandlerFunc(s.dispatch))
+	}
 	return mux
 }
 
