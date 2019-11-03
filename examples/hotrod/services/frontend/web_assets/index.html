@@ -73,7 +73,12 @@ $(".hotrod-button").click(function(evt) {
   };
   console.log(headers);
   var before = Date.now();
-  $.ajax('/dispatch?customer=' + customer + '&nonse=' + Math.random(), {
+
+  // Use current URI as basepath for ajax requests
+  var pathPrefix = window.location.pathname;
+  pathPrefix = pathPrefix.length > 1 ? pathPrefix : '';
+
+  $.ajax(pathPrefix + '/dispatch?customer=' + customer + '&nonse=' + Math.random(), {
     headers: headers,
     method: 'GET',
     success: function(data, textStatus) {
