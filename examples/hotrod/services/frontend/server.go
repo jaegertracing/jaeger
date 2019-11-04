@@ -44,7 +44,7 @@ type ConfigOptions struct {
 	DriverHostPort   string
 	CustomerHostPort string
 	RouteHostPort    string
-	Basepath 		 string
+	Basepat          string
 }
 
 // NewServer creates a new frontend.Server
