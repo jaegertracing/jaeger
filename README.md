@@ -46,7 +46,7 @@ On 28-May-2019, [the OpenTracing and OpenCensus projects announced](https://medi
 
 ### Multiple storage backends
 
-Jaeger supports two popular open source NoSQL databases as trace storage backends: Cassandra 3.4+ and Elasticsearch 5.x/6.x.
+Jaeger supports two popular open source NoSQL databases as trace storage backends: Cassandra 3.4+ and Elasticsearch 5.x/6.x.  There is also embedded database support using [Badger](https://github.com/dgraph-io/badger).
 There are ongoing community experiments using other databases, such as ScyllaDB, InfluxDB, Amazon DynamoDB. Jaeger also ships
 with a simple in-memory storage for testing setups.
 
