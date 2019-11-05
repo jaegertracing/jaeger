@@ -44,7 +44,7 @@ type ConfigOptions struct {
 	DriverHostPort   string
 	CustomerHostPort string
 	RouteHostPort    string
-	Basepat          string
+	Basepath         string
 }
 
 // NewServer creates a new frontend.Server
@@ -72,7 +72,7 @@ func (s *Server) createServeMux() http.Handler {
 	switch {
 	case s.basepath != "/":
 		mux.Handle(s.basepath, http.StripPrefix(s.basepath, http.FileServer(s.assetFS)))
-		mux.Handle(s.basepath + "/dispatch", http.HandlerFunc(s.dispatch))
+		mux.Handle(s.basepath+"/dispatch", http.HandlerFunc(s.dispatch))
 	default:
 		mux.Handle("/", http.FileServer(s.assetFS))
 		mux.Handle("/dispatch", http.HandlerFunc(s.dispatch))
