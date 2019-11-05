@@ -25,10 +25,10 @@ import (
 )
 
 const (
-	// TraceIDShortBytesLen indicates length of 64bit traceID when represented as list of bytes
-	TraceIDShortBytesLen = 8
-	// TraceIDLongBytesLen indicates length of 128bit traceID when represented as list of bytes
-	TraceIDLongBytesLen = 16
+	// traceIDShortBytesLen indicates length of 64bit traceID when represented as list of bytes
+	traceIDShortBytesLen = 8
+	// traceIDLongBytesLen indicates length of 128bit traceID when represented as list of bytes
+	traceIDLongBytesLen = 16
 )
 
 // TraceID is a random 128bit identifier for a trace
@@ -77,6 +77,21 @@ func TraceIDFromString(s string) (TraceID, error) {
 	return TraceID{High: hi, Low: lo}, nil
 }
 
+// TraceIDFromBytes creates a TraceID from list of bytes
+func TraceIDFromBytes(data []byte) (TraceID, error) {
+	var t TraceID
+	switch {
+	case len(data) == traceIDLongBytesLen:
+		t.High = binary.BigEndian.Uint64(data[:traceIDShortBytesLen])
+		t.Low = binary.BigEndian.Uint64(data[traceIDShortBytesLen:])
+	case len(data) == traceIDShortBytesLen:
+		t.Low = binary.BigEndian.Uint64(data)
+	default:
+		return TraceID{}, fmt.Errorf("invalid length for TraceID")
+	}
+	return t, nil
+}
+
 // MarshalText is called by encoding/json, which we do not want people to use.
 func (t TraceID) MarshalText() ([]byte, error) {
 	return nil, fmt.Errorf("unsupported method TraceID.MarshalText; please use github.com/gogo/protobuf/jsonpb for marshalling")
@@ -102,12 +117,9 @@ func (t *TraceID) MarshalTo(data []byte) (n int, err error) {
 
 // Unmarshal inflates this trace ID from binary representation. Called by protobuf serialization.
 func (t *TraceID) Unmarshal(data []byte) error {
-	if len(data) < 16 {
-		return fmt.Errorf("buffer is too short")
-	}
-	t.High = binary.BigEndian.Uint64(data[:8])
-	t.Low = binary.BigEndian.Uint64(data[8:])
-	return nil
+	var err error
+	*t, err = TraceIDFromBytes(data)
+	return err
 }
 
 func marshalBytes(dst []byte, src []byte) (n int, err error) {
@@ -166,6 +178,14 @@ func SpanIDFromString(s string) (SpanID, error) {
 	return SpanID(id), nil
 }
 
+// SpanIDFromBytes creates a SpandID from list of bytes
+func SpanIDFromBytes(data []byte) (SpanID, error) {
+	if len(data) != traceIDShortBytesLen {
+		return SpanID(0), fmt.Errorf("invalid length for SpanID")
+	}
+	return NewSpanID(binary.BigEndian.Uint64(data)), nil
+}
+
 // MarshalText is called by encoding/json, which we do not want people to use.
 func (s SpanID) MarshalText() ([]byte, error) {
 	return nil, fmt.Errorf("unsupported method SpanID.MarshalText; please use github.com/gogo/protobuf/jsonpb for marshalling")
@@ -190,11 +210,9 @@ func (s *SpanID) MarshalTo(data []byte) (n int, err error) {
 
 // Unmarshal inflates span ID from a binary representation. Called by protobuf serialization.
 func (s *SpanID) Unmarshal(data []byte) error {
-	if len(data) < 8 {
-		return fmt.Errorf("buffer is too short")
-	}
-	*s = NewSpanID(binary.BigEndian.Uint64(data))
-	return nil
+	var err error
+	*s, err = SpanIDFromBytes(data)
+	return err
 }
 
 // MarshalJSON converts span id into a base64 string enclosed in quotes.

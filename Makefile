@@ -84,8 +84,8 @@ clean:
 test: go-gen
 	bash -c "set -e; set -o pipefail; $(GOTEST) ./... | $(COLORIZE)"
 
-.PHONY: integration-test
-integration-test: go-gen
+.PHONY: all-in-one-integration-test
+all-in-one-integration-test: go-gen
 	$(GOTEST) -tags=integration ./cmd/all-in-one/...
 
 .PHONY: storage-integration-test
@@ -136,13 +136,13 @@ fmt:
 
 .PHONY: lint-gosec
 lint-gosec:
-	$(GOSEC) ./...
+	time $(GOSEC) ./...
 
 .PHONY: lint-staticcheck
 lint-staticcheck:
 	@echo Running staticcheck...
 	@cat /dev/null > $(LINT_LOG)
-	@$(STATICCHECK) ./... \
+	@time $(STATICCHECK) ./... \
 		| grep -v \
 			-e model/model.pb.go \
 			-e thrift-gen/ \

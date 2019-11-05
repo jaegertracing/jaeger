@@ -19,15 +19,16 @@ import (
 	"context"
 	"net/http"
 	"os"
+	"strconv"
 	"testing"
 	"time"
 
+	"github.com/olivere/elastic"
 	"github.com/pkg/errors"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"github.com/uber/jaeger-lib/metrics"
 	"go.uber.org/zap"
-	"gopkg.in/olivere/elastic.v5"
 
 	"github.com/jaegertracing/jaeger/model"
 	"github.com/jaegertracing/jaeger/pkg/es/wrapper"
@@ -55,6 +56,18 @@ type ESStorageIntegration struct {
 	logger        *zap.Logger
 }
 
+func (s *ESStorageIntegration) getVersion() (uint, error) {
+	pingResult, _, err := s.client.Ping(queryURL).Do(context.Background())
+	if err != nil {
+		return 0, err
+	}
+	esVersion, err := strconv.Atoi(string(pingResult.Version.Number[0]))
+	if err != nil {
+		return 0, err
+	}
+	return uint(esVersion), nil
+}
+
 func (s *ESStorageIntegration) initializeES(allTagsAsFields, archive bool) error {
 	rawClient, err := elastic.NewClient(
 		elastic.SetURL(queryURL),
@@ -66,8 +79,12 @@ func (s *ESStorageIntegration) initializeES(allTagsAsFields, archive bool) error
 
 	s.client = rawClient
 
+	esVersion, err := s.getVersion()
+	if err != nil {
+		return err
+	}
 	s.bulkProcessor, _ = s.client.BulkProcessor().Do(context.Background())
-	client := eswrapper.WrapESClient(s.client, s.bulkProcessor)
+	client := eswrapper.WrapESClient(s.client, s.bulkProcessor, esVersion)
 	dependencyStore := dependencystore.NewDependencyStore(client, s.logger, indexPrefix)
 	s.DependencyReader = dependencyStore
 	s.DependencyWriter = dependencyStore
@@ -90,8 +107,12 @@ func (s *ESStorageIntegration) esCleanUp(allTagsAsFields, archive bool) error {
 
 func (s *ESStorageIntegration) initSpanstore(allTagsAsFields, archive bool) error {
 	bp, _ := s.client.BulkProcessor().BulkActions(1).FlushInterval(time.Nanosecond).Do(context.Background())
-	client := eswrapper.WrapESClient(s.client, bp)
-	spanMapping, serviceMapping := es.GetMappings(5, 1)
+	esVersion, err := s.getVersion()
+	if err != nil {
+		return err
+	}
+	client := eswrapper.WrapESClient(s.client, bp, esVersion)
+	spanMapping, serviceMapping := es.GetMappings(5, 1, client.GetVersion())
 	w := spanstore.NewSpanWriter(
 		spanstore.SpanWriterParams{
 			Client:            client,
@@ -102,7 +123,7 @@ func (s *ESStorageIntegration) initSpanstore(allTagsAsFields, archive bool) erro
 			TagDotReplacement: tagKeyDeDotChar,
 			Archive:           archive,
 		})
-	err := w.CreateTemplates(spanMapping, serviceMapping)
+	err = w.CreateTemplates(spanMapping, serviceMapping)
 	if err != nil {
 		return err
 	}

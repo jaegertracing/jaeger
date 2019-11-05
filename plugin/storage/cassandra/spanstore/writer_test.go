@@ -339,6 +339,28 @@ func TestStorageMode_IndexOnly_WithFilter(t *testing.T) {
 	}, StoreIndexesOnly())
 }
 
+func TestStorageMode_IndexOnly_FirehoseSpan(t *testing.T) {
+	withSpanWriter(0, func(w *spanWriterTest) {
+
+		w.writer.serviceNamesWriter = func(serviceName string) error { return nil }
+		w.writer.operationNamesWriter = func(serviceName, operationName string) error { return nil }
+		span := &model.Span{
+			TraceID: model.NewTraceID(0, 1),
+			Process: &model.Process{
+				ServiceName: "service-a",
+			},
+			Flags: model.Flags(8),
+		}
+
+		err := w.writer.WriteSpan(span)
+		assert.NoError(t, err)
+		w.session.AssertExpectations(t)
+		w.session.AssertNotCalled(t, "Query", stringMatcher(serviceOperationIndex))
+		w.session.AssertNotCalled(t, "Query", stringMatcher(serviceNameIndex))
+		w.session.AssertNotCalled(t, "Query", stringMatcher(durationIndex))
+	}, StoreIndexesOnly())
+}
+
 func TestStorageMode_StoreWithoutIndexing(t *testing.T) {
 	withSpanWriter(0, func(w *spanWriterTest) {
 

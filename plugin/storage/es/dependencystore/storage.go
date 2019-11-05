@@ -20,9 +20,9 @@ import (
 	"encoding/json"
 	"time"
 
+	"github.com/olivere/elastic"
 	"github.com/pkg/errors"
 	"go.uber.org/zap"
-	"gopkg.in/olivere/elastic.v5"
 
 	"github.com/jaegertracing/jaeger/model"
 	"github.com/jaegertracing/jaeger/pkg/es"
@@ -67,7 +67,7 @@ func (s *DependencyStore) WriteDependencies(ts time.Time, dependencies []model.D
 }
 
 func (s *DependencyStore) createIndex(indexName string) error {
-	_, err := s.client.CreateIndex(indexName).Body(dependenciesMapping).Do(s.ctx)
+	_, err := s.client.CreateIndex(indexName).Body(getMapping(s.client.GetVersion())).Do(s.ctx)
 	if err != nil {
 		return errors.Wrap(err, "Failed to create index")
 	}
@@ -85,7 +85,6 @@ func (s *DependencyStore) writeDependencies(indexName string, ts time.Time, depe
 func (s *DependencyStore) GetDependencies(endTs time.Time, lookback time.Duration) ([]model.DependencyLink, error) {
 	indices := getIndices(s.indexPrefix, endTs, lookback)
 	searchResult, err := s.client.Search(indices...).
-		Type(dependencyType).
 		Size(10000). // the default elasticsearch allowed limit
 		Query(buildTSQuery(endTs, lookback)).
 		IgnoreUnavailable(true).

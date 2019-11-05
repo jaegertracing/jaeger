@@ -35,6 +35,7 @@ def main():
         print('ES_TLS_CA ... Path to TLS CA file.')
         print('ES_TLS_CERT ... Path to TLS certificate file.')
         print('ES_TLS_KEY ... Path to TLS key file.')
+        print('ES_VERSION ... The major Elasticsearch version. If not specified, the value will be auto-detected from Elasticsearch.')
         print('init configuration:')
         print('\tSHARDS ...  the number of shards per index in Elasticsearch (default {}).'.format(SHARDS))
         print('\tREPLICAS ... the number of replicas per index in Elasticsearch (default {}).'.format(REPLICAS))
@@ -80,7 +81,11 @@ def perform_action(action, client, write_alias, read_alias, index_to_rollover, t
     if action == 'init':
         shards = os.getenv('SHARDS', SHARDS)
         replicas = os.getenv('REPLICAS', REPLICAS)
-        mapping = Path('./mappings/'+template_name+'.json').read_text()
+        esVersion = get_version(client)
+        if esVersion == 7:
+            mapping = Path('./mappings/'+template_name+'-7.json').read_text()
+        else:
+            mapping = Path('./mappings/'+template_name+'.json').read_text()
         create_index_template(fix_mapping(mapping, shards, replicas), template_name)
 
         index = index_to_rollover + '-000001'
@@ -205,6 +210,15 @@ def get_request_session(username, password, tls, ca, cert, key):
         session.verify = ca
         session.cert = (cert, key)
     return session
+
+
+def get_version(client):
+    esVersion = os.getenv('ES_VERSION')
+    if esVersion is None or esVersion == '':
+        esVersion = client.info()['version']['number'][0]
+        print('Detected ElasticSearch Version {}'.format(esVersion))
+        esVersion = int(esVersion)
+    return esVersion
 
 
 if __name__ == "__main__":

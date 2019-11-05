@@ -127,8 +127,8 @@ by default uses only in-memory database.`,
 			cOpts := new(collector.CollectorOptions).InitFromViper(v)
 			qOpts := new(queryApp.QueryOptions).InitFromViper(v)
 
-			startAgent(aOpts, repOpts, tchanBuilder, grpcBuilder, cOpts, logger, metricsFactory)
 			collectorSrv := startCollector(cOpts, spanWriter, logger, metricsFactory, strategyStore, svc.HC())
+			startAgent(aOpts, repOpts, tchanBuilder, grpcBuilder, cOpts, logger, metricsFactory)
 			querySrv := startQuery(
 				svc, qOpts, archiveOptions(storageFactory, logger),
 				spanReader, dependencyReader,

@@ -86,3 +86,45 @@ func TestTraceSpanIDMarshalProto(t *testing.T) {
 		})
 	}
 }
+
+func TestSpanIDFromBytes(t *testing.T) {
+	errTests := [][]byte{
+		{0, 0, 0, 0},
+		{0, 0, 0, 0, 0, 0, 0, 13, 0},
+	}
+	for _, data := range errTests {
+		_, err := model.SpanIDFromBytes(data)
+		require.Error(t, err)
+		assert.Equal(t, err.Error(), "invalid length for SpanID")
+	}
+
+	spanID, err := model.SpanIDFromBytes([]byte{0, 0, 0, 0, 0, 0, 0, 13})
+	require.NoError(t, err)
+	assert.Equal(t, spanID, model.NewSpanID(13))
+}
+
+func TestTraceIDFromBytes(t *testing.T) {
+	errTests := [][]byte{
+		{0, 0, 0, 0, 0, 0, 0, 13, 0, 0, 0, 0, 0, 0, 0, 0, 13},
+		{0, 0, 0, 0, 0, 0, 0, 13, 0, 0, 0, 0, 0, 0, 13},
+		{0, 0, 0, 0, 0, 0, 13},
+	}
+	for _, data := range errTests {
+		_, err := model.TraceIDFromBytes(data)
+		require.Error(t, err)
+		assert.Equal(t, err.Error(), "invalid length for TraceID")
+	}
+
+	tests := []struct {
+		data     []byte
+		expected model.TraceID
+	}{
+		{data: []byte{0, 0, 0, 0, 0, 0, 0, 2, 0, 0, 0, 0, 0, 0, 0, 3}, expected: model.NewTraceID(2, 3)},
+		{data: []byte{0, 0, 0, 0, 0, 0, 0, 2}, expected: model.NewTraceID(0, 2)},
+	}
+	for _, test := range tests {
+		traceID, err := model.TraceIDFromBytes(test.data)
+		require.NoError(t, err)
+		assert.Equal(t, traceID, test.expected)
+	}
+}

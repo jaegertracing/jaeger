@@ -22,6 +22,7 @@ import (
 	"errors"
 	"fmt"
 	"math"
+	"sort"
 	"time"
 
 	"github.com/dgraph-io/badger"
@@ -220,11 +221,14 @@ func (r *TraceReader) scanTimeRange(startTime time.Time, endTime time.Time) ([]*
 }
 
 func createPrimaryKeySeekPrefix(traceID model.TraceID) []byte {
-	buf := new(bytes.Buffer)
-	buf.WriteByte(spanKeyPrefix)
-	binary.Write(buf, binary.BigEndian, traceID.High)
-	binary.Write(buf, binary.BigEndian, traceID.Low)
-	return buf.Bytes()
+	key := make([]byte, 1+sizeOfTraceID)
+	key[0] = spanKeyPrefix
+	pos := 1
+	binary.BigEndian.PutUint64(key[pos:], traceID.High)
+	pos += 8
+	binary.BigEndian.PutUint64(key[pos:], traceID.Low)
+
+	return key
 }
 
 // GetServices fetches the sorted service list that have not expired
@@ -288,6 +292,9 @@ func (r *TraceReader) indexSeeksToTraceIDs(query *spanstore.TraceQueryParameters
 				prevTraceID = traceID
 			}
 		}
+		sort.Slice(ids[i], func(k, h int) bool {
+			return bytes.Compare(ids[i][k], ids[i][h]) < 0
+		})
 	}
 	return ids, nil
 }
@@ -378,7 +385,6 @@ func mergeJoinIds(left, right [][]byte) [][]byte {
 // sortMergeIds does a sort-merge join operation to the list of TraceIDs to remove duplicates
 func sortMergeIds(query *spanstore.TraceQueryParameters, ids [][][]byte) []model.TraceID {
 	// Key only scan is a lot faster in the badger - use sort-merge join algorithm instead of hash join since we have the keys in sorted order already
-
 	var merged [][]byte
 
 	if len(ids) > 1 {
@@ -501,24 +507,26 @@ func (r *TraceReader) scanIndexKeys(indexKeyValue []byte, startTimeMin time.Time
 		defer it.Close()
 
 		// Create starting point for sorted index scan
-		startIndex := make([]byte, 0, len(indexKeyValue)+len(startStampBytes))
-		startIndex = append(startIndex, indexKeyValue...)
-		startIndex = append(startIndex, startStampBytes...)
+		startIndex := make([]byte, len(indexKeyValue)+len(startStampBytes))
+		copy(startIndex, indexKeyValue)
+		copy(startIndex[len(indexKeyValue):], startStampBytes)
 
-		for it.Seek(startIndex); scanFunction(it, indexKeyValue, model.TimeAsEpochMicroseconds(startTimeMax)); it.Next() {
+		timeMax := model.TimeAsEpochMicroseconds(startTimeMax)
+		for it.Seek(startIndex); scanFunction(it, indexKeyValue, timeMax); it.Next() {
 			item := it.Item()
 
 			// ScanFunction is a prefix scanning (since we could have for example service1 & service12)
 			// Now we need to match only the exact key if we want to add it
 			timestampStartIndex := len(it.Item().Key()) - (sizeOfTraceID + 8) // timestamp is stored with 8 bytes
 			if bytes.Equal(indexKeyValue, it.Item().Key()[:timestampStartIndex]) {
-				key := []byte{}
-				key = append(key, item.Key()...) // badger reuses underlying slices so we have to copy the key
+				key := make([]byte, len(item.Key()))
+				copy(key, item.Key())
 				indexResults = append(indexResults, key)
 			}
 		}
 		return nil
 	})
+
 	return indexResults, err
 }
 
@@ -548,9 +556,9 @@ func (r *TraceReader) scanRangeIndex(indexStartValue []byte, indexEndValue []byt
 		defer it.Close()
 
 		// Create starting point for sorted index scan
-		startIndex := make([]byte, 0, len(indexStartValue)+len(startStampBytes))
-		startIndex = append(startIndex, indexStartValue...)
-		startIndex = append(startIndex, startStampBytes...)
+		startIndex := make([]byte, len(indexStartValue)+len(startStampBytes))
+		copy(startIndex, indexStartValue)
+		copy(startIndex[len(indexStartValue):], startStampBytes)
 
 		timeIndexEnd := model.TimeAsEpochMicroseconds(startTimeMax)
 
@@ -562,9 +570,8 @@ func (r *TraceReader) scanRangeIndex(indexStartValue []byte, indexEndValue []byt
 			timestampStartIndex := len(it.Item().Key()) - (sizeOfTraceID + 8) // timestamp is stored with 8 bytes
 			timestamp := binary.BigEndian.Uint64(it.Item().Key()[timestampStartIndex : timestampStartIndex+8])
 			if timestamp <= timeIndexEnd {
-				key := []byte{}
-				key = item.KeyCopy(key)
-				key = append(key, item.Key()...) // badger reuses underlying slices so we have to copy the key
+				key := make([]byte, len(item.Key()))
+				copy(key, item.Key())
 				indexResults = append(indexResults, key)
 			}
 		}
@@ -584,10 +591,8 @@ func scanRangeFunction(it *badger.Iterator, indexEndValue []byte) bool {
 
 // traceIDToComparableBytes transforms model.TraceID to BigEndian sorted []byte
 func traceIDToComparableBytes(traceID *model.TraceID) []byte {
-	buf := new(bytes.Buffer)
-
-	binary.Write(buf, binary.BigEndian, traceID.High)
-	binary.Write(buf, binary.BigEndian, traceID.Low)
-
-	return buf.Bytes()
+	traceIDBytes := make([]byte, sizeOfTraceID)
+	binary.BigEndian.PutUint64(traceIDBytes, traceID.High)
+	binary.BigEndian.PutUint64(traceIDBytes[8:], traceID.Low)
+	return traceIDBytes
 }

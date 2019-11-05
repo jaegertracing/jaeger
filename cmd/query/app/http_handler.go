@@ -396,7 +396,7 @@ func (aH *APIHandler) archiveTrace(w http.ResponseWriter, r *http.Request) {
 	}
 
 	structuredRes := structuredResponse{
-		Data:   []string{}, // doens't matter, just want an empty array
+		Data:   []string{}, // doesn't matter, just want an empty array
 		Errors: []structuredError{},
 	}
 	aH.writeJSON(w, r, &structuredRes)

@@ -31,7 +31,7 @@ type UDTField struct {
 	Err   bool   // is error expected?
 }
 
-// UDTTestCase desribes a test for a UDT
+// UDTTestCase describes a test for a UDT
 type UDTTestCase struct {
 	Obj     gocql.UDTMarshaler
 	ObjName string

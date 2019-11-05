@@ -50,7 +50,7 @@ func Command() *cobra.Command {
 		Short: "Help about environment variables.",
 		Long:  long,
 		Run: func(cmd *cobra.Command, args []string) {
-			fmt.Fprintf(cmd.OutOrStdout(), long)
+			fmt.Fprint(cmd.OutOrStdout(), long)
 		},
 	}
 }

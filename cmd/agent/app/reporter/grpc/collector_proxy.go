@@ -15,8 +15,6 @@
 package grpc
 
 import (
-	"crypto/x509"
-
 	"github.com/uber/jaeger-lib/metrics"
 	"go.uber.org/zap"
 	"google.golang.org/grpc"
@@ -33,8 +31,6 @@ type ProxyBuilder struct {
 	manager  configmanager.ClientConfigManager
 	conn     *grpc.ClientConn
 }
-
-var systemCertPool = x509.SystemCertPool // to allow overriding in unit test
 
 // NewCollectorProxy creates ProxyBuilder
 func NewCollectorProxy(builder *ConnBuilder, agentTags map[string]string, mFactory metrics.Factory, logger *zap.Logger) (*ProxyBuilder, error) {

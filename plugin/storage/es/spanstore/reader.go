@@ -22,13 +22,13 @@ import (
 	"fmt"
 	"time"
 
+	"github.com/olivere/elastic"
 	"github.com/opentracing/opentracing-go"
 	ottag "github.com/opentracing/opentracing-go/ext"
 	otlog "github.com/opentracing/opentracing-go/log"
 	"github.com/pkg/errors"
 	"github.com/uber/jaeger-lib/metrics"
 	"go.uber.org/zap"
-	"gopkg.in/olivere/elastic.v5"
 
 	"github.com/jaegertracing/jaeger/model"
 	"github.com/jaegertracing/jaeger/pkg/es"
@@ -90,7 +90,6 @@ var (
 
 // SpanReader can query for and load traces from ElasticSearch
 type SpanReader struct {
-	ctx    context.Context
 	client es.Client
 	logger *zap.Logger
 	// The age of the oldest service/operation we will look for. Because indices in ElasticSearch are by day,
@@ -119,9 +118,7 @@ type SpanReaderParams struct {
 
 // NewSpanReader returns a new SpanReader with a metrics.
 func NewSpanReader(p SpanReaderParams) *SpanReader {
-	ctx := context.Background()
 	return &SpanReader{
-		ctx:                     ctx,
 		client:                  p.Client,
 		logger:                  p.Logger,
 		maxSpanAge:              p.MaxSpanAge,
@@ -333,12 +330,11 @@ func (s *SpanReader) multiRead(ctx context.Context, traceIDs []model.TraceID, st
 
 			searchRequests[i] = elastic.NewSearchRequest().
 				IgnoreUnavailable(true).
-				Type(spanType).
 				Source(s)
 		}
 		// set traceIDs to empty
 		traceIDs = nil
-		results, err := s.client.MultiSearch().Add(searchRequests...).Index(indices...).Do(s.ctx)
+		results, err := s.client.MultiSearch().Add(searchRequests...).Index(indices...).Do(ctx)
 
 		if err != nil {
 			logErrorToSpan(childSpan, err)
@@ -472,17 +468,15 @@ func (s *SpanReader) findTraceIDs(ctx context.Context, traceQuery *spanstore.Tra
 	//  }
 	aggregation := s.buildTraceIDAggregation(traceQuery.NumTraces)
 	boolQuery := s.buildFindTraceIDsQuery(traceQuery)
-
 	jaegerIndices := s.timeRangeIndices(s.spanIndexPrefix, traceQuery.StartTimeMin, traceQuery.StartTimeMax)
 
 	searchService := s.client.Search(jaegerIndices...).
-		Type(spanType).
 		Size(0). // set to 0 because we don't want actual documents.
 		Aggregation(traceIDAggregation, aggregation).
 		IgnoreUnavailable(true).
 		Query(boolQuery)
 
-	searchResult, err := searchService.Do(s.ctx)
+	searchResult, err := searchService.Do(ctx)
 	if err != nil {
 		return nil, errors.Wrap(err, "Search service failed")
 	}

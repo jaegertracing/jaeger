@@ -175,7 +175,7 @@ func TestSpanIDUnmarshalJSONErrors(t *testing.T) {
 
 	err = id.UnmarshalJSONPB(nil, []byte(""))
 	require.Error(t, err)
-	assert.Contains(t, err.Error(), "buffer is too short")
+	assert.Contains(t, err.Error(), "invalid length for SpanID")
 	err = id.UnmarshalJSONPB(nil, []byte("123"))
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "illegal base64 data")
@@ -205,6 +205,19 @@ func TestIsDebug(t *testing.T) {
 	assert.False(t, flags.IsDebug())
 	flags.SetDebug()
 	assert.True(t, flags.IsDebug())
+}
+
+func TestIsFirehoseEnabled(t *testing.T) {
+	flags := model.Flags(0)
+	assert.False(t, flags.IsFirehoseEnabled())
+	flags.SetDebug()
+	flags.SetSampled()
+	assert.False(t, flags.IsFirehoseEnabled())
+	flags.SetFirehose()
+	assert.True(t, flags.IsFirehoseEnabled())
+
+	flags = model.Flags(8)
+	assert.True(t, flags.IsFirehoseEnabled())
 }
 
 func TestSamplerType(t *testing.T) {

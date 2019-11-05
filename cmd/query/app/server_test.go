@@ -15,12 +15,14 @@
 package app
 
 import (
+	"context"
 	"fmt"
 	"testing"
 	"time"
 
 	opentracing "github.com/opentracing/opentracing-go"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/mock"
 	"go.uber.org/zap"
 	"go.uber.org/zap/zaptest/observer"
 
@@ -28,6 +30,9 @@ import (
 	"github.com/jaegertracing/jaeger/cmd/query/app/querysvc"
 	"github.com/jaegertracing/jaeger/pkg/healthcheck"
 	"github.com/jaegertracing/jaeger/ports"
+	"github.com/jaegertracing/jaeger/proto-gen/api_v2"
+	depsmocks "github.com/jaegertracing/jaeger/storage/dependencystore/mocks"
+	spanstoremocks "github.com/jaegertracing/jaeger/storage/spanstore/mocks"
 )
 
 func TestServerError(t *testing.T) {
@@ -40,18 +45,30 @@ func TestServerError(t *testing.T) {
 }
 
 func TestServer(t *testing.T) {
-	flagsSvc := flags.NewService(ports.AgentAdminHTTP)
+	flagsSvc := flags.NewService(ports.QueryAdminHTTP)
 	flagsSvc.Logger = zap.NewNop()
 
-	querySvc := &querysvc.QueryService{}
-	tracer := opentracing.NoopTracer{}
+	spanReader := &spanstoremocks.Reader{}
+	dependencyReader := &depsmocks.Reader{}
+	expectedServices := []string{"test"}
+	spanReader.On("GetServices", mock.AnythingOfType("*context.valueCtx")).Return(expectedServices, nil)
 
-	server := NewServer(flagsSvc, querySvc, &QueryOptions{Port: ports.QueryAdminHTTP,
-		BearerTokenPropagation: true}, tracer)
+	querySvc := querysvc.NewQueryService(spanReader, dependencyReader, querysvc.QueryServiceOptions{})
+
+	server := NewServer(flagsSvc, querySvc,
+		&QueryOptions{Port: ports.QueryHTTP, BearerTokenPropagation: true},
+		opentracing.NoopTracer{})
 	assert.NoError(t, server.Start())
 
-	// TODO wait for servers to come up and test http and grpc endpoints
-	time.Sleep(1 * time.Second)
+	client := newGRPCClient(t, fmt.Sprintf(":%d", ports.QueryHTTP))
+	defer client.conn.Close()
+
+	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
+	defer cancel()
+
+	res, err := client.GetServices(ctx, &api_v2.GetServicesRequest{})
+	assert.NoError(t, err)
+	assert.Equal(t, expectedServices, res.Services)
 
 	server.Close()
 	for i := 0; i < 10; i++ {
@@ -64,7 +81,7 @@ func TestServer(t *testing.T) {
 }
 
 func TestServerGracefulExit(t *testing.T) {
-	flagsSvc := flags.NewService(ports.AgentAdminHTTP)
+	flagsSvc := flags.NewService(ports.QueryAdminHTTP)
 
 	zapCore, logs := observer.New(zap.ErrorLevel)
 	assert.Equal(t, 0, logs.Len(), "Expected initial ObservedLogs to have zero length.")
@@ -77,11 +94,12 @@ func TestServerGracefulExit(t *testing.T) {
 	assert.NoError(t, server.Start())
 
 	// Wait for servers to come up before we can call .Close()
+	// TODO Find a way to wait only as long as necessary. Unconditional sleep slows down the tests.
 	time.Sleep(1 * time.Second)
 	server.Close()
 
 	for _, logEntry := range logs.All() {
 		assert.True(t, logEntry.Level != zap.ErrorLevel,
-			fmt.Sprintf("Error log found on server exit: %v", logEntry))
+			"Error log found on server exit: %v", logEntry)
 	}
 }

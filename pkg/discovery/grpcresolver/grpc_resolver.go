@@ -29,6 +29,9 @@ import (
 	"github.com/jaegertracing/jaeger/pkg/discovery"
 )
 
+// GRPCServiceConfig provides grpc service config
+const GRPCServiceConfig = `{"loadBalancingPolicy":"round_robin"}`
+
 // Resolver uses notifier to fetch list of available hosts
 type Resolver struct {
 	scheme            string
@@ -54,7 +57,7 @@ func (s hostScores) Len() int           { return len(s) }
 func (s hostScores) Swap(i, j int)      { s[i], s[j] = s[j], s[i] }
 func (s hostScores) Less(i, j int) bool { return s[i].score < s[j].score }
 
-// New intialize a new grpc resolver with notifier
+// New initialize a new grpc resolver with notifier
 func New(
 	notifier discovery.Notifier,
 	discoverer discovery.Discoverer,
@@ -101,7 +104,7 @@ func (r *Resolver) Scheme() string {
 	return r.scheme
 }
 
-// ResolveNow is a noop for Resolver since resolver is already firing r.cc.UpdatesState everytime
+// ResolveNow is a noop for Resolver since resolver is already firing r.cc.UpdatesState every time
 // it receives updates of new instance from discoCh
 func (r *Resolver) ResolveNow(o resolver.ResolveNowOption) {}
 
