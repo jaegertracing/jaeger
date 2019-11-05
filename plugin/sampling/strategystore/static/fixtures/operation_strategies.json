@@ -3,12 +3,24 @@
     "type": "probabilistic",
     "param": 0.5
   },
+  "default_operation_strategies": [
+    {
+      "operation": "/health",
+      "type": "probabilistic",
+      "param": 0
+    }
+  ],
   "service_strategies": [
     {
       "service": "foo",
       "type": "probabilistic",
       "param": 0.8,
       "operation_strategies": [
+        {
+          "operation": "/health",
+          "type": "probabilistic",
+          "param": 0.5
+        },
         {
           "operation": "op1",
           "type": "probabilistic",

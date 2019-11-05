@@ -77,9 +77,11 @@ func TestPerOperationSamplingStrategies(t *testing.T) {
 	require.NotNil(t, s.OperationSampling)
 	os := s.OperationSampling
 	assert.EqualValues(t, os.DefaultSamplingProbability, 0.8)
-	require.Len(t, os.PerOperationStrategies, 1)
-	assert.Equal(t, "op1", os.PerOperationStrategies[0].Operation)
-	assert.EqualValues(t, 0.2, os.PerOperationStrategies[0].ProbabilisticSampling.SamplingRate)
+	require.Len(t, os.PerOperationStrategies, 2)
+	assert.Equal(t, "/health", os.PerOperationStrategies[0].Operation)
+	assert.EqualValues(t, 0.5, os.PerOperationStrategies[0].ProbabilisticSampling.SamplingRate)
+	assert.Equal(t, "op1", os.PerOperationStrategies[1].Operation)
+	assert.EqualValues(t, 0.2, os.PerOperationStrategies[1].ProbabilisticSampling.SamplingRate)
 
 	expected = makeResponse(sampling.SamplingStrategyType_RATE_LIMITING, 5)
 
@@ -91,15 +93,28 @@ func TestPerOperationSamplingStrategies(t *testing.T) {
 	require.NotNil(t, s.OperationSampling)
 	os = s.OperationSampling
 	assert.EqualValues(t, os.DefaultSamplingProbability, 0.001)
-	require.Len(t, os.PerOperationStrategies, 2)
-	assert.Equal(t, "op3", os.PerOperationStrategies[0].Operation)
-	assert.EqualValues(t, 0.3, os.PerOperationStrategies[0].ProbabilisticSampling.SamplingRate)
-	assert.Equal(t, "op5", os.PerOperationStrategies[1].Operation)
-	assert.EqualValues(t, 0.4, os.PerOperationStrategies[1].ProbabilisticSampling.SamplingRate)
+	require.Len(t, os.PerOperationStrategies, 3)
+	assert.Equal(t, "/health", os.PerOperationStrategies[0].Operation)
+	assert.EqualValues(t, 0, os.PerOperationStrategies[0].ProbabilisticSampling.SamplingRate)
+	assert.Equal(t, "op3", os.PerOperationStrategies[1].Operation)
+	assert.EqualValues(t, 0.3, os.PerOperationStrategies[1].ProbabilisticSampling.SamplingRate)
+	assert.Equal(t, "op5", os.PerOperationStrategies[2].Operation)
+	assert.EqualValues(t, 0.4, os.PerOperationStrategies[2].ProbabilisticSampling.SamplingRate)
 
 	s, err = store.GetSamplingStrategy("default")
 	require.NoError(t, err)
-	assert.EqualValues(t, makeResponse(sampling.SamplingStrategyType_PROBABILISTIC, 0.5), *s)
+	expectedRsp := makeResponse(sampling.SamplingStrategyType_PROBABILISTIC, 0.5)
+	expectedRsp.OperationSampling = &sampling.PerOperationSamplingStrategies{
+		PerOperationStrategies: []*sampling.OperationSamplingStrategy{
+			{
+				Operation: "/health",
+				ProbabilisticSampling: &sampling.ProbabilisticSamplingStrategy{
+					SamplingRate: 0,
+				},
+			},
+		},
+	}
+	assert.EqualValues(t, expectedRsp, *s)
 }
 
 func TestMissingServiceSamplingStrategyTypes(t *testing.T) {

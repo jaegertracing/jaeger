@@ -20,6 +20,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"io/ioutil"
+	"sort"
 
 	"github.com/pkg/errors"
 	"go.uber.org/zap"
@@ -82,34 +83,80 @@ func (h *strategyStore) parseStrategies(strategies *strategies) {
 	if strategies.DefaultStrategy != nil {
 		h.defaultStrategy = h.parseStrategy(strategies.DefaultStrategy)
 	}
+	for _, s := range strategies.DefaultOperationStrategies {
+		opS := h.defaultStrategy.OperationSampling
+		if opS == nil {
+			opS = sampling.NewPerOperationSamplingStrategies()
+			h.defaultStrategy.OperationSampling = opS
+		}
+
+		strategy, ok := h.parseOperationStrategy(s, opS)
+		if !ok {
+			continue
+		}
+
+		opS.PerOperationStrategies = append(opS.PerOperationStrategies,
+			&sampling.OperationSamplingStrategy{
+				Operation:             s.Operation,
+				ProbabilisticSampling: strategy.ProbabilisticSampling,
+			})
+	}
 	for _, s := range strategies.ServiceStrategies {
-		h.serviceStrategies[s.Service] = h.parseStrategy(&s.strategy)
+		h.serviceStrategies[s.Service] = h.parseServiceStrategies(s)
+
+		// Merge with the default operation strategies, because only merging with
+		// the default strategy has no effect on service strategies (the default strategy
+		// is not merged with and only used as a fallback).
+		opS := h.serviceStrategies[s.Service].OperationSampling
+		if opS == nil {
+			// It has no use to merge, just reference the default settings.
+			h.serviceStrategies[s.Service].OperationSampling = h.defaultStrategy.OperationSampling
+			continue
+		}
+		if h.defaultStrategy.OperationSampling == nil ||
+			h.defaultStrategy.OperationSampling.PerOperationStrategies == nil {
+			continue
+		}
+		opS.PerOperationStrategies = mergePerOperationSamplingStrategies(
+			opS.PerOperationStrategies,
+			h.defaultStrategy.OperationSampling.PerOperationStrategies)
 	}
 }
 
-func (h *strategyStore) parseStrategy(strategy *strategy) *sampling.SamplingStrategyResponse {
-	var resp *sampling.SamplingStrategyResponse
+// mergePerOperationStrategies merges two operation strategies a and b, where a takes precedence over b.
+func mergePerOperationSamplingStrategies(
+	a, b []*sampling.OperationSamplingStrategy,
+) []*sampling.OperationSamplingStrategy {
+	// Guess the size of the slice of the two merged.
+	merged := make([]*sampling.OperationSamplingStrategy, 0, (len(a)+len(b))/4*3)
 
-	switch strategy.Type {
-	case samplerTypeProbabilistic:
-		resp = &sampling.SamplingStrategyResponse{
-			StrategyType: sampling.SamplingStrategyType_PROBABILISTIC,
-			ProbabilisticSampling: &sampling.ProbabilisticSamplingStrategy{
-				SamplingRate: strategy.Param,
-			},
+	ossLess := func(s []*sampling.OperationSamplingStrategy, i, j int) bool {
+		return s[i].Operation < s[j].Operation
+	}
+	sort.Slice(a, func(i, j int) bool { return ossLess(a, i, j) })
+	sort.Slice(b, func(i, j int) bool { return ossLess(b, i, j) })
+
+	j := 0
+	for i := range a {
+		// Increment j till b[j] > a[i], such that in the loop after the
+		// loop over a no remaining element of b with the same operation
+		// as a[i] is added to the merged slice.
+		for ; j < len(b) && b[j].Operation <= a[i].Operation; j++ {
+			if b[j].Operation < a[i].Operation {
+				merged = append(merged, b[j])
+			}
 		}
-	case samplerTypeRateLimiting:
-		resp = &sampling.SamplingStrategyResponse{
-			StrategyType: sampling.SamplingStrategyType_RATE_LIMITING,
-			RateLimitingSampling: &sampling.RateLimitingSamplingStrategy{
-				MaxTracesPerSecond: int16(strategy.Param),
-			},
-		}
-	default:
-		h.logger.Warn("Failed to parse sampling strategy", zap.Any("strategy", strategy))
-		resp = deepCopy(&defaultStrategy)
+		merged = append(merged, a[i])
+	}
+	for ; j < len(b); j++ {
+		merged = append(merged, b[j])
 	}
 
+	return merged
+}
+
+func (h *strategyStore) parseServiceStrategies(strategy *serviceStrategy) *sampling.SamplingStrategyResponse {
+	resp := h.parseStrategy(&strategy.strategy)
 	if len(strategy.OperationStrategies) == 0 {
 		return resp
 	}
@@ -120,17 +167,11 @@ func (h *strategyStore) parseStrategy(strategy *strategy) *sampling.SamplingStra
 		opS.DefaultSamplingProbability = resp.ProbabilisticSampling.SamplingRate
 	}
 	for _, operationStrategy := range strategy.OperationStrategies {
-		s := h.parseStrategy(&operationStrategy.strategy)
-		if s.StrategyType == sampling.SamplingStrategyType_RATE_LIMITING {
-			// TODO OperationSamplingStrategy only supports probabilistic sampling
-			h.logger.Warn(
-				fmt.Sprintf(
-					"Operation strategies only supports probabilistic sampling at the moment,"+
-						"'%s' defaulting to probabilistic sampling with probability %f",
-					operationStrategy.Operation, opS.DefaultSamplingProbability),
-				zap.Any("strategy", operationStrategy))
+		s, ok := h.parseOperationStrategy(operationStrategy, opS)
+		if !ok {
 			continue
 		}
+
 		opS.PerOperationStrategies = append(opS.PerOperationStrategies,
 			&sampling.OperationSamplingStrategy{
 				Operation:             operationStrategy.Operation,
@@ -139,6 +180,46 @@ func (h *strategyStore) parseStrategy(strategy *strategy) *sampling.SamplingStra
 	}
 	resp.OperationSampling = opS
 	return resp
+}
+
+func (h *strategyStore) parseOperationStrategy(
+	strategy *operationStrategy,
+	parent *sampling.PerOperationSamplingStrategies,
+) (s *sampling.SamplingStrategyResponse, ok bool) {
+	s = h.parseStrategy(&strategy.strategy)
+	if s.StrategyType == sampling.SamplingStrategyType_RATE_LIMITING {
+		// TODO OperationSamplingStrategy only supports probabilistic sampling
+		h.logger.Warn(
+			fmt.Sprintf(
+				"Operation strategies only supports probabilistic sampling at the moment,"+
+					"'%s' defaulting to probabilistic sampling with probability %f",
+				strategy.Operation, parent.DefaultSamplingProbability),
+			zap.Any("strategy", strategy))
+		return nil, false
+	}
+	return s, true
+}
+
+func (h *strategyStore) parseStrategy(strategy *strategy) *sampling.SamplingStrategyResponse {
+	switch strategy.Type {
+	case samplerTypeProbabilistic:
+		return &sampling.SamplingStrategyResponse{
+			StrategyType: sampling.SamplingStrategyType_PROBABILISTIC,
+			ProbabilisticSampling: &sampling.ProbabilisticSamplingStrategy{
+				SamplingRate: strategy.Param,
+			},
+		}
+	case samplerTypeRateLimiting:
+		return &sampling.SamplingStrategyResponse{
+			StrategyType: sampling.SamplingStrategyType_RATE_LIMITING,
+			RateLimitingSampling: &sampling.RateLimitingSamplingStrategy{
+				MaxTracesPerSecond: int16(strategy.Param),
+			},
+		}
+	default:
+		h.logger.Warn("Failed to parse sampling strategy", zap.Any("strategy", strategy))
+		return deepCopy(&defaultStrategy)
+	}
 }
 
 func deepCopy(s *sampling.SamplingStrategyResponse) *sampling.SamplingStrategyResponse {
