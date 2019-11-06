@@ -12,29 +12,31 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package kafka
+package nats
 
 import (
 	"errors"
-	"testing"
-
 	"github.com/Shopify/sarama"
 	"github.com/Shopify/sarama/mocks"
+	"testing"
+
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"github.com/uber/jaeger-lib/metrics"
 	"go.uber.org/zap"
 
 	"github.com/jaegertracing/jaeger/pkg/config"
-	kafkaConfig "github.com/jaegertracing/jaeger/pkg/kafka/producer"
+	natsConfig "github.com/jaegertracing/jaeger/pkg/nats/producer"
 	"github.com/jaegertracing/jaeger/storage"
+	"github.com/jaegertracing/jaeger/plugin/storage/kafka"
+
 )
 
 // Checks that Kafka Factory conforms to storage.Factory API
 var _ storage.Factory = new(Factory)
 
 type mockProducerBuilder struct {
-	kafkaConfig.Configuration
+	natsConfig.Configuration
 	err error
 	t   *testing.T
 }
@@ -60,7 +62,7 @@ func TestKafkaFactory(t *testing.T) {
 
 	f.Builder = &mockProducerBuilder{t: t}
 	assert.NoError(t, f.Initialize(metrics.NullFactory, zap.NewNop()))
-	assert.IsType(t, &ProtobufMarshaller{}, f.marshaller)
+	assert.IsType(t, &kafka.ProtobufMarshaller{}, f.marshaller)
 
 	_, err := f.CreateSpanWriter()
 	assert.NoError(t, err)
@@ -75,10 +77,10 @@ func TestKafkaFactory(t *testing.T) {
 func TestKafkaFactoryEncoding(t *testing.T) {
 	tests := []struct {
 		encoding   string
-		marshaller Marshaller
+		marshaller kafka.Marshaller
 	}{
-		{encoding: "protobuf", marshaller: new(ProtobufMarshaller)},
-		{encoding: "json", marshaller: new(JsonMarshaller)},
+		{encoding: "protobuf", marshaller: new(kafka.ProtobufMarshaller)},
+		{encoding: "json", marshaller: new(kafka.JsonMarshaller)},
 	}
 	for _, test := range tests {
 		t.Run(test.encoding, func(t *testing.T) {
@@ -98,7 +100,7 @@ func TestKafkaFactoryEncoding(t *testing.T) {
 func TestKafkaFactoryMarshallerErr(t *testing.T) {
 	f := NewFactory()
 	v, command := config.Viperize(f.AddFlags)
-	command.ParseFlags([]string{"--kafka.producer.encoding=bad-input"})
+	command.ParseFlags([]string{"--nats.producer.encoding=bad-input"})
 	f.InitFromViper(v)
 
 	f.Builder = &mockProducerBuilder{t: t}

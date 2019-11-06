@@ -24,11 +24,11 @@ import (
 )
 
 func TestProtobufMarshallerAndUnmarshaller(t *testing.T) {
-	testMarshallerAndUnmarshaller(t, newProtobufMarshaller(), NewProtobufUnmarshaller())
+	testMarshallerAndUnmarshaller(t, NewProtobufMarshaller(), NewProtobufUnmarshaller())
 }
 
 func TestJSONMarshallerAndUnmarshaller(t *testing.T) {
-	testMarshallerAndUnmarshaller(t, newJSONMarshaller(), NewJSONUnmarshaller())
+	testMarshallerAndUnmarshaller(t, NewJSONMarshaller(), NewJSONUnmarshaller())
 }
 
 func testMarshallerAndUnmarshaller(t *testing.T, marshaller Marshaller, unmarshaller Unmarshaller) {

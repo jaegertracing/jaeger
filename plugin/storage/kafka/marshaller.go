@@ -28,27 +28,27 @@ type Marshaller interface {
 	Marshal(*model.Span) ([]byte, error)
 }
 
-type protobufMarshaller struct{}
+type ProtobufMarshaller struct{}
 
-func newProtobufMarshaller() *protobufMarshaller {
-	return &protobufMarshaller{}
+func NewProtobufMarshaller() *ProtobufMarshaller {
+	return &ProtobufMarshaller{}
 }
 
 // Marshall encodes a span as a protobuf byte array
-func (h *protobufMarshaller) Marshal(span *model.Span) ([]byte, error) {
+func (h *ProtobufMarshaller) Marshal(span *model.Span) ([]byte, error) {
 	return proto.Marshal(span)
 }
 
-type jsonMarshaller struct {
+type JsonMarshaller struct {
 	pbMarshaller *jsonpb.Marshaler
 }
 
-func newJSONMarshaller() *jsonMarshaller {
-	return &jsonMarshaller{&jsonpb.Marshaler{}}
+func NewJSONMarshaller() *JsonMarshaller {
+	return &JsonMarshaller{&jsonpb.Marshaler{}}
 }
 
 // Marshall encodes a span as a json byte array
-func (h *jsonMarshaller) Marshal(span *model.Span) ([]byte, error) {
+func (h *JsonMarshaller) Marshal(span *model.Span) ([]byte, error) {
 	out := new(bytes.Buffer)
 	err := h.pbMarshaller.Marshal(out, span)
 	return out.Bytes(), err

@@ -12,31 +12,32 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package kafka
+package nats
 
 import (
 	"errors"
 	"flag"
+	"github.com/nats-io/nats.go"
 
-	"github.com/Shopify/sarama"
 	"github.com/spf13/viper"
 	"github.com/uber/jaeger-lib/metrics"
 	"go.uber.org/zap"
 
-	"github.com/jaegertracing/jaeger/pkg/kafka/producer"
+	"github.com/jaegertracing/jaeger/pkg/nats/producer"
 	"github.com/jaegertracing/jaeger/storage/dependencystore"
 	"github.com/jaegertracing/jaeger/storage/spanstore"
+	"github.com/jaegertracing/jaeger/plugin/storage/kafka"
 )
 
-// Factory implements storage.Factory and creates write-only storage components backed by kafka.
+// Factory implements storage.Factory and creates write-only storage components backed by NATS.
 type Factory struct {
 	options Options
 
 	metricsFactory metrics.Factory
 	logger         *zap.Logger
 
-	producer   sarama.AsyncProducer
-	marshaller Marshaller
+	producer   *nats.Conn
+	marshaller kafka.Marshaller
 	producer.Builder
 }
 
@@ -59,9 +60,9 @@ func (f *Factory) InitFromViper(v *viper.Viper) {
 // Initialize implements storage.Factory
 func (f *Factory) Initialize(metricsFactory metrics.Factory, logger *zap.Logger) error {
 	f.metricsFactory, f.logger = metricsFactory, logger
-	logger.Info("Kafka factory",
+	logger.Info("NATS factory",
 		zap.Any("producer builder", f.Builder),
-		zap.Any("topic", f.options.topic))
+		zap.Any("subject", f.options.subject))
 	p, err := f.NewProducer()
 	if err != nil {
 		return err
@@ -69,26 +70,26 @@ func (f *Factory) Initialize(metricsFactory metrics.Factory, logger *zap.Logger)
 	f.producer = p
 	switch f.options.encoding {
 	case EncodingProto:
-		f.marshaller = NewProtobufMarshaller()
+		f.marshaller = kafka.NewProtobufMarshaller()
 	case EncodingJSON:
-		f.marshaller = NewJSONMarshaller()
+		f.marshaller = kafka.NewJSONMarshaller()
 	default:
-		return errors.New("kafka encoding is not one of '" + EncodingJSON + "' or '" + EncodingProto + "'")
+		return errors.New("NATS encoding is not one of '" + EncodingJSON + "' or '" + EncodingProto + "'")
 	}
 	return nil
 }
 
 // CreateSpanReader implements storage.Factory
 func (f *Factory) CreateSpanReader() (spanstore.Reader, error) {
-	return nil, errors.New("kafka storage is write-only")
+	return nil, errors.New("NATS storage is write-only")
 }
 
 // CreateSpanWriter implements storage.Factory
 func (f *Factory) CreateSpanWriter() (spanstore.Writer, error) {
-	return NewSpanWriter(f.producer, f.marshaller, f.options.topic, f.metricsFactory, f.logger), nil
+	return NewSpanWriter(f.producer, f.marshaller, f.options.subject, f.metricsFactory, f.logger), nil
 }
 
 // CreateDependencyReader implements storage.Factory
 func (f *Factory) CreateDependencyReader() (dependencystore.Reader, error) {
-	return nil, errors.New("kafka storage is write-only")
+	return nil, errors.New("NATS storage is write-only")
 }
