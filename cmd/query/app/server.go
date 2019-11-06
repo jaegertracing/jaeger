@@ -84,7 +84,9 @@ func createHTTPServer(querySvc *querysvc.QueryService, queryOpts *QueryOptions, 
 	if queryOpts.BearerTokenPropagation {
 		handler = bearerTokenPropagationHandler(logger, r)
 	}
-	handler = handlers.CompressHandler(handler)
+	if queryOpts.Gzip {
+		handler = handlers.CompressHandler(handler)
+	}
 	recoveryHandler := recoveryhandler.NewRecoveryHandler(logger, true)
 	return &http.Server{
 		Handler: recoveryHandler(handler),
