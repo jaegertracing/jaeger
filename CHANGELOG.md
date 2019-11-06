@@ -1,7 +1,7 @@
 Changes by Version
 ==================
 
-1.15.0 (2019-11-06)
+1.15.0 (2019-11-07)
 ------------------
 #### Backend Changes
 
@@ -11,13 +11,34 @@ Changes by Version
 
   With the new default, the ingester won't `panic` if there are no messages for the last minute. To restore the previous behavior, set the flag's value to `1m`.
 
+* CLI flags have below changes: 
+  * jaeger-ingester:
+  
+    | Update | Name                      | Type   | Explanation                                          |
+    |--------|---------------------------|--------|------------------------------------------------------|
+    | added  | --kafka.consumer.tls.ca   | String | Path to the TLS CA for the Kafka connection          |
+    | added  | --kafka.consumer.tls.cert | String | Path to the TLS Certificate for the Kafka connection |
+    | added  | --kafka.consumer.tls.key  | String | Path to the TLS Key for the Kafka connection         |
+  
+  * jaeger-collector:
+  
+    | Update     | Name                           | Type   | Explanation                                                                                                                            |
+    |------------|--------------------------------|--------|----------------------------------------------------------------------------------------------------------------------------------------|
+    | added      | --collector.grpc.tls.client-ca | String | Path to a TLS CA (Certification Authority) file used to verify certificates presented by clients (if unset, all clients are permitted) |
+    | deprecated | --collector.grpc.tls.client.ca | String | see --collector.grpc.tls.client-ca                                                                                                     |     
+  
+  * tracegen:
+  
+    | Update | Name      | Type    | Explanation                                                |
+    |--------|-----------|---------|------------------------------------------------------------|
+    | added  | -firehose | boolean | Whether to set FIREHOSE flag on the spans to skip indexing |
+  
 ##### New Features
 
 * Support TLS for Kafka ([#1414](https://github.com/jaegertracing/jaeger/pull/1414), [@MichaHoffmann](https://github.com/MichaHoffmann))
 * Add ack and compression parameters for Kafka #1359 ([#1712](https://github.com/jaegertracing/jaeger/pull/1712), [@chandresh-pancholi](https://github.com/chandresh-pancholi))
 * Propagate the bearer token to the gRPC plugin server ([#1822](https://github.com/jaegertracing/jaeger/pull/1822), [@radekg](https://github.com/radekg))
 * Add Truncate and ReadOnly options for badger ([#1842](https://github.com/jaegertracing/jaeger/pull/1842), [@burmanm](https://github.com/burmanm))
-* Tracegen supports generating firehose spans ([#1798](https://github.com/jaegertracing/jaeger/pull/1798), [@guo0693](https://github.com/guo0693))
 
 ##### Bug fixes, Minor Improvements
 * Use correct context on ES search methods ([#1850](https://github.com/jaegertracing/jaeger/pull/1850), [@rubenvp8510](https://github.com/rubenvp8510))
