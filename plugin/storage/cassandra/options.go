@@ -50,6 +50,8 @@ const (
 	suffixServerName           = ".tls.server-name"
 	suffixVerifyHost           = ".tls.verify-host"
 	suffixEnableDependenciesV2 = ".enable-dependencies-v2"
+	suffixTagIndexBlacklist    = ".tag-index-blacklist"
+	suffixTagIndexWhitelist    = ".tag-index-whitelist"
 
 	// common storage settings
 	suffixSpanStoreWriteCacheTTL = ".span-store-write-cache-ttl"
@@ -69,10 +71,12 @@ type Options struct {
 // preparing the actual config.Configuration.
 type namespaceConfig struct {
 	config.Configuration
-	servers   string
-	namespace string
-	primary   bool
-	Enabled   bool
+	servers           string
+	tagIndexBlacklist string
+	tagIndexWhitelist string
+	namespace         string
+	primary           bool
+	Enabled           bool
 }
 
 // NewOptions creates a new Options struct.
@@ -213,6 +217,14 @@ func addFlags(flagSet *flag.FlagSet, nsConfig *namespaceConfig) {
 		nsConfig.namespace+suffixEnableDependenciesV2,
 		nsConfig.EnableDependenciesV2,
 		"(deprecated) Jaeger will automatically detect the version of the dependencies table")
+	flagSet.String(
+		nsConfig.namespace+suffixTagIndexBlacklist,
+		nsConfig.tagIndexWhitelist,
+		"The comma-separated list of tags to blacklist")
+	flagSet.String(
+		nsConfig.namespace+suffixTagIndexWhitelist,
+		nsConfig.tagIndexBlacklist,
+		"The comma-separated list of tags to whitelist")
 }
 
 // InitFromViper initializes Options with properties from viper
@@ -250,11 +262,15 @@ func (cfg *namespaceConfig) initFromViper(v *viper.Viper) {
 	cfg.TLS.EnableHostVerification = v.GetBool(cfg.namespace + suffixVerifyHost)
 	cfg.EnableDependenciesV2 = v.GetBool(cfg.namespace + suffixEnableDependenciesV2)
 	cfg.DisableCompression = v.GetBool(cfg.namespace + suffixDisableCompression)
+	cfg.tagIndexBlacklist = stripWhiteSpace(v.GetString(cfg.namespace + suffixTagIndexBlacklist))
+	cfg.tagIndexWhitelist = stripWhiteSpace(v.GetString(cfg.namespace + suffixTagIndexWhitelist))
 }
 
 // GetPrimary returns primary configuration.
 func (opt *Options) GetPrimary() *config.Configuration {
 	opt.primary.Servers = strings.Split(opt.primary.servers, ",")
+	opt.primary.TagIndexBlacklist = strings.Split(opt.primary.tagIndexBlacklist, ",")
+	opt.primary.TagIndexWhitelist = strings.Split(opt.primary.tagIndexWhitelist, ",")
 	return &opt.primary.Configuration
 }
 
@@ -273,6 +289,14 @@ func (opt *Options) Get(namespace string) *config.Configuration {
 		nsCfg.servers = opt.primary.servers
 	}
 	nsCfg.Servers = strings.Split(nsCfg.servers, ",")
+	if nsCfg.tagIndexBlacklist == "" {
+		nsCfg.tagIndexBlacklist = opt.primary.tagIndexBlacklist
+	}
+	nsCfg.TagIndexBlacklist = strings.Split(nsCfg.tagIndexBlacklist, ",")
+	if nsCfg.tagIndexWhitelist == "" {
+		nsCfg.tagIndexWhitelist = opt.primary.tagIndexWhitelist
+	}
+	nsCfg.TagIndexWhitelist = strings.Split(nsCfg.tagIndexWhitelist, ",")
 	return &nsCfg.Configuration
 }
 
