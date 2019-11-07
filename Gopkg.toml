@@ -56,7 +56,7 @@ required = [
   version = "=0.0.1"
 
 # blackfriday 2.x uses go modules and is imported by go-md2man as via /v2 path,
-# which does not actually exist in the repo (do modules makes it up). So it's not
+# which does not actually exist in the repo (`go mod` makes it up!). So it's not
 # compatible with dep.
 [[override]]
   name = "github.com/russross/blackfriday"
