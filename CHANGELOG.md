@@ -1,6 +1,18 @@
 Changes by Version
 ==================
 
+1.16.0 (unreleased)
+------------------
+#### Backend Changes
+
+##### Breaking Changes
+
+##### New Features
+
+##### Bug fixes, Minor Improvements
+
+#### UI Changes
+
 1.15.0 (2019-11-07)
 ------------------
 #### Backend Changes
@@ -11,27 +23,9 @@ Changes by Version
 
   With the new default, the ingester won't `panic` if there are no messages for the last minute. To restore the previous behavior, set the flag's value to `1m`.
 
-* CLI flags have below changes: 
-  * jaeger-ingester:
-  
-    | Update | Name                      | Type   | Explanation                                          |
-    |--------|---------------------------|--------|------------------------------------------------------|
-    | added  | --kafka.consumer.tls.ca   | String | Path to the TLS CA for the Kafka connection          |
-    | added  | --kafka.consumer.tls.cert | String | Path to the TLS Certificate for the Kafka connection |
-    | added  | --kafka.consumer.tls.key  | String | Path to the TLS Key for the Kafka connection         |
-  
-  * jaeger-collector:
-  
-    | Update     | Name                           | Type   | Explanation                                                                                                                            |
-    |------------|--------------------------------|--------|----------------------------------------------------------------------------------------------------------------------------------------|
-    | added      | --collector.grpc.tls.client-ca | String | Path to a TLS CA (Certification Authority) file used to verify certificates presented by clients (if unset, all clients are permitted) |
-    | deprecated | --collector.grpc.tls.client.ca | String | see --collector.grpc.tls.client-ca                                                                                                     |     
-  
-  * tracegen:
-  
-    | Update | Name      | Type    | Explanation                                                |
-    |--------|-----------|---------|------------------------------------------------------------|
-    | added  | -firehose | boolean | Whether to set FIREHOSE flag on the spans to skip indexing |
+* Mark `--collector.grpc.tls.client.ca` flag as deprecated for jaeger-collector. ([#1840](https://github.com/jaegertracing/jaeger/pull/1840), [@yurishkuro](https://github.com/yurishkuro))
+
+  The deprecated flag will still work until being removed, it's recommended to use `--collector.grpc.tls.client-ca` instead.
   
 ##### New Features
 
@@ -41,10 +35,10 @@ Changes by Version
 * Add Truncate and ReadOnly options for badger ([#1842](https://github.com/jaegertracing/jaeger/pull/1842), [@burmanm](https://github.com/burmanm))
 
 ##### Bug fixes, Minor Improvements
+
 * Use correct context on ES search methods ([#1850](https://github.com/jaegertracing/jaeger/pull/1850), [@rubenvp8510](https://github.com/rubenvp8510))
 * Handling of expected error codes coming from grpc storage plugins #1741 ([#1814](https://github.com/jaegertracing/jaeger/pull/1814), [@chandresh-pancholi](https://github.com/chandresh-pancholi))
 * Fix ordering of indexScanKeys after TraceID parsing ([#1809](https://github.com/jaegertracing/jaeger/pull/1809), [@burmanm](https://github.com/burmanm))
-* Fix flaky ES span reader test due to date differences ([#1847](https://github.com/jaegertracing/jaeger/pull/1847), [@pavolloffay](https://github.com/pavolloffay))
 * Small memory optimizations in badger write-path ([#1771](https://github.com/jaegertracing/jaeger/pull/1771), [@burmanm](https://github.com/burmanm))
 * Set an empty value when a default env var value is missing ([#1777](https://github.com/jaegertracing/jaeger/pull/1777), [@jpkrohling](https://github.com/jpkrohling))
 * Decouple storage dependencies and bump Go to 1.13.x ([#1886](https://github.com/jaegertracing/jaeger/pull/1886), [@yurishkuro](https://github.com/yurishkuro))
@@ -54,6 +48,7 @@ Changes by Version
 
 #### UI Changes
 
+* UI pinned to version 1.5.0. The changelog is available here [v1.5.0](https://github.com/jaegertracing/jaeger-ui/blob/master/CHANGELOG.md#v150-november-4-2019)
 
 1.14.0 (2019-09-02)
 ------------------
