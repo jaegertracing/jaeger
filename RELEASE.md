@@ -4,6 +4,13 @@
     * A new section with the header `<X.Y.Z> (YYYY-MM-DD)`
     * A curated list of notable changes and links to PRs. Do not simply dump git log, select the changes that affect the users. To obtain the list of all changes run `make changelog`.
     * The section can be split into sub-section if necessary, e.g. UI Changes, Backend Changes, Bug Fixes, etc.
+    * If the submodules have new releases, please also upgrade the submodule versions then commit, for example:
+        ```
+        cd jaeger-ui
+        git ls-remote --tags origin
+        git fetch
+        git checkout {new_version} //e.g. v1.5.0
+        ```
 2. After the PR is merged, create a release on Github:
     * Title "Release X.Y.Z" 
     * Tag `vX.Y.Z` (note the `v` prefix) and choose appropriate branch
