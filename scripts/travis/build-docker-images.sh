@@ -2,11 +2,6 @@
 
 set -e
 
-if [[ "$TRAVIS_SECURE_ENV_VARS" == "false" ]]; then
-  echo "skip docker upload, TRAVIS_SECURE_ENV_VARS=$TRAVIS_SECURE_ENV_VARS"
-  exit 0
-fi
-
 BRANCH=${BRANCH:?'missing BRANCH env var'}
 
 # Only push images to Docker Hub for master branch or for release tags vM.N.P
@@ -22,6 +17,11 @@ nvm use 10
 
 export DOCKER_NAMESPACE=jaegertracing
 make docker
+
+if [[ "$TRAVIS_SECURE_ENV_VARS" == "false" ]]; then
+  echo "skip docker upload, TRAVIS_SECURE_ENV_VARS=$TRAVIS_SECURE_ENV_VARS"
+  exit 0
+fi
 
 for component in agent cassandra-schema es-index-cleaner es-rollover collector query ingester
 do
