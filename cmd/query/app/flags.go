@@ -55,7 +55,7 @@ func AddFlags(flagSet *flag.FlagSet) {
 	flagSet.String(queryStaticFiles, "", "The directory path override for the static assets for the UI")
 	flagSet.String(queryUIConfig, "", "The path to the UI configuration file in JSON format")
 	flagSet.Bool(queryTokenPropagation, false, "Allow propagation of bearer token to be used by storage plugins")
-	flagSet.Bool(queryGzip, true, "enable gzip compress")
+	flagSet.Bool(queryGzip, true, "Enable Gzip compression")
 }
 
 // InitFromViper initializes QueryOptions with properties from viper
