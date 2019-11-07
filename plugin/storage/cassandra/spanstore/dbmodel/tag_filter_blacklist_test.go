@@ -51,11 +51,23 @@ func TestBlacklistFilter(t *testing.T) {
 		for _, e := range expected {
 			expectedKVs = append(expectedKVs, model.String(e, ""))
 		}
+		expectedKVs.Sort()
 
 		tf := NewBlacklistTagFilter(filter)
 		actualKVs := tf.filter(inputKVs)
 		actualKVs.Sort()
-		expectedKVs.Sort()
+		assert.Equal(t, actualKVs, expectedKVs)
+
+		actualKVs = tf.FilterLogFields(nil, inputKVs)
+		actualKVs.Sort()
+		assert.Equal(t, actualKVs, expectedKVs)
+
+		actualKVs = tf.FilterProcessTags(nil, inputKVs)
+		actualKVs.Sort()
+		assert.Equal(t, actualKVs, expectedKVs)
+
+		actualKVs = tf.FilterTags(nil, inputKVs)
+		actualKVs.Sort()
 		assert.Equal(t, actualKVs, expectedKVs)
 	}
 }
