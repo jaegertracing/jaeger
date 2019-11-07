@@ -26,15 +26,15 @@ import (
 func TestBlacklistFilter(t *testing.T) {
 	// expected
 	tt := [][][]string{
-		[][]string{
-			[]string{"a", "b", "c"}, // input
-			[]string{"a"},           // filter
-			[]string{"b", "c"},      // expected
+		{
+			{"a", "b", "c"}, // input
+			{"a"},           // filter
+			{"b", "c"},      // expected
 		},
-		[][]string{
-			[]string{"a", "b", "c"},
-			[]string{"A"},
-			[]string{"a", "b", "c"},
+		{
+			{"a", "b", "c"},
+			{"A"},
+			{"a", "b", "c"},
 		},
 	}
 

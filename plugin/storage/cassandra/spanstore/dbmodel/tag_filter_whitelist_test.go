@@ -26,15 +26,15 @@ import (
 func TestWhitelistFilter(t *testing.T) {
 	// expected
 	tt := [][][]string{
-		[][]string{
-			[]string{"a", "b", "c"}, // input
-			[]string{"a"},           // filter
-			[]string{"a"},           // expected
+		{
+			{"a", "b", "c"}, // input
+			{"a"},           // filter
+			{"a"},           // expected
 		},
-		[][]string{
-			[]string{"a", "b", "c"},
-			[]string{"A"},
-			[]string{},
+		{
+			{"a", "b", "c"},
+			{"A"},
+			{},
 		},
 	}
 
