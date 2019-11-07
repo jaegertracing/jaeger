@@ -100,3 +100,42 @@ func TestCassandraFactory(t *testing.T) {
 	_, err = f.CreateArchiveSpanWriter()
 	assert.NoError(t, err)
 }
+
+func TestExclusiveWhiteListBlackList(t *testing.T) {
+	logger, logBuf := testutils.NewLogger()
+	f := NewFactory()
+	v, command := config.Viperize(f.AddFlags)
+	command.ParseFlags([]string{"--cassandra-archive.enabled=true",
+		"--cassandra.enable-dependencies-v2=true",
+		"--cassandra.tag-index-whitelist=a,b,c",
+		"--cassandra.tag-index-blacklist=a,b,c"})
+	f.InitFromViper(v)
+
+	// after InitFromViper, f.primaryConfig points to a real session builder that will fail in unit tests,
+	// so we override it with a mock.
+	f.primaryConfig = newMockSessionBuilder(nil, errors.New("made-up error"))
+	assert.EqualError(t, f.Initialize(metrics.NullFactory, zap.NewNop()), "made-up error")
+
+	var (
+		session = &mocks.Session{}
+		query   = &mocks.Query{}
+	)
+	session.On("Query", mock.AnythingOfType("string"), mock.Anything).Return(query)
+	query.On("Exec").Return(nil)
+	f.primaryConfig = newMockSessionBuilder(session, nil)
+	f.archiveConfig = newMockSessionBuilder(nil, errors.New("made-up error"))
+	assert.EqualError(t, f.Initialize(metrics.NullFactory, zap.NewNop()), "made-up error")
+
+	f.archiveConfig = nil
+	assert.NoError(t, f.Initialize(metrics.NullFactory, logger))
+	assert.Contains(t, logBuf.String(), "Cassandra archive storage configuration is empty, skipping")
+
+	_, err := f.CreateSpanWriter()
+	assert.EqualError(t, err, "only one of TagIndexBlacklist and TagIndexWhitelist can be specified")
+
+	f.archiveConfig = &mockSessionBuilder{}
+	assert.NoError(t, f.Initialize(metrics.NullFactory, zap.NewNop()))
+
+	_, err = f.CreateArchiveSpanWriter()
+	assert.EqualError(t, err, "only one of TagIndexBlacklist and TagIndexWhitelist can be specified")
+}

@@ -16,6 +16,7 @@
 package cassandra
 
 import (
+	"errors"
 	"flag"
 
 	"github.com/spf13/viper"
@@ -26,6 +27,7 @@ import (
 	"github.com/jaegertracing/jaeger/pkg/cassandra/config"
 	cDepStore "github.com/jaegertracing/jaeger/plugin/storage/cassandra/dependencystore"
 	cSpanStore "github.com/jaegertracing/jaeger/plugin/storage/cassandra/spanstore"
+	"github.com/jaegertracing/jaeger/plugin/storage/cassandra/spanstore/dbmodel"
 	"github.com/jaegertracing/jaeger/storage"
 	"github.com/jaegertracing/jaeger/storage/dependencystore"
 	"github.com/jaegertracing/jaeger/storage/spanstore"
@@ -102,7 +104,11 @@ func (f *Factory) CreateSpanReader() (spanstore.Reader, error) {
 
 // CreateSpanWriter implements storage.Factory
 func (f *Factory) CreateSpanWriter() (spanstore.Writer, error) {
-	return cSpanStore.NewSpanWriter(f.primarySession, f.Options.SpanStoreWriteCacheTTL, f.primaryMetricsFactory, f.logger), nil
+	options, err := writerOptions(f.Options.GetPrimary())
+	if err != nil {
+		return nil, err
+	}
+	return cSpanStore.NewSpanWriter(f.primarySession, f.Options.SpanStoreWriteCacheTTL, f.primaryMetricsFactory, f.logger, options...), nil
 }
 
 // CreateDependencyReader implements storage.Factory
@@ -124,5 +130,23 @@ func (f *Factory) CreateArchiveSpanWriter() (spanstore.Writer, error) {
 	if f.archiveSession == nil {
 		return nil, storage.ErrArchiveStorageNotConfigured
 	}
-	return cSpanStore.NewSpanWriter(f.archiveSession, f.Options.SpanStoreWriteCacheTTL, f.archiveMetricsFactory, f.logger), nil
+	options, err := writerOptions(f.Options.Get(archiveStorageConfig))
+	if err != nil {
+		return nil, err
+	}
+	return cSpanStore.NewSpanWriter(f.archiveSession, f.Options.SpanStoreWriteCacheTTL, f.archiveMetricsFactory, f.logger, options...), nil
+}
+
+func writerOptions(config *config.Configuration) ([]cSpanStore.Option, error) {
+	if len(config.TagIndexBlacklist) > 0 && len(config.TagIndexWhitelist) > 0 {
+		return nil, errors.New("only one of TagIndexBlacklist and TagIndexWhitelist can be specified")
+	}
+
+	var options []cSpanStore.Option
+	if len(config.TagIndexBlacklist) > 0 {
+		options = append(options, cSpanStore.TagFilter(dbmodel.NewBlacklistTagFilter(config.TagIndexBlacklist)))
+	} else if len(config.TagIndexWhitelist) > 0 {
+		options = append(options, cSpanStore.TagFilter(dbmodel.NewWhitelistTagFilter(config.TagIndexWhitelist)))
+	}
+	return options, nil
 }

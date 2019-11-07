@@ -269,8 +269,12 @@ func (cfg *namespaceConfig) initFromViper(v *viper.Viper) {
 // GetPrimary returns primary configuration.
 func (opt *Options) GetPrimary() *config.Configuration {
 	opt.primary.Servers = strings.Split(opt.primary.servers, ",")
-	opt.primary.TagIndexBlacklist = strings.Split(opt.primary.tagIndexBlacklist, ",")
-	opt.primary.TagIndexWhitelist = strings.Split(opt.primary.tagIndexWhitelist, ",")
+	if len(opt.primary.tagIndexBlacklist) > 0 {
+		opt.primary.TagIndexBlacklist = strings.Split(opt.primary.tagIndexBlacklist, ",")
+	}
+	if len(opt.primary.tagIndexWhitelist) > 0 {
+		opt.primary.TagIndexWhitelist = strings.Split(opt.primary.tagIndexWhitelist, ",")
+	}
 	return &opt.primary.Configuration
 }
 
@@ -292,11 +296,15 @@ func (opt *Options) Get(namespace string) *config.Configuration {
 	if nsCfg.tagIndexBlacklist == "" {
 		nsCfg.tagIndexBlacklist = opt.primary.tagIndexBlacklist
 	}
-	nsCfg.TagIndexBlacklist = strings.Split(nsCfg.tagIndexBlacklist, ",")
+	if len(nsCfg.tagIndexBlacklist) > 0 {
+		nsCfg.TagIndexBlacklist = strings.Split(nsCfg.tagIndexBlacklist, ",")
+	}
 	if nsCfg.tagIndexWhitelist == "" {
 		nsCfg.tagIndexWhitelist = opt.primary.tagIndexWhitelist
 	}
-	nsCfg.TagIndexWhitelist = strings.Split(nsCfg.tagIndexWhitelist, ",")
+	if len(nsCfg.tagIndexWhitelist) > 0 {
+		nsCfg.TagIndexWhitelist = strings.Split(nsCfg.tagIndexWhitelist, ",")
+	}
 	return &nsCfg.Configuration
 }
 
