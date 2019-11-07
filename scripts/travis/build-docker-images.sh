@@ -1,30 +1,12 @@
 #!/bin/bash
+#
+# Build UI and all Docker images
 
 set -e
 
-BRANCH=${BRANCH:?'missing BRANCH env var'}
-
-# Only push images to Docker Hub for master branch or for release tags vM.N.P
-if [[ "$BRANCH" == "master" || $BRANCH =~ ^v[0-9]+\.[0-9]+\.[0-9]+$ ]]; then
-  echo "upload to Docker Hub, BRANCH=$BRANCH"
-else
-  echo 'skip Docker upload, only allowed for tagged releases or master (latest tag)'
-  exit 0
-fi
-
+# TODO avoid building the UI when on a PR branch: https://github.com/jaegertracing/jaeger/issues/1908
 source ~/.nvm/nvm.sh
 nvm use 10
 
 export DOCKER_NAMESPACE=jaegertracing
 make docker
-
-if [[ "$TRAVIS_SECURE_ENV_VARS" == "false" ]]; then
-  echo "skip docker upload, TRAVIS_SECURE_ENV_VARS=$TRAVIS_SECURE_ENV_VARS"
-  exit 0
-fi
-
-for component in agent cassandra-schema es-index-cleaner es-rollover collector query ingester
-do
-  export REPO="jaegertracing/jaeger-${component}"
-  bash ./scripts/travis/upload-to-docker.sh
-done
