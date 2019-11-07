@@ -139,3 +139,29 @@ func TestExclusiveWhiteListBlackList(t *testing.T) {
 	_, err = f.CreateArchiveSpanWriter()
 	assert.EqualError(t, err, "only one of TagIndexBlacklist and TagIndexWhitelist can be specified")
 }
+
+func TestWriterOptions(t *testing.T) {
+	opts := NewOptions("cassandra")
+	v, command := config.Viperize(opts.AddFlags)
+	command.ParseFlags([]string{"--cassandra.tag-index-whitelist=a,b,c"})
+	opts.InitFromViper(v)
+
+	options, _ := writerOptions(opts.GetPrimary())
+	assert.Len(t, options, 1)
+
+	opts = NewOptions("cassandra")
+	v, command = config.Viperize(opts.AddFlags)
+	command.ParseFlags([]string{"--cassandra.tag-index-blacklist=a,b,c"})
+	opts.InitFromViper(v)
+
+	options, _ = writerOptions(opts.GetPrimary())
+	assert.Len(t, options, 1)
+
+	opts = NewOptions("cassandra")
+	v, command = config.Viperize(opts.AddFlags)
+	command.ParseFlags([]string{""})
+	opts.InitFromViper(v)
+
+	options, _ = writerOptions(opts.GetPrimary())
+	assert.Len(t, options, 0)
+}
