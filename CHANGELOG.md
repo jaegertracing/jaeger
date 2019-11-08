@@ -3,6 +3,7 @@ Changes by Version
 
 1.16.0 (unreleased)
 ------------------
+
 #### Backend Changes
 
 ##### Breaking Changes
@@ -13,8 +14,19 @@ Changes by Version
 
 #### UI Changes
 
+
+1.15.1 (2019-11-07)
+------------------
+
+##### Bug fixes, Minor Improvements
+
+* Build platform binaries as part of CI ([#1909](https://github.com/jaegertracing/jaeger/pull/1909), [@yurishkuro](https://github.com/yurishkuro))
+* Upgrade and fix dependencies ([#1907](https://github.com/jaegertracing/jaeger/pull/1907), [@yurishkuro](https://github.com/yurishkuro))
+
+
 1.15.0 (2019-11-07)
 ------------------
+
 #### Backend Changes
 
 ##### Breaking Changes
@@ -26,7 +38,7 @@ Changes by Version
 * Mark `--collector.grpc.tls.client.ca` flag as deprecated for jaeger-collector. ([#1840](https://github.com/jaegertracing/jaeger/pull/1840), [@yurishkuro](https://github.com/yurishkuro))
 
   The deprecated flag will still work until being removed, it's recommended to use `--collector.grpc.tls.client-ca` instead.
-  
+
 ##### New Features
 
 * Support TLS for Kafka ([#1414](https://github.com/jaegertracing/jaeger/pull/1414), [@MichaHoffmann](https://github.com/MichaHoffmann))
@@ -59,7 +71,7 @@ Changes by Version
 
 * Create ES index templates instead of indices ([#1627](https://github.com/jaegertracing/jaeger/pull/1627), [@pavolloffay](https://github.com/pavolloffay))
 
-  This can break existing Elasticsearch deployments if security policies are applied. 
+  This can break existing Elasticsearch deployments if security policies are applied.
   For instance Jaeger `X-Pack` configuration now requires permission to create index templates - `manage_index_templates`.
 
 ##### New Features
@@ -68,12 +80,12 @@ Changes by Version
 * Add Elasticsearch version flag ([#1753](https://github.com/jaegertracing/jaeger/pull/1753), [@pavolloffay](https://github.com/pavolloffay))
 * Add Elasticsearch 7 support ([#1690](https://github.com/jaegertracing/jaeger/pull/1690), [@gregoryfranklin](https://github.com/gregoryfranklin))
 
-  The index mappings in Elasticsearch 7 are not backwards compatible with the older versions. 
+  The index mappings in Elasticsearch 7 are not backwards compatible with the older versions.
   Therefore using Elasticsearch 7 with data created with older version would not work.
   Elasticsearch 6.8 supports 7.x, 6.x, 5.x compatible mappings. The upgrade has to be done
   first to ES 6.8, then apply data migration or wait until old daily indices are removed (this requires
   to start Jaeger with `--es.version=7` to force using ES 7.x mappings for newly created indices).
-  
+
   Jaeger by default uses Elasticsearch ping endpoint (`/`) to derive the version which is used
   for index mappings selection. The version can be overridden by flag `--es.version`.
 
@@ -187,15 +199,15 @@ Changes by Version
     --ingester.encoding
     --ingester.topic
     --ingester.group-id
-    ``` 
-    
+    ```
+
     In the Collector, they are replaced by:
     ```
     --kafka.producer.brokers
     --kafka.producer.encoding
     --kafka.producer.topic
     ```
-    
+
     In the Ingester, they are replaced by:
     ```
     --kafka.consumer.brokers
@@ -252,15 +264,15 @@ Changes by Version
     --kafka.brokers
     --kafka.encoding
     --kafka.topic
-    ``` 
-    
+    ```
+
     In the Collector, they are replaced by:
     ```
     --kafka.producer.brokers
     --kafka.producer.encoding
     --kafka.producer.topic
     ```
-    
+
     In the Ingester, they are replaced by:
     ```
     --kafka.consumer.brokers
