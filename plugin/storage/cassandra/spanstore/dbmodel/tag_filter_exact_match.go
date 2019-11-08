@@ -38,6 +38,16 @@ func NewExactMatchTagFilter(tags []string, dropMatches bool) ExactMatchTagFilter
 	}
 }
 
+// NewBlacklistFilter is a convenience method for creating a blacklist ExactMatchTagFilter
+func NewBlacklistFilter(tags []string) ExactMatchTagFilter {
+	return NewExactMatchTagFilter(tags, true)
+}
+
+// NewWhitelistFilter is a convenience method for creating a whitelist ExactMatchTagFilter
+func NewWhitelistFilter(tags []string) ExactMatchTagFilter {
+	return NewExactMatchTagFilter(tags, false)
+}
+
 // FilterProcessTags implements TagFilter
 func (tf ExactMatchTagFilter) FilterProcessTags(span *model.Span, processTags model.KeyValues) model.KeyValues {
 	return tf.filter(processTags)

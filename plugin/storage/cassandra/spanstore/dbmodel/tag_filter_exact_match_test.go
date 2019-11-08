@@ -52,7 +52,7 @@ func TestBlacklistFilter(t *testing.T) {
 		}
 		expectedKVs.Sort()
 
-		tf := NewExactMatchTagFilter(filter, true)
+		tf := NewBlacklistFilter(filter)
 		actualKVs := tf.filter(inputKVs)
 		actualKVs.Sort()
 		assert.Equal(t, actualKVs, expectedKVs)
@@ -101,7 +101,7 @@ func TestWhitelistFilter(t *testing.T) {
 		}
 		expectedKVs.Sort()
 
-		tf := NewExactMatchTagFilter(filter, false)
+		tf := NewWhitelistFilter(filter)
 		actualKVs := tf.filter(inputKVs)
 		actualKVs.Sort()
 		assert.Equal(t, actualKVs, expectedKVs)
