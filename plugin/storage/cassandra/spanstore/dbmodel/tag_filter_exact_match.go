@@ -24,10 +24,10 @@ type ExactMatchTagFilter struct {
 	dropMatches bool
 }
 
-// NewExactMatchTagFilter creates a ExactMatchTagFilter with the provided tags.  Passing
+// newExactMatchTagFilter creates a ExactMatchTagFilter with the provided tags.  Passing
 // dropMatches true will exhibit blacklist behavior.  Passing dropMatches false
 // will exhibit whitelist behavior.
-func NewExactMatchTagFilter(tags []string, dropMatches bool) ExactMatchTagFilter {
+func newExactMatchTagFilter(tags []string, dropMatches bool) ExactMatchTagFilter {
 	mapTags := make(map[string]struct{})
 	for _, t := range tags {
 		mapTags[t] = struct{}{}
@@ -40,12 +40,12 @@ func NewExactMatchTagFilter(tags []string, dropMatches bool) ExactMatchTagFilter
 
 // NewBlacklistFilter is a convenience method for creating a blacklist ExactMatchTagFilter
 func NewBlacklistFilter(tags []string) ExactMatchTagFilter {
-	return NewExactMatchTagFilter(tags, true)
+	return newExactMatchTagFilter(tags, true)
 }
 
 // NewWhitelistFilter is a convenience method for creating a whitelist ExactMatchTagFilter
 func NewWhitelistFilter(tags []string) ExactMatchTagFilter {
-	return NewExactMatchTagFilter(tags, false)
+	return newExactMatchTagFilter(tags, false)
 }
 
 // FilterProcessTags implements TagFilter
