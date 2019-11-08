@@ -54,11 +54,11 @@ func (tf ExactMatchTagFilter) FilterLogFields(span *model.Span, logFields model.
 }
 
 func (tf ExactMatchTagFilter) filter(tags model.KeyValues) model.KeyValues {
-	var kvs model.KeyValues
+	var filteredTags model.KeyValues
 	for _, t := range tags {
 		if _, ok := tf.tags[t.Key]; ok == !tf.dropMatches {
-			kvs = append(kvs, t)
+			filteredTags = append(filteredTags, t)
 		}
 	}
-	return kvs
+	return filteredTags
 }
