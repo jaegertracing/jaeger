@@ -147,9 +147,9 @@ func writerOptions(opts *Options) ([]cSpanStore.Option, error) {
 
 	var options []cSpanStore.Option
 	if len(tagIndexBlacklist) > 0 {
-		options = append(options, cSpanStore.TagFilter(dbmodel.NewBlacklistTagFilter(tagIndexBlacklist)))
+		options = append(options, cSpanStore.TagFilter(dbmodel.NewExactMatchTagFilter(tagIndexBlacklist, true)))
 	} else if len(tagIndexWhitelist) > 0 {
-		options = append(options, cSpanStore.TagFilter(dbmodel.NewWhitelistTagFilter(tagIndexWhitelist)))
+		options = append(options, cSpanStore.TagFilter(dbmodel.NewExactMatchTagFilter(tagIndexWhitelist, false)))
 	}
 	return options, nil
 }
