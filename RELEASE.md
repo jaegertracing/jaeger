@@ -11,12 +11,13 @@
         git fetch
         git checkout {new_version} //e.g. v1.5.0
         ```
-2. After the PR is merged, create a release on Github:
+2. Add all merged pull requests to the milestone for the release and create a new milestone for a next release e.g. `Release 1.16`.
+3. After the PR is merged, create a release on Github:
     * Title "Release X.Y.Z" 
     * Tag `vX.Y.Z` (note the `v` prefix) and choose appropriate branch
     * Copy the new CHANGELOG.md section into the release notes
-3. The release tag will trigger a build of the docker images
-4. Once the images are available on [Docker Hub](https://hub.docker.com/r/jaegertracing/), announce the release on the mailing list, gitter, and twitter.
-5. Publish documentation for the new version in [jaegertracing.io](https://github.com/jaegertracing/documentation).
+4. The release tag will trigger a build of the docker images
+5. Once the images are available on [Docker Hub](https://hub.docker.com/r/jaegertracing/), announce the release on the mailing list, gitter, and twitter.
+6. Publish documentation for the new version in [jaegertracing.io](https://github.com/jaegertracing/documentation).
 
 Maintenance branches should follow naming convention: `release-major.minor` (e.g.`release-1.8`).
