@@ -18,41 +18,45 @@ import (
 	"github.com/jaegertracing/jaeger/model"
 )
 
-// BlacklistTagFilter filters out all tags in its tags slice
-type BlacklistTagFilter struct {
-	tags map[string]struct{}
+// ExactMatchTagFilter filters out all tags in its tags slice
+type ExactMatchTagFilter struct {
+	tags        map[string]struct{}
+	dropMatches bool
 }
 
-// NewBlacklistTagFilter creates a BlacklistTagFilter with the provided tags
-func NewBlacklistTagFilter(tags []string) BlacklistTagFilter {
+// NewExactMatchTagFilter creates a ExactMatchTagFilter with the provided tags.  Passing
+// dropMatches true will exhibit blacklist behavior.  Passing dropMatches false
+// will exhibit whitelist behavior.
+func NewExactMatchTagFilter(tags []string, dropMatches bool) ExactMatchTagFilter {
 	mapTags := make(map[string]struct{})
 	for _, t := range tags {
 		mapTags[t] = struct{}{}
 	}
-	return BlacklistTagFilter{
-		tags: mapTags,
+	return ExactMatchTagFilter{
+		tags:        mapTags,
+		dropMatches: dropMatches,
 	}
 }
 
 // FilterProcessTags implements TagFilter
-func (tf BlacklistTagFilter) FilterProcessTags(span *model.Span, processTags model.KeyValues) model.KeyValues {
+func (tf ExactMatchTagFilter) FilterProcessTags(span *model.Span, processTags model.KeyValues) model.KeyValues {
 	return tf.filter(processTags)
 }
 
 // FilterTags implements TagFilter
-func (tf BlacklistTagFilter) FilterTags(span *model.Span, tags model.KeyValues) model.KeyValues {
+func (tf ExactMatchTagFilter) FilterTags(span *model.Span, tags model.KeyValues) model.KeyValues {
 	return tf.filter(tags)
 }
 
 // FilterLogFields implements TagFilter
-func (tf BlacklistTagFilter) FilterLogFields(span *model.Span, logFields model.KeyValues) model.KeyValues {
+func (tf ExactMatchTagFilter) FilterLogFields(span *model.Span, logFields model.KeyValues) model.KeyValues {
 	return tf.filter(logFields)
 }
 
-func (tf BlacklistTagFilter) filter(processTags model.KeyValues) model.KeyValues {
+func (tf ExactMatchTagFilter) filter(processTags model.KeyValues) model.KeyValues {
 	var kvs model.KeyValues
 	for _, t := range processTags {
-		if _, ok := tf.tags[t.Key]; !ok {
+		if _, ok := tf.tags[t.Key]; ok == !tf.dropMatches {
 			kvs = append(kvs, t)
 		}
 	}
