@@ -237,7 +237,6 @@ func (opt *Options) InitFromViper(v *viper.Viper) {
 	opt.SpanStoreWriteCacheTTL = v.GetDuration(opt.primary.namespace + suffixSpanStoreWriteCacheTTL)
 	opt.tagIndexBlacklist = stripWhiteSpace(v.GetString(opt.primary.namespace + suffixTagIndexBlacklist))
 	opt.tagIndexWhitelist = stripWhiteSpace(v.GetString(opt.primary.namespace + suffixTagIndexWhitelist))
-
 }
 
 func (cfg *namespaceConfig) initFromViper(v *viper.Viper) {
