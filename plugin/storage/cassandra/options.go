@@ -50,11 +50,11 @@ const (
 	suffixServerName           = ".tls.server-name"
 	suffixVerifyHost           = ".tls.verify-host"
 	suffixEnableDependenciesV2 = ".enable-dependencies-v2"
-	suffixTagIndexBlacklist    = ".tag-index-blacklist"
-	suffixTagIndexWhitelist    = ".tag-index-whitelist"
 
 	// common storage settings
 	suffixSpanStoreWriteCacheTTL = ".span-store-write-cache-ttl"
+	suffixTagIndexBlacklist      = ".tag-index-blacklist"
+	suffixTagIndexWhitelist      = ".tag-index-whitelist"
 )
 
 // Options contains various type of Cassandra configs and provides the ability
@@ -64,6 +64,8 @@ type Options struct {
 	primary                *namespaceConfig
 	others                 map[string]*namespaceConfig
 	SpanStoreWriteCacheTTL time.Duration
+	tagIndexBlacklist      string
+	tagIndexWhitelist      string
 }
 
 // the Servers field in config.Configuration is a list, which we cannot represent with flags.
@@ -71,12 +73,10 @@ type Options struct {
 // preparing the actual config.Configuration.
 type namespaceConfig struct {
 	config.Configuration
-	servers           string
-	tagIndexBlacklist string
-	tagIndexWhitelist string
-	namespace         string
-	primary           bool
-	Enabled           bool
+	servers   string
+	namespace string
+	primary   bool
+	Enabled   bool
 }
 
 // NewOptions creates a new Options struct.
@@ -120,6 +120,15 @@ func (opt *Options) AddFlags(flagSet *flag.FlagSet) {
 	flagSet.Duration(opt.primary.namespace+suffixSpanStoreWriteCacheTTL,
 		opt.SpanStoreWriteCacheTTL,
 		"The duration to wait before rewriting an existing service or operation name")
+	flagSet.String(
+		opt.primary.namespace+suffixTagIndexBlacklist,
+		opt.tagIndexBlacklist,
+		"The comma-separated list of tags to blacklist")
+	flagSet.String(
+		opt.primary.namespace+suffixTagIndexWhitelist,
+		opt.tagIndexWhitelist,
+		"The comma-separated list of tags to whitelist")
+
 }
 
 func addFlags(flagSet *flag.FlagSet, nsConfig *namespaceConfig) {
@@ -217,14 +226,6 @@ func addFlags(flagSet *flag.FlagSet, nsConfig *namespaceConfig) {
 		nsConfig.namespace+suffixEnableDependenciesV2,
 		nsConfig.EnableDependenciesV2,
 		"(deprecated) Jaeger will automatically detect the version of the dependencies table")
-	flagSet.String(
-		nsConfig.namespace+suffixTagIndexBlacklist,
-		nsConfig.tagIndexWhitelist,
-		"The comma-separated list of tags to blacklist")
-	flagSet.String(
-		nsConfig.namespace+suffixTagIndexWhitelist,
-		nsConfig.tagIndexBlacklist,
-		"The comma-separated list of tags to whitelist")
 }
 
 // InitFromViper initializes Options with properties from viper
@@ -234,6 +235,9 @@ func (opt *Options) InitFromViper(v *viper.Viper) {
 		cfg.initFromViper(v)
 	}
 	opt.SpanStoreWriteCacheTTL = v.GetDuration(opt.primary.namespace + suffixSpanStoreWriteCacheTTL)
+	opt.tagIndexBlacklist = stripWhiteSpace(v.GetString(opt.primary.namespace + suffixTagIndexBlacklist))
+	opt.tagIndexWhitelist = stripWhiteSpace(v.GetString(opt.primary.namespace + suffixTagIndexWhitelist))
+
 }
 
 func (cfg *namespaceConfig) initFromViper(v *viper.Viper) {
@@ -262,19 +266,11 @@ func (cfg *namespaceConfig) initFromViper(v *viper.Viper) {
 	cfg.TLS.EnableHostVerification = v.GetBool(cfg.namespace + suffixVerifyHost)
 	cfg.EnableDependenciesV2 = v.GetBool(cfg.namespace + suffixEnableDependenciesV2)
 	cfg.DisableCompression = v.GetBool(cfg.namespace + suffixDisableCompression)
-	cfg.tagIndexBlacklist = stripWhiteSpace(v.GetString(cfg.namespace + suffixTagIndexBlacklist))
-	cfg.tagIndexWhitelist = stripWhiteSpace(v.GetString(cfg.namespace + suffixTagIndexWhitelist))
 }
 
 // GetPrimary returns primary configuration.
 func (opt *Options) GetPrimary() *config.Configuration {
 	opt.primary.Servers = strings.Split(opt.primary.servers, ",")
-	if len(opt.primary.tagIndexBlacklist) > 0 {
-		opt.primary.TagIndexBlacklist = strings.Split(opt.primary.tagIndexBlacklist, ",")
-	}
-	if len(opt.primary.tagIndexWhitelist) > 0 {
-		opt.primary.TagIndexWhitelist = strings.Split(opt.primary.tagIndexWhitelist, ",")
-	}
 	return &opt.primary.Configuration
 }
 
@@ -293,19 +289,25 @@ func (opt *Options) Get(namespace string) *config.Configuration {
 		nsCfg.servers = opt.primary.servers
 	}
 	nsCfg.Servers = strings.Split(nsCfg.servers, ",")
-	if nsCfg.tagIndexBlacklist == "" {
-		nsCfg.tagIndexBlacklist = opt.primary.tagIndexBlacklist
-	}
-	if len(nsCfg.tagIndexBlacklist) > 0 {
-		nsCfg.TagIndexBlacklist = strings.Split(nsCfg.tagIndexBlacklist, ",")
-	}
-	if nsCfg.tagIndexWhitelist == "" {
-		nsCfg.tagIndexWhitelist = opt.primary.tagIndexWhitelist
-	}
-	if len(nsCfg.tagIndexWhitelist) > 0 {
-		nsCfg.TagIndexWhitelist = strings.Split(nsCfg.tagIndexWhitelist, ",")
-	}
 	return &nsCfg.Configuration
+}
+
+// GetTagIndexBlacklist returns the list of blacklisted tags
+func (opt *Options) GetTagIndexBlacklist() []string {
+	if len(opt.tagIndexBlacklist) > 0 {
+		return strings.Split(opt.tagIndexBlacklist, ",")
+	}
+
+	return []string{}
+}
+
+// GetTagIndexWhitelist returns the list of whitelisted tags
+func (opt *Options) GetTagIndexWhitelist() []string {
+	if len(opt.tagIndexWhitelist) > 0 {
+		return strings.Split(opt.tagIndexWhitelist, ",")
+	}
+
+	return []string{}
 }
 
 // stripWhiteSpace removes all whitespace characters from a string

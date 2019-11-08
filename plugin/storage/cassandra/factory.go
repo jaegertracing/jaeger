@@ -104,7 +104,7 @@ func (f *Factory) CreateSpanReader() (spanstore.Reader, error) {
 
 // CreateSpanWriter implements storage.Factory
 func (f *Factory) CreateSpanWriter() (spanstore.Writer, error) {
-	options, err := writerOptions(f.Options.GetPrimary())
+	options, err := writerOptions(f.Options)
 	if err != nil {
 		return nil, err
 	}
@@ -130,23 +130,26 @@ func (f *Factory) CreateArchiveSpanWriter() (spanstore.Writer, error) {
 	if f.archiveSession == nil {
 		return nil, storage.ErrArchiveStorageNotConfigured
 	}
-	options, err := writerOptions(f.Options.Get(archiveStorageConfig))
+	options, err := writerOptions(f.Options)
 	if err != nil {
 		return nil, err
 	}
 	return cSpanStore.NewSpanWriter(f.archiveSession, f.Options.SpanStoreWriteCacheTTL, f.archiveMetricsFactory, f.logger, options...), nil
 }
 
-func writerOptions(config *config.Configuration) ([]cSpanStore.Option, error) {
-	if len(config.TagIndexBlacklist) > 0 && len(config.TagIndexWhitelist) > 0 {
+func writerOptions(opts *Options) ([]cSpanStore.Option, error) {
+	tagIndexBlacklist := opts.GetTagIndexBlacklist()
+	tagIndexWhitelist := opts.GetTagIndexWhitelist()
+
+	if len(tagIndexBlacklist) > 0 && len(tagIndexWhitelist) > 0 {
 		return nil, errors.New("only one of TagIndexBlacklist and TagIndexWhitelist can be specified")
 	}
 
 	var options []cSpanStore.Option
-	if len(config.TagIndexBlacklist) > 0 {
-		options = append(options, cSpanStore.TagFilter(dbmodel.NewBlacklistTagFilter(config.TagIndexBlacklist)))
-	} else if len(config.TagIndexWhitelist) > 0 {
-		options = append(options, cSpanStore.TagFilter(dbmodel.NewWhitelistTagFilter(config.TagIndexWhitelist)))
+	if len(tagIndexBlacklist) > 0 {
+		options = append(options, cSpanStore.TagFilter(dbmodel.NewBlacklistTagFilter(tagIndexBlacklist)))
+	} else if len(tagIndexWhitelist) > 0 {
+		options = append(options, cSpanStore.TagFilter(dbmodel.NewWhitelistTagFilter(tagIndexWhitelist)))
 	}
 	return options, nil
 }

@@ -43,8 +43,6 @@ func TestOptions(t *testing.T) {
 	assert.Equal(t, primary.Servers, aux.Servers)
 	assert.Equal(t, primary.ConnectionsPerHost, aux.ConnectionsPerHost)
 	assert.Equal(t, primary.ReconnectInterval, aux.ReconnectInterval)
-	assert.Equal(t, primary.TagIndexBlacklist, aux.TagIndexBlacklist)
-	assert.Equal(t, primary.TagIndexWhitelist, aux.TagIndexWhitelist)
 }
 
 func TestOptionsWithFlags(t *testing.T) {
@@ -63,7 +61,7 @@ func TestOptionsWithFlags(t *testing.T) {
 		"--cas.proto-version=3",
 		"--cas.socket-keep-alive=42s",
 		"--cas.tag-index-blacklist=blerg, blarg,blorg ",
-		"--cas.tag-index-whitelist=blerg, blarg,blorg ",
+		"--cas.tag-index-whitelist=flerg, flarg,florg ",
 		// enable aux with a couple overrides
 		"--cas-aux.enabled=true",
 		"--cas-aux.keyspace=jaeger-archive",
@@ -79,8 +77,8 @@ func TestOptionsWithFlags(t *testing.T) {
 	assert.Equal(t, []string{"1.1.1.1", "2.2.2.2"}, primary.Servers)
 	assert.Equal(t, "ONE", primary.Consistency)
 	assert.Equal(t, false, primary.EnableDependenciesV2)
-	assert.Equal(t, []string{"blerg", "blarg", "blorg"}, primary.TagIndexBlacklist)
-	assert.Equal(t, []string{"blerg", "blarg", "blorg"}, primary.TagIndexWhitelist)
+	assert.Equal(t, []string{"blerg", "blarg", "blorg"}, opts.GetTagIndexBlacklist())
+	assert.Equal(t, []string{"flerg", "flarg", "florg"}, opts.GetTagIndexWhitelist())
 
 	aux := opts.Get("cas-aux")
 	require.NotNil(t, aux)
@@ -95,6 +93,14 @@ func TestOptionsWithFlags(t *testing.T) {
 	assert.Equal(t, 3, aux.ProtoVersion)
 	assert.Equal(t, 42*time.Second, aux.SocketKeepAlive)
 	assert.Equal(t, true, aux.EnableDependenciesV2)
-	assert.Equal(t, []string{"blerg", "blarg", "blorg"}, aux.TagIndexBlacklist)
-	assert.Equal(t, []string{"foo", "bar"}, aux.TagIndexWhitelist)
+}
+
+func TestEmptyBlackWhiteLists(t *testing.T) {
+	opts := NewOptions("cas")
+	v, command := config.Viperize(opts.AddFlags)
+	command.ParseFlags([]string{})
+	opts.InitFromViper(v)
+
+	assert.Equal(t, []string{}, opts.GetTagIndexBlacklist())
+	assert.Equal(t, []string{}, opts.GetTagIndexWhitelist())
 }

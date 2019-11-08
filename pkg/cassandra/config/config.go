@@ -45,8 +45,6 @@ type Configuration struct {
 	DisableAutoDiscovery bool          `yaml:"disable_auto_discovery"`
 	EnableDependenciesV2 bool          `yaml:"enable_dependencies_v2"`
 	TLS                  TLS
-	TagIndexWhitelist    []string `yaml:"tag-index-whitelist"`
-	TagIndexBlacklist    []string `yaml:"tag-index-blacklist"`
 }
 
 // Authenticator holds the authentication properties needed to connect to a Cassandra cluster

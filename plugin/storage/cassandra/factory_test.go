@@ -146,7 +146,7 @@ func TestWriterOptions(t *testing.T) {
 	command.ParseFlags([]string{"--cassandra.tag-index-whitelist=a,b,c"})
 	opts.InitFromViper(v)
 
-	options, _ := writerOptions(opts.GetPrimary())
+	options, _ := writerOptions(opts)
 	assert.Len(t, options, 1)
 
 	opts = NewOptions("cassandra")
@@ -154,7 +154,7 @@ func TestWriterOptions(t *testing.T) {
 	command.ParseFlags([]string{"--cassandra.tag-index-blacklist=a,b,c"})
 	opts.InitFromViper(v)
 
-	options, _ = writerOptions(opts.GetPrimary())
+	options, _ = writerOptions(opts)
 	assert.Len(t, options, 1)
 
 	opts = NewOptions("cassandra")
@@ -162,6 +162,6 @@ func TestWriterOptions(t *testing.T) {
 	command.ParseFlags([]string{""})
 	opts.InitFromViper(v)
 
-	options, _ = writerOptions(opts.GetPrimary())
+	options, _ = writerOptions(opts)
 	assert.Len(t, options, 0)
 }
