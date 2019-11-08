@@ -23,36 +23,35 @@ import (
 )
 
 func TestBlacklistFilter(t *testing.T) {
-	// expected
-	tt := [][][]string{
+	tt := []struct {
+		input    []string
+		filter   []string
+		expected []string
+	}{
 		{
-			{"a", "b", "c"}, // input
-			{"a"},           // filter
-			{"b", "c"},      // expected
+			input:    []string{"a", "b", "c"},
+			filter:   []string{"a"},
+			expected: []string{"b", "c"},
 		},
 		{
-			{"a", "b", "c"},
-			{"A"},
-			{"a", "b", "c"},
+			input:    []string{"a", "b", "c"},
+			filter:   []string{"A"},
+			expected: []string{"a", "b", "c"},
 		},
 	}
 
 	for _, test := range tt {
-		input := test[0]
-		filter := test[1]
-		expected := test[2]
-
 		var inputKVs model.KeyValues
-		for _, i := range input {
+		for _, i := range test.input {
 			inputKVs = append(inputKVs, model.String(i, ""))
 		}
 		var expectedKVs model.KeyValues
-		for _, e := range expected {
+		for _, e := range test.expected {
 			expectedKVs = append(expectedKVs, model.String(e, ""))
 		}
 		expectedKVs.Sort()
 
-		tf := NewBlacklistFilter(filter)
+		tf := NewBlacklistFilter(test.filter)
 		actualKVs := tf.filter(inputKVs)
 		actualKVs.Sort()
 		assert.Equal(t, actualKVs, expectedKVs)
@@ -72,36 +71,35 @@ func TestBlacklistFilter(t *testing.T) {
 }
 
 func TestWhitelistFilter(t *testing.T) {
-	// expected
-	tt := [][][]string{
+	tt := []struct {
+		input    []string
+		filter   []string
+		expected []string
+	}{
 		{
-			{"a", "b", "c"}, // input
-			{"a"},           // filter
-			{"a"},           // expected
+			input:    []string{"a", "b", "c"},
+			filter:   []string{"a"},
+			expected: []string{"a"},
 		},
 		{
-			{"a", "b", "c"},
-			{"A"},
-			{},
+			input:    []string{"a", "b", "c"},
+			filter:   []string{"A"},
+			expected: []string{},
 		},
 	}
 
 	for _, test := range tt {
-		input := test[0]
-		filter := test[1]
-		expected := test[2]
-
 		var inputKVs model.KeyValues
-		for _, i := range input {
+		for _, i := range test.input {
 			inputKVs = append(inputKVs, model.String(i, ""))
 		}
 		var expectedKVs model.KeyValues
-		for _, e := range expected {
+		for _, e := range test.expected {
 			expectedKVs = append(expectedKVs, model.String(e, ""))
 		}
 		expectedKVs.Sort()
 
-		tf := NewWhitelistFilter(filter)
+		tf := NewWhitelistFilter(test.filter)
 		actualKVs := tf.filter(inputKVs)
 		actualKVs.Sort()
 		assert.Equal(t, actualKVs, expectedKVs)
