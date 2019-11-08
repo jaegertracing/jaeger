@@ -123,11 +123,11 @@ func (opt *Options) AddFlags(flagSet *flag.FlagSet) {
 	flagSet.String(
 		opt.primary.namespace+suffixTagIndexBlacklist,
 		opt.tagIndexBlacklist,
-		"The comma-separated list of tags to blacklist")
+		"The comma-separated list of span tags to blacklist from being indexed. All other tags will be indexed. Mutually exclusive with the whitelist option.")
 	flagSet.String(
 		opt.primary.namespace+suffixTagIndexWhitelist,
 		opt.tagIndexWhitelist,
-		"The comma-separated list of tags to whitelist")
+		"The comma-separated list of span tags to whitelist for being indexed. All other tags will not be indexed. Mutually exclusive with the blacklist option.")
 
 }
 
@@ -292,22 +292,22 @@ func (opt *Options) Get(namespace string) *config.Configuration {
 	return &nsCfg.Configuration
 }
 
-// GetTagIndexBlacklist returns the list of blacklisted tags
-func (opt *Options) GetTagIndexBlacklist() []string {
+// TagIndexBlacklist returns the list of blacklisted tags
+func (opt *Options) TagIndexBlacklist() []string {
 	if len(opt.tagIndexBlacklist) > 0 {
 		return strings.Split(opt.tagIndexBlacklist, ",")
 	}
 
-	return []string{}
+	return nil
 }
 
-// GetTagIndexWhitelist returns the list of whitelisted tags
-func (opt *Options) GetTagIndexWhitelist() []string {
+// TagIndexWhitelist returns the list of whitelisted tags
+func (opt *Options) TagIndexWhitelist() []string {
 	if len(opt.tagIndexWhitelist) > 0 {
 		return strings.Split(opt.tagIndexWhitelist, ",")
 	}
 
-	return []string{}
+	return nil
 }
 
 // stripWhiteSpace removes all whitespace characters from a string

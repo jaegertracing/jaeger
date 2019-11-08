@@ -138,8 +138,8 @@ func (f *Factory) CreateArchiveSpanWriter() (spanstore.Writer, error) {
 }
 
 func writerOptions(opts *Options) ([]cSpanStore.Option, error) {
-	tagIndexBlacklist := opts.GetTagIndexBlacklist()
-	tagIndexWhitelist := opts.GetTagIndexWhitelist()
+	tagIndexBlacklist := opts.TagIndexBlacklist()
+	tagIndexWhitelist := opts.TagIndexWhitelist()
 
 	if len(tagIndexBlacklist) > 0 && len(tagIndexWhitelist) > 0 {
 		return nil, errors.New("only one of TagIndexBlacklist and TagIndexWhitelist can be specified")

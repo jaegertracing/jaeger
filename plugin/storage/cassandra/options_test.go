@@ -67,7 +67,6 @@ func TestOptionsWithFlags(t *testing.T) {
 		"--cas-aux.keyspace=jaeger-archive",
 		"--cas-aux.servers=3.3.3.3, 4.4.4.4",
 		"--cas-aux.enable-dependencies-v2=true",
-		"--cas-aux.tag-index-whitelist=foo,bar",
 	})
 	opts.InitFromViper(v)
 
@@ -77,8 +76,8 @@ func TestOptionsWithFlags(t *testing.T) {
 	assert.Equal(t, []string{"1.1.1.1", "2.2.2.2"}, primary.Servers)
 	assert.Equal(t, "ONE", primary.Consistency)
 	assert.Equal(t, false, primary.EnableDependenciesV2)
-	assert.Equal(t, []string{"blerg", "blarg", "blorg"}, opts.GetTagIndexBlacklist())
-	assert.Equal(t, []string{"flerg", "flarg", "florg"}, opts.GetTagIndexWhitelist())
+	assert.Equal(t, []string{"blerg", "blarg", "blorg"}, opts.TagIndexBlacklist())
+	assert.Equal(t, []string{"flerg", "flarg", "florg"}, opts.TagIndexWhitelist())
 
 	aux := opts.Get("cas-aux")
 	require.NotNil(t, aux)
@@ -101,6 +100,6 @@ func TestEmptyBlackWhiteLists(t *testing.T) {
 	command.ParseFlags([]string{})
 	opts.InitFromViper(v)
 
-	assert.Equal(t, []string{}, opts.GetTagIndexBlacklist())
-	assert.Equal(t, []string{}, opts.GetTagIndexWhitelist())
+	assert.Len(t, opts.TagIndexBlacklist(), 0)
+	assert.Len(t, opts.TagIndexWhitelist(), 0)
 }

@@ -1,5 +1,4 @@
 // Copyright (c) 2019 The Jaeger Authors.
-// Copyright (c) 2017 Uber Technologies, Inc.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -51,11 +50,11 @@ func (tf BlacklistTagFilter) FilterLogFields(span *model.Span, logFields model.K
 }
 
 func (tf BlacklistTagFilter) filter(processTags model.KeyValues) model.KeyValues {
-	var tags model.KeyValues
+	var kvs model.KeyValues
 	for _, t := range processTags {
 		if _, ok := tf.tags[t.Key]; !ok {
-			tags = append(tags, t)
+			kvs = append(kvs, t)
 		}
 	}
-	return tags
+	return kvs
 }

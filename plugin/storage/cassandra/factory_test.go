@@ -101,7 +101,7 @@ func TestCassandraFactory(t *testing.T) {
 	assert.NoError(t, err)
 }
 
-func TestExclusiveWhiteListBlackList(t *testing.T) {
+func TestExclusiveWhitelistBlacklist(t *testing.T) {
 	logger, logBuf := testutils.NewLogger()
 	f := NewFactory()
 	v, command := config.Viperize(f.AddFlags)

@@ -1,5 +1,4 @@
 // Copyright (c) 2019 The Jaeger Authors.
-// Copyright (c) 2017 Uber Technologies, Inc.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -36,8 +35,8 @@ func NewWhitelistTagFilter(tags []string) WhitelistTagFilter {
 }
 
 // FilterProcessTags implements TagFilter
-func (tf WhitelistTagFilter) FilterProcessTags(span *model.Span, processTags model.KeyValues) model.KeyValues {
-	return tf.filter(processTags)
+func (tf WhitelistTagFilter) FilterProcessTags(span *model.Span, tags model.KeyValues) model.KeyValues {
+	return tf.filter(tags)
 }
 
 // FilterTags implements TagFilter
@@ -50,12 +49,12 @@ func (tf WhitelistTagFilter) FilterLogFields(span *model.Span, logFields model.K
 	return tf.filter(logFields)
 }
 
-func (tf WhitelistTagFilter) filter(processTags model.KeyValues) model.KeyValues {
-	var tags model.KeyValues
-	for _, t := range processTags {
+func (tf WhitelistTagFilter) filter(tags model.KeyValues) model.KeyValues {
+	var kvs model.KeyValues
+	for _, t := range tags {
 		if _, ok := tf.tags[t.Key]; ok {
-			tags = append(tags, t)
+			kvs = append(kvs, t)
 		}
 	}
-	return tags
+	return kvs
 }
