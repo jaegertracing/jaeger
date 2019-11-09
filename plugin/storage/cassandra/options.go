@@ -53,6 +53,8 @@ const (
 
 	// common storage settings
 	suffixSpanStoreWriteCacheTTL = ".span-store-write-cache-ttl"
+	suffixTagIndexBlacklist      = ".tag-index-blacklist"
+	suffixTagIndexWhitelist      = ".tag-index-whitelist"
 )
 
 // Options contains various type of Cassandra configs and provides the ability
@@ -62,6 +64,8 @@ type Options struct {
 	primary                *namespaceConfig
 	others                 map[string]*namespaceConfig
 	SpanStoreWriteCacheTTL time.Duration
+	tagIndexBlacklist      string
+	tagIndexWhitelist      string
 }
 
 // the Servers field in config.Configuration is a list, which we cannot represent with flags.
@@ -116,6 +120,15 @@ func (opt *Options) AddFlags(flagSet *flag.FlagSet) {
 	flagSet.Duration(opt.primary.namespace+suffixSpanStoreWriteCacheTTL,
 		opt.SpanStoreWriteCacheTTL,
 		"The duration to wait before rewriting an existing service or operation name")
+	flagSet.String(
+		opt.primary.namespace+suffixTagIndexBlacklist,
+		opt.tagIndexBlacklist,
+		"The comma-separated list of span tags to blacklist from being indexed. All other tags will be indexed. Mutually exclusive with the whitelist option.")
+	flagSet.String(
+		opt.primary.namespace+suffixTagIndexWhitelist,
+		opt.tagIndexWhitelist,
+		"The comma-separated list of span tags to whitelist for being indexed. All other tags will not be indexed. Mutually exclusive with the blacklist option.")
+
 }
 
 func addFlags(flagSet *flag.FlagSet, nsConfig *namespaceConfig) {
@@ -222,6 +235,8 @@ func (opt *Options) InitFromViper(v *viper.Viper) {
 		cfg.initFromViper(v)
 	}
 	opt.SpanStoreWriteCacheTTL = v.GetDuration(opt.primary.namespace + suffixSpanStoreWriteCacheTTL)
+	opt.tagIndexBlacklist = stripWhiteSpace(v.GetString(opt.primary.namespace + suffixTagIndexBlacklist))
+	opt.tagIndexWhitelist = stripWhiteSpace(v.GetString(opt.primary.namespace + suffixTagIndexWhitelist))
 }
 
 func (cfg *namespaceConfig) initFromViper(v *viper.Viper) {
@@ -274,6 +289,24 @@ func (opt *Options) Get(namespace string) *config.Configuration {
 	}
 	nsCfg.Servers = strings.Split(nsCfg.servers, ",")
 	return &nsCfg.Configuration
+}
+
+// TagIndexBlacklist returns the list of blacklisted tags
+func (opt *Options) TagIndexBlacklist() []string {
+	if len(opt.tagIndexBlacklist) > 0 {
+		return strings.Split(opt.tagIndexBlacklist, ",")
+	}
+
+	return nil
+}
+
+// TagIndexWhitelist returns the list of whitelisted tags
+func (opt *Options) TagIndexWhitelist() []string {
+	if len(opt.tagIndexWhitelist) > 0 {
+		return strings.Split(opt.tagIndexWhitelist, ",")
+	}
+
+	return nil
 }
 
 // stripWhiteSpace removes all whitespace characters from a string
