@@ -60,6 +60,8 @@ func TestOptionsWithFlags(t *testing.T) {
 		"--cas.consistency=ONE",
 		"--cas.proto-version=3",
 		"--cas.socket-keep-alive=42s",
+		"--cas.tag-index-blacklist=blerg, blarg,blorg ",
+		"--cas.tag-index-whitelist=flerg, flarg,florg ",
 		// enable aux with a couple overrides
 		"--cas-aux.enabled=true",
 		"--cas-aux.keyspace=jaeger-archive",
@@ -74,6 +76,8 @@ func TestOptionsWithFlags(t *testing.T) {
 	assert.Equal(t, []string{"1.1.1.1", "2.2.2.2"}, primary.Servers)
 	assert.Equal(t, "ONE", primary.Consistency)
 	assert.Equal(t, false, primary.EnableDependenciesV2)
+	assert.Equal(t, []string{"blerg", "blarg", "blorg"}, opts.TagIndexBlacklist())
+	assert.Equal(t, []string{"flerg", "flarg", "florg"}, opts.TagIndexWhitelist())
 
 	aux := opts.Get("cas-aux")
 	require.NotNil(t, aux)
@@ -88,4 +92,14 @@ func TestOptionsWithFlags(t *testing.T) {
 	assert.Equal(t, 3, aux.ProtoVersion)
 	assert.Equal(t, 42*time.Second, aux.SocketKeepAlive)
 	assert.Equal(t, true, aux.EnableDependenciesV2)
+}
+
+func TestEmptyBlackWhiteLists(t *testing.T) {
+	opts := NewOptions("cas")
+	v, command := config.Viperize(opts.AddFlags)
+	command.ParseFlags([]string{})
+	opts.InitFromViper(v)
+
+	assert.Len(t, opts.TagIndexBlacklist(), 0)
+	assert.Len(t, opts.TagIndexWhitelist(), 0)
 }
