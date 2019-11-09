@@ -300,7 +300,9 @@ func (c *Configuration) getConfigOptions(logger *zap.Logger) ([]elastic.ClientOp
 			TLSClientConfig: ctlsConfig,
 		}
 	} else {
-		httpTransport := &http.Transport{}
+		httpTransport := &http.Transport{
+			Proxy: http.ProxyFromEnvironment,
+		}
 		if c.TLS.CaPath != "" {
 			ctls := &TLSConfig{CaPath: c.TLS.CaPath}
 			ca, err := ctls.loadCertificate()
