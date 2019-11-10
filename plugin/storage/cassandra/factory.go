@@ -138,18 +138,28 @@ func (f *Factory) CreateArchiveSpanWriter() (spanstore.Writer, error) {
 }
 
 func writerOptions(opts *Options) ([]cSpanStore.Option, error) {
+	var tagFilters []dbmodel.TagFilter
+
+	// drop all tag filters
+	if opts.DisableTagsIndex || opts.DisableProcessTagsIndex || opts.DisableLogsIndex {
+		tagFilters = append(tagFilters, dbmodel.NewTagFilterDropAll(opts.DisableTagsIndex, opts.DisableProcessTagsIndex, opts.DisableLogsIndex))
+	}
+
+	// black/white list tag filters
 	tagIndexBlacklist := opts.TagIndexBlacklist()
 	tagIndexWhitelist := opts.TagIndexWhitelist()
-
 	if len(tagIndexBlacklist) > 0 && len(tagIndexWhitelist) > 0 {
 		return nil, errors.New("only one of TagIndexBlacklist and TagIndexWhitelist can be specified")
 	}
-
-	var options []cSpanStore.Option
 	if len(tagIndexBlacklist) > 0 {
-		options = append(options, cSpanStore.TagFilter(dbmodel.NewBlacklistFilter(tagIndexBlacklist)))
+		tagFilters = append(tagFilters, dbmodel.NewBlacklistFilter(tagIndexBlacklist))
 	} else if len(tagIndexWhitelist) > 0 {
-		options = append(options, cSpanStore.TagFilter(dbmodel.NewWhitelistFilter(tagIndexWhitelist)))
+		tagFilters = append(tagFilters, dbmodel.NewWhitelistFilter(tagIndexWhitelist))
 	}
-	return options, nil
+
+	if len(tagFilters) == 0 {
+		return nil, nil
+	}
+
+	return []cSpanStore.Option{cSpanStore.TagFilter(dbmodel.NewCompositeFilter(tagFilters...))}, nil
 }

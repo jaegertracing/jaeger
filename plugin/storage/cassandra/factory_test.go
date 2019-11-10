@@ -159,6 +159,22 @@ func TestWriterOptions(t *testing.T) {
 
 	opts = NewOptions("cassandra")
 	v, command = config.Viperize(opts.AddFlags)
+	command.ParseFlags([]string{"--cassandra.index.enable-tags=false"})
+	opts.InitFromViper(v)
+
+	options, _ = writerOptions(opts)
+	assert.Len(t, options, 1)
+
+	opts = NewOptions("cassandra")
+	v, command = config.Viperize(opts.AddFlags)
+	command.ParseFlags([]string{"--cassandra.index.enable-tags=false", "--cassandra.index.tag-blacklist=a,b,c"})
+	opts.InitFromViper(v)
+
+	options, _ = writerOptions(opts)
+	assert.Len(t, options, 1)
+
+	opts = NewOptions("cassandra")
+	v, command = config.Viperize(opts.AddFlags)
 	command.ParseFlags([]string{""})
 	opts.InitFromViper(v)
 
