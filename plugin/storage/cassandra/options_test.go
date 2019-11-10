@@ -62,8 +62,8 @@ func TestOptionsWithFlags(t *testing.T) {
 		"--cas.socket-keep-alive=42s",
 		"--cas.index.tag-blacklist=blerg, blarg,blorg ",
 		"--cas.index.tag-whitelist=flerg, flarg,florg ",
-		"--cas.index.enable-tags=true",
-		"--cas.index.enable-process-tags=false",
+		"--cas.index.tags=true",
+		"--cas.index.process-tags=false",
 		// enable aux with a couple overrides
 		"--cas-aux.enabled=true",
 		"--cas-aux.keyspace=jaeger-archive",

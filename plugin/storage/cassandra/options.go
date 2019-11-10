@@ -55,9 +55,9 @@ const (
 	suffixSpanStoreWriteCacheTTL = ".span-store-write-cache-ttl"
 	suffixIndexTagsBlacklist     = ".index.tag-blacklist"
 	suffixIndexTagsWhitelist     = ".index.tag-whitelist"
-	suffixIndexLogs              = ".index.enable-logs"
-	suffixIndexTags              = ".index.enable-tags"
-	suffixIndexProcessTags       = ".index.enable-process-tags"
+	suffixIndexLogs              = ".index.logs"
+	suffixIndexTags              = ".index.tags"
+	suffixIndexProcessTags       = ".index.process-tags"
 )
 
 // Options contains various type of Cassandra configs and provides the ability
@@ -137,15 +137,15 @@ func (opt *Options) AddFlags(flagSet *flag.FlagSet) {
 	flagSet.Bool(
 		opt.primary.namespace+suffixIndexLogs,
 		!opt.DisableLogsIndex,
-		"Disable log indexing")
+		"Controls log field indexing. Set to false to disable.")
 	flagSet.Bool(
 		opt.primary.namespace+suffixIndexTags,
 		!opt.DisableTagsIndex,
-		"Disable tag indexing")
+		"Controls tag indexing. Set to false to disable.")
 	flagSet.Bool(
 		opt.primary.namespace+suffixIndexProcessTags,
 		!opt.DisableProcessTagsIndex,
-		"Disable process tag indexing")
+		"Controls process tag indexing. Set to false to disable.")
 }
 
 func addFlags(flagSet *flag.FlagSet, nsConfig *namespaceConfig) {
