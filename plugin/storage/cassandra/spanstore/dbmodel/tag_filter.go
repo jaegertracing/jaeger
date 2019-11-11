@@ -26,15 +26,6 @@ type TagFilter interface {
 	FilterLogFields(span *model.Span, logFields model.KeyValues) model.KeyValues
 }
 
-// NewCompositeFilter returns a TagFilter that implements all of the passed filters in order.
-func NewCompositeFilter(filters ...TagFilter) TagFilter {
-	if len(filters) == 1 {
-		return filters[0]
-	}
-
-	return NewChainedTagFilter(filters...)
-}
-
 // ChainedTagFilter applies multiple tag filters in serial fashion.
 type ChainedTagFilter []TagFilter
 

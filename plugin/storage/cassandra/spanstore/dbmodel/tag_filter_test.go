@@ -77,8 +77,3 @@ func compareTags(t *testing.T, expected, actual model.KeyValues) {
 		}
 	}
 }
-
-func TestCompositeFilter(t *testing.T) {
-	assert.IsType(t, onlyStringsFilter{}, NewCompositeFilter(onlyStringsFilter{}))
-	assert.IsType(t, ChainedTagFilter{}, NewCompositeFilter(onlyStringsFilter{}, onlyStringsFilter{}))
-}

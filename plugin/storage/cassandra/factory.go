@@ -159,7 +159,9 @@ func writerOptions(opts *Options) ([]cSpanStore.Option, error) {
 
 	if len(tagFilters) == 0 {
 		return nil, nil
+	} else if len(tagFilters) == 1 {
+		return []cSpanStore.Option{cSpanStore.TagFilter(tagFilters[0])}, nil
 	}
 
-	return []cSpanStore.Option{cSpanStore.TagFilter(dbmodel.NewCompositeFilter(tagFilters...))}, nil
+	return []cSpanStore.Option{cSpanStore.TagFilter(dbmodel.NewChainedTagFilter(tagFilters...))}, nil
 }
