@@ -35,7 +35,7 @@ func TestDropAll(t *testing.T) {
 	}
 
 	tt := []struct {
-		filter              TagFilterDropAll
+		filter              *TagFilterDropAll
 		expectedTags        model.KeyValues
 		expectedProcessTags model.KeyValues
 		expectedLogs        model.KeyValues
