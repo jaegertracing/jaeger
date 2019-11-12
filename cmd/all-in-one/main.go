@@ -345,14 +345,19 @@ func archiveOptions(storageFactory istorage.Factory, logger *zap.Logger) *querys
 }
 
 func initTracer(metricsFactory metrics.Factory, logger *zap.Logger) io.Closer {
-	tracer, closer, err := jaegerClientConfig.Configuration{
+	traceCfg := &jaegerClientConfig.Configuration{
 		ServiceName: "jaeger-query",
 		Sampler: &jaegerClientConfig.SamplerConfig{
 			Type:  "const",
 			Param: 1.0,
 		},
 		RPCMetrics: true,
-	}.NewTracer(
+	}
+	traceCfg, err := traceCfg.FromEnv()
+	if err != nil {
+		logger.Fatal("Failed to read tracer configuration", zap.Error(err))
+	}
+	tracer, closer, err := traceCfg.NewTracer(
 		jaegerClientConfig.Metrics(metricsFactory),
 		jaegerClientConfig.Logger(jaegerClientZapLog.NewLogger(logger)),
 	)
