@@ -67,7 +67,7 @@ func main() {
 			traceCfg := &jaegerClientConfig.Configuration{
 				ServiceName: "jaeger-query",
 				Sampler: &jaegerClientConfig.SamplerConfig{
-					Type:  "probabilistic",
+					Type:  "const",
 					Param: 1.0,
 				},
 				RPCMetrics: true,
