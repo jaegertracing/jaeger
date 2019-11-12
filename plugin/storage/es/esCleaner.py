@@ -23,20 +23,10 @@ def main():
         print('ES_TLS_CA ... Path to TLS CA file.')
         print('ES_TLS_CERT ... Path to TLS certificate file.')
         print('ES_TLS_KEY ... Path to TLS key file.')
+        print('ES_TLS_SKIP_HOST_VERIFY ... (insecure) Skip server\'s certificate chain and host name verification.')
         sys.exit(1)
 
-    username = os.getenv("ES_USERNAME")
-    password = os.getenv("ES_PASSWORD")
-
-    if username is not None and password is not None:
-        client = elasticsearch.Elasticsearch(sys.argv[2:], http_auth=(username, password))
-    elif str2bool(os.getenv("ES_TLS", 'false')):
-        context = ssl.create_default_context(ssl.Purpose.SERVER_AUTH, cafile=os.getenv("ES_TLS_CA"))
-        context.load_cert_chain(certfile=os.getenv("ES_TLS_CERT"), keyfile=os.getenv("ES_TLS_KEY"))
-        client = elasticsearch.Elasticsearch(sys.argv[2:], ssl_context=context)
-    else:
-        client = elasticsearch.Elasticsearch(sys.argv[2:])
-
+    client = create_client(os.getenv("ES_USERNAME"), os.getenv("ES_PASSWORD"), str2bool(os.getenv("ES_TLS", 'false')), os.getenv("ES_TLS_CA"), os.getenv("ES_TLS_CERT"), os.getenv("ES_TLS_KEY"), str2bool(os.getenv("ES_TLS_SKIP_HOST_VERIFY", 'false')))
     ilo = curator.IndexList(client)
     empty_list(ilo, 'Elasticsearch has no indices')
 
@@ -100,6 +90,20 @@ def empty_list(ilo, error_msg):
 
 def str2bool(v):
     return v.lower() in ('true', '1')
+
+
+def create_client(username, password, tls, ca, cert, key, skipHostVerify):
+    context = ssl.create_default_context(ssl.Purpose.SERVER_AUTH, cafile=ca) if ca is not None else ssl.create_default_context()
+    if skipHostVerify:
+        context.check_hostname = False
+        context.verify_mode = ssl.CERT_NONE
+    if username is not None and password is not None:
+        return elasticsearch.Elasticsearch(sys.argv[2:], http_auth=(username, password), ssl_context=context)
+    elif tls:
+        context.load_cert_chain(certfile=cert, keyfile=key)
+        return elasticsearch.Elasticsearch(sys.argv[2:], ssl_context=context)
+    else:
+        return elasticsearch.Elasticsearch(sys.argv[2:], ssl_context=context)
 
 
 if __name__ == "__main__":
