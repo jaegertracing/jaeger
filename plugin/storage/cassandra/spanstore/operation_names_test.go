@@ -29,6 +29,7 @@ import (
 	"github.com/jaegertracing/jaeger/pkg/cassandra/mocks"
 	"github.com/jaegertracing/jaeger/pkg/testutils"
 	"github.com/jaegertracing/jaeger/proto-gen/storage_v1"
+	"github.com/jaegertracing/jaeger/storage/spanstore"
 )
 
 type operationNameStorageTest struct {
@@ -132,12 +133,11 @@ func TestOperationNamesStorageGetServices(t *testing.T) {
 			s.session.On("Query", mock.AnythingOfType("string"), []interface{}{"service-a"}).Return(query)
 			s.session.On("Query", mock.AnythingOfType("string"), []interface{}{"service-a"},
 				mock.AnythingOfType("string"), []interface{}{""}).Return(query)
-
-			services, err := s.storage.GetOperations("service-a", "")
+			services, err := s.storage.GetOperations(&spanstore.OperationQueryParameters{ServiceName: "service-a", SpanKind: ""})
 			if expErr == nil {
 				assert.NoError(t, err)
 				// expect one empty operation result because mock iter.Scan(&placeholder) does not write to `placeholder`
-				assert.Equal(t, []*storage_v1.OperationMeta{{}}, services)
+				assert.Equal(t, []*storage_v1.Operation{{}}, services)
 			} else {
 				assert.EqualError(t, err, "Error reading operation_names from storage: "+expErr.Error())
 			}

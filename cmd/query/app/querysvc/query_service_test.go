@@ -148,12 +148,13 @@ func TestGetServices(t *testing.T) {
 // Test QueryService.GetOperations() for success.
 func TestGetOperations(t *testing.T) {
 	qs, readMock, _ := initializeTestService()
-	expectedOperations := []*storage_v1.OperationMeta{{Operation: "", SpanKind: ""}, {Operation: "get", SpanKind: ""}}
-	readMock.On("GetOperations", mock.AnythingOfType("*context.valueCtx"), "abc/trifle", "").Return(expectedOperations, nil).Once()
+	expectedOperations := []*storage_v1.Operation{{Name: "", SpanKind: ""}, {Name: "get", SpanKind: ""}}
+	operationQuery := &spanstore.OperationQueryParameters{ServiceName: "abc/trifle"}
+	readMock.On("GetOperations", mock.AnythingOfType("*context.valueCtx"), operationQuery).Return(expectedOperations, nil).Once()
 
 	type contextKey string
 	ctx := context.Background()
-	actualOperations, err := qs.GetOperations(context.WithValue(ctx, contextKey("foo"), "bar"), "abc/trifle", "")
+	actualOperations, err := qs.GetOperations(context.WithValue(ctx, contextKey("foo"), "bar"), operationQuery)
 	assert.NoError(t, err)
 	assert.Equal(t, expectedOperations, actualOperations)
 }

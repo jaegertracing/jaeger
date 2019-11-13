@@ -507,10 +507,10 @@ func testGet(typ string, t *testing.T) {
 		},
 	}
 	if typ == operationsAggregation {
-		testCases[0].expectedOutput = []*storage_v1.OperationMeta{
+		testCases[0].expectedOutput = []*storage_v1.Operation{
 			{
-				Operation: "123",
-				SpanKind:  "",
+				Name:     "123",
+				SpanKind: "",
 			},
 		}
 	} else {
@@ -539,7 +539,7 @@ func returnSearchFunc(typ string, r *spanReaderTest) (interface{}, error) {
 	if typ == servicesAggregation {
 		return r.reader.GetServices(context.Background())
 	} else if typ == operationsAggregation {
-		return r.reader.GetOperations(context.Background(), "someService", "")
+		return r.reader.GetOperations(context.Background(), &spanstore.OperationQueryParameters{ServiceName: "someService", SpanKind: ""})
 	} else if typ == traceIDAggregation {
 		return r.reader.findTraceIDs(context.Background(), &spanstore.TraceQueryParameters{})
 	}

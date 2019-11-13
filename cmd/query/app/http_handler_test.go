@@ -86,13 +86,13 @@ type structuredTraceResponse struct {
 }
 
 // structuredOperationResponse is similar to structuredResponse but defines `data`
-// explicitly as []*ui.OperationMeta, making it easier to parse & validate.
+// explicitly as []*ui.Operation, making it easier to parse & validate.
 type structuredOperationResponse struct {
-	Operations []*ui.OperationMeta `json:"data"`
-	Total      int                 `json:"total"`
-	Limit      int                 `json:"limit"`
-	Offset     int                 `json:"offset"`
-	Errors     []structuredError   `json:"errors"`
+	Operations []*ui.Operation   `json:"data"`
+	Total      int               `json:"total"`
+	Limit      int               `json:"limit"`
+	Offset     int               `json:"offset"`
+	Errors     []structuredError `json:"errors"`
 }
 
 func initializeTestServerWithHandler(queryOptions querysvc.QueryServiceOptions, options ...HandlerOption) (*httptest.Server, *spanstoremocks.Reader, *depsmocks.Reader, *APIHandler) {
@@ -494,15 +494,15 @@ func TestGetServicesStorageFailure(t *testing.T) {
 func TestGetOperationsSuccess(t *testing.T) {
 	server, readMock, _ := initializeTestServer()
 	defer server.Close()
-	expectedOperations := []*storage_v1.OperationMeta{{Operation: ""}, {Operation: "get", SpanKind: "server"}}
-	readMock.On("GetOperations", mock.AnythingOfType("*context.valueCtx"), "abc/trifle", "").Return(expectedOperations, nil).Once()
+	expectedOperations := []*storage_v1.Operation{{Name: ""}, {Name: "get", SpanKind: "server"}}
+	readMock.On("GetOperations", mock.AnythingOfType("*context.valueCtx"), &spanstore.OperationQueryParameters{ServiceName: "abc/trifle"}).Return(expectedOperations, nil).Once()
 
 	var response structuredOperationResponse
 	err := getJSON(server.URL+"/api/operations?service=abc%2Ftrifle", &response)
 	assert.NoError(t, err)
 	assert.Equal(t, len(expectedOperations), len(response.Operations))
 	for i, op := range response.Operations {
-		assert.Equal(t, expectedOperations[i].Operation, op.OperationName)
+		assert.Equal(t, expectedOperations[i].Name, op.Name)
 		assert.Equal(t, expectedOperations[i].SpanKind, op.SpanKind)
 	}
 }
@@ -519,7 +519,7 @@ func TestGetOperationsNoServiceName(t *testing.T) {
 func TestGetOperationsStorageFailure(t *testing.T) {
 	server, reaMock, _ := initializeTestServer()
 	defer server.Close()
-	reaMock.On("GetOperations", mock.AnythingOfType("*context.valueCtx"), "trifle").Return(nil, errStorage).Once()
+	reaMock.On("GetOperations", mock.AnythingOfType("*context.valueCtx"), &spanstore.OperationQueryParameters{ServiceName: "trifle"}).Return(nil, errStorage).Once()
 
 	var response structuredResponse
 	err := getJSON(server.URL+"/api/operations?service=trifle", &response)
@@ -529,22 +529,22 @@ func TestGetOperationsStorageFailure(t *testing.T) {
 func TestGetOperationsLegacySuccess(t *testing.T) {
 	server, readMock, _ := initializeTestServer()
 	defer server.Close()
-	expectedOperations := []*storage_v1.OperationMeta{{Operation: ""}, {Operation: "get"}}
-	readMock.On("GetOperations", mock.AnythingOfType("*context.valueCtx"), "abc/trifle", "").Return(expectedOperations, nil).Once()
+	expectedOperations := []*storage_v1.Operation{{Name: ""}, {Name: "get"}}
+	readMock.On("GetOperations", mock.AnythingOfType("*context.valueCtx"), &spanstore.OperationQueryParameters{ServiceName: "abc/trifle"}).Return(expectedOperations, nil).Once()
 
 	var response structuredResponse
 	err := getJSON(server.URL+"/api/services/abc%2Ftrifle/operations", &response)
 	assert.NoError(t, err)
 	assert.Equal(t, len(expectedOperations), len(response.Data.([]interface{})))
 	for i, s := range response.Data.([]interface{}) {
-		assert.Equal(t, expectedOperations[i].Operation, s.(string))
+		assert.Equal(t, expectedOperations[i].Name, s.(string))
 	}
 }
 
 func TestGetOperationsLegacyStorageFailure(t *testing.T) {
 	server, readMock, _ := initializeTestServer()
 	defer server.Close()
-	readMock.On("GetOperations", mock.AnythingOfType("*context.valueCtx"), "trifle").Return(nil, errStorage).Once()
+	readMock.On("GetOperations", mock.AnythingOfType("*context.valueCtx"), mock.Anything).Return(nil, errStorage).Once()
 
 	var response structuredResponse
 	err := getJSON(server.URL+"/api/services/trifle/operations", &response)

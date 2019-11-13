@@ -70,17 +70,17 @@ func TestSpanReaderGetServices(t *testing.T) {
 
 func TestSpanReaderGetOperations(t *testing.T) {
 	withSpanReader(func(r *spanReaderTest) {
-		r.reader.operationNamesReader = func(string, string) ([]*storage_v1.OperationMeta, error) {
-			return []*storage_v1.OperationMeta{
+		r.reader.operationNamesReader = func(parameters *spanstore.OperationQueryParameters) ([]*storage_v1.Operation, error) {
+			return []*storage_v1.Operation{
 				{
-					Operation: "operation-a",
-					SpanKind:  "server",
+					Name:     "operation-a",
+					SpanKind: "server",
 				},
 			}, nil
 		}
-		s, err := r.reader.GetOperations(context.Background(), "service-x", "server")
+		s, err := r.reader.GetOperations(context.Background(), &spanstore.OperationQueryParameters{ServiceName: "service-x", SpanKind: "server"})
 		assert.NoError(t, err)
-		assert.Equal(t, []*storage_v1.OperationMeta{{Operation: "operation-a", SpanKind: "server"}}, s)
+		assert.Equal(t, []*storage_v1.Operation{{Name: "operation-a", SpanKind: "server"}}, s)
 	})
 }
 

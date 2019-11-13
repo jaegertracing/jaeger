@@ -238,8 +238,8 @@ func (r *TraceReader) GetServices(ctx context.Context) ([]string, error) {
 }
 
 // GetOperations fetches operations in the service and empty slice if service does not exists
-func (r *TraceReader) GetOperations(ctx context.Context, service string, spanKind string) ([]*storage_v1.OperationMeta, error) {
-	return r.cache.GetOperations(service)
+func (r *TraceReader) GetOperations(ctx context.Context, query *spanstore.OperationQueryParameters) ([]*storage_v1.Operation, error) {
+	return r.cache.GetOperations(query.ServiceName)
 }
 
 // setQueryDefaults alters the query with defaults if certain parameters are not set

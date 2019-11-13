@@ -79,7 +79,7 @@ func (s *grpcServer) GetServices(ctx context.Context, r *storage_v1.GetServicesR
 
 // GetOperations returns the operations of a given service
 func (s *grpcServer) GetOperations(ctx context.Context, r *storage_v1.GetOperationsRequest) (*storage_v1.GetOperationsResponse, error) {
-	operations, err := s.Impl.SpanReader().GetOperations(ctx, r.Service, r.SpanKind)
+	operations, err := s.Impl.SpanReader().GetOperations(ctx, &spanstore.OperationQueryParameters{ServiceName: r.Service, SpanKind: r.SpanKind})
 	if err != nil {
 		return nil, err
 	}

@@ -112,13 +112,13 @@ message GetOperationsRequest {
   string span_kind = 2;
 }
 
-message OperationMeta {
-    string operation = 1;
+message Operation {
+    string name = 1;
     string span_kind = 2;
 }
 
 message GetOperationsResponse {
-  repeated OperationMeta operations = 1;
+  repeated Operation operations = 1;
 }
 
 message GetDependenciesRequest {

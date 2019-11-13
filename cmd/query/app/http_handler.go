@@ -158,14 +158,14 @@ func (aH *APIHandler) getOperationsLegacy(w http.ResponseWriter, r *http.Request
 	// given how getOperationsLegacy is bound to URL route, serviceParam cannot be empty
 	service, _ := url.QueryUnescape(vars[serviceParam])
 	//for backwards compatibility, we will retrieve operations with all span kind
-	operations, err := aH.queryService.GetOperations(r.Context(), service, "")
+	operations, err := aH.queryService.GetOperations(r.Context(), &spanstore.OperationQueryParameters{ServiceName: service, SpanKind: ""})
 	if aH.handleError(w, err, http.StatusInternalServerError) {
 		return
 	}
 	//only return operation names
 	operationNames := make([]string, len(operations))
 	for idx, operation := range operations {
-		operationNames[idx] = operation.Operation
+		operationNames[idx] = operation.Name
 	}
 	structuredRes := structuredResponse{
 		Data:  operationNames,
@@ -182,16 +182,16 @@ func (aH *APIHandler) getOperations(w http.ResponseWriter, r *http.Request) {
 		}
 	}
 	spanKind := r.FormValue(spanKindParam)
-	operations, err := aH.queryService.GetOperations(r.Context(), service, spanKind)
+	operations, err := aH.queryService.GetOperations(r.Context(), &spanstore.OperationQueryParameters{ServiceName: service, SpanKind: spanKind})
 	if aH.handleError(w, err, http.StatusInternalServerError) {
 		return
 	}
 
-	data := make([]*ui.OperationMeta, len(operations))
+	data := make([]*ui.Operation, len(operations))
 	for idx, operation := range operations {
-		data[idx] = &ui.OperationMeta{
-			OperationName: operation.Operation,
-			SpanKind:      operation.SpanKind,
+		data[idx] = &ui.Operation{
+			Name:     operation.Name,
+			SpanKind: operation.SpanKind,
 		}
 	}
 	structuredRes := structuredResponse{

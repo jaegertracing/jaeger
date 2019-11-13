@@ -26,6 +26,7 @@ import (
 
 	"github.com/jaegertracing/jaeger/pkg/es/mocks"
 	"github.com/jaegertracing/jaeger/plugin/storage/es/spanstore/dbmodel"
+	"github.com/jaegertracing/jaeger/storage/spanstore"
 )
 
 func TestWriteService(t *testing.T) {
@@ -121,7 +122,7 @@ func TestSpanReader_GetOperationsEmptyIndex(t *testing.T) {
 			Return(&elastic.MultiSearchResult{
 				Responses: []*elastic.SearchResult{},
 			}, nil)
-		services, err := r.reader.GetOperations(context.Background(), "foo", "")
+		services, err := r.reader.GetOperations(context.Background(), &spanstore.OperationQueryParameters{ServiceName: "foo", SpanKind: ""})
 		require.NoError(t, err)
 		assert.Empty(t, services)
 	})

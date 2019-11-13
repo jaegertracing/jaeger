@@ -150,15 +150,15 @@ func (s *StorageIntegration) testGetLargeSpan(t *testing.T) {
 func (s *StorageIntegration) testGetOperations(t *testing.T) {
 	defer s.cleanUp(t)
 
-	expected := []*storage_v1.OperationMeta{
-		{Operation: "example-operation-1", SpanKind: ""}, {Operation: "example-operation-3", SpanKind: ""}, {Operation: "example-operation-4", SpanKind: ""}}
+	expected := []*storage_v1.Operation{
+		{Name: "example-operation-1", SpanKind: ""}, {Name: "example-operation-3", SpanKind: ""}, {Name: "example-operation-4", SpanKind: ""}}
 	s.loadParseAndWriteExampleTrace(t)
 	s.refresh(t)
 
-	var actual []*storage_v1.OperationMeta
+	var actual []*storage_v1.Operation
 	found := s.waitForCondition(t, func(t *testing.T) bool {
 		var err error
-		actual, err = s.SpanReader.GetOperations(context.Background(), "example-service-1", "")
+		actual, err = s.SpanReader.GetOperations(context.Background(), &spanstore.OperationQueryParameters{ServiceName: "example-service-1", SpanKind: ""})
 		require.NoError(t, err)
 		return assert.ObjectsAreEqualValues(expected, actual)
 	})

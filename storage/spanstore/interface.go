@@ -38,8 +38,7 @@ var (
 type Reader interface {
 	GetTrace(ctx context.Context, traceID model.TraceID) (*model.Trace, error)
 	GetServices(ctx context.Context) ([]string, error)
-	// Get operations by service and spanKind, empty spanKind means get operations for all kinds of span
-	GetOperations(ctx context.Context, service string, spanKind string) ([]*storage_v1.OperationMeta, error)
+	GetOperations(ctx context.Context, query *OperationQueryParameters) ([]*storage_v1.Operation, error)
 	FindTraces(ctx context.Context, query *TraceQueryParameters) ([]*model.Trace, error)
 	FindTraceIDs(ctx context.Context, query *TraceQueryParameters) ([]model.TraceID, error)
 }
@@ -54,4 +53,10 @@ type TraceQueryParameters struct {
 	DurationMin   time.Duration
 	DurationMax   time.Duration
 	NumTraces     int
+}
+
+// OperationQueryParameters contains parameters of query operations, empty spanKind means get operations for all kinds of span.
+type OperationQueryParameters struct {
+	ServiceName string
+	SpanKind    string
 }

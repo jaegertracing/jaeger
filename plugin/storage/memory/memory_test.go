@@ -233,10 +233,10 @@ func TestStoreGetAllOperationsFound(t *testing.T) {
 		assert.NoError(t, store.WriteSpan(childSpan1))
 		assert.NoError(t, store.WriteSpan(childSpan2))
 		assert.NoError(t, store.WriteSpan(childSpan2_1))
-		operations, err := store.GetOperations(context.Background(), childSpan1.Process.ServiceName, "")
+		operations, err := store.GetOperations(context.Background(), &spanstore.OperationQueryParameters{ServiceName: childSpan1.Process.ServiceName, SpanKind: ""})
 		assert.NoError(t, err)
 		assert.Len(t, operations, 3)
-		assert.EqualValues(t, childSpan1.OperationName, (*operations[0]).Operation)
+		assert.EqualValues(t, childSpan1.OperationName, (*operations[0]).Name)
 	})
 }
 
@@ -246,17 +246,17 @@ func TestStoreGetServerOperationsFound(t *testing.T) {
 		assert.NoError(t, store.WriteSpan(childSpan1))
 		assert.NoError(t, store.WriteSpan(childSpan2))
 		assert.NoError(t, store.WriteSpan(childSpan2_1))
-		operations, err := store.GetOperations(context.Background(), childSpan1.Process.ServiceName, "server")
+		operations, err := store.GetOperations(context.Background(), &spanstore.OperationQueryParameters{ServiceName: childSpan1.Process.ServiceName, SpanKind: "server"})
 		assert.NoError(t, err)
 		assert.Len(t, operations, 1)
-		assert.EqualValues(t, childSpan1.OperationName, operations[0].Operation)
+		assert.EqualValues(t, childSpan1.OperationName, operations[0].Name)
 		assert.EqualValues(t, "server", operations[0].SpanKind)
 	})
 }
 
 func TestStoreGetOperationsNotFound(t *testing.T) {
 	withPopulatedMemoryStore(func(store *Store) {
-		operations, err := store.GetOperations(context.Background(), "notAService", "")
+		operations, err := store.GetOperations(context.Background(), &spanstore.OperationQueryParameters{ServiceName: "notAService", SpanKind: ""})
 		assert.NoError(t, err)
 		assert.Len(t, operations, 0)
 	})

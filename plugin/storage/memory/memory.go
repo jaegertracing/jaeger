@@ -188,17 +188,17 @@ func (m *Store) GetServices(ctx context.Context) ([]string, error) {
 }
 
 // GetOperations returns the operations of a given service
-func (m *Store) GetOperations(ctx context.Context, service string, spanKind string) ([]*storage_v1.OperationMeta, error) {
+func (m *Store) GetOperations(ctx context.Context, query *spanstore.OperationQueryParameters) ([]*storage_v1.Operation, error) {
 	m.RLock()
 	defer m.RUnlock()
-	var retMe []*storage_v1.OperationMeta
-	if operations, ok := m.operations[service]; ok {
+	var retMe []*storage_v1.Operation
+	if operations, ok := m.operations[query.ServiceName]; ok {
 		for operationName, kinds := range operations {
 			for kind := range kinds {
-				if spanKind == "" || spanKind == kind {
-					retMe = append(retMe, &storage_v1.OperationMeta{
-						Operation: operationName,
-						SpanKind:  kind,
+				if query.SpanKind == "" || query.SpanKind == kind {
+					retMe = append(retMe, &storage_v1.Operation{
+						Name:     operationName,
+						SpanKind: kind,
 					})
 				}
 			}

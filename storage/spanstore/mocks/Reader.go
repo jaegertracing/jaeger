@@ -75,22 +75,22 @@ func (_m *Reader) FindTraces(ctx context.Context, query *spanstore.TraceQueryPar
 	return r0, r1
 }
 
-// GetOperations provides a mock function with given fields: ctx, service
-func (_m *Reader) GetOperations(ctx context.Context, service string, spanKind string) ([]*storage_v1.OperationMeta, error) {
-	ret := _m.Called(ctx, service, spanKind)
+// GetOperations provides a mock function with given fields: ctx, query
+func (_m *Reader) GetOperations(ctx context.Context, query *spanstore.OperationQueryParameters) ([]*storage_v1.Operation, error) {
+	ret := _m.Called(ctx, query)
 
-	var r0 []*storage_v1.OperationMeta
-	if rf, ok := ret.Get(0).(func(context.Context, string, string) []*storage_v1.OperationMeta); ok {
-		r0 = rf(ctx, service, spanKind)
+	var r0 []*storage_v1.Operation
+	if rf, ok := ret.Get(0).(func(context.Context, *spanstore.OperationQueryParameters) []*storage_v1.Operation); ok {
+		r0 = rf(ctx, query)
 	} else {
 		if ret.Get(0) != nil {
-			r0 = ret.Get(0).([]*storage_v1.OperationMeta)
+			r0 = ret.Get(0).([]*storage_v1.Operation)
 		}
 	}
 
 	var r1 error
-	if rf, ok := ret.Get(1).(func(context.Context, string, string) error); ok {
-		r1 = rf(ctx, service, spanKind)
+	if rf, ok := ret.Get(1).(func(context.Context, *spanstore.OperationQueryParameters) error); ok {
+		r1 = rf(ctx, query)
 	} else {
 		r1 = ret.Error(1)
 	}

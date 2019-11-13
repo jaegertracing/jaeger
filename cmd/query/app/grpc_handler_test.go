@@ -415,8 +415,9 @@ func TestGetServicesFailureGRPC(t *testing.T) {
 
 func TestGetOperationsSuccessGRPC(t *testing.T) {
 	withServerAndClient(t, func(server *grpcServer, client *grpcClient) {
-		expectedOperations := []*storage_v1.OperationMeta{{Operation: ""}, {Operation: "get", SpanKind: "server"}}
-		server.spanReader.On("GetOperations", mock.AnythingOfType("*context.valueCtx"), "abc/trifle", "").Return(expectedOperations, nil).Once()
+		expectedOperations := []*storage_v1.Operation{{Name: ""}, {Name: "get", SpanKind: "server"}}
+
+		server.spanReader.On("GetOperations", mock.AnythingOfType("*context.valueCtx"), &spanstore.OperationQueryParameters{ServiceName: "abc/trifle"}).Return(expectedOperations, nil).Once()
 
 		res, err := client.GetOperations(context.Background(), &api_v2.GetOperationsRequest{
 			Service: "abc/trifle",
@@ -424,7 +425,7 @@ func TestGetOperationsSuccessGRPC(t *testing.T) {
 		assert.NoError(t, err)
 		assert.Equal(t, len(expectedOperations), len(res.Operations))
 		for idx, actualOp := range res.Operations {
-			assert.Equal(t, expectedOperations[idx].Operation, actualOp.Operation)
+			assert.Equal(t, expectedOperations[idx].Name, actualOp.Name)
 			assert.Equal(t, expectedOperations[idx].SpanKind, actualOp.SpanKind)
 		}
 	})
@@ -432,7 +433,7 @@ func TestGetOperationsSuccessGRPC(t *testing.T) {
 
 func TestGetOperationsFailureGRPC(t *testing.T) {
 	withServerAndClient(t, func(server *grpcServer, client *grpcClient) {
-		server.spanReader.On("GetOperations", mock.AnythingOfType("*context.valueCtx"), "trifle", "").Return(nil, errStorageGRPC).Once()
+		server.spanReader.On("GetOperations", mock.AnythingOfType("*context.valueCtx"), &spanstore.OperationQueryParameters{ServiceName: "trifle"}).Return(nil, errStorageGRPC).Once()
 
 		_, err := client.GetOperations(context.Background(), &api_v2.GetOperationsRequest{
 			Service: "trifle",

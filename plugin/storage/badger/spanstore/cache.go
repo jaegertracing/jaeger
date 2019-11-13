@@ -128,7 +128,7 @@ func (c *CacheStore) Update(service, operation string, expireTime uint64) {
 }
 
 // GetOperations returns all operations for a specific service & spanKind traced by Jaeger
-func (c *CacheStore) GetOperations(service string) ([]*storage_v1.OperationMeta, error) {
+func (c *CacheStore) GetOperations(service string) ([]*storage_v1.Operation, error) {
 	operations := make([]string, 0, len(c.services))
 	t := uint64(time.Now().Unix())
 	c.cacheLock.Lock()
@@ -139,7 +139,7 @@ func (c *CacheStore) GetOperations(service string) ([]*storage_v1.OperationMeta,
 			// Expired, remove
 			delete(c.services, service)
 			delete(c.operations, service)
-			return []*storage_v1.OperationMeta{}, nil // empty slice rather than nil
+			return []*storage_v1.Operation{}, nil // empty slice rather than nil
 		}
 		for o, e := range c.operations[service] {
 			if e > t {
@@ -153,10 +153,10 @@ func (c *CacheStore) GetOperations(service string) ([]*storage_v1.OperationMeta,
 	sort.Strings(operations)
 
 	//TODO: return the operations with actual spanKind
-	result := make([]*storage_v1.OperationMeta, 0, len(operations))
+	result := make([]*storage_v1.Operation, 0, len(operations))
 	for _, op := range operations {
-		result = append(result, &storage_v1.OperationMeta{
-			Operation: op,
+		result = append(result, &storage_v1.Operation{
+			Name: op,
 		})
 	}
 	return result, nil

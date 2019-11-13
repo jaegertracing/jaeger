@@ -26,6 +26,7 @@ import (
 	"github.com/jaegertracing/jaeger/pkg/cassandra"
 	casMetrics "github.com/jaegertracing/jaeger/pkg/cassandra/metrics"
 	"github.com/jaegertracing/jaeger/proto-gen/storage_v1"
+	"github.com/jaegertracing/jaeger/storage/spanstore"
 )
 
 const (
@@ -86,23 +87,23 @@ func (s *OperationNamesStorage) Write(serviceName string, operationName string, 
 }
 
 // GetOperations returns all operations for a specific service traced by Jaeger
-func (s *OperationNamesStorage) GetOperations(service string, spanKind string) ([]*storage_v1.OperationMeta, error) {
-	var query cassandra.Query
-	if spanKind == "" {
+func (s *OperationNamesStorage) GetOperations(query *spanstore.OperationQueryParameters) ([]*storage_v1.Operation, error) {
+	var casQuery cassandra.Query
+	if query.SpanKind == "" {
 		// Get operations for all spanKind
-		query = s.session.Query(s.QueryStmt, service)
+		casQuery = s.session.Query(s.QueryStmt, query.ServiceName)
 	} else {
 		// Get operations for given spanKind
-		query = s.session.Query(s.QueryByKindStmt, service, spanKind)
+		casQuery = s.session.Query(s.QueryByKindStmt, query.ServiceName, query.SpanKind)
 	}
-	iter := query.Iter()
+	iter := casQuery.Iter()
 
 	opRecord := map[string]string{}
-	var operations []*storage_v1.OperationMeta
+	var operations []*storage_v1.Operation
 	for iter.Scan(&opRecord) {
-		operations = append(operations, &storage_v1.OperationMeta{
-			Operation: opRecord["operation_name"],
-			SpanKind:  opRecord["span_kind"],
+		operations = append(operations, &storage_v1.Operation{
+			Name:     opRecord["operation_name"],
+			SpanKind: opRecord["span_kind"],
 		})
 	}
 	if err := iter.Close(); err != nil {
