@@ -87,14 +87,14 @@ func TestGRPCServerGetServices(t *testing.T) {
 
 func TestGRPCServerGetOperations(t *testing.T) {
 	withGRPCServer(func(r *grpcServerTest) {
-		r.impl.spanReader.On("GetOperations", mock.Anything, "service-a").
-			Return([]string{"operation-a"}, nil)
+		r.impl.spanReader.On("GetOperations", mock.Anything, "service-a", "").
+			Return([]*storage_v1.OperationMeta{{Operation: "operation-a", SpanKind: ""}}, nil)
 
 		s, err := r.server.GetOperations(context.Background(), &storage_v1.GetOperationsRequest{
 			Service: "service-a",
 		})
 		assert.NoError(t, err)
-		assert.Equal(t, &storage_v1.GetOperationsResponse{Operations: []string{"operation-a"}}, s)
+		assert.Equal(t, &storage_v1.GetOperationsResponse{Operations: []*storage_v1.OperationMeta{{Operation: "operation-a", SpanKind: ""}}}, s)
 	})
 }
 

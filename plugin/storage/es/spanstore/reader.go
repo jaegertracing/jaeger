@@ -33,6 +33,7 @@ import (
 	"github.com/jaegertracing/jaeger/model"
 	"github.com/jaegertracing/jaeger/pkg/es"
 	"github.com/jaegertracing/jaeger/plugin/storage/es/spanstore/dbmodel"
+	"github.com/jaegertracing/jaeger/proto-gen/storage_v1"
 	"github.com/jaegertracing/jaeger/storage/spanstore"
 )
 
@@ -245,12 +246,25 @@ func (s *SpanReader) GetServices(ctx context.Context) ([]string, error) {
 }
 
 // GetOperations returns all operations for a specific service traced by Jaeger
-func (s *SpanReader) GetOperations(ctx context.Context, service string) ([]string, error) {
+func (s *SpanReader) GetOperations(ctx context.Context, service string, spanKind string) ([]*storage_v1.OperationMeta, error) {
 	span, ctx := opentracing.StartSpanFromContext(ctx, "GetOperations")
 	defer span.Finish()
 	currentTime := time.Now()
 	jaegerIndices := s.timeRangeIndices(s.serviceIndexPrefix, currentTime.Add(-s.maxSpanAge), currentTime)
-	return s.serviceOperationStorage.getOperations(ctx, jaegerIndices, service)
+	if operations, err := s.serviceOperationStorage.getOperations(ctx, jaegerIndices, service); err != nil {
+		return nil, err
+	} else {
+		//TODO: return the operations with actual span kind that meet requirement
+		var result []*storage_v1.OperationMeta
+		for _, operation := range operations {
+			result = append(result, &storage_v1.OperationMeta{
+				Operation: operation,
+				SpanKind:  "",
+			})
+		}
+		return result, err
+	}
+
 }
 
 func bucketToStringArray(buckets []*elastic.AggregationBucketKeyItem) ([]string, error) {

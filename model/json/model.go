@@ -109,3 +109,8 @@ type DependencyLink struct {
 	Child     string `json:"child"`
 	CallCount uint64 `json:"callCount"`
 }
+
+type OperationMeta struct {
+	OperationName string `json:"operationName"`
+	SpanKind      string `json:"spanKind"`
+}

@@ -33,6 +33,7 @@ import (
 	"github.com/jaegertracing/jaeger/pkg/cassandra/mocks"
 	"github.com/jaegertracing/jaeger/pkg/testutils"
 	"github.com/jaegertracing/jaeger/plugin/storage/cassandra/spanstore/dbmodel"
+	"github.com/jaegertracing/jaeger/proto-gen/storage_v1"
 	"github.com/jaegertracing/jaeger/storage/spanstore"
 )
 
@@ -69,10 +70,17 @@ func TestSpanReaderGetServices(t *testing.T) {
 
 func TestSpanReaderGetOperations(t *testing.T) {
 	withSpanReader(func(r *spanReaderTest) {
-		r.reader.operationNamesReader = func(string) ([]string, error) { return []string{"operation-a"}, nil }
-		s, err := r.reader.GetOperations(context.Background(), "service-x")
+		r.reader.operationNamesReader = func(string, string) ([]*storage_v1.OperationMeta, error) {
+			return []*storage_v1.OperationMeta{
+				{
+					Operation: "operation-a",
+					SpanKind:  "server",
+				},
+			}, nil
+		}
+		s, err := r.reader.GetOperations(context.Background(), "service-x", "server")
 		assert.NoError(t, err)
-		assert.Equal(t, []string{"operation-a"}, s)
+		assert.Equal(t, []*storage_v1.OperationMeta{{Operation: "operation-a", SpanKind: "server"}}, s)
 	})
 }
 

@@ -27,6 +27,7 @@ import (
 
 	"github.com/jaegertracing/jaeger/model"
 	"github.com/jaegertracing/jaeger/model/adjuster"
+	"github.com/jaegertracing/jaeger/proto-gen/storage_v1"
 	"github.com/jaegertracing/jaeger/storage"
 	"github.com/jaegertracing/jaeger/storage/dependencystore"
 	depsmocks "github.com/jaegertracing/jaeger/storage/dependencystore/mocks"
@@ -147,12 +148,12 @@ func TestGetServices(t *testing.T) {
 // Test QueryService.GetOperations() for success.
 func TestGetOperations(t *testing.T) {
 	qs, readMock, _ := initializeTestService()
-	expectedOperations := []string{"", "get"}
-	readMock.On("GetOperations", mock.AnythingOfType("*context.valueCtx"), "abc/trifle").Return(expectedOperations, nil).Once()
+	expectedOperations := []*storage_v1.OperationMeta{{Operation: "", SpanKind: ""}, {Operation: "get", SpanKind: ""}}
+	readMock.On("GetOperations", mock.AnythingOfType("*context.valueCtx"), "abc/trifle", "").Return(expectedOperations, nil).Once()
 
 	type contextKey string
 	ctx := context.Background()
-	actualOperations, err := qs.GetOperations(context.WithValue(ctx, contextKey("foo"), "bar"), "abc/trifle")
+	actualOperations, err := qs.GetOperations(context.WithValue(ctx, contextKey("foo"), "bar"), "abc/trifle", "")
 	assert.NoError(t, err)
 	assert.Equal(t, expectedOperations, actualOperations)
 }

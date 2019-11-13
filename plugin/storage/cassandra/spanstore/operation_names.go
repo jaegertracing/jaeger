@@ -25,23 +25,26 @@ import (
 	"github.com/jaegertracing/jaeger/pkg/cache"
 	"github.com/jaegertracing/jaeger/pkg/cassandra"
 	casMetrics "github.com/jaegertracing/jaeger/pkg/cassandra/metrics"
+	"github.com/jaegertracing/jaeger/proto-gen/storage_v1"
 )
 
 const (
-	insertOperationName = `INSERT INTO operation_names(service_name, operation_name) VALUES (?, ?)`
-	queryOperationNames = `SELECT operation_name FROM operation_names WHERE service_name = ?`
+	insertOperationName       = `INSERT INTO operation_names(service_name, operation_name, span_kind) VALUES (?, ?, ?)`
+	queryOperationNames       = `SELECT operation_name, span_kind FROM operation_names WHERE service_name = ? `
+	queryOperationNamesByKind = `SELECT operation_name, span_kind FROM operation_names WHERE service_name = ? AND span_kind = ? `
 )
 
 // OperationNamesStorage stores known operation names by service.
 type OperationNamesStorage struct {
 	// CQL statements are public so that Cassandra2 storage can override them
-	InsertStmt     string
-	QueryStmt      string
-	session        cassandra.Session
-	writeCacheTTL  time.Duration
-	metrics        *casMetrics.Table
-	operationNames cache.Cache
-	logger         *zap.Logger
+	InsertStmt      string
+	QueryStmt       string
+	QueryByKindStmt string
+	session         cassandra.Session
+	writeCacheTTL   time.Duration
+	metrics         *casMetrics.Table
+	operationNames  cache.Cache
+	logger          *zap.Logger
 }
 
 // NewOperationNamesStorage returns a new OperationNamesStorage
@@ -52,12 +55,13 @@ func NewOperationNamesStorage(
 	logger *zap.Logger,
 ) *OperationNamesStorage {
 	return &OperationNamesStorage{
-		session:       session,
-		InsertStmt:    insertOperationName,
-		QueryStmt:     queryOperationNames,
-		metrics:       casMetrics.NewTable(metricsFactory, "operation_names"),
-		writeCacheTTL: writeCacheTTL,
-		logger:        logger,
+		session:         session,
+		InsertStmt:      insertOperationName,
+		QueryStmt:       queryOperationNames,
+		QueryByKindStmt: queryOperationNamesByKind,
+		metrics:         casMetrics.NewTable(metricsFactory, "operation_names"),
+		writeCacheTTL:   writeCacheTTL,
+		logger:          logger,
 		operationNames: cache.NewLRUWithOptions(
 			100000,
 			&cache.Options{
@@ -67,12 +71,12 @@ func NewOperationNamesStorage(
 	}
 }
 
-// Write saves Operation and Service name tuples
-func (s *OperationNamesStorage) Write(serviceName string, operationName string) error {
+// Write saves Operation and Service name and spanKind tuples
+func (s *OperationNamesStorage) Write(serviceName string, operationName string, spanKind string) error {
 	var err error
 	query := s.session.Query(s.InsertStmt)
-	if inCache := checkWriteCache(serviceName+"|"+operationName, s.operationNames, s.writeCacheTTL); !inCache {
-		q := query.Bind(serviceName, operationName)
+	if inCache := checkWriteCache(serviceName+"|"+operationName+"|"+spanKind, s.operationNames, s.writeCacheTTL); !inCache {
+		q := query.Bind(serviceName, operationName, spanKind)
 		err2 := s.metrics.Exec(q, s.logger)
 		if err2 != nil {
 			err = err2
@@ -82,13 +86,24 @@ func (s *OperationNamesStorage) Write(serviceName string, operationName string) 
 }
 
 // GetOperations returns all operations for a specific service traced by Jaeger
-func (s *OperationNamesStorage) GetOperations(service string) ([]string, error) {
-	iter := s.session.Query(s.QueryStmt, service).Iter()
+func (s *OperationNamesStorage) GetOperations(service string, spanKind string) ([]*storage_v1.OperationMeta, error) {
+	var query cassandra.Query
+	if spanKind == "" {
+		// Get operations for all spanKind
+		query = s.session.Query(s.QueryStmt, service)
+	} else {
+		// Get operations for given spanKind
+		query = s.session.Query(s.QueryByKindStmt, service, spanKind)
+	}
+	iter := query.Iter()
 
-	var operation string
-	var operations []string
-	for iter.Scan(&operation) {
-		operations = append(operations, operation)
+	opRecord := map[string]string{}
+	var operations []*storage_v1.OperationMeta
+	for iter.Scan(&opRecord) {
+		operations = append(operations, &storage_v1.OperationMeta{
+			Operation: opRecord["operation_name"],
+			SpanKind:  opRecord["span_kind"],
+		})
 	}
 	if err := iter.Close(); err != nil {
 		err = errors.Wrap(err, "Error reading operation_names from storage")

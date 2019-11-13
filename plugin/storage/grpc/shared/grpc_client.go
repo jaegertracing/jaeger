@@ -104,14 +104,13 @@ func (c *grpcClient) GetServices(ctx context.Context) ([]string, error) {
 }
 
 // GetOperations returns the operations of a given service
-func (c *grpcClient) GetOperations(ctx context.Context, service string) ([]string, error) {
+func (c *grpcClient) GetOperations(ctx context.Context, service string, spanKind string) ([]*storage_v1.OperationMeta, error) {
 	resp, err := c.readerClient.GetOperations(upgradeContextWithBearerToken(ctx), &storage_v1.GetOperationsRequest{
 		Service: service,
 	})
 	if err != nil {
 		return nil, errors.Wrap(err, "plugin error")
 	}
-
 	return resp.Operations, nil
 }
 

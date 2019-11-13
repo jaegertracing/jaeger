@@ -33,6 +33,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/jaegertracing/jaeger/model"
+	"github.com/jaegertracing/jaeger/proto-gen/storage_v1"
 	"github.com/jaegertracing/jaeger/storage/dependencystore"
 	"github.com/jaegertracing/jaeger/storage/spanstore"
 )
@@ -149,14 +150,15 @@ func (s *StorageIntegration) testGetLargeSpan(t *testing.T) {
 func (s *StorageIntegration) testGetOperations(t *testing.T) {
 	defer s.cleanUp(t)
 
-	expected := []string{"example-operation-1", "example-operation-3", "example-operation-4"}
+	expected := []*storage_v1.OperationMeta{
+		{Operation: "example-operation-1", SpanKind: ""}, {Operation: "example-operation-3", SpanKind: ""}, {Operation: "example-operation-4", SpanKind: ""}}
 	s.loadParseAndWriteExampleTrace(t)
 	s.refresh(t)
 
-	var actual []string
+	var actual []*storage_v1.OperationMeta
 	found := s.waitForCondition(t, func(t *testing.T) bool {
 		var err error
-		actual, err = s.SpanReader.GetOperations(context.Background(), "example-service-1")
+		actual, err = s.SpanReader.GetOperations(context.Background(), "example-service-1", "")
 		require.NoError(t, err)
 		return assert.ObjectsAreEqualValues(expected, actual)
 	})

@@ -130,13 +130,20 @@ func (g *GRPCHandler) GetServices(ctx context.Context, r *api_v2.GetServicesRequ
 // GetOperations is the GRPC handler to fetch operations.
 func (g *GRPCHandler) GetOperations(ctx context.Context, r *api_v2.GetOperationsRequest) (*api_v2.GetOperationsResponse, error) {
 	service := r.Service
-	operations, err := g.queryService.GetOperations(ctx, service)
+	operations, err := g.queryService.GetOperations(ctx, service, r.SpanKind)
 	if err != nil {
 		g.logger.Error("Error fetching operations", zap.Error(err))
 		return nil, err
 	}
 
-	return &api_v2.GetOperationsResponse{Operations: operations}, nil
+	result := make([]*api_v2.OperationMeta, len(operations))
+	for idx, operation := range operations {
+		result[idx] = &api_v2.OperationMeta{
+			Operation: operation.Operation,
+			SpanKind:  operation.SpanKind,
+		}
+	}
+	return &api_v2.GetOperationsResponse{Operations: result}, nil
 }
 
 // GetDependencies is the GRPC handler to fetch dependencies.

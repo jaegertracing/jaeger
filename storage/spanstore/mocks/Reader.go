@@ -15,7 +15,11 @@
 
 package mocks
 
-import context "context"
+import (
+	context "context"
+
+	"github.com/jaegertracing/jaeger/proto-gen/storage_v1"
+)
 import mock "github.com/stretchr/testify/mock"
 import model "github.com/jaegertracing/jaeger/model"
 import spanstore "github.com/jaegertracing/jaeger/storage/spanstore"
@@ -72,21 +76,21 @@ func (_m *Reader) FindTraces(ctx context.Context, query *spanstore.TraceQueryPar
 }
 
 // GetOperations provides a mock function with given fields: ctx, service
-func (_m *Reader) GetOperations(ctx context.Context, service string) ([]string, error) {
-	ret := _m.Called(ctx, service)
+func (_m *Reader) GetOperations(ctx context.Context, service string, spanKind string) ([]*storage_v1.OperationMeta, error) {
+	ret := _m.Called(ctx, service, spanKind)
 
-	var r0 []string
-	if rf, ok := ret.Get(0).(func(context.Context, string) []string); ok {
-		r0 = rf(ctx, service)
+	var r0 []*storage_v1.OperationMeta
+	if rf, ok := ret.Get(0).(func(context.Context, string, string) []*storage_v1.OperationMeta); ok {
+		r0 = rf(ctx, service, spanKind)
 	} else {
 		if ret.Get(0) != nil {
-			r0 = ret.Get(0).([]string)
+			r0 = ret.Get(0).([]*storage_v1.OperationMeta)
 		}
 	}
 
 	var r1 error
-	if rf, ok := ret.Get(1).(func(context.Context, string) error); ok {
-		r1 = rf(ctx, service)
+	if rf, ok := ret.Get(1).(func(context.Context, string, string) error); ok {
+		r1 = rf(ctx, service, spanKind)
 	} else {
 		r1 = ret.Error(1)
 	}

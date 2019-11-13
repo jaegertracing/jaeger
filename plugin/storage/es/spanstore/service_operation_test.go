@@ -121,7 +121,7 @@ func TestSpanReader_GetOperationsEmptyIndex(t *testing.T) {
 			Return(&elastic.MultiSearchResult{
 				Responses: []*elastic.SearchResult{},
 			}, nil)
-		services, err := r.reader.GetOperations(context.Background(), "foo")
+		services, err := r.reader.GetOperations(context.Background(), "foo", "")
 		require.NoError(t, err)
 		assert.Empty(t, services)
 	})

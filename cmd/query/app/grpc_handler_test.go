@@ -34,6 +34,7 @@ import (
 	"github.com/jaegertracing/jaeger/cmd/query/app/querysvc"
 	"github.com/jaegertracing/jaeger/model"
 	"github.com/jaegertracing/jaeger/proto-gen/api_v2"
+	"github.com/jaegertracing/jaeger/proto-gen/storage_v1"
 	depsmocks "github.com/jaegertracing/jaeger/storage/dependencystore/mocks"
 	"github.com/jaegertracing/jaeger/storage/spanstore"
 	spanstoremocks "github.com/jaegertracing/jaeger/storage/spanstore/mocks"
@@ -414,21 +415,24 @@ func TestGetServicesFailureGRPC(t *testing.T) {
 
 func TestGetOperationsSuccessGRPC(t *testing.T) {
 	withServerAndClient(t, func(server *grpcServer, client *grpcClient) {
-
-		expectedOperations := []string{"", "get"}
-		server.spanReader.On("GetOperations", mock.AnythingOfType("*context.valueCtx"), "abc/trifle").Return(expectedOperations, nil).Once()
+		expectedOperations := []*storage_v1.OperationMeta{{Operation: ""}, {Operation: "get", SpanKind: "server"}}
+		server.spanReader.On("GetOperations", mock.AnythingOfType("*context.valueCtx"), "abc/trifle", "").Return(expectedOperations, nil).Once()
 
 		res, err := client.GetOperations(context.Background(), &api_v2.GetOperationsRequest{
 			Service: "abc/trifle",
 		})
 		assert.NoError(t, err)
-		assert.Equal(t, expectedOperations, res.Operations)
+		assert.Equal(t, len(expectedOperations), len(res.Operations))
+		for idx, actualOp := range res.Operations {
+			assert.Equal(t, expectedOperations[idx].Operation, actualOp.Operation)
+			assert.Equal(t, expectedOperations[idx].SpanKind, actualOp.SpanKind)
+		}
 	})
 }
 
 func TestGetOperationsFailureGRPC(t *testing.T) {
 	withServerAndClient(t, func(server *grpcServer, client *grpcClient) {
-		server.spanReader.On("GetOperations", mock.AnythingOfType("*context.valueCtx"), "trifle").Return(nil, errStorageGRPC).Once()
+		server.spanReader.On("GetOperations", mock.AnythingOfType("*context.valueCtx"), "trifle", "").Return(nil, errStorageGRPC).Once()
 
 		_, err := client.GetOperations(context.Background(), &api_v2.GetOperationsRequest{
 			Service: "trifle",

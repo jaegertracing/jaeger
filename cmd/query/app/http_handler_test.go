@@ -40,6 +40,7 @@ import (
 	"github.com/jaegertracing/jaeger/model"
 	"github.com/jaegertracing/jaeger/model/adjuster"
 	ui "github.com/jaegertracing/jaeger/model/json"
+	"github.com/jaegertracing/jaeger/proto-gen/storage_v1"
 	depsmocks "github.com/jaegertracing/jaeger/storage/dependencystore/mocks"
 	"github.com/jaegertracing/jaeger/storage/spanstore"
 	spanstoremocks "github.com/jaegertracing/jaeger/storage/spanstore/mocks"
@@ -82,6 +83,16 @@ type structuredTraceResponse struct {
 	Limit  int               `json:"limit"`
 	Offset int               `json:"offset"`
 	Errors []structuredError `json:"errors"`
+}
+
+// structuredOperationResponse is similar to structuredResponse but defines `data`
+// explicitly as []*ui.OperationMeta, making it easier to parse & validate.
+type structuredOperationResponse struct {
+	Operations []*ui.OperationMeta `json:"data"`
+	Total      int                 `json:"total"`
+	Limit      int                 `json:"limit"`
+	Offset     int                 `json:"offset"`
+	Errors     []structuredError   `json:"errors"`
 }
 
 func initializeTestServerWithHandler(queryOptions querysvc.QueryServiceOptions, options ...HandlerOption) (*httptest.Server, *spanstoremocks.Reader, *depsmocks.Reader, *APIHandler) {
@@ -483,17 +494,17 @@ func TestGetServicesStorageFailure(t *testing.T) {
 func TestGetOperationsSuccess(t *testing.T) {
 	server, readMock, _ := initializeTestServer()
 	defer server.Close()
-	expectedOperations := []string{"", "get"}
-	readMock.On("GetOperations", mock.AnythingOfType("*context.valueCtx"), "abc/trifle").Return(expectedOperations, nil).Once()
+	expectedOperations := []*storage_v1.OperationMeta{{Operation: ""}, {Operation: "get", SpanKind: "server"}}
+	readMock.On("GetOperations", mock.AnythingOfType("*context.valueCtx"), "abc/trifle", "").Return(expectedOperations, nil).Once()
 
-	var response structuredResponse
+	var response structuredOperationResponse
 	err := getJSON(server.URL+"/api/operations?service=abc%2Ftrifle", &response)
 	assert.NoError(t, err)
-	actualOperations := make([]string, len(expectedOperations))
-	for i, s := range response.Data.([]interface{}) {
-		actualOperations[i] = s.(string)
+	assert.Equal(t, len(expectedOperations), len(response.Operations))
+	for i, op := range response.Operations {
+		assert.Equal(t, expectedOperations[i].Operation, op.OperationName)
+		assert.Equal(t, expectedOperations[i].SpanKind, op.SpanKind)
 	}
-	assert.Equal(t, expectedOperations, actualOperations)
 }
 
 func TestGetOperationsNoServiceName(t *testing.T) {
@@ -518,17 +529,16 @@ func TestGetOperationsStorageFailure(t *testing.T) {
 func TestGetOperationsLegacySuccess(t *testing.T) {
 	server, readMock, _ := initializeTestServer()
 	defer server.Close()
-	expectedOperations := []string{"", "get"}
-	readMock.On("GetOperations", mock.AnythingOfType("*context.valueCtx"), "abc/trifle").Return(expectedOperations, nil).Once()
+	expectedOperations := []*storage_v1.OperationMeta{{Operation: ""}, {Operation: "get"}}
+	readMock.On("GetOperations", mock.AnythingOfType("*context.valueCtx"), "abc/trifle", "").Return(expectedOperations, nil).Once()
 
 	var response structuredResponse
 	err := getJSON(server.URL+"/api/services/abc%2Ftrifle/operations", &response)
 	assert.NoError(t, err)
-	actualOperations := make([]string, len(expectedOperations))
+	assert.Equal(t, len(expectedOperations), len(response.Data.([]interface{})))
 	for i, s := range response.Data.([]interface{}) {
-		actualOperations[i] = s.(string)
+		assert.Equal(t, expectedOperations[i].Operation, s.(string))
 	}
-	assert.Equal(t, expectedOperations, actualOperations)
 }
 
 func TestGetOperationsLegacyStorageFailure(t *testing.T) {

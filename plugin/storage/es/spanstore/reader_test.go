@@ -37,6 +37,7 @@ import (
 	"github.com/jaegertracing/jaeger/pkg/es/mocks"
 	"github.com/jaegertracing/jaeger/pkg/testutils"
 	"github.com/jaegertracing/jaeger/plugin/storage/es/spanstore/dbmodel"
+	"github.com/jaegertracing/jaeger/proto-gen/storage_v1"
 	"github.com/jaegertracing/jaeger/storage/spanstore"
 )
 
@@ -488,12 +489,11 @@ func testGet(typ string, t *testing.T) {
 		searchResult   *elastic.SearchResult
 		searchError    error
 		expectedError  string
-		expectedOutput []string
+		expectedOutput interface{}
 	}{
 		{
-			caption:        typ + " full behavior",
-			searchResult:   &elastic.SearchResult{Aggregations: elastic.Aggregations(goodAggregations)},
-			expectedOutput: []string{"123"},
+			caption:      typ + " full behavior",
+			searchResult: &elastic.SearchResult{Aggregations: elastic.Aggregations(goodAggregations)},
 		},
 		{
 			caption:       typ + " search error",
@@ -505,6 +505,16 @@ func testGet(typ string, t *testing.T) {
 			searchResult:  &elastic.SearchResult{Aggregations: elastic.Aggregations(badAggregations)},
 			expectedError: "Could not find aggregation of " + typ,
 		},
+	}
+	if typ == operationsAggregation {
+		testCases[0].expectedOutput = []*storage_v1.OperationMeta{
+			{
+				Operation: "123",
+				SpanKind:  "",
+			},
+		}
+	} else {
+		testCases[0].expectedOutput = []string{"123"}
 	}
 	for _, tc := range testCases {
 		testCase := tc
@@ -525,11 +535,11 @@ func testGet(typ string, t *testing.T) {
 	}
 }
 
-func returnSearchFunc(typ string, r *spanReaderTest) ([]string, error) {
+func returnSearchFunc(typ string, r *spanReaderTest) (interface{}, error) {
 	if typ == servicesAggregation {
 		return r.reader.GetServices(context.Background())
 	} else if typ == operationsAggregation {
-		return r.reader.GetOperations(context.Background(), "someService")
+		return r.reader.GetOperations(context.Background(), "someService", "")
 	} else if typ == traceIDAggregation {
 		return r.reader.findTraceIDs(context.Background(), &spanstore.TraceQueryParameters{})
 	}

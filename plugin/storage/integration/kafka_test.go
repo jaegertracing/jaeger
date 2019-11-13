@@ -32,6 +32,7 @@ import (
 	"github.com/jaegertracing/jaeger/pkg/testutils"
 	"github.com/jaegertracing/jaeger/plugin/storage/kafka"
 	"github.com/jaegertracing/jaeger/plugin/storage/memory"
+	"github.com/jaegertracing/jaeger/proto-gen/storage_v1"
 	"github.com/jaegertracing/jaeger/storage/spanstore"
 )
 
@@ -119,7 +120,7 @@ func (r *ingester) GetServices(ctx context.Context) ([]string, error) {
 	return nil, nil
 }
 
-func (r *ingester) GetOperations(ctx context.Context, service string) ([]string, error) {
+func (r *ingester) GetOperations(ctx context.Context, service string, spanKind string) ([]*storage_v1.OperationMeta, error) {
 	return nil, nil
 }
 

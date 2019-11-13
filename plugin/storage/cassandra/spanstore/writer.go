@@ -21,6 +21,7 @@ import (
 	"time"
 	"unicode/utf8"
 
+	"github.com/opentracing/opentracing-go/ext"
 	"github.com/pkg/errors"
 	"github.com/uber/jaeger-lib/metrics"
 	"go.uber.org/zap"
@@ -73,7 +74,7 @@ const (
 
 type storageMode uint8
 type serviceNamesWriter func(serviceName string) error
-type operationNamesWriter func(serviceName, operationName string) error
+type operationNamesWriter func(serviceName, operationName string, spanKind string) error
 
 type spanWriterMetrics struct {
 	traces                *casMetrics.Table
@@ -172,7 +173,11 @@ func (s *SpanWriter) writeSpan(span *model.Span, ds *dbmodel.Span) error {
 }
 
 func (s *SpanWriter) writeIndexes(span *model.Span, ds *dbmodel.Span) error {
-	if err := s.saveServiceNameAndOperationName(ds.ServiceName, ds.OperationName); err != nil {
+	spanKind := ""
+	if tag, ok := model.KeyValues(span.Tags).FindByKey(string(ext.SpanKind)); ok {
+		spanKind = tag.AsString()
+	}
+	if err := s.saveServiceNameAndOperationName(ds.ServiceName, ds.OperationName, spanKind); err != nil {
 		// should this be a soft failure?
 		return s.logError(ds, err, "Failed to insert service name and operation name", s.logger)
 	}
@@ -274,9 +279,9 @@ func (s *SpanWriter) logError(span *dbmodel.Span, err error, msg string, logger 
 	return errors.Wrap(err, msg)
 }
 
-func (s *SpanWriter) saveServiceNameAndOperationName(serviceName, operationName string) error {
+func (s *SpanWriter) saveServiceNameAndOperationName(serviceName, operationName, spanKind string) error {
 	if err := s.serviceNamesWriter(serviceName); err != nil {
 		return err
 	}
-	return s.operationNamesWriter(serviceName, operationName)
+	return s.operationNamesWriter(serviceName, operationName, spanKind)
 }

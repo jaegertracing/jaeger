@@ -22,9 +22,12 @@ import (
 	"sync"
 	"time"
 
+	"github.com/opentracing/opentracing-go/ext"
+
 	"github.com/jaegertracing/jaeger/model"
 	"github.com/jaegertracing/jaeger/model/adjuster"
 	"github.com/jaegertracing/jaeger/pkg/memory/config"
+	"github.com/jaegertracing/jaeger/proto-gen/storage_v1"
 	"github.com/jaegertracing/jaeger/storage/spanstore"
 )
 
@@ -34,7 +37,7 @@ type Store struct {
 	ids        []*model.TraceID
 	traces     map[model.TraceID]*model.Trace
 	services   map[string]struct{}
-	operations map[string]map[string]struct{}
+	operations map[string]map[string]map[string]struct{}
 	deduper    adjuster.Adjuster
 	config     config.Configuration
 	index      int
@@ -51,7 +54,7 @@ func WithConfiguration(configuration config.Configuration) *Store {
 		ids:        make([]*model.TraceID, configuration.MaxTraces),
 		traces:     map[model.TraceID]*model.Trace{},
 		services:   map[string]struct{}{},
-		operations: map[string]map[string]struct{}{},
+		operations: map[string]map[string]map[string]struct{}{},
 		deduper:    adjuster.SpanIDDeduper(),
 		config:     configuration,
 	}
@@ -118,9 +121,17 @@ func (m *Store) WriteSpan(span *model.Span) error {
 	m.Lock()
 	defer m.Unlock()
 	if _, ok := m.operations[span.Process.ServiceName]; !ok {
-		m.operations[span.Process.ServiceName] = map[string]struct{}{}
+		m.operations[span.Process.ServiceName] = map[string]map[string]struct{}{}
 	}
-	m.operations[span.Process.ServiceName][span.OperationName] = struct{}{}
+	if _, ok := m.operations[span.Process.ServiceName][span.OperationName]; !ok {
+		m.operations[span.Process.ServiceName][span.OperationName] = map[string]struct{}{}
+	}
+
+	spanKind := ""
+	if tag, ok := model.KeyValues(span.Tags).FindByKey(string(ext.SpanKind)); ok {
+		spanKind = tag.AsString()
+	}
+	m.operations[span.Process.ServiceName][span.OperationName][spanKind] = struct{}{}
 	m.services[span.Process.ServiceName] = struct{}{}
 	if _, ok := m.traces[span.TraceID]; !ok {
 		m.traces[span.TraceID] = &model.Trace{}
@@ -177,13 +188,20 @@ func (m *Store) GetServices(ctx context.Context) ([]string, error) {
 }
 
 // GetOperations returns the operations of a given service
-func (m *Store) GetOperations(ctx context.Context, service string) ([]string, error) {
+func (m *Store) GetOperations(ctx context.Context, service string, spanKind string) ([]*storage_v1.OperationMeta, error) {
 	m.RLock()
 	defer m.RUnlock()
-	var retMe []string
+	var retMe []*storage_v1.OperationMeta
 	if operations, ok := m.operations[service]; ok {
-		for ops := range operations {
-			retMe = append(retMe, ops)
+		for operationName, kinds := range operations {
+			for kind := range kinds {
+				if spanKind == "" || spanKind == kind {
+					retMe = append(retMe, &storage_v1.OperationMeta{
+						Operation: operationName,
+						SpanKind:  kind,
+					})
+				}
+			}
 		}
 	}
 	return retMe, nil

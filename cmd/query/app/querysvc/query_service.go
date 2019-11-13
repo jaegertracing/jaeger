@@ -24,6 +24,7 @@ import (
 	"github.com/jaegertracing/jaeger/model"
 	"github.com/jaegertracing/jaeger/model/adjuster"
 	"github.com/jaegertracing/jaeger/pkg/multierror"
+	"github.com/jaegertracing/jaeger/proto-gen/storage_v1"
 	"github.com/jaegertracing/jaeger/storage"
 	"github.com/jaegertracing/jaeger/storage/dependencystore"
 	"github.com/jaegertracing/jaeger/storage/spanstore"
@@ -79,8 +80,8 @@ func (qs QueryService) GetServices(ctx context.Context) ([]string, error) {
 }
 
 // GetOperations is the queryService implementation of spanstore.Reader.GetOperations
-func (qs QueryService) GetOperations(ctx context.Context, service string) ([]string, error) {
-	return qs.spanReader.GetOperations(ctx, service)
+func (qs QueryService) GetOperations(ctx context.Context, service string, spanKind string) ([]*storage_v1.OperationMeta, error) {
+	return qs.spanReader.GetOperations(ctx, service, spanKind)
 }
 
 // FindTraces is the queryService implementation of spanstore.Reader.FindTraces
