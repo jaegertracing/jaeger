@@ -302,6 +302,7 @@ func (c *Configuration) getConfigOptions(logger *zap.Logger) ([]elastic.ClientOp
 	} else {
 		httpTransport := &http.Transport{
 			Proxy:           http.ProxyFromEnvironment,
+			// #nosec G402
 			TLSClientConfig: &tls.Config{InsecureSkipVerify: c.TLS.SkipHostVerify},
 		}
 		if c.TLS.CaPath != "" {
