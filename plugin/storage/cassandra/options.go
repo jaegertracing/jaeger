@@ -53,15 +53,25 @@ const (
 
 	// common storage settings
 	suffixSpanStoreWriteCacheTTL = ".span-store-write-cache-ttl"
+	suffixIndexTagsBlacklist     = ".index.tag-blacklist"
+	suffixIndexTagsWhitelist     = ".index.tag-whitelist"
+	suffixIndexLogs              = ".index.logs"
+	suffixIndexTags              = ".index.tags"
+	suffixIndexProcessTags       = ".index.process-tags"
 )
 
 // Options contains various type of Cassandra configs and provides the ability
 // to bind them to command line flag and apply overlays, so that some configurations
 // (e.g. archive) may be underspecified and infer the rest of its parameters from primary.
 type Options struct {
-	primary                *namespaceConfig
-	others                 map[string]*namespaceConfig
-	SpanStoreWriteCacheTTL time.Duration
+	primary                 *namespaceConfig
+	others                  map[string]*namespaceConfig
+	SpanStoreWriteCacheTTL  time.Duration
+	tagIndexBlacklist       string
+	tagIndexWhitelist       string
+	DisableLogsIndex        bool
+	DisableTagsIndex        bool
+	DisableProcessTagsIndex bool
 }
 
 // the Servers field in config.Configuration is a list, which we cannot represent with flags.
@@ -116,6 +126,26 @@ func (opt *Options) AddFlags(flagSet *flag.FlagSet) {
 	flagSet.Duration(opt.primary.namespace+suffixSpanStoreWriteCacheTTL,
 		opt.SpanStoreWriteCacheTTL,
 		"The duration to wait before rewriting an existing service or operation name")
+	flagSet.String(
+		opt.primary.namespace+suffixIndexTagsBlacklist,
+		opt.tagIndexBlacklist,
+		"The comma-separated list of span tags to blacklist from being indexed. All other tags will be indexed. Mutually exclusive with the whitelist option.")
+	flagSet.String(
+		opt.primary.namespace+suffixIndexTagsWhitelist,
+		opt.tagIndexWhitelist,
+		"The comma-separated list of span tags to whitelist for being indexed. All other tags will not be indexed. Mutually exclusive with the blacklist option.")
+	flagSet.Bool(
+		opt.primary.namespace+suffixIndexLogs,
+		!opt.DisableLogsIndex,
+		"Controls log field indexing. Set to false to disable.")
+	flagSet.Bool(
+		opt.primary.namespace+suffixIndexTags,
+		!opt.DisableTagsIndex,
+		"Controls tag indexing. Set to false to disable.")
+	flagSet.Bool(
+		opt.primary.namespace+suffixIndexProcessTags,
+		!opt.DisableProcessTagsIndex,
+		"Controls process tag indexing. Set to false to disable.")
 }
 
 func addFlags(flagSet *flag.FlagSet, nsConfig *namespaceConfig) {
@@ -222,6 +252,11 @@ func (opt *Options) InitFromViper(v *viper.Viper) {
 		cfg.initFromViper(v)
 	}
 	opt.SpanStoreWriteCacheTTL = v.GetDuration(opt.primary.namespace + suffixSpanStoreWriteCacheTTL)
+	opt.tagIndexBlacklist = stripWhiteSpace(v.GetString(opt.primary.namespace + suffixIndexTagsBlacklist))
+	opt.tagIndexWhitelist = stripWhiteSpace(v.GetString(opt.primary.namespace + suffixIndexTagsWhitelist))
+	opt.DisableTagsIndex = !v.GetBool(opt.primary.namespace + suffixIndexTags)
+	opt.DisableLogsIndex = !v.GetBool(opt.primary.namespace + suffixIndexLogs)
+	opt.DisableProcessTagsIndex = !v.GetBool(opt.primary.namespace + suffixIndexProcessTags)
 }
 
 func (cfg *namespaceConfig) initFromViper(v *viper.Viper) {
@@ -274,6 +309,24 @@ func (opt *Options) Get(namespace string) *config.Configuration {
 	}
 	nsCfg.Servers = strings.Split(nsCfg.servers, ",")
 	return &nsCfg.Configuration
+}
+
+// TagIndexBlacklist returns the list of blacklisted tags
+func (opt *Options) TagIndexBlacklist() []string {
+	if len(opt.tagIndexBlacklist) > 0 {
+		return strings.Split(opt.tagIndexBlacklist, ",")
+	}
+
+	return nil
+}
+
+// TagIndexWhitelist returns the list of whitelisted tags
+func (opt *Options) TagIndexWhitelist() []string {
+	if len(opt.tagIndexWhitelist) > 0 {
+		return strings.Split(opt.tagIndexWhitelist, ",")
+	}
+
+	return nil
 }
 
 // stripWhiteSpace removes all whitespace characters from a string
