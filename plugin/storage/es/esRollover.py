@@ -194,10 +194,10 @@ def empty_list(ilo, error_msg):
 
 def get_request_session(username, password, tls, ca, cert, key, skipHostVerify):
     session = requests.Session()
-    if skipHostVerify:
-        session.verify = False
     if ca is not None:
         session.verify = ca
+    elif skipHostVerify:
+        session.verify = False
     if username is not None and password is not None:
         session.auth = HTTPBasicAuth(username, password)
     elif tls:
@@ -216,8 +216,10 @@ def get_version(client):
 
 
 def create_client(username, password, tls, ca, cert, key, skipHostVerify):
-    context = ssl.create_default_context(ssl.Purpose.SERVER_AUTH, cafile=ca) if ca is not None else ssl.create_default_context()
-    if skipHostVerify:
+    context = ssl.create_default_context()
+    if ca is not None:
+        context = ssl.create_default_context(ssl.Purpose.SERVER_AUTH, cafile=ca)
+    elif skipHostVerify:
         context.check_hostname = False
         context.verify_mode = ssl.CERT_NONE
     if username is not None and password is not None:
