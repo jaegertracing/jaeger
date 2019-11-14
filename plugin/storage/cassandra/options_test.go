@@ -60,8 +60,10 @@ func TestOptionsWithFlags(t *testing.T) {
 		"--cas.consistency=ONE",
 		"--cas.proto-version=3",
 		"--cas.socket-keep-alive=42s",
-		"--cas.tag-index-blacklist=blerg, blarg,blorg ",
-		"--cas.tag-index-whitelist=flerg, flarg,florg ",
+		"--cas.index.tag-blacklist=blerg, blarg,blorg ",
+		"--cas.index.tag-whitelist=flerg, flarg,florg ",
+		"--cas.index.tags=true",
+		"--cas.index.process-tags=false",
 		// enable aux with a couple overrides
 		"--cas-aux.enabled=true",
 		"--cas-aux.keyspace=jaeger-archive",
@@ -78,6 +80,9 @@ func TestOptionsWithFlags(t *testing.T) {
 	assert.Equal(t, false, primary.EnableDependenciesV2)
 	assert.Equal(t, []string{"blerg", "blarg", "blorg"}, opts.TagIndexBlacklist())
 	assert.Equal(t, []string{"flerg", "flarg", "florg"}, opts.TagIndexWhitelist())
+	assert.Equal(t, false, opts.DisableTagsIndex)
+	assert.Equal(t, true, opts.DisableProcessTagsIndex)
+	assert.Equal(t, false, opts.DisableLogsIndex)
 
 	aux := opts.Get("cas-aux")
 	require.NotNil(t, aux)
