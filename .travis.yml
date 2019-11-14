@@ -36,15 +36,6 @@ jobs:
   - go: "1.13.x"
     env:
     - HOTROD=true
-  - stage: Fuzz regression
-    dist: bionic
-    go: "1.13.x"
-    script: ./scripts/travis/fuzzit.sh local-regression
-  - stage: Fuzz
-    if: branch = master AND type IN (push)
-    dist: bionic
-    go: "1.13.x"
-    script: ./scripts/travis/fuzzit.sh fuzzing
 
 services:
   - docker

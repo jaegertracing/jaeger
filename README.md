@@ -2,7 +2,7 @@
 
 [![Gitter chat][gitter-img]][gitter] [![OpenTracing-1.0][ot-badge]](https://opentracing.io) [![Project+Community stats][community-badge]][community-stats]
 
-[![Build Status][ci-img]][ci] [![Coverage Status][cov-img]][cov] [![FOSSA Status](https://app.fossa.io/api/projects/git%2Bgithub.com%2Fjaegertracing%2Fjaeger.svg?type=shield)](https://app.fossa.io/projects/git%2Bgithub.com%2Fjaegertracing%2Fjaeger?ref=badge_shield) [![Fuzzit Status](https://app.fuzzit.dev/badge?org_id=jaeger)](https://app.fuzzit.dev/orgs/jaeger/dashboard) [![CII Best Practices](https://bestpractices.coreinfrastructure.org/projects/1273/badge)](https://bestpractices.coreinfrastructure.org/projects/1273)
+[![Build Status][ci-img]][ci] [![Coverage Status][cov-img]][cov] [![FOSSA Status](https://app.fossa.io/api/projects/git%2Bgithub.com%2Fjaegertracing%2Fjaeger.svg?type=shield)](https://app.fossa.io/projects/git%2Bgithub.com%2Fjaegertracing%2Fjaeger?ref=badge_shield) [![CII Best Practices](https://bestpractices.coreinfrastructure.org/projects/1273/badge)](https://bestpractices.coreinfrastructure.org/projects/1273)
 
 # Jaeger - a Distributed Tracing System
 
