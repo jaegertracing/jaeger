@@ -100,12 +100,13 @@ func (s *OperationNamesStorage) GetOperations(query *spanstore.OperationQueryPar
 	}
 	iter := casQuery.Iter()
 
-	opRecord := map[string]string{}
+	var operationName string
+	var spanKind string
 	var operations []*storage_v1.Operation
-	for iter.Scan(&opRecord) {
+	for iter.Scan(&spanKind, &operationName) {
 		operations = append(operations, &storage_v1.Operation{
-			Name:     opRecord["operation_name"],
-			SpanKind: opRecord["span_kind"],
+			Name:     operationName,
+			SpanKind: spanKind,
 		})
 	}
 	if err := iter.Close(); err != nil {
