@@ -90,11 +90,11 @@ CREATE TABLE IF NOT EXISTS ${keyspace}.service_names (
     AND speculative_retry = 'NONE'
     AND gc_grace_seconds = 10800; -- 3 hours of downtime acceptable on nodes
 
-CREATE TABLE IF NOT EXISTS ${keyspace}.operation_names (
+CREATE TABLE IF NOT EXISTS ${keyspace}.operations (
     service_name        text,
-    operation_name      text,
     span_kind           text,
-    PRIMARY KEY ((service_name), operation_name)
+    operation_name      text,
+    PRIMARY KEY ((service_name), span_kind, operation_name)
 )
     WITH compaction = {
         'min_threshold': '4',

@@ -16,6 +16,7 @@
 package spanstore
 
 import (
+	"fmt"
 	"time"
 
 	"github.com/pkg/errors"
@@ -30,9 +31,10 @@ import (
 )
 
 const (
-	insertOperationName       = `INSERT INTO operation_names(service_name, operation_name, span_kind) VALUES (?, ?, ?)`
-	queryOperationNames       = `SELECT operation_name, span_kind FROM operation_names WHERE service_name = ? `
-	queryOperationNamesByKind = `SELECT operation_name, span_kind FROM operation_names WHERE service_name = ? AND span_kind = ? `
+	operationTableName        = `operations`
+	insertOperationName       = `INSERT INTO ` + operationTableName + ` (service_name, span_kind, operation_name) VALUES (?, ?, ?)`
+	queryOperationNames       = `SELECT span_kind, operation_name FROM ` + operationTableName + ` WHERE service_name = ? `
+	queryOperationNamesByKind = `SELECT span_kind, operation_name FROM ` + operationTableName + ` WHERE service_name = ? AND span_kind = ? `
 )
 
 // OperationNamesStorage stores known operation names by service.
@@ -60,7 +62,7 @@ func NewOperationNamesStorage(
 		InsertStmt:      insertOperationName,
 		QueryStmt:       queryOperationNames,
 		QueryByKindStmt: queryOperationNamesByKind,
-		metrics:         casMetrics.NewTable(metricsFactory, "operation_names"),
+		metrics:         casMetrics.NewTable(metricsFactory, operationTableName),
 		writeCacheTTL:   writeCacheTTL,
 		logger:          logger,
 		operationNames: cache.NewLRUWithOptions(
@@ -76,8 +78,8 @@ func NewOperationNamesStorage(
 func (s *OperationNamesStorage) Write(serviceName string, operationName string, spanKind string) error {
 	var err error
 	query := s.session.Query(s.InsertStmt)
-	if inCache := checkWriteCache(serviceName+"|"+operationName+"|"+spanKind, s.operationNames, s.writeCacheTTL); !inCache {
-		q := query.Bind(serviceName, operationName, spanKind)
+	if inCache := checkWriteCache(serviceName+"|"+spanKind+"|"+operationName, s.operationNames, s.writeCacheTTL); !inCache {
+		q := query.Bind(serviceName, spanKind, operationName)
 		err2 := s.metrics.Exec(q, s.logger)
 		if err2 != nil {
 			err = err2
@@ -107,7 +109,7 @@ func (s *OperationNamesStorage) GetOperations(query *spanstore.OperationQueryPar
 		})
 	}
 	if err := iter.Close(); err != nil {
-		err = errors.Wrap(err, "Error reading operation_names from storage")
+		err = errors.Wrap(err, fmt.Sprintf("Error reading %s from storage", operationTableName))
 		return nil, err
 	}
 	return operations, nil

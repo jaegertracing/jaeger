@@ -65,11 +65,11 @@ func TestOperationNamesStorageWrite(t *testing.T) {
 				query := &mocks.Query{}
 				query1 := &mocks.Query{}
 				query2 := &mocks.Query{}
-				query.On("Bind", []interface{}{"service-a", "Operation-b", ""}).Return(query1)
-				query.On("Bind", []interface{}{"service-c", "operation-d", "client"}).Return(query2)
+				query.On("Bind", []interface{}{"service-a", "", "Operation-b"}).Return(query1)
+				query.On("Bind", []interface{}{"service-c", "client", "operation-d"}).Return(query2)
 				query1.On("Exec").Return(nil)
 				query2.On("Exec").Return(execError)
-				query2.On("String").Return("select from operation_names")
+				query2.On("String").Return("select from " + operationTableName)
 
 				var emptyArgs []interface{}
 				s.session.On("Query", mock.AnythingOfType("string"), emptyArgs).Return(query)
@@ -78,17 +78,17 @@ func TestOperationNamesStorageWrite(t *testing.T) {
 				assert.NoError(t, err)
 
 				err = s.storage.Write("service-c", "operation-d", "client")
-				assert.EqualError(t, err, "failed to Exec query 'select from operation_names': exec error")
+				assert.EqualError(t, err, "failed to Exec query 'select from "+operationTableName+"': exec error")
 				assert.Equal(t, map[string]string{
 					"level": "error",
 					"msg":   "Failed to exec query",
-					"query": "select from operation_names",
+					"query": "select from " + operationTableName,
 					"error": "exec error",
 				}, s.logBuffer.JSONLine(0))
 
 				counts, _ := s.metricsFactory.Snapshot()
 				assert.Equal(t, map[string]int64{
-					"attempts|table=operation_names": 2, "inserts|table=operation_names": 1, "errors|table=operation_names": 1,
+					"attempts|table=" + operationTableName: 2, "inserts|table=" + operationTableName: 1, "errors|table=" + operationTableName: 1,
 				}, counts, "after first two writes")
 
 				// write again
@@ -99,8 +99,8 @@ func TestOperationNamesStorageWrite(t *testing.T) {
 				expCounts := counts
 				if writeCacheTTL == 0 {
 					// without write cache, the second write must succeed
-					expCounts["attempts|table=operation_names"]++
-					expCounts["inserts|table=operation_names"]++
+					expCounts["attempts|table="+operationTableName]++
+					expCounts["inserts|table="+operationTableName]++
 				}
 				assert.Equal(t, expCounts, counts2)
 			})
@@ -139,7 +139,7 @@ func TestOperationNamesStorageGetServices(t *testing.T) {
 				// expect one empty operation result because mock iter.Scan(&placeholder) does not write to `placeholder`
 				assert.Equal(t, []*storage_v1.Operation{{}}, services)
 			} else {
-				assert.EqualError(t, err, "Error reading operation_names from storage: "+expErr.Error())
+				assert.EqualError(t, err, fmt.Sprintf("Error reading %s from storage: %s", operationTableName, expErr.Error()))
 			}
 		})
 
