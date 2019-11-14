@@ -76,7 +76,7 @@ func init() {
 	RootCmd.PersistentFlags().IntVarP(&routePort, "route-service-port", "r", 8083, "Port for routing service")
 
 	// Flag for serving frontend at custom basepath url
-	RootCmd.PersistentFlags().StringVarP(&basepath, "basepath", "b", "/", "Basepath for frontend service")
+	RootCmd.PersistentFlags().StringVarP(&basepath, "basepath", "b", "", "Basepath for frontend service")
 
 	rand.Seed(int64(time.Now().Nanosecond()))
 	logger, _ = zap.NewDevelopment(zap.AddStacktrace(zapcore.FatalLevel))
@@ -124,7 +124,7 @@ func onInitialize() {
 		logger.Info("changing route service port", zap.Int("old", 8083), zap.Int("new", routePort))
 	}
 
-	if basepath != "/" {
+	if basepath != "" {
 		logger.Info("changing basepath for frontend", zap.String("old", "/"), zap.String("new", basepath))
 	}
 }

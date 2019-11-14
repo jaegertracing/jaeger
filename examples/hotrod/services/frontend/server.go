@@ -18,6 +18,7 @@ package frontend
 import (
 	"encoding/json"
 	"net/http"
+	"path"
 
 	"github.com/opentracing/opentracing-go"
 	"go.uber.org/zap"
@@ -63,20 +64,15 @@ func NewServer(options ConfigOptions, tracer opentracing.Tracer, logger log.Fact
 // Run starts the frontend server
 func (s *Server) Run() error {
 	mux := s.createServeMux()
-	s.logger.Bg().Info("Starting", zap.String("address", "http://"+s.hostPort+s.basepath))
+	s.logger.Bg().Info("Starting", zap.String("address", "http://"+path.Join(s.hostPort, s.basepath)))
 	return http.ListenAndServe(s.hostPort, mux)
 }
 
 func (s *Server) createServeMux() http.Handler {
 	mux := tracing.NewServeMux(s.tracer)
-	switch {
-	case s.basepath != "/":
-		mux.Handle(s.basepath, http.StripPrefix(s.basepath, http.FileServer(s.assetFS)))
-		mux.Handle(s.basepath+"/dispatch", http.HandlerFunc(s.dispatch))
-	default:
-		mux.Handle("/", http.FileServer(s.assetFS))
-		mux.Handle("/dispatch", http.HandlerFunc(s.dispatch))
-	}
+	p := path.Join("/", s.basepath)
+	mux.Handle(p, http.StripPrefix(p, http.FileServer(s.assetFS)))
+	mux.Handle(path.Join(p, "/dispatch"), http.HandlerFunc(s.dispatch))
 	return mux
 }
 
