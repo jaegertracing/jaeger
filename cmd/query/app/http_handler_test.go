@@ -530,14 +530,16 @@ func TestGetOperationsLegacySuccess(t *testing.T) {
 	server, readMock, _ := initializeTestServer()
 	defer server.Close()
 	expectedOperations := []*storage_v1.Operation{{Name: ""}, {Name: "get"}}
+	expectedOperationNames := map[string]struct{}{"": {}, "get": {}}
 	readMock.On("GetOperations", mock.AnythingOfType("*context.valueCtx"), &spanstore.OperationQueryParameters{ServiceName: "abc/trifle"}).Return(expectedOperations, nil).Once()
 
 	var response structuredResponse
 	err := getJSON(server.URL+"/api/services/abc%2Ftrifle/operations", &response)
 	assert.NoError(t, err)
-	assert.Equal(t, len(expectedOperations), len(response.Data.([]interface{})))
-	for i, s := range response.Data.([]interface{}) {
-		assert.Equal(t, expectedOperations[i].Name, s.(string))
+	assert.Equal(t, len(expectedOperationNames), len(response.Data.([]interface{})))
+	for _, s := range response.Data.([]interface{}) {
+		_, ok := expectedOperationNames[s.(string)]
+		assert.True(t, ok)
 	}
 }
 
