@@ -30,7 +30,6 @@ import (
 	"github.com/jaegertracing/jaeger/pkg/cassandra"
 	casMetrics "github.com/jaegertracing/jaeger/pkg/cassandra/metrics"
 	"github.com/jaegertracing/jaeger/plugin/storage/cassandra/spanstore/dbmodel"
-	"github.com/jaegertracing/jaeger/proto-gen/storage_v1"
 	"github.com/jaegertracing/jaeger/storage/spanstore"
 )
 
@@ -92,7 +91,7 @@ var (
 
 type serviceNamesReader func() ([]string, error)
 
-type operationNamesReader func(query *spanstore.OperationQueryParameters) ([]*storage_v1.Operation, error)
+type operationNamesReader func(query *spanstore.OperationQueryParameters) ([]*spanstore.Operation, error)
 
 type spanReaderMetrics struct {
 	readTraces                 *casMetrics.Table
@@ -144,7 +143,7 @@ func (s *SpanReader) GetServices(ctx context.Context) ([]string, error) {
 }
 
 // GetOperations returns all operations for a specific service traced by Jaeger
-func (s *SpanReader) GetOperations(ctx context.Context, query *spanstore.OperationQueryParameters) ([]*storage_v1.Operation, error) {
+func (s *SpanReader) GetOperations(ctx context.Context, query *spanstore.OperationQueryParameters) ([]*spanstore.Operation, error) {
 	return s.operationNamesReader(query)
 }
 

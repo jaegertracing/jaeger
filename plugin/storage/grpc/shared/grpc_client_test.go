@@ -129,7 +129,7 @@ func TestGRPCClientGetOperations(t *testing.T) {
 
 		s, err := r.client.GetOperations(context.Background(), &spanstore.OperationQueryParameters{ServiceName: "service-a", SpanKind: ""})
 		assert.NoError(t, err)
-		assert.Equal(t, []*storage_v1.Operation{{Name: "operation-a", SpanKind: ""}}, s)
+		assert.Equal(t, []*spanstore.Operation{{Name: "operation-a", SpanKind: ""}}, s)
 	})
 }
 

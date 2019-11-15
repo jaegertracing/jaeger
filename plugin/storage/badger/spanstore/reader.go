@@ -29,7 +29,6 @@ import (
 	"github.com/golang/protobuf/proto"
 
 	"github.com/jaegertracing/jaeger/model"
-	"github.com/jaegertracing/jaeger/proto-gen/storage_v1"
 	"github.com/jaegertracing/jaeger/storage/spanstore"
 )
 
@@ -238,7 +237,7 @@ func (r *TraceReader) GetServices(ctx context.Context) ([]string, error) {
 }
 
 // GetOperations fetches operations in the service and empty slice if service does not exists
-func (r *TraceReader) GetOperations(ctx context.Context, query *spanstore.OperationQueryParameters) ([]*storage_v1.Operation, error) {
+func (r *TraceReader) GetOperations(ctx context.Context, query *spanstore.OperationQueryParameters) ([]*spanstore.Operation, error) {
 	return r.cache.GetOperations(query.ServiceName)
 }
 

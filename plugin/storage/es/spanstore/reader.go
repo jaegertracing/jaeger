@@ -33,7 +33,6 @@ import (
 	"github.com/jaegertracing/jaeger/model"
 	"github.com/jaegertracing/jaeger/pkg/es"
 	"github.com/jaegertracing/jaeger/plugin/storage/es/spanstore/dbmodel"
-	"github.com/jaegertracing/jaeger/proto-gen/storage_v1"
 	"github.com/jaegertracing/jaeger/storage/spanstore"
 )
 
@@ -246,7 +245,7 @@ func (s *SpanReader) GetServices(ctx context.Context) ([]string, error) {
 }
 
 // GetOperations returns all operations for a specific service traced by Jaeger
-func (s *SpanReader) GetOperations(ctx context.Context, query *spanstore.OperationQueryParameters) ([]*storage_v1.Operation, error) {
+func (s *SpanReader) GetOperations(ctx context.Context, query *spanstore.OperationQueryParameters) ([]*spanstore.Operation, error) {
 	span, ctx := opentracing.StartSpanFromContext(ctx, "GetOperations")
 	defer span.Finish()
 	currentTime := time.Now()
@@ -257,9 +256,9 @@ func (s *SpanReader) GetOperations(ctx context.Context, query *spanstore.Operati
 	}
 
 	//TODO: return the operations with actual span kind that meet requirement
-	var result []*storage_v1.Operation
+	var result []*spanstore.Operation
 	for _, operation := range operations {
-		result = append(result, &storage_v1.Operation{
+		result = append(result, &spanstore.Operation{
 			Name:     operation,
 			SpanKind: "",
 		})

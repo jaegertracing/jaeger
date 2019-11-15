@@ -28,7 +28,6 @@ import (
 
 	"github.com/jaegertracing/jaeger/pkg/cassandra/mocks"
 	"github.com/jaegertracing/jaeger/pkg/testutils"
-	"github.com/jaegertracing/jaeger/proto-gen/storage_v1"
 	"github.com/jaegertracing/jaeger/storage/spanstore"
 )
 
@@ -137,7 +136,7 @@ func TestOperationNamesStorageGetServices(t *testing.T) {
 			if expErr == nil {
 				assert.NoError(t, err)
 				// expect one empty operation result because mock iter.Scan(&placeholder) does not write to `placeholder`
-				assert.Equal(t, []*storage_v1.Operation{{}}, services)
+				assert.Equal(t, []*spanstore.Operation{{}}, services)
 			} else {
 				assert.EqualError(t, err, fmt.Sprintf("Error reading %s from storage: %s", operationTableName, expErr.Error()))
 			}

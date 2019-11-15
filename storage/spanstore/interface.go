@@ -21,7 +21,6 @@ import (
 	"time"
 
 	"github.com/jaegertracing/jaeger/model"
-	"github.com/jaegertracing/jaeger/proto-gen/storage_v1"
 )
 
 // Writer writes spans to storage.
@@ -38,7 +37,7 @@ var (
 type Reader interface {
 	GetTrace(ctx context.Context, traceID model.TraceID) (*model.Trace, error)
 	GetServices(ctx context.Context) ([]string, error)
-	GetOperations(ctx context.Context, query *OperationQueryParameters) ([]*storage_v1.Operation, error)
+	GetOperations(ctx context.Context, query *OperationQueryParameters) ([]*Operation, error)
 	FindTraces(ctx context.Context, query *TraceQueryParameters) ([]*model.Trace, error)
 	FindTraceIDs(ctx context.Context, query *TraceQueryParameters) ([]model.TraceID, error)
 }
@@ -59,4 +58,10 @@ type TraceQueryParameters struct {
 type OperationQueryParameters struct {
 	ServiceName string
 	SpanKind    string
+}
+
+// Operation contains operation name and span kind
+type Operation struct {
+	Name     string
+	SpanKind string
 }

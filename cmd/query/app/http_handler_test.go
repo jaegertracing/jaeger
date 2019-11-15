@@ -40,7 +40,6 @@ import (
 	"github.com/jaegertracing/jaeger/model"
 	"github.com/jaegertracing/jaeger/model/adjuster"
 	ui "github.com/jaegertracing/jaeger/model/json"
-	"github.com/jaegertracing/jaeger/proto-gen/storage_v1"
 	depsmocks "github.com/jaegertracing/jaeger/storage/dependencystore/mocks"
 	"github.com/jaegertracing/jaeger/storage/spanstore"
 	spanstoremocks "github.com/jaegertracing/jaeger/storage/spanstore/mocks"
@@ -494,7 +493,7 @@ func TestGetServicesStorageFailure(t *testing.T) {
 func TestGetOperationsSuccess(t *testing.T) {
 	server, readMock, _ := initializeTestServer()
 	defer server.Close()
-	expectedOperations := []*storage_v1.Operation{{Name: ""}, {Name: "get", SpanKind: "server"}}
+	expectedOperations := []*spanstore.Operation{{Name: ""}, {Name: "get", SpanKind: "server"}}
 	readMock.On("GetOperations", mock.AnythingOfType("*context.valueCtx"), &spanstore.OperationQueryParameters{ServiceName: "abc/trifle"}).Return(expectedOperations, nil).Once()
 
 	var response structuredOperationResponse
@@ -529,7 +528,7 @@ func TestGetOperationsStorageFailure(t *testing.T) {
 func TestGetOperationsLegacySuccess(t *testing.T) {
 	server, readMock, _ := initializeTestServer()
 	defer server.Close()
-	expectedOperations := []*storage_v1.Operation{{Name: ""}, {Name: "get"}}
+	expectedOperations := []*spanstore.Operation{{Name: ""}, {Name: "get"}}
 	expectedOperationNames := map[string]struct{}{"": {}, "get": {}}
 	readMock.On("GetOperations", mock.AnythingOfType("*context.valueCtx"), &spanstore.OperationQueryParameters{ServiceName: "abc/trifle"}).Return(expectedOperations, nil).Once()
 

@@ -26,7 +26,6 @@ import (
 	"github.com/jaegertracing/jaeger/pkg/cache"
 	"github.com/jaegertracing/jaeger/pkg/cassandra"
 	casMetrics "github.com/jaegertracing/jaeger/pkg/cassandra/metrics"
-	"github.com/jaegertracing/jaeger/proto-gen/storage_v1"
 	"github.com/jaegertracing/jaeger/storage/spanstore"
 )
 
@@ -89,7 +88,7 @@ func (s *OperationNamesStorage) Write(serviceName string, operationName string, 
 }
 
 // GetOperations returns all operations for a specific service traced by Jaeger
-func (s *OperationNamesStorage) GetOperations(query *spanstore.OperationQueryParameters) ([]*storage_v1.Operation, error) {
+func (s *OperationNamesStorage) GetOperations(query *spanstore.OperationQueryParameters) ([]*spanstore.Operation, error) {
 	var casQuery cassandra.Query
 	if query.SpanKind == "" {
 		// Get operations for all spanKind
@@ -102,9 +101,9 @@ func (s *OperationNamesStorage) GetOperations(query *spanstore.OperationQueryPar
 
 	var operationName string
 	var spanKind string
-	var operations []*storage_v1.Operation
+	var operations []*spanstore.Operation
 	for iter.Scan(&spanKind, &operationName) {
-		operations = append(operations, &storage_v1.Operation{
+		operations = append(operations, &spanstore.Operation{
 			Name:     operationName,
 			SpanKind: spanKind,
 		})

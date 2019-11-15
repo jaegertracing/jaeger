@@ -24,7 +24,6 @@ import (
 	"github.com/uber/jaeger-lib/metrics/metricstest"
 
 	"github.com/jaegertracing/jaeger/model"
-	"github.com/jaegertracing/jaeger/proto-gen/storage_v1"
 	"github.com/jaegertracing/jaeger/storage/spanstore"
 	. "github.com/jaegertracing/jaeger/storage/spanstore/metrics"
 	"github.com/jaegertracing/jaeger/storage/spanstore/mocks"
@@ -38,7 +37,7 @@ func TestSuccessfulUnderlyingCalls(t *testing.T) {
 	mockReader.On("GetServices", context.Background()).Return([]string{}, nil)
 	mrs.GetServices(context.Background())
 	operationQuery := &spanstore.OperationQueryParameters{ServiceName: "something", SpanKind: ""}
-	mockReader.On("GetOperations", context.Background(), operationQuery).Return([]*storage_v1.Operation{}, nil)
+	mockReader.On("GetOperations", context.Background(), operationQuery).Return([]*spanstore.Operation{}, nil)
 	mrs.GetOperations(context.Background(), operationQuery)
 	mockReader.On("GetTrace", context.Background(), model.TraceID{}).Return(&model.Trace{}, nil)
 	mrs.GetTrace(context.Background(), model.TraceID{})

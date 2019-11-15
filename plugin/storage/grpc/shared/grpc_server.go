@@ -83,8 +83,15 @@ func (s *grpcServer) GetOperations(ctx context.Context, r *storage_v1.GetOperati
 	if err != nil {
 		return nil, err
 	}
+	grpcOperation := make([]*storage_v1.Operation, len(operations))
+	for idx, operation := range operations {
+		grpcOperation[idx] = &storage_v1.Operation{
+			Name:     operation.Name,
+			SpanKind: operation.SpanKind,
+		}
+	}
 	return &storage_v1.GetOperationsResponse{
-		Operations: operations,
+		Operations: grpcOperation,
 	}, nil
 }
 

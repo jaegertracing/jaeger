@@ -33,7 +33,6 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/jaegertracing/jaeger/model"
-	"github.com/jaegertracing/jaeger/proto-gen/storage_v1"
 	"github.com/jaegertracing/jaeger/storage/dependencystore"
 	"github.com/jaegertracing/jaeger/storage/spanstore"
 )
@@ -150,12 +149,12 @@ func (s *StorageIntegration) testGetLargeSpan(t *testing.T) {
 func (s *StorageIntegration) testGetOperations(t *testing.T) {
 	defer s.cleanUp(t)
 
-	expected := []*storage_v1.Operation{
+	expected := []*spanstore.Operation{
 		{Name: "example-operation-1", SpanKind: ""}, {Name: "example-operation-3", SpanKind: ""}, {Name: "example-operation-4", SpanKind: ""}}
 	s.loadParseAndWriteExampleTrace(t)
 	s.refresh(t)
 
-	var actual []*storage_v1.Operation
+	var actual []*spanstore.Operation
 	found := s.waitForCondition(t, func(t *testing.T) bool {
 		var err error
 		actual, err = s.SpanReader.GetOperations(context.Background(), &spanstore.OperationQueryParameters{ServiceName: "example-service-1", SpanKind: ""})

@@ -37,7 +37,6 @@ import (
 	"github.com/jaegertracing/jaeger/pkg/es/mocks"
 	"github.com/jaegertracing/jaeger/pkg/testutils"
 	"github.com/jaegertracing/jaeger/plugin/storage/es/spanstore/dbmodel"
-	"github.com/jaegertracing/jaeger/proto-gen/storage_v1"
 	"github.com/jaegertracing/jaeger/storage/spanstore"
 )
 
@@ -507,7 +506,7 @@ func testGet(typ string, t *testing.T) {
 		},
 	}
 	if typ == operationsAggregation {
-		testCases[0].expectedOutput = []*storage_v1.Operation{
+		testCases[0].expectedOutput = []*spanstore.Operation{
 			{
 				Name:     "123",
 				SpanKind: "",

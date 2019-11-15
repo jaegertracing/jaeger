@@ -27,7 +27,6 @@ import (
 	"github.com/jaegertracing/jaeger/model"
 	"github.com/jaegertracing/jaeger/model/adjuster"
 	"github.com/jaegertracing/jaeger/pkg/memory/config"
-	"github.com/jaegertracing/jaeger/proto-gen/storage_v1"
 	"github.com/jaegertracing/jaeger/storage/spanstore"
 )
 
@@ -188,15 +187,15 @@ func (m *Store) GetServices(ctx context.Context) ([]string, error) {
 }
 
 // GetOperations returns the operations of a given service
-func (m *Store) GetOperations(ctx context.Context, query *spanstore.OperationQueryParameters) ([]*storage_v1.Operation, error) {
+func (m *Store) GetOperations(ctx context.Context, query *spanstore.OperationQueryParameters) ([]*spanstore.Operation, error) {
 	m.RLock()
 	defer m.RUnlock()
-	var retMe []*storage_v1.Operation
+	var retMe []*spanstore.Operation
 	if operations, ok := m.operations[query.ServiceName]; ok {
 		for operationName, kinds := range operations {
 			for kind := range kinds {
 				if query.SpanKind == "" || query.SpanKind == kind {
-					retMe = append(retMe, &storage_v1.Operation{
+					retMe = append(retMe, &spanstore.Operation{
 						Name:     operationName,
 						SpanKind: kind,
 					})

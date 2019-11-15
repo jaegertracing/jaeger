@@ -27,7 +27,6 @@ import (
 
 	"github.com/jaegertracing/jaeger/model"
 	"github.com/jaegertracing/jaeger/model/adjuster"
-	"github.com/jaegertracing/jaeger/proto-gen/storage_v1"
 	"github.com/jaegertracing/jaeger/storage"
 	"github.com/jaegertracing/jaeger/storage/dependencystore"
 	depsmocks "github.com/jaegertracing/jaeger/storage/dependencystore/mocks"
@@ -148,7 +147,7 @@ func TestGetServices(t *testing.T) {
 // Test QueryService.GetOperations() for success.
 func TestGetOperations(t *testing.T) {
 	qs, readMock, _ := initializeTestService()
-	expectedOperations := []*storage_v1.Operation{{Name: "", SpanKind: ""}, {Name: "get", SpanKind: ""}}
+	expectedOperations := []*spanstore.Operation{{Name: "", SpanKind: ""}, {Name: "get", SpanKind: ""}}
 	operationQuery := &spanstore.OperationQueryParameters{ServiceName: "abc/trifle"}
 	readMock.On("GetOperations", mock.AnythingOfType("*context.valueCtx"), operationQuery).Return(expectedOperations, nil).Once()
 
