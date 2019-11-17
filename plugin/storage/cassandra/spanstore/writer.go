@@ -16,6 +16,7 @@
 package spanstore
 
 import (
+	"context"
 	"encoding/json"
 	"strings"
 	"time"
@@ -32,11 +33,16 @@ import (
 )
 
 const (
-	insertSpan = `
+	insertSpanV1 = `
 		INSERT
 		INTO traces(trace_id, span_id, span_hash, parent_id, operation_name, flags,
 				    start_time, duration, tags, logs, refs, process)
 		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
+	insertSpanV2 = `
+		INSERT
+		INTO traces_v2(trace_id, span_id, span_hash, parent_id, operation_name, flags,
+				    start_time, duration, tags, logs, refs, process, warnings)
+		VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)`
 	insertTag = `
 		INSERT
 		INTO tag_index(trace_id, span_id, service_name, start_time, tag_key, tag_value)
@@ -85,15 +91,16 @@ type spanWriterMetrics struct {
 
 // SpanWriter handles all writes to Cassandra for the Jaeger data model
 type SpanWriter struct {
-	session              cassandra.Session
-	serviceNamesWriter   serviceNamesWriter
-	operationNamesWriter operationNamesWriter
-	writerMetrics        spanWriterMetrics
-	logger               *zap.Logger
-	tagIndexSkipped      metrics.Counter
-	tagFilter            dbmodel.TagFilter
-	storageMode          storageMode
-	indexFilter          dbmodel.IndexFilter
+	session                 cassandra.Session
+	serviceNamesWriter      serviceNamesWriter
+	operationNamesWriter    operationNamesWriter
+	traceTableVersionReader traceTableVersionReader
+	writerMetrics           spanWriterMetrics
+	logger                  *zap.Logger
+	tagIndexSkipped         metrics.Counter
+	tagFilter               dbmodel.TagFilter
+	storageMode             storageMode
+	indexFilter             dbmodel.IndexFilter
 }
 
 // NewSpanWriter returns a SpanWriter
@@ -109,9 +116,10 @@ func NewSpanWriter(
 	tagIndexSkipped := metricsFactory.Counter(metrics.Options{Name: "tag_index_skipped", Tags: nil})
 	opts := applyOptions(options...)
 	return &SpanWriter{
-		session:              session,
-		serviceNamesWriter:   serviceNamesStorage.Write,
-		operationNamesWriter: operationNamesStorage.Write,
+		session:                 session,
+		serviceNamesWriter:      serviceNamesStorage.Write,
+		operationNamesWriter:    operationNamesStorage.Write,
+		traceTableVersionReader: getTraceTableVersion,
 		writerMetrics: spanWriterMetrics{
 			traces:                casMetrics.NewTable(metricsFactory, "traces"),
 			tagIndex:              casMetrics.NewTable(metricsFactory, "tag_index"),
@@ -149,9 +157,20 @@ func (s *SpanWriter) WriteSpan(span *model.Span) error {
 	return nil
 }
 
+func (s *SpanWriter) getInsertQuery(version dbmodel.TraceVersion) string {
+	switch version {
+	case dbmodel.V2:
+		return insertSpanV2
+	case dbmodel.V1:
+		fallthrough
+	default:
+		return insertSpanV1
+	}
+}
+
 func (s *SpanWriter) writeSpan(span *model.Span, ds *dbmodel.Span) error {
-	mainQuery := s.session.Query(
-		insertSpan,
+	traceVersion := s.traceTableVersionReader(context.Background(), s.session)
+	args := []interface{}{
 		ds.TraceID,
 		ds.SpanID,
 		ds.SpanHash,
@@ -164,6 +183,13 @@ func (s *SpanWriter) writeSpan(span *model.Span, ds *dbmodel.Span) error {
 		ds.Logs,
 		ds.Refs,
 		ds.Process,
+	}
+	if traceVersion == dbmodel.V2 {
+		args = append(args, ds.Warnings)
+	}
+	mainQuery := s.session.Query(
+		s.getInsertQuery(traceVersion),
+		args...,
 	)
 	if err := s.writerMetrics.traces.Exec(mainQuery, s.logger); err != nil {
 		return s.logError(ds, err, "Failed to insert span", s.logger)

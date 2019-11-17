@@ -117,6 +117,10 @@ var (
 			TraceID: someDBTraceID,
 		},
 	}
+	someWarnings = []string{
+		"warning 1",
+		"warning 2",
+	}
 	notValidTagTypeErrStr = "invalid ValueType in"
 )
 
@@ -132,6 +136,7 @@ func getTestJaegerSpan() *model.Span {
 		Tags:          someTags,
 		Logs:          someLogs,
 		Process:       getTestJaegerProcess(),
+		Warnings:      someWarnings,
 	}
 }
 
@@ -155,6 +160,7 @@ func getTestSpan() *Span {
 		Refs:          someDBRefs,
 		Process:       someDBProcess,
 		ServiceName:   someServiceName,
+		Warnings:      someWarnings,
 	}
 	// there is no way to validate if the hash code is "correct" or not,
 	// other than comparing it with some magic number that keeps changing
@@ -271,6 +277,9 @@ func TestFailingFromDBLogs(t *testing.T) {
 
 func TestDBTagTypeError(t *testing.T) {
 	_, err := converter{}.fromDBTag(&KeyValue{ValueType: "x"})
+	if err == nil {
+		t.Fatalf("expected error here")
+	}
 	assert.Contains(t, err.Error(), notValidTagTypeErrStr)
 }
 

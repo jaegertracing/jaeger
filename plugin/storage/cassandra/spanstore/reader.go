@@ -34,10 +34,14 @@ import (
 )
 
 const (
-	bucketRange        = `(0,1,2,3,4,5,6,7,8,9)`
-	querySpanByTraceID = `
+	bucketRange          = `(0,1,2,3,4,5,6,7,8,9)`
+	querySpanByTraceIDV1 = `
 		SELECT trace_id, span_id, parent_id, operation_name, flags, start_time, duration, tags, logs, refs, process
 		FROM traces
+		WHERE trace_id = ?`
+	querySpanByTraceIDV2 = `
+		SELECT trace_id, span_id, parent_id, operation_name, flags, start_time, duration, tags, logs, refs, process, warnings
+		FROM traces_v2
 		WHERE trace_id = ?`
 	queryByTag = `
 		SELECT trace_id
@@ -93,6 +97,8 @@ type serviceNamesReader func() ([]string, error)
 
 type operationNamesReader func(service string) ([]string, error)
 
+type traceTableVersionReader func(ctx context.Context, s cassandra.Session) dbmodel.TraceVersion
+
 type spanReaderMetrics struct {
 	readTraces                 *casMetrics.Table
 	queryTrace                 *casMetrics.Table
@@ -104,11 +110,12 @@ type spanReaderMetrics struct {
 
 // SpanReader can query for and load traces from Cassandra.
 type SpanReader struct {
-	session              cassandra.Session
-	serviceNamesReader   serviceNamesReader
-	operationNamesReader operationNamesReader
-	metrics              spanReaderMetrics
-	logger               *zap.Logger
+	session                 cassandra.Session
+	serviceNamesReader      serviceNamesReader
+	operationNamesReader    operationNamesReader
+	traceTableVersionReader traceTableVersionReader
+	metrics                 spanReaderMetrics
+	logger                  *zap.Logger
 }
 
 // NewSpanReader returns a new SpanReader.
@@ -121,9 +128,10 @@ func NewSpanReader(
 	serviceNamesStorage := NewServiceNamesStorage(session, 0, metricsFactory, logger)
 	operationNamesStorage := NewOperationNamesStorage(session, 0, metricsFactory, logger)
 	return &SpanReader{
-		session:              session,
-		serviceNamesReader:   serviceNamesStorage.GetServices,
-		operationNamesReader: operationNamesStorage.GetOperations,
+		session:                 session,
+		serviceNamesReader:      serviceNamesStorage.GetServices,
+		operationNamesReader:    operationNamesStorage.GetOperations,
+		traceTableVersionReader: getTraceTableVersion,
 		metrics: spanReaderMetrics{
 			readTraces:                 casMetrics.NewTable(readFactory, "read_traces"),
 			queryTrace:                 casMetrics.NewTable(readFactory, "query_traces"),
@@ -147,19 +155,31 @@ func (s *SpanReader) GetOperations(ctx context.Context, service string) ([]strin
 	return s.operationNamesReader(service)
 }
 
+func (s *SpanReader) getReadTraceQuery(v dbmodel.TraceVersion) string {
+	switch v {
+	case dbmodel.V2:
+		return querySpanByTraceIDV2
+	case dbmodel.V1:
+		fallthrough
+	default:
+		return querySpanByTraceIDV1
+	}
+}
+
 func (s *SpanReader) readTrace(ctx context.Context, traceID dbmodel.TraceID) (*model.Trace, error) {
-	span, ctx := startSpanForQuery(ctx, "readTrace", querySpanByTraceID)
+	traceVersion := s.traceTableVersionReader(ctx, s.session)
+	span, ctx := startSpanForQuery(ctx, "readTrace", s.getReadTraceQuery(traceVersion))
 	defer span.Finish()
 	span.LogFields(otlog.String("event", "searching"), otlog.Object("trace_id", traceID))
 
-	trace, err := s.readTraceInSpan(ctx, traceID)
+	trace, err := s.readTraceInSpan(ctx, traceID, traceVersion)
 	logErrorToSpan(span, err)
 	return trace, err
 }
 
-func (s *SpanReader) readTraceInSpan(ctx context.Context, traceID dbmodel.TraceID) (*model.Trace, error) {
+func (s *SpanReader) readTraceInSpan(ctx context.Context, traceID dbmodel.TraceID, version dbmodel.TraceVersion) (*model.Trace, error) {
 	start := time.Now()
-	q := s.session.Query(querySpanByTraceID, traceID)
+	q := s.session.Query(s.getReadTraceQuery(version), traceID)
 	i := q.Iter()
 	var traceIDFromSpan dbmodel.TraceID
 	var startTime, spanID, duration, parentID int64
@@ -169,8 +189,13 @@ func (s *SpanReader) readTraceInSpan(ctx context.Context, traceID dbmodel.TraceI
 	var refs []dbmodel.SpanRef
 	var tags []dbmodel.KeyValue
 	var logs []dbmodel.Log
+	var warnings []string
+	scanArgs := []interface{}{&traceIDFromSpan, &spanID, &parentID, &operationName, &flags, &startTime, &duration, &tags, &logs, &refs, &dbProcess}
+	if version == dbmodel.V2 {
+		scanArgs = append(scanArgs, &warnings)
+	}
 	retMe := &model.Trace{}
-	for i.Scan(&traceIDFromSpan, &spanID, &parentID, &operationName, &flags, &startTime, &duration, &tags, &logs, &refs, &dbProcess) {
+	for i.Scan(scanArgs...) {
 		dbSpan := dbmodel.Span{
 			TraceID:       traceIDFromSpan,
 			SpanID:        spanID,
@@ -184,6 +209,7 @@ func (s *SpanReader) readTraceInSpan(ctx context.Context, traceID dbmodel.TraceI
 			Refs:          refs,
 			Process:       dbProcess,
 			ServiceName:   dbProcess.ServiceName,
+			Warnings:      warnings,
 		}
 		span, err := dbmodel.ToDomain(&dbSpan)
 		if err != nil {

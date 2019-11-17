@@ -66,6 +66,7 @@ func TestClientClose(t *testing.T) {
 func TestSpanWriter(t *testing.T) {
 	testCases := []struct {
 		caption                        string
+		version                        dbmodel.TraceVersion
 		mainQueryError                 error
 		tagsQueryError                 error
 		serviceNameQueryError          error
@@ -77,6 +78,7 @@ func TestSpanWriter(t *testing.T) {
 	}{
 		{
 			caption: "main query",
+			version: dbmodel.V1,
 		},
 		{
 			caption:        "main query error",
@@ -90,6 +92,7 @@ func TestSpanWriter(t *testing.T) {
 				`"trace_id":"1"`,
 				`"span_id":0`,
 			},
+			version: dbmodel.V1,
 		},
 		{
 			caption:        "tags query error",
@@ -103,6 +106,7 @@ func TestSpanWriter(t *testing.T) {
 				`"tag_key":"x"`,
 				`"tag_value":"y"`,
 			},
+			version: dbmodel.V1,
 		},
 		{
 			caption:          "save service name query error",
@@ -111,6 +115,7 @@ func TestSpanWriter(t *testing.T) {
 			expectedLogs: []string{
 				"Failed to insert service name and operation name",
 			},
+			version: dbmodel.V1,
 		},
 		{
 			caption:               "add span to service name index",
@@ -121,6 +126,7 @@ func TestSpanWriter(t *testing.T) {
 				`"query":"select from service_name_index"`,
 				`"error":"serviceNameQueryError"`,
 			},
+			version: dbmodel.V1,
 		},
 		{
 			caption:                        "add span to operation name index",
@@ -131,6 +137,7 @@ func TestSpanWriter(t *testing.T) {
 				`"query":"select from service_operation_index"`,
 				`"error":"serviceOperationNameQueryError"`,
 			},
+			version: dbmodel.V1,
 		},
 		{
 			caption:                       "add duration with no operation name",
@@ -141,12 +148,88 @@ func TestSpanWriter(t *testing.T) {
 				`"query":"select from duration_index"`,
 				`"error":"durationNoOperationError"`,
 			},
+			version: dbmodel.V1,
+		},
+		{
+			caption: "main query V2",
+			version: dbmodel.V2,
+		},
+		{
+			caption:        "main query error V2",
+			mainQueryError: errors.New("main query error"),
+			expectedError:  "Failed to insert span: failed to Exec query 'select from traces': main query error",
+			expectedLogs: []string{
+				`"msg":"Failed to exec query"`,
+				`"query":"select from traces"`,
+				`"error":"main query error"`,
+				"Failed to insert span",
+				`"trace_id":"1"`,
+				`"span_id":0`,
+			},
+			version: dbmodel.V2,
+		},
+		{
+			caption:        "tags query error V2",
+			tagsQueryError: errors.New("tags query error"),
+			expectedError:  "Failed to index tags: Failed to index tag: failed to Exec query 'select from tags': tags query error",
+			expectedLogs: []string{
+				`"msg":"Failed to exec query"`,
+				`"query":"select from tags"`,
+				`"error":"tags query error"`,
+				"Failed to index tags",
+				`"tag_key":"x"`,
+				`"tag_value":"y"`,
+			},
+			version: dbmodel.V2,
+		},
+		{
+			caption:          "save service name query error V2",
+			serviceNameError: errors.New("serviceNameError"),
+			expectedError:    "Failed to insert service name and operation name: serviceNameError",
+			expectedLogs: []string{
+				"Failed to insert service name and operation name",
+			},
+			version: dbmodel.V2,
+		},
+		{
+			caption:               "add span to service name index V2",
+			serviceNameQueryError: errors.New("serviceNameQueryError"),
+			expectedError:         "Failed to index service name: failed to Exec query 'select from service_name_index': serviceNameQueryError",
+			expectedLogs: []string{
+				`"msg":"Failed to exec query"`,
+				`"query":"select from service_name_index"`,
+				`"error":"serviceNameQueryError"`,
+			},
+			version: dbmodel.V2,
+		},
+		{
+			caption:                        "add span to operation name index V2",
+			serviceOperationNameQueryError: errors.New("serviceOperationNameQueryError"),
+			expectedError:                  "Failed to index operation name: failed to Exec query 'select from service_operation_index': serviceOperationNameQueryError",
+			expectedLogs: []string{
+				`"msg":"Failed to exec query"`,
+				`"query":"select from service_operation_index"`,
+				`"error":"serviceOperationNameQueryError"`,
+			},
+			version: dbmodel.V2,
+		},
+		{
+			caption:                       "add duration with no operation name V2",
+			durationNoOperationQueryError: errors.New("durationNoOperationError"),
+			expectedError:                 "Failed to index duration: failed to Exec query 'select from duration_index': durationNoOperationError",
+			expectedLogs: []string{
+				`"msg":"Failed to exec query"`,
+				`"query":"select from duration_index"`,
+				`"error":"durationNoOperationError"`,
+			},
+			version: dbmodel.V2,
 		},
 	}
 	for _, tc := range testCases {
 		testCase := tc // capture loop var
 		t.Run(testCase.caption, func(t *testing.T) {
 			withSpanWriter(0, func(w *spanWriterTest) {
+				w.writer.traceTableVersionReader = mockTraceTableVersionReader(testCase.version)
 				span := &model.Span{
 					TraceID:       model.NewTraceID(0, 1),
 					OperationName: "operation-a",
@@ -183,7 +266,7 @@ func TestSpanWriter(t *testing.T) {
 				durationNoOperationQuery.On("Exec").Return(testCase.durationNoOperationQueryError)
 				durationNoOperationQuery.On("String").Return("select from duration_index")
 
-				w.session.On("Query", stringMatcher(insertSpan), matchEverything()).Return(spanQuery)
+				w.session.On("Query", stringMatcher(w.writer.getInsertQuery(testCase.version)), matchEverything()).Return(spanQuery)
 				// note: using matchOnce below because we only want one tag to be inserted
 				w.session.On("Query", stringMatcher(insertTag), matchOnce()).Return(tagsQuery)
 
@@ -311,7 +394,7 @@ func TestStorageMode_IndexOnly(t *testing.T) {
 		serviceOperationNameQuery.AssertExpectations(t)
 		durationNoOperationQuery.AssertExpectations(t)
 		w.session.AssertExpectations(t)
-		w.session.AssertNotCalled(t, "Query", stringMatcher(insertSpan))
+		w.session.AssertNotCalled(t, "Query", stringMatcher(insertSpanV1))
 	}, StoreIndexesOnly())
 }
 
@@ -362,28 +445,32 @@ func TestStorageMode_IndexOnly_FirehoseSpan(t *testing.T) {
 }
 
 func TestStorageMode_StoreWithoutIndexing(t *testing.T) {
-	withSpanWriter(0, func(w *spanWriterTest) {
-
-		w.writer.serviceNamesWriter =
-			func(serviceName string) error {
-				assert.Fail(t, "Non indexing store shouldn't index")
-				return nil
+	writerFunc := func(version dbmodel.TraceVersion) func(w *spanWriterTest) {
+		return func(w *spanWriterTest) {
+			w.writer.traceTableVersionReader = mockTraceTableVersionReader(dbmodel.V1)
+			w.writer.serviceNamesWriter =
+				func(serviceName string) error {
+					assert.Fail(t, "Non indexing store shouldn't index")
+					return nil
+				}
+			span := &model.Span{
+				TraceID: model.NewTraceID(0, 1),
+				Process: &model.Process{
+					ServiceName: "service-a",
+				},
 			}
-		span := &model.Span{
-			TraceID: model.NewTraceID(0, 1),
-			Process: &model.Process{
-				ServiceName: "service-a",
-			},
+			spanQuery := &mocks.Query{}
+			spanQuery.On("Exec").Return(nil)
+			w.session.On("Query", stringMatcher(insertSpanV1), matchEverything()).Return(spanQuery)
+
+			err := w.writer.WriteSpan(span)
+
+			assert.NoError(t, err)
+			spanQuery.AssertExpectations(t)
+			w.session.AssertExpectations(t)
+			w.session.AssertNotCalled(t, "Query", stringMatcher(serviceNameIndex))
 		}
-		spanQuery := &mocks.Query{}
-		spanQuery.On("Exec").Return(nil)
-		w.session.On("Query", stringMatcher(insertSpan), matchEverything()).Return(spanQuery)
-
-		err := w.writer.WriteSpan(span)
-
-		assert.NoError(t, err)
-		spanQuery.AssertExpectations(t)
-		w.session.AssertExpectations(t)
-		w.session.AssertNotCalled(t, "Query", stringMatcher(serviceNameIndex))
-	}, StoreWithoutIndexing())
+	}
+	withSpanWriter(0, writerFunc(dbmodel.V1), StoreWithoutIndexing())
+	withSpanWriter(0, writerFunc(dbmodel.V2), StoreWithoutIndexing())
 }

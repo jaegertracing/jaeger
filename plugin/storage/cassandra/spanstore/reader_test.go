@@ -57,6 +57,11 @@ func withSpanReader(fn func(r *spanReaderTest)) {
 }
 
 var _ spanstore.Reader = &SpanReader{} // check API conformance
+var mockTraceTableVersionReader = func(version dbmodel.TraceVersion) traceTableVersionReader {
+	return func(ctx context.Context, s cassandra.Session) dbmodel.TraceVersion {
+		return version
+	}
+}
 
 func TestSpanReaderGetServices(t *testing.T) {
 	withSpanReader(func(r *spanReaderTest) {
@@ -93,21 +98,46 @@ func TestSpanReaderGetTrace(t *testing.T) {
 
 	testCases := []struct {
 		scanner     interface{}
+		version     dbmodel.TraceVersion
 		closeErr    error
 		expectedErr string
 	}{
-		{scanner: matchOnce()},
-		{scanner: badScan(), expectedErr: "invalid ValueType in"},
+		{
+			scanner: matchOnce(),
+			version: dbmodel.V1,
+		},
+		{
+			scanner: matchOnce(),
+			version: dbmodel.V2,
+		},
+		{
+			scanner:     badScan(),
+			expectedErr: "invalid ValueType in",
+			version:     dbmodel.V1,
+		},
+		{
+			scanner:     badScan(),
+			expectedErr: "invalid ValueType in",
+			version:     dbmodel.V2,
+		},
 		{
 			scanner:     matchOnce(),
 			closeErr:    errors.New("error on close()"),
 			expectedErr: "Error reading traces from storage: error on close()",
+			version:     dbmodel.V1,
+		},
+		{
+			scanner:     matchOnce(),
+			closeErr:    errors.New("error on close()"),
+			expectedErr: "Error reading traces from storage: error on close()",
+			version:     dbmodel.V2,
 		},
 	}
 	for _, tc := range testCases {
 		testCase := tc // capture loop var
 		t.Run("expected err="+testCase.expectedErr, func(t *testing.T) {
 			withSpanReader(func(r *spanReaderTest) {
+				r.reader.traceTableVersionReader = mockTraceTableVersionReader(testCase.version)
 				iter := &mocks.Iterator{}
 				iter.On("Scan", testCase.scanner).Return(true)
 				iter.On("Scan", matchEverything()).Return(false)
@@ -117,7 +147,7 @@ func TestSpanReaderGetTrace(t *testing.T) {
 				query.On("Consistency", cassandra.One).Return(query)
 				query.On("Iter").Return(iter)
 
-				r.session.On("Query", mock.AnythingOfType("string"), matchEverything()).Return(query)
+				r.session.On("Query", stringMatcher("SELECT trace_id"), matchEverything()).Return(query)
 
 				trace, err := r.reader.GetTrace(context.Background(), model.TraceID{})
 				if testCase.expectedErr == "" {
@@ -134,21 +164,26 @@ func TestSpanReaderGetTrace(t *testing.T) {
 }
 
 func TestSpanReaderGetTrace_TraceNotFound(t *testing.T) {
-	withSpanReader(func(r *spanReaderTest) {
-		iter := &mocks.Iterator{}
-		iter.On("Scan", matchEverything()).Return(false)
-		iter.On("Close").Return(nil)
+	testFuncWithVersion := func(version dbmodel.TraceVersion) func(w *spanReaderTest) {
+		return func(r *spanReaderTest) {
+			r.reader.traceTableVersionReader = mockTraceTableVersionReader(version)
+			iter := &mocks.Iterator{}
+			iter.On("Scan", matchEverything()).Return(false)
+			iter.On("Close").Return(nil)
 
-		query := &mocks.Query{}
-		query.On("Consistency", cassandra.One).Return(query)
-		query.On("Iter").Return(iter)
+			query := &mocks.Query{}
+			query.On("Consistency", cassandra.One).Return(query)
+			query.On("Iter").Return(iter)
 
-		r.session.On("Query", mock.AnythingOfType("string"), matchEverything()).Return(query)
+			r.session.On("Query", stringMatcher("SELECT trace_id"), matchEverything()).Return(query)
 
-		trace, err := r.reader.GetTrace(context.Background(), model.TraceID{})
-		assert.Nil(t, trace)
-		assert.EqualError(t, err, "trace not found")
-	})
+			trace, err := r.reader.GetTrace(context.Background(), model.TraceID{})
+			assert.Nil(t, trace)
+			assert.EqualError(t, err, "trace not found")
+		}
+	}
+	withSpanReader(testFuncWithVersion(dbmodel.V1))
+	withSpanReader(testFuncWithVersion(dbmodel.V2))
 }
 
 func TestSpanReaderFindTracesBadRequest(t *testing.T) {
@@ -161,6 +196,7 @@ func TestSpanReaderFindTracesBadRequest(t *testing.T) {
 func TestSpanReaderFindTraces(t *testing.T) {
 	testCases := []struct {
 		caption                           string
+		version                           dbmodel.TraceVersion
 		numTraces                         int
 		queryTags                         bool
 		queryOperation                    bool
@@ -177,16 +213,19 @@ func TestSpanReaderFindTraces(t *testing.T) {
 		{
 			caption:       "main query",
 			expectedCount: 2,
+			version:       dbmodel.V1,
 		},
 		{
 			caption:       "tag query",
 			expectedCount: 2,
 			queryTags:     true,
+			version:       dbmodel.V1,
 		},
 		{
 			caption:       "with limit",
 			numTraces:     1,
 			expectedCount: 1,
+			version:       dbmodel.V1,
 		},
 		{
 			caption:        "main query error",
@@ -196,6 +235,7 @@ func TestSpanReaderFindTraces(t *testing.T) {
 				"Failed to exec query",
 				"main query error",
 			},
+			version: dbmodel.V1,
 		},
 		{
 			caption:        "tags query error",
@@ -206,18 +246,21 @@ func TestSpanReaderFindTraces(t *testing.T) {
 				"Failed to exec query",
 				"tags query error",
 			},
+			version: dbmodel.V1,
 		},
 		{
 			caption:        "operation name query",
 			queryOperation: true,
 			numTraces:      0,
 			expectedCount:  2,
+			version:        dbmodel.V1,
 		},
 		{
 			caption:        "operation name and tag query",
 			queryTags:      true,
 			queryOperation: true,
 			expectedCount:  2,
+			version:        dbmodel.V1,
 		},
 		{
 			caption:                           "operation name and tag error on operation query",
@@ -229,6 +272,7 @@ func TestSpanReaderFindTraces(t *testing.T) {
 				"Failed to exec query",
 				"operation query error",
 			},
+			version: dbmodel.V1,
 		},
 		{
 			caption:        "operation name and tag error on tag query",
@@ -240,12 +284,14 @@ func TestSpanReaderFindTraces(t *testing.T) {
 				"Failed to exec query",
 				"tags query error",
 			},
+			version: dbmodel.V1,
 		},
 		{
 			caption:       "duration query",
 			queryDuration: true,
 			numTraces:     1,
 			expectedCount: 1,
+			version:       dbmodel.V1,
 		},
 		{
 			caption:            "duration query error",
@@ -256,6 +302,7 @@ func TestSpanReaderFindTraces(t *testing.T) {
 				"Failed to exec query",
 				"duration query error",
 			},
+			version: dbmodel.V1,
 		},
 		{
 			caption:        "load trace error",
@@ -267,12 +314,120 @@ func TestSpanReaderFindTraces(t *testing.T) {
 				`"trace_id":"1"`,
 				`"trace_id":"2"`,
 			},
+			version: dbmodel.V1,
+		},
+		{
+			caption:       "main query V2",
+			expectedCount: 2,
+			version:       dbmodel.V2,
+		},
+		{
+			caption:       "tag query V2",
+			expectedCount: 2,
+			queryTags:     true,
+			version:       dbmodel.V2,
+		},
+		{
+			caption:       "with limit V2",
+			numTraces:     1,
+			expectedCount: 1,
+			version:       dbmodel.V2,
+		},
+		{
+			caption:        "main query error V2",
+			mainQueryError: errors.New("main query error"),
+			expectedError:  "main query error",
+			expectedLogs: []string{
+				"Failed to exec query",
+				"main query error",
+			},
+			version: dbmodel.V2,
+		},
+		{
+			caption:        "tags query error V2",
+			queryTags:      true,
+			tagsQueryError: errors.New("tags query error"),
+			expectedError:  "tags query error",
+			expectedLogs: []string{
+				"Failed to exec query",
+				"tags query error",
+			},
+			version: dbmodel.V2,
+		},
+		{
+			caption:        "operation name query V2",
+			queryOperation: true,
+			numTraces:      0,
+			expectedCount:  2,
+			version:        dbmodel.V2,
+		},
+		{
+			caption:        "operation name and tag query V2",
+			queryTags:      true,
+			queryOperation: true,
+			expectedCount:  2,
+			version:        dbmodel.V2,
+		},
+		{
+			caption:                           "operation name and tag error on operation query V2",
+			queryTags:                         true,
+			queryOperation:                    true,
+			serviceNameAndOperationQueryError: errors.New("operation query error"),
+			expectedError:                     "operation query error",
+			expectedLogs: []string{
+				"Failed to exec query",
+				"operation query error",
+			},
+			version: dbmodel.V2,
+		},
+		{
+			caption:        "operation name and tag error on tag query V2",
+			queryTags:      true,
+			queryOperation: true,
+			tagsQueryError: errors.New("tags query error"),
+			expectedError:  "tags query error",
+			expectedLogs: []string{
+				"Failed to exec query",
+				"tags query error",
+			},
+			version: dbmodel.V2,
+		},
+		{
+			caption:       "duration query V2",
+			queryDuration: true,
+			numTraces:     1,
+			expectedCount: 1,
+			version:       dbmodel.V2,
+		},
+		{
+			caption:            "duration query error V2",
+			queryDuration:      true,
+			durationQueryError: errors.New("duration query error"),
+			expectedError:      "duration query error",
+			expectedLogs: []string{
+				"Failed to exec query",
+				"duration query error",
+			},
+			version: dbmodel.V2,
+		},
+		{
+			caption:        "load trace error V2",
+			loadQueryError: errors.New("load query error"),
+			expectedCount:  0,
+			expectedLogs: []string{
+				"Failure to read trace",
+				"Error reading traces from storage: load query error",
+				`"trace_id":"1"`,
+				`"trace_id":"2"`,
+			},
+			version: dbmodel.V2,
 		},
 	}
 	for _, tc := range testCases {
 		testCase := tc // capture loop var
 		t.Run(testCase.caption, func(t *testing.T) {
 			withSpanReader(func(r *spanReaderTest) {
+				r.reader.traceTableVersionReader = mockTraceTableVersionReader(testCase.version)
 				// scanMatcher can match Iter.Scan() parameters and set trace ID fields
 				scanMatcher := func(name string) interface{} {
 					traceIDs := []dbmodel.TraceID{

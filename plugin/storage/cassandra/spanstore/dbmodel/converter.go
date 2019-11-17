@@ -75,6 +75,7 @@ func (c converter) fromDomain(span *model.Span) *Span {
 		Process:       udtProcess,
 		ServiceName:   span.Process.ServiceName,
 		SpanHash:      int64(spanHash),
+		Warnings:      span.Warnings,
 	}
 }
 
@@ -107,6 +108,7 @@ func (c converter) toDomain(dbSpan *Span) (*model.Span, error) {
 		Tags:          tags,
 		Logs:          logs,
 		Process:       process,
+		Warnings:      dbSpan.Warnings,
 	}
 	return span, nil
 }
