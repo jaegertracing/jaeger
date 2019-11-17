@@ -300,14 +300,18 @@ func (c *Configuration) getConfigOptions(logger *zap.Logger) ([]elastic.ClientOp
 			TLSClientConfig: ctlsConfig,
 		}
 	} else {
-		httpTransport := &http.Transport{}
+		httpTransport := &http.Transport{
+			Proxy: http.ProxyFromEnvironment,
+			// #nosec G402
+			TLSClientConfig: &tls.Config{InsecureSkipVerify: c.TLS.SkipHostVerify},
+		}
 		if c.TLS.CaPath != "" {
 			ctls := &TLSConfig{CaPath: c.TLS.CaPath}
 			ca, err := ctls.loadCertificate()
 			if err != nil {
 				return nil, err
 			}
-			httpTransport.TLSClientConfig = &tls.Config{RootCAs: ca}
+			httpTransport.TLSClientConfig.RootCAs = ca
 		}
 
 		token := ""

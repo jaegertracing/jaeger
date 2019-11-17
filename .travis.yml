@@ -5,52 +5,44 @@ go_import_path: github.com/jaegertracing/jaeger
 
 dist: trusty
 
-jobs:
+matrix:
   include:
-  - go: "1.12.1"
+  - go: "1.13.x"
     env:
     - TESTS=true
     - COVERAGE=true
-  - go: "1.12.1"
+  - go: "1.13.x"
     env:
     - PROTO_GEN_TEST=true
-  - go: "1.12.1"
+  - go: "1.13.x"
     env:
     - ALL_IN_ONE=true
-  - go: "1.12.1"
+  - go: "1.13.x"
     env:
     - CROSSDOCK=true
-  - go: "1.12.1"
+  - go: "1.13.x"
     env:
     - DOCKER=true
     - DEPLOY=true
-  - go: "1.12.1"
+  - go: "1.13.x"
     env:
     - ES_INTEGRATION_TEST=true
-  - go: "1.12.1"
+  - go: "1.13.x"
     env:
     - KAFKA_INTEGRATION_TEST=true
-  - go: "1.12.1"
+  - go: "1.13.x"
     env:
     - CASSANDRA_INTEGRATION_TEST=true
-  - go: "1.12.1"
+  - go: "1.13.x"
     env:
     - HOTROD=true
-  - stage: Fuzz regression
-    dist: bionic
-    go: 1.12.x
-    script: ./scripts/travis/fuzzit.sh local-regression
-  - stage: Fuzz
-    if: branch = master AND type IN (push)
-    dist: bionic
-    go: 1.12.x
-    script: ./scripts/travis/fuzzit.sh fuzzing
 
 services:
   - docker
 
 env:
   global:
+    - GO111MODULE=off
     - DOCKER_COMPOSE_VERSION=1.8.0
     - COMMIT=${TRAVIS_COMMIT::8}
     # DOCKER_USER
@@ -78,7 +70,8 @@ script:
   - if [ "$TESTS" == true ]; then make test-ci ; else echo 'skipping tests'; fi
   - if [ "$ALL_IN_ONE" == true ]; then bash ./scripts/travis/build-all-in-one-image.sh ; else echo 'skipping all_in_one'; fi
   - if [ "$CROSSDOCK" == true ]; then bash ./scripts/travis/build-crossdock.sh ; else echo 'skipping crossdock'; fi
-  - if [ "$DOCKER" == true ]; then bash ./scripts/travis/build-docker-images.sh ; else echo 'skipping docker images'; fi
+  - if [ "$DOCKER" == true ]; then bash ./scripts/travis/build-docker-images.sh ; else echo 'skipping build-docker-images'; fi
+  - if [ "$DEPLOY" == true ]; then make build-all-platforms ; else echo 'skipping build-all-platforms'; fi
   - if [ "$ES_INTEGRATION_TEST" == true ]; then bash ./scripts/travis/es-integration-test.sh ; else echo 'skipping elastic search integration test'; fi
   - if [ "$KAFKA_INTEGRATION_TEST" == true ]; then bash ./scripts/travis/kafka-integration-test.sh ; else echo 'skipping kafka integration test'; fi
   - if [ "$CASSANDRA_INTEGRATION_TEST" == true ]; then bash ./scripts/travis/cassandra-integration-test.sh ; else echo 'skipping cassandra integration test'; fi
@@ -93,7 +86,8 @@ after_failure:
   - if [ "$CROSSDOCK" == true ]; then make crossdock-logs ; else echo 'skipping crossdock'; fi
 
 before_deploy:
-  - if [ "$DEPLOY" == true ]; then make build-all-platforms && bash ./scripts/travis/package-deploy.sh ; else echo 'skipping deploy'; fi
+  - if [ "$DOCKER" == true ]; then bash ./scripts/travis/upload-all-docker-images.sh ; else echo 'skipping docker upload'; fi
+  - if [ "$DEPLOY" == true ]; then bash ./scripts/travis/package-deploy.sh ; else echo 'skipping deploying binaries'; fi
 
 deploy:
   provider: releases
