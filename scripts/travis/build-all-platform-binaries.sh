@@ -1,5 +1,6 @@
 #!/bin/bash
 
+# Builds all platform binaries.
 set -e
 
 BRANCH=${BRANCH:?'missing BRANCH env var'}
