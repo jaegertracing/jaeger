@@ -18,6 +18,7 @@ package spanstore
 import (
 	"context"
 	"errors"
+	"fmt"
 	"strings"
 	"testing"
 	"time"
@@ -45,6 +46,9 @@ type spanReaderTest struct {
 
 func withSpanReader(fn func(r *spanReaderTest)) {
 	session := &mocks.Session{}
+	query := &mocks.Query{}
+	session.On("Query", fmt.Sprintf(TableQueryStmt, schemas[LatestVersion].TableName), mock.Anything).Return(query)
+	query.On("Exec").Return(nil)
 	logger, logBuffer := testutils.NewLogger()
 	metricsFactory := metricstest.NewFactory(0)
 	r := &spanReaderTest{
