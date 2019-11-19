@@ -14,5 +14,3 @@ else
   echo "Skipping UI build because the current branch $BRANCH is a PR branch"
   make docker-without-ui
 fi
-
-

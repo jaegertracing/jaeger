@@ -71,7 +71,7 @@ script:
   - if [ "$ALL_IN_ONE" == true ]; then bash ./scripts/travis/build-all-in-one-image.sh ; else echo 'skipping all_in_one'; fi
   - if [ "$CROSSDOCK" == true ]; then bash ./scripts/travis/build-crossdock.sh ; else echo 'skipping crossdock'; fi
   - if [ "$DOCKER" == true ]; then bash ./scripts/travis/build-docker-images.sh ; else echo 'skipping build-docker-images'; fi
-  - if [ "$DEPLOY" == true ]; then make build-all-platforms ; else echo 'skipping build-all-platforms'; fi
+  - if [ "$DEPLOY" == true ]; then bash ./scripts/travis/build-all-platform-binaries.sh ; else echo 'skipping build-all-platforms'; fi
   - if [ "$ES_INTEGRATION_TEST" == true ]; then bash ./scripts/travis/es-integration-test.sh ; else echo 'skipping elastic search integration test'; fi
   - if [ "$KAFKA_INTEGRATION_TEST" == true ]; then bash ./scripts/travis/kafka-integration-test.sh ; else echo 'skipping kafka integration test'; fi
   - if [ "$CASSANDRA_INTEGRATION_TEST" == true ]; then bash ./scripts/travis/cassandra-integration-test.sh ; else echo 'skipping cassandra integration test'; fi
