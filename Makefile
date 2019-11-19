@@ -239,14 +239,14 @@ build-ingester:
 docker: build-ui build-binaries-linux docker-images-only
 
 .PHONY: docker-without-ui
-docker-without-ui: build-platform-binaries-without-ui docker-images-only
+docker-without-ui: build-binaries-linux-without-ui docker-images-only
 
 .PHONY: build-binaries-linux
 build-binaries-linux:
 	GOOS=linux $(MAKE) build-platform-binaries
 
 .PHONY: build-binaries-linux-without-ui
-build-binaries-linux:
+build-binaries-linux-without-ui:
 	GOOS=linux $(MAKE) build-platform-binaries-without-ui
 
 .PHONY: build-binaries-windows
