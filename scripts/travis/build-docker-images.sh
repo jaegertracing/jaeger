@@ -4,9 +4,15 @@
 
 set -e
 
-# TODO avoid building the UI when on a PR branch: https://github.com/jaegertracing/jaeger/issues/1908
-source ~/.nvm/nvm.sh
-nvm use 10
-
+BRANCH=${BRANCH:?'missing BRANCH env var'}
 export DOCKER_NAMESPACE=jaegertracing
-make docker
+if [[ $BRANCH == "master" ]]; then
+  source ~/.nvm/nvm.sh
+  nvm use 10
+  make docker
+else
+  echo "Skipping UI build because the current branch $BRANCH is a PR branch"
+  make docker-without-ui
+fi
+
+

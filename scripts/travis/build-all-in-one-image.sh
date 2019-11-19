@@ -4,13 +4,17 @@ set -e
 
 BRANCH=${BRANCH:?'missing BRANCH env var'}
 
-source ~/.nvm/nvm.sh
-nvm use 10
-make build-ui
+if [[ $BRANCH == "master" ]]; then
+  # Only build the UI on master branch.
+  source ~/.nvm/nvm.sh
+  nvm use 10
+  make build-ui
+  make build-all-in-one GOOS=linux
+else
+  make build-all-in-one-without-ui GOOS=linux
+fi
 
 set -x
-
-make build-all-in-one GOOS=linux
 
 export REPO=jaegertracing/all-in-one
 docker build -f cmd/all-in-one/Dockerfile -t $REPO:latest cmd/all-in-one

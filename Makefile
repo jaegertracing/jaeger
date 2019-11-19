@@ -211,9 +211,17 @@ build-all-in-one-linux: build-ui
 build-all-in-one: elasticsearch-mappings
 	CGO_ENABLED=0 installsuffix=cgo go build -tags ui -o ./cmd/all-in-one/all-in-one-$(GOOS) $(BUILD_INFO) ./cmd/all-in-one/main.go
 
+.PHONY: build-all-in-one-without-ui
+build-all-in-one-without-ui: elasticsearch-mappings
+	CGO_ENABLED=0 installsuffix=cgo go build -o ./cmd/all-in-one/all-in-one-$(GOOS) $(BUILD_INFO) ./cmd/all-in-one/main.go
+
 .PHONY: build-agent
 build-agent:
 	CGO_ENABLED=0 installsuffix=cgo go build -o ./cmd/agent/agent-$(GOOS) $(BUILD_INFO) ./cmd/agent/main.go
+
+.PHONY: build-query-without-ui
+build-query-without-ui:
+	CGO_ENABLED=0 installsuffix=cgo go build -o ./cmd/query/query-$(GOOS) $(BUILD_INFO) ./cmd/query/main.go
 
 .PHONY: build-query
 build-query:
@@ -230,9 +238,16 @@ build-ingester:
 .PHONY: docker
 docker: build-ui build-binaries-linux docker-images-only
 
+.PHONY: docker-without-ui
+docker-without-ui: build-platform-binaries-without-ui docker-images-only
+
 .PHONY: build-binaries-linux
 build-binaries-linux:
 	GOOS=linux $(MAKE) build-platform-binaries
+
+.PHONY: build-binaries-linux-without-ui
+build-binaries-linux:
+	GOOS=linux $(MAKE) build-platform-binaries-without-ui
 
 .PHONY: build-binaries-windows
 build-binaries-windows:
@@ -244,6 +259,9 @@ build-binaries-darwin:
 
 .PHONY: build-platform-binaries
 build-platform-binaries: build-agent build-collector build-query build-ingester build-all-in-one build-examples
+
+.PHONY: build-platform-binaries-without-ui
+build-platform-binaries-without-ui: build-agent build-collector build-query-without-ui build-ingester build-all-in-one-without-ui build-examples
 
 .PHONY: build-all-platforms
 build-all-platforms: build-binaries-linux build-binaries-windows build-binaries-darwin
@@ -290,7 +308,7 @@ include crossdock/rules.mk
 # Crossdock tests do not require fully functioning UI, so we skip it to speed up the build.
 .PHONY: build-crossdock-ui-placeholder
 build-crossdock-ui-placeholder:
-	mkdir -p cmd/query/app/ui/actual
+	mkdir -p cmd/query/app/u	i/actual
 	[ -e cmd/query/app/ui/actual/gen_assets.go ] || cp cmd/query/app/ui/placeholder/gen_assets.go cmd/query/app/ui/actual/gen_assets.go
 
 .PHONY: build-crossdock
