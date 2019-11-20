@@ -7,14 +7,16 @@ if [[ -z "$BRANCH" ]]; then
   echo "BRANCH env var not defined, using current branch $BRANCH instead ..."
 fi
 
-if [[ (-z "$SKIP_UI") || ($SKIP_UI == false) ]]; then
-  # Only build the UI on master branch.
+set -x
+
+if [[ "$SKIP_UI" == "true" ]]; then
+  echo "Skipping UI build because \$SKIP_UI is set to true"
+  make build-all-in-one-without-ui GOOS=linux
+else
   source ~/.nvm/nvm.sh
   nvm use 10
   make build-ui
   make build-all-in-one GOOS=linux
-else
-  make build-all-in-one-without-ui GOOS=linux
 fi
 
 set -x
