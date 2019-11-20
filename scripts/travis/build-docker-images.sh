@@ -4,9 +4,13 @@
 
 set -e
 
-BRANCH=${BRANCH:?'missing BRANCH env var'}
+if [[ -z "$BRANCH" ]]; then
+  BRANCH=$(git rev-parse --abbrev-ref HEAD)
+  echo "BRANCH env var not defined, using current branch $BRANCH instead ..."
+fi
+
 export DOCKER_NAMESPACE=jaegertracing
-if [[ $BRANCH == "master" ]]; then
+if [[ (-z "$SKIP_UI") || ($SKIP_UI == false) ]]; then
   source ~/.nvm/nvm.sh
   nvm use 10
   make docker

@@ -308,7 +308,7 @@ include crossdock/rules.mk
 # Crossdock tests do not require fully functioning UI, so we skip it to speed up the build.
 .PHONY: build-crossdock-ui-placeholder
 build-crossdock-ui-placeholder:
-	mkdir -p cmd/query/app/u	i/actual
+	mkdir -p cmd/query/app/ui/actual
 	[ -e cmd/query/app/ui/actual/gen_assets.go ] || cp cmd/query/app/ui/placeholder/gen_assets.go cmd/query/app/ui/actual/gen_assets.go
 
 .PHONY: build-crossdock

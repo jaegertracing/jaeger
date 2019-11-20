@@ -3,11 +3,14 @@
 # Builds all platform binaries.
 set -e
 
-BRANCH=${BRANCH:?'missing BRANCH env var'}
+if [[ -z "$BRANCH" ]]; then
+  BRANCH=$(git rev-parse --abbrev-ref HEAD)
+  echo "BRANCH env var not defined, using current branch $BRANCH instead ..."
+fi
 
 set -x
 
-if [[ $BRANCH == "master" ]]; then
+if [[ (-z "$SKIP_UI") || ($SKIP_UI == false) ]]; then
   # Only build the UI on master branch.
   source ~/.nvm/nvm.sh
   nvm use 10

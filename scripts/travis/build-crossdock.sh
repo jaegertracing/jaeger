@@ -2,7 +2,10 @@
 
 set -e
 
-BRANCH=${BRANCH:?'missing BRANCH env var'}
+if [[ -z "$BRANCH" ]]; then
+  BRANCH=$(git rev-parse --abbrev-ref HEAD)
+  echo "BRANCH env var not defined, using current branch $BRANCH instead ..."
+fi
 
 make build-and-run-crossdock
 
