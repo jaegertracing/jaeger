@@ -30,47 +30,66 @@ import (
 )
 
 const (
-	// LatestVersion latest version of operation_names table schema, increase the version if your table schema changes require code change
-	LatestVersion = 1
-	// TableQueryStmt the query statement used to check if a table exists or not
-	TableQueryStmt = "SELECT * from %s limit 1"
+	// latestVersion of operation_names table
+	// increase the version if your table schema changes require code change
+	latestVersion = "v2"
+
+	// previous version of operation_names table
+	// if latest version does not work, will fail back to use previous version
+	previousVersion = "v1"
+
+	// tableCheckStmt the query statement used to check if a table exists or not
+	tableCheckStmt = "SELECT * from %s limit 1"
 )
 
-type schemaMeta struct {
-	TableName       string
-	InsertStmt      string
-	QueryByKindStmt string
-	QueryStmt       string
+type tableMeta struct {
+	tableName        string
+	insertStmt       string
+	queryByKindStmt  string
+	queryStmt        string
+	createWriteQuery func(query cassandra.Query, service, kind, opName string) cassandra.Query
+	getOperations    func(s *OperationNamesStorage, query *spanstore.OperationQueryParameters) ([]*spanstore.Operation, error)
 }
 
-var schemas = []schemaMeta{
-	{
-		TableName:       "operation_names",
-		InsertStmt:      "INSERT INTO %s(service_name, operation_name) VALUES (?, ?)",
-		QueryByKindStmt: "SELECT operation_name FROM %s WHERE service_name = ?",
-		QueryStmt:       "SELECT operation_name FROM %s WHERE service_name = ?",
+func (t *tableMeta) materialize() {
+	t.insertStmt = fmt.Sprintf(t.insertStmt, t.tableName)
+	t.queryByKindStmt = fmt.Sprintf(t.queryByKindStmt, t.tableName)
+	t.queryStmt = fmt.Sprintf(t.queryStmt, t.tableName)
+}
+
+var schemas = map[string]*tableMeta{
+	"v1": {
+		tableName:       "operation_names",
+		insertStmt:      "INSERT INTO %s(service_name, operation_name) VALUES (?, ?)",
+		queryByKindStmt: "SELECT operation_name FROM %s WHERE service_name = ?",
+		queryStmt:       "SELECT operation_name FROM %s WHERE service_name = ?",
+		getOperations:   getOperationsV1,
+		createWriteQuery: func(query cassandra.Query, service, kind, opName string) cassandra.Query {
+			return query.Bind(service, opName)
+		},
 	},
-	{
-		TableName:       "operation_names_v2",
-		InsertStmt:      "INSERT INTO %s(service_name, span_kind, operation_name) VALUES (?, ?, ?)",
-		QueryByKindStmt: "SELECT span_kind, operation_name FROM %s WHERE service_name = ? AND span_kind = ?",
-		QueryStmt:       "SELECT span_kind, operation_name FROM %s WHERE service_name = ?",
+	"v2": {
+		tableName:       "operation_names_v2",
+		insertStmt:      "INSERT INTO %s(service_name, span_kind, operation_name) VALUES (?, ?, ?)",
+		queryByKindStmt: "SELECT span_kind, operation_name FROM %s WHERE service_name = ? AND span_kind = ?",
+		queryStmt:       "SELECT span_kind, operation_name FROM %s WHERE service_name = ?",
+		getOperations:   getOperationsV2,
+		createWriteQuery: func(query cassandra.Query, service, kind, opName string) cassandra.Query {
+			return query.Bind(service, kind, opName)
+		},
 	},
 }
 
 // OperationNamesStorage stores known operation names by service.
 type OperationNamesStorage struct {
 	// CQL statements are public so that Cassandra2 storage can override them
-	SchemaVersion   int
-	TableName       string
-	InsertStmt      string
-	QueryStmt       string
-	QueryByKindStmt string
-	session         cassandra.Session
-	writeCacheTTL   time.Duration
-	metrics         *casMetrics.Table
-	operationNames  cache.Cache
-	logger          *zap.Logger
+	schemaVersion  string
+	table          *tableMeta
+	session        cassandra.Session
+	writeCacheTTL  time.Duration
+	metrics        *casMetrics.Table
+	operationNames cache.Cache
+	logger         *zap.Logger
 }
 
 // NewOperationNamesStorage returns a new OperationNamesStorage
@@ -81,22 +100,20 @@ func NewOperationNamesStorage(
 	logger *zap.Logger,
 ) *OperationNamesStorage {
 
-	schemaVersion := LatestVersion
-
-	if !tableExist(session, schemas[schemaVersion].TableName) {
-		schemaVersion = schemaVersion - 1
+	schemaVersion := latestVersion
+	if !tableExist(session, schemas[schemaVersion].tableName) {
+		schemaVersion = previousVersion
 	}
+	table := schemas[schemaVersion]
+	table.materialize()
 
 	return &OperationNamesStorage{
-		session:         session,
-		TableName:       schemas[schemaVersion].TableName,
-		SchemaVersion:   schemaVersion,
-		InsertStmt:      fmt.Sprintf(schemas[schemaVersion].InsertStmt, schemas[schemaVersion].TableName),
-		QueryByKindStmt: fmt.Sprintf(schemas[schemaVersion].QueryByKindStmt, schemas[schemaVersion].TableName),
-		QueryStmt:       fmt.Sprintf(schemas[schemaVersion].QueryStmt, schemas[schemaVersion].TableName),
-		metrics:         casMetrics.NewTable(metricsFactory, schemas[schemaVersion].TableName),
-		writeCacheTTL:   writeCacheTTL,
-		logger:          logger,
+		session:       session,
+		schemaVersion: schemaVersion,
+		table:         table,
+		metrics:       casMetrics.NewTable(metricsFactory, schemas[schemaVersion].tableName),
+		writeCacheTTL: writeCacheTTL,
+		logger:        logger,
 		operationNames: cache.NewLRUWithOptions(
 			100000,
 			&cache.Options{
@@ -106,27 +123,14 @@ func NewOperationNamesStorage(
 	}
 }
 
-func tableExist(session cassandra.Session, tableName string) bool {
-	query := session.Query(fmt.Sprintf(TableQueryStmt, tableName))
-	err := query.Exec()
-	return err == nil
-}
-
 // Write saves Operation and Service name tuples
 func (s *OperationNamesStorage) Write(serviceName string, operationName string) error {
 	var err error
 	//TODO: take spanKind from args
 	spanKind := ""
-	query := s.session.Query(s.InsertStmt)
-	if inCache := checkWriteCache(serviceName+"|"+spanKind+"|"+operationName, s.operationNames, s.writeCacheTTL); !inCache {
-		var q cassandra.Query
-		switch s.SchemaVersion {
-		case 1:
-			q = query.Bind(serviceName, spanKind, operationName)
-		case 0:
-			q = query.Bind(serviceName, operationName)
-		}
 
+	if inCache := checkWriteCache(serviceName+"|"+spanKind+"|"+operationName, s.operationNames, s.writeCacheTTL); !inCache {
+		q := s.table.createWriteQuery(s.session.Query(s.table.insertStmt), serviceName, spanKind, operationName)
 		err2 := s.metrics.Exec(q, s.logger)
 		if err2 != nil {
 			err = err2
@@ -137,17 +141,9 @@ func (s *OperationNamesStorage) Write(serviceName string, operationName string) 
 
 // GetOperations returns all operations for a specific service traced by Jaeger
 func (s *OperationNamesStorage) GetOperations(service string) ([]string, error) {
-	var operations []*spanstore.Operation
-	var err error
-
-	switch s.SchemaVersion {
-	case 1:
-		operations, err = getOperationsV1(s, &spanstore.OperationQueryParameters{
-			ServiceName: service,
-		})
-	case 0:
-		operations, err = getOperationsV0(s, service)
-	}
+	operations, err := s.table.getOperations(s, &spanstore.OperationQueryParameters{
+		ServiceName: service,
+	})
 
 	if err != nil {
 		return nil, err
@@ -159,8 +155,14 @@ func (s *OperationNamesStorage) GetOperations(service string) ([]string, error) 
 	return operationNames, err
 }
 
-func getOperationsV0(s *OperationNamesStorage, service string) ([]*spanstore.Operation, error) {
-	iter := s.session.Query(s.QueryStmt, service).Iter()
+func tableExist(session cassandra.Session, tableName string) bool {
+	query := session.Query(fmt.Sprintf(tableCheckStmt, tableName))
+	err := query.Exec()
+	return err == nil
+}
+
+func getOperationsV1(s *OperationNamesStorage, query *spanstore.OperationQueryParameters) ([]*spanstore.Operation, error) {
+	iter := s.session.Query(s.table.queryStmt, query.ServiceName).Iter()
 
 	var operation string
 	var operationNames []string
@@ -181,14 +183,14 @@ func getOperationsV0(s *OperationNamesStorage, service string) ([]*spanstore.Ope
 	return operations, nil
 }
 
-func getOperationsV1(s *OperationNamesStorage, query *spanstore.OperationQueryParameters) ([]*spanstore.Operation, error) {
+func getOperationsV2(s *OperationNamesStorage, query *spanstore.OperationQueryParameters) ([]*spanstore.Operation, error) {
 	var casQuery cassandra.Query
 	if query.SpanKind == "" {
 		// Get operations for all spanKind
-		casQuery = s.session.Query(s.QueryStmt, query.ServiceName)
+		casQuery = s.session.Query(s.table.queryStmt, query.ServiceName)
 	} else {
 		// Get operations for given spanKind
-		casQuery = s.session.Query(s.QueryByKindStmt, query.ServiceName, query.SpanKind)
+		casQuery = s.session.Query(s.table.queryByKindStmt, query.ServiceName, query.SpanKind)
 	}
 	iter := casQuery.Iter()
 
@@ -202,7 +204,7 @@ func getOperationsV1(s *OperationNamesStorage, query *spanstore.OperationQueryPa
 		})
 	}
 	if err := iter.Close(); err != nil {
-		err = errors.Wrap(err, fmt.Sprintf("Error reading %s from storage", s.TableName))
+		err = errors.Wrap(err, fmt.Sprintf("Error reading %s from storage", s.table.tableName))
 		return nil, err
 	}
 	return operations, nil

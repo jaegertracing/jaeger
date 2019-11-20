@@ -30,12 +30,6 @@ import (
 	"github.com/jaegertracing/jaeger/pkg/testutils"
 )
 
-type test struct {
-	ttl           time.Duration
-	schemaVersion int
-	expErr        error
-}
-
 type operationNameStorageTest struct {
 	session        *mocks.Session
 	writeCacheTTL  time.Duration
@@ -45,13 +39,13 @@ type operationNameStorageTest struct {
 	storage        *OperationNamesStorage
 }
 
-func withOperationNamesStorage(writeCacheTTL time.Duration, schemaVersion int, fn func(s *operationNameStorageTest)) {
+func withOperationNamesStorage(writeCacheTTL time.Duration, schemaVersion string, fn func(s *operationNameStorageTest)) {
 	session := &mocks.Session{}
 	logger, logBuffer := testutils.NewLogger()
 	metricsFactory := metricstest.NewFactory(0)
 	query := &mocks.Query{}
-	session.On("Query", fmt.Sprintf(TableQueryStmt, schemas[LatestVersion].TableName), mock.Anything).Return(query)
-	if schemaVersion != LatestVersion {
+	session.On("Query", fmt.Sprintf(tableCheckStmt, schemas[latestVersion].tableName), mock.Anything).Return(query)
+	if schemaVersion != latestVersion {
 		query.On("Exec").Return(errors.New("new table does not exist"))
 	} else {
 		query.On("Exec").Return(nil)
@@ -69,71 +63,73 @@ func withOperationNamesStorage(writeCacheTTL time.Duration, schemaVersion int, f
 }
 
 func TestOperationNamesStorageWrite(t *testing.T) {
-	for _, test := range []test{
-		{0, 0, nil},
-		{time.Minute, 0, nil},
-		{0, 1, nil},
-		{time.Minute, 1, nil},
+	for _, test := range []struct {
+		name          string
+		ttl           time.Duration
+		schemaVersion string
+	}{
+		{name: "test old schema with 0 ttl", ttl: 0, schemaVersion: previousVersion},
+		{name: "test old schema with 1min ttl", ttl: time.Minute, schemaVersion: previousVersion},
+		{name: "test new schema with 0 ttl", ttl: 0, schemaVersion: latestVersion},
+		{name: "test new schema with 1min ttl", ttl: time.Minute, schemaVersion: latestVersion},
 	} {
+		fmt.Printf(test.name)
 		writeCacheTTL := test.ttl // capture loop var
-		t.Run(fmt.Sprintf("test %#v", test), func(t *testing.T) {
-			withOperationNamesStorage(writeCacheTTL, test.schemaVersion, func(s *operationNameStorageTest) {
-				var execError = errors.New("exec error")
-				query := &mocks.Query{}
-				query1 := &mocks.Query{}
-				query2 := &mocks.Query{}
+		withOperationNamesStorage(writeCacheTTL, test.schemaVersion, func(s *operationNameStorageTest) {
+			var execError = errors.New("exec error")
+			query := &mocks.Query{}
+			query1 := &mocks.Query{}
+			query2 := &mocks.Query{}
 
-				if test.schemaVersion == 0 {
-					query.On("Bind", []interface{}{"service-a", "Operation-b"}).Return(query1)
-					query.On("Bind", []interface{}{"service-c", "operation-d"}).Return(query2)
-				} else {
-					query.On("Bind", []interface{}{"service-a", "", "Operation-b"}).Return(query1)
-					query.On("Bind", []interface{}{"service-c", "", "operation-d"}).Return(query2)
-				}
+			if test.schemaVersion == previousVersion {
+				query.On("Bind", []interface{}{"service-a", "Operation-b"}).Return(query1)
+				query.On("Bind", []interface{}{"service-c", "operation-d"}).Return(query2)
+			} else {
+				query.On("Bind", []interface{}{"service-a", "", "Operation-b"}).Return(query1)
+				query.On("Bind", []interface{}{"service-c", "", "operation-d"}).Return(query2)
+			}
 
-				query1.On("Exec").Return(nil)
-				query2.On("Exec").Return(execError)
-				query2.On("String").Return("select from " + schemas[test.schemaVersion].TableName)
+			query1.On("Exec").Return(nil)
+			query2.On("Exec").Return(execError)
+			query2.On("String").Return("select from " + schemas[test.schemaVersion].tableName)
 
-				s.session.On("Query", mock.AnythingOfType("string"), mock.Anything).Return(query)
+			s.session.On("Query", mock.AnythingOfType("string"), mock.Anything).Return(query)
 
-				err := s.storage.Write("service-a", "Operation-b")
-				assert.NoError(t, err)
+			err := s.storage.Write("service-a", "Operation-b")
+			assert.NoError(t, err)
 
-				err = s.storage.Write("service-c", "operation-d")
-				assert.EqualError(t, err, "failed to Exec query 'select from "+schemas[test.schemaVersion].TableName+"': exec error")
-				assert.Equal(t, map[string]string{
-					"level": "error",
-					"msg":   "Failed to exec query",
-					"query": "select from " + schemas[test.schemaVersion].TableName,
-					"error": "exec error",
-				}, s.logBuffer.JSONLine(0))
+			err = s.storage.Write("service-c", "operation-d")
+			assert.EqualError(t, err, "failed to Exec query 'select from "+schemas[test.schemaVersion].tableName+"': exec error")
+			assert.Equal(t, map[string]string{
+				"level": "error",
+				"msg":   "Failed to exec query",
+				"query": "select from " + schemas[test.schemaVersion].tableName,
+				"error": "exec error",
+			}, s.logBuffer.JSONLine(0))
 
-				counts, _ := s.metricsFactory.Snapshot()
-				assert.Equal(t, map[string]int64{
-					"attempts|table=" + schemas[test.schemaVersion].TableName: 2, "inserts|table=" + schemas[test.schemaVersion].TableName: 1, "errors|table=" + schemas[test.schemaVersion].TableName: 1,
-				}, counts, "after first two writes")
+			counts, _ := s.metricsFactory.Snapshot()
+			assert.Equal(t, map[string]int64{
+				"attempts|table=" + schemas[test.schemaVersion].tableName: 2, "inserts|table=" + schemas[test.schemaVersion].tableName: 1, "errors|table=" + schemas[test.schemaVersion].tableName: 1,
+			}, counts, "after first two writes")
 
-				// write again
-				err = s.storage.Write("service-a", "Operation-b")
-				assert.NoError(t, err)
+			// write again
+			err = s.storage.Write("service-a", "Operation-b")
+			assert.NoError(t, err)
 
-				counts2, _ := s.metricsFactory.Snapshot()
-				expCounts := counts
-				if writeCacheTTL == 0 {
-					// without write cache, the second write must succeed
-					expCounts["attempts|table="+schemas[test.schemaVersion].TableName]++
-					expCounts["inserts|table="+schemas[test.schemaVersion].TableName]++
-				}
-				assert.Equal(t, expCounts, counts2)
-			})
+			counts2, _ := s.metricsFactory.Snapshot()
+			expCounts := counts
+			if writeCacheTTL == 0 {
+				// without write cache, the second write must succeed
+				expCounts["attempts|table="+schemas[test.schemaVersion].tableName]++
+				expCounts["inserts|table="+schemas[test.schemaVersion].tableName]++
+			}
+			assert.Equal(t, expCounts, counts2)
 		})
 	}
 }
 
 func TestOperationNamesStorageGetServices(t *testing.T) {
 	var scanError = errors.New("scan error")
-	var writeCacheTTL time.Duration
 	var matched bool
 	matchOnce := mock.MatchedBy(func(v []interface{}) bool {
 		if matched {
@@ -143,36 +139,39 @@ func TestOperationNamesStorageGetServices(t *testing.T) {
 		return true
 	})
 	matchEverything := mock.MatchedBy(func(v []interface{}) bool { return true })
-	for _, test := range []test{
-		{0, 0, nil},
-		{0, 0, scanError},
-		{0, 1, nil},
-		{0, 1, scanError},
+	for _, test := range []struct {
+		name          string
+		schemaVersion string
+		expErr        error
+	}{
+		{name: "test old schema without error", schemaVersion: previousVersion, expErr: nil},
+		{name: "test old schema with scan error", schemaVersion: previousVersion, expErr: scanError},
+		{name: "test new schema without error", schemaVersion: latestVersion, expErr: nil},
+		{name: "test new schema with scan error", schemaVersion: latestVersion, expErr: scanError},
 	} {
-		t.Run(fmt.Sprintf("test %#v", test), func(t *testing.T) {
-			withOperationNamesStorage(writeCacheTTL, test.schemaVersion, func(s *operationNameStorageTest) {
-				iter := &mocks.Iterator{}
-				iter.On("Scan", matchOnce).Return(true)
-				iter.On("Scan", matchEverything).Return(false) // false to stop the loop
-				iter.On("Close").Return(test.expErr)
+		fmt.Printf(test.name)
+		withOperationNamesStorage(0, test.schemaVersion, func(s *operationNameStorageTest) {
+			iter := &mocks.Iterator{}
+			iter.On("Scan", matchOnce).Return(true)
+			iter.On("Scan", matchEverything).Return(false) // false to stop the loop
+			iter.On("Close").Return(test.expErr)
 
-				query := &mocks.Query{}
-				query.On("Iter").Return(iter)
+			query := &mocks.Query{}
+			query.On("Iter").Return(iter)
 
-				s.session.On("Query", mock.AnythingOfType("string"), mock.Anything).Return(query)
-				services, err := s.storage.GetOperations("service-a")
-				if test.expErr == nil {
-					assert.NoError(t, err)
-					if test.schemaVersion == 0 {
-						// expect one empty operation result because mock iter.Scan(&placeholder) does not write to `placeholder`
-						assert.Equal(t, []string{""}, services)
-					} else {
-						assert.Equal(t, []string{}, services)
-					}
+			s.session.On("Query", mock.AnythingOfType("string"), mock.Anything).Return(query)
+			services, err := s.storage.GetOperations("service-a")
+			if test.expErr == nil {
+				assert.NoError(t, err)
+				if test.schemaVersion == previousVersion {
+					// expect one empty operation result because mock iter.Scan(&placeholder) does not write to `placeholder`
+					assert.Equal(t, []string{""}, services)
 				} else {
-					assert.EqualError(t, err, fmt.Sprintf("Error reading %s from storage: %s", schemas[test.schemaVersion].TableName, test.expErr.Error()))
+					assert.Equal(t, []string{}, services)
 				}
-			})
+			} else {
+				assert.EqualError(t, err, fmt.Sprintf("Error reading %s from storage: %s", schemas[test.schemaVersion].tableName, test.expErr.Error()))
+			}
 		})
 	}
 

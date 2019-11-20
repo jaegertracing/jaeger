@@ -47,7 +47,7 @@ type spanReaderTest struct {
 func withSpanReader(fn func(r *spanReaderTest)) {
 	session := &mocks.Session{}
 	query := &mocks.Query{}
-	session.On("Query", fmt.Sprintf(TableQueryStmt, schemas[LatestVersion].TableName), mock.Anything).Return(query)
+	session.On("Query", fmt.Sprintf(tableCheckStmt, schemas[latestVersion].tableName), mock.Anything).Return(query)
 	query.On("Exec").Return(nil)
 	logger, logBuffer := testutils.NewLogger()
 	metricsFactory := metricstest.NewFactory(0)

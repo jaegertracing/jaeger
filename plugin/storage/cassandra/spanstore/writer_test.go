@@ -45,7 +45,7 @@ func withSpanWriter(writeCacheTTL time.Duration, fn func(w *spanWriterTest), opt
 ) {
 	session := &mocks.Session{}
 	query := &mocks.Query{}
-	session.On("Query", fmt.Sprintf(TableQueryStmt, schemas[LatestVersion].TableName), mock.Anything).Return(query)
+	session.On("Query", fmt.Sprintf(tableCheckStmt, schemas[latestVersion].tableName), mock.Anything).Return(query)
 	query.On("Exec").Return(nil)
 	logger, logBuffer := testutils.NewLogger()
 	metricsFactory := metricstest.NewFactory(0)
