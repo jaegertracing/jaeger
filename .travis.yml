@@ -67,7 +67,7 @@ install:
 
 script:
   - export BRANCH=$(if [ "$TRAVIS_PULL_REQUEST" == "false" ]; then echo $TRAVIS_BRANCH; else echo $TRAVIS_PULL_REQUEST_BRANCH; fi)
-  - export SKIP_UI=$(if [ "$BRANCH" == "master" ]; then echo "true"; fi)
+  - export SKIP_UI=$(if [ "$BRANCH" != "master" ]; then echo "true"; fi)
   - if [ "$TESTS" == true ]; then make test-ci ; else echo 'skipping tests'; fi
   - if [ "$ALL_IN_ONE" == true ]; then bash ./scripts/travis/build-all-in-one-image.sh ; else echo 'skipping all_in_one'; fi
   - if [ "$CROSSDOCK" == true ]; then bash ./scripts/travis/build-crossdock.sh ; else echo 'skipping crossdock'; fi
