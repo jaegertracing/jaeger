@@ -1,6 +1,5 @@
 #!/bin/bash
 
-# Builds all platform binaries.
 set -x
 
 if [[ "$SKIP_UI" == "true" ]]; then
