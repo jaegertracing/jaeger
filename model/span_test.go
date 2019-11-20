@@ -220,6 +220,18 @@ func TestIsFirehoseEnabled(t *testing.T) {
 	assert.True(t, flags.IsFirehoseEnabled())
 }
 
+func TestGetSpanKind(t *testing.T) {
+	span := makeSpan(model.String("sampler.type", "lowerbound"))
+	spanKind, found := span.GetSpanKind()
+	assert.Equal(t, "", spanKind)
+	assert.Equal(t, false, found)
+
+	span = makeSpan(model.String("span.kind", "client"))
+	spanKind, found = span.GetSpanKind()
+	assert.Equal(t, "client", spanKind)
+	assert.Equal(t, true, found)
+}
+
 func TestSamplerType(t *testing.T) {
 	span := makeSpan(model.String("sampler.type", "lowerbound"))
 	assert.Equal(t, "lowerbound", span.GetSamplerType())
