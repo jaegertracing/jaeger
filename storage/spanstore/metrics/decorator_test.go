@@ -36,8 +36,9 @@ func TestSuccessfulUnderlyingCalls(t *testing.T) {
 	mrs := NewReadMetricsDecorator(&mockReader, mf)
 	mockReader.On("GetServices", context.Background()).Return([]string{}, nil)
 	mrs.GetServices(context.Background())
-	mockReader.On("GetOperations", context.Background(), "something").Return([]string{}, nil)
-	mrs.GetOperations(context.Background(), "something")
+	operationQuery := &spanstore.OperationQueryParameters{ServiceName: "something", SpanKind: ""}
+	mockReader.On("GetOperations", context.Background(), operationQuery).Return([]*spanstore.Operation{}, nil)
+	mrs.GetOperations(context.Background(), operationQuery)
 	mockReader.On("GetTrace", context.Background(), model.TraceID{}).Return(&model.Trace{}, nil)
 	mrs.GetTrace(context.Background(), model.TraceID{})
 	mockReader.On("FindTraces", context.Background(), &spanstore.TraceQueryParameters{}).Return([]*model.Trace{}, nil)
@@ -93,8 +94,9 @@ func TestFailingUnderlyingCalls(t *testing.T) {
 	mrs := NewReadMetricsDecorator(&mockReader, mf)
 	mockReader.On("GetServices", context.Background()).Return(nil, errors.New("Failure"))
 	mrs.GetServices(context.Background())
-	mockReader.On("GetOperations", context.Background(), "something").Return(nil, errors.New("Failure"))
-	mrs.GetOperations(context.Background(), "something")
+	operationQuery := &spanstore.OperationQueryParameters{ServiceName: "something", SpanKind: ""}
+	mockReader.On("GetOperations", context.Background(), operationQuery).Return(nil, errors.New("Failure"))
+	mrs.GetOperations(context.Background(), operationQuery)
 	mockReader.On("GetTrace", context.Background(), model.TraceID{}).Return(nil, errors.New("Failure"))
 	mrs.GetTrace(context.Background(), model.TraceID{})
 	mockReader.On("FindTraces", context.Background(), &spanstore.TraceQueryParameters{}).Return(nil, errors.New("Failure"))

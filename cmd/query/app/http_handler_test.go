@@ -483,17 +483,16 @@ func TestGetServicesStorageFailure(t *testing.T) {
 func TestGetOperationsSuccess(t *testing.T) {
 	server, readMock, _ := initializeTestServer()
 	defer server.Close()
-	expectedOperations := []string{"", "get"}
-	readMock.On("GetOperations", mock.AnythingOfType("*context.valueCtx"), "abc/trifle").Return(expectedOperations, nil).Once()
+	expectedOperations := []*spanstore.Operation{{Name: ""}, {Name: "get", SpanKind: "server"}}
+	readMock.On("GetOperations", mock.AnythingOfType("*context.valueCtx"), &spanstore.OperationQueryParameters{ServiceName: "abc/trifle"}).Return(expectedOperations, nil).Once()
 
 	var response structuredResponse
 	err := getJSON(server.URL+"/api/operations?service=abc%2Ftrifle", &response)
 	assert.NoError(t, err)
-	actualOperations := make([]string, len(expectedOperations))
 	for i, s := range response.Data.([]interface{}) {
-		actualOperations[i] = s.(string)
+		assert.Equal(t, expectedOperations[i].Name, s.(string))
 	}
-	assert.Equal(t, expectedOperations, actualOperations)
+
 }
 
 func TestGetOperationsNoServiceName(t *testing.T) {
@@ -506,9 +505,12 @@ func TestGetOperationsNoServiceName(t *testing.T) {
 }
 
 func TestGetOperationsStorageFailure(t *testing.T) {
-	server, reaMock, _ := initializeTestServer()
+	server, readMock, _ := initializeTestServer()
 	defer server.Close()
-	reaMock.On("GetOperations", mock.AnythingOfType("*context.valueCtx"), "trifle").Return(nil, errStorage).Once()
+	readMock.On(
+		"GetOperations",
+		mock.AnythingOfType("*context.valueCtx"),
+		mock.AnythingOfType("*spanstore.OperationQueryParameters")).Return(nil, errStorage).Once()
 
 	var response structuredResponse
 	err := getJSON(server.URL+"/api/operations?service=trifle", &response)
@@ -518,8 +520,13 @@ func TestGetOperationsStorageFailure(t *testing.T) {
 func TestGetOperationsLegacySuccess(t *testing.T) {
 	server, readMock, _ := initializeTestServer()
 	defer server.Close()
-	expectedOperations := []string{"", "get"}
-	readMock.On("GetOperations", mock.AnythingOfType("*context.valueCtx"), "abc/trifle").Return(expectedOperations, nil).Once()
+	expectedOperationNames := []string{"", "get"}
+	expectedOperations := []*spanstore.Operation{{Name: ""}, {Name: "get", SpanKind: "server"}}
+	readMock.On("GetOperations", mock.AnythingOfType("*context.valueCtx"), "abc/trifle").Return(expectedOperationNames, nil).Once()
+	readMock.On(
+		"GetOperations",
+		mock.AnythingOfType("*context.valueCtx"),
+		mock.AnythingOfType("*spanstore.OperationQueryParameters")).Return(expectedOperations, nil).Once()
 
 	var response structuredResponse
 	err := getJSON(server.URL+"/api/services/abc%2Ftrifle/operations", &response)
@@ -528,14 +535,16 @@ func TestGetOperationsLegacySuccess(t *testing.T) {
 	for i, s := range response.Data.([]interface{}) {
 		actualOperations[i] = s.(string)
 	}
-	assert.Equal(t, expectedOperations, actualOperations)
+	assert.Equal(t, expectedOperationNames, actualOperations)
 }
 
 func TestGetOperationsLegacyStorageFailure(t *testing.T) {
 	server, readMock, _ := initializeTestServer()
 	defer server.Close()
-	readMock.On("GetOperations", mock.AnythingOfType("*context.valueCtx"), "trifle").Return(nil, errStorage).Once()
-
+	readMock.On(
+		"GetOperations",
+		mock.AnythingOfType("*context.valueCtx"),
+		mock.AnythingOfType("*spanstore.OperationQueryParameters")).Return(nil, errStorage).Once()
 	var response structuredResponse
 	err := getJSON(server.URL+"/api/services/trifle/operations", &response)
 	assert.Error(t, err)

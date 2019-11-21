@@ -331,7 +331,7 @@ func TestMenuSeeks(t *testing.T) {
 			}
 		}
 
-		operations, err := sr.GetOperations(context.Background(), "service-1")
+		operations, err := sr.GetOperations(context.Background(), &spanstore.OperationQueryParameters{ServiceName: "service-1", SpanKind: ""})
 		assert.NoError(t, err)
 
 		serviceList, err := sr.GetServices(context.Background())

@@ -245,12 +245,25 @@ func (s *SpanReader) GetServices(ctx context.Context) ([]string, error) {
 }
 
 // GetOperations returns all operations for a specific service traced by Jaeger
-func (s *SpanReader) GetOperations(ctx context.Context, service string) ([]string, error) {
+func (s *SpanReader) GetOperations(ctx context.Context, query *spanstore.OperationQueryParameters) ([]*spanstore.Operation, error) {
 	span, ctx := opentracing.StartSpanFromContext(ctx, "GetOperations")
 	defer span.Finish()
 	currentTime := time.Now()
 	jaegerIndices := s.timeRangeIndices(s.serviceIndexPrefix, currentTime.Add(-s.maxSpanAge), currentTime)
-	return s.serviceOperationStorage.getOperations(ctx, jaegerIndices, service)
+	operations, err := s.serviceOperationStorage.getOperations(ctx, jaegerIndices, query.ServiceName)
+	if err != nil {
+		return nil, err
+	}
+
+	//TODO: return the operations with actual span kind that meet requirement
+	var result []*spanstore.Operation
+	for _, operation := range operations {
+		result = append(result, &spanstore.Operation{
+			Name:     operation,
+			SpanKind: "",
+		})
+	}
+	return result, err
 }
 
 func bucketToStringArray(buckets []*elastic.AggregationBucketKeyItem) ([]string, error) {

@@ -124,12 +124,12 @@ func TestGRPCClientGetOperations(t *testing.T) {
 		r.spanReader.On("GetOperations", mock.Anything, &storage_v1.GetOperationsRequest{
 			Service: "service-a",
 		}).Return(&storage_v1.GetOperationsResponse{
-			Operations: []string{"operation-a"},
+			Operations: []*storage_v1.Operation{{Name: "operation-a", SpanKind: ""}},
 		}, nil)
 
-		s, err := r.client.GetOperations(context.Background(), "service-a")
+		s, err := r.client.GetOperations(context.Background(), &spanstore.OperationQueryParameters{ServiceName: "service-a"})
 		assert.NoError(t, err)
-		assert.Equal(t, []string{"operation-a"}, s)
+		assert.Equal(t, []*spanstore.Operation{{Name: "operation-a", SpanKind: ""}}, s)
 	})
 }
 

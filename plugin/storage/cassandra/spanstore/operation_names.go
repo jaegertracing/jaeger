@@ -126,10 +126,8 @@ func NewOperationNamesStorage(
 }
 
 // Write saves Operation and Service name tuples
-func (s *OperationNamesStorage) Write(serviceName string, operationName string) error {
+func (s *OperationNamesStorage) Write(serviceName, operationName, spanKind string) error {
 	var err error
-	//TODO: take spanKind from args
-	spanKind := ""
 
 	if inCache := checkWriteCache(serviceName+"|"+spanKind+"|"+operationName, s.operationNames, s.writeCacheTTL); !inCache {
 		q := s.table.createWriteQuery(s.session.Query(s.table.insertStmt), serviceName, spanKind, operationName)
@@ -142,20 +140,11 @@ func (s *OperationNamesStorage) Write(serviceName string, operationName string) 
 }
 
 // GetOperations returns all operations for a specific service traced by Jaeger
-func (s *OperationNamesStorage) GetOperations(service string) ([]string, error) {
-	operations, err := s.table.getOperations(s, &spanstore.OperationQueryParameters{
-		ServiceName: service,
+func (s *OperationNamesStorage) GetOperations(query *spanstore.OperationQueryParameters) ([]*spanstore.Operation, error) {
+	return s.table.getOperations(s, &spanstore.OperationQueryParameters{
+		ServiceName: query.ServiceName,
+		SpanKind:    query.SpanKind,
 	})
-
-	if err != nil {
-		return nil, err
-	}
-	//TODO: return operations instead of list of string
-	operationNames := make([]string, len(operations))
-	for idx, operation := range operations {
-		operationNames[idx] = operation.Name
-	}
-	return operationNames, err
 }
 
 func tableExist(session cassandra.Session, tableName string) bool {
