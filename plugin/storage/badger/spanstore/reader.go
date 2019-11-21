@@ -207,12 +207,17 @@ func (r *TraceReader) scanTimeRange(plan *executionPlan) ([]model.TraceID, error
 	})
 
 	sort.Slice(traceKeys, func(k, h int) bool {
+		// This sorts by timestamp to descending order
 		return bytes.Compare(traceKeys[k][sizeOfTraceID+1:sizeOfTraceID+1+8], traceKeys[h][sizeOfTraceID+1:sizeOfTraceID+1+8]) > 0
 	})
 
-	traceIDs := make([]model.TraceID, len(traceKeys))
+	sizeCount := len(traceKeys)
+	if plan.limit > 0 {
+		sizeCount = plan.limit
+	}
+	traceIDs := make([]model.TraceID, sizeCount)
 
-	for i := 0; i < len(traceKeys); i++ {
+	for i := 0; i < len(traceKeys) && i < sizeCount; i++ {
 		traceIDs[i] = bytesToTraceID(traceKeys[i][1 : sizeOfTraceID+1])
 	}
 
@@ -377,8 +382,8 @@ func (r *TraceReader) durationQueries(plan *executionPlan, query *spanstore.Trac
 	durMax := uint64(model.DurationAsMicroseconds(query.DurationMax))
 	durMin := uint64(model.DurationAsMicroseconds(query.DurationMin))
 
-	startKey := make([]byte, 9)
-	endKey := make([]byte, 9)
+	startKey := make([]byte, 1+8)
+	endKey := make([]byte, 1+8)
 
 	startKey[0] = durationIndexKey
 	endKey[0] = durationIndexKey

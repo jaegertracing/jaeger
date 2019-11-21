@@ -119,7 +119,7 @@ func TestDuplicateTraceIDDetection(t *testing.T) {
 
 		traces, err := rw.FindTraceIDs(context.Background(), &spanstore.TraceQueryParameters{
 			ServiceName:  "service",
-			NumTraces:    128,
+			NumTraces:    256, // Default is 100, we want to fetch more than there should be
 			StartTimeMax: time.Now().Add(time.Hour),
 			StartTimeMin: testSpan.StartTime.Add(-1 * time.Hour),
 		})
@@ -198,41 +198,3 @@ func TestMergeJoin(t *testing.T) {
 	assert.Equal(2, len(merged))
 	assert.Equal(uint32(2), binary.BigEndian.Uint32(merged[1]))
 }
-
-/*
-func TestIndexScanReturnOrder(t *testing.T) {
-	runWithBadger(t, func(store *badger.DB, t *testing.T) {
-		testSpan := createDummySpan()
-		cache := NewCacheStore(store, time.Duration(1*time.Hour), true)
-		sw := NewSpanWriter(store, cache, time.Duration(1*time.Hour), nil)
-		rw := NewTraceReader(store, cache)
-
-		for i := 0; i < 1000; i++ {
-			testSpan.TraceID = model.TraceID{
-				High: rand.Uint64(),
-				Low:  uint64(rand.Int63()),
-			}
-			testSpan.SpanID = model.SpanID(rand.Uint64())
-			testSpan.StartTime = testSpan.StartTime.Add(time.Duration(i) * time.Millisecond)
-			err := sw.WriteSpan(&testSpan)
-			assert.NoError(t, err)
-		}
-
-		tqp := &spanstore.TraceQueryParameters{
-			ServiceName:  "service",
-			StartTimeMax: testSpan.StartTime.Add(time.Hour),
-			StartTimeMin: testSpan.StartTime.Add(-1 * time.Hour),
-		}
-
-		indexSeeks := make([][]byte, 0, 1)
-		indexSeeks = serviceQueries(tqp, indexSeeks)
-
-		ids := make([][][]byte, 0, len(indexSeeks)+1)
-
-		indexResults, _ := rw.indexSeeksToTraceIDs(tqp, indexSeeks, ids)
-		assert.True(t, sort.SliceIsSorted(indexResults[0], func(i, j int) bool {
-			return bytes.Compare(indexResults[0][i], indexResults[0][j]) < 0
-		}))
-	})
-}
-*/

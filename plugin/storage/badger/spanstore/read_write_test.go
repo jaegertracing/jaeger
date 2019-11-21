@@ -138,8 +138,12 @@ func TestIndexSeeks(t *testing.T) {
 		traces := 60
 		spans := 3
 		tid := startT
+
+		traceOrder := make([]uint64, traces)
+
 		for i := 0; i < traces; i++ {
 			lowId := rand.Uint64()
+			traceOrder[i] = lowId
 			tid = tid.Add(time.Duration(time.Millisecond * time.Duration(i)))
 
 			for j := 0; j < spans; j++ {
@@ -217,7 +221,6 @@ func TestIndexSeeks(t *testing.T) {
 		tags["error"] = "true"
 		params.Tags = tags
 		params.DurationMin = time.Duration(1 * time.Millisecond)
-		// params.DurationMax = time.Duration(1 * time.Hour)
 		trs, err = sr.FindTraces(context.Background(), params)
 		assert.NoError(t, err)
 		assert.Equal(t, 1, len(trs))
@@ -231,23 +234,36 @@ func TestIndexSeeks(t *testing.T) {
 		trs, err = sr.FindTraces(context.Background(), params)
 		assert.NoError(t, err)
 		assert.Equal(t, 2, len(trs))
+		assert.Equal(t, traceOrder[59], trs[0].Spans[0].TraceID.Low)
+		assert.Equal(t, traceOrder[55], trs[1].Spans[0].TraceID.Low)
 		testOrder(trs)
 
 		// Check for DESC return order with duration index
-		params.NumTraces = 9
-		params.DurationMin = time.Duration(30 * time.Millisecond) // Filters one
-		params.DurationMax = time.Duration(50 * time.Millisecond) // Filters three
+		params = &spanstore.TraceQueryParameters{
+			StartTimeMin: startT,
+			StartTimeMax: startT.Add(time.Duration(time.Hour * 1)),
+			DurationMin:  time.Duration(30 * time.Millisecond), // Filters one
+			DurationMax:  time.Duration(50 * time.Millisecond), // Filters three
+			NumTraces:    9,
+		}
 		trs, err = sr.FindTraces(context.Background(), params)
 		assert.NoError(t, err)
-		assert.Equal(t, 5, len(trs))
+		assert.Equal(t, 9, len(trs)) // Returns 23, we limited to 9
+
+		// Check the newest items are returned
+		assert.Equal(t, traceOrder[50], trs[0].Spans[0].TraceID.Low)
+		assert.Equal(t, traceOrder[42], trs[8].Spans[0].TraceID.Low)
 		testOrder(trs)
 
-		// Check for DESC return order without
+		// Check for DESC return order without duration index, but still with limit
 		params.DurationMin = 0
 		params.DurationMax = 0
+		params.NumTraces = 7
 		trs, err = sr.FindTraces(context.Background(), params)
 		assert.NoError(t, err)
-		assert.Equal(t, 9, len(trs))
+		assert.Equal(t, 7, len(trs))
+		assert.Equal(t, traceOrder[59], trs[0].Spans[0].TraceID.Low)
+		assert.Equal(t, traceOrder[53], trs[6].Spans[0].TraceID.Low)
 		testOrder(trs)
 
 		// StartTime, endTime scan - full table scan (so technically no index seek)
@@ -264,12 +280,14 @@ func TestIndexSeeks(t *testing.T) {
 
 		// StartTime and Duration queries
 		params.StartTimeMax = startT.Add(time.Duration(time.Hour * 10))
-		params.DurationMin = time.Duration(53 * time.Millisecond) // trace 51 (max)
-		params.DurationMax = time.Duration(56 * time.Millisecond) // trace 56 (min)
+		params.DurationMin = time.Duration(53 * time.Millisecond) // trace 51 (min)
+		params.DurationMax = time.Duration(56 * time.Millisecond) // trace 56 (max)
 
 		trs, err = sr.FindTraces(context.Background(), params)
 		assert.NoError(t, err)
 		assert.Equal(t, 6, len(trs))
+		assert.Equal(t, traceOrder[56], trs[0].Spans[0].TraceID.Low)
+		assert.Equal(t, traceOrder[51], trs[5].Spans[0].TraceID.Low)
 		testOrder(trs)
 	})
 }
