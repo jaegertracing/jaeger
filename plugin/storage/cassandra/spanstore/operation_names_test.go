@@ -50,6 +50,9 @@ func withOperationNamesStorage(writeCacheTTL time.Duration,
 	query := &mocks.Query{}
 	session.On("Query",
 		fmt.Sprintf(tableCheckStmt, schemas[latestVersion].tableName), mock.Anything).Return(query)
+	session.On("Query",
+		fmt.Sprintf(tableCheckStmt, schemas[latestVersion].tableName),
+		mock.Anything).Return(query)
 	if schemaVersion != latestVersion {
 		query.On("Exec").Return(errors.New("new table does not exist"))
 	} else {
@@ -112,7 +115,8 @@ func TestOperationNamesStorageWrite(t *testing.T) {
 					"error": "exec error",
 				}, s.logBuffer.JSONLine(0))
 			err = s.storage.Write("service-c", "operation-d", "")
-			assert.EqualError(t, err, "failed to Exec query 'select from "+schemas[test.schemaVersion].tableName+"': exec error")
+			assert.EqualError(t, err,
+				"failed to Exec query 'select from "+schemas[test.schemaVersion].tableName+"': exec error")
 			assert.Equal(t, map[string]string{
 				"level": "error",
 				"msg":   "Failed to exec query",

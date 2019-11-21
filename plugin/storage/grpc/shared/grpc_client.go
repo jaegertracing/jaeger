@@ -104,7 +104,8 @@ func (c *grpcClient) GetServices(ctx context.Context) ([]string, error) {
 }
 
 // GetOperations returns the operations of a given service
-func (c *grpcClient) GetOperations(ctx context.Context, query *spanstore.OperationQueryParameters) ([]*spanstore.Operation, error) {
+func (c *grpcClient) GetOperations(ctx context.Context, query *spanstore.OperationQueryParameters) (
+	[]*spanstore.Operation, error) {
 	resp, err := c.readerClient.GetOperations(upgradeContextWithBearerToken(ctx), &storage_v1.GetOperationsRequest{
 		Service:  query.ServiceName,
 		SpanKind: query.SpanKind,
@@ -113,8 +114,8 @@ func (c *grpcClient) GetOperations(ctx context.Context, query *spanstore.Operati
 		return nil, errors.Wrap(err, "plugin error")
 	}
 
-	operations := make([]*spanstore.Operation, len(resp.Operations))
-	for idx, operation := range resp.Operations {
+	operations := make([]*spanstore.Operation, len(resp.OperationsV2))
+	for idx, operation := range resp.OperationsV2 {
 		operations[idx] = &spanstore.Operation{
 			Name:     operation.Name,
 			SpanKind: operation.SpanKind,

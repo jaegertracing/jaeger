@@ -74,11 +74,13 @@ func (_m *Reader) FindTraces(ctx context.Context, query *spanstore.TraceQueryPar
 }
 
 // GetOperations provides a mock function with given fields: ctx, query
-func (_m *Reader) GetOperations(ctx context.Context, query *spanstore.OperationQueryParameters) ([]*spanstore.Operation, error) {
+func (_m *Reader) GetOperations(ctx context.Context, query *spanstore.OperationQueryParameters) (
+	[]*spanstore.Operation, error) {
 	ret := _m.Called(ctx, query)
 
 	var r0 []*spanstore.Operation
-	if rf, ok := ret.Get(0).(func(context.Context, *spanstore.OperationQueryParameters) []*spanstore.Operation); ok {
+	if rf, ok := ret.Get(0).(func(context.Context,
+		*spanstore.OperationQueryParameters) []*spanstore.Operation); ok {
 		r0 = rf(ctx, query)
 	} else {
 		if ret.Get(0) != nil {

@@ -245,7 +245,8 @@ func (s *SpanReader) GetServices(ctx context.Context) ([]string, error) {
 }
 
 // GetOperations returns all operations for a specific service traced by Jaeger
-func (s *SpanReader) GetOperations(ctx context.Context, query *spanstore.OperationQueryParameters) ([]*spanstore.Operation, error) {
+func (s *SpanReader) GetOperations(ctx context.Context, query *spanstore.OperationQueryParameters) (
+	[]*spanstore.Operation, error) {
 	span, ctx := opentracing.StartSpanFromContext(ctx, "GetOperations")
 	defer span.Finish()
 	currentTime := time.Now()

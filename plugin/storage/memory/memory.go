@@ -182,7 +182,8 @@ func (m *Store) GetServices(ctx context.Context) ([]string, error) {
 }
 
 // GetOperations returns the operations of a given service
-func (m *Store) GetOperations(ctx context.Context, query *spanstore.OperationQueryParameters) ([]*spanstore.Operation, error) {
+func (m *Store) GetOperations(ctx context.Context, query *spanstore.OperationQueryParameters) (
+	[]*spanstore.Operation, error) {
 	m.RLock()
 	defer m.RUnlock()
 	var retMe []*spanstore.Operation

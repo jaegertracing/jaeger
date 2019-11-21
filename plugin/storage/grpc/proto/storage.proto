@@ -85,7 +85,8 @@ message Operation {
 }
 
 message GetOperationsResponse {
-    repeated Operation operations = 1;
+    repeated string operations = 1; // deprecated
+    repeated Operation operations_v2 = 2;
 }
 
 message TraceQueryParameters {

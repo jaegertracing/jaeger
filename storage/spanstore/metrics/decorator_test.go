@@ -37,13 +37,16 @@ func TestSuccessfulUnderlyingCalls(t *testing.T) {
 	mockReader.On("GetServices", context.Background()).Return([]string{}, nil)
 	mrs.GetServices(context.Background())
 	operationQuery := &spanstore.OperationQueryParameters{ServiceName: "something", SpanKind: ""}
-	mockReader.On("GetOperations", context.Background(), operationQuery).Return([]*spanstore.Operation{}, nil)
+	mockReader.On("GetOperations", context.Background(), operationQuery).
+		Return([]*spanstore.Operation{}, nil)
 	mrs.GetOperations(context.Background(), operationQuery)
 	mockReader.On("GetTrace", context.Background(), model.TraceID{}).Return(&model.Trace{}, nil)
 	mrs.GetTrace(context.Background(), model.TraceID{})
-	mockReader.On("FindTraces", context.Background(), &spanstore.TraceQueryParameters{}).Return([]*model.Trace{}, nil)
+	mockReader.On("FindTraces", context.Background(), &spanstore.TraceQueryParameters{}).
+		Return([]*model.Trace{}, nil)
 	mrs.FindTraces(context.Background(), &spanstore.TraceQueryParameters{})
-	mockReader.On("FindTraceIDs", context.Background(), &spanstore.TraceQueryParameters{}).Return([]model.TraceID{}, nil)
+	mockReader.On("FindTraceIDs", context.Background(), &spanstore.TraceQueryParameters{}).
+		Return([]model.TraceID{}, nil)
 	mrs.FindTraceIDs(context.Background(), &spanstore.TraceQueryParameters{})
 	counters, gauges := mf.Snapshot()
 	expecteds := map[string]int64{
@@ -71,7 +74,12 @@ func TestSuccessfulUnderlyingCalls(t *testing.T) {
 	checkExpectedExistingAndNonExistentCounters(t, counters, expecteds, gauges, existingKeys, nonExistentKeys)
 }
 
-func checkExpectedExistingAndNonExistentCounters(t *testing.T, actualCounters, expectedCounters, actualGauges map[string]int64, existingKeys, nonExistentKeys []string) {
+func checkExpectedExistingAndNonExistentCounters(t *testing.T,
+	actualCounters,
+	expectedCounters,
+	actualGauges map[string]int64,
+	existingKeys,
+	nonExistentKeys []string) {
 	for k, v := range expectedCounters {
 		assert.EqualValues(t, v, actualCounters[k], k)
 	}
@@ -92,16 +100,21 @@ func TestFailingUnderlyingCalls(t *testing.T) {
 
 	mockReader := mocks.Reader{}
 	mrs := NewReadMetricsDecorator(&mockReader, mf)
-	mockReader.On("GetServices", context.Background()).Return(nil, errors.New("Failure"))
+	mockReader.On("GetServices", context.Background()).
+		Return(nil, errors.New("Failure"))
 	mrs.GetServices(context.Background())
 	operationQuery := &spanstore.OperationQueryParameters{ServiceName: "something", SpanKind: ""}
-	mockReader.On("GetOperations", context.Background(), operationQuery).Return(nil, errors.New("Failure"))
+	mockReader.On("GetOperations", context.Background(), operationQuery).
+		Return(nil, errors.New("Failure"))
 	mrs.GetOperations(context.Background(), operationQuery)
-	mockReader.On("GetTrace", context.Background(), model.TraceID{}).Return(nil, errors.New("Failure"))
+	mockReader.On("GetTrace", context.Background(), model.TraceID{}).
+		Return(nil, errors.New("Failure"))
 	mrs.GetTrace(context.Background(), model.TraceID{})
-	mockReader.On("FindTraces", context.Background(), &spanstore.TraceQueryParameters{}).Return(nil, errors.New("Failure"))
+	mockReader.On("FindTraces", context.Background(), &spanstore.TraceQueryParameters{}).
+		Return(nil, errors.New("Failure"))
 	mrs.FindTraces(context.Background(), &spanstore.TraceQueryParameters{})
-	mockReader.On("FindTraceIDs", context.Background(), &spanstore.TraceQueryParameters{}).Return(nil, errors.New("Failure"))
+	mockReader.On("FindTraceIDs", context.Background(), &spanstore.TraceQueryParameters{}).
+		Return(nil, errors.New("Failure"))
 	mrs.FindTraceIDs(context.Background(), &spanstore.TraceQueryParameters{})
 	counters, gauges := mf.Snapshot()
 	expecteds := map[string]int64{

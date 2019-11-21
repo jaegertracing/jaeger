@@ -50,7 +50,8 @@ type tableMeta struct {
 	queryByKindStmt  string
 	queryStmt        string
 	createWriteQuery func(query cassandra.Query, service, kind, opName string) cassandra.Query
-	getOperations    func(s *OperationNamesStorage, query *spanstore.OperationQueryParameters) ([]*spanstore.Operation, error)
+	getOperations    func(s *OperationNamesStorage, query *spanstore.OperationQueryParameters) (
+		[]*spanstore.Operation, error)
 }
 
 func (t *tableMeta) materialize() {

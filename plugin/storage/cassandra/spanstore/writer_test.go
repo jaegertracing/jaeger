@@ -45,7 +45,9 @@ func withSpanWriter(writeCacheTTL time.Duration, fn func(w *spanWriterTest), opt
 ) {
 	session := &mocks.Session{}
 	query := &mocks.Query{}
-	session.On("Query", fmt.Sprintf(tableCheckStmt, schemas[latestVersion].tableName), mock.Anything).Return(query)
+	session.On("Query",
+		fmt.Sprintf(tableCheckStmt, schemas[latestVersion].tableName),
+		mock.Anything).Return(query)
 	query.On("Exec").Return(nil)
 	logger, logBuffer := testutils.NewLogger()
 	metricsFactory := metricstest.NewFactory(0)
@@ -192,13 +194,20 @@ func TestSpanWriter(t *testing.T) {
 				// note: using matchOnce below because we only want one tag to be inserted
 				w.session.On("Query", stringMatcher(insertTag), matchOnce()).Return(tagsQuery)
 
-				w.session.On("Query", stringMatcher(serviceNameIndex), matchEverything()).Return(serviceNameQuery)
-				w.session.On("Query", stringMatcher(serviceOperationIndex), matchEverything()).Return(serviceOperationNameQuery)
+				w.session.On("Query",
+					stringMatcher(serviceNameIndex),
+					matchEverything()).Return(serviceNameQuery)
+				w.session.On("Query",
+					stringMatcher(serviceOperationIndex),
+					matchEverything()).Return(serviceOperationNameQuery)
 
-				w.session.On("Query", stringMatcher(durationIndex), matchOnce()).Return(durationNoOperationQuery)
+				w.session.On("Query",
+					stringMatcher(durationIndex),
+					matchOnce()).Return(durationNoOperationQuery)
 
 				w.writer.serviceNamesWriter = func(serviceName string) error { return testCase.serviceNameError }
-				w.writer.operationNamesWriter = func(serviceName, operationName, spanKind string) error { return testCase.serviceNameError }
+				w.writer.operationNamesWriter =
+					func(serviceName, operationName, spanKind string) error { return testCase.serviceNameError }
 				err := w.writer.WriteSpan(span)
 
 				if testCase.expectedError == "" {
@@ -207,7 +216,11 @@ func TestSpanWriter(t *testing.T) {
 					assert.EqualError(t, err, testCase.expectedError)
 				}
 				for _, expectedLog := range testCase.expectedLogs {
-					assert.True(t, strings.Contains(w.logBuffer.String(), expectedLog), "Log must contain %s, but was %s", expectedLog, w.logBuffer.String())
+					assert.True(t,
+						strings.Contains(w.logBuffer.String(), expectedLog),
+						"Log must contain %s, but was %s",
+						expectedLog,
+						w.logBuffer.String())
 				}
 				if len(testCase.expectedLogs) == 0 {
 					assert.Equal(t, "", w.logBuffer.String())
@@ -306,7 +319,9 @@ func TestStorageMode_IndexOnly(t *testing.T) {
 		durationNoOperationQuery.On("Exec").Return(nil)
 
 		w.session.On("Query", stringMatcher(serviceNameIndex), matchEverything()).Return(serviceNameQuery)
-		w.session.On("Query", stringMatcher(serviceOperationIndex), matchEverything()).Return(serviceOperationNameQuery)
+		w.session.On("Query",
+			stringMatcher(serviceOperationIndex),
+			matchEverything()).Return(serviceOperationNameQuery)
 		w.session.On("Query", stringMatcher(durationIndex), matchOnce()).Return(durationNoOperationQuery)
 
 		err := w.writer.WriteSpan(span)

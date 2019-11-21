@@ -32,7 +32,7 @@ import (
 	testHttp "github.com/stretchr/testify/http"
 	"github.com/stretchr/testify/mock"
 	"github.com/stretchr/testify/require"
-	jaeger "github.com/uber/jaeger-client-go"
+	"github.com/uber/jaeger-client-go"
 	"go.uber.org/zap"
 	"go.uber.org/zap/zapcore"
 
@@ -484,7 +484,8 @@ func TestGetOperationsSuccess(t *testing.T) {
 	server, readMock, _ := initializeTestServer()
 	defer server.Close()
 	expectedOperations := []*spanstore.Operation{{Name: ""}, {Name: "get", SpanKind: "server"}}
-	readMock.On("GetOperations", mock.AnythingOfType("*context.valueCtx"), &spanstore.OperationQueryParameters{ServiceName: "abc/trifle"}).Return(expectedOperations, nil).Once()
+	readMock.On("GetOperations", mock.AnythingOfType("*context.valueCtx"),
+		&spanstore.OperationQueryParameters{ServiceName: "abc/trifle"}).Return(expectedOperations, nil).Once()
 
 	var response structuredResponse
 	err := getJSON(server.URL+"/api/operations?service=abc%2Ftrifle", &response)
@@ -522,7 +523,10 @@ func TestGetOperationsLegacySuccess(t *testing.T) {
 	defer server.Close()
 	expectedOperationNames := []string{"", "get"}
 	expectedOperations := []*spanstore.Operation{{Name: ""}, {Name: "get", SpanKind: "server"}}
-	readMock.On("GetOperations", mock.AnythingOfType("*context.valueCtx"), "abc/trifle").Return(expectedOperationNames, nil).Once()
+	readMock.On("GetOperations",
+		mock.AnythingOfType("*context.valueCtx"),
+		"abc/trifle",
+	).Return(expectedOperationNames, nil).Once()
 	readMock.On(
 		"GetOperations",
 		mock.AnythingOfType("*context.valueCtx"),

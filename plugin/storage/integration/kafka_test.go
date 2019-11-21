@@ -119,7 +119,8 @@ func (r *ingester) GetServices(ctx context.Context) ([]string, error) {
 	return nil, nil
 }
 
-func (r *ingester) GetOperations(ctx context.Context, query *spanstore.OperationQueryParameters) ([]*spanstore.Operation, error) {
+func (r *ingester) GetOperations(ctx context.Context, query *spanstore.OperationQueryParameters) (
+	[]*spanstore.Operation, error) {
 	return nil, nil
 }
 
