@@ -248,7 +248,10 @@ func TestStoreGetServerOperationsFound(t *testing.T) {
 		assert.NoError(t, store.WriteSpan(childSpan2))
 		assert.NoError(t, store.WriteSpan(childSpan2_1))
 		operations, err := store.GetOperations(context.Background(),
-			&spanstore.OperationQueryParameters{ServiceName: childSpan1.Process.ServiceName, SpanKind: "server"})
+			&spanstore.OperationQueryParameters{
+				ServiceName: childSpan1.Process.ServiceName,
+				SpanKind:    "server",
+			})
 		assert.NoError(t, err)
 		assert.Len(t, operations, 1)
 		assert.EqualValues(t, childSpan1.OperationName, operations[0].Name)

@@ -96,8 +96,14 @@ func TestGRPCServerGetOperations(t *testing.T) {
 			Service: "service-a",
 		})
 		assert.NoError(t, err)
-		assert.Equal(t, &storage_v1.GetOperationsResponse{OperationsV2: []*storage_v1.Operation{{Name: "operation-a",
-			SpanKind: ""}}}, s)
+		assert.Equal(
+			t,
+			&storage_v1.GetOperationsResponse{
+				OperationsV2: []*storage_v1.Operation{
+					{Name: "operation-a", SpanKind: ""},
+				},
+			},
+			s)
 	})
 }
 

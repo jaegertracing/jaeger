@@ -141,7 +141,8 @@ func (s *OperationNamesStorage) Write(serviceName, operationName, spanKind strin
 }
 
 // GetOperations returns all operations for a specific service traced by Jaeger
-func (s *OperationNamesStorage) GetOperations(query *spanstore.OperationQueryParameters) ([]*spanstore.Operation, error) {
+func (s *OperationNamesStorage) GetOperations(query *spanstore.OperationQueryParameters) (
+	[]*spanstore.Operation, error) {
 	return s.table.getOperations(s, &spanstore.OperationQueryParameters{
 		ServiceName: query.ServiceName,
 		SpanKind:    query.SpanKind,
