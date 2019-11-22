@@ -17,11 +17,13 @@ package spanstore
 
 import (
 	"errors"
+	"fmt"
 	"strings"
 	"testing"
 	"time"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/mock"
 	"github.com/uber/jaeger-lib/metrics/metricstest"
 	"go.uber.org/zap"
 
@@ -42,6 +44,9 @@ type spanWriterTest struct {
 func withSpanWriter(writeCacheTTL time.Duration, fn func(w *spanWriterTest), options ...Option,
 ) {
 	session := &mocks.Session{}
+	query := &mocks.Query{}
+	session.On("Query", fmt.Sprintf(tableCheckStmt, schemas[latestVersion].tableName), mock.Anything).Return(query)
+	query.On("Exec").Return(nil)
 	logger, logBuffer := testutils.NewLogger()
 	metricsFactory := metricstest.NewFactory(0)
 	w := &spanWriterTest{
