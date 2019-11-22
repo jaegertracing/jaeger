@@ -77,8 +77,7 @@ func TestOperationNamesStorageWrite(t *testing.T) {
 		{name: "test new schema with 0 ttl", ttl: 0, schemaVersion: latestVersion},
 		{name: "test new schema with 1min ttl", ttl: time.Minute, schemaVersion: latestVersion},
 	} {
-		fmt.Printf(test.name)
-		t.Run(fmt.Sprintf("%s", test.name), func(t *testing.T) {
+		t.Run(test.name, func(t *testing.T) {
 			withOperationNamesStorage(test.ttl, test.schemaVersion, func(s *operationNameStorageTest) {
 				var execError = errors.New("exec error")
 				query := &mocks.Query{}
@@ -148,7 +147,7 @@ func TestOperationNamesStorageGetServices(t *testing.T) {
 		{name: "test new schema without error", schemaVersion: latestVersion, expErr: nil},
 		{name: "test new schema with scan error", schemaVersion: latestVersion, expErr: scanError},
 	} {
-		t.Run(fmt.Sprintf("%s", test.name), func(t *testing.T) {
+		t.Run(test.name, func(t *testing.T) {
 			withOperationNamesStorage(0, test.schemaVersion, func(s *operationNameStorageTest) {
 				var matched bool
 				matchOnce := mock.MatchedBy(func(v []interface{}) bool {
