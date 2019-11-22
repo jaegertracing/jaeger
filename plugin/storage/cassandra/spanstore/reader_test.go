@@ -19,7 +19,6 @@ import (
 	"context"
 	"errors"
 	"fmt"
-	"strings"
 	"testing"
 	"time"
 
@@ -76,8 +75,8 @@ func TestSpanReaderGetServices(t *testing.T) {
 func TestSpanReaderGetOperations(t *testing.T) {
 	withSpanReader(func(r *spanReaderTest) {
 		r.reader.operationNamesReader =
-			func(parameters *spanstore.OperationQueryParameters) ([]*spanstore.Operation, error) {
-				return []*spanstore.Operation{
+			func(parameters spanstore.OperationQueryParameters) ([]spanstore.Operation, error) {
+				return []spanstore.Operation{
 					{
 						Name:     "operation-a",
 						SpanKind: "server",
@@ -85,9 +84,9 @@ func TestSpanReaderGetOperations(t *testing.T) {
 				}, nil
 			}
 		s, err := r.reader.GetOperations(context.Background(),
-			&spanstore.OperationQueryParameters{ServiceName: "service-x", SpanKind: "server"})
+			spanstore.OperationQueryParameters{ServiceName: "service-x", SpanKind: "server"})
 		assert.NoError(t, err)
-		assert.Equal(t, []*spanstore.Operation{{Name: "operation-a", SpanKind: "server"}}, s)
+		assert.Equal(t, []spanstore.Operation{{Name: "operation-a", SpanKind: "server"}}, s)
 	})
 }
 
@@ -391,11 +390,7 @@ func TestSpanReaderFindTraces(t *testing.T) {
 					assert.EqualError(t, err, testCase.expectedError)
 				}
 				for _, expectedLog := range testCase.expectedLogs {
-					assert.True(t,
-						strings.Contains(r.logBuffer.String(), expectedLog),
-						"Log must contain %s, "+"but was %s",
-						expectedLog,
-						r.logBuffer.String())
+					assert.Contains(t, r.logBuffer.String(), expectedLog)
 				}
 				if len(testCase.expectedLogs) == 0 {
 					assert.Equal(t, "", r.logBuffer.String())

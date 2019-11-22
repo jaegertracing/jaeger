@@ -194,23 +194,13 @@ func TestSpanWriter(t *testing.T) {
 				// note: using matchOnce below because we only want one tag to be inserted
 				w.session.On("Query", stringMatcher(insertTag), matchOnce()).Return(tagsQuery)
 
-				w.session.On("Query",
-					stringMatcher(serviceNameIndex),
-					matchEverything()).Return(serviceNameQuery)
-				w.session.On("Query",
-					stringMatcher(serviceOperationIndex),
-					matchEverything()).Return(serviceOperationNameQuery)
+				w.session.On("Query", stringMatcher(serviceNameIndex), matchEverything()).Return(serviceNameQuery)
+				w.session.On("Query", stringMatcher(serviceOperationIndex), matchEverything()).Return(serviceOperationNameQuery)
 
-				w.session.On("Query",
-					stringMatcher(durationIndex),
-					matchOnce()).Return(durationNoOperationQuery)
+				w.session.On("Query", stringMatcher(durationIndex), matchOnce()).Return(durationNoOperationQuery)
 
-				w.writer.serviceNamesWriter = func(serviceName string) error {
-					return testCase.serviceNameError
-				}
-				w.writer.operationNamesWriter = func(operation dbmodel.Operation) error {
-					return testCase.serviceNameError
-				}
+				w.writer.serviceNamesWriter = func(serviceName string) error { return testCase.serviceNameError }
+				w.writer.operationNamesWriter = func(operation dbmodel.Operation) error { return testCase.serviceNameError }
 				err := w.writer.WriteSpan(span)
 
 				if testCase.expectedError == "" {
@@ -219,11 +209,7 @@ func TestSpanWriter(t *testing.T) {
 					assert.EqualError(t, err, testCase.expectedError)
 				}
 				for _, expectedLog := range testCase.expectedLogs {
-					assert.True(t,
-						strings.Contains(w.logBuffer.String(), expectedLog),
-						"Log must contain %s, but was %s",
-						expectedLog,
-						w.logBuffer.String())
+					assert.Contains(t, w.logBuffer.String(), expectedLog)
 				}
 				if len(testCase.expectedLogs) == 0 {
 					assert.Equal(t, "", w.logBuffer.String())
@@ -241,24 +227,18 @@ func TestSpanWriterSaveServiceNameAndOperationName(t *testing.T) {
 		expectedError        string
 	}{
 		{
-			serviceNamesWriter: func(serviceName string) error { return nil },
-			operationNamesWriter: func(operation dbmodel.Operation) error {
-				return nil
-			},
+			serviceNamesWriter:   func(serviceName string) error { return nil },
+			operationNamesWriter: func(operation dbmodel.Operation) error { return nil },
 		},
 		{
-			serviceNamesWriter: func(serviceName string) error { return expectedErr },
-			operationNamesWriter: func(operation dbmodel.Operation) error {
-				return nil
-			},
-			expectedError: "some error",
+			serviceNamesWriter:   func(serviceName string) error { return expectedErr },
+			operationNamesWriter: func(operation dbmodel.Operation) error { return nil },
+			expectedError:        "some error",
 		},
 		{
-			serviceNamesWriter: func(serviceName string) error { return nil },
-			operationNamesWriter: func(operation dbmodel.Operation) error {
-				return expectedErr
-			},
-			expectedError: "some error",
+			serviceNamesWriter:   func(serviceName string) error { return nil },
+			operationNamesWriter: func(operation dbmodel.Operation) error { return expectedErr },
+			expectedError:        "some error",
 		},
 	}
 	for _, tc := range testCases {
@@ -332,9 +312,7 @@ func TestStorageMode_IndexOnly(t *testing.T) {
 		durationNoOperationQuery.On("Exec").Return(nil)
 
 		w.session.On("Query", stringMatcher(serviceNameIndex), matchEverything()).Return(serviceNameQuery)
-		w.session.On("Query",
-			stringMatcher(serviceOperationIndex),
-			matchEverything()).Return(serviceOperationNameQuery)
+		w.session.On("Query", stringMatcher(serviceOperationIndex), matchEverything()).Return(serviceOperationNameQuery)
 		w.session.On("Query", stringMatcher(durationIndex), matchOnce()).Return(durationNoOperationQuery)
 
 		err := w.writer.WriteSpan(span)

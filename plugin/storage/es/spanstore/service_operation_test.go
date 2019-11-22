@@ -122,8 +122,10 @@ func TestSpanReader_GetOperationsEmptyIndex(t *testing.T) {
 			Return(&elastic.MultiSearchResult{
 				Responses: []*elastic.SearchResult{},
 			}, nil)
-		services, err := r.reader.GetOperations(context.Background(),
-			&spanstore.OperationQueryParameters{ServiceName: "foo"})
+		services, err := r.reader.GetOperations(
+			context.Background(),
+			spanstore.OperationQueryParameters{ServiceName: "foo"},
+		)
 		require.NoError(t, err)
 		assert.Empty(t, services)
 	})

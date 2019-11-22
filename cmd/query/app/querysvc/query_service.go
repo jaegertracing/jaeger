@@ -80,7 +80,7 @@ func (qs QueryService) GetServices(ctx context.Context) ([]string, error) {
 
 // GetOperations is the queryService implementation of spanstore.Reader.GetOperations
 func (qs QueryService) GetOperations(ctx context.Context, service string) ([]string, error) {
-	operations, err := qs.spanReader.GetOperations(ctx, &spanstore.OperationQueryParameters{
+	operations, err := qs.spanReader.GetOperations(ctx, spanstore.OperationQueryParameters{
 		ServiceName: service,
 	})
 	if err != nil {

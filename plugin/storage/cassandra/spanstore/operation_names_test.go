@@ -51,9 +51,6 @@ func withOperationNamesStorage(writeCacheTTL time.Duration,
 	query := &mocks.Query{}
 	session.On("Query",
 		fmt.Sprintf(tableCheckStmt, schemas[latestVersion].tableName), mock.Anything).Return(query)
-	session.On("Query",
-		fmt.Sprintf(tableCheckStmt, schemas[latestVersion].tableName),
-		mock.Anything).Return(query)
 	if schemaVersion != latestVersion {
 		query.On("Exec").Return(errors.New("new table does not exist"))
 	} else {
@@ -184,14 +181,14 @@ func TestOperationNamesStorageGetServices(t *testing.T) {
 				query.On("Iter").Return(iter)
 
 				s.session.On("Query", mock.AnythingOfType("string"), mock.Anything).Return(query)
-				services, err := s.storage.GetOperations(&spanstore.OperationQueryParameters{
+				services, err := s.storage.GetOperations(spanstore.OperationQueryParameters{
 					ServiceName: "service-a",
 				})
 				if test.expErr == nil {
 					assert.NoError(t, err)
 					// expect one empty operation result
 					// because mock iter.Scan(&placeholder) does not write to `placeholder`
-					assert.Equal(t, []*spanstore.Operation{{}}, services)
+					assert.Equal(t, []spanstore.Operation{{}}, services)
 				} else {
 					assert.EqualError(
 						t,

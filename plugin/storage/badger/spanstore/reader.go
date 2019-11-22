@@ -239,8 +239,8 @@ func (r *TraceReader) GetServices(ctx context.Context) ([]string, error) {
 // GetOperations fetches operations in the service and empty slice if service does not exists
 func (r *TraceReader) GetOperations(
 	ctx context.Context,
-	query *spanstore.OperationQueryParameters,
-) ([]*spanstore.Operation, error) {
+	query spanstore.OperationQueryParameters,
+) ([]spanstore.Operation, error) {
 	return r.cache.GetOperations(query.ServiceName)
 }
 

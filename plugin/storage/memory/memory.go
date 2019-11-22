@@ -182,16 +182,18 @@ func (m *Store) GetServices(ctx context.Context) ([]string, error) {
 }
 
 // GetOperations returns the operations of a given service
-func (m *Store) GetOperations(ctx context.Context, query *spanstore.OperationQueryParameters) (
-	[]*spanstore.Operation, error) {
+func (m *Store) GetOperations(
+	ctx context.Context,
+	query spanstore.OperationQueryParameters,
+) ([]spanstore.Operation, error) {
 	m.RLock()
 	defer m.RUnlock()
-	var retMe []*spanstore.Operation
+	var retMe []spanstore.Operation
 	if operations, ok := m.operations[query.ServiceName]; ok {
 		for operationName, kinds := range operations {
 			for kind := range kinds {
 				if query.SpanKind == "" || query.SpanKind == kind {
-					retMe = append(retMe, &spanstore.Operation{
+					retMe = append(retMe, spanstore.Operation{
 						Name:     operationName,
 						SpanKind: kind,
 					})

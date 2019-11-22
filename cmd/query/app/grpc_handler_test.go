@@ -415,10 +415,10 @@ func TestGetServicesFailureGRPC(t *testing.T) {
 func TestGetOperationsSuccessGRPC(t *testing.T) {
 	withServerAndClient(t, func(server *grpcServer, client *grpcClient) {
 
-		expectedOperations := []*spanstore.Operation{{Name: ""}, {Name: "get", SpanKind: "server"}}
+		expectedOperations := []spanstore.Operation{{Name: ""}, {Name: "get", SpanKind: "server"}}
 		server.spanReader.On("GetOperations",
 			mock.AnythingOfType("*context.valueCtx"),
-			&spanstore.OperationQueryParameters{ServiceName: "abc/trifle"},
+			spanstore.OperationQueryParameters{ServiceName: "abc/trifle"},
 		).Return(expectedOperations, nil).Once()
 
 		res, err := client.GetOperations(context.Background(), &api_v2.GetOperationsRequest{
@@ -436,7 +436,7 @@ func TestGetOperationsFailureGRPC(t *testing.T) {
 	withServerAndClient(t, func(server *grpcServer, client *grpcClient) {
 		server.spanReader.On("GetOperations",
 			mock.AnythingOfType("*context.valueCtx"),
-			&spanstore.OperationQueryParameters{ServiceName: "trifle"},
+			spanstore.OperationQueryParameters{ServiceName: "trifle"},
 		).Return(nil, errStorageGRPC).Once()
 
 		_, err := client.GetOperations(context.Background(), &api_v2.GetOperationsRequest{

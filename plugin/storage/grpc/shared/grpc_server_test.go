@@ -87,29 +87,25 @@ func TestGRPCServerGetServices(t *testing.T) {
 
 func TestGRPCServerGetOperations(t *testing.T) {
 	withGRPCServer(func(r *grpcServerTest) {
-		expOperations := []*spanstore.Operation{
+		expOperations := []spanstore.Operation{
 			{Name: "operation-a", SpanKind: "client"},
 			{Name: "operation-a", SpanKind: "server"},
 			{Name: "operation-b", SpanKind: "client"},
 		}
-		expOperationNames := []string{
-			"operation-a",
-			"operation-b",
-		}
+
 		r.impl.spanReader.On("GetOperations",
 			mock.Anything,
-			&spanstore.OperationQueryParameters{ServiceName: "service-a"}).
+			spanstore.OperationQueryParameters{ServiceName: "service-a"}).
 			Return(expOperations, nil)
 
 		resp, err := r.server.GetOperations(context.Background(), &storage_v1.GetOperationsRequest{
 			Service: "service-a",
 		})
 		assert.NoError(t, err)
-		for i, operationV2 := range resp.OperationsV2 {
-			assert.Equal(t, expOperations[i].Name, operationV2.Name)
-			assert.Equal(t, expOperations[i].SpanKind, operationV2.SpanKind)
+		for i, operation := range resp.Operations {
+			assert.Equal(t, expOperations[i].Name, operation.Name)
+			assert.Equal(t, expOperations[i].SpanKind, operation.SpanKind)
 		}
-		assert.Equal(t, expOperationNames, resp.Operations)
 	})
 }
 

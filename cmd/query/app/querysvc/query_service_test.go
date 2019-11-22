@@ -148,10 +148,10 @@ func TestGetServices(t *testing.T) {
 func TestGetOperations(t *testing.T) {
 	qs, readMock, _ := initializeTestService()
 	expectedOperationNames := []string{"", "get"}
-	expectedOperations := []*spanstore.Operation{{Name: ""}, {Name: "get", SpanKind: "server"}}
+	expectedOperations := []spanstore.Operation{{Name: ""}, {Name: "get", SpanKind: "server"}}
 	readMock.On("GetOperations",
 		mock.AnythingOfType("*context.valueCtx"),
-		mock.AnythingOfType("*spanstore.OperationQueryParameters")).Return(expectedOperations, nil).Once()
+		mock.AnythingOfType("spanstore.OperationQueryParameters")).Return(expectedOperations, nil).Once()
 
 	type contextKey string
 	ctx := context.Background()

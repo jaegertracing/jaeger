@@ -488,11 +488,15 @@ func testGet(typ string, t *testing.T) {
 		searchResult   *elastic.SearchResult
 		searchError    error
 		expectedError  string
-		expectedOutput interface{}
+		expectedOutput map[string]interface{}
 	}{
 		{
 			caption:      typ + " full behavior",
 			searchResult: &elastic.SearchResult{Aggregations: elastic.Aggregations(goodAggregations)},
+			expectedOutput: map[string]interface{}{
+				operationsAggregation: []spanstore.Operation{{Name: "123"}},
+				"default":             []string{"123"},
+			},
 		},
 		{
 			caption:       typ + " search error",
@@ -505,28 +509,20 @@ func testGet(typ string, t *testing.T) {
 			expectedError: "Could not find aggregation of " + typ,
 		},
 	}
-	if typ == operationsAggregation {
-		testCases[0].expectedOutput = []*spanstore.Operation{
-			{
-				Name: "123",
-			},
-		}
-	} else {
-		testCases[0].expectedOutput = []string{"123"}
-	}
+
 	for _, tc := range testCases {
 		testCase := tc
 		t.Run(testCase.caption, func(t *testing.T) {
 			withSpanReader(func(r *spanReaderTest) {
 				mockSearchService(r).Return(testCase.searchResult, testCase.searchError)
-
 				actual, err := returnSearchFunc(typ, r)
 				if testCase.expectedError != "" {
 					require.EqualError(t, err, testCase.expectedError)
 					assert.Nil(t, actual)
+				} else if expectedOutput, ok := testCase.expectedOutput[typ]; ok {
+					assert.EqualValues(t, expectedOutput, actual)
 				} else {
-					require.NoError(t, err)
-					assert.EqualValues(t, testCase.expectedOutput, actual)
+					assert.EqualValues(t, testCase.expectedOutput["default"], actual)
 				}
 			})
 		})
@@ -537,8 +533,10 @@ func returnSearchFunc(typ string, r *spanReaderTest) (interface{}, error) {
 	if typ == servicesAggregation {
 		return r.reader.GetServices(context.Background())
 	} else if typ == operationsAggregation {
-		return r.reader.GetOperations(context.Background(),
-			&spanstore.OperationQueryParameters{ServiceName: "someService"})
+		return r.reader.GetOperations(
+			context.Background(),
+			spanstore.OperationQueryParameters{ServiceName: "someService"},
+		)
 	} else if typ == traceIDAggregation {
 		return r.reader.findTraceIDs(context.Background(), &spanstore.TraceQueryParameters{})
 	}

@@ -108,8 +108,8 @@ func (m *ReadMetricsDecorator) GetServices(ctx context.Context) ([]string, error
 // GetOperations implements spanstore.Reader#GetOperations
 func (m *ReadMetricsDecorator) GetOperations(
 	ctx context.Context,
-	query *spanstore.OperationQueryParameters,
-) ([]*spanstore.Operation, error) {
+	query spanstore.OperationQueryParameters,
+) ([]spanstore.Operation, error) {
 	start := time.Now()
 	retMe, err := m.spanReader.GetOperations(ctx, query)
 	m.getOperationsMetrics.emit(err, time.Since(start), len(retMe))

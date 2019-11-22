@@ -51,8 +51,10 @@ type tableMeta struct {
 	queryByKindStmt  string
 	queryStmt        string
 	createWriteQuery func(query cassandra.Query, service, kind, opName string) cassandra.Query
-	getOperations    func(s *OperationNamesStorage, query *spanstore.OperationQueryParameters) (
-		[]*spanstore.Operation, error)
+	getOperations    func(
+		s *OperationNamesStorage,
+		query spanstore.OperationQueryParameters,
+	) ([]spanstore.Operation, error)
 }
 
 func (t *tableMeta) materialize() {
@@ -151,12 +153,9 @@ func (s *OperationNamesStorage) Write(operation dbmodel.Operation) error {
 
 // GetOperations returns all operations for a specific service traced by Jaeger
 func (s *OperationNamesStorage) GetOperations(
-	query *spanstore.OperationQueryParameters,
-) ([]*spanstore.Operation, error) {
-	return s.table.getOperations(s, &spanstore.OperationQueryParameters{
-		ServiceName: query.ServiceName,
-		SpanKind:    query.SpanKind,
-	})
+	query spanstore.OperationQueryParameters,
+) ([]spanstore.Operation, error) {
+	return s.table.getOperations(s, query)
 }
 
 func tableExist(session cassandra.Session, tableName string) bool {
@@ -165,13 +164,16 @@ func tableExist(session cassandra.Session, tableName string) bool {
 	return err == nil
 }
 
-func getOperationsV1(s *OperationNamesStorage, query *spanstore.OperationQueryParameters) ([]*spanstore.Operation, error) {
+func getOperationsV1(
+	s *OperationNamesStorage,
+	query spanstore.OperationQueryParameters,
+) ([]spanstore.Operation, error) {
 	iter := s.session.Query(s.table.queryStmt, query.ServiceName).Iter()
 
 	var operation string
-	var operations []*spanstore.Operation
+	var operations []spanstore.Operation
 	for iter.Scan(&operation) {
-		operations = append(operations, &spanstore.Operation{
+		operations = append(operations, spanstore.Operation{
 			Name: operation,
 		})
 	}
@@ -183,7 +185,10 @@ func getOperationsV1(s *OperationNamesStorage, query *spanstore.OperationQueryPa
 	return operations, nil
 }
 
-func getOperationsV2(s *OperationNamesStorage, query *spanstore.OperationQueryParameters) ([]*spanstore.Operation, error) {
+func getOperationsV2(
+	s *OperationNamesStorage,
+	query spanstore.OperationQueryParameters,
+) ([]spanstore.Operation, error) {
 	var casQuery cassandra.Query
 	if query.SpanKind == "" {
 		// Get operations for all spanKind
@@ -196,9 +201,9 @@ func getOperationsV2(s *OperationNamesStorage, query *spanstore.OperationQueryPa
 
 	var operationName string
 	var spanKind string
-	var operations []*spanstore.Operation
+	var operations []spanstore.Operation
 	for iter.Scan(&spanKind, &operationName) {
-		operations = append(operations, &spanstore.Operation{
+		operations = append(operations, spanstore.Operation{
 			Name:     operationName,
 			SpanKind: spanKind,
 		})
