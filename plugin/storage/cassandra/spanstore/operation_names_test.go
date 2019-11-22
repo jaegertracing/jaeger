@@ -107,22 +107,15 @@ func TestOperationNamesStorageWrite(t *testing.T) {
 
 				err = s.storage.Write("service-c", "operation-d", "")
 				assert.EqualError(t, err,
-					"failed to Exec query 'select from "+schemas[test.schemaVersion].tableName+"': exec error")
+					"failed to Exec query 'select from "+
+						schemas[test.schemaVersion].tableName+
+						"': exec error")
 				assert.Equal(t, map[string]string{
 					"level": "error",
 					"msg":   "Failed to exec query",
 					"query": "select from " + schemas[test.schemaVersion].tableName,
 					"error": "exec error",
 				}, s.logBuffer.JSONLine(0))
-			err = s.storage.Write("service-c", "operation-d", "")
-			assert.EqualError(t, err,
-				"failed to Exec query 'select from "+schemas[test.schemaVersion].tableName+"': exec error")
-			assert.Equal(t, map[string]string{
-				"level": "error",
-				"msg":   "Failed to exec query",
-				"query": "select from " + schemas[test.schemaVersion].tableName,
-				"error": "exec error",
-			}, s.logBuffer.JSONLine(0))
 
 				counts, _ := s.metricsFactory.Snapshot()
 				assert.Equal(t, map[string]int64{
@@ -131,9 +124,9 @@ func TestOperationNamesStorageWrite(t *testing.T) {
 					"errors|table=" + schemas[test.schemaVersion].tableName:   1,
 				}, counts, "after first two writes")
 
-			// write again
-			err = s.storage.Write("service-a", "Operation-b", "")
-			assert.NoError(t, err)
+				// write again
+				err = s.storage.Write("service-a", "Operation-b", "")
+				assert.NoError(t, err)
 
 				counts2, _ := s.metricsFactory.Snapshot()
 				expCounts := counts
@@ -181,13 +174,22 @@ func TestOperationNamesStorageGetServices(t *testing.T) {
 				query.On("Iter").Return(iter)
 
 				s.session.On("Query", mock.AnythingOfType("string"), mock.Anything).Return(query)
-				services, err := s.storage.GetOperations(&spanstore.OperationQueryParameters{ServiceName: "service-a"})
+				services, err := s.storage.GetOperations(&spanstore.OperationQueryParameters{
+					ServiceName: "service-a",
+				})
 				if test.expErr == nil {
 					assert.NoError(t, err)
-					// expect one empty operation result because mock iter.Scan(&placeholder) does not write to `placeholder`
+					// expect one empty operation result
+					// because mock iter.Scan(&placeholder) does not write to `placeholder`
 					assert.Equal(t, []*spanstore.Operation{{}}, services)
 				} else {
-					assert.EqualError(t, err, fmt.Sprintf("Error reading %s from storage: %s", schemas[test.schemaVersion].tableName, test.expErr.Error()))
+					assert.EqualError(
+						t,
+						err,
+						fmt.Sprintf("Error reading %s from storage: %s",
+							schemas[test.schemaVersion].tableName,
+							test.expErr.Error()),
+					)
 				}
 			})
 		})
