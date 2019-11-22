@@ -32,15 +32,17 @@ import (
 const (
 	// latestVersion of operation_names table
 	// increase the version if your table schema changes require code change
-	latestVersion = "v2"
+	latestVersion = schemaVersion("v2")
 
 	// previous version of operation_names table
 	// if latest version does not work, will fail back to use previous version
-	previousVersion = "v1"
+	previousVersion = schemaVersion("v1")
 
 	// tableCheckStmt the query statement used to check if a table exists or not
 	tableCheckStmt = "SELECT * from %s limit 1"
 )
+
+type schemaVersion string
 
 type tableMeta struct {
 	tableName        string
@@ -57,8 +59,8 @@ func (t *tableMeta) materialize() {
 	t.queryStmt = fmt.Sprintf(t.queryStmt, t.tableName)
 }
 
-var schemas = map[string]*tableMeta{
-	"v1": {
+var schemas = map[schemaVersion]*tableMeta{
+	previousVersion: {
 		tableName:       "operation_names",
 		insertStmt:      "INSERT INTO %s(service_name, operation_name) VALUES (?, ?)",
 		queryByKindStmt: "SELECT operation_name FROM %s WHERE service_name = ?",
@@ -68,7 +70,7 @@ var schemas = map[string]*tableMeta{
 			return query.Bind(service, opName)
 		},
 	},
-	"v2": {
+	latestVersion: {
 		tableName:       "operation_names_v2",
 		insertStmt:      "INSERT INTO %s(service_name, span_kind, operation_name) VALUES (?, ?, ?)",
 		queryByKindStmt: "SELECT span_kind, operation_name FROM %s WHERE service_name = ? AND span_kind = ?",
@@ -83,7 +85,7 @@ var schemas = map[string]*tableMeta{
 // OperationNamesStorage stores known operation names by service.
 type OperationNamesStorage struct {
 	// CQL statements are public so that Cassandra2 storage can override them
-	schemaVersion  string
+	schemaVersion  schemaVersion
 	table          *tableMeta
 	session        cassandra.Session
 	writeCacheTTL  time.Duration
@@ -148,6 +150,7 @@ func (s *OperationNamesStorage) GetOperations(service string) ([]string, error) 
 	if err != nil {
 		return nil, err
 	}
+	//TODO: return operations instead of list of string
 	operationNames := make([]string, len(operations))
 	for idx, operation := range operations {
 		operationNames[idx] = operation.Name
@@ -165,21 +168,17 @@ func getOperationsV1(s *OperationNamesStorage, query *spanstore.OperationQueryPa
 	iter := s.session.Query(s.table.queryStmt, query.ServiceName).Iter()
 
 	var operation string
-	var operationNames []string
+	var operations []*spanstore.Operation
 	for iter.Scan(&operation) {
-		operationNames = append(operationNames, operation)
+		operations = append(operations, &spanstore.Operation{
+			Name: operation,
+		})
 	}
 	if err := iter.Close(); err != nil {
 		err = errors.Wrap(err, "Error reading operation_names from storage")
 		return nil, err
 	}
 
-	operations := make([]*spanstore.Operation, len(operationNames))
-	for idx, name := range operationNames {
-		operations[idx] = &spanstore.Operation{
-			Name: name,
-		}
-	}
 	return operations, nil
 }
 
