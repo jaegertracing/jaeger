@@ -152,7 +152,8 @@ func (c *CacheStore) GetOperations(service string) ([]*spanstore.Operation, erro
 
 	sort.Strings(operations)
 
-	//TODO: return the operations with actual spanKind
+	// TODO: https://github.com/jaegertracing/jaeger/issues/1922
+	// 	- return the operations with actual spanKind
 	result := make([]*spanstore.Operation, 0, len(operations))
 	for _, op := range operations {
 		result = append(result, &spanstore.Operation{

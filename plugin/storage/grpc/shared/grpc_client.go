@@ -115,8 +115,8 @@ func (c *grpcClient) GetOperations(ctx context.Context, query *spanstore.Operati
 	}
 
 	operations := make([]*spanstore.Operation, len(resp.OperationsV2))
-	for idx, operation := range resp.OperationsV2 {
-		operations[idx] = &spanstore.Operation{
+	for i, operation := range resp.OperationsV2 {
+		operations[i] = &spanstore.Operation{
 			Name:     operation.Name,
 			SpanKind: operation.SpanKind,
 		}

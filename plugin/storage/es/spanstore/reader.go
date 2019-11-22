@@ -256,12 +256,12 @@ func (s *SpanReader) GetOperations(ctx context.Context, query *spanstore.Operati
 		return nil, err
 	}
 
-	//TODO: return the operations with actual span kind that meet requirement
+	// TODO: https://github.com/jaegertracing/jaeger/issues/1923
+	// 	- return the operations with actual span kind that meet requirement
 	var result []*spanstore.Operation
 	for _, operation := range operations {
 		result = append(result, &spanstore.Operation{
-			Name:     operation,
-			SpanKind: "",
+			Name: operation,
 		})
 	}
 	return result, err

@@ -88,8 +88,8 @@ func (qs QueryService) GetOperations(ctx context.Context, service string) ([]str
 	}
 
 	names := make([]string, len(operations))
-	for idx, operation := range operations {
-		names[idx] = operation.Name
+	for i, operation := range operations {
+		names[i] = operation.Name
 	}
 	return names, err
 }

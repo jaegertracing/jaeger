@@ -205,9 +205,12 @@ func TestSpanWriter(t *testing.T) {
 					stringMatcher(durationIndex),
 					matchOnce()).Return(durationNoOperationQuery)
 
-				w.writer.serviceNamesWriter = func(serviceName string) error { return testCase.serviceNameError }
-				w.writer.operationNamesWriter =
-					func(serviceName, operationName, spanKind string) error { return testCase.serviceNameError }
+				w.writer.serviceNamesWriter = func(serviceName string) error {
+					return testCase.serviceNameError
+				}
+				w.writer.operationNamesWriter = func(operation dbmodel.Operation) error {
+					return testCase.serviceNameError
+				}
 				err := w.writer.WriteSpan(span)
 
 				if testCase.expectedError == "" {
@@ -238,18 +241,24 @@ func TestSpanWriterSaveServiceNameAndOperationName(t *testing.T) {
 		expectedError        string
 	}{
 		{
-			serviceNamesWriter:   func(serviceName string) error { return nil },
-			operationNamesWriter: func(serviceName, operationName, spanKind string) error { return nil },
+			serviceNamesWriter: func(serviceName string) error { return nil },
+			operationNamesWriter: func(operation dbmodel.Operation) error {
+				return nil
+			},
 		},
 		{
-			serviceNamesWriter:   func(serviceName string) error { return expectedErr },
-			operationNamesWriter: func(serviceName, operationName, spanKind string) error { return nil },
-			expectedError:        "some error",
+			serviceNamesWriter: func(serviceName string) error { return expectedErr },
+			operationNamesWriter: func(operation dbmodel.Operation) error {
+				return nil
+			},
+			expectedError: "some error",
 		},
 		{
-			serviceNamesWriter:   func(serviceName string) error { return nil },
-			operationNamesWriter: func(serviceName, operationName, spanKind string) error { return expectedErr },
-			expectedError:        "some error",
+			serviceNamesWriter: func(serviceName string) error { return nil },
+			operationNamesWriter: func(operation dbmodel.Operation) error {
+				return expectedErr
+			},
+			expectedError: "some error",
 		},
 	}
 	for _, tc := range testCases {
@@ -257,7 +266,11 @@ func TestSpanWriterSaveServiceNameAndOperationName(t *testing.T) {
 		withSpanWriter(0, func(w *spanWriterTest) {
 			w.writer.serviceNamesWriter = testCase.serviceNamesWriter
 			w.writer.operationNamesWriter = testCase.operationNamesWriter
-			err := w.writer.saveServiceNameAndOperationName("service", "operation", "")
+			err := w.writer.saveServiceNameAndOperationName(
+				dbmodel.Operation{
+					ServiceName:   "service",
+					OperationName: "operation",
+				})
 			if testCase.expectedError == "" {
 				assert.NoError(t, err)
 			} else {
@@ -298,7 +311,7 @@ func TestStorageMode_IndexOnly(t *testing.T) {
 	withSpanWriter(0, func(w *spanWriterTest) {
 
 		w.writer.serviceNamesWriter = func(serviceName string) error { return nil }
-		w.writer.operationNamesWriter = func(serviceName, operationName, spanKind string) error { return nil }
+		w.writer.operationNamesWriter = func(operation dbmodel.Operation) error { return nil }
 		span := &model.Span{
 			TraceID: model.NewTraceID(0, 1),
 			Process: &model.Process{
@@ -343,7 +356,7 @@ func TestStorageMode_IndexOnly_WithFilter(t *testing.T) {
 	withSpanWriter(0, func(w *spanWriterTest) {
 		w.writer.indexFilter = filterEverything
 		w.writer.serviceNamesWriter = func(serviceName string) error { return nil }
-		w.writer.operationNamesWriter = func(serviceName, operationName, spanKind string) error { return nil }
+		w.writer.operationNamesWriter = func(operation dbmodel.Operation) error { return nil }
 		span := &model.Span{
 			TraceID: model.NewTraceID(0, 1),
 			Process: &model.Process{
@@ -363,7 +376,7 @@ func TestStorageMode_IndexOnly_FirehoseSpan(t *testing.T) {
 	withSpanWriter(0, func(w *spanWriterTest) {
 
 		w.writer.serviceNamesWriter = func(serviceName string) error { return nil }
-		w.writer.operationNamesWriter = func(serviceName, operationName, spanKind string) error { return nil }
+		w.writer.operationNamesWriter = func(operation dbmodel.Operation) error { return nil }
 		span := &model.Span{
 			TraceID: model.NewTraceID(0, 1),
 			Process: &model.Process{

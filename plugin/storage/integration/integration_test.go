@@ -150,9 +150,9 @@ func (s *StorageIntegration) testGetOperations(t *testing.T) {
 	defer s.cleanUp(t)
 
 	expected := []*spanstore.Operation{
-		{Name: "example-operation-1", SpanKind: ""},
-		{Name: "example-operation-3", SpanKind: ""},
-		{Name: "example-operation-4", SpanKind: ""}}
+		{Name: "example-operation-1"},
+		{Name: "example-operation-3"},
+		{Name: "example-operation-4"}}
 	s.loadParseAndWriteExampleTrace(t)
 	s.refresh(t)
 
@@ -160,7 +160,7 @@ func (s *StorageIntegration) testGetOperations(t *testing.T) {
 	found := s.waitForCondition(t, func(t *testing.T) bool {
 		var err error
 		actual, err = s.SpanReader.GetOperations(context.Background(),
-			&spanstore.OperationQueryParameters{ServiceName: "example-service-1", SpanKind: ""})
+			&spanstore.OperationQueryParameters{ServiceName: "example-service-1"})
 		require.NoError(t, err)
 		return assert.ObjectsAreEqualValues(expected, actual)
 	})

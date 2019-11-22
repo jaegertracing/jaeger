@@ -26,6 +26,7 @@ import (
 	"github.com/jaegertracing/jaeger/pkg/cache"
 	"github.com/jaegertracing/jaeger/pkg/cassandra"
 	casMetrics "github.com/jaegertracing/jaeger/pkg/cassandra/metrics"
+	"github.com/jaegertracing/jaeger/plugin/storage/cassandra/spanstore/dbmodel"
 	"github.com/jaegertracing/jaeger/storage/spanstore"
 )
 
@@ -127,22 +128,31 @@ func NewOperationNamesStorage(
 }
 
 // Write saves Operation and Service name tuples
-func (s *OperationNamesStorage) Write(serviceName, operationName, spanKind string) error {
-	var err error
-
-	if inCache := checkWriteCache(serviceName+"|"+spanKind+"|"+operationName, s.operationNames, s.writeCacheTTL); !inCache {
-		q := s.table.createWriteQuery(s.session.Query(s.table.insertStmt), serviceName, spanKind, operationName)
-		err2 := s.metrics.Exec(q, s.logger)
-		if err2 != nil {
-			err = err2
+func (s *OperationNamesStorage) Write(operation dbmodel.Operation) error {
+	key := fmt.Sprintf("%s|%s|%s",
+		operation.ServiceName,
+		operation.SpanKind,
+		operation.OperationName,
+	)
+	if inCache := checkWriteCache(key, s.operationNames, s.writeCacheTTL); !inCache {
+		q := s.table.createWriteQuery(
+			s.session.Query(s.table.insertStmt),
+			operation.ServiceName,
+			operation.SpanKind,
+			operation.OperationName,
+		)
+		err := s.metrics.Exec(q, s.logger)
+		if err != nil {
+			return err
 		}
 	}
-	return err
+	return nil
 }
 
 // GetOperations returns all operations for a specific service traced by Jaeger
-func (s *OperationNamesStorage) GetOperations(query *spanstore.OperationQueryParameters) (
-	[]*spanstore.Operation, error) {
+func (s *OperationNamesStorage) GetOperations(
+	query *spanstore.OperationQueryParameters,
+) ([]*spanstore.Operation, error) {
 	return s.table.getOperations(s, &spanstore.OperationQueryParameters{
 		ServiceName: query.ServiceName,
 		SpanKind:    query.SpanKind,

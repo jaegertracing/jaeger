@@ -28,6 +28,7 @@ import (
 
 	"github.com/jaegertracing/jaeger/pkg/cassandra/mocks"
 	"github.com/jaegertracing/jaeger/pkg/testutils"
+	"github.com/jaegertracing/jaeger/plugin/storage/cassandra/spanstore/dbmodel"
 	"github.com/jaegertracing/jaeger/storage/spanstore"
 )
 
@@ -102,10 +103,16 @@ func TestOperationNamesStorageWrite(t *testing.T) {
 
 				s.session.On("Query", mock.AnythingOfType("string"), mock.Anything).Return(query)
 
-				err := s.storage.Write("service-a", "Operation-b", "")
+				err := s.storage.Write(dbmodel.Operation{
+					ServiceName:   "service-a",
+					OperationName: "Operation-b",
+				})
 				assert.NoError(t, err)
 
-				err = s.storage.Write("service-c", "operation-d", "")
+				err = s.storage.Write(dbmodel.Operation{
+					ServiceName:   "service-c",
+					OperationName: "operation-d",
+				})
 				assert.EqualError(t, err,
 					"failed to Exec query 'select from "+
 						schemas[test.schemaVersion].tableName+
@@ -125,7 +132,10 @@ func TestOperationNamesStorageWrite(t *testing.T) {
 				}, counts, "after first two writes")
 
 				// write again
-				err = s.storage.Write("service-a", "Operation-b", "")
+				err = s.storage.Write(dbmodel.Operation{
+					ServiceName:   "service-a",
+					OperationName: "Operation-b",
+				})
 				assert.NoError(t, err)
 
 				counts2, _ := s.metricsFactory.Snapshot()
