@@ -212,12 +212,12 @@ func (r *TraceReader) scanTimeRange(plan *executionPlan) ([]model.TraceID, error
 	})
 
 	sizeCount := len(traceKeys)
-	if plan.limit > 0 {
+	if plan.limit > 0 && plan.limit < sizeCount {
 		sizeCount = plan.limit
 	}
 	traceIDs := make([]model.TraceID, sizeCount)
 
-	for i := 0; i < len(traceKeys) && i < sizeCount; i++ {
+	for i := 0; i < sizeCount; i++ {
 		traceIDs[i] = bytesToTraceID(traceKeys[i][1 : sizeOfTraceID+1])
 	}
 
