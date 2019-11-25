@@ -427,7 +427,8 @@ func TestGetOperationsSuccessGRPC(t *testing.T) {
 		assert.NoError(t, err)
 		assert.Equal(t, len(expectedOperations), len(res.Operations))
 		for i, actualOp := range res.Operations {
-			assert.Equal(t, expectedOperations[i].Name, actualOp)
+			assert.Equal(t, expectedOperations[i].Name, actualOp.Name)
+			assert.Equal(t, expectedOperations[i].SpanKind, actualOp.SpanKind)
 		}
 	})
 }

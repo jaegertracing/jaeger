@@ -484,16 +484,27 @@ func TestGetOperationsSuccess(t *testing.T) {
 	server, readMock, _ := initializeTestServer()
 	defer server.Close()
 	expectedOperations := []spanstore.Operation{{Name: ""}, {Name: "get", SpanKind: "server"}}
-	readMock.On("GetOperations", mock.AnythingOfType("*context.valueCtx"),
-		spanstore.OperationQueryParameters{ServiceName: "abc/trifle"}).Return(expectedOperations, nil).Once()
+	readMock.On(
+		"GetOperations",
+		mock.AnythingOfType("*context.valueCtx"),
+		spanstore.OperationQueryParameters{ServiceName: "abc/trifle"},
+	).Return(expectedOperations, nil).Once()
 
-	var response structuredResponse
-	err := getJSON(server.URL+"/api/operations?service=abc%2Ftrifle", &response)
-	assert.NoError(t, err)
-	for i, s := range response.Data.([]interface{}) {
-		assert.Equal(t, expectedOperations[i].Name, s.(string))
+	var response struct {
+		Operations []*ui.Operation   `json:"data"`
+		Total      int               `json:"total"`
+		Limit      int               `json:"limit"`
+		Offset     int               `json:"offset"`
+		Errors     []structuredError `json:"errors"`
 	}
 
+	err := getJSON(server.URL+"/api/operations?service=abc%2Ftrifle", &response)
+	assert.NoError(t, err)
+	assert.Equal(t, len(expectedOperations), len(response.Operations))
+	for i, op := range response.Operations {
+		assert.Equal(t, expectedOperations[i].Name, op.Name)
+		assert.Equal(t, expectedOperations[i].SpanKind, op.SpanKind)
+	}
 }
 
 func TestGetOperationsNoServiceName(t *testing.T) {
@@ -522,7 +533,11 @@ func TestGetOperationsLegacySuccess(t *testing.T) {
 	server, readMock, _ := initializeTestServer()
 	defer server.Close()
 	expectedOperationNames := []string{"", "get"}
-	expectedOperations := []spanstore.Operation{{Name: ""}, {Name: "get", SpanKind: "server"}}
+	expectedOperations := []spanstore.Operation{
+		{Name: ""},
+		{Name: "get", SpanKind: "server"},
+		{Name: "get", SpanKind: "client"}}
+
 	readMock.On(
 		"GetOperations",
 		mock.AnythingOfType("*context.valueCtx"),
@@ -530,8 +545,9 @@ func TestGetOperationsLegacySuccess(t *testing.T) {
 
 	var response structuredResponse
 	err := getJSON(server.URL+"/api/services/abc%2Ftrifle/operations", &response)
+
 	assert.NoError(t, err)
-	actualOperations := make([]string, len(expectedOperations))
+	actualOperations := make([]string, len(expectedOperationNames))
 	for i, s := range response.Data.([]interface{}) {
 		actualOperations[i] = s.(string)
 	}

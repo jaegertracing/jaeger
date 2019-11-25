@@ -79,21 +79,11 @@ func (qs QueryService) GetServices(ctx context.Context) ([]string, error) {
 }
 
 // GetOperations is the queryService implementation of spanstore.Reader.GetOperations
-func (qs QueryService) GetOperations(ctx context.Context, service string) ([]string, error) {
-	operations, err := qs.spanReader.GetOperations(ctx, spanstore.OperationQueryParameters{
-		ServiceName: service,
-	})
-
-	// TODO: remove below and simply return the result from query service
-	if err != nil {
-		return nil, err
-	}
-
-	names := make([]string, len(operations))
-	for i, operation := range operations {
-		names[i] = operation.Name
-	}
-	return names, err
+func (qs QueryService) GetOperations(
+	ctx context.Context,
+	query spanstore.OperationQueryParameters,
+) ([]spanstore.Operation, error) {
+	return qs.spanReader.GetOperations(ctx, query)
 }
 
 // FindTraces is the queryService implementation of spanstore.Reader.FindTraces
