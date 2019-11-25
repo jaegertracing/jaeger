@@ -532,7 +532,7 @@ func TestGetOperationsStorageFailure(t *testing.T) {
 func TestGetOperationsLegacySuccess(t *testing.T) {
 	server, readMock, _ := initializeTestServer()
 	defer server.Close()
-	expectedOperationNames := []string{"", "get"}
+	expectedOperationNames := map[string]struct{}{"": {}, "get": {}}
 	expectedOperations := []spanstore.Operation{
 		{Name: ""},
 		{Name: "get", SpanKind: "server"},
@@ -550,8 +550,8 @@ func TestGetOperationsLegacySuccess(t *testing.T) {
 	actualOperations := make([]string, len(expectedOperationNames))
 	for i, s := range response.Data.([]interface{}) {
 		actualOperations[i] = s.(string)
+		assert.Contains(t, expectedOperationNames, s)
 	}
-	assert.Equal(t, expectedOperationNames, actualOperations)
 }
 
 func TestGetOperationsLegacyStorageFailure(t *testing.T) {
