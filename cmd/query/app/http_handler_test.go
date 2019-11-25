@@ -523,10 +523,6 @@ func TestGetOperationsLegacySuccess(t *testing.T) {
 	defer server.Close()
 	expectedOperationNames := []string{"", "get"}
 	expectedOperations := []spanstore.Operation{{Name: ""}, {Name: "get", SpanKind: "server"}}
-	readMock.On("GetOperations",
-		mock.AnythingOfType("*context.valueCtx"),
-		"abc/trifle",
-	).Return(expectedOperationNames, nil).Once()
 	readMock.On(
 		"GetOperations",
 		mock.AnythingOfType("*context.valueCtx"),

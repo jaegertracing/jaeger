@@ -151,8 +151,8 @@ func (s *StorageIntegration) testGetOperations(t *testing.T) {
 
 	expected := []spanstore.Operation{
 		{Name: "example-operation-1"},
-		{Name: "example-operation-3"},
-		{Name: "example-operation-4"}}
+		{Name: "example-operation-3", SpanKind: "server"},
+		{Name: "example-operation-4", SpanKind: "client"}}
 	s.loadParseAndWriteExampleTrace(t)
 	s.refresh(t)
 

@@ -34,7 +34,7 @@ type Store struct {
 	ids        []*model.TraceID
 	traces     map[model.TraceID]*model.Trace
 	services   map[string]struct{}
-	operations map[string]map[string]map[string]struct{}
+	operations map[string]map[spanstore.Operation]struct{}
 	deduper    adjuster.Adjuster
 	config     config.Configuration
 	index      int
@@ -51,7 +51,7 @@ func WithConfiguration(configuration config.Configuration) *Store {
 		ids:        make([]*model.TraceID, configuration.MaxTraces),
 		traces:     map[model.TraceID]*model.Trace{},
 		services:   map[string]struct{}{},
-		operations: map[string]map[string]map[string]struct{}{},
+		operations: map[string]map[spanstore.Operation]struct{}{},
 		deduper:    adjuster.SpanIDDeduper(),
 		config:     configuration,
 	}
@@ -118,14 +118,19 @@ func (m *Store) WriteSpan(span *model.Span) error {
 	m.Lock()
 	defer m.Unlock()
 	if _, ok := m.operations[span.Process.ServiceName]; !ok {
-		m.operations[span.Process.ServiceName] = map[string]map[string]struct{}{}
-	}
-	if _, ok := m.operations[span.Process.ServiceName][span.OperationName]; !ok {
-		m.operations[span.Process.ServiceName][span.OperationName] = map[string]struct{}{}
+		m.operations[span.Process.ServiceName] = map[spanstore.Operation]struct{}{}
 	}
 
 	spanKind, _ := span.GetSpanKind()
-	m.operations[span.Process.ServiceName][span.OperationName][spanKind] = struct{}{}
+	operation := spanstore.Operation{
+		Name:     span.OperationName,
+		SpanKind: spanKind,
+	}
+
+	if _, ok := m.operations[span.Process.ServiceName][operation]; !ok {
+		m.operations[span.Process.ServiceName][operation] = struct{}{}
+	}
+
 	m.services[span.Process.ServiceName] = struct{}{}
 	if _, ok := m.traces[span.TraceID]; !ok {
 		m.traces[span.TraceID] = &model.Trace{}
@@ -190,14 +195,9 @@ func (m *Store) GetOperations(
 	defer m.RUnlock()
 	var retMe []spanstore.Operation
 	if operations, ok := m.operations[query.ServiceName]; ok {
-		for operationName, kinds := range operations {
-			for kind := range kinds {
-				if query.SpanKind == "" || query.SpanKind == kind {
-					retMe = append(retMe, spanstore.Operation{
-						Name:     operationName,
-						SpanKind: kind,
-					})
-				}
+		for operation := range operations {
+			if query.SpanKind == "" || query.SpanKind == operation.SpanKind {
+				retMe = append(retMe, operation)
 			}
 		}
 	}

@@ -83,6 +83,8 @@ func (qs QueryService) GetOperations(ctx context.Context, service string) ([]str
 	operations, err := qs.spanReader.GetOperations(ctx, spanstore.OperationQueryParameters{
 		ServiceName: service,
 	})
+
+	// TODO: remove below and simply return the result from query service
 	if err != nil {
 		return nil, err
 	}
