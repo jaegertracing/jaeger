@@ -104,15 +104,34 @@ func (c *grpcClient) GetServices(ctx context.Context) ([]string, error) {
 }
 
 // GetOperations returns the operations of a given service
-func (c *grpcClient) GetOperations(ctx context.Context, service string) ([]string, error) {
+func (c *grpcClient) GetOperations(
+	ctx context.Context,
+	query spanstore.OperationQueryParameters,
+) ([]spanstore.Operation, error) {
 	resp, err := c.readerClient.GetOperations(upgradeContextWithBearerToken(ctx), &storage_v1.GetOperationsRequest{
-		Service: service,
+		Service:  query.ServiceName,
+		SpanKind: query.SpanKind,
 	})
 	if err != nil {
 		return nil, errors.Wrap(err, "plugin error")
 	}
 
-	return resp.Operations, nil
+	var operations []spanstore.Operation
+	if resp.Operations != nil {
+		for _, operation := range resp.Operations {
+			operations = append(operations, spanstore.Operation{
+				Name:     operation.Name,
+				SpanKind: operation.SpanKind,
+			})
+		}
+	} else {
+		for _, name := range resp.OperationNames {
+			operations = append(operations, spanstore.Operation{
+				Name: name,
+			})
+		}
+	}
+	return operations, nil
 }
 
 // FindTraces retrieves traces that match the traceQuery
