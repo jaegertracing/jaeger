@@ -61,6 +61,8 @@ type StorageIntegration struct {
 	SpanReader       spanstore.Reader
 	DependencyWriter dependencystore.Writer
 	DependencyReader dependencystore.Reader
+	// TODO: remove this flag after all storage plugins returns spanKind with operationNames
+	notSupportSpanKindWithOperation bool
 
 	// CleanUp() should ensure that the storage backend is clean before another test.
 	// called either before or after each test, and should be idempotent
@@ -149,10 +151,20 @@ func (s *StorageIntegration) testGetLargeSpan(t *testing.T) {
 func (s *StorageIntegration) testGetOperations(t *testing.T) {
 	defer s.cleanUp(t)
 
-	expected := []spanstore.Operation{
-		{Name: "example-operation-1"},
-		{Name: "example-operation-3", SpanKind: "server"},
-		{Name: "example-operation-4", SpanKind: "client"}}
+	var expected []spanstore.Operation
+	if s.notSupportSpanKindWithOperation {
+		expected = []spanstore.Operation{
+			{Name: "example-operation-1"},
+			{Name: "example-operation-3"},
+			{Name: "example-operation-4"},
+		}
+	} else {
+		expected = []spanstore.Operation{
+			{Name: "example-operation-1"},
+			{Name: "example-operation-3", SpanKind: "server"},
+			{Name: "example-operation-4", SpanKind: "client"},
+		}
+	}
 	s.loadParseAndWriteExampleTrace(t)
 	s.refresh(t)
 
