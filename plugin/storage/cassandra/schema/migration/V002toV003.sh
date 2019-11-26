@@ -1,17 +1,19 @@
 #!/usr/bin/env bash
 
 # Create a new operation_names_v2 table and copy all data from operation_names table
-# Sample usage: KEYSPACE=jaeger_v1_test TIMEOUT=1000 ./plugin/storage/cassandra/schema/migration/v002tov003.sh
+# Sample usage: KEYSPACE=jaeger_v1 TIMEOUT=1000 CQL_CMD='cqlsh host 9042 -u test_user -p test_password' bash
+# ./v002tov003.sh
 
 set -euo pipefail
 
 function usage {
     >&2 echo "Error: $1"
     >&2 echo ""
-    >&2 echo "Usage: KEYSPACE={keyspace} TTL={ttl} $0"
+    >&2 echo "Usage: KEYSPACE={keyspace} TTL={ttl} CQL_CMD={cql_cmd}$0"
     >&2 echo ""
     >&2 echo "The following parameters can be set via environment:"
     >&2 echo "  KEYSPACE           - keyspace"
+    >&2 echo "  CQL_CMD            - cqlsh host port -u user -p password"
     >&2 echo ""
     exit 1
 }
@@ -39,7 +41,13 @@ fi
 keyspace=${KEYSPACE}
 old_table=operation_names
 new_table=operation_names_v2
-cqlsh_cmd=cqlsh
+cqlsh_cmd=${CQL_CMD}
+
+if [[ ${cqlsh_cmd} == "" ]]; then
+   cqlsh_cmd=cqlsh
+fi
+
+echo "Using cql command: $cqlsh_cmd"
 
 row_count=$(${cqlsh_cmd} -e "select count(*) from $keyspace.$old_table;"|head -4|tail -1| tr -d ' ')
 
