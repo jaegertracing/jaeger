@@ -20,6 +20,8 @@ import (
 	"time"
 
 	"github.com/dgraph-io/badger"
+
+	"github.com/jaegertracing/jaeger/storage/spanstore"
 )
 
 // CacheStore saves expensive calculations from the K/V store
@@ -125,8 +127,8 @@ func (c *CacheStore) Update(service, operation string, expireTime uint64) {
 	c.cacheLock.Unlock()
 }
 
-// GetOperations returns all operations for a specific service traced by Jaeger
-func (c *CacheStore) GetOperations(service string) ([]string, error) {
+// GetOperations returns all operations for a specific service & spanKind traced by Jaeger
+func (c *CacheStore) GetOperations(service string) ([]spanstore.Operation, error) {
 	operations := make([]string, 0, len(c.services))
 	t := uint64(time.Now().Unix())
 	c.cacheLock.Lock()
@@ -137,7 +139,7 @@ func (c *CacheStore) GetOperations(service string) ([]string, error) {
 			// Expired, remove
 			delete(c.services, service)
 			delete(c.operations, service)
-			return operations, nil // empty slice rather than nil
+			return []spanstore.Operation{}, nil // empty slice rather than nil
 		}
 		for o, e := range c.operations[service] {
 			if e > t {
@@ -150,7 +152,15 @@ func (c *CacheStore) GetOperations(service string) ([]string, error) {
 
 	sort.Strings(operations)
 
-	return operations, nil
+	// TODO: https://github.com/jaegertracing/jaeger/issues/1922
+	// 	- return the operations with actual spanKind
+	result := make([]spanstore.Operation, 0, len(operations))
+	for _, op := range operations {
+		result = append(result, spanstore.Operation{
+			Name: op,
+		})
+	}
+	return result, nil
 }
 
 // GetServices returns all services traced by Jaeger

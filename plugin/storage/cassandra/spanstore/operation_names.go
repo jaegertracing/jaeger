@@ -26,6 +26,7 @@ import (
 	"github.com/jaegertracing/jaeger/pkg/cache"
 	"github.com/jaegertracing/jaeger/pkg/cassandra"
 	casMetrics "github.com/jaegertracing/jaeger/pkg/cassandra/metrics"
+	"github.com/jaegertracing/jaeger/plugin/storage/cassandra/spanstore/dbmodel"
 	"github.com/jaegertracing/jaeger/storage/spanstore"
 )
 
@@ -50,7 +51,10 @@ type tableMeta struct {
 	queryByKindStmt  string
 	queryStmt        string
 	createWriteQuery func(query cassandra.Query, service, kind, opName string) cassandra.Query
-	getOperations    func(s *OperationNamesStorage, query *spanstore.OperationQueryParameters) ([]*spanstore.Operation, error)
+	getOperations    func(
+		s *OperationNamesStorage,
+		query spanstore.OperationQueryParameters,
+	) ([]spanstore.Operation, error)
 }
 
 func (t *tableMeta) materialize() {
@@ -126,36 +130,32 @@ func NewOperationNamesStorage(
 }
 
 // Write saves Operation and Service name tuples
-func (s *OperationNamesStorage) Write(serviceName string, operationName string) error {
-	var err error
-	//TODO: take spanKind from args
-	spanKind := ""
-
-	if inCache := checkWriteCache(serviceName+"|"+spanKind+"|"+operationName, s.operationNames, s.writeCacheTTL); !inCache {
-		q := s.table.createWriteQuery(s.session.Query(s.table.insertStmt), serviceName, spanKind, operationName)
-		err2 := s.metrics.Exec(q, s.logger)
-		if err2 != nil {
-			err = err2
+func (s *OperationNamesStorage) Write(operation dbmodel.Operation) error {
+	key := fmt.Sprintf("%s|%s|%s",
+		operation.ServiceName,
+		operation.SpanKind,
+		operation.OperationName,
+	)
+	if inCache := checkWriteCache(key, s.operationNames, s.writeCacheTTL); !inCache {
+		q := s.table.createWriteQuery(
+			s.session.Query(s.table.insertStmt),
+			operation.ServiceName,
+			operation.SpanKind,
+			operation.OperationName,
+		)
+		err := s.metrics.Exec(q, s.logger)
+		if err != nil {
+			return err
 		}
 	}
-	return err
+	return nil
 }
 
 // GetOperations returns all operations for a specific service traced by Jaeger
-func (s *OperationNamesStorage) GetOperations(service string) ([]string, error) {
-	operations, err := s.table.getOperations(s, &spanstore.OperationQueryParameters{
-		ServiceName: service,
-	})
-
-	if err != nil {
-		return nil, err
-	}
-	//TODO: return operations instead of list of string
-	operationNames := make([]string, len(operations))
-	for idx, operation := range operations {
-		operationNames[idx] = operation.Name
-	}
-	return operationNames, err
+func (s *OperationNamesStorage) GetOperations(
+	query spanstore.OperationQueryParameters,
+) ([]spanstore.Operation, error) {
+	return s.table.getOperations(s, query)
 }
 
 func tableExist(session cassandra.Session, tableName string) bool {
@@ -164,13 +164,16 @@ func tableExist(session cassandra.Session, tableName string) bool {
 	return err == nil
 }
 
-func getOperationsV1(s *OperationNamesStorage, query *spanstore.OperationQueryParameters) ([]*spanstore.Operation, error) {
+func getOperationsV1(
+	s *OperationNamesStorage,
+	query spanstore.OperationQueryParameters,
+) ([]spanstore.Operation, error) {
 	iter := s.session.Query(s.table.queryStmt, query.ServiceName).Iter()
 
 	var operation string
-	var operations []*spanstore.Operation
+	var operations []spanstore.Operation
 	for iter.Scan(&operation) {
-		operations = append(operations, &spanstore.Operation{
+		operations = append(operations, spanstore.Operation{
 			Name: operation,
 		})
 	}
@@ -182,7 +185,10 @@ func getOperationsV1(s *OperationNamesStorage, query *spanstore.OperationQueryPa
 	return operations, nil
 }
 
-func getOperationsV2(s *OperationNamesStorage, query *spanstore.OperationQueryParameters) ([]*spanstore.Operation, error) {
+func getOperationsV2(
+	s *OperationNamesStorage,
+	query spanstore.OperationQueryParameters,
+) ([]spanstore.Operation, error) {
 	var casQuery cassandra.Query
 	if query.SpanKind == "" {
 		// Get operations for all spanKind
@@ -195,9 +201,9 @@ func getOperationsV2(s *OperationNamesStorage, query *spanstore.OperationQueryPa
 
 	var operationName string
 	var spanKind string
-	var operations []*spanstore.Operation
+	var operations []spanstore.Operation
 	for iter.Scan(&spanKind, &operationName) {
-		operations = append(operations, &spanstore.Operation{
+		operations = append(operations, spanstore.Operation{
 			Name:     operationName,
 			SpanKind: spanKind,
 		})
