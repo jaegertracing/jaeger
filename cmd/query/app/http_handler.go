@@ -168,15 +168,7 @@ func (aH *APIHandler) getOperationsLegacy(w http.ResponseWriter, r *http.Request
 	if aH.handleError(w, err, http.StatusInternalServerError) {
 		return
 	}
-	// only return unique operation names
-	set := make(map[string]struct{})
-	for _, operation := range operations {
-		set[operation.Name] = struct{}{}
-	}
-	var operationNames []string
-	for operation := range set {
-		operationNames = append(operationNames, operation)
-	}
+	operationNames := getUniqueOperationNames(operations)
 	structuredRes := structuredResponse{
 		Data:  operationNames,
 		Total: len(operationNames),

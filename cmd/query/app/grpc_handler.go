@@ -148,7 +148,11 @@ func (g *GRPCHandler) GetOperations(
 			SpanKind: operation.SpanKind,
 		}
 	}
-	return &api_v2.GetOperationsResponse{Operations: result}, nil
+	return &api_v2.GetOperationsResponse{
+		Operations: result,
+		// TODO: remove OperationNames after all clients are updated
+		OperationNames: getUniqueOperationNames(operations),
+	}, nil
 }
 
 // GetDependencies is the GRPC handler to fetch dependencies.

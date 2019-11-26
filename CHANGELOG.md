@@ -20,8 +20,8 @@ Changes by Version
                 "data": [{
                     "name": "UserService::getExtendedUser",
                     "spanKind": "server"
-                 },
-                 {
+                },
+                {
                     "name": "UserService::getUserProfile",
                     "spanKind": "server"
                 }],
@@ -31,6 +31,10 @@ Changes by Version
                 "errors": null
             }
             ```
+        * The legacy http endpoint stay untouched:
+            ```
+            /services/{%s}/operations
+            ```    
     * Storage plugin changes:
         * Memory updated to support spanKind on write & read, no migration is required.
         * [Badger](https://github.com/jaegertracing/jaeger/issues/1922) & [ElasticSearch](https://github.com/jaegertracing/jaeger/issues/1923) 
