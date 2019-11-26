@@ -118,7 +118,7 @@ message Operation {
 }
 
 message GetOperationsResponse {
-  repeated string operationNames = 1; //deprecated
+  repeated string _ = 1; //deprecated
   repeated Operation operations = 2;
 }
 

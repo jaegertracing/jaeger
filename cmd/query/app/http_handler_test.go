@@ -491,7 +491,7 @@ func TestGetOperationsSuccess(t *testing.T) {
 	).Return(expectedOperations, nil).Once()
 
 	var response struct {
-		Operations []*ui.Operation   `json:"data"`
+		Operations []ui.Operation    `json:"data"`
 		Total      int               `json:"total"`
 		Limit      int               `json:"limit"`
 		Offset     int               `json:"offset"`

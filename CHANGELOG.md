@@ -8,6 +8,48 @@ Changes by Version
 
 ##### Breaking Changes
 
+* Changes to the endpoints that returns a list of operations ([#1943](https://github.com/jaegertracing/jaeger/pull/1943), [@guo0693](https://github.com/guo0693))
+    * Endpoint changes:
+        * Both Http & gRPC servers now take new optional parameter `spanKind` in addition to `service`. When spanKind
+         is absent or empty, operations from all kinds of spans will be returned.
+        * Instead of returning a list of string, both Http & gRPC servers return a list of operation struct. Please 
+        update your client code to process the new response. Example response:
+            ```
+            curl 'http://localhost:6686/api/operations?service=UserService&spanKind=server' | jq
+            {
+                "data": [{
+                    "name": "UserService::getExtendedUser",
+                    "spanKind": "server"
+                 },
+                 {
+                    "name": "UserService::getUserProfile",
+                    "spanKind": "server"
+                }],
+                "total": 2,
+                "limit": 0,
+                "offset": 0,
+                "errors": null
+            }
+            ```
+    * Storage plugin changes:
+        * Memory updated to support spanKind on write & read, no migration is required.
+        * [Badger](https://github.com/jaegertracing/jaeger/issues/1922) & [ElasticSearch](https://github.com/jaegertracing/jaeger/issues/1923) 
+        to be implemented:  
+        For now `spanKind` will be set as empty string during read & write, only `name` will be valid operation name.
+        * Cassandra updated to support spanKind on write & read ([#1937](https://github.com/jaegertracing/jaeger/pull/1937), [@guo0693](https://github.com/guo0693)):  
+            If you don't run the migration script, nothing will break, the system will used the old table 
+            `operation_names` and set empty `spanKind` in the response.  
+            Steps to get the updated functionality:
+            1.  You will need to run below command on the host you can use `cqlsh` to connect the the cassandra contact
+             point
+                ```
+                KEYSPACE=test_keyspace TIMEOUT=1000 CQL_CMD='cqlsh host 9042 -u test_user -p test_password' bash
+                ./plugin/storage/cassandra/schema/migration/v002tov003.sh
+                ```
+                The script will create new table `operation_names_v2` and migrate data from the old table.  
+                `spanKind` column will be empty for those data.  
+                At the end, it will ask you whether you want to drop the old table or not.
+            2. Restart ingester & query services so that they begin to use the new table
 ##### New Features
 
 ##### Bug fixes, Minor Improvements

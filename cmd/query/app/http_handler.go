@@ -157,17 +157,18 @@ func (aH *APIHandler) getOperationsLegacy(w http.ResponseWriter, r *http.Request
 	vars := mux.Vars(r)
 	// given how getOperationsLegacy is bound to URL route, serviceParam cannot be empty
 	service, _ := url.QueryUnescape(vars[serviceParam])
-	//for backwards compatibility, we will retrieve operations with all span kind
+	// for backwards compatibility, we will retrieve operations with all span kind
 	operations, err := aH.queryService.GetOperations(r.Context(),
 		spanstore.OperationQueryParameters{
 			ServiceName: service,
-			SpanKind:    "",
+			// include all kinds
+			SpanKind: "",
 		})
 
 	if aH.handleError(w, err, http.StatusInternalServerError) {
 		return
 	}
-	//only return unique operation names
+	// only return unique operation names
 	set := make(map[string]struct{})
 	for _, operation := range operations {
 		set[operation.Name] = struct{}{}
@@ -199,9 +200,9 @@ func (aH *APIHandler) getOperations(w http.ResponseWriter, r *http.Request) {
 	if aH.handleError(w, err, http.StatusInternalServerError) {
 		return
 	}
-	data := make([]*ui.Operation, len(operations))
+	data := make([]ui.Operation, len(operations))
 	for i, operation := range operations {
-		data[i] = &ui.Operation{
+		data[i] = ui.Operation{
 			Name:     operation.Name,
 			SpanKind: operation.SpanKind,
 		}
