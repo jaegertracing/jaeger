@@ -31,19 +31,21 @@ const (
 )
 
 type options struct {
-	logger           *zap.Logger
-	serviceMetrics   metrics.Factory
-	hostMetrics      metrics.Factory
-	preProcessSpans  ProcessSpans
-	sanitizer        sanitizer.SanitizeSpan
-	preSave          ProcessSpan
-	spanFilter       FilterSpan
-	numWorkers       int
-	blockingSubmit   bool
-	queueSize        int
-	reportBusy       bool
-	extraFormatTypes []SpanFormat
-	collectorTags    map[string]string
+	logger             *zap.Logger
+	serviceMetrics     metrics.Factory
+	hostMetrics        metrics.Factory
+	preProcessSpans    ProcessSpans
+	sanitizer          sanitizer.SanitizeSpan
+	preSave            ProcessSpan
+	spanFilter         FilterSpan
+	numWorkers         int
+	blockingSubmit     bool
+	queueSize          int
+	dynQueueSizeWarmup uint
+	dynQueueSizeMemory uint
+	reportBusy         bool
+	extraFormatTypes   []SpanFormat
+	collectorTags      map[string]string
 }
 
 // Option is a function that sets some option on StorageBuilder.
@@ -119,6 +121,20 @@ func (options) BlockingSubmit(blockingSubmit bool) Option {
 func (options) QueueSize(queueSize int) Option {
 	return func(b *options) {
 		b.queueSize = queueSize
+	}
+}
+
+// DynQueueSize creates an Option that initializes the queue size
+func (options) DynQueueSizeWarmup(dynQueueSizeWarmup uint) Option {
+	return func(b *options) {
+		b.dynQueueSizeWarmup = dynQueueSizeWarmup
+	}
+}
+
+// DynQueueSize creates an Option that initializes the queue size
+func (options) DynQueueSizeMemory(dynQueueSizeMemory uint) Option {
+	return func(b *options) {
+		b.dynQueueSizeMemory = dynQueueSizeMemory
 	}
 }
 

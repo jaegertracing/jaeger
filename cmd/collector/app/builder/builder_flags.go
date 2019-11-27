@@ -27,6 +27,7 @@ import (
 )
 
 const (
+	collectorDynQueueSizeMemory   = "collector.queue-size-memory"
 	collectorQueueSize            = "collector.queue-size"
 	collectorNumWorkers           = "collector.num-workers"
 	collectorPort                 = "collector.port"
@@ -46,6 +47,8 @@ var tlsFlagsConfig = tlscfg.ServerFlagsConfig{
 
 // CollectorOptions holds configuration for collector
 type CollectorOptions struct {
+	// DynQueueSizeMemory determines how much memory to use for the queue
+	DynQueueSizeMemory uint
 	// QueueSize is the size of collector's queue
 	QueueSize int
 	// NumWorkers is the number of internal workers in a collector
@@ -70,6 +73,7 @@ type CollectorOptions struct {
 
 // AddFlags adds flags for CollectorOptions
 func AddFlags(flags *flag.FlagSet) {
+	flags.Uint(collectorDynQueueSizeMemory, 0, "(experimental) The max memory size in MiB to use for the dynamic queue.")
 	flags.Int(collectorQueueSize, app.DefaultQueueSize, "The queue size of the collector")
 	flags.Int(collectorNumWorkers, app.DefaultNumWorkers, "The number of workers pulling items from the queue")
 	flags.Int(collectorPort, ports.CollectorTChannel, "The TChannel port for the collector service")
@@ -84,6 +88,7 @@ func AddFlags(flags *flag.FlagSet) {
 
 // InitFromViper initializes CollectorOptions with properties from viper
 func (cOpts *CollectorOptions) InitFromViper(v *viper.Viper) *CollectorOptions {
+	cOpts.DynQueueSizeMemory = v.GetUint(collectorDynQueueSizeMemory) * 1024 * 1024 // we receive in MiB and store in bytes
 	cOpts.QueueSize = v.GetInt(collectorQueueSize)
 	cOpts.NumWorkers = v.GetInt(collectorNumWorkers)
 	cOpts.CollectorPort = v.GetInt(collectorPort)
