@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 
 # Create a new operation_names_v2 table and copy all data from operation_names table
-# Sample usage: KEYSPACE=jaeger_v1 TIMEOUT=1000 CQL_CMD='cqlsh host 9042 -u test_user -p test_password' bash
+# Sample usage: KEYSPACE=jaeger_v1 CQL_CMD='cqlsh host 9042 -u test_user -p test_password --request-timeout=3000' bash
 # ./v002tov003.sh
 
 set -euo pipefail
@@ -9,7 +9,7 @@ set -euo pipefail
 function usage {
     >&2 echo "Error: $1"
     >&2 echo ""
-    >&2 echo "Usage: KEYSPACE={keyspace} TTL={ttl} CQL_CMD={cql_cmd}$0"
+    >&2 echo "Usage: KEYSPACE={keyspace} CQL_CMD={cql_cmd} $0"
     >&2 echo ""
     >&2 echo "The following parameters can be set via environment:"
     >&2 echo "  KEYSPACE           - keyspace"
@@ -63,11 +63,6 @@ if [[ ! -f ${old_table}.csv ]]; then
 fi
 
 csv_rows=$(wc -l ${old_table}.csv | tr -dc '0-9')
-
-if [[ ${row_count} -ne ${csv_rows} ]]; then
-    echo "Number of rows: $csv_rows in file is not equal to number of rows: $row_count in cassandra"
-    exit 1
-fi
 
 echo "Generating data for new table..."
 while IFS="," read service_name operation_name; do

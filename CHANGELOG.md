@@ -47,8 +47,8 @@ Changes by Version
             1.  You will need to run below command on the host you can use `cqlsh` to connect the the cassandra contact
              point
                 ```
-                KEYSPACE=test_keyspace TIMEOUT=1000 CQL_CMD='cqlsh host 9042 -u test_user -p test_password' bash
-                ./plugin/storage/cassandra/schema/migration/v002tov003.sh
+                KEYSPACE=jaeger_v1 CQL_CMD='cqlsh host 9042 -u test_user -p test_password --request-timeout=3000' 
+                bash ./v002tov003.sh
                 ```
                 The script will create new table `operation_names_v2` and migrate data from the old table.  
                 `spanKind` column will be empty for those data.  
