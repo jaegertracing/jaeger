@@ -27,7 +27,7 @@ const (
 	SampledFlag = Flags(1)
 	// DebugFlag is the bit set in Flags in order to define a span as a debug span
 	DebugFlag = Flags(2)
-	//FirehoseFlag is the bit in Flags in order to define a span as a firehose span
+	// FirehoseFlag is the bit in Flags in order to define a span as a firehose span
 	FirehoseFlag = Flags(8)
 
 	samplerType        = "sampler.type"
@@ -51,6 +51,14 @@ func (s *Span) HasSpanKind(kind ext.SpanKindEnum) bool {
 		return tag.AsString() == string(kind)
 	}
 	return false
+}
+
+// GetSpanKind returns value of `span.kind` tag and whether the tag can be found
+func (s *Span) GetSpanKind() (spanKind string, found bool) {
+	if tag, ok := KeyValues(s.Tags).FindByKey(string(ext.SpanKind)); ok {
+		return tag.AsString(), true
+	}
+	return "", false
 }
 
 // GetSamplerType returns the sampler type for span

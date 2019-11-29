@@ -40,6 +40,7 @@ const (
 	minDurationParam = "minDuration"
 	maxDurationParam = "maxDuration"
 	serviceParam     = "service"
+	spanKindParam    = "spanKind"
 	endTimeParam     = "end"
 	prettyPrintParam = "prettyPrint"
 )

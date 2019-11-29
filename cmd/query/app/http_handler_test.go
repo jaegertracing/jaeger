@@ -32,7 +32,7 @@ import (
 	testHttp "github.com/stretchr/testify/http"
 	"github.com/stretchr/testify/mock"
 	"github.com/stretchr/testify/require"
-	jaeger "github.com/uber/jaeger-client-go"
+	"github.com/uber/jaeger-client-go"
 	"go.uber.org/zap"
 	"go.uber.org/zap/zapcore"
 
@@ -483,17 +483,28 @@ func TestGetServicesStorageFailure(t *testing.T) {
 func TestGetOperationsSuccess(t *testing.T) {
 	server, readMock, _ := initializeTestServer()
 	defer server.Close()
-	expectedOperations := []string{"", "get"}
-	readMock.On("GetOperations", mock.AnythingOfType("*context.valueCtx"), "abc/trifle").Return(expectedOperations, nil).Once()
+	expectedOperations := []spanstore.Operation{{Name: ""}, {Name: "get", SpanKind: "server"}}
+	readMock.On(
+		"GetOperations",
+		mock.AnythingOfType("*context.valueCtx"),
+		spanstore.OperationQueryParameters{ServiceName: "abc/trifle"},
+	).Return(expectedOperations, nil).Once()
 
-	var response structuredResponse
+	var response struct {
+		Operations []ui.Operation    `json:"data"`
+		Total      int               `json:"total"`
+		Limit      int               `json:"limit"`
+		Offset     int               `json:"offset"`
+		Errors     []structuredError `json:"errors"`
+	}
+
 	err := getJSON(server.URL+"/api/operations?service=abc%2Ftrifle", &response)
 	assert.NoError(t, err)
-	actualOperations := make([]string, len(expectedOperations))
-	for i, s := range response.Data.([]interface{}) {
-		actualOperations[i] = s.(string)
+	assert.Equal(t, len(expectedOperations), len(response.Operations))
+	for i, op := range response.Operations {
+		assert.Equal(t, expectedOperations[i].Name, op.Name)
+		assert.Equal(t, expectedOperations[i].SpanKind, op.SpanKind)
 	}
-	assert.Equal(t, expectedOperations, actualOperations)
 }
 
 func TestGetOperationsNoServiceName(t *testing.T) {
@@ -506,9 +517,12 @@ func TestGetOperationsNoServiceName(t *testing.T) {
 }
 
 func TestGetOperationsStorageFailure(t *testing.T) {
-	server, reaMock, _ := initializeTestServer()
+	server, readMock, _ := initializeTestServer()
 	defer server.Close()
-	reaMock.On("GetOperations", mock.AnythingOfType("*context.valueCtx"), "trifle").Return(nil, errStorage).Once()
+	readMock.On(
+		"GetOperations",
+		mock.AnythingOfType("*context.valueCtx"),
+		mock.AnythingOfType("spanstore.OperationQueryParameters")).Return(nil, errStorage).Once()
 
 	var response structuredResponse
 	err := getJSON(server.URL+"/api/operations?service=trifle", &response)
@@ -518,24 +532,31 @@ func TestGetOperationsStorageFailure(t *testing.T) {
 func TestGetOperationsLegacySuccess(t *testing.T) {
 	server, readMock, _ := initializeTestServer()
 	defer server.Close()
-	expectedOperations := []string{"", "get"}
-	readMock.On("GetOperations", mock.AnythingOfType("*context.valueCtx"), "abc/trifle").Return(expectedOperations, nil).Once()
+	expectedOperationNames := []string{"", "get"}
+	expectedOperations := []spanstore.Operation{
+		{Name: ""},
+		{Name: "get", SpanKind: "server"},
+		{Name: "get", SpanKind: "client"}}
+
+	readMock.On(
+		"GetOperations",
+		mock.AnythingOfType("*context.valueCtx"),
+		mock.AnythingOfType("spanstore.OperationQueryParameters")).Return(expectedOperations, nil).Once()
 
 	var response structuredResponse
 	err := getJSON(server.URL+"/api/services/abc%2Ftrifle/operations", &response)
+
 	assert.NoError(t, err)
-	actualOperations := make([]string, len(expectedOperations))
-	for i, s := range response.Data.([]interface{}) {
-		actualOperations[i] = s.(string)
-	}
-	assert.Equal(t, expectedOperations, actualOperations)
+	assert.ElementsMatch(t, expectedOperationNames, response.Data.([]interface{}))
 }
 
 func TestGetOperationsLegacyStorageFailure(t *testing.T) {
 	server, readMock, _ := initializeTestServer()
 	defer server.Close()
-	readMock.On("GetOperations", mock.AnythingOfType("*context.valueCtx"), "trifle").Return(nil, errStorage).Once()
-
+	readMock.On(
+		"GetOperations",
+		mock.AnythingOfType("*context.valueCtx"),
+		mock.AnythingOfType("spanstore.OperationQueryParameters")).Return(nil, errStorage).Once()
 	var response structuredResponse
 	err := getJSON(server.URL+"/api/services/trifle/operations", &response)
 	assert.Error(t, err)

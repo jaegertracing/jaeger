@@ -18,7 +18,7 @@ package spanstore
 import (
 	"context"
 	"errors"
-	"strings"
+	"fmt"
 	"testing"
 	"time"
 
@@ -45,6 +45,11 @@ type spanReaderTest struct {
 
 func withSpanReader(fn func(r *spanReaderTest)) {
 	session := &mocks.Session{}
+	query := &mocks.Query{}
+	session.On("Query",
+		fmt.Sprintf(tableCheckStmt, schemas[latestVersion].tableName),
+		mock.Anything).Return(query)
+	query.On("Exec").Return(nil)
 	logger, logBuffer := testutils.NewLogger()
 	metricsFactory := metricstest.NewFactory(0)
 	r := &spanReaderTest{
@@ -69,10 +74,20 @@ func TestSpanReaderGetServices(t *testing.T) {
 
 func TestSpanReaderGetOperations(t *testing.T) {
 	withSpanReader(func(r *spanReaderTest) {
-		r.reader.operationNamesReader = func(string) ([]string, error) { return []string{"operation-a"}, nil }
-		s, err := r.reader.GetOperations(context.Background(), "service-x")
+		expectedOperations := []spanstore.Operation{
+			{
+				Name:     "operation-a",
+				SpanKind: "server",
+			},
+		}
+		r.reader.operationNamesReader =
+			func(parameters spanstore.OperationQueryParameters) ([]spanstore.Operation, error) {
+				return expectedOperations, nil
+			}
+		s, err := r.reader.GetOperations(context.Background(),
+			spanstore.OperationQueryParameters{ServiceName: "service-x", SpanKind: "server"})
 		assert.NoError(t, err)
-		assert.Equal(t, []string{"operation-a"}, s)
+		assert.Equal(t, expectedOperations, s)
 	})
 }
 
@@ -329,12 +344,24 @@ func TestSpanReaderFindTraces(t *testing.T) {
 					return loadQuery
 				}
 
-				r.session.On("Query", stringMatcher(queryByServiceName), matchEverything()).Return(mainQuery)
-				r.session.On("Query", stringMatcher(queryByTag), matchEverything()).Return(tagsQuery)
-				r.session.On("Query", stringMatcher(queryByServiceAndOperationName), matchEverything()).Return(operationQuery)
-				r.session.On("Query", stringMatcher(queryByDuration), matchEverything()).Return(durationQuery)
-				r.session.On("Query", stringMatcher("SELECT trace_id"), matchOnce()).Return(makeLoadQuery())
-				r.session.On("Query", stringMatcher("SELECT trace_id"), matchEverything()).Return(makeLoadQuery())
+				r.session.On("Query",
+					stringMatcher(queryByServiceName),
+					matchEverything()).Return(mainQuery)
+				r.session.On("Query",
+					stringMatcher(queryByTag),
+					matchEverything()).Return(tagsQuery)
+				r.session.On("Query",
+					stringMatcher(queryByServiceAndOperationName),
+					matchEverything()).Return(operationQuery)
+				r.session.On("Query",
+					stringMatcher(queryByDuration),
+					matchEverything()).Return(durationQuery)
+				r.session.On("Query",
+					stringMatcher("SELECT trace_id"),
+					matchOnce()).Return(makeLoadQuery())
+				r.session.On("Query",
+					stringMatcher("SELECT trace_id"),
+					matchEverything()).Return(makeLoadQuery())
 
 				queryParams := &spanstore.TraceQueryParameters{
 					ServiceName:  "service-a",
@@ -364,7 +391,7 @@ func TestSpanReaderFindTraces(t *testing.T) {
 					assert.EqualError(t, err, testCase.expectedError)
 				}
 				for _, expectedLog := range testCase.expectedLogs {
-					assert.True(t, strings.Contains(r.logBuffer.String(), expectedLog), "Log must contain %s, but was %s", expectedLog, r.logBuffer.String())
+					assert.Contains(t, r.logBuffer.String(), expectedLog)
 				}
 				if len(testCase.expectedLogs) == 0 {
 					assert.Equal(t, "", r.logBuffer.String())

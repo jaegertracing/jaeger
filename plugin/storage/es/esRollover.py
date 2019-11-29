@@ -8,7 +8,7 @@ import os
 import requests
 import ssl
 import sys
-from pathlib import Path
+from pathlib2 import Path
 from requests.auth import HTTPBasicAuth
 
 

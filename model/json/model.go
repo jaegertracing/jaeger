@@ -109,3 +109,9 @@ type DependencyLink struct {
 	Child     string `json:"child"`
 	CallCount uint64 `json:"callCount"`
 }
+
+// Operation defines the data in the operation response when query operation by service and span kind
+type Operation struct {
+	Name     string `json:"name"`
+	SpanKind string `json:"spanKind"`
+}

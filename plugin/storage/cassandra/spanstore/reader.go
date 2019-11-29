@@ -91,7 +91,7 @@ var (
 
 type serviceNamesReader func() ([]string, error)
 
-type operationNamesReader func(service string) ([]string, error)
+type operationNamesReader func(query spanstore.OperationQueryParameters) ([]spanstore.Operation, error)
 
 type spanReaderMetrics struct {
 	readTraces                 *casMetrics.Table
@@ -143,8 +143,11 @@ func (s *SpanReader) GetServices(ctx context.Context) ([]string, error) {
 }
 
 // GetOperations returns all operations for a specific service traced by Jaeger
-func (s *SpanReader) GetOperations(ctx context.Context, service string) ([]string, error) {
-	return s.operationNamesReader(service)
+func (s *SpanReader) GetOperations(
+	ctx context.Context,
+	query spanstore.OperationQueryParameters,
+) ([]spanstore.Operation, error) {
+	return s.operationNamesReader(query)
 }
 
 func (s *SpanReader) readTrace(ctx context.Context, traceID dbmodel.TraceID) (*model.Trace, error) {

@@ -73,7 +73,7 @@ const (
 
 type storageMode uint8
 type serviceNamesWriter func(serviceName string) error
-type operationNamesWriter func(serviceName, operationName string) error
+type operationNamesWriter func(operation dbmodel.Operation) error
 
 type spanWriterMetrics struct {
 	traces                *casMetrics.Table
@@ -172,7 +172,12 @@ func (s *SpanWriter) writeSpan(span *model.Span, ds *dbmodel.Span) error {
 }
 
 func (s *SpanWriter) writeIndexes(span *model.Span, ds *dbmodel.Span) error {
-	if err := s.saveServiceNameAndOperationName(ds.ServiceName, ds.OperationName); err != nil {
+	spanKind, _ := span.GetSpanKind()
+	if err := s.saveServiceNameAndOperationName(dbmodel.Operation{
+		ServiceName:   ds.ServiceName,
+		SpanKind:      spanKind,
+		OperationName: ds.OperationName,
+	}); err != nil {
 		// should this be a soft failure?
 		return s.logError(ds, err, "Failed to insert service name and operation name", s.logger)
 	}
@@ -274,9 +279,9 @@ func (s *SpanWriter) logError(span *dbmodel.Span, err error, msg string, logger 
 	return errors.Wrap(err, msg)
 }
 
-func (s *SpanWriter) saveServiceNameAndOperationName(serviceName, operationName string) error {
-	if err := s.serviceNamesWriter(serviceName); err != nil {
+func (s *SpanWriter) saveServiceNameAndOperationName(operation dbmodel.Operation) error {
+	if err := s.serviceNamesWriter(operation.ServiceName); err != nil {
 		return err
 	}
-	return s.operationNamesWriter(serviceName, operationName)
+	return s.operationNamesWriter(operation)
 }
