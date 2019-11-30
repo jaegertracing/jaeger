@@ -797,7 +797,7 @@ func TestTraceIDsStringsToModelsConversion(t *testing.T) {
 	traceIDs, err := convertTraceIDsStringsToModels([]string{"1", "2", "3"})
 	assert.NoError(t, err)
 	assert.Equal(t, 3, len(traceIDs))
-	assert.Equal(t, "1", traceIDs[0].String())
+	assert.Equal(t, model.NewTraceID(0, 1), traceIDs[0])
 
 	traceIDs, err = convertTraceIDsStringsToModels([]string{"dsfjsdklfjdsofdfsdbfkgbgoaemlrksdfbsdofgerjl"})
 	assert.EqualError(t, err, "Making traceID from string 'dsfjsdklfjdsofdfsdbfkgbgoaemlrksdfbsdofgerjl' failed: TraceID cannot be longer than 32 hex characters: dsfjsdklfjdsofdfsdbfkgbgoaemlrksdfbsdofgerjl")
