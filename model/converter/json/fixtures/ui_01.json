@@ -1,8 +1,8 @@
 {
-  "traceID": "1",
+  "traceID": "0000000000000001",
   "spans": [
     {
-      "traceID": "1",
+      "traceID": "0000000000000001",
       "spanID": "2",
       "operationName": "test-general-conversion",
       "references": [],
@@ -35,7 +35,7 @@
       "warnings": null
     },
     {
-      "traceID": "1",
+      "traceID": "0000000000000001",
       "spanID": "2",
       "operationName": "some-operation",
       "references": [],
@@ -73,13 +73,13 @@
       "warnings": null
     },
     {
-      "traceID": "1",
+      "traceID": "0000000000000001",
       "spanID": "3",
       "operationName": "some-operation",
       "references": [
         {
           "refType": "CHILD_OF",
-          "traceID": "1",
+          "traceID": "0000000000000001",
           "spanID": "2"
         }
       ],
@@ -91,23 +91,23 @@
       "warnings": null
     },
     {
-      "traceID": "1",
+      "traceID": "0000000000000001",
       "spanID": "4",
       "operationName": "reference-test",
       "references": [
         {
           "refType": "CHILD_OF",
-          "traceID": "ff",
+          "traceID": "00000000000000ff",
           "spanID": "ff"
         },
         {
           "refType": "CHILD_OF",
-          "traceID": "1",
+          "traceID": "0000000000000001",
           "spanID": "2"
         },
         {
           "refType": "FOLLOWS_FROM",
-          "traceID": "1",
+          "traceID": "0000000000000001",
           "spanID": "2"
         }
       ],
@@ -121,13 +121,13 @@
       ]
     },
     {
-      "traceID": "1",
+      "traceID": "0000000000000001",
       "spanID": "5",
       "operationName": "preserveParentID-test",
       "references": [
         {
           "refType": "CHILD_OF",
-          "traceID": "1",
+          "traceID": "0000000000000001",
           "spanID": "4"
         }
       ],
