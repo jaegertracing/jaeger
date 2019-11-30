@@ -111,10 +111,10 @@ var testCasesSpanID = []struct {
 	hex string
 	b64 string
 }{
-	{id: 1, hex: "1", b64: "AAAAAAAAAAE="},
-	{id: 15, hex: "f", b64: "AAAAAAAAAA8="},
-	{id: 31, hex: "1f", b64: "AAAAAAAAAB8="},
-	{id: 257, hex: "101", b64: "AAAAAAAAAQE="},
+	{id: 1, hex: "0000000000000001", b64: "AAAAAAAAAAE="},
+	{id: 15, hex: "000000000000000f", b64: "AAAAAAAAAA8="},
+	{id: 31, hex: "000000000000001f", b64: "AAAAAAAAAB8="},
+	{id: 257, hex: "0000000000000101", b64: "AAAAAAAAAQE="},
 	{id: uint64(maxSpanID), hex: "ffffffffffffffff", b64: "//////////8="},
 }
 
