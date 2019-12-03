@@ -21,7 +21,6 @@ import (
 	"errors"
 	"fmt"
 	"io/ioutil"
-	"math/bits"
 	"reflect"
 	"testing"
 	"time"
@@ -223,7 +222,6 @@ func TestSpanReader_multiRead_followUp_query(t *testing.T) {
 		id1Search := elastic.NewSearchRequest().
 			IgnoreUnavailable(true).
 			Source(r.reader.sourceFn(id1Query, model.TimeAsEpochMicroseconds(date.Add(-time.Hour))))
-		//id2Query := elastic.NewTermQuery("traceID", model.TraceID{High: 0, Low: 2}.String())
 		id2Query := elastic.NewBoolQuery().Should(
 			elastic.NewTermQuery(traceIDField, model.TraceID{High: 0, Low: 2}.String()).Boost(2),
 			elastic.NewTermQuery(traceIDField, fmt.Sprintf("%x", 2)))
@@ -1086,8 +1084,16 @@ func TestSpanReader_ArchiveTraces_ReadAlias(t *testing.T) {
 	})
 }
 
-func TestTraceIDQuery(t *testing.T) {
-	uintMax := uint64((1 << bits.UintSize) - 1)
+func TestConvertTraceIDsStringsToModels(t *testing.T) {
+	ids, err := convertTraceIDsStringsToModels([]string{"1", "2", "01", "02", "001", "002"})
+	require.NoError(t, err)
+	assert.Equal(t, []model.TraceID{model.NewTraceID(0, 1), model.NewTraceID(0, 2)}, ids)
+	_, err = convertTraceIDsStringsToModels([]string{"1", "2", "01", "02", "001", "002", "blah"})
+	assert.Error(t, err)
+}
+
+func TestBuildTraceByIDQuery(t *testing.T) {
+	uintMax := ^uint64(0)
 	traceIDNoHigh := model.NewTraceID(0, 1)
 	traceIDHigh := model.NewTraceID(1, 1)
 	traceID := model.NewTraceID(uintMax, uintMax)
@@ -1097,19 +1103,25 @@ func TestTraceIDQuery(t *testing.T) {
 	}{
 		{
 			traceID: traceIDNoHigh,
-			query:   elastic.NewBoolQuery().Should(elastic.NewTermQuery(traceIDField, traceIDNoHigh.String()).Boost(2), elastic.NewTermQuery(traceIDField, fmt.Sprintf("%x", traceIDNoHigh.Low))),
+			query: elastic.NewBoolQuery().Should(
+				elastic.NewTermQuery(traceIDField, "0000000000000001").Boost(2),
+				elastic.NewTermQuery(traceIDField, "1"),
+			),
 		},
 		{
 			traceID: traceIDHigh,
-			query:   elastic.NewBoolQuery().Should(elastic.NewTermQuery(traceIDField, traceIDHigh.String()).Boost(2), elastic.NewTermQuery(traceIDField, fmt.Sprintf("%x%016x", traceIDHigh.High, traceIDHigh.Low))),
+			query: elastic.NewBoolQuery().Should(
+				elastic.NewTermQuery(traceIDField, "00000000000000010000000000000001").Boost(2),
+				elastic.NewTermQuery(traceIDField, "10000000000000001"),
+			),
 		},
 		{
 			traceID: traceID,
-			query:   elastic.NewTermQuery(traceIDField, traceID.String()),
+			query:   elastic.NewTermQuery(traceIDField, "ffffffffffffffffffffffffffffffff"),
 		},
 	}
 	for _, test := range tests {
-		q := traceIDQuery(test.traceID)
+		q := buildTraceByIDQuery(test.traceID)
 		assert.Equal(t, test.query, q)
 	}
 }
