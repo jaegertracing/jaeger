@@ -63,7 +63,7 @@ func (t *tableMeta) materialize() {
 	t.queryStmt = fmt.Sprintf(t.queryStmt, t.tableName)
 }
 
-var schemas = map[schemaVersion]*tableMeta{
+var schemas = map[schemaVersion]tableMeta{
 	previousVersion: {
 		tableName:       "operation_names",
 		insertStmt:      "INSERT INTO %s(service_name, operation_name) VALUES (?, ?)",
@@ -90,7 +90,7 @@ var schemas = map[schemaVersion]*tableMeta{
 type OperationNamesStorage struct {
 	// CQL statements are public so that Cassandra2 storage can override them
 	schemaVersion  schemaVersion
-	table          *tableMeta
+	table          tableMeta
 	session        cassandra.Session
 	writeCacheTTL  time.Duration
 	metrics        *casMetrics.Table
