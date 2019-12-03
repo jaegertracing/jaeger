@@ -337,17 +337,7 @@ func (s *SpanReader) multiRead(ctx context.Context, traceIDs []model.TraceID, st
 		}
 		searchRequests := make([]*elastic.SearchRequest, len(traceIDs))
 		for i, traceID := range traceIDs {
-			// TODO remove in newer versions, added in Jaeger 1.16
-			// read ID without leading zeros
-			// https://github.com/jaegertracing/jaeger/pull/1956 added leading zeros to IDs
-			var legacyTraceID string
-			if traceID.High == 0 {
-				legacyTraceID = fmt.Sprintf("%x", traceID.Low)
-			} else {
-				legacyTraceID = fmt.Sprintf("%x%016x", traceID.High, traceID.Low)
-			}
-			query := elastic.NewBoolQuery().
-				Should( elastic.NewTermQuery(traceIDField, traceID.String()).Boost(2), elastic.NewTermQuery(traceIDField, legacyTraceID))
+			query := traceIDQuery(traceID)
 			if val, ok := searchAfterTime[traceID]; ok {
 				nextTime = val
 			}
@@ -403,24 +393,38 @@ func (s *SpanReader) multiRead(ctx context.Context, traceIDs []model.TraceID, st
 	return traces, nil
 }
 
+func traceIDQuery(traceID model.TraceID) elastic.Query {
+	traceIDStr := traceID.String()
+	// TODO remove in newer versions, added in Jaeger 1.16
+	// read ID without leading zeros
+	// https://github.com/jaegertracing/jaeger/pull/1956 added leading zeros to IDs
+	if traceIDStr[0] == '0' {
+		var legacyTraceID string
+		if traceID.High == 0 {
+			legacyTraceID = fmt.Sprintf("%x", traceID.Low)
+		} else {
+			legacyTraceID = fmt.Sprintf("%x%016x", traceID.High, traceID.Low)
+		}
+		return elastic.NewBoolQuery().
+			Should(elastic.NewTermQuery(traceIDField, traceIDStr).Boost(2), elastic.NewTermQuery(traceIDField, legacyTraceID))
+	}
+	return elastic.NewTermQuery(traceIDField, traceIDStr)
+}
+
 func convertTraceIDsStringsToModels(traceIDs []string) ([]model.TraceID, error) {
 	traceIDsMap := map[model.TraceID]bool{}
-	for _, ID := range traceIDs {
+	traceIDsModels := make([]model.TraceID, len(traceIDs))
+	for i, ID := range traceIDs {
 		traceID, err := model.TraceIDFromString(ID)
 		if err != nil {
 			return nil, errors.Wrap(err, fmt.Sprintf("Making traceID from string '%s' failed", ID))
 		}
 		if _, ok := traceIDsMap[traceID]; !ok {
 			traceIDsMap[traceID] = true
+			traceIDsModels[i] = traceID
 		}
 	}
 
-	traceIDsModels := make([]model.TraceID, len(traceIDsMap))
-	i := 0
-	for id, _ := range traceIDsMap {
-		traceIDsModels[i] = id
-		i++
-	}
 	return traceIDsModels, nil
 }
 
