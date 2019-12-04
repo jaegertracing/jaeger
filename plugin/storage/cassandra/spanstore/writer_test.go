@@ -94,7 +94,7 @@ func TestSpanWriter(t *testing.T) {
 				`"query":"select from traces"`,
 				`"error":"main query error"`,
 				"Failed to insert span",
-				`"trace_id":"1"`,
+				`"trace_id":"0000000000000001"`,
 				`"span_id":0`,
 			},
 		},

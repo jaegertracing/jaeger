@@ -279,8 +279,8 @@ func TestSpanReaderFindTraces(t *testing.T) {
 			expectedLogs: []string{
 				"Failure to read trace",
 				"Error reading traces from storage: load query error",
-				`"trace_id":"1"`,
-				`"trace_id":"2"`,
+				`"trace_id":"0000000000000001"`,
+				`"trace_id":"0000000000000002"`,
 			},
 		},
 	}
