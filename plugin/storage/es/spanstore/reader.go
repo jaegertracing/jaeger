@@ -398,9 +398,9 @@ func buildTraceByIDQuery(traceID model.TraceID) elastic.Query {
 	if traceIDStr[0] != '0' {
 		return elastic.NewTermQuery(traceIDField, traceIDStr)
 	}
-	// TODO remove in newer versions, added in Jaeger 1.16
 	// https://github.com/jaegertracing/jaeger/pull/1956 added leading zeros to IDs
 	// So we need to also read IDs without leading zeros for compatibility with previously saved data.
+	// TODO remove in newer versions, added in Jaeger 1.16
 	var legacyTraceID string
 	if traceID.High == 0 {
 		legacyTraceID = fmt.Sprintf("%x", traceID.Low)
@@ -414,6 +414,11 @@ func buildTraceByIDQuery(traceID model.TraceID) elastic.Query {
 
 func convertTraceIDsStringsToModels(traceIDs []string) ([]model.TraceID, error) {
 	traceIDsMap := map[model.TraceID]bool{}
+	// https://github.com/jaegertracing/jaeger/pull/1956 added leading zeros to IDs
+	// So we need to also read IDs without leading zeros for compatibility with previously saved data.
+	// That means the input to this function may contain logically identical trace IDs but formatted
+	// with or without padding, and we need to dedupe them.
+	// TODO remove deduping in newer versions, added in Jaeger 1.16
 	traceIDsModels := make([]model.TraceID, 0, len(traceIDs))
 	for _, ID := range traceIDs {
 		traceID, err := model.TraceIDFromString(ID)
