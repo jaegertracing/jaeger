@@ -37,7 +37,7 @@ type Options struct {
 func (opt *Options) AddFlags(flagSet *flag.FlagSet) {
 	flagSet.String(pluginBinary, "", "The location of the plugin binary")
 	flagSet.String(pluginConfigurationFile, "", "A path pointing to the plugin's configuration file, made available to the plugin with the --config arg")
-	flagSet.String(pluginLogLevel, defaultPluginLogLevel, "A path pointing to the plugin's configuration file, made available to the plugin with the --config arg")
+	flagSet.String(pluginLogLevel, defaultPluginLogLevel, "Set the log level of the plugin's logger")
 }
 
 // InitFromViper initializes Options with properties from viper
