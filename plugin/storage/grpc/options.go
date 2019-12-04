@@ -22,10 +22,12 @@ import (
 	"github.com/jaegertracing/jaeger/plugin/storage/grpc/config"
 )
 
-const pluginBinary = "grpc-storage-plugin.binary"
-const pluginConfigurationFile = "grpc-storage-plugin.configuration-file"
-const pluginLogLevel = "grpc-storage-plugin.log-level"
-const defaultPluginLogLevel = "warn"
+const (
+	pluginBinary            = "grpc-storage-plugin.binary"
+	pluginConfigurationFile = "grpc-storage-plugin.configuration-file"
+	pluginLogLevel          = "grpc-storage-plugin.log-level"
+	defaultPluginLogLevel   = "warn"
+)
 
 // Options contains GRPC plugins configs and provides the ability
 // to bind them to command line flags

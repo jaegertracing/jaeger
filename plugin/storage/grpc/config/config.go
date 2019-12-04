@@ -29,7 +29,7 @@ import (
 type Configuration struct {
 	PluginBinary            string `yaml:"binary"`
 	PluginConfigurationFile string `yaml:"configuration-file"`
-	PluginLogLevel 			string `yaml:"log-level"`
+	PluginLogLevel          string `yaml:"log-level"`
 }
 
 // Build instantiates a StoragePlugin
