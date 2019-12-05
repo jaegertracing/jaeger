@@ -83,6 +83,16 @@ Overall, the change is backward compatible:
 
 However, some custom integration that rely on exact string matches of trace IDs may be broken.
 
+#### Change default rollover conditions to 2 days
+
+([PR #1963](https://github.com/jaegertracing/jaeger/pull/1963), [@pavolloffay](https://github.com/pavolloffay))
+
+Change default rollover conditions from 7 days to 2 days.
+
+Given that by default Jaeger uses daily indices and some organizations do not keep data longer than 7 days
+the default of 7 days seems unreasonable - it might result in a too big index and
+running curator would immediately remove the old index.
+
 ### Backend Changes
 
 #### New Features
