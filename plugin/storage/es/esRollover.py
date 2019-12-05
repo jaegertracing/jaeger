@@ -69,6 +69,10 @@ def main():
 
 def perform_action(action, client, write_alias, read_alias, index_to_rollover, template_name):
     if action == 'init':
+        if not is_alias_empty(client, read_alias) or not is_alias_empty(client, write_alias):
+            print("Alias {} or {} is not empty aborting init step".format(read_alias, write_alias))
+            return
+
         shards = os.getenv('SHARDS', SHARDS)
         replicas = os.getenv('REPLICAS', REPLICAS)
         esVersion = get_version(client)
@@ -80,10 +84,8 @@ def perform_action(action, client, write_alias, read_alias, index_to_rollover, t
 
         index = index_to_rollover + '-000001'
         create_index(client, index)
-        if is_alias_empty(client, read_alias):
-            create_aliases(client, read_alias, index)
-        if is_alias_empty(client, write_alias):
-            create_aliases(client, write_alias, index)
+        create_aliases(client, read_alias, index)
+        create_aliases(client, write_alias, index)
     elif action == 'rollover':
         cond = ast.literal_eval(os.getenv('CONDITIONS', ROLLBACK_CONDITIONS))
         rollover(client, write_alias, read_alias, cond)
