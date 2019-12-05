@@ -103,8 +103,10 @@ func TestWithConfiguration(t *testing.T) {
 	command.ParseFlags([]string{
 		"--grpc-storage-plugin.binary=noop-grpc-plugin",
 		"--grpc-storage-plugin.configuration-file=config.json",
+		"--grpc-storage-plugin.log-level=debug",
 	})
 	f.InitFromViper(v)
 	assert.Equal(t, f.options.Configuration.PluginBinary, "noop-grpc-plugin")
 	assert.Equal(t, f.options.Configuration.PluginConfigurationFile, "config.json")
+	assert.Equal(t, f.options.Configuration.PluginLogLevel, "debug")
 }

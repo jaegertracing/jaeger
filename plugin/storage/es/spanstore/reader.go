@@ -337,7 +337,7 @@ func (s *SpanReader) multiRead(ctx context.Context, traceIDs []model.TraceID, st
 		}
 		searchRequests := make([]*elastic.SearchRequest, len(traceIDs))
 		for i, traceID := range traceIDs {
-			query := elastic.NewTermQuery("traceID", traceID.String())
+			query := buildTraceByIDQuery(traceID)
 			if val, ok := searchAfterTime[traceID]; ok {
 				nextTime = val
 			}
@@ -393,15 +393,42 @@ func (s *SpanReader) multiRead(ctx context.Context, traceIDs []model.TraceID, st
 	return traces, nil
 }
 
+func buildTraceByIDQuery(traceID model.TraceID) elastic.Query {
+	traceIDStr := traceID.String()
+	if traceIDStr[0] != '0' {
+		return elastic.NewTermQuery(traceIDField, traceIDStr)
+	}
+	// https://github.com/jaegertracing/jaeger/pull/1956 added leading zeros to IDs
+	// So we need to also read IDs without leading zeros for compatibility with previously saved data.
+	// TODO remove in newer versions, added in Jaeger 1.16
+	var legacyTraceID string
+	if traceID.High == 0 {
+		legacyTraceID = fmt.Sprintf("%x", traceID.Low)
+	} else {
+		legacyTraceID = fmt.Sprintf("%x%016x", traceID.High, traceID.Low)
+	}
+	return elastic.NewBoolQuery().Should(
+		elastic.NewTermQuery(traceIDField, traceIDStr).Boost(2),
+		elastic.NewTermQuery(traceIDField, legacyTraceID))
+}
+
 func convertTraceIDsStringsToModels(traceIDs []string) ([]model.TraceID, error) {
-	traceIDsModels := make([]model.TraceID, len(traceIDs))
-	for i, ID := range traceIDs {
+	traceIDsMap := map[model.TraceID]bool{}
+	// https://github.com/jaegertracing/jaeger/pull/1956 added leading zeros to IDs
+	// So we need to also read IDs without leading zeros for compatibility with previously saved data.
+	// That means the input to this function may contain logically identical trace IDs but formatted
+	// with or without padding, and we need to dedupe them.
+	// TODO remove deduping in newer versions, added in Jaeger 1.16
+	traceIDsModels := make([]model.TraceID, 0, len(traceIDs))
+	for _, ID := range traceIDs {
 		traceID, err := model.TraceIDFromString(ID)
 		if err != nil {
 			return nil, errors.Wrap(err, fmt.Sprintf("Making traceID from string '%s' failed", ID))
 		}
-
-		traceIDsModels[i] = traceID
+		if _, ok := traceIDsMap[traceID]; !ok {
+			traceIDsMap[traceID] = true
+			traceIDsModels = append(traceIDsModels, traceID)
+		}
 	}
 
 	return traceIDsModels, nil

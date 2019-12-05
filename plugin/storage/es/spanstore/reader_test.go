@@ -216,11 +216,15 @@ func TestSpanReader_multiRead_followUp_query(t *testing.T) {
 		spanBytesID2, err := json.Marshal(spanID2)
 		require.NoError(t, err)
 
-		id1Query := elastic.NewTermQuery("traceID", model.TraceID{High: 0, Low: 1}.String())
+		id1Query := elastic.NewBoolQuery().Should(
+			elastic.NewTermQuery(traceIDField, model.TraceID{High: 0, Low: 1}.String()).Boost(2),
+			elastic.NewTermQuery(traceIDField, fmt.Sprintf("%x", 1)))
 		id1Search := elastic.NewSearchRequest().
 			IgnoreUnavailable(true).
 			Source(r.reader.sourceFn(id1Query, model.TimeAsEpochMicroseconds(date.Add(-time.Hour))))
-		id2Query := elastic.NewTermQuery("traceID", model.TraceID{High: 0, Low: 2}.String())
+		id2Query := elastic.NewBoolQuery().Should(
+			elastic.NewTermQuery(traceIDField, model.TraceID{High: 0, Low: 2}.String()).Boost(2),
+			elastic.NewTermQuery(traceIDField, fmt.Sprintf("%x", 2)))
 		id2Search := elastic.NewSearchRequest().
 			IgnoreUnavailable(true).
 			Source(r.reader.sourceFn(id2Query, model.TimeAsEpochMicroseconds(date.Add(-time.Hour))))
@@ -797,7 +801,7 @@ func TestTraceIDsStringsToModelsConversion(t *testing.T) {
 	traceIDs, err := convertTraceIDsStringsToModels([]string{"1", "2", "3"})
 	assert.NoError(t, err)
 	assert.Equal(t, 3, len(traceIDs))
-	assert.Equal(t, "1", traceIDs[0].String())
+	assert.Equal(t, model.NewTraceID(0, 1), traceIDs[0])
 
 	traceIDs, err = convertTraceIDsStringsToModels([]string{"dsfjsdklfjdsofdfsdbfkgbgoaemlrksdfbsdofgerjl"})
 	assert.EqualError(t, err, "Making traceID from string 'dsfjsdklfjdsofdfsdbfkgbgoaemlrksdfbsdofgerjl' failed: TraceID cannot be longer than 32 hex characters: dsfjsdklfjdsofdfsdbfkgbgoaemlrksdfbsdofgerjl")
@@ -1080,7 +1084,44 @@ func TestSpanReader_ArchiveTraces_ReadAlias(t *testing.T) {
 	})
 }
 
-func TestNewSpanReader2(t *testing.T) {
-	spanDate := time.Now().UTC().Format("2006")
-	fmt.Println(spanDate)
+func TestConvertTraceIDsStringsToModels(t *testing.T) {
+	ids, err := convertTraceIDsStringsToModels([]string{"1", "2", "01", "02", "001", "002"})
+	require.NoError(t, err)
+	assert.Equal(t, []model.TraceID{model.NewTraceID(0, 1), model.NewTraceID(0, 2)}, ids)
+	_, err = convertTraceIDsStringsToModels([]string{"1", "2", "01", "02", "001", "002", "blah"})
+	assert.Error(t, err)
+}
+
+func TestBuildTraceByIDQuery(t *testing.T) {
+	uintMax := ^uint64(0)
+	traceIDNoHigh := model.NewTraceID(0, 1)
+	traceIDHigh := model.NewTraceID(1, 1)
+	traceID := model.NewTraceID(uintMax, uintMax)
+	tests := []struct {
+		traceID model.TraceID
+		query   elastic.Query
+	}{
+		{
+			traceID: traceIDNoHigh,
+			query: elastic.NewBoolQuery().Should(
+				elastic.NewTermQuery(traceIDField, "0000000000000001").Boost(2),
+				elastic.NewTermQuery(traceIDField, "1"),
+			),
+		},
+		{
+			traceID: traceIDHigh,
+			query: elastic.NewBoolQuery().Should(
+				elastic.NewTermQuery(traceIDField, "00000000000000010000000000000001").Boost(2),
+				elastic.NewTermQuery(traceIDField, "10000000000000001"),
+			),
+		},
+		{
+			traceID: traceID,
+			query:   elastic.NewTermQuery(traceIDField, "ffffffffffffffffffffffffffffffff"),
+		},
+	}
+	for _, test := range tests {
+		q := buildTraceByIDQuery(test.traceID)
+		assert.Equal(t, test.query, q)
+	}
 }

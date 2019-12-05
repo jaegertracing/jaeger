@@ -1,9 +1,9 @@
 {
-  "traceID": "1",
+  "traceID": "0000000000000001",
   "spans": [
     {
-      "traceID": "1",
-      "spanID": "2",
+      "traceID": "0000000000000001",
+      "spanID": "0000000000000002",
       "operationName": "test-general-conversion",
       "references": [],
       "startTime": 1485467191639875,
@@ -35,8 +35,8 @@
       "warnings": null
     },
     {
-      "traceID": "1",
-      "spanID": "2",
+      "traceID": "0000000000000001",
+      "spanID": "0000000000000002",
       "operationName": "some-operation",
       "references": [],
       "startTime": 1485467191639875,
@@ -73,14 +73,14 @@
       "warnings": null
     },
     {
-      "traceID": "1",
-      "spanID": "3",
+      "traceID": "0000000000000001",
+      "spanID": "0000000000000003",
       "operationName": "some-operation",
       "references": [
         {
           "refType": "CHILD_OF",
-          "traceID": "1",
-          "spanID": "2"
+          "traceID": "0000000000000001",
+          "spanID": "0000000000000002"
         }
       ],
       "startTime": 1485467191639875,
@@ -91,24 +91,24 @@
       "warnings": null
     },
     {
-      "traceID": "1",
-      "spanID": "4",
+      "traceID": "0000000000000001",
+      "spanID": "0000000000000004",
       "operationName": "reference-test",
       "references": [
         {
           "refType": "CHILD_OF",
-          "traceID": "ff",
-          "spanID": "ff"
+          "traceID": "00000000000000ff",
+          "spanID": "00000000000000ff"
         },
         {
           "refType": "CHILD_OF",
-          "traceID": "1",
-          "spanID": "2"
+          "traceID": "0000000000000001",
+          "spanID": "0000000000000002"
         },
         {
           "refType": "FOLLOWS_FROM",
-          "traceID": "1",
-          "spanID": "2"
+          "traceID": "0000000000000001",
+          "spanID": "0000000000000002"
         }
       ],
       "startTime": 1485467191639875,
@@ -121,14 +121,14 @@
       ]
     },
     {
-      "traceID": "1",
-      "spanID": "5",
+      "traceID": "0000000000000001",
+      "spanID": "0000000000000005",
       "operationName": "preserveParentID-test",
       "references": [
         {
           "refType": "CHILD_OF",
-          "traceID": "1",
-          "spanID": "4"
+          "traceID": "0000000000000001",
+          "spanID": "0000000000000004"
         }
       ],
       "startTime": 1485467191639875,
