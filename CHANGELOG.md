@@ -6,11 +6,7 @@ Changes by Version
 
 ### Breaking Changes
 
-#### List of service operations can be classified by span kinds
-
-([PR #1943](https://github.com/jaegertracing/jaeger/pull/1943), [@guo0693](https://github.com/guo0693))
-
-TODO: fix formatting/indentation below
+* List of service operations can be classified by span kinds ([#1943](https://github.com/jaegertracing/jaeger/pull/1943), [@guo0693](https://github.com/guo0693))
 
     * Endpoint changes:
         * Both Http & gRPC servers now take new optional parameter `spanKind` in addition to `service`. When spanKind
@@ -58,40 +54,36 @@ TODO: fix formatting/indentation below
                 At the end, it will ask you whether you want to drop the old table or not.
             2. Restart ingester & query services so that they begin to use the new table
 
-#### Trace and Span IDs are always padded to 32 or 16 hex characters with leading zeros
+* Trace and Span IDs are always padded to 32 or 16 hex characters with leading zeros ([#1956](https://github.com/jaegertracing/jaeger/pull/1956), [@yurishkuro](https://github.com/yurishkuro))
 
-([PR #1956](https://github.com/jaegertracing/jaeger/pull/1956), [@yurishkuro](https://github.com/yurishkuro))
+    Previously, Jaeger backend always rendered trace and span IDs as  the shortest possible hex string, e.g. an ID
+    with numeric value 255 would be rendered as a string `ff`. This change makes the IDs to always render as 16 or 32
+    characters long hex string, e.g. the same id=255 would render as `00000000000000ff`. It mostly affects how UI
+    displays the IDs, the URLs, and the JSON returned from `jaeger-query` service.
 
-Previously, Jaeger backend always rendered trace and span IDs as  the shortest possible hex string, e.g. an ID
-with numeric value 255 would be rendered as a string `ff`. This change makes the IDs to always render as 16 or 32
-characters long hex string, e.g. the same id=255 would render as `00000000000000ff`. It mostly affects how UI
-displays the IDs, the URLs, and the JSON returned from `jaeger-query` service.
+    Motivation: Among randomly generated and uniformly distributed trace IDs, only 1/16th of them start with 0
+    followed by a significant digit, 1/256th start with two 0s, and so on in decreasing geometric progression.
+    Therefore, trimming the leading 0s is a very modest optimization on the size of the data being transmitted or stored.
 
-Motivation: Among randomly generated and uniformly distributed trace IDs, only 1/16th of them start with 0
-followed by a significant digit, 1/256th start with two 0s, and so on in decreasing geometric progression.
-Therefore, trimming the leading 0s is a very modest optimization on the size of the data being transmitted or stored.
+    However, trimming 0s leads to ambiguities when the IDs are used as correlations with other monitoring systems,
+    such as logging, that treat the IDs as opaque strings and cannot establish the equivalence between padded and
+    unpadded IDs. It is also incompatible with W3C Trace Context and Zipkin B3 formats, both of which include all
+    leading 0s, so an application instrumented with OpenTelemetry SDKs may be logging different trace ID strings
+    than application instrumented with Jaeger SDKs (related issue #1657).
 
-However, trimming 0s leads to ambiguities when the IDs are used as correlations with other monitoring systems,
-such as logging, that treat the IDs as opaque strings and cannot establish the equivalence between padded and
-unpadded IDs. It is also incompatible with W3C Trace Context and Zipkin B3 formats, both of which include all
-leading 0s, so an application instrumented with OpenTelemetry SDKs may be logging different trace ID strings
-than application instrumented with Jaeger SDKs (related issue #1657).
+    Overall, the change is backward compatible:
+      * links with non-padded IDs in the UI will still work
+      * data stored in Elasticsearch (where IDs are represented as strings) is still readable
 
-Overall, the change is backward compatible:
-  * links with non-padded IDs in the UI will still work
-  * data stored in Elasticsearch (where IDs are represented as strings) is still readable
+    However, some custom integration that rely on exact string matches of trace IDs may be broken.
 
-However, some custom integration that rely on exact string matches of trace IDs may be broken.
+* Change default rollover conditions to 2 days ([#1963](https://github.com/jaegertracing/jaeger/pull/1963), [@pavolloffay](https://github.com/pavolloffay))
 
-#### Change default rollover conditions to 2 days
+    Change default rollover conditions from 7 days to 2 days.
 
-([PR #1963](https://github.com/jaegertracing/jaeger/pull/1963), [@pavolloffay](https://github.com/pavolloffay))
-
-Change default rollover conditions from 7 days to 2 days.
-
-Given that by default Jaeger uses daily indices and some organizations do not keep data longer than 7 days
-the default of 7 days seems unreasonable - it might result in a too big index and
-running curator would immediately remove the old index.
+    Given that by default Jaeger uses daily indices and some organizations do not keep data longer than 7 days
+    the default of 7 days seems unreasonable - it might result in a too big index and
+    running curator would immediately remove the old index.
 
 ### Backend Changes
 
