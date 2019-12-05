@@ -67,6 +67,7 @@ func (spanHb *SpanHandlerBuilder) BuildHandlers() (
 		app.Options.SpanFilter(defaultSpanFilter),
 		app.Options.NumWorkers(spanHb.collectorOpts.NumWorkers),
 		app.Options.QueueSize(spanHb.collectorOpts.QueueSize),
+		app.Options.CollectorTags(spanHb.collectorOpts.CollectorTags),
 	)
 
 	return app.NewZipkinSpanHandler(spanHb.logger, spanProcessor, zs.NewChainedSanitizer(zs.StandardSanitizers...)),
