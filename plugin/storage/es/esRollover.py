@@ -69,10 +69,6 @@ def main():
 
 def perform_action(action, client, write_alias, read_alias, index_to_rollover, template_name):
     if action == 'init':
-        if not is_alias_empty(client, read_alias) or not is_alias_empty(client, write_alias):
-            print("Alias {} or {} is not empty aborting init step".format(read_alias, write_alias))
-            return
-
         shards = os.getenv('SHARDS', SHARDS)
         replicas = os.getenv('REPLICAS', REPLICAS)
         esVersion = get_version(client)
@@ -84,8 +80,10 @@ def perform_action(action, client, write_alias, read_alias, index_to_rollover, t
 
         index = index_to_rollover + '-000001'
         create_index(client, index)
-        create_aliases(client, read_alias, index)
-        create_aliases(client, write_alias, index)
+        if is_alias_empty(client, read_alias):
+            create_aliases(client, read_alias, index)
+        if is_alias_empty(client, write_alias):
+            create_aliases(client, write_alias, index)
     elif action == 'rollover':
         cond = ast.literal_eval(os.getenv('CONDITIONS', ROLLBACK_CONDITIONS))
         rollover(client, write_alias, read_alias, cond)
@@ -114,8 +112,10 @@ def create_index(client, name):
     try:
         create.do_action()
     except curator.exceptions.FailedExecution as e:
-        if "index_already_exists_exception" not in str(e) and "resource_already_exists_exception" not in str(e):
+        if ("index_already_exists_exception" or "resource_already_exists_exception") in str(e):
             raise e
+        else:
+            print("Index {} already exists".format(name))
 
 
 def create_aliases(client, alias_name, archive_index_name):
