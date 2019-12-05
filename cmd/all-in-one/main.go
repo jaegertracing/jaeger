@@ -41,6 +41,7 @@ import (
 	agentRep "github.com/jaegertracing/jaeger/cmd/agent/app/reporter"
 	agentGrpcRep "github.com/jaegertracing/jaeger/cmd/agent/app/reporter/grpc"
 	agentTchanRep "github.com/jaegertracing/jaeger/cmd/agent/app/reporter/tchannel"
+	"github.com/jaegertracing/jaeger/cmd/all-in-one/setupcontext"
 	basic "github.com/jaegertracing/jaeger/cmd/builder"
 	collectorApp "github.com/jaegertracing/jaeger/cmd/collector/app"
 	collector "github.com/jaegertracing/jaeger/cmd/collector/app/builder"
@@ -71,6 +72,9 @@ import (
 
 // all-in-one/main is a standalone full-stack jaeger backend, backed by a memory store
 func main() {
+
+	setupcontext.SetAllInOne()
+
 	svc := flags.NewService(ports.CollectorAdminHTTP)
 
 	if os.Getenv(storage.SpanStorageTypeEnvVar) == "" {
@@ -121,7 +125,7 @@ by default uses only in-memory database.`,
 			strategyStore := initSamplingStrategyStore(strategyStoreFactory, metricsFactory, logger)
 
 			aOpts := new(agentApp.Builder).InitFromViper(v)
-			repOpts := new(agentRep.Options).InitFromViper(v)
+			repOpts := new(agentRep.Options).InitFromViper(v, logger)
 			tchanBuilder := agentTchanRep.NewBuilder().InitFromViper(v, logger)
 			grpcBuilder := agentGrpcRep.NewConnBuilder().InitFromViper(v)
 			cOpts := new(collector.CollectorOptions).InitFromViper(v)

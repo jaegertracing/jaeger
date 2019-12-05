@@ -241,7 +241,7 @@ func TestCreateCollectorProxy(t *testing.T) {
 		err := command.ParseFlags(test.flags)
 		require.NoError(t, err)
 
-		rOpts := new(reporter.Options).InitFromViper(v)
+		rOpts := new(reporter.Options).InitFromViper(v, zap.NewNop())
 		tchan := tchannel.NewBuilder().InitFromViper(v, zap.NewNop())
 		grpcBuilder := grpc.NewConnBuilder().InitFromViper(v)
 

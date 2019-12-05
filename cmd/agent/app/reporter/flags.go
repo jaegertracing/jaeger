@@ -17,17 +17,20 @@ package reporter
 import (
 	"flag"
 	"fmt"
-	"os"
-	"strings"
 
 	"github.com/spf13/viper"
+	"go.uber.org/zap"
+
+	"github.com/jaegertracing/jaeger/cmd/all-in-one/setupcontext"
+	"github.com/jaegertracing/jaeger/cmd/flags"
 )
 
 const (
 	// Whether to use grpc or tchannel reporter.
 	reporterType = "reporter.type"
 	// Agent tags
-	agentTags = "jaeger.tags"
+	agentTagsDeprecated = "jaeger.tags"
+	agentTags           = "agent.tags"
 	// TCHANNEL is name of tchannel reporter.
 	TCHANNEL Type = "tchannel"
 	// GRPC is name of gRPC reporter.
@@ -46,51 +49,23 @@ type Options struct {
 // AddFlags adds flags for Options.
 func AddFlags(flags *flag.FlagSet) {
 	flags.String(reporterType, string(GRPC), fmt.Sprintf("Reporter type to use e.g. %s, %s", string(GRPC), string(TCHANNEL)))
-	flags.String(agentTags, "", "One or more tags to be added to the Process tags of all spans passing through this agent. Ex: key1=value1,key2=${envVar:defaultValue}")
+	if !setupcontext.IsAllInOne() {
+		flags.String(agentTagsDeprecated, "", "(deprecated) see --"+agentTags)
+		flags.String(agentTags, "", "One or more tags to be added to the Process tags of all spans passing through this agent. Ex: key1=value1,key2=${envVar:defaultValue}")
+	}
 }
 
 // InitFromViper initializes Options with properties retrieved from Viper.
-func (b *Options) InitFromViper(v *viper.Viper) *Options {
+func (b *Options) InitFromViper(v *viper.Viper, logger *zap.Logger) *Options {
 	b.ReporterType = Type(v.GetString(reporterType))
-	b.AgentTags = parseAgentTags(v.GetString(agentTags))
-	return b
-}
-
-// Parsing logic borrowed from jaegertracing/jaeger-client-go
-func parseAgentTags(agentTags string) map[string]string {
-	if agentTags == "" {
-		return nil
-	}
-	tagPairs := strings.Split(string(agentTags), ",")
-	tags := make(map[string]string)
-	for _, p := range tagPairs {
-		kv := strings.SplitN(p, "=", 2)
-		k, v := strings.TrimSpace(kv[0]), strings.TrimSpace(kv[1])
-
-		if strings.HasPrefix(v, "${") && strings.HasSuffix(v, "}") {
-			skipWhenEmpty := false
-
-			ed := strings.SplitN(string(v[2:len(v)-1]), ":", 2)
-			if len(ed) == 1 {
-				// no default value specified, set to empty
-				skipWhenEmpty = true
-				ed = append(ed, "")
-			}
-
-			e, d := ed[0], ed[1]
-			v = os.Getenv(e)
-			if v == "" && d != "" {
-				v = d
-			}
-
-			// no value is set, skip this entry
-			if v == "" && skipWhenEmpty {
-				continue
-			}
+	if !setupcontext.IsAllInOne() {
+		if len(v.GetString(agentTagsDeprecated)) > 0 {
+			logger.Warn("Using deprecated configuration", zap.String("option", agentTagsDeprecated))
+			b.AgentTags = flags.ParseJaegerTags(v.GetString(agentTagsDeprecated))
 		}
-
-		tags[k] = v
+		if len(v.GetString(agentTags)) > 0 {
+			b.AgentTags = flags.ParseJaegerTags(v.GetString(agentTags))
+		}
 	}
-
-	return tags
+	return b
 }
