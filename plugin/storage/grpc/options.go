@@ -22,8 +22,12 @@ import (
 	"github.com/jaegertracing/jaeger/plugin/storage/grpc/config"
 )
 
-const pluginBinary = "grpc-storage-plugin.binary"
-const pluginConfigurationFile = "grpc-storage-plugin.configuration-file"
+const (
+	pluginBinary            = "grpc-storage-plugin.binary"
+	pluginConfigurationFile = "grpc-storage-plugin.configuration-file"
+	pluginLogLevel          = "grpc-storage-plugin.log-level"
+	defaultPluginLogLevel   = "warn"
+)
 
 // Options contains GRPC plugins configs and provides the ability
 // to bind them to command line flags
@@ -35,10 +39,13 @@ type Options struct {
 func (opt *Options) AddFlags(flagSet *flag.FlagSet) {
 	flagSet.String(pluginBinary, "", "The location of the plugin binary")
 	flagSet.String(pluginConfigurationFile, "", "A path pointing to the plugin's configuration file, made available to the plugin with the --config arg")
+	flagSet.String(pluginLogLevel, defaultPluginLogLevel, "Set the log level of the plugin's logger")
 }
 
 // InitFromViper initializes Options with properties from viper
 func (opt *Options) InitFromViper(v *viper.Viper) {
 	opt.Configuration.PluginBinary = v.GetString(pluginBinary)
 	opt.Configuration.PluginConfigurationFile = v.GetString(pluginConfigurationFile)
+	opt.Configuration.PluginLogLevel = v.GetString(pluginLogLevel)
+
 }
