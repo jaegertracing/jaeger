@@ -4,7 +4,9 @@ Changes by Version
 1.16.0 (unreleased)
 ------------------
 
-### Breaking Changes
+#### Backend Changes
+
+##### Breaking Changes
 
 * List of service operations can be classified by span kinds ([#1943](https://github.com/jaegertracing/jaeger/pull/1943), [@guo0693](https://github.com/guo0693))
 
@@ -85,13 +87,12 @@ Changes by Version
     the default of 7 days seems unreasonable - it might result in a too big index and
     running curator would immediately remove the old index.
 
-### Backend Changes
 
-#### New Features
+##### New Features
 
-#### Bug fixes, Minor Improvements
+##### Bug fixes, Minor Improvements
 
-### UI Changes
+#### UI Changes
 
 
 1.15.1 (2019-11-07)
