@@ -162,7 +162,7 @@ func TestCannotReadBodyFromRequest(t *testing.T) {
 	req, err := http.NewRequest(http.MethodPost, "whatever", &errReader{})
 	assert.NoError(t, err)
 	rw := dummyResponseWriter{}
-	handler.saveSpan(&rw, req)
+	handler.SaveSpan(&rw, req)
 	assert.EqualValues(t, http.StatusInternalServerError, rw.myStatusCode)
 	assert.EqualValues(t, "Unable to process request body: Simulated error reading body\n", rw.myBody)
 }
