@@ -143,21 +143,19 @@ func TestSpanReaderIndices(t *testing.T) {
 	client := &mocks.Client{}
 	logger, _ := testutils.NewLogger()
 	metricsFactory := metricstest.NewFactory(0)
-	date := time.Date(2019, 10, 10, 5, 0, 0, 0, time.UTC)
-	dateFormat := date.UTC().Format("2006-01-02")
 	testCases := []struct {
 		index  string
 		params SpanReaderParams
 	}{
 		{params: SpanReaderParams{Client: client, Logger: logger, MetricsFactory: metricsFactory,
 			IndexPrefix: "", Archive: false},
-			index: spanIndex + dateFormat},
+			index: spanIndex + "*"},
 		{params: SpanReaderParams{Client: client, Logger: logger, MetricsFactory: metricsFactory,
 			IndexPrefix: "", UseReadWriteAliases: true},
 			index: spanIndex + "read"},
 		{params: SpanReaderParams{Client: client, Logger: logger, MetricsFactory: metricsFactory,
 			IndexPrefix: "foo:", Archive: false},
-			index: "foo:" + indexPrefixSeparator + spanIndex + dateFormat},
+			index: "foo:" + indexPrefixSeparator + spanIndex + "*"},
 		{params: SpanReaderParams{Client: client, Logger: logger, MetricsFactory: metricsFactory,
 			IndexPrefix: "foo:", UseReadWriteAliases: true},
 			index: "foo:-" + spanIndex + "read"},
@@ -173,8 +171,8 @@ func TestSpanReaderIndices(t *testing.T) {
 	}
 	for _, testCase := range testCases {
 		r := NewSpanReader(testCase.params)
-		actual := r.timeRangeIndices(r.spanIndexPrefix, date, date)
-		assert.Equal(t, []string{testCase.index}, actual)
+		actual := r.timeRangeIndices(r.spanIndexPrefix)
+		assert.Equal(t, testCase.index, actual)
 	}
 }
 
@@ -430,42 +428,31 @@ func TestSpanReader_esJSONtoJSONSpanModelError(t *testing.T) {
 
 func TestSpanReaderFindIndices(t *testing.T) {
 	today := time.Date(1995, time.April, 21, 4, 12, 19, 95, time.UTC)
-	yesterday := today.AddDate(0, 0, -1)
-	twoDaysAgo := today.AddDate(0, 0, -2)
 
 	testCases := []struct {
 		startTime time.Time
 		endTime   time.Time
-		expected  []string
+		expected  string
 	}{
 		{
 			startTime: today.Add(-time.Millisecond),
 			endTime:   today,
-			expected: []string{
-				indexWithDate(spanIndex, today),
-			},
+			expected:  spanIndex + "*",
 		},
 		{
 			startTime: today.Add(-13 * time.Hour),
 			endTime:   today,
-			expected: []string{
-				indexWithDate(spanIndex, today),
-				indexWithDate(spanIndex, yesterday),
-			},
+			expected:  spanIndex + "*",
 		},
 		{
 			startTime: today.Add(-48 * time.Hour),
 			endTime:   today,
-			expected: []string{
-				indexWithDate(spanIndex, today),
-				indexWithDate(spanIndex, yesterday),
-				indexWithDate(spanIndex, twoDaysAgo),
-			},
+			expected:  spanIndex + "*",
 		},
 	}
 	withSpanReader(func(r *spanReaderTest) {
 		for _, testCase := range testCases {
-			actual := r.reader.timeRangeIndices(spanIndex, testCase.startTime, testCase.endTime)
+			actual := r.reader.timeRangeIndices(spanIndex)
 			assert.EqualValues(t, testCase.expected, actual)
 		}
 	})

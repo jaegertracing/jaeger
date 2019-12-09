@@ -36,10 +36,10 @@ const (
 
 // DependencyStore handles all queries and insertions to ElasticSearch dependencies
 type DependencyStore struct {
-	ctx         context.Context
-	client      es.Client
-	logger      *zap.Logger
-	indexPrefix string
+	ctx    context.Context
+	client es.Client
+	logger *zap.Logger
+	index  string
 }
 
 // NewDependencyStore returns a DependencyStore
@@ -49,16 +49,16 @@ func NewDependencyStore(client es.Client, logger *zap.Logger, indexPrefix string
 		prefix = indexPrefix + "-"
 	}
 	return &DependencyStore{
-		ctx:         context.Background(),
-		client:      client,
-		logger:      logger,
-		indexPrefix: prefix + dependencyIndex,
+		ctx:    context.Background(),
+		client: client,
+		logger: logger,
+		index:  prefix + dependencyIndex + "*",
 	}
 }
 
 // WriteDependencies implements dependencystore.Writer#WriteDependencies.
 func (s *DependencyStore) WriteDependencies(ts time.Time, dependencies []model.DependencyLink) error {
-	indexName := indexWithDate(s.indexPrefix, ts)
+	indexName := indexWithDate(s.index, ts)
 	if err := s.createIndex(indexName); err != nil {
 		return err
 	}
@@ -83,8 +83,7 @@ func (s *DependencyStore) writeDependencies(indexName string, ts time.Time, depe
 
 // GetDependencies returns all interservice dependencies
 func (s *DependencyStore) GetDependencies(endTs time.Time, lookback time.Duration) ([]model.DependencyLink, error) {
-	indices := getIndices(s.indexPrefix, endTs, lookback)
-	searchResult, err := s.client.Search(indices...).
+	searchResult, err := s.client.Search(s.index).
 		Size(10000). // the default elasticsearch allowed limit
 		Query(buildTSQuery(endTs, lookback)).
 		IgnoreUnavailable(true).

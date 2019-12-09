@@ -131,7 +131,7 @@ func NewSpanReader(p SpanReaderParams) *SpanReader {
 	}
 }
 
-type timeRangeIndexFn func(indexName string, startTime time.Time, endTime time.Time) []string
+type timeRangeIndexFn func(indexName string) string
 
 type sourceFn func(query elastic.Query, nextTime uint64) *elastic.SearchSource
 
@@ -143,16 +143,18 @@ func getTimeRangeIndexFn(archive, useReadWriteAliases bool) timeRangeIndexFn {
 		} else {
 			archivePrefix = archiveIndexSuffix
 		}
-		return func(indexName string, startTime time.Time, endTime time.Time) []string {
-			return []string{archiveIndex(indexName, archivePrefix)}
+		return func(indexName string) string {
+			return archiveIndex(indexName, archivePrefix)
 		}
 	}
 	if useReadWriteAliases {
-		return func(indices string, startTime time.Time, endTime time.Time) []string {
-			return []string{indices + "read"}
+		return func(index string) string {
+			return index + "read"
 		}
 	}
-	return timeRangeIndices
+	return func(indexName string) string {
+		return indexName + "*"
+	}
 }
 
 func getSourceFn(archive bool, maxNumSpans int) sourceFn {
@@ -167,20 +169,6 @@ func getSourceFn(archive bool, maxNumSpans int) sourceFn {
 		}
 		return s
 	}
-}
-
-// timeRangeIndices returns the array of indices that we need to query, based on query params
-func timeRangeIndices(indexName string, startTime time.Time, endTime time.Time) []string {
-	var indices []string
-	firstIndex := indexWithDate(indexName, startTime)
-	currentIndex := indexWithDate(indexName, endTime)
-	for currentIndex != firstIndex {
-		indices = append(indices, currentIndex)
-		endTime = endTime.Add(-24 * time.Hour)
-		currentIndex = indexWithDate(indexName, endTime)
-	}
-	indices = append(indices, firstIndex)
-	return indices
 }
 
 func indexNames(prefix, index string) string {
@@ -239,8 +227,7 @@ func (s *SpanReader) unmarshalJSONSpan(esSpanRaw *elastic.SearchHit) (*dbmodel.S
 func (s *SpanReader) GetServices(ctx context.Context) ([]string, error) {
 	span, ctx := opentracing.StartSpanFromContext(ctx, "GetServices")
 	defer span.Finish()
-	currentTime := time.Now()
-	jaegerIndices := s.timeRangeIndices(s.serviceIndexPrefix, currentTime.Add(-s.maxSpanAge), currentTime)
+	jaegerIndices := s.timeRangeIndices(s.serviceIndexPrefix)
 	return s.serviceOperationStorage.getServices(ctx, jaegerIndices)
 }
 
@@ -251,8 +238,7 @@ func (s *SpanReader) GetOperations(
 ) ([]spanstore.Operation, error) {
 	span, ctx := opentracing.StartSpanFromContext(ctx, "GetOperations")
 	defer span.Finish()
-	currentTime := time.Now()
-	jaegerIndices := s.timeRangeIndices(s.serviceIndexPrefix, currentTime.Add(-s.maxSpanAge), currentTime)
+	jaegerIndices := s.timeRangeIndices(s.serviceIndexPrefix)
 	operations, err := s.serviceOperationStorage.getOperations(ctx, jaegerIndices, query.ServiceName)
 	if err != nil {
 		return nil, err
@@ -325,7 +311,7 @@ func (s *SpanReader) multiRead(ctx context.Context, traceIDs []model.TraceID, st
 
 	// Add an hour in both directions so that traces that straddle two indexes are retrieved.
 	// i.e starts in one and ends in another.
-	indices := s.timeRangeIndices(s.spanIndexPrefix, startTime.Add(-time.Hour), endTime.Add(time.Hour))
+	index := s.timeRangeIndices(s.spanIndexPrefix)
 	nextTime := model.TimeAsEpochMicroseconds(startTime.Add(-time.Hour))
 
 	searchAfterTime := make(map[model.TraceID]uint64)
@@ -350,7 +336,7 @@ func (s *SpanReader) multiRead(ctx context.Context, traceIDs []model.TraceID, st
 		}
 		// set traceIDs to empty
 		traceIDs = nil
-		results, err := s.client.MultiSearch().Add(searchRequests...).Index(indices...).Do(ctx)
+		results, err := s.client.MultiSearch().Add(searchRequests...).Index(index).Do(ctx)
 
 		if err != nil {
 			logErrorToSpan(childSpan, err)
@@ -511,9 +497,9 @@ func (s *SpanReader) findTraceIDs(ctx context.Context, traceQuery *spanstore.Tra
 	//  }
 	aggregation := s.buildTraceIDAggregation(traceQuery.NumTraces)
 	boolQuery := s.buildFindTraceIDsQuery(traceQuery)
-	jaegerIndices := s.timeRangeIndices(s.spanIndexPrefix, traceQuery.StartTimeMin, traceQuery.StartTimeMax)
+	index := s.timeRangeIndices(s.spanIndexPrefix)
 
-	searchService := s.client.Search(jaegerIndices...).
+	searchService := s.client.Search(index).
 		Size(0). // set to 0 because we don't want actual documents.
 		Aggregation(traceIDAggregation, aggregation).
 		IgnoreUnavailable(true).

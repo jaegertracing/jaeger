@@ -77,10 +77,10 @@ func (s *ServiceOperationStorage) Write(indexName string, jsonSpan *dbmodel.Span
 	}
 }
 
-func (s *ServiceOperationStorage) getServices(context context.Context, indices []string) ([]string, error) {
+func (s *ServiceOperationStorage) getServices(context context.Context, index string) ([]string, error) {
 	serviceAggregation := getServicesAggregation()
 
-	searchService := s.client.Search(indices...).
+	searchService := s.client.Search(index).
 		Size(0). // set to 0 because we don't want actual documents.
 		IgnoreUnavailable(true).
 		Aggregation(servicesAggregation, serviceAggregation)
@@ -106,11 +106,11 @@ func getServicesAggregation() elastic.Query {
 		Size(defaultDocCount) // Must set to some large number. ES deprecated size omission for aggregating all. https://github.com/elastic/elasticsearch/issues/18838
 }
 
-func (s *ServiceOperationStorage) getOperations(context context.Context, indices []string, service string) ([]string, error) {
+func (s *ServiceOperationStorage) getOperations(context context.Context, index string, service string) ([]string, error) {
 	serviceQuery := elastic.NewTermQuery(serviceName, service)
 	serviceFilter := getOperationsAggregation()
 
-	searchService := s.client.Search(indices...).
+	searchService := s.client.Search(index).
 		Size(0).
 		Query(serviceQuery).
 		IgnoreUnavailable(true).

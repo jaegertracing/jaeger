@@ -67,7 +67,7 @@ func TestNewSpanReaderIndexPrefix(t *testing.T) {
 	for _, testCase := range testCases {
 		client := &mocks.Client{}
 		r := NewDependencyStore(client, zap.NewNop(), testCase.prefix)
-		assert.Equal(t, testCase.expected+dependencyIndex, r.indexPrefix)
+		assert.Equal(t, testCase.expected+dependencyIndex+"*", r.index)
 	}
 }
 
@@ -142,7 +142,7 @@ func TestGetDependencies(t *testing.T) {
 		expectedError  string
 		expectedOutput []model.DependencyLink
 		indexPrefix    string
-		indices        []interface{}
+		index          string
 	}{
 		{
 			searchResult: createSearchResult(goodDependencies),
@@ -153,23 +153,23 @@ func TestGetDependencies(t *testing.T) {
 					CallCount: 12,
 				},
 			},
-			indices: []interface{}{"jaeger-dependencies-1995-04-21", "jaeger-dependencies-1995-04-20"},
+			index: "jaeger-dependencies-*",
 		},
 		{
 			searchResult:  createSearchResult(badDependencies),
 			expectedError: "Unmarshalling ElasticSearch documents failed",
-			indices:       []interface{}{"jaeger-dependencies-1995-04-21", "jaeger-dependencies-1995-04-20"},
+			index:         "jaeger-dependencies-*",
 		},
 		{
 			searchError:   errors.New("search failure"),
 			expectedError: "Failed to search for dependencies: search failure",
-			indices:       []interface{}{"jaeger-dependencies-1995-04-21", "jaeger-dependencies-1995-04-20"},
+			index:         "jaeger-dependencies-*",
 		},
 		{
 			searchError:   errors.New("search failure"),
 			expectedError: "Failed to search for dependencies: search failure",
 			indexPrefix:   "foo",
-			indices:       []interface{}{"foo-jaeger-dependencies-1995-04-21", "foo-jaeger-dependencies-1995-04-20"},
+			index:         "foo-jaeger-dependencies-*",
 		},
 	}
 	for _, testCase := range testCases {
@@ -177,7 +177,7 @@ func TestGetDependencies(t *testing.T) {
 			fixedTime := time.Date(1995, time.April, 21, 4, 21, 19, 95, time.UTC)
 
 			searchService := &mocks.SearchService{}
-			r.client.On("Search", testCase.indices...).Return(searchService)
+			r.client.On("Search", testCase.index).Return(searchService)
 
 			searchService.On("Size", mock.Anything).Return(searchService)
 			searchService.On("Query", mock.Anything).Return(searchService)
