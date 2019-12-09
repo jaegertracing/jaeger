@@ -179,8 +179,7 @@ func indexNames(prefix, index string) string {
 func (s *SpanReader) GetTrace(ctx context.Context, traceID model.TraceID) (*model.Trace, error) {
 	span, ctx := opentracing.StartSpanFromContext(ctx, "GetTrace")
 	defer span.Finish()
-	currentTime := time.Now()
-	traces, err := s.multiRead(ctx, []model.TraceID{traceID}, currentTime.Add(-time.Hour*24*900))
+	traces, err := s.multiRead(ctx, []model.TraceID{traceID}, time.Now())
 	if err != nil {
 		return nil, err
 	}
@@ -306,7 +305,6 @@ func (s *SpanReader) multiRead(ctx context.Context, traceIDs []model.TraceID, st
 		return []*model.Trace{}, nil
 	}
 
-	// TODO
 	// Add an hour in both directions so that traces that straddle two indexes are retrieved.
 	// i.e starts in one and ends in another.
 	index := s.timeRangeIndices(s.spanIndexPrefix)
