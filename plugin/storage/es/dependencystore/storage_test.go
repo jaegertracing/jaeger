@@ -67,7 +67,7 @@ func TestNewSpanReaderIndexPrefix(t *testing.T) {
 	for _, testCase := range testCases {
 		client := &mocks.Client{}
 		r := NewDependencyStore(client, zap.NewNop(), testCase.prefix)
-		assert.Equal(t, testCase.expected+dependencyIndex+"*", r.index)
+		assert.Equal(t, testCase.expected+dependencyIndex, r.index)
 	}
 }
 
