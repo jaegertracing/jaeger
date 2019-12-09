@@ -45,7 +45,6 @@ const (
 	queryURL        = "http://" + queryHostPort
 	indexPrefix     = "integration-test"
 	tagKeyDeDotChar = "@"
-	maxSpanAge      = time.Hour * 72
 )
 
 type ESStorageIntegration struct {
@@ -135,7 +134,6 @@ func (s *ESStorageIntegration) initSpanstore(allTagsAsFields, archive bool) erro
 		Logger:            s.logger,
 		MetricsFactory:    metrics.NullFactory,
 		IndexPrefix:       indexPrefix,
-		MaxSpanAge:        maxSpanAge,
 		TagDotReplacement: tagKeyDeDotChar,
 		Archive:           archive,
 	})
@@ -195,7 +193,7 @@ func (s *StorageIntegration) testArchiveTrace(t *testing.T) {
 	tID := model.NewTraceID(uint64(11), uint64(22))
 	expected := &model.Span{
 		OperationName: "archive_span",
-		StartTime:     time.Now().Add(-maxSpanAge * 5),
+		StartTime:     time.Now(),
 		TraceID:       tID,
 		SpanID:        model.NewSpanID(55),
 		References:    []model.SpanRef{},

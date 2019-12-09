@@ -52,7 +52,7 @@ func NewDependencyStore(client es.Client, logger *zap.Logger, indexPrefix string
 		ctx:    context.Background(),
 		client: client,
 		logger: logger,
-		index:  prefix + dependencyIndex + "*",
+		index:  prefix + dependencyIndex,
 	}
 }
 
@@ -83,7 +83,7 @@ func (s *DependencyStore) writeDependencies(indexName string, ts time.Time, depe
 
 // GetDependencies returns all interservice dependencies
 func (s *DependencyStore) GetDependencies(endTs time.Time, lookback time.Duration) ([]model.DependencyLink, error) {
-	searchResult, err := s.client.Search(s.index).
+	searchResult, err := s.client.Search(s.index + "*").
 		Size(10000). // the default elasticsearch allowed limit
 		Query(buildTSQuery(endTs, lookback)).
 		IgnoreUnavailable(true).
