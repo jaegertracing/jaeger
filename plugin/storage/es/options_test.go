@@ -17,7 +17,6 @@ package es
 
 import (
 	"testing"
-	"time"
 
 	"github.com/stretchr/testify/assert"
 
@@ -32,7 +31,6 @@ func TestOptions(t *testing.T) {
 	assert.NotEmpty(t, primary.Servers)
 	assert.Equal(t, int64(5), primary.NumShards)
 	assert.Equal(t, int64(1), primary.NumReplicas)
-	assert.Equal(t, 72*time.Hour, primary.MaxSpanAge)
 	assert.False(t, primary.Sniffer)
 
 	aux := opts.Get("archive")
@@ -50,7 +48,6 @@ func TestOptionsWithFlags(t *testing.T) {
 		"--es.password=world",
 		"--es.token-file=/foo/bar",
 		"--es.sniffer=true",
-		"--es.max-span-age=48h",
 		"--es.num-shards=20",
 		"--es.num-replicas=10",
 		// a couple overrides
@@ -66,7 +63,6 @@ func TestOptionsWithFlags(t *testing.T) {
 	assert.Equal(t, "hello", primary.Username)
 	assert.Equal(t, "/foo/bar", primary.TokenFilePath)
 	assert.Equal(t, []string{"1.1.1.1", "2.2.2.2"}, primary.Servers)
-	assert.Equal(t, 48*time.Hour, primary.MaxSpanAge)
 	assert.True(t, primary.Sniffer)
 	assert.Equal(t, true, primary.TLS.Enabled)
 	assert.Equal(t, true, primary.TLS.SkipHostVerify)
@@ -77,7 +73,6 @@ func TestOptionsWithFlags(t *testing.T) {
 	assert.Equal(t, "world", aux.Password)
 	assert.Equal(t, int64(20), aux.NumShards)
 	assert.Equal(t, int64(10), aux.NumReplicas)
-	assert.Equal(t, 24*time.Hour, aux.MaxSpanAge)
 	assert.True(t, aux.Sniffer)
 
 }

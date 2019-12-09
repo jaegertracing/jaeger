@@ -153,7 +153,6 @@ func createSpanReader(
 		Logger:              logger,
 		MetricsFactory:      mFactory,
 		MaxNumSpans:         cfg.GetMaxNumSpans(),
-		MaxSpanAge:          cfg.GetMaxSpanAge(),
 		IndexPrefix:         cfg.GetIndexPrefix(),
 		TagDotReplacement:   cfg.GetTagDotReplacement(),
 		UseReadWriteAliases: cfg.GetUseReadWriteAliases(),

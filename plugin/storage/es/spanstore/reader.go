@@ -94,7 +94,6 @@ type SpanReader struct {
 	logger *zap.Logger
 	// The age of the oldest service/operation we will look for. Because indices in ElasticSearch are by day,
 	// this will be rounded down to UTC 00:00 of that day.
-	maxSpanAge              time.Duration
 	serviceOperationStorage *ServiceOperationStorage
 	spanIndexPrefix         string
 	serviceIndexPrefix      string
@@ -107,7 +106,6 @@ type SpanReader struct {
 type SpanReaderParams struct {
 	Client              es.Client
 	Logger              *zap.Logger
-	MaxSpanAge          time.Duration
 	MaxNumSpans         int
 	MetricsFactory      metrics.Factory
 	IndexPrefix         string
@@ -121,7 +119,6 @@ func NewSpanReader(p SpanReaderParams) *SpanReader {
 	return &SpanReader{
 		client:                  p.Client,
 		logger:                  p.Logger,
-		maxSpanAge:              p.MaxSpanAge,
 		serviceOperationStorage: NewServiceOperationStorage(p.Client, p.Logger, 0), // the decorator takes care of metrics
 		spanIndexPrefix:         indexNames(p.IndexPrefix, spanIndex),
 		serviceIndexPrefix:      indexNames(p.IndexPrefix, serviceIndex),
@@ -183,7 +180,7 @@ func (s *SpanReader) GetTrace(ctx context.Context, traceID model.TraceID) (*mode
 	span, ctx := opentracing.StartSpanFromContext(ctx, "GetTrace")
 	defer span.Finish()
 	currentTime := time.Now()
-	traces, err := s.multiRead(ctx, []model.TraceID{traceID}, currentTime.Add(-s.maxSpanAge), currentTime)
+	traces, err := s.multiRead(ctx, []model.TraceID{traceID}, currentTime.Add(-time.Hour*24*900))
 	if err != nil {
 		return nil, err
 	}
@@ -276,7 +273,7 @@ func (s *SpanReader) FindTraces(ctx context.Context, traceQuery *spanstore.Trace
 	if err != nil {
 		return nil, err
 	}
-	return s.multiRead(ctx, uniqueTraceIDs, traceQuery.StartTimeMin, traceQuery.StartTimeMax)
+	return s.multiRead(ctx, uniqueTraceIDs, traceQuery.StartTimeMin)
 }
 
 // FindTraceIDs retrieves traces IDs that match the traceQuery
@@ -299,7 +296,7 @@ func (s *SpanReader) FindTraceIDs(ctx context.Context, traceQuery *spanstore.Tra
 	return convertTraceIDsStringsToModels(esTraceIDs)
 }
 
-func (s *SpanReader) multiRead(ctx context.Context, traceIDs []model.TraceID, startTime, endTime time.Time) ([]*model.Trace, error) {
+func (s *SpanReader) multiRead(ctx context.Context, traceIDs []model.TraceID, startTime time.Time) ([]*model.Trace, error) {
 
 	childSpan, _ := opentracing.StartSpanFromContext(ctx, "multiRead")
 	childSpan.LogFields(otlog.Object("trace_ids", traceIDs))
@@ -309,6 +306,7 @@ func (s *SpanReader) multiRead(ctx context.Context, traceIDs []model.TraceID, st
 		return []*model.Trace{}, nil
 	}
 
+	// TODO
 	// Add an hour in both directions so that traces that straddle two indexes are retrieved.
 	// i.e starts in one and ends in another.
 	index := s.timeRangeIndices(s.spanIndexPrefix)

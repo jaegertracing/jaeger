@@ -86,7 +86,6 @@ func NewOptions(primaryNamespace string, otherNamespaces ...string) *Options {
 				Username:             "",
 				Password:             "",
 				Sniffer:              false,
-				MaxSpanAge:           72 * time.Hour,
 				MaxNumSpans:          10000,
 				NumShards:            5,
 				NumReplicas:          1,
@@ -147,8 +146,8 @@ func addFlags(flagSet *flag.FlagSet, nsConfig *namespaceConfig) {
 		"Timeout used for queries. A Timeout of zero means no timeout")
 	flagSet.Duration(
 		nsConfig.namespace+suffixMaxSpanAge,
-		nsConfig.MaxSpanAge,
-		"The maximum lookback for spans in Elasticsearch")
+		time.Hour*72,
+		"(deprecated) The maximum lookback for spans in Elasticsearch. Now all indices are searched.")
 	flagSet.Int(
 		nsConfig.namespace+suffixMaxNumSpans,
 		nsConfig.MaxNumSpans,
@@ -217,8 +216,7 @@ func addFlags(flagSet *flag.FlagSet, nsConfig *namespaceConfig) {
 		nsConfig.namespace+suffixReadAlias,
 		nsConfig.UseReadWriteAliases,
 		"(experimental) Use read and write aliases for indices. Use this option with Elasticsearch rollover "+
-			"API. It requires an external component to create aliases before startup and then performing its management. "+
-			"Note that "+nsConfig.namespace+suffixMaxSpanAge+" is not taken into the account and has to be substituted by external component managing read alias.")
+			"API. It requires an external component to create aliases before startup and then performing its management.")
 	flagSet.Bool(
 		nsConfig.namespace+suffixCreateIndexTemplate,
 		nsConfig.CreateIndexTemplates,
@@ -249,7 +247,6 @@ func initFromViper(cfg *namespaceConfig, v *viper.Viper) {
 	cfg.TokenFilePath = v.GetString(cfg.namespace + suffixTokenPath)
 	cfg.Sniffer = v.GetBool(cfg.namespace + suffixSniffer)
 	cfg.servers = stripWhiteSpace(v.GetString(cfg.namespace + suffixServerURLs))
-	cfg.MaxSpanAge = v.GetDuration(cfg.namespace + suffixMaxSpanAge)
 	cfg.MaxNumSpans = v.GetInt(cfg.namespace + suffixMaxNumSpans)
 	cfg.NumShards = v.GetInt64(cfg.namespace + suffixNumShards)
 	cfg.NumReplicas = v.GetInt64(cfg.namespace + suffixNumReplicas)

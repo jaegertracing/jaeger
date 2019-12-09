@@ -109,18 +109,6 @@ func buildTSQuery(endTs time.Time, lookback time.Duration) elastic.Query {
 	return elastic.NewRangeQuery("timestamp").Gte(endTs.Add(-lookback)).Lte(endTs)
 }
 
-func getIndices(prefix string, ts time.Time, lookback time.Duration) []string {
-	var indices []string
-	firstIndex := indexWithDate(prefix, ts.Add(-lookback))
-	currentIndex := indexWithDate(prefix, ts)
-	for currentIndex != firstIndex {
-		indices = append(indices, currentIndex)
-		ts = ts.Add(-24 * time.Hour)
-		currentIndex = indexWithDate(prefix, ts)
-	}
-	return append(indices, firstIndex)
-}
-
 func indexWithDate(indexNamePrefix string, date time.Time) string {
 	return indexNamePrefix + date.UTC().Format("2006-01-02")
 }

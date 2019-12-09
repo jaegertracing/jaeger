@@ -98,7 +98,6 @@ func withSpanReader(fn func(r *spanReaderTest)) {
 		reader: NewSpanReader(SpanReaderParams{
 			Client:            client,
 			Logger:            zap.NewNop(),
-			MaxSpanAge:        0,
 			IndexPrefix:       "",
 			TagDotReplacement: "@",
 		}),
@@ -116,7 +115,6 @@ func withArchiveSpanReader(readAlias bool, fn func(r *spanReaderTest)) {
 		reader: NewSpanReader(SpanReaderParams{
 			Client:              client,
 			Logger:              zap.NewNop(),
-			MaxSpanAge:          0,
 			IndexPrefix:         "",
 			TagDotReplacement:   "@",
 			Archive:             true,
@@ -133,7 +131,6 @@ func TestNewSpanReader(t *testing.T) {
 	reader := NewSpanReader(SpanReaderParams{
 		Client:         client,
 		Logger:         zap.NewNop(),
-		MaxSpanAge:     0,
 		MetricsFactory: metrics.NullFactory,
 		IndexPrefix:    ""})
 	assert.NotNil(t, reader)
@@ -266,7 +263,7 @@ func TestSpanReader_multiRead_followUp_query(t *testing.T) {
 				},
 			}, nil)
 
-		traces, err := r.reader.multiRead(context.Background(), []model.TraceID{{High: 0, Low: 1}, {High: 0, Low: 2}}, date, date)
+		traces, err := r.reader.multiRead(context.Background(), []model.TraceID{{High: 0, Low: 1}, {High: 0, Low: 2}}, date)
 		require.NoError(t, err)
 		require.NotNil(t, traces)
 		require.Len(t, traces, 2)

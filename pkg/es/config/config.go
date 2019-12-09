@@ -47,7 +47,6 @@ type Configuration struct {
 	AllowTokenFromContext bool
 	Sniffer               bool          // https://github.com/olivere/elastic/wiki/Sniffing
 	MaxNumSpans           int           // defines maximum number of spans to fetch from storage per query
-	MaxSpanAge            time.Duration `yaml:"max_span_age"` // configures the maximum lookback on span reads
 	NumShards             int64         `yaml:"shards"`
 	NumReplicas           int64         `yaml:"replicas"`
 	Timeout               time.Duration `validate:"min=500"`
@@ -80,7 +79,6 @@ type ClientBuilder interface {
 	NewClient(logger *zap.Logger, metricsFactory metrics.Factory) (es.Client, error)
 	GetNumShards() int64
 	GetNumReplicas() int64
-	GetMaxSpanAge() time.Duration
 	GetMaxNumSpans() int
 	GetIndexPrefix() string
 	GetTagsFilePath() string
@@ -187,9 +185,6 @@ func (c *Configuration) ApplyDefaults(source *Configuration) {
 	if !c.Sniffer {
 		c.Sniffer = source.Sniffer
 	}
-	if c.MaxSpanAge == 0 {
-		c.MaxSpanAge = source.MaxSpanAge
-	}
 	if c.MaxNumSpans == 0 {
 		c.MaxNumSpans = source.MaxNumSpans
 	}
@@ -221,11 +216,6 @@ func (c *Configuration) GetNumShards() int64 {
 // GetNumReplicas returns number of replicas from Configuration
 func (c *Configuration) GetNumReplicas() int64 {
 	return c.NumReplicas
-}
-
-// GetMaxSpanAge returns max span age from Configuration
-func (c *Configuration) GetMaxSpanAge() time.Duration {
-	return c.MaxSpanAge
 }
 
 // GetMaxNumSpans returns max spans allowed per query from Configuration
