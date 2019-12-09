@@ -17,6 +17,7 @@ package dbmodel
 
 import (
 	"bytes"
+	"encoding/hex"
 	"encoding/json"
 	"fmt"
 	"io/ioutil"
@@ -105,4 +106,52 @@ func TestTagMap(t *testing.T) {
 	tagsMap["b:b"] = int64(1)
 	assert.Equal(t, tagsMap, dbSpan.Tag)
 	assert.Equal(t, tagsMap, dbSpan.Process.Tag)
+}
+
+func TestConvertKeyValueValue(t *testing.T) {
+	longString := `Bender Bending Rodrigues Bender Bending Rodrigues Bender Bending Rodrigues Bender Bending Rodrigues
+	Bender Bending Rodrigues Bender Bending Rodrigues Bender Bending Rodrigues Bender Bending Rodrigues Bender Bending Rodrigues
+	Bender Bending Rodrigues Bender Bending Rodrigues Bender Bending Rodrigues Bender Bending Rodrigues Bender Bending Rodrigues
+	Bender Bending Rodrigues Bender Bending Rodrigues Bender Bending Rodrigues Bender Bending Rodrigues Bender Bending Rodrigues
+	Bender Bending Rodrigues Bender Bending Rodrigues Bender Bending Rodrigues Bender Bending Rodrigues Bender Bending Rodrigues `
+	tests := []struct {
+		kv       model.KeyValue
+		expected string
+	}{
+		{
+			kv:       model.KeyValue{VType: model.ValueType_BOOL, VBool: true},
+			expected: "true",
+		},
+		{
+			kv:       model.KeyValue{VType: model.ValueType_BOOL, VBool: false},
+			expected: "false",
+		},
+		{
+			kv:       model.KeyValue{VType: model.ValueType_INT64, VInt64: int64(1499)},
+			expected: "1499",
+		},
+		{
+			kv:       model.KeyValue{VType: model.ValueType_FLOAT64, VFloat64: float64(15.66)},
+			expected: "15.66",
+		},
+		{
+			kv:       model.KeyValue{VType: model.ValueType_STRING, VStr: longString},
+			expected: longString,
+		},
+		{
+			kv:       model.KeyValue{VType: model.ValueType_BINARY, VBinary: []byte(longString)},
+			expected: hex.EncodeToString([]byte(longString)),
+		},
+		{
+			kv:       model.KeyValue{VType: 1500},
+			expected: "unknown type 1500",
+		},
+	}
+
+	for _, test := range tests {
+		t.Run(test.expected, func(t *testing.T) {
+			actual := convertKeyValueType(test.kv)
+			assert.Equal(t, test.expected, actual)
+		})
+	}
 }
