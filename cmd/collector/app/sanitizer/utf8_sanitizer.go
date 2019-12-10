@@ -72,7 +72,7 @@ func (s *utf8Sanitizer) logSpan(span *model.Span, message string, field zapcore.
 func sanitizeKV(keyValues model.KeyValues) {
 	for i, kv := range keyValues {
 		if !utf8.ValidString(kv.Key) {
-			keyValues[i] = model.Binary(invalidTagKey, []byte(fmt.Sprintf("%s:%s", kv.Key, kv.AsString())))
+			keyValues[i] = model.Binary(invalidTagKey, []byte(fmt.Sprintf("%s:%s", kv.Key, kv.AsStringLossy())))
 		} else if kv.VType == model.StringType && !utf8.ValidString(kv.VStr) {
 			keyValues[i] = model.Binary(kv.Key, []byte(kv.VStr))
 		}

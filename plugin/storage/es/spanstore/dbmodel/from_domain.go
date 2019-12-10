@@ -16,9 +16,6 @@
 package dbmodel
 
 import (
-	"encoding/hex"
-	"fmt"
-	"strconv"
 	"strings"
 
 	"github.com/jaegertracing/jaeger/model"
@@ -98,11 +95,7 @@ func (fd FromDomain) convertKeyValuesString(keyValues model.KeyValues) ([]KeyVal
 			}
 			tagsMap[strings.Replace(kv.Key, ".", fd.tagDotReplacement, -1)] = kv.Value()
 		} else {
-			kvs = append(kvs, KeyValue{
-				Key:   kv.Key,
-				Type:  ValueType(strings.ToLower(kv.VType.String())),
-				Value: convertKeyValueType(kv),
-			})
+			kvs = append(kvs, convertKeyValue(kv))
 		}
 	}
 	if kvs == nil {
@@ -116,11 +109,7 @@ func (fd FromDomain) convertLogs(logs []model.Log) []Log {
 	for i, log := range logs {
 		var kvs []KeyValue
 		for _, kv := range log.Fields {
-			kvs = append(kvs, KeyValue{
-				Key:   kv.Key,
-				Type:  ValueType(strings.ToLower(kv.VType.String())),
-				Value: convertKeyValueType(kv),
-			})
+			kvs = append(kvs, convertKeyValue(kv))
 		}
 		out[i] = Log{
 			Timestamp: model.TimeAsEpochMicroseconds(log.Timestamp),
@@ -139,22 +128,10 @@ func (fd FromDomain) convertProcess(process *model.Process) Process {
 	}
 }
 
-func convertKeyValueType(kv model.KeyValue) string {
-	switch kv.VType {
-	case model.StringType:
-		return kv.VStr
-	case model.BoolType:
-		if kv.Bool() {
-			return "true"
-		}
-		return "false"
-	case model.Int64Type:
-		return strconv.FormatInt(kv.Int64(), 10)
-	case model.Float64Type:
-		return strconv.FormatFloat(kv.Float64(), 'g', 10, 64)
-	case model.BinaryType:
-		return hex.EncodeToString(kv.VBinary)
-	default:
-		return fmt.Sprintf("unknown type %d", kv.VType)
+func convertKeyValue(kv model.KeyValue) KeyValue {
+	return KeyValue{
+		Key:   kv.Key,
+		Type:  ValueType(strings.ToLower(kv.VType.String())),
+		Value: kv.AsString(),
 	}
 }

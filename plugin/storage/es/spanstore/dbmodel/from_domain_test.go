@@ -114,43 +114,44 @@ func TestConvertKeyValueValue(t *testing.T) {
 	Bender Bending Rodrigues Bender Bending Rodrigues Bender Bending Rodrigues Bender Bending Rodrigues Bender Bending Rodrigues
 	Bender Bending Rodrigues Bender Bending Rodrigues Bender Bending Rodrigues Bender Bending Rodrigues Bender Bending Rodrigues
 	Bender Bending Rodrigues Bender Bending Rodrigues Bender Bending Rodrigues Bender Bending Rodrigues Bender Bending Rodrigues `
+	key := "key"
 	tests := []struct {
 		kv       model.KeyValue
-		expected string
+		expected KeyValue
 	}{
 		{
-			kv:       model.KeyValue{VType: model.ValueType_BOOL, VBool: true},
-			expected: "true",
+			kv:       model.Bool(key, true),
+			expected: KeyValue{Key: key, Value: "true", Type: "bool"},
 		},
 		{
-			kv:       model.KeyValue{VType: model.ValueType_BOOL, VBool: false},
-			expected: "false",
+			kv:       model.Bool(key, false),
+			expected: KeyValue{Key: key, Value: "false", Type: "bool"},
 		},
 		{
-			kv:       model.KeyValue{VType: model.ValueType_INT64, VInt64: int64(1499)},
-			expected: "1499",
+			kv:       model.Int64(key, int64(1499)),
+			expected: KeyValue{Key: key, Value: "1499", Type: "int64"},
 		},
 		{
-			kv:       model.KeyValue{VType: model.ValueType_FLOAT64, VFloat64: float64(15.66)},
-			expected: "15.66",
+			kv:       model.Float64(key, float64(15.66)),
+			expected: KeyValue{Key: key, Value: "15.66", Type: "float64"},
 		},
 		{
-			kv:       model.KeyValue{VType: model.ValueType_STRING, VStr: longString},
-			expected: longString,
+			kv:       model.String(key, longString),
+			expected: KeyValue{Key: key, Value: longString, Type: "string"},
 		},
 		{
-			kv:       model.KeyValue{VType: model.ValueType_BINARY, VBinary: []byte(longString)},
-			expected: hex.EncodeToString([]byte(longString)),
+			kv:       model.Binary(key, []byte(longString)),
+			expected: KeyValue{Key: key, Value: hex.EncodeToString([]byte(longString)), Type: "binary"},
 		},
 		{
-			kv:       model.KeyValue{VType: 1500},
-			expected: "unknown type 1500",
+			kv:       model.KeyValue{VType: 1500, Key: key},
+			expected: KeyValue{Key: key, Value: "unknown type 1500", Type: "1500"},
 		},
 	}
 
 	for _, test := range tests {
-		t.Run(test.expected, func(t *testing.T) {
-			actual := convertKeyValueType(test.kv)
+		t.Run(fmt.Sprintf("%s:%s", test.expected.Type, test.expected.Key), func(t *testing.T) {
+			actual := convertKeyValue(test.kv)
 			assert.Equal(t, test.expected, actual)
 		})
 	}

@@ -130,13 +130,13 @@ func TestKeyValueAsStringAndValue(t *testing.T) {
 	for _, tt := range testCases {
 		testCase := tt // capture loop var
 		t.Run(testCase.str, func(t *testing.T) {
-			assert.Equal(t, testCase.str, testCase.kv.AsString())
+			assert.Equal(t, testCase.str, testCase.kv.AsStringLossy())
 			assert.Equal(t, testCase.val, testCase.kv.Value())
 		})
 	}
 	t.Run("invalid type", func(t *testing.T) {
 		kv := model.KeyValue{Key: "x", VType: model.ValueType(-1)}
-		assert.Equal(t, "unknown type -1", kv.AsString())
+		assert.Equal(t, "unknown type -1", kv.AsStringLossy())
 		assert.EqualError(t, kv.Value().(error), "unknown type -1")
 	})
 }

@@ -48,7 +48,7 @@ func (s *Span) Hash(w io.Writer) (err error) {
 // HasSpanKind returns true if the span has a `span.kind` tag set to `kind`.
 func (s *Span) HasSpanKind(kind ext.SpanKindEnum) bool {
 	if tag, ok := KeyValues(s.Tags).FindByKey(string(ext.SpanKind)); ok {
-		return tag.AsString() == string(kind)
+		return tag.AsStringLossy() == string(kind)
 	}
 	return false
 }
@@ -56,7 +56,7 @@ func (s *Span) HasSpanKind(kind ext.SpanKindEnum) bool {
 // GetSpanKind returns value of `span.kind` tag and whether the tag can be found
 func (s *Span) GetSpanKind() (spanKind string, found bool) {
 	if tag, ok := KeyValues(s.Tags).FindByKey(string(ext.SpanKind)); ok {
-		return tag.AsString(), true
+		return tag.AsStringLossy(), true
 	}
 	return "", false
 }

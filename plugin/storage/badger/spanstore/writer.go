@@ -91,16 +91,16 @@ func (w *SpanWriter) WriteSpan(span *model.Span) error {
 	for _, kv := range span.Tags {
 		// Convert everything to string since queries are done that way also
 		// KEY: it<serviceName><tagsKey><traceId> VALUE: <tagsValue>
-		entriesToStore = append(entriesToStore, w.createBadgerEntry(createIndexKey(tagIndexKey, []byte(span.Process.ServiceName+kv.Key+kv.AsString()), startTime, span.TraceID), nil, expireTime))
+		entriesToStore = append(entriesToStore, w.createBadgerEntry(createIndexKey(tagIndexKey, []byte(span.Process.ServiceName+kv.Key+kv.AsStringLossy()), startTime, span.TraceID), nil, expireTime))
 	}
 
 	for _, kv := range span.Process.Tags {
-		entriesToStore = append(entriesToStore, w.createBadgerEntry(createIndexKey(tagIndexKey, []byte(span.Process.ServiceName+kv.Key+kv.AsString()), startTime, span.TraceID), nil, expireTime))
+		entriesToStore = append(entriesToStore, w.createBadgerEntry(createIndexKey(tagIndexKey, []byte(span.Process.ServiceName+kv.Key+kv.AsStringLossy()), startTime, span.TraceID), nil, expireTime))
 	}
 
 	for _, log := range span.Logs {
 		for _, kv := range log.Fields {
-			entriesToStore = append(entriesToStore, w.createBadgerEntry(createIndexKey(tagIndexKey, []byte(span.Process.ServiceName+kv.Key+kv.AsString()), startTime, span.TraceID), nil, expireTime))
+			entriesToStore = append(entriesToStore, w.createBadgerEntry(createIndexKey(tagIndexKey, []byte(span.Process.ServiceName+kv.Key+kv.AsStringLossy()), startTime, span.TraceID), nil, expireTime))
 		}
 	}
 
