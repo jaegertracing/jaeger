@@ -4,63 +4,59 @@ Changes by Version
 1.16.0 (unreleased)
 ------------------
 
-### Breaking Changes
+### Backend Changes
 
-#### List of service operations can be classified by span kinds
+#### Breaking Changes
 
-([PR #1943](https://github.com/jaegertracing/jaeger/pull/1943), [@guo0693](https://github.com/guo0693))
+##### List of service operations can be classified by span kinds ([#1943](https://github.com/jaegertracing/jaeger/pull/1943), [@guo0693](https://github.com/guo0693))
 
-TODO: fix formatting/indentation below
-
-    * Endpoint changes:
-        * Both Http & gRPC servers now take new optional parameter `spanKind` in addition to `service`. When spanKind
-         is absent or empty, operations from all kinds of spans will be returned.
-        * Instead of returning a list of string, both Http & gRPC servers return a list of operation struct. Please 
-        update your client code to process the new response. Example response:
-            ```
-            curl 'http://localhost:6686/api/operations?service=UserService&spanKind=server' | jq
+* Endpoint changes:
+    * Both Http & gRPC servers now take new optional parameter `spanKind` in addition to `service`. When spanKind
+     is absent or empty, operations from all kinds of spans will be returned.
+    * Instead of returning a list of string, both Http & gRPC servers return a list of operation struct. Please 
+    update your client code to process the new response. Example response:
+        ```
+        curl 'http://localhost:6686/api/operations?service=UserService&spanKind=server' | jq
+        {
+            "data": [{
+                "name": "UserService::getExtendedUser",
+                "spanKind": "server"
+            },
             {
-                "data": [{
-                    "name": "UserService::getExtendedUser",
-                    "spanKind": "server"
-                },
-                {
-                    "name": "UserService::getUserProfile",
-                    "spanKind": "server"
-                }],
-                "total": 2,
-                "limit": 0,
-                "offset": 0,
-                "errors": null
-            }
+                "name": "UserService::getUserProfile",
+                "spanKind": "server"
+            }],
+            "total": 2,
+            "limit": 0,
+            "offset": 0,
+            "errors": null
+        }
+        ```
+    * The legacy http endpoint stay untouched:
+        ```
+        /services/{%s}/operations
+        ```    
+* Storage plugin changes:
+    * Memory updated to support spanKind on write & read, no migration is required.
+    * [Badger](https://github.com/jaegertracing/jaeger/issues/1922) & [ElasticSearch](https://github.com/jaegertracing/jaeger/issues/1923) 
+    to be implemented:  
+    For now `spanKind` will be set as empty string during read & write, only `name` will be valid operation name.
+    * Cassandra updated to support spanKind on write & read ([#1937](https://github.com/jaegertracing/jaeger/pull/1937), [@guo0693](https://github.com/guo0693)):  
+        If you don't run the migration script, nothing will break, the system will used the old table 
+        `operation_names` and set empty `spanKind` in the response.  
+        Steps to get the updated functionality:
+        1.  You will need to run below command on the host you can use `cqlsh` to connect the the cassandra contact
+         point
             ```
-        * The legacy http endpoint stay untouched:
+            KEYSPACE=jaeger_v1 CQL_CMD='cqlsh host 9042 -u test_user -p test_password --request-timeout=3000' 
+            bash ./v002tov003.sh
             ```
-            /services/{%s}/operations
-            ```    
-    * Storage plugin changes:
-        * Memory updated to support spanKind on write & read, no migration is required.
-        * [Badger](https://github.com/jaegertracing/jaeger/issues/1922) & [ElasticSearch](https://github.com/jaegertracing/jaeger/issues/1923) 
-        to be implemented:  
-        For now `spanKind` will be set as empty string during read & write, only `name` will be valid operation name.
-        * Cassandra updated to support spanKind on write & read ([#1937](https://github.com/jaegertracing/jaeger/pull/1937), [@guo0693](https://github.com/guo0693)):  
-            If you don't run the migration script, nothing will break, the system will used the old table 
-            `operation_names` and set empty `spanKind` in the response.  
-            Steps to get the updated functionality:
-            1.  You will need to run below command on the host you can use `cqlsh` to connect the the cassandra contact
-             point
-                ```
-                KEYSPACE=jaeger_v1 CQL_CMD='cqlsh host 9042 -u test_user -p test_password --request-timeout=3000' 
-                bash ./v002tov003.sh
-                ```
-                The script will create new table `operation_names_v2` and migrate data from the old table.  
-                `spanKind` column will be empty for those data.  
-                At the end, it will ask you whether you want to drop the old table or not.
-            2. Restart ingester & query services so that they begin to use the new table
+            The script will create new table `operation_names_v2` and migrate data from the old table.  
+            `spanKind` column will be empty for those data.  
+            At the end, it will ask you whether you want to drop the old table or not.
+        2. Restart ingester & query services so that they begin to use the new table
 
-#### Trace and Span IDs are always padded to 32 or 16 hex characters with leading zeros
-
-([PR #1956](https://github.com/jaegertracing/jaeger/pull/1956), [@yurishkuro](https://github.com/yurishkuro))
+##### Trace and Span IDs are always padded to 32 or 16 hex characters with leading zeros ([#1956](https://github.com/jaegertracing/jaeger/pull/1956), [@yurishkuro](https://github.com/yurishkuro))
 
 Previously, Jaeger backend always rendered trace and span IDs as  the shortest possible hex string, e.g. an ID
 with numeric value 255 would be rendered as a string `ff`. This change makes the IDs to always render as 16 or 32
@@ -83,7 +79,14 @@ Overall, the change is backward compatible:
 
 However, some custom integration that rely on exact string matches of trace IDs may be broken.
 
-### Backend Changes
+##### Change default rollover conditions to 2 days ([#1963](https://github.com/jaegertracing/jaeger/pull/1963), [@pavolloffay](https://github.com/pavolloffay))
+
+Change default rollover conditions from 7 days to 2 days.
+
+Given that by default Jaeger uses daily indices and some organizations do not keep data longer than 7 days
+the default of 7 days seems unreasonable - it might result in a too big index and
+running curator would immediately remove the old index.
+
 
 #### New Features
 
