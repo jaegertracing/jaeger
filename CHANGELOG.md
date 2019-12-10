@@ -8,7 +8,7 @@ Changes by Version
 
 #### Breaking Changes
 
-* List of service operations can be classified by span kinds ([#1943](https://github.com/jaegertracing/jaeger/pull/1943), [@guo0693](https://github.com/guo0693))
+##### List of service operations can be classified by span kinds ([#1943](https://github.com/jaegertracing/jaeger/pull/1943), [@guo0693](https://github.com/guo0693))
 
     * Endpoint changes:
         * Both Http & gRPC servers now take new optional parameter `spanKind` in addition to `service`. When spanKind
@@ -56,7 +56,7 @@ Changes by Version
                 At the end, it will ask you whether you want to drop the old table or not.
             2. Restart ingester & query services so that they begin to use the new table
 
-* Trace and Span IDs are always padded to 32 or 16 hex characters with leading zeros ([#1956](https://github.com/jaegertracing/jaeger/pull/1956), [@yurishkuro](https://github.com/yurishkuro))
+##### Trace and Span IDs are always padded to 32 or 16 hex characters with leading zeros ([#1956](https://github.com/jaegertracing/jaeger/pull/1956), [@yurishkuro](https://github.com/yurishkuro))
 
     Previously, Jaeger backend always rendered trace and span IDs as  the shortest possible hex string, e.g. an ID
     with numeric value 255 would be rendered as a string `ff`. This change makes the IDs to always render as 16 or 32
@@ -79,7 +79,7 @@ Changes by Version
 
     However, some custom integration that rely on exact string matches of trace IDs may be broken.
 
-* Change default rollover conditions to 2 days ([#1963](https://github.com/jaegertracing/jaeger/pull/1963), [@pavolloffay](https://github.com/pavolloffay))
+##### Change default rollover conditions to 2 days ([#1963](https://github.com/jaegertracing/jaeger/pull/1963), [@pavolloffay](https://github.com/pavolloffay))
 
     Change default rollover conditions from 7 days to 2 days.
 
