@@ -122,30 +122,15 @@ func (kv *KeyValue) Value() interface{} {
 
 // AsStringLossy returns a potentially lossy string representation of the value.
 func (kv *KeyValue) AsStringLossy() string {
-	switch kv.VType {
-	case StringType:
-		return kv.VStr
-	case BoolType:
-		if kv.Bool() {
-			return "true"
-		}
-		return "false"
-	case Int64Type:
-		return strconv.FormatInt(kv.Int64(), 10)
-	case Float64Type:
-		return strconv.FormatFloat(kv.Float64(), 'g', 10, 64)
-	case BinaryType:
-		if len(kv.VBinary) > 256 {
-			return hex.EncodeToString(kv.VBinary[0:256]) + "..."
-		}
-		return hex.EncodeToString(kv.VBinary)
-	default:
-		return fmt.Sprintf("unknown type %d", kv.VType)
-	}
+	return kv.asString(true)
 }
 
 // AsString returns a string representation of the value.
 func (kv *KeyValue) AsString() string {
+	return kv.asString(false)
+}
+
+func (kv *KeyValue) asString(truncate bool) string {
 	switch kv.VType {
 	case StringType:
 		return kv.VStr
@@ -159,6 +144,9 @@ func (kv *KeyValue) AsString() string {
 	case Float64Type:
 		return strconv.FormatFloat(kv.Float64(), 'g', 10, 64)
 	case BinaryType:
+		if truncate && len(kv.VBinary) > 256 {
+			return hex.EncodeToString(kv.VBinary[0:256]) + "..."
+		}
 		return hex.EncodeToString(kv.VBinary)
 	default:
 		return fmt.Sprintf("unknown type %d", kv.VType)

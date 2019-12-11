@@ -337,7 +337,7 @@ func TestSpanProcessorWithCollectorTags(t *testing.T) {
 		var foundTag bool
 		for _, tag := range span.Process.Tags {
 			if tag.GetKey() == k {
-				assert.Equal(t, v, tag.AsStringLossy())
+				assert.Equal(t, v, tag.AsString())
 				foundTag = true
 				break
 			}

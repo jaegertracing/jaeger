@@ -38,7 +38,7 @@ func GetAllUniqueTags(span *model.Span, tagFilter TagFilter) []TagInsertion {
 		uniqueTags = append(uniqueTags, TagInsertion{
 			ServiceName: span.Process.ServiceName,
 			TagKey:      allTags[i].Key,
-			TagValue:    allTags[i].AsStringLossy(),
+			TagValue:    allTags[i].AsString(),
 		})
 	}
 	return uniqueTags

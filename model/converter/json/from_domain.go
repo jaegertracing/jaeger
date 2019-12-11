@@ -143,7 +143,7 @@ func (fd fromDomain) convertKeyValuesString(keyValues model.KeyValues) []json.Ke
 		out[i] = json.KeyValue{
 			Key:   kv.Key,
 			Type:  json.ValueType(strings.ToLower(kv.VType.String())),
-			Value: kv.AsStringLossy(),
+			Value: kv.AsString(),
 		}
 	}
 	return out

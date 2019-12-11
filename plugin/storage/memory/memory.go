@@ -243,7 +243,7 @@ func (m *Store) validTrace(trace *model.Trace, query *spanstore.TraceQueryParame
 
 func findKeyValueMatch(kvs model.KeyValues, key, value string) (model.KeyValue, bool) {
 	for _, kv := range kvs {
-		if kv.Key == key && kv.AsStringLossy() == value {
+		if kv.Key == key && kv.AsString() == value {
 			return kv, true
 		}
 	}
