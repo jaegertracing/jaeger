@@ -244,6 +244,7 @@ func startCollector(
 			logger.Fatal("Unable to start listening on channel", zap.Error(err))
 		}
 		logger.Info("Starting jaeger-collector TChannel server", zap.Int("port", cOpts.CollectorPort))
+		logger.Warn("TChannel has been deprecated and will be removed in a future release")
 		ch.Serve(listener)
 	}
 
