@@ -38,19 +38,19 @@ func AddFlags(flags *flag.FlagSet) {
 	flags.String(
 		tchannelPrefix+hostPort,
 		"",
-		"comma-separated string representing host:ports of a static list of collectors to connect to directly (e.g. when not using service discovery)")
+		"(deprecated) comma-separated string representing host:ports of a static list of collectors to connect to directly (e.g. when not using service discovery)")
 	flags.Int(
 		tchannelPrefix+discoveryMinPeers,
 		defaultMinPeers,
-		"if using service discovery, the min number of connections to maintain to the backend")
+		"(deprecated) if using service discovery, the min number of connections to maintain to the backend")
 	flags.Duration(
 		tchannelPrefix+discoveryConnCheckTimeout,
 		defaultConnCheckTimeout,
-		"sets the timeout used when establishing new connections")
+		"(deprecated) sets the timeout used when establishing new connections")
 	flags.Duration(
 		tchannelPrefix+reportTimeout,
 		time.Second,
-		"sets the timeout used when reporting spans")
+		"(deprecated) sets the timeout used when reporting spans")
 	// TODO remove deprecated in 2.0
 	flags.String(
 		collectorHostPort,
