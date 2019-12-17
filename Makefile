@@ -21,8 +21,13 @@ ALL_SRC := $(shell find . -name '*.go' \
 
 # ALL_PKGS is used with 'go cover' and 'golint'
 ALL_PKGS := $(shell go list $(sort $(dir $(ALL_SRC))))
-
-RACE=-race
+UNAME := $(shell uname -m)
+#Race flag is not supported on s390x architecture
+ifeq ($(UNAME), s390x)
+	RACE=
+else
+	RACE=-race
+endif
 GOTEST=go test -v $(RACE)
 GOLINT=golint
 GOVET=go vet
