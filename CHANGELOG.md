@@ -21,7 +21,7 @@ Changes by Version
 
 #### Breaking Changes
 
-##### List of service operations can be classified by span kinds ([#1943](https://github.com/jaegertracing/jaeger/pull/1943), [#1942](https://github.com/jaegertracing/jaeger/pull/1942) [@guo0693](https://github.com/guo0693))
+##### List of service operations can be classified by span kinds ([#1943](https://github.com/jaegertracing/jaeger/pull/1943), [#1942](https://github.com/jaegertracing/jaeger/pull/1942), [#1937](https://github.com/jaegertracing/jaeger/pull/1937), [@guo0693](https://github.com/guo0693))
 
 * Endpoint changes:
     * Both Http & gRPC servers now take new optional parameter `spanKind` in addition to `service`. When spanKind
