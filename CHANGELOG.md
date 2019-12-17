@@ -1,14 +1,27 @@
 Changes by Version
 ==================
 
-1.16.0 (unreleased)
+1.17.0 (unreleased)
 ------------------
 
 ### Backend Changes
 
 #### Breaking Changes
 
-##### List of service operations can be classified by span kinds ([#1943](https://github.com/jaegertracing/jaeger/pull/1943), [@guo0693](https://github.com/guo0693))
+#### New Features
+
+#### Bug fixes, Minor Improvements
+
+### UI Changes
+
+1.16.0 (2019-12-17)
+------------------
+
+### Backend Changes
+
+#### Breaking Changes
+
+##### List of service operations can be classified by span kinds ([#1943](https://github.com/jaegertracing/jaeger/pull/1943), [#1942](https://github.com/jaegertracing/jaeger/pull/1942), [#1937](https://github.com/jaegertracing/jaeger/pull/1937), [@guo0693](https://github.com/guo0693))
 
 * Endpoint changes:
     * Both Http & gRPC servers now take new optional parameter `spanKind` in addition to `service`. When spanKind
@@ -87,13 +100,32 @@ Given that by default Jaeger uses daily indices and some organizations do not ke
 the default of 7 days seems unreasonable - it might result in a too big index and
 running curator would immediately remove the old index.
 
-
 #### New Features
+
+* Support collector tags, similar to agent tags ([#1854](https://github.com/jaegertracing/jaeger/pull/1854), [@radekg](https://github.com/radekg))
+* Support insecure TLS and only CA cert for Elasticsearch ([#1918](https://github.com/jaegertracing/jaeger/pull/1918), [@pavolloffay](https://github.com/pavolloffay))
+* Allow tracer config via env vars ([#1919](https://github.com/jaegertracing/jaeger/pull/1919), [@yurishkuro](https://github.com/yurishkuro))
+* Allow turning off tags/logs indexing in Cassandra ([#1915](https://github.com/jaegertracing/jaeger/pull/1915), [@joe-elliott](https://github.com/joe-elliott))
+* Blacklisting/Whitelisting tags for Cassandra indexing  ([#1904](https://github.com/jaegertracing/jaeger/pull/1904), [@joe-elliott](https://github.com/joe-elliott))
 
 #### Bug fixes, Minor Improvements
 
+* Support custom basepath in HotROD ([#1894](https://github.com/jaegertracing/jaeger/pull/1894), [@jan25](https://github.com/jan25))
+* Deprecate tchannel reporter flags ([#1978](https://github.com/jaegertracing/jaeger/pull/1978), [@objectiser](https://github.com/objectiser))
+* Do not truncate tags in Elasticsearch ([#1970](https://github.com/jaegertracing/jaeger/pull/1970), [@pavolloffay](https://github.com/pavolloffay))
+* Export SaveSpan to enable multiplexing ([#1968](https://github.com/jaegertracing/jaeger/pull/1968), [@albertteoh](https://github.com/albertteoh))
+* Make rollover init step idempotent ([#1964](https://github.com/jaegertracing/jaeger/pull/1964), [@pavolloffay](https://github.com/pavolloffay))
+* Update python urllib3 version required by curator ([#1965](https://github.com/jaegertracing/jaeger/pull/1965), [@pavolloffay](https://github.com/pavolloffay))
+* Allow changing max log level for gRPC storage plugins ([#1962](https://github.com/jaegertracing/jaeger/pull/1962), [@yyyogev](https://github.com/yyyogev))
+* Fix the bug that operation_name table can not be init more than once ([#1961](https://github.com/jaegertracing/jaeger/pull/1961), [@guo0693](https://github.com/guo0693))
+* Improve migration script ([#1946](https://github.com/jaegertracing/jaeger/pull/1946), [@guo0693](https://github.com/guo0693))
+* Fix order of the returned results from badger backend.  ([#1939](https://github.com/jaegertracing/jaeger/pull/1939), [@burmanm](https://github.com/burmanm))
+* Update python pathlib to pathlib2 ([#1930](https://github.com/jaegertracing/jaeger/pull/1930), [@objectiser](https://github.com/objectiser))
+* Use proxy env vars if they're configured ([#1910](https://github.com/jaegertracing/jaeger/pull/1910), [@zoidbergwill](https://github.com/zoidbergwill))
+
 ### UI Changes
 
+* UI pinned to version 1.6.0. The changelog is available here [v1.6.0](https://github.com/jaegertracing/jaeger-ui/blob/master/CHANGELOG.md#v160-december-16-2019)
 
 1.15.1 (2019-11-07)
 ------------------
