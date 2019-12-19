@@ -93,7 +93,7 @@ func (q *BoundedQueue) Produce(item interface{}) bool {
 	// we might have two concurrent backing queues at the moment
 	// their combined size is stored in q.size, and their combined capacity
 	// should match the capacity of the new queue
-	if atomic.LoadInt32(&q.size) >= int32(q.Capacity()) && q.Capacity() > 0 {
+	if q.Size() >= q.Capacity() && q.Capacity() > 0 {
 		// current consumers of the queue (like tests) expect the queue capacity = 0 to work
 		// so, we don't drop items when the capacity is 0
 		q.onDroppedItem(item)
