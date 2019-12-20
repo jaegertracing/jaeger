@@ -68,7 +68,7 @@ func (aH *APIHandler) saveSpans(w http.ResponseWriter, r *http.Request) {
 	if strings.Contains(r.Header.Get("Content-Encoding"), "gzip") {
 		gz, err := gunzip(bRead)
 		if err != nil {
-			http.Error(w, fmt.Sprintf(app.UnableToReadBodyErrFormat, err), http.StatusBadRequest)
+			http.Error(w, app.ErrUnableToReadBody(err), http.StatusBadRequest)
 			return
 		}
 		defer gz.Close()
@@ -77,7 +77,7 @@ func (aH *APIHandler) saveSpans(w http.ResponseWriter, r *http.Request) {
 
 	bodyBytes, err := ioutil.ReadAll(bRead)
 	if err != nil {
-		http.Error(w, fmt.Sprintf(app.UnableToReadBodyErrFormat, err), http.StatusInternalServerError)
+		http.Error(w, app.ErrUnableToReadBody(err), http.StatusInternalServerError)
 		return
 	}
 
@@ -99,7 +99,7 @@ func (aH *APIHandler) saveSpans(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if err != nil {
-		http.Error(w, fmt.Sprintf(app.UnableToReadBodyErrFormat, err), http.StatusBadRequest)
+		http.Error(w, app.ErrUnableToReadBody(err), http.StatusBadRequest)
 		return
 	}
 
@@ -117,7 +117,7 @@ func (aH *APIHandler) saveSpansV2(w http.ResponseWriter, r *http.Request) {
 	if strings.Contains(r.Header.Get("Content-Encoding"), "gzip") {
 		gz, err := gunzip(bRead)
 		if err != nil {
-			http.Error(w, fmt.Sprintf(app.UnableToReadBodyErrFormat, err), http.StatusBadRequest)
+			http.Error(w, app.ErrUnableToReadBody(err), http.StatusBadRequest)
 			return
 		}
 		defer gz.Close()
@@ -126,7 +126,7 @@ func (aH *APIHandler) saveSpansV2(w http.ResponseWriter, r *http.Request) {
 
 	bodyBytes, err := ioutil.ReadAll(bRead)
 	if err != nil {
-		http.Error(w, fmt.Sprintf(app.UnableToReadBodyErrFormat, err), http.StatusInternalServerError)
+		http.Error(w, app.ErrUnableToReadBody(err), http.StatusInternalServerError)
 		return
 	}
 
@@ -149,7 +149,7 @@ func (aH *APIHandler) saveSpansV2(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if err != nil {
-		http.Error(w, fmt.Sprintf(app.UnableToReadBodyErrFormat, err), http.StatusBadRequest)
+		http.Error(w, app.ErrUnableToReadBody(err), http.StatusBadRequest)
 		return
 	}
 

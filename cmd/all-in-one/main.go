@@ -16,6 +16,7 @@
 package main
 
 import (
+	"errors"
 	"fmt"
 	"io"
 	"log"
@@ -53,6 +54,7 @@ import (
 	"github.com/jaegertracing/jaeger/cmd/flags"
 	queryApp "github.com/jaegertracing/jaeger/cmd/query/app"
 	"github.com/jaegertracing/jaeger/cmd/query/app/querysvc"
+	clientcfgHandler "github.com/jaegertracing/jaeger/pkg/clientcfg/clientcfghttp"
 	"github.com/jaegertracing/jaeger/pkg/config"
 	"github.com/jaegertracing/jaeger/pkg/healthcheck"
 	"github.com/jaegertracing/jaeger/pkg/recoveryhandler"
@@ -64,6 +66,7 @@ import (
 	"github.com/jaegertracing/jaeger/storage/dependencystore"
 	"github.com/jaegertracing/jaeger/storage/spanstore"
 	storageMetrics "github.com/jaegertracing/jaeger/storage/spanstore/metrics"
+	"github.com/jaegertracing/jaeger/thrift-gen/baggage"
 	jc "github.com/jaegertracing/jaeger/thrift-gen/jaeger"
 	sc "github.com/jaegertracing/jaeger/thrift-gen/sampling"
 	zc "github.com/jaegertracing/jaeger/thrift-gen/zipkincore"
@@ -251,7 +254,13 @@ func startCollector(
 
 	{
 		r := mux.NewRouter()
-		apiHandler := collectorApp.NewAPIHandler(jaegerBatchesHandler)
+		configManager := &collectorConfigManager{samplingStrategy: strategyStore}
+		cfgParams := clientcfgHandler.HTTPHandlerParams{
+			ConfigManager:          configManager,
+			MetricsFactory:         metricsFactory,
+			LegacySamplingEndpoint: false,
+		}
+		apiHandler := collectorApp.NewAPIHandler(jaegerBatchesHandler, *clientcfgHandler.NewHTTPHandler(cfgParams))
 		apiHandler.RegisterRoutes(r)
 		httpPortStr := ":" + strconv.Itoa(cOpts.CollectorHTTPPort)
 		recoveryHandler := recoveryhandler.NewRecoveryHandler(logger, true)
@@ -320,6 +329,18 @@ func startQuery(
 		svc.Logger.Fatal("Could not start jaeger-query service", zap.Error(err))
 	}
 	return server
+}
+
+type collectorConfigManager struct {
+	samplingStrategy strategystore.StrategyStore
+}
+
+func (c *collectorConfigManager) GetSamplingStrategy(serviceName string) (*sc.SamplingStrategyResponse, error) {
+	return c.samplingStrategy.GetSamplingStrategy(serviceName)
+}
+
+func (c *collectorConfigManager) GetBaggageRestrictions(serviceName string) ([]*baggage.BaggageRestriction, error) {
+	return nil, errors.New("baggage not implemented")
 }
 
 func initSamplingStrategyStore(

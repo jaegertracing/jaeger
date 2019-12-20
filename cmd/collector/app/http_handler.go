@@ -24,12 +24,8 @@ import (
 	"github.com/apache/thrift/lib/go/thrift"
 	"github.com/gorilla/mux"
 
+	"github.com/jaegertracing/jaeger/pkg/clientcfg/clientcfghttp"
 	tJaeger "github.com/jaegertracing/jaeger/thrift-gen/jaeger"
-)
-
-const (
-	// UnableToReadBodyErrFormat is an error message for invalid requests
-	UnableToReadBodyErrFormat = "Unable to process request body: %v"
 )
 
 var (
@@ -42,19 +38,20 @@ var (
 // APIHandler handles all HTTP calls to the collector
 type APIHandler struct {
 	jaegerBatchesHandler JaegerBatchesHandler
+	cfgHandler           clientcfghttp.HTTPHandler
 }
 
 // NewAPIHandler returns a new APIHandler
-func NewAPIHandler(
-	jaegerBatchesHandler JaegerBatchesHandler,
-) *APIHandler {
+func NewAPIHandler(jaegerBatchesHandler JaegerBatchesHandler, cfgHandler clientcfghttp.HTTPHandler) *APIHandler {
 	return &APIHandler{
 		jaegerBatchesHandler: jaegerBatchesHandler,
+		cfgHandler:           cfgHandler,
 	}
 }
 
 // RegisterRoutes registers routes for this handler on the given router
 func (aH *APIHandler) RegisterRoutes(router *mux.Router) {
+	aH.cfgHandler.RegisterRoutes(router)
 	router.HandleFunc("/api/traces", aH.SaveSpan).Methods(http.MethodPost)
 }
 
@@ -63,7 +60,7 @@ func (aH *APIHandler) SaveSpan(w http.ResponseWriter, r *http.Request) {
 	bodyBytes, err := ioutil.ReadAll(r.Body)
 	r.Body.Close()
 	if err != nil {
-		http.Error(w, fmt.Sprintf(UnableToReadBodyErrFormat, err), http.StatusInternalServerError)
+		http.Error(w, ErrUnableToReadBody(err), http.StatusInternalServerError)
 		return
 	}
 
@@ -83,7 +80,7 @@ func (aH *APIHandler) SaveSpan(w http.ResponseWriter, r *http.Request) {
 	// (NB): We decided to use this struct instead of straight batches to be as consistent with tchannel intake as possible.
 	batch := &tJaeger.Batch{}
 	if err = tdes.Read(batch, bodyBytes); err != nil {
-		http.Error(w, fmt.Sprintf(UnableToReadBodyErrFormat, err), http.StatusBadRequest)
+		http.Error(w, ErrUnableToReadBody(err), http.StatusBadRequest)
 		return
 	}
 	batches := []*tJaeger.Batch{batch}
@@ -94,4 +91,9 @@ func (aH *APIHandler) SaveSpan(w http.ResponseWriter, r *http.Request) {
 	}
 
 	w.WriteHeader(http.StatusAccepted)
+}
+
+// ErrUnableToReadBody returns a formatted error message
+func ErrUnableToReadBody(err error) string {
+	return fmt.Sprintf("Unable to process request body: %v", err)
 }
