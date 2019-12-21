@@ -1,5 +1,3 @@
-// +build gofuzz
-
 // Copyright (c) 2019 The Jaeger Authors.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
@@ -14,13 +12,17 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package zipkin
+package setupcontext
 
-// Fuzz tests JSON deserialization.
-func Fuzz(fuzz []byte) int {
-	_, err := DeserializeJSON(fuzz)
-	if err != nil {
-		return 0
-	}
-	return 1
+import (
+	"testing"
+
+	"github.com/stretchr/testify/assert"
+)
+
+func TestSetupContext(t *testing.T) {
+	// purely for code coverage
+	SetAllInOne()
+	defer UnsetAllInOne()
+	assert.True(t, IsAllInOne())
 }

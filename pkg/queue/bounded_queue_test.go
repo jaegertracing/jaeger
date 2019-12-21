@@ -16,6 +16,7 @@
 package queue
 
 import (
+	"fmt"
 	"reflect"
 	"sync"
 	"sync/atomic"
@@ -155,4 +156,174 @@ func (s *consumerState) assertConsumed(expected map[string]bool) {
 		}
 	}
 	assert.Equal(s.t, expected, s.snapshot())
+}
+
+func TestResizeUp(t *testing.T) {
+	q := NewBoundedQueue(2, func(item interface{}) {
+		fmt.Printf("dropped: %v\n", item)
+	})
+
+	var firstConsumer, secondConsumer, releaseConsumers sync.WaitGroup
+	firstConsumer.Add(1)
+	secondConsumer.Add(1)
+	releaseConsumers.Add(1)
+
+	released, resized := false, false
+	q.StartConsumers(1, func(item interface{}) {
+		if !resized { // we'll have a second consumer once the queue is resized
+			// signal that the worker is processing
+			firstConsumer.Done()
+		} else {
+			// once we release the lock, we might end up with multiple calls to reach this
+			if !released {
+				secondConsumer.Done()
+			}
+		}
+
+		// wait until we are signaled that we can finish
+		releaseConsumers.Wait()
+	})
+
+	assert.True(t, q.Produce("a")) // in process
+	firstConsumer.Wait()
+
+	assert.True(t, q.Produce("b"))  // in queue
+	assert.True(t, q.Produce("c"))  // in queue
+	assert.False(t, q.Produce("d")) // dropped
+	assert.EqualValues(t, 2, q.Capacity())
+	assert.EqualValues(t, q.Capacity(), q.Size())
+	assert.EqualValues(t, q.Capacity(), len(*q.items))
+
+	resized = true
+	assert.True(t, q.Resize(4))
+	assert.True(t, q.Produce("e")) // in process by the second consumer
+	secondConsumer.Wait()
+
+	assert.True(t, q.Produce("f"))  // in the new queue
+	assert.True(t, q.Produce("g"))  // in the new queue
+	assert.False(t, q.Produce("h")) // the new queue has the capacity, but the sum of queues doesn't
+
+	assert.EqualValues(t, 4, q.Capacity())
+	assert.EqualValues(t, q.Capacity(), q.Size()) // the combined queues are at the capacity right now
+	assert.EqualValues(t, 2, len(*q.items))       // the new internal queue should have two items only
+
+	released = true
+	releaseConsumers.Done()
+}
+
+func TestResizeDown(t *testing.T) {
+	q := NewBoundedQueue(4, func(item interface{}) {
+		fmt.Printf("dropped: %v\n", item)
+	})
+
+	var consumer, releaseConsumers sync.WaitGroup
+	consumer.Add(1)
+	releaseConsumers.Add(1)
+
+	released := false
+	q.StartConsumers(1, func(item interface{}) {
+		// once we release the lock, we might end up with multiple calls to reach this
+		if !released {
+			// signal that the worker is processing
+			consumer.Done()
+		}
+
+		// wait until we are signaled that we can finish
+		releaseConsumers.Wait()
+	})
+
+	assert.True(t, q.Produce("a")) // in process
+	consumer.Wait()
+
+	assert.True(t, q.Produce("b")) // in queue
+	assert.True(t, q.Produce("c")) // in queue
+	assert.True(t, q.Produce("d")) // in queue
+	assert.True(t, q.Produce("e")) // dropped
+	assert.EqualValues(t, 4, q.Capacity())
+	assert.EqualValues(t, q.Capacity(), q.Size())
+	assert.EqualValues(t, q.Capacity(), len(*q.items))
+
+	assert.True(t, q.Resize(2))
+	assert.False(t, q.Produce("f")) // dropped
+
+	assert.EqualValues(t, 2, q.Capacity())
+	assert.EqualValues(t, 4, q.Size())      // the queue will eventually drain, but it will live for a while over capacity
+	assert.EqualValues(t, 0, len(*q.items)) // the new queue is empty, as the old queue is still full and over capacity
+
+	released = true
+	releaseConsumers.Done()
+}
+
+func TestResizeOldQueueIsDrained(t *testing.T) {
+	q := NewBoundedQueue(2, func(item interface{}) {
+		fmt.Printf("dropped: %v\n", item)
+	})
+
+	var consumerReady, consumed, readyToConsume sync.WaitGroup
+	consumerReady.Add(1)
+	readyToConsume.Add(1)
+	consumed.Add(5) // we expect 5 items to be processed
+
+	first := true
+	q.StartConsumers(1, func(item interface{}) {
+		// first run only
+		if first {
+			first = false
+			consumerReady.Done()
+		}
+
+		readyToConsume.Wait()
+		consumed.Done()
+	})
+
+	assert.True(t, q.Produce("a"))
+	consumerReady.Wait()
+
+	assert.True(t, q.Produce("b"))
+	assert.True(t, q.Produce("c"))
+	assert.False(t, q.Produce("d"))
+
+	q.Resize(4)
+
+	assert.True(t, q.Produce("e"))
+	assert.True(t, q.Produce("f"))
+	assert.False(t, q.Produce("g"))
+
+	readyToConsume.Done()
+	consumed.Wait() // once this returns, we've consumed all items, meaning that both queues are drained
+}
+
+func TestNoopResize(t *testing.T) {
+	q := NewBoundedQueue(2, func(item interface{}) {
+	})
+
+	assert.False(t, q.Resize(2))
+}
+
+func TestZeroSize(t *testing.T) {
+	q := NewBoundedQueue(0, func(item interface{}) {
+	})
+
+	var wg sync.WaitGroup
+	wg.Add(1)
+	q.StartConsumers(1, func(item interface{}) {
+		wg.Done()
+	})
+
+	assert.True(t, q.Produce("a")) // in process
+	wg.Wait()
+
+	// if we didn't finish with a timeout, then we are good
+}
+
+func BenchmarkBoundedQueue(b *testing.B) {
+	q := NewBoundedQueue(1000, func(item interface{}) {
+	})
+
+	q.StartConsumers(10, func(item interface{}) {
+	})
+
+	for n := 0; n < b.N; n++ {
+		q.Produce(n)
+	}
 }

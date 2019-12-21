@@ -64,14 +64,19 @@ func main() {
 			baseFactory := svc.MetricsFactory.Namespace(metrics.NSOptions{Name: "jaeger"})
 			metricsFactory := baseFactory.Namespace(metrics.NSOptions{Name: "query"})
 
-			tracer, closer, err := jaegerClientConfig.Configuration{
+			traceCfg := &jaegerClientConfig.Configuration{
 				ServiceName: "jaeger-query",
 				Sampler: &jaegerClientConfig.SamplerConfig{
-					Type:  "probabilistic",
+					Type:  "const",
 					Param: 1.0,
 				},
 				RPCMetrics: true,
-			}.NewTracer(
+			}
+			traceCfg, err = traceCfg.FromEnv()
+			if err != nil {
+				logger.Fatal("Failed to read tracer configuration", zap.Error(err))
+			}
+			tracer, closer, err := traceCfg.NewTracer(
 				jaegerClientConfig.Metrics(svc.MetricsFactory),
 				jaegerClientConfig.Logger(jaegerClientZapLog.NewLogger(logger)),
 			)

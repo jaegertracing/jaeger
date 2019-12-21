@@ -21,6 +21,7 @@ import (
 	"github.com/spf13/viper"
 
 	"github.com/jaegertracing/jaeger/cmd/collector/app"
+	"github.com/jaegertracing/jaeger/cmd/flags"
 	"github.com/jaegertracing/jaeger/pkg/config/tlscfg"
 	"github.com/jaegertracing/jaeger/ports"
 )
@@ -31,6 +32,7 @@ const (
 	collectorPort                 = "collector.port"
 	collectorHTTPPort             = "collector.http-port"
 	collectorGRPCPort             = "collector.grpc-port"
+	collectorTags                 = "collector.tags"
 	collectorZipkinHTTPort        = "collector.zipkin.http-port"
 	collectorZipkinAllowedOrigins = "collector.zipkin.allowed-origins"
 	collectorZipkinAllowedHeaders = "collector.zipkin.allowed-headers"
@@ -56,6 +58,8 @@ type CollectorOptions struct {
 	CollectorGRPCPort int
 	// TLS configures secure transport
 	TLS tlscfg.Options
+	// CollectorTags is the string representing collector tags to append to each and every span
+	CollectorTags map[string]string
 	// CollectorZipkinHTTPPort is the port that the Zipkin collector service listens in on for http requests
 	CollectorZipkinHTTPPort int
 	// CollectorZipkinAllowedOrigins is a list of origins a cross-domain request to the Zipkin collector service can be executed from
@@ -71,6 +75,7 @@ func AddFlags(flags *flag.FlagSet) {
 	flags.Int(collectorPort, ports.CollectorTChannel, "The TChannel port for the collector service")
 	flags.Int(collectorHTTPPort, ports.CollectorHTTP, "The HTTP port for the collector service")
 	flags.Int(collectorGRPCPort, ports.CollectorGRPC, "The gRPC port for the collector service")
+	flags.String(collectorTags, "", "One or more tags to be added to the Process tags of all spans passing through this collector. Ex: key1=value1,key2=${envVar:defaultValue}")
 	flags.Int(collectorZipkinHTTPort, 0, "The HTTP port for the Zipkin collector service e.g. 9411")
 	flags.String(collectorZipkinAllowedOrigins, "*", "Comma separated list of allowed origins for the Zipkin collector service, default accepts all")
 	flags.String(collectorZipkinAllowedHeaders, "content-type", "Comma separated list of allowed headers for the Zipkin collector service, default content-type")
@@ -84,6 +89,7 @@ func (cOpts *CollectorOptions) InitFromViper(v *viper.Viper) *CollectorOptions {
 	cOpts.CollectorPort = v.GetInt(collectorPort)
 	cOpts.CollectorHTTPPort = v.GetInt(collectorHTTPPort)
 	cOpts.CollectorGRPCPort = v.GetInt(collectorGRPCPort)
+	cOpts.CollectorTags = flags.ParseJaegerTags(v.GetString(collectorTags))
 	cOpts.CollectorZipkinHTTPPort = v.GetInt(collectorZipkinHTTPort)
 	cOpts.CollectorZipkinAllowedOrigins = v.GetString(collectorZipkinAllowedOrigins)
 	cOpts.CollectorZipkinAllowedHeaders = v.GetString(collectorZipkinAllowedHeaders)

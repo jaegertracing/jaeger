@@ -76,7 +76,11 @@
       "references": [],
       "startTime": "2017-01-26T16:46:31.639875Z",
       "duration": "100000ns",
-      "tags": [],
+      "tags": [{
+        "key": "span.kind",
+        "vType": "STRING",
+        "vStr": "server"
+      }],
       "process": {
         "serviceName": "example-service-1",
         "tags": []
@@ -99,7 +103,11 @@
       "references": [],
       "startTime": "2017-01-26T16:46:31.639875Z",
       "duration": "100000ns",
-      "tags": [],
+      "tags": [{
+        "key": "span.kind",
+        "vType": "STRING",
+        "vStr": "client"
+      }],
       "process": {
         "serviceName": "example-service-1",
         "tags": []

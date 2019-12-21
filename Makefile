@@ -95,6 +95,11 @@ storage-integration-test: go-gen
 	go clean -testcache
 	bash -c "set -e; set -o pipefail; $(GOTEST) $(STORAGE_PKGS) | $(COLORIZE)"
 
+.PHONE: test-compile-es-scripts
+test-compile-es-scripts:
+	docker run --rm -it -v ${PWD}:/tmp/jaeger python:3-alpine /usr/local/bin/python -m py_compile /tmp/jaeger/plugin/storage/es/esRollover.py
+	docker run --rm -it -v ${PWD}:/tmp/jaeger python:3-alpine /usr/local/bin/python -m py_compile /tmp/jaeger/plugin/storage/es/esCleaner.py
+
 .PHONY: index-cleaner-integration-test
 index-cleaner-integration-test: docker-images-elastic
 	# Expire tests results for storage integration tests since the environment might change

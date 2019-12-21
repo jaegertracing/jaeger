@@ -1,5 +1,3 @@
-// +build gofuzz
-
 // Copyright (c) 2019 The Jaeger Authors.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
@@ -14,14 +12,11 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package zipkin
+package dbmodel
 
-// Fuzz tests zipkin deserialization.
-func Fuzz(fuzz []byte) int {
-	spans, err := DeserializeThrift(fuzz)
-	if err != nil {
-		return 0
-	}
-	SerializeThrift(spans)
-	return 1
+// Operation defines schema for records saved in operation_names_v2 table
+type Operation struct {
+	ServiceName   string
+	SpanKind      string
+	OperationName string
 }

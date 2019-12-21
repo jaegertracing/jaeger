@@ -24,6 +24,9 @@ import (
 	"github.com/spf13/viper"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"go.uber.org/zap"
+
+	"github.com/jaegertracing/jaeger/cmd/all-in-one/setupcontext"
 )
 
 func TestBindFlags_NoJaegerTags(t *testing.T) {
@@ -40,7 +43,7 @@ func TestBindFlags_NoJaegerTags(t *testing.T) {
 	require.NoError(t, err)
 
 	b := &Options{}
-	b.InitFromViper(v)
+	b.InitFromViper(v, zap.NewNop())
 	assert.Equal(t, Type("grpc"), b.ReporterType)
 	assert.Len(t, b.AgentTags, 0)
 }
@@ -53,7 +56,7 @@ func TestBindFlags(t *testing.T) {
 	command.PersistentFlags().AddGoFlagSet(flags)
 	v.BindPFlags(command.PersistentFlags())
 
-	jaegerTags := fmt.Sprintf("%s,%s,%s,%s,%s,%s",
+	agentTags := fmt.Sprintf("%s,%s,%s,%s,%s,%s",
 		"key=value",
 		"envVar1=${envKey1:defaultVal1}",
 		"envVar2=${envKey2:defaultVal2}",
@@ -64,7 +67,7 @@ func TestBindFlags(t *testing.T) {
 
 	err := command.ParseFlags([]string{
 		"--reporter.type=grpc",
-		"--jaeger.tags=" + jaegerTags,
+		"--agent.tags=" + agentTags,
 	})
 	require.NoError(t, err)
 
@@ -75,7 +78,7 @@ func TestBindFlags(t *testing.T) {
 	os.Setenv("envKey4", "envVal4")
 	defer os.Unsetenv("envKey4")
 
-	b.InitFromViper(v)
+	b.InitFromViper(v, zap.NewNop())
 
 	expectedTags := map[string]string{
 		"key":     "value",
@@ -87,4 +90,32 @@ func TestBindFlags(t *testing.T) {
 
 	assert.Equal(t, Type("grpc"), b.ReporterType)
 	assert.Equal(t, expectedTags, b.AgentTags)
+}
+
+func TestBindFlagsAllInOne(t *testing.T) {
+
+	setupcontext.SetAllInOne()
+	defer setupcontext.UnsetAllInOne()
+
+	v := viper.New()
+	command := cobra.Command{}
+	flags := &flag.FlagSet{}
+	AddFlags(flags)
+	command.PersistentFlags().AddGoFlagSet(flags)
+	v.BindPFlags(command.PersistentFlags())
+
+	agentTags := fmt.Sprintf("%s,%s,%s,%s,%s,%s",
+		"key=value",
+		"envVar1=${envKey1:defaultVal1}",
+		"envVar2=${envKey2:defaultVal2}",
+		"envVar3=${envKey3}",
+		"envVar4=${envKey4}",
+		"envVar5=${envVar5:}",
+	)
+
+	err := command.ParseFlags([]string{
+		"--reporter.type=grpc",
+		"--agent.tags=" + agentTags,
+	})
+	require.Error(t, err)
 }
