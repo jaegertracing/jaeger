@@ -37,14 +37,14 @@ func TestNewSpanHandlerBuilder(t *testing.T) {
 
 	builder := &SpanHandlerBuilder{
 		SpanWriter:    spanWriter,
-		CollectorOpts: cOpts,
+		CollectorOpts: *cOpts,
 	}
 	assert.NotNil(t, builder.logger())
 	assert.NotNil(t, builder.metricsFactory())
 
 	builder = &SpanHandlerBuilder{
 		SpanWriter:     spanWriter,
-		CollectorOpts:  cOpts,
+		CollectorOpts:  *cOpts,
 		Logger:         zap.NewNop(),
 		MetricsFactory: metrics.NullFactory,
 	}

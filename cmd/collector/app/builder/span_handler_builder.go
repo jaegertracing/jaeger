@@ -36,29 +36,29 @@ type SpanHandlerBuilder struct {
 }
 
 // BuildHandlers builds span handlers (Zipkin, Jaeger)
-func (spanHb *SpanHandlerBuilder) BuildHandlers() (
+func (b *SpanHandlerBuilder) BuildHandlers() (
 	app.ZipkinSpansHandler,
 	app.JaegerBatchesHandler,
 	*app.GRPCHandler,
 ) {
 	hostname, _ := os.Hostname()
-	svcMetrics := spanHb.metricsFactory()
+	svcMetrics := b.metricsFactory()
 	hostMetrics := svcMetrics.Namespace(metrics.NSOptions{Tags: map[string]string{"host": hostname}})
 
 	spanProcessor := app.NewSpanProcessor(
-		spanHb.SpanWriter,
+		b.SpanWriter,
 		app.Options.ServiceMetrics(svcMetrics),
 		app.Options.HostMetrics(hostMetrics),
-		app.Options.Logger(spanHb.logger()),
+		app.Options.Logger(b.logger()),
 		app.Options.SpanFilter(defaultSpanFilter),
-		app.Options.NumWorkers(spanHb.CollectorOpts.NumWorkers),
-		app.Options.QueueSize(spanHb.CollectorOpts.QueueSize),
-		app.Options.CollectorTags(spanHb.CollectorOpts.CollectorTags),
+		app.Options.NumWorkers(b.CollectorOpts.NumWorkers),
+		app.Options.QueueSize(b.CollectorOpts.QueueSize),
+		app.Options.CollectorTags(b.CollectorOpts.CollectorTags),
 	)
 
-	return app.NewZipkinSpanHandler(spanHb.Logger, spanProcessor, zs.NewChainedSanitizer(zs.StandardSanitizers...)),
-		app.NewJaegerSpanHandler(spanHb.Logger, spanProcessor),
-		app.NewGRPCHandler(spanHb.Logger, spanProcessor)
+	return app.NewZipkinSpanHandler(b.Logger, spanProcessor, zs.NewChainedSanitizer(zs.StandardSanitizers...)),
+		app.NewJaegerSpanHandler(b.Logger, spanProcessor),
+		app.NewGRPCHandler(b.Logger, spanProcessor)
 }
 
 func defaultSpanFilter(*model.Span) bool {
