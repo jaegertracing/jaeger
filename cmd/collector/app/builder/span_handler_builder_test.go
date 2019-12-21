@@ -23,7 +23,6 @@ import (
 	"github.com/uber/jaeger-lib/metrics"
 	"go.uber.org/zap"
 
-	"github.com/jaegertracing/jaeger/cmd/builder"
 	"github.com/jaegertracing/jaeger/cmd/flags"
 	"github.com/jaegertracing/jaeger/pkg/config"
 	"github.com/jaegertracing/jaeger/plugin/storage/memory"
@@ -32,20 +31,26 @@ import (
 func TestNewSpanHandlerBuilder(t *testing.T) {
 	v, command := config.Viperize(flags.AddFlags, AddFlags)
 
-	command.ParseFlags([]string{})
+	require.NoError(t, command.ParseFlags([]string{}))
 	cOpts := new(CollectorOptions).InitFromViper(v)
 
 	spanWriter := memory.NewStore()
 
-	handler, err := NewSpanHandlerBuilder(
-		cOpts,
-		spanWriter,
-		builder.Options.LoggerOption(zap.NewNop()),
-		builder.Options.MetricsFactoryOption(metrics.NullFactory),
-	)
-	require.NoError(t, err)
-	assert.NotNil(t, handler)
-	zipkin, jaeger, grpc := handler.BuildHandlers()
+	builder := &SpanHandlerBuilder{
+		SpanWriter:    spanWriter,
+		CollectorOpts: *cOpts,
+	}
+	assert.NotNil(t, builder.logger())
+	assert.NotNil(t, builder.metricsFactory())
+
+	builder = &SpanHandlerBuilder{
+		SpanWriter:     spanWriter,
+		CollectorOpts:  *cOpts,
+		Logger:         zap.NewNop(),
+		MetricsFactory: metrics.NullFactory,
+	}
+
+	zipkin, jaeger, grpc := builder.BuildHandlers()
 	assert.NotNil(t, zipkin)
 	assert.NotNil(t, jaeger)
 	assert.NotNil(t, grpc)

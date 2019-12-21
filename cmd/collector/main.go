@@ -37,7 +37,6 @@ import (
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials"
 
-	basicB "github.com/jaegertracing/jaeger/cmd/builder"
 	"github.com/jaegertracing/jaeger/cmd/collector/app"
 	"github.com/jaegertracing/jaeger/cmd/collector/app/builder"
 	"github.com/jaegertracing/jaeger/cmd/collector/app/grpcserver"
@@ -96,14 +95,11 @@ func main() {
 			}
 
 			builderOpts := new(builder.CollectorOptions).InitFromViper(v)
-			handlerBuilder, err := builder.NewSpanHandlerBuilder(
-				builderOpts,
-				spanWriter,
-				basicB.Options.LoggerOption(logger),
-				basicB.Options.MetricsFactoryOption(metricsFactory),
-			)
-			if err != nil {
-				logger.Fatal("Unable to set up builder", zap.Error(err))
+			handlerBuilder := &builder.SpanHandlerBuilder{
+				SpanWriter:     spanWriter,
+				CollectorOpts:  *builderOpts,
+				Logger:         logger,
+				MetricsFactory: metricsFactory,
 			}
 
 			zipkinSpansHandler, jaegerBatchesHandler, grpcHandler := handlerBuilder.BuildHandlers()
