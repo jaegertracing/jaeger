@@ -42,7 +42,6 @@ import (
 	agentGrpcRep "github.com/jaegertracing/jaeger/cmd/agent/app/reporter/grpc"
 	agentTchanRep "github.com/jaegertracing/jaeger/cmd/agent/app/reporter/tchannel"
 	"github.com/jaegertracing/jaeger/cmd/all-in-one/setupcontext"
-	basic "github.com/jaegertracing/jaeger/cmd/builder"
 	collectorApp "github.com/jaegertracing/jaeger/cmd/collector/app"
 	collector "github.com/jaegertracing/jaeger/cmd/collector/app/builder"
 	"github.com/jaegertracing/jaeger/cmd/collector/app/grpcserver"
@@ -216,17 +215,14 @@ func startCollector(
 ) *grpc.Server {
 	metricsFactory := baseFactory.Namespace(metrics.NSOptions{Name: "collector", Tags: nil})
 
-	spanBuilder, err := collector.NewSpanHandlerBuilder(
-		cOpts,
-		spanWriter,
-		basic.Options.LoggerOption(logger),
-		basic.Options.MetricsFactoryOption(metricsFactory),
-	)
-	if err != nil {
-		logger.Fatal("Unable to set up builder", zap.Error(err))
+	spanHandlerBuilder := &collector.SpanHandlerBuilder{
+		SpanWriter:     spanWriter,
+		CollectorOpts:  *cOpts,
+		Logger:         logger,
+		MetricsFactory: metricsFactory,
 	}
 
-	zipkinSpansHandler, jaegerBatchesHandler, grpcHandler := spanBuilder.BuildHandlers()
+	zipkinSpansHandler, jaegerBatchesHandler, grpcHandler := spanHandlerBuilder.BuildHandlers()
 
 	{
 		ch, err := tchannel.NewChannel("jaeger-collector", &tchannel.ChannelOptions{})
