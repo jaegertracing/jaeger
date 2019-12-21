@@ -1,30 +1,30 @@
 {
   "default_strategy": {
     "type": "probabilistic",
-    "param": 0.5
+    "param": 0.5,
+    "operation_strategies": [
+      {
+        "operation": "op0",
+        "type": "probabilistic",
+        "param": 0.2
+      },
+      {
+        "operation": "op6",
+        "type": "probabilistic",
+        "param": 0
+      },
+      {
+        "operation": "spam",
+        "type": "ratelimiting",
+        "param": 1
+      },
+      {
+        "operation": "op7",
+        "type": "probabilistic",
+        "param": 1
+      }
+    ]
   },
-  "default_operation_strategies": [
-    {
-      "operation": "op0",
-      "type": "probabilistic",
-      "param": 0.2
-    },
-    {
-      "operation": "op6",
-      "type": "probabilistic",
-      "param": 0
-    },
-    {
-      "operation": "spam",
-      "type": "ratelimiting",
-      "param": 1
-    },
-    {
-      "operation": "op7",
-      "type": "probabilistic",
-      "param": 1
-    }
-  ],
   "service_strategies": [
     {
       "service": "foo",

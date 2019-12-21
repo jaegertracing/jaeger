@@ -115,6 +115,7 @@ func TestPerOperationSamplingStrategies(t *testing.T) {
 	require.NoError(t, err)
 	expectedRsp := makeResponse(sampling.SamplingStrategyType_PROBABILISTIC, 0.5)
 	expectedRsp.OperationSampling = &sampling.PerOperationSamplingStrategies{
+		DefaultSamplingProbability: 0.001,
 		PerOperationStrategies: []*sampling.OperationSamplingStrategy{
 			{
 				Operation: "op0",
