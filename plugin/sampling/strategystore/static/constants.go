@@ -35,7 +35,7 @@ const (
 var (
 	// defaultStrategy is the default sampling strategy the Strategy Store will return
 	// if none is provided.
-	defaultStrategy = sampling.SamplingStrategyResponse{
+	defaultStrategyResponse = sampling.SamplingStrategyResponse{
 		StrategyType: sampling.SamplingStrategyType_PROBABILISTIC,
 		ProbabilisticSampling: &sampling.ProbabilisticSamplingStrategy{
 			SamplingRate: defaultSamplingProbability,

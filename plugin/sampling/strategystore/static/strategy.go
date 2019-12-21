@@ -34,9 +34,14 @@ type serviceStrategy struct {
 	strategy
 }
 
+// defaultStrategy defines the default strategy.
+type defaultStrategy struct {
+	OperationStrategies []*operationStrategy `json:"operation_strategies"`
+	strategy
+}
+
 // strategies holds a default sampling strategy and service specific sampling strategies.
 type strategies struct {
-	DefaultStrategy            *strategy            `json:"default_strategy"`
-	DefaultOperationStrategies []*operationStrategy `json:"default_operation_strategies"`
-	ServiceStrategies          []*serviceStrategy   `json:"service_strategies"`
+	DefaultStrategy   *defaultStrategy   `json:"default_strategy"`
+	ServiceStrategies []*serviceStrategy `json:"service_strategies"`
 }

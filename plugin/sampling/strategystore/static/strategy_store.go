@@ -75,32 +75,15 @@ func loadStrategies(strategiesFile string) (*strategies, error) {
 }
 
 func (h *strategyStore) parseStrategies(strategies *strategies) {
-	h.defaultStrategy = &defaultStrategy
+	h.defaultStrategy = &defaultStrategyResponse
 	if strategies == nil {
 		h.logger.Info("No sampling strategies provided, using defaults")
 		return
 	}
 	if strategies.DefaultStrategy != nil {
-		h.defaultStrategy = h.parseStrategy(strategies.DefaultStrategy)
+		h.defaultStrategy = h.parseDefaultStrategy(strategies.DefaultStrategy)
 	}
-	for _, s := range strategies.DefaultOperationStrategies {
-		opS := h.defaultStrategy.OperationSampling
-		if opS == nil {
-			opS = sampling.NewPerOperationSamplingStrategies()
-			h.defaultStrategy.OperationSampling = opS
-		}
 
-		strategy, ok := h.parseOperationStrategy(s, opS)
-		if !ok {
-			continue
-		}
-
-		opS.PerOperationStrategies = append(opS.PerOperationStrategies,
-			&sampling.OperationSamplingStrategy{
-				Operation:             s.Operation,
-				ProbabilisticSampling: strategy.ProbabilisticSampling,
-			})
-	}
 	for _, s := range strategies.ServiceStrategies {
 		h.serviceStrategies[s.Service] = h.parseServiceStrategies(s)
 
@@ -182,6 +165,37 @@ func (h *strategyStore) parseServiceStrategies(strategy *serviceStrategy) *sampl
 	return resp
 }
 
+func (h *strategyStore) parseDefaultStrategy(strategy *defaultStrategy) *sampling.SamplingStrategyResponse {
+	resp := h.parseStrategy(&strategy.strategy)
+	if len(strategy.OperationStrategies) == 0 {
+		return resp
+	}
+
+	opS := resp.OperationSampling
+	if opS == nil {
+		opS = &sampling.PerOperationSamplingStrategies{
+			DefaultSamplingProbability: defaultSamplingProbability,
+		}
+		resp.OperationSampling = opS
+	}
+
+	for _, s := range strategy.OperationStrategies {
+		strategy, ok := h.parseOperationStrategy(s, opS)
+		if !ok {
+			continue
+		}
+
+		opS.PerOperationStrategies = append(opS.PerOperationStrategies,
+			&sampling.OperationSamplingStrategy{
+				Operation:             s.Operation,
+				ProbabilisticSampling: strategy.ProbabilisticSampling,
+			})
+	}
+
+	resp.OperationSampling = opS
+	return resp
+}
+
 func (h *strategyStore) parseOperationStrategy(
 	strategy *operationStrategy,
 	parent *sampling.PerOperationSamplingStrategies,
@@ -218,7 +232,7 @@ func (h *strategyStore) parseStrategy(strategy *strategy) *sampling.SamplingStra
 		}
 	default:
 		h.logger.Warn("Failed to parse sampling strategy", zap.Any("strategy", strategy))
-		return deepCopy(&defaultStrategy)
+		return deepCopy(&defaultStrategyResponse)
 	}
 }
 
