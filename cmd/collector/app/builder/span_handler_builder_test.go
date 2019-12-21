@@ -16,15 +16,16 @@
 package builder
 
 import (
+	"testing"
+
+	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"github.com/uber/jaeger-lib/metrics"
 	"go.uber.org/zap"
-	"testing"
 
 	"github.com/jaegertracing/jaeger/cmd/flags"
 	"github.com/jaegertracing/jaeger/pkg/config"
 	"github.com/jaegertracing/jaeger/plugin/storage/memory"
-	"github.com/stretchr/testify/assert"
 )
 
 func TestNewSpanHandlerBuilder(t *testing.T) {
