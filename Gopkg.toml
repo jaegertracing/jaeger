@@ -50,9 +50,21 @@ required = [
   name = "github.com/bsm/sarama-cluster"
   version = "=2.1.13"
 
-# blackfriday has 2.x release that conflicts with spf13/cobra
+# Pinned because the latest 0.0.5 version depends on blackfriday/v2 (see below).
+[[constraint]]
+  name = "github.com/spf13/cobra"
+  version = "=0.0.1"
+
+# blackfriday 2.x uses go modules and is imported by go-md2man as via /v2 path,
+# which does not actually exist in the repo (`go mod` makes it up!). So it's not
+# compatible with dep.
 [[override]]
   name = "github.com/russross/blackfriday"
+  version = "^1"
+
+# pinned because of blackfriday above
+[[override]]
+  name = "github.com/cpuguy83/go-md2man"
   version = "^1"
 
 [[constraint]]
@@ -78,10 +90,6 @@ required = [
 [[constraint]]
   name = "github.com/prometheus/client_golang"
   version = "^1"
-
-[[constraint]]
-  name = "github.com/spf13/cobra"
-  version = "^0.0.1"
 
 [[constraint]]
   name = "github.com/spf13/pflag"
@@ -114,6 +122,10 @@ required = [
 [[constraint]]
   name = "google.golang.org/grpc"
   version = "^1.20.1"
+
+[[constraint]]
+  name = "gopkg.in/yaml.v2"
+  version = "^2.2.4"
 
 [[constraint]]
   name = "github.com/olivere/elastic"

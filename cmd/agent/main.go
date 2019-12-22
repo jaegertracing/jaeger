@@ -56,7 +56,7 @@ func main() {
 				Namespace(metrics.NSOptions{Name: "jaeger"}).
 				Namespace(metrics.NSOptions{Name: "agent"})
 
-			rOpts := new(reporter.Options).InitFromViper(v)
+			rOpts := new(reporter.Options).InitFromViper(v, logger)
 			tchanBuilder := tchannel.NewBuilder().InitFromViper(v, logger)
 			grpcBuilder := grpc.NewConnBuilder().InitFromViper(v)
 			cp, err := app.CreateCollectorProxy(rOpts, tchanBuilder, grpcBuilder, logger, mFactory)

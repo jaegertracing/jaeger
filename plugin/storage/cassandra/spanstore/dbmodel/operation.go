@@ -1,5 +1,4 @@
 // Copyright (c) 2019 The Jaeger Authors.
-// Copyright (c) 2017 Uber Technologies, Inc.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -13,8 +12,11 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-// Package builder defines builder resources (like logger and metrics) shared by jaeger components
-// They are defined in this shared location so that if several components are wired into
-// a single binary (e.g. a local container of complete Jaeger backend) they can all share
-// the builder resources
-package builder
+package dbmodel
+
+// Operation defines schema for records saved in operation_names_v2 table
+type Operation struct {
+	ServiceName   string
+	SpanKind      string
+	OperationName string
+}

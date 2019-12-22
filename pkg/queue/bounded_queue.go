@@ -19,6 +19,7 @@ import (
 	"sync"
 	"sync/atomic"
 	"time"
+	"unsafe"
 
 	"github.com/uber/jaeger-lib/metrics"
 )
@@ -29,22 +30,23 @@ import (
 // channels, with a special Reaper goroutine that wakes up when the queue is full and consumers
 // the items from the top of the queue until its size drops back to maxSize
 type BoundedQueue struct {
-	capacity      int
 	size          int32
 	onDroppedItem func(item interface{})
-	items         chan interface{}
+	items         *chan interface{}
 	stopCh        chan struct{}
 	stopWG        sync.WaitGroup
 	stopped       int32
+	consumer      func(item interface{})
+	workers       int
 }
 
 // NewBoundedQueue constructs the new queue of specified capacity, and with an optional
 // callback for dropped items (e.g. useful to emit metrics).
 func NewBoundedQueue(capacity int, onDroppedItem func(item interface{})) *BoundedQueue {
+	queue := make(chan interface{}, capacity)
 	return &BoundedQueue{
-		capacity:      capacity,
 		onDroppedItem: onDroppedItem,
-		items:         make(chan interface{}, capacity),
+		items:         &queue,
 		stopCh:        make(chan struct{}),
 	}
 }
@@ -52,23 +54,31 @@ func NewBoundedQueue(capacity int, onDroppedItem func(item interface{})) *Bounde
 // StartConsumers starts a given number of goroutines consuming items from the queue
 // and passing them into the consumer callback.
 func (q *BoundedQueue) StartConsumers(num int, consumer func(item interface{})) {
+	q.workers = num
+	q.consumer = consumer
 	var startWG sync.WaitGroup
-	for i := 0; i < num; i++ {
+	for i := 0; i < q.workers; i++ {
 		q.stopWG.Add(1)
 		startWG.Add(1)
-		go func() {
+		go func(queue chan interface{}) {
 			startWG.Done()
 			defer q.stopWG.Done()
 			for {
 				select {
-				case item := <-q.items:
-					atomic.AddInt32(&q.size, -1)
-					consumer(item)
+				case item, ok := <-queue:
+					if ok {
+						atomic.AddInt32(&q.size, -1)
+						q.consumer(item)
+					} else {
+						// channel closed, finish worker
+						return
+					}
 				case <-q.stopCh:
+					// the whole queue is closing, finish worker
 					return
 				}
 			}
-		}()
+		}(*q.items)
 	}
 	startWG.Wait()
 }
@@ -79,11 +89,23 @@ func (q *BoundedQueue) Produce(item interface{}) bool {
 		q.onDroppedItem(item)
 		return false
 	}
+
+	// we might have two concurrent backing queues at the moment
+	// their combined size is stored in q.size, and their combined capacity
+	// should match the capacity of the new queue
+	if q.Size() >= q.Capacity() && q.Capacity() > 0 {
+		// current consumers of the queue (like tests) expect the queue capacity = 0 to work
+		// so, we don't drop items when the capacity is 0
+		q.onDroppedItem(item)
+		return false
+	}
+
 	select {
-	case q.items <- item:
+	case *q.items <- item:
 		atomic.AddInt32(&q.size, 1)
 		return true
 	default:
+		// should not happen, as overflows should have been captured earlier
 		if q.onDroppedItem != nil {
 			q.onDroppedItem(item)
 		}
@@ -97,7 +119,7 @@ func (q *BoundedQueue) Stop() {
 	atomic.StoreInt32(&q.stopped, 1) // disable producer
 	close(q.stopCh)
 	q.stopWG.Wait()
-	close(q.items)
+	close(*q.items)
 }
 
 // Size returns the current size of the queue
@@ -107,7 +129,7 @@ func (q *BoundedQueue) Size() int {
 
 // Capacity returns capacity of the queue
 func (q *BoundedQueue) Capacity() int {
-	return q.capacity
+	return cap(*q.items)
 }
 
 // StartLengthReporting starts a timer-based goroutine that periodically reports
@@ -126,4 +148,28 @@ func (q *BoundedQueue) StartLengthReporting(reportPeriod time.Duration, gauge me
 			}
 		}
 	}()
+}
+
+// Resize changes the capacity of the queue, returning whether the action was successful
+func (q *BoundedQueue) Resize(capacity int) bool {
+	if capacity == cap(*q.items) {
+		// noop
+		return false
+	}
+
+	previous := *q.items
+	queue := make(chan interface{}, capacity)
+
+	// swap queues
+	// #nosec
+	swapped := atomic.CompareAndSwapPointer((*unsafe.Pointer)(unsafe.Pointer(&q.items)), unsafe.Pointer(q.items), unsafe.Pointer(&queue))
+	if swapped {
+		// start a new set of consumers, based on the information given previously
+		q.StartConsumers(q.workers, q.consumer)
+
+		// gracefully drain the existing queue
+		close(previous)
+	}
+
+	return swapped
 }

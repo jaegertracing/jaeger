@@ -40,15 +40,18 @@ func TestAllOptionSet(t *testing.T) {
 		Options.Sanitizer(func(span *model.Span) *model.Span { return span }),
 		Options.QueueSize(10),
 		Options.PreSave(func(span *model.Span) {}),
+		Options.CollectorTags(map[string]string{"extra": "tags"}),
 	)
 	assert.EqualValues(t, 5, opts.numWorkers)
 	assert.EqualValues(t, 10, opts.queueSize)
+	assert.EqualValues(t, map[string]string{"extra": "tags"}, opts.collectorTags)
 }
 
 func TestNoOptionsSet(t *testing.T) {
 	opts := Options.apply()
 	assert.EqualValues(t, DefaultNumWorkers, opts.numWorkers)
 	assert.EqualValues(t, 0, opts.queueSize)
+	assert.Nil(t, opts.collectorTags)
 	assert.False(t, opts.reportBusy)
 	assert.False(t, opts.blockingSubmit)
 	assert.NotPanics(t, func() { opts.preProcessSpans(nil) })

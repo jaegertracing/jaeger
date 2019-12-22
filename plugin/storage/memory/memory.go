@@ -28,15 +28,13 @@ import (
 	"github.com/jaegertracing/jaeger/storage/spanstore"
 )
 
-var errTraceNotFound = errors.New("trace was not found")
-
 // Store is an in-memory store of traces
 type Store struct {
 	sync.RWMutex
 	ids        []*model.TraceID
 	traces     map[model.TraceID]*model.Trace
 	services   map[string]struct{}
-	operations map[string]map[string]struct{}
+	operations map[string]map[spanstore.Operation]struct{}
 	deduper    adjuster.Adjuster
 	config     config.Configuration
 	index      int
@@ -53,7 +51,7 @@ func WithConfiguration(configuration config.Configuration) *Store {
 		ids:        make([]*model.TraceID, configuration.MaxTraces),
 		traces:     map[model.TraceID]*model.Trace{},
 		services:   map[string]struct{}{},
-		operations: map[string]map[string]struct{}{},
+		operations: map[string]map[spanstore.Operation]struct{}{},
 		deduper:    adjuster.SpanIDDeduper(),
 		config:     configuration,
 	}
@@ -120,9 +118,19 @@ func (m *Store) WriteSpan(span *model.Span) error {
 	m.Lock()
 	defer m.Unlock()
 	if _, ok := m.operations[span.Process.ServiceName]; !ok {
-		m.operations[span.Process.ServiceName] = map[string]struct{}{}
+		m.operations[span.Process.ServiceName] = map[spanstore.Operation]struct{}{}
 	}
-	m.operations[span.Process.ServiceName][span.OperationName] = struct{}{}
+
+	spanKind, _ := span.GetSpanKind()
+	operation := spanstore.Operation{
+		Name:     span.OperationName,
+		SpanKind: spanKind,
+	}
+
+	if _, ok := m.operations[span.Process.ServiceName][operation]; !ok {
+		m.operations[span.Process.ServiceName][operation] = struct{}{}
+	}
+
 	m.services[span.Process.ServiceName] = struct{}{}
 	if _, ok := m.traces[span.TraceID]; !ok {
 		m.traces[span.TraceID] = &model.Trace{}
@@ -152,11 +160,19 @@ func (m *Store) WriteSpan(span *model.Span) error {
 func (m *Store) GetTrace(ctx context.Context, traceID model.TraceID) (*model.Trace, error) {
 	m.RLock()
 	defer m.RUnlock()
-	retMe := m.traces[traceID]
-	if retMe == nil {
-		return nil, errTraceNotFound
+	trace, ok := m.traces[traceID]
+	if !ok {
+		return nil, spanstore.ErrTraceNotFound
 	}
-	return retMe, nil
+	return m.copyTrace(trace), nil
+}
+
+// Spans may still be added to traces after they are returned to user code, so make copies.
+func (m *Store) copyTrace(trace *model.Trace) *model.Trace {
+	return &model.Trace{
+		Spans:    append([]*model.Span(nil), trace.Spans...),
+		Warnings: append([]string(nil), trace.Warnings...),
+	}
 }
 
 // GetServices returns a list of all known services
@@ -171,17 +187,21 @@ func (m *Store) GetServices(ctx context.Context) ([]string, error) {
 }
 
 // GetOperations returns the operations of a given service
-func (m *Store) GetOperations(ctx context.Context, service string) ([]string, error) {
+func (m *Store) GetOperations(
+	ctx context.Context,
+	query spanstore.OperationQueryParameters,
+) ([]spanstore.Operation, error) {
 	m.RLock()
 	defer m.RUnlock()
-	if operations, ok := m.operations[service]; ok {
-		var retMe []string
-		for ops := range operations {
-			retMe = append(retMe, ops)
+	var retMe []spanstore.Operation
+	if operations, ok := m.operations[query.ServiceName]; ok {
+		for operation := range operations {
+			if query.SpanKind == "" || query.SpanKind == operation.SpanKind {
+				retMe = append(retMe, operation)
+			}
 		}
-		return retMe, nil
 	}
-	return []string{}, nil
+	return retMe, nil
 }
 
 // FindTraces returns all traces in the query parameters are satisfied by a trace's span
@@ -191,7 +211,7 @@ func (m *Store) FindTraces(ctx context.Context, query *spanstore.TraceQueryParam
 	var retMe []*model.Trace
 	for _, trace := range m.traces {
 		if m.validTrace(trace, query) {
-			retMe = append(retMe, trace)
+			retMe = append(retMe, m.copyTrace(trace))
 		}
 	}
 

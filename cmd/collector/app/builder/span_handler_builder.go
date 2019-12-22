@@ -21,7 +21,6 @@ import (
 	"github.com/uber/jaeger-lib/metrics"
 	"go.uber.org/zap"
 
-	basicB "github.com/jaegertracing/jaeger/cmd/builder"
 	"github.com/jaegertracing/jaeger/cmd/collector/app"
 	zs "github.com/jaegertracing/jaeger/cmd/collector/app/sanitizer/zipkin"
 	"github.com/jaegertracing/jaeger/model"
@@ -30,50 +29,52 @@ import (
 
 // SpanHandlerBuilder holds configuration required for handlers
 type SpanHandlerBuilder struct {
-	logger         *zap.Logger
-	metricsFactory metrics.Factory
-	collectorOpts  *CollectorOptions
-	spanWriter     spanstore.Writer
-}
-
-// NewSpanHandlerBuilder returns new SpanHandlerBuilder with configured span storage.
-func NewSpanHandlerBuilder(cOpts *CollectorOptions, spanWriter spanstore.Writer, opts ...basicB.Option) (*SpanHandlerBuilder, error) {
-	options := basicB.ApplyOptions(opts...)
-
-	spanHb := &SpanHandlerBuilder{
-		collectorOpts:  cOpts,
-		logger:         options.Logger,
-		metricsFactory: options.MetricsFactory,
-		spanWriter:     spanWriter,
-	}
-
-	return spanHb, nil
+	SpanWriter     spanstore.Writer
+	CollectorOpts  CollectorOptions
+	Logger         *zap.Logger
+	MetricsFactory metrics.Factory
 }
 
 // BuildHandlers builds span handlers (Zipkin, Jaeger)
-func (spanHb *SpanHandlerBuilder) BuildHandlers() (
+func (b *SpanHandlerBuilder) BuildHandlers() (
 	app.ZipkinSpansHandler,
 	app.JaegerBatchesHandler,
 	*app.GRPCHandler,
 ) {
 	hostname, _ := os.Hostname()
-	hostMetrics := spanHb.metricsFactory.Namespace(metrics.NSOptions{Name: "", Tags: map[string]string{"host": hostname}})
+	svcMetrics := b.metricsFactory()
+	hostMetrics := svcMetrics.Namespace(metrics.NSOptions{Tags: map[string]string{"host": hostname}})
 
 	spanProcessor := app.NewSpanProcessor(
-		spanHb.spanWriter,
-		app.Options.ServiceMetrics(spanHb.metricsFactory),
+		b.SpanWriter,
+		app.Options.ServiceMetrics(svcMetrics),
 		app.Options.HostMetrics(hostMetrics),
-		app.Options.Logger(spanHb.logger),
+		app.Options.Logger(b.logger()),
 		app.Options.SpanFilter(defaultSpanFilter),
-		app.Options.NumWorkers(spanHb.collectorOpts.NumWorkers),
-		app.Options.QueueSize(spanHb.collectorOpts.QueueSize),
+		app.Options.NumWorkers(b.CollectorOpts.NumWorkers),
+		app.Options.QueueSize(b.CollectorOpts.QueueSize),
+		app.Options.CollectorTags(b.CollectorOpts.CollectorTags),
 	)
 
-	return app.NewZipkinSpanHandler(spanHb.logger, spanProcessor, zs.NewChainedSanitizer(zs.StandardSanitizers...)),
-		app.NewJaegerSpanHandler(spanHb.logger, spanProcessor),
-		app.NewGRPCHandler(spanHb.logger, spanProcessor)
+	return app.NewZipkinSpanHandler(b.Logger, spanProcessor, zs.NewChainedSanitizer(zs.StandardSanitizers...)),
+		app.NewJaegerSpanHandler(b.Logger, spanProcessor),
+		app.NewGRPCHandler(b.Logger, spanProcessor)
 }
 
 func defaultSpanFilter(*model.Span) bool {
 	return true
+}
+
+func (b *SpanHandlerBuilder) logger() *zap.Logger {
+	if b.Logger == nil {
+		return zap.NewNop()
+	}
+	return b.Logger
+}
+
+func (b *SpanHandlerBuilder) metricsFactory() metrics.Factory {
+	if b.MetricsFactory == nil {
+		return metrics.NullFactory
+	}
+	return b.MetricsFactory
 }

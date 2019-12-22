@@ -76,10 +76,17 @@ message GetServicesResponse {
 
 message GetOperationsRequest {
     string service = 1;
+    string span_kind = 2;
+}
+
+message Operation {
+    string name = 1;
+    string span_kind = 2;
 }
 
 message GetOperationsResponse {
-    repeated string operations = 1;
+    repeated string operationNames = 1; // deprecated
+    repeated Operation operations = 2;
 }
 
 message TraceQueryParameters {

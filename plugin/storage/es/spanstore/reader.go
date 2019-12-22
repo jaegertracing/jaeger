@@ -90,7 +90,6 @@ var (
 
 // SpanReader can query for and load traces from ElasticSearch
 type SpanReader struct {
-	ctx    context.Context
 	client es.Client
 	logger *zap.Logger
 	// The age of the oldest service/operation we will look for. Because indices in ElasticSearch are by day,
@@ -119,9 +118,7 @@ type SpanReaderParams struct {
 
 // NewSpanReader returns a new SpanReader with a metrics.
 func NewSpanReader(p SpanReaderParams) *SpanReader {
-	ctx := context.Background()
 	return &SpanReader{
-		ctx:                     ctx,
 		client:                  p.Client,
 		logger:                  p.Logger,
 		maxSpanAge:              p.MaxSpanAge,
@@ -248,12 +245,28 @@ func (s *SpanReader) GetServices(ctx context.Context) ([]string, error) {
 }
 
 // GetOperations returns all operations for a specific service traced by Jaeger
-func (s *SpanReader) GetOperations(ctx context.Context, service string) ([]string, error) {
+func (s *SpanReader) GetOperations(
+	ctx context.Context,
+	query spanstore.OperationQueryParameters,
+) ([]spanstore.Operation, error) {
 	span, ctx := opentracing.StartSpanFromContext(ctx, "GetOperations")
 	defer span.Finish()
 	currentTime := time.Now()
 	jaegerIndices := s.timeRangeIndices(s.serviceIndexPrefix, currentTime.Add(-s.maxSpanAge), currentTime)
-	return s.serviceOperationStorage.getOperations(ctx, jaegerIndices, service)
+	operations, err := s.serviceOperationStorage.getOperations(ctx, jaegerIndices, query.ServiceName)
+	if err != nil {
+		return nil, err
+	}
+
+	// TODO: https://github.com/jaegertracing/jaeger/issues/1923
+	// 	- return the operations with actual span kind that meet requirement
+	var result []spanstore.Operation
+	for _, operation := range operations {
+		result = append(result, spanstore.Operation{
+			Name: operation,
+		})
+	}
+	return result, err
 }
 
 func bucketToStringArray(buckets []*elastic.AggregationBucketKeyItem) ([]string, error) {
@@ -324,7 +337,7 @@ func (s *SpanReader) multiRead(ctx context.Context, traceIDs []model.TraceID, st
 		}
 		searchRequests := make([]*elastic.SearchRequest, len(traceIDs))
 		for i, traceID := range traceIDs {
-			query := elastic.NewTermQuery("traceID", traceID.String())
+			query := buildTraceByIDQuery(traceID)
 			if val, ok := searchAfterTime[traceID]; ok {
 				nextTime = val
 			}
@@ -337,7 +350,7 @@ func (s *SpanReader) multiRead(ctx context.Context, traceIDs []model.TraceID, st
 		}
 		// set traceIDs to empty
 		traceIDs = nil
-		results, err := s.client.MultiSearch().Add(searchRequests...).Index(indices...).Do(s.ctx)
+		results, err := s.client.MultiSearch().Add(searchRequests...).Index(indices...).Do(ctx)
 
 		if err != nil {
 			logErrorToSpan(childSpan, err)
@@ -380,15 +393,42 @@ func (s *SpanReader) multiRead(ctx context.Context, traceIDs []model.TraceID, st
 	return traces, nil
 }
 
+func buildTraceByIDQuery(traceID model.TraceID) elastic.Query {
+	traceIDStr := traceID.String()
+	if traceIDStr[0] != '0' {
+		return elastic.NewTermQuery(traceIDField, traceIDStr)
+	}
+	// https://github.com/jaegertracing/jaeger/pull/1956 added leading zeros to IDs
+	// So we need to also read IDs without leading zeros for compatibility with previously saved data.
+	// TODO remove in newer versions, added in Jaeger 1.16
+	var legacyTraceID string
+	if traceID.High == 0 {
+		legacyTraceID = fmt.Sprintf("%x", traceID.Low)
+	} else {
+		legacyTraceID = fmt.Sprintf("%x%016x", traceID.High, traceID.Low)
+	}
+	return elastic.NewBoolQuery().Should(
+		elastic.NewTermQuery(traceIDField, traceIDStr).Boost(2),
+		elastic.NewTermQuery(traceIDField, legacyTraceID))
+}
+
 func convertTraceIDsStringsToModels(traceIDs []string) ([]model.TraceID, error) {
-	traceIDsModels := make([]model.TraceID, len(traceIDs))
-	for i, ID := range traceIDs {
+	traceIDsMap := map[model.TraceID]bool{}
+	// https://github.com/jaegertracing/jaeger/pull/1956 added leading zeros to IDs
+	// So we need to also read IDs without leading zeros for compatibility with previously saved data.
+	// That means the input to this function may contain logically identical trace IDs but formatted
+	// with or without padding, and we need to dedupe them.
+	// TODO remove deduping in newer versions, added in Jaeger 1.16
+	traceIDsModels := make([]model.TraceID, 0, len(traceIDs))
+	for _, ID := range traceIDs {
 		traceID, err := model.TraceIDFromString(ID)
 		if err != nil {
 			return nil, errors.Wrap(err, fmt.Sprintf("Making traceID from string '%s' failed", ID))
 		}
-
-		traceIDsModels[i] = traceID
+		if _, ok := traceIDsMap[traceID]; !ok {
+			traceIDsMap[traceID] = true
+			traceIDsModels = append(traceIDsModels, traceID)
+		}
 	}
 
 	return traceIDsModels, nil
@@ -471,7 +511,6 @@ func (s *SpanReader) findTraceIDs(ctx context.Context, traceQuery *spanstore.Tra
 	//  }
 	aggregation := s.buildTraceIDAggregation(traceQuery.NumTraces)
 	boolQuery := s.buildFindTraceIDsQuery(traceQuery)
-
 	jaegerIndices := s.timeRangeIndices(s.spanIndexPrefix, traceQuery.StartTimeMin, traceQuery.StartTimeMax)
 
 	searchService := s.client.Search(jaegerIndices...).
@@ -480,7 +519,7 @@ func (s *SpanReader) findTraceIDs(ctx context.Context, traceQuery *spanstore.Tra
 		IgnoreUnavailable(true).
 		Query(boolQuery)
 
-	searchResult, err := searchService.Do(s.ctx)
+	searchResult, err := searchService.Do(ctx)
 	if err != nil {
 		return nil, errors.Wrap(err, "Search service failed")
 	}

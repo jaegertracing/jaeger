@@ -79,8 +79,11 @@ func (qs QueryService) GetServices(ctx context.Context) ([]string, error) {
 }
 
 // GetOperations is the queryService implementation of spanstore.Reader.GetOperations
-func (qs QueryService) GetOperations(ctx context.Context, service string) ([]string, error) {
-	return qs.spanReader.GetOperations(ctx, service)
+func (qs QueryService) GetOperations(
+	ctx context.Context,
+	query spanstore.OperationQueryParameters,
+) ([]spanstore.Operation, error) {
+	return qs.spanReader.GetOperations(ctx, query)
 }
 
 // FindTraces is the queryService implementation of spanstore.Reader.FindTraces

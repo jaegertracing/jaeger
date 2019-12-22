@@ -14,9 +14,9 @@
 package spanstore
 
 import (
-	"bytes"
 	"context"
 	"encoding/binary"
+	"math/rand"
 	"testing"
 	"time"
 
@@ -98,48 +98,34 @@ func TestDecodeErrorReturns(t *testing.T) {
 	assert.Error(t, err)
 }
 
-func TestSortMergeIdsDuplicateDetection(t *testing.T) {
-	// Different IndexSeeks return the same results
-	ids := make([][][]byte, 2)
-	ids[0] = make([][]byte, 1)
-	ids[1] = make([][]byte, 1)
-	buf := new(bytes.Buffer)
-	binary.Write(buf, binary.BigEndian, uint64(0))
-	binary.Write(buf, binary.BigEndian, uint64(156697987635))
-	b := buf.Bytes()
-	ids[0][0] = b
-	ids[1][0] = b
-
-	query := &spanstore.TraceQueryParameters{
-		NumTraces: 64,
-	}
-
-	traces := sortMergeIds(query, ids)
-	assert.Equal(t, 1, len(traces))
-}
-
 func TestDuplicateTraceIDDetection(t *testing.T) {
 	runWithBadger(t, func(store *badger.DB, t *testing.T) {
 		testSpan := createDummySpan()
 		cache := NewCacheStore(store, time.Duration(1*time.Hour), true)
 		sw := NewSpanWriter(store, cache, time.Duration(1*time.Hour), nil)
 		rw := NewTraceReader(store, cache)
+		origStartTime := testSpan.StartTime
 
-		for i := 0; i < 8; i++ {
-			testSpan.SpanID = model.SpanID(i)
-			testSpan.StartTime = testSpan.StartTime.Add(time.Millisecond)
-			err := sw.WriteSpan(&testSpan)
-			assert.NoError(t, err)
+		traceCount := 128
+		for k := 0; k < traceCount; k++ {
+			testSpan.TraceID.Low = rand.Uint64()
+			for i := 0; i < 32; i++ {
+				testSpan.SpanID = model.SpanID(rand.Uint64())
+				testSpan.StartTime = origStartTime.Add(time.Duration(rand.Int31n(8000)) * time.Millisecond)
+				err := sw.WriteSpan(&testSpan)
+				assert.NoError(t, err)
+			}
 		}
 
 		traces, err := rw.FindTraceIDs(context.Background(), &spanstore.TraceQueryParameters{
 			ServiceName:  "service",
+			NumTraces:    256, // Default is 100, we want to fetch more than there should be
 			StartTimeMax: time.Now().Add(time.Hour),
 			StartTimeMin: testSpan.StartTime.Add(-1 * time.Hour),
 		})
 
 		assert.NoError(t, err)
-		assert.Equal(t, 1, len(traces))
+		assert.Equal(t, 128, len(traces))
 	})
 }
 

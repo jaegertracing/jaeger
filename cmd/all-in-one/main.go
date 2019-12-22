@@ -41,7 +41,7 @@ import (
 	agentRep "github.com/jaegertracing/jaeger/cmd/agent/app/reporter"
 	agentGrpcRep "github.com/jaegertracing/jaeger/cmd/agent/app/reporter/grpc"
 	agentTchanRep "github.com/jaegertracing/jaeger/cmd/agent/app/reporter/tchannel"
-	basic "github.com/jaegertracing/jaeger/cmd/builder"
+	"github.com/jaegertracing/jaeger/cmd/all-in-one/setupcontext"
 	collectorApp "github.com/jaegertracing/jaeger/cmd/collector/app"
 	collector "github.com/jaegertracing/jaeger/cmd/collector/app/builder"
 	"github.com/jaegertracing/jaeger/cmd/collector/app/grpcserver"
@@ -71,6 +71,9 @@ import (
 
 // all-in-one/main is a standalone full-stack jaeger backend, backed by a memory store
 func main() {
+
+	setupcontext.SetAllInOne()
+
 	svc := flags.NewService(ports.CollectorAdminHTTP)
 
 	if os.Getenv(storage.SpanStorageTypeEnvVar) == "" {
@@ -121,7 +124,7 @@ by default uses only in-memory database.`,
 			strategyStore := initSamplingStrategyStore(strategyStoreFactory, metricsFactory, logger)
 
 			aOpts := new(agentApp.Builder).InitFromViper(v)
-			repOpts := new(agentRep.Options).InitFromViper(v)
+			repOpts := new(agentRep.Options).InitFromViper(v, logger)
 			tchanBuilder := agentTchanRep.NewBuilder().InitFromViper(v, logger)
 			grpcBuilder := agentGrpcRep.NewConnBuilder().InitFromViper(v)
 			cOpts := new(collector.CollectorOptions).InitFromViper(v)
@@ -212,17 +215,14 @@ func startCollector(
 ) *grpc.Server {
 	metricsFactory := baseFactory.Namespace(metrics.NSOptions{Name: "collector", Tags: nil})
 
-	spanBuilder, err := collector.NewSpanHandlerBuilder(
-		cOpts,
-		spanWriter,
-		basic.Options.LoggerOption(logger),
-		basic.Options.MetricsFactoryOption(metricsFactory),
-	)
-	if err != nil {
-		logger.Fatal("Unable to set up builder", zap.Error(err))
+	spanHandlerBuilder := &collector.SpanHandlerBuilder{
+		SpanWriter:     spanWriter,
+		CollectorOpts:  *cOpts,
+		Logger:         logger,
+		MetricsFactory: metricsFactory,
 	}
 
-	zipkinSpansHandler, jaegerBatchesHandler, grpcHandler := spanBuilder.BuildHandlers()
+	zipkinSpansHandler, jaegerBatchesHandler, grpcHandler := spanHandlerBuilder.BuildHandlers()
 
 	{
 		ch, err := tchannel.NewChannel("jaeger-collector", &tchannel.ChannelOptions{})
@@ -240,6 +240,7 @@ func startCollector(
 			logger.Fatal("Unable to start listening on channel", zap.Error(err))
 		}
 		logger.Info("Starting jaeger-collector TChannel server", zap.Int("port", cOpts.CollectorPort))
+		logger.Warn("TChannel has been deprecated and will be removed in a future release")
 		ch.Serve(listener)
 	}
 
@@ -345,14 +346,19 @@ func archiveOptions(storageFactory istorage.Factory, logger *zap.Logger) *querys
 }
 
 func initTracer(metricsFactory metrics.Factory, logger *zap.Logger) io.Closer {
-	tracer, closer, err := jaegerClientConfig.Configuration{
+	traceCfg := &jaegerClientConfig.Configuration{
 		ServiceName: "jaeger-query",
 		Sampler: &jaegerClientConfig.SamplerConfig{
 			Type:  "const",
 			Param: 1.0,
 		},
 		RPCMetrics: true,
-	}.NewTracer(
+	}
+	traceCfg, err := traceCfg.FromEnv()
+	if err != nil {
+		logger.Fatal("Failed to read tracer configuration", zap.Error(err))
+	}
+	tracer, closer, err := traceCfg.NewTracer(
 		jaegerClientConfig.Metrics(metricsFactory),
 		jaegerClientConfig.Logger(jaegerClientZapLog.NewLogger(logger)),
 	)

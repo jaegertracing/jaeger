@@ -84,8 +84,8 @@ clean:
 test: go-gen
 	bash -c "set -e; set -o pipefail; $(GOTEST) ./... | $(COLORIZE)"
 
-.PHONY: integration-test
-integration-test: go-gen
+.PHONY: all-in-one-integration-test
+all-in-one-integration-test: go-gen
 	$(GOTEST) -tags=integration ./cmd/all-in-one/...
 
 .PHONY: storage-integration-test
@@ -94,6 +94,11 @@ storage-integration-test: go-gen
 	# even though the code remains the same.
 	go clean -testcache
 	bash -c "set -e; set -o pipefail; $(GOTEST) $(STORAGE_PKGS) | $(COLORIZE)"
+
+.PHONE: test-compile-es-scripts
+test-compile-es-scripts:
+	docker run --rm -it -v ${PWD}:/tmp/jaeger python:3-alpine /usr/local/bin/python -m py_compile /tmp/jaeger/plugin/storage/es/esRollover.py
+	docker run --rm -it -v ${PWD}:/tmp/jaeger python:3-alpine /usr/local/bin/python -m py_compile /tmp/jaeger/plugin/storage/es/esCleaner.py
 
 .PHONY: index-cleaner-integration-test
 index-cleaner-integration-test: docker-images-elastic
@@ -136,13 +141,13 @@ fmt:
 
 .PHONY: lint-gosec
 lint-gosec:
-	$(GOSEC) ./...
+	time $(GOSEC) ./...
 
 .PHONY: lint-staticcheck
 lint-staticcheck:
 	@echo Running staticcheck...
 	@cat /dev/null > $(LINT_LOG)
-	@$(STATICCHECK) ./... \
+	@time $(STATICCHECK) ./... \
 		| grep -v \
 			-e model/model.pb.go \
 			-e thrift-gen/ \
