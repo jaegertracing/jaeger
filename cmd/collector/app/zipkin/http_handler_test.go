@@ -317,7 +317,7 @@ func TestSaveProtoSpansV2(t *testing.T) {
 	require.NoError(t, err)
 	assert.EqualValues(t, http.StatusAccepted, statusCode)
 
-	invalidSpans := struct{ key string }{key: "foo"}
+	invalidSpans := struct{ Key string }{Key: "foo"}
 	reqBytes, _ = json.Marshal(&invalidSpans)
 	statusCode, resBody, err := postBytes(server.URL+`/api/v2/spans`, reqBytes, createHeader("application/x-protobuf"))
 	require.NoError(t, err)

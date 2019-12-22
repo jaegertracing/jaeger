@@ -20,4 +20,9 @@ echo "Executing token propatagion test"
 # Mock UI, needed only for build query service.
 make build-crossdock-ui-placeholder
 GOOS=linux make build-query
+
+make test-compile-es-scripts
+SPAN_STORAGE_TYPE=elasticsearch ./cmd/query/query-linux --es.server-urls=http://127.0.0.1:9200 --es.tls=false --es.version=7 --query.bearer-token-propagation=true &
+PID=$(echo $!)
 make token-propagation-integration-test
+kill -9 ${PID}

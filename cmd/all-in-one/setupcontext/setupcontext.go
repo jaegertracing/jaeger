@@ -1,5 +1,4 @@
 // Copyright (c) 2019 The Jaeger Authors.
-// Copyright (c) 2017 Uber Technologies, Inc.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -13,23 +12,21 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package dbmodel
+package setupcontext
 
-import (
-	"github.com/jaegertracing/jaeger/model"
-)
+var isAllInOne bool
 
-// LogFieldsFilter filters all span.Logs.Fields.
-type LogFieldsFilter struct {
-	tagFilterImpl
+// SetAllInOne sets the internal flag to all in one on.
+func SetAllInOne() {
+	isAllInOne = true
 }
 
-// NewLogFieldsFilter return a filter that filters all span.Logs.Fields.
-func NewLogFieldsFilter() *LogFieldsFilter {
-	return &LogFieldsFilter{}
+// UnsetAllInOne unsets the internal all-in-one flag.
+func UnsetAllInOne() {
+	isAllInOne = false
 }
 
-// FilterLogFields implements TagFilter#FilterLogFields
-func (f *LogFieldsFilter) FilterLogFields(span *model.Span, logFields model.KeyValues) model.KeyValues {
-	return model.KeyValues{}
+// IsAllInOne returns true when all in one mode is on.
+func IsAllInOne() bool {
+	return isAllInOne
 }

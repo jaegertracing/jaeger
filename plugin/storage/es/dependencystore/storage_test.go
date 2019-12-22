@@ -76,7 +76,7 @@ func TestWriteDependencies(t *testing.T) {
 		createIndexError error
 		writeError       error
 		expectedError    string
-		esVersion        int
+		esVersion        uint
 	}{
 		{
 			createIndexError: errors.New("index not created"),

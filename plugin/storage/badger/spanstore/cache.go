@@ -20,14 +20,16 @@ import (
 	"time"
 
 	"github.com/dgraph-io/badger"
+
+	"github.com/jaegertracing/jaeger/storage/spanstore"
 )
 
 // CacheStore saves expensive calculations from the K/V store
 type CacheStore struct {
 	// Given the small amount of data these will store, we use the same structure as the memory store
 	cacheLock  sync.Mutex // write heavy - Mutex is faster than RWMutex for writes
-	services   map[string]int64
-	operations map[string]map[string]int64
+	services   map[string]uint64
+	operations map[string]map[string]uint64
 
 	store *badger.DB
 	ttl   time.Duration
@@ -36,8 +38,8 @@ type CacheStore struct {
 // NewCacheStore returns initialized CacheStore for badger use
 func NewCacheStore(db *badger.DB, ttl time.Duration, prefill bool) *CacheStore {
 	cs := &CacheStore{
-		services:   make(map[string]int64),
-		operations: make(map[string]map[string]int64),
+		services:   make(map[string]uint64),
+		operations: make(map[string]map[string]uint64),
 		ttl:        ttl,
 		store:      db,
 	}
@@ -71,7 +73,7 @@ func (c *CacheStore) loadServices() {
 		for it.Seek(serviceKey); it.ValidForPrefix(serviceKey); it.Next() {
 			timestampStartIndex := len(it.Item().Key()) - (sizeOfTraceID + 8) // 8 = sizeof(uint64)
 			serviceName := string(it.Item().Key()[len(serviceKey):timestampStartIndex])
-			keyTTL := int64(it.Item().ExpiresAt())
+			keyTTL := it.Item().ExpiresAt()
 			if v, found := c.services[serviceName]; found {
 				if v > keyTTL {
 					continue
@@ -89,17 +91,17 @@ func (c *CacheStore) loadOperations(service string) {
 		it := txn.NewIterator(opts)
 		defer it.Close()
 
-		serviceKey := make([]byte, 0, len(service)+1)
-		serviceKey = append(serviceKey, operationNameIndexKey)
-		serviceKey = append(serviceKey, service...)
+		serviceKey := make([]byte, len(service)+1)
+		serviceKey[0] = operationNameIndexKey
+		copy(serviceKey[1:], service)
 
 		// Seek all the services first
 		for it.Seek(serviceKey); it.ValidForPrefix(serviceKey); it.Next() {
 			timestampStartIndex := len(it.Item().Key()) - (sizeOfTraceID + 8) // 8 = sizeof(uint64)
 			operationName := string(it.Item().Key()[len(serviceKey):timestampStartIndex])
-			keyTTL := int64(it.Item().ExpiresAt())
+			keyTTL := it.Item().ExpiresAt()
 			if _, found := c.operations[service]; !found {
-				c.operations[service] = make(map[string]int64)
+				c.operations[service] = make(map[string]uint64)
 			}
 
 			if v, found := c.operations[service][operationName]; found {
@@ -114,22 +116,21 @@ func (c *CacheStore) loadOperations(service string) {
 }
 
 // Update caches the results of service and service + operation indexes and maintains their TTL
-func (c *CacheStore) Update(service string, operation string) {
+func (c *CacheStore) Update(service, operation string, expireTime uint64) {
 	c.cacheLock.Lock()
-	t := time.Now().Add(c.ttl).Unix()
 
-	c.services[service] = t
+	c.services[service] = expireTime
 	if _, ok := c.operations[service]; !ok {
-		c.operations[service] = make(map[string]int64)
+		c.operations[service] = make(map[string]uint64)
 	}
-	c.operations[service][operation] = t
+	c.operations[service][operation] = expireTime
 	c.cacheLock.Unlock()
 }
 
-// GetOperations returns all operations for a specific service traced by Jaeger
-func (c *CacheStore) GetOperations(service string) ([]string, error) {
+// GetOperations returns all operations for a specific service & spanKind traced by Jaeger
+func (c *CacheStore) GetOperations(service string) ([]spanstore.Operation, error) {
 	operations := make([]string, 0, len(c.services))
-	t := time.Now().Unix()
+	t := uint64(time.Now().Unix())
 	c.cacheLock.Lock()
 	defer c.cacheLock.Unlock()
 
@@ -138,7 +139,7 @@ func (c *CacheStore) GetOperations(service string) ([]string, error) {
 			// Expired, remove
 			delete(c.services, service)
 			delete(c.operations, service)
-			return operations, nil // empty slice rather than nil
+			return []spanstore.Operation{}, nil // empty slice rather than nil
 		}
 		for o, e := range c.operations[service] {
 			if e > t {
@@ -151,13 +152,21 @@ func (c *CacheStore) GetOperations(service string) ([]string, error) {
 
 	sort.Strings(operations)
 
-	return operations, nil
+	// TODO: https://github.com/jaegertracing/jaeger/issues/1922
+	// 	- return the operations with actual spanKind
+	result := make([]spanstore.Operation, 0, len(operations))
+	for _, op := range operations {
+		result = append(result, spanstore.Operation{
+			Name: op,
+		})
+	}
+	return result, nil
 }
 
 // GetServices returns all services traced by Jaeger
 func (c *CacheStore) GetServices() ([]string, error) {
 	services := make([]string, 0, len(c.services))
-	t := time.Now().Unix()
+	t := uint64(time.Now().Unix())
 	c.cacheLock.Lock()
 	// Fetch the items
 	for k, v := range c.services {

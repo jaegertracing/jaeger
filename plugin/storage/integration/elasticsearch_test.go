@@ -31,7 +31,7 @@ import (
 	"go.uber.org/zap"
 
 	"github.com/jaegertracing/jaeger/model"
-	"github.com/jaegertracing/jaeger/pkg/es/wrapper"
+	eswrapper "github.com/jaegertracing/jaeger/pkg/es/wrapper"
 	"github.com/jaegertracing/jaeger/pkg/testutils"
 	"github.com/jaegertracing/jaeger/plugin/storage/es"
 	"github.com/jaegertracing/jaeger/plugin/storage/es/dependencystore"
@@ -56,7 +56,7 @@ type ESStorageIntegration struct {
 	logger        *zap.Logger
 }
 
-func (s *ESStorageIntegration) getVersion() (int, error) {
+func (s *ESStorageIntegration) getVersion() (uint, error) {
 	pingResult, _, err := s.client.Ping(queryURL).Do(context.Background())
 	if err != nil {
 		return 0, err
@@ -65,7 +65,7 @@ func (s *ESStorageIntegration) getVersion() (int, error) {
 	if err != nil {
 		return 0, err
 	}
-	return esVersion, nil
+	return uint(esVersion), nil
 }
 
 func (s *ESStorageIntegration) initializeES(allTagsAsFields, archive bool) error {
@@ -94,6 +94,8 @@ func (s *ESStorageIntegration) initializeES(allTagsAsFields, archive bool) error
 	}
 	s.Refresh = s.esRefresh
 	s.esCleanUp(allTagsAsFields, archive)
+	// TODO: remove this flag after ES support returning spanKind when get operations
+	s.notSupportSpanKindWithOperation = true
 	return nil
 }
 

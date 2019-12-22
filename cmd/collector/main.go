@@ -37,7 +37,6 @@ import (
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials"
 
-	basicB "github.com/jaegertracing/jaeger/cmd/builder"
 	"github.com/jaegertracing/jaeger/cmd/collector/app"
 	"github.com/jaegertracing/jaeger/cmd/collector/app/builder"
 	"github.com/jaegertracing/jaeger/cmd/collector/app/grpcserver"
@@ -96,14 +95,11 @@ func main() {
 			}
 
 			builderOpts := new(builder.CollectorOptions).InitFromViper(v)
-			handlerBuilder, err := builder.NewSpanHandlerBuilder(
-				builderOpts,
-				spanWriter,
-				basicB.Options.LoggerOption(logger),
-				basicB.Options.MetricsFactoryOption(metricsFactory),
-			)
-			if err != nil {
-				logger.Fatal("Unable to set up builder", zap.Error(err))
+			handlerBuilder := &builder.SpanHandlerBuilder{
+				SpanWriter:     spanWriter,
+				CollectorOpts:  *builderOpts,
+				Logger:         logger,
+				MetricsFactory: metricsFactory,
 			}
 
 			zipkinSpansHandler, jaegerBatchesHandler, grpcHandler := handlerBuilder.BuildHandlers()
@@ -126,6 +122,7 @@ func main() {
 					logger.Fatal("Unable to start listening on channel", zap.Error(err))
 				}
 				logger.Info("Starting jaeger-collector TChannel server", zap.Int("port", builderOpts.CollectorPort))
+				logger.Warn("TChannel has been deprecated and will be removed in a future release")
 				ch.Serve(listener)
 			}
 
@@ -193,11 +190,8 @@ func startGRPCServer(
 ) (*grpc.Server, error) {
 	var server *grpc.Server
 
-	if opts.CollectorGRPCTLS { // user requested a server with TLS, setup creds
-		tlsCfg, err := grpcserver.TLSConfig(
-			opts.CollectorGRPCCert,
-			opts.CollectorGRPCKey,
-			opts.CollectorGRPCClientCA)
+	if opts.TLS.Enabled { // user requested a server with TLS, setup creds
+		tlsCfg, err := opts.TLS.Config()
 		if err != nil {
 			return nil, err
 		}

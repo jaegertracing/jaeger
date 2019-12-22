@@ -13,9 +13,12 @@ We gratefully welcome improvements to documentation as well as to code.
 
 ## Getting Started
 
+### Pre-requisites
+* Install [Go](https://golang.org/doc/install) and setup GOPATH and add $GOPATH/bin in PATH 
+
 This library uses [dep](https://golang.github.io/dep) to manage dependencies.
 
-To get started, make sure you clone the Git repository into the correct location `github.com/jaegertracing/jaeger` relative to `$GOPATH`:
+To get started, make sure you clone the Git repository into the correct location `$GOPATH/github.com/jaegertracing/jaeger`:
 
 ```
 mkdir -p $GOPATH/src/github.com/jaegertracing
@@ -139,3 +142,13 @@ a comment explaining why it is there, for example:
 $ cat ./pkg/cassandra/config/.nocover
 requires connection to Cassandra
 ```
+
+## Merging PRs
+Before merging a PR make sure:
+* the title is descriptive and follows [a good commit message](./CONTRIBUTING_GUIDELINES.md)
+* pull request is assigned to the current release milestone
+* add `changelog:*` and other labels
+
+Merge the PR by using "Squash and merge" option on Github. Avoid creating merge commits.
+After the merge make sure referenced issues were closed.
+

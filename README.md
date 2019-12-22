@@ -1,6 +1,8 @@
 <img align="right" width="290" height="290" src="https://jaeger.readthedocs.io/en/latest/images/jaeger-vector.svg">
 
-[![Build Status][ci-img]][ci] [![Coverage Status][cov-img]][cov] [![Gitter chat][gitter-img]][gitter] [![OpenTracing-1.0][ot-badge]](https://opentracing.io) [![FOSSA Status](https://app.fossa.io/api/projects/git%2Bgithub.com%2Fjaegertracing%2Fjaeger.svg?type=shield)](https://app.fossa.io/projects/git%2Bgithub.com%2Fjaegertracing%2Fjaeger?ref=badge_shield) [![CII Best Practices](https://bestpractices.coreinfrastructure.org/projects/1273/badge)](https://bestpractices.coreinfrastructure.org/projects/1273) [![Project+Community stats][community-badge]][community-stats]
+[![Gitter chat][gitter-img]][gitter] [![OpenTracing-1.0][ot-badge]](https://opentracing.io) [![Project+Community stats][community-badge]][community-stats]
+
+[![Build Status][ci-img]][ci] [![Coverage Status][cov-img]][cov] [![FOSSA Status](https://app.fossa.io/api/projects/git%2Bgithub.com%2Fjaegertracing%2Fjaeger.svg?type=shield)](https://app.fossa.io/projects/git%2Bgithub.com%2Fjaegertracing%2Fjaeger?ref=badge_shield) [![CII Best Practices](https://bestpractices.coreinfrastructure.org/projects/1273/badge)](https://bestpractices.coreinfrastructure.org/projects/1273)
 
 # Jaeger - a Distributed Tracing System
 
@@ -22,7 +24,7 @@ See also:
 
 <img src="https://www.cncf.io/wp-content/uploads/2016/09/logo_cncf.png">
 
-Jaeger is hosted by the [Cloud Native Computing Foundation](https://cncf.io) (CNCF). If you are a company that wants to help shape the evolution of technologies that are container-packaged, dynamically-scheduled and microservices-oriented, consider joining the CNCF. For details about who's involved and how Jaeger plays a role, read the CNCF [announcement](https://www.cncf.io/blog/2017/09/13/cncf-hosts-jaeger/).
+Jaeger is hosted by the [Cloud Native Computing Foundation](https://cncf.io) (CNCF) as the 7th top-level project (graduated in October 2019). If you are a company that wants to help shape the evolution of technologies that are container-packaged, dynamically-scheduled and microservices-oriented, consider joining the CNCF. For details about who's involved and how Jaeger plays a role, read the CNCF [Jaeger incubation announcement](https://www.cncf.io/blog/2017/09/13/cncf-hosts-jaeger/) and [Jaeger graduation announcement](https://www.cncf.io/announcement/2019/10/31/cloud-native-computing-foundation-announces-jaeger-graduation/).
 
 ## Features
 
@@ -44,7 +46,7 @@ On 28-May-2019, [the OpenTracing and OpenCensus projects announced](https://medi
 
 ### Multiple storage backends
 
-Jaeger supports two popular open source NoSQL databases as trace storage backends: Cassandra 3.4+ and Elasticsearch 5.x/6.x.
+Jaeger supports two popular open source NoSQL databases as trace storage backends: Cassandra 3.4+ and Elasticsearch 5.x/6.x.  There is also embedded database support using [Badger](https://github.com/dgraph-io/badger).
 There are ongoing community experiments using other databases, such as ScyllaDB, InfluxDB, Amazon DynamoDB. Jaeger also ships
 with a simple in-memory storage for testing setups.
 

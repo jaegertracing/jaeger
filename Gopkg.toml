@@ -50,10 +50,22 @@ required = [
   name = "github.com/bsm/sarama-cluster"
   version = "=2.1.13"
 
+# Pinned because the latest 0.0.5 version depends on blackfriday/v2 (see below).
 [[constraint]]
-  name = "github.com/russross/blackfriday"
-  version = "=1.5"
+  name = "github.com/spf13/cobra"
+  version = "=0.0.1"
 
+# blackfriday 2.x uses go modules and is imported by go-md2man as via /v2 path,
+# which does not actually exist in the repo (`go mod` makes it up!). So it's not
+# compatible with dep.
+[[override]]
+  name = "github.com/russross/blackfriday"
+  version = "^1"
+
+# pinned because of blackfriday above
+[[override]]
+  name = "github.com/cpuguy83/go-md2man"
+  version = "^1"
 
 [[constraint]]
   branch = "master"
@@ -77,11 +89,7 @@ required = [
 
 [[constraint]]
   name = "github.com/prometheus/client_golang"
-  version = "^0.8.0"
-
-[[constraint]]
-  name = "github.com/spf13/cobra"
-  version = "^0.0.1"
+  version = "^1"
 
 [[constraint]]
   name = "github.com/spf13/pflag"
@@ -97,11 +105,11 @@ required = [
 
 [[constraint]]
   name = "github.com/uber/jaeger-client-go"
-  revision = "6733ee486c780528f2c8088305e16fdb685134c7"
+  version = "^2.19.0"
 
 [[constraint]]
   name = "github.com/uber/jaeger-lib"
-  version = "^2.0.0"
+  version = "^2.2"
 
 [[constraint]]
   name = "github.com/uber/tchannel-go"
@@ -113,7 +121,11 @@ required = [
 
 [[constraint]]
   name = "google.golang.org/grpc"
-  version = "=1.20.1"
+  version = "^1.20.1"
+
+[[constraint]]
+  name = "gopkg.in/yaml.v2"
+  version = "^2.2.4"
 
 [[constraint]]
   name = "github.com/olivere/elastic"

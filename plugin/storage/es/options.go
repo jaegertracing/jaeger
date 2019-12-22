@@ -54,6 +54,7 @@ const (
 	suffixReadAlias           = ".use-aliases"
 	suffixCreateIndexTemplate = ".create-index-templates"
 	suffixEnabled             = ".enabled"
+	suffixVersion             = ".version"
 )
 
 // TODO this should be moved next to config.Configuration struct (maybe ./flags package)
@@ -96,6 +97,7 @@ func NewOptions(primaryNamespace string, otherNamespaces ...string) *Options {
 				TagDotReplacement:    "@",
 				Enabled:              true,
 				CreateIndexTemplates: true,
+				Version:              0,
 			},
 			servers:   "http://127.0.0.1:9200",
 			namespace: primaryNamespace,
@@ -221,6 +223,10 @@ func addFlags(flagSet *flag.FlagSet, nsConfig *namespaceConfig) {
 		nsConfig.namespace+suffixCreateIndexTemplate,
 		nsConfig.CreateIndexTemplates,
 		"Create index templates at application startup. Set to false when templates are installed manually.")
+	flagSet.Uint(
+		nsConfig.namespace+suffixVersion,
+		0,
+		"The major Elasticsearch version. If not specified, the value will be auto-detected from Elasticsearch.")
 	if nsConfig.namespace == archiveNamespace {
 		flagSet.Bool(
 			nsConfig.namespace+suffixEnabled,
@@ -264,6 +270,7 @@ func initFromViper(cfg *namespaceConfig, v *viper.Viper) {
 	cfg.UseReadWriteAliases = v.GetBool(cfg.namespace + suffixReadAlias)
 	cfg.Enabled = v.GetBool(cfg.namespace + suffixEnabled)
 	cfg.CreateIndexTemplates = v.GetBool(cfg.namespace + suffixCreateIndexTemplate)
+	cfg.Version = uint(v.GetInt(cfg.namespace + suffixVersion))
 	// TODO: Need to figure out a better way for do this.
 	cfg.AllowTokenFromContext = v.GetBool(spanstore.StoragePropagationKey)
 }

@@ -40,7 +40,6 @@ import (
 )
 
 var (
-	grpcServerPort       = ":0"
 	errStorageMsgGRPC    = "Storage error"
 	errStorageGRPC       = errors.New(errStorageMsgGRPC)
 	errStatusStorageGRPC = status.Error(2, errStorageMsgGRPC)
@@ -138,7 +137,7 @@ type grpcClient struct {
 }
 
 func newGRPCServer(t *testing.T, q *querysvc.QueryService, logger *zap.Logger, tracer opentracing.Tracer) (*grpc.Server, net.Addr) {
-	lis, _ := net.Listen("tcp", grpcServerPort)
+	lis, _ := net.Listen("tcp", ":0")
 	grpcServer := grpc.NewServer()
 	grpcHandler := NewGRPCHandler(q, logger, tracer)
 	api_v2.RegisterQueryServiceServer(grpcServer, grpcHandler)
@@ -151,8 +150,10 @@ func newGRPCServer(t *testing.T, q *querysvc.QueryService, logger *zap.Logger, t
 	return grpcServer, lis.Addr()
 }
 
-func newGRPCClient(t *testing.T, addr net.Addr) *grpcClient {
-	conn, err := grpc.Dial(addr.String(), grpc.WithInsecure())
+func newGRPCClient(t *testing.T, addr string) *grpcClient {
+	ctx, cancel := context.WithTimeout(context.Background(), 1*time.Second)
+	defer cancel()
+	conn, err := grpc.DialContext(ctx, addr, grpc.WithInsecure())
 	require.NoError(t, err)
 
 	return &grpcClient{
@@ -192,7 +193,7 @@ func initializeTestServerGRPCWithOptions(t *testing.T) *grpcServer {
 
 func withServerAndClient(t *testing.T, actualTest func(server *grpcServer, client *grpcClient)) {
 	server := initializeTestServerGRPCWithOptions(t)
-	client := newGRPCClient(t, server.lisAddr)
+	client := newGRPCClient(t, server.lisAddr.String())
 	defer server.server.Stop()
 	defer client.conn.Close()
 
@@ -414,20 +415,36 @@ func TestGetServicesFailureGRPC(t *testing.T) {
 func TestGetOperationsSuccessGRPC(t *testing.T) {
 	withServerAndClient(t, func(server *grpcServer, client *grpcClient) {
 
-		expectedOperations := []string{"", "get"}
-		server.spanReader.On("GetOperations", mock.AnythingOfType("*context.valueCtx"), "abc/trifle").Return(expectedOperations, nil).Once()
+		expectedOperations := []spanstore.Operation{
+			{Name: ""},
+			{Name: "get", SpanKind: "server"},
+			{Name: "get", SpanKind: "client"},
+		}
+		expectedNames := []string{"", "get"}
+		server.spanReader.On("GetOperations",
+			mock.AnythingOfType("*context.valueCtx"),
+			spanstore.OperationQueryParameters{ServiceName: "abc/trifle"},
+		).Return(expectedOperations, nil).Once()
 
 		res, err := client.GetOperations(context.Background(), &api_v2.GetOperationsRequest{
 			Service: "abc/trifle",
 		})
 		assert.NoError(t, err)
-		assert.Equal(t, expectedOperations, res.Operations)
+		assert.Equal(t, len(expectedOperations), len(res.Operations))
+		for i, actualOp := range res.Operations {
+			assert.Equal(t, expectedOperations[i].Name, actualOp.Name)
+			assert.Equal(t, expectedOperations[i].SpanKind, actualOp.SpanKind)
+		}
+		assert.ElementsMatch(t, expectedNames, res.OperationNames)
 	})
 }
 
 func TestGetOperationsFailureGRPC(t *testing.T) {
 	withServerAndClient(t, func(server *grpcServer, client *grpcClient) {
-		server.spanReader.On("GetOperations", mock.AnythingOfType("*context.valueCtx"), "trifle").Return(nil, errStorageGRPC).Once()
+		server.spanReader.On("GetOperations",
+			mock.AnythingOfType("*context.valueCtx"),
+			spanstore.OperationQueryParameters{ServiceName: "trifle"},
+		).Return(nil, errStorageGRPC).Once()
 
 		_, err := client.GetOperations(context.Background(), &api_v2.GetOperationsRequest{
 			Service: "trifle",

@@ -25,7 +25,6 @@ import (
 	"github.com/stretchr/testify/assert"
 	"go.uber.org/zap"
 	"google.golang.org/grpc"
-	"google.golang.org/grpc/balancer/roundrobin"
 	"google.golang.org/grpc/peer"
 	"google.golang.org/grpc/resolver"
 	grpctest "google.golang.org/grpc/test/grpc_testing"
@@ -143,7 +142,7 @@ func TestGRPCResolverRoundRobin(t *testing.T) {
 			res := New(notifier, discoverer, zap.NewNop(), test.minPeers)
 			defer resolver.UnregisterForTesting(res.Scheme())
 
-			cc, err := grpc.Dial(res.Scheme()+":///round_robin", grpc.WithInsecure(), grpc.WithBalancerName(roundrobin.Name))
+			cc, err := grpc.Dial(res.Scheme()+":///round_robin", grpc.WithInsecure(), grpc.WithDefaultServiceConfig(GRPCServiceConfig))
 			assert.NoError(t, err, "could not dial using resolver's scheme")
 			defer cc.Close()
 

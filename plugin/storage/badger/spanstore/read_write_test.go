@@ -19,6 +19,10 @@ import (
 	"fmt"
 	"io"
 	"io/ioutil"
+	"log"
+	"math/rand"
+	"os"
+	"runtime/pprof"
 	"testing"
 	"time"
 
@@ -125,11 +129,6 @@ func TestValidation(t *testing.T) {
 		params.Tags = map[string]string{"A": "B"}
 		_, err = sr.FindTraces(context.Background(), params)
 		assert.EqualError(t, err, "service name must be set")
-
-		// Only StartTimeMin and Max (not supported yet)
-		// _, err := sr.FindTraces(context.Background(), params)
-		// assert.EqualError(t, err, "This query parameter is not supported yet")
-
 	})
 }
 
@@ -139,16 +138,21 @@ func TestIndexSeeks(t *testing.T) {
 		traces := 60
 		spans := 3
 		tid := startT
+
+		traceOrder := make([]uint64, traces)
+
 		for i := 0; i < traces; i++ {
+			lowId := rand.Uint64()
+			traceOrder[i] = lowId
 			tid = tid.Add(time.Duration(time.Millisecond * time.Duration(i)))
 
 			for j := 0; j < spans; j++ {
 				s := model.Span{
 					TraceID: model.TraceID{
-						Low:  uint64(i),
+						Low:  lowId,
 						High: 1,
 					},
-					SpanID:        model.SpanID(j),
+					SpanID:        model.SpanID(rand.Uint64()),
 					OperationName: fmt.Sprintf("operation-%d", j),
 					Process: &model.Process{
 						ServiceName: fmt.Sprintf("service-%d", i%4),
@@ -168,8 +172,16 @@ func TestIndexSeeks(t *testing.T) {
 						},
 					},
 				}
+
 				err := sw.WriteSpan(&s)
 				assert.NoError(t, err)
+			}
+		}
+
+		testOrder := func(trs []*model.Trace) {
+			// Assert that we returned correctly in DESC time order
+			for l := 1; l < len(trs); l++ {
+				assert.True(t, trs[l].Spans[spans-1].StartTime.Before(trs[l-1].Spans[spans-1].StartTime))
 			}
 		}
 
@@ -182,6 +194,7 @@ func TestIndexSeeks(t *testing.T) {
 		trs, err := sr.FindTraces(context.Background(), params)
 		assert.NoError(t, err)
 		assert.Equal(t, 1, len(trs))
+		assert.Equal(t, spans, len(trs[0].Spans))
 
 		params.OperationName = "operation-1"
 		trs, err = sr.FindTraces(context.Background(), params)
@@ -208,10 +221,10 @@ func TestIndexSeeks(t *testing.T) {
 		tags["error"] = "true"
 		params.Tags = tags
 		params.DurationMin = time.Duration(1 * time.Millisecond)
-		// params.DurationMax = time.Duration(1 * time.Hour)
 		trs, err = sr.FindTraces(context.Background(), params)
 		assert.NoError(t, err)
 		assert.Equal(t, 1, len(trs))
+		assert.Equal(t, spans, len(trs[0].Spans))
 
 		// Query limited amount of hits
 
@@ -221,17 +234,37 @@ func TestIndexSeeks(t *testing.T) {
 		trs, err = sr.FindTraces(context.Background(), params)
 		assert.NoError(t, err)
 		assert.Equal(t, 2, len(trs))
+		assert.Equal(t, traceOrder[59], trs[0].Spans[0].TraceID.Low)
+		assert.Equal(t, traceOrder[55], trs[1].Spans[0].TraceID.Low)
+		testOrder(trs)
 
-		// Check for DESC return order
-		params.NumTraces = 9
+		// Check for DESC return order with duration index
+		params = &spanstore.TraceQueryParameters{
+			StartTimeMin: startT,
+			StartTimeMax: startT.Add(time.Duration(time.Hour * 1)),
+			DurationMin:  time.Duration(30 * time.Millisecond), // Filters one
+			DurationMax:  time.Duration(50 * time.Millisecond), // Filters three
+			NumTraces:    9,
+		}
 		trs, err = sr.FindTraces(context.Background(), params)
 		assert.NoError(t, err)
-		assert.Equal(t, 9, len(trs))
+		assert.Equal(t, 9, len(trs)) // Returns 23, we limited to 9
 
-		// Assert that we fetched correctly in DESC time order
-		for l := 1; l < len(trs); l++ {
-			assert.True(t, trs[l].Spans[spans-1].StartTime.Before(trs[l-1].Spans[spans-1].StartTime))
-		}
+		// Check the newest items are returned
+		assert.Equal(t, traceOrder[50], trs[0].Spans[0].TraceID.Low)
+		assert.Equal(t, traceOrder[42], trs[8].Spans[0].TraceID.Low)
+		testOrder(trs)
+
+		// Check for DESC return order without duration index, but still with limit
+		params.DurationMin = 0
+		params.DurationMax = 0
+		params.NumTraces = 7
+		trs, err = sr.FindTraces(context.Background(), params)
+		assert.NoError(t, err)
+		assert.Equal(t, 7, len(trs))
+		assert.Equal(t, traceOrder[59], trs[0].Spans[0].TraceID.Low)
+		assert.Equal(t, traceOrder[53], trs[6].Spans[0].TraceID.Low)
+		testOrder(trs)
 
 		// StartTime, endTime scan - full table scan (so technically no index seek)
 		params = &spanstore.TraceQueryParameters{
@@ -241,16 +274,21 @@ func TestIndexSeeks(t *testing.T) {
 
 		trs, err = sr.FindTraces(context.Background(), params)
 		assert.NoError(t, err)
-		assert.Equal(t, 6, len(trs))
+		assert.Equal(t, 5, len(trs))
+		assert.Equal(t, spans, len(trs[0].Spans))
+		testOrder(trs)
 
 		// StartTime and Duration queries
 		params.StartTimeMax = startT.Add(time.Duration(time.Hour * 10))
-		params.DurationMin = time.Duration(53 * time.Millisecond) // trace 51 (max)
-		params.DurationMax = time.Duration(56 * time.Millisecond) // trace 56 (min)
+		params.DurationMin = time.Duration(53 * time.Millisecond) // trace 51 (min)
+		params.DurationMax = time.Duration(56 * time.Millisecond) // trace 56 (max)
 
 		trs, err = sr.FindTraces(context.Background(), params)
 		assert.NoError(t, err)
 		assert.Equal(t, 6, len(trs))
+		assert.Equal(t, traceOrder[56], trs[0].Spans[0].TraceID.Low)
+		assert.Equal(t, traceOrder[51], trs[5].Spans[0].TraceID.Low)
+		testOrder(trs)
 	})
 }
 
@@ -326,7 +364,10 @@ func TestMenuSeeks(t *testing.T) {
 			}
 		}
 
-		operations, err := sr.GetOperations(context.Background(), "service-1")
+		operations, err := sr.GetOperations(
+			context.Background(),
+			spanstore.OperationQueryParameters{ServiceName: "service-1"},
+		)
 		assert.NoError(t, err)
 
 		serviceList, err := sr.GetServices(context.Background())
@@ -411,7 +452,7 @@ func TestPersist(t *testing.T) {
 	})
 }
 
-// Opens a badger db and runs a a test on it.
+// Opens a badger db and runs a test on it.
 func runFactoryTest(tb testing.TB, test func(tb testing.TB, sw spanstore.Writer, sr spanstore.Reader)) {
 	f := badger.NewFactory()
 	opts := badger.NewOptions("badger")
@@ -441,4 +482,247 @@ func runFactoryTest(tb testing.TB, test func(tb testing.TB, sw spanstore.Writer,
 
 	}()
 	test(tb, sw, sr)
+}
+
+// Benchmarks intended for profiling
+
+func writeSpans(sw spanstore.Writer, tags []model.KeyValue, services, operations []string, traces, spans int, high uint64, tid time.Time) {
+	for i := 0; i < traces; i++ {
+		for j := 0; j < spans; j++ {
+			s := model.Span{
+				TraceID: model.TraceID{
+					Low:  uint64(i),
+					High: high,
+				},
+				SpanID:        model.SpanID(j),
+				OperationName: operations[j],
+				Process: &model.Process{
+					ServiceName: services[j],
+				},
+				Tags:      tags,
+				StartTime: tid.Add(time.Duration(time.Millisecond)),
+				Duration:  time.Duration(time.Millisecond * time.Duration(i+j)),
+			}
+			_ = sw.WriteSpan(&s)
+		}
+	}
+}
+
+func BenchmarkWrites(b *testing.B) {
+	runFactoryTest(b, func(tb testing.TB, sw spanstore.Writer, sr spanstore.Reader) {
+		tid := time.Now()
+		traces := 1000
+		spans := 32
+		tagsCount := 64
+		tags, services, operations := makeWriteSupports(tagsCount, spans)
+
+		f, err := os.Create("writes.out")
+		if err != nil {
+			log.Fatal("could not create CPU profile: ", err)
+		}
+		if err := pprof.StartCPUProfile(f); err != nil {
+			log.Fatal("could not start CPU profile: ", err)
+		}
+		defer pprof.StopCPUProfile()
+
+		b.ResetTimer()
+		for a := 0; a < b.N; a++ {
+			writeSpans(sw, tags, services, operations, traces, spans, uint64(0), tid)
+		}
+		b.StopTimer()
+	})
+}
+
+func makeWriteSupports(tagsCount, spans int) ([]model.KeyValue, []string, []string) {
+	tags := make([]model.KeyValue, tagsCount)
+	for i := 0; i < tagsCount; i++ {
+		tags[i] = model.KeyValue{
+			Key:  fmt.Sprintf("a%d", i),
+			VStr: fmt.Sprintf("b%d", i),
+		}
+	}
+	operations := make([]string, spans)
+	for j := 0; j < spans; j++ {
+		operations[j] = fmt.Sprintf("operation-%d", j)
+	}
+	services := make([]string, spans)
+	for i := 0; i < spans; i++ {
+		services[i] = fmt.Sprintf("service-%d", i)
+	}
+
+	return tags, services, operations
+}
+
+func makeReadBenchmark(b *testing.B, tid time.Time, params *spanstore.TraceQueryParameters, outputFile string) {
+	runLargeFactoryTest(b, func(tb testing.TB, sw spanstore.Writer, sr spanstore.Reader) {
+		tid := time.Now()
+
+		// Total amount of traces is traces * tracesTimes
+		traces := 1000
+		tracesTimes := 1
+
+		// Total amount of spans written is traces * tracesTimes * spans
+		spans := 32
+
+		// Default is 160k
+
+		tagsCount := 64
+		tags, services, operations := makeWriteSupports(tagsCount, spans)
+
+		for h := 0; h < tracesTimes; h++ {
+			writeSpans(sw, tags, services, operations, traces, spans, uint64(h), tid)
+		}
+
+		f, err := os.Create(outputFile)
+		if err != nil {
+			log.Fatal("could not create CPU profile: ", err)
+		}
+		if err := pprof.StartCPUProfile(f); err != nil {
+			log.Fatal("could not start CPU profile: ", err)
+		}
+		defer pprof.StopCPUProfile()
+
+		b.ResetTimer()
+		for a := 0; a < b.N; a++ {
+			sr.FindTraces(context.Background(), params)
+		}
+		b.StopTimer()
+	})
+
+}
+
+func BenchmarkServiceTagsRangeQueryLimitIndexFetch(b *testing.B) {
+	tid := time.Now()
+	params := &spanstore.TraceQueryParameters{
+		StartTimeMin: tid,
+		StartTimeMax: tid.Add(time.Duration(time.Millisecond * 2000)),
+		ServiceName:  "service-1",
+		Tags: map[string]string{
+			"a8": "b8",
+		},
+	}
+
+	params.DurationMin = time.Duration(1 * time.Millisecond) // durationQuery takes 53% of total execution time..
+	params.NumTraces = 50
+
+	makeReadBenchmark(b, tid, params, "scanrangeandindexlimit.out")
+}
+
+func BenchmarkServiceIndexLimitFetch(b *testing.B) {
+	tid := time.Now()
+	params := &spanstore.TraceQueryParameters{
+		StartTimeMin: tid,
+		StartTimeMax: tid.Add(time.Duration(time.Millisecond * 2000)),
+		ServiceName:  "service-1",
+	}
+
+	params.NumTraces = 50
+
+	makeReadBenchmark(b, tid, params, "serviceindexlimit.out")
+}
+
+// Opens a badger db and runs a test on it.
+func runLargeFactoryTest(tb testing.TB, test func(tb testing.TB, sw spanstore.Writer, sr spanstore.Reader)) {
+	assert := assert.New(tb)
+	f := badger.NewFactory()
+	opts := badger.NewOptions("badger")
+	v, command := config.Viperize(opts.AddFlags)
+
+	dir := "/mnt/ssd/badger/testRun"
+	err := os.MkdirAll(dir, 0700)
+	assert.NoError(err)
+	keyParam := fmt.Sprintf("--badger.directory-key=%s", dir)
+	valueParam := fmt.Sprintf("--badger.directory-value=%s", dir)
+
+	command.ParseFlags([]string{
+		"--badger.ephemeral=false",
+		"--badger.consistency=false", // Consistency is false as default to reduce effect of disk speed
+		keyParam,
+		valueParam,
+	})
+
+	f.InitFromViper(v)
+
+	err = f.Initialize(metrics.NullFactory, zap.NewNop())
+	assert.NoError(err)
+
+	sw, err := f.CreateSpanWriter()
+	assert.NoError(err)
+
+	sr, err := f.CreateSpanReader()
+	assert.NoError(err)
+
+	defer func() {
+		if closer, ok := sw.(io.Closer); ok {
+			err := closer.Close()
+			os.RemoveAll(dir)
+			assert.NoError(err)
+		} else {
+			assert.FailNow("io.Closer not implemented by SpanWriter")
+		}
+	}()
+	test(tb, sw, sr)
+}
+
+// TestRandomTraceID from issue #1808
+func TestRandomTraceID(t *testing.T) {
+	runFactoryTest(t, func(tb testing.TB, sw spanstore.Writer, sr spanstore.Reader) {
+		s1 := model.Span{
+			TraceID: model.TraceID{
+				Low:  uint64(14767110704788176287),
+				High: 0,
+			},
+			SpanID:        model.SpanID(14976775253976086374),
+			OperationName: "/",
+			Process: &model.Process{
+				ServiceName: "nginx",
+			},
+			Tags: model.KeyValues{
+				model.KeyValue{
+					Key:   "http.request_id",
+					VStr:  "first",
+					VType: model.StringType,
+				},
+			},
+			StartTime: time.Now(),
+			Duration:  1 * time.Second,
+		}
+		err := sw.WriteSpan(&s1)
+		assert.NoError(t, err)
+
+		s2 := model.Span{
+			TraceID: model.TraceID{
+				Low:  uint64(4775132888371984950),
+				High: 0,
+			},
+			SpanID:        model.SpanID(13576481569227028654),
+			OperationName: "/",
+			Process: &model.Process{
+				ServiceName: "nginx",
+			},
+			Tags: model.KeyValues{
+				model.KeyValue{
+					Key:   "http.request_id",
+					VStr:  "second",
+					VType: model.StringType,
+				},
+			},
+			StartTime: time.Now(),
+			Duration:  1 * time.Second,
+		}
+		err = sw.WriteSpan(&s2)
+		assert.NoError(t, err)
+
+		params := &spanstore.TraceQueryParameters{
+			StartTimeMin: time.Now().Add(-1 * time.Minute),
+			StartTimeMax: time.Now(),
+			ServiceName:  "nginx",
+			Tags: map[string]string{
+				"http.request_id": "second",
+			},
+		}
+		traces, err := sr.FindTraces(context.Background(), params)
+		assert.NoError(t, err)
+		assert.Equal(t, 1, len(traces))
+	})
 }

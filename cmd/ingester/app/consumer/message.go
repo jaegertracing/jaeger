@@ -31,22 +31,22 @@ type saramaMessageWrapper struct {
 	*sarama.ConsumerMessage
 }
 
-func (m *saramaMessageWrapper) Key() []byte {
+func (m saramaMessageWrapper) Key() []byte {
 	return m.ConsumerMessage.Key
 }
 
-func (m *saramaMessageWrapper) Value() []byte {
+func (m saramaMessageWrapper) Value() []byte {
 	return m.ConsumerMessage.Value
 }
 
-func (m *saramaMessageWrapper) Topic() string {
+func (m saramaMessageWrapper) Topic() string {
 	return m.ConsumerMessage.Topic
 }
 
-func (m *saramaMessageWrapper) Partition() int32 {
+func (m saramaMessageWrapper) Partition() int32 {
 	return m.ConsumerMessage.Partition
 }
 
-func (m *saramaMessageWrapper) Offset() int64 {
+func (m saramaMessageWrapper) Offset() int64 {
 	return m.ConsumerMessage.Offset
 }

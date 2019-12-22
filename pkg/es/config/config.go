@@ -63,6 +63,7 @@ type Configuration struct {
 	TLS                   TLSConfig
 	UseReadWriteAliases   bool
 	CreateIndexTemplates  bool
+	Version               uint
 }
 
 // TLSConfig describes the configuration properties to connect tls enabled ElasticSearch cluster
@@ -89,6 +90,7 @@ type ClientBuilder interface {
 	GetTokenFilePath() string
 	IsEnabled() bool
 	IsCreateIndexTemplates() bool
+	GetVersion() uint
 }
 
 // NewClient creates a new ElasticSearch client
@@ -157,18 +159,21 @@ func (c *Configuration) NewClient(logger *zap.Logger, metricsFactory metrics.Fac
 		return nil, err
 	}
 
-	// Determine ElasticSearch Version
-	pingResult, _, err := rawClient.Ping(c.Servers[0]).Do(context.Background())
-	if err != nil {
-		return nil, err
+	if c.Version == 0 {
+		// Determine ElasticSearch Version
+		pingResult, _, err := rawClient.Ping(c.Servers[0]).Do(context.Background())
+		if err != nil {
+			return nil, err
+		}
+		esVersion, err := strconv.Atoi(string(pingResult.Version.Number[0]))
+		if err != nil {
+			return nil, err
+		}
+		logger.Info("Elasticsearch detected", zap.Int("version", esVersion))
+		c.Version = uint(esVersion)
 	}
-	esVersion, err := strconv.Atoi(string(pingResult.Version.Number[0]))
-	if err != nil {
-		return nil, err
-	}
-	logger.Info("Elasticsearch detected", zap.Int("version", esVersion))
 
-	return eswrapper.WrapESClient(rawClient, service, esVersion), nil
+	return eswrapper.WrapESClient(rawClient, service, c.Version), nil
 }
 
 // ApplyDefaults copies settings from source unless its own value is non-zero.
@@ -243,6 +248,11 @@ func (c *Configuration) GetAllTagsAsFields() bool {
 	return c.AllTagsAsFields
 }
 
+// GetVersion returns Elasticsearch version
+func (c *Configuration) GetVersion() uint {
+	return c.Version
+}
+
 // GetTagDotReplacement returns character is used to replace dots in tag keys, when
 // the tag is stored as object field.
 func (c *Configuration) GetTagDotReplacement() string {
@@ -290,14 +300,18 @@ func (c *Configuration) getConfigOptions(logger *zap.Logger) ([]elastic.ClientOp
 			TLSClientConfig: ctlsConfig,
 		}
 	} else {
-		httpTransport := &http.Transport{}
+		httpTransport := &http.Transport{
+			Proxy: http.ProxyFromEnvironment,
+			// #nosec G402
+			TLSClientConfig: &tls.Config{InsecureSkipVerify: c.TLS.SkipHostVerify},
+		}
 		if c.TLS.CaPath != "" {
 			ctls := &TLSConfig{CaPath: c.TLS.CaPath}
 			ca, err := ctls.loadCertificate()
 			if err != nil {
 				return nil, err
 			}
-			httpTransport.TLSClientConfig = &tls.Config{RootCAs: ca}
+			httpTransport.TLSClientConfig.RootCAs = ca
 		}
 
 		token := ""

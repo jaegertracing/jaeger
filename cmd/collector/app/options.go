@@ -43,6 +43,7 @@ type options struct {
 	queueSize        int
 	reportBusy       bool
 	extraFormatTypes []SpanFormat
+	collectorTags    map[string]string
 }
 
 // Option is a function that sets some option on StorageBuilder.
@@ -132,6 +133,13 @@ func (options) ReportBusy(reportBusy bool) Option {
 func (options) ExtraFormatTypes(extraFormatTypes []SpanFormat) Option {
 	return func(b *options) {
 		b.extraFormatTypes = extraFormatTypes
+	}
+}
+
+// CollectorTags creates an Option that initializes the extra tags to append to the spans flowing through this collector
+func (options) CollectorTags(extraTags map[string]string) Option {
+	return func(b *options) {
+		b.collectorTags = extraTags
 	}
 }
 
