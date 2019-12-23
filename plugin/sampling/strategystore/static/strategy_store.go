@@ -19,11 +19,13 @@ import (
 	"encoding/gob"
 	"encoding/json"
 	"fmt"
-	ss "github.com/jaegertracing/jaeger/cmd/collector/app/sampling/strategystore"
-	"github.com/jaegertracing/jaeger/thrift-gen/sampling"
+	"io/ioutil"
+
 	"github.com/pkg/errors"
 	"go.uber.org/zap"
-	"io/ioutil"
+
+	ss "github.com/jaegertracing/jaeger/cmd/collector/app/sampling/strategystore"
+	"github.com/jaegertracing/jaeger/thrift-gen/sampling"
 )
 
 type strategyStore struct {
