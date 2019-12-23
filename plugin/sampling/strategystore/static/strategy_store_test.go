@@ -80,12 +80,12 @@ func TestPerOperationSamplingStrategies(t *testing.T) {
 	assert.EqualValues(t, os.DefaultSamplingProbability, 0.8)
 	require.Len(t, os.PerOperationStrategies, 4)
 	fmt.Println(os)
-	assert.Equal(t, "op0", os.PerOperationStrategies[0].Operation)
-	assert.EqualValues(t, 0.2, os.PerOperationStrategies[0].ProbabilisticSampling.SamplingRate)
+	assert.Equal(t, "op6", os.PerOperationStrategies[0].Operation)
+	assert.EqualValues(t, 0.5, os.PerOperationStrategies[0].ProbabilisticSampling.SamplingRate)
 	assert.Equal(t, "op1", os.PerOperationStrategies[1].Operation)
 	assert.EqualValues(t, 0.2, os.PerOperationStrategies[1].ProbabilisticSampling.SamplingRate)
-	assert.Equal(t, "op6", os.PerOperationStrategies[2].Operation)
-	assert.EqualValues(t, 0.5, os.PerOperationStrategies[2].ProbabilisticSampling.SamplingRate)
+	assert.Equal(t, "op0", os.PerOperationStrategies[2].Operation)
+	assert.EqualValues(t, 0.2, os.PerOperationStrategies[2].ProbabilisticSampling.SamplingRate)
 	assert.Equal(t, "op7", os.PerOperationStrategies[3].Operation)
 	assert.EqualValues(t, 1, os.PerOperationStrategies[3].ProbabilisticSampling.SamplingRate)
 
@@ -100,12 +100,12 @@ func TestPerOperationSamplingStrategies(t *testing.T) {
 	os = s.OperationSampling
 	assert.EqualValues(t, os.DefaultSamplingProbability, 0.001)
 	require.Len(t, os.PerOperationStrategies, 5)
-	assert.Equal(t, "op0", os.PerOperationStrategies[0].Operation)
-	assert.EqualValues(t, 0.2, os.PerOperationStrategies[0].ProbabilisticSampling.SamplingRate)
-	assert.Equal(t, "op3", os.PerOperationStrategies[1].Operation)
-	assert.EqualValues(t, 0.3, os.PerOperationStrategies[1].ProbabilisticSampling.SamplingRate)
-	assert.Equal(t, "op5", os.PerOperationStrategies[2].Operation)
-	assert.EqualValues(t, 0.4, os.PerOperationStrategies[2].ProbabilisticSampling.SamplingRate)
+	assert.Equal(t, "op3", os.PerOperationStrategies[0].Operation)
+	assert.EqualValues(t, 0.3, os.PerOperationStrategies[0].ProbabilisticSampling.SamplingRate)
+	assert.Equal(t, "op5", os.PerOperationStrategies[1].Operation)
+	assert.EqualValues(t, 0.4, os.PerOperationStrategies[1].ProbabilisticSampling.SamplingRate)
+	assert.Equal(t, "op0", os.PerOperationStrategies[2].Operation)
+	assert.EqualValues(t, 0.2, os.PerOperationStrategies[2].ProbabilisticSampling.SamplingRate)
 	assert.Equal(t, "op6", os.PerOperationStrategies[3].Operation)
 	assert.EqualValues(t, 0, os.PerOperationStrategies[3].ProbabilisticSampling.SamplingRate)
 	assert.Equal(t, "op7", os.PerOperationStrategies[4].Operation)
@@ -115,7 +115,7 @@ func TestPerOperationSamplingStrategies(t *testing.T) {
 	require.NoError(t, err)
 	expectedRsp := makeResponse(sampling.SamplingStrategyType_PROBABILISTIC, 0.5)
 	expectedRsp.OperationSampling = &sampling.PerOperationSamplingStrategies{
-		DefaultSamplingProbability: 0.001,
+		DefaultSamplingProbability: 0.5,
 		PerOperationStrategies: []*sampling.OperationSamplingStrategy{
 			{
 				Operation: "op0",

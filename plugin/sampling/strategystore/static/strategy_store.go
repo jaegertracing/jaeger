@@ -19,14 +19,11 @@ import (
 	"encoding/gob"
 	"encoding/json"
 	"fmt"
-	"io/ioutil"
-	"sort"
-
-	"github.com/pkg/errors"
-	"go.uber.org/zap"
-
 	ss "github.com/jaegertracing/jaeger/cmd/collector/app/sampling/strategystore"
 	"github.com/jaegertracing/jaeger/thrift-gen/sampling"
+	"github.com/pkg/errors"
+	"go.uber.org/zap"
+	"io/ioutil"
 )
 
 type strategyStore struct {
@@ -75,13 +72,19 @@ func loadStrategies(strategiesFile string) (*strategies, error) {
 }
 
 func (h *strategyStore) parseStrategies(strategies *strategies) {
-	h.defaultStrategy = &defaultStrategyResponse
+	h.defaultStrategy = defaultStrategyResponse()
 	if strategies == nil {
 		h.logger.Info("No sampling strategies provided, using defaults")
 		return
 	}
 	if strategies.DefaultStrategy != nil {
-		h.defaultStrategy = h.parseDefaultStrategy(strategies.DefaultStrategy)
+		h.defaultStrategy = h.parseServiceStrategies(strategies.DefaultStrategy)
+	}
+
+	merge := true
+	if h.defaultStrategy.OperationSampling == nil ||
+		h.defaultStrategy.OperationSampling.PerOperationStrategies == nil {
+		merge = false
 	}
 
 	for _, s := range strategies.ServiceStrategies {
@@ -92,17 +95,16 @@ func (h *strategyStore) parseStrategies(strategies *strategies) {
 		// is not merged with and only used as a fallback).
 		opS := h.serviceStrategies[s.Service].OperationSampling
 		if opS == nil {
-			// It has no use to merge, just reference the default settings.
+			// Service has no per-operation strategies, so just reference the default settings.
 			h.serviceStrategies[s.Service].OperationSampling = h.defaultStrategy.OperationSampling
 			continue
 		}
-		if h.defaultStrategy.OperationSampling == nil ||
-			h.defaultStrategy.OperationSampling.PerOperationStrategies == nil {
-			continue
+
+		if merge {
+			opS.PerOperationStrategies = mergePerOperationSamplingStrategies(
+				opS.PerOperationStrategies,
+				h.defaultStrategy.OperationSampling.PerOperationStrategies)
 		}
-		opS.PerOperationStrategies = mergePerOperationSamplingStrategies(
-			opS.PerOperationStrategies,
-			h.defaultStrategy.OperationSampling.PerOperationStrategies)
 	}
 }
 
@@ -110,32 +112,17 @@ func (h *strategyStore) parseStrategies(strategies *strategies) {
 func mergePerOperationSamplingStrategies(
 	a, b []*sampling.OperationSamplingStrategy,
 ) []*sampling.OperationSamplingStrategy {
-	// Guess the size of the slice of the two merged.
-	merged := make([]*sampling.OperationSamplingStrategy, 0, (len(a)+len(b))/4*3)
-
-	ossLess := func(s []*sampling.OperationSamplingStrategy, i, j int) bool {
-		return s[i].Operation < s[j].Operation
+	m := make(map[string]bool)
+	for _, aOp := range a {
+		m[aOp.Operation] = true
 	}
-	sort.Slice(a, func(i, j int) bool { return ossLess(a, i, j) })
-	sort.Slice(b, func(i, j int) bool { return ossLess(b, i, j) })
-
-	j := 0
-	for i := range a {
-		// Increment j till b[j] > a[i], such that in the loop after the
-		// loop over a no remaining element of b with the same operation
-		// as a[i] is added to the merged slice.
-		for ; j < len(b) && b[j].Operation <= a[i].Operation; j++ {
-			if b[j].Operation < a[i].Operation {
-				merged = append(merged, b[j])
-			}
+	for _, bOp := range b {
+		if m[bOp.Operation] {
+			continue
 		}
-		merged = append(merged, a[i])
+		a = append(a, bOp)
 	}
-	for ; j < len(b); j++ {
-		merged = append(merged, b[j])
-	}
-
-	return merged
+	return a
 }
 
 func (h *strategyStore) parseServiceStrategies(strategy *serviceStrategy) *sampling.SamplingStrategyResponse {
@@ -161,37 +148,6 @@ func (h *strategyStore) parseServiceStrategies(strategy *serviceStrategy) *sampl
 				ProbabilisticSampling: s.ProbabilisticSampling,
 			})
 	}
-	resp.OperationSampling = opS
-	return resp
-}
-
-func (h *strategyStore) parseDefaultStrategy(strategy *defaultStrategy) *sampling.SamplingStrategyResponse {
-	resp := h.parseStrategy(&strategy.strategy)
-	if len(strategy.OperationStrategies) == 0 {
-		return resp
-	}
-
-	opS := resp.OperationSampling
-	if opS == nil {
-		opS = &sampling.PerOperationSamplingStrategies{
-			DefaultSamplingProbability: defaultSamplingProbability,
-		}
-		resp.OperationSampling = opS
-	}
-
-	for _, s := range strategy.OperationStrategies {
-		strategy, ok := h.parseOperationStrategy(s, opS)
-		if !ok {
-			continue
-		}
-
-		opS.PerOperationStrategies = append(opS.PerOperationStrategies,
-			&sampling.OperationSamplingStrategy{
-				Operation:             s.Operation,
-				ProbabilisticSampling: strategy.ProbabilisticSampling,
-			})
-	}
-
 	resp.OperationSampling = opS
 	return resp
 }
@@ -232,7 +188,7 @@ func (h *strategyStore) parseStrategy(strategy *strategy) *sampling.SamplingStra
 		}
 	default:
 		h.logger.Warn("Failed to parse sampling strategy", zap.Any("strategy", strategy))
-		return deepCopy(&defaultStrategyResponse)
+		return defaultStrategyResponse()
 	}
 }
 
