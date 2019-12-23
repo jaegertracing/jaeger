@@ -106,7 +106,7 @@ func addTLSFlags(configPrefix string, flagSet *flag.FlagSet) {
 		"Path to the TLS Key for the Kafka connection")
 }
 
-func addPlainTextFlag(configPrefix string, flagSet *flag.FlagSet) {
+func addPlainTextFlags(configPrefix string, flagSet *flag.FlagSet) {
 	flagSet.String(
 		configPrefix+plainTextPrefix+suffixPlainTextUserName,
 		defaultPlainTextUserName,
@@ -126,5 +126,5 @@ func AddFlags(configPrefix string, flagSet *flag.FlagSet) {
 	)
 	addKerberosFlags(configPrefix, flagSet)
 	addTLSFlags(configPrefix, flagSet)
-	addPlainTextFlag(configPrefix, flagSet)
+	addPlainTextFlags(configPrefix, flagSet)
 }
