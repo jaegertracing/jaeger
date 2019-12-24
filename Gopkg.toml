@@ -162,7 +162,7 @@ required = [
 
 [[constraint]]
   name = "github.com/Shopify/sarama"
-  revision = "cd910a683f9faa57222e5120d17b60d2e65f7fa9"
+  revision = "1.24.1"
 
 [[constraint]]
   name = "github.com/grpc-ecosystem/go-grpc-middleware"

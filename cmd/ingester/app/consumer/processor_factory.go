@@ -15,6 +15,7 @@
 package consumer
 
 import (
+	"github.com/Shopify/sarama"
 	"io"
 
 	"github.com/uber/jaeger-lib/metrics"
@@ -23,7 +24,6 @@ import (
 	"github.com/jaegertracing/jaeger/cmd/ingester/app/consumer/offset"
 	"github.com/jaegertracing/jaeger/cmd/ingester/app/processor"
 	"github.com/jaegertracing/jaeger/cmd/ingester/app/processor/decorator"
-	"github.com/jaegertracing/jaeger/pkg/kafka/consumer"
 )
 
 // ProcessorFactoryParams are the parameters of a ProcessorFactory
@@ -31,7 +31,6 @@ type ProcessorFactoryParams struct {
 	Parallelism    int
 	Topic          string
 	BaseProcessor  processor.SpanProcessor
-	SaramaConsumer consumer.Consumer
 	Factory        metrics.Factory
 	Logger         *zap.Logger
 	RetryOptions   []decorator.RetryOption
@@ -40,7 +39,6 @@ type ProcessorFactoryParams struct {
 // ProcessorFactory is a factory for creating startedProcessors
 type ProcessorFactory struct {
 	topic          string
-	consumer       consumer.Consumer
 	metricsFactory metrics.Factory
 	logger         *zap.Logger
 	baseProcessor  processor.SpanProcessor
@@ -52,7 +50,6 @@ type ProcessorFactory struct {
 func NewProcessorFactory(params ProcessorFactoryParams) (*ProcessorFactory, error) {
 	return &ProcessorFactory{
 		topic:          params.Topic,
-		consumer:       params.SaramaConsumer,
 		metricsFactory: params.Factory,
 		logger:         params.Logger,
 		baseProcessor:  params.BaseProcessor,
@@ -61,11 +58,11 @@ func NewProcessorFactory(params ProcessorFactoryParams) (*ProcessorFactory, erro
 	}, nil
 }
 
-func (c *ProcessorFactory) new(partition int32, minOffset int64) processor.SpanProcessor {
+func (c *ProcessorFactory) new(session sarama.ConsumerGroupSession, partition int32, minOffset int64) processor.SpanProcessor {
 	c.logger.Info("Creating new processors", zap.Int32("partition", partition))
 
 	markOffset := func(offset int64) {
-		c.consumer.MarkPartitionOffset(c.topic, partition, offset, "")
+		session.MarkOffset(c.topic, partition, offset, "")
 	}
 
 	om := offset.NewManager(minOffset, markOffset, partition, c.metricsFactory)
