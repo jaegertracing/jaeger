@@ -74,17 +74,57 @@ func loadStrategies(strategiesFile string) (*strategies, error) {
 }
 
 func (h *strategyStore) parseStrategies(strategies *strategies) {
-	h.defaultStrategy = &defaultStrategy
+	h.defaultStrategy = defaultStrategyResponse()
 	if strategies == nil {
 		h.logger.Info("No sampling strategies provided, using defaults")
 		return
 	}
 	if strategies.DefaultStrategy != nil {
-		h.defaultStrategy = h.parseStrategy(strategies.DefaultStrategy)
+		h.defaultStrategy = h.parseServiceStrategies(strategies.DefaultStrategy)
 	}
+
+	merge := true
+	if h.defaultStrategy.OperationSampling == nil ||
+		h.defaultStrategy.OperationSampling.PerOperationStrategies == nil {
+		merge = false
+	}
+
 	for _, s := range strategies.ServiceStrategies {
 		h.serviceStrategies[s.Service] = h.parseServiceStrategies(s)
+
+		// Merge with the default operation strategies, because only merging with
+		// the default strategy has no effect on service strategies (the default strategy
+		// is not merged with and only used as a fallback).
+		opS := h.serviceStrategies[s.Service].OperationSampling
+		if opS == nil {
+			// Service has no per-operation strategies, so just reference the default settings.
+			h.serviceStrategies[s.Service].OperationSampling = h.defaultStrategy.OperationSampling
+			continue
+		}
+
+		if merge {
+			opS.PerOperationStrategies = mergePerOperationSamplingStrategies(
+				opS.PerOperationStrategies,
+				h.defaultStrategy.OperationSampling.PerOperationStrategies)
+		}
 	}
+}
+
+// mergePerOperationStrategies merges two operation strategies a and b, where a takes precedence over b.
+func mergePerOperationSamplingStrategies(
+	a, b []*sampling.OperationSamplingStrategy,
+) []*sampling.OperationSamplingStrategy {
+	m := make(map[string]bool)
+	for _, aOp := range a {
+		m[aOp.Operation] = true
+	}
+	for _, bOp := range b {
+		if m[bOp.Operation] {
+			continue
+		}
+		a = append(a, bOp)
+	}
+	return a
 }
 
 func (h *strategyStore) parseServiceStrategies(strategy *serviceStrategy) *sampling.SamplingStrategyResponse {
@@ -99,17 +139,11 @@ func (h *strategyStore) parseServiceStrategies(strategy *serviceStrategy) *sampl
 		opS.DefaultSamplingProbability = resp.ProbabilisticSampling.SamplingRate
 	}
 	for _, operationStrategy := range strategy.OperationStrategies {
-		s := h.parseStrategy(&operationStrategy.strategy)
-		if s.StrategyType == sampling.SamplingStrategyType_RATE_LIMITING {
-			// TODO OperationSamplingStrategy only supports probabilistic sampling
-			h.logger.Warn(
-				fmt.Sprintf(
-					"Operation strategies only supports probabilistic sampling at the moment,"+
-						"'%s' defaulting to probabilistic sampling with probability %f",
-					operationStrategy.Operation, opS.DefaultSamplingProbability),
-				zap.Any("strategy", operationStrategy))
+		s, ok := h.parseOperationStrategy(operationStrategy, opS)
+		if !ok {
 			continue
 		}
+
 		opS.PerOperationStrategies = append(opS.PerOperationStrategies,
 			&sampling.OperationSamplingStrategy{
 				Operation:             operationStrategy.Operation,
@@ -118,6 +152,24 @@ func (h *strategyStore) parseServiceStrategies(strategy *serviceStrategy) *sampl
 	}
 	resp.OperationSampling = opS
 	return resp
+}
+
+func (h *strategyStore) parseOperationStrategy(
+	strategy *operationStrategy,
+	parent *sampling.PerOperationSamplingStrategies,
+) (s *sampling.SamplingStrategyResponse, ok bool) {
+	s = h.parseStrategy(&strategy.strategy)
+	if s.StrategyType == sampling.SamplingStrategyType_RATE_LIMITING {
+		// TODO OperationSamplingStrategy only supports probabilistic sampling
+		h.logger.Warn(
+			fmt.Sprintf(
+				"Operation strategies only supports probabilistic sampling at the moment,"+
+					"'%s' defaulting to probabilistic sampling with probability %f",
+				strategy.Operation, parent.DefaultSamplingProbability),
+			zap.Any("strategy", strategy))
+		return nil, false
+	}
+	return s, true
 }
 
 func (h *strategyStore) parseStrategy(strategy *strategy) *sampling.SamplingStrategyResponse {
@@ -138,7 +190,7 @@ func (h *strategyStore) parseStrategy(strategy *strategy) *sampling.SamplingStra
 		}
 	default:
 		h.logger.Warn("Failed to parse sampling strategy", zap.Any("strategy", strategy))
-		return deepCopy(&defaultStrategy)
+		return defaultStrategyResponse()
 	}
 }
 
