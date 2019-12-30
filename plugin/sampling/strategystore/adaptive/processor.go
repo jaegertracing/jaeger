@@ -87,7 +87,7 @@ type processor struct {
 	probabilities model.ServiceOperationProbabilities
 
 	// qps contains the latest calculated qps for service operations; the calculation is essentially
-	// throughput / AggregationInterval.
+	// throughput / CalculationInterval.
 	qps model.ServiceOperationQPS
 
 	// throughputs is an  array (of `AggregationBuckets` size) that stores the aggregated throughput.
@@ -260,7 +260,7 @@ func (p *processor) runCalculationLoop() {
 				p.probabilities = probabilities
 				p.qps = qps
 				p.Unlock()
-				// NB: This has the potential of running into a race condition if the AggregationInterval
+				// NB: This has the potential of running into a race condition if the CalculationInterval
 				// is set to an extremely low value. The worst case scenario is that probabilities is calculated
 				// and swapped more than once before generateStrategyResponses() and saveProbabilities() are called.
 				// This will result in one or more batches of probabilities not being saved which is completely
