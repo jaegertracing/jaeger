@@ -23,6 +23,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/gorilla/mux"
 	"github.com/prometheus/client_golang/prometheus"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -113,7 +114,7 @@ func withRunningAgent(t *testing.T, testcase func(string, chan error)) {
 		}
 		if h := mBldr.Handler(); mFactory != nil && h != nil {
 			logger.Info("Registering metrics handler with HTTP server", zap.String("route", mBldr.HTTPRoute))
-			agent.GetServer().Handler.(*http.ServeMux).Handle(mBldr.HTTPRoute, h)
+			agent.GetHTTPRouter().Handle(mBldr.HTTPRoute, h).Methods(http.MethodGet)
 		}
 		close(ch)
 	}()
