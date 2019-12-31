@@ -22,6 +22,7 @@ import (
 	"net/http"
 	"strings"
 
+	"github.com/gorilla/mux"
 	"github.com/uber/jaeger-lib/metrics"
 
 	"github.com/jaegertracing/jaeger/cmd/agent/app/configmanager"
@@ -34,15 +35,19 @@ var (
 	errBadRequest = errors.New("bad request")
 )
 
-func newHTTPHandler(manager configmanager.ClientConfigManager, mFactory metrics.Factory) *httpHandler {
-	handler := &httpHandler{manager: manager}
-	metrics.Init(&handler.metrics, mFactory, nil)
-	return handler
+// HTTPHandlerParams contains parameters that must be passed to NewHTTPHandler.
+type HTTPHandlerParams struct {
+	ConfigManager          configmanager.ClientConfigManager // required
+	MetricsFactory         metrics.Factory                   // required
+	LegacySamplingEndpoint bool
 }
 
-type httpHandler struct {
-	manager configmanager.ClientConfigManager
-	metrics struct {
+// HTTPHandler implements endpoints for used by Jaeger clients to retrieve client configuration,
+// such as sampling and baggage restrictions.
+type HTTPHandler struct {
+	legacySamplingEndpoint bool
+	manager                configmanager.ClientConfigManager
+	metrics                struct {
 		// Number of good sampling requests
 		SamplingRequestSuccess metrics.Counter `metric:"http-server.requests" tags:"type=sampling"`
 
@@ -66,7 +71,34 @@ type httpHandler struct {
 	}
 }
 
-func (h *httpHandler) serviceFromRequest(w http.ResponseWriter, r *http.Request) (string, error) {
+// NewHTTPHandler creates new HTTPHandler.
+func NewHTTPHandler(params HTTPHandlerParams) *HTTPHandler {
+	handler := &HTTPHandler{
+		manager:                params.ConfigManager,
+		legacySamplingEndpoint: params.LegacySamplingEndpoint,
+	}
+	metrics.MustInit(&handler.metrics, params.MetricsFactory, nil)
+	return handler
+}
+
+func (h *HTTPHandler) RegisterRoutes(router *mux.Router) {
+	if h.legacySamplingEndpoint {
+		router.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
+			h.serveSamplingHTTP(w, r, true /* thriftEnums092 */)
+		}).Methods(http.MethodGet)
+	}
+
+	router.HandleFunc("/sampling", func(w http.ResponseWriter, r *http.Request) {
+		h.serveSamplingHTTP(w, r, false /* thriftEnums092 */)
+	}).Methods(http.MethodGet)
+
+	router.HandleFunc("/baggageRestrictions", func(w http.ResponseWriter, r *http.Request) {
+		h.serveBaggageHTTP(w, r)
+	}).Methods(http.MethodGet)
+
+}
+
+func (h *HTTPHandler) serviceFromRequest(w http.ResponseWriter, r *http.Request) (string, error) {
 	services := r.URL.Query()["service"]
 	if len(services) != 1 {
 		h.metrics.BadRequest.Inc(1)
@@ -76,7 +108,7 @@ func (h *httpHandler) serviceFromRequest(w http.ResponseWriter, r *http.Request)
 	return services[0], nil
 }
 
-func (h *httpHandler) writeJSON(w http.ResponseWriter, json []byte) error {
+func (h *HTTPHandler) writeJSON(w http.ResponseWriter, json []byte) error {
 	w.Header().Add("Content-Type", mimeTypeApplicationJSON)
 	if _, err := w.Write(json); err != nil {
 		h.metrics.WriteFailures.Inc(1)
@@ -85,7 +117,7 @@ func (h *httpHandler) writeJSON(w http.ResponseWriter, json []byte) error {
 	return nil
 }
 
-func (h *httpHandler) serveSamplingHTTP(w http.ResponseWriter, r *http.Request, thriftEnums092 bool) {
+func (h *HTTPHandler) serveSamplingHTTP(w http.ResponseWriter, r *http.Request, thriftEnums092 bool) {
 	service, err := h.serviceFromRequest(w, r)
 	if err != nil {
 		return
@@ -99,7 +131,7 @@ func (h *httpHandler) serveSamplingHTTP(w http.ResponseWriter, r *http.Request, 
 	jsonBytes, err := json.Marshal(resp)
 	if err != nil {
 		h.metrics.BadThriftFailures.Inc(1)
-		http.Error(w, "Cannot marshall Thrift to JSON", http.StatusInternalServerError)
+		http.Error(w, "cannot marshall Thrift to JSON", http.StatusInternalServerError)
 		return
 	}
 	if thriftEnums092 {
@@ -115,7 +147,7 @@ func (h *httpHandler) serveSamplingHTTP(w http.ResponseWriter, r *http.Request, 
 	}
 }
 
-func (h *httpHandler) serveBaggageHTTP(w http.ResponseWriter, r *http.Request) {
+func (h *HTTPHandler) serveBaggageHTTP(w http.ResponseWriter, r *http.Request) {
 	service, err := h.serviceFromRequest(w, r)
 	if err != nil {
 		return
@@ -149,7 +181,7 @@ var samplingStrategyTypes = []tSampling.SamplingStrategyType{
 //
 // Thrift 0.9.3 classes generate this JSON:
 // {"strategyType":"PROBABILISTIC","probabilisticSampling":{"samplingRate":0.5}}
-func (h *httpHandler) encodeThriftEnums092(json []byte) []byte {
+func (h *HTTPHandler) encodeThriftEnums092(json []byte) []byte {
 	str := string(json)
 	for _, strategyType := range samplingStrategyTypes {
 		str = strings.Replace(

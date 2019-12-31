@@ -167,7 +167,7 @@ func TestHTTPHandlerErrors(t *testing.T) {
 			mockSamplingResponse: probabilistic(math.NaN()),
 			url:                  "?service=Y",
 			statusCode:           http.StatusInternalServerError,
-			body:                 "Cannot marshall Thrift to JSON\n",
+			body:                 "cannot marshall Thrift to JSON\n",
 			metrics: []metricstest.ExpectedMetric{
 				{Name: "http-server.errors", Tags: map[string]string{"source": "thrift", "status": "5xx"}, Value: 1},
 			},
@@ -195,7 +195,10 @@ func TestHTTPHandlerErrors(t *testing.T) {
 
 	t.Run("failure to write a response", func(t *testing.T) {
 		withServer(probabilistic(0.001), restrictions("luggage", 10), func(ts *testServer) {
-			handler := newHTTPHandler(ts.mgr, ts.metricsFactory)
+			handler := NewHTTPHandler(HTTPHandlerParams{
+				ConfigManager:  ts.mgr,
+				MetricsFactory: ts.metricsFactory,
+			})
 
 			req := httptest.NewRequest("GET", "http://localhost:80/?service=X", nil)
 			w := &mockWriter{header: make(http.Header)}
