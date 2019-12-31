@@ -27,9 +27,9 @@ GOTEST=go test -v $(RACE)
 GOLINT=golint
 GOVET=go vet
 GOFMT=gofmt
-FMT_LOG=fmt.log
-LINT_LOG=lint.log
-IMPORT_LOG=import.log
+FMT_LOG=.fmt.log
+LINT_LOG=.lint.log
+IMPORT_LOG=.import.log
 
 GIT_SHA=$(shell git rev-parse HEAD)
 GIT_CLOSEST_TAG=$(shell git describe --abbrev=0 --tags)

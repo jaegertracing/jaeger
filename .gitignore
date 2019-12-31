@@ -2,9 +2,9 @@
 *.test
 *.xml
 *.swp
-fmt.log
-import.log
-lint.log
+.fmt.log
+.import.log
+.lint.log
 cover.html
 .envrc
 .idea/
