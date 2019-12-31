@@ -50,6 +50,13 @@ const (
 	defaultCAPath   = ""
 	defaultCertPath = ""
 	defaultKeyPath  = ""
+
+	plainTextPrefix         = ".plaintext"
+	suffixPlainTextUserName = ".username"
+	suffixPlainTextPassword = ".password"
+
+	defaultPlainTextUserName = ""
+	defaultPlainTextPassword = ""
 )
 
 func addKerberosFlags(configPrefix string, flagSet *flag.FlagSet) {
@@ -99,6 +106,17 @@ func addTLSFlags(configPrefix string, flagSet *flag.FlagSet) {
 		"Path to the TLS Key for the Kafka connection")
 }
 
+func addPlainTextFlags(configPrefix string, flagSet *flag.FlagSet) {
+	flagSet.String(
+		configPrefix+plainTextPrefix+suffixPlainTextUserName,
+		defaultPlainTextUserName,
+		"The plaintext Username for SASL/PLAIN authentication")
+	flagSet.String(
+		configPrefix+plainTextPrefix+suffixPlainTextPassword,
+		defaultPlainTextPassword,
+		"The plaintext Password for SASL/PLAIN authentication")
+}
+
 // AddFlags add configuration flags to a flagSet.
 func AddFlags(configPrefix string, flagSet *flag.FlagSet) {
 	flagSet.String(
@@ -108,4 +126,5 @@ func AddFlags(configPrefix string, flagSet *flag.FlagSet) {
 	)
 	addKerberosFlags(configPrefix, flagSet)
 	addTLSFlags(configPrefix, flagSet)
+	addPlainTextFlags(configPrefix, flagSet)
 }
