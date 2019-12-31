@@ -99,21 +99,20 @@ func withRunningAgent(t *testing.T, testcase func(string, chan error)) {
 		},
 	}
 	logger, logBuf := testutils.NewLogger()
-	//f, _ := cfg.Metrics.CreateMetricsFactory("jaeger")
 	mBldr := &jmetrics.Builder{HTTPRoute: "/metrics", Backend: "prometheus"}
 	mFactory, err := mBldr.CreateMetricsFactory("jaeger")
 	require.NoError(t, err)
 	agent, err := cfg.CreateAgent(fakeCollectorProxy{}, logger, mFactory)
 	require.NoError(t, err)
+	if h := mBldr.Handler(); mFactory != nil && h != nil {
+		logger.Info("Registering metrics handler with HTTP server", zap.String("route", mBldr.HTTPRoute))
+		agent.GetHTTPRouter().Handle(mBldr.HTTPRoute, h).Methods(http.MethodGet)
+	}
 	ch := make(chan error, 2)
 	go func() {
 		if err := agent.Run(); err != nil {
 			t.Errorf("error from agent.Run(): %s", err)
 			ch <- err
-		}
-		if h := mBldr.Handler(); mFactory != nil && h != nil {
-			logger.Info("Registering metrics handler with HTTP server", zap.String("route", mBldr.HTTPRoute))
-			agent.GetServer().Handler.(*http.ServeMux).Handle(mBldr.HTTPRoute, h)
 		}
 		close(ch)
 	}()

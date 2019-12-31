@@ -21,6 +21,7 @@ import (
 	"net/http"
 	"sync/atomic"
 
+	"github.com/gorilla/mux"
 	"go.uber.org/zap"
 
 	"github.com/jaegertracing/jaeger/cmd/agent/app/processors"
@@ -50,9 +51,9 @@ func NewAgent(
 	return a
 }
 
-// GetServer returns HTTP server used by the agent.
-func (a *Agent) GetServer() *http.Server {
-	return a.httpServer
+// GetHTTPRouter returns Gorilla HTTP router used by the agent's HTTP server.
+func (a *Agent) GetHTTPRouter() *mux.Router {
+	return a.httpServer.Handler.(*mux.Router)
 }
 
 // Run runs all of agent UDP and HTTP servers in separate go-routines.
