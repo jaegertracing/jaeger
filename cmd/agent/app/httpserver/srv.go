@@ -16,9 +16,9 @@
 package httpserver
 
 import (
-	"github.com/gorilla/mux"
 	"net/http"
 
+	"github.com/gorilla/mux"
 	"github.com/uber/jaeger-lib/metrics"
 
 	"github.com/jaegertracing/jaeger/cmd/agent/app/configmanager"

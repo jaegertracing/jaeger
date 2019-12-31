@@ -81,6 +81,7 @@ func NewHTTPHandler(params HTTPHandlerParams) *HTTPHandler {
 	return handler
 }
 
+// RegisterRoutes registers configuration handlers with Gorilla Router.
 func (h *HTTPHandler) RegisterRoutes(router *mux.Router) {
 	if h.legacySamplingEndpoint {
 		router.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
