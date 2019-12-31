@@ -13,11 +13,12 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package httpserver
+package clientcfghttp
 
 import (
 	"encoding/json"
 	"errors"
+	"github.com/gorilla/mux"
 	"io/ioutil"
 	"math"
 	"net/http"
@@ -28,7 +29,7 @@ import (
 	"github.com/stretchr/testify/require"
 	"github.com/uber/jaeger-lib/metrics/metricstest"
 
-	tSampling092 "github.com/jaegertracing/jaeger/cmd/agent/app/httpserver/thrift-0.9.2"
+	tSampling092 "github.com/jaegertracing/jaeger/pkg/clientcfg/clientcfghttp/thrift-0.9.2"
 	"github.com/jaegertracing/jaeger/thrift-gen/baggage"
 	"github.com/jaegertracing/jaeger/thrift-gen/sampling"
 )
@@ -49,8 +50,14 @@ func withServer(
 		samplingResponse: mockSamplingResponse,
 		baggageResponse:  mockBaggageResponse,
 	}
-	realServer := NewHTTPServer(":1", mgr, metricsFactory)
-	server := httptest.NewServer(realServer.Handler)
+	handler := NewHTTPHandler(HTTPHandlerParams{
+		ConfigManager:          mgr,
+		MetricsFactory:         metricsFactory,
+		LegacySamplingEndpoint: true,
+	})
+	r := mux.NewRouter()
+	handler.RegisterRoutes(r)
+	server := httptest.NewServer(r)
 	defer server.Close()
 	runTest(&testServer{
 		metricsFactory: metricsFactory,
