@@ -41,9 +41,10 @@ type testServer struct {
 }
 
 func withServer(
+	basePath string,
 	mockSamplingResponse *sampling.SamplingStrategyResponse,
 	mockBaggageResponse []*baggage.BaggageRestriction,
-	runTest func(server *testServer),
+	testFn func(server *testServer),
 ) {
 	metricsFactory := metricstest.NewFactory(0)
 	mgr := &mockManager{
@@ -53,13 +54,14 @@ func withServer(
 	handler := NewHTTPHandler(HTTPHandlerParams{
 		ConfigManager:          mgr,
 		MetricsFactory:         metricsFactory,
+		BasePath:               basePath,
 		LegacySamplingEndpoint: true,
 	})
 	r := mux.NewRouter()
 	handler.RegisterRoutes(r)
 	server := httptest.NewServer(r)
 	defer server.Close()
-	runTest(&testServer{
+	testFn(&testServer{
 		metricsFactory: metricsFactory,
 		mgr:            mgr,
 		server:         server,
@@ -67,14 +69,20 @@ func withServer(
 }
 
 func TestHTTPHandler(t *testing.T) {
-	withServer(probabilistic(0.001), restrictions("luggage", 10), func(ts *testServer) {
+	testHTTPHandler(t, "")
+	testHTTPHandler(t, "/foo")
+}
+
+func testHTTPHandler(t *testing.T, basePath string) {
+	withServer(basePath, probabilistic(0.001), restrictions("luggage", 10), func(ts *testServer) {
 		for _, endpoint := range []string{"/", "/sampling"} {
 			t.Run("request against endpoint "+endpoint, func(t *testing.T) {
-				resp, err := http.Get(ts.server.URL + endpoint + "?service=Y")
+				resp, err := http.Get(ts.server.URL + basePath + endpoint + "?service=Y")
 				require.NoError(t, err)
 				assert.Equal(t, http.StatusOK, resp.StatusCode)
 				body, err := ioutil.ReadAll(resp.Body)
-				resp.Body.Close()
+				require.NoError(t, err)
+				err = resp.Body.Close()
 				require.NoError(t, err)
 				if endpoint == "/" {
 					objResp := &tSampling092.SamplingStrategyResponse{}
@@ -93,8 +101,8 @@ func TestHTTPHandler(t *testing.T) {
 			})
 		}
 
-		t.Run("request against endpoint /baggage", func(t *testing.T) {
-			resp, err := http.Get(ts.server.URL + "/baggageRestrictions?service=Y")
+		t.Run("request against endpoint /baggageRestrictions", func(t *testing.T) {
+			resp, err := http.Get(ts.server.URL + basePath + "/baggageRestrictions?service=Y")
 			require.NoError(t, err)
 			assert.Equal(t, http.StatusOK, resp.StatusCode)
 			body, err := ioutil.ReadAll(resp.Body)
@@ -183,7 +191,7 @@ func TestHTTPHandlerErrors(t *testing.T) {
 	for _, tc := range testCases {
 		testCase := tc // capture loop var
 		t.Run(testCase.description, func(t *testing.T) {
-			withServer(testCase.mockSamplingResponse, testCase.mockBaggageResponse, func(ts *testServer) {
+			withServer("", testCase.mockSamplingResponse, testCase.mockBaggageResponse, func(ts *testServer) {
 				resp, err := http.Get(ts.server.URL + testCase.url)
 				require.NoError(t, err)
 				assert.Equal(t, testCase.statusCode, resp.StatusCode)
@@ -201,7 +209,7 @@ func TestHTTPHandlerErrors(t *testing.T) {
 	}
 
 	t.Run("failure to write a response", func(t *testing.T) {
-		withServer(probabilistic(0.001), restrictions("luggage", 10), func(ts *testServer) {
+		withServer("", probabilistic(0.001), restrictions("luggage", 10), func(ts *testServer) {
 			handler := NewHTTPHandler(HTTPHandlerParams{
 				ConfigManager:  ts.mgr,
 				MetricsFactory: ts.metricsFactory,
