@@ -36,65 +36,79 @@ import (
 
 type testServer struct {
 	metricsFactory *metricstest.Factory
-	mgr            *mockManager
+	samplingStore  *mockSamplingStore
+	bgMgr          *mockBaggageMgr
 	server         *httptest.Server
+	handler        *HTTPHandler
 }
 
 func withServer(
+	basePath string,
 	mockSamplingResponse *sampling.SamplingStrategyResponse,
 	mockBaggageResponse []*baggage.BaggageRestriction,
-	runTest func(server *testServer),
+	testFn func(server *testServer),
 ) {
 	metricsFactory := metricstest.NewFactory(0)
-	mgr := &mockManager{
-		samplingResponse: mockSamplingResponse,
-		baggageResponse:  mockBaggageResponse,
+	samplingStore := &mockSamplingStore{samplingResponse: mockSamplingResponse}
+	bgMgr := &mockBaggageMgr{baggageResponse: mockBaggageResponse}
+	cfgMgr := &ConfigManager{
+		SamplingStrategyStore: samplingStore,
+		BaggageManager:        bgMgr,
 	}
 	handler := NewHTTPHandler(HTTPHandlerParams{
-		ConfigManager:          mgr,
+		ConfigManager:          cfgMgr,
 		MetricsFactory:         metricsFactory,
+		BasePath:               basePath,
 		LegacySamplingEndpoint: true,
 	})
 	r := mux.NewRouter()
 	handler.RegisterRoutes(r)
 	server := httptest.NewServer(r)
 	defer server.Close()
-	runTest(&testServer{
+	testFn(&testServer{
 		metricsFactory: metricsFactory,
-		mgr:            mgr,
+		samplingStore:  samplingStore,
+		bgMgr:          bgMgr,
 		server:         server,
+		handler:        handler,
 	})
 }
 
 func TestHTTPHandler(t *testing.T) {
-	withServer(probabilistic(0.001), restrictions("luggage", 10), func(ts *testServer) {
+	testHTTPHandler(t, "")
+	testHTTPHandler(t, "/foo")
+}
+
+func testHTTPHandler(t *testing.T, basePath string) {
+	withServer(basePath, probabilistic(0.001), restrictions("luggage", 10), func(ts *testServer) {
 		for _, endpoint := range []string{"/", "/sampling"} {
 			t.Run("request against endpoint "+endpoint, func(t *testing.T) {
-				resp, err := http.Get(ts.server.URL + endpoint + "?service=Y")
+				resp, err := http.Get(ts.server.URL + basePath + endpoint + "?service=Y")
 				require.NoError(t, err)
 				assert.Equal(t, http.StatusOK, resp.StatusCode)
 				body, err := ioutil.ReadAll(resp.Body)
-				resp.Body.Close()
+				require.NoError(t, err)
+				err = resp.Body.Close()
 				require.NoError(t, err)
 				if endpoint == "/" {
 					objResp := &tSampling092.SamplingStrategyResponse{}
 					require.NoError(t, json.Unmarshal(body, objResp))
 					assert.EqualValues(t,
-						ts.mgr.samplingResponse.GetStrategyType(),
+						ts.samplingStore.samplingResponse.GetStrategyType(),
 						objResp.GetStrategyType())
 					assert.Equal(t,
-						ts.mgr.samplingResponse.GetProbabilisticSampling().GetSamplingRate(),
+						ts.samplingStore.samplingResponse.GetProbabilisticSampling().GetSamplingRate(),
 						objResp.GetProbabilisticSampling().GetSamplingRate())
 				} else {
 					objResp := &sampling.SamplingStrategyResponse{}
 					require.NoError(t, json.Unmarshal(body, objResp))
-					assert.EqualValues(t, ts.mgr.samplingResponse, objResp)
+					assert.EqualValues(t, ts.samplingStore.samplingResponse, objResp)
 				}
 			})
 		}
 
-		t.Run("request against endpoint /baggage", func(t *testing.T) {
-			resp, err := http.Get(ts.server.URL + "/baggageRestrictions?service=Y")
+		t.Run("request against endpoint /baggageRestrictions", func(t *testing.T) {
+			resp, err := http.Get(ts.server.URL + basePath + "/baggageRestrictions?service=Y")
 			require.NoError(t, err)
 			assert.Equal(t, http.StatusOK, resp.StatusCode)
 			body, err := ioutil.ReadAll(resp.Body)
@@ -102,7 +116,7 @@ func TestHTTPHandler(t *testing.T) {
 			require.NoError(t, err)
 			var objResp []*baggage.BaggageRestriction
 			require.NoError(t, json.Unmarshal(body, &objResp))
-			assert.EqualValues(t, ts.mgr.baggageResponse, objResp)
+			assert.EqualValues(t, ts.bgMgr.baggageResponse, objResp)
 		})
 
 		// handler must emit metrics
@@ -183,7 +197,7 @@ func TestHTTPHandlerErrors(t *testing.T) {
 	for _, tc := range testCases {
 		testCase := tc // capture loop var
 		t.Run(testCase.description, func(t *testing.T) {
-			withServer(testCase.mockSamplingResponse, testCase.mockBaggageResponse, func(ts *testServer) {
+			withServer("", testCase.mockSamplingResponse, testCase.mockBaggageResponse, func(ts *testServer) {
 				resp, err := http.Get(ts.server.URL + testCase.url)
 				require.NoError(t, err)
 				assert.Equal(t, testCase.statusCode, resp.StatusCode)
@@ -201,11 +215,8 @@ func TestHTTPHandlerErrors(t *testing.T) {
 	}
 
 	t.Run("failure to write a response", func(t *testing.T) {
-		withServer(probabilistic(0.001), restrictions("luggage", 10), func(ts *testServer) {
-			handler := NewHTTPHandler(HTTPHandlerParams{
-				ConfigManager:  ts.mgr,
-				MetricsFactory: ts.metricsFactory,
-			})
+		withServer("", probabilistic(0.001), restrictions("luggage", 10), func(ts *testServer) {
+			handler := ts.handler
 
 			req := httptest.NewRequest("GET", "http://localhost:80/?service=X", nil)
 			w := &mockWriter{header: make(http.Header)}
@@ -251,22 +262,3 @@ func (w *mockWriter) Write([]byte) (int, error) {
 }
 
 func (w *mockWriter) WriteHeader(int) {}
-
-type mockManager struct {
-	samplingResponse *sampling.SamplingStrategyResponse
-	baggageResponse  []*baggage.BaggageRestriction
-}
-
-func (m *mockManager) GetSamplingStrategy(serviceName string) (*sampling.SamplingStrategyResponse, error) {
-	if m.samplingResponse == nil {
-		return nil, errors.New("no mock response provided")
-	}
-	return m.samplingResponse, nil
-}
-
-func (m *mockManager) GetBaggageRestrictions(serviceName string) ([]*baggage.BaggageRestriction, error) {
-	if m.baggageResponse == nil {
-		return nil, errors.New("no mock response provided")
-	}
-	return m.baggageResponse, nil
-}
