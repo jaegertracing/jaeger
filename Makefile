@@ -27,16 +27,14 @@ GOTEST=go test -v $(RACE)
 GOLINT=golint
 GOVET=go vet
 GOFMT=gofmt
-GOSEC=gosec -quiet -exclude=G104,G107
-STATICCHECK=staticcheck
-FMT_LOG=fmt.log
-LINT_LOG=lint.log
-IMPORT_LOG=import.log
+FMT_LOG=.fmt.log
+LINT_LOG=.lint.log
+IMPORT_LOG=.import.log
 
 GIT_SHA=$(shell git rev-parse HEAD)
 GIT_CLOSEST_TAG=$(shell git describe --abbrev=0 --tags)
 DATE=$(shell date -u +'%Y-%m-%dT%H:%M:%SZ')
-BUILD_INFO_IMPORT_PATH=github.com/jaegertracing/jaeger/pkg/version
+BUILD_INFO_IMPORT_PATH=$(PROJECT_ROOT)/pkg/version
 BUILD_INFO=-ldflags "-X $(BUILD_INFO_IMPORT_PATH).commitSHA=$(GIT_SHA) -X $(BUILD_INFO_IMPORT_PATH).latestVersion=$(GIT_CLOSEST_TAG) -X $(BUILD_INFO_IMPORT_PATH).date=$(DATE)"
 
 SED=sed
@@ -141,13 +139,12 @@ fmt:
 
 .PHONY: lint-gosec
 lint-gosec:
-	time $(GOSEC) ./...
+	GO111MODULE=off time gosec -quiet -exclude=G104,G107 $(PROJECT_ROOT)/...
 
 .PHONY: lint-staticcheck
 lint-staticcheck:
-	@echo Running staticcheck...
 	@cat /dev/null > $(LINT_LOG)
-	@time $(STATICCHECK) ./... \
+	time staticcheck ./... \
 		| grep -v \
 			-e model/model.pb.go \
 			-e thrift-gen/ \
@@ -160,8 +157,8 @@ lint: lint-staticcheck lint-gosec
 	$(MAKE) go-lint
 	@echo Running go fmt on ALL_SRC ...
 	@$(GOFMT) -e -s -l $(ALL_SRC) > $(FMT_LOG)
-	@./scripts/updateLicenses.sh >> $(FMT_LOG)
-	@./scripts/import-order-cleanup.sh stdout > $(IMPORT_LOG)
+	./scripts/updateLicenses.sh >> $(FMT_LOG)
+	./scripts/import-order-cleanup.sh stdout > $(IMPORT_LOG)
 	@[ ! -s "$(FMT_LOG)" -a ! -s "$(IMPORT_LOG)" ] || (echo "Go fmt, license check, or import ordering failures, run 'make fmt'" | cat - $(FMT_LOG) && false)
 
 .PHONY: go-lint
