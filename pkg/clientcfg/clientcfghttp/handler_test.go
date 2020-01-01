@@ -262,22 +262,3 @@ func (w *mockWriter) Write([]byte) (int, error) {
 }
 
 func (w *mockWriter) WriteHeader(int) {}
-
-//type mockManager struct {
-//	samplingResponse *sampling.SamplingStrategyResponse
-//	baggageResponse  []*baggage.BaggageRestriction
-//}
-//
-//func (m *mockManager) GetSamplingStrategy(serviceName string) (*sampling.SamplingStrategyResponse, error) {
-//	if m.samplingResponse == nil {
-//		return nil, errors.New("no mock response provided")
-//	}
-//	return m.samplingResponse, nil
-//}
-//
-//func (m *mockManager) GetBaggageRestrictions(serviceName string) ([]*baggage.BaggageRestriction, error) {
-//	if m.baggageResponse == nil {
-//		return nil, errors.New("no mock response provided")
-//	}
-//	return m.baggageResponse, nil
-//}
