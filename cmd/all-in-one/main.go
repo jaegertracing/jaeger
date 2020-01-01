@@ -16,7 +16,6 @@
 package main
 
 import (
-	"errors"
 	"fmt"
 	"io"
 	"log"
@@ -66,7 +65,6 @@ import (
 	"github.com/jaegertracing/jaeger/storage/dependencystore"
 	"github.com/jaegertracing/jaeger/storage/spanstore"
 	storageMetrics "github.com/jaegertracing/jaeger/storage/spanstore/metrics"
-	"github.com/jaegertracing/jaeger/thrift-gen/baggage"
 	jc "github.com/jaegertracing/jaeger/thrift-gen/jaeger"
 	sc "github.com/jaegertracing/jaeger/thrift-gen/sampling"
 	zc "github.com/jaegertracing/jaeger/thrift-gen/zipkincore"
@@ -254,20 +252,24 @@ func startCollector(
 
 	{
 		r := mux.NewRouter()
-		configManager := &collectorConfigManager{samplingStrategy: strategyStore}
-		cfgParams := clientcfgHandler.HTTPHandlerParams{
-			ConfigManager:          configManager,
-			MetricsFactory:         metricsFactory,
-			LegacySamplingEndpoint: false,
-		}
-		apiHandler := collectorApp.NewAPIHandler(jaegerBatchesHandler, *clientcfgHandler.NewHTTPHandler(cfgParams))
+		apiHandler := collectorApp.NewAPIHandler(jaegerBatchesHandler)
 		apiHandler.RegisterRoutes(r)
-		httpPortStr := ":" + strconv.Itoa(cOpts.CollectorHTTPPort)
-		recoveryHandler := recoveryhandler.NewRecoveryHandler(logger, true)
 
+		cfgHandler := clientcfgHandler.NewHTTPHandler(clientcfgHandler.HTTPHandlerParams{
+			ConfigManager: &clientcfgHandler.ConfigManager{
+				SamplingStrategyStore: strategyStore,
+			},
+			MetricsFactory:         metricsFactory,
+			BasePath:               "/api",
+			LegacySamplingEndpoint: false,
+		})
+		cfgHandler.RegisterRoutes(r)
+
+		recoveryHandler := recoveryhandler.NewRecoveryHandler(logger, true)
 		go startZipkinHTTPAPI(logger, cOpts.CollectorZipkinHTTPPort, zipkinSpansHandler, recoveryHandler)
 
-		logger.Info("Starting jaeger-collector HTTP server", zap.Int("http-port", cOpts.CollectorHTTPPort))
+		httpPortStr := ":" + strconv.Itoa(cOpts.CollectorHTTPPort)
+		logger.Info("Starting jaeger-collector HTTP server", zap.String("http-host-port", httpPortStr))
 		go func() {
 			if err := http.ListenAndServe(httpPortStr, recoveryHandler(r)); err != nil {
 				logger.Fatal("Could not launch jaeger-collector HTTP server", zap.Error(err))
@@ -329,18 +331,6 @@ func startQuery(
 		svc.Logger.Fatal("Could not start jaeger-query service", zap.Error(err))
 	}
 	return server
-}
-
-type collectorConfigManager struct {
-	samplingStrategy strategystore.StrategyStore
-}
-
-func (c *collectorConfigManager) GetSamplingStrategy(serviceName string) (*sc.SamplingStrategyResponse, error) {
-	return c.samplingStrategy.GetSamplingStrategy(serviceName)
-}
-
-func (c *collectorConfigManager) GetBaggageRestrictions(serviceName string) ([]*baggage.BaggageRestriction, error) {
-	return nil, errors.New("baggage not implemented")
 }
 
 func initSamplingStrategyStore(

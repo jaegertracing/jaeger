@@ -36,7 +36,7 @@ func (c *ConfigManager) GetSamplingStrategy(serviceName string) (*sc.SamplingStr
 // GetBaggageRestrictions implements ClientConfigManager.GetBaggageRestrictions.
 func (c *ConfigManager) GetBaggageRestrictions(serviceName string) ([]*baggage.BaggageRestriction, error) {
 	if c.BaggageManager == nil {
-		return nil, errors.New("baggage not implemented")
+		return nil, errors.New("baggage restrictions not implemented")
 	}
 	return c.BaggageManager.GetBaggageRestrictions(serviceName)
 }

@@ -24,7 +24,6 @@ import (
 	"github.com/apache/thrift/lib/go/thrift"
 	"github.com/gorilla/mux"
 
-	"github.com/jaegertracing/jaeger/pkg/clientcfg/clientcfghttp"
 	tJaeger "github.com/jaegertracing/jaeger/thrift-gen/jaeger"
 )
 
@@ -38,20 +37,17 @@ var (
 // APIHandler handles all HTTP calls to the collector
 type APIHandler struct {
 	jaegerBatchesHandler JaegerBatchesHandler
-	cfgHandler           clientcfghttp.HTTPHandler
 }
 
 // NewAPIHandler returns a new APIHandler
-func NewAPIHandler(jaegerBatchesHandler JaegerBatchesHandler, cfgHandler clientcfghttp.HTTPHandler) *APIHandler {
+func NewAPIHandler(jaegerBatchesHandler JaegerBatchesHandler) *APIHandler {
 	return &APIHandler{
 		jaegerBatchesHandler: jaegerBatchesHandler,
-		cfgHandler:           cfgHandler,
 	}
 }
 
 // RegisterRoutes registers routes for this handler on the given router
 func (aH *APIHandler) RegisterRoutes(router *mux.Router) {
-	aH.cfgHandler.RegisterRoutes(router)
 	router.HandleFunc("/api/traces", aH.SaveSpan).Methods(http.MethodPost)
 }
 

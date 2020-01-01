@@ -16,7 +16,6 @@
 package main
 
 import (
-	"errors"
 	"fmt"
 	"io"
 	"log"
@@ -55,7 +54,6 @@ import (
 	ss "github.com/jaegertracing/jaeger/plugin/sampling/strategystore"
 	"github.com/jaegertracing/jaeger/plugin/storage"
 	"github.com/jaegertracing/jaeger/ports"
-	"github.com/jaegertracing/jaeger/thrift-gen/baggage"
 	jc "github.com/jaegertracing/jaeger/thrift-gen/jaeger"
 	sc "github.com/jaegertracing/jaeger/thrift-gen/sampling"
 	zc "github.com/jaegertracing/jaeger/thrift-gen/zipkincore"
@@ -136,21 +134,26 @@ func main() {
 
 			{
 				r := mux.NewRouter()
-				configManager := &collectorConfigManager{samplingStrategy: strategyStore}
-				cfgParams := clientcfgHandler.HTTPHandlerParams{
-					ConfigManager:          configManager,
+				apiHandler := app.NewAPIHandler(jaegerBatchesHandler)
+				apiHandler.RegisterRoutes(r)
+
+				cfgHandler := clientcfgHandler.NewHTTPHandler(clientcfgHandler.HTTPHandlerParams{
+					ConfigManager: &clientcfgHandler.ConfigManager{
+						SamplingStrategyStore: strategyStore,
+					},
 					MetricsFactory:         metricsFactory,
+					BasePath:               "/api",
 					LegacySamplingEndpoint: false,
-				}
-				endpointHandler := app.NewAPIHandler(jaegerBatchesHandler, *clientcfgHandler.NewHTTPHandler(cfgParams))
-				endpointHandler.RegisterRoutes(r)
-				httpPortStr := ":" + strconv.Itoa(builderOpts.CollectorHTTPPort)
+				})
+				cfgHandler.RegisterRoutes(r)
+
 				recoveryHandler := recoveryhandler.NewRecoveryHandler(logger, true)
 				httpHandler := recoveryHandler(r)
 
 				go startZipkinHTTPAPI(logger, builderOpts.CollectorZipkinHTTPPort, builderOpts.CollectorZipkinAllowedOrigins, builderOpts.CollectorZipkinAllowedHeaders, zipkinSpansHandler, recoveryHandler)
 
-				logger.Info("Starting jaeger-collector HTTP server", zap.Int("http-port", builderOpts.CollectorHTTPPort))
+				httpPortStr := ":" + strconv.Itoa(builderOpts.CollectorHTTPPort)
+				logger.Info("Starting jaeger-collector HTTP server", zap.String("http-host-port", httpPortStr))
 				go func() {
 					if err := http.ListenAndServe(httpPortStr, httpHandler); err != nil {
 						logger.Fatal("Could not launch service", zap.Error(err))
@@ -248,18 +251,6 @@ func startZipkinHTTPAPI(
 			logger.Fatal("Could not launch service", zap.Error(err))
 		}
 	}
-}
-
-type collectorConfigManager struct {
-	samplingStrategy strategystore.StrategyStore
-}
-
-func (c *collectorConfigManager) GetSamplingStrategy(serviceName string) (*sc.SamplingStrategyResponse, error) {
-	return c.samplingStrategy.GetSamplingStrategy(serviceName)
-}
-
-func (c *collectorConfigManager) GetBaggageRestrictions(serviceName string) ([]*baggage.BaggageRestriction, error) {
-	return nil, errors.New("baggage not implemented")
 }
 
 func initSamplingStrategyStore(

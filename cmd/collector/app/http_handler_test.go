@@ -31,7 +31,6 @@ import (
 	jaegerClient "github.com/uber/jaeger-client-go"
 	"github.com/uber/jaeger-client-go/transport"
 
-	"github.com/jaegertracing/jaeger/pkg/clientcfg/clientcfghttp"
 	"github.com/jaegertracing/jaeger/thrift-gen/jaeger"
 )
 
@@ -58,7 +57,7 @@ func (p *mockJaegerHandler) getBatches() []*jaeger.Batch {
 
 func initializeTestServer(err error) (*httptest.Server, *APIHandler) {
 	r := mux.NewRouter()
-	handler := NewAPIHandler(&mockJaegerHandler{err: err}, clientcfghttp.HTTPHandler{})
+	handler := NewAPIHandler(&mockJaegerHandler{err: err})
 	handler.RegisterRoutes(r)
 	return httptest.NewServer(r), handler
 }
@@ -159,7 +158,7 @@ func TestMalformedFormat(t *testing.T) {
 }
 
 func TestCannotReadBodyFromRequest(t *testing.T) {
-	handler := NewAPIHandler(&mockJaegerHandler{}, clientcfghttp.HTTPHandler{})
+	handler := NewAPIHandler(&mockJaegerHandler{})
 	req, err := http.NewRequest(http.MethodPost, "whatever", &errReader{})
 	assert.NoError(t, err)
 	rw := dummyResponseWriter{}
