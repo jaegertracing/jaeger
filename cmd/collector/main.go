@@ -140,6 +140,7 @@ func main() {
 				cfgHandler := clientcfgHandler.NewHTTPHandler(clientcfgHandler.HTTPHandlerParams{
 					ConfigManager: &clientcfgHandler.ConfigManager{
 						SamplingStrategyStore: strategyStore,
+						// TODO provide baggage manager
 					},
 					MetricsFactory:         metricsFactory,
 					BasePath:               "/api",
