@@ -37,17 +37,22 @@ var (
 
 // HTTPHandlerParams contains parameters that must be passed to NewHTTPHandler.
 type HTTPHandlerParams struct {
-	ConfigManager          configmanager.ClientConfigManager // required
-	MetricsFactory         metrics.Factory                   // required
+	ConfigManager  configmanager.ClientConfigManager // required
+	MetricsFactory metrics.Factory                   // required
+
+	// BasePath will be used as a prefix for the endpoints, e.g. "/api"
+	BasePath string
+
+	// LegacySamplingEndpoint enables returning sampling strategy from "/" endpoint
+	// using Thrift 0.9.2 enum codes.
 	LegacySamplingEndpoint bool
 }
 
 // HTTPHandler implements endpoints for used by Jaeger clients to retrieve client configuration,
 // such as sampling and baggage restrictions.
 type HTTPHandler struct {
-	legacySamplingEndpoint bool
-	manager                configmanager.ClientConfigManager
-	metrics                struct {
+	params  HTTPHandlerParams
+	metrics struct {
 		// Number of good sampling requests
 		SamplingRequestSuccess metrics.Counter `metric:"http-server.requests" tags:"type=sampling"`
 
@@ -73,27 +78,25 @@ type HTTPHandler struct {
 
 // NewHTTPHandler creates new HTTPHandler.
 func NewHTTPHandler(params HTTPHandlerParams) *HTTPHandler {
-	handler := &HTTPHandler{
-		manager:                params.ConfigManager,
-		legacySamplingEndpoint: params.LegacySamplingEndpoint,
-	}
+	handler := &HTTPHandler{params: params}
 	metrics.MustInit(&handler.metrics, params.MetricsFactory, nil)
 	return handler
 }
 
 // RegisterRoutes registers configuration handlers with Gorilla Router.
 func (h *HTTPHandler) RegisterRoutes(router *mux.Router) {
-	if h.legacySamplingEndpoint {
-		router.HandleFunc("/", func(w http.ResponseWriter, r *http.Request) {
+	prefix := h.params.BasePath
+	if h.params.LegacySamplingEndpoint {
+		router.HandleFunc(prefix+"/", func(w http.ResponseWriter, r *http.Request) {
 			h.serveSamplingHTTP(w, r, true /* thriftEnums092 */)
 		}).Methods(http.MethodGet)
 	}
 
-	router.HandleFunc("/sampling", func(w http.ResponseWriter, r *http.Request) {
+	router.HandleFunc(prefix+"/sampling", func(w http.ResponseWriter, r *http.Request) {
 		h.serveSamplingHTTP(w, r, false /* thriftEnums092 */)
 	}).Methods(http.MethodGet)
 
-	router.HandleFunc("/baggageRestrictions", func(w http.ResponseWriter, r *http.Request) {
+	router.HandleFunc(prefix+"/baggageRestrictions", func(w http.ResponseWriter, r *http.Request) {
 		h.serveBaggageHTTP(w, r)
 	}).Methods(http.MethodGet)
 
@@ -123,7 +126,7 @@ func (h *HTTPHandler) serveSamplingHTTP(w http.ResponseWriter, r *http.Request, 
 	if err != nil {
 		return
 	}
-	resp, err := h.manager.GetSamplingStrategy(service)
+	resp, err := h.params.ConfigManager.GetSamplingStrategy(service)
 	if err != nil {
 		h.metrics.CollectorProxyFailures.Inc(1)
 		http.Error(w, fmt.Sprintf("collector error: %+v", err), http.StatusInternalServerError)
@@ -153,7 +156,7 @@ func (h *HTTPHandler) serveBaggageHTTP(w http.ResponseWriter, r *http.Request) {
 	if err != nil {
 		return
 	}
-	resp, err := h.manager.GetBaggageRestrictions(service)
+	resp, err := h.params.ConfigManager.GetBaggageRestrictions(service)
 	if err != nil {
 		h.metrics.CollectorProxyFailures.Inc(1)
 		http.Error(w, fmt.Sprintf("collector error: %+v", err), http.StatusInternalServerError)

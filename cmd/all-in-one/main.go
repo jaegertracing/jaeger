@@ -53,6 +53,7 @@ import (
 	"github.com/jaegertracing/jaeger/cmd/flags"
 	queryApp "github.com/jaegertracing/jaeger/cmd/query/app"
 	"github.com/jaegertracing/jaeger/cmd/query/app/querysvc"
+	clientcfgHandler "github.com/jaegertracing/jaeger/pkg/clientcfg/clientcfghttp"
 	"github.com/jaegertracing/jaeger/pkg/config"
 	"github.com/jaegertracing/jaeger/pkg/healthcheck"
 	"github.com/jaegertracing/jaeger/pkg/recoveryhandler"
@@ -253,12 +254,23 @@ func startCollector(
 		r := mux.NewRouter()
 		apiHandler := collectorApp.NewAPIHandler(jaegerBatchesHandler)
 		apiHandler.RegisterRoutes(r)
-		httpPortStr := ":" + strconv.Itoa(cOpts.CollectorHTTPPort)
-		recoveryHandler := recoveryhandler.NewRecoveryHandler(logger, true)
 
+		cfgHandler := clientcfgHandler.NewHTTPHandler(clientcfgHandler.HTTPHandlerParams{
+			ConfigManager: &clientcfgHandler.ConfigManager{
+				SamplingStrategyStore: strategyStore,
+				// TODO provide baggage manager
+			},
+			MetricsFactory:         metricsFactory,
+			BasePath:               "/api",
+			LegacySamplingEndpoint: false,
+		})
+		cfgHandler.RegisterRoutes(r)
+
+		recoveryHandler := recoveryhandler.NewRecoveryHandler(logger, true)
 		go startZipkinHTTPAPI(logger, cOpts.CollectorZipkinHTTPPort, zipkinSpansHandler, recoveryHandler)
 
-		logger.Info("Starting jaeger-collector HTTP server", zap.Int("http-port", cOpts.CollectorHTTPPort))
+		httpPortStr := ":" + strconv.Itoa(cOpts.CollectorHTTPPort)
+		logger.Info("Starting jaeger-collector HTTP server", zap.String("http-host-port", httpPortStr))
 		go func() {
 			if err := http.ListenAndServe(httpPortStr, recoveryHandler(r)); err != nil {
 				logger.Fatal("Could not launch jaeger-collector HTTP server", zap.Error(err))
