@@ -27,6 +27,11 @@ import (
 	tJaeger "github.com/jaegertracing/jaeger/thrift-gen/jaeger"
 )
 
+const (
+	// UnableToReadBodyErrFormat is an error message for invalid requests
+	UnableToReadBodyErrFormat = "Unable to process request body: %v"
+)
+
 var (
 	acceptedThriftFormats = map[string]struct{}{
 		"application/x-thrift":                 {},
@@ -40,7 +45,9 @@ type APIHandler struct {
 }
 
 // NewAPIHandler returns a new APIHandler
-func NewAPIHandler(jaegerBatchesHandler JaegerBatchesHandler) *APIHandler {
+func NewAPIHandler(
+	jaegerBatchesHandler JaegerBatchesHandler,
+) *APIHandler {
 	return &APIHandler{
 		jaegerBatchesHandler: jaegerBatchesHandler,
 	}
@@ -56,7 +63,7 @@ func (aH *APIHandler) SaveSpan(w http.ResponseWriter, r *http.Request) {
 	bodyBytes, err := ioutil.ReadAll(r.Body)
 	r.Body.Close()
 	if err != nil {
-		http.Error(w, ErrUnableToReadBody(err), http.StatusInternalServerError)
+		http.Error(w, fmt.Sprintf(UnableToReadBodyErrFormat, err), http.StatusInternalServerError)
 		return
 	}
 
@@ -76,7 +83,7 @@ func (aH *APIHandler) SaveSpan(w http.ResponseWriter, r *http.Request) {
 	// (NB): We decided to use this struct instead of straight batches to be as consistent with tchannel intake as possible.
 	batch := &tJaeger.Batch{}
 	if err = tdes.Read(batch, bodyBytes); err != nil {
-		http.Error(w, ErrUnableToReadBody(err), http.StatusBadRequest)
+		http.Error(w, fmt.Sprintf(UnableToReadBodyErrFormat, err), http.StatusBadRequest)
 		return
 	}
 	batches := []*tJaeger.Batch{batch}
@@ -87,9 +94,4 @@ func (aH *APIHandler) SaveSpan(w http.ResponseWriter, r *http.Request) {
 	}
 
 	w.WriteHeader(http.StatusAccepted)
-}
-
-// ErrUnableToReadBody returns a formatted error message
-func ErrUnableToReadBody(err error) string {
-	return fmt.Sprintf("Unable to process request body: %v", err)
 }
