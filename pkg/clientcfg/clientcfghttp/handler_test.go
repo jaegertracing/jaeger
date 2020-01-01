@@ -36,8 +36,10 @@ import (
 
 type testServer struct {
 	metricsFactory *metricstest.Factory
-	mgr            *mockManager
+	samplingStore  *mockSamplingStore
+	bgMgr          *mockBaggageMgr
 	server         *httptest.Server
+	handler        *HTTPHandler
 }
 
 func withServer(
@@ -47,12 +49,14 @@ func withServer(
 	testFn func(server *testServer),
 ) {
 	metricsFactory := metricstest.NewFactory(0)
-	mgr := &mockManager{
-		samplingResponse: mockSamplingResponse,
-		baggageResponse:  mockBaggageResponse,
+	samplingStore := &mockSamplingStore{samplingResponse: mockSamplingResponse}
+	bgMgr := &mockBaggageMgr{baggageResponse: mockBaggageResponse}
+	cfgMgr := &ConfigManager{
+		SamplingStrategyStore: samplingStore,
+		BaggageManager:        bgMgr,
 	}
 	handler := NewHTTPHandler(HTTPHandlerParams{
-		ConfigManager:          mgr,
+		ConfigManager:          cfgMgr,
 		MetricsFactory:         metricsFactory,
 		BasePath:               basePath,
 		LegacySamplingEndpoint: true,
@@ -63,8 +67,10 @@ func withServer(
 	defer server.Close()
 	testFn(&testServer{
 		metricsFactory: metricsFactory,
-		mgr:            mgr,
+		samplingStore:  samplingStore,
+		bgMgr:          bgMgr,
 		server:         server,
+		handler:        handler,
 	})
 }
 
@@ -88,15 +94,15 @@ func testHTTPHandler(t *testing.T, basePath string) {
 					objResp := &tSampling092.SamplingStrategyResponse{}
 					require.NoError(t, json.Unmarshal(body, objResp))
 					assert.EqualValues(t,
-						ts.mgr.samplingResponse.GetStrategyType(),
+						ts.samplingStore.samplingResponse.GetStrategyType(),
 						objResp.GetStrategyType())
 					assert.Equal(t,
-						ts.mgr.samplingResponse.GetProbabilisticSampling().GetSamplingRate(),
+						ts.samplingStore.samplingResponse.GetProbabilisticSampling().GetSamplingRate(),
 						objResp.GetProbabilisticSampling().GetSamplingRate())
 				} else {
 					objResp := &sampling.SamplingStrategyResponse{}
 					require.NoError(t, json.Unmarshal(body, objResp))
-					assert.EqualValues(t, ts.mgr.samplingResponse, objResp)
+					assert.EqualValues(t, ts.samplingStore.samplingResponse, objResp)
 				}
 			})
 		}
@@ -110,7 +116,7 @@ func testHTTPHandler(t *testing.T, basePath string) {
 			require.NoError(t, err)
 			var objResp []*baggage.BaggageRestriction
 			require.NoError(t, json.Unmarshal(body, &objResp))
-			assert.EqualValues(t, ts.mgr.baggageResponse, objResp)
+			assert.EqualValues(t, ts.bgMgr.baggageResponse, objResp)
 		})
 
 		// handler must emit metrics
@@ -210,10 +216,7 @@ func TestHTTPHandlerErrors(t *testing.T) {
 
 	t.Run("failure to write a response", func(t *testing.T) {
 		withServer("", probabilistic(0.001), restrictions("luggage", 10), func(ts *testServer) {
-			handler := NewHTTPHandler(HTTPHandlerParams{
-				ConfigManager:  ts.mgr,
-				MetricsFactory: ts.metricsFactory,
-			})
+			handler := ts.handler
 
 			req := httptest.NewRequest("GET", "http://localhost:80/?service=X", nil)
 			w := &mockWriter{header: make(http.Header)}
@@ -260,21 +263,21 @@ func (w *mockWriter) Write([]byte) (int, error) {
 
 func (w *mockWriter) WriteHeader(int) {}
 
-type mockManager struct {
-	samplingResponse *sampling.SamplingStrategyResponse
-	baggageResponse  []*baggage.BaggageRestriction
-}
-
-func (m *mockManager) GetSamplingStrategy(serviceName string) (*sampling.SamplingStrategyResponse, error) {
-	if m.samplingResponse == nil {
-		return nil, errors.New("no mock response provided")
-	}
-	return m.samplingResponse, nil
-}
-
-func (m *mockManager) GetBaggageRestrictions(serviceName string) ([]*baggage.BaggageRestriction, error) {
-	if m.baggageResponse == nil {
-		return nil, errors.New("no mock response provided")
-	}
-	return m.baggageResponse, nil
-}
+//type mockManager struct {
+//	samplingResponse *sampling.SamplingStrategyResponse
+//	baggageResponse  []*baggage.BaggageRestriction
+//}
+//
+//func (m *mockManager) GetSamplingStrategy(serviceName string) (*sampling.SamplingStrategyResponse, error) {
+//	if m.samplingResponse == nil {
+//		return nil, errors.New("no mock response provided")
+//	}
+//	return m.samplingResponse, nil
+//}
+//
+//func (m *mockManager) GetBaggageRestrictions(serviceName string) ([]*baggage.BaggageRestriction, error) {
+//	if m.baggageResponse == nil {
+//		return nil, errors.New("no mock response provided")
+//	}
+//	return m.baggageResponse, nil
+//}
