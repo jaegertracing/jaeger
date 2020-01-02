@@ -58,8 +58,7 @@ Changes by Version
         If you don't run the migration script, nothing will break, the system will used the old table 
         `operation_names` and set empty `spanKind` in the response.  
         Steps to get the updated functionality:
-        1.  You will need to run below command on the host you can use `cqlsh` to connect the the cassandra contact
-         point
+        1.  You will need to run the command below on the host where you can use `cqlsh` to connect to Cassandra:
             ```
             KEYSPACE=jaeger_v1 CQL_CMD='cqlsh host 9042 -u test_user -p test_password --request-timeout=3000' 
             bash ./v002tov003.sh
