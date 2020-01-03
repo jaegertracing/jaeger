@@ -376,8 +376,7 @@ func (s *SpanReader) queryByDuration(ctx context.Context, traceQuery *spanstore.
 }
 
 func (s *SpanReader) queryByServiceNameAndOperation(ctx context.Context, tq *spanstore.TraceQueryParameters) (dbmodel.UniqueTraceIDs, error) {
-	//lint:ignore SA4006 failing to re-assign context is worse than unused variable
-	span, ctx := startSpanForQuery(ctx, "queryByServiceNameAndOperation", queryByServiceAndOperationName)
+	span, _ := startSpanForQuery(ctx, "queryByServiceNameAndOperation", queryByServiceAndOperationName)
 	defer span.Finish()
 	query := s.session.Query(
 		queryByServiceAndOperationName,
@@ -391,8 +390,7 @@ func (s *SpanReader) queryByServiceNameAndOperation(ctx context.Context, tq *spa
 }
 
 func (s *SpanReader) queryByService(ctx context.Context, tq *spanstore.TraceQueryParameters) (dbmodel.UniqueTraceIDs, error) {
-	//lint:ignore SA4006 failing to re-assign context is worse than unused variable
-	span, ctx := startSpanForQuery(ctx, "queryByService", queryByServiceName)
+	span, _ := startSpanForQuery(ctx, "queryByService", queryByServiceName)
 	defer span.Finish()
 	query := s.session.Query(
 		queryByServiceName,
