@@ -30,9 +30,9 @@ import (
 
 // Client is a remote client that implements customer.Interface
 type Client struct {
-	tracer opentracing.Tracer
-	logger log.Factory
-	client *tracing.HTTPClient
+	tracer   opentracing.Tracer
+	logger   log.Factory
+	client   *tracing.HTTPClient
 	hostPort string
 }
 
@@ -53,7 +53,7 @@ func NewClient(tracer opentracing.Tracer, logger log.Factory, hostPort string) *
 func (c *Client) Get(ctx context.Context, customerID string) (*Customer, error) {
 	c.logger.For(ctx).Info("Getting customer", zap.String("customer_id", customerID))
 
-	url := fmt.Sprintf("http://" + c.hostPort + "/customer?customer=%s", customerID)
+	url := fmt.Sprintf("http://"+c.hostPort+"/customer?customer=%s", customerID)
 	fmt.Println(url)
 	var customer Customer
 	if err := c.client.GetJSON(ctx, "/customer", url, &customer); err != nil {

@@ -30,9 +30,9 @@ import (
 
 // Client is a remote client that implements route.Interface
 type Client struct {
-	tracer opentracing.Tracer
-	logger log.Factory
-	client *tracing.HTTPClient
+	tracer   opentracing.Tracer
+	logger   log.Factory
+	client   *tracing.HTTPClient
 	hostPort string
 }
 
