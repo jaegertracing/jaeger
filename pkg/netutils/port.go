@@ -1,4 +1,4 @@
-// Copyright (c) 2019 The Jaeger Authors.
+// Copyright (c) 2020 The Jaeger Authors.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -19,6 +19,7 @@ import (
 	"strconv"
 )
 
+// GetPort returns the port of an endpoint address
 func GetPort(addr net.Addr) (int, error) {
 	_, port, err := net.SplitHostPort(addr.String())
 	if err != nil {
