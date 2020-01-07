@@ -30,6 +30,5 @@ func TestPortZero(t *testing.T) {
 	port, err := GetPort(lis.Addr())
 	require.NoError(t, err)
 
-	assert.Greater(t, port, 0,
-		"Expected a non-zero port, got instead: %d", port)
+	assert.Greater(t, port, 0)
 }
