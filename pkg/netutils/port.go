@@ -19,7 +19,7 @@ import (
 	"strconv"
 )
 
-// GetPort returns the port of an endpoint address
+// GetPort returns the port of an endpoint address.
 func GetPort(addr net.Addr) (int, error) {
 	_, port, err := net.SplitHostPort(addr.String())
 	if err != nil {
