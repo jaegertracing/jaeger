@@ -43,10 +43,6 @@ func (c *tchanSamplingManagerClient) GetSamplingStrategy(ctx thrift.Context, ser
 	}
 	success, err := c.client.Call(ctx, c.thriftService, "getSamplingStrategy", &args, &resp)
 	if err == nil && !success {
-		switch {
-		default:
-			err = fmt.Errorf("received no result or unknown exception for getSamplingStrategy")
-		}
 	}
 
 	return resp.GetSuccess(), err

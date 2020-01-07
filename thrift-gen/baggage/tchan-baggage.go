@@ -43,10 +43,6 @@ func (c *tchanBaggageRestrictionManagerClient) GetBaggageRestrictions(ctx thrift
 	}
 	success, err := c.client.Call(ctx, c.thriftService, "getBaggageRestrictions", &args, &resp)
 	if err == nil && !success {
-		switch {
-		default:
-			err = fmt.Errorf("received no result or unknown exception for getBaggageRestrictions")
-		}
 	}
 
 	return resp.GetSuccess(), err
