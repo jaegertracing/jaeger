@@ -27,6 +27,7 @@ import (
 	"github.com/stretchr/testify/require"
 	"github.com/uber/jaeger-lib/metrics"
 	"github.com/uber/jaeger-lib/metrics/metricstest"
+	uatomic "go.uber.org/atomic"
 )
 
 // In this test we run a queue with capacity 1 and a single consumer.
@@ -259,10 +260,12 @@ func TestResizeOldQueueIsDrained(t *testing.T) {
 		fmt.Printf("dropped: %v\n", item)
 	})
 
-	var consumerReady, consumed, readyToConsume sync.WaitGroup
+	var consumerReady, expected, readyToConsume sync.WaitGroup
 	consumerReady.Add(1)
 	readyToConsume.Add(1)
-	consumed.Add(5) // we expect 5 items to be processed
+	expected.Add(5) // we expect 5 items to be processed
+
+	consumed := uatomic.NewInt32(5)
 
 	first := true
 	q.StartConsumers(1, func(item interface{}) {
@@ -273,7 +276,14 @@ func TestResizeOldQueueIsDrained(t *testing.T) {
 		}
 
 		readyToConsume.Wait()
-		consumed.Done()
+
+		if consumed.Sub(1) >= 0 {
+			// we mark only the first 5 items as done
+			// we *might* get one item more in the queue given the right conditions
+			// but this small difference is OK -- making sure we are processing *exactly* N items
+			// is costlier than just accept that there's a couple more items in the queue than expected
+			expected.Done()
+		}
 	})
 
 	assert.True(t, q.Produce("a"))
@@ -287,10 +297,9 @@ func TestResizeOldQueueIsDrained(t *testing.T) {
 
 	assert.True(t, q.Produce("e"))
 	assert.True(t, q.Produce("f"))
-	assert.False(t, q.Produce("g"))
 
 	readyToConsume.Done()
-	consumed.Wait() // once this returns, we've consumed all items, meaning that both queues are drained
+	expected.Wait() // once this returns, we've consumed all items, meaning that both queues are drained
 }
 
 func TestNoopResize(t *testing.T) {
