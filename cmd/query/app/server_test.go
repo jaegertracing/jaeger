@@ -119,7 +119,7 @@ func TestServerHandlesPortZero(t *testing.T) {
 	assert.Equal(t, 1, message.Len(), "Expected query started log message.")
 
 	onlyEntry := message.All()[0]
-	port := onlyEntry.ContextMap()["port"].(int)
-	assert.True(t, port > 0,
+	port := onlyEntry.ContextMap()["port"].(int64)
+	assert.Greater(t, port, int64(0),
 		"Expected a non-zero port in the logs, got instead: %d", port)
 }
