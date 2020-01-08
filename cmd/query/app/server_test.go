@@ -17,12 +17,15 @@ package app
 import (
 	"context"
 	"fmt"
+	"sync"
 	"testing"
 	"time"
 
+	"github.com/marusama/cyclicbarrier"
 	opentracing "github.com/opentracing/opentracing-go"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
+	"github.com/stretchr/testify/require"
 	"go.uber.org/zap"
 	"go.uber.org/zap/zaptest/observer"
 
@@ -121,4 +124,33 @@ func TestServerHandlesPortZero(t *testing.T) {
 	onlyEntry := message.All()[0]
 	port := onlyEntry.ContextMap()["port"].(int64)
 	assert.Greater(t, port, int64(0))
+}
+
+func TestServerHandlesSimultaneousStartupOnPortZero(t *testing.T) {
+	const parallelInstances = 2
+
+	var wg sync.WaitGroup
+	barrier := cyclicbarrier.New(parallelInstances)
+
+	for i := 0; i < parallelInstances; i++ {
+		wg.Add(1)
+
+		go func() {
+			defer wg.Done()
+
+			flagsSvc := flags.NewService(ports.QueryAdminHTTP)
+			flagsSvc.Logger = zap.NewNop()
+
+			querySvc := &querysvc.QueryService{}
+			tracer := opentracing.NoopTracer{}
+			server := NewServer(flagsSvc, querySvc, &QueryOptions{Port: 0}, tracer)
+			if assert.NoError(t, server.Start(), "Failed to start two Query services at port 0") {
+				defer server.Close()
+			}
+
+			require.NoError(t, barrier.Await(context.Background()))
+		}()
+	}
+
+	wg.Wait()
 }

@@ -15,12 +15,17 @@
 package flags
 
 import (
+	"context"
+	"sync"
 	"testing"
 
-	"github.com/jaegertracing/jaeger/pkg/config"
+	"github.com/marusama/cyclicbarrier"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 	"go.uber.org/zap"
 	"go.uber.org/zap/zaptest/observer"
+
+	"github.com/jaegertracing/jaeger/pkg/config"
 )
 
 func TestAdminServerHandlesPortZero(t *testing.T) {
@@ -42,4 +47,33 @@ func TestAdminServerHandlesPortZero(t *testing.T) {
 	onlyEntry := message.All()[0]
 	port := onlyEntry.ContextMap()["http-port"].(int64)
 	assert.Greater(t, port, int64(0))
+}
+
+func TestAdminServerHandlesSimultaneousStartupOnPortZero(t *testing.T) {
+	const parallelInstances = 2
+
+	var wg sync.WaitGroup
+	barrier := cyclicbarrier.New(parallelInstances)
+
+	for i := 0; i < parallelInstances; i++ {
+		wg.Add(1)
+
+		go func() {
+			defer wg.Done()
+
+			adminServer := NewAdminServer(0)
+
+			v, _ := config.Viperize(adminServer.AddFlags)
+			logger := zap.NewNop()
+			adminServer.initFromViper(v, logger)
+
+			if assert.NoError(t, adminServer.Serve(), "Failed to start two Admin servers at port 0") {
+				defer adminServer.Close()
+			}
+
+			require.NoError(t, barrier.Await(context.Background()))
+		}()
+	}
+
+	wg.Wait()
 }

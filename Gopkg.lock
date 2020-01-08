@@ -581,6 +581,14 @@
   version = "v0.7.0"
 
 [[projects]]
+  digest = "1:e6cc30a1c1ffbc1e422e1cebecbdc3bdf2d11bf492fc614446b480af2d73a8e8"
+  name = "github.com/marusama/cyclicbarrier"
+  packages = ["."]
+  pruneopts = "UT"
+  revision = "08d457ab265cd9b97264ea3f933c16354e15fb06"
+  version = "1.0.2"
+
+[[projects]]
   digest = "1:ff5ebae34cfbf047d505ee150de27e60570e8c394b3b8fdbb720ff6ac71985fc"
   name = "github.com/matttproud/golang_protobuf_extensions"
   packages = ["pbutil"]
@@ -1362,6 +1370,7 @@
     "github.com/hashicorp/go-hclog",
     "github.com/hashicorp/go-plugin",
     "github.com/kr/pretty",
+    "github.com/marusama/cyclicbarrier",
     "github.com/olivere/elastic",
     "github.com/opentracing-contrib/go-stdlib/nethttp",
     "github.com/opentracing/opentracing-go",
