@@ -900,13 +900,18 @@
   version = "v1.2.0"
 
 [[projects]]
+<<<<<<< HEAD
   digest = "1:b2871caffbaef2e8f6d6f42318b985a16297626df8669be365da99e9d4bab10f"
+=======
+  digest = "1:1ea45208f658d2fa56887edddea9b379b64fd287696b5dd7ee362bcaca0cef9c"
+>>>>>>> Upgrade Jaeger client
   name = "github.com/uber/jaeger-client-go"
   packages = [
     ".",
     "config",
     "internal/baggage",
     "internal/baggage/remote",
+    "internal/reporterstats",
     "internal/spanlog",
     "internal/throttler",
     "internal/throttler/remote",
@@ -924,8 +929,13 @@
     "utils",
   ]
   pruneopts = "UT"
+<<<<<<< HEAD
   revision = "f2e1f58485aacf2975cdde9c9f5396e6d98c35ba"
   version = "v2.21.1"
+=======
+  revision = "96c2d6d98306c4e4c7187b17e79b04b724e71cd0"
+  source = "github.com/yurishkuro/jaeger-client-go"
+>>>>>>> Upgrade Jaeger client
 
 [[projects]]
   digest = "1:abbb7762b4200f8b1d82193dcc02a3d8a62efc0a0ffc8ec4f4e9ef8abf797a9c"
