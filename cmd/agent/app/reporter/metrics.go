@@ -61,11 +61,11 @@ type clientMetrics struct {
 	//     Only the first one is given a "help" struct tag, because Prometheus client combines
 	//     them into one help entry in the /metrics endpoint, e.g.
 	//
-	//			# HELP jaeger_agent_client_stats_spans_dropped_total Total count of spans dropped by clients
-	//			# TYPE jaeger_agent_client_stats_spans_dropped_total counter
-	//			jaeger_agent_client_stats_spans_dropped_total{cause="full-queue",protocol="grpc"} 0
-	//			jaeger_agent_client_stats_spans_dropped_total{cause="send-failure",protocol="grpc"} 0
-	//			jaeger_agent_client_stats_spans_dropped_total{cause="too-large",protocol="grpc"} 0
+	//       # HELP jaeger_agent_client_stats_spans_dropped_total Total count of spans dropped by clients
+	//       # TYPE jaeger_agent_client_stats_spans_dropped_total counter
+	//       jaeger_agent_client_stats_spans_dropped_total{cause="full-queue",protocol="grpc"} 0
+	//       jaeger_agent_client_stats_spans_dropped_total{cause="send-failure",protocol="grpc"} 0
+	//       jaeger_agent_client_stats_spans_dropped_total{cause="too-large",protocol="grpc"} 0
 
 	// Total count of spans dropped by clients because their internal queue were full
 	FullQueueDroppedSpans metrics.Counter `metric:"spans_dropped" tags:"cause=full-queue" help:"Total count of spans dropped by clients"`
