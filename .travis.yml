@@ -7,21 +7,13 @@ dist: trusty
 
 matrix:
   include:
-  - arch: s390x
-    go: 1.13.x
+  - go: "1.13.x"
     env:
     - TESTS=true
     - COVERAGE=true
-    addons:
-      apt:
-        packages:
-        - jq
-        - time
-  - arch: amd64
-    go: 1.13.x
+  - go: "1.13.x"
     env:
-    - TESTS=true
-    - COVERAGE=true  
+    - PROTO_GEN_TEST=true
   - go: "1.13.x"
     env:
     - ALL_IN_ONE=true
@@ -62,7 +54,6 @@ env:
 
 install:
   - docker rmi $(docker images -q) || true
-  - if [ "$HOSTTYPE" == "s390x" ]; then mkdir -p $HOME/gopath/bin; fi
   - travis_retry make install-ci
   - if [ "$ALL_IN_ONE" == true ]; then bash ./scripts/travis/install-ui-deps.sh ; fi
   - if [ "$DOCKER" == true ]; then bash ./scripts/travis/install-ui-deps.sh ; fi
@@ -70,8 +61,8 @@ install:
   - |
     if [ "$PROTO_GEN_TEST" == true ]; then
         make proto-install
-        curl -L https://github.com/google/protobuf/releases/download/v3.6.1/protoc-3.6.1-linux-x86_64.zip -o /tmp/protoc.zip;
-        unzip /tmp/protoc.zip -d "$HOME"/protoc   
+        curl -L https://github.com/google/protobuf/releases/download/v3.6.1/protoc-3.6.1-linux-x86_64.zip -o /tmp/protoc.zip
+        unzip /tmp/protoc.zip -d "$HOME"/protoc
     fi
 
 script:
