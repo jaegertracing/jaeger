@@ -28,7 +28,7 @@ import (
 	"github.com/jaegertracing/jaeger/thrift-gen/sampling"
 )
 
-func closeCloser(t *testing.T, c io.Closer) {
+func close(t *testing.T, c io.Closer) {
 	require.NoError(t, c.Close())
 }
 
@@ -37,7 +37,7 @@ func TestSamplingManager_GetSamplingStrategy(t *testing.T) {
 		api_v2.RegisterSamplingManagerServer(s, &mockSamplingHandler{})
 	})
 	conn, err := grpc.Dial(addr.String(), grpc.WithInsecure())
-	defer closeCloser(t, conn)
+	defer close(t, conn)
 	require.NoError(t, err)
 	defer s.GracefulStop()
 	manager := NewConfigManager(conn)
@@ -48,7 +48,7 @@ func TestSamplingManager_GetSamplingStrategy(t *testing.T) {
 
 func TestSamplingManager_GetSamplingStrategy_error(t *testing.T) {
 	conn, err := grpc.Dial("foo", grpc.WithInsecure())
-	defer closeCloser(t, conn)
+	defer close(t, conn)
 	require.NoError(t, err)
 	manager := NewConfigManager(conn)
 	resp, err := manager.GetSamplingStrategy("any")
