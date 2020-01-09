@@ -22,6 +22,7 @@ import (
 	"unsafe"
 
 	"github.com/uber/jaeger-lib/metrics"
+	uatomic "go.uber.org/atomic"
 )
 
 // BoundedQueue implements a producer-consumer exchange similar to a ring buffer queue,
@@ -30,14 +31,15 @@ import (
 // channels, with a special Reaper goroutine that wakes up when the queue is full and consumers
 // the items from the top of the queue until its size drops back to maxSize
 type BoundedQueue struct {
-	size          int32
-	onDroppedItem func(item interface{})
-	items         *chan interface{}
-	stopCh        chan struct{}
-	stopWG        sync.WaitGroup
-	stopped       int32
-	consumer      func(item interface{})
 	workers       int
+	stopWG        sync.WaitGroup
+	size          *uatomic.Uint32
+	capacity      *uatomic.Uint32
+	stopped       *uatomic.Uint32
+	items         *chan interface{}
+	onDroppedItem func(item interface{})
+	consumer      func(item interface{})
+	stopCh        chan struct{}
 }
 
 // NewBoundedQueue constructs the new queue of specified capacity, and with an optional
@@ -48,6 +50,9 @@ func NewBoundedQueue(capacity int, onDroppedItem func(item interface{})) *Bounde
 		onDroppedItem: onDroppedItem,
 		items:         &queue,
 		stopCh:        make(chan struct{}),
+		capacity:      uatomic.NewUint32(uint32(capacity)),
+		stopped:       uatomic.NewUint32(0),
+		size:          uatomic.NewUint32(0),
 	}
 }
 
@@ -60,14 +65,15 @@ func (q *BoundedQueue) StartConsumers(num int, consumer func(item interface{})) 
 	for i := 0; i < q.workers; i++ {
 		q.stopWG.Add(1)
 		startWG.Add(1)
-		go func(queue chan interface{}) {
+		go func() {
 			startWG.Done()
 			defer q.stopWG.Done()
+			queue := *q.items
 			for {
 				select {
 				case item, ok := <-queue:
 					if ok {
-						atomic.AddInt32(&q.size, -1)
+						q.size.Sub(1)
 						q.consumer(item)
 					} else {
 						// channel closed, finish worker
@@ -78,14 +84,14 @@ func (q *BoundedQueue) StartConsumers(num int, consumer func(item interface{})) 
 					return
 				}
 			}
-		}(*q.items)
+		}()
 	}
 	startWG.Wait()
 }
 
 // Produce is used by the producer to submit new item to the queue. Returns false in case of queue overflow.
 func (q *BoundedQueue) Produce(item interface{}) bool {
-	if atomic.LoadInt32(&q.stopped) != 0 {
+	if q.stopped.Load() != 0 {
 		q.onDroppedItem(item)
 		return false
 	}
@@ -93,16 +99,15 @@ func (q *BoundedQueue) Produce(item interface{}) bool {
 	// we might have two concurrent backing queues at the moment
 	// their combined size is stored in q.size, and their combined capacity
 	// should match the capacity of the new queue
-	if q.Size() >= q.Capacity() && q.Capacity() > 0 {
-		// current consumers of the queue (like tests) expect the queue capacity = 0 to work
-		// so, we don't drop items when the capacity is 0
+	if q.Size() >= q.Capacity() {
+		// note that all items will be dropped if the capacity is 0
 		q.onDroppedItem(item)
 		return false
 	}
 
 	select {
 	case *q.items <- item:
-		atomic.AddInt32(&q.size, 1)
+		q.size.Add(1)
 		return true
 	default:
 		// should not happen, as overflows should have been captured earlier
@@ -116,7 +121,7 @@ func (q *BoundedQueue) Produce(item interface{}) bool {
 // Stop stops all consumers, as well as the length reporter if started,
 // and releases the items channel. It blocks until all consumers have stopped.
 func (q *BoundedQueue) Stop() {
-	atomic.StoreInt32(&q.stopped, 1) // disable producer
+	q.stopped.Store(1) // disable producer
 	close(q.stopCh)
 	q.stopWG.Wait()
 	close(*q.items)
@@ -124,12 +129,12 @@ func (q *BoundedQueue) Stop() {
 
 // Size returns the current size of the queue
 func (q *BoundedQueue) Size() int {
-	return int(atomic.LoadInt32(&q.size))
+	return int(q.size.Load())
 }
 
 // Capacity returns capacity of the queue
 func (q *BoundedQueue) Capacity() int {
-	return cap(*q.items)
+	return int(q.capacity.Load())
 }
 
 // StartLengthReporting starts a timer-based goroutine that periodically reports
@@ -152,7 +157,7 @@ func (q *BoundedQueue) StartLengthReporting(reportPeriod time.Duration, gauge me
 
 // Resize changes the capacity of the queue, returning whether the action was successful
 func (q *BoundedQueue) Resize(capacity int) bool {
-	if capacity == cap(*q.items) {
+	if capacity == q.Capacity() {
 		// noop
 		return false
 	}
@@ -169,6 +174,9 @@ func (q *BoundedQueue) Resize(capacity int) bool {
 
 		// gracefully drain the existing queue
 		close(previous)
+
+		// update the capacity
+		q.capacity.Store(uint32(capacity))
 	}
 
 	return swapped

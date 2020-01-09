@@ -205,7 +205,7 @@ func makeJaegerSpan(service string, rootSpan bool, debugEnabled bool) (*jaeger.S
 
 func TestSpanProcessor(t *testing.T) {
 	w := &fakeSpanWriter{}
-	p := NewSpanProcessor(w).(*spanProcessor)
+	p := NewSpanProcessor(w, Options.QueueSize(1)).(*spanProcessor)
 	defer p.Stop()
 
 	res, err := p.ProcessSpans([]*model.Span{
@@ -229,6 +229,7 @@ func TestSpanProcessorErrors(t *testing.T) {
 	p := NewSpanProcessor(w,
 		Options.Logger(logger),
 		Options.ServiceMetrics(serviceMetrics),
+		Options.QueueSize(1),
 	).(*spanProcessor)
 
 	res, err := p.ProcessSpans([]*model.Span{
