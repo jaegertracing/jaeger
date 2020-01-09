@@ -900,11 +900,7 @@
   version = "v1.2.0"
 
 [[projects]]
-<<<<<<< HEAD
-  digest = "1:b2871caffbaef2e8f6d6f42318b985a16297626df8669be365da99e9d4bab10f"
-=======
   digest = "1:1ea45208f658d2fa56887edddea9b379b64fd287696b5dd7ee362bcaca0cef9c"
->>>>>>> Upgrade Jaeger client
   name = "github.com/uber/jaeger-client-go"
   packages = [
     ".",
@@ -929,13 +925,8 @@
     "utils",
   ]
   pruneopts = "UT"
-<<<<<<< HEAD
-  revision = "f2e1f58485aacf2975cdde9c9f5396e6d98c35ba"
-  version = "v2.21.1"
-=======
   revision = "96c2d6d98306c4e4c7187b17e79b04b724e71cd0"
   source = "github.com/yurishkuro/jaeger-client-go"
->>>>>>> Upgrade Jaeger client
 
 [[projects]]
   digest = "1:abbb7762b4200f8b1d82193dcc02a3d8a62efc0a0ffc8ec4f4e9ef8abf797a9c"
@@ -1057,7 +1048,7 @@
     "pbkdf2",
   ]
   pruneopts = "UT"
-  revision = "5d647ca1575777a812e903a7e98177174d8c295a"
+  revision = "61a87790db17894570dfb32dbaa0a4af9ce60cb4"
 
 [[projects]]
   branch = "master"
@@ -1154,7 +1145,7 @@
     "internal/semver",
   ]
   pruneopts = "UT"
-  revision = "89082a3841783366cb82b3dc4ce9258fb3dad1a9"
+  revision = "ac4f524c1612b88bd3505cc9c0d02f3d266cd9af"
 
 [[projects]]
   branch = "master"
