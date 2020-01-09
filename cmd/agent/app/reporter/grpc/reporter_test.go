@@ -124,7 +124,8 @@ func TestReporter_SendFailure(t *testing.T) {
 	require.NoError(t, err)
 	rep := NewReporter(conn, nil, zap.NewNop())
 	err = rep.send(nil, nil)
-	assert.EqualError(t, err, "rpc error: code = Unavailable desc = all SubConns are in TransientFailure, latest connection error: connection error: desc = \"transport: Error while dialing dial tcp: missing address\"")
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "transport: Error while dialing dial tcp: missing address")
 }
 
 func TestReporter_AddProcessTags_EmptyTags(t *testing.T) {
