@@ -64,11 +64,7 @@ func WrapWithMetrics(reporter Reporter, mFactory metrics.Factory) *MetricsReport
 			nil)
 		batchesMetrics[s] = bm
 	}
-	r := &MetricsReporter{
-		wrapped: reporter,
-		metrics: batchesMetrics,
-	}
-	return r
+	return &MetricsReporter{wrapped: reporter, metrics: batchesMetrics}
 }
 
 // EmitZipkinBatch emits batch to collector.
