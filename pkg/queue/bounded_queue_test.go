@@ -81,6 +81,8 @@ func TestBoundedQueue(t *testing.T) {
 		_, g := mFact.Snapshot()
 		if g["size"] == 0 {
 			time.Sleep(time.Millisecond)
+		} else {
+			break
 		}
 	}
 
@@ -313,16 +315,10 @@ func TestZeroSize(t *testing.T) {
 	q := NewBoundedQueue(0, func(item interface{}) {
 	})
 
-	var wg sync.WaitGroup
-	wg.Add(1)
 	q.StartConsumers(1, func(item interface{}) {
-		wg.Done()
 	})
 
-	assert.True(t, q.Produce("a")) // in process
-	wg.Wait()
-
-	// if we didn't finish with a timeout, then we are good
+	assert.False(t, q.Produce("a")) // in process
 }
 
 func BenchmarkBoundedQueue(b *testing.B) {
