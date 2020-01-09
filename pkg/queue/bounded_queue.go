@@ -170,7 +170,7 @@ func (q *BoundedQueue) Resize(capacity int) bool {
 	swapped := atomic.CompareAndSwapPointer((*unsafe.Pointer)(unsafe.Pointer(&q.items)), unsafe.Pointer(q.items), unsafe.Pointer(&queue))
 	if swapped {
 		// start a new set of consumers, based on the information given previously
-		q.StartConsumers(int(q.workers), q.consumer)
+		q.StartConsumers(q.workers, q.consumer)
 
 		// gracefully drain the existing queue
 		close(previous)
