@@ -15,6 +15,7 @@
 package reporter
 
 import (
+	"math"
 	"sync"
 	"time"
 
@@ -27,6 +28,11 @@ import (
 const (
 	jaegerBatches = "jaeger"
 	zipkinBatches = "zipkin"
+
+	// If client-reported counters wrap over MaxInt64, we can have old > new.
+	// We will "detect" the wrapping by checking that old is within the tolerance
+	// from MaxInt64 and new is within the tolerance from 0.
+	wrappedTolerance = 10000000
 )
 
 type batchMetrics struct {
@@ -51,9 +57,24 @@ type clientMetrics struct {
 	Batches          metrics.Counter `metric:"batches_sent" help:"Total count of batches sent by clients"`
 	ConnectedClients metrics.Gauge   `metric:"connected_clients" help:"Total count of unique clients sending data to the agent"`
 
-	FullQueueDroppedSpans metrics.Counter `metric:"spans_dropped" tags:"cause=full-queue" help:"Total count of spans dropped by clients because their internal queue were full"`
-	TooLargeDroppedSpans  metrics.Counter `metric:"spans_dropped" tags:"cause=too-large" help:"Total count of spans dropped by clients because they were larger than max packet size"`
-	FailedToEmitSpans     metrics.Counter `metric:"spans_dropped" tags:"cause=send-failure" help:"Total count of spans dropped by clients because they failed Thrift encoding or submission"`
+	// NB: The following three metrics all have the same name, but different "cause" tags.
+	//     Only the first one is given a "help" struct tag, because Prometheus client combines
+	//     them into one help entry in the /metrics endpoint, e.g.
+	//
+	//			# HELP jaeger_agent_client_stats_spans_dropped_total Total count of spans dropped by clients
+	//			# TYPE jaeger_agent_client_stats_spans_dropped_total counter
+	//			jaeger_agent_client_stats_spans_dropped_total{cause="full-queue",protocol="grpc"} 0
+	//			jaeger_agent_client_stats_spans_dropped_total{cause="send-failure",protocol="grpc"} 0
+	//			jaeger_agent_client_stats_spans_dropped_total{cause="too-large",protocol="grpc"} 0
+
+	// Total count of spans dropped by clients because their internal queue were full
+	FullQueueDroppedSpans metrics.Counter `metric:"spans_dropped" tags:"cause=full-queue" help:"Total count of spans dropped by clients"`
+
+	// Total count of spans dropped by clients because they were larger than max packet size
+	TooLargeDroppedSpans metrics.Counter `metric:"spans_dropped" tags:"cause=too-large"`
+
+	// Total count of spans dropped by clients because they failed Thrift encoding or submission
+	FailedToEmitSpans metrics.Counter `metric:"spans_dropped" tags:"cause=send-failure"`
 }
 
 type lastReceivedClientStats struct {
@@ -193,7 +214,7 @@ func (s *lastReceivedClientStats) update(
 	s.lock.Lock()
 	defer s.lock.Unlock()
 
-	if batchSeqNo <= s.batchSeqNo {
+	if s.batchSeqNo >= batchSeqNo && !wrapped(s.batchSeqNo, batchSeqNo) {
 		// ignore out of order batches, the metrics will be updated later
 		return
 	}
@@ -214,9 +235,15 @@ func (s *lastReceivedClientStats) update(
 	s.batchSeqNo = batchSeqNo
 }
 
+func wrapped(old int64, new int64) bool {
+	return (old > math.MaxInt64-wrappedTolerance) && (new < wrappedTolerance)
+}
+
 func delta(old int64, new int64) int64 {
-	// TODO handle overflow
-	return new - old
+	if !wrapped(old, new) {
+		return new - old
+	}
+	return new + (math.MaxInt64 - old)
 }
 
 func findClientUUID(batch *jaeger.Batch) string {
