@@ -15,10 +15,6 @@
 package reporter
 
 import (
-	"math"
-	"sync"
-	"time"
-
 	"github.com/uber/jaeger-lib/metrics"
 
 	"github.com/jaegertracing/jaeger/thrift-gen/jaeger"
@@ -28,11 +24,6 @@ import (
 const (
 	jaegerBatches = "jaeger"
 	zipkinBatches = "zipkin"
-
-	// If client-reported counters wrap over MaxInt64, we can have old > new.
-	// We will "detect" the wrapping by checking that old is within the tolerance
-	// from MaxInt64 and new is within the tolerance from 0.
-	wrappedTolerance = 10000000
 )
 
 type batchMetrics struct {
@@ -52,53 +43,12 @@ type batchMetrics struct {
 	SpansFailures metrics.Counter `metric:"spans.failures"`
 }
 
-// clientMetrics are maintained only for data submitted in Jaeger Thrift format.
-type clientMetrics struct {
-	Batches          metrics.Counter `metric:"batches_sent" help:"Total count of batches sent by clients"`
-	ConnectedClients metrics.Gauge   `metric:"connected_clients" help:"Total count of unique clients sending data to the agent"`
-
-	// NB: The following three metrics all have the same name, but different "cause" tags.
-	//     Only the first one is given a "help" struct tag, because Prometheus client combines
-	//     them into one help entry in the /metrics endpoint, e.g.
-	//
-	//       # HELP jaeger_agent_client_stats_spans_dropped_total Total count of spans dropped by clients
-	//       # TYPE jaeger_agent_client_stats_spans_dropped_total counter
-	//       jaeger_agent_client_stats_spans_dropped_total{cause="full-queue",protocol="grpc"} 0
-	//       jaeger_agent_client_stats_spans_dropped_total{cause="send-failure",protocol="grpc"} 0
-	//       jaeger_agent_client_stats_spans_dropped_total{cause="too-large",protocol="grpc"} 0
-
-	// Total count of spans dropped by clients because their internal queue were full
-	FullQueueDroppedSpans metrics.Counter `metric:"spans_dropped" tags:"cause=full-queue" help:"Total count of spans dropped by clients"`
-
-	// Total count of spans dropped by clients because they were larger than max packet size
-	TooLargeDroppedSpans metrics.Counter `metric:"spans_dropped" tags:"cause=too-large"`
-
-	// Total count of spans dropped by clients because they failed Thrift encoding or submission
-	FailedToEmitSpans metrics.Counter `metric:"spans_dropped" tags:"cause=send-failure"`
-}
-
-type lastReceivedClientStats struct {
-	lock                  sync.Mutex
-	lastUpdated           time.Time
-	batchSeqNo            int64
-	fullQueueDroppedSpans int64
-	tooLargeDroppedSpans  int64
-	failedToEmitSpans     int64
-}
-
 // MetricsReporter is reporter with metrics integration.
 type MetricsReporter struct {
 	wrapped Reporter
 
 	// counters grouped by the type of data format (Jaeger or Zipkin).
 	metrics map[string]batchMetrics
-
-	clientMetrics *clientMetrics
-
-	// map from client-uuid to *lastReceivedClientStats
-	lastReceivedClientStats sync.Map
-
-	shutdown chan struct{}
 }
 
 // WrapWithMetrics wraps Reporter and creates metrics for its invocations.
@@ -108,19 +58,16 @@ func WrapWithMetrics(reporter Reporter, mFactory metrics.Factory) *MetricsReport
 		bm := batchMetrics{}
 		metrics.MustInit(&bm,
 			mFactory.Namespace(metrics.NSOptions{
-				Name: "reporter", Tags: map[string]string{"format": s},
+				Name: "reporter",
+				Tags: map[string]string{"format": s},
 			}),
 			nil)
 		batchesMetrics[s] = bm
 	}
-	cm := new(clientMetrics)
-	metrics.MustInit(cm, mFactory.Namespace(metrics.NSOptions{Name: "client_stats"}), nil)
 	r := &MetricsReporter{
-		wrapped:       reporter,
-		metrics:       batchesMetrics,
-		clientMetrics: cm,
+		wrapped: reporter,
+		metrics: batchesMetrics,
 	}
-	go r.expireClientMetrics()
 	return r
 }
 
@@ -133,7 +80,6 @@ func (r *MetricsReporter) EmitZipkinBatch(spans []*zipkincore.Span) error {
 
 // EmitBatch emits batch to collector.
 func (r *MetricsReporter) EmitBatch(batch *jaeger.Batch) error {
-	r.updateClientMetrics(batch)
 	size := int64(0)
 	if batch != nil {
 		size = int64(len(batch.GetSpans()))
@@ -141,11 +87,6 @@ func (r *MetricsReporter) EmitBatch(batch *jaeger.Batch) error {
 	err := r.wrapped.EmitBatch(batch)
 	updateMetrics(r.metrics[jaegerBatches], size, err)
 	return err
-}
-
-// Close stops background gc goroutine for client stats map.
-func (r *MetricsReporter) Close() {
-	close(r.shutdown)
 }
 
 func updateMetrics(m batchMetrics, size int64, err error) {
@@ -157,107 +98,4 @@ func updateMetrics(m batchMetrics, size int64, err error) {
 		m.BatchesSubmitted.Inc(1)
 		m.SpansSubmitted.Inc(size)
 	}
-}
-
-func (r *MetricsReporter) expireClientMetrics() {
-	const (
-		frequency = 15 * time.Minute
-		ttl       = time.Hour
-	)
-	ticker := time.NewTicker(frequency)
-	defer ticker.Stop()
-	for {
-		select {
-		case <-ticker.C:
-			t := time.Now()
-			var size int64
-			r.lastReceivedClientStats.Range(func(k, v interface{}) bool {
-				stats := v.(*lastReceivedClientStats)
-				stats.lock.Lock()
-				defer stats.lock.Unlock()
-
-				if !stats.lastUpdated.IsZero() && t.Sub(stats.lastUpdated) > ttl {
-					r.lastReceivedClientStats.Delete(k)
-				}
-				size += 1
-				return true // keep running through all values in the map
-			})
-			r.clientMetrics.ConnectedClients.Update(size)
-		case <-r.shutdown:
-			return
-		}
-	}
-}
-
-func (r *MetricsReporter) updateClientMetrics(batch *jaeger.Batch) {
-	clientUUID := findClientUUID(batch)
-	if clientUUID == "" {
-		return
-	}
-	batchSeqNo := batch.SeqNo
-	if batchSeqNo == nil {
-		return
-	}
-	entry, found := r.lastReceivedClientStats.Load(clientUUID)
-	if !found {
-		entry, _ = r.lastReceivedClientStats.LoadOrStore(clientUUID, &lastReceivedClientStats{})
-	}
-	clientStats := entry.(*lastReceivedClientStats)
-	clientStats.update(*batchSeqNo, batch.Stats, r.clientMetrics)
-}
-
-func (s *lastReceivedClientStats) update(
-	batchSeqNo int64,
-	stats *jaeger.ClientStats,
-	metrics *clientMetrics,
-) {
-	s.lock.Lock()
-	defer s.lock.Unlock()
-
-	if s.batchSeqNo >= batchSeqNo && !wrapped(s.batchSeqNo, batchSeqNo) {
-		// ignore out of order batches, the metrics will be updated later
-		return
-	}
-
-	metrics.Batches.Inc(delta(s.batchSeqNo, batchSeqNo))
-
-	if stats != nil {
-		metrics.FailedToEmitSpans.Inc(delta(s.failedToEmitSpans, stats.FailedToEmitSpans))
-		metrics.FailedToEmitSpans.Inc(delta(s.tooLargeDroppedSpans, stats.TooLargeDroppedSpans))
-		metrics.FailedToEmitSpans.Inc(delta(s.fullQueueDroppedSpans, stats.FullQueueDroppedSpans))
-
-		s.failedToEmitSpans = stats.FailedToEmitSpans
-		s.tooLargeDroppedSpans = stats.TooLargeDroppedSpans
-		s.fullQueueDroppedSpans = stats.FullQueueDroppedSpans
-	}
-
-	s.lastUpdated = time.Now()
-	s.batchSeqNo = batchSeqNo
-}
-
-func wrapped(old int64, new int64) bool {
-	return (old > math.MaxInt64-wrappedTolerance) && (new < wrappedTolerance)
-}
-
-func delta(old int64, new int64) int64 {
-	if !wrapped(old, new) {
-		return new - old
-	}
-	return new + (math.MaxInt64 - old)
-}
-
-func findClientUUID(batch *jaeger.Batch) string {
-	if batch.Process == nil {
-		return ""
-	}
-	for _, tag := range batch.Process.Tags {
-		if tag.Key != "client-uuid" {
-			continue
-		}
-		if tag.VStr == nil {
-			return ""
-		}
-		return *tag.VStr
-	}
-	return ""
 }
