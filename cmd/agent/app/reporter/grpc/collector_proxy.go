@@ -27,7 +27,7 @@ import (
 
 // ProxyBuilder holds objects communicating with collector
 type ProxyBuilder struct {
-	reporter aReporter.Reporter
+	reporter *reporter.ClientMetricsReporter
 	manager  configmanager.ClientConfigManager
 	conn     *grpc.ClientConn
 }
@@ -39,12 +39,12 @@ func NewCollectorProxy(builder *ConnBuilder, agentTags map[string]string, mFacto
 		return nil, err
 	}
 	grpcMetrics := mFactory.Namespace(metrics.NSOptions{Name: "", Tags: map[string]string{"protocol": "grpc"}})
-	var r aReporter.Reporter = NewReporter(conn, agentTags, logger)
-	r = reporter.WrapWithMetrics(r, grpcMetrics)
-	r = reporter.WrapWithClientMetrics(r, mFactory)
+	r1 := NewReporter(conn, agentTags, logger)
+	r2 := reporter.WrapWithMetrics(r1, grpcMetrics)
+	r3 := reporter.WrapWithClientMetrics(r2, mFactory)
 	return &ProxyBuilder{
 		conn:     conn,
-		reporter: r,
+		reporter: r3,
 		manager:  configmanager.WrapWithMetrics(grpcManager.NewConfigManager(conn), grpcMetrics),
 	}, nil
 }
@@ -66,5 +66,6 @@ func (b ProxyBuilder) GetManager() configmanager.ClientConfigManager {
 
 // Close closes connections used by proxy.
 func (b ProxyBuilder) Close() error {
+	b.reporter.Close()
 	return b.conn.Close()
 }
