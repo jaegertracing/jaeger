@@ -26,24 +26,12 @@ import (
 	"github.com/jaegertracing/jaeger/thrift-gen/zipkincore"
 )
 
-type noopReporter struct {
-	err error
-}
-
-func (r *noopReporter) EmitZipkinBatch(spans []*zipkincore.Span) error {
-	return r.err
-}
-
-func (r *noopReporter) EmitBatch(batch *jaeger.Batch) error {
-	return r.err
-}
-
 func TestMetricsReporter(t *testing.T) {
 	tests := []struct {
 		expectedCounters []metricstest.ExpectedMetric
 		expectedGauges   []metricstest.ExpectedMetric
 		action           func(reporter Reporter)
-		rep              *noopReporter
+		rep              *alwaysFailReporter
 	}{
 		{expectedCounters: []metricstest.ExpectedMetric{
 			{Name: "reporter.batches.submitted", Tags: map[string]string{"format": "jaeger"}, Value: 1},
@@ -55,7 +43,7 @@ func TestMetricsReporter(t *testing.T) {
 		}, action: func(reporter Reporter) {
 			err := reporter.EmitBatch(nil)
 			require.NoError(t, err)
-		}, rep: &noopReporter{}},
+		}, rep: &alwaysFailReporter{}},
 		{expectedCounters: []metricstest.ExpectedMetric{
 			{Name: "reporter.batches.submitted", Tags: map[string]string{"format": "jaeger"}, Value: 1},
 			{Name: "reporter.batches.failures", Tags: map[string]string{"format": "jaeger"}, Value: 0},
@@ -66,7 +54,7 @@ func TestMetricsReporter(t *testing.T) {
 		}, action: func(reporter Reporter) {
 			err := reporter.EmitBatch(&jaeger.Batch{Spans: []*jaeger.Span{{}}})
 			require.NoError(t, err)
-		}, rep: &noopReporter{}},
+		}, rep: &alwaysFailReporter{}},
 		{expectedCounters: []metricstest.ExpectedMetric{
 			{Name: "reporter.batches.submitted", Tags: map[string]string{"format": "zipkin"}, Value: 1},
 			{Name: "reporter.batches.failures", Tags: map[string]string{"format": "zipkin"}, Value: 0},
@@ -77,7 +65,7 @@ func TestMetricsReporter(t *testing.T) {
 		}, action: func(reporter Reporter) {
 			err := reporter.EmitZipkinBatch(nil)
 			require.NoError(t, err)
-		}, rep: &noopReporter{}},
+		}, rep: &alwaysFailReporter{}},
 		{expectedCounters: []metricstest.ExpectedMetric{
 			{Name: "reporter.batches.submitted", Tags: map[string]string{"format": "zipkin"}, Value: 1},
 			{Name: "reporter.batches.failures", Tags: map[string]string{"format": "zipkin"}, Value: 0},
@@ -88,7 +76,7 @@ func TestMetricsReporter(t *testing.T) {
 		}, action: func(reporter Reporter) {
 			err := reporter.EmitZipkinBatch([]*zipkincore.Span{{}})
 			require.NoError(t, err)
-		}, rep: &noopReporter{}},
+		}, rep: &alwaysFailReporter{}},
 		{expectedCounters: []metricstest.ExpectedMetric{
 			{Name: "reporter.batches.submitted", Tags: map[string]string{"format": "jaeger"}, Value: 0},
 			{Name: "reporter.batches.failures", Tags: map[string]string{"format": "jaeger"}, Value: 1},
@@ -99,7 +87,7 @@ func TestMetricsReporter(t *testing.T) {
 		}, action: func(reporter Reporter) {
 			err := reporter.EmitBatch(&jaeger.Batch{Spans: []*jaeger.Span{{}}})
 			require.Error(t, err)
-		}, rep: &noopReporter{err: errors.New("foo")}},
+		}, rep: &alwaysFailReporter{err: errors.New("foo")}},
 		{expectedCounters: []metricstest.ExpectedMetric{
 			{Name: "reporter.batches.failures", Tags: map[string]string{"format": "zipkin"}, Value: 1},
 			{Name: "reporter.spans.failures", Tags: map[string]string{"format": "zipkin"}, Value: 2},
@@ -108,7 +96,7 @@ func TestMetricsReporter(t *testing.T) {
 		}, action: func(reporter Reporter) {
 			err := reporter.EmitZipkinBatch([]*zipkincore.Span{{}, {}})
 			require.Error(t, err)
-		}, rep: &noopReporter{errors.New("foo")}},
+		}, rep: &alwaysFailReporter{errors.New("foo")}},
 	}
 
 	for _, test := range tests {

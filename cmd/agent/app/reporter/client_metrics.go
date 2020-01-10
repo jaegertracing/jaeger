@@ -20,6 +20,7 @@ import (
 	"time"
 
 	"github.com/uber/jaeger-lib/metrics"
+	"go.uber.org/atomic"
 	"go.uber.org/zap"
 
 	"github.com/jaegertracing/jaeger/thrift-gen/jaeger"
@@ -31,6 +32,9 @@ const (
 	// We will "detect" the wrapping by checking that old is within the tolerance
 	// from MaxInt64 and new is within the tolerance from 0.
 	wrappedCounterTolerance = 10000000
+
+	defaultExpireFrequency = 15 * time.Minute
+	defaultExpireTTL       = time.Hour
 )
 
 // clientMetrics are maintained only for data submitted in Jaeger Thrift format.
@@ -69,23 +73,39 @@ type lastReceivedClientStats struct {
 
 // ClientMetricsReporter is a decorator that emits data loss metrics on behalf of clients.
 type ClientMetricsReporter struct {
-	wrapped       Reporter
-	logger        *zap.Logger
+	params        ClientMetricsReporterParams
 	clientMetrics *clientMetrics
 	shutdown      chan struct{}
+	closed        *atomic.Bool
 
 	// map from client-uuid to *lastReceivedClientStats
 	lastReceivedClientStats sync.Map
 }
 
+// ClientMetricsReporterParams is used as input to WrapWithClientMetrics.
+type ClientMetricsReporterParams struct {
+	Reporter        Reporter        // required
+	Logger          *zap.Logger     // required
+	MetricsFactory  metrics.Factory // required
+	ExpireFrequency time.Duration
+	ExpireTTL       time.Duration
+}
+
 // WrapWithClientMetrics creates ClientMetricsReporter.
-func WrapWithClientMetrics(reporter Reporter, logger *zap.Logger, mFactory metrics.Factory) *ClientMetricsReporter {
+func WrapWithClientMetrics(params ClientMetricsReporterParams) *ClientMetricsReporter {
+	if params.ExpireFrequency == 0 {
+		params.ExpireFrequency = defaultExpireFrequency
+	}
+	if params.ExpireTTL == 0 {
+		params.ExpireTTL = defaultExpireTTL
+	}
 	cm := new(clientMetrics)
-	metrics.MustInit(cm, mFactory.Namespace(metrics.NSOptions{Name: "client_stats"}), nil)
+	metrics.MustInit(cm, params.MetricsFactory.Namespace(metrics.NSOptions{Name: "client_stats"}), nil)
 	r := &ClientMetricsReporter{
-		wrapped:       reporter,
-		logger:        logger,
+		params:        params,
 		clientMetrics: cm,
+		shutdown:      make(chan struct{}),
+		closed:        atomic.NewBool(false),
 	}
 	go r.expireClientMetrics()
 	return r
@@ -93,26 +113,24 @@ func WrapWithClientMetrics(reporter Reporter, logger *zap.Logger, mFactory metri
 
 // EmitZipkinBatch delegates to underlying Reporter.
 func (r *ClientMetricsReporter) EmitZipkinBatch(spans []*zipkincore.Span) error {
-	return r.wrapped.EmitZipkinBatch(spans)
+	return r.params.Reporter.EmitZipkinBatch(spans)
 }
 
 // EmitBatch processes client data loss metrics and delegates to the underlying reporter.
 func (r *ClientMetricsReporter) EmitBatch(batch *jaeger.Batch) error {
 	r.updateClientMetrics(batch)
-	return r.wrapped.EmitBatch(batch)
+	return r.params.Reporter.EmitBatch(batch)
 }
 
 // Close stops background gc goroutine for client stats map.
 func (r *ClientMetricsReporter) Close() {
-	close(r.shutdown)
+	if r.closed.CAS(false, true) {
+		close(r.shutdown)
+	}
 }
 
 func (r *ClientMetricsReporter) expireClientMetrics() {
-	const (
-		frequency = 15 * time.Minute
-		ttl       = time.Hour
-	)
-	ticker := time.NewTicker(frequency)
+	ticker := time.NewTicker(r.params.ExpireFrequency)
 	defer ticker.Stop()
 	for {
 		select {
@@ -124,9 +142,9 @@ func (r *ClientMetricsReporter) expireClientMetrics() {
 				stats.lock.Lock()
 				defer stats.lock.Unlock()
 
-				if !stats.lastUpdated.IsZero() && t.Sub(stats.lastUpdated) > ttl {
+				if !stats.lastUpdated.IsZero() && t.Sub(stats.lastUpdated) > r.params.ExpireTTL {
 					r.lastReceivedClientStats.Delete(k)
-					r.logger.Debug("have not heard from a client for a while, freeing stats",
+					r.params.Logger.Debug("have not heard from a client for a while, freeing stats",
 						zap.Any("client-uuid", k),
 						zap.Time("last-message", stats.lastUpdated),
 					)
@@ -153,7 +171,7 @@ func (r *ClientMetricsReporter) updateClientMetrics(batch *jaeger.Batch) {
 	if !found {
 		ent, loaded := r.lastReceivedClientStats.LoadOrStore(clientUUID, &lastReceivedClientStats{})
 		if !loaded {
-			r.logger.Debug("received batch from a new client, starting to keep stats",
+			r.params.Logger.Debug("received batch from a new client, starting to keep stats",
 				zap.String("client-uuid", clientUUID),
 			)
 		}
