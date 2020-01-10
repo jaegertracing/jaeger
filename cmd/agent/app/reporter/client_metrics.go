@@ -131,7 +131,7 @@ func (r *ClientMetricsReporter) expireClientMetrics() {
 						zap.Time("last-message", stats.lastUpdated),
 					)
 				}
-				size += 1
+				size++
 				return true // keep running through all values in the map
 			})
 			r.clientMetrics.ConnectedClients.Update(size)
