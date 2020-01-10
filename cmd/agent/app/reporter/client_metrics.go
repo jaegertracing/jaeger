@@ -142,26 +142,25 @@ func (r *ClientMetricsReporter) expireClientMetrics() {
 }
 
 func (r *ClientMetricsReporter) updateClientMetrics(batch *jaeger.Batch) {
-	clientUUID := findClientUUID(batch)
+	clientUUID := clientUUID(batch)
 	if clientUUID == "" {
 		return
 	}
-	batchSeqNo := batch.SeqNo
-	if batchSeqNo == nil {
+	if batch.SeqNo == nil {
 		return
 	}
 	entry, found := r.lastReceivedClientStats.Load(clientUUID)
 	if !found {
-		var loaded bool
-		entry, loaded = r.lastReceivedClientStats.LoadOrStore(clientUUID, &lastReceivedClientStats{})
+		ent, loaded := r.lastReceivedClientStats.LoadOrStore(clientUUID, &lastReceivedClientStats{})
 		if !loaded {
 			r.logger.Debug("received batch from a new client, starting to keep stats",
 				zap.String("client-uuid", clientUUID),
 			)
 		}
+		entry = ent
 	}
 	clientStats := entry.(*lastReceivedClientStats)
-	clientStats.update(*batchSeqNo, batch.Stats, r.clientMetrics)
+	clientStats.update(*batch.SeqNo, batch.Stats, r.clientMetrics)
 }
 
 func (s *lastReceivedClientStats) update(
@@ -204,7 +203,7 @@ func delta(old int64, new int64) int64 {
 	return new + (math.MaxInt64 - old)
 }
 
-func findClientUUID(batch *jaeger.Batch) string {
+func clientUUID(batch *jaeger.Batch) string {
 	if batch.Process == nil {
 		return ""
 	}
