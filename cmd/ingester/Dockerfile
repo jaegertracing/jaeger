@@ -1,9 +1,4 @@
-FROM alpine:latest as certs
-RUN apk add --update --no-cache ca-certificates
-
-FROM scratch
-
-COPY --from=certs /etc/ssl/certs/ca-certificates.crt /etc/ssl/certs/ca-certificates.crt
+FROM registry.access.redhat.com/ubi8/ubi-minimal:latest
 
 EXPOSE 14270
 EXPOSE 14271
