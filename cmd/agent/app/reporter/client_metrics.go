@@ -20,6 +20,7 @@ import (
 	"time"
 
 	"github.com/uber/jaeger-lib/metrics"
+	"go.uber.org/zap"
 
 	"github.com/jaegertracing/jaeger/thrift-gen/jaeger"
 	"github.com/jaegertracing/jaeger/thrift-gen/zipkincore"
@@ -69,6 +70,7 @@ type lastReceivedClientStats struct {
 // ClientMetricsReporter is a decorator that emits data loss metrics on behalf of clients.
 type ClientMetricsReporter struct {
 	wrapped       Reporter
+	logger        *zap.Logger
 	clientMetrics *clientMetrics
 	shutdown      chan struct{}
 
@@ -77,11 +79,12 @@ type ClientMetricsReporter struct {
 }
 
 // WrapWithClientMetrics creates ClientMetricsReporter.
-func WrapWithClientMetrics(reporter Reporter, mFactory metrics.Factory) *ClientMetricsReporter {
+func WrapWithClientMetrics(reporter Reporter, logger *zap.Logger, mFactory metrics.Factory) *ClientMetricsReporter {
 	cm := new(clientMetrics)
 	metrics.MustInit(cm, mFactory.Namespace(metrics.NSOptions{Name: "client_stats"}), nil)
 	r := &ClientMetricsReporter{
 		wrapped:       reporter,
+		logger:        logger,
 		clientMetrics: cm,
 	}
 	go r.expireClientMetrics()
@@ -123,6 +126,10 @@ func (r *ClientMetricsReporter) expireClientMetrics() {
 
 				if !stats.lastUpdated.IsZero() && t.Sub(stats.lastUpdated) > ttl {
 					r.lastReceivedClientStats.Delete(k)
+					r.logger.Debug("have not heard from a client for a while, freeing stats",
+						zap.Any("client-uuid", k),
+						zap.Time("last-message", stats.lastUpdated),
+					)
 				}
 				size += 1
 				return true // keep running through all values in the map
@@ -145,7 +152,13 @@ func (r *ClientMetricsReporter) updateClientMetrics(batch *jaeger.Batch) {
 	}
 	entry, found := r.lastReceivedClientStats.Load(clientUUID)
 	if !found {
-		entry, _ = r.lastReceivedClientStats.LoadOrStore(clientUUID, &lastReceivedClientStats{})
+		var loaded bool
+		entry, loaded = r.lastReceivedClientStats.LoadOrStore(clientUUID, &lastReceivedClientStats{})
+		if !loaded {
+			r.logger.Debug("received batch from a new client, starting to keep stats",
+				zap.String("client-uuid", clientUUID),
+			)
+		}
 	}
 	clientStats := entry.(*lastReceivedClientStats)
 	clientStats.update(*batchSeqNo, batch.Stats, r.clientMetrics)

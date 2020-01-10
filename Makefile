@@ -205,7 +205,7 @@ docker-hotrod:
 
 .PHONY: run-all-in-one
 run-all-in-one:
-	go run -tags ui ./cmd/all-in-one
+	go run -tags ui ./cmd/all-in-one --log-level debug
 
 .PHONY: build-ui
 build-ui:
