@@ -26,6 +26,7 @@ import (
 	"go.uber.org/zap"
 
 	"github.com/jaegertracing/jaeger/pkg/healthcheck"
+	"github.com/jaegertracing/jaeger/pkg/netutils"
 	"github.com/jaegertracing/jaeger/pkg/recoveryhandler"
 	"github.com/jaegertracing/jaeger/pkg/version"
 )
@@ -97,9 +98,15 @@ func (s *AdminServer) Serve() error {
 		return err
 	}
 	s.serveWithListener(l)
+
+	tcpPort := s.adminPort
+	if port, err := netutils.GetPort(l.Addr()); err == nil {
+		tcpPort = port
+	}
+
 	s.logger.Info(
 		"Admin server started",
-		zap.Int("http-port", s.adminPort),
+		zap.Int("http-port", tcpPort),
 		zap.Stringer("health-status", s.hc.Get()))
 	return nil
 }
