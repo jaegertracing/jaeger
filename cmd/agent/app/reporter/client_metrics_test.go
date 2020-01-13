@@ -74,14 +74,14 @@ func testClientMetricsWithParams(params ClientMetricsReporterParams, fn func(tr 
 	fn(tr)
 }
 
-func TestClientMetricsReporterZipkin(t *testing.T) {
+func TestClientMetricsReporter_Zipkin(t *testing.T) {
 	testClientMetrics(func(tr *clientMetricsTest) {
 		assert.NoError(t, tr.r.EmitZipkinBatch([]*zipkincore.Span{{}}))
 		assert.Len(t, tr.mr.ZipkinSpans(), 1)
 	})
 }
 
-func TestClientMetricsReporterJaeger(t *testing.T) {
+func TestClientMetricsReporter_Jaeger(t *testing.T) {
 	testClientMetrics(func(tr *clientMetricsTest) {
 		blank := ""
 		clientUUID := "foobar"
@@ -174,7 +174,7 @@ func TestClientMetricsReporterJaeger(t *testing.T) {
 	})
 }
 
-func TestClientMetricsReporterDelta(t *testing.T) {
+func TestClientMetricsReporter_Delta(t *testing.T) {
 	m := int64(math.MaxInt64)
 	tests := []struct {
 		old, new, delta int64
@@ -191,7 +191,7 @@ func TestClientMetricsReporterDelta(t *testing.T) {
 	}
 }
 
-func TestClientMetricsReporterClientUUID(t *testing.T) {
+func TestClientMetricsReporter_ClientUUID(t *testing.T) {
 	id := "my-client-id"
 	tests := []struct {
 		process    *jaeger.Process
@@ -211,64 +211,60 @@ func TestClientMetricsReporterClientUUID(t *testing.T) {
 	}
 }
 
-func TestClientMetricsReporterExpire(t *testing.T) {
-	testClientMetricsWithParams(
-		ClientMetricsReporterParams{
-			ExpireFrequency: 100 * time.Microsecond,
-			ExpireTTL:       5 * time.Millisecond,
-		},
-		func(tr *clientMetricsTest) {
-			nPtr := func(v int64) *int64 { return &v }
-			clientUUID := "blah"
-			batch := &jaeger.Batch{
-				Spans: []*jaeger.Span{{}},
-				Process: &jaeger.Process{
-					ServiceName: "blah",
-					Tags:        []*jaeger.Tag{{Key: "client-uuid", VStr: &clientUUID}},
-				},
-				SeqNo: nPtr(1),
-			}
+func TestClientMetricsReporter_Expire(t *testing.T) {
+	params := ClientMetricsReporterParams{
+		ExpireFrequency: 100 * time.Microsecond,
+		ExpireTTL:       5 * time.Millisecond,
+	}
+	testClientMetricsWithParams(params, func(tr *clientMetricsTest) {
+		nPtr := func(v int64) *int64 { return &v }
+		clientUUID := "blah"
+		batch := &jaeger.Batch{
+			Spans: []*jaeger.Span{{}},
+			Process: &jaeger.Process{
+				ServiceName: "blah",
+				Tags:        []*jaeger.Tag{{Key: "client-uuid", VStr: &clientUUID}},
+			},
+			SeqNo: nPtr(1),
+		}
 
-			err := tr.r.EmitBatch(batch)
-			assert.NoError(t, err)
-			assert.Len(t, tr.mr.Spans(), 1)
-			tr.mb.AssertCounterMetrics(t,
-				metricstest.ExpectedMetric{Name: "client_stats.batches_sent", Value: 1})
+		err := tr.r.EmitBatch(batch)
+		assert.NoError(t, err)
+		assert.Len(t, tr.mr.Spans(), 1)
+		tr.mb.AssertCounterMetrics(t,
+			metricstest.ExpectedMetric{Name: "client_stats.batches_sent", Value: 1})
 
-			// here we test that a connected-client gauge is updated to 1 by the auto-scheduled expire loop,
-			// and then reset to 0 once the client entry expires.
-			tests := []struct {
-				expGauge int
-				expLog   string
-			}{
-				{expGauge: 1, expLog: "new client"},
-				{expGauge: 0, expLog: "freeing stats"},
-			}
-			start := time.Now()
-			for i, test := range tests {
-				t.Run(fmt.Sprintf("iter%d:gauge=%d,log=%s", i, test.expGauge, test.expLog), func(t *testing.T) {
-					// Expire loop runs every 100us, and removes the client after 5ms.
-					// We check for condition in each test for up to 5ms (10*500us).
-					for i := 0; i < 10; i++ {
-						_, gauges := tr.mb.Snapshot()
-						if gauges["client_stats.connected_clients"] == int64(test.expGauge) {
-							break
-						}
-						time.Sleep(500 * time.Microsecond)
+		// here we test that a connected-client gauge is updated to 1 by the auto-scheduled expire loop,
+		// and then reset to 0 once the client entry expires.
+		tests := []struct {
+			expGauge int
+			expLog   string
+		}{
+			{expGauge: 1, expLog: "new client"},
+			{expGauge: 0, expLog: "freeing stats"},
+		}
+		start := time.Now()
+		for i, test := range tests {
+			t.Run(fmt.Sprintf("iter%d:gauge=%d,log=%s", i, test.expGauge, test.expLog), func(t *testing.T) {
+				// Expire loop runs every 100us, and removes the client after 5ms.
+				// We check for condition in each test for up to 5ms (10*500us).
+				for i := 0; i < 10; i++ {
+					_, gauges := tr.mb.Snapshot()
+					if gauges["client_stats.connected_clients"] == int64(test.expGauge) {
+						break
 					}
-					tr.mb.AssertGaugeMetrics(t,
-						metricstest.ExpectedMetric{Name: "client_stats.connected_clients", Value: test.expGauge})
-					tr.assertLog(t, test.expLog, clientUUID)
+					time.Sleep(500 * time.Microsecond)
+				}
+				tr.mb.AssertGaugeMetrics(t,
+					metricstest.ExpectedMetric{Name: "client_stats.connected_clients", Value: test.expGauge})
+				tr.assertLog(t, test.expLog, clientUUID)
 
-					// sleep between tests long enough to exceed the 5ms TTL.
-					if i == 0 {
-						elapsed := time.Since(start)
-						if elapsed <= 5*time.Millisecond {
-							time.Sleep(5*time.Millisecond - elapsed)
-						}
-					}
-				})
-			}
-		},
-	)
+				// sleep between tests long enough to exceed the 5ms TTL.
+				if i == 0 {
+					elapsed := time.Since(start)
+					time.Sleep(5*time.Millisecond - elapsed)
+				}
+			})
+		}
+	})
 }
