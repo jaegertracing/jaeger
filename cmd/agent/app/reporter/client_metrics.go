@@ -63,8 +63,10 @@ type clientMetrics struct {
 }
 
 type lastReceivedClientStats struct {
-	lock                  sync.Mutex
-	lastUpdated           time.Time
+	lock        sync.Mutex
+	lastUpdated time.Time
+
+	// Thrift stats are reported as signed i64, so keep the type to avoid multiple conversions back and forth.
 	batchSeqNo            int64
 	fullQueueDroppedSpans int64
 	tooLargeDroppedSpans  int64
@@ -190,7 +192,9 @@ func (s *lastReceivedClientStats) update(
 	defer s.lock.Unlock()
 
 	if s.batchSeqNo >= batchSeqNo && !wrapped(s.batchSeqNo, batchSeqNo) {
-		// ignore out of order batches, the metrics will be updated later
+		// Ignore out of order batches. Once we receive a batch with a larger-than-seen number,
+		// it will contain new cumulative counts, which will we use to update the metrics.
+		// That makes the metrics slightly off in time, but accurate in aggregate.
 		return
 	}
 
