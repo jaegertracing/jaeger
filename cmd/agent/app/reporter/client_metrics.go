@@ -109,7 +109,7 @@ func WrapWithClientMetrics(params ClientMetricsReporterParams) *ClientMetricsRep
 		shutdown:      make(chan struct{}),
 		closed:        atomic.NewBool(false),
 	}
-	go r.expireClientMetrics()
+	go r.expireClientMetricsLoop()
 	return r
 }
 
@@ -131,34 +131,37 @@ func (r *ClientMetricsReporter) Close() {
 	}
 }
 
-func (r *ClientMetricsReporter) expireClientMetrics() {
+func (r *ClientMetricsReporter) expireClientMetricsLoop() {
 	ticker := time.NewTicker(r.params.ExpireFrequency)
 	defer ticker.Stop()
 	for {
 		select {
-		case <-ticker.C:
-			t := time.Now()
-			var size int64
-			r.lastReceivedClientStats.Range(func(k, v interface{}) bool {
-				stats := v.(*lastReceivedClientStats)
-				stats.lock.Lock()
-				defer stats.lock.Unlock()
-
-				if !stats.lastUpdated.IsZero() && t.Sub(stats.lastUpdated) > r.params.ExpireTTL {
-					r.lastReceivedClientStats.Delete(k)
-					r.params.Logger.Debug("have not heard from a client for a while, freeing stats",
-						zap.Any("client-uuid", k),
-						zap.Time("last-message", stats.lastUpdated),
-					)
-				}
-				size++
-				return true // keep running through all values in the map
-			})
-			r.clientMetrics.ConnectedClients.Update(size)
+		case now := <-ticker.C:
+			r.expireClientMetrics(now)
 		case <-r.shutdown:
 			return
 		}
 	}
+}
+
+func (r *ClientMetricsReporter) expireClientMetrics(t time.Time) {
+	var size int64
+	r.lastReceivedClientStats.Range(func(k, v interface{}) bool {
+		stats := v.(*lastReceivedClientStats)
+		stats.lock.Lock()
+		defer stats.lock.Unlock()
+
+		if !stats.lastUpdated.IsZero() && t.Sub(stats.lastUpdated) > r.params.ExpireTTL {
+			r.lastReceivedClientStats.Delete(k)
+			r.params.Logger.Debug("have not heard from a client for a while, freeing stats",
+				zap.Any("client-uuid", k),
+				zap.Time("last-message", stats.lastUpdated),
+			)
+		}
+		size++
+		return true // keep running through all values in the map
+	})
+	r.clientMetrics.ConnectedClients.Update(size)
 }
 
 func (r *ClientMetricsReporter) updateClientMetrics(batch *jaeger.Batch) {
@@ -202,8 +205,8 @@ func (s *lastReceivedClientStats) update(
 
 	if stats != nil {
 		metrics.FailedToEmitSpans.Inc(delta(s.failedToEmitSpans, stats.FailedToEmitSpans))
-		metrics.FailedToEmitSpans.Inc(delta(s.tooLargeDroppedSpans, stats.TooLargeDroppedSpans))
-		metrics.FailedToEmitSpans.Inc(delta(s.fullQueueDroppedSpans, stats.FullQueueDroppedSpans))
+		metrics.TooLargeDroppedSpans.Inc(delta(s.tooLargeDroppedSpans, stats.TooLargeDroppedSpans))
+		metrics.FullQueueDroppedSpans.Inc(delta(s.fullQueueDroppedSpans, stats.FullQueueDroppedSpans))
 
 		s.failedToEmitSpans = stats.FailedToEmitSpans
 		s.tooLargeDroppedSpans = stats.TooLargeDroppedSpans

@@ -18,9 +18,10 @@ import (
 	"fmt"
 	"math"
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/assert"
-	"github.com/uber/jaeger-lib/metrics"
+	"github.com/uber/jaeger-lib/metrics/metricstest"
 	"go.uber.org/zap"
 	"go.uber.org/zap/zaptest/observer"
 
@@ -33,31 +34,48 @@ type clientMetricsTest struct {
 	mr   *testutils.InMemoryReporter
 	r    *ClientMetricsReporter
 	logs *observer.ObservedLogs
+	mb   *metricstest.Factory
+}
+
+func (tr *clientMetricsTest) assertLog(t *testing.T, msg, clientUUID string) {
+	logs := tr.logs.FilterMessageSnippet(msg)
+	if clientUUID == "" {
+		assert.Equal(t, 0, logs.Len(), "not expecting log '%s", msg)
+	} else {
+		if assert.Equal(t, 1, logs.Len(), "expecting one log '%s'", msg) {
+			field := logs.All()[0].ContextMap()["client-uuid"]
+			assert.Equal(t, clientUUID, field, "client-uuid should be logged")
+		}
+	}
 }
 
 func testClientMetrics(fn func(tr *clientMetricsTest)) {
+	testClientMetricsWithParams(ClientMetricsReporterParams{}, fn)
+}
+
+func testClientMetricsWithParams(params ClientMetricsReporterParams, fn func(tr *clientMetricsTest)) {
 	r1 := testutils.NewInMemoryReporter()
 	zapCore, logs := observer.New(zap.DebugLevel)
-	logger := zap.New(zapCore)
-	r := WrapWithClientMetrics(ClientMetricsReporterParams{
-		Reporter:       r1,
-		Logger:         logger,
-		MetricsFactory: metrics.NullFactory,
-	})
-	// don't close reporter
+	mb := metricstest.NewFactory(time.Hour)
+
+	params.Reporter = r1
+	params.Logger = zap.New(zapCore)
+	params.MetricsFactory = mb
+
+	r := WrapWithClientMetrics(params)
+	defer r.Close()
 
 	tr := &clientMetricsTest{
 		mr:   r1,
 		r:    r,
 		logs: logs,
+		mb:   mb,
 	}
 	fn(tr)
 }
 
 func TestClientMetricsReporterZipkin(t *testing.T) {
 	testClientMetrics(func(tr *clientMetricsTest) {
-		defer tr.r.Close()
-
 		assert.NoError(t, tr.r.EmitZipkinBatch([]*zipkincore.Span{{}}))
 		assert.Len(t, tr.mr.ZipkinSpans(), 1)
 	})
@@ -65,56 +83,91 @@ func TestClientMetricsReporterZipkin(t *testing.T) {
 
 func TestClientMetricsReporterJaeger(t *testing.T) {
 	testClientMetrics(func(tr *clientMetricsTest) {
-		defer tr.r.Close()
-
-		batch := func(clientUUID *string, seqNo *int64) *jaeger.Batch {
-			batch := &jaeger.Batch{
-				Spans: []*jaeger.Span{{}},
-				Process: &jaeger.Process{
-					ServiceName: "blah",
-				},
-			}
-			if clientUUID != nil {
-				batch.Process.Tags = []*jaeger.Tag{{Key: "client-uuid", VStr: clientUUID}}
-			}
-			if seqNo != nil {
-				batch.SeqNo = seqNo
-			}
-			return batch
-		}
 		blank := ""
 		clientUUID := "foobar"
-		seqNo := int64(100)
-		seqNoPrev := int64(90)
+		nPtr := func(v int64) *int64 { return &v }
+		const prefix = "client_stats."
+		tag := func(name, value string) map[string]string { return map[string]string{name: value} }
 
 		tests := []struct {
-			clientUUID *string
-			seqNo      *int64
-			expLog     string
+			clientUUID  *string
+			seqNo       *int64
+			stats       *jaeger.ClientStats
+			runExpire   bool // invoke expireClientMetrics to update the gauge
+			expLog      string
+			expCounters []metricstest.ExpectedMetric
+			expGauges   []metricstest.ExpectedMetric
 		}{
 			{},
 			{clientUUID: &blank},
 			{clientUUID: &clientUUID},
-			{clientUUID: &clientUUID, seqNo: &seqNo, expLog: clientUUID},
-			{clientUUID: &clientUUID, seqNo: &seqNoPrev},
+			{
+				clientUUID: &clientUUID,
+				seqNo:      nPtr(100),
+				expLog:     clientUUID,
+				runExpire:  true,
+				expCounters: []metricstest.ExpectedMetric{
+					{Name: prefix + "batches_sent", Value: 100},
+				},
+				expGauges: []metricstest.ExpectedMetric{
+					{Name: prefix + "connected_clients", Value: 1},
+				},
+			},
+			{
+				clientUUID: &clientUUID,
+				seqNo:      nPtr(101),
+				expCounters: []metricstest.ExpectedMetric{
+					{Name: prefix + "batches_sent", Value: 101},
+				},
+			},
+			{clientUUID: &clientUUID, seqNo: nPtr(90)},
+			{
+				clientUUID: &clientUUID,
+				seqNo:      nPtr(110),
+				stats: &jaeger.ClientStats{
+					FullQueueDroppedSpans: 5,
+					TooLargeDroppedSpans:  6,
+					FailedToEmitSpans:     7,
+				}, expCounters: []metricstest.ExpectedMetric{
+					{Name: prefix + "batches_sent", Value: 110},
+					{Name: prefix + "spans_dropped", Tags: tag("cause", "full-queue"), Value: 5},
+					{Name: prefix + "spans_dropped", Tags: tag("cause", "too-large"), Value: 6},
+					{Name: prefix + "spans_dropped", Tags: tag("cause", "send-failure"), Value: 7},
+				},
+			},
 		}
 
 		for i, test := range tests {
 			t.Run(fmt.Sprintf("iter%d", i), func(t *testing.T) {
 				tr.logs.TakeAll()
 
-				err := tr.r.EmitBatch(batch(test.clientUUID, test.seqNo))
+				batch := &jaeger.Batch{
+					Spans: []*jaeger.Span{{}},
+					Process: &jaeger.Process{
+						ServiceName: "blah",
+					},
+					SeqNo: test.seqNo,
+					Stats: test.stats,
+				}
+				if test.clientUUID != nil {
+					batch.Process.Tags = []*jaeger.Tag{{Key: "client-uuid", VStr: test.clientUUID}}
+				}
+
+				err := tr.r.EmitBatch(batch)
 				assert.NoError(t, err)
 				assert.Len(t, tr.mr.Spans(), i+1)
 
-				logs := tr.logs.FilterMessageSnippet("new client")
-				if test.expLog == "" {
-					assert.Equal(t, 0, logs.Len())
-				} else {
-					if assert.Equal(t, 1, logs.Len()) {
-						field := logs.All()[0].ContextMap()["client-uuid"]
-						assert.Equal(t, clientUUID, field, "client-uuid should be logged")
-					}
+				tr.assertLog(t, "new client", test.expLog)
+
+				if test.runExpire {
+					tr.r.expireClientMetrics(time.Now())
+				}
+
+				if m := test.expCounters; len(m) > 0 {
+					tr.mb.AssertCounterMetrics(t, m...)
+				}
+				if m := test.expGauges; len(m) > 0 {
+					tr.mb.AssertGaugeMetrics(t, m...)
 				}
 			})
 		}
@@ -156,4 +209,66 @@ func TestClientMetricsReporterClientUUID(t *testing.T) {
 			assert.Equal(t, test.clientUUID, clientUUID(&jaeger.Batch{Process: test.process}))
 		})
 	}
+}
+
+func TestClientMetricsReporterExpire(t *testing.T) {
+	testClientMetricsWithParams(
+		ClientMetricsReporterParams{
+			ExpireFrequency: 100 * time.Microsecond,
+			ExpireTTL:       5 * time.Millisecond,
+		},
+		func(tr *clientMetricsTest) {
+			nPtr := func(v int64) *int64 { return &v }
+			clientUUID := "blah"
+			batch := &jaeger.Batch{
+				Spans: []*jaeger.Span{{}},
+				Process: &jaeger.Process{
+					ServiceName: "blah",
+					Tags:        []*jaeger.Tag{{Key: "client-uuid", VStr: &clientUUID}},
+				},
+				SeqNo: nPtr(1),
+			}
+
+			err := tr.r.EmitBatch(batch)
+			assert.NoError(t, err)
+			assert.Len(t, tr.mr.Spans(), 1)
+			tr.mb.AssertCounterMetrics(t,
+				metricstest.ExpectedMetric{Name: "client_stats.batches_sent", Value: 1})
+
+			// here we test that a connected-client gauge is updated to 1 by the auto-scheduled expire loop,
+			// and then reset to 0 once the client entry expires.
+			tests := []struct {
+				expGauge int
+				expLog   string
+			}{
+				{expGauge: 1, expLog: "new client"},
+				{expGauge: 0, expLog: "freeing stats"},
+			}
+			start := time.Now()
+			for i, test := range tests {
+				t.Run(fmt.Sprintf("iter%d:gauge=%d,log=%s", i, test.expGauge, test.expLog), func(t *testing.T) {
+					// Expire loop runs every 100us, and removes the client after 5ms.
+					// We check for condition in each test for up to 5ms (10*500us).
+					for i := 0; i < 10; i++ {
+						_, gauges := tr.mb.Snapshot()
+						if gauges["client_stats.connected_clients"] == int64(test.expGauge) {
+							break
+						}
+						time.Sleep(500 * time.Microsecond)
+					}
+					tr.mb.AssertGaugeMetrics(t,
+						metricstest.ExpectedMetric{Name: "client_stats.connected_clients", Value: test.expGauge})
+					tr.assertLog(t, test.expLog, clientUUID)
+
+					// sleep between tests long enough to exceed the 5ms TTL.
+					if i == 0 {
+						elapsed := time.Since(start)
+						if elapsed <= 5*time.Millisecond {
+							time.Sleep(5*time.Millisecond - elapsed)
+						}
+					}
+				})
+			}
+		},
+	)
 }
