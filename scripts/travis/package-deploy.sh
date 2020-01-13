@@ -47,6 +47,7 @@ function package {
     local ARCHIVE_NAME="$PACKAGE_STAGING_DIR.tar.gz"
     echo "Packaging into $ARCHIVE_NAME:"
     tar -czvf ./deploy/$ARCHIVE_NAME $PACKAGE_STAGING_DIR
+    rm -rf $PACKAGE_STAGING_DIR
 }
 
 # script start
