@@ -16,7 +16,6 @@ package reporter
 
 import (
 	"fmt"
-	"math"
 	"testing"
 	"time"
 
@@ -172,23 +171,6 @@ func TestClientMetricsReporter_Jaeger(t *testing.T) {
 			})
 		}
 	})
-}
-
-func TestClientMetricsReporter_Delta(t *testing.T) {
-	m := int64(math.MaxInt64)
-	tests := []struct {
-		old, new, delta int64
-	}{
-		{old: 5, new: 10, delta: 5},
-		{old: m - 10, new: m - 5, delta: 5},
-		{old: m - 5, new: 10, delta: 15},
-	}
-	for i, test := range tests {
-		o, n, d := test.old, test.new, test.delta
-		t.Run(fmt.Sprintf("iter%d:delta(%d,%d)==%d", i, o, n, d), func(t *testing.T) {
-			assert.Equal(t, d, delta(o, n))
-		})
-	}
 }
 
 func TestClientMetricsReporter_ClientUUID(t *testing.T) {

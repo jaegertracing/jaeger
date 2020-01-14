@@ -15,7 +15,6 @@
 package reporter
 
 import (
-	"math"
 	"sync"
 	"time"
 
@@ -28,11 +27,6 @@ import (
 )
 
 const (
-	// If client-reported counters wrap over MaxInt64, we can have old > new.
-	// We will "detect" the wrapping by checking that old is within the tolerance
-	// from MaxInt64 and new is within the tolerance from 0.
-	wrappedCounterTolerance = 10000000
-
 	defaultExpireFrequency = 15 * time.Minute
 	defaultExpireTTL       = time.Hour
 )
@@ -194,19 +188,19 @@ func (s *lastReceivedClientStats) update(
 	s.lock.Lock()
 	defer s.lock.Unlock()
 
-	if s.batchSeqNo >= batchSeqNo && !wrapped(s.batchSeqNo, batchSeqNo) {
+	if s.batchSeqNo >= batchSeqNo {
 		// Ignore out of order batches. Once we receive a batch with a larger-than-seen number,
 		// it will contain new cumulative counts, which will we use to update the metrics.
 		// That makes the metrics slightly off in time, but accurate in aggregate.
 		return
 	}
 
-	metrics.BatchesSent.Inc(delta(s.batchSeqNo, batchSeqNo))
+	metrics.BatchesSent.Inc(batchSeqNo - s.batchSeqNo)
 
 	if stats != nil {
-		metrics.FailedToEmitSpans.Inc(delta(s.failedToEmitSpans, stats.FailedToEmitSpans))
-		metrics.TooLargeDroppedSpans.Inc(delta(s.tooLargeDroppedSpans, stats.TooLargeDroppedSpans))
-		metrics.FullQueueDroppedSpans.Inc(delta(s.fullQueueDroppedSpans, stats.FullQueueDroppedSpans))
+		metrics.FailedToEmitSpans.Inc(stats.FailedToEmitSpans - s.failedToEmitSpans)
+		metrics.TooLargeDroppedSpans.Inc(stats.TooLargeDroppedSpans - s.tooLargeDroppedSpans)
+		metrics.FullQueueDroppedSpans.Inc(stats.FullQueueDroppedSpans - s.fullQueueDroppedSpans)
 
 		s.failedToEmitSpans = stats.FailedToEmitSpans
 		s.tooLargeDroppedSpans = stats.TooLargeDroppedSpans
@@ -215,17 +209,6 @@ func (s *lastReceivedClientStats) update(
 
 	s.lastUpdated = time.Now()
 	s.batchSeqNo = batchSeqNo
-}
-
-func wrapped(old int64, new int64) bool {
-	return (old > math.MaxInt64-wrappedCounterTolerance) && (new < wrappedCounterTolerance)
-}
-
-func delta(old int64, new int64) int64 {
-	if !wrapped(old, new) {
-		return new - old
-	}
-	return new + (math.MaxInt64 - old)
 }
 
 func clientUUID(batch *jaeger.Batch) string {
