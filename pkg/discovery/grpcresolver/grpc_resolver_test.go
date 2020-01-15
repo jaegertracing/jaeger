@@ -118,7 +118,7 @@ func TestErrorDiscoverer(t *testing.T) {
 		err: errMessage,
 	}
 	r := New(notifier, discoverer, zap.NewNop(), 2)
-	_, err := r.Build(resolver.Target{}, nil, resolver.BuildOptions{})
+	_, err := r.Build(resolver.Target{}, nil, resolver.BuildOption{})
 	assert.Equal(t, errMessage, err)
 }
 
