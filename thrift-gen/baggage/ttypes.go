@@ -6,7 +6,6 @@ package baggage
 import (
 	"bytes"
 	"fmt"
-
 	"github.com/apache/thrift/lib/go/thrift"
 )
 

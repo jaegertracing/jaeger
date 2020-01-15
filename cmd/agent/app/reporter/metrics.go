@@ -26,7 +26,6 @@ const (
 	zipkinBatches = "zipkin"
 )
 
-// ReporterMetrics holds metrics related to reporter
 type batchMetrics struct {
 	// Number of successful batch submissions to collector
 	BatchesSubmitted metrics.Counter `metric:"batches.submitted"`
@@ -47,6 +46,8 @@ type batchMetrics struct {
 // MetricsReporter is reporter with metrics integration.
 type MetricsReporter struct {
 	wrapped Reporter
+
+	// counters grouped by the type of data format (Jaeger or Zipkin).
 	metrics map[string]batchMetrics
 }
 
@@ -55,7 +56,12 @@ func WrapWithMetrics(reporter Reporter, mFactory metrics.Factory) *MetricsReport
 	batchesMetrics := map[string]batchMetrics{}
 	for _, s := range []string{zipkinBatches, jaegerBatches} {
 		bm := batchMetrics{}
-		metrics.Init(&bm, mFactory.Namespace(metrics.NSOptions{Name: "reporter", Tags: map[string]string{"format": s}}), nil)
+		metrics.MustInit(&bm,
+			mFactory.Namespace(metrics.NSOptions{
+				Name: "reporter",
+				Tags: map[string]string{"format": s},
+			}),
+			nil)
 		batchesMetrics[s] = bm
 	}
 	return &MetricsReporter{wrapped: reporter, metrics: batchesMetrics}
@@ -64,7 +70,7 @@ func WrapWithMetrics(reporter Reporter, mFactory metrics.Factory) *MetricsReport
 // EmitZipkinBatch emits batch to collector.
 func (r *MetricsReporter) EmitZipkinBatch(spans []*zipkincore.Span) error {
 	err := r.wrapped.EmitZipkinBatch(spans)
-	withMetrics(r.metrics[zipkinBatches], int64(len(spans)), err)
+	updateMetrics(r.metrics[zipkinBatches], int64(len(spans)), err)
 	return err
 }
 
@@ -75,11 +81,11 @@ func (r *MetricsReporter) EmitBatch(batch *jaeger.Batch) error {
 		size = int64(len(batch.GetSpans()))
 	}
 	err := r.wrapped.EmitBatch(batch)
-	withMetrics(r.metrics[jaegerBatches], size, err)
+	updateMetrics(r.metrics[jaegerBatches], size, err)
 	return err
 }
 
-func withMetrics(m batchMetrics, size int64, err error) {
+func updateMetrics(m batchMetrics, size int64, err error) {
 	if err != nil {
 		m.BatchesFailures.Inc(1)
 		m.SpansFailures.Inc(size)

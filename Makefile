@@ -203,6 +203,10 @@ docker-hotrod:
 	GOOS=linux $(MAKE) build-examples
 	docker build -t $(DOCKER_NAMESPACE)/example-hotrod:${DOCKER_TAG} ./examples/hotrod
 
+.PHONY: run-all-in-one
+run-all-in-one:
+	go run -tags ui ./cmd/all-in-one --log-level debug
+
 .PHONY: build-ui
 build-ui:
 	cd jaeger-ui && yarn install --frozen-lockfile && cd packages/jaeger-ui && yarn build
