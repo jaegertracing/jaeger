@@ -479,12 +479,12 @@
   version = "v1.0.1"
 
 [[projects]]
-  digest = "1:f14364057165381ea296e49f8870a9ffce2b8a95e34d6ae06c759106aaef428c"
+  digest = "1:6eb58a12ff2e21abe77271d29981dfc74211ae13500a5f34d34c5a098945d8b7"
   name = "github.com/hashicorp/go-uuid"
   packages = ["."]
   pruneopts = "UT"
-  revision = "4f571afc59f3043a65f8fe6bf46d887b10a01d43"
-  version = "v1.0.1"
+  revision = "6195a4f20692188e0a389def25559731d1e130f9"
+  version = "v1.0.2"
 
 [[projects]]
   digest = "1:c0d19ab64b32ce9fe5cf4ddceba78d5bc9807f0016db6b1183599da3dcc24d10"
@@ -606,7 +606,7 @@
 
 [[projects]]
   branch = "master"
-  digest = "1:b0eb641b43b44b196880360efaf95e5916cb2bea747935932694b7003ea8adb3"
+  digest = "1:7463ef8877138e91bdb6e980dfcb6ce16358dd753f54c14dea23b0261e68f54a"
   name = "github.com/mmcloughlin/avo"
   packages = [
     "attr",
@@ -624,7 +624,7 @@
     "x86",
   ]
   pruneopts = "UT"
-  revision = "205fc6a3d76b01529817bc64d037340b558d2c05"
+  revision = "b0ac74488c88a329ab76bdc649d3118b5ce2fcd3"
 
 [[projects]]
   digest = "1:66b0a65aba488ca6c72f77132d5b8d7e2c5baf07d577dee64502b69a2c90c791"
@@ -748,8 +748,8 @@
     "model",
   ]
   pruneopts = "UT"
-  revision = "287d3e634a1e550c9e463dd7e5a75a422c614505"
-  version = "v0.7.0"
+  revision = "629b6ff9b3aafafba54ab96663903fde9544f037"
+  version = "v0.8.0"
 
 [[projects]]
   digest = "1:ec0ff4bd619a67065e34d6477711ed0117e335f99059a4c508e0fe21cfe7b304"
@@ -900,7 +900,7 @@
   version = "v1.2.0"
 
 [[projects]]
-  digest = "1:1ea45208f658d2fa56887edddea9b379b64fd287696b5dd7ee362bcaca0cef9c"
+  digest = "1:23117f249348b0f4c544a946e408801f2b8c79514620c1d8418ea195d2e16248"
   name = "github.com/uber/jaeger-client-go"
   packages = [
     ".",
@@ -925,8 +925,8 @@
     "utils",
   ]
   pruneopts = "UT"
-  revision = "96c2d6d98306c4e4c7187b17e79b04b724e71cd0"
-  source = "github.com/yurishkuro/jaeger-client-go"
+  revision = "56611ffff7c29c5b9aa926b84faadda4a609cc59"
+  version = "v2.22.0"
 
 [[projects]]
   digest = "1:abbb7762b4200f8b1d82193dcc02a3d8a62efc0a0ffc8ec4f4e9ef8abf797a9c"
@@ -1048,7 +1048,7 @@
     "pbkdf2",
   ]
   pruneopts = "UT"
-  revision = "61a87790db17894570dfb32dbaa0a4af9ce60cb4"
+  revision = "6d4e4cb37c7d6416dfea8472e751c7b6615267a6"
 
 [[projects]]
   branch = "master"
@@ -1063,7 +1063,7 @@
 
 [[projects]]
   branch = "master"
-  digest = "1:be532d3e419ae0a9001a05f78754b803473c76c55cfb94af715fc06eaf311b13"
+  digest = "1:a2a9476b79b62b73139a62e961257141f948a4434047964677220b2a0f01144f"
   name = "golang.org/x/net"
   packages = [
     "bpf",
@@ -1083,7 +1083,7 @@
     "trace",
   ]
   pruneopts = "UT"
-  revision = "c0dbc17a35534bf2e581d7a942408dc936316da4"
+  revision = "6afb5195e5aab057fda82e27171243402346b0ad"
 
 [[projects]]
   branch = "master"
@@ -1094,7 +1094,7 @@
     "windows",
   ]
   pruneopts = "UT"
-  revision = "548cf772de5052aa878ccb47cdeb7d262b75c8ec"
+  revision = "86b910548bc16777f40503131aa424ae0a092199"
 
 [[projects]]
   digest = "1:66a2f252a58b4fbbad0e4e180e1d85a83c222b6bce09c3dcdef3dc87c72eda7c"
@@ -1124,7 +1124,7 @@
 
 [[projects]]
   branch = "master"
-  digest = "1:1025e9e880900028dc2ec8d648c486ba65e33c9bf1ce3498d3cc1984cd3a8a9c"
+  digest = "1:dbe7880b52645cfd2772470ca142d644847011c922585fe1e03076d0bc0472e8"
   name = "golang.org/x/tools"
   packages = [
     "go/analysis",
@@ -1145,7 +1145,7 @@
     "internal/semver",
   ]
   pruneopts = "UT"
-  revision = "ac4f524c1612b88bd3505cc9c0d02f3d266cd9af"
+  revision = "fdfa0def04cc58c406724040930652748fdf97ab"
 
 [[projects]]
   branch = "master"
@@ -1156,7 +1156,7 @@
     "googleapis/rpc/status",
   ]
   pruneopts = "UT"
-  revision = "bd8f9a0ef82f9870cb10caef4f23c348069600cb"
+  revision = "e1de0a7b01eb2fc11d735e4bfb79d2e53ec9edb3"
 
 [[projects]]
   digest = "1:b2c9ea388537a402c7f618e11eda34ec5358b67c3c6aef9df113c7022b46e0b1"
@@ -1241,7 +1241,7 @@
   version = "v1.0.1"
 
 [[projects]]
-  digest = "1:dc01a587d07be012625ba63df6d4224ae6d7a83e79bfebde6d987c10538d66dd"
+  digest = "1:1d0a2dd8403cd5ee29761aadd7fd941be7dcf31e4ba77eeb923ac1d2b49611b6"
   name = "gopkg.in/jcmturner/gokrb5.v7"
   packages = [
     "asn1tools",
@@ -1276,8 +1276,8 @@
     "types",
   ]
   pruneopts = "UT"
-  revision = "363118e62befa8a14ff01031c025026077fe5d6d"
-  version = "v7.3.0"
+  revision = "8a3a3d700460d6dee4e98b6c06bf26296d2fd2c8"
+  version = "v7.4.0"
 
 [[projects]]
   digest = "1:0f16d9c577198e3b8d3209f5a89aabe679525b2aba2a7548714e973035c0e232"
