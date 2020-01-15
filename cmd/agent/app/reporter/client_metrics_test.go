@@ -119,7 +119,13 @@ func TestClientMetricsReporter_Jaeger(t *testing.T) {
 					{Name: prefix + "batches_sent", Value: 101},
 				},
 			},
-			{clientUUID: &clientUUID, seqNo: nPtr(90)},
+			{
+				clientUUID: &clientUUID,
+				seqNo:      nPtr(90), // out of order batch will be ignored
+				expCounters: []metricstest.ExpectedMetric{
+					{Name: prefix + "batches_sent", Value: 101}, // unchanged!
+				},
+			},
 			{
 				clientUUID: &clientUUID,
 				seqNo:      nPtr(110),
