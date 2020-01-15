@@ -42,7 +42,7 @@ func TestCreate(t *testing.T) {
 	require.NoError(t, err)
 	assert.NotNil(t, b)
 	r, _ := cfg.CreateReporter(logger)
-	assert.Equal(t, reporter.WrapWithMetrics(r, mFactory), b.GetReporter())
+	assert.IsType(t, new(reporter.ClientMetricsReporter), b.GetReporter())
 	m := tchannel.NewConfigManager(r.CollectorServiceName(), r.Channel())
 	assert.Equal(t, configmanager.WrapWithMetrics(m, mFactory), b.GetManager())
 	assert.Nil(t, b.Close())

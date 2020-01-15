@@ -49,7 +49,7 @@ func TestMultiReporter(t *testing.T) {
 func TestMultiReporterErrors(t *testing.T) {
 	errMsg := "doh!"
 	err := errors.New(errMsg)
-	r1, r2 := alwaysFailReporter{err: err}, alwaysFailReporter{err: err}
+	r1, r2 := mockReporter{err: err}, mockReporter{err: err}
 	r := NewMultiReporter(r1, r2)
 	e1 := r.EmitZipkinBatch([]*zipkincore.Span{
 		{},
@@ -63,14 +63,14 @@ func TestMultiReporterErrors(t *testing.T) {
 	assert.EqualError(t, e2, fmt.Sprintf("[%s, %s]", errMsg, errMsg))
 }
 
-type alwaysFailReporter struct {
+type mockReporter struct {
 	err error
 }
 
-func (r alwaysFailReporter) EmitZipkinBatch(spans []*zipkincore.Span) error {
+func (r mockReporter) EmitZipkinBatch(spans []*zipkincore.Span) error {
 	return r.err
 }
 
-func (r alwaysFailReporter) EmitBatch(batch *jaeger.Batch) error {
+func (r mockReporter) EmitBatch(batch *jaeger.Batch) error {
 	return r.err
 }

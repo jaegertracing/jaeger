@@ -25,22 +25,28 @@ import (
 
 // ProxyBuilder holds objects communicating with collector
 type ProxyBuilder struct {
-	reporter reporter.Reporter
+	reporter *reporter.ClientMetricsReporter
 	manager  configmanager.ClientConfigManager
 	tchanRep *Reporter
 }
 
 // NewCollectorProxy creates ProxyBuilder
 func NewCollectorProxy(builder *Builder, mFactory metrics.Factory, logger *zap.Logger) (*ProxyBuilder, error) {
-	r, err := builder.CreateReporter(logger)
+	tchanRep, err := builder.CreateReporter(logger)
 	if err != nil {
 		return nil, err
 	}
-	tchannelMetrics := mFactory.Namespace(metrics.NSOptions{Name: "", Tags: map[string]string{"protocol": "tchannel"}})
+	tchanMetrics := mFactory.Namespace(metrics.NSOptions{Name: "", Tags: map[string]string{"protocol": "tchannel"}})
+	r1 := reporter.WrapWithMetrics(tchanRep, tchanMetrics)
+	r2 := reporter.WrapWithClientMetrics(reporter.ClientMetricsReporterParams{
+		Reporter:       r1,
+		Logger:         logger,
+		MetricsFactory: mFactory,
+	})
 	return &ProxyBuilder{
-		tchanRep: r,
-		reporter: reporter.WrapWithMetrics(r, tchannelMetrics),
-		manager:  configmanager.WrapWithMetrics(tchannel.NewConfigManager(r.CollectorServiceName(), r.Channel()), tchannelMetrics),
+		tchanRep: tchanRep,
+		reporter: r2,
+		manager:  configmanager.WrapWithMetrics(tchannel.NewConfigManager(tchanRep.CollectorServiceName(), tchanRep.Channel()), tchanMetrics),
 	}, nil
 }
 
@@ -57,5 +63,6 @@ func (b ProxyBuilder) GetManager() configmanager.ClientConfigManager {
 // Close closes connections used by proxy.
 func (b ProxyBuilder) Close() error {
 	b.tchanRep.Channel().Close()
+	b.reporter.Close()
 	return nil
 }
