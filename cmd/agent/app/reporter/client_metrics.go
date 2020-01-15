@@ -68,6 +68,7 @@ type lastReceivedClientStats struct {
 }
 
 // ClientMetricsReporter is a decorator that emits data loss metrics on behalf of clients.
+// The clients must send a Process.Tag `client-uuid` with a unique string for each client instance.
 type ClientMetricsReporter struct {
 	params        ClientMetricsReporterParams
 	clientMetrics *clientMetrics
@@ -190,7 +191,7 @@ func (s *lastReceivedClientStats) update(
 
 	if s.batchSeqNo >= batchSeqNo {
 		// Ignore out of order batches. Once we receive a batch with a larger-than-seen number,
-		// it will contain new cumulative counts, which will we use to update the metrics.
+		// it will contain new cumulative counts, which we will use to update the metrics.
 		// That makes the metrics slightly off in time, but accurate in aggregate.
 		return
 	}
