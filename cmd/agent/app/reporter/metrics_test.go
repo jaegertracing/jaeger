@@ -31,7 +31,7 @@ func TestMetricsReporter(t *testing.T) {
 		expectedCounters []metricstest.ExpectedMetric
 		expectedGauges   []metricstest.ExpectedMetric
 		action           func(reporter Reporter)
-		rep              *alwaysFailReporter
+		rep              *mockReporter
 	}{
 		{expectedCounters: []metricstest.ExpectedMetric{
 			{Name: "reporter.batches.submitted", Tags: map[string]string{"format": "jaeger"}, Value: 1},
@@ -43,7 +43,7 @@ func TestMetricsReporter(t *testing.T) {
 		}, action: func(reporter Reporter) {
 			err := reporter.EmitBatch(nil)
 			require.NoError(t, err)
-		}, rep: &alwaysFailReporter{}},
+		}, rep: &mockReporter{}},
 		{expectedCounters: []metricstest.ExpectedMetric{
 			{Name: "reporter.batches.submitted", Tags: map[string]string{"format": "jaeger"}, Value: 1},
 			{Name: "reporter.batches.failures", Tags: map[string]string{"format": "jaeger"}, Value: 0},
@@ -54,7 +54,7 @@ func TestMetricsReporter(t *testing.T) {
 		}, action: func(reporter Reporter) {
 			err := reporter.EmitBatch(&jaeger.Batch{Spans: []*jaeger.Span{{}}})
 			require.NoError(t, err)
-		}, rep: &alwaysFailReporter{}},
+		}, rep: &mockReporter{}},
 		{expectedCounters: []metricstest.ExpectedMetric{
 			{Name: "reporter.batches.submitted", Tags: map[string]string{"format": "zipkin"}, Value: 1},
 			{Name: "reporter.batches.failures", Tags: map[string]string{"format": "zipkin"}, Value: 0},
@@ -65,7 +65,7 @@ func TestMetricsReporter(t *testing.T) {
 		}, action: func(reporter Reporter) {
 			err := reporter.EmitZipkinBatch(nil)
 			require.NoError(t, err)
-		}, rep: &alwaysFailReporter{}},
+		}, rep: &mockReporter{}},
 		{expectedCounters: []metricstest.ExpectedMetric{
 			{Name: "reporter.batches.submitted", Tags: map[string]string{"format": "zipkin"}, Value: 1},
 			{Name: "reporter.batches.failures", Tags: map[string]string{"format": "zipkin"}, Value: 0},
@@ -76,7 +76,7 @@ func TestMetricsReporter(t *testing.T) {
 		}, action: func(reporter Reporter) {
 			err := reporter.EmitZipkinBatch([]*zipkincore.Span{{}})
 			require.NoError(t, err)
-		}, rep: &alwaysFailReporter{}},
+		}, rep: &mockReporter{}},
 		{expectedCounters: []metricstest.ExpectedMetric{
 			{Name: "reporter.batches.submitted", Tags: map[string]string{"format": "jaeger"}, Value: 0},
 			{Name: "reporter.batches.failures", Tags: map[string]string{"format": "jaeger"}, Value: 1},
@@ -87,7 +87,7 @@ func TestMetricsReporter(t *testing.T) {
 		}, action: func(reporter Reporter) {
 			err := reporter.EmitBatch(&jaeger.Batch{Spans: []*jaeger.Span{{}}})
 			require.Error(t, err)
-		}, rep: &alwaysFailReporter{err: errors.New("foo")}},
+		}, rep: &mockReporter{err: errors.New("foo")}},
 		{expectedCounters: []metricstest.ExpectedMetric{
 			{Name: "reporter.batches.failures", Tags: map[string]string{"format": "zipkin"}, Value: 1},
 			{Name: "reporter.spans.failures", Tags: map[string]string{"format": "zipkin"}, Value: 2},
@@ -96,7 +96,7 @@ func TestMetricsReporter(t *testing.T) {
 		}, action: func(reporter Reporter) {
 			err := reporter.EmitZipkinBatch([]*zipkincore.Span{{}, {}})
 			require.Error(t, err)
-		}, rep: &alwaysFailReporter{errors.New("foo")}},
+		}, rep: &mockReporter{errors.New("foo")}},
 	}
 
 	for _, test := range tests {
