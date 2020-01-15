@@ -85,7 +85,8 @@ func New(
 }
 
 // Build returns itself for Resolver, because it's both a builder and a resolver.
-func (r *Resolver) Build(target resolver.Target, cc resolver.ClientConn, opts resolver.BuildOptions) (resolver.Resolver, error) {
+//lint:ignore SA1019 https://github.com/jaegertracing/jaeger/pull/2018
+func (r *Resolver) Build(target resolver.Target, cc resolver.ClientConn, opts resolver.BuildOption) (resolver.Resolver, error) {
 	r.cc = cc
 
 	// Update conn states if proactively updates already work
@@ -106,7 +107,8 @@ func (r *Resolver) Scheme() string {
 
 // ResolveNow is a noop for Resolver since resolver is already firing r.cc.UpdatesState every time
 // it receives updates of new instance from discoCh
-func (r *Resolver) ResolveNow(o resolver.ResolveNowOptions) {}
+//lint:ignore SA1019 https://github.com/jaegertracing/jaeger/pull/2018
+func (r *Resolver) ResolveNow(o resolver.ResolveNowOption) {}
 
 func (r *Resolver) watcher() {
 	defer r.closing.Done()
