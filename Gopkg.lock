@@ -1145,7 +1145,7 @@
     "internal/semver",
   ]
   pruneopts = "UT"
-  revision = "f04f2c82d09b716585c8205f5cd482d1eca2aa3d"
+  revision = "fdfa0def04cc58c406724040930652748fdf97ab"
 
 [[projects]]
   branch = "master"
@@ -1156,13 +1156,14 @@
     "googleapis/rpc/status",
   ]
   pruneopts = "UT"
-  revision = "ca5a22157cba8746e7aa978de1b1ac4085150840"
+  revision = "e1de0a7b01eb2fc11d735e4bfb79d2e53ec9edb3"
 
 [[projects]]
-  digest = "1:917ecef30fa6af8f2d3ccc1b24b570676aca53e6b7087955925e48235b196c1b"
+  digest = "1:b2c9ea388537a402c7f618e11eda34ec5358b67c3c6aef9df113c7022b46e0b1"
   name = "google.golang.org/grpc"
   packages = [
     ".",
+    "attributes",
     "backoff",
     "balancer",
     "balancer/base",
@@ -1204,8 +1205,8 @@
     "test/grpc_testing",
   ]
   pruneopts = "UT"
-  revision = "1a3960e4bd028ac0cec0a2afd27d7d8e67c11514"
-  version = "v1.25.1"
+  revision = "f5b0812e6fe574d90da76b205e9eb51f6ddb1919"
+  version = "v1.26.0"
 
 [[projects]]
   digest = "1:2d1fbdc6777e5408cabeb02bf336305e724b925ff4546ded0fa8715a7267922a"
