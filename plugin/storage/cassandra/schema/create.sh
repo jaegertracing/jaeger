@@ -10,7 +10,7 @@ function usage {
     >&2 echo "  DATACENTER         - datacenter name for network topology used in prod (optional in MODE=test)"
     >&2 echo "  TRACE_TTL          - time to live for trace data, in seconds (default: 172800, 2 days)"
     >&2 echo "  DEPENDENCIES_TTL   - time to live for dependencies data, in seconds (default: 0, no TTL)"
-    >&2 echo "  KEYSPACE           - keyspace (default: jaeger_v1_{datacenter})"
+    >&2 echo "  KEYSPACE           - keyspace (default: jaeger_v1_test)"
     >&2 echo "  REPLICATION_FACTOR - replication factor for prod (default: 2 for prod, 1 for test)"
     >&2 echo ""
     >&2 echo "The template-file argument must be fully qualified path to a v00#.cql.tmpl template file."
@@ -41,7 +41,7 @@ else
     usage "invalid MODE=$MODE, expecting 'prod' or 'test'"
 fi
 
-keyspace=${KEYSPACE:-"jaeger_v1_${datacenter}"}
+keyspace=${KEYSPACE:-"jaeger_v1_test"}
 
 if [[ $keyspace =~ [^a-zA-Z0-9_] ]]; then
     usage "invalid characters in KEYSPACE=$keyspace parameter, please use letters, digits or underscores"
