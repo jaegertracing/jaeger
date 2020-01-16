@@ -198,6 +198,10 @@ else
 	CGO_ENABLED=0 installsuffix=cgo go build -o ./examples/hotrod/hotrod-$(GOOS) ./examples/hotrod/main.go
 endif
 
+.PHONY: build-tracegen
+build-tracegen:
+	CGO_ENABLED=0 installsuffix=cgo go build -o ./cmd/tracegen/tracegen-$(GOOS) ./cmd/tracegen/main.go
+
 .PHONE: docker-hotrod
 docker-hotrod:
 	GOOS=linux $(MAKE) build-examples
@@ -277,7 +281,7 @@ build-binaries-s390x:
 	GOOS=linux GOARCH=s390x $(MAKE) build-platform-binaries
 
 .PHONY: build-platform-binaries
-build-platform-binaries: build-agent build-collector build-query build-ingester build-all-in-one build-examples
+build-platform-binaries: build-agent build-collector build-query build-ingester build-all-in-one build-examples build-tracegen
 
 .PHONY: build-all-platforms
 build-all-platforms: build-binaries-linux build-binaries-windows build-binaries-darwin build-binaries-s390x
@@ -300,8 +304,13 @@ docker-images-jaeger-backend:
 		echo "Finished building $$component ==============" ; \
 	done
 
+.PHONY: docker-images-tracegen
+docker-images-tracegen:
+	docker build -t $(DOCKER_NAMESPACE)/jaeger-tracegen:${DOCKER_TAG} cmd/tracegen/
+	@echo "Finished building jaeger-tracegen =============="
+
 .PHONY: docker-images-only
-docker-images-only: docker-images-cassandra docker-images-elastic docker-images-jaeger-backend
+docker-images-only: docker-images-cassandra docker-images-elastic docker-images-jaeger-backend docker-images-tracegen
 
 .PHONY: docker-push
 docker-push:
@@ -311,7 +320,7 @@ docker-push:
 	if [ $$CONFIRM != "y" ] && [ $$CONFIRM != "Y" ]; then \
 		echo "Exiting." ; exit 1 ; \
 	fi
-	for component in agent cassandra-schema es-index-cleaner es-rollover collector query ingester example-hotrod; do \
+	for component in agent cassandra-schema es-index-cleaner es-rollover collector query ingester example-hotrod tracegen; do \
 		docker push $(DOCKER_NAMESPACE)/jaeger-$$component ; \
 	done
 

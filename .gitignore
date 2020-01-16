@@ -23,6 +23,8 @@ cmd/ingester/ingester
 cmd/ingester/ingester-*
 cmd/query/query
 cmd/query/query-*
+cmd/tracegen/tracegen
+cmd/tracegen/tracegen-*
 cmd/docs/*.md
 cmd/docs/*.rst
 cmd/docs/*.1
