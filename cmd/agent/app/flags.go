@@ -19,6 +19,7 @@ import (
 	"flag"
 	"fmt"
 	"strconv"
+	"strings"
 
 	"github.com/spf13/viper"
 
@@ -66,10 +67,17 @@ func (b *Builder) InitFromViper(v *viper.Viper) *Builder {
 		p.Workers = v.GetInt(prefix + suffixWorkers)
 		p.Server.QueueSize = v.GetInt(prefix + suffixServerQueueSize)
 		p.Server.MaxPacketSize = v.GetInt(prefix + suffixServerMaxPacketSize)
-		p.Server.HostPort = v.GetString(prefix + suffixServerHostPort)
+		p.Server.HostPort = toHostPort(v.GetString(prefix + suffixServerHostPort))
 		b.Processors = append(b.Processors, *p)
 	}
 
-	b.HTTPServer.HostPort = v.GetString(httpServerHostPort)
+	b.HTTPServer.HostPort = toHostPort(v.GetString(httpServerHostPort))
 	return b
+}
+
+func toHostPort(v string) string {
+	if !strings.Contains(v, ":") {
+		return ":" + v
+	}
+	return v
 }
