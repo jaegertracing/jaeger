@@ -36,13 +36,20 @@ func main() {
 	flag.Parse()
 
 	metricsFactory := prometheus.New()
-	tracer, tCloser, err := jaegerConfig.Configuration{
+	traceCfg := &jaegerConfig.Configuration{
 		ServiceName: "tracegen",
 		Sampler: &jaegerConfig.SamplerConfig{
 			Type:  "const",
 			Param: 1,
 		},
-	}.NewTracer(
+		RPCMetrics: true,
+	}
+	traceCfg, err := traceCfg.FromEnv()
+	if err != nil {
+		logger.Fatal("failed to read tracer configuration", zap.Error(err))
+	}
+
+	tracer, tCloser, err := traceCfg.NewTracer(
 		jaegerConfig.Metrics(metricsFactory),
 		jaegerConfig.Logger(jaegerZap.NewLogger(logger)),
 	)
