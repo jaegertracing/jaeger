@@ -105,9 +105,9 @@ func TestClientMetricsReporter_Jaeger(t *testing.T) {
 				seqNo:      nPtr(100),
 				expLog:     clientUUID,
 				stats: &jaeger.ClientStats{
-					FullQueueDroppedSpans: 2,
-					TooLargeDroppedSpans:  3,
-					FailedToEmitSpans:     4,
+					FullQueueDroppedSpans: 10,
+					TooLargeDroppedSpans:  10,
+					FailedToEmitSpans:     10,
 				},
 				runExpire: true,
 				// first batch cannot increment counters, only capture the baseline
@@ -125,15 +125,15 @@ func TestClientMetricsReporter_Jaeger(t *testing.T) {
 				clientUUID: &clientUUID,
 				seqNo:      nPtr(105),
 				stats: &jaeger.ClientStats{
-					FullQueueDroppedSpans: 5,
-					TooLargeDroppedSpans:  8,
-					FailedToEmitSpans:     5,
+					FullQueueDroppedSpans: 15,
+					TooLargeDroppedSpans:  15,
+					FailedToEmitSpans:     15,
 				},
 				expCounters: []metricstest.ExpectedMetric{
 					{Name: prefix + "batches_sent", Value: 5},
-					{Name: prefix + "spans_dropped", Tags: tag("cause", "full-queue"), Value: 5 - 2},
-					{Name: prefix + "spans_dropped", Tags: tag("cause", "too-large"), Value: 8 - 3},
-					{Name: prefix + "spans_dropped", Tags: tag("cause", "send-failure"), Value: 5 - 4},
+					{Name: prefix + "spans_dropped", Tags: tag("cause", "full-queue"), Value: 5},
+					{Name: prefix + "spans_dropped", Tags: tag("cause", "too-large"), Value: 5},
+					{Name: prefix + "spans_dropped", Tags: tag("cause", "send-failure"), Value: 5},
 				},
 			},
 			{
@@ -146,15 +146,16 @@ func TestClientMetricsReporter_Jaeger(t *testing.T) {
 			{
 				clientUUID: &clientUUID,
 				seqNo:      nPtr(110),
+				// use different stats values to test the correct assignments
 				stats: &jaeger.ClientStats{
-					FullQueueDroppedSpans: 15,
-					TooLargeDroppedSpans:  16,
-					FailedToEmitSpans:     17,
+					FullQueueDroppedSpans: 17,
+					TooLargeDroppedSpans:  18,
+					FailedToEmitSpans:     19,
 				}, expCounters: []metricstest.ExpectedMetric{
 					{Name: prefix + "batches_sent", Value: 10},
-					{Name: prefix + "spans_dropped", Tags: tag("cause", "full-queue"), Value: (5 - 2) + 15 - 5},
-					{Name: prefix + "spans_dropped", Tags: tag("cause", "too-large"), Value: (8 - 3) + 16 - 8},
-					{Name: prefix + "spans_dropped", Tags: tag("cause", "send-failure"), Value: (5 - 4) + 17 - 5},
+					{Name: prefix + "spans_dropped", Tags: tag("cause", "full-queue"), Value: 7},
+					{Name: prefix + "spans_dropped", Tags: tag("cause", "too-large"), Value: 8},
+					{Name: prefix + "spans_dropped", Tags: tag("cause", "send-failure"), Value: 9},
 				},
 			},
 		}
