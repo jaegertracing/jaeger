@@ -104,9 +104,18 @@ func TestClientMetricsReporter_Jaeger(t *testing.T) {
 				clientUUID: &clientUUID,
 				seqNo:      nPtr(100),
 				expLog:     clientUUID,
-				runExpire:  true,
+				stats: &jaeger.ClientStats{
+					FullQueueDroppedSpans: 10,
+					TooLargeDroppedSpans:  10,
+					FailedToEmitSpans:     10,
+				},
+				runExpire: true,
+				// first batch cannot increment counters, only capture the baseline
 				expCounters: []metricstest.ExpectedMetric{
-					{Name: prefix + "batches_sent", Value: 100},
+					{Name: prefix + "batches_sent", Value: 0},
+					{Name: prefix + "spans_dropped", Tags: tag("cause", "full-queue"), Value: 0},
+					{Name: prefix + "spans_dropped", Tags: tag("cause", "too-large"), Value: 0},
+					{Name: prefix + "spans_dropped", Tags: tag("cause", "send-failure"), Value: 0},
 				},
 				expGauges: []metricstest.ExpectedMetric{
 					{Name: prefix + "connected_clients", Value: 1},
@@ -114,30 +123,39 @@ func TestClientMetricsReporter_Jaeger(t *testing.T) {
 			},
 			{
 				clientUUID: &clientUUID,
-				seqNo:      nPtr(101),
+				seqNo:      nPtr(105),
+				stats: &jaeger.ClientStats{
+					FullQueueDroppedSpans: 15,
+					TooLargeDroppedSpans:  15,
+					FailedToEmitSpans:     15,
+				},
 				expCounters: []metricstest.ExpectedMetric{
-					{Name: prefix + "batches_sent", Value: 101},
+					{Name: prefix + "batches_sent", Value: 5},
+					{Name: prefix + "spans_dropped", Tags: tag("cause", "full-queue"), Value: 5},
+					{Name: prefix + "spans_dropped", Tags: tag("cause", "too-large"), Value: 5},
+					{Name: prefix + "spans_dropped", Tags: tag("cause", "send-failure"), Value: 5},
 				},
 			},
 			{
 				clientUUID: &clientUUID,
 				seqNo:      nPtr(90), // out of order batch will be ignored
 				expCounters: []metricstest.ExpectedMetric{
-					{Name: prefix + "batches_sent", Value: 101}, // unchanged!
+					{Name: prefix + "batches_sent", Value: 5}, // unchanged!
 				},
 			},
 			{
 				clientUUID: &clientUUID,
 				seqNo:      nPtr(110),
+				// use different stats values to test the correct assignments
 				stats: &jaeger.ClientStats{
-					FullQueueDroppedSpans: 5,
-					TooLargeDroppedSpans:  6,
-					FailedToEmitSpans:     7,
+					FullQueueDroppedSpans: 17,
+					TooLargeDroppedSpans:  18,
+					FailedToEmitSpans:     19,
 				}, expCounters: []metricstest.ExpectedMetric{
-					{Name: prefix + "batches_sent", Value: 110},
-					{Name: prefix + "spans_dropped", Tags: tag("cause", "full-queue"), Value: 5},
-					{Name: prefix + "spans_dropped", Tags: tag("cause", "too-large"), Value: 6},
-					{Name: prefix + "spans_dropped", Tags: tag("cause", "send-failure"), Value: 7},
+					{Name: prefix + "batches_sent", Value: 10},
+					{Name: prefix + "spans_dropped", Tags: tag("cause", "full-queue"), Value: 7},
+					{Name: prefix + "spans_dropped", Tags: tag("cause", "too-large"), Value: 8},
+					{Name: prefix + "spans_dropped", Tags: tag("cause", "send-failure"), Value: 9},
 				},
 			},
 		}
@@ -219,8 +237,6 @@ func TestClientMetricsReporter_Expire(t *testing.T) {
 		err := tr.r.EmitBatch(batch)
 		assert.NoError(t, err)
 		assert.Len(t, tr.mr.Spans(), 1)
-		tr.mb.AssertCounterMetrics(t,
-			metricstest.ExpectedMetric{Name: "client_stats.batches_sent", Value: 1})
 
 		// here we test that a connected-client gauge is updated to 1 by the auto-scheduled expire loop,
 		// and then reset to 0 once the client entry expires.
