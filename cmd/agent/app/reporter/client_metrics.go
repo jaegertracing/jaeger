@@ -195,21 +195,24 @@ func (s *lastReceivedClientStats) update(
 		// That makes the metrics slightly off in time, but accurate in aggregate.
 		return
 	}
-
-	metrics.BatchesSent.Inc(batchSeqNo - s.batchSeqNo)
-
-	if stats != nil {
-		metrics.FailedToEmitSpans.Inc(stats.FailedToEmitSpans - s.failedToEmitSpans)
-		metrics.TooLargeDroppedSpans.Inc(stats.TooLargeDroppedSpans - s.tooLargeDroppedSpans)
-		metrics.FullQueueDroppedSpans.Inc(stats.FullQueueDroppedSpans - s.fullQueueDroppedSpans)
-
-		s.failedToEmitSpans = stats.FailedToEmitSpans
-		s.tooLargeDroppedSpans = stats.TooLargeDroppedSpans
-		s.fullQueueDroppedSpans = stats.FullQueueDroppedSpans
+	// do not update counters on the first batch, because it may cause a huge spike in totals
+	// if the client has been running for a while already, but the agent just started.
+	if s.batchSeqNo > 0 {
+		metrics.BatchesSent.Inc(batchSeqNo - s.batchSeqNo)
+		if stats != nil {
+			metrics.FailedToEmitSpans.Inc(stats.FailedToEmitSpans - s.failedToEmitSpans)
+			metrics.TooLargeDroppedSpans.Inc(stats.TooLargeDroppedSpans - s.tooLargeDroppedSpans)
+			metrics.FullQueueDroppedSpans.Inc(stats.FullQueueDroppedSpans - s.fullQueueDroppedSpans)
+		}
 	}
 
 	s.lastUpdated = time.Now()
 	s.batchSeqNo = batchSeqNo
+	if stats != nil {
+		s.failedToEmitSpans = stats.FailedToEmitSpans
+		s.tooLargeDroppedSpans = stats.TooLargeDroppedSpans
+		s.fullQueueDroppedSpans = stats.FullQueueDroppedSpans
+	}
 }
 
 func clientUUID(batch *jaeger.Batch) string {
