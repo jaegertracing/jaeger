@@ -14,6 +14,10 @@
 
 package queue
 
+// RingBufferQueue implements a Queue using a circular buffer.
+// Supports on-demand increase in capacity.
+//
+// Not safe to use from multiple goroutines.
 type RingBufferQueue struct {
 	size, head, tail int
 	buffer           []interface{}
@@ -44,7 +48,7 @@ func (q *RingBufferQueue) Enqueue(item interface{}) bool {
 	if q.Full() {
 		return false
 	}
-	if q.head == -1 {
+	if q.Empty() {
 		// empty queue
 		q.head, q.tail = 0, 0
 		q.buffer[0] = item

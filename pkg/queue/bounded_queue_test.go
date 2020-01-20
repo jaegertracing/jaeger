@@ -320,15 +320,3 @@ func TestZeroSize(t *testing.T) {
 
 	assert.False(t, q.Produce("a")) // in process
 }
-
-func BenchmarkBoundedQueue(b *testing.B) {
-	q := NewBoundedQueue(1000, func(item interface{}) {
-	})
-
-	q.StartConsumers(10, func(item interface{}) {
-	})
-
-	for n := 0; n < b.N; n++ {
-		q.Produce(n)
-	}
-}
