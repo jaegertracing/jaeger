@@ -33,6 +33,7 @@ const (
 
 // clientMetrics are maintained only for data submitted in Jaeger Thrift format.
 type clientMetrics struct {
+	BatchesReceived  metrics.Counter `metric:"batches_received" help:"Total count of batches received from conforming clients"`
 	BatchesSent      metrics.Counter `metric:"batches_sent" help:"Total count of batches sent by clients"`
 	ConnectedClients metrics.Gauge   `metric:"connected_clients" help:"Total count of unique clients sending data to the agent"`
 
@@ -188,6 +189,8 @@ func (s *lastReceivedClientStats) update(
 ) {
 	s.lock.Lock()
 	defer s.lock.Unlock()
+
+	metrics.BatchesReceived.Inc(1)
 
 	if s.batchSeqNo >= batchSeqNo {
 		// Ignore out of order batches. Once we receive a batch with a larger-than-seen number,
