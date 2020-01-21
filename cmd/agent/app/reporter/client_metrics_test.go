@@ -112,6 +112,7 @@ func TestClientMetricsReporter_Jaeger(t *testing.T) {
 				runExpire: true,
 				// first batch cannot increment counters, only capture the baseline
 				expCounters: []metricstest.ExpectedMetric{
+					{Name: prefix + "batches_received", Value: 1},
 					{Name: prefix + "batches_sent", Value: 0},
 					{Name: prefix + "spans_dropped", Tags: tag("cause", "full-queue"), Value: 0},
 					{Name: prefix + "spans_dropped", Tags: tag("cause", "too-large"), Value: 0},
@@ -130,6 +131,7 @@ func TestClientMetricsReporter_Jaeger(t *testing.T) {
 					FailedToEmitSpans:     15,
 				},
 				expCounters: []metricstest.ExpectedMetric{
+					{Name: prefix + "batches_received", Value: 2},
 					{Name: prefix + "batches_sent", Value: 5},
 					{Name: prefix + "spans_dropped", Tags: tag("cause", "full-queue"), Value: 5},
 					{Name: prefix + "spans_dropped", Tags: tag("cause", "too-large"), Value: 5},
@@ -140,6 +142,7 @@ func TestClientMetricsReporter_Jaeger(t *testing.T) {
 				clientUUID: &clientUUID,
 				seqNo:      nPtr(90), // out of order batch will be ignored
 				expCounters: []metricstest.ExpectedMetric{
+					{Name: prefix + "batches_received", Value: 3},
 					{Name: prefix + "batches_sent", Value: 5}, // unchanged!
 				},
 			},
@@ -152,6 +155,7 @@ func TestClientMetricsReporter_Jaeger(t *testing.T) {
 					TooLargeDroppedSpans:  18,
 					FailedToEmitSpans:     19,
 				}, expCounters: []metricstest.ExpectedMetric{
+					{Name: prefix + "batches_received", Value: 4},
 					{Name: prefix + "batches_sent", Value: 10},
 					{Name: prefix + "spans_dropped", Tags: tag("cause", "full-queue"), Value: 7},
 					{Name: prefix + "spans_dropped", Tags: tag("cause", "too-large"), Value: 8},
