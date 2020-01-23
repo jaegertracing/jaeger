@@ -39,12 +39,16 @@ func TestAllOptionSet(t *testing.T) {
 		Options.PreProcessSpans(func(spans []*model.Span) {}),
 		Options.Sanitizer(func(span *model.Span) *model.Span { return span }),
 		Options.QueueSize(10),
+		Options.DynQueueSizeWarmup(1000),
+		Options.DynQueueSizeMemory(1024),
 		Options.PreSave(func(span *model.Span) {}),
 		Options.CollectorTags(map[string]string{"extra": "tags"}),
 	)
 	assert.EqualValues(t, 5, opts.numWorkers)
 	assert.EqualValues(t, 10, opts.queueSize)
 	assert.EqualValues(t, map[string]string{"extra": "tags"}, opts.collectorTags)
+	assert.EqualValues(t, 1000, opts.dynQueueSizeWarmup)
+	assert.EqualValues(t, 1024, opts.dynQueueSizeMemory)
 }
 
 func TestNoOptionsSet(t *testing.T) {
@@ -59,4 +63,5 @@ func TestNoOptionsSet(t *testing.T) {
 	assert.True(t, opts.spanFilter(nil))
 	span := model.Span{}
 	assert.EqualValues(t, &span, opts.sanitizer(&span))
+	assert.EqualValues(t, 0, opts.dynQueueSizeWarmup)
 }
