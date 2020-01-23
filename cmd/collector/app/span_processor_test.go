@@ -24,6 +24,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/uber/jaeger-lib/metrics"
 	"github.com/uber/jaeger-lib/metrics/metricstest"
+	"go.uber.org/atomic"
 	"go.uber.org/zap"
 
 	zipkinSanitizer "github.com/jaegertracing/jaeger/cmd/collector/app/sanitizer/zipkin"
@@ -345,4 +346,149 @@ func TestSpanProcessorWithCollectorTags(t *testing.T) {
 		}
 		assert.True(t, foundTag)
 	}
+}
+
+func TestSpanProcessorCountSpan(t *testing.T) {
+	mb := metricstest.NewFactory(time.Hour)
+	m := mb.Namespace(metrics.NSOptions{})
+
+	w := &fakeSpanWriter{}
+	p := NewSpanProcessor(w, Options.HostMetrics(m), Options.DynQueueSizeWarmup(1000)).(*spanProcessor)
+	p.background(10*time.Millisecond, p.updateGauges)
+	defer p.Stop()
+
+	p.processSpan(&model.Span{})
+	assert.NotEqual(t, uint64(0), p.bytesProcessed)
+
+	for i := 0; i < 15; i++ {
+		_, g := mb.Snapshot()
+		if b := g["spans.bytes"]; b > 0 {
+			assert.Equal(t, p.bytesProcessed.Load(), uint64(g["spans.bytes"]))
+			return
+		}
+		time.Sleep(time.Millisecond)
+	}
+
+	assert.Fail(t, "gauge hasn't been updated within a reasonable amount of time")
+}
+
+func TestUpdateDynQueueSize(t *testing.T) {
+	tests := []struct {
+		name             string
+		sizeInBytes      uint
+		initialCapacity  int
+		warmup           uint
+		spansProcessed   uint64
+		bytesProcessed   uint64
+		expectedCapacity int
+	}{
+		{
+			name:             "scale-up",
+			sizeInBytes:      uint(1024 * 1024 * 1024), // one GiB
+			initialCapacity:  100,
+			warmup:           1000,
+			spansProcessed:   uint64(1000),
+			bytesProcessed:   uint64(10 * 1024 * 1000), // 10KiB per span
+			expectedCapacity: 104857,                   // 1024 ^ 3 / (10 * 1024) = 104857,6
+		},
+		{
+			name:             "scale-down",
+			sizeInBytes:      uint(1024 * 1024), // one MiB
+			initialCapacity:  1000,
+			warmup:           1000,
+			spansProcessed:   uint64(1000),
+			bytesProcessed:   uint64(10 * 1024 * 1000),
+			expectedCapacity: 102, // 1024 ^ 2 / (10 * 1024) = 102,4
+		},
+		{
+			name:             "not-enough-change",
+			sizeInBytes:      uint(1024 * 1024),
+			initialCapacity:  100,
+			warmup:           1000,
+			spansProcessed:   uint64(1000),
+			bytesProcessed:   uint64(10 * 1024 * 1000),
+			expectedCapacity: 100, // 1024 ^ 2 / (10 * 1024) = 102,4, 2% change only
+		},
+		{
+			name:             "not-enough-spans",
+			sizeInBytes:      uint(1024 * 1024 * 1024),
+			initialCapacity:  100,
+			warmup:           1000,
+			spansProcessed:   uint64(999),
+			bytesProcessed:   uint64(10 * 1024 * 1000),
+			expectedCapacity: 100,
+		},
+		{
+			name:             "not-enabled",
+			sizeInBytes:      uint(1024 * 1024 * 1024), // one GiB
+			initialCapacity:  100,
+			warmup:           0,
+			spansProcessed:   uint64(1000),
+			bytesProcessed:   uint64(10 * 1024 * 1000), // 10KiB per span
+			expectedCapacity: 100,
+		},
+		{
+			name:             "memory-not-set",
+			sizeInBytes:      0,
+			initialCapacity:  100,
+			warmup:           1000,
+			spansProcessed:   uint64(1000),
+			bytesProcessed:   uint64(10 * 1024 * 1000), // 10KiB per span
+			expectedCapacity: 100,
+		},
+		{
+			name:             "max-queue-size",
+			sizeInBytes:      uint(10 * 1024 * 1024 * 1024),
+			initialCapacity:  100,
+			warmup:           1000,
+			spansProcessed:   uint64(1000),
+			bytesProcessed:   uint64(10 * 1024 * 1000), // 10KiB per span
+			expectedCapacity: maxQueueSize,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			w := &fakeSpanWriter{}
+			p := newSpanProcessor(w, Options.QueueSize(tt.initialCapacity), Options.DynQueueSizeWarmup(tt.warmup), Options.DynQueueSizeMemory(tt.sizeInBytes))
+			assert.EqualValues(t, tt.initialCapacity, p.queue.Capacity())
+
+			p.spansProcessed = atomic.NewUint64(tt.spansProcessed)
+			p.bytesProcessed = atomic.NewUint64(tt.bytesProcessed)
+
+			p.updateQueueSize()
+			assert.EqualValues(t, tt.expectedCapacity, p.queue.Capacity())
+		})
+	}
+}
+
+func TestUpdateQueueSizeNoActivityYet(t *testing.T) {
+	w := &fakeSpanWriter{}
+	p := newSpanProcessor(w, Options.QueueSize(1), Options.DynQueueSizeWarmup(1), Options.DynQueueSizeMemory(1))
+	assert.NotPanics(t, p.updateQueueSize)
+}
+
+func TestStartDynQueueSizeUpdater(t *testing.T) {
+	w := &fakeSpanWriter{}
+	oneGiB := uint(1024 * 1024 * 1024)
+	p := newSpanProcessor(w, Options.QueueSize(100), Options.DynQueueSizeWarmup(1000), Options.DynQueueSizeMemory(oneGiB))
+	assert.EqualValues(t, 100, p.queue.Capacity())
+
+	p.spansProcessed = atomic.NewUint64(1000)
+	p.bytesProcessed = atomic.NewUint64(10 * 1024 * p.spansProcessed.Load()) // 10KiB per span
+
+	// 1024 ^ 3 / (10 * 1024) = 104857,6
+	// ideal queue size = 104857
+	p.background(10*time.Millisecond, p.updateQueueSize)
+
+	// we wait up to 50 milliseconds
+	for i := 0; i < 5; i++ {
+		if p.queue.Capacity() == 100 {
+			time.Sleep(10 * time.Millisecond)
+		} else {
+			break
+		}
+	}
+
+	assert.EqualValues(t, 104857, p.queue.Capacity())
 }

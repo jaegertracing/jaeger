@@ -54,6 +54,8 @@ func (b *SpanHandlerBuilder) BuildHandlers() (
 		app.Options.NumWorkers(b.CollectorOpts.NumWorkers),
 		app.Options.QueueSize(b.CollectorOpts.QueueSize),
 		app.Options.CollectorTags(b.CollectorOpts.CollectorTags),
+		app.Options.DynQueueSizeWarmup(uint(b.CollectorOpts.QueueSize)), // same as queue size for now
+		app.Options.DynQueueSizeMemory(b.CollectorOpts.DynQueueSizeMemory),
 	)
 
 	return app.NewZipkinSpanHandler(b.Logger, spanProcessor, zs.NewChainedSanitizer(zs.StandardSanitizers...)),
