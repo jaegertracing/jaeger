@@ -44,6 +44,7 @@ import (
 )
 
 func main() {
+	// Test PR routing
 	svc := flags.NewService(ports.QueryAdminHTTP)
 
 	storageFactory, err := storage.NewFactory(storage.FactoryConfigFromEnvAndCLI(os.Args, os.Stderr))
