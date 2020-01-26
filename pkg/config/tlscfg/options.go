@@ -43,11 +43,10 @@ func (p Options) Config() (*tls.Config, error) {
 	if err != nil {
 		return nil, errors.Wrap(err, "failed to load CA CertPool")
 	}
-
+	// #nosec G402
 	tlsCfg := &tls.Config{
-		RootCAs:    certPool,
-		ServerName: p.ServerName,
-		// #nosec G402
+		RootCAs:            certPool,
+		ServerName:         p.ServerName,
 		InsecureSkipVerify: p.SkipHostVerify,
 	}
 
