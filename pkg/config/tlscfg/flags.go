@@ -21,13 +21,16 @@ import (
 )
 
 const (
-	tlsEnabled     = "tls"
-	tlsCA          = "tls.ca"
-	tlsCert        = "tls.cert"
-	tlsKey         = "tls.key"
-	tlsServerName  = "tls.server-name"
-	tlsClientCA    = "tls.client-ca"
-	tlsClientCAOld = "tls.client.ca"
+	tlsPrefix         = ".tls"
+	tlsEnabledOld     = tlsPrefix
+	tlsEnabled        = tlsPrefix + ".enabled"
+	tlsCA             = tlsPrefix + ".ca"
+	tlsCert           = tlsPrefix + ".cert"
+	tlsKey            = tlsPrefix + ".key"
+	tlsServerName     = tlsPrefix + ".server-name"
+	tlsClientCA       = tlsPrefix + ".client-ca"
+	tlsClientCAOld    = tlsPrefix + ".client.ca"
+	tlsSkipHostVerify = tlsPrefix + ".skip-host-verify"
 )
 
 // ClientFlagsConfig describes which CLI flags for TLS client should be generated.
@@ -48,6 +51,7 @@ type ServerFlagsConfig struct {
 func (c ClientFlagsConfig) AddFlags(flags *flag.FlagSet) {
 	if c.ShowEnabled {
 		flags.Bool(c.Prefix+tlsEnabled, false, "Enable TLS when talking to the remote server(s)")
+		flags.Bool(c.Prefix+tlsEnabledOld, false, "(deprecated) see --"+c.Prefix+tlsEnabled)
 	}
 	flags.String(c.Prefix+tlsCA, "", "Path to a TLS CA (Certification Authority) file used to verify the remote server(s) (by default will use the system truststore)")
 	flags.String(c.Prefix+tlsCert, "", "Path to a TLS Certificate file, used to identify this process to the remote server(s)")
@@ -55,12 +59,14 @@ func (c ClientFlagsConfig) AddFlags(flags *flag.FlagSet) {
 	if c.ShowServerName {
 		flags.String(c.Prefix+tlsServerName, "", "Override the TLS server name we expect in the certificate of the remove server(s)")
 	}
+	flags.Bool(c.Prefix+tlsSkipHostVerify, false, "(insecure) Skip server's certificate chain and host name verification")
 }
 
 // AddFlags adds flags for TLS to the FlagSet.
 func (c ServerFlagsConfig) AddFlags(flags *flag.FlagSet) {
 	if c.ShowEnabled {
 		flags.Bool(c.Prefix+tlsEnabled, false, "Enable TLS on the server")
+		flags.Bool(c.Prefix+tlsEnabledOld, false, "(deprecated) see --"+c.Prefix+tlsEnabled)
 	}
 	flags.String(c.Prefix+tlsCert, "", "Path to a TLS Certificate file, used to identify this server to clients")
 	flags.String(c.Prefix+tlsKey, "", "Path to a TLS Private Key file, used to identify this server to clients")
@@ -73,6 +79,10 @@ func (c ClientFlagsConfig) InitFromViper(v *viper.Viper) Options {
 	var p Options
 	if c.ShowEnabled {
 		p.Enabled = v.GetBool(c.Prefix + tlsEnabled)
+
+		if !p.Enabled {
+			p.Enabled = v.GetBool(c.Prefix + tlsEnabledOld)
+		}
 	}
 	p.CAPath = v.GetString(c.Prefix + tlsCA)
 	p.CertPath = v.GetString(c.Prefix + tlsCert)
@@ -80,6 +90,7 @@ func (c ClientFlagsConfig) InitFromViper(v *viper.Viper) Options {
 	if c.ShowServerName {
 		p.ServerName = v.GetString(c.Prefix + tlsServerName)
 	}
+	p.SkipHostVerify = v.GetBool(c.Prefix + tlsSkipHostVerify)
 	return p
 }
 
@@ -88,6 +99,10 @@ func (c ServerFlagsConfig) InitFromViper(v *viper.Viper) Options {
 	var p Options
 	if c.ShowEnabled {
 		p.Enabled = v.GetBool(c.Prefix + tlsEnabled)
+
+		if !p.Enabled {
+			p.Enabled = v.GetBool(c.Prefix + tlsEnabledOld)
+		}
 	}
 	p.CertPath = v.GetString(c.Prefix + tlsCert)
 	p.KeyPath = v.GetString(c.Prefix + tlsKey)

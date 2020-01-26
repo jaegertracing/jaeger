@@ -23,6 +23,7 @@ import (
 	"github.com/spf13/viper"
 
 	"github.com/jaegertracing/jaeger/pkg/cassandra/config"
+	"github.com/jaegertracing/jaeger/pkg/config/tlscfg"
 )
 
 const (
@@ -43,12 +44,6 @@ const (
 	suffixSocketKeepAlive      = ".socket-keep-alive"
 	suffixUsername             = ".username"
 	suffixPassword             = ".password"
-	suffixTLS                  = ".tls"
-	suffixCert                 = ".tls.cert"
-	suffixKey                  = ".tls.key"
-	suffixCA                   = ".tls.ca"
-	suffixServerName           = ".tls.server-name"
-	suffixVerifyHost           = ".tls.verify-host"
 	suffixEnableDependenciesV2 = ".enable-dependencies-v2"
 
 	// common storage settings
@@ -91,10 +86,6 @@ func NewOptions(primaryNamespace string, otherNamespaces ...string) *Options {
 	options := &Options{
 		primary: &namespaceConfig{
 			Configuration: config.Configuration{
-				TLS: config.TLS{
-					Enabled:                false,
-					EnableHostVerification: true,
-				},
 				MaxRetryAttempts:   3,
 				Keyspace:           "jaeger_v1_test",
 				ProtoVersion:       4,
@@ -149,6 +140,9 @@ func (opt *Options) AddFlags(flagSet *flag.FlagSet) {
 }
 
 func addFlags(flagSet *flag.FlagSet, nsConfig *namespaceConfig) {
+	var tlsFlagsConfig = tlsFlagsConfig(nsConfig.namespace)
+	tlsFlagsConfig.AddFlags(flagSet)
+
 	if !nsConfig.primary {
 		flagSet.Bool(
 			nsConfig.namespace+suffixEnabled,
@@ -216,30 +210,6 @@ func addFlags(flagSet *flag.FlagSet, nsConfig *namespaceConfig) {
 		nsConfig.Authenticator.Basic.Password,
 		"Password for password authentication for Cassandra")
 	flagSet.Bool(
-		nsConfig.namespace+suffixTLS,
-		nsConfig.TLS.Enabled,
-		"Enable TLS")
-	flagSet.String(
-		nsConfig.namespace+suffixCert,
-		nsConfig.TLS.CertPath,
-		"Path to TLS certificate file")
-	flagSet.String(
-		nsConfig.namespace+suffixKey,
-		nsConfig.TLS.KeyPath,
-		"Path to TLS key file")
-	flagSet.String(
-		nsConfig.namespace+suffixCA,
-		nsConfig.TLS.CaPath,
-		"Path to TLS CA file")
-	flagSet.String(
-		nsConfig.namespace+suffixServerName,
-		nsConfig.TLS.ServerName,
-		"Override the TLS server name")
-	flagSet.Bool(
-		nsConfig.namespace+suffixVerifyHost,
-		nsConfig.TLS.EnableHostVerification,
-		"Enable (or disable) host key verification")
-	flagSet.Bool(
 		nsConfig.namespace+suffixEnableDependenciesV2,
 		nsConfig.EnableDependenciesV2,
 		"(deprecated) Jaeger will automatically detect the version of the dependencies table")
@@ -259,7 +229,16 @@ func (opt *Options) InitFromViper(v *viper.Viper) {
 	opt.DisableProcessTagsIndex = !v.GetBool(opt.primary.namespace + suffixIndexProcessTags)
 }
 
+func tlsFlagsConfig(namespace string) tlscfg.ClientFlagsConfig {
+	return tlscfg.ClientFlagsConfig{
+		Prefix:         namespace,
+		ShowEnabled:    true,
+		ShowServerName: true,
+	}
+}
+
 func (cfg *namespaceConfig) initFromViper(v *viper.Viper) {
+	var tlsFlagsConfig = tlsFlagsConfig(cfg.namespace)
 	if !cfg.primary {
 		cfg.Enabled = v.GetBool(cfg.namespace + suffixEnabled)
 	}
@@ -277,14 +256,9 @@ func (cfg *namespaceConfig) initFromViper(v *viper.Viper) {
 	cfg.SocketKeepAlive = v.GetDuration(cfg.namespace + suffixSocketKeepAlive)
 	cfg.Authenticator.Basic.Username = v.GetString(cfg.namespace + suffixUsername)
 	cfg.Authenticator.Basic.Password = v.GetString(cfg.namespace + suffixPassword)
-	cfg.TLS.Enabled = v.GetBool(cfg.namespace + suffixTLS)
-	cfg.TLS.CertPath = v.GetString(cfg.namespace + suffixCert)
-	cfg.TLS.KeyPath = v.GetString(cfg.namespace + suffixKey)
-	cfg.TLS.CaPath = v.GetString(cfg.namespace + suffixCA)
-	cfg.TLS.ServerName = v.GetString(cfg.namespace + suffixServerName)
-	cfg.TLS.EnableHostVerification = v.GetBool(cfg.namespace + suffixVerifyHost)
 	cfg.EnableDependenciesV2 = v.GetBool(cfg.namespace + suffixEnableDependenciesV2)
 	cfg.DisableCompression = v.GetBool(cfg.namespace + suffixDisableCompression)
+	cfg.TLS = tlsFlagsConfig.InitFromViper(v)
 }
 
 // GetPrimary returns primary configuration.
