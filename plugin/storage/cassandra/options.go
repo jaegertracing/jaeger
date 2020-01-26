@@ -46,6 +46,8 @@ const (
 	suffixPassword             = ".password"
 	suffixEnableDependenciesV2 = ".enable-dependencies-v2"
 
+	suffixVerifyHost = ".tls.verify-host"
+
 	// common storage settings
 	suffixSpanStoreWriteCacheTTL = ".span-store-write-cache-ttl"
 	suffixIndexTagsBlacklist     = ".index.tag-blacklist"
@@ -213,6 +215,10 @@ func addFlags(flagSet *flag.FlagSet, nsConfig *namespaceConfig) {
 		nsConfig.namespace+suffixEnableDependenciesV2,
 		nsConfig.EnableDependenciesV2,
 		"(deprecated) Jaeger will automatically detect the version of the dependencies table")
+	flagSet.Bool(
+		nsConfig.namespace+suffixVerifyHost,
+		false,
+		"(deprecated) Enable (or disable) host key verification. Use "+nsConfig.namespace+".tls.skip-host-verify instead")
 }
 
 // InitFromViper initializes Options with properties from viper
@@ -259,6 +265,10 @@ func (cfg *namespaceConfig) initFromViper(v *viper.Viper) {
 	cfg.EnableDependenciesV2 = v.GetBool(cfg.namespace + suffixEnableDependenciesV2)
 	cfg.DisableCompression = v.GetBool(cfg.namespace + suffixDisableCompression)
 	cfg.TLS = tlsFlagsConfig.InitFromViper(v)
+
+	if v.IsSet(cfg.namespace + suffixVerifyHost) {
+		cfg.TLS.SkipHostVerify = !v.GetBool(cfg.namespace + suffixVerifyHost)
+	}
 }
 
 // GetPrimary returns primary configuration.
