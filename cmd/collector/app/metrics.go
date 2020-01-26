@@ -58,9 +58,13 @@ type SpanProcessorMetrics struct {
 	InQueueLatency metrics.Timer
 	// SpansDropped measures the number of spans we discarded because the queue was full
 	SpansDropped metrics.Counter
+	// SpansBytes records how many bytes were processed
+	SpansBytes metrics.Gauge
 	// BatchSize measures the span batch size
 	BatchSize metrics.Gauge // size of span batch
-	// QueueLength measures the size of the internal span queue
+	// QueueCapacity measures the capacity of the internal span queue
+	QueueCapacity metrics.Gauge
+	// QueueLength measures the current number of elements in the internal span queue
 	QueueLength metrics.Gauge
 	// SavedOkBySvc contains span and trace counts by service
 	SavedOkBySvc  metricsBySvc  // spans actually saved
@@ -150,7 +154,9 @@ func NewSpanProcessorMetrics(serviceMetrics metrics.Factory, hostMetrics metrics
 		InQueueLatency: hostMetrics.Timer(metrics.TimerOptions{Name: "in-queue-latency", Tags: nil}),
 		SpansDropped:   hostMetrics.Counter(metrics.Options{Name: "spans.dropped", Tags: nil}),
 		BatchSize:      hostMetrics.Gauge(metrics.Options{Name: "batch-size", Tags: nil}),
+		QueueCapacity:  hostMetrics.Gauge(metrics.Options{Name: "queue-capacity", Tags: nil}),
 		QueueLength:    hostMetrics.Gauge(metrics.Options{Name: "queue-length", Tags: nil}),
+		SpansBytes:     hostMetrics.Gauge(metrics.Options{Name: "spans.bytes", Tags: nil}),
 		SavedOkBySvc:   newMetricsBySvc(serviceMetrics.Namespace(metrics.NSOptions{Name: "", Tags: map[string]string{"result": "ok"}}), "saved-by-svc"),
 		SavedErrBySvc:  newMetricsBySvc(serviceMetrics.Namespace(metrics.NSOptions{Name: "", Tags: map[string]string{"result": "err"}}), "saved-by-svc"),
 		spanCounts:     spanCounts,

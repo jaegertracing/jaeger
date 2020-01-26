@@ -33,6 +33,7 @@ const (
 
 // clientMetrics are maintained only for data submitted in Jaeger Thrift format.
 type clientMetrics struct {
+	BatchesReceived  metrics.Counter `metric:"batches_received" help:"Total count of batches received from conforming clients"`
 	BatchesSent      metrics.Counter `metric:"batches_sent" help:"Total count of batches sent by clients"`
 	ConnectedClients metrics.Gauge   `metric:"connected_clients" help:"Total count of unique clients sending data to the agent"`
 
@@ -189,27 +190,32 @@ func (s *lastReceivedClientStats) update(
 	s.lock.Lock()
 	defer s.lock.Unlock()
 
+	metrics.BatchesReceived.Inc(1)
+
 	if s.batchSeqNo >= batchSeqNo {
 		// Ignore out of order batches. Once we receive a batch with a larger-than-seen number,
 		// it will contain new cumulative counts, which we will use to update the metrics.
 		// That makes the metrics slightly off in time, but accurate in aggregate.
 		return
 	}
-
-	metrics.BatchesSent.Inc(batchSeqNo - s.batchSeqNo)
-
-	if stats != nil {
-		metrics.FailedToEmitSpans.Inc(stats.FailedToEmitSpans - s.failedToEmitSpans)
-		metrics.TooLargeDroppedSpans.Inc(stats.TooLargeDroppedSpans - s.tooLargeDroppedSpans)
-		metrics.FullQueueDroppedSpans.Inc(stats.FullQueueDroppedSpans - s.fullQueueDroppedSpans)
-
-		s.failedToEmitSpans = stats.FailedToEmitSpans
-		s.tooLargeDroppedSpans = stats.TooLargeDroppedSpans
-		s.fullQueueDroppedSpans = stats.FullQueueDroppedSpans
+	// do not update counters on the first batch, because it may cause a huge spike in totals
+	// if the client has been running for a while already, but the agent just started.
+	if s.batchSeqNo > 0 {
+		metrics.BatchesSent.Inc(batchSeqNo - s.batchSeqNo)
+		if stats != nil {
+			metrics.FailedToEmitSpans.Inc(stats.FailedToEmitSpans - s.failedToEmitSpans)
+			metrics.TooLargeDroppedSpans.Inc(stats.TooLargeDroppedSpans - s.tooLargeDroppedSpans)
+			metrics.FullQueueDroppedSpans.Inc(stats.FullQueueDroppedSpans - s.fullQueueDroppedSpans)
+		}
 	}
 
 	s.lastUpdated = time.Now()
 	s.batchSeqNo = batchSeqNo
+	if stats != nil {
+		s.failedToEmitSpans = stats.FailedToEmitSpans
+		s.tooLargeDroppedSpans = stats.TooLargeDroppedSpans
+		s.fullQueueDroppedSpans = stats.FullQueueDroppedSpans
+	}
 }
 
 func clientUUID(batch *jaeger.Batch) string {
