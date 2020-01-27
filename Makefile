@@ -22,9 +22,11 @@ ALL_SRC := $(shell find . -name '*.go' \
 # ALL_PKGS is used with 'go cover' and 'golint'
 ALL_PKGS := $(shell go list $(sort $(dir $(ALL_SRC))))
 UNAME := $(shell uname -m)
-#Race flag is not supported on s390x architecture
+#Race flag is not supported on s390x/ppc64le architecture
 ifeq ($(UNAME), s390x)
 	RACE=
+else ifeq ($(UNAME), ppc64le)
+  RACE=
 else
 	RACE=-race
 endif
@@ -194,6 +196,8 @@ build-examples:
 	esc -pkg frontend -o examples/hotrod/services/frontend/gen_assets.go  -prefix examples/hotrod/services/frontend/web_assets examples/hotrod/services/frontend/web_assets
 ifeq ($(GOARCH), s390x)
 	CGO_ENABLED=0 installsuffix=cgo go build -o ./examples/hotrod/hotrod-$(GOOS)-$(GOARCH) ./examples/hotrod/main.go
+else ifeq ($(GOARCH), ppc64le)
+	CGO_ENABLED=0 installsuffix=cgo go build -o ./examples/hotrod/hotrod-$(GOOS)-$(GOARCH) ./examples/hotrod/main.go
 else
 	CGO_ENABLED=0 installsuffix=cgo go build -o ./examples/hotrod/hotrod-$(GOOS) ./examples/hotrod/main.go
 endif
@@ -225,13 +229,17 @@ build-all-in-one-linux: build-ui
 build-all-in-one: elasticsearch-mappings
 ifeq ($(GOARCH), s390x)
 	CGO_ENABLED=0 installsuffix=cgo go build -tags ui -o ./cmd/all-in-one/all-in-one-$(GOOS)-$(GOARCH) $(BUILD_INFO) ./cmd/all-in-one/main.go
-else	
+else ifeq ($(GOARCH), ppc64le)
+	CGO_ENABLED=0 installsuffix=cgo go build -tags ui -o ./cmd/all-in-one/all-in-one-$(GOOS)-$(GOARCH) $(BUILD_INFO) ./cmd/all-in-one/main.go
+else
 	CGO_ENABLED=0 installsuffix=cgo go build -tags ui -o ./cmd/all-in-one/all-in-one-$(GOOS) $(BUILD_INFO) ./cmd/all-in-one/main.go
 endif
 
 .PHONY: build-agent
 build-agent:
 ifeq ($(GOARCH), s390x)
+	CGO_ENABLED=0 installsuffix=cgo go build -o ./cmd/agent/agent-$(GOOS)-$(GOARCH) $(BUILD_INFO) ./cmd/agent/main.go
+else ifeq ($(GOARCH), ppc64le)
 	CGO_ENABLED=0 installsuffix=cgo go build -o ./cmd/agent/agent-$(GOOS)-$(GOARCH) $(BUILD_INFO) ./cmd/agent/main.go
 else
 	CGO_ENABLED=0 installsuffix=cgo go build -o ./cmd/agent/agent-$(GOOS) $(BUILD_INFO) ./cmd/agent/main.go
@@ -241,6 +249,8 @@ endif
 build-query:
 ifeq ($(GOARCH), s390x)
 	CGO_ENABLED=0 installsuffix=cgo go build -tags ui -o ./cmd/query/query-$(GOOS)-$(GOARCH) $(BUILD_INFO) ./cmd/query/main.go
+else ifeq ($(GOARCH), ppc64le)
+	CGO_ENABLED=0 installsuffix=cgo go build -tags ui -o ./cmd/query/query-$(GOOS)-$(GOARCH) $(BUILD_INFO) ./cmd/query/main.go
 else
 	CGO_ENABLED=0 installsuffix=cgo go build -tags ui -o ./cmd/query/query-$(GOOS) $(BUILD_INFO) ./cmd/query/main.go
 endif
@@ -249,6 +259,8 @@ endif
 build-collector: elasticsearch-mappings
 ifeq ($(GOARCH), s390x)
 	CGO_ENABLED=0 installsuffix=cgo go build -o ./cmd/collector/collector-$(GOOS)-$(GOARCH) $(BUILD_INFO) ./cmd/collector/main.go
+else ifeq ($(GOARCH), ppc64le)
+	CGO_ENABLED=0 installsuffix=cgo go build -o ./cmd/collector/collector-$(GOOS)-$(GOARCH) $(BUILD_INFO) ./cmd/collector/main.go
 else
 	CGO_ENABLED=0 installsuffix=cgo go build -o ./cmd/collector/collector-$(GOOS) $(BUILD_INFO) ./cmd/collector/main.go
 endif
@@ -256,6 +268,8 @@ endif
 .PHONY: build-ingester
 build-ingester:
 ifeq ($(GOARCH), s390x)
+	CGO_ENABLED=0 installsuffix=cgo go build -o ./cmd/ingester/ingester-$(GOOS)-$(GOARCH) $(BUILD_INFO) ./cmd/ingester/main.go
+else ifeq ($(GOARCH), ppc64le)
 	CGO_ENABLED=0 installsuffix=cgo go build -o ./cmd/ingester/ingester-$(GOOS)-$(GOARCH) $(BUILD_INFO) ./cmd/ingester/main.go
 else
 	CGO_ENABLED=0 installsuffix=cgo go build -o ./cmd/ingester/ingester-$(GOOS) $(BUILD_INFO) ./cmd/ingester/main.go
@@ -280,11 +294,15 @@ build-binaries-darwin:
 build-binaries-s390x:
 	GOOS=linux GOARCH=s390x $(MAKE) build-platform-binaries
 
+.PHONY: build-binaries-ppc64le
+build-binaries-ppc64le:
+	GOOS=linux GOARCH=ppc64le $(MAKE) build-platform-binaries
+
 .PHONY: build-platform-binaries
 build-platform-binaries: build-agent build-collector build-query build-ingester build-all-in-one build-examples build-tracegen
 
 .PHONY: build-all-platforms
-build-all-platforms: build-binaries-linux build-binaries-windows build-binaries-darwin build-binaries-s390x
+build-all-platforms: build-binaries-linux build-binaries-windows build-binaries-darwin build-binaries-s390x build-binaries-ppc64le
 
 .PHONY: docker-images-cassandra
 docker-images-cassandra:

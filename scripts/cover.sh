@@ -55,6 +55,9 @@ for pkg in "$@"; do
 	if [[ $(uname -m) == 's390x' ]]; then
 		echo go test $args -v "$pkg"
 		go test $args -v "$pkg"
+	elif [[ $(uname -m) == 'ppc64le' ]]; then
+		echo go test $args -v "$pkg"
+		go test $args -v "$pkg"
 	else
 		echo go test $args -v -race "$pkg"
 		go test $args -v -race "$pkg"
