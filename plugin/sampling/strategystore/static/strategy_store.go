@@ -20,8 +20,11 @@ import (
 	"encoding/json"
 	"fmt"
 	"io/ioutil"
+	"sync"
 
+	"github.com/fsnotify/fsnotify"
 	"github.com/pkg/errors"
+	"github.com/spf13/viper"
 	"go.uber.org/zap"
 
 	ss "github.com/jaegertracing/jaeger/cmd/collector/app/sampling/strategystore"
@@ -29,6 +32,9 @@ import (
 )
 
 type strategyStore struct {
+	// to allow concurrent update of sampling strategies
+	sync.RWMutex
+
 	logger *zap.Logger
 
 	defaultStrategy   *sampling.SamplingStrategyResponse
@@ -41,6 +47,18 @@ func NewStrategyStore(options Options, logger *zap.Logger) (ss.StrategyStore, er
 		logger:            logger,
 		serviceStrategies: make(map[string]*sampling.SamplingStrategyResponse),
 	}
+
+	// new instance of viper to watch sampling strategies file
+	viper.AddConfigPath(options.StrategiesFile)
+	viper.WatchConfig()
+	viper.OnConfigChange(func(e fsnotify.Event) {
+		s, err := loadStrategies(options.StrategiesFile)
+		if err != nil {
+			logger.Fatal("Error while parsing strategies file", zap.Error(err))
+		}
+		h.parseStrategies(s)
+	})
+
 	strategies, err := loadStrategies(options.StrategiesFile)
 	if err != nil {
 		return nil, err
@@ -51,10 +69,17 @@ func NewStrategyStore(options Options, logger *zap.Logger) (ss.StrategyStore, er
 
 // GetSamplingStrategy implements StrategyStore#GetSamplingStrategy.
 func (h *strategyStore) GetSamplingStrategy(serviceName string) (*sampling.SamplingStrategyResponse, error) {
-	if strategy, ok := h.serviceStrategies[serviceName]; ok {
-		return strategy, nil
+	h.RLock()
+	strategy, ok := h.serviceStrategies[serviceName]
+	h.RUnlock()
+
+	if !ok {
+		h.RLock()
+		strategy = h.defaultStrategy
+		h.RUnlock()
 	}
-	return h.defaultStrategy, nil
+
+	return strategy, nil
 }
 
 // TODO good candidate for a global util function
@@ -74,21 +99,27 @@ func loadStrategies(strategiesFile string) (*strategies, error) {
 }
 
 func (h *strategyStore) parseStrategies(strategies *strategies) {
-	h.defaultStrategy = defaultStrategyResponse()
 	if strategies == nil {
 		h.logger.Info("No sampling strategies provided, using defaults")
 		return
 	}
 	if strategies.DefaultStrategy != nil {
-		h.defaultStrategy = h.parseServiceStrategies(strategies.DefaultStrategy)
+		defaultStrategy := h.parseServiceStrategies(strategies.DefaultStrategy)
+
+		h.Lock()
+		h.defaultStrategy = defaultStrategy
+		h.Unlock()
 	}
 
 	merge := true
+	h.RLock()
 	if h.defaultStrategy.OperationSampling == nil ||
 		h.defaultStrategy.OperationSampling.PerOperationStrategies == nil {
 		merge = false
 	}
+	h.RUnlock()
 
+	h.Lock()
 	for _, s := range strategies.ServiceStrategies {
 		h.serviceStrategies[s.Service] = h.parseServiceStrategies(s)
 
@@ -108,6 +139,7 @@ func (h *strategyStore) parseStrategies(strategies *strategies) {
 				h.defaultStrategy.OperationSampling.PerOperationStrategies)
 		}
 	}
+	h.Unlock()
 }
 
 // mergePerOperationStrategies merges two operation strategies a and b, where a takes precedence over b.
