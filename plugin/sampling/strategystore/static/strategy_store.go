@@ -72,8 +72,9 @@ func NewStrategyStore(options Options, logger *zap.Logger) (ss.StrategyStore, er
 				s, err := loadStrategies(options.StrategiesFile)
 				if err != nil {
 					logger.Warn("Error while parsing strategies file", zap.Error(err))
+				} else {
+					h.parseStrategies(s)
 				}
-				h.parseStrategies(s)
 			case err, ok := <-watcher.Errors:
 				if !ok {
 					return
