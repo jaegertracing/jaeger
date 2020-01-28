@@ -20,6 +20,8 @@ import (
 	"github.com/Shopify/sarama"
 	"github.com/pkg/errors"
 	"github.com/spf13/viper"
+
+	"github.com/jaegertracing/jaeger/pkg/config/tlscfg"
 )
 
 const (
@@ -39,7 +41,7 @@ var authTypes = []string{
 type AuthenticationConfig struct {
 	Authentication string
 	Kerberos       KerberosConfig
-	TLS            TLSConfig
+	TLS            tlscfg.Options
 	PlainText      PlainTextConfig
 }
 
@@ -76,9 +78,13 @@ func (config *AuthenticationConfig) InitFromViper(configPrefix string, v *viper.
 	config.Kerberos.ConfigPath = v.GetString(configPrefix + kerberosPrefix + suffixKerberosConfig)
 	config.Kerberos.KeyTabPath = v.GetString(configPrefix + kerberosPrefix + suffixKerberosKeyTab)
 
-	config.TLS.CaPath = v.GetString(configPrefix + tlsPrefix + suffixTLSCA)
-	config.TLS.CertPath = v.GetString(configPrefix + tlsPrefix + suffixTLSCert)
-	config.TLS.KeyPath = v.GetString(configPrefix + tlsPrefix + suffixTLSKey)
+	var tlsClientConfig = tlscfg.ClientFlagsConfig{
+		Prefix:         configPrefix,
+		ShowEnabled:    true,
+		ShowServerName: true,
+	}
+
+	config.TLS = tlsClientConfig.InitFromViper(v)
 
 	config.PlainText.UserName = v.GetString(configPrefix + plainTextPrefix + suffixPlainTextUserName)
 	config.PlainText.Password = v.GetString(configPrefix + plainTextPrefix + suffixPlainTextPassword)
