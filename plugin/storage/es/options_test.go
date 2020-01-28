@@ -57,7 +57,7 @@ func TestOptionsWithFlags(t *testing.T) {
 		"--es.aux.server-urls=3.3.3.3, 4.4.4.4",
 		"--es.aux.max-span-age=24h",
 		"--es.aux.num-replicas=10",
-		"--es.tls=true",
+		"--es.tls.enabled=true",
 		"--es.tls.skip-host-verify=true",
 	})
 	opts.InitFromViper(v)

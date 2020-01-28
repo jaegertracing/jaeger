@@ -22,6 +22,7 @@ import (
 
 	"github.com/spf13/viper"
 
+	"github.com/jaegertracing/jaeger/pkg/config/tlscfg"
 	"github.com/jaegertracing/jaeger/pkg/es/config"
 	"github.com/jaegertracing/jaeger/storage/spanstore"
 )
@@ -41,11 +42,6 @@ const (
 	suffixBulkActions         = ".bulk.actions"
 	suffixBulkFlushInterval   = ".bulk.flush-interval"
 	suffixTimeout             = ".timeout"
-	suffixTLS                 = ".tls"
-	suffixCert                = ".tls.cert"
-	suffixKey                 = ".tls.key"
-	suffixCA                  = ".tls.ca"
-	suffixSkipHostVerify      = ".tls.skip-host-verify"
 	suffixIndexPrefix         = ".index-prefix"
 	suffixTagsAsFields        = ".tags-as-fields"
 	suffixTagsAsFieldsAll     = suffixTagsAsFields + ".all"
@@ -110,6 +106,14 @@ func NewOptions(primaryNamespace string, otherNamespaces ...string) *Options {
 	}
 
 	return options
+}
+
+func (config *namespaceConfig) getTLSFlagsConfig() tlscfg.ClientFlagsConfig {
+	return tlscfg.ClientFlagsConfig{
+		Prefix:         config.namespace,
+		ShowEnabled:    true,
+		ShowServerName: true,
+	}
 }
 
 // AddFlags adds flags for Options
@@ -177,26 +181,6 @@ func addFlags(flagSet *flag.FlagSet, nsConfig *namespaceConfig) {
 		nsConfig.namespace+suffixBulkFlushInterval,
 		nsConfig.BulkFlushInterval,
 		"A time.Duration after which bulk requests are committed, regardless of other thresholds. Set to zero to disable. By default, this is disabled.")
-	flagSet.Bool(
-		nsConfig.namespace+suffixTLS,
-		nsConfig.TLS.Enabled,
-		"Enable TLS with client certificates.")
-	flagSet.Bool(
-		nsConfig.namespace+suffixSkipHostVerify,
-		nsConfig.TLS.SkipHostVerify,
-		"(insecure) Skip server's certificate chain and host name verification")
-	flagSet.String(
-		nsConfig.namespace+suffixCert,
-		nsConfig.TLS.CertPath,
-		"Path to TLS certificate file")
-	flagSet.String(
-		nsConfig.namespace+suffixKey,
-		nsConfig.TLS.KeyPath,
-		"Path to TLS key file")
-	flagSet.String(
-		nsConfig.namespace+suffixCA,
-		nsConfig.TLS.CaPath,
-		"Path to TLS CA file")
 	flagSet.String(
 		nsConfig.namespace+suffixIndexPrefix,
 		nsConfig.IndexPrefix,
@@ -233,6 +217,7 @@ func addFlags(flagSet *flag.FlagSet, nsConfig *namespaceConfig) {
 			nsConfig.Enabled,
 			"Enable extra storage")
 	}
+	nsConfig.getTLSFlagsConfig().AddFlags(flagSet)
 }
 
 // InitFromViper initializes Options with properties from viper
@@ -258,11 +243,6 @@ func initFromViper(cfg *namespaceConfig, v *viper.Viper) {
 	cfg.BulkActions = v.GetInt(cfg.namespace + suffixBulkActions)
 	cfg.BulkFlushInterval = v.GetDuration(cfg.namespace + suffixBulkFlushInterval)
 	cfg.Timeout = v.GetDuration(cfg.namespace + suffixTimeout)
-	cfg.TLS.Enabled = v.GetBool(cfg.namespace + suffixTLS)
-	cfg.TLS.SkipHostVerify = v.GetBool(cfg.namespace + suffixSkipHostVerify)
-	cfg.TLS.CertPath = v.GetString(cfg.namespace + suffixCert)
-	cfg.TLS.KeyPath = v.GetString(cfg.namespace + suffixKey)
-	cfg.TLS.CaPath = v.GetString(cfg.namespace + suffixCA)
 	cfg.IndexPrefix = v.GetString(cfg.namespace + suffixIndexPrefix)
 	cfg.AllTagsAsFields = v.GetBool(cfg.namespace + suffixTagsAsFieldsAll)
 	cfg.TagsFilePath = v.GetString(cfg.namespace + suffixTagsFile)
@@ -273,6 +253,7 @@ func initFromViper(cfg *namespaceConfig, v *viper.Viper) {
 	cfg.Version = uint(v.GetInt(cfg.namespace + suffixVersion))
 	// TODO: Need to figure out a better way for do this.
 	cfg.AllowTokenFromContext = v.GetBool(spanstore.StoragePropagationKey)
+	cfg.TLS = cfg.getTLSFlagsConfig().InitFromViper(v)
 }
 
 // GetPrimary returns primary configuration.

@@ -97,7 +97,7 @@ required = [
 
 [[constraint]]
   name = "github.com/spf13/viper"
-  version = "^1.0.0"
+  version = "^1.5.0"
 
 [[constraint]]
   name = "github.com/stretchr/testify"

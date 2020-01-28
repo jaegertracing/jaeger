@@ -26,12 +26,13 @@ import (
 
 // Options describes the configuration properties for TLS Connections.
 type Options struct {
-	Enabled      bool
-	CAPath       string
-	CertPath     string
-	KeyPath      string
-	ServerName   string // only for client-side TLS config
-	ClientCAPath string // only for server-side TLS config for client auth
+	Enabled        bool
+	CAPath         string
+	CertPath       string
+	KeyPath        string
+	ServerName     string // only for client-side TLS config
+	ClientCAPath   string // only for server-side TLS config for client auth
+	SkipHostVerify bool
 }
 
 var systemCertPool = x509.SystemCertPool // to allow overriding in unit test
@@ -42,10 +43,11 @@ func (p Options) Config() (*tls.Config, error) {
 	if err != nil {
 		return nil, errors.Wrap(err, "failed to load CA CertPool")
 	}
-
+	// #nosec G402
 	tlsCfg := &tls.Config{
-		RootCAs:    certPool,
-		ServerName: p.ServerName,
+		RootCAs:            certPool,
+		ServerName:         p.ServerName,
+		InsecureSkipVerify: p.SkipHostVerify,
 	}
 
 	if (p.CertPath == "" && p.KeyPath != "") || (p.CertPath != "" && p.KeyPath == "") {
