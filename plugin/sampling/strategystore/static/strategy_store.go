@@ -24,7 +24,6 @@ import (
 
 	"github.com/fsnotify/fsnotify"
 	"github.com/pkg/errors"
-	"github.com/spf13/viper"
 	"go.uber.org/zap"
 
 	ss "github.com/jaegertracing/jaeger/cmd/collector/app/sampling/strategystore"
@@ -33,7 +32,7 @@ import (
 
 type strategyStore struct {
 	// to allow concurrent update of sampling strategies
-	sync.RWMutex
+	lock sync.RWMutex
 
 	logger *zap.Logger
 
@@ -48,38 +47,61 @@ func NewStrategyStore(options Options, logger *zap.Logger) (ss.StrategyStore, er
 		serviceStrategies: make(map[string]*sampling.SamplingStrategyResponse),
 	}
 
-	// new instance of viper to watch sampling strategies file
-	viper.AddConfigPath(options.StrategiesFile)
-	viper.WatchConfig()
-	viper.OnConfigChange(func(e fsnotify.Event) {
-		s, err := loadStrategies(options.StrategiesFile)
-		if err != nil {
-			logger.Fatal("Error while parsing strategies file", zap.Error(err))
-		}
-		h.parseStrategies(s)
-	})
-
+	// Read strategies
 	strategies, err := loadStrategies(options.StrategiesFile)
 	if err != nil {
 		return nil, err
 	}
 	h.parseStrategies(strategies)
+
+	// Watch strategies file for changes.
+	watcher, err := fsnotify.NewWatcher()
+	if err != nil {
+		logger.Error("failed to create a new watcher for the sampling strategies file", zap.Error(err))
+	}
+
+	go func() {
+		for {
+			select {
+			case event := <-watcher.Events:
+				if event.Op&fsnotify.Remove == fsnotify.Remove {
+					logger.Warn("the sampling strategies file has been removed, using the last known version")
+					continue
+				}
+
+				s, err := loadStrategies(options.StrategiesFile)
+				if err != nil {
+					logger.Warn("Error while parsing strategies file", zap.Error(err))
+				}
+				h.parseStrategies(s)
+			case err, ok := <-watcher.Errors:
+				if !ok {
+					return
+				}
+				logger.Error("event", zap.Error(err))
+			}
+		}
+	}()
+
+	err = watcher.Add(options.StrategiesFile)
+	if err != nil {
+		logger.Error("error adding watcher to file", zap.String("file", options.StrategiesFile), zap.Error(err))
+	} else {
+		logger.Info("watching", zap.String("file", options.StrategiesFile))
+	}
+
 	return h, nil
 }
 
 // GetSamplingStrategy implements StrategyStore#GetSamplingStrategy.
 func (h *strategyStore) GetSamplingStrategy(serviceName string) (*sampling.SamplingStrategyResponse, error) {
-	h.RLock()
-	strategy, ok := h.serviceStrategies[serviceName]
-	h.RUnlock()
-
-	if !ok {
-		h.RLock()
-		strategy = h.defaultStrategy
-		h.RUnlock()
+	h.lock.RLock()
+	defer h.lock.RUnlock()
+	if strategy, ok := h.serviceStrategies[serviceName]; ok {
+		return strategy, nil
 	}
 
-	return strategy, nil
+	return h.defaultStrategy, nil
 }
 
 // TODO good candidate for a global util function
@@ -99,27 +121,23 @@ func loadStrategies(strategiesFile string) (*strategies, error) {
 }
 
 func (h *strategyStore) parseStrategies(strategies *strategies) {
+	h.lock.Lock()
+	defer h.lock.Unlock()
+
 	if strategies == nil {
 		h.logger.Info("No sampling strategies provided, using defaults")
 		return
 	}
 	if strategies.DefaultStrategy != nil {
-		defaultStrategy := h.parseServiceStrategies(strategies.DefaultStrategy)
-
-		h.Lock()
-		h.defaultStrategy = defaultStrategy
-		h.Unlock()
+		h.defaultStrategy = h.parseServiceStrategies(strategies.DefaultStrategy)
 	}
 
 	merge := true
-	h.RLock()
 	if h.defaultStrategy.OperationSampling == nil ||
 		h.defaultStrategy.OperationSampling.PerOperationStrategies == nil {
 		merge = false
 	}
-	h.RUnlock()
 
-	h.Lock()
 	for _, s := range strategies.ServiceStrategies {
 		h.serviceStrategies[s.Service] = h.parseServiceStrategies(s)
 
@@ -139,7 +157,6 @@ func (h *strategyStore) parseStrategies(strategies *strategies) {
 				h.defaultStrategy.OperationSampling.PerOperationStrategies)
 		}
 	}
-	h.Unlock()
 }
 
 // mergePerOperationStrategies merges two operation strategies a and b, where a takes precedence over b.
