@@ -99,6 +99,30 @@ func TestOptionsWithFlags(t *testing.T) {
 	assert.Equal(t, true, aux.EnableDependenciesV2)
 }
 
+func TestDeprecatedTlsHostVerifyFlagShouldBeRespected(t *testing.T) {
+	opts := NewOptions("cas")
+	v, command := config.Viperize(opts.AddFlags)
+	command.ParseFlags([]string{
+		"--cas.tls.verify-host=false",
+	})
+	opts.InitFromViper(v)
+
+	primary := opts.GetPrimary()
+	assert.Equal(t, true, primary.TLS.SkipHostVerify)
+}
+
+func TestDefaultTlsHostVerify(t *testing.T) {
+	opts := NewOptions("cas")
+	v, command := config.Viperize(opts.AddFlags)
+	command.ParseFlags([]string{
+		"--cas.tls.enabled=true",
+	})
+	opts.InitFromViper(v)
+
+	primary := opts.GetPrimary()
+	assert.Equal(t, false, primary.TLS.SkipHostVerify)
+}
+
 func TestEmptyBlackWhiteLists(t *testing.T) {
 	opts := NewOptions("cas")
 	v, command := config.Viperize(opts.AddFlags)
