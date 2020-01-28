@@ -88,7 +88,7 @@ func NewSpanProcessor(
 
 	sp.background(1*time.Second, sp.updateGauges)
 
-	if sp.dynQueueSizeWarmup > 0 {
+	if sp.dynQueueSizeMemory > 0 {
 		sp.background(1*time.Minute, sp.updateQueueSize)
 	}
 
@@ -236,7 +236,6 @@ func (sp *spanProcessor) updateQueueSize() {
 	}
 
 	if sp.dynQueueSizeMemory == 0 {
-		sp.logger.Warn("The dynamic queue size warmup value is set, but not the amount of memory to use. Skipping.")
 		return
 	}
 
