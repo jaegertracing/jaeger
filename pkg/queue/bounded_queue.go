@@ -105,12 +105,13 @@ func (q *BoundedQueue) Produce(item interface{}) bool {
 		return false
 	}
 
+	q.size.Add(1)
 	select {
 	case *q.items <- item:
-		q.size.Add(1)
 		return true
 	default:
 		// should not happen, as overflows should have been captured earlier
+		q.size.Sub(1)
 		if q.onDroppedItem != nil {
 			q.onDroppedItem(item)
 		}
