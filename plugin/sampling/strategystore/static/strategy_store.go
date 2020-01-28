@@ -125,6 +125,8 @@ func (h *strategyStore) parseStrategies(strategies *strategies) {
 	h.lock.Lock()
 	defer h.lock.Unlock()
 
+	h.defaultStrategy = defaultStrategyResponse()
+
 	if strategies == nil {
 		h.logger.Info("No sampling strategies provided, using defaults")
 		return
