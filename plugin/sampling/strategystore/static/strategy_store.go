@@ -65,15 +65,28 @@ func NewStrategyStore(options Options, logger *zap.Logger) (ss.StrategyStore, er
 			select {
 			case event := <-watcher.Events:
 				if event.Op&fsnotify.Remove == fsnotify.Remove {
-					logger.Warn("the sampling strategies file has been removed, using the last known version")
+					logger.Warn("the sampling strategies file has been removed")
+
+					watcher.Remove(event.Name)
+					watcher.Add(options.StrategiesFile)
+
+					s, err := loadStrategies(options.StrategiesFile)
+					if err != nil {
+						logger.Warn("Error while parsing strategies file. Using the last saved configuration.", zap.Error(err))
+					} else {
+						logger.Info("Updating sampling strategies file!", zap.Any("Strategies", s))
+						h.parseStrategies(s)
+					}
 					continue
 				}
-
-				s, err := loadStrategies(options.StrategiesFile)
-				if err != nil {
-					logger.Warn("Error while parsing strategies file", zap.Error(err))
-				} else {
-					h.parseStrategies(s)
+				if event.Op&fsnotify.Write == fsnotify.Write {
+					s, err := loadStrategies(options.StrategiesFile)
+					if err != nil {
+						logger.Warn("Error while parsing strategies file. Using the last saved configuration.", zap.Error(err))
+					} else {
+						logger.Info("Updating sampling strategies file!", zap.Any("Strategies", s))
+						h.parseStrategies(s)
+					}
 				}
 			case err, ok := <-watcher.Errors:
 				if !ok {
