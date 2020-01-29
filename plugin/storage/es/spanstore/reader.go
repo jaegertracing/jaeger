@@ -622,14 +622,14 @@ func (s *SpanReader) buildNestedQuery(field string, k string, v string) elastic.
 	keyField := fmt.Sprintf("%s.%s", field, tagKeyField)
 	valueField := fmt.Sprintf("%s.%s", field, tagValueField)
 	keyQuery := elastic.NewMatchQuery(keyField, k)
-	valueQuery := elastic.NewMatchQuery(valueField, v)
+	valueQuery := elastic.NewRegexpQuery(valueField, v)
 	tagBoolQuery := elastic.NewBoolQuery().Must(keyQuery, valueQuery)
 	return elastic.NewNestedQuery(field, tagBoolQuery)
 }
 
 func (s *SpanReader) buildObjectQuery(field string, k string, v string) elastic.Query {
 	keyField := fmt.Sprintf("%s.%s", field, k)
-	keyQuery := elastic.NewMatchQuery(keyField, v)
+	keyQuery := elastic.NewRegexpQuery(keyField, v)
 	return elastic.NewBoolQuery().Must(keyQuery)
 }
 
