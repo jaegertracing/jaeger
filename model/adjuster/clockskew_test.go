@@ -175,8 +175,12 @@ func TestClockSkewAdjuster(t *testing.T) {
 				}
 				assert.Equal(t, err, testCase.err)
 			} else {
-				for _, span := range trace.Spans {
-					assert.Len(t, span.Warnings, 0, "no warnings in span %s", span.SpanID)
+				for i, span := range trace.Spans {
+					if testCase.trace[i].adjusted == testCase.trace[i].startTime {
+						assert.Len(t, span.Warnings, 0, "no warnings in span %s", span.SpanID)
+					} else {
+						assert.Len(t, span.Warnings, 1, "warning about adjutment added to span %s", span.SpanID)
+					}
 				}
 			}
 			for _, proto := range testCase.trace {
