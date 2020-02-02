@@ -173,7 +173,13 @@ func (a *clockSkewAdjuster) calculateSkew(child *node, parent *node) time.Durati
 }
 
 func (a *clockSkewAdjuster) adjustTimestamps(n *node, skew clockSkew) {
+	if skew.delta == 0 {
+		return
+	}
+
 	n.span.StartTime = n.span.StartTime.Add(skew.delta)
+	n.span.Warnings = append(n.span.Warnings, fmt.Sprintf("This span's timestamps were adjusted by %v", skew.delta))
+
 	for i := range n.span.Logs {
 		n.span.Logs[i].Timestamp = n.span.Logs[i].Timestamp.Add(skew.delta)
 	}
