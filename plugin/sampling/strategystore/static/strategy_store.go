@@ -72,8 +72,7 @@ func NewStrategyStore(options Options, logger *zap.Logger) (ss.StrategyStore, er
 
 	go h.runWatcherLoop(watcher, options.StrategiesFile)
 
-	err = watcher.Add(options.StrategiesFile)
-	if err != nil {
+	if err = watcher.Add(options.StrategiesFile); err != nil {
 		logger.Error("error adding watcher to file", zap.String("file", options.StrategiesFile), zap.Error(err))
 	} else {
 		logger.Info("watching", zap.String("file", options.StrategiesFile))
