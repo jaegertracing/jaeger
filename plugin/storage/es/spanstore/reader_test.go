@@ -915,9 +915,6 @@ func TestSpanReader_buildFindTraceIDsQuery(t *testing.T) {
 			Tags: map[string]string{
 				"hello": "world",
 			},
-			CheckTagsPresent: []string{
-				"hello",
-			},
 		}
 
 		actualQuery := r.reader.buildFindTraceIDsQuery(traceQuery)
@@ -930,7 +927,6 @@ func TestSpanReader_buildFindTraceIDsQuery(t *testing.T) {
 				r.reader.buildServiceNameQuery("s"),
 				r.reader.buildOperationNameQuery("o"),
 				r.reader.buildTagQuery("hello", "world"),
-				r.reader.buildCheckTagPresentQuery("hello"),
 			)
 		expected, err := expectedQuery.Source()
 		require.NoError(t, err)

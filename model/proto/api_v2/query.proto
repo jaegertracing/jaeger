@@ -95,7 +95,6 @@ message TraceQueryParameters {
     (gogoproto.nullable) = false
   ];
   int32 search_depth = 8;
-  repeated string check_tags_present = 9;
 }
 
 message FindTracesRequest {

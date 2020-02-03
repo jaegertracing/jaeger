@@ -79,15 +79,14 @@ func (g *GRPCHandler) ArchiveTrace(ctx context.Context, r *api_v2.ArchiveTraceRe
 func (g *GRPCHandler) FindTraces(r *api_v2.FindTracesRequest, stream api_v2.QueryService_FindTracesServer) error {
 	query := r.GetQuery()
 	queryParams := spanstore.TraceQueryParameters{
-		ServiceName:      query.ServiceName,
-		OperationName:    query.OperationName,
-		Tags:             query.Tags,
-		StartTimeMin:     query.StartTimeMin,
-		StartTimeMax:     query.StartTimeMax,
-		DurationMin:      query.DurationMin,
-		DurationMax:      query.DurationMax,
-		NumTraces:        int(query.SearchDepth),
-		CheckTagsPresent: query.CheckTagsPresent,
+		ServiceName:   query.ServiceName,
+		OperationName: query.OperationName,
+		Tags:          query.Tags,
+		StartTimeMin:  query.StartTimeMin,
+		StartTimeMax:  query.StartTimeMax,
+		DurationMin:   query.DurationMin,
+		DurationMax:   query.DurationMax,
+		NumTraces:     int(query.SearchDepth),
 	}
 	traces, err := g.queryService.FindTraces(stream.Context(), &queryParams)
 	if err != nil {

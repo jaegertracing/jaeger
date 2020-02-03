@@ -20,7 +20,6 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
-	"strings"
 	"time"
 
 	"github.com/olivere/elastic"
@@ -578,12 +577,6 @@ func (s *SpanReader) buildFindTraceIDsQuery(traceQuery *spanstore.TraceQueryPara
 		tagQuery := s.buildTagQuery(k, v)
 		boolQuery.Must(tagQuery)
 	}
-
-	for _, v := range traceQuery.CheckTagsPresent {
-		checkTagPresentQuery := s.buildCheckTagPresentQuery(v)
-		boolQuery.Must(checkTagPresentQuery)
-	}
-
 	return boolQuery
 }
 
@@ -638,13 +631,6 @@ func (s *SpanReader) buildObjectQuery(field string, k string, v string) elastic.
 	keyField := fmt.Sprintf("%s.%s", field, k)
 	keyQuery := elastic.NewRegexpQuery(keyField, v)
 	return elastic.NewBoolQuery().Must(keyQuery)
-}
-
-func (s *SpanReader) buildCheckTagPresentQuery(field string) elastic.Query {
-	// Check in tags as well as process tags
-	checkTagQuery := elastic.NewExistsQuery(strings.Join([]string{"tag", field}, "."))
-	checkProcesTagQuery := elastic.NewExistsQuery(strings.Join([]string{"process", "tag", field}, "."))
-	return elastic.NewBoolQuery().Should(checkTagQuery, checkProcesTagQuery)
 }
 
 func logErrorToSpan(span opentracing.Span, err error) {
