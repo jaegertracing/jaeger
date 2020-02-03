@@ -17,6 +17,7 @@ package spanstore
 
 import (
 	"context"
+	"strings"
 	"time"
 
 	"github.com/opentracing/opentracing-go"
@@ -43,6 +44,12 @@ const (
 		SELECT trace_id
 		FROM tag_index
 		WHERE service_name = ? AND tag_key = ? AND tag_value = ? and start_time > ? and start_time < ?
+		ORDER BY start_time DESC
+		LIMIT ?`
+	queryForTagPresence = `
+		SELECT trace_id
+		FROM tag_index
+		WHERE service_name = ? AND tag_key IN ? and start_time > ? and start_time < ?
 		ORDER BY start_time DESC
 		LIMIT ?`
 	queryByServiceName = `
@@ -301,7 +308,28 @@ func (s *SpanReader) findTraceIDs(ctx context.Context, traceQuery *spanstore.Tra
 	if len(traceQuery.Tags) > 0 {
 		return s.queryByTagsAndLogs(ctx, traceQuery)
 	}
+	if len(traceQuery.CheckTagsPresent) > 0 {
+		s.queryCheckTagPresence(ctx, traceQuery)
+	}
 	return s.queryByService(ctx, traceQuery)
+}
+
+func (s *SpanReader) queryCheckTagPresence(ctx context.Context, tq *spanstore.TraceQueryParameters) (dbmodel.UniqueTraceIDs, error) {
+	span, _ := startSpanForQuery(ctx, "queryCheckTagPresence", queryByTag)
+	query := s.session.Query(
+		tq.ServiceName,
+		"("+strings.Join(tq.CheckTagsPresent, ",")+")",
+		model.TimeAsEpochMicroseconds(tq.StartTimeMin),
+		model.TimeAsEpochMicroseconds(tq.StartTimeMax),
+		tq.NumTraces*limitMultiple,
+	).PageSize(0)
+
+	t, err := s.executeQuery(span, query, s.metrics.queryTagIndex)
+	if err != nil {
+		return nil, err
+	}
+
+	return t, nil
 }
 
 func (s *SpanReader) queryByTagsAndLogs(ctx context.Context, tq *spanstore.TraceQueryParameters) (dbmodel.UniqueTraceIDs, error) {
