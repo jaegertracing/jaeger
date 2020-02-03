@@ -1029,6 +1029,36 @@ func TestSpanReader_buildTagQuery(t *testing.T) {
 	})
 }
 
+func TestSpanReader_buildTagRegexQuery(t *testing.T) {
+	inStr, err := ioutil.ReadFile("fixtures/query_02.json")
+	require.NoError(t, err)
+	withSpanReader(func(r *spanReaderTest) {
+		tagQuery := r.reader.buildTagQuery("bat.foo", "spo.*")
+		actual, err := tagQuery.Source()
+		require.NoError(t, err)
+
+		expected := make(map[string]interface{})
+		json.Unmarshal(inStr, &expected)
+
+		assert.EqualValues(t, expected, actual)
+	})
+}
+
+func TestSpanReader_buildTagRegexEscapedQuery(t *testing.T) {
+	inStr, err := ioutil.ReadFile("fixtures/query_03.json")
+	require.NoError(t, err)
+	withSpanReader(func(r *spanReaderTest) {
+		tagQuery := r.reader.buildTagQuery("bat.foo", "spo\\*")
+		actual, err := tagQuery.Source()
+		require.NoError(t, err)
+
+		expected := make(map[string]interface{})
+		json.Unmarshal(inStr, &expected)
+
+		assert.EqualValues(t, expected, actual)
+	})
+}
+
 func TestSpanReader_GetEmptyIndex(t *testing.T) {
 	withSpanReader(func(r *spanReaderTest) {
 		mockSearchService(r).

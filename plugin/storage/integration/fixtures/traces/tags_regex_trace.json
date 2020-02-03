@@ -1,0 +1,33 @@
+{
+  "spans": [
+    {
+      "traceId": "AAAAAAAAAAAAAAAAAAAAEh==",
+      "spanId": "AAAAAAAAAAU=",
+      "operationName": "query23-operation",
+      "references": [],
+      "startTime": "2017-01-26T16:46:31.639875Z",
+      "duration": "1000ns",
+      "tags": [          
+        {
+          "key": "sameplacetag1",
+          "vType": "STRING",
+          "vStr": "random*"
+        }
+      ],
+      "process": {
+        "serviceName": "query23-service",
+        "tags": []
+      },
+      "logs": [
+        {
+          "timestamp": "2017-01-26T16:46:31.639875Z",
+          "fields": []
+        },
+        {
+          "timestamp": "2017-01-26T16:46:31.639875Z",
+          "fields": []
+        }
+      ]
+    }
+  ]
+}
