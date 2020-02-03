@@ -1,0 +1,11 @@
+{
+  "default_strategy": {
+  },
+  "service_strategies": [
+    {
+      "service": "foo",
+      "type": "probabilistic",
+      "param": 0.5
+    }
+  ]
+}

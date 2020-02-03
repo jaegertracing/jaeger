@@ -40,6 +40,18 @@ type strategyStore struct {
 	serviceStrategies map[string]*sampling.SamplingStrategyResponse
 }
 
+func (h *strategyStore) loadAndParseStrategies(strategiesFile string) error {
+	s, err := loadStrategies(strategiesFile)
+	if err != nil {
+		h.logger.Warn("Using the last saved configuration for sampling strategies.", zap.Error(err))
+		return err
+	}
+
+	h.logger.Info("Updating sampling strategies file!", zap.Any("Strategies", s))
+	h.parseStrategies(s)
+	return nil
+}
+
 // NewStrategyStore creates a strategy store that holds static sampling strategies.
 func NewStrategyStore(options Options, logger *zap.Logger) (ss.StrategyStore, error) {
 	h := &strategyStore{
@@ -48,11 +60,9 @@ func NewStrategyStore(options Options, logger *zap.Logger) (ss.StrategyStore, er
 	}
 
 	// Read strategies
-	strategies, err := loadStrategies(options.StrategiesFile)
-	if err != nil {
+	if err := h.loadAndParseStrategies(options.StrategiesFile); err != nil {
 		return nil, err
 	}
-	h.parseStrategies(strategies)
 
 	// Watch strategies file for changes.
 	watcher, err := fsnotify.NewWatcher()
@@ -60,42 +70,7 @@ func NewStrategyStore(options Options, logger *zap.Logger) (ss.StrategyStore, er
 		logger.Error("failed to create a new watcher for the sampling strategies file", zap.Error(err))
 	}
 
-	go func() {
-		for {
-			select {
-			case event := <-watcher.Events:
-				if event.Op&fsnotify.Remove == fsnotify.Remove {
-					logger.Warn("the sampling strategies file has been removed")
-
-					watcher.Remove(event.Name)
-					watcher.Add(options.StrategiesFile)
-
-					s, err := loadStrategies(options.StrategiesFile)
-					if err != nil {
-						logger.Warn("Error while parsing strategies file. Using the last saved configuration.", zap.Error(err))
-					} else {
-						logger.Info("Updating sampling strategies file!", zap.Any("Strategies", s))
-						h.parseStrategies(s)
-					}
-					continue
-				}
-				if event.Op&fsnotify.Write == fsnotify.Write {
-					s, err := loadStrategies(options.StrategiesFile)
-					if err != nil {
-						logger.Warn("Error while parsing strategies file. Using the last saved configuration.", zap.Error(err))
-					} else {
-						logger.Info("Updating sampling strategies file!", zap.Any("Strategies", s))
-						h.parseStrategies(s)
-					}
-				}
-			case err, ok := <-watcher.Errors:
-				if !ok {
-					return
-				}
-				logger.Error("event", zap.Error(err))
-			}
-		}
-	}()
+	go h.runWatcherLoop(watcher, options.StrategiesFile)
 
 	err = watcher.Add(options.StrategiesFile)
 	if err != nil {
@@ -105,6 +80,39 @@ func NewStrategyStore(options Options, logger *zap.Logger) (ss.StrategyStore, er
 	}
 
 	return h, nil
+}
+
+func (h *strategyStore) runWatcherLoop(watcher *fsnotify.Watcher, strategiesFile string) {
+	for {
+		select {
+		case event := <-watcher.Events:
+			if event.Op&fsnotify.Remove == fsnotify.Remove {
+				h.logger.Warn("the sampling strategies file has been removed")
+
+				// This is a workaround for k8s configmaps. Since k8s loads configmaps as
+				// symlinked files within the containers, changes to the configmap register
+				// as `fsnotify.Remove` events.
+				if err := watcher.Remove(event.Name); err != nil {
+					h.logger.Error("Error removing sampling strategy config file from fsnotify watcher", zap.Error(err))
+				}
+				if err := watcher.Add(strategiesFile); err != nil {
+					h.logger.Warn("Error adding sampling strategy config file to fsnotify watcher", zap.Error(err))
+				}
+
+				h.loadAndParseStrategies(strategiesFile)
+
+				continue
+			}
+			if event.Op&fsnotify.Write == fsnotify.Write {
+				h.loadAndParseStrategies(strategiesFile)
+			}
+		case err, ok := <-watcher.Errors:
+			if !ok {
+				return
+			}
+			h.logger.Error("event", zap.Error(err))
+		}
+	}
 }
 
 // GetSamplingStrategy implements StrategyStore#GetSamplingStrategy.

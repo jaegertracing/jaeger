@@ -16,7 +16,10 @@ package static
 
 import (
 	"fmt"
+	"io/ioutil"
+	"os"
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -216,6 +219,53 @@ func TestParseStrategy(t *testing.T) {
 	expected := makeResponse(sampling.SamplingStrategyType_PROBABILISTIC, defaultSamplingProbability)
 	assert.EqualValues(t, expected, actual)
 	assert.Contains(t, buf.String(), "Failed to parse sampling strategy")
+}
+
+func TestHotReloadSamplingStrategiesTempFile(t *testing.T) {
+	tmpfile, err := ioutil.TempFile("fixtures", "strategies-hot-reload.*.json")
+	assert.NoError(t, err)
+
+	tmpFileName := tmpfile.Name()
+	defer os.Remove(tmpFileName)
+
+	content, err := ioutil.ReadFile("fixtures/strategies-hot-reload.json")
+	assert.NoError(t, err)
+
+	err = ioutil.WriteFile(tmpFileName, content, 0644)
+	assert.NoError(t, err)
+
+	logger, _ := testutils.NewLogger()
+	store, err := NewStrategyStore(Options{StrategiesFile: tmpFileName}, logger)
+	assert.NoError(t, err)
+
+	s, err := store.GetSamplingStrategy("foo")
+	require.NoError(t, err)
+	assert.EqualValues(t, makeResponse(sampling.SamplingStrategyType_PROBABILISTIC, 0.5), *s)
+
+	newContent, err := ioutil.ReadFile("fixtures/strategies.json")
+	err = ioutil.WriteFile(tmpFileName, newContent, 0644)
+	assert.NoError(t, err)
+
+	done := make(chan bool)
+	go func() {
+		for {
+			s, err := store.GetSamplingStrategy("foo")
+			require.NoError(t, err)
+			if s.GetProbabilisticSampling().SamplingRate == 0.8 {
+				done <- true
+			}
+			time.Sleep(10 * time.Millisecond)
+		}
+	}()
+
+	select {
+	case <-done:
+		s, err := store.GetSamplingStrategy("foo")
+		require.NoError(t, err)
+		assert.EqualValues(t, makeResponse(sampling.SamplingStrategyType_PROBABILISTIC, 0.8), *s)
+	case <-time.After(time.Second):
+		assert.Fail(t, "timed out waiting for the hot reload to kick in")
+	}
 }
 
 func makeResponse(samplerType sampling.SamplingStrategyType, param float64) (resp sampling.SamplingStrategyResponse) {
