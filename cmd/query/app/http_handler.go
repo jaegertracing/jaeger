@@ -74,12 +74,13 @@ func NewRouter() *mux.Router {
 
 // APIHandler implements the query service public API by registering routes at httpPrefix
 type APIHandler struct {
-	queryService *querysvc.QueryService
-	queryParser  queryParser
-	basePath     string
-	apiPrefix    string
-	logger       *zap.Logger
-	tracer       opentracing.Tracer
+	queryService      *querysvc.QueryService
+	queryParser       queryParser
+	basePath          string
+	apiPrefix         string
+	logger            *zap.Logger
+	tracer            opentracing.Tracer
+	additionalHeaders map[string]string
 }
 
 // NewAPIHandler returns an APIHandler
@@ -450,6 +451,11 @@ func (aH *APIHandler) writeJSON(w http.ResponseWriter, r *http.Request, response
 		}
 	}
 	resp, _ := marshall(response)
-	w.Header().Set("Content-Type", "application/json")
+
+	header := w.Header()
+	header.Set("Content-Type", "application/json")
+	for h, v := range aH.additionalHeaders {
+		header.Set(h, v)
+	}
 	w.Write(resp)
 }

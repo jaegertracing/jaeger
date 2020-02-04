@@ -65,3 +65,10 @@ func (handlerOptions) Tracer(tracer opentracing.Tracer) HandlerOption {
 		apiHandler.tracer = tracer
 	}
 }
+
+// AdditionalHeaders creates a HandlerOption that adds abitrary Response Headers
+func (handlerOptions) AdditionalHeaders(additionalHeaders map[string]string) HandlerOption {
+	return func(apiHandler *APIHandler) {
+		apiHandler.additionalHeaders = additionalHeaders
+	}
+}

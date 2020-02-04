@@ -562,6 +562,27 @@ func TestGetOperationsLegacyStorageFailure(t *testing.T) {
 	assert.Error(t, err)
 }
 
+func TestAdditionalHeaders(t *testing.T) {
+	additionalHeaders := map[string]string{
+		"Access-Control-Allow-Origin":   "https://mozilla.org",
+		"Access-Control-Expose-Headers": "X-My-Custom-Header,X-Another-Custom-Header",
+	}
+	server, readMock, _ := initializeTestServer(HandlerOptions.AdditionalHeaders(additionalHeaders))
+	defer server.Close()
+	readMock.On("GetTrace", mock.AnythingOfType("*context.valueCtx"), mock.AnythingOfType("model.TraceID")).
+		Return(mockTrace, nil).Once()
+
+	req, err := http.NewRequest("GET", server.URL+`/api/traces/123456`, nil)
+	assert.NoError(t, err)
+	resp, err := execJSONHTTPResponse(req)
+	assert.NoError(t, err)
+	resp.Body.Close()
+
+	for k, v := range additionalHeaders {
+		assert.Equal(t, v, resp.Header.Get(k))
+	}
+}
+
 // getJSON fetches a JSON document from a server via HTTP GET
 func getJSON(url string, out interface{}) error {
 	req, err := http.NewRequest("GET", url, nil)
@@ -587,22 +608,11 @@ func postJSON(url string, req interface{}, out interface{}) error {
 
 // execJSON executes an http request against a server and parses response as JSON
 func execJSON(req *http.Request, out interface{}) error {
-	req.Header.Add("Accept", "application/json")
-
-	resp, err := httpClient.Do(req)
+	resp, err := execJSONHTTPResponse(req)
 	if err != nil {
 		return err
 	}
-
 	defer resp.Body.Close()
-
-	if resp.StatusCode > 399 {
-		body, err := ioutil.ReadAll(resp.Body)
-		if err != nil {
-			return err
-		}
-		return fmt.Errorf("%d error from server: %s", resp.StatusCode, body)
-	}
 
 	if out == nil {
 		io.Copy(ioutil.Discard, resp.Body)
@@ -611,6 +621,25 @@ func execJSON(req *http.Request, out interface{}) error {
 
 	decoder := json.NewDecoder(resp.Body)
 	return decoder.Decode(out)
+}
+
+func execJSONHTTPResponse(req *http.Request) (*http.Response, error) {
+	req.Header.Add("Accept", "application/json")
+
+	resp, err := httpClient.Do(req)
+	if err != nil {
+		return nil, err
+	}
+
+	if resp.StatusCode > 399 {
+		body, err := ioutil.ReadAll(resp.Body)
+		if err != nil {
+			return nil, err
+		}
+		return nil, fmt.Errorf("%d error from server: %s", resp.StatusCode, body)
+	}
+
+	return resp, nil
 }
 
 // Generates a JSON response that the server should produce given a certain error code and error.
