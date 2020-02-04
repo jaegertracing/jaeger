@@ -243,6 +243,7 @@ func TestHotReloadSamplingStrategiesTempFile(t *testing.T) {
 	assert.EqualValues(t, makeResponse(sampling.SamplingStrategyType_PROBABILISTIC, 0.5), *s)
 
 	newContent, err := ioutil.ReadFile("fixtures/strategies.json")
+	assert.NoError(t, err)
 	err = ioutil.WriteFile(tmpFileName, newContent, 0644)
 	assert.NoError(t, err)
 
