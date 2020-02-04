@@ -10,7 +10,7 @@ type FlagList []string
 
 // String implements pflag.Value
 func (l *FlagList) String() string {
-	return strings.Join(*l, ",")
+	return "[" + strings.Join(*l, ",") + "]"
 }
 
 // Set implements pflag.Value
