@@ -30,10 +30,13 @@ func TestQueryBuilderFlags(t *testing.T) {
 		"--query.ui-config=some.json",
 		"--query.base-path=/jaeger",
 		"--query.port=80",
+		"--query.additional-headers=access-control-allow-origin=blerg",
+		"--query.additional-headers=whatever=thing",
 	})
 	qOpts := new(QueryOptions).InitFromViper(v)
 	assert.Equal(t, "/dev/null", qOpts.StaticAssets)
 	assert.Equal(t, "some.json", qOpts.UIConfig)
 	assert.Equal(t, "/jaeger", qOpts.BasePath)
 	assert.Equal(t, 80, qOpts.Port)
+	assert.Equal(t, []string{"access-control-allow-origin=blerg", "whatever=thing"}, qOpts.AdditionalHeaders)
 }
