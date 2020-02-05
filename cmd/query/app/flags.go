@@ -17,6 +17,7 @@ package app
 
 import (
 	"flag"
+	"net/http"
 
 	"github.com/spf13/viper"
 
@@ -46,7 +47,7 @@ type QueryOptions struct {
 	// BearerTokenPropagation activate/deactivate bearer token propagation to storage
 	BearerTokenPropagation bool
 	// AdditionalHeaders
-	AdditionalHeaders []string
+	AdditionalHeaders http.Header
 }
 
 // AddFlags adds flags for QueryOptions
@@ -66,6 +67,12 @@ func (qOpts *QueryOptions) InitFromViper(v *viper.Viper) *QueryOptions {
 	qOpts.StaticAssets = v.GetString(queryStaticFiles)
 	qOpts.UIConfig = v.GetString(queryUIConfig)
 	qOpts.BearerTokenPropagation = v.GetBool(queryTokenPropagation)
-	qOpts.AdditionalHeaders = v.GetStringSlice(queryAdditionalHeaders)
+	qOpts.AdditionalHeaders = stringSliceAsHeader(v.GetStringSlice(queryAdditionalHeaders))
 	return qOpts
+}
+
+// stringSliceAsHeader parses a string slice and returns a header.  each line
+//
+func stringSliceAsHeader(s []string) http.Header {
+
 }

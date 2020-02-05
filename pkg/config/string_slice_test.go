@@ -19,6 +19,9 @@ func TestStringSlice(t *testing.T) {
 
 	f.Set("test2")
 	assert.Equal(t, f.String(), "[test,test2]")
+
+	f.Set("test3,test4")
+	assert.Equal(t, f.String(), "[test,test2,test3,test4]")
 }
 
 func TestStringSliceTreatedAsStringSlice(t *testing.T) {
@@ -32,6 +35,8 @@ func TestStringSliceTreatedAsStringSlice(t *testing.T) {
 	assert.NoError(t, err)
 	err = flagset.Set("test", "blerg")
 	assert.NoError(t, err)
+	err = flagset.Set("test", "other,thing")
+	assert.NoError(t, err)
 
 	// add go flag set to pflag
 	pflagset := pflag.FlagSet{}
@@ -39,5 +44,5 @@ func TestStringSliceTreatedAsStringSlice(t *testing.T) {
 	actual, err := pflagset.GetStringSlice("test")
 	assert.NoError(t, err)
 
-	assert.Equal(t, []string{"asdf", "blerg"}, actual)
+	assert.Equal(t, []string{"asdf", "blerg", "other", "thing"}, actual)
 }

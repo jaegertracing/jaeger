@@ -70,6 +70,7 @@ func createHTTPServer(querySvc *querysvc.QueryService, queryOpts *QueryOptions, 
 	apiHandlerOptions := []HandlerOption{
 		HandlerOptions.Logger(logger),
 		HandlerOptions.Tracer(tracer),
+		HandlerOptions.AdditionalHeaders(queryOpts.AdditionalHeaders)
 	}
 	apiHandler := NewAPIHandler(
 		querySvc,
