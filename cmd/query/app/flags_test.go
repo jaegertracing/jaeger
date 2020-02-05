@@ -16,9 +16,11 @@
 package app
 
 import (
+	"net/http"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
+	"go.uber.org/zap"
 
 	"github.com/jaegertracing/jaeger/pkg/config"
 )
@@ -33,10 +35,26 @@ func TestQueryBuilderFlags(t *testing.T) {
 		"--query.additional-headers=access-control-allow-origin:blerg",
 		"--query.additional-headers=whatever:thing",
 	})
-	qOpts := new(QueryOptions).InitFromViper(v)
+	qOpts := new(QueryOptions).InitFromViper(v, zap.NewNop())
 	assert.Equal(t, "/dev/null", qOpts.StaticAssets)
 	assert.Equal(t, "some.json", qOpts.UIConfig)
 	assert.Equal(t, "/jaeger", qOpts.BasePath)
 	assert.Equal(t, 80, qOpts.Port)
-	assert.Equal(t, []string{"access-control-allow-origin:blerg", "whatever:thing"}, qOpts.AdditionalHeaders)
+	assert.Equal(t, http.Header{"Access-Control-Allow-Origin": []string{"blerg"}, "Whatever": []string{"thing"}}, qOpts.AdditionalHeaders)
+}
+
+func TestStringSliceAsHeader(t *testing.T) {
+	headers := []string{"Access-Control-Allow-Origin: https://mozilla.org",
+		"Access-Control-Expose-Headers: X-My-Custom-Header",
+		"Access-Control-Expose-Headers: X-Another-Custom-Header",
+	}
+
+	parsedHeaders := stringSliceAsHeader(headers, zap.NewNop())
+
+	assert.Equal(t, []string{"https://mozilla.org"}, parsedHeaders["Access-Control-Allow-Origin"])
+	assert.Equal(t, []string{"X-My-Custom-Header", "X-Another-Custom-Header"}, parsedHeaders["Access-Control-Expose-Headers"])
+
+	malformedHeaders := append(headers, "this is not a valid header")
+	parsedHeaders = stringSliceAsHeader(malformedHeaders, zap.NewNop())
+	assert.Nil(t, parsedHeaders)
 }

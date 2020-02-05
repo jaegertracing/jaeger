@@ -16,9 +16,15 @@
 package app
 
 import (
+	"bufio"
 	"flag"
+	"io"
+	"net/http"
+	"net/textproto"
+	"strings"
 
 	"github.com/spf13/viper"
+	"go.uber.org/zap"
 
 	"github.com/jaegertracing/jaeger/pkg/config"
 	"github.com/jaegertracing/jaeger/ports"
@@ -46,7 +52,7 @@ type QueryOptions struct {
 	// BearerTokenPropagation activate/deactivate bearer token propagation to storage
 	BearerTokenPropagation bool
 	// AdditionalHeaders
-	AdditionalHeaders []string
+	AdditionalHeaders http.Header
 }
 
 // AddFlags adds flags for QueryOptions
@@ -60,12 +66,33 @@ func AddFlags(flagSet *flag.FlagSet) {
 }
 
 // InitFromViper initializes QueryOptions with properties from viper
-func (qOpts *QueryOptions) InitFromViper(v *viper.Viper) *QueryOptions {
+func (qOpts *QueryOptions) InitFromViper(v *viper.Viper, logger *zap.Logger) *QueryOptions {
 	qOpts.Port = v.GetInt(queryPort)
 	qOpts.BasePath = v.GetString(queryBasePath)
 	qOpts.StaticAssets = v.GetString(queryStaticFiles)
 	qOpts.UIConfig = v.GetString(queryUIConfig)
 	qOpts.BearerTokenPropagation = v.GetBool(queryTokenPropagation)
-	qOpts.AdditionalHeaders = v.GetStringSlice(queryAdditionalHeaders)
+	qOpts.AdditionalHeaders = stringSliceAsHeader(v.GetStringSlice(queryAdditionalHeaders), logger)
 	return qOpts
+}
+
+// stringSliceAsHeader parses a slice of strings and returns a http.Header.
+//  Each string in the slice is expected to be in the format "key: value"
+func stringSliceAsHeader(slice []string, logger *zap.Logger) http.Header {
+	if len(slice) == 0 {
+		return nil
+	}
+
+	allHeaders := strings.Join(slice, "\r\n")
+
+	reader := bufio.NewReader(strings.NewReader(allHeaders))
+	tp := textproto.NewReader(reader)
+
+	header, err := tp.ReadMIMEHeader()
+	if err != nil && err != io.EOF {
+		logger.Error("Failed to parse headers", zap.Strings("headers", slice))
+		return nil
+	}
+
+	return http.Header(header)
 }

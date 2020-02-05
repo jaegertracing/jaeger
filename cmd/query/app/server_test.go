@@ -122,19 +122,3 @@ func TestServerHandlesPortZero(t *testing.T) {
 	port := onlyEntry.ContextMap()["port"].(int64)
 	assert.Greater(t, port, int64(0))
 }
-
-func TestStringSliceAsHeader(t *testing.T) {
-	headers := []string{"Access-Control-Allow-Origin: https://mozilla.org",
-		"Access-Control-Expose-Headers: X-My-Custom-Header",
-		"Access-Control-Expose-Headers: X-Another-Custom-Header",
-	}
-
-	parsedHeaders := stringSliceAsHeader(headers, zap.NewNop())
-
-	assert.Equal(t, []string{"https://mozilla.org"}, parsedHeaders["Access-Control-Allow-Origin"])
-	assert.Equal(t, []string{"X-My-Custom-Header", "X-Another-Custom-Header"}, parsedHeaders["Access-Control-Expose-Headers"])
-
-	malformedHeaders := append(headers, "this is not a valid header")
-	parsedHeaders = stringSliceAsHeader(malformedHeaders, zap.NewNop())
-	assert.Nil(t, parsedHeaders)
-}

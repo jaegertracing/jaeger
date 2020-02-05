@@ -15,12 +15,9 @@
 package app
 
 import (
-	"bufio"
 	"fmt"
-	"io"
 	"net"
 	"net/http"
-	"net/textproto"
 	"strings"
 
 	"github.com/gorilla/handlers"
@@ -70,11 +67,10 @@ func createGRPCServer(querySvc *querysvc.QueryService, logger *zap.Logger, trace
 }
 
 func createHTTPServer(querySvc *querysvc.QueryService, queryOpts *QueryOptions, tracer opentracing.Tracer, logger *zap.Logger) *http.Server {
-	headers := stringSliceAsHeader(queryOpts.AdditionalHeaders, logger)
 	apiHandlerOptions := []HandlerOption{
 		HandlerOptions.Logger(logger),
 		HandlerOptions.Tracer(tracer),
-		HandlerOptions.AdditionalHeaders(headers),
+		HandlerOptions.AdditionalHeaders(queryOpts.AdditionalHeaders),
 	}
 	apiHandler := NewAPIHandler(
 		querySvc,
@@ -165,25 +161,4 @@ func (s *Server) Close() {
 	s.grpcServer.Stop()
 	s.httpServer.Close()
 	s.conn.Close()
-}
-
-// stringSliceAsHeader parses a slice of strings and returns a http.Header.
-//  Each string in the slice is expected to be in the format "key: value"
-func stringSliceAsHeader(slice []string, logger *zap.Logger) http.Header {
-	if len(slice) == 0 {
-		return nil
-	}
-
-	allHeaders := strings.Join(slice, "\r\n")
-
-	reader := bufio.NewReader(strings.NewReader(allHeaders))
-	tp := textproto.NewReader(reader)
-
-	header, err := tp.ReadMIMEHeader()
-	if err != nil && err != io.EOF {
-		logger.Error("Failed to parse headers", zap.Strings("headers", slice))
-		return nil
-	}
-
-	return http.Header(header)
 }
