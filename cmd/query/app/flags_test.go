@@ -57,4 +57,7 @@ func TestStringSliceAsHeader(t *testing.T) {
 	malformedHeaders := append(headers, "this is not a valid header")
 	parsedHeaders = stringSliceAsHeader(malformedHeaders, zap.NewNop())
 	assert.Nil(t, parsedHeaders)
+
+	parsedHeaders = stringSliceAsHeader([]string{}, zap.NewNop())
+	assert.Nil(t, parsedHeaders)
 }
