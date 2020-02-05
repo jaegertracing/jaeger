@@ -51,7 +51,7 @@ type QueryOptions struct {
 
 // AddFlags adds flags for QueryOptions
 func AddFlags(flagSet *flag.FlagSet) {
-	flagSet.Var(&config.FlagList{}, queryAdditionalHeaders, "Additional HTTP response headers that will be returned with all responses")
+	flagSet.Var(&config.FlagList{}, queryAdditionalHeaders, `Additional HTTP response headers.  Can be specified multiple times.  Format: "Key: Value"`)
 	flagSet.Int(queryPort, ports.QueryHTTP, "The port for the query service")
 	flagSet.String(queryBasePath, "/", "The base path for all HTTP routes, e.g. /jaeger; useful when running behind a reverse proxy")
 	flagSet.String(queryStaticFiles, "", "The directory path override for the static assets for the UI")
