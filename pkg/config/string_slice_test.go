@@ -8,8 +8,8 @@ import (
 	"github.com/stretchr/testify/assert"
 )
 
-func TestFlagList(t *testing.T) {
-	f := &FlagList{}
+func TestStringSlice(t *testing.T) {
+	f := &StringSlice{}
 
 	assert.Equal(t, f.String(), "[]")
 	assert.Equal(t, f.Type(), "stringSlice")
@@ -21,8 +21,8 @@ func TestFlagList(t *testing.T) {
 	assert.Equal(t, f.String(), "[test,test2]")
 }
 
-func TestFlagListTreatedAsStringSlice(t *testing.T) {
-	f := &FlagList{}
+func TestStringSliceTreatedAsStringSlice(t *testing.T) {
+	f := &StringSlice{}
 
 	// create and add flags/values to a go flag set
 	flagset := flag.NewFlagSet("test", flag.ContinueOnError)
