@@ -563,10 +563,11 @@ func TestGetOperationsLegacyStorageFailure(t *testing.T) {
 }
 
 func TestAdditionalHeaders(t *testing.T) {
-	additionalHeaders := map[string]string{
-		"Access-Control-Allow-Origin":   "https://mozilla.org",
-		"Access-Control-Expose-Headers": "X-My-Custom-Header,X-Another-Custom-Header",
-	}
+	additionalHeaders := http.Header{}
+	additionalHeaders.Add("Access-Control-Allow-Origin", "https://mozilla.org")
+	additionalHeaders.Add("Access-Control-Expose-Headers", "X-My-Custom-Header")
+	additionalHeaders.Add("Access-Control-Expose-Headers", "X-Another-Custom-Header")
+	additionalHeaders.Add("Access-Control-Request-Headers", "field1, field2")
 	server, readMock, _ := initializeTestServer(HandlerOptions.AdditionalHeaders(additionalHeaders))
 	defer server.Close()
 	readMock.On("GetTrace", mock.AnythingOfType("*context.valueCtx"), mock.AnythingOfType("model.TraceID")).
@@ -579,7 +580,7 @@ func TestAdditionalHeaders(t *testing.T) {
 	resp.Body.Close()
 
 	for k, v := range additionalHeaders {
-		assert.Equal(t, v, resp.Header.Get(k))
+		assert.Equal(t, v, resp.Header[k])
 	}
 }
 

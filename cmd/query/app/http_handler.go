@@ -80,7 +80,7 @@ type APIHandler struct {
 	apiPrefix         string
 	logger            *zap.Logger
 	tracer            opentracing.Tracer
-	additionalHeaders map[string]string
+	additionalHeaders http.Header
 }
 
 // NewAPIHandler returns an APIHandler
@@ -454,8 +454,8 @@ func (aH *APIHandler) writeJSON(w http.ResponseWriter, r *http.Request, response
 
 	header := w.Header()
 	header.Set("Content-Type", "application/json")
-	for h, v := range aH.additionalHeaders {
-		header.Set(h, v)
+	for key, values := range aH.additionalHeaders {
+		header[key] = values
 	}
 	w.Write(resp)
 }
