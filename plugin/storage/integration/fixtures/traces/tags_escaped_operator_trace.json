@@ -1,7 +1,7 @@
 {
   "spans": [
     {
-      "traceId": "AAAAAAAAAAAAAAAAAAAAEh==",
+      "traceId": "AAAAAAAAAAAAAAAAAAAFEh==",
       "spanId": "AAAAAAAAAAU=",
       "operationName": "query23-operation",
       "references": [],
