@@ -12,24 +12,25 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package app
+package handler
 
 import (
 	"context"
 
 	"go.uber.org/zap"
 
+	"github.com/jaegertracing/jaeger/cmd/collector/app/processor"
 	"github.com/jaegertracing/jaeger/proto-gen/api_v2"
 )
 
 // GRPCHandler implements gRPC CollectorService.
 type GRPCHandler struct {
 	logger        *zap.Logger
-	spanProcessor SpanProcessor
+	spanProcessor processor.Span
 }
 
 // NewGRPCHandler registers routes for this handler on the given router.
-func NewGRPCHandler(logger *zap.Logger, spanProcessor SpanProcessor) *GRPCHandler {
+func NewGRPCHandler(logger *zap.Logger, spanProcessor processor.Span) *GRPCHandler {
 	return &GRPCHandler{
 		logger:        logger,
 		spanProcessor: spanProcessor,
@@ -43,9 +44,9 @@ func (g *GRPCHandler) PostSpans(ctx context.Context, r *api_v2.PostSpansRequest)
 			span.Process = r.Batch.Process
 		}
 	}
-	_, err := g.spanProcessor.ProcessSpans(r.GetBatch().Spans, ProcessSpansOptions{
-		InboundTransport: GRPCTransport,
-		SpanFormat:       ProtoSpanFormat,
+	_, err := g.spanProcessor.ProcessSpans(r.GetBatch().Spans, processor.SpansOptions{
+		InboundTransport: processor.GRPCTransport,
+		SpanFormat:       processor.ProtoSpanFormat,
 	})
 	if err != nil {
 		g.logger.Error("cannot process spans", zap.Error(err))

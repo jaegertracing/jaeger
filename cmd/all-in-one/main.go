@@ -44,6 +44,7 @@ import (
 	"github.com/jaegertracing/jaeger/cmd/all-in-one/setupcontext"
 	collectorApp "github.com/jaegertracing/jaeger/cmd/collector/app"
 	"github.com/jaegertracing/jaeger/cmd/collector/app/grpcserver"
+	"github.com/jaegertracing/jaeger/cmd/collector/app/handler"
 	"github.com/jaegertracing/jaeger/cmd/collector/app/sampling"
 	"github.com/jaegertracing/jaeger/cmd/collector/app/sampling/strategystore"
 	"github.com/jaegertracing/jaeger/cmd/collector/app/zipkin"
@@ -282,7 +283,7 @@ func startCollector(
 
 func startGRPCServer(
 	port int,
-	handler *collectorApp.GRPCHandler,
+	handler *handler.GRPCHandler,
 	samplingStore strategystore.StrategyStore,
 	logger *zap.Logger,
 ) (*grpc.Server, error) {

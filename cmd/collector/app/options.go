@@ -19,6 +19,7 @@ import (
 	"github.com/uber/jaeger-lib/metrics"
 	"go.uber.org/zap"
 
+	"github.com/jaegertracing/jaeger/cmd/collector/app/processor"
 	"github.com/jaegertracing/jaeger/cmd/collector/app/sanitizer"
 	"github.com/jaegertracing/jaeger/model"
 )
@@ -44,7 +45,7 @@ type options struct {
 	dynQueueSizeWarmup uint
 	dynQueueSizeMemory uint
 	reportBusy         bool
-	extraFormatTypes   []SpanFormat
+	extraFormatTypes   []processor.SpanFormat
 	collectorTags      map[string]string
 }
 
@@ -146,7 +147,7 @@ func (options) ReportBusy(reportBusy bool) Option {
 }
 
 // ExtraFormatTypes creates an Option that initializes the extra list of format types
-func (options) ExtraFormatTypes(extraFormatTypes []SpanFormat) Option {
+func (options) ExtraFormatTypes(extraFormatTypes []processor.SpanFormat) Option {
 	return func(b *options) {
 		b.extraFormatTypes = extraFormatTypes
 	}

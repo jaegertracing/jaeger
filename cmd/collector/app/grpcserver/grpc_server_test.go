@@ -27,7 +27,8 @@ import (
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/test/bufconn"
 
-	"github.com/jaegertracing/jaeger/cmd/collector/app"
+	"github.com/jaegertracing/jaeger/cmd/collector/app/handler"
+	"github.com/jaegertracing/jaeger/cmd/collector/app/processor"
 	"github.com/jaegertracing/jaeger/model"
 	"github.com/jaegertracing/jaeger/proto-gen/api_v2"
 	"github.com/jaegertracing/jaeger/thrift-gen/sampling"
@@ -36,7 +37,7 @@ import (
 // test wrong port number
 func TestFailToListen(t *testing.T) {
 	l, _ := zap.NewDevelopment()
-	handler := app.NewGRPCHandler(l, &mockSpanProcessor{})
+	handler := handler.NewGRPCHandler(l, &mockSpanProcessor{})
 	server := grpc.NewServer()
 	const invalidPort = -1
 	addr, err := StartGRPCCollector(invalidPort, server, handler, &mockSamplingStore{}, l, func(e error) {
@@ -61,7 +62,7 @@ func TestFailServe(t *testing.T) {
 
 func TestSpanCollector(t *testing.T) {
 	l, _ := zap.NewDevelopment()
-	handler := app.NewGRPCHandler(l, &mockSpanProcessor{})
+	handler := handler.NewGRPCHandler(l, &mockSpanProcessor{})
 	server := grpc.NewServer()
 	addr, err := StartGRPCCollector(0, server, handler, &mockSamplingStore{}, l, func(e error) {
 	})
@@ -87,6 +88,6 @@ func (s mockSamplingStore) GetSamplingStrategy(serviceName string) (*sampling.Sa
 type mockSpanProcessor struct {
 }
 
-func (p *mockSpanProcessor) ProcessSpans(spans []*model.Span, _ app.ProcessSpansOptions) ([]bool, error) {
+func (p *mockSpanProcessor) ProcessSpans(spans []*model.Span, _ processor.SpansOptions) ([]bool, error) {
 	return []bool{}, nil
 }

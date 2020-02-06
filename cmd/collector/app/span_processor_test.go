@@ -27,6 +27,7 @@ import (
 	"go.uber.org/atomic"
 	"go.uber.org/zap"
 
+	"github.com/jaegertracing/jaeger/cmd/collector/app/processor"
 	zipkinSanitizer "github.com/jaegertracing/jaeger/cmd/collector/app/sanitizer/zipkin"
 	"github.com/jaegertracing/jaeger/model"
 	"github.com/jaegertracing/jaeger/pkg/testutils"
@@ -40,13 +41,13 @@ func TestBySvcMetrics(t *testing.T) {
 	allowedService := "bender"
 
 	type TestCase struct {
-		format      SpanFormat
+		format      processor.SpanFormat
 		serviceName string
 		rootSpan    bool
 		debug       bool
 	}
 
-	spanFormat := [2]SpanFormat{ZipkinSpanFormat, JaegerSpanFormat}
+	spanFormat := [2]processor.SpanFormat{processor.ZipkinSpanFormat, processor.JaegerSpanFormat}
 	serviceNames := [2]string{allowedService, blackListedService}
 	rootSpanEnabled := [2]bool{true, false}
 	debugEnabled := [2]bool{true, false}
@@ -73,7 +74,7 @@ func TestBySvcMetrics(t *testing.T) {
 		logger := zap.NewNop()
 		serviceMetrics := mb.Namespace(metrics.NSOptions{Name: "service", Tags: nil})
 		hostMetrics := mb.Namespace(metrics.NSOptions{Name: "host", Tags: nil})
-		processor := newSpanProcessor(
+		sp := newSpanProcessor(
 			&fakeSpanWriter{},
 			Options.ServiceMetrics(serviceMetrics),
 			Options.HostMetrics(hostMetrics),
@@ -85,15 +86,15 @@ func TestBySvcMetrics(t *testing.T) {
 		)
 		var metricPrefix, format string
 		switch test.format {
-		case ZipkinSpanFormat:
+		case processor.ZipkinSpanFormat:
 			span := makeZipkinSpan(test.serviceName, test.rootSpan, test.debug)
-			zHandler := NewZipkinSpanHandler(logger, processor, zipkinSanitizer.NewParentIDSanitizer())
+			zHandler := NewZipkinSpanHandler(logger, sp, zipkinSanitizer.NewParentIDSanitizer())
 			zHandler.SubmitZipkinBatch([]*zc.Span{span, span}, SubmitBatchOptions{})
 			metricPrefix = "service"
 			format = "zipkin"
-		case JaegerSpanFormat:
+		case processor.JaegerSpanFormat:
 			span, process := makeJaegerSpan(test.serviceName, test.rootSpan, test.debug)
-			jHandler := NewJaegerSpanHandler(logger, processor)
+			jHandler := NewJaegerSpanHandler(logger, sp)
 			jHandler.SubmitBatches([]*jaeger.Batch{
 				{
 					Spans: []*jaeger.Span{
@@ -215,7 +216,7 @@ func TestSpanProcessor(t *testing.T) {
 				ServiceName: "x",
 			},
 		},
-	}, ProcessSpansOptions{SpanFormat: JaegerSpanFormat})
+	}, processor.SpansOptions{SpanFormat: processor.JaegerSpanFormat})
 	assert.NoError(t, err)
 	assert.Equal(t, []bool{true}, res)
 }
@@ -239,7 +240,7 @@ func TestSpanProcessorErrors(t *testing.T) {
 				ServiceName: "x",
 			},
 		},
-	}, ProcessSpansOptions{SpanFormat: JaegerSpanFormat})
+	}, processor.SpansOptions{SpanFormat: processor.JaegerSpanFormat})
 	assert.NoError(t, err)
 	assert.Equal(t, []bool{true}, res)
 
@@ -297,7 +298,7 @@ func TestSpanProcessorBusy(t *testing.T) {
 				ServiceName: "x",
 			},
 		},
-	}, ProcessSpansOptions{SpanFormat: JaegerSpanFormat})
+	}, processor.SpansOptions{SpanFormat: processor.JaegerSpanFormat})
 
 	assert.Error(t, err, "expcting busy error")
 	assert.Nil(t, res)

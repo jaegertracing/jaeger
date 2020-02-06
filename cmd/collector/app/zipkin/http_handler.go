@@ -31,6 +31,7 @@ import (
 	"github.com/gorilla/mux"
 
 	"github.com/jaegertracing/jaeger/cmd/collector/app"
+	"github.com/jaegertracing/jaeger/cmd/collector/app/processor"
 	"github.com/jaegertracing/jaeger/model/converter/thrift/zipkin"
 	zipkinProto "github.com/jaegertracing/jaeger/proto-gen/zipkin"
 	"github.com/jaegertracing/jaeger/swagger-gen/models"
@@ -200,7 +201,7 @@ func gunzip(r io.ReadCloser) (*gzip.Reader, error) {
 
 func (aH *APIHandler) saveThriftSpans(tSpans []*zipkincore.Span) error {
 	if len(tSpans) > 0 {
-		opts := app.SubmitBatchOptions{InboundTransport: app.HTTPTransport}
+		opts := app.SubmitBatchOptions{InboundTransport: processor.HTTPTransport}
 		if _, err := aH.zipkinSpansHandler.SubmitZipkinBatch(tSpans, opts); err != nil {
 			return err
 		}

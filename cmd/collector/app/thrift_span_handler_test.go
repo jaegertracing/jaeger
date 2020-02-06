@@ -22,6 +22,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"go.uber.org/zap"
 
+	"github.com/jaegertracing/jaeger/cmd/collector/app/processor"
 	"github.com/jaegertracing/jaeger/cmd/collector/app/sanitizer/zipkin"
 	"github.com/jaegertracing/jaeger/model"
 	"github.com/jaegertracing/jaeger/thrift-gen/jaeger"
@@ -65,7 +66,7 @@ type shouldIErrorProcessor struct {
 
 var errTestError = errors.New("Whoops")
 
-func (s *shouldIErrorProcessor) ProcessSpans(mSpans []*model.Span, _ ProcessSpansOptions) ([]bool, error) {
+func (s *shouldIErrorProcessor) ProcessSpans(mSpans []*model.Span, _ processor.SpansOptions) ([]bool, error) {
 	if s.shouldError {
 		return nil, errTestError
 	}

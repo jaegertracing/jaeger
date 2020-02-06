@@ -17,6 +17,7 @@ package app
 import (
 	"github.com/uber/tchannel-go/thrift"
 
+	"github.com/jaegertracing/jaeger/cmd/collector/app/processor"
 	"github.com/jaegertracing/jaeger/thrift-gen/jaeger"
 	"github.com/jaegertracing/jaeger/thrift-gen/zipkincore"
 )
@@ -44,7 +45,7 @@ func (h *TChannelHandler) SubmitZipkinBatch(
 	spans []*zipkincore.Span,
 ) ([]*zipkincore.Response, error) {
 	return h.zipkinHandler.SubmitZipkinBatch(spans, SubmitBatchOptions{
-		InboundTransport: TChannelTransport,
+		InboundTransport: processor.TChannelTransport,
 	})
 }
 
@@ -54,6 +55,6 @@ func (h *TChannelHandler) SubmitBatches(
 	batches []*jaeger.Batch,
 ) ([]*jaeger.BatchSubmitResponse, error) {
 	return h.jaegerHandler.SubmitBatches(batches, SubmitBatchOptions{
-		InboundTransport: TChannelTransport,
+		InboundTransport: processor.TChannelTransport,
 	})
 }

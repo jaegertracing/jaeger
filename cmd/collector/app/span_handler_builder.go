@@ -21,6 +21,7 @@ import (
 	"github.com/uber/jaeger-lib/metrics"
 	"go.uber.org/zap"
 
+	"github.com/jaegertracing/jaeger/cmd/collector/app/handler"
 	zs "github.com/jaegertracing/jaeger/cmd/collector/app/sanitizer/zipkin"
 	"github.com/jaegertracing/jaeger/model"
 	"github.com/jaegertracing/jaeger/storage/spanstore"
@@ -38,7 +39,7 @@ type SpanHandlerBuilder struct {
 func (b *SpanHandlerBuilder) BuildHandlers() (
 	ZipkinSpansHandler,
 	JaegerBatchesHandler,
-	*GRPCHandler,
+	*handler.GRPCHandler,
 ) {
 	hostname, _ := os.Hostname()
 	svcMetrics := b.metricsFactory()
@@ -59,7 +60,7 @@ func (b *SpanHandlerBuilder) BuildHandlers() (
 
 	return NewZipkinSpanHandler(b.Logger, spanProcessor, zs.NewChainedSanitizer(zs.StandardSanitizers...)),
 		NewJaegerSpanHandler(b.Logger, spanProcessor),
-		NewGRPCHandler(b.Logger, spanProcessor)
+		handler.NewGRPCHandler(b.Logger, spanProcessor)
 }
 
 func defaultSpanFilter(*model.Span) bool {

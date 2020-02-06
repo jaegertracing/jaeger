@@ -25,7 +25,7 @@ import (
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/grpclog"
 
-	"github.com/jaegertracing/jaeger/cmd/collector/app"
+	"github.com/jaegertracing/jaeger/cmd/collector/app/handler"
 	"github.com/jaegertracing/jaeger/cmd/collector/app/sampling"
 	"github.com/jaegertracing/jaeger/cmd/collector/app/sampling/strategystore"
 	"github.com/jaegertracing/jaeger/proto-gen/api_v2"
@@ -35,7 +35,7 @@ import (
 func StartGRPCCollector(
 	port int,
 	server *grpc.Server,
-	handler *app.GRPCHandler,
+	handler *handler.GRPCHandler,
 	samplingStrategy strategystore.StrategyStore,
 	logger *zap.Logger,
 	serveErr func(error),
