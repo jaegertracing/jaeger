@@ -125,7 +125,7 @@ func newSpanProcessor(spanWriter spanstore.Writer, opts ...Option) *spanProcesso
 	}
 
 	processSpanFuncs := []ProcessSpan{options.preSave, sp.saveSpan}
-	if options.dynQueueSizeWarmup > 0 {
+	if options.dynQueueSizeMemory > 0 {
 		// add to processSpanFuncs
 		options.logger.Info("Dynamically adjusting the queue size at runtime.",
 			zap.Uint("memory-mib", options.dynQueueSizeMemory/1024/1024),
