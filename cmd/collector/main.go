@@ -38,7 +38,6 @@ import (
 	"google.golang.org/grpc/credentials"
 
 	"github.com/jaegertracing/jaeger/cmd/collector/app"
-	"github.com/jaegertracing/jaeger/cmd/collector/app/builder"
 	"github.com/jaegertracing/jaeger/cmd/collector/app/grpcserver"
 	"github.com/jaegertracing/jaeger/cmd/collector/app/sampling"
 	"github.com/jaegertracing/jaeger/cmd/collector/app/sampling/strategystore"
@@ -95,8 +94,8 @@ func main() {
 				logger.Fatal("Failed to create span writer", zap.Error(err))
 			}
 
-			builderOpts := new(builder.CollectorOptions).InitFromViper(v)
-			handlerBuilder := &builder.SpanHandlerBuilder{
+			builderOpts := new(app.CollectorOptions).InitFromViper(v)
+			handlerBuilder := &app.SpanHandlerBuilder{
 				SpanWriter:     spanWriter,
 				CollectorOpts:  *builderOpts,
 				Logger:         logger,
@@ -184,7 +183,7 @@ func main() {
 		v,
 		command,
 		svc.AddFlags,
-		builder.AddFlags,
+		app.AddFlags,
 		storageFactory.AddFlags,
 		strategyStoreFactory.AddFlags,
 	)
@@ -196,7 +195,7 @@ func main() {
 }
 
 func startGRPCServer(
-	opts *builder.CollectorOptions,
+	opts *app.CollectorOptions,
 	handler *app.GRPCHandler,
 	samplingStore strategystore.StrategyStore,
 	logger *zap.Logger,

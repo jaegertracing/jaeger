@@ -43,7 +43,6 @@ import (
 	agentTchanRep "github.com/jaegertracing/jaeger/cmd/agent/app/reporter/tchannel"
 	"github.com/jaegertracing/jaeger/cmd/all-in-one/setupcontext"
 	collectorApp "github.com/jaegertracing/jaeger/cmd/collector/app"
-	collector "github.com/jaegertracing/jaeger/cmd/collector/app/builder"
 	"github.com/jaegertracing/jaeger/cmd/collector/app/grpcserver"
 	"github.com/jaegertracing/jaeger/cmd/collector/app/sampling"
 	"github.com/jaegertracing/jaeger/cmd/collector/app/sampling/strategystore"
@@ -128,7 +127,7 @@ by default uses only in-memory database.`,
 			repOpts := new(agentRep.Options).InitFromViper(v, logger)
 			tchanBuilder := agentTchanRep.NewBuilder().InitFromViper(v, logger)
 			grpcBuilder := agentGrpcRep.NewConnBuilder().InitFromViper(v)
-			cOpts := new(collector.CollectorOptions).InitFromViper(v)
+			cOpts := new(collectorApp.CollectorOptions).InitFromViper(v)
 			qOpts := new(queryApp.QueryOptions).InitFromViper(v, logger)
 
 			collectorSrv := startCollector(cOpts, spanWriter, logger, metricsFactory, strategyStore, svc.HC())
@@ -167,7 +166,7 @@ by default uses only in-memory database.`,
 		agentRep.AddFlags,
 		agentTchanRep.AddFlags,
 		agentGrpcRep.AddFlags,
-		collector.AddFlags,
+		collectorApp.AddFlags,
 		queryApp.AddFlags,
 		strategyStoreFactory.AddFlags,
 	)
@@ -183,7 +182,7 @@ func startAgent(
 	repOpts *agentRep.Options,
 	tchanBuilder *agentTchanRep.Builder,
 	grpcBuilder *agentGrpcRep.ConnBuilder,
-	cOpts *collector.CollectorOptions,
+	cOpts *collectorApp.CollectorOptions,
 	logger *zap.Logger,
 	baseFactory metrics.Factory,
 ) {
@@ -207,7 +206,7 @@ func startAgent(
 }
 
 func startCollector(
-	cOpts *collector.CollectorOptions,
+	cOpts *collectorApp.CollectorOptions,
 	spanWriter spanstore.Writer,
 	logger *zap.Logger,
 	baseFactory metrics.Factory,
@@ -216,7 +215,7 @@ func startCollector(
 ) *grpc.Server {
 	metricsFactory := baseFactory.Namespace(metrics.NSOptions{Name: "collector", Tags: nil})
 
-	spanHandlerBuilder := &collector.SpanHandlerBuilder{
+	spanHandlerBuilder := &collectorApp.SpanHandlerBuilder{
 		SpanWriter:     spanWriter,
 		CollectorOpts:  *cOpts,
 		Logger:         logger,
