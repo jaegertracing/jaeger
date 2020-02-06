@@ -61,6 +61,7 @@ type StorageIntegration struct {
 	SpanReader       spanstore.Reader
 	DependencyWriter dependencystore.Writer
 	DependencyReader dependencystore.Reader
+	Fixtures         []*QueryFixtures
 	// TODO: remove this flag after all storage plugins returns spanKind with operationNames
 	notSupportSpanKindWithOperation bool
 
@@ -208,13 +209,13 @@ func (s *StorageIntegration) testFindTraces(t *testing.T) {
 	defer s.cleanUp(t)
 
 	// Note: all cases include ServiceName + StartTime range
-	queryTestCases := loadAndParseQueryTestCases(t)
+	s.Fixtures = append(s.Fixtures, loadAndParseQueryTestCases(t, "fixtures/queries.json")...)
 
 	// Each query test case only specifies matching traces, but does not provide counterexamples.
 	// To improve coverage we get all possible traces and store all of them before running queries.
 	allTraceFixtures := make(map[string]*model.Trace)
-	expectedTracesPerTestCase := make([][]*model.Trace, 0, len(queryTestCases))
-	for _, queryTestCase := range queryTestCases {
+	expectedTracesPerTestCase := make([][]*model.Trace, 0, len(s.Fixtures))
+	for _, queryTestCase := range s.Fixtures {
 		var expected []*model.Trace
 		for _, traceFixture := range queryTestCase.ExpectedFixtures {
 			trace, ok := allTraceFixtures[traceFixture]
@@ -229,7 +230,7 @@ func (s *StorageIntegration) testFindTraces(t *testing.T) {
 		expectedTracesPerTestCase = append(expectedTracesPerTestCase, expected)
 	}
 	s.refresh(t)
-	for i, queryTestCase := range queryTestCases {
+	for i, queryTestCase := range s.Fixtures {
 		t.Run(queryTestCase.Caption, func(t *testing.T) {
 			expected := expectedTracesPerTestCase[i]
 			actual := s.findTracesByQuery(t, queryTestCase.Query, expected)
@@ -304,9 +305,9 @@ func loadAndParseJSONPB(t *testing.T, path string, object proto.Message) {
 	require.NoError(t, err, "Not expecting error when unmarshaling fixture %s", path)
 }
 
-func loadAndParseQueryTestCases(t *testing.T) []*QueryFixtures {
+func loadAndParseQueryTestCases(t *testing.T, queriesFile string) []*QueryFixtures {
 	var queries []*QueryFixtures
-	loadAndParseJSON(t, "fixtures/queries.json", &queries)
+	loadAndParseJSON(t, queriesFile, &queries)
 	return queries
 }
 

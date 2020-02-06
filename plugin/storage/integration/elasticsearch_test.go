@@ -68,7 +68,7 @@ func (s *ESStorageIntegration) getVersion() (uint, error) {
 	return uint(esVersion), nil
 }
 
-func (s *ESStorageIntegration) initializeES(allTagsAsFields, archive bool) error {
+func (s *ESStorageIntegration) initializeES(t *testing.T, allTagsAsFields, archive bool) error {
 	rawClient, err := elastic.NewClient(
 		elastic.SetURL(queryURL),
 		elastic.SetSniff(false))
@@ -96,6 +96,8 @@ func (s *ESStorageIntegration) initializeES(allTagsAsFields, archive bool) error
 	s.esCleanUp(allTagsAsFields, archive)
 	// TODO: remove this flag after ES support returning spanKind when get operations
 	s.notSupportSpanKindWithOperation = true
+
+	s.Fixtures = loadAndParseQueryTestCases(t, "fixtures/queries_es.json")
 	return nil
 }
 
@@ -169,7 +171,7 @@ func testElasticsearchStorage(t *testing.T, allTagsAsFields, archive bool) {
 		t.Fatal(err)
 	}
 	s := &ESStorageIntegration{}
-	require.NoError(t, s.initializeES(allTagsAsFields, archive))
+	require.NoError(t, s.initializeES(t, allTagsAsFields, archive))
 
 	if archive {
 		t.Run("ArchiveTrace", s.testArchiveTrace)

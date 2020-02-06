@@ -1,0 +1,34 @@
+[
+    {
+        "Caption": "Tag excaped operator + Operation name + max Duration",
+        "Query": {
+        "ServiceName": "query23-service",
+        "OperationName": "query23-operation",
+        "Tags": {
+            "sameplacetag1":"random\\*"
+        },
+        "StartTimeMin": "2017-01-26T15:46:31.639875Z",
+        "StartTimeMax": "2017-01-26T17:46:31.639875Z",
+        "DurationMin": 0,
+        "DurationMax": 1000,
+        "NumTraces": 1000
+        },
+        "ExpectedFixtures": ["tags_escaped_operator_trace"]
+    },
+    {
+        "Caption": "Tag wildcard regex + Operation name + max Duration",
+        "Query": {
+        "ServiceName": "query12-service",
+        "OperationName": "",
+        "Tags": {
+            "sameplacetag1":"same.*"
+        },
+        "StartTimeMin": "2017-01-26T15:46:31.639875Z",
+        "StartTimeMax": "2017-01-26T17:46:31.639875Z",
+        "DurationMin": 0,
+        "DurationMax": 0,
+        "NumTraces": 1000
+        },
+        "ExpectedFixtures": ["tags_opname_trace"]
+    }
+]
