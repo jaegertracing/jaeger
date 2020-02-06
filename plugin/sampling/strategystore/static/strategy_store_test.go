@@ -18,6 +18,8 @@ import (
 	"fmt"
 	"io/ioutil"
 	"os"
+	"path/filepath"
+	"runtime"
 	"testing"
 	"time"
 
@@ -221,21 +223,16 @@ func TestParseStrategy(t *testing.T) {
 	assert.Contains(t, buf.String(), "Failed to parse sampling strategy")
 }
 
-func TestHotReloadSamplingStrategiesTempFile(t *testing.T) {
-	tmpfile, err := ioutil.TempFile("fixtures", "strategies-hot-reload.*.json")
-	assert.NoError(t, err)
-
-	tmpFileName := tmpfile.Name()
-	defer os.Remove(tmpFileName)
-
-	content, err := ioutil.ReadFile("fixtures/strategies-hot-reload.json")
-	assert.NoError(t, err)
-
-	err = ioutil.WriteFile(tmpFileName, content, 0644)
-	assert.NoError(t, err)
+func testHotReloadRunner(t *testing.T, tmpFileName, symlink string) {
+	var watchFileName string
+	if symlink == "" {
+		watchFileName = tmpFileName
+	} else {
+		watchFileName = symlink
+	}
 
 	logger, _ := testutils.NewLogger()
-	store, err := NewStrategyStore(Options{StrategiesFile: tmpFileName}, logger)
+	store, err := NewStrategyStore(Options{StrategiesFile: watchFileName}, logger)
 	assert.NoError(t, err)
 
 	s, err := store.GetSamplingStrategy("foo")
@@ -244,6 +241,7 @@ func TestHotReloadSamplingStrategiesTempFile(t *testing.T) {
 
 	newContent, err := ioutil.ReadFile("fixtures/strategies.json")
 	assert.NoError(t, err)
+	// Even if its a symlink, write to tmp file
 	err = ioutil.WriteFile(tmpFileName, newContent, 0644)
 	assert.NoError(t, err)
 
@@ -267,6 +265,49 @@ func TestHotReloadSamplingStrategiesTempFile(t *testing.T) {
 	case <-time.After(time.Second):
 		assert.Fail(t, "timed out waiting for the hot reload to kick in")
 	}
+}
+
+func TestHotReloadSamplingStrategiesTempFile(t *testing.T) {
+	tmpfile, err := ioutil.TempFile("fixtures", "strategies-hot-reload.*.json")
+	assert.NoError(t, err)
+
+	tmpFileName := tmpfile.Name()
+	defer os.Remove(tmpFileName)
+
+	content, err := ioutil.ReadFile("fixtures/strategies-hot-reload.json")
+	assert.NoError(t, err)
+
+	err = ioutil.WriteFile(tmpFileName, content, 0644)
+	assert.NoError(t, err)
+
+	testHotReloadRunner(t, tmpFileName, "")
+}
+
+func TestHotReloadSamplingStrategiesTempFileWithSymlink(t *testing.T) {
+	// skip if not executed on Linux
+	if runtime.GOOS != "linux" {
+		t.Skipf("Skipping test as symlink replacements don't work on non-linux environment...")
+	}
+
+	tmpfile, err := ioutil.TempFile("fixtures", "strategies-hot-reload.*.json")
+	assert.NoError(t, err)
+
+	tmpFileName := tmpfile.Name()
+	defer os.Remove(tmpFileName)
+
+	content, err := ioutil.ReadFile("fixtures/strategies-hot-reload.json")
+	assert.NoError(t, err)
+
+	err = ioutil.WriteFile(tmpFileName, content, 0644)
+	assert.NoError(t, err)
+
+	// create symlink
+	symlink := filepath.Join("fixtures", "symlink")
+	err = os.Symlink(tmpFileName, symlink)
+	defer os.Remove(symlink)
+	assert.NoError(t, err)
+
+	testHotReloadRunner(t, tmpFileName, symlink)
 }
 
 func makeResponse(samplerType sampling.SamplingStrategyType, param float64) (resp sampling.SamplingStrategyResponse) {
