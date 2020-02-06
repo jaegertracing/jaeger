@@ -22,6 +22,7 @@ import (
 	"github.com/uber/jaeger-lib/metrics"
 
 	"github.com/jaegertracing/jaeger/model"
+	"github.com/jaegertracing/jaeger/pkg/normalizer"
 )
 
 const (
@@ -288,7 +289,7 @@ func (m metricsBySvc) countTracesByServiceName(serviceName string, isDebug bool,
 // an alert should be raised to investigate what's causing so many unique
 // service names.
 func (m *traceCountsBySvc) countByServiceName(serviceName string, isDebug bool, samplerType string) {
-	serviceName = NormalizeServiceName(serviceName)
+	serviceName = normalizer.ServiceName(serviceName)
 	counts := m.counts
 	if isDebug {
 		counts = m.debugCounts
@@ -341,7 +342,7 @@ func (m *traceCountsBySvc) countByServiceName(serviceName string, isDebug bool, 
 // an alert should be raised to investigate what's causing so many unique
 // service names.
 func (m *spanCountsBySvc) countByServiceName(serviceName string, isDebug bool) {
-	serviceName = NormalizeServiceName(serviceName)
+	serviceName = normalizer.ServiceName(serviceName)
 	counts := m.counts
 	if isDebug {
 		counts = m.debugCounts

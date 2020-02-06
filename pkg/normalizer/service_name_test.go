@@ -13,7 +13,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package app
+package normalizer
 
 import (
 	"testing"
@@ -22,7 +22,7 @@ import (
 )
 
 func TestServiceNameReplacer(t *testing.T) {
-	assert.Equal(t, "abc", NormalizeServiceName("ABC"), "lower case conversion")
-	assert.Equal(t, "a_b_c__", NormalizeServiceName("a&b%c/:"), "disallowed runes to underscore")
-	assert.Equal(t, "a_z_0123456789.", NormalizeServiceName("A_Z_0123456789."), "allowed runes")
+	assert.Equal(t, "abc", ServiceName("ABC"), "lower case conversion")
+	assert.Equal(t, "a_b_c__", ServiceName("a&b%c/:"), "disallowed runes to underscore")
+	assert.Equal(t, "a_z_0123456789.", ServiceName("A_Z_0123456789."), "allowed runes")
 }
