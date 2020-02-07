@@ -122,6 +122,20 @@ func (c *Collector) Start(builderOpts *CollectorOptions) error {
 		c.grpcServer = grpcServer
 	}
 
+	if httpServer, err := c.StartHTTPServer(&HTTPServerParams{
+		Port:            builderOpts.CollectorZipkinHTTPPort,
+		Handler:         jaegerBatchesHandler,
+		RecoveryHandler: recoveryHandler,
+		HealthCheck:     c.hCheck,
+		MetricsFactory:  c.metricsFactory,
+		SamplingStore:   c.strategyStore,
+		Logger:          c.logger,
+	}); err != nil {
+		c.logger.Fatal("Could not start the HTTP server", zap.Error(err))
+	} else {
+		c.hServer = httpServer
+	}
+
 	if zkServer, err := c.StartZipkinServer(&ZipkinServerParams{
 		Port:            builderOpts.CollectorZipkinHTTPPort,
 		Handler:         zipkinSpansHandler,
@@ -133,38 +147,6 @@ func (c *Collector) Start(builderOpts *CollectorOptions) error {
 		c.logger.Fatal("Could not start the Zipkin server", zap.Error(err))
 	} else {
 		c.zkServer = zkServer
-	}
-
-	{
-		r := mux.NewRouter()
-		apiHandler := handler.NewAPIHandler(jaegerBatchesHandler)
-		apiHandler.RegisterRoutes(r)
-
-		cfgHandler := clientcfgHandler.NewHTTPHandler(clientcfgHandler.HTTPHandlerParams{
-			ConfigManager: &clientcfgHandler.ConfigManager{
-				SamplingStrategyStore: c.strategyStore,
-				// TODO provide baggage manager
-			},
-			MetricsFactory:         c.metricsFactory,
-			BasePath:               "/api",
-			LegacySamplingEndpoint: false,
-		})
-		cfgHandler.RegisterRoutes(r)
-
-		httpHandler := recoveryHandler(r)
-
-		httpPortStr := ":" + strconv.Itoa(builderOpts.CollectorHTTPPort)
-		c.logger.Info("Starting jaeger-collector HTTP server", zap.String("http-host-port", httpPortStr))
-
-		c.hServer = &http.Server{Addr: httpPortStr, Handler: httpHandler}
-		go func() {
-			if err := c.hServer.ListenAndServe(); err != nil {
-				if err != http.ErrServerClosed {
-					c.logger.Fatal("Could not launch service", zap.Error(err))
-				}
-			}
-			c.hCheck.Set(healthcheck.Unavailable)
-		}()
 	}
 
 	return nil
@@ -249,13 +231,63 @@ func (c *Collector) StartGRPCServer(params *GRPCServerParams) (*grpc.Server, err
 	return server, err
 }
 
-// ZipkinServerParams to construct a new Jaeger Collector gRPC Server
+// HTTPServerParams to construct a new Jaeger Collector HTTP Server
+type HTTPServerParams struct {
+	Port            int
+	Handler         handler.JaegerBatchesHandler
+	RecoveryHandler func(http.Handler) http.Handler
+	SamplingStore   strategystore.StrategyStore
+	MetricsFactory  metrics.Factory
+	HealthCheck     *healthcheck.HealthCheck
+	Logger          *zap.Logger
+}
+
+// StartHTTPServer based on the given parameters
+func (c *Collector) StartHTTPServer(params *HTTPServerParams) (*http.Server, error) {
+	r := mux.NewRouter()
+	apiHandler := handler.NewAPIHandler(params.Handler)
+	apiHandler.RegisterRoutes(r)
+
+	cfgHandler := clientcfgHandler.NewHTTPHandler(clientcfgHandler.HTTPHandlerParams{
+		ConfigManager: &clientcfgHandler.ConfigManager{
+			SamplingStrategyStore: params.SamplingStore,
+			// TODO provide baggage manager
+		},
+		MetricsFactory:         params.MetricsFactory,
+		BasePath:               "/api",
+		LegacySamplingEndpoint: false,
+	})
+	cfgHandler.RegisterRoutes(r)
+
+	httpPortStr := ":" + strconv.Itoa(params.Port)
+	params.Logger.Info("Starting jaeger-collector HTTP server", zap.String("http-host-port", httpPortStr))
+
+	listener, err := net.Listen("tcp", httpPortStr)
+	if err != nil {
+		return nil, err
+	}
+
+	hServer := &http.Server{Addr: httpPortStr, Handler: params.RecoveryHandler(r)}
+	go func(listener net.Listener, hServer *http.Server) {
+		if err := hServer.Serve(listener); err != nil {
+			if err != http.ErrServerClosed {
+				params.Logger.Fatal("Could not start HTTP collector", zap.Error(err))
+			}
+		}
+		params.HealthCheck.Set(healthcheck.Unavailable)
+	}(listener, hServer)
+
+	return hServer, nil
+}
+
+// ZipkinServerParams to construct a new Jaeger Collector Zipkin Server
 type ZipkinServerParams struct {
 	Port            int
 	Handler         handler.ZipkinSpansHandler
 	RecoveryHandler func(http.Handler) http.Handler
 	AllowedOrigins  string
 	AllowedHeaders  string
+	HealthCheck     *healthcheck.HealthCheck
 	Logger          *zap.Logger
 }
 
@@ -293,7 +325,7 @@ func (c *Collector) StartZipkinServer(params *ZipkinServerParams) (*http.Server,
 		if err := zkServer.Serve(listener); err != nil {
 			params.Logger.Fatal("Could not launch Zipkin server", zap.Error(err))
 		}
-		c.hCheck.Set(healthcheck.Unavailable)
+		params.HealthCheck.Set(healthcheck.Unavailable)
 	}(listener, zkServer)
 
 	return zkServer, nil
