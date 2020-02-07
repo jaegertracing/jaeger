@@ -64,15 +64,25 @@ type Collector struct {
 	options    *CollectorOptions
 }
 
+// CollectorParams should be used as argument to create a new Collector. All fields are required.
+type CollectorParams struct {
+	ServiceName    string
+	Logger         *zap.Logger
+	MetricsFactory metrics.Factory
+	SpanWriter     spanstore.Writer
+	StrategyStore  strategystore.StrategyStore
+	HealthCheck    *healthcheck.HealthCheck
+}
+
 // New constructs a new collector component, ready to be started
-func New(serviceName string, logger *zap.Logger, mf metrics.Factory, spanWriter spanstore.Writer, strategyStore strategystore.StrategyStore, hCheck *healthcheck.HealthCheck) *Collector {
+func New(params *CollectorParams) *Collector {
 	return &Collector{
-		serviceName:    serviceName,
-		logger:         logger,
-		metricsFactory: mf,
-		spanWriter:     spanWriter,
-		strategyStore:  strategyStore,
-		hCheck:         hCheck,
+		serviceName:    params.ServiceName,
+		logger:         params.Logger,
+		metricsFactory: params.MetricsFactory,
+		spanWriter:     params.SpanWriter,
+		strategyStore:  params.StrategyStore,
+		hCheck:         params.HealthCheck,
 	}
 }
 

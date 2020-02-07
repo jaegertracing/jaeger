@@ -120,7 +120,14 @@ by default uses only in-memory database.`,
 			cOpts := new(collectorApp.CollectorOptions).InitFromViper(v)
 			qOpts := new(queryApp.QueryOptions).InitFromViper(v, logger)
 
-			c := collectorApp.New("jaeger-collector", logger, metricsFactory, spanWriter, strategyStore, svc.HC())
+			c := collectorApp.New(&collectorApp.CollectorParams{
+				ServiceName:    "jaeger-collector",
+				Logger:         logger,
+				MetricsFactory: metricsFactory,
+				SpanWriter:     spanWriter,
+				StrategyStore:  strategyStore,
+				HealthCheck:    svc.HC(),
+			})
 			c.Start(cOpts)
 
 			startAgent(aOpts, repOpts, tchanBuilder, grpcBuilder, cOpts.CollectorGRPCPort, logger, metricsFactory)

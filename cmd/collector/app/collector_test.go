@@ -37,7 +37,14 @@ func TestNewCollector(t *testing.T) {
 	spanWriter := &fakeSpanWriter{}
 	strategyStore := &mockStrategyStore{}
 
-	c := New("collector", logger, baseMetrics, spanWriter, strategyStore, hc)
+	c := New(&CollectorParams{
+		ServiceName:    "collector",
+		Logger:         logger,
+		MetricsFactory: baseMetrics,
+		SpanWriter:     spanWriter,
+		StrategyStore:  strategyStore,
+		HealthCheck:    hc,
+	})
 	collectorOpts := &CollectorOptions{}
 
 	// test

@@ -83,7 +83,14 @@ func main() {
 				logger.Fatal("Failed to create sampling strategy store", zap.Error(err))
 			}
 
-			c := app.New(serviceName, logger, metricsFactory, spanWriter, strategyStore, svc.HC())
+			c := app.New(&app.CollectorParams{
+				ServiceName:    serviceName,
+				Logger:         logger,
+				MetricsFactory: metricsFactory,
+				SpanWriter:     spanWriter,
+				StrategyStore:  strategyStore,
+				HealthCheck:    svc.HC(),
+			})
 			collectorOpts := new(app.CollectorOptions).InitFromViper(v)
 			c.Start(collectorOpts)
 
