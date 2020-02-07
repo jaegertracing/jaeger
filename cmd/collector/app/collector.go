@@ -108,7 +108,7 @@ func (c *Collector) Start(builderOpts *CollectorOptions) error {
 	}
 
 	if httpServer, err := server.StartHTTPServer(&server.HTTPServerParams{
-		Port:            builderOpts.CollectorZipkinHTTPPort,
+		Port:            builderOpts.CollectorHTTPPort,
 		Handler:         jaegerBatchesHandler,
 		RecoveryHandler: recoveryHandler,
 		HealthCheck:     c.hCheck,

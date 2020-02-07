@@ -50,9 +50,6 @@ func TestNewCollector(t *testing.T) {
 	// test
 	c.Start(collectorOpts)
 
-	// wait for it all to start...
-	time.Sleep(time.Second)
-
 	// verify
 	assert.NoError(t, c.Close())
 }
