@@ -38,6 +38,7 @@ import (
 	"github.com/jaegertracing/jaeger/cmd/collector/app/sampling/strategystore"
 	"github.com/jaegertracing/jaeger/cmd/collector/app/zipkin"
 	clientcfgHandler "github.com/jaegertracing/jaeger/pkg/clientcfg/clientcfghttp"
+	"github.com/jaegertracing/jaeger/pkg/config/tlscfg"
 	"github.com/jaegertracing/jaeger/pkg/healthcheck"
 	"github.com/jaegertracing/jaeger/pkg/recoveryhandler"
 	"github.com/jaegertracing/jaeger/storage/spanstore"
@@ -61,10 +62,9 @@ type Collector struct {
 	zkServer   *http.Server
 	grpcServer *grpc.Server
 	tchServer  *tchannel.Channel
-	options    *CollectorOptions
 }
 
-// CollectorParams should be used as argument to create a new Collector. All fields are required.
+// CollectorParams to construct a new Jaeger Collector.
 type CollectorParams struct {
 	ServiceName    string
 	Logger         *zap.Logger
@@ -88,42 +88,37 @@ func New(params *CollectorParams) *Collector {
 
 // Start the component and underlying dependencies
 func (c *Collector) Start(builderOpts *CollectorOptions) error {
-	var err error
-
 	handlerBuilder := &SpanHandlerBuilder{
 		SpanWriter:     c.spanWriter,
 		CollectorOpts:  *builderOpts,
 		Logger:         c.logger,
 		MetricsFactory: c.metricsFactory,
 	}
-
-	c.options = builderOpts
-
 	zipkinSpansHandler, jaegerBatchesHandler, grpcHandler := handlerBuilder.BuildHandlers()
 
-	c.tchServer, err = tchannel.NewChannel(c.serviceName, &tchannel.ChannelOptions{})
-	{
-		if err != nil {
-			c.logger.Fatal("Unable to create new TChannel", zap.Error(err))
-		}
-		server := thrift.NewServer(c.tchServer)
-		batchHandler := handler.NewTChannelHandler(jaegerBatchesHandler, zipkinSpansHandler)
-		server.Register(jc.NewTChanCollectorServer(batchHandler))
-		server.Register(zc.NewTChanZipkinCollectorServer(batchHandler))
-		server.Register(sc.NewTChanSamplingManagerServer(sampling.NewHandler(c.strategyStore)))
-		portStr := ":" + strconv.Itoa(builderOpts.CollectorPort)
-		listener, err := net.Listen("tcp", portStr)
-		if err != nil {
-			c.logger.Fatal("Unable to start listening on channel", zap.Error(err))
-		}
-		c.logger.Info("Starting jaeger-collector TChannel server", zap.Int("port", builderOpts.CollectorPort))
-		c.logger.Warn("TChannel has been deprecated and will be removed in a future release")
-		c.tchServer.Serve(listener)
+	if tchServer, err := c.StartThriftServer(&ThriftServerParams{
+		ServiceName:          c.serviceName,
+		Port:                 builderOpts.CollectorPort,
+		JaegerBatchesHandler: jaegerBatchesHandler,
+		ZipkinSpansHandler:   zipkinSpansHandler,
+		StrategyStore:        c.strategyStore,
+		Logger:               c.logger,
+	}); err != nil {
+		c.logger.Fatal("Could not start Thrift collector", zap.Error(err))
+	} else {
+		c.tchServer = tchServer
 	}
 
-	c.grpcServer, err = startGRPCServer(builderOpts, grpcHandler, c.strategyStore, c.logger)
-	if err != nil {
+	if grpcServer, err := c.StartGRPCServer(&GRPCServerParams{
+		Port:          builderOpts.CollectorGRPCPort,
+		Handler:       grpcHandler,
+		TLSConfig:     builderOpts.TLS,
+		SamplingStore: c.strategyStore,
+		Logger:        c.logger,
+	}); err != nil {
 		c.logger.Fatal("Could not start gRPC collector", zap.Error(err))
+	} else {
+		c.grpcServer = grpcServer
 	}
 
 	{
@@ -173,6 +168,85 @@ func (c *Collector) Start(builderOpts *CollectorOptions) error {
 	return nil
 }
 
+// ThriftServerParams to construct a new Jaeger Collector Thrift Server
+type ThriftServerParams struct {
+	JaegerBatchesHandler handler.JaegerBatchesHandler
+	ZipkinSpansHandler   handler.ZipkinSpansHandler
+	StrategyStore        strategystore.StrategyStore
+	ServiceName          string
+	Port                 int
+	Logger               *zap.Logger
+}
+
+// StartThriftServer based on the given parameters
+func (c *Collector) StartThriftServer(params *ThriftServerParams) (*tchannel.Channel, error) {
+	var tchServer *tchannel.Channel
+	var err error
+
+	if tchServer, err = tchannel.NewChannel(params.ServiceName, &tchannel.ChannelOptions{}); err != nil {
+		params.Logger.Fatal("Unable to create new TChannel", zap.Error(err))
+		return nil, err
+	}
+
+	server := thrift.NewServer(tchServer)
+	batchHandler := handler.NewTChannelHandler(params.JaegerBatchesHandler, params.ZipkinSpansHandler)
+	server.Register(jc.NewTChanCollectorServer(batchHandler))
+	server.Register(zc.NewTChanZipkinCollectorServer(batchHandler))
+	server.Register(sc.NewTChanSamplingManagerServer(sampling.NewHandler(params.StrategyStore)))
+
+	portStr := ":" + strconv.Itoa(params.Port)
+	listener, err := net.Listen("tcp", portStr)
+	if err != nil {
+		params.Logger.Fatal("Unable to start listening on channel", zap.Error(err))
+		return nil, err
+	}
+
+	params.Logger.Info("Starting jaeger-collector TChannel server", zap.Int("port", params.Port))
+	params.Logger.Warn("TChannel has been deprecated and will be removed in a future release")
+
+	if err = tchServer.Serve(listener); err != nil {
+		return nil, err
+	}
+
+	return tchServer, nil
+}
+
+// GRPCServerParams to construct a new Jaeger Collector gRPC Server
+type GRPCServerParams struct {
+	TLSConfig     tlscfg.Options
+	Port          int
+	Handler       *handler.GRPCHandler
+	SamplingStore strategystore.StrategyStore
+	Logger        *zap.Logger
+}
+
+// StartGRPCServer based on the given parameters
+func (c *Collector) StartGRPCServer(params *GRPCServerParams) (*grpc.Server, error) {
+	var server *grpc.Server
+	if params.TLSConfig.Enabled {
+		// user requested a server with TLS, setup creds
+		tlsCfg, err := params.TLSConfig.Config()
+		if err != nil {
+			return nil, err
+		}
+
+		creds := credentials.NewTLS(tlsCfg)
+		server = grpc.NewServer(grpc.Creds(creds))
+	} else {
+		// server without TLS
+		server = grpc.NewServer()
+	}
+
+	_, err := grpcserver.StartGRPCCollector(params.Port, server, params.Handler, params.SamplingStore, params.Logger, func(err error) {
+		params.Logger.Fatal("gRPC collector failed", zap.Error(err))
+	})
+	if err != nil {
+		return nil, err
+	}
+
+	return server, err
+}
+
 // Close the component and all its underlying dependencies
 func (c *Collector) Close() error {
 	c.grpcServer.GracefulStop() // gRPC
@@ -209,34 +283,6 @@ func (c *Collector) Close() error {
 	}
 
 	return nil
-}
-
-func startGRPCServer(
-	opts *CollectorOptions,
-	handler *handler.GRPCHandler,
-	samplingStore strategystore.StrategyStore,
-	logger *zap.Logger,
-) (*grpc.Server, error) {
-	var server *grpc.Server
-
-	if opts.TLS.Enabled { // user requested a server with TLS, setup creds
-		tlsCfg, err := opts.TLS.Config()
-		if err != nil {
-			return nil, err
-		}
-
-		creds := credentials.NewTLS(tlsCfg)
-		server = grpc.NewServer(grpc.Creds(creds))
-	} else { // server without TLS
-		server = grpc.NewServer()
-	}
-	_, err := grpcserver.StartGRPCCollector(opts.CollectorGRPCPort, server, handler, samplingStore, logger, func(err error) {
-		logger.Fatal("gRPC collector failed", zap.Error(err))
-	})
-	if err != nil {
-		return nil, err
-	}
-	return server, err
 }
 
 func zipkinServer(
