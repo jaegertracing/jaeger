@@ -95,6 +95,7 @@ func (c *Collector) Start(builderOpts *CollectorOptions) error {
 		MetricsFactory: c.metricsFactory,
 	}
 	zipkinSpansHandler, jaegerBatchesHandler, grpcHandler := handlerBuilder.BuildHandlers()
+	recoveryHandler := recoveryhandler.NewRecoveryHandler(c.logger, true)
 
 	if tchServer, err := c.StartThriftServer(&ThriftServerParams{
 		ServiceName:          c.serviceName,
@@ -121,6 +122,19 @@ func (c *Collector) Start(builderOpts *CollectorOptions) error {
 		c.grpcServer = grpcServer
 	}
 
+	if zkServer, err := c.StartZipkinServer(&ZipkinServerParams{
+		Port:            builderOpts.CollectorZipkinHTTPPort,
+		Handler:         zipkinSpansHandler,
+		RecoveryHandler: recoveryHandler,
+		AllowedHeaders:  builderOpts.CollectorZipkinAllowedHeaders,
+		AllowedOrigins:  builderOpts.CollectorZipkinAllowedOrigins,
+		Logger:          c.logger,
+	}); err != nil {
+		c.logger.Fatal("Could not start the Zipkin server", zap.Error(err))
+	} else {
+		c.zkServer = zkServer
+	}
+
 	{
 		r := mux.NewRouter()
 		apiHandler := handler.NewAPIHandler(jaegerBatchesHandler)
@@ -137,7 +151,6 @@ func (c *Collector) Start(builderOpts *CollectorOptions) error {
 		})
 		cfgHandler.RegisterRoutes(r)
 
-		recoveryHandler := recoveryhandler.NewRecoveryHandler(c.logger, true)
 		httpHandler := recoveryHandler(r)
 
 		httpPortStr := ":" + strconv.Itoa(builderOpts.CollectorHTTPPort)
@@ -152,17 +165,6 @@ func (c *Collector) Start(builderOpts *CollectorOptions) error {
 			}
 			c.hCheck.Set(healthcheck.Unavailable)
 		}()
-
-		c.zkServer = zipkinServer(c.logger, builderOpts.CollectorZipkinHTTPPort, builderOpts.CollectorZipkinAllowedOrigins, builderOpts.CollectorZipkinAllowedHeaders, zipkinSpansHandler, recoveryHandler)
-		if c.zkServer != nil {
-			go func() {
-				if err := c.zkServer.ListenAndServe(); err != nil {
-					c.logger.Fatal("Could not launch Zipkin server", zap.Error(err))
-				}
-				c.hCheck.Set(healthcheck.Unavailable)
-			}()
-		}
-
 	}
 
 	return nil
@@ -247,6 +249,56 @@ func (c *Collector) StartGRPCServer(params *GRPCServerParams) (*grpc.Server, err
 	return server, err
 }
 
+// ZipkinServerParams to construct a new Jaeger Collector gRPC Server
+type ZipkinServerParams struct {
+	Port            int
+	Handler         handler.ZipkinSpansHandler
+	RecoveryHandler func(http.Handler) http.Handler
+	AllowedOrigins  string
+	AllowedHeaders  string
+	Logger          *zap.Logger
+}
+
+// StartZipkinServer based on the given parameters
+func (c *Collector) StartZipkinServer(params *ZipkinServerParams) (*http.Server, error) {
+	var zkServer *http.Server
+
+	if params.Port == 0 {
+		return nil, nil
+	}
+
+	zHandler := zipkin.NewAPIHandler(params.Handler)
+	r := mux.NewRouter()
+	zHandler.RegisterRoutes(r)
+
+	origins := strings.Split(strings.ReplaceAll(params.AllowedOrigins, " ", ""), ",")
+	headers := strings.Split(strings.ReplaceAll(params.AllowedHeaders, " ", ""), ",")
+
+	cors := cors.New(cors.Options{
+		AllowedOrigins: origins,
+		AllowedMethods: []string{"POST"}, // Allowing only POST, because that's the only handled one
+		AllowedHeaders: headers,
+	})
+
+	httpPortStr := ":" + strconv.Itoa(params.Port)
+	params.Logger.Info("Listening for Zipkin HTTP traffic", zap.Int("zipkin.http-port", params.Port))
+
+	listener, err := net.Listen("tcp", httpPortStr)
+	if err != nil {
+		return nil, err
+	}
+
+	zkServer = &http.Server{Handler: cors.Handler(params.RecoveryHandler(r))}
+	go func(listener net.Listener, zkServer *http.Server) {
+		if err := zkServer.Serve(listener); err != nil {
+			params.Logger.Fatal("Could not launch Zipkin server", zap.Error(err))
+		}
+		c.hCheck.Set(healthcheck.Unavailable)
+	}(listener, zkServer)
+
+	return zkServer, nil
+}
+
 // Close the component and all its underlying dependencies
 func (c *Collector) Close() error {
 	c.grpcServer.GracefulStop() // gRPC
@@ -280,37 +332,6 @@ func (c *Collector) Close() error {
 				c.logger.Error("Failed to close span writer", zap.Error(err))
 			}
 		}
-	}
-
-	return nil
-}
-
-func zipkinServer(
-	logger *zap.Logger,
-	zipkinPort int,
-	allowedOrigins string,
-	allowedHeaders string,
-	zipkinSpansHandler handler.ZipkinSpansHandler,
-	recoveryHandler func(http.Handler) http.Handler,
-) *http.Server {
-	if zipkinPort != 0 {
-		zHandler := zipkin.NewAPIHandler(zipkinSpansHandler)
-		r := mux.NewRouter()
-		zHandler.RegisterRoutes(r)
-
-		origins := strings.Split(strings.Replace(allowedOrigins, " ", "", -1), ",")
-		headers := strings.Split(strings.Replace(allowedHeaders, " ", "", -1), ",")
-
-		c := cors.New(cors.Options{
-			AllowedOrigins: origins,
-			AllowedMethods: []string{"POST"}, // Allowing only POST, because that's the only handled one
-			AllowedHeaders: headers,
-		})
-
-		httpPortStr := ":" + strconv.Itoa(zipkinPort)
-		logger.Info("Listening for Zipkin HTTP traffic", zap.Int("zipkin.http-port", zipkinPort))
-
-		return &http.Server{Addr: httpPortStr, Handler: c.Handler(recoveryHandler(r))}
 	}
 
 	return nil
