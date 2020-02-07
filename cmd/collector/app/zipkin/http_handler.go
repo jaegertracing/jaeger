@@ -30,7 +30,7 @@ import (
 	"github.com/golang/protobuf/proto"
 	"github.com/gorilla/mux"
 
-	"github.com/jaegertracing/jaeger/cmd/collector/app"
+	"github.com/jaegertracing/jaeger/cmd/collector/app/handler"
 	"github.com/jaegertracing/jaeger/cmd/collector/app/processor"
 	"github.com/jaegertracing/jaeger/model/converter/thrift/zipkin"
 	zipkinProto "github.com/jaegertracing/jaeger/proto-gen/zipkin"
@@ -42,13 +42,13 @@ import (
 
 // APIHandler handles all HTTP calls to the collector
 type APIHandler struct {
-	zipkinSpansHandler app.ZipkinSpansHandler
+	zipkinSpansHandler handler.ZipkinSpansHandler
 	zipkinV2Formats    strfmt.Registry
 }
 
 // NewAPIHandler returns a new APIHandler
 func NewAPIHandler(
-	zipkinSpansHandler app.ZipkinSpansHandler,
+	zipkinSpansHandler handler.ZipkinSpansHandler,
 ) *APIHandler {
 	swaggerSpec, _ := loads.Analyzed(restapi.SwaggerJSON, "")
 	return &APIHandler{
@@ -69,7 +69,7 @@ func (aH *APIHandler) saveSpans(w http.ResponseWriter, r *http.Request) {
 	if strings.Contains(r.Header.Get("Content-Encoding"), "gzip") {
 		gz, err := gunzip(bRead)
 		if err != nil {
-			http.Error(w, fmt.Sprintf(app.UnableToReadBodyErrFormat, err), http.StatusBadRequest)
+			http.Error(w, fmt.Sprintf(handler.UnableToReadBodyErrFormat, err), http.StatusBadRequest)
 			return
 		}
 		defer gz.Close()
@@ -78,7 +78,7 @@ func (aH *APIHandler) saveSpans(w http.ResponseWriter, r *http.Request) {
 
 	bodyBytes, err := ioutil.ReadAll(bRead)
 	if err != nil {
-		http.Error(w, fmt.Sprintf(app.UnableToReadBodyErrFormat, err), http.StatusInternalServerError)
+		http.Error(w, fmt.Sprintf(handler.UnableToReadBodyErrFormat, err), http.StatusInternalServerError)
 		return
 	}
 
@@ -100,7 +100,7 @@ func (aH *APIHandler) saveSpans(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if err != nil {
-		http.Error(w, fmt.Sprintf(app.UnableToReadBodyErrFormat, err), http.StatusBadRequest)
+		http.Error(w, fmt.Sprintf(handler.UnableToReadBodyErrFormat, err), http.StatusBadRequest)
 		return
 	}
 
@@ -118,7 +118,7 @@ func (aH *APIHandler) saveSpansV2(w http.ResponseWriter, r *http.Request) {
 	if strings.Contains(r.Header.Get("Content-Encoding"), "gzip") {
 		gz, err := gunzip(bRead)
 		if err != nil {
-			http.Error(w, fmt.Sprintf(app.UnableToReadBodyErrFormat, err), http.StatusBadRequest)
+			http.Error(w, fmt.Sprintf(handler.UnableToReadBodyErrFormat, err), http.StatusBadRequest)
 			return
 		}
 		defer gz.Close()
@@ -127,7 +127,7 @@ func (aH *APIHandler) saveSpansV2(w http.ResponseWriter, r *http.Request) {
 
 	bodyBytes, err := ioutil.ReadAll(bRead)
 	if err != nil {
-		http.Error(w, fmt.Sprintf(app.UnableToReadBodyErrFormat, err), http.StatusInternalServerError)
+		http.Error(w, fmt.Sprintf(handler.UnableToReadBodyErrFormat, err), http.StatusInternalServerError)
 		return
 	}
 
@@ -150,7 +150,7 @@ func (aH *APIHandler) saveSpansV2(w http.ResponseWriter, r *http.Request) {
 	}
 
 	if err != nil {
-		http.Error(w, fmt.Sprintf(app.UnableToReadBodyErrFormat, err), http.StatusBadRequest)
+		http.Error(w, fmt.Sprintf(handler.UnableToReadBodyErrFormat, err), http.StatusBadRequest)
 		return
 	}
 
@@ -201,7 +201,7 @@ func gunzip(r io.ReadCloser) (*gzip.Reader, error) {
 
 func (aH *APIHandler) saveThriftSpans(tSpans []*zipkincore.Span) error {
 	if len(tSpans) > 0 {
-		opts := app.SubmitBatchOptions{InboundTransport: processor.HTTPTransport}
+		opts := handler.SubmitBatchOptions{InboundTransport: processor.HTTPTransport}
 		if _, err := aH.zipkinSpansHandler.SubmitZipkinBatch(tSpans, opts); err != nil {
 			return err
 		}

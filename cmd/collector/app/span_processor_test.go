@@ -27,6 +27,7 @@ import (
 	"go.uber.org/atomic"
 	"go.uber.org/zap"
 
+	"github.com/jaegertracing/jaeger/cmd/collector/app/handler"
 	"github.com/jaegertracing/jaeger/cmd/collector/app/processor"
 	zipkinSanitizer "github.com/jaegertracing/jaeger/cmd/collector/app/sanitizer/zipkin"
 	"github.com/jaegertracing/jaeger/model"
@@ -88,13 +89,13 @@ func TestBySvcMetrics(t *testing.T) {
 		switch test.format {
 		case processor.ZipkinSpanFormat:
 			span := makeZipkinSpan(test.serviceName, test.rootSpan, test.debug)
-			zHandler := NewZipkinSpanHandler(logger, sp, zipkinSanitizer.NewParentIDSanitizer())
-			zHandler.SubmitZipkinBatch([]*zc.Span{span, span}, SubmitBatchOptions{})
+			zHandler := handler.NewZipkinSpanHandler(logger, sp, zipkinSanitizer.NewParentIDSanitizer())
+			zHandler.SubmitZipkinBatch([]*zc.Span{span, span}, handler.SubmitBatchOptions{})
 			metricPrefix = "service"
 			format = "zipkin"
 		case processor.JaegerSpanFormat:
 			span, process := makeJaegerSpan(test.serviceName, test.rootSpan, test.debug)
-			jHandler := NewJaegerSpanHandler(logger, sp)
+			jHandler := handler.NewJaegerSpanHandler(logger, sp)
 			jHandler.SubmitBatches([]*jaeger.Batch{
 				{
 					Spans: []*jaeger.Span{
@@ -103,7 +104,7 @@ func TestBySvcMetrics(t *testing.T) {
 					},
 					Process: process,
 				},
-			}, SubmitBatchOptions{})
+			}, handler.SubmitBatchOptions{})
 			metricPrefix = "service"
 			format = "jaeger"
 		default:

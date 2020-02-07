@@ -37,8 +37,8 @@ type SpanHandlerBuilder struct {
 
 // BuildHandlers builds span handlers (Zipkin, Jaeger)
 func (b *SpanHandlerBuilder) BuildHandlers() (
-	ZipkinSpansHandler,
-	JaegerBatchesHandler,
+	handler.ZipkinSpansHandler,
+	handler.JaegerBatchesHandler,
 	*handler.GRPCHandler,
 ) {
 	hostname, _ := os.Hostname()
@@ -58,8 +58,8 @@ func (b *SpanHandlerBuilder) BuildHandlers() (
 		Options.DynQueueSizeMemory(b.CollectorOpts.DynQueueSizeMemory),
 	)
 
-	return NewZipkinSpanHandler(b.Logger, spanProcessor, zs.NewChainedSanitizer(zs.StandardSanitizers...)),
-		NewJaegerSpanHandler(b.Logger, spanProcessor),
+	return handler.NewZipkinSpanHandler(b.Logger, spanProcessor, zs.NewChainedSanitizer(zs.StandardSanitizers...)),
+		handler.NewJaegerSpanHandler(b.Logger, spanProcessor),
 		handler.NewGRPCHandler(b.Logger, spanProcessor)
 }
 

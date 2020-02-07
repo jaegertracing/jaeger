@@ -113,7 +113,7 @@ func main() {
 					logger.Fatal("Unable to create new TChannel", zap.Error(err))
 				}
 				server := thrift.NewServer(ch)
-				batchHandler := app.NewTChannelHandler(jaegerBatchesHandler, zipkinSpansHandler)
+				batchHandler := handler.NewTChannelHandler(jaegerBatchesHandler, zipkinSpansHandler)
 				server.Register(jc.NewTChanCollectorServer(batchHandler))
 				server.Register(zc.NewTChanZipkinCollectorServer(batchHandler))
 				server.Register(sc.NewTChanSamplingManagerServer(sampling.NewHandler(strategyStore)))
@@ -134,7 +134,7 @@ func main() {
 
 			{
 				r := mux.NewRouter()
-				apiHandler := app.NewAPIHandler(jaegerBatchesHandler)
+				apiHandler := handler.NewAPIHandler(jaegerBatchesHandler)
 				apiHandler.RegisterRoutes(r)
 
 				cfgHandler := clientcfgHandler.NewHTTPHandler(clientcfgHandler.HTTPHandlerParams{
@@ -228,7 +228,7 @@ func startZipkinHTTPAPI(
 	zipkinPort int,
 	allowedOrigins string,
 	allowedHeaders string,
-	zipkinSpansHandler app.ZipkinSpansHandler,
+	zipkinSpansHandler handler.ZipkinSpansHandler,
 	recoveryHandler func(http.Handler) http.Handler,
 ) {
 	if zipkinPort != 0 {

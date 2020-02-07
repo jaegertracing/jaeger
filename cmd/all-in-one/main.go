@@ -231,7 +231,7 @@ func startCollector(
 			logger.Fatal("Unable to create new TChannel", zap.Error(err))
 		}
 		server := thrift.NewServer(ch)
-		batchHandler := collectorApp.NewTChannelHandler(jaegerBatchesHandler, zipkinSpansHandler)
+		batchHandler := handler.NewTChannelHandler(jaegerBatchesHandler, zipkinSpansHandler)
 		server.Register(jc.NewTChanCollectorServer(batchHandler))
 		server.Register(zc.NewTChanZipkinCollectorServer(batchHandler))
 		server.Register(sc.NewTChanSamplingManagerServer(sampling.NewHandler(strategyStore)))
@@ -252,7 +252,7 @@ func startCollector(
 
 	{
 		r := mux.NewRouter()
-		apiHandler := collectorApp.NewAPIHandler(jaegerBatchesHandler)
+		apiHandler := handler.NewAPIHandler(jaegerBatchesHandler)
 		apiHandler.RegisterRoutes(r)
 
 		cfgHandler := clientcfgHandler.NewHTTPHandler(clientcfgHandler.HTTPHandlerParams{
@@ -300,7 +300,7 @@ func startGRPCServer(
 func startZipkinHTTPAPI(
 	logger *zap.Logger,
 	zipkinPort int,
-	zipkinSpansHandler collectorApp.ZipkinSpansHandler,
+	zipkinSpansHandler handler.ZipkinSpansHandler,
 	recoveryHandler func(http.Handler) http.Handler,
 ) {
 	if zipkinPort != 0 {
