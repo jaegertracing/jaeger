@@ -42,14 +42,29 @@ type ZipkinServerParams struct {
 
 // StartZipkinServer based on the given parameters
 func StartZipkinServer(params *ZipkinServerParams) (*http.Server, error) {
-	var zkServer *http.Server
-
 	if params.Port == 0 {
 		return nil, nil
 	}
 
-	zHandler := zipkin.NewAPIHandler(params.Handler)
+	httpPortStr := ":" + strconv.Itoa(params.Port)
+	params.Logger.Info("Listening for Zipkin HTTP traffic", zap.Int("zipkin.http-port", params.Port))
+
+	listener, err := net.Listen("tcp", httpPortStr)
+	if err != nil {
+		return nil, err
+	}
+
+	server := &http.Server{Addr: httpPortStr}
+	if err := serveZipkin(server, listener, params); err != nil {
+		return nil, err
+	}
+
+	return server, nil
+}
+
+func serveZipkin(server *http.Server, listener net.Listener, params *ZipkinServerParams) error {
 	r := mux.NewRouter()
+	zHandler := zipkin.NewAPIHandler(params.Handler)
 	zHandler.RegisterRoutes(r)
 
 	origins := strings.Split(strings.ReplaceAll(params.AllowedOrigins, " ", ""), ",")
@@ -61,21 +76,13 @@ func StartZipkinServer(params *ZipkinServerParams) (*http.Server, error) {
 		AllowedHeaders: headers,
 	})
 
-	httpPortStr := ":" + strconv.Itoa(params.Port)
-	params.Logger.Info("Listening for Zipkin HTTP traffic", zap.Int("zipkin.http-port", params.Port))
-
-	listener, err := net.Listen("tcp", httpPortStr)
-	if err != nil {
-		return nil, err
-	}
-
-	zkServer = &http.Server{Handler: cors.Handler(params.RecoveryHandler(r))}
-	go func(listener net.Listener, zkServer *http.Server) {
-		if err := zkServer.Serve(listener); err != nil {
+	server.Handler = cors.Handler(params.RecoveryHandler(r))
+	go func(listener net.Listener, server *http.Server) {
+		if err := server.Serve(listener); err != nil {
 			params.Logger.Fatal("Could not launch Zipkin server", zap.Error(err))
 		}
 		params.HealthCheck.Set(healthcheck.Unavailable)
-	}(listener, zkServer)
+	}(listener, server)
 
-	return zkServer, nil
+	return nil
 }

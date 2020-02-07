@@ -42,6 +42,23 @@ type HTTPServerParams struct {
 
 // StartHTTPServer based on the given parameters
 func StartHTTPServer(params *HTTPServerParams) (*http.Server, error) {
+	httpPortStr := ":" + strconv.Itoa(params.Port)
+	params.Logger.Info("Starting jaeger-collector HTTP server", zap.String("http-host-port", httpPortStr))
+
+	listener, err := net.Listen("tcp", httpPortStr)
+	if err != nil {
+		return nil, err
+	}
+
+	server := &http.Server{Addr: httpPortStr}
+	if err := serveHTTP(server, listener, params); err != nil {
+		return nil, err
+	}
+
+	return server, nil
+}
+
+func serveHTTP(server *http.Server, listener net.Listener, params *HTTPServerParams) error {
 	r := mux.NewRouter()
 	apiHandler := handler.NewAPIHandler(params.Handler)
 	apiHandler.RegisterRoutes(r)
@@ -57,15 +74,7 @@ func StartHTTPServer(params *HTTPServerParams) (*http.Server, error) {
 	})
 	cfgHandler.RegisterRoutes(r)
 
-	httpPortStr := ":" + strconv.Itoa(params.Port)
-	params.Logger.Info("Starting jaeger-collector HTTP server", zap.String("http-host-port", httpPortStr))
-
-	listener, err := net.Listen("tcp", httpPortStr)
-	if err != nil {
-		return nil, err
-	}
-
-	hServer := &http.Server{Addr: httpPortStr, Handler: params.RecoveryHandler(r)}
+	server.Handler = params.RecoveryHandler(r)
 	go func(listener net.Listener, hServer *http.Server) {
 		if err := hServer.Serve(listener); err != nil {
 			if err != http.ErrServerClosed {
@@ -73,7 +82,7 @@ func StartHTTPServer(params *HTTPServerParams) (*http.Server, error) {
 			}
 		}
 		params.HealthCheck.Set(healthcheck.Unavailable)
-	}(listener, hServer)
+	}(listener, server)
 
-	return hServer, nil
+	return nil
 }

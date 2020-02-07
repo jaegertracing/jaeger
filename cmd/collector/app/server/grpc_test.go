@@ -29,10 +29,7 @@ import (
 	"google.golang.org/grpc/test/bufconn"
 
 	"github.com/jaegertracing/jaeger/cmd/collector/app/handler"
-	"github.com/jaegertracing/jaeger/cmd/collector/app/processor"
-	"github.com/jaegertracing/jaeger/model"
 	"github.com/jaegertracing/jaeger/proto-gen/api_v2"
-	"github.com/jaegertracing/jaeger/thrift-gen/sampling"
 )
 
 // test wrong port number
@@ -93,17 +90,4 @@ func TestSpanCollector(t *testing.T) {
 	response, err := c.PostSpans(context.Background(), &api_v2.PostSpansRequest{})
 	require.NoError(t, err)
 	require.NotNil(t, response)
-}
-
-type mockSamplingStore struct{}
-
-func (s mockSamplingStore) GetSamplingStrategy(serviceName string) (*sampling.SamplingStrategyResponse, error) {
-	return nil, nil
-}
-
-type mockSpanProcessor struct {
-}
-
-func (p *mockSpanProcessor) ProcessSpans(spans []*model.Span, _ processor.SpansOptions) ([]bool, error) {
-	return []bool{}, nil
 }

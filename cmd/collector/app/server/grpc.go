@@ -68,7 +68,9 @@ func StartGRPCServer(params *GRPCServerParams) (*grpc.Server, error) {
 		return nil, errors.Wrap(err, "failed to listen on gRPC port")
 	}
 
-	serveGRPC(server, listener, params)
+	if err := serveGRPC(server, listener, params); err != nil {
+		return nil, err
+	}
 
 	return server, nil
 }

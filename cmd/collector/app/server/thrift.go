@@ -45,17 +45,6 @@ func StartThriftServer(params *ThriftServerParams) (*tchannel.Channel, error) {
 	var tchServer *tchannel.Channel
 	var err error
 
-	if tchServer, err = tchannel.NewChannel(params.ServiceName, &tchannel.ChannelOptions{}); err != nil {
-		params.Logger.Fatal("Unable to create new TChannel", zap.Error(err))
-		return nil, err
-	}
-
-	server := thrift.NewServer(tchServer)
-	batchHandler := handler.NewTChannelHandler(params.JaegerBatchesHandler, params.ZipkinSpansHandler)
-	server.Register(jc.NewTChanCollectorServer(batchHandler))
-	server.Register(zc.NewTChanZipkinCollectorServer(batchHandler))
-	server.Register(sc.NewTChanSamplingManagerServer(sampling.NewHandler(params.StrategyStore)))
-
 	portStr := ":" + strconv.Itoa(params.Port)
 	listener, err := net.Listen("tcp", portStr)
 	if err != nil {
@@ -63,12 +52,31 @@ func StartThriftServer(params *ThriftServerParams) (*tchannel.Channel, error) {
 		return nil, err
 	}
 
-	params.Logger.Info("Starting jaeger-collector TChannel server", zap.Int("port", params.Port))
-	params.Logger.Warn("TChannel has been deprecated and will be removed in a future release")
+	if tchServer, err = tchannel.NewChannel(params.ServiceName, &tchannel.ChannelOptions{}); err != nil {
+		params.Logger.Fatal("Unable to create new TChannel", zap.Error(err))
+		return nil, err
+	}
 
-	if err = tchServer.Serve(listener); err != nil {
+	if err := serveThrift(tchServer, listener, params); err != nil {
 		return nil, err
 	}
 
 	return tchServer, nil
+}
+
+func serveThrift(tchServer *tchannel.Channel, listener net.Listener, params *ThriftServerParams) error {
+	server := thrift.NewServer(tchServer)
+	batchHandler := handler.NewTChannelHandler(params.JaegerBatchesHandler, params.ZipkinSpansHandler)
+	server.Register(jc.NewTChanCollectorServer(batchHandler))
+	server.Register(zc.NewTChanZipkinCollectorServer(batchHandler))
+	server.Register(sc.NewTChanSamplingManagerServer(sampling.NewHandler(params.StrategyStore)))
+
+	params.Logger.Info("Starting jaeger-collector TChannel server", zap.Int("port", params.Port))
+	params.Logger.Warn("TChannel has been deprecated and will be removed in a future release")
+
+	if err := tchServer.Serve(listener); err != nil {
+		return err
+	}
+
+	return nil
 }
