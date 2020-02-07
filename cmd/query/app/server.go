@@ -82,11 +82,11 @@ func createHTTPServer(querySvc *querysvc.QueryService, queryOpts *QueryOptions, 
 	apiHandler.RegisterRoutes(r)
 	RegisterStaticHandler(r, logger, queryOpts)
 	var handler http.Handler = r
+	handler = additionalHeadersHandler(handler, queryOpts.AdditionalHeaders)
 	if queryOpts.BearerTokenPropagation {
-		handler = bearerTokenPropagationHandler(logger, r)
+		handler = bearerTokenPropagationHandler(logger, handler)
 	}
 	handler = handlers.CompressHandler(handler)
-	handler = additionalHeadersHandler(handler, queryOpts.AdditionalHeaders)
 	recoveryHandler := recoveryhandler.NewRecoveryHandler(logger, true)
 	return &http.Server{
 		Handler: recoveryHandler(handler),
