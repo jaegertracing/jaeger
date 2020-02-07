@@ -78,6 +78,7 @@ func TestSpanCollector(t *testing.T) {
 	defer server.Stop()
 
 	listener, err := net.Listen("tcp", ":0")
+	require.NoError(t, err)
 	defer listener.Close()
 
 	serveGRPC(server, listener, params)
