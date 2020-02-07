@@ -17,6 +17,7 @@ package app
 
 import (
 	"fmt"
+	"io"
 	"sync"
 	"testing"
 	"time"
@@ -36,6 +37,7 @@ import (
 	zc "github.com/jaegertracing/jaeger/thrift-gen/zipkincore"
 )
 
+var _ (io.Closer) = (*fakeSpanWriter)(nil)
 var blackListedService = "zoidberg"
 
 func TestBySvcMetrics(t *testing.T) {
@@ -162,6 +164,10 @@ type fakeSpanWriter struct {
 
 func (n *fakeSpanWriter) WriteSpan(span *model.Span) error {
 	return n.err
+}
+
+func (n *fakeSpanWriter) Close() error {
+	return nil
 }
 
 func makeZipkinSpan(service string, rootSpan bool, debugEnabled bool) *zc.Span {
