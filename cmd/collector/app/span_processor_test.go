@@ -353,7 +353,7 @@ func TestSpanProcessorCountSpan(t *testing.T) {
 	m := mb.Namespace(metrics.NSOptions{})
 
 	w := &fakeSpanWriter{}
-	p := NewSpanProcessor(w, Options.HostMetrics(m), Options.DynQueueSizeWarmup(1000)).(*spanProcessor)
+	p := NewSpanProcessor(w, Options.HostMetrics(m), Options.DynQueueSizeMemory(1000)).(*spanProcessor)
 	p.background(10*time.Millisecond, p.updateGauges)
 	defer p.Stop()
 
