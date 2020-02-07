@@ -24,6 +24,7 @@ import (
 
 	"github.com/jaegertracing/jaeger/pkg/cassandra"
 	gocqlw "github.com/jaegertracing/jaeger/pkg/cassandra/gocql"
+	"github.com/jaegertracing/jaeger/pkg/config/tlscfg"
 )
 
 // Configuration describes the configuration properties needed to connect to a Cassandra cluster
@@ -44,7 +45,7 @@ type Configuration struct {
 	Authenticator        Authenticator `yaml:"authenticator"`
 	DisableAutoDiscovery bool          `yaml:"disable_auto_discovery"`
 	EnableDependenciesV2 bool          `yaml:"enable_dependencies_v2"`
-	TLS                  TLS
+	TLS                  tlscfg.Options
 }
 
 // Authenticator holds the authentication properties needed to connect to a Cassandra cluster
@@ -57,16 +58,6 @@ type Authenticator struct {
 type BasicAuthenticator struct {
 	Username string `yaml:"username"`
 	Password string `yaml:"password"`
-}
-
-// TLS Config
-type TLS struct {
-	Enabled                bool
-	ServerName             string
-	CertPath               string
-	KeyPath                string
-	CaPath                 string
-	EnableHostVerification bool
 }
 
 // ApplyDefaults copies settings from source unless its own value is non-zero.
@@ -160,8 +151,8 @@ func (c *Configuration) NewCluster() *gocql.ClusterConfig {
 			},
 			CertPath:               c.TLS.CertPath,
 			KeyPath:                c.TLS.KeyPath,
-			CaPath:                 c.TLS.CaPath,
-			EnableHostVerification: c.TLS.EnableHostVerification,
+			CaPath:                 c.TLS.CAPath,
+			EnableHostVerification: !c.TLS.SkipHostVerify,
 		}
 	}
 	// If tunneling connection to C*, disable cluster autodiscovery features.

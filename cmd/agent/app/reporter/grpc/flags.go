@@ -24,11 +24,11 @@ import (
 )
 
 const (
-	gRPCPrefix        = "reporter.grpc."
-	collectorHostPort = gRPCPrefix + "host-port"
-	retry             = gRPCPrefix + "retry.max"
+	gRPCPrefix        = "reporter.grpc"
+	collectorHostPort = gRPCPrefix + ".host-port"
+	retry             = gRPCPrefix + ".retry.max"
 	defaultMaxRetry   = 3
-	discoveryMinPeers = gRPCPrefix + "discovery.min-peers"
+	discoveryMinPeers = gRPCPrefix + ".discovery.min-peers"
 )
 
 var tlsFlagsConfig = tlscfg.ClientFlagsConfig{

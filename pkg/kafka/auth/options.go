@@ -17,6 +17,8 @@ package auth
 import (
 	"flag"
 	"strings"
+
+	"github.com/jaegertracing/jaeger/pkg/config/tlscfg"
 )
 
 const (
@@ -40,16 +42,6 @@ const (
 	defaultKerberosPassword    = ""
 	defaultKerberosUsername    = ""
 	defaultKerberosKeyTab      = "/etc/security/kafka.keytab"
-
-	// TLS configuration options
-	tlsPrefix     = ".tls"
-	suffixTLSCert = ".cert"
-	suffixTLSKey  = ".key"
-	suffixTLSCA   = ".ca"
-
-	defaultCAPath   = ""
-	defaultCertPath = ""
-	defaultKeyPath  = ""
 
 	plainTextPrefix         = ".plaintext"
 	suffixPlainTextUserName = ".username"
@@ -90,22 +82,6 @@ func addKerberosFlags(configPrefix string, flagSet *flag.FlagSet) {
 		"Path to keytab file. i.e /etc/security/kafka.keytab")
 }
 
-// AddFlags adds the flags for this package to the flagSet
-func addTLSFlags(configPrefix string, flagSet *flag.FlagSet) {
-	flagSet.String(
-		configPrefix+tlsPrefix+suffixTLSCA,
-		defaultCAPath,
-		"Path to the TLS CA for the Kafka connection")
-	flagSet.String(
-		configPrefix+tlsPrefix+suffixTLSCert,
-		defaultCertPath,
-		"Path to the TLS Certificate for the Kafka connection")
-	flagSet.String(
-		configPrefix+tlsPrefix+suffixTLSKey,
-		defaultKeyPath,
-		"Path to the TLS Key for the Kafka connection")
-}
-
 func addPlainTextFlags(configPrefix string, flagSet *flag.FlagSet) {
 	flagSet.String(
 		configPrefix+plainTextPrefix+suffixPlainTextUserName,
@@ -125,6 +101,13 @@ func AddFlags(configPrefix string, flagSet *flag.FlagSet) {
 		"Authentication type used to authenticate with kafka cluster. e.g. "+strings.Join(authTypes, ", "),
 	)
 	addKerberosFlags(configPrefix, flagSet)
-	addTLSFlags(configPrefix, flagSet)
+
+	tlsClientConfig := tlscfg.ClientFlagsConfig{
+		Prefix:         configPrefix,
+		ShowEnabled:    true,
+		ShowServerName: true,
+	}
+	tlsClientConfig.AddFlags(flagSet)
+
 	addPlainTextFlags(configPrefix, flagSet)
 }

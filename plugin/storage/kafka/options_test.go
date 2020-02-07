@@ -16,6 +16,7 @@ package kafka
 
 import (
 	"testing"
+	"time"
 
 	"github.com/Shopify/sarama"
 	"github.com/stretchr/testify/assert"
@@ -33,7 +34,11 @@ func TestOptionsWithFlags(t *testing.T) {
 		"--kafka.producer.encoding=protobuf",
 		"--kafka.producer.required-acks=local",
 		"--kafka.producer.compression=gzip",
-		"--kafka.producer.compression-level=7"})
+		"--kafka.producer.compression-level=7",
+		"--kafka.producer.batch-linger=1s",
+		"--kafka.producer.batch-size=128000",
+		"--kafka.producer.batch-max-messages=100",
+	})
 	opts.InitFromViper(v)
 
 	assert.Equal(t, "topic1", opts.topic)
@@ -42,6 +47,9 @@ func TestOptionsWithFlags(t *testing.T) {
 	assert.Equal(t, sarama.WaitForLocal, opts.config.RequiredAcks)
 	assert.Equal(t, sarama.CompressionGZIP, opts.config.Compression)
 	assert.Equal(t, 7, opts.config.CompressionLevel)
+	assert.Equal(t, 128000, opts.config.BatchSize)
+	assert.Equal(t, time.Duration(1*time.Second), opts.config.BatchLinger)
+	assert.Equal(t, 100, opts.config.BatchMaxMessages)
 }
 
 func TestFlagDefaults(t *testing.T) {
@@ -56,6 +64,9 @@ func TestFlagDefaults(t *testing.T) {
 	assert.Equal(t, sarama.WaitForLocal, opts.config.RequiredAcks)
 	assert.Equal(t, sarama.CompressionNone, opts.config.Compression)
 	assert.Equal(t, 0, opts.config.CompressionLevel)
+	assert.Equal(t, 0, opts.config.BatchSize)
+	assert.Equal(t, time.Duration(0*time.Second), opts.config.BatchLinger)
+	assert.Equal(t, 0, opts.config.BatchMaxMessages)
 }
 
 func TestCompressionLevelDefaults(t *testing.T) {
