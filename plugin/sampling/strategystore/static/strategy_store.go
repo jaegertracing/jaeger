@@ -20,6 +20,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"io/ioutil"
+	"path/filepath"
 	"sync"
 
 	"github.com/fsnotify/fsnotify"
@@ -78,6 +79,14 @@ func NewStrategyStore(options Options, logger *zap.Logger) (ss.StrategyStore, er
 		logger.Info("watching", zap.String("file", options.StrategiesFile))
 	}
 
+	dir := filepath.Dir(options.StrategiesFile)
+	err = watcher.Add(dir)
+	if err != nil {
+		h.logger.Error("error adding watcher to dir", zap.String("dir", dir), zap.Error(err))
+	} else {
+		h.logger.Info("watching", zap.String("dir", dir))
+	}
+
 	return h, nil
 }
 
@@ -86,20 +95,18 @@ func (h *strategyStore) runWatcherLoop(watcher *fsnotify.Watcher, strategiesFile
 		select {
 		case event := <-watcher.Events:
 			if event.Op&fsnotify.Remove == fsnotify.Remove {
-				h.logger.Warn("the sampling strategies file has been removed")
+				if event.Name == strategiesFile {
+					h.logger.Warn("the sampling strategies file has been removed")
 
-				// This is a workaround for k8s configmaps. Since k8s loads configmaps as
-				// symlinked files within the containers, changes to the configmap register
-				// as `fsnotify.Remove` events.
-				if err := watcher.Remove(event.Name); err != nil {
-					h.logger.Error("Error removing sampling strategy config file from fsnotify watcher", zap.Error(err))
+					// This is a workaround for k8s configmaps. Since k8s loads configmaps as
+					// symlinked files within the containers, changes to the configmap register
+					// as `fsnotify.Remove` events.
+					if err := watcher.Add(strategiesFile); err != nil {
+						h.logger.Warn("Error adding sampling strategy config file to fsnotify watcher", zap.Error(err))
+					}
+
+					h.loadAndParseStrategies(strategiesFile)
 				}
-				if err := watcher.Add(strategiesFile); err != nil {
-					h.logger.Warn("Error adding sampling strategy config file to fsnotify watcher", zap.Error(err))
-				}
-
-				h.loadAndParseStrategies(strategiesFile)
-
 				continue
 			}
 			if event.Op&fsnotify.Write == fsnotify.Write {
