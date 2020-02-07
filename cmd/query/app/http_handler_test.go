@@ -562,28 +562,6 @@ func TestGetOperationsLegacyStorageFailure(t *testing.T) {
 	assert.Error(t, err)
 }
 
-func TestAdditionalHeaders(t *testing.T) {
-	additionalHeaders := http.Header{}
-	additionalHeaders.Add("Access-Control-Allow-Origin", "https://mozilla.org")
-	additionalHeaders.Add("Access-Control-Expose-Headers", "X-My-Custom-Header")
-	additionalHeaders.Add("Access-Control-Expose-Headers", "X-Another-Custom-Header")
-	additionalHeaders.Add("Access-Control-Request-Headers", "field1, field2")
-	server, readMock, _ := initializeTestServer(HandlerOptions.AdditionalHeaders(additionalHeaders))
-	defer server.Close()
-	readMock.On("GetTrace", mock.AnythingOfType("*context.valueCtx"), mock.AnythingOfType("model.TraceID")).
-		Return(mockTrace, nil).Once()
-
-	req, err := http.NewRequest("GET", server.URL+`/api/traces/123456`, nil)
-	assert.NoError(t, err)
-	resp, err := execJSONHTTPResponse(req)
-	assert.NoError(t, err)
-	resp.Body.Close()
-
-	for k, v := range additionalHeaders {
-		assert.Equal(t, v, resp.Header[k])
-	}
-}
-
 // getJSON fetches a JSON document from a server via HTTP GET
 func getJSON(url string, out interface{}) error {
 	req, err := http.NewRequest("GET", url, nil)

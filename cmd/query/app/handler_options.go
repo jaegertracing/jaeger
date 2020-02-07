@@ -16,7 +16,6 @@
 package app
 
 import (
-	"net/http"
 	"time"
 
 	"github.com/opentracing/opentracing-go"
@@ -64,12 +63,5 @@ func (handlerOptions) QueryLookbackDuration(queryLookbackDuration time.Duration)
 func (handlerOptions) Tracer(tracer opentracing.Tracer) HandlerOption {
 	return func(apiHandler *APIHandler) {
 		apiHandler.tracer = tracer
-	}
-}
-
-// AdditionalHeaders creates a HandlerOption that adds abitrary Response Headers
-func (handlerOptions) AdditionalHeaders(additionalHeaders http.Header) HandlerOption {
-	return func(apiHandler *APIHandler) {
-		apiHandler.additionalHeaders = additionalHeaders
 	}
 }

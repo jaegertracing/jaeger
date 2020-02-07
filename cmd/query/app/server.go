@@ -70,7 +70,6 @@ func createHTTPServer(querySvc *querysvc.QueryService, queryOpts *QueryOptions, 
 	apiHandlerOptions := []HandlerOption{
 		HandlerOptions.Logger(logger),
 		HandlerOptions.Tracer(tracer),
-		HandlerOptions.AdditionalHeaders(queryOpts.AdditionalHeaders),
 	}
 	apiHandler := NewAPIHandler(
 		querySvc,
@@ -87,6 +86,7 @@ func createHTTPServer(querySvc *querysvc.QueryService, queryOpts *QueryOptions, 
 		handler = bearerTokenPropagationHandler(logger, r)
 	}
 	handler = handlers.CompressHandler(handler)
+	handler = additionalHeadersHandler(handler, queryOpts.AdditionalHeaders)
 	recoveryHandler := recoveryhandler.NewRecoveryHandler(logger, true)
 	return &http.Server{
 		Handler: recoveryHandler(handler),
