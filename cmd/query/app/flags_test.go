@@ -41,27 +41,34 @@ func TestQueryBuilderFlags(t *testing.T) {
 	assert.Equal(t, "/jaeger", qOpts.BasePath)
 	assert.Equal(t, 80, qOpts.Port)
 	assert.Equal(t, http.Header{
-	           "Access-Control-Allow-Origin": []string{"blerg"}, 
-	           "Whatever": []string{"thing"}
-	       }, qOpts.AdditionalHeaders)
+		"Access-Control-Allow-Origin": []string{"blerg"},
+		"Whatever":                    []string{"thing"},
+	}, qOpts.AdditionalHeaders)
 }
 
 func TestStringSliceAsHeader(t *testing.T) {
 	headers := []string{
-	    "Access-Control-Allow-Origin: https://mozilla.org",
+		"Access-Control-Allow-Origin: https://mozilla.org",
 		"Access-Control-Expose-Headers: X-My-Custom-Header",
 		"Access-Control-Expose-Headers: X-Another-Custom-Header",
 	}
 
-	parsedHeaders := stringSliceAsHeader(headers, zap.NewNop())
+	parsedHeaders, err := stringSliceAsHeader(headers)
 
 	assert.Equal(t, []string{"https://mozilla.org"}, parsedHeaders["Access-Control-Allow-Origin"])
 	assert.Equal(t, []string{"X-My-Custom-Header", "X-Another-Custom-Header"}, parsedHeaders["Access-Control-Expose-Headers"])
+	assert.NoError(t, err)
 
 	malformedHeaders := append(headers, "this is not a valid header")
-	parsedHeaders = stringSliceAsHeader(malformedHeaders, zap.NewNop())
+	parsedHeaders, err = stringSliceAsHeader(malformedHeaders)
 	assert.Nil(t, parsedHeaders)
+	assert.Error(t, err)
 
-	parsedHeaders = stringSliceAsHeader([]string{}, zap.NewNop())
+	parsedHeaders, err = stringSliceAsHeader([]string{})
 	assert.Nil(t, parsedHeaders)
+	assert.NoError(t, err)
+
+	parsedHeaders, err = stringSliceAsHeader(nil)
+	assert.Nil(t, parsedHeaders)
+	assert.NoError(t, err)
 }

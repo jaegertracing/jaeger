@@ -18,6 +18,7 @@ package app
 import (
 	"bufio"
 	"flag"
+	"fmt"
 	"io"
 	"net/http"
 	"net/textproto"
@@ -72,15 +73,22 @@ func (qOpts *QueryOptions) InitFromViper(v *viper.Viper, logger *zap.Logger) *Qu
 	qOpts.StaticAssets = v.GetString(queryStaticFiles)
 	qOpts.UIConfig = v.GetString(queryUIConfig)
 	qOpts.BearerTokenPropagation = v.GetBool(queryTokenPropagation)
-	qOpts.AdditionalHeaders = stringSliceAsHeader(v.GetStringSlice(queryAdditionalHeaders), logger)
+
+	stringSlice := v.GetStringSlice(queryAdditionalHeaders)
+	headers, err := stringSliceAsHeader(stringSlice)
+	if err != nil {
+		logger.Error("Failed to parse headers", zap.Strings("slice", stringSlice), zap.Error(err))
+	} else {
+		qOpts.AdditionalHeaders = headers
+	}
 	return qOpts
 }
 
 // stringSliceAsHeader parses a slice of strings and returns a http.Header.
 //  Each string in the slice is expected to be in the format "key: value"
-func stringSliceAsHeader(slice []string, logger *zap.Logger) http.Header {
+func stringSliceAsHeader(slice []string) (http.Header, error) {
 	if len(slice) == 0 {
-		return nil
+		return nil, nil
 	}
 
 	allHeaders := strings.Join(slice, "\r\n")
@@ -90,9 +98,8 @@ func stringSliceAsHeader(slice []string, logger *zap.Logger) http.Header {
 
 	header, err := tp.ReadMIMEHeader()
 	if err != nil && err != io.EOF {
-		logger.Error("Failed to parse headers", zap.Strings("headers", slice))
-		return nil
+		return nil, fmt.Errorf("failed to parse headers")
 	}
 
-	return http.Header(header)
+	return http.Header(header), nil
 }
