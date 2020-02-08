@@ -46,6 +46,15 @@ func TestQueryBuilderFlags(t *testing.T) {
 	}, qOpts.AdditionalHeaders)
 }
 
+func TestQueryBuilderBadHeadersFlags(t *testing.T) {
+	v, command := config.Viperize(AddFlags)
+	command.ParseFlags([]string{
+		"--query.additional-headers=malformedheader",
+	})
+	qOpts := new(QueryOptions).InitFromViper(v, zap.NewNop())
+	assert.Nil(t, qOpts.AdditionalHeaders)
+}
+
 func TestStringSliceAsHeader(t *testing.T) {
 	headers := []string{
 		"Access-Control-Allow-Origin: https://mozilla.org",
