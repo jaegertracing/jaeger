@@ -40,7 +40,10 @@ func TestQueryBuilderFlags(t *testing.T) {
 	assert.Equal(t, "some.json", qOpts.UIConfig)
 	assert.Equal(t, "/jaeger", qOpts.BasePath)
 	assert.Equal(t, 80, qOpts.Port)
-	assert.Equal(t, http.Header{"Access-Control-Allow-Origin": []string{"blerg"}, "Whatever": []string{"thing"}}, qOpts.AdditionalHeaders)
+	assert.Equal(t, http.Header{
+	           "Access-Control-Allow-Origin": []string{"blerg"}, 
+	           "Whatever": []string{"thing"}
+	       }, qOpts.AdditionalHeaders)
 }
 
 func TestStringSliceAsHeader(t *testing.T) {
