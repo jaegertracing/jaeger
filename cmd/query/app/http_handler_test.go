@@ -587,11 +587,22 @@ func postJSON(url string, req interface{}, out interface{}) error {
 
 // execJSON executes an http request against a server and parses response as JSON
 func execJSON(req *http.Request, out interface{}) error {
-	resp, err := execJSONHTTPResponse(req)
+	req.Header.Add("Accept", "application/json")
+
+	resp, err := httpClient.Do(req)
 	if err != nil {
 		return err
 	}
+
 	defer resp.Body.Close()
+
+	if resp.StatusCode > 399 {
+		body, err := ioutil.ReadAll(resp.Body)
+		if err != nil {
+			return err
+		}
+		return fmt.Errorf("%d error from server: %s", resp.StatusCode, body)
+	}
 
 	if out == nil {
 		io.Copy(ioutil.Discard, resp.Body)
@@ -600,25 +611,6 @@ func execJSON(req *http.Request, out interface{}) error {
 
 	decoder := json.NewDecoder(resp.Body)
 	return decoder.Decode(out)
-}
-
-func execJSONHTTPResponse(req *http.Request) (*http.Response, error) {
-	req.Header.Add("Accept", "application/json")
-
-	resp, err := httpClient.Do(req)
-	if err != nil {
-		return nil, err
-	}
-
-	if resp.StatusCode > 399 {
-		body, err := ioutil.ReadAll(resp.Body)
-		if err != nil {
-			return nil, err
-		}
-		return nil, fmt.Errorf("%d error from server: %s", resp.StatusCode, body)
-	}
-
-	return resp, nil
 }
 
 // Generates a JSON response that the server should produce given a certain error code and error.
