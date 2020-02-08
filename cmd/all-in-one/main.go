@@ -129,7 +129,7 @@ by default uses only in-memory database.`,
 			tchanBuilder := agentTchanRep.NewBuilder().InitFromViper(v, logger)
 			grpcBuilder := agentGrpcRep.NewConnBuilder().InitFromViper(v)
 			cOpts := new(collector.CollectorOptions).InitFromViper(v)
-			qOpts := new(queryApp.QueryOptions).InitFromViper(v)
+			qOpts := new(queryApp.QueryOptions).InitFromViper(v, logger)
 
 			collectorSrv := startCollector(cOpts, spanWriter, logger, metricsFactory, strategyStore, svc.HC())
 			startAgent(aOpts, repOpts, tchanBuilder, grpcBuilder, cOpts, logger, metricsFactory)
