@@ -23,7 +23,6 @@ import (
 )
 
 func TestAdditionalHeadersHandler(t *testing.T) {
-
 	additionalHeaders := http.Header{}
 	additionalHeaders.Add("Access-Control-Allow-Origin", "https://mozilla.org")
 	additionalHeaders.Add("Access-Control-Expose-Headers", "X-My-Custom-Header")
