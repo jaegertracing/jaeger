@@ -450,8 +450,6 @@ func (aH *APIHandler) writeJSON(w http.ResponseWriter, r *http.Request, response
 		}
 	}
 	resp, _ := marshall(response)
-
-	header := w.Header()
-	header.Set("Content-Type", "application/json")
+	w.Header().Set("Content-Type", "application/json")
 	w.Write(resp)
 }
