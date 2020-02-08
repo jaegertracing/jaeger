@@ -40,7 +40,7 @@ func TestAdditionalHeadersHandler(t *testing.T) {
 	req, err := http.NewRequest("GET", server.URL, nil)
 	assert.NoError(t, err)
 
-	resp, err := httpClient.Do(req)
+	resp, err := server.Client().Do(req)
 	assert.NoError(t, err)
 
 	for k, v := range additionalHeaders {
