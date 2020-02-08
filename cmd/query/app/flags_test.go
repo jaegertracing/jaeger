@@ -44,7 +44,8 @@ func TestQueryBuilderFlags(t *testing.T) {
 }
 
 func TestStringSliceAsHeader(t *testing.T) {
-	headers := []string{"Access-Control-Allow-Origin: https://mozilla.org",
+	headers := []string{
+	    "Access-Control-Allow-Origin: https://mozilla.org",
 		"Access-Control-Expose-Headers: X-My-Custom-Header",
 		"Access-Control-Expose-Headers: X-Another-Custom-Header",
 	}
