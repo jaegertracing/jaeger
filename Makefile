@@ -30,6 +30,7 @@ else ifeq ($(UNAME), ppc64le)
 else
 	RACE=-race
 endif
+GOBUILD=CGO_ENABLED=0 installsuffix=cgo go build -trimpath
 GOTEST=go test -v $(RACE)
 GOLINT=golint
 GOVET=go vet
@@ -195,16 +196,14 @@ elasticsearch-mappings:
 build-examples:
 	esc -pkg frontend -o examples/hotrod/services/frontend/gen_assets.go  -prefix examples/hotrod/services/frontend/web_assets examples/hotrod/services/frontend/web_assets
 ifeq ($(GOARCH), s390x)
-	CGO_ENABLED=0 installsuffix=cgo go build -o ./examples/hotrod/hotrod-$(GOOS)-$(GOARCH) ./examples/hotrod/main.go
-else ifeq ($(GOARCH), ppc64le)
-	CGO_ENABLED=0 installsuffix=cgo go build -o ./examples/hotrod/hotrod-$(GOOS)-$(GOARCH) ./examples/hotrod/main.go
+	$(GOBUILD) -o ./examples/hotrod/hotrod-$(GOOS)-$(GOARCH) ./examples/hotrod/main.go
 else
-	CGO_ENABLED=0 installsuffix=cgo go build -o ./examples/hotrod/hotrod-$(GOOS) ./examples/hotrod/main.go
+	$(GOBUILD) -o ./examples/hotrod/hotrod-$(GOOS) ./examples/hotrod/main.go
 endif
 
 .PHONY: build-tracegen
 build-tracegen:
-	CGO_ENABLED=0 installsuffix=cgo go build -o ./cmd/tracegen/tracegen-$(GOOS) ./cmd/tracegen/main.go
+	$(GOBUILD) -o ./cmd/tracegen/tracegen-$(GOOS) ./cmd/tracegen/main.go
 
 .PHONE: docker-hotrod
 docker-hotrod:
@@ -228,51 +227,41 @@ build-all-in-one-linux: build-ui
 .PHONY: build-all-in-one
 build-all-in-one: elasticsearch-mappings
 ifeq ($(GOARCH), s390x)
-	CGO_ENABLED=0 installsuffix=cgo go build -tags ui -o ./cmd/all-in-one/all-in-one-$(GOOS)-$(GOARCH) $(BUILD_INFO) ./cmd/all-in-one/main.go
-else ifeq ($(GOARCH), ppc64le)
-	CGO_ENABLED=0 installsuffix=cgo go build -tags ui -o ./cmd/all-in-one/all-in-one-$(GOOS)-$(GOARCH) $(BUILD_INFO) ./cmd/all-in-one/main.go
+	$(GOBUILD) -tags ui -o ./cmd/all-in-one/all-in-one-$(GOOS)-$(GOARCH) $(BUILD_INFO) ./cmd/all-in-one/main.go
 else
-	CGO_ENABLED=0 installsuffix=cgo go build -tags ui -o ./cmd/all-in-one/all-in-one-$(GOOS) $(BUILD_INFO) ./cmd/all-in-one/main.go
+	$(GOBUILD) -tags ui -o ./cmd/all-in-one/all-in-one-$(GOOS) $(BUILD_INFO) ./cmd/all-in-one/main.go
 endif
 
 .PHONY: build-agent
 build-agent:
 ifeq ($(GOARCH), s390x)
-	CGO_ENABLED=0 installsuffix=cgo go build -o ./cmd/agent/agent-$(GOOS)-$(GOARCH) $(BUILD_INFO) ./cmd/agent/main.go
-else ifeq ($(GOARCH), ppc64le)
-	CGO_ENABLED=0 installsuffix=cgo go build -o ./cmd/agent/agent-$(GOOS)-$(GOARCH) $(BUILD_INFO) ./cmd/agent/main.go
+	$(GOBUILD) -o ./cmd/agent/agent-$(GOOS)-$(GOARCH) $(BUILD_INFO) ./cmd/agent/main.go
 else
-	CGO_ENABLED=0 installsuffix=cgo go build -o ./cmd/agent/agent-$(GOOS) $(BUILD_INFO) ./cmd/agent/main.go
+	$(GOBUILD) -o ./cmd/agent/agent-$(GOOS) $(BUILD_INFO) ./cmd/agent/main.go
 endif
 
 .PHONY: build-query
 build-query:
 ifeq ($(GOARCH), s390x)
-	CGO_ENABLED=0 installsuffix=cgo go build -tags ui -o ./cmd/query/query-$(GOOS)-$(GOARCH) $(BUILD_INFO) ./cmd/query/main.go
-else ifeq ($(GOARCH), ppc64le)
-	CGO_ENABLED=0 installsuffix=cgo go build -tags ui -o ./cmd/query/query-$(GOOS)-$(GOARCH) $(BUILD_INFO) ./cmd/query/main.go
+	$(GOBUILD) -tags ui -o ./cmd/query/query-$(GOOS)-$(GOARCH) $(BUILD_INFO) ./cmd/query/main.go
 else
-	CGO_ENABLED=0 installsuffix=cgo go build -tags ui -o ./cmd/query/query-$(GOOS) $(BUILD_INFO) ./cmd/query/main.go
+	$(GOBUILD) -tags ui -o ./cmd/query/query-$(GOOS) $(BUILD_INFO) ./cmd/query/main.go
 endif
 
 .PHONY: build-collector
 build-collector: elasticsearch-mappings
 ifeq ($(GOARCH), s390x)
-	CGO_ENABLED=0 installsuffix=cgo go build -o ./cmd/collector/collector-$(GOOS)-$(GOARCH) $(BUILD_INFO) ./cmd/collector/main.go
-else ifeq ($(GOARCH), ppc64le)
-	CGO_ENABLED=0 installsuffix=cgo go build -o ./cmd/collector/collector-$(GOOS)-$(GOARCH) $(BUILD_INFO) ./cmd/collector/main.go
+	$(GOBUILD) -o ./cmd/collector/collector-$(GOOS)-$(GOARCH) $(BUILD_INFO) ./cmd/collector/main.go
 else
-	CGO_ENABLED=0 installsuffix=cgo go build -o ./cmd/collector/collector-$(GOOS) $(BUILD_INFO) ./cmd/collector/main.go
+	$(GOBUILD) -o ./cmd/collector/collector-$(GOOS) $(BUILD_INFO) ./cmd/collector/main.go
 endif
 
 .PHONY: build-ingester
 build-ingester:
 ifeq ($(GOARCH), s390x)
-	CGO_ENABLED=0 installsuffix=cgo go build -o ./cmd/ingester/ingester-$(GOOS)-$(GOARCH) $(BUILD_INFO) ./cmd/ingester/main.go
-else ifeq ($(GOARCH), ppc64le)
-	CGO_ENABLED=0 installsuffix=cgo go build -o ./cmd/ingester/ingester-$(GOOS)-$(GOARCH) $(BUILD_INFO) ./cmd/ingester/main.go
+	$(GOBUILD) -o ./cmd/ingester/ingester-$(GOOS)-$(GOARCH) $(BUILD_INFO) ./cmd/ingester/main.go
 else
-	CGO_ENABLED=0 installsuffix=cgo go build -o ./cmd/ingester/ingester-$(GOOS) $(BUILD_INFO) ./cmd/ingester/main.go
+	$(GOBUILD) -o ./cmd/ingester/ingester-$(GOOS) $(BUILD_INFO) ./cmd/ingester/main.go
 endif
 
 .PHONY: docker
@@ -344,7 +333,7 @@ docker-push:
 
 .PHONY: build-crossdock-linux
 build-crossdock-linux:
-	CGO_ENABLED=0 GOOS=linux installsuffix=cgo go build -o ./crossdock/crossdock-linux ./crossdock/main.go
+	GOOS=linux $(GOBUILD) -o ./crossdock/crossdock-linux ./crossdock/main.go
 
 include crossdock/rules.mk
 
@@ -493,7 +482,6 @@ proto:
 		### grpc-gateway generates 'query.pb.gw.go' that does not respect (gogoproto.customname) = "TraceID"
 		### --grpc-gateway_out=$(PROTO_GOGO_MAPPINGS):$(PWD)/proto-gen/ \
 		### --swagger_out=allow_merge=true:$(PWD)/proto-gen/openapi/ \
-
 	$(PROTOC) \
 		$(PROTO_INCLUDES) \
 		-I plugin/storage/grpc/proto \
