@@ -327,7 +327,7 @@ docker-push:
 
 .PHONY: build-crossdock-linux
 build-crossdock-linux:
-	CGO_ENABLED=0 GOOS=linux installsuffix=cgo go build -trimpath -o ./crossdock/crossdock-linux ./crossdock/main.go
+	$(GOBUILD) GOOS=linux -o ./crossdock/crossdock-linux ./crossdock/main.go
 
 include crossdock/rules.mk
 
