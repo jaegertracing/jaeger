@@ -37,14 +37,30 @@ command line option                 environment variable
 The following configuration options are only available via environment variables:
 %s
 `
+	storageTypeDescription = `The type of backend [%s] used for trace storage.
+Multiple backends can be specified as comma-separated list, e.g. "cassandra,elasticsearch"
+(currently only for writing spans). Note that 'kafka' is not a real storage backend, it is
+only used as a buffer when Jaeger is deployed in the collector+ingester configuration.
+`
 )
 
 // Command creates `env` command
 func Command() *cobra.Command {
 	fs := new(pflag.FlagSet)
-	fs.String(storage.SpanStorageTypeEnvVar, "cassandra", fmt.Sprintf("The type of backend %s used for trace storage. Multiple backends can be specified (currently only for writing spans) as comma-separated list, e.g. \"cassandra,kafka\".", storage.AllStorageTypes))
-	fs.String(storage.DependencyStorageTypeEnvVar, "${SPAN_STORAGE}", "The type of backend used for service dependencies storage.")
-	long := fmt.Sprintf(longTemplate, strings.Replace(fs.FlagUsagesWrapped(0), "      --", "", -1))
+	fs.String(
+		storage.SpanStorageTypeEnvVar,
+		"cassandra",
+		fmt.Sprintf(
+			strings.ReplaceAll(storageTypeDescription, "\n", " "),
+			strings.Join(storage.AllStorageTypes, ", "),
+		),
+	)
+	fs.String(
+		storage.DependencyStorageTypeEnvVar,
+		"${SPAN_STORAGE_TYPE}",
+		"The type of backend used for service dependencies storage.",
+	)
+	long := fmt.Sprintf(longTemplate, strings.Replace(fs.FlagUsagesWrapped(0), "      --", "\n", -1))
 	return &cobra.Command{
 		Use:   "env",
 		Short: "Help about environment variables.",
