@@ -42,9 +42,6 @@ type ThriftServerParams struct {
 
 // StartThriftServer based on the given parameters
 func StartThriftServer(params *ThriftServerParams) (*tchannel.Channel, error) {
-	var tchServer *tchannel.Channel
-	var err error
-
 	portStr := ":" + strconv.Itoa(params.Port)
 	listener, err := net.Listen("tcp", portStr)
 	if err != nil {
@@ -52,6 +49,7 @@ func StartThriftServer(params *ThriftServerParams) (*tchannel.Channel, error) {
 		return nil, err
 	}
 
+	var tchServer *tchannel.Channel
 	if tchServer, err = tchannel.NewChannel(params.ServiceName, &tchannel.ChannelOptions{}); err != nil {
 		params.Logger.Fatal("Unable to create new TChannel", zap.Error(err))
 		return nil, err
