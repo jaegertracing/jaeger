@@ -39,7 +39,7 @@ The following configuration options are only available via environment variables
 `
 	storageTypeDescription = `The type of backend [%s] used for trace storage.
 Multiple backends can be specified as comma-separated list, e.g. "cassandra,elasticsearch"
-(currently only for writing spans). Note that 'kafka' is not a real storage backend, it is
+(currently only for writing spans). Note that "kafka" is not a real storage backend, it is
 only used as a buffer when Jaeger is deployed in the collector+ingester configuration.
 `
 )
