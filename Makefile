@@ -28,6 +28,7 @@ ifeq ($(UNAME), s390x)
 else
 	RACE=-race
 endif
+GOBUILD=CGO_ENABLED=0 installsuffix=cgo go build -trimpath
 GOTEST=go test -v $(RACE)
 GOLINT=golint
 GOVET=go vet
@@ -193,14 +194,14 @@ elasticsearch-mappings:
 build-examples:
 	esc -pkg frontend -o examples/hotrod/services/frontend/gen_assets.go  -prefix examples/hotrod/services/frontend/web_assets examples/hotrod/services/frontend/web_assets
 ifeq ($(GOARCH), s390x)
-	CGO_ENABLED=0 installsuffix=cgo go build -trimpath -o ./examples/hotrod/hotrod-$(GOOS)-$(GOARCH) ./examples/hotrod/main.go
+	$(GOBUILD) -o ./examples/hotrod/hotrod-$(GOOS)-$(GOARCH) ./examples/hotrod/main.go
 else
-	CGO_ENABLED=0 installsuffix=cgo go build -trimpath -o ./examples/hotrod/hotrod-$(GOOS) ./examples/hotrod/main.go
+	$(GOBUILD) -o ./examples/hotrod/hotrod-$(GOOS) ./examples/hotrod/main.go
 endif
 
 .PHONY: build-tracegen
 build-tracegen:
-	CGO_ENABLED=0 installsuffix=cgo go build -trimpath  -o ./cmd/tracegen/tracegen-$(GOOS) ./cmd/tracegen/main.go
+	$(GOBUILD) -o ./cmd/tracegen/tracegen-$(GOOS) ./cmd/tracegen/main.go
 
 .PHONE: docker-hotrod
 docker-hotrod:
@@ -224,41 +225,41 @@ build-all-in-one-linux: build-ui
 .PHONY: build-all-in-one
 build-all-in-one: elasticsearch-mappings
 ifeq ($(GOARCH), s390x)
-	CGO_ENABLED=0 installsuffix=cgo go build -tags ui -trimpath -o ./cmd/all-in-one/all-in-one-$(GOOS)-$(GOARCH) $(BUILD_INFO) ./cmd/all-in-one/main.go
+	$(GOBUILD) -tags ui -o ./cmd/all-in-one/all-in-one-$(GOOS)-$(GOARCH) $(BUILD_INFO) ./cmd/all-in-one/main.go
 else	
-	CGO_ENABLED=0 installsuffix=cgo go build -tags ui -trimpath -o ./cmd/all-in-one/all-in-one-$(GOOS) $(BUILD_INFO) ./cmd/all-in-one/main.go
+	$(GOBUILD) -tags ui -o ./cmd/all-in-one/all-in-one-$(GOOS) $(BUILD_INFO) ./cmd/all-in-one/main.go
 endif
 
 .PHONY: build-agent
 build-agent:
 ifeq ($(GOARCH), s390x)
-	CGO_ENABLED=0 installsuffix=cgo go build -trimpath -o ./cmd/agent/agent-$(GOOS)-$(GOARCH) $(BUILD_INFO) ./cmd/agent/main.go
+	$(GOBUILD) -o ./cmd/agent/agent-$(GOOS)-$(GOARCH) $(BUILD_INFO) ./cmd/agent/main.go
 else
-	CGO_ENABLED=0 installsuffix=cgo go build -trimpath -o ./cmd/agent/agent-$(GOOS) $(BUILD_INFO) ./cmd/agent/main.go
+	$(GOBUILD) -o ./cmd/agent/agent-$(GOOS) $(BUILD_INFO) ./cmd/agent/main.go
 endif
 
 .PHONY: build-query
 build-query:
 ifeq ($(GOARCH), s390x)
-	CGO_ENABLED=0 installsuffix=cgo go build -tags ui -trimpath -o ./cmd/query/query-$(GOOS)-$(GOARCH) $(BUILD_INFO) ./cmd/query/main.go
+	$(GOBUILD) -tags ui -o ./cmd/query/query-$(GOOS)-$(GOARCH) $(BUILD_INFO) ./cmd/query/main.go
 else
-	CGO_ENABLED=0 installsuffix=cgo go build -tags ui -trimpath -o ./cmd/query/query-$(GOOS) $(BUILD_INFO) ./cmd/query/main.go
+	$(GOBUILD) -tags ui -o ./cmd/query/query-$(GOOS) $(BUILD_INFO) ./cmd/query/main.go
 endif
 
 .PHONY: build-collector
 build-collector: elasticsearch-mappings
 ifeq ($(GOARCH), s390x)
-	CGO_ENABLED=0 installsuffix=cgo go build -trimpath -o ./cmd/collector/collector-$(GOOS)-$(GOARCH) $(BUILD_INFO) ./cmd/collector/main.go
+	$(GOBUILD) -o ./cmd/collector/collector-$(GOOS)-$(GOARCH) $(BUILD_INFO) ./cmd/collector/main.go
 else
-	CGO_ENABLED=0 installsuffix=cgo go build -trimpath -o ./cmd/collector/collector-$(GOOS) $(BUILD_INFO) ./cmd/collector/main.go
+	$(GOBUILD) -o ./cmd/collector/collector-$(GOOS) $(BUILD_INFO) ./cmd/collector/main.go
 endif
 
 .PHONY: build-ingester
 build-ingester:
 ifeq ($(GOARCH), s390x)
-	CGO_ENABLED=0 installsuffix=cgo go build -trimpath -o ./cmd/ingester/ingester-$(GOOS)-$(GOARCH) $(BUILD_INFO) ./cmd/ingester/main.go
+	$(GOBUILD) -o ./cmd/ingester/ingester-$(GOOS)-$(GOARCH) $(BUILD_INFO) ./cmd/ingester/main.go
 else
-	CGO_ENABLED=0 installsuffix=cgo go build -trimpath -o ./cmd/ingester/ingester-$(GOOS) $(BUILD_INFO) ./cmd/ingester/main.go
+	$(GOBUILD) -o ./cmd/ingester/ingester-$(GOOS) $(BUILD_INFO) ./cmd/ingester/main.go
 endif
 
 .PHONY: docker
@@ -507,3 +508,4 @@ proto-install:
 		./vendor/github.com/grpc-ecosystem/grpc-gateway/protoc-gen-grpc-gateway \
 		./vendor/github.com/grpc-ecosystem/grpc-gateway/protoc-gen-swagger
 		# ./vendor/github.com/mwitkow/go-proto-validators/protoc-gen-govalidators
+
