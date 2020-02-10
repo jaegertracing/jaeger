@@ -327,7 +327,7 @@ docker-push:
 
 .PHONY: build-crossdock-linux
 build-crossdock-linux:
-	$(GOBUILD) GOOS=linux -o ./crossdock/crossdock-linux ./crossdock/main.go
+	GOOS=linux $(GOBUILD) -o ./crossdock/crossdock-linux ./crossdock/main.go
 
 include crossdock/rules.mk
 
@@ -476,7 +476,6 @@ proto:
 		### grpc-gateway generates 'query.pb.gw.go' that does not respect (gogoproto.customname) = "TraceID"
 		### --grpc-gateway_out=$(PROTO_GOGO_MAPPINGS):$(PWD)/proto-gen/ \
 		### --swagger_out=allow_merge=true:$(PWD)/proto-gen/openapi/ \
-
 	$(PROTOC) \
 		$(PROTO_INCLUDES) \
 		-I plugin/storage/grpc/proto \
@@ -508,4 +507,3 @@ proto-install:
 		./vendor/github.com/grpc-ecosystem/grpc-gateway/protoc-gen-grpc-gateway \
 		./vendor/github.com/grpc-ecosystem/grpc-gateway/protoc-gen-swagger
 		# ./vendor/github.com/mwitkow/go-proto-validators/protoc-gen-govalidators
-
