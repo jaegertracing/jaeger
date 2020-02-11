@@ -73,7 +73,7 @@ func NewStrategyStore(options Options, logger *zap.Logger) (ss.StrategyStore, er
 
 	go h.runWatcherLoop(watcher, options.StrategiesFile)
 
-	if err = watcher.Add(options.StrategiesFile); err != nil {
+	if err := watcher.Add(options.StrategiesFile); err != nil {
 		logger.Error("error adding watcher to file", zap.String("file", options.StrategiesFile), zap.Error(err))
 	} else {
 		logger.Info("watching", zap.String("file", options.StrategiesFile))
@@ -81,7 +81,7 @@ func NewStrategyStore(options Options, logger *zap.Logger) (ss.StrategyStore, er
 
 	dir := filepath.Dir(options.StrategiesFile)
 	err = watcher.Add(dir)
-	if err != nil {
+	if err := watcher.Add(dir); err != nil {
 		h.logger.Error("error adding watcher to dir", zap.String("dir", dir), zap.Error(err))
 	} else {
 		h.logger.Info("watching", zap.String("dir", dir))
@@ -102,7 +102,7 @@ func (h *strategyStore) runWatcherLoop(watcher *fsnotify.Watcher, strategiesFile
 					// symlinked files within the containers, changes to the configmap register
 					// as `fsnotify.Remove` events.
 					if err := watcher.Add(strategiesFile); err != nil {
-						h.logger.Warn("Error adding sampling strategy config file to fsnotify watcher", zap.Error(err))
+						h.logger.Warn("cannot watch sampling strategy config file", zap.Error(err))
 					}
 
 					h.loadAndParseStrategies(strategiesFile)
@@ -116,7 +116,7 @@ func (h *strategyStore) runWatcherLoop(watcher *fsnotify.Watcher, strategiesFile
 			if !ok {
 				return
 			}
-			h.logger.Error("event", zap.Error(err))
+			h.logger.Error("file watcher error", zap.Error(err))
 		}
 	}
 }
