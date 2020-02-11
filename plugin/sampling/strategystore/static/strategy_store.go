@@ -44,11 +44,10 @@ type strategyStore struct {
 func (h *strategyStore) loadAndParseStrategies(strategiesFile string) error {
 	s, err := loadStrategies(strategiesFile)
 	if err != nil {
-		h.logger.Warn("Using the last saved configuration for sampling strategies.", zap.Error(err))
+		h.logger.Warn("using the last saved configuration for sampling strategies.", zap.Error(err))
 		return err
 	}
 
-	h.logger.Info("Updating sampling strategies file!", zap.Any("Strategies", s))
 	h.parseStrategies(s)
 	return nil
 }
