@@ -55,14 +55,12 @@ func StartZipkinServer(params *ZipkinServerParams) (*http.Server, error) {
 	}
 
 	server := &http.Server{Addr: httpPortStr}
-	if err := serveZipkin(server, listener, params); err != nil {
-		return nil, err
-	}
+	serveZipkin(server, listener, params)
 
 	return server, nil
 }
 
-func serveZipkin(server *http.Server, listener net.Listener, params *ZipkinServerParams) error {
+func serveZipkin(server *http.Server, listener net.Listener, params *ZipkinServerParams) {
 	r := mux.NewRouter()
 	zHandler := zipkin.NewAPIHandler(params.Handler)
 	zHandler.RegisterRoutes(r)
@@ -83,6 +81,4 @@ func serveZipkin(server *http.Server, listener net.Listener, params *ZipkinServe
 		}
 		params.HealthCheck.Set(healthcheck.Unavailable)
 	}(listener, server)
-
-	return nil
 }

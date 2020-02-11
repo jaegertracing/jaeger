@@ -51,14 +51,12 @@ func StartHTTPServer(params *HTTPServerParams) (*http.Server, error) {
 	}
 
 	server := &http.Server{Addr: httpPortStr}
-	if err := serveHTTP(server, listener, params); err != nil {
-		return nil, err
-	}
+	serveHTTP(server, listener, params)
 
 	return server, nil
 }
 
-func serveHTTP(server *http.Server, listener net.Listener, params *HTTPServerParams) error {
+func serveHTTP(server *http.Server, listener net.Listener, params *HTTPServerParams) {
 	r := mux.NewRouter()
 	apiHandler := handler.NewAPIHandler(params.Handler)
 	apiHandler.RegisterRoutes(r)
@@ -83,6 +81,4 @@ func serveHTTP(server *http.Server, listener net.Listener, params *HTTPServerPar
 		}
 		params.HealthCheck.Set(healthcheck.Unavailable)
 	}(listener, server)
-
-	return nil
 }
