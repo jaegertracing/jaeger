@@ -13,7 +13,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package builder
+package app
 
 import (
 	"os"
@@ -21,7 +21,7 @@ import (
 	"github.com/uber/jaeger-lib/metrics"
 	"go.uber.org/zap"
 
-	"github.com/jaegertracing/jaeger/cmd/collector/app"
+	"github.com/jaegertracing/jaeger/cmd/collector/app/handler"
 	zs "github.com/jaegertracing/jaeger/cmd/collector/app/sanitizer/zipkin"
 	"github.com/jaegertracing/jaeger/model"
 	"github.com/jaegertracing/jaeger/storage/spanstore"
@@ -37,30 +37,30 @@ type SpanHandlerBuilder struct {
 
 // BuildHandlers builds span handlers (Zipkin, Jaeger)
 func (b *SpanHandlerBuilder) BuildHandlers() (
-	app.ZipkinSpansHandler,
-	app.JaegerBatchesHandler,
-	*app.GRPCHandler,
+	handler.ZipkinSpansHandler,
+	handler.JaegerBatchesHandler,
+	*handler.GRPCHandler,
 ) {
 	hostname, _ := os.Hostname()
 	svcMetrics := b.metricsFactory()
 	hostMetrics := svcMetrics.Namespace(metrics.NSOptions{Tags: map[string]string{"host": hostname}})
 
-	spanProcessor := app.NewSpanProcessor(
+	spanProcessor := NewSpanProcessor(
 		b.SpanWriter,
-		app.Options.ServiceMetrics(svcMetrics),
-		app.Options.HostMetrics(hostMetrics),
-		app.Options.Logger(b.logger()),
-		app.Options.SpanFilter(defaultSpanFilter),
-		app.Options.NumWorkers(b.CollectorOpts.NumWorkers),
-		app.Options.QueueSize(b.CollectorOpts.QueueSize),
-		app.Options.CollectorTags(b.CollectorOpts.CollectorTags),
-		app.Options.DynQueueSizeWarmup(uint(b.CollectorOpts.QueueSize)), // same as queue size for now
-		app.Options.DynQueueSizeMemory(b.CollectorOpts.DynQueueSizeMemory),
+		Options.ServiceMetrics(svcMetrics),
+		Options.HostMetrics(hostMetrics),
+		Options.Logger(b.logger()),
+		Options.SpanFilter(defaultSpanFilter),
+		Options.NumWorkers(b.CollectorOpts.NumWorkers),
+		Options.QueueSize(b.CollectorOpts.QueueSize),
+		Options.CollectorTags(b.CollectorOpts.CollectorTags),
+		Options.DynQueueSizeWarmup(uint(b.CollectorOpts.QueueSize)), // same as queue size for now
+		Options.DynQueueSizeMemory(b.CollectorOpts.DynQueueSizeMemory),
 	)
 
-	return app.NewZipkinSpanHandler(b.Logger, spanProcessor, zs.NewChainedSanitizer(zs.StandardSanitizers...)),
-		app.NewJaegerSpanHandler(b.Logger, spanProcessor),
-		app.NewGRPCHandler(b.Logger, spanProcessor)
+	return handler.NewZipkinSpanHandler(b.Logger, spanProcessor, zs.NewChainedSanitizer(zs.StandardSanitizers...)),
+		handler.NewJaegerSpanHandler(b.Logger, spanProcessor),
+		handler.NewGRPCHandler(b.Logger, spanProcessor)
 }
 
 func defaultSpanFilter(*model.Span) bool {
