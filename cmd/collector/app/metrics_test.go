@@ -23,6 +23,7 @@ import (
 	jaegerM "github.com/uber/jaeger-lib/metrics"
 	"github.com/uber/jaeger-lib/metrics/metricstest"
 
+	"github.com/jaegertracing/jaeger/cmd/collector/app/processor"
 	"github.com/jaegertracing/jaeger/model"
 )
 
@@ -30,13 +31,13 @@ func TestProcessorMetrics(t *testing.T) {
 	baseMetrics := metricstest.NewFactory(time.Hour)
 	serviceMetrics := baseMetrics.Namespace(jaegerM.NSOptions{Name: "service", Tags: nil})
 	hostMetrics := baseMetrics.Namespace(jaegerM.NSOptions{Name: "host", Tags: nil})
-	spm := NewSpanProcessorMetrics(serviceMetrics, hostMetrics, []SpanFormat{SpanFormat("scruffy")})
-	benderFormatHTTPMetrics := spm.GetCountsForFormat("bender", HTTPTransport)
+	spm := NewSpanProcessorMetrics(serviceMetrics, hostMetrics, []processor.SpanFormat{processor.SpanFormat("scruffy")})
+	benderFormatHTTPMetrics := spm.GetCountsForFormat("bender", processor.HTTPTransport)
 	assert.NotNil(t, benderFormatHTTPMetrics)
-	benderFormatGRPCMetrics := spm.GetCountsForFormat("bender", GRPCTransport)
+	benderFormatGRPCMetrics := spm.GetCountsForFormat("bender", processor.GRPCTransport)
 	assert.NotNil(t, benderFormatGRPCMetrics)
 
-	jTChannelFormat := spm.GetCountsForFormat(JaegerSpanFormat, TChannelTransport)
+	jTChannelFormat := spm.GetCountsForFormat(processor.JaegerSpanFormat, processor.TChannelTransport)
 	assert.NotNil(t, jTChannelFormat)
 	jTChannelFormat.ReceivedBySvc.ReportServiceNameForSpan(&model.Span{
 		Process: &model.Process{},

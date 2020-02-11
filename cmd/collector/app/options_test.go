@@ -22,11 +22,12 @@ import (
 	"github.com/uber/jaeger-lib/metrics"
 	"go.uber.org/zap"
 
+	"github.com/jaegertracing/jaeger/cmd/collector/app/processor"
 	"github.com/jaegertracing/jaeger/model"
 )
 
 func TestAllOptionSet(t *testing.T) {
-	types := []SpanFormat{SpanFormat("sneh")}
+	types := []processor.SpanFormat{processor.SpanFormat("sneh")}
 	opts := Options.apply(
 		Options.ReportBusy(true),
 		Options.BlockingSubmit(true),

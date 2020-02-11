@@ -13,7 +13,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package app
+package handler
 
 import (
 	"fmt"
@@ -24,6 +24,7 @@ import (
 	"github.com/apache/thrift/lib/go/thrift"
 	"github.com/gorilla/mux"
 
+	"github.com/jaegertracing/jaeger/cmd/collector/app/processor"
 	tJaeger "github.com/jaegertracing/jaeger/thrift-gen/jaeger"
 )
 
@@ -87,7 +88,7 @@ func (aH *APIHandler) SaveSpan(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	batches := []*tJaeger.Batch{batch}
-	opts := SubmitBatchOptions{InboundTransport: HTTPTransport}
+	opts := SubmitBatchOptions{InboundTransport: processor.HTTPTransport}
 	if _, err = aH.jaegerBatchesHandler.SubmitBatches(batches, opts); err != nil {
 		http.Error(w, fmt.Sprintf("Cannot submit Jaeger batch: %v", err), http.StatusInternalServerError)
 		return
