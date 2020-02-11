@@ -67,7 +67,7 @@ type queueItem struct {
 func NewSpanProcessor(
 	spanWriter spanstore.Writer,
 	opts ...Option,
-) processor.Span {
+) processor.SpanProcessor {
 	sp := newSpanProcessor(spanWriter, opts...)
 
 	sp.queue.StartConsumers(sp.numWorkers, func(item interface{}) {

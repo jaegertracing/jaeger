@@ -26,11 +26,11 @@ import (
 // GRPCHandler implements gRPC CollectorService.
 type GRPCHandler struct {
 	logger        *zap.Logger
-	spanProcessor processor.Span
+	spanProcessor processor.SpanProcessor
 }
 
 // NewGRPCHandler registers routes for this handler on the given router.
-func NewGRPCHandler(logger *zap.Logger, spanProcessor processor.Span) *GRPCHandler {
+func NewGRPCHandler(logger *zap.Logger, spanProcessor processor.SpanProcessor) *GRPCHandler {
 	return &GRPCHandler{
 		logger:        logger,
 		spanProcessor: spanProcessor,

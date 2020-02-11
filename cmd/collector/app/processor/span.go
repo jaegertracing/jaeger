@@ -24,8 +24,8 @@ type SpansOptions struct {
 	InboundTransport InboundTransport
 }
 
-// Span handles model spans
-type Span interface {
+// SpanProcessor handles model spans
+type SpanProcessor interface {
 	// ProcessSpans processes model spans and return with either a list of true/false success or an error
 	ProcessSpans(mSpans []*model.Span, options SpansOptions) ([]bool, error)
 }

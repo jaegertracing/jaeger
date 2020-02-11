@@ -46,11 +46,11 @@ type JaegerBatchesHandler interface {
 
 type jaegerBatchesHandler struct {
 	logger         *zap.Logger
-	modelProcessor processor.Span
+	modelProcessor processor.SpanProcessor
 }
 
 // NewJaegerSpanHandler returns a JaegerBatchesHandler
-func NewJaegerSpanHandler(logger *zap.Logger, modelProcessor processor.Span) JaegerBatchesHandler {
+func NewJaegerSpanHandler(logger *zap.Logger, modelProcessor processor.SpanProcessor) JaegerBatchesHandler {
 	return &jaegerBatchesHandler{
 		logger:         logger,
 		modelProcessor: modelProcessor,
@@ -93,11 +93,11 @@ func (jbh *jaegerBatchesHandler) SubmitBatches(batches []*jaeger.Batch, options 
 type zipkinSpanHandler struct {
 	logger         *zap.Logger
 	sanitizer      zipkinS.Sanitizer
-	modelProcessor processor.Span
+	modelProcessor processor.SpanProcessor
 }
 
 // NewZipkinSpanHandler returns a ZipkinSpansHandler
-func NewZipkinSpanHandler(logger *zap.Logger, modelHandler processor.Span, sanitizer zipkinS.Sanitizer) ZipkinSpansHandler {
+func NewZipkinSpanHandler(logger *zap.Logger, modelHandler processor.SpanProcessor, sanitizer zipkinS.Sanitizer) ZipkinSpansHandler {
 	return &zipkinSpanHandler{
 		logger:         logger,
 		modelProcessor: modelHandler,
