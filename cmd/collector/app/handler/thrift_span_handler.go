@@ -13,11 +13,12 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package app
+package handler
 
 import (
 	"go.uber.org/zap"
 
+	"github.com/jaegertracing/jaeger/cmd/collector/app/processor"
 	zipkinS "github.com/jaegertracing/jaeger/cmd/collector/app/sanitizer/zipkin"
 	"github.com/jaegertracing/jaeger/model"
 	jConv "github.com/jaegertracing/jaeger/model/converter/thrift/jaeger"
@@ -28,7 +29,7 @@ import (
 
 // SubmitBatchOptions are passed to Submit methods of the handlers.
 type SubmitBatchOptions struct {
-	InboundTransport InboundTransport
+	InboundTransport processor.InboundTransport
 }
 
 // ZipkinSpansHandler consumes and handles zipkin spans
@@ -45,11 +46,11 @@ type JaegerBatchesHandler interface {
 
 type jaegerBatchesHandler struct {
 	logger         *zap.Logger
-	modelProcessor SpanProcessor
+	modelProcessor processor.SpanProcessor
 }
 
 // NewJaegerSpanHandler returns a JaegerBatchesHandler
-func NewJaegerSpanHandler(logger *zap.Logger, modelProcessor SpanProcessor) JaegerBatchesHandler {
+func NewJaegerSpanHandler(logger *zap.Logger, modelProcessor processor.SpanProcessor) JaegerBatchesHandler {
 	return &jaegerBatchesHandler{
 		logger:         logger,
 		modelProcessor: modelProcessor,
@@ -64,9 +65,9 @@ func (jbh *jaegerBatchesHandler) SubmitBatches(batches []*jaeger.Batch, options 
 			mSpan := jConv.ToDomainSpan(span, batch.Process)
 			mSpans = append(mSpans, mSpan)
 		}
-		oks, err := jbh.modelProcessor.ProcessSpans(mSpans, ProcessSpansOptions{
+		oks, err := jbh.modelProcessor.ProcessSpans(mSpans, processor.SpansOptions{
 			InboundTransport: options.InboundTransport,
-			SpanFormat:       JaegerSpanFormat,
+			SpanFormat:       processor.JaegerSpanFormat,
 		})
 		if err != nil {
 			jbh.logger.Error("Collector failed to process span batch", zap.Error(err))
@@ -92,11 +93,11 @@ func (jbh *jaegerBatchesHandler) SubmitBatches(batches []*jaeger.Batch, options 
 type zipkinSpanHandler struct {
 	logger         *zap.Logger
 	sanitizer      zipkinS.Sanitizer
-	modelProcessor SpanProcessor
+	modelProcessor processor.SpanProcessor
 }
 
 // NewZipkinSpanHandler returns a ZipkinSpansHandler
-func NewZipkinSpanHandler(logger *zap.Logger, modelHandler SpanProcessor, sanitizer zipkinS.Sanitizer) ZipkinSpansHandler {
+func NewZipkinSpanHandler(logger *zap.Logger, modelHandler processor.SpanProcessor, sanitizer zipkinS.Sanitizer) ZipkinSpansHandler {
 	return &zipkinSpanHandler{
 		logger:         logger,
 		modelProcessor: modelHandler,
@@ -111,9 +112,9 @@ func (h *zipkinSpanHandler) SubmitZipkinBatch(spans []*zipkincore.Span, options 
 		sanitized := h.sanitizer.Sanitize(span)
 		mSpans = append(mSpans, convertZipkinToModel(sanitized, h.logger)...)
 	}
-	bools, err := h.modelProcessor.ProcessSpans(mSpans, ProcessSpansOptions{
+	bools, err := h.modelProcessor.ProcessSpans(mSpans, processor.SpansOptions{
 		InboundTransport: options.InboundTransport,
-		SpanFormat:       ZipkinSpanFormat,
+		SpanFormat:       processor.ZipkinSpanFormat,
 	})
 	if err != nil {
 		h.logger.Error("Collector failed to process Zipkin span batch", zap.Error(err))

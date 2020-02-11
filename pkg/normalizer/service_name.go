@@ -13,14 +13,14 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package app
+package normalizer
 
 import (
 	"strings"
 )
 
-// NormalizeServiceName converts service name to a lowercase string that is safe to use in metrics
-func NormalizeServiceName(serviceName string) string {
+// ServiceName converts service name to a lowercase string that is safe to use in metrics
+func ServiceName(serviceName string) string {
 	return serviceNameReplacer.Replace(serviceName)
 }
 

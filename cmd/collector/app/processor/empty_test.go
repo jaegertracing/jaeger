@@ -1,5 +1,4 @@
-// Copyright (c) 2019 The Jaeger Authors.
-// Copyright (c) 2017 Uber Technologies, Inc.
+// Copyright (c) 2020 The Jaeger Authors.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -13,16 +12,4 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package app
-
-import (
-	"testing"
-
-	"github.com/stretchr/testify/assert"
-)
-
-func TestServiceNameReplacer(t *testing.T) {
-	assert.Equal(t, "abc", NormalizeServiceName("ABC"), "lower case conversion")
-	assert.Equal(t, "a_b_c__", NormalizeServiceName("a&b%c/:"), "disallowed runes to underscore")
-	assert.Equal(t, "a_z_0123456789.", NormalizeServiceName("A_Z_0123456789."), "allowed runes")
-}
+package processor

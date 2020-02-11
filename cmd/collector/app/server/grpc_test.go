@@ -1,4 +1,4 @@
-// Copyright (c) 2018 The Jaeger Authors.
+// Copyright (c) 2020 The Jaeger Authors.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -12,10 +12,11 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package grpcserver
+package server
 
 import (
 	"context"
+	"net"
 	"sync"
 	"testing"
 
@@ -27,21 +28,20 @@ import (
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/test/bufconn"
 
-	"github.com/jaegertracing/jaeger/cmd/collector/app"
-	"github.com/jaegertracing/jaeger/model"
+	"github.com/jaegertracing/jaeger/cmd/collector/app/handler"
 	"github.com/jaegertracing/jaeger/proto-gen/api_v2"
-	"github.com/jaegertracing/jaeger/thrift-gen/sampling"
 )
 
 // test wrong port number
 func TestFailToListen(t *testing.T) {
-	l, _ := zap.NewDevelopment()
-	handler := app.NewGRPCHandler(l, &mockSpanProcessor{})
-	server := grpc.NewServer()
-	const invalidPort = -1
-	addr, err := StartGRPCCollector(invalidPort, server, handler, &mockSamplingStore{}, l, func(e error) {
+	logger, _ := zap.NewDevelopment()
+	server, err := StartGRPCServer(&GRPCServerParams{
+		Port:          -1,
+		Handler:       handler.NewGRPCHandler(logger, &mockSpanProcessor{}),
+		SamplingStore: &mockSamplingStore{},
+		Logger:        logger,
 	})
-	assert.Nil(t, addr)
+	assert.Nil(t, server)
 	assert.EqualError(t, err, "failed to listen on gRPC port: listen tcp: address -1: invalid port")
 }
 
@@ -51,42 +51,44 @@ func TestFailServe(t *testing.T) {
 	core, logs := observer.New(zap.NewAtomicLevelAt(zapcore.ErrorLevel))
 	var wg sync.WaitGroup
 	wg.Add(1)
-	startServer(grpc.NewServer(), lis, zap.New(core), func(e error) {
-		assert.Equal(t, 1, len(logs.All()))
-		assert.Equal(t, "Could not launch gRPC service", logs.All()[0].Message)
-		wg.Done()
+
+	logger := zap.New(core)
+	serveGRPC(grpc.NewServer(), lis, &GRPCServerParams{
+		Handler:       handler.NewGRPCHandler(logger, &mockSpanProcessor{}),
+		SamplingStore: &mockSamplingStore{},
+		Logger:        logger,
+		OnError: func(e error) {
+			assert.Equal(t, 1, len(logs.All()))
+			assert.Equal(t, "Could not launch gRPC service", logs.All()[0].Message)
+			wg.Done()
+		},
 	})
 	wg.Wait()
 }
 
 func TestSpanCollector(t *testing.T) {
-	l, _ := zap.NewDevelopment()
-	handler := app.NewGRPCHandler(l, &mockSpanProcessor{})
-	server := grpc.NewServer()
-	addr, err := StartGRPCCollector(0, server, handler, &mockSamplingStore{}, l, func(e error) {
-	})
-	require.NoError(t, err)
+	logger, _ := zap.NewDevelopment()
+	params := &GRPCServerParams{
+		Handler:       handler.NewGRPCHandler(logger, &mockSpanProcessor{}),
+		SamplingStore: &mockSamplingStore{},
+		Logger:        logger,
+	}
 
-	conn, err := grpc.Dial(addr.String(), grpc.WithInsecure())
-	//lint:ignore SA5001 don't care about errors
-	defer conn.Close()
+	server := grpc.NewServer()
 	defer server.Stop()
+
+	listener, err := net.Listen("tcp", ":0")
 	require.NoError(t, err)
+	defer listener.Close()
+
+	serveGRPC(server, listener, params)
+
+	conn, err := grpc.Dial(listener.Addr().String(), grpc.WithInsecure())
+	require.NoError(t, err)
+	defer conn.Close()
+
 	c := api_v2.NewCollectorServiceClient(conn)
 	response, err := c.PostSpans(context.Background(), &api_v2.PostSpansRequest{})
 	require.NoError(t, err)
 	require.NotNil(t, response)
-}
-
-type mockSamplingStore struct{}
-
-func (s mockSamplingStore) GetSamplingStrategy(serviceName string) (*sampling.SamplingStrategyResponse, error) {
-	return nil, nil
-}
-
-type mockSpanProcessor struct {
-}
-
-func (p *mockSpanProcessor) ProcessSpans(spans []*model.Span, _ app.ProcessSpansOptions) ([]bool, error) {
-	return []bool{}, nil
 }

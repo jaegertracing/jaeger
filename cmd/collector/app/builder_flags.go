@@ -13,14 +13,13 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package builder
+package app
 
 import (
 	"flag"
 
 	"github.com/spf13/viper"
 
-	"github.com/jaegertracing/jaeger/cmd/collector/app"
 	"github.com/jaegertracing/jaeger/cmd/flags"
 	"github.com/jaegertracing/jaeger/pkg/config/tlscfg"
 	"github.com/jaegertracing/jaeger/ports"
@@ -74,8 +73,8 @@ type CollectorOptions struct {
 // AddFlags adds flags for CollectorOptions
 func AddFlags(flags *flag.FlagSet) {
 	flags.Uint(collectorDynQueueSizeMemory, 0, "(experimental) The max memory size in MiB to use for the dynamic queue.")
-	flags.Int(collectorQueueSize, app.DefaultQueueSize, "The queue size of the collector")
-	flags.Int(collectorNumWorkers, app.DefaultNumWorkers, "The number of workers pulling items from the queue")
+	flags.Int(collectorQueueSize, DefaultQueueSize, "The queue size of the collector")
+	flags.Int(collectorNumWorkers, DefaultNumWorkers, "The number of workers pulling items from the queue")
 	flags.Int(collectorPort, ports.CollectorTChannel, "The TChannel port for the collector service")
 	flags.Int(collectorHTTPPort, ports.CollectorHTTP, "The HTTP port for the collector service")
 	flags.Int(collectorGRPCPort, ports.CollectorGRPC, "The gRPC port for the collector service")
