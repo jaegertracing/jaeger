@@ -22,6 +22,7 @@ import (
 	"go.uber.org/zap"
 
 	"github.com/jaegertracing/jaeger/cmd/collector/app/handler"
+	"github.com/jaegertracing/jaeger/cmd/collector/app/processor"
 	zs "github.com/jaegertracing/jaeger/cmd/collector/app/sanitizer/zipkin"
 	"github.com/jaegertracing/jaeger/model"
 	"github.com/jaegertracing/jaeger/storage/spanstore"
@@ -35,17 +36,20 @@ type SpanHandlerBuilder struct {
 	MetricsFactory metrics.Factory
 }
 
-// BuildHandlers builds span handlers (Zipkin, Jaeger)
-func (b *SpanHandlerBuilder) BuildHandlers() (
-	handler.ZipkinSpansHandler,
-	handler.JaegerBatchesHandler,
-	*handler.GRPCHandler,
-) {
+// SpanHandlers holds instances to the span handlers built by the SpanHandlerBuilder
+type SpanHandlers struct {
+	ZipkinSpansHandler   handler.ZipkinSpansHandler
+	JaegerBatchesHandler handler.JaegerBatchesHandler
+	GRPCHandler          *handler.GRPCHandler
+}
+
+// BuildSpanProcessor builds the span processor to be used with the handlers
+func (b *SpanHandlerBuilder) BuildSpanProcessor() processor.SpanProcessor {
 	hostname, _ := os.Hostname()
 	svcMetrics := b.metricsFactory()
 	hostMetrics := svcMetrics.Namespace(metrics.NSOptions{Tags: map[string]string{"host": hostname}})
 
-	spanProcessor := NewSpanProcessor(
+	return NewSpanProcessor(
 		b.SpanWriter,
 		Options.ServiceMetrics(svcMetrics),
 		Options.HostMetrics(hostMetrics),
@@ -58,9 +62,15 @@ func (b *SpanHandlerBuilder) BuildHandlers() (
 		Options.DynQueueSizeMemory(b.CollectorOpts.DynQueueSizeMemory),
 	)
 
-	return handler.NewZipkinSpanHandler(b.Logger, spanProcessor, zs.NewChainedSanitizer(zs.StandardSanitizers...)),
+}
+
+// BuildHandlers builds span handlers (Zipkin, Jaeger)
+func (b *SpanHandlerBuilder) BuildHandlers(spanProcessor processor.SpanProcessor) *SpanHandlers {
+	return &SpanHandlers{
+		handler.NewZipkinSpanHandler(b.Logger, spanProcessor, zs.NewChainedSanitizer(zs.StandardSanitizers...)),
 		handler.NewJaegerSpanHandler(b.Logger, spanProcessor),
-		handler.NewGRPCHandler(b.Logger, spanProcessor)
+		handler.NewGRPCHandler(b.Logger, spanProcessor),
+	}
 }
 
 func defaultSpanFilter(*model.Span) bool {

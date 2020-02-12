@@ -76,6 +76,9 @@ func (s *shouldIErrorProcessor) ProcessSpans(mSpans []*model.Span, _ processor.S
 	}
 	return retMe, nil
 }
+func (s *shouldIErrorProcessor) Close() error {
+	return nil
+}
 
 func TestZipkinSpanHandler(t *testing.T) {
 	testChunks := []struct {

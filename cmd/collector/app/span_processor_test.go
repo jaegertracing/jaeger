@@ -37,8 +37,12 @@ import (
 	zc "github.com/jaegertracing/jaeger/thrift-gen/zipkincore"
 )
 
-var _ (io.Closer) = (*fakeSpanWriter)(nil)
-var blackListedService = "zoidberg"
+var (
+	_ io.Closer = (*fakeSpanWriter)(nil)
+	_ io.Closer = (*spanProcessor)(nil)
+
+	blackListedService = "zoidberg"
+)
 
 func TestBySvcMetrics(t *testing.T) {
 	allowedService := "bender"
@@ -215,7 +219,6 @@ func makeJaegerSpan(service string, rootSpan bool, debugEnabled bool) (*jaeger.S
 func TestSpanProcessor(t *testing.T) {
 	w := &fakeSpanWriter{}
 	p := NewSpanProcessor(w, Options.QueueSize(1)).(*spanProcessor)
-	defer p.Stop()
 
 	res, err := p.ProcessSpans([]*model.Span{
 		{
@@ -226,6 +229,7 @@ func TestSpanProcessor(t *testing.T) {
 	}, processor.SpansOptions{SpanFormat: processor.JaegerSpanFormat})
 	assert.NoError(t, err)
 	assert.Equal(t, []bool{true}, res)
+	assert.NoError(t, p.Close())
 }
 
 func TestSpanProcessorErrors(t *testing.T) {
@@ -251,7 +255,7 @@ func TestSpanProcessorErrors(t *testing.T) {
 	assert.NoError(t, err)
 	assert.Equal(t, []bool{true}, res)
 
-	p.Stop()
+	assert.NoError(t, p.Close())
 
 	assert.Equal(t, map[string]string{
 		"level": "error",
@@ -282,7 +286,7 @@ func TestSpanProcessorBusy(t *testing.T) {
 		Options.QueueSize(1),
 		Options.ReportBusy(true),
 	).(*spanProcessor)
-	defer p.Stop()
+	defer assert.NoError(t, p.Close())
 
 	// block the writer so that the first span is read from the queue and blocks the processor,
 	// and eiher the second or the third span is rejected since the queue capacity is just 1.
@@ -317,7 +321,7 @@ func TestSpanProcessorWithNilProcess(t *testing.T) {
 
 	w := &fakeSpanWriter{}
 	p := NewSpanProcessor(w, Options.ServiceMetrics(serviceMetrics)).(*spanProcessor)
-	defer p.Stop()
+	defer assert.NoError(t, p.Close())
 
 	p.saveSpan(&model.Span{})
 
@@ -335,7 +339,7 @@ func TestSpanProcessorWithCollectorTags(t *testing.T) {
 
 	w := &fakeSpanWriter{}
 	p := NewSpanProcessor(w, Options.CollectorTags(testCollectorTags)).(*spanProcessor)
-	defer p.Stop()
+	defer assert.NoError(t, p.Close())
 
 	span := &model.Span{
 		Process: model.NewProcess("unit-test-service", []model.KeyValue{}),
@@ -363,7 +367,6 @@ func TestSpanProcessorCountSpan(t *testing.T) {
 	w := &fakeSpanWriter{}
 	p := NewSpanProcessor(w, Options.HostMetrics(m), Options.DynQueueSizeMemory(1000)).(*spanProcessor)
 	p.background(10*time.Millisecond, p.updateGauges)
-	defer p.Stop()
 
 	p.processSpan(&model.Span{})
 	assert.NotEqual(t, uint64(0), p.bytesProcessed)
@@ -378,6 +381,7 @@ func TestSpanProcessorCountSpan(t *testing.T) {
 	}
 
 	assert.Fail(t, "gauge hasn't been updated within a reasonable amount of time")
+	assert.NoError(t, p.Close())
 }
 
 func TestUpdateDynQueueSize(t *testing.T) {

@@ -25,6 +25,7 @@ import (
 	"go.uber.org/zap"
 	"google.golang.org/grpc"
 
+	"github.com/jaegertracing/jaeger/cmd/collector/app/processor"
 	"github.com/jaegertracing/jaeger/cmd/collector/app/sampling/strategystore"
 	"github.com/jaegertracing/jaeger/cmd/collector/app/server"
 	"github.com/jaegertracing/jaeger/pkg/healthcheck"
@@ -41,6 +42,8 @@ type Collector struct {
 	spanWriter     spanstore.Writer
 	strategyStore  strategystore.StrategyStore
 	hCheck         *healthcheck.HealthCheck
+	spanProcessor  processor.SpanProcessor
+	spanHandlers   *SpanHandlers
 
 	// state, read only
 	hServer    *http.Server
@@ -79,57 +82,59 @@ func (c *Collector) Start(builderOpts *CollectorOptions) error {
 		Logger:         c.logger,
 		MetricsFactory: c.metricsFactory,
 	}
-	zipkinSpansHandler, jaegerBatchesHandler, grpcHandler := handlerBuilder.BuildHandlers()
+
+	c.spanProcessor = handlerBuilder.BuildSpanProcessor()
+	c.spanHandlers = handlerBuilder.BuildHandlers(c.spanProcessor)
 	recoveryHandler := recoveryhandler.NewRecoveryHandler(c.logger, true)
 
 	if tchServer, err := server.StartThriftServer(&server.ThriftServerParams{
 		ServiceName:          c.serviceName,
 		Port:                 builderOpts.CollectorPort,
-		JaegerBatchesHandler: jaegerBatchesHandler,
-		ZipkinSpansHandler:   zipkinSpansHandler,
+		JaegerBatchesHandler: c.spanHandlers.JaegerBatchesHandler,
+		ZipkinSpansHandler:   c.spanHandlers.ZipkinSpansHandler,
 		StrategyStore:        c.strategyStore,
 		Logger:               c.logger,
 	}); err != nil {
-		c.logger.Fatal("Could not start Thrift collector", zap.Error(err))
+		c.logger.Fatal("could not start Thrift collector", zap.Error(err))
 	} else {
 		c.tchServer = tchServer
 	}
 
 	if grpcServer, err := server.StartGRPCServer(&server.GRPCServerParams{
 		Port:          builderOpts.CollectorGRPCPort,
-		Handler:       grpcHandler,
+		Handler:       c.spanHandlers.GRPCHandler,
 		TLSConfig:     builderOpts.TLS,
 		SamplingStore: c.strategyStore,
 		Logger:        c.logger,
 	}); err != nil {
-		c.logger.Fatal("Could not start gRPC collector", zap.Error(err))
+		c.logger.Fatal("could not start gRPC collector", zap.Error(err))
 	} else {
 		c.grpcServer = grpcServer
 	}
 
 	if httpServer, err := server.StartHTTPServer(&server.HTTPServerParams{
 		Port:            builderOpts.CollectorHTTPPort,
-		Handler:         jaegerBatchesHandler,
+		Handler:         c.spanHandlers.JaegerBatchesHandler,
 		RecoveryHandler: recoveryHandler,
 		HealthCheck:     c.hCheck,
 		MetricsFactory:  c.metricsFactory,
 		SamplingStore:   c.strategyStore,
 		Logger:          c.logger,
 	}); err != nil {
-		c.logger.Fatal("Could not start the HTTP server", zap.Error(err))
+		c.logger.Fatal("could not start the HTTP server", zap.Error(err))
 	} else {
 		c.hServer = httpServer
 	}
 
 	if zkServer, err := server.StartZipkinServer(&server.ZipkinServerParams{
 		Port:            builderOpts.CollectorZipkinHTTPPort,
-		Handler:         zipkinSpansHandler,
+		Handler:         c.spanHandlers.ZipkinSpansHandler,
 		RecoveryHandler: recoveryHandler,
 		AllowedHeaders:  builderOpts.CollectorZipkinAllowedHeaders,
 		AllowedOrigins:  builderOpts.CollectorZipkinAllowedOrigins,
 		Logger:          c.logger,
 	}); err != nil {
-		c.logger.Fatal("Could not start the Zipkin server", zap.Error(err))
+		c.logger.Fatal("could not start the Zipkin server", zap.Error(err))
 	} else {
 		c.zkServer = zkServer
 	}
@@ -154,7 +159,7 @@ func (c *Collector) Close() error {
 		timeout, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 		err := c.hServer.Shutdown(timeout)
 		if err != nil {
-			c.logger.Error("Failed to stop the main HTTP server", zap.Error(err))
+			c.logger.Error("failed to stop the main HTTP server", zap.Error(err))
 		}
 		defer cancel()
 	}
@@ -164,17 +169,21 @@ func (c *Collector) Close() error {
 		timeout, cancel := context.WithTimeout(context.Background(), 5*time.Second)
 		err := c.zkServer.Shutdown(timeout)
 		if err != nil {
-			c.logger.Error("Failed to stop the Zipkin server", zap.Error(err))
+			c.logger.Error("failed to stop the Zipkin server", zap.Error(err))
 		}
 		defer cancel()
 	}
 
-	// by now, we shouldn't have any in-flight requests anymore
+	if err := c.spanProcessor.Close(); err != nil {
+		c.logger.Error("failed to close span processor.", zap.Error(err))
+	}
+
+	// the span processor is closed
 	if c.spanWriter != nil {
 		if closer, ok := c.spanWriter.(io.Closer); ok {
 			err := closer.Close() // SpanWriter
 			if err != nil {
-				c.logger.Error("Failed to close span writer", zap.Error(err))
+				c.logger.Error("failed to close span writer", zap.Error(err))
 			}
 		}
 	}

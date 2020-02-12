@@ -29,6 +29,10 @@ func (s mockSamplingStore) GetSamplingStrategy(serviceName string) (*sampling.Sa
 type mockSpanProcessor struct {
 }
 
+func (p *mockSpanProcessor) Close() error {
+	return nil
+}
+
 func (p *mockSpanProcessor) ProcessSpans(spans []*model.Span, _ processor.SpansOptions) ([]bool, error) {
 	return []bool{}, nil
 }
