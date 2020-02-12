@@ -79,7 +79,6 @@ func NewStrategyStore(options Options, logger *zap.Logger) (ss.StrategyStore, er
 	}
 
 	dir := filepath.Dir(options.StrategiesFile)
-	err = watcher.Add(dir)
 	if err := watcher.Add(dir); err != nil {
 		h.logger.Error("error adding watcher to dir", zap.String("dir", dir), zap.Error(err))
 	} else {
