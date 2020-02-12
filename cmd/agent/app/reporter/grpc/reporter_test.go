@@ -16,6 +16,7 @@ package grpc
 
 import (
 	"context"
+	"io"
 	"sync"
 	"testing"
 	"time"
@@ -30,6 +31,8 @@ import (
 	jThrift "github.com/jaegertracing/jaeger/thrift-gen/jaeger"
 	"github.com/jaegertracing/jaeger/thrift-gen/zipkincore"
 )
+
+var _ io.Closer = (*Reporter)(nil)
 
 type mockSpanHandler struct {
 	mux      sync.Mutex

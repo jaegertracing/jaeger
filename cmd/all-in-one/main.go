@@ -120,6 +120,7 @@ by default uses only in-memory database.`,
 			cOpts := new(collectorApp.CollectorOptions).InitFromViper(v)
 			qOpts := new(queryApp.QueryOptions).InitFromViper(v, logger)
 
+			// collector
 			c := collectorApp.New(&collectorApp.CollectorParams{
 				ServiceName:    "jaeger-collector",
 				Logger:         logger,
@@ -130,7 +131,16 @@ by default uses only in-memory database.`,
 			})
 			c.Start(cOpts)
 
-			startAgent(aOpts, repOpts, tchanBuilder, grpcBuilder, cOpts.CollectorGRPCPort, logger, metricsFactory)
+			// agent
+			grpcBuilder.CollectorHostPorts = append(grpcBuilder.CollectorHostPorts, fmt.Sprintf("127.0.0.1:%d", cOpts.CollectorGRPCPort))
+			agentMetricsFactory := metricsFactory.Namespace(metrics.NSOptions{Name: "agent", Tags: nil})
+			cp, err := agentApp.CreateCollectorProxy(repOpts, tchanBuilder, grpcBuilder, logger, agentMetricsFactory)
+			if err != nil {
+				logger.Fatal("Could not create collector proxy", zap.Error(err))
+			}
+			agent := startAgent(cp, aOpts, logger, metricsFactory)
+
+			// query
 			querySrv := startQuery(
 				svc, qOpts, archiveOptions(storageFactory, logger),
 				spanReader, dependencyReader,
@@ -138,6 +148,8 @@ by default uses only in-memory database.`,
 			)
 
 			svc.RunAndThen(func() {
+				agent.Stop()
+				cp.Close()
 				c.Close()
 				querySrv.Close()
 				if closer, ok := spanWriter.(io.Closer); ok {
@@ -177,21 +189,11 @@ by default uses only in-memory database.`,
 }
 
 func startAgent(
+	cp agentApp.CollectorProxy,
 	b *agentApp.Builder,
-	repOpts *agentRep.Options,
-	tchanBuilder *agentTchanRep.Builder,
-	grpcBuilder *agentGrpcRep.ConnBuilder,
-	collectorGRPCPort int,
 	logger *zap.Logger,
 	baseFactory metrics.Factory,
-) {
-	metricsFactory := baseFactory.Namespace(metrics.NSOptions{Name: "agent", Tags: nil})
-
-	grpcBuilder.CollectorHostPorts = append(grpcBuilder.CollectorHostPorts, fmt.Sprintf("127.0.0.1:%d", collectorGRPCPort))
-	cp, err := agentApp.CreateCollectorProxy(repOpts, tchanBuilder, grpcBuilder, logger, metricsFactory)
-	if err != nil {
-		logger.Fatal("Could not create collector proxy", zap.Error(err))
-	}
+) *agentApp.Agent {
 
 	agent, err := b.CreateAgent(cp, logger, baseFactory)
 	if err != nil {
@@ -202,6 +204,8 @@ func startAgent(
 	if err := agent.Run(); err != nil {
 		logger.Fatal("Failed to run the agent", zap.Error(err))
 	}
+
+	return agent
 }
 
 func startQuery(

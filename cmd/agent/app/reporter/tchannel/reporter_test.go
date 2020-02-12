@@ -16,6 +16,7 @@
 package tchannel
 
 import (
+	"io"
 	"testing"
 	"time"
 
@@ -28,6 +29,8 @@ import (
 	"github.com/jaegertracing/jaeger/thrift-gen/jaeger"
 	"github.com/jaegertracing/jaeger/thrift-gen/zipkincore"
 )
+
+var _ io.Closer = (*Reporter)(nil)
 
 func initRequirements(t *testing.T) (*metricstest.Factory, *testutils.MockTCollector, *Reporter) {
 	metricsFactory, collector := testutils.InitMockCollector(t)

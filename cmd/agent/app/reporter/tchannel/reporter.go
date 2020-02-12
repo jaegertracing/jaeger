@@ -65,6 +65,11 @@ func (r *Reporter) Channel() *tchannel.Channel {
 	return r.channel
 }
 
+// Close the underlying channel
+func (r *Reporter) Close() error {
+	return nil
+}
+
 // EmitZipkinBatch implements EmitZipkinBatch() of Reporter
 func (r *Reporter) EmitZipkinBatch(spans []*zipkincore.Span) error {
 	submissionFunc := func(ctx thrift.Context) error {

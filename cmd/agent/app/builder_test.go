@@ -180,6 +180,9 @@ func (fakeCollectorProxy) EmitZipkinBatch(spans []*zipkincore.Span) (err error) 
 func (fakeCollectorProxy) EmitBatch(batch *jaeger.Batch) (err error) {
 	return nil
 }
+func (fakeCollectorProxy) Close() (err error) {
+	return nil
+}
 
 func (f fakeCollectorProxy) GetSamplingStrategy(serviceName string) (*sampling.SamplingStrategyResponse, error) {
 	return nil, errors.New("no peers available")

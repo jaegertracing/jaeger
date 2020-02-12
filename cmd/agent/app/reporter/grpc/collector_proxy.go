@@ -22,6 +22,7 @@ import (
 	"github.com/jaegertracing/jaeger/cmd/agent/app/configmanager"
 	grpcManager "github.com/jaegertracing/jaeger/cmd/agent/app/configmanager/grpc"
 	"github.com/jaegertracing/jaeger/cmd/agent/app/reporter"
+	"github.com/jaegertracing/jaeger/pkg/multierror"
 )
 
 // ProxyBuilder holds objects communicating with collector
@@ -69,6 +70,15 @@ func (b ProxyBuilder) GetManager() configmanager.ClientConfigManager {
 
 // Close closes connections used by proxy.
 func (b ProxyBuilder) Close() error {
-	b.reporter.Close()
-	return b.conn.Close()
+	var errs []error
+
+	if err := b.conn.Close(); err != nil {
+		errs = append(errs, err)
+	}
+
+	if err := b.reporter.Close(); err != nil {
+		errs = append(errs, err)
+	}
+
+	return multierror.Wrap(errs)
 }

@@ -65,6 +65,11 @@ func (r *Reporter) EmitZipkinBatch(zSpans []*zipkincore.Span) error {
 	return r.send(trace.Spans, nil)
 }
 
+// Close the reporter
+func (r *Reporter) Close() error {
+	return nil
+}
+
 func (r *Reporter) send(spans []*model.Span, process *model.Process) error {
 	spans, process = addProcessTags(spans, process, r.agentTags)
 	batch := model.Batch{Spans: spans, Process: process}

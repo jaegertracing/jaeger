@@ -16,6 +16,7 @@ package reporter
 
 import (
 	"errors"
+	"io"
 	"testing"
 	"time"
 
@@ -25,6 +26,8 @@ import (
 	"github.com/jaegertracing/jaeger/thrift-gen/jaeger"
 	"github.com/jaegertracing/jaeger/thrift-gen/zipkincore"
 )
+
+var _ io.Closer = (*MetricsReporter)(nil)
 
 func TestMetricsReporter(t *testing.T) {
 	tests := []struct {
