@@ -27,7 +27,6 @@ import (
 
 	"github.com/fsnotify/fsnotify"
 	"github.com/gorilla/mux"
-	"github.com/pkg/errors"
 	"go.uber.org/zap"
 
 	"github.com/jaegertracing/jaeger/cmd/query/app/ui"
@@ -101,7 +100,7 @@ func NewStaticAssetsHandler(staticAssetsRoot string, options StaticAssetsHandler
 func loadIndexBytes(open func(string) (http.File, error), options StaticAssetsHandlerOptions) ([]byte, error) {
 	indexBytes, err := loadIndexHTML(open)
 	if err != nil {
-		return nil, errors.Wrap(err, "cannot load index.html")
+		return nil, fmt.Errorf("cannot load index.html: %w", err)
 	}
 	configString := "JAEGER_CONFIG = DEFAULT_CONFIG"
 	if config, err := loadUIConfig(options.UIConfigPath); err != nil {
@@ -188,12 +187,12 @@ func (sH *StaticAssetsHandler) watch() {
 func loadIndexHTML(open func(string) (http.File, error)) ([]byte, error) {
 	indexFile, err := open("/index.html")
 	if err != nil {
-		return nil, errors.Wrap(err, "cannot open index.html")
+		return nil, fmt.Errorf("cannot open index.html: %w", err)
 	}
 	defer indexFile.Close()
 	indexBytes, err := ioutil.ReadAll(indexFile)
 	if err != nil {
-		return nil, errors.Wrap(err, "cannot read from index.html")
+		return nil, fmt.Errorf("cannot read from index.html: %w", err)
 	}
 	return indexBytes, nil
 }
@@ -205,7 +204,7 @@ func loadUIConfig(uiConfig string) (map[string]interface{}, error) {
 	ext := filepath.Ext(uiConfig)
 	bytes, err := ioutil.ReadFile(uiConfig) /* nolint #nosec , this comes from an admin, not user */
 	if err != nil {
-		return nil, errors.Wrapf(err, "cannot read UI config file %v", uiConfig)
+		return nil, fmt.Errorf("cannot read UI config file %v: %w", uiConfig, err)
 	}
 
 	var c map[string]interface{}
@@ -219,7 +218,7 @@ func loadUIConfig(uiConfig string) (map[string]interface{}, error) {
 	}
 
 	if err := unmarshal(bytes, &c); err != nil {
-		return nil, errors.Wrapf(err, "cannot parse UI config file %v", uiConfig)
+		return nil, fmt.Errorf("cannot parse UI config file %v: %w", uiConfig, err)
 	}
 	return c, nil
 }

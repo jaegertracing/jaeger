@@ -166,7 +166,7 @@ func TestDependencyStoreGetDependencies(t *testing.T) {
 		{
 			caption:       "failure V1",
 			queryError:    errors.New("query error"),
-			expectedError: "Error reading dependencies from storage: query error",
+			expectedError: "error reading dependencies from storage: query error",
 			expectedLogs: []string{
 				"Failure to read Dependencies",
 			},
@@ -175,7 +175,7 @@ func TestDependencyStoreGetDependencies(t *testing.T) {
 		{
 			caption:       "failure V2",
 			queryError:    errors.New("query error"),
-			expectedError: "Error reading dependencies from storage: query error",
+			expectedError: "error reading dependencies from storage: query error",
 			expectedLogs: []string{
 				"Failure to read Dependencies",
 			},

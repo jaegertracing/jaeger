@@ -17,12 +17,12 @@ package spanstore
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"hash/fnv"
 	"time"
 
 	"github.com/olivere/elastic"
-	"github.com/pkg/errors"
 	"go.uber.org/zap"
 
 	"github.com/jaegertracing/jaeger/pkg/cache"
@@ -87,14 +87,14 @@ func (s *ServiceOperationStorage) getServices(context context.Context, indices [
 
 	searchResult, err := searchService.Do(context)
 	if err != nil {
-		return nil, errors.Wrap(err, "Search service failed")
+		return nil, fmt.Errorf("search services failed: %w", err)
 	}
 	if searchResult.Aggregations == nil {
 		return []string{}, nil
 	}
 	bucket, found := searchResult.Aggregations.Terms(servicesAggregation)
 	if !found {
-		return nil, errors.New("Could not find aggregation of " + servicesAggregation)
+		return nil, errors.New("could not find aggregation of " + servicesAggregation)
 	}
 	serviceNamesBucket := bucket.Buckets
 	return bucketToStringArray(serviceNamesBucket)
@@ -118,14 +118,14 @@ func (s *ServiceOperationStorage) getOperations(context context.Context, indices
 
 	searchResult, err := searchService.Do(context)
 	if err != nil {
-		return nil, errors.Wrap(err, "Search service failed")
+		return nil, fmt.Errorf("search operations failed: %w", err)
 	}
 	if searchResult.Aggregations == nil {
 		return []string{}, nil
 	}
 	bucket, found := searchResult.Aggregations.Terms(operationsAggregation)
 	if !found {
-		return nil, errors.New("Could not find aggregation of " + operationsAggregation)
+		return nil, errors.New("could not find aggregation of " + operationsAggregation)
 	}
 	operationNamesBucket := bucket.Buckets
 	return bucketToStringArray(operationNamesBucket)

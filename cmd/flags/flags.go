@@ -17,10 +17,10 @@ package flags
 
 import (
 	"flag"
+	"fmt"
 	"os"
 	"strings"
 
-	"github.com/pkg/errors"
 	"github.com/spf13/viper"
 	"go.uber.org/zap"
 	"go.uber.org/zap/zapcore"
@@ -43,7 +43,7 @@ func TryLoadConfigFile(v *viper.Viper) error {
 		v.SetConfigFile(file)
 		err := v.ReadInConfig()
 		if err != nil {
-			return errors.Wrapf(err, "cannot load config file %s", file)
+			return fmt.Errorf("cannot load config file %s: %w", file, err)
 		}
 	}
 	return nil

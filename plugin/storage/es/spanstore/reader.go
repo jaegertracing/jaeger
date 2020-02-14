@@ -19,6 +19,7 @@ import (
 	"bytes"
 	"context"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"time"
 
@@ -26,7 +27,6 @@ import (
 	"github.com/opentracing/opentracing-go"
 	ottag "github.com/opentracing/opentracing-go/ext"
 	otlog "github.com/opentracing/opentracing-go/log"
-	"github.com/pkg/errors"
 	"github.com/uber/jaeger-lib/metrics"
 	"go.uber.org/zap"
 
@@ -64,22 +64,22 @@ const (
 
 var (
 	// ErrServiceNameNotSet occurs when attempting to query with an empty service name
-	ErrServiceNameNotSet = errors.New("Service Name must be set")
+	ErrServiceNameNotSet = errors.New("service Name must be set")
 
 	// ErrStartTimeMinGreaterThanMax occurs when start time min is above start time max
-	ErrStartTimeMinGreaterThanMax = errors.New("Start Time Minimum is above Maximum")
+	ErrStartTimeMinGreaterThanMax = errors.New("start Time Minimum is above Maximum")
 
 	// ErrDurationMinGreaterThanMax occurs when duration min is above duration max
-	ErrDurationMinGreaterThanMax = errors.New("Duration Minimum is above Maximum")
+	ErrDurationMinGreaterThanMax = errors.New("duration Minimum is above Maximum")
 
 	// ErrMalformedRequestObject occurs when a request object is nil
-	ErrMalformedRequestObject = errors.New("Malformed request object")
+	ErrMalformedRequestObject = errors.New("malformed request object")
 
 	// ErrStartAndEndTimeNotSet occurs when start time and end time are not set
-	ErrStartAndEndTimeNotSet = errors.New("Start and End Time must be set")
+	ErrStartAndEndTimeNotSet = errors.New("start and End Time must be set")
 
 	// ErrUnableToFindTraceIDAggregation occurs when an aggregation query for TraceIDs fail.
-	ErrUnableToFindTraceIDAggregation = errors.New("Could not find aggregation of traceIDs")
+	ErrUnableToFindTraceIDAggregation = errors.New("could not find aggregation of traceIDs")
 
 	defaultMaxDuration = model.DurationAsMicroseconds(time.Hour * 24)
 
@@ -211,11 +211,11 @@ func (s *SpanReader) collectSpans(esSpansRaw []*elastic.SearchHit) ([]*model.Spa
 	for i, esSpanRaw := range esSpansRaw {
 		jsonSpan, err := s.unmarshalJSONSpan(esSpanRaw)
 		if err != nil {
-			return nil, errors.Wrap(err, "Marshalling JSON to span object failed")
+			return nil, fmt.Errorf("marshalling JSON to span object failed: %w", err)
 		}
 		span, err := s.spanConverter.SpanToDomain(jsonSpan)
 		if err != nil {
-			return nil, errors.Wrap(err, "Converting JSONSpan to domain Span failed")
+			return nil, fmt.Errorf("converting JSONSpan to domain Span failed: %w", err)
 		}
 		spans[i] = span
 	}
@@ -274,7 +274,7 @@ func bucketToStringArray(buckets []*elastic.AggregationBucketKeyItem) ([]string,
 	for i, keyitem := range buckets {
 		str, ok := keyitem.Key.(string)
 		if !ok {
-			return nil, errors.New("Non-string key found in aggregation")
+			return nil, errors.New("non-string key found in aggregation")
 		}
 		strings[i] = str
 	}
@@ -423,7 +423,7 @@ func convertTraceIDsStringsToModels(traceIDs []string) ([]model.TraceID, error) 
 	for _, ID := range traceIDs {
 		traceID, err := model.TraceIDFromString(ID)
 		if err != nil {
-			return nil, errors.Wrap(err, fmt.Sprintf("Making traceID from string '%s' failed", ID))
+			return nil, fmt.Errorf("making traceID from string '%s' failed: %w", ID, err)
 		}
 		if _, ok := traceIDsMap[traceID]; !ok {
 			traceIDsMap[traceID] = true
@@ -521,7 +521,7 @@ func (s *SpanReader) findTraceIDs(ctx context.Context, traceQuery *spanstore.Tra
 
 	searchResult, err := searchService.Do(ctx)
 	if err != nil {
-		return nil, errors.Wrap(err, "Search service failed")
+		return nil, fmt.Errorf("search services failed: %w", err)
 	}
 	if searchResult.Aggregations == nil {
 		return []string{}, nil

@@ -18,6 +18,7 @@ package config
 import (
 	"context"
 	"crypto/tls"
+	"errors"
 	"io/ioutil"
 	"net/http"
 	"path/filepath"
@@ -27,13 +28,12 @@ import (
 	"time"
 
 	"github.com/olivere/elastic"
-	"github.com/pkg/errors"
 	"github.com/uber/jaeger-lib/metrics"
 	"go.uber.org/zap"
 
 	"github.com/jaegertracing/jaeger/pkg/config/tlscfg"
 	"github.com/jaegertracing/jaeger/pkg/es"
-	"github.com/jaegertracing/jaeger/pkg/es/wrapper"
+	eswrapper "github.com/jaegertracing/jaeger/pkg/es/wrapper"
 	"github.com/jaegertracing/jaeger/storage/spanstore"
 	storageMetrics "github.com/jaegertracing/jaeger/storage/spanstore/metrics"
 )
@@ -87,7 +87,7 @@ type ClientBuilder interface {
 // NewClient creates a new ElasticSearch client
 func (c *Configuration) NewClient(logger *zap.Logger, metricsFactory metrics.Factory) (es.Client, error) {
 	if len(c.Servers) < 1 {
-		return nil, errors.New("No servers specified")
+		return nil, errors.New("no servers specified")
 	}
 	options, err := c.getConfigOptions(logger)
 	if err != nil {

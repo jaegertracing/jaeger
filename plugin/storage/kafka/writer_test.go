@@ -15,12 +15,12 @@
 package kafka
 
 import (
+	"errors"
 	"testing"
 	"time"
 
 	"github.com/Shopify/sarama"
 	saramaMocks "github.com/Shopify/sarama/mocks"
-	"github.com/pkg/errors"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
 	"github.com/uber/jaeger-lib/metrics/metricstest"
