@@ -15,12 +15,12 @@
 package server
 
 import (
+	"fmt"
 	"io/ioutil"
 	"net"
 	"os"
 	"strconv"
 
-	"github.com/pkg/errors"
 	"go.uber.org/zap"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials"
@@ -65,7 +65,7 @@ func StartGRPCServer(params *GRPCServerParams) (*grpc.Server, error) {
 	grpcPortStr := ":" + strconv.Itoa(params.Port)
 	listener, err := net.Listen("tcp", grpcPortStr)
 	if err != nil {
-		return nil, errors.Wrap(err, "failed to listen on gRPC port")
+		return nil, fmt.Errorf("failed to listen on gRPC port: %w", err)
 	}
 
 	if err := serveGRPC(server, listener, params); err != nil {

@@ -22,8 +22,6 @@ import (
 	"strconv"
 	"strings"
 
-	"github.com/pkg/errors"
-
 	"github.com/jaegertracing/jaeger/model"
 )
 
@@ -188,7 +186,7 @@ func (td ToDomain) convertTagField(k string, v interface{}) (model.KeyValue, err
 		if err == nil {
 			return model.Float64(dKey, f), nil
 		}
-		return model.String("", ""), errors.Wrapf(err, "invalid tag type in %+v", v)
+		return model.String("", ""), fmt.Errorf("invalid tag type in %+v: %w", v, err)
 	default:
 		return model.String("", ""), fmt.Errorf("invalid tag type in %+v", v)
 	}

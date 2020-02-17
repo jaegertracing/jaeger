@@ -18,12 +18,12 @@ package es
 import (
 	"bufio"
 	"flag"
+	"fmt"
 	"os"
 	"path/filepath"
 	"strconv"
 	"strings"
 
-	"github.com/pkg/errors"
 	"github.com/spf13/viper"
 	"github.com/uber/jaeger-lib/metrics"
 	"go.uber.org/zap"
@@ -80,13 +80,13 @@ func (f *Factory) Initialize(metricsFactory metrics.Factory, logger *zap.Logger)
 
 	primaryClient, err := f.primaryConfig.NewClient(logger, metricsFactory)
 	if err != nil {
-		return errors.Wrap(err, "failed to create primary Elasticsearch client")
+		return fmt.Errorf("failed to create primary Elasticsearch client: %w", err)
 	}
 	f.primaryClient = primaryClient
 	if f.archiveConfig.IsEnabled() {
 		f.archiveClient, err = f.archiveConfig.NewClient(logger, metricsFactory)
 		if err != nil {
-			return errors.Wrap(err, "failed to create archive Elasticsearch client")
+			return fmt.Errorf("failed to create archive Elasticsearch client: %w", err)
 		}
 	}
 	return nil

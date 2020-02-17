@@ -137,7 +137,7 @@ func TestServiceNamesStorageGetServices(t *testing.T) {
 				// expect empty string because mock iter.Scan(&placeholder) does not write to `placeholder`
 				assert.Equal(t, []string{""}, services)
 			} else {
-				assert.EqualError(t, err, "Error reading service_names from storage: "+expErr.Error())
+				assert.EqualError(t, err, "error reading service_names from storage: "+expErr.Error())
 			}
 		})
 

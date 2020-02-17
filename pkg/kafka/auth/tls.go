@@ -15,8 +15,9 @@
 package auth
 
 import (
+	"fmt"
+
 	"github.com/Shopify/sarama"
-	"github.com/pkg/errors"
 
 	"github.com/jaegertracing/jaeger/pkg/config/tlscfg"
 )
@@ -25,7 +26,7 @@ func setTLSConfiguration(config *tlscfg.Options, saramaConfig *sarama.Config) er
 	if config.Enabled {
 		tlsConfig, err := config.Config()
 		if err != nil {
-			return errors.Wrap(err, "error loading tls config")
+			return fmt.Errorf("error loading tls config: %w", err)
 		}
 		saramaConfig.Net.TLS.Enable = true
 		saramaConfig.Net.TLS.Config = tlsConfig

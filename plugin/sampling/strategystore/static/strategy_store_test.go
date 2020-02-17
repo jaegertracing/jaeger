@@ -28,11 +28,11 @@ import (
 
 func TestStrategyStore(t *testing.T) {
 	_, err := NewStrategyStore(Options{StrategiesFile: "fileNotFound.json"}, zap.NewNop())
-	assert.EqualError(t, err, "Failed to open strategies file: open fileNotFound.json: no such file or directory")
+	assert.EqualError(t, err, "failed to open strategies file: open fileNotFound.json: no such file or directory")
 
 	_, err = NewStrategyStore(Options{StrategiesFile: "fixtures/bad_strategies.json"}, zap.NewNop())
 	assert.EqualError(t, err,
-		"Failed to unmarshal strategies: json: cannot unmarshal string into Go value of type static.strategies")
+		"failed to unmarshal strategies: json: cannot unmarshal string into Go value of type static.strategies")
 
 	// Test default strategy
 	logger, buf := testutils.NewLogger()

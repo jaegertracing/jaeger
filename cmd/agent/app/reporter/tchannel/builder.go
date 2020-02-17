@@ -16,9 +16,10 @@
 package tchannel
 
 import (
+	"errors"
+	"fmt"
 	"time"
 
-	"github.com/pkg/errors"
 	tchannel "github.com/uber/tchannel-go"
 	"go.uber.org/zap"
 
@@ -129,7 +130,7 @@ func (b *Builder) CreateReporter(logger *zap.Logger) (*Reporter, error) {
 
 	peerListMgr, err := b.enableDiscovery(b.channel, logger)
 	if err != nil {
-		return nil, errors.Wrap(err, "cannot enable service discovery")
+		return nil, fmt.Errorf("cannot enable service discovery: %w", err)
 	}
 	return New(b.CollectorServiceName, b.channel, b.ReportTimeout, peerListMgr, logger), nil
 }

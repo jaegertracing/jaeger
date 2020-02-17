@@ -427,9 +427,9 @@ func TestPersist(t *testing.T) {
 				High: 1,
 			},
 			SpanID:        model.SpanID(4),
-			OperationName: fmt.Sprintf("operation-p"),
+			OperationName: "operation-p",
 			Process: &model.Process{
-				ServiceName: fmt.Sprintf("service-p"),
+				ServiceName: "service-p",
 			},
 			StartTime: time.Now(),
 			Duration:  time.Duration(1 * time.Hour),

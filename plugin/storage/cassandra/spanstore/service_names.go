@@ -16,9 +16,9 @@
 package spanstore
 
 import (
+	"fmt"
 	"time"
 
-	"github.com/pkg/errors"
 	"github.com/uber/jaeger-lib/metrics"
 	"go.uber.org/zap"
 
@@ -104,7 +104,7 @@ func (s *ServiceNamesStorage) GetServices() ([]string, error) {
 		services = append(services, service)
 	}
 	if err := iter.Close(); err != nil {
-		err = errors.Wrap(err, "Error reading service_names from storage")
+		err = fmt.Errorf("error reading service_names from storage: %w", err)
 		return nil, err
 	}
 	return services, nil

@@ -15,9 +15,8 @@
 package processor
 
 import (
+	"fmt"
 	"io"
-
-	"github.com/pkg/errors"
 
 	"github.com/jaegertracing/jaeger/plugin/storage/kafka"
 	"github.com/jaegertracing/jaeger/storage/spanstore"
@@ -61,7 +60,7 @@ func NewSpanProcessor(params SpanProcessorParams) *KafkaSpanProcessor {
 func (s KafkaSpanProcessor) Process(message Message) error {
 	mSpan, err := s.unmarshaller.Unmarshal(message.Value())
 	if err != nil {
-		return errors.Wrap(err, "cannot unmarshall byte array into span")
+		return fmt.Errorf("cannot unmarshall byte array into span: %w", err)
 	}
 	return s.writer.WriteSpan(mSpan)
 }

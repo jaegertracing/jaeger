@@ -22,7 +22,6 @@ import (
 	"github.com/jaegertracing/jaeger/cmd/agent/app/configmanager"
 	grpcManager "github.com/jaegertracing/jaeger/cmd/agent/app/configmanager/grpc"
 	"github.com/jaegertracing/jaeger/cmd/agent/app/reporter"
-	aReporter "github.com/jaegertracing/jaeger/cmd/agent/app/reporter"
 )
 
 // ProxyBuilder holds objects communicating with collector
@@ -59,7 +58,7 @@ func (b ProxyBuilder) GetConn() *grpc.ClientConn {
 }
 
 // GetReporter returns Reporter
-func (b ProxyBuilder) GetReporter() aReporter.Reporter {
+func (b ProxyBuilder) GetReporter() reporter.Reporter {
 	return b.reporter
 }
 
