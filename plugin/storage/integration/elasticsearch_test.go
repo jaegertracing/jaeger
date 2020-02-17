@@ -17,6 +17,7 @@ package integration
 
 import (
 	"context"
+	"errors"
 	"net/http"
 	"os"
 	"strconv"
@@ -24,7 +25,6 @@ import (
 	"time"
 
 	"github.com/olivere/elastic"
-	"github.com/pkg/errors"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"github.com/uber/jaeger-lib/metrics"

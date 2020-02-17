@@ -16,9 +16,9 @@
 package cassandra
 
 import (
+	"errors"
+	"fmt"
 	"time"
-
-	"github.com/pkg/errors"
 
 	"github.com/jaegertracing/jaeger/pkg/cassandra"
 )
@@ -39,7 +39,7 @@ const (
 )
 
 var (
-	errLockOwnership = errors.New("This host does not own the resource lock")
+	errLockOwnership = errors.New("this host does not own the resource lock")
 )
 
 // NewLock creates a new instance of a distributed locking mechanism based off Cassandra.
@@ -59,7 +59,7 @@ func (l *Lock) Acquire(resource string, ttl time.Duration) (bool, error) {
 	var name, owner string
 	applied, err := l.session.Query(cqlInsertLock, resource, l.tenantID, ttlSec).ScanCAS(&name, &owner)
 	if err != nil {
-		return false, errors.Wrap(err, "Failed to acquire resource lock due to cassandra error")
+		return false, fmt.Errorf("failed to acquire resource lock due to cassandra error: %w", err)
 	}
 	if applied {
 		// The lock was successfully created
@@ -68,7 +68,7 @@ func (l *Lock) Acquire(resource string, ttl time.Duration) (bool, error) {
 	if owner == l.tenantID {
 		// This host already owns the lock, extend the lease
 		if err = l.extendLease(resource, ttl); err != nil {
-			return false, errors.Wrap(err, "Failed to extend lease on resource lock")
+			return false, fmt.Errorf("failed to extend lease on resource lock: %w", err)
 		}
 		return true, nil
 	}
@@ -80,13 +80,13 @@ func (l *Lock) Forfeit(resource string) (bool, error) {
 	var name, owner string
 	applied, err := l.session.Query(cqlDeleteLock, resource, l.tenantID).ScanCAS(&name, &owner)
 	if err != nil {
-		return false, errors.Wrap(err, "Failed to forfeit resource lock due to cassandra error")
+		return false, fmt.Errorf("failed to forfeit resource lock due to cassandra error: %w", err)
 	}
 	if applied {
 		// The lock was successfully deleted
 		return true, nil
 	}
-	return false, errors.Wrap(errLockOwnership, "Failed to forfeit resource lock")
+	return false, fmt.Errorf("failed to forfeit resource lock: %w", errLockOwnership)
 }
 
 // extendLease will attempt to extend the lease of an existing lock on a given resource.

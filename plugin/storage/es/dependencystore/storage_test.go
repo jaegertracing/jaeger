@@ -17,12 +17,12 @@ package dependencystore
 
 import (
 	"encoding/json"
+	"errors"
 	"strings"
 	"testing"
 	"time"
 
 	"github.com/olivere/elastic"
-	"github.com/pkg/errors"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
 	"go.uber.org/zap"
@@ -80,12 +80,12 @@ func TestWriteDependencies(t *testing.T) {
 	}{
 		{
 			createIndexError: errors.New("index not created"),
-			expectedError:    "Failed to create index: index not created",
+			expectedError:    "failed to create index: index not created",
 			esVersion:        6,
 		},
 		{
 			createIndexError: errors.New("index not created"),
-			expectedError:    "Failed to create index: index not created",
+			expectedError:    "failed to create index: index not created",
 			esVersion:        7,
 		},
 	}
@@ -157,17 +157,17 @@ func TestGetDependencies(t *testing.T) {
 		},
 		{
 			searchResult:  createSearchResult(badDependencies),
-			expectedError: "Unmarshalling ElasticSearch documents failed",
+			expectedError: "unmarshalling ElasticSearch documents failed",
 			indices:       []interface{}{"jaeger-dependencies-1995-04-21", "jaeger-dependencies-1995-04-20"},
 		},
 		{
 			searchError:   errors.New("search failure"),
-			expectedError: "Failed to search for dependencies: search failure",
+			expectedError: "failed to search for dependencies: search failure",
 			indices:       []interface{}{"jaeger-dependencies-1995-04-21", "jaeger-dependencies-1995-04-20"},
 		},
 		{
 			searchError:   errors.New("search failure"),
-			expectedError: "Failed to search for dependencies: search failure",
+			expectedError: "failed to search for dependencies: search failure",
 			indexPrefix:   "foo",
 			indices:       []interface{}{"foo-jaeger-dependencies-1995-04-21", "foo-jaeger-dependencies-1995-04-20"},
 		},

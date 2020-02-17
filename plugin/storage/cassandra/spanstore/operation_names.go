@@ -19,7 +19,6 @@ import (
 	"fmt"
 	"time"
 
-	"github.com/pkg/errors"
 	"github.com/uber/jaeger-lib/metrics"
 	"go.uber.org/zap"
 
@@ -178,7 +177,7 @@ func getOperationsV1(
 		})
 	}
 	if err := iter.Close(); err != nil {
-		err = errors.Wrap(err, "Error reading operation_names from storage")
+		err = fmt.Errorf("error reading operation_names from storage: %w", err)
 		return nil, err
 	}
 
@@ -209,7 +208,7 @@ func getOperationsV2(
 		})
 	}
 	if err := iter.Close(); err != nil {
-		err = errors.Wrap(err, fmt.Sprintf("Error reading %s from storage", s.table.tableName))
+		err = fmt.Errorf("error reading %s from storage: %w", s.table.tableName, err)
 		return nil, err
 	}
 	return operations, nil

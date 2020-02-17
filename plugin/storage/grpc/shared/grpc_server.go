@@ -16,8 +16,7 @@ package shared
 
 import (
 	"context"
-
-	"github.com/pkg/errors"
+	"fmt"
 
 	"github.com/jaegertracing/jaeger/model"
 	"github.com/jaegertracing/jaeger/proto-gen/storage_v1"
@@ -155,7 +154,7 @@ func (s *grpcServer) sendSpans(spans []*model.Span, sendFn func(*storage_v1.Span
 			chunk = append(chunk, *spans[j])
 		}
 		if err := sendFn(&storage_v1.SpansResponseChunk{Spans: chunk}); err != nil {
-			return errors.Wrap(err, "grpc plugin failed to send response")
+			return fmt.Errorf("grpc plugin failed to send response: %w", err)
 		}
 	}
 

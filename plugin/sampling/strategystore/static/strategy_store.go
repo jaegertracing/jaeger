@@ -21,7 +21,6 @@ import (
 	"fmt"
 	"io/ioutil"
 
-	"github.com/pkg/errors"
 	"go.uber.org/zap"
 
 	ss "github.com/jaegertracing/jaeger/cmd/collector/app/sampling/strategystore"
@@ -64,11 +63,11 @@ func loadStrategies(strategiesFile string) (*strategies, error) {
 	}
 	bytes, err := ioutil.ReadFile(strategiesFile) /* nolint #nosec , this comes from an admin, not user */
 	if err != nil {
-		return nil, errors.Wrap(err, "Failed to open strategies file")
+		return nil, fmt.Errorf("failed to open strategies file: %w", err)
 	}
 	var strategies strategies
 	if err := json.Unmarshal(bytes, &strategies); err != nil {
-		return nil, errors.Wrap(err, "Failed to unmarshal strategies")
+		return nil, fmt.Errorf("failed to unmarshal strategies: %w", err)
 	}
 	return &strategies, nil
 }

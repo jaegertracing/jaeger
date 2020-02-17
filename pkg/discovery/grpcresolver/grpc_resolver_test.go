@@ -16,12 +16,12 @@ package grpcresolver
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"net"
 	"testing"
 	"time"
 
-	"github.com/pkg/errors"
 	"github.com/stretchr/testify/assert"
 	"go.uber.org/zap"
 	"google.golang.org/grpc"

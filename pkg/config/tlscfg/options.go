@@ -20,8 +20,6 @@ import (
 	"fmt"
 	"io/ioutil"
 	"path/filepath"
-
-	"github.com/pkg/errors"
 )
 
 // Options describes the configuration properties for TLS Connections.
@@ -41,7 +39,7 @@ var systemCertPool = x509.SystemCertPool // to allow overriding in unit test
 func (p Options) Config() (*tls.Config, error) {
 	certPool, err := p.loadCertPool()
 	if err != nil {
-		return nil, errors.Wrap(err, "failed to load CA CertPool")
+		return nil, fmt.Errorf("failed to load CA CertPool: %w", err)
 	}
 	// #nosec G402
 	tlsCfg := &tls.Config{
@@ -56,7 +54,7 @@ func (p Options) Config() (*tls.Config, error) {
 	if p.CertPath != "" && p.KeyPath != "" {
 		tlsCert, err := tls.LoadX509KeyPair(filepath.Clean(p.CertPath), filepath.Clean(p.KeyPath))
 		if err != nil {
-			return nil, errors.Wrap(err, "failed to load server TLS cert and key")
+			return nil, fmt.Errorf("failed to load server TLS cert and key: %w", err)
 		}
 		tlsCfg.Certificates = append(tlsCfg.Certificates, tlsCert)
 	}
@@ -77,7 +75,7 @@ func (p Options) loadCertPool() (*x509.CertPool, error) {
 	if len(p.CAPath) == 0 { // no truststore given, use SystemCertPool
 		certPool, err := systemCertPool()
 		if err != nil {
-			return nil, errors.Wrap(err, "failed to load SystemCertPool")
+			return nil, fmt.Errorf("failed to load SystemCertPool: %w", err)
 		}
 		return certPool, nil
 	}
@@ -88,7 +86,7 @@ func (p Options) loadCertPool() (*x509.CertPool, error) {
 func (p Options) loadCert(caPath string) (*x509.CertPool, error) {
 	caPEM, err := ioutil.ReadFile(filepath.Clean(caPath))
 	if err != nil {
-		return nil, errors.Wrapf(err, "failed to load CA %s", caPath)
+		return nil, fmt.Errorf("failed to load CA %s: %w", caPath, err)
 	}
 
 	certPool := x509.NewCertPool()
