@@ -84,10 +84,6 @@ required = [
   version = "^1.0.2"
 
 [[constraint]]
-  name = "github.com/pkg/errors"
-  version = "^0.8.0"
-
-[[constraint]]
   name = "github.com/prometheus/client_golang"
   version = "^1"
 
