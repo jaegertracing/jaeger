@@ -15,10 +15,10 @@
 package auth
 
 import (
+	"fmt"
 	"strings"
 
 	"github.com/Shopify/sarama"
-	"github.com/pkg/errors"
 	"github.com/spf13/viper"
 
 	"github.com/jaegertracing/jaeger/pkg/config/tlscfg"
@@ -63,7 +63,7 @@ func (config *AuthenticationConfig) SetConfiguration(saramaConfig *sarama.Config
 		setPlainTextConfiguration(&config.PlainText, saramaConfig)
 		return nil
 	default:
-		return errors.Errorf("Unknown/Unsupported authentication method %s to kafka cluster.", config.Authentication)
+		return fmt.Errorf("Unknown/Unsupported authentication method %s to kafka cluster", config.Authentication)
 	}
 }
 

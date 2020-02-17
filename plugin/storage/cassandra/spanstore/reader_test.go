@@ -116,7 +116,7 @@ func TestSpanReaderGetTrace(t *testing.T) {
 		{
 			scanner:     matchOnce(),
 			closeErr:    errors.New("error on close()"),
-			expectedErr: "Error reading traces from storage: error on close()",
+			expectedErr: "error reading traces from storage: error on close()",
 		},
 	}
 	for _, tc := range testCases {
@@ -278,7 +278,7 @@ func TestSpanReaderFindTraces(t *testing.T) {
 			expectedCount:  0,
 			expectedLogs: []string{
 				"Failure to read trace",
-				"Error reading traces from storage: load query error",
+				"error reading traces from storage: load query error",
 				`"trace_id":"0000000000000001"`,
 				`"trace_id":"0000000000000002"`,
 			},

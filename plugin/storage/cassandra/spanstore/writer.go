@@ -17,11 +17,11 @@ package spanstore
 
 import (
 	"encoding/json"
+	"fmt"
 	"strings"
 	"time"
 	"unicode/utf8"
 
-	"github.com/pkg/errors"
 	"github.com/uber/jaeger-lib/metrics"
 	"go.uber.org/zap"
 
@@ -276,7 +276,7 @@ func (s *SpanWriter) logError(span *dbmodel.Span, err error, msg string, logger 
 		With(zap.Int64("span_id", span.SpanID)).
 		With(zap.Error(err)).
 		Error(msg)
-	return errors.Wrap(err, msg)
+	return fmt.Errorf("%s: %w", msg, err)
 }
 
 func (s *SpanWriter) saveServiceNameAndOperationName(operation dbmodel.Operation) error {

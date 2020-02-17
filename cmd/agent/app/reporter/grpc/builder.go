@@ -15,10 +15,11 @@
 package grpc
 
 import (
+	"errors"
+	"fmt"
 	"strings"
 
 	grpc_retry "github.com/grpc-ecosystem/go-grpc-middleware/retry"
-	"github.com/pkg/errors"
 	"go.uber.org/zap"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials"
@@ -56,7 +57,7 @@ func (b *ConnBuilder) CreateConnection(logger *zap.Logger) (*grpc.ClientConn, er
 		logger.Info("Agent requested secure grpc connection to collector(s)")
 		tlsConf, err := b.TLS.Config()
 		if err != nil {
-			return nil, errors.Wrap(err, "failed to load TLS config")
+			return nil, fmt.Errorf("failed to load TLS config: %w", err)
 		}
 
 		creds := credentials.NewTLS(tlsConf)

@@ -158,7 +158,7 @@ func TestGetThroughput(t *testing.T) {
 		{
 			caption:       "failure",
 			queryError:    errors.New("query error"),
-			expectedError: "Error reading throughput from storage: query error",
+			expectedError: "error reading throughput from storage: query error",
 		},
 	}
 	for _, tc := range testCases {
@@ -237,7 +237,7 @@ func TestGetProbabilitiesAndQPS(t *testing.T) {
 		{
 			caption:       "failure",
 			queryError:    errors.New("query error"),
-			expectedError: "Error reading probabilities and qps from storage: query error",
+			expectedError: "error reading probabilities and qps from storage: query error",
 		},
 	}
 	for _, tc := range testCases {
@@ -303,7 +303,7 @@ func TestGetLatestProbabilities(t *testing.T) {
 		{
 			caption:       "failure",
 			queryError:    errors.New("query error"),
-			expectedError: "Error reading probabilities from storage: query error",
+			expectedError: "error reading probabilities from storage: query error",
 		},
 	}
 	for _, tc := range testCases {

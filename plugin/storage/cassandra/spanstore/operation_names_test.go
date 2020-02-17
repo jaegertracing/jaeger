@@ -193,7 +193,7 @@ func TestOperationNamesStorageGetServices(t *testing.T) {
 					assert.EqualError(
 						t,
 						err,
-						fmt.Sprintf("Error reading %s from storage: %s",
+						fmt.Sprintf("error reading %s from storage: %s",
 							schemas[test.schemaVersion].tableName,
 							test.expErr.Error()),
 					)

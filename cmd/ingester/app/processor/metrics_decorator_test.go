@@ -15,9 +15,9 @@
 package processor_test
 
 import (
+	"errors"
 	"testing"
 
-	"github.com/pkg/errors"
 	"github.com/stretchr/testify/assert"
 	"github.com/uber/jaeger-lib/metrics/metricstest"
 

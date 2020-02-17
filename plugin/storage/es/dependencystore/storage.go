@@ -18,10 +18,11 @@ package dependencystore
 import (
 	"context"
 	"encoding/json"
+	"errors"
+	"fmt"
 	"time"
 
 	"github.com/olivere/elastic"
-	"github.com/pkg/errors"
 	"go.uber.org/zap"
 
 	"github.com/jaegertracing/jaeger/model"
@@ -69,7 +70,7 @@ func (s *DependencyStore) WriteDependencies(ts time.Time, dependencies []model.D
 func (s *DependencyStore) createIndex(indexName string) error {
 	_, err := s.client.CreateIndex(indexName).Body(getMapping(s.client.GetVersion())).Do(s.ctx)
 	if err != nil {
-		return errors.Wrap(err, "Failed to create index")
+		return fmt.Errorf("failed to create index: %w", err)
 	}
 	return nil
 }
@@ -90,7 +91,7 @@ func (s *DependencyStore) GetDependencies(endTs time.Time, lookback time.Duratio
 		IgnoreUnavailable(true).
 		Do(s.ctx)
 	if err != nil {
-		return nil, errors.Wrap(err, "Failed to search for dependencies")
+		return nil, fmt.Errorf("failed to search for dependencies: %w", err)
 	}
 
 	var retDependencies []dbmodel.DependencyLink
@@ -99,7 +100,7 @@ func (s *DependencyStore) GetDependencies(endTs time.Time, lookback time.Duratio
 		source := hit.Source
 		var tToD dbmodel.TimeDependencies
 		if err := json.Unmarshal(*source, &tToD); err != nil {
-			return nil, errors.New("Unmarshalling ElasticSearch documents failed")
+			return nil, errors.New("unmarshalling ElasticSearch documents failed")
 		}
 		retDependencies = append(retDependencies, tToD.Dependencies...)
 	}
