@@ -1156,7 +1156,7 @@
   revision = "dad8c97a84f542cf0c67e3ab67b1c09e795fb4af"
 
 [[projects]]
-  digest = "1:b2c9ea388537a402c7f618e11eda34ec5358b67c3c6aef9df113c7022b46e0b1"
+  digest = "1:c058e18ea889c15d35285e9ff234843c4b48048341d7363c5b6d671eafc206a3"
   name = "google.golang.org/grpc"
   packages = [
     ".",
@@ -1202,8 +1202,8 @@
     "test/grpc_testing",
   ]
   pruneopts = "UT"
-  revision = "f5b0812e6fe574d90da76b205e9eb51f6ddb1919"
-  version = "v1.26.0"
+  revision = "f495f5b15ae7ccda3b38c53a1bfcde4c1a58a2bc"
+  version = "v1.27.1"
 
 [[projects]]
   digest = "1:2d1fbdc6777e5408cabeb02bf336305e724b925ff4546ded0fa8715a7267922a"
