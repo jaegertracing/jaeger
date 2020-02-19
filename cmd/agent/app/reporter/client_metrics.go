@@ -121,13 +121,10 @@ func (r *ClientMetricsReporter) EmitBatch(batch *jaeger.Batch) error {
 }
 
 // Close stops background gc goroutine for client stats map.
-func (r *ClientMetricsReporter) Close() error {
+func (r *ClientMetricsReporter) Close() {
 	if r.closed.CAS(false, true) {
 		close(r.shutdown)
-		return r.params.Reporter.Close()
 	}
-
-	return nil
 }
 
 func (r *ClientMetricsReporter) expireClientMetricsLoop() {

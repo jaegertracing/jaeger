@@ -149,7 +149,6 @@ by default uses only in-memory database.`,
 
 			svc.RunAndThen(func() {
 				agent.Stop()
-				cp.Close()
 				c.Close()
 				querySrv.Close()
 				if closer, ok := spanWriter.(io.Closer); ok {

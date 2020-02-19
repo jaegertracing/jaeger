@@ -16,7 +16,6 @@ package reporter
 
 import (
 	"fmt"
-	"io"
 	"testing"
 	"time"
 
@@ -29,8 +28,6 @@ import (
 	"github.com/jaegertracing/jaeger/thrift-gen/jaeger"
 	"github.com/jaegertracing/jaeger/thrift-gen/zipkincore"
 )
-
-var _ io.Closer = (*ClientMetricsReporter)(nil)
 
 type clientMetricsTest struct {
 	mr   *testutils.InMemoryReporter

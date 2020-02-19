@@ -18,7 +18,6 @@ package reporter
 import (
 	"errors"
 	"fmt"
-	"io"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -27,8 +26,6 @@ import (
 	"github.com/jaegertracing/jaeger/thrift-gen/jaeger"
 	"github.com/jaegertracing/jaeger/thrift-gen/zipkincore"
 )
-
-var _ io.Closer = (Reporter)(nil)
 
 func TestMultiReporter(t *testing.T) {
 	r1, r2 := testutils.NewInMemoryReporter(), testutils.NewInMemoryReporter()
@@ -76,8 +73,4 @@ func (r mockReporter) EmitZipkinBatch(spans []*zipkincore.Span) error {
 
 func (r mockReporter) EmitBatch(batch *jaeger.Batch) error {
 	return r.err
-}
-
-func (r mockReporter) Close() error {
-	return nil
 }

@@ -76,9 +76,5 @@ func (b ProxyBuilder) Close() error {
 		errs = append(errs, err)
 	}
 
-	if err := b.reporter.Close(); err != nil {
-		errs = append(errs, err)
-	}
-
 	return multierror.Wrap(errs)
 }

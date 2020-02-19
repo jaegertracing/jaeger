@@ -53,11 +53,6 @@ func (i *InMemoryReporter) EmitBatch(batch *jaeger.Batch) (err error) {
 	return nil
 }
 
-// Close the reporter
-func (i *InMemoryReporter) Close() error {
-	return nil
-}
-
 // ZipkinSpans returns accumulated Zipkin spans as a copied slice
 func (i *InMemoryReporter) ZipkinSpans() []*zipkincore.Span {
 	i.mutex.Lock()

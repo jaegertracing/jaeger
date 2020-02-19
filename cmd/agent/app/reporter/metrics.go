@@ -85,11 +85,6 @@ func (r *MetricsReporter) EmitBatch(batch *jaeger.Batch) error {
 	return err
 }
 
-// Close this reporter
-func (r *MetricsReporter) Close() error {
-	return r.wrapped.Close()
-}
-
 func updateMetrics(m batchMetrics, size int64, err error) {
 	if err != nil {
 		m.BatchesFailures.Inc(1)

@@ -26,7 +26,6 @@ import (
 type Reporter interface {
 	EmitZipkinBatch(spans []*zipkincore.Span) (err error)
 	EmitBatch(batch *jaeger.Batch) (err error)
-	Close() error
 }
 
 // MultiReporter provides serial span emission to one or more reporters.  If
@@ -56,17 +55,6 @@ func (mr MultiReporter) EmitBatch(batch *jaeger.Batch) error {
 	var errors []error
 	for _, rep := range mr {
 		if err := rep.EmitBatch(batch); err != nil {
-			errors = append(errors, err)
-		}
-	}
-	return multierror.Wrap(errors)
-}
-
-// Close all the underlying reporters
-func (mr MultiReporter) Close() error {
-	var errors []error
-	for _, rep := range mr {
-		if err := rep.Close(); err != nil {
 			errors = append(errors, err)
 		}
 	}

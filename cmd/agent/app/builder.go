@@ -68,7 +68,6 @@ var (
 type CollectorProxy interface {
 	GetReporter() reporter.Reporter
 	GetManager() configmanager.ClientConfigManager
-	Close() error
 }
 
 // Builder Struct to hold configurations
