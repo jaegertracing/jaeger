@@ -567,7 +567,7 @@
   version = "v1.8.1"
 
 [[projects]]
-  digest = "1:891f9c13236eb1b6d1abd4fe01e6c9be51bcc65f04da0dfa4bfdf356374e98c4"
+  digest = "1:f185feea652cdd12ed1683601cfeffd09c081995fc8140de046d8910709ac3dc"
   name = "github.com/mailru/easyjson"
   packages = [
     ".",
@@ -576,8 +576,8 @@
     "jwriter",
   ]
   pruneopts = "UT"
-  revision = "1b2b06f5f209fea48ff5922d8bfb2b9ed5d8f00b"
-  version = "v0.7.0"
+  revision = "8edcc4e51f39ddbd3505a3386aff3f435a7fd028"
+  version = "v0.7.1"
 
 [[projects]]
   digest = "1:ff5ebae34cfbf047d505ee150de27e60570e8c394b3b8fdbb720ff6ac71985fc"
@@ -759,8 +759,8 @@
     "internal/util",
   ]
   pruneopts = "UT"
-  revision = "584181f8e7015e8fbd319be9a5a9341d8f3d64df"
-  version = "v0.0.9"
+  revision = "4850c197847aa06aecc37570077fc16e9215d565"
+  version = "v0.0.10"
 
 [[projects]]
   branch = "master"
@@ -870,15 +870,15 @@
   version = "v1.6.2"
 
 [[projects]]
-  digest = "1:ac83cf90d08b63ad5f7e020ef480d319ae890c208f8524622a2f3136e2686b02"
+  digest = "1:23472f69a3ee7225de2f104aa48c6456959d1c155e45035c9845806d83109190"
   name = "github.com/stretchr/objx"
   packages = ["."]
   pruneopts = "UT"
-  revision = "477a77ecc69700c7cdeb1fa9e129548e1c1c393c"
-  version = "v0.1.1"
+  revision = "ea4fe68685ee0d3cee7032121851b57e7494e8ea"
+  version = "v0.2.0"
 
 [[projects]]
-  digest = "1:222a4e86e512d737296c6a2548d7ac76337c3ce0d9b0f534c4a257ff65b971f7"
+  digest = "1:521e2ef346d16f7d5bec938c69e6b47ae10b009e9047f29b50739468dc251380"
   name = "github.com/stretchr/testify"
   packages = [
     "assert",
@@ -887,8 +887,8 @@
     "require",
   ]
   pruneopts = "UT"
-  revision = "221dbe5ed46703ee255b1da0dec05086f5035f62"
-  version = "v1.4.0"
+  revision = "624f997379a27f38832b4b22ef5e4d31385c6daf"
+  version = "v1.5.0"
 
 [[projects]]
   digest = "1:f4b32291cad5efac2bfdba89ccde6aa04618b62ce06c1a571da2dc4f3f2677fb"
@@ -1086,14 +1086,14 @@
 
 [[projects]]
   branch = "master"
-  digest = "1:cc2f66816d35b969d6c72e63fed6d1e01b4c4c7ab2cadf4cf68346869358670b"
+  digest = "1:cad35dcb79b7b0408655d9900dbae8d4d2e151ab78f210730502b5871a909432"
   name = "golang.org/x/sys"
   packages = [
     "unix",
     "windows",
   ]
   pruneopts = "UT"
-  revision = "12a6c2dcc1e4cb348b57847c73987099e261714b"
+  revision = "9197077df8675547dfa5e04c6dfcd024257a2030"
 
 [[projects]]
   digest = "1:66a2f252a58b4fbbad0e4e180e1d85a83c222b6bce09c3dcdef3dc87c72eda7c"
@@ -1142,7 +1142,7 @@
     "internal/packagesinternal",
   ]
   pruneopts = "UT"
-  revision = "b320d3a0f5a29dea7f95f1ca5c4cbef0ac24a304"
+  revision = "f8e42dc47720b31a0fedf0b422ee4cbd171ab163"
 
 [[projects]]
   branch = "master"
@@ -1153,10 +1153,10 @@
     "googleapis/rpc/status",
   ]
   pruneopts = "UT"
-  revision = "66ed5ce911ce4978d229e861f15b63d8bf359acb"
+  revision = "dad8c97a84f542cf0c67e3ab67b1c09e795fb4af"
 
 [[projects]]
-  digest = "1:b2c9ea388537a402c7f618e11eda34ec5358b67c3c6aef9df113c7022b46e0b1"
+  digest = "1:c058e18ea889c15d35285e9ff234843c4b48048341d7363c5b6d671eafc206a3"
   name = "google.golang.org/grpc"
   packages = [
     ".",
@@ -1202,8 +1202,8 @@
     "test/grpc_testing",
   ]
   pruneopts = "UT"
-  revision = "f5b0812e6fe574d90da76b205e9eb51f6ddb1919"
-  version = "v1.26.0"
+  revision = "f495f5b15ae7ccda3b38c53a1bfcde4c1a58a2bc"
+  version = "v1.27.1"
 
 [[projects]]
   digest = "1:2d1fbdc6777e5408cabeb02bf336305e724b925ff4546ded0fa8715a7267922a"
