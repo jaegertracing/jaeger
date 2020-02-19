@@ -17,6 +17,7 @@ package app
 
 import (
 	"fmt"
+	"io"
 	"net/http"
 	"strconv"
 
@@ -68,6 +69,7 @@ var (
 type CollectorProxy interface {
 	GetReporter() reporter.Reporter
 	GetManager() configmanager.ClientConfigManager
+	io.Closer
 }
 
 // Builder Struct to hold configurations

@@ -76,6 +76,7 @@ func main() {
 			}
 			svc.RunAndThen(func() {
 				agent.Stop()
+				cp.Close()
 			})
 			return nil
 		},
