@@ -37,7 +37,7 @@ func main() {
 
 	metricsFactory := prometheus.New()
 	traceCfg := &jaegerConfig.Configuration{
-		ServiceName: "tracegen",
+		ServiceName: cfg.Service,
 		Sampler: &jaegerConfig.SamplerConfig{
 			Type:  "const",
 			Param: 1,
