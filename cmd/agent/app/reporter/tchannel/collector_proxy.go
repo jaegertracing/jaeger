@@ -62,6 +62,7 @@ func (b ProxyBuilder) GetManager() configmanager.ClientConfigManager {
 
 // Close closes connections used by proxy.
 func (b ProxyBuilder) Close() error {
+	b.reporter.Close()
 	b.tchanRep.Channel().Close()
 	return nil
 }
