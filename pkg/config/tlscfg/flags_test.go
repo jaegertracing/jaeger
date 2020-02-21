@@ -26,35 +26,51 @@ import (
 
 func TestClientFlags(t *testing.T) {
 	cmdLine := []string{
-		"--prefix.tls=true",
 		"--prefix.tls.ca=ca-file",
 		"--prefix.tls.cert=cert-file",
 		"--prefix.tls.key=key-file",
 		"--prefix.tls.server-name=HAL1",
+		"--prefix.tls.skip-host-verify=true",
 	}
 
-	v := viper.New()
-	command := cobra.Command{}
-	flagSet := &flag.FlagSet{}
-	flagCfg := ClientFlagsConfig{
-		Prefix:         "prefix.",
-		ShowEnabled:    true,
-		ShowServerName: true,
+	tests := []struct {
+		option string
+	}{
+		{
+			option: "--prefix.tls=true",
+		},
+		{
+			option: "--prefix.tls.enabled=true",
+		},
 	}
-	flagCfg.AddFlags(flagSet)
-	command.PersistentFlags().AddGoFlagSet(flagSet)
-	v.BindPFlags(command.PersistentFlags())
 
-	err := command.ParseFlags(cmdLine)
-	require.NoError(t, err)
-	tlsOpts := flagCfg.InitFromViper(v)
-	assert.Equal(t, Options{
-		Enabled:    true,
-		CAPath:     "ca-file",
-		CertPath:   "cert-file",
-		KeyPath:    "key-file",
-		ServerName: "HAL1",
-	}, tlsOpts)
+	for _, test := range tests {
+		t.Run(test.option, func(t *testing.T) {
+			v := viper.New()
+			command := cobra.Command{}
+			flagSet := &flag.FlagSet{}
+			flagCfg := ClientFlagsConfig{
+				Prefix:         "prefix",
+				ShowEnabled:    true,
+				ShowServerName: true,
+			}
+			flagCfg.AddFlags(flagSet)
+			command.PersistentFlags().AddGoFlagSet(flagSet)
+			v.BindPFlags(command.PersistentFlags())
+
+			err := command.ParseFlags(append(cmdLine, test.option))
+			require.NoError(t, err)
+			tlsOpts := flagCfg.InitFromViper(v)
+			assert.Equal(t, Options{
+				Enabled:        true,
+				CAPath:         "ca-file",
+				CertPath:       "cert-file",
+				KeyPath:        "key-file",
+				ServerName:     "HAL1",
+				SkipHostVerify: true,
+			}, tlsOpts)
+		})
+	}
 }
 
 func TestServerFlags(t *testing.T) {
@@ -85,7 +101,7 @@ func TestServerFlags(t *testing.T) {
 			command := cobra.Command{}
 			flagSet := &flag.FlagSet{}
 			flagCfg := ServerFlagsConfig{
-				Prefix:       "prefix.",
+				Prefix:       "prefix",
 				ShowEnabled:  true,
 				ShowClientCA: true,
 			}

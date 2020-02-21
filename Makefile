@@ -21,22 +21,26 @@ ALL_SRC := $(shell find . -name '*.go' \
 
 # ALL_PKGS is used with 'go cover' and 'golint'
 ALL_PKGS := $(shell go list $(sort $(dir $(ALL_SRC))))
-
-RACE=-race
+UNAME := $(shell uname -m)
+#Race flag is not supported on s390x architecture
+ifeq ($(UNAME), s390x)
+	RACE=
+else
+	RACE=-race
+endif
+GOBUILD=CGO_ENABLED=0 installsuffix=cgo go build -trimpath
 GOTEST=go test -v $(RACE)
 GOLINT=golint
 GOVET=go vet
 GOFMT=gofmt
-GOSEC=gosec -quiet -exclude=G104,G107
-STATICCHECK=staticcheck
-FMT_LOG=fmt.log
-LINT_LOG=lint.log
-IMPORT_LOG=import.log
+FMT_LOG=.fmt.log
+LINT_LOG=.lint.log
+IMPORT_LOG=.import.log
 
 GIT_SHA=$(shell git rev-parse HEAD)
 GIT_CLOSEST_TAG=$(shell git describe --abbrev=0 --tags)
 DATE=$(shell date -u +'%Y-%m-%dT%H:%M:%SZ')
-BUILD_INFO_IMPORT_PATH=github.com/jaegertracing/jaeger/pkg/version
+BUILD_INFO_IMPORT_PATH=$(PROJECT_ROOT)/pkg/version
 BUILD_INFO=-ldflags "-X $(BUILD_INFO_IMPORT_PATH).commitSHA=$(GIT_SHA) -X $(BUILD_INFO_IMPORT_PATH).latestVersion=$(GIT_CLOSEST_TAG) -X $(BUILD_INFO_IMPORT_PATH).date=$(DATE)"
 
 SED=sed
@@ -141,13 +145,12 @@ fmt:
 
 .PHONY: lint-gosec
 lint-gosec:
-	time $(GOSEC) ./...
+	GO111MODULE=off time gosec -quiet -exclude=G104,G107 $(PROJECT_ROOT)/...
 
 .PHONY: lint-staticcheck
 lint-staticcheck:
-	@echo Running staticcheck...
 	@cat /dev/null > $(LINT_LOG)
-	@time $(STATICCHECK) ./... \
+	time staticcheck ./... \
 		| grep -v \
 			-e model/model.pb.go \
 			-e thrift-gen/ \
@@ -160,8 +163,8 @@ lint: lint-staticcheck lint-gosec
 	$(MAKE) go-lint
 	@echo Running go fmt on ALL_SRC ...
 	@$(GOFMT) -e -s -l $(ALL_SRC) > $(FMT_LOG)
-	@./scripts/updateLicenses.sh >> $(FMT_LOG)
-	@./scripts/import-order-cleanup.sh stdout > $(IMPORT_LOG)
+	./scripts/updateLicenses.sh >> $(FMT_LOG)
+	./scripts/import-order-cleanup.sh stdout > $(IMPORT_LOG)
 	@[ ! -s "$(FMT_LOG)" -a ! -s "$(IMPORT_LOG)" ] || (echo "Go fmt, license check, or import ordering failures, run 'make fmt'" | cat - $(FMT_LOG) && false)
 
 .PHONY: go-lint
@@ -190,12 +193,24 @@ elasticsearch-mappings:
 .PHONY: build-examples
 build-examples:
 	esc -pkg frontend -o examples/hotrod/services/frontend/gen_assets.go  -prefix examples/hotrod/services/frontend/web_assets examples/hotrod/services/frontend/web_assets
-	CGO_ENABLED=0 installsuffix=cgo go build -o ./examples/hotrod/hotrod-$(GOOS) ./examples/hotrod/main.go
+ifeq ($(GOARCH), s390x)
+	$(GOBUILD) -o ./examples/hotrod/hotrod-$(GOOS)-$(GOARCH) ./examples/hotrod/main.go
+else
+	$(GOBUILD) -o ./examples/hotrod/hotrod-$(GOOS) ./examples/hotrod/main.go
+endif
+
+.PHONY: build-tracegen
+build-tracegen:
+	$(GOBUILD) -o ./cmd/tracegen/tracegen-$(GOOS) ./cmd/tracegen/main.go
 
 .PHONE: docker-hotrod
 docker-hotrod:
 	GOOS=linux $(MAKE) build-examples
 	docker build -t $(DOCKER_NAMESPACE)/example-hotrod:${DOCKER_TAG} ./examples/hotrod
+
+.PHONY: run-all-in-one
+run-all-in-one:
+	go run -tags ui ./cmd/all-in-one --log-level debug
 
 .PHONY: build-ui
 build-ui:
@@ -209,23 +224,43 @@ build-all-in-one-linux: build-ui
 
 .PHONY: build-all-in-one
 build-all-in-one: elasticsearch-mappings
-	CGO_ENABLED=0 installsuffix=cgo go build -tags ui -o ./cmd/all-in-one/all-in-one-$(GOOS) $(BUILD_INFO) ./cmd/all-in-one/main.go
+ifeq ($(GOARCH), s390x)
+	$(GOBUILD) -tags ui -o ./cmd/all-in-one/all-in-one-$(GOOS)-$(GOARCH) $(BUILD_INFO) ./cmd/all-in-one/main.go
+else	
+	$(GOBUILD) -tags ui -o ./cmd/all-in-one/all-in-one-$(GOOS) $(BUILD_INFO) ./cmd/all-in-one/main.go
+endif
 
 .PHONY: build-agent
 build-agent:
-	CGO_ENABLED=0 installsuffix=cgo go build -o ./cmd/agent/agent-$(GOOS) $(BUILD_INFO) ./cmd/agent/main.go
+ifeq ($(GOARCH), s390x)
+	$(GOBUILD) -o ./cmd/agent/agent-$(GOOS)-$(GOARCH) $(BUILD_INFO) ./cmd/agent/main.go
+else
+	$(GOBUILD) -o ./cmd/agent/agent-$(GOOS) $(BUILD_INFO) ./cmd/agent/main.go
+endif
 
 .PHONY: build-query
 build-query:
-	CGO_ENABLED=0 installsuffix=cgo go build -tags ui -o ./cmd/query/query-$(GOOS) $(BUILD_INFO) ./cmd/query/main.go
+ifeq ($(GOARCH), s390x)
+	$(GOBUILD) -tags ui -o ./cmd/query/query-$(GOOS)-$(GOARCH) $(BUILD_INFO) ./cmd/query/main.go
+else
+	$(GOBUILD) -tags ui -o ./cmd/query/query-$(GOOS) $(BUILD_INFO) ./cmd/query/main.go
+endif
 
 .PHONY: build-collector
 build-collector: elasticsearch-mappings
-	CGO_ENABLED=0 installsuffix=cgo go build -o ./cmd/collector/collector-$(GOOS) $(BUILD_INFO) ./cmd/collector/main.go
+ifeq ($(GOARCH), s390x)
+	$(GOBUILD) -o ./cmd/collector/collector-$(GOOS)-$(GOARCH) $(BUILD_INFO) ./cmd/collector/main.go
+else
+	$(GOBUILD) -o ./cmd/collector/collector-$(GOOS) $(BUILD_INFO) ./cmd/collector/main.go
+endif
 
 .PHONY: build-ingester
 build-ingester:
-	CGO_ENABLED=0 installsuffix=cgo go build -o ./cmd/ingester/ingester-$(GOOS) $(BUILD_INFO) ./cmd/ingester/main.go
+ifeq ($(GOARCH), s390x)
+	$(GOBUILD) -o ./cmd/ingester/ingester-$(GOOS)-$(GOARCH) $(BUILD_INFO) ./cmd/ingester/main.go
+else
+	$(GOBUILD) -o ./cmd/ingester/ingester-$(GOOS) $(BUILD_INFO) ./cmd/ingester/main.go
+endif
 
 .PHONY: docker
 docker: build-ui build-binaries-linux docker-images-only
@@ -242,11 +277,15 @@ build-binaries-windows:
 build-binaries-darwin:
 	GOOS=darwin $(MAKE) build-platform-binaries
 
+.PHONY: build-binaries-s390x
+build-binaries-s390x:
+	GOOS=linux GOARCH=s390x $(MAKE) build-platform-binaries
+
 .PHONY: build-platform-binaries
-build-platform-binaries: build-agent build-collector build-query build-ingester build-all-in-one build-examples
+build-platform-binaries: build-agent build-collector build-query build-ingester build-all-in-one build-examples build-tracegen
 
 .PHONY: build-all-platforms
-build-all-platforms: build-binaries-linux build-binaries-windows build-binaries-darwin
+build-all-platforms: build-binaries-linux build-binaries-windows build-binaries-darwin build-binaries-s390x
 
 .PHONY: docker-images-cassandra
 docker-images-cassandra:
@@ -266,8 +305,13 @@ docker-images-jaeger-backend:
 		echo "Finished building $$component ==============" ; \
 	done
 
+.PHONY: docker-images-tracegen
+docker-images-tracegen:
+	docker build -t $(DOCKER_NAMESPACE)/jaeger-tracegen:${DOCKER_TAG} cmd/tracegen/
+	@echo "Finished building jaeger-tracegen =============="
+
 .PHONY: docker-images-only
-docker-images-only: docker-images-cassandra docker-images-elastic docker-images-jaeger-backend
+docker-images-only: docker-images-cassandra docker-images-elastic docker-images-jaeger-backend docker-images-tracegen
 
 .PHONY: docker-push
 docker-push:
@@ -277,13 +321,13 @@ docker-push:
 	if [ $$CONFIRM != "y" ] && [ $$CONFIRM != "Y" ]; then \
 		echo "Exiting." ; exit 1 ; \
 	fi
-	for component in agent cassandra-schema es-index-cleaner es-rollover collector query ingester example-hotrod; do \
+	for component in agent cassandra-schema es-index-cleaner es-rollover collector query ingester example-hotrod tracegen; do \
 		docker push $(DOCKER_NAMESPACE)/jaeger-$$component ; \
 	done
 
 .PHONY: build-crossdock-linux
 build-crossdock-linux:
-	CGO_ENABLED=0 GOOS=linux installsuffix=cgo go build -o ./crossdock/crossdock-linux ./crossdock/main.go
+	GOOS=linux $(GOBUILD) -o ./crossdock/crossdock-linux ./crossdock/main.go
 
 include crossdock/rules.mk
 
@@ -432,7 +476,6 @@ proto:
 		### grpc-gateway generates 'query.pb.gw.go' that does not respect (gogoproto.customname) = "TraceID"
 		### --grpc-gateway_out=$(PROTO_GOGO_MAPPINGS):$(PWD)/proto-gen/ \
 		### --swagger_out=allow_merge=true:$(PWD)/proto-gen/openapi/ \
-
 	$(PROTOC) \
 		$(PROTO_INCLUDES) \
 		-I plugin/storage/grpc/proto \

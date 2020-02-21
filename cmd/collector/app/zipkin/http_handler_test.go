@@ -34,7 +34,7 @@ import (
 	jaegerClient "github.com/uber/jaeger-client-go"
 	zipkinTransport "github.com/uber/jaeger-client-go/transport/zipkin"
 
-	"github.com/jaegertracing/jaeger/cmd/collector/app"
+	"github.com/jaegertracing/jaeger/cmd/collector/app/handler"
 	zipkinTrift "github.com/jaegertracing/jaeger/model/converter/thrift/zipkin"
 	zipkinProto "github.com/jaegertracing/jaeger/proto-gen/zipkin"
 	"github.com/jaegertracing/jaeger/thrift-gen/zipkincore"
@@ -48,7 +48,7 @@ type mockZipkinHandler struct {
 	spans []*zipkincore.Span
 }
 
-func (p *mockZipkinHandler) SubmitZipkinBatch(spans []*zipkincore.Span, opts app.SubmitBatchOptions) ([]*zipkincore.Response, error) {
+func (p *mockZipkinHandler) SubmitZipkinBatch(spans []*zipkincore.Span, opts handler.SubmitBatchOptions) ([]*zipkincore.Response, error) {
 	p.mux.Lock()
 	defer p.mux.Unlock()
 	p.spans = append(p.spans, spans...)

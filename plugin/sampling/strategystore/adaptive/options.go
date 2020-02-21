@@ -64,9 +64,9 @@ type Options struct {
 	// Increase this to reduce the amount of fluctuation in the calculated probabilities.
 	DeltaTolerance float64
 
-	// CalculationInterval determines how often new probabilities are calculated. It was doubles as the interval
-	// each aggregated thoughput bucket represents, ie. if an interval is 1 minute, new sampling probabilities
-	// are calculated once a minute and each bucket will contain 1 minute of aggregated throughput data.
+	// CalculationInterval determines how often new probabilities are calculated. E.g. if it is 1 minute,
+	// new sampling probabilities are calculated once a minute and each bucket will contain 1 minute worth
+	// of aggregated throughput data.
 	CalculationInterval time.Duration
 
 	// AggregationBuckets is the total number of aggregated throughput buckets kept in memory, ie. if
@@ -94,7 +94,7 @@ type Options struct {
 	InitialSamplingProbability float64
 
 	// MinSamplingProbability is the minimum sampling probability for all operations. ie. the calculated sampling
-	// probability will be bound to math.min(MinSamplingProbability, 1.0)
+	// probability will be in the range [MinSamplingProbability, 1.0].
 	MinSamplingProbability float64
 
 	// MinSamplesPerSecond determines the min number of traces that are sampled per second.

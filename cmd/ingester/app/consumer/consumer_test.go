@@ -15,6 +15,7 @@
 package consumer
 
 import (
+	"errors"
 	"fmt"
 	"sync"
 	"testing"
@@ -22,8 +23,7 @@ import (
 
 	"github.com/Shopify/sarama"
 	smocks "github.com/Shopify/sarama/mocks"
-	"github.com/bsm/sarama-cluster"
-	"github.com/pkg/errors"
+	cluster "github.com/bsm/sarama-cluster"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
 	"github.com/stretchr/testify/require"

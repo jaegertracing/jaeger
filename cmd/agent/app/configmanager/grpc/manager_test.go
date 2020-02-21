@@ -16,6 +16,7 @@ package grpc
 
 import (
 	"context"
+	"io"
 	"net"
 	"testing"
 
@@ -27,13 +28,16 @@ import (
 	"github.com/jaegertracing/jaeger/thrift-gen/sampling"
 )
 
+func close(t *testing.T, c io.Closer) {
+	require.NoError(t, c.Close())
+}
+
 func TestSamplingManager_GetSamplingStrategy(t *testing.T) {
 	s, addr := initializeGRPCTestServer(t, func(s *grpc.Server) {
 		api_v2.RegisterSamplingManagerServer(s, &mockSamplingHandler{})
 	})
 	conn, err := grpc.Dial(addr.String(), grpc.WithInsecure())
-	//lint:ignore SA5001 don't care about errors
-	defer conn.Close()
+	defer close(t, conn)
 	require.NoError(t, err)
 	defer s.GracefulStop()
 	manager := NewConfigManager(conn)
@@ -44,13 +48,13 @@ func TestSamplingManager_GetSamplingStrategy(t *testing.T) {
 
 func TestSamplingManager_GetSamplingStrategy_error(t *testing.T) {
 	conn, err := grpc.Dial("foo", grpc.WithInsecure())
-	//lint:ignore SA5001 don't care about errors
-	defer conn.Close()
+	defer close(t, conn)
 	require.NoError(t, err)
 	manager := NewConfigManager(conn)
 	resp, err := manager.GetSamplingStrategy("any")
 	require.Nil(t, resp)
-	assert.EqualError(t, err, "rpc error: code = Unavailable desc = all SubConns are in TransientFailure, latest connection error: connection error: desc = \"transport: Error while dialing dial tcp: address foo: missing port in address\"")
+	require.Error(t, err)
+	assert.Contains(t, err.Error(), "Error while dialing dial tcp: address foo: missing port in address")
 }
 
 func TestSamplingManager_GetBaggageRestrictions(t *testing.T) {

@@ -15,17 +15,20 @@
 package auth
 
 import (
+	"fmt"
 	"strings"
 
 	"github.com/Shopify/sarama"
-	"github.com/pkg/errors"
 	"github.com/spf13/viper"
+
+	"github.com/jaegertracing/jaeger/pkg/config/tlscfg"
 )
 
 const (
-	none     = "none"
-	kerberos = "kerberos"
-	tls      = "tls"
+	none      = "none"
+	kerberos  = "kerberos"
+	tls       = "tls"
+	plaintext = "plaintext"
 )
 
 var authTypes = []string{
@@ -38,7 +41,8 @@ var authTypes = []string{
 type AuthenticationConfig struct {
 	Authentication string
 	Kerberos       KerberosConfig
-	TLS            TLSConfig
+	TLS            tlscfg.Options
+	PlainText      PlainTextConfig
 }
 
 //SetConfiguration set configure authentication into sarama config structure
@@ -55,8 +59,11 @@ func (config *AuthenticationConfig) SetConfiguration(saramaConfig *sarama.Config
 		return nil
 	case tls:
 		return setTLSConfiguration(&config.TLS, saramaConfig)
+	case plaintext:
+		setPlainTextConfiguration(&config.PlainText, saramaConfig)
+		return nil
 	default:
-		return errors.Errorf("Unknown/Unsupported authentication method %s to kafka cluster.", config.Authentication)
+		return fmt.Errorf("Unknown/Unsupported authentication method %s to kafka cluster", config.Authentication)
 	}
 }
 
@@ -71,7 +78,14 @@ func (config *AuthenticationConfig) InitFromViper(configPrefix string, v *viper.
 	config.Kerberos.ConfigPath = v.GetString(configPrefix + kerberosPrefix + suffixKerberosConfig)
 	config.Kerberos.KeyTabPath = v.GetString(configPrefix + kerberosPrefix + suffixKerberosKeyTab)
 
-	config.TLS.CaPath = v.GetString(configPrefix + tlsPrefix + suffixTLSCA)
-	config.TLS.CertPath = v.GetString(configPrefix + tlsPrefix + suffixTLSCert)
-	config.TLS.KeyPath = v.GetString(configPrefix + tlsPrefix + suffixTLSKey)
+	var tlsClientConfig = tlscfg.ClientFlagsConfig{
+		Prefix:         configPrefix,
+		ShowEnabled:    true,
+		ShowServerName: true,
+	}
+
+	config.TLS = tlsClientConfig.InitFromViper(v)
+
+	config.PlainText.UserName = v.GetString(configPrefix + plainTextPrefix + suffixPlainTextUserName)
+	config.PlainText.Password = v.GetString(configPrefix + plainTextPrefix + suffixPlainTextPassword)
 }

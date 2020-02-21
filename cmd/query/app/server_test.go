@@ -103,3 +103,22 @@ func TestServerGracefulExit(t *testing.T) {
 			"Error log found on server exit: %v", logEntry)
 	}
 }
+
+func TestServerHandlesPortZero(t *testing.T) {
+	flagsSvc := flags.NewService(ports.QueryAdminHTTP)
+	zapCore, logs := observer.New(zap.InfoLevel)
+	flagsSvc.Logger = zap.New(zapCore)
+
+	querySvc := &querysvc.QueryService{}
+	tracer := opentracing.NoopTracer{}
+	server := NewServer(flagsSvc, querySvc, &QueryOptions{Port: 0}, tracer)
+	assert.NoError(t, server.Start())
+	server.Close()
+
+	message := logs.FilterMessage("Query server started")
+	assert.Equal(t, 1, message.Len(), "Expected query started log message.")
+
+	onlyEntry := message.All()[0]
+	port := onlyEntry.ContextMap()["port"].(int64)
+	assert.Greater(t, port, int64(0))
+}

@@ -17,6 +17,7 @@ package app
 
 import (
 	"fmt"
+	"io"
 	"sync"
 	"testing"
 	"time"
@@ -24,8 +25,11 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/uber/jaeger-lib/metrics"
 	"github.com/uber/jaeger-lib/metrics/metricstest"
+	"go.uber.org/atomic"
 	"go.uber.org/zap"
 
+	"github.com/jaegertracing/jaeger/cmd/collector/app/handler"
+	"github.com/jaegertracing/jaeger/cmd/collector/app/processor"
 	zipkinSanitizer "github.com/jaegertracing/jaeger/cmd/collector/app/sanitizer/zipkin"
 	"github.com/jaegertracing/jaeger/model"
 	"github.com/jaegertracing/jaeger/pkg/testutils"
@@ -33,19 +37,20 @@ import (
 	zc "github.com/jaegertracing/jaeger/thrift-gen/zipkincore"
 )
 
+var _ (io.Closer) = (*fakeSpanWriter)(nil)
 var blackListedService = "zoidberg"
 
 func TestBySvcMetrics(t *testing.T) {
 	allowedService := "bender"
 
 	type TestCase struct {
-		format      SpanFormat
+		format      processor.SpanFormat
 		serviceName string
 		rootSpan    bool
 		debug       bool
 	}
 
-	spanFormat := [2]SpanFormat{ZipkinSpanFormat, JaegerSpanFormat}
+	spanFormat := [2]processor.SpanFormat{processor.ZipkinSpanFormat, processor.JaegerSpanFormat}
 	serviceNames := [2]string{allowedService, blackListedService}
 	rootSpanEnabled := [2]bool{true, false}
 	debugEnabled := [2]bool{true, false}
@@ -72,7 +77,7 @@ func TestBySvcMetrics(t *testing.T) {
 		logger := zap.NewNop()
 		serviceMetrics := mb.Namespace(metrics.NSOptions{Name: "service", Tags: nil})
 		hostMetrics := mb.Namespace(metrics.NSOptions{Name: "host", Tags: nil})
-		processor := newSpanProcessor(
+		sp := newSpanProcessor(
 			&fakeSpanWriter{},
 			Options.ServiceMetrics(serviceMetrics),
 			Options.HostMetrics(hostMetrics),
@@ -84,15 +89,15 @@ func TestBySvcMetrics(t *testing.T) {
 		)
 		var metricPrefix, format string
 		switch test.format {
-		case ZipkinSpanFormat:
+		case processor.ZipkinSpanFormat:
 			span := makeZipkinSpan(test.serviceName, test.rootSpan, test.debug)
-			zHandler := NewZipkinSpanHandler(logger, processor, zipkinSanitizer.NewParentIDSanitizer())
-			zHandler.SubmitZipkinBatch([]*zc.Span{span, span}, SubmitBatchOptions{})
+			zHandler := handler.NewZipkinSpanHandler(logger, sp, zipkinSanitizer.NewParentIDSanitizer())
+			zHandler.SubmitZipkinBatch([]*zc.Span{span, span}, handler.SubmitBatchOptions{})
 			metricPrefix = "service"
 			format = "zipkin"
-		case JaegerSpanFormat:
+		case processor.JaegerSpanFormat:
 			span, process := makeJaegerSpan(test.serviceName, test.rootSpan, test.debug)
-			jHandler := NewJaegerSpanHandler(logger, processor)
+			jHandler := handler.NewJaegerSpanHandler(logger, sp)
 			jHandler.SubmitBatches([]*jaeger.Batch{
 				{
 					Spans: []*jaeger.Span{
@@ -101,7 +106,7 @@ func TestBySvcMetrics(t *testing.T) {
 					},
 					Process: process,
 				},
-			}, SubmitBatchOptions{})
+			}, handler.SubmitBatchOptions{})
 			metricPrefix = "service"
 			format = "jaeger"
 		default:
@@ -161,6 +166,10 @@ func (n *fakeSpanWriter) WriteSpan(span *model.Span) error {
 	return n.err
 }
 
+func (n *fakeSpanWriter) Close() error {
+	return nil
+}
+
 func makeZipkinSpan(service string, rootSpan bool, debugEnabled bool) *zc.Span {
 	var parentID *int64
 	if !rootSpan {
@@ -205,7 +214,7 @@ func makeJaegerSpan(service string, rootSpan bool, debugEnabled bool) (*jaeger.S
 
 func TestSpanProcessor(t *testing.T) {
 	w := &fakeSpanWriter{}
-	p := NewSpanProcessor(w).(*spanProcessor)
+	p := NewSpanProcessor(w, Options.QueueSize(1)).(*spanProcessor)
 	defer p.Stop()
 
 	res, err := p.ProcessSpans([]*model.Span{
@@ -214,7 +223,7 @@ func TestSpanProcessor(t *testing.T) {
 				ServiceName: "x",
 			},
 		},
-	}, ProcessSpansOptions{SpanFormat: JaegerSpanFormat})
+	}, processor.SpansOptions{SpanFormat: processor.JaegerSpanFormat})
 	assert.NoError(t, err)
 	assert.Equal(t, []bool{true}, res)
 }
@@ -229,6 +238,7 @@ func TestSpanProcessorErrors(t *testing.T) {
 	p := NewSpanProcessor(w,
 		Options.Logger(logger),
 		Options.ServiceMetrics(serviceMetrics),
+		Options.QueueSize(1),
 	).(*spanProcessor)
 
 	res, err := p.ProcessSpans([]*model.Span{
@@ -237,7 +247,7 @@ func TestSpanProcessorErrors(t *testing.T) {
 				ServiceName: "x",
 			},
 		},
-	}, ProcessSpansOptions{SpanFormat: JaegerSpanFormat})
+	}, processor.SpansOptions{SpanFormat: processor.JaegerSpanFormat})
 	assert.NoError(t, err)
 	assert.Equal(t, []bool{true}, res)
 
@@ -295,7 +305,7 @@ func TestSpanProcessorBusy(t *testing.T) {
 				ServiceName: "x",
 			},
 		},
-	}, ProcessSpansOptions{SpanFormat: JaegerSpanFormat})
+	}, processor.SpansOptions{SpanFormat: processor.JaegerSpanFormat})
 
 	assert.Error(t, err, "expcting busy error")
 	assert.Nil(t, res)
@@ -344,4 +354,149 @@ func TestSpanProcessorWithCollectorTags(t *testing.T) {
 		}
 		assert.True(t, foundTag)
 	}
+}
+
+func TestSpanProcessorCountSpan(t *testing.T) {
+	mb := metricstest.NewFactory(time.Hour)
+	m := mb.Namespace(metrics.NSOptions{})
+
+	w := &fakeSpanWriter{}
+	p := NewSpanProcessor(w, Options.HostMetrics(m), Options.DynQueueSizeMemory(1000)).(*spanProcessor)
+	p.background(10*time.Millisecond, p.updateGauges)
+	defer p.Stop()
+
+	p.processSpan(&model.Span{})
+	assert.NotEqual(t, uint64(0), p.bytesProcessed)
+
+	for i := 0; i < 15; i++ {
+		_, g := mb.Snapshot()
+		if b := g["spans.bytes"]; b > 0 {
+			assert.Equal(t, p.bytesProcessed.Load(), uint64(g["spans.bytes"]))
+			return
+		}
+		time.Sleep(time.Millisecond)
+	}
+
+	assert.Fail(t, "gauge hasn't been updated within a reasonable amount of time")
+}
+
+func TestUpdateDynQueueSize(t *testing.T) {
+	tests := []struct {
+		name             string
+		sizeInBytes      uint
+		initialCapacity  int
+		warmup           uint
+		spansProcessed   uint64
+		bytesProcessed   uint64
+		expectedCapacity int
+	}{
+		{
+			name:             "scale-up",
+			sizeInBytes:      uint(1024 * 1024 * 1024), // one GiB
+			initialCapacity:  100,
+			warmup:           1000,
+			spansProcessed:   uint64(1000),
+			bytesProcessed:   uint64(10 * 1024 * 1000), // 10KiB per span
+			expectedCapacity: 104857,                   // 1024 ^ 3 / (10 * 1024) = 104857,6
+		},
+		{
+			name:             "scale-down",
+			sizeInBytes:      uint(1024 * 1024), // one MiB
+			initialCapacity:  1000,
+			warmup:           1000,
+			spansProcessed:   uint64(1000),
+			bytesProcessed:   uint64(10 * 1024 * 1000),
+			expectedCapacity: 102, // 1024 ^ 2 / (10 * 1024) = 102,4
+		},
+		{
+			name:             "not-enough-change",
+			sizeInBytes:      uint(1024 * 1024),
+			initialCapacity:  100,
+			warmup:           1000,
+			spansProcessed:   uint64(1000),
+			bytesProcessed:   uint64(10 * 1024 * 1000),
+			expectedCapacity: 100, // 1024 ^ 2 / (10 * 1024) = 102,4, 2% change only
+		},
+		{
+			name:             "not-enough-spans",
+			sizeInBytes:      uint(1024 * 1024 * 1024),
+			initialCapacity:  100,
+			warmup:           1000,
+			spansProcessed:   uint64(999),
+			bytesProcessed:   uint64(10 * 1024 * 1000),
+			expectedCapacity: 100,
+		},
+		{
+			name:             "not-enabled",
+			sizeInBytes:      uint(1024 * 1024 * 1024), // one GiB
+			initialCapacity:  100,
+			warmup:           0,
+			spansProcessed:   uint64(1000),
+			bytesProcessed:   uint64(10 * 1024 * 1000), // 10KiB per span
+			expectedCapacity: 100,
+		},
+		{
+			name:             "memory-not-set",
+			sizeInBytes:      0,
+			initialCapacity:  100,
+			warmup:           1000,
+			spansProcessed:   uint64(1000),
+			bytesProcessed:   uint64(10 * 1024 * 1000), // 10KiB per span
+			expectedCapacity: 100,
+		},
+		{
+			name:             "max-queue-size",
+			sizeInBytes:      uint(10 * 1024 * 1024 * 1024),
+			initialCapacity:  100,
+			warmup:           1000,
+			spansProcessed:   uint64(1000),
+			bytesProcessed:   uint64(10 * 1024 * 1000), // 10KiB per span
+			expectedCapacity: maxQueueSize,
+		},
+	}
+
+	for _, tt := range tests {
+		t.Run(tt.name, func(t *testing.T) {
+			w := &fakeSpanWriter{}
+			p := newSpanProcessor(w, Options.QueueSize(tt.initialCapacity), Options.DynQueueSizeWarmup(tt.warmup), Options.DynQueueSizeMemory(tt.sizeInBytes))
+			assert.EqualValues(t, tt.initialCapacity, p.queue.Capacity())
+
+			p.spansProcessed = atomic.NewUint64(tt.spansProcessed)
+			p.bytesProcessed = atomic.NewUint64(tt.bytesProcessed)
+
+			p.updateQueueSize()
+			assert.EqualValues(t, tt.expectedCapacity, p.queue.Capacity())
+		})
+	}
+}
+
+func TestUpdateQueueSizeNoActivityYet(t *testing.T) {
+	w := &fakeSpanWriter{}
+	p := newSpanProcessor(w, Options.QueueSize(1), Options.DynQueueSizeWarmup(1), Options.DynQueueSizeMemory(1))
+	assert.NotPanics(t, p.updateQueueSize)
+}
+
+func TestStartDynQueueSizeUpdater(t *testing.T) {
+	w := &fakeSpanWriter{}
+	oneGiB := uint(1024 * 1024 * 1024)
+	p := newSpanProcessor(w, Options.QueueSize(100), Options.DynQueueSizeWarmup(1000), Options.DynQueueSizeMemory(oneGiB))
+	assert.EqualValues(t, 100, p.queue.Capacity())
+
+	p.spansProcessed = atomic.NewUint64(1000)
+	p.bytesProcessed = atomic.NewUint64(10 * 1024 * p.spansProcessed.Load()) // 10KiB per span
+
+	// 1024 ^ 3 / (10 * 1024) = 104857,6
+	// ideal queue size = 104857
+	p.background(10*time.Millisecond, p.updateQueueSize)
+
+	// we wait up to 50 milliseconds
+	for i := 0; i < 5; i++ {
+		if p.queue.Capacity() == 100 {
+			time.Sleep(10 * time.Millisecond)
+		} else {
+			break
+		}
+	}
+
+	assert.EqualValues(t, 104857, p.queue.Capacity())
 }

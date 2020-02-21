@@ -84,10 +84,6 @@ required = [
   version = "^1.0.2"
 
 [[constraint]]
-  name = "github.com/pkg/errors"
-  version = "^0.8.0"
-
-[[constraint]]
   name = "github.com/prometheus/client_golang"
   version = "^1"
 
@@ -97,7 +93,7 @@ required = [
 
 [[constraint]]
   name = "github.com/spf13/viper"
-  version = "^1.0.0"
+  version = "^1.5.0"
 
 [[constraint]]
   name = "github.com/stretchr/testify"
@@ -105,7 +101,7 @@ required = [
 
 [[constraint]]
   name = "github.com/uber/jaeger-client-go"
-  version = "^2.19.0"
+  version = "^2.22.0"
 
 [[constraint]]
   name = "github.com/uber/jaeger-lib"
@@ -121,7 +117,7 @@ required = [
 
 [[constraint]]
   name = "google.golang.org/grpc"
-  version = "^1.20.1"
+  version = "^1.26"
 
 [[constraint]]
   name = "gopkg.in/yaml.v2"

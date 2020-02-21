@@ -15,6 +15,7 @@
 * [SeatGeek](https://seatgeek.com/)
 * [SpotHero](https://spothero.com/)
 * [Stagemonitor](https://www.stagemonitor.org/)
+* [Tencent](https://www.tencent.com/en-us/index.html)
 * [Ticketmaster](https://www.ticketmaster.com)
   * Case study: [Ticketmaster Traces 100 Million Transactions per Day with Jaeger](https://medium.com/jaegertracing/ticketmaster-traces-100-million-transactions-per-day-with-jaeger-38ec6cf599f0)
   * Talk: [Deploy, Scale and Extend Jaeger](https://www.youtube.com/watch?v=JloanFIc-ms)

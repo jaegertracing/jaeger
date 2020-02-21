@@ -33,6 +33,7 @@ type Config struct {
 	Firehose bool
 	Pause    time.Duration
 	Duration time.Duration
+	Service  string
 }
 
 // Flags registers config flags.
@@ -44,6 +45,7 @@ func (c *Config) Flags(fs *flag.FlagSet) {
 	fs.BoolVar(&c.Firehose, "firehose", false, "Whether to set FIREHOSE flag on the spans to skip indexing")
 	fs.DurationVar(&c.Pause, "pause", time.Microsecond, "How long to pause before finishing trace")
 	fs.DurationVar(&c.Duration, "duration", 0, "For how long to run the test")
+	fs.StringVar(&c.Service, "service", "tracegen", "Service name to use")
 }
 
 // Run executes the test scenario.

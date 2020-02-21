@@ -18,13 +18,13 @@ package samplingstore
 import (
 	"bytes"
 	"encoding/csv"
+	"fmt"
 	"io"
 	"strconv"
 	"strings"
 	"time"
 
 	"github.com/gocql/gocql"
-	"github.com/pkg/errors"
 	"github.com/uber/jaeger-lib/metrics"
 	"go.uber.org/zap"
 
@@ -86,7 +86,7 @@ func (s *SamplingStore) GetThroughput(start, end time.Time) ([]*model.Throughput
 		throughput = append(throughput, s.stringToThroughput(throughputStr)...)
 	}
 	if err := iter.Close(); err != nil {
-		err = errors.Wrap(err, "Error reading throughput from storage")
+		err = fmt.Errorf("error reading throughput from storage: %w", err)
 		return nil, err
 	}
 	return throughput, nil
@@ -109,7 +109,7 @@ func (s *SamplingStore) GetLatestProbabilities() (model.ServiceOperationProbabil
 	var probabilitiesStr string
 	iter.Scan(&probabilitiesStr)
 	if err := iter.Close(); err != nil {
-		err = errors.Wrap(err, "Error reading probabilities from storage")
+		err = fmt.Errorf("error reading probabilities from storage: %w", err)
 		return nil, err
 	}
 	return s.stringToProbabilities(probabilitiesStr), nil
@@ -124,7 +124,7 @@ func (s *SamplingStore) GetProbabilitiesAndQPS(start, end time.Time) (map[string
 		hostProbabilitiesAndQPS[host] = append(hostProbabilitiesAndQPS[host], s.stringToProbabilitiesAndQPS(probabilitiesAndQPSStr))
 	}
 	if err := iter.Close(); err != nil {
-		err = errors.Wrap(err, "Error reading probabilities and qps from storage")
+		err = fmt.Errorf("error reading probabilities and qps from storage: %w", err)
 		return nil, err
 	}
 	return hostProbabilitiesAndQPS, nil

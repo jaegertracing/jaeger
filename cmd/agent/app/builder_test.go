@@ -144,7 +144,7 @@ func TestBuilderWithProcessorErrors(t *testing.T) {
 		_, err := cfg.CreateAgent(&fakeCollectorProxy{}, zap.NewNop(), metrics.NullFactory)
 		assert.Error(t, err)
 		if testCase.err != "" {
-			assert.EqualError(t, err, testCase.err)
+			assert.Contains(t, err.Error(), testCase.err)
 		} else if testCase.errContains != "" {
 			assert.True(t, strings.Contains(err.Error(), testCase.errContains), "error must contain %s", testCase.errContains)
 		}

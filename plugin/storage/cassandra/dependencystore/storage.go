@@ -16,9 +16,10 @@
 package dependencystore
 
 import (
+	"errors"
+	"fmt"
 	"time"
 
-	"github.com/pkg/errors"
 	"github.com/uber/jaeger-lib/metrics"
 	"go.uber.org/zap"
 
@@ -133,7 +134,7 @@ func (s *DependencyStore) GetDependencies(endTs time.Time, lookback time.Duratio
 
 	if err := iter.Close(); err != nil {
 		s.logger.Error("Failure to read Dependencies", zap.Time("endTs", endTs), zap.Duration("lookback", lookback), zap.Error(err))
-		return nil, errors.Wrap(err, "Error reading dependencies from storage")
+		return nil, fmt.Errorf("error reading dependencies from storage: %w", err)
 	}
 	return mDependency, nil
 }

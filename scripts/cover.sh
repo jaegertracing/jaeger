@@ -52,8 +52,13 @@ for pkg in "$@"; do
 		args="-coverprofile $COVER/cover.${i}.out" # -coverpkg $coverpkg
 	fi
 
-	echo go test $args -v -race "$pkg"
-	go test $args -v -race "$pkg"
+	if [[ $(uname -m) == 's390x' ]]; then
+		echo go test $args -v "$pkg"
+		go test $args -v "$pkg"
+	else
+		echo go test $args -v -race "$pkg"
+		go test $args -v -race "$pkg"
+	fi
 done
 
 gocovmerge "$COVER"/*.out > cover.out

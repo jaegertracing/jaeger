@@ -16,9 +16,11 @@
 package app
 
 import (
+	"net/http"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
+	"go.uber.org/zap"
 
 	"github.com/jaegertracing/jaeger/pkg/config"
 )
@@ -30,10 +32,52 @@ func TestQueryBuilderFlags(t *testing.T) {
 		"--query.ui-config=some.json",
 		"--query.base-path=/jaeger",
 		"--query.port=80",
+		"--query.additional-headers=access-control-allow-origin:blerg",
+		"--query.additional-headers=whatever:thing",
 	})
-	qOpts := new(QueryOptions).InitFromViper(v)
+	qOpts := new(QueryOptions).InitFromViper(v, zap.NewNop())
 	assert.Equal(t, "/dev/null", qOpts.StaticAssets)
 	assert.Equal(t, "some.json", qOpts.UIConfig)
 	assert.Equal(t, "/jaeger", qOpts.BasePath)
 	assert.Equal(t, 80, qOpts.Port)
+	assert.Equal(t, http.Header{
+		"Access-Control-Allow-Origin": []string{"blerg"},
+		"Whatever":                    []string{"thing"},
+	}, qOpts.AdditionalHeaders)
+}
+
+func TestQueryBuilderBadHeadersFlags(t *testing.T) {
+	v, command := config.Viperize(AddFlags)
+	command.ParseFlags([]string{
+		"--query.additional-headers=malformedheader",
+	})
+	qOpts := new(QueryOptions).InitFromViper(v, zap.NewNop())
+	assert.Nil(t, qOpts.AdditionalHeaders)
+}
+
+func TestStringSliceAsHeader(t *testing.T) {
+	headers := []string{
+		"Access-Control-Allow-Origin: https://mozilla.org",
+		"Access-Control-Expose-Headers: X-My-Custom-Header",
+		"Access-Control-Expose-Headers: X-Another-Custom-Header",
+	}
+
+	parsedHeaders, err := stringSliceAsHeader(headers)
+
+	assert.Equal(t, []string{"https://mozilla.org"}, parsedHeaders["Access-Control-Allow-Origin"])
+	assert.Equal(t, []string{"X-My-Custom-Header", "X-Another-Custom-Header"}, parsedHeaders["Access-Control-Expose-Headers"])
+	assert.NoError(t, err)
+
+	malformedHeaders := append(headers, "this is not a valid header")
+	parsedHeaders, err = stringSliceAsHeader(malformedHeaders)
+	assert.Nil(t, parsedHeaders)
+	assert.Error(t, err)
+
+	parsedHeaders, err = stringSliceAsHeader([]string{})
+	assert.Nil(t, parsedHeaders)
+	assert.NoError(t, err)
+
+	parsedHeaders, err = stringSliceAsHeader(nil)
+	assert.Nil(t, parsedHeaders)
+	assert.NoError(t, err)
 }

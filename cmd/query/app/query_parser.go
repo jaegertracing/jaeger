@@ -23,8 +23,6 @@ import (
 	"strings"
 	"time"
 
-	"github.com/pkg/errors"
-
 	"github.com/jaegertracing/jaeger/model"
 	"github.com/jaegertracing/jaeger/storage/spanstore"
 )
@@ -121,7 +119,7 @@ func (p *queryParser) parse(r *http.Request) (*traceQueryParameters, error) {
 		if traceID, err := model.TraceIDFromString(id); err == nil {
 			traceIDs = append(traceIDs, traceID)
 		} else {
-			return nil, errors.Wrap(err, "cannot parse traceID param")
+			return nil, fmt.Errorf("cannot parse traceID param: %w", err)
 		}
 	}
 
@@ -165,7 +163,7 @@ func (p *queryParser) parseDuration(durationParam string, r *http.Request) (time
 	if len(durationInput) > 0 {
 		duration, err := time.ParseDuration(durationInput)
 		if err != nil {
-			return 0, errors.Wrapf(err, "cannot not parse %s", durationParam)
+			return 0, fmt.Errorf("cannot not parse %s: %w", durationParam, err)
 		}
 		return duration, nil
 	}

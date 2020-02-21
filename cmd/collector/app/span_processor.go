@@ -16,41 +16,46 @@
 package app
 
 import (
+	"sync"
 	"time"
 
 	tchannel "github.com/uber/tchannel-go"
+	"go.uber.org/atomic"
 	"go.uber.org/zap"
 
+	"github.com/jaegertracing/jaeger/cmd/collector/app/processor"
 	"github.com/jaegertracing/jaeger/cmd/collector/app/sanitizer"
 	"github.com/jaegertracing/jaeger/model"
 	"github.com/jaegertracing/jaeger/pkg/queue"
 	"github.com/jaegertracing/jaeger/storage/spanstore"
 )
 
-// ProcessSpansOptions additional options passed to processor along with the spans.
-type ProcessSpansOptions struct {
-	SpanFormat       SpanFormat
-	InboundTransport InboundTransport
-}
+const (
+	// if this proves to be too low, we can increase it
+	maxQueueSize = 1_000_000
 
-// SpanProcessor handles model spans
-type SpanProcessor interface {
-	// ProcessSpans processes model spans and return with either a list of true/false success or an error
-	ProcessSpans(mSpans []*model.Span, options ProcessSpansOptions) ([]bool, error)
-}
+	// if the new queue size isn't 20% bigger than the previous one, don't change
+	minRequiredChange = 1.2
+)
 
 type spanProcessor struct {
-	queue           *queue.BoundedQueue
-	metrics         *SpanProcessorMetrics
-	preProcessSpans ProcessSpans
-	filterSpan      FilterSpan             // filter is called before the sanitizer but after preProcessSpans
-	sanitizer       sanitizer.SanitizeSpan // sanitizer is called before processSpan
-	processSpan     ProcessSpan
-	logger          *zap.Logger
-	spanWriter      spanstore.Writer
-	reportBusy      bool
-	numWorkers      int
-	collectorTags   map[string]string
+	queue              *queue.BoundedQueue
+	queueResizeMu      sync.Mutex
+	metrics            *SpanProcessorMetrics
+	preProcessSpans    ProcessSpans
+	filterSpan         FilterSpan             // filter is called before the sanitizer but after preProcessSpans
+	sanitizer          sanitizer.SanitizeSpan // sanitizer is called before processSpan
+	processSpan        ProcessSpan
+	logger             *zap.Logger
+	spanWriter         spanstore.Writer
+	reportBusy         bool
+	numWorkers         int
+	collectorTags      map[string]string
+	dynQueueSizeWarmup uint
+	dynQueueSizeMemory uint
+	bytesProcessed     *atomic.Uint64
+	spansProcessed     *atomic.Uint64
+	stopCh             chan struct{}
 }
 
 type queueItem struct {
@@ -62,7 +67,7 @@ type queueItem struct {
 func NewSpanProcessor(
 	spanWriter spanstore.Writer,
 	opts ...Option,
-) SpanProcessor {
+) processor.SpanProcessor {
 	sp := newSpanProcessor(spanWriter, opts...)
 
 	sp.queue.StartConsumers(sp.numWorkers, func(item interface{}) {
@@ -70,7 +75,11 @@ func NewSpanProcessor(
 		sp.processItemFromQueue(value)
 	})
 
-	sp.queue.StartLengthReporting(1*time.Second, sp.metrics.QueueLength)
+	sp.background(1*time.Second, sp.updateGauges)
+
+	if sp.dynQueueSizeMemory > 0 {
+		sp.background(1*time.Minute, sp.updateQueueSize)
+	}
 
 	return sp
 }
@@ -87,27 +96,39 @@ func newSpanProcessor(spanWriter spanstore.Writer, opts ...Option) *spanProcesso
 	boundedQueue := queue.NewBoundedQueue(options.queueSize, droppedItemHandler)
 
 	sp := spanProcessor{
-		queue:           boundedQueue,
-		metrics:         handlerMetrics,
-		logger:          options.logger,
-		preProcessSpans: options.preProcessSpans,
-		filterSpan:      options.spanFilter,
-		sanitizer:       options.sanitizer,
-		reportBusy:      options.reportBusy,
-		numWorkers:      options.numWorkers,
-		spanWriter:      spanWriter,
-		collectorTags:   options.collectorTags,
+		queue:              boundedQueue,
+		metrics:            handlerMetrics,
+		logger:             options.logger,
+		preProcessSpans:    options.preProcessSpans,
+		filterSpan:         options.spanFilter,
+		sanitizer:          options.sanitizer,
+		reportBusy:         options.reportBusy,
+		numWorkers:         options.numWorkers,
+		spanWriter:         spanWriter,
+		collectorTags:      options.collectorTags,
+		stopCh:             make(chan struct{}),
+		dynQueueSizeMemory: options.dynQueueSizeMemory,
+		dynQueueSizeWarmup: options.dynQueueSizeWarmup,
+		bytesProcessed:     atomic.NewUint64(0),
+		spansProcessed:     atomic.NewUint64(0),
 	}
-	sp.processSpan = ChainedProcessSpan(
-		options.preSave,
-		sp.saveSpan,
-	)
 
+	processSpanFuncs := []ProcessSpan{options.preSave, sp.saveSpan}
+	if options.dynQueueSizeMemory > 0 {
+		// add to processSpanFuncs
+		options.logger.Info("Dynamically adjusting the queue size at runtime.",
+			zap.Uint("memory-mib", options.dynQueueSizeMemory/1024/1024),
+			zap.Uint("queue-size-warmup", options.dynQueueSizeWarmup))
+		processSpanFuncs = append(processSpanFuncs, sp.countSpan)
+	}
+
+	sp.processSpan = ChainedProcessSpan(processSpanFuncs...)
 	return &sp
 }
 
 // Stop halts the span processor and all its go-routines.
 func (sp *spanProcessor) Stop() {
+	close(sp.stopCh)
 	sp.queue.Stop()
 }
 
@@ -130,7 +151,12 @@ func (sp *spanProcessor) saveSpan(span *model.Span) {
 	sp.metrics.SaveLatency.Record(time.Since(startTime))
 }
 
-func (sp *spanProcessor) ProcessSpans(mSpans []*model.Span, options ProcessSpansOptions) ([]bool, error) {
+func (sp *spanProcessor) countSpan(span *model.Span) {
+	sp.bytesProcessed.Add(uint64(span.Size()))
+	sp.spansProcessed.Inc()
+}
+
+func (sp *spanProcessor) ProcessSpans(mSpans []*model.Span, options processor.SpansOptions) ([]bool, error) {
 	sp.preProcessSpans(mSpans)
 	sp.metrics.BatchSize.Update(int64(len(mSpans)))
 	retMe := make([]bool, len(mSpans))
@@ -156,7 +182,7 @@ func (sp *spanProcessor) addCollectorTags(span *model.Span) {
 	}
 }
 
-func (sp *spanProcessor) enqueueSpan(span *model.Span, originalFormat SpanFormat, transport InboundTransport) bool {
+func (sp *spanProcessor) enqueueSpan(span *model.Span, originalFormat processor.SpanFormat, transport processor.InboundTransport) bool {
 	spanCounts := sp.metrics.GetCountsForFormat(originalFormat, transport)
 	spanCounts.ReceivedBySvc.ReportServiceNameForSpan(span)
 
@@ -176,4 +202,68 @@ func (sp *spanProcessor) enqueueSpan(span *model.Span, originalFormat SpanFormat
 		span:       span,
 	}
 	return sp.queue.Produce(item)
+}
+
+func (sp *spanProcessor) background(reportPeriod time.Duration, callback func()) {
+	go func() {
+		ticker := time.NewTicker(reportPeriod)
+		defer ticker.Stop()
+		for {
+			select {
+			case <-ticker.C:
+				callback()
+			case <-sp.stopCh:
+				return
+			}
+		}
+	}()
+}
+
+func (sp *spanProcessor) updateQueueSize() {
+	if sp.dynQueueSizeWarmup == 0 {
+		return
+	}
+
+	if sp.dynQueueSizeMemory == 0 {
+		return
+	}
+
+	if sp.spansProcessed.Load() < uint64(sp.dynQueueSizeWarmup) {
+		return
+	}
+
+	sp.queueResizeMu.Lock()
+	defer sp.queueResizeMu.Unlock()
+
+	// first, we get the average size of a span, by dividing the bytes processed by num of spans
+	average := sp.bytesProcessed.Load() / sp.spansProcessed.Load()
+
+	// finally, we divide the available memory by the average size of a span
+	idealQueueSize := float64(sp.dynQueueSizeMemory / uint(average))
+
+	// cap the queue size, just to be safe...
+	if idealQueueSize > maxQueueSize {
+		idealQueueSize = maxQueueSize
+	}
+
+	var diff float64
+	current := float64(sp.queue.Capacity())
+	if idealQueueSize > current {
+		diff = idealQueueSize / current
+	} else {
+		diff = current / idealQueueSize
+	}
+
+	// resizing is a costly operation, we only perform it if we are at least n% apart from the desired value
+	if diff > minRequiredChange {
+		s := int(idealQueueSize)
+		sp.logger.Info("Resizing the internal span queue", zap.Int("new-size", s), zap.Uint64("average-span-size-bytes", average))
+		sp.queue.Resize(s)
+	}
+}
+
+func (sp *spanProcessor) updateGauges() {
+	sp.metrics.SpansBytes.Update(int64(sp.bytesProcessed.Load()))
+	sp.metrics.QueueLength.Update(int64(sp.queue.Size()))
+	sp.metrics.QueueCapacity.Update(int64(sp.queue.Capacity()))
 }

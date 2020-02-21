@@ -15,6 +15,7 @@
 package static
 
 import (
+	"fmt"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -27,11 +28,11 @@ import (
 
 func TestStrategyStore(t *testing.T) {
 	_, err := NewStrategyStore(Options{StrategiesFile: "fileNotFound.json"}, zap.NewNop())
-	assert.EqualError(t, err, "Failed to open strategies file: open fileNotFound.json: no such file or directory")
+	assert.EqualError(t, err, "failed to open strategies file: open fileNotFound.json: no such file or directory")
 
 	_, err = NewStrategyStore(Options{StrategiesFile: "fixtures/bad_strategies.json"}, zap.NewNop())
 	assert.EqualError(t, err,
-		"Failed to unmarshal strategies: json: cannot unmarshal string into Go value of type static.strategies")
+		"failed to unmarshal strategies: json: cannot unmarshal string into Go value of type static.strategies")
 
 	// Test default strategy
 	logger, buf := testutils.NewLogger()
@@ -77,9 +78,16 @@ func TestPerOperationSamplingStrategies(t *testing.T) {
 	require.NotNil(t, s.OperationSampling)
 	os := s.OperationSampling
 	assert.EqualValues(t, os.DefaultSamplingProbability, 0.8)
-	require.Len(t, os.PerOperationStrategies, 1)
-	assert.Equal(t, "op1", os.PerOperationStrategies[0].Operation)
-	assert.EqualValues(t, 0.2, os.PerOperationStrategies[0].ProbabilisticSampling.SamplingRate)
+	require.Len(t, os.PerOperationStrategies, 4)
+	fmt.Println(os)
+	assert.Equal(t, "op6", os.PerOperationStrategies[0].Operation)
+	assert.EqualValues(t, 0.5, os.PerOperationStrategies[0].ProbabilisticSampling.SamplingRate)
+	assert.Equal(t, "op1", os.PerOperationStrategies[1].Operation)
+	assert.EqualValues(t, 0.2, os.PerOperationStrategies[1].ProbabilisticSampling.SamplingRate)
+	assert.Equal(t, "op0", os.PerOperationStrategies[2].Operation)
+	assert.EqualValues(t, 0.2, os.PerOperationStrategies[2].ProbabilisticSampling.SamplingRate)
+	assert.Equal(t, "op7", os.PerOperationStrategies[3].Operation)
+	assert.EqualValues(t, 1, os.PerOperationStrategies[3].ProbabilisticSampling.SamplingRate)
 
 	expected = makeResponse(sampling.SamplingStrategyType_RATE_LIMITING, 5)
 
@@ -91,15 +99,45 @@ func TestPerOperationSamplingStrategies(t *testing.T) {
 	require.NotNil(t, s.OperationSampling)
 	os = s.OperationSampling
 	assert.EqualValues(t, os.DefaultSamplingProbability, 0.001)
-	require.Len(t, os.PerOperationStrategies, 2)
+	require.Len(t, os.PerOperationStrategies, 5)
 	assert.Equal(t, "op3", os.PerOperationStrategies[0].Operation)
 	assert.EqualValues(t, 0.3, os.PerOperationStrategies[0].ProbabilisticSampling.SamplingRate)
 	assert.Equal(t, "op5", os.PerOperationStrategies[1].Operation)
 	assert.EqualValues(t, 0.4, os.PerOperationStrategies[1].ProbabilisticSampling.SamplingRate)
+	assert.Equal(t, "op0", os.PerOperationStrategies[2].Operation)
+	assert.EqualValues(t, 0.2, os.PerOperationStrategies[2].ProbabilisticSampling.SamplingRate)
+	assert.Equal(t, "op6", os.PerOperationStrategies[3].Operation)
+	assert.EqualValues(t, 0, os.PerOperationStrategies[3].ProbabilisticSampling.SamplingRate)
+	assert.Equal(t, "op7", os.PerOperationStrategies[4].Operation)
+	assert.EqualValues(t, 1, os.PerOperationStrategies[4].ProbabilisticSampling.SamplingRate)
 
 	s, err = store.GetSamplingStrategy("default")
 	require.NoError(t, err)
-	assert.EqualValues(t, makeResponse(sampling.SamplingStrategyType_PROBABILISTIC, 0.5), *s)
+	expectedRsp := makeResponse(sampling.SamplingStrategyType_PROBABILISTIC, 0.5)
+	expectedRsp.OperationSampling = &sampling.PerOperationSamplingStrategies{
+		DefaultSamplingProbability: 0.5,
+		PerOperationStrategies: []*sampling.OperationSamplingStrategy{
+			{
+				Operation: "op0",
+				ProbabilisticSampling: &sampling.ProbabilisticSamplingStrategy{
+					SamplingRate: 0.2,
+				},
+			},
+			{
+				Operation: "op6",
+				ProbabilisticSampling: &sampling.ProbabilisticSamplingStrategy{
+					SamplingRate: 0,
+				},
+			},
+			{
+				Operation: "op7",
+				ProbabilisticSampling: &sampling.ProbabilisticSamplingStrategy{
+					SamplingRate: 1,
+				},
+			},
+		},
+	}
+	assert.EqualValues(t, expectedRsp, *s)
 }
 
 func TestMissingServiceSamplingStrategyTypes(t *testing.T) {

@@ -20,7 +20,6 @@ import (
 	"io"
 	"os"
 
-	"github.com/pkg/errors"
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
 	"github.com/uber/jaeger-lib/metrics"
@@ -69,12 +68,12 @@ func main() {
 			builder := new(app.Builder).InitFromViper(v)
 			agent, err := builder.CreateAgent(cp, logger, mFactory)
 			if err != nil {
-				return errors.Wrap(err, "unable to initialize Jaeger Agent")
+				return fmt.Errorf("unable to initialize Jaeger Agent: %w", err)
 			}
 
 			logger.Info("Starting agent")
 			if err := agent.Run(); err != nil {
-				return errors.Wrap(err, "failed to run the agent")
+				return fmt.Errorf("failed to run the agent: %w", err)
 			}
 			svc.RunAndThen(func() {
 				if closer, ok := cp.(io.Closer); ok {

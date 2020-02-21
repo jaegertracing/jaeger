@@ -491,7 +491,7 @@ func testGet(typ string, t *testing.T) {
 		caption        string
 		searchResult   *elastic.SearchResult
 		searchError    error
-		expectedError  string
+		expectedError  func() string
 		expectedOutput map[string]interface{}
 	}{
 		{
@@ -501,16 +501,26 @@ func testGet(typ string, t *testing.T) {
 				operationsAggregation: []spanstore.Operation{{Name: "123"}},
 				"default":             []string{"123"},
 			},
+			expectedError: func() string {
+				return ""
+			},
 		},
 		{
-			caption:       typ + " search error",
-			searchError:   errors.New("Search failure"),
-			expectedError: "Search service failed: Search failure",
+			caption:     typ + " search error",
+			searchError: errors.New("Search failure"),
+			expectedError: func() string {
+				if typ == operationsAggregation {
+					return "search operations failed: Search failure"
+				}
+				return "search services failed: Search failure"
+			},
 		},
 		{
-			caption:       typ + " search error",
-			searchResult:  &elastic.SearchResult{Aggregations: elastic.Aggregations(badAggregations)},
-			expectedError: "Could not find aggregation of " + typ,
+			caption:      typ + " search error",
+			searchResult: &elastic.SearchResult{Aggregations: elastic.Aggregations(badAggregations)},
+			expectedError: func() string {
+				return "could not find aggregation of " + typ
+			},
 		},
 	}
 
@@ -520,8 +530,8 @@ func testGet(typ string, t *testing.T) {
 			withSpanReader(func(r *spanReaderTest) {
 				mockSearchService(r).Return(testCase.searchResult, testCase.searchError)
 				actual, err := returnSearchFunc(typ, r)
-				if testCase.expectedError != "" {
-					require.EqualError(t, err, testCase.expectedError)
+				if testCase.expectedError() != "" {
+					require.EqualError(t, err, testCase.expectedError())
 					assert.Nil(t, actual)
 				} else if expectedOutput, ok := testCase.expectedOutput[typ]; ok {
 					assert.EqualValues(t, expectedOutput, actual)
@@ -568,7 +578,7 @@ func TestSpanReader_bucketToStringArrayError(t *testing.T) {
 		buckets[2] = &elastic.AggregationBucketKeyItem{Key: 2}
 
 		_, err := bucketToStringArray(buckets)
-		assert.EqualError(t, err, "Non-string key found in aggregation")
+		assert.EqualError(t, err, "non-string key found in aggregation")
 	})
 }
 
@@ -804,7 +814,7 @@ func TestTraceIDsStringsToModelsConversion(t *testing.T) {
 	assert.Equal(t, model.NewTraceID(0, 1), traceIDs[0])
 
 	traceIDs, err = convertTraceIDsStringsToModels([]string{"dsfjsdklfjdsofdfsdbfkgbgoaemlrksdfbsdofgerjl"})
-	assert.EqualError(t, err, "Making traceID from string 'dsfjsdklfjdsofdfsdbfkgbgoaemlrksdfbsdofgerjl' failed: TraceID cannot be longer than 32 hex characters: dsfjsdklfjdsofdfsdbfkgbgoaemlrksdfbsdofgerjl")
+	assert.EqualError(t, err, "making traceID from string 'dsfjsdklfjdsofdfsdbfkgbgoaemlrksdfbsdofgerjl' failed: TraceID cannot be longer than 32 hex characters: dsfjsdklfjdsofdfsdbfkgbgoaemlrksdfbsdofgerjl")
 	assert.Equal(t, 0, len(traceIDs))
 }
 

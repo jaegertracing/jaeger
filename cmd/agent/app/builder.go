@@ -109,7 +109,7 @@ func (b *Builder) CreateAgent(primaryProxy CollectorProxy, logger *zap.Logger, m
 	r := b.getReporter(primaryProxy)
 	processors, err := b.getProcessors(r, mFactory, logger)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("cannot create processors: %w", err)
 	}
 	server := b.HTTPServer.getHTTPServer(primaryProxy.GetManager(), mFactory)
 	return NewAgent(processors, server, logger), nil
@@ -149,7 +149,7 @@ func (b *Builder) getProcessors(rep reporter.Reporter, mFactory metrics.Factory,
 		}})
 		processor, err := cfg.GetThriftProcessor(metrics, protoFactory, handler, logger)
 		if err != nil {
-			return nil, err
+			return nil, fmt.Errorf("cannot create Thrift Processor: %w", err)
 		}
 		retMe[idx] = processor
 	}
@@ -175,7 +175,7 @@ func (c *ProcessorConfiguration) GetThriftProcessor(
 
 	server, err := c.Server.getUDPServer(mFactory)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("cannot create UDP Server: %w", err)
 	}
 
 	return processors.NewThriftProcessor(server, c.Workers, mFactory, factory, handler, logger)
@@ -199,7 +199,7 @@ func (c *ServerConfiguration) getUDPServer(mFactory metrics.Factory) (servers.Se
 	}
 	transport, err := thriftudp.NewTUDPServerTransport(c.HostPort)
 	if err != nil {
-		return nil, err
+		return nil, fmt.Errorf("cannot create UDPServerTransport: %w", err)
 	}
 
 	return servers.NewTBufferedServer(transport, c.QueueSize, c.MaxPacketSize, mFactory)

@@ -22,12 +22,11 @@ import (
 	"github.com/jaegertracing/jaeger/cmd/agent/app/configmanager"
 	grpcManager "github.com/jaegertracing/jaeger/cmd/agent/app/configmanager/grpc"
 	"github.com/jaegertracing/jaeger/cmd/agent/app/reporter"
-	aReporter "github.com/jaegertracing/jaeger/cmd/agent/app/reporter"
 )
 
 // ProxyBuilder holds objects communicating with collector
 type ProxyBuilder struct {
-	reporter aReporter.Reporter
+	reporter *reporter.ClientMetricsReporter
 	manager  configmanager.ClientConfigManager
 	conn     *grpc.ClientConn
 }
@@ -39,9 +38,16 @@ func NewCollectorProxy(builder *ConnBuilder, agentTags map[string]string, mFacto
 		return nil, err
 	}
 	grpcMetrics := mFactory.Namespace(metrics.NSOptions{Name: "", Tags: map[string]string{"protocol": "grpc"}})
+	r1 := NewReporter(conn, agentTags, logger)
+	r2 := reporter.WrapWithMetrics(r1, grpcMetrics)
+	r3 := reporter.WrapWithClientMetrics(reporter.ClientMetricsReporterParams{
+		Reporter:       r2,
+		Logger:         logger,
+		MetricsFactory: mFactory,
+	})
 	return &ProxyBuilder{
 		conn:     conn,
-		reporter: reporter.WrapWithMetrics(NewReporter(conn, agentTags, logger), grpcMetrics),
+		reporter: r3,
 		manager:  configmanager.WrapWithMetrics(grpcManager.NewConfigManager(conn), grpcMetrics),
 	}, nil
 }
@@ -52,7 +58,7 @@ func (b ProxyBuilder) GetConn() *grpc.ClientConn {
 }
 
 // GetReporter returns Reporter
-func (b ProxyBuilder) GetReporter() aReporter.Reporter {
+func (b ProxyBuilder) GetReporter() reporter.Reporter {
 	return b.reporter
 }
 
@@ -63,5 +69,6 @@ func (b ProxyBuilder) GetManager() configmanager.ClientConfigManager {
 
 // Close closes connections used by proxy.
 func (b ProxyBuilder) Close() error {
+	b.reporter.Close()
 	return b.conn.Close()
 }

@@ -33,8 +33,13 @@ function stage-platform-files {
 function package {
     local PLATFORM=$1
     local FILE_EXTENSION=$2
-
-    local PACKAGE_STAGING_DIR=jaeger-$VERSION-$PLATFORM-amd64
+    # script start
+    if [ "$PLATFORM" == "linux-s390x" ]; then
+        local PACKAGE_STAGING_DIR=jaeger-$VERSION-$PLATFORM
+    else
+        local PACKAGE_STAGING_DIR=jaeger-$VERSION-$PLATFORM-amd64
+    fi
+    
     mkdir $PACKAGE_STAGING_DIR
 
     stage-platform-files $PLATFORM $PACKAGE_STAGING_DIR $FILE_EXTENSION
@@ -42,6 +47,7 @@ function package {
     local ARCHIVE_NAME="$PACKAGE_STAGING_DIR.tar.gz"
     echo "Packaging into $ARCHIVE_NAME:"
     tar -czvf ./deploy/$ARCHIVE_NAME $PACKAGE_STAGING_DIR
+    rm -rf $PACKAGE_STAGING_DIR
 }
 
 # script start
@@ -64,3 +70,4 @@ mkdir $DEPLOY_STAGING_DIR
 package linux
 package darwin
 package windows .exe
+package linux-s390x

@@ -13,9 +13,9 @@ from requests.auth import HTTPBasicAuth
 
 
 ARCHIVE_INDEX = 'jaeger-span-archive'
-ROLLBACK_CONDITIONS = '{"max_age": "7d"}'
+ROLLBACK_CONDITIONS = '{"max_age": "2d"}'
 UNIT = 'days'
-UNIT_COUNT = 7
+UNIT_COUNT = 2
 SHARDS = 5
 REPLICAS = 1
 

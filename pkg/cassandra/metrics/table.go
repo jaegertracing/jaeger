@@ -16,9 +16,9 @@
 package metrics
 
 import (
+	"fmt"
 	"time"
 
-	"github.com/pkg/errors"
 	"github.com/uber/jaeger-lib/metrics"
 	"go.uber.org/zap"
 
@@ -48,7 +48,7 @@ func (t *Table) Exec(query cassandra.UpdateQuery, logger *zap.Logger) error {
 		if logger != nil {
 			logger.Error("Failed to exec query", zap.String("query", queryString), zap.Error(err))
 		}
-		return errors.Wrapf(err, "failed to Exec query '%s'", queryString)
+		return fmt.Errorf("failed to Exec query '%s': %w", queryString, err)
 	}
 	return nil
 }

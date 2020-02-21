@@ -16,12 +16,12 @@ package grpcresolver
 
 import (
 	"context"
+	"errors"
 	"fmt"
 	"net"
 	"testing"
 	"time"
 
-	"github.com/pkg/errors"
 	"github.com/stretchr/testify/assert"
 	"go.uber.org/zap"
 	"google.golang.org/grpc"
@@ -118,7 +118,7 @@ func TestErrorDiscoverer(t *testing.T) {
 		err: errMessage,
 	}
 	r := New(notifier, discoverer, zap.NewNop(), 2)
-	_, err := r.Build(resolver.Target{}, nil, resolver.BuildOption{})
+	_, err := r.Build(resolver.Target{}, nil, resolver.BuildOptions{})
 	assert.Equal(t, errMessage, err)
 }
 
