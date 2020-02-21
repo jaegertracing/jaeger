@@ -26,7 +26,7 @@ UNAME := $(shell uname -m)
 ifeq ($(UNAME), s390x)
 	RACE=
 else ifeq ($(UNAME), ppc64le)
-  RACE=
+	RACE=
 else
 	RACE=-race
 endif
