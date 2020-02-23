@@ -1,7 +1,7 @@
 Changes by Version
 ==================
 
-1.17.0 (unreleased)
+1.18.0 (unreleased)
 ------------------
 
 ### Backend Changes
@@ -13,6 +13,53 @@ Changes by Version
 #### Bug fixes, Minor Improvements
 
 ### UI Changes
+
+1.17.0 (2020-02-22)
+------------------
+
+### Backend Changes
+
+#### Breaking Changes
+
+#### New Features
+
+* Add service as a command line option ([#2080](https://github.com/jaegertracing/jaeger/pull/2080), [@kevinearls](https://github.com/kevinearls))
+* Allow the Configuration of Additional Headers on the Jaeger Query HTTP API ([#2056](https://github.com/jaegertracing/jaeger/pull/2056), [@joe-elliott](https://github.com/joe-elliott))
+* Warn about time adjustment in tags ([#2052](https://github.com/jaegertracing/jaeger/pull/2052), [@bobrik](https://github.com/bobrik))
+* Add CLI flags for Kafka batching params ([#2047](https://github.com/jaegertracing/jaeger/pull/2047), [@apm-opentt](https://github.com/apm-opentt))
+* Add common TLS configuration ([#1838](https://github.com/jaegertracing/jaeger/pull/1838), [@backjo](https://github.com/backjo))
+* Added support for dynamic queue sizes ([#1985](https://github.com/jaegertracing/jaeger/pull/1985), [@jpkrohling](https://github.com/jpkrohling))
+* Agent: Process data loss stats from clients ([#2010](https://github.com/jaegertracing/jaeger/pull/2010), [@yurishkuro](https://github.com/yurishkuro))
+* Add /api/sampling endpoint in collector ([#1990](https://github.com/jaegertracing/jaeger/pull/1990), [@RickyRajinder](https://github.com/RickyRajinder))
+* Add basic authentication to Kafka storage ([#1983](https://github.com/jaegertracing/jaeger/pull/1983), [@chandresh-pancholi](https://github.com/chandresh-pancholi))
+* Make operation_strategies part also be part of default_strategy  ([#1749](https://github.com/jaegertracing/jaeger/pull/1749), [@rutgerbrf](https://github.com/rutgerbrf))
+
+#### Bug fixes, Minor Improvements
+
+* Upgrade gRPC to ^1.26 ([#2077](https://github.com/jaegertracing/jaeger/pull/2077), [@yurishkuro](https://github.com/yurishkuro))
+* Remove pkg/errors from dependencies ([#2073](https://github.com/jaegertracing/jaeger/pull/2073), [@yurishkuro](https://github.com/yurishkuro))
+* Update dependencies, pin grpc<1.27 ([#2072](https://github.com/jaegertracing/jaeger/pull/2072), [@yurishkuro](https://github.com/yurishkuro))
+* Replace pkg/errors wrapping with fmt.Errorf ([#2070](https://github.com/jaegertracing/jaeger/pull/2070), [@u5surf](https://github.com/u5surf))
+* Refactor collector mains ([#2060](https://github.com/jaegertracing/jaeger/pull/2060), [@jpkrohling](https://github.com/jpkrohling))
+* Clarify that "kafka" is not a real storage backend ([#2066](https://github.com/jaegertracing/jaeger/pull/2066), [@yurishkuro](https://github.com/yurishkuro))
+* Added -trimpath option to go build ([#2064](https://github.com/jaegertracing/jaeger/pull/2064), [@kadern0](https://github.com/kadern0))
+* Use memory size flag to activate dyn queue size feature ([#2059](https://github.com/jaegertracing/jaeger/pull/2059), [@jpkrohling](https://github.com/jpkrohling))
+* Add before you push to the queue to prevent race condition on size ([#2044](https://github.com/jaegertracing/jaeger/pull/2044), [@joe-elliott](https://github.com/joe-elliott))
+* Count received batches from conforming clients ([#2030](https://github.com/jaegertracing/jaeger/pull/2030), [@yurishkuro](https://github.com/yurishkuro))
+* Agent: Do not increment data loss counters on the first client batch ([#2028](https://github.com/jaegertracing/jaeger/pull/2028), [@yurishkuro](https://github.com/yurishkuro))
+* Allow raw port numbers for UDP servers ([#2025](https://github.com/jaegertracing/jaeger/pull/2025), [@yurishkuro](https://github.com/yurishkuro))
+* Publish tracegen ([#2022](https://github.com/jaegertracing/jaeger/pull/2022), [@jpkrohling](https://github.com/jpkrohling))
+* Build binaries for Linux on IBM Z / s390x architecture ([#1982](https://github.com/jaegertracing/jaeger/pull/1982), [@prankkelkar](https://github.com/prankkelkar))
+* Admin/Query: Log the real port instead of the provided one to enable the use of port 0 ([#2002](https://github.com/jaegertracing/jaeger/pull/2002), [@ChadiEM](https://github.com/ChadiEM))
+* Upgrade dependencies `dep ensure --update` ([#2012](https://github.com/jaegertracing/jaeger/pull/2012), [@yurishkuro](https://github.com/yurishkuro))
+* Split agent's HTTP server and handler ([#1996](https://github.com/jaegertracing/jaeger/pull/1996), [@yurishkuro](https://github.com/yurishkuro))
+* Clean-up collector handlers builder ([#1991](https://github.com/jaegertracing/jaeger/pull/1991), [@yurishkuro](https://github.com/yurishkuro))
+* Added 'resize' operation to BoundedQueue ([#1948](https://github.com/jaegertracing/jaeger/pull/1949), [@jpkrohling](https://github.com/jpkrohling))
+* Make script executable ([#1981](https://github.com/jaegertracing/jaeger/pull/1981), [@yurishkuro](https://github.com/yurishkuro))
+
+### UI Changes
+
+* UI pinned to version 1.7.0. The changelog is available here [v1.7.0](https://github.com/jaegertracing/jaeger-ui/blob/master/CHANGELOG.md#v170-february-21-2020)
 
 1.16.0 (2019-12-17)
 ------------------
