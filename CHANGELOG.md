@@ -23,13 +23,13 @@ Changes by Version
 
 #### New Features
 
-* Add service as a command line option ([#2080](https://github.com/jaegertracing/jaeger/pull/2080), [@kevinearls](https://github.com/kevinearls))
+* [tracegen] Add service name as a command line option ([#2080](https://github.com/jaegertracing/jaeger/pull/2080), [@kevinearls](https://github.com/kevinearls))
 * Allow the Configuration of Additional Headers on the Jaeger Query HTTP API ([#2056](https://github.com/jaegertracing/jaeger/pull/2056), [@joe-elliott](https://github.com/joe-elliott))
 * Warn about time adjustment in tags ([#2052](https://github.com/jaegertracing/jaeger/pull/2052), [@bobrik](https://github.com/bobrik))
 * Add CLI flags for Kafka batching params ([#2047](https://github.com/jaegertracing/jaeger/pull/2047), [@apm-opentt](https://github.com/apm-opentt))
 * Add common TLS configuration ([#1838](https://github.com/jaegertracing/jaeger/pull/1838), [@backjo](https://github.com/backjo))
 * Added support for dynamic queue sizes ([#1985](https://github.com/jaegertracing/jaeger/pull/1985), [@jpkrohling](https://github.com/jpkrohling))
-* Agent: Process data loss stats from clients ([#2010](https://github.com/jaegertracing/jaeger/pull/2010), [@yurishkuro](https://github.com/yurishkuro))
+* [agent] Process data loss stats from clients ([#2010](https://github.com/jaegertracing/jaeger/pull/2010), [@yurishkuro](https://github.com/yurishkuro))
 * Add /api/sampling endpoint in collector ([#1990](https://github.com/jaegertracing/jaeger/pull/1990), [@RickyRajinder](https://github.com/RickyRajinder))
 * Add basic authentication to Kafka storage ([#1983](https://github.com/jaegertracing/jaeger/pull/1983), [@chandresh-pancholi](https://github.com/chandresh-pancholi))
 * Make operation_strategies part also be part of default_strategy  ([#1749](https://github.com/jaegertracing/jaeger/pull/1749), [@rutgerbrf](https://github.com/rutgerbrf))
@@ -46,7 +46,7 @@ Changes by Version
 * Use memory size flag to activate dyn queue size feature ([#2059](https://github.com/jaegertracing/jaeger/pull/2059), [@jpkrohling](https://github.com/jpkrohling))
 * Add before you push to the queue to prevent race condition on size ([#2044](https://github.com/jaegertracing/jaeger/pull/2044), [@joe-elliott](https://github.com/joe-elliott))
 * Count received batches from conforming clients ([#2030](https://github.com/jaegertracing/jaeger/pull/2030), [@yurishkuro](https://github.com/yurishkuro))
-* Agent: Do not increment data loss counters on the first client batch ([#2028](https://github.com/jaegertracing/jaeger/pull/2028), [@yurishkuro](https://github.com/yurishkuro))
+* [agent] Do not increment data loss counters on the first client batch ([#2028](https://github.com/jaegertracing/jaeger/pull/2028), [@yurishkuro](https://github.com/yurishkuro))
 * Allow raw port numbers for UDP servers ([#2025](https://github.com/jaegertracing/jaeger/pull/2025), [@yurishkuro](https://github.com/yurishkuro))
 * Publish tracegen ([#2022](https://github.com/jaegertracing/jaeger/pull/2022), [@jpkrohling](https://github.com/jpkrohling))
 * Build binaries for Linux on IBM Z / s390x architecture ([#1982](https://github.com/jaegertracing/jaeger/pull/1982), [@prankkelkar](https://github.com/prankkelkar))
@@ -1075,4 +1075,3 @@ jaeger_query_responses_bucket{operation="find_traces",le="0.005"} 2
 ------------------
 
 First numbered release.
-
