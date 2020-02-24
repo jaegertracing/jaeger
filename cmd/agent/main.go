@@ -17,7 +17,6 @@ package main
 
 import (
 	"fmt"
-	"io"
 	"os"
 
 	"github.com/spf13/cobra"
@@ -76,9 +75,8 @@ func main() {
 				return fmt.Errorf("failed to run the agent: %w", err)
 			}
 			svc.RunAndThen(func() {
-				if closer, ok := cp.(io.Closer); ok {
-					closer.Close()
-				}
+				agent.Stop()
+				cp.Close()
 			})
 			return nil
 		},

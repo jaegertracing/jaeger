@@ -16,10 +16,11 @@
 package app
 
 import (
-	"io"
+	"context"
 	"net"
 	"net/http"
 	"sync/atomic"
+	"time"
 
 	"github.com/gorilla/mux"
 	"go.uber.org/zap"
@@ -33,7 +34,6 @@ type Agent struct {
 	httpServer *http.Server
 	httpAddr   atomic.Value // string, set once agent starts listening
 	logger     *zap.Logger
-	closer     io.Closer
 }
 
 // NewAgent creates the new Agent.
@@ -65,10 +65,9 @@ func (a *Agent) Run() error {
 		return err
 	}
 	a.httpAddr.Store(listener.Addr().String())
-	a.closer = listener
 	go func() {
 		a.logger.Info("Starting jaeger-agent HTTP server", zap.Int("http-port", listener.Addr().(*net.TCPAddr).Port))
-		if err := a.httpServer.Serve(listener); err != nil {
+		if err := a.httpServer.Serve(listener); err != http.ErrServerClosed {
 			a.logger.Error("http server failure", zap.Error(err))
 		}
 		a.logger.Info("agent's http server exiting")
@@ -86,8 +85,16 @@ func (a *Agent) HTTPAddr() string {
 
 // Stop forces all agent go routines to exit.
 func (a *Agent) Stop() {
-	for _, processor := range a.processors {
-		go processor.Stop()
+	// first, close the http server, so that we don't have any more inflight requests
+	a.logger.Info("shutting down agent's HTTP server", zap.String("addr", a.HTTPAddr()))
+	timeout, cancel := context.WithTimeout(context.Background(), 5*time.Second)
+	if err := a.httpServer.Shutdown(timeout); err != nil {
+		a.logger.Error("failed to close HTTP server", zap.Error(err))
 	}
-	a.closer.Close()
+	cancel()
+
+	// then, close all processors that are called for the incoming http requests
+	for _, processor := range a.processors {
+		processor.Stop()
+	}
 }

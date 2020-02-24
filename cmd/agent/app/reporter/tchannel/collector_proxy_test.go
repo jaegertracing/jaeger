@@ -15,6 +15,7 @@
 package tchannel
 
 import (
+	"io"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -26,6 +27,8 @@ import (
 	"github.com/jaegertracing/jaeger/cmd/agent/app/configmanager/tchannel"
 	"github.com/jaegertracing/jaeger/cmd/agent/app/reporter"
 )
+
+var _ io.Closer = (*ProxyBuilder)(nil)
 
 func TestErrorReporterBuilder(t *testing.T) {
 	tbuilder := NewBuilder().WithDiscoverer(fakeDiscoverer{})
