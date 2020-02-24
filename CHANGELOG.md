@@ -19,8 +19,6 @@ Changes by Version
 
 ### Backend Changes
 
-#### Breaking Changes
-
 #### New Features
 
 * [tracegen] Add service name as a command line option ([#2080](https://github.com/jaegertracing/jaeger/pull/2080), [@kevinearls](https://github.com/kevinearls))
