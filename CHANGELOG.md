@@ -46,7 +46,7 @@ Changes by Version
 * Use memory size flag to activate dyn queue size feature ([#2059](https://github.com/jaegertracing/jaeger/pull/2059), [@jpkrohling](https://github.com/jpkrohling))
 * Add before you push to the queue to prevent race condition on size ([#2044](https://github.com/jaegertracing/jaeger/pull/2044), [@joe-elliott](https://github.com/joe-elliott))
 * Count received batches from conforming clients ([#2030](https://github.com/jaegertracing/jaeger/pull/2030), [@yurishkuro](https://github.com/yurishkuro))
-* Agent: Do not increment data loss counters on the first client batch ([#2028](https://github.com/jaegertracing/jaeger/pull/2028), [@yurishkuro](https://github.com/yurishkuro))
+* [agent] Do not increment data loss counters on the first client batch ([#2028](https://github.com/jaegertracing/jaeger/pull/2028), [@yurishkuro](https://github.com/yurishkuro))
 * Allow raw port numbers for UDP servers ([#2025](https://github.com/jaegertracing/jaeger/pull/2025), [@yurishkuro](https://github.com/yurishkuro))
 * Publish tracegen ([#2022](https://github.com/jaegertracing/jaeger/pull/2022), [@jpkrohling](https://github.com/jpkrohling))
 * Build binaries for Linux on IBM Z / s390x architecture ([#1982](https://github.com/jaegertracing/jaeger/pull/1982), [@prankkelkar](https://github.com/prankkelkar))
