@@ -23,9 +23,7 @@ ALL_SRC := $(shell find . -name '*.go' \
 ALL_PKGS := $(shell go list $(sort $(dir $(ALL_SRC))))
 UNAME := $(shell uname -m)
 #Race flag is not supported on s390x/ppc64le architecture
-ifeq ($(UNAME), s390x)
-	RACE=
-else ifeq ($(UNAME), ppc64le)
+ifeq ($(GOARCH),$(filter $(GOARCH), s390x ppc64le))
 	RACE=
 else
 	RACE=-race
@@ -195,7 +193,7 @@ elasticsearch-mappings:
 .PHONY: build-examples
 build-examples:
 	esc -pkg frontend -o examples/hotrod/services/frontend/gen_assets.go  -prefix examples/hotrod/services/frontend/web_assets examples/hotrod/services/frontend/web_assets
-ifeq ($(GOARCH), s390x)
+ifeq ($(GOARCH),$(filter $(GOARCH), s390x ppc64le))
 	$(GOBUILD) -o ./examples/hotrod/hotrod-$(GOOS)-$(GOARCH) ./examples/hotrod/main.go
 else
 	$(GOBUILD) -o ./examples/hotrod/hotrod-$(GOOS) ./examples/hotrod/main.go
@@ -226,7 +224,7 @@ build-all-in-one-linux: build-ui
 
 .PHONY: build-all-in-one
 build-all-in-one: elasticsearch-mappings
-ifeq ($(GOARCH), s390x)
+ifeq ($(GOARCH),$(filter $(GOARCH), s390x ppc64le))
 	$(GOBUILD) -tags ui -o ./cmd/all-in-one/all-in-one-$(GOOS)-$(GOARCH) $(BUILD_INFO) ./cmd/all-in-one/main.go
 else
 	$(GOBUILD) -tags ui -o ./cmd/all-in-one/all-in-one-$(GOOS) $(BUILD_INFO) ./cmd/all-in-one/main.go
@@ -234,7 +232,7 @@ endif
 
 .PHONY: build-agent
 build-agent:
-ifeq ($(GOARCH), s390x)
+ifeq ($(GOARCH),$(filter $(GOARCH), s390x ppc64le))
 	$(GOBUILD) -o ./cmd/agent/agent-$(GOOS)-$(GOARCH) $(BUILD_INFO) ./cmd/agent/main.go
 else
 	$(GOBUILD) -o ./cmd/agent/agent-$(GOOS) $(BUILD_INFO) ./cmd/agent/main.go
@@ -242,7 +240,7 @@ endif
 
 .PHONY: build-query
 build-query:
-ifeq ($(GOARCH), s390x)
+ifeq ($(GOARCH),$(filter $(GOARCH), s390x ppc64le))
 	$(GOBUILD) -tags ui -o ./cmd/query/query-$(GOOS)-$(GOARCH) $(BUILD_INFO) ./cmd/query/main.go
 else
 	$(GOBUILD) -tags ui -o ./cmd/query/query-$(GOOS) $(BUILD_INFO) ./cmd/query/main.go
@@ -250,7 +248,7 @@ endif
 
 .PHONY: build-collector
 build-collector: elasticsearch-mappings
-ifeq ($(GOARCH), s390x)
+ifeq ($(GOARCH),$(filter $(GOARCH), s390x ppc64le))
 	$(GOBUILD) -o ./cmd/collector/collector-$(GOOS)-$(GOARCH) $(BUILD_INFO) ./cmd/collector/main.go
 else
 	$(GOBUILD) -o ./cmd/collector/collector-$(GOOS) $(BUILD_INFO) ./cmd/collector/main.go
@@ -258,7 +256,7 @@ endif
 
 .PHONY: build-ingester
 build-ingester:
-ifeq ($(GOARCH), s390x)
+ifeq ($(GOARCH),$(filter $(GOARCH), s390x ppc64le))
 	$(GOBUILD) -o ./cmd/ingester/ingester-$(GOOS)-$(GOARCH) $(BUILD_INFO) ./cmd/ingester/main.go
 else
 	$(GOBUILD) -o ./cmd/ingester/ingester-$(GOOS) $(BUILD_INFO) ./cmd/ingester/main.go
