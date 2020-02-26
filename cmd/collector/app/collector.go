@@ -28,7 +28,6 @@ import (
 	"github.com/jaegertracing/jaeger/cmd/collector/app/sampling/strategystore"
 	"github.com/jaegertracing/jaeger/cmd/collector/app/server"
 	"github.com/jaegertracing/jaeger/pkg/healthcheck"
-	"github.com/jaegertracing/jaeger/pkg/recoveryhandler"
 	"github.com/jaegertracing/jaeger/storage/spanstore"
 )
 
@@ -84,7 +83,6 @@ func (c *Collector) Start(builderOpts *CollectorOptions) error {
 
 	c.spanProcessor = handlerBuilder.BuildSpanProcessor()
 	c.spanHandlers = handlerBuilder.BuildHandlers(c.spanProcessor)
-	recoveryHandler := recoveryhandler.NewRecoveryHandler(c.logger, true)
 
 	if tchServer, err := server.StartThriftServer(&server.ThriftServerParams{
 		ServiceName:          c.serviceName,
@@ -112,13 +110,12 @@ func (c *Collector) Start(builderOpts *CollectorOptions) error {
 	}
 
 	if httpServer, err := server.StartHTTPServer(&server.HTTPServerParams{
-		Port:            builderOpts.CollectorHTTPPort,
-		Handler:         c.spanHandlers.JaegerBatchesHandler,
-		RecoveryHandler: recoveryHandler,
-		HealthCheck:     c.hCheck,
-		MetricsFactory:  c.metricsFactory,
-		SamplingStore:   c.strategyStore,
-		Logger:          c.logger,
+		Port:           builderOpts.CollectorHTTPPort,
+		Handler:        c.spanHandlers.JaegerBatchesHandler,
+		HealthCheck:    c.hCheck,
+		MetricsFactory: c.metricsFactory,
+		SamplingStore:  c.strategyStore,
+		Logger:         c.logger,
 	}); err != nil {
 		c.logger.Fatal("could not start the HTTP server", zap.Error(err))
 	} else {
@@ -126,12 +123,11 @@ func (c *Collector) Start(builderOpts *CollectorOptions) error {
 	}
 
 	if zkServer, err := server.StartZipkinServer(&server.ZipkinServerParams{
-		Port:            builderOpts.CollectorZipkinHTTPPort,
-		Handler:         c.spanHandlers.ZipkinSpansHandler,
-		RecoveryHandler: recoveryHandler,
-		AllowedHeaders:  builderOpts.CollectorZipkinAllowedHeaders,
-		AllowedOrigins:  builderOpts.CollectorZipkinAllowedOrigins,
-		Logger:          c.logger,
+		Port:           builderOpts.CollectorZipkinHTTPPort,
+		Handler:        c.spanHandlers.ZipkinSpansHandler,
+		AllowedHeaders: builderOpts.CollectorZipkinAllowedHeaders,
+		AllowedOrigins: builderOpts.CollectorZipkinAllowedOrigins,
+		Logger:         c.logger,
 	}); err != nil {
 		c.logger.Fatal("could not start the Zipkin server", zap.Error(err))
 	} else {
