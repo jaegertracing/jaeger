@@ -141,9 +141,14 @@ func (s *SpanWriter) WriteSpan(span *model.Span) error {
 			return err
 		}
 	}
-	if s.storageMode&indexFlag == indexFlag && !span.Flags.IsFirehoseEnabled() {
-		if err := s.writeIndexes(span, ds); err != nil {
+	if s.storageMode&indexFlag == indexFlag {
+		if err := s.writeServiceOperationIndex(span, ds); err != nil {
 			return err
+		}
+		if !span.Flags.IsFirehoseEnabled() {
+			if err := s.writeOtherIndexes(span, ds); err != nil {
+				return err
+			}
 		}
 	}
 	return nil
@@ -171,7 +176,7 @@ func (s *SpanWriter) writeSpan(span *model.Span, ds *dbmodel.Span) error {
 	return nil
 }
 
-func (s *SpanWriter) writeIndexes(span *model.Span, ds *dbmodel.Span) error {
+func (s *SpanWriter) writeServiceOperationIndex(span *model.Span, ds *dbmodel.Span) error {
 	spanKind, _ := span.GetSpanKind()
 	if err := s.saveServiceNameAndOperationName(dbmodel.Operation{
 		ServiceName:   ds.ServiceName,
@@ -181,7 +186,10 @@ func (s *SpanWriter) writeIndexes(span *model.Span, ds *dbmodel.Span) error {
 		// should this be a soft failure?
 		return s.logError(ds, err, "Failed to insert service name and operation name", s.logger)
 	}
+	return nil
+}
 
+func (s *SpanWriter) writeOtherIndexes(span *model.Span, ds *dbmodel.Span) error {
 	if err := s.indexByTags(span, ds); err != nil {
 		return s.logError(ds, err, "Failed to index tags", s.logger)
 	}
