@@ -23,7 +23,7 @@ ALL_SRC := $(shell find . -name '*.go' \
 ALL_PKGS := $(shell go list $(sort $(dir $(ALL_SRC))))
 UNAME := $(shell uname -m)
 #Race flag is not supported on s390x/ppc64le architecture
-ifeq ($(GOARCH),$(filter $(GOARCH), s390x ppc64le))
+ifeq ($(UNAME),$(filter $(UNAME), s390x ppc64le))
 	RACE=
 else
 	RACE=-race
