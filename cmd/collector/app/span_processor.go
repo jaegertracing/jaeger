@@ -126,10 +126,11 @@ func newSpanProcessor(spanWriter spanstore.Writer, opts ...Option) *spanProcesso
 	return &sp
 }
 
-// Stop halts the span processor and all its go-routines.
-func (sp *spanProcessor) Stop() {
+func (sp *spanProcessor) Close() error {
 	close(sp.stopCh)
 	sp.queue.Stop()
+
+	return nil
 }
 
 func (sp *spanProcessor) saveSpan(span *model.Span) {

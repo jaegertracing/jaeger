@@ -57,6 +57,10 @@ func (p *mockSpanProcessor) reset() {
 	p.spans = nil
 }
 
+func (p *mockSpanProcessor) Close() error {
+	return nil
+}
+
 func initializeGRPCTestServer(t *testing.T, beforeServe func(s *grpc.Server)) (*grpc.Server, net.Addr) {
 	server := grpc.NewServer()
 	beforeServe(server)

@@ -15,6 +15,8 @@
 package processor
 
 import (
+	"io"
+
 	"github.com/jaegertracing/jaeger/model"
 )
 
@@ -28,6 +30,7 @@ type SpansOptions struct {
 type SpanProcessor interface {
 	// ProcessSpans processes model spans and return with either a list of true/false success or an error
 	ProcessSpans(mSpans []*model.Span, options SpansOptions) ([]bool, error)
+	io.Closer
 }
 
 // InboundTransport identifies the transport used to receive spans.
