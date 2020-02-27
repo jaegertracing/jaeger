@@ -93,7 +93,7 @@ func (s *Service) Start(v *viper.Viper) error {
 	newProdConfig.Sampling = nil
 	if logger, err := sFlags.NewLogger(newProdConfig); err == nil {
 		s.Logger = logger
-		grpcZap.ReplaceGrpcLogger(logger.WithOptions(
+		grpcZap.ReplaceGrpcLoggerV2(logger.WithOptions(
 			// grpclog is not consistent with the depth of call tree before it's dispatched to zap,
 			// but Skip(2) still shows grpclog as caller, while Skip(3) shows actual grpc packages.
 			zap.AddCallerSkip(3),

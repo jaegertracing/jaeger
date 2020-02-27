@@ -18,7 +18,6 @@ package main
 import (
 	"fmt"
 	"io"
-	"io/ioutil"
 	"log"
 	"os"
 
@@ -30,7 +29,6 @@ import (
 	"github.com/uber/jaeger-lib/metrics"
 	_ "go.uber.org/automaxprocs"
 	"go.uber.org/zap"
-	"google.golang.org/grpc/grpclog"
 
 	agentApp "github.com/jaegertracing/jaeger/cmd/agent/app"
 	agentRep "github.com/jaegertracing/jaeger/cmd/agent/app/reporter"
@@ -83,8 +81,7 @@ by default uses only in-memory database.`,
 			if err := svc.Start(v); err != nil {
 				return err
 			}
-			logger := svc.Logger // shortcut
-			grpclog.SetLoggerV2(grpclog.NewLoggerV2(ioutil.Discard, os.Stderr, os.Stderr))
+			logger := svc.Logger                     // shortcut
 			rootMetricsFactory := svc.MetricsFactory // shortcut
 			metricsFactory := rootMetricsFactory.Namespace(metrics.NSOptions{Name: "jaeger"})
 			tracerCloser := initTracer(rootMetricsFactory, svc.Logger)
