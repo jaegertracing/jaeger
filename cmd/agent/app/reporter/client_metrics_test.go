@@ -256,15 +256,16 @@ func TestClientMetricsReporter_Expire(t *testing.T) {
 			t.Run(fmt.Sprintf("iter%d:gauge=%d,log=%s", i, test.expGauge, test.expLog), func(t *testing.T) {
 				// Expire loop runs every 100us, and removes the client after 5ms.
 				// We check for condition in each test for up to 5ms (10*500us).
+				var gaugeValue int64 = -1
 				for i := 0; i < 10; i++ {
 					_, gauges := tr.mb.Snapshot()
-					if gauges["client_stats.connected_clients"] == int64(test.expGauge) {
+					gaugeValue = gauges["client_stats.connected_clients"]
+					if gaugeValue == int64(test.expGauge) {
 						break
 					}
 					time.Sleep(500 * time.Microsecond)
 				}
-				tr.mb.AssertGaugeMetrics(t,
-					metricstest.ExpectedMetric{Name: "client_stats.connected_clients", Value: test.expGauge})
+				assert.EqualValues(t, test.expGauge, gaugeValue)
 				tr.assertLog(t, test.expLog, clientUUID)
 
 				// sleep between tests long enough to exceed the 5ms TTL.

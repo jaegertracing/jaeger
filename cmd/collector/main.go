@@ -17,6 +17,7 @@ package main
 
 import (
 	"fmt"
+	"io"
 	"log"
 	"os"
 
@@ -95,6 +96,12 @@ func main() {
 			c.Start(collectorOpts)
 
 			svc.RunAndThen(func() {
+				if closer, ok := spanWriter.(io.Closer); ok {
+					err := closer.Close()
+					if err != nil {
+						logger.Error("failed to close span writer", zap.Error(err))
+					}
+				}
 				c.Close()
 			})
 			return nil
