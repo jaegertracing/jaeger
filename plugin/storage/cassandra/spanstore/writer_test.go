@@ -25,6 +25,7 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
 	"github.com/uber/jaeger-lib/metrics/metricstest"
+	"go.uber.org/atomic"
 	"go.uber.org/zap"
 
 	"github.com/jaegertracing/jaeger/model"
@@ -352,13 +353,21 @@ func TestStorageMode_IndexOnly_WithFilter(t *testing.T) {
 
 func TestStorageMode_IndexOnly_FirehoseSpan(t *testing.T) {
 	withSpanWriter(0, func(w *spanWriterTest) {
-
-		w.writer.serviceNamesWriter = func(serviceName string) error { return nil }
-		w.writer.operationNamesWriter = func(operation dbmodel.Operation) error { return nil }
+		serviceWritten := atomic.NewString("")
+		operationWritten := &atomic.Value{}
+		w.writer.serviceNamesWriter = func(serviceName string) error {
+			serviceWritten.Store(serviceName)
+			return nil
+		}
+		w.writer.operationNamesWriter = func(operation dbmodel.Operation) error {
+			operationWritten.Store(operation)
+			return nil
+		}
 		span := &model.Span{
-			TraceID: model.NewTraceID(0, 1),
+			TraceID:       model.NewTraceID(0, 1),
+			OperationName: "package-delivery",
 			Process: &model.Process{
-				ServiceName: "service-a",
+				ServiceName: "planet-express",
 			},
 			Flags: model.Flags(8),
 		}
@@ -366,9 +375,14 @@ func TestStorageMode_IndexOnly_FirehoseSpan(t *testing.T) {
 		err := w.writer.WriteSpan(span)
 		assert.NoError(t, err)
 		w.session.AssertExpectations(t)
-		w.session.AssertNotCalled(t, "Query", stringMatcher(serviceOperationIndex))
 		w.session.AssertNotCalled(t, "Query", stringMatcher(serviceNameIndex))
 		w.session.AssertNotCalled(t, "Query", stringMatcher(durationIndex))
+		assert.Equal(t, "planet-express", serviceWritten.Load())
+		assert.Equal(t, dbmodel.Operation{
+			ServiceName:   "planet-express",
+			SpanKind:      "",
+			OperationName: "package-delivery",
+		}, operationWritten.Load())
 	}, StoreIndexesOnly())
 }
 
