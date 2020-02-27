@@ -16,7 +16,6 @@ package app
 
 import (
 	"context"
-	"io"
 	"net/http"
 	"time"
 
@@ -176,16 +175,6 @@ func (c *Collector) Close() error {
 
 	if err := c.spanProcessor.Close(); err != nil {
 		c.logger.Error("failed to close span processor.", zap.Error(err))
-	}
-
-	// the span processor is closed
-	if c.spanWriter != nil {
-		if closer, ok := c.spanWriter.(io.Closer); ok {
-			err := closer.Close() // SpanWriter
-			if err != nil {
-				c.logger.Error("failed to close span writer", zap.Error(err))
-			}
-		}
 	}
 
 	return nil
