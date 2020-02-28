@@ -64,7 +64,6 @@ func main() {
 			logger := svc.Logger // shortcut
 			baseFactory := svc.MetricsFactory.Namespace(metrics.NSOptions{Name: "jaeger"})
 			metricsFactory := baseFactory.Namespace(metrics.NSOptions{Name: "collector"})
-			strategyStoreFactory.InitFromViper(v)
 
 			storageFactory.InitFromViper(v)
 			if err := storageFactory.Initialize(baseFactory, logger); err != nil {
@@ -102,7 +101,10 @@ func main() {
 						logger.Error("failed to close span writer", zap.Error(err))
 					}
 				}
-				c.Close()
+
+				if err := c.Close(); err != nil {
+					logger.Error("failed to cleanly close the collector", zap.Error(err))
+				}
 			})
 			return nil
 		},

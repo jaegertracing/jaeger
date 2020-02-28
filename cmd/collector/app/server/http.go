@@ -27,17 +27,17 @@ import (
 	"github.com/jaegertracing/jaeger/cmd/collector/app/sampling/strategystore"
 	clientcfgHandler "github.com/jaegertracing/jaeger/pkg/clientcfg/clientcfghttp"
 	"github.com/jaegertracing/jaeger/pkg/healthcheck"
+	"github.com/jaegertracing/jaeger/pkg/recoveryhandler"
 )
 
 // HTTPServerParams to construct a new Jaeger Collector HTTP Server
 type HTTPServerParams struct {
-	Port            int
-	Handler         handler.JaegerBatchesHandler
-	RecoveryHandler func(http.Handler) http.Handler
-	SamplingStore   strategystore.StrategyStore
-	MetricsFactory  metrics.Factory
-	HealthCheck     *healthcheck.HealthCheck
-	Logger          *zap.Logger
+	Port           int
+	Handler        handler.JaegerBatchesHandler
+	SamplingStore  strategystore.StrategyStore
+	MetricsFactory metrics.Factory
+	HealthCheck    *healthcheck.HealthCheck
+	Logger         *zap.Logger
 }
 
 // StartHTTPServer based on the given parameters
@@ -72,13 +72,14 @@ func serveHTTP(server *http.Server, listener net.Listener, params *HTTPServerPar
 	})
 	cfgHandler.RegisterRoutes(r)
 
-	server.Handler = params.RecoveryHandler(r)
-	go func(listener net.Listener, hServer *http.Server) {
-		if err := hServer.Serve(listener); err != nil {
+	recoveryHandler := recoveryhandler.NewRecoveryHandler(params.Logger, true)
+	server.Handler = recoveryHandler(r)
+	go func() {
+		if err := server.Serve(listener); err != nil {
 			if err != http.ErrServerClosed {
 				params.Logger.Fatal("Could not start HTTP collector", zap.Error(err))
 			}
 		}
 		params.HealthCheck.Set(healthcheck.Unavailable)
-	}(listener, server)
+	}()
 }

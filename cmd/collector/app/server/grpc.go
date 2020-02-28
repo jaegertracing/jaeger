@@ -1,4 +1,4 @@
-// Copyright (c) 2020 The Jaeger Authors.
+// Copyright (c) 2018 The Jaeger Authors.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -16,15 +16,12 @@ package server
 
 import (
 	"fmt"
-	"io/ioutil"
 	"net"
-	"os"
 	"strconv"
 
 	"go.uber.org/zap"
 	"google.golang.org/grpc"
 	"google.golang.org/grpc/credentials"
-	"google.golang.org/grpc/grpclog"
 
 	"github.com/jaegertracing/jaeger/cmd/collector/app/handler"
 	"github.com/jaegertracing/jaeger/cmd/collector/app/sampling"
@@ -46,7 +43,6 @@ type GRPCServerParams struct {
 // StartGRPCServer based on the given parameters
 func StartGRPCServer(params *GRPCServerParams) (*grpc.Server, error) {
 	var server *grpc.Server
-	grpclog.SetLoggerV2(grpclog.NewLoggerV2(ioutil.Discard, os.Stderr, os.Stderr))
 
 	if params.TLSConfig.Enabled {
 		// user requested a server with TLS, setup creds
@@ -80,14 +76,14 @@ func serveGRPC(server *grpc.Server, listener net.Listener, params *GRPCServerPar
 	api_v2.RegisterSamplingManagerServer(server, sampling.NewGRPCHandler(params.SamplingStore))
 
 	params.Logger.Info("Starting jaeger-collector gRPC server", zap.Int("grpc-port", params.Port))
-	go func(server *grpc.Server) {
+	go func() {
 		if err := server.Serve(listener); err != nil {
 			params.Logger.Error("Could not launch gRPC service", zap.Error(err))
 			if params.OnError != nil {
 				params.OnError(err)
 			}
 		}
-	}(server)
+	}()
 
 	return nil
 }
