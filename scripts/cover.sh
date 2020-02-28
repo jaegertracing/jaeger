@@ -52,7 +52,7 @@ for pkg in "$@"; do
 		args="-coverprofile $COVER/cover.${i}.out" # -coverpkg $coverpkg
 	fi
 
-	if [[ $(uname -m) == 's390x' ]]; then
+	if [[ $(uname -m) == 's390x' || $(uname -m) == 'ppc64le' ]]; then
 		echo go test $args -v "$pkg"
 		go test $args -v "$pkg"
 	else

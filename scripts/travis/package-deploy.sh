@@ -34,7 +34,7 @@ function package {
     local PLATFORM=$1
     local FILE_EXTENSION=$2
     # script start
-    if [ "$PLATFORM" == "linux-s390x" ]; then
+    if [[ "$PLATFORM" == "linux-s390x" || "$PLATFORM" == "linux-ppc64le" ]]; then
         local PACKAGE_STAGING_DIR=jaeger-$VERSION-$PLATFORM
     else
         local PACKAGE_STAGING_DIR=jaeger-$VERSION-$PLATFORM-amd64
