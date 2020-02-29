@@ -56,6 +56,8 @@ SWAGGER_IMAGE=quay.io/goswagger/swagger:$(SWAGGER_VER)
 SWAGGER=docker run --rm -it -u ${shell id -u} -v "${PWD}:/go/src/${PROJECT_ROOT}" -w /go/src/${PROJECT_ROOT} $(SWAGGER_IMAGE)
 SWAGGER_GEN_DIR=swagger-gen
 
+JAEGER_DOCKER_PROTOBUF=jaegertracing/protobuf:0.1.0
+
 COLOR_PASS=$(shell printf "\033[32mPASS\033[0m")
 COLOR_FAIL=$(shell printf "\033[31mFAIL\033[0m")
 COLORIZE=$(SED) ''/PASS/s//$(COLOR_PASS)/'' | $(SED) ''/FAIL/s//$(COLOR_FAIL)/''
@@ -419,14 +421,11 @@ generate-mocks: install-mockery
 echo-version:
 	@echo $(GIT_CLOSEST_TAG)
 
-PROTOC := protoc
+PROTOC := docker run --rm -v${PWD}:${PWD} -w${PWD} ${JAEGER_DOCKER_PROTOBUF} --proto_path=${PWD}
 PROTO_INCLUDES := \
-	-I model/proto \
-	-I idl/proto \
-	-I vendor/github.com/grpc-ecosystem/grpc-gateway \
-	-I vendor/github.com/gogo/googleapis \
-	-I vendor/github.com/gogo/protobuf/protobuf \
-	-I vendor/github.com/gogo/protobuf
+	-Imodel/proto \
+	-Iidl/proto \
+	-I/usr/include/github.com/gogo/protobuf
 # Remapping of std types to gogo types (must not contain spaces)
 PROTO_GOGO_MAPPINGS := $(shell echo \
 		Mgoogle/protobuf/descriptor.proto=github.com/gogo/protobuf/types, \
@@ -472,10 +471,10 @@ proto:
 	$(PROTOC) \
 		$(PROTO_INCLUDES) \
 		--gogo_out=plugins=grpc,$(PROTO_GOGO_MAPPINGS):$(PWD)/proto-gen/ \
+		--swagger_out=allow_merge=true:$(PWD)/proto-gen/openapi/ \
 		model/proto/api_v2/*.proto
 		### grpc-gateway generates 'query.pb.gw.go' that does not respect (gogoproto.customname) = "TraceID"
 		### --grpc-gateway_out=$(PROTO_GOGO_MAPPINGS):$(PWD)/proto-gen/ \
-		### --swagger_out=allow_merge=true:$(PWD)/proto-gen/openapi/ \
 	$(PROTOC) \
 		$(PROTO_INCLUDES) \
 		-I plugin/storage/grpc/proto \
@@ -483,12 +482,12 @@ proto:
 		plugin/storage/grpc/proto/storage.proto
 
 	$(PROTOC) \
-		-I model/proto \
+		-Imodel/proto \
 		--go_out=$(PWD)/model/prototest/ \
 		model/proto/model_test.proto
 
 	$(PROTOC) \
-		-I plugin/storage/grpc/proto \
+		-Iplugin/storage/grpc/proto \
 		--go_out=$(PWD)/plugin/storage/grpc/proto/storageprototest/ \
 		plugin/storage/grpc/proto/storage_test.proto
 
