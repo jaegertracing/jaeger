@@ -475,9 +475,10 @@ proto:
 		model/proto/api_v2/*.proto
 		### grpc-gateway generates 'query.pb.gw.go' that does not respect (gogoproto.customname) = "TraceID"
 		### --grpc-gateway_out=$(PROTO_GOGO_MAPPINGS):$(PWD)/proto-gen/ \
+
 	$(PROTOC) \
 		$(PROTO_INCLUDES) \
-		-I plugin/storage/grpc/proto \
+		-Iplugin/storage/grpc/proto \
 		--gogo_out=plugins=grpc,$(PROTO_GOGO_MAPPINGS):$(PWD)/proto-gen/storage_v1 \
 		plugin/storage/grpc/proto/storage.proto
 
