@@ -471,10 +471,10 @@ proto:
 	$(PROTOC) \
 		$(PROTO_INCLUDES) \
 		--gogo_out=plugins=grpc,$(PROTO_GOGO_MAPPINGS):$(PWD)/proto-gen/ \
-		--swagger_out=allow_merge=true:$(PWD)/proto-gen/openapi/ \
 		model/proto/api_v2/*.proto
 		### grpc-gateway generates 'query.pb.gw.go' that does not respect (gogoproto.customname) = "TraceID"
 		### --grpc-gateway_out=$(PROTO_GOGO_MAPPINGS):$(PWD)/proto-gen/ \
+		### --swagger_out=allow_merge=true:$(PWD)/proto-gen/openapi/ \
 
 	$(PROTOC) \
 		$(PROTO_INCLUDES) \
