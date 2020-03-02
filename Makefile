@@ -1,4 +1,4 @@
-PROJECT_ROOT=github.com/jaegertracing/jaeger
+JAEGER_IMPORT_PATH=github.com/jaegertracing/jaeger
 STORAGE_PKGS = ./plugin/storage/integration/...
 
 # all .go files that are not auto-generated and should be auto-formatted and linted.
@@ -40,7 +40,7 @@ IMPORT_LOG=.import.log
 GIT_SHA=$(shell git rev-parse HEAD)
 GIT_CLOSEST_TAG=$(shell git describe --abbrev=0 --tags)
 DATE=$(shell date -u +'%Y-%m-%dT%H:%M:%SZ')
-BUILD_INFO_IMPORT_PATH=$(PROJECT_ROOT)/pkg/version
+BUILD_INFO_IMPORT_PATH=$(JAEGER_IMPORT_PATH)/pkg/version
 BUILD_INFO=-ldflags "-X $(BUILD_INFO_IMPORT_PATH).commitSHA=$(GIT_SHA) -X $(BUILD_INFO_IMPORT_PATH).latestVersion=$(GIT_CLOSEST_TAG) -X $(BUILD_INFO_IMPORT_PATH).date=$(DATE)"
 
 SED=sed
@@ -53,7 +53,7 @@ THRIFT_GEN_DIR=thrift-gen
 
 SWAGGER_VER=0.12.0
 SWAGGER_IMAGE=quay.io/goswagger/swagger:$(SWAGGER_VER)
-SWAGGER=docker run --rm -it -u ${shell id -u} -v "${PWD}:/go/src/${PROJECT_ROOT}" -w /go/src/${PROJECT_ROOT} $(SWAGGER_IMAGE)
+SWAGGER=docker run --rm -it -u ${shell id -u} -v "${PWD}:/go/src/" -w /go/src/ $(SWAGGER_IMAGE)
 SWAGGER_GEN_DIR=swagger-gen
 
 JAEGER_DOCKER_PROTOBUF=jaegertracing/protobuf:0.1.0
@@ -136,7 +136,7 @@ cover: nocover
 .PHONY: nocover
 nocover:
 	@echo Verifying that all packages have test files to count in coverage
-	@scripts/check-test-files.sh $(subst github.com/jaegertracing/jaeger/,./,$(ALL_PKGS))
+	@scripts/check-test-files.sh $(subst github.com/jaegertracing/jaeger,.,$(ALL_PKGS))
 
 .PHONY: fmt
 fmt:
@@ -147,7 +147,7 @@ fmt:
 
 .PHONY: lint-gosec
 lint-gosec:
-	GO111MODULE=off time gosec -quiet -exclude=G104,G107 $(PROJECT_ROOT)/...
+	time gosec -quiet -exclude=G104,G107 ./...
 
 .PHONY: lint-staticcheck
 lint-staticcheck:
@@ -177,16 +177,6 @@ go-lint:
 		| grep -v _nolint.go \
 		>> $(LINT_LOG) || true;
 	@[ ! -s "$(LINT_LOG)" ] || (echo "Lint Failures" | cat - $(LINT_LOG) && false)
-
-.PHONY: install-glide
-install-glide:
-	@echo "WARNING: Jaeger has migrated to dep, install-glide is now deprecated" 1>&2
-	$(MAKE) install
-
-.PHONY: install
-install:
-	@which dep > /dev/null || curl https://raw.githubusercontent.com/golang/dep/master/install.sh | sh
-	dep ensure -vendor-only
 
 .PHONE: elasticsearch-mappings
 elasticsearch-mappings:
@@ -359,16 +349,15 @@ changelog:
 
 .PHONY: install-tools
 install-tools:
-	go get -u github.com/wadey/gocovmerge
-	go get -u golang.org/x/tools/cmd/cover
-	go get -u golang.org/x/lint/golint
-	go get -u github.com/sectioneight/md-to-godoc
-	go get -u github.com/mjibson/esc
-	go install ./vendor/github.com/securego/gosec/cmd/gosec/
-	go install ./vendor/honnef.co/go/tools/cmd/staticcheck/
+	go install github.com/wadey/gocovmerge
+	go install golang.org/x/lint/golint
+	go install github.com/sectioneight/md-to-godoc
+	go install github.com/mjibson/esc
+	go install github.com/securego/gosec/cmd/gosec
+	go install honnef.co/go/tools/cmd/staticcheck
 
 .PHONY: install-ci
-install-ci: install install-tools
+install-ci: install-tools
 
 .PHONY: test-ci
 test-ci: build-examples lint cover
@@ -379,8 +368,8 @@ thrift: idl/thrift/jaeger.thrift thrift-image
 	[ -d $(THRIFT_GEN_DIR) ] || mkdir $(THRIFT_GEN_DIR)
 	$(THRIFT) -o /data --gen go:$(THRIFT_GO_ARGS) --out /data/$(THRIFT_GEN_DIR) /data/idl/thrift/agent.thrift
 #	TODO sed is GNU and BSD compatible
-	sed -i.bak 's|"zipkincore"|"$(PROJECT_ROOT)/thrift-gen/zipkincore"|g' $(THRIFT_GEN_DIR)/agent/*.go
-	sed -i.bak 's|"jaeger"|"$(PROJECT_ROOT)/thrift-gen/jaeger"|g' $(THRIFT_GEN_DIR)/agent/*.go
+	sed -i.bak 's|"zipkincore"|"$(JAEGER_IMPORT_PATH)/thrift-gen/zipkincore"|g' $(THRIFT_GEN_DIR)/agent/*.go
+	sed -i.bak 's|"jaeger"|"$(JAEGER_IMPORT_PATH)/thrift-gen/jaeger"|g' $(THRIFT_GEN_DIR)/agent/*.go
 	$(THRIFT) -o /data --gen go:$(THRIFT_GO_ARGS) --out /data/$(THRIFT_GEN_DIR) /data/idl/thrift/jaeger.thrift
 	$(THRIFT) -o /data --gen go:$(THRIFT_GO_ARGS) --out /data/$(THRIFT_GEN_DIR) /data/idl/thrift/sampling.thrift
 	$(THRIFT) -o /data --gen go:$(THRIFT_GO_ARGS) --out /data/$(THRIFT_GEN_DIR) /data/idl/thrift/baggage.thrift
@@ -411,7 +400,7 @@ generate-zipkin-swagger: idl-submodule
 
 .PHONY: install-mockery
 install-mockery:
-	go get -u github.com/vektra/mockery/.../
+	go install github.com/vektra/mockery/.../
 
 .PHONY: generate-mocks
 generate-mocks: install-mockery
@@ -500,10 +489,10 @@ proto:
 
 .PHONY: proto-install
 proto-install:
-	go get -u github.com/golang/glog
 	go install \
-		./vendor/github.com/golang/protobuf/protoc-gen-go \
-		./vendor/github.com/gogo/protobuf/protoc-gen-gogo \
-		./vendor/github.com/grpc-ecosystem/grpc-gateway/protoc-gen-grpc-gateway \
-		./vendor/github.com/grpc-ecosystem/grpc-gateway/protoc-gen-swagger
+		 github.com/golang/glog \
+		 github.com/golang/protobuf/protoc-gen-go \
+		 github.com/gogo/protobuf/protoc-gen-gogo \
+		 github.com/grpc-ecosystem/grpc-gateway/protoc-gen-grpc-gateway \
+		 github.com/grpc-ecosystem/grpc-gateway/protoc-gen-swagger
 		# ./vendor/github.com/mwitkow/go-proto-validators/protoc-gen-govalidators

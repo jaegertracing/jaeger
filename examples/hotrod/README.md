@@ -46,10 +46,8 @@ Jaeger UI can be accessed at http://localhost:16686.
 ### Run HotROD from source
 
 ```bash
-go get github.com/jaegertracing/jaeger
-cd $GOPATH/src/github.com/jaegertracing/jaeger
-make install
-cd examples/hotrod
+git clone git@github.com:jaegertracing/jaeger.git jaeger
+cd jaeger/examples/hotrod
 go run ./main.go all
 ```
 
