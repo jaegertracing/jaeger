@@ -42,7 +42,6 @@ services:
 
 env:
   global:
-    - GO111MODULE=off
     - DOCKER_COMPOSE_VERSION=1.8.0
     - COMMIT=${TRAVIS_COMMIT::8}
     # DOCKER_USER
