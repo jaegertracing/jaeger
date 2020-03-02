@@ -58,10 +58,6 @@ install:
   - if [ "$ALL_IN_ONE" == true ]; then bash ./scripts/travis/install-ui-deps.sh ; fi
   - if [ "$DOCKER" == true ]; then bash ./scripts/travis/install-ui-deps.sh ; fi
   - if [ "$CROSSDOCK" == true ]; then bash ./scripts/travis/install-crossdock-deps.sh ; fi
-  - |
-    if [ "$PROTO_GEN_TEST" == true ]; then
-        make proto-install
-    fi
 
 script:
   - export BRANCH=$(if [ "$TRAVIS_PULL_REQUEST" == "false" ]; then echo $TRAVIS_BRANCH; else echo $TRAVIS_PULL_REQUEST_BRANCH; fi)

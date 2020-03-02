@@ -497,13 +497,3 @@ proto:
 		--gogo_out=plugins=grpc,$(PROTO_GOGO_MAPPINGS):$(PWD)/proto-gen/zipkin \
 		idl/proto/zipkin.proto
 
-
-.PHONY: proto-install
-proto-install:
-	go get -u github.com/golang/glog
-	go install \
-		./vendor/github.com/golang/protobuf/protoc-gen-go \
-		./vendor/github.com/gogo/protobuf/protoc-gen-gogo \
-		./vendor/github.com/grpc-ecosystem/grpc-gateway/protoc-gen-grpc-gateway \
-		./vendor/github.com/grpc-ecosystem/grpc-gateway/protoc-gen-swagger
-		# ./vendor/github.com/mwitkow/go-proto-validators/protoc-gen-govalidators
