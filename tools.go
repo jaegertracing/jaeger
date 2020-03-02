@@ -27,5 +27,4 @@ import (
 	_ "github.com/vektra/mockery/cmd/mockery"
 	_ "github.com/wadey/gocovmerge"
 	_ "golang.org/x/lint/golint"
-	_ "golang.org/x/tools/cmd/cover"
 )

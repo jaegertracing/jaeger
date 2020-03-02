@@ -350,7 +350,6 @@ changelog:
 .PHONY: install-tools
 install-tools:
 	go install github.com/wadey/gocovmerge
-	go install golang.org/x/tools/cmd/cover
 	go install golang.org/x/lint/golint
 	go install github.com/sectioneight/md-to-godoc
 	go install github.com/mjibson/esc
