@@ -183,7 +183,7 @@ func TestTLSFlags(t *testing.T) {
 		},
 		{
 			flags:    []string{"--kafka.producer.authentication=kerberos", "--kafka.producer.tls.enabled=true"},
-			expected: auth.AuthenticationConfig{Authentication: "kerberos", Kerberos: auth.KerberosConfig{ServiceName: "kafka", ConfigPath: "/etc/krb5.conf", KeyTabPath: "/etc/security/kafka.keytab"}, TLS: tlscfg.Options{Enabled: true}},
+			expected: auth.AuthenticationConfig{Authentication: "tls", Kerberos: auth.KerberosConfig{ServiceName: "kafka", ConfigPath: "/etc/krb5.conf", KeyTabPath: "/etc/security/kafka.keytab"}, TLS: tlscfg.Options{Enabled: true}},
 		},
 		{
 			flags:    []string{"--kafka.producer.authentication=tls"},

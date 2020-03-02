@@ -89,6 +89,9 @@ func (config *AuthenticationConfig) InitFromViper(configPrefix string, v *viper.
 	if config.Authentication == tls {
 		config.TLS.Enabled = true
 	}
+	if config.TLS.Enabled == true {
+		config.Authentication = tls
+	}
 
 	config.PlainText.UserName = v.GetString(configPrefix + plainTextPrefix + suffixPlainTextUserName)
 	config.PlainText.Password = v.GetString(configPrefix + plainTextPrefix + suffixPlainTextPassword)
