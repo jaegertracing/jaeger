@@ -28,7 +28,6 @@ import (
 	"github.com/jaegertracing/jaeger/cmd/agent/app"
 	"github.com/jaegertracing/jaeger/cmd/agent/app/reporter"
 	"github.com/jaegertracing/jaeger/cmd/agent/app/reporter/grpc"
-	"github.com/jaegertracing/jaeger/cmd/agent/app/reporter/tchannel"
 	"github.com/jaegertracing/jaeger/cmd/docs"
 	"github.com/jaegertracing/jaeger/cmd/flags"
 	"github.com/jaegertracing/jaeger/pkg/config"
@@ -55,9 +54,8 @@ func main() {
 				Namespace(metrics.NSOptions{Name: "agent"})
 
 			rOpts := new(reporter.Options).InitFromViper(v, logger)
-			tchanBuilder := tchannel.NewBuilder().InitFromViper(v, logger)
 			grpcBuilder := grpc.NewConnBuilder().InitFromViper(v)
-			cp, err := app.CreateCollectorProxy(rOpts, tchanBuilder, grpcBuilder, logger, mFactory)
+			cp, err := app.CreateCollectorProxy(rOpts, grpcBuilder, logger, mFactory)
 			if err != nil {
 				logger.Fatal("Could not create collector proxy", zap.Error(err))
 			}
@@ -91,7 +89,6 @@ func main() {
 		svc.AddFlags,
 		app.AddFlags,
 		reporter.AddFlags,
-		tchannel.AddFlags,
 		grpc.AddFlags,
 	)
 

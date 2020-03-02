@@ -33,7 +33,6 @@ import (
 	agentApp "github.com/jaegertracing/jaeger/cmd/agent/app"
 	agentRep "github.com/jaegertracing/jaeger/cmd/agent/app/reporter"
 	agentGrpcRep "github.com/jaegertracing/jaeger/cmd/agent/app/reporter/grpc"
-	agentTchanRep "github.com/jaegertracing/jaeger/cmd/agent/app/reporter/tchannel"
 	"github.com/jaegertracing/jaeger/cmd/all-in-one/setupcontext"
 	collectorApp "github.com/jaegertracing/jaeger/cmd/collector/app"
 	"github.com/jaegertracing/jaeger/cmd/docs"
@@ -115,7 +114,6 @@ by default uses only in-memory database.`,
 
 			aOpts := new(agentApp.Builder).InitFromViper(v)
 			repOpts := new(agentRep.Options).InitFromViper(v, logger)
-			tchanBuilder := agentTchanRep.NewBuilder().InitFromViper(v, logger)
 			grpcBuilder := agentGrpcRep.NewConnBuilder().InitFromViper(v)
 			cOpts := new(collectorApp.CollectorOptions).InitFromViper(v)
 			qOpts := new(queryApp.QueryOptions).InitFromViper(v, logger)
@@ -134,7 +132,7 @@ by default uses only in-memory database.`,
 			// agent
 			grpcBuilder.CollectorHostPorts = append(grpcBuilder.CollectorHostPorts, fmt.Sprintf("127.0.0.1:%d", cOpts.CollectorGRPCPort))
 			agentMetricsFactory := metricsFactory.Namespace(metrics.NSOptions{Name: "agent", Tags: nil})
-			cp, err := agentApp.CreateCollectorProxy(repOpts, tchanBuilder, grpcBuilder, logger, agentMetricsFactory)
+			cp, err := agentApp.CreateCollectorProxy(repOpts, grpcBuilder, logger, agentMetricsFactory)
 			if err != nil {
 				logger.Fatal("Could not create collector proxy", zap.Error(err))
 			}
@@ -175,7 +173,6 @@ by default uses only in-memory database.`,
 		storageFactory.AddFlags,
 		agentApp.AddFlags,
 		agentRep.AddFlags,
-		agentTchanRep.AddFlags,
 		agentGrpcRep.AddFlags,
 		collectorApp.AddFlags,
 		queryApp.AddFlags,
