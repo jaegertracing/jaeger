@@ -136,7 +136,7 @@ cover: nocover
 .PHONY: nocover
 nocover:
 	@echo Verifying that all packages have test files to count in coverage
-	@scripts/check-test-files.sh
+	@scripts/check-test-files.sh $(subst github.com/jaegertracing/jaeger,.,$(ALL_PKGS))
 
 .PHONY: fmt
 fmt:
