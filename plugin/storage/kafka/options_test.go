@@ -15,6 +15,7 @@
 package kafka
 
 import (
+	"fmt"
 	"testing"
 	"time"
 
@@ -23,6 +24,8 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/jaegertracing/jaeger/pkg/config"
+	"github.com/jaegertracing/jaeger/pkg/config/tlscfg"
+	"github.com/jaegertracing/jaeger/pkg/kafka/auth"
 )
 
 func TestOptionsWithFlags(t *testing.T) {
@@ -163,4 +166,44 @@ func TestRequiredAcks(t *testing.T) {
 func TestRequiredAcksFailures(t *testing.T) {
 	_, err := getRequiredAcks("test")
 	assert.Error(t, err)
+}
+
+func TestTLSFlags(t *testing.T) {
+	tests := []struct {
+		flags    []string
+		expected auth.AuthenticationConfig
+	}{
+		{
+			flags:    []string{},
+			expected: auth.AuthenticationConfig{Authentication: "none", Kerberos: auth.KerberosConfig{ServiceName: "kafka", ConfigPath: "/etc/krb5.conf", KeyTabPath: "/etc/security/kafka.keytab"}},
+		},
+		{
+			flags:    []string{"--kafka.producer.authentication=foo"},
+			expected: auth.AuthenticationConfig{Authentication: "foo", Kerberos: auth.KerberosConfig{ServiceName: "kafka", ConfigPath: "/etc/krb5.conf", KeyTabPath: "/etc/security/kafka.keytab"}},
+		},
+		{
+			flags:    []string{"--kafka.producer.authentication=kerberos", "--kafka.producer.tls.enabled=true"},
+			expected: auth.AuthenticationConfig{Authentication: "kerberos", Kerberos: auth.KerberosConfig{ServiceName: "kafka", ConfigPath: "/etc/krb5.conf", KeyTabPath: "/etc/security/kafka.keytab"}, TLS: tlscfg.Options{Enabled: true}},
+		},
+		{
+			flags:    []string{"--kafka.producer.authentication=tls"},
+			expected: auth.AuthenticationConfig{Authentication: "tls", Kerberos: auth.KerberosConfig{ServiceName: "kafka", ConfigPath: "/etc/krb5.conf", KeyTabPath: "/etc/security/kafka.keytab"}, TLS: tlscfg.Options{Enabled: true}},
+		},
+		{
+			flags:    []string{"--kafka.producer.authentication=tls", "--kafka.producer.tls.enabled=false"},
+			expected: auth.AuthenticationConfig{Authentication: "tls", Kerberos: auth.KerberosConfig{ServiceName: "kafka", ConfigPath: "/etc/krb5.conf", KeyTabPath: "/etc/security/kafka.keytab"}, TLS: tlscfg.Options{Enabled: true}},
+		},
+	}
+
+	for _, test := range tests {
+		t.Run(fmt.Sprintf("%s", test.flags), func(t *testing.T) {
+			o := &Options{}
+			v, command := config.Viperize(o.AddFlags)
+			err := command.ParseFlags(test.flags)
+			require.NoError(t, err)
+			o.InitFromViper(v)
+			assert.Equal(t, test.expected, o.config.AuthenticationConfig)
+
+		})
+	}
 }
