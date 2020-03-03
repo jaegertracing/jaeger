@@ -138,7 +138,15 @@ by default uses only in-memory database.`,
 			// agent
 			grpcBuilder.CollectorHostPorts = append(grpcBuilder.CollectorHostPorts, fmt.Sprintf("127.0.0.1:%d", cOpts.CollectorGRPCPort))
 			agentMetricsFactory := metricsFactory.Namespace(metrics.NSOptions{Name: "agent", Tags: nil})
-			cp, err := agentApp.CreateCollectorProxy(repOpts, tchanBuilder, grpcBuilder, logger, agentMetricsFactory)
+			builders := map[agentRep.Type]agentApp.ProxyBuilder{}
+			builders[agentRep.GRPC] = func(m map[string]string, factory metrics.Factory, logger *zap.Logger) (agentApp.CollectorProxy, error) {
+				return agentGrpcRep.NewCollectorProxy(grpcBuilder, repOpts.AgentTags, metricsFactory, logger)
+			}
+			builders[agentTchanRep.ReporterType] = func(m map[string]string, factory metrics.Factory, logger *zap.Logger) (agentApp.CollectorProxy, error) {
+				return agentTchanRep.NewCollectorProxy(tchanBuilder, metricsFactory, logger)
+			}
+
+			cp, err := agentApp.CreateCollectorProxy(repOpts, builders, logger, agentMetricsFactory)
 			if err != nil {
 				logger.Fatal("Could not create collector proxy", zap.Error(err))
 			}
@@ -179,7 +187,7 @@ by default uses only in-memory database.`,
 		svc.AddFlags,
 		storageFactory.AddFlags,
 		agentApp.AddFlags,
-		agentRep.AddFlags,
+		agentRep.AddFlagsWithCustomTypes([]string{"(deprecated)" + string(agentTchanRep.ReporterType)}),
 		agentTchanRep.AddFlags,
 		agentGrpcRep.AddFlags,
 		collectorApp.AddFlags,

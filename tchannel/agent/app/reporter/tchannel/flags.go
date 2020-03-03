@@ -21,16 +21,19 @@ import (
 
 	"github.com/spf13/viper"
 	"go.uber.org/zap"
+
+	"github.com/jaegertracing/jaeger/cmd/agent/app/reporter"
 )
 
 const (
-	defaultConnCheckTimeout   = 250 * time.Millisecond
-	tchannelPrefix            = "reporter.tchannel."
-	collectorHostPort         = "collector.host-port"
-	hostPort                  = "host-port"
-	discoveryMinPeers         = "discovery.min-peers"
-	discoveryConnCheckTimeout = "discovery.conn-check-timeout"
-	reportTimeout             = "report-timeout"
+	defaultConnCheckTimeout                 = 250 * time.Millisecond
+	tchannelPrefix                          = "reporter.tchannel."
+	collectorHostPort                       = "collector.host-port"
+	hostPort                                = "host-port"
+	discoveryMinPeers                       = "discovery.min-peers"
+	discoveryConnCheckTimeout               = "discovery.conn-check-timeout"
+	reportTimeout                           = "report-timeout"
+	ReporterType              reporter.Type = "tchannel"
 )
 
 // AddFlags adds flags for Builder.

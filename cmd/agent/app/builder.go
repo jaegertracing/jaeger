@@ -29,11 +29,9 @@ import (
 	"github.com/jaegertracing/jaeger/cmd/agent/app/httpserver"
 	"github.com/jaegertracing/jaeger/cmd/agent/app/processors"
 	"github.com/jaegertracing/jaeger/cmd/agent/app/reporter"
-	"github.com/jaegertracing/jaeger/cmd/agent/app/reporter/grpc"
 	"github.com/jaegertracing/jaeger/cmd/agent/app/servers"
 	"github.com/jaegertracing/jaeger/cmd/agent/app/servers/thriftudp"
 	"github.com/jaegertracing/jaeger/ports"
-	"github.com/jaegertracing/jaeger/tchannel/agent/app/reporter/tchannel"
 	zipkinThrift "github.com/jaegertracing/jaeger/thrift-gen/agent"
 	jaegerThrift "github.com/jaegertracing/jaeger/thrift-gen/jaeger"
 )
@@ -217,25 +215,15 @@ func defaultInt(value int, defaultVal int) int {
 // CreateCollectorProxy creates collector proxy
 func CreateCollectorProxy(
 	opts *reporter.Options,
-	tchanBuilder *tchannel.Builder,
-	grpcBuilder *grpc.ConnBuilder,
+	builders map[reporter.Type]ProxyBuilder,
 	logger *zap.Logger,
 	mFactory metrics.Factory,
 ) (CollectorProxy, error) {
-	// GRPC type is set as default in viper, but we check for legacy flags
-	// to keep backward compatibility
-	if opts.ReporterType == reporter.GRPC &&
-		len(tchanBuilder.CollectorHostPorts) > 0 &&
-		len(grpcBuilder.CollectorHostPorts) == 0 {
-		logger.Warn("Using deprecated configuration", zap.String("option", "--collector-host.port"))
-		return tchannel.NewCollectorProxy(tchanBuilder, mFactory, logger)
-	}
-	switch opts.ReporterType {
-	case reporter.GRPC:
-		return grpc.NewCollectorProxy(grpcBuilder, opts.AgentTags, mFactory, logger)
-	case reporter.TCHANNEL:
-		return tchannel.NewCollectorProxy(tchanBuilder, mFactory, logger)
-	default:
+	builder, ok := builders[opts.ReporterType]
+	if !ok {
 		return nil, fmt.Errorf("unknown reporter type %s", string(opts.ReporterType))
 	}
+	return builder(opts.AgentTags, mFactory, logger)
 }
+
+type ProxyBuilder func(map[string]string, metrics.Factory, *zap.Logger) (CollectorProxy, error)
