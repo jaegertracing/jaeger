@@ -17,6 +17,7 @@ package handler
 import (
 	"github.com/uber/tchannel-go/thrift"
 
+	"github.com/jaegertracing/jaeger/cmd/collector/app/handler"
 	"github.com/jaegertracing/jaeger/cmd/collector/app/processor"
 	"github.com/jaegertracing/jaeger/thrift-gen/jaeger"
 	"github.com/jaegertracing/jaeger/thrift-gen/zipkincore"
@@ -24,14 +25,14 @@ import (
 
 // TChannelHandler implements jaeger.TChanCollector and zipkincore.TChanZipkinCollector.
 type TChannelHandler struct {
-	jaegerHandler JaegerBatchesHandler
-	zipkinHandler ZipkinSpansHandler
+	jaegerHandler handler.JaegerBatchesHandler
+	zipkinHandler handler.ZipkinSpansHandler
 }
 
 // NewTChannelHandler creates new handler that implements both Jaeger and Zipkin endpoints.
 func NewTChannelHandler(
-	jaegerHandler JaegerBatchesHandler,
-	zipkinHandler ZipkinSpansHandler,
+	jaegerHandler handler.JaegerBatchesHandler,
+	zipkinHandler handler.ZipkinSpansHandler,
 ) *TChannelHandler {
 	return &TChannelHandler{
 		jaegerHandler: jaegerHandler,
@@ -44,7 +45,7 @@ func (h *TChannelHandler) SubmitZipkinBatch(
 	_ thrift.Context,
 	spans []*zipkincore.Span,
 ) ([]*zipkincore.Response, error) {
-	return h.zipkinHandler.SubmitZipkinBatch(spans, SubmitBatchOptions{
+	return h.zipkinHandler.SubmitZipkinBatch(spans, handler.SubmitBatchOptions{
 		InboundTransport: processor.TChannelTransport,
 	})
 }
@@ -54,7 +55,7 @@ func (h *TChannelHandler) SubmitBatches(
 	_ thrift.Context,
 	batches []*jaeger.Batch,
 ) ([]*jaeger.BatchSubmitResponse, error) {
-	return h.jaegerHandler.SubmitBatches(batches, SubmitBatchOptions{
+	return h.jaegerHandler.SubmitBatches(batches, handler.SubmitBatchOptions{
 		InboundTransport: processor.TChannelTransport,
 	})
 }

@@ -24,8 +24,8 @@ import (
 	"go.uber.org/zap"
 
 	"github.com/jaegertracing/jaeger/cmd/agent/app/configmanager"
-	"github.com/jaegertracing/jaeger/cmd/agent/app/configmanager/tchannel"
 	"github.com/jaegertracing/jaeger/cmd/agent/app/reporter"
+	"github.com/jaegertracing/jaeger/tchannel/agent/app/configmanager/tchannel"
 )
 
 var _ io.Closer = (*ProxyBuilder)(nil)

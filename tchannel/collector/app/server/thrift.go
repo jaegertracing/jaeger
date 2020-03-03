@@ -25,6 +25,7 @@ import (
 	"github.com/jaegertracing/jaeger/cmd/collector/app/handler"
 	"github.com/jaegertracing/jaeger/cmd/collector/app/sampling"
 	"github.com/jaegertracing/jaeger/cmd/collector/app/sampling/strategystore"
+	tHandler "github.com/jaegertracing/jaeger/tchannel/collector/app/handler"
 	jc "github.com/jaegertracing/jaeger/thrift-gen/jaeger"
 	sc "github.com/jaegertracing/jaeger/thrift-gen/sampling"
 	zc "github.com/jaegertracing/jaeger/thrift-gen/zipkincore"
@@ -64,7 +65,7 @@ func StartThriftServer(params *ThriftServerParams) (*tchannel.Channel, error) {
 
 func serveThrift(tchServer *tchannel.Channel, listener net.Listener, params *ThriftServerParams) error {
 	server := thrift.NewServer(tchServer)
-	batchHandler := handler.NewTChannelHandler(params.JaegerBatchesHandler, params.ZipkinSpansHandler)
+	batchHandler := tHandler.NewTChannelHandler(params.JaegerBatchesHandler, params.ZipkinSpansHandler)
 	server.Register(jc.NewTChanCollectorServer(batchHandler))
 	server.Register(zc.NewTChanZipkinCollectorServer(batchHandler))
 	server.Register(sc.NewTChanSamplingManagerServer(sampling.NewHandler(params.StrategyStore)))

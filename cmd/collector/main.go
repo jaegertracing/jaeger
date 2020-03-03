@@ -36,6 +36,7 @@ import (
 	ss "github.com/jaegertracing/jaeger/plugin/sampling/strategystore"
 	"github.com/jaegertracing/jaeger/plugin/storage"
 	"github.com/jaegertracing/jaeger/ports"
+	tCollector "github.com/jaegertracing/jaeger/tchannel/collector/app"
 )
 
 const serviceName = "jaeger-collector"
@@ -93,6 +94,9 @@ func main() {
 			})
 			collectorOpts := new(app.CollectorOptions).InitFromViper(v)
 			c.Start(collectorOpts)
+			tCollectorOpts := new(tCollector.Options).InitFromViper(v)
+			tc := tCollector.Collector{}
+			tc.Start("jaeger-collector", tCollectorOpts, logger, c.SpanHandlers(), strategyStore)
 
 			svc.RunAndThen(func() {
 				if closer, ok := spanWriter.(io.Closer); ok {
@@ -104,6 +108,9 @@ func main() {
 
 				if err := c.Close(); err != nil {
 					logger.Error("failed to cleanly close the collector", zap.Error(err))
+				}
+				if err := tc.Close(); err != nil {
+					logger.Error("failed to cleanly close tchannel collector", zap.Error(err))
 				}
 			})
 			return nil
@@ -119,6 +126,7 @@ func main() {
 		command,
 		svc.AddFlags,
 		app.AddFlags,
+		tCollector.AddFlags,
 		storageFactory.AddFlags,
 		strategyStoreFactory.AddFlags,
 	)

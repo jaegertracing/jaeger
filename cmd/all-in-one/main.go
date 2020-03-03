@@ -33,7 +33,6 @@ import (
 	agentApp "github.com/jaegertracing/jaeger/cmd/agent/app"
 	agentRep "github.com/jaegertracing/jaeger/cmd/agent/app/reporter"
 	agentGrpcRep "github.com/jaegertracing/jaeger/cmd/agent/app/reporter/grpc"
-	agentTchanRep "github.com/jaegertracing/jaeger/cmd/agent/app/reporter/tchannel"
 	"github.com/jaegertracing/jaeger/cmd/all-in-one/setupcontext"
 	collectorApp "github.com/jaegertracing/jaeger/cmd/collector/app"
 	"github.com/jaegertracing/jaeger/cmd/docs"
@@ -50,6 +49,8 @@ import (
 	"github.com/jaegertracing/jaeger/storage/dependencystore"
 	"github.com/jaegertracing/jaeger/storage/spanstore"
 	storageMetrics "github.com/jaegertracing/jaeger/storage/spanstore/metrics"
+	agentTchanRep "github.com/jaegertracing/jaeger/tchannel/agent/app/reporter/tchannel"
+	tCollector "github.com/jaegertracing/jaeger/tchannel/collector/app"
 )
 
 // all-in-one/main is a standalone full-stack jaeger backend, backed by a memory store
@@ -130,6 +131,9 @@ by default uses only in-memory database.`,
 				HealthCheck:    svc.HC(),
 			})
 			c.Start(cOpts)
+			tCollectorOpts := new(tCollector.Options).InitFromViper(v)
+			tc := tCollector.Collector{}
+			tc.Start("jaeger-collector", tCollectorOpts, logger, c.SpanHandlers(), strategyStore)
 
 			// agent
 			grpcBuilder.CollectorHostPorts = append(grpcBuilder.CollectorHostPorts, fmt.Sprintf("127.0.0.1:%d", cOpts.CollectorGRPCPort))
@@ -151,6 +155,7 @@ by default uses only in-memory database.`,
 				agent.Stop()
 				cp.Close()
 				c.Close()
+				tc.Close()
 				querySrv.Close()
 				if closer, ok := spanWriter.(io.Closer); ok {
 					err := closer.Close()
@@ -178,6 +183,7 @@ by default uses only in-memory database.`,
 		agentTchanRep.AddFlags,
 		agentGrpcRep.AddFlags,
 		collectorApp.AddFlags,
+		tCollector.AddFlags,
 		queryApp.AddFlags,
 		strategyStoreFactory.AddFlags,
 	)

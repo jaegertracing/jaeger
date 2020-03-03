@@ -20,7 +20,6 @@ import (
 	"time"
 
 	"github.com/uber/jaeger-lib/metrics"
-	"github.com/uber/tchannel-go"
 	"go.uber.org/zap"
 	"google.golang.org/grpc"
 
@@ -47,7 +46,6 @@ type Collector struct {
 	hServer    *http.Server
 	zkServer   *http.Server
 	grpcServer *grpc.Server
-	tchServer  *tchannel.Channel
 }
 
 // CollectorParams to construct a new Jaeger Collector.
@@ -83,19 +81,6 @@ func (c *Collector) Start(builderOpts *CollectorOptions) error {
 
 	c.spanProcessor = handlerBuilder.BuildSpanProcessor()
 	c.spanHandlers = handlerBuilder.BuildHandlers(c.spanProcessor)
-
-	if tchServer, err := server.StartThriftServer(&server.ThriftServerParams{
-		ServiceName:          c.serviceName,
-		Port:                 builderOpts.CollectorPort,
-		JaegerBatchesHandler: c.spanHandlers.JaegerBatchesHandler,
-		ZipkinSpansHandler:   c.spanHandlers.ZipkinSpansHandler,
-		StrategyStore:        c.strategyStore,
-		Logger:               c.logger,
-	}); err != nil {
-		c.logger.Fatal("could not start Thrift collector", zap.Error(err))
-	} else {
-		c.tchServer = tchServer
-	}
 
 	if grpcServer, err := server.StartGRPCServer(&server.GRPCServerParams{
 		Port:          builderOpts.CollectorGRPCPort,
@@ -144,11 +129,6 @@ func (c *Collector) Close() error {
 		c.grpcServer.GracefulStop()
 	}
 
-	// TChannel server
-	if c.tchServer != nil {
-		c.tchServer.Close()
-	}
-
 	// HTTP server
 	if c.hServer != nil {
 		timeout, cancel := context.WithTimeout(context.Background(), 5*time.Second)
@@ -174,4 +154,9 @@ func (c *Collector) Close() error {
 	}
 
 	return nil
+}
+
+// SpanHandlers returns span handlers used by the Collector.
+func (c *Collector) SpanHandlers() *SpanHandlers {
+	return c.spanHandlers
 }
