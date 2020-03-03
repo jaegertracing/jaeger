@@ -93,7 +93,7 @@ func (config *AuthenticationConfig) InitFromViper(configPrefix string, v *viper.
 
 // Normalize normalizes kafka options
 func (config *AuthenticationConfig) Normalize(logger *zap.Logger) {
-	if config.TLS.Enabled == true {
+	if config.TLS.Enabled {
 		logger.Warn("Flag .tls.enabled is deprecated use " + suffixAuthentication + " instead.")
 		config.Authentication = tls
 	}

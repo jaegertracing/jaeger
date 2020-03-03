@@ -33,11 +33,15 @@ const (
 	tlsSkipHostVerify = tlsPrefix + ".skip-host-verify"
 )
 
+// Enabled configures TLS enabled flags
 type Enabled int
 
 const (
+	// Hide hides the enabled TLS flags
 	Hide Enabled = iota
+	// Show shows the enabled TLS flags
 	Show
+	// ShowDeprecated shows deprecation annotation for tls flags
 	ShowDeprecated
 )
 
