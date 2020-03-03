@@ -226,4 +226,5 @@ func CreateCollectorProxy(
 	return builder(opts.AgentTags, mFactory, logger)
 }
 
+// ProxyBuilder is a func which builds CollectorProxy.
 type ProxyBuilder func(map[string]string, metrics.Factory, *zap.Logger) (CollectorProxy, error)
