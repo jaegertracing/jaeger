@@ -91,7 +91,7 @@ func (s *KafkaIntegrationTestSuite) initialize() error {
 		return err
 	}
 	options := app.Options{}
-	options.InitFromViper(v, s.logger)
+	options.InitFromViper(v)
 	traceStore := memory.NewStore()
 	spanConsumer, err := builder.CreateConsumer(s.logger, metrics.NullFactory, traceStore, options)
 	if err != nil {

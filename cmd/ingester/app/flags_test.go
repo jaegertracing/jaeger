@@ -21,7 +21,6 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-	"go.uber.org/zap"
 
 	"github.com/jaegertracing/jaeger/pkg/config"
 	"github.com/jaegertracing/jaeger/pkg/config/tlscfg"
@@ -42,7 +41,7 @@ func TestOptionsWithFlags(t *testing.T) {
 		"--ingester.parallelism=5",
 		"--ingester.deadlockInterval=2m",
 	})
-	o.InitFromViper(v, zap.NewNop())
+	o.InitFromViper(v)
 
 	assert.Equal(t, "topic1", o.Topic)
 	assert.Equal(t, []string{"127.0.0.1:9092", "0.0.0:1234"}, o.Brokers)
@@ -87,7 +86,7 @@ func TestTLSFlags(t *testing.T) {
 			v, command := config.Viperize(AddFlags)
 			err := command.ParseFlags(test.flags)
 			require.NoError(t, err)
-			o.InitFromViper(v, zap.NewNop())
+			o.InitFromViper(v)
 			assert.Equal(t, test.expected, o.AuthenticationConfig)
 		})
 	}
@@ -97,7 +96,7 @@ func TestFlagDefaults(t *testing.T) {
 	o := &Options{}
 	v, command := config.Viperize(AddFlags)
 	command.ParseFlags([]string{})
-	o.InitFromViper(v, zap.NewNop())
+	o.InitFromViper(v)
 
 	assert.Equal(t, DefaultTopic, o.Topic)
 	assert.Equal(t, []string{DefaultBroker}, o.Brokers)

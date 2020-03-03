@@ -40,7 +40,7 @@ const (
 
 var tlsFlagsConfig = tlscfg.ServerFlagsConfig{
 	Prefix:       "collector.grpc",
-	ShowEnabled:  tlscfg.Show,
+	ShowEnabled:  true,
 	ShowClientCA: true,
 }
 

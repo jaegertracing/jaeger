@@ -51,7 +51,7 @@ func TestClientFlags(t *testing.T) {
 			flagSet := &flag.FlagSet{}
 			flagCfg := ClientFlagsConfig{
 				Prefix:         "prefix",
-				Enabled:        Show,
+				ShowEnabled:    true,
 				ShowServerName: true,
 			}
 			flagCfg.AddFlags(flagSet)
@@ -102,7 +102,7 @@ func TestServerFlags(t *testing.T) {
 			flagSet := &flag.FlagSet{}
 			flagCfg := ServerFlagsConfig{
 				Prefix:       "prefix",
-				ShowEnabled:  Show,
+				ShowEnabled:  true,
 				ShowClientCA: true,
 			}
 			flagCfg.AddFlags(flagSet)

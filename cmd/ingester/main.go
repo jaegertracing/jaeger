@@ -68,7 +68,7 @@ func main() {
 			}
 
 			options := app.Options{}
-			options.InitFromViper(v, logger)
+			options.InitFromViper(v)
 			consumer, err := builder.CreateConsumer(logger, metricsFactory, spanWriter, options)
 			if err != nil {
 				logger.Fatal("Unable to create consumer", zap.Error(err))

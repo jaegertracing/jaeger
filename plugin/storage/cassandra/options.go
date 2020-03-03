@@ -238,7 +238,7 @@ func (opt *Options) InitFromViper(v *viper.Viper) {
 func tlsFlagsConfig(namespace string) tlscfg.ClientFlagsConfig {
 	return tlscfg.ClientFlagsConfig{
 		Prefix:         namespace,
-		Enabled:        tlscfg.Show,
+		ShowEnabled:    true,
 		ShowServerName: true,
 	}
 }
