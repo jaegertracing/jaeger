@@ -22,6 +22,7 @@ import (
 	"github.com/Shopify/sarama"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"go.uber.org/zap"
 
 	"github.com/jaegertracing/jaeger/pkg/config"
 	"github.com/jaegertracing/jaeger/pkg/config/tlscfg"
@@ -202,6 +203,7 @@ func TestTLSFlags(t *testing.T) {
 			err := command.ParseFlags(test.flags)
 			require.NoError(t, err)
 			o.InitFromViper(v)
+			o.config.Normalize(zap.NewNop())
 			assert.Equal(t, test.expected, o.config.AuthenticationConfig)
 
 		})

@@ -104,7 +104,7 @@ func AddFlags(configPrefix string, flagSet *flag.FlagSet) {
 
 	tlsClientConfig := tlscfg.ClientFlagsConfig{
 		Prefix:         configPrefix,
-		ShowEnabled:    true,
+		Enabled:        tlscfg.ShowDeprecated,
 		ShowServerName: true,
 	}
 	tlsClientConfig.AddFlags(flagSet)

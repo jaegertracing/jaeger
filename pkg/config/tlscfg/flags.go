@@ -33,24 +33,36 @@ const (
 	tlsSkipHostVerify = tlsPrefix + ".skip-host-verify"
 )
 
+type Enabled int
+
+const (
+	Hide Enabled = iota
+	Show
+	ShowDeprecated
+)
+
 // ClientFlagsConfig describes which CLI flags for TLS client should be generated.
 type ClientFlagsConfig struct {
 	Prefix         string
-	ShowEnabled    bool
+	Enabled        Enabled
 	ShowServerName bool
 }
 
 // ServerFlagsConfig describes which CLI flags for TLS server should be generated.
 type ServerFlagsConfig struct {
 	Prefix       string
-	ShowEnabled  bool
+	ShowEnabled  Enabled
 	ShowClientCA bool
 }
 
 // AddFlags adds flags for TLS to the FlagSet.
 func (c ClientFlagsConfig) AddFlags(flags *flag.FlagSet) {
-	if c.ShowEnabled {
-		flags.Bool(c.Prefix+tlsEnabled, false, "Enable TLS when talking to the remote server(s)")
+	if c.Enabled >= Show {
+		deprecated := ""
+		if c.Enabled == ShowDeprecated {
+			deprecated = "(deprecated)  "
+		}
+		flags.Bool(c.Prefix+tlsEnabled, false, deprecated+"Enable TLS when talking to the remote server(s)")
 		flags.Bool(c.Prefix+tlsEnabledOld, false, "(deprecated) see --"+c.Prefix+tlsEnabled)
 	}
 	flags.String(c.Prefix+tlsCA, "", "Path to a TLS CA (Certification Authority) file used to verify the remote server(s) (by default will use the system truststore)")
@@ -64,8 +76,12 @@ func (c ClientFlagsConfig) AddFlags(flags *flag.FlagSet) {
 
 // AddFlags adds flags for TLS to the FlagSet.
 func (c ServerFlagsConfig) AddFlags(flags *flag.FlagSet) {
-	if c.ShowEnabled {
-		flags.Bool(c.Prefix+tlsEnabled, false, "Enable TLS on the server")
+	if c.ShowEnabled >= Show {
+		deprecated := ""
+		if c.ShowEnabled == ShowDeprecated {
+			deprecated = "(deprecated)  "
+		}
+		flags.Bool(c.Prefix+tlsEnabled, false, deprecated+"Enable TLS on the server")
 		flags.Bool(c.Prefix+tlsEnabledOld, false, "(deprecated) see --"+c.Prefix+tlsEnabled)
 	}
 	flags.String(c.Prefix+tlsCert, "", "Path to a TLS Certificate file, used to identify this server to clients")
@@ -77,7 +93,7 @@ func (c ServerFlagsConfig) AddFlags(flags *flag.FlagSet) {
 // InitFromViper creates tls.Config populated with values retrieved from Viper.
 func (c ClientFlagsConfig) InitFromViper(v *viper.Viper) Options {
 	var p Options
-	if c.ShowEnabled {
+	if c.Enabled >= Show {
 		p.Enabled = v.GetBool(c.Prefix + tlsEnabled)
 
 		if !p.Enabled {
@@ -97,7 +113,7 @@ func (c ClientFlagsConfig) InitFromViper(v *viper.Viper) Options {
 // InitFromViper creates tls.Config populated with values retrieved from Viper.
 func (c ServerFlagsConfig) InitFromViper(v *viper.Viper) Options {
 	var p Options
-	if c.ShowEnabled {
+	if c.ShowEnabled >= Show {
 		p.Enabled = v.GetBool(c.Prefix + tlsEnabled)
 
 		if !p.Enabled {

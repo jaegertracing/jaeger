@@ -17,7 +17,6 @@ package kafka
 import (
 	"errors"
 	"flag"
-
 	"github.com/Shopify/sarama"
 	"github.com/spf13/viper"
 	"github.com/uber/jaeger-lib/metrics"
@@ -62,6 +61,7 @@ func (f *Factory) Initialize(metricsFactory metrics.Factory, logger *zap.Logger)
 	logger.Info("Kafka factory",
 		zap.Any("producer builder", f.Builder),
 		zap.Any("topic", f.options.topic))
+	f.options.config.Normalize(logger)
 	p, err := f.NewProducer()
 	if err != nil {
 		return err

@@ -22,6 +22,7 @@ import (
 	"time"
 
 	"github.com/spf13/viper"
+	"go.uber.org/zap"
 
 	"github.com/jaegertracing/jaeger/pkg/kafka/auth"
 	kafkaConsumer "github.com/jaegertracing/jaeger/pkg/kafka/consumer"
@@ -114,7 +115,7 @@ func AddFlags(flagSet *flag.FlagSet) {
 }
 
 // InitFromViper initializes Builder with properties from viper
-func (o *Options) InitFromViper(v *viper.Viper) {
+func (o *Options) InitFromViper(v *viper.Viper, logger *zap.Logger) {
 	o.Brokers = strings.Split(stripWhiteSpace(v.GetString(KafkaConsumerConfigPrefix+SuffixBrokers)), ",")
 	o.Topic = v.GetString(KafkaConsumerConfigPrefix + SuffixTopic)
 	o.GroupID = v.GetString(KafkaConsumerConfigPrefix + SuffixGroupID)
@@ -126,6 +127,7 @@ func (o *Options) InitFromViper(v *viper.Viper) {
 	o.DeadlockInterval = v.GetDuration(ConfigPrefix + SuffixDeadlockInterval)
 	authenticationOptions := auth.AuthenticationConfig{}
 	authenticationOptions.InitFromViper(KafkaConsumerConfigPrefix, v)
+	authenticationOptions.Normalize(logger)
 	o.AuthenticationConfig = authenticationOptions
 }
 

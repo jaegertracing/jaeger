@@ -20,6 +20,7 @@ import (
 
 	"github.com/Shopify/sarama"
 	"github.com/spf13/viper"
+	"go.uber.org/zap"
 
 	"github.com/jaegertracing/jaeger/pkg/config/tlscfg"
 )
@@ -80,19 +81,23 @@ func (config *AuthenticationConfig) InitFromViper(configPrefix string, v *viper.
 
 	var tlsClientConfig = tlscfg.ClientFlagsConfig{
 		Prefix:         configPrefix,
-		ShowEnabled:    true,
+		Enabled:        tlscfg.ShowDeprecated,
 		ShowServerName: true,
 	}
 
 	config.TLS = tlsClientConfig.InitFromViper(v)
 
+	config.PlainText.UserName = v.GetString(configPrefix + plainTextPrefix + suffixPlainTextUserName)
+	config.PlainText.Password = v.GetString(configPrefix + plainTextPrefix + suffixPlainTextPassword)
+}
+
+// Normalize normalizes kafka options
+func (config *AuthenticationConfig) Normalize(logger *zap.Logger) {
+	if config.TLS.Enabled == true {
+		logger.Warn("Flag .tls.enabled is deprecated use " + suffixAuthentication + " instead.")
+		config.Authentication = tls
+	}
 	if config.Authentication == tls {
 		config.TLS.Enabled = true
 	}
-	if config.TLS.Enabled == true {
-		config.Authentication = tls
-	}
-
-	config.PlainText.UserName = v.GetString(configPrefix + plainTextPrefix + suffixPlainTextUserName)
-	config.PlainText.Password = v.GetString(configPrefix + plainTextPrefix + suffixPlainTextPassword)
 }

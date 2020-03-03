@@ -111,7 +111,7 @@ func NewOptions(primaryNamespace string, otherNamespaces ...string) *Options {
 func (config *namespaceConfig) getTLSFlagsConfig() tlscfg.ClientFlagsConfig {
 	return tlscfg.ClientFlagsConfig{
 		Prefix:         config.namespace,
-		ShowEnabled:    true,
+		Enabled:        tlscfg.Show,
 		ShowServerName: true,
 	}
 }
