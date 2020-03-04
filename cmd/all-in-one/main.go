@@ -33,7 +33,6 @@ import (
 	agentApp "github.com/jaegertracing/jaeger/cmd/agent/app"
 	agentRep "github.com/jaegertracing/jaeger/cmd/agent/app/reporter"
 	agentGrpcRep "github.com/jaegertracing/jaeger/cmd/agent/app/reporter/grpc"
-	agentTchanRep "github.com/jaegertracing/jaeger/cmd/agent/app/reporter/tchannel"
 	"github.com/jaegertracing/jaeger/cmd/all-in-one/setupcontext"
 	collectorApp "github.com/jaegertracing/jaeger/cmd/collector/app"
 	"github.com/jaegertracing/jaeger/cmd/docs"
@@ -50,6 +49,8 @@ import (
 	"github.com/jaegertracing/jaeger/storage/dependencystore"
 	"github.com/jaegertracing/jaeger/storage/spanstore"
 	storageMetrics "github.com/jaegertracing/jaeger/storage/spanstore/metrics"
+	agentTchanRep "github.com/jaegertracing/jaeger/tchannel/agent/app/reporter/tchannel"
+	tCollector "github.com/jaegertracing/jaeger/tchannel/collector/app"
 )
 
 // all-in-one/main is a standalone full-stack jaeger backend, backed by a memory store
@@ -130,11 +131,24 @@ by default uses only in-memory database.`,
 				HealthCheck:    svc.HC(),
 			})
 			c.Start(cOpts)
+			tCollectorOpts := new(tCollector.Options).InitFromViper(v)
+			tc, err := tCollector.Start("jaeger-collector", tCollectorOpts, logger, c.SpanHandlers(), strategyStore)
+			if err != nil {
+				logger.Fatal("Could not start Tchannel thrift collector", zap.Error(err))
+			}
 
 			// agent
 			grpcBuilder.CollectorHostPorts = append(grpcBuilder.CollectorHostPorts, fmt.Sprintf("127.0.0.1:%d", cOpts.CollectorGRPCPort))
 			agentMetricsFactory := metricsFactory.Namespace(metrics.NSOptions{Name: "agent", Tags: nil})
-			cp, err := agentApp.CreateCollectorProxy(repOpts, tchanBuilder, grpcBuilder, logger, agentMetricsFactory)
+			builders := map[agentRep.Type]agentApp.CollectorProxyBuilder{
+				agentRep.GRPC:              agentApp.GRPCCollectorProxyBuilder(grpcBuilder),
+				agentTchanRep.ReporterType: agentApp.TCollectorProxyBuilder(tchanBuilder),
+			}
+			cp, err := agentApp.CreateCollectorProxy(agentApp.ProxyBuilderOptions{
+				Options: *repOpts,
+				Logger:  logger,
+				Metrics: agentMetricsFactory,
+			}, builders)
 			if err != nil {
 				logger.Fatal("Could not create collector proxy", zap.Error(err))
 			}
@@ -151,6 +165,7 @@ by default uses only in-memory database.`,
 				agent.Stop()
 				cp.Close()
 				c.Close()
+				tc.Close()
 				querySrv.Close()
 				if closer, ok := spanWriter.(io.Closer); ok {
 					err := closer.Close()
@@ -178,6 +193,7 @@ by default uses only in-memory database.`,
 		agentTchanRep.AddFlags,
 		agentGrpcRep.AddFlags,
 		collectorApp.AddFlags,
+		tCollector.AddFlags,
 		queryApp.AddFlags,
 		strategyStoreFactory.AddFlags,
 	)

@@ -35,7 +35,8 @@ import (
 	"github.com/jaegertracing/jaeger/cmd/agent/app/configmanager"
 	"github.com/jaegertracing/jaeger/cmd/agent/app/reporter"
 	"github.com/jaegertracing/jaeger/cmd/agent/app/reporter/grpc"
-	"github.com/jaegertracing/jaeger/cmd/agent/app/reporter/tchannel"
+	"github.com/jaegertracing/jaeger/tchannel/agent/app/reporter/tchannel"
+	"github.com/jaegertracing/jaeger/tchannel/collector/app"
 	"github.com/jaegertracing/jaeger/thrift-gen/baggage"
 	"github.com/jaegertracing/jaeger/thrift-gen/jaeger"
 	"github.com/jaegertracing/jaeger/thrift-gen/sampling"
@@ -201,8 +202,8 @@ func TestCreateCollectorProxy(t *testing.T) {
 			err: "at least one collector hostPort address is required when resolver is not available",
 		},
 		{
-			flags:  []string{"--collector.host-port=foo"},
-			metric: metricstest.ExpectedMetric{Name: "reporter.batches.failures", Tags: map[string]string{"protocol": "tchannel", "format": "jaeger"}, Value: 1},
+			flags: []string{"--collector.host-port=foo"},
+			err:   "at least one collector hostPort address is required when resolver is not available",
 		},
 		{
 			flags:  []string{"--reporter.type=tchannel"},
@@ -213,12 +214,8 @@ func TestCreateCollectorProxy(t *testing.T) {
 			metric: metricstest.ExpectedMetric{Name: "reporter.batches.failures", Tags: map[string]string{"protocol": "tchannel", "format": "jaeger"}, Value: 1},
 		},
 		{
-			flags:  []string{"--reporter.type=grpc", "--collector.host-port=foo"},
-			metric: metricstest.ExpectedMetric{Name: "reporter.batches.failures", Tags: map[string]string{"protocol": "tchannel", "format": "jaeger"}, Value: 1},
-		},
-		{
-			flags:  []string{"--reporter.type=grpc", "--collector.host-port=foo"},
-			metric: metricstest.ExpectedMetric{Name: "reporter.batches.failures", Tags: map[string]string{"protocol": "tchannel", "format": "jaeger"}, Value: 1},
+			flags: []string{"--reporter.type=grpc", "--collector.host-port=foo"},
+			err:   "at least one collector hostPort address is required when resolver is not available",
 		},
 		{
 			flags:  []string{"--reporter.type=grpc", "--reporter.grpc.host-port=foo", "--collector.host-port=foo"},
@@ -235,6 +232,7 @@ func TestCreateCollectorProxy(t *testing.T) {
 		tchannel.AddFlags(flags)
 		grpc.AddFlags(flags)
 		reporter.AddFlags(flags)
+		app.AddFlags(flags)
 
 		command := cobra.Command{}
 		command.PersistentFlags().AddGoFlagSet(flags)
@@ -249,7 +247,16 @@ func TestCreateCollectorProxy(t *testing.T) {
 		grpcBuilder := grpc.NewConnBuilder().InitFromViper(v)
 
 		metricsFactory := metricstest.NewFactory(time.Microsecond)
-		proxy, err := CreateCollectorProxy(rOpts, tchan, grpcBuilder, zap.NewNop(), metricsFactory)
+
+		builders := map[reporter.Type]CollectorProxyBuilder{
+			reporter.GRPC:         GRPCCollectorProxyBuilder(grpcBuilder),
+			tchannel.ReporterType: TCollectorProxyBuilder(tchan),
+		}
+		proxy, err := CreateCollectorProxy(ProxyBuilderOptions{
+			Options: *rOpts,
+			Metrics: metricsFactory,
+			Logger:  zap.NewNop(),
+		}, builders)
 		if test.err != "" {
 			assert.EqualError(t, err, test.err)
 			assert.Nil(t, proxy)
@@ -262,11 +269,14 @@ func TestCreateCollectorProxy(t *testing.T) {
 }
 
 func TestCreateCollectorProxy_UnknownReporter(t *testing.T) {
-	rOpts := new(reporter.Options)
 	tchan := tchannel.NewBuilder()
 	grpcBuilder := grpc.NewConnBuilder()
 
-	proxy, err := CreateCollectorProxy(rOpts, tchan, grpcBuilder, zap.NewNop(), metrics.NullFactory)
+	builders := map[reporter.Type]CollectorProxyBuilder{
+		reporter.GRPC:         GRPCCollectorProxyBuilder(grpcBuilder),
+		tchannel.ReporterType: TCollectorProxyBuilder(tchan),
+	}
+	proxy, err := CreateCollectorProxy(ProxyBuilderOptions{}, builders)
 	assert.Nil(t, proxy)
 	assert.EqualError(t, err, "unknown reporter type ")
 }

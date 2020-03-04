@@ -15,10 +15,12 @@
 package handler
 
 import (
+	"sync"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
 
+	"github.com/jaegertracing/jaeger/cmd/collector/app/handler"
 	"github.com/jaegertracing/jaeger/thrift-gen/jaeger"
 	"github.com/jaegertracing/jaeger/thrift-gen/zipkincore"
 )
@@ -33,7 +35,7 @@ type mockZipkinHandler struct {
 	spans []*zipkincore.Span
 }
 
-func (p *mockZipkinHandler) SubmitZipkinBatch(spans []*zipkincore.Span, opts SubmitBatchOptions) ([]*zipkincore.Response, error) {
+func (p *mockZipkinHandler) SubmitZipkinBatch(spans []*zipkincore.Span, opts handler.SubmitBatchOptions) ([]*zipkincore.Response, error) {
 	p.spans = append(p.spans, spans...)
 	return nil, nil
 }
@@ -56,4 +58,23 @@ func TestTChannelHandler(t *testing.T) {
 		},
 	})
 	assert.Len(t, zh.spans, 1)
+}
+
+type mockJaegerHandler struct {
+	err     error
+	mux     sync.Mutex
+	batches []*jaeger.Batch
+}
+
+func (p *mockJaegerHandler) SubmitBatches(batches []*jaeger.Batch, _ handler.SubmitBatchOptions) ([]*jaeger.BatchSubmitResponse, error) {
+	p.mux.Lock()
+	defer p.mux.Unlock()
+	p.batches = append(p.batches, batches...)
+	return nil, p.err
+}
+
+func (p *mockJaegerHandler) getBatches() []*jaeger.Batch {
+	p.mux.Lock()
+	defer p.mux.Unlock()
+	return p.batches
 }

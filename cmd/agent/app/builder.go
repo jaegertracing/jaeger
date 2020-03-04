@@ -29,8 +29,6 @@ import (
 	"github.com/jaegertracing/jaeger/cmd/agent/app/httpserver"
 	"github.com/jaegertracing/jaeger/cmd/agent/app/processors"
 	"github.com/jaegertracing/jaeger/cmd/agent/app/reporter"
-	"github.com/jaegertracing/jaeger/cmd/agent/app/reporter/grpc"
-	"github.com/jaegertracing/jaeger/cmd/agent/app/reporter/tchannel"
 	"github.com/jaegertracing/jaeger/cmd/agent/app/servers"
 	"github.com/jaegertracing/jaeger/cmd/agent/app/servers/thriftudp"
 	"github.com/jaegertracing/jaeger/ports"
@@ -214,28 +212,24 @@ func defaultInt(value int, defaultVal int) int {
 	return value
 }
 
+// ProxyBuilderOptions holds config for CollectorProxyBuilder
+type ProxyBuilderOptions struct {
+	reporter.Options
+	Logger  *zap.Logger
+	Metrics metrics.Factory
+}
+
+// CollectorProxyBuilder is a func which builds CollectorProxy.
+type CollectorProxyBuilder func(ProxyBuilderOptions) (CollectorProxy, error)
+
 // CreateCollectorProxy creates collector proxy
 func CreateCollectorProxy(
-	opts *reporter.Options,
-	tchanBuilder *tchannel.Builder,
-	grpcBuilder *grpc.ConnBuilder,
-	logger *zap.Logger,
-	mFactory metrics.Factory,
+	opts ProxyBuilderOptions,
+	builders map[reporter.Type]CollectorProxyBuilder,
 ) (CollectorProxy, error) {
-	// GRPC type is set as default in viper, but we check for legacy flags
-	// to keep backward compatibility
-	if opts.ReporterType == reporter.GRPC &&
-		len(tchanBuilder.CollectorHostPorts) > 0 &&
-		len(grpcBuilder.CollectorHostPorts) == 0 {
-		logger.Warn("Using deprecated configuration", zap.String("option", "--collector-host.port"))
-		return tchannel.NewCollectorProxy(tchanBuilder, mFactory, logger)
-	}
-	switch opts.ReporterType {
-	case reporter.GRPC:
-		return grpc.NewCollectorProxy(grpcBuilder, opts.AgentTags, mFactory, logger)
-	case reporter.TCHANNEL:
-		return tchannel.NewCollectorProxy(tchanBuilder, mFactory, logger)
-	default:
+	builder, ok := builders[opts.ReporterType]
+	if !ok {
 		return nil, fmt.Errorf("unknown reporter type %s", string(opts.ReporterType))
 	}
+	return builder(opts)
 }

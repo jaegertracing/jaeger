@@ -29,7 +29,6 @@ const (
 	collectorDynQueueSizeMemory   = "collector.queue-size-memory"
 	collectorQueueSize            = "collector.queue-size"
 	collectorNumWorkers           = "collector.num-workers"
-	collectorPort                 = "collector.port"
 	collectorHTTPPort             = "collector.http-port"
 	collectorGRPCPort             = "collector.grpc-port"
 	collectorTags                 = "collector.tags"
@@ -52,8 +51,6 @@ type CollectorOptions struct {
 	QueueSize int
 	// NumWorkers is the number of internal workers in a collector
 	NumWorkers int
-	// CollectorPort is the port that the collector service listens in on for tchannel requests
-	CollectorPort int
 	// CollectorHTTPPort is the port that the collector service listens in on for http requests
 	CollectorHTTPPort int
 	// CollectorGRPCPort is the port that the collector service listens in on for gRPC requests
@@ -75,7 +72,6 @@ func AddFlags(flags *flag.FlagSet) {
 	flags.Uint(collectorDynQueueSizeMemory, 0, "(experimental) The max memory size in MiB to use for the dynamic queue.")
 	flags.Int(collectorQueueSize, DefaultQueueSize, "The queue size of the collector")
 	flags.Int(collectorNumWorkers, DefaultNumWorkers, "The number of workers pulling items from the queue")
-	flags.Int(collectorPort, ports.CollectorTChannel, "The TChannel port for the collector service")
 	flags.Int(collectorHTTPPort, ports.CollectorHTTP, "The HTTP port for the collector service")
 	flags.Int(collectorGRPCPort, ports.CollectorGRPC, "The gRPC port for the collector service")
 	flags.String(collectorTags, "", "One or more tags to be added to the Process tags of all spans passing through this collector. Ex: key1=value1,key2=${envVar:defaultValue}")
@@ -90,7 +86,6 @@ func (cOpts *CollectorOptions) InitFromViper(v *viper.Viper) *CollectorOptions {
 	cOpts.DynQueueSizeMemory = v.GetUint(collectorDynQueueSizeMemory) * 1024 * 1024 // we receive in MiB and store in bytes
 	cOpts.QueueSize = v.GetInt(collectorQueueSize)
 	cOpts.NumWorkers = v.GetInt(collectorNumWorkers)
-	cOpts.CollectorPort = v.GetInt(collectorPort)
 	cOpts.CollectorHTTPPort = v.GetInt(collectorHTTPPort)
 	cOpts.CollectorGRPCPort = v.GetInt(collectorGRPCPort)
 	cOpts.CollectorTags = flags.ParseJaegerTags(v.GetString(collectorTags))

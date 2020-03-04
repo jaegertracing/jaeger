@@ -28,12 +28,12 @@ import (
 	"github.com/jaegertracing/jaeger/cmd/agent/app"
 	"github.com/jaegertracing/jaeger/cmd/agent/app/reporter"
 	"github.com/jaegertracing/jaeger/cmd/agent/app/reporter/grpc"
-	"github.com/jaegertracing/jaeger/cmd/agent/app/reporter/tchannel"
 	"github.com/jaegertracing/jaeger/cmd/docs"
 	"github.com/jaegertracing/jaeger/cmd/flags"
 	"github.com/jaegertracing/jaeger/pkg/config"
 	"github.com/jaegertracing/jaeger/pkg/version"
 	"github.com/jaegertracing/jaeger/ports"
+	"github.com/jaegertracing/jaeger/tchannel/agent/app/reporter/tchannel"
 )
 
 func main() {
@@ -57,7 +57,15 @@ func main() {
 			rOpts := new(reporter.Options).InitFromViper(v, logger)
 			tchanBuilder := tchannel.NewBuilder().InitFromViper(v, logger)
 			grpcBuilder := grpc.NewConnBuilder().InitFromViper(v)
-			cp, err := app.CreateCollectorProxy(rOpts, tchanBuilder, grpcBuilder, logger, mFactory)
+			builders := map[reporter.Type]app.CollectorProxyBuilder{
+				reporter.GRPC:         app.GRPCCollectorProxyBuilder(grpcBuilder),
+				tchannel.ReporterType: app.TCollectorProxyBuilder(tchanBuilder),
+			}
+			cp, err := app.CreateCollectorProxy(app.ProxyBuilderOptions{
+				Options: *rOpts,
+				Logger:  logger,
+				Metrics: mFactory,
+			}, builders)
 			if err != nil {
 				logger.Fatal("Could not create collector proxy", zap.Error(err))
 			}

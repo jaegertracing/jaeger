@@ -21,6 +21,8 @@ import (
 
 	"github.com/spf13/viper"
 	"go.uber.org/zap"
+
+	"github.com/jaegertracing/jaeger/cmd/agent/app/reporter"
 )
 
 const (
@@ -31,6 +33,9 @@ const (
 	discoveryMinPeers         = "discovery.min-peers"
 	discoveryConnCheckTimeout = "discovery.conn-check-timeout"
 	reportTimeout             = "report-timeout"
+
+	// ReporterType defines the type of the reporter.
+	ReporterType reporter.Type = "tchannel"
 )
 
 // AddFlags adds flags for Builder.
