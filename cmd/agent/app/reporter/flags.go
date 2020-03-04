@@ -46,7 +46,7 @@ type Options struct {
 
 // Flags holds configuration for AddFlags.
 type Flags struct {
-	// Reporter types
+	// Reporters which area added to reporter type help message
 	Reporters []string
 }
 
