@@ -49,10 +49,6 @@ func NewConnBuilder() *ConnBuilder {
 	return &ConnBuilder{}
 }
 
-//func ProxyBuilder(tags map[string]string, mFactory metrics.Factory, logger *zap.Logger) (app.CollectorProxy, error) {
-//	return NewCollectorProxy(grpcBuilder, tags, mFactory, logger)
-//}
-
 // CreateConnection creates the gRPC connection
 func (b *ConnBuilder) CreateConnection(logger *zap.Logger) (*grpc.ClientConn, error) {
 	var dialOptions []grpc.DialOption

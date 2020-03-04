@@ -57,14 +57,14 @@ func main() {
 			rOpts := new(reporter.Options).InitFromViper(v, logger)
 			tchanBuilder := tchannel.NewBuilder().InitFromViper(v, logger)
 			grpcBuilder := grpc.NewConnBuilder().InitFromViper(v)
-			builders := map[reporter.Type]app.ProxyBuilder{}
-			builders[reporter.GRPC] = func(m map[string]string, factory metrics.Factory, logger *zap.Logger) (app.CollectorProxy, error) {
-				return grpc.NewCollectorProxy(grpcBuilder, rOpts.AgentTags, mFactory, logger)
-			}
-			builders[tchannel.ReporterType] = func(m map[string]string, factory metrics.Factory, logger *zap.Logger) (app.CollectorProxy, error) {
-				return tchannel.NewCollectorProxy(tchanBuilder, mFactory, logger)
-			}
-			cp, err := app.CreateCollectorProxy(rOpts, builders, logger, mFactory)
+			builders := map[reporter.Type]app.CollectorProxyBuilder{}
+			builders[reporter.GRPC] = app.GRPCCollectorProxyBuilder(grpcBuilder)
+			builders[tchannel.ReporterType] = app.TCollectorProxyBuilder(tchanBuilder)
+			cp, err := app.CreateCollectorProxy(app.ProxyBuilderOptions{
+				Options: *rOpts,
+				Logger:  logger,
+				Metrics: mFactory,
+			}, builders)
 			if err != nil {
 				logger.Fatal("Could not create collector proxy", zap.Error(err))
 			}
@@ -97,7 +97,7 @@ func main() {
 		command,
 		svc.AddFlags,
 		app.AddFlags,
-		reporter.AddFlagsWithCustomTypes([]string{"(deprecated)" + string(tchannel.ReporterType)}),
+		reporter.AddFlagsWithReporterTypes([]string{"(deprecated)" + string(tchannel.ReporterType)}),
 		tchannel.AddFlags,
 		grpc.AddFlags,
 	)

@@ -212,19 +212,24 @@ func defaultInt(value int, defaultVal int) int {
 	return value
 }
 
+// ProxyBuilderOptions holds config for CollectorProxyBuilder
+type ProxyBuilderOptions struct {
+	reporter.Options
+	Logger  *zap.Logger
+	Metrics metrics.Factory
+}
+
+// CollectorProxyBuilder is a func which builds CollectorProxy.
+type CollectorProxyBuilder func(ProxyBuilderOptions) (CollectorProxy, error)
+
 // CreateCollectorProxy creates collector proxy
 func CreateCollectorProxy(
-	opts *reporter.Options,
-	builders map[reporter.Type]ProxyBuilder,
-	logger *zap.Logger,
-	mFactory metrics.Factory,
+	opts ProxyBuilderOptions,
+	builders map[reporter.Type]CollectorProxyBuilder,
 ) (CollectorProxy, error) {
 	builder, ok := builders[opts.ReporterType]
 	if !ok {
 		return nil, fmt.Errorf("unknown reporter type %s", string(opts.ReporterType))
 	}
-	return builder(opts.AgentTags, mFactory, logger)
+	return builder(opts)
 }
-
-// ProxyBuilder is a func which builds CollectorProxy.
-type ProxyBuilder func(map[string]string, metrics.Factory, *zap.Logger) (CollectorProxy, error)

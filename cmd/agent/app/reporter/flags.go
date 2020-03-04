@@ -46,18 +46,22 @@ type Options struct {
 
 // AddFlags adds flags for Options.
 func AddFlags(flags *flag.FlagSet) {
-	AddFlagsWithCustomTypes([]string{})(flags)
+	AddFlagsWithReporterTypes([]string{})(flags)
 }
 
-// AddFlagsWithCustomTypes adds types to use message.
-func AddFlagsWithCustomTypes(types []string) func(*flag.FlagSet) {
+func addFlags(flags *flag.FlagSet) {
+	if !setupcontext.IsAllInOne() {
+		flags.String(agentTagsDeprecated, "", "(deprecated) see --"+agentTags)
+		flags.String(agentTags, "", "One or more tags to be added to the Process tags of all spans passing through this agent. Ex: key1=value1,key2=${envVar:defaultValue}")
+	}
+}
+
+// AddFlagsWithReporterTypes adds custom reporter types to reporter type usage message.
+func AddFlagsWithReporterTypes(types []string) func(*flag.FlagSet) {
 	return func(flags *flag.FlagSet) {
 		types = append([]string{string(GRPC)}, types...)
 		flags.String(reporterType, string(GRPC), fmt.Sprintf("Reporter type to use e.g. %s", types))
-		if !setupcontext.IsAllInOne() {
-			flags.String(agentTagsDeprecated, "", "(deprecated) see --"+agentTags)
-			flags.String(agentTags, "", "One or more tags to be added to the Process tags of all spans passing through this agent. Ex: key1=value1,key2=${envVar:defaultValue}")
-		}
+		addFlags(flags)
 	}
 }
 

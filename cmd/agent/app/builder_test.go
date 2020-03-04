@@ -231,7 +231,7 @@ func TestCreateCollectorProxy(t *testing.T) {
 		flags := &flag.FlagSet{}
 		tchannel.AddFlags(flags)
 		grpc.AddFlags(flags)
-		reporter.AddFlagsWithCustomTypes([]string{string(tchannel.ReporterType)})(flags)
+		reporter.AddFlags(flags)
 		app.AddFlags(flags)
 
 		command := cobra.Command{}
@@ -248,15 +248,15 @@ func TestCreateCollectorProxy(t *testing.T) {
 
 		metricsFactory := metricstest.NewFactory(time.Microsecond)
 
-		builders := map[reporter.Type]ProxyBuilder{}
-		builders[reporter.GRPC] = func(m map[string]string, factory metrics.Factory, logger *zap.Logger) (CollectorProxy, error) {
-			return grpc.NewCollectorProxy(grpcBuilder, rOpts.AgentTags, metricsFactory, logger)
-		}
-		builders[tchannel.ReporterType] = func(m map[string]string, factory metrics.Factory, logger *zap.Logger) (CollectorProxy, error) {
-			return tchannel.NewCollectorProxy(tchan, metricsFactory, logger)
-		}
+		builders := map[reporter.Type]CollectorProxyBuilder{}
+		builders[reporter.GRPC] = GRPCCollectorProxyBuilder(grpcBuilder)
+		builders[tchannel.ReporterType] = TCollectorProxyBuilder(tchan)
 
-		proxy, err := CreateCollectorProxy(rOpts, builders, zap.NewNop(), metricsFactory)
+		proxy, err := CreateCollectorProxy(ProxyBuilderOptions{
+			Options: *rOpts,
+			Metrics: metricsFactory,
+			Logger:  zap.NewNop(),
+		}, builders)
 		if test.err != "" {
 			assert.EqualError(t, err, test.err)
 			assert.Nil(t, proxy)
@@ -269,19 +269,14 @@ func TestCreateCollectorProxy(t *testing.T) {
 }
 
 func TestCreateCollectorProxy_UnknownReporter(t *testing.T) {
-	rOpts := new(reporter.Options)
 	tchan := tchannel.NewBuilder()
 	grpcBuilder := grpc.NewConnBuilder()
 
-	builders := map[reporter.Type]ProxyBuilder{}
-	builders[reporter.GRPC] = func(m map[string]string, factory metrics.Factory, logger *zap.Logger) (CollectorProxy, error) {
-		return grpc.NewCollectorProxy(grpcBuilder, rOpts.AgentTags, metrics.NullFactory, logger)
-	}
-	builders[tchannel.ReporterType] = func(m map[string]string, factory metrics.Factory, logger *zap.Logger) (CollectorProxy, error) {
-		return tchannel.NewCollectorProxy(tchan, metrics.NullFactory, logger)
-	}
+	builders := map[reporter.Type]CollectorProxyBuilder{}
+	builders[reporter.GRPC] = GRPCCollectorProxyBuilder(grpcBuilder)
+	builders[tchannel.ReporterType] = TCollectorProxyBuilder(tchan)
 
-	proxy, err := CreateCollectorProxy(rOpts, builders, zap.NewNop(), metrics.NullFactory)
+	proxy, err := CreateCollectorProxy(ProxyBuilderOptions{}, builders)
 	assert.Nil(t, proxy)
 	assert.EqualError(t, err, "unknown reporter type ")
 }
