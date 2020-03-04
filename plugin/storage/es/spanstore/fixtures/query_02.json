@@ -6,7 +6,7 @@
           "must":{
             "regexp":{
               "tag.bat@foo":{
-                "value":"spook"
+                "value":"spo.*"
               }
             }
           }
@@ -17,7 +17,7 @@
           "must":{
             "regexp":{
               "process.tag.bat@foo":{
-                "value":"spook"
+                "value":"spo.*"
               }
             }
           }
@@ -39,7 +39,7 @@
                 {
                   "regexp":{
                     "tags.value":{
-                      "value":"spook"
+                      "value":"spo.*"
                     }
                   }
                 }
@@ -64,7 +64,7 @@
                 {
                   "regexp":{
                     "process.tags.value":{
-                      "value":"spook"
+                      "value":"spo.*"
                     }
                   }
                 }
@@ -89,7 +89,7 @@
                 {
                   "regexp":{
                     "logs.fields.value":{
-                      "value":"spook"
+                      "value":"spo.*"
                     }
                   }
                 }

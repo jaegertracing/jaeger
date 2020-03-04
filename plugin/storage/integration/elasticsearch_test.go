@@ -171,6 +171,8 @@ func testElasticsearchStorage(t *testing.T, allTagsAsFields, archive bool) {
 	s := &ESStorageIntegration{}
 	require.NoError(t, s.initializeES(allTagsAsFields, archive))
 
+	s.Fixtures = loadAndParseQueryTestCases(t, "fixtures/queries_es.json")
+
 	if archive {
 		t.Run("ArchiveTrace", s.testArchiveTrace)
 	} else {
