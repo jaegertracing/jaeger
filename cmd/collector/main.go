@@ -95,8 +95,10 @@ func main() {
 			collectorOpts := new(app.CollectorOptions).InitFromViper(v)
 			c.Start(collectorOpts)
 			tCollectorOpts := new(tCollector.Options).InitFromViper(v)
-			tc := tCollector.Collector{}
-			tc.Start("jaeger-collector", tCollectorOpts, logger, c.SpanHandlers(), strategyStore)
+			tc, err := tCollector.Start("jaeger-collector", tCollectorOpts, logger, c.SpanHandlers(), strategyStore)
+			if err != nil {
+				logger.Fatal("Could not start Tchannel thrift collector", zap.Error(err))
+			}
 
 			svc.RunAndThen(func() {
 				if closer, ok := spanWriter.(io.Closer); ok {

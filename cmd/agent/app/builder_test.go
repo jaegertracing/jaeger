@@ -231,7 +231,7 @@ func TestCreateCollectorProxy(t *testing.T) {
 		flags := &flag.FlagSet{}
 		tchannel.AddFlags(flags)
 		grpc.AddFlags(flags)
-		new(reporter.Flags).AddFlags(flags)
+		reporter.AddFlags(flags)
 		app.AddFlags(flags)
 
 		command := cobra.Command{}
@@ -248,10 +248,10 @@ func TestCreateCollectorProxy(t *testing.T) {
 
 		metricsFactory := metricstest.NewFactory(time.Microsecond)
 
-		builders := map[reporter.Type]CollectorProxyBuilder{}
-		builders[reporter.GRPC] = GRPCCollectorProxyBuilder(grpcBuilder)
-		builders[tchannel.ReporterType] = TCollectorProxyBuilder(tchan)
-
+		builders := map[reporter.Type]CollectorProxyBuilder{
+			reporter.GRPC:         GRPCCollectorProxyBuilder(grpcBuilder),
+			tchannel.ReporterType: TCollectorProxyBuilder(tchan),
+		}
 		proxy, err := CreateCollectorProxy(ProxyBuilderOptions{
 			Options: *rOpts,
 			Metrics: metricsFactory,
@@ -272,10 +272,10 @@ func TestCreateCollectorProxy_UnknownReporter(t *testing.T) {
 	tchan := tchannel.NewBuilder()
 	grpcBuilder := grpc.NewConnBuilder()
 
-	builders := map[reporter.Type]CollectorProxyBuilder{}
-	builders[reporter.GRPC] = GRPCCollectorProxyBuilder(grpcBuilder)
-	builders[tchannel.ReporterType] = TCollectorProxyBuilder(tchan)
-
+	builders := map[reporter.Type]CollectorProxyBuilder{
+		reporter.GRPC:         GRPCCollectorProxyBuilder(grpcBuilder),
+		tchannel.ReporterType: TCollectorProxyBuilder(tchan),
+	}
 	proxy, err := CreateCollectorProxy(ProxyBuilderOptions{}, builders)
 	assert.Nil(t, proxy)
 	assert.EqualError(t, err, "unknown reporter type ")

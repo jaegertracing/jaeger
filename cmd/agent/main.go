@@ -57,9 +57,10 @@ func main() {
 			rOpts := new(reporter.Options).InitFromViper(v, logger)
 			tchanBuilder := tchannel.NewBuilder().InitFromViper(v, logger)
 			grpcBuilder := grpc.NewConnBuilder().InitFromViper(v)
-			builders := map[reporter.Type]app.CollectorProxyBuilder{}
-			builders[reporter.GRPC] = app.GRPCCollectorProxyBuilder(grpcBuilder)
-			builders[tchannel.ReporterType] = app.TCollectorProxyBuilder(tchanBuilder)
+			builders := map[reporter.Type]app.CollectorProxyBuilder{
+				reporter.GRPC:         app.GRPCCollectorProxyBuilder(grpcBuilder),
+				tchannel.ReporterType: app.TCollectorProxyBuilder(tchanBuilder),
+			}
 			cp, err := app.CreateCollectorProxy(app.ProxyBuilderOptions{
 				Options: *rOpts,
 				Logger:  logger,
@@ -97,7 +98,7 @@ func main() {
 		command,
 		svc.AddFlags,
 		app.AddFlags,
-		(reporter.Flags{Reporters: []string{"(deprecated)" + string(tchannel.ReporterType)}}).AddFlags,
+		reporter.AddFlags,
 		tchannel.AddFlags,
 		grpc.AddFlags,
 	)

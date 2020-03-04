@@ -28,29 +28,28 @@ type Collector struct {
 	tchServer *tchannel.Channel
 }
 
-// Start starts the Collector
-func (c *Collector) Start(
+// Start starts the tchannel collector
+func Start(
 	serviceName string,
 	cOpts *Options,
 	logger *zap.Logger,
 	spanHandlers *app.SpanHandlers,
 	strategyStore strategystore.StrategyStore,
-) error {
-
-	if tchServer, err := server.StartThriftServer(&server.ThriftServerParams{
+) (*Collector, error) {
+	c := &Collector{}
+	tchServer, err := server.StartThriftServer(&server.ThriftServerParams{
 		ServiceName:          serviceName,
 		Port:                 cOpts.CollectorPort,
 		JaegerBatchesHandler: spanHandlers.JaegerBatchesHandler,
 		ZipkinSpansHandler:   spanHandlers.ZipkinSpansHandler,
 		StrategyStore:        strategyStore,
 		Logger:               logger,
-	}); err != nil {
-		logger.Fatal("could not start Thrift collector", zap.Error(err))
-	} else {
-		c.tchServer = tchServer
+	})
+	if err != nil {
+		return c, err
 	}
-
-	return nil
+	c.tchServer = tchServer
+	return c, nil
 }
 
 // Close the component and all its underlying dependencies.

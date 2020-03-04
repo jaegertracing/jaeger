@@ -44,16 +44,9 @@ type Options struct {
 	AgentTags    map[string]string
 }
 
-// Flags holds configuration for AddFlags.
-type Flags struct {
-	// Reporters which area added to reporter type help message
-	Reporters []string
-}
-
 // AddFlags adds flags for Options.
-func (f Flags) AddFlags(flags *flag.FlagSet) {
-	reps := append([]string{string(GRPC)}, f.Reporters...)
-	flags.String(reporterType, string(GRPC), fmt.Sprintf("Reporter type to use e.g. %s", reps))
+func AddFlags(flags *flag.FlagSet) {
+	flags.String(reporterType, string(GRPC), fmt.Sprintf("Reporter type to use e.g. %s", string(GRPC)))
 	if !setupcontext.IsAllInOne() {
 		flags.String(agentTagsDeprecated, "", "(deprecated) see --"+agentTags)
 		flags.String(agentTags, "", "One or more tags to be added to the Process tags of all spans passing through this agent. Ex: key1=value1,key2=${envVar:defaultValue}")

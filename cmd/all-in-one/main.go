@@ -132,16 +132,18 @@ by default uses only in-memory database.`,
 			})
 			c.Start(cOpts)
 			tCollectorOpts := new(tCollector.Options).InitFromViper(v)
-			tc := tCollector.Collector{}
-			tc.Start("jaeger-collector", tCollectorOpts, logger, c.SpanHandlers(), strategyStore)
+			tc, err := tCollector.Start("jaeger-collector", tCollectorOpts, logger, c.SpanHandlers(), strategyStore)
+			if err != nil {
+				logger.Fatal("Could not start Tchannel thrift collector", zap.Error(err))
+			}
 
 			// agent
 			grpcBuilder.CollectorHostPorts = append(grpcBuilder.CollectorHostPorts, fmt.Sprintf("127.0.0.1:%d", cOpts.CollectorGRPCPort))
 			agentMetricsFactory := metricsFactory.Namespace(metrics.NSOptions{Name: "agent", Tags: nil})
-			builders := map[agentRep.Type]agentApp.CollectorProxyBuilder{}
-			builders[agentRep.GRPC] = agentApp.GRPCCollectorProxyBuilder(grpcBuilder)
-			builders[agentTchanRep.ReporterType] = agentApp.TCollectorProxyBuilder(tchanBuilder)
-
+			builders := map[agentRep.Type]agentApp.CollectorProxyBuilder{
+				agentRep.GRPC:              agentApp.GRPCCollectorProxyBuilder(grpcBuilder),
+				agentTchanRep.ReporterType: agentApp.TCollectorProxyBuilder(tchanBuilder),
+			}
 			cp, err := agentApp.CreateCollectorProxy(agentApp.ProxyBuilderOptions{
 				Options: *repOpts,
 				Logger:  logger,
@@ -187,7 +189,7 @@ by default uses only in-memory database.`,
 		svc.AddFlags,
 		storageFactory.AddFlags,
 		agentApp.AddFlags,
-		(agentRep.Flags{Reporters: []string{"(deprecated)" + string(agentTchanRep.ReporterType)}}).AddFlags,
+		agentRep.AddFlags,
 		agentTchanRep.AddFlags,
 		agentGrpcRep.AddFlags,
 		collectorApp.AddFlags,
