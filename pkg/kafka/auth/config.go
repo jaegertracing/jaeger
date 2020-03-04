@@ -51,14 +51,18 @@ func (config *AuthenticationConfig) SetConfiguration(saramaConfig *sarama.Config
 	if strings.Trim(authentication, " ") == "" {
 		authentication = none
 	}
+	if config.Authentication == tls || config.TLS.Enabled {
+		err := setTLSConfiguration(&config.TLS, saramaConfig)
+		if err != nil {
+			return err
+		}
+	}
 	switch authentication {
 	case none:
 		return nil
 	case kerberos:
 		setKerberosConfiguration(&config.Kerberos, saramaConfig)
 		return nil
-	case tls:
-		return setTLSConfiguration(&config.TLS, saramaConfig)
 	case plaintext:
 		setPlainTextConfiguration(&config.PlainText, saramaConfig)
 		return nil
@@ -85,9 +89,6 @@ func (config *AuthenticationConfig) InitFromViper(configPrefix string, v *viper.
 	}
 
 	config.TLS = tlsClientConfig.InitFromViper(v)
-	if config.TLS.Enabled {
-		config.Authentication = tls
-	}
 	if config.Authentication == tls {
 		config.TLS.Enabled = true
 	}
