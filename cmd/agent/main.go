@@ -97,7 +97,7 @@ func main() {
 		command,
 		svc.AddFlags,
 		app.AddFlags,
-		reporter.AddFlagsWithReporterTypes([]string{"(deprecated)" + string(tchannel.ReporterType)}),
+		(reporter.Flags{Reporters: []string{"(deprecated)" + string(tchannel.ReporterType)}}).AddFlags,
 		tchannel.AddFlags,
 		grpc.AddFlags,
 	)

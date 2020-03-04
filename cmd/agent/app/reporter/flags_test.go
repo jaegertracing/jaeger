@@ -33,7 +33,7 @@ func TestBindFlags_NoJaegerTags(t *testing.T) {
 	v := viper.New()
 	command := cobra.Command{}
 	flags := &flag.FlagSet{}
-	AddFlags(flags)
+	new(Flags).AddFlags(flags)
 	command.PersistentFlags().AddGoFlagSet(flags)
 	v.BindPFlags(command.PersistentFlags())
 
@@ -52,7 +52,7 @@ func TestBindFlags(t *testing.T) {
 	v := viper.New()
 	command := cobra.Command{}
 	flags := &flag.FlagSet{}
-	AddFlags(flags)
+	new(Flags).AddFlags(flags)
 	command.PersistentFlags().AddGoFlagSet(flags)
 	v.BindPFlags(command.PersistentFlags())
 
@@ -100,7 +100,7 @@ func TestBindFlagsAllInOne(t *testing.T) {
 	v := viper.New()
 	command := cobra.Command{}
 	flags := &flag.FlagSet{}
-	AddFlags(flags)
+	new(Flags).AddFlags(flags)
 	command.PersistentFlags().AddGoFlagSet(flags)
 	v.BindPFlags(command.PersistentFlags())
 

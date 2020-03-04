@@ -231,7 +231,7 @@ func TestCreateCollectorProxy(t *testing.T) {
 		flags := &flag.FlagSet{}
 		tchannel.AddFlags(flags)
 		grpc.AddFlags(flags)
-		reporter.AddFlags(flags)
+		new(reporter.Flags).AddFlags(flags)
 		app.AddFlags(flags)
 
 		command := cobra.Command{}
