@@ -97,7 +97,6 @@ func (s *ESStorageIntegration) initializeES(t *testing.T, allTagsAsFields, archi
 	// TODO: remove this flag after ES support returning spanKind when get operations
 	s.notSupportSpanKindWithOperation = true
 
-	s.Fixtures = loadAndParseQueryTestCases(t, "fixtures/queries_es.json")
 	return nil
 }
 
@@ -172,6 +171,8 @@ func testElasticsearchStorage(t *testing.T, allTagsAsFields, archive bool) {
 	}
 	s := &ESStorageIntegration{}
 	require.NoError(t, s.initializeES(t, allTagsAsFields, archive))
+
+	s.Fixtures = loadAndParseQueryTestCases(t, "fixtures/queries_es.json")
 
 	if archive {
 		t.Run("ArchiveTrace", s.testArchiveTrace)

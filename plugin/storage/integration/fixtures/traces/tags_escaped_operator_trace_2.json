@@ -1,7 +1,7 @@
 {
   "spans": [
     {
-      "traceId": "AAAAAAAAAAAAAAAAAAAFEh==",
+      "traceId": "AAAAAAAAAAAAAAAAAABZEh==",
       "spanId": "AAAAAAAAAAU=",
       "operationName": "query23-operation",
       "references": [],
@@ -11,7 +11,7 @@
         {
           "key": "sameplacetag1",
           "vType": "STRING",
-          "vStr": "random*"
+          "vStr": "sameplacedifferentvalue"
         }
       ],
       "process": {
