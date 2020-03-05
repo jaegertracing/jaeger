@@ -240,7 +240,7 @@ func TestCreateCollectorProxy(t *testing.T) {
 		metricsFactory := metricstest.NewFactory(time.Microsecond)
 
 		builders := map[reporter.Type]CollectorProxyBuilder{
-			reporter.GRPC:         GRPCCollectorProxyBuilder(grpcBuilder),
+			reporter.GRPC: GRPCCollectorProxyBuilder(grpcBuilder),
 		}
 		proxy, err := CreateCollectorProxy(ProxyBuilderOptions{
 			Options: *rOpts,
@@ -262,7 +262,7 @@ func TestCreateCollectorProxy_UnknownReporter(t *testing.T) {
 	grpcBuilder := grpc.NewConnBuilder()
 
 	builders := map[reporter.Type]CollectorProxyBuilder{
-		reporter.GRPC:         GRPCCollectorProxyBuilder(grpcBuilder),
+		reporter.GRPC: GRPCCollectorProxyBuilder(grpcBuilder),
 	}
 	proxy, err := CreateCollectorProxy(ProxyBuilderOptions{}, builders)
 	assert.Nil(t, proxy)
