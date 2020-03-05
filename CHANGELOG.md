@@ -6,6 +6,24 @@ Changes by Version
 
 ### Backend Changes
 
+* Remove Tchannel between agent and collector ([#2080](https://github.com/jaegertracing/jaeger/pull/2080), [@pavolloffay](https://github.com/pavolloffay))
+    
+    Remove `Tchannel` port (14267) from collector and `Tchannel` reporter from agent. 
+
+    These flags were removed from agent:
+    ```
+    --collector.host-port
+    --reporter.tchannel.discovery.conn-check-timeout
+    --reporter.tchannel.discovery.min-peers
+    --reporter.tchannel.host-port
+    --reporter.tchannel.report-timeout
+    ```
+
+    These flags were removed from collector:
+    ```
+    --collector.port
+    ```
+
 #### Breaking Changes
 
 #### New Features

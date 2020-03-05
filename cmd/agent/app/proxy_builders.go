@@ -16,19 +16,11 @@ package app
 
 import (
 	"github.com/jaegertracing/jaeger/cmd/agent/app/reporter/grpc"
-	"github.com/jaegertracing/jaeger/tchannel/agent/app/reporter/tchannel"
 )
 
 // GRPCCollectorProxyBuilder creates CollectorProxyBuilder for GRPC reporter
 func GRPCCollectorProxyBuilder(builder *grpc.ConnBuilder) CollectorProxyBuilder {
 	return func(opts ProxyBuilderOptions) (proxy CollectorProxy, err error) {
 		return grpc.NewCollectorProxy(builder, opts.AgentTags, opts.Metrics, opts.Logger)
-	}
-}
-
-// TCollectorProxyBuilder creates CollectorProxyBuilder for Tchannel reporter
-func TCollectorProxyBuilder(builder *tchannel.Builder) CollectorProxyBuilder {
-	return func(opts ProxyBuilderOptions) (proxy CollectorProxy, err error) {
-		return tchannel.NewCollectorProxy(builder, opts.Metrics, opts.Logger)
 	}
 }

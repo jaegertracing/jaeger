@@ -49,7 +49,6 @@ import (
 	"github.com/jaegertracing/jaeger/storage/dependencystore"
 	"github.com/jaegertracing/jaeger/storage/spanstore"
 	storageMetrics "github.com/jaegertracing/jaeger/storage/spanstore/metrics"
-	agentTchanRep "github.com/jaegertracing/jaeger/tchannel/agent/app/reporter/tchannel"
 	tCollector "github.com/jaegertracing/jaeger/tchannel/collector/app"
 )
 
@@ -116,7 +115,6 @@ by default uses only in-memory database.`,
 
 			aOpts := new(agentApp.Builder).InitFromViper(v)
 			repOpts := new(agentRep.Options).InitFromViper(v, logger)
-			tchanBuilder := agentTchanRep.NewBuilder().InitFromViper(v, logger)
 			grpcBuilder := agentGrpcRep.NewConnBuilder().InitFromViper(v)
 			cOpts := new(collectorApp.CollectorOptions).InitFromViper(v)
 			qOpts := new(queryApp.QueryOptions).InitFromViper(v, logger)
@@ -131,18 +129,12 @@ by default uses only in-memory database.`,
 				HealthCheck:    svc.HC(),
 			})
 			c.Start(cOpts)
-			tCollectorOpts := new(tCollector.Options).InitFromViper(v)
-			tc, err := tCollector.Start("jaeger-collector", tCollectorOpts, logger, c.SpanHandlers(), strategyStore)
-			if err != nil {
-				logger.Fatal("Could not start Tchannel thrift collector", zap.Error(err))
-			}
 
 			// agent
 			grpcBuilder.CollectorHostPorts = append(grpcBuilder.CollectorHostPorts, fmt.Sprintf("127.0.0.1:%d", cOpts.CollectorGRPCPort))
 			agentMetricsFactory := metricsFactory.Namespace(metrics.NSOptions{Name: "agent", Tags: nil})
 			builders := map[agentRep.Type]agentApp.CollectorProxyBuilder{
-				agentRep.GRPC:              agentApp.GRPCCollectorProxyBuilder(grpcBuilder),
-				agentTchanRep.ReporterType: agentApp.TCollectorProxyBuilder(tchanBuilder),
+				agentRep.GRPC: agentApp.GRPCCollectorProxyBuilder(grpcBuilder),
 			}
 			cp, err := agentApp.CreateCollectorProxy(agentApp.ProxyBuilderOptions{
 				Options: *repOpts,
@@ -165,7 +157,6 @@ by default uses only in-memory database.`,
 				agent.Stop()
 				cp.Close()
 				c.Close()
-				tc.Close()
 				querySrv.Close()
 				if closer, ok := spanWriter.(io.Closer); ok {
 					err := closer.Close()
@@ -190,7 +181,6 @@ by default uses only in-memory database.`,
 		storageFactory.AddFlags,
 		agentApp.AddFlags,
 		agentRep.AddFlags,
-		agentTchanRep.AddFlags,
 		agentGrpcRep.AddFlags,
 		collectorApp.AddFlags,
 		tCollector.AddFlags,
