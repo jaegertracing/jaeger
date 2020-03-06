@@ -8,6 +8,24 @@ Changes by Version
 
 #### Breaking Changes
 
+* Remove Tchannel between agent and collector ([#2115](https://github.com/jaegertracing/jaeger/pull/2115), [#2112](https://github.com/jaegertracing/jaeger/pull/2112), [@pavolloffay](https://github.com/pavolloffay))
+    
+    Remove `Tchannel` port (14267) from collector and `Tchannel` reporter from agent. 
+
+    These flags were removed from agent:
+    ```
+    --collector.host-port
+    --reporter.tchannel.discovery.conn-check-timeout
+    --reporter.tchannel.discovery.min-peers
+    --reporter.tchannel.host-port
+    --reporter.tchannel.report-timeout
+    ```
+
+    These flags were removed from collector:
+    ```
+    --collector.port
+    ```
+
 #### New Features
 
 #### Bug fixes, Minor Improvements
@@ -1048,25 +1066,4 @@ jaeger_query_responses_bucket{operation="find_traces",le="0.005"} 2
 
 - Add viper/cobra configuration support [#245](https://github.com/uber/jaeger/pull/245) [#307](https://github.com/uber/jaeger/pull/307)
 - Add Zipkin /api/v1/spans endpoint [#282](https://github.com/uber/jaeger/pull/282)
-- Add basic authenticator to configs for cassandra [#323](https://github.com/uber/jaeger/pull/323)
-- Add Elasticsearch storage support
-
-
-0.5.2 (2017-07-20)
-------------------
-
-- Use official Cassandra 3.11 base image [#278](https://github.com/uber/jaeger/pull/278)
-- Support configurable metrics backend in the agent [#275](https://github.com/uber/jaeger/pull/275)
-
-
-0.5.1 (2017-07-03)
-------------------
-
-- Bug fix: Query startup should fail when -query.static-files has no trailing slash [#144](https://github.com/uber/jaeger/issues/144)
-- Push to Docker Hub on release tags [#246](https://github.com/uber/jaeger/pull/246)
-
-
-0.5.0 (2017-07-01)
-------------------
-
-First numbered release.
+- Add basic authenticator to configs for cass

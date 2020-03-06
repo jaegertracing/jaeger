@@ -33,7 +33,6 @@ import (
 	"github.com/jaegertracing/jaeger/pkg/config"
 	"github.com/jaegertracing/jaeger/pkg/version"
 	"github.com/jaegertracing/jaeger/ports"
-	"github.com/jaegertracing/jaeger/tchannel/agent/app/reporter/tchannel"
 )
 
 func main() {
@@ -55,11 +54,9 @@ func main() {
 				Namespace(metrics.NSOptions{Name: "agent"})
 
 			rOpts := new(reporter.Options).InitFromViper(v, logger)
-			tchanBuilder := tchannel.NewBuilder().InitFromViper(v, logger)
 			grpcBuilder := grpc.NewConnBuilder().InitFromViper(v)
 			builders := map[reporter.Type]app.CollectorProxyBuilder{
-				reporter.GRPC:         app.GRPCCollectorProxyBuilder(grpcBuilder),
-				tchannel.ReporterType: app.TCollectorProxyBuilder(tchanBuilder),
+				reporter.GRPC: app.GRPCCollectorProxyBuilder(grpcBuilder),
 			}
 			cp, err := app.CreateCollectorProxy(app.ProxyBuilderOptions{
 				Options: *rOpts,
@@ -99,7 +96,6 @@ func main() {
 		svc.AddFlags,
 		app.AddFlags,
 		reporter.AddFlags,
-		tchannel.AddFlags,
 		grpc.AddFlags,
 	)
 

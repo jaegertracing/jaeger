@@ -206,14 +206,6 @@ func TestCreateCollectorProxy(t *testing.T) {
 			err:   "at least one collector hostPort address is required when resolver is not available",
 		},
 		{
-			flags:  []string{"--reporter.type=tchannel"},
-			metric: metricstest.ExpectedMetric{Name: "reporter.batches.failures", Tags: map[string]string{"protocol": "tchannel", "format": "jaeger"}, Value: 1},
-		},
-		{
-			flags:  []string{"--reporter.type=tchannel", "--collector.host-port=foo"},
-			metric: metricstest.ExpectedMetric{Name: "reporter.batches.failures", Tags: map[string]string{"protocol": "tchannel", "format": "jaeger"}, Value: 1},
-		},
-		{
 			flags: []string{"--reporter.type=grpc", "--collector.host-port=foo"},
 			err:   "at least one collector hostPort address is required when resolver is not available",
 		},
@@ -243,14 +235,12 @@ func TestCreateCollectorProxy(t *testing.T) {
 		require.NoError(t, err)
 
 		rOpts := new(reporter.Options).InitFromViper(v, zap.NewNop())
-		tchan := tchannel.NewBuilder().InitFromViper(v, zap.NewNop())
 		grpcBuilder := grpc.NewConnBuilder().InitFromViper(v)
 
 		metricsFactory := metricstest.NewFactory(time.Microsecond)
 
 		builders := map[reporter.Type]CollectorProxyBuilder{
-			reporter.GRPC:         GRPCCollectorProxyBuilder(grpcBuilder),
-			tchannel.ReporterType: TCollectorProxyBuilder(tchan),
+			reporter.GRPC: GRPCCollectorProxyBuilder(grpcBuilder),
 		}
 		proxy, err := CreateCollectorProxy(ProxyBuilderOptions{
 			Options: *rOpts,
@@ -269,12 +259,10 @@ func TestCreateCollectorProxy(t *testing.T) {
 }
 
 func TestCreateCollectorProxy_UnknownReporter(t *testing.T) {
-	tchan := tchannel.NewBuilder()
 	grpcBuilder := grpc.NewConnBuilder()
 
 	builders := map[reporter.Type]CollectorProxyBuilder{
-		reporter.GRPC:         GRPCCollectorProxyBuilder(grpcBuilder),
-		tchannel.ReporterType: TCollectorProxyBuilder(tchan),
+		reporter.GRPC: GRPCCollectorProxyBuilder(grpcBuilder),
 	}
 	proxy, err := CreateCollectorProxy(ProxyBuilderOptions{}, builders)
 	assert.Nil(t, proxy)
