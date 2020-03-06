@@ -18,6 +18,7 @@ package app
 import (
 	"net/http"
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/assert"
 	"go.uber.org/zap"
@@ -34,6 +35,7 @@ func TestQueryBuilderFlags(t *testing.T) {
 		"--query.port=80",
 		"--query.additional-headers=access-control-allow-origin:blerg",
 		"--query.additional-headers=whatever:thing",
+		"--query.max-clock-skew-adjust=10s",
 	})
 	qOpts := new(QueryOptions).InitFromViper(v, zap.NewNop())
 	assert.Equal(t, "/dev/null", qOpts.StaticAssets)
@@ -44,6 +46,7 @@ func TestQueryBuilderFlags(t *testing.T) {
 		"Access-Control-Allow-Origin": []string{"blerg"},
 		"Whatever":                    []string{"thing"},
 	}, qOpts.AdditionalHeaders)
+	assert.Equal(t, 10*time.Second, qOpts.MaxClockSkewAdjust)
 }
 
 func TestQueryBuilderBadHeadersFlags(t *testing.T) {
