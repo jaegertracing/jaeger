@@ -36,7 +36,6 @@ import (
 
 var yamlConfig = `
 collectorHostPorts:
-    - 127.0.0.1:14267
     - 127.0.0.1:14268
     - 127.0.0.1:14269
 `
@@ -54,7 +53,7 @@ func TestBuilderFromConfig(t *testing.T) {
 
 	assert.Equal(
 		t,
-		[]string{"127.0.0.1:14267", "127.0.0.1:14268", "127.0.0.1:14269"},
+		[]string{"127.0.0.1:14268", "127.0.0.1:14269"},
 		cfg.CollectorHostPorts)
 	r, err := cfg.CreateConnection(zap.NewNop())
 	require.NoError(t, err)
