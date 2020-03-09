@@ -78,6 +78,7 @@ func TestClockSkewAdjuster(t *testing.T) {
 		description string
 		trace       []spanProto
 		err         string
+		maxAdjust   time.Duration
 	}{
 		{
 			description: "single span with bad parent",
@@ -129,6 +130,24 @@ func TestClockSkewAdjuster(t *testing.T) {
 			},
 		},
 		{
+			description: "do not apply positive adjustment due to max skew adjustment",
+			trace: []spanProto{
+				{id: 1, parent: 0, startTime: 10, duration: 100, host: "a", adjusted: 10},
+				{id: 2, parent: 1, startTime: 0, duration: 50, host: "b", adjusted: 0},
+			},
+			maxAdjust: 10 * time.Millisecond,
+			err:       "max skew adjust of 10ms exceeded.  not applying calculated adjustment of 35ms",
+		},
+		{
+			description: "do not apply negative adjustment due to max skew adjustment",
+			trace: []spanProto{
+				{id: 1, parent: 0, startTime: 10, duration: 100, host: "a", adjusted: 10},
+				{id: 2, parent: 1, startTime: 80, duration: 50, host: "b", adjusted: 80},
+			},
+			maxAdjust: 10 * time.Millisecond,
+			err:       "max skew adjust of 10ms exceeded.  not applying calculated adjustment of -45ms",
+		},
+		{
 			description: "adjust child starting before parent",
 			trace: []spanProto{
 				{id: 1, parent: 0, startTime: 10, duration: 100, host: "a", adjusted: 10},
@@ -137,6 +156,7 @@ func TestClockSkewAdjuster(t *testing.T) {
 				{id: 2, parent: 1, startTime: 0, duration: 50, host: "b", adjusted: 35,
 					logs: []int{5, 10}, adjustedLogs: []int{40, 45}},
 			},
+			maxAdjust: time.Second,
 		},
 		{
 			description: "adjust child starting before parent even if it is longer",
@@ -144,6 +164,7 @@ func TestClockSkewAdjuster(t *testing.T) {
 				{id: 1, parent: 0, startTime: 10, duration: 100, host: "a", adjusted: 10},
 				{id: 2, parent: 1, startTime: 0, duration: 150, host: "b", adjusted: 10},
 			},
+			maxAdjust: time.Second,
 		},
 		{
 			description: "adjust child ending after parent but being shorter",
@@ -157,13 +178,14 @@ func TestClockSkewAdjuster(t *testing.T) {
 				{id: 3, parent: 2, startTime: 60, duration: 20, host: "b", adjusted: 35,
 					logs: []int{65, 70}, adjustedLogs: []int{40, 45}},
 			},
+			maxAdjust: time.Second,
 		},
 	}
 
 	for _, tt := range testCases {
 		testCase := tt // capture loop var
 		t.Run(testCase.description, func(t *testing.T) {
-			adjuster := ClockSkew(time.Second)
+			adjuster := ClockSkew(tt.maxAdjust)
 			trace, err := adjuster.Adjust(makeTrace(testCase.trace))
 			assert.NoError(t, err)
 			if testCase.err != "" {
