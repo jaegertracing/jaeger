@@ -16,6 +16,8 @@
 package querysvc
 
 import (
+	"time"
+
 	"github.com/jaegertracing/jaeger/model/adjuster"
 )
 
@@ -23,7 +25,7 @@ import (
 // before returning the data to the API clients.
 var StandardAdjusters = []adjuster.Adjuster{
 	adjuster.SpanIDDeduper(),
-	adjuster.ClockSkew(),
+	adjuster.ClockSkew(time.Second),
 	adjuster.IPTagAdjuster(),
 	adjuster.SortLogFields(),
 	adjuster.SpanReferences(),

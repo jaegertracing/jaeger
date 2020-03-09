@@ -38,14 +38,15 @@ import (
 	"github.com/jaegertracing/jaeger/cmd/docs"
 	"github.com/jaegertracing/jaeger/cmd/env"
 	"github.com/jaegertracing/jaeger/cmd/flags"
+	"github.com/jaegertracing/jaeger/cmd/query/app"
 	queryApp "github.com/jaegertracing/jaeger/cmd/query/app"
 	"github.com/jaegertracing/jaeger/cmd/query/app/querysvc"
+	"github.com/jaegertracing/jaeger/model/adjuster"
 	"github.com/jaegertracing/jaeger/pkg/config"
 	"github.com/jaegertracing/jaeger/pkg/version"
 	ss "github.com/jaegertracing/jaeger/plugin/sampling/strategystore"
 	"github.com/jaegertracing/jaeger/plugin/storage"
 	"github.com/jaegertracing/jaeger/ports"
-	istorage "github.com/jaegertracing/jaeger/storage"
 	"github.com/jaegertracing/jaeger/storage/dependencystore"
 	"github.com/jaegertracing/jaeger/storage/spanstore"
 	storageMetrics "github.com/jaegertracing/jaeger/storage/spanstore/metrics"
@@ -148,7 +149,7 @@ by default uses only in-memory database.`,
 
 			// query
 			querySrv := startQuery(
-				svc, qOpts, archiveOptions(storageFactory, logger),
+				svc, qOpts, buildQueryServiceOptions(storageFactory, qOpts, logger),
 				spanReader, dependencyReader,
 				rootMetricsFactory, metricsFactory,
 			)
@@ -232,14 +233,6 @@ func startQuery(
 	return server
 }
 
-func archiveOptions(storageFactory istorage.Factory, logger *zap.Logger) *querysvc.QueryServiceOptions {
-	opts := &querysvc.QueryServiceOptions{}
-	if !opts.InitArchiveStorage(storageFactory, logger) {
-		logger.Info("Archive storage not initialized")
-	}
-	return opts
-}
-
 func initTracer(metricsFactory metrics.Factory, logger *zap.Logger) io.Closer {
 	traceCfg := &jaegerClientConfig.Configuration{
 		ServiceName: "jaeger-query",
@@ -262,4 +255,22 @@ func initTracer(metricsFactory metrics.Factory, logger *zap.Logger) io.Closer {
 	}
 	opentracing.SetGlobalTracer(tracer)
 	return closer
+}
+
+// buildQueryServiceOptions creates a QueryServiceOptions struct with appropriate adjusters and archive config
+func buildQueryServiceOptions(storageFactory istorage.Factory, queryOptions app.QueryOptions, logger *zap.Logger) *querysvc.QueryServiceOptions {
+	opts := &querysvc.QueryServiceOptions{}
+	if !opts.InitArchiveStorage(storageFactory, logger) {
+		logger.Info("Archive storage not initialized")
+	}
+
+	opts.Adjuster = adjuster.Sequence([]adjuster.Adjuster{
+		adjuster.SpanIDDeduper(),
+		adjuster.ClockSkew(queryOptions.MaxClockSkewAdjust),
+		adjuster.IPTagAdjuster(),
+		adjuster.SortLogFields(),
+		adjuster.SpanReferences(),
+	}...)
+
+	return opts
 }

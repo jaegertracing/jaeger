@@ -34,7 +34,7 @@ import (
 //
 // This adjuster never returns any errors. Instead it records any issues
 // it encounters in Span.Warnings.
-func ClockSkew() Adjuster {
+func ClockSkew(maxSkewAdjust time.Duration) Adjuster {
 	return Func(func(trace *model.Trace) (*model.Trace, error) {
 		adjuster := &clockSkewAdjuster{
 			trace: trace,
