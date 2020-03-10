@@ -54,6 +54,7 @@ const (
 	warningDuplicateSpanID       = "duplicate span IDs; skipping clock skew adjustment"
 	warningFormatInvalidParentID = "invalid parent span IDs=%s; skipping clock skew adjustment"
 	warningMaxDeltaExceeded      = "max clock skew adjustment delta of %v exceeded; not applying calculated delta of %v"
+	warningSkewAdjustDisabled    = "clock skew adjustment disabled; not applying calculated delta of %v"
 )
 
 type clockSkewAdjuster struct {
@@ -181,6 +182,11 @@ func (a *clockSkewAdjuster) adjustTimestamps(n *node, skew clockSkew) {
 	}
 
 	if absDuration(skew.delta) > a.maxDelta {
+		if a.maxDelta == 0 {
+			n.span.Warnings = append(n.span.Warnings, fmt.Sprintf(warningSkewAdjustDisabled, skew.delta))
+			return
+		}
+
 		n.span.Warnings = append(n.span.Warnings, fmt.Sprintf(warningMaxDeltaExceeded, a.maxDelta, skew.delta))
 		return
 	}

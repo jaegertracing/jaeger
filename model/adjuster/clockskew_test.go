@@ -148,6 +148,14 @@ func TestClockSkewAdjuster(t *testing.T) {
 			err:       "max clock skew adjustment delta of 10ms exceeded; not applying calculated delta of -45ms",
 		},
 		{
+			description: "do not apply adjustment due to disabled adjustment",
+			trace: []spanProto{
+				{id: 1, parent: 0, startTime: 10, duration: 100, host: "a", adjusted: 10},
+				{id: 2, parent: 1, startTime: 0, duration: 50, host: "b", adjusted: 0},
+			},
+			err: "clock skew adjustment disabled; not applying calculated delta of 35ms",
+		},
+		{
 			description: "adjust child starting before parent",
 			trace: []spanProto{
 				{id: 1, parent: 0, startTime: 10, duration: 100, host: "a", adjusted: 10},
