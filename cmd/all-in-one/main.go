@@ -38,7 +38,6 @@ import (
 	"github.com/jaegertracing/jaeger/cmd/docs"
 	"github.com/jaegertracing/jaeger/cmd/env"
 	"github.com/jaegertracing/jaeger/cmd/flags"
-	"github.com/jaegertracing/jaeger/cmd/query/app"
 	queryApp "github.com/jaegertracing/jaeger/cmd/query/app"
 	"github.com/jaegertracing/jaeger/cmd/query/app/querysvc"
 	"github.com/jaegertracing/jaeger/pkg/config"
@@ -148,7 +147,7 @@ by default uses only in-memory database.`,
 
 			// query
 			querySrv := startQuery(
-				svc, qOpts, app.BuildQueryServiceOptions(storageFactory, qOpts, logger),
+				svc, qOpts, qOpts.BuildQueryServiceOptions(storageFactory, logger),
 				spanReader, dependencyReader,
 				rootMetricsFactory, metricsFactory,
 			)

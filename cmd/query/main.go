@@ -100,7 +100,7 @@ func main() {
 			if err != nil {
 				logger.Fatal("Failed to create dependency reader", zap.Error(err))
 			}
-			queryServiceOptions := app.BuildQueryServiceOptions(storageFactory, queryOpts, logger)
+			queryServiceOptions := queryOpts.BuildQueryServiceOptions(storageFactory, logger)
 			queryService := querysvc.NewQueryService(
 				spanReader,
 				dependencyReader,

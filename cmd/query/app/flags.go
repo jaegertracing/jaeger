@@ -28,8 +28,11 @@ import (
 	"github.com/spf13/viper"
 	"go.uber.org/zap"
 
+	"github.com/jaegertracing/jaeger/cmd/query/app/querysvc"
+	"github.com/jaegertracing/jaeger/model/adjuster"
 	"github.com/jaegertracing/jaeger/pkg/config"
 	"github.com/jaegertracing/jaeger/ports"
+	"github.com/jaegertracing/jaeger/storage"
 )
 
 const (
@@ -88,6 +91,24 @@ func (qOpts *QueryOptions) InitFromViper(v *viper.Viper, logger *zap.Logger) *Qu
 		qOpts.AdditionalHeaders = headers
 	}
 	return qOpts
+}
+
+// BuildQueryServiceOptions creates a QueryServiceOptions struct with appropriate adjusters and archive config
+func (qOpts *QueryOptions) BuildQueryServiceOptions(storageFactory storage.Factory, logger *zap.Logger) *querysvc.QueryServiceOptions {
+	opts := &querysvc.QueryServiceOptions{}
+	if !opts.InitArchiveStorage(storageFactory, logger) {
+		logger.Info("Archive storage not initialized")
+	}
+
+	opts.Adjuster = adjuster.Sequence([]adjuster.Adjuster{
+		adjuster.SpanIDDeduper(),
+		adjuster.ClockSkew(qOpts.MaxClockSkewAdjust),
+		adjuster.IPTagAdjuster(),
+		adjuster.SortLogFields(),
+		adjuster.SpanReferences(),
+	}...)
+
+	return opts
 }
 
 // stringSliceAsHeader parses a slice of strings and returns a http.Header.
