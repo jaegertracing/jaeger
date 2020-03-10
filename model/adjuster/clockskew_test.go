@@ -136,7 +136,7 @@ func TestClockSkewAdjuster(t *testing.T) {
 				{id: 2, parent: 1, startTime: 0, duration: 50, host: "b", adjusted: 0},
 			},
 			maxAdjust: 10 * time.Millisecond,
-			err:       "max skew adjust of 10ms exceeded.  not applying calculated adjustment of 35ms",
+			err:       "max clock skew adjustment delta of 10ms exceeded; not applying calculated delta of 35ms",
 		},
 		{
 			description: "do not apply negative adjustment due to max skew adjustment",
@@ -145,7 +145,7 @@ func TestClockSkewAdjuster(t *testing.T) {
 				{id: 2, parent: 1, startTime: 80, duration: 50, host: "b", adjusted: 80},
 			},
 			maxAdjust: 10 * time.Millisecond,
-			err:       "max skew adjust of 10ms exceeded.  not applying calculated adjustment of -45ms",
+			err:       "max clock skew adjustment delta of 10ms exceeded; not applying calculated delta of -45ms",
 		},
 		{
 			description: "adjust child starting before parent",
