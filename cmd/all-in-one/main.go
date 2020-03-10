@@ -45,7 +45,6 @@ import (
 	ss "github.com/jaegertracing/jaeger/plugin/sampling/strategystore"
 	"github.com/jaegertracing/jaeger/plugin/storage"
 	"github.com/jaegertracing/jaeger/ports"
-	istorage "github.com/jaegertracing/jaeger/storage"
 	"github.com/jaegertracing/jaeger/storage/dependencystore"
 	"github.com/jaegertracing/jaeger/storage/spanstore"
 	storageMetrics "github.com/jaegertracing/jaeger/storage/spanstore/metrics"
@@ -148,7 +147,7 @@ by default uses only in-memory database.`,
 
 			// query
 			querySrv := startQuery(
-				svc, qOpts, archiveOptions(storageFactory, logger),
+				svc, qOpts, qOpts.BuildQueryServiceOptions(storageFactory, logger),
 				spanReader, dependencyReader,
 				rootMetricsFactory, metricsFactory,
 			)
@@ -230,14 +229,6 @@ func startQuery(
 		svc.Logger.Fatal("Could not start jaeger-query service", zap.Error(err))
 	}
 	return server
-}
-
-func archiveOptions(storageFactory istorage.Factory, logger *zap.Logger) *querysvc.QueryServiceOptions {
-	opts := &querysvc.QueryServiceOptions{}
-	if !opts.InitArchiveStorage(storageFactory, logger) {
-		logger.Info("Archive storage not initialized")
-	}
-	return opts
 }
 
 func initTracer(metricsFactory metrics.Factory, logger *zap.Logger) io.Closer {

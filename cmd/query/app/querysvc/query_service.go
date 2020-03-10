@@ -33,6 +33,10 @@ var (
 	errNoArchiveSpanStorage = errors.New("archive span storage was not configured")
 )
 
+const (
+	defaultMaxClockSkewAdjust = time.Second
+)
+
 // QueryServiceOptions has optional members of QueryService
 type QueryServiceOptions struct {
 	ArchiveSpanReader spanstore.Reader
@@ -56,7 +60,7 @@ func NewQueryService(spanReader spanstore.Reader, dependencyReader dependencysto
 	}
 
 	if qsvc.options.Adjuster == nil {
-		qsvc.options.Adjuster = adjuster.Sequence(StandardAdjusters...)
+		qsvc.options.Adjuster = adjuster.Sequence(StandardAdjusters(defaultMaxClockSkewAdjust)...)
 	}
 	return qsvc
 }

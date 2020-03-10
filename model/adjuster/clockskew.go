@@ -34,10 +34,11 @@ import (
 //
 // This adjuster never returns any errors. Instead it records any issues
 // it encounters in Span.Warnings.
-func ClockSkew() Adjuster {
+func ClockSkew(maxDelta time.Duration) Adjuster {
 	return Func(func(trace *model.Trace) (*model.Trace, error) {
 		adjuster := &clockSkewAdjuster{
-			trace: trace,
+			trace:    trace,
+			maxDelta: maxDelta,
 		}
 		adjuster.buildNodesMap()
 		adjuster.buildSubGraphs()
@@ -52,12 +53,15 @@ func ClockSkew() Adjuster {
 const (
 	warningDuplicateSpanID       = "duplicate span IDs; skipping clock skew adjustment"
 	warningFormatInvalidParentID = "invalid parent span IDs=%s; skipping clock skew adjustment"
+	warningMaxDeltaExceeded      = "max clock skew adjustment delta of %v exceeded; not applying calculated delta of %v"
+	warningSkewAdjustDisabled    = "clock skew adjustment disabled; not applying calculated delta of %v"
 )
 
 type clockSkewAdjuster struct {
-	trace *model.Trace
-	spans map[model.SpanID]*node
-	roots map[model.SpanID]*node
+	trace    *model.Trace
+	spans    map[model.SpanID]*node
+	roots    map[model.SpanID]*node
+	maxDelta time.Duration
 }
 
 type clockSkew struct {
@@ -177,10 +181,28 @@ func (a *clockSkewAdjuster) adjustTimestamps(n *node, skew clockSkew) {
 		return
 	}
 
+	if absDuration(skew.delta) > a.maxDelta {
+		if a.maxDelta == 0 {
+			n.span.Warnings = append(n.span.Warnings, fmt.Sprintf(warningSkewAdjustDisabled, skew.delta))
+			return
+		}
+
+		n.span.Warnings = append(n.span.Warnings, fmt.Sprintf(warningMaxDeltaExceeded, a.maxDelta, skew.delta))
+		return
+	}
+
 	n.span.StartTime = n.span.StartTime.Add(skew.delta)
 	n.span.Warnings = append(n.span.Warnings, fmt.Sprintf("This span's timestamps were adjusted by %v", skew.delta))
 
 	for i := range n.span.Logs {
 		n.span.Logs[i].Timestamp = n.span.Logs[i].Timestamp.Add(skew.delta)
 	}
+}
+
+func absDuration(d time.Duration) time.Duration {
+	if d < 0 {
+		return -1 * d
+	}
+
+	return d
 }

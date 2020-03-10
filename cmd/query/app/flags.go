@@ -23,21 +23,26 @@ import (
 	"net/http"
 	"net/textproto"
 	"strings"
+	"time"
 
 	"github.com/spf13/viper"
 	"go.uber.org/zap"
 
+	"github.com/jaegertracing/jaeger/cmd/query/app/querysvc"
+	"github.com/jaegertracing/jaeger/model/adjuster"
 	"github.com/jaegertracing/jaeger/pkg/config"
 	"github.com/jaegertracing/jaeger/ports"
+	"github.com/jaegertracing/jaeger/storage"
 )
 
 const (
-	queryPort              = "query.port"
-	queryBasePath          = "query.base-path"
-	queryStaticFiles       = "query.static-files"
-	queryUIConfig          = "query.ui-config"
-	queryTokenPropagation  = "query.bearer-token-propagation"
-	queryAdditionalHeaders = "query.additional-headers"
+	queryPort               = "query.port"
+	queryBasePath           = "query.base-path"
+	queryStaticFiles        = "query.static-files"
+	queryUIConfig           = "query.ui-config"
+	queryTokenPropagation   = "query.bearer-token-propagation"
+	queryAdditionalHeaders  = "query.additional-headers"
+	queryMaxClockSkewAdjust = "query.max-clock-skew-adjustment"
 )
 
 // QueryOptions holds configuration for query service
@@ -54,6 +59,8 @@ type QueryOptions struct {
 	BearerTokenPropagation bool
 	// AdditionalHeaders
 	AdditionalHeaders http.Header
+	// MaxClockSkewAdjust is the maximum duration by which jaeger-query will adjust a span
+	MaxClockSkewAdjust time.Duration
 }
 
 // AddFlags adds flags for QueryOptions
@@ -64,6 +71,7 @@ func AddFlags(flagSet *flag.FlagSet) {
 	flagSet.String(queryStaticFiles, "", "The directory path override for the static assets for the UI")
 	flagSet.String(queryUIConfig, "", "The path to the UI configuration file in JSON format")
 	flagSet.Bool(queryTokenPropagation, false, "Allow propagation of bearer token to be used by storage plugins")
+	flagSet.Duration(queryMaxClockSkewAdjust, time.Second, "The maximum delta by which span timestamps may be adjusted in the UI due to clock skew; set to 0s to disable clock skew adjustments")
 }
 
 // InitFromViper initializes QueryOptions with properties from viper
@@ -73,6 +81,7 @@ func (qOpts *QueryOptions) InitFromViper(v *viper.Viper, logger *zap.Logger) *Qu
 	qOpts.StaticAssets = v.GetString(queryStaticFiles)
 	qOpts.UIConfig = v.GetString(queryUIConfig)
 	qOpts.BearerTokenPropagation = v.GetBool(queryTokenPropagation)
+	qOpts.MaxClockSkewAdjust = v.GetDuration(queryMaxClockSkewAdjust)
 
 	stringSlice := v.GetStringSlice(queryAdditionalHeaders)
 	headers, err := stringSliceAsHeader(stringSlice)
@@ -82,6 +91,18 @@ func (qOpts *QueryOptions) InitFromViper(v *viper.Viper, logger *zap.Logger) *Qu
 		qOpts.AdditionalHeaders = headers
 	}
 	return qOpts
+}
+
+// BuildQueryServiceOptions creates a QueryServiceOptions struct with appropriate adjusters and archive config
+func (qOpts *QueryOptions) BuildQueryServiceOptions(storageFactory storage.Factory, logger *zap.Logger) *querysvc.QueryServiceOptions {
+	opts := &querysvc.QueryServiceOptions{}
+	if !opts.InitArchiveStorage(storageFactory, logger) {
+		logger.Info("Archive storage not initialized")
+	}
+
+	opts.Adjuster = adjuster.Sequence(querysvc.StandardAdjusters(qOpts.MaxClockSkewAdjust)...)
+
+	return opts
 }
 
 // stringSliceAsHeader parses a slice of strings and returns a http.Header.
