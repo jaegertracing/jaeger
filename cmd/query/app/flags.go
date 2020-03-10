@@ -100,13 +100,7 @@ func (qOpts *QueryOptions) BuildQueryServiceOptions(storageFactory storage.Facto
 		logger.Info("Archive storage not initialized")
 	}
 
-	opts.Adjuster = adjuster.Sequence([]adjuster.Adjuster{
-		adjuster.SpanIDDeduper(),
-		adjuster.ClockSkew(qOpts.MaxClockSkewAdjust),
-		adjuster.IPTagAdjuster(),
-		adjuster.SortLogFields(),
-		adjuster.SpanReferences(),
-	}...)
+	opts.Adjuster = adjuster.Sequence(querysvc.StandardAdjusters(qOpts.MaxClockSkewAdjust)...)
 
 	return opts
 }

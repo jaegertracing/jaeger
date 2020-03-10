@@ -23,10 +23,12 @@ import (
 
 // StandardAdjusters is a list of model adjusters applied by the query service
 // before returning the data to the API clients.
-var StandardAdjusters = []adjuster.Adjuster{
-	adjuster.SpanIDDeduper(),
-	adjuster.ClockSkew(time.Second),
-	adjuster.IPTagAdjuster(),
-	adjuster.SortLogFields(),
-	adjuster.SpanReferences(),
+func StandardAdjusters(maxClockSkewAdjust time.Duration) []adjuster.Adjuster {
+	return []adjuster.Adjuster{
+		adjuster.SpanIDDeduper(),
+		adjuster.ClockSkew(maxClockSkewAdjust),
+		adjuster.IPTagAdjuster(),
+		adjuster.SortLogFields(),
+		adjuster.SpanReferences(),
+	}
 }
