@@ -53,7 +53,7 @@ func ClockSkew(maxSkewAdjust time.Duration) Adjuster {
 const (
 	warningDuplicateSpanID       = "duplicate span IDs; skipping clock skew adjustment"
 	warningFormatInvalidParentID = "invalid parent span IDs=%s; skipping clock skew adjustment"
-	warningMaxSkewAdjustExceeded = "max skew adjust of %v exceeded.  not applying calculated adjustment of %v"
+	warningMaxSkewAdjustExceeded = "max clock skew adjustment delta of %v exceeded; not applying calculated delta of %v"
 )
 
 type clockSkewAdjuster struct {
