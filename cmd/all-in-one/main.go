@@ -41,7 +41,6 @@ import (
 	"github.com/jaegertracing/jaeger/cmd/query/app"
 	queryApp "github.com/jaegertracing/jaeger/cmd/query/app"
 	"github.com/jaegertracing/jaeger/cmd/query/app/querysvc"
-	"github.com/jaegertracing/jaeger/model/adjuster"
 	"github.com/jaegertracing/jaeger/pkg/config"
 	"github.com/jaegertracing/jaeger/pkg/version"
 	ss "github.com/jaegertracing/jaeger/plugin/sampling/strategystore"
@@ -149,7 +148,7 @@ by default uses only in-memory database.`,
 
 			// query
 			querySrv := startQuery(
-				svc, qOpts, buildQueryServiceOptions(storageFactory, qOpts, logger),
+				svc, qOpts, app.BuildQueryServiceOptions(storageFactory, qOpts, logger),
 				spanReader, dependencyReader,
 				rootMetricsFactory, metricsFactory,
 			)
@@ -255,22 +254,4 @@ func initTracer(metricsFactory metrics.Factory, logger *zap.Logger) io.Closer {
 	}
 	opentracing.SetGlobalTracer(tracer)
 	return closer
-}
-
-// buildQueryServiceOptions creates a QueryServiceOptions struct with appropriate adjusters and archive config
-func buildQueryServiceOptions(storageFactory istorage.Factory, queryOptions app.QueryOptions, logger *zap.Logger) *querysvc.QueryServiceOptions {
-	opts := &querysvc.QueryServiceOptions{}
-	if !opts.InitArchiveStorage(storageFactory, logger) {
-		logger.Info("Archive storage not initialized")
-	}
-
-	opts.Adjuster = adjuster.Sequence([]adjuster.Adjuster{
-		adjuster.SpanIDDeduper(),
-		adjuster.ClockSkew(queryOptions.MaxClockSkewAdjust),
-		adjuster.IPTagAdjuster(),
-		adjuster.SortLogFields(),
-		adjuster.SpanReferences(),
-	}...)
-
-	return opts
 }

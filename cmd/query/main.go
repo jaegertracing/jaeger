@@ -34,12 +34,10 @@ import (
 	"github.com/jaegertracing/jaeger/cmd/flags"
 	"github.com/jaegertracing/jaeger/cmd/query/app"
 	"github.com/jaegertracing/jaeger/cmd/query/app/querysvc"
-	"github.com/jaegertracing/jaeger/model/adjuster"
 	"github.com/jaegertracing/jaeger/pkg/config"
 	"github.com/jaegertracing/jaeger/pkg/version"
 	"github.com/jaegertracing/jaeger/plugin/storage"
 	"github.com/jaegertracing/jaeger/ports"
-	istorage "github.com/jaegertracing/jaeger/storage"
 	"github.com/jaegertracing/jaeger/storage/spanstore"
 	storageMetrics "github.com/jaegertracing/jaeger/storage/spanstore/metrics"
 )
@@ -102,7 +100,7 @@ func main() {
 			if err != nil {
 				logger.Fatal("Failed to create dependency reader", zap.Error(err))
 			}
-			queryServiceOptions := buildQueryServiceOptions(storageFactory, logger)
+			queryServiceOptions := app.BuildQueryServiceOptions(storageFactory, queryOpts, logger)
 			queryService := querysvc.NewQueryService(
 				spanReader,
 				dependencyReader,
@@ -137,22 +135,4 @@ func main() {
 		fmt.Println(error.Error())
 		os.Exit(1)
 	}
-}
-
-// buildQueryServiceOptions creates a QueryServiceOptions struct with appropriate adjusters and archive config
-func buildQueryServiceOptions(storageFactory istorage.Factory, queryOptions app.QueryOptions, logger *zap.Logger) *querysvc.QueryServiceOptions {
-	opts := &querysvc.QueryServiceOptions{}
-	if !opts.InitArchiveStorage(storageFactory, logger) {
-		logger.Info("Archive storage not initialized")
-	}
-
-	opts.Adjuster = adjuster.Sequence([]adjuster.Adjuster{
-		adjuster.SpanIDDeduper(),
-		adjuster.ClockSkew(queryOptions.MaxClockSkewAdjust),
-		adjuster.IPTagAdjuster(),
-		adjuster.SortLogFields(),
-		adjuster.SpanReferences(),
-	}...)
-
-	return opts
 }

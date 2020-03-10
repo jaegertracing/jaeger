@@ -14,7 +14,31 @@
 
 package app
 
-import "github.com/jaegertracing/jaeger/storage/spanstore"
+import (
+	"github.com/jaegertracing/jaeger/cmd/query/app/querysvc"
+	"github.com/jaegertracing/jaeger/model/adjuster"
+	"github.com/jaegertracing/jaeger/storage"
+	"github.com/jaegertracing/jaeger/storage/spanstore"
+	"go.uber.org/zap"
+)
+
+// BuildQueryServiceOptions creates a QueryServiceOptions struct with appropriate adjusters and archive config
+func BuildQueryServiceOptions(storageFactory storage.Factory, queryOptions *QueryOptions, logger *zap.Logger) *querysvc.QueryServiceOptions {
+	opts := &querysvc.QueryServiceOptions{}
+	if !opts.InitArchiveStorage(storageFactory, logger) {
+		logger.Info("Archive storage not initialized")
+	}
+
+	opts.Adjuster = adjuster.Sequence([]adjuster.Adjuster{
+		adjuster.SpanIDDeduper(),
+		adjuster.ClockSkew(queryOptions.MaxClockSkewAdjust),
+		adjuster.IPTagAdjuster(),
+		adjuster.SortLogFields(),
+		adjuster.SpanReferences(),
+	}...)
+
+	return opts
+}
 
 func getUniqueOperationNames(operations []spanstore.Operation) []string {
 	// only return unique operation names
