@@ -42,7 +42,7 @@ const (
 	queryUIConfig           = "query.ui-config"
 	queryTokenPropagation   = "query.bearer-token-propagation"
 	queryAdditionalHeaders  = "query.additional-headers"
-	queryMaxClockSkewAdjust = "query.max-clock-skew-adjust"
+	queryMaxClockSkewAdjust = "query.max-clock-skew-adjustment"
 )
 
 // QueryOptions holds configuration for query service

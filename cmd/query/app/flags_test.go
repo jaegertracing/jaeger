@@ -35,7 +35,7 @@ func TestQueryBuilderFlags(t *testing.T) {
 		"--query.port=80",
 		"--query.additional-headers=access-control-allow-origin:blerg",
 		"--query.additional-headers=whatever:thing",
-		"--query.max-clock-skew-adjust=10s",
+		"--query.max-clock-skew-adjustment=10s",
 	})
 	qOpts := new(QueryOptions).InitFromViper(v, zap.NewNop())
 	assert.Equal(t, "/dev/null", qOpts.StaticAssets)
