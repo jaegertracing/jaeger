@@ -24,6 +24,8 @@ import (
 	"go.uber.org/zap"
 
 	"github.com/jaegertracing/jaeger/pkg/config"
+	"github.com/jaegertracing/jaeger/storage/mocks"
+	spanstore_mocks "github.com/jaegertracing/jaeger/storage/spanstore/mocks"
 )
 
 func TestQueryBuilderFlags(t *testing.T) {
@@ -83,4 +85,33 @@ func TestStringSliceAsHeader(t *testing.T) {
 	parsedHeaders, err = stringSliceAsHeader(nil)
 	assert.Nil(t, parsedHeaders)
 	assert.NoError(t, err)
+}
+
+func TestBuildQueryServiceOptions(t *testing.T) {
+	v, _ := config.Viperize(AddFlags)
+	qOpts := new(QueryOptions).InitFromViper(v, zap.NewNop())
+	assert.NotNil(t, qOpts)
+
+	qSvcOpts := qOpts.BuildQueryServiceOptions(&mocks.Factory{}, zap.NewNop())
+	assert.NotNil(t, qSvcOpts)
+	assert.NotNil(t, qSvcOpts.Adjuster)
+	assert.Nil(t, qSvcOpts.ArchiveSpanReader)
+	assert.Nil(t, qSvcOpts.ArchiveSpanWriter)
+
+	comboFactory := struct {
+		*mocks.Factory
+		*mocks.ArchiveFactory
+	}{
+		&mocks.Factory{},
+		&mocks.ArchiveFactory{},
+	}
+
+	comboFactory.ArchiveFactory.On("CreateArchiveSpanReader").Return(&spanstore_mocks.Reader{}, nil)
+	comboFactory.ArchiveFactory.On("CreateArchiveSpanWriter").Return(&spanstore_mocks.Writer{}, nil)
+
+	qSvcOpts = qOpts.BuildQueryServiceOptions(comboFactory, zap.NewNop())
+	assert.NotNil(t, qSvcOpts)
+	assert.NotNil(t, qSvcOpts.Adjuster)
+	assert.NotNil(t, qSvcOpts.ArchiveSpanReader)
+	assert.NotNil(t, qSvcOpts.ArchiveSpanWriter)
 }
