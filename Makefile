@@ -9,8 +9,6 @@ ALL_SRC := $(shell find . -name '*.go' \
 				   -not -name 'gen_assets.go' \
 				   -not -name 'mocks*' \
 				   -not -name 'model.pb.go' \
-				   -not -name 'model_test.pb.go' \
-				   -not -name 'storage_test.pb.go' \
 				   -not -path './examples/*' \
 				   -not -path './vendor/*' \
 				   -not -path '*/mocks/*' \
@@ -467,16 +465,6 @@ proto:
 		-Iplugin/storage/grpc/proto \
 		--gogo_out=plugins=grpc,$(PROTO_GOGO_MAPPINGS):$(PWD)/proto-gen/storage_v1 \
 		plugin/storage/grpc/proto/storage.proto
-
-	$(PROTOC) \
-		-Imodel/proto \
-		--go_out=$(PWD)/model/prototest/ \
-		model/proto/model_test.proto
-
-	$(PROTOC) \
-		-Iplugin/storage/grpc/proto \
-		--go_out=$(PWD)/plugin/storage/grpc/proto/storageprototest/ \
-		plugin/storage/grpc/proto/storage_test.proto
 
 	$(PROTOC) \
 		$(PROTO_INCLUDES) \
