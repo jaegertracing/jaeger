@@ -32,6 +32,22 @@ Changes by Version
 
 ### UI Changes
 
+1.17.1 (2020-03-13)
+------------------
+
+#### Bug fixes, Minor Improvements
+
+* Fix enable Kafka TLS when TLS auth is specified [#2107](https://github.com/jaegertracing/jaeger/pull/2107), [@pavolloffay](https://github.com/pavoloffay))
+* Migrate project to go modules [#2098](https://github.com/jaegertracing/jaeger/pull/2098), [@pavolloffay](https://github.com/pavoloffay))
+* Do not skip service/operation indexing for firehose spans [#2090](https://github.com/jaegertracing/jaeger/pull/2090), [@yurishkuro](https://github.com/yurishkuro))
+* Close the span writer on main ([#2096](https://github.com/jaegertracing/jaeger/pull/2096), [@jpkrohling](https://github.com/jpkrohling))
+* Improved graceful shutdown - Collector ([#2076](https://github.com/jaegertracing/jaeger/pull/2076), [@jpkrohling](https://github.com/jpkrohling))
+* Improved graceful shutdown - Agent ([#2031](https://github.com/jaegertracing/jaeger/pull/2031), [@jpkrohling](https://github.com/jpkrohling))
+
+### UI Changes
+
+* UI pinned to version 1.8.0. The changelog is available here [v1.8.0](https://github.com/jaegertracing/jaeger-ui/blob/master/CHANGELOG.md#v180-march-12-2020)
+
 1.17.0 (2020-02-24)
 ------------------
 
