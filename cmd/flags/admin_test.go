@@ -25,7 +25,7 @@ import (
 )
 
 func TestAdminServerHandlesPortZero(t *testing.T) {
-	adminServer := NewAdminServer(0)
+	adminServer := NewAdminServer(":0")
 
 	v, _ := config.Viperize(adminServer.AddFlags)
 

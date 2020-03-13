@@ -31,7 +31,6 @@ const (
 	collectorNumWorkers           = "collector.num-workers"
 	collectorHTTPPort             = "collector.http-port"
 	collectorGRPCPort             = "collector.grpc-port"
-	collectorTChanHostPort        = "collector.tchan-server.host-port"
 	collectorHTTPHostPort         = "collector.http-server.host-port"
 	collectorGRPCHostPort         = "collector.grpc-server.host-port"
 	collectorZipkinHTTPPort       = "collector.zipkin.http-port"
@@ -59,8 +58,6 @@ type CollectorOptions struct {
 	CollectorHTTPPort int
 	// CollectorGRPCPort is the port that the collector service listens in on for gRPC requests
 	CollectorGRPCPort int
-	// CollectorTChanHostPort is the host:port address that the collector service listens in on for tchannel requests
-	CollectorTChanHostPort string
 	// CollectorHTTPHostPort is the host:port address that the collector service listens in on for http requests
 	CollectorHTTPHostPort string
 	// CollectorGRPCHostPort is the host:port address that the collector service listens in on for gRPC requests
@@ -103,7 +100,6 @@ func (cOpts *CollectorOptions) InitFromViper(v *viper.Viper) *CollectorOptions {
 	cOpts.NumWorkers = v.GetInt(collectorNumWorkers)
 	cOpts.CollectorHTTPPort = v.GetInt(collectorHTTPPort)
 	cOpts.CollectorGRPCPort = v.GetInt(collectorGRPCPort)
-	cOpts.CollectorTChanHostPort = v.GetString(collectorTChanHostPort)
 	cOpts.CollectorHTTPHostPort = v.GetString(collectorHTTPHostPort)
 	cOpts.CollectorGRPCHostPort = v.GetString(collectorGRPCHostPort)
 	cOpts.CollectorZipkinHTTPPort = v.GetInt(collectorZipkinHTTPPort)
