@@ -81,13 +81,11 @@ type CollectorOptions struct {
 
 // AddFlags adds flags for CollectorOptions
 func AddFlags(flags *flag.FlagSet) {
-	flags.Int(collectorQueueSize, app.DefaultQueueSize, "The queue size of the collector")
-	flags.Int(collectorNumWorkers, app.DefaultNumWorkers, "The number of workers pulling items from the queue")
-	flags.Int(collectorPort, 0, "(deprecated) please use - "+collectorTChanHostPort)
+	flags.Int(collectorQueueSize, DefaultQueueSize, "The queue size of the collector")
+	flags.Int(collectorNumWorkers, DefaultNumWorkers, "The number of workers pulling items from the queue")
 	flags.Int(collectorHTTPPort, 0, "(deprecated) please use -"+collectorHTTPHostPort)
 	flags.Int(collectorGRPCPort, 0, "(deprecated) please use -"+collectorGRPCHostPort)
 	flags.Int(collectorZipkinHTTPPort, 0, "(deprecated) please use -"+collectorZipkinHTTPHostPort)
-	flags.String(collectorTChanHostPort, ports.PortToHostPort(ports.CollectorTChannel), "The host:port (e.g. 127.0.0.1:5555 or :5555) of the collector's TChannel server")
 	flags.String(collectorHTTPHostPort, ports.PortToHostPort(ports.CollectorHTTP), "The host:port (e.g. 127.0.0.1:5555 or :5555) of the collector's HTTP server")
 	flags.String(collectorGRPCHostPort, ports.PortToHostPort(ports.CollectorGRPC), "The host:port (e.g. 127.0.0.1:5555 or :5555) of the collector's GRPC server")
 	flags.String(collectorZipkinHTTPHostPort, ports.PortToHostPort(0), "The host:port (e.g. 127.0.0.1:5555 or :5555) of the collector's Zipkin server")

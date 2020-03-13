@@ -254,13 +254,3 @@ func initTracer(metricsFactory metrics.Factory, logger *zap.Logger) io.Closer {
 	opentracing.SetGlobalTracer(tracer)
 	return closer
 }
-
-// Utility function to decide listening address based on port (deprecated flags) or host:port (new flags)
-func getAddressFromCLIOptions(port int, addr string, deprecatedFlag string, logger *zap.Logger) string {
-	if port != 0 {
-		logger.Warn("Using deprecated configuration", zap.String("option", deprecatedFlag))
-		return ports.PortToHostPort(port)
-	}
-
-	return addr
-}
