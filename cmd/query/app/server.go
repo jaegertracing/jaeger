@@ -29,6 +29,7 @@ import (
 	"github.com/jaegertracing/jaeger/cmd/flags"
 	"github.com/jaegertracing/jaeger/cmd/query/app/querysvc"
 	"github.com/jaegertracing/jaeger/pkg/healthcheck"
+	"github.com/jaegertracing/jaeger/pkg/netutils"
 	"github.com/jaegertracing/jaeger/pkg/recoveryhandler"
 	"github.com/jaegertracing/jaeger/proto-gen/api_v2"
 )
@@ -81,8 +82,9 @@ func createHTTPServer(querySvc *querysvc.QueryService, queryOpts *QueryOptions, 
 	apiHandler.RegisterRoutes(r)
 	RegisterStaticHandler(r, logger, queryOpts)
 	var handler http.Handler = r
+	handler = additionalHeadersHandler(handler, queryOpts.AdditionalHeaders)
 	if queryOpts.BearerTokenPropagation {
-		handler = bearerTokenPropagationHandler(logger, r)
+		handler = bearerTokenPropagationHandler(logger, handler)
 	}
 	handler = handlers.CompressHandler(handler)
 	recoveryHandler := recoveryhandler.NewRecoveryHandler(logger, true)
@@ -99,6 +101,15 @@ func (s *Server) Start() error {
 	}
 	s.conn = conn
 
+	tcpPort := s.queryOptions.Port
+	if port, err := netutils.GetPort(s.conn.Addr()); err == nil {
+		tcpPort = port
+	}
+
+	s.svc.Logger.Info(
+		"Query server started",
+		zap.Int("port", tcpPort))
+
 	// cmux server acts as a reverse-proxy between HTTP and GRPC backends.
 	cmuxServer := cmux.New(s.conn)
 
@@ -109,7 +120,7 @@ func (s *Server) Start() error {
 	httpListener := cmuxServer.Match(cmux.Any())
 
 	go func() {
-		s.svc.Logger.Info("Starting HTTP server", zap.Int("port", s.queryOptions.Port))
+		s.svc.Logger.Info("Starting HTTP server", zap.Int("port", tcpPort))
 
 		switch err := s.httpServer.Serve(httpListener); err {
 		case nil, http.ErrServerClosed, cmux.ErrListenerClosed:
@@ -122,7 +133,7 @@ func (s *Server) Start() error {
 
 	// Start GRPC server concurrently
 	go func() {
-		s.svc.Logger.Info("Starting GRPC server", zap.Int("port", s.queryOptions.Port))
+		s.svc.Logger.Info("Starting GRPC server", zap.Int("port", tcpPort))
 
 		if err := s.grpcServer.Serve(grpcListener); err != nil {
 			s.svc.Logger.Error("Could not start GRPC server", zap.Error(err))
@@ -132,7 +143,7 @@ func (s *Server) Start() error {
 
 	// Start cmux server concurrently.
 	go func() {
-		s.svc.Logger.Info("Starting CMUX server", zap.Int("port", s.queryOptions.Port))
+		s.svc.Logger.Info("Starting CMUX server", zap.Int("port", tcpPort))
 
 		err := cmuxServer.Serve()
 		// TODO: Remove string comparison when https://github.com/soheilhy/cmux/pull/69 is merged

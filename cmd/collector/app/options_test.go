@@ -22,11 +22,12 @@ import (
 	"github.com/uber/jaeger-lib/metrics"
 	"go.uber.org/zap"
 
+	"github.com/jaegertracing/jaeger/cmd/collector/app/processor"
 	"github.com/jaegertracing/jaeger/model"
 )
 
 func TestAllOptionSet(t *testing.T) {
-	types := []SpanFormat{SpanFormat("sneh")}
+	types := []processor.SpanFormat{processor.SpanFormat("sneh")}
 	opts := Options.apply(
 		Options.ReportBusy(true),
 		Options.BlockingSubmit(true),
@@ -39,16 +40,23 @@ func TestAllOptionSet(t *testing.T) {
 		Options.PreProcessSpans(func(spans []*model.Span) {}),
 		Options.Sanitizer(func(span *model.Span) *model.Span { return span }),
 		Options.QueueSize(10),
+		Options.DynQueueSizeWarmup(1000),
+		Options.DynQueueSizeMemory(1024),
 		Options.PreSave(func(span *model.Span) {}),
+		Options.CollectorTags(map[string]string{"extra": "tags"}),
 	)
 	assert.EqualValues(t, 5, opts.numWorkers)
 	assert.EqualValues(t, 10, opts.queueSize)
+	assert.EqualValues(t, map[string]string{"extra": "tags"}, opts.collectorTags)
+	assert.EqualValues(t, 1000, opts.dynQueueSizeWarmup)
+	assert.EqualValues(t, 1024, opts.dynQueueSizeMemory)
 }
 
 func TestNoOptionsSet(t *testing.T) {
 	opts := Options.apply()
 	assert.EqualValues(t, DefaultNumWorkers, opts.numWorkers)
 	assert.EqualValues(t, 0, opts.queueSize)
+	assert.Nil(t, opts.collectorTags)
 	assert.False(t, opts.reportBusy)
 	assert.False(t, opts.blockingSubmit)
 	assert.NotPanics(t, func() { opts.preProcessSpans(nil) })
@@ -56,4 +64,5 @@ func TestNoOptionsSet(t *testing.T) {
 	assert.True(t, opts.spanFilter(nil))
 	span := model.Span{}
 	assert.EqualValues(t, &span, opts.sanitizer(&span))
+	assert.EqualValues(t, 0, opts.dynQueueSizeWarmup)
 }

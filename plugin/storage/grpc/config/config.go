@@ -29,6 +29,7 @@ import (
 type Configuration struct {
 	PluginBinary            string `yaml:"binary"`
 	PluginConfigurationFile string `yaml:"configuration-file"`
+	PluginLogLevel          string `yaml:"log-level"`
 }
 
 // Build instantiates a StoragePlugin
@@ -44,7 +45,7 @@ func (c *Configuration) Build() (shared.StoragePlugin, error) {
 		Cmd:              cmd,
 		AllowedProtocols: []plugin.Protocol{plugin.ProtocolGRPC},
 		Logger: hclog.New(&hclog.LoggerOptions{
-			Level: hclog.Warn,
+			Level: hclog.LevelFromString(c.PluginLogLevel),
 		}),
 	})
 

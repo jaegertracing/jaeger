@@ -17,11 +17,11 @@ package peerlistmgr
 
 import (
 	"context"
+	"fmt"
 	"math/rand"
 	"sync"
 	"time"
 
-	"github.com/pkg/errors"
 	"github.com/uber/tchannel-go"
 	"go.uber.org/zap"
 
@@ -63,7 +63,7 @@ func New(
 
 	instances, err := discoverer.Instances()
 	if err != nil {
-		return nil, errors.Wrap(err, "cannot get initial set of instances")
+		return nil, fmt.Errorf("cannot get initial set of instances: %w", err)
 	}
 	mgr.updatePeers(instances)
 

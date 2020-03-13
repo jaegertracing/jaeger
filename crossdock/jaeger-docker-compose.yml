@@ -3,30 +3,31 @@ version: '2'
 services:
     jaeger-collector:
       image: jaegertracing/jaeger-collector
-      command: ["--cassandra.keyspace=jaeger_v1_dc1", "--cassandra.servers=cassandra", "--collector.zipkin.http-port=9411"]
+      command: ["--es.num-shards=1", "--es.num-replicas=0", "--es.server-urls=http://elasticsearch:9200", "--collector.zipkin.http-port=9411"]
       ports:
         - "14269"
         - "14268:14268"
-        - "14267"
         - "14250"
         - "9411:9411"
       environment:
+        - SPAN_STORAGE_TYPE=elasticsearch
         - LOG_LEVEL=debug
       restart: on-failure
       depends_on:
-        - cassandra-schema
+        - elasticsearch
 
     jaeger-query:
       image: jaegertracing/jaeger-query
-      command: ["--cassandra.keyspace=jaeger_v1_dc1", "--cassandra.servers=cassandra"]
+      command: ["--es.num-shards=1", "--es.num-replicas=0", "--es.server-urls=http://elasticsearch:9200"]
       ports:
         - "16686:16686"
         - "16687"
       environment:
+        - SPAN_STORAGE_TYPE=elasticsearch
         - LOG_LEVEL=debug
       restart: on-failure
       depends_on:
-        - cassandra-schema
+        - elasticsearch
 
     jaeger-agent:
       image: jaegertracing/jaeger-agent
@@ -42,11 +43,11 @@ services:
       depends_on:
         - jaeger-collector
 
-    cassandra:
-      image: cassandra:3.9
+    elasticsearch:
+      image: docker.elastic.co/elasticsearch/elasticsearch-oss:6.8.3
+      environment:
+        - discovery.type=single-node
+      ports:
+        - "9200:9200/tcp"
 
-    cassandra-schema:
-      image: jaegertracing/jaeger-cassandra-schema
-      depends_on:
-        - cassandra
 

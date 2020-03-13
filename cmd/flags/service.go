@@ -16,12 +16,12 @@ package flags
 
 import (
 	"flag"
+	"fmt"
 	"os"
 	"os/signal"
 	"syscall"
 
 	grpcZap "github.com/grpc-ecosystem/go-grpc-middleware/logging/zap"
-	"github.com/pkg/errors"
 	"github.com/spf13/viper"
 	"github.com/uber/jaeger-lib/metrics"
 	"go.uber.org/zap"
@@ -86,7 +86,7 @@ func (s *Service) SetHealthCheckStatus(status healthcheck.Status) {
 // Start bootstraps the service and starts the admin server.
 func (s *Service) Start(v *viper.Viper) error {
 	if err := TryLoadConfigFile(v); err != nil {
-		return errors.Wrap(err, "cannot load config file")
+		return fmt.Errorf("cannot load config file: %w", err)
 	}
 
 	sFlags := new(SharedFlags).InitFromViper(v)
@@ -94,19 +94,19 @@ func (s *Service) Start(v *viper.Viper) error {
 	newProdConfig.Sampling = nil
 	if logger, err := sFlags.NewLogger(newProdConfig); err == nil {
 		s.Logger = logger
-		grpcZap.ReplaceGrpcLogger(logger.WithOptions(
+		grpcZap.ReplaceGrpcLoggerV2(logger.WithOptions(
 			// grpclog is not consistent with the depth of call tree before it's dispatched to zap,
 			// but Skip(2) still shows grpclog as caller, while Skip(3) shows actual grpc packages.
 			zap.AddCallerSkip(3),
 		))
 	} else {
-		return errors.Wrap(err, "cannot create logger")
+		return fmt.Errorf("cannot create logger: %w", err)
 	}
 
 	metricsBuilder := new(pMetrics.Builder).InitFromViper(v)
 	metricsFactory, err := metricsBuilder.CreateMetricsFactory("")
 	if err != nil {
-		return errors.Wrap(err, "cannot create metrics factory")
+		return fmt.Errorf("cannot create metrics factory: %w", err)
 	}
 	s.MetricsFactory = metricsFactory
 
@@ -117,7 +117,7 @@ func (s *Service) Start(v *viper.Viper) error {
 		s.Admin.Handle(route, h)
 	}
 	if err := s.Admin.Serve(); err != nil {
-		return errors.Wrap(err, "cannot start the admin server")
+		return fmt.Errorf("cannot start the admin server: %w", err)
 	}
 
 	return nil

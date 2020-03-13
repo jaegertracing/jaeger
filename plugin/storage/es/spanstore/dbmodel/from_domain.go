@@ -95,11 +95,7 @@ func (fd FromDomain) convertKeyValuesString(keyValues model.KeyValues) ([]KeyVal
 			}
 			tagsMap[strings.Replace(kv.Key, ".", fd.tagDotReplacement, -1)] = kv.Value()
 		} else {
-			kvs = append(kvs, KeyValue{
-				Key:   kv.Key,
-				Type:  ValueType(strings.ToLower(kv.VType.String())),
-				Value: kv.AsString(),
-			})
+			kvs = append(kvs, convertKeyValue(kv))
 		}
 	}
 	if kvs == nil {
@@ -113,11 +109,7 @@ func (fd FromDomain) convertLogs(logs []model.Log) []Log {
 	for i, log := range logs {
 		var kvs []KeyValue
 		for _, kv := range log.Fields {
-			kvs = append(kvs, KeyValue{
-				Key:   kv.Key,
-				Type:  ValueType(strings.ToLower(kv.VType.String())),
-				Value: kv.AsString(),
-			})
+			kvs = append(kvs, convertKeyValue(kv))
 		}
 		out[i] = Log{
 			Timestamp: model.TimeAsEpochMicroseconds(log.Timestamp),
@@ -133,5 +125,13 @@ func (fd FromDomain) convertProcess(process *model.Process) Process {
 		ServiceName: process.ServiceName,
 		Tags:        tags,
 		Tag:         tagsMap,
+	}
+}
+
+func convertKeyValue(kv model.KeyValue) KeyValue {
+	return KeyValue{
+		Key:   kv.Key,
+		Type:  ValueType(strings.ToLower(kv.VType.String())),
+		Value: kv.AsString(),
 	}
 }

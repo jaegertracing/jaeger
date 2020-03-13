@@ -17,12 +17,13 @@ package spanstore
 
 import (
 	"context"
+	"errors"
+	"fmt"
 	"time"
 
 	"github.com/opentracing/opentracing-go"
 	ottag "github.com/opentracing/opentracing-go/ext"
 	otlog "github.com/opentracing/opentracing-go/log"
-	"github.com/pkg/errors"
 	"github.com/uber/jaeger-lib/metrics"
 	"go.uber.org/zap"
 
@@ -71,27 +72,27 @@ const (
 
 var (
 	// ErrServiceNameNotSet occurs when attempting to query with an empty service name
-	ErrServiceNameNotSet = errors.New("Service Name must be set")
+	ErrServiceNameNotSet = errors.New("service Name must be set")
 
 	// ErrStartTimeMinGreaterThanMax occurs when start time min is above start time max
-	ErrStartTimeMinGreaterThanMax = errors.New("Start Time Minimum is above Maximum")
+	ErrStartTimeMinGreaterThanMax = errors.New("start Time Minimum is above Maximum")
 
 	// ErrDurationMinGreaterThanMax occurs when duration min is above duration max
-	ErrDurationMinGreaterThanMax = errors.New("Duration Minimum is above Maximum")
+	ErrDurationMinGreaterThanMax = errors.New("duration Minimum is above Maximum")
 
 	// ErrMalformedRequestObject occurs when a request object is nil
-	ErrMalformedRequestObject = errors.New("Malformed request object")
+	ErrMalformedRequestObject = errors.New("malformed request object")
 
 	// ErrDurationAndTagQueryNotSupported occurs when duration and tags are both set
-	ErrDurationAndTagQueryNotSupported = errors.New("Cannot query for duration and tags simultaneously")
+	ErrDurationAndTagQueryNotSupported = errors.New("cannot query for duration and tags simultaneously")
 
 	// ErrStartAndEndTimeNotSet occurs when start time and end time are not set
-	ErrStartAndEndTimeNotSet = errors.New("Start and End Time must be set")
+	ErrStartAndEndTimeNotSet = errors.New("start and End Time must be set")
 )
 
 type serviceNamesReader func() ([]string, error)
 
-type operationNamesReader func(service string) ([]string, error)
+type operationNamesReader func(query spanstore.OperationQueryParameters) ([]spanstore.Operation, error)
 
 type spanReaderMetrics struct {
 	readTraces                 *casMetrics.Table
@@ -143,8 +144,11 @@ func (s *SpanReader) GetServices(ctx context.Context) ([]string, error) {
 }
 
 // GetOperations returns all operations for a specific service traced by Jaeger
-func (s *SpanReader) GetOperations(ctx context.Context, service string) ([]string, error) {
-	return s.operationNamesReader(service)
+func (s *SpanReader) GetOperations(
+	ctx context.Context,
+	query spanstore.OperationQueryParameters,
+) ([]spanstore.Operation, error) {
+	return s.operationNamesReader(query)
 }
 
 func (s *SpanReader) readTrace(ctx context.Context, traceID dbmodel.TraceID) (*model.Trace, error) {
@@ -196,7 +200,7 @@ func (s *SpanReader) readTraceInSpan(ctx context.Context, traceID dbmodel.TraceI
 	err := i.Close()
 	s.metrics.readTraces.Emit(err, time.Since(start))
 	if err != nil {
-		return nil, errors.Wrap(err, "Error reading traces from storage")
+		return nil, fmt.Errorf("error reading traces from storage: %w", err)
 	}
 	if len(retMe.Spans) == 0 {
 		return nil, spanstore.ErrTraceNotFound
@@ -373,8 +377,7 @@ func (s *SpanReader) queryByDuration(ctx context.Context, traceQuery *spanstore.
 }
 
 func (s *SpanReader) queryByServiceNameAndOperation(ctx context.Context, tq *spanstore.TraceQueryParameters) (dbmodel.UniqueTraceIDs, error) {
-	//lint:ignore SA4006 failing to re-assign context is worse than unused variable
-	span, ctx := startSpanForQuery(ctx, "queryByServiceNameAndOperation", queryByServiceAndOperationName)
+	span, _ := startSpanForQuery(ctx, "queryByServiceNameAndOperation", queryByServiceAndOperationName)
 	defer span.Finish()
 	query := s.session.Query(
 		queryByServiceAndOperationName,
@@ -388,8 +391,7 @@ func (s *SpanReader) queryByServiceNameAndOperation(ctx context.Context, tq *spa
 }
 
 func (s *SpanReader) queryByService(ctx context.Context, tq *spanstore.TraceQueryParameters) (dbmodel.UniqueTraceIDs, error) {
-	//lint:ignore SA4006 failing to re-assign context is worse than unused variable
-	span, ctx := startSpanForQuery(ctx, "queryByService", queryByServiceName)
+	span, _ := startSpanForQuery(ctx, "queryByService", queryByServiceName)
 	defer span.Finish()
 	query := s.session.Query(
 		queryByServiceName,

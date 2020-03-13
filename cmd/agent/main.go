@@ -17,10 +17,8 @@ package main
 
 import (
 	"fmt"
-	"io"
 	"os"
 
-	"github.com/pkg/errors"
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
 	"github.com/uber/jaeger-lib/metrics"
@@ -30,7 +28,6 @@ import (
 	"github.com/jaegertracing/jaeger/cmd/agent/app"
 	"github.com/jaegertracing/jaeger/cmd/agent/app/reporter"
 	"github.com/jaegertracing/jaeger/cmd/agent/app/reporter/grpc"
-	"github.com/jaegertracing/jaeger/cmd/agent/app/reporter/tchannel"
 	"github.com/jaegertracing/jaeger/cmd/docs"
 	"github.com/jaegertracing/jaeger/cmd/flags"
 	"github.com/jaegertracing/jaeger/pkg/config"
@@ -56,10 +53,16 @@ func main() {
 				Namespace(metrics.NSOptions{Name: "jaeger"}).
 				Namespace(metrics.NSOptions{Name: "agent"})
 
-			rOpts := new(reporter.Options).InitFromViper(v)
-			tchanBuilder := tchannel.NewBuilder().InitFromViper(v, logger)
+			rOpts := new(reporter.Options).InitFromViper(v, logger)
 			grpcBuilder := grpc.NewConnBuilder().InitFromViper(v)
-			cp, err := app.CreateCollectorProxy(rOpts, tchanBuilder, grpcBuilder, logger, mFactory)
+			builders := map[reporter.Type]app.CollectorProxyBuilder{
+				reporter.GRPC: app.GRPCCollectorProxyBuilder(grpcBuilder),
+			}
+			cp, err := app.CreateCollectorProxy(app.ProxyBuilderOptions{
+				Options: *rOpts,
+				Logger:  logger,
+				Metrics: mFactory,
+			}, builders)
 			if err != nil {
 				logger.Fatal("Could not create collector proxy", zap.Error(err))
 			}
@@ -69,17 +72,16 @@ func main() {
 			builder := new(app.Builder).InitFromViper(v)
 			agent, err := builder.CreateAgent(cp, logger, mFactory)
 			if err != nil {
-				return errors.Wrap(err, "unable to initialize Jaeger Agent")
+				return fmt.Errorf("unable to initialize Jaeger Agent: %w", err)
 			}
 
 			logger.Info("Starting agent")
 			if err := agent.Run(); err != nil {
-				return errors.Wrap(err, "failed to run the agent")
+				return fmt.Errorf("failed to run the agent: %w", err)
 			}
 			svc.RunAndThen(func() {
-				if closer, ok := cp.(io.Closer); ok {
-					closer.Close()
-				}
+				agent.Stop()
+				cp.Close()
 			})
 			return nil
 		},
@@ -94,7 +96,6 @@ func main() {
 		svc.AddFlags,
 		app.AddFlags,
 		reporter.AddFlags,
-		tchannel.AddFlags,
 		grpc.AddFlags,
 	)
 

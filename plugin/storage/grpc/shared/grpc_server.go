@@ -16,8 +16,7 @@ package shared
 
 import (
 	"context"
-
-	"github.com/pkg/errors"
+	"fmt"
 
 	"github.com/jaegertracing/jaeger/model"
 	"github.com/jaegertracing/jaeger/proto-gen/storage_v1"
@@ -78,13 +77,26 @@ func (s *grpcServer) GetServices(ctx context.Context, r *storage_v1.GetServicesR
 }
 
 // GetOperations returns the operations of a given service
-func (s *grpcServer) GetOperations(ctx context.Context, r *storage_v1.GetOperationsRequest) (*storage_v1.GetOperationsResponse, error) {
-	operations, err := s.Impl.SpanReader().GetOperations(ctx, r.Service)
+func (s *grpcServer) GetOperations(
+	ctx context.Context,
+	r *storage_v1.GetOperationsRequest,
+) (*storage_v1.GetOperationsResponse, error) {
+	operations, err := s.Impl.SpanReader().GetOperations(ctx, spanstore.OperationQueryParameters{
+		ServiceName: r.Service,
+		SpanKind:    r.SpanKind,
+	})
 	if err != nil {
 		return nil, err
 	}
+	grpcOperation := make([]*storage_v1.Operation, len(operations))
+	for i, operation := range operations {
+		grpcOperation[i] = &storage_v1.Operation{
+			Name:     operation.Name,
+			SpanKind: operation.SpanKind,
+		}
+	}
 	return &storage_v1.GetOperationsResponse{
-		Operations: operations,
+		Operations: grpcOperation,
 	}, nil
 }
 
@@ -142,7 +154,7 @@ func (s *grpcServer) sendSpans(spans []*model.Span, sendFn func(*storage_v1.Span
 			chunk = append(chunk, *spans[j])
 		}
 		if err := sendFn(&storage_v1.SpansResponseChunk{Spans: chunk}); err != nil {
-			return errors.Wrap(err, "grpc plugin failed to send response")
+			return fmt.Errorf("grpc plugin failed to send response: %w", err)
 		}
 	}
 

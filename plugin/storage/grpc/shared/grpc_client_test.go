@@ -119,17 +119,33 @@ func TestGRPCClientGetServices(t *testing.T) {
 	})
 }
 
-func TestGRPCClientGetOperations(t *testing.T) {
+func TestGRPCClientGetOperationsV1(t *testing.T) {
 	withGRPCClient(func(r *grpcClientTest) {
 		r.spanReader.On("GetOperations", mock.Anything, &storage_v1.GetOperationsRequest{
 			Service: "service-a",
 		}).Return(&storage_v1.GetOperationsResponse{
-			Operations: []string{"operation-a"},
+			OperationNames: []string{"operation-a"},
 		}, nil)
 
-		s, err := r.client.GetOperations(context.Background(), "service-a")
+		s, err := r.client.GetOperations(context.Background(),
+			spanstore.OperationQueryParameters{ServiceName: "service-a"})
 		assert.NoError(t, err)
-		assert.Equal(t, []string{"operation-a"}, s)
+		assert.Equal(t, []spanstore.Operation{{Name: "operation-a"}}, s)
+	})
+}
+
+func TestGRPCClientGetOperationsV2(t *testing.T) {
+	withGRPCClient(func(r *grpcClientTest) {
+		r.spanReader.On("GetOperations", mock.Anything, &storage_v1.GetOperationsRequest{
+			Service: "service-a",
+		}).Return(&storage_v1.GetOperationsResponse{
+			Operations: []*storage_v1.Operation{{Name: "operation-a", SpanKind: "server"}},
+		}, nil)
+
+		s, err := r.client.GetOperations(context.Background(),
+			spanstore.OperationQueryParameters{ServiceName: "service-a"})
+		assert.NoError(t, err)
+		assert.Equal(t, []spanstore.Operation{{Name: "operation-a", SpanKind: "server"}}, s)
 	})
 }
 

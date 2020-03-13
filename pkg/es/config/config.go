@@ -18,7 +18,7 @@ package config
 import (
 	"context"
 	"crypto/tls"
-	"crypto/x509"
+	"errors"
 	"io/ioutil"
 	"net/http"
 	"path/filepath"
@@ -28,12 +28,12 @@ import (
 	"time"
 
 	"github.com/olivere/elastic"
-	"github.com/pkg/errors"
 	"github.com/uber/jaeger-lib/metrics"
 	"go.uber.org/zap"
 
+	"github.com/jaegertracing/jaeger/pkg/config/tlscfg"
 	"github.com/jaegertracing/jaeger/pkg/es"
-	"github.com/jaegertracing/jaeger/pkg/es/wrapper"
+	eswrapper "github.com/jaegertracing/jaeger/pkg/es/wrapper"
 	"github.com/jaegertracing/jaeger/storage/spanstore"
 	storageMetrics "github.com/jaegertracing/jaeger/storage/spanstore/metrics"
 )
@@ -60,19 +60,10 @@ type Configuration struct {
 	AllTagsAsFields       bool
 	TagDotReplacement     string
 	Enabled               bool
-	TLS                   TLSConfig
+	TLS                   tlscfg.Options
 	UseReadWriteAliases   bool
 	CreateIndexTemplates  bool
 	Version               uint
-}
-
-// TLSConfig describes the configuration properties to connect tls enabled ElasticSearch cluster
-type TLSConfig struct {
-	Enabled        bool
-	SkipHostVerify bool
-	CertPath       string
-	KeyPath        string
-	CaPath         string
 }
 
 // ClientBuilder creates new es.Client
@@ -96,7 +87,7 @@ type ClientBuilder interface {
 // NewClient creates a new ElasticSearch client
 func (c *Configuration) NewClient(logger *zap.Logger, metricsFactory metrics.Factory) (es.Client, error) {
 	if len(c.Servers) < 1 {
-		return nil, errors.New("No servers specified")
+		return nil, errors.New("no servers specified")
 	}
 	options, err := c.getConfigOptions(logger)
 	if err != nil {
@@ -292,7 +283,7 @@ func (c *Configuration) getConfigOptions(logger *zap.Logger) ([]elastic.ClientOp
 	}
 	options = append(options, elastic.SetHttpClient(httpClient))
 	if c.TLS.Enabled {
-		ctlsConfig, err := c.TLS.createTLSConfig()
+		ctlsConfig, err := c.TLS.Config()
 		if err != nil {
 			return nil, err
 		}
@@ -300,14 +291,17 @@ func (c *Configuration) getConfigOptions(logger *zap.Logger) ([]elastic.ClientOp
 			TLSClientConfig: ctlsConfig,
 		}
 	} else {
-		httpTransport := &http.Transport{}
-		if c.TLS.CaPath != "" {
-			ctls := &TLSConfig{CaPath: c.TLS.CaPath}
-			ca, err := ctls.loadCertificate()
+		httpTransport := &http.Transport{
+			Proxy: http.ProxyFromEnvironment,
+			// #nosec G402
+			TLSClientConfig: &tls.Config{InsecureSkipVerify: c.TLS.SkipHostVerify},
+		}
+		if c.TLS.CAPath != "" {
+			config, err := c.TLS.Config()
 			if err != nil {
 				return nil, err
 			}
-			httpTransport.TLSClientConfig = &tls.Config{RootCAs: ca}
+			httpTransport.TLSClientConfig = config
 		}
 
 		token := ""
@@ -334,45 +328,6 @@ func (c *Configuration) getConfigOptions(logger *zap.Logger) ([]elastic.ClientOp
 		}
 	}
 	return options, nil
-}
-
-// createTLSConfig creates TLS Configuration to connect with ES Cluster.
-func (tlsConfig *TLSConfig) createTLSConfig() (*tls.Config, error) {
-	rootCerts, err := tlsConfig.loadCertificate()
-	if err != nil {
-		return nil, err
-	}
-	clientPrivateKey, err := tlsConfig.loadPrivateKey()
-	if err != nil {
-		return nil, err
-	}
-	// #nosec
-	return &tls.Config{
-		RootCAs:            rootCerts,
-		Certificates:       []tls.Certificate{*clientPrivateKey},
-		InsecureSkipVerify: tlsConfig.SkipHostVerify,
-	}, nil
-
-}
-
-// loadCertificate is used to load root certification
-func (tlsConfig *TLSConfig) loadCertificate() (*x509.CertPool, error) {
-	caCert, err := ioutil.ReadFile(tlsConfig.CaPath)
-	if err != nil {
-		return nil, err
-	}
-	certificates := x509.NewCertPool()
-	certificates.AppendCertsFromPEM(caCert)
-	return certificates, nil
-}
-
-// loadPrivateKey is used to load the private certificate and key for TLS
-func (tlsConfig *TLSConfig) loadPrivateKey() (*tls.Certificate, error) {
-	privateKey, err := tls.LoadX509KeyPair(tlsConfig.CertPath, tlsConfig.KeyPath)
-	if err != nil {
-		return nil, err
-	}
-	return &privateKey, nil
 }
 
 // TokenAuthTransport

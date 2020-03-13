@@ -1,6 +1,6 @@
 #!/bin/bash
 
-set -e
+set -ex
 
 # Clean up before starting.
 docker rm -f cassandra || true

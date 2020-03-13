@@ -17,11 +17,11 @@ package spanstore
 
 import (
 	"encoding/json"
+	"fmt"
 	"strings"
 	"time"
 	"unicode/utf8"
 
-	"github.com/pkg/errors"
 	"github.com/uber/jaeger-lib/metrics"
 	"go.uber.org/zap"
 
@@ -73,7 +73,7 @@ const (
 
 type storageMode uint8
 type serviceNamesWriter func(serviceName string) error
-type operationNamesWriter func(serviceName, operationName string) error
+type operationNamesWriter func(operation dbmodel.Operation) error
 
 type spanWriterMetrics struct {
 	traces                *casMetrics.Table
@@ -141,7 +141,7 @@ func (s *SpanWriter) WriteSpan(span *model.Span) error {
 			return err
 		}
 	}
-	if s.storageMode&indexFlag == indexFlag && !span.Flags.IsFirehoseEnabled() {
+	if s.storageMode&indexFlag == indexFlag {
 		if err := s.writeIndexes(span, ds); err != nil {
 			return err
 		}
@@ -172,9 +172,18 @@ func (s *SpanWriter) writeSpan(span *model.Span, ds *dbmodel.Span) error {
 }
 
 func (s *SpanWriter) writeIndexes(span *model.Span, ds *dbmodel.Span) error {
-	if err := s.saveServiceNameAndOperationName(ds.ServiceName, ds.OperationName); err != nil {
+	spanKind, _ := span.GetSpanKind()
+	if err := s.saveServiceNameAndOperationName(dbmodel.Operation{
+		ServiceName:   ds.ServiceName,
+		SpanKind:      spanKind,
+		OperationName: ds.OperationName,
+	}); err != nil {
 		// should this be a soft failure?
 		return s.logError(ds, err, "Failed to insert service name and operation name", s.logger)
+	}
+
+	if span.Flags.IsFirehoseEnabled() {
+		return nil // skipping expensive indexing
 	}
 
 	if err := s.indexByTags(span, ds); err != nil {
@@ -271,12 +280,12 @@ func (s *SpanWriter) logError(span *dbmodel.Span, err error, msg string, logger 
 		With(zap.Int64("span_id", span.SpanID)).
 		With(zap.Error(err)).
 		Error(msg)
-	return errors.Wrap(err, msg)
+	return fmt.Errorf("%s: %w", msg, err)
 }
 
-func (s *SpanWriter) saveServiceNameAndOperationName(serviceName, operationName string) error {
-	if err := s.serviceNamesWriter(serviceName); err != nil {
+func (s *SpanWriter) saveServiceNameAndOperationName(operation dbmodel.Operation) error {
+	if err := s.serviceNamesWriter(operation.ServiceName); err != nil {
 		return err
 	}
-	return s.operationNamesWriter(serviceName, operationName)
+	return s.operationNamesWriter(operation)
 }

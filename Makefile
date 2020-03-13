@@ -1,4 +1,4 @@
-PROJECT_ROOT=github.com/jaegertracing/jaeger
+JAEGER_IMPORT_PATH=github.com/jaegertracing/jaeger
 STORAGE_PKGS = ./plugin/storage/integration/...
 
 # all .go files that are not auto-generated and should be auto-formatted and linted.
@@ -21,22 +21,26 @@ ALL_SRC := $(shell find . -name '*.go' \
 
 # ALL_PKGS is used with 'go cover' and 'golint'
 ALL_PKGS := $(shell go list $(sort $(dir $(ALL_SRC))))
-
-RACE=-race
+UNAME := $(shell uname -m)
+#Race flag is not supported on s390x architecture
+ifeq ($(UNAME), s390x)
+	RACE=
+else
+	RACE=-race
+endif
+GOBUILD=CGO_ENABLED=0 installsuffix=cgo go build -trimpath
 GOTEST=go test -v $(RACE)
 GOLINT=golint
 GOVET=go vet
 GOFMT=gofmt
-GOSEC=gosec -quiet -exclude=G104,G107
-STATICCHECK=staticcheck
-FMT_LOG=fmt.log
-LINT_LOG=lint.log
-IMPORT_LOG=import.log
+FMT_LOG=.fmt.log
+LINT_LOG=.lint.log
+IMPORT_LOG=.import.log
 
 GIT_SHA=$(shell git rev-parse HEAD)
 GIT_CLOSEST_TAG=$(shell git describe --abbrev=0 --tags)
 DATE=$(shell date -u +'%Y-%m-%dT%H:%M:%SZ')
-BUILD_INFO_IMPORT_PATH=github.com/jaegertracing/jaeger/pkg/version
+BUILD_INFO_IMPORT_PATH=$(JAEGER_IMPORT_PATH)/pkg/version
 BUILD_INFO=-ldflags "-X $(BUILD_INFO_IMPORT_PATH).commitSHA=$(GIT_SHA) -X $(BUILD_INFO_IMPORT_PATH).latestVersion=$(GIT_CLOSEST_TAG) -X $(BUILD_INFO_IMPORT_PATH).date=$(DATE)"
 
 SED=sed
@@ -49,8 +53,10 @@ THRIFT_GEN_DIR=thrift-gen
 
 SWAGGER_VER=0.12.0
 SWAGGER_IMAGE=quay.io/goswagger/swagger:$(SWAGGER_VER)
-SWAGGER=docker run --rm -it -u ${shell id -u} -v "${PWD}:/go/src/${PROJECT_ROOT}" -w /go/src/${PROJECT_ROOT} $(SWAGGER_IMAGE)
+SWAGGER=docker run --rm -it -u ${shell id -u} -v "${PWD}:/go/src/" -w /go/src/ $(SWAGGER_IMAGE)
 SWAGGER_GEN_DIR=swagger-gen
+
+JAEGER_DOCKER_PROTOBUF=jaegertracing/protobuf:0.1.0
 
 COLOR_PASS=$(shell printf "\033[32mPASS\033[0m")
 COLOR_FAIL=$(shell printf "\033[31mFAIL\033[0m")
@@ -95,6 +101,11 @@ storage-integration-test: go-gen
 	go clean -testcache
 	bash -c "set -e; set -o pipefail; $(GOTEST) $(STORAGE_PKGS) | $(COLORIZE)"
 
+.PHONE: test-compile-es-scripts
+test-compile-es-scripts:
+	docker run --rm -it -v ${PWD}:/tmp/jaeger python:3-alpine /usr/local/bin/python -m py_compile /tmp/jaeger/plugin/storage/es/esRollover.py
+	docker run --rm -it -v ${PWD}:/tmp/jaeger python:3-alpine /usr/local/bin/python -m py_compile /tmp/jaeger/plugin/storage/es/esCleaner.py
+
 .PHONY: index-cleaner-integration-test
 index-cleaner-integration-test: docker-images-elastic
 	# Expire tests results for storage integration tests since the environment might change
@@ -125,7 +136,7 @@ cover: nocover
 .PHONY: nocover
 nocover:
 	@echo Verifying that all packages have test files to count in coverage
-	@scripts/check-test-files.sh $(subst github.com/jaegertracing/jaeger/,./,$(ALL_PKGS))
+	@scripts/check-test-files.sh $(subst github.com/jaegertracing/jaeger,.,$(ALL_PKGS))
 
 .PHONY: fmt
 fmt:
@@ -136,13 +147,12 @@ fmt:
 
 .PHONY: lint-gosec
 lint-gosec:
-	$(GOSEC) ./...
+	time gosec -quiet -exclude=G104,G107 ./...
 
 .PHONY: lint-staticcheck
 lint-staticcheck:
-	@echo Running staticcheck...
 	@cat /dev/null > $(LINT_LOG)
-	@$(STATICCHECK) ./... \
+	time staticcheck ./... \
 		| grep -v \
 			-e model/model.pb.go \
 			-e thrift-gen/ \
@@ -155,8 +165,8 @@ lint: lint-staticcheck lint-gosec
 	$(MAKE) go-lint
 	@echo Running go fmt on ALL_SRC ...
 	@$(GOFMT) -e -s -l $(ALL_SRC) > $(FMT_LOG)
-	@./scripts/updateLicenses.sh >> $(FMT_LOG)
-	@./scripts/import-order-cleanup.sh stdout > $(IMPORT_LOG)
+	./scripts/updateLicenses.sh >> $(FMT_LOG)
+	./scripts/import-order-cleanup.sh stdout > $(IMPORT_LOG)
 	@[ ! -s "$(FMT_LOG)" -a ! -s "$(IMPORT_LOG)" ] || (echo "Go fmt, license check, or import ordering failures, run 'make fmt'" | cat - $(FMT_LOG) && false)
 
 .PHONY: go-lint
@@ -168,16 +178,6 @@ go-lint:
 		>> $(LINT_LOG) || true;
 	@[ ! -s "$(LINT_LOG)" ] || (echo "Lint Failures" | cat - $(LINT_LOG) && false)
 
-.PHONY: install-glide
-install-glide:
-	@echo "WARNING: Jaeger has migrated to dep, install-glide is now deprecated" 1>&2
-	$(MAKE) install
-
-.PHONY: install
-install:
-	@which dep > /dev/null || curl https://raw.githubusercontent.com/golang/dep/master/install.sh | sh
-	dep ensure -vendor-only
-
 .PHONE: elasticsearch-mappings
 elasticsearch-mappings:
 	esc -pkg mappings -o plugin/storage/es/mappings/gen_assets.go -ignore assets -prefix plugin/storage/es/mappings plugin/storage/es/mappings
@@ -185,12 +185,24 @@ elasticsearch-mappings:
 .PHONY: build-examples
 build-examples:
 	esc -pkg frontend -o examples/hotrod/services/frontend/gen_assets.go  -prefix examples/hotrod/services/frontend/web_assets examples/hotrod/services/frontend/web_assets
-	CGO_ENABLED=0 installsuffix=cgo go build -o ./examples/hotrod/hotrod-$(GOOS) ./examples/hotrod/main.go
+ifeq ($(GOARCH), s390x)
+	$(GOBUILD) -o ./examples/hotrod/hotrod-$(GOOS)-$(GOARCH) ./examples/hotrod/main.go
+else
+	$(GOBUILD) -o ./examples/hotrod/hotrod-$(GOOS) ./examples/hotrod/main.go
+endif
+
+.PHONY: build-tracegen
+build-tracegen:
+	$(GOBUILD) -o ./cmd/tracegen/tracegen-$(GOOS) ./cmd/tracegen/main.go
 
 .PHONE: docker-hotrod
 docker-hotrod:
 	GOOS=linux $(MAKE) build-examples
 	docker build -t $(DOCKER_NAMESPACE)/example-hotrod:${DOCKER_TAG} ./examples/hotrod
+
+.PHONY: run-all-in-one
+run-all-in-one:
+	go run -tags ui ./cmd/all-in-one --log-level debug
 
 .PHONY: build-ui
 build-ui:
@@ -204,23 +216,43 @@ build-all-in-one-linux: build-ui
 
 .PHONY: build-all-in-one
 build-all-in-one: elasticsearch-mappings
-	CGO_ENABLED=0 installsuffix=cgo go build -tags ui -o ./cmd/all-in-one/all-in-one-$(GOOS) $(BUILD_INFO) ./cmd/all-in-one/main.go
+ifeq ($(GOARCH), s390x)
+	$(GOBUILD) -tags ui -o ./cmd/all-in-one/all-in-one-$(GOOS)-$(GOARCH) $(BUILD_INFO) ./cmd/all-in-one/main.go
+else	
+	$(GOBUILD) -tags ui -o ./cmd/all-in-one/all-in-one-$(GOOS) $(BUILD_INFO) ./cmd/all-in-one/main.go
+endif
 
 .PHONY: build-agent
 build-agent:
-	CGO_ENABLED=0 installsuffix=cgo go build -o ./cmd/agent/agent-$(GOOS) $(BUILD_INFO) ./cmd/agent/main.go
+ifeq ($(GOARCH), s390x)
+	$(GOBUILD) -o ./cmd/agent/agent-$(GOOS)-$(GOARCH) $(BUILD_INFO) ./cmd/agent/main.go
+else
+	$(GOBUILD) -o ./cmd/agent/agent-$(GOOS) $(BUILD_INFO) ./cmd/agent/main.go
+endif
 
 .PHONY: build-query
 build-query:
-	CGO_ENABLED=0 installsuffix=cgo go build -tags ui -o ./cmd/query/query-$(GOOS) $(BUILD_INFO) ./cmd/query/main.go
+ifeq ($(GOARCH), s390x)
+	$(GOBUILD) -tags ui -o ./cmd/query/query-$(GOOS)-$(GOARCH) $(BUILD_INFO) ./cmd/query/main.go
+else
+	$(GOBUILD) -tags ui -o ./cmd/query/query-$(GOOS) $(BUILD_INFO) ./cmd/query/main.go
+endif
 
 .PHONY: build-collector
 build-collector: elasticsearch-mappings
-	CGO_ENABLED=0 installsuffix=cgo go build -o ./cmd/collector/collector-$(GOOS) $(BUILD_INFO) ./cmd/collector/main.go
+ifeq ($(GOARCH), s390x)
+	$(GOBUILD) -o ./cmd/collector/collector-$(GOOS)-$(GOARCH) $(BUILD_INFO) ./cmd/collector/main.go
+else
+	$(GOBUILD) -o ./cmd/collector/collector-$(GOOS) $(BUILD_INFO) ./cmd/collector/main.go
+endif
 
 .PHONY: build-ingester
 build-ingester:
-	CGO_ENABLED=0 installsuffix=cgo go build -o ./cmd/ingester/ingester-$(GOOS) $(BUILD_INFO) ./cmd/ingester/main.go
+ifeq ($(GOARCH), s390x)
+	$(GOBUILD) -o ./cmd/ingester/ingester-$(GOOS)-$(GOARCH) $(BUILD_INFO) ./cmd/ingester/main.go
+else
+	$(GOBUILD) -o ./cmd/ingester/ingester-$(GOOS) $(BUILD_INFO) ./cmd/ingester/main.go
+endif
 
 .PHONY: docker
 docker: build-ui build-binaries-linux docker-images-only
@@ -237,11 +269,15 @@ build-binaries-windows:
 build-binaries-darwin:
 	GOOS=darwin $(MAKE) build-platform-binaries
 
+.PHONY: build-binaries-s390x
+build-binaries-s390x:
+	GOOS=linux GOARCH=s390x $(MAKE) build-platform-binaries
+
 .PHONY: build-platform-binaries
-build-platform-binaries: build-agent build-collector build-query build-ingester build-all-in-one build-examples
+build-platform-binaries: build-agent build-collector build-query build-ingester build-all-in-one build-examples build-tracegen
 
 .PHONY: build-all-platforms
-build-all-platforms: build-binaries-linux build-binaries-windows build-binaries-darwin
+build-all-platforms: build-binaries-linux build-binaries-windows build-binaries-darwin build-binaries-s390x
 
 .PHONY: docker-images-cassandra
 docker-images-cassandra:
@@ -261,8 +297,13 @@ docker-images-jaeger-backend:
 		echo "Finished building $$component ==============" ; \
 	done
 
+.PHONY: docker-images-tracegen
+docker-images-tracegen:
+	docker build -t $(DOCKER_NAMESPACE)/jaeger-tracegen:${DOCKER_TAG} cmd/tracegen/
+	@echo "Finished building jaeger-tracegen =============="
+
 .PHONY: docker-images-only
-docker-images-only: docker-images-cassandra docker-images-elastic docker-images-jaeger-backend
+docker-images-only: docker-images-cassandra docker-images-elastic docker-images-jaeger-backend docker-images-tracegen
 
 .PHONY: docker-push
 docker-push:
@@ -272,13 +313,13 @@ docker-push:
 	if [ $$CONFIRM != "y" ] && [ $$CONFIRM != "Y" ]; then \
 		echo "Exiting." ; exit 1 ; \
 	fi
-	for component in agent cassandra-schema es-index-cleaner es-rollover collector query ingester example-hotrod; do \
+	for component in agent cassandra-schema es-index-cleaner es-rollover collector query ingester example-hotrod tracegen; do \
 		docker push $(DOCKER_NAMESPACE)/jaeger-$$component ; \
 	done
 
 .PHONY: build-crossdock-linux
 build-crossdock-linux:
-	CGO_ENABLED=0 GOOS=linux installsuffix=cgo go build -o ./crossdock/crossdock-linux ./crossdock/main.go
+	GOOS=linux $(GOBUILD) -o ./crossdock/crossdock-linux ./crossdock/main.go
 
 include crossdock/rules.mk
 
@@ -308,16 +349,15 @@ changelog:
 
 .PHONY: install-tools
 install-tools:
-	go get -u github.com/wadey/gocovmerge
-	go get -u golang.org/x/tools/cmd/cover
-	go get -u golang.org/x/lint/golint
-	go get -u github.com/sectioneight/md-to-godoc
-	go get -u github.com/mjibson/esc
-	go install ./vendor/github.com/securego/gosec/cmd/gosec/
-	go install ./vendor/honnef.co/go/tools/cmd/staticcheck/
+	go install github.com/wadey/gocovmerge
+	go install golang.org/x/lint/golint
+	go install github.com/sectioneight/md-to-godoc
+	go install github.com/mjibson/esc
+	go install github.com/securego/gosec/cmd/gosec
+	go install honnef.co/go/tools/cmd/staticcheck
 
 .PHONY: install-ci
-install-ci: install install-tools
+install-ci: install-tools
 
 .PHONY: test-ci
 test-ci: build-examples lint cover
@@ -328,8 +368,8 @@ thrift: idl/thrift/jaeger.thrift thrift-image
 	[ -d $(THRIFT_GEN_DIR) ] || mkdir $(THRIFT_GEN_DIR)
 	$(THRIFT) -o /data --gen go:$(THRIFT_GO_ARGS) --out /data/$(THRIFT_GEN_DIR) /data/idl/thrift/agent.thrift
 #	TODO sed is GNU and BSD compatible
-	sed -i.bak 's|"zipkincore"|"$(PROJECT_ROOT)/thrift-gen/zipkincore"|g' $(THRIFT_GEN_DIR)/agent/*.go
-	sed -i.bak 's|"jaeger"|"$(PROJECT_ROOT)/thrift-gen/jaeger"|g' $(THRIFT_GEN_DIR)/agent/*.go
+	sed -i.bak 's|"zipkincore"|"$(JAEGER_IMPORT_PATH)/thrift-gen/zipkincore"|g' $(THRIFT_GEN_DIR)/agent/*.go
+	sed -i.bak 's|"jaeger"|"$(JAEGER_IMPORT_PATH)/thrift-gen/jaeger"|g' $(THRIFT_GEN_DIR)/agent/*.go
 	$(THRIFT) -o /data --gen go:$(THRIFT_GO_ARGS) --out /data/$(THRIFT_GEN_DIR) /data/idl/thrift/jaeger.thrift
 	$(THRIFT) -o /data --gen go:$(THRIFT_GO_ARGS) --out /data/$(THRIFT_GEN_DIR) /data/idl/thrift/sampling.thrift
 	$(THRIFT) -o /data --gen go:$(THRIFT_GO_ARGS) --out /data/$(THRIFT_GEN_DIR) /data/idl/thrift/baggage.thrift
@@ -360,7 +400,7 @@ generate-zipkin-swagger: idl-submodule
 
 .PHONY: install-mockery
 install-mockery:
-	go get -u github.com/vektra/mockery/.../
+	go install github.com/vektra/mockery/.../
 
 .PHONY: generate-mocks
 generate-mocks: install-mockery
@@ -370,14 +410,11 @@ generate-mocks: install-mockery
 echo-version:
 	@echo $(GIT_CLOSEST_TAG)
 
-PROTOC := protoc
+PROTOC := docker run --rm -v${PWD}:${PWD} -w${PWD} ${JAEGER_DOCKER_PROTOBUF} --proto_path=${PWD}
 PROTO_INCLUDES := \
-	-I model/proto \
-	-I idl/proto \
-	-I vendor/github.com/grpc-ecosystem/grpc-gateway \
-	-I vendor/github.com/gogo/googleapis \
-	-I vendor/github.com/gogo/protobuf/protobuf \
-	-I vendor/github.com/gogo/protobuf
+	-Imodel/proto \
+	-Iidl/proto \
+	-I/usr/include/github.com/gogo/protobuf
 # Remapping of std types to gogo types (must not contain spaces)
 PROTO_GOGO_MAPPINGS := $(shell echo \
 		Mgoogle/protobuf/descriptor.proto=github.com/gogo/protobuf/types, \
@@ -412,9 +449,6 @@ proto:
 	#
 	# model/proto/jaeger.proto is the location of the protofile we use.
 	#
-	# TODO use Docker container instead of installed protoc
-	# (https://medium.com/@linchenon/generate-grpc-and-protobuf-libraries-with-containers-c15ba4e4f3ad)
-	#
 	$(PROTOC) \
 		$(PROTO_INCLUDES) \
 		--gogo_out=plugins=grpc,$(PROTO_GOGO_MAPPINGS):$(PWD)/model/ \
@@ -430,17 +464,17 @@ proto:
 
 	$(PROTOC) \
 		$(PROTO_INCLUDES) \
-		-I plugin/storage/grpc/proto \
+		-Iplugin/storage/grpc/proto \
 		--gogo_out=plugins=grpc,$(PROTO_GOGO_MAPPINGS):$(PWD)/proto-gen/storage_v1 \
 		plugin/storage/grpc/proto/storage.proto
 
 	$(PROTOC) \
-		-I model/proto \
+		-Imodel/proto \
 		--go_out=$(PWD)/model/prototest/ \
 		model/proto/model_test.proto
 
 	$(PROTOC) \
-		-I plugin/storage/grpc/proto \
+		-Iplugin/storage/grpc/proto \
 		--go_out=$(PWD)/plugin/storage/grpc/proto/storageprototest/ \
 		plugin/storage/grpc/proto/storage_test.proto
 
@@ -448,14 +482,3 @@ proto:
 		$(PROTO_INCLUDES) \
 		--gogo_out=plugins=grpc,$(PROTO_GOGO_MAPPINGS):$(PWD)/proto-gen/zipkin \
 		idl/proto/zipkin.proto
-
-
-.PHONY: proto-install
-proto-install:
-	go get -u github.com/golang/glog
-	go install \
-		./vendor/github.com/golang/protobuf/protoc-gen-go \
-		./vendor/github.com/gogo/protobuf/protoc-gen-gogo \
-		./vendor/github.com/grpc-ecosystem/grpc-gateway/protoc-gen-grpc-gateway \
-		./vendor/github.com/grpc-ecosystem/grpc-gateway/protoc-gen-swagger
-		# ./vendor/github.com/mwitkow/go-proto-validators/protoc-gen-govalidators

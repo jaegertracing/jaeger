@@ -15,57 +15,21 @@
 package auth
 
 import (
-	gotls "crypto/tls"
-	"crypto/x509"
-	"io/ioutil"
-	"path/filepath"
+	"fmt"
 
 	"github.com/Shopify/sarama"
-	"github.com/pkg/errors"
+
+	"github.com/jaegertracing/jaeger/pkg/config/tlscfg"
 )
 
-// TLSConfig describes the configuration properties for TLS Connections to the Kafka Brokers
-type TLSConfig struct {
-	CertPath string
-	KeyPath  string
-	CaPath   string
-}
-
-func setTLSConfiguration(config *TLSConfig, saramaConfig *sarama.Config) error {
-	tlsConfig, err := config.getTLS()
-	if err != nil {
-		return errors.Wrap(err, "error loading tls config")
+func setTLSConfiguration(config *tlscfg.Options, saramaConfig *sarama.Config) error {
+	if config.Enabled {
+		tlsConfig, err := config.Config()
+		if err != nil {
+			return fmt.Errorf("error loading tls config: %w", err)
+		}
+		saramaConfig.Net.TLS.Enable = true
+		saramaConfig.Net.TLS.Config = tlsConfig
 	}
-	saramaConfig.Net.TLS.Enable = true
-	saramaConfig.Net.TLS.Config = tlsConfig
 	return nil
-}
-
-func (tlsConfig TLSConfig) getTLS() (*gotls.Config, error) {
-	ca, err := loadCA(tlsConfig.CaPath)
-	if err != nil {
-		return nil, errors.Wrapf(err, "error reading ca")
-	}
-
-	cert, err := gotls.LoadX509KeyPair(filepath.Clean(tlsConfig.CertPath), filepath.Clean(tlsConfig.KeyPath))
-	if err != nil {
-		return nil, errors.Wrap(err, "error loading certificate")
-	}
-
-	return &gotls.Config{
-		RootCAs:      ca,
-		Certificates: []gotls.Certificate{cert},
-	}, nil
-}
-
-func loadCA(caPath string) (*x509.CertPool, error) {
-	caBytes, err := ioutil.ReadFile(filepath.Clean(caPath))
-	if err != nil {
-		return nil, errors.Wrapf(err, "error reading caFile %s", caPath)
-	}
-	certificates := x509.NewCertPool()
-	if ok := certificates.AppendCertsFromPEM(caBytes); !ok {
-		return nil, errors.Errorf("no ca certificates could be parsed")
-	}
-	return certificates, nil
 }

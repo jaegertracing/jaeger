@@ -16,13 +16,10 @@ We gratefully welcome improvements to documentation as well as to code.
 ### Pre-requisites
 * Install [Go](https://golang.org/doc/install) and setup GOPATH and add $GOPATH/bin in PATH 
 
-This library uses [dep](https://golang.github.io/dep) to manage dependencies.
+This library uses Go modules to manage dependencies.
 
-To get started, make sure you clone the Git repository into the correct location `$GOPATH/github.com/jaegertracing/jaeger`:
 
 ```
-mkdir -p $GOPATH/src/github.com/jaegertracing
-cd $GOPATH/src/github.com/jaegertracing
 git clone git@github.com:jaegertracing/jaeger.git jaeger
 cd jaeger
 ```
@@ -31,7 +28,6 @@ Then install dependencies and run the tests:
 
 ```
 git submodule update --init --recursive
-dep ensure
 make install-tools
 make test
 ```
@@ -64,7 +60,6 @@ github.com/jaegertracing/jaeger
       app/                  - The actual code for the binary
       main.go
   crossdock/                - Cross-repo integration test configuration
-  docs/                     - Documentation
   examples/
       hotrod/               - Demo application that uses OpenTracing API
   idl/                      - (submodule) https://github.com/jaegertracing/jaeger-idl
@@ -88,8 +83,7 @@ github.com/jaegertracing/jaeger
     jaeger/
     sampling/
     zipkincore/
-  Gopkg.toml                - Dep is the project's dependency manager
-  mkdocs.yml                - MkDocs builds the documentation in docs/
+  go.mod                    - Go module file to track dependencies
 ```
 
 - Note 1: `pkg` is a collection of utility packages used by the Jaeger components
@@ -142,3 +136,13 @@ a comment explaining why it is there, for example:
 $ cat ./pkg/cassandra/config/.nocover
 requires connection to Cassandra
 ```
+
+## Merging PRs
+Before merging a PR make sure:
+* the title is descriptive and follows [a good commit message](./CONTRIBUTING_GUIDELINES.md)
+* pull request is assigned to the current release milestone
+* add `changelog:*` and other labels
+
+Merge the PR by using "Squash and merge" option on Github. Avoid creating merge commits.
+After the merge make sure referenced issues were closed.
+

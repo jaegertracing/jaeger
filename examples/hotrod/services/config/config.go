@@ -60,5 +60,4 @@ var (
 
 	// RouteCalcDelayStdDev is standard deviation
 	RouteCalcDelayStdDev = RouteCalcDelay / 4
-
 )

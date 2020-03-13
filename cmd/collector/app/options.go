@@ -19,6 +19,7 @@ import (
 	"github.com/uber/jaeger-lib/metrics"
 	"go.uber.org/zap"
 
+	"github.com/jaegertracing/jaeger/cmd/collector/app/processor"
 	"github.com/jaegertracing/jaeger/cmd/collector/app/sanitizer"
 	"github.com/jaegertracing/jaeger/model"
 )
@@ -31,18 +32,21 @@ const (
 )
 
 type options struct {
-	logger           *zap.Logger
-	serviceMetrics   metrics.Factory
-	hostMetrics      metrics.Factory
-	preProcessSpans  ProcessSpans
-	sanitizer        sanitizer.SanitizeSpan
-	preSave          ProcessSpan
-	spanFilter       FilterSpan
-	numWorkers       int
-	blockingSubmit   bool
-	queueSize        int
-	reportBusy       bool
-	extraFormatTypes []SpanFormat
+	logger             *zap.Logger
+	serviceMetrics     metrics.Factory
+	hostMetrics        metrics.Factory
+	preProcessSpans    ProcessSpans
+	sanitizer          sanitizer.SanitizeSpan
+	preSave            ProcessSpan
+	spanFilter         FilterSpan
+	numWorkers         int
+	blockingSubmit     bool
+	queueSize          int
+	dynQueueSizeWarmup uint
+	dynQueueSizeMemory uint
+	reportBusy         bool
+	extraFormatTypes   []processor.SpanFormat
+	collectorTags      map[string]string
 }
 
 // Option is a function that sets some option on StorageBuilder.
@@ -121,6 +125,20 @@ func (options) QueueSize(queueSize int) Option {
 	}
 }
 
+// DynQueueSize creates an Option that initializes the queue size
+func (options) DynQueueSizeWarmup(dynQueueSizeWarmup uint) Option {
+	return func(b *options) {
+		b.dynQueueSizeWarmup = dynQueueSizeWarmup
+	}
+}
+
+// DynQueueSize creates an Option that initializes the queue size
+func (options) DynQueueSizeMemory(dynQueueSizeMemory uint) Option {
+	return func(b *options) {
+		b.dynQueueSizeMemory = dynQueueSizeMemory
+	}
+}
+
 // ReportBusy creates an Option that initializes the reportBusy boolean
 func (options) ReportBusy(reportBusy bool) Option {
 	return func(b *options) {
@@ -129,9 +147,16 @@ func (options) ReportBusy(reportBusy bool) Option {
 }
 
 // ExtraFormatTypes creates an Option that initializes the extra list of format types
-func (options) ExtraFormatTypes(extraFormatTypes []SpanFormat) Option {
+func (options) ExtraFormatTypes(extraFormatTypes []processor.SpanFormat) Option {
 	return func(b *options) {
 		b.extraFormatTypes = extraFormatTypes
+	}
+}
+
+// CollectorTags creates an Option that initializes the extra tags to append to the spans flowing through this collector
+func (options) CollectorTags(extraTags map[string]string) Option {
+	return func(b *options) {
+		b.collectorTags = extraTags
 	}
 }
 

@@ -216,11 +216,15 @@ func TestSpanReader_multiRead_followUp_query(t *testing.T) {
 		spanBytesID2, err := json.Marshal(spanID2)
 		require.NoError(t, err)
 
-		id1Query := elastic.NewTermQuery("traceID", model.TraceID{High: 0, Low: 1}.String())
+		id1Query := elastic.NewBoolQuery().Should(
+			elastic.NewTermQuery(traceIDField, model.TraceID{High: 0, Low: 1}.String()).Boost(2),
+			elastic.NewTermQuery(traceIDField, fmt.Sprintf("%x", 1)))
 		id1Search := elastic.NewSearchRequest().
 			IgnoreUnavailable(true).
 			Source(r.reader.sourceFn(id1Query, model.TimeAsEpochMicroseconds(date.Add(-time.Hour))))
-		id2Query := elastic.NewTermQuery("traceID", model.TraceID{High: 0, Low: 2}.String())
+		id2Query := elastic.NewBoolQuery().Should(
+			elastic.NewTermQuery(traceIDField, model.TraceID{High: 0, Low: 2}.String()).Boost(2),
+			elastic.NewTermQuery(traceIDField, fmt.Sprintf("%x", 2)))
 		id2Search := elastic.NewSearchRequest().
 			IgnoreUnavailable(true).
 			Source(r.reader.sourceFn(id2Query, model.TimeAsEpochMicroseconds(date.Add(-time.Hour))))
@@ -487,49 +491,66 @@ func testGet(typ string, t *testing.T) {
 		caption        string
 		searchResult   *elastic.SearchResult
 		searchError    error
-		expectedError  string
-		expectedOutput []string
+		expectedError  func() string
+		expectedOutput map[string]interface{}
 	}{
 		{
-			caption:        typ + " full behavior",
-			searchResult:   &elastic.SearchResult{Aggregations: elastic.Aggregations(goodAggregations)},
-			expectedOutput: []string{"123"},
+			caption:      typ + " full behavior",
+			searchResult: &elastic.SearchResult{Aggregations: elastic.Aggregations(goodAggregations)},
+			expectedOutput: map[string]interface{}{
+				operationsAggregation: []spanstore.Operation{{Name: "123"}},
+				"default":             []string{"123"},
+			},
+			expectedError: func() string {
+				return ""
+			},
 		},
 		{
-			caption:       typ + " search error",
-			searchError:   errors.New("Search failure"),
-			expectedError: "Search service failed: Search failure",
+			caption:     typ + " search error",
+			searchError: errors.New("Search failure"),
+			expectedError: func() string {
+				if typ == operationsAggregation {
+					return "search operations failed: Search failure"
+				}
+				return "search services failed: Search failure"
+			},
 		},
 		{
-			caption:       typ + " search error",
-			searchResult:  &elastic.SearchResult{Aggregations: elastic.Aggregations(badAggregations)},
-			expectedError: "Could not find aggregation of " + typ,
+			caption:      typ + " search error",
+			searchResult: &elastic.SearchResult{Aggregations: elastic.Aggregations(badAggregations)},
+			expectedError: func() string {
+				return "could not find aggregation of " + typ
+			},
 		},
 	}
+
 	for _, tc := range testCases {
 		testCase := tc
 		t.Run(testCase.caption, func(t *testing.T) {
 			withSpanReader(func(r *spanReaderTest) {
 				mockSearchService(r).Return(testCase.searchResult, testCase.searchError)
-
 				actual, err := returnSearchFunc(typ, r)
-				if testCase.expectedError != "" {
-					require.EqualError(t, err, testCase.expectedError)
+				if testCase.expectedError() != "" {
+					require.EqualError(t, err, testCase.expectedError())
 					assert.Nil(t, actual)
+				} else if expectedOutput, ok := testCase.expectedOutput[typ]; ok {
+					assert.EqualValues(t, expectedOutput, actual)
 				} else {
-					require.NoError(t, err)
-					assert.EqualValues(t, testCase.expectedOutput, actual)
+					assert.EqualValues(t, testCase.expectedOutput["default"], actual)
 				}
 			})
 		})
 	}
 }
 
-func returnSearchFunc(typ string, r *spanReaderTest) ([]string, error) {
+func returnSearchFunc(typ string, r *spanReaderTest) (interface{}, error) {
 	if typ == servicesAggregation {
 		return r.reader.GetServices(context.Background())
 	} else if typ == operationsAggregation {
-		return r.reader.GetOperations(context.Background(), "someService")
+		return r.reader.GetOperations(
+			context.Background(),
+			spanstore.OperationQueryParameters{ServiceName: "someService"},
+		)
 	} else if typ == traceIDAggregation {
 		return r.reader.findTraceIDs(context.Background(), &spanstore.TraceQueryParameters{})
 	}
@@ -557,7 +578,7 @@ func TestSpanReader_bucketToStringArrayError(t *testing.T) {
 		buckets[2] = &elastic.AggregationBucketKeyItem{Key: 2}
 
 		_, err := bucketToStringArray(buckets)
-		assert.EqualError(t, err, "Non-string key found in aggregation")
+		assert.EqualError(t, err, "non-string key found in aggregation")
 	})
 }
 
@@ -790,10 +811,10 @@ func TestTraceIDsStringsToModelsConversion(t *testing.T) {
 	traceIDs, err := convertTraceIDsStringsToModels([]string{"1", "2", "3"})
 	assert.NoError(t, err)
 	assert.Equal(t, 3, len(traceIDs))
-	assert.Equal(t, "1", traceIDs[0].String())
+	assert.Equal(t, model.NewTraceID(0, 1), traceIDs[0])
 
 	traceIDs, err = convertTraceIDsStringsToModels([]string{"dsfjsdklfjdsofdfsdbfkgbgoaemlrksdfbsdofgerjl"})
-	assert.EqualError(t, err, "Making traceID from string 'dsfjsdklfjdsofdfsdbfkgbgoaemlrksdfbsdofgerjl' failed: TraceID cannot be longer than 32 hex characters: dsfjsdklfjdsofdfsdbfkgbgoaemlrksdfbsdofgerjl")
+	assert.EqualError(t, err, "making traceID from string 'dsfjsdklfjdsofdfsdbfkgbgoaemlrksdfbsdofgerjl' failed: TraceID cannot be longer than 32 hex characters: dsfjsdklfjdsofdfsdbfkgbgoaemlrksdfbsdofgerjl")
 	assert.Equal(t, 0, len(traceIDs))
 }
 
@@ -1018,6 +1039,36 @@ func TestSpanReader_buildTagQuery(t *testing.T) {
 	})
 }
 
+func TestSpanReader_buildTagRegexQuery(t *testing.T) {
+	inStr, err := ioutil.ReadFile("fixtures/query_02.json")
+	require.NoError(t, err)
+	withSpanReader(func(r *spanReaderTest) {
+		tagQuery := r.reader.buildTagQuery("bat.foo", "spo.*")
+		actual, err := tagQuery.Source()
+		require.NoError(t, err)
+
+		expected := make(map[string]interface{})
+		json.Unmarshal(inStr, &expected)
+
+		assert.EqualValues(t, expected, actual)
+	})
+}
+
+func TestSpanReader_buildTagRegexEscapedQuery(t *testing.T) {
+	inStr, err := ioutil.ReadFile("fixtures/query_03.json")
+	require.NoError(t, err)
+	withSpanReader(func(r *spanReaderTest) {
+		tagQuery := r.reader.buildTagQuery("bat.foo", "spo\\*")
+		actual, err := tagQuery.Source()
+		require.NoError(t, err)
+
+		expected := make(map[string]interface{})
+		json.Unmarshal(inStr, &expected)
+
+		assert.EqualValues(t, expected, actual)
+	})
+}
+
 func TestSpanReader_GetEmptyIndex(t *testing.T) {
 	withSpanReader(func(r *spanReaderTest) {
 		mockSearchService(r).
@@ -1073,7 +1124,44 @@ func TestSpanReader_ArchiveTraces_ReadAlias(t *testing.T) {
 	})
 }
 
-func TestNewSpanReader2(t *testing.T) {
-	spanDate := time.Now().UTC().Format("2006")
-	fmt.Println(spanDate)
+func TestConvertTraceIDsStringsToModels(t *testing.T) {
+	ids, err := convertTraceIDsStringsToModels([]string{"1", "2", "01", "02", "001", "002"})
+	require.NoError(t, err)
+	assert.Equal(t, []model.TraceID{model.NewTraceID(0, 1), model.NewTraceID(0, 2)}, ids)
+	_, err = convertTraceIDsStringsToModels([]string{"1", "2", "01", "02", "001", "002", "blah"})
+	assert.Error(t, err)
+}
+
+func TestBuildTraceByIDQuery(t *testing.T) {
+	uintMax := ^uint64(0)
+	traceIDNoHigh := model.NewTraceID(0, 1)
+	traceIDHigh := model.NewTraceID(1, 1)
+	traceID := model.NewTraceID(uintMax, uintMax)
+	tests := []struct {
+		traceID model.TraceID
+		query   elastic.Query
+	}{
+		{
+			traceID: traceIDNoHigh,
+			query: elastic.NewBoolQuery().Should(
+				elastic.NewTermQuery(traceIDField, "0000000000000001").Boost(2),
+				elastic.NewTermQuery(traceIDField, "1"),
+			),
+		},
+		{
+			traceID: traceIDHigh,
+			query: elastic.NewBoolQuery().Should(
+				elastic.NewTermQuery(traceIDField, "00000000000000010000000000000001").Boost(2),
+				elastic.NewTermQuery(traceIDField, "10000000000000001"),
+			),
+		},
+		{
+			traceID: traceID,
+			query:   elastic.NewTermQuery(traceIDField, "ffffffffffffffffffffffffffffffff"),
+		},
+	}
+	for _, test := range tests {
+		q := buildTraceByIDQuery(test.traceID)
+		assert.Equal(t, test.query, q)
+	}
 }

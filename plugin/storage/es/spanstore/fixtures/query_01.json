@@ -4,9 +4,9 @@
       {
         "bool":{
           "must":{
-            "match":{
+            "regexp":{
               "tag.bat@foo":{
-                "query":"spook"
+                "value":"spook"
               }
             }
           }
@@ -15,9 +15,9 @@
       {
         "bool":{
           "must":{
-            "match":{
+            "regexp":{
               "process.tag.bat@foo":{
-                "query":"spook"
+                "value":"spook"
               }
             }
           }
@@ -37,9 +37,9 @@
                   }
                 },
                 {
-                  "match":{
+                  "regexp":{
                     "tags.value":{
-                      "query":"spook"
+                      "value":"spook"
                     }
                   }
                 }
@@ -62,9 +62,9 @@
                   }
                 },
                 {
-                  "match":{
+                  "regexp":{
                     "process.tags.value":{
-                      "query":"spook"
+                      "value":"spook"
                     }
                   }
                 }
@@ -87,9 +87,9 @@
                   }
                 },
                 {
-                  "match":{
+                  "regexp":{
                     "logs.fields.value":{
-                      "query":"spook"
+                      "value":"spook"
                     }
                   }
                 }

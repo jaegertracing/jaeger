@@ -43,10 +43,6 @@ func (c *tchanCollectorClient) SubmitBatches(ctx thrift.Context, batches []*Batc
 	}
 	success, err := c.client.Call(ctx, c.thriftService, "submitBatches", &args, &resp)
 	if err == nil && !success {
-		switch {
-		default:
-			err = fmt.Errorf("received no result or unknown exception for submitBatches")
-		}
 	}
 
 	return resp.GetSuccess(), err

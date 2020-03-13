@@ -20,6 +20,7 @@ import (
 	"io"
 	"io/ioutil"
 	"log"
+	"math/rand"
 	"os"
 	"runtime/pprof"
 	"testing"
@@ -128,11 +129,6 @@ func TestValidation(t *testing.T) {
 		params.Tags = map[string]string{"A": "B"}
 		_, err = sr.FindTraces(context.Background(), params)
 		assert.EqualError(t, err, "service name must be set")
-
-		// Only StartTimeMin and Max (not supported yet)
-		// _, err := sr.FindTraces(context.Background(), params)
-		// assert.EqualError(t, err, "This query parameter is not supported yet")
-
 	})
 }
 
@@ -142,16 +138,21 @@ func TestIndexSeeks(t *testing.T) {
 		traces := 60
 		spans := 3
 		tid := startT
+
+		traceOrder := make([]uint64, traces)
+
 		for i := 0; i < traces; i++ {
+			lowId := rand.Uint64()
+			traceOrder[i] = lowId
 			tid = tid.Add(time.Duration(time.Millisecond * time.Duration(i)))
 
 			for j := 0; j < spans; j++ {
 				s := model.Span{
 					TraceID: model.TraceID{
-						Low:  uint64(i),
+						Low:  lowId,
 						High: 1,
 					},
-					SpanID:        model.SpanID(j),
+					SpanID:        model.SpanID(rand.Uint64()),
 					OperationName: fmt.Sprintf("operation-%d", j),
 					Process: &model.Process{
 						ServiceName: fmt.Sprintf("service-%d", i%4),
@@ -171,8 +172,16 @@ func TestIndexSeeks(t *testing.T) {
 						},
 					},
 				}
+
 				err := sw.WriteSpan(&s)
 				assert.NoError(t, err)
+			}
+		}
+
+		testOrder := func(trs []*model.Trace) {
+			// Assert that we returned correctly in DESC time order
+			for l := 1; l < len(trs); l++ {
+				assert.True(t, trs[l].Spans[spans-1].StartTime.Before(trs[l-1].Spans[spans-1].StartTime))
 			}
 		}
 
@@ -185,6 +194,7 @@ func TestIndexSeeks(t *testing.T) {
 		trs, err := sr.FindTraces(context.Background(), params)
 		assert.NoError(t, err)
 		assert.Equal(t, 1, len(trs))
+		assert.Equal(t, spans, len(trs[0].Spans))
 
 		params.OperationName = "operation-1"
 		trs, err = sr.FindTraces(context.Background(), params)
@@ -211,10 +221,10 @@ func TestIndexSeeks(t *testing.T) {
 		tags["error"] = "true"
 		params.Tags = tags
 		params.DurationMin = time.Duration(1 * time.Millisecond)
-		// params.DurationMax = time.Duration(1 * time.Hour)
 		trs, err = sr.FindTraces(context.Background(), params)
 		assert.NoError(t, err)
 		assert.Equal(t, 1, len(trs))
+		assert.Equal(t, spans, len(trs[0].Spans))
 
 		// Query limited amount of hits
 
@@ -224,17 +234,37 @@ func TestIndexSeeks(t *testing.T) {
 		trs, err = sr.FindTraces(context.Background(), params)
 		assert.NoError(t, err)
 		assert.Equal(t, 2, len(trs))
+		assert.Equal(t, traceOrder[59], trs[0].Spans[0].TraceID.Low)
+		assert.Equal(t, traceOrder[55], trs[1].Spans[0].TraceID.Low)
+		testOrder(trs)
 
-		// Check for DESC return order
-		params.NumTraces = 9
+		// Check for DESC return order with duration index
+		params = &spanstore.TraceQueryParameters{
+			StartTimeMin: startT,
+			StartTimeMax: startT.Add(time.Duration(time.Hour * 1)),
+			DurationMin:  time.Duration(30 * time.Millisecond), // Filters one
+			DurationMax:  time.Duration(50 * time.Millisecond), // Filters three
+			NumTraces:    9,
+		}
 		trs, err = sr.FindTraces(context.Background(), params)
 		assert.NoError(t, err)
-		assert.Equal(t, 9, len(trs))
+		assert.Equal(t, 9, len(trs)) // Returns 23, we limited to 9
 
-		// Assert that we fetched correctly in DESC time order
-		for l := 1; l < len(trs); l++ {
-			assert.True(t, trs[l].Spans[spans-1].StartTime.Before(trs[l-1].Spans[spans-1].StartTime))
-		}
+		// Check the newest items are returned
+		assert.Equal(t, traceOrder[50], trs[0].Spans[0].TraceID.Low)
+		assert.Equal(t, traceOrder[42], trs[8].Spans[0].TraceID.Low)
+		testOrder(trs)
+
+		// Check for DESC return order without duration index, but still with limit
+		params.DurationMin = 0
+		params.DurationMax = 0
+		params.NumTraces = 7
+		trs, err = sr.FindTraces(context.Background(), params)
+		assert.NoError(t, err)
+		assert.Equal(t, 7, len(trs))
+		assert.Equal(t, traceOrder[59], trs[0].Spans[0].TraceID.Low)
+		assert.Equal(t, traceOrder[53], trs[6].Spans[0].TraceID.Low)
+		testOrder(trs)
 
 		// StartTime, endTime scan - full table scan (so technically no index seek)
 		params = &spanstore.TraceQueryParameters{
@@ -244,18 +274,21 @@ func TestIndexSeeks(t *testing.T) {
 
 		trs, err = sr.FindTraces(context.Background(), params)
 		assert.NoError(t, err)
-		assert.Equal(t, 6, len(trs))
+		assert.Equal(t, 5, len(trs))
+		assert.Equal(t, spans, len(trs[0].Spans))
+		testOrder(trs)
 
 		// StartTime and Duration queries
 		params.StartTimeMax = startT.Add(time.Duration(time.Hour * 10))
-		params.DurationMin = time.Duration(53 * time.Millisecond) // trace 51 (max)
-		params.DurationMax = time.Duration(56 * time.Millisecond) // trace 56 (min)
+		params.DurationMin = time.Duration(53 * time.Millisecond) // trace 51 (min)
+		params.DurationMax = time.Duration(56 * time.Millisecond) // trace 56 (max)
 
 		trs, err = sr.FindTraces(context.Background(), params)
 		assert.NoError(t, err)
 		assert.Equal(t, 6, len(trs))
-		assert.Equal(t, uint64(56), trs[0].Spans[0].TraceID.Low)
-		assert.Equal(t, uint64(51), trs[5].Spans[0].TraceID.Low)
+		assert.Equal(t, traceOrder[56], trs[0].Spans[0].TraceID.Low)
+		assert.Equal(t, traceOrder[51], trs[5].Spans[0].TraceID.Low)
+		testOrder(trs)
 	})
 }
 
@@ -331,7 +364,10 @@ func TestMenuSeeks(t *testing.T) {
 			}
 		}
 
-		operations, err := sr.GetOperations(context.Background(), "service-1")
+		operations, err := sr.GetOperations(
+			context.Background(),
+			spanstore.OperationQueryParameters{ServiceName: "service-1"},
+		)
 		assert.NoError(t, err)
 
 		serviceList, err := sr.GetServices(context.Background())
@@ -391,9 +427,9 @@ func TestPersist(t *testing.T) {
 				High: 1,
 			},
 			SpanID:        model.SpanID(4),
-			OperationName: fmt.Sprintf("operation-p"),
+			OperationName: "operation-p",
 			Process: &model.Process{
-				ServiceName: fmt.Sprintf("service-p"),
+				ServiceName: "service-p",
 			},
 			StartTime: time.Now(),
 			Duration:  time.Duration(1 * time.Hour),

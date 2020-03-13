@@ -17,6 +17,8 @@ package auth
 import (
 	"flag"
 	"strings"
+
+	"github.com/jaegertracing/jaeger/pkg/config/tlscfg"
 )
 
 const (
@@ -41,15 +43,12 @@ const (
 	defaultKerberosUsername    = ""
 	defaultKerberosKeyTab      = "/etc/security/kafka.keytab"
 
-	// TLS configuration options
-	tlsPrefix     = ".tls"
-	suffixTLSCert = ".cert"
-	suffixTLSKey  = ".key"
-	suffixTLSCA   = ".ca"
+	plainTextPrefix         = ".plaintext"
+	suffixPlainTextUserName = ".username"
+	suffixPlainTextPassword = ".password"
 
-	defaultCAPath   = ""
-	defaultCertPath = ""
-	defaultKeyPath  = ""
+	defaultPlainTextUserName = ""
+	defaultPlainTextPassword = ""
 )
 
 func addKerberosFlags(configPrefix string, flagSet *flag.FlagSet) {
@@ -83,20 +82,15 @@ func addKerberosFlags(configPrefix string, flagSet *flag.FlagSet) {
 		"Path to keytab file. i.e /etc/security/kafka.keytab")
 }
 
-// AddFlags adds the flags for this package to the flagSet
-func addTLSFlags(configPrefix string, flagSet *flag.FlagSet) {
+func addPlainTextFlags(configPrefix string, flagSet *flag.FlagSet) {
 	flagSet.String(
-		configPrefix+tlsPrefix+suffixTLSCA,
-		defaultCAPath,
-		"Path to the TLS CA for the Kafka connection")
+		configPrefix+plainTextPrefix+suffixPlainTextUserName,
+		defaultPlainTextUserName,
+		"The plaintext Username for SASL/PLAIN authentication")
 	flagSet.String(
-		configPrefix+tlsPrefix+suffixTLSCert,
-		defaultCertPath,
-		"Path to the TLS Certificate for the Kafka connection")
-	flagSet.String(
-		configPrefix+tlsPrefix+suffixTLSKey,
-		defaultKeyPath,
-		"Path to the TLS Key for the Kafka connection")
+		configPrefix+plainTextPrefix+suffixPlainTextPassword,
+		defaultPlainTextPassword,
+		"The plaintext Password for SASL/PLAIN authentication")
 }
 
 // AddFlags add configuration flags to a flagSet.
@@ -107,5 +101,13 @@ func AddFlags(configPrefix string, flagSet *flag.FlagSet) {
 		"Authentication type used to authenticate with kafka cluster. e.g. "+strings.Join(authTypes, ", "),
 	)
 	addKerberosFlags(configPrefix, flagSet)
-	addTLSFlags(configPrefix, flagSet)
+
+	tlsClientConfig := tlscfg.ClientFlagsConfig{
+		Prefix:         configPrefix,
+		ShowEnabled:    true,
+		ShowServerName: true,
+	}
+	tlsClientConfig.AddFlags(flagSet)
+
+	addPlainTextFlags(configPrefix, flagSet)
 }

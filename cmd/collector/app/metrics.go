@@ -21,7 +21,9 @@ import (
 
 	"github.com/uber/jaeger-lib/metrics"
 
+	"github.com/jaegertracing/jaeger/cmd/collector/app/processor"
 	"github.com/jaegertracing/jaeger/model"
+	"github.com/jaegertracing/jaeger/pkg/normalizer"
 )
 
 const (
@@ -58,9 +60,13 @@ type SpanProcessorMetrics struct {
 	InQueueLatency metrics.Timer
 	// SpansDropped measures the number of spans we discarded because the queue was full
 	SpansDropped metrics.Counter
+	// SpansBytes records how many bytes were processed
+	SpansBytes metrics.Gauge
 	// BatchSize measures the span batch size
 	BatchSize metrics.Gauge // size of span batch
-	// QueueLength measures the size of the internal span queue
+	// QueueCapacity measures the capacity of the internal span queue
+	QueueCapacity metrics.Gauge
+	// QueueLength measures the current number of elements in the internal span queue
 	QueueLength metrics.Gauge
 	// SavedOkBySvc contains span and trace counts by service
 	SavedOkBySvc  metricsBySvc  // spans actually saved
@@ -92,39 +98,11 @@ type metricsBySvc struct {
 	traces traceCountsBySvc // number of traces originated per service
 }
 
-// InboundTransport identifies the transport used to receive spans.
-type InboundTransport string
-
-const (
-	// GRPCTransport indicates spans received over gRPC.
-	GRPCTransport InboundTransport = "grpc"
-	// TChannelTransport indicates spans received over TChannel.
-	TChannelTransport InboundTransport = "tchannel"
-	// HTTPTransport indicates spans received over HTTP.
-	HTTPTransport InboundTransport = "http"
-	// UnknownTransport is the fallback/catch-all category.
-	UnknownTransport InboundTransport = "unknown"
-)
-
-// SpanFormat identifies the data format in which the span was originally received.
-type SpanFormat string
-
-const (
-	// JaegerSpanFormat is for Jaeger Thrift spans.
-	JaegerSpanFormat SpanFormat = "jaeger"
-	// ZipkinSpanFormat is for Zipkin Thrift spans.
-	ZipkinSpanFormat SpanFormat = "zipkin"
-	// ProtoSpanFormat is for Jaeger protobuf Spans.
-	ProtoSpanFormat SpanFormat = "proto"
-	// UnknownSpanFormat is the fallback/catch-all category.
-	UnknownSpanFormat SpanFormat = "unknown"
-)
-
 // SpanCountsByFormat groups metrics by different span formats (thrift, proto, etc.)
-type SpanCountsByFormat map[SpanFormat]SpanCountsByTransport
+type SpanCountsByFormat map[processor.SpanFormat]SpanCountsByTransport
 
 // SpanCountsByTransport groups metrics by inbound transport (e.g http, grpc, tchannel)
-type SpanCountsByTransport map[InboundTransport]SpanCounts
+type SpanCountsByTransport map[processor.InboundTransport]SpanCounts
 
 // SpanCounts contains counts for received and rejected spans.
 type SpanCounts struct {
@@ -135,12 +113,12 @@ type SpanCounts struct {
 }
 
 // NewSpanProcessorMetrics returns a SpanProcessorMetrics
-func NewSpanProcessorMetrics(serviceMetrics metrics.Factory, hostMetrics metrics.Factory, otherFormatTypes []SpanFormat) *SpanProcessorMetrics {
+func NewSpanProcessorMetrics(serviceMetrics metrics.Factory, hostMetrics metrics.Factory, otherFormatTypes []processor.SpanFormat) *SpanProcessorMetrics {
 	spanCounts := SpanCountsByFormat{
-		ZipkinSpanFormat:  newCountsByTransport(serviceMetrics, ZipkinSpanFormat),
-		JaegerSpanFormat:  newCountsByTransport(serviceMetrics, JaegerSpanFormat),
-		ProtoSpanFormat:   newCountsByTransport(serviceMetrics, ProtoSpanFormat),
-		UnknownSpanFormat: newCountsByTransport(serviceMetrics, UnknownSpanFormat),
+		processor.ZipkinSpanFormat:  newCountsByTransport(serviceMetrics, processor.ZipkinSpanFormat),
+		processor.JaegerSpanFormat:  newCountsByTransport(serviceMetrics, processor.JaegerSpanFormat),
+		processor.ProtoSpanFormat:   newCountsByTransport(serviceMetrics, processor.ProtoSpanFormat),
+		processor.UnknownSpanFormat: newCountsByTransport(serviceMetrics, processor.UnknownSpanFormat),
 	}
 	for _, otherFormatType := range otherFormatTypes {
 		spanCounts[otherFormatType] = newCountsByTransport(serviceMetrics, otherFormatType)
@@ -150,7 +128,9 @@ func NewSpanProcessorMetrics(serviceMetrics metrics.Factory, hostMetrics metrics
 		InQueueLatency: hostMetrics.Timer(metrics.TimerOptions{Name: "in-queue-latency", Tags: nil}),
 		SpansDropped:   hostMetrics.Counter(metrics.Options{Name: "spans.dropped", Tags: nil}),
 		BatchSize:      hostMetrics.Gauge(metrics.Options{Name: "batch-size", Tags: nil}),
+		QueueCapacity:  hostMetrics.Gauge(metrics.Options{Name: "queue-capacity", Tags: nil}),
 		QueueLength:    hostMetrics.Gauge(metrics.Options{Name: "queue-length", Tags: nil}),
+		SpansBytes:     hostMetrics.Gauge(metrics.Options{Name: "spans.bytes", Tags: nil}),
 		SavedOkBySvc:   newMetricsBySvc(serviceMetrics.Namespace(metrics.NSOptions{Name: "", Tags: map[string]string{"result": "ok"}}), "saved-by-svc"),
 		SavedErrBySvc:  newMetricsBySvc(serviceMetrics.Namespace(metrics.NSOptions{Name: "", Tags: map[string]string{"result": "err"}}), "saved-by-svc"),
 		spanCounts:     spanCounts,
@@ -211,17 +191,17 @@ func newSpanCountsBySvc(factory metrics.Factory, category string, maxServiceName
 	}
 }
 
-func newCountsByTransport(factory metrics.Factory, format SpanFormat) SpanCountsByTransport {
+func newCountsByTransport(factory metrics.Factory, format processor.SpanFormat) SpanCountsByTransport {
 	factory = factory.Namespace(metrics.NSOptions{Tags: map[string]string{"format": string(format)}})
 	return SpanCountsByTransport{
-		HTTPTransport:     newCounts(factory, HTTPTransport),
-		TChannelTransport: newCounts(factory, TChannelTransport),
-		GRPCTransport:     newCounts(factory, GRPCTransport),
-		UnknownTransport:  newCounts(factory, UnknownTransport),
+		processor.HTTPTransport:     newCounts(factory, processor.HTTPTransport),
+		processor.TChannelTransport: newCounts(factory, processor.TChannelTransport),
+		processor.GRPCTransport:     newCounts(factory, processor.GRPCTransport),
+		processor.UnknownTransport:  newCounts(factory, processor.UnknownTransport),
 	}
 }
 
-func newCounts(factory metrics.Factory, transport InboundTransport) SpanCounts {
+func newCounts(factory metrics.Factory, transport processor.InboundTransport) SpanCounts {
 	factory = factory.Namespace(metrics.NSOptions{Tags: map[string]string{"transport": string(transport)}})
 	return SpanCounts{
 		RejectedBySvc: newMetricsBySvc(factory, "rejected"),
@@ -230,14 +210,14 @@ func newCounts(factory metrics.Factory, transport InboundTransport) SpanCounts {
 }
 
 // GetCountsForFormat gets the SpanCounts for a given format and transport. If none exists, we use the Unknown format.
-func (m *SpanProcessorMetrics) GetCountsForFormat(spanFormat SpanFormat, transport InboundTransport) SpanCounts {
+func (m *SpanProcessorMetrics) GetCountsForFormat(spanFormat processor.SpanFormat, transport processor.InboundTransport) SpanCounts {
 	c, ok := m.spanCounts[spanFormat]
 	if !ok {
-		c = m.spanCounts[UnknownSpanFormat]
+		c = m.spanCounts[processor.UnknownSpanFormat]
 	}
 	t, ok := c[transport]
 	if !ok {
-		t = c[UnknownTransport]
+		t = c[processor.UnknownTransport]
 	}
 	return t
 }
@@ -282,7 +262,7 @@ func (m metricsBySvc) countTracesByServiceName(serviceName string, isDebug bool,
 // an alert should be raised to investigate what's causing so many unique
 // service names.
 func (m *traceCountsBySvc) countByServiceName(serviceName string, isDebug bool, samplerType string) {
-	serviceName = NormalizeServiceName(serviceName)
+	serviceName = normalizer.ServiceName(serviceName)
 	counts := m.counts
 	if isDebug {
 		counts = m.debugCounts
@@ -335,7 +315,7 @@ func (m *traceCountsBySvc) countByServiceName(serviceName string, isDebug bool, 
 // an alert should be raised to investigate what's causing so many unique
 // service names.
 func (m *spanCountsBySvc) countByServiceName(serviceName string, isDebug bool) {
-	serviceName = NormalizeServiceName(serviceName)
+	serviceName = normalizer.ServiceName(serviceName)
 	counts := m.counts
 	if isDebug {
 		counts = m.debugCounts

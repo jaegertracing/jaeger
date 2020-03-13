@@ -15,6 +15,7 @@
 * [SeatGeek](https://seatgeek.com/)
 * [SpotHero](https://spothero.com/)
 * [Stagemonitor](https://www.stagemonitor.org/)
+* [Tencent](https://www.tencent.com/en-us/index.html)
 * [Ticketmaster](https://www.ticketmaster.com)
   * Case study: [Ticketmaster Traces 100 Million Transactions per Day with Jaeger](https://medium.com/jaegertracing/ticketmaster-traces-100-million-transactions-per-day-with-jaeger-38ec6cf599f0)
   * Talk: [Deploy, Scale and Extend Jaeger](https://www.youtube.com/watch?v=JloanFIc-ms)
@@ -25,6 +26,6 @@
   * Blog post: [Deploying Jaeger with CloudFormation via Bazel](http://labs.vistarmedia.com/2018/10/31/deploying-jaeger-with-cloudformation-via-bazel.html)
 * [Weave](https://www.getweave.com)
 * [Weaveworks](https://www.weave.works/)
-  * Case study: coming soon...
+  * Case study: [Weaveworks Combines Jaeger Tracing With Logs and Metrics for a Troubleshooting Swiss Army Knife](https://medium.com/jaegertracing/weaveworks-combines-jaeger-tracing-with-logs-and-metrics-for-a-troubleshooting-swiss-army-knife-5afc0f42b22e)
   * Talk: [How We Used Jaeger and Prometheus to Deliver Lightning-Fast User Queries](https://www.youtube.com/watch?v=qg0ENOdP1Lo)
 * [Zenly](https://zen.ly/)

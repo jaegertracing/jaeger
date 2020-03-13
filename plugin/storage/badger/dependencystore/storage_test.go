@@ -80,7 +80,7 @@ func TestDependencyReader(t *testing.T) {
 						High: 1,
 					},
 					SpanID:        model.SpanID(j),
-					OperationName: fmt.Sprintf("operation-a"),
+					OperationName: "operation-a",
 					Process: &model.Process{
 						ServiceName: fmt.Sprintf("service-%d", j),
 					},

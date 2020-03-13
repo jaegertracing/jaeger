@@ -2,9 +2,9 @@
 *.test
 *.xml
 *.swp
-fmt.log
-import.log
-lint.log
+.fmt.log
+.import.log
+.lint.log
 cover.html
 .envrc
 .idea/
@@ -23,9 +23,13 @@ cmd/ingester/ingester
 cmd/ingester/ingester-*
 cmd/query/query
 cmd/query/query-*
+cmd/tracegen/tracegen
+cmd/tracegen/tracegen-*
 cmd/docs/*.md
 cmd/docs/*.rst
 cmd/docs/*.1
 cmd/docs/*.yaml
 crossdock/crossdock-*
 run-crossdock.log
+
+__pycache__

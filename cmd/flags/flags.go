@@ -18,13 +18,12 @@ package flags
 import (
 	"flag"
 	"fmt"
+	"os"
+	"strings"
 
-	"github.com/pkg/errors"
 	"github.com/spf13/viper"
 	"go.uber.org/zap"
 	"go.uber.org/zap/zapcore"
-
-	"github.com/jaegertracing/jaeger/plugin/storage"
 )
 
 const (
@@ -44,10 +43,49 @@ func TryLoadConfigFile(v *viper.Viper) error {
 		v.SetConfigFile(file)
 		err := v.ReadInConfig()
 		if err != nil {
-			return errors.Wrapf(err, "cannot load config file %s", file)
+			return fmt.Errorf("cannot load config file %s: %w", file, err)
 		}
 	}
 	return nil
+}
+
+// ParseJaegerTags parses the Jaeger tags string into a map.
+func ParseJaegerTags(jaegerTags string) map[string]string {
+	if jaegerTags == "" {
+		return nil
+	}
+	tagPairs := strings.Split(string(jaegerTags), ",")
+	tags := make(map[string]string)
+	for _, p := range tagPairs {
+		kv := strings.SplitN(p, "=", 2)
+		k, v := strings.TrimSpace(kv[0]), strings.TrimSpace(kv[1])
+
+		if strings.HasPrefix(v, "${") && strings.HasSuffix(v, "}") {
+			skipWhenEmpty := false
+
+			ed := strings.SplitN(string(v[2:len(v)-1]), ":", 2)
+			if len(ed) == 1 {
+				// no default value specified, set to empty
+				skipWhenEmpty = true
+				ed = append(ed, "")
+			}
+
+			e, d := ed[0], ed[1]
+			v = os.Getenv(e)
+			if v == "" && d != "" {
+				v = d
+			}
+
+			// no value is set, skip this entry
+			if v == "" && skipWhenEmpty {
+				continue
+			}
+		}
+
+		tags[k] = v
+	}
+
+	return tags
 }
 
 // SharedFlags holds flags configuration
@@ -62,7 +100,7 @@ type logging struct {
 
 // AddFlags adds flags for SharedFlags
 func AddFlags(flagSet *flag.FlagSet) {
-	flagSet.String(spanStorageType, "", fmt.Sprintf(`(deprecated) please use %s environment variable. Run this binary with "env" command for help.`, storage.SpanStorageTypeEnvVar))
+	flagSet.String(spanStorageType, "", "(deprecated) please use SPAN_STORAGE_TYPE environment variable. Run this binary with the 'env' command for help.")
 	AddLoggingFlag(flagSet)
 }
 

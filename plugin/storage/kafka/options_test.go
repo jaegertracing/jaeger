@@ -15,13 +15,17 @@
 package kafka
 
 import (
+	"fmt"
 	"testing"
+	"time"
 
 	"github.com/Shopify/sarama"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
 	"github.com/jaegertracing/jaeger/pkg/config"
+	"github.com/jaegertracing/jaeger/pkg/config/tlscfg"
+	"github.com/jaegertracing/jaeger/pkg/kafka/auth"
 )
 
 func TestOptionsWithFlags(t *testing.T) {
@@ -33,7 +37,11 @@ func TestOptionsWithFlags(t *testing.T) {
 		"--kafka.producer.encoding=protobuf",
 		"--kafka.producer.required-acks=local",
 		"--kafka.producer.compression=gzip",
-		"--kafka.producer.compression-level=7"})
+		"--kafka.producer.compression-level=7",
+		"--kafka.producer.batch-linger=1s",
+		"--kafka.producer.batch-size=128000",
+		"--kafka.producer.batch-max-messages=100",
+	})
 	opts.InitFromViper(v)
 
 	assert.Equal(t, "topic1", opts.topic)
@@ -42,6 +50,9 @@ func TestOptionsWithFlags(t *testing.T) {
 	assert.Equal(t, sarama.WaitForLocal, opts.config.RequiredAcks)
 	assert.Equal(t, sarama.CompressionGZIP, opts.config.Compression)
 	assert.Equal(t, 7, opts.config.CompressionLevel)
+	assert.Equal(t, 128000, opts.config.BatchSize)
+	assert.Equal(t, time.Duration(1*time.Second), opts.config.BatchLinger)
+	assert.Equal(t, 100, opts.config.BatchMaxMessages)
 }
 
 func TestFlagDefaults(t *testing.T) {
@@ -56,6 +67,9 @@ func TestFlagDefaults(t *testing.T) {
 	assert.Equal(t, sarama.WaitForLocal, opts.config.RequiredAcks)
 	assert.Equal(t, sarama.CompressionNone, opts.config.Compression)
 	assert.Equal(t, 0, opts.config.CompressionLevel)
+	assert.Equal(t, 0, opts.config.BatchSize)
+	assert.Equal(t, time.Duration(0*time.Second), opts.config.BatchLinger)
+	assert.Equal(t, 0, opts.config.BatchMaxMessages)
 }
 
 func TestCompressionLevelDefaults(t *testing.T) {
@@ -152,4 +166,45 @@ func TestRequiredAcks(t *testing.T) {
 func TestRequiredAcksFailures(t *testing.T) {
 	_, err := getRequiredAcks("test")
 	assert.Error(t, err)
+}
+
+func TestTLSFlags(t *testing.T) {
+	kerb := auth.KerberosConfig{ServiceName: "kafka", ConfigPath: "/etc/krb5.conf", KeyTabPath: "/etc/security/kafka.keytab"}
+	tests := []struct {
+		flags    []string
+		expected auth.AuthenticationConfig
+	}{
+		{
+			flags:    []string{},
+			expected: auth.AuthenticationConfig{Authentication: "none", Kerberos: kerb},
+		},
+		{
+			flags:    []string{"--kafka.producer.authentication=foo"},
+			expected: auth.AuthenticationConfig{Authentication: "foo", Kerberos: kerb},
+		},
+		{
+			flags:    []string{"--kafka.producer.authentication=kerberos", "--kafka.producer.tls.enabled=true"},
+			expected: auth.AuthenticationConfig{Authentication: "kerberos", Kerberos: kerb, TLS: tlscfg.Options{Enabled: true}},
+		},
+		{
+			flags:    []string{"--kafka.producer.authentication=tls"},
+			expected: auth.AuthenticationConfig{Authentication: "tls", Kerberos: kerb, TLS: tlscfg.Options{Enabled: true}},
+		},
+		{
+			flags:    []string{"--kafka.producer.authentication=tls", "--kafka.producer.tls.enabled=false"},
+			expected: auth.AuthenticationConfig{Authentication: "tls", Kerberos: kerb, TLS: tlscfg.Options{Enabled: true}},
+		},
+	}
+
+	for _, test := range tests {
+		t.Run(fmt.Sprintf("%s", test.flags), func(t *testing.T) {
+			o := &Options{}
+			v, command := config.Viperize(o.AddFlags)
+			err := command.ParseFlags(test.flags)
+			require.NoError(t, err)
+			o.InitFromViper(v)
+			assert.Equal(t, test.expected, o.config.AuthenticationConfig)
+
+		})
+	}
 }

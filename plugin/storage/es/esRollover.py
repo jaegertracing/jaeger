@@ -8,14 +8,14 @@ import os
 import requests
 import ssl
 import sys
-from pathlib import Path
+from pathlib2 import Path
 from requests.auth import HTTPBasicAuth
 
 
 ARCHIVE_INDEX = 'jaeger-span-archive'
-ROLLBACK_CONDITIONS = '{"max_age": "7d"}'
+ROLLBACK_CONDITIONS = '{"max_age": "2d"}'
 UNIT = 'days'
-UNIT_COUNT = 7
+UNIT_COUNT = 2
 SHARDS = 5
 REPLICAS = 1
 
@@ -35,6 +35,7 @@ def main():
         print('ES_TLS_CA ... Path to TLS CA file.')
         print('ES_TLS_CERT ... Path to TLS certificate file.')
         print('ES_TLS_KEY ... Path to TLS key file.')
+        print('ES_TLS_SKIP_HOST_VERIFY ... (insecure) Skip server\'s certificate chain and host name verification.')
         print('ES_VERSION ... The major Elasticsearch version. If not specified, the value will be auto-detected from Elasticsearch.')
         print('init configuration:')
         print('\tSHARDS ...  the number of shards per index in Elasticsearch (default {}).'.format(SHARDS))
@@ -46,18 +47,7 @@ def main():
         print('\tUNIT_COUNT ... count of UNITs (default {}).'.format(UNIT_COUNT))
         sys.exit(1)
 
-    username = os.getenv("ES_USERNAME")
-    password = os.getenv("ES_PASSWORD")
-
-    if username is not None and password is not None:
-        client = elasticsearch.Elasticsearch(sys.argv[2:], http_auth=(username, password))
-    elif str2bool(os.getenv("ES_TLS", 'false')):
-        context = ssl.create_default_context(ssl.Purpose.SERVER_AUTH, cafile=os.getenv("ES_TLS_CA"))
-        context.load_cert_chain(certfile=os.getenv("ES_TLS_CERT"), keyfile=os.getenv("ES_TLS_KEY"))
-        client = elasticsearch.Elasticsearch(sys.argv[2:], ssl_context=context)
-    else:
-        client = elasticsearch.Elasticsearch(sys.argv[2:])
-
+    client = create_client(os.getenv("ES_USERNAME"), os.getenv("ES_PASSWORD"), str2bool(os.getenv("ES_TLS", 'false')), os.getenv("ES_TLS_CA"), os.getenv("ES_TLS_CERT"), os.getenv("ES_TLS_KEY"), str2bool(os.getenv("ES_TLS_SKIP_HOST_VERIFY", 'false')))
     prefix = os.getenv('INDEX_PREFIX', '')
     if prefix != '':
         prefix += '-'
@@ -107,7 +97,7 @@ def perform_action(action, client, write_alias, read_alias, index_to_rollover, t
 def create_index_template(template, template_name):
     print('Creating index template {}'.format(template_name))
     headers = {'Content-Type': 'application/json'}
-    s = get_request_session(os.getenv("ES_USERNAME"), os.getenv("ES_PASSWORD"), str2bool(os.getenv("ES_TLS", 'false')), os.getenv("ES_TLS_CA"), os.getenv("ES_TLS_CERT"), os.getenv("ES_TLS_KEY"))
+    s = get_request_session(os.getenv("ES_USERNAME"), os.getenv("ES_PASSWORD"), str2bool(os.getenv("ES_TLS", 'false')), os.getenv("ES_TLS_CA"), os.getenv("ES_TLS_CERT"), os.getenv("ES_TLS_KEY"), os.getenv("ES_TLS_SKIP_HOST_VERIFY", 'false'))
     r = s.put(sys.argv[2] + '/_template/' + template_name, headers=headers, data=template)
     print(r.text)
     r.raise_for_status()
@@ -118,12 +108,8 @@ def create_index(client, name):
     Create archive index
     """
     print('Creating index {}'.format(name))
-    create = curator.CreateIndex(client=client, name=name)
-    try:
-        create.do_action()
-    except curator.exceptions.FailedExecution as e:
-        if "index_already_exists_exception" not in str(e) and "resource_already_exists_exception" not in str(e):
-            raise e
+    create = curator.CreateIndex(client=client, name=name, ignore_existing=True)
+    create.do_action()
 
 
 def create_aliases(client, alias_name, archive_index_name):
@@ -202,8 +188,12 @@ def empty_list(ilo, error_msg):
         sys.exit(0)
 
 
-def get_request_session(username, password, tls, ca, cert, key):
+def get_request_session(username, password, tls, ca, cert, key, skipHostVerify):
     session = requests.Session()
+    if ca is not None:
+        session.verify = ca
+    elif skipHostVerify:
+        session.verify = False
     if username is not None and password is not None:
         session.auth = HTTPBasicAuth(username, password)
     elif tls:
@@ -219,6 +209,22 @@ def get_version(client):
         print('Detected ElasticSearch Version {}'.format(esVersion))
         esVersion = int(esVersion)
     return esVersion
+
+
+def create_client(username, password, tls, ca, cert, key, skipHostVerify):
+    context = ssl.create_default_context()
+    if ca is not None:
+        context = ssl.create_default_context(ssl.Purpose.SERVER_AUTH, cafile=ca)
+    elif skipHostVerify:
+        context.check_hostname = False
+        context.verify_mode = ssl.CERT_NONE
+    if username is not None and password is not None:
+        return elasticsearch.Elasticsearch(sys.argv[2:], http_auth=(username, password), ssl_context=context)
+    elif tls:
+        context.load_cert_chain(certfile=cert, keyfile=key)
+        return elasticsearch.Elasticsearch(sys.argv[2:], ssl_context=context)
+    else:
+        return elasticsearch.Elasticsearch(sys.argv[2:], ssl_context=context)
 
 
 if __name__ == "__main__":

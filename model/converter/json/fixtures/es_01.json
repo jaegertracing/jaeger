@@ -1,23 +1,23 @@
 {
-  "traceID": "1",
-  "spanID": "2",
+  "traceID": "0000000000000001",
+  "spanID": "0000000000000002",
   "flags": 1,
   "operationName": "test-general-conversion",
   "references": [
     {
       "refType": "CHILD_OF",
-      "traceID": "1",
-      "spanID": "3"
+      "traceID": "0000000000000001",
+      "spanID": "0000000000000003"
     },
     {
       "refType": "FOLLOWS_FROM",
-      "traceID": "1",
-      "spanID": "4"
+      "traceID": "0000000000000001",
+      "spanID": "0000000000000004"
     },
     {
       "refType": "CHILD_OF",
-      "traceID": "ff",
-      "spanID": "ff"
+      "traceID": "00000000000000ff",
+      "spanID": "00000000000000ff"
     }
   ],
   "startTime": 1485467191639875,

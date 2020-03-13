@@ -59,6 +59,8 @@ func (s *BadgerIntegrationStorage) initialize() error {
 	logger, _ := testutils.NewLogger()
 	s.logger = logger
 
+	// TODO: remove this flag after badger support returning spanKind when get operations
+	s.notSupportSpanKindWithOperation = true
 	return nil
 }
 

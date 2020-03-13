@@ -31,9 +31,9 @@ import (
 )
 
 const (
-	adminHTTPPort       = "admin-http-port"
-	adminHTTPAddr       = "admin-http-addr"
 	healthCheckHTTPPort = "health-check-http-port"
+	adminHTTPPort       = "admin-http-port"
+	adminHTTPHostPort   = "admin.http.host-port"
 )
 
 // AdminServer runs an HTTP server with admin endpoints, such as healthcheck at /, /metrics, etc.
@@ -70,31 +70,26 @@ func (s *AdminServer) setLogger(logger *zap.Logger) {
 
 // AddFlags registers CLI flags.
 func (s *AdminServer) AddFlags(flagSet *flag.FlagSet) {
-	flagSet.Int(healthCheckHTTPPort, 0, "(deprecated) see --"+adminHTTPAddr)
-	flagSet.Int(adminHTTPPort, 0, "(deprecated) see --"+adminHTTPAddr)
-	flagSet.String(adminHTTPAddr, s.adminAddr, "The http addr for the admin server, including health check, /metrics, etc.")
+	flagSet.Int(healthCheckHTTPPort, 0, "(deprecated) see --"+adminHTTPHostPort)
+	flagSet.Int(adminHTTPPort, 0, "(deprecated) see --"+adminHTTPHostPort)
+	flagSet.String(adminHTTPHostPort, s.adminAddr, "The host:port (e.g. 127.0.0.1:5555 or :5555) for the admin server, including health check, /metrics, etc.")
 }
 
-// Util function to check if deprecated flag is used
-func checkDeprecatedFlag(v *viper.Viper, string actualFlagName, string expectedFlagName) string {
-	
-} 
+// Util function to check if a deprecated flag is used
+func (s *AdminServer) checkAndUpdate(v *viper.Viper, actualFlagName string, expectedFlagName string) {
+	if v := v.GetInt(actualFlagName); v != 0 {
+		s.logger.Sugar().Warnf("Using deprecated flag %s, please upgrade to %s", actualFlagName, expectedFlagName)
+		s.adminAddr = ports.PortToHostPort(v)
+	}
+}
 
 // InitFromViper initializes the server with properties retrieved from Viper.
 func (s *AdminServer) initFromViper(v *viper.Viper, logger *zap.Logger) {
 	s.setLogger(logger)
-	s.adminAddr = v.GetString(adminHTTPAddr)
 
-	s.adminAddr = checkDeprecatedFlag(v, healthCheckHTTPPort, )
-
-	if v := v.GetInt(healthCheckHTTPPort); v != 0 {
-		logger.Sugar().Warnf("Using deprecated flag %s, please upgrade to %s", healthCheckHTTPPort, adminHTTPAddr)
-		s.adminAddr = ports.PortToHostPort(v)
-	}
-	if v := v.GetInt(adminHTTPPort); v != 0 {
-		logger.Sugar().Warnf("Using deprecated flag %s, please upgrade to %s", adminHTTPPort, adminHTTPAddr)
-		s.adminAddr = ports.PortToHostPort(v)
-	}
+	s.adminAddr = v.GetString(adminHTTPHostPort)
+	s.checkAndUpdate(v, healthCheckHTTPPort, adminHTTPHostPort)
+	s.checkAndUpdate(v, adminHTTPPort, adminHTTPHostPort)
 }
 
 // Handle adds a new handler to the admin server.
@@ -110,9 +105,10 @@ func (s *AdminServer) Serve() error {
 		return err
 	}
 	s.serveWithListener(l)
+
 	s.logger.Info(
 		"Admin server started",
-		zap.String("http-addr", s.adminAddr),
+		zap.String("http.host-port", s.adminAddr),
 		zap.Stringer("health-status", s.hc.Get()))
 	return nil
 }

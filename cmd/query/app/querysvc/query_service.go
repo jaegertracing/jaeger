@@ -33,6 +33,10 @@ var (
 	errNoArchiveSpanStorage = errors.New("archive span storage was not configured")
 )
 
+const (
+	defaultMaxClockSkewAdjust = time.Second
+)
+
 // QueryServiceOptions has optional members of QueryService
 type QueryServiceOptions struct {
 	ArchiveSpanReader spanstore.Reader
@@ -56,7 +60,7 @@ func NewQueryService(spanReader spanstore.Reader, dependencyReader dependencysto
 	}
 
 	if qsvc.options.Adjuster == nil {
-		qsvc.options.Adjuster = adjuster.Sequence(StandardAdjusters...)
+		qsvc.options.Adjuster = adjuster.Sequence(StandardAdjusters(defaultMaxClockSkewAdjust)...)
 	}
 	return qsvc
 }
@@ -79,8 +83,11 @@ func (qs QueryService) GetServices(ctx context.Context) ([]string, error) {
 }
 
 // GetOperations is the queryService implementation of spanstore.Reader.GetOperations
-func (qs QueryService) GetOperations(ctx context.Context, service string) ([]string, error) {
-	return qs.spanReader.GetOperations(ctx, service)
+func (qs QueryService) GetOperations(
+	ctx context.Context,
+	query spanstore.OperationQueryParameters,
+) ([]spanstore.Operation, error) {
+	return qs.spanReader.GetOperations(ctx, query)
 }
 
 // FindTraces is the queryService implementation of spanstore.Reader.FindTraces

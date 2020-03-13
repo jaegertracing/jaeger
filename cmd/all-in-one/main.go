@@ -19,57 +19,43 @@ import (
 	"fmt"
 	"io"
 	"log"
-	"net"
-	"net/http"
 	"os"
 
-	"github.com/gorilla/mux"
 	"github.com/opentracing/opentracing-go"
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
 	jaegerClientConfig "github.com/uber/jaeger-client-go/config"
 	jaegerClientZapLog "github.com/uber/jaeger-client-go/log/zap"
 	"github.com/uber/jaeger-lib/metrics"
-	"github.com/uber/tchannel-go"
-	"github.com/uber/tchannel-go/thrift"
 	_ "go.uber.org/automaxprocs"
 	"go.uber.org/zap"
-	"google.golang.org/grpc"
 
 	agentApp "github.com/jaegertracing/jaeger/cmd/agent/app"
 	agentRep "github.com/jaegertracing/jaeger/cmd/agent/app/reporter"
 	agentGrpcRep "github.com/jaegertracing/jaeger/cmd/agent/app/reporter/grpc"
-	agentTchanRep "github.com/jaegertracing/jaeger/cmd/agent/app/reporter/tchannel"
-	basic "github.com/jaegertracing/jaeger/cmd/builder"
+	"github.com/jaegertracing/jaeger/cmd/all-in-one/setupcontext"
 	collectorApp "github.com/jaegertracing/jaeger/cmd/collector/app"
-	collector "github.com/jaegertracing/jaeger/cmd/collector/app/builder"
-	"github.com/jaegertracing/jaeger/cmd/collector/app/grpcserver"
-	"github.com/jaegertracing/jaeger/cmd/collector/app/sampling"
-	"github.com/jaegertracing/jaeger/cmd/collector/app/sampling/strategystore"
-	"github.com/jaegertracing/jaeger/cmd/collector/app/zipkin"
 	"github.com/jaegertracing/jaeger/cmd/docs"
 	"github.com/jaegertracing/jaeger/cmd/env"
 	"github.com/jaegertracing/jaeger/cmd/flags"
 	queryApp "github.com/jaegertracing/jaeger/cmd/query/app"
 	"github.com/jaegertracing/jaeger/cmd/query/app/querysvc"
 	"github.com/jaegertracing/jaeger/pkg/config"
-	"github.com/jaegertracing/jaeger/pkg/healthcheck"
-	"github.com/jaegertracing/jaeger/pkg/recoveryhandler"
 	"github.com/jaegertracing/jaeger/pkg/version"
 	ss "github.com/jaegertracing/jaeger/plugin/sampling/strategystore"
 	"github.com/jaegertracing/jaeger/plugin/storage"
 	"github.com/jaegertracing/jaeger/ports"
-	istorage "github.com/jaegertracing/jaeger/storage"
 	"github.com/jaegertracing/jaeger/storage/dependencystore"
 	"github.com/jaegertracing/jaeger/storage/spanstore"
 	storageMetrics "github.com/jaegertracing/jaeger/storage/spanstore/metrics"
-	jc "github.com/jaegertracing/jaeger/thrift-gen/jaeger"
-	sc "github.com/jaegertracing/jaeger/thrift-gen/sampling"
-	zc "github.com/jaegertracing/jaeger/thrift-gen/zipkincore"
+	tCollector "github.com/jaegertracing/jaeger/tchannel/collector/app"
 )
 
 // all-in-one/main is a standalone full-stack jaeger backend, backed by a memory store
 func main() {
+
+	setupcontext.SetAllInOne()
+
 	svc := flags.NewService(ports.CollectorAdminHTTP)
 
 	if os.Getenv(storage.SpanStorageTypeEnvVar) == "" {
@@ -103,6 +89,7 @@ by default uses only in-memory database.`,
 			if err := storageFactory.Initialize(metricsFactory, logger); err != nil {
 				logger.Fatal("Failed to init storage factory", zap.Error(err))
 			}
+
 			spanReader, err := storageFactory.CreateSpanReader()
 			if err != nil {
 				logger.Fatal("Failed to create span reader", zap.Error(err))
@@ -117,25 +104,58 @@ by default uses only in-memory database.`,
 			}
 
 			strategyStoreFactory.InitFromViper(v)
-			strategyStore := initSamplingStrategyStore(strategyStoreFactory, metricsFactory, logger)
+			if err := strategyStoreFactory.Initialize(metricsFactory, logger); err != nil {
+				logger.Fatal("Failed to init sampling strategy store factory", zap.Error(err))
+			}
+			strategyStore, err := strategyStoreFactory.CreateStrategyStore()
+			if err != nil {
+				logger.Fatal("Failed to create sampling strategy store", zap.Error(err))
+			}
 
 			aOpts := new(agentApp.Builder).InitFromViper(v)
-			repOpts := new(agentRep.Options).InitFromViper(v)
-			tchanBuilder := agentTchanRep.NewBuilder().InitFromViper(v, logger)
+			repOpts := new(agentRep.Options).InitFromViper(v, logger)
 			grpcBuilder := agentGrpcRep.NewConnBuilder().InitFromViper(v)
-			cOpts := new(collector.CollectorOptions).InitFromViper(v)
-			qOpts := new(queryApp.QueryOptions).InitFromViper(v)
+			cOpts := new(collectorApp.CollectorOptions).InitFromViper(v)
+			qOpts := new(queryApp.QueryOptions).InitFromViper(v, logger)
 
-			collectorSrv := startCollector(cOpts, spanWriter, logger, metricsFactory, strategyStore, svc.HC())
-			startAgent(aOpts, repOpts, tchanBuilder, grpcBuilder, cOpts, logger, metricsFactory)
+			// collector
+			c := collectorApp.New(&collectorApp.CollectorParams{
+				ServiceName:    "jaeger-collector",
+				Logger:         logger,
+				MetricsFactory: metricsFactory,
+				SpanWriter:     spanWriter,
+				StrategyStore:  strategyStore,
+				HealthCheck:    svc.HC(),
+			})
+			c.Start(cOpts)
+
+			// agent
+			grpcBuilder.CollectorHostPorts = append(grpcBuilder.CollectorHostPorts, fmt.Sprintf("127.0.0.1:%d", cOpts.CollectorGRPCPort))
+			agentMetricsFactory := metricsFactory.Namespace(metrics.NSOptions{Name: "agent", Tags: nil})
+			builders := map[agentRep.Type]agentApp.CollectorProxyBuilder{
+				agentRep.GRPC: agentApp.GRPCCollectorProxyBuilder(grpcBuilder),
+			}
+			cp, err := agentApp.CreateCollectorProxy(agentApp.ProxyBuilderOptions{
+				Options: *repOpts,
+				Logger:  logger,
+				Metrics: agentMetricsFactory,
+			}, builders)
+			if err != nil {
+				logger.Fatal("Could not create collector proxy", zap.Error(err))
+			}
+			agent := startAgent(cp, aOpts, logger, metricsFactory)
+
+			// query
 			querySrv := startQuery(
-				svc, qOpts, archiveOptions(storageFactory, logger),
+				svc, qOpts, qOpts.BuildQueryServiceOptions(storageFactory, logger),
 				spanReader, dependencyReader,
 				rootMetricsFactory, metricsFactory,
 			)
 
 			svc.RunAndThen(func() {
-				collectorSrv.GracefulStop()
+				agent.Stop()
+				cp.Close()
+				c.Close()
 				querySrv.Close()
 				if closer, ok := spanWriter.(io.Closer); ok {
 					err := closer.Close()
@@ -160,9 +180,9 @@ by default uses only in-memory database.`,
 		storageFactory.AddFlags,
 		agentApp.AddFlags,
 		agentRep.AddFlags,
-		agentTchanRep.AddFlags,
 		agentGrpcRep.AddFlags,
-		collector.AddFlags,
+		collectorApp.AddFlags,
+		tCollector.AddFlags,
 		queryApp.AddFlags,
 		strategyStoreFactory.AddFlags,
 	)
@@ -174,22 +194,11 @@ by default uses only in-memory database.`,
 }
 
 func startAgent(
+	cp agentApp.CollectorProxy,
 	b *agentApp.Builder,
-	repOpts *agentRep.Options,
-	tchanBuilder *agentTchanRep.Builder,
-	grpcBuilder *agentGrpcRep.ConnBuilder,
-	cOpts *collector.CollectorOptions,
 	logger *zap.Logger,
 	baseFactory metrics.Factory,
-) {
-	metricsFactory := baseFactory.Namespace(metrics.NSOptions{Name: "agent", Tags: nil})
-
-	addr := getAddressFromCLIOptions(cOpts.CollectorGRPCPort, cOpts.CollectorGRPCHostPort, "collector.grpc-port", logger)
-	grpcBuilder.CollectorHostPorts = append(grpcBuilder.CollectorHostPorts, addr)
-	cp, err := agentApp.CreateCollectorProxy(repOpts, tchanBuilder, grpcBuilder, logger, metricsFactory)
-	if err != nil {
-		logger.Fatal("Could not create collector proxy", zap.Error(err))
-	}
+) *agentApp.Agent {
 
 	agent, err := b.CreateAgent(cp, logger, baseFactory)
 	if err != nil {
@@ -200,110 +209,8 @@ func startAgent(
 	if err := agent.Run(); err != nil {
 		logger.Fatal("Failed to run the agent", zap.Error(err))
 	}
-}
 
-func startCollector(
-	cOpts *collector.CollectorOptions,
-	spanWriter spanstore.Writer,
-	logger *zap.Logger,
-	baseFactory metrics.Factory,
-	strategyStore strategystore.StrategyStore,
-	hc *healthcheck.HealthCheck,
-) *grpc.Server {
-	metricsFactory := baseFactory.Namespace(metrics.NSOptions{Name: "collector", Tags: nil})
-
-	spanBuilder, err := collector.NewSpanHandlerBuilder(
-		cOpts,
-		spanWriter,
-		basic.Options.LoggerOption(logger),
-		basic.Options.MetricsFactoryOption(metricsFactory),
-	)
-	if err != nil {
-		logger.Fatal("Unable to set up builder", zap.Error(err))
-	}
-
-	zipkinSpansHandler, jaegerBatchesHandler, grpcHandler := spanBuilder.BuildHandlers()
-
-	{
-		ch, err := tchannel.NewChannel("jaeger-collector", &tchannel.ChannelOptions{})
-		if err != nil {
-			logger.Fatal("Unable to create new TChannel", zap.Error(err))
-		}
-		server := thrift.NewServer(ch)
-		batchHandler := collectorApp.NewTChannelHandler(jaegerBatchesHandler, zipkinSpansHandler)
-		server.Register(jc.NewTChanCollectorServer(batchHandler))
-		server.Register(zc.NewTChanZipkinCollectorServer(batchHandler))
-		server.Register(sc.NewTChanSamplingManagerServer(sampling.NewHandler(strategyStore)))
-
-		tchanAddr := getAddressFromCLIOptions(cOpts.CollectorPort, cOpts.CollectorTChanHostPort, "collector.http-port", logger)
-		listener, err := net.Listen("tcp", tchanAddr)
-		if err != nil {
-			logger.Fatal("Unable to start listening on channel", zap.Error(err))
-		}
-		logger.Info("Starting jaeger-collector TChannel server", zap.String("addr", tchanAddr))
-		ch.Serve(listener)
-	}
-
-	grpcAddr := getAddressFromCLIOptions(cOpts.CollectorGRPCPort, cOpts.CollectorGRPCHostPort, "collector.grpc-port", logger)
-	server, err := startGRPCServer(grpcAddr, grpcHandler, strategyStore, logger)
-	if err != nil {
-		logger.Fatal("Could not start gRPC collector", zap.Error(err))
-	}
-
-	{
-		r := mux.NewRouter()
-		apiHandler := collectorApp.NewAPIHandler(jaegerBatchesHandler)
-		apiHandler.RegisterRoutes(r)
-		recoveryHandler := recoveryhandler.NewRecoveryHandler(logger, true)
-
-		zipkinAddr := getAddressFromCLIOptions(cOpts.CollectorZipkinHTTPPort, cOpts.CollectorZipkinHTTPHostPort, "collector.zipkin.http-port", logger)
-
-		go startZipkinHTTPAPI(logger, zipkinAddr, zipkinSpansHandler, recoveryHandler)
-
-		httpAddr := getAddressFromCLIOptions(cOpts.CollectorHTTPPort, cOpts.CollectorHTTPHostPort, "collector.http-port", logger)
-		logger.Info("Starting jaeger-collector HTTP server", zap.String("http-addr", httpAddr))
-		go func() {
-			if err := http.ListenAndServe(httpAddr, recoveryHandler(r)); err != nil {
-				logger.Fatal("Could not launch jaeger-collector HTTP server", zap.Error(err))
-			}
-			hc.Set(healthcheck.Unavailable)
-		}()
-	}
-	return server
-}
-
-func startGRPCServer(
-	addr string,
-	handler *collectorApp.GRPCHandler,
-	samplingStore strategystore.StrategyStore,
-	logger *zap.Logger,
-) (*grpc.Server, error) {
-	server := grpc.NewServer()
-	_, err := grpcserver.StartGRPCCollector(addr, server, handler, samplingStore, logger, func(err error) {
-		logger.Fatal("gRPC collector failed", zap.Error(err))
-	})
-	if err != nil {
-		return nil, err
-	}
-	return server, err
-}
-
-func startZipkinHTTPAPI(
-	logger *zap.Logger,
-	zipkinAddr string,
-	zipkinSpansHandler collectorApp.ZipkinSpansHandler,
-	recoveryHandler func(http.Handler) http.Handler,
-) {
-	if zipkinAddr != "" {
-		r := mux.NewRouter()
-		zHandler := zipkin.NewAPIHandler(zipkinSpansHandler)
-		zHandler.RegisterRoutes(r)
-		logger.Info("Listening for Zipkin HTTP traffic", zap.String("zipkin.http-addr", zipkinAddr))
-
-		if err := http.ListenAndServe(zipkinAddr, recoveryHandler(r)); err != nil {
-			logger.Fatal("Could not launch service", zap.Error(err))
-		}
-	}
+	return agent
 }
 
 func startQuery(
@@ -324,38 +231,20 @@ func startQuery(
 	return server
 }
 
-func initSamplingStrategyStore(
-	samplingStrategyStoreFactory *ss.Factory,
-	metricsFactory metrics.Factory,
-	logger *zap.Logger,
-) strategystore.StrategyStore {
-	if err := samplingStrategyStoreFactory.Initialize(metricsFactory, logger); err != nil {
-		logger.Fatal("Failed to init sampling strategy store factory", zap.Error(err))
-	}
-	strategyStore, err := samplingStrategyStoreFactory.CreateStrategyStore()
-	if err != nil {
-		logger.Fatal("Failed to create sampling strategy store", zap.Error(err))
-	}
-	return strategyStore
-}
-
-func archiveOptions(storageFactory istorage.Factory, logger *zap.Logger) *querysvc.QueryServiceOptions {
-	opts := &querysvc.QueryServiceOptions{}
-	if !opts.InitArchiveStorage(storageFactory, logger) {
-		logger.Info("Archive storage not initialized")
-	}
-	return opts
-}
-
 func initTracer(metricsFactory metrics.Factory, logger *zap.Logger) io.Closer {
-	tracer, closer, err := jaegerClientConfig.Configuration{
+	traceCfg := &jaegerClientConfig.Configuration{
 		ServiceName: "jaeger-query",
 		Sampler: &jaegerClientConfig.SamplerConfig{
 			Type:  "const",
 			Param: 1.0,
 		},
 		RPCMetrics: true,
-	}.NewTracer(
+	}
+	traceCfg, err := traceCfg.FromEnv()
+	if err != nil {
+		logger.Fatal("Failed to read tracer configuration", zap.Error(err))
+	}
+	tracer, closer, err := traceCfg.NewTracer(
 		jaegerClientConfig.Metrics(metricsFactory),
 		jaegerClientConfig.Logger(jaegerClientZapLog.NewLogger(logger)),
 	)
