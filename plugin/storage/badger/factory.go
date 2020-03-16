@@ -22,8 +22,8 @@ import (
 	"strings"
 	"time"
 
-	"github.com/dgraph-io/badger"
-	"github.com/dgraph-io/badger/options"
+	"github.com/dgraph-io/badger/v2"
+	"github.com/dgraph-io/badger/v2/options"
 	"github.com/spf13/viper"
 	"github.com/uber/jaeger-lib/metrics"
 	"go.uber.org/zap"
@@ -89,7 +89,7 @@ func (f *Factory) InitFromViper(v *viper.Viper) {
 func (f *Factory) Initialize(metricsFactory metrics.Factory, logger *zap.Logger) error {
 	f.logger = logger
 
-	opts := badger.DefaultOptions
+	opts := badger.DefaultOptions("") // empty path, as we always explicitly set both the dir and value dir below
 	opts.TableLoadingMode = options.MemoryMap
 
 	if f.Options.primary.Ephemeral {

@@ -3,7 +3,6 @@ module github.com/jaegertracing/jaeger
 go 1.13
 
 require (
-	github.com/AndreasBriese/bbloom v0.0.0-20190825152654-46b345b51c96 // indirect
 	github.com/DataDog/zstd v1.4.4 // indirect
 	github.com/Shopify/sarama v1.22.2-0.20190604114437-cd910a683f9f
 	github.com/VividCortex/gohistogram v1.0.0 // indirect
@@ -12,9 +11,8 @@ require (
 	github.com/bmizerany/perks v0.0.0-20141205001514-d9a9656a3a4b // indirect
 	github.com/bsm/sarama-cluster v2.1.13+incompatible
 	github.com/codahale/hdrhistogram v0.0.0-20161010025455-3a0bb77429bd // indirect
-	github.com/cpuguy83/go-md2man v1.0.10 // indirect
 	github.com/crossdock/crossdock-go v0.0.0-20160816171116-049aabb0122b
-	github.com/dgraph-io/badger v1.5.3
+	github.com/dgraph-io/badger/v2 v2.0.2
 	github.com/dgryski/go-farm v0.0.0-20200201041132-a6ae2369ad13 // indirect
 	github.com/eapache/go-resiliency v1.2.0 // indirect
 	github.com/fortytw2/leaktest v1.3.0 // indirect
@@ -64,7 +62,7 @@ require (
 	github.com/soheilhy/cmux v0.1.4
 	github.com/spf13/afero v1.2.2 // indirect
 	github.com/spf13/cast v1.3.1 // indirect
-	github.com/spf13/cobra v0.0.3
+	github.com/spf13/cobra v0.0.5
 	github.com/spf13/jwalterweatherman v1.1.0 // indirect
 	github.com/spf13/pflag v1.0.5
 	github.com/spf13/viper v1.6.2
@@ -84,7 +82,7 @@ require (
 	golang.org/x/lint v0.0.0-20200130185559-910be7a94367
 	golang.org/x/net v0.0.0-20200202094626-16171245cfb2
 	golang.org/x/sys v0.0.0-20200217220822-9197077df867
-	golang.org/x/tools v0.0.0-20200227222343-706bc42d1f0d
+	golang.org/x/tools v0.0.0-20200227222343-706bc42d1f0d // indirect
 	google.golang.org/genproto v0.0.0-20200218151345-dad8c97a84f5 // indirect
 	google.golang.org/grpc v1.27.1
 	gopkg.in/ini.v1 v1.52.0 // indirect

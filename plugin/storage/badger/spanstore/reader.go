@@ -24,7 +24,7 @@ import (
 	"math"
 	"sort"
 
-	"github.com/dgraph-io/badger"
+	"github.com/dgraph-io/badger/v2"
 	"github.com/golang/protobuf/proto"
 
 	"github.com/jaegertracing/jaeger/model"

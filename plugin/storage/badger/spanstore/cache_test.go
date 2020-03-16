@@ -19,7 +19,7 @@ import (
 	"testing"
 	"time"
 
-	"github.com/dgraph-io/badger"
+	"github.com/dgraph-io/badger/v2"
 	"github.com/stretchr/testify/assert"
 
 	"github.com/jaegertracing/jaeger/model"
@@ -107,10 +107,10 @@ func TestOldReads(t *testing.T) {
 
 // func runFactoryTest(tb testing.TB, test func(tb testing.TB, sw spanstore.Writer, sr spanstore.Reader)) {
 func runWithBadger(t *testing.T, test func(store *badger.DB, t *testing.T)) {
-	opts := badger.DefaultOptions
-
-	opts.SyncWrites = false
 	dir, _ := ioutil.TempDir("", "badger")
+
+	opts := badger.DefaultOptions(dir)
+	opts.SyncWrites = false
 	opts.Dir = dir
 	opts.ValueDir = dir
 
