@@ -410,10 +410,9 @@ generate-mocks: install-mockery
 echo-version:
 	@echo $(GIT_CLOSEST_TAG)
 
-PROTOC := docker run --rm -v${PWD}:${PWD} -w${PWD} ${JAEGER_DOCKER_PROTOBUF} --proto_path=${PWD}
+PROTOC := docker run --rm -u ${shell id -u} -v${PWD}:${PWD} -w${PWD} ${JAEGER_DOCKER_PROTOBUF} --proto_path=${PWD}
 PROTO_INCLUDES := \
-	-Imodel/proto \
-	-Iidl/proto \
+	-Iidl/proto/api_v2 \
 	-I/usr/include/github.com/gogo/protobuf
 # Remapping of std types to gogo types (must not contain spaces)
 PROTO_GOGO_MAPPINGS := $(shell echo \
@@ -452,15 +451,25 @@ proto:
 	$(PROTOC) \
 		$(PROTO_INCLUDES) \
 		--gogo_out=plugins=grpc,$(PROTO_GOGO_MAPPINGS):$(PWD)/model/ \
-		model/proto/model.proto
+		idl/proto/api_v2/model.proto
 
 	$(PROTOC) \
 		$(PROTO_INCLUDES) \
-		--gogo_out=plugins=grpc,$(PROTO_GOGO_MAPPINGS):$(PWD)/proto-gen/ \
-		model/proto/api_v2/*.proto
+		--gogo_out=plugins=grpc,$(PROTO_GOGO_MAPPINGS):$(PWD)/proto-gen/api_v2 \
+		idl/proto/api_v2/query.proto
 		### grpc-gateway generates 'query.pb.gw.go' that does not respect (gogoproto.customname) = "TraceID"
 		### --grpc-gateway_out=$(PROTO_GOGO_MAPPINGS):$(PWD)/proto-gen/ \
 		### --swagger_out=allow_merge=true:$(PWD)/proto-gen/openapi/ \
+
+	$(PROTOC) \
+		$(PROTO_INCLUDES) \
+		--gogo_out=plugins=grpc,$(PROTO_GOGO_MAPPINGS):$(PWD)/proto-gen/api_v2 \
+		idl/proto/api_v2/collector.proto
+
+	$(PROTOC) \
+		$(PROTO_INCLUDES) \
+		--gogo_out=plugins=grpc,$(PROTO_GOGO_MAPPINGS):$(PWD)/proto-gen/api_v2 \
+		idl/proto/api_v2/sampling.proto
 
 	$(PROTOC) \
 		$(PROTO_INCLUDES) \
@@ -479,6 +488,6 @@ proto:
 		plugin/storage/grpc/proto/storage_test.proto
 
 	$(PROTOC) \
-		$(PROTO_INCLUDES) \
+		-Iidl/proto \
 		--gogo_out=plugins=grpc,$(PROTO_GOGO_MAPPINGS):$(PWD)/proto-gen/zipkin \
 		idl/proto/zipkin.proto
