@@ -256,10 +256,8 @@ func TestGetTraceNotFoundGRPC(t *testing.T) {
 		})
 		assert.NoError(t, err)
 		spanResChunk, err := res.Recv()
-
-		assert.Errorf(t, err, spanstore.ErrTraceNotFound.Error())
+		assertGRPCError(t, err, codes.NotFound, "trace not found")
 		assert.Nil(t, spanResChunk)
-
 	})
 }
 
@@ -289,8 +287,7 @@ func TestArchiveTraceNotFoundGRPC(t *testing.T) {
 			TraceID: mockTraceIDgrpc,
 		})
 
-		assert.Errorf(t, err, spanstore.ErrTraceNotFound.Error())
-
+		assertGRPCError(t, err, codes.NotFound, "trace not found")
 	})
 }
 
