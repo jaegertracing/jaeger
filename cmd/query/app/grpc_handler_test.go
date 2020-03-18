@@ -29,6 +29,7 @@ import (
 	"github.com/stretchr/testify/require"
 	"go.uber.org/zap"
 	"google.golang.org/grpc"
+	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/status"
 
 	"github.com/jaegertracing/jaeger/cmd/query/app/querysvc"
@@ -40,12 +41,9 @@ import (
 )
 
 var (
-	errStorageMsgGRPC    = "Storage error"
-	errStorageGRPC       = errors.New(errStorageMsgGRPC)
-	errStatusStorageGRPC = status.Error(2, errStorageMsgGRPC)
+	errStorageGRPC = errors.New("storage error")
 
-	mockTraceIDgrpc = model.NewTraceID(0, 123456)
-	mockTraceGRPC   = &model.Trace{
+	mockTraceGRPC = &model.Trace{
 		Spans: []*model.Span{
 			{
 				TraceID: mockTraceID,
@@ -207,7 +205,7 @@ func TestGetTraceSuccessGRPC(t *testing.T) {
 			Return(mockTrace, nil).Once()
 
 		res, err := client.GetTrace(context.Background(), &api_v2.GetTraceRequest{
-			TraceID: mockTraceIDgrpc,
+			TraceID: mockTraceID,
 		})
 
 		spanResChunk, _ := res.Recv()
@@ -218,6 +216,13 @@ func TestGetTraceSuccessGRPC(t *testing.T) {
 	})
 }
 
+func assertGRPCError(t *testing.T, err error, code codes.Code, msg string) {
+	s, ok := status.FromError(err)
+	require.True(t, ok, "expecting gRPC status")
+	assert.Equal(t, code, s.Code())
+	assert.Contains(t, s.Message(), msg)
+}
+
 func TestGetTraceDBFailureGRPC(t *testing.T) {
 	withServerAndClient(t, func(server *grpcServer, client *grpcClient) {
 
@@ -225,15 +230,13 @@ func TestGetTraceDBFailureGRPC(t *testing.T) {
 			Return(nil, errStorageGRPC).Once()
 
 		res, err := client.GetTrace(context.Background(), &api_v2.GetTraceRequest{
-			TraceID: mockTraceIDgrpc,
+			TraceID: mockTraceID,
 		})
 		assert.NoError(t, err)
 
 		spanResChunk, err := res.Recv()
-
-		assert.EqualError(t, err, errStatusStorageGRPC.Error())
+		assertGRPCError(t, err, codes.Internal, "failed to fetch spans from the backend")
 		assert.Nil(t, spanResChunk)
-
 	})
 
 }
@@ -248,14 +251,12 @@ func TestGetTraceNotFoundGRPC(t *testing.T) {
 			Return(nil, spanstore.ErrTraceNotFound).Once()
 
 		res, err := client.GetTrace(context.Background(), &api_v2.GetTraceRequest{
-			TraceID: mockTraceIDgrpc,
+			TraceID: mockTraceID,
 		})
 		assert.NoError(t, err)
 		spanResChunk, err := res.Recv()
-
-		assert.Errorf(t, err, spanstore.ErrTraceNotFound.Error())
+		assertGRPCError(t, err, codes.NotFound, "trace not found")
 		assert.Nil(t, spanResChunk)
-
 	})
 }
 
@@ -267,7 +268,7 @@ func TestArchiveTraceSuccessGRPC(t *testing.T) {
 			Return(nil).Times(2)
 
 		_, err := client.ArchiveTrace(context.Background(), &api_v2.ArchiveTraceRequest{
-			TraceID: mockTraceIDgrpc,
+			TraceID: mockTraceID,
 		})
 
 		assert.NoError(t, err)
@@ -282,11 +283,10 @@ func TestArchiveTraceNotFoundGRPC(t *testing.T) {
 			Return(nil, spanstore.ErrTraceNotFound).Once()
 
 		_, err := client.ArchiveTrace(context.Background(), &api_v2.ArchiveTraceRequest{
-			TraceID: mockTraceIDgrpc,
+			TraceID: mockTraceID,
 		})
 
-		assert.Errorf(t, err, spanstore.ErrTraceNotFound.Error())
-
+		assertGRPCError(t, err, codes.NotFound, "trace not found")
 	})
 }
 
@@ -299,12 +299,10 @@ func TestArchiveTraceFailureGRPC(t *testing.T) {
 			Return(errStorageGRPC).Times(2)
 
 		_, err := client.ArchiveTrace(context.Background(), &api_v2.ArchiveTraceRequest{
-			TraceID: mockTraceIDgrpc,
+			TraceID: mockTraceID,
 		})
 
-		storageErr := status.Error(2, "[Storage error, Storage error]")
-		assert.EqualError(t, err, storageErr.Error())
-
+		assertGRPCError(t, err, codes.Internal, "failed to archive trace")
 	})
 }
 
@@ -408,7 +406,7 @@ func TestGetServicesFailureGRPC(t *testing.T) {
 		server.spanReader.On("GetServices", mock.AnythingOfType("*context.valueCtx")).Return(nil, errStorageGRPC).Once()
 		_, err := client.GetServices(context.Background(), &api_v2.GetServicesRequest{})
 
-		assert.EqualError(t, err, errStatusStorageGRPC.Error())
+		assertGRPCError(t, err, codes.Internal, "failed to fetch services")
 	})
 }
 
@@ -450,7 +448,7 @@ func TestGetOperationsFailureGRPC(t *testing.T) {
 			Service: "trifle",
 		})
 
-		assert.EqualError(t, err, errStatusStorageGRPC.Error())
+		assertGRPCError(t, err, codes.Internal, "failed to fetch operations")
 	})
 }
 
@@ -482,7 +480,7 @@ func TestGetDependenciesFailureGRPC(t *testing.T) {
 			EndTime:   endTs,
 		})
 
-		assert.EqualError(t, err, errStatusStorageGRPC.Error())
+		assertGRPCError(t, err, codes.Internal, "failed to fetch dependencies")
 	})
 }
 
