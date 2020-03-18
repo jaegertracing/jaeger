@@ -133,7 +133,7 @@ func (g *GRPCHandler) GetServices(ctx context.Context, r *api_v2.GetServicesRequ
 	return &api_v2.GetServicesResponse{Services: services}, nil
 }
 
-// GetOperations is the GRPC handler to fetch operations.
+// GetOperations is the gRPC handler to fetch operations.
 func (g *GRPCHandler) GetOperations(
 	ctx context.Context,
 	r *api_v2.GetOperationsRequest,
@@ -161,7 +161,7 @@ func (g *GRPCHandler) GetOperations(
 	}, nil
 }
 
-// GetDependencies is the GRPC handler to fetch dependencies.
+// GetDependencies is the gRPC handler to fetch dependencies.
 func (g *GRPCHandler) GetDependencies(ctx context.Context, r *api_v2.GetDependenciesRequest) (*api_v2.GetDependenciesResponse, error) {
 	startTime := r.StartTime
 	endTime := r.EndTime
