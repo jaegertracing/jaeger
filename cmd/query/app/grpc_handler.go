@@ -19,6 +19,8 @@ import (
 
 	"github.com/opentracing/opentracing-go"
 	"go.uber.org/zap"
+	"google.golang.org/grpc/codes"
+	"google.golang.org/grpc/status"
 
 	"github.com/jaegertracing/jaeger/cmd/query/app/querysvc"
 	"github.com/jaegertracing/jaeger/model"
@@ -26,9 +28,13 @@ import (
 	"github.com/jaegertracing/jaeger/storage/spanstore"
 )
 
-const maxSpanCountInChunk = 10
+const (
+	maxSpanCountInChunk = 10
 
-// GRPCHandler implements the GRPC endpoint of the query service.
+	msgTraceNotFound = "trace not found"
+)
+
+// GRPCHandler implements the gRPC endpoint of the query service.
 type GRPCHandler struct {
 	queryService *querysvc.QueryService
 	logger       *zap.Logger
@@ -46,36 +52,36 @@ func NewGRPCHandler(queryService *querysvc.QueryService, logger *zap.Logger, tra
 	return gH
 }
 
-// GetTrace is the GRPC handler to fetch traces based on trace-id.
+// GetTrace is the gRPC handler to fetch traces based on trace-id.
 func (g *GRPCHandler) GetTrace(r *api_v2.GetTraceRequest, stream api_v2.QueryService_GetTraceServer) error {
 	trace, err := g.queryService.GetTrace(stream.Context(), r.TraceID)
 	if err == spanstore.ErrTraceNotFound {
-		g.logger.Error("trace not found", zap.Error(err))
-		return err
+		g.logger.Error(msgTraceNotFound, zap.Error(err))
+		return status.Errorf(codes.NotFound, "%s: %v", msgTraceNotFound, err)
 	}
 	if err != nil {
-		g.logger.Error("Could not fetch spans from backend", zap.Error(err))
-		return err
+		g.logger.Error("failed to fetch spans from the backend", zap.Error(err))
+		return status.Errorf(codes.Internal, "failed to fetch spans from the backend: %v", err)
 	}
 	return g.sendSpanChunks(trace.Spans, stream.Send)
 }
 
-// ArchiveTrace is the GRPC handler to archive traces.
+// ArchiveTrace is the gRPC handler to archive traces.
 func (g *GRPCHandler) ArchiveTrace(ctx context.Context, r *api_v2.ArchiveTraceRequest) (*api_v2.ArchiveTraceResponse, error) {
 	err := g.queryService.ArchiveTrace(ctx, r.TraceID)
 	if err == spanstore.ErrTraceNotFound {
 		g.logger.Error("trace not found", zap.Error(err))
-		return nil, err
+		return nil, status.Errorf(codes.NotFound, "%s: %v", msgTraceNotFound, err)
 	}
 	if err != nil {
-		g.logger.Error("Could not fetch spans from backend", zap.Error(err))
-		return nil, err
+		g.logger.Error("failed to archive trace", zap.Error(err))
+		return nil, status.Errorf(codes.Internal, "failed to archive trace: %v", err)
 	}
 
 	return &api_v2.ArchiveTraceResponse{}, nil
 }
 
-// FindTraces is the GRPC handler to fetch traces based on TraceQueryParameters.
+// FindTraces is the gRPC handler to fetch traces based on TraceQueryParameters.
 func (g *GRPCHandler) FindTraces(r *api_v2.FindTracesRequest, stream api_v2.QueryService_FindTracesServer) error {
 	query := r.GetQuery()
 	queryParams := spanstore.TraceQueryParameters{
@@ -90,8 +96,8 @@ func (g *GRPCHandler) FindTraces(r *api_v2.FindTracesRequest, stream api_v2.Quer
 	}
 	traces, err := g.queryService.FindTraces(stream.Context(), &queryParams)
 	if err != nil {
-		g.logger.Error("Error fetching traces", zap.Error(err))
-		return err
+		g.logger.Error("failed when searching for traces", zap.Error(err))
+		return status.Errorf(codes.Internal, "failed when searching for traces: %v", err)
 	}
 	for _, trace := range traces {
 		if err := g.sendSpanChunks(trace.Spans, stream.Send); err != nil {
@@ -116,12 +122,12 @@ func (g *GRPCHandler) sendSpanChunks(spans []*model.Span, sendFn func(*api_v2.Sp
 	return nil
 }
 
-// GetServices is the GRPC handler to fetch services.
+// GetServices is the gRPC handler to fetch services.
 func (g *GRPCHandler) GetServices(ctx context.Context, r *api_v2.GetServicesRequest) (*api_v2.GetServicesResponse, error) {
 	services, err := g.queryService.GetServices(ctx)
 	if err != nil {
-		g.logger.Error("Error fetching services", zap.Error(err))
-		return nil, err
+		g.logger.Error("failed to fetch services", zap.Error(err))
+		return nil, status.Errorf(codes.Internal, "failed to fetch services: %v", err)
 	}
 
 	return &api_v2.GetServicesResponse{Services: services}, nil
@@ -137,8 +143,8 @@ func (g *GRPCHandler) GetOperations(
 		SpanKind:    r.SpanKind,
 	})
 	if err != nil {
-		g.logger.Error("Error fetching operations", zap.Error(err))
-		return nil, err
+		g.logger.Error("failed to fetch operations", zap.Error(err))
+		return nil, status.Errorf(codes.Internal, "failed to fetch operations: %v", err)
 	}
 
 	result := make([]*api_v2.Operation, len(operations))
@@ -161,8 +167,8 @@ func (g *GRPCHandler) GetDependencies(ctx context.Context, r *api_v2.GetDependen
 	endTime := r.EndTime
 	dependencies, err := g.queryService.GetDependencies(startTime, endTime.Sub(startTime))
 	if err != nil {
-		g.logger.Error("Error fetching dependencies", zap.Error(err))
-		return nil, err
+		g.logger.Error("failed to fetch dependencies", zap.Error(err))
+		return nil, status.Errorf(codes.Internal, "failed to fetch dependencies: %v", err)
 	}
 
 	return &api_v2.GetDependenciesResponse{Dependencies: dependencies}, nil
