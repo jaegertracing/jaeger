@@ -41,10 +41,9 @@ import (
 )
 
 var (
-	errStorageGRPC = errors.New("Storage error")
+	errStorageGRPC = errors.New("storage error")
 
-	mockTraceIDgrpc = model.NewTraceID(0, 123456)
-	mockTraceGRPC   = &model.Trace{
+	mockTraceGRPC = &model.Trace{
 		Spans: []*model.Span{
 			{
 				TraceID: mockTraceID,
@@ -206,7 +205,7 @@ func TestGetTraceSuccessGRPC(t *testing.T) {
 			Return(mockTrace, nil).Once()
 
 		res, err := client.GetTrace(context.Background(), &api_v2.GetTraceRequest{
-			TraceID: mockTraceIDgrpc,
+			TraceID: mockTraceID,
 		})
 
 		spanResChunk, _ := res.Recv()
@@ -231,7 +230,7 @@ func TestGetTraceDBFailureGRPC(t *testing.T) {
 			Return(nil, errStorageGRPC).Once()
 
 		res, err := client.GetTrace(context.Background(), &api_v2.GetTraceRequest{
-			TraceID: mockTraceIDgrpc,
+			TraceID: mockTraceID,
 		})
 		assert.NoError(t, err)
 
@@ -252,7 +251,7 @@ func TestGetTraceNotFoundGRPC(t *testing.T) {
 			Return(nil, spanstore.ErrTraceNotFound).Once()
 
 		res, err := client.GetTrace(context.Background(), &api_v2.GetTraceRequest{
-			TraceID: mockTraceIDgrpc,
+			TraceID: mockTraceID,
 		})
 		assert.NoError(t, err)
 		spanResChunk, err := res.Recv()
@@ -269,7 +268,7 @@ func TestArchiveTraceSuccessGRPC(t *testing.T) {
 			Return(nil).Times(2)
 
 		_, err := client.ArchiveTrace(context.Background(), &api_v2.ArchiveTraceRequest{
-			TraceID: mockTraceIDgrpc,
+			TraceID: mockTraceID,
 		})
 
 		assert.NoError(t, err)
@@ -284,7 +283,7 @@ func TestArchiveTraceNotFoundGRPC(t *testing.T) {
 			Return(nil, spanstore.ErrTraceNotFound).Once()
 
 		_, err := client.ArchiveTrace(context.Background(), &api_v2.ArchiveTraceRequest{
-			TraceID: mockTraceIDgrpc,
+			TraceID: mockTraceID,
 		})
 
 		assertGRPCError(t, err, codes.NotFound, "trace not found")
@@ -300,7 +299,7 @@ func TestArchiveTraceFailureGRPC(t *testing.T) {
 			Return(errStorageGRPC).Times(2)
 
 		_, err := client.ArchiveTrace(context.Background(), &api_v2.ArchiveTraceRequest{
-			TraceID: mockTraceIDgrpc,
+			TraceID: mockTraceID,
 		})
 
 		assertGRPCError(t, err, codes.Internal, "failed to archive trace")
