@@ -28,7 +28,7 @@ require (
 	github.com/go-openapi/strfmt v0.19.4
 	github.com/go-openapi/swag v0.19.7
 	github.com/go-openapi/validate v0.19.6
-	github.com/gocql/gocql v0.0.0-20200226121155-e5c8c1f505c5
+	github.com/gocql/gocql v0.0.0-20200228163523-cd4b606dd2fb
 	github.com/gogo/googleapis v1.0.1-0.20180501115203-b23578765ee5
 	github.com/gogo/protobuf v1.2.1
 	github.com/golang/protobuf v1.3.3
