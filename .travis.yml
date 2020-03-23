@@ -36,9 +36,6 @@ matrix:
   - go: "1.13.x"
     env:
     - HOTROD=true
-  - go: "1.13.x"
-    env:
-      - OTEL=true
 
 services:
   - docker
@@ -74,7 +71,6 @@ script:
   - if [ "$CASSANDRA_INTEGRATION_TEST" == true ]; then bash ./scripts/travis/cassandra-integration-test.sh ; else echo 'skipping cassandra integration test'; fi
   - if [ "$HOTROD" == true ]; then bash ./scripts/travis/hotrod-integration-test.sh ; else echo 'skipping hotrod example'; fi
   - if [ "$PROTO_GEN_TEST" == true ]; then make proto && git diff --name-status --exit-code ; else echo 'skipping protoc validation'; fi
-  - if [ "$OTEL" == true ]; then make build-otel-collector; fi
 
 after_success:
   - if [ "$COVERAGE" == true ]; then mv cover.out coverage.txt ; else echo 'skipping coverage'; fi

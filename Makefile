@@ -283,7 +283,7 @@ build-binaries-s390x:
 	GOOS=linux GOARCH=s390x $(MAKE) build-platform-binaries
 
 .PHONY: build-platform-binaries
-build-platform-binaries: build-agent build-collector build-query build-ingester build-all-in-one build-examples build-tracegen
+build-platform-binaries: build-agent build-collector build-query build-ingester build-all-in-one build-examples build-tracegen build-otel-collector
 
 .PHONY: build-all-platforms
 build-all-platforms: build-binaries-linux build-binaries-windows build-binaries-darwin build-binaries-s390x
