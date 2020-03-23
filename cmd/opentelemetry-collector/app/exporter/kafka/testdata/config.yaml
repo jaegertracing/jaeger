@@ -1,0 +1,33 @@
+receivers:
+  examplereceiver:
+
+processors:
+  exampleprocessor:
+
+exporters:
+  jaeger_kafka:
+    topic: jaeger-prod
+    encoding: emojis
+    brokers: foo,bar
+    authentication:
+      type: tls
+      plaintext:
+        username: user
+        password: 123
+      tls:
+        enabled: true
+        ca: ca.crt
+        key: key.crt
+        cert: cert.crt
+        skip_host_verify: true
+      kerberos:
+        realm: jaeger
+        config_file: /etc/foo
+
+
+service:
+  pipelines:
+    traces:
+      receivers: [examplereceiver]
+      processors: [exampleprocessor]
+      exporters: [jaeger_kafka]

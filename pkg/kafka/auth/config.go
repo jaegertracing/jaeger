@@ -39,10 +39,10 @@ var authTypes = []string{
 
 // AuthenticationConfig describes the configuration properties needed authenticate with kafka cluster
 type AuthenticationConfig struct {
-	Authentication string
-	Kerberos       KerberosConfig
-	TLS            tlscfg.Options
-	PlainText      PlainTextConfig
+	Authentication string          `mapstructure:"type"`
+	Kerberos       KerberosConfig  `mapstructure:"kerberos"`
+	TLS            tlscfg.Options  `mapstructure:"tls"`
+	PlainText      PlainTextConfig `mapstructure:"plaintext"`
 }
 
 //SetConfiguration set configure authentication into sarama config structure

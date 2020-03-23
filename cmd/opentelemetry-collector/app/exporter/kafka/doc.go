@@ -1,4 +1,4 @@
-// Copyright (c) 2019 The Jaeger Authors.
+// Copyright (c) 2020 The Jaeger Authors.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -12,20 +12,5 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package auth
-
-import (
-	"github.com/Shopify/sarama"
-)
-
-// PlainTextConfig describes the configuration properties needed for SASL/PLAIN with kafka
-type PlainTextConfig struct {
-	UserName string `mapstructure:"username"`
-	Password string `mapstructure:"password"`
-}
-
-func setPlainTextConfiguration(config *PlainTextConfig, saramaConfig *sarama.Config) {
-	saramaConfig.Net.SASL.Enable = true
-	saramaConfig.Net.SASL.User = config.UserName
-	saramaConfig.Net.SASL.Password = config.Password
-}
+// Package kafka implements Jaeger Kafka exporter.
+package kafka

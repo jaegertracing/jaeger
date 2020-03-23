@@ -1,5 +1,6 @@
 JAEGER_IMPORT_PATH=github.com/jaegertracing/jaeger
 STORAGE_PKGS = ./plugin/storage/integration/...
+OTEL_COLLECTOR_DIR = ./cmd/opentelemetry-collector
 
 # all .go files that are not auto-generated and should be auto-formatted and linted.
 ALL_SRC := $(shell find . -name '*.go' \
@@ -87,8 +88,12 @@ clean:
 	rm -rf cover.out .cover/ cover.html lint.log fmt.log
 
 .PHONY: test
-test: go-gen
+test: go-gen test-otel
 	bash -c "set -e; set -o pipefail; $(GOTEST) ./... | $(COLORIZE)"
+
+.PHONY: test-otel
+test-otel:
+	cd ${OTEL_COLLECTOR_DIR} && bash -c "set -e; set -o pipefail; $(GOTEST) ./... | $(COLORIZE)"
 
 .PHONY: all-in-one-integration-test
 all-in-one-integration-test: go-gen
@@ -160,7 +165,7 @@ lint-staticcheck:
 	@[ ! -s "$(LINT_LOG)" ] || (echo "Detected staticcheck failures:" | cat - $(LINT_LOG) && false)
 
 .PHONY: lint
-lint: lint-staticcheck lint-gosec
+lint: lint-staticcheck lint-gosec lint-otel
 	$(GOVET) ./...
 	$(MAKE) go-lint
 	@echo Running go fmt on ALL_SRC ...
@@ -168,6 +173,10 @@ lint: lint-staticcheck lint-gosec
 	./scripts/updateLicenses.sh >> $(FMT_LOG)
 	./scripts/import-order-cleanup.sh stdout > $(IMPORT_LOG)
 	@[ ! -s "$(FMT_LOG)" -a ! -s "$(IMPORT_LOG)" ] || (echo "Go fmt, license check, or import ordering failures, run 'make fmt'" | cat - $(FMT_LOG) && false)
+
+.PHONY: lint-otel
+lint-otel:
+	cd ${OTEL_COLLECTOR_DIR} && $(GOVET) ./...
 
 .PHONY: go-lint
 go-lint:
@@ -246,7 +255,6 @@ else
 	$(GOBUILD) -o ./cmd/collector/collector-$(GOOS) $(BUILD_INFO) ./cmd/collector/main.go
 endif
 
-OTEL_COLLECTOR_DIR = ./cmd/opentelemetry-collector
 .PHONY: build-otel-collector
 build-otel-collector:
 ifeq ($(GOARCH), s390x)
