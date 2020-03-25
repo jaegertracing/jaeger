@@ -104,3 +104,11 @@ func TestKafkaFactoryMarshallerErr(t *testing.T) {
 	f.Builder = &mockProducerBuilder{t: t}
 	assert.Error(t, f.Initialize(metrics.NullFactory, zap.NewNop()))
 }
+
+func TestInitFromOptions(t *testing.T) {
+	f := NewFactory()
+	o := Options{Topic: "testTopic", Config: kafkaConfig.Configuration{Brokers: []string{"host"}}}
+	f.InitFromOptions(o)
+	assert.Equal(t, o, f.options)
+	assert.Equal(t, &o.Config, f.Builder)
+}
