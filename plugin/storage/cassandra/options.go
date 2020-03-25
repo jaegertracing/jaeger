@@ -61,32 +61,38 @@ const (
 // to bind them to command line flag and apply overlays, so that some configurations
 // (e.g. archive) may be underspecified and infer the rest of its parameters from primary.
 type Options struct {
-	primary                 *namespaceConfig
-	others                  map[string]*namespaceConfig
-	SpanStoreWriteCacheTTL  time.Duration
-	tagIndexBlacklist       string
-	tagIndexWhitelist       string
-	DisableLogsIndex        bool
-	DisableTagsIndex        bool
-	DisableProcessTagsIndex bool
+	Primary                namespaceConfig `mapstructure:",squash"`
+	others                 map[string]*namespaceConfig
+	SpanStoreWriteCacheTTL time.Duration `mapstructure:"span_store_write_cache_ttl"`
+	Index                  IndexConfig   `mapstructure:"index"`
+}
+
+// IndexConfig configures indexing.
+// By default all indexing is enabled.
+type IndexConfig struct {
+	Logs         bool   `mapstructure:"logs"`
+	Tags         bool   `mapstructure:"tags"`
+	ProcessTags  bool   `mapstructure:"process_tags"`
+	TagBlackList string `mapstructure:"tag_blacklist"`
+	TagWhiteList string `mapstructure:"tag_whitelist"`
 }
 
 // the Servers field in config.Configuration is a list, which we cannot represent with flags.
 // This struct adds a plain string field that can be bound to flags and is then parsed when
 // preparing the actual config.Configuration.
 type namespaceConfig struct {
-	config.Configuration
-	servers   string
-	namespace string
-	primary   bool
-	Enabled   bool
+	config.Configuration `mapstructure:",squash"`
+	servers              string
+	namespace            string
+	primary              bool
+	Enabled              bool `mapstructure:"-"`
 }
 
 // NewOptions creates a new Options struct.
 func NewOptions(primaryNamespace string, otherNamespaces ...string) *Options {
 	// TODO all default values should be defined via cobra flags
 	options := &Options{
-		primary: &namespaceConfig{
+		Primary: namespaceConfig{
 			Configuration: config.Configuration{
 				MaxRetryAttempts:   3,
 				Keyspace:           "jaeger_v1_test",
@@ -112,36 +118,36 @@ func NewOptions(primaryNamespace string, otherNamespaces ...string) *Options {
 
 // AddFlags adds flags for Options
 func (opt *Options) AddFlags(flagSet *flag.FlagSet) {
-	addFlags(flagSet, opt.primary)
+	addFlags(flagSet, opt.Primary)
 	for _, cfg := range opt.others {
-		addFlags(flagSet, cfg)
+		addFlags(flagSet, *cfg)
 	}
-	flagSet.Duration(opt.primary.namespace+suffixSpanStoreWriteCacheTTL,
+	flagSet.Duration(opt.Primary.namespace+suffixSpanStoreWriteCacheTTL,
 		opt.SpanStoreWriteCacheTTL,
 		"The duration to wait before rewriting an existing service or operation name")
 	flagSet.String(
-		opt.primary.namespace+suffixIndexTagsBlacklist,
-		opt.tagIndexBlacklist,
+		opt.Primary.namespace+suffixIndexTagsBlacklist,
+		opt.Index.TagBlackList,
 		"The comma-separated list of span tags to blacklist from being indexed. All other tags will be indexed. Mutually exclusive with the whitelist option.")
 	flagSet.String(
-		opt.primary.namespace+suffixIndexTagsWhitelist,
-		opt.tagIndexWhitelist,
+		opt.Primary.namespace+suffixIndexTagsWhitelist,
+		opt.Index.TagWhiteList,
 		"The comma-separated list of span tags to whitelist for being indexed. All other tags will not be indexed. Mutually exclusive with the blacklist option.")
 	flagSet.Bool(
-		opt.primary.namespace+suffixIndexLogs,
-		!opt.DisableLogsIndex,
+		opt.Primary.namespace+suffixIndexLogs,
+		!opt.Index.Logs,
 		"Controls log field indexing. Set to false to disable.")
 	flagSet.Bool(
-		opt.primary.namespace+suffixIndexTags,
-		!opt.DisableTagsIndex,
+		opt.Primary.namespace+suffixIndexTags,
+		!opt.Index.Tags,
 		"Controls tag indexing. Set to false to disable.")
 	flagSet.Bool(
-		opt.primary.namespace+suffixIndexProcessTags,
-		!opt.DisableProcessTagsIndex,
+		opt.Primary.namespace+suffixIndexProcessTags,
+		!opt.Index.ProcessTags,
 		"Controls process tag indexing. Set to false to disable.")
 }
 
-func addFlags(flagSet *flag.FlagSet, nsConfig *namespaceConfig) {
+func addFlags(flagSet *flag.FlagSet, nsConfig namespaceConfig) {
 	var tlsFlagsConfig = tlsFlagsConfig(nsConfig.namespace)
 	tlsFlagsConfig.AddFlags(flagSet)
 
@@ -223,16 +229,16 @@ func addFlags(flagSet *flag.FlagSet, nsConfig *namespaceConfig) {
 
 // InitFromViper initializes Options with properties from viper
 func (opt *Options) InitFromViper(v *viper.Viper) {
-	opt.primary.initFromViper(v)
+	opt.Primary.initFromViper(v)
 	for _, cfg := range opt.others {
 		cfg.initFromViper(v)
 	}
-	opt.SpanStoreWriteCacheTTL = v.GetDuration(opt.primary.namespace + suffixSpanStoreWriteCacheTTL)
-	opt.tagIndexBlacklist = stripWhiteSpace(v.GetString(opt.primary.namespace + suffixIndexTagsBlacklist))
-	opt.tagIndexWhitelist = stripWhiteSpace(v.GetString(opt.primary.namespace + suffixIndexTagsWhitelist))
-	opt.DisableTagsIndex = !v.GetBool(opt.primary.namespace + suffixIndexTags)
-	opt.DisableLogsIndex = !v.GetBool(opt.primary.namespace + suffixIndexLogs)
-	opt.DisableProcessTagsIndex = !v.GetBool(opt.primary.namespace + suffixIndexProcessTags)
+	opt.SpanStoreWriteCacheTTL = v.GetDuration(opt.Primary.namespace + suffixSpanStoreWriteCacheTTL)
+	opt.Index.TagBlackList = stripWhiteSpace(v.GetString(opt.Primary.namespace + suffixIndexTagsBlacklist))
+	opt.Index.TagWhiteList = stripWhiteSpace(v.GetString(opt.Primary.namespace + suffixIndexTagsWhitelist))
+	opt.Index.Tags = v.GetBool(opt.Primary.namespace + suffixIndexTags)
+	opt.Index.Logs = v.GetBool(opt.Primary.namespace + suffixIndexLogs)
+	opt.Index.ProcessTags = v.GetBool(opt.Primary.namespace + suffixIndexProcessTags)
 }
 
 func tlsFlagsConfig(namespace string) tlscfg.ClientFlagsConfig {
@@ -273,8 +279,8 @@ func (cfg *namespaceConfig) initFromViper(v *viper.Viper) {
 
 // GetPrimary returns primary configuration.
 func (opt *Options) GetPrimary() *config.Configuration {
-	opt.primary.Servers = strings.Split(opt.primary.servers, ",")
-	return &opt.primary.Configuration
+	opt.Primary.Servers = strings.Split(opt.Primary.servers, ",")
+	return &opt.Primary.Configuration
 }
 
 // Get returns auxiliary named configuration.
@@ -287,9 +293,9 @@ func (opt *Options) Get(namespace string) *config.Configuration {
 	if !nsCfg.Enabled {
 		return nil
 	}
-	nsCfg.Configuration.ApplyDefaults(&opt.primary.Configuration)
+	nsCfg.Configuration.ApplyDefaults(&opt.Primary.Configuration)
 	if nsCfg.servers == "" {
-		nsCfg.servers = opt.primary.servers
+		nsCfg.servers = opt.Primary.servers
 	}
 	nsCfg.Servers = strings.Split(nsCfg.servers, ",")
 	return &nsCfg.Configuration
@@ -297,8 +303,8 @@ func (opt *Options) Get(namespace string) *config.Configuration {
 
 // TagIndexBlacklist returns the list of blacklisted tags
 func (opt *Options) TagIndexBlacklist() []string {
-	if len(opt.tagIndexBlacklist) > 0 {
-		return strings.Split(opt.tagIndexBlacklist, ",")
+	if len(opt.Index.TagBlackList) > 0 {
+		return strings.Split(opt.Index.TagBlackList, ",")
 	}
 
 	return nil
@@ -306,8 +312,8 @@ func (opt *Options) TagIndexBlacklist() []string {
 
 // TagIndexWhitelist returns the list of whitelisted tags
 func (opt *Options) TagIndexWhitelist() []string {
-	if len(opt.tagIndexWhitelist) > 0 {
-		return strings.Split(opt.tagIndexWhitelist, ",")
+	if len(opt.Index.TagWhiteList) > 0 {
+		return strings.Split(opt.Index.TagWhiteList, ",")
 	}
 
 	return nil

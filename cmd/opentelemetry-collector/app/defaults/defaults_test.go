@@ -19,16 +19,22 @@ import (
 
 	"github.com/magiconair/properties/assert"
 
+	"github.com/jaegertracing/jaeger/cmd/opentelemetry-collector/app/exporter/cassandra"
 	"github.com/jaegertracing/jaeger/cmd/opentelemetry-collector/app/exporter/kafka"
 	jConfig "github.com/jaegertracing/jaeger/pkg/config"
 )
 
 func TestComponents(t *testing.T) {
-	v, _ := jConfig.Viperize(kafka.DefaultOptions().AddFlags)
+	v, _ := jConfig.Viperize(kafka.DefaultOptions().AddFlags, cassandra.DefaultOptions().AddFlags)
 	factories := Components(v)
 	assert.Equal(t, "jaeger_kafka", factories.Exporters[kafka.TypeStr].Type())
+	assert.Equal(t, "jaeger_cassandra", factories.Exporters[cassandra.TypeStr].Type())
 
 	kafkaFactory := factories.Exporters[kafka.TypeStr]
 	kc := kafkaFactory.CreateDefaultConfig().(*kafka.Config)
 	assert.Equal(t, []string{"127.0.0.1:9092"}, kc.Config.Brokers)
+
+	cassandraFactory := factories.Exporters[cassandra.TypeStr]
+	cc := cassandraFactory.CreateDefaultConfig().(*cassandra.Config)
+	assert.Equal(t, []string{"127.0.0.1"}, cc.Options.GetPrimary().Servers)
 }

@@ -26,11 +26,16 @@ import (
 	"github.com/open-telemetry/opentelemetry-collector/oterr"
 	jaegertranslator "github.com/open-telemetry/opentelemetry-collector/translator/trace/jaeger"
 
+	jaegerstorage "github.com/jaegertracing/jaeger/storage"
 	"github.com/jaegertracing/jaeger/storage/spanstore"
 )
 
 // NewSpanWriterExporter returns exporter.TraceExporter
-func NewSpanWriterExporter(config configmodels.Exporter, spanWriter spanstore.Writer) (exporter.TraceExporter, error) {
+func NewSpanWriterExporter(config configmodels.Exporter, factory jaegerstorage.Factory) (exporter.TraceExporter, error) {
+	spanWriter, err := factory.CreateSpanWriter()
+	if err != nil {
+		return nil, err
+	}
 	storage := storage{Writer: spanWriter}
 	return exporterhelper.NewTraceExporter(
 		config,

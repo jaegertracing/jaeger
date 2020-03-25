@@ -19,7 +19,9 @@ import (
 	"github.com/open-telemetry/opentelemetry-collector/defaults"
 	"github.com/spf13/viper"
 
+	"github.com/jaegertracing/jaeger/cmd/opentelemetry-collector/app/exporter/cassandra"
 	"github.com/jaegertracing/jaeger/cmd/opentelemetry-collector/app/exporter/kafka"
+	storageCassandra "github.com/jaegertracing/jaeger/plugin/storage/cassandra"
 	storageKafka "github.com/jaegertracing/jaeger/plugin/storage/kafka"
 )
 
@@ -30,8 +32,14 @@ func Components(v *viper.Viper) config.Factories {
 		opts.InitFromViper(v)
 		return opts
 	}}
+	cassandraExp := cassandra.Factory{OptionsFactory: func() *storageCassandra.Options {
+		opts := cassandra.DefaultOptions()
+		opts.InitFromViper(v)
+		return opts
+	}}
 
 	factories, _ := defaults.Components()
 	factories.Exporters[kafkaExp.Type()] = kafkaExp
+	factories.Exporters[cassandraExp.Type()] = cassandraExp
 	return factories
 }

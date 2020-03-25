@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package kafka
+package cassandra
 
 import (
 	"github.com/open-telemetry/opentelemetry-collector/exporter"
@@ -20,13 +20,14 @@ import (
 	"go.uber.org/zap"
 
 	storageOtelExporter "github.com/jaegertracing/jaeger/cmd/opentelemetry-collector/app/exporter"
-	"github.com/jaegertracing/jaeger/plugin/storage/kafka"
+	"github.com/jaegertracing/jaeger/plugin/storage/cassandra"
 )
 
-// New creates new Kafka exporter
+// New creates Cassandra exporter/storage
 func New(config *Config, log *zap.Logger) (exporter.TraceExporter, error) {
-	f := kafka.NewFactory()
-	f.InitFromOptions(config.Options)
+	f := cassandra.NewFactory()
+	f.InitFromOptions(&config.Options)
+
 	err := f.Initialize(metrics.NullFactory, log)
 	if err != nil {
 		return nil, err
