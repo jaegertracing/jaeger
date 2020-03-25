@@ -15,10 +15,17 @@
 package main
 
 import (
+	"fmt"
 	"log"
+	"os"
 
-	"github.com/open-telemetry/opentelemetry-collector/defaults"
 	"github.com/open-telemetry/opentelemetry-collector/service"
+	"github.com/spf13/viper"
+
+	jflags "github.com/jaegertracing/jaeger/cmd/flags"
+	"github.com/jaegertracing/jaeger/cmd/opentelemetry-collector/app/defaults"
+	"github.com/jaegertracing/jaeger/cmd/opentelemetry-collector/app/exporter/kafka"
+	jconfig "github.com/jaegertracing/jaeger/pkg/config"
 )
 
 func main() {
@@ -36,14 +43,30 @@ func main() {
 		//GitHash:  version.GitHash,
 	}
 
-	cmpts, err := defaults.Components()
-	handleErr(err)
+	v := viper.New()
+	cmpts := defaults.Components(v)
 
 	svc, err := service.New(service.Parameters{
 		ApplicationStartInfo: info,
 		Factories:            cmpts,
 	})
 	handleErr(err)
+
+	// Add Jaeger specific flags to service command
+	// this passes flag values to viper.
+	cmd := svc.Command()
+	jconfig.AddFlags(v,
+		cmd,
+		jflags.AddConfigFileFlag,
+		kafka.DefaultOptions().AddFlags,
+	)
+
+	// parse flags to propagate Jaeger config file flag value to viper
+	cmd.ParseFlags(os.Args)
+	err = jflags.TryLoadConfigFile(v)
+	if err != nil {
+		handleErr(fmt.Errorf("could not load Jaeger configuration file %w", err))
+	}
 
 	err = svc.Start()
 	handleErr(err)
