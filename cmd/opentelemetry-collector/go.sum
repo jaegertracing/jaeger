@@ -422,6 +422,7 @@ github.com/jaegertracing/jaeger v1.7.0 h1:RVpmOTj7Zb9QRFHI5CYvkYSTR8Cdn/PhM5kBxA
 github.com/jaegertracing/jaeger v1.7.0/go.mod h1:LUWPSnzNPGRubM8pk0inANGitpiMOOxihXx0+53llXI=
 github.com/jaegertracing/jaeger v1.14.0 h1:C0En+gfcxf3NsAriMAvQ6LcSFrQ5VQGXddqfty1EpTI=
 github.com/jaegertracing/jaeger v1.14.0/go.mod h1:LUWPSnzNPGRubM8pk0inANGitpiMOOxihXx0+53llXI=
+github.com/jaegertracing/jaeger/cmd/opentelemetry-collector v0.0.0-20200325090320-e1248014988b/go.mod h1:GYhJ9yKirxKRAx3TYp6fQYdjNLCldZLRoBcMMlUdz2A=
 github.com/jcmturner/gofork v0.0.0-20190328161633-dc7c13fece03/go.mod h1:MK8+TM0La+2rjBD4jE12Kj1pCCxK7d2LK/UM3ncEo0o=
 github.com/jcmturner/gofork v1.0.0 h1:J7uCkflzTEhUZ64xqKnkDxq3kzc96ajM1Gli5ktUem8=
 github.com/jcmturner/gofork v1.0.0/go.mod h1:MK8+TM0La+2rjBD4jE12Kj1pCCxK7d2LK/UM3ncEo0o=
@@ -520,6 +521,7 @@ github.com/oklog/run v1.0.0/go.mod h1:dlhp/R75TPv97u0XWUtDeV/lRKWPKSdTuV0TZvrmrQ
 github.com/oklog/run v1.1.0/go.mod h1:sVPdnTZT1zYwAJeCMu2Th4T21pA3FPOQRfWjQlk7DVU=
 github.com/oklog/ulid v0.0.0-20170117200651-66bb6560562f/go.mod h1:CirwcVhetQ6Lv90oh/F+FBtV6XMibvdAFo93nm5qn4U=
 github.com/oklog/ulid v1.3.1/go.mod h1:CirwcVhetQ6Lv90oh/F+FBtV6XMibvdAFo93nm5qn4U=
+github.com/olivere/elastic v6.2.27+incompatible h1:c57kY8PF/J6Iz2ATxHQkWFNkYyKDlEZr6hl/O5ZFNvQ=
 github.com/olivere/elastic v6.2.27+incompatible/go.mod h1:J+q1zQJTgAz9woqsbVRqGeB5G1iqDKVBWLNSYW8yfJ8=
 github.com/onsi/ginkgo v0.0.0-20170829012221-11459a886d9c/go.mod h1:lLunBs/Ym6LB5Z9jYTR76FiuTmxDTDusOGeTQH+WWjE=
 github.com/onsi/ginkgo v1.6.0/go.mod h1:lLunBs/Ym6LB5Z9jYTR76FiuTmxDTDusOGeTQH+WWjE=
