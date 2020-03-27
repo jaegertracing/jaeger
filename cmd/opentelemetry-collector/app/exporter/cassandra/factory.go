@@ -49,6 +49,7 @@ func (Factory) Type() string {
 }
 
 // CreateDefaultConfig returns default configuration of Factory.
+// This function implements OTEL exporter.BaseFactory interface.
 func (f Factory) CreateDefaultConfig() configmodels.Exporter {
 	opts := f.OptionsFactory()
 	return &Config{
@@ -61,6 +62,7 @@ func (f Factory) CreateDefaultConfig() configmodels.Exporter {
 }
 
 // CreateTraceExporter creates Jaeger Cassandra trace exporter.
+// This function implements OTEL exporter.Factory interface.
 func (Factory) CreateTraceExporter(log *zap.Logger, cfg configmodels.Exporter) (exporter.TraceExporter, error) {
 	config, ok := cfg.(*Config)
 	if !ok {
@@ -70,6 +72,7 @@ func (Factory) CreateTraceExporter(log *zap.Logger, cfg configmodels.Exporter) (
 }
 
 // CreateMetricsExporter is not implemented.
+// This function implements OTEL exporter.Factory interface.
 func (Factory) CreateMetricsExporter(*zap.Logger, configmodels.Exporter) (exporter.MetricsExporter, error) {
 	return nil, configerror.ErrDataTypeIsNotSupported
 }

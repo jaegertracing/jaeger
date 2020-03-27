@@ -152,7 +152,7 @@ fmt:
 
 .PHONY: lint-gosec
 lint-gosec:
-	time gosec -quiet -exclude=G104,G107 ./...
+	time gosec -quiet -exclude=G104,G107 -exclude-dir=cmd/opentelemetry-collector ./...
 
 .PHONY: lint-staticcheck
 lint-staticcheck:
@@ -177,6 +177,7 @@ lint: lint-staticcheck lint-gosec lint-otel
 .PHONY: lint-otel
 lint-otel:
 	cd ${OTEL_COLLECTOR_DIR} && $(GOVET) ./...
+	cd ${OTEL_COLLECTOR_DIR} && time gosec -quiet -exclude=G104,G107 ./...
 
 .PHONY: go-lint
 go-lint:
