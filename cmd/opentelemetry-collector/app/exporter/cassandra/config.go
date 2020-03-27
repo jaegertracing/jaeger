@@ -12,24 +12,16 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package kafka
+package cassandra
 
 import (
-	"github.com/open-telemetry/opentelemetry-collector/exporter"
-	"github.com/uber/jaeger-lib/metrics"
-	"go.uber.org/zap"
+	"github.com/open-telemetry/opentelemetry-collector/config/configmodels"
 
-	storageOtelExporter "github.com/jaegertracing/jaeger/cmd/opentelemetry-collector/app/exporter"
-	"github.com/jaegertracing/jaeger/plugin/storage/kafka"
+	"github.com/jaegertracing/jaeger/plugin/storage/cassandra"
 )
 
-// New creates new Kafka exporter
-func New(config *Config, log *zap.Logger) (exporter.TraceExporter, error) {
-	f := kafka.NewFactory()
-	f.InitFromOptions(config.Options)
-	err := f.Initialize(metrics.NullFactory, log)
-	if err != nil {
-		return nil, err
-	}
-	return storageOtelExporter.NewSpanWriterExporter(config, f)
+// Config holds configuration of Jaeger Cassandra exporter/storage.
+type Config struct {
+	configmodels.ExporterSettings `mapstructure:",squash"` // squash ensures fields are correctly decoded in embedded struct.
+	cassandra.Options             `mapstructure:",squash"`
 }

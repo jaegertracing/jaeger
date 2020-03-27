@@ -181,3 +181,13 @@ func TestWriterOptions(t *testing.T) {
 	options, _ = writerOptions(opts)
 	assert.Len(t, options, 0)
 }
+
+func TestInitFromOptions(t *testing.T) {
+	f := NewFactory()
+	o := NewOptions("foo", archiveStorageConfig)
+	o.others[archiveStorageConfig].Enabled = true
+	f.InitFromOptions(o)
+	assert.Equal(t, o, f.Options)
+	assert.Equal(t, o.GetPrimary(), f.primaryConfig)
+	assert.Equal(t, o.Get(archiveStorageConfig), f.archiveConfig)
+}

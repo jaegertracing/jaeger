@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package kafka
+package cassandra
 
 import (
 	"fmt"
@@ -22,22 +22,23 @@ import (
 	"github.com/open-telemetry/opentelemetry-collector/exporter"
 	"go.uber.org/zap"
 
-	"github.com/jaegertracing/jaeger/plugin/storage/kafka"
+	"github.com/jaegertracing/jaeger/plugin/storage/cassandra"
 )
 
 const (
-	TypeStr = "jaeger_kafka"
+	// TypeStr defines type of the Cassandra exporter.
+	TypeStr = "jaeger_cassandra"
 )
 
-// OptionsFactory returns initialized kafka.Options structure.
-type OptionsFactory func() *kafka.Options
+// OptionsFactory returns initialized cassandra.OptionsFactory structure.
+type OptionsFactory func() *cassandra.Options
 
-// DefaultOptions creates Kafka options supported by this exporter.
-func DefaultOptions() *kafka.Options {
-	return &kafka.Options{}
+// DefaultOptions creates Cassandra options supported by this exporter.
+func DefaultOptions() *cassandra.Options {
+	return cassandra.NewOptions("cassandra")
 }
 
-// Factory is the factory for Jaeger Kafka exporter.
+// Factory is the factory for Jaeger Cassandra exporter.
 type Factory struct {
 	OptionsFactory OptionsFactory
 }
@@ -60,14 +61,14 @@ func (f Factory) CreateDefaultConfig() configmodels.Exporter {
 	}
 }
 
-// CreateTraceExporter creates Jaeger Kafka trace exporter.
+// CreateTraceExporter creates Jaeger Cassandra trace exporter.
 // This function implements OTEL exporter.Factory interface.
 func (Factory) CreateTraceExporter(log *zap.Logger, cfg configmodels.Exporter) (exporter.TraceExporter, error) {
-	kafkaCfg, ok := cfg.(*Config)
+	config, ok := cfg.(*Config)
 	if !ok {
 		return nil, fmt.Errorf("could not cast configuration to %s", TypeStr)
 	}
-	return New(kafkaCfg, log)
+	return New(config, log)
 }
 
 // CreateMetricsExporter is not implemented.

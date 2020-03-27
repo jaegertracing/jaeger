@@ -24,6 +24,7 @@ import (
 
 	jflags "github.com/jaegertracing/jaeger/cmd/flags"
 	"github.com/jaegertracing/jaeger/cmd/opentelemetry-collector/app/defaults"
+	"github.com/jaegertracing/jaeger/cmd/opentelemetry-collector/app/exporter/cassandra"
 	"github.com/jaegertracing/jaeger/cmd/opentelemetry-collector/app/exporter/kafka"
 	jconfig "github.com/jaegertracing/jaeger/pkg/config"
 )
@@ -59,6 +60,7 @@ func main() {
 		cmd,
 		jflags.AddConfigFileFlag,
 		kafka.DefaultOptions().AddFlags,
+		cassandra.DefaultOptions().AddFlags,
 	)
 
 	// parse flags to propagate Jaeger config file flag value to viper

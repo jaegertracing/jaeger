@@ -24,19 +24,32 @@ import (
 	"github.com/open-telemetry/opentelemetry-collector/consumer/consumerdata"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"github.com/uber/jaeger-lib/metrics"
+	"go.uber.org/zap"
 
 	"github.com/jaegertracing/jaeger/model"
+	"github.com/jaegertracing/jaeger/storage/dependencystore"
+	"github.com/jaegertracing/jaeger/storage/spanstore"
 )
 
-func TestNew(t *testing.T) {
-	exporter, err := NewSpanWriterExporter(&configmodels.ExporterSettings{}, spanWriter{})
+func TestNew_closableWriter(t *testing.T) {
+	exporter, err := NewSpanWriterExporter(&configmodels.ExporterSettings{}, mockStorageFactory{spanWriter: spanWriter{}})
 	require.NoError(t, err)
 	assert.NotNil(t, exporter)
 	assert.Nil(t, exporter.Shutdown())
-	exporter, err = NewSpanWriterExporter(&configmodels.ExporterSettings{}, noClosableWriter{})
+}
+
+func TestNew_noClosableWriter(t *testing.T) {
+	exporter, err := NewSpanWriterExporter(&configmodels.ExporterSettings{}, mockStorageFactory{spanWriter: noClosableWriter{}})
 	require.NoError(t, err)
 	assert.NotNil(t, exporter)
 	assert.Nil(t, exporter.Shutdown())
+}
+
+func TestNew_failedToCreateWriter(t *testing.T) {
+	exporter, err := NewSpanWriterExporter(&configmodels.ExporterSettings{}, mockStorageFactory{err: errors.New("failed to create writer"), spanWriter: spanWriter{}})
+	require.Nil(t, exporter)
+	assert.Error(t, err, "failed to create writer")
 }
 
 func TestStore(t *testing.T) {
@@ -116,5 +129,23 @@ type noClosableWriter struct {
 }
 
 func (noClosableWriter) WriteSpan(span *model.Span) error {
+	return nil
+}
+
+type mockStorageFactory struct {
+	err        error
+	spanWriter spanstore.Writer
+}
+
+func (m mockStorageFactory) CreateSpanWriter() (spanstore.Writer, error) {
+	return m.spanWriter, m.err
+}
+func (mockStorageFactory) CreateSpanReader() (spanstore.Reader, error) {
+	return nil, nil
+}
+func (mockStorageFactory) CreateDependencyReader() (dependencystore.Reader, error) {
+	return nil, nil
+}
+func (mockStorageFactory) Initialize(metrics.Factory, *zap.Logger) error {
 	return nil
 }
