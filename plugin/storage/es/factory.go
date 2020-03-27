@@ -185,10 +185,7 @@ func createSpanWriter(
 		}
 	}
 
-	fmt.Println("AAA")
-	fmt.Println(client)
 	spanMapping, serviceMapping := GetMappings(cfg.GetNumShards(), cfg.GetNumReplicas(), client.GetVersion())
-	fmt.Println("after getting mappings")
 	writer := esSpanStore.NewSpanWriter(esSpanStore.SpanWriterParams{
 		Client:              client,
 		Logger:              logger,
@@ -211,7 +208,6 @@ func createSpanWriter(
 
 // GetMappings returns span and service mappings
 func GetMappings(shards, replicas int64, esVersion uint) (string, string) {
-	fmt.Println("GetMapping")
 	if esVersion == 7 {
 		return fixMapping(loadMapping("/jaeger-span-7.json"), shards, replicas),
 			fixMapping(loadMapping("/jaeger-service-7.json"), shards, replicas)
@@ -221,7 +217,6 @@ func GetMappings(shards, replicas int64, esVersion uint) (string, string) {
 }
 
 func loadMapping(name string) string {
-	fmt.Println("loading mapping")
 	s, _ := mappings.FSString(false, name)
 	return s
 }
