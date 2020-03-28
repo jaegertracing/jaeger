@@ -66,9 +66,6 @@ type Options struct {
 	others map[string]*namespaceConfig
 }
 
-// the Servers field in config.Configuration is a list, which we cannot represent with flags.
-// This struct adds a plain string field that can be bound to flags and is then parsed when
-// preparing the actual config.Configuration.
 type namespaceConfig struct {
 	config.Configuration `mapstructure:",squash"`
 	namespace            string
