@@ -1,0 +1,25 @@
+receivers:
+  examplereceiver:
+
+processors:
+  exampleprocessor:
+
+exporters:
+  jaeger_elasticsearch:
+    server_urls: "someUrl"
+    username: user
+    password: pass
+    token_file: /var/run/k8s
+    tags_as_fields:
+      all: true
+      config_file: /etc/jaeger
+      dot_replacement: "O"
+    use_aliases: true
+    sniffer: true
+
+service:
+  pipelines:
+    traces:
+      receivers: [examplereceiver]
+      processors: [exampleprocessor]
+      exporters: [jaeger_elasticsearch]

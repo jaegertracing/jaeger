@@ -20,8 +20,10 @@ import (
 	"github.com/spf13/viper"
 
 	"github.com/jaegertracing/jaeger/cmd/opentelemetry-collector/app/exporter/cassandra"
+	"github.com/jaegertracing/jaeger/cmd/opentelemetry-collector/app/exporter/elasticsearch"
 	"github.com/jaegertracing/jaeger/cmd/opentelemetry-collector/app/exporter/kafka"
 	storageCassandra "github.com/jaegertracing/jaeger/plugin/storage/cassandra"
+	storageEs "github.com/jaegertracing/jaeger/plugin/storage/es"
 	storageKafka "github.com/jaegertracing/jaeger/plugin/storage/kafka"
 )
 
@@ -37,9 +39,15 @@ func Components(v *viper.Viper) config.Factories {
 		opts.InitFromViper(v)
 		return opts
 	}}
+	esExp := elasticsearch.Factory{OptionsFactory: func() *storageEs.Options {
+		opts := elasticsearch.DefaultOptions()
+		opts.InitFromViper(v)
+		return opts
+	}}
 
 	factories, _ := defaults.Components()
 	factories.Exporters[kafkaExp.Type()] = kafkaExp
 	factories.Exporters[cassandraExp.Type()] = cassandraExp
+	factories.Exporters[esExp.Type()] = esExp
 	return factories
 }
