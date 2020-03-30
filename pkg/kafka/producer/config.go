@@ -29,15 +29,15 @@ type Builder interface {
 
 // Configuration describes the configuration properties needed to create a Kafka producer
 type Configuration struct {
-	Brokers          []string
-	RequiredAcks     sarama.RequiredAcks
-	Compression      sarama.CompressionCodec
-	CompressionLevel int
-	ProtocolVersion  string
-	BatchLinger      time.Duration
-	BatchSize        int
-	BatchMaxMessages int
-	auth.AuthenticationConfig
+	Brokers                   []string                `mapstructure:"brokers"`
+	RequiredAcks              sarama.RequiredAcks     `mapstructure:"required_acks"`
+	Compression               sarama.CompressionCodec `mapstructure:"compression"`
+	CompressionLevel          int                     `mapstructure:"compression_level"`
+	ProtocolVersion           string                  `mapstructure:"protocol_version"`
+	BatchLinger               time.Duration           `mapstructure:"batch_linger"`
+	BatchSize                 int                     `mapstructure:"batch_size"`
+	BatchMaxMessages          int                     `mapstructure:"batch_max_messages"`
+	auth.AuthenticationConfig `mapstructure:"authentication"`
 }
 
 // NewProducer creates a new asynchronous kafka producer

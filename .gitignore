@@ -31,5 +31,5 @@ cmd/docs/*.1
 cmd/docs/*.yaml
 crossdock/crossdock-*
 run-crossdock.log
-
+cmd/opentelemetry-collector/opentelemetry-collector-*
 __pycache__

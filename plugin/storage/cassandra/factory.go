@@ -73,6 +73,15 @@ func (f *Factory) InitFromViper(v *viper.Viper) {
 	}
 }
 
+// InitFromOptions initializes factory from options.
+func (f *Factory) InitFromOptions(o *Options) {
+	f.Options = o
+	f.primaryConfig = o.GetPrimary()
+	if cfg := f.Options.Get(archiveStorageConfig); cfg != nil {
+		f.archiveConfig = cfg // this is so stupid - see https://golang.org/doc/faq#nil_error
+	}
+}
+
 // Initialize implements storage.Factory
 func (f *Factory) Initialize(metricsFactory metrics.Factory, logger *zap.Logger) error {
 	f.primaryMetricsFactory = metricsFactory.Namespace(metrics.NSOptions{Name: "cassandra", Tags: nil})
@@ -141,8 +150,8 @@ func writerOptions(opts *Options) ([]cSpanStore.Option, error) {
 	var tagFilters []dbmodel.TagFilter
 
 	// drop all tag filters
-	if opts.DisableTagsIndex || opts.DisableProcessTagsIndex || opts.DisableLogsIndex {
-		tagFilters = append(tagFilters, dbmodel.NewTagFilterDropAll(opts.DisableTagsIndex, opts.DisableProcessTagsIndex, opts.DisableLogsIndex))
+	if !opts.Index.Tags || !opts.Index.ProcessTags || !opts.Index.Logs {
+		tagFilters = append(tagFilters, dbmodel.NewTagFilterDropAll(!opts.Index.Tags, !opts.Index.ProcessTags, !opts.Index.Logs))
 	}
 
 	// black/white list tag filters

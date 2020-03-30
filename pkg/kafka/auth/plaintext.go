@@ -20,8 +20,8 @@ import (
 
 // PlainTextConfig describes the configuration properties needed for SASL/PLAIN with kafka
 type PlainTextConfig struct {
-	UserName string
-	Password string
+	UserName string `mapstructure:"username"`
+	Password string `mapstructure:"password"`
 }
 
 func setPlainTextConfiguration(config *PlainTextConfig, saramaConfig *sarama.Config) {

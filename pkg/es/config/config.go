@@ -40,30 +40,40 @@ import (
 
 // Configuration describes the configuration properties needed to connect to an ElasticSearch cluster
 type Configuration struct {
-	Servers               []string
-	Username              string
-	Password              string
-	TokenFilePath         string
-	AllowTokenFromContext bool
-	Sniffer               bool          // https://github.com/olivere/elastic/wiki/Sniffing
-	MaxNumSpans           int           // defines maximum number of spans to fetch from storage per query
-	MaxSpanAge            time.Duration `yaml:"max_span_age"` // configures the maximum lookback on span reads
-	NumShards             int64         `yaml:"shards"`
-	NumReplicas           int64         `yaml:"replicas"`
-	Timeout               time.Duration `validate:"min=500"`
-	BulkSize              int
-	BulkWorkers           int
-	BulkActions           int
-	BulkFlushInterval     time.Duration
-	IndexPrefix           string
-	TagsFilePath          string
-	AllTagsAsFields       bool
-	TagDotReplacement     string
-	Enabled               bool
-	TLS                   tlscfg.Options
-	UseReadWriteAliases   bool
-	CreateIndexTemplates  bool
-	Version               uint
+	Servers               []string       `mapstructure:"server_urls"`
+	Username              string         `mapstructure:"username"`
+	Password              string         `mapstructure:"password"`
+	TokenFilePath         string         `mapstructure:"token_file"`
+	AllowTokenFromContext bool           `mapstructure:"-"`
+	Sniffer               bool           `mapstructure:"sniffer"`               // https://github.com/olivere/elastic/wiki/Sniffing
+	MaxNumSpans           int            `mapstructure:"-"`                     // defines maximum number of spans to fetch from storage per query
+	MaxSpanAge            time.Duration  `yaml:"max_span_age" mapstructure:"-"` // configures the maximum lookback on span reads
+	NumShards             int64          `yaml:"shards" mapstructure:"num_shards"`
+	NumReplicas           int64          `yaml:"replicas" mapstructure:"num_replicas"`
+	Timeout               time.Duration  `validate:"min=500" mapstructure:"-"`
+	BulkSize              int            `mapstructure:"-"`
+	BulkWorkers           int            `mapstructure:"-"`
+	BulkActions           int            `mapstructure:"-"`
+	BulkFlushInterval     time.Duration  `mapstructure:"-"`
+	IndexPrefix           string         `mapstructure:"index_prefix"`
+	Tags                  TagsAsFields   `mapstructure:"tags_as_fields"`
+	Enabled               bool           `mapstructure:"-"`
+	TLS                   tlscfg.Options `mapstructure:"tls"`
+	UseReadWriteAliases   bool           `mapstructure:"use_aliases"`
+	CreateIndexTemplates  bool           `mapstructure:"create_mappings"`
+	Version               uint           `mapstructure:"version"`
+}
+
+// TagsAsFields holds configuration for tag schema.
+// By default Jaeger stores tags in an array of nested objects.
+// This configurations allows to store tags as object fields for better Kibana support.
+type TagsAsFields struct {
+	// Store all tags as object fields, instead nested objects
+	AllAsFields bool `mapstructure:"all"`
+	// Dot replacement for tag keys when stored as object fields
+	DotReplacement string `mapstructure:"dot_replacement"`
+	// File path to tag keys which should be stored as object fields
+	File string `mapstructure:"config_file"`
 }
 
 // ClientBuilder creates new es.Client
@@ -79,7 +89,7 @@ type ClientBuilder interface {
 	GetTagDotReplacement() string
 	GetUseReadWriteAliases() bool
 	GetTokenFilePath() string
-	IsEnabled() bool
+	IsStorageEnabled() bool
 	IsCreateIndexTemplates() bool
 	GetVersion() uint
 }
@@ -231,12 +241,12 @@ func (c *Configuration) GetIndexPrefix() string {
 
 // GetTagsFilePath returns a path to file containing tag keys
 func (c *Configuration) GetTagsFilePath() string {
-	return c.TagsFilePath
+	return c.Tags.File
 }
 
 // GetAllTagsAsFields returns true if all tags should be stored as object fields
 func (c *Configuration) GetAllTagsAsFields() bool {
-	return c.AllTagsAsFields
+	return c.Tags.AllAsFields
 }
 
 // GetVersion returns Elasticsearch version
@@ -247,7 +257,7 @@ func (c *Configuration) GetVersion() uint {
 // GetTagDotReplacement returns character is used to replace dots in tag keys, when
 // the tag is stored as object field.
 func (c *Configuration) GetTagDotReplacement() string {
-	return c.TagDotReplacement
+	return c.Tags.DotReplacement
 }
 
 // GetUseReadWriteAliases indicates whether read alias should be used
@@ -260,8 +270,8 @@ func (c *Configuration) GetTokenFilePath() string {
 	return c.TokenFilePath
 }
 
-// IsEnabled determines whether storage is enabled
-func (c *Configuration) IsEnabled() bool {
+// IsStorageEnabled determines whether storage is enabled
+func (c *Configuration) IsStorageEnabled() bool {
 	return c.Enabled
 }
 

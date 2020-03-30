@@ -108,9 +108,9 @@ var (
 
 // Options stores the configuration options for Kafka
 type Options struct {
-	config   producer.Configuration
-	topic    string
-	encoding string
+	Config   producer.Configuration `mapstructure:",squash"`
+	Topic    string                 `mapstructure:"topic"`
+	Encoding string                 `mapstructure:"encoding"`
 }
 
 // AddFlags adds flags for Options
@@ -186,7 +186,7 @@ func (opt *Options) InitFromViper(v *viper.Viper) {
 		log.Fatal(err)
 	}
 
-	opt.config = producer.Configuration{
+	opt.Config = producer.Configuration{
 		Brokers:              strings.Split(stripWhiteSpace(v.GetString(configPrefix+suffixBrokers)), ","),
 		RequiredAcks:         requiredAcks,
 		Compression:          compressionModeCodec,
@@ -197,8 +197,8 @@ func (opt *Options) InitFromViper(v *viper.Viper) {
 		BatchSize:            v.GetInt(configPrefix + suffixBatchSize),
 		BatchMaxMessages:     v.GetInt(configPrefix + suffixBatchMaxMessages),
 	}
-	opt.topic = v.GetString(configPrefix + suffixTopic)
-	opt.encoding = v.GetString(configPrefix + suffixEncoding)
+	opt.Topic = v.GetString(configPrefix + suffixTopic)
+	opt.Encoding = v.GetString(configPrefix + suffixEncoding)
 }
 
 // stripWhiteSpace removes all whitespace characters from a string

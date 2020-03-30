@@ -20,13 +20,13 @@ import (
 
 // KerberosConfig describes the configuration properties needed for Kerberos authentication with kafka consumer
 type KerberosConfig struct {
-	ServiceName string
-	Realm       string
-	UseKeyTab   bool
-	Username    string
-	Password    string
-	ConfigPath  string
-	KeyTabPath  string
+	ServiceName string `mapstructure:"service_name"`
+	Realm       string `mapstructure:"realm"`
+	UseKeyTab   bool   `mapstructure:"use_keytab"`
+	Username    string `mapstructure:"username"`
+	Password    string `mapstructure:"password"`
+	ConfigPath  string `mapstructure:"config_file"`
+	KeyTabPath  string `mapstructure:"keytab_file"`
 }
 
 func setKerberosConfiguration(config *KerberosConfig, saramaConfig *sarama.Config) {

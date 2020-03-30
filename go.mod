@@ -28,7 +28,7 @@ require (
 	github.com/go-openapi/strfmt v0.19.4
 	github.com/go-openapi/swag v0.19.7
 	github.com/go-openapi/validate v0.19.6
-	github.com/gocql/gocql v0.0.0-20200226121155-e5c8c1f505c5
+	github.com/gocql/gocql v0.0.0-20200228163523-cd4b606dd2fb
 	github.com/gogo/googleapis v1.0.1-0.20180501115203-b23578765ee5
 	github.com/gogo/protobuf v1.2.1
 	github.com/golang/protobuf v1.3.3
@@ -84,7 +84,7 @@ require (
 	golang.org/x/lint v0.0.0-20200130185559-910be7a94367
 	golang.org/x/net v0.0.0-20200202094626-16171245cfb2
 	golang.org/x/sys v0.0.0-20200217220822-9197077df867
-	golang.org/x/tools v0.0.0-20200227222343-706bc42d1f0d
+	golang.org/x/tools v0.0.0-20200227222343-706bc42d1f0d // indirect
 	google.golang.org/genproto v0.0.0-20200218151345-dad8c97a84f5 // indirect
 	google.golang.org/grpc v1.27.1
 	gopkg.in/ini.v1 v1.52.0 // indirect

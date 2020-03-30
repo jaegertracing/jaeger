@@ -1,5 +1,6 @@
 JAEGER_IMPORT_PATH=github.com/jaegertracing/jaeger
 STORAGE_PKGS = ./plugin/storage/integration/...
+OTEL_COLLECTOR_DIR = ./cmd/opentelemetry-collector
 
 # all .go files that are not auto-generated and should be auto-formatted and linted.
 ALL_SRC := $(shell find . -name '*.go' \
@@ -87,8 +88,12 @@ clean:
 	rm -rf cover.out .cover/ cover.html lint.log fmt.log
 
 .PHONY: test
-test: go-gen
+test: go-gen test-otel
 	bash -c "set -e; set -o pipefail; $(GOTEST) ./... | $(COLORIZE)"
+
+.PHONY: test-otel
+test-otel:
+	cd ${OTEL_COLLECTOR_DIR} && bash -c "set -e; set -o pipefail; $(GOTEST) ./... | $(COLORIZE)"
 
 .PHONY: all-in-one-integration-test
 all-in-one-integration-test: go-gen
@@ -147,7 +152,7 @@ fmt:
 
 .PHONY: lint-gosec
 lint-gosec:
-	time gosec -quiet -exclude=G104,G107 ./...
+	time gosec -quiet -exclude=G104,G107 -exclude-dir=cmd/opentelemetry-collector ./...
 
 .PHONY: lint-staticcheck
 lint-staticcheck:
@@ -160,7 +165,7 @@ lint-staticcheck:
 	@[ ! -s "$(LINT_LOG)" ] || (echo "Detected staticcheck failures:" | cat - $(LINT_LOG) && false)
 
 .PHONY: lint
-lint: lint-staticcheck lint-gosec
+lint: lint-staticcheck lint-gosec lint-otel
 	$(GOVET) ./...
 	$(MAKE) go-lint
 	@echo Running go fmt on ALL_SRC ...
@@ -168,6 +173,11 @@ lint: lint-staticcheck lint-gosec
 	./scripts/updateLicenses.sh >> $(FMT_LOG)
 	./scripts/import-order-cleanup.sh stdout > $(IMPORT_LOG)
 	@[ ! -s "$(FMT_LOG)" -a ! -s "$(IMPORT_LOG)" ] || (echo "Go fmt, license check, or import ordering failures, run 'make fmt'" | cat - $(FMT_LOG) && false)
+
+.PHONY: lint-otel
+lint-otel:
+	cd ${OTEL_COLLECTOR_DIR} && $(GOVET) ./...
+	cd ${OTEL_COLLECTOR_DIR} && time gosec -quiet -exclude=G104,G107 ./...
 
 .PHONY: go-lint
 go-lint:
@@ -246,6 +256,14 @@ else
 	$(GOBUILD) -o ./cmd/collector/collector-$(GOOS) $(BUILD_INFO) ./cmd/collector/main.go
 endif
 
+.PHONY: build-otel-collector
+build-otel-collector:
+ifeq ($(GOARCH), s390x)
+	cd ${OTEL_COLLECTOR_DIR} && $(GOBUILD) -o ./opentelemetry-collector-$(GOOS)-$(GOARCH) $(BUILD_INFO) main.go
+else
+	cd ${OTEL_COLLECTOR_DIR} && $(GOBUILD) -o ./opentelemetry-collector-$(GOOS) $(BUILD_INFO) main.go
+endif
+
 .PHONY: build-ingester
 build-ingester:
 ifeq ($(GOARCH), s390x)
@@ -274,7 +292,7 @@ build-binaries-s390x:
 	GOOS=linux GOARCH=s390x $(MAKE) build-platform-binaries
 
 .PHONY: build-platform-binaries
-build-platform-binaries: build-agent build-collector build-query build-ingester build-all-in-one build-examples build-tracegen
+build-platform-binaries: build-agent build-collector build-query build-ingester build-all-in-one build-examples build-tracegen build-otel-collector
 
 .PHONY: build-all-platforms
 build-all-platforms: build-binaries-linux build-binaries-windows build-binaries-darwin build-binaries-s390x
@@ -410,10 +428,9 @@ generate-mocks: install-mockery
 echo-version:
 	@echo $(GIT_CLOSEST_TAG)
 
-PROTOC := docker run --rm -v${PWD}:${PWD} -w${PWD} ${JAEGER_DOCKER_PROTOBUF} --proto_path=${PWD}
+PROTOC := docker run --rm -u ${shell id -u} -v${PWD}:${PWD} -w${PWD} ${JAEGER_DOCKER_PROTOBUF} --proto_path=${PWD}
 PROTO_INCLUDES := \
-	-Imodel/proto \
-	-Iidl/proto \
+	-Iidl/proto/api_v2 \
 	-I/usr/include/github.com/gogo/protobuf
 # Remapping of std types to gogo types (must not contain spaces)
 PROTO_GOGO_MAPPINGS := $(shell echo \
@@ -452,15 +469,25 @@ proto:
 	$(PROTOC) \
 		$(PROTO_INCLUDES) \
 		--gogo_out=plugins=grpc,$(PROTO_GOGO_MAPPINGS):$(PWD)/model/ \
-		model/proto/model.proto
+		idl/proto/api_v2/model.proto
 
 	$(PROTOC) \
 		$(PROTO_INCLUDES) \
-		--gogo_out=plugins=grpc,$(PROTO_GOGO_MAPPINGS):$(PWD)/proto-gen/ \
-		model/proto/api_v2/*.proto
+		--gogo_out=plugins=grpc,$(PROTO_GOGO_MAPPINGS):$(PWD)/proto-gen/api_v2 \
+		idl/proto/api_v2/query.proto
 		### grpc-gateway generates 'query.pb.gw.go' that does not respect (gogoproto.customname) = "TraceID"
 		### --grpc-gateway_out=$(PROTO_GOGO_MAPPINGS):$(PWD)/proto-gen/ \
 		### --swagger_out=allow_merge=true:$(PWD)/proto-gen/openapi/ \
+
+	$(PROTOC) \
+		$(PROTO_INCLUDES) \
+		--gogo_out=plugins=grpc,$(PROTO_GOGO_MAPPINGS):$(PWD)/proto-gen/api_v2 \
+		idl/proto/api_v2/collector.proto
+
+	$(PROTOC) \
+		$(PROTO_INCLUDES) \
+		--gogo_out=plugins=grpc,$(PROTO_GOGO_MAPPINGS):$(PWD)/proto-gen/api_v2 \
+		idl/proto/api_v2/sampling.proto
 
 	$(PROTOC) \
 		$(PROTO_INCLUDES) \
@@ -479,6 +506,6 @@ proto:
 		plugin/storage/grpc/proto/storage_test.proto
 
 	$(PROTOC) \
-		$(PROTO_INCLUDES) \
+		-Iidl/proto \
 		--gogo_out=plugins=grpc,$(PROTO_GOGO_MAPPINGS):$(PWD)/proto-gen/zipkin \
 		idl/proto/zipkin.proto

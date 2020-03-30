@@ -1,0 +1,2 @@
+cassandra:
+  keyspace: my-keyspace

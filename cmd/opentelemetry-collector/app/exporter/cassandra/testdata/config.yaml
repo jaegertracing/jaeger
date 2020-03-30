@@ -1,0 +1,24 @@
+receivers:
+  examplereceiver:
+
+processors:
+  exampleprocessor:
+
+exporters:
+  jaeger_cassandra:
+    servers: "first,second"
+    index:
+      tags: false
+    username: user
+    password: pass
+    span_store_write_cache_ttl: 12s
+    tls:
+      enabled: true
+      ca: /foo/bar
+
+service:
+  pipelines:
+    traces:
+      receivers: [examplereceiver]
+      processors: [exampleprocessor]
+      exporters: [jaeger_cassandra]

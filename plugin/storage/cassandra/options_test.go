@@ -80,9 +80,9 @@ func TestOptionsWithFlags(t *testing.T) {
 	assert.Equal(t, false, primary.EnableDependenciesV2)
 	assert.Equal(t, []string{"blerg", "blarg", "blorg"}, opts.TagIndexBlacklist())
 	assert.Equal(t, []string{"flerg", "flarg", "florg"}, opts.TagIndexWhitelist())
-	assert.Equal(t, false, opts.DisableTagsIndex)
-	assert.Equal(t, true, opts.DisableProcessTagsIndex)
-	assert.Equal(t, false, opts.DisableLogsIndex)
+	assert.Equal(t, true, opts.Index.Tags)
+	assert.Equal(t, false, opts.Index.ProcessTags)
+	assert.Equal(t, true, opts.Index.Logs)
 
 	aux := opts.Get("cas-aux")
 	require.NotNil(t, aux)

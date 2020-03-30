@@ -95,7 +95,7 @@ func TestElasticsearchFactory(t *testing.T) {
 func TestElasticsearchTagsFileDoNotExist(t *testing.T) {
 	f := NewFactory()
 	mockConf := &mockClientBuilder{}
-	mockConf.TagsFilePath = "fixtures/tags_foo.txt"
+	mockConf.Tags.File = "fixtures/tags_foo.txt"
 	f.primaryConfig = mockConf
 	f.archiveConfig = mockConf
 	assert.NoError(t, f.Initialize(metrics.NullFactory, zap.NewNop()))
@@ -199,4 +199,13 @@ func TestArchiveEnabled(t *testing.T) {
 	r, err := f.CreateArchiveSpanReader()
 	require.NoError(t, err)
 	assert.NotNil(t, r)
+}
+
+func TestInitFromOptions(t *testing.T) {
+	f := NewFactory()
+	o := Options{Primary: namespaceConfig{Configuration: escfg.Configuration{Servers: []string{"server"}}},
+		others: map[string]*namespaceConfig{"es-archive": {Configuration: escfg.Configuration{Servers: []string{"server2"}}}}}
+	f.InitFromOptions(o)
+	assert.Equal(t, o.GetPrimary(), f.primaryConfig)
+	assert.Equal(t, o.Get(archiveNamespace), f.archiveConfig)
 }
