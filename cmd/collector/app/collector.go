@@ -27,7 +27,6 @@ import (
 	"github.com/jaegertracing/jaeger/cmd/collector/app/sampling/strategystore"
 	"github.com/jaegertracing/jaeger/cmd/collector/app/server"
 	"github.com/jaegertracing/jaeger/pkg/healthcheck"
-	"github.com/jaegertracing/jaeger/ports"
 	"github.com/jaegertracing/jaeger/storage/spanstore"
 )
 
@@ -84,7 +83,7 @@ func (c *Collector) Start(builderOpts *CollectorOptions) error {
 	c.spanHandlers = handlerBuilder.BuildHandlers(c.spanProcessor)
 
 	if grpcServer, err := server.StartGRPCServer(&server.GRPCServerParams{
-		HostPort:      getAddressFromCLIOptions(builderOpts.CollectorGRPCPort, builderOpts.CollectorGRPCHostPort, c.logger),
+		HostPort:      builderOpts.CollectorGRPCHostPort,
 		Handler:       c.spanHandlers.GRPCHandler,
 		TLSConfig:     builderOpts.TLS,
 		SamplingStore: c.strategyStore,
@@ -96,7 +95,7 @@ func (c *Collector) Start(builderOpts *CollectorOptions) error {
 	}
 
 	if httpServer, err := server.StartHTTPServer(&server.HTTPServerParams{
-		HostPort:       getAddressFromCLIOptions(builderOpts.CollectorHTTPPort, builderOpts.CollectorHTTPHostPort, c.logger),
+		HostPort:       builderOpts.CollectorHTTPHostPort,
 		Handler:        c.spanHandlers.JaegerBatchesHandler,
 		HealthCheck:    c.hCheck,
 		MetricsFactory: c.metricsFactory,
@@ -109,7 +108,7 @@ func (c *Collector) Start(builderOpts *CollectorOptions) error {
 	}
 
 	if zkServer, err := server.StartZipkinServer(&server.ZipkinServerParams{
-		HostPort:       getAddressFromCLIOptions(builderOpts.CollectorZipkinHTTPPort, builderOpts.CollectorZipkinHTTPHostPort, c.logger),
+		HostPort:       builderOpts.CollectorZipkinHTTPHostPort,
 		Handler:        c.spanHandlers.ZipkinSpansHandler,
 		AllowedHeaders: builderOpts.CollectorZipkinAllowedHeaders,
 		AllowedOrigins: builderOpts.CollectorZipkinAllowedOrigins,
@@ -160,13 +159,4 @@ func (c *Collector) Close() error {
 // SpanHandlers returns span handlers used by the Collector.
 func (c *Collector) SpanHandlers() *SpanHandlers {
 	return c.spanHandlers
-}
-
-// Utility function to decide listening address based on port (deprecated flags) or host:port (new flags)
-func getAddressFromCLIOptions(port int, hostPort string, logger *zap.Logger) string {
-	if port != 0 {
-		return ports.PortToHostPort(port)
-	}
-
-	return hostPort
 }

@@ -34,6 +34,9 @@ const (
 	healthCheckHTTPPort = "health-check-http-port"
 	adminHTTPPort       = "admin-http-port"
 	adminHTTPHostPort   = "admin.http.host-port"
+
+	healthCheckHTTPPortWarning = "(deprecated, will be removed after 2020-03-15 or in release v1.19.0, whichever is later)"
+	adminHTTPPortWarning       = "(deprecated, will be removed after 2020-06-30 or in release v1.20.0, whichever is later)"
 )
 
 // AdminServer runs an HTTP server with admin endpoints, such as healthcheck at /, /metrics, etc.
@@ -48,9 +51,9 @@ type AdminServer struct {
 }
 
 // NewAdminServer creates a new admin server.
-func NewAdminServer(defaultAddr string) *AdminServer {
+func NewAdminServer(hostPort string) *AdminServer {
 	return &AdminServer{
-		adminHostPort: defaultAddr,
+		adminHostPort: hostPort,
 		logger:        zap.NewNop(),
 		hc:            healthcheck.New(),
 		mux:           http.NewServeMux(),
@@ -70,8 +73,8 @@ func (s *AdminServer) setLogger(logger *zap.Logger) {
 
 // AddFlags registers CLI flags.
 func (s *AdminServer) AddFlags(flagSet *flag.FlagSet) {
-	flagSet.Int(healthCheckHTTPPort, 0, "(deprecated) see --"+adminHTTPHostPort)
-	flagSet.Int(adminHTTPPort, 0, "(deprecated) see --"+adminHTTPHostPort)
+	flagSet.Int(healthCheckHTTPPort, 0, healthCheckHTTPPortWarning+" see --"+adminHTTPHostPort)
+	flagSet.Int(adminHTTPPort, 0, adminHTTPPortWarning+" see --"+adminHTTPHostPort)
 	flagSet.String(adminHTTPHostPort, s.adminHostPort, "The host:port (e.g. 127.0.0.1:5555 or :5555) for the admin server, including health check, /metrics, etc.")
 }
 

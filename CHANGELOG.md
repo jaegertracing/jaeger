@@ -28,13 +28,13 @@ Changes by Version
 
 * Normalize CLI flags to use host:port addresses ([#1827](https://github.com/jaegertracing/jaeger/pull/1827), [@annanay25](https://github.com/annanay25))
 
-  Jaeger now uses standard host:port addresses as CLI flags. Flags previous accepting listen addresses in any other format have now been deprecated.
-  Deprecated flags and replacements -
+  Flags previously accepting listen addresses in any other format have been deprecated:
 
   * `collector.port` is superseded by `collector.tchan-server.host-port`
   * `collector.http-port` is superseded by `collector.http-server.host-port`
   * `collector.grpc-port` is superseded by `collector.grpc-server.host-port`
   * `collector.zipkin.http-port` is superseded by `collector.zipkin.host-port`
+  * `admin-http-port` is superseded by `admin.http.host-port`
 
 #### New Features
 

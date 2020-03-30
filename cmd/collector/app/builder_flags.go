@@ -17,6 +17,7 @@ package app
 
 import (
 	"flag"
+	"strings"
 
 	"github.com/spf13/viper"
 
@@ -38,6 +39,10 @@ const (
 	collectorTags                 = "collector.tags"
 	collectorZipkinAllowedOrigins = "collector.zipkin.allowed-origins"
 	collectorZipkinAllowedHeaders = "collector.zipkin.allowed-headers"
+
+	collectorHTTPPortWarning       = "(deprecated, will be removed after 2020-06-30 or in release v1.20.0, whichever is later)"
+	collectorGRPCPortWarning       = "(deprecated, will be removed after 2020-06-30 or in release v1.20.0, whichever is later)"
+	collectorZipkinHTTPPortWarning = "(deprecated, will be removed after 2020-06-30 or in release v1.20.0, whichever is later)"
 )
 
 var tlsFlagsConfig = tlscfg.ServerFlagsConfig{
@@ -54,10 +59,6 @@ type CollectorOptions struct {
 	QueueSize int
 	// NumWorkers is the number of internal workers in a collector
 	NumWorkers int
-	// CollectorHTTPPort is the port that the collector service listens in on for http requests
-	CollectorHTTPPort int
-	// CollectorGRPCPort is the port that the collector service listens in on for gRPC requests
-	CollectorGRPCPort int
 	// CollectorHTTPHostPort is the host:port address that the collector service listens in on for http requests
 	CollectorHTTPHostPort string
 	// CollectorGRPCHostPort is the host:port address that the collector service listens in on for gRPC requests
@@ -66,8 +67,6 @@ type CollectorOptions struct {
 	TLS tlscfg.Options
 	// CollectorTags is the string representing collector tags to append to each and every span
 	CollectorTags map[string]string
-	// CollectorZipkinHTTPPort is the port that the Zipkin collector service listens in on for http requests
-	CollectorZipkinHTTPPort int
 	// CollectorZipkinHTTPHostPort is the host:port address that the Zipkin collector service listens in on for http requests
 	CollectorZipkinHTTPHostPort string
 	// CollectorZipkinAllowedOrigins is a list of origins a cross-domain request to the Zipkin collector service can be executed from
@@ -80,9 +79,9 @@ type CollectorOptions struct {
 func AddFlags(flags *flag.FlagSet) {
 	flags.Int(collectorQueueSize, DefaultQueueSize, "The queue size of the collector")
 	flags.Int(collectorNumWorkers, DefaultNumWorkers, "The number of workers pulling items from the queue")
-	flags.Int(collectorHTTPPort, 0, "(deprecated) please use -"+collectorHTTPHostPort)
-	flags.Int(collectorGRPCPort, 0, "(deprecated) please use -"+collectorGRPCHostPort)
-	flags.Int(collectorZipkinHTTPPort, 0, "(deprecated) please use -"+collectorZipkinHTTPHostPort)
+	flags.Int(collectorHTTPPort, 0, collectorHTTPPortWarning+" see --"+collectorHTTPHostPort)
+	flags.Int(collectorGRPCPort, 0, collectorGRPCPortWarning+" see --"+collectorGRPCHostPort)
+	flags.Int(collectorZipkinHTTPPort, 0, collectorZipkinHTTPPortWarning+" see --"+collectorZipkinHTTPHostPort)
 	flags.String(collectorHTTPHostPort, ports.PortToHostPort(ports.CollectorHTTP), "The host:port (e.g. 127.0.0.1:5555 or :5555) of the collector's HTTP server")
 	flags.String(collectorGRPCHostPort, ports.PortToHostPort(ports.CollectorGRPC), "The host:port (e.g. 127.0.0.1:5555 or :5555) of the collector's GRPC server")
 	flags.String(collectorZipkinHTTPHostPort, ports.PortToHostPort(0), "The host:port (e.g. 127.0.0.1:5555 or :5555) of the collector's Zipkin server")
@@ -98,15 +97,25 @@ func (cOpts *CollectorOptions) InitFromViper(v *viper.Viper) *CollectorOptions {
 	cOpts.DynQueueSizeMemory = v.GetUint(collectorDynQueueSizeMemory) * 1024 * 1024 // we receive in MiB and store in bytes
 	cOpts.QueueSize = v.GetInt(collectorQueueSize)
 	cOpts.NumWorkers = v.GetInt(collectorNumWorkers)
-	cOpts.CollectorHTTPPort = v.GetInt(collectorHTTPPort)
-	cOpts.CollectorGRPCPort = v.GetInt(collectorGRPCPort)
-	cOpts.CollectorHTTPHostPort = v.GetString(collectorHTTPHostPort)
-	cOpts.CollectorGRPCHostPort = v.GetString(collectorGRPCHostPort)
-	cOpts.CollectorZipkinHTTPPort = v.GetInt(collectorZipkinHTTPPort)
-	cOpts.CollectorZipkinHTTPHostPort = v.GetString(collectorZipkinHTTPHostPort)
+	cOpts.CollectorHTTPHostPort = getAddressFromCLIOptions(v.GetInt(collectorHTTPPort), v.GetString(collectorHTTPHostPort))
+	cOpts.CollectorGRPCHostPort = getAddressFromCLIOptions(v.GetInt(collectorGRPCPort), v.GetString(collectorGRPCHostPort))
+	cOpts.CollectorZipkinHTTPHostPort = getAddressFromCLIOptions(v.GetInt(collectorZipkinHTTPPort), v.GetString(collectorZipkinHTTPHostPort))
 	cOpts.CollectorTags = flags.ParseJaegerTags(v.GetString(collectorTags))
 	cOpts.CollectorZipkinAllowedOrigins = v.GetString(collectorZipkinAllowedOrigins)
 	cOpts.CollectorZipkinAllowedHeaders = v.GetString(collectorZipkinAllowedHeaders)
 	cOpts.TLS = tlsFlagsConfig.InitFromViper(v)
 	return cOpts
+}
+
+// Utility function to get listening address based on port (deprecated flags) or host:port (new flags)
+func getAddressFromCLIOptions(port int, hostPort string) string {
+	if port != 0 {
+		return ports.PortToHostPort(port)
+	}
+
+	if strings.Contains(hostPort, ":") {
+		return hostPort
+	}
+
+	return ":" + hostPort
 }
