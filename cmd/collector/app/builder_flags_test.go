@@ -51,3 +51,7 @@ func TestCollectorOptionsWithFlags_CheckFullHostPort(t *testing.T) {
 	assert.Equal(t, "127.0.0.1:1234", c.CollectorGRPCHostPort)
 	assert.Equal(t, "0.0.0.0:3456", c.CollectorZipkinHTTPHostPort)
 }
+
+func Test_getAddressFromCLIOptions(t *testing.T) {
+	assert.Equal(t, ":123", getAddressFromCLIOptions(123, ""))
+}
