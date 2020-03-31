@@ -17,8 +17,9 @@ package app
 import (
 	"testing"
 
-	"github.com/jaegertracing/jaeger/pkg/config"
 	"github.com/stretchr/testify/assert"
+
+	"github.com/jaegertracing/jaeger/pkg/config"
 )
 
 func TestCollectorOptionsWithFlags_CheckHostPort(t *testing.T) {

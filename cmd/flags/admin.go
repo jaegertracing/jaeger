@@ -78,8 +78,8 @@ func (s *AdminServer) AddFlags(flagSet *flag.FlagSet) {
 	flagSet.String(adminHTTPHostPort, s.adminHostPort, "The host:port (e.g. 127.0.0.1:5555 or :5555) for the admin server, including health check, /metrics, etc.")
 }
 
-// Util function to check if a deprecated flag is used
-func (s *AdminServer) checkAndUpdate(v *viper.Viper, actualFlagName string, expectedFlagName string) {
+// Util function to use deprecated flag value if specified
+func (s *AdminServer) checkDeprecatedFlag(v *viper.Viper, actualFlagName string, expectedFlagName string) {
 	if v := v.GetInt(actualFlagName); v != 0 {
 		s.logger.Sugar().Warnf("Using deprecated flag %s, please upgrade to %s", actualFlagName, expectedFlagName)
 		s.adminHostPort = ports.PortToHostPort(v)
@@ -91,8 +91,8 @@ func (s *AdminServer) initFromViper(v *viper.Viper, logger *zap.Logger) {
 	s.setLogger(logger)
 
 	s.adminHostPort = v.GetString(adminHTTPHostPort)
-	s.checkAndUpdate(v, healthCheckHTTPPort, adminHTTPHostPort)
-	s.checkAndUpdate(v, adminHTTPPort, adminHTTPHostPort)
+	s.checkDeprecatedFlag(v, healthCheckHTTPPort, adminHTTPHostPort)
+	s.checkDeprecatedFlag(v, adminHTTPPort, adminHTTPHostPort)
 }
 
 // Handle adds a new handler to the admin server.
