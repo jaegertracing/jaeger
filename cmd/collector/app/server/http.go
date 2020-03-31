@@ -17,7 +17,6 @@ package server
 import (
 	"net"
 	"net/http"
-	"strconv"
 
 	"github.com/gorilla/mux"
 	"github.com/uber/jaeger-lib/metrics"
@@ -32,7 +31,7 @@ import (
 
 // HTTPServerParams to construct a new Jaeger Collector HTTP Server
 type HTTPServerParams struct {
-	Port           int
+	HostPort       string
 	Handler        handler.JaegerBatchesHandler
 	SamplingStore  strategystore.StrategyStore
 	MetricsFactory metrics.Factory
@@ -42,15 +41,14 @@ type HTTPServerParams struct {
 
 // StartHTTPServer based on the given parameters
 func StartHTTPServer(params *HTTPServerParams) (*http.Server, error) {
-	httpPortStr := ":" + strconv.Itoa(params.Port)
-	params.Logger.Info("Starting jaeger-collector HTTP server", zap.String("http-host-port", httpPortStr))
+	params.Logger.Info("Starting jaeger-collector HTTP server", zap.String("http host-port", params.HostPort))
 
-	listener, err := net.Listen("tcp", httpPortStr)
+	listener, err := net.Listen("tcp", params.HostPort)
 	if err != nil {
 		return nil, err
 	}
 
-	server := &http.Server{Addr: httpPortStr}
+	server := &http.Server{Addr: params.HostPort}
 	serveHTTP(server, listener, params)
 
 	return server, nil

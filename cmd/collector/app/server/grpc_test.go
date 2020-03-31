@@ -36,7 +36,7 @@ import (
 func TestFailToListen(t *testing.T) {
 	logger, _ := zap.NewDevelopment()
 	server, err := StartGRPCServer(&GRPCServerParams{
-		Port:          -1,
+		HostPort:      ":-1",
 		Handler:       handler.NewGRPCHandler(logger, &mockSpanProcessor{}),
 		SamplingStore: &mockSamplingStore{},
 		Logger:        logger,

@@ -17,7 +17,6 @@ package server
 import (
 	"fmt"
 	"net"
-	"strconv"
 
 	"go.uber.org/zap"
 	"google.golang.org/grpc"
@@ -33,7 +32,7 @@ import (
 // GRPCServerParams to construct a new Jaeger Collector gRPC Server
 type GRPCServerParams struct {
 	TLSConfig     tlscfg.Options
-	Port          int
+	HostPort      string
 	Handler       *handler.GRPCHandler
 	SamplingStore strategystore.StrategyStore
 	Logger        *zap.Logger
@@ -58,8 +57,7 @@ func StartGRPCServer(params *GRPCServerParams) (*grpc.Server, error) {
 		server = grpc.NewServer()
 	}
 
-	grpcPortStr := ":" + strconv.Itoa(params.Port)
-	listener, err := net.Listen("tcp", grpcPortStr)
+	listener, err := net.Listen("tcp", params.HostPort)
 	if err != nil {
 		return nil, fmt.Errorf("failed to listen on gRPC port: %w", err)
 	}
@@ -75,7 +73,7 @@ func serveGRPC(server *grpc.Server, listener net.Listener, params *GRPCServerPar
 	api_v2.RegisterCollectorServiceServer(server, params.Handler)
 	api_v2.RegisterSamplingManagerServer(server, sampling.NewGRPCHandler(params.SamplingStore))
 
-	params.Logger.Info("Starting jaeger-collector gRPC server", zap.Int("grpc-port", params.Port))
+	params.Logger.Info("Starting jaeger-collector gRPC server", zap.String("grpc.host-port", params.HostPort))
 	go func() {
 		if err := server.Serve(listener); err != nil {
 			params.Logger.Error("Could not launch gRPC service", zap.Error(err))

@@ -83,7 +83,7 @@ func (c *Collector) Start(builderOpts *CollectorOptions) error {
 	c.spanHandlers = handlerBuilder.BuildHandlers(c.spanProcessor)
 
 	if grpcServer, err := server.StartGRPCServer(&server.GRPCServerParams{
-		Port:          builderOpts.CollectorGRPCPort,
+		HostPort:      builderOpts.CollectorGRPCHostPort,
 		Handler:       c.spanHandlers.GRPCHandler,
 		TLSConfig:     builderOpts.TLS,
 		SamplingStore: c.strategyStore,
@@ -95,7 +95,7 @@ func (c *Collector) Start(builderOpts *CollectorOptions) error {
 	}
 
 	if httpServer, err := server.StartHTTPServer(&server.HTTPServerParams{
-		Port:           builderOpts.CollectorHTTPPort,
+		HostPort:       builderOpts.CollectorHTTPHostPort,
 		Handler:        c.spanHandlers.JaegerBatchesHandler,
 		HealthCheck:    c.hCheck,
 		MetricsFactory: c.metricsFactory,
@@ -108,7 +108,7 @@ func (c *Collector) Start(builderOpts *CollectorOptions) error {
 	}
 
 	if zkServer, err := server.StartZipkinServer(&server.ZipkinServerParams{
-		Port:           builderOpts.CollectorZipkinHTTPPort,
+		HostPort:       builderOpts.CollectorZipkinHTTPHostPort,
 		Handler:        c.spanHandlers.ZipkinSpansHandler,
 		AllowedHeaders: builderOpts.CollectorZipkinAllowedHeaders,
 		AllowedOrigins: builderOpts.CollectorZipkinAllowedOrigins,

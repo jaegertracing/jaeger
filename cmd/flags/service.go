@@ -28,6 +28,7 @@ import (
 
 	"github.com/jaegertracing/jaeger/pkg/healthcheck"
 	pMetrics "github.com/jaegertracing/jaeger/pkg/metrics"
+	"github.com/jaegertracing/jaeger/ports"
 )
 
 // Service represents an abstract Jaeger backend component with some basic shared functionality.
@@ -59,7 +60,7 @@ func NewService(adminPort int) *Service {
 	signal.Notify(signalsChannel, os.Interrupt, syscall.SIGTERM)
 
 	return &Service{
-		Admin:           NewAdminServer(adminPort),
+		Admin:           NewAdminServer(ports.PortToHostPort(adminPort)),
 		signalsChannel:  signalsChannel,
 		hcStatusChannel: hcStatusChannel,
 	}

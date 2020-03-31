@@ -17,7 +17,6 @@ package server
 import (
 	"net"
 	"net/http"
-	"strconv"
 	"strings"
 
 	"github.com/gorilla/mux"
@@ -32,7 +31,7 @@ import (
 
 // ZipkinServerParams to construct a new Jaeger Collector Zipkin Server
 type ZipkinServerParams struct {
-	Port           int
+	HostPort       string
 	Handler        handler.ZipkinSpansHandler
 	AllowedOrigins string
 	AllowedHeaders string
@@ -42,19 +41,18 @@ type ZipkinServerParams struct {
 
 // StartZipkinServer based on the given parameters
 func StartZipkinServer(params *ZipkinServerParams) (*http.Server, error) {
-	if params.Port == 0 {
+	if params.HostPort == "" {
 		return nil, nil
 	}
 
-	httpPortStr := ":" + strconv.Itoa(params.Port)
-	params.Logger.Info("Listening for Zipkin HTTP traffic", zap.Int("zipkin.http-port", params.Port))
+	params.Logger.Info("Listening for Zipkin HTTP traffic", zap.String("zipkin host-port", params.HostPort))
 
-	listener, err := net.Listen("tcp", httpPortStr)
+	listener, err := net.Listen("tcp", params.HostPort)
 	if err != nil {
 		return nil, err
 	}
 
-	server := &http.Server{Addr: httpPortStr}
+	server := &http.Server{Addr: params.HostPort}
 	serveZipkin(server, listener, params)
 
 	return server, nil

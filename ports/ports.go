@@ -14,6 +14,10 @@
 
 package ports
 
+import (
+	"strconv"
+)
+
 const (
 	// AgentJaegerThriftCompactUDP is the default port for receiving Jaeger Thrift over UDP in compact encoding
 	AgentJaegerThriftCompactUDP = 6831
@@ -41,3 +45,8 @@ const (
 	// IngesterAdminHTTP is the default admin HTTP port (health check, metrics, etc.)
 	IngesterAdminHTTP = 14270
 )
+
+// PortToHostPort converts the port into a host:port address string
+func PortToHostPort(port int) string {
+	return ":" + strconv.Itoa(port)
+}
