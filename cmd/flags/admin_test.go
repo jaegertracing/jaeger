@@ -15,6 +15,8 @@
 package flags
 
 import (
+	"strings"
+	"strconv"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -41,6 +43,7 @@ func TestAdminServerHandlesPortZero(t *testing.T) {
 	assert.Equal(t, 1, message.Len(), "Expected Admin server started log message.")
 
 	onlyEntry := message.All()[0]
-	port := onlyEntry.ContextMap()["http-port"].(int64)
-	assert.Greater(t, port, int64(0))
+	hostPort := onlyEntry.ContextMap()["http.host-port"].(string)
+	port, _ := strconv.Atoi(strings.Split(hostPort, ":")[3])
+	assert.Greater(t, port, 0)
 }

@@ -111,7 +111,7 @@ func (s *AdminServer) Serve() error {
 
 	s.logger.Info(
 		"Admin server started",
-		zap.String("http.host-port", s.adminHostPort),
+		zap.String("http.host-port", l.Addr().String()),
 		zap.Stringer("health-status", s.hc.Get()))
 	return nil
 }
