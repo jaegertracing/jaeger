@@ -59,10 +59,9 @@ func main() {
 
 	cmpts := defaults.Components(v)
 	var cfgFactory service.ConfigFactory
-	if getConfigFile() == "" {
+	if getOTELConfigFile() == "" {
 		log.Println("Config file not provided, installing default Jaeger components")
 		cfgFactory = func(*viper.Viper, config.Factories) (*configmodels.Config, error) {
-			fmt.Println("---> Returning default config")
 			return defaults.DefaultConfig(storageType, cmpts), nil
 		}
 	}
@@ -98,11 +97,11 @@ func main() {
 	handleErr(err)
 }
 
-// getConfigFile returns name of Jaeger config file.
-func getConfigFile() string {
+// getOTELConfigFile returns name of OTEL config file.
+func getOTELConfigFile() string {
 	f := &flag.FlagSet{}
 	builder.Flags(f)
-	// parse flags to get the file
+	// parse flags to bind the value
 	f.Parse(os.Args)
 	return builder.GetConfigFile()
 }
@@ -120,7 +119,6 @@ func storageFlags(storage string) (func(*flag.FlagSet), error) {
 		case "kafka":
 			flagFn = append(flagFn, kafka.DefaultOptions().AddFlags)
 		default:
-			fmt.Println("AAA")
 			return nil, fmt.Errorf("unknown storage type: %s", s)
 		}
 	}
