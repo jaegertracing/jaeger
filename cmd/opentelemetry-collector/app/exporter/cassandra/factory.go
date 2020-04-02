@@ -16,8 +16,6 @@ package cassandra
 
 import (
 	"fmt"
-	"runtime/debug"
-
 	"github.com/open-telemetry/opentelemetry-collector/config/configerror"
 	"github.com/open-telemetry/opentelemetry-collector/config/configmodels"
 	"github.com/open-telemetry/opentelemetry-collector/exporter"
@@ -52,11 +50,7 @@ func (Factory) Type() string {
 // CreateDefaultConfig returns default configuration of Factory.
 // This function implements OTEL exporter.BaseFactory interface.
 func (f Factory) CreateDefaultConfig() configmodels.Exporter {
-	fmt.Println("----> Calling options factory")
-	debug.PrintStack()
-
 	opts := f.OptionsFactory()
-	fmt.Println("After Calling options factory")
 	opts.GetPrimary()
 	return &Config{
 		Options: *opts,
