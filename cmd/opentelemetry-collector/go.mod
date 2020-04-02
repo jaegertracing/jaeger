@@ -14,6 +14,7 @@ require (
 	github.com/jaegertracing/jaeger v1.17.0
 	github.com/magiconair/properties v1.8.1
 	github.com/open-telemetry/opentelemetry-collector v0.2.8-0.20200323151927-794a2b689bd9
+	github.com/spf13/pflag v1.0.5
 	github.com/spf13/viper v1.6.2
 	github.com/stretchr/testify v1.5.0
 	github.com/uber/jaeger-lib v2.2.0+incompatible
