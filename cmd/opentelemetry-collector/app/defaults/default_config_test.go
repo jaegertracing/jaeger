@@ -25,6 +25,7 @@ import (
 	"go.uber.org/zap"
 
 	"github.com/jaegertracing/jaeger/cmd/opentelemetry-collector/app/exporter/cassandra"
+	"github.com/jaegertracing/jaeger/cmd/opentelemetry-collector/app/exporter/elasticsearch"
 	"github.com/jaegertracing/jaeger/cmd/opentelemetry-collector/app/exporter/kafka"
 )
 
@@ -55,6 +56,18 @@ func TestDefaultConfig(t *testing.T) {
 					InputType:  configmodels.TracesDataType,
 					Receivers:  []string{"jaeger"},
 					Exporters:  []string{cassandra.TypeStr},
+					Processors: []string{"batch"},
+				},
+			},
+		},
+		{
+			storageType:   "kafka",
+			exporterTypes: []string{kafka.TypeStr},
+			pipeline: map[string]*configmodels.Pipeline{
+				"traces": {
+					InputType:  configmodels.TracesDataType,
+					Receivers:  []string{"jaeger"},
+					Exporters:  []string{kafka.TypeStr},
 					Processors: []string{"batch"},
 				},
 			},
