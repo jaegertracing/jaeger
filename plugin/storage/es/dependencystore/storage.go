@@ -60,17 +60,15 @@ func NewDependencyStore(client es.Client, logger *zap.Logger, indexPrefix string
 // WriteDependencies implements dependencystore.Writer#WriteDependencies.
 func (s *DependencyStore) WriteDependencies(ts time.Time, dependencies []model.DependencyLink) error {
 	indexName := indexWithDate(s.indexPrefix, ts)
-	if err := s.createIndex(indexName); err != nil {
-		return err
-	}
 	s.writeDependencies(indexName, ts, dependencies)
 	return nil
 }
 
-func (s *DependencyStore) createIndex(indexName string) error {
-	_, err := s.client.CreateIndex(indexName).Body(getMapping(s.client.GetVersion())).Do(s.ctx)
+// CreateTemplates creates index templates.
+func (s *DependencyStore) CreateTemplates(dependenciesTemplate string) error {
+	_, err := s.client.CreateTemplate("jaeger-dependencies").Body(dependenciesTemplate).Do(context.Background())
 	if err != nil {
-		return fmt.Errorf("failed to create index: %w", err)
+		return err
 	}
 	return nil
 }

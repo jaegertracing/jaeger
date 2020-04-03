@@ -112,7 +112,16 @@ func (f *Factory) CreateSpanWriter() (spanstore.Writer, error) {
 
 // CreateDependencyReader implements storage.Factory
 func (f *Factory) CreateDependencyReader() (dependencystore.Reader, error) {
-	return esDepStore.NewDependencyStore(f.primaryClient, f.logger, f.primaryConfig.GetIndexPrefix()), nil
+	reader := esDepStore.NewDependencyStore(f.primaryClient, f.logger, f.primaryConfig.GetIndexPrefix())
+
+	if f.primaryConfig.IsCreateIndexTemplates() {
+		dependenciesMappings := GetDependenciesMappings(f.primaryConfig.GetNumShards(), f.primaryConfig.GetNumReplicas(), f.primaryConfig.GetVersion())
+		err := reader.CreateTemplates(dependenciesMappings)
+		if err != nil {
+			return nil, err
+		}
+	}
+	return reader, nil
 }
 
 func loadTagsFromFile(filePath string) ([]string, error) {
@@ -185,7 +194,7 @@ func createSpanWriter(
 		}
 	}
 
-	spanMapping, serviceMapping := GetMappings(cfg.GetNumShards(), cfg.GetNumReplicas(), client.GetVersion())
+	spanMapping, serviceMapping := GetSpanServiceMappings(cfg.GetNumShards(), cfg.GetNumReplicas(), client.GetVersion())
 	writer := esSpanStore.NewSpanWriter(esSpanStore.SpanWriterParams{
 		Client:              client,
 		Logger:              logger,
@@ -206,14 +215,22 @@ func createSpanWriter(
 	return writer, nil
 }
 
-// GetMappings returns span and service mappings
-func GetMappings(shards, replicas int64, esVersion uint) (string, string) {
+// GetSpanServiceMappings returns span and service mappings
+func GetSpanServiceMappings(shards, replicas int64, esVersion uint) (string, string) {
 	if esVersion == 7 {
 		return fixMapping(loadMapping("/jaeger-span-7.json"), shards, replicas),
 			fixMapping(loadMapping("/jaeger-service-7.json"), shards, replicas)
 	}
 	return fixMapping(loadMapping("/jaeger-span.json"), shards, replicas),
 		fixMapping(loadMapping("/jaeger-service.json"), shards, replicas)
+}
+
+// GetDependenciesMappings returns dependencies mappings
+func GetDependenciesMappings(shards, replicas int64, esVersion uint) string {
+	if esVersion == 7 {
+		return fixMapping(loadMapping("/jaeger-dependencies-7.json"), shards, replicas)
+	}
+	return fixMapping(loadMapping("/jaeger-dependencies.json"), shards, replicas)
 }
 
 func loadMapping(name string) string {
