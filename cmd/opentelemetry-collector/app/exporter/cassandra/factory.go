@@ -52,7 +52,6 @@ func (Factory) Type() string {
 // This function implements OTEL exporter.BaseFactory interface.
 func (f Factory) CreateDefaultConfig() configmodels.Exporter {
 	opts := f.OptionsFactory()
-	opts.GetPrimary()
 	return &Config{
 		Options: *opts,
 		ExporterSettings: configmodels.ExporterSettings{
