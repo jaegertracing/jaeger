@@ -91,6 +91,8 @@ func (f *Factory) Initialize(metricsFactory metrics.Factory, logger *zap.Logger)
 
 	opts := badger.DefaultOptions
 	opts.TableLoadingMode = options.MemoryMap
+	// This is important. Without this Badger would keep atleast 1 version of very key.
+	opts.NumVersionsToKeep = 0
 
 	if f.Options.primary.Ephemeral {
 		opts.SyncWrites = false
