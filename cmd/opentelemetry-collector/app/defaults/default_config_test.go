@@ -15,6 +15,7 @@
 package defaults
 
 import (
+	"sort"
 	"testing"
 
 	"github.com/open-telemetry/opentelemetry-collector/config"
@@ -35,6 +36,7 @@ func TestDefaultConfig(t *testing.T) {
 		storageType   string
 		exporterTypes []string
 		pipeline      map[string]*configmodels.Pipeline
+		err           string
 	}{
 		{
 			storageType:   "elasticsearch",
@@ -84,10 +86,20 @@ func TestDefaultConfig(t *testing.T) {
 				},
 			},
 		},
+		{
+			storageType: "floppy",
+			err:         "unknown storage type: floppy",
+		},
 	}
 	for _, test := range tests {
 		t.Run(test.storageType, func(t *testing.T) {
-			cfg := DefaultConfig(test.storageType, factories)
+			cfg, err := Config(test.storageType, factories)
+			if test.err != "" {
+				require.Nil(t, cfg)
+				assert.EqualError(t, err, test.err)
+				return
+			}
+			require.NoError(t, err)
 			require.NoError(t, config.ValidateConfig(cfg, zap.NewNop()))
 
 			assert.Equal(t, 1, len(cfg.Receivers))
@@ -100,6 +112,7 @@ func TestDefaultConfig(t *testing.T) {
 			for _, v := range cfg.Exporters {
 				types = append(types, v.Type())
 			}
+			sort.Strings(types)
 			assert.Equal(t, test.exporterTypes, types)
 			assert.EqualValues(t, test.pipeline, cfg.Service.Pipelines)
 		})

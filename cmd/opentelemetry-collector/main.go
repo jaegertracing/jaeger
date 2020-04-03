@@ -62,7 +62,7 @@ func main() {
 	if getOTELConfigFile() == "" {
 		log.Println("Config file not provided, installing default Jaeger components")
 		cfgFactory = func(*viper.Viper, config.Factories) (*configmodels.Config, error) {
-			return defaults.DefaultConfig(storageType, cmpts), nil
+			return defaults.Config(storageType, cmpts)
 		}
 	}
 

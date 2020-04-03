@@ -15,6 +15,7 @@
 package defaults
 
 import (
+	"fmt"
 	"strings"
 
 	"github.com/open-telemetry/opentelemetry-collector/config"
@@ -28,10 +29,13 @@ import (
 	"github.com/jaegertracing/jaeger/cmd/opentelemetry-collector/app/exporter/kafka"
 )
 
-// DefaultConfig creates default configuration.
-// It enabled default Jaeger receivers, processors and exporters.
-func DefaultConfig(storageType string, factories config.Factories) *configmodels.Config {
-	exporters := createExporters(storageType, factories)
+// Config creates default configuration.
+// It enables default Jaeger receivers, processors and exporters.
+func Config(storageType string, factories config.Factories) (*configmodels.Config, error) {
+	exporters, err := createExporters(storageType, factories)
+	if err != nil {
+		return nil, err
+	}
 	types := []string{}
 	for _, v := range exporters {
 		types = append(types, v.Type())
@@ -50,7 +54,7 @@ func DefaultConfig(storageType string, factories config.Factories) *configmodels
 				},
 			},
 		},
-	}
+	}, nil
 }
 
 func createReceivers(factories config.Factories) configmodels.Receivers {
@@ -84,21 +88,24 @@ func createReceivers(factories config.Factories) configmodels.Receivers {
 	}
 }
 
-func createExporters(storageTypes string, factories config.Factories) configmodels.Exporters {
+func createExporters(storageTypes string, factories config.Factories) (configmodels.Exporters, error) {
 	exporters := configmodels.Exporters{}
-	for _, storage := range strings.Split(storageTypes, ",") {
-		if storage == "elasticsearch" {
-			es := factories.Exporters[elasticsearch.TypeStr].CreateDefaultConfig()
-			exporters[elasticsearch.TypeStr] = es
-		} else if storage == "cassandra" {
+	for _, s := range strings.Split(storageTypes, ",") {
+		switch s {
+		case "cassandra":
 			cass := factories.Exporters[cassandra.TypeStr].CreateDefaultConfig()
 			exporters[cassandra.TypeStr] = cass
-		} else if storage == "kafka" {
+		case "elasticsearch":
+			es := factories.Exporters[elasticsearch.TypeStr].CreateDefaultConfig()
+			exporters[elasticsearch.TypeStr] = es
+		case "kafka":
 			kaf := factories.Exporters[kafka.TypeStr].CreateDefaultConfig()
 			exporters[kafka.TypeStr] = kaf
+		default:
+			return nil, fmt.Errorf("unknown storage type: %s", s)
 		}
 	}
-	return exporters
+	return exporters, nil
 }
 
 func createProcessors(factories config.Factories) configmodels.Processors {
