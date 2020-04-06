@@ -263,7 +263,7 @@ func TestClientMetricsReporter_Expire(t *testing.T) {
 					if gaugeValue == int64(test.expGauge) {
 						break
 					}
-					time.Sleep(500 * time.Microsecond)
+					time.Sleep(5 * time.Millisecond)
 				}
 				assert.EqualValues(t, test.expGauge, gaugeValue)
 				tr.assertLog(t, test.expLog, clientUUID)
