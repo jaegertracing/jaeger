@@ -34,8 +34,13 @@ fi
 # Do not enable echo before the `docker login` command to avoid revealing the password.
 set -x
 docker login -u $DOCKER_USER -p $DOCKER_PASS
-# push all tags, therefore push to repo
-docker push $REPO
+if [[ "${REPO}" == "jaegertracing/jaeger-opentelemetry-collector" ]]; then
+  # TODO remove once Jaeger OTEL collector is stable
+  docker push $REPO:latest
+else
+  # push all tags, therefore push to repo
+  docker push $REPO
+fi
 
 SNAPSHOT_IMAGE="$REPO-snapshot:$TRAVIS_COMMIT"
 echo "Pushing snapshot image $SNAPSHOT_IMAGE"
