@@ -223,9 +223,10 @@ func TestClientMetricsReporter_ClientUUID(t *testing.T) {
 }
 
 func TestClientMetricsReporter_Expire(t *testing.T) {
+	expireTTL := 50 * time.Millisecond
 	params := ClientMetricsReporterParams{
 		ExpireFrequency: 1 * time.Millisecond,
-		ExpireTTL:       50 * time.Millisecond,
+		ExpireTTL:       expireTTL,
 	}
 	testClientMetricsWithParams(params, func(tr *clientMetricsTest) {
 		nPtr := func(v int64) *int64 { return &v }
@@ -267,7 +268,7 @@ func TestClientMetricsReporter_Expire(t *testing.T) {
 		t.Run("detect stale client", func(t *testing.T) {
 			assert.EqualValues(t, 1, getGauge(), "start with gauge=1")
 
-			time.Sleep(50 * time.Millisecond) // == ExpireTTL
+			time.Sleep(expireTTL)
 
 			var gauge int64
 			for i := 0; i < 1000; i++ {
