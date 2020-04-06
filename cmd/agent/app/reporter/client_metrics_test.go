@@ -223,7 +223,7 @@ func TestClientMetricsReporter_ClientUUID(t *testing.T) {
 }
 
 func TestClientMetricsReporter_Expire(t *testing.T) {
-	expireTTL := 50 * time.Millisecond
+	const expireTTL = 50 * time.Millisecond
 	params := ClientMetricsReporterParams{
 		ExpireFrequency: 1 * time.Millisecond,
 		ExpireTTL:       expireTTL,
