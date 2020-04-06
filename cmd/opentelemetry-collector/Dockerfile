@@ -1,5 +1,5 @@
 FROM alpine:latest as certs
-RUN apk --update add ca-certificates
+RUN apk add --update --no-cache ca-certificates
 
 FROM scratch
 COPY --from=certs /etc/ssl/certs/ca-certificates.crt /etc/ssl/certs/ca-certificates.crt
