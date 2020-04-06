@@ -6,4 +6,3 @@ COPY --from=certs /etc/ssl/certs/ca-certificates.crt /etc/ssl/certs/ca-certifica
 
 COPY opentelemetry-collector-linux /go/bin/
 ENTRYPOINT ["/go/bin/opentelemetry-collector-linux"]
-
