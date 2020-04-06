@@ -257,7 +257,7 @@ else
 endif
 
 .PHONY: build-otel-collector
-build-otel-collector:
+build-otel-collector: elasticsearch-mappings
 ifeq ($(GOARCH), s390x)
 	cd ${OTEL_COLLECTOR_DIR} && $(GOBUILD) -o ./opentelemetry-collector-$(GOOS)-$(GOARCH) $(BUILD_INFO) main.go
 else
@@ -310,7 +310,7 @@ docker-images-elastic:
 
 .PHONY: docker-images-jaeger-backend
 docker-images-jaeger-backend:
-	for component in agent collector query ingester ; do \
+	for component in agent collector query ingester opentelemetry-collector ; do \
 		docker build -t $(DOCKER_NAMESPACE)/jaeger-$$component:${DOCKER_TAG} cmd/$$component ; \
 		echo "Finished building $$component ==============" ; \
 	done
