@@ -20,6 +20,7 @@ import (
 	"time"
 
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 	"github.com/uber/jaeger-lib/metrics/metricstest"
 	"go.uber.org/zap"
 	"go.uber.org/zap/zaptest/observer"
@@ -222,9 +223,10 @@ func TestClientMetricsReporter_ClientUUID(t *testing.T) {
 }
 
 func TestClientMetricsReporter_Expire(t *testing.T) {
+	const expireTTL = 50 * time.Millisecond
 	params := ClientMetricsReporterParams{
-		ExpireFrequency: 100 * time.Microsecond,
-		ExpireTTL:       5 * time.Millisecond,
+		ExpireFrequency: 1 * time.Millisecond,
+		ExpireTTL:       expireTTL,
 	}
 	testClientMetricsWithParams(params, func(tr *clientMetricsTest) {
 		nPtr := func(v int64) *int64 { return &v }
@@ -238,42 +240,46 @@ func TestClientMetricsReporter_Expire(t *testing.T) {
 			SeqNo: nPtr(1),
 		}
 
-		err := tr.r.EmitBatch(batch)
-		assert.NoError(t, err)
-		assert.Len(t, tr.mr.Spans(), 1)
-
-		// here we test that a connected-client gauge is updated to 1 by the auto-scheduled expire loop,
-		// and then reset to 0 once the client entry expires.
-		tests := []struct {
-			expGauge int
-			expLog   string
-		}{
-			{expGauge: 1, expLog: "new client"},
-			{expGauge: 0, expLog: "freeing stats"},
+		getGauge := func() int64 {
+			_, gauges := tr.mb.Snapshot()
+			return gauges["client_stats.connected_clients"]
 		}
-		start := time.Now()
-		for i, test := range tests {
-			t.Run(fmt.Sprintf("iter%d:gauge=%d,log=%s", i, test.expGauge, test.expLog), func(t *testing.T) {
-				// Expire loop runs every 100us, and removes the client after 5ms.
-				// We check for condition in each test for up to 5ms (10*500us).
-				var gaugeValue int64 = -1
-				for i := 0; i < 10; i++ {
-					_, gauges := tr.mb.Snapshot()
-					gaugeValue = gauges["client_stats.connected_clients"]
-					if gaugeValue == int64(test.expGauge) {
-						break
-					}
-					time.Sleep(500 * time.Microsecond)
-				}
-				assert.EqualValues(t, test.expGauge, gaugeValue)
-				tr.assertLog(t, test.expLog, clientUUID)
 
-				// sleep between tests long enough to exceed the 5ms TTL.
-				if i == 0 {
-					elapsed := time.Since(start)
-					time.Sleep(5*time.Millisecond - elapsed)
+		t.Run("detect new client", func(t *testing.T) {
+			assert.EqualValues(t, 0, getGauge(), "start with gauge=0")
+
+			err := tr.r.EmitBatch(batch)
+			assert.NoError(t, err)
+			assert.Len(t, tr.mr.Spans(), 1)
+
+			// we want this test to pass asap, but need to account for possible CPU contention in the CI
+			var gauge int64
+			for i := 0; i < 1000; i++ {
+				time.Sleep(1 * time.Millisecond)
+				if gauge = getGauge(); gauge == 1 {
+					t.Logf("gauge=1 detected on iteration %d", i)
+					tr.assertLog(t, "new client", clientUUID)
+					return
 				}
-			})
-		}
+			}
+			require.EqualValues(t, 1, gauge)
+		})
+
+		t.Run("detect stale client", func(t *testing.T) {
+			assert.EqualValues(t, 1, getGauge(), "start with gauge=1")
+
+			time.Sleep(expireTTL)
+
+			var gauge int64
+			for i := 0; i < 1000; i++ {
+				time.Sleep(1 * time.Millisecond)
+				if gauge = getGauge(); gauge == 0 {
+					t.Logf("gauge=0 detected on iteration %d", i)
+					tr.assertLog(t, "freeing stats", clientUUID)
+					return
+				}
+			}
+			require.EqualValues(t, 0, gauge)
+		})
 	})
 }
