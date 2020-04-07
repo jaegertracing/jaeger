@@ -100,11 +100,6 @@ func TestWriteDependencies(t *testing.T) {
 			r.client.On("GetVersion").Return(testCase.esVersion)
 			r.client.On("CreateIndex", stringMatcher(indexName)).Return(indexService)
 
-			if testCase.esVersion == 7 {
-				indexService.On("Body", stringMatcher(dependenciesMapping7)).Return(indexService)
-			} else {
-				indexService.On("Body", stringMatcher(dependenciesMapping)).Return(indexService)
-			}
 			indexService.On("Do", mock.Anything).Return(nil, testCase.createIndexError)
 
 			writeService.On("Index", stringMatcher(indexName)).Return(writeService)
