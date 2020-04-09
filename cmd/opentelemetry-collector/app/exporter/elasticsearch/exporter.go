@@ -15,7 +15,7 @@
 package elasticsearch
 
 import (
-	"github.com/open-telemetry/opentelemetry-collector/exporter"
+	"github.com/open-telemetry/opentelemetry-collector/component"
 	"github.com/uber/jaeger-lib/metrics"
 	"go.uber.org/zap"
 
@@ -24,7 +24,7 @@ import (
 )
 
 // New creates Elasticsearch exporter/storage.
-func New(config *Config, log *zap.Logger) (exporter.TraceExporter, error) {
+func New(config *Config, log *zap.Logger) (component.TraceExporterOld, error) {
 	factory := es.NewFactory()
 	factory.InitFromOptions(config.Options)
 	err := factory.Initialize(metrics.NullFactory, log)

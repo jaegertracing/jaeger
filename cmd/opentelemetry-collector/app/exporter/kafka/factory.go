@@ -17,9 +17,9 @@ package kafka
 import (
 	"fmt"
 
+	"github.com/open-telemetry/opentelemetry-collector/component"
 	"github.com/open-telemetry/opentelemetry-collector/config/configerror"
 	"github.com/open-telemetry/opentelemetry-collector/config/configmodels"
-	"github.com/open-telemetry/opentelemetry-collector/exporter"
 	"go.uber.org/zap"
 
 	"github.com/jaegertracing/jaeger/plugin/storage/kafka"
@@ -61,8 +61,8 @@ func (f Factory) CreateDefaultConfig() configmodels.Exporter {
 }
 
 // CreateTraceExporter creates Jaeger Kafka trace exporter.
-// This function implements OTEL exporter.Factory interface.
-func (Factory) CreateTraceExporter(log *zap.Logger, cfg configmodels.Exporter) (exporter.TraceExporter, error) {
+// This function implements OTEL component.Factory interface.
+func (Factory) CreateTraceExporter(log *zap.Logger, cfg configmodels.Exporter) (component.TraceExporterOld, error) {
 	kafkaCfg, ok := cfg.(*Config)
 	if !ok {
 		return nil, fmt.Errorf("could not cast configuration to %s", TypeStr)
@@ -71,7 +71,7 @@ func (Factory) CreateTraceExporter(log *zap.Logger, cfg configmodels.Exporter) (
 }
 
 // CreateMetricsExporter is not implemented.
-// This function implements OTEL exporter.Factory interface.
-func (Factory) CreateMetricsExporter(*zap.Logger, configmodels.Exporter) (exporter.MetricsExporter, error) {
+// This function implements OTEL component.Factory interface.
+func (Factory) CreateMetricsExporter(*zap.Logger, configmodels.Exporter) (component.TraceExporterOld, error) {
 	return nil, configerror.ErrDataTypeIsNotSupported
 }

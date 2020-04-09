@@ -18,29 +18,29 @@ import (
 	"context"
 	"io"
 
+	"github.com/open-telemetry/opentelemetry-collector/component"
+	"github.com/open-telemetry/opentelemetry-collector/component/componenterror"
 	"github.com/open-telemetry/opentelemetry-collector/config/configmodels"
 	"github.com/open-telemetry/opentelemetry-collector/consumer/consumerdata"
 	"github.com/open-telemetry/opentelemetry-collector/consumer/consumererror"
-	"github.com/open-telemetry/opentelemetry-collector/exporter"
 	"github.com/open-telemetry/opentelemetry-collector/exporter/exporterhelper"
-	"github.com/open-telemetry/opentelemetry-collector/oterr"
 	jaegertranslator "github.com/open-telemetry/opentelemetry-collector/translator/trace/jaeger"
 
 	jaegerstorage "github.com/jaegertracing/jaeger/storage"
 	"github.com/jaegertracing/jaeger/storage/spanstore"
 )
 
-// NewSpanWriterExporter returns exporter.TraceExporter
-func NewSpanWriterExporter(config configmodels.Exporter, factory jaegerstorage.Factory) (exporter.TraceExporter, error) {
+// NewSpanWriterExporter returns component.TraceExporter
+func NewSpanWriterExporter(config configmodels.Exporter, factory jaegerstorage.Factory) (component.TraceExporterOld, error) {
 	spanWriter, err := factory.CreateSpanWriter()
 	if err != nil {
 		return nil, err
 	}
 	storage := storage{Writer: spanWriter}
-	return exporterhelper.NewTraceExporter(
+	return exporterhelper.NewTraceExporterOld(
 		config,
 		storage.traceDataPusher,
-		exporterhelper.WithShutdown(func() error {
+		exporterhelper.WithShutdown(func(context.Context) error {
 			if closer, ok := spanWriter.(io.Closer); ok {
 				return closer.Close()
 			}
@@ -68,5 +68,5 @@ func (s *storage) traceDataPusher(ctx context.Context, td consumerdata.TraceData
 			dropped++
 		}
 	}
-	return dropped, oterr.CombineErrors(errs)
+	return dropped, componenterror.CombineErrors(errs)
 }

@@ -15,7 +15,7 @@
 package kafka
 
 import (
-	"github.com/open-telemetry/opentelemetry-collector/exporter"
+	"github.com/open-telemetry/opentelemetry-collector/component"
 	"github.com/uber/jaeger-lib/metrics"
 	"go.uber.org/zap"
 
@@ -24,7 +24,7 @@ import (
 )
 
 // New creates new Kafka exporter
-func New(config *Config, log *zap.Logger) (exporter.TraceExporter, error) {
+func New(config *Config, log *zap.Logger) (component.TraceExporterOld, error) {
 	f := kafka.NewFactory()
 	f.InitFromOptions(config.Options)
 	err := f.Initialize(metrics.NullFactory, log)
