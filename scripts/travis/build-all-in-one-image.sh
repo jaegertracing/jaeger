@@ -3,6 +3,10 @@
 set -e
 
 BRANCH=${BRANCH:?'missing BRANCH env var'}
+# Set default GOARCH variable to the host GOARCH, the target architecture can
+# be overrided by passing architecture value to the script:
+# `GOARCH=<target arch> ./scripts/travis/build-all-in-one-image.sh`.
+GOARCH=${GOARCH:-$(go env GOARCH)}
 
 source ~/.nvm/nvm.sh
 nvm use 10
@@ -10,10 +14,10 @@ make build-ui
 
 set -x
 
-make build-all-in-one GOOS=linux
+make build-all-in-one GOOS=linux GOARCH=$GOARCH
 
 export REPO=jaegertracing/all-in-one
-docker build -f cmd/all-in-one/Dockerfile -t $REPO:latest cmd/all-in-one
+docker build -f cmd/all-in-one/Dockerfile -t $REPO:latest cmd/all-in-one --build-arg ARCH=$GOARCH
 export CID=$(docker run -d -p 16686:16686 -p 5778:5778 $REPO:latest)
 
 set +e

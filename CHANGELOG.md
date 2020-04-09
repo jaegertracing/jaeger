@@ -7,6 +7,7 @@ Changes by Version
 ### Backend Changes
 
 #### Breaking Changes
+* Add arm64 support for binaries and docker images. Rename the released binary name format to <Name>-<OS>-<ARCH>, tarball name format to jaeger-<Version>-<OS>-<ARCH> ([#2176](https://github.com/jaegertracing/jaeger/pull/2176), [@MrXinWang](https://github.com/MrXinWang))
 
 #### New Features
 
