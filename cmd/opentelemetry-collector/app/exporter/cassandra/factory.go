@@ -17,9 +17,9 @@ package cassandra
 import (
 	"fmt"
 
+	"github.com/open-telemetry/opentelemetry-collector/component"
 	"github.com/open-telemetry/opentelemetry-collector/config/configerror"
 	"github.com/open-telemetry/opentelemetry-collector/config/configmodels"
-	"github.com/open-telemetry/opentelemetry-collector/exporter"
 	"go.uber.org/zap"
 
 	"github.com/jaegertracing/jaeger/plugin/storage/cassandra"
@@ -49,7 +49,7 @@ func (Factory) Type() string {
 }
 
 // CreateDefaultConfig returns default configuration of Factory.
-// This function implements OTEL exporter.BaseFactory interface.
+// This function implements OTEL component.BaseFactory interface.
 func (f Factory) CreateDefaultConfig() configmodels.Exporter {
 	opts := f.OptionsFactory()
 	return &Config{
@@ -62,8 +62,8 @@ func (f Factory) CreateDefaultConfig() configmodels.Exporter {
 }
 
 // CreateTraceExporter creates Jaeger Cassandra trace exporter.
-// This function implements OTEL exporter.Factory interface.
-func (Factory) CreateTraceExporter(log *zap.Logger, cfg configmodels.Exporter) (exporter.TraceExporter, error) {
+// This function implements OTEL component.Factory interface.
+func (Factory) CreateTraceExporter(log *zap.Logger, cfg configmodels.Exporter) (component.TraceExporterOld, error) {
 	config, ok := cfg.(*Config)
 	if !ok {
 		return nil, fmt.Errorf("could not cast configuration to %s", TypeStr)
@@ -72,7 +72,7 @@ func (Factory) CreateTraceExporter(log *zap.Logger, cfg configmodels.Exporter) (
 }
 
 // CreateMetricsExporter is not implemented.
-// This function implements OTEL exporter.Factory interface.
-func (Factory) CreateMetricsExporter(*zap.Logger, configmodels.Exporter) (exporter.MetricsExporter, error) {
+// This function implements OTEL component.Factory interface.
+func (Factory) CreateMetricsExporter(*zap.Logger, configmodels.Exporter) (component.MetricsExporter, error) {
 	return nil, configerror.ErrDataTypeIsNotSupported
 }

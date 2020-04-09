@@ -36,14 +36,14 @@ func TestNew_closableWriter(t *testing.T) {
 	exporter, err := NewSpanWriterExporter(&configmodels.ExporterSettings{}, mockStorageFactory{spanWriter: spanWriter{}})
 	require.NoError(t, err)
 	assert.NotNil(t, exporter)
-	assert.Nil(t, exporter.Shutdown())
+	assert.Nil(t, exporter.Shutdown(context.Background()))
 }
 
 func TestNew_noClosableWriter(t *testing.T) {
 	exporter, err := NewSpanWriterExporter(&configmodels.ExporterSettings{}, mockStorageFactory{spanWriter: noClosableWriter{}})
 	require.NoError(t, err)
 	assert.NotNil(t, exporter)
-	assert.Nil(t, exporter.Shutdown())
+	assert.Nil(t, exporter.Shutdown(context.Background()))
 }
 
 func TestNew_failedToCreateWriter(t *testing.T) {
