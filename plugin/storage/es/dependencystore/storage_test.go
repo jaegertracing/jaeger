@@ -73,40 +73,32 @@ func TestNewSpanReaderIndexPrefix(t *testing.T) {
 
 func TestWriteDependencies(t *testing.T) {
 	testCases := []struct {
-		createIndexError error
-		writeError       error
-		expectedError    string
-		esVersion        uint
+		writeError    error
+		expectedError string
+		esVersion     uint
 	}{
 		{
-			createIndexError: errors.New("index not created"),
-			expectedError:    "failed to create index: index not created",
-			esVersion:        6,
+			expectedError: "",
+			esVersion:     6,
 		},
 		{
-			createIndexError: errors.New("index not created"),
-			expectedError:    "failed to create index: index not created",
-			esVersion:        7,
+			expectedError: "",
+			esVersion:     7,
 		},
 	}
 	for _, testCase := range testCases {
 		withDepStorage("", func(r *depStorageTest) {
 			fixedTime := time.Date(1995, time.April, 21, 4, 21, 19, 95, time.UTC)
 			indexName := indexWithDate("", fixedTime)
-
-			indexService := &mocks.IndicesCreateService{}
 			writeService := &mocks.IndexService{}
+
 			r.client.On("Index").Return(writeService)
 			r.client.On("GetVersion").Return(testCase.esVersion)
-			r.client.On("CreateIndex", stringMatcher(indexName)).Return(indexService)
-
-			indexService.On("Do", mock.Anything).Return(nil, testCase.createIndexError)
 
 			writeService.On("Index", stringMatcher(indexName)).Return(writeService)
 			writeService.On("Type", stringMatcher(dependencyType)).Return(writeService)
 			writeService.On("BodyJson", mock.Anything).Return(writeService)
 			writeService.On("Add", mock.Anything).Return(nil, testCase.writeError)
-
 			err := r.storage.WriteDependencies(fixedTime, []model.DependencyLink{})
 			if testCase.expectedError != "" {
 				assert.EqualError(t, err, testCase.expectedError)
