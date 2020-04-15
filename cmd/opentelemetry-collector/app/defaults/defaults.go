@@ -16,6 +16,7 @@ package defaults
 
 import (
 	"flag"
+
 	"github.com/open-telemetry/opentelemetry-collector/config"
 	"github.com/open-telemetry/opentelemetry-collector/service/defaultcomponents"
 	"github.com/spf13/pflag"
