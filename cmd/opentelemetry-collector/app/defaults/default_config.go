@@ -28,10 +28,7 @@ import (
 	"github.com/jaegertracing/jaeger/cmd/opentelemetry-collector/app/exporter/cassandra"
 	"github.com/jaegertracing/jaeger/cmd/opentelemetry-collector/app/exporter/elasticsearch"
 	"github.com/jaegertracing/jaeger/cmd/opentelemetry-collector/app/exporter/kafka"
-)
-
-const (
-	disabledZipkinHostPort = ":0"
+	"github.com/jaegertracing/jaeger/ports"
 )
 
 // Config creates default configuration.
@@ -96,7 +93,7 @@ func createReceivers(zipkinHostPort string, factories config.Factories) configmo
 	recvs := map[string]configmodels.Receiver{
 		"jaeger": jaeger,
 	}
-	if zipkinHostPort != disabledZipkinHostPort {
+	if zipkinHostPort != ports.PortToHostPort(0) {
 		zipkin := factories.Receivers["zipkin"].CreateDefaultConfig().(*zipkinreceiver.Config)
 		zipkin.Endpoint = zipkinHostPort
 		recvs["zipkin"] = zipkin

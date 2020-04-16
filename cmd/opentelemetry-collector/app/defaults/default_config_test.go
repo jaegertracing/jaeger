@@ -28,10 +28,12 @@ import (
 	"github.com/jaegertracing/jaeger/cmd/opentelemetry-collector/app/exporter/cassandra"
 	"github.com/jaegertracing/jaeger/cmd/opentelemetry-collector/app/exporter/elasticsearch"
 	"github.com/jaegertracing/jaeger/cmd/opentelemetry-collector/app/exporter/kafka"
+	"github.com/jaegertracing/jaeger/ports"
 )
 
 func TestDefaultConfig(t *testing.T) {
 	factories := Components(viper.New())
+	disabledHostPort := ports.PortToHostPort(0)
 	tests := []struct {
 		storageType    string
 		zipkinHostPort string
@@ -41,7 +43,7 @@ func TestDefaultConfig(t *testing.T) {
 	}{
 		{
 			storageType:    "elasticsearch",
-			zipkinHostPort: disabledZipkinHostPort,
+			zipkinHostPort: disabledHostPort,
 			exporterTypes:  []string{elasticsearch.TypeStr},
 			pipeline: map[string]*configmodels.Pipeline{
 				"traces": {
@@ -54,7 +56,7 @@ func TestDefaultConfig(t *testing.T) {
 		},
 		{
 			storageType:    "cassandra",
-			zipkinHostPort: disabledZipkinHostPort,
+			zipkinHostPort: disabledHostPort,
 			exporterTypes:  []string{cassandra.TypeStr},
 			pipeline: map[string]*configmodels.Pipeline{
 				"traces": {
@@ -67,7 +69,7 @@ func TestDefaultConfig(t *testing.T) {
 		},
 		{
 			storageType:    "kafka",
-			zipkinHostPort: disabledZipkinHostPort,
+			zipkinHostPort: disabledHostPort,
 			exporterTypes:  []string{kafka.TypeStr},
 			pipeline: map[string]*configmodels.Pipeline{
 				"traces": {
@@ -80,7 +82,7 @@ func TestDefaultConfig(t *testing.T) {
 		},
 		{
 			storageType:    "cassandra,elasticsearch",
-			zipkinHostPort: disabledZipkinHostPort,
+			zipkinHostPort: disabledHostPort,
 			exporterTypes:  []string{cassandra.TypeStr, elasticsearch.TypeStr},
 			pipeline: map[string]*configmodels.Pipeline{
 				"traces": {
