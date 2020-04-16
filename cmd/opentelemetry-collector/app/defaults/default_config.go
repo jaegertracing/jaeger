@@ -30,9 +30,13 @@ import (
 	"github.com/jaegertracing/jaeger/cmd/opentelemetry-collector/app/exporter/kafka"
 )
 
+const (
+	disabledZipkinHostPort = ":0"
+)
+
 // Config creates default configuration.
 // It enables default Jaeger receivers, processors and exporters.
-func Config(storageType string, zipkinPort string, factories config.Factories) (*configmodels.Config, error) {
+func Config(storageType string, zipkinHostPort string, factories config.Factories) (*configmodels.Config, error) {
 	exporters, err := createExporters(storageType, factories)
 	if err != nil {
 		return nil, err
@@ -41,7 +45,7 @@ func Config(storageType string, zipkinPort string, factories config.Factories) (
 	for _, v := range exporters {
 		expTypes = append(expTypes, v.Type())
 	}
-	receivers := createReceivers(zipkinPort, factories)
+	receivers := createReceivers(zipkinHostPort, factories)
 	recTypes := []string{}
 	for _, v := range receivers {
 		recTypes = append(recTypes, v.Type())
@@ -63,7 +67,7 @@ func Config(storageType string, zipkinPort string, factories config.Factories) (
 	}, nil
 }
 
-func createReceivers(zipkinPort string, factories config.Factories) configmodels.Receivers {
+func createReceivers(zipkinHostPort string, factories config.Factories) configmodels.Receivers {
 	jaeger := factories.Receivers["jaeger"].CreateDefaultConfig().(*jaegerreceiver.Config)
 	// TODO load and serve sampling strategies
 	// TODO bind sampling strategies file
@@ -92,9 +96,9 @@ func createReceivers(zipkinPort string, factories config.Factories) configmodels
 	recvs := map[string]configmodels.Receiver{
 		"jaeger": jaeger,
 	}
-	if zipkinPort != ":0" {
+	if zipkinHostPort != disabledZipkinHostPort {
 		zipkin := factories.Receivers["zipkin"].CreateDefaultConfig().(*zipkinreceiver.Config)
-		zipkin.Endpoint = zipkinPort
+		zipkin.Endpoint = zipkinHostPort
 		recvs["zipkin"] = zipkin
 	}
 	return recvs
