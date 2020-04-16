@@ -28,19 +28,23 @@ import (
 	"github.com/jaegertracing/jaeger/cmd/opentelemetry-collector/app/exporter/cassandra"
 	"github.com/jaegertracing/jaeger/cmd/opentelemetry-collector/app/exporter/elasticsearch"
 	"github.com/jaegertracing/jaeger/cmd/opentelemetry-collector/app/exporter/kafka"
+	"github.com/jaegertracing/jaeger/ports"
 )
 
 func TestDefaultConfig(t *testing.T) {
 	factories := Components(viper.New())
+	disabledHostPort := ports.PortToHostPort(0)
 	tests := []struct {
-		storageType   string
-		exporterTypes []string
-		pipeline      map[string]*configmodels.Pipeline
-		err           string
+		storageType    string
+		zipkinHostPort string
+		exporterTypes  []string
+		pipeline       map[string]*configmodels.Pipeline
+		err            string
 	}{
 		{
-			storageType:   "elasticsearch",
-			exporterTypes: []string{elasticsearch.TypeStr},
+			storageType:    "elasticsearch",
+			zipkinHostPort: disabledHostPort,
+			exporterTypes:  []string{elasticsearch.TypeStr},
 			pipeline: map[string]*configmodels.Pipeline{
 				"traces": {
 					InputType:  configmodels.TracesDataType,
@@ -51,8 +55,9 @@ func TestDefaultConfig(t *testing.T) {
 			},
 		},
 		{
-			storageType:   "cassandra",
-			exporterTypes: []string{cassandra.TypeStr},
+			storageType:    "cassandra",
+			zipkinHostPort: disabledHostPort,
+			exporterTypes:  []string{cassandra.TypeStr},
 			pipeline: map[string]*configmodels.Pipeline{
 				"traces": {
 					InputType:  configmodels.TracesDataType,
@@ -63,8 +68,9 @@ func TestDefaultConfig(t *testing.T) {
 			},
 		},
 		{
-			storageType:   "kafka",
-			exporterTypes: []string{kafka.TypeStr},
+			storageType:    "kafka",
+			zipkinHostPort: disabledHostPort,
+			exporterTypes:  []string{kafka.TypeStr},
 			pipeline: map[string]*configmodels.Pipeline{
 				"traces": {
 					InputType:  configmodels.TracesDataType,
@@ -75,13 +81,27 @@ func TestDefaultConfig(t *testing.T) {
 			},
 		},
 		{
-			storageType:   "cassandra,elasticsearch",
-			exporterTypes: []string{cassandra.TypeStr, elasticsearch.TypeStr},
+			storageType:    "cassandra,elasticsearch",
+			zipkinHostPort: disabledHostPort,
+			exporterTypes:  []string{cassandra.TypeStr, elasticsearch.TypeStr},
 			pipeline: map[string]*configmodels.Pipeline{
 				"traces": {
 					InputType:  configmodels.TracesDataType,
 					Receivers:  []string{"jaeger"},
 					Exporters:  []string{cassandra.TypeStr, elasticsearch.TypeStr},
+					Processors: []string{"batch"},
+				},
+			},
+		},
+		{
+			storageType:    "cassandra",
+			zipkinHostPort: ":9411",
+			exporterTypes:  []string{cassandra.TypeStr},
+			pipeline: map[string]*configmodels.Pipeline{
+				"traces": {
+					InputType:  configmodels.TracesDataType,
+					Receivers:  []string{"jaeger", "zipkin"},
+					Exporters:  []string{cassandra.TypeStr},
 					Processors: []string{"batch"},
 				},
 			},
@@ -93,7 +113,7 @@ func TestDefaultConfig(t *testing.T) {
 	}
 	for _, test := range tests {
 		t.Run(test.storageType, func(t *testing.T) {
-			cfg, err := Config(test.storageType, factories)
+			cfg, err := Config(test.storageType, test.zipkinHostPort, factories)
 			if test.err != "" {
 				require.Nil(t, cfg)
 				assert.EqualError(t, err, test.err)
@@ -102,7 +122,7 @@ func TestDefaultConfig(t *testing.T) {
 			require.NoError(t, err)
 			require.NoError(t, config.ValidateConfig(cfg, zap.NewNop()))
 
-			assert.Equal(t, 1, len(cfg.Receivers))
+			assert.Equal(t, len(test.pipeline["traces"].Receivers), len(cfg.Receivers))
 			assert.Equal(t, "jaeger", cfg.Receivers["jaeger"].Name())
 			assert.Equal(t, 1, len(cfg.Processors))
 			assert.Equal(t, "batch", cfg.Processors["batch"].Name())

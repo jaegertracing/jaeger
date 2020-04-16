@@ -15,8 +15,11 @@
 package defaults
 
 import (
+	"flag"
+
 	"github.com/open-telemetry/opentelemetry-collector/config"
 	"github.com/open-telemetry/opentelemetry-collector/service/defaultcomponents"
+	"github.com/spf13/pflag"
 	"github.com/spf13/viper"
 
 	"github.com/jaegertracing/jaeger/cmd/opentelemetry-collector/app/exporter/cassandra"
@@ -29,6 +32,10 @@ import (
 
 // Components creates default and Jaeger factories
 func Components(v *viper.Viper) config.Factories {
+	// Add flags to viper to make the default values available.
+	// We have to add all storage flags to viper because any exporter can be specified in the OTEL config file.
+	// OTEL collector creates default configurations for all factories to verify they can be created.
+	addDefaultValuesToViper(v)
 	kafkaExp := kafka.Factory{OptionsFactory: func() *storageKafka.Options {
 		opts := kafka.DefaultOptions()
 		opts.InitFromViper(v)
@@ -50,4 +57,15 @@ func Components(v *viper.Viper) config.Factories {
 	factories.Exporters[cassandraExp.Type()] = cassandraExp
 	factories.Exporters[esExp.Type()] = esExp
 	return factories
+}
+
+// addDefaultValuesToViper adds Jaeger storage flags to viper to make the default values available.
+func addDefaultValuesToViper(v *viper.Viper) {
+	flagSet := &flag.FlagSet{}
+	kafka.DefaultOptions().AddFlags(flagSet)
+	elasticsearch.DefaultOptions().AddFlags(flagSet)
+	cassandra.DefaultOptions().AddFlags(flagSet)
+	pflagSet := &pflag.FlagSet{}
+	pflagSet.AddGoFlagSet(flagSet)
+	v.BindPFlags(pflagSet)
 }

@@ -27,6 +27,7 @@ import (
 	"github.com/open-telemetry/opentelemetry-collector/service/builder"
 	"github.com/spf13/viper"
 
+	collectorApp "github.com/jaegertracing/jaeger/cmd/collector/app"
 	jflags "github.com/jaegertracing/jaeger/cmd/flags"
 	"github.com/jaegertracing/jaeger/cmd/opentelemetry-collector/app/defaults"
 	"github.com/jaegertracing/jaeger/cmd/opentelemetry-collector/app/exporter/cassandra"
@@ -62,7 +63,9 @@ func main() {
 	if getOTELConfigFile() == "" {
 		log.Println("Config file not provided, installing default Jaeger components")
 		cfgFactory = func(*viper.Viper, config.Factories) (*configmodels.Config, error) {
-			return defaults.Config(storageType, cmpts)
+			collectorOpts := &collectorApp.CollectorOptions{}
+			collectorOpts.InitFromViper(v)
+			return defaults.Config(storageType, collectorOpts.CollectorZipkinHTTPHostPort, cmpts)
 		}
 	}
 
@@ -82,6 +85,7 @@ func main() {
 	cmd := svc.Command()
 	jconfig.AddFlags(v,
 		cmd,
+		collectorApp.AddFlags,
 		jflags.AddConfigFileFlag,
 		storageFlags,
 	)

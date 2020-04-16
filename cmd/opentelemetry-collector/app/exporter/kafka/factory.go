@@ -72,6 +72,6 @@ func (Factory) CreateTraceExporter(log *zap.Logger, cfg configmodels.Exporter) (
 
 // CreateMetricsExporter is not implemented.
 // This function implements OTEL component.Factory interface.
-func (Factory) CreateMetricsExporter(*zap.Logger, configmodels.Exporter) (component.TraceExporterOld, error) {
+func (Factory) CreateMetricsExporter(*zap.Logger, configmodels.Exporter) (component.MetricsExporterOld, error) {
 	return nil, configerror.ErrDataTypeIsNotSupported
 }

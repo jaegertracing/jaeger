@@ -23,33 +23,40 @@ import (
 	"github.com/open-telemetry/opentelemetry-collector/processor/batchprocessor"
 	"github.com/open-telemetry/opentelemetry-collector/receiver"
 	"github.com/open-telemetry/opentelemetry-collector/receiver/jaegerreceiver"
+	"github.com/open-telemetry/opentelemetry-collector/receiver/zipkinreceiver"
 
 	"github.com/jaegertracing/jaeger/cmd/opentelemetry-collector/app/exporter/cassandra"
 	"github.com/jaegertracing/jaeger/cmd/opentelemetry-collector/app/exporter/elasticsearch"
 	"github.com/jaegertracing/jaeger/cmd/opentelemetry-collector/app/exporter/kafka"
+	"github.com/jaegertracing/jaeger/ports"
 )
 
 // Config creates default configuration.
 // It enables default Jaeger receivers, processors and exporters.
-func Config(storageType string, factories config.Factories) (*configmodels.Config, error) {
+func Config(storageType string, zipkinHostPort string, factories config.Factories) (*configmodels.Config, error) {
 	exporters, err := createExporters(storageType, factories)
 	if err != nil {
 		return nil, err
 	}
-	types := []string{}
+	expTypes := []string{}
 	for _, v := range exporters {
-		types = append(types, v.Type())
+		expTypes = append(expTypes, v.Type())
+	}
+	receivers := createReceivers(zipkinHostPort, factories)
+	recTypes := []string{}
+	for _, v := range receivers {
+		recTypes = append(recTypes, v.Type())
 	}
 	return &configmodels.Config{
-		Receivers:  createReceivers(factories),
+		Receivers:  receivers,
 		Exporters:  exporters,
 		Processors: createProcessors(factories),
 		Service: configmodels.Service{
 			Pipelines: map[string]*configmodels.Pipeline{
 				"traces": {
 					InputType:  configmodels.TracesDataType,
-					Receivers:  []string{"jaeger"},
-					Exporters:  types,
+					Receivers:  recTypes,
+					Exporters:  expTypes,
 					Processors: []string{"batch"},
 				},
 			},
@@ -57,11 +64,11 @@ func Config(storageType string, factories config.Factories) (*configmodels.Confi
 	}, nil
 }
 
-func createReceivers(factories config.Factories) configmodels.Receivers {
-	rec := factories.Receivers["jaeger"].CreateDefaultConfig().(*jaegerreceiver.Config)
+func createReceivers(zipkinHostPort string, factories config.Factories) configmodels.Receivers {
+	jaeger := factories.Receivers["jaeger"].CreateDefaultConfig().(*jaegerreceiver.Config)
 	// TODO load and serve sampling strategies
 	// TODO bind sampling strategies file
-	rec.Protocols = map[string]*receiver.SecureReceiverSettings{
+	jaeger.Protocols = map[string]*receiver.SecureReceiverSettings{
 		"grpc": {
 			ReceiverSettings: configmodels.ReceiverSettings{
 				Endpoint: "localhost:14250",
@@ -83,9 +90,15 @@ func createReceivers(factories config.Factories) configmodels.Receivers {
 			},
 		},
 	}
-	return map[string]configmodels.Receiver{
-		"jaeger": rec,
+	recvs := map[string]configmodels.Receiver{
+		"jaeger": jaeger,
 	}
+	if zipkinHostPort != ports.PortToHostPort(0) {
+		zipkin := factories.Receivers["zipkin"].CreateDefaultConfig().(*zipkinreceiver.Config)
+		zipkin.Endpoint = zipkinHostPort
+		recvs["zipkin"] = zipkin
+	}
+	return recvs
 }
 
 func createExporters(storageTypes string, factories config.Factories) (configmodels.Exporters, error) {
