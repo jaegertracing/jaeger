@@ -2,7 +2,7 @@ version: '2'
 
 services:
   jaeger-collector:
-    image: pavolloffay/jaeger-opentelemetry-collector:otel-xdock
+    image: jaegertracing/jaeger-opentelemetry-collector
     command: ["--es.num-shards=1", "--es.num-replicas=0", "--es.server-urls=http://elasticsearch:9200", "--collector.zipkin.http-port=9411"]
     ports:
       - "14250"
@@ -15,7 +15,7 @@ services:
       - elasticsearch
 
   jaeger-agent:
-    image: pavolloffay/jaeger-opentelemetry-collector:otel-xdock
+    image: jaegertracing/jaeger-opentelemetry-collector
     command: ["--config=/config/otel-agent-config.yml"]
     volumes:
       - ./:/config/:ro
