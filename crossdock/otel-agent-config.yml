@@ -16,11 +16,7 @@ exporters:
   jaeger:
     endpoint: jaeger-collector:14250
 
-extensions:
-  health_check: {}
-
 service:
-  extensions: [health_check]
   pipelines:
     traces:
       receivers: [jaeger]
