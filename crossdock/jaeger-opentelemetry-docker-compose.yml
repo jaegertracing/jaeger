@@ -23,7 +23,7 @@ services:
       - "5775/udp"
       - "6831/udp"
       - "6832/udp"
-      - "5778:5778"
+      - "5778"
     restart: on-failure
     depends_on:
       - jaeger-collector
