@@ -47,11 +47,14 @@ func Config(storageType string, zipkinHostPort string, factories config.Factorie
 	for _, v := range receivers {
 		recTypes = append(recTypes, v.Type())
 	}
+	hc := factories.Extensions["health_check"].CreateDefaultConfig()
 	return &configmodels.Config{
 		Receivers:  receivers,
 		Exporters:  exporters,
 		Processors: createProcessors(factories),
+		Extensions: configmodels.Extensions{"health_check": hc},
 		Service: configmodels.Service{
+			Extensions: []string{"health_check"},
 			Pipelines: map[string]*configmodels.Pipeline{
 				"traces": {
 					InputType:  configmodels.TracesDataType,
@@ -89,6 +92,10 @@ func createReceivers(zipkinHostPort string, factories config.Factories) configmo
 				Endpoint: "localhost:6832",
 			},
 		},
+	}
+	jaeger.RemoteSampling = &jaegerreceiver.RemoteSamplingConfig{
+		HostEndpoint:  "localhost:5778",
+		FetchEndpoint: "localhost:14250",
 	}
 	recvs := map[string]configmodels.Receiver{
 		"jaeger": jaeger,

@@ -106,7 +106,7 @@ func getOTELConfigFile() string {
 	f := &flag.FlagSet{}
 	builder.Flags(f)
 	// parse flags to bind the value
-	f.Parse(os.Args)
+	f.Parse(os.Args[1:])
 	return builder.GetConfigFile()
 }
 

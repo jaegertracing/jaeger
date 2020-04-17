@@ -22,6 +22,9 @@ matrix:
     - CROSSDOCK=true
   - go: "1.13.x"
     env:
+      - CROSSDOCK_OTEL=true
+  - go: "1.13.x"
+    env:
     - DOCKER=true
     - DEPLOY=true
   - go: "1.13.x"
@@ -63,6 +66,7 @@ script:
   - if [ "$TESTS" == true ]; then make test-ci ; else echo 'skipping tests'; fi
   - if [ "$ALL_IN_ONE" == true ]; then bash ./scripts/travis/build-all-in-one-image.sh ; else echo 'skipping all_in_one'; fi
   - if [ "$CROSSDOCK" == true ]; then bash ./scripts/travis/build-crossdock.sh ; else echo 'skipping crossdock'; fi
+  - if [ "$CROSSDOCK_OTEL" == true ]; then make build-crossdock crossdock-otel ; else echo 'skipping OpenTelemetry crossdock'; fi
   - if [ "$DOCKER" == true ]; then bash ./scripts/travis/build-docker-images.sh ; else echo 'skipping build-docker-images'; fi
   - if [ "$DOCKER" == true ]; then bash ./scripts/travis/upload-all-docker-images.sh ; else echo 'skipping docker upload'; fi
   - if [ "$DEPLOY" == true ]; then make build-all-platforms ; else echo 'skipping build-all-platforms'; fi

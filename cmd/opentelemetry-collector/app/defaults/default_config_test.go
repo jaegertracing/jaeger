@@ -122,6 +122,10 @@ func TestDefaultConfig(t *testing.T) {
 			require.NoError(t, err)
 			require.NoError(t, config.ValidateConfig(cfg, zap.NewNop()))
 
+			assert.Equal(t, 1, len(cfg.Extensions))
+			assert.Equal(t, 1, len(cfg.Service.Extensions))
+			assert.Equal(t, "health_check", cfg.Service.Extensions[0])
+			assert.Equal(t, "health_check", cfg.Extensions["health_check"].Name())
 			assert.Equal(t, len(test.pipeline["traces"].Receivers), len(cfg.Receivers))
 			assert.Equal(t, "jaeger", cfg.Receivers["jaeger"].Name())
 			assert.Equal(t, 1, len(cfg.Processors))
@@ -137,5 +141,4 @@ func TestDefaultConfig(t *testing.T) {
 			assert.EqualValues(t, test.pipeline, cfg.Service.Pipelines)
 		})
 	}
-
 }

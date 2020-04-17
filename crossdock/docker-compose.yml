@@ -82,6 +82,8 @@ services:
         image: jaegertracing/test-driver
         ports:
             - "8080"
+        environment:
+            - JAEGER_COLLECTOR_HC_HOST_PORT=jaeger-collector:${JAEGER_COLLECTOR_HC_PORT}
         depends_on:
             - jaeger-query
             - jaeger-collector

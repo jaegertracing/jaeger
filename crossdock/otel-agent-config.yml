@@ -1,0 +1,28 @@
+receivers:
+  jaeger:
+    remote_sampling:
+      host_endpoint: localhost:5778
+      fetch_endpoint: jaeger-collector:14250
+    protocols:
+      grpc:
+      thrift_http:
+      thrift_compact:
+      thrift_binary:
+
+processors:
+  queued_retry: {}
+
+exporters:
+  jaeger:
+    endpoint: jaeger-collector:14250
+
+extensions:
+  health_check: {}
+
+service:
+  extensions: [health_check]
+  pipelines:
+    traces:
+      receivers: [jaeger]
+      processors: [queued_retry]
+      exporters: [jaeger]
