@@ -18,10 +18,23 @@ import (
 	"time"
 )
 
+var quarters = []string{"00", "15", "30", "45"}
+
 // returns index name with date
 func indexWithDate(indexPrefix string, date time.Time) string {
 	spanDate := date.UTC().Format("2006-01-02")
 	return indexPrefix + spanDate
+}
+
+// returns index name with hour
+func indexWithHour(indexPrefix string, date time.Time) string {
+	spanHour := date.UTC().Format("2006-01-02T15")
+	return indexPrefix + spanHour
+}
+
+// returns index name with quarter hour
+func indexWithQuarter(indexPrefix string, date time.Time) string {
+	return indexWithHour(indexPrefix, date) + "-" + quarters[date.Minute()/15]
 }
 
 // returns archive index name

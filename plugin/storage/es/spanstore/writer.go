@@ -25,6 +25,7 @@ import (
 	"github.com/jaegertracing/jaeger/model"
 	"github.com/jaegertracing/jaeger/pkg/cache"
 	"github.com/jaegertracing/jaeger/pkg/es"
+	"github.com/jaegertracing/jaeger/pkg/es/config"
 	"github.com/jaegertracing/jaeger/plugin/storage/es/spanstore/dbmodel"
 	storageMetrics "github.com/jaegertracing/jaeger/storage/spanstore/metrics"
 )
@@ -63,6 +64,7 @@ type SpanWriterParams struct {
 	TagDotReplacement   string
 	Archive             bool
 	UseReadWriteAliases bool
+	RolloverInterval    config.RolloverInterval
 }
 
 // NewSpanWriter creates a new SpanWriter for use
@@ -86,7 +88,7 @@ func NewSpanWriter(p SpanWriterParams) *SpanWriter {
 			},
 		),
 		spanConverter:    dbmodel.NewFromDomain(p.AllTagsAsFields, p.TagKeysAsFields, p.TagDotReplacement),
-		spanServiceIndex: getSpanAndServiceIndexFn(p.Archive, p.UseReadWriteAliases, p.IndexPrefix),
+		spanServiceIndex: getSpanAndServiceIndexFn(p.Archive, p.UseReadWriteAliases, p.IndexPrefix, p.RolloverInterval),
 	}
 }
 
@@ -106,7 +108,7 @@ func (s *SpanWriter) CreateTemplates(spanTemplate, serviceTemplate string) error
 // spanAndServiceIndexFn returns names of span and service indices
 type spanAndServiceIndexFn func(spanTime time.Time) (string, string)
 
-func getSpanAndServiceIndexFn(archive, useReadWriteAliases bool, prefix string) spanAndServiceIndexFn {
+func getSpanAndServiceIndexFn(archive, useReadWriteAliases bool, prefix string, rolloverInterval config.RolloverInterval) spanAndServiceIndexFn {
 	if prefix != "" {
 		prefix += indexPrefixSeparator
 	}
@@ -126,8 +128,21 @@ func getSpanAndServiceIndexFn(archive, useReadWriteAliases bool, prefix string) 
 			return spanIndexPrefix + "write", serviceIndexPrefix + "write"
 		}
 	}
-	return func(date time.Time) (string, string) {
-		return indexWithDate(spanIndexPrefix, date), indexWithDate(serviceIndexPrefix, date)
+	switch rolloverInterval {
+	case config.RolloverQuarterly:
+		return func(date time.Time) (string, string) {
+			return indexWithQuarter(spanIndexPrefix, date), indexWithQuarter(serviceIndexPrefix, date)
+		}
+	case config.RolloverHourly:
+		return func(date time.Time) (string, string) {
+			return indexWithHour(spanIndexPrefix, date), indexWithHour(serviceIndexPrefix, date)
+		}
+	case config.RolloverDaily:
+		fallthrough
+	default:
+		return func(date time.Time) (string, string) {
+			return indexWithDate(spanIndexPrefix, date), indexWithDate(serviceIndexPrefix, date)
+		}
 	}
 }
 

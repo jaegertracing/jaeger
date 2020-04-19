@@ -17,6 +17,7 @@ def main():
         print('INDEX_PREFIX ... specifies index prefix.')
         print('ARCHIVE ... specifies whether to remove archive indices (only works for rollover) (default false).')
         print('ROLLOVER ... specifies whether to remove indices created by rollover (default false).')
+        print('ROLLOVER_INTERVAL ... rollover interval of indices. "daily": index per day; "hourly": index per hour; "quarterly": index per quarter hour (default "daily").')
         print('ES_USERNAME ... The username required by Elasticsearch.')
         print('ES_PASSWORD ... The password required by Elasticsearch.')
         print('ES_TLS ... enable TLS (default false).')
@@ -52,7 +53,15 @@ def main():
 
 
 def filter_main_indices(ilo, prefix):
-    ilo.filter_by_regex(kind='regex', value=prefix + "jaeger-(span|service|dependencies)-\d{4}-\d{2}-\d{2}")
+    rollover_interval = os.getenv("ROLLOVER_INTERVAL", "daily")
+    if rollover_interval == 'hourly':
+        pattern = "jaeger-(span|service|dependencies)-\d{4}-\d{2}-\d{2}T\d{2}"
+    elif rollover_interval == 'quarterly':
+        pattern = "jaeger-(span|service|dependencies)-\d{4}-\d{2}-\d{2}T\d{2}-(00|15|30|45)"
+    else:
+        pattern = "jaeger-(span|service|dependencies)-\d{4}-\d{2}-\d{2}"
+
+    ilo.filter_by_regex(kind='regex', value=prefix + pattern)
     empty_list(ilo, "No indices to delete")
     # This excludes archive index as we use source='name'
     # source `creation_date` would include archive index

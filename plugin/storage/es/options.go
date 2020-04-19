@@ -43,6 +43,7 @@ const (
 	suffixBulkFlushInterval   = ".bulk.flush-interval"
 	suffixTimeout             = ".timeout"
 	suffixIndexPrefix         = ".index-prefix"
+	suffixRolloverInterval    = ".rollover-interval"
 	suffixTagsAsFields        = ".tags-as-fields"
 	suffixTagsAsFieldsAll     = suffixTagsAsFields + ".all"
 	suffixTagsFile            = suffixTagsAsFields + ".config-file"
@@ -95,6 +96,7 @@ func NewOptions(primaryNamespace string, otherNamespaces ...string) *Options {
 				CreateIndexTemplates: true,
 				Version:              0,
 				Servers:              []string{defaultServerUrl},
+				RolloverInterval:     config.RolloverDaily,
 			},
 			namespace: primaryNamespace,
 		},
@@ -185,6 +187,10 @@ func addFlags(flagSet *flag.FlagSet, nsConfig *namespaceConfig) {
 		nsConfig.namespace+suffixIndexPrefix,
 		nsConfig.IndexPrefix,
 		"Optional prefix of Jaeger indices. For example \"production\" creates \"production-jaeger-*\".")
+	flagSet.String(
+		nsConfig.namespace+suffixRolloverInterval,
+		"daily",
+		"Optional rollover interval of Jaeger indices. \"daily\": creates an index every day; \"hourly\": creates an index every hour; \"quarterly\": creates an index every quarter hour.")
 	flagSet.Bool(
 		nsConfig.namespace+suffixTagsAsFieldsAll,
 		nsConfig.Tags.AllAsFields,
@@ -254,6 +260,13 @@ func initFromViper(cfg *namespaceConfig, v *viper.Viper) {
 	// TODO: Need to figure out a better way for do this.
 	cfg.AllowTokenFromContext = v.GetBool(spanstore.StoragePropagationKey)
 	cfg.TLS = cfg.getTLSFlagsConfig().InitFromViper(v)
+
+	rolloverInterval := v.GetString(cfg.namespace + suffixRolloverInterval)
+	if strings.EqualFold(rolloverInterval, "hourly") {
+		cfg.RolloverInterval = config.RolloverHourly
+	} else if strings.EqualFold(rolloverInterval, "quarterly") {
+		cfg.RolloverInterval = config.RolloverQuarterly
+	}
 }
 
 // GetPrimary returns primary configuration.

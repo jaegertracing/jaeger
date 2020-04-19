@@ -22,6 +22,7 @@ import (
 	"fmt"
 	"io/ioutil"
 	"reflect"
+	"strconv"
 	"testing"
 	"time"
 
@@ -34,6 +35,7 @@ import (
 	"go.uber.org/zap"
 
 	"github.com/jaegertracing/jaeger/model"
+	"github.com/jaegertracing/jaeger/pkg/es/config"
 	"github.com/jaegertracing/jaeger/pkg/es/mocks"
 	"github.com/jaegertracing/jaeger/pkg/testutils"
 	"github.com/jaegertracing/jaeger/plugin/storage/es/spanstore/dbmodel"
@@ -82,10 +84,12 @@ var exampleESSpan = []byte(
 	}`)
 
 type spanReaderTest struct {
-	client    *mocks.Client
-	logger    *zap.Logger
-	logBuffer *testutils.Buffer
-	reader    *SpanReader
+	client          *mocks.Client
+	logger          *zap.Logger
+	logBuffer       *testutils.Buffer
+	reader          *SpanReader
+	hourlyReader    *SpanReader
+	quarterlyReader *SpanReader
 }
 
 func withSpanReader(fn func(r *spanReaderTest)) {
@@ -101,6 +105,22 @@ func withSpanReader(fn func(r *spanReaderTest)) {
 			MaxSpanAge:        0,
 			IndexPrefix:       "",
 			TagDotReplacement: "@",
+		}),
+		hourlyReader: NewSpanReader(SpanReaderParams{
+			Client:            client,
+			Logger:            zap.NewNop(),
+			MaxSpanAge:        0,
+			IndexPrefix:       "",
+			TagDotReplacement: "@",
+			RolloverInterval:  config.RolloverHourly,
+		}),
+		quarterlyReader: NewSpanReader(SpanReaderParams{
+			Client:            client,
+			Logger:            zap.NewNop(),
+			MaxSpanAge:        0,
+			IndexPrefix:       "",
+			TagDotReplacement: "@",
+			RolloverInterval:  config.RolloverQuarterly,
 		}),
 	}
 	fn(r)
@@ -121,6 +141,26 @@ func withArchiveSpanReader(readAlias bool, fn func(r *spanReaderTest)) {
 			TagDotReplacement:   "@",
 			Archive:             true,
 			UseReadWriteAliases: readAlias,
+		}),
+		hourlyReader: NewSpanReader(SpanReaderParams{
+			Client:              client,
+			Logger:              zap.NewNop(),
+			MaxSpanAge:          0,
+			IndexPrefix:         "",
+			TagDotReplacement:   "@",
+			Archive:             true,
+			UseReadWriteAliases: readAlias,
+			RolloverInterval:    config.RolloverHourly,
+		}),
+		quarterlyReader: NewSpanReader(SpanReaderParams{
+			Client:              client,
+			Logger:              zap.NewNop(),
+			MaxSpanAge:          0,
+			IndexPrefix:         "",
+			TagDotReplacement:   "@",
+			Archive:             true,
+			UseReadWriteAliases: readAlias,
+			RolloverInterval:    config.RolloverQuarterly,
 		}),
 	}
 	fn(r)
@@ -428,10 +468,28 @@ func TestSpanReader_esJSONtoJSONSpanModelError(t *testing.T) {
 	})
 }
 
+func timeToInt(t time.Time, spec string) int64 {
+	i, _ := strconv.ParseInt(t.Format(spec), 10, 64)
+	return i
+}
+
+func generateIndices(start, end time.Time) []string {
+	var indices []string
+
+	for t := end; timeToInt(start, "20060102") <= timeToInt(t, "20060102"); t = t.Add(-24 * time.Hour) {
+		indices = append(indices, indexWithDate(spanIndex, t))
+	}
+	for t := end; timeToInt(start, "2006010215") <= timeToInt(t, "2006010215"); t = t.Add(-time.Hour) {
+		indices = append(indices, indexWithHour(spanIndex, t))
+	}
+	for t := end; timeToInt(start, "200601021504") <= timeToInt(t, "200601021504"); t = t.Add(-15 * time.Minute) {
+		indices = append(indices, indexWithQuarter(spanIndex, t))
+	}
+	return indices
+}
+
 func TestSpanReaderFindIndices(t *testing.T) {
 	today := time.Date(1995, time.April, 21, 4, 12, 19, 95, time.UTC)
-	yesterday := today.AddDate(0, 0, -1)
-	twoDaysAgo := today.AddDate(0, 0, -2)
 
 	testCases := []struct {
 		startTime time.Time
@@ -441,31 +499,24 @@ func TestSpanReaderFindIndices(t *testing.T) {
 		{
 			startTime: today.Add(-time.Millisecond),
 			endTime:   today,
-			expected: []string{
-				indexWithDate(spanIndex, today),
-			},
+			expected:  generateIndices(today.Add(-time.Millisecond), today),
 		},
 		{
 			startTime: today.Add(-13 * time.Hour),
 			endTime:   today,
-			expected: []string{
-				indexWithDate(spanIndex, today),
-				indexWithDate(spanIndex, yesterday),
-			},
+			expected:  generateIndices(today.Add(-13*time.Hour), today),
 		},
 		{
 			startTime: today.Add(-48 * time.Hour),
 			endTime:   today,
-			expected: []string{
-				indexWithDate(spanIndex, today),
-				indexWithDate(spanIndex, yesterday),
-				indexWithDate(spanIndex, twoDaysAgo),
-			},
+			expected:  generateIndices(today.Add(-48*time.Hour), today),
 		},
 	}
 	withSpanReader(func(r *spanReaderTest) {
 		for _, testCase := range testCases {
 			actual := r.reader.timeRangeIndices(spanIndex, testCase.startTime, testCase.endTime)
+			actual = append(actual, r.hourlyReader.timeRangeIndices(spanIndex, testCase.startTime, testCase.endTime)...)
+			actual = append(actual, r.quarterlyReader.timeRangeIndices(spanIndex, testCase.startTime, testCase.endTime)...)
 			assert.EqualValues(t, testCase.expected, actual)
 		}
 	})
@@ -473,8 +524,13 @@ func TestSpanReaderFindIndices(t *testing.T) {
 
 func TestSpanReader_indexWithDate(t *testing.T) {
 	withSpanReader(func(r *spanReaderTest) {
-		actual := indexWithDate(spanIndex, time.Date(1995, time.April, 21, 4, 21, 19, 95, time.UTC))
+		tm := time.Date(1995, time.April, 21, 4, 21, 19, 95, time.UTC)
+		actual := indexWithDate(spanIndex, tm)
 		assert.Equal(t, "jaeger-span-1995-04-21", actual)
+		actual = indexWithHour(spanIndex, tm)
+		assert.Equal(t, "jaeger-span-1995-04-21T04", actual)
+		actual = indexWithQuarter(spanIndex, tm)
+		assert.Equal(t, "jaeger-span-1995-04-21T04-15", actual)
 	})
 }
 

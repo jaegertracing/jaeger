@@ -258,6 +258,14 @@ func TestSpanIndexName(t *testing.T) {
 	serviceIndexName := indexWithDate(serviceIndex, span.StartTime)
 	assert.Equal(t, "jaeger-span-1995-04-21", spanIndexName)
 	assert.Equal(t, "jaeger-service-1995-04-21", serviceIndexName)
+	spanIndexName = indexWithHour(spanIndex, span.StartTime)
+	serviceIndexName = indexWithHour(serviceIndex, span.StartTime)
+	assert.Equal(t, "jaeger-span-1995-04-21T22", spanIndexName)
+	assert.Equal(t, "jaeger-service-1995-04-21T22", serviceIndexName)
+	spanIndexName = indexWithQuarter(spanIndex, span.StartTime)
+	serviceIndexName = indexWithQuarter(serviceIndex, span.StartTime)
+	assert.Equal(t, "jaeger-span-1995-04-21T22-00", spanIndexName)
+	assert.Equal(t, "jaeger-service-1995-04-21T22-00", serviceIndexName)
 }
 
 func TestWriteSpanInternal(t *testing.T) {

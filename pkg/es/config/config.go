@@ -38,24 +38,36 @@ import (
 	storageMetrics "github.com/jaegertracing/jaeger/storage/spanstore/metrics"
 )
 
+type RolloverInterval byte
+
+const (
+	// RolloverDaily means creating an new index once a day, this is the default behavior
+	RolloverDaily = iota
+	// RolloverHourly means creating an new index once an hour
+	RolloverHourly
+	// RolloverQuarterly means creating an new index once a quarter of an hour
+	RolloverQuarterly
+)
+
 // Configuration describes the configuration properties needed to connect to an ElasticSearch cluster
 type Configuration struct {
-	Servers               []string       `mapstructure:"server_urls"`
-	Username              string         `mapstructure:"username"`
-	Password              string         `mapstructure:"password"`
-	TokenFilePath         string         `mapstructure:"token_file"`
-	AllowTokenFromContext bool           `mapstructure:"-"`
-	Sniffer               bool           `mapstructure:"sniffer"`               // https://github.com/olivere/elastic/wiki/Sniffing
-	MaxNumSpans           int            `mapstructure:"-"`                     // defines maximum number of spans to fetch from storage per query
-	MaxSpanAge            time.Duration  `yaml:"max_span_age" mapstructure:"-"` // configures the maximum lookback on span reads
-	NumShards             int64          `yaml:"shards" mapstructure:"num_shards"`
-	NumReplicas           int64          `yaml:"replicas" mapstructure:"num_replicas"`
-	Timeout               time.Duration  `validate:"min=500" mapstructure:"-"`
-	BulkSize              int            `mapstructure:"-"`
-	BulkWorkers           int            `mapstructure:"-"`
-	BulkActions           int            `mapstructure:"-"`
-	BulkFlushInterval     time.Duration  `mapstructure:"-"`
-	IndexPrefix           string         `mapstructure:"index_prefix"`
+	Servers               []string      `mapstructure:"server_urls"`
+	Username              string        `mapstructure:"username"`
+	Password              string        `mapstructure:"password"`
+	TokenFilePath         string        `mapstructure:"token_file"`
+	AllowTokenFromContext bool          `mapstructure:"-"`
+	Sniffer               bool          `mapstructure:"sniffer"`               // https://github.com/olivere/elastic/wiki/Sniffing
+	MaxNumSpans           int           `mapstructure:"-"`                     // defines maximum number of spans to fetch from storage per query
+	MaxSpanAge            time.Duration `yaml:"max_span_age" mapstructure:"-"` // configures the maximum lookback on span reads
+	NumShards             int64         `yaml:"shards" mapstructure:"num_shards"`
+	NumReplicas           int64         `yaml:"replicas" mapstructure:"num_replicas"`
+	Timeout               time.Duration `validate:"min=500" mapstructure:"-"`
+	BulkSize              int           `mapstructure:"-"`
+	BulkWorkers           int           `mapstructure:"-"`
+	BulkActions           int           `mapstructure:"-"`
+	BulkFlushInterval     time.Duration `mapstructure:"-"`
+	IndexPrefix           string        `mapstructure:"index_prefix"`
+	RolloverInterval      RolloverInterval
 	Tags                  TagsAsFields   `mapstructure:"tags_as_fields"`
 	Enabled               bool           `mapstructure:"-"`
 	TLS                   tlscfg.Options `mapstructure:"tls"`
@@ -89,6 +101,7 @@ type ClientBuilder interface {
 	GetTagDotReplacement() string
 	GetUseReadWriteAliases() bool
 	GetTokenFilePath() string
+	GetRolloverInterval() RolloverInterval
 	IsStorageEnabled() bool
 	IsCreateIndexTemplates() bool
 	GetVersion() uint
@@ -211,6 +224,9 @@ func (c *Configuration) ApplyDefaults(source *Configuration) {
 	}
 	if c.BulkFlushInterval == 0 {
 		c.BulkFlushInterval = source.BulkFlushInterval
+	}
+	if c.RolloverInterval == RolloverDaily {
+		c.RolloverInterval = source.RolloverInterval
 	}
 }
 
@@ -338,6 +354,11 @@ func (c *Configuration) getConfigOptions(logger *zap.Logger) ([]elastic.ClientOp
 		}
 	}
 	return options, nil
+}
+
+// GetRolloverInterval returns rollover interval
+func (c *Configuration) GetRolloverInterval() RolloverInterval {
+	return c.RolloverInterval
 }
 
 // TokenAuthTransport

@@ -32,6 +32,7 @@ import (
 
 	"github.com/jaegertracing/jaeger/model"
 	"github.com/jaegertracing/jaeger/pkg/es"
+	"github.com/jaegertracing/jaeger/pkg/es/config"
 	"github.com/jaegertracing/jaeger/plugin/storage/es/spanstore/dbmodel"
 	"github.com/jaegertracing/jaeger/storage/spanstore"
 )
@@ -114,6 +115,7 @@ type SpanReaderParams struct {
 	TagDotReplacement   string
 	Archive             bool
 	UseReadWriteAliases bool
+	RolloverInterval    config.RolloverInterval
 }
 
 // NewSpanReader returns a new SpanReader with a metrics.
@@ -126,7 +128,7 @@ func NewSpanReader(p SpanReaderParams) *SpanReader {
 		spanIndexPrefix:         indexNames(p.IndexPrefix, spanIndex),
 		serviceIndexPrefix:      indexNames(p.IndexPrefix, serviceIndex),
 		spanConverter:           dbmodel.NewToDomain(p.TagDotReplacement),
-		timeRangeIndices:        getTimeRangeIndexFn(p.Archive, p.UseReadWriteAliases),
+		timeRangeIndices:        getTimeRangeIndexFn(p.Archive, p.UseReadWriteAliases, p.RolloverInterval),
 		sourceFn:                getSourceFn(p.Archive, p.MaxNumSpans),
 	}
 }
@@ -135,7 +137,7 @@ type timeRangeIndexFn func(indexName string, startTime time.Time, endTime time.T
 
 type sourceFn func(query elastic.Query, nextTime uint64) *elastic.SearchSource
 
-func getTimeRangeIndexFn(archive, useReadWriteAliases bool) timeRangeIndexFn {
+func getTimeRangeIndexFn(archive, useReadWriteAliases bool, rolloverInterval config.RolloverInterval) timeRangeIndexFn {
 	if archive {
 		var archivePrefix string
 		if useReadWriteAliases {
@@ -152,7 +154,16 @@ func getTimeRangeIndexFn(archive, useReadWriteAliases bool) timeRangeIndexFn {
 			return []string{indices + "read"}
 		}
 	}
-	return timeRangeIndices
+	switch rolloverInterval {
+	case config.RolloverQuarterly:
+		return timeRangeQuarterlyIndices
+	case config.RolloverHourly:
+		return timeRangeHourlyIndices
+	case config.RolloverDaily:
+		fallthrough
+	default:
+		return timeRangeDailyIndices
+	}
 }
 
 func getSourceFn(archive bool, maxNumSpans int) sourceFn {
@@ -169,18 +180,33 @@ func getSourceFn(archive bool, maxNumSpans int) sourceFn {
 	}
 }
 
-// timeRangeIndices returns the array of indices that we need to query, based on query params
-func timeRangeIndices(indexName string, startTime time.Time, endTime time.Time) []string {
+// timeRangeIndices returns the array of indices that we need to query, based on query params and step duration
+func timeRangeIndices(indexName string, startTime time.Time, endTime time.Time, step time.Duration, indexNameFn func(string, time.Time) string) []string {
 	var indices []string
-	firstIndex := indexWithDate(indexName, startTime)
-	currentIndex := indexWithDate(indexName, endTime)
+	firstIndex := indexNameFn(indexName, startTime)
+	currentIndex := indexNameFn(indexName, endTime)
 	for currentIndex != firstIndex {
 		indices = append(indices, currentIndex)
-		endTime = endTime.Add(-24 * time.Hour)
-		currentIndex = indexWithDate(indexName, endTime)
+		endTime = endTime.Add(-step)
+		currentIndex = indexNameFn(indexName, endTime)
 	}
 	indices = append(indices, firstIndex)
 	return indices
+}
+
+// timeRangeDailyIndices returns the array of indices that we need to query, based on query params
+func timeRangeDailyIndices(indexName string, startTime time.Time, endTime time.Time) []string {
+	return timeRangeIndices(indexName, startTime, endTime, 24*time.Hour, indexWithDate)
+}
+
+// timeRangeHourlyIndices returns the array of indices that we need to query, based on query params
+func timeRangeHourlyIndices(indexName string, startTime time.Time, endTime time.Time) []string {
+	return timeRangeIndices(indexName, startTime, endTime, time.Hour, indexWithHour)
+}
+
+// timeRangeQuarterlyIndices returns the array of indices that we need to query, based on query params
+func timeRangeQuarterlyIndices(indexName string, startTime time.Time, endTime time.Time) []string {
+	return timeRangeIndices(indexName, startTime, endTime, 15*time.Minute, indexWithQuarter)
 }
 
 func indexNames(prefix, index string) string {

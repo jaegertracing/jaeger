@@ -165,6 +165,7 @@ func createSpanReader(
 		IndexPrefix:         cfg.GetIndexPrefix(),
 		TagDotReplacement:   cfg.GetTagDotReplacement(),
 		UseReadWriteAliases: cfg.GetUseReadWriteAliases(),
+		RolloverInterval:    cfg.GetRolloverInterval(),
 		Archive:             archive,
 	}), nil
 }
@@ -194,6 +195,7 @@ func createSpanWriter(
 		AllTagsAsFields:     cfg.GetAllTagsAsFields(),
 		TagKeysAsFields:     tags,
 		TagDotReplacement:   cfg.GetTagDotReplacement(),
+		RolloverInterval:    cfg.GetRolloverInterval(),
 		Archive:             archive,
 		UseReadWriteAliases: cfg.GetUseReadWriteAliases(),
 	})
