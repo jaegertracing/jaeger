@@ -6,6 +6,7 @@ services:
     command: ["--es.num-shards=1", "--es.num-replicas=0", "--es.server-urls=http://elasticsearch:9200", "--collector.zipkin.http-port=9411"]
     ports:
       - "14250"
+      - "14268"
       - "9411"
     environment:
       - SPAN_STORAGE_TYPE=elasticsearch
@@ -20,7 +21,6 @@ services:
     volumes:
       - ./:/config/:ro
     ports:
-      - "5775/udp"
       - "6831/udp"
       - "6832/udp"
       - "5778"
