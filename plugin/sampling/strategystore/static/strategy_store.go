@@ -16,10 +16,14 @@ package static
 
 import (
 	"bytes"
+	"context"
 	"encoding/gob"
 	"encoding/json"
 	"fmt"
 	"io/ioutil"
+	"path/filepath"
+	"sync/atomic"
+	"time"
 
 	"go.uber.org/zap"
 
@@ -30,31 +34,89 @@ import (
 type strategyStore struct {
 	logger *zap.Logger
 
+	storedStrategies atomic.Value // holds *storedStrategies
+
+	ctx        context.Context
+	cancelFunc context.CancelFunc
+}
+
+type storedStrategies struct {
 	defaultStrategy   *sampling.SamplingStrategyResponse
 	serviceStrategies map[string]*sampling.SamplingStrategyResponse
 }
 
 // NewStrategyStore creates a strategy store that holds static sampling strategies.
 func NewStrategyStore(options Options, logger *zap.Logger) (ss.StrategyStore, error) {
+	ctx, cancelFunc := context.WithCancel(context.Background())
 	h := &strategyStore{
-		logger:            logger,
-		serviceStrategies: make(map[string]*sampling.SamplingStrategyResponse),
+		logger:     logger,
+		ctx:        ctx,
+		cancelFunc: cancelFunc,
 	}
+	h.storedStrategies.Store(defaultStrategies())
+
 	strategies, err := loadStrategies(options.StrategiesFile)
 	if err != nil {
 		return nil, err
 	}
 	h.parseStrategies(strategies)
+
+	if options.ReloadInterval > 0 {
+		go h.autoUpdateStrategies(options.ReloadInterval, options.StrategiesFile)
+	}
 	return h, nil
 }
 
 // GetSamplingStrategy implements StrategyStore#GetSamplingStrategy.
 func (h *strategyStore) GetSamplingStrategy(serviceName string) (*sampling.SamplingStrategyResponse, error) {
-	if strategy, ok := h.serviceStrategies[serviceName]; ok {
+	ss := h.storedStrategies.Load().(*storedStrategies)
+	serviceStrategies := ss.serviceStrategies
+	if strategy, ok := serviceStrategies[serviceName]; ok {
 		return strategy, nil
 	}
 	h.logger.Debug("sampling strategy not found, using default", zap.String("service", serviceName))
-	return h.defaultStrategy, nil
+	return ss.defaultStrategy, nil
+}
+
+// StopUpdateStrategy stops updating the strategy
+func (h *strategyStore) StopUpdateStrategy() {
+	h.cancelFunc()
+}
+
+func (h *strategyStore) autoUpdateStrategies(interval time.Duration, filePath string) {
+	lastString := ""
+	ticker := time.NewTicker(interval)
+	defer ticker.Stop()
+	for {
+		select {
+		case <-ticker.C:
+			if currBytes, err := ioutil.ReadFile(filepath.Clean(filePath)); err == nil {
+				currStr := string(currBytes)
+				if lastString == currStr {
+					continue
+				}
+				err := h.updateSamplingStrategy(currBytes)
+				if err != nil {
+					h.logger.Error("UpdateSamplingStrategy failed", zap.Error(err))
+				}
+				lastString = currStr
+			} else {
+				h.logger.Error("UpdateSamplingStrategy failed", zap.Error(err))
+			}
+		case <-h.ctx.Done():
+			return
+		}
+	}
+}
+
+func (h *strategyStore) updateSamplingStrategy(bytes []byte) error {
+	var strategies strategies
+	if err := json.Unmarshal(bytes, &strategies); err != nil {
+		return fmt.Errorf("failed to unmarshal strategies: %w", err)
+	}
+	h.parseStrategies(&strategies)
+	h.logger.Info("Updated strategy:" + string(bytes))
+	return nil
 }
 
 // TODO good candidate for a global util function
@@ -74,40 +136,41 @@ func loadStrategies(strategiesFile string) (*strategies, error) {
 }
 
 func (h *strategyStore) parseStrategies(strategies *strategies) {
-	h.defaultStrategy = defaultStrategyResponse()
 	if strategies == nil {
 		h.logger.Info("No sampling strategies provided, using defaults")
 		return
 	}
+	newStore := defaultStrategies()
 	if strategies.DefaultStrategy != nil {
-		h.defaultStrategy = h.parseServiceStrategies(strategies.DefaultStrategy)
+		newStore.defaultStrategy = h.parseServiceStrategies(strategies.DefaultStrategy)
 	}
 
 	merge := true
-	if h.defaultStrategy.OperationSampling == nil ||
-		h.defaultStrategy.OperationSampling.PerOperationStrategies == nil {
+	if newStore.defaultStrategy.OperationSampling == nil ||
+		newStore.defaultStrategy.OperationSampling.PerOperationStrategies == nil {
 		merge = false
 	}
 
 	for _, s := range strategies.ServiceStrategies {
-		h.serviceStrategies[s.Service] = h.parseServiceStrategies(s)
+		newStore.serviceStrategies[s.Service] = h.parseServiceStrategies(s)
 
 		// Merge with the default operation strategies, because only merging with
 		// the default strategy has no effect on service strategies (the default strategy
 		// is not merged with and only used as a fallback).
-		opS := h.serviceStrategies[s.Service].OperationSampling
+		opS := newStore.serviceStrategies[s.Service].OperationSampling
 		if opS == nil {
 			// Service has no per-operation strategies, so just reference the default settings.
-			h.serviceStrategies[s.Service].OperationSampling = h.defaultStrategy.OperationSampling
+			newStore.serviceStrategies[s.Service].OperationSampling = newStore.defaultStrategy.OperationSampling
 			continue
 		}
 
 		if merge {
 			opS.PerOperationStrategies = mergePerOperationSamplingStrategies(
 				opS.PerOperationStrategies,
-				h.defaultStrategy.OperationSampling.PerOperationStrategies)
+				newStore.defaultStrategy.OperationSampling.PerOperationStrategies)
 		}
 	}
+	h.storedStrategies.Store(newStore)
 }
 
 // mergePerOperationStrategies merges two operation strategies a and b, where a takes precedence over b.
