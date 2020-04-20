@@ -53,6 +53,7 @@ func (h *strategyStore) GetSamplingStrategy(serviceName string) (*sampling.Sampl
 	if strategy, ok := h.serviceStrategies[serviceName]; ok {
 		return strategy, nil
 	}
+	h.logger.Debug("sampling strategy not found, using default", zap.String("service", serviceName))
 	return h.defaultStrategy, nil
 }
 

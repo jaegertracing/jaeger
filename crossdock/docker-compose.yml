@@ -29,6 +29,8 @@ services:
         image: jaegertracing/xdock-go
         ports:
             - "8080-8082"
+        environment:
+            - AGENT_HOST_PORT=jaeger-agent:6831
 
     node:
         image: jaegertracing/xdock-node
@@ -82,6 +84,8 @@ services:
         image: jaegertracing/test-driver
         ports:
             - "8080"
+        environment:
+            - JAEGER_COLLECTOR_HC_HOST_PORT=jaeger-collector:${JAEGER_COLLECTOR_HC_PORT}
         depends_on:
             - jaeger-query
             - jaeger-collector
