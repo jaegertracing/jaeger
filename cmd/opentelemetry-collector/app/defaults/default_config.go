@@ -93,10 +93,6 @@ func createReceivers(zipkinHostPort string, factories config.Factories) configmo
 			},
 		},
 	}
-	jaeger.RemoteSampling = &jaegerreceiver.RemoteSamplingConfig{
-		HostEndpoint:  "localhost:5778",
-		FetchEndpoint: "localhost:14250",
-	}
 	recvs := map[string]configmodels.Receiver{
 		"jaeger": jaeger,
 	}

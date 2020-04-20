@@ -5,7 +5,6 @@ receivers:
       fetch_endpoint: jaeger-collector:14250
     protocols:
       grpc:
-      thrift_http:
       thrift_compact:
       thrift_binary:
 
