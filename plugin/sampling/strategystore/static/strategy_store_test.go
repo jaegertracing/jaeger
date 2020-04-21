@@ -264,7 +264,7 @@ func TestAutoUpdateStrategy(t *testing.T) {
 		ReloadInterval: interval,
 	}, zap.NewNop())
 	require.NoError(t, err)
-	defer store.(*strategyStore).StopUpdateStrategy()
+	defer store.(*strategyStore).Close()
 
 	s, err := store.GetSamplingStrategy("foo")
 	require.NoError(t, err)
@@ -275,8 +275,8 @@ func TestAutoUpdateStrategy(t *testing.T) {
 	err = ioutil.WriteFile(dstFile, []byte(newStr), 0644)
 	require.NoError(t, err)
 
-	// wait for reload
-	time.Sleep(interval * 2)
+	// wait for reloading
+	time.Sleep(interval * 4)
 
 	// verity reloading
 	s, err = store.GetSamplingStrategy("foo")
@@ -287,10 +287,9 @@ func TestAutoUpdateStrategy(t *testing.T) {
 	_ = ioutil.WriteFile(dstFile, []byte("bad value"), 0644)
 	time.Sleep(interval * 2)
 
-	// check file not exist
-	os.Remove(dstFile)
-
-	// wait for delete and update failed
+	// remove file(test read file failure)
+	_ = os.Remove(dstFile)
+	// wait for delete and update failure
 	time.Sleep(interval * 2)
 
 }

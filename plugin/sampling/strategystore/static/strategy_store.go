@@ -78,8 +78,8 @@ func (h *strategyStore) GetSamplingStrategy(serviceName string) (*sampling.Sampl
 	return ss.defaultStrategy, nil
 }
 
-// StopUpdateStrategy stops updating the strategy
-func (h *strategyStore) StopUpdateStrategy() {
+// Close stops updating the strategies
+func (h *strategyStore) Close() {
 	h.cancelFunc()
 }
 
@@ -90,19 +90,19 @@ func (h *strategyStore) autoUpdateStrategies(interval time.Duration, filePath st
 	for {
 		select {
 		case <-ticker.C:
-			if currBytes, err := ioutil.ReadFile(filepath.Clean(filePath)); err == nil {
-				currStr := string(currBytes)
-				if lastString == currStr {
-					continue
-				}
-				err := h.updateSamplingStrategy(currBytes)
-				if err != nil {
-					h.logger.Error("UpdateSamplingStrategy failed", zap.Error(err))
-				}
-				lastString = currStr
-			} else {
+			currBytes, err := ioutil.ReadFile(filepath.Clean(filePath))
+			if err != nil {
+				h.logger.Error("ReadFile failed", zap.Error(err))
+			}
+			currStr := string(currBytes)
+			if lastString == currStr {
+				continue
+			}
+			if err = h.updateSamplingStrategy(currBytes); err != nil {
 				h.logger.Error("UpdateSamplingStrategy failed", zap.Error(err))
 			}
+			lastString = currStr
+
 		case <-h.ctx.Done():
 			return
 		}
@@ -115,7 +115,7 @@ func (h *strategyStore) updateSamplingStrategy(bytes []byte) error {
 		return fmt.Errorf("failed to unmarshal strategies: %w", err)
 	}
 	h.parseStrategies(&strategies)
-	h.logger.Info("Updated strategy:" + string(bytes))
+	h.logger.Info("Updated sampling strategies:" + string(bytes))
 	return nil
 }
 
