@@ -28,3 +28,4 @@ SPAN_STORAGE_TYPE=elasticsearch ./cmd/query/query-linux-$GOARCH --es.server-urls
 PID=$(echo $!)
 make token-propagation-integration-test
 kill -9 ${PID}
+docker kill $CID
