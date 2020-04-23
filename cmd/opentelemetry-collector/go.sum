@@ -972,6 +972,8 @@ github.com/open-telemetry/opentelemetry-collector v0.2.8-0.20200323151927-794a2b
 github.com/open-telemetry/opentelemetry-collector v0.2.8-0.20200323151927-794a2b689bd9/go.mod h1:7Sxe+ROKhJSqPZqsKnvb/y5EbEsjbkDTbQ2sS7cF9rY=
 github.com/open-telemetry/opentelemetry-collector v0.3.1-0.20200408203355-0e1b2e323d39 h1:D8QuOoh7ImcWA/o0RJ8s7M4QojCWSgiK9LBhYONDD1E=
 github.com/open-telemetry/opentelemetry-collector v0.3.1-0.20200408203355-0e1b2e323d39/go.mod h1:aZAL+YwTtk+1YkTj8dDgTvv06dU8twzOdRowRtBfEKo=
+github.com/open-telemetry/opentelemetry-collector v0.3.1-0.20200420175007-048d7d257824 h1:3FftRuw4Hqe1X2mG1z+0nJHyhjsAOrE6qZXXB45B86Q=
+github.com/open-telemetry/opentelemetry-collector v0.3.1-0.20200420175007-048d7d257824/go.mod h1:aZAL+YwTtk+1YkTj8dDgTvv06dU8twzOdRowRtBfEKo=
 github.com/open-telemetry/opentelemetry-proto v0.0.0-20200206071824-8310c432e51c h1:nDOtl6j2Ei16tlnx/o4qKEelpHtGoZ9ArwU+tux4Ia8=
 github.com/open-telemetry/opentelemetry-proto v0.0.0-20200206071824-8310c432e51c/go.mod h1:PMR5GI0F7BSpio+rBGFxNm6SLzg3FypDTcFuQZnO+F8=
 github.com/open-telemetry/opentelemetry-proto v0.0.0-20200211051721-ff5f19c6217d h1:hZcHR0at6tb3jBjaPHlfLr6yK7rTrA8xGCS6jlUSLcU=
@@ -1129,6 +1131,7 @@ github.com/segmentio/backo-go v0.0.0-20160424052352-204274ad699c/go.mod h1:kJ9mm
 github.com/serenize/snaker v0.0.0-20171204205717-a683aaf2d516/go.mod h1:Yow6lPLSAXx2ifx470yD/nUe22Dv5vBvxK/UK9UUTVs=
 github.com/sergi/go-diff v1.0.0/go.mod h1:0CfEIISq7TuYL3j771MWULgwwjU+GofnZX9QAmXWZgo=
 github.com/shirou/gopsutil v0.0.0-20190901111213-e4ec7b275ada/go.mod h1:WWnYX4lzhCH5h/3YBfyVA3VbLYjlMZZAQcW9ojMexNc=
+github.com/shirou/gopsutil v2.20.3+incompatible/go.mod h1:5b4v6he4MtMOwMlS0TUMTu2PcXUg8+E1lC7eC3UO/RA=
 github.com/shirou/w32 v0.0.0-20160930032740-bb4de0191aa4/go.mod h1:qsXQc7+bwAM3Q1u/4XEfrquwF8Lw7D7y5cD8CuHnfIc=
 github.com/shopspring/decimal v0.0.0-20180709203117-cd690d0c9e24/go.mod h1:M+9NzErvs504Cn4c5DxATwIqPbtswREoFCre64PpcG4=
 github.com/shurcooL/go v0.0.0-20180423040247-9e1955d9fb6e h1:MZM7FHLqUHYI0Y/mQAt3d2aYa0SiNms/hFqC9qJYolM=
