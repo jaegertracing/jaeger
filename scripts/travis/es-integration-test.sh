@@ -22,7 +22,11 @@ make build-crossdock-ui-placeholder
 GOOS=linux make build-query
 
 make test-compile-es-scripts
+docker pull docker.elastic.co/elasticsearch/elasticsearch:7.3.0
+CID=$(docker run --rm -d -p 9200:9200 -e "http.host=0.0.0.0" -e "transport.host=127.0.0.1" -e "xpack.security.enabled=false" -e "xpack.monitoring.enabled=false" docker.elastic.co/elasticsearch/elasticsearch:7.3.0)
+sleep 30
 SPAN_STORAGE_TYPE=elasticsearch ./cmd/query/query-linux --es.server-urls=http://127.0.0.1:9200 --es.tls=false --es.version=7 --query.bearer-token-propagation=true &
 PID=$(echo $!)
 make token-propagation-integration-test
 kill -9 ${PID}
+docker kill $CID
