@@ -21,8 +21,8 @@ import (
 	"github.com/open-telemetry/opentelemetry-collector/component"
 	"github.com/open-telemetry/opentelemetry-collector/component/componenterror"
 	"github.com/open-telemetry/opentelemetry-collector/config/configmodels"
-	"github.com/open-telemetry/opentelemetry-collector/consumer/consumerdata"
 	"github.com/open-telemetry/opentelemetry-collector/consumer/consumererror"
+	"github.com/open-telemetry/opentelemetry-collector/consumer/pdata"
 	"github.com/open-telemetry/opentelemetry-collector/exporter/exporterhelper"
 	jaegertranslator "github.com/open-telemetry/opentelemetry-collector/translator/trace/jaeger"
 
@@ -31,13 +31,13 @@ import (
 )
 
 // NewSpanWriterExporter returns component.TraceExporter
-func NewSpanWriterExporter(config configmodels.Exporter, factory jaegerstorage.Factory) (component.TraceExporterOld, error) {
+func NewSpanWriterExporter(config configmodels.Exporter, factory jaegerstorage.Factory) (component.TraceExporter, error) {
 	spanWriter, err := factory.CreateSpanWriter()
 	if err != nil {
 		return nil, err
 	}
 	storage := storage{Writer: spanWriter}
-	return exporterhelper.NewTraceExporterOld(
+	return exporterhelper.NewTraceExporter(
 		config,
 		storage.traceDataPusher,
 		exporterhelper.WithShutdown(func(context.Context) error {
@@ -53,19 +53,21 @@ type storage struct {
 }
 
 // traceDataPusher implements OTEL exporterhelper.traceDataPusher
-func (s *storage) traceDataPusher(ctx context.Context, td consumerdata.TraceData) (droppedSpans int, err error) {
-	protoBatch, err := jaegertranslator.OCProtoToJaegerProto(td)
+func (s *storage) traceDataPusher(ctx context.Context, td pdata.Traces) (droppedSpans int, err error) {
+	batches, err := jaegertranslator.InternalTracesToJaegerProto(td)
 	if err != nil {
-		return len(td.Spans), consumererror.Permanent(err)
+		return td.SpanCount(), consumererror.Permanent(err)
 	}
 	dropped := 0
 	var errs []error
-	for _, span := range protoBatch.Spans {
-		span.Process = protoBatch.Process
-		err := s.Writer.WriteSpan(span)
-		if err != nil {
-			errs = append(errs, err)
-			dropped++
+	for _, batch := range batches {
+		for _, span := range batch.Spans {
+			span.Process = batch.Process
+			err := s.Writer.WriteSpan(span)
+			if err != nil {
+				errs = append(errs, err)
+				dropped++
+			}
 		}
 	}
 	return dropped, componenterror.CombineErrors(errs)

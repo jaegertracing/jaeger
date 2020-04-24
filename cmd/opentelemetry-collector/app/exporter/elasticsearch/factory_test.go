@@ -15,13 +15,15 @@
 package elasticsearch
 
 import (
+	"context"
 	"testing"
 
+	"github.com/open-telemetry/opentelemetry-collector/component"
 	"github.com/open-telemetry/opentelemetry-collector/config/configcheck"
 	"github.com/open-telemetry/opentelemetry-collector/config/configerror"
+	"github.com/open-telemetry/opentelemetry-collector/config/configmodels"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-	"go.uber.org/zap"
 
 	jConfig "github.com/jaegertracing/jaeger/pkg/config"
 	"github.com/jaegertracing/jaeger/plugin/storage/es"
@@ -34,21 +36,21 @@ func TestCreateTraceExporter(t *testing.T) {
 	factory := &Factory{OptionsFactory: func() *es.Options {
 		return opts
 	}}
-	exporter, err := factory.CreateTraceExporter(zap.NewNop(), factory.CreateDefaultConfig())
+	exporter, err := factory.CreateTraceExporter(context.Background(), component.ExporterCreateParams{}, factory.CreateDefaultConfig())
 	require.Nil(t, exporter)
 	assert.EqualError(t, err, "failed to create primary Elasticsearch client: health check timeout: Head http://127.0.0.1:9200: dial tcp 127.0.0.1:9200: connect: connection refused: no Elasticsearch node available")
 }
 
 func TestCreateTraceExporter_nilConfig(t *testing.T) {
 	factory := &Factory{}
-	exporter, err := factory.CreateTraceExporter(zap.NewNop(), nil)
+	exporter, err := factory.CreateTraceExporter(context.Background(), component.ExporterCreateParams{}, nil)
 	require.Nil(t, exporter)
 	assert.EqualError(t, err, "could not cast configuration to jaeger_elasticsearch")
 }
 
 func TestCreateMetricsExporter(t *testing.T) {
 	f := Factory{OptionsFactory: DefaultOptions}
-	mReceiver, err := f.CreateMetricsExporter(zap.NewNop(), f.CreateDefaultConfig())
+	mReceiver, err := f.CreateMetricsExporter(context.Background(), component.ExporterCreateParams{}, f.CreateDefaultConfig())
 	assert.Equal(t, err, configerror.ErrDataTypeIsNotSupported)
 	assert.Nil(t, mReceiver)
 }
@@ -62,5 +64,5 @@ func TestCreateDefaultConfig(t *testing.T) {
 
 func TestType(t *testing.T) {
 	factory := Factory{OptionsFactory: DefaultOptions}
-	assert.Equal(t, TypeStr, factory.Type())
+	assert.Equal(t, configmodels.Type(TypeStr), factory.Type())
 }

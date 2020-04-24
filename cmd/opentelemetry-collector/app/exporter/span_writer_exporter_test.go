@@ -19,9 +19,9 @@ import (
 	"errors"
 	"testing"
 
-	tracepb "github.com/census-instrumentation/opencensus-proto/gen-go/trace/v1"
 	"github.com/open-telemetry/opentelemetry-collector/config/configmodels"
-	"github.com/open-telemetry/opentelemetry-collector/consumer/consumerdata"
+	"github.com/open-telemetry/opentelemetry-collector/consumer/pdata"
+	tracev1 "github.com/open-telemetry/opentelemetry-proto/gen/go/trace/v1"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"github.com/uber/jaeger-lib/metrics"
@@ -55,10 +55,9 @@ func TestNew_failedToCreateWriter(t *testing.T) {
 func TestStore(t *testing.T) {
 	traceID := []byte("0123456789abcdef")
 	spanId := []byte("01234567")
-	errorName := &tracepb.TruncatableString{Value: "error"}
 	tests := []struct {
 		storage storage
-		data    consumerdata.TraceData
+		data    pdata.Traces
 		err     string
 		dropped int
 		caption string
@@ -66,33 +65,41 @@ func TestStore(t *testing.T) {
 		{
 			caption: "nothing to store",
 			storage: storage{Writer: spanWriter{}},
-			data:    consumerdata.TraceData{Spans: []*tracepb.Span{}},
+			data:    pdata.TracesFromOtlp([]*tracev1.ResourceSpans{}),
 			dropped: 0,
 		},
 		{
 			caption: "wrong data",
 			storage: storage{Writer: spanWriter{}},
-			data:    consumerdata.TraceData{Spans: []*tracepb.Span{{}}},
+			data:    pdata.TracesFromOtlp([]*tracev1.ResourceSpans{{InstrumentationLibrarySpans: []*tracev1.InstrumentationLibrarySpans{{Spans: []*tracev1.Span{{}}}}}}),
 			err:     "TraceID is nil",
 			dropped: 1,
 		},
 		{
 			caption: "one error in writer",
 			storage: storage{Writer: spanWriter{err: errors.New("could not store")}},
-			data: consumerdata.TraceData{Spans: []*tracepb.Span{
-				{TraceId: traceID, SpanId: spanId, Name: errorName},
-				{TraceId: traceID, SpanId: spanId},
-			}},
+			data: pdata.TracesFromOtlp([]*tracev1.ResourceSpans{{
+				InstrumentationLibrarySpans: []*tracev1.InstrumentationLibrarySpans{{
+					Spans: []*tracev1.Span{
+						{TraceId: traceID, SpanId: spanId, Name: "error"},
+						{TraceId: traceID, SpanId: spanId},
+					},
+				}},
+			}}),
 			dropped: 1,
 			err:     "could not store",
 		},
 		{
 			caption: "two errors in writer",
 			storage: storage{Writer: spanWriter{err: errors.New("could not store")}},
-			data: consumerdata.TraceData{Spans: []*tracepb.Span{
-				{TraceId: traceID, SpanId: spanId, Name: errorName},
-				{TraceId: traceID, SpanId: spanId, Name: errorName},
-			}},
+			data: pdata.TracesFromOtlp([]*tracev1.ResourceSpans{{
+				InstrumentationLibrarySpans: []*tracev1.InstrumentationLibrarySpans{{
+					Spans: []*tracev1.Span{
+						{TraceId: traceID, SpanId: spanId, Name: "error"},
+						{TraceId: traceID, SpanId: spanId, Name: "error"},
+					},
+				}},
+			}}),
 			dropped: 2,
 			err:     "[could not store; could not store]",
 		},

@@ -40,12 +40,12 @@ func Config(storageType string, zipkinHostPort string, factories config.Factorie
 	}
 	expTypes := []string{}
 	for _, v := range exporters {
-		expTypes = append(expTypes, v.Type())
+		expTypes = append(expTypes, string(v.Type()))
 	}
 	receivers := createReceivers(zipkinHostPort, factories)
 	recTypes := []string{}
 	for _, v := range receivers {
-		recTypes = append(recTypes, v.Type())
+		recTypes = append(recTypes, string(v.Type()))
 	}
 	hc := factories.Extensions["health_check"].CreateDefaultConfig()
 	return &configmodels.Config{

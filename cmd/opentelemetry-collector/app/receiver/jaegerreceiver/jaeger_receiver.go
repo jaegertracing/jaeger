@@ -22,7 +22,6 @@ import (
 	"github.com/open-telemetry/opentelemetry-collector/consumer"
 	"github.com/open-telemetry/opentelemetry-collector/receiver/jaegerreceiver"
 	"github.com/spf13/viper"
-	"go.uber.org/zap"
 
 	"github.com/jaegertracing/jaeger/plugin/sampling/strategystore/static"
 )
@@ -36,10 +35,10 @@ type Factory struct {
 	Viper *viper.Viper
 }
 
-var _ component.ReceiverFactoryOld = (*Factory)(nil)
+var _ component.ReceiverFactory = (*Factory)(nil)
 
 // Type gets the type of exporter.
-func (f *Factory) Type() string {
+func (f *Factory) Type() configmodels.Type {
 	return f.Wrapped.Type()
 }
 
@@ -62,11 +61,11 @@ func (f *Factory) CreateDefaultConfig() configmodels.Receiver {
 // This function implements OTEL component.ReceiverFactory interface.
 func (f *Factory) CreateTraceReceiver(
 	ctx context.Context,
-	log *zap.Logger,
+	params component.ReceiverCreateParams,
 	cfg configmodels.Receiver,
-	nextConsumer consumer.TraceConsumerOld,
+	nextConsumer consumer.TraceConsumer,
 ) (component.TraceReceiver, error) {
-	return f.Wrapped.CreateTraceReceiver(ctx, log, cfg, nextConsumer)
+	return f.Wrapped.CreateTraceReceiver(ctx, params, cfg, nextConsumer)
 }
 
 // CustomUnmarshaler creates custom unmarshaller for Jaeger receiver config.
@@ -78,9 +77,10 @@ func (f *Factory) CustomUnmarshaler() component.CustomUnmarshaler {
 // CreateMetricsReceiver creates a metrics receiver based on provided config.
 // This function implements component.ReceiverFactory.
 func (f *Factory) CreateMetricsReceiver(
-	logger *zap.Logger,
-	receiver configmodels.Receiver,
-	consumer consumer.MetricsConsumerOld,
+	ctx context.Context,
+	params component.ReceiverCreateParams,
+	cfg configmodels.Receiver,
+	nextConsumer consumer.MetricsConsumer,
 ) (component.MetricsReceiver, error) {
-	return f.Wrapped.CreateMetricsReceiver(logger, receiver, consumer)
+	return f.Wrapped.CreateMetricsReceiver(ctx, params, cfg, nextConsumer)
 }

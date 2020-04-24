@@ -15,16 +15,18 @@
 package jaegerreceiver
 
 import (
+	"context"
 	"path"
 	"testing"
 
+	"github.com/open-telemetry/opentelemetry-collector/component"
 	"github.com/open-telemetry/opentelemetry-collector/config"
 	"github.com/open-telemetry/opentelemetry-collector/config/configerror"
+	"github.com/open-telemetry/opentelemetry-collector/config/configmodels"
 	"github.com/open-telemetry/opentelemetry-collector/receiver/jaegerreceiver"
 	"github.com/spf13/viper"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-	"go.uber.org/zap"
 
 	jConfig "github.com/jaegertracing/jaeger/pkg/config"
 	"github.com/jaegertracing/jaeger/plugin/sampling/strategystore/static"
@@ -78,14 +80,14 @@ func TestType(t *testing.T) {
 	f := &Factory{
 		Wrapped: &jaegerreceiver.Factory{},
 	}
-	assert.Equal(t, "jaeger", f.Type())
+	assert.Equal(t, configmodels.Type("jaeger"), f.Type())
 }
 
 func TestCreateMetricsExporter(t *testing.T) {
 	f := &Factory{
 		Wrapped: &jaegerreceiver.Factory{},
 	}
-	mReceiver, err := f.CreateMetricsReceiver(zap.NewNop(), nil, nil)
+	mReceiver, err := f.CreateMetricsReceiver(context.Background(), component.ReceiverCreateParams{}, nil, nil)
 	assert.Equal(t, err, configerror.ErrDataTypeIsNotSupported)
 	assert.Nil(t, mReceiver)
 }

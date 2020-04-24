@@ -29,6 +29,8 @@ services:
         image: jaegertracing/xdock-go
         ports:
             - "8080-8082"
+        environment:
+            - AGENT_HOST_PORT=jaeger-agent:6831
 
     node:
         image: jaegertracing/xdock-node

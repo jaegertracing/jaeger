@@ -15,10 +15,13 @@
 package kafka
 
 import (
+	"context"
 	"testing"
 
+	"github.com/open-telemetry/opentelemetry-collector/component"
 	"github.com/open-telemetry/opentelemetry-collector/config/configcheck"
 	"github.com/open-telemetry/opentelemetry-collector/config/configerror"
+	"github.com/open-telemetry/opentelemetry-collector/config/configmodels"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"go.uber.org/zap"
@@ -34,21 +37,21 @@ func TestCreateTraceExporter(t *testing.T) {
 	factory := &Factory{OptionsFactory: func() *kafka.Options {
 		return opts
 	}}
-	exporter, err := factory.CreateTraceExporter(zap.NewNop(), factory.CreateDefaultConfig())
+	exporter, err := factory.CreateTraceExporter(context.Background(), component.ExporterCreateParams{Logger: zap.NewNop()}, factory.CreateDefaultConfig())
 	require.Nil(t, exporter)
 	assert.EqualError(t, err, "kafka: client has run out of available brokers to talk to (Is your cluster reachable?)")
 }
 
 func TestCreateTraceExporter_nilConfig(t *testing.T) {
 	factory := &Factory{}
-	exporter, err := factory.CreateTraceExporter(zap.NewNop(), nil)
+	exporter, err := factory.CreateTraceExporter(context.Background(), component.ExporterCreateParams{}, nil)
 	require.Nil(t, exporter)
 	assert.EqualError(t, err, "could not cast configuration to jaeger_kafka")
 }
 
 func TestCreateMetricsExporter(t *testing.T) {
 	f := Factory{OptionsFactory: DefaultOptions}
-	mReceiver, err := f.CreateMetricsExporter(zap.NewNop(), f.CreateDefaultConfig())
+	mReceiver, err := f.CreateMetricsExporter(context.Background(), component.ExporterCreateParams{}, f.CreateDefaultConfig())
 	assert.Equal(t, err, configerror.ErrDataTypeIsNotSupported)
 	assert.Nil(t, mReceiver)
 }
@@ -62,5 +65,5 @@ func TestCreateDefaultConfig(t *testing.T) {
 
 func TestType(t *testing.T) {
 	factory := Factory{OptionsFactory: DefaultOptions}
-	assert.Equal(t, TypeStr, factory.Type())
+	assert.Equal(t, configmodels.Type(TypeStr), factory.Type())
 }

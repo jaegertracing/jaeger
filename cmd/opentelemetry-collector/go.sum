@@ -972,8 +972,8 @@ github.com/open-telemetry/opentelemetry-collector v0.2.8-0.20200323151927-794a2b
 github.com/open-telemetry/opentelemetry-collector v0.2.8-0.20200323151927-794a2b689bd9/go.mod h1:7Sxe+ROKhJSqPZqsKnvb/y5EbEsjbkDTbQ2sS7cF9rY=
 github.com/open-telemetry/opentelemetry-collector v0.3.1-0.20200408203355-0e1b2e323d39 h1:D8QuOoh7ImcWA/o0RJ8s7M4QojCWSgiK9LBhYONDD1E=
 github.com/open-telemetry/opentelemetry-collector v0.3.1-0.20200408203355-0e1b2e323d39/go.mod h1:aZAL+YwTtk+1YkTj8dDgTvv06dU8twzOdRowRtBfEKo=
-github.com/open-telemetry/opentelemetry-collector v0.3.1-0.20200420175007-048d7d257824 h1:3FftRuw4Hqe1X2mG1z+0nJHyhjsAOrE6qZXXB45B86Q=
-github.com/open-telemetry/opentelemetry-collector v0.3.1-0.20200420175007-048d7d257824/go.mod h1:aZAL+YwTtk+1YkTj8dDgTvv06dU8twzOdRowRtBfEKo=
+github.com/open-telemetry/opentelemetry-collector v0.3.1-0.20200428040525-c7c58b3d1319 h1:/XRxzEE2VrsPMrGxSaOVM2rKzaznfWRRiuXcTaytCls=
+github.com/open-telemetry/opentelemetry-collector v0.3.1-0.20200428040525-c7c58b3d1319/go.mod h1:2cAmeCWbS3FK4ZGTT+PPiXrQdW7b2VGw7H966KMi9WY=
 github.com/open-telemetry/opentelemetry-proto v0.0.0-20200206071824-8310c432e51c h1:nDOtl6j2Ei16tlnx/o4qKEelpHtGoZ9ArwU+tux4Ia8=
 github.com/open-telemetry/opentelemetry-proto v0.0.0-20200206071824-8310c432e51c/go.mod h1:PMR5GI0F7BSpio+rBGFxNm6SLzg3FypDTcFuQZnO+F8=
 github.com/open-telemetry/opentelemetry-proto v0.0.0-20200211051721-ff5f19c6217d h1:hZcHR0at6tb3jBjaPHlfLr6yK7rTrA8xGCS6jlUSLcU=
@@ -1221,6 +1221,8 @@ github.com/stretchr/testify v1.3.0/go.mod h1:M5WIy9Dh21IEIfnGCwXGc5bZfKNJtfHm1UV
 github.com/stretchr/testify v1.4.0/go.mod h1:j7eGeouHqKxXV5pUuKE4zz7dFj8WfuZ+81PSLYec5m4=
 github.com/stretchr/testify v1.5.0 h1:DMOzIV76tmoDNE9pX6RSN0aDtCYeCg5VueieJaAo1uw=
 github.com/stretchr/testify v1.5.0/go.mod h1:5W2xD1RspED5o8YsWQXVCued0rvSQ+mT+I5cxcmMvtA=
+github.com/stretchr/testify v1.5.1 h1:nOGnQDM7FYENwehXlg/kFVnos3rEvtKTjRvOWSzb6H4=
+github.com/stretchr/testify v1.5.1/go.mod h1:5W2xD1RspED5o8YsWQXVCued0rvSQ+mT+I5cxcmMvtA=
 github.com/subosito/gotenv v1.1.1/go.mod h1:N0PQaV/YGNqwC0u51sEeR/aUtSLEXKX9iv69rRypqCw=
 github.com/subosito/gotenv v1.2.0 h1:Slr1R9HxAlEKefgq5jn9U+DnETlIUa6HfgEzj0g5d7s=
 github.com/subosito/gotenv v1.2.0/go.mod h1:N0PQaV/YGNqwC0u51sEeR/aUtSLEXKX9iv69rRypqCw=

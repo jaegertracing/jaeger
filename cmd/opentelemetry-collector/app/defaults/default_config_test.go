@@ -134,7 +134,7 @@ func TestDefaultConfig(t *testing.T) {
 
 			types := []string{}
 			for _, v := range cfg.Exporters {
-				types = append(types, v.Type())
+				types = append(types, string(v.Type()))
 			}
 			sort.Strings(types)
 			assert.Equal(t, test.exporterTypes, types)
