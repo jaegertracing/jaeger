@@ -39,7 +39,7 @@ func (s *DependencyStore) GetDependencies(endTs time.Time, lookback time.Duratio
 	deps := map[string]*model.DependencyLink{}
 
 	params := &spanstore.TraceQueryParameters{
-		StartTimeMin: endTs.Add(-1 * lookback),
+		StartTimeMin: endTs.Add(time.Duration(-1*lookback) * time.Millisecond),
 		StartTimeMax: endTs,
 	}
 
