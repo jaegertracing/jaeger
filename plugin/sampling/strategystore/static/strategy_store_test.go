@@ -15,8 +15,11 @@
 package static
 
 import (
-	"fmt"
+	"io/ioutil"
+	"os"
+	"strings"
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -79,7 +82,7 @@ func TestPerOperationSamplingStrategies(t *testing.T) {
 	os := s.OperationSampling
 	assert.EqualValues(t, os.DefaultSamplingProbability, 0.8)
 	require.Len(t, os.PerOperationStrategies, 4)
-	fmt.Println(os)
+
 	assert.Equal(t, "op6", os.PerOperationStrategies[0].Operation)
 	assert.EqualValues(t, 0.5, os.PerOperationStrategies[0].ProbabilisticSampling.SamplingRate)
 	assert.Equal(t, "op1", os.PerOperationStrategies[1].Operation)
@@ -242,4 +245,51 @@ func TestDeepCopy(t *testing.T) {
 	copy := deepCopy(s)
 	assert.False(t, copy == s)
 	assert.EqualValues(t, copy, s)
+}
+
+func TestAutoUpdateStrategy(t *testing.T) {
+	// copy from fixtures/strategies.json
+	tempFile, _ := ioutil.TempFile("", "for_go_test_*.json")
+	tempFile.Close()
+
+	srcFile, dstFile := "fixtures/strategies.json", tempFile.Name()
+	srcBytes, err := ioutil.ReadFile(srcFile)
+	require.NoError(t, err)
+	err = ioutil.WriteFile(dstFile, srcBytes, 0644)
+	require.NoError(t, err)
+
+	interval := time.Millisecond * 10
+	store, err := NewStrategyStore(Options{
+		StrategiesFile: dstFile,
+		ReloadInterval: interval,
+	}, zap.NewNop())
+	require.NoError(t, err)
+	defer store.(*strategyStore).Close()
+
+	s, err := store.GetSamplingStrategy("foo")
+	require.NoError(t, err)
+	assert.EqualValues(t, makeResponse(sampling.SamplingStrategyType_PROBABILISTIC, 0.8), *s)
+
+	// update file
+	newStr := strings.Replace(string(srcBytes), "0.8", "0.9", 1)
+	err = ioutil.WriteFile(dstFile, []byte(newStr), 0644)
+	require.NoError(t, err)
+
+	// wait for reloading
+	time.Sleep(interval * 4)
+
+	// verity reloading
+	s, err = store.GetSamplingStrategy("foo")
+	require.NoError(t, err)
+	assert.EqualValues(t, makeResponse(sampling.SamplingStrategyType_PROBABILISTIC, 0.9), *s)
+
+	// check bad file content
+	_ = ioutil.WriteFile(dstFile, []byte("bad value"), 0644)
+	time.Sleep(interval * 2)
+
+	// remove file(test read file failure)
+	_ = os.Remove(dstFile)
+	// wait for delete and update failure
+	time.Sleep(interval * 2)
+
 }

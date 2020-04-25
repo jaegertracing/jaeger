@@ -42,3 +42,11 @@ func defaultStrategyResponse() *sampling.SamplingStrategyResponse {
 		},
 	}
 }
+
+func defaultStrategies() *storedStrategies {
+	s := &storedStrategies{
+		serviceStrategies: make(map[string]*sampling.SamplingStrategyResponse),
+	}
+	s.defaultStrategy = defaultStrategyResponse()
+	return s
+}
