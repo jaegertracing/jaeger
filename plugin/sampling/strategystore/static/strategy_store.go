@@ -84,35 +84,40 @@ func (h *strategyStore) Close() {
 }
 
 func (h *strategyStore) autoUpdateStrategies(interval time.Duration, filePath string) {
-	lastString := ""
+	lastValue := ""
 	ticker := time.NewTicker(interval)
 	defer ticker.Stop()
 	for {
 		select {
 		case <-ticker.C:
-			currBytes, err := ioutil.ReadFile(filepath.Clean(filePath))
-			if err != nil {
-				h.logger.Error("ReadFile failed", zap.Error(err))
-			}
-			currStr := string(currBytes)
-			if lastString == currStr {
-				continue
-			}
-			if err = h.updateSamplingStrategy(currBytes); err != nil {
-				h.logger.Error("UpdateSamplingStrategy failed", zap.Error(err))
-			}
-			lastString = currStr
-
+			lastValue = h.reloadSamplingStrategyFile(filePath, lastValue)
 		case <-h.ctx.Done():
 			return
 		}
 	}
 }
 
+func (h *strategyStore) reloadSamplingStrategyFile(filePath string, lastValue string) string {
+	currBytes, err := ioutil.ReadFile(filepath.Clean(filePath))
+	if err != nil {
+		h.logger.Error("failed to load sampling strategies", zap.String("file", filePath), zap.Error(err))
+		return lastValue
+	}
+	newValue := string(currBytes)
+	if lastValue == newValue {
+		return lastValue
+	}
+	if err = h.updateSamplingStrategy(currBytes); err != nil {
+		h.logger.Error("failed to update sampling strategies from file", zap.Error(err))
+		return lastValue
+	}
+	return newValue
+}
+
 func (h *strategyStore) updateSamplingStrategy(bytes []byte) error {
 	var strategies strategies
 	if err := json.Unmarshal(bytes, &strategies); err != nil {
-		return fmt.Errorf("failed to unmarshal strategies: %w", err)
+		return fmt.Errorf("failed to unmarshal sampling strategies: %w", err)
 	}
 	h.parseStrategies(&strategies)
 	h.logger.Info("Updated sampling strategies:" + string(bytes))
@@ -124,12 +129,12 @@ func loadStrategies(strategiesFile string) (*strategies, error) {
 	if strategiesFile == "" {
 		return nil, nil
 	}
-	bytes, err := ioutil.ReadFile(strategiesFile) /* nolint #nosec , this comes from an admin, not user */
+	data, err := ioutil.ReadFile(strategiesFile) /* nolint #nosec , this comes from an admin, not user */
 	if err != nil {
 		return nil, fmt.Errorf("failed to open strategies file: %w", err)
 	}
 	var strategies strategies
-	if err := json.Unmarshal(bytes, &strategies); err != nil {
+	if err := json.Unmarshal(data, &strategies); err != nil {
 		return nil, fmt.Errorf("failed to unmarshal strategies: %w", err)
 	}
 	return &strategies, nil
