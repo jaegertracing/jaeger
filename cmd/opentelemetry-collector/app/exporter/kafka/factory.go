@@ -50,7 +50,7 @@ func (Factory) Type() configmodels.Type {
 }
 
 // CreateDefaultConfig returns default configuration of Factory.
-// This function implements OTEL exporter.ExporterFactoryBase interface.
+// This function implements OTEL component.ExporterFactoryBase interface.
 func (f Factory) CreateDefaultConfig() configmodels.Exporter {
 	opts := f.OptionsFactory()
 	return &Config{
