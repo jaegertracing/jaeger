@@ -1,0 +1,19 @@
+receivers:
+  jaeger:
+    remote_sampling:
+      strategy_file: foo.json
+    protocols:
+      grpc:
+
+processors:
+  exampleprocessor:
+
+exporters:
+  exampleexporter:
+
+service:
+  pipelines:
+    traces:
+      receivers: [jaeger]
+      processors: [exampleprocessor]
+      exporters: [exampleexporter]

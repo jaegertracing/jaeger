@@ -18,7 +18,6 @@ import (
 	"context"
 
 	"github.com/open-telemetry/opentelemetry-collector/component"
-	"github.com/open-telemetry/opentelemetry-collector/config/configerror"
 	"github.com/open-telemetry/opentelemetry-collector/config/configmodels"
 	"github.com/open-telemetry/opentelemetry-collector/consumer"
 	"github.com/open-telemetry/opentelemetry-collector/receiver/jaegerreceiver"
@@ -83,9 +82,9 @@ func (f *Factory) CustomUnmarshaler() component.CustomUnmarshaler {
 // CreateMetricsReceiver creates a metrics receiver based on provided config.
 // This function implements component.ReceiverFactory.
 func (f *Factory) CreateMetricsReceiver(
-	_ *zap.Logger,
-	_ configmodels.Receiver,
-	_ consumer.MetricsConsumerOld,
+	logger *zap.Logger,
+	receiver configmodels.Receiver,
+	consumer consumer.MetricsConsumerOld,
 ) (component.MetricsReceiver, error) {
-	return nil, configerror.ErrDataTypeIsNotSupported
+	return f.Wrapped.CreateMetricsReceiver(logger, receiver, consumer)
 }

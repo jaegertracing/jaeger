@@ -15,6 +15,10 @@
 package jaegerreceiver
 
 import (
+	jConfig "github.com/jaegertracing/jaeger/pkg/config"
+	"github.com/open-telemetry/opentelemetry-collector/config"
+	"github.com/stretchr/testify/require"
+	"path"
 	"testing"
 
 	"github.com/open-telemetry/opentelemetry-collector/config/configerror"
@@ -25,6 +29,16 @@ import (
 
 	"github.com/jaegertracing/jaeger/plugin/sampling/strategystore/static"
 )
+
+func TestDefaultValues(t *testing.T) {
+	v, c := jConfig.Viperize(static.AddFlags)
+	err := c.ParseFlags([]string{})
+	require.NoError(t, err)
+
+	factory := &Factory{Viper: v, Wrapped: &jaegerreceiver.Factory{}}
+	cfg := factory.CreateDefaultConfig().(*jaegerreceiver.Config)
+	assert.Nil(t, cfg.RemoteSampling)
+}
 
 func TestDefaultValueFromViper(t *testing.T) {
 	v := viper.New()
@@ -38,6 +52,25 @@ func TestDefaultValueFromViper(t *testing.T) {
 
 	cfg := f.CreateDefaultConfig().(*jaegerreceiver.Config)
 	assert.Equal(t, "config.json", cfg.RemoteSampling.StrategyFile)
+}
+
+func TestLoadConfigAndFlags(t *testing.T) {
+	factories, err := config.ExampleComponents()
+	require.NoError(t, err)
+
+	v, c := jConfig.Viperize(static.AddFlags)
+	err = c.ParseFlags([]string{"--sampling.strategies-file=bar.json"})
+	require.NoError(t, err)
+
+	factory := &Factory{Viper: v, Wrapped: &jaegerreceiver.Factory{}}
+
+	factories.Receivers["jaeger"] = factory
+	colConfig, err := config.LoadConfigFile(t, path.Join(".", "testdata", "config.yaml"), factories)
+	require.NoError(t, err)
+	require.NotNil(t, colConfig)
+
+	cfg := colConfig.Receivers["jaeger"].(*jaegerreceiver.Config)
+	assert.Equal(t, "foo.json", cfg.RemoteSampling.StrategyFile)
 }
 
 func TestType(t *testing.T) {
