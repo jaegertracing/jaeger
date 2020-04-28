@@ -15,18 +15,18 @@
 package jaegerreceiver
 
 import (
-	jConfig "github.com/jaegertracing/jaeger/pkg/config"
-	"github.com/open-telemetry/opentelemetry-collector/config"
-	"github.com/stretchr/testify/require"
 	"path"
 	"testing"
 
+	"github.com/open-telemetry/opentelemetry-collector/config"
 	"github.com/open-telemetry/opentelemetry-collector/config/configerror"
 	"github.com/open-telemetry/opentelemetry-collector/receiver/jaegerreceiver"
 	"github.com/spf13/viper"
 	"github.com/stretchr/testify/assert"
+	"github.com/stretchr/testify/require"
 	"go.uber.org/zap"
 
+	jConfig "github.com/jaegertracing/jaeger/pkg/config"
 	"github.com/jaegertracing/jaeger/plugin/sampling/strategystore/static"
 )
 
@@ -63,6 +63,7 @@ func TestLoadConfigAndFlags(t *testing.T) {
 	require.NoError(t, err)
 
 	factory := &Factory{Viper: v, Wrapped: &jaegerreceiver.Factory{}}
+	assert.Equal(t, "bar.json", factory.CreateDefaultConfig().(*jaegerreceiver.Config).RemoteSampling.StrategyFile)
 
 	factories.Receivers["jaeger"] = factory
 	colConfig, err := config.LoadConfigFile(t, path.Join(".", "testdata", "config.yaml"), factories)
