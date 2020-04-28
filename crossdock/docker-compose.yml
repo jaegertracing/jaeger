@@ -30,7 +30,11 @@ services:
         ports:
             - "8080-8082"
         depends_on:
+            #        UDP sender needs to know agent's address
             - jaeger-agent
+        environment:
+            - AGENT_HOST_PORT=jaeger-agent:6831
+            - SAMPLING_SERVER_URL:http://jaeger-agent:5778/sampling
 
     node:
         image: jaegertracing/xdock-node
