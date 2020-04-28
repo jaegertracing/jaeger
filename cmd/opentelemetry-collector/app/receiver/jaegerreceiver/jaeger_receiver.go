@@ -48,10 +48,6 @@ func (f *Factory) Type() string {
 func (f *Factory) CreateDefaultConfig() configmodels.Receiver {
 	cfg := f.Wrapped.CreateDefaultConfig().(*jaegerreceiver.Config)
 	strategyFile := f.Viper.GetString(static.SamplingStrategiesFile)
-	// if remote sampling struct is not nil the factory will use default values for endpoints and enable remote sampling
-	// the problem is that flag will always return some default value
-	// so we cannot distinguish when it should be enabled and when not.
-	// Using default values makes sense when a component is enabled
 	var samplingConf *jaegerreceiver.RemoteSamplingConfig
 	if strategyFile != "" {
 		samplingConf = &jaegerreceiver.RemoteSamplingConfig{
