@@ -17,6 +17,7 @@ package main
 import (
 	"flag"
 	"fmt"
+	"io/ioutil"
 	"log"
 	"os"
 	"strings"
@@ -34,6 +35,7 @@ import (
 	"github.com/jaegertracing/jaeger/cmd/opentelemetry-collector/app/exporter/elasticsearch"
 	"github.com/jaegertracing/jaeger/cmd/opentelemetry-collector/app/exporter/kafka"
 	jconfig "github.com/jaegertracing/jaeger/pkg/config"
+	"github.com/jaegertracing/jaeger/plugin/sampling/strategystore/static"
 	"github.com/jaegertracing/jaeger/plugin/storage"
 )
 
@@ -88,6 +90,7 @@ func main() {
 		collectorApp.AddFlags,
 		jflags.AddConfigFileFlag,
 		storageFlags,
+		static.AddFlags,
 	)
 
 	// parse flags to propagate Jaeger config file flag value to viper
@@ -104,6 +107,7 @@ func main() {
 // getOTELConfigFile returns name of OTEL config file.
 func getOTELConfigFile() string {
 	f := &flag.FlagSet{}
+	f.SetOutput(ioutil.Discard)
 	builder.Flags(f)
 	// parse flags to bind the value
 	f.Parse(os.Args[1:])

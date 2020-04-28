@@ -12,7 +12,7 @@ require (
 	github.com/census-instrumentation/opencensus-proto v0.2.1
 	github.com/jaegertracing/jaeger v1.17.0
 	github.com/magiconair/properties v1.8.1
-	github.com/open-telemetry/opentelemetry-collector v0.3.1-0.20200408203355-0e1b2e323d39
+	github.com/open-telemetry/opentelemetry-collector v0.3.1-0.20200420175007-048d7d257824
 	github.com/spf13/pflag v1.0.5
 	github.com/spf13/viper v1.6.2
 	github.com/stretchr/testify v1.5.0

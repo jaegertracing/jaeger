@@ -22,7 +22,7 @@ import (
 )
 
 const (
-	samplingStrategiesFile           = "sampling.strategies-file"
+	SamplingStrategiesFile           = "sampling.strategies-file"
 	samplingStrategiesReloadInterval = "sampling.strategies-reload-interval"
 )
 
@@ -36,13 +36,13 @@ type Options struct {
 
 // AddFlags adds flags for Options
 func AddFlags(flagSet *flag.FlagSet) {
-	flagSet.String(samplingStrategiesFile, "", "The path for the sampling strategies file in JSON format. See sampling documentation to see format of the file")
+	flagSet.String(SamplingStrategiesFile, "", "The path for the sampling strategies file in JSON format. See sampling documentation to see format of the file")
 	flagSet.Duration(samplingStrategiesReloadInterval, 0, "Reload interval to check and reload sampling strategies file. Zero value means no reloading")
 }
 
 // InitFromViper initializes Options with properties from viper
 func (opts *Options) InitFromViper(v *viper.Viper) *Options {
-	opts.StrategiesFile = v.GetString(samplingStrategiesFile)
+	opts.StrategiesFile = v.GetString(SamplingStrategiesFile)
 	opts.ReloadInterval = v.GetDuration(samplingStrategiesReloadInterval)
 	return opts
 }
