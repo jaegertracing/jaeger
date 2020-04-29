@@ -20,7 +20,6 @@ import (
 
 	"github.com/open-telemetry/opentelemetry-collector/config"
 	"github.com/open-telemetry/opentelemetry-collector/config/configmodels"
-	"github.com/open-telemetry/opentelemetry-collector/processor/batchprocessor"
 	"github.com/open-telemetry/opentelemetry-collector/receiver"
 	"github.com/open-telemetry/opentelemetry-collector/receiver/jaegerreceiver"
 	"github.com/open-telemetry/opentelemetry-collector/receiver/zipkinreceiver"
@@ -51,16 +50,14 @@ func Config(storageType string, zipkinHostPort string, factories config.Factorie
 	return &configmodels.Config{
 		Receivers:  receivers,
 		Exporters:  exporters,
-		Processors: createProcessors(factories),
 		Extensions: configmodels.Extensions{"health_check": hc},
 		Service: configmodels.Service{
 			Extensions: []string{"health_check"},
 			Pipelines: map[string]*configmodels.Pipeline{
 				"traces": {
-					InputType:  configmodels.TracesDataType,
-					Receivers:  recTypes,
-					Exporters:  expTypes,
-					Processors: []string{},
+					InputType: configmodels.TracesDataType,
+					Receivers: recTypes,
+					Exporters: expTypes,
 				},
 			},
 		},
@@ -122,11 +119,4 @@ func createExporters(storageTypes string, factories config.Factories) (configmod
 		}
 	}
 	return exporters, nil
-}
-
-func createProcessors(factories config.Factories) configmodels.Processors {
-	batch := factories.Processors["batch"].CreateDefaultConfig().(*batchprocessor.Config)
-	return map[string]configmodels.Processor{
-		"batch": batch,
-	}
 }
