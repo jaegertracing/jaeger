@@ -62,7 +62,6 @@ func main() {
 
 	cmpts := defaults.Components(v)
 	cfgFactory := func(otelViper *viper.Viper, f config.Factories) (*configmodels.Config, error) {
-		fmt.Println("\n\n\n\n -----> CFG factory")
 		collectorOpts := &collectorApp.CollectorOptions{}
 		collectorOpts.InitFromViper(v)
 		cfg, err := defaults.Config(storageType, collectorOpts.CollectorZipkinHTTPHostPort, cmpts)
