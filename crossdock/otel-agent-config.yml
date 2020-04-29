@@ -7,9 +7,6 @@ receivers:
       thrift_compact:
       thrift_binary:
 
-processors:
-  queued_retry: {}
-
 exporters:
   jaeger:
     endpoint: jaeger-collector:14250
@@ -18,5 +15,4 @@ service:
   pipelines:
     traces:
       receivers: [jaeger]
-      processors: [queued_retry]
       exporters: [jaeger]

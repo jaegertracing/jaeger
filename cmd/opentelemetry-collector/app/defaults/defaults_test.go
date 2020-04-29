@@ -18,6 +18,7 @@ import (
 	"testing"
 
 	"github.com/magiconair/properties/assert"
+	"github.com/open-telemetry/opentelemetry-collector/config/configmodels"
 
 	"github.com/jaegertracing/jaeger/cmd/opentelemetry-collector/app/exporter/cassandra"
 	"github.com/jaegertracing/jaeger/cmd/opentelemetry-collector/app/exporter/elasticsearch"
@@ -28,9 +29,9 @@ import (
 func TestComponents(t *testing.T) {
 	v, _ := jConfig.Viperize(kafka.DefaultOptions().AddFlags, cassandra.DefaultOptions().AddFlags, elasticsearch.DefaultOptions().AddFlags)
 	factories := Components(v)
-	assert.Equal(t, "jaeger_kafka", factories.Exporters[kafka.TypeStr].Type())
-	assert.Equal(t, "jaeger_cassandra", factories.Exporters[cassandra.TypeStr].Type())
-	assert.Equal(t, "jaeger_elasticsearch", factories.Exporters[elasticsearch.TypeStr].Type())
+	assert.Equal(t, configmodels.Type("jaeger_kafka"), factories.Exporters[kafka.TypeStr].Type())
+	assert.Equal(t, configmodels.Type("jaeger_cassandra"), factories.Exporters[cassandra.TypeStr].Type())
+	assert.Equal(t, configmodels.Type("jaeger_elasticsearch"), factories.Exporters[elasticsearch.TypeStr].Type())
 
 	kafkaFactory := factories.Exporters[kafka.TypeStr]
 	kc := kafkaFactory.CreateDefaultConfig().(*kafka.Config)

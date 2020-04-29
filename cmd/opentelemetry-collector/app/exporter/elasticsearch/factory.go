@@ -15,12 +15,12 @@
 package elasticsearch
 
 import (
+	"context"
 	"fmt"
 
 	"github.com/open-telemetry/opentelemetry-collector/component"
 	"github.com/open-telemetry/opentelemetry-collector/config/configerror"
 	"github.com/open-telemetry/opentelemetry-collector/config/configmodels"
-	"go.uber.org/zap"
 
 	"github.com/jaegertracing/jaeger/plugin/storage/es"
 )
@@ -44,12 +44,14 @@ type Factory struct {
 }
 
 // Type gets the type of exporter.
-func (Factory) Type() string {
+func (Factory) Type() configmodels.Type {
 	return TypeStr
 }
 
+var _ component.ExporterFactory = (*Factory)(nil)
+
 // CreateDefaultConfig returns default configuration of Factory.
-// This function implements OTEL component.BaseFactory interface.
+// This function implements OTEL component.ExporterFactoryBase interface.
 func (f Factory) CreateDefaultConfig() configmodels.Exporter {
 	opts := f.OptionsFactory()
 	return &Config{
@@ -62,17 +64,25 @@ func (f Factory) CreateDefaultConfig() configmodels.Exporter {
 }
 
 // CreateTraceExporter creates Jaeger Elasticsearch trace exporter.
-// This function implements OTEL exporter.Factory interface.
-func (Factory) CreateTraceExporter(log *zap.Logger, cfg configmodels.Exporter) (component.TraceExporterOld, error) {
+// This function implements OTEL component.ExporterFactory interface.
+func (Factory) CreateTraceExporter(
+	_ context.Context,
+	params component.ExporterCreateParams,
+	cfg configmodels.Exporter,
+) (component.TraceExporter, error) {
 	esCfg, ok := cfg.(*Config)
 	if !ok {
 		return nil, fmt.Errorf("could not cast configuration to %s", TypeStr)
 	}
-	return New(esCfg, log)
+	return New(esCfg, params)
 }
 
 // CreateMetricsExporter is not implemented.
-// This function implements OTEL exporter.Factory interface.
-func (Factory) CreateMetricsExporter(*zap.Logger, configmodels.Exporter) (component.MetricsExporterOld, error) {
+// This function implements OTEL component.ExporterFactory interface.
+func (Factory) CreateMetricsExporter(
+	_ context.Context,
+	_ component.ExporterCreateParams,
+	_ configmodels.Exporter,
+) (component.MetricsExporter, error) {
 	return nil, configerror.ErrDataTypeIsNotSupported
 }

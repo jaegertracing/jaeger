@@ -47,10 +47,9 @@ func TestDefaultConfig(t *testing.T) {
 			exporterTypes:  []string{elasticsearch.TypeStr},
 			pipeline: map[string]*configmodels.Pipeline{
 				"traces": {
-					InputType:  configmodels.TracesDataType,
-					Receivers:  []string{"jaeger"},
-					Exporters:  []string{elasticsearch.TypeStr},
-					Processors: []string{"batch"},
+					InputType: configmodels.TracesDataType,
+					Receivers: []string{"jaeger"},
+					Exporters: []string{elasticsearch.TypeStr},
 				},
 			},
 		},
@@ -60,10 +59,9 @@ func TestDefaultConfig(t *testing.T) {
 			exporterTypes:  []string{cassandra.TypeStr},
 			pipeline: map[string]*configmodels.Pipeline{
 				"traces": {
-					InputType:  configmodels.TracesDataType,
-					Receivers:  []string{"jaeger"},
-					Exporters:  []string{cassandra.TypeStr},
-					Processors: []string{"batch"},
+					InputType: configmodels.TracesDataType,
+					Receivers: []string{"jaeger"},
+					Exporters: []string{cassandra.TypeStr},
 				},
 			},
 		},
@@ -73,10 +71,9 @@ func TestDefaultConfig(t *testing.T) {
 			exporterTypes:  []string{kafka.TypeStr},
 			pipeline: map[string]*configmodels.Pipeline{
 				"traces": {
-					InputType:  configmodels.TracesDataType,
-					Receivers:  []string{"jaeger"},
-					Exporters:  []string{kafka.TypeStr},
-					Processors: []string{"batch"},
+					InputType: configmodels.TracesDataType,
+					Receivers: []string{"jaeger"},
+					Exporters: []string{kafka.TypeStr},
 				},
 			},
 		},
@@ -86,10 +83,9 @@ func TestDefaultConfig(t *testing.T) {
 			exporterTypes:  []string{cassandra.TypeStr, elasticsearch.TypeStr},
 			pipeline: map[string]*configmodels.Pipeline{
 				"traces": {
-					InputType:  configmodels.TracesDataType,
-					Receivers:  []string{"jaeger"},
-					Exporters:  []string{cassandra.TypeStr, elasticsearch.TypeStr},
-					Processors: []string{"batch"},
+					InputType: configmodels.TracesDataType,
+					Receivers: []string{"jaeger"},
+					Exporters: []string{cassandra.TypeStr, elasticsearch.TypeStr},
 				},
 			},
 		},
@@ -99,10 +95,9 @@ func TestDefaultConfig(t *testing.T) {
 			exporterTypes:  []string{cassandra.TypeStr},
 			pipeline: map[string]*configmodels.Pipeline{
 				"traces": {
-					InputType:  configmodels.TracesDataType,
-					Receivers:  []string{"jaeger", "zipkin"},
-					Exporters:  []string{cassandra.TypeStr},
-					Processors: []string{"batch"},
+					InputType: configmodels.TracesDataType,
+					Receivers: []string{"jaeger", "zipkin"},
+					Exporters: []string{cassandra.TypeStr},
 				},
 			},
 		},
@@ -128,13 +123,11 @@ func TestDefaultConfig(t *testing.T) {
 			assert.Equal(t, "health_check", cfg.Extensions["health_check"].Name())
 			assert.Equal(t, len(test.pipeline["traces"].Receivers), len(cfg.Receivers))
 			assert.Equal(t, "jaeger", cfg.Receivers["jaeger"].Name())
-			assert.Equal(t, 1, len(cfg.Processors))
-			assert.Equal(t, "batch", cfg.Processors["batch"].Name())
 			assert.Equal(t, len(test.exporterTypes), len(cfg.Exporters))
 
 			types := []string{}
 			for _, v := range cfg.Exporters {
-				types = append(types, v.Type())
+				types = append(types, string(v.Type()))
 			}
 			sort.Strings(types)
 			assert.Equal(t, test.exporterTypes, types)

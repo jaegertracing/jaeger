@@ -17,17 +17,16 @@ package elasticsearch
 import (
 	"github.com/open-telemetry/opentelemetry-collector/component"
 	"github.com/uber/jaeger-lib/metrics"
-	"go.uber.org/zap"
 
 	storageOtelExporter "github.com/jaegertracing/jaeger/cmd/opentelemetry-collector/app/exporter"
 	"github.com/jaegertracing/jaeger/plugin/storage/es"
 )
 
 // New creates Elasticsearch exporter/storage.
-func New(config *Config, log *zap.Logger) (component.TraceExporterOld, error) {
+func New(config *Config, params component.ExporterCreateParams) (component.TraceExporter, error) {
 	factory := es.NewFactory()
 	factory.InitFromOptions(config.Options)
-	err := factory.Initialize(metrics.NullFactory, log)
+	err := factory.Initialize(metrics.NullFactory, params.Logger)
 	if err != nil {
 		return nil, err
 	}
