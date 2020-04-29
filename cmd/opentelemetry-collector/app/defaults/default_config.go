@@ -60,7 +60,7 @@ func Config(storageType string, zipkinHostPort string, factories config.Factorie
 					InputType:  configmodels.TracesDataType,
 					Receivers:  recTypes,
 					Exporters:  expTypes,
-					Processors: []string{"batch"},
+					Processors: []string{},
 				},
 			},
 		},
