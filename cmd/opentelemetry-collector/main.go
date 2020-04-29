@@ -17,7 +17,7 @@ package main
 import (
 	"flag"
 	"fmt"
-	"io/ioutil"
+	ioutil "io/ioutil"
 	"log"
 	"os"
 	"strings"
@@ -61,14 +61,27 @@ func main() {
 	}
 
 	cmpts := defaults.Components(v)
-	var cfgFactory service.ConfigFactory
-	if getOTELConfigFile() == "" {
-		log.Println("Config file not provided, installing default Jaeger components")
-		cfgFactory = func(*viper.Viper, config.Factories) (*configmodels.Config, error) {
-			collectorOpts := &collectorApp.CollectorOptions{}
-			collectorOpts.InitFromViper(v)
-			return defaults.Config(storageType, collectorOpts.CollectorZipkinHTTPHostPort, cmpts)
+	cfgFactory := func(otelViper *viper.Viper, f config.Factories) (*configmodels.Config, error) {
+		fmt.Println("\n\n\n\n -----> CFG factory")
+		collectorOpts := &collectorApp.CollectorOptions{}
+		collectorOpts.InitFromViper(v)
+		cfg, err := defaults.Config(storageType, collectorOpts.CollectorZipkinHTTPHostPort, cmpts)
+		if err != nil {
+			return nil, err
 		}
+
+		var otelCfg *configmodels.Config
+		if len(getOTELConfigFile()) > 0 {
+			otelCfg, err = service.FileLoaderConfigFactory(otelViper, f)
+			if err != nil {
+				return nil, err
+			}
+		}
+		err = defaults.MergeConfigs(cfg, otelCfg)
+		if err != nil {
+			return nil, err
+		}
+		return cfg, nil
 	}
 
 	svc, err := service.New(service.Parameters{

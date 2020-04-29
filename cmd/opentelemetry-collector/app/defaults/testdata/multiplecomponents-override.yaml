@@ -1,0 +1,30 @@
+receivers:
+  jaeger:
+    protocols:
+      grpc:
+  opencensus:
+    endpoint: "localhost:55678"
+  prometheus:
+    config:
+      scrape_configs:
+        - job_name: "caching_cluster"
+          scrape_interval: 5s
+          static_configs:
+            - targets: ["localhost:8889"]
+
+exporters:
+  jaeger_elasticsearch:
+
+processors:
+  batch:
+    timeout: 5s
+  queued_retry:
+    disabled: true
+
+service:
+  pipelines:
+    traces:
+      receivers: [opencensus]
+      processors: [batch]
+    metrics:
+      receivers: [prometheus]

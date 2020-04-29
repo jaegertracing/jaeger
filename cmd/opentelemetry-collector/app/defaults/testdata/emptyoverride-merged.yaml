@@ -1,0 +1,22 @@
+receivers:
+  jaeger:
+    protocols:
+      grpc:
+      thrift_compact:
+      thrift_binary:
+
+processors:
+  queued_retry: {}
+
+exporters:
+  jaeger_elasticsearch:
+    server_urls: http://localhost:9200
+    num_shards: 1
+    num_replicas: 0
+
+service:
+  pipelines:
+    traces:
+      receivers: [jaeger]
+      processors: [queued_retry]
+      exporters: [jaeger_elasticsearch]

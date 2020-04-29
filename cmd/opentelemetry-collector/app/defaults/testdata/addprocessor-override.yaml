@@ -1,0 +1,23 @@
+receivers:
+  jaeger:
+    protocols:
+      grpc:
+# TODO OTEL config.Load() fails if there are no receiver/exporters
+exporters:
+  jaeger_elasticsearch:
+    # TODO These two properties have to be overridden here if they were overridden in addprocessor.yaml
+    # If we do not override them here the default values from viper will override the values from "default/src" config.
+    # However in reality the default config is created from viper, hence when OTEL configuration is created it
+    # uses viper to create default values and then it sets the values from config.
+    # The viper is not used in tests hence we have to override it here.
+    #num_shards: 1
+    #num_replicas: 0
+
+processors:
+  batch:
+    timeout: 5s
+
+service:
+  pipelines:
+    traces:
+      processors: [batch]

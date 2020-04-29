@@ -10,6 +10,7 @@ require (
 	github.com/Shopify/sarama v1.22.2-0.20190604114437-cd910a683f9f
 	github.com/bombsimon/wsl v1.2.5 // indirect
 	github.com/census-instrumentation/opencensus-proto v0.2.1
+	github.com/imdario/mergo v0.3.9
 	github.com/jaegertracing/jaeger v1.17.0
 	github.com/magiconair/properties v1.8.1
 	github.com/open-telemetry/opentelemetry-collector v0.3.1-0.20200428040525-c7c58b3d1319
@@ -21,3 +22,5 @@ require (
 	go.uber.org/zap v1.13.0
 	k8s.io/client-go v12.0.0+incompatible // indirect
 )
+
+replace github.com/open-telemetry/opentelemetry-collector => /home/ploffay/projects/opentelemetry/opentelemetry-collector
