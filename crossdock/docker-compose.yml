@@ -29,6 +29,9 @@ services:
         image: jaegertracing/xdock-go
         ports:
             - "8080-8082"
+        depends_on:
+            - jaeger-agent
+            - jaeger-collector
 
     node:
         image: jaegertracing/xdock-node
