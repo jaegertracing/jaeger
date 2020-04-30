@@ -8,6 +8,8 @@ receivers:
       thrift_binary:
 
 exporters:
+  jaeger_cassandra:
+    disabled: true
   jaeger:
     endpoint: jaeger-collector:14250
 
