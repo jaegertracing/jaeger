@@ -18,5 +18,4 @@ exporters:
 service:
   pipelines:
     traces:
-      receivers: [jaeger]
       exporters: [jaeger]
