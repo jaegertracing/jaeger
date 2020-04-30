@@ -22,5 +22,3 @@ require (
 	go.uber.org/zap v1.13.0
 	k8s.io/client-go v12.0.0+incompatible // indirect
 )
-
-replace github.com/open-telemetry/opentelemetry-collector => /home/ploffay/projects/opentelemetry/opentelemetry-collector
