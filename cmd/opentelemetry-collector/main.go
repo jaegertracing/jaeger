@@ -15,10 +15,9 @@
 package main
 
 import (
-	"errors"
 	"flag"
 	"fmt"
-	ioutil "io/ioutil"
+	"io/ioutil"
 	"log"
 	"os"
 	"strings"
@@ -72,7 +71,7 @@ func main() {
 
 		var otelCfg *configmodels.Config
 		if len(getOTELConfigFile()) > 0 {
-			otelCfg, err = fileLoaderConfigFactory(otelViper, f)
+			otelCfg, err = service.FileLoaderConfigFactory(otelViper, f)
 			if err != nil {
 				return nil, err
 			}
@@ -125,21 +124,6 @@ func getOTELConfigFile() string {
 	// parse flags to bind the value
 	f.Parse(os.Args[1:])
 	return builder.GetConfigFile()
-}
-
-// fileLoaderConfigFactory implements ConfigFactory and it creates configuration from file.
-// TODO remove once https://github.com/open-telemetry/opentelemetry-collector/pull/887 is merged
-func fileLoaderConfigFactory(v *viper.Viper, factories config.Factories) (*configmodels.Config, error) {
-	file := builder.GetConfigFile()
-	if file == "" {
-		return nil, errors.New("config file not specified")
-	}
-	v.SetConfigFile(file)
-	err := v.ReadInConfig()
-	if err != nil {
-		return nil, fmt.Errorf("error loading config file %q: %v", file, err)
-	}
-	return config.Load(v, factories)
 }
 
 // storageFlags return a function that will add storage flags.

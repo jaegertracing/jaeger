@@ -15,6 +15,7 @@
 package defaults
 
 import (
+	"fmt"
 	"sort"
 	"testing"
 
@@ -38,14 +39,14 @@ func TestDefaultConfig(t *testing.T) {
 		storageType    string
 		zipkinHostPort string
 		exporterTypes  []string
-		pipeline       map[string]*configmodels.Pipeline
+		pipeline       configmodels.Pipelines
 		err            string
 	}{
 		{
 			storageType:    "elasticsearch",
 			zipkinHostPort: disabledHostPort,
 			exporterTypes:  []string{elasticsearch.TypeStr},
-			pipeline: map[string]*configmodels.Pipeline{
+			pipeline: configmodels.Pipelines{
 				"traces": {
 					InputType: configmodels.TracesDataType,
 					Receivers: []string{"jaeger"},
@@ -57,7 +58,7 @@ func TestDefaultConfig(t *testing.T) {
 			storageType:    "cassandra",
 			zipkinHostPort: disabledHostPort,
 			exporterTypes:  []string{cassandra.TypeStr},
-			pipeline: map[string]*configmodels.Pipeline{
+			pipeline: configmodels.Pipelines{
 				"traces": {
 					InputType: configmodels.TracesDataType,
 					Receivers: []string{"jaeger"},
@@ -69,7 +70,7 @@ func TestDefaultConfig(t *testing.T) {
 			storageType:    "kafka",
 			zipkinHostPort: disabledHostPort,
 			exporterTypes:  []string{kafka.TypeStr},
-			pipeline: map[string]*configmodels.Pipeline{
+			pipeline: configmodels.Pipelines{
 				"traces": {
 					InputType: configmodels.TracesDataType,
 					Receivers: []string{"jaeger"},
@@ -81,7 +82,7 @@ func TestDefaultConfig(t *testing.T) {
 			storageType:    "cassandra,elasticsearch",
 			zipkinHostPort: disabledHostPort,
 			exporterTypes:  []string{cassandra.TypeStr, elasticsearch.TypeStr},
-			pipeline: map[string]*configmodels.Pipeline{
+			pipeline: configmodels.Pipelines{
 				"traces": {
 					InputType: configmodels.TracesDataType,
 					Receivers: []string{"jaeger"},
@@ -93,7 +94,7 @@ func TestDefaultConfig(t *testing.T) {
 			storageType:    "cassandra",
 			zipkinHostPort: ":9411",
 			exporterTypes:  []string{cassandra.TypeStr},
-			pipeline: map[string]*configmodels.Pipeline{
+			pipeline: configmodels.Pipelines{
 				"traces": {
 					InputType: configmodels.TracesDataType,
 					Receivers: []string{"jaeger", "zipkin"},
@@ -131,6 +132,8 @@ func TestDefaultConfig(t *testing.T) {
 			}
 			sort.Strings(types)
 			assert.Equal(t, test.exporterTypes, types)
+			fmt.Printf("expected %v\n", test.pipeline)
+			fmt.Printf("actual %v\n", cfg.Service.Pipelines)
 			assert.EqualValues(t, test.pipeline, cfg.Service.Pipelines)
 		})
 	}

@@ -53,7 +53,7 @@ func Config(storageType string, zipkinHostPort string, factories config.Factorie
 		Extensions: configmodels.Extensions{"health_check": hc},
 		Service: configmodels.Service{
 			Extensions: []string{"health_check"},
-			Pipelines: map[string]*configmodels.Pipeline{
+			Pipelines: configmodels.Pipelines{
 				"traces": {
 					InputType: configmodels.TracesDataType,
 					Receivers: recTypes,

@@ -14,6 +14,7 @@ exporters:
     disabled: true
   jaeger:
     endpoint: jaeger-collector:14250
+    wait_for_ready: true
 
 service:
   pipelines:

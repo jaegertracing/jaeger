@@ -13,7 +13,7 @@ require (
 	github.com/imdario/mergo v0.3.9
 	github.com/jaegertracing/jaeger v1.17.0
 	github.com/magiconair/properties v1.8.1
-	github.com/open-telemetry/opentelemetry-collector v0.3.1-0.20200428040525-c7c58b3d1319
+	github.com/open-telemetry/opentelemetry-collector v0.3.1-0.20200501033637-a0f4cf0384e4
 	github.com/open-telemetry/opentelemetry-proto v0.3.0
 	github.com/spf13/pflag v1.0.5
 	github.com/spf13/viper v1.6.2
@@ -22,5 +22,3 @@ require (
 	go.uber.org/zap v1.13.0
 	k8s.io/client-go v12.0.0+incompatible // indirect
 )
-
-replace github.com/open-telemetry/opentelemetry-collector => github.com/pavolloffay/opentelemetry-collector v0.2.7-0.20200430135857-774cda9143aa
