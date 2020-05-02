@@ -36,6 +36,7 @@ import (
 )
 
 const (
+	queryHostPort           = "query.host-port"
 	queryPort               = "query.port"
 	queryBasePath           = "query.base-path"
 	queryStaticFiles        = "query.static-files"
@@ -43,13 +44,16 @@ const (
 	queryTokenPropagation   = "query.bearer-token-propagation"
 	queryAdditionalHeaders  = "query.additional-headers"
 	queryMaxClockSkewAdjust = "query.max-clock-skew-adjustment"
+	queryPortWarning        = "(deprecated, will be removed after 2020-06-30 or in release v1.20.0, whichever is later)"
 )
 
 // QueryOptions holds configuration for query service
 type QueryOptions struct {
-	// Port is the port that the query service listens in on
+	// HostPort is the host:port address that the query service listens o n
+	HostPort string
+	// Port is the port that the query service listens in on ()
 	Port int
-	// BasePath is the prefix for all UI and API HTTP routes
+	// BasePath is the prefix for all UI and API HTTP routes (deprecated, will be removed after 2020-06-30 or in release v1.20.0, whichever is later)
 	BasePath string
 	// StaticAssets is the path for the static assets for the UI (https://github.com/uber/jaeger-ui)
 	StaticAssets string
@@ -66,7 +70,8 @@ type QueryOptions struct {
 // AddFlags adds flags for QueryOptions
 func AddFlags(flagSet *flag.FlagSet) {
 	flagSet.Var(&config.StringSlice{}, queryAdditionalHeaders, `Additional HTTP response headers.  Can be specified multiple times.  Format: "Key: Value"`)
-	flagSet.Int(queryPort, ports.QueryHTTP, "The port for the query service")
+	flagSet.String(queryHostPort, ports.PortToHostPort(ports.QueryHTTP), "The host:port (e.g. 127.0.0.1:5555 or :5555) of the query's HTTP server")
+	flagSet.Int(queryPort, 0, queryPortWarning+" see --"+queryHostPort)
 	flagSet.String(queryBasePath, "/", "The base path for all HTTP routes, e.g. /jaeger; useful when running behind a reverse proxy")
 	flagSet.String(queryStaticFiles, "", "The directory path override for the static assets for the UI")
 	flagSet.String(queryUIConfig, "", "The path to the UI configuration file in JSON format")
@@ -76,7 +81,8 @@ func AddFlags(flagSet *flag.FlagSet) {
 
 // InitFromViper initializes QueryOptions with properties from viper
 func (qOpts *QueryOptions) InitFromViper(v *viper.Viper, logger *zap.Logger) *QueryOptions {
-	qOpts.Port = v.GetInt(queryPort)
+	// qOpts.Port = v.GetInt(queryPort)
+	qOpts.HostPort = getAddressFromCLIOptions(v.GetInt(queryPort), v.GetString(queryHostPort))
 	qOpts.BasePath = v.GetString(queryBasePath)
 	qOpts.StaticAssets = v.GetString(queryStaticFiles)
 	qOpts.UIConfig = v.GetString(queryUIConfig)
@@ -91,6 +97,19 @@ func (qOpts *QueryOptions) InitFromViper(v *viper.Viper, logger *zap.Logger) *Qu
 		qOpts.AdditionalHeaders = headers
 	}
 	return qOpts
+}
+
+// Utility function to get listening address based on port (deprecated flags) or host:port (new flags)
+func getAddressFromCLIOptions(port int, hostPort string) string {
+	if port != 0 {
+		return ports.PortToHostPort(port)
+	}
+
+	if strings.Contains(hostPort, ":") {
+		return hostPort
+	}
+
+	return ":" + hostPort
 }
 
 // BuildQueryServiceOptions creates a QueryServiceOptions struct with appropriate adjusters and archive config
