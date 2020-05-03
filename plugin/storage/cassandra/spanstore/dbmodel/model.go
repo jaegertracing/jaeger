@@ -43,8 +43,8 @@ type Span struct {
 	ParentID      int64 // deprecated
 	OperationName string
 	Flags         int32
-	StartTime     int64
-	Duration      int64
+	StartTime     int64 // microseconds since epoch
+	Duration      int64 // microseconds
 	Tags          []KeyValue
 	Logs          []Log
 	Refs          []SpanRef
@@ -66,7 +66,7 @@ type KeyValue struct {
 
 // Log is the UDT representation of a Jaeger Log.
 type Log struct {
-	Timestamp int64      `cql:"ts"`
+	Timestamp int64      `cql:"ts"` // microseconds since epoch
 	Fields    []KeyValue `cql:"fields"`
 }
 
