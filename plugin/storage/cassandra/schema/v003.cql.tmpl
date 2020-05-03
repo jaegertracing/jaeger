@@ -33,7 +33,7 @@ CREATE TYPE IF NOT EXISTS ${keyspace}.keyvalue (
 );
 
 CREATE TYPE IF NOT EXISTS ${keyspace}.log (
-    ts      bigint,
+    ts      bigint, // microseconds since epoch
     fields  list<frozen<keyvalue>>,
 );
 
@@ -58,8 +58,8 @@ CREATE TABLE IF NOT EXISTS ${keyspace}.traces (
     parent_id       bigint,
     operation_name  text,
     flags           int,
-    start_time      bigint,
-    duration        bigint,
+    start_time      bigint, // microseconds since epoch
+    duration        bigint, // microseconds
     tags            list<frozen<keyvalue>>,
     logs            list<frozen<log>>,
     refs            list<frozen<span_ref>>,
@@ -110,7 +110,7 @@ CREATE TABLE IF NOT EXISTS ${keyspace}.operation_names_v2 (
 CREATE TABLE IF NOT EXISTS ${keyspace}.service_operation_index (
     service_name        text,
     operation_name      text,
-    start_time          bigint,
+    start_time          bigint, // microseconds since epoch
     trace_id            blob,
     PRIMARY KEY ((service_name, operation_name), start_time)
 ) WITH CLUSTERING ORDER BY (start_time DESC)
@@ -127,7 +127,7 @@ CREATE TABLE IF NOT EXISTS ${keyspace}.service_operation_index (
 CREATE TABLE IF NOT EXISTS ${keyspace}.service_name_index (
     service_name      text,
     bucket            int,
-    start_time        bigint,
+    start_time        bigint, // microseconds since epoch
     trace_id          blob,
     PRIMARY KEY ((service_name, bucket), start_time)
 ) WITH CLUSTERING ORDER BY (start_time DESC)
@@ -146,7 +146,7 @@ CREATE TABLE IF NOT EXISTS ${keyspace}.duration_index (
     operation_name  text,      // operation name, or blank for queries without span name
     bucket          timestamp, // time bucket, - the start_time of the given span rounded to an hour
     duration        bigint,    // span duration, in microseconds
-    start_time      bigint,
+    start_time      bigint,    // microseconds since epoch
     trace_id        blob,
     PRIMARY KEY ((service_name, operation_name, bucket), duration, start_time, trace_id)
 ) WITH CLUSTERING ORDER BY (duration DESC, start_time DESC)
@@ -166,7 +166,7 @@ CREATE TABLE IF NOT EXISTS ${keyspace}.tag_index (
     service_name    text,
     tag_key         text,
     tag_value       text,
-    start_time      bigint,
+    start_time      bigint, // microseconds since epoch
     trace_id        blob,
     span_id         bigint,
     PRIMARY KEY ((service_name, tag_key, tag_value), start_time, trace_id, span_id)
