@@ -1,4 +1,4 @@
-<img align="right" width="290" height="290" src="https://jaeger.readthedocs.io/en/latest/images/jaeger-vector.svg">
+<img align="right" width="290" height="290" src="https://www.jaegertracing.io/img/jaeger-vector.svg">
 
 [![Gitter chat][gitter-img]][gitter] [![OpenTracing-1.0][ot-badge]](https://opentracing.io) [![Project+Community stats][community-badge]][community-stats]
 
