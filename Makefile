@@ -259,17 +259,17 @@ endif
 .PHONY: build-otel-collector
 build-otel-collector: elasticsearch-mappings
 ifeq ($(GOARCH), s390x)
-	cd ${OTEL_COLLECTOR_DIR} && $(GOBUILD) -o ./opentelemetry-collector-$(GOOS)-$(GOARCH) $(BUILD_INFO) main.go
+	cd ${OTEL_COLLECTOR_DIR}/cmd/collector && $(GOBUILD) -o ./opentelemetry-collector-$(GOOS)-$(GOARCH) $(BUILD_INFO) main.go
 else
-	cd ${OTEL_COLLECTOR_DIR} && $(GOBUILD) -o ./opentelemetry-collector-$(GOOS) $(BUILD_INFO) main.go
+	cd ${OTEL_COLLECTOR_DIR}/cmd/collector && $(GOBUILD) -o ./opentelemetry-collector-$(GOOS) $(BUILD_INFO) main.go
 endif
 
 .PHONY: build-otel-agent
 build-otel-agent:
 ifeq ($(GOARCH), s390x)
-	cd ${OTEL_COLLECTOR_DIR} && $(GOBUILD) -o ./opentelemetry-agent-$(GOOS)-$(GOARCH) $(BUILD_INFO) main_agent.go
+	cd ${OTEL_COLLECTOR_DIR}/cmd/agent && $(GOBUILD) -o ./opentelemetry-agent-$(GOOS)-$(GOARCH) $(BUILD_INFO) main.go
 else
-	cd ${OTEL_COLLECTOR_DIR} && $(GOBUILD) -o ./opentelemetry-agent-$(GOOS) $(BUILD_INFO) main_agent.go
+	cd ${OTEL_COLLECTOR_DIR}/cmd/agent && $(GOBUILD) -o ./opentelemetry-agent-$(GOOS) $(BUILD_INFO) main.go
 endif
 
 .PHONY: build-ingester
@@ -318,11 +318,12 @@ docker-images-elastic:
 
 .PHONY: docker-images-jaeger-backend
 docker-images-jaeger-backend:
-	for component in agent collector query ingester opentelemetry-collector ; do \
+	for component in agent collector query ingester ; do \
 		docker build -t $(DOCKER_NAMESPACE)/jaeger-$$component:${DOCKER_TAG} cmd/$$component ; \
 		echo "Finished building $$component ==============" ; \
 	done
-	docker build -t $(DOCKER_NAMESPACE)/jaeger-opentelemetry-agent -f cmd/opentelemetry-collector/Dockerfile.agent cmd/opentelemetry-collector
+	docker build -t $(DOCKER_NAMESPACE)/jaeger-opentelemetry-collector -f ${OTEL_COLLECTOR_DIR}/cmd/collector/Dockerfile cmd/opentelemetry-collector/cmd/collector
+	docker build -t $(DOCKER_NAMESPACE)/jaeger-opentelemetry-agent -f ${OTEL_COLLECTOR_DIR}/cmd/agent/Dockerfile cmd/opentelemetry-collector/cmd/agent
 
 .PHONY: docker-images-tracegen
 docker-images-tracegen:

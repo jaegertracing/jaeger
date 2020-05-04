@@ -143,7 +143,7 @@ func TestDefaultCollectorConfig(t *testing.T) {
 func TestDefaultAgentConfig(t *testing.T) {
 	v, _ := jConfig.Viperize(grpc.AddFlags)
 	factories := Components(v)
-	cfg := AgentConfig("", factories)
+	cfg := AgentConfig(factories)
 	assert.Equal(t, configmodels.Service{
 		Extensions: []string{"health_check"},
 		Pipelines: configmodels.Pipelines{

@@ -120,6 +120,8 @@ func createExporters(storageTypes string, factories config.Factories) (configmod
 	return exporters, nil
 }
 
+// AgentConfig creates default agent configuration.
+// It enables Jaeger receiver with UDP endpoints and Jaeger exporter.
 func AgentConfig(factories config.Factories) *configmodels.Config {
 	jaegerExporter := factories.Exporters["jaeger"]
 	hc := factories.Extensions["health_check"].CreateDefaultConfig().(*healthcheckextension.Config)
