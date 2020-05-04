@@ -67,5 +67,4 @@ func (f Factory) CreateMetricsExporter(
 	cfg configmodels.Exporter,
 ) (component.MetricsExporter, error) {
 	return f.Wrapped.CreateMetricsExporter(ctx, params, cfg)
-	panic("implement me")
 }
