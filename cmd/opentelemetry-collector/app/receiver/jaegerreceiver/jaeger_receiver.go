@@ -38,13 +38,13 @@ type Factory struct {
 
 var _ component.ReceiverFactory = (*Factory)(nil)
 
-// Type gets the type of exporter.
+// Type returns the type of the receiver.
 func (f *Factory) Type() configmodels.Type {
 	return f.Wrapped.Type()
 }
 
 // CreateDefaultConfig returns default configuration of Factory.
-// This function implements OTEL component.BaseFactory interface.
+// This function implements OTEL component.ReceiverFactoryBase interface.
 func (f *Factory) CreateDefaultConfig() configmodels.Receiver {
 	cfg := f.Wrapped.CreateDefaultConfig().(*jaegerreceiver.Config)
 	cfg.RemoteSampling = createDefaultSamplingConfig(f.Viper)

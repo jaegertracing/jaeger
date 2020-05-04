@@ -36,10 +36,13 @@ type Factory struct {
 
 var _ component.ExporterFactory = (*Factory)(nil)
 
+// Type returns the type of the exporter.
 func (f Factory) Type() configmodels.Type {
 	return f.Wrapped.Type()
 }
 
+// CreateDefaultConfig returns default configuration of Factory.
+// This function implements OTEL component.ExporterFactoryBase interface.
 func (f Factory) CreateDefaultConfig() configmodels.Exporter {
 	repCfg := grpc.ConnBuilder{}
 	repCfg.InitFromViper(f.Viper)
@@ -53,6 +56,8 @@ func (f Factory) CreateDefaultConfig() configmodels.Exporter {
 	return cfg
 }
 
+// CreateTraceExporter creates Jaeger trace exporter.
+// This function implements OTEL component.ExporterFactory interface.
 func (f Factory) CreateTraceExporter(
 	ctx context.Context,
 	params component.ExporterCreateParams,
@@ -61,6 +66,8 @@ func (f Factory) CreateTraceExporter(
 	return f.Wrapped.CreateTraceExporter(ctx, params, cfg)
 }
 
+// CreateMetricsExporter creates a metrics exporter based on provided config.
+// This function implements component.ExporterFactory.
 func (f Factory) CreateMetricsExporter(
 	ctx context.Context,
 	params component.ExporterCreateParams,
