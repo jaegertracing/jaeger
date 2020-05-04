@@ -16,8 +16,8 @@ services:
       - elasticsearch
 
   jaeger-agent:
-    image: jaegertracing/jaeger-opentelemetry-collector
-    command: ["--config=/config/otel-agent-config.yml"]
+    image: jaegertracing/jaeger-opentelemetry-agent
+    command: ["--config=/config/otel-agent-config.yml", "--reporter.grpc.host-port=jaeger-collector:14250"]
     volumes:
       - ./:/config/:ro
     ports:

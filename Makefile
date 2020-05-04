@@ -264,6 +264,14 @@ else
 	cd ${OTEL_COLLECTOR_DIR} && $(GOBUILD) -o ./opentelemetry-collector-$(GOOS) $(BUILD_INFO) main.go
 endif
 
+.PHONY: build-otel-agent
+build-otel-agent:
+ifeq ($(GOARCH), s390x)
+	cd ${OTEL_COLLECTOR_DIR} && $(GOBUILD) -o ./opentelemetry-agent-$(GOOS)-$(GOARCH) $(BUILD_INFO) main_agent.go
+else
+	cd ${OTEL_COLLECTOR_DIR} && $(GOBUILD) -o ./opentelemetry-agent-$(GOOS) $(BUILD_INFO) main_agent.go
+endif
+
 .PHONY: build-ingester
 build-ingester:
 ifeq ($(GOARCH), s390x)
@@ -292,7 +300,7 @@ build-binaries-s390x:
 	GOOS=linux GOARCH=s390x $(MAKE) build-platform-binaries
 
 .PHONY: build-platform-binaries
-build-platform-binaries: build-agent build-collector build-query build-ingester build-all-in-one build-examples build-tracegen build-otel-collector
+build-platform-binaries: build-agent build-collector build-query build-ingester build-all-in-one build-examples build-tracegen build-otel-collector build-otel-agent
 
 .PHONY: build-all-platforms
 build-all-platforms: build-binaries-linux build-binaries-windows build-binaries-darwin build-binaries-s390x
@@ -314,6 +322,7 @@ docker-images-jaeger-backend:
 		docker build -t $(DOCKER_NAMESPACE)/jaeger-$$component:${DOCKER_TAG} cmd/$$component ; \
 		echo "Finished building $$component ==============" ; \
 	done
+	docker build -t $(DOCKER_NAMESPACE)/jaeger-opentelemetry-agent -f cmd/opentelemetry-collector/Dockerfile.agent cmd/opentelemetry-collector
 
 .PHONY: docker-images-tracegen
 docker-images-tracegen:

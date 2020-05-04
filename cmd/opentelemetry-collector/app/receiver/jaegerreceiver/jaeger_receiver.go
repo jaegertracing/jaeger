@@ -23,6 +23,7 @@ import (
 	"github.com/open-telemetry/opentelemetry-collector/receiver/jaegerreceiver"
 	"github.com/spf13/viper"
 
+	"github.com/jaegertracing/jaeger/cmd/agent/app/reporter/grpc"
 	"github.com/jaegertracing/jaeger/plugin/sampling/strategystore/static"
 )
 
@@ -46,15 +47,30 @@ func (f *Factory) Type() configmodels.Type {
 // This function implements OTEL component.BaseFactory interface.
 func (f *Factory) CreateDefaultConfig() configmodels.Receiver {
 	cfg := f.Wrapped.CreateDefaultConfig().(*jaegerreceiver.Config)
-	strategyFile := f.Viper.GetString(static.SamplingStrategiesFile)
+	cfg.RemoteSampling = createDefaultSamplingConfig(f.Viper)
+	return cfg
+}
+
+func createDefaultSamplingConfig(v *viper.Viper) *jaegerreceiver.RemoteSamplingConfig {
 	var samplingConf *jaegerreceiver.RemoteSamplingConfig
+	strategyFile := v.GetString(static.SamplingStrategiesFile)
 	if strategyFile != "" {
 		samplingConf = &jaegerreceiver.RemoteSamplingConfig{
 			StrategyFile: strategyFile,
 		}
 	}
-	cfg.RemoteSampling = samplingConf
-	return cfg
+	repCfg := grpc.ConnBuilder{}
+	repCfg.InitFromViper(v)
+	// This is for agent mode.
+	// This uses --reporter.grpc.host-port flag to set the fetch endpoint for the sampling strategies.
+	// The same flag is used by Jaeger exporter. If the value is not provided Jaeger exporter fails to start.
+	if len(repCfg.CollectorHostPorts) > 0 {
+		if samplingConf == nil {
+			samplingConf = &jaegerreceiver.RemoteSamplingConfig{}
+		}
+		samplingConf.FetchEndpoint = repCfg.CollectorHostPorts[0]
+	}
+	return samplingConf
 }
 
 // CreateTraceReceiver creates Jaeger receiver trace receiver.

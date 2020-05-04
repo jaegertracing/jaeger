@@ -20,18 +20,22 @@ import (
 
 	"github.com/open-telemetry/opentelemetry-collector/config"
 	"github.com/open-telemetry/opentelemetry-collector/config/configmodels"
+	"github.com/open-telemetry/opentelemetry-collector/exporter/jaegerexporter"
+	"github.com/open-telemetry/opentelemetry-collector/receiver/jaegerreceiver"
 	"github.com/spf13/viper"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"go.uber.org/zap"
 
+	"github.com/jaegertracing/jaeger/cmd/agent/app/reporter/grpc"
 	"github.com/jaegertracing/jaeger/cmd/opentelemetry-collector/app/exporter/cassandra"
 	"github.com/jaegertracing/jaeger/cmd/opentelemetry-collector/app/exporter/elasticsearch"
 	"github.com/jaegertracing/jaeger/cmd/opentelemetry-collector/app/exporter/kafka"
+	jConfig "github.com/jaegertracing/jaeger/pkg/config"
 	"github.com/jaegertracing/jaeger/ports"
 )
 
-func TestDefaultConfig(t *testing.T) {
+func TestDefaultCollectorConfig(t *testing.T) {
 	factories := Components(viper.New())
 	disabledHostPort := ports.PortToHostPort(0)
 	tests := []struct {
@@ -108,7 +112,7 @@ func TestDefaultConfig(t *testing.T) {
 	}
 	for _, test := range tests {
 		t.Run(test.storageType, func(t *testing.T) {
-			cfg, err := Config(test.storageType, test.zipkinHostPort, factories)
+			cfg, err := CollectorConfig(test.storageType, test.zipkinHostPort, factories)
 			if test.err != "" {
 				require.Nil(t, cfg)
 				assert.EqualError(t, err, test.err)
@@ -134,4 +138,25 @@ func TestDefaultConfig(t *testing.T) {
 			assert.EqualValues(t, test.pipeline, cfg.Service.Pipelines)
 		})
 	}
+}
+
+func TestDefaultAgentConfig(t *testing.T) {
+	v, _ := jConfig.Viperize(grpc.AddFlags)
+	factories := Components(v)
+	cfg := AgentConfig("", factories)
+	assert.Equal(t, configmodels.Service{
+		Extensions: []string{"health_check"},
+		Pipelines: configmodels.Pipelines{
+			"traces": &configmodels.Pipeline{
+				InputType: configmodels.TracesDataType,
+				Receivers: []string{"jaeger"},
+				Exporters: []string{"jaeger"},
+			},
+		},
+	}, cfg.Service)
+	assert.Equal(t, 0, len(cfg.Processors))
+	assert.Equal(t, 1, len(cfg.Receivers))
+	assert.IsType(t, &jaegerreceiver.Config{}, cfg.Receivers["jaeger"])
+	assert.Equal(t, 1, len(cfg.Exporters))
+	assert.IsType(t, &jaegerexporter.Config{}, cfg.Exporters["jaeger"])
 }

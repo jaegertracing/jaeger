@@ -15,11 +15,9 @@
 package main
 
 import (
-	"flag"
 	"fmt"
 	"log"
 	"os"
-	"strings"
 
 	"github.com/open-telemetry/opentelemetry-collector/config"
 	"github.com/open-telemetry/opentelemetry-collector/config/configmodels"
@@ -27,16 +25,11 @@ import (
 	"github.com/spf13/viper"
 
 	"github.com/jaegertracing/jaeger/cmd/agent/app/reporter/grpc"
-	collectorApp "github.com/jaegertracing/jaeger/cmd/collector/app"
 	jflags "github.com/jaegertracing/jaeger/cmd/flags"
 	"github.com/jaegertracing/jaeger/cmd/opentelemetry-collector/app"
 	"github.com/jaegertracing/jaeger/cmd/opentelemetry-collector/app/defaults"
-	"github.com/jaegertracing/jaeger/cmd/opentelemetry-collector/app/exporter/cassandra"
-	"github.com/jaegertracing/jaeger/cmd/opentelemetry-collector/app/exporter/elasticsearch"
-	"github.com/jaegertracing/jaeger/cmd/opentelemetry-collector/app/exporter/kafka"
-	jConfig "github.com/jaegertracing/jaeger/pkg/config"
+	jconfig "github.com/jaegertracing/jaeger/pkg/config"
 	"github.com/jaegertracing/jaeger/plugin/sampling/strategystore/static"
-	"github.com/jaegertracing/jaeger/plugin/storage"
 )
 
 func main() {
@@ -55,28 +48,20 @@ func main() {
 	}
 
 	v := viper.New()
-	storageType := os.Getenv(storage.SpanStorageTypeEnvVar)
-	if storageType == "" {
-		storageType = "cassandra"
-	}
 
 	cmpts := defaults.Components(v)
 	cfgFactory := func(otelViper *viper.Viper, f config.Factories) (*configmodels.Config, error) {
-		collectorOpts := &collectorApp.CollectorOptions{}
-		collectorOpts.InitFromViper(v)
-		cfg, err := defaults.CollectorConfig(storageType, collectorOpts.CollectorZipkinHTTPHostPort, cmpts)
-		if err != nil {
-			return nil, err
-		}
+		cfg := defaults.AgentConfig(cmpts)
 
 		var otelCfg *configmodels.Config
 		if len(app.GetOTELConfigFile()) > 0 {
+			var err error
 			otelCfg, err = service.FileLoaderConfigFactory(otelViper, f)
 			if err != nil {
 				return nil, err
 			}
 		}
-		err = defaults.MergeConfigs(cfg, otelCfg)
+		err := defaults.MergeConfigs(cfg, otelCfg)
 		if err != nil {
 			return nil, err
 		}
@@ -90,20 +75,12 @@ func main() {
 	})
 	handleErr(err)
 
-	// Add Jaeger specific flags to service command
-	// this passes flag values to viper.
-	storageFlags, err := storageFlags(storageType)
-	if err != nil {
-		handleErr(err)
-	}
 	cmd := svc.Command()
-	jConfig.AddFlags(v,
+	jconfig.AddFlags(v,
 		cmd,
-		collectorApp.AddFlags,
 		jflags.AddConfigFileFlag,
-		storageFlags,
-		static.AddFlags,
 		grpc.AddFlags,
+		static.AddFlags,
 	)
 
 	// parse flags to propagate Jaeger config file flag value to viper
@@ -115,27 +92,4 @@ func main() {
 
 	err = svc.Start()
 	handleErr(err)
-}
-
-// storageFlags return a function that will add storage flags.
-// storage parameter can contain a comma separated list of supported Jaeger storage backends.
-func storageFlags(storage string) (func(*flag.FlagSet), error) {
-	var flagFn []func(*flag.FlagSet)
-	for _, s := range strings.Split(storage, ",") {
-		switch s {
-		case "cassandra":
-			flagFn = append(flagFn, cassandra.DefaultOptions().AddFlags)
-		case "elasticsearch":
-			flagFn = append(flagFn, elasticsearch.DefaultOptions().AddFlags)
-		case "kafka":
-			flagFn = append(flagFn, kafka.DefaultOptions().AddFlags)
-		default:
-			return nil, fmt.Errorf("unknown storage type: %s", s)
-		}
-	}
-	return func(flagSet *flag.FlagSet) {
-		for _, f := range flagFn {
-			f(flagSet)
-		}
-	}, nil
 }
