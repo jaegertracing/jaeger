@@ -38,14 +38,14 @@ func TestDefaultConfig(t *testing.T) {
 		storageType    string
 		zipkinHostPort string
 		exporterTypes  []string
-		pipeline       map[string]*configmodels.Pipeline
+		pipeline       configmodels.Pipelines
 		err            string
 	}{
 		{
 			storageType:    "elasticsearch",
 			zipkinHostPort: disabledHostPort,
 			exporterTypes:  []string{elasticsearch.TypeStr},
-			pipeline: map[string]*configmodels.Pipeline{
+			pipeline: configmodels.Pipelines{
 				"traces": {
 					InputType: configmodels.TracesDataType,
 					Receivers: []string{"jaeger"},
@@ -57,7 +57,7 @@ func TestDefaultConfig(t *testing.T) {
 			storageType:    "cassandra",
 			zipkinHostPort: disabledHostPort,
 			exporterTypes:  []string{cassandra.TypeStr},
-			pipeline: map[string]*configmodels.Pipeline{
+			pipeline: configmodels.Pipelines{
 				"traces": {
 					InputType: configmodels.TracesDataType,
 					Receivers: []string{"jaeger"},
@@ -69,7 +69,7 @@ func TestDefaultConfig(t *testing.T) {
 			storageType:    "kafka",
 			zipkinHostPort: disabledHostPort,
 			exporterTypes:  []string{kafka.TypeStr},
-			pipeline: map[string]*configmodels.Pipeline{
+			pipeline: configmodels.Pipelines{
 				"traces": {
 					InputType: configmodels.TracesDataType,
 					Receivers: []string{"jaeger"},
@@ -81,7 +81,7 @@ func TestDefaultConfig(t *testing.T) {
 			storageType:    "cassandra,elasticsearch",
 			zipkinHostPort: disabledHostPort,
 			exporterTypes:  []string{cassandra.TypeStr, elasticsearch.TypeStr},
-			pipeline: map[string]*configmodels.Pipeline{
+			pipeline: configmodels.Pipelines{
 				"traces": {
 					InputType: configmodels.TracesDataType,
 					Receivers: []string{"jaeger"},
@@ -93,7 +93,7 @@ func TestDefaultConfig(t *testing.T) {
 			storageType:    "cassandra",
 			zipkinHostPort: ":9411",
 			exporterTypes:  []string{cassandra.TypeStr},
-			pipeline: map[string]*configmodels.Pipeline{
+			pipeline: configmodels.Pipelines{
 				"traces": {
 					InputType: configmodels.TracesDataType,
 					Receivers: []string{"jaeger", "zipkin"},

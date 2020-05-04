@@ -34,7 +34,7 @@ import (
 	"github.com/jaegertracing/jaeger/cmd/opentelemetry-collector/app/exporter/cassandra"
 	"github.com/jaegertracing/jaeger/cmd/opentelemetry-collector/app/exporter/elasticsearch"
 	"github.com/jaegertracing/jaeger/cmd/opentelemetry-collector/app/exporter/kafka"
-	jconfig "github.com/jaegertracing/jaeger/pkg/config"
+	jConfig "github.com/jaegertracing/jaeger/pkg/config"
 	"github.com/jaegertracing/jaeger/plugin/sampling/strategystore/static"
 	"github.com/jaegertracing/jaeger/plugin/storage"
 )
@@ -61,14 +61,26 @@ func main() {
 	}
 
 	cmpts := defaults.Components(v)
-	var cfgFactory service.ConfigFactory
-	if getOTELConfigFile() == "" {
-		log.Println("Config file not provided, installing default Jaeger components")
-		cfgFactory = func(*viper.Viper, config.Factories) (*configmodels.Config, error) {
-			collectorOpts := &collectorApp.CollectorOptions{}
-			collectorOpts.InitFromViper(v)
-			return defaults.Config(storageType, collectorOpts.CollectorZipkinHTTPHostPort, cmpts)
+	cfgFactory := func(otelViper *viper.Viper, f config.Factories) (*configmodels.Config, error) {
+		collectorOpts := &collectorApp.CollectorOptions{}
+		collectorOpts.InitFromViper(v)
+		cfg, err := defaults.Config(storageType, collectorOpts.CollectorZipkinHTTPHostPort, cmpts)
+		if err != nil {
+			return nil, err
 		}
+
+		var otelCfg *configmodels.Config
+		if len(getOTELConfigFile()) > 0 {
+			otelCfg, err = service.FileLoaderConfigFactory(otelViper, f)
+			if err != nil {
+				return nil, err
+			}
+		}
+		err = defaults.MergeConfigs(cfg, otelCfg)
+		if err != nil {
+			return nil, err
+		}
+		return cfg, nil
 	}
 
 	svc, err := service.New(service.Parameters{
@@ -85,7 +97,7 @@ func main() {
 		handleErr(err)
 	}
 	cmd := svc.Command()
-	jconfig.AddFlags(v,
+	jConfig.AddFlags(v,
 		cmd,
 		collectorApp.AddFlags,
 		jflags.AddConfigFileFlag,

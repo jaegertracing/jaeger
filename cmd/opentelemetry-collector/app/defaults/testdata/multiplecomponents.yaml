@@ -1,0 +1,20 @@
+receivers:
+  jaeger:
+    protocols:
+      grpc:
+      thrift_compact:
+      thrift_binary:
+
+processors:
+  queued_retry: {}
+
+exporters:
+  jaeger_elasticsearch:
+    server_urls: whatever
+
+service:
+  pipelines:
+    traces:
+      receivers: [jaeger]
+      processors: [queued_retry]
+      exporters: [jaeger_elasticsearch]

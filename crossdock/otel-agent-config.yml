@@ -10,9 +10,9 @@ receivers:
 exporters:
   jaeger:
     endpoint: jaeger-collector:14250
+    wait_for_ready: true
 
 service:
   pipelines:
     traces:
-      receivers: [jaeger]
       exporters: [jaeger]
