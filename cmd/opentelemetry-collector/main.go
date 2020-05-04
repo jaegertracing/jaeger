@@ -34,7 +34,7 @@ import (
 	"github.com/jaegertracing/jaeger/cmd/opentelemetry-collector/app/exporter/cassandra"
 	"github.com/jaegertracing/jaeger/cmd/opentelemetry-collector/app/exporter/elasticsearch"
 	"github.com/jaegertracing/jaeger/cmd/opentelemetry-collector/app/exporter/kafka"
-	jconfig "github.com/jaegertracing/jaeger/pkg/config"
+	jConfig "github.com/jaegertracing/jaeger/pkg/config"
 	"github.com/jaegertracing/jaeger/plugin/sampling/strategystore/static"
 	"github.com/jaegertracing/jaeger/plugin/storage"
 )
@@ -97,7 +97,7 @@ func main() {
 		handleErr(err)
 	}
 	cmd := svc.Command()
-	jconfig.AddFlags(v,
+	jConfig.AddFlags(v,
 		cmd,
 		collectorApp.AddFlags,
 		jflags.AddConfigFileFlag,
