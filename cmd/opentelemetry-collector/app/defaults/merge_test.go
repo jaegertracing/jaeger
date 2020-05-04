@@ -144,7 +144,6 @@ func TestMergeConfigs(t *testing.T) {
 
 func TestMergeConfigFiles(t *testing.T) {
 	testFiles := []string{"emptyoverride", "addprocessor", "multiplecomponents"}
-	//testFiles := []string{"emptyoverride", "addprocessor", "multiplecomponents"}
 	v, _ := jConfig.Viperize(elasticsearch.DefaultOptions().AddFlags)
 	cmpts := Components(v)
 	for _, f := range testFiles {
