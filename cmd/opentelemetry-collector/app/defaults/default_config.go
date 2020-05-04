@@ -123,8 +123,6 @@ func createExporters(storageTypes string, factories config.Factories) (configmod
 func AgentConfig(factories config.Factories) *configmodels.Config {
 	jaegerExporter := factories.Exporters["jaeger"]
 	hc := factories.Extensions["health_check"].CreateDefaultConfig().(*healthcheckextension.Config)
-	// TODO remove
-	hc.Port = 13314
 	return &configmodels.Config{
 		Receivers:  createAgentReceivers(factories),
 		Exporters:  configmodels.Exporters{"jaeger": jaegerExporter.CreateDefaultConfig()},
