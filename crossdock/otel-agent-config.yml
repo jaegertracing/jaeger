@@ -4,14 +4,10 @@ receivers:
       host_endpoint: localhost:5778
       fetch_endpoint: jaeger-collector:14250
     protocols:
-      grpc:
-        disabled: true
       thrift_compact:
       thrift_binary:
 
 exporters:
-  jaeger_cassandra:
-    disabled: true
   jaeger:
     endpoint: jaeger-collector:14250
     wait_for_ready: true

@@ -17,5 +17,5 @@ service:
   pipelines:
     traces:
       receivers: [jaeger]
-      processors: [queued_retry, batch]
+      processors: [batch]
       exporters: [jaeger_elasticsearch]

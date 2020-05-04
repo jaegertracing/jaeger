@@ -21,12 +21,13 @@ processors:
 
 exporters:
   jaeger_elasticsearch:
+    server_urls: http://elasticsearch.default.svc:9200
 
 service:
   pipelines:
     traces:
-      receivers: [jaeger, opencensus]
-      processors: [queued_retry, batch]
+      receivers: [opencensus]
+      processors: [batch]
       exporters: [jaeger_elasticsearch]
     metrics:
       receivers: [prometheus]

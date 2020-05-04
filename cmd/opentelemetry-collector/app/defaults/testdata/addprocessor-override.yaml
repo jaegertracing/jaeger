@@ -1,8 +1,9 @@
+# TODO OTEL config.Load() fails if there are no receiver/exporters
+# https://github.com/open-telemetry/opentelemetry-collector/issues/888
 receivers:
   jaeger:
     protocols:
       grpc:
-# TODO OTEL config.Load() fails if there are no receiver/exporters
 exporters:
   jaeger_elasticsearch:
     # TODO These two properties have to be overridden here if they were overridden in addprocessor.yaml

@@ -10,6 +10,7 @@ processors:
 
 exporters:
   jaeger_elasticsearch:
+    server_urls: whatever
 
 service:
   pipelines:

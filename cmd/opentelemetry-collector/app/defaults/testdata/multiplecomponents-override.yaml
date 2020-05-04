@@ -14,6 +14,7 @@ receivers:
 
 exporters:
   jaeger_elasticsearch:
+    server_urls: http://elasticsearch.default.svc:9200
 
 processors:
   batch:

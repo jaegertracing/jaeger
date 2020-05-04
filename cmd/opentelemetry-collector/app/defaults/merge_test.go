@@ -125,11 +125,11 @@ func TestMergeConfigs(t *testing.T) {
 			},
 		},
 		Service: configmodels.Service{
-			Extensions: []string{"def", "def2", "master1", "master2"},
+			Extensions: []string{"def", "master1", "master2"},
 			Pipelines: configmodels.Pipelines{
 				"traces": &configmodels.Pipeline{
 					Receivers:  []string{"jaeger", "zipkin"},
-					Processors: []string{"batch", "attributes"},
+					Processors: []string{"attributes"},
 				},
 				"traces/2": &configmodels.Pipeline{
 					Processors: []string{"example"},
@@ -144,6 +144,7 @@ func TestMergeConfigs(t *testing.T) {
 
 func TestMergeConfigFiles(t *testing.T) {
 	testFiles := []string{"emptyoverride", "addprocessor", "multiplecomponents"}
+	//testFiles := []string{"emptyoverride", "addprocessor", "multiplecomponents"}
 	v, _ := jConfig.Viperize(elasticsearch.DefaultOptions().AddFlags)
 	cmpts := Components(v)
 	for _, f := range testFiles {

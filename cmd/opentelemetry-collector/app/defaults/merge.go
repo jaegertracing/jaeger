@@ -15,8 +15,6 @@
 package defaults
 
 import (
-	"reflect"
-
 	"github.com/imdario/mergo"
 	"github.com/open-telemetry/opentelemetry-collector/config/configmodels"
 )
@@ -28,39 +26,9 @@ func MergeConfigs(dst, src *configmodels.Config) error {
 		return nil
 	}
 	err := mergo.Merge(dst, src,
-		mergo.WithOverride,
-		mergo.WithAppendSlice,
-		mergo.WithTransformers(transformerSliceUniqueValues{}))
+		mergo.WithOverride)
 	if err != nil {
 		return err
-	}
-	return nil
-}
-
-// transformerSliceUniqueValues merges unique values of two string slices.
-type transformerSliceUniqueValues struct {
-}
-
-func (st transformerSliceUniqueValues) Transformer(typ reflect.Type) func(dst, src reflect.Value) error {
-	if typ == reflect.TypeOf([]string{}) {
-		return func(dst, src reflect.Value) error {
-			dst.Interface()
-			if dst.CanSet() {
-				dstVal := dst.Interface().([]string)
-				m := map[string]bool{}
-				for _, v := range dstVal {
-					m[v] = true
-				}
-				srcVal := src.Interface().([]string)
-				for _, v := range srcVal {
-					if !m[v] {
-						srcVal = append(srcVal, v)
-						dst.Set(reflect.Append(dst, reflect.ValueOf(v)))
-					}
-				}
-			}
-			return nil
-		}
 	}
 	return nil
 }
