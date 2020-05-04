@@ -15,7 +15,6 @@
 package defaults
 
 import (
-	"fmt"
 	"sort"
 	"testing"
 
@@ -132,8 +131,6 @@ func TestDefaultConfig(t *testing.T) {
 			}
 			sort.Strings(types)
 			assert.Equal(t, test.exporterTypes, types)
-			fmt.Printf("expected %v\n", test.pipeline)
-			fmt.Printf("actual %v\n", cfg.Service.Pipelines)
 			assert.EqualValues(t, test.pipeline, cfg.Service.Pipelines)
 		})
 	}

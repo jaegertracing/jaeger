@@ -30,7 +30,7 @@ import (
 	"github.com/stretchr/testify/require"
 
 	"github.com/jaegertracing/jaeger/cmd/opentelemetry-collector/app/exporter/elasticsearch"
-	config2 "github.com/jaegertracing/jaeger/pkg/config"
+	jConfig "github.com/jaegertracing/jaeger/pkg/config"
 )
 
 func TestMergeConfigs_nil(t *testing.T) {
@@ -75,7 +75,7 @@ func TestMergeConfigs(t *testing.T) {
 		Receivers: configmodels.Receivers{
 			"jaeger": &jaegerreceiver.Config{
 				Protocols: map[string]*receiver.SecureReceiverSettings{
-					"grpc": {ReceiverSettings: configmodels.ReceiverSettings{Endpoint: "master_jaeger_url", Disabled: true}},
+					"grpc": {ReceiverSettings: configmodels.ReceiverSettings{Endpoint: "master_jaeger_url"}},
 				},
 			},
 			"zipkin": &zipkinreceiver.Config{
@@ -106,7 +106,7 @@ func TestMergeConfigs(t *testing.T) {
 		Receivers: configmodels.Receivers{
 			"jaeger": &jaegerreceiver.Config{
 				Protocols: map[string]*receiver.SecureReceiverSettings{
-					"grpc":           {ReceiverSettings: configmodels.ReceiverSettings{Endpoint: "master_jaeger_url", Disabled: true}},
+					"grpc":           {ReceiverSettings: configmodels.ReceiverSettings{Endpoint: "master_jaeger_url"}},
 					"thrift_compact": {ReceiverSettings: configmodels.ReceiverSettings{Endpoint: "def"}},
 				},
 			},
@@ -144,7 +144,7 @@ func TestMergeConfigs(t *testing.T) {
 
 func TestMergeConfigFiles(t *testing.T) {
 	testFiles := []string{"emptyoverride", "addprocessor", "multiplecomponents"}
-	v, _ := config2.Viperize(elasticsearch.DefaultOptions().AddFlags)
+	v, _ := jConfig.Viperize(elasticsearch.DefaultOptions().AddFlags)
 	cmpts := Components(v)
 	for _, f := range testFiles {
 		t.Run(f, func(t *testing.T) {
