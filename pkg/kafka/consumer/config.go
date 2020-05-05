@@ -37,14 +37,14 @@ type Builder interface {
 
 // Configuration describes the configuration properties needed to create a Kafka consumer
 type Configuration struct {
-	auth.AuthenticationConfig
+	auth.AuthenticationConfig `mapstructure:"authentication"`
 	Consumer
 
-	Brokers         []string
-	Topic           string
-	GroupID         string
-	ClientID        string
-	ProtocolVersion string
+	Brokers         []string `mapstructure:"brokers"`
+	Topic           string   `mapstructure:"topic"`
+	GroupID         string   `mapstructure:"group_id"`
+	ClientID        string   `mapstructure:"client_id"`
+	ProtocolVersion string   `mapstructure:"protocol_version"`
 }
 
 // NewConsumer creates a new kafka consumer
