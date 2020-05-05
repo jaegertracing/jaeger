@@ -1,18 +1,9 @@
-receivers:
-  jaeger:
-    remote_sampling:
-      host_endpoint: localhost:5778
-      fetch_endpoint: jaeger-collector:14250
-    protocols:
-      thrift_compact:
-      thrift_binary:
-
 exporters:
   jaeger:
-    endpoint: jaeger-collector:14250
     wait_for_ready: true
 
-service:
-  pipelines:
-    traces:
-      exporters: [jaeger]
+# TODO remove after https://github.com/open-telemetry/opentelemetry-collector/pull/910
+receivers:
+   jaeger:
+     protocols:
+       thrift_compact:

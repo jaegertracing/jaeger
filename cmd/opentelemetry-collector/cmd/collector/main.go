@@ -17,7 +17,6 @@ package main
 import (
 	"flag"
 	"fmt"
-	"io/ioutil"
 	"log"
 	"os"
 	"strings"
@@ -25,11 +24,12 @@ import (
 	"github.com/open-telemetry/opentelemetry-collector/config"
 	"github.com/open-telemetry/opentelemetry-collector/config/configmodels"
 	"github.com/open-telemetry/opentelemetry-collector/service"
-	"github.com/open-telemetry/opentelemetry-collector/service/builder"
 	"github.com/spf13/viper"
 
+	"github.com/jaegertracing/jaeger/cmd/agent/app/reporter/grpc"
 	collectorApp "github.com/jaegertracing/jaeger/cmd/collector/app"
 	jflags "github.com/jaegertracing/jaeger/cmd/flags"
+	"github.com/jaegertracing/jaeger/cmd/opentelemetry-collector/app"
 	"github.com/jaegertracing/jaeger/cmd/opentelemetry-collector/app/defaults"
 	"github.com/jaegertracing/jaeger/cmd/opentelemetry-collector/app/exporter/cassandra"
 	"github.com/jaegertracing/jaeger/cmd/opentelemetry-collector/app/exporter/elasticsearch"
@@ -64,13 +64,13 @@ func main() {
 	cfgFactory := func(otelViper *viper.Viper, f config.Factories) (*configmodels.Config, error) {
 		collectorOpts := &collectorApp.CollectorOptions{}
 		collectorOpts.InitFromViper(v)
-		cfg, err := defaults.Config(storageType, collectorOpts.CollectorZipkinHTTPHostPort, cmpts)
+		cfg, err := defaults.CollectorConfig(storageType, collectorOpts.CollectorZipkinHTTPHostPort, cmpts)
 		if err != nil {
 			return nil, err
 		}
 
 		var otelCfg *configmodels.Config
-		if len(getOTELConfigFile()) > 0 {
+		if len(app.GetOTELConfigFile()) > 0 {
 			otelCfg, err = service.FileLoaderConfigFactory(otelViper, f)
 			if err != nil {
 				return nil, err
@@ -103,6 +103,7 @@ func main() {
 		jflags.AddConfigFileFlag,
 		storageFlags,
 		static.AddFlags,
+		grpc.AddFlags,
 	)
 
 	// parse flags to propagate Jaeger config file flag value to viper
@@ -114,16 +115,6 @@ func main() {
 
 	err = svc.Start()
 	handleErr(err)
-}
-
-// getOTELConfigFile returns name of OTEL config file.
-func getOTELConfigFile() string {
-	f := &flag.FlagSet{}
-	f.SetOutput(ioutil.Discard)
-	builder.Flags(f)
-	// parse flags to bind the value
-	f.Parse(os.Args[1:])
-	return builder.GetConfigFile()
 }
 
 // storageFlags return a function that will add storage flags.
