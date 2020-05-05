@@ -35,6 +35,7 @@ type strategyStore struct {
 	logger *zap.Logger
 
 	storedStrategies atomic.Value // holds *storedStrategies
+	disableMerge     bool
 
 	ctx        context.Context
 	cancelFunc context.CancelFunc
@@ -49,9 +50,10 @@ type storedStrategies struct {
 func NewStrategyStore(options Options, logger *zap.Logger) (ss.StrategyStore, error) {
 	ctx, cancelFunc := context.WithCancel(context.Background())
 	h := &strategyStore{
-		logger:     logger,
-		ctx:        ctx,
-		cancelFunc: cancelFunc,
+		logger:       logger,
+		ctx:          ctx,
+		cancelFunc:   cancelFunc,
+		disableMerge: options.DisableMerge,
 	}
 	h.storedStrategies.Store(defaultStrategies())
 
@@ -151,7 +153,7 @@ func (h *strategyStore) parseStrategies(strategies *strategies) {
 	}
 
 	merge := true
-	if newStore.defaultStrategy.OperationSampling == nil ||
+	if h.disableMerge || newStore.defaultStrategy.OperationSampling == nil ||
 		newStore.defaultStrategy.OperationSampling.PerOperationStrategies == nil {
 		merge = false
 	}
@@ -163,7 +165,7 @@ func (h *strategyStore) parseStrategies(strategies *strategies) {
 		// the default strategy has no effect on service strategies (the default strategy
 		// is not merged with and only used as a fallback).
 		opS := newStore.serviceStrategies[s.Service].OperationSampling
-		if opS == nil {
+		if !h.disableMerge && opS == nil {
 			// Service has no per-operation strategies, so just reference the default settings.
 			newStore.serviceStrategies[s.Service].OperationSampling = newStore.defaultStrategy.OperationSampling
 			continue

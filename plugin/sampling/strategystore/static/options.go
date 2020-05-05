@@ -24,6 +24,7 @@ import (
 const (
 	SamplingStrategiesFile           = "sampling.strategies-file"
 	samplingStrategiesReloadInterval = "sampling.strategies-reload-interval"
+	samplingDisableMergeStrategies   = "sampling.disable-merge-strategies"
 )
 
 // Options holds configuration for the static sampling strategy store.
@@ -32,17 +33,21 @@ type Options struct {
 	StrategiesFile string
 	// ReloadInterval is the time interval to check and reload sampling strategies file
 	ReloadInterval time.Duration
+	// DisableMerge disables the merging of default strategies
+	DisableMerge bool
 }
 
 // AddFlags adds flags for Options
 func AddFlags(flagSet *flag.FlagSet) {
 	flagSet.String(SamplingStrategiesFile, "", "The path for the sampling strategies file in JSON format. See sampling documentation to see format of the file")
 	flagSet.Duration(samplingStrategiesReloadInterval, 0, "Reload interval to check and reload sampling strategies file. Zero value means no reloading")
+	flagSet.Bool(samplingDisableMergeStrategies, false, "Disables the merging of default strategies")
 }
 
 // InitFromViper initializes Options with properties from viper
 func (opts *Options) InitFromViper(v *viper.Viper) *Options {
 	opts.StrategiesFile = v.GetString(SamplingStrategiesFile)
 	opts.ReloadInterval = v.GetDuration(samplingStrategiesReloadInterval)
+	opts.DisableMerge = v.GetBool(samplingDisableMergeStrategies)
 	return opts
 }
