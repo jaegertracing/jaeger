@@ -17,7 +17,6 @@ package main
 import (
 	"flag"
 	"fmt"
-	"io/ioutil"
 	"log"
 	"os"
 	"strings"
@@ -25,16 +24,17 @@ import (
 	"github.com/open-telemetry/opentelemetry-collector/config"
 	"github.com/open-telemetry/opentelemetry-collector/config/configmodels"
 	"github.com/open-telemetry/opentelemetry-collector/service"
-	"github.com/open-telemetry/opentelemetry-collector/service/builder"
 	"github.com/spf13/viper"
 
+	"github.com/jaegertracing/jaeger/cmd/agent/app/reporter/grpc"
 	collectorApp "github.com/jaegertracing/jaeger/cmd/collector/app"
 	jflags "github.com/jaegertracing/jaeger/cmd/flags"
+	"github.com/jaegertracing/jaeger/cmd/opentelemetry-collector/app"
 	"github.com/jaegertracing/jaeger/cmd/opentelemetry-collector/app/defaults"
 	"github.com/jaegertracing/jaeger/cmd/opentelemetry-collector/app/exporter/cassandra"
 	"github.com/jaegertracing/jaeger/cmd/opentelemetry-collector/app/exporter/elasticsearch"
 	"github.com/jaegertracing/jaeger/cmd/opentelemetry-collector/app/exporter/kafka"
-	jconfig "github.com/jaegertracing/jaeger/pkg/config"
+	jConfig "github.com/jaegertracing/jaeger/pkg/config"
 	"github.com/jaegertracing/jaeger/plugin/sampling/strategystore/static"
 	"github.com/jaegertracing/jaeger/plugin/storage"
 )
@@ -61,14 +61,25 @@ func main() {
 	}
 
 	cmpts := defaults.Components(v)
-	var cfgFactory service.ConfigFactory
-	if getOTELConfigFile() == "" {
-		log.Println("Config file not provided, installing default Jaeger components")
-		cfgFactory = func(*viper.Viper, config.Factories) (*configmodels.Config, error) {
-			collectorOpts := &collectorApp.CollectorOptions{}
-			collectorOpts.InitFromViper(v)
-			return defaults.Config(storageType, collectorOpts.CollectorZipkinHTTPHostPort, cmpts)
+	cfgFactory := func(otelViper *viper.Viper, f config.Factories) (*configmodels.Config, error) {
+		collectorOpts := &collectorApp.CollectorOptions{}
+		collectorOpts.InitFromViper(v)
+		cfg, err := defaults.CollectorConfig(storageType, collectorOpts.CollectorZipkinHTTPHostPort, cmpts)
+		if err != nil {
+			return nil, err
 		}
+
+		if len(app.GetOTELConfigFile()) > 0 {
+			otelCfg, err := service.FileLoaderConfigFactory(otelViper, f)
+			if err != nil {
+				return nil, err
+			}
+			err = defaults.MergeConfigs(cfg, otelCfg)
+			if err != nil {
+				return nil, err
+			}
+		}
+		return cfg, nil
 	}
 
 	svc, err := service.New(service.Parameters{
@@ -85,12 +96,13 @@ func main() {
 		handleErr(err)
 	}
 	cmd := svc.Command()
-	jconfig.AddFlags(v,
+	jConfig.AddFlags(v,
 		cmd,
 		collectorApp.AddFlags,
 		jflags.AddConfigFileFlag,
 		storageFlags,
 		static.AddFlags,
+		grpc.AddFlags,
 	)
 
 	// parse flags to propagate Jaeger config file flag value to viper
@@ -102,16 +114,6 @@ func main() {
 
 	err = svc.Start()
 	handleErr(err)
-}
-
-// getOTELConfigFile returns name of OTEL config file.
-func getOTELConfigFile() string {
-	f := &flag.FlagSet{}
-	f.SetOutput(ioutil.Discard)
-	builder.Flags(f)
-	// parse flags to bind the value
-	f.Parse(os.Args[1:])
-	return builder.GetConfigFile()
 }
 
 // storageFlags return a function that will add storage flags.

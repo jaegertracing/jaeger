@@ -20,7 +20,7 @@ import (
 
 	"github.com/open-telemetry/opentelemetry-collector/config"
 	"github.com/open-telemetry/opentelemetry-collector/config/configmodels"
-	"github.com/open-telemetry/opentelemetry-collector/processor/batchprocessor"
+	"github.com/open-telemetry/opentelemetry-collector/extension/healthcheckextension"
 	"github.com/open-telemetry/opentelemetry-collector/receiver"
 	"github.com/open-telemetry/opentelemetry-collector/receiver/jaegerreceiver"
 	"github.com/open-telemetry/opentelemetry-collector/receiver/zipkinreceiver"
@@ -31,65 +31,61 @@ import (
 	"github.com/jaegertracing/jaeger/ports"
 )
 
-// Config creates default configuration.
+const (
+	gRPCEndpoint             = "localhost:14250"
+	httpThriftBinaryEndpoint = "localhost:14268"
+	udpThriftCompactEndpoint = "localhost:6831"
+	udpThriftBinaryEndpoint  = "localhost:6832"
+	httpSamplingEndpoint     = "localhost:5778"
+)
+
+// CollectorConfig creates default collector configuration.
 // It enables default Jaeger receivers, processors and exporters.
-func Config(storageType string, zipkinHostPort string, factories config.Factories) (*configmodels.Config, error) {
+func CollectorConfig(storageType string, zipkinHostPort string, factories config.Factories) (*configmodels.Config, error) {
 	exporters, err := createExporters(storageType, factories)
 	if err != nil {
 		return nil, err
 	}
 	expTypes := []string{}
 	for _, v := range exporters {
-		expTypes = append(expTypes, v.Type())
+		expTypes = append(expTypes, string(v.Type()))
 	}
-	receivers := createReceivers(zipkinHostPort, factories)
+	receivers := createCollectorReceivers(zipkinHostPort, factories)
 	recTypes := []string{}
 	for _, v := range receivers {
-		recTypes = append(recTypes, v.Type())
+		recTypes = append(recTypes, string(v.Type()))
 	}
 	hc := factories.Extensions["health_check"].CreateDefaultConfig()
 	return &configmodels.Config{
 		Receivers:  receivers,
 		Exporters:  exporters,
-		Processors: createProcessors(factories),
 		Extensions: configmodels.Extensions{"health_check": hc},
 		Service: configmodels.Service{
 			Extensions: []string{"health_check"},
-			Pipelines: map[string]*configmodels.Pipeline{
+			Pipelines: configmodels.Pipelines{
 				"traces": {
-					InputType:  configmodels.TracesDataType,
-					Receivers:  recTypes,
-					Exporters:  expTypes,
-					Processors: []string{"batch"},
+					InputType: configmodels.TracesDataType,
+					Receivers: recTypes,
+					Exporters: expTypes,
 				},
 			},
 		},
 	}, nil
 }
 
-func createReceivers(zipkinHostPort string, factories config.Factories) configmodels.Receivers {
+func createCollectorReceivers(zipkinHostPort string, factories config.Factories) configmodels.Receivers {
 	jaeger := factories.Receivers["jaeger"].CreateDefaultConfig().(*jaegerreceiver.Config)
 	// TODO load and serve sampling strategies
 	// TODO bind sampling strategies file
 	jaeger.Protocols = map[string]*receiver.SecureReceiverSettings{
 		"grpc": {
 			ReceiverSettings: configmodels.ReceiverSettings{
-				Endpoint: "localhost:14250",
+				Endpoint: gRPCEndpoint,
 			},
 		},
 		"thrift_http": {
 			ReceiverSettings: configmodels.ReceiverSettings{
-				Endpoint: "localhost:14268",
-			},
-		},
-		"thrift_compact": {
-			ReceiverSettings: configmodels.ReceiverSettings{
-				Endpoint: "localhost:6831",
-			},
-		},
-		"thrift_binary": {
-			ReceiverSettings: configmodels.ReceiverSettings{
-				Endpoint: "localhost:6832",
+				Endpoint: httpThriftBinaryEndpoint,
 			},
 		},
 	}
@@ -124,9 +120,44 @@ func createExporters(storageTypes string, factories config.Factories) (configmod
 	return exporters, nil
 }
 
-func createProcessors(factories config.Factories) configmodels.Processors {
-	batch := factories.Processors["batch"].CreateDefaultConfig().(*batchprocessor.Config)
-	return map[string]configmodels.Processor{
-		"batch": batch,
+// AgentConfig creates default agent configuration.
+// It enables Jaeger receiver with UDP endpoints and Jaeger exporter.
+func AgentConfig(factories config.Factories) *configmodels.Config {
+	jaegerExporter := factories.Exporters["jaeger"]
+	hc := factories.Extensions["health_check"].CreateDefaultConfig().(*healthcheckextension.Config)
+	return &configmodels.Config{
+		Receivers:  createAgentReceivers(factories),
+		Exporters:  configmodels.Exporters{"jaeger": jaegerExporter.CreateDefaultConfig()},
+		Extensions: configmodels.Extensions{"health_check": hc},
+		Service: configmodels.Service{
+			Extensions: []string{"health_check"},
+			Pipelines: map[string]*configmodels.Pipeline{
+				"traces": {
+					InputType: configmodels.TracesDataType,
+					Receivers: []string{"jaeger"},
+					Exporters: []string{"jaeger"},
+				},
+			},
+		},
 	}
+}
+
+func createAgentReceivers(factories config.Factories) configmodels.Receivers {
+	jaeger := factories.Receivers["jaeger"].CreateDefaultConfig().(*jaegerreceiver.Config)
+	jaeger.Protocols = map[string]*receiver.SecureReceiverSettings{
+		"thrift_compact": {
+			ReceiverSettings: configmodels.ReceiverSettings{
+				Endpoint: udpThriftCompactEndpoint,
+			},
+		},
+		"thrift_binary": {
+			ReceiverSettings: configmodels.ReceiverSettings{
+				Endpoint: udpThriftBinaryEndpoint,
+			},
+		},
+	}
+	recvs := map[string]configmodels.Receiver{
+		"jaeger": jaeger,
+	}
+	return recvs
 }

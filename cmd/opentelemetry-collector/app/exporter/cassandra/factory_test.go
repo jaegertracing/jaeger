@@ -15,13 +15,15 @@
 package cassandra
 
 import (
+	"context"
 	"testing"
 
+	"github.com/open-telemetry/opentelemetry-collector/component"
 	"github.com/open-telemetry/opentelemetry-collector/config/configcheck"
 	"github.com/open-telemetry/opentelemetry-collector/config/configerror"
+	"github.com/open-telemetry/opentelemetry-collector/config/configmodels"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-	"go.uber.org/zap"
 
 	jConfig "github.com/jaegertracing/jaeger/pkg/config"
 	"github.com/jaegertracing/jaeger/plugin/storage/cassandra"
@@ -34,14 +36,14 @@ func TestCreateTraceExporter(t *testing.T) {
 	factory := Factory{OptionsFactory: func() *cassandra.Options {
 		return opts
 	}}
-	exporter, err := factory.CreateTraceExporter(zap.NewNop(), factory.CreateDefaultConfig())
+	exporter, err := factory.CreateTraceExporter(context.Background(), component.ExporterCreateParams{}, factory.CreateDefaultConfig())
 	require.Nil(t, exporter)
 	assert.EqualError(t, err, "gocql: unable to create session: control: unable to connect to initial hosts: dial tcp 127.0.0.1:9042: connect: connection refused")
 }
 
 func TestCreateTraceExporter_NilConfig(t *testing.T) {
 	factory := Factory{}
-	exporter, err := factory.CreateTraceExporter(zap.NewNop(), nil)
+	exporter, err := factory.CreateTraceExporter(context.Background(), component.ExporterCreateParams{}, nil)
 	require.Nil(t, exporter)
 	assert.EqualError(t, err, "could not cast configuration to jaeger_cassandra")
 }
@@ -55,12 +57,12 @@ func TestCreateDefaultConfig(t *testing.T) {
 
 func TestCreateMetricsExporter(t *testing.T) {
 	f := Factory{OptionsFactory: DefaultOptions}
-	mReceiver, err := f.CreateMetricsExporter(zap.NewNop(), f.CreateDefaultConfig())
+	mReceiver, err := f.CreateMetricsExporter(context.Background(), component.ExporterCreateParams{}, f.CreateDefaultConfig())
 	assert.Equal(t, err, configerror.ErrDataTypeIsNotSupported)
 	assert.Nil(t, mReceiver)
 }
 
 func TestType(t *testing.T) {
 	factory := Factory{}
-	assert.Equal(t, TypeStr, factory.Type())
+	assert.Equal(t, configmodels.Type(TypeStr), factory.Type())
 }

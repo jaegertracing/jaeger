@@ -18,6 +18,7 @@ import (
 	"flag"
 
 	"github.com/open-telemetry/opentelemetry-collector/config"
+	otelJaegerEexporter "github.com/open-telemetry/opentelemetry-collector/exporter/jaegerexporter"
 	otelJaegerreceiver "github.com/open-telemetry/opentelemetry-collector/receiver/jaegerreceiver"
 	"github.com/open-telemetry/opentelemetry-collector/service/defaultcomponents"
 	"github.com/spf13/pflag"
@@ -25,6 +26,7 @@ import (
 
 	"github.com/jaegertracing/jaeger/cmd/opentelemetry-collector/app/exporter/cassandra"
 	"github.com/jaegertracing/jaeger/cmd/opentelemetry-collector/app/exporter/elasticsearch"
+	"github.com/jaegertracing/jaeger/cmd/opentelemetry-collector/app/exporter/jaegerexporter"
 	"github.com/jaegertracing/jaeger/cmd/opentelemetry-collector/app/exporter/kafka"
 	"github.com/jaegertracing/jaeger/cmd/opentelemetry-collector/app/receiver/jaegerreceiver"
 	storageCassandra "github.com/jaegertracing/jaeger/plugin/storage/cassandra"
@@ -59,9 +61,14 @@ func Components(v *viper.Viper) config.Factories {
 	factories.Exporters[cassandraExp.Type()] = cassandraExp
 	factories.Exporters[esExp.Type()] = esExp
 
-	otelJRec := factories.Receivers["jaeger"].(*otelJaegerreceiver.Factory)
+	jaegerRec := factories.Receivers["jaeger"].(*otelJaegerreceiver.Factory)
 	factories.Receivers["jaeger"] = &jaegerreceiver.Factory{
-		Wrapped: otelJRec,
+		Wrapped: jaegerRec,
+		Viper:   v,
+	}
+	jaegerExp := factories.Exporters["jaeger"].(*otelJaegerEexporter.Factory)
+	factories.Exporters["jaeger"] = &jaegerexporter.Factory{
+		Wrapped: jaegerExp,
 		Viper:   v,
 	}
 	return factories

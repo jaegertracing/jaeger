@@ -1,0 +1,21 @@
+receivers:
+  jaeger:
+    protocols:
+      grpc:
+      thrift_compact:
+      thrift_binary:
+
+processors:
+  queued_retry: {}
+  batch:
+    timeout: 5s
+
+exporters:
+  jaeger_elasticsearch:
+
+service:
+  pipelines:
+    traces:
+      receivers: [jaeger]
+      processors: [batch]
+      exporters: [jaeger_elasticsearch]

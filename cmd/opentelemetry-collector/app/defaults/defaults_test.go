@@ -17,20 +17,27 @@ package defaults
 import (
 	"testing"
 
-	"github.com/magiconair/properties/assert"
+	"github.com/open-telemetry/opentelemetry-collector/config/configmodels"
+	"github.com/stretchr/testify/assert"
 
 	"github.com/jaegertracing/jaeger/cmd/opentelemetry-collector/app/exporter/cassandra"
 	"github.com/jaegertracing/jaeger/cmd/opentelemetry-collector/app/exporter/elasticsearch"
+	"github.com/jaegertracing/jaeger/cmd/opentelemetry-collector/app/exporter/jaegerexporter"
 	"github.com/jaegertracing/jaeger/cmd/opentelemetry-collector/app/exporter/kafka"
+	"github.com/jaegertracing/jaeger/cmd/opentelemetry-collector/app/receiver/jaegerreceiver"
 	jConfig "github.com/jaegertracing/jaeger/pkg/config"
 )
 
 func TestComponents(t *testing.T) {
-	v, _ := jConfig.Viperize(kafka.DefaultOptions().AddFlags, cassandra.DefaultOptions().AddFlags, elasticsearch.DefaultOptions().AddFlags)
+	v, _ := jConfig.Viperize(
+		kafka.DefaultOptions().AddFlags,
+		cassandra.DefaultOptions().AddFlags,
+		elasticsearch.DefaultOptions().AddFlags,
+	)
 	factories := Components(v)
-	assert.Equal(t, "jaeger_kafka", factories.Exporters[kafka.TypeStr].Type())
-	assert.Equal(t, "jaeger_cassandra", factories.Exporters[cassandra.TypeStr].Type())
-	assert.Equal(t, "jaeger_elasticsearch", factories.Exporters[elasticsearch.TypeStr].Type())
+	assert.Equal(t, configmodels.Type("jaeger_kafka"), factories.Exporters[kafka.TypeStr].Type())
+	assert.Equal(t, configmodels.Type("jaeger_cassandra"), factories.Exporters[cassandra.TypeStr].Type())
+	assert.Equal(t, configmodels.Type("jaeger_elasticsearch"), factories.Exporters[elasticsearch.TypeStr].Type())
 
 	kafkaFactory := factories.Exporters[kafka.TypeStr]
 	kc := kafkaFactory.CreateDefaultConfig().(*kafka.Config)
@@ -42,4 +49,6 @@ func TestComponents(t *testing.T) {
 	esFactory := factories.Exporters[elasticsearch.TypeStr]
 	ec := esFactory.CreateDefaultConfig().(*elasticsearch.Config)
 	assert.Equal(t, []string{"http://127.0.0.1:9200"}, ec.GetPrimary().Servers)
+	assert.IsType(t, &jaegerreceiver.Factory{}, factories.Receivers["jaeger"])
+	assert.IsType(t, &jaegerexporter.Factory{}, factories.Exporters["jaeger"])
 }

@@ -22,8 +22,8 @@ import (
 	"github.com/open-telemetry/opentelemetry-collector/consumer"
 	"github.com/open-telemetry/opentelemetry-collector/receiver/jaegerreceiver"
 	"github.com/spf13/viper"
-	"go.uber.org/zap"
 
+	"github.com/jaegertracing/jaeger/cmd/agent/app/reporter/grpc"
 	"github.com/jaegertracing/jaeger/plugin/sampling/strategystore/static"
 )
 
@@ -36,37 +36,52 @@ type Factory struct {
 	Viper *viper.Viper
 }
 
-var _ component.ReceiverFactoryOld = (*Factory)(nil)
+var _ component.ReceiverFactory = (*Factory)(nil)
 
-// Type gets the type of exporter.
-func (f *Factory) Type() string {
+// Type returns the type of the receiver.
+func (f *Factory) Type() configmodels.Type {
 	return f.Wrapped.Type()
 }
 
 // CreateDefaultConfig returns default configuration of Factory.
-// This function implements OTEL component.BaseFactory interface.
+// This function implements OTEL component.ReceiverFactoryBase interface.
 func (f *Factory) CreateDefaultConfig() configmodels.Receiver {
 	cfg := f.Wrapped.CreateDefaultConfig().(*jaegerreceiver.Config)
-	strategyFile := f.Viper.GetString(static.SamplingStrategiesFile)
+	cfg.RemoteSampling = createDefaultSamplingConfig(f.Viper)
+	return cfg
+}
+
+func createDefaultSamplingConfig(v *viper.Viper) *jaegerreceiver.RemoteSamplingConfig {
 	var samplingConf *jaegerreceiver.RemoteSamplingConfig
+	strategyFile := v.GetString(static.SamplingStrategiesFile)
 	if strategyFile != "" {
 		samplingConf = &jaegerreceiver.RemoteSamplingConfig{
 			StrategyFile: strategyFile,
 		}
 	}
-	cfg.RemoteSampling = samplingConf
-	return cfg
+	repCfg := grpc.ConnBuilder{}
+	repCfg.InitFromViper(v)
+	// This is for agent mode.
+	// This uses --reporter.grpc.host-port flag to set the fetch endpoint for the sampling strategies.
+	// The same flag is used by Jaeger exporter. If the value is not provided Jaeger exporter fails to start.
+	if len(repCfg.CollectorHostPorts) > 0 {
+		if samplingConf == nil {
+			samplingConf = &jaegerreceiver.RemoteSamplingConfig{}
+		}
+		samplingConf.FetchEndpoint = repCfg.CollectorHostPorts[0]
+	}
+	return samplingConf
 }
 
 // CreateTraceReceiver creates Jaeger receiver trace receiver.
 // This function implements OTEL component.ReceiverFactory interface.
 func (f *Factory) CreateTraceReceiver(
 	ctx context.Context,
-	log *zap.Logger,
+	params component.ReceiverCreateParams,
 	cfg configmodels.Receiver,
-	nextConsumer consumer.TraceConsumerOld,
+	nextConsumer consumer.TraceConsumer,
 ) (component.TraceReceiver, error) {
-	return f.Wrapped.CreateTraceReceiver(ctx, log, cfg, nextConsumer)
+	return f.Wrapped.CreateTraceReceiver(ctx, params, cfg, nextConsumer)
 }
 
 // CustomUnmarshaler creates custom unmarshaller for Jaeger receiver config.
@@ -78,9 +93,10 @@ func (f *Factory) CustomUnmarshaler() component.CustomUnmarshaler {
 // CreateMetricsReceiver creates a metrics receiver based on provided config.
 // This function implements component.ReceiverFactory.
 func (f *Factory) CreateMetricsReceiver(
-	logger *zap.Logger,
-	receiver configmodels.Receiver,
-	consumer consumer.MetricsConsumerOld,
+	ctx context.Context,
+	params component.ReceiverCreateParams,
+	cfg configmodels.Receiver,
+	nextConsumer consumer.MetricsConsumer,
 ) (component.MetricsReceiver, error) {
-	return f.Wrapped.CreateMetricsReceiver(logger, receiver, consumer)
+	return f.Wrapped.CreateMetricsReceiver(ctx, params, cfg, nextConsumer)
 }

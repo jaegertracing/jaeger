@@ -12,24 +12,23 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package cassandra
+package defaults
 
 import (
-	"github.com/open-telemetry/opentelemetry-collector/component"
-	"github.com/uber/jaeger-lib/metrics"
-
-	storageOtelExporter "github.com/jaegertracing/jaeger/cmd/opentelemetry-collector/app/exporter"
-	"github.com/jaegertracing/jaeger/plugin/storage/cassandra"
+	"github.com/imdario/mergo"
+	"github.com/open-telemetry/opentelemetry-collector/config/configmodels"
 )
 
-// New creates Cassandra exporter/storage
-func New(config *Config, params component.ExporterCreateParams) (component.TraceExporter, error) {
-	f := cassandra.NewFactory()
-	f.InitFromOptions(&config.Options)
-
-	err := f.Initialize(metrics.NullFactory, params.Logger)
-	if err != nil {
-		return nil, err
+// MergeConfigs merges two configs.
+// The src is merged into dst.
+func MergeConfigs(dst, src *configmodels.Config) error {
+	if src == nil {
+		return nil
 	}
-	return storageOtelExporter.NewSpanWriterExporter(config, f)
+	err := mergo.Merge(dst, src,
+		mergo.WithOverride)
+	if err != nil {
+		return err
+	}
+	return nil
 }
