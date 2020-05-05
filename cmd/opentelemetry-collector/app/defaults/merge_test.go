@@ -162,10 +162,6 @@ func TestMergeConfigFiles(t *testing.T) {
 }
 
 func loadConfig(factories config.Factories, file string) (*configmodels.Config, error) {
-	// config.Load fails to load an empty config
-	if file == "testdata/emptyoverride-override.yaml" {
-		return &configmodels.Config{}, nil
-	}
 	v := viper.New()
 	v.SetConfigFile(file)
 	err := v.ReadInConfig()

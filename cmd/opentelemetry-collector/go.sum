@@ -955,6 +955,8 @@ github.com/open-telemetry/opentelemetry-collector v0.3.1-0.20200501033637-a0f4cf
 github.com/open-telemetry/opentelemetry-collector v0.3.1-0.20200501033637-a0f4cf0384e4/go.mod h1:hIfP5/uuFbC++oHT4BzzFVcMWj7uH35EGwNJ03wyjJU=
 github.com/open-telemetry/opentelemetry-collector v0.3.1-0.20200503151053-5d1aacc0e168 h1:gmEYpU/2Nkqs7efKs89HcozlJQE8aDTVxqvC55GRDhE=
 github.com/open-telemetry/opentelemetry-collector v0.3.1-0.20200503151053-5d1aacc0e168/go.mod h1:hIfP5/uuFbC++oHT4BzzFVcMWj7uH35EGwNJ03wyjJU=
+github.com/open-telemetry/opentelemetry-collector v0.3.1-0.20200505021754-29913a616b1f h1:+j7LxxbgFeefZ/bcOq7J1Ji3eqgVhiMacx5+Wyl+uZU=
+github.com/open-telemetry/opentelemetry-collector v0.3.1-0.20200505021754-29913a616b1f/go.mod h1:ht/uOm+HLoXWjhq6seX/BoTwlR0dtCKFe2Y23YRk2a4=
 github.com/open-telemetry/opentelemetry-proto v0.3.0 h1:+ASAtcayvoELyCF40+rdCMlBOhZIn5TPDez85zSYc30=
 github.com/open-telemetry/opentelemetry-proto v0.3.0/go.mod h1:PMR5GI0F7BSpio+rBGFxNm6SLzg3FypDTcFuQZnO+F8=
 github.com/opencontainers/go-digest v1.0.0-rc1/go.mod h1:cMLVZDEM3+U2I4VmLI6N8jQYUd2OVphdqWwCJHrFt2s=
@@ -1103,6 +1105,8 @@ github.com/serenize/snaker v0.0.0-20171204205717-a683aaf2d516/go.mod h1:Yow6lPLS
 github.com/sergi/go-diff v1.0.0/go.mod h1:0CfEIISq7TuYL3j771MWULgwwjU+GofnZX9QAmXWZgo=
 github.com/shirou/gopsutil v0.0.0-20190901111213-e4ec7b275ada h1:WokF3GuxBeL+n4Lk4Fa8v9mbdjlrl7bHuneF4N1bk2I=
 github.com/shirou/gopsutil v0.0.0-20190901111213-e4ec7b275ada/go.mod h1:WWnYX4lzhCH5h/3YBfyVA3VbLYjlMZZAQcW9ojMexNc=
+github.com/shirou/gopsutil v2.20.4+incompatible h1:cMT4rxS55zx9NVUnCkrmXCsEB/RNfG9SwHY9evtX8Ng=
+github.com/shirou/gopsutil v2.20.4+incompatible/go.mod h1:5b4v6he4MtMOwMlS0TUMTu2PcXUg8+E1lC7eC3UO/RA=
 github.com/shirou/w32 v0.0.0-20160930032740-bb4de0191aa4 h1:udFKJ0aHUL60LboW/A+DfgoHVedieIzIXE8uylPue0U=
 github.com/shirou/w32 v0.0.0-20160930032740-bb4de0191aa4/go.mod h1:qsXQc7+bwAM3Q1u/4XEfrquwF8Lw7D7y5cD8CuHnfIc=
 github.com/shopspring/decimal v0.0.0-20180709203117-cd690d0c9e24/go.mod h1:M+9NzErvs504Cn4c5DxATwIqPbtswREoFCre64PpcG4=
