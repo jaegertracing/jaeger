@@ -10,8 +10,7 @@ require (
 	github.com/Shopify/sarama v1.22.2-0.20190604114437-cd910a683f9f
 	github.com/imdario/mergo v0.3.9
 	github.com/jaegertracing/jaeger v1.17.0
-	github.com/magiconair/properties v1.8.1
-	github.com/open-telemetry/opentelemetry-collector v0.3.1-0.20200505021754-29913a616b1f
+	github.com/open-telemetry/opentelemetry-collector v0.3.1-0.20200505202444-021607d68586
 	github.com/open-telemetry/opentelemetry-proto v0.3.0
 	github.com/spf13/pflag v1.0.5
 	github.com/spf13/viper v1.6.2

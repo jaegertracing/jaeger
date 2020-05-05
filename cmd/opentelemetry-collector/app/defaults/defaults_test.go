@@ -24,6 +24,7 @@ import (
 	"github.com/jaegertracing/jaeger/cmd/opentelemetry-collector/app/exporter/elasticsearch"
 	"github.com/jaegertracing/jaeger/cmd/opentelemetry-collector/app/exporter/jaegerexporter"
 	"github.com/jaegertracing/jaeger/cmd/opentelemetry-collector/app/exporter/kafka"
+	"github.com/jaegertracing/jaeger/cmd/opentelemetry-collector/app/processor/resourceprocessor"
 	"github.com/jaegertracing/jaeger/cmd/opentelemetry-collector/app/receiver/jaegerreceiver"
 	jConfig "github.com/jaegertracing/jaeger/pkg/config"
 )
@@ -51,4 +52,5 @@ func TestComponents(t *testing.T) {
 	assert.Equal(t, []string{"http://127.0.0.1:9200"}, ec.GetPrimary().Servers)
 	assert.IsType(t, &jaegerreceiver.Factory{}, factories.Receivers["jaeger"])
 	assert.IsType(t, &jaegerexporter.Factory{}, factories.Exporters["jaeger"])
+	assert.IsType(t, &resourceprocessor.Factory{}, factories.Processors["resource"])
 }

@@ -21,6 +21,7 @@ import (
 	"github.com/open-telemetry/opentelemetry-collector/config"
 	"github.com/open-telemetry/opentelemetry-collector/config/configmodels"
 	"github.com/open-telemetry/opentelemetry-collector/exporter/jaegerexporter"
+	"github.com/open-telemetry/opentelemetry-collector/processor/resourceprocessor"
 	"github.com/open-telemetry/opentelemetry-collector/receiver/jaegerreceiver"
 	"github.com/spf13/viper"
 	"github.com/stretchr/testify/assert"
@@ -51,9 +52,10 @@ func TestDefaultCollectorConfig(t *testing.T) {
 			exporterTypes:  []string{elasticsearch.TypeStr},
 			pipeline: configmodels.Pipelines{
 				"traces": {
-					InputType: configmodels.TracesDataType,
-					Receivers: []string{"jaeger"},
-					Exporters: []string{elasticsearch.TypeStr},
+					InputType:  configmodels.TracesDataType,
+					Receivers:  []string{"jaeger"},
+					Processors: []string{"resource"},
+					Exporters:  []string{elasticsearch.TypeStr},
 				},
 			},
 		},
@@ -63,9 +65,10 @@ func TestDefaultCollectorConfig(t *testing.T) {
 			exporterTypes:  []string{cassandra.TypeStr},
 			pipeline: configmodels.Pipelines{
 				"traces": {
-					InputType: configmodels.TracesDataType,
-					Receivers: []string{"jaeger"},
-					Exporters: []string{cassandra.TypeStr},
+					InputType:  configmodels.TracesDataType,
+					Receivers:  []string{"jaeger"},
+					Processors: []string{"resource"},
+					Exporters:  []string{cassandra.TypeStr},
 				},
 			},
 		},
@@ -75,9 +78,10 @@ func TestDefaultCollectorConfig(t *testing.T) {
 			exporterTypes:  []string{kafka.TypeStr},
 			pipeline: configmodels.Pipelines{
 				"traces": {
-					InputType: configmodels.TracesDataType,
-					Receivers: []string{"jaeger"},
-					Exporters: []string{kafka.TypeStr},
+					InputType:  configmodels.TracesDataType,
+					Receivers:  []string{"jaeger"},
+					Processors: []string{"resource"},
+					Exporters:  []string{kafka.TypeStr},
 				},
 			},
 		},
@@ -87,9 +91,10 @@ func TestDefaultCollectorConfig(t *testing.T) {
 			exporterTypes:  []string{cassandra.TypeStr, elasticsearch.TypeStr},
 			pipeline: configmodels.Pipelines{
 				"traces": {
-					InputType: configmodels.TracesDataType,
-					Receivers: []string{"jaeger"},
-					Exporters: []string{cassandra.TypeStr, elasticsearch.TypeStr},
+					InputType:  configmodels.TracesDataType,
+					Receivers:  []string{"jaeger"},
+					Processors: []string{"resource"},
+					Exporters:  []string{cassandra.TypeStr, elasticsearch.TypeStr},
 				},
 			},
 		},
@@ -99,9 +104,10 @@ func TestDefaultCollectorConfig(t *testing.T) {
 			exporterTypes:  []string{cassandra.TypeStr},
 			pipeline: configmodels.Pipelines{
 				"traces": {
-					InputType: configmodels.TracesDataType,
-					Receivers: []string{"jaeger", "zipkin"},
-					Exporters: []string{cassandra.TypeStr},
+					InputType:  configmodels.TracesDataType,
+					Receivers:  []string{"jaeger", "zipkin"},
+					Processors: []string{"resource"},
+					Exporters:  []string{cassandra.TypeStr},
 				},
 			},
 		},
@@ -128,6 +134,7 @@ func TestDefaultCollectorConfig(t *testing.T) {
 			assert.Equal(t, len(test.pipeline["traces"].Receivers), len(cfg.Receivers))
 			assert.Equal(t, "jaeger", cfg.Receivers["jaeger"].Name())
 			assert.Equal(t, len(test.exporterTypes), len(cfg.Exporters))
+			assert.IsType(t, &resourceprocessor.Config{}, cfg.Processors["resource"])
 
 			types := []string{}
 			for _, v := range cfg.Exporters {
@@ -148,13 +155,15 @@ func TestDefaultAgentConfig(t *testing.T) {
 		Extensions: []string{"health_check"},
 		Pipelines: configmodels.Pipelines{
 			"traces": &configmodels.Pipeline{
-				InputType: configmodels.TracesDataType,
-				Receivers: []string{"jaeger"},
-				Exporters: []string{"jaeger"},
+				InputType:  configmodels.TracesDataType,
+				Receivers:  []string{"jaeger"},
+				Processors: []string{"resource"},
+				Exporters:  []string{"jaeger"},
 			},
 		},
 	}, cfg.Service)
-	assert.Equal(t, 0, len(cfg.Processors))
+	assert.Equal(t, 1, len(cfg.Processors))
+	assert.IsType(t, &resourceprocessor.Config{}, cfg.Processors["resource"])
 	assert.Equal(t, 1, len(cfg.Receivers))
 	assert.IsType(t, &jaegerreceiver.Config{}, cfg.Receivers["jaeger"])
 	assert.Equal(t, 1, len(cfg.Exporters))

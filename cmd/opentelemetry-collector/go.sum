@@ -951,12 +951,8 @@ github.com/onsi/gomega v1.7.1/go.mod h1:XdKZgCCFLUoM/7CFJVPcG8C1xQ1AJ0vpAezJrB7J
 github.com/onsi/gomega v1.8.1/go.mod h1:Ho0h+IUsWyvy1OpqCwxlQ/21gkhVunqlU8fDGcoTdcA=
 github.com/onsi/gomega v1.9.0 h1:R1uwffexN6Pr340GtYRIdZmAiN4J+iw6WG4wog1DUXg=
 github.com/onsi/gomega v1.9.0/go.mod h1:Ho0h+IUsWyvy1OpqCwxlQ/21gkhVunqlU8fDGcoTdcA=
-github.com/open-telemetry/opentelemetry-collector v0.3.1-0.20200501033637-a0f4cf0384e4 h1:0f9PyGC02aC0gekfpPwV/NvXRuYpQZDDv0FtDPq8amE=
-github.com/open-telemetry/opentelemetry-collector v0.3.1-0.20200501033637-a0f4cf0384e4/go.mod h1:hIfP5/uuFbC++oHT4BzzFVcMWj7uH35EGwNJ03wyjJU=
-github.com/open-telemetry/opentelemetry-collector v0.3.1-0.20200503151053-5d1aacc0e168 h1:gmEYpU/2Nkqs7efKs89HcozlJQE8aDTVxqvC55GRDhE=
-github.com/open-telemetry/opentelemetry-collector v0.3.1-0.20200503151053-5d1aacc0e168/go.mod h1:hIfP5/uuFbC++oHT4BzzFVcMWj7uH35EGwNJ03wyjJU=
-github.com/open-telemetry/opentelemetry-collector v0.3.1-0.20200505021754-29913a616b1f h1:+j7LxxbgFeefZ/bcOq7J1Ji3eqgVhiMacx5+Wyl+uZU=
-github.com/open-telemetry/opentelemetry-collector v0.3.1-0.20200505021754-29913a616b1f/go.mod h1:ht/uOm+HLoXWjhq6seX/BoTwlR0dtCKFe2Y23YRk2a4=
+github.com/open-telemetry/opentelemetry-collector v0.3.1-0.20200505202444-021607d68586 h1:HD0/Opa/WiWaG+B6LP+5XT9lYqpErWd6DjH3ah9mQrU=
+github.com/open-telemetry/opentelemetry-collector v0.3.1-0.20200505202444-021607d68586/go.mod h1:ht/uOm+HLoXWjhq6seX/BoTwlR0dtCKFe2Y23YRk2a4=
 github.com/open-telemetry/opentelemetry-proto v0.3.0 h1:+ASAtcayvoELyCF40+rdCMlBOhZIn5TPDez85zSYc30=
 github.com/open-telemetry/opentelemetry-proto v0.3.0/go.mod h1:PMR5GI0F7BSpio+rBGFxNm6SLzg3FypDTcFuQZnO+F8=
 github.com/opencontainers/go-digest v1.0.0-rc1/go.mod h1:cMLVZDEM3+U2I4VmLI6N8jQYUd2OVphdqWwCJHrFt2s=

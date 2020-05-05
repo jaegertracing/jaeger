@@ -21,6 +21,7 @@ import (
 	"github.com/open-telemetry/opentelemetry-collector/config"
 	"github.com/open-telemetry/opentelemetry-collector/config/configmodels"
 	"github.com/open-telemetry/opentelemetry-collector/extension/healthcheckextension"
+	"github.com/open-telemetry/opentelemetry-collector/processor/resourceprocessor"
 	"github.com/open-telemetry/opentelemetry-collector/receiver"
 	"github.com/open-telemetry/opentelemetry-collector/receiver/jaegerreceiver"
 	"github.com/open-telemetry/opentelemetry-collector/receiver/zipkinreceiver"
@@ -36,7 +37,6 @@ const (
 	httpThriftBinaryEndpoint = "localhost:14268"
 	udpThriftCompactEndpoint = "localhost:6831"
 	udpThriftBinaryEndpoint  = "localhost:6832"
-	httpSamplingEndpoint     = "localhost:5778"
 )
 
 // CollectorConfig creates default collector configuration.
@@ -56,17 +56,20 @@ func CollectorConfig(storageType string, zipkinHostPort string, factories config
 		recTypes = append(recTypes, string(v.Type()))
 	}
 	hc := factories.Extensions["health_check"].CreateDefaultConfig()
+	resProcessor := factories.Processors["resource"].CreateDefaultConfig()
 	return &configmodels.Config{
 		Receivers:  receivers,
+		Processors: configmodels.Processors{"resource": resProcessor},
 		Exporters:  exporters,
 		Extensions: configmodels.Extensions{"health_check": hc},
 		Service: configmodels.Service{
 			Extensions: []string{"health_check"},
 			Pipelines: configmodels.Pipelines{
 				"traces": {
-					InputType: configmodels.TracesDataType,
-					Receivers: recTypes,
-					Exporters: expTypes,
+					InputType:  configmodels.TracesDataType,
+					Receivers:  recTypes,
+					Processors: []string{"resource"},
+					Exporters:  expTypes,
 				},
 			},
 		},
@@ -125,17 +128,20 @@ func createExporters(storageTypes string, factories config.Factories) (configmod
 func AgentConfig(factories config.Factories) *configmodels.Config {
 	jaegerExporter := factories.Exporters["jaeger"]
 	hc := factories.Extensions["health_check"].CreateDefaultConfig().(*healthcheckextension.Config)
+	resProcessor := factories.Processors["resource"].CreateDefaultConfig().(*resourceprocessor.Config)
 	return &configmodels.Config{
 		Receivers:  createAgentReceivers(factories),
+		Processors: configmodels.Processors{"resource": resProcessor},
 		Exporters:  configmodels.Exporters{"jaeger": jaegerExporter.CreateDefaultConfig()},
 		Extensions: configmodels.Extensions{"health_check": hc},
 		Service: configmodels.Service{
 			Extensions: []string{"health_check"},
 			Pipelines: map[string]*configmodels.Pipeline{
 				"traces": {
-					InputType: configmodels.TracesDataType,
-					Receivers: []string{"jaeger"},
-					Exporters: []string{"jaeger"},
+					InputType:  configmodels.TracesDataType,
+					Receivers:  []string{"jaeger"},
+					Processors: []string{"resource"},
+					Exporters:  []string{"jaeger"},
 				},
 			},
 		},
