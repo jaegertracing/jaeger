@@ -11,7 +11,7 @@ require (
 	github.com/imdario/mergo v0.3.9
 	github.com/jaegertracing/jaeger v1.17.0
 	github.com/magiconair/properties v1.8.1
-	github.com/open-telemetry/opentelemetry-collector v0.3.1-0.20200503151053-5d1aacc0e168
+	github.com/open-telemetry/opentelemetry-collector v0.3.1-0.20200505021754-29913a616b1f
 	github.com/open-telemetry/opentelemetry-proto v0.3.0
 	github.com/spf13/pflag v1.0.5
 	github.com/spf13/viper v1.6.2

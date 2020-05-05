@@ -1,7 +1,4 @@
 receivers:
-  jaeger:
-    protocols:
-      grpc:
   opencensus:
     endpoint: "localhost:55678"
   prometheus:

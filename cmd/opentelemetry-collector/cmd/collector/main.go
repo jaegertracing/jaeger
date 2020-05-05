@@ -69,16 +69,15 @@ func main() {
 			return nil, err
 		}
 
-		var otelCfg *configmodels.Config
 		if len(app.GetOTELConfigFile()) > 0 {
-			otelCfg, err = service.FileLoaderConfigFactory(otelViper, f)
+			otelCfg, err := service.FileLoaderConfigFactory(otelViper, f)
 			if err != nil {
 				return nil, err
 			}
-		}
-		err = defaults.MergeConfigs(cfg, otelCfg)
-		if err != nil {
-			return nil, err
+			err = defaults.MergeConfigs(cfg, otelCfg)
+			if err != nil {
+				return nil, err
+			}
 		}
 		return cfg, nil
 	}
