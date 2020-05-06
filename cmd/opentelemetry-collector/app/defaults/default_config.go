@@ -21,6 +21,7 @@ import (
 	"github.com/open-telemetry/opentelemetry-collector/config"
 	"github.com/open-telemetry/opentelemetry-collector/config/configmodels"
 	"github.com/open-telemetry/opentelemetry-collector/extension/healthcheckextension"
+	"github.com/open-telemetry/opentelemetry-collector/processor/resourceprocessor"
 	"github.com/open-telemetry/opentelemetry-collector/receiver"
 	"github.com/open-telemetry/opentelemetry-collector/receiver/jaegerreceiver"
 	"github.com/open-telemetry/opentelemetry-collector/receiver/zipkinreceiver"
@@ -36,7 +37,6 @@ const (
 	httpThriftBinaryEndpoint = "localhost:14268"
 	udpThriftCompactEndpoint = "localhost:6831"
 	udpThriftBinaryEndpoint  = "localhost:6832"
-	httpSamplingEndpoint     = "localhost:5778"
 )
 
 // CollectorConfig creates default collector configuration.
@@ -46,27 +46,26 @@ func CollectorConfig(storageType string, zipkinHostPort string, factories config
 	if err != nil {
 		return nil, err
 	}
-	expTypes := []string{}
-	for _, v := range exporters {
-		expTypes = append(expTypes, string(v.Type()))
-	}
 	receivers := createCollectorReceivers(zipkinHostPort, factories)
-	recTypes := []string{}
-	for _, v := range receivers {
-		recTypes = append(recTypes, string(v.Type()))
-	}
 	hc := factories.Extensions["health_check"].CreateDefaultConfig()
+	processors := configmodels.Processors{}
+	resProcessor := factories.Processors["resource"].CreateDefaultConfig().(*resourceprocessor.Config)
+	if len(resProcessor.Labels) > 0 {
+		processors[resProcessor.Name()] = resProcessor
+	}
 	return &configmodels.Config{
 		Receivers:  receivers,
+		Processors: processors,
 		Exporters:  exporters,
 		Extensions: configmodels.Extensions{"health_check": hc},
 		Service: configmodels.Service{
 			Extensions: []string{"health_check"},
 			Pipelines: configmodels.Pipelines{
 				"traces": {
-					InputType: configmodels.TracesDataType,
-					Receivers: recTypes,
-					Exporters: expTypes,
+					InputType:  configmodels.TracesDataType,
+					Receivers:  receiverNames(receivers),
+					Processors: processorNames(processors),
+					Exporters:  exporterNames(exporters),
 				},
 			},
 		},
@@ -124,18 +123,27 @@ func createExporters(storageTypes string, factories config.Factories) (configmod
 // It enables Jaeger receiver with UDP endpoints and Jaeger exporter.
 func AgentConfig(factories config.Factories) *configmodels.Config {
 	jaegerExporter := factories.Exporters["jaeger"]
+	exporters := configmodels.Exporters{"jaeger": jaegerExporter.CreateDefaultConfig()}
 	hc := factories.Extensions["health_check"].CreateDefaultConfig().(*healthcheckextension.Config)
+	processors := configmodels.Processors{}
+	resProcessor := factories.Processors["resource"].CreateDefaultConfig().(*resourceprocessor.Config)
+	if len(resProcessor.Labels) > 0 {
+		processors[resProcessor.Name()] = resProcessor
+	}
+	receivers := createAgentReceivers(factories)
 	return &configmodels.Config{
-		Receivers:  createAgentReceivers(factories),
-		Exporters:  configmodels.Exporters{"jaeger": jaegerExporter.CreateDefaultConfig()},
+		Receivers:  receivers,
+		Processors: processors,
+		Exporters:  exporters,
 		Extensions: configmodels.Extensions{"health_check": hc},
 		Service: configmodels.Service{
 			Extensions: []string{"health_check"},
 			Pipelines: map[string]*configmodels.Pipeline{
 				"traces": {
-					InputType: configmodels.TracesDataType,
-					Receivers: []string{"jaeger"},
-					Exporters: []string{"jaeger"},
+					InputType:  configmodels.TracesDataType,
+					Receivers:  receiverNames(receivers),
+					Processors: processorNames(processors),
+					Exporters:  exporterNames(exporters),
 				},
 			},
 		},
@@ -160,4 +168,28 @@ func createAgentReceivers(factories config.Factories) configmodels.Receivers {
 		"jaeger": jaeger,
 	}
 	return recvs
+}
+
+func receiverNames(receivers configmodels.Receivers) []string {
+	var names []string
+	for _, v := range receivers {
+		names = append(names, v.Name())
+	}
+	return names
+}
+
+func processorNames(processors configmodels.Processors) []string {
+	var names []string
+	for _, v := range processors {
+		names = append(names, v.Name())
+	}
+	return names
+}
+
+func exporterNames(exporters configmodels.Exporters) []string {
+	var names []string
+	for _, v := range exporters {
+		names = append(names, v.Name())
+	}
+	return names
 }

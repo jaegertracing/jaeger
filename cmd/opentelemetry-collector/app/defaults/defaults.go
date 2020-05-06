@@ -18,8 +18,9 @@ import (
 	"flag"
 
 	"github.com/open-telemetry/opentelemetry-collector/config"
-	otelJaegerEexporter "github.com/open-telemetry/opentelemetry-collector/exporter/jaegerexporter"
-	otelJaegerreceiver "github.com/open-telemetry/opentelemetry-collector/receiver/jaegerreceiver"
+	otelJaegerExporter "github.com/open-telemetry/opentelemetry-collector/exporter/jaegerexporter"
+	otelResourceProcessor "github.com/open-telemetry/opentelemetry-collector/processor/resourceprocessor"
+	otelJaegerReceiver "github.com/open-telemetry/opentelemetry-collector/receiver/jaegerreceiver"
 	"github.com/open-telemetry/opentelemetry-collector/service/defaultcomponents"
 	"github.com/spf13/pflag"
 	"github.com/spf13/viper"
@@ -28,6 +29,7 @@ import (
 	"github.com/jaegertracing/jaeger/cmd/opentelemetry-collector/app/exporter/elasticsearch"
 	"github.com/jaegertracing/jaeger/cmd/opentelemetry-collector/app/exporter/jaegerexporter"
 	"github.com/jaegertracing/jaeger/cmd/opentelemetry-collector/app/exporter/kafka"
+	"github.com/jaegertracing/jaeger/cmd/opentelemetry-collector/app/processor/resourceprocessor"
 	"github.com/jaegertracing/jaeger/cmd/opentelemetry-collector/app/receiver/jaegerreceiver"
 	storageCassandra "github.com/jaegertracing/jaeger/plugin/storage/cassandra"
 	storageEs "github.com/jaegertracing/jaeger/plugin/storage/es"
@@ -61,14 +63,20 @@ func Components(v *viper.Viper) config.Factories {
 	factories.Exporters[cassandraExp.Type()] = cassandraExp
 	factories.Exporters[esExp.Type()] = esExp
 
-	jaegerRec := factories.Receivers["jaeger"].(*otelJaegerreceiver.Factory)
+	jaegerRec := factories.Receivers["jaeger"].(*otelJaegerReceiver.Factory)
 	factories.Receivers["jaeger"] = &jaegerreceiver.Factory{
 		Wrapped: jaegerRec,
 		Viper:   v,
 	}
-	jaegerExp := factories.Exporters["jaeger"].(*otelJaegerEexporter.Factory)
+	jaegerExp := factories.Exporters["jaeger"].(*otelJaegerExporter.Factory)
 	factories.Exporters["jaeger"] = &jaegerexporter.Factory{
 		Wrapped: jaegerExp,
+		Viper:   v,
+	}
+
+	resourceProc := factories.Processors["resource"].(*otelResourceProcessor.Factory)
+	factories.Processors["resource"] = &resourceprocessor.Factory{
+		Wrapped: resourceProc,
 		Viper:   v,
 	}
 	return factories
