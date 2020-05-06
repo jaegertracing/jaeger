@@ -81,6 +81,7 @@ func TestLoadConfigAndFlags(t *testing.T) {
 	assert.Equal(t, "user", kafkaCfg.Options.PlainText.UserName)
 	assert.Equal(t, "123", kafkaCfg.Options.PlainText.Password)
 	assert.Equal(t, true, kafkaCfg.Options.TLS.Enabled)
+	assert.Equal(t, "ca.crt", kafkaCfg.Options.TLS.CAPath)
 	assert.Equal(t, "key.crt", kafkaCfg.Options.TLS.KeyPath)
 	assert.Equal(t, "cert.crt", kafkaCfg.Options.TLS.CertPath)
 	assert.Equal(t, true, kafkaCfg.Options.TLS.SkipHostVerify)

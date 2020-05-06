@@ -17,11 +17,11 @@ package kafka
 import (
 	"github.com/open-telemetry/opentelemetry-collector/config/configmodels"
 
-	"github.com/jaegertracing/jaeger/cmd/ingester/app"
+	ingesterApp "github.com/jaegertracing/jaeger/cmd/ingester/app"
 )
 
 // Config hold configuration for Jaeger kafka receiver/ingester.
 type Config struct {
 	configmodels.ReceiverSettings `mapstructure:",squash"`
-	app.Options                   `mapstructure:",squash"`
+	ingesterApp.Options           `mapstructure:",squash"`
 }

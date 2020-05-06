@@ -26,16 +26,16 @@ import (
 	"github.com/stretchr/testify/require"
 	"go.uber.org/zap"
 
-	"github.com/jaegertracing/jaeger/cmd/ingester/app"
+	ingesterApp "github.com/jaegertracing/jaeger/cmd/ingester/app"
 	jConfig "github.com/jaegertracing/jaeger/pkg/config"
 )
 
 // TODO failing
 func TestCreateTraceReceiver(t *testing.T) {
-	v, _ := jConfig.Viperize(app.AddFlags)
+	v, _ := jConfig.Viperize(ingesterApp.AddFlags)
 	opts := DefaultOptions()
 	opts.InitFromViper(v)
-	factory := &Factory{OptionsFactory: func() *app.Options {
+	factory := &Factory{OptionsFactory: func() *ingesterApp.Options {
 		return opts
 	}}
 	exporter, err := factory.CreateTraceReceiver(context.Background(), component.ReceiverCreateParams{Logger: zap.NewNop()}, factory.CreateDefaultConfig(), nil)

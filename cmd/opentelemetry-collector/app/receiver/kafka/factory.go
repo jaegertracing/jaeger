@@ -23,7 +23,7 @@ import (
 	"github.com/open-telemetry/opentelemetry-collector/config/configmodels"
 	"github.com/open-telemetry/opentelemetry-collector/consumer"
 
-	"github.com/jaegertracing/jaeger/cmd/ingester/app"
+	ingesterApp "github.com/jaegertracing/jaeger/cmd/ingester/app"
 )
 
 const (
@@ -31,11 +31,11 @@ const (
 )
 
 // OptionsFactory returns initialized ingester app.Options structure.
-type OptionsFactory func() *app.Options
+type OptionsFactory func() *ingesterApp.Options
 
 // DefaultOptions creates Kafka options supported by this receiver.
-func DefaultOptions() *app.Options {
-	return &app.Options{}
+func DefaultOptions() *ingesterApp.Options {
+	return &ingesterApp.Options{}
 }
 
 type Factory struct {

@@ -25,7 +25,7 @@ import (
 	"github.com/spf13/pflag"
 	"github.com/spf13/viper"
 
-	"github.com/jaegertracing/jaeger/cmd/ingester/app"
+	ingestrApp "github.com/jaegertracing/jaeger/cmd/ingester/app"
 	"github.com/jaegertracing/jaeger/cmd/opentelemetry-collector/app/exporter/cassandra"
 	"github.com/jaegertracing/jaeger/cmd/opentelemetry-collector/app/exporter/elasticsearch"
 	"github.com/jaegertracing/jaeger/cmd/opentelemetry-collector/app/exporter/jaegerexporter"
@@ -59,7 +59,7 @@ func Components(v *viper.Viper) config.Factories {
 		opts.InitFromViper(v)
 		return opts
 	}}
-	kafkaRec := &kafkaRec.Factory{OptionsFactory: func() *app.Options {
+	kafkaRec := &kafkaRec.Factory{OptionsFactory: func() *ingestrApp.Options {
 		opts := kafkaRec.DefaultOptions()
 		opts.InitFromViper(v)
 		return opts
