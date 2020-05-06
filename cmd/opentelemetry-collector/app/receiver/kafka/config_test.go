@@ -53,7 +53,7 @@ func TestLoadConfigAndFlags(t *testing.T) {
 	require.NoError(t, err)
 
 	v, c := jConfig.Viperize(app.AddFlags, flags.AddConfigFileFlag)
-	err = c.ParseFlags([]string{"--config-file=./testdata/jaeger-config.yaml", "--kafka.consumer.topic=jaeger-test", "--kafka.consumer.brokers=host1,host2"})
+	err = c.ParseFlags([]string{"--config-file=./testdata/jaeger-config.yaml", "--kafka.consumer.topic=jaeger-test", "--kafka.consumer.brokers=host1,host2", "--kafka.consumer.tls.cert=from-flag"})
 	require.NoError(t, err)
 
 	err = flags.TryLoadConfigFile(v)
@@ -83,7 +83,7 @@ func TestLoadConfigAndFlags(t *testing.T) {
 	assert.Equal(t, true, kafkaCfg.Options.TLS.Enabled)
 	assert.Equal(t, "ca.crt", kafkaCfg.Options.TLS.CAPath)
 	assert.Equal(t, "key.crt", kafkaCfg.Options.TLS.KeyPath)
-	assert.Equal(t, "cert.crt", kafkaCfg.Options.TLS.CertPath)
+	assert.Equal(t, "from-flag", kafkaCfg.Options.TLS.CertPath)
 	assert.Equal(t, true, kafkaCfg.Options.TLS.SkipHostVerify)
 	assert.Equal(t, "jaeger", kafkaCfg.Options.Kerberos.Realm)
 	assert.Equal(t, "/etc/foo", kafkaCfg.Options.Kerberos.ConfigPath)

@@ -12,7 +12,6 @@ receivers:
         enabled: true
         ca: ca.crt
         key: key.crt
-        cert: cert.crt
         skip_host_verify: true
       kerberos:
         realm: jaeger
