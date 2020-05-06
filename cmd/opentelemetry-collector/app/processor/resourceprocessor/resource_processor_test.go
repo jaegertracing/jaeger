@@ -76,6 +76,9 @@ func TestLoadConfigAndFlags(t *testing.T) {
 
 	cfg := colConfig.Processors[string(f.Type())].(*resourceprocessor.Config)
 	assert.Equal(t, map[string]string{"zone": "zone1", "foo": "bar"}, cfg.Labels)
+	p, err := f.CreateTraceProcessor(zap.NewNop(), nil, cfg)
+	require.NoError(t, err)
+	assert.NotNil(t, p)
 }
 
 func TestType(t *testing.T) {
