@@ -15,6 +15,7 @@
 package defaults
 
 import (
+	"fmt"
 	"sort"
 	"testing"
 
@@ -23,6 +24,7 @@ import (
 	"github.com/open-telemetry/opentelemetry-collector/exporter/jaegerexporter"
 	"github.com/open-telemetry/opentelemetry-collector/processor/resourceprocessor"
 	"github.com/open-telemetry/opentelemetry-collector/receiver/jaegerreceiver"
+	"github.com/spf13/viper"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"go.uber.org/zap"
@@ -31,6 +33,7 @@ import (
 	"github.com/jaegertracing/jaeger/cmd/opentelemetry-collector/app/exporter/cassandra"
 	"github.com/jaegertracing/jaeger/cmd/opentelemetry-collector/app/exporter/elasticsearch"
 	"github.com/jaegertracing/jaeger/cmd/opentelemetry-collector/app/exporter/kafka"
+	kafkaRec "github.com/jaegertracing/jaeger/cmd/opentelemetry-collector/app/receiver/kafka"
 	jConfig "github.com/jaegertracing/jaeger/pkg/config"
 	"github.com/jaegertracing/jaeger/ports"
 )
@@ -189,25 +192,75 @@ func TestDefaultAgentConfig(t *testing.T) {
 		},
 	}
 	for _, test := range tests {
-		v, _ := jConfig.Viperize(grpc.AddFlags)
-		for key, val := range test.config {
-			v.Set(key, val)
-		}
-		factories := Components(v)
-		cfg := AgentConfig(factories)
+		t.Run(fmt.Sprintf("%v", test.config), func(t *testing.T) {
+			v, _ := jConfig.Viperize(grpc.AddFlags)
+			for key, val := range test.config {
+				v.Set(key, val)
+			}
+			factories := Components(v)
+			cfg := AgentConfig(factories)
+			require.NoError(t, config.ValidateConfig(cfg, zap.NewNop()))
 
-		assert.Equal(t, test.service, cfg.Service)
-		assert.Equal(t, 1, len(cfg.Receivers))
-		assert.IsType(t, &jaegerreceiver.Config{}, cfg.Receivers["jaeger"])
-		assert.Equal(t, 1, len(cfg.Exporters))
-		assert.IsType(t, &jaegerexporter.Config{}, cfg.Exporters["jaeger"])
-		processorMap := map[string]bool{}
-		for _, p := range test.service.Pipelines["traces"].Processors {
-			processorMap[p] = true
-		}
-		if processorMap["resource"] {
-			assert.Equal(t, len(processorMap), len(cfg.Processors))
-			assert.IsType(t, &resourceprocessor.Config{}, cfg.Processors["resource"])
-		}
+			assert.Equal(t, test.service, cfg.Service)
+			assert.Equal(t, 1, len(cfg.Receivers))
+			assert.IsType(t, &jaegerreceiver.Config{}, cfg.Receivers["jaeger"])
+			assert.Equal(t, 1, len(cfg.Exporters))
+			assert.IsType(t, &jaegerexporter.Config{}, cfg.Exporters["jaeger"])
+			processorMap := map[string]bool{}
+			for _, p := range test.service.Pipelines["traces"].Processors {
+				processorMap[p] = true
+			}
+			if processorMap["resource"] {
+				assert.Equal(t, len(processorMap), len(cfg.Processors))
+				assert.IsType(t, &resourceprocessor.Config{}, cfg.Processors["resource"])
+			}
+		})
+	}
+}
+
+func TestDefaultIngesterConfig(t *testing.T) {
+	tests := []struct {
+		storageType string
+		service     configmodels.Service
+		err         string
+	}{
+		{
+			storageType: "elasticsearch",
+			service: configmodels.Service{
+				Extensions: []string{"health_check"},
+				Pipelines: configmodels.Pipelines{
+					"traces": &configmodels.Pipeline{
+						InputType: configmodels.TracesDataType,
+						Receivers: []string{kafkaRec.TypeStr},
+						Exporters: []string{elasticsearch.TypeStr},
+					},
+				},
+			},
+		},
+	}
+	for _, test := range tests {
+		t.Run(test.storageType, func(t *testing.T) {
+			factories := Components(viper.New())
+			cfg, err := IngesterConfig(test.storageType, factories)
+			if test.err != "" {
+				require.Nil(t, cfg)
+				assert.EqualError(t, err, test.err)
+				return
+			}
+			require.NoError(t, err)
+			require.NoError(t, config.ValidateConfig(cfg, zap.NewNop()))
+
+			assert.Equal(t, test.service, cfg.Service)
+			assert.Equal(t, 1, len(cfg.Receivers))
+			assert.IsType(t, &kafkaRec.Config{}, cfg.Receivers[kafkaRec.TypeStr])
+
+			assert.Equal(t, len(test.service.Pipelines["traces"].Exporters), len(cfg.Exporters))
+			types := []string{}
+			for _, v := range cfg.Exporters {
+				types = append(types, string(v.Type()))
+			}
+			sort.Strings(types)
+			assert.Equal(t, test.service.Pipelines["traces"].Exporters, types)
+		})
 	}
 }
