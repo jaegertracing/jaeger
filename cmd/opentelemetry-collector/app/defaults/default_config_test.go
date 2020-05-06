@@ -23,7 +23,6 @@ import (
 	"github.com/open-telemetry/opentelemetry-collector/exporter/jaegerexporter"
 	"github.com/open-telemetry/opentelemetry-collector/processor/resourceprocessor"
 	"github.com/open-telemetry/opentelemetry-collector/receiver/jaegerreceiver"
-	"github.com/spf13/viper"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"go.uber.org/zap"
@@ -37,7 +36,6 @@ import (
 )
 
 func TestDefaultCollectorConfig(t *testing.T) {
-	factories := Components(viper.New())
 	disabledHostPort := ports.PortToHostPort(0)
 	tests := []struct {
 		storageType    string
@@ -45,6 +43,7 @@ func TestDefaultCollectorConfig(t *testing.T) {
 		exporterTypes  []string
 		pipeline       configmodels.Pipelines
 		err            string
+		config         map[string]interface{}
 	}{
 		{
 			storageType:    "elasticsearch",
@@ -52,10 +51,9 @@ func TestDefaultCollectorConfig(t *testing.T) {
 			exporterTypes:  []string{elasticsearch.TypeStr},
 			pipeline: configmodels.Pipelines{
 				"traces": {
-					InputType:  configmodels.TracesDataType,
-					Receivers:  []string{"jaeger"},
-					Processors: []string{"resource"},
-					Exporters:  []string{elasticsearch.TypeStr},
+					InputType: configmodels.TracesDataType,
+					Receivers: []string{"jaeger"},
+					Exporters: []string{elasticsearch.TypeStr},
 				},
 			},
 		},
@@ -65,10 +63,9 @@ func TestDefaultCollectorConfig(t *testing.T) {
 			exporterTypes:  []string{cassandra.TypeStr},
 			pipeline: configmodels.Pipelines{
 				"traces": {
-					InputType:  configmodels.TracesDataType,
-					Receivers:  []string{"jaeger"},
-					Processors: []string{"resource"},
-					Exporters:  []string{cassandra.TypeStr},
+					InputType: configmodels.TracesDataType,
+					Receivers: []string{"jaeger"},
+					Exporters: []string{cassandra.TypeStr},
 				},
 			},
 		},
@@ -78,10 +75,9 @@ func TestDefaultCollectorConfig(t *testing.T) {
 			exporterTypes:  []string{kafka.TypeStr},
 			pipeline: configmodels.Pipelines{
 				"traces": {
-					InputType:  configmodels.TracesDataType,
-					Receivers:  []string{"jaeger"},
-					Processors: []string{"resource"},
-					Exporters:  []string{kafka.TypeStr},
+					InputType: configmodels.TracesDataType,
+					Receivers: []string{"jaeger"},
+					Exporters: []string{kafka.TypeStr},
 				},
 			},
 		},
@@ -91,10 +87,9 @@ func TestDefaultCollectorConfig(t *testing.T) {
 			exporterTypes:  []string{cassandra.TypeStr, elasticsearch.TypeStr},
 			pipeline: configmodels.Pipelines{
 				"traces": {
-					InputType:  configmodels.TracesDataType,
-					Receivers:  []string{"jaeger"},
-					Processors: []string{"resource"},
-					Exporters:  []string{cassandra.TypeStr, elasticsearch.TypeStr},
+					InputType: configmodels.TracesDataType,
+					Receivers: []string{"jaeger"},
+					Exporters: []string{cassandra.TypeStr, elasticsearch.TypeStr},
 				},
 			},
 		},
@@ -102,6 +97,7 @@ func TestDefaultCollectorConfig(t *testing.T) {
 			storageType:    "cassandra",
 			zipkinHostPort: ":9411",
 			exporterTypes:  []string{cassandra.TypeStr},
+			config:         map[string]interface{}{"resource.labels": "foo=bar"},
 			pipeline: configmodels.Pipelines{
 				"traces": {
 					InputType:  configmodels.TracesDataType,
@@ -118,6 +114,11 @@ func TestDefaultCollectorConfig(t *testing.T) {
 	}
 	for _, test := range tests {
 		t.Run(test.storageType, func(t *testing.T) {
+			v, _ := jConfig.Viperize(grpc.AddFlags)
+			factories := Components(v)
+			for key, val := range test.config {
+				v.Set(key, val)
+			}
 			cfg, err := CollectorConfig(test.storageType, test.zipkinHostPort, factories)
 			if test.err != "" {
 				require.Nil(t, cfg)
@@ -134,7 +135,15 @@ func TestDefaultCollectorConfig(t *testing.T) {
 			assert.Equal(t, len(test.pipeline["traces"].Receivers), len(cfg.Receivers))
 			assert.Equal(t, "jaeger", cfg.Receivers["jaeger"].Name())
 			assert.Equal(t, len(test.exporterTypes), len(cfg.Exporters))
-			assert.IsType(t, &resourceprocessor.Config{}, cfg.Processors["resource"])
+
+			processorMap := map[string]bool{}
+			for _, p := range test.pipeline["traces"].Processors {
+				processorMap[p] = true
+			}
+			if processorMap["resource"] {
+				assert.Equal(t, len(processorMap), len(cfg.Processors))
+				assert.IsType(t, &resourceprocessor.Config{}, cfg.Processors["resource"])
+			}
 
 			types := []string{}
 			for _, v := range cfg.Exporters {
@@ -166,6 +175,18 @@ func TestDefaultAgentConfig(t *testing.T) {
 				},
 			},
 		},
+		{
+			service: configmodels.Service{
+				Extensions: []string{"health_check"},
+				Pipelines: configmodels.Pipelines{
+					"traces": &configmodels.Pipeline{
+						InputType: configmodels.TracesDataType,
+						Receivers: []string{"jaeger"},
+						Exporters: []string{"jaeger"},
+					},
+				},
+			},
+		},
 	}
 	for _, test := range tests {
 		v, _ := jConfig.Viperize(grpc.AddFlags)
@@ -185,7 +206,7 @@ func TestDefaultAgentConfig(t *testing.T) {
 			processorMap[p] = true
 		}
 		if processorMap["resource"] {
-			assert.Equal(t, 1, len(cfg.Processors))
+			assert.Equal(t, len(processorMap), len(cfg.Processors))
 			assert.IsType(t, &resourceprocessor.Config{}, cfg.Processors["resource"])
 		}
 	}
