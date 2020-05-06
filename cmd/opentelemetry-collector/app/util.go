@@ -17,14 +17,15 @@ package app
 import (
 	"flag"
 	"fmt"
-	"github.com/jaegertracing/jaeger/cmd/opentelemetry-collector/app/exporter/cassandra"
-	"github.com/jaegertracing/jaeger/cmd/opentelemetry-collector/app/exporter/elasticsearch"
-	"github.com/jaegertracing/jaeger/cmd/opentelemetry-collector/app/exporter/kafka"
 	"io/ioutil"
 	"os"
 	"strings"
 
 	"github.com/open-telemetry/opentelemetry-collector/service/builder"
+
+	"github.com/jaegertracing/jaeger/cmd/opentelemetry-collector/app/exporter/cassandra"
+	"github.com/jaegertracing/jaeger/cmd/opentelemetry-collector/app/exporter/elasticsearch"
+	"github.com/jaegertracing/jaeger/cmd/opentelemetry-collector/app/exporter/kafka"
 )
 
 // GetOTELConfigFile returns name of OTEL config file.
@@ -59,4 +60,3 @@ func StorageFlags(storage string) (func(*flag.FlagSet), error) {
 		}
 	}, nil
 }
-

@@ -16,12 +16,13 @@ package main
 
 import (
 	"fmt"
+	"log"
+	"os"
+
 	"github.com/open-telemetry/opentelemetry-collector/config"
 	"github.com/open-telemetry/opentelemetry-collector/config/configmodels"
 	"github.com/open-telemetry/opentelemetry-collector/service"
 	"github.com/spf13/viper"
-	"log"
-	"os"
 
 	"github.com/jaegertracing/jaeger/cmd/agent/app/reporter/grpc"
 	collectorApp "github.com/jaegertracing/jaeger/cmd/collector/app"
