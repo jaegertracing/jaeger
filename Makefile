@@ -228,7 +228,7 @@ build-all-in-one-linux: build-ui
 build-all-in-one: elasticsearch-mappings
 ifeq ($(GOARCH), s390x)
 	$(GOBUILD) -tags ui -o ./cmd/all-in-one/all-in-one-$(GOOS)-$(GOARCH) $(BUILD_INFO) ./cmd/all-in-one/main.go
-else
+else 
 	$(GOBUILD) -tags ui -o ./cmd/all-in-one/all-in-one-$(GOOS) $(BUILD_INFO) ./cmd/all-in-one/main.go
 endif
 
