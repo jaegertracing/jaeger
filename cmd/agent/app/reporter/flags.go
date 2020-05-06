@@ -28,8 +28,8 @@ import (
 const (
 	// Whether to use grpc or tchannel reporter.
 	reporterType = "reporter.type"
-	// Agent tags
-	agentTagsDeprecated = "jaeger.tags"
+	// AgentTagsDeprecated is a configuration property name for adding process tags to incoming spans.
+	AgentTagsDeprecated = "jaeger.tags"
 	agentTags           = "agent.tags"
 	// GRPC is name of gRPC reporter.
 	GRPC Type = "grpc"
@@ -48,7 +48,7 @@ type Options struct {
 func AddFlags(flags *flag.FlagSet) {
 	flags.String(reporterType, string(GRPC), fmt.Sprintf("Reporter type to use e.g. %s", string(GRPC)))
 	if !setupcontext.IsAllInOne() {
-		flags.String(agentTagsDeprecated, "", "(deprecated) see --"+agentTags)
+		flags.String(AgentTagsDeprecated, "", "(deprecated) see --"+agentTags)
 		flags.String(agentTags, "", "One or more tags to be added to the Process tags of all spans passing through this agent. Ex: key1=value1,key2=${envVar:defaultValue}")
 	}
 }
@@ -57,9 +57,9 @@ func AddFlags(flags *flag.FlagSet) {
 func (b *Options) InitFromViper(v *viper.Viper, logger *zap.Logger) *Options {
 	b.ReporterType = Type(v.GetString(reporterType))
 	if !setupcontext.IsAllInOne() {
-		if len(v.GetString(agentTagsDeprecated)) > 0 {
-			logger.Warn("Using deprecated configuration", zap.String("option", agentTagsDeprecated))
-			b.AgentTags = flags.ParseJaegerTags(v.GetString(agentTagsDeprecated))
+		if len(v.GetString(AgentTagsDeprecated)) > 0 {
+			logger.Warn("Using deprecated configuration", zap.String("option", AgentTagsDeprecated))
+			b.AgentTags = flags.ParseJaegerTags(v.GetString(AgentTagsDeprecated))
 		}
 		if len(v.GetString(agentTags)) > 0 {
 			b.AgentTags = flags.ParseJaegerTags(v.GetString(agentTags))

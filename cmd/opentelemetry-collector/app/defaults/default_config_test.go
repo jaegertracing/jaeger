@@ -148,24 +148,45 @@ func TestDefaultCollectorConfig(t *testing.T) {
 }
 
 func TestDefaultAgentConfig(t *testing.T) {
-	v, _ := jConfig.Viperize(grpc.AddFlags)
-	factories := Components(v)
-	cfg := AgentConfig(factories)
-	assert.Equal(t, configmodels.Service{
-		Extensions: []string{"health_check"},
-		Pipelines: configmodels.Pipelines{
-			"traces": &configmodels.Pipeline{
-				InputType:  configmodels.TracesDataType,
-				Receivers:  []string{"jaeger"},
-				Processors: []string{"resource"},
-				Exporters:  []string{"jaeger"},
+	tests := []struct {
+		config  map[string]interface{}
+		service configmodels.Service
+	}{
+		{
+			config: map[string]interface{}{"resource.labels": "foo=bar"},
+			service: configmodels.Service{
+				Extensions: []string{"health_check"},
+				Pipelines: configmodels.Pipelines{
+					"traces": &configmodels.Pipeline{
+						InputType:  configmodels.TracesDataType,
+						Receivers:  []string{"jaeger"},
+						Processors: []string{"resource"},
+						Exporters:  []string{"jaeger"},
+					},
+				},
 			},
 		},
-	}, cfg.Service)
-	assert.Equal(t, 1, len(cfg.Processors))
-	assert.IsType(t, &resourceprocessor.Config{}, cfg.Processors["resource"])
-	assert.Equal(t, 1, len(cfg.Receivers))
-	assert.IsType(t, &jaegerreceiver.Config{}, cfg.Receivers["jaeger"])
-	assert.Equal(t, 1, len(cfg.Exporters))
-	assert.IsType(t, &jaegerexporter.Config{}, cfg.Exporters["jaeger"])
+	}
+	for _, test := range tests {
+		v, _ := jConfig.Viperize(grpc.AddFlags)
+		for key, val := range test.config {
+			v.Set(key, val)
+		}
+		factories := Components(v)
+		cfg := AgentConfig(factories)
+
+		assert.Equal(t, test.service, cfg.Service)
+		assert.Equal(t, 1, len(cfg.Receivers))
+		assert.IsType(t, &jaegerreceiver.Config{}, cfg.Receivers["jaeger"])
+		assert.Equal(t, 1, len(cfg.Exporters))
+		assert.IsType(t, &jaegerexporter.Config{}, cfg.Exporters["jaeger"])
+		processorMap := map[string]bool{}
+		for _, p := range test.service.Pipelines["traces"].Processors {
+			processorMap[p] = true
+		}
+		if processorMap["resource"] {
+			assert.Equal(t, 1, len(cfg.Processors))
+			assert.IsType(t, &resourceprocessor.Config{}, cfg.Processors["resource"])
+		}
+	}
 }

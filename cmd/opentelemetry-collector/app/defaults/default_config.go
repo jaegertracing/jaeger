@@ -128,10 +128,14 @@ func createExporters(storageTypes string, factories config.Factories) (configmod
 func AgentConfig(factories config.Factories) *configmodels.Config {
 	jaegerExporter := factories.Exporters["jaeger"]
 	hc := factories.Extensions["health_check"].CreateDefaultConfig().(*healthcheckextension.Config)
+	processors := configmodels.Processors{}
 	resProcessor := factories.Processors["resource"].CreateDefaultConfig().(*resourceprocessor.Config)
+	if len(resProcessor.Labels) > 0 {
+		processors[resProcessor.Name()] = resProcessor
+	}
 	return &configmodels.Config{
 		Receivers:  createAgentReceivers(factories),
-		Processors: configmodels.Processors{"resource": resProcessor},
+		Processors: processors,
 		Exporters:  configmodels.Exporters{"jaeger": jaegerExporter.CreateDefaultConfig()},
 		Extensions: configmodels.Extensions{"health_check": hc},
 		Service: configmodels.Service{
@@ -140,7 +144,7 @@ func AgentConfig(factories config.Factories) *configmodels.Config {
 				"traces": {
 					InputType:  configmodels.TracesDataType,
 					Receivers:  []string{"jaeger"},
-					Processors: []string{"resource"},
+					Processors: processorNames(processors),
 					Exporters:  []string{"jaeger"},
 				},
 			},
@@ -166,4 +170,12 @@ func createAgentReceivers(factories config.Factories) configmodels.Receivers {
 		"jaeger": jaeger,
 	}
 	return recvs
+}
+
+func processorNames(processors configmodels.Processors) []string {
+	var names []string
+	for _, v := range processors {
+		names = append(names, v.Name())
+	}
+	return names
 }

@@ -24,12 +24,12 @@ import (
 	"github.com/spf13/viper"
 	"go.uber.org/zap"
 
+	"github.com/jaegertracing/jaeger/cmd/agent/app/reporter"
 	"github.com/jaegertracing/jaeger/cmd/flags"
 )
 
 const (
-	resourceTags       = "resource.tags"
-	resourceTagsLegacy = "jaeger.tags"
+	resourceTags = "resource.labels"
 )
 
 // Factory wraps resourceprocessor.Factory and makes the default config configurable via viper.
@@ -50,14 +50,14 @@ func (f Factory) Type() configmodels.Type {
 // This function implements OTEL component.ProcessorFactoryBase interface.
 func (f Factory) CreateDefaultConfig() configmodels.Processor {
 	cfg := f.Wrapped.CreateDefaultConfig().(*resourceprocessor.Config)
-	for k, v := range getTags(f.Viper) {
+	for k, v := range GetTags(f.Viper) {
 		cfg.Labels[k] = v
 	}
 	return cfg
 }
 
-func getTags(v *viper.Viper) map[string]string {
-	tagsLegacy := flags.ParseJaegerTags(v.GetString(resourceTagsLegacy))
+func GetTags(v *viper.Viper) map[string]string {
+	tagsLegacy := flags.ParseJaegerTags(v.GetString(reporter.AgentTagsDeprecated))
 	tags := flags.ParseJaegerTags(v.GetString(resourceTags))
 	for k, v := range tagsLegacy {
 		if _, ok := tags[k]; !ok {
@@ -89,6 +89,6 @@ func (f Factory) CreateMetricsProcessor(
 
 // AddFlags adds flags for Options.
 func AddFlags(flags *flag.FlagSet) {
-	flags.String(resourceTagsLegacy, "", "(deprecated, use --resource.tags) One or more tags to be added to the Process tags of all spans passing through this agent. Ex: key1=value1,key2=${envVar:defaultValue}")
+	flags.String(reporter.AgentTagsDeprecated, "", "(deprecated, use --resource.tags) One or more tags to be added to the Process tags of all spans passing through this agent. Ex: key1=value1,key2=${envVar:defaultValue}")
 	flags.String(resourceTags, "", "One or more tags to be added to the Process tags of all spans passing through this agent. Ex: key1=value1,key2=${envVar:defaultValue}")
 }

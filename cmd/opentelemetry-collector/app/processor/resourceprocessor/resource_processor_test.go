@@ -41,7 +41,7 @@ func TestDefaultValues(t *testing.T) {
 
 func TestDefaultValueFromViper(t *testing.T) {
 	v, c := jConfig.Viperize(AddFlags)
-	err := c.ParseFlags([]string{"--resource.tags=foo=bar,orig=fake", "--jaeger.tags=foo=legacy,leg=head"})
+	err := c.ParseFlags([]string{"--resource.labels=foo=bar,orig=fake", "--jaeger.tags=foo=legacy,leg=head"})
 	require.NoError(t, err)
 
 	f := &Factory{
@@ -58,7 +58,7 @@ func TestLoadConfigAndFlags(t *testing.T) {
 	require.NoError(t, err)
 
 	v, c := jConfig.Viperize(AddFlags, flags.AddConfigFileFlag)
-	err = c.ParseFlags([]string{"--resource.tags=foo=bar,zone=zone2"})
+	err = c.ParseFlags([]string{"--resource.labels=foo=bar,zone=zone2"})
 	require.NoError(t, err)
 
 	err = flags.TryLoadConfigFile(v)
