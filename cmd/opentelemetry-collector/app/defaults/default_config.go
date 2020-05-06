@@ -170,6 +170,41 @@ func createAgentReceivers(factories config.Factories) configmodels.Receivers {
 	return recvs
 }
 
+// IngesterConfig creates default ingester configuration.
+// It enables Jaeger kafka receiver and storage backend.
+func IngesterConfig(storageType string, factories config.Factories) (*configmodels.Config, error) {
+	exporters, err := createExporters(storageType, factories)
+	if err != nil {
+		return nil, err
+	}
+	processors := configmodels.Processors{}
+	resProcessor := factories.Processors["resource"].CreateDefaultConfig().(*resourceprocessor.Config)
+	if len(resProcessor.Labels) > 0 {
+		processors[resProcessor.Name()] = resProcessor
+	}
+	receivers := configmodels.Receivers{}
+	kafkaReceiver := factories.Receivers[kafka.TypeStr].CreateDefaultConfig().(*resourceprocessor.Config)
+	receivers[kafkaReceiver.Name()] = kafkaReceiver
+	hc := factories.Extensions["health_check"].CreateDefaultConfig()
+	return &configmodels.Config{
+		Receivers:  receivers,
+		Processors: processors,
+		Exporters:  exporters,
+		Extensions: configmodels.Extensions{"health_check": hc},
+		Service: configmodels.Service{
+			Extensions: []string{"health_check"},
+			Pipelines: configmodels.Pipelines{
+				"traces": {
+					InputType:  configmodels.TracesDataType,
+					Receivers:  receiverNames(receivers),
+					Processors: processorNames(processors),
+					Exporters:  exporterNames(exporters),
+				},
+			},
+		},
+	}, nil
+}
+
 func receiverNames(receivers configmodels.Receivers) []string {
 	var names []string
 	for _, v := range receivers {

@@ -69,10 +69,10 @@ const (
 
 // Options stores the configuration options for the Ingester
 type Options struct {
-	kafkaConsumer.Configuration
-	Parallelism      int
-	Encoding         string
-	DeadlockInterval time.Duration
+	kafkaConsumer.Configuration `mapstructure:",squash"`
+	Parallelism                 int           `mapstructure:"parallelism"`
+	Encoding                    string        `mapstructure:"encoding"`
+	DeadlockInterval            time.Duration `mapstructure:"deadlock_interval"`
 }
 
 // AddFlags adds flags for Builder

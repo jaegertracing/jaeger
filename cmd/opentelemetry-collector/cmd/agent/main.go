@@ -41,8 +41,8 @@ func main() {
 	}
 
 	info := service.ApplicationStartInfo{
-		ExeName:  "jaeger-opentelemetry-collector",
-		LongName: "Jaeger OpenTelemetry Collector",
+		ExeName:  "jaeger-opentelemetry-agent",
+		LongName: "Jaeger OpenTelemetry Agent",
 		// TODO
 		//Version:  version.Version,
 		//GitHash:  version.GitHash,

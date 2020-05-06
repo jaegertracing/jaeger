@@ -272,6 +272,14 @@ else
 	cd ${OTEL_COLLECTOR_DIR}/cmd/agent && $(GOBUILD) -o ./opentelemetry-agent-$(GOOS) $(BUILD_INFO) main.go
 endif
 
+.PHONY: build-otel-ingester
+build-otel-ingester:
+ifeq ($(GOARCH), s390x)
+	cd ${OTEL_COLLECTOR_DIR}/cmd/ingester && $(GOBUILD) -o ./opentelemetry-ingester-$(GOOS)-$(GOARCH) $(BUILD_INFO) main.go
+else
+	cd ${OTEL_COLLECTOR_DIR}/cmd/ingester && $(GOBUILD) -o ./opentelemetry-ingester-$(GOOS) $(BUILD_INFO) main.go
+endif
+
 .PHONY: build-ingester
 build-ingester:
 ifeq ($(GOARCH), s390x)
@@ -324,6 +332,7 @@ docker-images-jaeger-backend:
 	done
 	docker build -t $(DOCKER_NAMESPACE)/jaeger-opentelemetry-collector:${DOCKER_TAG} -f ${OTEL_COLLECTOR_DIR}/cmd/collector/Dockerfile cmd/opentelemetry-collector/cmd/collector
 	docker build -t $(DOCKER_NAMESPACE)/jaeger-opentelemetry-agent:${DOCKER_TAG} -f ${OTEL_COLLECTOR_DIR}/cmd/agent/Dockerfile cmd/opentelemetry-collector/cmd/agent
+	docker build -t $(DOCKER_NAMESPACE)/jaeger-opentelemetry-ingeser:${DOCKER_TAG} -f ${OTEL_COLLECTOR_DIR}/cmd/ingester/Dockerfile cmd/opentelemetry-collector/cmd/ingester
 
 .PHONY: docker-images-tracegen
 docker-images-tracegen:
