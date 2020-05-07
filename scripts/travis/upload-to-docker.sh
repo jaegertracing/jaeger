@@ -34,7 +34,7 @@ fi
 # Do not enable echo before the `docker login` command to avoid revealing the password.
 set -x
 docker login -u $DOCKER_USER -p $DOCKER_PASS
-if [[ "${REPO}" == "jaegertracing/jaeger-opentelemetry-collector" || "${REPO}" == "jaegertracing/jaeger-opentelemetry-agent" ]]; then
+if [[ "${REPO}" == "jaegertracing/jaeger-opentelemetry-collector" || "${REPO}" == "jaegertracing/jaeger-opentelemetry-agent" || "${REPO}" == "jaegertracing/jaeger-opentelemetry-ingester" ]]; then
   # TODO remove once Jaeger OTEL collector is stable
   docker push $REPO:latest
 else
