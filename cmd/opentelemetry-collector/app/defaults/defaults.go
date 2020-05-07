@@ -28,6 +28,7 @@ import (
 	ingesterApp "github.com/jaegertracing/jaeger/cmd/ingester/app"
 	"github.com/jaegertracing/jaeger/cmd/opentelemetry-collector/app/exporter/cassandra"
 	"github.com/jaegertracing/jaeger/cmd/opentelemetry-collector/app/exporter/elasticsearch"
+	"github.com/jaegertracing/jaeger/cmd/opentelemetry-collector/app/exporter/grpc"
 	"github.com/jaegertracing/jaeger/cmd/opentelemetry-collector/app/exporter/jaegerexporter"
 	"github.com/jaegertracing/jaeger/cmd/opentelemetry-collector/app/exporter/kafka"
 	"github.com/jaegertracing/jaeger/cmd/opentelemetry-collector/app/processor/resourceprocessor"
@@ -35,6 +36,7 @@ import (
 	kafkaRec "github.com/jaegertracing/jaeger/cmd/opentelemetry-collector/app/receiver/kafka"
 	storageCassandra "github.com/jaegertracing/jaeger/plugin/storage/cassandra"
 	storageEs "github.com/jaegertracing/jaeger/plugin/storage/es"
+	storagegRPC "github.com/jaegertracing/jaeger/plugin/storage/grpc"
 	storageKafka "github.com/jaegertracing/jaeger/plugin/storage/kafka"
 )
 
@@ -59,6 +61,11 @@ func Components(v *viper.Viper) config.Factories {
 		opts.InitFromViper(v)
 		return opts
 	}}
+	grpcExp := &grpc.Factory{OptionsFactory: func() *storagegRPC.Options {
+		opts := grpc.DefaultOptions()
+		opts.InitFromViper(v)
+		return opts
+	}}
 	kafkaRec := &kafkaRec.Factory{OptionsFactory: func() *ingesterApp.Options {
 		opts := kafkaRec.DefaultOptions()
 		opts.InitFromViper(v)
@@ -69,6 +76,7 @@ func Components(v *viper.Viper) config.Factories {
 	factories.Exporters[kafkaExp.Type()] = kafkaExp
 	factories.Exporters[cassandraExp.Type()] = cassandraExp
 	factories.Exporters[esExp.Type()] = esExp
+	factories.Exporters[grpcExp.Type()] = grpcExp
 	factories.Receivers[kafkaRec.Type()] = kafkaRec
 
 	jaegerRec := factories.Receivers["jaeger"].(*otelJaegerReceiver.Factory)
