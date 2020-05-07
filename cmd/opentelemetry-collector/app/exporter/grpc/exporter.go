@@ -19,12 +19,12 @@ import (
 	"github.com/uber/jaeger-lib/metrics"
 
 	storageOtelExporter "github.com/jaegertracing/jaeger/cmd/opentelemetry-collector/app/exporter"
-	"github.com/jaegertracing/jaeger/plugin/storage/grpc"
+	storageGrpc "github.com/jaegertracing/jaeger/plugin/storage/grpc"
 )
 
 // new creates gRPC exporter/storage.
 func new(config *Config, params component.ExporterCreateParams) (component.TraceExporter, error) {
-	factory := grpc.NewFactory()
+	factory := storageGrpc.NewFactory()
 	factory.InitFromOptions(config.Options)
 	err := factory.Initialize(metrics.NullFactory, params.Logger)
 	if err != nil {

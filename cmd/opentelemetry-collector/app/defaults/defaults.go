@@ -36,7 +36,7 @@ import (
 	kafkaRec "github.com/jaegertracing/jaeger/cmd/opentelemetry-collector/app/receiver/kafka"
 	storageCassandra "github.com/jaegertracing/jaeger/plugin/storage/cassandra"
 	storageEs "github.com/jaegertracing/jaeger/plugin/storage/es"
-	storagegRPC "github.com/jaegertracing/jaeger/plugin/storage/grpc"
+	storageGrpc "github.com/jaegertracing/jaeger/plugin/storage/grpc"
 	storageKafka "github.com/jaegertracing/jaeger/plugin/storage/kafka"
 )
 
@@ -61,7 +61,7 @@ func Components(v *viper.Viper) config.Factories {
 		opts.InitFromViper(v)
 		return opts
 	}}
-	grpcExp := &grpc.Factory{OptionsFactory: func() *storagegRPC.Options {
+	grpcExp := &grpc.Factory{OptionsFactory: func() *storageGrpc.Options {
 		opts := grpc.DefaultOptions()
 		opts.InitFromViper(v)
 		return opts

@@ -17,11 +17,11 @@ package grpc
 import (
 	"github.com/open-telemetry/opentelemetry-collector/config/configmodels"
 
-	"github.com/jaegertracing/jaeger/plugin/storage/grpc"
+	storageGrpc "github.com/jaegertracing/jaeger/plugin/storage/grpc"
 )
 
 // Config holds configuration of Jaeger gRPC exporter/storage.
 type Config struct {
 	configmodels.ExporterSettings `mapstructure:",squash"` // squash ensures fields are correctly decoded in embedded struct.
-	grpc.Options                  `mapstructure:",squash"`
+	storageGrpc.Options           `mapstructure:",squash"`
 }

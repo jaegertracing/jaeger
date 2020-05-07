@@ -22,7 +22,7 @@ import (
 	"github.com/open-telemetry/opentelemetry-collector/config/configerror"
 	"github.com/open-telemetry/opentelemetry-collector/config/configmodels"
 
-	"github.com/jaegertracing/jaeger/plugin/storage/grpc"
+	storageGrpc "github.com/jaegertracing/jaeger/plugin/storage/grpc"
 )
 
 const (
@@ -30,11 +30,11 @@ const (
 )
 
 // OptionsFactory returns initialized es.OptionsFactory structure.
-type OptionsFactory func() *grpc.Options
+type OptionsFactory func() *storageGrpc.Options
 
 // DefaultOptions creates gRPC options supported by this exporter.
-func DefaultOptions() *grpc.Options {
-	return &grpc.Options{}
+func DefaultOptions() *storageGrpc.Options {
+	return &storageGrpc.Options{}
 }
 
 // Factory is the factory for Jaeger gRPC exporter.

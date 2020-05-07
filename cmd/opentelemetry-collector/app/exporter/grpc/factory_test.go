@@ -26,14 +26,14 @@ import (
 	"github.com/stretchr/testify/require"
 
 	jConfig "github.com/jaegertracing/jaeger/pkg/config"
-	"github.com/jaegertracing/jaeger/plugin/storage/grpc"
+	storageGrpc "github.com/jaegertracing/jaeger/plugin/storage/grpc"
 )
 
 func TestCreateTraceExporter(t *testing.T) {
 	v, _ := jConfig.Viperize(DefaultOptions().AddFlags)
 	opts := DefaultOptions()
 	opts.InitFromViper(v)
-	factory := &Factory{OptionsFactory: func() *grpc.Options {
+	factory := &Factory{OptionsFactory: func() *storageGrpc.Options {
 		return opts
 	}}
 	exporter, err := factory.CreateTraceExporter(context.Background(), component.ExporterCreateParams{}, factory.CreateDefaultConfig())

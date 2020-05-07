@@ -24,14 +24,14 @@ import (
 
 	"github.com/jaegertracing/jaeger/cmd/flags"
 	jConfig "github.com/jaegertracing/jaeger/pkg/config"
-	"github.com/jaegertracing/jaeger/plugin/storage/grpc"
+	storageGrpc "github.com/jaegertracing/jaeger/plugin/storage/grpc"
 )
 
 func TestDefaultConfig(t *testing.T) {
 	v, _ := jConfig.Viperize(DefaultOptions().AddFlags)
 	opts := DefaultOptions()
 	opts.InitFromViper(v)
-	factory := &Factory{OptionsFactory: func() *grpc.Options {
+	factory := &Factory{OptionsFactory: func() *storageGrpc.Options {
 		return opts
 	}}
 	defaultCfg := factory.CreateDefaultConfig().(*Config)
@@ -49,7 +49,7 @@ func TestLoadConfigAndFlags(t *testing.T) {
 	err = flags.TryLoadConfigFile(v)
 	require.NoError(t, err)
 
-	factory := &Factory{OptionsFactory: func() *grpc.Options {
+	factory := &Factory{OptionsFactory: func() *storageGrpc.Options {
 		opts := DefaultOptions()
 		opts.InitFromViper(v)
 		require.Equal(t, "/superstore", opts.Configuration.PluginBinary)
