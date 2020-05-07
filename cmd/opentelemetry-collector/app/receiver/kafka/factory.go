@@ -55,6 +55,10 @@ func (f Factory) CreateDefaultConfig() configmodels.Receiver {
 	opts := f.OptionsFactory()
 	return &Config{
 		Options: *opts,
+		ReceiverSettings: configmodels.ReceiverSettings{
+			TypeVal: TypeStr,
+			NameVal: TypeStr,
+		},
 	}
 }
 
