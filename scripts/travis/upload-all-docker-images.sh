@@ -20,7 +20,7 @@ else
 fi
 
 export DOCKER_NAMESPACE=jaegertracing
-for component in agent cassandra-schema es-index-cleaner es-rollover collector query ingester tracegen opentelemetry-collector
+for component in agent cassandra-schema es-index-cleaner es-rollover collector query ingester tracegen opentelemetry-collector opentelemetry-agent
 do
   export REPO="jaegertracing/jaeger-${component}"
   bash ./scripts/travis/upload-to-docker.sh
