@@ -45,7 +45,7 @@ func TestCreateTraceExporter_nilConfig(t *testing.T) {
 	factory := &Factory{}
 	exporter, err := factory.CreateTraceExporter(context.Background(), component.ExporterCreateParams{}, nil)
 	require.Nil(t, exporter)
-	assert.EqualError(t, err, "could not cast configuration to jaeger_grpc")
+	assert.EqualError(t, err, "could not cast configuration to jaeger_grpc_plugin")
 }
 
 func TestCreateMetricsExporter(t *testing.T) {

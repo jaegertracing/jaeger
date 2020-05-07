@@ -26,7 +26,7 @@ import (
 )
 
 const (
-	TypeStr = "jaeger_grpc"
+	TypeStr = "jaeger_grpc_plugin"
 )
 
 // OptionsFactory returns initialized es.OptionsFactory structure.

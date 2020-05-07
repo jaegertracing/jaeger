@@ -5,11 +5,11 @@ processors:
   exampleprocessor:
 
 exporters:
-  jaeger_grpc:
+  jaeger_grpc_plugin:
     configuration_file: /doesnt/exist
 service:
   pipelines:
     traces:
       receivers: [examplereceiver]
       processors: [exampleprocessor]
-      exporters: [jaeger_grpc]
+      exporters: [jaeger_grpc_plugin]
