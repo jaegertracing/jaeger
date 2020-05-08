@@ -45,10 +45,9 @@ func TestDefaultValues(t *testing.T) {
 func TestDefaultValueFromViper(t *testing.T) {
 	v := viper.New()
 	v.Set(static.SamplingStrategiesFile, "config.json")
-	jr := &jaegerreceiver.Factory{}
 
 	f := &Factory{
-		Wrapped: jr,
+		Wrapped: &jaegerreceiver.Factory{},
 		Viper:   v,
 	}
 
@@ -88,6 +87,6 @@ func TestCreateMetricsExporter(t *testing.T) {
 		Wrapped: &jaegerreceiver.Factory{},
 	}
 	mReceiver, err := f.CreateMetricsReceiver(context.Background(), component.ReceiverCreateParams{}, nil, nil)
-	assert.Equal(t, err, configerror.ErrDataTypeIsNotSupported)
+	assert.Equal(t, configerror.ErrDataTypeIsNotSupported, err)
 	assert.Nil(t, mReceiver)
 }

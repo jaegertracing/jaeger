@@ -1,0 +1,18 @@
+receivers:
+  examplereceiver:
+
+processors:
+  resource:
+    labels: {
+      "zone": "zone1",
+    }
+
+exporters:
+  exampleexporter:
+
+service:
+  pipelines:
+    traces:
+      receivers: [examplereceiver]
+      processors: [resource]
+      exporters: [exampleexporter]

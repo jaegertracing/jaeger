@@ -17,7 +17,6 @@ package defaults
 import (
 	"testing"
 
-	"github.com/open-telemetry/opentelemetry-collector/config/configmodels"
 	"github.com/stretchr/testify/assert"
 
 	"github.com/jaegertracing/jaeger/cmd/opentelemetry-collector/app/exporter/cassandra"
@@ -25,6 +24,7 @@ import (
 	"github.com/jaegertracing/jaeger/cmd/opentelemetry-collector/app/exporter/jaegerexporter"
 	"github.com/jaegertracing/jaeger/cmd/opentelemetry-collector/app/exporter/kafka"
 	"github.com/jaegertracing/jaeger/cmd/opentelemetry-collector/app/receiver/jaegerreceiver"
+	kafkaRec "github.com/jaegertracing/jaeger/cmd/opentelemetry-collector/app/receiver/kafka"
 	jConfig "github.com/jaegertracing/jaeger/pkg/config"
 )
 
@@ -35,20 +35,20 @@ func TestComponents(t *testing.T) {
 		elasticsearch.DefaultOptions().AddFlags,
 	)
 	factories := Components(v)
-	assert.Equal(t, configmodels.Type("jaeger_kafka"), factories.Exporters[kafka.TypeStr].Type())
-	assert.Equal(t, configmodels.Type("jaeger_cassandra"), factories.Exporters[cassandra.TypeStr].Type())
-	assert.Equal(t, configmodels.Type("jaeger_elasticsearch"), factories.Exporters[elasticsearch.TypeStr].Type())
+	assert.IsType(t, &kafka.Factory{}, factories.Exporters[kafka.TypeStr])
+	assert.IsType(t, &cassandra.Factory{}, factories.Exporters[cassandra.TypeStr])
+	assert.IsType(t, &elasticsearch.Factory{}, factories.Exporters[elasticsearch.TypeStr])
+	assert.IsType(t, &jaegerreceiver.Factory{}, factories.Receivers["jaeger"])
+	assert.IsType(t, &jaegerexporter.Factory{}, factories.Exporters["jaeger"])
+	assert.IsType(t, &kafkaRec.Factory{}, factories.Receivers[kafkaRec.TypeStr])
 
 	kafkaFactory := factories.Exporters[kafka.TypeStr]
 	kc := kafkaFactory.CreateDefaultConfig().(*kafka.Config)
 	assert.Equal(t, []string{"127.0.0.1:9092"}, kc.Config.Brokers)
-
 	cassandraFactory := factories.Exporters[cassandra.TypeStr]
 	cc := cassandraFactory.CreateDefaultConfig().(*cassandra.Config)
 	assert.Equal(t, []string{"127.0.0.1"}, cc.Options.GetPrimary().Servers)
 	esFactory := factories.Exporters[elasticsearch.TypeStr]
 	ec := esFactory.CreateDefaultConfig().(*elasticsearch.Config)
 	assert.Equal(t, []string{"http://127.0.0.1:9200"}, ec.GetPrimary().Servers)
-	assert.IsType(t, &jaegerreceiver.Factory{}, factories.Receivers["jaeger"])
-	assert.IsType(t, &jaegerexporter.Factory{}, factories.Exporters["jaeger"])
 }

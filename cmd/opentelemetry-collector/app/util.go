@@ -16,10 +16,16 @@ package app
 
 import (
 	"flag"
+	"fmt"
 	"io/ioutil"
 	"os"
+	"strings"
 
 	"github.com/open-telemetry/opentelemetry-collector/service/builder"
+
+	"github.com/jaegertracing/jaeger/cmd/opentelemetry-collector/app/exporter/cassandra"
+	"github.com/jaegertracing/jaeger/cmd/opentelemetry-collector/app/exporter/elasticsearch"
+	"github.com/jaegertracing/jaeger/cmd/opentelemetry-collector/app/exporter/kafka"
 )
 
 // GetOTELConfigFile returns name of OTEL config file.
@@ -30,4 +36,27 @@ func GetOTELConfigFile() string {
 	// parse flags to bind the value
 	f.Parse(os.Args[1:])
 	return builder.GetConfigFile()
+}
+
+// StorageFlags return a function that adds storage flags.
+// storage parameter can contain a comma separated list of supported Jaeger storage backends.
+func StorageFlags(storage string) (func(*flag.FlagSet), error) {
+	var flagFn []func(*flag.FlagSet)
+	for _, s := range strings.Split(storage, ",") {
+		switch s {
+		case "cassandra":
+			flagFn = append(flagFn, cassandra.DefaultOptions().AddFlags)
+		case "elasticsearch":
+			flagFn = append(flagFn, elasticsearch.DefaultOptions().AddFlags)
+		case "kafka":
+			flagFn = append(flagFn, kafka.DefaultOptions().AddFlags)
+		default:
+			return nil, fmt.Errorf("unknown storage type: %s", s)
+		}
+	}
+	return func(flagSet *flag.FlagSet) {
+		for _, f := range flagFn {
+			f(flagSet)
+		}
+	}, nil
 }

@@ -28,6 +28,7 @@ import (
 	jflags "github.com/jaegertracing/jaeger/cmd/flags"
 	"github.com/jaegertracing/jaeger/cmd/opentelemetry-collector/app"
 	"github.com/jaegertracing/jaeger/cmd/opentelemetry-collector/app/defaults"
+	"github.com/jaegertracing/jaeger/cmd/opentelemetry-collector/app/processor/resourceprocessor"
 	jconfig "github.com/jaegertracing/jaeger/pkg/config"
 	"github.com/jaegertracing/jaeger/plugin/sampling/strategystore/static"
 )
@@ -40,8 +41,8 @@ func main() {
 	}
 
 	info := service.ApplicationStartInfo{
-		ExeName:  "jaeger-opentelemetry-collector",
-		LongName: "Jaeger OpenTelemetry Collector",
+		ExeName:  "jaeger-opentelemetry-agent",
+		LongName: "Jaeger OpenTelemetry Agent",
 		// TODO
 		//Version:  version.Version,
 		//GitHash:  version.GitHash,
@@ -78,6 +79,7 @@ func main() {
 		jflags.AddConfigFileFlag,
 		grpc.AddFlags,
 		static.AddFlags,
+		resourceprocessor.AddFlags,
 	)
 
 	// parse flags to propagate Jaeger config file flag value to viper

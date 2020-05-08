@@ -18,17 +18,21 @@ import (
 	"flag"
 
 	"github.com/open-telemetry/opentelemetry-collector/config"
-	otelJaegerEexporter "github.com/open-telemetry/opentelemetry-collector/exporter/jaegerexporter"
-	otelJaegerreceiver "github.com/open-telemetry/opentelemetry-collector/receiver/jaegerreceiver"
+	otelJaegerExporter "github.com/open-telemetry/opentelemetry-collector/exporter/jaegerexporter"
+	otelResourceProcessor "github.com/open-telemetry/opentelemetry-collector/processor/resourceprocessor"
+	otelJaegerReceiver "github.com/open-telemetry/opentelemetry-collector/receiver/jaegerreceiver"
 	"github.com/open-telemetry/opentelemetry-collector/service/defaultcomponents"
 	"github.com/spf13/pflag"
 	"github.com/spf13/viper"
 
+	ingesterApp "github.com/jaegertracing/jaeger/cmd/ingester/app"
 	"github.com/jaegertracing/jaeger/cmd/opentelemetry-collector/app/exporter/cassandra"
 	"github.com/jaegertracing/jaeger/cmd/opentelemetry-collector/app/exporter/elasticsearch"
 	"github.com/jaegertracing/jaeger/cmd/opentelemetry-collector/app/exporter/jaegerexporter"
 	"github.com/jaegertracing/jaeger/cmd/opentelemetry-collector/app/exporter/kafka"
+	"github.com/jaegertracing/jaeger/cmd/opentelemetry-collector/app/processor/resourceprocessor"
 	"github.com/jaegertracing/jaeger/cmd/opentelemetry-collector/app/receiver/jaegerreceiver"
+	kafkaRec "github.com/jaegertracing/jaeger/cmd/opentelemetry-collector/app/receiver/kafka"
 	storageCassandra "github.com/jaegertracing/jaeger/plugin/storage/cassandra"
 	storageEs "github.com/jaegertracing/jaeger/plugin/storage/es"
 	storageKafka "github.com/jaegertracing/jaeger/plugin/storage/kafka"
@@ -40,18 +44,23 @@ func Components(v *viper.Viper) config.Factories {
 	// We have to add all storage flags to viper because any exporter can be specified in the OTEL config file.
 	// OTEL collector creates default configurations for all factories to verify they can be created.
 	addDefaultValuesToViper(v)
-	kafkaExp := kafka.Factory{OptionsFactory: func() *storageKafka.Options {
+	kafkaExp := &kafka.Factory{OptionsFactory: func() *storageKafka.Options {
 		opts := kafka.DefaultOptions()
 		opts.InitFromViper(v)
 		return opts
 	}}
-	cassandraExp := cassandra.Factory{OptionsFactory: func() *storageCassandra.Options {
+	cassandraExp := &cassandra.Factory{OptionsFactory: func() *storageCassandra.Options {
 		opts := cassandra.DefaultOptions()
 		opts.InitFromViper(v)
 		return opts
 	}}
-	esExp := elasticsearch.Factory{OptionsFactory: func() *storageEs.Options {
+	esExp := &elasticsearch.Factory{OptionsFactory: func() *storageEs.Options {
 		opts := elasticsearch.DefaultOptions()
+		opts.InitFromViper(v)
+		return opts
+	}}
+	kafkaRec := &kafkaRec.Factory{OptionsFactory: func() *ingesterApp.Options {
+		opts := kafkaRec.DefaultOptions()
 		opts.InitFromViper(v)
 		return opts
 	}}
@@ -60,15 +69,22 @@ func Components(v *viper.Viper) config.Factories {
 	factories.Exporters[kafkaExp.Type()] = kafkaExp
 	factories.Exporters[cassandraExp.Type()] = cassandraExp
 	factories.Exporters[esExp.Type()] = esExp
+	factories.Receivers[kafkaRec.Type()] = kafkaRec
 
-	jaegerRec := factories.Receivers["jaeger"].(*otelJaegerreceiver.Factory)
+	jaegerRec := factories.Receivers["jaeger"].(*otelJaegerReceiver.Factory)
 	factories.Receivers["jaeger"] = &jaegerreceiver.Factory{
 		Wrapped: jaegerRec,
 		Viper:   v,
 	}
-	jaegerExp := factories.Exporters["jaeger"].(*otelJaegerEexporter.Factory)
+	jaegerExp := factories.Exporters["jaeger"].(*otelJaegerExporter.Factory)
 	factories.Exporters["jaeger"] = &jaegerexporter.Factory{
 		Wrapped: jaegerExp,
+		Viper:   v,
+	}
+
+	resourceProc := factories.Processors["resource"].(*otelResourceProcessor.Factory)
+	factories.Processors["resource"] = &resourceprocessor.Factory{
+		Wrapped: resourceProc,
 		Viper:   v,
 	}
 	return factories
