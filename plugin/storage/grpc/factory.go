@@ -54,6 +54,12 @@ func (f *Factory) InitFromViper(v *viper.Viper) {
 	f.builder = &f.options.Configuration
 }
 
+// InitFromOptions initializes factory from options
+func (f *Factory) InitFromOptions(opts Options) {
+	f.options = opts
+	f.builder = &f.options.Configuration
+}
+
 // Initialize implements storage.Factory
 func (f *Factory) Initialize(metricsFactory metrics.Factory, logger *zap.Logger) error {
 	f.metricsFactory, f.logger = metricsFactory, logger

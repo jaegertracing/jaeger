@@ -25,6 +25,7 @@ import (
 
 	"github.com/jaegertracing/jaeger/cmd/opentelemetry-collector/app/exporter/cassandra"
 	"github.com/jaegertracing/jaeger/cmd/opentelemetry-collector/app/exporter/elasticsearch"
+	"github.com/jaegertracing/jaeger/cmd/opentelemetry-collector/app/exporter/grpcplugin"
 	"github.com/jaegertracing/jaeger/cmd/opentelemetry-collector/app/exporter/kafka"
 )
 
@@ -50,6 +51,8 @@ func StorageFlags(storage string) (func(*flag.FlagSet), error) {
 			flagFn = append(flagFn, elasticsearch.DefaultOptions().AddFlags)
 		case "kafka":
 			flagFn = append(flagFn, kafka.DefaultOptions().AddFlags)
+		case "grpc-plugin":
+			flagFn = append(flagFn, grpcplugin.DefaultOptions().AddFlags)
 		default:
 			return nil, fmt.Errorf("unknown storage type: %s", s)
 		}

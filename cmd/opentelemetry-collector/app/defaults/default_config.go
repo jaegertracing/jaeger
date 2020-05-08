@@ -28,6 +28,7 @@ import (
 
 	"github.com/jaegertracing/jaeger/cmd/opentelemetry-collector/app/exporter/cassandra"
 	"github.com/jaegertracing/jaeger/cmd/opentelemetry-collector/app/exporter/elasticsearch"
+	"github.com/jaegertracing/jaeger/cmd/opentelemetry-collector/app/exporter/grpcplugin"
 	"github.com/jaegertracing/jaeger/cmd/opentelemetry-collector/app/exporter/kafka"
 	kafkaRec "github.com/jaegertracing/jaeger/cmd/opentelemetry-collector/app/receiver/kafka"
 	"github.com/jaegertracing/jaeger/ports"
@@ -113,6 +114,9 @@ func createExporters(storageTypes string, factories config.Factories) (configmod
 		case "kafka":
 			kaf := factories.Exporters[kafka.TypeStr].CreateDefaultConfig()
 			exporters[kafka.TypeStr] = kaf
+		case "grpc-plugin":
+			grpcEx := factories.Exporters[grpcplugin.TypeStr].CreateDefaultConfig()
+			exporters[grpcplugin.TypeStr] = grpcEx
 		default:
 			return nil, fmt.Errorf("unknown storage type: %s", s)
 		}
