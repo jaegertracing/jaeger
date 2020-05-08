@@ -22,6 +22,7 @@ import (
 	"github.com/open-telemetry/opentelemetry-collector/config"
 	"github.com/open-telemetry/opentelemetry-collector/config/configmodels"
 	"github.com/open-telemetry/opentelemetry-collector/service"
+	"github.com/open-telemetry/opentelemetry-collector/service/builder"
 	"github.com/spf13/viper"
 
 	"github.com/jaegertracing/jaeger/cmd/agent/app/reporter/grpc"
@@ -65,7 +66,7 @@ func main() {
 			return nil, err
 		}
 
-		if len(app.GetOTELConfigFile()) > 0 {
+		if len(builder.GetConfigFile()) > 0 {
 			otelCfg, err := service.FileLoaderConfigFactory(otelViper, f)
 			if err != nil {
 				return nil, err

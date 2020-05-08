@@ -17,27 +17,13 @@ package app
 import (
 	"flag"
 	"fmt"
-	"io/ioutil"
-	"os"
 	"strings"
-
-	"github.com/open-telemetry/opentelemetry-collector/service/builder"
 
 	"github.com/jaegertracing/jaeger/cmd/opentelemetry-collector/app/exporter/cassandra"
 	"github.com/jaegertracing/jaeger/cmd/opentelemetry-collector/app/exporter/elasticsearch"
 	"github.com/jaegertracing/jaeger/cmd/opentelemetry-collector/app/exporter/grpcplugin"
 	"github.com/jaegertracing/jaeger/cmd/opentelemetry-collector/app/exporter/kafka"
 )
-
-// GetOTELConfigFile returns name of OTEL config file.
-func GetOTELConfigFile() string {
-	f := &flag.FlagSet{}
-	f.SetOutput(ioutil.Discard)
-	builder.Flags(f)
-	// parse flags to bind the value
-	f.Parse(os.Args[1:])
-	return builder.GetConfigFile()
-}
 
 // StorageFlags return a function that adds storage flags.
 // storage parameter can contain a comma separated list of supported Jaeger storage backends.
