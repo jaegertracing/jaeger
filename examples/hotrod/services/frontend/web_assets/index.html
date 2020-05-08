@@ -68,7 +68,7 @@ $(".hotrod-button").click(function(evt) {
   var requestID = clientUUID + "-" + lastRequestID;
   var freshCar = $($("#hotrod-log").prepend('<div class="fresh-car"><em>Dispatching a car...[req: '+requestID+']</em></div>').children()[0]);
   var customer = evt.target.dataset.customer;
-  headers = {
+  var headers = {
       'jaeger-baggage': 'session=' + clientUUID + ', request=' + requestID
   };
   console.log(headers);
