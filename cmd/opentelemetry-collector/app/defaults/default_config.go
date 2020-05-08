@@ -29,6 +29,7 @@ import (
 	"github.com/jaegertracing/jaeger/cmd/opentelemetry-collector/app/exporter/cassandra"
 	"github.com/jaegertracing/jaeger/cmd/opentelemetry-collector/app/exporter/elasticsearch"
 	"github.com/jaegertracing/jaeger/cmd/opentelemetry-collector/app/exporter/kafka"
+	kafkaRec "github.com/jaegertracing/jaeger/cmd/opentelemetry-collector/app/receiver/kafka"
 	"github.com/jaegertracing/jaeger/ports"
 )
 
@@ -123,7 +124,9 @@ func createExporters(storageTypes string, factories config.Factories) (configmod
 // It enables Jaeger receiver with UDP endpoints and Jaeger exporter.
 func AgentConfig(factories config.Factories) *configmodels.Config {
 	jaegerExporter := factories.Exporters["jaeger"]
-	exporters := configmodels.Exporters{"jaeger": jaegerExporter.CreateDefaultConfig()}
+	exporters := configmodels.Exporters{
+		"jaeger": jaegerExporter.CreateDefaultConfig(),
+	}
 	hc := factories.Extensions["health_check"].CreateDefaultConfig().(*healthcheckextension.Config)
 	processors := configmodels.Processors{}
 	resProcessor := factories.Processors["resource"].CreateDefaultConfig().(*resourceprocessor.Config)
@@ -164,10 +167,39 @@ func createAgentReceivers(factories config.Factories) configmodels.Receivers {
 			},
 		},
 	}
-	recvs := map[string]configmodels.Receiver{
+	recvs := configmodels.Receivers{
 		"jaeger": jaeger,
 	}
 	return recvs
+}
+
+// IngesterConfig creates default ingester configuration.
+// It enables Jaeger kafka receiver and storage backend.
+func IngesterConfig(storageType string, factories config.Factories) (*configmodels.Config, error) {
+	exporters, err := createExporters(storageType, factories)
+	if err != nil {
+		return nil, err
+	}
+	kafkaReceiver := factories.Receivers[kafkaRec.TypeStr].CreateDefaultConfig().(*kafkaRec.Config)
+	receivers := configmodels.Receivers{
+		kafkaReceiver.Name(): kafkaReceiver,
+	}
+	hc := factories.Extensions["health_check"].CreateDefaultConfig()
+	return &configmodels.Config{
+		Receivers:  receivers,
+		Exporters:  exporters,
+		Extensions: configmodels.Extensions{"health_check": hc},
+		Service: configmodels.Service{
+			Extensions: []string{"health_check"},
+			Pipelines: configmodels.Pipelines{
+				"traces": {
+					InputType: configmodels.TracesDataType,
+					Receivers: receiverNames(receivers),
+					Exporters: exporterNames(exporters),
+				},
+			},
+		},
+	}, nil
 }
 
 func receiverNames(receivers configmodels.Receivers) []string {

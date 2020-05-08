@@ -24,14 +24,11 @@ import (
 	"github.com/open-telemetry/opentelemetry-collector/service"
 	"github.com/spf13/viper"
 
-	"github.com/jaegertracing/jaeger/cmd/agent/app/reporter/grpc"
-	collectorApp "github.com/jaegertracing/jaeger/cmd/collector/app"
 	jflags "github.com/jaegertracing/jaeger/cmd/flags"
+	ingesterApp "github.com/jaegertracing/jaeger/cmd/ingester/app"
 	"github.com/jaegertracing/jaeger/cmd/opentelemetry-collector/app"
 	"github.com/jaegertracing/jaeger/cmd/opentelemetry-collector/app/defaults"
-	"github.com/jaegertracing/jaeger/cmd/opentelemetry-collector/app/processor/resourceprocessor"
-	jConfig "github.com/jaegertracing/jaeger/pkg/config"
-	"github.com/jaegertracing/jaeger/plugin/sampling/strategystore/static"
+	jconfig "github.com/jaegertracing/jaeger/pkg/config"
 	"github.com/jaegertracing/jaeger/plugin/storage"
 )
 
@@ -43,14 +40,15 @@ func main() {
 	}
 
 	info := service.ApplicationStartInfo{
-		ExeName:  "jaeger-opentelemetry-collector",
-		LongName: "Jaeger OpenTelemetry Collector",
+		ExeName:  "jaeger-opentelemetry-ingester",
+		LongName: "Jaeger OpenTelemetry Ingester",
 		// TODO
 		//Version:  version.Version,
 		//GitHash:  version.GitHash,
 	}
 
 	v := viper.New()
+
 	storageType := os.Getenv(storage.SpanStorageTypeEnvVar)
 	if storageType == "" {
 		storageType = "cassandra"
@@ -58,13 +56,10 @@ func main() {
 
 	cmpts := defaults.Components(v)
 	cfgFactory := func(otelViper *viper.Viper, f config.Factories) (*configmodels.Config, error) {
-		collectorOpts := &collectorApp.CollectorOptions{}
-		collectorOpts.InitFromViper(v)
-		cfg, err := defaults.CollectorConfig(storageType, collectorOpts.CollectorZipkinHTTPHostPort, cmpts)
+		cfg, err := defaults.IngesterConfig(storageType, cmpts)
 		if err != nil {
 			return nil, err
 		}
-
 		if len(app.GetOTELConfigFile()) > 0 {
 			otelCfg, err := service.FileLoaderConfigFactory(otelViper, f)
 			if err != nil {
@@ -91,15 +86,13 @@ func main() {
 	if err != nil {
 		handleErr(err)
 	}
+
 	cmd := svc.Command()
-	jConfig.AddFlags(v,
+	jconfig.AddFlags(v,
 		cmd,
-		collectorApp.AddFlags,
 		jflags.AddConfigFileFlag,
+		ingesterApp.AddFlags,
 		storageFlags,
-		static.AddFlags,
-		grpc.AddFlags,
-		resourceprocessor.AddFlags,
 	)
 
 	// parse flags to propagate Jaeger config file flag value to viper
