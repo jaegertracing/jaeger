@@ -1,7 +1,14 @@
 name: "Code Scanning - Action"
 
 on:
+  # Trigger the workflow on push or pull request,
+  # but only for the master branch
   push:
+    branches:
+      - master
+  pull_request:
+    branches:
+      - master
   schedule:
     - cron: '0 0 * * 0'
 
@@ -9,7 +16,7 @@ jobs:
   CodeQL-Build:
 
     strategy:
-      fail-fast: false
+      fail-fast: true
 
 
     # CodeQL runs on ubuntu-latest, windows-latest, and macos-latest
@@ -28,8 +35,8 @@ jobs:
 
     # Autobuild attempts to build any compiled languages  (C/C++, C#, or Java).
     # If this step fails, then you should remove it and run the build manually (see below).
-    - name: Autobuild
-      uses: github/codeql-action/autobuild@v1
+    #- name: Autobuild
+    #  uses: github/codeql-action/autobuild@v1
 
     # ℹ️ Command-line programs to run using the OS shell.
     # 📚 https://git.io/JvXDl
