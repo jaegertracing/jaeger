@@ -115,8 +115,8 @@ func createExporters(storageTypes string, factories config.Factories) (configmod
 			kaf := factories.Exporters[kafka.TypeStr].CreateDefaultConfig()
 			exporters[kafka.TypeStr] = kaf
 		case "grpc-plugin":
-			grpcEx := factories.Exporters[grpc.TypeStr].CreateDefaultConfig()
-			exporters[grpc.TypeStr] = grpcEx
+			grpcEx := factories.Exporters[grpcplugin.TypeStr].CreateDefaultConfig()
+			exporters[grpcplugin.TypeStr] = grpcEx
 		default:
 			return nil, fmt.Errorf("unknown storage type: %s", s)
 		}

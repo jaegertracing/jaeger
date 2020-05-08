@@ -52,7 +52,7 @@ func StorageFlags(storage string) (func(*flag.FlagSet), error) {
 		case "kafka":
 			flagFn = append(flagFn, kafka.DefaultOptions().AddFlags)
 		case "grpc-plugin":
-			flagFn = append(flagFn, grpc.DefaultOptions().AddFlags)
+			flagFn = append(flagFn, grpcplugin.DefaultOptions().AddFlags)
 		default:
 			return nil, fmt.Errorf("unknown storage type: %s", s)
 		}

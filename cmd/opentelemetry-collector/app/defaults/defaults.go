@@ -61,8 +61,8 @@ func Components(v *viper.Viper) config.Factories {
 		opts.InitFromViper(v)
 		return opts
 	}}
-	grpcExp := &grpc.Factory{OptionsFactory: func() *storageGrpc.Options {
-		opts := grpc.DefaultOptions()
+	grpcExp := &grpcplugin.Factory{OptionsFactory: func() *storageGrpc.Options {
+		opts := grpcplugin.DefaultOptions()
 		opts.InitFromViper(v)
 		return opts
 	}}

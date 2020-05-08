@@ -39,7 +39,7 @@ func TestComponents(t *testing.T) {
 	assert.IsType(t, &kafka.Factory{}, factories.Exporters[kafka.TypeStr])
 	assert.IsType(t, &cassandra.Factory{}, factories.Exporters[cassandra.TypeStr])
 	assert.IsType(t, &elasticsearch.Factory{}, factories.Exporters[elasticsearch.TypeStr])
-	assert.IsType(t, &grpc.Factory{}, factories.Exporters[grpc.TypeStr])
+	assert.IsType(t, &grpcplugin.Factory{}, factories.Exporters[grpcplugin.TypeStr])
 	assert.IsType(t, &jaegerreceiver.Factory{}, factories.Receivers["jaeger"])
 	assert.IsType(t, &jaegerexporter.Factory{}, factories.Exporters["jaeger"])
 	assert.IsType(t, &kafkaRec.Factory{}, factories.Receivers[kafkaRec.TypeStr])
