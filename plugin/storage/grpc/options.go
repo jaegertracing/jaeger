@@ -32,7 +32,7 @@ const (
 // Options contains GRPC plugins configs and provides the ability
 // to bind them to command line flags
 type Options struct {
-	Configuration config.Configuration
+	Configuration config.Configuration `mapstructure:",squash"`
 }
 
 // AddFlags adds flags for Options

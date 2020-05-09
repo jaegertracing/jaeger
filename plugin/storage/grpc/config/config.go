@@ -27,9 +27,9 @@ import (
 
 // Configuration describes the options to customize the storage behavior
 type Configuration struct {
-	PluginBinary            string `yaml:"binary"`
-	PluginConfigurationFile string `yaml:"configuration-file"`
-	PluginLogLevel          string `yaml:"log-level"`
+	PluginBinary            string `yaml:"binary" mapstructure:"binary"`
+	PluginConfigurationFile string `yaml:"configuration-file" mapstructure:"configuration_file"`
+	PluginLogLevel          string `yaml:"log-level" mapstructure:"log_level"`
 }
 
 // Build instantiates a StoragePlugin

@@ -22,11 +22,11 @@ import (
 	"github.com/open-telemetry/opentelemetry-collector/config"
 	"github.com/open-telemetry/opentelemetry-collector/config/configmodels"
 	"github.com/open-telemetry/opentelemetry-collector/service"
+	"github.com/open-telemetry/opentelemetry-collector/service/builder"
 	"github.com/spf13/viper"
 
 	"github.com/jaegertracing/jaeger/cmd/agent/app/reporter/grpc"
 	jflags "github.com/jaegertracing/jaeger/cmd/flags"
-	"github.com/jaegertracing/jaeger/cmd/opentelemetry-collector/app"
 	"github.com/jaegertracing/jaeger/cmd/opentelemetry-collector/app/defaults"
 	"github.com/jaegertracing/jaeger/cmd/opentelemetry-collector/app/processor/resourceprocessor"
 	jconfig "github.com/jaegertracing/jaeger/pkg/config"
@@ -53,7 +53,7 @@ func main() {
 	cmpts := defaults.Components(v)
 	cfgFactory := func(otelViper *viper.Viper, f config.Factories) (*configmodels.Config, error) {
 		cfg := defaults.AgentConfig(cmpts)
-		if len(app.GetOTELConfigFile()) > 0 {
+		if len(builder.GetConfigFile()) > 0 {
 			otelCfg, err := service.FileLoaderConfigFactory(otelViper, f)
 			if err != nil {
 				return nil, err

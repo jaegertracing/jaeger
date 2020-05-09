@@ -24,6 +24,7 @@ import (
 	"go.uber.org/zap"
 
 	"github.com/jaegertracing/jaeger/pkg/config"
+	grpcConfig "github.com/jaegertracing/jaeger/plugin/storage/grpc/config"
 	"github.com/jaegertracing/jaeger/plugin/storage/grpc/shared"
 	"github.com/jaegertracing/jaeger/storage"
 	"github.com/jaegertracing/jaeger/storage/dependencystore"
@@ -109,4 +110,16 @@ func TestWithConfiguration(t *testing.T) {
 	assert.Equal(t, f.options.Configuration.PluginBinary, "noop-grpc-plugin")
 	assert.Equal(t, f.options.Configuration.PluginConfigurationFile, "config.json")
 	assert.Equal(t, f.options.Configuration.PluginLogLevel, "debug")
+}
+
+func TestInitFromOptions(t *testing.T) {
+	f := Factory{}
+	o := Options{
+		Configuration: grpcConfig.Configuration{
+			PluginLogLevel: "info",
+		},
+	}
+	f.InitFromOptions(o)
+	assert.Equal(t, o, f.options)
+	assert.Equal(t, &o.Configuration, f.builder)
 }

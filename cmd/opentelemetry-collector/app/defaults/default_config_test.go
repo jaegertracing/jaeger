@@ -32,6 +32,7 @@ import (
 	"github.com/jaegertracing/jaeger/cmd/agent/app/reporter/grpc"
 	"github.com/jaegertracing/jaeger/cmd/opentelemetry-collector/app/exporter/cassandra"
 	"github.com/jaegertracing/jaeger/cmd/opentelemetry-collector/app/exporter/elasticsearch"
+	"github.com/jaegertracing/jaeger/cmd/opentelemetry-collector/app/exporter/grpcplugin"
 	"github.com/jaegertracing/jaeger/cmd/opentelemetry-collector/app/exporter/kafka"
 	kafkaRec "github.com/jaegertracing/jaeger/cmd/opentelemetry-collector/app/receiver/kafka"
 	jConfig "github.com/jaegertracing/jaeger/pkg/config"
@@ -85,14 +86,14 @@ func TestDefaultCollectorConfig(t *testing.T) {
 			},
 		},
 		{
-			storageType:    "cassandra,elasticsearch",
+			storageType:    "cassandra,elasticsearch,grpc-plugin",
 			zipkinHostPort: disabledHostPort,
-			exporterTypes:  []string{cassandra.TypeStr, elasticsearch.TypeStr},
+			exporterTypes:  []string{cassandra.TypeStr, elasticsearch.TypeStr, grpcplugin.TypeStr},
 			pipeline: configmodels.Pipelines{
 				"traces": {
 					InputType: configmodels.TracesDataType,
 					Receivers: []string{"jaeger"},
-					Exporters: []string{cassandra.TypeStr, elasticsearch.TypeStr},
+					Exporters: []string{cassandra.TypeStr, elasticsearch.TypeStr, grpcplugin.TypeStr},
 				},
 			},
 		},
@@ -154,6 +155,7 @@ func TestDefaultCollectorConfig(t *testing.T) {
 			}
 			sort.Strings(types)
 			assert.Equal(t, test.exporterTypes, types)
+			sort.Strings(cfg.Service.Pipelines["traces"].Receivers)
 			assert.EqualValues(t, test.pipeline, cfg.Service.Pipelines)
 		})
 	}
@@ -238,14 +240,14 @@ func TestDefaultIngesterConfig(t *testing.T) {
 			},
 		},
 		{
-			storageType: "elasticsearch,cassandra",
+			storageType: "elasticsearch,cassandra,grpc-plugin",
 			service: configmodels.Service{
 				Extensions: []string{"health_check"},
 				Pipelines: configmodels.Pipelines{
 					"traces": &configmodels.Pipeline{
 						InputType: configmodels.TracesDataType,
 						Receivers: []string{kafkaRec.TypeStr},
-						Exporters: []string{cassandra.TypeStr, elasticsearch.TypeStr},
+						Exporters: []string{cassandra.TypeStr, elasticsearch.TypeStr, grpcplugin.TypeStr},
 					},
 				},
 			},
