@@ -321,3 +321,18 @@ func TestAutoUpdateStrategyErrors(t *testing.T) {
 	assert.Equal(t, "blah", store.reloadSamplingStrategyFile(tempFile.Name(), "blah"))
 	assert.Len(t, logs.FilterMessage("failed to update sampling strategies from file").All(), 1)
 }
+
+func TestServiceNoPerOperationStrategies(t *testing.T) {
+	store, err := NewStrategyStore(Options{StrategiesFile: "fixtures/service_no_per_operation.json"}, zap.NewNop())
+	require.NoError(t, err)
+
+	s, err := store.GetSamplingStrategy("ServiceA")
+	require.NoError(t, err)
+	assert.Equal(t, 1.0, s.OperationSampling.DefaultSamplingProbability)
+
+	s, err = store.GetSamplingStrategy("ServiceB")
+	require.NoError(t, err)
+
+	expected := makeResponse(sampling.SamplingStrategyType_RATE_LIMITING, 3)
+	assert.Equal(t, *expected.RateLimitingSampling, *s.RateLimitingSampling)
+}
