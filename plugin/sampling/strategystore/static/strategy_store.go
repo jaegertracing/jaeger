@@ -164,7 +164,8 @@ func (h *strategyStore) parseStrategies(strategies *strategies) {
 		// is not merged with and only used as a fallback).
 		opS := newStore.serviceStrategies[s.Service].OperationSampling
 		if opS == nil {
-			if newStore.defaultStrategy.OperationSampling == nil {
+			if newStore.defaultStrategy.OperationSampling == nil ||
+				newStore.serviceStrategies[s.Service].ProbabilisticSampling == nil {
 				continue
 			}
 			// Service has no per-operation strategies, so just reference the default settings and change default samplingRate.

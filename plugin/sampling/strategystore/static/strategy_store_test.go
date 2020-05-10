@@ -328,9 +328,11 @@ func TestServiceNoPerOperationStrategies(t *testing.T) {
 
 	s, err := store.GetSamplingStrategy("ServiceA")
 	require.NoError(t, err)
-	assert.Equal(t, s.OperationSampling.DefaultSamplingProbability, 1.0)
+	assert.Equal(t, 1.0, s.OperationSampling.DefaultSamplingProbability)
 
 	s, err = store.GetSamplingStrategy("ServiceB")
 	require.NoError(t, err)
-	assert.Equal(t, s.OperationSampling.DefaultSamplingProbability, 0.2)
+
+	expected := makeResponse(sampling.SamplingStrategyType_RATE_LIMITING, 3)
+	assert.Equal(t, *expected.RateLimitingSampling, *s.RateLimitingSampling)
 }

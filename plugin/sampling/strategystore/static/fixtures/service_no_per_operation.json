@@ -4,7 +4,12 @@
            "service": "ServiceA",
            "type": "probabilistic",
            "param": 1.0
-         }
+         },
+         {
+          "service": "ServiceB",
+          "type": "ratelimiting",
+          "param": 3
+        }
        ],
        "default_strategy": {
          "type": "probabilistic",
