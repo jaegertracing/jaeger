@@ -22,6 +22,7 @@ import (
 )
 
 const (
+	// SamplingStrategiesFile contains the name of CLI opions for config file.
 	SamplingStrategiesFile           = "sampling.strategies-file"
 	samplingStrategiesReloadInterval = "sampling.strategies-reload-interval"
 )

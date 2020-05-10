@@ -74,6 +74,7 @@ func (f *Factory) InitFromViper(v *viper.Viper) {
 	f.archiveConfig = f.Options.Get(archiveNamespace)
 }
 
+// InitFromOptions configures factory from Options struct.
 func (f *Factory) InitFromOptions(o Options) {
 	f.Options = &o
 	f.primaryConfig = f.Options.GetPrimary()

@@ -21,7 +21,8 @@ ALL_SRC := $(shell find . -name '*.go' \
 				sort)
 
 # ALL_PKGS is used with 'go cover' and 'golint'
-ALL_PKGS := $(shell go list $(sort $(dir $(ALL_SRC))))
+ALL_PKGS := $(shell echo $(dir $(ALL_SRC)) | tr ' ' '\n' | sort -u)
+
 UNAME := $(shell uname -m)
 #Race flag is not supported on s390x architecture
 ifeq ($(UNAME), s390x)

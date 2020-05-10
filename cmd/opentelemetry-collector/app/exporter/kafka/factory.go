@@ -25,9 +25,8 @@ import (
 	"github.com/jaegertracing/jaeger/plugin/storage/kafka"
 )
 
-const (
-	TypeStr = "jaeger_kafka"
-)
+// TypeStr defines exporter type.
+const TypeStr = "jaeger_kafka"
 
 // OptionsFactory returns initialized kafka.Options structure.
 type OptionsFactory func() *kafka.Options
