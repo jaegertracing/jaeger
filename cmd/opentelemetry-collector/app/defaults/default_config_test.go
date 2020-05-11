@@ -156,6 +156,7 @@ func TestDefaultCollectorConfig(t *testing.T) {
 			sort.Strings(types)
 			assert.Equal(t, test.exporterTypes, types)
 			sort.Strings(cfg.Service.Pipelines["traces"].Receivers)
+			sort.Strings(cfg.Service.Pipelines["traces"].Exporters)
 			assert.EqualValues(t, test.pipeline, cfg.Service.Pipelines)
 		})
 	}
