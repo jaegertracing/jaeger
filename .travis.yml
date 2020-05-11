@@ -7,36 +7,36 @@ dist: trusty
 
 matrix:
   include:
-  - go: "1.13.x"
+  - go: "1.14.x"
     env:
     - TESTS=true
     - COVERAGE=true
-  - go: "1.13.x"
+  - go: "1.14.x"
     env:
     - PROTO_GEN_TEST=true
-  - go: "1.13.x"
+  - go: "1.14.x"
     env:
     - ALL_IN_ONE=true
-  - go: "1.13.x"
+  - go: "1.14.x"
     env:
     - CROSSDOCK=true
-  - go: "1.13.x"
+  - go: "1.14.x"
     env:
       - CROSSDOCK_OTEL=true
-  - go: "1.13.x"
+  - go: "1.14.x"
     env:
     - DOCKER=true
     - DEPLOY=true
-  - go: "1.13.x"
+  - go: "1.14.x"
     env:
     - ES_INTEGRATION_TEST=true
-  - go: "1.13.x"
+  - go: "1.14.x"
     env:
     - KAFKA_INTEGRATION_TEST=true
-  - go: "1.13.x"
+  - go: "1.14.x"
     env:
     - CASSANDRA_INTEGRATION_TEST=true
-  - go: "1.13.x"
+  - go: "1.14.x"
     env:
     - HOTROD=true
 
