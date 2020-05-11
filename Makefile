@@ -20,7 +20,7 @@ ALL_SRC := $(shell find . -name '*.go' \
 				   -type f | \
 				sort)
 
-# ALL_PKGS is used with 'go cover' and 'golint'
+# ALL_PKGS is used with 'golint'
 ALL_PKGS := $(shell echo $(dir $(ALL_SRC)) | tr ' ' '\n' | sort -u)
 
 UNAME := $(shell uname -m)
@@ -132,8 +132,8 @@ all-srcs:
 
 .PHONY: cover
 cover: nocover
-	# @echo pre-compiling tests
-	# @time go test -i $(ALL_PKGS)
+	@echo pre-compiling tests
+	@time go test -i $(shell go list ./...)
 	# TODO Switch to single `go test` that already supports multiple packages, but watch out for .nocover dirs.
 	@./scripts/cover.sh $(shell go list ./...)
 	grep -E -v 'model.pb.*.go' cover.out > cover-nogen.out
@@ -143,7 +143,7 @@ cover: nocover
 .PHONY: nocover
 nocover:
 	@echo Verifying that all packages have test files to count in coverage
-	@scripts/check-test-files.sh $(subst github.com/jaegertracing/jaeger,.,$(ALL_PKGS))
+	@scripts/check-test-files.sh $(ALL_PKGS)
 
 .PHONY: fmt
 fmt:
@@ -185,9 +185,7 @@ lint-otel:
 go-lint:
 	@cat /dev/null > $(LINT_LOG)
 	@echo Running go lint...
-	@$(GOLINT) $(ALL_PKGS) \
-		| grep -v _nolint.go \
-		>> $(LINT_LOG) || true;
+	@$(GOLINT) $(ALL_PKGS) | grep -v _nolint.go >> $(LINT_LOG) || true;
 	@[ ! -s "$(LINT_LOG)" ] || (echo "Lint Failures" | cat - $(LINT_LOG) && false)
 
 .PHONE: elasticsearch-mappings
