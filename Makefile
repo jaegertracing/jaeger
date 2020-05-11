@@ -132,8 +132,9 @@ all-srcs:
 
 .PHONY: cover
 cover: nocover
-	@echo pre-compiling tests
-	@time go test -i $(ALL_PKGS)
+	# @echo pre-compiling tests
+	# @time go test -i $(ALL_PKGS)
+	# TODO Switch to single `go test` that already supports multiple packages, but watch out for .nocover dirs.
 	@./scripts/cover.sh $(shell go list ./...)
 	grep -E -v 'model.pb.*.go' cover.out > cover-nogen.out
 	mv cover-nogen.out cover.out
