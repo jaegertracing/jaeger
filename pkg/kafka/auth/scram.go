@@ -20,7 +20,6 @@ import (
 	"hash"
 
 	"github.com/Shopify/sarama"
-	"github.com/pkg/errors"
 	scrampkg "github.com/xdg/scram"
 )
 
@@ -75,8 +74,7 @@ type scramClient struct {
 func (client *scramClient) Begin(userName, password, authzID string) (err error) {
 	client.Client, err = client.HashGeneratorFcn.NewClient(userName, password, authzID)
 	if err != nil {
-		errors.Errorf("Begin method failed on: %s", err)
-		return err
+		return fmt.Errorf("Begin method failed on: %s", err)
 	}
 	client.ClientConversation = client.Client.NewConversation()
 	return nil
@@ -86,8 +84,8 @@ func (client *scramClient) Begin(userName, password, authzID string) (err error)
 func (client *scramClient) Step(challenge string) (response string, err error) {
 	response, err = client.ClientConversation.Step(challenge)
 	if err != nil {
-		errors.Errorf("Step method failed on: %s", err)
-		return "", nil
+		return "", fmt.Errorf("Step method failed on: %s", err)
+
 	}
 	return response, nil
 }
