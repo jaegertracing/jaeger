@@ -26,9 +26,8 @@ import (
 	ingesterApp "github.com/jaegertracing/jaeger/cmd/ingester/app"
 )
 
-const (
-	TypeStr = "jaeger_kafka"
-)
+// TypeStr defines exporter type.
+const TypeStr = "jaeger_kafka"
 
 // OptionsFactory returns initialized ingester app.Options structure.
 type OptionsFactory func() *ingesterApp.Options
@@ -38,6 +37,7 @@ func DefaultOptions() *ingesterApp.Options {
 	return &ingesterApp.Options{}
 }
 
+// Factory is used to build the receiver.
 type Factory struct {
 	OptionsFactory OptionsFactory
 }

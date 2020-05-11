@@ -52,7 +52,7 @@ const (
 	suffixEnabled             = ".enabled"
 	suffixVersion             = ".version"
 
-	defaultServerUrl = "http://127.0.0.1:9200"
+	defaultServerURL = "http://127.0.0.1:9200"
 )
 
 // TODO this should be moved next to config.Configuration struct (maybe ./flags package)
@@ -94,7 +94,7 @@ func NewOptions(primaryNamespace string, otherNamespaces ...string) *Options {
 				Enabled:              true,
 				CreateIndexTemplates: true,
 				Version:              0,
-				Servers:              []string{defaultServerUrl},
+				Servers:              []string{defaultServerURL},
 			},
 			namespace: primaryNamespace,
 		},
@@ -143,7 +143,7 @@ func addFlags(flagSet *flag.FlagSet, nsConfig *namespaceConfig) {
 		"The sniffer config for Elasticsearch; client uses sniffing process to find all nodes automatically, disable if not required")
 	flagSet.String(
 		nsConfig.namespace+suffixServerURLs,
-		defaultServerUrl,
+		defaultServerURL,
 		"The comma-separated list of Elasticsearch servers, must be full url i.e. http://localhost:9200")
 	flagSet.Duration(
 		nsConfig.namespace+suffixTimeout,

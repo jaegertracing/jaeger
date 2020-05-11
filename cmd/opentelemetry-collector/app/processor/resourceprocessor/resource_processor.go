@@ -57,6 +57,7 @@ func (f Factory) CreateDefaultConfig() configmodels.Processor {
 	return cfg
 }
 
+// GetTags returns tags to be added to all spans.
 func GetTags(v *viper.Viper) map[string]string {
 	tagsLegacy := flags.ParseJaegerTags(v.GetString(reporter.AgentTagsDeprecated))
 	tags := flags.ParseJaegerTags(v.GetString(resourceLabels))

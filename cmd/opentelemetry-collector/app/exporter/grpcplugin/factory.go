@@ -25,9 +25,8 @@ import (
 	storageGrpc "github.com/jaegertracing/jaeger/plugin/storage/grpc"
 )
 
-const (
-	TypeStr = "jaeger_grpc_plugin"
-)
+// TypeStr defines exporter type.
+const TypeStr = "jaeger_grpc_plugin"
 
 // OptionsFactory returns initialized es.OptionsFactory structure.
 type OptionsFactory func() *storageGrpc.Options

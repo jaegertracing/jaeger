@@ -54,7 +54,7 @@ func TestNew_failedToCreateWriter(t *testing.T) {
 
 func TestStore(t *testing.T) {
 	traceID := []byte("0123456789abcdef")
-	spanId := []byte("01234567")
+	spanID := []byte("01234567")
 	tests := []struct {
 		storage storage
 		data    pdata.Traces
@@ -81,8 +81,8 @@ func TestStore(t *testing.T) {
 			data: pdata.TracesFromOtlp([]*tracev1.ResourceSpans{{
 				InstrumentationLibrarySpans: []*tracev1.InstrumentationLibrarySpans{{
 					Spans: []*tracev1.Span{
-						{TraceId: traceID, SpanId: spanId, Name: "error"},
-						{TraceId: traceID, SpanId: spanId},
+						{TraceId: traceID, SpanId: spanID, Name: "error"},
+						{TraceId: traceID, SpanId: spanID},
 					},
 				}},
 			}}),
@@ -95,8 +95,8 @@ func TestStore(t *testing.T) {
 			data: pdata.TracesFromOtlp([]*tracev1.ResourceSpans{{
 				InstrumentationLibrarySpans: []*tracev1.InstrumentationLibrarySpans{{
 					Spans: []*tracev1.Span{
-						{TraceId: traceID, SpanId: spanId, Name: "error"},
-						{TraceId: traceID, SpanId: spanId, Name: "error"},
+						{TraceId: traceID, SpanId: spanID, Name: "error"},
+						{TraceId: traceID, SpanId: spanID, Name: "error"},
 					},
 				}},
 			}}),
