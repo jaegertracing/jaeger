@@ -49,6 +49,14 @@ const (
 
 	defaultPlainTextUserName = ""
 	defaultPlainTextPassword = ""
+
+	// Scram configuration options
+	scramPrefix          = ".scram"
+	suffixScramUserName  = ".username"
+	suffixScramAlgorithm = ".algorithm"
+	suffixScramPassword  = ".password"
+
+	defaultScramAlgorithm = "sha512"
 )
 
 func addKerberosFlags(configPrefix string, flagSet *flag.FlagSet) {
@@ -93,6 +101,21 @@ func addPlainTextFlags(configPrefix string, flagSet *flag.FlagSet) {
 		"The plaintext Password for SASL/PLAIN authentication")
 }
 
+func addScramFlags(configPrefix string, flagSet *flag.FlagSet) {
+	flagSet.String(
+		configPrefix+scramPrefix+suffixScramUserName,
+		"",
+		"Scram username used to authenticate with the client")
+	flagSet.String(
+		configPrefix+scramPrefix+suffixScramPassword,
+		"",
+		"Scram password used to authenticat with the client")
+	flagSet.String(
+		configPrefix+scramPrefix+suffixScramAlgorithm,
+		defaultScramAlgorithm,
+		"Scram algorithm, 'sha256' or 'sha512'")
+}
+
 // AddFlags add configuration flags to a flagSet.
 func AddFlags(configPrefix string, flagSet *flag.FlagSet) {
 	flagSet.String(
@@ -110,4 +133,5 @@ func AddFlags(configPrefix string, flagSet *flag.FlagSet) {
 	tlsClientConfig.AddFlags(flagSet)
 
 	addPlainTextFlags(configPrefix, flagSet)
+	addScramFlags(configPrefix, flagSet)
 }

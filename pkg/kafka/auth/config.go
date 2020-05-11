@@ -29,12 +29,14 @@ const (
 	kerberos  = "kerberos"
 	tls       = "tls"
 	plaintext = "plaintext"
+	scram     = "scram"
 )
 
 var authTypes = []string{
 	none,
 	kerberos,
 	tls,
+	scram,
 }
 
 // AuthenticationConfig describes the configuration properties needed authenticate with kafka cluster
@@ -43,6 +45,7 @@ type AuthenticationConfig struct {
 	Kerberos       KerberosConfig  `mapstructure:"kerberos"`
 	TLS            tlscfg.Options  `mapstructure:"tls"`
 	PlainText      PlainTextConfig `mapstructure:"plaintext"`
+	SCRAM          ScramConfig     `mapstructure:"scram"`
 }
 
 //SetConfiguration set configure authentication into sarama config structure
@@ -68,6 +71,8 @@ func (config *AuthenticationConfig) SetConfiguration(saramaConfig *sarama.Config
 	case plaintext:
 		setPlainTextConfiguration(&config.PlainText, saramaConfig)
 		return nil
+	case scram:
+		return setSCRAMConfiguration(&config.SCRAM, saramaConfig)
 	default:
 		return fmt.Errorf("Unknown/Unsupported authentication method %s to kafka cluster", config.Authentication)
 	}
@@ -97,4 +102,8 @@ func (config *AuthenticationConfig) InitFromViper(configPrefix string, v *viper.
 
 	config.PlainText.UserName = v.GetString(configPrefix + plainTextPrefix + suffixPlainTextUserName)
 	config.PlainText.Password = v.GetString(configPrefix + plainTextPrefix + suffixPlainTextPassword)
+
+	config.SCRAM.UserName = v.GetString(configPrefix + scramPrefix + suffixScramUserName)
+	config.SCRAM.Password = v.GetString(configPrefix + scramPrefix + suffixScramPassword)
+	config.SCRAM.Algorithm = v.GetString(configPrefix + scramPrefix + suffixScramAlgorithm)
 }
