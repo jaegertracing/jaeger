@@ -30,6 +30,7 @@ import (
 	"github.com/jaegertracing/jaeger/cmd/opentelemetry-collector/app/defaults"
 	"github.com/jaegertracing/jaeger/cmd/opentelemetry-collector/app/processor/resourceprocessor"
 	jconfig "github.com/jaegertracing/jaeger/pkg/config"
+	"github.com/jaegertracing/jaeger/pkg/version"
 	"github.com/jaegertracing/jaeger/plugin/sampling/strategystore/static"
 )
 
@@ -40,12 +41,12 @@ func main() {
 		}
 	}
 
+	ver := version.Get()
 	info := service.ApplicationStartInfo{
 		ExeName:  "jaeger-opentelemetry-agent",
 		LongName: "Jaeger OpenTelemetry Agent",
-		// TODO
-		//Version:  version.Version,
-		//GitHash:  version.GitHash,
+		Version:  ver.GitVersion,
+		GitHash:  ver.GitCommit,
 	}
 
 	v := viper.New()
