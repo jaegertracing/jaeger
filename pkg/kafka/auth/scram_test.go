@@ -18,9 +18,10 @@ import (
 	"flag"
 	"testing"
 
+	"github.com/stretchr/testify/assert"
+
 	"github.com/jaegertracing/jaeger/pkg/config"
 	"github.com/jaegertracing/jaeger/pkg/kafka/auth"
-	"github.com/stretchr/testify/assert"
 )
 
 func TestSCRAMClientFlags(t *testing.T) {
