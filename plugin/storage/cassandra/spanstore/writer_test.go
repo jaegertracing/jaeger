@@ -192,11 +192,12 @@ func TestSpanWriter(t *testing.T) {
 				durationNoOperationQuery.On("String").Return("select from duration_index")
 
 				w.session.On("Query", stringMatcher(insertSpan), matchEverything()).Return(spanQuery)
-				// note: using matchOnce below because we only want one tag to be inserted
-				w.session.On("Query", stringMatcher(insertTag), matchOnce()).Return(tagsQuery)
 
 				w.session.On("Query", stringMatcher(serviceNameIndex), matchEverything()).Return(serviceNameQuery)
 				w.session.On("Query", stringMatcher(serviceOperationIndex), matchEverything()).Return(serviceOperationNameQuery)
+
+				// note: using matchOnce below because we only want one tag to be inserted
+				w.session.On("Query", stringMatcher(insertTag), matchOnce()).Return(tagsQuery)
 
 				w.session.On("Query", stringMatcher(durationIndex), matchOnce()).Return(durationNoOperationQuery)
 

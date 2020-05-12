@@ -182,14 +182,6 @@ func (s *SpanWriter) writeIndexes(span *model.Span, ds *dbmodel.Span) error {
 		return s.logError(ds, err, "Failed to insert service name and operation name", s.logger)
 	}
 
-	if span.Flags.IsFirehoseEnabled() {
-		return nil // skipping expensive indexing
-	}
-
-	if err := s.indexByTags(span, ds); err != nil {
-		return s.logError(ds, err, "Failed to index tags", s.logger)
-	}
-
 	if s.indexFilter(ds, dbmodel.ServiceIndex) {
 		if err := s.indexByService(ds); err != nil {
 			return s.logError(ds, err, "Failed to index service name", s.logger)
@@ -200,6 +192,14 @@ func (s *SpanWriter) writeIndexes(span *model.Span, ds *dbmodel.Span) error {
 		if err := s.indexByOperation(ds); err != nil {
 			return s.logError(ds, err, "Failed to index operation name", s.logger)
 		}
+	}
+
+	if span.Flags.IsFirehoseEnabled() {
+		return nil // skipping expensive indexing
+	}
+
+	if err := s.indexByTags(span, ds); err != nil {
+		return s.logError(ds, err, "Failed to index tags", s.logger)
 	}
 
 	if s.indexFilter(ds, dbmodel.DurationIndex) {
