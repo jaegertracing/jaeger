@@ -50,9 +50,11 @@ func (f Factory) CreateDefaultConfig() configmodels.Exporter {
 	if len(repCfg.CollectorHostPorts) > 0 {
 		cfg.Endpoint = repCfg.CollectorHostPorts[0]
 	}
-	cfg.GRPCSettings.UseSecure = repCfg.TLS.Enabled
-	cfg.GRPCSettings.CertPemFile = repCfg.TLS.CertPath
-	cfg.GRPCSettings.ServerNameOverride = repCfg.TLS.ServerName
+	cfg.GRPCSettings.TLSConfig.UseSecure = repCfg.TLS.Enabled
+	cfg.GRPCSettings.TLSConfig.CaCert = repCfg.TLS.CAPath
+	cfg.GRPCSettings.TLSConfig.ClientCert = repCfg.TLS.CertPath
+	cfg.GRPCSettings.TLSConfig.ClientKey = repCfg.TLS.KeyPath
+	cfg.GRPCSettings.TLSConfig.ServerNameOverride = repCfg.TLS.ServerName
 	return cfg
 }
 

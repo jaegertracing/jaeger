@@ -20,11 +20,19 @@ import (
 	"github.com/open-telemetry/opentelemetry-collector/component"
 	"github.com/open-telemetry/opentelemetry-collector/config/configmodels"
 	"github.com/open-telemetry/opentelemetry-collector/consumer"
+	"github.com/open-telemetry/opentelemetry-collector/receiver"
 	"github.com/open-telemetry/opentelemetry-collector/receiver/jaegerreceiver"
 	"github.com/spf13/viper"
 
+	agentApp "github.com/jaegertracing/jaeger/cmd/agent/app"
 	"github.com/jaegertracing/jaeger/cmd/agent/app/reporter/grpc"
+	collectorApp "github.com/jaegertracing/jaeger/cmd/collector/app"
 	"github.com/jaegertracing/jaeger/plugin/sampling/strategystore/static"
+)
+
+const (
+	thriftBinaryHostPort  = "processor.jaeger-binary.server-host-port"
+	thriftCompactHostPort = "processor.jaeger-compact.server-host-port"
 )
 
 // Factory wraps jaegerreceiver.Factory and makes the default config configurable via viper.
@@ -48,7 +56,53 @@ func (f *Factory) Type() configmodels.Type {
 func (f *Factory) CreateDefaultConfig() configmodels.Receiver {
 	cfg := f.Wrapped.CreateDefaultConfig().(*jaegerreceiver.Config)
 	cfg.RemoteSampling = createDefaultSamplingConfig(f.Viper)
+	configureAgent(f.Viper, cfg)
+	configureCollector(f.Viper, cfg)
 	return cfg
+}
+
+func configureAgent(v *viper.Viper, cfg *jaegerreceiver.Config) {
+	aOpts := agentApp.Builder{}
+	aOpts.InitFromViper(v)
+	if v.IsSet(thriftBinaryHostPort) {
+		cfg.Protocols["thrift_binary"] = &receiver.SecureReceiverSettings{
+			ReceiverSettings: configmodels.ReceiverSettings{
+				Endpoint: v.GetString(thriftBinaryHostPort),
+			},
+		}
+	}
+	if v.IsSet(thriftCompactHostPort) {
+		cfg.Protocols["thrift_compact"] = &receiver.SecureReceiverSettings{
+			ReceiverSettings: configmodels.ReceiverSettings{
+				Endpoint: v.GetString(thriftCompactHostPort),
+			},
+		}
+	}
+}
+
+func configureCollector(v *viper.Viper, cfg *jaegerreceiver.Config) {
+	cOpts := collectorApp.CollectorOptions{}
+	cOpts.InitFromViper(v)
+	if v.IsSet(collectorApp.CollectorGRPCHostPort) {
+		cfg.Protocols["grpc"] = &receiver.SecureReceiverSettings{
+			ReceiverSettings: configmodels.ReceiverSettings{
+				Endpoint: cOpts.CollectorGRPCHostPort,
+			},
+		}
+		if cOpts.TLS.ClientCAPath != "" && cOpts.TLS.KeyPath != "" {
+			cfg.Protocols["grpc"].TLSCredentials = &receiver.TLSCredentials{
+				KeyFile:  cOpts.TLS.KeyPath,
+				CertFile: cOpts.TLS.CertPath,
+			}
+		}
+	}
+	if v.IsSet(collectorApp.CollectorHTTPHostPort) {
+		cfg.Protocols["thrift_http"] = &receiver.SecureReceiverSettings{
+			ReceiverSettings: configmodels.ReceiverSettings{
+				Endpoint: cOpts.CollectorHTTPHostPort,
+			},
+		}
+	}
 }
 
 func createDefaultSamplingConfig(v *viper.Viper) *jaegerreceiver.RemoteSamplingConfig {
@@ -68,7 +122,12 @@ func createDefaultSamplingConfig(v *viper.Viper) *jaegerreceiver.RemoteSamplingC
 		if samplingConf == nil {
 			samplingConf = &jaegerreceiver.RemoteSamplingConfig{}
 		}
-		samplingConf.FetchEndpoint = repCfg.CollectorHostPorts[0]
+		samplingConf.GRPCSettings.Endpoint = repCfg.CollectorHostPorts[0]
+		samplingConf.GRPCSettings.TLSConfig.UseSecure = repCfg.TLS.Enabled
+		samplingConf.GRPCSettings.TLSConfig.CaCert = repCfg.TLS.CAPath
+		samplingConf.GRPCSettings.TLSConfig.ClientCert = repCfg.TLS.CertPath
+		samplingConf.GRPCSettings.TLSConfig.ClientKey = repCfg.TLS.KeyPath
+		samplingConf.GRPCSettings.TLSConfig.ServerNameOverride = repCfg.TLS.ServerName
 	}
 	return samplingConf
 }

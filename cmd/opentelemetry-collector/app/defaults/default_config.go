@@ -76,19 +76,24 @@ func CollectorConfig(storageType string, zipkinHostPort string, factories config
 
 func createCollectorReceivers(zipkinHostPort string, factories config.Factories) configmodels.Receivers {
 	jaeger := factories.Receivers["jaeger"].CreateDefaultConfig().(*jaegerreceiver.Config)
-	// TODO load and serve sampling strategies
-	// TODO bind sampling strategies file
-	jaeger.Protocols = map[string]*receiver.SecureReceiverSettings{
-		"grpc": {
+	if jaeger.Protocols == nil {
+		jaeger.Protocols = map[string]*receiver.SecureReceiverSettings{}
+	}
+	// The CreateDefaultConfig is enabling protocols from flags
+	// we do not want to override it here
+	if _, ok := jaeger.Protocols["grpc"]; !ok {
+		jaeger.Protocols["grpc"] = &receiver.SecureReceiverSettings{
 			ReceiverSettings: configmodels.ReceiverSettings{
 				Endpoint: gRPCEndpoint,
 			},
-		},
-		"thrift_http": {
+		}
+	}
+	if _, ok := jaeger.Protocols["thrift_http"]; !ok {
+		jaeger.Protocols["thrift_http"] = &receiver.SecureReceiverSettings{
 			ReceiverSettings: configmodels.ReceiverSettings{
 				Endpoint: httpThriftBinaryEndpoint,
 			},
-		},
+		}
 	}
 	recvs := map[string]configmodels.Receiver{
 		"jaeger": jaeger,
@@ -159,17 +164,19 @@ func AgentConfig(factories config.Factories) *configmodels.Config {
 
 func createAgentReceivers(factories config.Factories) configmodels.Receivers {
 	jaeger := factories.Receivers["jaeger"].CreateDefaultConfig().(*jaegerreceiver.Config)
-	jaeger.Protocols = map[string]*receiver.SecureReceiverSettings{
-		"thrift_compact": {
+	if _, ok := jaeger.Protocols["thrift_compact"]; !ok {
+		jaeger.Protocols["thrift_compact"] = &receiver.SecureReceiverSettings{
 			ReceiverSettings: configmodels.ReceiverSettings{
 				Endpoint: udpThriftCompactEndpoint,
 			},
-		},
-		"thrift_binary": {
+		}
+	}
+	if _, ok := jaeger.Protocols["thrift_binary"]; !ok {
+		jaeger.Protocols["thrift_binary"] = &receiver.SecureReceiverSettings{
 			ReceiverSettings: configmodels.ReceiverSettings{
 				Endpoint: udpThriftBinaryEndpoint,
 			},
-		},
+		}
 	}
 	recvs := configmodels.Receivers{
 		"jaeger": jaeger,

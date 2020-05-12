@@ -94,6 +94,7 @@ func main() {
 		handleErr(err)
 	}
 	cmd := svc.Command()
+	// TODO add agent UDP processors flags
 	jConfig.AddFlags(v,
 		cmd,
 		collectorApp.AddFlags,

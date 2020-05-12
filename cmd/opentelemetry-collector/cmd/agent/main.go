@@ -75,6 +75,7 @@ func main() {
 	handleErr(err)
 
 	cmd := svc.Command()
+	// TODO add collector HTTP thrift and gRPC server host port flags
 	jconfig.AddFlags(v,
 		cmd,
 		jflags.AddConfigFileFlag,
