@@ -22,7 +22,7 @@ import (
 	"github.com/open-telemetry/opentelemetry-collector/exporter/jaegerexporter"
 	"github.com/spf13/viper"
 
-	"github.com/jaegertracing/jaeger/cmd/agent/app/reporter/grpc"
+	grpcRep "github.com/jaegertracing/jaeger/cmd/agent/app/reporter/grpc"
 )
 
 // Factory wraps jaegerexporter.Factory and makes the default config configurable via viper.
@@ -44,7 +44,7 @@ func (f Factory) Type() configmodels.Type {
 // CreateDefaultConfig returns default configuration of Factory.
 // This function implements OTEL component.ExporterFactoryBase interface.
 func (f Factory) CreateDefaultConfig() configmodels.Exporter {
-	repCfg := grpc.ConnBuilder{}
+	repCfg := grpcRep.ConnBuilder{}
 	repCfg.InitFromViper(f.Viper)
 	cfg := f.Wrapped.CreateDefaultConfig().(*jaegerexporter.Config)
 	if len(repCfg.CollectorHostPorts) > 0 {
