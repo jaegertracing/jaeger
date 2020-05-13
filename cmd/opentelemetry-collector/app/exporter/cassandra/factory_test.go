@@ -38,14 +38,14 @@ func TestCreateTraceExporter(t *testing.T) {
 	}}
 	exporter, err := factory.CreateTraceExporter(context.Background(), component.ExporterCreateParams{}, factory.CreateDefaultConfig())
 	require.Nil(t, exporter)
-	assert.EqualError(t, err, "gocql: unable to create session: control: unable to connect to initial hosts: dial tcp 127.0.0.1:9042: connect: connection refused")
+	assert.Contains(t, err.Error(), "gocql: unable to create session")
 }
 
 func TestCreateTraceExporter_NilConfig(t *testing.T) {
 	factory := Factory{}
 	exporter, err := factory.CreateTraceExporter(context.Background(), component.ExporterCreateParams{}, nil)
 	require.Nil(t, exporter)
-	assert.EqualError(t, err, "could not cast configuration to jaeger_cassandra")
+	assert.Contains(t, err.Error(), "could not cast configuration to jaeger_cassandra")
 }
 
 func TestCreateDefaultConfig(t *testing.T) {

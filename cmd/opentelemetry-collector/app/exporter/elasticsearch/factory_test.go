@@ -38,14 +38,14 @@ func TestCreateTraceExporter(t *testing.T) {
 	}}
 	exporter, err := factory.CreateTraceExporter(context.Background(), component.ExporterCreateParams{}, factory.CreateDefaultConfig())
 	require.Nil(t, exporter)
-	assert.EqualError(t, err, "failed to create primary Elasticsearch client: health check timeout: Head http://127.0.0.1:9200: dial tcp 127.0.0.1:9200: connect: connection refused: no Elasticsearch node available")
+	assert.Contains(t, err.Error(), "failed to create primary Elasticsearch client")
 }
 
 func TestCreateTraceExporter_nilConfig(t *testing.T) {
 	factory := &Factory{}
 	exporter, err := factory.CreateTraceExporter(context.Background(), component.ExporterCreateParams{}, nil)
 	require.Nil(t, exporter)
-	assert.EqualError(t, err, "could not cast configuration to jaeger_elasticsearch")
+	assert.Contains(t, err.Error(), "could not cast configuration to jaeger_elasticsearch")
 }
 
 func TestCreateMetricsExporter(t *testing.T) {

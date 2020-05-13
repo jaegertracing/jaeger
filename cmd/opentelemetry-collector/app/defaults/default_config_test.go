@@ -126,7 +126,7 @@ func TestDefaultCollectorConfig(t *testing.T) {
 			cfg, err := CollectorConfig(test.storageType, test.zipkinHostPort, factories)
 			if test.err != "" {
 				require.Nil(t, cfg)
-				assert.EqualError(t, err, test.err)
+				assert.Contains(t, err.Error(), test.err)
 				return
 			}
 			require.NoError(t, err)

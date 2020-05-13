@@ -109,7 +109,7 @@ func TestStore(t *testing.T) {
 			dropped, err := test.storage.traceDataPusher(context.Background(), test.data)
 			assert.Equal(t, test.dropped, dropped)
 			if test.err != "" {
-				assert.EqualError(t, err, test.err)
+				assert.Contains(t, err.Error(), test.err)
 			} else {
 				require.NoError(t, err)
 			}
