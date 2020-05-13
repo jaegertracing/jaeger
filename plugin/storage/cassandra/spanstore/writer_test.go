@@ -199,7 +199,7 @@ func TestSpanWriter(t *testing.T) {
 				durationNoOperationQuery.On("Exec").Return(testCase.durationNoOperationQueryError)
 				durationNoOperationQuery.On("String").Return("select from duration_index")
 
-				// Define expected order of queries
+				// Define expected queries
 				w.session.On("Query", stringMatcher(insertSpan), matchEverything()).Return(spanQuery)
 				w.session.On("Query", stringMatcher(serviceNameIndex), matchEverything()).Return(serviceNameQuery)
 				w.session.On("Query", stringMatcher(serviceOperationIndex), matchEverything()).Return(serviceOperationNameQuery)
@@ -389,7 +389,7 @@ func TestStorageMode_IndexOnly_FirehoseSpan(t *testing.T) {
 		serviceOperationNameQuery.On("Exec").Return(nil)
 		serviceOperationNameQuery.On("String").Return("select from service_operation_index")
 
-		// Define expected order of queries
+		// Define expected queries
 		w.session.On("Query", stringMatcher(serviceNameIndex), matchEverything()).Return(serviceNameQuery)
 		w.session.On("Query", stringMatcher(serviceOperationIndex), matchEverything()).Return(serviceOperationNameQuery)
 
