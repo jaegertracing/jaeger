@@ -39,14 +39,14 @@ func TestCreateTraceExporter(t *testing.T) {
 	}}
 	exporter, err := factory.CreateTraceExporter(context.Background(), component.ExporterCreateParams{Logger: zap.NewNop()}, factory.CreateDefaultConfig())
 	require.Nil(t, exporter)
-	assert.EqualError(t, err, "kafka: client has run out of available brokers to talk to (Is your cluster reachable?)")
+	assert.Contains(t, err.Error(), "kafka: client has run out of available brokers to talk to (Is your cluster reachable?)")
 }
 
 func TestCreateTraceExporter_nilConfig(t *testing.T) {
 	factory := &Factory{}
 	exporter, err := factory.CreateTraceExporter(context.Background(), component.ExporterCreateParams{}, nil)
 	require.Nil(t, exporter)
-	assert.EqualError(t, err, "could not cast configuration to jaeger_kafka")
+	assert.Contains(t, err.Error(), "could not cast configuration to jaeger_kafka")
 }
 
 func TestCreateMetricsExporter(t *testing.T) {

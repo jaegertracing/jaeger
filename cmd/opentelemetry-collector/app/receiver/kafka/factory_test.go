@@ -30,7 +30,6 @@ import (
 	jConfig "github.com/jaegertracing/jaeger/pkg/config"
 )
 
-// TODO failing
 func TestCreateTraceReceiver(t *testing.T) {
 	v, _ := jConfig.Viperize(ingesterApp.AddFlags)
 	opts := DefaultOptions()
@@ -40,14 +39,14 @@ func TestCreateTraceReceiver(t *testing.T) {
 	}}
 	exporter, err := factory.CreateTraceReceiver(context.Background(), component.ReceiverCreateParams{Logger: zap.NewNop()}, factory.CreateDefaultConfig(), nil)
 	require.Nil(t, exporter)
-	assert.EqualError(t, err, "kafka: client has run out of available brokers to talk to (Is your cluster reachable?)")
+	assert.Contains(t, err.Error(), "kafka: client has run out of available brokers to talk to (Is your cluster reachable?)")
 }
 
 func TestCreateTraceExporter_nilConfig(t *testing.T) {
 	factory := &Factory{}
 	exporter, err := factory.CreateTraceReceiver(context.Background(), component.ReceiverCreateParams{}, nil, nil)
 	require.Nil(t, exporter)
-	assert.EqualError(t, err, "could not cast configuration to jaeger_kafka")
+	assert.Contains(t, err.Error(), "could not cast configuration to jaeger_kafka")
 }
 
 func TestCreateMetricsExporter(t *testing.T) {

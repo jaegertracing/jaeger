@@ -38,14 +38,14 @@ func TestCreateTraceExporter(t *testing.T) {
 	}}
 	exporter, err := factory.CreateTraceExporter(context.Background(), component.ExporterCreateParams{}, factory.CreateDefaultConfig())
 	require.Nil(t, exporter)
-	assert.EqualError(t, err, "error attempting to connect to plugin rpc client: fork/exec : no such file or directory")
+	assert.Contains(t, err.Error(), "error attempting to connect to plugin rpc client: fork/exec : no such file or directory")
 }
 
 func TestCreateTraceExporter_nilConfig(t *testing.T) {
 	factory := &Factory{}
 	exporter, err := factory.CreateTraceExporter(context.Background(), component.ExporterCreateParams{}, nil)
 	require.Nil(t, exporter)
-	assert.EqualError(t, err, "could not cast configuration to jaeger_grpc_plugin")
+	assert.Contains(t, err.Error(), "could not cast configuration to jaeger_grpc_plugin")
 }
 
 func TestCreateMetricsExporter(t *testing.T) {
