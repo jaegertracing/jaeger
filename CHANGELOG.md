@@ -1,7 +1,20 @@
 Changes by Version
 ==================
 
-1.18.0 (unreleased)
+1.19.0 (unreleased)
+------------------
+
+### Backend Changes
+
+#### Breaking Changes
+
+#### New Features
+
+#### Bug fixes, Minor Improvements
+
+### UI Changes
+
+1.18.0 (2020-05-14)
 ------------------
 
 ### Backend Changes
@@ -38,9 +51,40 @@ Changes by Version
 
 #### New Features
 
+* Add grpc storage plugin OTEL exporter ([#2229](https://github.com/jaegertracing/jaeger/pull/2229), [@pavolloffay](https://github.com/pavolloffay))
+* Add OTEL ingester component ([#2225](https://github.com/jaegertracing/jaeger/pull/2225), [@pavolloffay](https://github.com/pavolloffay))
+* Add Kafka OTEL receiver/ingester ([#2221](https://github.com/jaegertracing/jaeger/pull/2221), [@pavolloffay](https://github.com/pavolloffay))
+* Create Jaeger OTEL agent component  ([#2216](https://github.com/jaegertracing/jaeger/pull/2216), [@pavolloffay](https://github.com/pavolloffay))
+* Merge hardcoded/default configuration with OTEL config file ([#2211](https://github.com/jaegertracing/jaeger/pull/2211), [@pavolloffay](https://github.com/pavolloffay))
+* Support periodic refresh of sampling strategies ([#2188](https://github.com/jaegertracing/jaeger/pull/2188), [@defool](https://github.com/defool))
+* Add Elasticsearch OTEL exporter ([#2140](https://github.com/jaegertracing/jaeger/pull/2140), [@pavolloffay](https://github.com/pavolloffay))
+* Add Cassandra OTEL exporter ([#2139](https://github.com/jaegertracing/jaeger/pull/2139), [@pavolloffay](https://github.com/pavolloffay))
+* Add Kafka OTEL storage exporter ([#2135](https://github.com/jaegertracing/jaeger/pull/2135), [@pavolloffay](https://github.com/pavolloffay))
+* Clock skew config ([#2119](https://github.com/jaegertracing/jaeger/pull/2119), [@joe-elliott](https://github.com/joe-elliott))
+* Introduce OpenTelemetry collector ([#2086](https://github.com/jaegertracing/jaeger/pull/2086), [@pavolloffay](https://github.com/pavolloffay))
+* Support regex tags search for Elasticseach backend ([#2049](https://github.com/jaegertracing/jaeger/pull/2049), [@annanay25](https://github.com/annanay25))
+
 #### Bug fixes, Minor Improvements
 
+* Do not skip service/operation indexing for firehose spans ([#2242](https://github.com/jaegertracing/jaeger/pull/2242), [@yurishkuro](https://github.com/yurishkuro))
+* Add build information to OTEL binaries ([#2237](https://github.com/jaegertracing/jaeger/pull/2237), [@pavolloffay](https://github.com/pavolloffay))
+* Enable service default sampling param ([#2230](https://github.com/jaegertracing/jaeger/pull/2230), [@defool](https://github.com/defool))
+* Add Jaeger OTEL agent to docker image upload ([#2227](https://github.com/jaegertracing/jaeger/pull/2227), [@ning2008wisc](https://github.com/ning2008wisc))
+* Support adding process tags in OTEL via env variable ([#2220](https://github.com/jaegertracing/jaeger/pull/2220), [@pavolloffay](https://github.com/pavolloffay))
+* Bump OTEL version and update exporters to use new API ([#2196](https://github.com/jaegertracing/jaeger/pull/2196), [@pavolloffay](https://github.com/pavolloffay))
+* Support sampling startegies file flag in OTEL collector ([#2195](https://github.com/jaegertracing/jaeger/pull/2195), [@pavolloffay](https://github.com/pavolloffay))
+* Add zipkin receiver to OTEL collector ([#2181](https://github.com/jaegertracing/jaeger/pull/2181), [@pavolloffay](https://github.com/pavolloffay))
+* Add Dockerfile for OTEL collector and publish latest tag ([#2167](https://github.com/jaegertracing/jaeger/pull/2167), [@pavolloffay](https://github.com/pavolloffay))
+* Run OTEL collector without configuration file ([#2148](https://github.com/jaegertracing/jaeger/pull/2148), [@pavolloffay](https://github.com/pavolloffay))
+* Update gocql to support AWS MCS ([#2133](https://github.com/jaegertracing/jaeger/pull/2133), [@johanneswuerbach](https://github.com/johanneswuerbach))
+* Return appropriate gRPC errors/codes to indicate request status ([#2132](https://github.com/jaegertracing/jaeger/pull/2132), [@yurishkuro](https://github.com/yurishkuro))
+* Remove tchannel port from dockerfile and test ([#2118](https://github.com/jaegertracing/jaeger/pull/2118), [@pavolloffay](https://github.com/pavolloffay))
+* Remove tchannel between agent and collector ([#2115](https://github.com/jaegertracing/jaeger/pull/2115), [@pavolloffay](https://github.com/pavolloffay))
+* Move all tchannel packages to a single top level package ([#2112](https://github.com/jaegertracing/jaeger/pull/2112), [@pavolloffay](https://github.com/pavolloffay))
+
 ### UI Changes
+
+* UI pinned to version 1.9.0. The changelog is available here [v1.9.0](https://github.com/jaegertracing/jaeger-ui/blob/master/CHANGELOG.md#v190-may-14-2020)
 
 1.17.1 (2020-03-13)
 ------------------
