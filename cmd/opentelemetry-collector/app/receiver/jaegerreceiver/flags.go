@@ -18,6 +18,7 @@ import (
 	"flag"
 	"strconv"
 
+	agentApp "github.com/jaegertracing/jaeger/cmd/agent/app"
 	grpcRep "github.com/jaegertracing/jaeger/cmd/agent/app/reporter/grpc"
 	collectorApp "github.com/jaegertracing/jaeger/cmd/collector/app"
 	"github.com/jaegertracing/jaeger/plugin/sampling/strategystore/static"
@@ -36,4 +37,5 @@ func AddFlags(flags *flag.FlagSet) {
 	collectorApp.AddOTELFlags(flags)
 	grpcRep.AddOTELFlags(flags)
 	static.AddOTELFlags(flags)
+	agentApp.AddOTELFlags(flags)
 }

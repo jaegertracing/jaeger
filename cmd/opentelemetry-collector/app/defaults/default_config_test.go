@@ -20,6 +20,7 @@ import (
 	"testing"
 
 	"github.com/open-telemetry/opentelemetry-collector/config"
+	"github.com/open-telemetry/opentelemetry-collector/config/configgrpc"
 	"github.com/open-telemetry/opentelemetry-collector/config/configmodels"
 	"github.com/open-telemetry/opentelemetry-collector/exporter/jaegerexporter"
 	"github.com/open-telemetry/opentelemetry-collector/processor/resourceprocessor"
@@ -201,12 +202,28 @@ func TestCreateCollectorReceivers(t *testing.T) {
 				"--collector.grpc.tls.cert=cacert.crt",
 				"--collector.grpc.tls.key=keycert.crt",
 				"--collector.http-server.host-port=host2:22",
+				"--reporter.grpc.host-port=coll:33",
+				"--reporter.grpc.tls.enabled=true",
+				"--reporter.grpc.tls.ca=cacert.pem",
+				"--reporter.grpc.tls.cert=cert.pem",
+				"--reporter.grpc.tls.key=key.key",
 			},
 			zipkinHostPort: "localhost:55",
 			receivers: configmodels.Receivers{
 				"jaeger": &jaegerreceiver.Config{
 					TypeVal: "jaeger",
 					NameVal: "jaeger",
+					RemoteSampling: &jaegerreceiver.RemoteSamplingConfig{
+						GRPCSettings: configgrpc.GRPCSettings{
+							Endpoint: "coll:33",
+							TLSConfig: configgrpc.TLSConfig{
+								UseSecure:  true,
+								CaCert:     "cacert.pem",
+								ClientCert: "cert.pem",
+								ClientKey:  "key.key",
+							},
+						},
+					},
 					Protocols: map[string]*receiver.SecureReceiverSettings{
 						"grpc": {
 							ReceiverSettings: configmodels.ReceiverSettings{

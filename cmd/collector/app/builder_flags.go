@@ -32,9 +32,9 @@ const (
 	collectorNumWorkers         = "collector.num-workers"
 	collectorHTTPPort           = "collector.http-port"
 	collectorGRPCPort           = "collector.grpc-port"
-	// CollectorHTTPHostPort is a flag for collector HTTP port
+	// CollectorHTTPHostPort is the flag for collector HTTP port
 	CollectorHTTPHostPort = "collector.http-server.host-port"
-	// CollectorGRPCHostPort is a flag for collector gRPC port
+	// CollectorGRPCHostPort is the flag for collector gRPC port
 	CollectorGRPCHostPort         = "collector.grpc-server.host-port"
 	collectorZipkinHTTPPort       = "collector.zipkin.http-port"
 	collectorZipkinHTTPHostPort   = "collector.zipkin.host-port"

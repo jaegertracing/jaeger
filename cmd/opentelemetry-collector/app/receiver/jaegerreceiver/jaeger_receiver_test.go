@@ -23,6 +23,7 @@ import (
 	"github.com/open-telemetry/opentelemetry-collector/component"
 	"github.com/open-telemetry/opentelemetry-collector/config"
 	"github.com/open-telemetry/opentelemetry-collector/config/configerror"
+	"github.com/open-telemetry/opentelemetry-collector/config/configgrpc"
 	"github.com/open-telemetry/opentelemetry-collector/config/configmodels"
 	"github.com/open-telemetry/opentelemetry-collector/receiver"
 	"github.com/open-telemetry/opentelemetry-collector/receiver/jaegerreceiver"
@@ -105,6 +106,34 @@ func TestDefaultValueFromViper(t *testing.T) {
 					"thrift_http":   {ReceiverSettings: configmodels.ReceiverSettings{Endpoint: "localhost:8089"}},
 					"thrift_binary": {ReceiverSettings: configmodels.ReceiverSettings{Endpoint: "localhost:2222"}},
 				},
+			},
+		},
+		{
+			name: "remoteSampling",
+			flags: []string{
+				"--http-server.host-port=machine:1",
+				"--sampling.strategies-file=foo",
+				"--reporter.grpc.host-port=coll:33",
+				"--reporter.grpc.tls.enabled=true",
+				"--reporter.grpc.tls.ca=cacert.pem",
+				"--reporter.grpc.tls.cert=cert.pem",
+				"--reporter.grpc.tls.key=key.key",
+			},
+			expected: &jaegerreceiver.Config{
+				RemoteSampling: &jaegerreceiver.RemoteSamplingConfig{
+					StrategyFile: "foo",
+					HostEndpoint: "machine:1",
+					GRPCSettings: configgrpc.GRPCSettings{
+						Endpoint: "coll:33",
+						TLSConfig: configgrpc.TLSConfig{
+							UseSecure:  true,
+							CaCert:     "cacert.pem",
+							ClientCert: "cert.pem",
+							ClientKey:  "key.key",
+						},
+					},
+				},
+				Protocols: map[string]*receiver.SecureReceiverSettings{},
 			},
 		},
 	}

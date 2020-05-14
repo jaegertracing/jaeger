@@ -111,6 +111,13 @@ func createDefaultSamplingConfig(v *viper.Viper) *jaegerreceiver.RemoteSamplingC
 			StrategyFile: strategyFile,
 		}
 	}
+	if v.IsSet(agentApp.HttpServerHostPort) {
+		if samplingConf == nil {
+			samplingConf = &jaegerreceiver.RemoteSamplingConfig{}
+		}
+		samplingConf.HostEndpoint = v.GetString(agentApp.HttpServerHostPort)
+	}
+
 	repCfg := grpcRep.ConnBuilder{}
 	repCfg.InitFromViper(v)
 	// This is for agent mode.
