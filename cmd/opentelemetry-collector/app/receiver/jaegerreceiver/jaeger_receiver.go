@@ -111,11 +111,11 @@ func createDefaultSamplingConfig(v *viper.Viper) *jaegerreceiver.RemoteSamplingC
 			StrategyFile: strategyFile,
 		}
 	}
-	if v.IsSet(agentApp.HttpServerHostPort) {
+	if v.IsSet(agentApp.HTTPServerHostPort) {
 		if samplingConf == nil {
 			samplingConf = &jaegerreceiver.RemoteSamplingConfig{}
 		}
-		samplingConf.HostEndpoint = v.GetString(agentApp.HttpServerHostPort)
+		samplingConf.HostEndpoint = v.GetString(agentApp.HTTPServerHostPort)
 	}
 
 	repCfg := grpcRep.ConnBuilder{}
