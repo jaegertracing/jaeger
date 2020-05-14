@@ -370,11 +370,13 @@ func TestCreateAgentReceivers(t *testing.T) {
 		},
 	}
 	for _, test := range tests {
-		v, c := jConfig.Viperize(app.AddComponentFlags)
-		require.NoError(t, c.ParseFlags(test.args))
-		factories := Components(v)
-		recvs := createAgentReceivers(factories)
-		assert.Equal(t, test.receivers, recvs)
+		t.Run(fmt.Sprintf("%v", test.args), func(t *testing.T) {
+			v, c := jConfig.Viperize(app.AddComponentFlags)
+			require.NoError(t, c.ParseFlags(test.args))
+			factories := Components(v)
+			recvs := createAgentReceivers(factories)
+			assert.Equal(t, test.receivers, recvs)
+		})
 	}
 }
 
