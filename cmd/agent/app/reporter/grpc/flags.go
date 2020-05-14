@@ -39,9 +39,14 @@ var tlsFlagsConfig = tlscfg.ClientFlagsConfig{
 
 // AddFlags adds flags for Options.
 func AddFlags(flags *flag.FlagSet) {
-	flags.String(collectorHostPort, "", "Comma-separated string representing host:port of a static list of collectors to connect to directly")
 	flags.Uint(retry, defaultMaxRetry, "Sets the maximum number of retries for a call")
 	flags.Int(discoveryMinPeers, 3, "Max number of collectors to which the agent will try to connect at any given time")
+	AddOTELFlags(flags)
+}
+
+// AddOTELFlags adds flags that are exposed by OTEL collector
+func AddOTELFlags(flags *flag.FlagSet) {
+	flags.String(collectorHostPort, "", "Comma-separated string representing host:port of a static list of collectors to connect to directly")
 	tlsFlagsConfig.AddFlags(flags)
 }
 

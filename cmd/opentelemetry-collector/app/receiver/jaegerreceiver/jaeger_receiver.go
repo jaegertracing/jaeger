@@ -25,14 +25,9 @@ import (
 	"github.com/spf13/viper"
 
 	agentApp "github.com/jaegertracing/jaeger/cmd/agent/app"
-	"github.com/jaegertracing/jaeger/cmd/agent/app/reporter/grpc"
+	grpcRep "github.com/jaegertracing/jaeger/cmd/agent/app/reporter/grpc"
 	collectorApp "github.com/jaegertracing/jaeger/cmd/collector/app"
 	"github.com/jaegertracing/jaeger/plugin/sampling/strategystore/static"
-)
-
-const (
-	thriftBinaryHostPort  = "processor.jaeger-binary.server-host-port"
-	thriftCompactHostPort = "processor.jaeger-compact.server-host-port"
 )
 
 // Factory wraps jaegerreceiver.Factory and makes the default config configurable via viper.
@@ -67,6 +62,7 @@ func configureAgent(v *viper.Viper, cfg *jaegerreceiver.Config) {
 	if v.IsSet(thriftBinaryHostPort) {
 		cfg.Protocols["thrift_binary"] = &receiver.SecureReceiverSettings{
 			ReceiverSettings: configmodels.ReceiverSettings{
+				// TODO OTEL does not expose number of workers or queue length
 				Endpoint: v.GetString(thriftBinaryHostPort),
 			},
 		}
@@ -74,6 +70,7 @@ func configureAgent(v *viper.Viper, cfg *jaegerreceiver.Config) {
 	if v.IsSet(thriftCompactHostPort) {
 		cfg.Protocols["thrift_compact"] = &receiver.SecureReceiverSettings{
 			ReceiverSettings: configmodels.ReceiverSettings{
+				// TODO OTEL does not expose number of workers or queue length
 				Endpoint: v.GetString(thriftCompactHostPort),
 			},
 		}
@@ -89,8 +86,9 @@ func configureCollector(v *viper.Viper, cfg *jaegerreceiver.Config) {
 				Endpoint: cOpts.CollectorGRPCHostPort,
 			},
 		}
-		if cOpts.TLS.ClientCAPath != "" && cOpts.TLS.KeyPath != "" {
+		if cOpts.TLS.CertPath != "" && cOpts.TLS.KeyPath != "" {
 			cfg.Protocols["grpc"].TLSCredentials = &receiver.TLSCredentials{
+				// TODO client-ca is missing in OTEL
 				KeyFile:  cOpts.TLS.KeyPath,
 				CertFile: cOpts.TLS.CertPath,
 			}
@@ -113,7 +111,7 @@ func createDefaultSamplingConfig(v *viper.Viper) *jaegerreceiver.RemoteSamplingC
 			StrategyFile: strategyFile,
 		}
 	}
-	repCfg := grpc.ConnBuilder{}
+	repCfg := grpcRep.ConnBuilder{}
 	repCfg.InitFromViper(v)
 	// This is for agent mode.
 	// This uses --reporter.grpc.host-port flag to set the fetch endpoint for the sampling strategies.

@@ -29,15 +29,13 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
-	agentApp "github.com/jaegertracing/jaeger/cmd/agent/app"
-	grpcRep "github.com/jaegertracing/jaeger/cmd/agent/app/reporter/grpc"
 	collectorApp "github.com/jaegertracing/jaeger/cmd/collector/app"
 	jConfig "github.com/jaegertracing/jaeger/pkg/config"
 	"github.com/jaegertracing/jaeger/plugin/sampling/strategystore/static"
 )
 
 func TestDefaultValues(t *testing.T) {
-	v, c := jConfig.Viperize(static.AddFlags)
+	v, c := jConfig.Viperize(AddFlags)
 	err := c.ParseFlags([]string{})
 	require.NoError(t, err)
 
@@ -112,7 +110,7 @@ func TestDefaultValueFromViper(t *testing.T) {
 	}
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
-			v, c := jConfig.Viperize(static.AddFlags, grpcRep.AddFlags, agentApp.AddFlags, collectorApp.AddFlags)
+			v, c := jConfig.Viperize(AddFlags)
 			err := c.ParseFlags(test.flags)
 			require.NoError(t, err)
 			f := &Factory{
@@ -131,7 +129,7 @@ func TestLoadConfigAndFlags(t *testing.T) {
 	factories, err := config.ExampleComponents()
 	require.NoError(t, err)
 
-	v, c := jConfig.Viperize(static.AddFlags)
+	v, c := jConfig.Viperize(AddFlags)
 	err = c.ParseFlags([]string{"--sampling.strategies-file=bar.json"})
 	require.NoError(t, err)
 

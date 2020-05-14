@@ -25,15 +25,12 @@ import (
 	"github.com/open-telemetry/opentelemetry-collector/service/builder"
 	"github.com/spf13/viper"
 
-	"github.com/jaegertracing/jaeger/cmd/agent/app/reporter/grpc"
 	collectorApp "github.com/jaegertracing/jaeger/cmd/collector/app"
 	jflags "github.com/jaegertracing/jaeger/cmd/flags"
 	"github.com/jaegertracing/jaeger/cmd/opentelemetry-collector/app"
 	"github.com/jaegertracing/jaeger/cmd/opentelemetry-collector/app/defaults"
-	"github.com/jaegertracing/jaeger/cmd/opentelemetry-collector/app/processor/resourceprocessor"
 	jConfig "github.com/jaegertracing/jaeger/pkg/config"
 	"github.com/jaegertracing/jaeger/pkg/version"
-	"github.com/jaegertracing/jaeger/plugin/sampling/strategystore/static"
 	"github.com/jaegertracing/jaeger/plugin/storage"
 )
 
@@ -89,20 +86,15 @@ func main() {
 
 	// Add Jaeger specific flags to service command
 	// this passes flag values to viper.
-	storageFlags, err := app.StorageFlags(storageType)
+	storageFlags, err := app.AddStorageFlags(storageType)
 	if err != nil {
 		handleErr(err)
 	}
 	cmd := svc.Command()
-	// TODO add agent UDP processors flags
 	jConfig.AddFlags(v,
 		cmd,
-		collectorApp.AddFlags,
-		jflags.AddConfigFileFlag,
+		app.AddComponentFlags,
 		storageFlags,
-		static.AddFlags,
-		grpc.AddFlags,
-		resourceprocessor.AddFlags,
 	)
 
 	// parse flags to propagate Jaeger config file flag value to viper

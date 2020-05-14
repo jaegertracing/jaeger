@@ -1,8 +1,24 @@
+// Copyright (c) 2020 The Jaeger Authors.
+//
+// Licensed under the Apache License, Version 2.0 (the "License");
+// you may not use this file except in compliance with the License.
+// You may obtain a copy of the License at
+//
+// http://www.apache.org/licenses/LICENSE-2.0
+//
+// Unless required by applicable law or agreed to in writing, software
+// distributed under the License is distributed on an "AS IS" BASIS,
+// WITHOUT WARRANTIES OR CONDITIONS OF ANY KIND, either express or implied.
+// See the License for the specific language governing permissions and
+// limitations under the License.
+
 package jaegerexporter
 
 import (
 	"context"
-	jConfig "github.com/jaegertracing/jaeger/pkg/config"
+	"path"
+	"testing"
+
 	"github.com/open-telemetry/opentelemetry-collector/component"
 	"github.com/open-telemetry/opentelemetry-collector/config"
 	"github.com/open-telemetry/opentelemetry-collector/config/configerror"
@@ -10,14 +26,13 @@ import (
 	"github.com/open-telemetry/opentelemetry-collector/exporter/jaegerexporter"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-	"path"
-	"testing"
 
-	grpcRep "github.com/jaegertracing/jaeger/cmd/agent/app/reporter/grpc"
+	"github.com/jaegertracing/jaeger/cmd/opentelemetry-collector/app/receiver/jaegerreceiver"
+	jConfig "github.com/jaegertracing/jaeger/pkg/config"
 )
 
 func TestDefaultValues(t *testing.T) {
-	v, c := jConfig.Viperize(grpcRep.AddFlags)
+	v, c := jConfig.Viperize(jaegerreceiver.AddFlags)
 	err := c.ParseFlags([]string{})
 	require.NoError(t, err)
 
@@ -33,7 +48,7 @@ func TestDefaultValues(t *testing.T) {
 }
 
 func TestDefaultValueFromViper(t *testing.T) {
-	v, c := jConfig.Viperize(grpcRep.AddFlags)
+	v, c := jConfig.Viperize(jaegerreceiver.AddFlags)
 	err := c.ParseFlags([]string{"--reporter.grpc.host-port=foo", "--reporter.grpc.tls.enabled=true", "--reporter.grpc.tls.ca=ca.crt"})
 	require.NoError(t, err)
 
@@ -53,7 +68,7 @@ func TestLoadConfigAndFlags(t *testing.T) {
 	factories, err := config.ExampleComponents()
 	require.NoError(t, err)
 
-	v, c := jConfig.Viperize(grpcRep.AddFlags)
+	v, c := jConfig.Viperize(jaegerreceiver.AddFlags)
 	err = c.ParseFlags([]string{"--reporter.grpc.host-port=foo"})
 	require.NoError(t, err)
 
