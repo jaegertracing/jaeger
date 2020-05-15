@@ -16,50 +16,149 @@ package jaegerreceiver
 
 import (
 	"context"
+	"fmt"
 	"path"
 	"testing"
 
 	"github.com/open-telemetry/opentelemetry-collector/component"
 	"github.com/open-telemetry/opentelemetry-collector/config"
 	"github.com/open-telemetry/opentelemetry-collector/config/configerror"
+	"github.com/open-telemetry/opentelemetry-collector/config/configgrpc"
 	"github.com/open-telemetry/opentelemetry-collector/config/configmodels"
+	"github.com/open-telemetry/opentelemetry-collector/receiver"
 	"github.com/open-telemetry/opentelemetry-collector/receiver/jaegerreceiver"
-	"github.com/spf13/viper"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 
+	collectorApp "github.com/jaegertracing/jaeger/cmd/collector/app"
 	jConfig "github.com/jaegertracing/jaeger/pkg/config"
 	"github.com/jaegertracing/jaeger/plugin/sampling/strategystore/static"
 )
 
 func TestDefaultValues(t *testing.T) {
-	v, c := jConfig.Viperize(static.AddFlags)
+	v, c := jConfig.Viperize(AddFlags)
 	err := c.ParseFlags([]string{})
 	require.NoError(t, err)
 
 	factory := &Factory{Viper: v, Wrapped: &jaegerreceiver.Factory{}}
 	cfg := factory.CreateDefaultConfig().(*jaegerreceiver.Config)
 	assert.Nil(t, cfg.RemoteSampling)
+	assert.Empty(t, cfg.Protocols)
 }
 
 func TestDefaultValueFromViper(t *testing.T) {
-	v := viper.New()
-	v.Set(static.SamplingStrategiesFile, "config.json")
-
-	f := &Factory{
-		Wrapped: &jaegerreceiver.Factory{},
-		Viper:   v,
+	tests := []struct {
+		name     string
+		flags    []string
+		expected *jaegerreceiver.Config
+	}{
+		{
+			name:  "samplingStrategyFile",
+			flags: []string{fmt.Sprintf("--%s=%s", static.SamplingStrategiesFile, "conf.json")},
+			expected: &jaegerreceiver.Config{
+				RemoteSampling: &jaegerreceiver.RemoteSamplingConfig{
+					StrategyFile: "conf.json",
+				},
+				Protocols: map[string]*receiver.SecureReceiverSettings{},
+			},
+		},
+		{
+			name:  "thriftCompact",
+			flags: []string{fmt.Sprintf("--%s=%s", thriftCompactHostPort, "localhost:9999")},
+			expected: &jaegerreceiver.Config{
+				Protocols: map[string]*receiver.SecureReceiverSettings{
+					"thrift_compact": {ReceiverSettings: configmodels.ReceiverSettings{Endpoint: "localhost:9999"}},
+				},
+			},
+		},
+		{
+			name:  "thriftBinary",
+			flags: []string{fmt.Sprintf("--%s=%s", thriftBinaryHostPort, "localhost:8888")},
+			expected: &jaegerreceiver.Config{
+				Protocols: map[string]*receiver.SecureReceiverSettings{
+					"thrift_binary": {ReceiverSettings: configmodels.ReceiverSettings{Endpoint: "localhost:8888"}},
+				},
+			},
+		},
+		{
+			name:  "grpc",
+			flags: []string{fmt.Sprintf("--%s=%s", collectorApp.CollectorGRPCHostPort, "localhost:7894")},
+			expected: &jaegerreceiver.Config{
+				Protocols: map[string]*receiver.SecureReceiverSettings{
+					"grpc": {ReceiverSettings: configmodels.ReceiverSettings{Endpoint: "localhost:7894"}},
+				},
+			},
+		},
+		{
+			name:  "thriftHttp",
+			flags: []string{fmt.Sprintf("--%s=%s", collectorApp.CollectorHTTPHostPort, "localhost:8080")},
+			expected: &jaegerreceiver.Config{
+				Protocols: map[string]*receiver.SecureReceiverSettings{
+					"thrift_http": {ReceiverSettings: configmodels.ReceiverSettings{Endpoint: "localhost:8080"}},
+				},
+			},
+		},
+		{
+			name:  "thriftHttpAndThriftBinary",
+			flags: []string{fmt.Sprintf("--%s=%s", collectorApp.CollectorHTTPHostPort, "localhost:8089"), fmt.Sprintf("--%s=%s", thriftBinaryHostPort, "localhost:2222")},
+			expected: &jaegerreceiver.Config{
+				Protocols: map[string]*receiver.SecureReceiverSettings{
+					"thrift_http":   {ReceiverSettings: configmodels.ReceiverSettings{Endpoint: "localhost:8089"}},
+					"thrift_binary": {ReceiverSettings: configmodels.ReceiverSettings{Endpoint: "localhost:2222"}},
+				},
+			},
+		},
+		{
+			name: "remoteSampling",
+			flags: []string{
+				"--http-server.host-port=machine:1",
+				"--sampling.strategies-file=foo",
+				"--reporter.grpc.host-port=coll:33",
+				"--reporter.grpc.tls.enabled=true",
+				"--reporter.grpc.tls.ca=cacert.pem",
+				"--reporter.grpc.tls.cert=cert.pem",
+				"--reporter.grpc.tls.key=key.key",
+			},
+			expected: &jaegerreceiver.Config{
+				RemoteSampling: &jaegerreceiver.RemoteSamplingConfig{
+					StrategyFile: "foo",
+					HostEndpoint: "machine:1",
+					GRPCSettings: configgrpc.GRPCSettings{
+						Endpoint: "coll:33",
+						TLSConfig: configgrpc.TLSConfig{
+							UseSecure:  true,
+							CaCert:     "cacert.pem",
+							ClientCert: "cert.pem",
+							ClientKey:  "key.key",
+						},
+					},
+				},
+				Protocols: map[string]*receiver.SecureReceiverSettings{},
+			},
+		},
 	}
-
-	cfg := f.CreateDefaultConfig().(*jaegerreceiver.Config)
-	assert.Equal(t, "config.json", cfg.RemoteSampling.StrategyFile)
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			v, c := jConfig.Viperize(AddFlags)
+			err := c.ParseFlags(test.flags)
+			require.NoError(t, err)
+			f := &Factory{
+				Wrapped: &jaegerreceiver.Factory{},
+				Viper:   v,
+			}
+			cfg := f.CreateDefaultConfig().(*jaegerreceiver.Config)
+			test.expected.TypeVal = "jaeger"
+			test.expected.NameVal = "jaeger"
+			assert.Equal(t, test.expected, cfg)
+		})
+	}
 }
 
 func TestLoadConfigAndFlags(t *testing.T) {
 	factories, err := config.ExampleComponents()
 	require.NoError(t, err)
 
-	v, c := jConfig.Viperize(static.AddFlags)
+	v, c := jConfig.Viperize(AddFlags)
 	err = c.ParseFlags([]string{"--sampling.strategies-file=bar.json"})
 	require.NoError(t, err)
 

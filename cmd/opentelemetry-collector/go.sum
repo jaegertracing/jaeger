@@ -954,6 +954,8 @@ github.com/onsi/gomega v1.9.0 h1:R1uwffexN6Pr340GtYRIdZmAiN4J+iw6WG4wog1DUXg=
 github.com/onsi/gomega v1.9.0/go.mod h1:Ho0h+IUsWyvy1OpqCwxlQ/21gkhVunqlU8fDGcoTdcA=
 github.com/open-telemetry/opentelemetry-collector v0.3.1-0.20200505202444-021607d68586 h1:HD0/Opa/WiWaG+B6LP+5XT9lYqpErWd6DjH3ah9mQrU=
 github.com/open-telemetry/opentelemetry-collector v0.3.1-0.20200505202444-021607d68586/go.mod h1:ht/uOm+HLoXWjhq6seX/BoTwlR0dtCKFe2Y23YRk2a4=
+github.com/open-telemetry/opentelemetry-collector v0.3.1-0.20200512031848-f588c89b4778 h1:wcE5bWypMq95vlZGikUklYB6VPyg3pke/32nei5/Sww=
+github.com/open-telemetry/opentelemetry-collector v0.3.1-0.20200512031848-f588c89b4778/go.mod h1:+q6GyqO1FHatlq93uplydIVjRhBrv04oQ23AbOqcn6E=
 github.com/open-telemetry/opentelemetry-proto v0.3.0 h1:+ASAtcayvoELyCF40+rdCMlBOhZIn5TPDez85zSYc30=
 github.com/open-telemetry/opentelemetry-proto v0.3.0/go.mod h1:PMR5GI0F7BSpio+rBGFxNm6SLzg3FypDTcFuQZnO+F8=
 github.com/opencontainers/go-digest v1.0.0-rc1/go.mod h1:cMLVZDEM3+U2I4VmLI6N8jQYUd2OVphdqWwCJHrFt2s=
@@ -968,6 +970,8 @@ github.com/openzipkin/zipkin-go v0.2.1 h1:noL5/5Uf1HpVl3wNsfkZhIKbSWCVi5jgqkONNx
 github.com/openzipkin/zipkin-go v0.2.1/go.mod h1:NaW6tEwdmWMaCDZzg8sh+IBNOxHMPnhQw8ySjnjRyN4=
 github.com/orijtech/prometheus-go-metrics-exporter v0.0.4 h1:AAHKuTu2lX4eMPKV+CRcTug9KdMZ/Ckez7KK+ddEQfM=
 github.com/orijtech/prometheus-go-metrics-exporter v0.0.4/go.mod h1:BiTx/ugZex8LheBk3j53tktWaRdFjV5FCfT2o0P7msE=
+github.com/orijtech/prometheus-go-metrics-exporter v0.0.5 h1:76JFgRIgNDA3pW1fUhmqinU2u5ndHv1gvapDfGG+7/c=
+github.com/orijtech/prometheus-go-metrics-exporter v0.0.5/go.mod h1:BiTx/ugZex8LheBk3j53tktWaRdFjV5FCfT2o0P7msE=
 github.com/ory/dockertest v3.3.5+incompatible/go.mod h1:1vX4m9wsvi00u5bseYwXaSnhNrne+V0E6LAcBILJdPs=
 github.com/ory/dockertest/v3 v3.5.4/go.mod h1:J8ZUbNB2FOhm1cFZW9xBpDsODqsSWcyYgtJYVPcnF70=
 github.com/ory/fosite v0.29.0/go.mod h1:0atSZmXO7CAcs6NPMI/Qtot8tmZYj04Nddoold4S2h0=

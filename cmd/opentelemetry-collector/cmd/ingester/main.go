@@ -26,7 +26,6 @@ import (
 	"github.com/spf13/viper"
 
 	jflags "github.com/jaegertracing/jaeger/cmd/flags"
-	ingesterApp "github.com/jaegertracing/jaeger/cmd/ingester/app"
 	"github.com/jaegertracing/jaeger/cmd/opentelemetry-collector/app"
 	"github.com/jaegertracing/jaeger/cmd/opentelemetry-collector/app/defaults"
 	jconfig "github.com/jaegertracing/jaeger/pkg/config"
@@ -84,7 +83,7 @@ func main() {
 
 	// Add Jaeger specific flags to service command
 	// this passes flag values to viper.
-	storageFlags, err := app.StorageFlags(storageType)
+	storageFlags, err := app.AddStorageFlags(storageType)
 	if err != nil {
 		handleErr(err)
 	}
@@ -92,8 +91,7 @@ func main() {
 	cmd := svc.Command()
 	jconfig.AddFlags(v,
 		cmd,
-		jflags.AddConfigFileFlag,
-		ingesterApp.AddFlags,
+		app.AddComponentFlags,
 		storageFlags,
 	)
 

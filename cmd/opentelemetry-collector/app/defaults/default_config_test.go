@@ -20,16 +20,19 @@ import (
 	"testing"
 
 	"github.com/open-telemetry/opentelemetry-collector/config"
+	"github.com/open-telemetry/opentelemetry-collector/config/configgrpc"
 	"github.com/open-telemetry/opentelemetry-collector/config/configmodels"
 	"github.com/open-telemetry/opentelemetry-collector/exporter/jaegerexporter"
 	"github.com/open-telemetry/opentelemetry-collector/processor/resourceprocessor"
+	"github.com/open-telemetry/opentelemetry-collector/receiver"
 	"github.com/open-telemetry/opentelemetry-collector/receiver/jaegerreceiver"
+	"github.com/open-telemetry/opentelemetry-collector/receiver/zipkinreceiver"
 	"github.com/spf13/viper"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"go.uber.org/zap"
 
-	"github.com/jaegertracing/jaeger/cmd/agent/app/reporter/grpc"
+	"github.com/jaegertracing/jaeger/cmd/opentelemetry-collector/app"
 	"github.com/jaegertracing/jaeger/cmd/opentelemetry-collector/app/exporter/cassandra"
 	"github.com/jaegertracing/jaeger/cmd/opentelemetry-collector/app/exporter/elasticsearch"
 	"github.com/jaegertracing/jaeger/cmd/opentelemetry-collector/app/exporter/grpcplugin"
@@ -118,7 +121,7 @@ func TestDefaultCollectorConfig(t *testing.T) {
 	}
 	for _, test := range tests {
 		t.Run(test.storageType, func(t *testing.T) {
-			v, _ := jConfig.Viperize(grpc.AddFlags)
+			v, _ := jConfig.Viperize(app.AddComponentFlags)
 			factories := Components(v)
 			for key, val := range test.config {
 				v.Set(key, val)
@@ -162,6 +165,87 @@ func TestDefaultCollectorConfig(t *testing.T) {
 	}
 }
 
+func TestCreateCollectorReceivers(t *testing.T) {
+	tests := []struct {
+		name           string
+		args           []string
+		zipkinHostPort string
+		receivers      configmodels.Receivers
+	}{
+		{
+			name:           "defaultWithoutZipkin",
+			args:           []string{},
+			zipkinHostPort: ":0",
+			receivers: configmodels.Receivers{
+				"jaeger": &jaegerreceiver.Config{
+					TypeVal: "jaeger",
+					NameVal: "jaeger",
+					Protocols: map[string]*receiver.SecureReceiverSettings{
+						"grpc": {
+							ReceiverSettings: configmodels.ReceiverSettings{
+								Endpoint: gRPCEndpoint,
+							},
+						},
+						"thrift_http": {
+							ReceiverSettings: configmodels.ReceiverSettings{
+								Endpoint: httpThriftBinaryEndpoint,
+							},
+						},
+					},
+				},
+			},
+		},
+		{
+			name: "configurationViaFlags",
+			args: []string{
+				"--collector.grpc-server.host-port=host:11",
+				"--collector.grpc.tls.cert=cacert.crt",
+				"--collector.grpc.tls.key=keycert.crt",
+				"--collector.http-server.host-port=host2:22",
+			},
+			zipkinHostPort: "localhost:55",
+			receivers: configmodels.Receivers{
+				"jaeger": &jaegerreceiver.Config{
+					TypeVal: "jaeger",
+					NameVal: "jaeger",
+					Protocols: map[string]*receiver.SecureReceiverSettings{
+						"grpc": {
+							ReceiverSettings: configmodels.ReceiverSettings{
+								Endpoint: "host:11",
+							},
+							TLSCredentials: &receiver.TLSCredentials{
+								CertFile: "cacert.crt",
+								KeyFile:  "keycert.crt",
+							},
+						},
+						"thrift_http": {
+							ReceiverSettings: configmodels.ReceiverSettings{
+								Endpoint: "host2:22",
+							},
+						},
+					},
+				},
+				"zipkin": &zipkinreceiver.Config{
+					ReceiverSettings: configmodels.ReceiverSettings{
+						NameVal:  "zipkin",
+						TypeVal:  "zipkin",
+						Endpoint: "localhost:55",
+					},
+				},
+			},
+		},
+	}
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			v, c := jConfig.Viperize(app.AddComponentFlags)
+			require.NoError(t, c.ParseFlags(test.args))
+			factories := Components(v)
+			recvs := createCollectorReceivers(test.zipkinHostPort, factories)
+			assert.Equal(t, test.receivers, recvs)
+		})
+	}
+}
+
 func TestDefaultAgentConfig(t *testing.T) {
 	tests := []struct {
 		config  map[string]interface{}
@@ -196,7 +280,7 @@ func TestDefaultAgentConfig(t *testing.T) {
 	}
 	for _, test := range tests {
 		t.Run(fmt.Sprintf("%v", test.config), func(t *testing.T) {
-			v, _ := jConfig.Viperize(grpc.AddFlags)
+			v, _ := jConfig.Viperize(app.AddComponentFlags)
 			for key, val := range test.config {
 				v.Set(key, val)
 			}
@@ -217,6 +301,84 @@ func TestDefaultAgentConfig(t *testing.T) {
 				assert.Equal(t, len(processorMap), len(cfg.Processors))
 				assert.IsType(t, &resourceprocessor.Config{}, cfg.Processors["resource"])
 			}
+		})
+	}
+}
+
+func TestCreateAgentReceivers(t *testing.T) {
+	tests := []struct {
+		args      []string
+		receivers configmodels.Receivers
+	}{
+		{
+			args: []string{""},
+			receivers: configmodels.Receivers{
+				"jaeger": &jaegerreceiver.Config{
+					TypeVal: "jaeger",
+					NameVal: "jaeger",
+					Protocols: map[string]*receiver.SecureReceiverSettings{
+						"thrift_compact": {
+							ReceiverSettings: configmodels.ReceiverSettings{
+								Endpoint: udpThriftCompactEndpoint,
+							},
+						},
+						"thrift_binary": {
+							ReceiverSettings: configmodels.ReceiverSettings{
+								Endpoint: udpThriftBinaryEndpoint,
+							},
+						},
+					},
+				},
+			},
+		},
+		{
+			args: []string{
+				"--processor.jaeger-binary.server-host-port=host:1",
+				"--processor.jaeger-compact.server-host-port=host:2",
+				"--reporter.grpc.host-port=coll:33",
+				"--reporter.grpc.tls.enabled=true",
+				"--reporter.grpc.tls.ca=cacert.pem",
+				"--reporter.grpc.tls.cert=cert.pem",
+				"--reporter.grpc.tls.key=key.key",
+			},
+			receivers: configmodels.Receivers{
+				"jaeger": &jaegerreceiver.Config{
+					TypeVal: "jaeger",
+					NameVal: "jaeger",
+					RemoteSampling: &jaegerreceiver.RemoteSamplingConfig{
+						GRPCSettings: configgrpc.GRPCSettings{
+							Endpoint: "coll:33",
+							TLSConfig: configgrpc.TLSConfig{
+								UseSecure:  true,
+								CaCert:     "cacert.pem",
+								ClientCert: "cert.pem",
+								ClientKey:  "key.key",
+							},
+						},
+					},
+					Protocols: map[string]*receiver.SecureReceiverSettings{
+						"thrift_binary": {
+							ReceiverSettings: configmodels.ReceiverSettings{
+								Endpoint: "host:1",
+							},
+						},
+						"thrift_compact": {
+							ReceiverSettings: configmodels.ReceiverSettings{
+								Endpoint: "host:2",
+							},
+						},
+					},
+				},
+			},
+		},
+	}
+	for _, test := range tests {
+		t.Run(fmt.Sprintf("%v", test.args), func(t *testing.T) {
+			v, c := jConfig.Viperize(app.AddComponentFlags)
+			require.NoError(t, c.ParseFlags(test.args))
+			factories := Components(v)
+			recvs := createAgentReceivers(factories)
+			assert.Equal(t, test.receivers, recvs)
 		})
 	}
 }

@@ -19,15 +19,26 @@ import (
 	"fmt"
 	"strings"
 
+	jConfigFile "github.com/jaegertracing/jaeger/cmd/flags"
 	"github.com/jaegertracing/jaeger/cmd/opentelemetry-collector/app/exporter/cassandra"
 	"github.com/jaegertracing/jaeger/cmd/opentelemetry-collector/app/exporter/elasticsearch"
 	"github.com/jaegertracing/jaeger/cmd/opentelemetry-collector/app/exporter/grpcplugin"
 	"github.com/jaegertracing/jaeger/cmd/opentelemetry-collector/app/exporter/kafka"
+	"github.com/jaegertracing/jaeger/cmd/opentelemetry-collector/app/processor/resourceprocessor"
+	"github.com/jaegertracing/jaeger/cmd/opentelemetry-collector/app/receiver/jaegerreceiver"
 )
 
-// StorageFlags return a function that adds storage flags.
+// AddComponentFlags adds all flags exposed by components
+func AddComponentFlags(flags *flag.FlagSet) {
+	// Jaeger receiver (via sampling strategies receiver) exposes the same flags as exporter.
+	jaegerreceiver.AddFlags(flags)
+	resourceprocessor.AddFlags(flags)
+	jConfigFile.AddConfigFileFlag(flags)
+}
+
+// AddStorageFlags return a function that adds storage flags.
 // storage parameter can contain a comma separated list of supported Jaeger storage backends.
-func StorageFlags(storage string) (func(*flag.FlagSet), error) {
+func AddStorageFlags(storage string) (func(*flag.FlagSet), error) {
 	var flagFn []func(*flag.FlagSet)
 	for _, s := range strings.Split(storage, ",") {
 		switch s {

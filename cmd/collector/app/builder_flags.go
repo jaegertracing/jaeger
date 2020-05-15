@@ -27,13 +27,15 @@ import (
 )
 
 const (
-	collectorDynQueueSizeMemory   = "collector.queue-size-memory"
-	collectorQueueSize            = "collector.queue-size"
-	collectorNumWorkers           = "collector.num-workers"
-	collectorHTTPPort             = "collector.http-port"
-	collectorGRPCPort             = "collector.grpc-port"
-	collectorHTTPHostPort         = "collector.http-server.host-port"
-	collectorGRPCHostPort         = "collector.grpc-server.host-port"
+	collectorDynQueueSizeMemory = "collector.queue-size-memory"
+	collectorQueueSize          = "collector.queue-size"
+	collectorNumWorkers         = "collector.num-workers"
+	collectorHTTPPort           = "collector.http-port"
+	collectorGRPCPort           = "collector.grpc-port"
+	// CollectorHTTPHostPort is the flag for collector HTTP port
+	CollectorHTTPHostPort = "collector.http-server.host-port"
+	// CollectorGRPCHostPort is the flag for collector gRPC port
+	CollectorGRPCHostPort         = "collector.grpc-server.host-port"
 	collectorZipkinHTTPPort       = "collector.zipkin.http-port"
 	collectorZipkinHTTPHostPort   = "collector.zipkin.host-port"
 	collectorTags                 = "collector.tags"
@@ -79,16 +81,21 @@ type CollectorOptions struct {
 func AddFlags(flags *flag.FlagSet) {
 	flags.Int(collectorQueueSize, DefaultQueueSize, "The queue size of the collector")
 	flags.Int(collectorNumWorkers, DefaultNumWorkers, "The number of workers pulling items from the queue")
-	flags.Int(collectorHTTPPort, 0, collectorHTTPPortWarning+" see --"+collectorHTTPHostPort)
-	flags.Int(collectorGRPCPort, 0, collectorGRPCPortWarning+" see --"+collectorGRPCHostPort)
+	flags.Int(collectorHTTPPort, 0, collectorHTTPPortWarning+" see --"+CollectorHTTPHostPort)
+	flags.Int(collectorGRPCPort, 0, collectorGRPCPortWarning+" see --"+CollectorGRPCHostPort)
 	flags.Int(collectorZipkinHTTPPort, 0, collectorZipkinHTTPPortWarning+" see --"+collectorZipkinHTTPHostPort)
-	flags.String(collectorHTTPHostPort, ports.PortToHostPort(ports.CollectorHTTP), "The host:port (e.g. 127.0.0.1:5555 or :5555) of the collector's HTTP server")
-	flags.String(collectorGRPCHostPort, ports.PortToHostPort(ports.CollectorGRPC), "The host:port (e.g. 127.0.0.1:5555 or :5555) of the collector's GRPC server")
-	flags.String(collectorZipkinHTTPHostPort, ports.PortToHostPort(0), "The host:port (e.g. 127.0.0.1:5555 or :5555) of the collector's Zipkin server")
 	flags.Uint(collectorDynQueueSizeMemory, 0, "(experimental) The max memory size in MiB to use for the dynamic queue.")
 	flags.String(collectorTags, "", "One or more tags to be added to the Process tags of all spans passing through this collector. Ex: key1=value1,key2=${envVar:defaultValue}")
 	flags.String(collectorZipkinAllowedOrigins, "*", "Comma separated list of allowed origins for the Zipkin collector service, default accepts all")
 	flags.String(collectorZipkinAllowedHeaders, "content-type", "Comma separated list of allowed headers for the Zipkin collector service, default content-type")
+	AddOTELFlags(flags)
+}
+
+// AddOTELFlags adds flags that are exposed by OTEL collector
+func AddOTELFlags(flags *flag.FlagSet) {
+	flags.String(collectorZipkinHTTPHostPort, ports.PortToHostPort(0), "The host:port (e.g. 127.0.0.1:5555 or :5555) of the collector's Zipkin server")
+	flags.String(CollectorHTTPHostPort, ports.PortToHostPort(ports.CollectorHTTP), "The host:port (e.g. 127.0.0.1:5555 or :5555) of the collector's HTTP server")
+	flags.String(CollectorGRPCHostPort, ports.PortToHostPort(ports.CollectorGRPC), "The host:port (e.g. 127.0.0.1:5555 or :5555) of the collector's GRPC server")
 	tlsFlagsConfig.AddFlags(flags)
 }
 
@@ -97,8 +104,8 @@ func (cOpts *CollectorOptions) InitFromViper(v *viper.Viper) *CollectorOptions {
 	cOpts.DynQueueSizeMemory = v.GetUint(collectorDynQueueSizeMemory) * 1024 * 1024 // we receive in MiB and store in bytes
 	cOpts.QueueSize = v.GetInt(collectorQueueSize)
 	cOpts.NumWorkers = v.GetInt(collectorNumWorkers)
-	cOpts.CollectorHTTPHostPort = getAddressFromCLIOptions(v.GetInt(collectorHTTPPort), v.GetString(collectorHTTPHostPort))
-	cOpts.CollectorGRPCHostPort = getAddressFromCLIOptions(v.GetInt(collectorGRPCPort), v.GetString(collectorGRPCHostPort))
+	cOpts.CollectorHTTPHostPort = getAddressFromCLIOptions(v.GetInt(collectorHTTPPort), v.GetString(CollectorHTTPHostPort))
+	cOpts.CollectorGRPCHostPort = getAddressFromCLIOptions(v.GetInt(collectorGRPCPort), v.GetString(CollectorGRPCHostPort))
 	cOpts.CollectorZipkinHTTPHostPort = getAddressFromCLIOptions(v.GetInt(collectorZipkinHTTPPort), v.GetString(collectorZipkinHTTPHostPort))
 	cOpts.CollectorTags = flags.ParseJaegerTags(v.GetString(collectorTags))
 	cOpts.CollectorZipkinAllowedOrigins = v.GetString(collectorZipkinAllowedOrigins)

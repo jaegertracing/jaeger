@@ -3,7 +3,7 @@ version: '2'
 services:
     jaeger-collector:
       image: jaegertracing/jaeger-collector
-      command: ["--es.num-shards=1", "--es.num-replicas=0", "--es.server-urls=http://elasticsearch:9200", "--collector.zipkin.http-port=9411"]
+      command: ["--es.num-shards=1", "--es.num-replicas=0", "--es.server-urls=http://elasticsearch:9200", "--collector.zipkin.host-port=:9411"]
       ports:
         - "14269"
         - "14268:14268"
