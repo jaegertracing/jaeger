@@ -1,4 +1,4 @@
-// Copyright (c) 2020 The Jaeger Authors.
+// Copyright (c) 2019,2020 The Jaeger Authors.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -104,10 +104,10 @@ func (s *Server) Start() error {
 	if port, err := netutils.GetPort(s.conn.Addr()); err == nil {
 		tcpPort = port
 	}
-	s.svc.Logger.Info("addr", zap.Int("port", tcpPort))
 
 	s.svc.Logger.Info(
 		"Query server started",
+		zap.Int("port", tcpPort),
 		zap.String("addr", s.queryOptions.HostPort))
 
 	// cmux server acts as a reverse-proxy between HTTP and GRPC backends.
@@ -120,7 +120,7 @@ func (s *Server) Start() error {
 	httpListener := cmuxServer.Match(cmux.Any())
 
 	go func() {
-		s.svc.Logger.Info("Starting HTTP server", zap.String("addr", s.queryOptions.HostPort))
+		s.svc.Logger.Info("Starting HTTP server", zap.Int("port", tcpPort), zap.String("addr", s.queryOptions.HostPort))
 
 		switch err := s.httpServer.Serve(httpListener); err {
 		case nil, http.ErrServerClosed, cmux.ErrListenerClosed:
@@ -133,7 +133,7 @@ func (s *Server) Start() error {
 
 	// Start GRPC server concurrently
 	go func() {
-		s.svc.Logger.Info("Starting GRPC server", zap.String("addr", s.queryOptions.HostPort))
+		s.svc.Logger.Info("Starting GRPC server", zap.Int("port", tcpPort), zap.String("addr", s.queryOptions.HostPort))
 
 		if err := s.grpcServer.Serve(grpcListener); err != nil {
 			s.svc.Logger.Error("Could not start GRPC server", zap.Error(err))
@@ -143,7 +143,7 @@ func (s *Server) Start() error {
 
 	// Start cmux server concurrently.
 	go func() {
-		s.svc.Logger.Info("Starting CMUX server", zap.String("addr", s.queryOptions.HostPort))
+		s.svc.Logger.Info("Starting CMUX server", zap.Int("port", tcpPort), zap.String("addr", s.queryOptions.HostPort))
 
 		err := cmuxServer.Serve()
 		// TODO: Remove string comparison when https://github.com/soheilhy/cmux/pull/69 is merged
