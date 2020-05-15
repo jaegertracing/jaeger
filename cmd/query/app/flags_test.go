@@ -52,7 +52,6 @@ func TestQueryBuilderFlags(t *testing.T) {
 	assert.Equal(t, "/dev/null", qOpts.StaticAssets)
 	assert.Equal(t, "some.json", qOpts.UIConfig)
 	assert.Equal(t, "/jaeger", qOpts.BasePath)
-	//assert.Equal(t, 80, qOpts.Port)
 	assert.Equal(t, "127.0.0.1:8080", qOpts.HostPort)
 	assert.Equal(t, http.Header{
 		"Access-Control-Allow-Origin": []string{"blerg"},
@@ -68,17 +67,6 @@ func TestQueryBuilderBadHeadersFlags(t *testing.T) {
 	})
 	qOpts := new(QueryOptions).InitFromViper(v, zap.NewNop())
 	assert.Nil(t, qOpts.AdditionalHeaders)
-}
-
-func TestQueryOptionsWithFlags_CheckHostPort(t *testing.T) {
-	q := &QueryOptions{}
-	v, command := config.Viperize(AddFlags)
-	command.ParseFlags([]string{
-		"--query.host-port=8080",
-	})
-	q.InitFromViper(v, zap.NewNop())
-
-	assert.Equal(t, ":8080", q.HostPort)
 }
 
 func TestStringSliceAsHeader(t *testing.T) {
