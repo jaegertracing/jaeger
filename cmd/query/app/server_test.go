@@ -90,7 +90,7 @@ func TestServerGracefulExit(t *testing.T) {
 
 	querySvc := &querysvc.QueryService{}
 	tracer := opentracing.NoopTracer{}
-	server := NewServer(flagsSvc, querySvc, &QueryOptions{Port: ports.QueryAdminHTTP}, tracer)
+	server := NewServer(flagsSvc, querySvc, &QueryOptions{HostPort: ports.PortToHostPort(ports.QueryAdminHTTP)}, tracer)
 	assert.NoError(t, server.Start())
 
 	// Wait for servers to come up before we can call .Close()

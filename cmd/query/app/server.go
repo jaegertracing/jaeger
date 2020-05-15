@@ -100,7 +100,7 @@ func (s *Server) Start() error {
 	}
 	s.conn = conn
 
-	tcpPort := s.queryOptions.Port
+	var tcpPort int
 	if port, err := netutils.GetPort(s.conn.Addr()); err == nil {
 		tcpPort = port
 	}

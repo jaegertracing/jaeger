@@ -51,8 +51,6 @@ const (
 type QueryOptions struct {
 	// HostPort is the host:port address that the query service listens o n
 	HostPort string
-	// Port is the port that the query service listens in on (deprecated, will be removed after 2020-06-30 or in release v1.20.0, whichever is later)
-	Port int
 	// BasePath is the prefix for all UI and API HTTP routes
 	BasePath string
 	// StaticAssets is the path for the static assets for the UI (https://github.com/uber/jaeger-ui)
