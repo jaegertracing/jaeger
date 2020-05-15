@@ -35,8 +35,9 @@ const (
 	// CollectorHTTPHostPort is the flag for collector HTTP port
 	CollectorHTTPHostPort = "collector.http-server.host-port"
 	// CollectorGRPCHostPort is the flag for collector gRPC port
-	CollectorGRPCHostPort         = "collector.grpc-server.host-port"
-	collectorZipkinHTTPPort       = "collector.zipkin.http-port"
+	CollectorGRPCHostPort   = "collector.grpc-server.host-port"
+	collectorZipkinHTTPPort = "collector.zipkin.http-port"
+	// CollectorZipkinHTTPHostPort is the flag for Zipkin HTTP port
 	CollectorZipkinHTTPHostPort   = "collector.zipkin.host-port"
 	collectorTags                 = "collector.tags"
 	collectorZipkinAllowedOrigins = "collector.zipkin.allowed-origins"
