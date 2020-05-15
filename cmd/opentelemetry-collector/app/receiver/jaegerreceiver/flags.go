@@ -34,7 +34,7 @@ const (
 func AddFlags(flags *flag.FlagSet) {
 	flags.String(thriftBinaryHostPort, ":"+strconv.Itoa(ports.AgentJaegerThriftBinaryUDP), "host:port for the UDP server")
 	flags.String(thriftCompactHostPort, ":"+strconv.Itoa(ports.AgentJaegerThriftCompactUDP), "host:port for the UDP server")
-	collectorApp.AddOTELFlags(flags)
+	collectorApp.AddOTELJaegerFlags(flags)
 	agentApp.AddOTELFlags(flags)
 	grpcRep.AddOTELFlags(flags)
 	static.AddOTELFlags(flags)

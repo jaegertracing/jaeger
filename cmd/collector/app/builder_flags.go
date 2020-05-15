@@ -37,7 +37,7 @@ const (
 	// CollectorGRPCHostPort is the flag for collector gRPC port
 	CollectorGRPCHostPort         = "collector.grpc-server.host-port"
 	collectorZipkinHTTPPort       = "collector.zipkin.http-port"
-	collectorZipkinHTTPHostPort   = "collector.zipkin.host-port"
+	CollectorZipkinHTTPHostPort   = "collector.zipkin.host-port"
 	collectorTags                 = "collector.tags"
 	collectorZipkinAllowedOrigins = "collector.zipkin.allowed-origins"
 	collectorZipkinAllowedHeaders = "collector.zipkin.allowed-headers"
@@ -83,20 +83,25 @@ func AddFlags(flags *flag.FlagSet) {
 	flags.Int(collectorNumWorkers, DefaultNumWorkers, "The number of workers pulling items from the queue")
 	flags.Int(collectorHTTPPort, 0, collectorHTTPPortWarning+" see --"+CollectorHTTPHostPort)
 	flags.Int(collectorGRPCPort, 0, collectorGRPCPortWarning+" see --"+CollectorGRPCHostPort)
-	flags.Int(collectorZipkinHTTPPort, 0, collectorZipkinHTTPPortWarning+" see --"+collectorZipkinHTTPHostPort)
+	flags.Int(collectorZipkinHTTPPort, 0, collectorZipkinHTTPPortWarning+" see --"+CollectorZipkinHTTPHostPort)
 	flags.Uint(collectorDynQueueSizeMemory, 0, "(experimental) The max memory size in MiB to use for the dynamic queue.")
 	flags.String(collectorTags, "", "One or more tags to be added to the Process tags of all spans passing through this collector. Ex: key1=value1,key2=${envVar:defaultValue}")
 	flags.String(collectorZipkinAllowedOrigins, "*", "Comma separated list of allowed origins for the Zipkin collector service, default accepts all")
 	flags.String(collectorZipkinAllowedHeaders, "content-type", "Comma separated list of allowed headers for the Zipkin collector service, default content-type")
-	AddOTELFlags(flags)
+	AddOTELJaegerFlags(flags)
+	AddOTELZipkinFlags(flags)
 }
 
-// AddOTELFlags adds flags that are exposed by OTEL collector
-func AddOTELFlags(flags *flag.FlagSet) {
-	flags.String(collectorZipkinHTTPHostPort, ports.PortToHostPort(0), "The host:port (e.g. 127.0.0.1:5555 or :5555) of the collector's Zipkin server")
+// AddOTELJaegerFlags adds flags that are exposed by OTEL Jaeger receier
+func AddOTELJaegerFlags(flags *flag.FlagSet) {
 	flags.String(CollectorHTTPHostPort, ports.PortToHostPort(ports.CollectorHTTP), "The host:port (e.g. 127.0.0.1:5555 or :5555) of the collector's HTTP server")
 	flags.String(CollectorGRPCHostPort, ports.PortToHostPort(ports.CollectorGRPC), "The host:port (e.g. 127.0.0.1:5555 or :5555) of the collector's GRPC server")
 	tlsFlagsConfig.AddFlags(flags)
+}
+
+// AddOTELZipkinFlags adds flag that are exposed by OTEL Zipkin receiver
+func AddOTELZipkinFlags(flags *flag.FlagSet) {
+	flags.String(CollectorZipkinHTTPHostPort, ports.PortToHostPort(0), "The host:port (e.g. 127.0.0.1:5555 or :5555) of the collector's Zipkin server")
 }
 
 // InitFromViper initializes CollectorOptions with properties from viper
@@ -106,7 +111,7 @@ func (cOpts *CollectorOptions) InitFromViper(v *viper.Viper) *CollectorOptions {
 	cOpts.NumWorkers = v.GetInt(collectorNumWorkers)
 	cOpts.CollectorHTTPHostPort = getAddressFromCLIOptions(v.GetInt(collectorHTTPPort), v.GetString(CollectorHTTPHostPort))
 	cOpts.CollectorGRPCHostPort = getAddressFromCLIOptions(v.GetInt(collectorGRPCPort), v.GetString(CollectorGRPCHostPort))
-	cOpts.CollectorZipkinHTTPHostPort = getAddressFromCLIOptions(v.GetInt(collectorZipkinHTTPPort), v.GetString(collectorZipkinHTTPHostPort))
+	cOpts.CollectorZipkinHTTPHostPort = getAddressFromCLIOptions(v.GetInt(collectorZipkinHTTPPort), v.GetString(CollectorZipkinHTTPHostPort))
 	cOpts.CollectorTags = flags.ParseJaegerTags(v.GetString(collectorTags))
 	cOpts.CollectorZipkinAllowedOrigins = v.GetString(collectorZipkinAllowedOrigins)
 	cOpts.CollectorZipkinAllowedHeaders = v.GetString(collectorZipkinAllowedHeaders)
