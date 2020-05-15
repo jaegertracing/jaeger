@@ -24,6 +24,14 @@ func TestPortToHostPort(t *testing.T) {
 	assert.Equal(t, ":42", PortToHostPort(42))
 }
 
-func TestGetAddressFromCLIOptions(t *testing.T) {
+func TestGetAddressFromCLIOptionsLegacy(t *testing.T) {
 	assert.Equal(t, ":123", GetAddressFromCLIOptions(123, ""))
+}
+
+func TestGetAddressFromCLIOptionHostPort(t *testing.T) {
+	assert.Equal(t, "127.0.0.1:123", GetAddressFromCLIOptions(0, "127.0.0.1:123"))
+}
+
+func TestGetAddressFromCLIOptionOnlyPort(t *testing.T) {
+	assert.Equal(t, ":123", GetAddressFromCLIOptions(0, ":123"))
 }
