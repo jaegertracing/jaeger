@@ -38,13 +38,13 @@ import (
 const (
 	queryHostPort           = "query.host-port"
 	queryPort               = "query.port"
+	queryPortWarning        = "(deprecated, will be removed after 2020-08-31 or in release v1.20.0, whichever is later)"
 	queryBasePath           = "query.base-path"
 	queryStaticFiles        = "query.static-files"
 	queryUIConfig           = "query.ui-config"
 	queryTokenPropagation   = "query.bearer-token-propagation"
 	queryAdditionalHeaders  = "query.additional-headers"
 	queryMaxClockSkewAdjust = "query.max-clock-skew-adjustment"
-	queryPortWarning        = "(deprecated, will be removed after 2020-06-30 or in release v1.20.0, whichever is later)"
 )
 
 // QueryOptions holds configuration for query service
