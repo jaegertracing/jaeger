@@ -31,24 +31,10 @@ import (
 func TestQueryBuilderFlagsDeprecation(t *testing.T) {
 	v, command := config.Viperize(AddFlags)
 	command.ParseFlags([]string{
-		"--query.static-files=/dev/null",
-		"--query.ui-config=some.json",
-		"--query.base-path=/jaeger",
 		"--query.port=80",
-		"--query.additional-headers=access-control-allow-origin:blerg",
-		"--query.additional-headers=whatever:thing",
-		"--query.max-clock-skew-adjustment=10s",
 	})
 	qOpts := new(QueryOptions).InitFromViper(v, zap.NewNop())
-	assert.Equal(t, "/dev/null", qOpts.StaticAssets)
-	assert.Equal(t, "some.json", qOpts.UIConfig)
-	assert.Equal(t, "/jaeger", qOpts.BasePath)
 	assert.Equal(t, ":80", qOpts.HostPort)
-	assert.Equal(t, http.Header{
-		"Access-Control-Allow-Origin": []string{"blerg"},
-		"Whatever":                    []string{"thing"},
-	}, qOpts.AdditionalHeaders)
-	assert.Equal(t, 10*time.Second, qOpts.MaxClockSkewAdjust)
 }
 
 func TestQueryBuilderFlags(t *testing.T) {
@@ -93,17 +79,6 @@ func TestQueryOptionsWithFlags_CheckHostPort(t *testing.T) {
 	q.InitFromViper(v, zap.NewNop())
 
 	assert.Equal(t, ":8080", q.HostPort)
-}
-
-func TestQueryOptionsWithFlags_CheckFullHostPort(t *testing.T) {
-	q := &QueryOptions{}
-	v, command := config.Viperize(AddFlags)
-	command.ParseFlags([]string{
-		"--query.host-port=127.0.0.1:1234",
-	})
-	q.InitFromViper(v, zap.NewNop())
-
-	assert.Equal(t, "127.0.0.1:1234", q.HostPort)
 }
 
 func TestStringSliceAsHeader(t *testing.T) {
