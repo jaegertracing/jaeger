@@ -88,7 +88,7 @@ func configureCollector(v *viper.Viper, cfg *jaegerreceiver.Config) {
 		}
 		if cOpts.TLS.CertPath != "" && cOpts.TLS.KeyPath != "" {
 			cfg.Protocols["grpc"].TLSCredentials = &receiver.TLSCredentials{
-				// TODO client-ca is missing in OTEL
+				// TODO client-ca is missing in OTEL https://github.com/open-telemetry/opentelemetry-collector/issues/963
 				KeyFile:  cOpts.TLS.KeyPath,
 				CertFile: cOpts.TLS.CertPath,
 			}
