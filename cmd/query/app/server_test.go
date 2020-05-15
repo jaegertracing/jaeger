@@ -111,7 +111,7 @@ func TestServerHandlesPortZero(t *testing.T) {
 
 	querySvc := &querysvc.QueryService{}
 	tracer := opentracing.NoopTracer{}
-	server := NewServer(flagsSvc, querySvc, &QueryOptions{HostPort: ":0"}, tracer) //Change me
+	server := NewServer(flagsSvc, querySvc, &QueryOptions{HostPort: ":0"}, tracer)
 	assert.NoError(t, server.Start())
 	server.Close()
 
