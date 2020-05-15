@@ -62,7 +62,7 @@ func configureAgent(v *viper.Viper, cfg *jaegerreceiver.Config) {
 	if v.IsSet(thriftBinaryHostPort) {
 		cfg.Protocols["thrift_binary"] = &receiver.SecureReceiverSettings{
 			ReceiverSettings: configmodels.ReceiverSettings{
-				// TODO OTEL does not expose number of workers or queue length
+				// TODO OTEL does not expose number of workers and queue length
 				Endpoint: v.GetString(thriftBinaryHostPort),
 			},
 		}
@@ -70,7 +70,7 @@ func configureAgent(v *viper.Viper, cfg *jaegerreceiver.Config) {
 	if v.IsSet(thriftCompactHostPort) {
 		cfg.Protocols["thrift_compact"] = &receiver.SecureReceiverSettings{
 			ReceiverSettings: configmodels.ReceiverSettings{
-				// TODO OTEL does not expose number of workers or queue length
+				// TODO OTEL does not expose number of workers and queue length
 				Endpoint: v.GetString(thriftCompactHostPort),
 			},
 		}
