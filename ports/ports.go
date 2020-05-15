@@ -16,6 +16,7 @@ package ports
 
 import (
 	"strconv"
+	"strings"
 )
 
 const (
@@ -49,4 +50,17 @@ const (
 // PortToHostPort converts the port into a host:port address string
 func PortToHostPort(port int) string {
 	return ":" + strconv.Itoa(port)
+}
+
+// GetAddressFromCLIOptions gets listening address based on port (deprecated flags) or host:port (new flags)
+func GetAddressFromCLIOptions(port int, hostPort string) string {
+	if port != 0 {
+		return PortToHostPort(port)
+	}
+
+	if strings.Contains(hostPort, ":") {
+		return hostPort
+	}
+
+	return ":" + hostPort
 }

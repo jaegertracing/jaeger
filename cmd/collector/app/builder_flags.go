@@ -17,7 +17,6 @@ package app
 
 import (
 	"flag"
-	"strings"
 
 	"github.com/spf13/viper"
 
@@ -104,25 +103,12 @@ func (cOpts *CollectorOptions) InitFromViper(v *viper.Viper) *CollectorOptions {
 	cOpts.DynQueueSizeMemory = v.GetUint(collectorDynQueueSizeMemory) * 1024 * 1024 // we receive in MiB and store in bytes
 	cOpts.QueueSize = v.GetInt(collectorQueueSize)
 	cOpts.NumWorkers = v.GetInt(collectorNumWorkers)
-	cOpts.CollectorHTTPHostPort = getAddressFromCLIOptions(v.GetInt(collectorHTTPPort), v.GetString(CollectorHTTPHostPort))
-	cOpts.CollectorGRPCHostPort = getAddressFromCLIOptions(v.GetInt(collectorGRPCPort), v.GetString(CollectorGRPCHostPort))
-	cOpts.CollectorZipkinHTTPHostPort = getAddressFromCLIOptions(v.GetInt(collectorZipkinHTTPPort), v.GetString(collectorZipkinHTTPHostPort))
+	cOpts.CollectorHTTPHostPort = ports.GetAddressFromCLIOptions(v.GetInt(collectorHTTPPort), v.GetString(CollectorHTTPHostPort))
+	cOpts.CollectorGRPCHostPort = ports.GetAddressFromCLIOptions(v.GetInt(collectorGRPCPort), v.GetString(CollectorGRPCHostPort))
+	cOpts.CollectorZipkinHTTPHostPort = ports.GetAddressFromCLIOptions(v.GetInt(collectorZipkinHTTPPort), v.GetString(collectorZipkinHTTPHostPort))
 	cOpts.CollectorTags = flags.ParseJaegerTags(v.GetString(collectorTags))
 	cOpts.CollectorZipkinAllowedOrigins = v.GetString(collectorZipkinAllowedOrigins)
 	cOpts.CollectorZipkinAllowedHeaders = v.GetString(collectorZipkinAllowedHeaders)
 	cOpts.TLS = tlsFlagsConfig.InitFromViper(v)
 	return cOpts
-}
-
-// Utility function to get listening address based on port (deprecated flags) or host:port (new flags)
-func getAddressFromCLIOptions(port int, hostPort string) string {
-	if port != 0 {
-		return ports.PortToHostPort(port)
-	}
-
-	if strings.Contains(hostPort, ":") {
-		return hostPort
-	}
-
-	return ":" + hostPort
 }

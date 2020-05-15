@@ -46,7 +46,7 @@ func TestServerError(t *testing.T) {
 func TestServer(t *testing.T) {
 	flagsSvc := flags.NewService(ports.QueryAdminHTTP)
 	flagsSvc.Logger = zap.NewNop()
-	hostPort := getAddressFromCLIOptions(ports.QueryHTTP, "")
+	hostPort := ports.GetAddressFromCLIOptions(ports.QueryHTTP, "")
 
 	spanReader := &spanstoremocks.Reader{}
 	dependencyReader := &depsmocks.Reader{}

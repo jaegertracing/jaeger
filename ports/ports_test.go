@@ -23,3 +23,7 @@ import (
 func TestPortToHostPort(t *testing.T) {
 	assert.Equal(t, ":42", PortToHostPort(42))
 }
+
+func TestGetAddressFromCLIOptions(t *testing.T) {
+	assert.Equal(t, ":123", GetAddressFromCLIOptions(123, ""))
+}

@@ -82,7 +82,7 @@ func AddFlags(flagSet *flag.FlagSet) {
 // InitFromViper initializes QueryOptions with properties from viper
 func (qOpts *QueryOptions) InitFromViper(v *viper.Viper, logger *zap.Logger) *QueryOptions {
 	// qOpts.Port = v.GetInt(queryPort)
-	qOpts.HostPort = getAddressFromCLIOptions(v.GetInt(queryPort), v.GetString(queryHostPort))
+	qOpts.HostPort = ports.GetAddressFromCLIOptions(v.GetInt(queryPort), v.GetString(queryHostPort))
 	qOpts.BasePath = v.GetString(queryBasePath)
 	qOpts.StaticAssets = v.GetString(queryStaticFiles)
 	qOpts.UIConfig = v.GetString(queryUIConfig)
@@ -97,19 +97,6 @@ func (qOpts *QueryOptions) InitFromViper(v *viper.Viper, logger *zap.Logger) *Qu
 		qOpts.AdditionalHeaders = headers
 	}
 	return qOpts
-}
-
-// Utility function to get listening address based on port (deprecated flags) or host:port (new flags)
-func getAddressFromCLIOptions(port int, hostPort string) string {
-	if port != 0 {
-		return ports.PortToHostPort(port)
-	}
-
-	if strings.Contains(hostPort, ":") {
-		return hostPort
-	}
-
-	return ":" + hostPort
 }
 
 // BuildQueryServiceOptions creates a QueryServiceOptions struct with appropriate adjusters and archive config
