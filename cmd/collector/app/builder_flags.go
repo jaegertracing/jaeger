@@ -95,8 +95,8 @@ func AddFlags(flags *flag.FlagSet) {
 
 // AddOTELJaegerFlags adds flags that are exposed by OTEL Jaeger receier
 func AddOTELJaegerFlags(flags *flag.FlagSet) {
-	flags.String(CollectorHTTPHostPort, ports.PortToHostPort(ports.CollectorHTTP), "The host:port (e.g. 127.0.0.1:5555 or :5555) of the collector's HTTP server")
-	flags.String(CollectorGRPCHostPort, ports.PortToHostPort(ports.CollectorGRPC), "The host:port (e.g. 127.0.0.1:5555 or :5555) of the collector's GRPC server")
+	flags.String(CollectorHTTPHostPort, ports.PortToHostPort(ports.CollectorHTTP), "The host:port (e.g. 127.0.0.1:9411 or :9411) of the collector's HTTP server")
+	flags.String(CollectorGRPCHostPort, ports.PortToHostPort(ports.CollectorGRPC), "The host:port (e.g. 127.0.0.1:14250 or :14250) of the collector's GRPC server")
 	tlsFlagsConfig.AddFlags(flags)
 }
 
