@@ -26,6 +26,7 @@ import (
 	"github.com/jaegertracing/jaeger/cmd/opentelemetry-collector/app/exporter/kafka"
 	"github.com/jaegertracing/jaeger/cmd/opentelemetry-collector/app/receiver/jaegerreceiver"
 	kafkaRec "github.com/jaegertracing/jaeger/cmd/opentelemetry-collector/app/receiver/kafka"
+	"github.com/jaegertracing/jaeger/cmd/opentelemetry-collector/app/receiver/zipkinreceiver"
 	jConfig "github.com/jaegertracing/jaeger/pkg/config"
 )
 
@@ -43,6 +44,7 @@ func TestComponents(t *testing.T) {
 	assert.IsType(t, &jaegerreceiver.Factory{}, factories.Receivers["jaeger"])
 	assert.IsType(t, &jaegerexporter.Factory{}, factories.Exporters["jaeger"])
 	assert.IsType(t, &kafkaRec.Factory{}, factories.Receivers[kafkaRec.TypeStr])
+	assert.IsType(t, &zipkinreceiver.Factory{}, factories.Receivers["zipkin"])
 
 	kafkaFactory := factories.Exporters[kafka.TypeStr]
 	kc := kafkaFactory.CreateDefaultConfig().(*kafka.Config)

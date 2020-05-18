@@ -26,12 +26,14 @@ import (
 	"github.com/jaegertracing/jaeger/cmd/opentelemetry-collector/app/exporter/kafka"
 	"github.com/jaegertracing/jaeger/cmd/opentelemetry-collector/app/processor/resourceprocessor"
 	"github.com/jaegertracing/jaeger/cmd/opentelemetry-collector/app/receiver/jaegerreceiver"
+	"github.com/jaegertracing/jaeger/cmd/opentelemetry-collector/app/receiver/zipkinreceiver"
 )
 
 // AddComponentFlags adds all flags exposed by components
 func AddComponentFlags(flags *flag.FlagSet) {
 	// Jaeger receiver (via sampling strategies receiver) exposes the same flags as exporter.
 	jaegerreceiver.AddFlags(flags)
+	zipkinreceiver.AddFlags(flags)
 	resourceprocessor.AddFlags(flags)
 	jConfigFile.AddConfigFileFlag(flags)
 }

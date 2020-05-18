@@ -21,6 +21,7 @@ import (
 	otelJaegerExporter "github.com/open-telemetry/opentelemetry-collector/exporter/jaegerexporter"
 	otelResourceProcessor "github.com/open-telemetry/opentelemetry-collector/processor/resourceprocessor"
 	otelJaegerReceiver "github.com/open-telemetry/opentelemetry-collector/receiver/jaegerreceiver"
+	otelZipkinReceiver "github.com/open-telemetry/opentelemetry-collector/receiver/zipkinreceiver"
 	"github.com/open-telemetry/opentelemetry-collector/service/defaultcomponents"
 	"github.com/spf13/pflag"
 	"github.com/spf13/viper"
@@ -34,6 +35,7 @@ import (
 	"github.com/jaegertracing/jaeger/cmd/opentelemetry-collector/app/processor/resourceprocessor"
 	"github.com/jaegertracing/jaeger/cmd/opentelemetry-collector/app/receiver/jaegerreceiver"
 	kafkaRec "github.com/jaegertracing/jaeger/cmd/opentelemetry-collector/app/receiver/kafka"
+	"github.com/jaegertracing/jaeger/cmd/opentelemetry-collector/app/receiver/zipkinreceiver"
 	storageCassandra "github.com/jaegertracing/jaeger/plugin/storage/cassandra"
 	storageEs "github.com/jaegertracing/jaeger/plugin/storage/es"
 	storageGrpc "github.com/jaegertracing/jaeger/plugin/storage/grpc"
@@ -87,6 +89,11 @@ func Components(v *viper.Viper) config.Factories {
 	jaegerExp := factories.Exporters["jaeger"].(*otelJaegerExporter.Factory)
 	factories.Exporters["jaeger"] = &jaegerexporter.Factory{
 		Wrapped: jaegerExp,
+		Viper:   v,
+	}
+	zipkinRec := factories.Receivers["zipkin"].(*otelZipkinReceiver.Factory)
+	factories.Receivers["zipkin"] = &zipkinreceiver.Factory{
+		Wrapped: zipkinRec,
 		Viper:   v,
 	}
 
