@@ -28,6 +28,7 @@ import (
 	jflags "github.com/jaegertracing/jaeger/cmd/flags"
 	"github.com/jaegertracing/jaeger/cmd/opentelemetry-collector/app"
 	"github.com/jaegertracing/jaeger/cmd/opentelemetry-collector/app/defaults"
+	"github.com/jaegertracing/jaeger/cmd/opentelemetry-collector/app/receiver/kafka"
 	jconfig "github.com/jaegertracing/jaeger/pkg/config"
 	"github.com/jaegertracing/jaeger/pkg/version"
 	"github.com/jaegertracing/jaeger/plugin/storage"
@@ -91,6 +92,7 @@ func main() {
 	cmd := svc.Command()
 	jconfig.AddFlags(v,
 		cmd,
+		kafka.AddFlags,
 		app.AddComponentFlags,
 		storageFlags,
 	)
