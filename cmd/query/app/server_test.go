@@ -1,4 +1,4 @@
-// Copyright (c) 2019 The Jaeger Authors.
+// Copyright (c) 2019,2020 The Jaeger Authors.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -16,7 +16,6 @@ package app
 
 import (
 	"context"
-	"fmt"
 	"testing"
 	"time"
 
@@ -38,7 +37,7 @@ import (
 func TestServerError(t *testing.T) {
 	srv := &Server{
 		queryOptions: &QueryOptions{
-			Port: -1,
+			HostPort: ":-1",
 		},
 	}
 	assert.Error(t, srv.Start())
@@ -47,6 +46,7 @@ func TestServerError(t *testing.T) {
 func TestServer(t *testing.T) {
 	flagsSvc := flags.NewService(ports.QueryAdminHTTP)
 	flagsSvc.Logger = zap.NewNop()
+	hostPort := ports.GetAddressFromCLIOptions(ports.QueryHTTP, "")
 
 	spanReader := &spanstoremocks.Reader{}
 	dependencyReader := &depsmocks.Reader{}
@@ -56,11 +56,11 @@ func TestServer(t *testing.T) {
 	querySvc := querysvc.NewQueryService(spanReader, dependencyReader, querysvc.QueryServiceOptions{})
 
 	server := NewServer(flagsSvc, querySvc,
-		&QueryOptions{Port: ports.QueryHTTP, BearerTokenPropagation: true},
+		&QueryOptions{HostPort: hostPort, BearerTokenPropagation: true},
 		opentracing.NoopTracer{})
 	assert.NoError(t, server.Start())
 
-	client := newGRPCClient(t, fmt.Sprintf(":%d", ports.QueryHTTP))
+	client := newGRPCClient(t, hostPort)
 	defer client.conn.Close()
 
 	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
@@ -90,7 +90,7 @@ func TestServerGracefulExit(t *testing.T) {
 
 	querySvc := &querysvc.QueryService{}
 	tracer := opentracing.NoopTracer{}
-	server := NewServer(flagsSvc, querySvc, &QueryOptions{Port: ports.QueryAdminHTTP}, tracer)
+	server := NewServer(flagsSvc, querySvc, &QueryOptions{HostPort: ports.PortToHostPort(ports.QueryAdminHTTP)}, tracer)
 	assert.NoError(t, server.Start())
 
 	// Wait for servers to come up before we can call .Close()
@@ -111,7 +111,7 @@ func TestServerHandlesPortZero(t *testing.T) {
 
 	querySvc := &querysvc.QueryService{}
 	tracer := opentracing.NoopTracer{}
-	server := NewServer(flagsSvc, querySvc, &QueryOptions{Port: 0}, tracer)
+	server := NewServer(flagsSvc, querySvc, &QueryOptions{HostPort: ":0"}, tracer)
 	assert.NoError(t, server.Start())
 	server.Close()
 
@@ -119,6 +119,6 @@ func TestServerHandlesPortZero(t *testing.T) {
 	assert.Equal(t, 1, message.Len(), "Expected query started log message.")
 
 	onlyEntry := message.All()[0]
-	port := onlyEntry.ContextMap()["port"].(int64)
+	port := onlyEntry.ContextMap()["port"]
 	assert.Greater(t, port, int64(0))
 }
