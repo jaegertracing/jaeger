@@ -111,7 +111,7 @@ func (cOpts *CollectorOptions) InitFromViper(v *viper.Viper) *CollectorOptions {
 	cOpts.NumWorkers = v.GetInt(collectorNumWorkers)
 	cOpts.CollectorHTTPHostPort = ports.GetAddressFromCLIOptions(v.GetInt(collectorHTTPPort), v.GetString(CollectorHTTPHostPort))
 	cOpts.CollectorGRPCHostPort = ports.GetAddressFromCLIOptions(v.GetInt(collectorGRPCPort), v.GetString(CollectorGRPCHostPort))
-	cOpts.CollectorZipkinHTTPHostPort = ports.GetAddressFromCLIOptions(v.GetInt(collectorZipkinHTTPPort), v.GetString(collectorZipkinHTTPHostPort))
+	cOpts.CollectorZipkinHTTPHostPort = ports.GetAddressFromCLIOptions(v.GetInt(collectorZipkinHTTPPort), v.GetString(CollectorZipkinHTTPHostPort))
 	cOpts.CollectorTags = flags.ParseJaegerTags(v.GetString(collectorTags))
 	cOpts.CollectorZipkinAllowedOrigins = v.GetString(collectorZipkinAllowedOrigins)
 	cOpts.CollectorZipkinAllowedHeaders = v.GetString(collectorZipkinAllowedHeaders)
