@@ -126,6 +126,41 @@ func loadIndexBytes(open func(string) (http.File, error), options StaticAssetsHa
 	return indexBytes, nil
 }
 
+func (sH *StaticAssetsHandler) configListener(watcher *fsnotify.Watcher) {
+	for {
+		select {
+		case event := <-watcher.Events:
+			if event.Op&fsnotify.Remove == fsnotify.Remove {
+				// this might be related to a file inside the dir, so, just log a warn if this is about the file we care about
+				// otherwise, just ignore the event
+				if event.Name == sH.options.UIConfigPath {
+					sH.options.Logger.Warn("the UI config file has been removed, using the last known version")
+				}
+				continue
+			}
+			if event.Op&fsnotify.Write != fsnotify.Write && event.Op&fsnotify.Create != fsnotify.Create {
+				continue
+			}
+			if event.Name == sH.options.UIConfigPath {
+				// this will catch events for all files inside the same directory, which is OK if we don't have many changes
+				sH.options.Logger.Info("reloading UI config", zap.String("filename", sH.options.UIConfigPath))
+
+				content, err := loadIndexBytes(sH.assetsFS.Open, sH.options)
+				if err != nil {
+					sH.options.Logger.Error("error while reloading the UI config", zap.Error(err))
+				}
+
+				sH.indexHTML.Store(content)
+			}
+		case err, ok := <-watcher.Errors:
+			if !ok {
+				return
+			}
+			sH.options.Logger.Error("event", zap.Error(err))
+		}
+	}
+}
+
 func (sH *StaticAssetsHandler) watch() {
 	if sH.options.UIConfigPath == "" {
 		return
@@ -138,35 +173,7 @@ func (sH *StaticAssetsHandler) watch() {
 	}
 
 	go func() {
-		for {
-			select {
-			case event := <-watcher.Events:
-				if event.Op&fsnotify.Remove == fsnotify.Remove {
-					// this might be related to a file inside the dir, so, just log a warn if this is about the file we care about
-					// otherwise, just ignore the event
-					if event.Name == sH.options.UIConfigPath {
-						sH.options.Logger.Warn("the UI config file has been removed, using the last known version")
-					}
-					continue
-				}
-				if event.Op&fsnotify.Write == fsnotify.Write || event.Op&fsnotify.Create == fsnotify.Create {
-					// this will catch events for all files inside the same directory, which is OK if we don't have many changes
-					sH.options.Logger.Info("reloading UI config", zap.String("filename", sH.options.UIConfigPath))
-
-					content, err := loadIndexBytes(sH.assetsFS.Open, sH.options)
-					if err != nil {
-						sH.options.Logger.Error("error while reloading the UI config", zap.Error(err))
-					}
-
-					sH.indexHTML.Store(content)
-				}
-			case err, ok := <-watcher.Errors:
-				if !ok {
-					return
-				}
-				sH.options.Logger.Error("event", zap.Error(err))
-			}
-		}
+		sH.configListener(watcher)
 	}()
 
 	err = watcher.Add(sH.options.UIConfigPath)
