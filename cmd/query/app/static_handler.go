@@ -149,16 +149,17 @@ func (sH *StaticAssetsHandler) watch() {
 					}
 					continue
 				}
+				if event.Op&fsnotify.Write == fsnotify.Write || event.Op&fsnotify.Create == fsnotify.Create {
+					// this will catch events for all files inside the same directory, which is OK if we don't have many changes
+					sH.options.Logger.Info("reloading UI config", zap.String("filename", sH.options.UIConfigPath))
 
-				// this will catch events for all files inside the same directory, which is OK if we don't have many changes
-				sH.options.Logger.Info("reloading UI config", zap.String("filename", sH.options.UIConfigPath))
+					content, err := loadIndexBytes(sH.assetsFS.Open, sH.options)
+					if err != nil {
+						sH.options.Logger.Error("error while reloading the UI config", zap.Error(err))
+					}
 
-				content, err := loadIndexBytes(sH.assetsFS.Open, sH.options)
-				if err != nil {
-					sH.options.Logger.Error("error while reloading the UI config", zap.Error(err))
+					sH.indexHTML.Store(content)
 				}
-
-				sH.indexHTML.Store(content)
 			case err, ok := <-watcher.Errors:
 				if !ok {
 					return
