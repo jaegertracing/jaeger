@@ -130,8 +130,12 @@ func (sH *StaticAssetsHandler) configListener(watcher *fsnotify.Watcher) {
 	for {
 		select {
 		case event := <-watcher.Events:
-			// Ignore if the event filename is not the UI configuration or if it is a chmod event.
-			if filepath.Base(event.Name) != filepath.Base(sH.options.UIConfigPath) || event.Op&fsnotify.Chmod == fsnotify.Chmod {
+			// ignore if the event filename is not the UI configuration
+			if filepath.Base(event.Name) != filepath.Base(sH.options.UIConfigPath) {
+				continue
+			}
+			// ignore if the event is a chmod event (permission or owner changes)
+			if event.Op&fsnotify.Chmod == fsnotify.Chmod {
 				continue
 			}
 			if event.Op&fsnotify.Remove == fsnotify.Remove {
