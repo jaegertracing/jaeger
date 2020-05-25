@@ -17,10 +17,10 @@ package jaegerexporter
 import (
 	"context"
 
-	"github.com/open-telemetry/opentelemetry-collector/component"
-	"github.com/open-telemetry/opentelemetry-collector/config/configmodels"
-	"github.com/open-telemetry/opentelemetry-collector/exporter/jaegerexporter"
 	"github.com/spf13/viper"
+	"go.opentelemetry.io/collector/component"
+	"go.opentelemetry.io/collector/config/configmodels"
+	"go.opentelemetry.io/collector/exporter/jaegerexporter"
 
 	grpcRep "github.com/jaegertracing/jaeger/cmd/agent/app/reporter/grpc"
 )

@@ -17,12 +17,12 @@ package jaegerreceiver
 import (
 	"context"
 
-	"github.com/open-telemetry/opentelemetry-collector/component"
-	"github.com/open-telemetry/opentelemetry-collector/config/configmodels"
-	"github.com/open-telemetry/opentelemetry-collector/consumer"
-	"github.com/open-telemetry/opentelemetry-collector/receiver"
-	"github.com/open-telemetry/opentelemetry-collector/receiver/jaegerreceiver"
 	"github.com/spf13/viper"
+	"go.opentelemetry.io/collector/component"
+	"go.opentelemetry.io/collector/config/configmodels"
+	"go.opentelemetry.io/collector/consumer"
+	"go.opentelemetry.io/collector/receiver"
+	"go.opentelemetry.io/collector/receiver/jaegerreceiver"
 
 	agentApp "github.com/jaegertracing/jaeger/cmd/agent/app"
 	grpcRep "github.com/jaegertracing/jaeger/cmd/agent/app/reporter/grpc"
@@ -88,7 +88,7 @@ func configureCollector(v *viper.Viper, cfg *jaegerreceiver.Config) {
 		}
 		if cOpts.TLS.CertPath != "" && cOpts.TLS.KeyPath != "" {
 			cfg.Protocols["grpc"].TLSCredentials = &receiver.TLSCredentials{
-				// TODO client-ca is missing in OTEL https://github.com/open-telemetry/opentelemetry-collector/issues/963
+				// TODO client-ca is missing in OTEL https://go.opentelemetry.io/collector/issues/963
 				KeyFile:  cOpts.TLS.KeyPath,
 				CertFile: cOpts.TLS.CertPath,
 			}

@@ -9,7 +9,7 @@ def cleanup_imports_and_return(imports):
             continue
         if i.find("github.com/jaegertracing/jaeger/") != -1:
             jaeger_packages.append(i)
-        elif i.find(".com") != -1 or i.find(".net") != -1 or i.find(".org") != -1 or i.find(".in") != -1:
+        elif i.find(".com") != -1 or i.find(".net") != -1 or i.find(".org") != -1 or i.find(".in") != -1 or i.find(".io") != -1:
             thirdparty_packages.append(i)
         else:
             os_packages.append(i)

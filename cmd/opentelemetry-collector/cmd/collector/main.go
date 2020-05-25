@@ -19,11 +19,11 @@ import (
 	"log"
 	"os"
 
-	"github.com/open-telemetry/opentelemetry-collector/config"
-	"github.com/open-telemetry/opentelemetry-collector/config/configmodels"
-	"github.com/open-telemetry/opentelemetry-collector/service"
-	"github.com/open-telemetry/opentelemetry-collector/service/builder"
 	"github.com/spf13/viper"
+	"go.opentelemetry.io/collector/config"
+	"go.opentelemetry.io/collector/config/configmodels"
+	"go.opentelemetry.io/collector/service"
+	"go.opentelemetry.io/collector/service/builder"
 
 	collectorApp "github.com/jaegertracing/jaeger/cmd/collector/app"
 	jflags "github.com/jaegertracing/jaeger/cmd/flags"

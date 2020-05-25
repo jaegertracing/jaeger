@@ -19,10 +19,10 @@ import (
 	"testing"
 
 	"github.com/Shopify/sarama"
-	"github.com/open-telemetry/opentelemetry-collector/config"
-	"github.com/open-telemetry/opentelemetry-collector/config/configcheck"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"go.opentelemetry.io/collector/config"
+	"go.opentelemetry.io/collector/config/configcheck"
 
 	"github.com/jaegertracing/jaeger/cmd/flags"
 	jConfig "github.com/jaegertracing/jaeger/pkg/config"

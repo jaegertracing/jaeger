@@ -16,7 +16,7 @@ package defaults
 
 import (
 	"github.com/imdario/mergo"
-	"github.com/open-telemetry/opentelemetry-collector/config/configmodels"
+	"go.opentelemetry.io/collector/config/configmodels"
 )
 
 // MergeConfigs merges two configs.

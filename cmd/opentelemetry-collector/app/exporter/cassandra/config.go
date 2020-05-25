@@ -15,7 +15,7 @@
 package cassandra
 
 import (
-	"github.com/open-telemetry/opentelemetry-collector/config/configmodels"
+	"go.opentelemetry.io/collector/config/configmodels"
 
 	"github.com/jaegertracing/jaeger/plugin/storage/cassandra"
 )

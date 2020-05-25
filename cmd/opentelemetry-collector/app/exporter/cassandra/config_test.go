@@ -19,9 +19,9 @@ import (
 	"testing"
 	"time"
 
-	"github.com/open-telemetry/opentelemetry-collector/config"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"go.opentelemetry.io/collector/config"
 
 	"github.com/jaegertracing/jaeger/cmd/flags"
 	jConfig "github.com/jaegertracing/jaeger/pkg/config"
