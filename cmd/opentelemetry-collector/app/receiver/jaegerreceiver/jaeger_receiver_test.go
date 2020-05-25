@@ -27,6 +27,7 @@ import (
 	"go.opentelemetry.io/collector/config/configerror"
 	"go.opentelemetry.io/collector/config/configgrpc"
 	"go.opentelemetry.io/collector/config/configmodels"
+	"go.opentelemetry.io/collector/config/configtls"
 	"go.opentelemetry.io/collector/receiver"
 	"go.opentelemetry.io/collector/receiver/jaegerreceiver"
 
@@ -123,13 +124,14 @@ func TestDefaultValueFromViper(t *testing.T) {
 				RemoteSampling: &jaegerreceiver.RemoteSamplingConfig{
 					StrategyFile: "foo",
 					HostEndpoint: "machine:1",
-					GRPCSettings: configgrpc.GRPCSettings{
+					GRPCClientSettings: configgrpc.GRPCClientSettings{
 						Endpoint: "coll:33",
-						TLSConfig: configgrpc.TLSConfig{
-							UseSecure:  true,
-							CaCert:     "cacert.pem",
-							ClientCert: "cert.pem",
-							ClientKey:  "key.key",
+						TLSSetting: configtls.TLSClientSetting{
+							TLSSetting: configtls.TLSSetting{
+								CAFile:   "cacert.pem",
+								CertFile: "cert.pem",
+								KeyFile:  "key.key",
+							},
 						},
 					},
 				},

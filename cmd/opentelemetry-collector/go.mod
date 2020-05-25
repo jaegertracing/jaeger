@@ -4,6 +4,8 @@ go 1.13
 
 replace k8s.io/client-go => k8s.io/client-go v0.0.0-20190620085101-78d2af792bab
 
+replace go.opentelemetry.io/collector => /home/ploffay/projects/opentelemetry/opentelemetry-collector
+
 replace github.com/jaegertracing/jaeger => ./../../
 
 require (
@@ -15,7 +17,7 @@ require (
 	github.com/spf13/viper v1.6.2
 	github.com/stretchr/testify v1.5.1
 	github.com/uber/jaeger-lib v2.2.0+incompatible
-	go.opentelemetry.io/collector v0.3.1-0.20200522130256-daf2fc71ac65 // indirect
+	go.opentelemetry.io/collector v0.3.1-0.20200522130256-daf2fc71ac65
 	go.uber.org/zap v1.13.0
 	k8s.io/client-go v12.0.0+incompatible // indirect
 )

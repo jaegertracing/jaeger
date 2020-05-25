@@ -25,6 +25,7 @@ import (
 	"go.opentelemetry.io/collector/config"
 	"go.opentelemetry.io/collector/config/configgrpc"
 	"go.opentelemetry.io/collector/config/configmodels"
+	"go.opentelemetry.io/collector/config/configtls"
 	"go.opentelemetry.io/collector/exporter/jaegerexporter"
 	"go.opentelemetry.io/collector/processor/resourceprocessor"
 	"go.opentelemetry.io/collector/receiver"
@@ -346,13 +347,14 @@ func TestCreateAgentReceivers(t *testing.T) {
 					TypeVal: "jaeger",
 					NameVal: "jaeger",
 					RemoteSampling: &jaegerreceiver.RemoteSamplingConfig{
-						GRPCSettings: configgrpc.GRPCSettings{
+						GRPCClientSettings: configgrpc.GRPCClientSettings{
 							Endpoint: "coll:33",
-							TLSConfig: configgrpc.TLSConfig{
-								UseSecure:  true,
-								CaCert:     "cacert.pem",
-								ClientCert: "cert.pem",
-								ClientKey:  "key.key",
+							TLSSetting: configtls.TLSClientSetting{
+								TLSSetting: configtls.TLSSetting{
+									CAFile:   "cacert.pem",
+									CertFile: "cert.pem",
+									KeyFile:  "key.key",
+								},
 							},
 						},
 					},

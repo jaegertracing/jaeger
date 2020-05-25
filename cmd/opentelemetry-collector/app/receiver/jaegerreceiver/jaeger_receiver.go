@@ -88,7 +88,7 @@ func configureCollector(v *viper.Viper, cfg *jaegerreceiver.Config) {
 		}
 		if cOpts.TLS.CertPath != "" && cOpts.TLS.KeyPath != "" {
 			cfg.Protocols["grpc"].TLSCredentials = &receiver.TLSCredentials{
-				// TODO client-ca is missing in OTEL https://go.opentelemetry.io/collector/issues/963
+				// TODO client-ca is missing in OTEL https://github.com/open-telemetry/opentelemetry-collector/issues/963
 				KeyFile:  cOpts.TLS.KeyPath,
 				CertFile: cOpts.TLS.CertPath,
 			}
@@ -127,12 +127,11 @@ func createDefaultSamplingConfig(v *viper.Viper) *jaegerreceiver.RemoteSamplingC
 		if samplingConf == nil {
 			samplingConf = &jaegerreceiver.RemoteSamplingConfig{}
 		}
-		samplingConf.GRPCSettings.Endpoint = repCfg.CollectorHostPorts[0]
-		samplingConf.GRPCSettings.TLSConfig.UseSecure = repCfg.TLS.Enabled
-		samplingConf.GRPCSettings.TLSConfig.CaCert = repCfg.TLS.CAPath
-		samplingConf.GRPCSettings.TLSConfig.ClientCert = repCfg.TLS.CertPath
-		samplingConf.GRPCSettings.TLSConfig.ClientKey = repCfg.TLS.KeyPath
-		samplingConf.GRPCSettings.TLSConfig.ServerNameOverride = repCfg.TLS.ServerName
+		samplingConf.GRPCClientSettings.Endpoint = repCfg.CollectorHostPorts[0]
+		samplingConf.GRPCClientSettings.TLSSetting.CAFile = repCfg.TLS.CAPath
+		samplingConf.GRPCClientSettings.TLSSetting.CertFile = repCfg.TLS.CertPath
+		samplingConf.GRPCClientSettings.TLSSetting.KeyFile = repCfg.TLS.KeyPath
+		samplingConf.GRPCClientSettings.TLSSetting.ServerName = repCfg.TLS.ServerName
 	}
 	return samplingConf
 }
