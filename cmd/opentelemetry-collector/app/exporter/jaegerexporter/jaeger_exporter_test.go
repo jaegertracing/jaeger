@@ -40,7 +40,7 @@ func TestDefaultValues(t *testing.T) {
 	cfg := factory.CreateDefaultConfig().(*jaegerexporter.Config)
 	assert.Empty(t, cfg.GRPCClientSettings.Endpoint)
 	tlsConf := cfg.TLSSetting
-	assert.False(t, tlsConf.Insecure)
+	assert.True(t, tlsConf.Insecure)
 	assert.Empty(t, tlsConf.CAFile)
 	assert.Empty(t, tlsConf.KeyFile)
 	assert.Empty(t, tlsConf.CertFile)

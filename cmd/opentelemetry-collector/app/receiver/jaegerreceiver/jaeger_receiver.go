@@ -127,6 +127,7 @@ func createDefaultSamplingConfig(v *viper.Viper) *jaegerreceiver.RemoteSamplingC
 		if samplingConf == nil {
 			samplingConf = &jaegerreceiver.RemoteSamplingConfig{}
 		}
+		samplingConf.GRPCClientSettings.TLSSetting.Insecure = !repCfg.TLS.Enabled
 		samplingConf.GRPCClientSettings.Endpoint = repCfg.CollectorHostPorts[0]
 		samplingConf.GRPCClientSettings.TLSSetting.CAFile = repCfg.TLS.CAPath
 		samplingConf.GRPCClientSettings.TLSSetting.CertFile = repCfg.TLS.CertPath

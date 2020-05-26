@@ -127,6 +127,7 @@ func TestDefaultValueFromViper(t *testing.T) {
 					GRPCClientSettings: configgrpc.GRPCClientSettings{
 						Endpoint: "coll:33",
 						TLSSetting: configtls.TLSClientSetting{
+							Insecure: false,
 							TLSSetting: configtls.TLSSetting{
 								CAFile:   "cacert.pem",
 								CertFile: "cert.pem",
