@@ -15,7 +15,7 @@
 package grpcplugin
 
 import (
-	"github.com/open-telemetry/opentelemetry-collector/config/configmodels"
+	"go.opentelemetry.io/collector/config/configmodels"
 
 	storageGrpc "github.com/jaegertracing/jaeger/plugin/storage/grpc"
 )

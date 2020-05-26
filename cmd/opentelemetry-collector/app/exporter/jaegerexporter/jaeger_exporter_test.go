@@ -19,13 +19,13 @@ import (
 	"path"
 	"testing"
 
-	"github.com/open-telemetry/opentelemetry-collector/component"
-	"github.com/open-telemetry/opentelemetry-collector/config"
-	"github.com/open-telemetry/opentelemetry-collector/config/configerror"
-	"github.com/open-telemetry/opentelemetry-collector/config/configmodels"
-	"github.com/open-telemetry/opentelemetry-collector/exporter/jaegerexporter"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"go.opentelemetry.io/collector/component"
+	"go.opentelemetry.io/collector/config"
+	"go.opentelemetry.io/collector/config/configerror"
+	"go.opentelemetry.io/collector/config/configmodels"
+	"go.opentelemetry.io/collector/exporter/jaegerexporter"
 
 	"github.com/jaegertracing/jaeger/cmd/opentelemetry-collector/app/receiver/jaegerreceiver"
 	jConfig "github.com/jaegertracing/jaeger/pkg/config"
@@ -38,13 +38,13 @@ func TestDefaultValues(t *testing.T) {
 
 	factory := &Factory{Viper: v, Wrapped: &jaegerexporter.Factory{}}
 	cfg := factory.CreateDefaultConfig().(*jaegerexporter.Config)
-	assert.Empty(t, cfg.GRPCSettings.Endpoint)
-	tlsConf := cfg.TLSConfig
-	assert.False(t, tlsConf.UseSecure)
-	assert.Empty(t, tlsConf.CaCert)
-	assert.Empty(t, tlsConf.ClientKey)
-	assert.Empty(t, tlsConf.ClientCert)
-	assert.Empty(t, tlsConf.ServerNameOverride)
+	assert.Empty(t, cfg.GRPCClientSettings.Endpoint)
+	tlsConf := cfg.TLSSetting
+	assert.True(t, tlsConf.Insecure)
+	assert.Empty(t, tlsConf.CAFile)
+	assert.Empty(t, tlsConf.KeyFile)
+	assert.Empty(t, tlsConf.CertFile)
+	assert.Empty(t, tlsConf.ServerName)
 }
 
 func TestDefaultValueFromViper(t *testing.T) {
@@ -58,10 +58,10 @@ func TestDefaultValueFromViper(t *testing.T) {
 	}
 
 	cfg := f.CreateDefaultConfig().(*jaegerexporter.Config)
-	assert.Equal(t, "foo", cfg.GRPCSettings.Endpoint)
-	tlsConfig := cfg.TLSConfig
-	assert.Equal(t, true, tlsConfig.UseSecure)
-	assert.Equal(t, "ca.crt", tlsConfig.CaCert)
+	assert.Equal(t, "foo", cfg.GRPCClientSettings.Endpoint)
+	tlsConfig := cfg.TLSSetting
+	assert.Equal(t, false, tlsConfig.Insecure)
+	assert.Equal(t, "ca.crt", tlsConfig.CAFile)
 }
 
 func TestLoadConfigAndFlags(t *testing.T) {
@@ -73,7 +73,7 @@ func TestLoadConfigAndFlags(t *testing.T) {
 	require.NoError(t, err)
 
 	factory := &Factory{Viper: v, Wrapped: &jaegerexporter.Factory{}}
-	assert.Equal(t, "foo", factory.CreateDefaultConfig().(*jaegerexporter.Config).GRPCSettings.Endpoint)
+	assert.Equal(t, "foo", factory.CreateDefaultConfig().(*jaegerexporter.Config).GRPCClientSettings.Endpoint)
 
 	factories.Exporters["jaeger"] = factory
 	colConfig, err := config.LoadConfigFile(t, path.Join(".", "testdata", "config.yaml"), factories)
@@ -81,7 +81,7 @@ func TestLoadConfigAndFlags(t *testing.T) {
 	require.NotNil(t, colConfig)
 
 	cfg := colConfig.Exporters["jaeger"].(*jaegerexporter.Config)
-	assert.Equal(t, "bar", cfg.GRPCSettings.Endpoint)
+	assert.Equal(t, "bar", cfg.GRPCClientSettings.Endpoint)
 }
 
 func TestType(t *testing.T) {

@@ -15,8 +15,8 @@
 package cassandra
 
 import (
-	"github.com/open-telemetry/opentelemetry-collector/component"
 	"github.com/uber/jaeger-lib/metrics"
+	"go.opentelemetry.io/collector/component"
 
 	storageOtelExporter "github.com/jaegertracing/jaeger/cmd/opentelemetry-collector/app/exporter"
 	"github.com/jaegertracing/jaeger/plugin/storage/cassandra"

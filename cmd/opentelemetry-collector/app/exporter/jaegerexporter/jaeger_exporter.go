@@ -17,10 +17,10 @@ package jaegerexporter
 import (
 	"context"
 
-	"github.com/open-telemetry/opentelemetry-collector/component"
-	"github.com/open-telemetry/opentelemetry-collector/config/configmodels"
-	"github.com/open-telemetry/opentelemetry-collector/exporter/jaegerexporter"
 	"github.com/spf13/viper"
+	"go.opentelemetry.io/collector/component"
+	"go.opentelemetry.io/collector/config/configmodels"
+	"go.opentelemetry.io/collector/exporter/jaegerexporter"
 
 	grpcRep "github.com/jaegertracing/jaeger/cmd/agent/app/reporter/grpc"
 )
@@ -50,11 +50,11 @@ func (f Factory) CreateDefaultConfig() configmodels.Exporter {
 	if len(repCfg.CollectorHostPorts) > 0 {
 		cfg.Endpoint = repCfg.CollectorHostPorts[0]
 	}
-	cfg.GRPCSettings.TLSConfig.UseSecure = repCfg.TLS.Enabled
-	cfg.GRPCSettings.TLSConfig.CaCert = repCfg.TLS.CAPath
-	cfg.GRPCSettings.TLSConfig.ClientCert = repCfg.TLS.CertPath
-	cfg.GRPCSettings.TLSConfig.ClientKey = repCfg.TLS.KeyPath
-	cfg.GRPCSettings.TLSConfig.ServerNameOverride = repCfg.TLS.ServerName
+	cfg.GRPCClientSettings.TLSSetting.Insecure = !repCfg.TLS.Enabled
+	cfg.GRPCClientSettings.TLSSetting.CAFile = repCfg.TLS.CAPath
+	cfg.GRPCClientSettings.TLSSetting.CertFile = repCfg.TLS.CertPath
+	cfg.GRPCClientSettings.TLSSetting.KeyFile = repCfg.TLS.KeyPath
+	cfg.GRPCClientSettings.TLSSetting.ServerName = repCfg.TLS.ServerName
 	return cfg
 }
 

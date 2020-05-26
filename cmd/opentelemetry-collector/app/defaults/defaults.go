@@ -17,14 +17,14 @@ package defaults
 import (
 	"flag"
 
-	"github.com/open-telemetry/opentelemetry-collector/config"
-	otelJaegerExporter "github.com/open-telemetry/opentelemetry-collector/exporter/jaegerexporter"
-	otelResourceProcessor "github.com/open-telemetry/opentelemetry-collector/processor/resourceprocessor"
-	otelJaegerReceiver "github.com/open-telemetry/opentelemetry-collector/receiver/jaegerreceiver"
-	otelZipkinReceiver "github.com/open-telemetry/opentelemetry-collector/receiver/zipkinreceiver"
-	"github.com/open-telemetry/opentelemetry-collector/service/defaultcomponents"
 	"github.com/spf13/pflag"
 	"github.com/spf13/viper"
+	"go.opentelemetry.io/collector/config"
+	otelJaegerExporter "go.opentelemetry.io/collector/exporter/jaegerexporter"
+	otelResourceProcessor "go.opentelemetry.io/collector/processor/resourceprocessor"
+	otelJaegerReceiver "go.opentelemetry.io/collector/receiver/jaegerreceiver"
+	otelZipkinReceiver "go.opentelemetry.io/collector/receiver/zipkinreceiver"
+	"go.opentelemetry.io/collector/service/defaultcomponents"
 
 	ingesterApp "github.com/jaegertracing/jaeger/cmd/ingester/app"
 	"github.com/jaegertracing/jaeger/cmd/opentelemetry-collector/app/exporter/cassandra"

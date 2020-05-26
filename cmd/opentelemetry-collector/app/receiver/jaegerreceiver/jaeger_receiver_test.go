@@ -20,15 +20,16 @@ import (
 	"path"
 	"testing"
 
-	"github.com/open-telemetry/opentelemetry-collector/component"
-	"github.com/open-telemetry/opentelemetry-collector/config"
-	"github.com/open-telemetry/opentelemetry-collector/config/configerror"
-	"github.com/open-telemetry/opentelemetry-collector/config/configgrpc"
-	"github.com/open-telemetry/opentelemetry-collector/config/configmodels"
-	"github.com/open-telemetry/opentelemetry-collector/receiver"
-	"github.com/open-telemetry/opentelemetry-collector/receiver/jaegerreceiver"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"go.opentelemetry.io/collector/component"
+	"go.opentelemetry.io/collector/config"
+	"go.opentelemetry.io/collector/config/configerror"
+	"go.opentelemetry.io/collector/config/configgrpc"
+	"go.opentelemetry.io/collector/config/configmodels"
+	"go.opentelemetry.io/collector/config/configtls"
+	"go.opentelemetry.io/collector/receiver"
+	"go.opentelemetry.io/collector/receiver/jaegerreceiver"
 
 	collectorApp "github.com/jaegertracing/jaeger/cmd/collector/app"
 	jConfig "github.com/jaegertracing/jaeger/pkg/config"
@@ -123,13 +124,15 @@ func TestDefaultValueFromViper(t *testing.T) {
 				RemoteSampling: &jaegerreceiver.RemoteSamplingConfig{
 					StrategyFile: "foo",
 					HostEndpoint: "machine:1",
-					GRPCSettings: configgrpc.GRPCSettings{
+					GRPCClientSettings: configgrpc.GRPCClientSettings{
 						Endpoint: "coll:33",
-						TLSConfig: configgrpc.TLSConfig{
-							UseSecure:  true,
-							CaCert:     "cacert.pem",
-							ClientCert: "cert.pem",
-							ClientKey:  "key.key",
+						TLSSetting: configtls.TLSClientSetting{
+							Insecure: false,
+							TLSSetting: configtls.TLSSetting{
+								CAFile:   "cacert.pem",
+								CertFile: "cert.pem",
+								KeyFile:  "key.key",
+							},
 						},
 					},
 				},

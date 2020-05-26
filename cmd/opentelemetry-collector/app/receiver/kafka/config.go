@@ -15,7 +15,7 @@
 package kafka
 
 import (
-	"github.com/open-telemetry/opentelemetry-collector/config/configmodels"
+	"go.opentelemetry.io/collector/config/configmodels"
 
 	ingesterApp "github.com/jaegertracing/jaeger/cmd/ingester/app"
 )

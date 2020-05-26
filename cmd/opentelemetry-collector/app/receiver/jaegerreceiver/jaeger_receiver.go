@@ -17,12 +17,12 @@ package jaegerreceiver
 import (
 	"context"
 
-	"github.com/open-telemetry/opentelemetry-collector/component"
-	"github.com/open-telemetry/opentelemetry-collector/config/configmodels"
-	"github.com/open-telemetry/opentelemetry-collector/consumer"
-	"github.com/open-telemetry/opentelemetry-collector/receiver"
-	"github.com/open-telemetry/opentelemetry-collector/receiver/jaegerreceiver"
 	"github.com/spf13/viper"
+	"go.opentelemetry.io/collector/component"
+	"go.opentelemetry.io/collector/config/configmodels"
+	"go.opentelemetry.io/collector/consumer"
+	"go.opentelemetry.io/collector/receiver"
+	"go.opentelemetry.io/collector/receiver/jaegerreceiver"
 
 	agentApp "github.com/jaegertracing/jaeger/cmd/agent/app"
 	grpcRep "github.com/jaegertracing/jaeger/cmd/agent/app/reporter/grpc"
@@ -127,12 +127,12 @@ func createDefaultSamplingConfig(v *viper.Viper) *jaegerreceiver.RemoteSamplingC
 		if samplingConf == nil {
 			samplingConf = &jaegerreceiver.RemoteSamplingConfig{}
 		}
-		samplingConf.GRPCSettings.Endpoint = repCfg.CollectorHostPorts[0]
-		samplingConf.GRPCSettings.TLSConfig.UseSecure = repCfg.TLS.Enabled
-		samplingConf.GRPCSettings.TLSConfig.CaCert = repCfg.TLS.CAPath
-		samplingConf.GRPCSettings.TLSConfig.ClientCert = repCfg.TLS.CertPath
-		samplingConf.GRPCSettings.TLSConfig.ClientKey = repCfg.TLS.KeyPath
-		samplingConf.GRPCSettings.TLSConfig.ServerNameOverride = repCfg.TLS.ServerName
+		samplingConf.GRPCClientSettings.TLSSetting.Insecure = !repCfg.TLS.Enabled
+		samplingConf.GRPCClientSettings.Endpoint = repCfg.CollectorHostPorts[0]
+		samplingConf.GRPCClientSettings.TLSSetting.CAFile = repCfg.TLS.CAPath
+		samplingConf.GRPCClientSettings.TLSSetting.CertFile = repCfg.TLS.CertPath
+		samplingConf.GRPCClientSettings.TLSSetting.KeyFile = repCfg.TLS.KeyPath
+		samplingConf.GRPCClientSettings.TLSSetting.ServerName = repCfg.TLS.ServerName
 	}
 	return samplingConf
 }
