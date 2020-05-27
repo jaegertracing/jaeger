@@ -31,13 +31,13 @@ require (
 	github.com/gocql/gocql v0.0.0-20200228163523-cd4b606dd2fb
 	github.com/gogo/googleapis v1.0.1-0.20180501115203-b23578765ee5
 	github.com/gogo/protobuf v1.2.1
-	github.com/golang/protobuf v1.3.3
+	github.com/golang/protobuf v1.3.4
 	github.com/gorilla/handlers v1.4.2
 	github.com/gorilla/mux v1.7.4
 	github.com/grpc-ecosystem/go-grpc-middleware v1.2.0
 	github.com/grpc-ecosystem/grpc-gateway v1.13.0
-	github.com/hashicorp/go-hclog v0.8.0
-	github.com/hashicorp/go-plugin v1.0.1
+	github.com/hashicorp/go-hclog v0.14.0
+	github.com/hashicorp/go-plugin v1.3.0
 	github.com/hashicorp/go-uuid v1.0.2 // indirect
 	github.com/hashicorp/yamux v0.0.0-20190923154419-df201c70410d // indirect
 	github.com/jcmturner/gofork v1.0.0 // indirect
