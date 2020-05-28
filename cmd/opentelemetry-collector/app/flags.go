@@ -24,6 +24,7 @@ import (
 	"github.com/jaegertracing/jaeger/cmd/opentelemetry-collector/app/exporter/elasticsearch"
 	"github.com/jaegertracing/jaeger/cmd/opentelemetry-collector/app/exporter/grpcplugin"
 	"github.com/jaegertracing/jaeger/cmd/opentelemetry-collector/app/exporter/kafka"
+	"github.com/jaegertracing/jaeger/cmd/opentelemetry-collector/app/exporter/memory"
 	"github.com/jaegertracing/jaeger/cmd/opentelemetry-collector/app/processor/resourceprocessor"
 	"github.com/jaegertracing/jaeger/cmd/opentelemetry-collector/app/receiver/jaegerreceiver"
 	"github.com/jaegertracing/jaeger/cmd/opentelemetry-collector/app/receiver/zipkinreceiver"
@@ -40,14 +41,16 @@ func AddComponentFlags(flags *flag.FlagSet) {
 
 // AddStorageFlags return a function that adds storage flags.
 // storage parameter can contain a comma separated list of supported Jaeger storage backends.
-func AddStorageFlags(storage string) (func(*flag.FlagSet), error) {
+func AddStorageFlags(storage string, enableArchiveStorage bool) (func(*flag.FlagSet), error) {
 	var flagFn []func(*flag.FlagSet)
 	for _, s := range strings.Split(storage, ",") {
 		switch s {
+		case "memory":
+			flagFn = append(flagFn, memory.AddFlags)
 		case "cassandra":
-			flagFn = append(flagFn, cassandra.DefaultOptions().AddFlags)
+			flagFn = append(flagFn, cassandra.DefaultOptions(enableArchiveStorage).AddFlags)
 		case "elasticsearch":
-			flagFn = append(flagFn, elasticsearch.DefaultOptions().AddFlags)
+			flagFn = append(flagFn, elasticsearch.DefaultOptions(enableArchiveStorage).AddFlags)
 		case "kafka":
 			flagFn = append(flagFn, kafka.DefaultOptions().AddFlags)
 		case "grpc-plugin":

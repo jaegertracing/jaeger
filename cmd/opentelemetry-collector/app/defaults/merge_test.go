@@ -144,8 +144,8 @@ func TestMergeConfigs(t *testing.T) {
 
 func TestMergeConfigFiles(t *testing.T) {
 	testFiles := []string{"emptyoverride", "addprocessor", "multiplecomponents"}
-	v, _ := jConfig.Viperize(elasticsearch.DefaultOptions().AddFlags)
-	cmpts := Components(v)
+	v, _ := jConfig.Viperize(elasticsearch.DefaultOptions(false).AddFlags)
+	cmpts := Components(v, false)
 	for _, f := range testFiles {
 		t.Run(f, func(t *testing.T) {
 			cfg, err := loadConfig(cmpts, fmt.Sprintf("testdata/%s.yaml", f))

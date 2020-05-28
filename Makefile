@@ -250,6 +250,10 @@ build-otel-agent:
 build-otel-ingester:
 	cd ${OTEL_COLLECTOR_DIR}/cmd/ingester && $(GOBUILD) -o ./opentelemetry-ingester-$(GOOS)-$(GOARCH) $(BUILD_INFO) main.go
 
+.PHONY: build-otel-all-in-one
+build-otel-all-in-one:
+	cd ${OTEL_COLLECTOR_DIR}/cmd/all-in-one && $(GOBUILD) -o ./opentelemetry-all-in-one-$(GOOS)-$(GOARCH) $(BUILD_INFO) main.go
+
 .PHONY: build-ingester
 build-ingester:
 	$(GOBUILD) -o ./cmd/ingester/ingester-$(GOOS)-$(GOARCH) $(BUILD_INFO) ./cmd/ingester/main.go
@@ -278,7 +282,7 @@ build-binaries-arm64:
 	GOOS=linux GOARCH=arm64 $(MAKE) build-platform-binaries
 
 .PHONY: build-platform-binaries
-build-platform-binaries: build-agent build-collector build-query build-ingester build-all-in-one build-examples build-tracegen build-otel-collector build-otel-agent build-otel-ingester
+build-platform-binaries: build-agent build-collector build-query build-ingester build-all-in-one build-examples build-tracegen build-otel-collector build-otel-agent build-otel-ingester build-otel-all-in-one
 
 .PHONY: build-all-platforms
 build-all-platforms: build-binaries-linux build-binaries-windows build-binaries-darwin build-binaries-s390x build-binaries-arm64
@@ -303,6 +307,7 @@ docker-images-jaeger-backend:
 	docker build -t $(DOCKER_NAMESPACE)/jaeger-opentelemetry-collector:${DOCKER_TAG} -f ${OTEL_COLLECTOR_DIR}/cmd/collector/Dockerfile cmd/opentelemetry-collector/cmd/collector --build-arg ARCH=$(GOARCH)
 	docker build -t $(DOCKER_NAMESPACE)/jaeger-opentelemetry-agent:${DOCKER_TAG} -f ${OTEL_COLLECTOR_DIR}/cmd/agent/Dockerfile cmd/opentelemetry-collector/cmd/agent --build-arg ARCH=$(GOARCH)
 	docker build -t $(DOCKER_NAMESPACE)/jaeger-opentelemetry-ingester:${DOCKER_TAG} -f ${OTEL_COLLECTOR_DIR}/cmd/ingester/Dockerfile cmd/opentelemetry-collector/cmd/ingester --build-arg ARCH=$(GOARCH)
+	docker build -t $(DOCKER_NAMESPACE)/jaeger-opentelemetry-all-in-one:${DOCKER_TAG} -f ${OTEL_COLLECTOR_DIR}/cmd/all-in-one/Dockerfile cmd/opentelemetry-collector/cmd/all-in-one --build-arg ARCH=$(GOARCH)
 
 .PHONY: docker-images-tracegen
 docker-images-tracegen:

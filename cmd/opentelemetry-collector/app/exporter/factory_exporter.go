@@ -12,23 +12,17 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package elasticsearch
+package exporter
 
 import (
-	"github.com/uber/jaeger-lib/metrics"
 	"go.opentelemetry.io/collector/component"
+	"go.opentelemetry.io/collector/config/configmodels"
 
-	storageOtelExporter "github.com/jaegertracing/jaeger/cmd/opentelemetry-collector/app/exporter"
-	"github.com/jaegertracing/jaeger/plugin/storage/es"
+	jaegerstorage "github.com/jaegertracing/jaeger/storage"
 )
 
-// New creates Elasticsearch exporter/storage.
-func New(config *Config, params component.ExporterCreateParams) (component.TraceExporter, error) {
-	factory := es.NewFactory()
-	factory.InitFromOptions(config.Options)
-	err := factory.Initialize(metrics.NullFactory, params.Logger)
-	if err != nil {
-		return nil, err
-	}
-	return storageOtelExporter.NewSpanWriterExporter(&config.ExporterSettings, factory)
+// FactoryCreator interface defines contract for creating Jaeger storage factory
+type FactoryCreator interface {
+	// Create creates Jaeger storage factory
+	CreateStorageFactory(params component.ExporterCreateParams, exporter configmodels.Exporter) (jaegerstorage.Factory, error)
 }

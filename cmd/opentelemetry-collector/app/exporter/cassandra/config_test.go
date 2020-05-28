@@ -30,8 +30,8 @@ import (
 
 func TestDefaultConfig(t *testing.T) {
 	factory := &Factory{OptionsFactory: func() *cassandra.Options {
-		v, _ := jConfig.Viperize(DefaultOptions().AddFlags)
-		opts := DefaultOptions()
+		v, _ := jConfig.Viperize(DefaultOptions(false).AddFlags)
+		opts := DefaultOptions(false)
 		opts.InitFromViper(v)
 		return opts
 	}}
@@ -53,7 +53,7 @@ func TestLoadConfigAndFlags(t *testing.T) {
 	factories, err := config.ExampleComponents()
 	require.NoError(t, err)
 
-	v, c := jConfig.Viperize(DefaultOptions().AddFlags, flags.AddConfigFileFlag)
+	v, c := jConfig.Viperize(DefaultOptions(false).AddFlags, flags.AddConfigFileFlag)
 	err = c.ParseFlags([]string{"--cassandra.servers=bar", "--cassandra.port=9000", "--config-file=./testdata/jaeger-config.yaml"})
 	require.NoError(t, err)
 
@@ -61,7 +61,7 @@ func TestLoadConfigAndFlags(t *testing.T) {
 	require.NoError(t, err)
 
 	factory := &Factory{OptionsFactory: func() *cassandra.Options {
-		opts := DefaultOptions()
+		opts := DefaultOptions(false)
 		opts.InitFromViper(v)
 		require.Equal(t, []string{"bar"}, opts.GetPrimary().Servers)
 		return opts

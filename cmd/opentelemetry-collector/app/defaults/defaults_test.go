@@ -24,6 +24,7 @@ import (
 	"github.com/jaegertracing/jaeger/cmd/opentelemetry-collector/app/exporter/grpcplugin"
 	"github.com/jaegertracing/jaeger/cmd/opentelemetry-collector/app/exporter/jaegerexporter"
 	"github.com/jaegertracing/jaeger/cmd/opentelemetry-collector/app/exporter/kafka"
+	"github.com/jaegertracing/jaeger/cmd/opentelemetry-collector/app/exporter/memory"
 	"github.com/jaegertracing/jaeger/cmd/opentelemetry-collector/app/receiver/jaegerreceiver"
 	kafkaRec "github.com/jaegertracing/jaeger/cmd/opentelemetry-collector/app/receiver/kafka"
 	"github.com/jaegertracing/jaeger/cmd/opentelemetry-collector/app/receiver/zipkinreceiver"
@@ -33,14 +34,15 @@ import (
 func TestComponents(t *testing.T) {
 	v, _ := jConfig.Viperize(
 		kafka.DefaultOptions().AddFlags,
-		cassandra.DefaultOptions().AddFlags,
-		elasticsearch.DefaultOptions().AddFlags,
+		cassandra.DefaultOptions(false).AddFlags,
+		elasticsearch.DefaultOptions(false).AddFlags,
 	)
-	factories := Components(v)
+	factories := Components(v, false)
 	assert.IsType(t, &kafka.Factory{}, factories.Exporters[kafka.TypeStr])
 	assert.IsType(t, &cassandra.Factory{}, factories.Exporters[cassandra.TypeStr])
 	assert.IsType(t, &elasticsearch.Factory{}, factories.Exporters[elasticsearch.TypeStr])
 	assert.IsType(t, &grpcplugin.Factory{}, factories.Exporters[grpcplugin.TypeStr])
+	assert.IsType(t, &memory.Factory{}, factories.Exporters[memory.TypeStr])
 	assert.IsType(t, &jaegerreceiver.Factory{}, factories.Receivers["jaeger"])
 	assert.IsType(t, &jaegerexporter.Factory{}, factories.Exporters["jaeger"])
 	assert.IsType(t, &kafkaRec.Factory{}, factories.Receivers[kafkaRec.TypeStr])

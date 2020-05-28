@@ -18,11 +18,14 @@ import (
 	"context"
 	"fmt"
 
+	"github.com/uber/jaeger-lib/metrics"
 	"go.opentelemetry.io/collector/component"
 	"go.opentelemetry.io/collector/config/configerror"
 	"go.opentelemetry.io/collector/config/configmodels"
 
+	"github.com/jaegertracing/jaeger/cmd/opentelemetry-collector/app/exporter"
 	"github.com/jaegertracing/jaeger/plugin/storage/cassandra"
+	"github.com/jaegertracing/jaeger/storage"
 )
 
 const (
@@ -34,7 +37,10 @@ const (
 type OptionsFactory func() *cassandra.Options
 
 // DefaultOptions creates Cassandra options supported by this exporter.
-func DefaultOptions() *cassandra.Options {
+func DefaultOptions(enableArchive bool) *cassandra.Options {
+	if enableArchive {
+		return cassandra.NewOptions("cassandra", "cassandra-archive")
+	}
 	return cassandra.NewOptions("cassandra")
 }
 
@@ -44,6 +50,22 @@ type Factory struct {
 }
 
 var _ component.ExporterFactory = (*Factory)(nil)
+var _ exporter.FactoryCreator = (*Factory)(nil)
+
+// CreateStorageFactory creates Jaeger storage factory.
+func (Factory) CreateStorageFactory(params component.ExporterCreateParams, cfg configmodels.Exporter) (storage.Factory, error) {
+	config, ok := cfg.(*Config)
+	if !ok {
+		return nil, fmt.Errorf("could not cast configuration to %s", TypeStr)
+	}
+	f := cassandra.NewFactory()
+	f.InitFromOptions(&config.Options)
+	err := f.Initialize(metrics.NullFactory, params.Logger)
+	if err != nil {
+		return nil, err
+	}
+	return f, nil
+}
 
 // Type gets the type of exporter.
 func (Factory) Type() configmodels.Type {
@@ -70,11 +92,11 @@ func (f Factory) CreateTraceExporter(
 	params component.ExporterCreateParams,
 	cfg configmodels.Exporter,
 ) (component.TraceExporter, error) {
-	config, ok := cfg.(*Config)
-	if !ok {
-		return nil, fmt.Errorf("could not cast configuration to %s", TypeStr)
+	factory, err := f.CreateStorageFactory(params, cfg)
+	if err != nil {
+		return nil, err
 	}
-	return New(config, params)
+	return exporter.NewSpanWriterExporter(cfg, factory)
 }
 
 // CreateMetricsExporter is not implemented.

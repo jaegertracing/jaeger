@@ -41,12 +41,17 @@ func NewFactory() *Factory {
 
 // AddFlags implements plugin.Configurable
 func (f *Factory) AddFlags(flagSet *flag.FlagSet) {
-	f.options.AddFlags(flagSet)
+	AddFlags(flagSet)
 }
 
 // InitFromViper implements plugin.Configurable
 func (f *Factory) InitFromViper(v *viper.Viper) {
 	f.options.InitFromViper(v)
+}
+
+// InitFromOptions initializes factory from the supplied options
+func (f *Factory) InitFromOptions(opts Options) {
+	f.options = opts
 }
 
 // Initialize implements storage.Factory

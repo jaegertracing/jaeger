@@ -12,61 +12,86 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package cassandra
+package memory
 
 import (
 	"context"
 	"testing"
 
+	"github.com/spf13/viper"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"go.opentelemetry.io/collector/component"
 	"go.opentelemetry.io/collector/config/configcheck"
 	"go.opentelemetry.io/collector/config/configerror"
 	"go.opentelemetry.io/collector/config/configmodels"
+	"go.uber.org/zap"
 
 	jConfig "github.com/jaegertracing/jaeger/pkg/config"
-	"github.com/jaegertracing/jaeger/plugin/storage/cassandra"
 )
 
 func TestCreateTraceExporter(t *testing.T) {
-	v, _ := jConfig.Viperize(DefaultOptions(false).AddFlags)
-	opts := DefaultOptions(false)
-	opts.InitFromViper(v)
-	factory := Factory{OptionsFactory: func() *cassandra.Options {
-		return opts
-	}}
-	exporter, err := factory.CreateTraceExporter(context.Background(), component.ExporterCreateParams{}, factory.CreateDefaultConfig())
-	require.Nil(t, exporter)
-	assert.Contains(t, err.Error(), "gocql: unable to create session")
+	t.Cleanup(func() {
+		instance = nil
+	})
+	v, _ := jConfig.Viperize(AddFlags)
+	factory := NewFactory(v)
+	exporter, err := factory.CreateTraceExporter(context.Background(), component.ExporterCreateParams{Logger: zap.NewNop()}, factory.CreateDefaultConfig())
+	require.NoError(t, err)
+	require.NotNil(t, exporter)
 }
 
-func TestCreateTraceExporter_NilConfig(t *testing.T) {
-	factory := Factory{}
+func TestCreateTraceExporter_nilConfig(t *testing.T) {
+	t.Cleanup(func() {
+		instance = nil
+	})
+	factory := &Factory{}
 	exporter, err := factory.CreateTraceExporter(context.Background(), component.ExporterCreateParams{}, nil)
 	require.Nil(t, exporter)
-	assert.Contains(t, err.Error(), "could not cast configuration to jaeger_cassandra")
-}
-
-func TestCreateDefaultConfig(t *testing.T) {
-	factory := Factory{OptionsFactory: func() *cassandra.Options {
-		return DefaultOptions(false)
-	}}
-	cfg := factory.CreateDefaultConfig()
-	assert.NotNil(t, cfg, "failed to create default config")
-	assert.NoError(t, configcheck.ValidateConfig(cfg))
+	assert.Contains(t, err.Error(), "could not cast configuration to jaeger_memory")
 }
 
 func TestCreateMetricsExporter(t *testing.T) {
-	f := Factory{OptionsFactory: func() *cassandra.Options {
-		return DefaultOptions(false)
-	}}
+	t.Cleanup(func() {
+		instance = nil
+	})
+	f := NewFactory(viper.New())
 	mReceiver, err := f.CreateMetricsExporter(context.Background(), component.ExporterCreateParams{}, f.CreateDefaultConfig())
 	assert.Equal(t, err, configerror.ErrDataTypeIsNotSupported)
 	assert.Nil(t, mReceiver)
 }
 
+func TestCreateDefaultConfig(t *testing.T) {
+	t.Cleanup(func() {
+		instance = nil
+	})
+	factory := NewFactory(viper.New())
+	cfg := factory.CreateDefaultConfig()
+	assert.NotNil(t, cfg, "failed to create default config")
+	assert.NoError(t, configcheck.ValidateConfig(cfg))
+}
+
 func TestType(t *testing.T) {
+	t.Cleanup(func() {
+		instance = nil
+	})
 	factory := Factory{}
 	assert.Equal(t, configmodels.Type(TypeStr), factory.Type())
+}
+
+func TestSingleton(t *testing.T) {
+	t.Cleanup(func() {
+		instance = nil
+	})
+	f := NewFactory(viper.New())
+	logger := zap.NewNop()
+	assert.Nil(t, instance)
+	exp, err := f.CreateTraceExporter(context.Background(), component.ExporterCreateParams{Logger: logger}, &Config{})
+	require.NoError(t, err)
+	require.NotNil(t, exp)
+	previousInstance := instance
+	exp, err = f.CreateTraceExporter(context.Background(), component.ExporterCreateParams{Logger: logger}, &Config{})
+	require.NoError(t, err)
+	require.NotNil(t, exp)
+	assert.Equal(t, previousInstance, instance)
 }
