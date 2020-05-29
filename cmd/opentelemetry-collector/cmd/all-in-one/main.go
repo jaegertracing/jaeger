@@ -143,15 +143,12 @@ func main() {
 	}
 	storageFactory, err := storageFactoryCreator.CreateStorageFactory(
 		component.ExporterCreateParams{
-			Logger: zap.NewNop(),
+			Logger: svc.GetLogger(),
 		}, exp)
 	if err != nil {
 		svc.ReportFatalError(fmt.Errorf("could not create storage factory for query service: %v", err))
 	}
-	// TODO use logger from the service
-	// https://github.com/open-telemetry/opentelemetry-collector/pull/1032
-	logger := zap.NewNop()
-	startQuery(v, logger, storageFactory, svc.ReportFatalError)
+	startQuery(v, svc.GetLogger(), storageFactory, svc.ReportFatalError)
 }
 
 func getExporter(storageType string, exporters configmodels.Exporters) configmodels.Exporter {
