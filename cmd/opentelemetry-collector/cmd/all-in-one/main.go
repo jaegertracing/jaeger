@@ -15,7 +15,6 @@
 package main
 
 import (
-	"errors"
 	"fmt"
 	"io"
 	"log"
@@ -142,20 +141,47 @@ func main() {
 
 	configCreatedWait.Wait()
 	exp := getStorageExporter(storageType, exporters)
-	fac, err := getFactory(exp, v, svc.GetLogger())
-	if err != nil {
+	if err := startQuery(v, svc.GetLogger(), exp); err != nil {
 		svc.ReportFatalError(err)
 	}
-	startQuery(v, svc.GetLogger(), fac, svc.ReportFatalError)
 }
 
 func getStorageExporter(storageType string, exporters configmodels.Exporters) configmodels.Exporter {
-	for _, e := range exporters {
-		if e.Name() == fmt.Sprintf("jaeger_%s", storageType) {
-			return e
-		}
+	return exporters[fmt.Sprintf("jaeger_%s", storageType)]
+}
+
+func startQuery(v *viper.Viper, logger *zap.Logger, exporter configmodels.Exporter) error {
+	storageFactory, err := getFactory(exporter, v, logger)
+	if err != nil {
+		return err
 	}
-	return nil
+	spanReader, err := storageFactory.CreateSpanReader()
+	if err != nil {
+		return err
+	}
+	dependencyReader, err := storageFactory.CreateDependencyReader()
+	if err != nil {
+		return err
+	}
+	queryOpts := new(queryApp.QueryOptions).InitFromViper(v, logger)
+	queryServiceOptions := queryOpts.BuildQueryServiceOptions(storageFactory, logger)
+	queryService := querysvc.NewQueryService(
+		spanReader,
+		dependencyReader,
+		*queryServiceOptions)
+
+	tracerCloser := initTracer(logger)
+	server := queryApp.NewServer(logger, queryService, queryOpts, opentracing.GlobalTracer())
+	if err := server.Start(); err != nil {
+		return err
+	}
+
+	// TODO subscribe to service's lifecycle (shutdown) event and then terminate
+	// https://github.com/open-telemetry/opentelemetry-collector/issues/1033
+	c := make(chan os.Signal, 1)
+	signal.Notify(c, os.Interrupt)
+	<-c
+	return tracerCloser.Close()
 }
 
 func getFactory(exporter configmodels.Exporter, v *viper.Viper, logger *zap.Logger) (storage.Factory, error) {
@@ -183,38 +209,8 @@ func getFactory(exporter configmodels.Exporter, v *viper.Viper, logger *zap.Logg
 	case "memory":
 		return memory.GetFactory(), nil
 	default:
-		return nil, errors.New("storage type cannot be used with all-in-one")
+		return nil, fmt.Errorf("storage type %s cannot be used with all-in-one", exporter.Name())
 	}
-}
-
-func startQuery(v *viper.Viper, logger *zap.Logger, storageFactory storage.Factory, reportErr func(err error)) {
-	spanReader, err := storageFactory.CreateSpanReader()
-	if err != nil {
-		reportErr(err)
-	}
-	dependencyReader, err := storageFactory.CreateDependencyReader()
-	if err != nil {
-		reportErr(err)
-	}
-	queryOpts := new(queryApp.QueryOptions).InitFromViper(v, logger)
-	queryServiceOptions := queryOpts.BuildQueryServiceOptions(storageFactory, logger)
-	queryService := querysvc.NewQueryService(
-		spanReader,
-		dependencyReader,
-		*queryServiceOptions)
-
-	tracerCloser := initTracer(logger)
-	server := queryApp.NewServer(logger, queryService, queryOpts, opentracing.GlobalTracer())
-	if err := server.Start(); err != nil {
-		reportErr(err)
-	}
-
-	// TODO subscribe to service's lifecycle (shutdown) event and then terminate
-	// https://github.com/open-telemetry/opentelemetry-collector/issues/1033
-	c := make(chan os.Signal, 1)
-	signal.Notify(c, os.Interrupt)
-	<-c
-	tracerCloser.Close()
 }
 
 func initTracer(logger *zap.Logger) io.Closer {
