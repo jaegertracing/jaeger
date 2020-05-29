@@ -49,26 +49,20 @@ func TestCreateTraceExporter_nilConfig(t *testing.T) {
 }
 
 func TestCreateMetricsExporter(t *testing.T) {
-	f := Factory{OptionsFactory: func() *es.Options {
-		return DefaultOptions()
-	}}
+	f := Factory{OptionsFactory: DefaultOptions}
 	mReceiver, err := f.CreateMetricsExporter(context.Background(), component.ExporterCreateParams{}, f.CreateDefaultConfig())
 	assert.Equal(t, err, configerror.ErrDataTypeIsNotSupported)
 	assert.Nil(t, mReceiver)
 }
 
 func TestCreateDefaultConfig(t *testing.T) {
-	factory := Factory{OptionsFactory: func() *es.Options {
-		return DefaultOptions()
-	}}
+	factory := Factory{OptionsFactory: DefaultOptions}
 	cfg := factory.CreateDefaultConfig()
 	assert.NotNil(t, cfg, "failed to create default config")
 	assert.NoError(t, configcheck.ValidateConfig(cfg))
 }
 
 func TestType(t *testing.T) {
-	factory := Factory{OptionsFactory: func() *es.Options {
-		return DefaultOptions()
-	}}
+	factory := Factory{OptionsFactory: DefaultOptions}
 	assert.Equal(t, configmodels.Type(TypeStr), factory.Type())
 }

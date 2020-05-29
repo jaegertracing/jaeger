@@ -291,11 +291,6 @@ func (opt *Options) Get(namespace string) *config.Configuration {
 	return &nsCfg.Configuration
 }
 
-// GetPrimary returns primary configuration.
-func (opt *Options) SetSecondary(namespace string, configuration config.Configuration) {
-	opt.others[namespace] = &namespaceConfig{Configuration: configuration}
-}
-
 // stripWhiteSpace removes all whitespace characters from a string
 func stripWhiteSpace(str string) string {
 	return strings.Replace(str, " ", "", -1)

@@ -49,3 +49,10 @@ func TestWithConfiguration(t *testing.T) {
 	f.InitFromViper(v)
 	assert.Equal(t, f.options.Configuration.MaxTraces, 100)
 }
+
+func TestInitFromOptions(t *testing.T) {
+	o := Options{}
+	f := Factory{}
+	f.InitFromOptions(o)
+	assert.Equal(t, o, f.options)
+}

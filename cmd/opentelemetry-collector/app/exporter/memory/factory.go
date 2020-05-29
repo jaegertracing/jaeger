@@ -36,13 +36,14 @@ const TypeStr = "jaeger_memory"
 // Factory is the factory for Jaeger in-memory exporter.
 type Factory struct {
 	Viper *viper.Viper
-	mutex sync.Mutex
+	mutex *sync.Mutex
 }
 
+// NewFactory creates Factory.
 func NewFactory(v *viper.Viper) *Factory {
 	return &Factory{
 		Viper: v,
-		mutex: sync.Mutex{},
+		mutex: &sync.Mutex{},
 	}
 }
 
@@ -53,6 +54,7 @@ var _ component.ExporterFactory = (*Factory)(nil)
 // the singleton instance is shared between OTEL collector and query service
 var instance storage.Factory
 
+// GetFactory returns singleton instance of the storage factory.
 func GetFactory() storage.Factory {
 	return instance
 }

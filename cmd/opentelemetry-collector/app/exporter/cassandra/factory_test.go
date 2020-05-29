@@ -49,18 +49,14 @@ func TestCreateTraceExporter_NilConfig(t *testing.T) {
 }
 
 func TestCreateDefaultConfig(t *testing.T) {
-	factory := Factory{OptionsFactory: func() *cassandra.Options {
-		return DefaultOptions()
-	}}
+	factory := Factory{OptionsFactory: DefaultOptions}
 	cfg := factory.CreateDefaultConfig()
 	assert.NotNil(t, cfg, "failed to create default config")
 	assert.NoError(t, configcheck.ValidateConfig(cfg))
 }
 
 func TestCreateMetricsExporter(t *testing.T) {
-	f := Factory{OptionsFactory: func() *cassandra.Options {
-		return DefaultOptions()
-	}}
+	f := Factory{OptionsFactory: DefaultOptions}
 	mReceiver, err := f.CreateMetricsExporter(context.Background(), component.ExporterCreateParams{}, f.CreateDefaultConfig())
 	assert.Equal(t, err, configerror.ErrDataTypeIsNotSupported)
 	assert.Nil(t, mReceiver)

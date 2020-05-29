@@ -41,6 +41,8 @@ type Factory struct {
 	OptionsFactory OptionsFactory
 }
 
+var _ component.ExporterFactory = (*Factory)(nil)
+
 // Type returns the type of exporter.
 func (f Factory) Type() configmodels.Type {
 	return TypeStr
