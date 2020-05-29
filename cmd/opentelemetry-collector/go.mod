@@ -8,6 +8,7 @@ replace github.com/jaegertracing/jaeger => ./../../
 
 require (
 	github.com/Shopify/sarama v1.22.2-0.20190604114437-cd910a683f9f
+	github.com/gogo/protobuf v1.3.1 // indirect
 	github.com/imdario/mergo v0.3.9
 	github.com/jaegertracing/jaeger v1.17.0
 	github.com/open-telemetry/opentelemetry-proto v0.3.0
@@ -17,7 +18,7 @@ require (
 	github.com/stretchr/testify v1.5.1
 	github.com/uber/jaeger-client-go v2.22.1+incompatible
 	github.com/uber/jaeger-lib v2.2.0+incompatible
-	go.opentelemetry.io/collector v0.3.1-0.20200529001019-034d92d6475f
+	go.opentelemetry.io/collector v0.3.1-0.20200528181245-da7e0da7b48d
 	go.uber.org/zap v1.13.0
 	k8s.io/client-go v12.0.0+incompatible // indirect
 )

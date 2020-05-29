@@ -28,8 +28,8 @@ import (
 )
 
 func TestDefaultConfig(t *testing.T) {
-	v, _ := jConfig.Viperize(DefaultOptions(false).AddFlags)
-	opts := DefaultOptions(false)
+	v, _ := jConfig.Viperize(DefaultOptions().AddFlags)
+	opts := DefaultOptions()
 	opts.InitFromViper(v)
 	factory := &Factory{OptionsFactory: func() *es.Options {
 		return opts
@@ -46,7 +46,7 @@ func TestLoadConfigAndFlags(t *testing.T) {
 	factories, err := config.ExampleComponents()
 	require.NoError(t, err)
 
-	v, c := jConfig.Viperize(DefaultOptions(false).AddFlags, flags.AddConfigFileFlag)
+	v, c := jConfig.Viperize(DefaultOptions().AddFlags, flags.AddConfigFileFlag)
 	err = c.ParseFlags([]string{"--es.server-urls=bar", "--es.index-prefix=staging", "--config-file=./testdata/jaeger-config.yaml"})
 	require.NoError(t, err)
 
@@ -54,7 +54,7 @@ func TestLoadConfigAndFlags(t *testing.T) {
 	require.NoError(t, err)
 
 	factory := &Factory{OptionsFactory: func() *es.Options {
-		opts := DefaultOptions(false)
+		opts := DefaultOptions()
 		opts.InitFromViper(v)
 		require.Equal(t, []string{"bar"}, opts.GetPrimary().Servers)
 		require.Equal(t, "staging", opts.GetPrimary().GetIndexPrefix())

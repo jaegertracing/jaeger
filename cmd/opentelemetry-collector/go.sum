@@ -1283,6 +1283,8 @@ go.opentelemetry.io/collector v0.3.1-0.20200522130256-daf2fc71ac65 h1:ObXizS60v/
 go.opentelemetry.io/collector v0.3.1-0.20200522130256-daf2fc71ac65/go.mod h1:rcMDg+njfS22WiT/MioZMNnGyXrxfsKXA2d6xxpnnfc=
 go.opentelemetry.io/collector v0.3.1-0.20200525211919-118e5d41fec3 h1:UgB2iuhCGIA3Dr6zFyr9JMowgHn2nG0wVY3qoTIXAMs=
 go.opentelemetry.io/collector v0.3.1-0.20200525211919-118e5d41fec3/go.mod h1:rcMDg+njfS22WiT/MioZMNnGyXrxfsKXA2d6xxpnnfc=
+go.opentelemetry.io/collector v0.3.1-0.20200528181245-da7e0da7b48d h1:Kok93H+mKyJWLmjA8hEbYlRPQdQjJ/GWDkOLWi4qyks=
+go.opentelemetry.io/collector v0.3.1-0.20200528181245-da7e0da7b48d/go.mod h1:WRGrph3VotDiY/OOAj3N0Z0+g7BEYUgJ10W74vM07co=
 go.opentelemetry.io/collector v0.3.1-0.20200529001019-034d92d6475f h1:hTA5OA2Vt1oqLelON/qSfNdclTgTG6VptKyj8iDCDGE=
 go.opentelemetry.io/collector v0.3.1-0.20200529001019-034d92d6475f/go.mod h1:5T4FxThCDCuB2Sbn8UwU+TjoYsxKHH3UywmZoLUwAbg=
 go.uber.org/atomic v1.3.2/go.mod h1:gD2HeocX3+yG+ygLZcrzQJaqmWj9AIm7n08wl/qW/PE=

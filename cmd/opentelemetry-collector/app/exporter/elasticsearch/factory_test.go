@@ -68,7 +68,7 @@ func TestCreateDefaultConfig(t *testing.T) {
 
 func TestType(t *testing.T) {
 	factory := Factory{OptionsFactory: func() *es.Options {
-		return DefaultOptions(false)
+		return DefaultOptions()
 	}}
 	assert.Equal(t, configmodels.Type(TypeStr), factory.Type())
 }
