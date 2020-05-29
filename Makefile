@@ -30,6 +30,7 @@ ifeq ($(UNAME), s390x)
 else
 	RACE=-race
 endif
+GOOS ?= $(shell go env GOOS)
 GOARCH ?= $(shell go env GOARCH)
 GOBUILD=CGO_ENABLED=0 installsuffix=cgo go build -trimpath
 GOTEST=go test -v $(RACE)
