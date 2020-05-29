@@ -11,6 +11,7 @@ Changes by Version
 #### New Features
 
 #### Bug fixes, Minor Improvements
+* Add arm64 support for binaries and make architecture configurable in docker images. ([#2176](https://github.com/jaegertracing/jaeger/pull/2176), [@MrXinWang](https://github.com/MrXinWang))
 
 ### UI Changes
 

@@ -34,11 +34,7 @@ function package {
     local PLATFORM=$1
     local FILE_EXTENSION=$2
     # script start
-    if [ "$PLATFORM" == "linux-s390x" ]; then
-        local PACKAGE_STAGING_DIR=jaeger-$VERSION-$PLATFORM
-    else
-        local PACKAGE_STAGING_DIR=jaeger-$VERSION-$PLATFORM-amd64
-    fi
+    local PACKAGE_STAGING_DIR=jaeger-$VERSION-$PLATFORM
     
     mkdir $PACKAGE_STAGING_DIR
 
@@ -67,7 +63,8 @@ rm -rf deploy $DEPLOY_STAGING_DIR
 mkdir deploy
 mkdir $DEPLOY_STAGING_DIR
 
-package linux
-package darwin
-package windows .exe
+package linux-amd64
+package darwin-amd64
+package windows-amd64 .exe
 package linux-s390x
+package linux-arm64

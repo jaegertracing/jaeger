@@ -30,6 +30,8 @@ ifeq ($(UNAME), s390x)
 else
 	RACE=-race
 endif
+GOOS ?= $(shell go env GOOS)
+GOARCH ?= $(shell go env GOARCH)
 GOBUILD=CGO_ENABLED=0 installsuffix=cgo go build -trimpath
 GOTEST=go test -v $(RACE)
 GOLINT=golint
@@ -195,20 +197,16 @@ elasticsearch-mappings:
 .PHONY: build-examples
 build-examples:
 	esc -pkg frontend -o examples/hotrod/services/frontend/gen_assets.go  -prefix examples/hotrod/services/frontend/web_assets examples/hotrod/services/frontend/web_assets
-ifeq ($(GOARCH), s390x)
 	$(GOBUILD) -o ./examples/hotrod/hotrod-$(GOOS)-$(GOARCH) ./examples/hotrod/main.go
-else
-	$(GOBUILD) -o ./examples/hotrod/hotrod-$(GOOS) ./examples/hotrod/main.go
-endif
 
 .PHONY: build-tracegen
 build-tracegen:
-	$(GOBUILD) -o ./cmd/tracegen/tracegen-$(GOOS) ./cmd/tracegen/main.go
+	$(GOBUILD) -o ./cmd/tracegen/tracegen-$(GOOS)-$(GOARCH) ./cmd/tracegen/main.go
 
 .PHONE: docker-hotrod
 docker-hotrod:
 	GOOS=linux $(MAKE) build-examples
-	docker build -t $(DOCKER_NAMESPACE)/example-hotrod:${DOCKER_TAG} ./examples/hotrod
+	docker build -t $(DOCKER_NAMESPACE)/example-hotrod:${DOCKER_TAG} ./examples/hotrod --build-arg ARCH=$(GOARCH)
 
 .PHONY: run-all-in-one
 run-all-in-one:
@@ -226,92 +224,64 @@ build-all-in-one-linux: build-ui
 
 .PHONY: build-all-in-one
 build-all-in-one: elasticsearch-mappings
-ifeq ($(GOARCH), s390x)
 	$(GOBUILD) -tags ui -o ./cmd/all-in-one/all-in-one-$(GOOS)-$(GOARCH) $(BUILD_INFO) ./cmd/all-in-one/main.go
-else
-	$(GOBUILD) -tags ui -o ./cmd/all-in-one/all-in-one-$(GOOS) $(BUILD_INFO) ./cmd/all-in-one/main.go
-endif
 
 .PHONY: build-agent
 build-agent:
-ifeq ($(GOARCH), s390x)
 	$(GOBUILD) -o ./cmd/agent/agent-$(GOOS)-$(GOARCH) $(BUILD_INFO) ./cmd/agent/main.go
-else
-	$(GOBUILD) -o ./cmd/agent/agent-$(GOOS) $(BUILD_INFO) ./cmd/agent/main.go
-endif
 
 .PHONY: build-query
 build-query:
-ifeq ($(GOARCH), s390x)
 	$(GOBUILD) -tags ui -o ./cmd/query/query-$(GOOS)-$(GOARCH) $(BUILD_INFO) ./cmd/query/main.go
-else
-	$(GOBUILD) -tags ui -o ./cmd/query/query-$(GOOS) $(BUILD_INFO) ./cmd/query/main.go
-endif
 
 .PHONY: build-collector
 build-collector: elasticsearch-mappings
-ifeq ($(GOARCH), s390x)
 	$(GOBUILD) -o ./cmd/collector/collector-$(GOOS)-$(GOARCH) $(BUILD_INFO) ./cmd/collector/main.go
-else
-	$(GOBUILD) -o ./cmd/collector/collector-$(GOOS) $(BUILD_INFO) ./cmd/collector/main.go
-endif
 
 .PHONY: build-otel-collector
 build-otel-collector: elasticsearch-mappings
-ifeq ($(GOARCH), s390x)
 	cd ${OTEL_COLLECTOR_DIR}/cmd/collector && $(GOBUILD) -o ./opentelemetry-collector-$(GOOS)-$(GOARCH) $(BUILD_INFO) main.go
-else
-	cd ${OTEL_COLLECTOR_DIR}/cmd/collector && $(GOBUILD) -o ./opentelemetry-collector-$(GOOS) $(BUILD_INFO) main.go
-endif
 
 .PHONY: build-otel-agent
 build-otel-agent:
-ifeq ($(GOARCH), s390x)
 	cd ${OTEL_COLLECTOR_DIR}/cmd/agent && $(GOBUILD) -o ./opentelemetry-agent-$(GOOS)-$(GOARCH) $(BUILD_INFO) main.go
-else
-	cd ${OTEL_COLLECTOR_DIR}/cmd/agent && $(GOBUILD) -o ./opentelemetry-agent-$(GOOS) $(BUILD_INFO) main.go
-endif
 
 .PHONY: build-otel-ingester
 build-otel-ingester:
-ifeq ($(GOARCH), s390x)
 	cd ${OTEL_COLLECTOR_DIR}/cmd/ingester && $(GOBUILD) -o ./opentelemetry-ingester-$(GOOS)-$(GOARCH) $(BUILD_INFO) main.go
-else
-	cd ${OTEL_COLLECTOR_DIR}/cmd/ingester && $(GOBUILD) -o ./opentelemetry-ingester-$(GOOS) $(BUILD_INFO) main.go
-endif
 
 .PHONY: build-ingester
 build-ingester:
-ifeq ($(GOARCH), s390x)
 	$(GOBUILD) -o ./cmd/ingester/ingester-$(GOOS)-$(GOARCH) $(BUILD_INFO) ./cmd/ingester/main.go
-else
-	$(GOBUILD) -o ./cmd/ingester/ingester-$(GOOS) $(BUILD_INFO) ./cmd/ingester/main.go
-endif
 
 .PHONY: docker
 docker: build-ui build-binaries-linux docker-images-only
 
 .PHONY: build-binaries-linux
 build-binaries-linux:
-	GOOS=linux $(MAKE) build-platform-binaries
+	GOOS=linux GOARCH=amd64 $(MAKE) build-platform-binaries
 
 .PHONY: build-binaries-windows
 build-binaries-windows:
-	GOOS=windows $(MAKE) build-platform-binaries
+	GOOS=windows GOARCH=amd64 $(MAKE) build-platform-binaries
 
 .PHONY: build-binaries-darwin
 build-binaries-darwin:
-	GOOS=darwin $(MAKE) build-platform-binaries
+	GOOS=darwin GOARCH=amd64 $(MAKE) build-platform-binaries
 
 .PHONY: build-binaries-s390x
 build-binaries-s390x:
 	GOOS=linux GOARCH=s390x $(MAKE) build-platform-binaries
 
+.PHONY: build-binaries-arm64
+build-binaries-arm64:
+	GOOS=linux GOARCH=arm64 $(MAKE) build-platform-binaries
+
 .PHONY: build-platform-binaries
 build-platform-binaries: build-agent build-collector build-query build-ingester build-all-in-one build-examples build-tracegen build-otel-collector build-otel-agent build-otel-ingester
 
 .PHONY: build-all-platforms
-build-all-platforms: build-binaries-linux build-binaries-windows build-binaries-darwin build-binaries-s390x
+build-all-platforms: build-binaries-linux build-binaries-windows build-binaries-darwin build-binaries-s390x build-binaries-arm64
 
 .PHONY: docker-images-cassandra
 docker-images-cassandra:
@@ -327,16 +297,16 @@ docker-images-elastic:
 .PHONY: docker-images-jaeger-backend
 docker-images-jaeger-backend:
 	for component in agent collector query ingester ; do \
-		docker build -t $(DOCKER_NAMESPACE)/jaeger-$$component:${DOCKER_TAG} cmd/$$component ; \
+		docker build -t $(DOCKER_NAMESPACE)/jaeger-$$component:${DOCKER_TAG} cmd/$$component --build-arg ARCH=$(GOARCH) ; \
 		echo "Finished building $$component ==============" ; \
 	done
-	docker build -t $(DOCKER_NAMESPACE)/jaeger-opentelemetry-collector:${DOCKER_TAG} -f ${OTEL_COLLECTOR_DIR}/cmd/collector/Dockerfile cmd/opentelemetry-collector/cmd/collector
-	docker build -t $(DOCKER_NAMESPACE)/jaeger-opentelemetry-agent:${DOCKER_TAG} -f ${OTEL_COLLECTOR_DIR}/cmd/agent/Dockerfile cmd/opentelemetry-collector/cmd/agent
-	docker build -t $(DOCKER_NAMESPACE)/jaeger-opentelemetry-ingester:${DOCKER_TAG} -f ${OTEL_COLLECTOR_DIR}/cmd/ingester/Dockerfile cmd/opentelemetry-collector/cmd/ingester
+	docker build -t $(DOCKER_NAMESPACE)/jaeger-opentelemetry-collector:${DOCKER_TAG} -f ${OTEL_COLLECTOR_DIR}/cmd/collector/Dockerfile cmd/opentelemetry-collector/cmd/collector --build-arg ARCH=$(GOARCH)
+	docker build -t $(DOCKER_NAMESPACE)/jaeger-opentelemetry-agent:${DOCKER_TAG} -f ${OTEL_COLLECTOR_DIR}/cmd/agent/Dockerfile cmd/opentelemetry-collector/cmd/agent --build-arg ARCH=$(GOARCH)
+	docker build -t $(DOCKER_NAMESPACE)/jaeger-opentelemetry-ingester:${DOCKER_TAG} -f ${OTEL_COLLECTOR_DIR}/cmd/ingester/Dockerfile cmd/opentelemetry-collector/cmd/ingester --build-arg ARCH=$(GOARCH)
 
 .PHONY: docker-images-tracegen
 docker-images-tracegen:
-	docker build -t $(DOCKER_NAMESPACE)/jaeger-tracegen:${DOCKER_TAG} cmd/tracegen/
+	docker build -t $(DOCKER_NAMESPACE)/jaeger-tracegen:${DOCKER_TAG} cmd/tracegen/ --build-arg ARCH=$(GOARCH)
 	@echo "Finished building jaeger-tracegen =============="
 
 .PHONY: docker-images-only
