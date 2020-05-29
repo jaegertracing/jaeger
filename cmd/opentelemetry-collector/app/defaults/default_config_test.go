@@ -138,7 +138,7 @@ func TestService(t *testing.T) {
 			for key, val := range test.viperConfig {
 				v.Set(key, val)
 			}
-			factories := Components(v, false)
+			factories := Components(v)
 			test.cfg.Factories = factories
 			cfg, err := test.cfg.CreateDefaultConfig()
 			if test.err != "" {

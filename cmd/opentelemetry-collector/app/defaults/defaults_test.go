@@ -34,10 +34,10 @@ import (
 func TestComponents(t *testing.T) {
 	v, _ := jConfig.Viperize(
 		kafka.DefaultOptions().AddFlags,
-		cassandra.DefaultOptions(false).AddFlags,
-		elasticsearch.DefaultOptions(false).AddFlags,
+		cassandra.DefaultOptions().AddFlags,
+		elasticsearch.DefaultOptions().AddFlags,
 	)
-	factories := Components(v, false)
+	factories := Components(v)
 	assert.IsType(t, &kafka.Factory{}, factories.Exporters[kafka.TypeStr])
 	assert.IsType(t, &cassandra.Factory{}, factories.Exporters[cassandra.TypeStr])
 	assert.IsType(t, &elasticsearch.Factory{}, factories.Exporters[elasticsearch.TypeStr])

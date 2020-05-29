@@ -108,6 +108,22 @@ func NewOptions(primaryNamespace string, otherNamespaces ...string) *Options {
 	return options
 }
 
+// NewOptionsFromConfig creates Options from primary and archive config
+func NewOptionsFromConfig(primary config.Configuration, archive config.Configuration) *Options {
+	return &Options{
+		Primary: namespaceConfig{
+			namespace:     primaryNamespace,
+			Configuration: primary,
+		},
+		others: map[string]*namespaceConfig{
+			archiveNamespace: {
+				namespace:     archiveNamespace,
+				Configuration: archive,
+			},
+		},
+	}
+}
+
 func (config *namespaceConfig) getTLSFlagsConfig() tlscfg.ClientFlagsConfig {
 	return tlscfg.ClientFlagsConfig{
 		Prefix:         config.namespace,
@@ -273,6 +289,11 @@ func (opt *Options) Get(namespace string) *config.Configuration {
 		nsCfg.Servers = opt.Primary.Servers
 	}
 	return &nsCfg.Configuration
+}
+
+// GetPrimary returns primary configuration.
+func (opt *Options) SetSecondary(namespace string, configuration config.Configuration) {
+	opt.others[namespace] = &namespaceConfig{Configuration: configuration}
 }
 
 // stripWhiteSpace removes all whitespace characters from a string

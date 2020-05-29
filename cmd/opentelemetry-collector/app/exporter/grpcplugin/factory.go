@@ -18,14 +18,11 @@ import (
 	"context"
 	"fmt"
 
-	"github.com/uber/jaeger-lib/metrics"
 	"go.opentelemetry.io/collector/component"
 	"go.opentelemetry.io/collector/config/configerror"
 	"go.opentelemetry.io/collector/config/configmodels"
 
-	storageOtelExporter "github.com/jaegertracing/jaeger/cmd/opentelemetry-collector/app/exporter"
 	storageGrpc "github.com/jaegertracing/jaeger/plugin/storage/grpc"
-	"github.com/jaegertracing/jaeger/storage"
 )
 
 // TypeStr defines exporter type.
@@ -42,23 +39,6 @@ func DefaultOptions() *storageGrpc.Options {
 // Factory is the factory for Jaeger gRPC exporter.
 type Factory struct {
 	OptionsFactory OptionsFactory
-}
-
-var _ component.ExporterFactory = (*Factory)(nil)
-
-// CreateStorageFactory creates jaeger storage factory.
-func (Factory) CreateStorageFactory(params component.ExporterCreateParams, cfg configmodels.Exporter) (storage.Factory, error) {
-	grpcCfg, ok := cfg.(*Config)
-	if !ok {
-		return nil, fmt.Errorf("could not cast configuration to %s", TypeStr)
-	}
-	factory := storageGrpc.NewFactory()
-	factory.InitFromOptions(grpcCfg.Options)
-	err := factory.Initialize(metrics.NullFactory, params.Logger)
-	if err != nil {
-		return nil, err
-	}
-	return factory, err
 }
 
 // Type returns the type of exporter.
@@ -86,11 +66,11 @@ func (f Factory) CreateTraceExporter(
 	params component.ExporterCreateParams,
 	cfg configmodels.Exporter,
 ) (component.TraceExporter, error) {
-	factory, err := f.CreateStorageFactory(params, cfg)
-	if err != nil {
-		return nil, err
+	grpcCfg, ok := cfg.(*Config)
+	if !ok {
+		return nil, fmt.Errorf("could not cast configuration to %s", TypeStr)
 	}
-	return storageOtelExporter.NewSpanWriterExporter(cfg, factory)
+	return new(grpcCfg, params)
 }
 
 // CreateMetricsExporter is not implemented.

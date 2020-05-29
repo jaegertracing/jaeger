@@ -84,7 +84,6 @@ type namespaceConfig struct {
 	config.Configuration `mapstructure:",squash"`
 	servers              string
 	namespace            string
-	primary              bool
 	Enabled              bool `mapstructure:"-"`
 }
 
@@ -102,7 +101,6 @@ func NewOptions(primaryNamespace string, otherNamespaces ...string) *Options {
 			},
 			servers:   "127.0.0.1",
 			namespace: primaryNamespace,
-			primary:   true,
 			Enabled:   true,
 		},
 		others:                 make(map[string]*namespaceConfig, len(otherNamespaces)),
@@ -114,6 +112,22 @@ func NewOptions(primaryNamespace string, otherNamespaces ...string) *Options {
 	}
 
 	return options
+}
+
+// NewOptionsFromConfig creates Options from primary and archive config
+func NewOptionsFromConfig(primary config.Configuration, archive config.Configuration) *Options {
+	return &Options{
+		Primary: namespaceConfig{
+			namespace:     primaryStorageConfig,
+			Configuration: primary,
+		},
+		others: map[string]*namespaceConfig{
+			archiveStorageConfig: {
+				namespace:     archiveStorageConfig,
+				Configuration: archive,
+			},
+		},
+	}
 }
 
 // AddFlags adds flags for Options
@@ -151,7 +165,7 @@ func addFlags(flagSet *flag.FlagSet, nsConfig namespaceConfig) {
 	var tlsFlagsConfig = tlsFlagsConfig(nsConfig.namespace)
 	tlsFlagsConfig.AddFlags(flagSet)
 
-	if !nsConfig.primary {
+	if nsConfig.namespace != primaryStorageConfig {
 		flagSet.Bool(
 			nsConfig.namespace+suffixEnabled,
 			false,
@@ -251,7 +265,7 @@ func tlsFlagsConfig(namespace string) tlscfg.ClientFlagsConfig {
 
 func (cfg *namespaceConfig) initFromViper(v *viper.Viper) {
 	var tlsFlagsConfig = tlsFlagsConfig(cfg.namespace)
-	if !cfg.primary {
+	if cfg.namespace != primaryStorageConfig {
 		cfg.Enabled = v.GetBool(cfg.namespace + suffixEnabled)
 	}
 	cfg.ConnectionsPerHost = v.GetInt(cfg.namespace + suffixConnPerHost)

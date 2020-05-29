@@ -49,7 +49,7 @@ func main() {
 
 	v := viper.New()
 
-	cmpts := defaults.Components(v, false)
+	cmpts := defaults.Components(v)
 	cfgFactory := func(otelViper *viper.Viper, f config.Factories) (*configmodels.Config, error) {
 		cfgConfig := defaults.ComponentSettings{
 			ComponentType: defaults.Agent,

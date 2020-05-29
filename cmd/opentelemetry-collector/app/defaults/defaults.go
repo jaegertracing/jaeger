@@ -44,23 +44,23 @@ import (
 )
 
 // Components creates default and Jaeger factories
-func Components(v *viper.Viper, enableArchiveStorage bool) config.Factories {
+func Components(v *viper.Viper) config.Factories {
 	// Add flags to viper to make the default values available.
 	// We have to add all storage flags to viper because any exporter can be specified in the OTEL config file.
 	// OTEL collector creates default configurations for all factories to verify they can be created.
-	addDefaultValuesToViper(v, enableArchiveStorage)
+	addDefaultValuesToViper(v)
 	kafkaExp := &kafka.Factory{OptionsFactory: func() *storageKafka.Options {
 		opts := kafka.DefaultOptions()
 		opts.InitFromViper(v)
 		return opts
 	}}
 	cassandraExp := &cassandra.Factory{OptionsFactory: func() *storageCassandra.Options {
-		opts := cassandra.DefaultOptions(enableArchiveStorage)
+		opts := cassandra.DefaultOptions()
 		opts.InitFromViper(v)
 		return opts
 	}}
 	esExp := &elasticsearch.Factory{OptionsFactory: func() *storageEs.Options {
-		opts := elasticsearch.DefaultOptions(enableArchiveStorage)
+		opts := elasticsearch.DefaultOptions()
 		opts.InitFromViper(v)
 		return opts
 	}}
@@ -109,11 +109,11 @@ func Components(v *viper.Viper, enableArchiveStorage bool) config.Factories {
 }
 
 // addDefaultValuesToViper adds Jaeger storage flags to viper to make the default values available.
-func addDefaultValuesToViper(v *viper.Viper, enableArchiveStorage bool) {
+func addDefaultValuesToViper(v *viper.Viper) {
 	flagSet := &flag.FlagSet{}
 	kafka.DefaultOptions().AddFlags(flagSet)
-	elasticsearch.DefaultOptions(enableArchiveStorage).AddFlags(flagSet)
-	cassandra.DefaultOptions(enableArchiveStorage).AddFlags(flagSet)
+	elasticsearch.DefaultOptions().AddFlags(flagSet)
+	cassandra.DefaultOptions().AddFlags(flagSet)
 	pflagSet := &pflag.FlagSet{}
 	pflagSet.AddGoFlagSet(flagSet)
 	v.BindPFlags(pflagSet)

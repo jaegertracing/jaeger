@@ -15,6 +15,7 @@
 package main
 
 import (
+	"errors"
 	"fmt"
 	"io"
 	"log"
@@ -26,7 +27,7 @@ import (
 	"github.com/spf13/viper"
 	jaegerClientConfig "github.com/uber/jaeger-client-go/config"
 	jaegerClientZapLog "github.com/uber/jaeger-client-go/log/zap"
-	"go.opentelemetry.io/collector/component"
+	"github.com/uber/jaeger-lib/metrics"
 	"go.opentelemetry.io/collector/config"
 	"go.opentelemetry.io/collector/config/configmodels"
 	"go.opentelemetry.io/collector/service"
@@ -37,12 +38,16 @@ import (
 	jflags "github.com/jaegertracing/jaeger/cmd/flags"
 	"github.com/jaegertracing/jaeger/cmd/opentelemetry-collector/app"
 	"github.com/jaegertracing/jaeger/cmd/opentelemetry-collector/app/defaults"
-	storageOtelExporter "github.com/jaegertracing/jaeger/cmd/opentelemetry-collector/app/exporter"
+	cassandra2 "github.com/jaegertracing/jaeger/cmd/opentelemetry-collector/app/exporter/cassandra"
+	"github.com/jaegertracing/jaeger/cmd/opentelemetry-collector/app/exporter/elasticsearch"
+	"github.com/jaegertracing/jaeger/cmd/opentelemetry-collector/app/exporter/memory"
 	queryApp "github.com/jaegertracing/jaeger/cmd/query/app"
 	"github.com/jaegertracing/jaeger/cmd/query/app/querysvc"
 	jConfig "github.com/jaegertracing/jaeger/pkg/config"
 	"github.com/jaegertracing/jaeger/pkg/version"
 	storagePlugin "github.com/jaegertracing/jaeger/plugin/storage"
+	"github.com/jaegertracing/jaeger/plugin/storage/cassandra"
+	"github.com/jaegertracing/jaeger/plugin/storage/es"
 	"github.com/jaegertracing/jaeger/storage"
 )
 
@@ -71,7 +76,7 @@ func main() {
 	configCreatedWait.Add(1)
 	exporters := configmodels.Exporters{}
 
-	cmpts := defaults.Components(v, true)
+	cmpts := defaults.Components(v)
 	cfgFactory := func(otelViper *viper.Viper, f config.Factories) (*configmodels.Config, error) {
 		collectorOpts := &collectorApp.CollectorOptions{}
 		collectorOpts.InitFromViper(v)
@@ -136,28 +141,50 @@ func main() {
 	}()
 
 	configCreatedWait.Wait()
-	exp := getExporter(storageType, exporters)
-	storageFactoryCreator, ok := cmpts.Exporters[configmodels.Type(exp.Name())].(storageOtelExporter.FactoryCreator)
-	if !ok {
+	exp := getStorageExporter(storageType, exporters)
+	fac, err := getFactory(exp, v, svc.GetLogger())
+	if err != nil {
 		svc.ReportFatalError(err)
 	}
-	storageFactory, err := storageFactoryCreator.CreateStorageFactory(
-		component.ExporterCreateParams{
-			Logger: svc.GetLogger(),
-		}, exp)
-	if err != nil {
-		svc.ReportFatalError(fmt.Errorf("could not create storage factory for query service: %v", err))
-	}
-	startQuery(v, svc.GetLogger(), storageFactory, svc.ReportFatalError)
+	startQuery(v, svc.GetLogger(), fac, svc.ReportFatalError)
 }
 
-func getExporter(storageType string, exporters configmodels.Exporters) configmodels.Exporter {
+func getStorageExporter(storageType string, exporters configmodels.Exporters) configmodels.Exporter {
 	for _, e := range exporters {
 		if e.Name() == fmt.Sprintf("jaeger_%s", storageType) {
 			return e
 		}
 	}
 	return nil
+}
+
+func getFactory(exporter configmodels.Exporter, v *viper.Viper, logger *zap.Logger) (storage.Factory, error) {
+	switch exporter.Name() {
+	case "jaeger_elasticsearch":
+		archiveOpts := es.NewOptions("es-archive")
+		archiveOpts.InitFromViper(v)
+		primaryConfig := exporter.(*elasticsearch.Config)
+		f := es.NewFactory()
+		f.InitFromOptions(*es.NewOptionsFromConfig(primaryConfig.Primary.Configuration, archiveOpts.Primary.Configuration))
+		if err := f.Initialize(metrics.NullFactory, logger); err != nil {
+			return nil, err
+		}
+		return f, nil
+	case "jaeger_cassandra":
+		archiveOpts := cassandra.NewOptions("cassandra-archive")
+		archiveOpts.InitFromViper(v)
+		primaryConfig := exporter.(*cassandra2.Config)
+		f := cassandra.NewFactory()
+		f.InitFromOptions(cassandra.NewOptionsFromConfig(primaryConfig.Primary.Configuration, archiveOpts.Primary.Configuration))
+		if err := f.Initialize(metrics.NullFactory, logger); err != nil {
+			return nil, err
+		}
+		return f, nil
+	case "memory":
+		return memory.GetFactory(), nil
+	default:
+		return nil, errors.New("storage type cannot be used with all-in-one")
+	}
 }
 
 func startQuery(v *viper.Viper, logger *zap.Logger, storageFactory storage.Factory, reportErr func(err error)) {

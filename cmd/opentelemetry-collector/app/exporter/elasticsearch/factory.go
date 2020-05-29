@@ -18,14 +18,11 @@ import (
 	"context"
 	"fmt"
 
-	"github.com/uber/jaeger-lib/metrics"
 	"go.opentelemetry.io/collector/component"
 	"go.opentelemetry.io/collector/config/configerror"
 	"go.opentelemetry.io/collector/config/configmodels"
 
-	"github.com/jaegertracing/jaeger/cmd/opentelemetry-collector/app/exporter"
 	"github.com/jaegertracing/jaeger/plugin/storage/es"
-	"github.com/jaegertracing/jaeger/storage"
 )
 
 const (
@@ -37,10 +34,7 @@ const (
 type OptionsFactory func() *es.Options
 
 // DefaultOptions creates Elasticsearch options supported by this exporter.
-func DefaultOptions(enableArchive bool) *es.Options {
-	if enableArchive {
-		return es.NewOptions("es", "es-archive")
-	}
+func DefaultOptions() *es.Options {
 	return es.NewOptions("es")
 }
 
@@ -55,22 +49,6 @@ func (Factory) Type() configmodels.Type {
 }
 
 var _ component.ExporterFactory = (*Factory)(nil)
-var _ exporter.FactoryCreator = (*Factory)(nil)
-
-// CreateStorageFactory creates Jaeger storage factory.
-func (Factory) CreateStorageFactory(params component.ExporterCreateParams, cfg configmodels.Exporter) (storage.Factory, error) {
-	esCfg, ok := cfg.(*Config)
-	if !ok {
-		return nil, fmt.Errorf("could not cast configuration to %s", TypeStr)
-	}
-	factory := es.NewFactory()
-	factory.InitFromOptions(esCfg.Options)
-	err := factory.Initialize(metrics.NullFactory, params.Logger)
-	if err != nil {
-		return nil, err
-	}
-	return factory, err
-}
 
 // CreateDefaultConfig returns default configuration of Factory.
 // This function implements OTEL component.ExporterFactoryBase interface.
@@ -92,11 +70,11 @@ func (f Factory) CreateTraceExporter(
 	params component.ExporterCreateParams,
 	cfg configmodels.Exporter,
 ) (component.TraceExporter, error) {
-	factory, err := f.CreateStorageFactory(params, cfg)
-	if err != nil {
-		return nil, err
+	esCfg, ok := cfg.(*Config)
+	if !ok {
+		return nil, fmt.Errorf("could not cast configuration to %s", TypeStr)
 	}
-	return exporter.NewSpanWriterExporter(cfg, factory)
+	return New(esCfg, params)
 }
 
 // CreateMetricsExporter is not implemented.

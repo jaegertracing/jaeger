@@ -187,6 +187,7 @@ func createSpanWriter(
 		}
 	}
 
+	fmt.Println(client)
 	spanMapping, serviceMapping := GetMappings(cfg.GetNumShards(), cfg.GetNumReplicas(), client.GetVersion())
 	writer := esSpanStore.NewSpanWriter(esSpanStore.SpanWriterParams{
 		Client:              client,

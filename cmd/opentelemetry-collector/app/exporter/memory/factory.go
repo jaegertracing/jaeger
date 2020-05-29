@@ -47,12 +47,15 @@ func NewFactory(v *viper.Viper) *Factory {
 }
 
 var _ component.ExporterFactory = (*Factory)(nil)
-var _ exporter.FactoryCreator = (*Factory)(nil)
 
 // singleton instance of the factory
 // the in-memory exporter factory always returns this instance
 // the singleton instance is shared between OTEL collector and query service
 var instance storage.Factory
+
+func GetFactory() storage.Factory {
+	return instance
+}
 
 // CreateStorageFactory creates Jaeger storage factory.
 func (f Factory) CreateStorageFactory(params component.ExporterCreateParams, cfg configmodels.Exporter) (storage.Factory, error) {

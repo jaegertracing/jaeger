@@ -30,8 +30,8 @@ import (
 )
 
 func TestCreateTraceExporter(t *testing.T) {
-	v, _ := jConfig.Viperize(DefaultOptions(false).AddFlags)
-	opts := DefaultOptions(false)
+	v, _ := jConfig.Viperize(DefaultOptions().AddFlags)
+	opts := DefaultOptions()
 	opts.InitFromViper(v)
 	factory := &Factory{OptionsFactory: func() *es.Options {
 		return opts
@@ -50,7 +50,7 @@ func TestCreateTraceExporter_nilConfig(t *testing.T) {
 
 func TestCreateMetricsExporter(t *testing.T) {
 	f := Factory{OptionsFactory: func() *es.Options {
-		return DefaultOptions(false)
+		return DefaultOptions()
 	}}
 	mReceiver, err := f.CreateMetricsExporter(context.Background(), component.ExporterCreateParams{}, f.CreateDefaultConfig())
 	assert.Equal(t, err, configerror.ErrDataTypeIsNotSupported)
@@ -59,7 +59,7 @@ func TestCreateMetricsExporter(t *testing.T) {
 
 func TestCreateDefaultConfig(t *testing.T) {
 	factory := Factory{OptionsFactory: func() *es.Options {
-		return DefaultOptions(false)
+		return DefaultOptions()
 	}}
 	cfg := factory.CreateDefaultConfig()
 	assert.NotNil(t, cfg, "failed to create default config")

@@ -55,7 +55,7 @@ func main() {
 		storageType = "cassandra"
 	}
 
-	cmpts := defaults.Components(v, false)
+	cmpts := defaults.Components(v)
 	cfgFactory := func(otelViper *viper.Viper, f config.Factories) (*configmodels.Config, error) {
 		collectorOpts := &collectorApp.CollectorOptions{}
 		collectorOpts.InitFromViper(v)
