@@ -38,16 +38,16 @@ import (
 	jflags "github.com/jaegertracing/jaeger/cmd/flags"
 	"github.com/jaegertracing/jaeger/cmd/opentelemetry-collector/app"
 	"github.com/jaegertracing/jaeger/cmd/opentelemetry-collector/app/defaults"
-	cassandra2 "github.com/jaegertracing/jaeger/cmd/opentelemetry-collector/app/exporter/cassandra"
+	"github.com/jaegertracing/jaeger/cmd/opentelemetry-collector/app/exporter/cassandra"
 	"github.com/jaegertracing/jaeger/cmd/opentelemetry-collector/app/exporter/elasticsearch"
 	"github.com/jaegertracing/jaeger/cmd/opentelemetry-collector/app/exporter/memory"
 	queryApp "github.com/jaegertracing/jaeger/cmd/query/app"
 	"github.com/jaegertracing/jaeger/cmd/query/app/querysvc"
 	jConfig "github.com/jaegertracing/jaeger/pkg/config"
 	"github.com/jaegertracing/jaeger/pkg/version"
-	storagePlugin "github.com/jaegertracing/jaeger/plugin/storage"
-	"github.com/jaegertracing/jaeger/plugin/storage/cassandra"
-	"github.com/jaegertracing/jaeger/plugin/storage/es"
+	pluginStorage "github.com/jaegertracing/jaeger/plugin/storage"
+	cassStorage "github.com/jaegertracing/jaeger/plugin/storage/cassandra"
+	esStorage "github.com/jaegertracing/jaeger/plugin/storage/es"
 	"github.com/jaegertracing/jaeger/storage"
 )
 
@@ -67,7 +67,7 @@ func main() {
 	}
 
 	v := viper.New()
-	storageType := os.Getenv(storagePlugin.SpanStorageTypeEnvVar)
+	storageType := os.Getenv(pluginStorage.SpanStorageTypeEnvVar)
 	if storageType == "" {
 		storageType = "memory"
 	}
@@ -161,21 +161,21 @@ func getStorageExporter(storageType string, exporters configmodels.Exporters) co
 func getFactory(exporter configmodels.Exporter, v *viper.Viper, logger *zap.Logger) (storage.Factory, error) {
 	switch exporter.Name() {
 	case "jaeger_elasticsearch":
-		archiveOpts := es.NewOptions("es-archive")
+		archiveOpts := esStorage.NewOptions("es-archive")
 		archiveOpts.InitFromViper(v)
 		primaryConfig := exporter.(*elasticsearch.Config)
-		f := es.NewFactory()
-		f.InitFromOptions(*es.NewOptionsFromConfig(primaryConfig.Primary.Configuration, archiveOpts.Primary.Configuration))
+		f := esStorage.NewFactory()
+		f.InitFromOptions(*esStorage.NewOptionsFromConfig(primaryConfig.Primary.Configuration, archiveOpts.Primary.Configuration))
 		if err := f.Initialize(metrics.NullFactory, logger); err != nil {
 			return nil, err
 		}
 		return f, nil
 	case "jaeger_cassandra":
-		archiveOpts := cassandra.NewOptions("cassandra-archive")
+		archiveOpts := cassStorage.NewOptions("cassandra-archive")
 		archiveOpts.InitFromViper(v)
-		primaryConfig := exporter.(*cassandra2.Config)
-		f := cassandra.NewFactory()
-		f.InitFromOptions(cassandra.NewOptionsFromConfig(primaryConfig.Primary.Configuration, archiveOpts.Primary.Configuration))
+		primaryConfig := exporter.(*cassandra.Config)
+		f := cassStorage.NewFactory()
+		f.InitFromOptions(cassStorage.NewOptionsFromConfig(primaryConfig.Primary.Configuration, archiveOpts.Primary.Configuration))
 		if err := f.Initialize(metrics.NullFactory, logger); err != nil {
 			return nil, err
 		}

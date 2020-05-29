@@ -34,8 +34,7 @@ import (
 
 // Server runs HTTP, Mux and a grpc server
 type Server struct {
-	logger *zap.Logger
-	//svc          *flags.Service
+	logger       *zap.Logger
 	querySvc     *querysvc.QueryService
 	queryOptions *QueryOptions
 
