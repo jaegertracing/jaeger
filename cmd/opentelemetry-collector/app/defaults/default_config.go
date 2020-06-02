@@ -82,7 +82,7 @@ func (c ComponentSettings) CreateDefaultConfig() (*configmodels.Config, error) {
 		Service: configmodels.Service{
 			Extensions: []string{hc.Name()},
 			Pipelines: configmodels.Pipelines{
-				"traces": {
+				string(configmodels.TracesDataType): {
 					InputType:  configmodels.TracesDataType,
 					Receivers:  receiverNames(receivers),
 					Processors: processorNames(processors),

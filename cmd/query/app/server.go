@@ -167,5 +167,4 @@ func (s *Server) Close() {
 	s.grpcServer.Stop()
 	s.httpServer.Close()
 	s.conn.Close()
-	close(s.unavailableChannel)
 }

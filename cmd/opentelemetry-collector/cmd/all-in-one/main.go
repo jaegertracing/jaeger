@@ -19,14 +19,13 @@ import (
 	"io"
 	"log"
 	"os"
-	"os/signal"
-	"sync"
 
 	"github.com/opentracing/opentracing-go"
 	"github.com/spf13/viper"
 	jaegerClientConfig "github.com/uber/jaeger-client-go/config"
 	jaegerClientZapLog "github.com/uber/jaeger-client-go/log/zap"
 	"github.com/uber/jaeger-lib/metrics"
+	"go.opentelemetry.io/collector/component"
 	"go.opentelemetry.io/collector/config"
 	"go.opentelemetry.io/collector/config/configmodels"
 	"go.opentelemetry.io/collector/service"
@@ -71,10 +70,6 @@ func main() {
 		storageType = "memory"
 	}
 
-	configCreatedWait := sync.WaitGroup{}
-	configCreatedWait.Add(1)
-	exporters := configmodels.Exporters{}
-
 	cmpts := defaults.Components(v)
 	cfgFactory := func(otelViper *viper.Viper, f config.Factories) (*configmodels.Config, error) {
 		collectorOpts := &collectorApp.CollectorOptions{}
@@ -100,9 +95,6 @@ func main() {
 				return nil, err
 			}
 		}
-
-		exporters = cfg.Exporters
-		configCreatedWait.Done()
 		return cfg, nil
 	}
 
@@ -139,29 +131,55 @@ func main() {
 		handleErr(err)
 	}()
 
-	configCreatedWait.Wait()
-	exp := getStorageExporter(storageType, exporters)
-	if err := startQuery(v, svc.GetLogger(), exp); err != nil {
+	for state := range svc.GetStateChannel() {
+		if state == service.Running {
+			break
+		}
+	}
+	exp := getStorageExporter(storageType, svc.GetExporters()[configmodels.TracesDataType])
+	if exp == nil {
+		svc.ReportFatalError(fmt.Errorf("exporter type for storage %s not found", storageType))
+	}
+	queryServer, tracerCloser, err := startQuery(v, svc.GetLogger(), exp)
+	if err != nil {
 		svc.ReportFatalError(err)
+	} else {
+		for state := range svc.GetStateChannel() {
+			if state == service.Closing {
+				queryServer.Close()
+				tracerCloser.Close()
+			} else if state == service.Closed {
+				break
+			}
+		}
 	}
 }
 
-func getStorageExporter(storageType string, exporters configmodels.Exporters) configmodels.Exporter {
-	return exporters[fmt.Sprintf("jaeger_%s", storageType)]
+// getStorageExporter returns exporter for given storage type
+// The storage type can contain a comma separated list of storage types
+// the function does not handle this as the all-in-one should be used for a simple deployments with a single storage.
+func getStorageExporter(storageType string, exporters map[configmodels.Exporter]component.Exporter) configmodels.Exporter {
+	storageExporter := fmt.Sprintf("jaeger_%s", storageType)
+	for k := range exporters {
+		if storageExporter == k.Name() {
+			return k
+		}
+	}
+	return nil
 }
 
-func startQuery(v *viper.Viper, logger *zap.Logger, exporter configmodels.Exporter) error {
+func startQuery(v *viper.Viper, logger *zap.Logger, exporter configmodels.Exporter) (*queryApp.Server, io.Closer, error) {
 	storageFactory, err := getFactory(exporter, v, logger)
 	if err != nil {
-		return err
+		return nil, nil, err
 	}
 	spanReader, err := storageFactory.CreateSpanReader()
 	if err != nil {
-		return err
+		return nil, nil, err
 	}
 	dependencyReader, err := storageFactory.CreateDependencyReader()
 	if err != nil {
-		return err
+		return nil, nil, err
 	}
 	queryOpts := new(queryApp.QueryOptions).InitFromViper(v, logger)
 	queryServiceOptions := queryOpts.BuildQueryServiceOptions(storageFactory, logger)
@@ -173,15 +191,9 @@ func startQuery(v *viper.Viper, logger *zap.Logger, exporter configmodels.Export
 	tracerCloser := initTracer(logger)
 	server := queryApp.NewServer(logger, queryService, queryOpts, opentracing.GlobalTracer())
 	if err := server.Start(); err != nil {
-		return err
+		return nil, nil, err
 	}
-
-	// TODO subscribe to service's lifecycle (shutdown) event and then terminate
-	// https://github.com/open-telemetry/opentelemetry-collector/issues/1033
-	c := make(chan os.Signal, 1)
-	signal.Notify(c, os.Interrupt)
-	<-c
-	return tracerCloser.Close()
+	return server, tracerCloser, nil
 }
 
 func getFactory(exporter configmodels.Exporter, v *viper.Viper, logger *zap.Logger) (storage.Factory, error) {
