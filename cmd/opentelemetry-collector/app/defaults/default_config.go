@@ -25,6 +25,7 @@ import (
 	"go.opentelemetry.io/collector/receiver/jaegerreceiver"
 	"go.opentelemetry.io/collector/receiver/zipkinreceiver"
 
+	"github.com/jaegertracing/jaeger/cmd/opentelemetry-collector/app/exporter/badger"
 	"github.com/jaegertracing/jaeger/cmd/opentelemetry-collector/app/exporter/cassandra"
 	"github.com/jaegertracing/jaeger/cmd/opentelemetry-collector/app/exporter/elasticsearch"
 	"github.com/jaegertracing/jaeger/cmd/opentelemetry-collector/app/exporter/grpcplugin"
@@ -145,6 +146,9 @@ func createExporters(component ComponentType, storageTypes string, factories con
 		case "memory":
 			mem := factories.Exporters[memory.TypeStr].CreateDefaultConfig()
 			exporters[memory.TypeStr] = mem
+		case "badger":
+			badg := factories.Exporters[badger.TypeStr].CreateDefaultConfig()
+			exporters[badger.TypeStr] = badg
 		case "cassandra":
 			cass := factories.Exporters[cassandra.TypeStr].CreateDefaultConfig()
 			exporters[cassandra.TypeStr] = cass

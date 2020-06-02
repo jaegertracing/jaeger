@@ -20,6 +20,7 @@ import (
 	"strings"
 
 	jConfigFile "github.com/jaegertracing/jaeger/cmd/flags"
+	"github.com/jaegertracing/jaeger/cmd/opentelemetry-collector/app/exporter/badger"
 	"github.com/jaegertracing/jaeger/cmd/opentelemetry-collector/app/exporter/cassandra"
 	"github.com/jaegertracing/jaeger/cmd/opentelemetry-collector/app/exporter/elasticsearch"
 	"github.com/jaegertracing/jaeger/cmd/opentelemetry-collector/app/exporter/grpcplugin"
@@ -54,6 +55,8 @@ func AddStorageFlags(storage string, enableArchive bool) (func(*flag.FlagSet), e
 			if enableArchive {
 				flagFn = append(flagFn, cassandra2.NewOptions("cassandra-archive").AddFlags)
 			}
+		case "badger":
+			flagFn = append(flagFn, badger.DefaultOptions().AddFlags)
 		case "elasticsearch":
 			flagFn = append(flagFn, elasticsearch.DefaultOptions().AddFlags)
 			if enableArchive {
