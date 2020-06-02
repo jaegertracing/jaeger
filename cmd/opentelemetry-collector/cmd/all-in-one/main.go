@@ -19,6 +19,7 @@ import (
 	"io"
 	"log"
 	"os"
+	"strings"
 
 	"github.com/opentracing/opentracing-go"
 	"github.com/spf13/viper"
@@ -159,7 +160,8 @@ func main() {
 // The storage type can contain a comma separated list of storage types
 // the function does not handle this as the all-in-one should be used for a simple deployments with a single storage.
 func getStorageExporter(storageType string, exporters map[configmodels.Exporter]component.Exporter) configmodels.Exporter {
-	storageExporter := fmt.Sprintf("jaeger_%s", storageType)
+	// replace `-` to `_` because grpc-plugin exporter is named as jaeger_grpc_plugin
+	storageExporter := fmt.Sprintf("jaeger_%s", strings.Replace(storageType, "-", "_", -1))
 	for k := range exporters {
 		if storageExporter == k.Name() {
 			return k
@@ -218,7 +220,9 @@ func getFactory(exporter configmodels.Exporter, v *viper.Viper, logger *zap.Logg
 			return nil, err
 		}
 		return f, nil
-	case "memory":
+	case "jaeger_grpc_plugin":
+		return memory.GetFactory(), nil
+	case "jaeger_memory":
 		return memory.GetFactory(), nil
 	default:
 		return nil, fmt.Errorf("storage type %s cannot be used with all-in-one", exporter.Name())
