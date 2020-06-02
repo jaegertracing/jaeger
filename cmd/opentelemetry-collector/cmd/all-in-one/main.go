@@ -39,6 +39,7 @@ import (
 	"github.com/jaegertracing/jaeger/cmd/opentelemetry-collector/app/defaults"
 	"github.com/jaegertracing/jaeger/cmd/opentelemetry-collector/app/exporter/cassandra"
 	"github.com/jaegertracing/jaeger/cmd/opentelemetry-collector/app/exporter/elasticsearch"
+	"github.com/jaegertracing/jaeger/cmd/opentelemetry-collector/app/exporter/grpcplugin"
 	"github.com/jaegertracing/jaeger/cmd/opentelemetry-collector/app/exporter/memory"
 	queryApp "github.com/jaegertracing/jaeger/cmd/query/app"
 	"github.com/jaegertracing/jaeger/cmd/query/app/querysvc"
@@ -47,6 +48,7 @@ import (
 	pluginStorage "github.com/jaegertracing/jaeger/plugin/storage"
 	cassStorage "github.com/jaegertracing/jaeger/plugin/storage/cassandra"
 	esStorage "github.com/jaegertracing/jaeger/plugin/storage/es"
+	grpcStorage "github.com/jaegertracing/jaeger/plugin/storage/grpc"
 	"github.com/jaegertracing/jaeger/storage"
 )
 
@@ -221,7 +223,13 @@ func getFactory(exporter configmodels.Exporter, v *viper.Viper, logger *zap.Logg
 		}
 		return f, nil
 	case "jaeger_grpc_plugin":
-		return memory.GetFactory(), nil
+		primaryConfig := exporter.(*grpcplugin.Config)
+		f := grpcStorage.NewFactory()
+		f.InitFromOptions(primaryConfig.Options)
+		if err := f.Initialize(metrics.NullFactory, logger); err != nil {
+			return nil, err
+		}
+		return f, nil
 	case "jaeger_memory":
 		return memory.GetFactory(), nil
 	default:

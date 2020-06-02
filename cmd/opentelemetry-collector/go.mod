@@ -8,10 +8,8 @@ replace github.com/jaegertracing/jaeger => ./../../
 
 require (
 	github.com/Shopify/sarama v1.22.2-0.20190604114437-cd910a683f9f
-	github.com/gogo/protobuf v1.3.1 // indirect
 	github.com/imdario/mergo v0.3.9
 	github.com/jaegertracing/jaeger v1.17.0
-	github.com/open-telemetry/opentelemetry-proto v0.3.0
 	github.com/opentracing/opentracing-go v1.1.0
 	github.com/spf13/pflag v1.0.5
 	github.com/spf13/viper v1.6.2
