@@ -19,18 +19,18 @@ import (
 	"fmt"
 	"strings"
 
-	jConfigFile "github.com/jaegertracing/jaeger/cmd/flags"
-	"github.com/jaegertracing/jaeger/cmd/opentelemetry-collector/app/exporter/badger"
-	"github.com/jaegertracing/jaeger/cmd/opentelemetry-collector/app/exporter/cassandra"
-	"github.com/jaegertracing/jaeger/cmd/opentelemetry-collector/app/exporter/elasticsearch"
-	"github.com/jaegertracing/jaeger/cmd/opentelemetry-collector/app/exporter/grpcplugin"
-	"github.com/jaegertracing/jaeger/cmd/opentelemetry-collector/app/exporter/kafka"
-	"github.com/jaegertracing/jaeger/cmd/opentelemetry-collector/app/exporter/memory"
+	jFlags "github.com/jaegertracing/jaeger/cmd/flags"
+	"github.com/jaegertracing/jaeger/cmd/opentelemetry-collector/app/exporter/badgerexporter"
+	"github.com/jaegertracing/jaeger/cmd/opentelemetry-collector/app/exporter/cassandraexporter"
+	"github.com/jaegertracing/jaeger/cmd/opentelemetry-collector/app/exporter/elasticsearchexporter"
+	"github.com/jaegertracing/jaeger/cmd/opentelemetry-collector/app/exporter/grpcpluginexporter"
+	"github.com/jaegertracing/jaeger/cmd/opentelemetry-collector/app/exporter/kafkaexporter"
+	"github.com/jaegertracing/jaeger/cmd/opentelemetry-collector/app/exporter/memoryexporter"
 	"github.com/jaegertracing/jaeger/cmd/opentelemetry-collector/app/processor/resourceprocessor"
 	"github.com/jaegertracing/jaeger/cmd/opentelemetry-collector/app/receiver/jaegerreceiver"
 	"github.com/jaegertracing/jaeger/cmd/opentelemetry-collector/app/receiver/zipkinreceiver"
-	cassandra2 "github.com/jaegertracing/jaeger/plugin/storage/cassandra"
-	"github.com/jaegertracing/jaeger/plugin/storage/es"
+	cassandraStorage "github.com/jaegertracing/jaeger/plugin/storage/cassandra"
+	esStorage "github.com/jaegertracing/jaeger/plugin/storage/es"
 )
 
 // AddComponentFlags adds all flags exposed by components
@@ -39,7 +39,7 @@ func AddComponentFlags(flags *flag.FlagSet) {
 	jaegerreceiver.AddFlags(flags)
 	zipkinreceiver.AddFlags(flags)
 	resourceprocessor.AddFlags(flags)
-	jConfigFile.AddConfigFileFlag(flags)
+	jFlags.AddConfigFileFlag(flags)
 }
 
 // AddStorageFlags return a function that adds storage flags.
@@ -49,23 +49,23 @@ func AddStorageFlags(storage string, enableArchive bool) (func(*flag.FlagSet), e
 	for _, s := range strings.Split(storage, ",") {
 		switch s {
 		case "memory":
-			flagFn = append(flagFn, memory.AddFlags)
+			flagFn = append(flagFn, memoryexporter.AddFlags)
 		case "cassandra":
-			flagFn = append(flagFn, cassandra.DefaultOptions().AddFlags)
+			flagFn = append(flagFn, cassandraexporter.DefaultOptions().AddFlags)
 			if enableArchive {
-				flagFn = append(flagFn, cassandra2.NewOptions("cassandra-archive").AddFlags)
+				flagFn = append(flagFn, cassandraStorage.NewOptions("cassandra-archive").AddFlags)
 			}
 		case "badger":
-			flagFn = append(flagFn, badger.DefaultOptions().AddFlags)
+			flagFn = append(flagFn, badgerexporter.DefaultOptions().AddFlags)
 		case "elasticsearch":
-			flagFn = append(flagFn, elasticsearch.DefaultOptions().AddFlags)
+			flagFn = append(flagFn, elasticsearchexporter.DefaultOptions().AddFlags)
 			if enableArchive {
-				flagFn = append(flagFn, es.NewOptions("es-archive").AddFlags)
+				flagFn = append(flagFn, esStorage.NewOptions("es-archive").AddFlags)
 			}
 		case "kafka":
-			flagFn = append(flagFn, kafka.DefaultOptions().AddFlags)
+			flagFn = append(flagFn, kafkaexporter.DefaultOptions().AddFlags)
 		case "grpc-plugin":
-			flagFn = append(flagFn, grpcplugin.DefaultOptions().AddFlags)
+			flagFn = append(flagFn, grpcpluginexporter.DefaultOptions().AddFlags)
 		default:
 			return nil, fmt.Errorf("unknown storage type: %s", s)
 		}

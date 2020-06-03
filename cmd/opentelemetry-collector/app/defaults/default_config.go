@@ -25,13 +25,13 @@ import (
 	"go.opentelemetry.io/collector/receiver/jaegerreceiver"
 	"go.opentelemetry.io/collector/receiver/zipkinreceiver"
 
-	"github.com/jaegertracing/jaeger/cmd/opentelemetry-collector/app/exporter/badger"
-	"github.com/jaegertracing/jaeger/cmd/opentelemetry-collector/app/exporter/cassandra"
-	"github.com/jaegertracing/jaeger/cmd/opentelemetry-collector/app/exporter/elasticsearch"
-	"github.com/jaegertracing/jaeger/cmd/opentelemetry-collector/app/exporter/grpcplugin"
-	"github.com/jaegertracing/jaeger/cmd/opentelemetry-collector/app/exporter/kafka"
-	"github.com/jaegertracing/jaeger/cmd/opentelemetry-collector/app/exporter/memory"
-	kafkaRec "github.com/jaegertracing/jaeger/cmd/opentelemetry-collector/app/receiver/kafka"
+	"github.com/jaegertracing/jaeger/cmd/opentelemetry-collector/app/exporter/badgerexporter"
+	"github.com/jaegertracing/jaeger/cmd/opentelemetry-collector/app/exporter/cassandraexporter"
+	"github.com/jaegertracing/jaeger/cmd/opentelemetry-collector/app/exporter/elasticsearchexporter"
+	"github.com/jaegertracing/jaeger/cmd/opentelemetry-collector/app/exporter/grpcpluginexporter"
+	"github.com/jaegertracing/jaeger/cmd/opentelemetry-collector/app/exporter/kafkaexporter"
+	"github.com/jaegertracing/jaeger/cmd/opentelemetry-collector/app/exporter/memoryexporter"
+	"github.com/jaegertracing/jaeger/cmd/opentelemetry-collector/app/receiver/kafkareceiver"
 	"github.com/jaegertracing/jaeger/ports"
 )
 
@@ -96,7 +96,7 @@ func (c ComponentSettings) CreateDefaultConfig() (*configmodels.Config, error) {
 
 func createReceivers(component ComponentType, zipkinHostPort string, factories config.Factories) configmodels.Receivers {
 	if component == Ingester {
-		kafkaReceiver := factories.Receivers[kafkaRec.TypeStr].CreateDefaultConfig().(*kafkaRec.Config)
+		kafkaReceiver := factories.Receivers[kafkareceiver.TypeStr].CreateDefaultConfig().(*kafkareceiver.Config)
 		return configmodels.Receivers{
 			kafkaReceiver.Name(): kafkaReceiver,
 		}
@@ -144,23 +144,23 @@ func createExporters(component ComponentType, storageTypes string, factories con
 	for _, s := range strings.Split(storageTypes, ",") {
 		switch s {
 		case "memory":
-			mem := factories.Exporters[memory.TypeStr].CreateDefaultConfig()
-			exporters[memory.TypeStr] = mem
+			mem := factories.Exporters[memoryexporter.TypeStr].CreateDefaultConfig()
+			exporters[memoryexporter.TypeStr] = mem
 		case "badger":
-			badg := factories.Exporters[badger.TypeStr].CreateDefaultConfig()
-			exporters[badger.TypeStr] = badg
+			badg := factories.Exporters[badgerexporter.TypeStr].CreateDefaultConfig()
+			exporters[badgerexporter.TypeStr] = badg
 		case "cassandra":
-			cass := factories.Exporters[cassandra.TypeStr].CreateDefaultConfig()
-			exporters[cassandra.TypeStr] = cass
+			cass := factories.Exporters[cassandraexporter.TypeStr].CreateDefaultConfig()
+			exporters[cassandraexporter.TypeStr] = cass
 		case "elasticsearch":
-			es := factories.Exporters[elasticsearch.TypeStr].CreateDefaultConfig()
-			exporters[elasticsearch.TypeStr] = es
+			es := factories.Exporters[elasticsearchexporter.TypeStr].CreateDefaultConfig()
+			exporters[elasticsearchexporter.TypeStr] = es
 		case "kafka":
-			kaf := factories.Exporters[kafka.TypeStr].CreateDefaultConfig()
-			exporters[kafka.TypeStr] = kaf
+			kaf := factories.Exporters[kafkaexporter.TypeStr].CreateDefaultConfig()
+			exporters[kafkaexporter.TypeStr] = kaf
 		case "grpc-plugin":
-			grpcEx := factories.Exporters[grpcplugin.TypeStr].CreateDefaultConfig()
-			exporters[grpcplugin.TypeStr] = grpcEx
+			grpcEx := factories.Exporters[grpcpluginexporter.TypeStr].CreateDefaultConfig()
+			exporters[grpcpluginexporter.TypeStr] = grpcEx
 		default:
 			return nil, fmt.Errorf("unknown storage type: %s", s)
 		}

@@ -19,44 +19,44 @@ import (
 
 	"github.com/stretchr/testify/assert"
 
-	"github.com/jaegertracing/jaeger/cmd/opentelemetry-collector/app/exporter/badger"
-	"github.com/jaegertracing/jaeger/cmd/opentelemetry-collector/app/exporter/cassandra"
-	"github.com/jaegertracing/jaeger/cmd/opentelemetry-collector/app/exporter/elasticsearch"
-	"github.com/jaegertracing/jaeger/cmd/opentelemetry-collector/app/exporter/grpcplugin"
+	"github.com/jaegertracing/jaeger/cmd/opentelemetry-collector/app/exporter/badgerexporter"
+	"github.com/jaegertracing/jaeger/cmd/opentelemetry-collector/app/exporter/cassandraexporter"
+	"github.com/jaegertracing/jaeger/cmd/opentelemetry-collector/app/exporter/elasticsearchexporter"
+	"github.com/jaegertracing/jaeger/cmd/opentelemetry-collector/app/exporter/grpcpluginexporter"
 	"github.com/jaegertracing/jaeger/cmd/opentelemetry-collector/app/exporter/jaegerexporter"
-	"github.com/jaegertracing/jaeger/cmd/opentelemetry-collector/app/exporter/kafka"
-	"github.com/jaegertracing/jaeger/cmd/opentelemetry-collector/app/exporter/memory"
+	"github.com/jaegertracing/jaeger/cmd/opentelemetry-collector/app/exporter/kafkaexporter"
+	"github.com/jaegertracing/jaeger/cmd/opentelemetry-collector/app/exporter/memoryexporter"
 	"github.com/jaegertracing/jaeger/cmd/opentelemetry-collector/app/receiver/jaegerreceiver"
-	kafkaRec "github.com/jaegertracing/jaeger/cmd/opentelemetry-collector/app/receiver/kafka"
+	"github.com/jaegertracing/jaeger/cmd/opentelemetry-collector/app/receiver/kafkareceiver"
 	"github.com/jaegertracing/jaeger/cmd/opentelemetry-collector/app/receiver/zipkinreceiver"
 	jConfig "github.com/jaegertracing/jaeger/pkg/config"
 )
 
 func TestComponents(t *testing.T) {
 	v, _ := jConfig.Viperize(
-		kafka.DefaultOptions().AddFlags,
-		cassandra.DefaultOptions().AddFlags,
-		elasticsearch.DefaultOptions().AddFlags,
+		kafkaexporter.DefaultOptions().AddFlags,
+		cassandraexporter.DefaultOptions().AddFlags,
+		elasticsearchexporter.DefaultOptions().AddFlags,
 	)
 	factories := Components(v)
-	assert.IsType(t, &kafka.Factory{}, factories.Exporters[kafka.TypeStr])
-	assert.IsType(t, &cassandra.Factory{}, factories.Exporters[cassandra.TypeStr])
-	assert.IsType(t, &elasticsearch.Factory{}, factories.Exporters[elasticsearch.TypeStr])
-	assert.IsType(t, &grpcplugin.Factory{}, factories.Exporters[grpcplugin.TypeStr])
-	assert.IsType(t, &memory.Factory{}, factories.Exporters[memory.TypeStr])
-	assert.IsType(t, &badger.Factory{}, factories.Exporters[badger.TypeStr])
+	assert.IsType(t, &kafkaexporter.Factory{}, factories.Exporters[kafkaexporter.TypeStr])
+	assert.IsType(t, &cassandraexporter.Factory{}, factories.Exporters[cassandraexporter.TypeStr])
+	assert.IsType(t, &elasticsearchexporter.Factory{}, factories.Exporters[elasticsearchexporter.TypeStr])
+	assert.IsType(t, &grpcpluginexporter.Factory{}, factories.Exporters[grpcpluginexporter.TypeStr])
+	assert.IsType(t, &memoryexporter.Factory{}, factories.Exporters[memoryexporter.TypeStr])
+	assert.IsType(t, &badgerexporter.Factory{}, factories.Exporters[badgerexporter.TypeStr])
 	assert.IsType(t, &jaegerreceiver.Factory{}, factories.Receivers["jaeger"])
 	assert.IsType(t, &jaegerexporter.Factory{}, factories.Exporters["jaeger"])
-	assert.IsType(t, &kafkaRec.Factory{}, factories.Receivers[kafkaRec.TypeStr])
+	assert.IsType(t, &kafkareceiver.Factory{}, factories.Receivers[kafkareceiver.TypeStr])
 	assert.IsType(t, &zipkinreceiver.Factory{}, factories.Receivers["zipkin"])
 
-	kafkaFactory := factories.Exporters[kafka.TypeStr]
-	kc := kafkaFactory.CreateDefaultConfig().(*kafka.Config)
+	kafkaFactory := factories.Exporters[kafkaexporter.TypeStr]
+	kc := kafkaFactory.CreateDefaultConfig().(*kafkaexporter.Config)
 	assert.Equal(t, []string{"127.0.0.1:9092"}, kc.Config.Brokers)
-	cassandraFactory := factories.Exporters[cassandra.TypeStr]
-	cc := cassandraFactory.CreateDefaultConfig().(*cassandra.Config)
+	cassandraFactory := factories.Exporters[cassandraexporter.TypeStr]
+	cc := cassandraFactory.CreateDefaultConfig().(*cassandraexporter.Config)
 	assert.Equal(t, []string{"127.0.0.1"}, cc.Options.GetPrimary().Servers)
-	esFactory := factories.Exporters[elasticsearch.TypeStr]
-	ec := esFactory.CreateDefaultConfig().(*elasticsearch.Config)
+	esFactory := factories.Exporters[elasticsearchexporter.TypeStr]
+	ec := esFactory.CreateDefaultConfig().(*elasticsearchexporter.Config)
 	assert.Equal(t, []string{"http://127.0.0.1:9200"}, ec.GetPrimary().Servers)
 }

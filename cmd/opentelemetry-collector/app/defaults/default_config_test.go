@@ -26,12 +26,12 @@ import (
 	"go.uber.org/zap"
 
 	"github.com/jaegertracing/jaeger/cmd/opentelemetry-collector/app"
-	"github.com/jaegertracing/jaeger/cmd/opentelemetry-collector/app/exporter/cassandra"
-	"github.com/jaegertracing/jaeger/cmd/opentelemetry-collector/app/exporter/elasticsearch"
-	"github.com/jaegertracing/jaeger/cmd/opentelemetry-collector/app/exporter/grpcplugin"
-	"github.com/jaegertracing/jaeger/cmd/opentelemetry-collector/app/exporter/kafka"
-	"github.com/jaegertracing/jaeger/cmd/opentelemetry-collector/app/exporter/memory"
-	kafkaRec "github.com/jaegertracing/jaeger/cmd/opentelemetry-collector/app/receiver/kafka"
+	"github.com/jaegertracing/jaeger/cmd/opentelemetry-collector/app/exporter/cassandraexporter"
+	"github.com/jaegertracing/jaeger/cmd/opentelemetry-collector/app/exporter/elasticsearchexporter"
+	"github.com/jaegertracing/jaeger/cmd/opentelemetry-collector/app/exporter/grpcpluginexporter"
+	"github.com/jaegertracing/jaeger/cmd/opentelemetry-collector/app/exporter/kafkaexporter"
+	"github.com/jaegertracing/jaeger/cmd/opentelemetry-collector/app/exporter/memoryexporter"
+	"github.com/jaegertracing/jaeger/cmd/opentelemetry-collector/app/receiver/kafkareceiver"
 	jConfig "github.com/jaegertracing/jaeger/pkg/config"
 )
 
@@ -70,7 +70,7 @@ func TestService(t *testing.T) {
 						InputType:  configmodels.TracesDataType,
 						Receivers:  []string{"jaeger"},
 						Processors: []string{"resource"},
-						Exporters:  []string{elasticsearch.TypeStr, kafka.TypeStr, memory.TypeStr},
+						Exporters:  []string{elasticsearchexporter.TypeStr, kafkaexporter.TypeStr, memoryexporter.TypeStr},
 					},
 				},
 			},
@@ -85,8 +85,8 @@ func TestService(t *testing.T) {
 				Pipelines: configmodels.Pipelines{
 					"traces": &configmodels.Pipeline{
 						InputType: configmodels.TracesDataType,
-						Receivers: []string{kafkaRec.TypeStr},
-						Exporters: []string{elasticsearch.TypeStr},
+						Receivers: []string{kafkareceiver.TypeStr},
+						Exporters: []string{elasticsearchexporter.TypeStr},
 					},
 				},
 			},
@@ -101,8 +101,8 @@ func TestService(t *testing.T) {
 				Pipelines: configmodels.Pipelines{
 					"traces": &configmodels.Pipeline{
 						InputType: configmodels.TracesDataType,
-						Receivers: []string{kafkaRec.TypeStr},
-						Exporters: []string{cassandra.TypeStr, elasticsearch.TypeStr, grpcplugin.TypeStr},
+						Receivers: []string{kafkareceiver.TypeStr},
+						Exporters: []string{cassandraexporter.TypeStr, elasticsearchexporter.TypeStr, grpcpluginexporter.TypeStr},
 					},
 				},
 			},
@@ -119,7 +119,7 @@ func TestService(t *testing.T) {
 					"traces": &configmodels.Pipeline{
 						InputType: configmodels.TracesDataType,
 						Receivers: []string{"jaeger", "zipkin"},
-						Exporters: []string{elasticsearch.TypeStr},
+						Exporters: []string{elasticsearchexporter.TypeStr},
 					},
 				},
 			},

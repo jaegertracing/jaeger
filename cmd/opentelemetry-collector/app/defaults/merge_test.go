@@ -29,7 +29,7 @@ import (
 	"go.opentelemetry.io/collector/receiver/jaegerreceiver"
 	"go.opentelemetry.io/collector/receiver/zipkinreceiver"
 
-	"github.com/jaegertracing/jaeger/cmd/opentelemetry-collector/app/exporter/elasticsearch"
+	"github.com/jaegertracing/jaeger/cmd/opentelemetry-collector/app/exporter/elasticsearchexporter"
 	jConfig "github.com/jaegertracing/jaeger/pkg/config"
 )
 
@@ -144,7 +144,7 @@ func TestMergeConfigs(t *testing.T) {
 
 func TestMergeConfigFiles(t *testing.T) {
 	testFiles := []string{"emptyoverride", "addprocessor", "multiplecomponents"}
-	v, _ := jConfig.Viperize(elasticsearch.DefaultOptions().AddFlags)
+	v, _ := jConfig.Viperize(elasticsearchexporter.DefaultOptions().AddFlags)
 	cmpts := Components(v)
 	for _, f := range testFiles {
 		t.Run(f, func(t *testing.T) {
