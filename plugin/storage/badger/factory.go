@@ -85,7 +85,7 @@ func (f *Factory) InitFromViper(v *viper.Viper) {
 	f.Options.InitFromViper(v)
 }
 
-// InitFromViper implements plugin.Configurable
+// InitFromOptions initializes Factory from supplied options
 func (f *Factory) InitFromOptions(opts Options) {
 	f.Options = &opts
 }

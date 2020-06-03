@@ -48,6 +48,7 @@ type Factory struct {
 	optionsFactory OptionsFactory
 }
 
+// NewFactory creates new Factory instance.
 func NewFactory(optionsFactory OptionsFactory) *Factory {
 	return &Factory{
 		optionsFactory: optionsFactory,

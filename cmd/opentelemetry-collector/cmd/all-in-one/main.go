@@ -237,7 +237,7 @@ func getFactory(exporter configmodels.Exporter, v *viper.Viper, logger *zap.Logg
 	case "jaeger_memory":
 		return memory.GetFactory(), nil
 	case "jaeger_badger":
-		return badger.GetFactory()
+		return badger.GetFactory(), nil
 	default:
 		return nil, fmt.Errorf("storage type %s cannot be used with all-in-one", exporter.Name())
 	}
