@@ -72,11 +72,11 @@ func Components(v *viper.Viper) config.Factories {
 		return opts
 	}}
 	memoryExp := memory.NewFactory(v)
-	badgerExp := &badger.Factory{OptionsFactory: func() *storageBadger.Options {
+	badgerExp := badger.NewFactory(func() *storageBadger.Options {
 		opts := badger.DefaultOptions()
 		opts.InitFromViper(v)
 		return opts
-	}}
+	})
 	kafkaRec := &kafkaRec.Factory{OptionsFactory: func() *ingesterApp.Options {
 		opts := kafkaRec.DefaultOptions()
 		opts.InitFromViper(v)

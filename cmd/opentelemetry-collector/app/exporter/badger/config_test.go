@@ -29,12 +29,12 @@ import (
 )
 
 func TestDefaultConfig(t *testing.T) {
-	factory := &Factory{OptionsFactory: func() *badger.Options {
+	factory := NewFactory(func() *badger.Options {
 		opts := DefaultOptions()
 		v, _ := jConfig.Viperize(opts.AddFlags)
 		opts.InitFromViper(v)
 		return opts
-	}}
+	})
 	defaultCfg := factory.CreateDefaultConfig().(*Config)
 	opts := defaultCfg.Options.GetPrimary()
 	assert.Contains(t, opts.KeyDirectory, "/data/keys")
@@ -59,12 +59,12 @@ func TestLoadConfigAndFlags(t *testing.T) {
 	err = flags.TryLoadConfigFile(v)
 	require.NoError(t, err)
 
-	factory := &Factory{OptionsFactory: func() *badger.Options {
+	factory := NewFactory(func() *badger.Options {
 		opts := DefaultOptions()
 		opts.InitFromViper(v)
 		require.Equal(t, "bar", opts.GetPrimary().KeyDirectory)
 		return opts
-	}}
+	})
 
 	factories.Exporters[TypeStr] = factory
 	colConfig, err := config.LoadConfigFile(t, path.Join(".", "testdata", "config.yaml"), factories)

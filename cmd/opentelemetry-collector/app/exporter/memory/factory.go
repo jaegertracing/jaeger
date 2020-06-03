@@ -35,14 +35,14 @@ const TypeStr = "jaeger_memory"
 
 // Factory is the factory for Jaeger in-memory exporter.
 type Factory struct {
-	Viper *viper.Viper
+	viper *viper.Viper
 	mutex *sync.Mutex
 }
 
 // NewFactory creates Factory.
 func NewFactory(v *viper.Viper) *Factory {
 	return &Factory{
-		Viper: v,
+		viper: v,
 		mutex: &sync.Mutex{},
 	}
 }
@@ -59,8 +59,50 @@ func GetFactory() storage.Factory {
 	return instance
 }
 
-// CreateStorageFactory creates Jaeger storage factory.
-func (f Factory) CreateStorageFactory(params component.ExporterCreateParams, cfg configmodels.Exporter) (storage.Factory, error) {
+// Type gets the type of exporter.
+func (f Factory) Type() configmodels.Type {
+	return TypeStr
+}
+
+// CreateDefaultConfig returns default configuration of Factory.
+// This function implements OTEL component.ExporterFactoryBase interface.
+func (f Factory) CreateDefaultConfig() configmodels.Exporter {
+	opts := memory.Options{}
+	opts.InitFromViper(f.viper)
+	return &Config{
+		Options: opts,
+		ExporterSettings: configmodels.ExporterSettings{
+			TypeVal: TypeStr,
+			NameVal: TypeStr,
+		},
+	}
+}
+
+// CreateTraceExporter creates Jaeger Kafka trace exporter.
+// This function implements OTEL component.ExporterFactory interface.
+func (f Factory) CreateTraceExporter(
+	_ context.Context,
+	params component.ExporterCreateParams,
+	cfg configmodels.Exporter,
+) (component.TraceExporter, error) {
+	factory, err := f.createStorageFactory(params, cfg)
+	if err != nil {
+		return nil, err
+	}
+	return exporter.NewSpanWriterExporter(cfg, factory)
+}
+
+// CreateMetricsExporter is not implemented.
+// This function implements OTEL component.Factory interface.
+func (Factory) CreateMetricsExporter(
+	_ context.Context,
+	_ component.ExporterCreateParams,
+	_ configmodels.Exporter,
+) (component.MetricsExporter, error) {
+	return nil, configerror.ErrDataTypeIsNotSupported
+}
+
+func (f Factory) createStorageFactory(params component.ExporterCreateParams, cfg configmodels.Exporter) (storage.Factory, error) {
 	config, ok := cfg.(*Config)
 	if !ok {
 		return nil, fmt.Errorf("could not cast configuration to %s", TypeStr)
@@ -78,47 +120,4 @@ func (f Factory) CreateStorageFactory(params component.ExporterCreateParams, cfg
 	instance = factory
 	f.mutex.Unlock()
 	return factory, nil
-}
-
-// Type gets the type of exporter.
-func (f Factory) Type() configmodels.Type {
-	return TypeStr
-}
-
-// CreateDefaultConfig returns default configuration of Factory.
-// This function implements OTEL component.ExporterFactoryBase interface.
-func (f Factory) CreateDefaultConfig() configmodels.Exporter {
-	opts := memory.Options{}
-	opts.InitFromViper(f.Viper)
-	return &Config{
-		Options: opts,
-		ExporterSettings: configmodels.ExporterSettings{
-			TypeVal: TypeStr,
-			NameVal: TypeStr,
-		},
-	}
-}
-
-// CreateTraceExporter creates Jaeger Kafka trace exporter.
-// This function implements OTEL component.ExporterFactory interface.
-func (f Factory) CreateTraceExporter(
-	_ context.Context,
-	params component.ExporterCreateParams,
-	cfg configmodels.Exporter,
-) (component.TraceExporter, error) {
-	factory, err := f.CreateStorageFactory(params, cfg)
-	if err != nil {
-		return nil, err
-	}
-	return exporter.NewSpanWriterExporter(cfg, factory)
-}
-
-// CreateMetricsExporter is not implemented.
-// This function implements OTEL component.Factory interface.
-func (Factory) CreateMetricsExporter(
-	_ context.Context,
-	_ component.ExporterCreateParams,
-	_ configmodels.Exporter,
-) (component.MetricsExporter, error) {
-	return nil, configerror.ErrDataTypeIsNotSupported
 }

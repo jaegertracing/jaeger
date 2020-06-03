@@ -17,12 +17,16 @@ package badger
 import (
 	"context"
 	"fmt"
+	"sync"
 
+	"github.com/uber/jaeger-lib/metrics"
 	"go.opentelemetry.io/collector/component"
 	"go.opentelemetry.io/collector/config/configerror"
 	"go.opentelemetry.io/collector/config/configmodels"
 
+	"github.com/jaegertracing/jaeger/cmd/opentelemetry-collector/app/exporter"
 	"github.com/jaegertracing/jaeger/plugin/storage/badger"
+	"github.com/jaegertracing/jaeger/storage"
 )
 
 const (
@@ -40,10 +44,28 @@ func DefaultOptions() *badger.Options {
 
 // Factory is the factory for Jaeger Cassandra exporter.
 type Factory struct {
-	OptionsFactory OptionsFactory
+	mutex          *sync.Mutex
+	optionsFactory OptionsFactory
+}
+
+func NewFactory(optionsFactory OptionsFactory) *Factory {
+	return &Factory{
+		optionsFactory: optionsFactory,
+		mutex:          &sync.Mutex{},
+	}
 }
 
 var _ component.ExporterFactory = (*Factory)(nil)
+
+// singleton instance of the factory
+// the badger exporter factory always returns this instance
+// the singleton instance is shared between OTEL collector and query service
+var instance storage.Factory
+
+// GetFactory returns singleton instance of the storage factory.
+func GetFactory() storage.Factory {
+	return instance
+}
 
 // Type gets the type of exporter.
 func (f Factory) Type() configmodels.Type {
@@ -53,7 +75,7 @@ func (f Factory) Type() configmodels.Type {
 // CreateDefaultConfig returns default configuration of Factory.
 // This function implements OTEL component.ExporterFactoryBase interface.
 func (f Factory) CreateDefaultConfig() configmodels.Exporter {
-	opts := f.OptionsFactory()
+	opts := f.optionsFactory()
 	return &Config{
 		Options: *opts,
 		ExporterSettings: configmodels.ExporterSettings{
@@ -70,11 +92,11 @@ func (f Factory) CreateTraceExporter(
 	params component.ExporterCreateParams,
 	cfg configmodels.Exporter,
 ) (component.TraceExporter, error) {
-	config, ok := cfg.(*Config)
-	if !ok {
-		return nil, fmt.Errorf("could not cast configuration to %s", TypeStr)
+	factory, err := f.createStorageFactory(params, cfg)
+	if err != nil {
+		return nil, err
 	}
-	return new(config, params)
+	return exporter.NewSpanWriterExporter(cfg, factory)
 }
 
 // CreateMetricsExporter is not implemented.
@@ -85,4 +107,24 @@ func (f Factory) CreateMetricsExporter(
 	_ configmodels.Exporter,
 ) (component.MetricsExporter, error) {
 	return nil, configerror.ErrDataTypeIsNotSupported
+}
+
+func (f Factory) createStorageFactory(params component.ExporterCreateParams, cfg configmodels.Exporter) (storage.Factory, error) {
+	config, ok := cfg.(*Config)
+	if !ok {
+		return nil, fmt.Errorf("could not cast configuration to %s", TypeStr)
+	}
+	f.mutex.Lock()
+	if instance != nil {
+		return instance, nil
+	}
+	factory := badger.NewFactory()
+	factory.InitFromOptions(config.Options)
+	err := factory.Initialize(metrics.NullFactory, params.Logger)
+	if err != nil {
+		return nil, err
+	}
+	instance = factory
+	f.mutex.Unlock()
+	return factory, nil
 }

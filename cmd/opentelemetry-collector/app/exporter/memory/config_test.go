@@ -28,7 +28,7 @@ import (
 
 func TestDefaultConfig(t *testing.T) {
 	v, _ := jConfig.Viperize(AddFlags)
-	factory := &Factory{Viper: v}
+	factory := NewFactory(v)
 	defaultCfg := factory.CreateDefaultConfig().(*Config)
 	assert.Equal(t, 0, defaultCfg.Configuration.MaxTraces)
 }
@@ -44,9 +44,7 @@ func TestLoadConfigAndFlags(t *testing.T) {
 	err = flags.TryLoadConfigFile(v)
 	require.NoError(t, err)
 
-	factory := &Factory{
-		Viper: v,
-	}
+	factory := NewFactory(v)
 	assert.Equal(t, 15, factory.CreateDefaultConfig().(*Config).Configuration.MaxTraces)
 
 	factories.Exporters[TypeStr] = factory
