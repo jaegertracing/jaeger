@@ -58,7 +58,12 @@ func main() {
 
 	cmpts := defaults.Components(v)
 	cfgFactory := func(otelViper *viper.Viper, f config.Factories) (*configmodels.Config, error) {
-		cfg, err := defaults.IngesterConfig(storageType, cmpts)
+		cfgConfig := defaults.ComponentSettings{
+			ComponentType: defaults.Ingester,
+			Factories:     cmpts,
+			StorageType:   storageType,
+		}
+		cfg, err := cfgConfig.CreateDefaultConfig()
 		if err != nil {
 			return nil, err
 		}
@@ -84,7 +89,7 @@ func main() {
 
 	// Add Jaeger specific flags to service command
 	// this passes flag values to viper.
-	storageFlags, err := app.AddStorageFlags(storageType)
+	storageFlags, err := app.AddStorageFlags(storageType, false)
 	if err != nil {
 		handleErr(err)
 	}

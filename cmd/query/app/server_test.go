@@ -55,10 +55,15 @@ func TestServer(t *testing.T) {
 
 	querySvc := querysvc.NewQueryService(spanReader, dependencyReader, querysvc.QueryServiceOptions{})
 
-	server := NewServer(flagsSvc, querySvc,
+	server := NewServer(flagsSvc.Logger, querySvc,
 		&QueryOptions{HostPort: hostPort, BearerTokenPropagation: true},
 		opentracing.NoopTracer{})
 	assert.NoError(t, server.Start())
+	go func() {
+		for s := range server.HealthCheckStatus() {
+			flagsSvc.SetHealthCheckStatus(s)
+		}
+	}()
 
 	client := newGRPCClient(t, hostPort)
 	defer client.conn.Close()
@@ -72,12 +77,12 @@ func TestServer(t *testing.T) {
 
 	server.Close()
 	for i := 0; i < 10; i++ {
-		if server.svc.HC().Get() == healthcheck.Unavailable {
+		if flagsSvc.HC().Get() == healthcheck.Unavailable {
 			break
 		}
 		time.Sleep(1 * time.Millisecond)
 	}
-	assert.Equal(t, healthcheck.Unavailable, server.svc.HC().Get())
+	assert.Equal(t, healthcheck.Unavailable, flagsSvc.HC().Get())
 }
 
 func TestServerGracefulExit(t *testing.T) {
@@ -90,8 +95,13 @@ func TestServerGracefulExit(t *testing.T) {
 
 	querySvc := &querysvc.QueryService{}
 	tracer := opentracing.NoopTracer{}
-	server := NewServer(flagsSvc, querySvc, &QueryOptions{HostPort: ports.PortToHostPort(ports.QueryAdminHTTP)}, tracer)
+	server := NewServer(flagsSvc.Logger, querySvc, &QueryOptions{HostPort: ports.PortToHostPort(ports.QueryAdminHTTP)}, tracer)
 	assert.NoError(t, server.Start())
+	go func() {
+		for s := range server.HealthCheckStatus() {
+			flagsSvc.SetHealthCheckStatus(s)
+		}
+	}()
 
 	// Wait for servers to come up before we can call .Close()
 	// TODO Find a way to wait only as long as necessary. Unconditional sleep slows down the tests.
@@ -111,7 +121,7 @@ func TestServerHandlesPortZero(t *testing.T) {
 
 	querySvc := &querysvc.QueryService{}
 	tracer := opentracing.NoopTracer{}
-	server := NewServer(flagsSvc, querySvc, &QueryOptions{HostPort: ":0"}, tracer)
+	server := NewServer(flagsSvc.Logger, querySvc, &QueryOptions{HostPort: ":0"}, tracer)
 	assert.NoError(t, server.Start())
 	server.Close()
 

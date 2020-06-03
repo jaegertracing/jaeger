@@ -32,6 +32,7 @@ import (
 	"github.com/jaegertracing/jaeger/cmd/opentelemetry-collector/app/exporter/grpcplugin"
 	"github.com/jaegertracing/jaeger/cmd/opentelemetry-collector/app/exporter/jaegerexporter"
 	"github.com/jaegertracing/jaeger/cmd/opentelemetry-collector/app/exporter/kafka"
+	"github.com/jaegertracing/jaeger/cmd/opentelemetry-collector/app/exporter/memory"
 	"github.com/jaegertracing/jaeger/cmd/opentelemetry-collector/app/processor/resourceprocessor"
 	"github.com/jaegertracing/jaeger/cmd/opentelemetry-collector/app/receiver/jaegerreceiver"
 	kafkaRec "github.com/jaegertracing/jaeger/cmd/opentelemetry-collector/app/receiver/kafka"
@@ -68,6 +69,7 @@ func Components(v *viper.Viper) config.Factories {
 		opts.InitFromViper(v)
 		return opts
 	}}
+	memoryExp := memory.NewFactory(v)
 	kafkaRec := &kafkaRec.Factory{OptionsFactory: func() *ingesterApp.Options {
 		opts := kafkaRec.DefaultOptions()
 		opts.InitFromViper(v)
@@ -79,6 +81,7 @@ func Components(v *viper.Viper) config.Factories {
 	factories.Exporters[cassandraExp.Type()] = cassandraExp
 	factories.Exporters[esExp.Type()] = esExp
 	factories.Exporters[grpcExp.Type()] = grpcExp
+	factories.Exporters[memoryExp.Type()] = memoryExp
 	factories.Receivers[kafkaRec.Type()] = kafkaRec
 
 	jaegerRec := factories.Receivers["jaeger"].(*otelJaegerReceiver.Factory)

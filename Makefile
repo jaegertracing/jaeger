@@ -250,6 +250,10 @@ build-otel-agent:
 build-otel-ingester:
 	cd ${OTEL_COLLECTOR_DIR}/cmd/ingester && $(GOBUILD) -o ./opentelemetry-ingester-$(GOOS)-$(GOARCH) $(BUILD_INFO) main.go
 
+.PHONY: build-otel-all-in-one
+build-otel-all-in-one:
+	cd ${OTEL_COLLECTOR_DIR}/cmd/all-in-one && $(GOBUILD) -o ./opentelemetry-all-in-one-$(GOOS)-$(GOARCH) $(BUILD_INFO) main.go
+
 .PHONY: build-ingester
 build-ingester:
 	$(GOBUILD) -o ./cmd/ingester/ingester-$(GOOS)-$(GOARCH) $(BUILD_INFO) ./cmd/ingester/main.go
@@ -278,7 +282,7 @@ build-binaries-arm64:
 	GOOS=linux GOARCH=arm64 $(MAKE) build-platform-binaries
 
 .PHONY: build-platform-binaries
-build-platform-binaries: build-agent build-collector build-query build-ingester build-all-in-one build-examples build-tracegen build-otel-collector build-otel-agent build-otel-ingester
+build-platform-binaries: build-agent build-collector build-query build-ingester build-all-in-one build-examples build-tracegen build-otel-collector build-otel-agent build-otel-ingester build-otel-all-in-one
 
 .PHONY: build-all-platforms
 build-all-platforms: build-binaries-linux build-binaries-windows build-binaries-darwin build-binaries-s390x build-binaries-arm64

@@ -25,7 +25,6 @@ import (
 	"go.uber.org/zap"
 	"google.golang.org/grpc"
 
-	"github.com/jaegertracing/jaeger/cmd/flags"
 	"github.com/jaegertracing/jaeger/cmd/query/app/querysvc"
 	"github.com/jaegertracing/jaeger/pkg/healthcheck"
 	"github.com/jaegertracing/jaeger/pkg/netutils"
@@ -35,27 +34,34 @@ import (
 
 // Server runs HTTP, Mux and a grpc server
 type Server struct {
-	svc          *flags.Service
+	logger       *zap.Logger
 	querySvc     *querysvc.QueryService
 	queryOptions *QueryOptions
 
 	tracer opentracing.Tracer // TODO make part of flags.Service
 
-	conn       net.Listener
-	grpcServer *grpc.Server
-	httpServer *http.Server
+	conn               net.Listener
+	grpcServer         *grpc.Server
+	httpServer         *http.Server
+	unavailableChannel chan healthcheck.Status
 }
 
 // NewServer creates and initializes Server
-func NewServer(svc *flags.Service, querySvc *querysvc.QueryService, options *QueryOptions, tracer opentracing.Tracer) *Server {
+func NewServer(logger *zap.Logger, querySvc *querysvc.QueryService, options *QueryOptions, tracer opentracing.Tracer) *Server {
 	return &Server{
-		svc:          svc,
-		querySvc:     querySvc,
-		queryOptions: options,
-		tracer:       tracer,
-		grpcServer:   createGRPCServer(querySvc, svc.Logger, tracer),
-		httpServer:   createHTTPServer(querySvc, options, tracer, svc.Logger),
+		logger:             logger,
+		querySvc:           querySvc,
+		queryOptions:       options,
+		tracer:             tracer,
+		grpcServer:         createGRPCServer(querySvc, logger, tracer),
+		httpServer:         createHTTPServer(querySvc, options, tracer, logger),
+		unavailableChannel: make(chan healthcheck.Status),
 	}
+}
+
+// HealthCheckStatus returns health check status channel a client can subscribe to
+func (s Server) HealthCheckStatus() chan healthcheck.Status {
+	return s.unavailableChannel
 }
 
 func createGRPCServer(querySvc *querysvc.QueryService, logger *zap.Logger, tracer opentracing.Tracer) *grpc.Server {
@@ -105,7 +111,7 @@ func (s *Server) Start() error {
 		tcpPort = port
 	}
 
-	s.svc.Logger.Info(
+	s.logger.Info(
 		"Query server started",
 		zap.Int("port", tcpPort),
 		zap.String("addr", s.queryOptions.HostPort))
@@ -120,37 +126,37 @@ func (s *Server) Start() error {
 	httpListener := cmuxServer.Match(cmux.Any())
 
 	go func() {
-		s.svc.Logger.Info("Starting HTTP server", zap.Int("port", tcpPort), zap.String("addr", s.queryOptions.HostPort))
+		s.logger.Info("Starting HTTP server", zap.Int("port", tcpPort), zap.String("addr", s.queryOptions.HostPort))
 
 		switch err := s.httpServer.Serve(httpListener); err {
 		case nil, http.ErrServerClosed, cmux.ErrListenerClosed:
 			// normal exit, nothing to do
 		default:
-			s.svc.Logger.Error("Could not start HTTP server", zap.Error(err))
+			s.logger.Error("Could not start HTTP server", zap.Error(err))
 		}
-		s.svc.SetHealthCheckStatus(healthcheck.Unavailable)
+		s.unavailableChannel <- healthcheck.Unavailable
 	}()
 
 	// Start GRPC server concurrently
 	go func() {
-		s.svc.Logger.Info("Starting GRPC server", zap.Int("port", tcpPort), zap.String("addr", s.queryOptions.HostPort))
+		s.logger.Info("Starting GRPC server", zap.Int("port", tcpPort), zap.String("addr", s.queryOptions.HostPort))
 
 		if err := s.grpcServer.Serve(grpcListener); err != nil {
-			s.svc.Logger.Error("Could not start GRPC server", zap.Error(err))
+			s.logger.Error("Could not start GRPC server", zap.Error(err))
 		}
-		s.svc.SetHealthCheckStatus(healthcheck.Unavailable)
+		s.unavailableChannel <- healthcheck.Unavailable
 	}()
 
 	// Start cmux server concurrently.
 	go func() {
-		s.svc.Logger.Info("Starting CMUX server", zap.Int("port", tcpPort), zap.String("addr", s.queryOptions.HostPort))
+		s.logger.Info("Starting CMUX server", zap.Int("port", tcpPort), zap.String("addr", s.queryOptions.HostPort))
 
 		err := cmuxServer.Serve()
 		// TODO: Remove string comparison when https://github.com/soheilhy/cmux/pull/69 is merged
 		if err != nil && !strings.Contains(err.Error(), "use of closed network connection") {
-			s.svc.Logger.Error("Could not start multiplexed server", zap.Error(err))
+			s.logger.Error("Could not start multiplexed server", zap.Error(err))
 		}
-		s.svc.SetHealthCheckStatus(healthcheck.Unavailable)
+		s.unavailableChannel <- healthcheck.Unavailable
 	}()
 
 	return nil

@@ -59,7 +59,13 @@ func main() {
 	cfgFactory := func(otelViper *viper.Viper, f config.Factories) (*configmodels.Config, error) {
 		collectorOpts := &collectorApp.CollectorOptions{}
 		collectorOpts.InitFromViper(v)
-		cfg, err := defaults.CollectorConfig(storageType, collectorOpts.CollectorZipkinHTTPHostPort, cmpts)
+		cfgConfig := defaults.ComponentSettings{
+			ComponentType:  defaults.Collector,
+			Factories:      cmpts,
+			StorageType:    storageType,
+			ZipkinHostPort: collectorOpts.CollectorZipkinHTTPHostPort,
+		}
+		cfg, err := cfgConfig.CreateDefaultConfig()
 		if err != nil {
 			return nil, err
 		}
@@ -86,7 +92,7 @@ func main() {
 
 	// Add Jaeger specific flags to service command
 	// this passes flag values to viper.
-	storageFlags, err := app.AddStorageFlags(storageType)
+	storageFlags, err := app.AddStorageFlags(storageType, false)
 	if err != nil {
 		handleErr(err)
 	}

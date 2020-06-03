@@ -51,7 +51,14 @@ func main() {
 
 	cmpts := defaults.Components(v)
 	cfgFactory := func(otelViper *viper.Viper, f config.Factories) (*configmodels.Config, error) {
-		cfg := defaults.AgentConfig(cmpts)
+		cfgConfig := defaults.ComponentSettings{
+			ComponentType: defaults.Agent,
+			Factories:     cmpts,
+		}
+		cfg, err := cfgConfig.CreateDefaultConfig()
+		if err != nil {
+			return nil, err
+		}
 		if len(builder.GetConfigFile()) > 0 {
 			otelCfg, err := service.FileLoaderConfigFactory(otelViper, f)
 			if err != nil {

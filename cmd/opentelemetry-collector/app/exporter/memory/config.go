@@ -1,4 +1,4 @@
-// Copyright (c) 2018 The Jaeger Authors.
+// Copyright (c) 2020 The Jaeger Authors.
 //
 // Licensed under the Apache License, Version 2.0 (the "License");
 // you may not use this file except in compliance with the License.
@@ -15,18 +15,13 @@
 package memory
 
 import (
-	"testing"
+	"go.opentelemetry.io/collector/config/configmodels"
 
-	"github.com/stretchr/testify/assert"
-
-	"github.com/jaegertracing/jaeger/pkg/config"
+	"github.com/jaegertracing/jaeger/plugin/storage/memory"
 )
 
-func TestOptionsWithFlags(t *testing.T) {
-	v, command := config.Viperize(AddFlags)
-	command.ParseFlags([]string{"--memory.max-traces=100"})
-	opts := Options{}
-	opts.InitFromViper(v)
-
-	assert.Equal(t, 100, opts.Configuration.MaxTraces)
+// Config holds configuration of Jaeger in-memory storage.
+type Config struct {
+	configmodels.ExporterSettings `mapstructure:",squash"`
+	memory.Options                `mapstructure:",squash"`
 }

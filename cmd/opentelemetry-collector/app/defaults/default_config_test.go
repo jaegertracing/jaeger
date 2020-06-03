@@ -19,18 +19,10 @@ import (
 	"sort"
 	"testing"
 
-	"github.com/spf13/viper"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"go.opentelemetry.io/collector/config"
-	"go.opentelemetry.io/collector/config/configgrpc"
 	"go.opentelemetry.io/collector/config/configmodels"
-	"go.opentelemetry.io/collector/config/configtls"
-	"go.opentelemetry.io/collector/exporter/jaegerexporter"
-	"go.opentelemetry.io/collector/processor/resourceprocessor"
-	"go.opentelemetry.io/collector/receiver"
-	"go.opentelemetry.io/collector/receiver/jaegerreceiver"
-	"go.opentelemetry.io/collector/receiver/zipkinreceiver"
 	"go.uber.org/zap"
 
 	"github.com/jaegertracing/jaeger/cmd/opentelemetry-collector/app"
@@ -38,235 +30,22 @@ import (
 	"github.com/jaegertracing/jaeger/cmd/opentelemetry-collector/app/exporter/elasticsearch"
 	"github.com/jaegertracing/jaeger/cmd/opentelemetry-collector/app/exporter/grpcplugin"
 	"github.com/jaegertracing/jaeger/cmd/opentelemetry-collector/app/exporter/kafka"
+	"github.com/jaegertracing/jaeger/cmd/opentelemetry-collector/app/exporter/memory"
 	kafkaRec "github.com/jaegertracing/jaeger/cmd/opentelemetry-collector/app/receiver/kafka"
 	jConfig "github.com/jaegertracing/jaeger/pkg/config"
-	"github.com/jaegertracing/jaeger/ports"
 )
 
-func TestDefaultCollectorConfig(t *testing.T) {
-	disabledHostPort := ports.PortToHostPort(0)
+func TestService(t *testing.T) {
 	tests := []struct {
-		storageType    string
-		zipkinHostPort string
-		exporterTypes  []string
-		pipeline       configmodels.Pipelines
-		err            string
-		config         map[string]interface{}
+		service     configmodels.Service
+		cfg         ComponentSettings
+		err         string
+		viperConfig map[string]interface{}
 	}{
 		{
-			storageType:    "elasticsearch",
-			zipkinHostPort: disabledHostPort,
-			exporterTypes:  []string{elasticsearch.TypeStr},
-			pipeline: configmodels.Pipelines{
-				"traces": {
-					InputType: configmodels.TracesDataType,
-					Receivers: []string{"jaeger"},
-					Exporters: []string{elasticsearch.TypeStr},
-				},
+			cfg: ComponentSettings{
+				ComponentType: Agent,
 			},
-		},
-		{
-			storageType:    "cassandra",
-			zipkinHostPort: disabledHostPort,
-			exporterTypes:  []string{cassandra.TypeStr},
-			pipeline: configmodels.Pipelines{
-				"traces": {
-					InputType: configmodels.TracesDataType,
-					Receivers: []string{"jaeger"},
-					Exporters: []string{cassandra.TypeStr},
-				},
-			},
-		},
-		{
-			storageType:    "kafka",
-			zipkinHostPort: disabledHostPort,
-			exporterTypes:  []string{kafka.TypeStr},
-			pipeline: configmodels.Pipelines{
-				"traces": {
-					InputType: configmodels.TracesDataType,
-					Receivers: []string{"jaeger"},
-					Exporters: []string{kafka.TypeStr},
-				},
-			},
-		},
-		{
-			storageType:    "cassandra,elasticsearch,grpc-plugin",
-			zipkinHostPort: disabledHostPort,
-			exporterTypes:  []string{cassandra.TypeStr, elasticsearch.TypeStr, grpcplugin.TypeStr},
-			pipeline: configmodels.Pipelines{
-				"traces": {
-					InputType: configmodels.TracesDataType,
-					Receivers: []string{"jaeger"},
-					Exporters: []string{cassandra.TypeStr, elasticsearch.TypeStr, grpcplugin.TypeStr},
-				},
-			},
-		},
-		{
-			storageType:    "cassandra",
-			zipkinHostPort: ":9411",
-			exporterTypes:  []string{cassandra.TypeStr},
-			config:         map[string]interface{}{"resource.labels": "foo=bar"},
-			pipeline: configmodels.Pipelines{
-				"traces": {
-					InputType:  configmodels.TracesDataType,
-					Receivers:  []string{"jaeger", "zipkin"},
-					Processors: []string{"resource"},
-					Exporters:  []string{cassandra.TypeStr},
-				},
-			},
-		},
-		{
-			storageType: "floppy",
-			err:         "unknown storage type: floppy",
-		},
-	}
-	for _, test := range tests {
-		t.Run(test.storageType, func(t *testing.T) {
-			v, _ := jConfig.Viperize(app.AddComponentFlags)
-			factories := Components(v)
-			for key, val := range test.config {
-				v.Set(key, val)
-			}
-			cfg, err := CollectorConfig(test.storageType, test.zipkinHostPort, factories)
-			if test.err != "" {
-				require.Nil(t, cfg)
-				assert.Contains(t, err.Error(), test.err)
-				return
-			}
-			require.NoError(t, err)
-			require.NoError(t, config.ValidateConfig(cfg, zap.NewNop()))
-
-			assert.Equal(t, 1, len(cfg.Extensions))
-			assert.Equal(t, 1, len(cfg.Service.Extensions))
-			assert.Equal(t, "health_check", cfg.Service.Extensions[0])
-			assert.Equal(t, "health_check", cfg.Extensions["health_check"].Name())
-			assert.Equal(t, len(test.pipeline["traces"].Receivers), len(cfg.Receivers))
-			assert.Equal(t, "jaeger", cfg.Receivers["jaeger"].Name())
-			assert.Equal(t, len(test.exporterTypes), len(cfg.Exporters))
-
-			processorMap := map[string]bool{}
-			for _, p := range test.pipeline["traces"].Processors {
-				processorMap[p] = true
-			}
-			if processorMap["resource"] {
-				assert.Equal(t, len(processorMap), len(cfg.Processors))
-				assert.IsType(t, &resourceprocessor.Config{}, cfg.Processors["resource"])
-			}
-
-			types := []string{}
-			for _, v := range cfg.Exporters {
-				types = append(types, string(v.Type()))
-			}
-			sort.Strings(types)
-			assert.Equal(t, test.exporterTypes, types)
-			sort.Strings(cfg.Service.Pipelines["traces"].Receivers)
-			sort.Strings(cfg.Service.Pipelines["traces"].Exporters)
-			assert.EqualValues(t, test.pipeline, cfg.Service.Pipelines)
-		})
-	}
-}
-
-func TestCreateCollectorReceivers(t *testing.T) {
-	tests := []struct {
-		name           string
-		args           []string
-		zipkinHostPort string
-		receivers      configmodels.Receivers
-	}{
-		{
-			name:           "defaultWithoutZipkin",
-			args:           []string{},
-			zipkinHostPort: ":0",
-			receivers: configmodels.Receivers{
-				"jaeger": &jaegerreceiver.Config{
-					TypeVal: "jaeger",
-					NameVal: "jaeger",
-					Protocols: map[string]*receiver.SecureReceiverSettings{
-						"grpc": {
-							ReceiverSettings: configmodels.ReceiverSettings{
-								Endpoint: gRPCEndpoint,
-							},
-						},
-						"thrift_http": {
-							ReceiverSettings: configmodels.ReceiverSettings{
-								Endpoint: httpThriftBinaryEndpoint,
-							},
-						},
-					},
-				},
-			},
-		},
-		{
-			name: "configurationViaFlags",
-			args: []string{
-				"--collector.grpc-server.host-port=host:11",
-				"--collector.grpc.tls.cert=cacert.crt",
-				"--collector.grpc.tls.key=keycert.crt",
-				"--collector.http-server.host-port=host2:22",
-			},
-			zipkinHostPort: "localhost:55",
-			receivers: configmodels.Receivers{
-				"jaeger": &jaegerreceiver.Config{
-					TypeVal: "jaeger",
-					NameVal: "jaeger",
-					Protocols: map[string]*receiver.SecureReceiverSettings{
-						"grpc": {
-							ReceiverSettings: configmodels.ReceiverSettings{
-								Endpoint: "host:11",
-							},
-							TLSCredentials: &receiver.TLSCredentials{
-								CertFile: "cacert.crt",
-								KeyFile:  "keycert.crt",
-							},
-						},
-						"thrift_http": {
-							ReceiverSettings: configmodels.ReceiverSettings{
-								Endpoint: "host2:22",
-							},
-						},
-					},
-				},
-				"zipkin": &zipkinreceiver.Config{
-					ReceiverSettings: configmodels.ReceiverSettings{
-						NameVal:  "zipkin",
-						TypeVal:  "zipkin",
-						Endpoint: "localhost:55",
-					},
-				},
-			},
-		},
-	}
-	for _, test := range tests {
-		t.Run(test.name, func(t *testing.T) {
-			v, c := jConfig.Viperize(app.AddComponentFlags)
-			require.NoError(t, c.ParseFlags(test.args))
-			factories := Components(v)
-			recvs := createCollectorReceivers(test.zipkinHostPort, factories)
-			assert.Equal(t, test.receivers, recvs)
-		})
-	}
-}
-
-func TestDefaultAgentConfig(t *testing.T) {
-	tests := []struct {
-		config  map[string]interface{}
-		service configmodels.Service
-	}{
-		{
-			config: map[string]interface{}{"resource.labels": "foo=bar"},
-			service: configmodels.Service{
-				Extensions: []string{"health_check"},
-				Pipelines: configmodels.Pipelines{
-					"traces": &configmodels.Pipeline{
-						InputType:  configmodels.TracesDataType,
-						Receivers:  []string{"jaeger"},
-						Processors: []string{"resource"},
-						Exporters:  []string{"jaeger"},
-					},
-				},
-			},
-		},
-		{
 			service: configmodels.Service{
 				Extensions: []string{"health_check"},
 				Pipelines: configmodels.Pipelines{
@@ -278,121 +57,29 @@ func TestDefaultAgentConfig(t *testing.T) {
 				},
 			},
 		},
-	}
-	for _, test := range tests {
-		t.Run(fmt.Sprintf("%v", test.config), func(t *testing.T) {
-			v, _ := jConfig.Viperize(app.AddComponentFlags)
-			for key, val := range test.config {
-				v.Set(key, val)
-			}
-			factories := Components(v)
-			cfg := AgentConfig(factories)
-			require.NoError(t, config.ValidateConfig(cfg, zap.NewNop()))
-
-			assert.Equal(t, test.service, cfg.Service)
-			assert.Equal(t, 1, len(cfg.Receivers))
-			assert.IsType(t, &jaegerreceiver.Config{}, cfg.Receivers["jaeger"])
-			assert.Equal(t, 1, len(cfg.Exporters))
-			assert.IsType(t, &jaegerexporter.Config{}, cfg.Exporters["jaeger"])
-			processorMap := map[string]bool{}
-			for _, p := range test.service.Pipelines["traces"].Processors {
-				processorMap[p] = true
-			}
-			if processorMap["resource"] {
-				assert.Equal(t, len(processorMap), len(cfg.Processors))
-				assert.IsType(t, &resourceprocessor.Config{}, cfg.Processors["resource"])
-			}
-		})
-	}
-}
-
-func TestCreateAgentReceivers(t *testing.T) {
-	tests := []struct {
-		args      []string
-		receivers configmodels.Receivers
-	}{
 		{
-			args: []string{""},
-			receivers: configmodels.Receivers{
-				"jaeger": &jaegerreceiver.Config{
-					TypeVal: "jaeger",
-					NameVal: "jaeger",
-					Protocols: map[string]*receiver.SecureReceiverSettings{
-						"thrift_compact": {
-							ReceiverSettings: configmodels.ReceiverSettings{
-								Endpoint: udpThriftCompactEndpoint,
-							},
-						},
-						"thrift_binary": {
-							ReceiverSettings: configmodels.ReceiverSettings{
-								Endpoint: udpThriftBinaryEndpoint,
-							},
-						},
+			viperConfig: map[string]interface{}{"resource.labels": "foo=bar"},
+			cfg: ComponentSettings{
+				ComponentType: Collector,
+				StorageType:   "elasticsearch,kafka,memory",
+			},
+			service: configmodels.Service{
+				Extensions: []string{"health_check"},
+				Pipelines: configmodels.Pipelines{
+					"traces": &configmodels.Pipeline{
+						InputType:  configmodels.TracesDataType,
+						Receivers:  []string{"jaeger"},
+						Processors: []string{"resource"},
+						Exporters:  []string{elasticsearch.TypeStr, kafka.TypeStr, memory.TypeStr},
 					},
 				},
 			},
 		},
 		{
-			args: []string{
-				"--processor.jaeger-binary.server-host-port=host:1",
-				"--processor.jaeger-compact.server-host-port=host:2",
-				"--reporter.grpc.host-port=coll:33",
-				"--reporter.grpc.tls.enabled=true",
-				"--reporter.grpc.tls.ca=cacert.pem",
-				"--reporter.grpc.tls.cert=cert.pem",
-				"--reporter.grpc.tls.key=key.key",
+			cfg: ComponentSettings{
+				ComponentType: Ingester,
+				StorageType:   "elasticsearch",
 			},
-			receivers: configmodels.Receivers{
-				"jaeger": &jaegerreceiver.Config{
-					TypeVal: "jaeger",
-					NameVal: "jaeger",
-					RemoteSampling: &jaegerreceiver.RemoteSamplingConfig{
-						GRPCClientSettings: configgrpc.GRPCClientSettings{
-							Endpoint: "coll:33",
-							TLSSetting: configtls.TLSClientSetting{
-								TLSSetting: configtls.TLSSetting{
-									CAFile:   "cacert.pem",
-									CertFile: "cert.pem",
-									KeyFile:  "key.key",
-								},
-							},
-						},
-					},
-					Protocols: map[string]*receiver.SecureReceiverSettings{
-						"thrift_binary": {
-							ReceiverSettings: configmodels.ReceiverSettings{
-								Endpoint: "host:1",
-							},
-						},
-						"thrift_compact": {
-							ReceiverSettings: configmodels.ReceiverSettings{
-								Endpoint: "host:2",
-							},
-						},
-					},
-				},
-			},
-		},
-	}
-	for _, test := range tests {
-		t.Run(fmt.Sprintf("%v", test.args), func(t *testing.T) {
-			v, c := jConfig.Viperize(app.AddComponentFlags)
-			require.NoError(t, c.ParseFlags(test.args))
-			factories := Components(v)
-			recvs := createAgentReceivers(factories)
-			assert.Equal(t, test.receivers, recvs)
-		})
-	}
-}
-
-func TestDefaultIngesterConfig(t *testing.T) {
-	tests := []struct {
-		storageType string
-		service     configmodels.Service
-		err         string
-	}{
-		{
-			storageType: "elasticsearch",
 			service: configmodels.Service{
 				Extensions: []string{"health_check"},
 				Pipelines: configmodels.Pipelines{
@@ -405,7 +92,10 @@ func TestDefaultIngesterConfig(t *testing.T) {
 			},
 		},
 		{
-			storageType: "elasticsearch,cassandra,grpc-plugin",
+			cfg: ComponentSettings{
+				ComponentType: Ingester,
+				StorageType:   "cassandra,elasticsearch,grpc-plugin",
+			},
 			service: configmodels.Service{
 				Extensions: []string{"health_check"},
 				Pipelines: configmodels.Pipelines{
@@ -418,34 +108,67 @@ func TestDefaultIngesterConfig(t *testing.T) {
 			},
 		},
 		{
-			storageType: "floppy",
-			err:         "unknown storage type: floppy",
+			cfg: ComponentSettings{
+				ComponentType:  AllInOne,
+				StorageType:    "elasticsearch",
+				ZipkinHostPort: "localhost:9411",
+			},
+			service: configmodels.Service{
+				Extensions: []string{"health_check"},
+				Pipelines: configmodels.Pipelines{
+					"traces": &configmodels.Pipeline{
+						InputType: configmodels.TracesDataType,
+						Receivers: []string{"jaeger", "zipkin"},
+						Exporters: []string{elasticsearch.TypeStr},
+					},
+				},
+			},
+		},
+		{
+			cfg: ComponentSettings{
+				ComponentType: Collector,
+				StorageType:   "floppy",
+			},
+			err: "unknown storage type: floppy",
 		},
 	}
 	for _, test := range tests {
-		t.Run(test.storageType, func(t *testing.T) {
-			factories := Components(viper.New())
-			cfg, err := IngesterConfig(test.storageType, factories)
+		t.Run(fmt.Sprintf("%v:%v", test.cfg.ComponentType, test.cfg.StorageType), func(t *testing.T) {
+			v, _ := jConfig.Viperize(app.AddComponentFlags)
+			for key, val := range test.viperConfig {
+				v.Set(key, val)
+			}
+			factories := Components(v)
+			test.cfg.Factories = factories
+			cfg, err := test.cfg.CreateDefaultConfig()
 			if test.err != "" {
 				require.Nil(t, cfg)
-				assert.EqualError(t, err, test.err)
+				assert.Contains(t, err.Error(), test.err)
 				return
 			}
+			sort.Strings(test.service.Pipelines["traces"].Exporters)
+			sort.Strings(cfg.Service.Pipelines["traces"].Exporters)
+			sort.Strings(test.service.Pipelines["traces"].Receivers)
+			sort.Strings(cfg.Service.Pipelines["traces"].Receivers)
 			require.NoError(t, err)
 			require.NoError(t, config.ValidateConfig(cfg, zap.NewNop()))
-
-			sort.Strings(cfg.Service.Pipelines["traces"].Exporters)
 			assert.Equal(t, test.service, cfg.Service)
-			assert.Equal(t, 1, len(cfg.Receivers))
-			assert.IsType(t, &kafkaRec.Config{}, cfg.Receivers[kafkaRec.TypeStr])
 
 			assert.Equal(t, len(test.service.Pipelines["traces"].Exporters), len(cfg.Exporters))
 			types := []string{}
-			for _, v := range cfg.Exporters {
-				types = append(types, string(v.Type()))
+			for _, e := range cfg.Exporters {
+				types = append(types, string(e.Type()))
 			}
 			sort.Strings(types)
 			assert.Equal(t, test.service.Pipelines["traces"].Exporters, types)
+
+			assert.Equal(t, len(test.service.Pipelines["traces"].Receivers), len(cfg.Receivers))
+			types = []string{}
+			for _, r := range cfg.Receivers {
+				types = append(types, string(r.Type()))
+			}
+			sort.Strings(types)
+			assert.Equal(t, test.service.Pipelines["traces"].Receivers, types)
 		})
 	}
 }
