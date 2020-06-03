@@ -37,6 +37,7 @@ import (
 	jflags "github.com/jaegertracing/jaeger/cmd/flags"
 	"github.com/jaegertracing/jaeger/cmd/opentelemetry-collector/app"
 	"github.com/jaegertracing/jaeger/cmd/opentelemetry-collector/app/defaults"
+	"github.com/jaegertracing/jaeger/cmd/opentelemetry-collector/app/exporter/badger"
 	"github.com/jaegertracing/jaeger/cmd/opentelemetry-collector/app/exporter/cassandra"
 	"github.com/jaegertracing/jaeger/cmd/opentelemetry-collector/app/exporter/elasticsearch"
 	"github.com/jaegertracing/jaeger/cmd/opentelemetry-collector/app/exporter/grpcplugin"
@@ -146,14 +147,17 @@ func main() {
 	queryServer, tracerCloser, err := startQuery(v, svc.GetLogger(), exp)
 	if err != nil {
 		svc.ReportFatalError(err)
-	} else {
-		for state := range svc.GetStateChannel() {
-			if state == service.Closing {
+	}
+	for state := range svc.GetStateChannel() {
+		if state == service.Closing {
+			if queryServer != nil {
 				queryServer.Close()
-				tracerCloser.Close()
-			} else if state == service.Closed {
-				break
 			}
+			if tracerCloser != nil {
+				tracerCloser.Close()
+			}
+		} else if state == service.Closed {
+			break
 		}
 	}
 }
@@ -232,6 +236,8 @@ func getFactory(exporter configmodels.Exporter, v *viper.Viper, logger *zap.Logg
 		return f, nil
 	case "jaeger_memory":
 		return memory.GetFactory(), nil
+	case "jaeger_badger":
+		return badger.GetFactory(), nil
 	default:
 		return nil, fmt.Errorf("storage type %s cannot be used with all-in-one", exporter.Name())
 	}

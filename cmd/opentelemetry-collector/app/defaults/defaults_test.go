@@ -19,6 +19,7 @@ import (
 
 	"github.com/stretchr/testify/assert"
 
+	"github.com/jaegertracing/jaeger/cmd/opentelemetry-collector/app/exporter/badger"
 	"github.com/jaegertracing/jaeger/cmd/opentelemetry-collector/app/exporter/cassandra"
 	"github.com/jaegertracing/jaeger/cmd/opentelemetry-collector/app/exporter/elasticsearch"
 	"github.com/jaegertracing/jaeger/cmd/opentelemetry-collector/app/exporter/grpcplugin"
@@ -43,6 +44,7 @@ func TestComponents(t *testing.T) {
 	assert.IsType(t, &elasticsearch.Factory{}, factories.Exporters[elasticsearch.TypeStr])
 	assert.IsType(t, &grpcplugin.Factory{}, factories.Exporters[grpcplugin.TypeStr])
 	assert.IsType(t, &memory.Factory{}, factories.Exporters[memory.TypeStr])
+	assert.IsType(t, &badger.Factory{}, factories.Exporters[badger.TypeStr])
 	assert.IsType(t, &jaegerreceiver.Factory{}, factories.Receivers["jaeger"])
 	assert.IsType(t, &jaegerexporter.Factory{}, factories.Exporters["jaeger"])
 	assert.IsType(t, &kafkaRec.Factory{}, factories.Receivers[kafkaRec.TypeStr])

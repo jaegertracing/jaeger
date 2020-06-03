@@ -12,11 +12,12 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package memory
+package badger
 
 import (
 	"path"
 	"testing"
+	"time"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
@@ -24,28 +25,46 @@ import (
 
 	"github.com/jaegertracing/jaeger/cmd/flags"
 	jConfig "github.com/jaegertracing/jaeger/pkg/config"
+	"github.com/jaegertracing/jaeger/plugin/storage/badger"
 )
 
 func TestDefaultConfig(t *testing.T) {
-	v, _ := jConfig.Viperize(AddFlags)
-	factory := NewFactory(v)
+	factory := NewFactory(func() *badger.Options {
+		opts := DefaultOptions()
+		v, _ := jConfig.Viperize(opts.AddFlags)
+		opts.InitFromViper(v)
+		return opts
+	})
 	defaultCfg := factory.CreateDefaultConfig().(*Config)
-	assert.Equal(t, 0, defaultCfg.Configuration.MaxTraces)
+	opts := defaultCfg.Options.GetPrimary()
+	assert.Contains(t, opts.KeyDirectory, "/data/keys")
+	assert.Contains(t, opts.ValueDirectory, "/data/values")
+	assert.Equal(t, true, opts.Ephemeral)
+	assert.Equal(t, false, opts.ReadOnly)
+	assert.Equal(t, false, opts.SyncWrites)
+	assert.Equal(t, false, opts.Truncate)
+	assert.Equal(t, time.Second*10, opts.MetricsUpdateInterval)
+	assert.Equal(t, time.Minute*5, opts.MaintenanceInterval)
+	assert.Equal(t, time.Hour*72, opts.SpanStoreTTL)
 }
 
 func TestLoadConfigAndFlags(t *testing.T) {
 	factories, err := config.ExampleComponents()
 	require.NoError(t, err)
 
-	v, c := jConfig.Viperize(AddFlags, flags.AddConfigFileFlag)
-	err = c.ParseFlags([]string{"--memory.max-traces=15"})
+	v, c := jConfig.Viperize(DefaultOptions().AddFlags)
+	err = c.ParseFlags([]string{"--badger.directory-key=bar"})
 	require.NoError(t, err)
 
 	err = flags.TryLoadConfigFile(v)
 	require.NoError(t, err)
 
-	factory := NewFactory(v)
-	assert.Equal(t, 15, factory.CreateDefaultConfig().(*Config).Configuration.MaxTraces)
+	factory := NewFactory(func() *badger.Options {
+		opts := DefaultOptions()
+		opts.InitFromViper(v)
+		require.Equal(t, "bar", opts.GetPrimary().KeyDirectory)
+		return opts
+	})
 
 	factories.Exporters[TypeStr] = factory
 	colConfig, err := config.LoadConfigFile(t, path.Join(".", "testdata", "config.yaml"), factories)
@@ -53,7 +72,6 @@ func TestLoadConfigAndFlags(t *testing.T) {
 	require.NotNil(t, colConfig)
 
 	cfg := colConfig.Exporters[TypeStr].(*Config)
-	memCfg := cfg.Configuration
 	assert.Equal(t, TypeStr, cfg.Name())
-	assert.Equal(t, 150, memCfg.MaxTraces)
+	assert.Equal(t, "key", cfg.GetPrimary().KeyDirectory)
 }

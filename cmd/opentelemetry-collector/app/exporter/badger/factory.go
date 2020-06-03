@@ -12,45 +12,54 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package memory
+package badger
 
 import (
 	"context"
 	"fmt"
 	"sync"
 
-	"github.com/spf13/viper"
 	"github.com/uber/jaeger-lib/metrics"
 	"go.opentelemetry.io/collector/component"
 	"go.opentelemetry.io/collector/config/configerror"
 	"go.opentelemetry.io/collector/config/configmodels"
 
 	"github.com/jaegertracing/jaeger/cmd/opentelemetry-collector/app/exporter"
-	"github.com/jaegertracing/jaeger/plugin/storage/memory"
+	"github.com/jaegertracing/jaeger/plugin/storage/badger"
 	"github.com/jaegertracing/jaeger/storage"
 )
 
-// TypeStr defines exporter type.
-const TypeStr = "jaeger_memory"
+const (
+	// TypeStr defines type of the Badger exporter.
+	TypeStr = "jaeger_badger"
+)
 
-// Factory is the factory for Jaeger in-memory exporter.
-type Factory struct {
-	viper *viper.Viper
-	mutex *sync.Mutex
+// OptionsFactory returns initialized badger.Options structure.
+type OptionsFactory func() *badger.Options
+
+// DefaultOptions creates Badger options supported by this exporter.
+func DefaultOptions() *badger.Options {
+	return badger.NewOptions("badger")
 }
 
-// NewFactory creates Factory.
-func NewFactory(v *viper.Viper) *Factory {
+// Factory is the factory for Jaeger Cassandra exporter.
+type Factory struct {
+	mutex          *sync.Mutex
+	optionsFactory OptionsFactory
+}
+
+// NewFactory creates new Factory instance.
+func NewFactory(optionsFactory OptionsFactory) *Factory {
 	return &Factory{
-		viper: v,
-		mutex: &sync.Mutex{},
+		optionsFactory: optionsFactory,
+		mutex:          &sync.Mutex{},
 	}
 }
 
 var _ component.ExporterFactory = (*Factory)(nil)
 
 // singleton instance of the factory
-// the in-memory exporter factory always returns this instance
+// the badger exporter factory always returns this instance
 // the singleton instance is shared between OTEL collector and query service
 var instance storage.Factory
 
@@ -67,10 +76,9 @@ func (f Factory) Type() configmodels.Type {
 // CreateDefaultConfig returns default configuration of Factory.
 // This function implements OTEL component.ExporterFactoryBase interface.
 func (f Factory) CreateDefaultConfig() configmodels.Exporter {
-	opts := memory.Options{}
-	opts.InitFromViper(f.viper)
+	opts := f.optionsFactory()
 	return &Config{
-		Options: opts,
+		Options: *opts,
 		ExporterSettings: configmodels.ExporterSettings{
 			TypeVal: TypeStr,
 			NameVal: TypeStr,
@@ -78,7 +86,7 @@ func (f Factory) CreateDefaultConfig() configmodels.Exporter {
 	}
 }
 
-// CreateTraceExporter creates Jaeger Kafka trace exporter.
+// CreateTraceExporter creates Jaeger Cassandra trace exporter.
 // This function implements OTEL component.ExporterFactory interface.
 func (f Factory) CreateTraceExporter(
 	_ context.Context,
@@ -93,8 +101,8 @@ func (f Factory) CreateTraceExporter(
 }
 
 // CreateMetricsExporter is not implemented.
-// This function implements OTEL component.Factory interface.
-func (Factory) CreateMetricsExporter(
+// This function implements OTEL component.ExporterFactory interface.
+func (f Factory) CreateMetricsExporter(
 	_ context.Context,
 	_ component.ExporterCreateParams,
 	_ configmodels.Exporter,
@@ -111,7 +119,7 @@ func (f Factory) createStorageFactory(params component.ExporterCreateParams, cfg
 	if instance != nil {
 		return instance, nil
 	}
-	factory := memory.NewFactory()
+	factory := badger.NewFactory()
 	factory.InitFromOptions(config.Options)
 	err := factory.Initialize(metrics.NullFactory, params.Logger)
 	if err != nil {
