@@ -307,7 +307,6 @@ docker-images-jaeger-backend:
 	docker build -t $(DOCKER_NAMESPACE)/jaeger-opentelemetry-collector:${DOCKER_TAG} -f ${OTEL_COLLECTOR_DIR}/cmd/collector/Dockerfile cmd/opentelemetry-collector/cmd/collector --build-arg ARCH=$(GOARCH)
 	docker build -t $(DOCKER_NAMESPACE)/jaeger-opentelemetry-agent:${DOCKER_TAG} -f ${OTEL_COLLECTOR_DIR}/cmd/agent/Dockerfile cmd/opentelemetry-collector/cmd/agent --build-arg ARCH=$(GOARCH)
 	docker build -t $(DOCKER_NAMESPACE)/jaeger-opentelemetry-ingester:${DOCKER_TAG} -f ${OTEL_COLLECTOR_DIR}/cmd/ingester/Dockerfile cmd/opentelemetry-collector/cmd/ingester --build-arg ARCH=$(GOARCH)
-	docker build -t $(DOCKER_NAMESPACE)/jaeger-opentelemetry-all-in-one:${DOCKER_TAG} -f ${OTEL_COLLECTOR_DIR}/cmd/all-in-one/Dockerfile cmd/opentelemetry-collector/cmd/all-in-one --build-arg ARCH=$(GOARCH)
 
 .PHONY: docker-images-tracegen
 docker-images-tracegen:
