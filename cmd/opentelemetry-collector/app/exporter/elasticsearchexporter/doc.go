@@ -12,5 +12,5 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-// Package elasticsearch implements Jaeger Elasticsearch storage as OpenTelemetry exporter.
+// Package elasticsearchexporter implements Jaeger Elasticsearch storage as OpenTelemetry exporter.
 package elasticsearchexporter

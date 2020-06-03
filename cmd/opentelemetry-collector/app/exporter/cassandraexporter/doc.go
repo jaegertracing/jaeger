@@ -12,5 +12,5 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-// Package cassandra implements Jaeger Cassandra storage as OpenTelemetry exporter.
+// Package cassandraexporter implements Jaeger Cassandra storage as OpenTelemetry exporter.
 package cassandraexporter
