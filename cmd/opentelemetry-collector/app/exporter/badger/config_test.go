@@ -37,6 +37,8 @@ func TestDefaultConfig(t *testing.T) {
 	}}
 	defaultCfg := factory.CreateDefaultConfig().(*Config)
 	opts := defaultCfg.Options.GetPrimary()
+	assert.Contains(t, opts.KeyDirectory, "/data/keys")
+	assert.Contains(t, opts.ValueDirectory, "/data/values")
 	assert.Equal(t, true, opts.Ephemeral)
 	assert.Equal(t, false, opts.ReadOnly)
 	assert.Equal(t, false, opts.SyncWrites)
