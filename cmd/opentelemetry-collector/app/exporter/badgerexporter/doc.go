@@ -12,5 +12,6 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-// Package kafkaexporter implements Jaeger Kafka producer as OpenTelemetry exporter.
-package kafkaexporter
+
+// Package badgerexporter implements Jaeger Badger storage as OpenTelemetry exporter.
+package badgerexporter
