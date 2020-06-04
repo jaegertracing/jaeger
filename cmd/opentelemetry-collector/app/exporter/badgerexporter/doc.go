@@ -15,4 +15,3 @@
 
 // Package badgerexporter implements Jaeger Badger storage as OpenTelemetry exporter.
 package badgerexporter
-
