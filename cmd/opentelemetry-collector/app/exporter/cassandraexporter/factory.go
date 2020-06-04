@@ -74,7 +74,7 @@ func (f Factory) CreateTraceExporter(
 	if !ok {
 		return nil, fmt.Errorf("could not cast configuration to %s", TypeStr)
 	}
-	return New(config, params)
+	return new(config, params)
 }
 
 // CreateMetricsExporter is not implemented.
