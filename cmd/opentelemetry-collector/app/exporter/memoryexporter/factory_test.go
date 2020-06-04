@@ -30,10 +30,13 @@ import (
 	jConfig "github.com/jaegertracing/jaeger/pkg/config"
 )
 
+func cleanup() {
+	instance = nil
+}
+
 func TestCreateTraceExporter(t *testing.T) {
-	t.Cleanup(func() {
-		instance = nil
-	})
+	defer cleanup()
+
 	v, _ := jConfig.Viperize(AddFlags)
 	factory := NewFactory(v)
 	exporter, err := factory.CreateTraceExporter(context.Background(), component.ExporterCreateParams{Logger: zap.NewNop()}, factory.CreateDefaultConfig())
@@ -42,9 +45,8 @@ func TestCreateTraceExporter(t *testing.T) {
 }
 
 func TestCreateTraceExporter_nilConfig(t *testing.T) {
-	t.Cleanup(func() {
-		instance = nil
-	})
+	defer cleanup()
+
 	factory := &Factory{}
 	exporter, err := factory.CreateTraceExporter(context.Background(), component.ExporterCreateParams{}, nil)
 	require.Nil(t, exporter)
@@ -52,9 +54,8 @@ func TestCreateTraceExporter_nilConfig(t *testing.T) {
 }
 
 func TestCreateMetricsExporter(t *testing.T) {
-	t.Cleanup(func() {
-		instance = nil
-	})
+	defer cleanup()
+
 	f := NewFactory(viper.New())
 	mReceiver, err := f.CreateMetricsExporter(context.Background(), component.ExporterCreateParams{}, f.CreateDefaultConfig())
 	assert.Equal(t, err, configerror.ErrDataTypeIsNotSupported)
@@ -62,9 +63,8 @@ func TestCreateMetricsExporter(t *testing.T) {
 }
 
 func TestCreateDefaultConfig(t *testing.T) {
-	t.Cleanup(func() {
-		instance = nil
-	})
+	defer cleanup()
+
 	factory := NewFactory(viper.New())
 	cfg := factory.CreateDefaultConfig()
 	assert.NotNil(t, cfg, "failed to create default config")
@@ -72,17 +72,15 @@ func TestCreateDefaultConfig(t *testing.T) {
 }
 
 func TestType(t *testing.T) {
-	t.Cleanup(func() {
-		instance = nil
-	})
+	defer cleanup()
+
 	factory := Factory{}
 	assert.Equal(t, configmodels.Type(TypeStr), factory.Type())
 }
 
 func TestSingleton(t *testing.T) {
-	t.Cleanup(func() {
-		instance = nil
-	})
+	defer cleanup()
+
 	f := NewFactory(viper.New())
 	logger := zap.NewNop()
 	assert.Nil(t, instance)
