@@ -22,8 +22,8 @@ import (
 	"github.com/jaegertracing/jaeger/plugin/storage/cassandra"
 )
 
-// New creates Cassandra exporter/storage
-func New(config *Config, params component.ExporterCreateParams) (component.TraceExporter, error) {
+// new creates Cassandra exporter/storage
+func new(config *Config, params component.ExporterCreateParams) (component.TraceExporter, error) {
 	f := cassandra.NewFactory()
 	f.InitFromOptions(&config.Options)
 

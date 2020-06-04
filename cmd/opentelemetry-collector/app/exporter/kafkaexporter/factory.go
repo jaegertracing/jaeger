@@ -72,7 +72,7 @@ func (Factory) CreateTraceExporter(
 	if !ok {
 		return nil, fmt.Errorf("could not cast configuration to %s", TypeStr)
 	}
-	return New(kafkaCfg, params)
+	return new(kafkaCfg, params)
 }
 
 // CreateMetricsExporter is not implemented.

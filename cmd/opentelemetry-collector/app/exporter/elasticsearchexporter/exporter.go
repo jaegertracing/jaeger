@@ -22,8 +22,8 @@ import (
 	"github.com/jaegertracing/jaeger/plugin/storage/es"
 )
 
-// New creates Elasticsearch exporter/storage.
-func New(config *Config, params component.ExporterCreateParams) (component.TraceExporter, error) {
+// new creates Elasticsearch exporter/storage.
+func new(config *Config, params component.ExporterCreateParams) (component.TraceExporter, error) {
 	factory := es.NewFactory()
 	factory.InitFromOptions(config.Options)
 	err := factory.Initialize(metrics.NullFactory, params.Logger)

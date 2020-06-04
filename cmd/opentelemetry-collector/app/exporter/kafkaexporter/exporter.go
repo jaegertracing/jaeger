@@ -22,8 +22,8 @@ import (
 	"github.com/jaegertracing/jaeger/plugin/storage/kafka"
 )
 
-// New creates new Kafka exporter
-func New(config *Config, params component.ExporterCreateParams) (component.TraceExporter, error) {
+// new creates new Kafka exporter
+func new(config *Config, params component.ExporterCreateParams) (component.TraceExporter, error) {
 	f := kafka.NewFactory()
 	f.InitFromOptions(config.Options)
 	err := f.Initialize(metrics.NullFactory, params.Logger)
