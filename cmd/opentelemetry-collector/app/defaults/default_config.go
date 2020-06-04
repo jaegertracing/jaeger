@@ -124,6 +124,7 @@ func createReceivers(component ComponentType, zipkinHostPort string, factories c
 	}
 	recvs := map[string]configmodels.Receiver{
 		"jaeger": jaeger,
+		"otlp":   factories.Receivers["otlp"].CreateDefaultConfig(),
 	}
 	if zipkinHostPort != "" && zipkinHostPort != ports.PortToHostPort(0) {
 		zipkin := factories.Receivers["zipkin"].CreateDefaultConfig().(*zipkinreceiver.Config)
@@ -168,7 +169,7 @@ func createExporters(component ComponentType, storageTypes string, factories con
 	return exporters, nil
 }
 
-func enableAgentUDPEndpoints(jaeger *jaegerreceiver.Config) configmodels.Receivers {
+func enableAgentUDPEndpoints(jaeger *jaegerreceiver.Config) {
 	if _, ok := jaeger.Protocols["thrift_compact"]; !ok {
 		jaeger.Protocols["thrift_compact"] = &receiver.SecureReceiverSettings{
 			ReceiverSettings: configmodels.ReceiverSettings{
@@ -183,10 +184,6 @@ func enableAgentUDPEndpoints(jaeger *jaegerreceiver.Config) configmodels.Receive
 			},
 		}
 	}
-	recvs := configmodels.Receivers{
-		"jaeger": jaeger,
-	}
-	return recvs
 }
 
 func receiverNames(receivers configmodels.Receivers) []string {

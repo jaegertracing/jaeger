@@ -51,7 +51,7 @@ func TestService(t *testing.T) {
 				Pipelines: configmodels.Pipelines{
 					"traces": &configmodels.Pipeline{
 						InputType: configmodels.TracesDataType,
-						Receivers: []string{"jaeger"},
+						Receivers: []string{"otlp", "jaeger"},
 						Exporters: []string{"jaeger"},
 					},
 				},
@@ -68,7 +68,7 @@ func TestService(t *testing.T) {
 				Pipelines: configmodels.Pipelines{
 					"traces": &configmodels.Pipeline{
 						InputType:  configmodels.TracesDataType,
-						Receivers:  []string{"jaeger"},
+						Receivers:  []string{"otlp", "jaeger"},
 						Processors: []string{"resource"},
 						Exporters:  []string{elasticsearchexporter.TypeStr, kafkaexporter.TypeStr, memoryexporter.TypeStr},
 					},
@@ -118,7 +118,7 @@ func TestService(t *testing.T) {
 				Pipelines: configmodels.Pipelines{
 					"traces": &configmodels.Pipeline{
 						InputType: configmodels.TracesDataType,
-						Receivers: []string{"jaeger", "zipkin"},
+						Receivers: []string{"otlp", "jaeger", "zipkin"},
 						Exporters: []string{elasticsearchexporter.TypeStr},
 					},
 				},
