@@ -74,7 +74,7 @@ func TestStore(t *testing.T) {
 	traceID := []byte("0123456789abcdef")
 	spanID := []byte("01234567")
 	tests := []struct {
-		storage storage
+		storage store
 		data    pdata.Traces
 		err     string
 		dropped int
@@ -82,27 +82,27 @@ func TestStore(t *testing.T) {
 	}{
 		{
 			caption: "nothing to store",
-			storage: storage{Writer: spanWriter{}},
+			storage: store{Writer: spanWriter{}},
 			data:    traces(),
 			dropped: 0,
 		},
 		{
 			caption: "wrong data",
-			storage: storage{Writer: spanWriter{}},
+			storage: store{Writer: spanWriter{}},
 			data:    AddSpan(traces(), "", nil, nil),
 			err:     "TraceID is nil",
 			dropped: 1,
 		},
 		{
 			caption: "one error in writer",
-			storage: storage{Writer: spanWriter{err: errors.New("could not store")}},
+			storage: store{Writer: spanWriter{err: errors.New("could not store")}},
 			data:    AddSpan(AddSpan(traces(), "error", traceID, spanID), "", traceID, spanID),
 			dropped: 1,
 			err:     "could not store",
 		},
 		{
 			caption: "two errors in writer",
-			storage: storage{Writer: spanWriter{err: errors.New("could not store")}},
+			storage: store{Writer: spanWriter{err: errors.New("could not store")}},
 			data:    AddSpan(AddSpan(traces(), "error", traceID, spanID), "error", traceID, spanID),
 			dropped: 2,
 			err:     "[could not store; could not store]",

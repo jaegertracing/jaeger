@@ -26,17 +26,17 @@ import (
 	"go.opentelemetry.io/collector/exporter/exporterhelper"
 	jaegertranslator "go.opentelemetry.io/collector/translator/trace/jaeger"
 
-	jaegerstorage "github.com/jaegertracing/jaeger/storage"
+	"github.com/jaegertracing/jaeger/storage"
 	"github.com/jaegertracing/jaeger/storage/spanstore"
 )
 
 // NewSpanWriterExporter returns component.TraceExporter
-func NewSpanWriterExporter(config configmodels.Exporter, factory jaegerstorage.Factory) (component.TraceExporter, error) {
+func NewSpanWriterExporter(config configmodels.Exporter, factory storage.Factory) (component.TraceExporter, error) {
 	spanWriter, err := factory.CreateSpanWriter()
 	if err != nil {
 		return nil, err
 	}
-	storage := storage{Writer: spanWriter}
+	storage := store{Writer: spanWriter}
 	return exporterhelper.NewTraceExporter(
 		config,
 		storage.traceDataPusher,
@@ -48,12 +48,12 @@ func NewSpanWriterExporter(config configmodels.Exporter, factory jaegerstorage.F
 		}))
 }
 
-type storage struct {
+type store struct {
 	Writer spanstore.Writer
 }
 
 // traceDataPusher implements OTEL exporterhelper.traceDataPusher
-func (s *storage) traceDataPusher(ctx context.Context, td pdata.Traces) (droppedSpans int, err error) {
+func (s *store) traceDataPusher(ctx context.Context, td pdata.Traces) (droppedSpans int, err error) {
 	batches, err := jaegertranslator.InternalTracesToJaegerProto(td)
 	if err != nil {
 		return td.SpanCount(), consumererror.Permanent(err)

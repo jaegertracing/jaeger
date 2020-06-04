@@ -37,17 +37,17 @@ import (
 	jflags "github.com/jaegertracing/jaeger/cmd/flags"
 	"github.com/jaegertracing/jaeger/cmd/opentelemetry-collector/app"
 	"github.com/jaegertracing/jaeger/cmd/opentelemetry-collector/app/defaults"
-	"github.com/jaegertracing/jaeger/cmd/opentelemetry-collector/app/exporter/badger"
-	"github.com/jaegertracing/jaeger/cmd/opentelemetry-collector/app/exporter/cassandra"
-	"github.com/jaegertracing/jaeger/cmd/opentelemetry-collector/app/exporter/elasticsearch"
-	"github.com/jaegertracing/jaeger/cmd/opentelemetry-collector/app/exporter/grpcplugin"
-	"github.com/jaegertracing/jaeger/cmd/opentelemetry-collector/app/exporter/memory"
+	"github.com/jaegertracing/jaeger/cmd/opentelemetry-collector/app/exporter/badgerexporter"
+	"github.com/jaegertracing/jaeger/cmd/opentelemetry-collector/app/exporter/cassandraexporter"
+	"github.com/jaegertracing/jaeger/cmd/opentelemetry-collector/app/exporter/elasticsearchexporter"
+	"github.com/jaegertracing/jaeger/cmd/opentelemetry-collector/app/exporter/grpcpluginexporter"
+	"github.com/jaegertracing/jaeger/cmd/opentelemetry-collector/app/exporter/memoryexporter"
 	queryApp "github.com/jaegertracing/jaeger/cmd/query/app"
 	"github.com/jaegertracing/jaeger/cmd/query/app/querysvc"
 	jConfig "github.com/jaegertracing/jaeger/pkg/config"
 	"github.com/jaegertracing/jaeger/pkg/version"
 	pluginStorage "github.com/jaegertracing/jaeger/plugin/storage"
-	cassStorage "github.com/jaegertracing/jaeger/plugin/storage/cassandra"
+	cassandraStorage "github.com/jaegertracing/jaeger/plugin/storage/cassandra"
 	esStorage "github.com/jaegertracing/jaeger/plugin/storage/es"
 	grpcStorage "github.com/jaegertracing/jaeger/plugin/storage/grpc"
 	"github.com/jaegertracing/jaeger/storage"
@@ -209,7 +209,7 @@ func getFactory(exporter configmodels.Exporter, v *viper.Viper, logger *zap.Logg
 	case "jaeger_elasticsearch":
 		archiveOpts := esStorage.NewOptions("es-archive")
 		archiveOpts.InitFromViper(v)
-		primaryConfig := exporter.(*elasticsearch.Config)
+		primaryConfig := exporter.(*elasticsearchexporter.Config)
 		f := esStorage.NewFactory()
 		f.InitFromOptions(*esStorage.NewOptionsFromConfig(primaryConfig.Primary.Configuration, archiveOpts.Primary.Configuration))
 		if err := f.Initialize(metrics.NullFactory, logger); err != nil {
@@ -217,17 +217,17 @@ func getFactory(exporter configmodels.Exporter, v *viper.Viper, logger *zap.Logg
 		}
 		return f, nil
 	case "jaeger_cassandra":
-		archiveOpts := cassStorage.NewOptions("cassandra-archive")
+		archiveOpts := cassandraStorage.NewOptions("cassandra-archive")
 		archiveOpts.InitFromViper(v)
-		primaryConfig := exporter.(*cassandra.Config)
-		f := cassStorage.NewFactory()
-		f.InitFromOptions(cassStorage.NewOptionsFromConfig(primaryConfig.Primary.Configuration, archiveOpts.Primary.Configuration))
+		primaryConfig := exporter.(*cassandraexporter.Config)
+		f := cassandraStorage.NewFactory()
+		f.InitFromOptions(cassandraStorage.NewOptionsFromConfig(primaryConfig.Primary.Configuration, archiveOpts.Primary.Configuration))
 		if err := f.Initialize(metrics.NullFactory, logger); err != nil {
 			return nil, err
 		}
 		return f, nil
 	case "jaeger_grpc_plugin":
-		primaryConfig := exporter.(*grpcplugin.Config)
+		primaryConfig := exporter.(*grpcpluginexporter.Config)
 		f := grpcStorage.NewFactory()
 		f.InitFromOptions(primaryConfig.Options)
 		if err := f.Initialize(metrics.NullFactory, logger); err != nil {
@@ -235,9 +235,9 @@ func getFactory(exporter configmodels.Exporter, v *viper.Viper, logger *zap.Logg
 		}
 		return f, nil
 	case "jaeger_memory":
-		return memory.GetFactory(), nil
+		return memoryexporter.GetFactory(), nil
 	case "jaeger_badger":
-		return badger.GetFactory(), nil
+		return badgerexporter.GetFactory(), nil
 	default:
 		return nil, fmt.Errorf("storage type %s cannot be used with all-in-one", exporter.Name())
 	}

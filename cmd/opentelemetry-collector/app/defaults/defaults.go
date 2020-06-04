@@ -27,22 +27,22 @@ import (
 	"go.opentelemetry.io/collector/service/defaultcomponents"
 
 	ingesterApp "github.com/jaegertracing/jaeger/cmd/ingester/app"
-	"github.com/jaegertracing/jaeger/cmd/opentelemetry-collector/app/exporter/badger"
-	"github.com/jaegertracing/jaeger/cmd/opentelemetry-collector/app/exporter/cassandra"
-	"github.com/jaegertracing/jaeger/cmd/opentelemetry-collector/app/exporter/elasticsearch"
-	"github.com/jaegertracing/jaeger/cmd/opentelemetry-collector/app/exporter/grpcplugin"
+	"github.com/jaegertracing/jaeger/cmd/opentelemetry-collector/app/exporter/badgerexporter"
+	"github.com/jaegertracing/jaeger/cmd/opentelemetry-collector/app/exporter/cassandraexporter"
+	"github.com/jaegertracing/jaeger/cmd/opentelemetry-collector/app/exporter/elasticsearchexporter"
+	"github.com/jaegertracing/jaeger/cmd/opentelemetry-collector/app/exporter/grpcpluginexporter"
 	"github.com/jaegertracing/jaeger/cmd/opentelemetry-collector/app/exporter/jaegerexporter"
-	"github.com/jaegertracing/jaeger/cmd/opentelemetry-collector/app/exporter/kafka"
-	"github.com/jaegertracing/jaeger/cmd/opentelemetry-collector/app/exporter/memory"
+	"github.com/jaegertracing/jaeger/cmd/opentelemetry-collector/app/exporter/kafkaexporter"
+	"github.com/jaegertracing/jaeger/cmd/opentelemetry-collector/app/exporter/memoryexporter"
 	"github.com/jaegertracing/jaeger/cmd/opentelemetry-collector/app/processor/resourceprocessor"
 	"github.com/jaegertracing/jaeger/cmd/opentelemetry-collector/app/receiver/jaegerreceiver"
-	kafkaRec "github.com/jaegertracing/jaeger/cmd/opentelemetry-collector/app/receiver/kafka"
+	"github.com/jaegertracing/jaeger/cmd/opentelemetry-collector/app/receiver/kafkareceiver"
 	"github.com/jaegertracing/jaeger/cmd/opentelemetry-collector/app/receiver/zipkinreceiver"
-	storageBadger "github.com/jaegertracing/jaeger/plugin/storage/badger"
-	storageCassandra "github.com/jaegertracing/jaeger/plugin/storage/cassandra"
-	storageEs "github.com/jaegertracing/jaeger/plugin/storage/es"
-	storageGrpc "github.com/jaegertracing/jaeger/plugin/storage/grpc"
-	storageKafka "github.com/jaegertracing/jaeger/plugin/storage/kafka"
+	badgerStorage "github.com/jaegertracing/jaeger/plugin/storage/badger"
+	cassandraStorage "github.com/jaegertracing/jaeger/plugin/storage/cassandra"
+	esStorage "github.com/jaegertracing/jaeger/plugin/storage/es"
+	grpcStorage "github.com/jaegertracing/jaeger/plugin/storage/grpc"
+	kafkaStorage "github.com/jaegertracing/jaeger/plugin/storage/kafka"
 )
 
 // Components creates default and Jaeger factories
@@ -51,34 +51,34 @@ func Components(v *viper.Viper) config.Factories {
 	// We have to add all storage flags to viper because any exporter can be specified in the OTEL config file.
 	// OTEL collector creates default configurations for all factories to verify they can be created.
 	addDefaultValuesToViper(v)
-	kafkaExp := &kafka.Factory{OptionsFactory: func() *storageKafka.Options {
-		opts := kafka.DefaultOptions()
+	kafkaExp := &kafkaexporter.Factory{OptionsFactory: func() *kafkaStorage.Options {
+		opts := kafkaexporter.DefaultOptions()
 		opts.InitFromViper(v)
 		return opts
 	}}
-	cassandraExp := &cassandra.Factory{OptionsFactory: func() *storageCassandra.Options {
-		opts := cassandra.DefaultOptions()
+	cassandraExp := &cassandraexporter.Factory{OptionsFactory: func() *cassandraStorage.Options {
+		opts := cassandraexporter.DefaultOptions()
 		opts.InitFromViper(v)
 		return opts
 	}}
-	esExp := &elasticsearch.Factory{OptionsFactory: func() *storageEs.Options {
-		opts := elasticsearch.DefaultOptions()
+	esExp := &elasticsearchexporter.Factory{OptionsFactory: func() *esStorage.Options {
+		opts := elasticsearchexporter.DefaultOptions()
 		opts.InitFromViper(v)
 		return opts
 	}}
-	grpcExp := &grpcplugin.Factory{OptionsFactory: func() *storageGrpc.Options {
-		opts := grpcplugin.DefaultOptions()
+	grpcExp := &grpcpluginexporter.Factory{OptionsFactory: func() *grpcStorage.Options {
+		opts := grpcpluginexporter.DefaultOptions()
 		opts.InitFromViper(v)
 		return opts
 	}}
-	memoryExp := memory.NewFactory(v)
-	badgerExp := badger.NewFactory(func() *storageBadger.Options {
-		opts := badger.DefaultOptions()
+	memoryExp := memoryexporter.NewFactory(v)
+	badgerExp := badgerexporter.NewFactory(func() *badgerStorage.Options {
+		opts := badgerexporter.DefaultOptions()
 		opts.InitFromViper(v)
 		return opts
 	})
-	kafkaRec := &kafkaRec.Factory{OptionsFactory: func() *ingesterApp.Options {
-		opts := kafkaRec.DefaultOptions()
+	kafkaRec := &kafkareceiver.Factory{OptionsFactory: func() *ingesterApp.Options {
+		opts := kafkareceiver.DefaultOptions()
 		opts.InitFromViper(v)
 		return opts
 	}}
@@ -119,9 +119,9 @@ func Components(v *viper.Viper) config.Factories {
 // addDefaultValuesToViper adds Jaeger storage flags to viper to make the default values available.
 func addDefaultValuesToViper(v *viper.Viper) {
 	flagSet := &flag.FlagSet{}
-	kafka.DefaultOptions().AddFlags(flagSet)
-	elasticsearch.DefaultOptions().AddFlags(flagSet)
-	cassandra.DefaultOptions().AddFlags(flagSet)
+	kafkaexporter.DefaultOptions().AddFlags(flagSet)
+	elasticsearchexporter.DefaultOptions().AddFlags(flagSet)
+	cassandraexporter.DefaultOptions().AddFlags(flagSet)
 	pflagSet := &pflag.FlagSet{}
 	pflagSet.AddGoFlagSet(flagSet)
 	v.BindPFlags(pflagSet)
