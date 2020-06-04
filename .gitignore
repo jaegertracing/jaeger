@@ -32,8 +32,8 @@ cmd/docs/*.1
 cmd/docs/*.yaml
 crossdock/crossdock-*
 run-crossdock.log
-cmd/opentelemetry-collector/cmd/collector/opentelemetry-collector-*
-cmd/opentelemetry-collector/cmd/agent/opentelemetry-agent-*
-cmd/opentelemetry-collector/cmd/ingester/opentelemetry-ingester-*
-cmd/opentelemetry-collector/cmd/all-in-one/opentelemetry-all-in-one-*
+cmd/opentelemetry/cmd/collector/opentelemetry-collector-*
+cmd/opentelemetry/cmd/agent/opentelemetry-agent-*
+cmd/opentelemetry/cmd/ingester/opentelemetry-ingester-*
+cmd/opentelemetry/cmd/all-in-one/opentelemetry-all-in-one-*
 __pycache__
