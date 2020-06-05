@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package defaults
+package defaultconfig
 
 import (
 	"fmt"
@@ -29,6 +29,7 @@ import (
 	"go.opentelemetry.io/collector/receiver/jaegerreceiver"
 	"go.opentelemetry.io/collector/receiver/zipkinreceiver"
 
+	"github.com/jaegertracing/jaeger/cmd/opentelemetry/app/defaultcomponents"
 	"github.com/jaegertracing/jaeger/cmd/opentelemetry/app/exporter/elasticsearchexporter"
 	jConfig "github.com/jaegertracing/jaeger/pkg/config"
 )
@@ -145,7 +146,7 @@ func TestMergeConfigs(t *testing.T) {
 func TestMergeConfigFiles(t *testing.T) {
 	testFiles := []string{"emptyoverride", "addprocessor", "multiplecomponents"}
 	v, _ := jConfig.Viperize(elasticsearchexporter.DefaultOptions().AddFlags)
-	cmpts := Components(v)
+	cmpts := defaultcomponents.Components(v)
 	for _, f := range testFiles {
 		t.Run(f, func(t *testing.T) {
 			cfg, err := loadConfig(cmpts, fmt.Sprintf("testdata/%s.yaml", f))
