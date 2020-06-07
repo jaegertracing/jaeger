@@ -27,7 +27,8 @@ import (
 
 	jflags "github.com/jaegertracing/jaeger/cmd/flags"
 	"github.com/jaegertracing/jaeger/cmd/opentelemetry/app"
-	"github.com/jaegertracing/jaeger/cmd/opentelemetry/app/defaults"
+	"github.com/jaegertracing/jaeger/cmd/opentelemetry/app/defaultcomponents"
+	"github.com/jaegertracing/jaeger/cmd/opentelemetry/app/defaultconfig"
 	jconfig "github.com/jaegertracing/jaeger/pkg/config"
 	"github.com/jaegertracing/jaeger/pkg/version"
 )
@@ -49,10 +50,10 @@ func main() {
 
 	v := viper.New()
 
-	cmpts := defaults.Components(v)
+	cmpts := defaultcomponents.Components(v)
 	cfgFactory := func(otelViper *viper.Viper, f config.Factories) (*configmodels.Config, error) {
-		cfgConfig := defaults.ComponentSettings{
-			ComponentType: defaults.Agent,
+		cfgConfig := defaultconfig.ComponentSettings{
+			ComponentType: defaultconfig.Agent,
 			Factories:     cmpts,
 		}
 		cfg, err := cfgConfig.CreateDefaultConfig()
@@ -64,7 +65,7 @@ func main() {
 			if err != nil {
 				return nil, err
 			}
-			err = defaults.MergeConfigs(cfg, otelCfg)
+			err = defaultconfig.MergeConfigs(cfg, otelCfg)
 			if err != nil {
 				return nil, err
 			}

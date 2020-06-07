@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package defaults
+package defaultconfig
 
 import (
 	"fmt"
@@ -26,6 +26,7 @@ import (
 	"go.uber.org/zap"
 
 	"github.com/jaegertracing/jaeger/cmd/opentelemetry/app"
+	"github.com/jaegertracing/jaeger/cmd/opentelemetry/app/defaultcomponents"
 	"github.com/jaegertracing/jaeger/cmd/opentelemetry/app/exporter/cassandraexporter"
 	"github.com/jaegertracing/jaeger/cmd/opentelemetry/app/exporter/elasticsearchexporter"
 	"github.com/jaegertracing/jaeger/cmd/opentelemetry/app/exporter/grpcpluginexporter"
@@ -138,7 +139,7 @@ func TestService(t *testing.T) {
 			for key, val := range test.viperConfig {
 				v.Set(key, val)
 			}
-			factories := Components(v)
+			factories := defaultcomponents.Components(v)
 			test.cfg.Factories = factories
 			cfg, err := test.cfg.CreateDefaultConfig()
 			if test.err != "" {

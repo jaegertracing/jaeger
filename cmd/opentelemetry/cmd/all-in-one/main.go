@@ -36,7 +36,8 @@ import (
 	collectorApp "github.com/jaegertracing/jaeger/cmd/collector/app"
 	jflags "github.com/jaegertracing/jaeger/cmd/flags"
 	"github.com/jaegertracing/jaeger/cmd/opentelemetry/app"
-	"github.com/jaegertracing/jaeger/cmd/opentelemetry/app/defaults"
+	"github.com/jaegertracing/jaeger/cmd/opentelemetry/app/defaultcomponents"
+	"github.com/jaegertracing/jaeger/cmd/opentelemetry/app/defaultconfig"
 	"github.com/jaegertracing/jaeger/cmd/opentelemetry/app/exporter/badgerexporter"
 	"github.com/jaegertracing/jaeger/cmd/opentelemetry/app/exporter/cassandraexporter"
 	"github.com/jaegertracing/jaeger/cmd/opentelemetry/app/exporter/elasticsearchexporter"
@@ -74,12 +75,12 @@ func main() {
 		storageType = "memory"
 	}
 
-	cmpts := defaults.Components(v)
+	cmpts := defaultcomponents.Components(v)
 	cfgFactory := func(otelViper *viper.Viper, f config.Factories) (*configmodels.Config, error) {
 		collectorOpts := &collectorApp.CollectorOptions{}
 		collectorOpts.InitFromViper(v)
-		cfgOpts := defaults.ComponentSettings{
-			ComponentType:  defaults.AllInOne,
+		cfgOpts := defaultconfig.ComponentSettings{
+			ComponentType:  defaultconfig.AllInOne,
 			Factories:      cmpts,
 			StorageType:    storageType,
 			ZipkinHostPort: collectorOpts.CollectorZipkinHTTPHostPort,
@@ -94,7 +95,7 @@ func main() {
 			if err != nil {
 				return nil, err
 			}
-			err = defaults.MergeConfigs(cfg, otelCfg)
+			err = defaultconfig.MergeConfigs(cfg, otelCfg)
 			if err != nil {
 				return nil, err
 			}
