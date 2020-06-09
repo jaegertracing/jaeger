@@ -31,7 +31,7 @@ const (
 	suffixUsername            = ".username"
 	suffixPassword            = ".password"
 	suffixSniffer             = ".sniffer"
-	suffixSnifferTlsEnabled   = ".sniffer-tls-enabled"
+	suffixSnifferTLSEnabled   = ".sniffer-tls-enabled"
 	suffixTokenPath           = ".token-file"
 	suffixServerURLs          = ".server-urls"
 	suffixMaxSpanAge          = ".max-span-age"
@@ -96,7 +96,6 @@ func NewOptions(primaryNamespace string, otherNamespaces ...string) *Options {
 				CreateIndexTemplates: true,
 				Version:              0,
 				Servers:              []string{defaultServerURL},
-				SnifferTlsEnabled:    false,
 			},
 			namespace: primaryNamespace,
 		},
@@ -214,8 +213,8 @@ func addFlags(flagSet *flag.FlagSet, nsConfig *namespaceConfig) {
 		0,
 		"The major Elasticsearch version. If not specified, the value will be auto-detected from Elasticsearch.")
 	flagSet.Bool(
-		nsConfig.namespace+suffixSnifferTlsEnabled,
-		nsConfig.SnifferTlsEnabled,
+		nsConfig.namespace+suffixSnifferTLSEnabled,
+		nsConfig.SnifferTLSEnabled,
 		"Option to enable TLS when sniffing an Elasticsearch Cluster ; client uses sniffing process to find all nodes automatically, disabled by default")
 	if nsConfig.namespace == archiveNamespace {
 		flagSet.Bool(
@@ -239,7 +238,7 @@ func initFromViper(cfg *namespaceConfig, v *viper.Viper) {
 	cfg.Password = v.GetString(cfg.namespace + suffixPassword)
 	cfg.TokenFilePath = v.GetString(cfg.namespace + suffixTokenPath)
 	cfg.Sniffer = v.GetBool(cfg.namespace + suffixSniffer)
-	cfg.SnifferTlsEnabled = v.GetBool(cfg.namespace + suffixSnifferTlsEnabled)
+	cfg.SnifferTLSEnabled = v.GetBool(cfg.namespace + suffixSnifferTLSEnabled)
 	cfg.Servers = strings.Split(stripWhiteSpace(v.GetString(cfg.namespace+suffixServerURLs)), ",")
 	cfg.MaxSpanAge = v.GetDuration(cfg.namespace + suffixMaxSpanAge)
 	cfg.MaxNumSpans = v.GetInt(cfg.namespace + suffixMaxNumSpans)

@@ -46,7 +46,7 @@ type Configuration struct {
 	TokenFilePath         string         `mapstructure:"token_file"`
 	AllowTokenFromContext bool           `mapstructure:"-"`
 	Sniffer               bool           `mapstructure:"sniffer"` // https://github.com/olivere/elastic/wiki/Sniffing
-	SnifferTlsEnabled     bool           `mapstructure:"sniffer_tls_enabled"`
+	SnifferTLSEnabled     bool           `mapstructure:"sniffer_tls_enabled"`
 	MaxNumSpans           int            `mapstructure:"-"`                     // defines maximum number of spans to fetch from storage per query
 	MaxSpanAge            time.Duration  `yaml:"max_span_age" mapstructure:"-"` // configures the maximum lookback on span reads
 	NumShards             int64          `yaml:"shards" mapstructure:"num_shards"`
@@ -213,8 +213,8 @@ func (c *Configuration) ApplyDefaults(source *Configuration) {
 	if c.BulkFlushInterval == 0 {
 		c.BulkFlushInterval = source.BulkFlushInterval
 	}
-	if !c.SnifferTlsEnabled {
-		c.SnifferTlsEnabled = source.SnifferTlsEnabled
+	if !c.SnifferTLSEnabled {
+		c.SnifferTLSEnabled = source.SnifferTLSEnabled
 	}
 }
 
@@ -292,10 +292,8 @@ func (c *Configuration) getConfigOptions(logger *zap.Logger) ([]elastic.ClientOp
 		// we don' have a valid token to do the check ad if we don't disable the check the service that
 		// uses this won't start.
 		elastic.SetHealthcheck(!c.AllowTokenFromContext)}
-	if c.SnifferTlsEnabled {
+	if c.SnifferTLSEnabled {
 		options = append(options, elastic.SetScheme("https"))
-	} else {
-		options = append(options, elastic.SetScheme("http"))
 	}
 	httpClient := &http.Client{
 		Timeout: c.Timeout,
