@@ -114,14 +114,6 @@ func (f *Factory) CreateSpanWriter() (spanstore.Writer, error) {
 // CreateDependencyReader implements storage.Factory
 func (f *Factory) CreateDependencyReader() (dependencystore.Reader, error) {
 	reader := esDepStore.NewDependencyStore(f.primaryClient, f.logger, f.primaryConfig.GetIndexPrefix())
-
-	if f.primaryConfig.IsCreateIndexTemplates() {
-		dependenciesMappings := GetDependenciesMappings(f.primaryConfig.GetNumShards(), f.primaryConfig.GetNumReplicas(), f.primaryConfig.GetVersion())
-		err := reader.CreateTemplates(dependenciesMappings)
-		if err != nil {
-			return nil, err
-		}
-	}
 	return reader, nil
 }
 
