@@ -34,6 +34,7 @@ func TestOptions(t *testing.T) {
 	assert.Equal(t, int64(1), primary.NumReplicas)
 	assert.Equal(t, 72*time.Hour, primary.MaxSpanAge)
 	assert.False(t, primary.Sniffer)
+	assert.False(t, primary.SnifferTLSEnabled)
 
 	aux := opts.Get("archive")
 	assert.Equal(t, primary.Username, aux.Username)
@@ -50,6 +51,7 @@ func TestOptionsWithFlags(t *testing.T) {
 		"--es.password=world",
 		"--es.token-file=/foo/bar",
 		"--es.sniffer=true",
+		"--es.sniffer-tls-enabled=true",
 		"--es.max-span-age=48h",
 		"--es.num-shards=20",
 		"--es.num-replicas=10",
@@ -68,6 +70,7 @@ func TestOptionsWithFlags(t *testing.T) {
 	assert.Equal(t, []string{"1.1.1.1", "2.2.2.2"}, primary.Servers)
 	assert.Equal(t, 48*time.Hour, primary.MaxSpanAge)
 	assert.True(t, primary.Sniffer)
+	assert.True(t, primary.SnifferTLSEnabled)
 	assert.Equal(t, true, primary.TLS.Enabled)
 	assert.Equal(t, true, primary.TLS.SkipHostVerify)
 
