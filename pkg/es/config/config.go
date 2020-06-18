@@ -16,11 +16,13 @@
 package config
 
 import (
+	"bufio"
 	"context"
 	"crypto/tls"
 	"errors"
 	"io/ioutil"
 	"net/http"
+	"os"
 	"path/filepath"
 	"strconv"
 	"strings"
@@ -299,52 +301,60 @@ func (c *Configuration) getConfigOptions(logger *zap.Logger) ([]elastic.ClientOp
 		Timeout: c.Timeout,
 	}
 	options = append(options, elastic.SetHttpClient(httpClient))
+	options = append(options, elastic.SetBasicAuth(c.Username, c.Password))
+	transport, err := GetHTTPRoundTripper(c, logger)
+	if err != nil {
+		return nil, err
+	}
+	httpClient.Transport = transport
+	return options, nil
+}
+
+// GetHTTPRoundTripper returns configured http.RoundTripper
+func GetHTTPRoundTripper(c *Configuration, logger *zap.Logger) (http.RoundTripper, error) {
 	if c.TLS.Enabled {
 		ctlsConfig, err := c.TLS.Config()
 		if err != nil {
 			return nil, err
 		}
-		httpClient.Transport = &http.Transport{
+		return &http.Transport{
 			TLSClientConfig: ctlsConfig,
+		}, nil
+	}
+	var transport http.RoundTripper
+	httpTransport := &http.Transport{
+		Proxy: http.ProxyFromEnvironment,
+		// #nosec G402
+		TLSClientConfig: &tls.Config{InsecureSkipVerify: c.TLS.SkipHostVerify},
+	}
+	if c.TLS.CAPath != "" {
+		ctlsConfig, err := c.TLS.Config()
+		if err != nil {
+			return nil, err
 		}
-	} else {
-		httpTransport := &http.Transport{
-			Proxy: http.ProxyFromEnvironment,
-			// #nosec G402
-			TLSClientConfig: &tls.Config{InsecureSkipVerify: c.TLS.SkipHostVerify},
-		}
-		if c.TLS.CAPath != "" {
-			config, err := c.TLS.Config()
-			if err != nil {
-				return nil, err
-			}
-			httpTransport.TLSClientConfig = config
-		}
+		httpTransport.TLSClientConfig = ctlsConfig
+		transport = httpTransport
+	}
 
-		token := ""
-		if c.TokenFilePath != "" {
-			if c.AllowTokenFromContext {
-				logger.Warn("Token file and token propagation are both enabled, token from file won't be used")
-			}
-			tokenFromFile, err := loadToken(c.TokenFilePath)
-			if err != nil {
-				return nil, err
-			}
-			token = tokenFromFile
+	token := ""
+	if c.TokenFilePath != "" {
+		if c.AllowTokenFromContext {
+			logger.Warn("Token file and token propagation are both enabled, token from file won't be used")
 		}
-
-		if token != "" || c.AllowTokenFromContext {
-			httpClient.Transport = &tokenAuthTransport{
-				token:                token,
-				allowOverrideFromCtx: c.AllowTokenFromContext,
-				wrapped:              httpTransport,
-			}
-		} else {
-			httpClient.Transport = httpTransport
-			options = append(options, elastic.SetBasicAuth(c.Username, c.Password))
+		tokenFromFile, err := loadToken(c.TokenFilePath)
+		if err != nil {
+			return nil, err
+		}
+		token = tokenFromFile
+	}
+	if token != "" || c.AllowTokenFromContext {
+		transport = &tokenAuthTransport{
+			token:                token,
+			allowOverrideFromCtx: c.AllowTokenFromContext,
+			wrapped:              httpTransport,
 		}
 	}
-	return options, nil
+	return transport, nil
 }
 
 // TokenAuthTransport
@@ -372,4 +382,24 @@ func loadToken(path string) (string, error) {
 		return "", err
 	}
 	return strings.TrimRight(string(b), "\r\n"), nil
+}
+
+// LoadTagsFromFile loads tags from a file
+func LoadTagsFromFile(filePath string) ([]string, error) {
+	file, err := os.Open(filepath.Clean(filePath))
+	if err != nil {
+		return nil, err
+	}
+	scanner := bufio.NewScanner(file)
+	var tags []string
+	for scanner.Scan() {
+		line := scanner.Text()
+		if tag := strings.TrimSpace(line); tag != "" {
+			tags = append(tags, tag)
+		}
+	}
+	if err := file.Close(); err != nil {
+		return nil, err
+	}
+	return tags, nil
 }

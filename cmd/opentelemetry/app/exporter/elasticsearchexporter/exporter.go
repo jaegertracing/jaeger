@@ -15,20 +15,26 @@
 package elasticsearchexporter
 
 import (
-	"github.com/uber/jaeger-lib/metrics"
 	"go.opentelemetry.io/collector/component"
+	"go.opentelemetry.io/collector/exporter/exporterhelper"
 
-	"github.com/jaegertracing/jaeger/cmd/opentelemetry/app/exporter"
 	"github.com/jaegertracing/jaeger/plugin/storage/es"
 )
 
 // new creates Elasticsearch exporter/storage.
 func new(config *Config, params component.ExporterCreateParams) (component.TraceExporter, error) {
-	factory := es.NewFactory()
-	factory.InitFromOptions(config.Options)
-	err := factory.Initialize(metrics.NullFactory, params.Logger)
+	esCfg := config.GetPrimary()
+	w, err := newEsSpanWriter(*esCfg, params.Logger)
 	if err != nil {
 		return nil, err
 	}
-	return exporter.NewSpanWriterExporter(&config.ExporterSettings, factory)
+	if config.Primary.IsCreateIndexTemplates() {
+		spanMapping, serviceMapping := es.GetSpanServiceMappings(esCfg.GetNumShards(), esCfg.GetNumReplicas(), esCfg.GetVersion())
+		if err = w.CreateTemplates(spanMapping, serviceMapping); err != nil {
+			return nil, err
+		}
+	}
+	return exporterhelper.NewTraceExporter(
+		config,
+		w.WriteTraces)
 }
