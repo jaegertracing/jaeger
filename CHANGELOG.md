@@ -19,6 +19,10 @@ Changes by Version
 
 ### Backend Changes
 
+#### Security Fixes
+
+* CVE-2020-10750: jaegertracing/jaeger: credentials leaked to container logs ([@chlunde](https://github.com/chlunde))
+
 #### Breaking Changes
 
 #### New Features
@@ -31,7 +35,6 @@ Changes by Version
 * Add Zipkin OTEL receiver ([#2247](https://github.com/jaegertracing/jaeger/pull/2247), [@pavolloffay](https://github.com/pavolloffay))
 
 #### Bug fixes, Minor Improvements
-* Avoid logging clear text passwords in kafka producer ([@chlunde](https://github.com/chlunde))
 * Remove experimental flag from rollover ([#2290](https://github.com/jaegertracing/jaeger/pull/2290), [@pavolloffay](https://github.com/pavolloffay))
 * Move ES dependencies index mapping to JSON template file ([#2285](https://github.com/jaegertracing/jaeger/pull/2285), [@pavolloffay](https://github.com/pavolloffay))
 * Bump go-plugin to 1.3 ([#2261](https://github.com/jaegertracing/jaeger/pull/2261), [@yurishkuro](https://github.com/yurishkuro))
