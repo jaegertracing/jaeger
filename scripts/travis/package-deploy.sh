@@ -68,3 +68,4 @@ package darwin-amd64
 package windows-amd64 .exe
 package linux-s390x
 package linux-arm64
+package linux-ppc64le
