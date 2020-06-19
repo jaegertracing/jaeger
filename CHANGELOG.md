@@ -11,7 +11,37 @@ Changes by Version
 #### New Features
 
 #### Bug fixes, Minor Improvements
-* Add arm64 support for binaries and make architecture configurable in docker images. ([#2176](https://github.com/jaegertracing/jaeger/pull/2176), [@MrXinWang](https://github.com/MrXinWang))
+
+### UI Changes
+
+1.18.1 (2020-06-19)
+------------------
+
+### Backend Changes
+
+#### Security Fixes
+
+* CVE-2020-10750: jaegertracing/jaeger: credentials leaked to container logs ([@chlunde](https://github.com/chlunde))
+
+#### Breaking Changes
+
+#### New Features
+* Add ppc64le support ([#2293](https://github.com/jaegertracing/jaeger/pull/2293), [@Siddhesh-Ghadi](https://github.com/Siddhesh-Ghadi))
+* Expose option to enable TLS when sniffing an Elasticsearch Cluster ([#2263](https://github.com/jaegertracing/jaeger/pull/2263), [@jennynilsen](https://github.com/jennynilsen))
+* Enable OTEL receiver by default ([#2279](https://github.com/jaegertracing/jaeger/pull/2279), [@pavolloffay](https://github.com/pavolloffay))
+* Add Badger OTEL exporter ([#2269](https://github.com/jaegertracing/jaeger/pull/2269), [@pavolloffay](https://github.com/pavolloffay))
+* Add all-in-one OTEL component ([#2262](https://github.com/jaegertracing/jaeger/pull/2262), [@pavolloffay](https://github.com/pavolloffay))
+* Add arm64 support for binaries and docker images ([#2176](https://github.com/jaegertracing/jaeger/pull/2176), [@MrXinWang](https://github.com/MrXinWang))
+* Add Zipkin OTEL receiver ([#2247](https://github.com/jaegertracing/jaeger/pull/2247), [@pavolloffay](https://github.com/pavolloffay))
+
+#### Bug fixes, Minor Improvements
+* Remove experimental flag from rollover ([#2290](https://github.com/jaegertracing/jaeger/pull/2290), [@pavolloffay](https://github.com/pavolloffay))
+* Move ES dependencies index mapping to JSON template file ([#2285](https://github.com/jaegertracing/jaeger/pull/2285), [@pavolloffay](https://github.com/pavolloffay))
+* Bump go-plugin to 1.3 ([#2261](https://github.com/jaegertracing/jaeger/pull/2261), [@yurishkuro](https://github.com/yurishkuro))
+* Ignore chmod events on UI config watcher. ([#2254](https://github.com/jaegertracing/jaeger/pull/2254), [@rubenvp8510](https://github.com/rubenvp8510))
+* Normalize CLI flags to use host:port addresses ([#2212](https://github.com/jaegertracing/jaeger/pull/2212), [@ohdearaugustin](https://github.com/ohdearaugustin))
+* Add kafka receiver flags to ingester ([#2251](https://github.com/jaegertracing/jaeger/pull/2251), [@pavolloffay](https://github.com/pavolloffay))
+* Configure Jaeger receiver and exporter by flags ([#2241](https://github.com/jaegertracing/jaeger/pull/2241), [@pavolloffay](https://github.com/pavolloffay))
 
 ### UI Changes
 
