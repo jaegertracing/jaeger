@@ -14,7 +14,7 @@ Changes by Version
 
 ### UI Changes
 
-1.19.0 (2020-06-19)
+1.18.1 (2020-06-19)
 ------------------
 
 ### Backend Changes
