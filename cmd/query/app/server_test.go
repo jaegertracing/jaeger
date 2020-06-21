@@ -55,9 +55,10 @@ func TestServer(t *testing.T) {
 
 	querySvc := querysvc.NewQueryService(spanReader, dependencyReader, querysvc.QueryServiceOptions{})
 
-	server := NewServer(flagsSvc.Logger, querySvc,
+	server, err := NewServer(flagsSvc.Logger, querySvc,
 		&QueryOptions{HostPort: hostPort, BearerTokenPropagation: true},
 		opentracing.NoopTracer{})
+	assert.Nil(t, err)
 	assert.NoError(t, server.Start())
 	go func() {
 		for s := range server.HealthCheckStatus() {
@@ -95,7 +96,8 @@ func TestServerGracefulExit(t *testing.T) {
 
 	querySvc := &querysvc.QueryService{}
 	tracer := opentracing.NoopTracer{}
-	server := NewServer(flagsSvc.Logger, querySvc, &QueryOptions{HostPort: ports.PortToHostPort(ports.QueryAdminHTTP)}, tracer)
+	server, err := NewServer(flagsSvc.Logger, querySvc, &QueryOptions{HostPort: ports.PortToHostPort(ports.QueryAdminHTTP)}, tracer)
+	assert.Nil(t, err)
 	assert.NoError(t, server.Start())
 	go func() {
 		for s := range server.HealthCheckStatus() {
@@ -121,7 +123,8 @@ func TestServerHandlesPortZero(t *testing.T) {
 
 	querySvc := &querysvc.QueryService{}
 	tracer := opentracing.NoopTracer{}
-	server := NewServer(flagsSvc.Logger, querySvc, &QueryOptions{HostPort: ":0"}, tracer)
+	server, err := NewServer(flagsSvc.Logger, querySvc, &QueryOptions{HostPort: ":0"}, tracer)
+	assert.Nil(t, err)
 	assert.NoError(t, server.Start())
 	server.Close()
 
