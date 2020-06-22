@@ -71,7 +71,7 @@ func (s Server) HealthCheckStatus() chan healthcheck.Status {
 }
 
 func createGRPCServer(querySvc *querysvc.QueryService, options *QueryOptions, logger *zap.Logger, tracer opentracing.Tracer) (*grpc.Server, error) {
-	var server *grpc.Server
+	var grpcOpts []grpc.ServerOption
 
 	if options.TLS.Enabled {
 		// user requested a server with TLS, setup creds
@@ -79,13 +79,12 @@ func createGRPCServer(querySvc *querysvc.QueryService, options *QueryOptions, lo
 		if err != nil {
 			return nil, err
 		}
-
 		creds := credentials.NewTLS(tlsCfg)
-		server = grpc.NewServer(grpc.Creds(creds))
-	} else {
-		// server without TLS
-		server = grpc.NewServer()
+
+		grpcOpts = append(grpcOpts, grpc.Creds(creds))
 	}
+
+	server := grpc.NewServer(grpcOpts...)
 
 	handler := NewGRPCHandler(querySvc, logger, tracer)
 	api_v2.RegisterQueryServiceServer(server, handler)
