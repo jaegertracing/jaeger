@@ -57,7 +57,7 @@ type Authenticator struct {
 // BasicAuthenticator holds the username and password for a password authenticator for a Cassandra cluster
 type BasicAuthenticator struct {
 	Username string `yaml:"username" mapstructure:"username"`
-	Password string `yaml:"password" mapstructure:"password"`
+	Password string `yaml:"password" mapstructure:"password" json:"-"`
 }
 
 // ApplyDefaults copies settings from source unless its own value is non-zero.

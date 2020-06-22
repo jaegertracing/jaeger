@@ -42,7 +42,7 @@ import (
 type Configuration struct {
 	Servers               []string       `mapstructure:"server_urls"`
 	Username              string         `mapstructure:"username"`
-	Password              string         `mapstructure:"password"`
+	Password              string         `mapstructure:"password" json:"-"`
 	TokenFilePath         string         `mapstructure:"token_file"`
 	AllowTokenFromContext bool           `mapstructure:"-"`
 	Sniffer               bool           `mapstructure:"sniffer"` // https://github.com/olivere/elastic/wiki/Sniffing
