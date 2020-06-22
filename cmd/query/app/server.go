@@ -74,7 +74,6 @@ func createGRPCServer(querySvc *querysvc.QueryService, options *QueryOptions, lo
 	var grpcOpts []grpc.ServerOption
 
 	if options.TLS.Enabled {
-		// user requested a server with TLS, setup creds
 		tlsCfg, err := options.TLS.Config()
 		if err != nil {
 			return nil, err
