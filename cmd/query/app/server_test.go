@@ -27,6 +27,7 @@ import (
 
 	"github.com/jaegertracing/jaeger/cmd/flags"
 	"github.com/jaegertracing/jaeger/cmd/query/app/querysvc"
+	"github.com/jaegertracing/jaeger/pkg/config/tlscfg"
 	"github.com/jaegertracing/jaeger/pkg/healthcheck"
 	"github.com/jaegertracing/jaeger/ports"
 	"github.com/jaegertracing/jaeger/proto-gen/api_v2"
@@ -41,6 +42,19 @@ func TestServerError(t *testing.T) {
 		},
 	}
 	assert.Error(t, srv.Start())
+}
+
+func TestCreateTLSServerError(t *testing.T) {
+	tlsCfg := tlscfg.Options{
+		Enabled:      true,
+		CertPath:     "invalid/path",
+		KeyPath:      "invalid/path",
+		ClientCAPath: "invalid/path",
+	}
+
+	_, err := NewServer(zap.NewNop(), &querysvc.QueryService{},
+		&QueryOptions{TLS: tlsCfg}, opentracing.NoopTracer{})
+	assert.NotNil(t, err)
 }
 
 func TestServer(t *testing.T) {
