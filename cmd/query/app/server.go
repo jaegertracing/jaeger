@@ -24,6 +24,7 @@ import (
 	"github.com/soheilhy/cmux"
 	"go.uber.org/zap"
 	"google.golang.org/grpc"
+	"google.golang.org/grpc/credentials"
 
 	"github.com/jaegertracing/jaeger/cmd/query/app/querysvc"
 	"github.com/jaegertracing/jaeger/pkg/healthcheck"
@@ -47,16 +48,21 @@ type Server struct {
 }
 
 // NewServer creates and initializes Server
-func NewServer(logger *zap.Logger, querySvc *querysvc.QueryService, options *QueryOptions, tracer opentracing.Tracer) *Server {
+func NewServer(logger *zap.Logger, querySvc *querysvc.QueryService, options *QueryOptions, tracer opentracing.Tracer) (*Server, error) {
+	grpcServer, err := createGRPCServer(querySvc, options, logger, tracer)
+	if err != nil {
+		return nil, err
+	}
+
 	return &Server{
 		logger:             logger,
 		querySvc:           querySvc,
 		queryOptions:       options,
 		tracer:             tracer,
-		grpcServer:         createGRPCServer(querySvc, logger, tracer),
+		grpcServer:         grpcServer,
 		httpServer:         createHTTPServer(querySvc, options, tracer, logger),
 		unavailableChannel: make(chan healthcheck.Status),
-	}
+	}, nil
 }
 
 // HealthCheckStatus returns health check status channel a client can subscribe to
@@ -64,11 +70,24 @@ func (s Server) HealthCheckStatus() chan healthcheck.Status {
 	return s.unavailableChannel
 }
 
-func createGRPCServer(querySvc *querysvc.QueryService, logger *zap.Logger, tracer opentracing.Tracer) *grpc.Server {
-	srv := grpc.NewServer()
+func createGRPCServer(querySvc *querysvc.QueryService, options *QueryOptions, logger *zap.Logger, tracer opentracing.Tracer) (*grpc.Server, error) {
+	var grpcOpts []grpc.ServerOption
+
+	if options.TLS.Enabled {
+		tlsCfg, err := options.TLS.Config()
+		if err != nil {
+			return nil, err
+		}
+		creds := credentials.NewTLS(tlsCfg)
+
+		grpcOpts = append(grpcOpts, grpc.Creds(creds))
+	}
+
+	server := grpc.NewServer(grpcOpts...)
+
 	handler := NewGRPCHandler(querySvc, logger, tracer)
-	api_v2.RegisterQueryServiceServer(srv, handler)
-	return srv
+	api_v2.RegisterQueryServiceServer(server, handler)
+	return server, nil
 }
 
 func createHTTPServer(querySvc *querysvc.QueryService, queryOpts *QueryOptions, tracer opentracing.Tracer, logger *zap.Logger) *http.Server {

@@ -106,7 +106,11 @@ func main() {
 				dependencyReader,
 				*queryServiceOptions)
 
-			server := app.NewServer(svc.Logger, queryService, queryOpts, tracer)
+			server, err := app.NewServer(svc.Logger, queryService, queryOpts, tracer)
+			if err != nil {
+				logger.Fatal("Failed to create server", zap.Error(err))
+			}
+
 			go func() {
 				for s := range server.HealthCheckStatus() {
 					svc.SetHealthCheckStatus(s)

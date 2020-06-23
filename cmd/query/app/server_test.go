@@ -27,6 +27,7 @@ import (
 
 	"github.com/jaegertracing/jaeger/cmd/flags"
 	"github.com/jaegertracing/jaeger/cmd/query/app/querysvc"
+	"github.com/jaegertracing/jaeger/pkg/config/tlscfg"
 	"github.com/jaegertracing/jaeger/pkg/healthcheck"
 	"github.com/jaegertracing/jaeger/ports"
 	"github.com/jaegertracing/jaeger/proto-gen/api_v2"
@@ -43,6 +44,19 @@ func TestServerError(t *testing.T) {
 	assert.Error(t, srv.Start())
 }
 
+func TestCreateTLSServerError(t *testing.T) {
+	tlsCfg := tlscfg.Options{
+		Enabled:      true,
+		CertPath:     "invalid/path",
+		KeyPath:      "invalid/path",
+		ClientCAPath: "invalid/path",
+	}
+
+	_, err := NewServer(zap.NewNop(), &querysvc.QueryService{},
+		&QueryOptions{TLS: tlsCfg}, opentracing.NoopTracer{})
+	assert.NotNil(t, err)
+}
+
 func TestServer(t *testing.T) {
 	flagsSvc := flags.NewService(ports.QueryAdminHTTP)
 	flagsSvc.Logger = zap.NewNop()
@@ -55,9 +69,10 @@ func TestServer(t *testing.T) {
 
 	querySvc := querysvc.NewQueryService(spanReader, dependencyReader, querysvc.QueryServiceOptions{})
 
-	server := NewServer(flagsSvc.Logger, querySvc,
+	server, err := NewServer(flagsSvc.Logger, querySvc,
 		&QueryOptions{HostPort: hostPort, BearerTokenPropagation: true},
 		opentracing.NoopTracer{})
+	assert.Nil(t, err)
 	assert.NoError(t, server.Start())
 	go func() {
 		for s := range server.HealthCheckStatus() {
@@ -95,7 +110,8 @@ func TestServerGracefulExit(t *testing.T) {
 
 	querySvc := &querysvc.QueryService{}
 	tracer := opentracing.NoopTracer{}
-	server := NewServer(flagsSvc.Logger, querySvc, &QueryOptions{HostPort: ports.PortToHostPort(ports.QueryAdminHTTP)}, tracer)
+	server, err := NewServer(flagsSvc.Logger, querySvc, &QueryOptions{HostPort: ports.PortToHostPort(ports.QueryAdminHTTP)}, tracer)
+	assert.Nil(t, err)
 	assert.NoError(t, server.Start())
 	go func() {
 		for s := range server.HealthCheckStatus() {
@@ -121,7 +137,8 @@ func TestServerHandlesPortZero(t *testing.T) {
 
 	querySvc := &querysvc.QueryService{}
 	tracer := opentracing.NoopTracer{}
-	server := NewServer(flagsSvc.Logger, querySvc, &QueryOptions{HostPort: ":0"}, tracer)
+	server, err := NewServer(flagsSvc.Logger, querySvc, &QueryOptions{HostPort: ":0"}, tracer)
+	assert.Nil(t, err)
 	assert.NoError(t, server.Start())
 	server.Close()
 
