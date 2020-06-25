@@ -35,8 +35,6 @@ import (
 	"github.com/jaegertracing/jaeger/cmd/agent/app/configmanager"
 	"github.com/jaegertracing/jaeger/cmd/agent/app/reporter"
 	"github.com/jaegertracing/jaeger/cmd/agent/app/reporter/grpc"
-	"github.com/jaegertracing/jaeger/tchannel/agent/app/reporter/tchannel"
-	"github.com/jaegertracing/jaeger/tchannel/collector/app"
 	"github.com/jaegertracing/jaeger/thrift-gen/baggage"
 	"github.com/jaegertracing/jaeger/thrift-gen/jaeger"
 	"github.com/jaegertracing/jaeger/thrift-gen/sampling"
@@ -202,15 +200,11 @@ func TestCreateCollectorProxy(t *testing.T) {
 			err: "at least one collector hostPort address is required when resolver is not available",
 		},
 		{
-			flags: []string{"--collector.host-port=foo"},
+			flags: []string{"--reporter.type=grpc"},
 			err:   "at least one collector hostPort address is required when resolver is not available",
 		},
 		{
-			flags: []string{"--reporter.type=grpc", "--collector.host-port=foo"},
-			err:   "at least one collector hostPort address is required when resolver is not available",
-		},
-		{
-			flags:  []string{"--reporter.type=grpc", "--reporter.grpc.host-port=foo", "--collector.host-port=foo"},
+			flags:  []string{"--reporter.type=grpc", "--reporter.grpc.host-port=foo"},
 			metric: metricstest.ExpectedMetric{Name: "reporter.batches.failures", Tags: map[string]string{"protocol": "grpc", "format": "jaeger"}, Value: 1},
 		},
 		{
@@ -221,10 +215,8 @@ func TestCreateCollectorProxy(t *testing.T) {
 
 	for _, test := range tests {
 		flags := &flag.FlagSet{}
-		tchannel.AddFlags(flags)
 		grpc.AddFlags(flags)
 		reporter.AddFlags(flags)
-		app.AddFlags(flags)
 
 		command := cobra.Command{}
 		command.PersistentFlags().AddGoFlagSet(flags)
