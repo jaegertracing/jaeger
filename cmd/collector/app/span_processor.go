@@ -16,10 +16,10 @@
 package app
 
 import (
+	"fmt"
 	"sync"
 	"time"
 
-	tchannel "github.com/uber/tchannel-go"
 	"go.uber.org/atomic"
 	"go.uber.org/zap"
 
@@ -164,7 +164,7 @@ func (sp *spanProcessor) ProcessSpans(mSpans []*model.Span, options processor.Sp
 	for i, mSpan := range mSpans {
 		ok := sp.enqueueSpan(mSpan, options.SpanFormat, options.InboundTransport)
 		if !ok && sp.reportBusy {
-			return nil, tchannel.ErrServerBusy
+			return nil, fmt.Errorf("server busy")
 		}
 		retMe[i] = ok
 	}

@@ -22,7 +22,7 @@ import (
 	"github.com/uber/tchannel-go/thrift"
 	"go.uber.org/zap"
 
-	"github.com/jaegertracing/jaeger/pkg/discovery/peerlistmgr"
+	"github.com/jaegertracing/jaeger/tchannel/pkg/discovery/peerlistmgr"
 	"github.com/jaegertracing/jaeger/thrift-gen/jaeger"
 	"github.com/jaegertracing/jaeger/thrift-gen/zipkincore"
 )
