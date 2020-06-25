@@ -52,7 +52,6 @@ THRIFT_VER=0.9.3
 THRIFT_IMG=thrift:$(THRIFT_VER)
 THRIFT=docker run --rm -u ${shell id -u} -v "${PWD}:/data" $(THRIFT_IMG) thrift
 THRIFT_GO_ARGS=thrift_import="github.com/apache/thrift/lib/go/thrift"
-THRIFT_GEN=$(shell which thrift-gen)
 THRIFT_GEN_DIR=thrift-gen
 
 SWAGGER_VER=0.12.0
@@ -377,7 +376,6 @@ install-ci: install-tools
 .PHONY: test-ci
 test-ci: build-examples lint cover
 
-# TODO at the moment we're not generating tchan_*.go files
 .PHONY: thrift
 thrift: idl/thrift/jaeger.thrift thrift-image
 	[ -d $(THRIFT_GEN_DIR) ] || mkdir $(THRIFT_GEN_DIR)
@@ -389,11 +387,6 @@ thrift: idl/thrift/jaeger.thrift thrift-image
 	$(THRIFT) -o /data --gen go:$(THRIFT_GO_ARGS) --out /data/$(THRIFT_GEN_DIR) /data/idl/thrift/sampling.thrift
 	$(THRIFT) -o /data --gen go:$(THRIFT_GO_ARGS) --out /data/$(THRIFT_GEN_DIR) /data/idl/thrift/baggage.thrift
 	$(THRIFT) -o /data --gen go:$(THRIFT_GO_ARGS) --out /data/$(THRIFT_GEN_DIR) /data/idl/thrift/zipkincore.thrift
-	@echo Generate TChannel-Thrift bindings
-	$(THRIFT_GEN) --inputFile idl/thrift/jaeger.thrift --outputDir $(THRIFT_GEN_DIR)
-	$(THRIFT_GEN) --inputFile idl/thrift/sampling.thrift --outputDir $(THRIFT_GEN_DIR)
-	$(THRIFT_GEN) --inputFile idl/thrift/baggage.thrift --outputDir $(THRIFT_GEN_DIR)
-	$(THRIFT_GEN) --inputFile idl/thrift/zipkincore.thrift --outputDir $(THRIFT_GEN_DIR)
 	rm -rf thrift-gen/*/*-remote thrift-gen/*/*.bak
 
 idl/thrift/jaeger.thrift:
