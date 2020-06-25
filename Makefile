@@ -506,3 +506,10 @@ proto:
 		-Iidl/proto \
 		--gogo_out=plugins=grpc,$(PROTO_GOGO_MAPPINGS):$(PWD)/proto-gen/zipkin \
 		idl/proto/zipkin.proto
+
+.PHONY: proto-hotrod
+proto-hotrod:
+	$(PROTOC) \
+		$(PROTO_INCLUDES) \
+		--gogo_out=plugins=grpc,$(PROTO_GOGO_MAPPINGS):$(PWD)/ \
+		examples/hotrod/services/driver/driver.proto
