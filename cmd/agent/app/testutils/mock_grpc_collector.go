@@ -16,7 +16,6 @@ package testutils
 
 import (
 	"context"
-	"fmt"
 	"net"
 	"sync"
 	"testing"
@@ -28,12 +27,16 @@ import (
 	"github.com/jaegertracing/jaeger/proto-gen/api_v2"
 )
 
+// GrpcCollector is a mock collector for tests
 type GrpcCollector struct {
 	listener net.Listener
 	*mockSpanHandler
 	server *grpc.Server
 }
 
+var _ api_v2.CollectorServiceServer = (*GrpcCollector)(nil)
+
+// StartGRPCCollector starts GRPC collector on a random port
 func StartGRPCCollector(t *testing.T) *GrpcCollector {
 	server := grpc.NewServer()
 	lis, err := net.Listen("tcp", "localhost:0")
@@ -50,10 +53,12 @@ func StartGRPCCollector(t *testing.T) *GrpcCollector {
 	}
 }
 
+// Listener returns server's listener
 func (c *GrpcCollector) Listener() net.Listener {
 	return c.listener
 }
 
+// Close closes the server
 func (c *GrpcCollector) Close() error {
 	c.server.GracefulStop()
 	return c.listener.Close()
@@ -62,12 +67,6 @@ func (c *GrpcCollector) Close() error {
 type mockSpanHandler struct {
 	mux      sync.Mutex
 	requests []*api_v2.PostSpansRequest
-}
-
-func (h *mockSpanHandler) getRequests() []*api_v2.PostSpansRequest {
-	h.mux.Lock()
-	defer h.mux.Unlock()
-	return h.requests
 }
 
 // GetJaegerBatches returns accumulated Jaeger batches
@@ -82,7 +81,6 @@ func (h *mockSpanHandler) GetJaegerBatches() []model.Batch {
 }
 
 func (h *mockSpanHandler) PostSpans(_ context.Context, r *api_v2.PostSpansRequest) (*api_v2.PostSpansResponse, error) {
-	fmt.Println("\n\n\n Getting span")
 	h.mux.Lock()
 	defer h.mux.Unlock()
 	h.requests = append(h.requests, r)
