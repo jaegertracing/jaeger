@@ -24,7 +24,7 @@ import (
 	"go.uber.org/zap"
 
 	"github.com/jaegertracing/jaeger/pkg/discovery"
-	"github.com/jaegertracing/jaeger/pkg/discovery/peerlistmgr"
+	"github.com/jaegertracing/jaeger/tchannel/pkg/discovery/peerlistmgr"
 )
 
 const (

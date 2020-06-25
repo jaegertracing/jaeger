@@ -48,7 +48,6 @@ import (
 	"github.com/jaegertracing/jaeger/storage/dependencystore"
 	"github.com/jaegertracing/jaeger/storage/spanstore"
 	storageMetrics "github.com/jaegertracing/jaeger/storage/spanstore/metrics"
-	tCollector "github.com/jaegertracing/jaeger/tchannel/collector/app"
 )
 
 // all-in-one/main is a standalone full-stack jaeger backend, backed by a memory store
@@ -182,7 +181,6 @@ by default uses only in-memory database.`,
 		agentRep.AddFlags,
 		agentGrpcRep.AddFlags,
 		collectorApp.AddFlags,
-		tCollector.AddFlags,
 		queryApp.AddFlags,
 		strategyStoreFactory.AddFlags,
 	)
