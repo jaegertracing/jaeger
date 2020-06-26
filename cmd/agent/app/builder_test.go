@@ -184,10 +184,10 @@ func (fakeCollectorProxy) Close() error {
 	return nil
 }
 
-func (f fakeCollectorProxy) GetSamplingStrategy(serviceName string) (*sampling.SamplingStrategyResponse, error) {
+func (f fakeCollectorProxy) GetSamplingStrategy(_ context.Context, _ string) (*sampling.SamplingStrategyResponse, error) {
 	return nil, errors.New("no peers available")
 }
-func (fakeCollectorProxy) GetBaggageRestrictions(serviceName string) ([]*baggage.BaggageRestriction, error) {
+func (fakeCollectorProxy) GetBaggageRestrictions(_ context.Context, _ string) ([]*baggage.BaggageRestriction, error) {
 	return nil, nil
 }
 

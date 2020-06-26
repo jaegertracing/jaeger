@@ -126,7 +126,7 @@ func (h *HTTPHandler) serveSamplingHTTP(w http.ResponseWriter, r *http.Request, 
 	if err != nil {
 		return
 	}
-	resp, err := h.params.ConfigManager.GetSamplingStrategy(service)
+	resp, err := h.params.ConfigManager.GetSamplingStrategy(r.Context(), service)
 	if err != nil {
 		h.metrics.CollectorProxyFailures.Inc(1)
 		http.Error(w, fmt.Sprintf("collector error: %+v", err), http.StatusInternalServerError)
@@ -156,7 +156,7 @@ func (h *HTTPHandler) serveBaggageHTTP(w http.ResponseWriter, r *http.Request) {
 	if err != nil {
 		return
 	}
-	resp, err := h.params.ConfigManager.GetBaggageRestrictions(service)
+	resp, err := h.params.ConfigManager.GetBaggageRestrictions(r.Context(), service)
 	if err != nil {
 		h.metrics.CollectorProxyFailures.Inc(1)
 		http.Error(w, fmt.Sprintf("collector error: %+v", err), http.StatusInternalServerError)

@@ -15,6 +15,7 @@
 package adaptive
 
 import (
+	"context"
 	"errors"
 	"io"
 	"testing"
@@ -349,7 +350,7 @@ func TestRunCalculationLoop(t *testing.T) {
 	p.(*processor).Start()
 
 	for i := 0; i < 1000; i++ {
-		strategy, _ := p.GetSamplingStrategy("svcA")
+		strategy, _ := p.GetSamplingStrategy(context.Background(), "svcA")
 		if len(strategy.OperationSampling.PerOperationStrategies) != 0 {
 			break
 		}
@@ -357,7 +358,7 @@ func TestRunCalculationLoop(t *testing.T) {
 	}
 	p.(*processor).Close()
 
-	strategy, err := p.GetSamplingStrategy("svcA")
+	strategy, err := p.GetSamplingStrategy(context.Background(), "svcA")
 	assert.NoError(t, err)
 	assert.Len(t, strategy.OperationSampling.PerOperationStrategies, 2)
 }
@@ -472,7 +473,7 @@ func TestRealisticRunCalculationLoop(t *testing.T) {
 	p.(*processor).Start()
 
 	for i := 0; i < 100; i++ {
-		strategy, _ := p.GetSamplingStrategy("svcA")
+		strategy, _ := p.GetSamplingStrategy(context.Background(), "svcA")
 		if len(strategy.OperationSampling.PerOperationStrategies) != 0 {
 			break
 		}
@@ -480,7 +481,7 @@ func TestRealisticRunCalculationLoop(t *testing.T) {
 	}
 	p.(io.Closer).Close()
 
-	strategy, err := p.GetSamplingStrategy("svcA")
+	strategy, err := p.GetSamplingStrategy(context.Background(), "svcA")
 	assert.NoError(t, err)
 	require.Len(t, strategy.OperationSampling.PerOperationStrategies, 4)
 	strategies := strategy.OperationSampling.PerOperationStrategies
