@@ -16,6 +16,7 @@
 package servers
 
 import (
+	"context"
 	"testing"
 	"time"
 
@@ -61,13 +62,13 @@ func testTBufferedServer(t *testing.T, queueSize int, testDroppedPackets bool) {
 	span := zipkincore.NewSpan()
 	span.Name = "span1"
 
-	err = client.EmitZipkinBatch([]*zipkincore.Span{span})
+	err = client.EmitZipkinBatch(context.Background(), []*zipkincore.Span{span})
 	require.NoError(t, err)
 
 	if testDroppedPackets {
 		// because queueSize == 1 for this test, and we're not reading from data chan,
 		// the second packet we send will be dropped by the server
-		err = client.EmitZipkinBatch([]*zipkincore.Span{span})
+		err = client.EmitZipkinBatch(context.Background(), []*zipkincore.Span{span})
 		require.NoError(t, err)
 
 		for i := 0; i < 50; i++ {
@@ -91,7 +92,7 @@ func testTBufferedServer(t *testing.T, queueSize int, testDroppedPackets bool) {
 		protocol.Transport().Write(readBuf.GetBytes())
 		server.DataRecd(readBuf)
 		handler := agent.NewAgentProcessor(inMemReporter)
-		handler.Process(protocol, protocol)
+		handler.Process(context.Background(), protocol, protocol)
 	case <-time.After(time.Second * 1):
 		t.Fatalf("Server should have received span submission")
 	}

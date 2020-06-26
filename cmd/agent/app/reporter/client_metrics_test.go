@@ -15,6 +15,7 @@
 package reporter
 
 import (
+	"context"
 	"fmt"
 	"testing"
 	"time"
@@ -76,7 +77,7 @@ func testClientMetricsWithParams(params ClientMetricsReporterParams, fn func(tr 
 
 func TestClientMetricsReporter_Zipkin(t *testing.T) {
 	testClientMetrics(func(tr *clientMetricsTest) {
-		assert.NoError(t, tr.r.EmitZipkinBatch([]*zipkincore.Span{{}}))
+		assert.NoError(t, tr.r.EmitZipkinBatch(context.Background(), []*zipkincore.Span{{}}))
 		assert.Len(t, tr.mr.ZipkinSpans(), 1)
 	})
 }
@@ -181,7 +182,7 @@ func TestClientMetricsReporter_Jaeger(t *testing.T) {
 					batch.Process.Tags = []*jaeger.Tag{{Key: "client-uuid", VStr: test.clientUUID}}
 				}
 
-				err := tr.r.EmitBatch(batch)
+				err := tr.r.EmitBatch(context.Background(), batch)
 				assert.NoError(t, err)
 				assert.Len(t, tr.mr.Spans(), i+1)
 
@@ -248,7 +249,7 @@ func TestClientMetricsReporter_Expire(t *testing.T) {
 		t.Run("detect new client", func(t *testing.T) {
 			assert.EqualValues(t, 0, getGauge(), "start with gauge=0")
 
-			err := tr.r.EmitBatch(batch)
+			err := tr.r.EmitBatch(context.Background(), batch)
 			assert.NoError(t, err)
 			assert.Len(t, tr.mr.Spans(), 1)
 

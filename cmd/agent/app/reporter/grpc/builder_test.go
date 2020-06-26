@@ -14,6 +14,7 @@
 package grpc
 
 import (
+	"context"
 	"net"
 	"strings"
 	"testing"
@@ -331,7 +332,7 @@ func TestProxyClientTLS(t *testing.T) {
 
 			r := proxy.GetReporter()
 
-			err = r.EmitBatch(&jaeger.Batch{Spans: []*jaeger.Span{{OperationName: "op"}}, Process: &jaeger.Process{ServiceName: "service"}})
+			err = r.EmitBatch(context.Background(), &jaeger.Batch{Spans: []*jaeger.Span{{OperationName: "op"}}, Process: &jaeger.Process{ServiceName: "service"}})
 
 			if test.expectError {
 				require.Error(t, err)

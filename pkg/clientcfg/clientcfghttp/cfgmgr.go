@@ -15,6 +15,7 @@
 package clientcfghttp
 
 import (
+	"context"
 	"errors"
 
 	"github.com/jaegertracing/jaeger/cmd/collector/app/sampling/strategystore"
@@ -38,5 +39,5 @@ func (c *ConfigManager) GetBaggageRestrictions(serviceName string) ([]*baggage.B
 	if c.BaggageManager == nil {
 		return nil, errors.New("baggage restrictions not implemented")
 	}
-	return c.BaggageManager.GetBaggageRestrictions(serviceName)
+	return c.BaggageManager.GetBaggageRestrictions(context.Background(), serviceName)
 }

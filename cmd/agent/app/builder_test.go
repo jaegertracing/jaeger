@@ -16,6 +16,7 @@
 package app
 
 import (
+	"context"
 	"errors"
 	"flag"
 	"fmt"
@@ -173,10 +174,10 @@ func (f fakeCollectorProxy) GetManager() configmanager.ClientConfigManager {
 	return fakeCollectorProxy{}
 }
 
-func (fakeCollectorProxy) EmitZipkinBatch(spans []*zipkincore.Span) (err error) {
+func (fakeCollectorProxy) EmitZipkinBatch(_ context.Context, _ []*zipkincore.Span) (err error) {
 	return nil
 }
-func (fakeCollectorProxy) EmitBatch(batch *jaeger.Batch) (err error) {
+func (fakeCollectorProxy) EmitBatch(_ context.Context, _ *jaeger.Batch) (err error) {
 	return nil
 }
 func (fakeCollectorProxy) Close() error {
@@ -244,7 +245,7 @@ func TestCreateCollectorProxy(t *testing.T) {
 			assert.Nil(t, proxy)
 		} else {
 			require.NoError(t, err)
-			proxy.GetReporter().EmitBatch(jaeger.NewBatch())
+			proxy.GetReporter().EmitBatch(context.Background(), jaeger.NewBatch())
 			metricsFactory.AssertCounterMetrics(t, test.metric)
 		}
 	}

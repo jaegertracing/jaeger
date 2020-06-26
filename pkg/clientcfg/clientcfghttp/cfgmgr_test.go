@@ -15,6 +15,7 @@
 package clientcfghttp
 
 import (
+	"context"
 	"errors"
 	"testing"
 
@@ -40,7 +41,7 @@ type mockBaggageMgr struct {
 	baggageResponse []*baggage.BaggageRestriction
 }
 
-func (m *mockBaggageMgr) GetBaggageRestrictions(serviceName string) ([]*baggage.BaggageRestriction, error) {
+func (m *mockBaggageMgr) GetBaggageRestrictions(_ context.Context, serviceName string) ([]*baggage.BaggageRestriction, error) {
 	if m.baggageResponse == nil {
 		return nil, errors.New("no mock response provided")
 	}

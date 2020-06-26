@@ -17,6 +17,7 @@ package customtransport
 
 import (
 	"bytes"
+	"context"
 
 	"github.com/apache/thrift/lib/go/thrift"
 )
@@ -25,6 +26,8 @@ import (
 type TBufferedReadTransport struct {
 	readBuf *bytes.Buffer
 }
+
+var _ thrift.TTransport = (*TBufferedReadTransport)(nil)
 
 // NewTBufferedReadTransport creates a buffer backed TTransport
 func NewTBufferedReadTransport(readBuf *bytes.Buffer) (*TBufferedReadTransport, error) {
@@ -69,6 +72,6 @@ func (p *TBufferedReadTransport) Write(buf []byte) (int, error) {
 
 // Flush does nothing as udp server does not write responses back
 // Required to maintain thrift.TTransport interface
-func (p *TBufferedReadTransport) Flush() error {
+func (p *TBufferedReadTransport) Flush(_ context.Context) error {
 	return nil
 }

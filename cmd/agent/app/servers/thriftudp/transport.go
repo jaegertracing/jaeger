@@ -17,6 +17,7 @@ package thriftudp
 
 import (
 	"bytes"
+	"context"
 	"errors"
 	"net"
 	"sync/atomic"
@@ -36,6 +37,8 @@ type TUDPTransport struct {
 	writeBuf bytes.Buffer
 	closed   uint32 // atomic flag
 }
+
+var _ thrift.TTransport = (*TUDPTransport)(nil)
 
 // NewTUDPClientTransport creates a net.UDPConn-backed TTransport for Thrift clients
 // All writes are buffered and flushed in one UDP packet. If locHostPort is not "", it
@@ -141,7 +144,7 @@ func (p *TUDPTransport) Write(buf []byte) (int, error) {
 }
 
 // Flush flushes the write buffer as one udp packet
-func (p *TUDPTransport) Flush() error {
+func (p *TUDPTransport) Flush(_ context.Context) error {
 	if !p.IsOpen() {
 		return thrift.NewTTransportException(thrift.NOT_OPEN, "Connection not open")
 	}

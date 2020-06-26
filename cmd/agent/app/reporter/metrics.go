@@ -15,6 +15,8 @@
 package reporter
 
 import (
+	"context"
+
 	"github.com/uber/jaeger-lib/metrics"
 
 	"github.com/jaegertracing/jaeger/thrift-gen/jaeger"
@@ -68,19 +70,19 @@ func WrapWithMetrics(reporter Reporter, mFactory metrics.Factory) *MetricsReport
 }
 
 // EmitZipkinBatch emits batch to collector.
-func (r *MetricsReporter) EmitZipkinBatch(spans []*zipkincore.Span) error {
-	err := r.wrapped.EmitZipkinBatch(spans)
+func (r *MetricsReporter) EmitZipkinBatch(ctx context.Context, spans []*zipkincore.Span) error {
+	err := r.wrapped.EmitZipkinBatch(ctx, spans)
 	updateMetrics(r.metrics[zipkinBatches], int64(len(spans)), err)
 	return err
 }
 
 // EmitBatch emits batch to collector.
-func (r *MetricsReporter) EmitBatch(batch *jaeger.Batch) error {
+func (r *MetricsReporter) EmitBatch(ctx context.Context, batch *jaeger.Batch) error {
 	size := int64(0)
 	if batch != nil {
 		size = int64(len(batch.GetSpans()))
 	}
-	err := r.wrapped.EmitBatch(batch)
+	err := r.wrapped.EmitBatch(ctx, batch)
 	updateMetrics(r.metrics[jaegerBatches], size, err)
 	return err
 }

@@ -33,7 +33,6 @@ import (
 	"github.com/jaegertracing/jaeger/cmd/agent/app/servers/thriftudp"
 	"github.com/jaegertracing/jaeger/ports"
 	zipkinThrift "github.com/jaegertracing/jaeger/thrift-gen/agent"
-	jaegerThrift "github.com/jaegertracing/jaeger/thrift-gen/jaeger"
 )
 
 const (
@@ -136,9 +135,7 @@ func (b *Builder) getProcessors(rep reporter.Reporter, mFactory metrics.Factory,
 		}
 		var handler processors.AgentProcessor
 		switch cfg.Model {
-		case jaegerModel:
-			handler = jaegerThrift.NewAgentProcessor(rep)
-		case zipkinModel:
+		case jaegerModel, zipkinModel:
 			handler = zipkinThrift.NewAgentProcessor(rep)
 		default:
 			return nil, fmt.Errorf("cannot find agent processor for data model %v", cfg.Model)
