@@ -39,8 +39,6 @@ type InboundTransport string
 const (
 	// GRPCTransport indicates spans received over gRPC.
 	GRPCTransport InboundTransport = "grpc"
-	// TChannelTransport indicates spans received over TChannel.
-	TChannelTransport InboundTransport = "tchannel"
 	// HTTPTransport indicates spans received over HTTP.
 	HTTPTransport InboundTransport = "http"
 	// UnknownTransport is the fallback/catch-all category.
