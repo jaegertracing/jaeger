@@ -16,6 +16,7 @@
 package processors
 
 import (
+	"context"
 	"fmt"
 	"sync"
 
@@ -49,7 +50,7 @@ type ThriftProcessor struct {
 // code, e.g. jaegerThrift.NewAgentProcessor(handler), where handler implements the Agent
 // Thrift service interface, which is invoked with the deserialized struct.
 type AgentProcessor interface {
-	Process(iprot, oprot thrift.TProtocol) (success bool, err thrift.TException)
+	Process(ctx context.Context, iprot, oprot thrift.TProtocol) (success bool, err thrift.TException)
 }
 
 // NewThriftProcessor creates a TBufferedServer backed ThriftProcessor
@@ -118,7 +119,7 @@ func (s *ThriftProcessor) processBuffer() {
 		protocol.Transport().Write(payload)
 		s.logger.Debug("Span(s) received by the agent", zap.Int("bytes-received", len(payload)))
 
-		if ok, err := s.handler.Process(protocol, protocol); !ok {
+		if ok, err := s.handler.Process(context.Background(), protocol, protocol); !ok {
 			s.logger.Error("Processor failed", zap.Error(err))
 			s.metrics.HandlerProcessError.Inc(1)
 		}

@@ -15,11 +15,13 @@
 package strategystore
 
 import (
+	"context"
+
 	"github.com/jaegertracing/jaeger/thrift-gen/sampling"
 )
 
 // StrategyStore keeps track of service specific sampling strategies.
 type StrategyStore interface {
 	// GetSamplingStrategy retrieves the sampling strategy for the specified service.
-	GetSamplingStrategy(serviceName string) (*sampling.SamplingStrategyResponse, error)
+	GetSamplingStrategy(ctx context.Context, serviceName string) (*sampling.SamplingStrategyResponse, error)
 }

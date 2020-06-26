@@ -49,12 +49,12 @@ func NewReporter(conn *grpc.ClientConn, agentTags map[string]string, logger *zap
 }
 
 // EmitBatch implements EmitBatch() of Reporter
-func (r *Reporter) EmitBatch(b *thrift.Batch) error {
-	return r.send(jConverter.ToDomain(b.Spans, nil), jConverter.ToDomainProcess(b.Process))
+func (r *Reporter) EmitBatch(ctx context.Context, b *thrift.Batch) error {
+	return r.send(ctx, jConverter.ToDomain(b.Spans, nil), jConverter.ToDomainProcess(b.Process))
 }
 
 // EmitZipkinBatch implements EmitZipkinBatch() of Reporter
-func (r *Reporter) EmitZipkinBatch(zSpans []*zipkincore.Span) error {
+func (r *Reporter) EmitZipkinBatch(ctx context.Context, zSpans []*zipkincore.Span) error {
 	for i := range zSpans {
 		zSpans[i] = r.sanitizer.Sanitize(zSpans[i])
 	}
@@ -62,14 +62,14 @@ func (r *Reporter) EmitZipkinBatch(zSpans []*zipkincore.Span) error {
 	if err != nil {
 		return err
 	}
-	return r.send(trace.Spans, nil)
+	return r.send(ctx, trace.Spans, nil)
 }
 
-func (r *Reporter) send(spans []*model.Span, process *model.Process) error {
+func (r *Reporter) send(ctx context.Context, spans []*model.Span, process *model.Process) error {
 	spans, process = addProcessTags(spans, process, r.agentTags)
 	batch := model.Batch{Spans: spans, Process: process}
 	req := &api_v2.PostSpansRequest{Batch: batch}
-	_, err := r.collector.PostSpans(context.Background(), req)
+	_, err := r.collector.PostSpans(ctx, req)
 	if err != nil {
 		r.logger.Error("Could not send spans over gRPC", zap.Error(err))
 	}
