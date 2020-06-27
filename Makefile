@@ -108,7 +108,7 @@ storage-integration-test: go-gen
 	go clean -testcache
 	bash -c "set -e; set -o pipefail; $(GOTEST) $(STORAGE_PKGS) | $(COLORIZE)"
 
-.PHONE: test-compile-es-scripts
+.PHONY: test-compile-es-scripts
 test-compile-es-scripts:
 	docker run --rm -it -v ${PWD}:/tmp/jaeger python:3-alpine /usr/local/bin/python -m py_compile /tmp/jaeger/plugin/storage/es/esRollover.py
 	docker run --rm -it -v ${PWD}:/tmp/jaeger python:3-alpine /usr/local/bin/python -m py_compile /tmp/jaeger/plugin/storage/es/esCleaner.py
@@ -189,7 +189,7 @@ go-lint:
 	@$(GOLINT) $(ALL_PKGS) | grep -v _nolint.go >> $(LINT_LOG) || true;
 	@[ ! -s "$(LINT_LOG)" ] || (echo "Lint Failures" | cat - $(LINT_LOG) && false)
 
-.PHONE: elasticsearch-mappings
+.PHONY: elasticsearch-mappings
 elasticsearch-mappings:
 	esc -pkg mappings -o plugin/storage/es/mappings/gen_assets.go -ignore assets -prefix plugin/storage/es/mappings plugin/storage/es/mappings
 
@@ -202,7 +202,7 @@ build-examples:
 build-tracegen:
 	$(GOBUILD) -o ./cmd/tracegen/tracegen-$(GOOS)-$(GOARCH) ./cmd/tracegen/main.go
 
-.PHONE: docker-hotrod
+.PHONY: docker-hotrod
 docker-hotrod:
 	GOOS=linux $(MAKE) build-examples
 	docker build -t $(DOCKER_NAMESPACE)/example-hotrod:${DOCKER_TAG} ./examples/hotrod --build-arg ARCH=$(GOARCH)
