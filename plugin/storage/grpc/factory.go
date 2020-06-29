@@ -15,6 +15,7 @@
 package grpc
 
 import (
+	"context"
 	"flag"
 	"fmt"
 
@@ -24,6 +25,7 @@ import (
 
 	"github.com/jaegertracing/jaeger/plugin/storage/grpc/config"
 	"github.com/jaegertracing/jaeger/plugin/storage/grpc/shared"
+	"github.com/jaegertracing/jaeger/storage"
 	"github.com/jaegertracing/jaeger/storage/dependencystore"
 	"github.com/jaegertracing/jaeger/storage/spanstore"
 )
@@ -88,4 +90,22 @@ func (f *Factory) CreateSpanWriter() (spanstore.Writer, error) {
 // CreateDependencyReader implements storage.Factory
 func (f *Factory) CreateDependencyReader() (dependencystore.Reader, error) {
 	return f.store.DependencyReader(), nil
+}
+
+// CreateArchiveSpanReader implements storage.ArchiveFactory
+func (f *Factory) CreateArchiveSpanReader() (spanstore.Reader, error) {
+	supported, _ := f.store.ArchiveSpanReader().ArchiveSupported(context.Background())
+	if !supported {
+		return nil, storage.ErrArchiveStorageNotSupported
+	}
+	return &ArchiveReader{impl: f.store.ArchiveSpanReader()}, nil
+}
+
+// CreateArchiveSpanWriter implements storage.ArchiveFactory
+func (f *Factory) CreateArchiveSpanWriter() (spanstore.Writer, error) {
+	supported, _ := f.store.ArchiveSpanReader().ArchiveSupported(context.Background())
+	if !supported {
+		return nil, storage.ErrArchiveStorageNotSupported
+	}
+	return &ArchiveWriter{impl: f.store.ArchiveSpanWriter()}, nil
 }

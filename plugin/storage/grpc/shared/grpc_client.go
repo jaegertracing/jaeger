@@ -20,6 +20,7 @@ import (
 	"io"
 	"time"
 
+	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/metadata"
 	"google.golang.org/grpc/status"
 
@@ -31,9 +32,11 @@ import (
 
 // grpcClient implements shared.StoragePlugin and reads/writes spans and dependencies
 type grpcClient struct {
-	readerClient     storage_v1.SpanReaderPluginClient
-	writerClient     storage_v1.SpanWriterPluginClient
-	depsReaderClient storage_v1.DependenciesReaderPluginClient
+	readerClient        storage_v1.SpanReaderPluginClient
+	writerClient        storage_v1.SpanWriterPluginClient
+	archiveReaderClient storage_v1.ArchiveSpanReaderPluginClient
+	archiveWriterClient storage_v1.ArchiveSpanWriterPluginClient
+	depsReaderClient    storage_v1.DependenciesReaderPluginClient
 }
 
 // upgradeContextWithBearerToken turns the context into a gRPC outgoing context with bearer token
@@ -65,6 +68,14 @@ func (c *grpcClient) SpanWriter() spanstore.Writer {
 	return c
 }
 
+func (c *grpcClient) ArchiveSpanReader() ArchiveReader {
+	return c
+}
+
+func (c *grpcClient) ArchiveSpanWriter() ArchiveWriter {
+	return c
+}
+
 // GetTrace takes a traceID and returns a Trace associated with that traceID
 func (c *grpcClient) GetTrace(ctx context.Context, traceID model.TraceID) (*model.Trace, error) {
 	stream, err := c.readerClient.GetTrace(upgradeContextWithBearerToken(ctx), &storage_v1.GetTraceRequest{
@@ -74,23 +85,7 @@ func (c *grpcClient) GetTrace(ctx context.Context, traceID model.TraceID) (*mode
 		return nil, fmt.Errorf("plugin error: %w", err)
 	}
 
-	trace := model.Trace{}
-	for received, err := stream.Recv(); err != io.EOF; received, err = stream.Recv() {
-		if err != nil {
-			if s, _ := status.FromError(err); s != nil {
-				if s.Message() == spanstore.ErrTraceNotFound.Error() {
-					return nil, spanstore.ErrTraceNotFound
-				}
-			}
-			return nil, fmt.Errorf("grpc stream error: %w", err)
-		}
-
-		for i := range received.Spans {
-			trace.Spans = append(trace.Spans, &received.Spans[i])
-		}
-	}
-
-	return &trace, nil
+	return readTrace(stream)
 }
 
 // GetServices returns a list of all known services
@@ -153,8 +148,8 @@ func (c *grpcClient) FindTraces(ctx context.Context, query *spanstore.TraceQuery
 	}
 
 	var traces []*model.Trace
-	var trace *model.Trace
 	var traceID model.TraceID
+	trace := &model.Trace{}
 	for received, err := stream.Recv(); err != io.EOF; received, err = stream.Recv() {
 		if err != nil {
 			return nil, fmt.Errorf("stream error: %w", err)
@@ -216,4 +211,60 @@ func (c *grpcClient) GetDependencies(ctx context.Context, endTs time.Time, lookb
 	}
 
 	return resp.Dependencies, nil
+}
+
+// WriteArchiveSpan saves the span in archive storage
+func (c *grpcClient) WriteArchiveSpan(span *model.Span) error {
+	_, err := c.archiveWriterClient.WriteArchiveSpan(context.Background(), &storage_v1.WriteSpanRequest{
+		Span: span,
+	})
+	if err != nil {
+		return fmt.Errorf("plugin error: %w", err)
+	}
+
+	return nil
+}
+
+// GetArchiveTrace takes a traceID and returns a Trace associated with that traceID from archive storage
+func (c *grpcClient) GetArchiveTrace(ctx context.Context, traceID model.TraceID) (*model.Trace, error) {
+	stream, err := c.archiveReaderClient.GetArchiveTrace(upgradeContextWithBearerToken(ctx), &storage_v1.GetTraceRequest{
+		TraceID: traceID,
+	})
+	if err != nil {
+		return nil, fmt.Errorf("plugin error: %w", err)
+	}
+
+	return readTrace(stream)
+}
+
+func readTrace(stream storage_v1.SpanReaderPlugin_GetTraceClient) (*model.Trace, error) {
+	trace := model.Trace{}
+	for received, err := stream.Recv(); err != io.EOF; received, err = stream.Recv() {
+		if err != nil {
+			if e, ok := status.FromError(err); !ok {
+				if e.Message() == spanstore.ErrTraceNotFound.Error() {
+					return nil, spanstore.ErrTraceNotFound
+				}
+			}
+			return nil, fmt.Errorf("grpc stream error: %w", err)
+		}
+
+		for i := range received.Spans {
+			trace.Spans = append(trace.Spans, &received.Spans[i])
+		}
+	}
+
+	return &trace, nil
+}
+
+func (c *grpcClient) ArchiveSupported(ctx context.Context) (bool, error) {
+	response, err := c.archiveReaderClient.ArchiveSupported(ctx, &storage_v1.ArchiveSupportedRequest{})
+	if status.Code(err) == codes.Unimplemented {
+		return false, nil
+	}
+	if err != nil {
+		return false, fmt.Errorf("plugin error: %w", err)
+	}
+
+	return response.Supported, nil
 }
