@@ -18,6 +18,8 @@ import (
 	"context"
 
 	"go.uber.org/zap"
+	"google.golang.org/grpc/codes"
+	"google.golang.org/grpc/status"
 
 	"github.com/jaegertracing/jaeger/cmd/collector/app/processor"
 	"github.com/jaegertracing/jaeger/proto-gen/api_v2"
@@ -49,6 +51,9 @@ func (g *GRPCHandler) PostSpans(ctx context.Context, r *api_v2.PostSpansRequest)
 		SpanFormat:       processor.ProtoSpanFormat,
 	})
 	if err != nil {
+		if err == processor.ErrBusy {
+			return nil, status.Errorf(codes.ResourceExhausted, err.Error())
+		}
 		g.logger.Error("cannot process spans", zap.Error(err))
 		return nil, err
 	}

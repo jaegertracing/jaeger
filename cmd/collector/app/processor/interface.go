@@ -15,10 +15,14 @@
 package processor
 
 import (
+	"errors"
 	"io"
 
 	"github.com/jaegertracing/jaeger/model"
 )
+
+// ErrBusy signalizes that processor cannot process incoming data
+var ErrBusy = errors.New("server busy")
 
 // SpansOptions additional options passed to processor along with the spans.
 type SpansOptions struct {

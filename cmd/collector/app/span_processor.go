@@ -16,7 +16,6 @@
 package app
 
 import (
-	"fmt"
 	"sync"
 	"time"
 
@@ -164,7 +163,7 @@ func (sp *spanProcessor) ProcessSpans(mSpans []*model.Span, options processor.Sp
 	for i, mSpan := range mSpans {
 		ok := sp.enqueueSpan(mSpan, options.SpanFormat, options.InboundTransport)
 		if !ok && sp.reportBusy {
-			return nil, fmt.Errorf("server busy")
+			return nil, processor.ErrBusy
 		}
 		retMe[i] = ok
 	}
