@@ -134,6 +134,15 @@ message FindTraceIDsResponse {
     ];
 }
 
+// empty; extensible in the future
+message ArchiveSupportedRequest {
+
+}
+
+message ArchiveSupportedResponse {
+    bool supported = 1;
+}
+
 service SpanWriterPlugin {
     // spanstore/Writer
     rpc WriteSpan(WriteSpanRequest) returns (WriteSpanResponse);
@@ -146,6 +155,17 @@ service SpanReaderPlugin {
     rpc GetOperations(GetOperationsRequest) returns (GetOperationsResponse);
     rpc FindTraces(FindTracesRequest) returns (stream SpansResponseChunk);
     rpc FindTraceIDs(FindTraceIDsRequest) returns (FindTraceIDsResponse);
+}
+
+service ArchiveSpanWriterPlugin {
+    // spanstore/Writer
+    rpc WriteArchiveSpan(WriteSpanRequest) returns (WriteSpanResponse);
+}
+
+service ArchiveSpanReaderPlugin {
+    // spanstore/Reader
+    rpc GetArchiveTrace(GetTraceRequest) returns (stream SpansResponseChunk);
+    rpc ArchiveSupported(ArchiveSupportedRequest) returns (ArchiveSupportedResponse);
 }
 
 service DependenciesReaderPlugin {

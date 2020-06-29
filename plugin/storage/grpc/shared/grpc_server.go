@@ -160,3 +160,34 @@ func (s *grpcServer) sendSpans(spans []*model.Span, sendFn func(*storage_v1.Span
 
 	return nil
 }
+
+func (s *grpcServer) ArchiveSupported(ctx context.Context, request *storage_v1.ArchiveSupportedRequest) (*storage_v1.ArchiveSupportedResponse, error) {
+	supported, err := s.Impl.ArchiveSpanReader().ArchiveSupported(ctx)
+	if err != nil {
+		return nil, err
+	}
+
+	return &storage_v1.ArchiveSupportedResponse{Supported: supported}, nil
+}
+
+func (s *grpcServer) GetArchiveTrace(r *storage_v1.GetTraceRequest, stream storage_v1.ArchiveSpanReaderPlugin_GetArchiveTraceServer) error {
+	trace, err := s.Impl.ArchiveSpanReader().GetArchiveTrace(stream.Context(), r.TraceID)
+	if err != nil {
+		return err
+	}
+
+	err = s.sendSpans(trace.Spans, stream.Send)
+	if err != nil {
+		return err
+	}
+
+	return nil
+}
+
+func (s *grpcServer) WriteArchiveSpan(ctx context.Context, r *storage_v1.WriteSpanRequest) (*storage_v1.WriteSpanResponse, error) {
+	err := s.Impl.ArchiveSpanWriter().WriteArchiveSpan(r.Span)
+	if err != nil {
+		return nil, err
+	}
+	return &storage_v1.WriteSpanResponse{}, nil
+}
