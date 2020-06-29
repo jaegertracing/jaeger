@@ -28,7 +28,7 @@ import (
 
 type mockSamplingStore struct{}
 
-func (s mockSamplingStore) GetSamplingStrategy(serviceName string) (*sampling.SamplingStrategyResponse, error) {
+func (s mockSamplingStore) GetSamplingStrategy(ctx context.Context, serviceName string) (*sampling.SamplingStrategyResponse, error) {
 	if serviceName == "error" {
 		return nil, errors.New("some error")
 	} else if serviceName == "nil" {

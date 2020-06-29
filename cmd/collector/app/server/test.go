@@ -15,6 +15,8 @@
 package server
 
 import (
+	"context"
+
 	"github.com/jaegertracing/jaeger/cmd/collector/app/processor"
 	"github.com/jaegertracing/jaeger/model"
 	"github.com/jaegertracing/jaeger/thrift-gen/sampling"
@@ -22,7 +24,7 @@ import (
 
 type mockSamplingStore struct{}
 
-func (s mockSamplingStore) GetSamplingStrategy(serviceName string) (*sampling.SamplingStrategyResponse, error) {
+func (s mockSamplingStore) GetSamplingStrategy(_ context.Context, serviceName string) (*sampling.SamplingStrategyResponse, error) {
 	return nil, nil
 }
 

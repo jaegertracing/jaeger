@@ -17,6 +17,7 @@ package handler
 
 import (
 	"bytes"
+	"context"
 	"fmt"
 	"io/ioutil"
 	"net/http"
@@ -72,7 +73,7 @@ func TestThriftFormat(t *testing.T) {
 	spans := []*jaeger.Span{span}
 	batch := jaeger.Batch{Process: process, Spans: spans}
 	tser := thrift.NewTSerializer()
-	someBytes, err := tser.Write(&batch)
+	someBytes, err := tser.Write(context.Background(), &batch)
 	assert.NoError(t, err)
 	assert.NotEmpty(t, someBytes)
 	server, handler := initializeTestServer(nil)
@@ -136,7 +137,7 @@ func TestBadBody(t *testing.T) {
 	statusCode, resBodyStr, err := postBytes("application/x-thrift", server.URL+`/api/traces`, bodyBytes)
 	assert.NoError(t, err)
 	assert.EqualValues(t, http.StatusBadRequest, statusCode)
-	assert.EqualValues(t, "Unable to process request body: *jaeger.Batch field 25711 read error: unexpected EOF\n", resBodyStr)
+	assert.EqualValues(t, "Unable to process request body: Unknown data type 110\n", resBodyStr)
 }
 
 func TestWrongFormat(t *testing.T) {

@@ -7,7 +7,7 @@ require (
 	github.com/DataDog/zstd v1.4.4 // indirect
 	github.com/Shopify/sarama v1.22.2-0.20190604114437-cd910a683f9f
 	github.com/VividCortex/gohistogram v1.0.0 // indirect
-	github.com/apache/thrift v0.0.0-20151001171628-53dd39833a08
+	github.com/apache/thrift v0.13.0
 	github.com/asaskevich/govalidator v0.0.0-20200108200545-475eaeb16496 // indirect
 	github.com/bsm/sarama-cluster v2.1.13+incompatible
 	github.com/codahale/hdrhistogram v0.0.0-20161010025455-3a0bb77429bd // indirect

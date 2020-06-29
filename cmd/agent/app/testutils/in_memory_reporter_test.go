@@ -16,6 +16,7 @@
 package testutils
 
 import (
+	"context"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
@@ -26,10 +27,10 @@ import (
 
 func TestInMemoryReporter(t *testing.T) {
 	r := NewInMemoryReporter()
-	e1 := r.EmitZipkinBatch([]*zipkincore.Span{
+	e1 := r.EmitZipkinBatch(context.Background(), []*zipkincore.Span{
 		{},
 	})
-	e2 := r.EmitBatch(&jaeger.Batch{
+	e2 := r.EmitBatch(context.Background(), &jaeger.Batch{
 		Spans: []*jaeger.Span{
 			{},
 		},

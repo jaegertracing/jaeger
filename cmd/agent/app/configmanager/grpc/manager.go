@@ -39,8 +39,8 @@ func NewConfigManager(conn *grpc.ClientConn) *SamplingManager {
 }
 
 // GetSamplingStrategy returns sampling strategies from collector.
-func (s *SamplingManager) GetSamplingStrategy(serviceName string) (*sampling.SamplingStrategyResponse, error) {
-	r, err := s.client.GetSamplingStrategy(context.Background(), &api_v2.SamplingStrategyParameters{ServiceName: serviceName})
+func (s *SamplingManager) GetSamplingStrategy(ctx context.Context, serviceName string) (*sampling.SamplingStrategyResponse, error) {
+	r, err := s.client.GetSamplingStrategy(ctx, &api_v2.SamplingStrategyParameters{ServiceName: serviceName})
 	if err != nil {
 		return nil, err
 	}
@@ -48,6 +48,6 @@ func (s *SamplingManager) GetSamplingStrategy(serviceName string) (*sampling.Sam
 }
 
 // GetBaggageRestrictions returns baggage restrictions from collector.
-func (s *SamplingManager) GetBaggageRestrictions(serviceName string) ([]*baggage.BaggageRestriction, error) {
+func (s *SamplingManager) GetBaggageRestrictions(_ context.Context, _ string) ([]*baggage.BaggageRestriction, error) {
 	return nil, errors.New("baggage not implemented")
 }

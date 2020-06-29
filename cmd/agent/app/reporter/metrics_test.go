@@ -15,6 +15,7 @@
 package reporter
 
 import (
+	"context"
 	"errors"
 	"testing"
 	"time"
@@ -41,7 +42,7 @@ func TestMetricsReporter(t *testing.T) {
 		}, expectedGauges: []metricstest.ExpectedMetric{
 			{Name: "reporter.batch_size", Tags: map[string]string{"format": "jaeger"}, Value: 0},
 		}, action: func(reporter Reporter) {
-			err := reporter.EmitBatch(nil)
+			err := reporter.EmitBatch(context.Background(), nil)
 			require.NoError(t, err)
 		}, rep: &mockReporter{}},
 		{expectedCounters: []metricstest.ExpectedMetric{
@@ -52,7 +53,7 @@ func TestMetricsReporter(t *testing.T) {
 		}, expectedGauges: []metricstest.ExpectedMetric{
 			{Name: "reporter.batch_size", Tags: map[string]string{"format": "jaeger"}, Value: 1},
 		}, action: func(reporter Reporter) {
-			err := reporter.EmitBatch(&jaeger.Batch{Spans: []*jaeger.Span{{}}})
+			err := reporter.EmitBatch(context.Background(), &jaeger.Batch{Spans: []*jaeger.Span{{}}})
 			require.NoError(t, err)
 		}, rep: &mockReporter{}},
 		{expectedCounters: []metricstest.ExpectedMetric{
@@ -63,7 +64,7 @@ func TestMetricsReporter(t *testing.T) {
 		}, expectedGauges: []metricstest.ExpectedMetric{
 			{Name: "reporter.batch_size", Tags: map[string]string{"format": "zipkin"}, Value: 0},
 		}, action: func(reporter Reporter) {
-			err := reporter.EmitZipkinBatch(nil)
+			err := reporter.EmitZipkinBatch(context.Background(), nil)
 			require.NoError(t, err)
 		}, rep: &mockReporter{}},
 		{expectedCounters: []metricstest.ExpectedMetric{
@@ -74,7 +75,7 @@ func TestMetricsReporter(t *testing.T) {
 		}, expectedGauges: []metricstest.ExpectedMetric{
 			{Name: "reporter.batch_size", Tags: map[string]string{"format": "zipkin"}, Value: 1},
 		}, action: func(reporter Reporter) {
-			err := reporter.EmitZipkinBatch([]*zipkincore.Span{{}})
+			err := reporter.EmitZipkinBatch(context.Background(), []*zipkincore.Span{{}})
 			require.NoError(t, err)
 		}, rep: &mockReporter{}},
 		{expectedCounters: []metricstest.ExpectedMetric{
@@ -85,7 +86,7 @@ func TestMetricsReporter(t *testing.T) {
 		}, expectedGauges: []metricstest.ExpectedMetric{
 			{Name: "reporter.batch_size", Tags: map[string]string{"format": "jaeger"}, Value: 0},
 		}, action: func(reporter Reporter) {
-			err := reporter.EmitBatch(&jaeger.Batch{Spans: []*jaeger.Span{{}}})
+			err := reporter.EmitBatch(context.Background(), &jaeger.Batch{Spans: []*jaeger.Span{{}}})
 			require.Error(t, err)
 		}, rep: &mockReporter{err: errors.New("foo")}},
 		{expectedCounters: []metricstest.ExpectedMetric{
@@ -94,7 +95,7 @@ func TestMetricsReporter(t *testing.T) {
 		}, expectedGauges: []metricstest.ExpectedMetric{
 			{Name: "reporter.batch_size", Tags: map[string]string{"format": "zipkin"}, Value: 0},
 		}, action: func(reporter Reporter) {
-			err := reporter.EmitZipkinBatch([]*zipkincore.Span{{}, {}})
+			err := reporter.EmitZipkinBatch(context.Background(), []*zipkincore.Span{{}, {}})
 			require.Error(t, err)
 		}, rep: &mockReporter{errors.New("foo")}},
 	}

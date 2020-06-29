@@ -16,6 +16,8 @@
 package configmanager
 
 import (
+	"context"
+
 	"github.com/jaegertracing/jaeger/thrift-gen/baggage"
 	"github.com/jaegertracing/jaeger/thrift-gen/sampling"
 )
@@ -24,6 +26,6 @@ import (
 // 1) which sampling strategy a given service should be using
 // 2) which baggage restrictions a given service should be using.
 type ClientConfigManager interface {
-	GetSamplingStrategy(serviceName string) (*sampling.SamplingStrategyResponse, error)
-	GetBaggageRestrictions(serviceName string) ([]*baggage.BaggageRestriction, error)
+	GetSamplingStrategy(ctx context.Context, serviceName string) (*sampling.SamplingStrategyResponse, error)
+	GetBaggageRestrictions(ctx context.Context, serviceName string) ([]*baggage.BaggageRestriction, error)
 }

@@ -15,6 +15,7 @@
 package reporter
 
 import (
+	"context"
 	"sync"
 	"time"
 
@@ -110,14 +111,14 @@ func WrapWithClientMetrics(params ClientMetricsReporterParams) *ClientMetricsRep
 }
 
 // EmitZipkinBatch delegates to underlying Reporter.
-func (r *ClientMetricsReporter) EmitZipkinBatch(spans []*zipkincore.Span) error {
-	return r.params.Reporter.EmitZipkinBatch(spans)
+func (r *ClientMetricsReporter) EmitZipkinBatch(ctx context.Context, spans []*zipkincore.Span) error {
+	return r.params.Reporter.EmitZipkinBatch(ctx, spans)
 }
 
 // EmitBatch processes client data loss metrics and delegates to the underlying reporter.
-func (r *ClientMetricsReporter) EmitBatch(batch *jaeger.Batch) error {
+func (r *ClientMetricsReporter) EmitBatch(ctx context.Context, batch *jaeger.Batch) error {
 	r.updateClientMetrics(batch)
-	return r.params.Reporter.EmitBatch(batch)
+	return r.params.Reporter.EmitBatch(ctx, batch)
 }
 
 // Close stops background gc goroutine for client stats map.

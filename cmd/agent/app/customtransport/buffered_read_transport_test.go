@@ -17,6 +17,7 @@ package customtransport
 
 import (
 	"bytes"
+	"context"
 	"testing"
 
 	"github.com/stretchr/testify/require"
@@ -58,7 +59,7 @@ func TestTBufferedReadTransportEmptyFunctions(t *testing.T) {
 	err = trans.Close()
 	require.Nil(t, err)
 
-	err = trans.Flush()
+	err = trans.Flush(context.Background())
 	require.Nil(t, err)
 
 	n, err := trans.Write(byteArr)

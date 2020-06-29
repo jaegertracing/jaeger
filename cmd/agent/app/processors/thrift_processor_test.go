@@ -16,6 +16,7 @@
 package processors
 
 import (
+	"context"
 	"errors"
 	"testing"
 	"time"
@@ -108,7 +109,7 @@ func TestProcessorWithCompactZipkin(t *testing.T) {
 	span.Name = testSpanName
 	span.Annotations = []*zipkincore.Annotation{{Value: zipkincore.CLIENT_SEND, Host: &zipkincore.Endpoint{ServiceName: "foo"}}}
 
-	err = client.EmitZipkinBatch([]*zipkincore.Span{span})
+	err = client.EmitZipkinBatch(context.Background(), []*zipkincore.Span{span})
 	require.NoError(t, err)
 
 	assertZipkinProcessorCorrectness(t, collector, metricsFactory)
@@ -118,7 +119,7 @@ type failingHandler struct {
 	err error
 }
 
-func (h failingHandler) Process(iprot, oprot thrift.TProtocol) (success bool, err thrift.TException) {
+func (h failingHandler) Process(_ context.Context, iprot, oprot thrift.TProtocol) (success bool, err thrift.TException) {
 	return false, thrift.NewTApplicationException(0, h.err.Error())
 }
 
@@ -134,7 +135,7 @@ func TestProcessor_HandlerError(t *testing.T) {
 	require.NoError(t, err)
 	defer clientCloser.Close()
 
-	err = client.EmitZipkinBatch([]*zipkincore.Span{{Name: testSpanName}})
+	err = client.EmitZipkinBatch(context.Background(), []*zipkincore.Span{{Name: testSpanName}})
 	require.NoError(t, err)
 
 	for i := 0; i < 10; i++ {
@@ -162,12 +163,12 @@ func TestJaegerProcessor(t *testing.T) {
 	for _, test := range tests {
 		metricsFactory, collector, reporter, conn := initCollectorAndReporter(t)
 
-		hostPort, processor := createProcessor(t, metricsFactory, test.factory, jaeger.NewAgentProcessor(reporter))
+		hostPort, processor := createProcessor(t, metricsFactory, test.factory, agent.NewAgentProcessor(reporter))
 
 		client, clientCloser, err := testutils.NewJaegerThriftUDPClient(hostPort, test.factory)
 		require.NoError(t, err)
 
-		err = client.EmitBatch(batch)
+		err = client.EmitBatch(context.Background(), batch)
 		require.NoError(t, err)
 
 		assertJaegerProcessorCorrectness(t, collector, metricsFactory)

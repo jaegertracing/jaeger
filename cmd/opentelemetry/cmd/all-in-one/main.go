@@ -198,10 +198,7 @@ func startQuery(v *viper.Viper, logger *zap.Logger, exporter configmodels.Export
 		*queryServiceOptions)
 
 	tracerCloser := initTracer(logger)
-	server, err := queryApp.NewServer(logger, queryService, queryOpts, opentracing.GlobalTracer())
-	if err != nil {
-		return nil, nil, fmt.Errorf("Could not create jaeger-query service: %w", err)
-	}
+	server := queryApp.NewServer(logger, queryService, queryOpts, opentracing.GlobalTracer())
 	if err := server.Start(); err != nil {
 		return nil, nil, err
 	}

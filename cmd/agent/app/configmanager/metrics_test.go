@@ -15,6 +15,7 @@
 package configmanager
 
 import (
+	"context"
 	"errors"
 	"testing"
 	"time"
@@ -30,13 +31,13 @@ import (
 type noopManager struct {
 }
 
-func (noopManager) GetSamplingStrategy(s string) (*sampling.SamplingStrategyResponse, error) {
+func (noopManager) GetSamplingStrategy(_ context.Context, s string) (*sampling.SamplingStrategyResponse, error) {
 	if s == "failed" {
 		return nil, errors.New("failed")
 	}
 	return &sampling.SamplingStrategyResponse{StrategyType: sampling.SamplingStrategyType_PROBABILISTIC}, nil
 }
-func (noopManager) GetBaggageRestrictions(s string) ([]*baggage.BaggageRestriction, error) {
+func (noopManager) GetBaggageRestrictions(_ context.Context, s string) ([]*baggage.BaggageRestriction, error) {
 	if s == "failed" {
 		return nil, errors.New("failed")
 	}
@@ -67,17 +68,17 @@ func TestMetrics(t *testing.T) {
 		mgr := WrapWithMetrics(&noopManager{}, metricsFactory)
 
 		if test.err != nil {
-			s, err := mgr.GetSamplingStrategy(test.err.Error())
+			s, err := mgr.GetSamplingStrategy(context.Background(), test.err.Error())
 			require.Nil(t, s)
 			assert.EqualError(t, err, test.err.Error())
-			b, err := mgr.GetBaggageRestrictions(test.err.Error())
+			b, err := mgr.GetBaggageRestrictions(context.Background(), test.err.Error())
 			require.Nil(t, b)
 			assert.EqualError(t, err, test.err.Error())
 		} else {
-			s, err := mgr.GetSamplingStrategy("")
+			s, err := mgr.GetSamplingStrategy(context.Background(), "")
 			require.NoError(t, err)
 			require.NotNil(t, s)
-			b, err := mgr.GetBaggageRestrictions("")
+			b, err := mgr.GetBaggageRestrictions(context.Background(), "")
 			require.NoError(t, err)
 			require.NotNil(t, b)
 		}

@@ -16,6 +16,7 @@
 package testutils
 
 import (
+	"context"
 	"sync"
 
 	"github.com/jaegertracing/jaeger/thrift-gen/jaeger"
@@ -38,7 +39,7 @@ func NewInMemoryReporter() *InMemoryReporter {
 }
 
 // EmitZipkinBatch implements the corresponding method of the Reporter interface
-func (i *InMemoryReporter) EmitZipkinBatch(spans []*zipkincore.Span) error {
+func (i *InMemoryReporter) EmitZipkinBatch(_ context.Context, spans []*zipkincore.Span) error {
 	i.mutex.Lock()
 	defer i.mutex.Unlock()
 	i.zSpans = append(i.zSpans, spans...)
@@ -46,7 +47,7 @@ func (i *InMemoryReporter) EmitZipkinBatch(spans []*zipkincore.Span) error {
 }
 
 // EmitBatch implements the corresponding method of the Reporter interface
-func (i *InMemoryReporter) EmitBatch(batch *jaeger.Batch) (err error) {
+func (i *InMemoryReporter) EmitBatch(_ context.Context, batch *jaeger.Batch) (err error) {
 	i.mutex.Lock()
 	defer i.mutex.Unlock()
 	i.jSpans = append(i.jSpans, batch.Spans...)
