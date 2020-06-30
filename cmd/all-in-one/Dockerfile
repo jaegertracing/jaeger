@@ -2,7 +2,7 @@ FROM alpine:latest as certs
 RUN apk add --update --no-cache ca-certificates
 
 FROM scratch
-ARG ARCH=amd64
+ARG TARGETARCH=amd64
 
 COPY --from=certs /etc/ssl/certs/ca-certificates.crt /etc/ssl/certs/ca-certificates.crt
 
@@ -27,7 +27,7 @@ EXPOSE 14250
 # Web HTTP
 EXPOSE 16686
 
-COPY all-in-one-linux-$ARCH /go/bin/all-in-one-linux
+COPY all-in-one-linux-$TARGETARCH /go/bin/all-in-one-linux
 COPY sampling_strategies.json /etc/jaeger/
 
 VOLUME ["/tmp"]

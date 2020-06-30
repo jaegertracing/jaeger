@@ -205,7 +205,7 @@ build-tracegen:
 .PHONY: docker-hotrod
 docker-hotrod:
 	GOOS=linux $(MAKE) build-examples
-	docker build -t $(DOCKER_NAMESPACE)/example-hotrod:${DOCKER_TAG} ./examples/hotrod --build-arg ARCH=$(GOARCH)
+	docker build -t $(DOCKER_NAMESPACE)/example-hotrod:${DOCKER_TAG} ./examples/hotrod --build-arg TARGETARCH=$(GOARCH)
 
 .PHONY: run-all-in-one
 run-all-in-one:
@@ -305,16 +305,16 @@ docker-images-elastic:
 .PHONY: docker-images-jaeger-backend
 docker-images-jaeger-backend:
 	for component in agent collector query ingester ; do \
-		docker build -t $(DOCKER_NAMESPACE)/jaeger-$$component:${DOCKER_TAG} cmd/$$component --build-arg ARCH=$(GOARCH) ; \
+		docker build -t $(DOCKER_NAMESPACE)/jaeger-$$component:${DOCKER_TAG} cmd/$$component --build-arg TARGETARCH=$(GOARCH) ; \
 		echo "Finished building $$component ==============" ; \
 	done
-	docker build -t $(DOCKER_NAMESPACE)/jaeger-opentelemetry-collector:${DOCKER_TAG} -f ${OTEL_COLLECTOR_DIR}/cmd/collector/Dockerfile cmd/opentelemetry/cmd/collector --build-arg ARCH=$(GOARCH)
-	docker build -t $(DOCKER_NAMESPACE)/jaeger-opentelemetry-agent:${DOCKER_TAG} -f ${OTEL_COLLECTOR_DIR}/cmd/agent/Dockerfile cmd/opentelemetry/cmd/agent --build-arg ARCH=$(GOARCH)
-	docker build -t $(DOCKER_NAMESPACE)/jaeger-opentelemetry-ingester:${DOCKER_TAG} -f ${OTEL_COLLECTOR_DIR}/cmd/ingester/Dockerfile cmd/opentelemetry/cmd/ingester --build-arg ARCH=$(GOARCH)
+	docker build -t $(DOCKER_NAMESPACE)/jaeger-opentelemetry-collector:${DOCKER_TAG} -f ${OTEL_COLLECTOR_DIR}/cmd/collector/Dockerfile cmd/opentelemetry/cmd/collector --build-arg TARGETARCH=$(GOARCH)
+	docker build -t $(DOCKER_NAMESPACE)/jaeger-opentelemetry-agent:${DOCKER_TAG} -f ${OTEL_COLLECTOR_DIR}/cmd/agent/Dockerfile cmd/opentelemetry/cmd/agent --build-arg TARGETARCH=$(GOARCH)
+	docker build -t $(DOCKER_NAMESPACE)/jaeger-opentelemetry-ingester:${DOCKER_TAG} -f ${OTEL_COLLECTOR_DIR}/cmd/ingester/Dockerfile cmd/opentelemetry/cmd/ingester --build-arg TARGETARCH=$(GOARCH)
 
 .PHONY: docker-images-tracegen
 docker-images-tracegen:
-	docker build -t $(DOCKER_NAMESPACE)/jaeger-tracegen:${DOCKER_TAG} cmd/tracegen/ --build-arg ARCH=$(GOARCH)
+	docker build -t $(DOCKER_NAMESPACE)/jaeger-tracegen:${DOCKER_TAG} cmd/tracegen/ --build-arg TARGETARCH=$(GOARCH)
 	@echo "Finished building jaeger-tracegen =============="
 
 .PHONY: docker-images-only
