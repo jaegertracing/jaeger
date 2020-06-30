@@ -1,6 +1,6 @@
 module github.com/jaegertracing/jaeger
 
-go 1.13
+go 1.14
 
 require (
 	github.com/AndreasBriese/bbloom v0.0.0-20190825152654-46b345b51c96 // indirect
