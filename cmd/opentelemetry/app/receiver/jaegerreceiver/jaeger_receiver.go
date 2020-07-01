@@ -55,7 +55,7 @@ func (f *Factory) CreateDefaultConfig() configmodels.Receiver {
 	cfg := f.Wrapped.CreateDefaultConfig().(*jaegerreceiver.Config)
 	// disable all ports by resetting the protocols
 	// The custom unmarshaller sets unused protocols to nil, however it is only invoked when parsing the config
-	// The config is not parsed parsed in the default/hardcoded config, hence this fix is required
+	// The config is not parsed in the default/hardcoded config, hence this fix is required
 	cfg.Protocols = jaegerreceiver.Protocols{}
 	cfg.RemoteSampling = createDefaultSamplingConfig(f.Viper)
 	configureAgent(f.Viper, cfg)

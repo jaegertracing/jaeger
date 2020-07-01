@@ -108,10 +108,14 @@ func createReceivers(component ComponentType, zipkinHostPort string, factories c
 	// The CreateDefaultConfig is enabling protocols from flags
 	// we do not want to override it here
 	if jaeger.GRPC == nil {
-		jaeger.GRPC = &configgrpc.GRPCServerSettings{}
+		jaeger.GRPC = &configgrpc.GRPCServerSettings{
+			Endpoint: gRPCEndpoint,
+		}
 	}
 	if jaeger.ThriftHTTP == nil {
-		jaeger.ThriftHTTP = &confighttp.HTTPServerSettings{}
+		jaeger.ThriftHTTP = &confighttp.HTTPServerSettings{
+			Endpoint: httpThriftBinaryEndpoint,
+		}
 	}
 	if component == Agent || component == AllInOne {
 		enableAgentUDPEndpoints(jaeger)
@@ -165,10 +169,14 @@ func createExporters(component ComponentType, storageTypes string, factories con
 
 func enableAgentUDPEndpoints(jaeger *jaegerreceiver.Config) {
 	if jaeger.ThriftCompact == nil {
-		jaeger.ThriftCompact = &configprotocol.ProtocolServerSettings{}
+		jaeger.ThriftCompact = &configprotocol.ProtocolServerSettings{
+			Endpoint: udpThriftCompactEndpoint,
+		}
 	}
 	if jaeger.ThriftBinary == nil {
-		jaeger.ThriftBinary = &configprotocol.ProtocolServerSettings{}
+		jaeger.ThriftBinary = &configprotocol.ProtocolServerSettings{
+			Endpoint: udpThriftBinaryEndpoint,
+		}
 	}
 }
 
