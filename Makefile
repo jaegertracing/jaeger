@@ -251,8 +251,7 @@ build-otel-ingester:
 
 .PHONY: build-otel-all-in-one
 build-otel-all-in-one:
-	# TODO add -tags ui once Jaeger OTEL module depends on master Jaeger version https://github.com/jaegertracing/jaeger/issues/2319
-	cd ${OTEL_COLLECTOR_DIR}/cmd/all-in-one && $(GOBUILD) -o ./opentelemetry-all-in-one-$(GOOS)-$(GOARCH) $(BUILD_INFO) main.go
+	cd ${OTEL_COLLECTOR_DIR}/cmd/all-in-one && $(GOBUILD) -tags ui -o ./opentelemetry-all-in-one-$(GOOS)-$(GOARCH) $(BUILD_INFO) main.go
 
 .PHONY: build-ingester
 build-ingester:

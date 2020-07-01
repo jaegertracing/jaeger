@@ -26,9 +26,10 @@ import (
 	"go.opentelemetry.io/collector/config"
 	"go.opentelemetry.io/collector/config/configerror"
 	"go.opentelemetry.io/collector/config/configgrpc"
+	"go.opentelemetry.io/collector/config/confighttp"
 	"go.opentelemetry.io/collector/config/configmodels"
+	"go.opentelemetry.io/collector/config/configprotocol"
 	"go.opentelemetry.io/collector/config/configtls"
-	"go.opentelemetry.io/collector/receiver"
 	"go.opentelemetry.io/collector/receiver/jaegerreceiver"
 
 	collectorApp "github.com/jaegertracing/jaeger/cmd/collector/app"
@@ -44,7 +45,9 @@ func TestDefaultValues(t *testing.T) {
 	factory := &Factory{Viper: v, Wrapped: &jaegerreceiver.Factory{}}
 	cfg := factory.CreateDefaultConfig().(*jaegerreceiver.Config)
 	assert.Nil(t, cfg.RemoteSampling)
-	assert.Empty(t, cfg.Protocols)
+	assert.Empty(t, cfg.Protocols.ThriftCompact)
+	assert.Empty(t, cfg.Protocols.ThriftBinary)
+	assert.Empty(t, cfg.Protocols.ThriftHTTP)
 }
 
 func TestDefaultValueFromViper(t *testing.T) {
@@ -60,15 +63,17 @@ func TestDefaultValueFromViper(t *testing.T) {
 				RemoteSampling: &jaegerreceiver.RemoteSamplingConfig{
 					StrategyFile: "conf.json",
 				},
-				Protocols: map[string]*receiver.SecureReceiverSettings{},
+				Protocols: jaegerreceiver.Protocols{},
 			},
 		},
 		{
 			name:  "thriftCompact",
 			flags: []string{fmt.Sprintf("--%s=%s", thriftCompactHostPort, "localhost:9999")},
 			expected: &jaegerreceiver.Config{
-				Protocols: map[string]*receiver.SecureReceiverSettings{
-					"thrift_compact": {ReceiverSettings: configmodels.ReceiverSettings{Endpoint: "localhost:9999"}},
+				Protocols: jaegerreceiver.Protocols{
+					ThriftCompact: &configprotocol.ProtocolServerSettings{
+						Endpoint: "localhost:9999",
+					},
 				},
 			},
 		},
@@ -76,8 +81,10 @@ func TestDefaultValueFromViper(t *testing.T) {
 			name:  "thriftBinary",
 			flags: []string{fmt.Sprintf("--%s=%s", thriftBinaryHostPort, "localhost:8888")},
 			expected: &jaegerreceiver.Config{
-				Protocols: map[string]*receiver.SecureReceiverSettings{
-					"thrift_binary": {ReceiverSettings: configmodels.ReceiverSettings{Endpoint: "localhost:8888"}},
+				Protocols: jaegerreceiver.Protocols{
+					ThriftBinary: &configprotocol.ProtocolServerSettings{
+						Endpoint: "localhost:8888",
+					},
 				},
 			},
 		},
@@ -85,8 +92,10 @@ func TestDefaultValueFromViper(t *testing.T) {
 			name:  "grpc",
 			flags: []string{fmt.Sprintf("--%s=%s", collectorApp.CollectorGRPCHostPort, "localhost:7894")},
 			expected: &jaegerreceiver.Config{
-				Protocols: map[string]*receiver.SecureReceiverSettings{
-					"grpc": {ReceiverSettings: configmodels.ReceiverSettings{Endpoint: "localhost:7894"}},
+				Protocols: jaegerreceiver.Protocols{
+					GRPC: &configgrpc.GRPCServerSettings{
+						Endpoint: "localhost:7894",
+					},
 				},
 			},
 		},
@@ -94,8 +103,10 @@ func TestDefaultValueFromViper(t *testing.T) {
 			name:  "thriftHttp",
 			flags: []string{fmt.Sprintf("--%s=%s", collectorApp.CollectorHTTPHostPort, "localhost:8080")},
 			expected: &jaegerreceiver.Config{
-				Protocols: map[string]*receiver.SecureReceiverSettings{
-					"thrift_http": {ReceiverSettings: configmodels.ReceiverSettings{Endpoint: "localhost:8080"}},
+				Protocols: jaegerreceiver.Protocols{
+					ThriftHTTP: &confighttp.HTTPServerSettings{
+						Endpoint: "localhost:8080",
+					},
 				},
 			},
 		},
@@ -103,9 +114,13 @@ func TestDefaultValueFromViper(t *testing.T) {
 			name:  "thriftHttpAndThriftBinary",
 			flags: []string{fmt.Sprintf("--%s=%s", collectorApp.CollectorHTTPHostPort, "localhost:8089"), fmt.Sprintf("--%s=%s", thriftBinaryHostPort, "localhost:2222")},
 			expected: &jaegerreceiver.Config{
-				Protocols: map[string]*receiver.SecureReceiverSettings{
-					"thrift_http":   {ReceiverSettings: configmodels.ReceiverSettings{Endpoint: "localhost:8089"}},
-					"thrift_binary": {ReceiverSettings: configmodels.ReceiverSettings{Endpoint: "localhost:2222"}},
+				Protocols: jaegerreceiver.Protocols{
+					ThriftHTTP: &confighttp.HTTPServerSettings{
+						Endpoint: "localhost:8089",
+					},
+					ThriftBinary: &configprotocol.ProtocolServerSettings{
+						Endpoint: "localhost:2222",
+					},
 				},
 			},
 		},
@@ -136,7 +151,7 @@ func TestDefaultValueFromViper(t *testing.T) {
 						},
 					},
 				},
-				Protocols: map[string]*receiver.SecureReceiverSettings{},
+				Protocols: jaegerreceiver.Protocols{},
 			},
 		},
 	}

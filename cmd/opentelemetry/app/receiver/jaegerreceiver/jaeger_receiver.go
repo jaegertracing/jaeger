@@ -19,9 +19,12 @@ import (
 
 	"github.com/spf13/viper"
 	"go.opentelemetry.io/collector/component"
+	"go.opentelemetry.io/collector/config/configgrpc"
+	"go.opentelemetry.io/collector/config/confighttp"
 	"go.opentelemetry.io/collector/config/configmodels"
+	"go.opentelemetry.io/collector/config/configprotocol"
+	"go.opentelemetry.io/collector/config/configtls"
 	"go.opentelemetry.io/collector/consumer"
-	"go.opentelemetry.io/collector/receiver"
 	"go.opentelemetry.io/collector/receiver/jaegerreceiver"
 
 	agentApp "github.com/jaegertracing/jaeger/cmd/agent/app"
@@ -50,6 +53,10 @@ func (f *Factory) Type() configmodels.Type {
 // This function implements OTEL component.ReceiverFactoryBase interface.
 func (f *Factory) CreateDefaultConfig() configmodels.Receiver {
 	cfg := f.Wrapped.CreateDefaultConfig().(*jaegerreceiver.Config)
+	// disable all ports by resetting the protocols
+	// The custom unmarshaller sets unused protocols to nil, however it is only invoked when parsing the config
+	// The config is not parsed in the default/hardcoded config, hence this fix is required
+	cfg.Protocols = jaegerreceiver.Protocols{}
 	cfg.RemoteSampling = createDefaultSamplingConfig(f.Viper)
 	configureAgent(f.Viper, cfg)
 	configureCollector(f.Viper, cfg)
@@ -60,19 +67,13 @@ func configureAgent(v *viper.Viper, cfg *jaegerreceiver.Config) {
 	aOpts := agentApp.Builder{}
 	aOpts.InitFromViper(v)
 	if v.IsSet(thriftBinaryHostPort) {
-		cfg.Protocols["thrift_binary"] = &receiver.SecureReceiverSettings{
-			ReceiverSettings: configmodels.ReceiverSettings{
-				// TODO OTEL does not expose number of workers and queue length
-				Endpoint: v.GetString(thriftBinaryHostPort),
-			},
+		cfg.ThriftBinary = &configprotocol.ProtocolServerSettings{
+			Endpoint: v.GetString(thriftBinaryHostPort),
 		}
 	}
 	if v.IsSet(thriftCompactHostPort) {
-		cfg.Protocols["thrift_compact"] = &receiver.SecureReceiverSettings{
-			ReceiverSettings: configmodels.ReceiverSettings{
-				// TODO OTEL does not expose number of workers and queue length
-				Endpoint: v.GetString(thriftCompactHostPort),
-			},
+		cfg.ThriftCompact = &configprotocol.ProtocolServerSettings{
+			Endpoint: v.GetString(thriftCompactHostPort),
 		}
 	}
 }
@@ -81,24 +82,22 @@ func configureCollector(v *viper.Viper, cfg *jaegerreceiver.Config) {
 	cOpts := collectorApp.CollectorOptions{}
 	cOpts.InitFromViper(v)
 	if v.IsSet(collectorApp.CollectorGRPCHostPort) {
-		cfg.Protocols["grpc"] = &receiver.SecureReceiverSettings{
-			ReceiverSettings: configmodels.ReceiverSettings{
-				Endpoint: cOpts.CollectorGRPCHostPort,
-			},
+		cfg.GRPC = &configgrpc.GRPCServerSettings{
+			Endpoint: cOpts.CollectorGRPCHostPort,
 		}
 		if cOpts.TLS.CertPath != "" && cOpts.TLS.KeyPath != "" {
-			cfg.Protocols["grpc"].TLSCredentials = &receiver.TLSCredentials{
-				// TODO client-ca is missing in OTEL https://github.com/open-telemetry/opentelemetry-collector/issues/963
-				KeyFile:  cOpts.TLS.KeyPath,
-				CertFile: cOpts.TLS.CertPath,
+			cfg.GRPC.TLSSetting = &configtls.TLSServerSetting{
+				ClientCAFile: cOpts.TLS.ClientCAPath,
+				TLSSetting: configtls.TLSSetting{
+					KeyFile:  cOpts.TLS.KeyPath,
+					CertFile: cOpts.TLS.CertPath,
+				},
 			}
 		}
 	}
 	if v.IsSet(collectorApp.CollectorHTTPHostPort) {
-		cfg.Protocols["thrift_http"] = &receiver.SecureReceiverSettings{
-			ReceiverSettings: configmodels.ReceiverSettings{
-				Endpoint: cOpts.CollectorHTTPHostPort,
-			},
+		cfg.ThriftHTTP = &confighttp.HTTPServerSettings{
+			Endpoint: cOpts.CollectorHTTPHostPort,
 		}
 	}
 }

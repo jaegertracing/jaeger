@@ -19,9 +19,11 @@ import (
 	"strings"
 
 	"go.opentelemetry.io/collector/config"
+	"go.opentelemetry.io/collector/config/configgrpc"
+	"go.opentelemetry.io/collector/config/confighttp"
 	"go.opentelemetry.io/collector/config/configmodels"
+	"go.opentelemetry.io/collector/config/configprotocol"
 	"go.opentelemetry.io/collector/processor/resourceprocessor"
-	"go.opentelemetry.io/collector/receiver"
 	"go.opentelemetry.io/collector/receiver/jaegerreceiver"
 	"go.opentelemetry.io/collector/receiver/zipkinreceiver"
 
@@ -105,18 +107,14 @@ func createReceivers(component ComponentType, zipkinHostPort string, factories c
 	jaeger := factories.Receivers["jaeger"].CreateDefaultConfig().(*jaegerreceiver.Config)
 	// The CreateDefaultConfig is enabling protocols from flags
 	// we do not want to override it here
-	if _, ok := jaeger.Protocols["grpc"]; !ok {
-		jaeger.Protocols["grpc"] = &receiver.SecureReceiverSettings{
-			ReceiverSettings: configmodels.ReceiverSettings{
-				Endpoint: gRPCEndpoint,
-			},
+	if jaeger.GRPC == nil {
+		jaeger.GRPC = &configgrpc.GRPCServerSettings{
+			Endpoint: gRPCEndpoint,
 		}
 	}
-	if _, ok := jaeger.Protocols["thrift_http"]; !ok {
-		jaeger.Protocols["thrift_http"] = &receiver.SecureReceiverSettings{
-			ReceiverSettings: configmodels.ReceiverSettings{
-				Endpoint: httpThriftBinaryEndpoint,
-			},
+	if jaeger.ThriftHTTP == nil {
+		jaeger.ThriftHTTP = &confighttp.HTTPServerSettings{
+			Endpoint: httpThriftBinaryEndpoint,
 		}
 	}
 	if component == Agent || component == AllInOne {
@@ -170,18 +168,14 @@ func createExporters(component ComponentType, storageTypes string, factories con
 }
 
 func enableAgentUDPEndpoints(jaeger *jaegerreceiver.Config) {
-	if _, ok := jaeger.Protocols["thrift_compact"]; !ok {
-		jaeger.Protocols["thrift_compact"] = &receiver.SecureReceiverSettings{
-			ReceiverSettings: configmodels.ReceiverSettings{
-				Endpoint: udpThriftCompactEndpoint,
-			},
+	if jaeger.ThriftCompact == nil {
+		jaeger.ThriftCompact = &configprotocol.ProtocolServerSettings{
+			Endpoint: udpThriftCompactEndpoint,
 		}
 	}
-	if _, ok := jaeger.Protocols["thrift_binary"]; !ok {
-		jaeger.Protocols["thrift_binary"] = &receiver.SecureReceiverSettings{
-			ReceiverSettings: configmodels.ReceiverSettings{
-				Endpoint: udpThriftBinaryEndpoint,
-			},
+	if jaeger.ThriftBinary == nil {
+		jaeger.ThriftBinary = &configprotocol.ProtocolServerSettings{
+			Endpoint: udpThriftBinaryEndpoint,
 		}
 	}
 }

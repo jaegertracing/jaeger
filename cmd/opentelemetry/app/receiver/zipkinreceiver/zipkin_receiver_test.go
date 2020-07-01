@@ -15,6 +15,7 @@
 package zipkinreceiver
 
 import (
+	"context"
 	"path"
 	"testing"
 
@@ -36,7 +37,7 @@ func TestDefaultValues(t *testing.T) {
 
 	factory := &Factory{Viper: v, Wrapped: &zipkinreceiver.Factory{}}
 	cfg := factory.CreateDefaultConfig().(*zipkinreceiver.Config)
-	assert.Equal(t, "localhost:9411", cfg.Endpoint)
+	assert.Equal(t, "0.0.0.0:9411", cfg.Endpoint)
 }
 
 func TestLoadConfigAndFlags(t *testing.T) {
@@ -70,7 +71,7 @@ func TestCreateMetricsExporter(t *testing.T) {
 	f := &Factory{
 		Wrapped: &zipkinreceiver.Factory{},
 	}
-	mReceiver, err := f.CreateMetricsReceiver(zap.NewNop(), nil, nil)
+	mReceiver, err := f.CreateMetricsReceiver(context.Background(), zap.NewNop(), nil, nil)
 	assert.Equal(t, configerror.ErrDataTypeIsNotSupported, err)
 	assert.Nil(t, mReceiver)
 }
