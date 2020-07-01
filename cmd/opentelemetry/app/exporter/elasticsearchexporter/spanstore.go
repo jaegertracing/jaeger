@@ -54,7 +54,7 @@ type esSpanWriter struct {
 	translator       *esmodeltranslator.Translator
 }
 
-// newEsSpanWriter creates new instance ofr esSpanWriter
+// newEsSpanWriter creates new instance of esSpanWriter
 func newEsSpanWriter(params config.Configuration, logger *zap.Logger) (*esSpanWriter, error) {
 	client, err := esclient.NewElasticsearchClient(params, logger)
 	if err != nil {
