@@ -26,6 +26,7 @@ import (
 	"github.com/jaegertracing/jaeger/model"
 )
 
+// CompareSliceOfTraces compares two trace slices
 func CompareSliceOfTraces(t *testing.T, expected []*model.Trace, actual []*model.Trace) {
 	require.Equal(t, len(expected), len(actual), "Unequal number of expected vs. actual traces")
 	model.SortTraces(expected)
@@ -47,6 +48,7 @@ func CompareSliceOfTraces(t *testing.T, expected []*model.Trace, actual []*model
 	}
 }
 
+// CompareTraces compares two traces
 func CompareTraces(t *testing.T, expected *model.Trace, actual *model.Trace) {
 	if expected.Spans == nil {
 		require.Nil(t, actual.Spans)

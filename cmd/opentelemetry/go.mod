@@ -8,10 +8,13 @@ replace github.com/jaegertracing/jaeger => ./../../
 
 require (
 	github.com/Shopify/sarama v1.22.2-0.20190604114437-cd910a683f9f
+	github.com/elastic/go-elasticsearch/v6 v6.8.10
+	github.com/elastic/go-elasticsearch/v7 v7.0.0
 	github.com/golang/protobuf v1.4.2 // indirect
 	github.com/google/go-cmp v0.5.0 // indirect
 	github.com/imdario/mergo v0.3.9
 	github.com/jaegertracing/jaeger v1.18.2-0.20200626141145-be17169a4179
+	github.com/olivere/elastic v6.2.27+incompatible
 	github.com/opentracing/opentracing-go v1.1.1-0.20190913142402-a7454ce5950e
 	github.com/shirou/gopsutil v2.20.4+incompatible // indirect
 	github.com/spf13/pflag v1.0.5

@@ -60,7 +60,7 @@ func (s *BadgerIntegrationStorage) initialize() error {
 	s.logger = logger
 
 	// TODO: remove this flag after badger support returning spanKind when get operations
-	s.notSupportSpanKindWithOperation = true
+	s.NotSupportSpanKindWithOperation = true
 	return nil
 }
 

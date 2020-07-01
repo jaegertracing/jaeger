@@ -21,8 +21,6 @@ import (
 	"encoding/json"
 	"fmt"
 	"io/ioutil"
-	"os"
-	"path/filepath"
 	"strings"
 	"testing"
 	"time"
@@ -41,21 +39,7 @@ const (
 	iterations = 30
 )
 
-func TestParseAllFixtures(t *testing.T) {
-	fileList := []string{}
-	err := filepath.Walk("fixtures/traces", func(path string, f os.FileInfo, err error) error {
-		if !f.IsDir() && strings.HasSuffix(path, ".json") {
-			fileList = append(fileList, path)
-		}
-		return nil
-	})
-	require.NoError(t, err)
-	for _, file := range fileList {
-		t.Logf("Parsing %s", file)
-		getTraceFixtureExact(t, file)
-	}
-}
-
+// StorageIntegration holds components for storage integration test
 type StorageIntegration struct {
 	SpanWriter       spanstore.Writer
 	SpanReader       spanstore.Reader
@@ -63,7 +47,8 @@ type StorageIntegration struct {
 	DependencyReader dependencystore.Reader
 	Fixtures         []*QueryFixtures
 	// TODO: remove this flag after all storage plugins returns spanKind with operationNames
-	notSupportSpanKindWithOperation bool
+	NotSupportSpanKindWithOperation bool
+	FixturesPath                    string
 
 	// CleanUp() should ensure that the storage backend is clean before another test.
 	// called either before or after each test, and should be idempotent
@@ -153,7 +138,7 @@ func (s *StorageIntegration) testGetOperations(t *testing.T) {
 	defer s.cleanUp(t)
 
 	var expected []spanstore.Operation
-	if s.notSupportSpanKindWithOperation {
+	if s.NotSupportSpanKindWithOperation {
 		expected = []spanstore.Operation{
 			{Name: "example-operation-1"},
 			{Name: "example-operation-3"},
@@ -208,8 +193,12 @@ func (s *StorageIntegration) testGetTrace(t *testing.T) {
 func (s *StorageIntegration) testFindTraces(t *testing.T) {
 	defer s.cleanUp(t)
 
+	fixturesPath := s.FixturesPath
+	if s.FixturesPath == "" {
+		fixturesPath = "."
+	}
 	// Note: all cases include ServiceName + StartTime range
-	s.Fixtures = append(s.Fixtures, loadAndParseQueryTestCases(t, "fixtures/queries.json")...)
+	s.Fixtures = append(s.Fixtures, LoadAndParseQueryTestCases(t, fmt.Sprintf("%s/fixtures/queries.json", fixturesPath))...)
 
 	// Each query test case only specifies matching traces, but does not provide counterexamples.
 	// To improve coverage we get all possible traces and store all of them before running queries.
@@ -220,7 +209,7 @@ func (s *StorageIntegration) testFindTraces(t *testing.T) {
 		for _, traceFixture := range queryTestCase.ExpectedFixtures {
 			trace, ok := allTraceFixtures[traceFixture]
 			if !ok {
-				trace = getTraceFixture(t, traceFixture)
+				trace = s.getTraceFixture(t, traceFixture)
 				err := s.writeTrace(t, trace)
 				require.NoError(t, err, "Unexpected error when writing trace %s to storage", traceFixture)
 				allTraceFixtures[traceFixture] = trace
@@ -264,14 +253,14 @@ func (s *StorageIntegration) writeTrace(t *testing.T, trace *model.Trace) error 
 }
 
 func (s *StorageIntegration) loadParseAndWriteExampleTrace(t *testing.T) *model.Trace {
-	trace := getTraceFixture(t, "example_trace")
+	trace := s.getTraceFixture(t, "example_trace")
 	err := s.writeTrace(t, trace)
 	require.NoError(t, err, "Not expecting error when writing example_trace to storage")
 	return trace
 }
 
 func (s *StorageIntegration) loadParseAndWriteLargeTrace(t *testing.T) *model.Trace {
-	trace := getTraceFixture(t, "example_trace")
+	trace := s.getTraceFixture(t, "example_trace")
 	span := trace.Spans[0]
 	spns := make([]*model.Span, 1, 10008)
 	trace.Spans = spns
@@ -287,8 +276,12 @@ func (s *StorageIntegration) loadParseAndWriteLargeTrace(t *testing.T) *model.Tr
 	return trace
 }
 
-func getTraceFixture(t *testing.T, fixture string) *model.Trace {
-	fileName := fmt.Sprintf("fixtures/traces/%s.json", fixture)
+func (s *StorageIntegration) getTraceFixture(t *testing.T, fixture string) *model.Trace {
+	fixturesPath := s.FixturesPath
+	if s.FixturesPath == "" {
+		fixturesPath = "."
+	}
+	fileName := fmt.Sprintf("%s/fixtures/traces/%s.json", fixturesPath, fixture)
 	return getTraceFixtureExact(t, fileName)
 }
 
@@ -299,19 +292,22 @@ func getTraceFixtureExact(t *testing.T, fileName string) *model.Trace {
 }
 
 func loadAndParseJSONPB(t *testing.T, path string, object proto.Message) {
+	// #nosec
 	inStr, err := ioutil.ReadFile(path)
 	require.NoError(t, err, "Not expecting error when loading fixture %s", path)
 	err = jsonpb.Unmarshal(bytes.NewReader(correctTime(inStr)), object)
 	require.NoError(t, err, "Not expecting error when unmarshaling fixture %s", path)
 }
 
-func loadAndParseQueryTestCases(t *testing.T, queriesFile string) []*QueryFixtures {
+// LoadAndParseQueryTestCases loads and parses query test cases
+func LoadAndParseQueryTestCases(t *testing.T, queriesFile string) []*QueryFixtures {
 	var queries []*QueryFixtures
 	loadAndParseJSON(t, queriesFile, &queries)
 	return queries
 }
 
 func loadAndParseJSON(t *testing.T, path string, object interface{}) {
+	// #nosec
 	inStr, err := ioutil.ReadFile(path)
 	require.NoError(t, err, "Not expecting error when loading fixture %s", path)
 	err = json.Unmarshal(correctTime(inStr), object)
@@ -373,6 +369,7 @@ func (s *StorageIntegration) testGetDependencies(t *testing.T) {
 	assert.EqualValues(t, expected, actual)
 }
 
+// IntegrationTestAll runs all integration tests
 func (s *StorageIntegration) IntegrationTestAll(t *testing.T) {
 	t.Run("GetServices", s.testGetServices)
 	t.Run("GetOperations", s.testGetOperations)

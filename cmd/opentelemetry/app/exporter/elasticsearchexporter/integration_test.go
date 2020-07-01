@@ -13,29 +13,32 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package integration
+// +build integration
+
+package elasticsearchexporter
 
 import (
 	"context"
 	"errors"
 	"net/http"
-	"os"
 	"strconv"
 	"testing"
 	"time"
 
 	"github.com/olivere/elastic"
-	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"github.com/uber/jaeger-lib/metrics"
 	"go.uber.org/zap"
 
 	"github.com/jaegertracing/jaeger/model"
+	"github.com/jaegertracing/jaeger/pkg/es/config"
 	eswrapper "github.com/jaegertracing/jaeger/pkg/es/wrapper"
 	"github.com/jaegertracing/jaeger/pkg/testutils"
 	"github.com/jaegertracing/jaeger/plugin/storage/es"
 	"github.com/jaegertracing/jaeger/plugin/storage/es/dependencystore"
 	"github.com/jaegertracing/jaeger/plugin/storage/es/spanstore"
+	"github.com/jaegertracing/jaeger/plugin/storage/es/spanstore/dbmodel"
+	"github.com/jaegertracing/jaeger/plugin/storage/integration"
 )
 
 const (
@@ -48,15 +51,29 @@ const (
 	maxSpanAge      = time.Hour * 72
 )
 
-type ESStorageIntegration struct {
-	StorageIntegration
+type IntegrationTest struct {
+	integration.StorageIntegration
 
 	client        *elastic.Client
 	bulkProcessor *elastic.BulkProcessor
 	logger        *zap.Logger
 }
 
-func (s *ESStorageIntegration) getVersion() (uint, error) {
+type storageWrapper struct {
+	writer *esSpanWriter
+}
+
+func (s storageWrapper) WriteSpan(span *model.Span) error {
+	// This fails because there is no binary tag type in OTEL and also OTEL span's status code is always created
+	//traces := jaegertranslator.ProtoBatchesToInternalTraces([]*model.Batch{{Process: span.Process, Spans: []*model.Span{span}}})
+	//_, err := s.writer.WriteTraces(context.Background(), traces)
+	converter := dbmodel.FromDomain{}
+	dbSpan := converter.FromDomainEmbedProcess(span)
+	_, err := s.writer.writeSpans([]*dbmodel.Span{dbSpan})
+	return err
+}
+
+func (s *IntegrationTest) getVersion() (uint, error) {
 	pingResult, _, err := s.client.Ping(queryURL).Do(context.Background())
 	if err != nil {
 		return 0, err
@@ -68,7 +85,7 @@ func (s *ESStorageIntegration) getVersion() (uint, error) {
 	return uint(esVersion), nil
 }
 
-func (s *ESStorageIntegration) initializeES(allTagsAsFields, archive bool) error {
+func (s *IntegrationTest) initializeES(allTagsAsFields bool) error {
 	rawClient, err := elastic.NewClient(
 		elastic.SetURL(queryURL),
 		elastic.SetSniff(false))
@@ -78,26 +95,26 @@ func (s *ESStorageIntegration) initializeES(allTagsAsFields, archive bool) error
 	s.logger, _ = testutils.NewLogger()
 
 	s.client = rawClient
-	s.initSpanstore(allTagsAsFields, archive)
+	s.initSpanstore(allTagsAsFields)
 	s.CleanUp = func() error {
-		return s.esCleanUp(allTagsAsFields, archive)
+		return s.esCleanUp(allTagsAsFields)
 	}
 	s.Refresh = s.esRefresh
-	s.esCleanUp(allTagsAsFields, archive)
+	s.esCleanUp(allTagsAsFields)
 	// TODO: remove this flag after ES support returning spanKind when get operations
 	s.NotSupportSpanKindWithOperation = true
 	return nil
 }
 
-func (s *ESStorageIntegration) esCleanUp(allTagsAsFields, archive bool) error {
+func (s *IntegrationTest) esCleanUp(allTagsAsFields bool) error {
 	_, err := s.client.DeleteIndex("*").Do(context.Background())
 	if err != nil {
 		return err
 	}
-	return s.initSpanstore(allTagsAsFields, archive)
+	return s.initSpanstore(allTagsAsFields)
 }
 
-func (s *ESStorageIntegration) initSpanstore(allTagsAsFields, archive bool) error {
+func (s *IntegrationTest) initSpanstore(allTagsAsFields bool) error {
 	bp, _ := s.client.BulkProcessor().BulkActions(1).FlushInterval(time.Nanosecond).Do(context.Background())
 	s.bulkProcessor = bp
 	esVersion, err := s.getVersion()
@@ -106,21 +123,24 @@ func (s *ESStorageIntegration) initSpanstore(allTagsAsFields, archive bool) erro
 	}
 	client := eswrapper.WrapESClient(s.client, bp, esVersion)
 	spanMapping, serviceMapping := es.GetSpanServiceMappings(5, 1, client.GetVersion())
-	w := spanstore.NewSpanWriter(
-		spanstore.SpanWriterParams{
-			Client:            client,
-			Logger:            s.logger,
-			MetricsFactory:    metrics.NullFactory,
-			IndexPrefix:       indexPrefix,
-			AllTagsAsFields:   allTagsAsFields,
-			TagDotReplacement: tagKeyDeDotChar,
-			Archive:           archive,
-		})
+
+	w, err := newEsSpanWriter(config.Configuration{
+		Servers:     []string{queryURL},
+		IndexPrefix: indexPrefix,
+		Tags: config.TagsAsFields{
+			AllAsFields: allTagsAsFields,
+		},
+	}, s.logger)
+	if err != nil {
+		return err
+	}
 	err = w.CreateTemplates(spanMapping, serviceMapping)
 	if err != nil {
 		return err
 	}
-	s.SpanWriter = w
+	s.SpanWriter = storageWrapper{
+		writer: w,
+	}
 	s.SpanReader = spanstore.NewSpanReader(spanstore.SpanReaderParams{
 		Client:            client,
 		Logger:            s.logger,
@@ -128,7 +148,6 @@ func (s *ESStorageIntegration) initSpanstore(allTagsAsFields, archive bool) erro
 		IndexPrefix:       indexPrefix,
 		MaxSpanAge:        maxSpanAge,
 		TagDotReplacement: tagKeyDeDotChar,
-		Archive:           archive,
 	})
 	dependencyStore := dependencystore.NewDependencyStore(client, s.logger, indexPrefix)
 	depMapping := es.GetDependenciesMappings(5, 1, client.GetVersion())
@@ -141,7 +160,7 @@ func (s *ESStorageIntegration) initSpanstore(allTagsAsFields, archive bool) erro
 	return nil
 }
 
-func (s *ESStorageIntegration) esRefresh() error {
+func (s *IntegrationTest) esRefresh() error {
 	err := s.bulkProcessor.Flush()
 	if err != nil {
 		return err
@@ -160,59 +179,24 @@ func healthCheck() error {
 	return errors.New("elastic search is not ready")
 }
 
-func testElasticsearchStorage(t *testing.T, allTagsAsFields, archive bool) {
-	if os.Getenv("STORAGE") != "elasticsearch" {
-		t.Skip("Integration test against ElasticSearch skipped; set STORAGE env var to elasticsearch to run this")
-	}
+func testElasticsearchStorage(t *testing.T, allTagsAsFields bool) {
 	if err := healthCheck(); err != nil {
 		t.Fatal(err)
 	}
-	s := &ESStorageIntegration{}
-	require.NoError(t, s.initializeES(allTagsAsFields, archive))
-
-	s.Fixtures = LoadAndParseQueryTestCases(t, "fixtures/queries_es.json")
-
-	if archive {
-		t.Run("ArchiveTrace", s.testArchiveTrace)
-	} else {
-		s.IntegrationTestAll(t)
+	s := &IntegrationTest{
+		StorageIntegration: integration.StorageIntegration{
+			FixturesPath: "../../../../../plugin/storage/integration",
+		},
 	}
+	require.NoError(t, s.initializeES(allTagsAsFields))
+	s.Fixtures = integration.LoadAndParseQueryTestCases(t, "../../../../../plugin/storage/integration/fixtures/queries_es.json")
+	s.IntegrationTestAll(t)
 }
 
 func TestElasticsearchStorage(t *testing.T) {
-	testElasticsearchStorage(t, false, false)
+	testElasticsearchStorage(t, false)
 }
 
 func TestElasticsearchStorage_AllTagsAsObjectFields(t *testing.T) {
-	testElasticsearchStorage(t, true, false)
-}
-
-func TestElasticsearchStorage_Archive(t *testing.T) {
-	testElasticsearchStorage(t, false, true)
-}
-
-func (s *StorageIntegration) testArchiveTrace(t *testing.T) {
-	defer s.cleanUp(t)
-	tID := model.NewTraceID(uint64(11), uint64(22))
-	expected := &model.Span{
-		OperationName: "archive_span",
-		StartTime:     time.Now().Add(-maxSpanAge * 5),
-		TraceID:       tID,
-		SpanID:        model.NewSpanID(55),
-		References:    []model.SpanRef{},
-		Process:       model.NewProcess("archived_service", model.KeyValues{}),
-	}
-
-	require.NoError(t, s.SpanWriter.WriteSpan(expected))
-	s.refresh(t)
-
-	var actual *model.Trace
-	found := s.waitForCondition(t, func(t *testing.T) bool {
-		var err error
-		actual, err = s.SpanReader.GetTrace(context.Background(), tID)
-		return err == nil && len(actual.Spans) == 1
-	})
-	if !assert.True(t, found) {
-		CompareTraces(t, &model.Trace{Spans: []*model.Span{expected}}, actual)
-	}
+	testElasticsearchStorage(t, true)
 }

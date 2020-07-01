@@ -125,7 +125,7 @@ func TestLoadTagsFromFile(t *testing.T) {
 	}
 
 	for _, test := range tests {
-		tags, err := loadTagsFromFile(test.path)
+		tags, err := escfg.LoadTagsFromFile(test.path)
 		if test.error {
 			require.Error(t, err)
 			assert.Nil(t, tags)
