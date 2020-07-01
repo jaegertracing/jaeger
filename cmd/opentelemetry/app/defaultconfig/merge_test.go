@@ -22,10 +22,12 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"go.opentelemetry.io/collector/config"
+	"go.opentelemetry.io/collector/config/configgrpc"
+	"go.opentelemetry.io/collector/config/confighttp"
 	"go.opentelemetry.io/collector/config/configmodels"
+	"go.opentelemetry.io/collector/config/configprotocol"
 	"go.opentelemetry.io/collector/processor/attributesprocessor"
 	"go.opentelemetry.io/collector/processor/batchprocessor"
-	"go.opentelemetry.io/collector/receiver"
 	"go.opentelemetry.io/collector/receiver/jaegerreceiver"
 	"go.opentelemetry.io/collector/receiver/zipkinreceiver"
 
@@ -51,9 +53,13 @@ func TestMergeConfigs(t *testing.T) {
 	cfg := &configmodels.Config{
 		Receivers: configmodels.Receivers{
 			"jaeger": &jaegerreceiver.Config{
-				Protocols: map[string]*receiver.SecureReceiverSettings{
-					"grpc":           {ReceiverSettings: configmodels.ReceiverSettings{Endpoint: "def"}},
-					"thrift_compact": {ReceiverSettings: configmodels.ReceiverSettings{Endpoint: "def"}},
+				Protocols: jaegerreceiver.Protocols{
+					GRPC: &configgrpc.GRPCServerSettings{
+						Endpoint: "def",
+					},
+					ThriftCompact: &configprotocol.ProtocolServerSettings{
+						Endpoint: "def",
+					},
 				},
 			},
 		},
@@ -75,12 +81,14 @@ func TestMergeConfigs(t *testing.T) {
 	overrideCfg := &configmodels.Config{
 		Receivers: configmodels.Receivers{
 			"jaeger": &jaegerreceiver.Config{
-				Protocols: map[string]*receiver.SecureReceiverSettings{
-					"grpc": {ReceiverSettings: configmodels.ReceiverSettings{Endpoint: "master_jaeger_url"}},
+				Protocols: jaegerreceiver.Protocols{
+					GRPC: &configgrpc.GRPCServerSettings{
+						Endpoint: "master_jaeger_url",
+					},
 				},
 			},
 			"zipkin": &zipkinreceiver.Config{
-				ReceiverSettings: configmodels.ReceiverSettings{
+				HTTPServerSettings: confighttp.HTTPServerSettings{
 					Endpoint: "master_zipkin_url",
 				},
 			},
@@ -106,13 +114,17 @@ func TestMergeConfigs(t *testing.T) {
 	expected := &configmodels.Config{
 		Receivers: configmodels.Receivers{
 			"jaeger": &jaegerreceiver.Config{
-				Protocols: map[string]*receiver.SecureReceiverSettings{
-					"grpc":           {ReceiverSettings: configmodels.ReceiverSettings{Endpoint: "master_jaeger_url"}},
-					"thrift_compact": {ReceiverSettings: configmodels.ReceiverSettings{Endpoint: "def"}},
+				Protocols: jaegerreceiver.Protocols{
+					GRPC: &configgrpc.GRPCServerSettings{
+						Endpoint: "master_jaeger_url",
+					},
+					ThriftCompact: &configprotocol.ProtocolServerSettings{
+						Endpoint: "def",
+					},
 				},
 			},
 			"zipkin": &zipkinreceiver.Config{
-				ReceiverSettings: configmodels.ReceiverSettings{
+				HTTPServerSettings: confighttp.HTTPServerSettings{
 					Endpoint: "master_zipkin_url",
 				},
 			},

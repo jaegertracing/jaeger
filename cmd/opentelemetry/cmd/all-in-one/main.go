@@ -198,7 +198,10 @@ func startQuery(v *viper.Viper, logger *zap.Logger, exporter configmodels.Export
 		*queryServiceOptions)
 
 	tracerCloser := initTracer(logger)
-	server := queryApp.NewServer(logger, queryService, queryOpts, opentracing.GlobalTracer())
+	server, err := queryApp.NewServer(logger, queryService, queryOpts, opentracing.GlobalTracer())
+	if err != nil {
+		return nil, nil, err
+	}
 	if err := server.Start(); err != nil {
 		return nil, nil, err
 	}
