@@ -34,8 +34,11 @@ const (
 )
 
 var (
-	errZeroTraceID = errors.New("traceID is zero")
-	errZeroSpanID  = errors.New("spanID is zero")
+	errZeroTraceID     = errors.New("traceID is zero")
+	errZeroSpanID      = errors.New("spanID is zero")
+	emptyLogList       = []dbmodel.Log{}
+	emptyReferenceList = []dbmodel.Reference{}
+	emptyTagList       = []dbmodel.KeyValue{}
 )
 
 // Translator configures translator
@@ -134,7 +137,7 @@ func toTime(nano pdata.TimestampUnixNano) time.Time {
 func references(links pdata.SpanLinkSlice, parentSpanID pdata.SpanID, traceID dbmodel.TraceID) ([]dbmodel.Reference, error) {
 	parentSpanIDSet := len(parentSpanID.Bytes()) != 0
 	if !parentSpanIDSet && links.Len() == 0 {
-		return nil, nil
+		return emptyReferenceList, nil
 	}
 
 	refsCount := links.Len()
@@ -265,11 +268,9 @@ func (c *Translator) tags(span pdata.Span) ([]dbmodel.KeyValue, map[string]inter
 			tagsCount++
 		}
 	}
-
 	if tagsCount == 0 {
-		return nil, nil
+		return emptyTagList, nil
 	}
-
 	tags := make([]dbmodel.KeyValue, 0, tagsCount)
 	var tagMap map[string]interface{}
 	if spanKindTagFound {
@@ -365,7 +366,7 @@ func getTagFromStatusMsg(statusMsg string) (dbmodel.KeyValue, bool) {
 
 func logs(events pdata.SpanEventSlice) []dbmodel.Log {
 	if events.Len() == 0 {
-		return nil
+		return emptyLogList
 	}
 	logs := make([]dbmodel.Log, 0, events.Len())
 	for i := 0; i < events.Len(); i++ {
