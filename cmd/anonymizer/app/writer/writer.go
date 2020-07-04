@@ -90,7 +90,9 @@ func (w *Writer) WriteSpan(msg *model.Span) error {
 	defer w.lock.Unlock()
 
 	out := new(bytes.Buffer)
-	err := new(jsonpb.Marshaler).Marshal(out, msg)
+	if err := new(jsonpb.Marshaler).Marshal(out, msg); err != nil {
+		return err
+	}
 	if w.spanCount > 0 {
 		w.capturedFile.WriteString(",\n")
 	}
