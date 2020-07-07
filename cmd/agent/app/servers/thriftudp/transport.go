@@ -20,6 +20,7 @@ import (
 	"errors"
 	"net"
 	"sync/atomic"
+	"syscall"
 
 	"github.com/apache/thrift/lib/go/thrift"
 )
@@ -80,6 +81,14 @@ func NewTUDPServerTransport(hostPort string) (*TUDPTransport, error) {
 	if err != nil {
 		return nil, thrift.NewTTransportException(thrift.NOT_OPEN, err.Error())
 	}
+
+	file, err := conn.File()
+	if err != nil {
+		return nil, err
+	}
+
+	err = syscall.SetsockoptInt(int(file.Fd()), syscall.SOL_SOCKET, syscall.SO_RCVBUF, 16*1024*1024)
+
 	return &TUDPTransport{addr: conn.LocalAddr(), conn: conn}, nil
 }
 
