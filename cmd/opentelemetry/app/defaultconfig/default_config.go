@@ -73,7 +73,7 @@ func (c ComponentSettings) CreateDefaultConfig() (*configmodels.Config, error) {
 		return nil, err
 	}
 	receivers := createReceivers(c.ComponentType, c.ZipkinHostPort, c.Factories)
-	processors := createProcessors(c.Factories)
+	processors, processorNames := createProcessors(c.Factories)
 	hc := c.Factories.Extensions["health_check"].CreateDefaultConfig()
 	return &configmodels.Config{
 		Receivers:  receivers,
@@ -86,7 +86,7 @@ func (c ComponentSettings) CreateDefaultConfig() (*configmodels.Config, error) {
 				string(configmodels.TracesDataType): {
 					InputType:  configmodels.TracesDataType,
 					Receivers:  receiverNames(receivers),
-					Processors: processorNames([]string{"resource", "batch", "queued_retry"}, processors),
+					Processors: processorNames,
 					Exporters:  exporterNames(exporters),
 				},
 			},
@@ -94,17 +94,21 @@ func (c ComponentSettings) CreateDefaultConfig() (*configmodels.Config, error) {
 	}, nil
 }
 
-func createProcessors(factories config.Factories) configmodels.Processors {
+func createProcessors(factories config.Factories) (configmodels.Processors, []string) {
 	processors := configmodels.Processors{}
-	resProcessor := factories.Processors["resource"].CreateDefaultConfig().(*resourceprocessor.Config)
-	if len(resProcessor.Labels) > 0 {
-		processors[resProcessor.Name()] = resProcessor
+	var names []string
+	resource := factories.Processors["resource"].CreateDefaultConfig().(*resourceprocessor.Config)
+	if len(resource.Labels) > 0 {
+		processors[resource.Name()] = resource
+		names = append(names, resource.Name())
 	}
-	batchProcessor := factories.Processors["batch"].CreateDefaultConfig().(*batchprocessor.Config)
-	processors[batchProcessor.Name()] = batchProcessor
-	queuedProcessor := factories.Processors["queued_retry"].CreateDefaultConfig().(*queuedprocessor.Config)
-	processors[queuedProcessor.Name()] = queuedProcessor
-	return processors
+	batch := factories.Processors["batch"].CreateDefaultConfig().(*batchprocessor.Config)
+	processors[batch.Name()] = batch
+	names = append(names, batch.Name())
+	queuedRetry := factories.Processors["queued_retry"].CreateDefaultConfig().(*queuedprocessor.Config)
+	processors[queuedRetry.Name()] = queuedRetry
+	names = append(names, queuedRetry.Name())
+	return processors, names
 }
 
 func createReceivers(component ComponentType, zipkinHostPort string, factories config.Factories) configmodels.Receivers {
@@ -195,18 +199,6 @@ func receiverNames(receivers configmodels.Receivers) []string {
 	var names []string
 	for _, v := range receivers {
 		names = append(names, v.Name())
-	}
-	return names
-}
-
-// processorNames returns processor names that are present in both input parameters
-func processorNames(processorNames []string, processors configmodels.Processors) []string {
-	var names []string
-	for _, name := range processorNames {
-		// add processors that are in processorNames
-		if _, ok := processors[name]; ok {
-			names = append(names, name)
-		}
 	}
 	return names
 }
