@@ -159,6 +159,33 @@ func TestConvertSpan(t *testing.T) {
 	}, spans[0])
 }
 
+func TestSpanEmptyRef(t *testing.T) {
+	traces := traces("myservice")
+	span := addSpan(traces, "root", traceID, spanID)
+	span.SetStartTime(pdata.TimestampUnixNano(1000000))
+	span.SetEndTime(pdata.TimestampUnixNano(2000000))
+
+	c := &Translator{}
+	spans, err := c.ConvertSpans(traces)
+	require.NoError(t, err)
+	assert.Equal(t, 1, len(spans))
+	assert.Equal(t, &dbmodel.Span{
+		TraceID:         "30313233343536373839616263646566",
+		SpanID:          "3031323334353637",
+		StartTime:       1000,
+		Duration:        1000,
+		OperationName:   "root",
+		StartTimeMillis: 1,
+		Tags:            []dbmodel.KeyValue{},  // should not be nil
+		Logs:            []dbmodel.Log{},       // should not be nil
+		References:      []dbmodel.Reference{}, // should not be nil
+		Process: dbmodel.Process{
+			ServiceName: "myservice",
+			Tags:        nil,
+		},
+	}, spans[0])
+}
+
 func TestEmpty(t *testing.T) {
 	c := &Translator{}
 	spans, err := c.ConvertSpans(pdata.NewTraces())
