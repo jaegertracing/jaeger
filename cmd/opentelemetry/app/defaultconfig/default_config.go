@@ -199,6 +199,7 @@ func receiverNames(receivers configmodels.Receivers) []string {
 	return names
 }
 
+// processorNames returns processor names that are present in both input parameters
 func processorNames(processorNames []string, processors configmodels.Processors) []string {
 	var names []string
 	for _, name := range processorNames {
