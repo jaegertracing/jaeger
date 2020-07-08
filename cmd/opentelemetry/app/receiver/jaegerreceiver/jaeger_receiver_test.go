@@ -28,6 +28,7 @@ import (
 	"go.opentelemetry.io/collector/config/configgrpc"
 	"go.opentelemetry.io/collector/config/confighttp"
 	"go.opentelemetry.io/collector/config/configmodels"
+	"go.opentelemetry.io/collector/config/confignet"
 	"go.opentelemetry.io/collector/config/configprotocol"
 	"go.opentelemetry.io/collector/config/configtls"
 	"go.opentelemetry.io/collector/receiver/jaegerreceiver"
@@ -94,7 +95,9 @@ func TestDefaultValueFromViper(t *testing.T) {
 			expected: &jaegerreceiver.Config{
 				Protocols: jaegerreceiver.Protocols{
 					GRPC: &configgrpc.GRPCServerSettings{
-						Endpoint: "localhost:7894",
+						NetAddr: confignet.NetAddr{
+							Endpoint: "localhost:7894",
+						},
 					},
 				},
 			},

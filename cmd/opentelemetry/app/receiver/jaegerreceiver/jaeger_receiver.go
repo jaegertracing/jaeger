@@ -22,6 +22,7 @@ import (
 	"go.opentelemetry.io/collector/config/configgrpc"
 	"go.opentelemetry.io/collector/config/confighttp"
 	"go.opentelemetry.io/collector/config/configmodels"
+	"go.opentelemetry.io/collector/config/confignet"
 	"go.opentelemetry.io/collector/config/configprotocol"
 	"go.opentelemetry.io/collector/config/configtls"
 	"go.opentelemetry.io/collector/consumer"
@@ -83,7 +84,9 @@ func configureCollector(v *viper.Viper, cfg *jaegerreceiver.Config) {
 	cOpts.InitFromViper(v)
 	if v.IsSet(collectorApp.CollectorGRPCHostPort) {
 		cfg.GRPC = &configgrpc.GRPCServerSettings{
-			Endpoint: cOpts.CollectorGRPCHostPort,
+			NetAddr: confignet.NetAddr{
+				Endpoint: cOpts.CollectorGRPCHostPort,
+			},
 		}
 		if cOpts.TLS.CertPath != "" && cOpts.TLS.KeyPath != "" {
 			cfg.GRPC.TLSSetting = &configtls.TLSServerSetting{
