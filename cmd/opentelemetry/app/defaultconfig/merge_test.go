@@ -25,6 +25,7 @@ import (
 	"go.opentelemetry.io/collector/config/configgrpc"
 	"go.opentelemetry.io/collector/config/confighttp"
 	"go.opentelemetry.io/collector/config/configmodels"
+	"go.opentelemetry.io/collector/config/confignet"
 	"go.opentelemetry.io/collector/config/configprotocol"
 	"go.opentelemetry.io/collector/processor/attributesprocessor"
 	"go.opentelemetry.io/collector/processor/batchprocessor"
@@ -55,7 +56,9 @@ func TestMergeConfigs(t *testing.T) {
 			"jaeger": &jaegerreceiver.Config{
 				Protocols: jaegerreceiver.Protocols{
 					GRPC: &configgrpc.GRPCServerSettings{
-						Endpoint: "def",
+						NetAddr: confignet.NetAddr{
+							Endpoint: "def",
+						},
 					},
 					ThriftCompact: &configprotocol.ProtocolServerSettings{
 						Endpoint: "def",
@@ -83,7 +86,9 @@ func TestMergeConfigs(t *testing.T) {
 			"jaeger": &jaegerreceiver.Config{
 				Protocols: jaegerreceiver.Protocols{
 					GRPC: &configgrpc.GRPCServerSettings{
-						Endpoint: "master_jaeger_url",
+						NetAddr: confignet.NetAddr{
+							Endpoint: "master_jaeger_url",
+						},
 					},
 				},
 			},
@@ -116,7 +121,9 @@ func TestMergeConfigs(t *testing.T) {
 			"jaeger": &jaegerreceiver.Config{
 				Protocols: jaegerreceiver.Protocols{
 					GRPC: &configgrpc.GRPCServerSettings{
-						Endpoint: "master_jaeger_url",
+						NetAddr: confignet.NetAddr{
+							Endpoint: "master_jaeger_url",
+						},
 					},
 					ThriftCompact: &configprotocol.ProtocolServerSettings{
 						Endpoint: "def",

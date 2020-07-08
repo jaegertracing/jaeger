@@ -22,6 +22,7 @@ import (
 	"go.opentelemetry.io/collector/config/configgrpc"
 	"go.opentelemetry.io/collector/config/confighttp"
 	"go.opentelemetry.io/collector/config/configmodels"
+	"go.opentelemetry.io/collector/config/confignet"
 	"go.opentelemetry.io/collector/config/configprotocol"
 	"go.opentelemetry.io/collector/processor/batchprocessor"
 	"go.opentelemetry.io/collector/processor/queuedprocessor"
@@ -124,7 +125,9 @@ func createReceivers(component ComponentType, zipkinHostPort string, factories c
 	// we do not want to override it here
 	if jaeger.GRPC == nil {
 		jaeger.GRPC = &configgrpc.GRPCServerSettings{
-			Endpoint: gRPCEndpoint,
+			NetAddr: confignet.NetAddr{
+				Endpoint: gRPCEndpoint,
+			},
 		}
 	}
 	if jaeger.ThriftHTTP == nil {
