@@ -23,6 +23,8 @@ import (
 	"go.opentelemetry.io/collector/config/confighttp"
 	"go.opentelemetry.io/collector/config/configmodels"
 	"go.opentelemetry.io/collector/config/configprotocol"
+	"go.opentelemetry.io/collector/processor/batchprocessor"
+	"go.opentelemetry.io/collector/processor/queuedprocessor"
 	"go.opentelemetry.io/collector/processor/resourceprocessor"
 	"go.opentelemetry.io/collector/receiver/jaegerreceiver"
 	"go.opentelemetry.io/collector/receiver/zipkinreceiver"
@@ -71,11 +73,7 @@ func (c ComponentSettings) CreateDefaultConfig() (*configmodels.Config, error) {
 		return nil, err
 	}
 	receivers := createReceivers(c.ComponentType, c.ZipkinHostPort, c.Factories)
-	processors := configmodels.Processors{}
-	resProcessor := c.Factories.Processors["resource"].CreateDefaultConfig().(*resourceprocessor.Config)
-	if len(resProcessor.Labels) > 0 {
-		processors[resProcessor.Name()] = resProcessor
-	}
+	processors, processorNames := createProcessors(c.Factories)
 	hc := c.Factories.Extensions["health_check"].CreateDefaultConfig()
 	return &configmodels.Config{
 		Receivers:  receivers,
@@ -88,12 +86,29 @@ func (c ComponentSettings) CreateDefaultConfig() (*configmodels.Config, error) {
 				string(configmodels.TracesDataType): {
 					InputType:  configmodels.TracesDataType,
 					Receivers:  receiverNames(receivers),
-					Processors: processorNames(processors),
+					Processors: processorNames,
 					Exporters:  exporterNames(exporters),
 				},
 			},
 		},
 	}, nil
+}
+
+func createProcessors(factories config.Factories) (configmodels.Processors, []string) {
+	processors := configmodels.Processors{}
+	var names []string
+	resource := factories.Processors["resource"].CreateDefaultConfig().(*resourceprocessor.Config)
+	if len(resource.Labels) > 0 {
+		processors[resource.Name()] = resource
+		names = append(names, resource.Name())
+	}
+	batch := factories.Processors["batch"].CreateDefaultConfig().(*batchprocessor.Config)
+	processors[batch.Name()] = batch
+	names = append(names, batch.Name())
+	queuedRetry := factories.Processors["queued_retry"].CreateDefaultConfig().(*queuedprocessor.Config)
+	processors[queuedRetry.Name()] = queuedRetry
+	names = append(names, queuedRetry.Name())
+	return processors, names
 }
 
 func createReceivers(component ComponentType, zipkinHostPort string, factories config.Factories) configmodels.Receivers {
@@ -183,14 +198,6 @@ func enableAgentUDPEndpoints(jaeger *jaegerreceiver.Config) {
 func receiverNames(receivers configmodels.Receivers) []string {
 	var names []string
 	for _, v := range receivers {
-		names = append(names, v.Name())
-	}
-	return names
-}
-
-func processorNames(processors configmodels.Processors) []string {
-	var names []string
-	for _, v := range processors {
 		names = append(names, v.Name())
 	}
 	return names
