@@ -90,7 +90,9 @@ func NewTUDPServerTransport(hostPort string, bufferSize int) (*TUDPTransport, er
 		return nil, err
 	}
 
-	err = syscall.SetsockoptInt(int(file.Fd()), syscall.SOL_SOCKET, syscall.SO_RCVBUF, bufferSize)
+	if err = setSocketBuffer(file.Fd(), syscall.SOL_SOCKET, syscall.SO_RCVBUF, bufferSize); err != nil {
+		return nil, err
+	}
 
 	return &TUDPTransport{addr: conn.LocalAddr(), conn: conn}, nil
 }
