@@ -26,7 +26,10 @@ import (
 )
 
 //MaxLength of UDP packet
-const MaxLength = 65000
+const (
+	MaxLength  = 65000
+	BufferSize = 16 * 1024 * 1024
+)
 
 var errConnAlreadyClosed = errors.New("connection already closed")
 
@@ -72,7 +75,7 @@ func createClient(destAddr, locAddr *net.UDPAddr) (*TUDPTransport, error) {
 // It will listen for incoming udp packets on the specified host/port
 // Example:
 // 	trans, err := thriftudp.NewTUDPClientTransport("localhost:9001")
-func NewTUDPServerTransport(hostPort string) (*TUDPTransport, error) {
+func NewTUDPServerTransport(hostPort string, bufferSize int) (*TUDPTransport, error) {
 	addr, err := net.ResolveUDPAddr("udp", hostPort)
 	if err != nil {
 		return nil, thrift.NewTTransportException(thrift.NOT_OPEN, err.Error())
@@ -87,7 +90,7 @@ func NewTUDPServerTransport(hostPort string) (*TUDPTransport, error) {
 		return nil, err
 	}
 
-	err = syscall.SetsockoptInt(int(file.Fd()), syscall.SOL_SOCKET, syscall.SO_RCVBUF, 16*1024*1024)
+	err = syscall.SetsockoptInt(int(file.Fd()), syscall.SOL_SOCKET, syscall.SO_RCVBUF, bufferSize)
 
 	return &TUDPTransport{addr: conn.LocalAddr(), conn: conn}, nil
 }

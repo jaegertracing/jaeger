@@ -43,7 +43,7 @@ func TestTBufferedServer(t *testing.T) {
 func testTBufferedServer(t *testing.T, queueSize int, testDroppedPackets bool) {
 	metricsFactory := metricstest.NewFactory(0)
 
-	transport, err := thriftudp.NewTUDPServerTransport("127.0.0.1:0")
+	transport, err := thriftudp.NewTUDPServerTransport("127.0.0.1:0", thriftudp.BufferSize)
 	require.NoError(t, err)
 
 	maxPacketSize := 65000

@@ -55,16 +55,16 @@ func TestNewTUDPClientTransport(t *testing.T) {
 }
 
 func TestNewTUDPServerTransport(t *testing.T) {
-	_, err := NewTUDPServerTransport("fakeAddressAndPort")
+	_, err := NewTUDPServerTransport("fakeAddressAndPort", BufferSize)
 	require.NotNil(t, err)
 
-	trans, err := NewTUDPServerTransport(localListenAddr.String())
+	trans, err := NewTUDPServerTransport(localListenAddr.String(), BufferSize)
 	require.Nil(t, err)
 	require.True(t, trans.IsOpen())
 	require.Equal(t, ^uint64(0), trans.RemainingBytes())
 
 	//Ensure a second server can't be created on the same address
-	trans2, err := NewTUDPServerTransport(trans.Addr().String())
+	trans2, err := NewTUDPServerTransport(trans.Addr().String(), BufferSize)
 	if trans2 != nil {
 		//close the second server if one got created
 		trans2.Close()
@@ -77,10 +77,10 @@ func TestNewTUDPServerTransport(t *testing.T) {
 }
 
 func TestTUDPServerTransportIsOpen(t *testing.T) {
-	_, err := NewTUDPServerTransport("fakeAddressAndPort")
+	_, err := NewTUDPServerTransport("fakeAddressAndPort", BufferSize)
 	require.NotNil(t, err)
 
-	trans, err := NewTUDPServerTransport(localListenAddr.String())
+	trans, err := NewTUDPServerTransport(localListenAddr.String(), BufferSize)
 	require.Nil(t, err)
 	require.True(t, trans.IsOpen())
 	require.Equal(t, ^uint64(0), trans.RemainingBytes())
@@ -107,7 +107,7 @@ func TestTUDPServerTransportIsOpen(t *testing.T) {
 }
 
 func TestWriteRead(t *testing.T) {
-	server, err := NewTUDPServerTransport(localListenAddr.String())
+	server, err := NewTUDPServerTransport(localListenAddr.String(), BufferSize)
 	require.Nil(t, err)
 	defer server.Close()
 
@@ -133,7 +133,7 @@ func TestWriteRead(t *testing.T) {
 }
 
 func TestDoubleCloseError(t *testing.T) {
-	trans, err := NewTUDPServerTransport(localListenAddr.String())
+	trans, err := NewTUDPServerTransport(localListenAddr.String(), BufferSize)
 	require.Nil(t, err)
 	require.True(t, trans.IsOpen())
 
@@ -149,7 +149,7 @@ func TestDoubleCloseError(t *testing.T) {
 }
 
 func TestConnClosedReadWrite(t *testing.T) {
-	trans, err := NewTUDPServerTransport(localListenAddr.String())
+	trans, err := NewTUDPServerTransport(localListenAddr.String(), BufferSize)
 	require.Nil(t, err)
 	require.True(t, trans.IsOpen())
 	require.NoError(t, trans.Close())

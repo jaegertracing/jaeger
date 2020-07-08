@@ -39,6 +39,7 @@ import (
 const (
 	defaultQueueSize     = 1000
 	defaultMaxPacketSize = 65000
+	defaultBufferSize    = 16 * 1024 * 1024
 	defaultServerWorkers = 10
 
 	jaegerModel Model = "jaeger"
@@ -90,6 +91,7 @@ type ProcessorConfiguration struct {
 type ServerConfiguration struct {
 	QueueSize     int    `yaml:"queueSize"`
 	MaxPacketSize int    `yaml:"maxPacketSize"`
+	BufferSize    int    `yaml:"bufferSize"`
 	HostPort      string `yaml:"hostPort" validate:"nonzero"`
 }
 
@@ -188,6 +190,7 @@ func (c *ProcessorConfiguration) applyDefaults() {
 func (c *ServerConfiguration) applyDefaults() {
 	c.QueueSize = defaultInt(c.QueueSize, defaultQueueSize)
 	c.MaxPacketSize = defaultInt(c.MaxPacketSize, defaultMaxPacketSize)
+	c.BufferSize = defaultInt(c.BufferSize, defaultBufferSize)
 }
 
 // getUDPServer gets a TBufferedServer backed server using the server configuration
@@ -197,7 +200,7 @@ func (c *ServerConfiguration) getUDPServer(mFactory metrics.Factory) (servers.Se
 	if c.HostPort == "" {
 		return nil, fmt.Errorf("no host:port provided for udp server: %+v", *c)
 	}
-	transport, err := thriftudp.NewTUDPServerTransport(c.HostPort)
+	transport, err := thriftudp.NewTUDPServerTransport(c.HostPort, c.BufferSize)
 	if err != nil {
 		return nil, fmt.Errorf("cannot create UDPServerTransport: %w", err)
 	}
