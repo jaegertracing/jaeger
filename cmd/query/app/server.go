@@ -17,6 +17,7 @@ package app
 import (
 	"net"
 	"net/http"
+	"path/filepath"
 	"strings"
 
 	"github.com/gorilla/handlers"
@@ -54,13 +55,18 @@ func NewServer(logger *zap.Logger, querySvc *querysvc.QueryService, options *Que
 		return nil, err
 	}
 
+	httpServer, err := createHTTPServer(querySvc, options, tracer, logger)
+	if err != nil {
+		return nil, err
+	}
+
 	return &Server{
 		logger:             logger,
 		querySvc:           querySvc,
 		queryOptions:       options,
 		tracer:             tracer,
 		grpcServer:         grpcServer,
-		httpServer:         createHTTPServer(querySvc, options, tracer, logger),
+		httpServer:         httpServer,
 		unavailableChannel: make(chan healthcheck.Status),
 	}, nil
 }
@@ -73,8 +79,8 @@ func (s Server) HealthCheckStatus() chan healthcheck.Status {
 func createGRPCServer(querySvc *querysvc.QueryService, options *QueryOptions, logger *zap.Logger, tracer opentracing.Tracer) (*grpc.Server, error) {
 	var grpcOpts []grpc.ServerOption
 
-	if options.TLS.Enabled {
-		tlsCfg, err := options.TLS.Config()
+	if options.TLSGrpc.Enabled {
+		tlsCfg, err := options.TLSGrpc.Config()
 		if err != nil {
 			return nil, err
 		}
@@ -90,11 +96,19 @@ func createGRPCServer(querySvc *querysvc.QueryService, options *QueryOptions, lo
 	return server, nil
 }
 
-func createHTTPServer(querySvc *querysvc.QueryService, queryOpts *QueryOptions, tracer opentracing.Tracer, logger *zap.Logger) *http.Server {
+func createHTTPServer(querySvc *querysvc.QueryService, queryOpts *QueryOptions, tracer opentracing.Tracer, logger *zap.Logger) (*http.Server, error) {
 	apiHandlerOptions := []HandlerOption{
 		HandlerOptions.Logger(logger),
 		HandlerOptions.Tracer(tracer),
 	}
+
+	if queryOpts.TLSHttp.Enabled {
+		_, err := queryOpts.TLSHttp.Config() // This checks if the certificates are correctly provided
+		if err != nil {
+			return nil, err
+		}
+	}
+
 	apiHandler := NewAPIHandler(
 		querySvc,
 		apiHandlerOptions...)
@@ -114,7 +128,7 @@ func createHTTPServer(querySvc *querysvc.QueryService, queryOpts *QueryOptions, 
 	recoveryHandler := recoveryhandler.NewRecoveryHandler(logger, true)
 	return &http.Server{
 		Handler: recoveryHandler(handler),
-	}
+	}, nil
 }
 
 // Start http, GRPC and cmux servers concurrently
@@ -146,13 +160,21 @@ func (s *Server) Start() error {
 
 	go func() {
 		s.logger.Info("Starting HTTP server", zap.Int("port", tcpPort), zap.String("addr", s.queryOptions.HostPort))
+		var err error
+		if s.queryOptions.TLSHttp.Enabled {
+			err = s.httpServer.ServeTLS(httpListener, filepath.Clean(s.queryOptions.TLSHttp.CertPath), filepath.Clean(s.queryOptions.TLSHttp.KeyPath))
 
-		switch err := s.httpServer.Serve(httpListener); err {
+		} else {
+			err = s.httpServer.Serve(httpListener)
+		}
+
+		switch err {
 		case nil, http.ErrServerClosed, cmux.ErrListenerClosed:
 			// normal exit, nothing to do
 		default:
 			s.logger.Error("Could not start HTTP server", zap.Error(err))
 		}
+
 		s.unavailableChannel <- healthcheck.Unavailable
 	}()
 
