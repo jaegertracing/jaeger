@@ -51,7 +51,7 @@ func AddFlags(flags *flag.FlagSet) {
 		flags.Int(prefix+suffixWorkers, defaultServerWorkers, "how many workers the processor should run")
 		flags.Int(prefix+suffixServerQueueSize, defaultQueueSize, "length of the queue for the UDP server")
 		flags.Int(prefix+suffixServerMaxPacketSize, defaultMaxPacketSize, "max packet size for the UDP server")
-		flags.Int(prefix+suffixServerBufferSize, defaultBufferSize, "buffer size for UDP packets")
+		flags.Int(prefix+suffixServerBufferSize, 0, "buffer size for UDP packets in bytes")
 		flags.String(prefix+suffixServerHostPort, ":"+strconv.Itoa(p.port), "host:port for the UDP server")
 	}
 	flags.String(

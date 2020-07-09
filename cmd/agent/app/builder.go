@@ -39,7 +39,6 @@ import (
 const (
 	defaultQueueSize     = 1000
 	defaultMaxPacketSize = 65000
-	defaultBufferSize    = 4 * 1024
 	defaultServerWorkers = 10
 
 	jaegerModel Model = "jaeger"
@@ -190,7 +189,7 @@ func (c *ProcessorConfiguration) applyDefaults() {
 func (c *ServerConfiguration) applyDefaults() {
 	c.QueueSize = defaultInt(c.QueueSize, defaultQueueSize)
 	c.MaxPacketSize = defaultInt(c.MaxPacketSize, defaultMaxPacketSize)
-	c.BufferSize = defaultInt(c.BufferSize, defaultBufferSize)
+	c.BufferSize = defaultInt(c.BufferSize, 0)
 }
 
 // getUDPServer gets a TBufferedServer backed server using the server configuration
