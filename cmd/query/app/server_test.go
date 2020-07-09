@@ -44,7 +44,7 @@ func TestServerError(t *testing.T) {
 	assert.Error(t, srv.Start())
 }
 
-func TestCreateTLSServerError(t *testing.T) {
+func TestCreateTLSGrpcServerError(t *testing.T) {
 	tlsCfg := tlscfg.Options{
 		Enabled:      true,
 		CertPath:     "invalid/path",
@@ -53,7 +53,20 @@ func TestCreateTLSServerError(t *testing.T) {
 	}
 
 	_, err := NewServer(zap.NewNop(), &querysvc.QueryService{},
-		&QueryOptions{TLS: tlsCfg}, opentracing.NoopTracer{})
+		&QueryOptions{TLSGrpc: tlsCfg}, opentracing.NoopTracer{})
+	assert.NotNil(t, err)
+}
+
+func TestCreateTLSHttpServerError(t *testing.T) {
+	tlsCfg := tlscfg.Options{
+		Enabled:      true,
+		CertPath:     "invalid/path",
+		KeyPath:      "invalid/path",
+		ClientCAPath: "invalid/path",
+	}
+
+	_, err := NewServer(zap.NewNop(), &querysvc.QueryService{},
+		&QueryOptions{TLSHttp: tlsCfg}, opentracing.NoopTracer{})
 	assert.NotNil(t, err)
 }
 
