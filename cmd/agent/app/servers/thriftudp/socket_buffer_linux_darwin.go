@@ -2,8 +2,16 @@
 
 package thriftudp
 
-import "syscall"
+import (
+	"net"
+	"syscall"
+)
 
-func setSocketBuffer(fd uintptr, level, opt, value int) error {
-	return syscall.SetsockoptInt(int(fd), level, opt, value)
+func setSocketBuffer(conn *net.UDPConn, bufferSize int) error {
+	file, err := conn.File()
+	if err != nil {
+		return err
+	}
+
+	return syscall.SetsockoptInt(int(file.Fd()), syscall.SOL_SOCKET, syscall.SO_RCVBUF, bufferSize)
 }

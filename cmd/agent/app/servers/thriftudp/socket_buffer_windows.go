@@ -2,8 +2,11 @@
 
 package thriftudp
 
-import "syscall"
+import (
+	"net"
+)
 
-func setSocketBuffer(fd uintptr, level, opt, value int) error {
-	return syscall.SetsockoptInt(syscall.Handle(fd), level, opt, value)
+// Not supported on windows, so windows version just returns nil
+func setSocketBuffer(_ *net.UDPConn, _ int) error {
+	return nil
 }

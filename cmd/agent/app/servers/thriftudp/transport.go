@@ -20,7 +20,6 @@ import (
 	"errors"
 	"net"
 	"sync/atomic"
-	"syscall"
 
 	"github.com/apache/thrift/lib/go/thrift"
 )
@@ -28,7 +27,7 @@ import (
 //MaxLength of UDP packet
 const (
 	MaxLength  = 65000
-	BufferSize = 16 * 1024 * 1024
+	BufferSize = 4 * 1024
 )
 
 var errConnAlreadyClosed = errors.New("connection already closed")
@@ -85,12 +84,7 @@ func NewTUDPServerTransport(hostPort string, bufferSize int) (*TUDPTransport, er
 		return nil, thrift.NewTTransportException(thrift.NOT_OPEN, err.Error())
 	}
 
-	file, err := conn.File()
-	if err != nil {
-		return nil, err
-	}
-
-	if err = setSocketBuffer(file.Fd(), syscall.SOL_SOCKET, syscall.SO_RCVBUF, bufferSize); err != nil {
+	if err = setSocketBuffer(conn, bufferSize); err != nil {
 		return nil, err
 	}
 

@@ -39,7 +39,7 @@ import (
 const (
 	defaultQueueSize     = 1000
 	defaultMaxPacketSize = 65000
-	defaultBufferSize    = 16 * 1024 * 1024
+	defaultBufferSize    = 4 * 1024
 	defaultServerWorkers = 10
 
 	jaegerModel Model = "jaeger"
