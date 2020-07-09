@@ -79,8 +79,8 @@ func (s Server) HealthCheckStatus() chan healthcheck.Status {
 func createGRPCServer(querySvc *querysvc.QueryService, options *QueryOptions, logger *zap.Logger, tracer opentracing.Tracer) (*grpc.Server, error) {
 	var grpcOpts []grpc.ServerOption
 
-	if options.TLSGrpc.Enabled {
-		tlsCfg, err := options.TLSGrpc.Config()
+	if options.TLSGRPC.Enabled {
+		tlsCfg, err := options.TLSGRPC.Config()
 		if err != nil {
 			return nil, err
 		}
@@ -102,8 +102,8 @@ func createHTTPServer(querySvc *querysvc.QueryService, queryOpts *QueryOptions, 
 		HandlerOptions.Tracer(tracer),
 	}
 
-	if queryOpts.TLSHttp.Enabled {
-		_, err := queryOpts.TLSHttp.Config() // This checks if the certificates are correctly provided
+	if queryOpts.TLSHTTP.Enabled {
+		_, err := queryOpts.TLSHTTP.Config() // This checks if the certificates are correctly provided
 		if err != nil {
 			return nil, err
 		}
@@ -161,8 +161,8 @@ func (s *Server) Start() error {
 	go func() {
 		s.logger.Info("Starting HTTP server", zap.Int("port", tcpPort), zap.String("addr", s.queryOptions.HostPort))
 		var err error
-		if s.queryOptions.TLSHttp.Enabled {
-			err = s.httpServer.ServeTLS(httpListener, filepath.Clean(s.queryOptions.TLSHttp.CertPath), filepath.Clean(s.queryOptions.TLSHttp.KeyPath))
+		if s.queryOptions.TLSHTTP.Enabled {
+			err = s.httpServer.ServeTLS(httpListener, filepath.Clean(s.queryOptions.TLSHTTP.CertPath), filepath.Clean(s.queryOptions.TLSHTTP.KeyPath))
 
 		} else {
 			err = s.httpServer.Serve(httpListener)

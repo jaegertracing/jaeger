@@ -53,7 +53,7 @@ func TestCreateTLSGrpcServerError(t *testing.T) {
 	}
 
 	_, err := NewServer(zap.NewNop(), &querysvc.QueryService{},
-		&QueryOptions{TLSGrpc: tlsCfg}, opentracing.NoopTracer{})
+		&QueryOptions{TLSGRPC: tlsCfg}, opentracing.NoopTracer{})
 	assert.NotNil(t, err)
 }
 
@@ -66,7 +66,7 @@ func TestCreateTLSHttpServerError(t *testing.T) {
 	}
 
 	_, err := NewServer(zap.NewNop(), &querysvc.QueryService{},
-		&QueryOptions{TLSHttp: tlsCfg}, opentracing.NoopTracer{})
+		&QueryOptions{TLSHTTP: tlsCfg}, opentracing.NoopTracer{})
 	assert.NotNil(t, err)
 }
 

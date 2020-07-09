@@ -48,13 +48,13 @@ const (
 	queryMaxClockSkewAdjust = "query.max-clock-skew-adjustment"
 )
 
-var tlsGrpcFlagsConfig = tlscfg.ServerFlagsConfig{
+var tlsGRPCFlagsConfig = tlscfg.ServerFlagsConfig{
 	Prefix:       "query.grpc",
 	ShowEnabled:  true,
 	ShowClientCA: true,
 }
 
-var tlsHttpFlagsConfig = tlscfg.ServerFlagsConfig{
+var tlsHTTPFlagsConfig = tlscfg.ServerFlagsConfig{
 	Prefix:       "query.http",
 	ShowEnabled:  true,
 	ShowClientCA: true,
@@ -73,9 +73,9 @@ type QueryOptions struct {
 	// BearerTokenPropagation activate/deactivate bearer token propagation to storage
 	BearerTokenPropagation bool
 	// TLS configures secure transport (Consumer to Query service gRPC APO)
-	TLSGrpc tlscfg.Options
+	TLSGRPC tlscfg.Options
 	// TLS configures secure transport (Consumer to Query service HTTP API)
-	TLSHttp tlscfg.Options
+	TLSHTTP tlscfg.Options
 	// AdditionalHeaders
 	AdditionalHeaders http.Header
 	// MaxClockSkewAdjust is the maximum duration by which jaeger-query will adjust a span
@@ -101,8 +101,8 @@ func (qOpts *QueryOptions) InitFromViper(v *viper.Viper, logger *zap.Logger) *Qu
 	qOpts.StaticAssets = v.GetString(queryStaticFiles)
 	qOpts.UIConfig = v.GetString(queryUIConfig)
 	qOpts.BearerTokenPropagation = v.GetBool(queryTokenPropagation)
-	qOpts.TLSGrpc = tlsGrpcFlagsConfig.InitFromViper(v)
-	qOpts.TLSGrpc = tlsHttpFlagsConfig.InitFromViper(v)
+	qOpts.TLSGRPC = tlsGRPCFlagsConfig.InitFromViper(v)
+	qOpts.TLSHTTP = tlsHTTPFlagsConfig.InitFromViper(v)
 	qOpts.MaxClockSkewAdjust = v.GetDuration(queryMaxClockSkewAdjust)
 
 	stringSlice := v.GetStringSlice(queryAdditionalHeaders)
