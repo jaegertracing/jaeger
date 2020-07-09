@@ -92,6 +92,8 @@ func AddFlags(flagSet *flag.FlagSet) {
 	flagSet.String(queryUIConfig, "", "The path to the UI configuration file in JSON format")
 	flagSet.Bool(queryTokenPropagation, false, "Allow propagation of bearer token to be used by storage plugins")
 	flagSet.Duration(queryMaxClockSkewAdjust, time.Second, "The maximum delta by which span timestamps may be adjusted in the UI due to clock skew; set to 0s to disable clock skew adjustments")
+	tlsGRPCFlagsConfig.AddFlags(flagSet)
+	tlsHTTPFlagsConfig.AddFlags(flagSet)
 }
 
 // InitFromViper initializes QueryOptions with properties from viper
