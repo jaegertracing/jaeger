@@ -3,7 +3,7 @@ sudo: required
 language: go
 go_import_path: github.com/jaegertracing/jaeger
 
-dist: trusty
+dist: bionic
 
 matrix:
   include:
