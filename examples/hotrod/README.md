@@ -65,6 +65,11 @@ docker run \
 
 Then open http://127.0.0.1:8080
 
+## Metrics
+
+The app exposes metrics in either Go's `expvar` format (by default) or in Prometheus format (enabled via `-m prometheus` flag).
+  * `expvar`: `curl http://127.0.0.1:8083/debug/vars`
+  * Prometheus: `curl http://127.0.0.1:8083/metrics`
 
 [hotrod-tutorial]: https://medium.com/@YuriShkuro/take-opentracing-for-a-hotrod-ride-f6e3141f7941
 [hotrod-openshift]: https://blog.openshift.com/openshift-commons-briefing-82-distributed-tracing-with-jaeger-prometheus-on-kubernetes/

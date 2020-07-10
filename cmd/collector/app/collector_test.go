@@ -15,6 +15,7 @@
 package app
 
 import (
+	"context"
 	"io"
 	"testing"
 	"time"
@@ -57,6 +58,6 @@ func TestNewCollector(t *testing.T) {
 type mockStrategyStore struct {
 }
 
-func (m *mockStrategyStore) GetSamplingStrategy(serviceName string) (*sampling.SamplingStrategyResponse, error) {
+func (m *mockStrategyStore) GetSamplingStrategy(_ context.Context, serviceName string) (*sampling.SamplingStrategyResponse, error) {
 	return &sampling.SamplingStrategyResponse{}, nil
 }

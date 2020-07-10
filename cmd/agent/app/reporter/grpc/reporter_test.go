@@ -77,7 +77,7 @@ func TestReporter_EmitZipkinBatch(t *testing.T) {
 					Process: &model.Process{ServiceName: "spring"}, StartTime: tm.UTC()}}}},
 	}
 	for _, test := range tests {
-		err = rep.EmitZipkinBatch([]*zipkincore.Span{test.in})
+		err = rep.EmitZipkinBatch(context.Background(), []*zipkincore.Span{test.in})
 		if test.err != "" {
 			assert.EqualError(t, err, test.err)
 		} else {
@@ -109,7 +109,7 @@ func TestReporter_EmitBatch(t *testing.T) {
 			expected: model.Batch{Process: &model.Process{ServiceName: "node"}, Spans: []*model.Span{{OperationName: "foo", StartTime: tm.UTC()}}}},
 	}
 	for _, test := range tests {
-		err = rep.EmitBatch(test.in)
+		err = rep.EmitBatch(context.Background(), test.in)
 		if test.err != "" {
 			assert.EqualError(t, err, test.err)
 		} else {
@@ -123,7 +123,7 @@ func TestReporter_SendFailure(t *testing.T) {
 	conn, err := grpc.Dial("", grpc.WithInsecure())
 	require.NoError(t, err)
 	rep := NewReporter(conn, nil, zap.NewNop())
-	err = rep.send(nil, nil)
+	err = rep.send(context.Background(), nil, nil)
 	require.Error(t, err)
 	assert.Contains(t, err.Error(), "transport: Error while dialing dial tcp: missing address")
 }

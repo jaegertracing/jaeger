@@ -85,6 +85,11 @@ func (f *Factory) InitFromViper(v *viper.Viper) {
 	f.Options.InitFromViper(v)
 }
 
+// InitFromOptions initializes Factory from supplied options
+func (f *Factory) InitFromOptions(opts Options) {
+	f.Options = &opts
+}
+
 // Initialize implements storage.Factory
 func (f *Factory) Initialize(metricsFactory metrics.Factory, logger *zap.Logger) error {
 	f.logger = logger
@@ -92,7 +97,7 @@ func (f *Factory) Initialize(metricsFactory metrics.Factory, logger *zap.Logger)
 	opts := badger.DefaultOptions
 	opts.TableLoadingMode = options.MemoryMap
 
-	if f.Options.primary.Ephemeral {
+	if f.Options.Primary.Ephemeral {
 		opts.SyncWrites = false
 		// Error from TempDir is ignored to satisfy Codecov
 		dir, _ := ioutil.TempDir("", "badger")
@@ -100,20 +105,20 @@ func (f *Factory) Initialize(metricsFactory metrics.Factory, logger *zap.Logger)
 		opts.Dir = f.tmpDir
 		opts.ValueDir = f.tmpDir
 
-		f.Options.primary.KeyDirectory = f.tmpDir
-		f.Options.primary.ValueDirectory = f.tmpDir
+		f.Options.Primary.KeyDirectory = f.tmpDir
+		f.Options.Primary.ValueDirectory = f.tmpDir
 	} else {
 		// Errors are ignored as they're caught in the Open call
-		initializeDir(f.Options.primary.KeyDirectory)
-		initializeDir(f.Options.primary.ValueDirectory)
+		initializeDir(f.Options.Primary.KeyDirectory)
+		initializeDir(f.Options.Primary.ValueDirectory)
 
-		opts.SyncWrites = f.Options.primary.SyncWrites
-		opts.Dir = f.Options.primary.KeyDirectory
-		opts.ValueDir = f.Options.primary.ValueDirectory
+		opts.SyncWrites = f.Options.Primary.SyncWrites
+		opts.Dir = f.Options.Primary.KeyDirectory
+		opts.ValueDir = f.Options.Primary.ValueDirectory
 
 		// These options make no sense with ephemeral data
-		opts.Truncate = f.Options.primary.Truncate
-		opts.ReadOnly = f.Options.primary.ReadOnly
+		opts.Truncate = f.Options.Primary.Truncate
+		opts.ReadOnly = f.Options.Primary.ReadOnly
 	}
 
 	store, err := badger.Open(opts)
@@ -122,7 +127,7 @@ func (f *Factory) Initialize(metricsFactory metrics.Factory, logger *zap.Logger)
 	}
 	f.store = store
 
-	f.cache = badgerStore.NewCacheStore(f.store, f.Options.primary.SpanStoreTTL, true)
+	f.cache = badgerStore.NewCacheStore(f.store, f.Options.Primary.SpanStoreTTL, true)
 
 	f.metrics.ValueLogSpaceAvailable = metricsFactory.Gauge(metrics.Options{Name: valueLogSpaceAvailableName})
 	f.metrics.KeyLogSpaceAvailable = metricsFactory.Gauge(metrics.Options{Name: keyLogSpaceAvailableName})
@@ -153,7 +158,7 @@ func (f *Factory) CreateSpanReader() (spanstore.Reader, error) {
 
 // CreateSpanWriter implements storage.Factory
 func (f *Factory) CreateSpanWriter() (spanstore.Writer, error) {
-	return badgerStore.NewSpanWriter(f.store, f.cache, f.Options.primary.SpanStoreTTL, f), nil
+	return badgerStore.NewSpanWriter(f.store, f.cache, f.Options.Primary.SpanStoreTTL, f), nil
 }
 
 // CreateDependencyReader implements storage.Factory
@@ -168,7 +173,7 @@ func (f *Factory) Close() error {
 	err := f.store.Close()
 
 	// Remove tmp files if this was ephemeral storage
-	if f.Options.primary.Ephemeral {
+	if f.Options.Primary.Ephemeral {
 		errSecondary := os.RemoveAll(f.tmpDir)
 		if err == nil {
 			err = errSecondary
@@ -180,7 +185,7 @@ func (f *Factory) Close() error {
 
 // Maintenance starts a background maintenance job for the badger K/V store, such as ValueLogGC
 func (f *Factory) maintenance() {
-	maintenanceTicker := time.NewTicker(f.Options.primary.MaintenanceInterval)
+	maintenanceTicker := time.NewTicker(f.Options.Primary.MaintenanceInterval)
 	defer maintenanceTicker.Stop()
 	for {
 		select {
@@ -206,7 +211,7 @@ func (f *Factory) maintenance() {
 }
 
 func (f *Factory) metricsCopier() {
-	metricsTicker := time.NewTicker(f.Options.primary.MetricsUpdateInterval)
+	metricsTicker := time.NewTicker(f.Options.Primary.MetricsUpdateInterval)
 	defer metricsTicker.Stop()
 	for {
 		select {

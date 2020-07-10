@@ -24,7 +24,7 @@ type KerberosConfig struct {
 	Realm       string `mapstructure:"realm"`
 	UseKeyTab   bool   `mapstructure:"use_keytab"`
 	Username    string `mapstructure:"username"`
-	Password    string `mapstructure:"password"`
+	Password    string `mapstructure:"password" json:"-"`
 	ConfigPath  string `mapstructure:"config_file"`
 	KeyTabPath  string `mapstructure:"keytab_file"`
 }

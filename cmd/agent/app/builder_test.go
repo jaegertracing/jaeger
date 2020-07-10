@@ -16,6 +16,7 @@
 package app
 
 import (
+	"context"
 	"errors"
 	"flag"
 	"fmt"
@@ -35,8 +36,6 @@ import (
 	"github.com/jaegertracing/jaeger/cmd/agent/app/configmanager"
 	"github.com/jaegertracing/jaeger/cmd/agent/app/reporter"
 	"github.com/jaegertracing/jaeger/cmd/agent/app/reporter/grpc"
-	"github.com/jaegertracing/jaeger/tchannel/agent/app/reporter/tchannel"
-	"github.com/jaegertracing/jaeger/tchannel/collector/app"
 	"github.com/jaegertracing/jaeger/thrift-gen/baggage"
 	"github.com/jaegertracing/jaeger/thrift-gen/jaeger"
 	"github.com/jaegertracing/jaeger/thrift-gen/sampling"
@@ -175,20 +174,20 @@ func (f fakeCollectorProxy) GetManager() configmanager.ClientConfigManager {
 	return fakeCollectorProxy{}
 }
 
-func (fakeCollectorProxy) EmitZipkinBatch(spans []*zipkincore.Span) (err error) {
+func (fakeCollectorProxy) EmitZipkinBatch(_ context.Context, _ []*zipkincore.Span) (err error) {
 	return nil
 }
-func (fakeCollectorProxy) EmitBatch(batch *jaeger.Batch) (err error) {
+func (fakeCollectorProxy) EmitBatch(_ context.Context, _ *jaeger.Batch) (err error) {
 	return nil
 }
 func (fakeCollectorProxy) Close() error {
 	return nil
 }
 
-func (f fakeCollectorProxy) GetSamplingStrategy(serviceName string) (*sampling.SamplingStrategyResponse, error) {
+func (f fakeCollectorProxy) GetSamplingStrategy(_ context.Context, _ string) (*sampling.SamplingStrategyResponse, error) {
 	return nil, errors.New("no peers available")
 }
-func (fakeCollectorProxy) GetBaggageRestrictions(serviceName string) ([]*baggage.BaggageRestriction, error) {
+func (fakeCollectorProxy) GetBaggageRestrictions(_ context.Context, _ string) ([]*baggage.BaggageRestriction, error) {
 	return nil, nil
 }
 
@@ -202,15 +201,11 @@ func TestCreateCollectorProxy(t *testing.T) {
 			err: "at least one collector hostPort address is required when resolver is not available",
 		},
 		{
-			flags: []string{"--collector.host-port=foo"},
+			flags: []string{"--reporter.type=grpc"},
 			err:   "at least one collector hostPort address is required when resolver is not available",
 		},
 		{
-			flags: []string{"--reporter.type=grpc", "--collector.host-port=foo"},
-			err:   "at least one collector hostPort address is required when resolver is not available",
-		},
-		{
-			flags:  []string{"--reporter.type=grpc", "--reporter.grpc.host-port=foo", "--collector.host-port=foo"},
+			flags:  []string{"--reporter.type=grpc", "--reporter.grpc.host-port=foo"},
 			metric: metricstest.ExpectedMetric{Name: "reporter.batches.failures", Tags: map[string]string{"protocol": "grpc", "format": "jaeger"}, Value: 1},
 		},
 		{
@@ -221,10 +216,8 @@ func TestCreateCollectorProxy(t *testing.T) {
 
 	for _, test := range tests {
 		flags := &flag.FlagSet{}
-		tchannel.AddFlags(flags)
 		grpc.AddFlags(flags)
 		reporter.AddFlags(flags)
-		app.AddFlags(flags)
 
 		command := cobra.Command{}
 		command.PersistentFlags().AddGoFlagSet(flags)
@@ -252,7 +245,7 @@ func TestCreateCollectorProxy(t *testing.T) {
 			assert.Nil(t, proxy)
 		} else {
 			require.NoError(t, err)
-			proxy.GetReporter().EmitBatch(jaeger.NewBatch())
+			proxy.GetReporter().EmitBatch(context.Background(), jaeger.NewBatch())
 			metricsFactory.AssertCounterMetrics(t, test.metric)
 		}
 	}

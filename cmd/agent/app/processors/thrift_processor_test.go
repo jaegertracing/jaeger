@@ -16,6 +16,7 @@
 package processors
 
 import (
+	"context"
 	"errors"
 	"testing"
 	"time"
@@ -26,12 +27,13 @@ import (
 	"github.com/uber/jaeger-lib/metrics"
 	"github.com/uber/jaeger-lib/metrics/metricstest"
 	"go.uber.org/zap"
+	"google.golang.org/grpc"
 
 	"github.com/jaegertracing/jaeger/cmd/agent/app/reporter"
+	grpcrep "github.com/jaegertracing/jaeger/cmd/agent/app/reporter/grpc"
 	"github.com/jaegertracing/jaeger/cmd/agent/app/servers"
 	"github.com/jaegertracing/jaeger/cmd/agent/app/servers/thriftudp"
 	"github.com/jaegertracing/jaeger/cmd/agent/app/testutils"
-	tchreporter "github.com/jaegertracing/jaeger/tchannel/agent/app/reporter/tchannel"
 	"github.com/jaegertracing/jaeger/thrift-gen/agent"
 	"github.com/jaegertracing/jaeger/thrift-gen/jaeger"
 	"github.com/jaegertracing/jaeger/thrift-gen/zipkincore"
@@ -76,10 +78,14 @@ func createProcessor(t *testing.T, mFactory metrics.Factory, tFactory thrift.TPr
 	return transport.Addr().String(), processor
 }
 
-func initCollectorAndReporter(t *testing.T) (*metricstest.Factory, *testutils.MockTCollector, reporter.Reporter) {
-	metricsFactory, collector := testutils.InitMockCollector(t)
-	reporter := reporter.WrapWithMetrics(tchreporter.New("jaeger-collector", collector.Channel, time.Second, nil, zap.NewNop()), metricsFactory)
-	return metricsFactory, collector, reporter
+func initCollectorAndReporter(t *testing.T) (*metricstest.Factory, *testutils.GrpcCollector, reporter.Reporter, *grpc.ClientConn) {
+	grpcCollector := testutils.StartGRPCCollector(t)
+	conn, err := grpc.Dial(grpcCollector.Listener().Addr().String(), grpc.WithInsecure())
+	require.NoError(t, err)
+	rep := grpcrep.NewReporter(conn, map[string]string{}, zap.NewNop())
+	metricsFactory := metricstest.NewFactory(0)
+	reporter := reporter.WrapWithMetrics(rep, metricsFactory)
+	return metricsFactory, grpcCollector, reporter, conn
 }
 
 func TestNewThriftProcessor_ZeroCount(t *testing.T) {
@@ -88,7 +94,8 @@ func TestNewThriftProcessor_ZeroCount(t *testing.T) {
 }
 
 func TestProcessorWithCompactZipkin(t *testing.T) {
-	metricsFactory, collector, reporter := initCollectorAndReporter(t)
+	metricsFactory, collector, reporter, conn := initCollectorAndReporter(t)
+	defer conn.Close()
 	defer collector.Close()
 
 	hostPort, processor := createProcessor(t, metricsFactory, compactFactory, agent.NewAgentProcessor(reporter))
@@ -100,8 +107,9 @@ func TestProcessorWithCompactZipkin(t *testing.T) {
 
 	span := zipkincore.NewSpan()
 	span.Name = testSpanName
+	span.Annotations = []*zipkincore.Annotation{{Value: zipkincore.CLIENT_SEND, Host: &zipkincore.Endpoint{ServiceName: "foo"}}}
 
-	err = client.EmitZipkinBatch([]*zipkincore.Span{span})
+	err = client.EmitZipkinBatch(context.Background(), []*zipkincore.Span{span})
 	require.NoError(t, err)
 
 	assertZipkinProcessorCorrectness(t, collector, metricsFactory)
@@ -111,7 +119,7 @@ type failingHandler struct {
 	err error
 }
 
-func (h failingHandler) Process(iprot, oprot thrift.TProtocol) (success bool, err thrift.TException) {
+func (h failingHandler) Process(_ context.Context, iprot, oprot thrift.TProtocol) (success bool, err thrift.TException) {
 	return false, thrift.NewTApplicationException(0, h.err.Error())
 }
 
@@ -127,7 +135,7 @@ func TestProcessor_HandlerError(t *testing.T) {
 	require.NoError(t, err)
 	defer clientCloser.Close()
 
-	err = client.EmitZipkinBatch([]*zipkincore.Span{{Name: testSpanName}})
+	err = client.EmitZipkinBatch(context.Background(), []*zipkincore.Span{{Name: testSpanName}})
 	require.NoError(t, err)
 
 	for i := 0; i < 10; i++ {
@@ -153,25 +161,26 @@ func TestJaegerProcessor(t *testing.T) {
 	}
 
 	for _, test := range tests {
-		metricsFactory, collector, reporter := initCollectorAndReporter(t)
+		metricsFactory, collector, reporter, conn := initCollectorAndReporter(t)
 
-		hostPort, processor := createProcessor(t, metricsFactory, test.factory, jaeger.NewAgentProcessor(reporter))
+		hostPort, processor := createProcessor(t, metricsFactory, test.factory, agent.NewAgentProcessor(reporter))
 
 		client, clientCloser, err := testutils.NewJaegerThriftUDPClient(hostPort, test.factory)
 		require.NoError(t, err)
 
-		err = client.EmitBatch(batch)
+		err = client.EmitBatch(context.Background(), batch)
 		require.NoError(t, err)
 
 		assertJaegerProcessorCorrectness(t, collector, metricsFactory)
 
 		processor.Stop()
 		clientCloser.Close()
+		conn.Close()
 		collector.Close()
 	}
 }
 
-func assertJaegerProcessorCorrectness(t *testing.T, collector *testutils.MockTCollector, metricsFactory *metricstest.Factory) {
+func assertJaegerProcessorCorrectness(t *testing.T, collector *testutils.GrpcCollector, metricsFactory *metricstest.Factory) {
 	sizeF := func() int {
 		return len(collector.GetJaegerBatches())
 	}
@@ -181,12 +190,12 @@ func assertJaegerProcessorCorrectness(t *testing.T, collector *testutils.MockTCo
 	assertProcessorCorrectness(t, metricsFactory, sizeF, nameF, "jaeger")
 }
 
-func assertZipkinProcessorCorrectness(t *testing.T, collector *testutils.MockTCollector, metricsFactory *metricstest.Factory) {
+func assertZipkinProcessorCorrectness(t *testing.T, collector *testutils.GrpcCollector, metricsFactory *metricstest.Factory) {
 	sizeF := func() int {
-		return len(collector.GetZipkinSpans())
+		return len(collector.GetJaegerBatches())
 	}
 	nameF := func() string {
-		return collector.GetZipkinSpans()[0].Name
+		return collector.GetJaegerBatches()[0].Spans[0].OperationName
 	}
 	assertProcessorCorrectness(t, metricsFactory, sizeF, nameF, "zipkin")
 }

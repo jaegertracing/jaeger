@@ -194,10 +194,9 @@ func newSpanCountsBySvc(factory metrics.Factory, category string, maxServiceName
 func newCountsByTransport(factory metrics.Factory, format processor.SpanFormat) SpanCountsByTransport {
 	factory = factory.Namespace(metrics.NSOptions{Tags: map[string]string{"format": string(format)}})
 	return SpanCountsByTransport{
-		processor.HTTPTransport:     newCounts(factory, processor.HTTPTransport),
-		processor.TChannelTransport: newCounts(factory, processor.TChannelTransport),
-		processor.GRPCTransport:     newCounts(factory, processor.GRPCTransport),
-		processor.UnknownTransport:  newCounts(factory, processor.UnknownTransport),
+		processor.HTTPTransport:    newCounts(factory, processor.HTTPTransport),
+		processor.GRPCTransport:    newCounts(factory, processor.GRPCTransport),
+		processor.UnknownTransport: newCounts(factory, processor.UnknownTransport),
 	}
 }
 

@@ -16,11 +16,8 @@
 package es
 
 import (
-	"bufio"
 	"flag"
 	"fmt"
-	"os"
-	"path/filepath"
 	"strconv"
 	"strings"
 
@@ -113,25 +110,8 @@ func (f *Factory) CreateSpanWriter() (spanstore.Writer, error) {
 
 // CreateDependencyReader implements storage.Factory
 func (f *Factory) CreateDependencyReader() (dependencystore.Reader, error) {
-	return esDepStore.NewDependencyStore(f.primaryClient, f.logger, f.primaryConfig.GetIndexPrefix()), nil
-}
-
-func loadTagsFromFile(filePath string) ([]string, error) {
-	file, err := os.Open(filepath.Clean(filePath))
-	if err != nil {
-		return nil, err
-	}
-	defer file.Close()
-
-	scanner := bufio.NewScanner(file)
-	var tags []string
-	for scanner.Scan() {
-		line := scanner.Text()
-		if tag := strings.TrimSpace(line); tag != "" {
-			tags = append(tags, tag)
-		}
-	}
-	return tags, nil
+	reader := esDepStore.NewDependencyStore(f.primaryClient, f.logger, f.primaryConfig.GetIndexPrefix())
+	return reader, nil
 }
 
 // CreateArchiveSpanReader implements storage.ArchiveFactory
@@ -180,13 +160,13 @@ func createSpanWriter(
 	var tags []string
 	if cfg.GetTagsFilePath() != "" {
 		var err error
-		if tags, err = loadTagsFromFile(cfg.GetTagsFilePath()); err != nil {
+		if tags, err = config.LoadTagsFromFile(cfg.GetTagsFilePath()); err != nil {
 			logger.Error("Could not open file with tags", zap.Error(err))
 			return nil, err
 		}
 	}
 
-	spanMapping, serviceMapping := GetMappings(cfg.GetNumShards(), cfg.GetNumReplicas(), client.GetVersion())
+	spanMapping, serviceMapping := GetSpanServiceMappings(cfg.GetNumShards(), cfg.GetNumReplicas(), client.GetVersion())
 	writer := esSpanStore.NewSpanWriter(esSpanStore.SpanWriterParams{
 		Client:              client,
 		Logger:              logger,
@@ -207,14 +187,22 @@ func createSpanWriter(
 	return writer, nil
 }
 
-// GetMappings returns span and service mappings
-func GetMappings(shards, replicas int64, esVersion uint) (string, string) {
+// GetSpanServiceMappings returns span and service mappings
+func GetSpanServiceMappings(shards, replicas int64, esVersion uint) (string, string) {
 	if esVersion == 7 {
 		return fixMapping(loadMapping("/jaeger-span-7.json"), shards, replicas),
 			fixMapping(loadMapping("/jaeger-service-7.json"), shards, replicas)
 	}
 	return fixMapping(loadMapping("/jaeger-span.json"), shards, replicas),
 		fixMapping(loadMapping("/jaeger-service.json"), shards, replicas)
+}
+
+// GetDependenciesMappings returns dependencies mappings
+func GetDependenciesMappings(shards, replicas int64, esVersion uint) string {
+	if esVersion == 7 {
+		return fixMapping(loadMapping("/jaeger-dependencies-7.json"), shards, replicas)
+	}
+	return fixMapping(loadMapping("/jaeger-dependencies.json"), shards, replicas)
 }
 
 func loadMapping(name string) string {

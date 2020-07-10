@@ -68,7 +68,7 @@ func NewStrategyStore(options Options, logger *zap.Logger) (ss.StrategyStore, er
 }
 
 // GetSamplingStrategy implements StrategyStore#GetSamplingStrategy.
-func (h *strategyStore) GetSamplingStrategy(serviceName string) (*sampling.SamplingStrategyResponse, error) {
+func (h *strategyStore) GetSamplingStrategy(_ context.Context, serviceName string) (*sampling.SamplingStrategyResponse, error) {
 	ss := h.storedStrategies.Load().(*storedStrategies)
 	serviceStrategies := ss.serviceStrategies
 	if strategy, ok := serviceStrategies[serviceName]; ok {

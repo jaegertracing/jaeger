@@ -31,7 +31,8 @@ const (
 	suffixServerMaxPacketSize    = "server-max-packet-size"
 	suffixServerSocketBufferSize = "server-socket-buffer-size"
 	suffixServerHostPort         = "server-host-port"
-	httpServerHostPort           = "http-server.host-port"
+	// HTTPServerHostPort is the flag for HTTP endpoint
+	HTTPServerHostPort = "http-server.host-port"
 )
 
 var defaultProcessors = []struct {
@@ -54,8 +55,13 @@ func AddFlags(flags *flag.FlagSet) {
 		flags.Int(prefix+suffixServerSocketBufferSize, 0, "socket buffer size for UDP packets in bytes")
 		flags.String(prefix+suffixServerHostPort, ":"+strconv.Itoa(p.port), "host:port for the UDP server")
 	}
+	AddOTELFlags(flags)
+}
+
+// AddOTELFlags adds flags that are exposed by OTEL collector
+func AddOTELFlags(flags *flag.FlagSet) {
 	flags.String(
-		httpServerHostPort,
+		HTTPServerHostPort,
 		defaultHTTPServerHostPort,
 		"host:port of the http server (e.g. for /sampling point and /baggageRestrictions endpoint)")
 }
@@ -73,7 +79,7 @@ func (b *Builder) InitFromViper(v *viper.Viper) *Builder {
 		b.Processors = append(b.Processors, *p)
 	}
 
-	b.HTTPServer.HostPort = portNumToHostPort(v.GetString(httpServerHostPort))
+	b.HTTPServer.HostPort = portNumToHostPort(v.GetString(HTTPServerHostPort))
 	return b
 }
 

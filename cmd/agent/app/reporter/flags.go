@@ -26,7 +26,7 @@ import (
 )
 
 const (
-	// Whether to use grpc or tchannel reporter.
+	// Reporter type
 	reporterType = "reporter.type"
 	// AgentTagsDeprecated is a configuration property name for adding process tags to incoming spans.
 	AgentTagsDeprecated = "jaeger.tags"

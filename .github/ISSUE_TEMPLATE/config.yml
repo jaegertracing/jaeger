@@ -1,0 +1,8 @@
+blank_issues_enabled: false
+contact_links:
+  - name: Jaeger Community Support
+    url: https://gitter.im/jaegertracing/Lobby
+    about: Please ask and answer questions here.
+  - name: Report Security Issues
+    url: https://www.jaegertracing.io/report-security-issue/
+    about: Please report security vulnerabilities here.

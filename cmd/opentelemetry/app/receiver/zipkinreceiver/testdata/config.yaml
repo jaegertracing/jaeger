@@ -1,0 +1,16 @@
+receivers:
+  zipkin:
+    endpoint: foo:9411
+
+processors:
+  exampleprocessor:
+
+exporters:
+  exampleexporter:
+
+service:
+  pipelines:
+    traces:
+      receivers: [zipkin]
+      processors: [exampleprocessor]
+      exporters: [exampleexporter]
