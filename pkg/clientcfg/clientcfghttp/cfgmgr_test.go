@@ -15,6 +15,7 @@
 package clientcfghttp
 
 import (
+	"context"
 	"errors"
 	"testing"
 
@@ -29,7 +30,7 @@ type mockSamplingStore struct {
 	samplingResponse *sampling.SamplingStrategyResponse
 }
 
-func (m *mockSamplingStore) GetSamplingStrategy(serviceName string) (*sampling.SamplingStrategyResponse, error) {
+func (m *mockSamplingStore) GetSamplingStrategy(_ context.Context, serviceName string) (*sampling.SamplingStrategyResponse, error) {
 	if m.samplingResponse == nil {
 		return nil, errors.New("no mock response provided")
 	}
@@ -40,7 +41,7 @@ type mockBaggageMgr struct {
 	baggageResponse []*baggage.BaggageRestriction
 }
 
-func (m *mockBaggageMgr) GetBaggageRestrictions(serviceName string) ([]*baggage.BaggageRestriction, error) {
+func (m *mockBaggageMgr) GetBaggageRestrictions(_ context.Context, serviceName string) ([]*baggage.BaggageRestriction, error) {
 	if m.baggageResponse == nil {
 		return nil, errors.New("no mock response provided")
 	}
@@ -56,20 +57,20 @@ func TestConfigManager(t *testing.T) {
 		BaggageManager: bgm,
 	}
 	t.Run("GetSamplingStrategy", func(t *testing.T) {
-		r, err := mgr.GetSamplingStrategy("foo")
+		r, err := mgr.GetSamplingStrategy(context.Background(), "foo")
 		require.NoError(t, err)
 		assert.Equal(t, sampling.SamplingStrategyResponse{}, *r)
 	})
 	t.Run("GetBaggageRestrictions", func(t *testing.T) {
 		expResp := []*baggage.BaggageRestriction{}
 		bgm.baggageResponse = expResp
-		r, err := mgr.GetBaggageRestrictions("foo")
+		r, err := mgr.GetBaggageRestrictions(context.Background(), "foo")
 		require.NoError(t, err)
 		assert.Equal(t, expResp, r)
 	})
 	t.Run("GetBaggageRestrictionsError", func(t *testing.T) {
 		mgr.BaggageManager = nil
-		_, err := mgr.GetBaggageRestrictions("foo")
+		_, err := mgr.GetBaggageRestrictions(context.Background(), "foo")
 		assert.EqualError(t, err, "baggage restrictions not implemented")
 	})
 }

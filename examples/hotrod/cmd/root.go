@@ -79,7 +79,10 @@ func init() {
 	RootCmd.PersistentFlags().StringVarP(&basepath, "basepath", "b", "", `Basepath for frontend service(default "/")`)
 
 	rand.Seed(int64(time.Now().Nanosecond()))
-	logger, _ = zap.NewDevelopment(zap.AddStacktrace(zapcore.FatalLevel))
+	logger, _ = zap.NewDevelopment(
+		zap.AddStacktrace(zapcore.FatalLevel),
+		zap.AddCallerSkip(1),
+	)
 	cobra.OnInitialize(onInitialize)
 }
 

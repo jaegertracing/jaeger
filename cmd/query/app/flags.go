@@ -31,12 +31,15 @@ import (
 	"github.com/jaegertracing/jaeger/cmd/query/app/querysvc"
 	"github.com/jaegertracing/jaeger/model/adjuster"
 	"github.com/jaegertracing/jaeger/pkg/config"
+	"github.com/jaegertracing/jaeger/pkg/config/tlscfg"
 	"github.com/jaegertracing/jaeger/ports"
 	"github.com/jaegertracing/jaeger/storage"
 )
 
 const (
+	queryHostPort           = "query.host-port"
 	queryPort               = "query.port"
+	queryPortWarning        = "(deprecated, will be removed after 2020-08-31 or in release v1.20.0, whichever is later)"
 	queryBasePath           = "query.base-path"
 	queryStaticFiles        = "query.static-files"
 	queryUIConfig           = "query.ui-config"
@@ -45,10 +48,16 @@ const (
 	queryMaxClockSkewAdjust = "query.max-clock-skew-adjustment"
 )
 
+var tlsFlagsConfig = tlscfg.ServerFlagsConfig{
+	Prefix:       "query.grpc",
+	ShowEnabled:  true,
+	ShowClientCA: true,
+}
+
 // QueryOptions holds configuration for query service
 type QueryOptions struct {
-	// Port is the port that the query service listens in on
-	Port int
+	// HostPort is the host:port address that the query service listens o n
+	HostPort string
 	// BasePath is the prefix for all UI and API HTTP routes
 	BasePath string
 	// StaticAssets is the path for the static assets for the UI (https://github.com/uber/jaeger-ui)
@@ -57,6 +66,8 @@ type QueryOptions struct {
 	UIConfig string
 	// BearerTokenPropagation activate/deactivate bearer token propagation to storage
 	BearerTokenPropagation bool
+	// TLS configures secure transport
+	TLS tlscfg.Options
 	// AdditionalHeaders
 	AdditionalHeaders http.Header
 	// MaxClockSkewAdjust is the maximum duration by which jaeger-query will adjust a span
@@ -66,7 +77,8 @@ type QueryOptions struct {
 // AddFlags adds flags for QueryOptions
 func AddFlags(flagSet *flag.FlagSet) {
 	flagSet.Var(&config.StringSlice{}, queryAdditionalHeaders, `Additional HTTP response headers.  Can be specified multiple times.  Format: "Key: Value"`)
-	flagSet.Int(queryPort, ports.QueryHTTP, "The port for the query service")
+	flagSet.String(queryHostPort, ports.PortToHostPort(ports.QueryHTTP), "The host:port (e.g. 127.0.0.1:5555 or :5555) of the query's HTTP server")
+	flagSet.Int(queryPort, 0, queryPortWarning+" see --"+queryHostPort)
 	flagSet.String(queryBasePath, "/", "The base path for all HTTP routes, e.g. /jaeger; useful when running behind a reverse proxy")
 	flagSet.String(queryStaticFiles, "", "The directory path override for the static assets for the UI")
 	flagSet.String(queryUIConfig, "", "The path to the UI configuration file in JSON format")
@@ -76,11 +88,12 @@ func AddFlags(flagSet *flag.FlagSet) {
 
 // InitFromViper initializes QueryOptions with properties from viper
 func (qOpts *QueryOptions) InitFromViper(v *viper.Viper, logger *zap.Logger) *QueryOptions {
-	qOpts.Port = v.GetInt(queryPort)
+	qOpts.HostPort = ports.GetAddressFromCLIOptions(v.GetInt(queryPort), v.GetString(queryHostPort))
 	qOpts.BasePath = v.GetString(queryBasePath)
 	qOpts.StaticAssets = v.GetString(queryStaticFiles)
 	qOpts.UIConfig = v.GetString(queryUIConfig)
 	qOpts.BearerTokenPropagation = v.GetBool(queryTokenPropagation)
+	qOpts.TLS = tlsFlagsConfig.InitFromViper(v)
 	qOpts.MaxClockSkewAdjust = v.GetDuration(queryMaxClockSkewAdjust)
 
 	stringSlice := v.GetStringSlice(queryAdditionalHeaders)

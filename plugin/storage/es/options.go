@@ -31,6 +31,7 @@ const (
 	suffixUsername            = ".username"
 	suffixPassword            = ".password"
 	suffixSniffer             = ".sniffer"
+	suffixSnifferTLSEnabled   = ".sniffer-tls-enabled"
 	suffixTokenPath           = ".token-file"
 	suffixServerURLs          = ".server-urls"
 	suffixMaxSpanAge          = ".max-span-age"
@@ -106,6 +107,22 @@ func NewOptions(primaryNamespace string, otherNamespaces ...string) *Options {
 	}
 
 	return options
+}
+
+// NewOptionsFromConfig creates Options from primary and archive config
+func NewOptionsFromConfig(primary config.Configuration, archive config.Configuration) *Options {
+	return &Options{
+		Primary: namespaceConfig{
+			namespace:     primaryNamespace,
+			Configuration: primary,
+		},
+		others: map[string]*namespaceConfig{
+			archiveNamespace: {
+				namespace:     archiveNamespace,
+				Configuration: archive,
+			},
+		},
+	}
 }
 
 func (config *namespaceConfig) getTLSFlagsConfig() tlscfg.ClientFlagsConfig {
@@ -200,7 +217,7 @@ func addFlags(flagSet *flag.FlagSet, nsConfig *namespaceConfig) {
 	flagSet.Bool(
 		nsConfig.namespace+suffixReadAlias,
 		nsConfig.UseReadWriteAliases,
-		"(experimental) Use read and write aliases for indices. Use this option with Elasticsearch rollover "+
+		"Use read and write aliases for indices. Use this option with Elasticsearch rollover "+
 			"API. It requires an external component to create aliases before startup and then performing its management. "+
 			"Note that "+nsConfig.namespace+suffixMaxSpanAge+" is not taken into the account and has to be substituted by external component managing read alias.")
 	flagSet.Bool(
@@ -211,6 +228,10 @@ func addFlags(flagSet *flag.FlagSet, nsConfig *namespaceConfig) {
 		nsConfig.namespace+suffixVersion,
 		0,
 		"The major Elasticsearch version. If not specified, the value will be auto-detected from Elasticsearch.")
+	flagSet.Bool(
+		nsConfig.namespace+suffixSnifferTLSEnabled,
+		nsConfig.SnifferTLSEnabled,
+		"Option to enable TLS when sniffing an Elasticsearch Cluster ; client uses sniffing process to find all nodes automatically, disabled by default")
 	if nsConfig.namespace == archiveNamespace {
 		flagSet.Bool(
 			nsConfig.namespace+suffixEnabled,
@@ -233,6 +254,7 @@ func initFromViper(cfg *namespaceConfig, v *viper.Viper) {
 	cfg.Password = v.GetString(cfg.namespace + suffixPassword)
 	cfg.TokenFilePath = v.GetString(cfg.namespace + suffixTokenPath)
 	cfg.Sniffer = v.GetBool(cfg.namespace + suffixSniffer)
+	cfg.SnifferTLSEnabled = v.GetBool(cfg.namespace + suffixSnifferTLSEnabled)
 	cfg.Servers = strings.Split(stripWhiteSpace(v.GetString(cfg.namespace+suffixServerURLs)), ",")
 	cfg.MaxSpanAge = v.GetDuration(cfg.namespace + suffixMaxSpanAge)
 	cfg.MaxNumSpans = v.GetInt(cfg.namespace + suffixMaxNumSpans)

@@ -16,6 +16,8 @@
 package reporter
 
 import (
+	"context"
+
 	"github.com/jaegertracing/jaeger/pkg/multierror"
 	"github.com/jaegertracing/jaeger/thrift-gen/jaeger"
 	"github.com/jaegertracing/jaeger/thrift-gen/zipkincore"
@@ -24,8 +26,8 @@ import (
 // Reporter handles spans received by Processor and forwards them to central
 // collectors.
 type Reporter interface {
-	EmitZipkinBatch(spans []*zipkincore.Span) (err error)
-	EmitBatch(batch *jaeger.Batch) (err error)
+	EmitZipkinBatch(ctx context.Context, spans []*zipkincore.Span) (err error)
+	EmitBatch(ctx context.Context, batch *jaeger.Batch) (err error)
 }
 
 // MultiReporter provides serial span emission to one or more reporters.  If
@@ -40,10 +42,10 @@ func NewMultiReporter(reps ...Reporter) MultiReporter {
 }
 
 // EmitZipkinBatch calls each EmitZipkinBatch, returning the first error.
-func (mr MultiReporter) EmitZipkinBatch(spans []*zipkincore.Span) error {
+func (mr MultiReporter) EmitZipkinBatch(ctx context.Context, spans []*zipkincore.Span) error {
 	var errors []error
 	for _, rep := range mr {
-		if err := rep.EmitZipkinBatch(spans); err != nil {
+		if err := rep.EmitZipkinBatch(ctx, spans); err != nil {
 			errors = append(errors, err)
 		}
 	}
@@ -51,10 +53,10 @@ func (mr MultiReporter) EmitZipkinBatch(spans []*zipkincore.Span) error {
 }
 
 // EmitBatch calls each EmitBatch, returning the first error.
-func (mr MultiReporter) EmitBatch(batch *jaeger.Batch) error {
+func (mr MultiReporter) EmitBatch(ctx context.Context, batch *jaeger.Batch) error {
 	var errors []error
 	for _, rep := range mr {
-		if err := rep.EmitBatch(batch); err != nil {
+		if err := rep.EmitBatch(ctx, batch); err != nil {
 			errors = append(errors, err)
 		}
 	}

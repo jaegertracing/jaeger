@@ -15,6 +15,7 @@
 package clientcfghttp
 
 import (
+	"context"
 	"errors"
 
 	"github.com/jaegertracing/jaeger/cmd/collector/app/sampling/strategystore"
@@ -29,14 +30,14 @@ type ConfigManager struct {
 }
 
 // GetSamplingStrategy implements ClientConfigManager.GetSamplingStrategy.
-func (c *ConfigManager) GetSamplingStrategy(serviceName string) (*sampling.SamplingStrategyResponse, error) {
-	return c.SamplingStrategyStore.GetSamplingStrategy(serviceName)
+func (c *ConfigManager) GetSamplingStrategy(ctx context.Context, serviceName string) (*sampling.SamplingStrategyResponse, error) {
+	return c.SamplingStrategyStore.GetSamplingStrategy(ctx, serviceName)
 }
 
 // GetBaggageRestrictions implements ClientConfigManager.GetBaggageRestrictions.
-func (c *ConfigManager) GetBaggageRestrictions(serviceName string) ([]*baggage.BaggageRestriction, error) {
+func (c *ConfigManager) GetBaggageRestrictions(ctx context.Context, serviceName string) ([]*baggage.BaggageRestriction, error) {
 	if c.BaggageManager == nil {
 		return nil, errors.New("baggage restrictions not implemented")
 	}
-	return c.BaggageManager.GetBaggageRestrictions(serviceName)
+	return c.BaggageManager.GetBaggageRestrictions(ctx, serviceName)
 }

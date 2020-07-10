@@ -19,44 +19,36 @@ import (
 	"context"
 	"time"
 
+	otgrpc "github.com/opentracing-contrib/go-grpc"
+	"google.golang.org/grpc"
 	"github.com/opentracing/opentracing-go"
-	"github.com/uber/tchannel-go"
-	"github.com/uber/tchannel-go/thrift"
 	"go.uber.org/zap"
 
 	"github.com/jaegertracing/jaeger/examples/hotrod/pkg/log"
-	"github.com/jaegertracing/jaeger/examples/hotrod/services/driver/thrift-gen/driver"
 )
 
 // Client is a remote client that implements driver.Interface
 type Client struct {
 	tracer opentracing.Tracer
 	logger log.Factory
-	ch     *tchannel.Channel
-	client driver.TChanDriver
+	client DriverServiceClient
 }
 
 // NewClient creates a new driver.Client
 func NewClient(tracer opentracing.Tracer, logger log.Factory, hostPort string) *Client {
-	channelOpts := &tchannel.ChannelOptions{
-		//Logger:        logger,
-		//StatsReporter: statsReporter,
-		Tracer: tracer,
-	}
-	ch, err := tchannel.NewChannel("driver-client", channelOpts)
+	conn, err := grpc.Dial(hostPort, grpc.WithInsecure(),
+		grpc.WithUnaryInterceptor(
+			otgrpc.OpenTracingClientInterceptor(tracer)),
+		grpc.WithStreamInterceptor(
+			otgrpc.OpenTracingStreamClientInterceptor(tracer)))
 	if err != nil {
-		logger.Bg().Fatal("Cannot create TChannel", zap.Error(err))
+		logger.Bg().Fatal("Cannot create gRPC connection", zap.Error(err))
 	}
-	clientOpts := &thrift.ClientOptions{
-		HostPort: hostPort,
-	}
-	thriftClient := thrift.NewClient(ch, "driver", clientOpts)
-	client := driver.NewTChanDriverClient(thriftClient)
 
+	client := NewDriverServiceClient(conn)
 	return &Client{
 		tracer: tracer,
 		logger: logger,
-		ch:     ch,
 		client: client,
 	}
 }
@@ -66,16 +58,16 @@ func (c *Client) FindNearest(ctx context.Context, location string) ([]Driver, er
 	c.logger.For(ctx).Info("Finding nearest drivers", zap.String("location", location))
 	ctx, cancel := context.WithTimeout(ctx, 1*time.Second)
 	defer cancel()
-	results, err := c.client.FindNearest(thrift.Wrap(ctx), location)
+	response, err := c.client.FindNearest(ctx, &DriverLocationRequest{Location: location})
 	if err != nil {
 		return nil, err
 	}
-	return fromThrift(results), nil
+	return fromProto(response), nil
 }
 
-func fromThrift(results []*driver.DriverLocation) []Driver {
-	retMe := make([]Driver, len(results))
-	for i, result := range results {
+func fromProto(response *DriverLocationResponse) []Driver {
+	retMe := make([]Driver, len(response.Locations))
+	for i, result := range response.Locations {
 		retMe[i] = Driver{
 			DriverID: result.DriverID,
 			Location: result.Location,

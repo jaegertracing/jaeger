@@ -15,6 +15,7 @@
 package kafka
 
 import (
+	"bytes"
 	"errors"
 	"testing"
 
@@ -24,6 +25,7 @@ import (
 	"github.com/stretchr/testify/require"
 	"github.com/uber/jaeger-lib/metrics"
 	"go.uber.org/zap"
+	"go.uber.org/zap/zapcore"
 
 	"github.com/jaegertracing/jaeger/pkg/config"
 	kafkaConfig "github.com/jaegertracing/jaeger/pkg/kafka/producer"
@@ -103,6 +105,58 @@ func TestKafkaFactoryMarshallerErr(t *testing.T) {
 
 	f.Builder = &mockProducerBuilder{t: t}
 	assert.Error(t, f.Initialize(metrics.NullFactory, zap.NewNop()))
+}
+
+func TestKafkaFactoryDoesNotLogPassword(t *testing.T) {
+	tests := []struct {
+		name  string
+		flags []string
+	}{
+		{
+			name: "plaintext",
+			flags: []string{
+				"--kafka.producer.authentication=plaintext",
+				"--kafka.producer.plaintext.username=username",
+				"--kafka.producer.plaintext.password=SECRET",
+				"--kafka.producer.brokers=localhost:9092",
+			},
+		},
+		{
+			name: "kerberos",
+			flags: []string{
+				"--kafka.producer.authentication=kerberos",
+				"--kafka.producer.kerberos.username=username",
+				"--kafka.producer.kerberos.password=SECRET",
+				"--kafka.producer.brokers=localhost:9092",
+			},
+		},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+
+			f := NewFactory()
+			v, command := config.Viperize(f.AddFlags)
+			err := command.ParseFlags(test.flags)
+			require.NoError(t, err)
+
+			f.InitFromViper(v)
+
+			parsedConfig := f.Builder.(*kafkaConfig.Configuration)
+			f.Builder = &mockProducerBuilder{t: t, Configuration: *parsedConfig}
+			logbuf := &bytes.Buffer{}
+			logger := zap.New(zapcore.NewCore(
+				zapcore.NewJSONEncoder(zap.NewProductionEncoderConfig()),
+				zapcore.AddSync(logbuf),
+				zap.NewAtomicLevel(),
+			))
+			err = f.Initialize(metrics.NullFactory, logger)
+			require.NoError(t, err)
+			logger.Sync()
+
+			require.NotContains(t, logbuf.String(), "SECRET", "log output must not contain password in clear text")
+		})
+	}
 }
 
 func TestInitFromOptions(t *testing.T) {

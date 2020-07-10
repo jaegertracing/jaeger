@@ -15,10 +15,14 @@
 package processor
 
 import (
+	"errors"
 	"io"
 
 	"github.com/jaegertracing/jaeger/model"
 )
+
+// ErrBusy signalizes that processor cannot process incoming data
+var ErrBusy = errors.New("server busy")
 
 // SpansOptions additional options passed to processor along with the spans.
 type SpansOptions struct {
@@ -39,8 +43,6 @@ type InboundTransport string
 const (
 	// GRPCTransport indicates spans received over gRPC.
 	GRPCTransport InboundTransport = "grpc"
-	// TChannelTransport indicates spans received over TChannel.
-	TChannelTransport InboundTransport = "tchannel"
 	// HTTPTransport indicates spans received over HTTP.
 	HTTPTransport InboundTransport = "http"
 	// UnknownTransport is the fallback/catch-all category.

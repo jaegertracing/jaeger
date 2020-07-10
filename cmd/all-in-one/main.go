@@ -48,7 +48,6 @@ import (
 	"github.com/jaegertracing/jaeger/storage/dependencystore"
 	"github.com/jaegertracing/jaeger/storage/spanstore"
 	storageMetrics "github.com/jaegertracing/jaeger/storage/spanstore/metrics"
-	tCollector "github.com/jaegertracing/jaeger/tchannel/collector/app"
 )
 
 // all-in-one/main is a standalone full-stack jaeger backend, backed by a memory store
@@ -182,7 +181,6 @@ by default uses only in-memory database.`,
 		agentRep.AddFlags,
 		agentGrpcRep.AddFlags,
 		collectorApp.AddFlags,
-		tCollector.AddFlags,
 		queryApp.AddFlags,
 		strategyStoreFactory.AddFlags,
 	)
@@ -224,7 +222,15 @@ func startQuery(
 ) *queryApp.Server {
 	spanReader = storageMetrics.NewReadMetricsDecorator(spanReader, baseFactory.Namespace(metrics.NSOptions{Name: "query"}))
 	qs := querysvc.NewQueryService(spanReader, depReader, *queryOpts)
-	server := queryApp.NewServer(svc, qs, qOpts, opentracing.GlobalTracer())
+	server, err := queryApp.NewServer(svc.Logger, qs, qOpts, opentracing.GlobalTracer())
+	if err != nil {
+		svc.Logger.Fatal("Could not start jaeger-query service", zap.Error(err))
+	}
+	go func() {
+		for s := range server.HealthCheckStatus() {
+			svc.SetHealthCheckStatus(s)
+		}
+	}()
 	if err := server.Start(); err != nil {
 		svc.Logger.Fatal("Could not start jaeger-query service", zap.Error(err))
 	}

@@ -81,7 +81,6 @@ func (aH *APIHandler) SaveSpan(w http.ResponseWriter, r *http.Request) {
 	}
 
 	tdes := thrift.NewTDeserializer()
-	// (NB): We decided to use this struct instead of straight batches to be as consistent with tchannel intake as possible.
 	batch := &tJaeger.Batch{}
 	if err = tdes.Read(batch, bodyBytes); err != nil {
 		http.Error(w, fmt.Sprintf(UnableToReadBodyErrFormat, err), http.StatusBadRequest)

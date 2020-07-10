@@ -187,3 +187,10 @@ func TestBadgerMetrics(t *testing.T) {
 	err := f.Close()
 	assert.NoError(t, err)
 }
+
+func TestInitFromOptions(t *testing.T) {
+	f := NewFactory()
+	opts := Options{}
+	f.InitFromOptions(opts)
+	assert.Equal(t, &opts, f.Options)
+}

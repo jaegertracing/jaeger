@@ -37,9 +37,9 @@ func TestProcessorMetrics(t *testing.T) {
 	benderFormatGRPCMetrics := spm.GetCountsForFormat("bender", processor.GRPCTransport)
 	assert.NotNil(t, benderFormatGRPCMetrics)
 
-	jTChannelFormat := spm.GetCountsForFormat(processor.JaegerSpanFormat, processor.TChannelTransport)
-	assert.NotNil(t, jTChannelFormat)
-	jTChannelFormat.ReceivedBySvc.ReportServiceNameForSpan(&model.Span{
+	grpcChannelFormat := spm.GetCountsForFormat(processor.JaegerSpanFormat, processor.GRPCTransport)
+	assert.NotNil(t, grpcChannelFormat)
+	grpcChannelFormat.ReceivedBySvc.ReportServiceNameForSpan(&model.Span{
 		Process: &model.Process{},
 	})
 	mSpan := model.Span{
@@ -47,17 +47,17 @@ func TestProcessorMetrics(t *testing.T) {
 			ServiceName: "fry",
 		},
 	}
-	jTChannelFormat.ReceivedBySvc.ReportServiceNameForSpan(&mSpan)
+	grpcChannelFormat.ReceivedBySvc.ReportServiceNameForSpan(&mSpan)
 	mSpan.Flags.SetDebug()
-	jTChannelFormat.ReceivedBySvc.ReportServiceNameForSpan(&mSpan)
+	grpcChannelFormat.ReceivedBySvc.ReportServiceNameForSpan(&mSpan)
 	mSpan.ReplaceParentID(1234)
-	jTChannelFormat.ReceivedBySvc.ReportServiceNameForSpan(&mSpan)
+	grpcChannelFormat.ReceivedBySvc.ReportServiceNameForSpan(&mSpan)
 	counters, gauges := baseMetrics.Backend.Snapshot()
 
-	assert.EqualValues(t, 1, counters["service.spans.received|debug=false|format=jaeger|svc=fry|transport=tchannel"])
-	assert.EqualValues(t, 2, counters["service.spans.received|debug=true|format=jaeger|svc=fry|transport=tchannel"])
-	assert.EqualValues(t, 1, counters["service.traces.received|debug=false|format=jaeger|sampler_type=unknown|svc=fry|transport=tchannel"])
-	assert.EqualValues(t, 1, counters["service.traces.received|debug=true|format=jaeger|sampler_type=unknown|svc=fry|transport=tchannel"])
+	assert.EqualValues(t, 1, counters["service.spans.received|debug=false|format=jaeger|svc=fry|transport=grpc"])
+	assert.EqualValues(t, 2, counters["service.spans.received|debug=true|format=jaeger|svc=fry|transport=grpc"])
+	assert.EqualValues(t, 1, counters["service.traces.received|debug=false|format=jaeger|sampler_type=unknown|svc=fry|transport=grpc"])
+	assert.EqualValues(t, 1, counters["service.traces.received|debug=true|format=jaeger|sampler_type=unknown|svc=fry|transport=grpc"])
 	assert.Empty(t, gauges)
 }
 
