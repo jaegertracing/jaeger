@@ -73,7 +73,7 @@ func createClient(destAddr, locAddr *net.UDPAddr) (*TUDPTransport, error) {
 // It will listen for incoming udp packets on the specified host/port
 // Example:
 // 	trans, err := thriftudp.NewTUDPClientTransport("localhost:9001")
-func NewTUDPServerTransport(hostPort string, bufferSize int) (*TUDPTransport, error) {
+func NewTUDPServerTransport(hostPort string) (*TUDPTransport, error) {
 	addr, err := net.ResolveUDPAddr("udp", hostPort)
 	if err != nil {
 		return nil, thrift.NewTTransportException(thrift.NOT_OPEN, err.Error())
@@ -81,12 +81,6 @@ func NewTUDPServerTransport(hostPort string, bufferSize int) (*TUDPTransport, er
 	conn, err := net.ListenUDP(addr.Network(), addr)
 	if err != nil {
 		return nil, thrift.NewTTransportException(thrift.NOT_OPEN, err.Error())
-	}
-
-	if bufferSize != 0 {
-		if err = setSocketBuffer(conn, bufferSize); err != nil {
-			return nil, err
-		}
 	}
 
 	return &TUDPTransport{addr: conn.LocalAddr(), conn: conn}, nil
@@ -158,4 +152,9 @@ func (p *TUDPTransport) Flush() error {
 	_, err := p.conn.Write(p.writeBuf.Bytes())
 	p.writeBuf.Reset() // always reset the buffer, even in case of an error
 	return err
+}
+
+// SetSocketBufferSize sets udp buffer size
+func (p *TUDPTransport) SetSocketBufferSize(bufferSize int) error {
+	return setSocketBuffer(p.Conn(), bufferSize)
 }

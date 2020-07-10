@@ -26,12 +26,12 @@ import (
 )
 
 const (
-	suffixWorkers             = "workers"
-	suffixServerQueueSize     = "server-queue-size"
-	suffixServerMaxPacketSize = "server-max-packet-size"
-	suffixServerBufferSize    = "server-buffer-size"
-	suffixServerHostPort      = "server-host-port"
-	httpServerHostPort        = "http-server.host-port"
+	suffixWorkers                = "workers"
+	suffixServerQueueSize        = "server-queue-size"
+	suffixServerMaxPacketSize    = "server-max-packet-size"
+	suffixServerSocketBufferSize = "server-socket-buffer-size"
+	suffixServerHostPort         = "server-host-port"
+	httpServerHostPort           = "http-server.host-port"
 )
 
 var defaultProcessors = []struct {
@@ -51,7 +51,7 @@ func AddFlags(flags *flag.FlagSet) {
 		flags.Int(prefix+suffixWorkers, defaultServerWorkers, "how many workers the processor should run")
 		flags.Int(prefix+suffixServerQueueSize, defaultQueueSize, "length of the queue for the UDP server")
 		flags.Int(prefix+suffixServerMaxPacketSize, defaultMaxPacketSize, "max packet size for the UDP server")
-		flags.Int(prefix+suffixServerBufferSize, 0, "buffer size for UDP packets in bytes")
+		flags.Int(prefix+suffixServerSocketBufferSize, 0, "socket buffer size for UDP packets in bytes")
 		flags.String(prefix+suffixServerHostPort, ":"+strconv.Itoa(p.port), "host:port for the UDP server")
 	}
 	flags.String(
@@ -68,7 +68,7 @@ func (b *Builder) InitFromViper(v *viper.Viper) *Builder {
 		p.Workers = v.GetInt(prefix + suffixWorkers)
 		p.Server.QueueSize = v.GetInt(prefix + suffixServerQueueSize)
 		p.Server.MaxPacketSize = v.GetInt(prefix + suffixServerMaxPacketSize)
-		p.Server.BufferSize = v.GetInt(prefix + suffixServerBufferSize)
+		p.Server.SocketBufferSize = v.GetInt(prefix + suffixServerSocketBufferSize)
 		p.Server.HostPort = portNumToHostPort(v.GetString(prefix + suffixServerHostPort))
 		b.Processors = append(b.Processors, *p)
 	}
