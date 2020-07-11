@@ -24,6 +24,7 @@ import (
 	"go.opentelemetry.io/collector/config/configcheck"
 	"go.opentelemetry.io/collector/config/configerror"
 	"go.opentelemetry.io/collector/config/configmodels"
+	"go.uber.org/zap"
 
 	jConfig "github.com/jaegertracing/jaeger/pkg/config"
 	"github.com/jaegertracing/jaeger/plugin/storage/es"
@@ -36,9 +37,11 @@ func TestCreateTraceExporter(t *testing.T) {
 	factory := &Factory{OptionsFactory: func() *es.Options {
 		return opts
 	}}
-	exporter, err := factory.CreateTraceExporter(context.Background(), component.ExporterCreateParams{}, factory.CreateDefaultConfig())
+	config := factory.CreateDefaultConfig().(*Config)
+	config.Primary.Servers = []string{"http://foobardoesnotexists.test"}
+	exporter, err := factory.CreateTraceExporter(context.Background(), component.ExporterCreateParams{Logger: zap.NewNop()}, config)
 	require.Nil(t, exporter)
-	assert.Contains(t, err.Error(), "failed to create primary Elasticsearch client")
+	assert.Contains(t, err.Error(), "no such host")
 }
 
 func TestCreateTraceExporter_nilConfig(t *testing.T) {

@@ -19,9 +19,14 @@ import (
 	"strings"
 
 	"go.opentelemetry.io/collector/config"
+	"go.opentelemetry.io/collector/config/configgrpc"
+	"go.opentelemetry.io/collector/config/confighttp"
 	"go.opentelemetry.io/collector/config/configmodels"
+	"go.opentelemetry.io/collector/config/confignet"
+	"go.opentelemetry.io/collector/config/configprotocol"
+	"go.opentelemetry.io/collector/processor/batchprocessor"
+	"go.opentelemetry.io/collector/processor/queuedprocessor"
 	"go.opentelemetry.io/collector/processor/resourceprocessor"
-	"go.opentelemetry.io/collector/receiver"
 	"go.opentelemetry.io/collector/receiver/jaegerreceiver"
 	"go.opentelemetry.io/collector/receiver/zipkinreceiver"
 
@@ -69,11 +74,7 @@ func (c ComponentSettings) CreateDefaultConfig() (*configmodels.Config, error) {
 		return nil, err
 	}
 	receivers := createReceivers(c.ComponentType, c.ZipkinHostPort, c.Factories)
-	processors := configmodels.Processors{}
-	resProcessor := c.Factories.Processors["resource"].CreateDefaultConfig().(*resourceprocessor.Config)
-	if len(resProcessor.Labels) > 0 {
-		processors[resProcessor.Name()] = resProcessor
-	}
+	processors, processorNames := createProcessors(c.Factories)
 	hc := c.Factories.Extensions["health_check"].CreateDefaultConfig()
 	return &configmodels.Config{
 		Receivers:  receivers,
@@ -86,12 +87,29 @@ func (c ComponentSettings) CreateDefaultConfig() (*configmodels.Config, error) {
 				string(configmodels.TracesDataType): {
 					InputType:  configmodels.TracesDataType,
 					Receivers:  receiverNames(receivers),
-					Processors: processorNames(processors),
+					Processors: processorNames,
 					Exporters:  exporterNames(exporters),
 				},
 			},
 		},
 	}, nil
+}
+
+func createProcessors(factories config.Factories) (configmodels.Processors, []string) {
+	processors := configmodels.Processors{}
+	var names []string
+	resource := factories.Processors["resource"].CreateDefaultConfig().(*resourceprocessor.Config)
+	if len(resource.Labels) > 0 {
+		processors[resource.Name()] = resource
+		names = append(names, resource.Name())
+	}
+	batch := factories.Processors["batch"].CreateDefaultConfig().(*batchprocessor.Config)
+	processors[batch.Name()] = batch
+	names = append(names, batch.Name())
+	queuedRetry := factories.Processors["queued_retry"].CreateDefaultConfig().(*queuedprocessor.Config)
+	processors[queuedRetry.Name()] = queuedRetry
+	names = append(names, queuedRetry.Name())
+	return processors, names
 }
 
 func createReceivers(component ComponentType, zipkinHostPort string, factories config.Factories) configmodels.Receivers {
@@ -105,18 +123,16 @@ func createReceivers(component ComponentType, zipkinHostPort string, factories c
 	jaeger := factories.Receivers["jaeger"].CreateDefaultConfig().(*jaegerreceiver.Config)
 	// The CreateDefaultConfig is enabling protocols from flags
 	// we do not want to override it here
-	if _, ok := jaeger.Protocols["grpc"]; !ok {
-		jaeger.Protocols["grpc"] = &receiver.SecureReceiverSettings{
-			ReceiverSettings: configmodels.ReceiverSettings{
+	if jaeger.GRPC == nil {
+		jaeger.GRPC = &configgrpc.GRPCServerSettings{
+			NetAddr: confignet.NetAddr{
 				Endpoint: gRPCEndpoint,
 			},
 		}
 	}
-	if _, ok := jaeger.Protocols["thrift_http"]; !ok {
-		jaeger.Protocols["thrift_http"] = &receiver.SecureReceiverSettings{
-			ReceiverSettings: configmodels.ReceiverSettings{
-				Endpoint: httpThriftBinaryEndpoint,
-			},
+	if jaeger.ThriftHTTP == nil {
+		jaeger.ThriftHTTP = &confighttp.HTTPServerSettings{
+			Endpoint: httpThriftBinaryEndpoint,
 		}
 	}
 	if component == Agent || component == AllInOne {
@@ -170,18 +186,14 @@ func createExporters(component ComponentType, storageTypes string, factories con
 }
 
 func enableAgentUDPEndpoints(jaeger *jaegerreceiver.Config) {
-	if _, ok := jaeger.Protocols["thrift_compact"]; !ok {
-		jaeger.Protocols["thrift_compact"] = &receiver.SecureReceiverSettings{
-			ReceiverSettings: configmodels.ReceiverSettings{
-				Endpoint: udpThriftCompactEndpoint,
-			},
+	if jaeger.ThriftCompact == nil {
+		jaeger.ThriftCompact = &configprotocol.ProtocolServerSettings{
+			Endpoint: udpThriftCompactEndpoint,
 		}
 	}
-	if _, ok := jaeger.Protocols["thrift_binary"]; !ok {
-		jaeger.Protocols["thrift_binary"] = &receiver.SecureReceiverSettings{
-			ReceiverSettings: configmodels.ReceiverSettings{
-				Endpoint: udpThriftBinaryEndpoint,
-			},
+	if jaeger.ThriftBinary == nil {
+		jaeger.ThriftBinary = &configprotocol.ProtocolServerSettings{
+			Endpoint: udpThriftBinaryEndpoint,
 		}
 	}
 }
@@ -189,14 +201,6 @@ func enableAgentUDPEndpoints(jaeger *jaegerreceiver.Config) {
 func receiverNames(receivers configmodels.Receivers) []string {
 	var names []string
 	for _, v := range receivers {
-		names = append(names, v.Name())
-	}
-	return names
-}
-
-func processorNames(processors configmodels.Processors) []string {
-	var names []string
-	for _, v := range processors {
 		names = append(names, v.Name())
 	}
 	return names

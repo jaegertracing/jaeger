@@ -72,9 +72,10 @@ func (f Factory) CreateTraceReceiver(
 // CreateMetricsReceiver creates a metrics receiver based on provided config.
 // This function implements component.ReceiverFactoryOld.
 func (f Factory) CreateMetricsReceiver(
+	ctx context.Context,
 	logger *zap.Logger,
 	cfg configmodels.Receiver,
 	consumer consumer.MetricsConsumerOld,
 ) (component.MetricsReceiver, error) {
-	return f.Wrapped.CreateMetricsReceiver(logger, cfg, consumer)
+	return f.Wrapped.CreateMetricsReceiver(ctx, logger, cfg, consumer)
 }

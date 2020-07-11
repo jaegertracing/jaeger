@@ -51,9 +51,10 @@ func TestService(t *testing.T) {
 				Extensions: []string{"health_check"},
 				Pipelines: configmodels.Pipelines{
 					"traces": &configmodels.Pipeline{
-						InputType: configmodels.TracesDataType,
-						Receivers: []string{"otlp", "jaeger"},
-						Exporters: []string{"jaeger"},
+						InputType:  configmodels.TracesDataType,
+						Receivers:  []string{"otlp", "jaeger"},
+						Processors: []string{"batch", "queued_retry"},
+						Exporters:  []string{"jaeger"},
 					},
 				},
 			},
@@ -70,7 +71,7 @@ func TestService(t *testing.T) {
 					"traces": &configmodels.Pipeline{
 						InputType:  configmodels.TracesDataType,
 						Receivers:  []string{"otlp", "jaeger"},
-						Processors: []string{"resource"},
+						Processors: []string{"resource", "batch", "queued_retry"},
 						Exporters:  []string{elasticsearchexporter.TypeStr, kafkaexporter.TypeStr, memoryexporter.TypeStr},
 					},
 				},
@@ -85,9 +86,10 @@ func TestService(t *testing.T) {
 				Extensions: []string{"health_check"},
 				Pipelines: configmodels.Pipelines{
 					"traces": &configmodels.Pipeline{
-						InputType: configmodels.TracesDataType,
-						Receivers: []string{kafkareceiver.TypeStr},
-						Exporters: []string{elasticsearchexporter.TypeStr},
+						InputType:  configmodels.TracesDataType,
+						Receivers:  []string{kafkareceiver.TypeStr},
+						Processors: []string{"batch", "queued_retry"},
+						Exporters:  []string{elasticsearchexporter.TypeStr},
 					},
 				},
 			},
@@ -101,9 +103,10 @@ func TestService(t *testing.T) {
 				Extensions: []string{"health_check"},
 				Pipelines: configmodels.Pipelines{
 					"traces": &configmodels.Pipeline{
-						InputType: configmodels.TracesDataType,
-						Receivers: []string{kafkareceiver.TypeStr},
-						Exporters: []string{cassandraexporter.TypeStr, elasticsearchexporter.TypeStr, grpcpluginexporter.TypeStr},
+						InputType:  configmodels.TracesDataType,
+						Receivers:  []string{kafkareceiver.TypeStr},
+						Processors: []string{"batch", "queued_retry"},
+						Exporters:  []string{cassandraexporter.TypeStr, elasticsearchexporter.TypeStr, grpcpluginexporter.TypeStr},
 					},
 				},
 			},
@@ -118,9 +121,10 @@ func TestService(t *testing.T) {
 				Extensions: []string{"health_check"},
 				Pipelines: configmodels.Pipelines{
 					"traces": &configmodels.Pipeline{
-						InputType: configmodels.TracesDataType,
-						Receivers: []string{"otlp", "jaeger", "zipkin"},
-						Exporters: []string{elasticsearchexporter.TypeStr},
+						InputType:  configmodels.TracesDataType,
+						Receivers:  []string{"otlp", "jaeger", "zipkin"},
+						Processors: []string{"batch", "queued_retry"},
+						Exporters:  []string{elasticsearchexporter.TypeStr},
 					},
 				},
 			},

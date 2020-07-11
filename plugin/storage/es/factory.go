@@ -16,11 +16,8 @@
 package es
 
 import (
-	"bufio"
 	"flag"
 	"fmt"
-	"os"
-	"path/filepath"
 	"strconv"
 	"strings"
 
@@ -117,25 +114,6 @@ func (f *Factory) CreateDependencyReader() (dependencystore.Reader, error) {
 	return reader, nil
 }
 
-func loadTagsFromFile(filePath string) ([]string, error) {
-	file, err := os.Open(filepath.Clean(filePath))
-	if err != nil {
-		return nil, err
-	}
-	/* #nosec G307 */
-	defer file.Close()
-
-	scanner := bufio.NewScanner(file)
-	var tags []string
-	for scanner.Scan() {
-		line := scanner.Text()
-		if tag := strings.TrimSpace(line); tag != "" {
-			tags = append(tags, tag)
-		}
-	}
-	return tags, nil
-}
-
 // CreateArchiveSpanReader implements storage.ArchiveFactory
 func (f *Factory) CreateArchiveSpanReader() (spanstore.Reader, error) {
 	if !f.archiveConfig.IsStorageEnabled() {
@@ -182,7 +160,7 @@ func createSpanWriter(
 	var tags []string
 	if cfg.GetTagsFilePath() != "" {
 		var err error
-		if tags, err = loadTagsFromFile(cfg.GetTagsFilePath()); err != nil {
+		if tags, err = config.LoadTagsFromFile(cfg.GetTagsFilePath()); err != nil {
 			logger.Error("Could not open file with tags", zap.Error(err))
 			return nil, err
 		}
