@@ -16,17 +16,24 @@ package app
 
 import (
 	"context"
+	"crypto/rand"
+	"crypto/tls"
+	"fmt"
+	"net"
+	"net/http"
 	"testing"
 	"time"
 
 	opentracing "github.com/opentracing/opentracing-go"
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/mock"
+	"github.com/stretchr/testify/require"
 	"go.uber.org/zap"
 	"go.uber.org/zap/zaptest/observer"
 
 	"github.com/jaegertracing/jaeger/cmd/flags"
 	"github.com/jaegertracing/jaeger/cmd/query/app/querysvc"
+	"github.com/jaegertracing/jaeger/model"
 	"github.com/jaegertracing/jaeger/pkg/config/tlscfg"
 	"github.com/jaegertracing/jaeger/pkg/healthcheck"
 	"github.com/jaegertracing/jaeger/ports"
@@ -68,6 +75,310 @@ func TestCreateTLSHttpServerError(t *testing.T) {
 	_, err := NewServer(zap.NewNop(), &querysvc.QueryService{},
 		&QueryOptions{TLSHTTP: tlsCfg}, opentracing.NoopTracer{})
 	assert.NotNil(t, err)
+}
+
+func TestTLSHTTPServer(t *testing.T) {
+	tests := []struct {
+		name             string
+		serverTLS        tlscfg.Options
+		clientTLS        tlscfg.Options
+		expectError      bool
+		expectServerFail bool
+	}{
+		// {
+		// 	name: "",
+		// 	serverTLS: tlscfg.Options{
+		// 		Enabled:      true,
+		// 		CertPath:     "invalid/path",
+		// 		KeyPath:      "invalid/path",
+		// 		ClientCAPath: "invalid/path",
+		// 	},
+		// 	clientTLS: tlscfg.Options{
+		// 		Enabled:    true,
+		// 		CertPath:   "invalid/path",
+		// 		KeyPath:    "invalid/path",
+		// 		CAPath:     "invalid/path",
+		// 		ServerName: "localhost",
+		// 	},
+		// 	expectError:      false,
+		// 	expectServerFail: false,
+		// },
+		{
+			name: "Should pass with insecure connection",
+			serverTLS: tlscfg.Options{
+				Enabled: false,
+			},
+			clientTLS: tlscfg.Options{
+				Enabled: false,
+			},
+			expectError:      false,
+			expectServerFail: false,
+		},
+		{
+			name: "should fail with TLS client to untrusted TLS server",
+			serverTLS: tlscfg.Options{
+				Enabled:  true,
+				CertPath: "testdata/serverCert.pem",
+				KeyPath:  "testdata/serverkey.pem",
+			},
+			clientTLS: tlscfg.Options{
+				Enabled:    true,
+				ServerName: "localhost",
+			},
+			expectError:      true,
+			expectServerFail: false,
+		},
+		{
+			name: "should fail with TLS client to trusted TLS server with incorrect hostname",
+			serverTLS: tlscfg.Options{
+				Enabled:  true,
+				CertPath: "testdata/serverCert.pem",
+				KeyPath:  "testdata/serverkey.pem",
+			},
+			clientTLS: tlscfg.Options{
+				Enabled:    true,
+				CAPath:     "testdata/CA-cert.pem",
+				ServerName: "nonEmpty",
+			},
+			expectError:      true,
+			expectServerFail: false,
+		},
+		{
+			name: "should pass with TLS client to trusted TLS server with correct hostname",
+			serverTLS: tlscfg.Options{
+				Enabled:  true,
+				CertPath: "testdata/serverCert.pem",
+				KeyPath:  "testdata/serverkey.pem",
+			},
+			clientTLS: tlscfg.Options{
+				Enabled:    true,
+				CAPath:     "testdata/CA-cert.pem",
+				ServerName: "localhost",
+			},
+			expectError:      false,
+			expectServerFail: false,
+		},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			serverOptions := &QueryOptions{TLSHTTP: test.serverTLS}
+			httpServer, err := createHTTPServer(&querysvc.QueryService{}, serverOptions, opentracing.NoopTracer{}, zap.NewNop())
+
+			if test.expectServerFail {
+				require.Error(t, err)
+			} else {
+				require.NoError(t, err)
+				assert.NotNil(t, httpServer)
+			}
+			httpListener, err := net.Listen("tcp", "localhost:"+fmt.Sprintf("%d", ports.QueryHTTP))
+			if test.expectServerFail {
+				require.Error(t, err)
+			} else {
+				require.NoError(t, err)
+			}
+
+			if serverOptions.TLSHTTP.Enabled {
+
+				tlsCfg, _ := serverOptions.TLSHTTP.Config()
+				tlsCfg.Rand = rand.Reader
+				tlsHTTPListener := tls.NewListener(httpListener, tlsCfg)
+				go func() {
+					err := httpServer.Serve(tlsHTTPListener)
+
+					if test.expectServerFail {
+
+						assert.Equal(t, false, (err == nil) || (err == http.ErrServerClosed))
+
+					}
+
+				}()
+				defer httpServer.Close()
+				// defer tlsHTTPListener.Close()
+				// defer httpListener.Close()
+				time.Sleep(10 * time.Millisecond) // wait for server to start serving
+
+				clientTLSCfg, err0 := test.clientTLS.Config()
+				require.NoError(t, err0)
+				// fmt.Println(tlsCfg.ClientCAs != nil, tlsCfg.ClientAuth == tls.RequireAndVerifyClientCert)
+				conn, err1 := tls.Dial("tcp", "localhost:"+fmt.Sprintf("%d", ports.QueryHTTP), clientTLSCfg)
+
+				if test.expectError {
+					require.Error(t, err1)
+				} else {
+					require.NoError(t, err1)
+					defer conn.Close()
+				}
+
+			} else {
+				go func() {
+					err := httpServer.Serve(httpListener)
+
+					if test.expectServerFail {
+
+						assert.Equal(t, false, (err == nil) || (err == http.ErrServerClosed))
+
+					}
+					// time.Sleep(2 * time.Second)
+				}()
+
+				time.Sleep(10 * time.Millisecond) // wait for server to start serving
+				defer httpServer.Close()
+				conn, err2 := net.Dial("tcp", "localhost:"+fmt.Sprintf("%d", ports.QueryHTTP))
+				if test.expectError {
+					require.Error(t, err2)
+				} else {
+					require.NoError(t, err2)
+					defer conn.Close()
+				}
+
+			}
+
+		})
+	}
+}
+
+func TestTLSHTTPServerWithMTLS(t *testing.T) {
+	tests := []struct {
+		name              string
+		serverTLS         tlscfg.Options
+		clientTLS         tlscfg.Options
+		expectError       bool
+		expectServerFail  bool
+		expectClientError bool
+	}{
+		{
+			name: "should fail with TLS client without cert to trusted TLS server requiring cert",
+			serverTLS: tlscfg.Options{
+				Enabled:      true,
+				CertPath:     "testdata/serverCert.pem",
+				KeyPath:      "testdata/serverkey.pem",
+				ClientCAPath: "testdata/CA-cert.pem",
+			},
+			clientTLS: tlscfg.Options{
+				Enabled:    true,
+				CAPath:     "testdata/CA-cert.pem",
+				ServerName: "localhost",
+			},
+			expectError:       false,
+			expectServerFail:  false,
+			expectClientError: true,
+		},
+		{
+			name: "should fail with TLS client without cert to trusted TLS server requiring cert from a different CA",
+			serverTLS: tlscfg.Options{
+				Enabled:      true,
+				CertPath:     "testdata/serverCert.pem",
+				KeyPath:      "testdata/serverkey.pem",
+				ClientCAPath: "testdata/testCA.pem", // NB: wrong CA
+			},
+			clientTLS: tlscfg.Options{
+				Enabled:    true,
+				CAPath:     "testdata/CA-cert.pem",
+				ServerName: "localhost",
+				CertPath:   "testdata/clientCert.pem",
+				KeyPath:    "testdata/clientkey.pem",
+			},
+			expectError:       false,
+			expectServerFail:  false,
+			expectClientError: true,
+		},
+		{
+			name: "should pass with TLS client with cert to trusted TLS server requiring cert",
+			serverTLS: tlscfg.Options{
+				Enabled:      true,
+				CertPath:     "testdata/serverCert.pem",
+				KeyPath:      "testdata/serverkey.pem",
+				ClientCAPath: "testdata/CA-cert.pem",
+			},
+			clientTLS: tlscfg.Options{
+				Enabled:    true,
+				CAPath:     "testdata/CA-cert.pem",
+				ServerName: "localhost",
+				CertPath:   "testdata/clientCert.pem",
+				KeyPath:    "testdata/clientkey.pem",
+			},
+			expectError:       false,
+			expectServerFail:  false,
+			expectClientError: false,
+		},
+	}
+
+	for _, test := range tests {
+		t.Run(test.name, func(t *testing.T) {
+			serverOptions := &QueryOptions{TLSHTTP: test.serverTLS}
+			readMock := &spanstoremocks.Reader{}
+			serverQuerySvc := querysvc.NewQueryService(readMock, &depsmocks.Reader{}, querysvc.QueryServiceOptions{})
+
+			httpServer, err := createHTTPServer(serverQuerySvc, serverOptions, opentracing.NoopTracer{}, zap.NewNop())
+
+			if test.expectServerFail {
+				require.Error(t, err)
+			} else {
+				require.NoError(t, err)
+				assert.NotNil(t, httpServer)
+			}
+			httpListener, err := net.Listen("tcp", "localhost:"+fmt.Sprintf("%d", ports.QueryHTTP))
+			if test.expectServerFail {
+				require.Error(t, err)
+			} else {
+				require.NoError(t, err)
+			}
+
+			tlsCfg, _ := serverOptions.TLSHTTP.Config()
+			tlsCfg.Rand = rand.Reader
+			tlsHTTPListener := tls.NewListener(httpListener, tlsCfg)
+			go func() {
+				err := httpServer.Serve(tlsHTTPListener)
+
+				if test.expectServerFail {
+
+					assert.Equal(t, false, (err == nil) || (err == http.ErrServerClosed))
+
+				}
+
+			}()
+			defer httpServer.Close()
+			time.Sleep(10 * time.Millisecond) // wait for server to start serving
+
+			clientTLSCfg, err0 := test.clientTLS.Config()
+			require.NoError(t, err0)
+			// fmt.Println(tlsCfg.ClientCAs != nil, tlsCfg.ClientAuth == tls.RequireAndVerifyClientCert)
+			conn, err1 := tls.Dial("tcp", "localhost:"+fmt.Sprintf("%d", ports.QueryHTTP), clientTLSCfg)
+
+			if test.expectError {
+				require.Error(t, err1)
+
+			} else {
+				require.NoError(t, err1)
+				conn.Close()
+			}
+			client := &http.Client{
+				Transport: &http.Transport{
+					TLSClientConfig: clientTLSCfg,
+				},
+			}
+			readMock.On("FindTraces", mock.AnythingOfType("*context.valueCtx"), mock.AnythingOfType("*spanstore.TraceQueryParameters")).Return([]*model.Trace{mockTrace}, nil).Once()
+			queryString := "/api/traces?service=service&start=0&end=0&operation=operation&limit=200&minDuration=20ms"
+			req, err := http.NewRequest("GET", "https://localhost:"+fmt.Sprintf("%d", ports.QueryHTTP)+queryString, nil)
+			if err != nil {
+				return
+			}
+			req.Header.Add("Accept", "application/json")
+
+			resp, err2 := client.Do(req)
+
+			if test.expectClientError {
+				require.Error(t, err2)
+				return
+
+			}
+			require.NoError(t, err2)
+
+			defer resp.Body.Close()
+
+		})
+	}
 }
 
 func TestServer(t *testing.T) {
