@@ -72,9 +72,9 @@ type QueryOptions struct {
 	UIConfig string
 	// BearerTokenPropagation activate/deactivate bearer token propagation to storage
 	BearerTokenPropagation bool
-	// TLS configures secure transport (Consumer to Query service gRPC APO)
+	// TLSGRPC configures secure transport (Consumer to Query service GRPC API)
 	TLSGRPC tlscfg.Options
-	// TLS configures secure transport (Consumer to Query service HTTP API)
+	// TLSHTTP configures secure transport (Consumer to Query service HTTP API)
 	TLSHTTP tlscfg.Options
 	// AdditionalHeaders
 	AdditionalHeaders http.Header
