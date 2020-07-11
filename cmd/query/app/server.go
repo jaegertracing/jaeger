@@ -15,9 +15,10 @@
 package app
 
 import (
+	"crypto/rand"
+	"crypto/tls"
 	"net"
 	"net/http"
-	"path/filepath"
 	"strings"
 
 	"github.com/gorilla/handlers"
@@ -162,7 +163,11 @@ func (s *Server) Start() error {
 		s.logger.Info("Starting HTTP server", zap.Int("port", tcpPort), zap.String("addr", s.queryOptions.HostPort))
 		var err error
 		if s.queryOptions.TLSHTTP.Enabled {
-			err = s.httpServer.ServeTLS(httpListener, filepath.Clean(s.queryOptions.TLSHTTP.CertPath), filepath.Clean(s.queryOptions.TLSHTTP.KeyPath))
+			tlsCfg, _ := s.queryOptions.TLSHTTP.Config()
+			tlsCfg.Rand = rand.Reader
+			tlsHTTPListener := tls.NewListener(httpListener, tlsCfg)
+
+			err = s.httpServer.Serve(tlsHTTPListener)
 
 		} else {
 			err = s.httpServer.Serve(httpListener)
