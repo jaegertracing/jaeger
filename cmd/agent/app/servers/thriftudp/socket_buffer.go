@@ -1,4 +1,4 @@
-// +build !windows
+// +build linux darwin
 
 package thriftudp
 
