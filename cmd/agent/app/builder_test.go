@@ -125,7 +125,7 @@ func TestBuilderWithProcessorErrors(t *testing.T) {
 	}{
 		{protocol: Protocol("bad"), err: "cannot find protocol factory for protocol bad"},
 		{protocol: compactProtocol, model: Model("bad"), err: "cannot find agent processor for data model bad"},
-		{protocol: compactProtocol, model: jaegerModel, err: "no host:port provided for udp server: {QueueSize:1000 MaxPacketSize:65000 HostPort:}"},
+		{protocol: compactProtocol, model: jaegerModel, err: "no host:port provided for udp server: {QueueSize:1000 MaxPacketSize:65000 SocketBufferSize:0 HostPort:}"},
 		{protocol: compactProtocol, model: zipkinModel, hostPort: "bad-host-port", errContains: "bad-host-port"},
 	}
 	for _, tc := range testCases {
