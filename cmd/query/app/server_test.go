@@ -186,32 +186,19 @@ func TestTLSHTTPServer(t *testing.T) {
 				go func() {
 					// err
 					_ = httpServer.Serve(tlsHTTPListener)
-					// if err != nil {
-					// 	//pass
-					// }
-
-					// if test.expectServerFail {
-
-					// 	//assert.Equal(t, false, (err == nil) || (err == http.ErrServerClosed))
-
-					// }
 
 				}()
-				// defer httpServer.Close()
-				// defer tlsHTTPListener.Close()
-				// defer httpListener.Close()
+
 				time.Sleep(10 * time.Millisecond) // wait for server to start serving
 
 				clientTLSCfg, err0 := test.clientTLS.Config()
 				require.NoError(t, err0)
-				// fmt.Println(tlsCfg.ClientCAs != nil, tlsCfg.ClientAuth == tls.RequireAndVerifyClientCert)
 				conn, err1 := tls.Dial("tcp", "localhost:"+fmt.Sprintf("%d", ports.QueryHTTP), clientTLSCfg)
 
 				if test.expectError {
 					require.Error(t, err1)
 				} else {
 					require.NoError(t, err1)
-					//defer conn.Close()
 				}
 				if conn != nil {
 					require.Nil(t, conn.Close())
@@ -224,26 +211,14 @@ func TestTLSHTTPServer(t *testing.T) {
 				go func() {
 					// err :
 					_ = httpServer.Serve(httpListener)
-					// if err != nil {
-					// 	//pass
-					// }
-
-					// if test.expectServerFail {
-
-					// 	//assert.Equal(t, false, (err == nil) || (err == http.ErrServerClosed))
-
-					// }
-					// time.Sleep(2 * time.Second)
 				}()
 
 				time.Sleep(10 * time.Millisecond) // wait for server to start serving
-				//defer httpServer.Close()
 				conn, err2 := net.Dial("tcp", "localhost:"+fmt.Sprintf("%d", ports.QueryHTTP))
 				if test.expectError {
 					require.Error(t, err2)
 				} else {
 					require.NoError(t, err2)
-					//defer conn.Close()
 				}
 				if conn != nil {
 					require.Nil(t, conn.Close())
@@ -351,23 +326,12 @@ func TestTLSHTTPServerWithMTLS(t *testing.T) {
 			go func() {
 				// err :
 				_ = httpServer.Serve(tlsHTTPListener)
-				// if err != nil {
-				// 	//pass
-				// }
-
-				// if test.expectServerFail {
-
-				// 	assert.Equal(t, false, (err == nil) || (err == http.ErrServerClosed))
-
-				// }
 
 			}()
-			// defer httpServer.Close()
 			time.Sleep(10 * time.Millisecond) // wait for server to start serving
 
 			clientTLSCfg, err0 := test.clientTLS.Config()
 			require.NoError(t, err0)
-			// fmt.Println(tlsCfg.ClientCAs != nil, tlsCfg.ClientAuth == tls.RequireAndVerifyClientCert)
 			conn, err1 := tls.Dial("tcp", "localhost:"+fmt.Sprintf("%d", ports.QueryHTTP), clientTLSCfg)
 
 			if test.expectError {

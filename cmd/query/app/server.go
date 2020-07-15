@@ -163,11 +163,13 @@ func (s *Server) Start() error {
 		s.logger.Info("Starting HTTP server", zap.Int("port", tcpPort), zap.String("addr", s.queryOptions.HostPort))
 		var err error
 		if s.queryOptions.TLSHTTP.Enabled {
-			tlsCfg, _ := s.queryOptions.TLSHTTP.Config()
-			tlsCfg.Rand = rand.Reader
-			tlsHTTPListener := tls.NewListener(httpListener, tlsCfg)
+			tlsCfg, err := s.queryOptions.TLSHTTP.Config()
+			if err == nil {
+				tlsCfg.Rand = rand.Reader
+				tlsHTTPListener := tls.NewListener(httpListener, tlsCfg)
 
-			err = s.httpServer.Serve(tlsHTTPListener)
+				err = s.httpServer.Serve(tlsHTTPListener)
+			}
 
 		} else {
 			err = s.httpServer.Serve(httpListener)
