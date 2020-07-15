@@ -42,6 +42,8 @@ import (
 	spanstoremocks "github.com/jaegertracing/jaeger/storage/spanstore/mocks"
 )
 
+var testCertKeyLocation = "../../../pkg/config/tlscfg/testdata"
+
 func TestServerError(t *testing.T) {
 	srv := &Server{
 		queryOptions: &QueryOptions{
@@ -118,8 +120,8 @@ func TestTLSHTTPServer(t *testing.T) {
 			name: "should fail with TLS client to untrusted TLS server",
 			serverTLS: tlscfg.Options{
 				Enabled:  true,
-				CertPath: "testdata/example-server-cert.pem",
-				KeyPath:  "testdata/example-server-key.pem",
+				CertPath: testCertKeyLocation + "/example-server-cert.pem",
+				KeyPath:  testCertKeyLocation + "/example-server-key.pem",
 			},
 			clientTLS: tlscfg.Options{
 				Enabled:    true,
@@ -132,12 +134,12 @@ func TestTLSHTTPServer(t *testing.T) {
 			name: "should fail with TLS client to trusted TLS server with incorrect hostname",
 			serverTLS: tlscfg.Options{
 				Enabled:  true,
-				CertPath: "testdata/example-server-cert.pem",
-				KeyPath:  "testdata/example-server-key.pem",
+				CertPath: testCertKeyLocation + "/example-server-cert.pem",
+				KeyPath:  testCertKeyLocation + "/example-server-key.pem",
 			},
 			clientTLS: tlscfg.Options{
 				Enabled:    true,
-				CAPath:     "testdata/example-CA-cert.pem",
+				CAPath:     testCertKeyLocation + "/example-CA-cert.pem",
 				ServerName: "nonEmpty",
 			},
 			expectError:      true,
@@ -147,12 +149,12 @@ func TestTLSHTTPServer(t *testing.T) {
 			name: "should pass with TLS client to trusted TLS server with correct hostname",
 			serverTLS: tlscfg.Options{
 				Enabled:  true,
-				CertPath: "testdata/example-server-cert.pem",
-				KeyPath:  "testdata/example-server-key.pem",
+				CertPath: testCertKeyLocation + "/example-server-cert.pem",
+				KeyPath:  testCertKeyLocation + "/example-server-key.pem",
 			},
 			clientTLS: tlscfg.Options{
 				Enabled:    true,
-				CAPath:     "testdata/example-CA-cert.pem",
+				CAPath:     testCertKeyLocation + "/example-CA-cert.pem",
 				ServerName: "example.com",
 			},
 			expectError:      false,
@@ -246,13 +248,13 @@ func TestTLSHTTPServerWithMTLS(t *testing.T) {
 			name: "should fail with TLS client without cert to trusted TLS server requiring cert",
 			serverTLS: tlscfg.Options{
 				Enabled:      true,
-				CertPath:     "testdata/example-server-cert.pem",
-				KeyPath:      "testdata/example-server-key.pem",
-				ClientCAPath: "testdata/example-CA-cert.pem",
+				CertPath:     testCertKeyLocation + "/example-server-cert.pem",
+				KeyPath:      testCertKeyLocation + "/example-server-key.pem",
+				ClientCAPath: testCertKeyLocation + "/example-CA-cert.pem",
 			},
 			clientTLS: tlscfg.Options{
 				Enabled:    true,
-				CAPath:     "testdata/example-CA-cert.pem",
+				CAPath:     testCertKeyLocation + "/example-CA-cert.pem",
 				ServerName: "example.com",
 			},
 			expectError:       false,
@@ -263,16 +265,16 @@ func TestTLSHTTPServerWithMTLS(t *testing.T) {
 			name: "should pass with TLS client with cert to trusted TLS server requiring cert",
 			serverTLS: tlscfg.Options{
 				Enabled:      true,
-				CertPath:     "testdata/example-server-cert.pem",
-				KeyPath:      "testdata/example-server-key.pem",
-				ClientCAPath: "testdata/example-CA-cert.pem",
+				CertPath:     testCertKeyLocation + "/example-server-cert.pem",
+				KeyPath:      testCertKeyLocation + "/example-server-key.pem",
+				ClientCAPath: testCertKeyLocation + "/example-CA-cert.pem",
 			},
 			clientTLS: tlscfg.Options{
 				Enabled:    true,
-				CAPath:     "testdata/example-CA-cert.pem",
+				CAPath:     testCertKeyLocation + "/example-CA-cert.pem",
 				ServerName: "example.com",
-				CertPath:   "testdata/example-client-cert.pem",
-				KeyPath:    "testdata/example-client-key.pem",
+				CertPath:   testCertKeyLocation + "/example-client-cert.pem",
+				KeyPath:    testCertKeyLocation + "/example-client-key.pem",
 			},
 			expectError:       false,
 			expectServerFail:  false,
@@ -282,16 +284,16 @@ func TestTLSHTTPServerWithMTLS(t *testing.T) {
 			name: "should fail with TLS client without cert to trusted TLS server requiring cert from a different CA",
 			serverTLS: tlscfg.Options{
 				Enabled:      true,
-				CertPath:     "testdata/example-server-cert.pem",
-				KeyPath:      "testdata/example-server-key.pem",
-				ClientCAPath: "testdata/wrong-CA-cert.pem", // NB: wrong CA
+				CertPath:     testCertKeyLocation + "/example-server-cert.pem",
+				KeyPath:      testCertKeyLocation + "/example-server-key.pem",
+				ClientCAPath: testCertKeyLocation + "/wrong-CA-cert.pem", // NB: wrong CA
 			},
 			clientTLS: tlscfg.Options{
 				Enabled:    true,
-				CAPath:     "testdata/example-CA-cert.pem",
+				CAPath:     testCertKeyLocation + "/example-CA-cert.pem",
 				ServerName: "example.com",
-				CertPath:   "testdata/example-client-cert.pem",
-				KeyPath:    "testdata/example-client-key.pem",
+				CertPath:   testCertKeyLocation + "/example-client-cert.pem",
+				KeyPath:    testCertKeyLocation + "/example-client-key.pem",
 			},
 			expectError:       false,
 			expectServerFail:  false,
