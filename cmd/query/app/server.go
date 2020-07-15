@@ -132,6 +132,25 @@ func createHTTPServer(querySvc *querysvc.QueryService, queryOpts *QueryOptions, 
 	}, nil
 }
 
+func (s *Server) serveHTTP(httpListener net.Listener) error {
+	var err error
+	if s.queryOptions.TLSHTTP.Enabled {
+		tlsCfg, err1 := s.queryOptions.TLSHTTP.Config()
+		if err1 == nil {
+			tlsCfg.Rand = rand.Reader
+			tlsHTTPListener := tls.NewListener(httpListener, tlsCfg)
+
+			err = s.httpServer.Serve(tlsHTTPListener)
+		} else {
+			err = err1
+		}
+
+	} else {
+		err = s.httpServer.Serve(httpListener)
+	}
+	return err
+}
+
 // Start http, GRPC and cmux servers concurrently
 func (s *Server) Start() error {
 	conn, err := net.Listen("tcp", s.queryOptions.HostPort)
@@ -161,23 +180,8 @@ func (s *Server) Start() error {
 
 	go func() {
 		s.logger.Info("Starting HTTP server", zap.Int("port", tcpPort), zap.String("addr", s.queryOptions.HostPort))
-		var err error
-		if s.queryOptions.TLSHTTP.Enabled {
-			tlsCfg, err1 := s.queryOptions.TLSHTTP.Config()
-			if err1 == nil {
-				tlsCfg.Rand = rand.Reader
-				tlsHTTPListener := tls.NewListener(httpListener, tlsCfg)
 
-				err = s.httpServer.Serve(tlsHTTPListener)
-			} else {
-				err = err1
-			}
-
-		} else {
-			err = s.httpServer.Serve(httpListener)
-		}
-
-		switch err {
+		switch err := s.serveHTTP(httpListener); err {
 		case nil, http.ErrServerClosed, cmux.ErrListenerClosed:
 			// normal exit, nothing to do
 		default:
