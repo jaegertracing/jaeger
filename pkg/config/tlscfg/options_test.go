@@ -23,6 +23,8 @@ import (
 	"github.com/stretchr/testify/require"
 )
 
+var testCertKeyLocation = "./testdata"
+
 func TestOptionsToConfig(t *testing.T) {
 	tests := []struct {
 		name        string
@@ -42,78 +44,78 @@ func TestOptionsToConfig(t *testing.T) {
 		},
 		{
 			name:    "should load custom CA",
-			options: Options{CAPath: "testdata/testCA.pem"},
+			options: Options{CAPath: testCertKeyLocation + "/example-CA-cert.pem"},
 		},
 		{
 			name:        "should fail with invalid CA file path",
-			options:     Options{CAPath: "testdata/not/valid"},
+			options:     Options{CAPath: testCertKeyLocation + "/not/valid"},
 			expectError: "failed to load CA",
 		},
 		{
 			name:        "should fail with invalid CA file content",
-			options:     Options{CAPath: "testdata/testCA-bad.txt"},
+			options:     Options{CAPath: testCertKeyLocation + "/bad-CA-cert.txt"},
 			expectError: "failed to parse CA",
 		},
 		{
 			name: "should load valid TLS Client settings",
 			options: Options{
-				CAPath:   "testdata/testCA.pem",
-				CertPath: "testdata/test-cert.pem",
-				KeyPath:  "testdata/test-key.pem",
+				CAPath:   testCertKeyLocation + "/example-CA-cert.pem",
+				CertPath: testCertKeyLocation + "/example-client-cert.pem",
+				KeyPath:  testCertKeyLocation + "/example-client-key.pem",
 			},
 		},
 		{
 			name: "should fail with missing TLS Client Key",
 			options: Options{
-				CAPath:   "testdata/testCA.pem",
-				CertPath: "testdata/test-cert.pem",
+				CAPath:   testCertKeyLocation + "/example-CA-cert.pem",
+				CertPath: testCertKeyLocation + "/example-client-cert.pem",
 			},
 			expectError: "both client certificate and key must be supplied",
 		},
 		{
 			name: "should fail with invalid TLS Client Key",
 			options: Options{
-				CAPath:   "testdata/testCA.pem",
-				CertPath: "testdata/test-cert.pem",
-				KeyPath:  "testdata/not/valid",
+				CAPath:   testCertKeyLocation + "/example-CA-cert.pem",
+				CertPath: testCertKeyLocation + "/example-client-cert.pem",
+				KeyPath:  testCertKeyLocation + "/not/valid",
 			},
 			expectError: "failed to load server TLS cert and key",
 		},
 		{
 			name: "should fail with missing TLS Client Cert",
 			options: Options{
-				CAPath:  "testdata/testCA.pem",
-				KeyPath: "testdata/test-key.pem",
+				CAPath:  testCertKeyLocation + "/example-CA-cert.pem",
+				KeyPath: testCertKeyLocation + "/example-client-key.pem",
 			},
 			expectError: "both client certificate and key must be supplied",
 		},
 		{
 			name: "should fail with invalid TLS Client Cert",
 			options: Options{
-				CAPath:   "testdata/testCA.pem",
-				CertPath: "testdata/not/valid",
-				KeyPath:  "testdata/test-key.pem",
+				CAPath:   testCertKeyLocation + "/example-CA-cert.pem",
+				CertPath: testCertKeyLocation + "/not/valid",
+				KeyPath:  testCertKeyLocation + "/example-client-key.pem",
 			},
 			expectError: "failed to load server TLS cert and key",
 		},
 		{
 			name: "should fail with invalid TLS Client CA",
 			options: Options{
-				ClientCAPath: "testdata/not/valid",
+				ClientCAPath: testCertKeyLocation + "/not/valid",
 			},
 			expectError: "failed to load CA",
 		},
 		{
 			name: "should fail with invalid Client CA pool",
 			options: Options{
-				ClientCAPath: "testdata/testCA-bad.txt",
+				ClientCAPath: testCertKeyLocation + "/bad-CA-cert.txt",
 			},
 			expectError: "failed to parse CA",
 		},
 		{
 			name: "should pass with valid Client CA pool",
 			options: Options{
-				ClientCAPath: "testdata/testCA.pem",
+				ClientCAPath: testCertKeyLocation + "/example-CA-cert.pem",
 			},
 		},
 	}

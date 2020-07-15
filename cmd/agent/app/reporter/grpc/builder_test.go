@@ -41,6 +41,8 @@ collectorHostPorts:
     - 127.0.0.1:14269
 `
 
+var testCertKeyLocation = "../../../../../pkg/config/tlscfg/testdata/"
+
 type noopNotifier struct{}
 
 func (noopNotifier) Register(chan<- []string) {}
@@ -151,7 +153,7 @@ func TestProxyBuilder(t *testing.T) {
 				CollectorHostPorts: []string{"localhost:0000"},
 				TLS: tlscfg.Options{
 					Enabled: true,
-					CAPath:  "testdata/not/valid",
+					CAPath:  testCertKeyLocation + "/not/valid",
 				},
 			},
 			expectError: true,
@@ -162,9 +164,9 @@ func TestProxyBuilder(t *testing.T) {
 				CollectorHostPorts: []string{"localhost:0000"},
 				TLS: tlscfg.Options{
 					Enabled:  true,
-					CAPath:   "testdata/testCA.pem",
-					CertPath: "testdata/client.jaeger.io-client.pem",
-					KeyPath:  "testdata/client.jaeger.io-client-key.pem",
+					CAPath:   testCertKeyLocation + "/wrong-CA-cert.pem",
+					CertPath: testCertKeyLocation + "/example-client-cert.pem",
+					KeyPath:  testCertKeyLocation + "/example-client-key.pem",
 				},
 			},
 			expectError: false,
@@ -210,12 +212,12 @@ func TestProxyClientTLS(t *testing.T) {
 			name: "should fail with TLS client to untrusted TLS server",
 			serverTLS: tlscfg.Options{
 				Enabled:  true,
-				CertPath: "testdata/server.jaeger.io.pem",
-				KeyPath:  "testdata/server.jaeger.io-key.pem",
+				CertPath: testCertKeyLocation + "/example-server-cert.pem",
+				KeyPath:  testCertKeyLocation + "/example-server-key.pem",
 			},
 			clientTLS: tlscfg.Options{
 				Enabled:    true,
-				ServerName: "server.jaeger.io",
+				ServerName: "example.com",
 			},
 			expectError: true,
 		},
@@ -223,12 +225,12 @@ func TestProxyClientTLS(t *testing.T) {
 			name: "should fail with TLS client to trusted TLS server with incorrect hostname",
 			serverTLS: tlscfg.Options{
 				Enabled:  true,
-				CertPath: "testdata/server.jaeger.io.pem",
-				KeyPath:  "testdata/server.jaeger.io-key.pem",
+				CertPath: testCertKeyLocation + "/example-server-cert.pem",
+				KeyPath:  testCertKeyLocation + "/example-server-key.pem",
 			},
 			clientTLS: tlscfg.Options{
 				Enabled: true,
-				CAPath:  "testdata/rootCA.pem",
+				CAPath:  testCertKeyLocation + "/example-CA-cert.pem",
 			},
 			expectError: true,
 		},
@@ -236,13 +238,13 @@ func TestProxyClientTLS(t *testing.T) {
 			name: "should pass with TLS client to trusted TLS server with correct hostname",
 			serverTLS: tlscfg.Options{
 				Enabled:  true,
-				CertPath: "testdata/server.jaeger.io.pem",
-				KeyPath:  "testdata/server.jaeger.io-key.pem",
+				CertPath: testCertKeyLocation + "/example-server-cert.pem",
+				KeyPath:  testCertKeyLocation + "/example-server-key.pem",
 			},
 			clientTLS: tlscfg.Options{
 				Enabled:    true,
-				CAPath:     "testdata/rootCA.pem",
-				ServerName: "server.jaeger.io",
+				CAPath:     testCertKeyLocation + "/example-CA-cert.pem",
+				ServerName: "example.com",
 			},
 			expectError: false,
 		},
@@ -250,14 +252,14 @@ func TestProxyClientTLS(t *testing.T) {
 			name: "should fail with TLS client without cert to trusted TLS server requiring cert",
 			serverTLS: tlscfg.Options{
 				Enabled:      true,
-				CertPath:     "testdata/server.jaeger.io.pem",
-				KeyPath:      "testdata/server.jaeger.io-key.pem",
-				ClientCAPath: "testdata/rootCA.pem",
+				CertPath:     testCertKeyLocation + "/example-server-cert.pem",
+				KeyPath:      testCertKeyLocation + "/example-server-key.pem",
+				ClientCAPath: testCertKeyLocation + "/example-CA-cert.pem",
 			},
 			clientTLS: tlscfg.Options{
 				Enabled:    true,
-				CAPath:     "testdata/rootCA.pem",
-				ServerName: "server.jaeger.io",
+				CAPath:     testCertKeyLocation + "/example-CA-cert.pem",
+				ServerName: "example.com",
 			},
 			expectError: true,
 		},
@@ -265,16 +267,16 @@ func TestProxyClientTLS(t *testing.T) {
 			name: "should fail with TLS client without cert to trusted TLS server requiring cert from a different CA",
 			serverTLS: tlscfg.Options{
 				Enabled:      true,
-				CertPath:     "testdata/server.jaeger.io.pem",
-				KeyPath:      "testdata/server.jaeger.io-key.pem",
-				ClientCAPath: "testdata/testCA.pem", // NB: wrong CA
+				CertPath:     testCertKeyLocation + "/example-server-cert.pem",
+				KeyPath:      testCertKeyLocation + "/example-server-key.pem",
+				ClientCAPath: testCertKeyLocation + "/wrong-CA-cert.pem", // NB: wrong CA
 			},
 			clientTLS: tlscfg.Options{
 				Enabled:    true,
-				CAPath:     "testdata/rootCA.pem",
-				ServerName: "server.jaeger.io",
-				CertPath:   "testdata/client.jaeger.io-client.pem",
-				KeyPath:    "testdata/client.jaeger.io-client-key.pem",
+				CAPath:     testCertKeyLocation + "/example-CA-cert.pem",
+				ServerName: "example.com",
+				CertPath:   testCertKeyLocation + "/example-client-cert.pem",
+				KeyPath:    testCertKeyLocation + "/example-client-key.pem",
 			},
 			expectError: true,
 		},
@@ -282,16 +284,16 @@ func TestProxyClientTLS(t *testing.T) {
 			name: "should pass with TLS client with cert to trusted TLS server requiring cert",
 			serverTLS: tlscfg.Options{
 				Enabled:      true,
-				CertPath:     "testdata/server.jaeger.io.pem",
-				KeyPath:      "testdata/server.jaeger.io-key.pem",
-				ClientCAPath: "testdata/rootCA.pem",
+				CertPath:     testCertKeyLocation + "/example-server-cert.pem",
+				KeyPath:      testCertKeyLocation + "/example-server-key.pem",
+				ClientCAPath: testCertKeyLocation + "/example-CA-cert.pem",
 			},
 			clientTLS: tlscfg.Options{
 				Enabled:    true,
-				CAPath:     "testdata/rootCA.pem",
-				ServerName: "server.jaeger.io",
-				CertPath:   "testdata/client.jaeger.io-client.pem",
-				KeyPath:    "testdata/client.jaeger.io-client-key.pem",
+				CAPath:     testCertKeyLocation + "/example-CA-cert.pem",
+				ServerName: "example.com",
+				CertPath:   testCertKeyLocation + "/example-client-cert.pem",
+				KeyPath:    testCertKeyLocation + "/example-client-key.pem",
 			},
 			expectError: false,
 		},
