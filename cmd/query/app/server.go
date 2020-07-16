@@ -17,8 +17,11 @@ package app
 import (
 	"crypto/rand"
 	"crypto/tls"
+	"fmt"
+	"io/ioutil"
 	"net"
 	"net/http"
+	"path/filepath"
 	"strings"
 
 	"github.com/gorilla/handlers"
@@ -26,9 +29,9 @@ import (
 	"github.com/soheilhy/cmux"
 	"go.uber.org/zap"
 	"google.golang.org/grpc"
-	"google.golang.org/grpc/credentials"
 
 	"github.com/jaegertracing/jaeger/cmd/query/app/querysvc"
+	"github.com/jaegertracing/jaeger/pkg/config/tlscfg"
 	"github.com/jaegertracing/jaeger/pkg/healthcheck"
 	"github.com/jaegertracing/jaeger/pkg/netutils"
 	"github.com/jaegertracing/jaeger/pkg/recoveryhandler"
@@ -78,19 +81,15 @@ func (s Server) HealthCheckStatus() chan healthcheck.Status {
 }
 
 func createGRPCServer(querySvc *querysvc.QueryService, options *QueryOptions, logger *zap.Logger, tracer opentracing.Tracer) (*grpc.Server, error) {
-	var grpcOpts []grpc.ServerOption
 
 	if options.TLSGRPC.Enabled {
-		tlsCfg, err := options.TLSGRPC.Config()
+		_, err := options.TLSGRPC.Config()
 		if err != nil {
 			return nil, err
 		}
-		creds := credentials.NewTLS(tlsCfg)
-
-		grpcOpts = append(grpcOpts, grpc.Creds(creds))
 	}
 
-	server := grpc.NewServer(grpcOpts...)
+	server := grpc.NewServer()
 
 	handler := NewGRPCHandler(querySvc, logger, tracer)
 	api_v2.RegisterQueryServiceServer(server, handler)
@@ -132,32 +131,93 @@ func createHTTPServer(querySvc *querysvc.QueryService, queryOpts *QueryOptions, 
 	}, nil
 }
 
-func (s *Server) serveHTTP(httpListener net.Listener) error {
-	var err error
-	if s.queryOptions.TLSHTTP.Enabled {
-		tlsCfg, err1 := s.queryOptions.TLSHTTP.Config()
-		if err1 == nil {
-			tlsCfg.Rand = rand.Reader
-			tlsHTTPListener := tls.NewListener(httpListener, tlsCfg)
+func getTLSListener(listener net.Listener, tlsOptions tlscfg.Options, otherCA string) (net.Listener, error) { // takes otherCA  so that the certPool will have the CA of both GRPC and HTTP clients.
+	tlsCfg, err := tlsOptions.Config()
+	if err != nil {
+		return nil, err
+	}
+	if otherCA != "" {
+		caPEM, err := ioutil.ReadFile(filepath.Clean(otherCA))
+		if err != nil {
+			return nil, fmt.Errorf("failed to load CA %s: %w", otherCA, err)
+		}
+		if !tlsCfg.ClientCAs.AppendCertsFromPEM(caPEM) {
+			return nil, fmt.Errorf("failed to parse CA %s", otherCA)
+		}
+	}
+	tlsCfg.Rand = rand.Reader
+	tlsListener := tls.NewListener(listener, tlsCfg)
+	return tlsListener, err
 
-			err = s.httpServer.Serve(tlsHTTPListener)
+}
+
+func (s *Server) getCmux() (cmux.CMux, net.Listener, net.Listener, error) {
+	var httpListener net.Listener
+	var grpcListener net.Listener
+	var cmux1 cmux.CMux
+	// var cmux2 cmux.CMux
+	var tlsOptions tlscfg.Options
+	conn, err := net.Listen("tcp", s.queryOptions.HostPort)
+	s.conn = conn
+
+	if err != nil {
+		return nil, nil, nil, err
+	}
+
+	if s.queryOptions.TLSHTTP.Enabled != s.queryOptions.TLSGRPC.Enabled {
+		cmux1 = cmux.New(conn)
+
+		if !s.queryOptions.TLSHTTP.Enabled {
+			httpListener = cmux1.Match(cmux.HTTP1Fast())
+			tlsOptions = s.queryOptions.TLSGRPC
 		} else {
-			err = err1
+			grpcListener = cmux1.MatchWithWriters(
+				cmux.HTTP2MatchHeaderFieldSendSettings("content-type", "application/grpc"),
+				cmux.HTTP2MatchHeaderFieldSendSettings("content-type", "application/grpc+proto"),
+			)
+			tlsOptions = s.queryOptions.TLSHTTP
+		}
+		tlsListener := cmux1.Match(cmux.Any())
+		tlsListener, err = getTLSListener(tlsListener, tlsOptions, "")
+		if err != nil {
+			return nil, nil, nil, err
+		}
+
+		// cmux2 = cmux.New(tlsListener)
+		if s.queryOptions.TLSHTTP.Enabled {
+			httpListener = tlsListener
+		} else {
+			grpcListener = tlsListener
 		}
 
 	} else {
-		err = s.httpServer.Serve(httpListener)
+		var muxListener net.Listener
+		if s.queryOptions.TLSHTTP.Enabled {
+			muxListener, err = getTLSListener(conn, s.queryOptions.TLSHTTP, s.queryOptions.TLSGRPC.ClientCAPath)
+			if err != nil {
+				return nil, nil, nil, err
+			}
+
+		} else {
+			muxListener = conn
+		}
+		cmux1 = cmux.New(muxListener)
+		grpcListener = cmux1.MatchWithWriters(
+			cmux.HTTP2MatchHeaderFieldSendSettings("content-type", "application/grpc"),
+			cmux.HTTP2MatchHeaderFieldSendSettings("content-type", "application/grpc+proto"),
+		)
+		httpListener = cmux1.Match(cmux.Any())
 	}
-	return err
+
+	return cmux1, httpListener, grpcListener, err
 }
 
 // Start http, GRPC and cmux servers concurrently
 func (s *Server) Start() error {
-	conn, err := net.Listen("tcp", s.queryOptions.HostPort)
+	cmuxServer, httpListener, grpcListener, err := s.getCmux()
 	if err != nil {
 		return err
 	}
-	s.conn = conn
 
 	var tcpPort int
 	if port, err := netutils.GetPort(s.conn.Addr()); err == nil {
@@ -169,19 +229,11 @@ func (s *Server) Start() error {
 		zap.Int("port", tcpPort),
 		zap.String("addr", s.queryOptions.HostPort))
 
-	// cmux server acts as a reverse-proxy between HTTP and GRPC backends.
-	cmuxServer := cmux.New(s.conn)
-
-	grpcListener := cmuxServer.MatchWithWriters(
-		cmux.HTTP2MatchHeaderFieldSendSettings("content-type", "application/grpc"),
-		cmux.HTTP2MatchHeaderFieldSendSettings("content-type", "application/grpc+proto"),
-	)
-	httpListener := cmuxServer.Match(cmux.Any())
-
 	go func() {
 		s.logger.Info("Starting HTTP server", zap.Int("port", tcpPort), zap.String("addr", s.queryOptions.HostPort))
+		// s.serveHTTP(httpListener);
 
-		switch err := s.serveHTTP(httpListener); err {
+		switch err := s.httpServer.Serve(httpListener); err {
 		case nil, http.ErrServerClosed, cmux.ErrListenerClosed:
 			// normal exit, nothing to do
 		default:
