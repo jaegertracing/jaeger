@@ -85,8 +85,6 @@ func TestSetSocketBufferSize(t *testing.T) {
 
 	err = trans.SetSocketBufferSize(1024)
 	require.Nil(t, err)
-	err = trans.SetSocketBufferSize(1024 * 1024 * 1024)
-	require.NotNil(t, err)
 
 	err = trans.Close()
 	require.Nil(t, err)
