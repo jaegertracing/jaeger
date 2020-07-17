@@ -77,6 +77,20 @@ func TestNewTUDPServerTransport(t *testing.T) {
 	require.False(t, trans.IsOpen())
 }
 
+func TestSetSocketBufferSize(t *testing.T) {
+	trans, err := NewTUDPServerTransport(localListenAddr.String())
+	require.Nil(t, err)
+	require.True(t, trans.IsOpen())
+	require.Equal(t, ^uint64(0), trans.RemainingBytes())
+
+	err = trans.SetSocketBufferSize(1024)
+	require.Nil(t, err)
+
+	err = trans.Close()
+	require.Nil(t, err)
+	require.False(t, trans.IsOpen())
+}
+
 func TestTUDPServerTransportIsOpen(t *testing.T) {
 	_, err := NewTUDPServerTransport("fakeAddressAndPort")
 	require.NotNil(t, err)
