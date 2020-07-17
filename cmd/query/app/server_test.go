@@ -286,8 +286,19 @@ var testCases = []struct {
 }
 
 func TestServerHTTPTLS(t *testing.T) {
-	tests := testCases
-	testlen := len(tests)
+	testlen := len(testCases)
+
+	tests := make([]struct {
+		name              string
+		HTTPTLS           tlscfg.Options
+		GRPCTLS           tlscfg.Options
+		clientTLS         tlscfg.Options
+		expectError       bool
+		expectClientError bool
+		expectServerFail  bool
+	}, testlen)
+	copy(tests, testCases)
+
 	tests[testlen-1].clientTLS = tlscfg.Options{Enabled: false}
 	tests[testlen-1].name = "Should pass with insecure HTTP Client and insecure HTTP server with secure GRPC Server"
 
@@ -411,10 +422,21 @@ func newGRPCClientWithTLS(t *testing.T, addr string, creds credentials.Transport
 }
 
 func TestServerGRPCTLS(t *testing.T) {
-	tests := testCases
-	testlen := len(tests)
+	testlen := len(testCases)
+
+	tests := make([]struct {
+		name              string
+		HTTPTLS           tlscfg.Options
+		GRPCTLS           tlscfg.Options
+		clientTLS         tlscfg.Options
+		expectError       bool
+		expectClientError bool
+		expectServerFail  bool
+	}, testlen)
+	copy(tests, testCases)
 	tests[testlen-2].clientTLS = tlscfg.Options{Enabled: false}
-	tests[testlen-2].name = "Should pass with insecure GRPC Client and insecure GRPC server with secure HTTP Server"
+	tests[testlen-2].name = "should pass with insecure GRPC Client and insecure GRPC server with secure HTTP Server"
+	fmt.Println(tests[testlen-1])
 
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
