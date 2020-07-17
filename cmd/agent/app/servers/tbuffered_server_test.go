@@ -88,6 +88,9 @@ func TestTBufferedServer_SendReceive(t *testing.T) {
 	t.Fatal("server did not receive packets")
 }
 
+// The fakeTransport allows the server to read two packets, one filled with 1's, another with 2's,
+// then returns an error, and then blocks on the semaphore. The semaphore is only released when
+// the test is exiting.
 type fakeTransport struct {
 	packet atomic.Int64
 	wg     sync.WaitGroup
