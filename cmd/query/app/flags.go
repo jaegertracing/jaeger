@@ -107,10 +107,12 @@ func (qOpts *QueryOptions) InitFromViper(v *viper.Viper, logger *zap.Logger) *Qu
 	qOpts.StaticAssets = v.GetString(queryStaticFiles)
 	qOpts.UIConfig = v.GetString(queryUIConfig)
 	qOpts.BearerTokenPropagation = v.GetBool(queryTokenPropagation)
+
 	qTLSOptions := tlsFlagsConfig.InitFromViper(v)
 	qOpts.TLSGRPC = getOptions(v.GetBool(queryGRPCTLSEnabled), qTLSOptions)
 	qOpts.TLSHTTP = getOptions(v.GetBool(queryHTTPTLSEnabled), qTLSOptions)
 
+	qOpts.MaxClockSkewAdjust = v.GetDuration(queryMaxClockSkewAdjust)
 	stringSlice := v.GetStringSlice(queryAdditionalHeaders)
 	headers, err := stringSliceAsHeader(stringSlice)
 	if err != nil {
