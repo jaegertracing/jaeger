@@ -46,17 +46,13 @@ const (
 	queryTokenPropagation   = "query.bearer-token-propagation"
 	queryAdditionalHeaders  = "query.additional-headers"
 	queryMaxClockSkewAdjust = "query.max-clock-skew-adjustment"
+	queryHTTPTLSEnabled     = "query.http.tls.enabled"
+	queryGRPCTLSEnabled     = "query.gprc.tls.enabled"
 )
 
-var tlsGRPCFlagsConfig = tlscfg.ServerFlagsConfig{
-	Prefix:       "query.grpc",
-	ShowEnabled:  true,
-	ShowClientCA: true,
-}
-
-var tlsHTTPFlagsConfig = tlscfg.ServerFlagsConfig{
-	Prefix:       "query.http",
-	ShowEnabled:  true,
+var tlsFlagsConfig = tlscfg.ServerFlagsConfig{
+	Prefix:       "query.server",
+	ShowEnabled:  false,
 	ShowClientCA: true,
 }
 
@@ -92,8 +88,16 @@ func AddFlags(flagSet *flag.FlagSet) {
 	flagSet.String(queryUIConfig, "", "The path to the UI configuration file in JSON format")
 	flagSet.Bool(queryTokenPropagation, false, "Allow propagation of bearer token to be used by storage plugins")
 	flagSet.Duration(queryMaxClockSkewAdjust, time.Second, "The maximum delta by which span timestamps may be adjusted in the UI due to clock skew; set to 0s to disable clock skew adjustments")
-	tlsGRPCFlagsConfig.AddFlags(flagSet)
-	tlsHTTPFlagsConfig.AddFlags(flagSet)
+	flagSet.Bool(queryHTTPTLSEnabled, false, "Enable TLS when talking to the remote HTTP server")
+	flagSet.Bool(queryGRPCTLSEnabled, false, "Enable TLS when talking to the remote GRPC server")
+	tlsFlagsConfig.AddFlags(flagSet)
+}
+
+func getOptions(enabled bool, qTLSOptions tlscfg.Options) tlscfg.Options {
+	if enabled {
+		return tlscfg.Options{Enabled: enabled, CertPath: qTLSOptions.CertPath, KeyPath: qTLSOptions.KeyPath, ClientCAPath: qTLSOptions.ClientCAPath}
+	}
+	return tlscfg.Options{Enabled: enabled}
 }
 
 // InitFromViper initializes QueryOptions with properties from viper
@@ -103,9 +107,9 @@ func (qOpts *QueryOptions) InitFromViper(v *viper.Viper, logger *zap.Logger) *Qu
 	qOpts.StaticAssets = v.GetString(queryStaticFiles)
 	qOpts.UIConfig = v.GetString(queryUIConfig)
 	qOpts.BearerTokenPropagation = v.GetBool(queryTokenPropagation)
-	qOpts.TLSGRPC = tlsGRPCFlagsConfig.InitFromViper(v)
-	qOpts.TLSHTTP = tlsHTTPFlagsConfig.InitFromViper(v)
-	qOpts.MaxClockSkewAdjust = v.GetDuration(queryMaxClockSkewAdjust)
+	qTLSOptions := tlsFlagsConfig.InitFromViper(v)
+	qOpts.TLSGRPC = getOptions(v.GetBool(queryGRPCTLSEnabled), qTLSOptions)
+	qOpts.TLSHTTP = getOptions(v.GetBool(queryHTTPTLSEnabled), qTLSOptions)
 
 	stringSlice := v.GetStringSlice(queryAdditionalHeaders)
 	headers, err := stringSliceAsHeader(stringSlice)

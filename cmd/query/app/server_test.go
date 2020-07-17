@@ -436,7 +436,7 @@ func TestServerGRPCTLS(t *testing.T) {
 	copy(tests, testCases)
 	tests[testlen-2].clientTLS = tlscfg.Options{Enabled: false}
 	tests[testlen-2].name = "should pass with insecure GRPC Client and insecure GRPC server with secure HTTP Server"
-	fmt.Println(tests[testlen-1])
+	// fmt.Println(tests[testlen-1])
 
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
