@@ -112,6 +112,55 @@ func TestBoundedQueue(t *testing.T) {
 	assert.False(t, q.Produce("x"), "cannot push to closed queue")
 }
 
+func TestBoundedQueue_StopWithDrain(t *testing.T) {
+	q := NewBoundedQueue(1, func(item interface{}) {})
+	assert.Equal(t, 1, q.Capacity())
+
+	var startLock sync.Mutex
+
+	startLock.Lock() // block consumers
+	consumerState := newConsumerState(t)
+
+	q.StartConsumers(1, func(item interface{}) {
+		consumerState.record(item.(string))
+
+		// block further processing until startLock is released
+		startLock.Lock()
+		//lint:ignore SA2001 empty section is ok
+		startLock.Unlock()
+	})
+
+	assert.True(t, q.Produce("a"))
+
+	// at this point "a" may or may not have been received by the consumer go-routine
+	// so let's make sure it has been
+	consumerState.waitToConsumeOnce()
+
+	// at this point the item must have been read off the queue, but the consumer is blocked
+	assert.Equal(t, 0, q.Size())
+	consumerState.assertConsumed(map[string]bool{
+		"a": true,
+	})
+
+	// produce one more item to fill the queue
+	assert.True(t, q.Produce("b"))
+	assert.Equal(t, 1, q.Size())
+
+	go func() {
+		// this is a bit of a race condition because it may unblock the consumer before
+		// calling StopWithDrain, but it should not take 500 millis for the main thread to
+		// to the next line
+		<- time.After(500 * time.Millisecond)
+		startLock.Unlock() // unblock consumer
+	}()
+	q.StopWithDrain()
+	assert.Equal(t, 0, q.Size())
+	consumerState.assertConsumed(map[string]bool{
+		"a": true,
+		"b": true,
+	})
+}
+
 type consumerState struct {
 	sync.Mutex
 	t            *testing.T

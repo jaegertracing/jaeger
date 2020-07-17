@@ -128,6 +128,16 @@ func (q *BoundedQueue) Stop() {
 	close(*q.items)
 }
 
+// StopWithDrain disable producer, drains the queue then stops all consumers,
+// as well as the length reporter if started, and releases the items channel.
+// It blocks until all items are consumed and all consumers have stopped.
+func (q *BoundedQueue) StopWithDrain() {
+	q.stopped.Store(1) // disable producer
+	close(*q.items)
+	q.stopWG.Wait()
+	close(q.stopCh)
+}
+
 // Size returns the current size of the queue
 func (q *BoundedQueue) Size() int {
 	return int(q.size.Load())
