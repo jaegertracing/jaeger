@@ -79,8 +79,6 @@ type QueryOptions struct {
 	AdditionalHeaders http.Header
 	// MaxClockSkewAdjust is the maximum duration by which jaeger-query will adjust a span
 	MaxClockSkewAdjust time.Duration
-
-	liststring []string
 }
 
 // AddFlags adds flags for QueryOptions

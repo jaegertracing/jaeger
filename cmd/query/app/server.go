@@ -17,11 +17,8 @@ package app
 import (
 	"crypto/rand"
 	"crypto/tls"
-	"fmt"
-	"io/ioutil"
 	"net"
 	"net/http"
-	"path/filepath"
 	"strings"
 
 	"github.com/gorilla/handlers"
@@ -131,19 +128,10 @@ func createHTTPServer(querySvc *querysvc.QueryService, queryOpts *QueryOptions, 
 	}, nil
 }
 
-func getTLSListener(listener net.Listener, tlsOptions tlscfg.Options, otherCA string) (net.Listener, error) { // takes otherCA  so that the certPool will have the CA of both GRPC and HTTP clients.
+func getTLSListener(listener net.Listener, tlsOptions tlscfg.Options) (net.Listener, error) { // takes otherCA  so that the certPool will have the CA of both GRPC and HTTP clients.
 	tlsCfg, err := tlsOptions.Config()
 	if err != nil {
 		return nil, err
-	}
-	if otherCA != "" {
-		caPEM, err := ioutil.ReadFile(filepath.Clean(otherCA))
-		if err != nil {
-			return nil, fmt.Errorf("failed to load CA %s: %w", otherCA, err)
-		}
-		if !tlsCfg.ClientCAs.AppendCertsFromPEM(caPEM) {
-			return nil, fmt.Errorf("failed to parse CA %s", otherCA)
-		}
 	}
 	tlsCfg.Rand = rand.Reader
 	tlsListener := tls.NewListener(listener, tlsCfg)
@@ -162,7 +150,6 @@ func (s *Server) getCmux() (cmux.CMux, net.Listener, net.Listener, error) {
 	if err != nil {
 		return nil, nil, nil, err
 	}
-
 	if s.queryOptions.HTTPTLSEnabled != s.queryOptions.GRPCTLSEnabled {
 		cmux1 = cmux.New(conn)
 
@@ -175,7 +162,7 @@ func (s *Server) getCmux() (cmux.CMux, net.Listener, net.Listener, error) {
 			)
 		}
 		tlsListener := cmux1.Match(cmux.Any())
-		tlsListener, err = getTLSListener(tlsListener, s.queryOptions.TLS, "")
+		tlsListener, err = getTLSListener(tlsListener, s.queryOptions.TLS)
 		if err != nil {
 			return nil, nil, nil, err
 		}
@@ -190,7 +177,7 @@ func (s *Server) getCmux() (cmux.CMux, net.Listener, net.Listener, error) {
 	} else {
 		var muxListener net.Listener
 		if s.queryOptions.HTTPTLSEnabled {
-			muxListener, err = getTLSListener(conn, s.queryOptions.TLS, s.queryOptions.TLSGRPC.ClientCAPath)
+			muxListener, err = getTLSListener(conn, s.queryOptions.TLS)
 			if err != nil {
 				return nil, nil, nil, err
 			}
