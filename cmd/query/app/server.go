@@ -82,8 +82,8 @@ func (s Server) HealthCheckStatus() chan healthcheck.Status {
 
 func createGRPCServer(querySvc *querysvc.QueryService, options *QueryOptions, logger *zap.Logger, tracer opentracing.Tracer) (*grpc.Server, error) {
 
-	if options.TLSGRPC.Enabled {
-		_, err := options.TLSGRPC.Config()
+	if options.GRPCTLSEnabled {
+		_, err := options.TLS.Config()
 		if err != nil {
 			return nil, err
 		}
@@ -102,8 +102,8 @@ func createHTTPServer(querySvc *querysvc.QueryService, queryOpts *QueryOptions, 
 		HandlerOptions.Tracer(tracer),
 	}
 
-	if queryOpts.TLSHTTP.Enabled {
-		_, err := queryOpts.TLSHTTP.Config() // This checks if the certificates are correctly provided
+	if queryOpts.HTTPTLSEnabled {
+		_, err := queryOpts.TLS.Config() // This checks if the certificates are correctly provided
 		if err != nil {
 			return nil, err
 		}
@@ -156,7 +156,6 @@ func (s *Server) getCmux() (cmux.CMux, net.Listener, net.Listener, error) {
 	var grpcListener net.Listener
 	var cmux1 cmux.CMux
 	// var cmux2 cmux.CMux
-	var tlsOptions tlscfg.Options
 	conn, err := net.Listen("tcp", s.queryOptions.HostPort)
 	s.conn = conn
 
@@ -164,27 +163,25 @@ func (s *Server) getCmux() (cmux.CMux, net.Listener, net.Listener, error) {
 		return nil, nil, nil, err
 	}
 
-	if s.queryOptions.TLSHTTP.Enabled != s.queryOptions.TLSGRPC.Enabled {
+	if s.queryOptions.HTTPTLSEnabled != s.queryOptions.GRPCTLSEnabled {
 		cmux1 = cmux.New(conn)
 
-		if !s.queryOptions.TLSHTTP.Enabled {
+		if !s.queryOptions.HTTPTLSEnabled {
 			httpListener = cmux1.Match(cmux.HTTP1Fast())
-			tlsOptions = s.queryOptions.TLSGRPC
 		} else {
 			grpcListener = cmux1.MatchWithWriters(
 				cmux.HTTP2MatchHeaderFieldSendSettings("content-type", "application/grpc"),
 				cmux.HTTP2MatchHeaderFieldSendSettings("content-type", "application/grpc+proto"),
 			)
-			tlsOptions = s.queryOptions.TLSHTTP
 		}
 		tlsListener := cmux1.Match(cmux.Any())
-		tlsListener, err = getTLSListener(tlsListener, tlsOptions, "")
+		tlsListener, err = getTLSListener(tlsListener, s.queryOptions.TLS, "")
 		if err != nil {
 			return nil, nil, nil, err
 		}
 
 		// cmux2 = cmux.New(tlsListener)
-		if s.queryOptions.TLSHTTP.Enabled {
+		if s.queryOptions.HTTPTLSEnabled {
 			httpListener = tlsListener
 		} else {
 			grpcListener = tlsListener
@@ -192,8 +189,8 @@ func (s *Server) getCmux() (cmux.CMux, net.Listener, net.Listener, error) {
 
 	} else {
 		var muxListener net.Listener
-		if s.queryOptions.TLSHTTP.Enabled {
-			muxListener, err = getTLSListener(conn, s.queryOptions.TLSHTTP, s.queryOptions.TLSGRPC.ClientCAPath)
+		if s.queryOptions.HTTPTLSEnabled {
+			muxListener, err = getTLSListener(conn, s.queryOptions.TLS, s.queryOptions.TLSGRPC.ClientCAPath)
 			if err != nil {
 				return nil, nil, nil, err
 			}

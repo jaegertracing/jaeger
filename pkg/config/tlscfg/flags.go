@@ -70,8 +70,10 @@ func (c ServerFlagsConfig) AddFlags(flags *flag.FlagSet) {
 	}
 	flags.String(c.Prefix+tlsCert, "", "Path to a TLS Certificate file, used to identify this server to clients")
 	flags.String(c.Prefix+tlsKey, "", "Path to a TLS Private Key file, used to identify this server to clients")
-	flags.String(c.Prefix+tlsClientCA, "", "Path to a TLS CA (Certification Authority) file used to verify certificates presented by clients (if unset, all clients are permitted)")
-	flags.String(c.Prefix+tlsClientCAOld, "", "(deprecated) see --"+c.Prefix+tlsClientCA)
+	if c.ShowClientCA {
+		flags.String(c.Prefix+tlsClientCA, "", "Path to a TLS CA (Certification Authority) file used to verify certificates presented by clients (if unset, all clients are permitted)")
+		flags.String(c.Prefix+tlsClientCAOld, "", "(deprecated) see --"+c.Prefix+tlsClientCA)
+	}
 }
 
 // InitFromViper creates tls.Config populated with values retrieved from Viper.

@@ -48,6 +48,7 @@ const (
 	queryMaxClockSkewAdjust = "query.max-clock-skew-adjustment"
 	queryHTTPTLSEnabled     = "query.http.tls.enabled"
 	queryGRPCTLSEnabled     = "query.gprc.tls.enabled"
+	queryServerClientCA     = "query.server.tls.client-ca"
 )
 
 var tlsFlagsConfig = tlscfg.ServerFlagsConfig{
@@ -68,14 +69,18 @@ type QueryOptions struct {
 	UIConfig string
 	// BearerTokenPropagation activate/deactivate bearer token propagation to storage
 	BearerTokenPropagation bool
-	// TLSGRPC configures secure transport (Consumer to Query service GRPC API)
-	TLSGRPC tlscfg.Options
-	// TLSHTTP configures secure transport (Consumer to Query service HTTP API)
-	TLSHTTP tlscfg.Options
+	// HTTPTLSEnabled Enable/Disable secure HTTP connection
+	HTTPTLSEnabled bool
+	// GRPCTLSEnabled Enable/Disable secure CRPC connection
+	GRPCTLSEnabled bool
+	// TLS configures secure transport
+	TLS tlscfg.Options
 	// AdditionalHeaders
 	AdditionalHeaders http.Header
 	// MaxClockSkewAdjust is the maximum duration by which jaeger-query will adjust a span
 	MaxClockSkewAdjust time.Duration
+
+	liststring []string
 }
 
 // AddFlags adds flags for QueryOptions
@@ -93,13 +98,6 @@ func AddFlags(flagSet *flag.FlagSet) {
 	tlsFlagsConfig.AddFlags(flagSet)
 }
 
-func getOptions(enabled bool, qTLSOptions tlscfg.Options) tlscfg.Options {
-	if enabled {
-		return tlscfg.Options{Enabled: enabled, CertPath: qTLSOptions.CertPath, KeyPath: qTLSOptions.KeyPath, ClientCAPath: qTLSOptions.ClientCAPath}
-	}
-	return tlscfg.Options{Enabled: enabled}
-}
-
 // InitFromViper initializes QueryOptions with properties from viper
 func (qOpts *QueryOptions) InitFromViper(v *viper.Viper, logger *zap.Logger) *QueryOptions {
 	qOpts.HostPort = ports.GetAddressFromCLIOptions(v.GetInt(queryPort), v.GetString(queryHostPort))
@@ -108,9 +106,13 @@ func (qOpts *QueryOptions) InitFromViper(v *viper.Viper, logger *zap.Logger) *Qu
 	qOpts.UIConfig = v.GetString(queryUIConfig)
 	qOpts.BearerTokenPropagation = v.GetBool(queryTokenPropagation)
 
-	qTLSOptions := tlsFlagsConfig.InitFromViper(v)
-	qOpts.TLSGRPC = getOptions(v.GetBool(queryGRPCTLSEnabled), qTLSOptions)
-	qOpts.TLSHTTP = getOptions(v.GetBool(queryHTTPTLSEnabled), qTLSOptions)
+	qOpts.TLS = tlsFlagsConfig.InitFromViper(v)
+	qOpts.TLS.Enabled = false
+	qOpts.GRPCTLSEnabled = v.GetBool(queryGRPCTLSEnabled)
+	qOpts.HTTPTLSEnabled = v.GetBool(queryHTTPTLSEnabled)
+	if qOpts.GRPCTLSEnabled || qOpts.HTTPTLSEnabled {
+		qOpts.TLS.Enabled = true
+	}
 
 	qOpts.MaxClockSkewAdjust = v.GetDuration(queryMaxClockSkewAdjust)
 	stringSlice := v.GetStringSlice(queryAdditionalHeaders)
