@@ -22,19 +22,23 @@ import (
 )
 
 // Serve creates a plugin configuration using the implementation of StoragePlugin and then serves it.
-func Serve(implementation shared.StoragePlugin) {
-	ServeWithGRPCServer(implementation, plugin.DefaultGRPCServer)
+func Serve(impl shared.StoragePlugin, archiveImpl shared.ArchiveStoragePlugin, capabilitiesImpl shared.PluginCapabilities) {
+	ServeWithGRPCServer(impl, archiveImpl, capabilitiesImpl, plugin.DefaultGRPCServer)
 }
 
 // ServeWithGRPCServer creates a plugin configuration using the implementation of StoragePlugin and
 // function to create grpcServer, and then serves it.
-func ServeWithGRPCServer(implementation shared.StoragePlugin, grpcServer func([]grpc.ServerOption) *grpc.Server) {
+func ServeWithGRPCServer(impl shared.StoragePlugin, archiveImpl shared.ArchiveStoragePlugin,
+	capabilitiesImpl shared.PluginCapabilities, grpcServer func([]grpc.ServerOption) *grpc.Server,
+) {
 	plugin.Serve(&plugin.ServeConfig{
 		HandshakeConfig: shared.Handshake,
 		VersionedPlugins: map[int]plugin.PluginSet{
 			1: map[string]plugin.Plugin{
 				shared.StoragePluginIdentifier: &shared.StorageGRPCPlugin{
-					Impl: implementation,
+					Impl:             impl,
+					ArchiveImpl:      archiveImpl,
+					CapabilitiesImpl: capabilitiesImpl,
 				},
 			},
 		},

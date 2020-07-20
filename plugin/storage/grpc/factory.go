@@ -15,7 +15,6 @@
 package grpc
 
 import (
-	"context"
 	"flag"
 	"fmt"
 
@@ -38,7 +37,9 @@ type Factory struct {
 
 	builder config.PluginBuilder
 
-	store shared.StoragePlugin
+	store        shared.StoragePlugin
+	archiveStore shared.ArchiveStoragePlugin
+	capabilities shared.PluginCapabilities
 }
 
 // NewFactory creates a new Factory.
@@ -67,12 +68,14 @@ func (f *Factory) InitFromOptions(opts Options) {
 func (f *Factory) Initialize(metricsFactory metrics.Factory, logger *zap.Logger) error {
 	f.metricsFactory, f.logger = metricsFactory, logger
 
-	store, err := f.builder.Build()
+	store, archiveStore, capabilities, err := f.builder.Build()
 	if err != nil {
 		return fmt.Errorf("grpc-plugin builder failed to create a store: %w", err)
 	}
 
 	f.store = store
+	f.archiveStore = archiveStore
+	f.capabilities = capabilities
 	logger.Info("External plugin storage configuration", zap.Any("configuration", f.options.Configuration))
 	return nil
 }
@@ -94,18 +97,24 @@ func (f *Factory) CreateDependencyReader() (dependencystore.Reader, error) {
 
 // CreateArchiveSpanReader implements storage.ArchiveFactory
 func (f *Factory) CreateArchiveSpanReader() (spanstore.Reader, error) {
-	supported, _ := f.store.ArchiveSpanReader().ArchiveSupported(context.Background())
-	if !supported {
+	if f.capabilities == nil {
 		return nil, storage.ErrArchiveStorageNotSupported
 	}
-	return &ArchiveReader{impl: f.store.ArchiveSpanReader()}, nil
+	capabilities, _ := f.capabilities.Capabilities()
+	if capabilities == nil || !capabilities.ArchiveSpanReader {
+		return nil, storage.ErrArchiveStorageNotSupported
+	}
+	return &ArchiveReader{impl: f.archiveStore.ArchiveSpanReader()}, nil
 }
 
 // CreateArchiveSpanWriter implements storage.ArchiveFactory
 func (f *Factory) CreateArchiveSpanWriter() (spanstore.Writer, error) {
-	supported, _ := f.store.ArchiveSpanReader().ArchiveSupported(context.Background())
-	if !supported {
+	if f.capabilities == nil {
 		return nil, storage.ErrArchiveStorageNotSupported
 	}
-	return &ArchiveWriter{impl: f.store.ArchiveSpanWriter()}, nil
+	capabilities, _ := f.capabilities.Capabilities()
+	if capabilities == nil || !capabilities.ArchiveSpanWriter {
+		return nil, storage.ErrArchiveStorageNotSupported
+	}
+	return &ArchiveWriter{impl: f.archiveStore.ArchiveSpanWriter()}, nil
 }

@@ -17,6 +17,8 @@ package shared
 import (
 	"context"
 	"fmt"
+	"google.golang.org/grpc/codes"
+	"google.golang.org/grpc/status"
 
 	"github.com/jaegertracing/jaeger/model"
 	"github.com/jaegertracing/jaeger/proto-gen/storage_v1"
@@ -27,7 +29,9 @@ const spanBatchSize = 1000
 
 // grpcServer implements shared.StoragePlugin and reads/writes spans and dependencies
 type grpcServer struct {
-	Impl StoragePlugin
+	Impl             StoragePlugin
+	ArchiveImpl      ArchiveStoragePlugin
+	CapabilitiesImpl PluginCapabilities
 }
 
 // GetDependencies returns all interservice dependencies
@@ -161,17 +165,23 @@ func (s *grpcServer) sendSpans(spans []*model.Span, sendFn func(*storage_v1.Span
 	return nil
 }
 
-func (s *grpcServer) ArchiveSupported(ctx context.Context, request *storage_v1.ArchiveSupportedRequest) (*storage_v1.ArchiveSupportedResponse, error) {
-	supported, err := s.Impl.ArchiveSpanReader().ArchiveSupported(ctx)
+func (s *grpcServer) Capabilities(ctx context.Context, request *storage_v1.CapabilitiesRequest) (*storage_v1.CapabilitiesResponse, error) {
+	capabilities, err := s.CapabilitiesImpl.Capabilities()
 	if err != nil {
 		return nil, err
 	}
 
-	return &storage_v1.ArchiveSupportedResponse{Supported: supported}, nil
+	return &storage_v1.CapabilitiesResponse{
+		ArchiveSpanReader: capabilities.ArchiveSpanReader,
+		ArchiveSpanWriter: capabilities.ArchiveSpanWriter,
+	}, nil
 }
 
 func (s *grpcServer) GetArchiveTrace(r *storage_v1.GetTraceRequest, stream storage_v1.ArchiveSpanReaderPlugin_GetArchiveTraceServer) error {
-	trace, err := s.Impl.ArchiveSpanReader().GetArchiveTrace(stream.Context(), r.TraceID)
+	if s.ArchiveImpl == nil {
+		return status.Error(codes.Unimplemented, "not implemented")
+	}
+	trace, err := s.ArchiveImpl.ArchiveSpanReader().GetArchiveTrace(stream.Context(), r.TraceID)
 	if err != nil {
 		return err
 	}
@@ -185,7 +195,10 @@ func (s *grpcServer) GetArchiveTrace(r *storage_v1.GetTraceRequest, stream stora
 }
 
 func (s *grpcServer) WriteArchiveSpan(ctx context.Context, r *storage_v1.WriteSpanRequest) (*storage_v1.WriteSpanResponse, error) {
-	err := s.Impl.ArchiveSpanWriter().WriteArchiveSpan(r.Span)
+	if s.ArchiveImpl == nil {
+		return nil, status.Error(codes.Unimplemented, "not implemented")
+	}
+	err := s.ArchiveImpl.ArchiveSpanWriter().WriteArchiveSpan(r.Span)
 	if err != nil {
 		return nil, err
 	}

@@ -17,10 +17,11 @@ package shared
 import (
 	"context"
 	"fmt"
+	"github.com/jaegertracing/jaeger/plugin/storage/grpc/shared/extra"
+	"google.golang.org/grpc/codes"
 	"io"
 	"time"
 
-	"google.golang.org/grpc/codes"
 	"google.golang.org/grpc/metadata"
 	"google.golang.org/grpc/status"
 
@@ -36,6 +37,7 @@ type grpcClient struct {
 	writerClient        storage_v1.SpanWriterPluginClient
 	archiveReaderClient storage_v1.ArchiveSpanReaderPluginClient
 	archiveWriterClient storage_v1.ArchiveSpanWriterPluginClient
+	capabilitiesClient  storage_v1.PluginCapabilitiesClient
 	depsReaderClient    storage_v1.DependenciesReaderPluginClient
 }
 
@@ -237,6 +239,21 @@ func (c *grpcClient) GetArchiveTrace(ctx context.Context, traceID model.TraceID)
 	return readTrace(stream)
 }
 
+func (c *grpcClient) Capabilities() (*extra.Capabilities, error) {
+	capabilities, err := c.capabilitiesClient.Capabilities(context.Background(), &storage_v1.CapabilitiesRequest{})
+	if status.Code(err) == codes.Unimplemented {
+		return &extra.Capabilities{}, nil
+	}
+	if err != nil {
+		return nil, fmt.Errorf("plugin error: %w", err)
+	}
+
+	return &extra.Capabilities{
+		ArchiveSpanReader: capabilities.ArchiveSpanReader,
+		ArchiveSpanWriter: capabilities.ArchiveSpanWriter,
+	}, nil
+}
+
 func readTrace(stream storage_v1.SpanReaderPlugin_GetTraceClient) (*model.Trace, error) {
 	trace := model.Trace{}
 	for received, err := stream.Recv(); err != io.EOF; received, err = stream.Recv() {
@@ -255,16 +272,4 @@ func readTrace(stream storage_v1.SpanReaderPlugin_GetTraceClient) (*model.Trace,
 	}
 
 	return &trace, nil
-}
-
-func (c *grpcClient) ArchiveSupported(ctx context.Context) (bool, error) {
-	response, err := c.archiveReaderClient.ArchiveSupported(ctx, &storage_v1.ArchiveSupportedRequest{})
-	if status.Code(err) == codes.Unimplemented {
-		return false, nil
-	}
-	if err != nil {
-		return false, fmt.Errorf("plugin error: %w", err)
-	}
-
-	return response.Supported, nil
 }

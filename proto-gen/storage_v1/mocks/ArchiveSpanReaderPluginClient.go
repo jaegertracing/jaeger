@@ -17,36 +17,6 @@ type ArchiveSpanReaderPluginClient struct {
 	mock.Mock
 }
 
-// ArchiveSupported provides a mock function with given fields: ctx, in, opts
-func (_m *ArchiveSpanReaderPluginClient) ArchiveSupported(ctx context.Context, in *storage_v1.ArchiveSupportedRequest, opts ...grpc.CallOption) (*storage_v1.ArchiveSupportedResponse, error) {
-	_va := make([]interface{}, len(opts))
-	for _i := range opts {
-		_va[_i] = opts[_i]
-	}
-	var _ca []interface{}
-	_ca = append(_ca, ctx, in)
-	_ca = append(_ca, _va...)
-	ret := _m.Called(_ca...)
-
-	var r0 *storage_v1.ArchiveSupportedResponse
-	if rf, ok := ret.Get(0).(func(context.Context, *storage_v1.ArchiveSupportedRequest, ...grpc.CallOption) *storage_v1.ArchiveSupportedResponse); ok {
-		r0 = rf(ctx, in, opts...)
-	} else {
-		if ret.Get(0) != nil {
-			r0 = ret.Get(0).(*storage_v1.ArchiveSupportedResponse)
-		}
-	}
-
-	var r1 error
-	if rf, ok := ret.Get(1).(func(context.Context, *storage_v1.ArchiveSupportedRequest, ...grpc.CallOption) error); ok {
-		r1 = rf(ctx, in, opts...)
-	} else {
-		r1 = ret.Error(1)
-	}
-
-	return r0, r1
-}
-
 // GetArchiveTrace provides a mock function with given fields: ctx, in, opts
 func (_m *ArchiveSpanReaderPluginClient) GetArchiveTrace(ctx context.Context, in *storage_v1.GetTraceRequest, opts ...grpc.CallOption) (storage_v1.ArchiveSpanReaderPlugin_GetArchiveTraceClient, error) {
 	_va := make([]interface{}, len(opts))
