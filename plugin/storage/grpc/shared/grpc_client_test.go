@@ -17,6 +17,7 @@ package shared
 import (
 	"context"
 	"errors"
+	"github.com/jaegertracing/jaeger/plugin/storage/grpc/shared/extra"
 	"io"
 	"testing"
 	"time"
@@ -75,6 +76,7 @@ type grpcClientTest struct {
 	spanWriter    *grpcMocks.SpanWriterPluginClient
 	archiveReader *grpcMocks.ArchiveSpanReaderPluginClient
 	archiveWriter *grpcMocks.ArchiveSpanWriterPluginClient
+	capabilities  *grpcMocks.PluginCapabilitiesClient
 	depsReader    *grpcMocks.DependenciesReaderPluginClient
 }
 
@@ -84,6 +86,7 @@ func withGRPCClient(fn func(r *grpcClientTest)) {
 	spanWriter := new(grpcMocks.SpanWriterPluginClient)
 	archiveWriter := new(grpcMocks.ArchiveSpanWriterPluginClient)
 	depReader := new(grpcMocks.DependenciesReaderPluginClient)
+	capabilities := new(grpcMocks.PluginCapabilitiesClient)
 
 	r := &grpcClientTest{
 		client: &grpcClient{
@@ -91,6 +94,7 @@ func withGRPCClient(fn func(r *grpcClientTest)) {
 			writerClient:        spanWriter,
 			archiveReaderClient: archiveReader,
 			archiveWriterClient: archiveWriter,
+			capabilitiesClient:  capabilities,
 			depsReaderClient:    depReader,
 		},
 		spanReader:    spanReader,
@@ -98,6 +102,7 @@ func withGRPCClient(fn func(r *grpcClientTest)) {
 		archiveReader: archiveReader,
 		archiveWriter: archiveWriter,
 		depsReader:    depReader,
+		capabilities:  capabilities,
 	}
 	fn(r)
 }
@@ -401,45 +406,51 @@ func TestGrpcClientGetArchiveTrace_StreamErrorTraceNotFound(t *testing.T) {
 	})
 }
 
-func TestGrpcClientArchiveSupported(t *testing.T) {
+func TestGrpcClientCapabilities(t *testing.T) {
 	withGRPCClient(func(r *grpcClientTest) {
-		r.archiveReader.On("ArchiveSupported", mock.Anything, &storage_v1.ArchiveSupportedRequest{}).
-			Return(&storage_v1.ArchiveSupportedResponse{Supported: true}, nil)
+		r.capabilities.On("Capabilities", mock.Anything, &storage_v1.CapabilitiesRequest{}).
+			Return(&storage_v1.CapabilitiesResponse{ArchiveSpanReader: true, ArchiveSpanWriter: true}, nil)
 
-		supported, err := r.client.ArchiveSupported(context.Background())
+		capabilities, err := r.client.Capabilities()
 		assert.NoError(t, err)
-		assert.True(t, supported)
+		assert.Equal(t, &extra.Capabilities{
+			ArchiveSpanReader: true,
+			ArchiveSpanWriter: true,
+		}, capabilities)
 	})
 }
 
-func TestGrpcClientArchiveNotSupported(t *testing.T) {
+func TestGrpcClientCapabilities_NotSupported(t *testing.T) {
 	withGRPCClient(func(r *grpcClientTest) {
-		r.archiveReader.On("ArchiveSupported", mock.Anything, &storage_v1.ArchiveSupportedRequest{}).
-			Return(&storage_v1.ArchiveSupportedResponse{Supported: false}, nil)
+		r.capabilities.On("Capabilities", mock.Anything, &storage_v1.CapabilitiesRequest{}).
+			Return(&storage_v1.CapabilitiesResponse{}, nil)
 
-		supported, err := r.client.ArchiveSupported(context.Background())
+		capabilities, err := r.client.Capabilities()
 		assert.NoError(t, err)
-		assert.False(t, supported)
+		assert.Equal(t, &extra.Capabilities{
+			ArchiveSpanReader: false,
+			ArchiveSpanWriter: false,
+		}, capabilities)
 	})
 }
 
-func TestGrpcClientArchiveSupported_MissingMethod(t *testing.T) {
+func TestGrpcClientCapabilities_MissingMethod(t *testing.T) {
 	withGRPCClient(func(r *grpcClientTest) {
-		r.archiveReader.On("ArchiveSupported", mock.Anything, &storage_v1.ArchiveSupportedRequest{}).
+		r.capabilities.On("Capabilities", mock.Anything, &storage_v1.CapabilitiesRequest{}).
 			Return(nil, status.Error(codes.Unimplemented, "method not found"))
 
-		supported, err := r.client.ArchiveSupported(context.Background())
+		capabilities, err := r.client.Capabilities()
 		assert.NoError(t, err)
-		assert.False(t, supported)
+		assert.Equal(t, &extra.Capabilities{}, capabilities)
 	})
 }
 
 func TestGrpcClientArchiveSupported_CommonGrpcError(t *testing.T) {
 	withGRPCClient(func(r *grpcClientTest) {
-		r.archiveReader.On("ArchiveSupported", mock.Anything, &storage_v1.ArchiveSupportedRequest{}).
+		r.capabilities.On("Capabilities", mock.Anything, &storage_v1.CapabilitiesRequest{}).
 			Return(nil, status.Error(codes.Internal, "internal error"))
 
-		_, err := r.client.ArchiveSupported(context.Background())
+		_, err := r.client.Capabilities()
 		assert.Error(t, err)
 	})
 }

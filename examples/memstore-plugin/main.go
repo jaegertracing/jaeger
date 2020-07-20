@@ -22,7 +22,6 @@ import (
 	"github.com/spf13/viper"
 
 	"github.com/jaegertracing/jaeger/plugin/storage/grpc"
-	"github.com/jaegertracing/jaeger/plugin/storage/grpc/shared"
 	"github.com/jaegertracing/jaeger/plugin/storage/memory"
 	"github.com/jaegertracing/jaeger/storage/dependencystore"
 	"github.com/jaegertracing/jaeger/storage/spanstore"
@@ -46,19 +45,11 @@ func main() {
 	opts := memory.Options{}
 	opts.InitFromViper(v)
 
-	grpc.Serve(&memoryStore{store: memory.NewStore()})
+	grpc.Serve(&memoryStore{store: memory.NewStore()}, nil, nil)
 }
 
 type memoryStore struct {
 	store *memory.Store
-}
-
-func (ns *memoryStore) ArchiveSpanReader() shared.ArchiveReader {
-	return nil
-}
-
-func (ns *memoryStore) ArchiveSpanWriter() shared.ArchiveWriter {
-	return nil
 }
 
 func (ns *memoryStore) DependencyReader() dependencystore.Reader {

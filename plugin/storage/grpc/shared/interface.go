@@ -15,6 +15,9 @@
 package shared
 
 import (
+	"context"
+	"github.com/jaegertracing/jaeger/plugin/storage/grpc/shared/extra"
+
 	"github.com/hashicorp/go-plugin"
 
 	"github.com/jaegertracing/jaeger/model"
@@ -41,15 +44,17 @@ var PluginMap = map[string]plugin.Plugin{
 type StoragePlugin interface {
 	SpanReader() spanstore.Reader
 	SpanWriter() spanstore.Writer
+	DependencyReader() dependencystore.Reader
+}
+
+type ArchiveStoragePlugin interface {
 	ArchiveSpanReader() ArchiveReader
 	ArchiveSpanWriter() ArchiveWriter
-	DependencyReader() dependencystore.Reader
 }
 
 // ArchiveReader finds and loads traces and other data from storage.
 type ArchiveReader interface {
 	GetArchiveTrace(ctx context.Context, traceID model.TraceID) (*model.Trace, error)
-	ArchiveSupported(ctx context.Context) (bool, error)
 }
 
 // ArchiveWriter writes spans to archive storage.
@@ -57,21 +62,32 @@ type ArchiveWriter interface {
 	WriteArchiveSpan(span *model.Span) error
 }
 
+type PluginCapabilities interface {
+	Capabilities() (*extra.Capabilities, error)
+}
+
 // StorageGRPCPlugin is the implementation of plugin.GRPCPlugin so we can serve/consume this.
 type StorageGRPCPlugin struct {
 	plugin.Plugin
 	// Concrete implementation, written in Go. This is only used for plugins
 	// that are written in Go.
-	Impl StoragePlugin
+	Impl             StoragePlugin
+	ArchiveImpl      ArchiveStoragePlugin
+	CapabilitiesImpl PluginCapabilities
 }
 
 // GRPCServer is used by go-plugin to create a grpc plugin server
 func (p *StorageGRPCPlugin) GRPCServer(broker *plugin.GRPCBroker, s *grpc.Server) error {
-	server := &grpcServer{Impl: p.Impl}
+	server := &grpcServer{
+		Impl:             p.Impl,
+		ArchiveImpl:      p.ArchiveImpl,
+		CapabilitiesImpl: p.CapabilitiesImpl,
+	}
 	storage_v1.RegisterSpanReaderPluginServer(s, server)
 	storage_v1.RegisterSpanWriterPluginServer(s, server)
 	storage_v1.RegisterArchiveSpanReaderPluginServer(s, server)
 	storage_v1.RegisterArchiveSpanWriterPluginServer(s, server)
+	storage_v1.RegisterPluginCapabilitiesServer(s, server)
 	storage_v1.RegisterDependenciesReaderPluginServer(s, server)
 	return nil
 }
@@ -83,6 +99,7 @@ func (*StorageGRPCPlugin) GRPCClient(ctx context.Context, broker *plugin.GRPCBro
 		writerClient:        storage_v1.NewSpanWriterPluginClient(c),
 		archiveReaderClient: storage_v1.NewArchiveSpanReaderPluginClient(c),
 		archiveWriterClient: storage_v1.NewArchiveSpanWriterPluginClient(c),
+		capabilitiesClient:  storage_v1.NewPluginCapabilitiesClient(c),
 		depsReaderClient:    storage_v1.NewDependenciesReaderPluginClient(c),
 	}, nil
 }

@@ -17,6 +17,7 @@ package shared
 import (
 	"context"
 	"fmt"
+	"github.com/jaegertracing/jaeger/plugin/storage/grpc/shared/extra"
 	"testing"
 	"time"
 
@@ -38,6 +39,7 @@ type mockStoragePlugin struct {
 	spanWriter    *spanStoreMocks.Writer
 	archiveReader *mocks.ArchiveReader
 	archiveWriter *mocks.ArchiveWriter
+	capabilities  *mocks.PluginCapabilities
 	depsReader    *dependencyStoreMocks.Reader
 }
 
@@ -61,6 +63,10 @@ func (plugin *mockStoragePlugin) DependencyReader() dependencystore.Reader {
 	return plugin.depsReader
 }
 
+func (plugin *mockStoragePlugin) Capabilities() (*extra.Capabilities, error) {
+	return plugin.capabilities.Capabilities()
+}
+
 type grpcServerTest struct {
 	server *grpcServer
 	impl   *mockStoragePlugin
@@ -71,6 +77,7 @@ func withGRPCServer(fn func(r *grpcServerTest)) {
 	spanWriter := new(spanStoreMocks.Writer)
 	archiveReader := new(mocks.ArchiveReader)
 	archiveWriter := new(mocks.ArchiveWriter)
+	capabilities := new(mocks.PluginCapabilities)
 	depReader := new(dependencyStoreMocks.Reader)
 
 	impl := &mockStoragePlugin{
@@ -79,11 +86,14 @@ func withGRPCServer(fn func(r *grpcServerTest)) {
 		archiveReader: archiveReader,
 		archiveWriter: archiveWriter,
 		depsReader:    depReader,
+		capabilities:  capabilities,
 	}
 
 	r := &grpcServerTest{
 		server: &grpcServer{
-			Impl: impl,
+			Impl:             impl,
+			ArchiveImpl:      impl,
+			CapabilitiesImpl: impl,
 		},
 		impl: impl,
 	}
@@ -308,23 +318,26 @@ func TestGRPCServerWriteArchiveSpan_Error(t *testing.T) {
 	})
 }
 
-func TestGRPCServerArchiveSupported(t *testing.T) {
+func TestGRPCServerCapabilities(t *testing.T) {
 	withGRPCServer(func(r *grpcServerTest) {
-		r.impl.archiveReader.On("ArchiveSupported", mock.Anything).
-			Return(true, nil)
+		r.impl.capabilities.On("Capabilities").
+			Return(&extra.Capabilities{
+				ArchiveSpanReader: true,
+				ArchiveSpanWriter: false,
+			}, nil)
 
-		s, err := r.server.ArchiveSupported(context.Background(), &storage_v1.ArchiveSupportedRequest{})
+		capabilities, err := r.server.Capabilities(context.Background(), &storage_v1.CapabilitiesRequest{})
 		assert.NoError(t, err)
-		assert.Equal(t, &storage_v1.ArchiveSupportedResponse{Supported: true}, s)
+		assert.Equal(t, &storage_v1.CapabilitiesResponse{ArchiveSpanReader: true, ArchiveSpanWriter: false}, capabilities)
 	})
 }
 
-func TestGRPCServerArchiveSupported_Error(t *testing.T) {
+func TestGRPCServerCapabilities_Error(t *testing.T) {
 	withGRPCServer(func(r *grpcServerTest) {
-		r.impl.archiveReader.On("ArchiveSupported", mock.Anything).
-			Return(false, fmt.Errorf("some error"))
+		r.impl.capabilities.On("Capabilities").
+			Return(nil, fmt.Errorf("some error"))
 
-		_, err := r.server.ArchiveSupported(context.Background(), &storage_v1.ArchiveSupportedRequest{})
+		_, err := r.server.Capabilities(context.Background(), &storage_v1.CapabilitiesRequest{})
 		assert.Error(t, err)
 	})
 }

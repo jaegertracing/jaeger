@@ -16,6 +16,7 @@ package grpc
 
 import (
 	"errors"
+	"github.com/jaegertracing/jaeger/plugin/storage/grpc/shared/extra"
 	"testing"
 
 	"github.com/spf13/viper"
@@ -43,11 +44,11 @@ type mockPluginBuilder struct {
 	err    error
 }
 
-func (b *mockPluginBuilder) Build() (shared.StoragePlugin, error) {
+func (b *mockPluginBuilder) Build() (shared.StoragePlugin, shared.ArchiveStoragePlugin, shared.PluginCapabilities, error) {
 	if b.err != nil {
-		return nil, b.err
+		return nil, nil, nil, b.err
 	}
-	return b.plugin, nil
+	return b.plugin, b.plugin, b.plugin, nil
 }
 
 type mockPlugin struct {
@@ -55,7 +56,12 @@ type mockPlugin struct {
 	spanWriter       spanstore.Writer
 	archiveReader    shared.ArchiveReader
 	archiveWriter    shared.ArchiveWriter
+	capabilities     shared.PluginCapabilities
 	dependencyReader dependencystore.Reader
+}
+
+func (mp *mockPlugin) Capabilities() (*extra.Capabilities, error) {
+	return mp.capabilities.Capabilities()
 }
 
 func (mp *mockPlugin) ArchiveSpanReader() shared.ArchiveReader {
@@ -98,6 +104,7 @@ func TestGRPCStorageFactory(t *testing.T) {
 			spanReader:       new(spanStoreMocks.Reader),
 			archiveReader:    new(mocks.ArchiveReader),
 			archiveWriter:    new(mocks.ArchiveWriter),
+			capabilities:     new(mocks.PluginCapabilities),
 			dependencyReader: new(dependencyStoreMocks.Reader),
 		},
 	}
@@ -115,17 +122,21 @@ func TestGRPCStorageFactory(t *testing.T) {
 	assert.Equal(t, f.store.DependencyReader(), depReader)
 }
 
-func TestGRPCArchiveStorageFactory(t *testing.T) {
+func TestGRPCStorageFactory_Capabilities(t *testing.T) {
 	f := NewFactory()
 	v := viper.New()
 	f.InitFromViper(v)
 
-	archiveReader := new(mocks.ArchiveReader)
-	archiveReader.On("ArchiveSupported", mock.Anything).
-		Return(true, nil)
+	capabilities := new(mocks.PluginCapabilities)
+	capabilities.On("Capabilities").
+		Return(&extra.Capabilities{
+			ArchiveSpanReader: true,
+			ArchiveSpanWriter: true,
+		}, nil)
+
 	f.builder = &mockPluginBuilder{
 		plugin: &mockPlugin{
-			archiveReader: archiveReader,
+			capabilities: capabilities,
 		},
 	}
 	assert.NoError(t, f.Initialize(metrics.NullFactory, zap.NewNop()))
@@ -139,17 +150,21 @@ func TestGRPCArchiveStorageFactory(t *testing.T) {
 	assert.IsType(t, &ArchiveWriter{}, writer)
 }
 
-func TestGRPCArchiveStorageDisabledFactory(t *testing.T) {
+func TestGRPCStorageFactory_CapabilitiesDisabled(t *testing.T) {
 	f := NewFactory()
 	v := viper.New()
 	f.InitFromViper(v)
 
-	archiveReader := new(mocks.ArchiveReader)
-	archiveReader.On("ArchiveSupported", mock.Anything).
-		Return(false, nil)
+	capabilities := new(mocks.PluginCapabilities)
+	capabilities.On("Capabilities").
+		Return(&extra.Capabilities{
+			ArchiveSpanReader: false,
+			ArchiveSpanWriter: false,
+		}, nil)
+
 	f.builder = &mockPluginBuilder{
 		plugin: &mockPlugin{
-			archiveReader: archiveReader,
+			capabilities: capabilities,
 		},
 	}
 	assert.NoError(t, f.Initialize(metrics.NullFactory, zap.NewNop()))
