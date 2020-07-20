@@ -12,11 +12,12 @@ jobs:
       - uses: actions/checkout@v2
       - uses: actions/setup-go@v2
         with:
-          go-version: "^1.13.1"
+          go-version: "^1.14.x"
       - run: go version
       # Runs a set of commands to initialize and analyze with FOSSA
       - name: run FOSSA analysis
         env:
+          # FOSSA Push-Only API Token
           FOSSA_API_KEY: '304657e2357ba57b416b94e6b119131b'
         run: |
           export GOPATH=$HOME/go
@@ -24,4 +25,4 @@ jobs:
           curl -H 'Cache-Control: no-cache' https://raw.githubusercontent.com/fossas/fossa-cli/master/install.sh | bash
           fossa init
           fossa analyze
-          fossa test -t 3600
+          fossa test --timeout 3600
