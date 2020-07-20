@@ -47,6 +47,7 @@ type StoragePlugin interface {
 	DependencyReader() dependencystore.Reader
 }
 
+// ArchiveStoragePlugin is the interface we're exposing as a plugin.
 type ArchiveStoragePlugin interface {
 	ArchiveSpanReader() ArchiveReader
 	ArchiveSpanWriter() ArchiveWriter
@@ -62,6 +63,7 @@ type ArchiveWriter interface {
 	WriteArchiveSpan(span *model.Span) error
 }
 
+// PluginCapabilities allow expose plugin its capabilities.
 type PluginCapabilities interface {
 	Capabilities() (*extra.Capabilities, error)
 }
