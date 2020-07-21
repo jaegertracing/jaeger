@@ -44,11 +44,15 @@ type mockPluginBuilder struct {
 	err    error
 }
 
-func (b *mockPluginBuilder) Build() (shared.StoragePlugin, shared.ArchiveStoragePlugin, shared.PluginCapabilities, error) {
+func (b *mockPluginBuilder) Build() (*grpcConfig.PluginServices, error) {
 	if b.err != nil {
-		return nil, nil, nil, b.err
+		return nil, b.err
 	}
-	return b.plugin, b.plugin, b.plugin, nil
+	return &grpcConfig.PluginServices{
+		Store:        b.plugin,
+		ArchiveStore: b.plugin,
+		Capabilities: b.plugin,
+	}, nil
 }
 
 type mockPlugin struct {
