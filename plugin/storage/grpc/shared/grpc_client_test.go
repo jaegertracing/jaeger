@@ -17,7 +17,6 @@ package shared
 import (
 	"context"
 	"errors"
-	"github.com/jaegertracing/jaeger/plugin/storage/grpc/shared/extra"
 	"io"
 	"testing"
 	"time"
@@ -29,6 +28,7 @@ import (
 	"google.golang.org/grpc/status"
 
 	"github.com/jaegertracing/jaeger/model"
+	"github.com/jaegertracing/jaeger/plugin/storage/grpc/shared/extra"
 	"github.com/jaegertracing/jaeger/proto-gen/storage_v1"
 	grpcMocks "github.com/jaegertracing/jaeger/proto-gen/storage_v1/mocks"
 	"github.com/jaegertracing/jaeger/storage/spanstore"
