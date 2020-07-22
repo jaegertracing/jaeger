@@ -92,14 +92,12 @@ func Components(v *viper.Viper) config.Factories {
 	factories.Exporters[badgerExp.Type()] = badgerExp
 	factories.Receivers[kafkaRec.Type()] = kafkaRec
 
-	jaegerRec := factories.Receivers["jaeger"].(*otelJaegerReceiver.Factory)
 	factories.Receivers["jaeger"] = &jaegerreceiver.Factory{
-		Wrapped: jaegerRec,
+		Wrapped: otelJaegerReceiver.NewFactory(),
 		Viper:   v,
 	}
-	jaegerExp := factories.Exporters["jaeger"].(*otelJaegerExporter.Factory)
 	factories.Exporters["jaeger"] = &jaegerexporter.Factory{
-		Wrapped: jaegerExp,
+		Wrapped: otelJaegerExporter.NewFactory(),
 		Viper:   v,
 	}
 	zipkinRec := factories.Receivers["zipkin"].(*otelZipkinReceiver.Factory)
@@ -108,9 +106,8 @@ func Components(v *viper.Viper) config.Factories {
 		Viper:   v,
 	}
 
-	resourceProc := factories.Processors["resource"].(*otelResourceProcessor.Factory)
 	factories.Processors["resource"] = &resourceprocessor.Factory{
-		Wrapped: resourceProc,
+		Wrapped: otelResourceProcessor.NewFactory(),
 		Viper:   v,
 	}
 	return factories

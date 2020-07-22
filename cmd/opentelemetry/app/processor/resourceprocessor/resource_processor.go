@@ -15,15 +15,14 @@
 package resourceprocessor
 
 import (
+	"context"
+	"github.com/jaegertracing/jaeger/cmd/agent/app/reporter"
+	"github.com/jaegertracing/jaeger/cmd/flags"
 	"github.com/spf13/viper"
 	"go.opentelemetry.io/collector/component"
 	"go.opentelemetry.io/collector/config/configmodels"
 	"go.opentelemetry.io/collector/consumer"
 	"go.opentelemetry.io/collector/processor/resourceprocessor"
-	"go.uber.org/zap"
-
-	"github.com/jaegertracing/jaeger/cmd/agent/app/reporter"
-	"github.com/jaegertracing/jaeger/cmd/flags"
 )
 
 const (
@@ -33,21 +32,22 @@ const (
 // Factory wraps resourceprocessor.Factory and makes the default config configurable via viper.
 // For instance this enables using flags as default values in the config object.
 type Factory struct {
-	Wrapped *resourceprocessor.Factory
+	Wrapped component.ProcessorFactory
 	Viper   *viper.Viper
 }
 
-var _ component.ProcessorFactoryOld = (*Factory)(nil)
+var _ component.ProcessorFactory = (*Factory)(nil)
 
 // Type returns the type of the receiver.
 func (f Factory) Type() configmodels.Type {
+	resourceprocessor.NewFactory()
 	return f.Wrapped.Type()
 }
 
 // CreateDefaultConfig returns default configuration of Factory.
 // This function implements OTEL component.ProcessorFactoryBase interface.
 func (f Factory) CreateDefaultConfig() configmodels.Processor {
-	cfg := f.Wrapped.CreateDefaultConfig().(*resourceprocessor.Config)
+	cfg := &resourceprocessor.Config{}
 	for k, v := range GetTags(f.Viper) {
 		cfg.Labels[k] = v
 	}
@@ -69,19 +69,21 @@ func GetTags(v *viper.Viper) map[string]string {
 // CreateTraceProcessor creates resource processor.
 // This function implements OTEL component.ProcessorFactoryOld interface.
 func (f Factory) CreateTraceProcessor(
-	logger *zap.Logger,
-	nextConsumer consumer.TraceConsumerOld,
+	ctx context.Context,
+	params component.ProcessorCreateParams,
+	nextConsumer consumer.TraceConsumer,
 	cfg configmodels.Processor,
-) (component.TraceProcessorOld, error) {
-	return f.Wrapped.CreateTraceProcessor(logger, nextConsumer, cfg)
+) (component.TraceProcessor, error) {
+	return f.Wrapped.CreateTraceProcessor(ctx, params, nextConsumer, cfg)
 }
 
 // CreateMetricsProcessor creates a resource processor.
 // This function implements component.ProcessorFactoryOld.
 func (f Factory) CreateMetricsProcessor(
-	logger *zap.Logger,
-	nextConsumer consumer.MetricsConsumerOld,
+	ctx context.Context,
+	params component.ProcessorCreateParams,
+	nextConsumer consumer.MetricsConsumer,
 	cfg configmodels.Processor,
-) (component.MetricsProcessorOld, error) {
-	return f.Wrapped.CreateMetricsProcessor(logger, nextConsumer, cfg)
+) (component.MetricsProcessor, error) {
+	return f.Wrapped.CreateMetricsProcessor(ctx, params, nextConsumer, cfg)
 }

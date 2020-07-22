@@ -23,7 +23,6 @@ import (
 	"go.opentelemetry.io/collector/config/confighttp"
 	"go.opentelemetry.io/collector/config/configmodels"
 	"go.opentelemetry.io/collector/config/confignet"
-	"go.opentelemetry.io/collector/config/configprotocol"
 	"go.opentelemetry.io/collector/processor/batchprocessor"
 	"go.opentelemetry.io/collector/processor/queuedprocessor"
 	"go.opentelemetry.io/collector/processor/resourceprocessor"
@@ -187,12 +186,12 @@ func createExporters(component ComponentType, storageTypes string, factories con
 
 func enableAgentUDPEndpoints(jaeger *jaegerreceiver.Config) {
 	if jaeger.ThriftCompact == nil {
-		jaeger.ThriftCompact = &configprotocol.ProtocolServerSettings{
+		jaeger.ThriftCompact = &confignet.TCPAddr{
 			Endpoint: udpThriftCompactEndpoint,
 		}
 	}
 	if jaeger.ThriftBinary == nil {
-		jaeger.ThriftBinary = &configprotocol.ProtocolServerSettings{
+		jaeger.ThriftBinary = &confignet.TCPAddr{
 			Endpoint: udpThriftBinaryEndpoint,
 		}
 	}

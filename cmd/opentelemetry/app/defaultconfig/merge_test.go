@@ -26,7 +26,6 @@ import (
 	"go.opentelemetry.io/collector/config/confighttp"
 	"go.opentelemetry.io/collector/config/configmodels"
 	"go.opentelemetry.io/collector/config/confignet"
-	"go.opentelemetry.io/collector/config/configprotocol"
 	"go.opentelemetry.io/collector/processor/attributesprocessor"
 	"go.opentelemetry.io/collector/processor/batchprocessor"
 	"go.opentelemetry.io/collector/receiver/jaegerreceiver"
@@ -60,7 +59,7 @@ func TestMergeConfigs(t *testing.T) {
 							Endpoint: "def",
 						},
 					},
-					ThriftCompact: &configprotocol.ProtocolServerSettings{
+					ThriftCompact: &confignet.TCPAddr{
 						Endpoint: "def",
 					},
 				},
@@ -100,7 +99,8 @@ func TestMergeConfigs(t *testing.T) {
 		},
 		Processors: configmodels.Processors{
 			"attributes": &attributesprocessor.Config{
-				Actions: []attributesprocessor.ActionKeyValue{{Key: "foo"}},
+				// TODO internal package
+				//Actions: []attributesprocessor.ActionKeyValue{{Key: "foo"}},
 			},
 		},
 		Service: configmodels.Service{
@@ -125,7 +125,7 @@ func TestMergeConfigs(t *testing.T) {
 							Endpoint: "master_jaeger_url",
 						},
 					},
-					ThriftCompact: &configprotocol.ProtocolServerSettings{
+					ThriftCompact: &confignet.TCPAddr{
 						Endpoint: "def",
 					},
 				},
@@ -141,7 +141,8 @@ func TestMergeConfigs(t *testing.T) {
 				SendBatchSize: uint32(160),
 			},
 			"attributes": &attributesprocessor.Config{
-				Actions: []attributesprocessor.ActionKeyValue{{Key: "foo"}},
+				//Settings: attraction. // TODO internal package
+				//Actions: []attributesprocessor.ActionKeyValue{{Key: "foo"}},
 			},
 		},
 		Service: configmodels.Service{

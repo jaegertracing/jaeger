@@ -36,7 +36,7 @@ func TestDefaultValues(t *testing.T) {
 	err := c.ParseFlags([]string{})
 	require.NoError(t, err)
 
-	factory := &Factory{Viper: v, Wrapped: &jaegerexporter.Factory{}}
+	factory := &Factory{Viper: v, Wrapped: jaegerexporter.NewFactory()}
 	cfg := factory.CreateDefaultConfig().(*jaegerexporter.Config)
 	assert.Empty(t, cfg.GRPCClientSettings.Endpoint)
 	tlsConf := cfg.TLSSetting
@@ -53,7 +53,7 @@ func TestDefaultValueFromViper(t *testing.T) {
 	require.NoError(t, err)
 
 	f := &Factory{
-		Wrapped: &jaegerexporter.Factory{},
+		Wrapped: jaegerexporter.NewFactory(),
 		Viper:   v,
 	}
 
@@ -72,7 +72,7 @@ func TestLoadConfigAndFlags(t *testing.T) {
 	err = c.ParseFlags([]string{"--reporter.grpc.host-port=foo"})
 	require.NoError(t, err)
 
-	factory := &Factory{Viper: v, Wrapped: &jaegerexporter.Factory{}}
+	factory := &Factory{Viper: v, Wrapped: jaegerexporter.NewFactory()}
 	assert.Equal(t, "foo", factory.CreateDefaultConfig().(*jaegerexporter.Config).GRPCClientSettings.Endpoint)
 
 	factories.Exporters["jaeger"] = factory
@@ -86,14 +86,14 @@ func TestLoadConfigAndFlags(t *testing.T) {
 
 func TestType(t *testing.T) {
 	f := &Factory{
-		Wrapped: &jaegerexporter.Factory{},
+		Wrapped: jaegerexporter.NewFactory(),
 	}
 	assert.Equal(t, configmodels.Type("jaeger"), f.Type())
 }
 
 func TestCreateMetricsExporter(t *testing.T) {
 	f := &Factory{
-		Wrapped: &jaegerexporter.Factory{},
+		Wrapped: jaegerexporter.NewFactory(),
 	}
 	mReceiver, err := f.CreateMetricsExporter(context.Background(), component.ExporterCreateParams{}, nil)
 	assert.Equal(t, configerror.ErrDataTypeIsNotSupported, err)
