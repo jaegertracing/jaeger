@@ -26,7 +26,9 @@ import (
 )
 
 //MaxLength of UDP packet
-const MaxLength = 65000
+const (
+	MaxLength = 65000
+)
 
 var errConnAlreadyClosed = errors.New("connection already closed")
 
@@ -83,6 +85,7 @@ func NewTUDPServerTransport(hostPort string) (*TUDPTransport, error) {
 	if err != nil {
 		return nil, thrift.NewTTransportException(thrift.NOT_OPEN, err.Error())
 	}
+
 	return &TUDPTransport{addr: conn.LocalAddr(), conn: conn}, nil
 }
 
@@ -152,4 +155,9 @@ func (p *TUDPTransport) Flush(_ context.Context) error {
 	_, err := p.conn.Write(p.writeBuf.Bytes())
 	p.writeBuf.Reset() // always reset the buffer, even in case of an error
 	return err
+}
+
+// SetSocketBufferSize sets udp buffer size
+func (p *TUDPTransport) SetSocketBufferSize(bufferSize int) error {
+	return setSocketBuffer(p.Conn(), bufferSize)
 }

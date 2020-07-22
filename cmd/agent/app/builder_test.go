@@ -55,6 +55,11 @@ processors:
       server:
         hostPort: 2.2.2.2:6831
     - model: jaeger
+      protocol: compact
+      server:
+        hostPort: 3.3.3.3:6831 
+        socketBufferSize: 16384
+    - model: jaeger
       protocol: binary
       workers: 20
       server:
@@ -70,7 +75,7 @@ func TestBuilderFromConfig(t *testing.T) {
 	cfg := Builder{}
 	err := yaml.Unmarshal([]byte(yamlConfig), &cfg)
 	require.NoError(t, err)
-	assert.Len(t, cfg.Processors, 3)
+	assert.Len(t, cfg.Processors, 4)
 	for i := range cfg.Processors {
 		cfg.Processors[i].applyDefaults()
 		cfg.Processors[i].Server.applyDefaults()
@@ -97,6 +102,17 @@ func TestBuilderFromConfig(t *testing.T) {
 	}, cfg.Processors[1])
 	assert.Equal(t, ProcessorConfiguration{
 		Model:    jaegerModel,
+		Protocol: compactProtocol,
+		Workers:  10,
+		Server: ServerConfiguration{
+			QueueSize:        1000,
+			MaxPacketSize:    65000,
+			HostPort:         "3.3.3.3:6831",
+			SocketBufferSize: 16384,
+		},
+	}, cfg.Processors[2])
+	assert.Equal(t, ProcessorConfiguration{
+		Model:    jaegerModel,
 		Protocol: binaryProtocol,
 		Workers:  20,
 		Server: ServerConfiguration{
@@ -104,7 +120,7 @@ func TestBuilderFromConfig(t *testing.T) {
 			MaxPacketSize: 65001,
 			HostPort:      "3.3.3.3:6832",
 		},
-	}, cfg.Processors[2])
+	}, cfg.Processors[3])
 	assert.Equal(t, "4.4.4.4:5778", cfg.HTTPServer.HostPort)
 }
 
@@ -125,7 +141,7 @@ func TestBuilderWithProcessorErrors(t *testing.T) {
 	}{
 		{protocol: Protocol("bad"), err: "cannot find protocol factory for protocol bad"},
 		{protocol: compactProtocol, model: Model("bad"), err: "cannot find agent processor for data model bad"},
-		{protocol: compactProtocol, model: jaegerModel, err: "no host:port provided for udp server: {QueueSize:1000 MaxPacketSize:65000 HostPort:}"},
+		{protocol: compactProtocol, model: jaegerModel, err: "no host:port provided for udp server: {QueueSize:1000 MaxPacketSize:65000 SocketBufferSize:0 HostPort:}"},
 		{protocol: compactProtocol, model: zipkinModel, hostPort: "bad-host-port", errContains: "bad-host-port"},
 	}
 	for _, tc := range testCases {

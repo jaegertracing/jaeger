@@ -16,12 +16,18 @@
 package servers
 
 import (
+	"io"
 	"sync"
 	"sync/atomic"
 
-	"github.com/apache/thrift/lib/go/thrift"
 	"github.com/uber/jaeger-lib/metrics"
 )
+
+// ThriftTransport is a subset of thrift.TTransport methods, for easier mocking.
+type ThriftTransport interface {
+	io.Reader
+	io.Closer
+}
 
 // TBufferedServer is a custom thrift server that reads traffic using the transport provided
 // and places messages into a buffered channel to be processed by the processor provided
@@ -33,7 +39,7 @@ type TBufferedServer struct {
 	maxPacketSize int
 	maxQueueSize  int
 	serving       uint32
-	transport     thrift.TTransport
+	transport     ThriftTransport
 	readBufPool   *sync.Pool
 	metrics       struct {
 		// Size of the current server queue
@@ -55,7 +61,7 @@ type TBufferedServer struct {
 
 // NewTBufferedServer creates a TBufferedServer
 func NewTBufferedServer(
-	transport thrift.TTransport,
+	transport ThriftTransport,
 	maxQueueSize int,
 	maxPacketSize int,
 	mFactory metrics.Factory,
@@ -74,7 +80,7 @@ func NewTBufferedServer(
 		maxPacketSize: maxPacketSize,
 		readBufPool:   readBufPool,
 	}
-	metrics.Init(&res.metrics, mFactory, nil)
+	metrics.MustInit(&res.metrics, mFactory, nil)
 	return res, nil
 }
 
@@ -114,7 +120,7 @@ func (s *TBufferedServer) IsServing() bool {
 // emptied by the readers
 func (s *TBufferedServer) Stop() {
 	atomic.StoreUint32(&s.serving, 0)
-	s.transport.Close()
+	_ = s.transport.Close()
 	close(s.dataChan)
 }
 

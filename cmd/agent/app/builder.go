@@ -87,9 +87,10 @@ type ProcessorConfiguration struct {
 
 // ServerConfiguration holds config for a server that receives spans from the network
 type ServerConfiguration struct {
-	QueueSize     int    `yaml:"queueSize"`
-	MaxPacketSize int    `yaml:"maxPacketSize"`
-	HostPort      string `yaml:"hostPort" validate:"nonzero"`
+	QueueSize        int    `yaml:"queueSize"`
+	MaxPacketSize    int    `yaml:"maxPacketSize"`
+	SocketBufferSize int    `yaml:"socketBufferSize"`
+	HostPort         string `yaml:"hostPort" validate:"nonzero"`
 }
 
 // HTTPServerConfiguration holds config for a server providing sampling strategies and baggage restrictions to clients
@@ -185,6 +186,7 @@ func (c *ProcessorConfiguration) applyDefaults() {
 func (c *ServerConfiguration) applyDefaults() {
 	c.QueueSize = defaultInt(c.QueueSize, defaultQueueSize)
 	c.MaxPacketSize = defaultInt(c.MaxPacketSize, defaultMaxPacketSize)
+	c.SocketBufferSize = defaultInt(c.SocketBufferSize, 0)
 }
 
 // getUDPServer gets a TBufferedServer backed server using the server configuration
@@ -197,6 +199,11 @@ func (c *ServerConfiguration) getUDPServer(mFactory metrics.Factory) (servers.Se
 	transport, err := thriftudp.NewTUDPServerTransport(c.HostPort)
 	if err != nil {
 		return nil, fmt.Errorf("cannot create UDPServerTransport: %w", err)
+	}
+	if c.SocketBufferSize != 0 {
+		if err := transport.SetSocketBufferSize(c.SocketBufferSize); err != nil {
+			return nil, fmt.Errorf("cannot set UDP socket buffer size: %w", err)
+		}
 	}
 
 	return servers.NewTBufferedServer(transport, c.QueueSize, c.MaxPacketSize, mFactory)
