@@ -23,13 +23,13 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"go.opentelemetry.io/collector/component"
-	"go.opentelemetry.io/collector/config"
+	"go.opentelemetry.io/collector/component/componenttest"
 	"go.opentelemetry.io/collector/config/configerror"
 	"go.opentelemetry.io/collector/config/configgrpc"
 	"go.opentelemetry.io/collector/config/confighttp"
 	"go.opentelemetry.io/collector/config/configmodels"
 	"go.opentelemetry.io/collector/config/confignet"
-	"go.opentelemetry.io/collector/config/configprotocol"
+	"go.opentelemetry.io/collector/config/configtest"
 	"go.opentelemetry.io/collector/config/configtls"
 	"go.opentelemetry.io/collector/receiver/jaegerreceiver"
 
@@ -43,7 +43,7 @@ func TestDefaultValues(t *testing.T) {
 	err := c.ParseFlags([]string{})
 	require.NoError(t, err)
 
-	factory := &Factory{Viper: v, Wrapped: &jaegerreceiver.Factory{}}
+	factory := &Factory{Viper: v, Wrapped: jaegerreceiver.NewFactory()}
 	cfg := factory.CreateDefaultConfig().(*jaegerreceiver.Config)
 	assert.Nil(t, cfg.RemoteSampling)
 	assert.Empty(t, cfg.Protocols.ThriftCompact)
@@ -72,7 +72,7 @@ func TestDefaultValueFromViper(t *testing.T) {
 			flags: []string{fmt.Sprintf("--%s=%s", thriftCompactHostPort, "localhost:9999")},
 			expected: &jaegerreceiver.Config{
 				Protocols: jaegerreceiver.Protocols{
-					ThriftCompact: &configprotocol.ProtocolServerSettings{
+					ThriftCompact: &confignet.TCPAddr{
 						Endpoint: "localhost:9999",
 					},
 				},
@@ -83,7 +83,7 @@ func TestDefaultValueFromViper(t *testing.T) {
 			flags: []string{fmt.Sprintf("--%s=%s", thriftBinaryHostPort, "localhost:8888")},
 			expected: &jaegerreceiver.Config{
 				Protocols: jaegerreceiver.Protocols{
-					ThriftBinary: &configprotocol.ProtocolServerSettings{
+					ThriftBinary: &confignet.TCPAddr{
 						Endpoint: "localhost:8888",
 					},
 				},
@@ -121,7 +121,7 @@ func TestDefaultValueFromViper(t *testing.T) {
 					ThriftHTTP: &confighttp.HTTPServerSettings{
 						Endpoint: "localhost:8089",
 					},
-					ThriftBinary: &configprotocol.ProtocolServerSettings{
+					ThriftBinary: &confignet.TCPAddr{
 						Endpoint: "localhost:2222",
 					},
 				},
@@ -164,7 +164,7 @@ func TestDefaultValueFromViper(t *testing.T) {
 			err := c.ParseFlags(test.flags)
 			require.NoError(t, err)
 			f := &Factory{
-				Wrapped: &jaegerreceiver.Factory{},
+				Wrapped: jaegerreceiver.NewFactory(),
 				Viper:   v,
 			}
 			cfg := f.CreateDefaultConfig().(*jaegerreceiver.Config)
@@ -176,18 +176,18 @@ func TestDefaultValueFromViper(t *testing.T) {
 }
 
 func TestLoadConfigAndFlags(t *testing.T) {
-	factories, err := config.ExampleComponents()
+	factories, err := componenttest.ExampleComponents()
 	require.NoError(t, err)
 
 	v, c := jConfig.Viperize(AddFlags)
 	err = c.ParseFlags([]string{"--sampling.strategies-file=bar.json"})
 	require.NoError(t, err)
 
-	factory := &Factory{Viper: v, Wrapped: &jaegerreceiver.Factory{}}
+	factory := &Factory{Viper: v, Wrapped: jaegerreceiver.NewFactory()}
 	assert.Equal(t, "bar.json", factory.CreateDefaultConfig().(*jaegerreceiver.Config).RemoteSampling.StrategyFile)
 
 	factories.Receivers["jaeger"] = factory
-	colConfig, err := config.LoadConfigFile(t, path.Join(".", "testdata", "config.yaml"), factories)
+	colConfig, err := configtest.LoadConfigFile(t, path.Join(".", "testdata", "config.yaml"), factories)
 	require.NoError(t, err)
 	require.NotNil(t, colConfig)
 
@@ -197,14 +197,14 @@ func TestLoadConfigAndFlags(t *testing.T) {
 
 func TestType(t *testing.T) {
 	f := &Factory{
-		Wrapped: &jaegerreceiver.Factory{},
+		Wrapped: jaegerreceiver.NewFactory(),
 	}
 	assert.Equal(t, configmodels.Type("jaeger"), f.Type())
 }
 
 func TestCreateMetricsExporter(t *testing.T) {
 	f := &Factory{
-		Wrapped: &jaegerreceiver.Factory{},
+		Wrapped: jaegerreceiver.NewFactory(),
 	}
 	mReceiver, err := f.CreateMetricsReceiver(context.Background(), component.ReceiverCreateParams{}, nil, nil)
 	assert.Equal(t, configerror.ErrDataTypeIsNotSupported, err)

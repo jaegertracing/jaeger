@@ -23,7 +23,6 @@ import (
 	"go.opentelemetry.io/collector/config/confighttp"
 	"go.opentelemetry.io/collector/config/configmodels"
 	"go.opentelemetry.io/collector/config/confignet"
-	"go.opentelemetry.io/collector/config/configprotocol"
 	"go.opentelemetry.io/collector/config/configtls"
 	"go.opentelemetry.io/collector/consumer"
 	"go.opentelemetry.io/collector/receiver/jaegerreceiver"
@@ -38,7 +37,7 @@ import (
 // For instance this enables using flags as default values in the config object.
 type Factory struct {
 	// Wrapped is Jaeger receiver.
-	Wrapped *jaegerreceiver.Factory
+	Wrapped component.ReceiverFactory
 	// Viper is used to get configuration values for default configuration
 	Viper *viper.Viper
 }
@@ -68,12 +67,12 @@ func configureAgent(v *viper.Viper, cfg *jaegerreceiver.Config) {
 	aOpts := agentApp.Builder{}
 	aOpts.InitFromViper(v)
 	if v.IsSet(thriftBinaryHostPort) {
-		cfg.ThriftBinary = &configprotocol.ProtocolServerSettings{
+		cfg.ThriftBinary = &confignet.TCPAddr{
 			Endpoint: v.GetString(thriftBinaryHostPort),
 		}
 	}
 	if v.IsSet(thriftCompactHostPort) {
-		cfg.ThriftCompact = &configprotocol.ProtocolServerSettings{
+		cfg.ThriftCompact = &confignet.TCPAddr{
 			Endpoint: v.GetString(thriftCompactHostPort),
 		}
 	}
@@ -148,12 +147,6 @@ func (f *Factory) CreateTraceReceiver(
 	nextConsumer consumer.TraceConsumer,
 ) (component.TraceReceiver, error) {
 	return f.Wrapped.CreateTraceReceiver(ctx, params, cfg, nextConsumer)
-}
-
-// CustomUnmarshaler creates custom unmarshaller for Jaeger receiver config.
-// This function implements component.ReceiverFactoryBase interface.
-func (f *Factory) CustomUnmarshaler() component.CustomUnmarshaler {
-	return f.Wrapped.CustomUnmarshaler()
 }
 
 // CreateMetricsReceiver creates a metrics receiver based on provided config.
