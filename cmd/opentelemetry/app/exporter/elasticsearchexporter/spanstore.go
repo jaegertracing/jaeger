@@ -108,12 +108,12 @@ func (n indexNameProvider) get(date time.Time) string {
 }
 
 // CreateTemplates creates index templates.
-func (w *esSpanWriter) CreateTemplates(spanTemplate, serviceTemplate string) error {
-	err := w.client.PutTemplate(spanIndexBaseName, strings.NewReader(spanTemplate))
+func (w *esSpanWriter) CreateTemplates(ctx context.Context, spanTemplate, serviceTemplate string) error {
+	err := w.client.PutTemplate(context.Background(), spanIndexBaseName, strings.NewReader(spanTemplate))
 	if err != nil {
 		return err
 	}
-	err = w.client.PutTemplate(serviceIndexBaseName, strings.NewReader(serviceTemplate))
+	err = w.client.PutTemplate(ctx, serviceIndexBaseName, strings.NewReader(serviceTemplate))
 	if err != nil {
 		return err
 	}
@@ -121,15 +121,15 @@ func (w *esSpanWriter) CreateTemplates(spanTemplate, serviceTemplate string) err
 }
 
 // WriteTraces writes traces to the storage
-func (w *esSpanWriter) WriteTraces(_ context.Context, traces pdata.Traces) (int, error) {
+func (w *esSpanWriter) WriteTraces(ctx context.Context, traces pdata.Traces) (int, error) {
 	spans, err := w.translator.ConvertSpans(traces)
 	if err != nil {
 		return traces.SpanCount(), consumererror.Permanent(err)
 	}
-	return w.writeSpans(spans)
+	return w.writeSpans(ctx, spans)
 }
 
-func (w *esSpanWriter) writeSpans(spans []*dbmodel.Span) (int, error) {
+func (w *esSpanWriter) writeSpans(ctx context.Context, spans []*dbmodel.Span) (int, error) {
 	buffer := &bytes.Buffer{}
 	// mapping for bulk operation to span
 	bulkOperations := make([]bulkItem, len(spans))
@@ -154,7 +154,7 @@ func (w *esSpanWriter) writeSpans(spans []*dbmodel.Span) (int, error) {
 			bulkOperations = append(bulkOperations, bulkItem{span: span, isService: true})
 		}
 	}
-	res, err := w.client.Bulk(bytes.NewReader(buffer.Bytes()))
+	res, err := w.client.Bulk(ctx, bytes.NewReader(buffer.Bytes()))
 	if err != nil {
 		errs = append(errs, err)
 		return len(spans), componenterror.CombineErrors(errs)
