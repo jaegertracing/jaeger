@@ -282,7 +282,7 @@ func TestServerHTTPTLS(t *testing.T) {
 
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
-			serverOptions := &QueryOptions{HTTPTLSEnabled: test.HTTPTLSEnabled, GRPCTLSEnabled: test.GRPCTLSEnabled, TLS: test.TLS, HostPort: ports.PortToHostPort(ports.QueryHTTP), BearerTokenPropagation: true}
+			serverOptions := &QueryOptions{HTTPTLSEnabled: test.HTTPTLSEnabled, GRPCTLSEnabled: test.GRPCTLSEnabled, TLS: test.TLS, HostPort: ports.PortToHostPort(ports.QueryAdminHTTP), BearerTokenPropagation: true}
 			flagsSvc := flags.NewService(ports.QueryAdminHTTP)
 			flagsSvc.Logger = zap.NewNop()
 
@@ -314,7 +314,7 @@ func TestServerHTTPTLS(t *testing.T) {
 				clientTLSCfg, err0 = test.clientTLS.Config()
 				require.NoError(t, err0)
 				dialer := &net.Dialer{Timeout: 2 * time.Second}
-				conn, err1 := tls.DialWithDialer(dialer, "tcp", "localhost:"+fmt.Sprintf("%d", ports.QueryHTTP), clientTLSCfg)
+				conn, err1 := tls.DialWithDialer(dialer, "tcp", "localhost:"+fmt.Sprintf("%d", ports.QueryAdminHTTP), clientTLSCfg)
 				clientError = err1
 				clientClose = nil
 				if conn != nil {
@@ -323,7 +323,7 @@ func TestServerHTTPTLS(t *testing.T) {
 
 			} else {
 
-				conn, err1 := net.DialTimeout("tcp", "localhost:"+fmt.Sprintf("%d", ports.QueryHTTP), 2*time.Second)
+				conn, err1 := net.DialTimeout("tcp", "localhost:"+fmt.Sprintf("%d", ports.QueryAdminHTTP), 2*time.Second)
 				clientError = err1
 				clientClose = nil
 				if conn != nil {
@@ -350,7 +350,7 @@ func TestServerHTTPTLS(t *testing.T) {
 				readMock := spanReader
 				readMock.On("FindTraces", mock.AnythingOfType("*context.valueCtx"), mock.AnythingOfType("*spanstore.TraceQueryParameters")).Return([]*model.Trace{mockTrace}, nil).Once()
 				queryString := "/api/traces?service=service&start=0&end=0&operation=operation&limit=200&minDuration=20ms"
-				req, err := http.NewRequest("GET", "https://localhost:"+fmt.Sprintf("%d", ports.QueryHTTP)+queryString, nil)
+				req, err := http.NewRequest("GET", "https://localhost:"+fmt.Sprintf("%d", ports.QueryAdminHTTP)+queryString, nil)
 				assert.Nil(t, err)
 				req.Header.Add("Accept", "application/json")
 
@@ -416,7 +416,7 @@ func TestServerGRPCTLS(t *testing.T) {
 
 	for _, test := range tests {
 		t.Run(test.name, func(t *testing.T) {
-			serverOptions := &QueryOptions{HTTPTLSEnabled: test.HTTPTLSEnabled, GRPCTLSEnabled: test.GRPCTLSEnabled, TLS: test.TLS, HostPort: ports.PortToHostPort(ports.QueryHTTP), BearerTokenPropagation: true}
+			serverOptions := &QueryOptions{HTTPTLSEnabled: test.HTTPTLSEnabled, GRPCTLSEnabled: test.GRPCTLSEnabled, TLS: test.TLS, HostPort: ports.PortToHostPort(ports.QueryAdminHTTP), BearerTokenPropagation: true}
 			flagsSvc := flags.NewService(ports.QueryAdminHTTP)
 			flagsSvc.Logger = zap.NewNop()
 
@@ -446,10 +446,10 @@ func TestServerGRPCTLS(t *testing.T) {
 				clientTLSCfg, err0 := test.clientTLS.Config()
 				require.NoError(t, err0)
 				creds := credentials.NewTLS(clientTLSCfg)
-				client = newGRPCClientWithTLS(t, ports.PortToHostPort(ports.QueryHTTP), creds)
+				client = newGRPCClientWithTLS(t, ports.PortToHostPort(ports.QueryAdminHTTP), creds)
 
 			} else {
-				client = newGRPCClientWithTLS(t, ports.PortToHostPort(ports.QueryHTTP), nil)
+				client = newGRPCClientWithTLS(t, ports.PortToHostPort(ports.QueryAdminHTTP), nil)
 			}
 
 			ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
@@ -481,7 +481,7 @@ func TestServerGRPCTLS(t *testing.T) {
 func TestServer(t *testing.T) {
 	flagsSvc := flags.NewService(ports.QueryAdminHTTP)
 	flagsSvc.Logger = zap.NewNop()
-	hostPort := ports.GetAddressFromCLIOptions(ports.QueryHTTP, "")
+	hostPort := ports.GetAddressFromCLIOptions(ports.QueryAdminHTTP, "")
 
 	spanReader := &spanstoremocks.Reader{}
 	dependencyReader := &depsmocks.Reader{}

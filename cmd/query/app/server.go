@@ -143,31 +143,29 @@ func (s *Server) getCmux() (cmux.CMux, net.Listener, net.Listener, error) {
 	var httpListener net.Listener
 	var grpcListener net.Listener
 	var cmux1 cmux.CMux
-	// var cmux2 cmux.CMux
 	conn, err := net.Listen("tcp", s.queryOptions.HostPort)
 	s.conn = conn
 
 	if err != nil {
 		return nil, nil, nil, err
 	}
-	if s.queryOptions.HTTPTLSEnabled != s.queryOptions.GRPCTLSEnabled {
+	if s.queryOptions.HTTPTLSEnabled != s.queryOptions.GRPCTLSEnabled { // exactly one of HTTP or GRPC has TLS enabled
 		cmux1 = cmux.New(conn)
 
-		if !s.queryOptions.HTTPTLSEnabled {
+		if !s.queryOptions.HTTPTLSEnabled { // HTTPTLS disabled GRPCTLS enabled => match http request
 			httpListener = cmux1.Match(cmux.HTTP1Fast())
-		} else {
-			grpcListener = cmux1.MatchWithWriters(
+		} else { // HTTPTLS enabled GRPCTLS disabled
+			grpcListener = cmux1.MatchWithWriters( // HTTPTLS disabled GRPCTLS enabled => match GRPC request
 				cmux.HTTP2MatchHeaderFieldSendSettings("content-type", "application/grpc"),
 				cmux.HTTP2MatchHeaderFieldSendSettings("content-type", "application/grpc+proto"),
 			)
 		}
-		tlsListener := cmux1.Match(cmux.Any())
+		tlsListener := cmux1.Match(cmux.Any()) // unmatched request are routed to TLS Listener
 		tlsListener, err = getTLSListener(tlsListener, s.queryOptions.TLS)
 		if err != nil {
 			return nil, nil, nil, err
 		}
 
-		// cmux2 = cmux.New(tlsListener)
 		if s.queryOptions.HTTPTLSEnabled {
 			httpListener = tlsListener
 		} else {
@@ -176,13 +174,13 @@ func (s *Server) getCmux() (cmux.CMux, net.Listener, net.Listener, error) {
 
 	} else {
 		var muxListener net.Listener
-		if s.queryOptions.HTTPTLSEnabled {
+		if s.queryOptions.HTTPTLSEnabled { // Both HTTPTLS and GRPCTLS are enabled  Using TLS listener.
 			muxListener, err = getTLSListener(conn, s.queryOptions.TLS)
 			if err != nil {
 				return nil, nil, nil, err
 			}
 
-		} else {
+		} else { // Both HTTPTLS and GRPCTLS are disabled
 			muxListener = conn
 		}
 		cmux1 = cmux.New(muxListener)

@@ -47,12 +47,11 @@ const (
 	queryAdditionalHeaders  = "query.additional-headers"
 	queryMaxClockSkewAdjust = "query.max-clock-skew-adjustment"
 	queryHTTPTLSEnabled     = "query.http.tls.enabled"
-	queryGRPCTLSEnabled     = "query.gprc.tls.enabled"
-	queryServerClientCA     = "query.server.tls.client-ca"
+	queryGRPCTLSEnabled     = "query.grpc.tls.enabled"
 )
 
 var tlsFlagsConfig = tlscfg.ServerFlagsConfig{
-	Prefix:       "query.server",
+	Prefix:       "query",
 	ShowEnabled:  false,
 	ShowClientCA: true,
 }
