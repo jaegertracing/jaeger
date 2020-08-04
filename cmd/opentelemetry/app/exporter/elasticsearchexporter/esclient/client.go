@@ -183,16 +183,28 @@ func NewElasticsearchClient(params config.Configuration, logger *zap.Logger) (El
 		logger.Info("Elasticsearch detected", zap.Int("version", esVersion))
 		params.Version = uint(esVersion)
 	}
-	return newElasticsearchClient(params, roundTripper)
+	return newElasticsearchClient(int(params.Version), clientConfig{
+		DiscoverNotesOnStartup: params.Sniffer,
+		Addresses:              params.Servers,
+		Username:               params.Username,
+		Password:               params.Password,
+	}, roundTripper)
 }
 
-func newElasticsearchClient(params config.Configuration, roundTripper http.RoundTripper) (ElasticsearchClient, error) {
-	switch params.Version {
+type clientConfig struct {
+	DiscoverNotesOnStartup bool
+	Addresses              []string
+	Username               string
+	Password               string
+}
+
+func newElasticsearchClient(version int, params clientConfig, roundTripper http.RoundTripper) (ElasticsearchClient, error) {
+	switch version {
 	case 5, 6:
 		return newElasticsearch6Client(params, roundTripper)
 	case 7:
 		return newElasticsearch7Client(params, roundTripper)
 	default:
-		return nil, fmt.Errorf("could not create Elasticseach client for version %d", params.Version)
+		return nil, fmt.Errorf("could not create Elasticseach client for version %d", version)
 	}
 }

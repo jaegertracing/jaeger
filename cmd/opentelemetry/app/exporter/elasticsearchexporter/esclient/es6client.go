@@ -24,8 +24,6 @@ import (
 	"net/http"
 
 	elasticsearch6 "github.com/elastic/go-elasticsearch/v6"
-
-	"github.com/jaegertracing/jaeger/pkg/es/config"
 )
 
 const (
@@ -38,10 +36,10 @@ type elasticsearch6Client struct {
 
 var _ ElasticsearchClient = (*elasticsearch6Client)(nil)
 
-func newElasticsearch6Client(params config.Configuration, roundTripper http.RoundTripper) (*elasticsearch6Client, error) {
+func newElasticsearch6Client(params clientConfig, roundTripper http.RoundTripper) (*elasticsearch6Client, error) {
 	client, err := elasticsearch6.NewClient(elasticsearch6.Config{
-		DiscoverNodesOnStart: params.Sniffer,
-		Addresses:            params.Servers,
+		DiscoverNodesOnStart: params.DiscoverNotesOnStartup,
+		Addresses:            params.Addresses,
 		Username:             params.Username,
 		Password:             params.Password,
 		Transport:            roundTripper,

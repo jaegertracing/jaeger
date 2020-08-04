@@ -21,14 +21,11 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-
-	"github.com/jaegertracing/jaeger/pkg/es/config"
 )
 
 func TestES6NewClient_err(t *testing.T) {
-	client, err := newElasticsearch6Client(config.Configuration{
-		Sniffer: true,
-		Servers: []string{"$%"},
+	client, err := newElasticsearch6Client(clientConfig{
+		Addresses: []string{"$%"},
 	}, &http.Transport{})
 	require.Error(t, err)
 	assert.Nil(t, client)
@@ -36,12 +33,12 @@ func TestES6NewClient_err(t *testing.T) {
 
 func TestES6PutTemplateES6Client(t *testing.T) {
 	testPutTemplate(t, func(tripper http.RoundTripper) (ElasticsearchClient, error) {
-		return newElasticsearch6Client(config.Configuration{}, tripper)
+		return newElasticsearch6Client(clientConfig{}, tripper)
 	})
 }
 
 func TestES6AddDataToBulk(t *testing.T) {
-	client, err := newElasticsearch6Client(config.Configuration{}, &http.Transport{})
+	client, err := newElasticsearch6Client(clientConfig{}, &http.Transport{})
 	require.NoError(t, err)
 	assert.NotNil(t, client)
 
@@ -52,24 +49,24 @@ func TestES6AddDataToBulk(t *testing.T) {
 
 func TestES6Bulk(t *testing.T) {
 	testBulk(t, func(tripper http.RoundTripper) (ElasticsearchClient, error) {
-		return newElasticsearch6Client(config.Configuration{}, tripper)
+		return newElasticsearch6Client(clientConfig{}, tripper)
 	})
 }
 
 func TestES6Index(t *testing.T) {
 	testIndex(t, func(tripper http.RoundTripper) (ElasticsearchClient, error) {
-		return newElasticsearch6Client(config.Configuration{}, tripper)
+		return newElasticsearch6Client(clientConfig{}, tripper)
 	})
 }
 
 func TestES6Search(t *testing.T) {
 	testSearch(t, func(tripper http.RoundTripper) (ElasticsearchClient, error) {
-		return newElasticsearch6Client(config.Configuration{}, tripper)
+		return newElasticsearch6Client(clientConfig{}, tripper)
 	})
 }
 
 func TestES6MultiSearch(t *testing.T) {
 	testMultiSearch(t, func(tripper http.RoundTripper) (ElasticsearchClient, error) {
-		return newElasticsearch6Client(config.Configuration{}, tripper)
+		return newElasticsearch6Client(clientConfig{}, tripper)
 	})
 }

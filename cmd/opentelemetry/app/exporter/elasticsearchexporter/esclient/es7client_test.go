@@ -21,14 +21,11 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-
-	"github.com/jaegertracing/jaeger/pkg/es/config"
 )
 
 func TestES7NewClient_err(t *testing.T) {
-	client, err := newElasticsearch7Client(config.Configuration{
-		Sniffer: true,
-		Servers: []string{"$%"},
+	client, err := newElasticsearch7Client(clientConfig{
+		Addresses: []string{"$%"},
 	}, &http.Transport{})
 	require.Error(t, err)
 	assert.Nil(t, client)
@@ -36,12 +33,12 @@ func TestES7NewClient_err(t *testing.T) {
 
 func TestES7PutTemplate(t *testing.T) {
 	testPutTemplate(t, func(tripper http.RoundTripper) (ElasticsearchClient, error) {
-		return newElasticsearch7Client(config.Configuration{}, tripper)
+		return newElasticsearch7Client(clientConfig{}, tripper)
 	})
 }
 
 func TestES7AddDataToBulk(t *testing.T) {
-	client, err := newElasticsearch7Client(config.Configuration{}, &http.Transport{})
+	client, err := newElasticsearch7Client(clientConfig{}, &http.Transport{})
 	require.NoError(t, err)
 	assert.NotNil(t, client)
 
@@ -52,24 +49,24 @@ func TestES7AddDataToBulk(t *testing.T) {
 
 func TestES7Bulk(t *testing.T) {
 	testBulk(t, func(tripper http.RoundTripper) (ElasticsearchClient, error) {
-		return newElasticsearch7Client(config.Configuration{}, tripper)
+		return newElasticsearch7Client(clientConfig{}, tripper)
 	})
 }
 
 func TestES7Index(t *testing.T) {
 	testIndex(t, func(tripper http.RoundTripper) (ElasticsearchClient, error) {
-		return newElasticsearch7Client(config.Configuration{}, tripper)
+		return newElasticsearch7Client(clientConfig{}, tripper)
 	})
 }
 
 func TestES7Search(t *testing.T) {
 	testSearch(t, func(tripper http.RoundTripper) (ElasticsearchClient, error) {
-		return newElasticsearch7Client(config.Configuration{}, tripper)
+		return newElasticsearch7Client(clientConfig{}, tripper)
 	})
 }
 
 func TestES7MultiSearch(t *testing.T) {
 	testMultiSearch(t, func(tripper http.RoundTripper) (ElasticsearchClient, error) {
-		return newElasticsearch7Client(config.Configuration{}, tripper)
+		return newElasticsearch7Client(clientConfig{}, tripper)
 	})
 }

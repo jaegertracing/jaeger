@@ -24,8 +24,6 @@ import (
 	"net/http"
 
 	elasticsearch7 "github.com/elastic/go-elasticsearch/v7"
-
-	"github.com/jaegertracing/jaeger/pkg/es/config"
 )
 
 const (
@@ -38,11 +36,11 @@ type elasticsearch7Client struct {
 
 var _ ElasticsearchClient = (*elasticsearch7Client)(nil)
 
-func newElasticsearch7Client(params config.Configuration, roundTripper http.RoundTripper) (*elasticsearch7Client, error) {
+func newElasticsearch7Client(config clientConfig, roundTripper http.RoundTripper) (*elasticsearch7Client, error) {
 	client, err := elasticsearch7.NewClient(elasticsearch7.Config{
-		Addresses: params.Servers,
-		Username:  params.Username,
-		Password:  params.Password,
+		Addresses: config.Addresses,
+		Username:  config.Username,
+		Password:  config.Password,
 		Transport: roundTripper,
 	})
 	if err != nil {
