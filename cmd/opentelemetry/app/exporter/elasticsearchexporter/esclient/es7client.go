@@ -124,19 +124,18 @@ func (es *elasticsearch7Client) Search(ctx context.Context, query SearchBody, si
 }
 
 func (es *elasticsearch7Client) MultiSearch(ctx context.Context, queries []SearchBody) (*MultiSearchResponse, error) {
-	body, err := queryBodies(queries)
-	if err != nil {
-		return nil, err
-	}
-
 	var indices []string
-	var sbs []es7SearchBody
+	var es7Queries []es7SearchBody
 	for _, q := range queries {
-		sbs = append(sbs, es7SearchBody{
+		es7Queries = append(es7Queries, es7SearchBody{
 			SearchBody:     q,
 			TrackTotalHits: true,
 		})
 		indices = append(indices, q.Indices...)
+	}
+	body, err := es7QueryBodies(es7Queries)
+	if err != nil {
+		return nil, err
 	}
 
 	response, err := es.client.Msearch(body,
@@ -180,7 +179,7 @@ func convertSearchResponse(response es7searchResponse) SearchResponse {
 // Override the SearchBody to add TrackTotalHits compatible with ES7
 type es7SearchBody struct {
 	SearchBody
-	TrackTotalHits bool `json:"track_total_hits,omitempty"`
+	TrackTotalHits bool `json:"track_total_hits"`
 }
 
 type es7multiSearchResponse struct {
@@ -197,4 +196,16 @@ type es7its struct {
 		Value int `json:"value"`
 	} `json:"total"`
 	Hits []Hit `json:"hits"`
+}
+
+func es7QueryBodies(searchBodies []es7SearchBody) (io.Reader, error) {
+	buf := &bytes.Buffer{}
+	for _, sb := range searchBodies {
+		data, err := json.Marshal(sb)
+		if err != nil {
+			return nil, err
+		}
+		addDataToMSearchBuffer(buf, data)
+	}
+	return buf, nil
 }
