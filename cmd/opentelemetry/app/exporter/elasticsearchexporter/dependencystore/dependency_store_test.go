@@ -35,7 +35,7 @@ import (
 
 func TestCreateTemplates(t *testing.T) {
 	client := &mockClient{}
-	store := NewDependencyStore(client, zap.NewNop(), "foo-")
+	store := NewDependencyStore(client, zap.NewNop(), "foo")
 	template := "template"
 	err := store.CreateTemplates(template)
 	require.NoError(t, err)
@@ -46,7 +46,7 @@ func TestCreateTemplates(t *testing.T) {
 
 func TestWriteDependencies(t *testing.T) {
 	client := &mockClient{}
-	store := NewDependencyStore(client, zap.NewNop(), "foo-")
+	store := NewDependencyStore(client, zap.NewNop(), "foo")
 	dependencies := []model.DependencyLink{{Parent: "foo", Child: "bar", CallCount: 1}}
 	tsNow := time.Now()
 	err := store.WriteDependencies(tsNow, dependencies)
@@ -85,7 +85,7 @@ func TestGetDependencies(t *testing.T) {
 			},
 		},
 	}
-	store := NewDependencyStore(client, zap.NewNop(), "foo-")
+	store := NewDependencyStore(client, zap.NewNop(), "foo")
 	dependencies, err := store.GetDependencies(tsNow, time.Hour)
 	require.NoError(t, err)
 	assert.Equal(t, timeDependencies, dbmodel.TimeDependencies{
@@ -107,7 +107,7 @@ func TestGetDependencies_err_unmarshall(t *testing.T) {
 			},
 		},
 	}
-	store := NewDependencyStore(client, zap.NewNop(), "foo-")
+	store := NewDependencyStore(client, zap.NewNop(), "foo")
 	dependencies, err := store.GetDependencies(tsNow, time.Hour)
 	require.Contains(t, err.Error(), "invalid character")
 	assert.Nil(t, dependencies)
@@ -118,7 +118,7 @@ func TestGetDependencies_err_client(t *testing.T) {
 	client := &mockClient{
 		searchErr: searchErr,
 	}
-	store := NewDependencyStore(client, zap.NewNop(), "foo-")
+	store := NewDependencyStore(client, zap.NewNop(), "foo")
 	tsNow := time.Now()
 	dependencies, err := store.GetDependencies(tsNow, time.Hour)
 	require.Error(t, err)
@@ -136,8 +136,7 @@ const query = `{
     }
   },
   "size": 10000,
-  "terminate_after": 0,
-  "track_total_hits": false
+  "terminate_after": 0
 }`
 
 func TestSearchBody(t *testing.T) {

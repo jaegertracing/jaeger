@@ -51,6 +51,9 @@ var _ dependencystore.Writer = (*DependencyStore)(nil)
 
 // NewDependencyStore creates dependency store.
 func NewDependencyStore(client esclient.ElasticsearchClient, logger *zap.Logger, indexPrefix string) *DependencyStore {
+	if indexPrefix != "" {
+		indexPrefix += "-"
+	}
 	return &DependencyStore{
 		client:      client,
 		logger:      logger,
