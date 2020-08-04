@@ -61,7 +61,7 @@ func NewDependencyStore(client esclient.ElasticsearchClient, logger *zap.Logger,
 	}
 }
 
-// CreateTemplates creates index templates for depndency index
+// CreateTemplates creates index templates for dependency index
 func (r *DependencyStore) CreateTemplates(dependenciesTemplate string) error {
 	return r.client.PutTemplate(context.Background(), dependencyIndexBaseName, strings.NewReader(dependenciesTemplate))
 }
