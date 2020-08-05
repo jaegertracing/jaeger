@@ -18,7 +18,7 @@ import (
 	"io"
 
 	"github.com/Shopify/sarama"
-	"github.com/bsm/sarama-cluster"
+	cluster "github.com/bsm/sarama-cluster"
 
 	"github.com/jaegertracing/jaeger/pkg/kafka/auth"
 )
@@ -52,6 +52,10 @@ func (c *Configuration) NewConsumer() (Consumer, error) {
 	saramaConfig := cluster.NewConfig()
 	saramaConfig.Group.Mode = cluster.ConsumerModePartitions
 	saramaConfig.ClientID = c.ClientID
+	// FIXME https://github.com/jaegertracing/jaeger/pull/2374#issuecomment-669237302
+	// bsm/sarama-cluster depends on CommitInterval set to a positive value but that
+	// field is deprecated in sarama in favor of AutoCommit.Interval
+	saramaConfig.Consumer.Offsets.CommitInterval = saramaConfig.Consumer.Offsets.AutoCommit.Interval
 	if len(c.ProtocolVersion) > 0 {
 		ver, err := sarama.ParseKafkaVersion(c.ProtocolVersion)
 		if err != nil {
