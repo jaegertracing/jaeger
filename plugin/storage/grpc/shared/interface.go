@@ -19,7 +19,6 @@ import (
 
 	"github.com/hashicorp/go-plugin"
 
-	"github.com/jaegertracing/jaeger/model"
 	"github.com/jaegertracing/jaeger/plugin/storage/grpc/shared/extra"
 	"github.com/jaegertracing/jaeger/proto-gen/storage_v1"
 	"github.com/jaegertracing/jaeger/storage/dependencystore"
@@ -49,18 +48,8 @@ type StoragePlugin interface {
 
 // ArchiveStoragePlugin is the interface we're exposing as a plugin.
 type ArchiveStoragePlugin interface {
-	ArchiveSpanReader() ArchiveReader
-	ArchiveSpanWriter() ArchiveWriter
-}
-
-// ArchiveReader finds and loads traces and other data from storage.
-type ArchiveReader interface {
-	GetArchiveTrace(ctx context.Context, traceID model.TraceID) (*model.Trace, error)
-}
-
-// ArchiveWriter writes spans to archive storage.
-type ArchiveWriter interface {
-	WriteArchiveSpan(span *model.Span) error
+	ArchiveSpanReader() spanstore.Reader
+	ArchiveSpanWriter() spanstore.Writer
 }
 
 // PluginCapabilities allow expose plugin its capabilities.
