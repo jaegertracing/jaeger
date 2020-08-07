@@ -16,6 +16,7 @@ package main
 
 import (
 	"flag"
+	"github.com/jaegertracing/jaeger/plugin/storage/grpc/config"
 	"path"
 	"strings"
 
@@ -45,7 +46,9 @@ func main() {
 	opts := memory.Options{}
 	opts.InitFromViper(v)
 
-	grpc.Serve(&memoryStore{store: memory.NewStore()}, nil, nil)
+	grpc.Serve(&config.PluginServices{
+		Store: &memoryStore{store: memory.NewStore()},
+	})
 }
 
 type memoryStore struct {
