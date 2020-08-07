@@ -58,8 +58,8 @@ func (b *mockPluginBuilder) Build() (*grpcConfig.PluginServices, error) {
 type mockPlugin struct {
 	spanReader       spanstore.Reader
 	spanWriter       spanstore.Writer
-	archiveReader    shared.ArchiveReader
-	archiveWriter    shared.ArchiveWriter
+	archiveReader    spanstore.Reader
+	archiveWriter    spanstore.Writer
 	capabilities     shared.PluginCapabilities
 	dependencyReader dependencystore.Reader
 }
@@ -68,11 +68,11 @@ func (mp *mockPlugin) Capabilities() (*extra.Capabilities, error) {
 	return mp.capabilities.Capabilities()
 }
 
-func (mp *mockPlugin) ArchiveSpanReader() shared.ArchiveReader {
+func (mp *mockPlugin) ArchiveSpanReader() spanstore.Reader {
 	return mp.archiveReader
 }
 
-func (mp *mockPlugin) ArchiveSpanWriter() shared.ArchiveWriter {
+func (mp *mockPlugin) ArchiveSpanWriter() spanstore.Writer {
 	return mp.archiveWriter
 }
 
@@ -106,8 +106,8 @@ func TestGRPCStorageFactory(t *testing.T) {
 		plugin: &mockPlugin{
 			spanWriter:       new(spanStoreMocks.Writer),
 			spanReader:       new(spanStoreMocks.Reader),
-			archiveReader:    new(mocks.ArchiveReader),
-			archiveWriter:    new(mocks.ArchiveWriter),
+			archiveWriter:    new(spanStoreMocks.Writer),
+			archiveReader:    new(spanStoreMocks.Reader),
 			capabilities:     new(mocks.PluginCapabilities),
 			dependencyReader: new(dependencyStoreMocks.Reader),
 		},
@@ -146,12 +146,10 @@ func TestGRPCStorageFactory_Capabilities(t *testing.T) {
 	assert.NoError(t, f.Initialize(metrics.NullFactory, zap.NewNop()))
 
 	assert.NotNil(t, f.store)
-	reader, err := f.CreateArchiveSpanReader()
+	_, err := f.CreateArchiveSpanReader()
 	assert.NoError(t, err)
-	assert.IsType(t, &ArchiveReader{}, reader)
-	writer, err := f.CreateArchiveSpanWriter()
+	_, err = f.CreateArchiveSpanWriter()
 	assert.NoError(t, err)
-	assert.IsType(t, &ArchiveWriter{}, writer)
 }
 
 func TestGRPCStorageFactory_CapabilitiesDisabled(t *testing.T) {

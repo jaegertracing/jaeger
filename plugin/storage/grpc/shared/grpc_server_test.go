@@ -37,17 +37,17 @@ import (
 type mockStoragePlugin struct {
 	spanReader    *spanStoreMocks.Reader
 	spanWriter    *spanStoreMocks.Writer
-	archiveReader *mocks.ArchiveReader
-	archiveWriter *mocks.ArchiveWriter
+	archiveReader *spanStoreMocks.Reader
+	archiveWriter *spanStoreMocks.Writer
 	capabilities  *mocks.PluginCapabilities
 	depsReader    *dependencyStoreMocks.Reader
 }
 
-func (plugin *mockStoragePlugin) ArchiveSpanReader() ArchiveReader {
+func (plugin *mockStoragePlugin) ArchiveSpanReader() spanstore.Reader {
 	return plugin.archiveReader
 }
 
-func (plugin *mockStoragePlugin) ArchiveSpanWriter() ArchiveWriter {
+func (plugin *mockStoragePlugin) ArchiveSpanWriter() spanstore.Writer {
 	return plugin.archiveWriter
 }
 
@@ -75,8 +75,8 @@ type grpcServerTest struct {
 func withGRPCServer(fn func(r *grpcServerTest)) {
 	spanReader := new(spanStoreMocks.Reader)
 	spanWriter := new(spanStoreMocks.Writer)
-	archiveReader := new(mocks.ArchiveReader)
-	archiveWriter := new(mocks.ArchiveWriter)
+	archiveReader := new(spanStoreMocks.Reader)
+	archiveWriter := new(spanStoreMocks.Writer)
 	capabilities := new(mocks.PluginCapabilities)
 	depReader := new(dependencyStoreMocks.Reader)
 
@@ -247,7 +247,7 @@ func TestGRPCServerGetArchiveTrace(t *testing.T) {
 		for i := range mockTraceSpans {
 			traceSpans = append(traceSpans, &mockTraceSpans[i])
 		}
-		r.impl.archiveReader.On("GetArchiveTrace", mock.Anything, mockTraceID).
+		r.impl.archiveReader.On("GetTrace", mock.Anything, mockTraceID).
 			Return(&model.Trace{Spans: traceSpans}, nil)
 
 		err := r.server.GetArchiveTrace(&storage_v1.GetTraceRequest{
@@ -262,7 +262,7 @@ func TestGRPCServerGetArchiveTrace_Error(t *testing.T) {
 		traceSteam := new(grpcMocks.SpanReaderPlugin_GetTraceServer)
 		traceSteam.On("Context").Return(context.Background())
 
-		r.impl.archiveReader.On("GetArchiveTrace", mock.Anything, mockTraceID).
+		r.impl.archiveReader.On("GetTrace", mock.Anything, mockTraceID).
 			Return(nil, fmt.Errorf("some error"))
 
 		err := r.server.GetArchiveTrace(&storage_v1.GetTraceRequest{
@@ -283,7 +283,7 @@ func TestGRPCServerGetArchiveTrace_StreamError(t *testing.T) {
 		for i := range mockTraceSpans {
 			traceSpans = append(traceSpans, &mockTraceSpans[i])
 		}
-		r.impl.archiveReader.On("GetArchiveTrace", mock.Anything, mockTraceID).
+		r.impl.archiveReader.On("GetTrace", mock.Anything, mockTraceID).
 			Return(&model.Trace{Spans: traceSpans}, nil)
 
 		err := r.server.GetArchiveTrace(&storage_v1.GetTraceRequest{
@@ -295,7 +295,7 @@ func TestGRPCServerGetArchiveTrace_StreamError(t *testing.T) {
 
 func TestGRPCServerWriteArchiveSpan(t *testing.T) {
 	withGRPCServer(func(r *grpcServerTest) {
-		r.impl.archiveWriter.On("WriteArchiveSpan", &mockTraceSpans[0]).
+		r.impl.archiveWriter.On("WriteSpan", &mockTraceSpans[0]).
 			Return(nil)
 
 		s, err := r.server.WriteArchiveSpan(context.Background(), &storage_v1.WriteSpanRequest{
@@ -308,7 +308,7 @@ func TestGRPCServerWriteArchiveSpan(t *testing.T) {
 
 func TestGRPCServerWriteArchiveSpan_Error(t *testing.T) {
 	withGRPCServer(func(r *grpcServerTest) {
-		r.impl.archiveWriter.On("WriteArchiveSpan", &mockTraceSpans[0]).
+		r.impl.archiveWriter.On("WriteSpan", &mockTraceSpans[0]).
 			Return(fmt.Errorf("some error"))
 
 		_, err := r.server.WriteArchiveSpan(context.Background(), &storage_v1.WriteSpanRequest{

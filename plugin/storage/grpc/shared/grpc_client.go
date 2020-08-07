@@ -70,11 +70,11 @@ func (c *grpcClient) SpanWriter() spanstore.Writer {
 	return c
 }
 
-func (c *grpcClient) ArchiveSpanReader() ArchiveReader {
+func (c *grpcClient) ArchiveSpanReader() spanstore.Reader {
 	return c
 }
 
-func (c *grpcClient) ArchiveSpanWriter() ArchiveWriter {
+func (c *grpcClient) ArchiveSpanWriter() spanstore.Writer {
 	return c
 }
 

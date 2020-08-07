@@ -62,8 +62,6 @@ A plugin must implement the StoragePlugin interface of:
 type StoragePlugin interface {
    	SpanReader() spanstore.Reader
    	SpanWriter() spanstore.Writer
-	ArchiveSpanReader() shared.ArchiveReader
-	ArchiveSpanWriter() shared.ArchiveWriter
    	DependencyReader() dependencystore.Reader
 }
 ```

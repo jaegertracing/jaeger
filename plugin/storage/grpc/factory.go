@@ -107,7 +107,7 @@ func (f *Factory) CreateArchiveSpanReader() (spanstore.Reader, error) {
 	if capabilities == nil || !capabilities.ArchiveSpanReader {
 		return nil, storage.ErrArchiveStorageNotSupported
 	}
-	return &ArchiveReader{impl: f.archiveStore.ArchiveSpanReader()}, nil
+	return f.archiveStore.ArchiveSpanReader(), nil
 }
 
 // CreateArchiveSpanWriter implements storage.ArchiveFactory
@@ -122,5 +122,5 @@ func (f *Factory) CreateArchiveSpanWriter() (spanstore.Writer, error) {
 	if capabilities == nil || !capabilities.ArchiveSpanWriter {
 		return nil, storage.ErrArchiveStorageNotSupported
 	}
-	return &ArchiveWriter{impl: f.archiveStore.ArchiveSpanWriter()}, nil
+	return f.archiveStore.ArchiveSpanWriter(), nil
 }

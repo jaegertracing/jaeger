@@ -182,7 +182,7 @@ func (s *grpcServer) GetArchiveTrace(r *storage_v1.GetTraceRequest, stream stora
 	if s.ArchiveImpl == nil {
 		return status.Error(codes.Unimplemented, "not implemented")
 	}
-	trace, err := s.ArchiveImpl.ArchiveSpanReader().GetArchiveTrace(stream.Context(), r.TraceID)
+	trace, err := s.ArchiveImpl.ArchiveSpanReader().GetTrace(stream.Context(), r.TraceID)
 	if err != nil {
 		return err
 	}
@@ -199,7 +199,7 @@ func (s *grpcServer) WriteArchiveSpan(ctx context.Context, r *storage_v1.WriteSp
 	if s.ArchiveImpl == nil {
 		return nil, status.Error(codes.Unimplemented, "not implemented")
 	}
-	err := s.ArchiveImpl.ArchiveSpanWriter().WriteArchiveSpan(r.Span)
+	err := s.ArchiveImpl.ArchiveSpanWriter().WriteSpan(r.Span)
 	if err != nil {
 		return nil, err
 	}
