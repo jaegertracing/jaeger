@@ -146,10 +146,12 @@ func TestGRPCStorageFactory_Capabilities(t *testing.T) {
 	assert.NoError(t, f.Initialize(metrics.NullFactory, zap.NewNop()))
 
 	assert.NotNil(t, f.store)
-	_, err := f.CreateArchiveSpanReader()
+	reader, err := f.CreateArchiveSpanReader()
 	assert.NoError(t, err)
-	_, err = f.CreateArchiveSpanWriter()
+	assert.NotNil(t, reader)
+	writer, err := f.CreateArchiveSpanWriter()
 	assert.NoError(t, err)
+	assert.NotNil(t, writer)
 }
 
 func TestGRPCStorageFactory_CapabilitiesDisabled(t *testing.T) {

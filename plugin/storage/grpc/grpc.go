@@ -16,29 +16,29 @@ package grpc
 
 import (
 	"github.com/hashicorp/go-plugin"
+	"github.com/jaegertracing/jaeger/plugin/storage/grpc/config"
 	"google.golang.org/grpc"
 
 	"github.com/jaegertracing/jaeger/plugin/storage/grpc/shared"
 )
 
 // Serve creates a plugin configuration using the implementation of StoragePlugin and then serves it.
-func Serve(impl shared.StoragePlugin, archiveImpl shared.ArchiveStoragePlugin, capabilitiesImpl shared.PluginCapabilities) {
-	ServeWithGRPCServer(impl, archiveImpl, capabilitiesImpl, plugin.DefaultGRPCServer)
+func Serve(services *config.PluginServices) {
+	ServeWithGRPCServer(services, plugin.DefaultGRPCServer)
 }
 
 // ServeWithGRPCServer creates a plugin configuration using the implementation of StoragePlugin and
 // function to create grpcServer, and then serves it.
-func ServeWithGRPCServer(impl shared.StoragePlugin, archiveImpl shared.ArchiveStoragePlugin,
-	capabilitiesImpl shared.PluginCapabilities, grpcServer func([]grpc.ServerOption) *grpc.Server,
+func ServeWithGRPCServer(services *config.PluginServices, grpcServer func([]grpc.ServerOption) *grpc.Server,
 ) {
 	plugin.Serve(&plugin.ServeConfig{
 		HandshakeConfig: shared.Handshake,
 		VersionedPlugins: map[int]plugin.PluginSet{
 			1: map[string]plugin.Plugin{
 				shared.StoragePluginIdentifier: &shared.StorageGRPCPlugin{
-					Impl:             impl,
-					ArchiveImpl:      archiveImpl,
-					CapabilitiesImpl: capabilitiesImpl,
+					Impl:             services.Store,
+					ArchiveImpl:      services.ArchiveStore,
+					CapabilitiesImpl: services.Capabilities,
 				},
 			},
 		},
