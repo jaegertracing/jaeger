@@ -381,6 +381,7 @@ func TestMenuSeeks(t *testing.T) {
 func TestPersist(t *testing.T) {
 	dir, err := ioutil.TempDir("", "badgerTest")
 	assert.NoError(t, err)
+	defer os.RemoveAll(dir)
 
 	p := func(t *testing.T, dir string, test func(t *testing.T, sw spanstore.Writer, sr spanstore.Reader)) {
 		f := badger.NewFactory()
