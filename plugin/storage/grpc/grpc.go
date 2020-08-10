@@ -16,9 +16,9 @@ package grpc
 
 import (
 	"github.com/hashicorp/go-plugin"
-	"github.com/jaegertracing/jaeger/plugin/storage/grpc/config"
 	"google.golang.org/grpc"
 
+	"github.com/jaegertracing/jaeger/plugin/storage/grpc/config"
 	"github.com/jaegertracing/jaeger/plugin/storage/grpc/shared"
 )
 
