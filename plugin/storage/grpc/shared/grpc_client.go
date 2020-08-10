@@ -71,11 +71,11 @@ func (c *grpcClient) SpanWriter() spanstore.Writer {
 }
 
 func (c *grpcClient) ArchiveSpanReader() spanstore.Reader {
-	return c
+	return &ArchiveReader{c.archiveReaderClient}
 }
 
 func (c *grpcClient) ArchiveSpanWriter() spanstore.Writer {
-	return c
+	return &ArchiveWriter{c.archiveWriterClient}
 }
 
 // GetTrace takes a traceID and returns a Trace associated with that traceID
@@ -213,30 +213,6 @@ func (c *grpcClient) GetDependencies(ctx context.Context, endTs time.Time, lookb
 	}
 
 	return resp.Dependencies, nil
-}
-
-// WriteArchiveSpan saves the span in archive storage
-func (c *grpcClient) WriteArchiveSpan(span *model.Span) error {
-	_, err := c.archiveWriterClient.WriteArchiveSpan(context.Background(), &storage_v1.WriteSpanRequest{
-		Span: span,
-	})
-	if err != nil {
-		return fmt.Errorf("plugin error: %w", err)
-	}
-
-	return nil
-}
-
-// GetArchiveTrace takes a traceID and returns a Trace associated with that traceID from archive storage
-func (c *grpcClient) GetArchiveTrace(ctx context.Context, traceID model.TraceID) (*model.Trace, error) {
-	stream, err := c.archiveReaderClient.GetArchiveTrace(upgradeContextWithBearerToken(ctx), &storage_v1.GetTraceRequest{
-		TraceID: traceID,
-	})
-	if err != nil {
-		return nil, fmt.Errorf("plugin error: %w", err)
-	}
-
-	return readTrace(stream)
 }
 
 func (c *grpcClient) Capabilities() (*extra.Capabilities, error) {

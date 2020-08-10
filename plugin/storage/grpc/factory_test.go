@@ -140,7 +140,9 @@ func TestGRPCStorageFactory_Capabilities(t *testing.T) {
 
 	f.builder = &mockPluginBuilder{
 		plugin: &mockPlugin{
-			capabilities: capabilities,
+			capabilities:  capabilities,
+			archiveWriter: new(spanStoreMocks.Writer),
+			archiveReader: new(spanStoreMocks.Reader),
 		},
 	}
 	assert.NoError(t, f.Initialize(metrics.NullFactory, zap.NewNop()))
@@ -168,7 +170,9 @@ func TestGRPCStorageFactory_CapabilitiesDisabled(t *testing.T) {
 
 	f.builder = &mockPluginBuilder{
 		plugin: &mockPlugin{
-			capabilities: capabilities,
+			capabilities:  capabilities,
+			archiveWriter: new(spanStoreMocks.Writer),
+			archiveReader: new(spanStoreMocks.Reader),
 		},
 	}
 	assert.NoError(t, f.Initialize(metrics.NullFactory, zap.NewNop()))
