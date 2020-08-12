@@ -95,7 +95,7 @@ func (es *elasticsearch7Client) Index(ctx context.Context, body io.Reader, index
 }
 
 func (es *elasticsearch7Client) Search(ctx context.Context, query SearchBody, size int, indices ...string) (*SearchResponse, error) {
-	body, err := queryBody(query)
+	body, err := encodeSearchBody(query)
 	if err != nil {
 		return nil, err
 	}

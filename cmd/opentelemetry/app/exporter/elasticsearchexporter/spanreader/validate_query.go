@@ -22,10 +22,10 @@ import (
 
 var (
 	errNilQuery                   = errors.New("query is nil")
-	errServiceNameNotSet          = errors.New("service Name must be set")
-	errStartAndEndTimeNotSet      = errors.New("start and End Time must be set")
-	errStartTimeMinGreaterThanMax = errors.New("start Time Minimum is above Maximum")
-	errDurationMinGreaterThanMax  = errors.New("duration Minimum is above Maximum")
+	errServiceNameNotSet          = errors.New("service name must be set")
+	errStartAndEndTimeNotSet      = errors.New("start and end time must be set")
+	errStartTimeMinGreaterThanMax = errors.New("start time minimum is above maximum")
+	errDurationMinGreaterThanMax  = errors.New("duration minimum is above maximum")
 )
 
 func validateQuery(p *spanstore.TraceQueryParameters) error {

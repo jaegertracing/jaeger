@@ -95,7 +95,7 @@ func (es *elasticsearch6Client) Index(ctx context.Context, body io.Reader, index
 }
 
 func (es *elasticsearch6Client) Search(ctx context.Context, query SearchBody, size int, indices ...string) (*SearchResponse, error) {
-	body, err := queryBody(query)
+	body, err := encodeSearchBody(query)
 	if err != nil {
 		return nil, err
 	}
@@ -123,7 +123,7 @@ func (es *elasticsearch6Client) Search(ctx context.Context, query SearchBody, si
 }
 
 func (es *elasticsearch6Client) MultiSearch(ctx context.Context, queries []SearchBody) (*MultiSearchResponse, error) {
-	body, err := queryBodies(queries)
+	body, err := encodeSearchBodies(queries)
 	if err != nil {
 		return nil, err
 	}

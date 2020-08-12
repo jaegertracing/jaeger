@@ -20,9 +20,11 @@ import (
 	"io"
 )
 
+// Elasticsearch header for multi search API
+// https://www.elastic.co/guide/en/elasticsearch/reference/current/search-multi-search.html
 const multiSearchHeaderFormat = `{"ignore_unavailable": "true"}` + "\n"
 
-func queryBody(searchBody SearchBody) (io.Reader, error) {
+func encodeSearchBody(searchBody SearchBody) (io.Reader, error) {
 	buf := &bytes.Buffer{}
 	if err := json.NewEncoder(buf).Encode(searchBody); err != nil {
 		return nil, err
@@ -30,7 +32,7 @@ func queryBody(searchBody SearchBody) (io.Reader, error) {
 	return buf, nil
 }
 
-func queryBodies(searchBodies []SearchBody) (io.Reader, error) {
+func encodeSearchBodies(searchBodies []SearchBody) (io.Reader, error) {
 	buf := &bytes.Buffer{}
 	for _, sb := range searchBodies {
 		data, err := json.Marshal(sb)

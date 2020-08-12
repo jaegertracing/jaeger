@@ -33,6 +33,7 @@ const (
 	// by default UI fetches 20 results
 	defaultNumTraces = 20
 	// default number of documents to fetch in a query
+	// see search.max_buckets and index.max_result_window
 	defaultDocCount = 10_000
 
 	spanIndexBaseName    = "jaeger-span"
