@@ -52,6 +52,14 @@ func PortToHostPort(port int) string {
 	return ":" + strconv.Itoa(port)
 }
 
+// HostPortToPort converts the  host:port address string intoto port int
+func HostPortToPort(hostPort string) (int, error) {
+	s := strings.Split(hostPort, ":")
+
+	return strconv.Atoi(s[len(s)-1])
+
+}
+
 // GetAddressFromCLIOptions gets listening address based on port (deprecated flags) or host:port (new flags)
 func GetAddressFromCLIOptions(port int, hostPort string) string {
 	if port != 0 {
