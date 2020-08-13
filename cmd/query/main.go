@@ -123,6 +123,9 @@ func main() {
 
 			svc.RunAndThen(func() {
 				server.Close()
+				if err := storageFactory.Close(); err != nil {
+					logger.Error("Failed to close storage factory", zap.Error(err))
+				}
 			})
 			return nil
 		},

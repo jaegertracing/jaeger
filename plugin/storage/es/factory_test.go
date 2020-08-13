@@ -90,6 +90,8 @@ func TestElasticsearchFactory(t *testing.T) {
 
 	_, err = f.CreateArchiveSpanWriter()
 	assert.NoError(t, err)
+
+	assert.NoError(t, f.Close())
 }
 
 func TestElasticsearchTagsFileDoNotExist(t *testing.T) {

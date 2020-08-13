@@ -41,7 +41,7 @@ type mockProducerBuilder struct {
 	t   *testing.T
 }
 
-func (m *mockProducerBuilder) NewProducer() (sarama.AsyncProducer, error) {
+func (m *mockProducerBuilder) NewProducer(*zap.Logger) (sarama.AsyncProducer, error) {
 	if m.err == nil {
 		return mocks.NewAsyncProducer(m.t, nil), nil
 	}
@@ -72,6 +72,8 @@ func TestKafkaFactory(t *testing.T) {
 
 	_, err = f.CreateDependencyReader()
 	assert.Error(t, err)
+
+	assert.NoError(t, f.Close())
 }
 
 func TestKafkaFactoryEncoding(t *testing.T) {

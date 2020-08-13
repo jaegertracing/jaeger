@@ -76,6 +76,9 @@ func main() {
 			consumer.Start()
 
 			svc.RunAndThen(func() {
+				if err := options.TLS.Close(); err != nil {
+					logger.Error("Failed to close TLS certificates watcher", zap.Error(err))
+				}
 				if err = consumer.Close(); err != nil {
 					logger.Error("Failed to close consumer", zap.Error(err))
 				}
@@ -84,6 +87,9 @@ func main() {
 					if err != nil {
 						logger.Error("Failed to close span writer", zap.Error(err))
 					}
+				}
+				if err := storageFactory.Close(); err != nil {
+					logger.Error("Failed to close storage factory", zap.Error(err))
 				}
 			})
 			return nil

@@ -20,6 +20,7 @@ import (
 
 	"github.com/Shopify/sarama"
 	"github.com/spf13/viper"
+	"go.uber.org/zap"
 
 	"github.com/jaegertracing/jaeger/pkg/config/tlscfg"
 )
@@ -46,13 +47,13 @@ type AuthenticationConfig struct {
 }
 
 //SetConfiguration set configure authentication into sarama config structure
-func (config *AuthenticationConfig) SetConfiguration(saramaConfig *sarama.Config) error {
+func (config *AuthenticationConfig) SetConfiguration(saramaConfig *sarama.Config, logger *zap.Logger) error {
 	authentication := strings.ToLower(config.Authentication)
 	if strings.Trim(authentication, " ") == "" {
 		authentication = none
 	}
 	if config.Authentication == tls || config.TLS.Enabled {
-		err := setTLSConfiguration(&config.TLS, saramaConfig)
+		err := setTLSConfiguration(&config.TLS, saramaConfig, logger)
 		if err != nil {
 			return err
 		}

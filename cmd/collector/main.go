@@ -104,6 +104,9 @@ func main() {
 						logger.Error("failed to close span writer", zap.Error(err))
 					}
 				}
+				if err := storageFactory.Close(); err != nil {
+					logger.Error("Failed to close storage factory", zap.Error(err))
+				}
 
 			})
 			return nil

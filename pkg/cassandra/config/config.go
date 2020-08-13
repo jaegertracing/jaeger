@@ -16,11 +16,11 @@
 package config
 
 import (
-	"crypto/tls"
 	"fmt"
 	"time"
 
 	"github.com/gocql/gocql"
+	"go.uber.org/zap"
 
 	"github.com/jaegertracing/jaeger/pkg/cassandra"
 	gocqlw "github.com/jaegertracing/jaeger/pkg/cassandra/gocql"
@@ -90,12 +90,15 @@ func (c *Configuration) ApplyDefaults(source *Configuration) {
 
 // SessionBuilder creates new cassandra.Session
 type SessionBuilder interface {
-	NewSession() (cassandra.Session, error)
+	NewSession(logger *zap.Logger) (cassandra.Session, error)
 }
 
 // NewSession creates a new Cassandra session
-func (c *Configuration) NewSession() (cassandra.Session, error) {
-	cluster := c.NewCluster()
+func (c *Configuration) NewSession(logger *zap.Logger) (cassandra.Session, error) {
+	cluster, err := c.NewCluster(logger)
+	if err != nil {
+		return nil, err
+	}
 	session, err := cluster.CreateSession()
 	if err != nil {
 		return nil, err
@@ -104,7 +107,7 @@ func (c *Configuration) NewSession() (cassandra.Session, error) {
 }
 
 // NewCluster creates a new gocql cluster from the configuration
-func (c *Configuration) NewCluster() *gocql.ClusterConfig {
+func (c *Configuration) NewCluster(logger *zap.Logger) (*gocql.ClusterConfig, error) {
 	cluster := gocql.NewCluster(c.Servers...)
 	cluster.Keyspace = c.Keyspace
 	cluster.NumConns = c.ConnectionsPerHost
@@ -144,15 +147,13 @@ func (c *Configuration) NewCluster() *gocql.ClusterConfig {
 			Password: c.Authenticator.Basic.Password,
 		}
 	}
+	tlsCfg, err := c.TLS.Config(logger)
+	if err != nil {
+		return nil, err
+	}
 	if c.TLS.Enabled {
 		cluster.SslOpts = &gocql.SslOptions{
-			Config: &tls.Config{
-				ServerName: c.TLS.ServerName,
-			},
-			CertPath:               c.TLS.CertPath,
-			KeyPath:                c.TLS.KeyPath,
-			CaPath:                 c.TLS.CAPath,
-			EnableHostVerification: !c.TLS.SkipHostVerify,
+			Config: tlsCfg,
 		}
 	}
 	// If tunneling connection to C*, disable cluster autodiscovery features.
@@ -160,7 +161,7 @@ func (c *Configuration) NewCluster() *gocql.ClusterConfig {
 		cluster.DisableInitialHostLookup = true
 		cluster.IgnorePeerAddr = true
 	}
-	return cluster
+	return cluster, nil
 }
 
 func (c *Configuration) String() string {

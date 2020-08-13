@@ -19,6 +19,7 @@ import (
 
 	"github.com/Shopify/sarama"
 	cluster "github.com/bsm/sarama-cluster"
+	"go.uber.org/zap"
 
 	"github.com/jaegertracing/jaeger/pkg/kafka/auth"
 )
@@ -48,7 +49,7 @@ type Configuration struct {
 }
 
 // NewConsumer creates a new kafka consumer
-func (c *Configuration) NewConsumer() (Consumer, error) {
+func (c *Configuration) NewConsumer(logger *zap.Logger) (Consumer, error) {
 	saramaConfig := cluster.NewConfig()
 	saramaConfig.Group.Mode = cluster.ConsumerModePartitions
 	saramaConfig.ClientID = c.ClientID
@@ -59,7 +60,7 @@ func (c *Configuration) NewConsumer() (Consumer, error) {
 		}
 		saramaConfig.Config.Version = ver
 	}
-	if err := c.AuthenticationConfig.SetConfiguration(&saramaConfig.Config); err != nil {
+	if err := c.AuthenticationConfig.SetConfiguration(&saramaConfig.Config, logger); err != nil {
 		return nil, err
 	}
 	return cluster.NewConsumer(c.Brokers, c.GroupID, []string{c.Topic}, saramaConfig)

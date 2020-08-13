@@ -15,12 +15,15 @@
 package tlscfg
 
 import (
+	"crypto/tls"
 	"crypto/x509"
 	"fmt"
+	"path/filepath"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
+	"go.uber.org/zap"
 )
 
 var testCertKeyLocation = "./testdata"
@@ -131,14 +134,26 @@ func TestOptionsToConfig(t *testing.T) {
 					systemCertPool = saveSystemCertPool
 				}()
 			}
-			cfg, err := test.options.Config()
+			cfg, err := test.options.Config(zap.NewNop())
 			if test.expectError != "" {
 				require.Error(t, err)
 				assert.Contains(t, err.Error(), test.expectError)
 			} else {
 				require.NoError(t, err)
 				assert.NotNil(t, cfg)
+
+				if test.options.CertPath != "" && test.options.KeyPath != "" {
+					c, e := tls.LoadX509KeyPair(filepath.Clean(test.options.CertPath), filepath.Clean(test.options.KeyPath))
+					require.NoError(t, e)
+					cert, err := cfg.GetCertificate(&tls.ClientHelloInfo{})
+					require.NoError(t, err)
+					assert.Equal(t, &c, cert)
+					cert, err = cfg.GetClientCertificate(&tls.CertificateRequestInfo{})
+					require.NoError(t, err)
+					assert.Equal(t, &c, cert)
+				}
 			}
+			assert.NoError(t, test.options.Close())
 		})
 	}
 }

@@ -15,6 +15,8 @@
 package grpc
 
 import (
+	"io"
+
 	"github.com/uber/jaeger-lib/metrics"
 	"go.uber.org/zap"
 	"google.golang.org/grpc"
@@ -22,13 +24,15 @@ import (
 	"github.com/jaegertracing/jaeger/cmd/agent/app/configmanager"
 	grpcManager "github.com/jaegertracing/jaeger/cmd/agent/app/configmanager/grpc"
 	"github.com/jaegertracing/jaeger/cmd/agent/app/reporter"
+	"github.com/jaegertracing/jaeger/pkg/multicloser"
 )
 
 // ProxyBuilder holds objects communicating with collector
 type ProxyBuilder struct {
-	reporter *reporter.ClientMetricsReporter
-	manager  configmanager.ClientConfigManager
-	conn     *grpc.ClientConn
+	reporter  *reporter.ClientMetricsReporter
+	manager   configmanager.ClientConfigManager
+	conn      *grpc.ClientConn
+	tlsCloser io.Closer
 }
 
 // NewCollectorProxy creates ProxyBuilder
@@ -46,9 +50,10 @@ func NewCollectorProxy(builder *ConnBuilder, agentTags map[string]string, mFacto
 		MetricsFactory: mFactory,
 	})
 	return &ProxyBuilder{
-		conn:     conn,
-		reporter: r3,
-		manager:  configmanager.WrapWithMetrics(grpcManager.NewConfigManager(conn), grpcMetrics),
+		conn:      conn,
+		reporter:  r3,
+		manager:   configmanager.WrapWithMetrics(grpcManager.NewConfigManager(conn), grpcMetrics),
+		tlsCloser: &builder.TLS,
 	}, nil
 }
 
@@ -69,6 +74,5 @@ func (b ProxyBuilder) GetManager() configmanager.ClientConfigManager {
 
 // Close closes connections used by proxy.
 func (b ProxyBuilder) Close() error {
-	b.reporter.Close()
-	return b.conn.Close()
+	return multicloser.Wrap(b.reporter, b.tlsCloser, b.GetConn()).Close()
 }

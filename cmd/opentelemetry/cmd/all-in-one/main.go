@@ -45,6 +45,7 @@ import (
 	queryApp "github.com/jaegertracing/jaeger/cmd/query/app"
 	"github.com/jaegertracing/jaeger/cmd/query/app/querysvc"
 	jConfig "github.com/jaegertracing/jaeger/pkg/config"
+	"github.com/jaegertracing/jaeger/pkg/multicloser"
 	"github.com/jaegertracing/jaeger/pkg/version"
 	pluginStorage "github.com/jaegertracing/jaeger/plugin/storage"
 	cassandraStorage "github.com/jaegertracing/jaeger/plugin/storage/cassandra"
@@ -144,17 +145,14 @@ func main() {
 	if exp == nil {
 		svc.ReportFatalError(fmt.Errorf("exporter type for storage %s not found", storageType))
 	}
-	queryServer, tracerCloser, err := startQuery(v, svc.GetLogger(), exp)
+	closer, err := startQuery(v, svc.GetLogger(), exp)
 	if err != nil {
 		svc.ReportFatalError(err)
 	}
 	for state := range svc.GetStateChannel() {
 		if state == service.Closing {
-			if queryServer != nil {
-				queryServer.Close()
-			}
-			if tracerCloser != nil {
-				tracerCloser.Close()
+			if closer != nil {
+				closer.Close()
 			}
 		} else if state == service.Closed {
 			break
@@ -176,18 +174,18 @@ func getStorageExporter(storageType string, exporters map[configmodels.Exporter]
 	return nil
 }
 
-func startQuery(v *viper.Viper, logger *zap.Logger, exporter configmodels.Exporter) (*queryApp.Server, io.Closer, error) {
+func startQuery(v *viper.Viper, logger *zap.Logger, exporter configmodels.Exporter) (io.Closer, error) {
 	storageFactory, err := getFactory(exporter, v, logger)
 	if err != nil {
-		return nil, nil, err
+		return nil, err
 	}
 	spanReader, err := storageFactory.CreateSpanReader()
 	if err != nil {
-		return nil, nil, err
+		return nil, err
 	}
 	dependencyReader, err := storageFactory.CreateDependencyReader()
 	if err != nil {
-		return nil, nil, err
+		return nil, err
 	}
 	queryOpts := new(queryApp.QueryOptions).InitFromViper(v, logger)
 	queryServiceOptions := queryOpts.BuildQueryServiceOptions(storageFactory, logger)
@@ -199,12 +197,16 @@ func startQuery(v *viper.Viper, logger *zap.Logger, exporter configmodels.Export
 	tracerCloser := initTracer(logger)
 	server, err := queryApp.NewServer(logger, queryService, queryOpts, opentracing.GlobalTracer())
 	if err != nil {
-		return nil, nil, err
+		return nil, err
 	}
 	if err := server.Start(); err != nil {
-		return nil, nil, err
+		return nil, err
 	}
-	return server, tracerCloser, nil
+	var storageCloser io.Closer
+	if closer, ok := storageFactory.(io.Closer); ok {
+		storageCloser = closer
+	}
+	return multicloser.Wrap(tracerCloser, server, storageCloser), nil
 }
 
 func getFactory(exporter configmodels.Exporter, v *viper.Viper, logger *zap.Logger) (storage.Factory, error) {

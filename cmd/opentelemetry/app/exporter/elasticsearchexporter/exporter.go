@@ -38,5 +38,8 @@ func new(ctx context.Context, config *Config, params component.ExporterCreatePar
 	}
 	return exporterhelper.NewTraceExporter(
 		config,
-		w.WriteTraces)
+		w.WriteTraces,
+		exporterhelper.WithShutdown(func(ctx context.Context) error {
+			return esCfg.TLS.Close()
+		}))
 }
