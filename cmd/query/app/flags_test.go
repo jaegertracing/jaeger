@@ -60,6 +60,30 @@ func TestQueryBuilderFlags(t *testing.T) {
 	assert.Equal(t, 10*time.Second, qOpts.MaxClockSkewAdjust)
 }
 
+func TestQueryBuilderSeparateFlags(t *testing.T) {
+	v, command := config.Viperize(AddFlags)
+	command.ParseFlags([]string{
+		"--query.static-files=/dev/null",
+		"--query.ui-config=some.json",
+		"--query.base-path=/jaeger",
+		"--query.http-server.host-port=127.0.0.1:8080",
+		"--query.additional-headers=access-control-allow-origin:blerg",
+		"--query.additional-headers=whatever:thing",
+		"--query.max-clock-skew-adjustment=10s",
+	})
+	qOpts := new(QueryOptions).InitFromViper(v, zap.NewNop())
+	assert.Equal(t, "/dev/null", qOpts.StaticAssets)
+	assert.Equal(t, "some.json", qOpts.UIConfig)
+	assert.Equal(t, "/jaeger", qOpts.BasePath)
+	assert.Equal(t, "127.0.0.1:8080", qOpts.HTTPHostPort)
+
+	assert.Equal(t, http.Header{
+		"Access-Control-Allow-Origin": []string{"blerg"},
+		"Whatever":                    []string{"thing"},
+	}, qOpts.AdditionalHeaders)
+	assert.Equal(t, 10*time.Second, qOpts.MaxClockSkewAdjust)
+}
+
 func TestQueryBuilderBadHeadersFlags(t *testing.T) {
 	v, command := config.Viperize(AddFlags)
 	command.ParseFlags([]string{

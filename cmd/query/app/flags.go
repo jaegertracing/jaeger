@@ -40,6 +40,8 @@ const (
 	queryHostPort           = "query.host-port"
 	queryPort               = "query.port"
 	queryPortWarning        = "(deprecated, will be removed after 2020-08-31 or in release v1.20.0, whichever is later)"
+	queryHTTPHostPort       = "query.http-server.host-port"
+	queryGRPCHostPort       = "query.grpc-server.host-port"
 	queryBasePath           = "query.base-path"
 	queryStaticFiles        = "query.static-files"
 	queryUIConfig           = "query.ui-config"
@@ -56,8 +58,12 @@ var tlsFlagsConfig = tlscfg.ServerFlagsConfig{
 
 // QueryOptions holds configuration for query service
 type QueryOptions struct {
-	// HostPort is the host:port address that the query service listens o n
+	// HostPort is the host:port address that the query service listens on
 	HostPort string
+	// HTTPHostPort is the host:port address that the query service listens in on for http requests
+	HTTPHostPort string
+	// GRPCHostPort is the host:port address that the query service listens in on for gRPC requests
+	GRPCHostPort string
 	// BasePath is the prefix for all UI and API HTTP routes
 	BasePath string
 	// StaticAssets is the path for the static assets for the UI (https://github.com/uber/jaeger-ui)
@@ -66,7 +72,7 @@ type QueryOptions struct {
 	UIConfig string
 	// BearerTokenPropagation activate/deactivate bearer token propagation to storage
 	BearerTokenPropagation bool
-	// TLS configures secure transport
+	// TLS configures secure transport`
 	TLS tlscfg.Options
 	// AdditionalHeaders
 	AdditionalHeaders http.Header
@@ -77,7 +83,9 @@ type QueryOptions struct {
 // AddFlags adds flags for QueryOptions
 func AddFlags(flagSet *flag.FlagSet) {
 	flagSet.Var(&config.StringSlice{}, queryAdditionalHeaders, `Additional HTTP response headers.  Can be specified multiple times.  Format: "Key: Value"`)
-	flagSet.String(queryHostPort, ports.PortToHostPort(ports.QueryHTTP), "The host:port (e.g. 127.0.0.1:5555 or :5555) of the query's HTTP server")
+	flagSet.String(queryHostPort, ports.PortToHostPort(ports.QueryHTTP), "The host:port (e.g. 127.0.0.1:5555 or :5555) of the query's HTTP server")     //old default: ports.PortToHostPort(ports.QueryHTTP)
+	flagSet.String(queryHTTPHostPort, ports.PortToHostPort(ports.QueryHTTP), "The host:port (e.g. 127.0.0.1:5555 or :5555) of the query's HTTP server") // TODO: change default value
+	flagSet.String(queryGRPCHostPort, ports.PortToHostPort(ports.QueryHTTP), "The host:port (e.g. 127.0.0.1:5555 or :5555) of the query's HTTP server") // TODO :  change after defining in "ports" module                             // TODO: change default value
 	flagSet.Int(queryPort, 0, queryPortWarning+" see --"+queryHostPort)
 	flagSet.String(queryBasePath, "/", "The base path for all HTTP routes, e.g. /jaeger; useful when running behind a reverse proxy")
 	flagSet.String(queryStaticFiles, "", "The directory path override for the static assets for the UI")
@@ -86,14 +94,33 @@ func AddFlags(flagSet *flag.FlagSet) {
 	flagSet.Duration(queryMaxClockSkewAdjust, time.Second, "The maximum delta by which span timestamps may be adjusted in the UI due to clock skew; set to 0s to disable clock skew adjustments")
 }
 
+// InitPortsConfigFromViper initializes the port numbers and TLS configuration of ports
+func (qOpts *QueryOptions) InitPortsConfigFromViper(v *viper.Viper, logger *zap.Logger) *QueryOptions {
+	qOpts.HTTPHostPort = v.GetString(queryHTTPHostPort)
+	qOpts.GRPCHostPort = v.GetString(queryGRPCHostPort)
+	qOpts.HostPort = ports.GetAddressFromCLIOptions(v.GetInt(queryPort), v.GetString(queryHostPort))
+
+	qOpts.TLS = tlsFlagsConfig.InitFromViper(v)
+
+	// query.host-port is not defined and atleast one of query.grpc-server.host-port or query.http-server.host-port is defined
+	// user intends to use the separate flags.
+	if !(v.IsSet(queryHostPort) || v.IsSet(queryPort)) && (v.IsSet(queryHTTPHostPort) || v.IsSet(queryGRPCHostPort)) {
+		return qOpts
+	}
+	logger.Warn(fmt.Sprintf("Use of %s and %s is deprecated.  use %s and %s instead", queryPort, queryHostPort, queryHTTPHostPort, queryGRPCHostPort))
+	qOpts.HTTPHostPort = qOpts.HostPort
+	qOpts.GRPCHostPort = qOpts.HostPort
+	return qOpts
+
+}
+
 // InitFromViper initializes QueryOptions with properties from viper
 func (qOpts *QueryOptions) InitFromViper(v *viper.Viper, logger *zap.Logger) *QueryOptions {
-	qOpts.HostPort = ports.GetAddressFromCLIOptions(v.GetInt(queryPort), v.GetString(queryHostPort))
+	qOpts = qOpts.InitPortsConfigFromViper(v, logger)
 	qOpts.BasePath = v.GetString(queryBasePath)
 	qOpts.StaticAssets = v.GetString(queryStaticFiles)
 	qOpts.UIConfig = v.GetString(queryUIConfig)
 	qOpts.BearerTokenPropagation = v.GetBool(queryTokenPropagation)
-	qOpts.TLS = tlsFlagsConfig.InitFromViper(v)
 	qOpts.MaxClockSkewAdjust = v.GetDuration(queryMaxClockSkewAdjust)
 
 	stringSlice := v.GetStringSlice(queryAdditionalHeaders)

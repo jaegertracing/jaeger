@@ -16,6 +16,7 @@ package app
 
 import (
 	"context"
+	"fmt"
 	"testing"
 	"time"
 
@@ -61,7 +62,6 @@ func TestServer(t *testing.T) {
 	flagsSvc := flags.NewService(ports.QueryAdminHTTP)
 	flagsSvc.Logger = zap.NewNop()
 	hostPort := ports.GetAddressFromCLIOptions(ports.QueryHTTP, "")
-
 	spanReader := &spanstoremocks.Reader{}
 	dependencyReader := &depsmocks.Reader{}
 	expectedServices := []string{"test"}
@@ -70,7 +70,7 @@ func TestServer(t *testing.T) {
 	querySvc := querysvc.NewQueryService(spanReader, dependencyReader, querysvc.QueryServiceOptions{})
 
 	server, err := NewServer(flagsSvc.Logger, querySvc,
-		&QueryOptions{HostPort: hostPort, BearerTokenPropagation: true},
+		&QueryOptions{HostPort: hostPort, GRPCHostPort: hostPort, HTTPHostPort: hostPort, BearerTokenPropagation: true},
 		opentracing.NoopTracer{})
 	assert.Nil(t, err)
 	assert.NoError(t, server.Start())
@@ -100,6 +100,49 @@ func TestServer(t *testing.T) {
 	assert.Equal(t, healthcheck.Unavailable, flagsSvc.HC().Get())
 }
 
+func TestServer2(t *testing.T) {
+	flagsSvc := flags.NewService(ports.QueryAdminHTTP)
+	flagsSvc.Logger = zap.NewNop()
+	// hostPort := ports.GetAddressFromCLIOptions(ports.QueryHTTP, "")
+
+	spanReader := &spanstoremocks.Reader{}
+	dependencyReader := &depsmocks.Reader{}
+	expectedServices := []string{"test"}
+	spanReader.On("GetServices", mock.AnythingOfType("*context.valueCtx")).Return(expectedServices, nil)
+
+	querySvc := querysvc.NewQueryService(spanReader, dependencyReader, querysvc.QueryServiceOptions{})
+
+	server, err := NewServer(flagsSvc.Logger, querySvc,
+		&QueryOptions{HTTPHostPort: "127.0.0.1:8080", GRPCHostPort: "127.0.0.1:8081", BearerTokenPropagation: true},
+		opentracing.NoopTracer{})
+	assert.Nil(t, err)
+	assert.NoError(t, server.Start())
+	go func() {
+		for s := range server.HealthCheckStatus() {
+			flagsSvc.SetHealthCheckStatus(s)
+		}
+	}()
+
+	client := newGRPCClient(t, "127.0.0.1:8081")
+	defer client.conn.Close()
+
+	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
+	defer cancel()
+
+	res, err := client.GetServices(ctx, &api_v2.GetServicesRequest{})
+	assert.NoError(t, err)
+	assert.Equal(t, expectedServices, res.Services)
+
+	server.Close()
+	for i := 0; i < 10; i++ {
+		if flagsSvc.HC().Get() == healthcheck.Unavailable {
+			break
+		}
+		time.Sleep(1 * time.Millisecond)
+	}
+	assert.Equal(t, healthcheck.Unavailable, flagsSvc.HC().Get())
+}
+
 func TestServerGracefulExit(t *testing.T) {
 	flagsSvc := flags.NewService(ports.QueryAdminHTTP)
 
@@ -107,10 +150,11 @@ func TestServerGracefulExit(t *testing.T) {
 	assert.Equal(t, 0, logs.Len(), "Expected initial ObservedLogs to have zero length.")
 
 	flagsSvc.Logger = zap.New(zapCore)
+	hostPort := ports.PortToHostPort(ports.QueryAdminHTTP)
 
 	querySvc := &querysvc.QueryService{}
 	tracer := opentracing.NoopTracer{}
-	server, err := NewServer(flagsSvc.Logger, querySvc, &QueryOptions{HostPort: ports.PortToHostPort(ports.QueryAdminHTTP)}, tracer)
+	server, err := NewServer(flagsSvc.Logger, querySvc, &QueryOptions{HostPort: hostPort, GRPCHostPort: hostPort, HTTPHostPort: hostPort}, tracer)
 	assert.Nil(t, err)
 	assert.NoError(t, server.Start())
 	go func() {
@@ -137,7 +181,7 @@ func TestServerHandlesPortZero(t *testing.T) {
 
 	querySvc := &querysvc.QueryService{}
 	tracer := opentracing.NoopTracer{}
-	server, err := NewServer(flagsSvc.Logger, querySvc, &QueryOptions{HostPort: ":0"}, tracer)
+	server, err := NewServer(flagsSvc.Logger, querySvc, &QueryOptions{HostPort: ":0", GRPCHostPort: ":0", HTTPHostPort: ":0"}, tracer)
 	assert.Nil(t, err)
 	assert.NoError(t, server.Start())
 	server.Close()
@@ -147,5 +191,6 @@ func TestServerHandlesPortZero(t *testing.T) {
 
 	onlyEntry := message.All()[0]
 	port := onlyEntry.ContextMap()["port"]
+	fmt.Println(port)
 	assert.Greater(t, port, int64(0))
 }
