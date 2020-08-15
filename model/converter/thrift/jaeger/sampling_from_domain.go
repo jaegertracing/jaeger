@@ -16,7 +16,6 @@ package jaeger
 
 import (
 	"errors"
-	"fmt"
 	"math"
 
 	"github.com/jaegertracing/jaeger/proto-gen/api_v2"
@@ -67,8 +66,6 @@ func convertPerOperationFromDomain(s *api_v2.PerOperationSamplingStrategies) *sa
 		DefaultLowerBoundTracesPerSecond: s.GetDefaultLowerBoundTracesPerSecond(),
 		DefaultUpperBoundTracesPerSecond: &s.DefaultUpperBoundTracesPerSecond,
 	}
-	fmt.Println(s.GetDefaultUpperBoundTracesPerSecond())
-	//if s.GetDefaultUpperBoundTracesPerSecond() > 0 {}
 	if s.GetPerOperationStrategies() != nil {
 		r.PerOperationStrategies = make([]*sampling.OperationSamplingStrategy, len(s.GetPerOperationStrategies()))
 		for i, k := range s.PerOperationStrategies {

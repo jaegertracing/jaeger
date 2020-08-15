@@ -19,6 +19,7 @@ import (
 	"context"
 
 	"github.com/opentracing/opentracing-go"
+	"github.com/uber/jaeger-client-go"
 	"go.uber.org/zap"
 	"go.uber.org/zap/zapcore"
 )
@@ -44,8 +45,16 @@ func (b Factory) Bg() Logger {
 // echo-ed into the span.
 func (b Factory) For(ctx context.Context) Logger {
 	if span := opentracing.SpanFromContext(ctx); span != nil {
-		// TODO for Jaeger span extract trace/span IDs as fields
-		return spanLogger{span: span, logger: b.logger}
+		logger := spanLogger{span: span, logger: b.logger}
+
+		if jaegerCtx, ok := span.Context().(jaeger.SpanContext); ok {
+			logger.spanFields = []zapcore.Field{
+				zap.String("trace_id", jaegerCtx.TraceID().String()),
+				zap.String("span_id", jaegerCtx.SpanID().String()),
+			}
+		}
+
+		return logger
 	}
 	return b.Bg()
 }

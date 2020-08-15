@@ -36,6 +36,7 @@ type Configuration struct {
 	ProtocolVersion           string                  `mapstructure:"protocol_version"`
 	BatchLinger               time.Duration           `mapstructure:"batch_linger"`
 	BatchSize                 int                     `mapstructure:"batch_size"`
+	BatchMinMessages          int                     `mapstructure:"batch_min_messages"`
 	BatchMaxMessages          int                     `mapstructure:"batch_max_messages"`
 	auth.AuthenticationConfig `mapstructure:"authentication"`
 }
@@ -49,6 +50,7 @@ func (c *Configuration) NewProducer() (sarama.AsyncProducer, error) {
 	saramaConfig.Producer.Return.Successes = true
 	saramaConfig.Producer.Flush.Bytes = c.BatchSize
 	saramaConfig.Producer.Flush.Frequency = c.BatchLinger
+	saramaConfig.Producer.Flush.Messages = c.BatchMinMessages
 	saramaConfig.Producer.Flush.MaxMessages = c.BatchMaxMessages
 	if len(c.ProtocolVersion) > 0 {
 		ver, err := sarama.ParseKafkaVersion(c.ProtocolVersion)

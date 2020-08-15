@@ -110,6 +110,7 @@ func (c *Collector) Start(builderOpts *CollectorOptions) error {
 	if zkServer, err := server.StartZipkinServer(&server.ZipkinServerParams{
 		HostPort:       builderOpts.CollectorZipkinHTTPHostPort,
 		Handler:        c.spanHandlers.ZipkinSpansHandler,
+		HealthCheck:    c.hCheck,
 		AllowedHeaders: builderOpts.CollectorZipkinAllowedHeaders,
 		AllowedOrigins: builderOpts.CollectorZipkinAllowedOrigins,
 		Logger:         c.logger,

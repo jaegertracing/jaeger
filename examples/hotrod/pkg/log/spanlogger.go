@@ -26,29 +26,30 @@ import (
 )
 
 type spanLogger struct {
-	logger *zap.Logger
-	span   opentracing.Span
+	logger     *zap.Logger
+	span       opentracing.Span
+	spanFields []zapcore.Field
 }
 
 func (sl spanLogger) Info(msg string, fields ...zapcore.Field) {
 	sl.logToSpan("info", msg, fields...)
-	sl.logger.Info(msg, fields...)
+	sl.logger.Info(msg, append(sl.spanFields, fields...)...)
 }
 
 func (sl spanLogger) Error(msg string, fields ...zapcore.Field) {
 	sl.logToSpan("error", msg, fields...)
-	sl.logger.Error(msg, fields...)
+	sl.logger.Error(msg, append(sl.spanFields, fields...)...)
 }
 
 func (sl spanLogger) Fatal(msg string, fields ...zapcore.Field) {
 	sl.logToSpan("fatal", msg, fields...)
 	tag.Error.Set(sl.span, true)
-	sl.logger.Fatal(msg, fields...)
+	sl.logger.Fatal(msg, append(sl.spanFields, fields...)...)
 }
 
 // With creates a child logger, and optionally adds some context fields to that logger.
 func (sl spanLogger) With(fields ...zapcore.Field) Logger {
-	return spanLogger{logger: sl.logger.With(fields...), span: sl.span}
+	return spanLogger{logger: sl.logger.With(fields...), span: sl.span, spanFields: sl.spanFields}
 }
 
 func (sl spanLogger) logToSpan(level string, msg string, fields ...zapcore.Field) {
