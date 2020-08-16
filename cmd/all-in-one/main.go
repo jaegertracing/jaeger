@@ -129,7 +129,10 @@ by default uses only in-memory database.`,
 			c.Start(cOpts)
 
 			// agent
-			grpcBuilder.CollectorHostPorts = append(grpcBuilder.CollectorHostPorts, cOpts.CollectorGRPCHostPort)
+			// if the agent reporter grpc host:port was not explicitly set then use whatever the collector is listening on
+			if len(grpcBuilder.CollectorHostPorts) == 0 {
+				grpcBuilder.CollectorHostPorts = append(grpcBuilder.CollectorHostPorts, cOpts.CollectorGRPCHostPort)
+			}
 			agentMetricsFactory := metricsFactory.Namespace(metrics.NSOptions{Name: "agent", Tags: nil})
 			builders := map[agentRep.Type]agentApp.CollectorProxyBuilder{
 				agentRep.GRPC: agentApp.GRPCCollectorProxyBuilder(grpcBuilder),
