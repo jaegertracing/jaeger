@@ -29,9 +29,9 @@ import (
 	"github.com/stretchr/testify/require"
 	"go.uber.org/zap"
 
-	"github.com/jaegertracing/jaeger/cmd/opentelemetry/app/exporter/elasticsearchexporter/dependencystore"
-	"github.com/jaegertracing/jaeger/cmd/opentelemetry/app/exporter/elasticsearchexporter/esclient"
-	"github.com/jaegertracing/jaeger/cmd/opentelemetry/app/exporter/elasticsearchexporter/spanreader"
+	"github.com/jaegertracing/jaeger/cmd/opentelemetry/app/internal/esclient"
+	"github.com/jaegertracing/jaeger/cmd/opentelemetry/app/internal/reader/es/esdependencyreader"
+	"github.com/jaegertracing/jaeger/cmd/opentelemetry/app/internal/reader/es/esspanreader"
 	"github.com/jaegertracing/jaeger/model"
 	"github.com/jaegertracing/jaeger/pkg/es/config"
 	"github.com/jaegertracing/jaeger/pkg/testutils"
@@ -142,7 +142,7 @@ func (s *IntegrationTest) initSpanstore(allTagsAsFields bool) error {
 	if err != nil {
 		return err
 	}
-	reader := spanreader.NewEsSpanReader(elasticsearchClient, s.logger, spanreader.Config{
+	reader := esspanreader.NewEsSpanReader(elasticsearchClient, s.logger, esspanreader.Config{
 		IndexPrefix:       indexPrefix,
 		TagDotReplacement: tagKeyDeDotChar,
 		MaxSpanAge:        maxSpanAge,
@@ -151,7 +151,7 @@ func (s *IntegrationTest) initSpanstore(allTagsAsFields bool) error {
 	s.SpanReader = reader
 
 	depMapping := es.GetDependenciesMappings(5, 1, esVersion)
-	depStore := dependencystore.NewDependencyStore(elasticsearchClient, s.logger, indexPrefix)
+	depStore := esdependencyreader.NewDependencyStore(elasticsearchClient, s.logger, indexPrefix)
 	if err := depStore.CreateTemplates(depMapping); err != nil {
 		return nil
 	}

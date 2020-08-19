@@ -12,7 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package dependencystore
+package esdependencyreader
 
 import (
 	"bytes"
@@ -28,7 +28,7 @@ import (
 	"github.com/stretchr/testify/require"
 	"go.uber.org/zap"
 
-	"github.com/jaegertracing/jaeger/cmd/opentelemetry/app/exporter/elasticsearchexporter/esclient"
+	"github.com/jaegertracing/jaeger/cmd/opentelemetry/app/internal/esclient"
 	"github.com/jaegertracing/jaeger/model"
 	"github.com/jaegertracing/jaeger/plugin/storage/es/dependencystore/dbmodel"
 )

@@ -12,14 +12,14 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-package spanreader
+package esspanreader
 
 import (
 	"encoding/json"
 	"fmt"
 	"time"
 
-	"github.com/jaegertracing/jaeger/cmd/opentelemetry/app/exporter/elasticsearchexporter/esclient"
+	"github.com/jaegertracing/jaeger/cmd/opentelemetry/app/internal/esclient"
 	"github.com/jaegertracing/jaeger/model"
 	"github.com/jaegertracing/jaeger/plugin/storage/es/spanstore/dbmodel"
 	"github.com/jaegertracing/jaeger/storage/spanstore"

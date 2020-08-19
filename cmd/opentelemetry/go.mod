@@ -7,7 +7,7 @@ replace k8s.io/client-go => k8s.io/client-go v0.0.0-20190620085101-78d2af792bab
 replace github.com/jaegertracing/jaeger => ./../../
 
 require (
-	github.com/Shopify/sarama v1.22.2-0.20190604114437-cd910a683f9f
+	github.com/Shopify/sarama v1.26.4
 	github.com/elastic/go-elasticsearch/v6 v6.8.10
 	github.com/elastic/go-elasticsearch/v7 v7.0.0
 	github.com/golang/protobuf v1.4.2 // indirect
