@@ -27,7 +27,9 @@ import (
 	"github.com/jaegertracing/jaeger/pkg/es/config"
 )
 
-// ElasticsearchClient exposes Elasticsearch API used by Jaeger
+// ElasticsearchClient exposes Elasticsearch API used by Jaeger.
+// This is not a general purpose ES client implementation.
+// The exposed APIs are the bare minimum that is used by Jaeger project to store and query data.
 type ElasticsearchClient interface {
 	// PutTemplate creates index template
 	PutTemplate(ctx context.Context, name string, template io.Reader) error
@@ -35,7 +37,7 @@ type ElasticsearchClient interface {
 	Bulk(ctx context.Context, bulkBody io.Reader) (*BulkResponse, error)
 	// AddDataToBulkBuffer creates bulk item from data, index and typ and adds it to bulkBody
 	AddDataToBulkBuffer(bulkBody *bytes.Buffer, data []byte, index, typ string)
-	// Index data
+	// Index indexes data into storage
 	Index(ctx context.Context, body io.Reader, index, typ string) error
 
 	// Search searches data via /_search
