@@ -16,14 +16,14 @@ package esclient
 
 import (
 	"bytes"
+	"context"
 	"encoding/json"
 	"fmt"
 	"io"
+	"io/ioutil"
 	"net/http"
 
 	elasticsearch6 "github.com/elastic/go-elasticsearch/v6"
-
-	"github.com/jaegertracing/jaeger/pkg/es/config"
 )
 
 const (
@@ -36,10 +36,10 @@ type elasticsearch6Client struct {
 
 var _ ElasticsearchClient = (*elasticsearch6Client)(nil)
 
-func newElasticsearch6Client(params config.Configuration, roundTripper http.RoundTripper) (*elasticsearch6Client, error) {
+func newElasticsearch6Client(params clientConfig, roundTripper http.RoundTripper) (*elasticsearch6Client, error) {
 	client, err := elasticsearch6.NewClient(elasticsearch6.Config{
-		DiscoverNodesOnStart: params.Sniffer,
-		Addresses:            params.Servers,
+		DiscoverNodesOnStart: params.DiscoverNotesOnStartup,
+		Addresses:            params.Addresses,
 		Username:             params.Username,
 		Password:             params.Password,
 		Transport:            roundTripper,
@@ -52,8 +52,8 @@ func newElasticsearch6Client(params config.Configuration, roundTripper http.Roun
 	}, nil
 }
 
-func (es *elasticsearch6Client) PutTemplate(name string, body io.Reader) error {
-	resp, err := es.client.Indices.PutTemplate(name, body)
+func (es *elasticsearch6Client) PutTemplate(ctx context.Context, name string, body io.Reader) error {
+	resp, err := es.client.Indices.PutTemplate(name, body, es.client.Indices.PutTemplate.WithContext(ctx))
 	if err != nil {
 		return err
 	}
@@ -69,8 +69,8 @@ func (es *elasticsearch6Client) AddDataToBulkBuffer(buffer *bytes.Buffer, data [
 	buffer.Write([]byte("\n"))
 }
 
-func (es *elasticsearch6Client) Bulk(reader io.Reader) (*BulkResponse, error) {
-	response, err := es.client.Bulk(reader)
+func (es *elasticsearch6Client) Bulk(ctx context.Context, reader io.Reader) (*BulkResponse, error) {
+	response, err := es.client.Bulk(reader, es.client.Bulk.WithContext(ctx))
 	if err != nil {
 		return nil, err
 	}
@@ -84,4 +84,71 @@ func (es *elasticsearch6Client) Bulk(reader io.Reader) (*BulkResponse, error) {
 		return nil, err
 	}
 	return &blk, nil
+}
+
+func (es *elasticsearch6Client) Index(ctx context.Context, body io.Reader, index, typ string) error {
+	response, err := es.client.Index(index, body, es.client.Index.WithContext(ctx), es.client.Index.WithDocumentType(typ))
+	if err != nil {
+		return err
+	}
+	return response.Body.Close()
+}
+
+func (es *elasticsearch6Client) Search(ctx context.Context, query SearchBody, size int, indices ...string) (*SearchResponse, error) {
+	body, err := encodeSearchBody(query)
+	if err != nil {
+		return nil, err
+	}
+
+	response, err := es.client.Search(
+		es.client.Search.WithContext(ctx),
+		es.client.Search.WithIndex(indices...),
+		es.client.Search.WithBody(body),
+		es.client.Search.WithIgnoreUnavailable(true),
+		es.client.Search.WithSize(size))
+	if err != nil {
+		return nil, err
+	}
+	defer response.Body.Close()
+
+	data, err := ioutil.ReadAll(response.Body)
+	if err != nil {
+		return nil, err
+	}
+	r := &SearchResponse{}
+	if err = json.Unmarshal(data, r); err != nil {
+		return nil, err
+	}
+	return r, nil
+}
+
+func (es *elasticsearch6Client) MultiSearch(ctx context.Context, queries []SearchBody) (*MultiSearchResponse, error) {
+	body, err := encodeSearchBodies(queries)
+	if err != nil {
+		return nil, err
+	}
+
+	var indices []string
+	for _, q := range queries {
+		indices = append(indices, q.Indices...)
+	}
+
+	response, err := es.client.Msearch(body,
+		es.client.Msearch.WithContext(ctx),
+		es.client.Msearch.WithIndex(indices...),
+	)
+	if err != nil {
+		return nil, err
+	}
+	defer response.Body.Close()
+
+	data, err := ioutil.ReadAll(response.Body)
+	if err != nil {
+		return nil, err
+	}
+	r := &MultiSearchResponse{}
+	if err = json.Unmarshal(data, r); err != nil {
+		return nil, err
+	}
+	return r, nil
 }

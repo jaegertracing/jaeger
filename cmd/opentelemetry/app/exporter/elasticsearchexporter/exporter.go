@@ -15,6 +15,8 @@
 package elasticsearchexporter
 
 import (
+	"context"
+
 	"go.opentelemetry.io/collector/component"
 	"go.opentelemetry.io/collector/exporter/exporterhelper"
 
@@ -22,7 +24,7 @@ import (
 )
 
 // new creates Elasticsearch exporter/storage.
-func new(config *Config, params component.ExporterCreateParams) (component.TraceExporter, error) {
+func new(ctx context.Context, config *Config, params component.ExporterCreateParams) (component.TraceExporter, error) {
 	esCfg := config.GetPrimary()
 	w, err := newEsSpanWriter(*esCfg, params.Logger)
 	if err != nil {
@@ -30,7 +32,7 @@ func new(config *Config, params component.ExporterCreateParams) (component.Trace
 	}
 	if config.Primary.IsCreateIndexTemplates() {
 		spanMapping, serviceMapping := es.GetSpanServiceMappings(esCfg.GetNumShards(), esCfg.GetNumReplicas(), esCfg.GetVersion())
-		if err = w.CreateTemplates(spanMapping, serviceMapping); err != nil {
+		if err = w.CreateTemplates(ctx, spanMapping, serviceMapping); err != nil {
 			return nil, err
 		}
 	}

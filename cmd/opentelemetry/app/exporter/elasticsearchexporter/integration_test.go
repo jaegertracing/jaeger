@@ -27,16 +27,15 @@ import (
 
 	"github.com/olivere/elastic"
 	"github.com/stretchr/testify/require"
-	"github.com/uber/jaeger-lib/metrics"
 	"go.uber.org/zap"
 
+	"github.com/jaegertracing/jaeger/cmd/opentelemetry/app/exporter/elasticsearchexporter/dependencystore"
+	"github.com/jaegertracing/jaeger/cmd/opentelemetry/app/exporter/elasticsearchexporter/esclient"
+	"github.com/jaegertracing/jaeger/cmd/opentelemetry/app/exporter/elasticsearchexporter/spanreader"
 	"github.com/jaegertracing/jaeger/model"
 	"github.com/jaegertracing/jaeger/pkg/es/config"
-	eswrapper "github.com/jaegertracing/jaeger/pkg/es/wrapper"
 	"github.com/jaegertracing/jaeger/pkg/testutils"
 	"github.com/jaegertracing/jaeger/plugin/storage/es"
-	"github.com/jaegertracing/jaeger/plugin/storage/es/dependencystore"
-	"github.com/jaegertracing/jaeger/plugin/storage/es/spanstore"
 	"github.com/jaegertracing/jaeger/plugin/storage/es/spanstore/dbmodel"
 	"github.com/jaegertracing/jaeger/plugin/storage/integration"
 )
@@ -54,9 +53,8 @@ const (
 type IntegrationTest struct {
 	integration.StorageIntegration
 
-	client        *elastic.Client
-	bulkProcessor *elastic.BulkProcessor
-	logger        *zap.Logger
+	client *elastic.Client
+	logger *zap.Logger
 }
 
 type storageWrapper struct {
@@ -69,7 +67,7 @@ func (s storageWrapper) WriteSpan(span *model.Span) error {
 	//_, err := s.writer.WriteTraces(context.Background(), traces)
 	converter := dbmodel.FromDomain{}
 	dbSpan := converter.FromDomainEmbedProcess(span)
-	_, err := s.writer.writeSpans([]*dbmodel.Span{dbSpan})
+	_, err := s.writer.writeSpans(context.Background(), []*dbmodel.Span{dbSpan})
 	return err
 }
 
@@ -115,57 +113,55 @@ func (s *IntegrationTest) esCleanUp(allTagsAsFields bool) error {
 }
 
 func (s *IntegrationTest) initSpanstore(allTagsAsFields bool) error {
-	bp, _ := s.client.BulkProcessor().BulkActions(1).FlushInterval(time.Nanosecond).Do(context.Background())
-	s.bulkProcessor = bp
 	esVersion, err := s.getVersion()
 	if err != nil {
 		return err
 	}
-	client := eswrapper.WrapESClient(s.client, bp, esVersion)
-	spanMapping, serviceMapping := es.GetSpanServiceMappings(5, 1, client.GetVersion())
+	spanMapping, serviceMapping := es.GetSpanServiceMappings(5, 1, esVersion)
 
-	w, err := newEsSpanWriter(config.Configuration{
+	cfg := config.Configuration{
 		Servers:     []string{queryURL},
 		IndexPrefix: indexPrefix,
 		Tags: config.TagsAsFields{
 			AllAsFields: allTagsAsFields,
 		},
-	}, s.logger)
+	}
+	w, err := newEsSpanWriter(cfg, s.logger)
 	if err != nil {
 		return err
 	}
-	err = w.CreateTemplates(spanMapping, serviceMapping)
+	err = w.CreateTemplates(context.Background(), spanMapping, serviceMapping)
 	if err != nil {
 		return err
 	}
 	s.SpanWriter = storageWrapper{
 		writer: w,
 	}
-	s.SpanReader = spanstore.NewSpanReader(spanstore.SpanReaderParams{
-		Client:            client,
-		Logger:            s.logger,
-		MetricsFactory:    metrics.NullFactory,
-		IndexPrefix:       indexPrefix,
-		MaxSpanAge:        maxSpanAge,
-		TagDotReplacement: tagKeyDeDotChar,
-	})
-	dependencyStore := dependencystore.NewDependencyStore(client, s.logger, indexPrefix)
-	depMapping := es.GetDependenciesMappings(5, 1, client.GetVersion())
-	err = dependencyStore.CreateTemplates(depMapping)
+
+	elasticsearchClient, err := esclient.NewElasticsearchClient(cfg, s.logger)
 	if err != nil {
 		return err
 	}
-	s.DependencyReader = dependencyStore
-	s.DependencyWriter = dependencyStore
+	reader := spanreader.NewEsSpanReader(elasticsearchClient, s.logger, spanreader.Config{
+		IndexPrefix:       indexPrefix,
+		TagDotReplacement: tagKeyDeDotChar,
+		MaxSpanAge:        maxSpanAge,
+		MaxNumSpans:       10_000,
+	})
+	s.SpanReader = reader
+
+	depMapping := es.GetDependenciesMappings(5, 1, esVersion)
+	depStore := dependencystore.NewDependencyStore(elasticsearchClient, s.logger, indexPrefix)
+	if err := depStore.CreateTemplates(depMapping); err != nil {
+		return nil
+	}
+	s.DependencyReader = depStore
+	s.DependencyWriter = depStore
 	return nil
 }
 
 func (s *IntegrationTest) esRefresh() error {
-	err := s.bulkProcessor.Flush()
-	if err != nil {
-		return err
-	}
-	_, err = s.client.Refresh().Do(context.Background())
+	_, err := s.client.Refresh().Do(context.Background())
 	return err
 }
 

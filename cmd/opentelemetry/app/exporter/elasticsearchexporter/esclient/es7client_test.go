@@ -16,44 +16,29 @@ package esclient
 
 import (
 	"bytes"
-	"fmt"
-	"io/ioutil"
 	"net/http"
-	"strings"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-
-	"github.com/jaegertracing/jaeger/pkg/es/config"
 )
 
 func TestES7NewClient_err(t *testing.T) {
-	client, err := newElasticsearch6Client(config.Configuration{
-		Sniffer: true,
-		Servers: []string{"$%"},
+	client, err := newElasticsearch7Client(clientConfig{
+		Addresses: []string{"$%"},
 	}, &http.Transport{})
 	require.Error(t, err)
 	assert.Nil(t, client)
 }
 
-func TestES7PutTemplateES6Client(t *testing.T) {
-	mocktrans := &mockTransport{
-		Response: &http.Response{
-			StatusCode: http.StatusOK,
-			Body:       ioutil.NopCloser(strings.NewReader(`{}`)),
-		},
-	}
-	mocktrans.RoundTripFn = func(req *http.Request) (*http.Response, error) { return mocktrans.Response, nil }
-	client, err := newElasticsearch7Client(config.Configuration{}, mocktrans)
-	require.NoError(t, err)
-	assert.NotNil(t, client)
-	err = client.PutTemplate("foo", strings.NewReader("bar"))
-	require.NoError(t, err)
+func TestES7PutTemplate(t *testing.T) {
+	testPutTemplate(t, func(tripper http.RoundTripper) (ElasticsearchClient, error) {
+		return newElasticsearch7Client(clientConfig{}, tripper)
+	})
 }
 
 func TestES7AddDataToBulk(t *testing.T) {
-	client, err := newElasticsearch7Client(config.Configuration{}, &http.Transport{})
+	client, err := newElasticsearch7Client(clientConfig{}, &http.Transport{})
 	require.NoError(t, err)
 	assert.NotNil(t, client)
 
@@ -63,48 +48,25 @@ func TestES7AddDataToBulk(t *testing.T) {
 }
 
 func TestES7Bulk(t *testing.T) {
-	tests := []struct {
-		resp *http.Response
-		err  string
-	}{
-		{
-			resp: &http.Response{
-				StatusCode: http.StatusOK,
-				Body:       ioutil.NopCloser(strings.NewReader("{}")),
-			},
-		},
-		{
-			resp: &http.Response{
-				StatusCode: http.StatusOK,
-				Body:       ioutil.NopCloser(strings.NewReader("{#}")),
-			},
-			err: "looking for beginning of object key string",
-		},
-		{
-			resp: &http.Response{
-				StatusCode: http.StatusBadRequest,
-				Body:       ioutil.NopCloser(strings.NewReader("{#}")),
-			},
-			err: "bulk request failed with code 400",
-		},
-	}
-	for _, test := range tests {
-		t.Run(test.err, func(t *testing.T) {
-			mocktrans := &mockTransport{
-				Response: test.resp,
-			}
-			mocktrans.RoundTripFn = func(req *http.Request) (*http.Response, error) { return mocktrans.Response, nil }
+	testBulk(t, func(tripper http.RoundTripper) (ElasticsearchClient, error) {
+		return newElasticsearch7Client(clientConfig{}, tripper)
+	})
+}
 
-			client, err := newElasticsearch7Client(config.Configuration{}, mocktrans)
-			require.NoError(t, err)
-			assert.NotNil(t, client)
-			_, err = client.Bulk(strings.NewReader("data"))
-			if test.err != "" {
-				fmt.Println()
-				assert.Contains(t, err.Error(), test.err)
-			} else {
-				require.NoError(t, err)
-			}
-		})
-	}
+func TestES7Index(t *testing.T) {
+	testIndex(t, func(tripper http.RoundTripper) (ElasticsearchClient, error) {
+		return newElasticsearch7Client(clientConfig{}, tripper)
+	})
+}
+
+func TestES7Search(t *testing.T) {
+	testSearch(t, func(tripper http.RoundTripper) (ElasticsearchClient, error) {
+		return newElasticsearch7Client(clientConfig{}, tripper)
+	})
+}
+
+func TestES7MultiSearch(t *testing.T) {
+	testMultiSearch(t, func(tripper http.RoundTripper) (ElasticsearchClient, error) {
+		return newElasticsearch7Client(clientConfig{}, tripper)
+	})
 }
