@@ -30,8 +30,8 @@ import (
 	"go.uber.org/zap"
 
 	"github.com/jaegertracing/jaeger/cmd/opentelemetry/app/internal/esclient"
-	"github.com/jaegertracing/jaeger/cmd/opentelemetry/app/reader/es/esdependencyreader"
-	"github.com/jaegertracing/jaeger/cmd/opentelemetry/app/reader/es/esspanreader"
+	"github.com/jaegertracing/jaeger/cmd/opentelemetry/app/internal/reader/es/esdependencyreader"
+	"github.com/jaegertracing/jaeger/cmd/opentelemetry/app/internal/reader/es/esspanreader"
 	"github.com/jaegertracing/jaeger/model"
 	"github.com/jaegertracing/jaeger/pkg/es/config"
 	"github.com/jaegertracing/jaeger/pkg/testutils"

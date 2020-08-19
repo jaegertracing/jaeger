@@ -17,9 +17,9 @@ package esspanreader
 import (
 	"encoding/json"
 	"fmt"
-	"github.com/jaegertracing/jaeger/cmd/opentelemetry/app/internal/esclient"
 	"time"
 
+	"github.com/jaegertracing/jaeger/cmd/opentelemetry/app/internal/esclient"
 	"github.com/jaegertracing/jaeger/model"
 	"github.com/jaegertracing/jaeger/plugin/storage/es/spanstore/dbmodel"
 	"github.com/jaegertracing/jaeger/storage/spanstore"
