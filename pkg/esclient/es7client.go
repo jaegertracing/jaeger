@@ -52,7 +52,7 @@ func newElasticsearch7Client(config clientConfig, roundTripper http.RoundTripper
 }
 
 func (es *elasticsearch7Client) PutTemplate(ctx context.Context, name string, body io.Reader) error {
-	resp, err := es.client.Indices.PutTemplate(body, name, es.client.Indices.PutTemplate.WithContext(ctx))
+	resp, err := es.client.Indices.PutTemplate(name, body, es.client.Indices.PutTemplate.WithContext(ctx))
 	if err != nil {
 		return err
 	}

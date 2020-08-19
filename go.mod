@@ -14,6 +14,8 @@ require (
 	github.com/crossdock/crossdock-go v0.0.0-20160816171116-049aabb0122b
 	github.com/dgraph-io/badger v1.5.3
 	github.com/dgryski/go-farm v0.0.0-20200201041132-a6ae2369ad13 // indirect
+	github.com/elastic/go-elasticsearch/v6 v6.8.10
+	github.com/elastic/go-elasticsearch/v7 v7.9.0
 	github.com/frankban/quicktest v1.7.3 // indirect
 	github.com/fsnotify/fsnotify v1.4.7
 	github.com/go-openapi/analysis v0.19.7 // indirect

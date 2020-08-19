@@ -29,14 +29,14 @@ import (
 	"github.com/stretchr/testify/require"
 	"go.uber.org/zap"
 
-	"github.com/jaegertracing/jaeger/cmd/opentelemetry/app/exporter/elasticsearchexporter/dependencystore"
-	"github.com/jaegertracing/jaeger/cmd/opentelemetry/app/exporter/elasticsearchexporter/esclient"
-	"github.com/jaegertracing/jaeger/cmd/opentelemetry/app/exporter/elasticsearchexporter/spanreader"
 	"github.com/jaegertracing/jaeger/model"
 	"github.com/jaegertracing/jaeger/pkg/es/config"
+	"github.com/jaegertracing/jaeger/pkg/esclient"
 	"github.com/jaegertracing/jaeger/pkg/testutils"
 	"github.com/jaegertracing/jaeger/plugin/storage/es"
 	"github.com/jaegertracing/jaeger/plugin/storage/es/spanstore/dbmodel"
+	"github.com/jaegertracing/jaeger/plugin/storage/esnew/dependencystore"
+	"github.com/jaegertracing/jaeger/plugin/storage/esnew/spanreader"
 	"github.com/jaegertracing/jaeger/plugin/storage/integration"
 )
 
