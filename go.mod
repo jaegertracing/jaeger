@@ -25,14 +25,14 @@ require (
 	github.com/go-openapi/swag v0.19.9
 	github.com/go-openapi/validate v0.19.8
 	github.com/gocql/gocql v0.0.0-20200228163523-cd4b606dd2fb
-	github.com/gogo/googleapis v1.1.0
+	github.com/gogo/googleapis v1.3.0
 	github.com/gogo/protobuf v1.3.1
 	github.com/golang/mock v1.4.3 // indirect
 	github.com/golang/protobuf v1.4.2
 	github.com/gorilla/handlers v1.4.2
 	github.com/gorilla/mux v1.7.4
 	github.com/grpc-ecosystem/go-grpc-middleware v1.2.0
-	github.com/grpc-ecosystem/grpc-gateway v1.14.6
+	github.com/grpc-ecosystem/grpc-gateway v1.14.7
 	github.com/hashicorp/go-hclog v0.14.0
 	github.com/hashicorp/go-plugin v1.3.0
 	github.com/hashicorp/yamux v0.0.0-20190923154419-df201c70410d // indirect
@@ -75,8 +75,8 @@ require (
 	golang.org/x/net v0.0.0-20200625001655-4c5254603344
 	golang.org/x/sys v0.0.0-20200625212154-ddb9806d33ae
 	golang.org/x/tools v0.0.0-20200603131246-cc40288be839 // indirect
-	google.golang.org/genproto v0.0.0-20200603110839-e855014d5736 // indirect
-	google.golang.org/grpc v1.29.1
+	google.golang.org/grpc v1.31.0
+	google.golang.org/grpc/examples v0.0.0-20200819190100-f640ae6a4f43 // indirect
 	gopkg.in/ini.v1 v1.52.0 // indirect
 	gopkg.in/jcmturner/goidentity.v3 v3.0.0 // indirect
 	gopkg.in/yaml.v2 v2.3.0

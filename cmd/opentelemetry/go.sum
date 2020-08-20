@@ -1475,6 +1475,7 @@ google.golang.org/grpc v1.31.0 h1:T7P4R73V3SSDPhH7WW7ATbfViLtmamH0DKrP3f9AuDI=
 google.golang.org/grpc v1.31.0/go.mod h1:N36X2cJ7JwdamYAgDz+s+rVMFjt3numwzf/HckM8pak=
 google.golang.org/grpc/examples v0.0.0-20200728065043-dfc0c05b2da9 h1:f+/+gfZ/tfaHBXXiv1gWRmCej6wlX3mLY4bnLpI99wk=
 google.golang.org/grpc/examples v0.0.0-20200728065043-dfc0c05b2da9/go.mod h1:5j1uub0jRGhRiSghIlrThmBUgcgLXOVJQ/l1getT4uo=
+google.golang.org/grpc/examples v0.0.0-20200819190100-f640ae6a4f43/go.mod h1:wQWkdCkP0Pl3MzFPvfqTNUnXA2eIVY4eakDiKJvniKc=
 google.golang.org/protobuf v0.0.0-20200109180630-ec00e32a8dfd/go.mod h1:DFci5gLYBciE7Vtevhsrf46CRTquxDuWsQurQQe4oz8=
 google.golang.org/protobuf v0.0.0-20200221191635-4d8936d0db64/go.mod h1:kwYJMbMJ01Woi6D6+Kah6886xMZcty6N08ah7+eCXa0=
 google.golang.org/protobuf v0.0.0-20200228230310-ab0ca4ff8a60/go.mod h1:cfTl7dwQJ+fmap5saPgwCLgHXTUD7jkjRqWcaiX5VyM=
