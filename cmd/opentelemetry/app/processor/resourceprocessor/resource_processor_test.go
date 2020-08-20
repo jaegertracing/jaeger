@@ -75,7 +75,7 @@ func TestLoadConfigAndFlags(t *testing.T) {
 	require.NoError(t, err)
 
 	v, c := jConfig.Viperize(AddFlags, flags.AddConfigFileFlag)
-	err = c.ParseFlags([]string{"--resource.attributes=foo=bar"})
+	err = c.ParseFlags([]string{"--resource.attributes=foo=bar,zone=zone2"})
 	require.NoError(t, err)
 
 	err = flags.TryLoadConfigFile(v)

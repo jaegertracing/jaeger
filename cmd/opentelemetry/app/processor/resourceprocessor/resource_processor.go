@@ -73,12 +73,20 @@ func (f Factory) CreateTraceProcessor(
 	cfg configmodels.Processor,
 ) (component.TraceProcessor, error) {
 	c := cfg.(*resourceprocessor.Config)
+	attributeKeys := map[string]bool{}
+	for _, kv := range c.AttributesActions {
+		attributeKeys[kv.Key] = true
+	}
 	for k, v := range f.GetTags() {
-		c.AttributesActions = append(c.AttributesActions, processorhelper.ActionKeyValue{
-			Key:    k,
-			Value:  v,
-			Action: processorhelper.UPSERT,
-		})
+		// do not override values in OTEL config.
+		// OTEL config has higher precedence
+		if !attributeKeys[k] {
+			c.AttributesActions = append(c.AttributesActions, processorhelper.ActionKeyValue{
+				Key:    k,
+				Value:  v,
+				Action: processorhelper.UPSERT,
+			})
+		}
 	}
 	return f.Wrapped.CreateTraceProcessor(ctx, params, nextConsumer, cfg)
 }
