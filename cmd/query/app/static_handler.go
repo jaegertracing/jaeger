@@ -30,6 +30,7 @@ import (
 	"go.uber.org/zap"
 
 	"github.com/jaegertracing/jaeger/cmd/query/app/ui"
+	"github.com/jaegertracing/jaeger/pkg/version"
 )
 
 var (
@@ -102,16 +103,29 @@ func loadIndexBytes(open func(string) (http.File, error), options StaticAssetsHa
 	if err != nil {
 		return nil, fmt.Errorf("cannot load index.html: %w", err)
 	}
-	configString := "JAEGER_CONFIG = DEFAULT_CONFIG"
-	if config, err := loadUIConfig(options.UIConfigPath); err != nil {
+
+	config, err := loadUIConfig(options.UIConfigPath)
+	if err != nil {
 		return nil, err
-	} else if config != nil {
-		// TODO if we want to support other config formats like YAML, we need to normalize `config` to be
-		// suitable for json.Marshal(). For example, YAML parser may return a map that has keys of type
-		// interface{}, and json.Marshal() is unable to serialize it.
-		bytes, _ := json.Marshal(config)
-		configString = fmt.Sprintf("JAEGER_CONFIG = %v", string(bytes))
 	}
+
+	if config == nil {
+		config = make(map[string]interface{})
+	}
+
+	queryVersion := version.Get().GitVersion
+	if queryVersion == "" {
+		queryVersion = "(devel)"
+	}
+
+	config["jaegerQueryVersion"] = queryVersion
+
+	// TODO if we want to support other config formats like YAML, we need to normalize `config` to be
+	// suitable for json.Marshal(). For example, YAML parser may return a map that has keys of type
+	// interface{}, and json.Marshal() is unable to serialize it.
+	bytes, _ := json.Marshal(config)
+	configString := fmt.Sprintf("JAEGER_CONFIG = %v", string(bytes))
+
 	indexBytes = configPattern.ReplaceAll(indexBytes, []byte(configString+";"))
 	if options.BasePath == "" {
 		options.BasePath = "/"
