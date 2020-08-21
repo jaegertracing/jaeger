@@ -55,7 +55,7 @@ func (b *ConnBuilder) CreateConnection(logger *zap.Logger) (*grpc.ClientConn, er
 	var dialTarget string
 	if b.TLS.Enabled { // user requested a secure connection
 		logger.Info("Agent requested secure grpc connection to collector(s)")
-		tlsConf, err := b.TLS.Config()
+		tlsConf, err := b.TLS.Config(logger)
 		if err != nil {
 			return nil, fmt.Errorf("failed to load TLS config: %w", err)
 		}

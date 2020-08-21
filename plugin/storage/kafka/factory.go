@@ -17,6 +17,7 @@ package kafka
 import (
 	"errors"
 	"flag"
+	"io"
 
 	"github.com/Shopify/sarama"
 	"github.com/spf13/viper"
@@ -68,7 +69,7 @@ func (f *Factory) Initialize(metricsFactory metrics.Factory, logger *zap.Logger)
 	logger.Info("Kafka factory",
 		zap.Any("producer builder", f.Builder),
 		zap.Any("topic", f.options.Topic))
-	p, err := f.NewProducer()
+	p, err := f.NewProducer(logger)
 	if err != nil {
 		return err
 	}
@@ -97,4 +98,11 @@ func (f *Factory) CreateSpanWriter() (spanstore.Writer, error) {
 // CreateDependencyReader implements storage.Factory
 func (f *Factory) CreateDependencyReader() (dependencystore.Reader, error) {
 	return nil, errors.New("kafka storage is write-only")
+}
+
+var _ io.Closer = (*Factory)(nil)
+
+// Close closes the resources held by the factory
+func (f *Factory) Close() error {
+	return f.options.Config.TLS.Close()
 }

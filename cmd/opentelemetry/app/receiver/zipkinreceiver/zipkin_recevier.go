@@ -22,7 +22,6 @@ import (
 	"go.opentelemetry.io/collector/config/configmodels"
 	"go.opentelemetry.io/collector/consumer"
 	"go.opentelemetry.io/collector/receiver/zipkinreceiver"
-	"go.uber.org/zap"
 
 	collectorApp "github.com/jaegertracing/jaeger/cmd/collector/app"
 )
@@ -30,12 +29,12 @@ import (
 // Factory wraps zipkinreceiver.Factory and makes the default config configurable via viper.
 // For instance this enables using flags as default values in the config object.
 type Factory struct {
-	Wrapped *zipkinreceiver.Factory
+	Wrapped component.ReceiverFactory
 	// Viper is used to get configuration values for default configuration
 	Viper *viper.Viper
 }
 
-var _ component.ReceiverFactoryOld = (*Factory)(nil)
+var _ component.ReceiverFactory = (*Factory)(nil)
 
 // Type returns the type of the receiver.
 func (f Factory) Type() configmodels.Type {
@@ -52,30 +51,24 @@ func (f Factory) CreateDefaultConfig() configmodels.Receiver {
 	return cfg
 }
 
-// CustomUnmarshaler creates custom unmarshaller for Zipkin receiver config.
-// This function implements component.ReceiverFactoryBase interface.
-func (f Factory) CustomUnmarshaler() component.CustomUnmarshaler {
-	return f.Wrapped.CustomUnmarshaler()
-}
-
 // CreateTraceReceiver creates Zipkin receiver trace receiver.
 // This function implements OTEL component.ReceiverFactoryOld interface.
 func (f Factory) CreateTraceReceiver(
 	ctx context.Context,
-	logger *zap.Logger,
+	params component.ReceiverCreateParams,
 	cfg configmodels.Receiver,
-	nextConsumer consumer.TraceConsumerOld,
+	nextConsumer consumer.TraceConsumer,
 ) (component.TraceReceiver, error) {
-	return f.Wrapped.CreateTraceReceiver(ctx, logger, cfg, nextConsumer)
+	return f.Wrapped.CreateTraceReceiver(ctx, params, cfg, nextConsumer)
 }
 
 // CreateMetricsReceiver creates a metrics receiver based on provided config.
 // This function implements component.ReceiverFactoryOld.
 func (f Factory) CreateMetricsReceiver(
 	ctx context.Context,
-	logger *zap.Logger,
+	params component.ReceiverCreateParams,
 	cfg configmodels.Receiver,
-	consumer consumer.MetricsConsumerOld,
+	consumer consumer.MetricsConsumer,
 ) (component.MetricsReceiver, error) {
-	return f.Wrapped.CreateMetricsReceiver(ctx, logger, cfg, consumer)
+	return f.Wrapped.CreateMetricsReceiver(ctx, params, cfg, consumer)
 }

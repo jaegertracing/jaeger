@@ -19,7 +19,7 @@ import (
 
 	"github.com/spf13/pflag"
 	"github.com/spf13/viper"
-	"go.opentelemetry.io/collector/config"
+	"go.opentelemetry.io/collector/component"
 	otelJaegerExporter "go.opentelemetry.io/collector/exporter/jaegerexporter"
 	otelResourceProcessor "go.opentelemetry.io/collector/processor/resourceprocessor"
 	otelJaegerReceiver "go.opentelemetry.io/collector/receiver/jaegerreceiver"
@@ -46,7 +46,7 @@ import (
 )
 
 // Components creates default and Jaeger factories
-func Components(v *viper.Viper) config.Factories {
+func Components(v *viper.Viper) component.Factories {
 	// Add flags to viper to make the default values available.
 	// We have to add all storage flags to viper because any exporter can be specified in the OTEL config file.
 	// OTEL collector creates default configurations for all factories to verify they can be created.
@@ -92,25 +92,21 @@ func Components(v *viper.Viper) config.Factories {
 	factories.Exporters[badgerExp.Type()] = badgerExp
 	factories.Receivers[kafkaRec.Type()] = kafkaRec
 
-	jaegerRec := factories.Receivers["jaeger"].(*otelJaegerReceiver.Factory)
 	factories.Receivers["jaeger"] = &jaegerreceiver.Factory{
-		Wrapped: jaegerRec,
+		Wrapped: otelJaegerReceiver.NewFactory(),
 		Viper:   v,
 	}
-	jaegerExp := factories.Exporters["jaeger"].(*otelJaegerExporter.Factory)
 	factories.Exporters["jaeger"] = &jaegerexporter.Factory{
-		Wrapped: jaegerExp,
+		Wrapped: otelJaegerExporter.NewFactory(),
 		Viper:   v,
 	}
-	zipkinRec := factories.Receivers["zipkin"].(*otelZipkinReceiver.Factory)
 	factories.Receivers["zipkin"] = &zipkinreceiver.Factory{
-		Wrapped: zipkinRec,
+		Wrapped: otelZipkinReceiver.NewFactory(),
 		Viper:   v,
 	}
 
-	resourceProc := factories.Processors["resource"].(*otelResourceProcessor.Factory)
 	factories.Processors["resource"] = &resourceprocessor.Factory{
-		Wrapped: resourceProc,
+		Wrapped: otelResourceProcessor.NewFactory(),
 		Viper:   v,
 	}
 	return factories

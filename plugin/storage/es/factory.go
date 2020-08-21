@@ -18,6 +18,7 @@ package es
 import (
 	"flag"
 	"fmt"
+	"io"
 	"strconv"
 	"strings"
 
@@ -214,4 +215,14 @@ func fixMapping(mapping string, shards, replicas int64) string {
 	mapping = strings.Replace(mapping, "${__NUMBER_OF_SHARDS__}", strconv.FormatInt(shards, 10), 1)
 	mapping = strings.Replace(mapping, "${__NUMBER_OF_REPLICAS__}", strconv.FormatInt(replicas, 10), 1)
 	return mapping
+}
+
+var _ io.Closer = (*Factory)(nil)
+
+// Close closes the resources held by the factory
+func (f *Factory) Close() error {
+	if cfg := f.Options.Get(archiveNamespace); cfg != nil {
+		cfg.TLS.Close()
+	}
+	return f.Options.GetPrimary().TLS.Close()
 }

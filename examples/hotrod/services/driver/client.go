@@ -20,9 +20,9 @@ import (
 	"time"
 
 	otgrpc "github.com/opentracing-contrib/go-grpc"
-	"google.golang.org/grpc"
 	"github.com/opentracing/opentracing-go"
 	"go.uber.org/zap"
+	"google.golang.org/grpc"
 
 	"github.com/jaegertracing/jaeger/examples/hotrod/pkg/log"
 )

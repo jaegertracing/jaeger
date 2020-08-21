@@ -66,7 +66,7 @@ func (f Factory) CreateDefaultConfig() configmodels.Exporter {
 // CreateTraceExporter creates Jaeger Elasticsearch trace exporter.
 // This function implements OTEL component.ExporterFactory interface.
 func (Factory) CreateTraceExporter(
-	_ context.Context,
+	ctx context.Context,
 	params component.ExporterCreateParams,
 	cfg configmodels.Exporter,
 ) (component.TraceExporter, error) {
@@ -74,15 +74,15 @@ func (Factory) CreateTraceExporter(
 	if !ok {
 		return nil, fmt.Errorf("could not cast configuration to %s", TypeStr)
 	}
-	return new(esCfg, params)
+	return new(ctx, esCfg, params)
 }
 
 // CreateMetricsExporter is not implemented.
 // This function implements OTEL component.ExporterFactory interface.
 func (Factory) CreateMetricsExporter(
-	_ context.Context,
-	_ component.ExporterCreateParams,
-	_ configmodels.Exporter,
+	context.Context,
+	component.ExporterCreateParams,
+	configmodels.Exporter,
 ) (component.MetricsExporter, error) {
 	return nil, configerror.ErrDataTypeIsNotSupported
 }

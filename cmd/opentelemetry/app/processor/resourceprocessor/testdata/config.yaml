@@ -3,9 +3,10 @@ receivers:
 
 processors:
   resource:
-    labels: {
-      "zone": "zone1",
-    }
+    attributes:
+      - key: zone
+        value: zone1
+        action: upsert
 
 exporters:
   exampleexporter:

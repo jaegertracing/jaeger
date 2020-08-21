@@ -18,13 +18,14 @@ import (
 	"fmt"
 
 	"github.com/Shopify/sarama"
+	"go.uber.org/zap"
 
 	"github.com/jaegertracing/jaeger/pkg/config/tlscfg"
 )
 
-func setTLSConfiguration(config *tlscfg.Options, saramaConfig *sarama.Config) error {
+func setTLSConfiguration(config *tlscfg.Options, saramaConfig *sarama.Config, logger *zap.Logger) error {
 	if config.Enabled {
-		tlsConfig, err := config.Config()
+		tlsConfig, err := config.Config(logger)
 		if err != nil {
 			return fmt.Errorf("error loading tls config: %w", err)
 		}

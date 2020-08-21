@@ -54,7 +54,7 @@ func newServiceNameReplacer() *strings.Replacer {
 	oldnew := make([]string, 0, 2*(256-2-10-int('z'-'a'+1)))
 	for i := range mapping {
 		if mapping[i] != byte(i) {
-			oldnew = append(oldnew, string(i), string(mapping[i]))
+			oldnew = append(oldnew, string(rune(i)), string(rune(mapping[i])))
 		}
 	}
 

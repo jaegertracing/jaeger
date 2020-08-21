@@ -15,13 +15,19 @@
 package resourceprocessor
 
 import (
+	"context"
 	"path"
+	"sort"
+	"strings"
 	"testing"
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-	"go.opentelemetry.io/collector/config"
+	"go.opentelemetry.io/collector/component"
+	"go.opentelemetry.io/collector/component/componenttest"
 	"go.opentelemetry.io/collector/config/configmodels"
+	"go.opentelemetry.io/collector/config/configtest"
+	"go.opentelemetry.io/collector/processor/processorhelper"
 	"go.opentelemetry.io/collector/processor/resourceprocessor"
 	"go.uber.org/zap"
 
@@ -34,31 +40,42 @@ func TestDefaultValues(t *testing.T) {
 	err := c.ParseFlags([]string{})
 	require.NoError(t, err)
 
-	f := &Factory{Viper: v, Wrapped: &resourceprocessor.Factory{}}
+	f := &Factory{Viper: v, Wrapped: resourceprocessor.NewFactory()}
 	cfg := f.CreateDefaultConfig().(*resourceprocessor.Config)
 	assert.Empty(t, cfg.Labels)
 }
 
 func TestDefaultValueFromViper(t *testing.T) {
 	v, c := jConfig.Viperize(AddFlags)
-	err := c.ParseFlags([]string{"--resource.labels=foo=bar,orig=fake", "--jaeger.tags=foo=legacy,leg=head"})
+	err := c.ParseFlags([]string{"--resource.attributes=foo=bar,orig=fake", "--jaeger.tags=foo=legacy,leg=head"})
 	require.NoError(t, err)
 
 	f := &Factory{
-		Wrapped: &resourceprocessor.Factory{},
+		Wrapped: resourceprocessor.NewFactory(),
 		Viper:   v,
 	}
 
 	cfg := f.CreateDefaultConfig().(*resourceprocessor.Config)
-	assert.Equal(t, map[string]string{"foo": "bar", "leg": "head", "orig": "fake"}, cfg.Labels)
+	p, err := f.CreateTraceProcessor(context.Background(), component.ProcessorCreateParams{Logger: zap.NewNop()}, &componenttest.ExampleExporterConsumer{}, cfg)
+	require.NoError(t, err)
+	assert.NotNil(t, p)
+
+	sort.Slice(cfg.AttributesActions, func(i, j int) bool {
+		return strings.Compare(cfg.AttributesActions[i].Key, cfg.AttributesActions[j].Key) < 0
+	})
+	assert.Equal(t, []processorhelper.ActionKeyValue{
+		{Key: "foo", Value: "bar", Action: processorhelper.UPSERT},
+		{Key: "leg", Value: "head", Action: processorhelper.UPSERT},
+		{Key: "orig", Value: "fake", Action: processorhelper.UPSERT},
+	}, cfg.AttributesActions)
 }
 
 func TestLoadConfigAndFlags(t *testing.T) {
-	factories, err := config.ExampleComponents()
+	factories, err := componenttest.ExampleComponents()
 	require.NoError(t, err)
 
 	v, c := jConfig.Viperize(AddFlags, flags.AddConfigFileFlag)
-	err = c.ParseFlags([]string{"--resource.labels=foo=bar,zone=zone2"})
+	err = c.ParseFlags([]string{"--resource.attributes=foo=bar,zone=zone2"})
 	require.NoError(t, err)
 
 	err = flags.TryLoadConfigFile(v)
@@ -66,33 +83,38 @@ func TestLoadConfigAndFlags(t *testing.T) {
 
 	f := &Factory{
 		Viper:   v,
-		Wrapped: &resourceprocessor.Factory{},
+		Wrapped: resourceprocessor.NewFactory(),
 	}
 
 	factories.Processors[f.Type()] = f
-	colConfig, err := config.LoadConfigFile(t, path.Join(".", "testdata", "config.yaml"), factories)
+	colConfig, err := configtest.LoadConfigFile(t, path.Join(".", "testdata", "config.yaml"), factories)
 	require.NoError(t, err)
 	require.NotNil(t, colConfig)
 
 	cfg := colConfig.Processors[string(f.Type())].(*resourceprocessor.Config)
-	assert.Equal(t, map[string]string{"zone": "zone1", "foo": "bar"}, cfg.Labels)
-	p, err := f.CreateTraceProcessor(zap.NewNop(), nil, cfg)
+	p, err := f.CreateTraceProcessor(context.Background(), component.ProcessorCreateParams{Logger: zap.NewNop()}, &componenttest.ExampleExporterConsumer{}, cfg)
 	require.NoError(t, err)
 	assert.NotNil(t, p)
+	assert.Equal(t, []processorhelper.ActionKeyValue{
+		{Key: "zone", Value: "zone1", Action: processorhelper.UPSERT},
+		{Key: "foo", Value: "bar", Action: processorhelper.UPSERT},
+	}, cfg.AttributesActions)
 }
 
 func TestType(t *testing.T) {
 	f := &Factory{
-		Wrapped: &resourceprocessor.Factory{},
+		Wrapped: resourceprocessor.NewFactory(),
 	}
 	assert.Equal(t, configmodels.Type("resource"), f.Type())
 }
 
-func TestCreateMetricsExporter(t *testing.T) {
+func TestCreateMetricsProcessor(t *testing.T) {
 	f := &Factory{
-		Wrapped: &resourceprocessor.Factory{},
+		Wrapped: resourceprocessor.NewFactory(),
 	}
-	mReceiver, err := f.CreateMetricsProcessor(zap.NewNop(), nil, &resourceprocessor.Config{})
+	mReceiver, err := f.CreateMetricsProcessor(context.Background(), component.ProcessorCreateParams{}, &componenttest.ExampleExporterConsumer{}, &resourceprocessor.Config{
+		AttributesActions: []processorhelper.ActionKeyValue{{Key: "foo", Value: "val", Action: processorhelper.UPSERT}},
+	})
 	require.Nil(t, err)
 	assert.NotNil(t, mReceiver)
 }

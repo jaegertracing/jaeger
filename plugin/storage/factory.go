@@ -18,11 +18,13 @@ package storage
 import (
 	"flag"
 	"fmt"
+	"io"
 
 	"github.com/spf13/viper"
 	"github.com/uber/jaeger-lib/metrics"
 	"go.uber.org/zap"
 
+	"github.com/jaegertracing/jaeger/pkg/multierror"
 	"github.com/jaegertracing/jaeger/plugin"
 	"github.com/jaegertracing/jaeger/plugin/storage/badger"
 	"github.com/jaegertracing/jaeger/plugin/storage/cassandra"
@@ -228,4 +230,22 @@ func (f *Factory) CreateArchiveSpanWriter() (spanstore.Writer, error) {
 		return nil, storage.ErrArchiveStorageNotSupported
 	}
 	return archive.CreateArchiveSpanWriter()
+}
+
+var _ io.Closer = (*Factory)(nil)
+
+// Close closes the resources held by the factory
+func (f *Factory) Close() error {
+	var errs []error
+	for _, storageType := range f.SpanWriterTypes {
+		if factory, ok := f.factories[storageType]; ok {
+			if closer, ok := factory.(io.Closer); ok {
+				err := closer.Close()
+				if err != nil {
+					errs = append(errs, err)
+				}
+			}
+		}
+	}
+	return multierror.Wrap(errs)
 }
