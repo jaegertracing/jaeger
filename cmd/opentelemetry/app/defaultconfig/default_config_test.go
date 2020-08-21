@@ -60,7 +60,7 @@ func TestService(t *testing.T) {
 			},
 		},
 		{
-			viperConfig: map[string]interface{}{"resource.labels": "foo=bar"},
+			viperConfig: map[string]interface{}{"resource.attributes": "foo=bar"},
 			cfg: ComponentSettings{
 				ComponentType: Collector,
 				StorageType:   "elasticsearch,kafka,memory",

@@ -21,11 +21,12 @@ import (
 
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
-	"go.opentelemetry.io/collector/config"
+	"go.opentelemetry.io/collector/component"
+	"go.opentelemetry.io/collector/component/componenttest"
 	"go.opentelemetry.io/collector/config/configerror"
 	"go.opentelemetry.io/collector/config/configmodels"
+	"go.opentelemetry.io/collector/config/configtest"
 	"go.opentelemetry.io/collector/receiver/zipkinreceiver"
-	"go.uber.org/zap"
 
 	jConfig "github.com/jaegertracing/jaeger/pkg/config"
 )
@@ -35,24 +36,24 @@ func TestDefaultValues(t *testing.T) {
 	err := c.ParseFlags([]string{})
 	require.NoError(t, err)
 
-	factory := &Factory{Viper: v, Wrapped: &zipkinreceiver.Factory{}}
+	factory := &Factory{Viper: v, Wrapped: zipkinreceiver.NewFactory()}
 	cfg := factory.CreateDefaultConfig().(*zipkinreceiver.Config)
 	assert.Equal(t, "0.0.0.0:9411", cfg.Endpoint)
 }
 
 func TestLoadConfigAndFlags(t *testing.T) {
-	factories, err := config.ExampleComponents()
+	factories, err := componenttest.ExampleComponents()
 	require.NoError(t, err)
 
 	v, c := jConfig.Viperize(AddFlags)
 	err = c.ParseFlags([]string{"--collector.zipkin.host-port=bar:111"})
 	require.NoError(t, err)
 
-	factory := &Factory{Viper: v, Wrapped: &zipkinreceiver.Factory{}}
+	factory := &Factory{Viper: v, Wrapped: zipkinreceiver.NewFactory()}
 	assert.Equal(t, "bar:111", factory.CreateDefaultConfig().(*zipkinreceiver.Config).Endpoint)
 
 	factories.Receivers["zipkin"] = factory
-	colConfig, err := config.LoadConfigFile(t, path.Join(".", "testdata", "config.yaml"), factories)
+	colConfig, err := configtest.LoadConfigFile(t, path.Join(".", "testdata", "config.yaml"), factories)
 	require.NoError(t, err)
 	require.NotNil(t, colConfig)
 
@@ -62,16 +63,16 @@ func TestLoadConfigAndFlags(t *testing.T) {
 
 func TestType(t *testing.T) {
 	f := &Factory{
-		Wrapped: &zipkinreceiver.Factory{},
+		Wrapped: zipkinreceiver.NewFactory(),
 	}
 	assert.Equal(t, configmodels.Type("zipkin"), f.Type())
 }
 
 func TestCreateMetricsExporter(t *testing.T) {
 	f := &Factory{
-		Wrapped: &zipkinreceiver.Factory{},
+		Wrapped: zipkinreceiver.NewFactory(),
 	}
-	mReceiver, err := f.CreateMetricsReceiver(context.Background(), zap.NewNop(), nil, nil)
+	mReceiver, err := f.CreateMetricsReceiver(context.Background(), component.ReceiverCreateParams{}, nil, nil)
 	assert.Equal(t, configerror.ErrDataTypeIsNotSupported, err)
 	assert.Nil(t, mReceiver)
 }

@@ -22,9 +22,10 @@ import (
 	"github.com/stretchr/testify/assert"
 	"github.com/stretchr/testify/require"
 	"go.opentelemetry.io/collector/component"
-	"go.opentelemetry.io/collector/config"
+	"go.opentelemetry.io/collector/component/componenttest"
 	"go.opentelemetry.io/collector/config/configerror"
 	"go.opentelemetry.io/collector/config/configmodels"
+	"go.opentelemetry.io/collector/config/configtest"
 	"go.opentelemetry.io/collector/exporter/jaegerexporter"
 
 	"github.com/jaegertracing/jaeger/cmd/opentelemetry/app/receiver/jaegerreceiver"
@@ -36,7 +37,7 @@ func TestDefaultValues(t *testing.T) {
 	err := c.ParseFlags([]string{})
 	require.NoError(t, err)
 
-	factory := &Factory{Viper: v, Wrapped: &jaegerexporter.Factory{}}
+	factory := &Factory{Viper: v, Wrapped: jaegerexporter.NewFactory()}
 	cfg := factory.CreateDefaultConfig().(*jaegerexporter.Config)
 	assert.Empty(t, cfg.GRPCClientSettings.Endpoint)
 	tlsConf := cfg.TLSSetting
@@ -53,7 +54,7 @@ func TestDefaultValueFromViper(t *testing.T) {
 	require.NoError(t, err)
 
 	f := &Factory{
-		Wrapped: &jaegerexporter.Factory{},
+		Wrapped: jaegerexporter.NewFactory(),
 		Viper:   v,
 	}
 
@@ -65,18 +66,18 @@ func TestDefaultValueFromViper(t *testing.T) {
 }
 
 func TestLoadConfigAndFlags(t *testing.T) {
-	factories, err := config.ExampleComponents()
+	factories, err := componenttest.ExampleComponents()
 	require.NoError(t, err)
 
 	v, c := jConfig.Viperize(jaegerreceiver.AddFlags)
 	err = c.ParseFlags([]string{"--reporter.grpc.host-port=foo"})
 	require.NoError(t, err)
 
-	factory := &Factory{Viper: v, Wrapped: &jaegerexporter.Factory{}}
+	factory := &Factory{Viper: v, Wrapped: jaegerexporter.NewFactory()}
 	assert.Equal(t, "foo", factory.CreateDefaultConfig().(*jaegerexporter.Config).GRPCClientSettings.Endpoint)
 
 	factories.Exporters["jaeger"] = factory
-	colConfig, err := config.LoadConfigFile(t, path.Join(".", "testdata", "config.yaml"), factories)
+	colConfig, err := configtest.LoadConfigFile(t, path.Join(".", "testdata", "config.yaml"), factories)
 	require.NoError(t, err)
 	require.NotNil(t, colConfig)
 
@@ -86,14 +87,14 @@ func TestLoadConfigAndFlags(t *testing.T) {
 
 func TestType(t *testing.T) {
 	f := &Factory{
-		Wrapped: &jaegerexporter.Factory{},
+		Wrapped: jaegerexporter.NewFactory(),
 	}
 	assert.Equal(t, configmodels.Type("jaeger"), f.Type())
 }
 
 func TestCreateMetricsExporter(t *testing.T) {
 	f := &Factory{
-		Wrapped: &jaegerexporter.Factory{},
+		Wrapped: jaegerexporter.NewFactory(),
 	}
 	mReceiver, err := f.CreateMetricsExporter(context.Background(), component.ExporterCreateParams{}, nil)
 	assert.Equal(t, configerror.ErrDataTypeIsNotSupported, err)
