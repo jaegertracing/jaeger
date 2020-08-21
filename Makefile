@@ -165,8 +165,7 @@ lint-gosec:
 .PHONY: lint-staticcheck
 lint-staticcheck:
 	@cat /dev/null > $(LINT_LOG)
-	# TODO remove SA1019 once https://github.com/golang/protobuf/issues/1077 is resolved
-	time staticcheck -checks=-SA1019 ./... \
+	time staticcheck ./... \
 		| grep -v \
 			-e model/model.pb.go \
 			-e thrift-gen/ \
