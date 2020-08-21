@@ -165,6 +165,9 @@ by default uses only in-memory database.`,
 						logger.Error("Failed to close span writer", zap.Error(err))
 					}
 				}
+				if err := storageFactory.Close(); err != nil {
+					logger.Error("Failed to close storage factory", zap.Error(err))
+				}
 				tracerCloser.Close()
 			})
 			return nil

@@ -313,7 +313,7 @@ func (c *Configuration) getConfigOptions(logger *zap.Logger) ([]elastic.ClientOp
 // GetHTTPRoundTripper returns configured http.RoundTripper
 func GetHTTPRoundTripper(c *Configuration, logger *zap.Logger) (http.RoundTripper, error) {
 	if c.TLS.Enabled {
-		ctlsConfig, err := c.TLS.Config()
+		ctlsConfig, err := c.TLS.Config(logger)
 		if err != nil {
 			return nil, err
 		}
@@ -328,7 +328,7 @@ func GetHTTPRoundTripper(c *Configuration, logger *zap.Logger) (http.RoundTrippe
 		TLSClientConfig: &tls.Config{InsecureSkipVerify: c.TLS.SkipHostVerify},
 	}
 	if c.TLS.CAPath != "" {
-		ctlsConfig, err := c.TLS.Config()
+		ctlsConfig, err := c.TLS.Config(logger)
 		if err != nil {
 			return nil, err
 		}

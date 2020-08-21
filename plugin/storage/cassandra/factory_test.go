@@ -47,7 +47,7 @@ func newMockSessionBuilder(session *mocks.Session, err error) *mockSessionBuilde
 	}
 }
 
-func (m *mockSessionBuilder) NewSession() (cassandra.Session, error) {
+func (m *mockSessionBuilder) NewSession(*zap.Logger) (cassandra.Session, error) {
 	return m.session, m.err
 }
 
@@ -100,6 +100,8 @@ func TestCassandraFactory(t *testing.T) {
 
 	_, err = f.CreateArchiveSpanWriter()
 	assert.NoError(t, err)
+
+	assert.NoError(t, f.Close())
 }
 
 func TestExclusiveWhitelistBlacklist(t *testing.T) {

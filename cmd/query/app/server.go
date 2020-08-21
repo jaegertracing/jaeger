@@ -74,7 +74,7 @@ func createGRPCServer(querySvc *querysvc.QueryService, options *QueryOptions, lo
 	var grpcOpts []grpc.ServerOption
 
 	if options.TLS.Enabled {
-		tlsCfg, err := options.TLS.Config()
+		tlsCfg, err := options.TLS.Config(logger)
 		if err != nil {
 			return nil, err
 		}
@@ -182,8 +182,10 @@ func (s *Server) Start() error {
 }
 
 // Close stops http, GRPC servers and closes the port listener.
-func (s *Server) Close() {
+func (s *Server) Close() error {
+	s.queryOptions.TLS.Close()
 	s.grpcServer.Stop()
 	s.httpServer.Close()
 	s.conn.Close()
+	return nil
 }

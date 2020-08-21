@@ -18,6 +18,8 @@ package storage
 import (
 	"errors"
 	"flag"
+	"fmt"
+	"io"
 	"reflect"
 	"strings"
 	"testing"
@@ -30,6 +32,7 @@ import (
 
 	"github.com/jaegertracing/jaeger/pkg/config"
 	"github.com/jaegertracing/jaeger/storage"
+	"github.com/jaegertracing/jaeger/storage/dependencystore"
 	depStoreMocks "github.com/jaegertracing/jaeger/storage/dependencystore/mocks"
 	"github.com/jaegertracing/jaeger/storage/mocks"
 	"github.com/jaegertracing/jaeger/storage/spanstore"
@@ -77,6 +80,20 @@ func TestNewFactory(t *testing.T) {
 	require.Error(t, err)
 	expected := "unknown storage type" // could be 'x' or 'y' since code iterates through map.
 	assert.Equal(t, expected, err.Error()[0:len(expected)])
+
+	assert.NoError(t, f.Close())
+}
+
+func TestClose(t *testing.T) {
+	storageType := "foo"
+	err := fmt.Errorf("some error")
+	f := Factory{
+		factories: map[string]storage.Factory{
+			storageType: &errorCloseFactory{closeErr: err},
+		},
+		FactoryConfig: FactoryConfig{SpanWriterTypes: []string{storageType}},
+	}
+	assert.EqualError(t, f.Close(), err.Error())
 }
 
 func TestInitialize(t *testing.T) {
@@ -331,4 +348,31 @@ func TestParsingDownsamplingRatio(t *testing.T) {
 	assert.NoError(t, err)
 	f.InitFromViper(v)
 	assert.Equal(t, f.FactoryConfig.DownsamplingRatio, 0.5)
+}
+
+type errorCloseFactory struct {
+	closeErr error
+}
+
+var _ storage.Factory = (*errorCloseFactory)(nil)
+var _ io.Closer = (*errorCloseFactory)(nil)
+
+func (e errorCloseFactory) Initialize(metricsFactory metrics.Factory, logger *zap.Logger) error {
+	panic("implement me")
+}
+
+func (e errorCloseFactory) CreateSpanReader() (spanstore.Reader, error) {
+	panic("implement me")
+}
+
+func (e errorCloseFactory) CreateSpanWriter() (spanstore.Writer, error) {
+	panic("implement me")
+}
+
+func (e errorCloseFactory) CreateDependencyReader() (dependencystore.Reader, error) {
+	panic("implement me")
+}
+
+func (e errorCloseFactory) Close() error {
+	return e.closeErr
 }
