@@ -113,11 +113,7 @@ func loadIndexBytes(open func(string) (http.File, error), options StaticAssetsHa
 		config = make(map[string]interface{})
 	}
 
-	queryVersion := version.Get().GitVersion
-	if queryVersion == "" {
-		queryVersion = "(devel)"
-	}
-
+	queryVersion := version.Get()
 	config["jaegerQueryVersion"] = queryVersion
 
 	// TODO if we want to support other config formats like YAML, we need to normalize `config` to be

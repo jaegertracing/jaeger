@@ -94,7 +94,7 @@ func TestRegisterStaticHandler(t *testing.T) {
 			assert.Contains(t, respString, "Test Favicon") // this text is present in fixtures/favicon.ico
 
 			html := httpGet("") // get home page
-			assert.Contains(t, html, `JAEGER_CONFIG = {"jaegerQueryVersion":"(devel)","x":"y"};`, "actual: %v", html)
+			assert.Contains(t, html, `JAEGER_CONFIG = {"jaegerQueryVersion":{"gitCommit":"","GitVersion":"","BuildDate":""},"x":"y"};`, "actual: %v", html)
 			assert.Contains(t, html, testCase.expectedBaseHTML, "actual: %v", html)
 
 			asset := httpGet("static/asset.txt")
