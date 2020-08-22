@@ -119,7 +119,11 @@ func loadIndexBytes(open func(string) (http.File, error), options StaticAssetsHa
 	// TODO if we want to support other config formats like YAML, we need to normalize `config` to be
 	// suitable for json.Marshal(). For example, YAML parser may return a map that has keys of type
 	// interface{}, and json.Marshal() is unable to serialize it.
-	bytes, _ := json.Marshal(config)
+	bytes, err := json.Marshal(config)
+	if err != nil {
+		return nil, fmt.Errorf("cannot serialize configuration: %w", err)
+	}
+
 	configString := fmt.Sprintf("JAEGER_CONFIG = %v", string(bytes))
 
 	indexBytes = configPattern.ReplaceAll(indexBytes, []byte(configString+";"))
