@@ -1,6 +1,3 @@
-All services will log to Loki via the loki docker logging plugin.
-# To install run this on the host once:
-# docker plugin install grafana/loki-docker-driver:latest --alias loki --grant-all-permissions
 version: '2'
 services:
   grafana:
