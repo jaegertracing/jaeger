@@ -16,6 +16,7 @@ package elasticsearchexporter
 
 import (
 	"context"
+
 	"go.opentelemetry.io/collector/component"
 	"go.opentelemetry.io/collector/exporter/exporterhelper"
 
