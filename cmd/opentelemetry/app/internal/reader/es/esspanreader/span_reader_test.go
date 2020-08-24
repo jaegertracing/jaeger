@@ -182,3 +182,7 @@ func (m *mockClient) Search(ctx context.Context, query esclient.SearchBody, size
 func (m *mockClient) MultiSearch(ctx context.Context, queries []esclient.SearchBody) (*esclient.MultiSearchResponse, error) {
 	return m.multiSearchResponse, nil
 }
+
+func (m *mockClient) MajorVersion() int {
+	panic("implement me")
+}
