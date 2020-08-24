@@ -335,3 +335,10 @@ func testMultiSearch(t *testing.T, clientFactory func(tripper http.RoundTripper)
 		})
 	}
 }
+
+func TestGetClient_err_missingURL(t *testing.T) {
+	client, err := NewElasticsearchClient(config.Configuration{}, zap.NewNop())
+	require.Error(t, err)
+	assert.EqualError(t, err, errMissingURL.Error())
+	assert.Nil(t, client)
+}
