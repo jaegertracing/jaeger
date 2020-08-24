@@ -70,3 +70,9 @@ func TestES7MultiSearch(t *testing.T) {
 		return newElasticsearch7Client(clientConfig{}, tripper)
 	})
 }
+
+func TestES7Version(t *testing.T) {
+	c, err := newElasticsearch7Client(clientConfig{}, nil)
+	require.NoError(t, err)
+	assert.Equal(t, 7, c.MajorVersion())
+}

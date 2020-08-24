@@ -220,3 +220,7 @@ type bulkItem struct {
 	// isService indicates that this bulk operation is for service index
 	isService bool
 }
+
+func (w *esSpanWriter) esClientVersion() int {
+	return w.client.MajorVersion()
+}

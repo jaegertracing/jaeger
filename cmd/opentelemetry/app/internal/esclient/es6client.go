@@ -152,3 +152,7 @@ func (es *elasticsearch6Client) MultiSearch(ctx context.Context, queries []Searc
 	}
 	return r, nil
 }
+
+func (es *elasticsearch6Client) MajorVersion() int {
+	return 6
+}

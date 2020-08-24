@@ -158,6 +158,10 @@ func (es *elasticsearch7Client) MultiSearch(ctx context.Context, queries []Searc
 	return convertMultiSearchResponse(r), nil
 }
 
+func (es *elasticsearch7Client) MajorVersion() int {
+	return 7
+}
+
 func convertMultiSearchResponse(response *es7multiSearchResponse) *MultiSearchResponse {
 	mResponse := &MultiSearchResponse{}
 	for _, r := range response.Responses {
