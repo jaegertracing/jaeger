@@ -27,6 +27,8 @@ import (
 	"github.com/jaegertracing/jaeger/pkg/es/config"
 )
 
+var errMissingUrl = fmt.Errorf("missing Elasticsearch URL")
+
 // ElasticsearchClient exposes Elasticsearch API used by Jaeger.
 // This is not a general purpose ES client implementation.
 // The exposed APIs are the bare minimum that is used by Jaeger project to store and query data.
@@ -171,6 +173,10 @@ type AggregationResponse struct {
 
 // NewElasticsearchClient returns an instance of Elasticsearch client
 func NewElasticsearchClient(params config.Configuration, logger *zap.Logger) (ElasticsearchClient, error) {
+	if len(params.Servers) == 0 {
+		return nil, errMissingUrl
+	}
+
 	roundTripper, err := config.GetHTTPRoundTripper(&params, logger)
 	if err != nil {
 		return nil, err
