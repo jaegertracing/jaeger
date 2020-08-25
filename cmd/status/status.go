@@ -20,50 +20,41 @@ import (
 	"log"
 	"net/http"
 	"os"
-	"strconv"
-	"strings"
 
 	"github.com/jaegertracing/jaeger/cmd/flags"
+	"github.com/jaegertracing/jaeger/ports"
 	"github.com/spf13/cobra"
 	"github.com/spf13/viper"
 )
 
 // Command for running status check against the AdminPort.
-func Command(v *viper.Viper) *cobra.Command {
+func Command(v *viper.Viper, adminPort int) *cobra.Command {
+	adminServer := flags.NewAdminServer(ports.PortToHostPort(adminPort))
 	adminURL := ""
 	c := &cobra.Command{
 		Use:   "status",
 		Short: "Print the status.",
 		Long:  `Prints admin status information, exit non-zero on any error.`,
-		PreRunE: func(cmd *cobra.Command, args []string) error {
-			selfAdminFlag := cmd.Flags().Lookup("admin.http.host-port")
-			for cmd.Parent() != nil {
-				cmd = cmd.Parent()
+		PreRunE: func(cmd *cobra.Command, args []string) (err error) {
+			rootCmd := cmd
+			for rootCmd.Parent() != nil {
+				rootCmd = rootCmd.Parent()
 			}
-			parentAdminFlag := cmd.Flags().Lookup("admin.http.host-port")
-			// Test if an override is set, if so, use it. Otherwise fall back to the default for this subcommand or error.
-			// FIXME: cmd.flags should probably export this instead
-			hostPortFlag := ""
-			if selfAdminFlag.Changed {
-				hostPortFlag = selfAdminFlag.Value.String()
-			} else if parentAdminFlag.DefValue != ":0" {
-				hostPortFlag = parentAdminFlag.Value.String()
-			} else {
-				return fmt.Errorf("no default admin port available for %s", cmd.Name())
-			}
-			// Parse the selected flag value
-			var err error
-			adminURL, err = parseAdminHostPort(hostPortFlag)
+			// FIXME: arg overrides aren't working, adminServer doesn't seem to see the current flagSet. Why?
+			adminURL, err = adminServer.URL()
 			if err != nil {
-				return err
+				return fmt.Errorf("no default admin port available for %s: %w", cmd.Name(), err)
 			}
 			return nil
 		},
+		// FIXME: Normally I'd want to return an Error and let the exit handler do the os.Exit.
+		// But it's triggering --help output everytime and I don't know why.
 		Run: func(cmd *cobra.Command, args []string) {
+			adminURL, _ = adminServer.URL()
 			resp, err := http.Get(adminURL)
 			if err != nil {
 				log.Printf("error: %v", err)
-				os.Exit(1)
+				os.Exit(2)
 			}
 			log.Printf("ok: %v", resp)
 			os.Exit(0)
@@ -71,26 +62,8 @@ func Command(v *viper.Viper) *cobra.Command {
 	}
 	// Add support for overriding the default http server flags
 	f := &flag.FlagSet{}
-	adminServer := flags.NewAdminServer(":0")
 	adminServer.AddFlags(f)
 	c.Flags().AddGoFlagSet(f)
 	v.BindPFlags(c.Flags())
 	return c
-}
-
-// FIXME: cmd.flags should probably export this instead
-func parseAdminHostPort(adminHostPort string) (string, error) {
-	adminListeningAddr := strings.SplitN(adminHostPort, ":", 2)
-	adminHost := adminListeningAddr[0]
-	if adminHost == "" || adminHost == "0.0.0.0" {
-		adminHost = "localhost"
-	}
-	adminPort, err := strconv.ParseInt(adminListeningAddr[1], 10, 16) // 2**16 or 65_535 is the maximum listening port
-	if err != nil {
-		return "", fmt.Errorf("invalid port `%s`: %w", adminHostPort, err)
-	}
-	if adminPort == 0 {
-		return "", fmt.Errorf("invalid port `%s`", adminHostPort)
-	}
-	return fmt.Sprintf("http://%s:%d/", adminHost, adminPort), nil
 }

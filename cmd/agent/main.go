@@ -89,7 +89,7 @@ func main() {
 	}
 
 	command.AddCommand(version.Command())
-	command.AddCommand(status.Command(v))
+	command.AddCommand(status.Command(v, ports.AgentAdminHTTP))
 	command.AddCommand(docs.Command(v))
 
 	config.AddFlags(

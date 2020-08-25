@@ -10,6 +10,7 @@ require (
 	github.com/bsm/sarama-cluster v2.1.13+incompatible
 	github.com/cpuguy83/go-md2man v1.0.10 // indirect
 	github.com/crossdock/crossdock-go v0.0.0-20160816171116-049aabb0122b
+	github.com/davecgh/go-spew v1.1.1
 	github.com/dgraph-io/badger v1.5.3
 	github.com/dgryski/go-farm v0.0.0-20200201041132-a6ae2369ad13 // indirect
 	github.com/eapache/go-resiliency v1.2.0 // indirect

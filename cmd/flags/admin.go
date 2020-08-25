@@ -17,9 +17,12 @@ package flags
 import (
 	"context"
 	"flag"
+	"fmt"
 	"net"
 	"net/http"
 	"net/http/pprof"
+	"strconv"
+	"strings"
 
 	"github.com/spf13/viper"
 	"go.uber.org/zap"
@@ -155,4 +158,21 @@ func (s *AdminServer) Close() error {
 // HostPort returns the admin server's host:port
 func (s *AdminServer) HostPort() string {
 	return s.adminHostPort
+}
+
+// URL return the admin servers URL
+func (s *AdminServer) URL() (string, error) {
+	adminListeningAddr := strings.SplitN(s.adminHostPort, ":", 2)
+	adminHost := adminListeningAddr[0]
+	if adminHost == "" || adminHost == "0.0.0.0" {
+		adminHost = "localhost"
+	}
+	adminPort, err := strconv.ParseInt(adminListeningAddr[1], 10, 16) // 2**16 or 65_535 is the maximum listening port
+	if err != nil {
+		return "", fmt.Errorf("invalid port `%s`: %w", s.adminHostPort, err)
+	}
+	if adminPort == 0 {
+		return "", fmt.Errorf("invalid port `%s`", s.adminHostPort)
+	}
+	return fmt.Sprintf("http://%s:%d/", adminHost, adminPort), nil
 }
