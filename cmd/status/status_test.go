@@ -26,7 +26,7 @@ import (
 func TestStatusCommand(t *testing.T) {
 	adminServer := flags.NewAdminServer(ports.PortToHostPort(2000))
 	v, _ := config.Viperize(adminServer.AddFlags)
-
+	// FIXME: I'm pretty sure the tests don't work now since cmd.Exec is exiting instead of returning an error.
 	cmd := Command(v, 2000)
 	err := cmd.Execute()
 	assert.EqualError(t, err, "no default admin port available for status")
@@ -37,15 +37,6 @@ func TestStatusCommand(t *testing.T) {
 
 	cmd.ParseFlags([]string{"--admin.http.host-port=1337"})
 	err = cmd.Execute()
+	//FIXME: Can we test the given argument overrides the "built-in" 2000?
 	assert.NoError(t, err)
-	assert.NotNil(t, err)
 }
-
-// // Borrowed from: https://stackoverflow.com/a/26806093
-// func captureOutput(f func()) string {
-//     var buf bytes.Buffer
-//     log.SetOutput(&buf)
-//     f()
-//     log.SetOutput(os.Stderr)
-//     return buf.String()
-// }
