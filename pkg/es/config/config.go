@@ -77,6 +77,8 @@ type TagsAsFields struct {
 	DotReplacement string `mapstructure:"dot_replacement"`
 	// File path to tag keys which should be stored as object fields
 	File string `mapstructure:"config_file"`
+	// Comma Delimited list of tags to store as object fields
+	Include string `mapstructure:"include"`
 }
 
 // ClientBuilder creates new es.Client
@@ -217,6 +219,18 @@ func (c *Configuration) ApplyDefaults(source *Configuration) {
 	}
 	if !c.SnifferTLSEnabled {
 		c.SnifferTLSEnabled = source.SnifferTLSEnabled
+	}
+	if c.Tags.AllAsFields == false {
+		c.Tags.AllAsFields = source.Tags.AllAsFields
+	}
+	if c.Tags.DotReplacement == "" {
+		c.Tags.DotReplacement = source.Tags.DotReplacement
+	}
+	if c.Tags.Include == "" {
+		c.Tags.Include = source.Tags.Include
+	}
+	if c.Tags.File == "" {
+		c.Tags.File = source.Tags.File
 	}
 }
 
