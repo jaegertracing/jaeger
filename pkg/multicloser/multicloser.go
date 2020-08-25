@@ -31,6 +31,9 @@ var _ io.Closer = (*MultiCloser)(nil)
 func (m MultiCloser) Close() error {
 	var errs []error
 	for _, c := range m.closers {
+		if c == nil {
+			continue
+		}
 		err := c.Close()
 		if err != nil {
 			errs = append(errs, err)

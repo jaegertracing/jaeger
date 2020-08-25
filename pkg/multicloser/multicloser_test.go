@@ -39,6 +39,9 @@ func TestCloser(t *testing.T) {
 			closer:      Wrap(testCloser{fmt.Errorf(expectedErr)}, testCloser{fmt.Errorf(expectedErr)}),
 			expectedErr: fmt.Sprintf("[%v, %v]", expectedErr, expectedErr),
 		},
+		{
+			closer: Wrap(nil),
+		},
 	}
 	for _, test := range tests {
 		err := test.closer.Close()
