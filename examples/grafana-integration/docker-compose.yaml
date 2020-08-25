@@ -40,7 +40,8 @@ services:
     image: jaegertracing/example-hotrod:latest
     ports:
       - "8080:8080"
-    command: ["all"]
+      - "8083:8083"
+    command: ["-m", "prometheus","all"]
     environment:
       - JAEGER_AGENT_HOST=jaeger
       - JAEGER_AGENT_PORT=6831
@@ -49,3 +50,15 @@ services:
       options:
         loki-url: 'http://localhost:3100/api/prom/push'
 
+  prometheus:
+    image: prom/prometheus:v2.19.0
+    volumes:
+      - ./prometheus.yml:/etc/prometheus/prometheus.yml:ro
+    ports:
+      - 9090:9090
+    command:
+    - --config.file=/etc/prometheus/prometheus.yml
+    logging:
+      driver: loki
+      options:
+        loki-url: 'http://localhost:3100/api/prom/push'
