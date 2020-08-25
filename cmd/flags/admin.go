@@ -155,11 +155,6 @@ func (s *AdminServer) Close() error {
 	return s.server.Shutdown(context.Background())
 }
 
-// HostPort returns the admin server's host:port
-func (s *AdminServer) HostPort() string {
-	return s.adminHostPort
-}
-
 // URL return the admin servers URL
 func (s *AdminServer) URL() (string, error) {
 	adminListeningAddr := strings.SplitN(s.adminHostPort, ":", 2)
