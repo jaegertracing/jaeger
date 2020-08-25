@@ -56,6 +56,9 @@ func (f Factory) CreateDefaultConfig() configmodels.Processor {
 func (f Factory) GetTags() map[string]string {
 	tagsLegacy := flags.ParseJaegerTags(f.Viper.GetString(reporter.AgentTagsDeprecated))
 	tags := flags.ParseJaegerTags(f.Viper.GetString(resourceLabels))
+	if tags == nil {
+		return tagsLegacy
+	}
 	for k, v := range tagsLegacy {
 		if _, ok := tags[k]; !ok {
 			tags[k] = v
