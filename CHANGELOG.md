@@ -17,6 +17,10 @@ Changes by Version
 1.19.0 (2020-08-25)
 ------------------
 
+### Known Issues
+
+The pull request [#2297](https://github.com/jaegertracing/jaeger/pull/2297) aimed to add TLS support for the gRPC Query server but the flag registration is missing, so that this feature can't be used at the moment. A fix is planned for the next Jaeger version (1.20).
+
 ### Backend Changes
 
 #### New Features
