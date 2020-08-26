@@ -221,7 +221,7 @@ func (c *Configuration) ApplyDefaults(source *Configuration) {
 	if !c.SnifferTLSEnabled {
 		c.SnifferTLSEnabled = source.SnifferTLSEnabled
 	}
-	if c.Tags.AllAsFields == false {
+	if !c.Tags.AllAsFields {
 		c.Tags.AllAsFields = source.Tags.AllAsFields
 	}
 	if c.Tags.DotReplacement == "" {
