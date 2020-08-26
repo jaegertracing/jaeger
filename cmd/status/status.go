@@ -53,10 +53,11 @@ func Command(v *viper.Viper, adminPort int) *cobra.Command {
 			adminURL, _ = adminServer.URL()
 			resp, err := http.Get(adminURL)
 			if err != nil {
-				log.Printf("error: %v", err)
+				log.Printf("%s", err)
 				os.Exit(2)
 			}
-			log.Printf("ok: %v", resp)
+			// Q. Should we deserialize and make sure it's a valid JSON object before reporting success (or printing)?
+			log.Printf("%s", resp.Body)
 			os.Exit(0)
 		},
 	}
