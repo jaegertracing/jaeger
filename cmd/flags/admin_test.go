@@ -47,3 +47,28 @@ func TestAdminServerHandlesPortZero(t *testing.T) {
 	port, _ := strconv.Atoi(strings.Split(hostPort, ":")[3])
 	assert.Greater(t, port, 0)
 }
+
+func TestAdminServerParsesURL(t *testing.T) {
+	testTable := []struct {
+		input  string
+		output string
+		errstr string
+	}{
+		// success cases
+		{":1337", "http://localhost:1337", ""},
+		{"[2001:db8::1]:1337", "http://[2001:db8::1]:1337", ""},
+		// failure cases
+		{":13371337", "", "not a valid port"},
+		{":0", "", "port is unknown"},
+	}
+	for _, test := range testTable {
+		adm := NewAdminServer(test.input)
+		url, err := adm.URL()
+		if test.errstr == "" {
+			assert.NoError(t, err)
+			assert.Equal(t, test.output, url)
+		} else {
+			assert.EqualError(t, err, test.errstr)
+		}
+	}
+}

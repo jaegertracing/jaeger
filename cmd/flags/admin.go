@@ -156,18 +156,25 @@ func (s *AdminServer) Close() error {
 }
 
 // URL return the admin servers URL
+// FIXME: Parsing the s.adminHostPort should already be done, why do it again? Valid port
+// detection and the like should be handled during the argument parsing step. But I cannot figure out
+// how that is done (or if). Then should we drop any pretence of checking the values?
 func (s *AdminServer) URL() (string, error) {
-	adminListeningAddr := strings.SplitN(s.adminHostPort, ":", 2)
-	adminHost := adminListeningAddr[0]
+	// "localhost:8080" => (localhost, 8080)
+	portIndex := strings.LastIndex(s.adminHostPort, ":")
+	adminHost := s.adminHostPort[:portIndex]
+	adminPortStr := s.adminHostPort[portIndex+1:]
+
+	// Convert wildcard binds to localhost addresses for the purpose of our URL
 	if adminHost == "" || adminHost == "0.0.0.0" {
 		adminHost = "localhost"
 	}
-	adminPort, err := strconv.ParseInt(adminListeningAddr[1], 10, 16) // 2**16 or 65_535 is the maximum listening port
+	adminPort, err := strconv.ParseInt(adminPortStr, 10, 16) // 2**16 or 65_535 is the maximum listening port
 	if err != nil {
-		return "", fmt.Errorf("invalid port `%s`: %w", s.adminHostPort, err)
+		return "", fmt.Errorf("not a valid port")
 	}
 	if adminPort == 0 {
-		return "", fmt.Errorf("invalid port `%s`", s.adminHostPort)
+		return "", fmt.Errorf("port is unknown")
 	}
-	return fmt.Sprintf("http://%s:%d/", adminHost, adminPort), nil
+	return fmt.Sprintf("http://%s:%d", adminHost, adminPort), nil
 }
